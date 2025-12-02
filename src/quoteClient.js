@@ -213,6 +213,179 @@ export class MarketDataClient {
     };
     return map[period] ?? Period.Min_1;
   }
+
+  /**
+   * 判断标的是否为牛熊证（窝轮）
+   * @param {string} symbol 标的代码
+   * @returns {Promise<{isWarrant: boolean, warrantType: "BULL"|"BEAR"|null, strikePrice: number|null, underlyingSymbol: string|null}>}
+   */
+  async checkWarrantInfo(symbol) {
+    const ctx = await this._ctxPromise;
+    const normalizedSymbol = normalizeHKSymbol(symbol);
+    
+    try {
+      const [, statics] = await this._withRetry(
+        () =>
+          Promise.all([
+            ctx.quote([normalizedSymbol]),
+            ctx.staticInfo([normalizedSymbol]),
+          ]),
+        `获取 ${normalizedSymbol} 牛熊证信息`
+      );
+      
+      const staticInfo = statics?.[0];
+      if (!staticInfo) {
+        return {
+          isWarrant: false,
+          warrantType: null,
+          strikePrice: null,
+          underlyingSymbol: null,
+        };
+      }
+
+      // 尝试从staticInfo中判断是否为牛熊证
+      // 可能的字段：securityType, instrumentType, warrantType, etc.
+      const securityType = staticInfo.securityType ?? staticInfo.security_type ?? staticInfo.instrumentType ?? staticInfo.instrument_type ?? null;
+      const name = staticInfo.nameHk ?? staticInfo.nameCn ?? staticInfo.nameEn ?? "";
+      
+      // 判断是否为牛熊证：通过securityType或名称中包含"牛"、"熊"、"CALL"、"PUT"等关键词
+      let isWarrant = false;
+      let warrantType = null;
+      
+      if (securityType) {
+        const typeStr = String(securityType).toUpperCase();
+        if (typeStr.includes("WARRANT") || typeStr.includes("CBBC") || typeStr.includes("CALLABLE")) {
+          isWarrant = true;
+          // 判断是牛证还是熊证
+          if (typeStr.includes("BULL") || typeStr.includes("CALL")) {
+            warrantType = "BULL";
+          } else if (typeStr.includes("BEAR") || typeStr.includes("PUT")) {
+            warrantType = "BEAR";
+          }
+        }
+      }
+      
+      // 如果securityType无法判断，尝试从名称判断
+      if (!isWarrant && name) {
+        const nameStr = String(name).toUpperCase();
+        if (nameStr.includes("牛") || nameStr.includes("BULL") || nameStr.includes("CALL")) {
+          isWarrant = true;
+          warrantType = "BULL";
+        } else if (nameStr.includes("熊") || nameStr.includes("BEAR") || nameStr.includes("PUT")) {
+          isWarrant = true;
+          warrantType = "BEAR";
+        }
+      }
+
+      // 获取回收价（strike price / call price）
+      let strikePrice = null;
+      if (isWarrant) {
+        // 尝试多种可能的字段名
+        const strikeValue = staticInfo.strikePrice ?? staticInfo.strike_price ?? 
+                           staticInfo.callPrice ?? staticInfo.call_price ?? 
+                           staticInfo.callablePrice ?? staticInfo.callable_price ??
+                           staticInfo.strike ?? null;
+        if (strikeValue !== null && strikeValue !== undefined) {
+          const parsed = Number(strikeValue);
+          if (Number.isFinite(parsed) && parsed > 0) {
+            strikePrice = parsed;
+          }
+        }
+      }
+
+      // 获取相关资产代码（underlying symbol）
+      let underlyingSymbol = null;
+      if (isWarrant) {
+        const underlying = staticInfo.underlyingSymbol ?? staticInfo.underlying_symbol ?? 
+                          staticInfo.underlying ?? null;
+        if (underlying) {
+          underlyingSymbol = String(underlying);
+        }
+      }
+
+      return {
+        isWarrant,
+        warrantType,
+        strikePrice,
+        underlyingSymbol,
+        staticInfo, // 返回完整的staticInfo以便调试
+      };
+    } catch (err) {
+      console.error(
+        `[牛熊证检查] 获取标的 ${normalizedSymbol} 牛熊证信息时发生错误：`,
+        err?.message ?? err
+      );
+      // 出错时返回非牛熊证，避免阻止交易
+      return {
+        isWarrant: false,
+        warrantType: null,
+        strikePrice: null,
+        underlyingSymbol: null,
+      };
+    }
+  }
+
+  /**
+   * 获取牛熊证距离回收价的百分比
+   * @param {string} symbol 标的代码
+   * @param {number} underlyingPrice 相关资产的最新价格（如果为null，会尝试自动获取）
+   * @returns {Promise<{isWarrant: boolean, distanceToStrikePercent: number|null, warrantType: "BULL"|"BEAR"|null, strikePrice: number|null, underlyingPrice: number|null}>}
+   */
+  async getWarrantDistanceToStrike(symbol, underlyingPrice = null) {
+    const warrantInfo = await this.checkWarrantInfo(symbol);
+    
+    if (!warrantInfo.isWarrant || !warrantInfo.strikePrice) {
+      return {
+        isWarrant: false,
+        distanceToStrikePercent: null,
+        warrantType: null,
+        strikePrice: null,
+        underlyingPrice: null,
+      };
+    }
+
+    // 如果没有提供相关资产价格，尝试获取
+    let actualUnderlyingPrice = underlyingPrice;
+    if (actualUnderlyingPrice === null && warrantInfo.underlyingSymbol) {
+      try {
+        const underlyingQuote = await this.getLatestQuote(warrantInfo.underlyingSymbol);
+        actualUnderlyingPrice = underlyingQuote?.price ?? null;
+      } catch (err) {
+        console.warn(
+          `[牛熊证检查] 无法获取相关资产 ${warrantInfo.underlyingSymbol} 的价格：`,
+          err?.message ?? err
+        );
+      }
+    }
+
+    if (actualUnderlyingPrice === null || !Number.isFinite(actualUnderlyingPrice)) {
+      return {
+        isWarrant: true,
+        distanceToStrikePercent: null,
+        warrantType: warrantInfo.warrantType,
+        strikePrice: warrantInfo.strikePrice,
+        underlyingPrice: null,
+      };
+    }
+
+    // 计算距离回收价的百分比
+    let distanceToStrikePercent = null;
+    if (warrantInfo.warrantType === "BULL") {
+      // 牛证：距离回收价百分比 = (相关资产现价 - 回收价) / 回收价 * 100%
+      distanceToStrikePercent = ((actualUnderlyingPrice - warrantInfo.strikePrice) / warrantInfo.strikePrice) * 100;
+    } else if (warrantInfo.warrantType === "BEAR") {
+      // 熊证：距离回收价百分比 = (回收价 - 相关资产现价) / 回收价 * 100%
+      distanceToStrikePercent = ((warrantInfo.strikePrice - actualUnderlyingPrice) / warrantInfo.strikePrice) * 100;
+    }
+
+    return {
+      isWarrant: true,
+      distanceToStrikePercent: Number.isFinite(distanceToStrikePercent) ? distanceToStrikePercent : null,
+      warrantType: warrantInfo.warrantType,
+      strikePrice: warrantInfo.strikePrice,
+      underlyingPrice: actualUnderlyingPrice,
+    };
+  }
 }
 
 
