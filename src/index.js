@@ -413,7 +413,7 @@ async function runOnce({
   let finalSignals = [];
   
   if (shouldClearBeforeClose && isBeforeClose && canTradeNow && positions.length > 0) {
-    // 当日收盘前15分钟，清空所有持仓
+    // 当日收盘前15分钟，清空所有持仓（无论是做多标的持仓还是做空标的持仓）
     logger.info("[收盘清仓] 检测到当日收盘前15分钟（15:45-16:00），准备清空所有持仓");
     
     // 为每个持仓生成清仓信号
@@ -438,20 +438,30 @@ async function runOnce({
           lotSize = shortQuote.lotSize;
         }
         
-        // 做空持仓需要买入平仓，做多持仓需要卖出平仓
+        // 收盘前清仓逻辑：
+        // - 做多标的持仓：使用 SELL 信号 → OrderSide.Sell（卖出做多标的，清仓）
+        // - 做空标的持仓：使用 BUY 信号 → OrderSide.Sell（卖出做空标的，平空仓）
+        // 注意：虽然信号不同，但最终都是通过 OrderSide.Sell 来卖出持仓
+        const action = isShortPos ? "BUY" : "SELL";
+        const positionType = isShortPos ? "做空标的" : "做多标的";
+        
         clearSignals.push({
           symbol: pos.symbol,
-          action: isShortPos ? "BUY" : "SELL",
+          action: action,
           price: currentPrice, // 添加当前价格，用于增强限价单
           lotSize: lotSize, // 添加最小买卖单位
-          reason: "收盘前15分钟自动清仓",
+          reason: `收盘前15分钟自动清仓（${positionType}持仓）`,
         });
+        
+        logger.info(
+          `[收盘清仓] 生成清仓信号：${positionType} ${pos.symbol} 数量=${pos.availableQuantity} 操作=${action}`
+        );
       }
     }
     
     if (clearSignals.length > 0) {
       finalSignals = clearSignals;
-      logger.info(`[收盘清仓] 生成 ${clearSignals.length} 个清仓信号`);
+      logger.info(`[收盘清仓] 共生成 ${clearSignals.length} 个清仓信号，准备执行`);
     }
   } else if (signals.length > 0 && canTradeNow) {
     // 正常交易信号处理
