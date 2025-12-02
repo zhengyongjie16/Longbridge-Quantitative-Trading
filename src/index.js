@@ -124,8 +124,10 @@ async function runOnce({
       const formatNumber = (num, digits = 2) =>
         Number.isFinite(num) ? num.toFixed(digits) : String(num ?? "-");
       positions.forEach((pos) => {
+        const nameText = pos.symbolName ?? "-";
+        const codeText = normalizeHKSymbol(pos.symbol);
         logger.info(
-          `- [${pos.accountChannel}] ${pos.symbol}(${pos.symbolName ?? "-"}) 持仓=${formatNumber(
+          `- [${pos.accountChannel}] ${nameText}(${codeText}) 持仓=${formatNumber(
             pos.quantity,
             2
           )} 可用=${formatNumber(pos.availableQuantity, 2)} 成本价=${formatNumber(
@@ -199,6 +201,7 @@ async function runOnce({
     // 显示做多标的行情
     if (longQuote) {
       const nameText = longQuote.name ?? "-";
+      const codeText = normalizeHKSymbol(longSymbol);
       const priceText = Number.isFinite(longPrice)
         ? longPrice.toFixed(3)
         : longPrice ?? "-";
@@ -225,7 +228,7 @@ async function runOnce({
         }
       }
       logger.info(
-        `[做多] 标的 ${nameText}(${longSymbol}) 最新价=${priceText} 当日盈亏=${pnlText} (比例=${pctText}) 时间=${tsText}`
+        `[做多] 标的 ${nameText}(${codeText}) 最新价=${priceText} 当日盈亏=${pnlText} (比例=${pctText}) 时间=${tsText}`
       );
     } else {
       logger.warn(`未获取到做多标的行情。`);
@@ -234,6 +237,7 @@ async function runOnce({
     // 显示做空标的行情
     if (shortQuote) {
       const nameText = shortQuote.name ?? "-";
+      const codeText = normalizeHKSymbol(shortSymbol);
       const priceText = Number.isFinite(shortPrice)
         ? shortPrice.toFixed(3)
         : shortPrice ?? "-";
@@ -254,7 +258,7 @@ async function runOnce({
         pctText = `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`;
       }
       logger.info(
-        `[做空] 标的 ${nameText}(${shortSymbol}) 最新价=${priceText} 涨跌=${pctText} 时间=${tsText}`
+        `[做空] 标的 ${nameText}(${codeText}) 最新价=${priceText} 涨跌=${pctText} 时间=${tsText}`
       );
     } else {
       logger.warn(`未获取到做空标的行情。`);
@@ -310,18 +314,20 @@ async function runOnce({
     }
   }
   
-  // 根据新策略生成清仓信号（基于持仓成本价和指标条件）
-  const closeSignals = strategy.generateCloseSignals(
+  // 根据新策略生成交易信号（包含清仓和开仓信号）
+  const tradingSignals = strategy.generateCloseSignals(
     monitorSnapshot,
     longPosition,
     longQuote?.price ?? null,
     shortPosition,
-    shortQuote?.price ?? null
+    shortQuote?.price ?? null,
+    normalizedLongSymbol,
+    normalizedShortSymbol
   );
   
   // 检测信号变化
-  const currentSignalKey = closeSignals.length > 0
-    ? closeSignals.map(s => `${s.action}_${s.symbol}_${s.reason}`).join('|')
+  const currentSignalKey = tradingSignals.length > 0
+    ? tradingSignals.map(s => `${s.action}_${s.symbol}_${s.reason}`).join('|')
     : null;
   const lastSignalKey = lastState.signal;
   
@@ -337,30 +343,64 @@ async function runOnce({
       );
     }
     
-    if (closeSignals.length > 0) {
-      closeSignals.forEach(signal => {
-        const actionDesc = signal.action === "SELL" ? "清仓做多标的" : "清仓做空标的";
+    if (tradingSignals.length > 0) {
+      tradingSignals.forEach(signal => {
+        // 判断信号类型
+        const normalizedSigSymbol = normalizeHKSymbol(signal.symbol);
+        const isShortSymbol = normalizedSigSymbol === normalizedShortSymbol;
+        let actionDesc = "";
+        
+        if (signal.action === "SELL") {
+          if (isShortSymbol) {
+            actionDesc = "买入做空标的（做空）";
+          } else {
+            actionDesc = "清仓做多标的";
+          }
+        } else if (signal.action === "BUY") {
+          if (isShortSymbol) {
+            actionDesc = "清仓做空标的";
+          } else {
+            actionDesc = "买入做多标的（做多）";
+          }
+        }
+        
         logger.info(
-          `[清仓信号] ${actionDesc} ${signal.symbol} - ${signal.reason}`
+          `[交易信号] ${actionDesc} ${signal.symbol} - ${signal.reason}`
         );
       });
     } else {
-      logger.info(`[监控标的信号] ${monitorSymbolName}(${monitorSymbol}) 无清仓信号`);
+      logger.info(
+        `[监控标的信号] ${monitorSymbolName}(${normalizeHKSymbol(
+          monitorSymbol
+        )}) 无交易信号`
+      );
     }
     
     lastState.signal = currentSignalKey;
   }
   
-  // 使用新策略生成的清仓信号
-  const signals = closeSignals.map(signal => ({
-    ...signal,
-    price: signal.action === "SELL" 
-      ? (longQuote?.price ?? null)
-      : (shortQuote?.price ?? null),
-    lotSize: signal.action === "SELL"
-      ? (longQuote?.lotSize ?? null)
-      : (shortQuote?.lotSize ?? null),
-  }));
+  // 使用新策略生成的交易信号
+  const signals = tradingSignals.map(signal => {
+    const normalizedSigSymbol = normalizeHKSymbol(signal.symbol);
+    
+    // 确定价格和lotSize
+    let price = null;
+    let lotSize = null;
+    
+    if (normalizedSigSymbol === normalizedLongSymbol && longQuote) {
+      price = longQuote.price;
+      lotSize = longQuote.lotSize;
+    } else if (normalizedSigSymbol === normalizedShortSymbol && shortQuote) {
+      price = shortQuote.price;
+      lotSize = shortQuote.lotSize;
+    }
+    
+    return {
+      ...signal,
+      price,
+      lotSize,
+    };
+  });
 
   // 检查是否需要在收盘前15分钟清仓
   const shouldClearBeforeClose = TRADING_CONFIG.clearPositionsBeforeClose;
@@ -420,12 +460,65 @@ async function runOnce({
       const normalizedShortSymbol = normalizeHKSymbol(shortSymbol);
       
       let currentPrice = null;
+      let underlyingPrice = null;
       if (normalizedSigSymbol === normalizedLongSymbol && longQuote) {
         currentPrice = longQuote.price;
       } else if (normalizedSigSymbol === normalizedShortSymbol && shortQuote) {
         currentPrice = shortQuote.price;
       }
+
+      // 检查牛熊证风险（仅在买入时检查，卖出时不检查）
+      // 注意：所有操作均无卖空操作，做空是指买入做空标的而非卖空做空标的
+      // 
+      // 做多和做空操作根据监控标的信号产生：
+      //   - 监控标的产生 BUY 信号 → 买入做多标的（做多操作，需要检查牛熊证风险）
+      //   - 监控标的产生 SELL 信号 → 买入做空标的（做空操作，需要检查牛熊证风险）
+      // 
+      // 卖出操作（不检查牛熊证风险）：
+      //   - 卖出做多标的：根据持仓情况平仓（卖出做多标的）
+      //   - 卖出做空标的：根据持仓情况平空仓（卖出做空标的）
+      const isShortSymbol = normalizedSigSymbol === normalizedShortSymbol;
+      const isBuyAction = (isShortSymbol && sig.action === "SELL") || (!isShortSymbol && sig.action === "BUY");
       
+      if (isBuyAction) {
+        // 仅在买入时检查牛熊证风险
+        // 获取相关资产价格（如果是牛熊证，需要相关资产价格来计算距离回收价的百分比）
+        // 这里先尝试获取监控标的的价格作为相关资产价格
+        if (monitorQuote?.price) {
+          underlyingPrice = monitorQuote.price;
+        }
+        
+        const warrantRiskResult = await riskChecker.checkWarrantRisk(
+          sig.symbol,
+          marketDataClient,
+          underlyingPrice
+        );
+        
+        if (!warrantRiskResult.allowed) {
+          // 获取标的的中文名称
+          let sigName = sig.symbol;
+          if (normalizedSigSymbol === normalizedLongSymbol) {
+            sigName = longSymbolName;
+          } else if (normalizedSigSymbol === normalizedShortSymbol) {
+            sigName = shortSymbolName;
+          }
+          const codeText = normalizeHKSymbol(sig.symbol);
+          logger.warn(
+            `[牛熊证风险拦截] 信号被牛熊证风险控制拦截：${sigName}(${codeText}) ${sig.action} - ${warrantRiskResult.reason}`
+          );
+          continue; // 跳过这个信号，不加入finalSignals
+        } else if (warrantRiskResult.warrantInfo?.isWarrant) {
+          // 如果是牛熊证且风险检查通过，记录信息
+          const warrantType = warrantRiskResult.warrantInfo.warrantType === "BULL" ? "牛证" : "熊证";
+          const distancePercent = warrantRiskResult.warrantInfo.distanceToStrikePercent;
+          logger.info(
+            `[牛熊证风险检查] ${sig.symbol} 为${warrantType}，距离回收价百分比：${distancePercent?.toFixed(2) ?? "未知"}%，风险检查通过`
+          );
+        }
+      }
+      // 卖出操作（平仓）时不检查牛熊证风险
+      
+      // 基础风险检查
       const riskResult = riskChecker.checkBeforeOrder(
         account,
         positions,
@@ -446,8 +539,9 @@ async function runOnce({
         } else if (normalizedSigSymbol === normalizedShortSymbol) {
           sigName = shortSymbolName;
         }
+        const codeText = normalizeHKSymbol(sig.symbol);
         logger.warn(
-          `[风险拦截] 信号被风险控制拦截：${sigName}(${sig.symbol}) ${sig.action} - ${riskResult.reason}`
+          `[风险拦截] 信号被风险控制拦截：${sigName}(${codeText}) ${sig.action} - ${riskResult.reason}`
         );
       }
     }
@@ -468,8 +562,9 @@ async function runOnce({
       } else if (normalizedSigSymbol === normalizedShortSymbol) {
         sigName = shortSymbolName;
       }
+      const codeText = normalizeHKSymbol(sig.symbol);
       logger.info(
-        `[交易指令] 将对 ${sigName}(${sig.symbol}) 执行${targetAction}操作 - ${sig.reason}`
+        `[交易指令] 将对 ${sigName}(${codeText}) 执行${targetAction}操作 - ${sig.reason}`
       );
     }
   } else if (signals.length > 0 && !canTradeNow) {
@@ -511,17 +606,29 @@ async function main() {
   const trader = new Trader(config);
 
   // 获取标的的中文名称用于显示
-  const monitorQuote = await marketDataClient.getLatestQuote(TRADING_CONFIG.monitorSymbol).catch(() => null);
-  const longQuoteForName = await marketDataClient.getLatestQuote(TRADING_CONFIG.longSymbol).catch(() => null);
-  const shortQuoteForName = await marketDataClient.getLatestQuote(TRADING_CONFIG.shortSymbol).catch(() => null);
-  
+  const monitorQuote = await marketDataClient
+    .getLatestQuote(TRADING_CONFIG.monitorSymbol)
+    .catch(() => null);
+  const longQuoteForName = await marketDataClient
+    .getLatestQuote(TRADING_CONFIG.longSymbol)
+    .catch(() => null);
+  const shortQuoteForName = await marketDataClient
+    .getLatestQuote(TRADING_CONFIG.shortSymbol)
+    .catch(() => null);
+
   const monitorName = monitorQuote?.name ?? TRADING_CONFIG.monitorSymbol;
   const longName = longQuoteForName?.name ?? TRADING_CONFIG.longSymbol;
   const shortName = shortQuoteForName?.name ?? TRADING_CONFIG.shortSymbol;
-  logger.info(`监控标的: ${monitorName}(${TRADING_CONFIG.monitorSymbol})`);
-  logger.info(`做多标的: ${longName}(${TRADING_CONFIG.longSymbol})`);
-  logger.info(`做空标的: ${shortName}(${TRADING_CONFIG.shortSymbol})`);
-  logger.info("程序开始运行，无限循环监控（按 Ctrl+C 退出）");
+  logger.info(
+    `监控标的: ${monitorName}(${normalizeHKSymbol(TRADING_CONFIG.monitorSymbol)})`
+  );
+  logger.info(
+    `做多标的: ${longName}(${normalizeHKSymbol(TRADING_CONFIG.longSymbol)})`
+  );
+  logger.info(
+    `做空标的: ${shortName}(${normalizeHKSymbol(TRADING_CONFIG.shortSymbol)})`
+  );
+  logger.info("程序开始运行，在交易时段将进行实时监控和交易（按 Ctrl+C 退出）");
 
   // 记录上一次的数据状态，用于检测变化
   let lastState = {
