@@ -5,20 +5,36 @@ const safeDivide = (numerator, denominator, fallback = 0) =>
   denominator === 0 ? fallback : numerator / denominator;
 
 export function calculateRSI(closes, period) {
-  if (!closes || closes.length <= period) {
+  if (!closes || closes.length <= period || !Number.isFinite(period) || period <= 0) {
     return null;
   }
 
   let gains = 0;
   let losses = 0;
+  let validPairs = 0;
   const slice = closes.slice(-period - 1);
+  
   for (let i = 1; i < slice.length; i += 1) {
-    const diff = slice[i] - slice[i - 1];
+    const current = toNumber(slice[i]);
+    const previous = toNumber(slice[i - 1]);
+    
+    // 跳过无效数据
+    if (!Number.isFinite(current) || !Number.isFinite(previous)) {
+      continue;
+    }
+    
+    const diff = current - previous;
     if (diff >= 0) {
       gains += diff;
     } else {
       losses -= diff;
     }
+    validPairs++;
+  }
+
+  // 如果没有有效数据对，返回null
+  if (validPairs === 0) {
+    return null;
   }
 
   if (losses === 0) {
@@ -26,7 +42,10 @@ export function calculateRSI(closes, period) {
   }
 
   const rs = (gains / period) / (losses / period);
-  return 100 - 100 / (1 + rs);
+  const rsi = 100 - 100 / (1 + rs);
+  
+  // 验证RSI结果有效性
+  return Number.isFinite(rsi) ? rsi : null;
 }
 
 export function calculateVWAP(candles) {
@@ -36,12 +55,26 @@ export function calculateVWAP(candles) {
 
   let totalValue = 0;
   let totalVolume = 0;
+  let validCandles = 0;
 
   for (const candle of candles) {
     const close = toNumber(candle.close);
     const volume = toNumber(candle.volume);
+    
+    // 跳过无效数据
+    if (!Number.isFinite(close) || !Number.isFinite(volume) || volume < 0) {
+      continue;
+    }
+    
     totalValue += close * volume;
     totalVolume += volume;
+    validCandles++;
+  }
+
+  // 如果没有有效数据，返回最后一个收盘价
+  if (validCandles === 0 || totalVolume === 0) {
+    const lastClose = toNumber(candles.at(-1)?.close);
+    return Number.isFinite(lastClose) && lastClose > 0 ? lastClose : null;
   }
 
   return safeDivide(totalValue, totalVolume, toNumber(candles.at(-1)?.close));
@@ -57,12 +90,24 @@ export function calculateKDJ(candles, period = 9) {
 
   for (let i = period - 1; i < candles.length; i += 1) {
     const window = candles.slice(i - period + 1, i + 1);
-    const highs = window.map((c) => toNumber(c.high));
-    const lows = window.map((c) => toNumber(c.low));
-    const close = toNumber(window.at(-1).close);
+    const highs = window.map((c) => toNumber(c.high)).filter(v => Number.isFinite(v));
+    const lows = window.map((c) => toNumber(c.low)).filter(v => Number.isFinite(v));
+    const close = toNumber(window.at(-1)?.close);
+    
+    // 验证数据有效性
+    if (highs.length === 0 || lows.length === 0 || !Number.isFinite(close)) {
+      continue; // 跳过无效数据
+    }
+    
     const highestHigh = Math.max(...highs);
     const lowestLow = Math.min(...lows);
-    const range = highestHigh - lowestLow || 1;
+    const range = highestHigh - lowestLow;
+    
+    // 确保range不为0或NaN
+    if (!Number.isFinite(range) || range === 0) {
+      continue; // 跳过无效数据
+    }
+    
     const rsv = ((close - lowestLow) / range) * 100;
     k = (2 / 3) * k + (1 / 3) * rsv;
     d = (2 / 3) * d + (1 / 3) * k;

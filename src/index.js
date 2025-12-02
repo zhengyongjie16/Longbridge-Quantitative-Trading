@@ -277,10 +277,13 @@ async function runOnce({
     monitorSymbol,
     candlePeriod,
     candleCount
-  );
+  ).catch((err) => {
+    logger.error(`获取监控标的 ${monitorSymbol} K线数据失败`, err?.message ?? err);
+    return null;
+  });
 
   if (!monitorCandles || monitorCandles.length === 0) {
-    throw new Error(`未获取到监控标的 K 线数据`);
+    throw new Error(`未获取到监控标的 ${monitorSymbol} K 线数据`);
   }
   
   // 只计算监控标的的指标
@@ -592,7 +595,12 @@ async function runOnce({
 }
 
 async function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  const delay = Number(ms);
+  if (!Number.isFinite(delay) || delay < 0) {
+    logger.warn(`[sleep] 无效的延迟时间 ${ms}，使用默认值 1000ms`);
+    return new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  return new Promise((resolve) => setTimeout(resolve, delay));
 }
 
 async function main() {

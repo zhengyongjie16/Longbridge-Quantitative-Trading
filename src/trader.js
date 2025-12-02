@@ -75,7 +75,13 @@ function recordTrade(tradeRecord) {
       const content = fs.readFileSync(logFile, "utf-8");
       try {
         trades = JSON.parse(content);
+        // 确保解析结果是数组
+        if (!Array.isArray(trades)) {
+          logger.warn(`交易记录文件格式错误，重置为空数组: ${logFile}`);
+          trades = [];
+        }
       } catch (e) {
+        logger.warn(`解析交易记录文件失败，重置为空数组: ${logFile}`, e?.message ?? e);
         trades = [];
       }
     }
@@ -418,10 +424,10 @@ export class Trader {
           );
           const cancelSuccess = await this.cancelOrder(order.orderId);
           
-          // 只有撤销成功才重新委托
-          if (cancelSuccess && currentPrice < orderPrice) {
+          // 撤销成功后，以当前价格重新委托（买入订单价格越高越不利，需要重新委托）
+          if (cancelSuccess) {
             logger.info(
-              `[订单监控] 当前价格(${currentPrice.toFixed(3)}) 低于原委托价格(${orderPrice.toFixed(3)})，以当前价格重新委托`
+              `[订单监控] 订单撤销成功，以当前价格(${currentPrice.toFixed(3)})重新委托`
             );
             await this._resubmitOrderAtPrice(
               ctx,
@@ -430,13 +436,13 @@ export class Trader {
               longSymbol,
               shortSymbol
             );
-          } else if (!cancelSuccess) {
+          } else {
             logger.warn(
               `[订单监控] 订单 ${order.orderId} 撤销失败，跳过重新委托`
             );
           }
         } else if (currentPrice < orderPrice) {
-          // 当前价格低于委托价格，撤销原订单并以当前价格重新委托
+          // 当前价格低于委托价格，撤销原订单并以当前价格重新委托（更优价格）
           logger.info(
             `[订单监控] 买入订单 ${order.orderId} 当前价格(${currentPrice.toFixed(3)}) 低于委托价格(${orderPrice.toFixed(3)})，撤销并重新委托`
           );
@@ -465,10 +471,10 @@ export class Trader {
           );
           const cancelSuccess = await this.cancelOrder(order.orderId);
           
-          // 只有撤销成功才重新委托
-          if (cancelSuccess && currentPrice > orderPrice) {
+          // 撤销成功后，以当前价格重新委托（卖出订单价格越低越不利，需要重新委托）
+          if (cancelSuccess) {
             logger.info(
-              `[订单监控] 当前价格(${currentPrice.toFixed(3)}) 高于原委托价格(${orderPrice.toFixed(3)})，以当前价格重新委托`
+              `[订单监控] 订单撤销成功，以当前价格(${currentPrice.toFixed(3)})重新委托`
             );
             await this._resubmitOrderAtPrice(
               ctx,
@@ -477,13 +483,13 @@ export class Trader {
               longSymbol,
               shortSymbol
             );
-          } else if (!cancelSuccess) {
+          } else {
             logger.warn(
               `[订单监控] 订单 ${order.orderId} 撤销失败，跳过重新委托`
             );
           }
         } else if (currentPrice > orderPrice) {
-          // 当前价格高于委托价格，撤销原订单并以当前价格重新委托
+          // 当前价格高于委托价格，撤销原订单并以当前价格重新委托（更优价格）
           logger.info(
             `[订单监控] 卖出订单 ${order.orderId} 当前价格(${currentPrice.toFixed(3)}) 高于委托价格(${orderPrice.toFixed(3)})，撤销并重新委托`
           );
@@ -525,10 +531,28 @@ export class Trader {
     }
     
     // 计算剩余数量（原数量 - 已成交数量）
-    const remainingQty = originalOrder.quantity - originalOrder.executedQuantity;
+    const originalQty = Number(originalOrder.quantity) || 0;
+    const executedQty = Number(originalOrder.executedQuantity) || 0;
+    
+    // 验证数量有效性
+    if (!Number.isFinite(originalQty) || originalQty <= 0) {
+      logger.error(
+        `[重新委托失败] 订单 ${originalOrder.orderId} 原数量无效：${originalOrder.quantity}`
+      );
+      return;
+    }
+    
+    if (!Number.isFinite(executedQty) || executedQty < 0) {
+      logger.error(
+        `[重新委托失败] 订单 ${originalOrder.orderId} 已成交数量无效：${originalOrder.executedQuantity}`
+      );
+      return;
+    }
+    
+    const remainingQty = originalQty - executedQty;
     if (remainingQty <= 0) {
       logger.warn(
-        `[重新委托] 订单 ${originalOrder.orderId} 已全部成交，无需重新委托`
+        `[重新委托] 订单 ${originalOrder.orderId} 已全部成交（原数量=${originalQty}，已成交=${executedQty}），无需重新委托`
       );
       return;
     }
@@ -796,11 +820,20 @@ export class Trader {
         submittedQtyDecimal = fallbackQty;
       } else {
         const notional = Number(
-          targetNotional && Number.isFinite(Number(targetNotional))
+          targetNotional && Number.isFinite(Number(targetNotional)) && targetNotional > 0
             ? targetNotional
             : 5000
         );
         const priceNum = Number(pricingSource);
+        
+        // 验证价格有效性
+        if (!Number.isFinite(priceNum) || priceNum <= 0) {
+          logger.warn(
+            `[跳过订单] 价格无效，无法计算买入数量，symbol=${symbol}, price=${priceNum}`
+          );
+          return;
+        }
+        
         let rawQty = Math.floor(notional / priceNum);
         
         // 获取最小买卖单位（优先使用从API获取的值，其次使用配置值，最后使用默认值100）

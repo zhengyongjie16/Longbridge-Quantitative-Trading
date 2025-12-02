@@ -370,6 +370,17 @@ export class MarketDataClient {
 
     // 计算距离回收价的百分比
     let distanceToStrikePercent = null;
+    // 确保回收价不为0且有效
+    if (!Number.isFinite(warrantInfo.strikePrice) || warrantInfo.strikePrice <= 0) {
+      return {
+        isWarrant: true,
+        distanceToStrikePercent: null,
+        warrantType: warrantInfo.warrantType,
+        strikePrice: warrantInfo.strikePrice,
+        underlyingPrice: actualUnderlyingPrice,
+      };
+    }
+    
     if (warrantInfo.warrantType === "BULL") {
       // 牛证：距离回收价百分比 = (相关资产现价 - 回收价) / 回收价 * 100%
       distanceToStrikePercent = ((actualUnderlyingPrice - warrantInfo.strikePrice) / warrantInfo.strikePrice) * 100;
