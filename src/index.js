@@ -6,6 +6,7 @@ import { buildIndicatorSnapshot } from "./indicators.js";
 import { RiskChecker } from "./risk.js";
 import { TRADING_CONFIG } from "./config.trading.js";
 import { logger } from "./logger.js";
+import { validateAllConfig } from "./config.validator.js";
 
 /**
  * 规范化港股代码，自动添加 .HK 后缀（如果还没有）
@@ -604,6 +605,19 @@ async function sleep(ms) {
 }
 
 async function main() {
+  // 首先验证配置
+  try {
+    await validateAllConfig();
+  } catch (err) {
+    if (err.name === "ConfigValidationError") {
+      logger.error("程序启动失败：配置验证未通过");
+      process.exit(1);
+    } else {
+      logger.error("配置验证过程中发生错误", err);
+      process.exit(1);
+    }
+  }
+
   const config = createConfig();
   const candlePeriod = "1m";
   const candleCount = 200;
