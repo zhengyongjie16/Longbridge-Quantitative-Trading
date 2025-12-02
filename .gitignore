@@ -1,0 +1,39 @@
+# 依赖
+node_modules/
+package-lock.json
+
+# 日志文件
+logs/
+*.log
+
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE 配置
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 临时文件
+*.tmp
+*.temp
+.cache/
+
+# 敏感信息（如果有）
+*.key
+*.pem
+*.cert
+
+# 构建输出（如果有）
+dist/
+build/
+

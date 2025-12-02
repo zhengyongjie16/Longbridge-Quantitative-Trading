@@ -1,0 +1,19 @@
+{
+  "name": "longbridge-option-quant",
+  "version": "1.0.0",
+  "description": "基于 LongPort OpenAPI 的期权量化交易示例（Node.js）",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "setup-git": "node scripts/setup-git.js",
+    "auto-commit": "node scripts/auto-commit.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.0",
+    "longport": "^3.0.0"
+  }
+}
+
+
+
