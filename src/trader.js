@@ -9,6 +9,7 @@ import {
 import { createConfig } from "./config.js";
 import { TRADING_CONFIG } from "./config.trading.js";
 import { logger } from "./logger.js";
+import { SignalType } from "./signalTypes.js";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -593,13 +594,11 @@ export class Trader {
     };
     
     // 定义操作描述（在 try-catch 外部，以便错误处理时使用）
-    const actionDesc = isShortSymbol
-      ? originalOrder.side === OrderSide.Buy
-        ? "买入做空标的（做空）"
-        : "卖出做空标的（平空仓）"
-      : originalOrder.side === OrderSide.Buy
-      ? "买入做多标的（做多）"
-      : "卖出做多标的（清仓）";
+    const actionDesc = this._getActionDescription(
+      null, // 重新委托时没有信号类型
+      isShortSymbol,
+      originalOrder.side
+    );
     
     try {
       const resp = await ctx.submitOrder(orderPayload);
@@ -651,16 +650,15 @@ export class Trader {
       );
       
       // 记录失败交易到文件
+      const failedActionDesc = this._getActionDescription(
+        null, // 重新委托时没有信号类型
+        isShortSymbol,
+        originalOrder.side
+      );
       recordTrade({
         orderId: "FAILED",
         symbol: originalOrder.symbol,
-        action: isShortSymbol
-          ? originalOrder.side === OrderSide.Buy
-            ? "买入做空标的（做空）"
-            : "卖出做空标的（平空仓）"
-          : originalOrder.side === OrderSide.Buy
-          ? "买入做多标的（做多）"
-          : "卖出做多标的（清仓）",
+        action: failedActionDesc,
         side: originalOrder.side === OrderSide.Buy ? "BUY" : "SELL",
         quantity: String(adjustedQty),
         price: String(newPrice),
@@ -703,11 +701,42 @@ export class Trader {
   }
 
   /**
+   * 根据信号类型和订单方向获取操作描述
+   * @private
+   */
+  _getActionDescription(signalAction, isShortSymbol, side) {
+    if (signalAction === SignalType.BUYCALL) {
+      return "买入做多标的（做多）";
+    }
+    if (signalAction === SignalType.SELLCALL) {
+      return "卖出做多标的（清仓）";
+    }
+    if (signalAction === SignalType.BUYPUT) {
+      return "买入做空标的（做空）";
+    }
+    if (signalAction === SignalType.SELLPUT) {
+      return "卖出做空标的（平空仓）";
+    }
+    
+    // 兼容旧代码（如果没有信号类型，根据 side 判断）
+    if (isShortSymbol) {
+      return side === OrderSide.Buy
+        ? "买入做空标的（做空）"
+        : "卖出做空标的（平空仓）";
+    }
+    return side === OrderSide.Buy
+      ? "买入做多标的（做多）"
+      : "卖出做多标的（清仓）";
+  }
+
+  /**
    * 根据策略信号提交订单。支持做多和做空标的：
-   * - 做多标的：BUY=买入做多标的（做多），SELL=卖出做多标的（清仓）
-   * - 做空标的：SELL=买入做空标的（做空），BUY=卖出做空标的（平空仓）
+   * - BUYCALL: 买入做多标的（做多）
+   * - SELLCALL: 卖出做多标的（清仓）
+   * - BUYPUT: 买入做空标的（做空）
+   * - SELLPUT: 卖出做空标的（平空仓）
    *
-   * @param {{symbol: string, action: "BUY" | "SELL" | "HOLD", reason: string}[]} signals
+   * @param {{symbol: string, action: string, reason: string}[]} signals
    */
   async executeSignals(signals) {
     const ctx = await this._ctxPromise;
@@ -715,8 +744,33 @@ export class Trader {
     const shortSymbol = normalizeHKSymbol(TRADING_CONFIG.shortSymbol);
 
     for (const s of signals) {
-      if (s.action === "HOLD") {
-        logger.info(`[HOLD] ${s.symbol} - ${s.reason}`);
+      // 验证信号对象
+      if (!s || typeof s !== "object") {
+        logger.warn(`[跳过信号] 无效的信号对象: ${JSON.stringify(s)}`);
+        continue;
+      }
+
+      if (!s.symbol || typeof s.symbol !== "string") {
+        logger.warn(`[跳过信号] 信号缺少有效的标的代码: ${JSON.stringify(s)}`);
+        continue;
+      }
+
+      if (s.action === SignalType.HOLD) {
+        logger.info(`[HOLD] ${s.symbol} - ${s.reason || "持有"}`);
+        continue;
+      }
+
+      // 验证信号类型
+      const validActions = [
+        SignalType.BUYCALL,
+        SignalType.SELLCALL,
+        SignalType.BUYPUT,
+        SignalType.SELLPUT,
+      ];
+      if (!validActions.includes(s.action)) {
+        logger.warn(
+          `[跳过信号] 未知的信号类型: ${s.action}, 标的: ${s.symbol}`
+        );
         continue;
       }
 
@@ -734,33 +788,57 @@ export class Trader {
         continue;
       }
 
-      if (isShortSymbol) {
-        // 做空标的：SELL信号=买入做空标的（做空），BUY信号=卖出做空标的（平空仓）
-        const actualAction = s.action === "SELL" ? "买入做空标的（做空）" : "卖出做空标的（平空仓）";
-        logger.info(
-          `[交易计划] ${actualAction} ${targetSymbol} - ${s.reason}`
-        );
+      // 根据信号类型显示操作描述
+      let actualAction = "";
+      if (s.action === SignalType.BUYCALL) {
+        actualAction = "买入做多标的（做多）";
+      } else if (s.action === SignalType.SELLCALL) {
+        actualAction = "卖出做多标的（清仓）";
+      } else if (s.action === SignalType.BUYPUT) {
+        actualAction = "买入做空标的（做空）";
+      } else if (s.action === SignalType.SELLPUT) {
+        actualAction = "卖出做空标的（平空仓）";
       } else {
-        // 做多标的：BUY信号=买入做多标的（做多），SELL信号=卖出做多标的（清仓）
-        const actualAction = s.action === "BUY" ? "买入做多标的（做多）" : "卖出做多标的（清仓）";
-        logger.info(
-          `[交易计划] ${actualAction} ${targetSymbol} - ${s.reason}`
-        );
+        actualAction = `未知操作(${s.action})`;
       }
+      
+      logger.info(
+        `[交易计划] ${actualAction} ${targetSymbol} - ${s.reason || "策略信号"}`
+      );
 
       await this._submitTargetOrder(ctx, s, targetSymbol, isShortSymbol);
     }
   }
 
   async _submitTargetOrder(ctx, signal, targetSymbol, isShortSymbol = false) {
-    // 对于做空标的：SELL信号=买入做空标的（做空），BUY信号=卖出做空标的（平空仓）
-    // 对于做多标的：BUY信号=买入做多标的（做多），SELL信号=卖出做多标的（清仓）
+    // 验证信号对象
+    if (!signal || typeof signal !== "object") {
+      logger.error(`[订单提交] 无效的信号对象: ${JSON.stringify(signal)}`);
+      return;
+    }
+
+    if (!signal.symbol || typeof signal.symbol !== "string") {
+      logger.error(`[订单提交] 信号缺少有效的标的代码: ${JSON.stringify(signal)}`);
+      return;
+    }
+
+    // 根据信号类型转换为订单方向
+    // BUYCALL: 买入做多标的 → OrderSide.Buy
+    // SELLCALL: 卖出做多标的 → OrderSide.Sell
+    // BUYPUT: 买入做空标的 → OrderSide.Buy
+    // SELLPUT: 卖出做空标的 → OrderSide.Sell
     let side;
-    if (isShortSymbol) {
-      // 做空标的：SELL信号→买入（做空），BUY信号→卖出（平空仓）
-      side = signal.action === "SELL" ? OrderSide.Buy : OrderSide.Sell;
+    if (signal.action === SignalType.BUYCALL) {
+      side = OrderSide.Buy; // 买入做多标的
+    } else if (signal.action === SignalType.SELLCALL) {
+      side = OrderSide.Sell; // 卖出做多标的
+    } else if (signal.action === SignalType.BUYPUT) {
+      side = OrderSide.Buy; // 买入做空标的（做空）
+    } else if (signal.action === SignalType.SELLPUT) {
+      side = OrderSide.Sell; // 卖出做空标的（平空仓）
     } else {
-      side = signal.action === "BUY" ? OrderSide.Buy : OrderSide.Sell;
+      logger.error(`[订单提交] 未知的信号类型: ${signal.action}, 标的: ${signal.symbol}`);
+      return;
     }
 
     const {
@@ -777,8 +855,8 @@ export class Trader {
     
     // 判断是否需要清仓（平仓）
     const needClosePosition = 
-      (isShortSymbol && side === OrderSide.Sell) || // 做空标的的BUY信号=卖出做空标的（平空仓）
-      (!isShortSymbol && side === OrderSide.Sell); // 做多标的的SELL信号=卖出做多标的（清仓）
+      signal.action === SignalType.SELLCALL || // 卖出做多标的（清仓）
+      signal.action === SignalType.SELLPUT;    // 卖出做空标的（平空仓）
     
     if (needClosePosition) {
       // 平仓：按当前持仓可用数量全部清仓
@@ -786,10 +864,13 @@ export class Trader {
       const channels = resp?.channels ?? [];
       let totalAvailable = 0;
       for (const ch of channels) {
-        const positions = ch.positions ?? [];
+        const positions = Array.isArray(ch.positions) ? ch.positions : [];
         for (const pos of positions) {
-          if (pos.symbol === symbol) {
-            totalAvailable += decimalToNumber(pos.availableQuantity);
+          if (pos && pos.symbol === symbol && pos.availableQuantity) {
+            const qty = decimalToNumber(pos.availableQuantity);
+            if (Number.isFinite(qty) && qty > 0) {
+              totalAvailable += qty;
+            }
           }
         }
       }
@@ -904,13 +985,13 @@ export class Trader {
       const resp = await ctx.submitOrder(orderPayload);
       const orderId =
         resp?.orderId ?? resp?.toString?.() ?? resp ?? "UNKNOWN_ORDER_ID";
-      const actionDesc = isShortSymbol
-        ? side === OrderSide.Buy
-          ? "买入做空标的（做空）"
-          : "卖出做空标的（平空仓）"
-        : side === OrderSide.Buy
-        ? "买入做多标的（做多）"
-        : "卖出做多标的（清仓）";
+      
+      // 根据信号类型确定操作描述
+      const actionDesc = this._getActionDescription(
+        signal.action,
+        isShortSymbol,
+        side
+      );
       
       logger.info(
         `[订单提交成功] ${actionDesc} ${orderPayload.symbol} 数量=${orderPayload.submittedQuantity.toString()} 订单ID=${orderId}`
@@ -924,7 +1005,7 @@ export class Trader {
         orderId: String(orderId),
         symbol: orderPayload.symbol,
         action: actionDesc,
-        side: side === OrderSide.Buy ? "BUY" : "SELL",
+        side: signal.action || (side === OrderSide.Buy ? "BUY" : "SELL"),
         quantity: orderPayload.submittedQuantity.toString(),
         price: orderPayload.submittedPrice?.toString() || "市价",
         orderType: orderType === OrderType.MO ? "市价单" : "限价单",
@@ -932,21 +1013,19 @@ export class Trader {
         reason: signal.reason || "策略信号",
       });
     } catch (err) {
-      const actionDesc = isShortSymbol
-        ? side === OrderSide.Buy
-          ? "买入做空标的（做空）"
-          : "卖出做空标的（平空仓）"
-        : side === OrderSide.Buy
-        ? "买入做多标的（做多）"
-        : "卖出做多标的（清仓）";
+      // 根据信号类型确定操作描述
+      const actionDesc = this._getActionDescription(
+        signal.action,
+        isShortSymbol,
+        side
+      );
       
       const errorMessage = err?.message ?? String(err);
       const errorStr = String(errorMessage).toLowerCase();
       
       // 检查是否为做空不支持的错误（注意：做空是买入做空标的，所以检查买入订单）
       const isShortSellingNotSupported = 
-        isShortSymbol && 
-        side === OrderSide.Buy && 
+        signal.action === SignalType.BUYPUT && 
         (errorStr.includes("does not support short selling") ||
          errorStr.includes("不支持做空") ||
          errorStr.includes("short selling") ||
@@ -976,7 +1055,7 @@ export class Trader {
         orderId: "FAILED",
         symbol: orderPayload.symbol,
         action: actionDesc,
-        side: side === OrderSide.Buy ? "BUY" : "SELL",
+        side: signal.action || (side === OrderSide.Buy ? "BUY" : "SELL"),
         quantity: orderPayload.submittedQuantity.toString(),
         price: orderPayload.submittedPrice?.toString() || "市价",
         orderType: orderType === OrderType.MO ? "市价单" : "限价单",

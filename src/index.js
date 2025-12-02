@@ -7,6 +7,7 @@ import { RiskChecker } from "./risk.js";
 import { TRADING_CONFIG } from "./config.trading.js";
 import { logger } from "./logger.js";
 import { validateAllConfig } from "./config.validator.js";
+import { SignalType } from "./signalTypes.js";
 
 /**
  * 规范化港股代码，自动添加 .HK 后缀（如果还没有）
@@ -104,8 +105,11 @@ async function runOnce({
   const accountKey = account 
     ? `${account.totalCash.toFixed(2)}_${account.netAssets.toFixed(2)}_${account.positionValue.toFixed(2)}`
     : null;
-  const positionsKey = positions.length > 0
-    ? positions.map(p => `${p.symbol}_${p.quantity}_${p.availableQuantity}`).join('|')
+  const positionsKey = Array.isArray(positions) && positions.length > 0
+    ? positions
+        .filter(p => p?.symbol) // 过滤无效持仓
+        .map(p => `${p.symbol}_${p.quantity}_${p.availableQuantity}`)
+        .join('|')
     : 'empty';
   const stateKey = `${accountKey}_${positionsKey}`;
   
@@ -120,7 +124,7 @@ async function runOnce({
         )} 持仓市值≈${account.positionValue.toFixed(2)}`
       );
     }
-    if (positions.length > 0) {
+    if (Array.isArray(positions) && positions.length > 0) {
       logger.info("股票持仓：");
       const formatNumber = (num, digits = 2) =>
         Number.isFinite(num) ? num.toFixed(digits) : String(num ?? "-");
@@ -297,24 +301,39 @@ async function runOnce({
   let longPosition = null;
   let shortPosition = null;
   
-  for (const pos of positions) {
-    const normalizedPosSymbol = pos.symbol.includes(".") 
-      ? pos.symbol 
-      : `${pos.symbol}.HK`;
-    if (normalizedPosSymbol === normalizedLongSymbol && pos.availableQuantity > 0) {
-      longPosition = {
-        symbol: pos.symbol,
-        costPrice: pos.costPrice,
-        quantity: pos.quantity,
-        availableQuantity: pos.availableQuantity,
-      };
-    } else if (normalizedPosSymbol === normalizedShortSymbol && pos.availableQuantity > 0) {
-      shortPosition = {
-        symbol: pos.symbol,
-        costPrice: pos.costPrice,
-        quantity: pos.quantity,
-        availableQuantity: pos.availableQuantity,
-      };
+  // 验证 positions 是数组
+  if (Array.isArray(positions)) {
+    for (const pos of positions) {
+      // 验证持仓对象有效性
+      if (!pos?.symbol || typeof pos.symbol !== "string") {
+        continue; // 跳过无效持仓
+      }
+      
+      const normalizedPosSymbol = pos.symbol.includes(".") 
+        ? pos.symbol 
+        : `${pos.symbol}.HK`;
+      
+      // 验证可用数量有效性
+      const availableQty = Number(pos.availableQuantity) || 0;
+      if (!Number.isFinite(availableQty) || availableQty <= 0) {
+        continue; // 跳过无效或零持仓
+      }
+      
+      if (normalizedPosSymbol === normalizedLongSymbol) {
+        longPosition = {
+          symbol: pos.symbol,
+          costPrice: Number(pos.costPrice) || 0,
+          quantity: Number(pos.quantity) || 0,
+          availableQuantity: availableQty,
+        };
+      } else if (normalizedPosSymbol === normalizedShortSymbol) {
+        shortPosition = {
+          symbol: pos.symbol,
+          costPrice: Number(pos.costPrice) || 0,
+          quantity: Number(pos.quantity) || 0,
+          availableQuantity: availableQty,
+        };
+      }
     }
   }
   
@@ -330,8 +349,16 @@ async function runOnce({
   );
   
   // 检测信号变化
-  const currentSignalKey = tradingSignals.length > 0
-    ? tradingSignals.map(s => `${s.action}_${s.symbol}_${s.reason}`).join('|')
+  // 验证信号数组的有效性
+  const validSignals = tradingSignals.filter(s => 
+    s?.symbol && 
+    s?.action && 
+    (s.action === SignalType.BUYCALL || s.action === SignalType.SELLCALL || 
+     s.action === SignalType.BUYPUT || s.action === SignalType.SELLPUT)
+  );
+  
+  const currentSignalKey = validSignals.length > 0
+    ? validSignals.map(s => `${s.action}_${s.symbol}_${s.reason || ""}`).join('|')
     : null;
   const lastSignalKey = lastState.signal;
   
@@ -347,29 +374,25 @@ async function runOnce({
       );
     }
     
-    if (tradingSignals.length > 0) {
-      tradingSignals.forEach(signal => {
+    if (validSignals.length > 0) {
+      validSignals.forEach(signal => {
         // 判断信号类型
-        const normalizedSigSymbol = normalizeHKSymbol(signal.symbol);
-        const isShortSymbol = normalizedSigSymbol === normalizedShortSymbol;
         let actionDesc = "";
         
-        if (signal.action === "SELL") {
-          if (isShortSymbol) {
-            actionDesc = "买入做空标的（做空）";
-          } else {
-            actionDesc = "清仓做多标的";
-          }
-        } else if (signal.action === "BUY") {
-          if (isShortSymbol) {
-            actionDesc = "清仓做空标的";
-          } else {
-            actionDesc = "买入做多标的（做多）";
-          }
+        if (signal.action === SignalType.BUYCALL) {
+          actionDesc = "买入做多标的（做多）";
+        } else if (signal.action === SignalType.SELLCALL) {
+          actionDesc = "卖出做多标的（清仓）";
+        } else if (signal.action === SignalType.BUYPUT) {
+          actionDesc = "买入做空标的（做空）";
+        } else if (signal.action === SignalType.SELLPUT) {
+          actionDesc = "卖出做空标的（平空仓）";
+        } else {
+          actionDesc = `未知操作(${signal.action})`;
         }
         
         logger.info(
-          `[交易信号] ${actionDesc} ${signal.symbol} - ${signal.reason}`
+          `[交易信号] ${actionDesc} ${signal.symbol} - ${signal.reason || "策略信号"}`
         );
       });
     } else {
@@ -384,27 +407,46 @@ async function runOnce({
   }
   
   // 使用新策略生成的交易信号
-  const signals = tradingSignals.map(signal => {
-    const normalizedSigSymbol = normalizeHKSymbol(signal.symbol);
-    
-    // 确定价格和lotSize
-    let price = null;
-    let lotSize = null;
-    
-    if (normalizedSigSymbol === normalizedLongSymbol && longQuote) {
-      price = longQuote.price;
-      lotSize = longQuote.lotSize;
-    } else if (normalizedSigSymbol === normalizedShortSymbol && shortQuote) {
-      price = shortQuote.price;
-      lotSize = shortQuote.lotSize;
-    }
-    
-    return {
-      ...signal,
-      price,
-      lotSize,
-    };
-  });
+  // 过滤并验证信号，只处理有效的信号
+  const signals = tradingSignals
+    .filter(signal => {
+      if (!signal?.symbol || !signal?.action) {
+        logger.warn(`[跳过信号] 无效的信号对象: ${JSON.stringify(signal)}`);
+        return false;
+      }
+      const validActions = [
+        SignalType.BUYCALL,
+        SignalType.SELLCALL,
+        SignalType.BUYPUT,
+        SignalType.SELLPUT,
+      ];
+      if (!validActions.includes(signal.action)) {
+        logger.warn(`[跳过信号] 未知的信号类型: ${signal.action}, 标的: ${signal.symbol}`);
+        return false;
+      }
+      return true;
+    })
+    .map(signal => {
+      const normalizedSigSymbol = normalizeHKSymbol(signal.symbol);
+      
+      // 确定价格和lotSize
+      let price = null;
+      let lotSize = null;
+      
+      if (normalizedSigSymbol === normalizedLongSymbol && longQuote) {
+        price = longQuote.price;
+        lotSize = longQuote.lotSize;
+      } else if (normalizedSigSymbol === normalizedShortSymbol && shortQuote) {
+        price = shortQuote.price;
+        lotSize = shortQuote.lotSize;
+      }
+      
+      return {
+        ...signal,
+        price,
+        lotSize,
+      };
+    });
 
   // 检查是否需要在收盘前15分钟清仓
   const shouldClearBeforeClose = TRADING_CONFIG.clearPositionsBeforeClose;
@@ -412,7 +454,7 @@ async function runOnce({
   
   let finalSignals = [];
   
-  if (shouldClearBeforeClose && isBeforeClose && canTradeNow && positions.length > 0) {
+  if (shouldClearBeforeClose && isBeforeClose && canTradeNow && Array.isArray(positions) && positions.length > 0) {
     // 当日收盘前15分钟，清空所有持仓（无论是做多标的持仓还是做空标的持仓）
     logger.info("[收盘清仓] 检测到当日收盘前15分钟（15:45-16:00），准备清空所有持仓");
     
@@ -420,8 +462,19 @@ async function runOnce({
     const clearSignals = [];
     const normalizedLongSymbol = normalizeHKSymbol(longSymbol);
     const normalizedShortSymbol = normalizeHKSymbol(shortSymbol);
-    for (const pos of positions) {
-      if (pos.availableQuantity > 0) {
+    // 验证 positions 是数组
+    if (Array.isArray(positions)) {
+      for (const pos of positions) {
+        // 验证持仓对象有效性
+        if (!pos || !pos.symbol || typeof pos.symbol !== "string") {
+          continue; // 跳过无效持仓
+        }
+        
+        const availableQty = Number(pos.availableQuantity) || 0;
+        if (!Number.isFinite(availableQty) || availableQty <= 0) {
+          continue; // 跳过无效或零持仓
+        }
+        
         const normalizedPosSymbol = pos.symbol.includes(".") 
           ? pos.symbol 
           : `${pos.symbol}.HK`;
@@ -439,10 +492,9 @@ async function runOnce({
         }
         
         // 收盘前清仓逻辑：
-        // - 做多标的持仓：使用 SELL 信号 → OrderSide.Sell（卖出做多标的，清仓）
-        // - 做空标的持仓：使用 BUY 信号 → OrderSide.Sell（卖出做空标的，平空仓）
-        // 注意：虽然信号不同，但最终都是通过 OrderSide.Sell 来卖出持仓
-        const action = isShortPos ? "BUY" : "SELL";
+        // - 做多标的持仓：使用 SELLCALL 信号 → OrderSide.Sell（卖出做多标的，清仓）
+        // - 做空标的持仓：使用 SELLPUT 信号 → OrderSide.Sell（卖出做空标的，平空仓）
+        const action = isShortPos ? SignalType.SELLPUT : SignalType.SELLCALL;
         const positionType = isShortPos ? "做空标的" : "做多标的";
         
         clearSignals.push({
@@ -454,7 +506,7 @@ async function runOnce({
         });
         
         logger.info(
-          `[收盘清仓] 生成清仓信号：${positionType} ${pos.symbol} 数量=${pos.availableQuantity} 操作=${action}`
+          `[收盘清仓] 生成清仓信号：${positionType} ${pos.symbol} 数量=${availableQty} 操作=${action}`
         );
       }
     }
@@ -485,14 +537,13 @@ async function runOnce({
       // 注意：所有操作均无卖空操作，做空是指买入做空标的而非卖空做空标的
       // 
       // 做多和做空操作根据监控标的信号产生：
-      //   - 监控标的产生 BUY 信号 → 买入做多标的（做多操作，需要检查牛熊证风险）
-      //   - 监控标的产生 SELL 信号 → 买入做空标的（做空操作，需要检查牛熊证风险）
+      //   - BUYCALL → 买入做多标的（做多操作，需要检查牛熊证风险）
+      //   - BUYPUT → 买入做空标的（做空操作，需要检查牛熊证风险）
       // 
       // 卖出操作（不检查牛熊证风险）：
-      //   - 卖出做多标的：根据持仓情况平仓（卖出做多标的）
-      //   - 卖出做空标的：根据持仓情况平空仓（卖出做空标的）
-      const isShortSymbol = normalizedSigSymbol === normalizedShortSymbol;
-      const isBuyAction = (isShortSymbol && sig.action === "SELL") || (!isShortSymbol && sig.action === "BUY");
+      //   - SELLCALL → 卖出做多标的（清仓）
+      //   - SELLPUT → 卖出做空标的（平空仓）
+      const isBuyAction = sig.action === SignalType.BUYCALL || sig.action === SignalType.BUYPUT;
       
       if (isBuyAction) {
         // 仅在买入时检查牛熊证风险
@@ -565,7 +616,12 @@ async function runOnce({
   if (finalSignals.length > 0) {
     hasChange = true;
     for (const sig of finalSignals) {
-      const targetAction = sig.action === "BUY" ? "买入" : "卖出";
+      let targetAction = "未知";
+      if (sig.action === SignalType.BUYCALL || sig.action === SignalType.BUYPUT) {
+        targetAction = "买入";
+      } else if (sig.action === SignalType.SELLCALL || sig.action === SignalType.SELLPUT) {
+        targetAction = "卖出";
+      }
       // 获取标的的中文名称
       const normalizedSigSymbol = normalizeHKSymbol(sig.symbol);
       const normalizedLongSymbol = normalizeHKSymbol(longSymbol);

@@ -1,13 +1,15 @@
+import { SignalType } from "./signalTypes.js";
+
 /**
  * 恒生指数多指标策略：
  * - 监控 RSI6、RSI12、KDJ、成交均价（VWAP）
  * - 基于持仓成本价和指标条件生成清仓信号和开仓信号
  * 
  * 策略逻辑：
- * 1. 买入做多标的：RSI6<20, RSI12<20, KDJ.D<20, KDJ.J<0 满足3个以上，且监控标的价格<VWAP
- * 2. 卖出做多标的：RSI6>80, RSI12>80, KDJ.D>80, KDJ.J>100 满足3个以上，且做多标的价格>持仓成本价，立即清空所有做多标的持仓
- * 3. 买入做空标的：RSI6>80, RSI12>80, KDJ.D>80, KDJ.J>100 满足3个以上，且监控标的价格>VWAP
- * 4. 卖出做空标的：RSI6<20, RSI12<20, KDJ.D<20, KDJ.J<0 满足3个以上，且做空标的价格>持仓成本价，立即清空所有做空标的持仓（注意不是卖空）
+ * 1. 买入做多标的（BUYCALL）：RSI6<20, RSI12<20, KDJ.D<20, KDJ.J<0 满足3个以上，且监控标的价格<VWAP
+ * 2. 卖出做多标的（SELLCALL）：RSI6>80, RSI12>80, KDJ.D>80, KDJ.J>100 满足3个以上，且做多标的价格>持仓成本价，立即清空所有做多标的持仓
+ * 3. 买入做空标的（BUYPUT）：RSI6>80, RSI12>80, KDJ.D>80, KDJ.J>100 满足3个以上，且监控标的价格>VWAP
+ * 4. 卖出做空标的（SELLPUT）：RSI6<20, RSI12<20, KDJ.D<20, KDJ.J<0 满足3个以上，且做空标的价格>持仓成本价，立即清空所有做空标的持仓（注意不是卖空）
  */
 export class HangSengMultiIndicatorStrategy {
   constructor({
@@ -93,7 +95,7 @@ export class HangSengMultiIndicatorStrategy {
     ) {
       signals.push({
         symbol: longSymbol,
-        action: "BUY", // 买入做多标的（做多操作）
+        action: SignalType.BUYCALL, // 买入做多标的（做多操作）
         reason: `监控标的 RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(1)})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(1)}) 中至少 3 项满足买入条件，且监控标的价格(${monitorPrice.toFixed(3)}) < VWAP(${vwap.toFixed(3)})，买入做多标的`,
       });
     }
@@ -102,15 +104,21 @@ export class HangSengMultiIndicatorStrategy {
     // 条件：RSI6 > 80, RSI12 > 80, KDJ.D > 80, KDJ.J > 100 四个指标中满足三个以上
     // 且当前做多标的价格 > 做多标的持仓成本价
     // 立即清空所有做多标的持仓
-    if (longPosition && longPosition.availableQuantity > 0 && Number.isFinite(longCurrentPrice) && Number.isFinite(longPosition.costPrice)) {
-      if (sellCount >= 3 && longCurrentPrice > longPosition.costPrice) {
-        // 清仓做多标的
-        signals.push({
-          symbol: longPosition.symbol,
-          action: "SELL",
-          reason: `做多标的当前价格(${longCurrentPrice.toFixed(3)}) > 持仓成本价(${longPosition.costPrice.toFixed(3)}) 且 RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(1)})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(1)}) 中至少 3 项触发清仓条件，立即清空所有做多标的持仓`,
-        });
-      }
+    const canSellLong = longPosition?.symbol && 
+        Number.isFinite(longPosition.availableQuantity) && 
+        longPosition.availableQuantity > 0 && 
+        Number.isFinite(longCurrentPrice) && 
+        longCurrentPrice > 0 &&
+        Number.isFinite(longPosition.costPrice) && 
+        longPosition.costPrice > 0;
+    
+    if (canSellLong && sellCount >= 3 && longCurrentPrice > longPosition.costPrice) {
+      // 清仓做多标的
+      signals.push({
+        symbol: longPosition.symbol,
+        action: SignalType.SELLCALL,
+        reason: `做多标的当前价格(${longCurrentPrice.toFixed(3)}) > 持仓成本价(${longPosition.costPrice.toFixed(3)}) 且 RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(1)})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(1)}) 中至少 3 项触发清仓条件，立即清空所有做多标的持仓`,
+      });
     }
 
     // 3. 买入做空标的的条件
@@ -126,7 +134,7 @@ export class HangSengMultiIndicatorStrategy {
     ) {
       signals.push({
         symbol: shortSymbol,
-        action: "SELL", // 做空标的的SELL信号 = 买入做空标的（做空操作）
+        action: SignalType.BUYPUT, // 买入做空标的（做空操作）
         reason: `监控标的 RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(1)})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(1)}) 中至少 3 项满足买入条件，且监控标的价格(${monitorPrice.toFixed(3)}) > VWAP(${vwap.toFixed(3)})，买入做空标的`,
       });
     }
@@ -135,15 +143,21 @@ export class HangSengMultiIndicatorStrategy {
     // 条件：RSI6 < 20, RSI12 < 20, KDJ.D < 20, KDJ.J < 0 四个指标中满足三个以上
     // 且当前做空标的价格 > 做空标的持仓成本价
     // 立即清空所有做空标的持仓（注意不是卖空）
-    if (shortPosition && shortPosition.availableQuantity > 0 && Number.isFinite(shortCurrentPrice) && Number.isFinite(shortPosition.costPrice)) {
-      if (buyCount >= 3 && shortCurrentPrice > shortPosition.costPrice) {
-        // 清仓做空标的（买入平仓，不是卖空）
-        signals.push({
-          symbol: shortPosition.symbol,
-          action: "BUY", // 做空持仓需要买入平仓
-          reason: `做空标的当前价格(${shortCurrentPrice.toFixed(3)}) > 持仓成本价(${shortPosition.costPrice.toFixed(3)}) 且 RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(1)})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(1)}) 中至少 3 项触发清仓条件，立即清空所有做空标的持仓`,
-        });
-      }
+    const canSellShort = shortPosition?.symbol && 
+        Number.isFinite(shortPosition.availableQuantity) && 
+        shortPosition.availableQuantity > 0 && 
+        Number.isFinite(shortCurrentPrice) && 
+        shortCurrentPrice > 0 &&
+        Number.isFinite(shortPosition.costPrice) && 
+        shortPosition.costPrice > 0;
+    
+    if (canSellShort && buyCount >= 3 && shortCurrentPrice > shortPosition.costPrice) {
+      // 清仓做空标的（卖出平仓，不是卖空）
+      signals.push({
+        symbol: shortPosition.symbol,
+        action: SignalType.SELLPUT, // 卖出做空标的（平空仓）
+        reason: `做空标的当前价格(${shortCurrentPrice.toFixed(3)}) > 持仓成本价(${shortPosition.costPrice.toFixed(3)}) 且 RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(1)})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(1)}) 中至少 3 项触发清仓条件，立即清空所有做空标的持仓`,
+      });
     }
 
     return signals;
