@@ -238,9 +238,6 @@ async function runOnce({
 
   // 以下逻辑仅在连续交易时段执行
   const shortSymbol = TRADING_CONFIG.shortSymbol;
-  const targetQuantity = trader.getTargetQuantity
-    ? trader.getTargetQuantity()
-    : 0;
 
   // 获取做空标的的行情
   const shortQuote = await marketDataClient.getLatestQuote(shortSymbol).catch((err) => {
@@ -256,67 +253,72 @@ async function runOnce({
   if (longPrice !== lastState.longPrice || shortPrice !== lastState.shortPrice) {
     hasChange = true;
     
-    // 显示做多标的行情
-    if (longQuote) {
-      const nameText = longQuote.name ?? "-";
-      const codeText = normalizeHKSymbol(longSymbol);
-      const priceText = Number.isFinite(longPrice)
-        ? longPrice.toFixed(3)
-        : longPrice ?? "-";
-      const tsText = longQuote.timestamp
-        ? longQuote.timestamp.toLocaleString("zh-CN", {
+    // 统一的行情显示格式化函数
+    const formatQuoteDisplay = (quote, symbol, label) => {
+      if (!quote) {
+        return null;
+      }
+      
+      const nameText = quote.name ?? "-";
+      const codeText = normalizeHKSymbol(symbol);
+      const currentPrice = quote.price;
+      
+      // 最新价格
+      const priceText = Number.isFinite(currentPrice)
+        ? currentPrice.toFixed(3)
+        : currentPrice ?? "-";
+      
+      // 时间
+      const tsText = quote.timestamp
+        ? quote.timestamp.toLocaleString("zh-CN", {
             timeZone: "Asia/Hong_Kong",
             hour12: false,
           })
         : "未知时间";
-      let pctText = "-";
-      let pnlText = "-";
+      
+      // 涨跌额和涨跌幅度
+      let changeAmountText = "-";
+      let changePercentText = "-";
+      
       if (
-        Number.isFinite(longPrice) &&
-        Number.isFinite(longQuote.prevClose) &&
-        longQuote.prevClose !== 0
+        Number.isFinite(currentPrice) &&
+        Number.isFinite(quote.prevClose) &&
+        quote.prevClose !== 0
       ) {
-        const pct =
-          ((longPrice - longQuote.prevClose) / longQuote.prevClose) * 100;
-        pctText = `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`;
-        if (Number.isFinite(targetQuantity) && targetQuantity !== 0) {
-          const pnlAmount =
-            (longPrice - longQuote.prevClose) * targetQuantity;
-          pnlText = `${pnlAmount >= 0 ? "+" : ""}${pnlAmount.toFixed(2)}`;
-        }
+        // 涨跌额 = 当前价格 - 前收盘价
+        const changeAmount = currentPrice - quote.prevClose;
+        changeAmountText = `${changeAmount >= 0 ? "+" : ""}${changeAmount.toFixed(3)}`;
+        
+        // 涨跌幅度 = (当前价格 - 前收盘价) / 前收盘价 * 100%
+        const changePercent = (changeAmount / quote.prevClose) * 100;
+        changePercentText = `${changePercent >= 0 ? "+" : ""}${changePercent.toFixed(2)}%`;
       }
+      
+      return {
+        nameText,
+        codeText,
+        priceText,
+        changeAmountText,
+        changePercentText,
+        tsText,
+      };
+    };
+    
+    // 显示做多标的行情
+    const longDisplay = formatQuoteDisplay(longQuote, longSymbol, "做多");
+    if (longDisplay) {
       logger.info(
-        `[做多] 标的 ${nameText}(${codeText}) 最新价=${priceText} 当日盈亏=${pnlText} (比例=${pctText}) 时间=${tsText}`
+        `[做多] ${longDisplay.nameText}(${longDisplay.codeText}) 最新价格=${longDisplay.priceText} 涨跌额=${longDisplay.changeAmountText} 涨跌幅度=${longDisplay.changePercentText} 时间=${longDisplay.tsText}`
       );
     } else {
       logger.warn(`未获取到做多标的行情。`);
     }
 
     // 显示做空标的行情
-    if (shortQuote) {
-      const nameText = shortQuote.name ?? "-";
-      const codeText = normalizeHKSymbol(shortSymbol);
-      const priceText = Number.isFinite(shortPrice)
-        ? shortPrice.toFixed(3)
-        : shortPrice ?? "-";
-      const tsText = shortQuote.timestamp
-        ? shortQuote.timestamp.toLocaleString("zh-CN", {
-            timeZone: "Asia/Hong_Kong",
-            hour12: false,
-          })
-        : "未知时间";
-      let pctText = "-";
-      if (
-        Number.isFinite(shortPrice) &&
-        Number.isFinite(shortQuote.prevClose) &&
-        shortQuote.prevClose !== 0
-      ) {
-        const pct =
-          ((shortPrice - shortQuote.prevClose) / shortQuote.prevClose) * 100;
-        pctText = `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`;
-      }
+    const shortDisplay = formatQuoteDisplay(shortQuote, shortSymbol, "做空");
+    if (shortDisplay) {
       logger.info(
-        `[做空] 标的 ${nameText}(${codeText}) 最新价=${priceText} 涨跌=${pctText} 时间=${tsText}`
+        `[做空] ${shortDisplay.nameText}(${shortDisplay.codeText}) 最新价格=${shortDisplay.priceText} 涨跌额=${shortDisplay.changeAmountText} 涨跌幅度=${shortDisplay.changePercentText} 时间=${shortDisplay.tsText}`
       );
     } else {
       logger.warn(`未获取到做空标的行情。`);
