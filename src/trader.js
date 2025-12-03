@@ -299,6 +299,113 @@ export class Trader {
   }
 
   /**
+   * 修改订单价格（仅使用官方API）
+   * @param {string} orderId 订单ID
+   * @param {number} newPrice 新价格
+   * @param {number} quantity 数量（可选，如果不提供则使用原订单数量）
+   * @returns {Promise<void>} 修改成功时不返回，失败时抛出错误
+   * @throws {Error} 当修改失败时抛出错误
+   */
+  async replaceOrderPrice(orderId, newPrice, quantity = null) {
+    const ctx = await this._ctxPromise;
+    
+    // 先获取原订单信息
+    const allOrders = await ctx.todayOrders(undefined);
+    const originalOrder = allOrders.find(o => o.orderId === orderId);
+    
+    if (!originalOrder) {
+      const error = new Error(`未找到订单ID=${orderId}`);
+      logger.error(`[订单修改失败] ${error.message}`);
+      throw error;
+    }
+    
+    // 检查订单状态是否允许修改
+    if (originalOrder.status === OrderStatus.Filled ||
+        originalOrder.status === OrderStatus.Cancelled ||
+        originalOrder.status === OrderStatus.Rejected) {
+      const error = new Error(`订单ID=${orderId} 状态为 ${originalOrder.status}，不允许修改`);
+      logger.error(`[订单修改失败] ${error.message}`);
+      throw error;
+    }
+    
+    // 构建修改订单的payload
+    const replacePayload = {
+      orderId: orderId,
+      submittedPrice: toDecimal(newPrice),
+    };
+    
+    // 如果提供了数量，也更新数量
+    if (quantity !== null && Number.isFinite(quantity) && quantity > 0) {
+      const executedQty = decimalToNumber(originalOrder.executedQuantity || 0);
+      const remainingQty = decimalToNumber(originalOrder.quantity) - executedQty;
+      // 使用提供的数量或剩余数量中的较小值
+      const adjustedQty = Math.min(quantity, remainingQty);
+      if (adjustedQty > 0) {
+        replacePayload.submittedQuantity = toDecimal(adjustedQty);
+      }
+    }
+    
+    // 只使用官方API进行修改，失败时直接抛出错误
+    try {
+      await ctx.replaceOrder(replacePayload);
+      logger.info(
+        `[订单修改成功] 订单ID=${orderId} 新价格=${newPrice.toFixed(3)}`
+      );
+    } catch (err) {
+      const errorMessage = err?.message ?? String(err);
+      const error = new Error(`订单修改失败: ${errorMessage}`);
+      logger.error(`[订单修改失败] 订单ID=${orderId} 新价格=${newPrice.toFixed(3)}`, errorMessage);
+      throw error;
+    }
+  }
+
+  /**
+   * 通过撤销+重新提交的方式修改订单价格
+   * @private
+   */
+  async _replaceOrderByCancelAndResubmit(originalOrder, newPrice, quantity = null) {
+    const ctx = await this._ctxPromise;
+    const longSymbol = normalizeHKSymbol(TRADING_CONFIG.longSymbol);
+    const shortSymbol = normalizeHKSymbol(TRADING_CONFIG.shortSymbol);
+    
+    // 撤销原订单
+    const cancelSuccess = await this.cancelOrder(originalOrder.orderId);
+    if (!cancelSuccess) {
+      return false;
+    }
+    
+    // 等待一小段时间确保撤销完成
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    // 准备重新提交的订单信息
+    const originalQty = decimalToNumber(originalOrder.quantity);
+    const executedQty = decimalToNumber(originalOrder.executedQuantity || 0);
+    const remainingQty = originalQty - executedQty;
+    
+    // 如果提供了数量，使用提供的数量，否则使用剩余数量
+    const targetQty = quantity !== null && Number.isFinite(quantity) && quantity > 0
+      ? quantity
+      : remainingQty;
+    
+    // 重新提交订单
+    await this._resubmitOrderAtPrice(
+      ctx,
+      {
+        orderId: originalOrder.orderId,
+        symbol: originalOrder.symbol,
+        side: originalOrder.side,
+        quantity: String(targetQty),
+        executedQuantity: executedQty,
+      },
+      newPrice,
+      longSymbol,
+      shortSymbol
+    );
+    
+    return true;
+  }
+
+  /**
    * 检查今日是否有交易（包括已成交和未成交的订单，带缓存）
    * @param {string[]} symbols 标的代码数组
    * @returns {Promise<boolean>} true表示今日有交易，false表示今日无交易
@@ -367,13 +474,14 @@ export class Trader {
   /**
    * 实时监控价格并管理未成交订单
    * 规则：
-   * - 如果当前价格高于委托价格0.002元及以上，撤销该委托单
-   * - 如果当前价格低于委托价格，立即以当前价格重新委托
+   * - 买入订单：如果当前价格低于委托价格，立即修改委托价格为当前价格；如果当前价格高于委托价格，不做改变
+   * - 卖出订单：无论当前价格高于还是低于委托价格，都立即修改委托价格为当前价格
+   *   - 如果当前价格高于委托价格，修改以获得更好的卖出价格
+   *   - 如果当前价格低于委托价格，也要修改以防止错过清仓时刻
    * @param {Object} longQuote 做多标的的行情数据
    * @param {Object} shortQuote 做空标的的行情数据
    */
   async monitorAndManageOrders(longQuote, shortQuote) {
-    const ctx = await this._ctxPromise;
     const longSymbol = normalizeHKSymbol(TRADING_CONFIG.longSymbol);
     const shortSymbol = normalizeHKSymbol(TRADING_CONFIG.shortSymbol);
     
@@ -391,16 +499,25 @@ export class Trader {
       return; // 没有未成交订单，无需处理
     }
     
-    logger.info(`[订单监控] 发现 ${pendingOrders.length} 个未成交订单，开始检查价格...`);
+    logger.debug(`[订单监控] 发现 ${pendingOrders.length} 个未成交订单，开始检查价格...`);
     
     for (const order of pendingOrders) {
       // 检查订单状态，如果已撤销、已成交或已完成，跳过监控
       if (order.status === OrderStatus.Cancelled || 
           order.status === OrderStatus.Filled || 
-          order.status === OrderStatus.Rejected ||
-          order.status === OrderStatus.Replaced) {
+          order.status === OrderStatus.Rejected) {
         logger.debug(
           `[订单监控] 订单 ${order.orderId} 状态为 ${order.status}，跳过监控`
+        );
+        continue;
+      }
+      
+      // 如果订单正在被修改（Replaced状态），跳过本次监控，等待下次
+      if (order.status === OrderStatus.Replaced || 
+          order.status === OrderStatus.PendingReplace ||
+          order.status === OrderStatus.WaitToReplace) {
+        logger.debug(
+          `[订单监控] 订单 ${order.orderId} 正在修改中（状态：${order.status}），跳过本次监控`
         );
         continue;
       }
@@ -416,7 +533,7 @@ export class Trader {
       }
       
       if (!currentPrice || !Number.isFinite(currentPrice)) {
-        logger.warn(
+        logger.debug(
           `[订单监控] 无法获取标的 ${order.symbol} 的当前价格，跳过处理订单 ${order.orderId}`
         );
         continue;
@@ -429,98 +546,65 @@ export class Trader {
       const isBuyOrder = order.side === OrderSide.Buy;
       
       if (isBuyOrder) {
-        // 买入订单：如果当前价格高于委托价格0.002元及以上，撤销订单
-        if (priceDiff >= 0.002) {
-          logger.info(
-            `[订单监控] 买入订单 ${order.orderId} 当前价格(${currentPrice.toFixed(3)}) 高于委托价格(${orderPrice.toFixed(3)}) ${priceDiff.toFixed(3)}元，撤销订单`
-          );
-          const cancelSuccess = await this.cancelOrder(order.orderId);
-          
-          // 撤销成功后，以当前价格重新委托（买入订单价格越高越不利，需要重新委托）
-          if (cancelSuccess) {
+        // 买入订单：如果当前价格低于委托价格，修改委托价格为当前价格
+        // 只要价格降低0.001或以上就会进行修改
+        if (currentPrice < orderPrice) {
+          const priceDiffAbs = Math.abs(priceDiff);
+          // 价格差异达到0.001或以上时进行修改
+          if (priceDiffAbs >= 0.001) {
             logger.info(
-              `[订单监控] 订单撤销成功，以当前价格(${currentPrice.toFixed(3)})重新委托`
+              `[订单监控] 买入订单 ${order.orderId} 当前价格(${currentPrice.toFixed(3)}) 低于委托价格(${orderPrice.toFixed(3)}) 差异=${priceDiffAbs.toFixed(3)}，修改委托价格为当前价格`
             );
-            await this._resubmitOrderAtPrice(
-              ctx,
-              order,
-              currentPrice,
-              longSymbol,
-              shortSymbol
-            );
+            try {
+              await this.replaceOrderPrice(order.orderId, currentPrice);
+              logger.info(
+                `[订单监控] 买入订单 ${order.orderId} 价格修改成功：${orderPrice.toFixed(3)} -> ${currentPrice.toFixed(3)} (降低${priceDiffAbs.toFixed(3)})`
+              );
+            } catch (err) {
+              logger.error(
+                `[订单监控] 买入订单 ${order.orderId} 价格修改失败: ${err?.message ?? err}`
+              );
+              // 错误已抛出，不执行其他修改方式
+            }
           } else {
-            logger.warn(
-              `[订单监控] 订单 ${order.orderId} 撤销失败，跳过重新委托`
-            );
-          }
-        } else if (currentPrice < orderPrice) {
-          // 当前价格低于委托价格，撤销原订单并以当前价格重新委托（更优价格）
-          logger.info(
-            `[订单监控] 买入订单 ${order.orderId} 当前价格(${currentPrice.toFixed(3)}) 低于委托价格(${orderPrice.toFixed(3)})，撤销并重新委托`
-          );
-          const cancelSuccess = await this.cancelOrder(order.orderId);
-          
-          // 只有撤销成功才重新委托
-          if (cancelSuccess) {
-            await this._resubmitOrderAtPrice(
-              ctx,
-              order,
-              currentPrice,
-              longSymbol,
-              shortSymbol
-            );
-          } else {
-            logger.warn(
-              `[订单监控] 订单 ${order.orderId} 撤销失败，跳过重新委托`
+            logger.debug(
+              `[订单监控] 买入订单 ${order.orderId} 价格差异(${priceDiffAbs.toFixed(4)})小于0.001，暂不修改`
             );
           }
         }
+        // 如果当前价格高于委托价格，不做改变（按用户要求）
       } else {
-        // 卖出订单：如果当前价格低于委托价格0.002元及以上，撤销订单
-        if (priceDiff <= -0.002) {
-          logger.info(
-            `[订单监控] 卖出订单 ${order.orderId} 当前价格(${currentPrice.toFixed(3)}) 低于委托价格(${orderPrice.toFixed(3)}) ${Math.abs(priceDiff).toFixed(3)}元，撤销订单`
-          );
-          const cancelSuccess = await this.cancelOrder(order.orderId);
-          
-          // 撤销成功后，以当前价格重新委托（卖出订单价格越低越不利，需要重新委托）
-          if (cancelSuccess) {
+        // 卖出订单：无论当前价格高于还是低于委托价格，都修改委托价格为当前价格
+        // 1. 如果当前价格高于委托价格，修改以获得更好的卖出价格
+        // 2. 如果当前价格低于委托价格，也要修改以防止错过清仓时刻
+        const priceDiffAbs = Math.abs(priceDiff);
+        // 价格差异达到0.001或以上时进行修改
+        if (priceDiffAbs >= 0.001) {
+          if (currentPrice > orderPrice) {
             logger.info(
-              `[订单监控] 订单撤销成功，以当前价格(${currentPrice.toFixed(3)})重新委托`
-            );
-            await this._resubmitOrderAtPrice(
-              ctx,
-              order,
-              currentPrice,
-              longSymbol,
-              shortSymbol
+              `[订单监控] 卖出订单 ${order.orderId} 当前价格(${currentPrice.toFixed(3)}) 高于委托价格(${orderPrice.toFixed(3)}) 差异=${priceDiffAbs.toFixed(3)}，修改委托价格为当前价格（获得更好价格）`
             );
           } else {
-            logger.warn(
-              `[订单监控] 订单 ${order.orderId} 撤销失败，跳过重新委托`
+            logger.info(
+              `[订单监控] 卖出订单 ${order.orderId} 当前价格(${currentPrice.toFixed(3)}) 低于委托价格(${orderPrice.toFixed(3)}) 差异=${priceDiffAbs.toFixed(3)}，修改委托价格为当前价格（防止错过清仓时刻）`
             );
           }
-        } else if (currentPrice > orderPrice) {
-          // 当前价格高于委托价格，撤销原订单并以当前价格重新委托（更优价格）
-          logger.info(
-            `[订单监控] 卖出订单 ${order.orderId} 当前价格(${currentPrice.toFixed(3)}) 高于委托价格(${orderPrice.toFixed(3)})，撤销并重新委托`
+          try {
+            await this.replaceOrderPrice(order.orderId, currentPrice);
+            const changeType = currentPrice > orderPrice ? "提高" : "降低";
+            logger.info(
+              `[订单监控] 卖出订单 ${order.orderId} 价格修改成功：${orderPrice.toFixed(3)} -> ${currentPrice.toFixed(3)} (${changeType}${priceDiffAbs.toFixed(3)})`
+            );
+          } catch (err) {
+            logger.error(
+              `[订单监控] 卖出订单 ${order.orderId} 价格修改失败: ${err?.message ?? err}`
+            );
+            // 错误已抛出，不执行其他修改方式
+          }
+        } else {
+          logger.debug(
+            `[订单监控] 卖出订单 ${order.orderId} 价格差异(${priceDiffAbs.toFixed(4)})小于0.001，暂不修改`
           );
-          const cancelSuccess = await this.cancelOrder(order.orderId);
-          
-          // 只有撤销成功才重新委托
-          if (cancelSuccess) {
-            await this._resubmitOrderAtPrice(
-              ctx,
-              order,
-              currentPrice,
-              longSymbol,
-              shortSymbol
-            );
-          } else {
-            logger.warn(
-              `[订单监控] 订单 ${order.orderId} 撤销失败，跳过重新委托`
-            );
-          }
         }
       }
     }
