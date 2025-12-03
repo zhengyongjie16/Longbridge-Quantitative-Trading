@@ -394,6 +394,17 @@ export class Trader {
     logger.info(`[订单监控] 发现 ${pendingOrders.length} 个未成交订单，开始检查价格...`);
     
     for (const order of pendingOrders) {
+      // 检查订单状态，如果已撤销、已成交或已完成，跳过监控
+      if (order.status === OrderStatus.Cancelled || 
+          order.status === OrderStatus.Filled || 
+          order.status === OrderStatus.Rejected ||
+          order.status === OrderStatus.Replaced) {
+        logger.debug(
+          `[订单监控] 订单 ${order.orderId} 状态为 ${order.status}，跳过监控`
+        );
+        continue;
+      }
+      
       const normalizedOrderSymbol = normalizeHKSymbol(order.symbol);
       let currentPrice = null;
       

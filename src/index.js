@@ -128,17 +128,70 @@ async function runOnce({
       logger.info("股票持仓：");
       const formatNumber = (num, digits = 2) =>
         Number.isFinite(num) ? num.toFixed(digits) : String(num ?? "-");
+      
+      // 批量获取所有持仓标的的当前价格
+      const positionSymbols = positions.map(p => p.symbol).filter(Boolean);
+      const quotesMap = new Map();
+      if (positionSymbols.length > 0) {
+        try {
+          const quotes = await marketDataClient.getQuotes(positionSymbols);
+          if (Array.isArray(quotes)) {
+            // decimalToNumber 函数定义（与 trader.js 中相同）
+            const decimalToNumber = (decimalLike) =>
+              decimalLike && typeof decimalLike.toNumber === "function"
+                ? decimalLike.toNumber()
+                : Number(decimalLike ?? 0);
+            
+            quotes.forEach(quote => {
+              if (quote?.symbol) {
+                // 从 quote 中提取价格（使用 lastDone 字段，这是 LongPort API 的标准字段）
+                const price = decimalToNumber(quote.lastDone ?? quote.price ?? 0);
+                if (Number.isFinite(price) && price > 0) {
+                  quotesMap.set(normalizeHKSymbol(quote.symbol), price);
+                }
+              }
+            });
+          }
+        } catch (err) {
+          logger.warn(`[持仓监控] 获取持仓标的行情失败: ${err?.message ?? err}`);
+        }
+      }
+      
+      // 计算总资产用于计算仓位百分比
+      const totalAssets = account?.netAssets ?? 0;
+      
       positions.forEach((pos) => {
         const nameText = pos.symbolName ?? "-";
         const codeText = normalizeHKSymbol(pos.symbol);
+        
+        // 获取当前价格（优先使用实时价格，否则使用成本价）
+        const normalizedPosSymbol = normalizeHKSymbol(pos.symbol);
+        const currentPrice = quotesMap.get(normalizedPosSymbol) ?? pos.costPrice ?? 0;
+        
+        // 计算持仓市值
+        const posQuantity = Number(pos.quantity) || 0;
+        const marketValue = Number.isFinite(currentPrice) && currentPrice > 0 && posQuantity > 0
+          ? posQuantity * currentPrice
+          : 0;
+        
+        // 计算仓位百分比
+        const positionPercent = Number.isFinite(totalAssets) && totalAssets > 0 && marketValue > 0
+          ? (marketValue / totalAssets) * 100
+          : 0;
+        
+        // 构建价格显示文本
+        const priceText = quotesMap.has(normalizedPosSymbol)
+          ? `现价=${formatNumber(currentPrice, 3)}`
+          : `成本价=${formatNumber(pos.costPrice, 3)}`;
+        
         logger.info(
           `- [${pos.accountChannel}] ${nameText}(${codeText}) 持仓=${formatNumber(
             pos.quantity,
             2
-          )} 可用=${formatNumber(pos.availableQuantity, 2)} 成本价=${formatNumber(
-            pos.costPrice,
-            3
-          )} ${pos.currency ?? ""}`
+          )} 可用=${formatNumber(pos.availableQuantity, 2)} ${priceText} 市值=${formatNumber(
+            marketValue,
+            2
+          )} 仓位=${formatNumber(positionPercent, 2)}% ${pos.currency ?? ""}`
         );
       });
     } else {
