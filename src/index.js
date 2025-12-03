@@ -55,20 +55,20 @@ function isInContinuousHKSession(date) {
 }
 
 /**
- * 判断是否在当日收盘前15分钟内
+ * 判断是否在当日收盘前5分钟内
  * 港股当日收盘时间：下午 16:00
- * 收盘前15分钟：15:45 - 16:00（仅判断下午收盘，不包括上午收盘）
+ * 收盘前5分钟：15:55 - 16:00（仅判断下午收盘，不包括上午收盘）
  */
-function isBeforeClose15Minutes(date) {
+function isBeforeClose5Minutes(date) {
   if (!date) return false;
   const utcHour = date.getUTCHours();
   const utcMinute = date.getUTCMinutes();
   const hkHour = (utcHour + 8) % 24;
   const hkMinute = utcMinute;
 
-  // 仅判断下午收盘前15分钟：15:45 - 16:00
+  // 仅判断下午收盘前5分钟：15:55 - 16:00
   const beforeAfternoonClose =
-    (hkHour === 15 && hkMinute >= 45) || (hkHour === 16 && hkMinute === 0);
+    (hkHour === 15 && hkMinute >= 55) || (hkHour === 16 && hkMinute === 0);
 
   return beforeAfternoonClose;
 }
@@ -503,15 +503,15 @@ async function runOnce({
       };
     });
 
-  // 检查是否需要在收盘前15分钟清仓
+  // 检查是否需要在收盘前5分钟清仓
   const shouldClearBeforeClose = TRADING_CONFIG.clearPositionsBeforeClose;
-  const isBeforeClose = longQuote && isBeforeClose15Minutes(longQuote.timestamp);
+  const isBeforeClose = longQuote && isBeforeClose5Minutes(longQuote.timestamp);
   
   let finalSignals = [];
   
   if (shouldClearBeforeClose && isBeforeClose && canTradeNow && Array.isArray(positions) && positions.length > 0) {
-    // 当日收盘前15分钟，清空所有持仓（无论是做多标的持仓还是做空标的持仓）
-    logger.info("[收盘清仓] 检测到当日收盘前15分钟（15:45-16:00），准备清空所有持仓");
+    // 当日收盘前5分钟，清空所有持仓（无论是做多标的持仓还是做空标的持仓）
+    logger.info("[收盘清仓] 检测到当日收盘前5分钟（15:55-16:00），准备清空所有持仓");
     
     // 为每个持仓生成清仓信号
     const clearSignals = [];
@@ -557,7 +557,7 @@ async function runOnce({
           action: action,
           price: currentPrice, // 添加当前价格，用于增强限价单
           lotSize: lotSize, // 添加最小买卖单位
-          reason: `收盘前15分钟自动清仓（${positionType}持仓）`,
+          reason: `收盘前5分钟自动清仓（${positionType}持仓）`,
         });
         
         logger.info(

@@ -14,7 +14,7 @@ import { SignalType } from "./signalTypes.js";
 export class HangSengMultiIndicatorStrategy {
   constructor({
     sell = {
-      rsi6: 80,
+      rsi6: 79.5,
       rsi12: 80,
       d: 80,
       j: 100,
@@ -23,7 +23,7 @@ export class HangSengMultiIndicatorStrategy {
       rsi6: 20,
       rsi12: 20,
       d: 20,
-      j: 0,
+      j: -1,
     },
   } = {}) {
     this.sellThreshold = sell;

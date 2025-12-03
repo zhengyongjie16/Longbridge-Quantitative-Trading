@@ -109,7 +109,7 @@ function validateTradingConfig() {
     missingFields.push("MAX_DAILY_LOSS");
   }
   
-  // clearPositionsBeforeClose 是布尔值，不需要验证（默认为 false）
+  // clearPositionsBeforeClose 是布尔值，不需要验证（默认值在 .env 文件中设置为 true）
   
   return {
     valid: errors.length === 0,

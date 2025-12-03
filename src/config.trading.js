@@ -69,9 +69,10 @@ export const TRADING_CONFIG = {
   // 单日最大亏损（HKD），超过后禁止继续开新仓
   maxDailyLoss: getNumberConfig("MAX_DAILY_LOSS", 0),
 
-  // 是否在收盘前15分钟清空所有持仓
+  // 是否在收盘前5分钟清空所有持仓
   // 港股当日收盘时间：下午 16:00
-  // 收盘前15分钟：15:45-16:00（仅判断当日收盘，不包括上午收盘）
+  // 收盘前5分钟：15:55-16:00（仅判断当日收盘，不包括上午收盘）
+  // 默认值在 .env 文件中设置为 true
   clearPositionsBeforeClose: getBooleanConfig("CLEAR_POSITIONS_BEFORE_CLOSE"),
 };
 

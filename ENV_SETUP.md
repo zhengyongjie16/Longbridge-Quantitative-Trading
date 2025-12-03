@@ -90,14 +90,14 @@ MAX_POSITION_NOTIONAL=100000  # 必需：例如 100000 HKD（必须为正数）
 # 单日最大亏损（HKD），超过后禁止继续开新仓
 MAX_DAILY_LOSS=30000         # 必需：例如 30000 HKD（必须为非负数，可以为 0）
 
-# 是否在收盘前15分钟清空所有持仓
-CLEAR_POSITIONS_BEFORE_CLOSE=true  # 可选：设置为 "true" 启用，不设置或设置为其他值则禁用
+# 是否在收盘前5分钟清空所有持仓
+CLEAR_POSITIONS_BEFORE_CLOSE=true  # 可选：默认值为 true（收盘前5分钟：15:55-16:00），设置为 "false" 禁用
 ```
 
 **说明**：
 - `MAX_POSITION_NOTIONAL`：单个标的的最大持仓市值限制
 - `MAX_DAILY_LOSS`：当日浮亏超过此值时，禁止继续开新仓
-- `CLEAR_POSITIONS_BEFORE_CLOSE`：设置为 `"true"` 启用收盘前清仓功能
+- `CLEAR_POSITIONS_BEFORE_CLOSE`：默认值为 `true`（在 .env 文件中设置），收盘前5分钟（15:55-16:00）自动清空所有持仓；设置为 `"false"` 可禁用此功能
 
 ### 调试配置
 
@@ -126,7 +126,8 @@ DEBUG=false  # 设置为 "true" 启用详细日志
    - `MAX_DAILY_LOSS` 必须为非负数（可以为 0）
 
 4. **布尔配置**（可选）
-   - `CLEAR_POSITIONS_BEFORE_CLOSE` 和 `DEBUG` 如果不设置，默认为 `false`
+   - `CLEAR_POSITIONS_BEFORE_CLOSE` 默认值为 `true`（在 .env 文件中设置）
+   - `DEBUG` 如果不设置，默认为 `false`
 
 ### 验证失败处理
 
