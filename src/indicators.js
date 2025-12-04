@@ -117,6 +117,56 @@ export function calculateKDJ(candles, period = 9) {
   return { k, d, j };
 }
 
+/**
+ * 获取特定K线位置的KDJ J值
+ * @param {Array} candles K线数据数组
+ * @param {number} index K线索引（从0开始，-1表示最后一根）
+ * @param {number} period KDJ周期，默认9
+ * @returns {number|null} KDJ J值，如果无法计算则返回null
+ */
+export function getKDJAt(candles, index, period = 9) {
+  if (!candles || candles.length < period) {
+    return null;
+  }
+
+  // 处理负数索引（从末尾开始）
+  const actualIndex = index < 0 ? candles.length + index : index;
+  if (actualIndex < period - 1 || actualIndex >= candles.length) {
+    return null;
+  }
+
+  // 计算到指定索引为止的KDJ值
+  let k = 50;
+  let d = 50;
+
+  for (let i = period - 1; i <= actualIndex; i += 1) {
+    const window = candles.slice(i - period + 1, i + 1);
+    const highs = window.map((c) => toNumber(c.high)).filter(v => Number.isFinite(v));
+    const lows = window.map((c) => toNumber(c.low)).filter(v => Number.isFinite(v));
+    const close = toNumber(window.at(-1)?.close);
+    
+    // 验证数据有效性
+    if (highs.length === 0 || lows.length === 0 || !Number.isFinite(close)) {
+      continue;
+    }
+    
+    const highestHigh = Math.max(...highs);
+    const lowestLow = Math.min(...lows);
+    const range = highestHigh - lowestLow;
+    
+    if (!Number.isFinite(range) || range === 0) {
+      continue;
+    }
+    
+    const rsv = ((close - lowestLow) / range) * 100;
+    k = (2 / 3) * k + (1 / 3) * rsv;
+    d = (2 / 3) * d + (1 / 3) * k;
+  }
+
+  const j = 3 * k - 2 * d;
+  return Number.isFinite(j) ? j : null;
+}
+
 export function buildIndicatorSnapshot(symbol, candles) {
   if (!candles || candles.length === 0) {
     return null;

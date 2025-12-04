@@ -2,7 +2,7 @@ import { createConfig } from "./config.js";
 import { MarketDataClient } from "./quoteClient.js";
 import { HangSengMultiIndicatorStrategy } from "./strategy.js";
 import { Trader } from "./trader.js";
-import { buildIndicatorSnapshot } from "./indicators.js";
+import { buildIndicatorSnapshot, getKDJAt } from "./indicators.js";
 import { RiskChecker } from "./risk.js";
 import { TRADING_CONFIG } from "./config.trading.js";
 import { logger } from "./logger.js";
@@ -392,8 +392,8 @@ async function runOnce({
     }
   }
   
-  // 根据新策略生成交易信号（包含清仓和开仓信号）
-  const tradingSignals = strategy.generateCloseSignals(
+  // 根据新策略生成交易信号（包含立即执行的清仓信号和延迟验证的开仓信号）
+  const { immediateSignals, delayedSignals } = strategy.generateCloseSignals(
     monitorSnapshot,
     longPosition,
     longQuote?.price ?? null,
@@ -402,6 +402,200 @@ async function runOnce({
     normalizedLongSymbol,
     normalizedShortSymbol
   );
+  
+  // 将立即执行的信号添加到交易信号列表
+  const tradingSignals = [...immediateSignals];
+  
+  // 初始化待验证信号数组（如果不存在）
+  if (!lastState.pendingDelayedSignals) {
+    lastState.pendingDelayedSignals = [];
+  }
+  
+  // 处理延迟验证信号，添加到待验证列表
+  for (const delayedSignal of delayedSignals) {
+    if (delayedSignal && delayedSignal.triggerTime) {
+      // 检查是否已存在相同的待验证信号（避免重复添加）
+      const existingSignal = lastState.pendingDelayedSignals.find(
+        s => s.symbol === delayedSignal.symbol && 
+             s.action === delayedSignal.action &&
+             s.triggerTime.getTime() === delayedSignal.triggerTime.getTime()
+      );
+      
+      if (!existingSignal) {
+        lastState.pendingDelayedSignals.push(delayedSignal);
+        hasChange = true;
+        const actionDesc = delayedSignal.action === SignalType.BUYCALL ? "买入做多" : "买入做空";
+        logger.info(
+          `[延迟验证信号] 新增待验证${actionDesc}信号：${delayedSignal.symbol} - ${delayedSignal.reason}`
+        );
+      }
+    }
+  }
+  
+  // 检查是否有待验证的信号到了验证时间
+  const now = new Date();
+  const signalsToVerify = lastState.pendingDelayedSignals.filter(
+    s => s.triggerTime && s.triggerTime <= now
+  );
+  
+  // 处理需要验证的信号
+  for (const pendingSignal of signalsToVerify) {
+    try {
+      // 获取前两分钟的KDJ J值
+      // 当前时间是下下分钟的开始（例如10:32:00），需要获取：
+      // J1: 前两分钟（10:30）的J值
+      // J2: 前一分钟（10:31）的J值
+      // 
+      // 由于K线数据可能包含当前分钟的数据，我们需要找到对应时间戳的K线
+      // 计算目标时间：使用信号的触发时间（必须存在）
+      if (!pendingSignal.triggerTime) {
+        logger.warn(
+          `[延迟验证错误] ${pendingSignal.symbol} 缺少triggerTime，跳过验证`
+        );
+        // 从待验证列表中移除
+        const index = lastState.pendingDelayedSignals.indexOf(pendingSignal);
+        if (index >= 0) {
+          lastState.pendingDelayedSignals.splice(index, 1);
+        }
+        continue;
+      }
+      const verifyTime = pendingSignal.triggerTime;
+      const j1Time = new Date(verifyTime.getTime() - 2 * 60 * 1000); // 前两分钟
+      const j2Time = new Date(verifyTime.getTime() - 1 * 60 * 1000); // 前一分钟
+      
+      // 找到对应时间戳的K线索引（精确到分钟，考虑日期）
+      const findCandleIndex = (targetTime) => {
+        const targetMinute = targetTime.getMinutes();
+        const targetHour = targetTime.getHours();
+        const targetDate = targetTime.getDate();
+        const targetMonth = targetTime.getMonth();
+        const targetYear = targetTime.getFullYear();
+        
+        for (let i = monitorCandles.length - 1; i >= 0; i--) {
+          const candle = monitorCandles[i];
+          if (!candle || !candle.timestamp) continue;
+          
+          const candleTime = new Date(candle.timestamp);
+          const candleMinute = candleTime.getMinutes();
+          const candleHour = candleTime.getHours();
+          const candleDate = candleTime.getDate();
+          const candleMonth = candleTime.getMonth();
+          const candleYear = candleTime.getFullYear();
+          
+          // 匹配到分钟级别，同时考虑日期（避免跨天问题）
+          if (
+            candleYear === targetYear &&
+            candleMonth === targetMonth &&
+            candleDate === targetDate &&
+            candleHour === targetHour &&
+            candleMinute === targetMinute
+          ) {
+            return i;
+          }
+        }
+        return -1;
+      };
+      
+      const j1Index = findCandleIndex(j1Time);
+      const j2Index = findCandleIndex(j2Time);
+      
+      // 获取J值
+      const j1 = j1Index >= 0 ? getKDJAt(monitorCandles, j1Index, 9) : null;
+      const j2 = j2Index >= 0 ? getKDJAt(monitorCandles, j2Index, 9) : null;
+      
+      if (j1 !== null && j2 !== null && Number.isFinite(j1) && Number.isFinite(j2)) {
+        // 根据信号类型使用不同的验证条件
+        const isBuyCall = pendingSignal.action === SignalType.BUYCALL;
+        const isBuyPut = pendingSignal.action === SignalType.BUYPUT;
+        
+        // 只处理延迟验证的信号类型
+        if (!isBuyCall && !isBuyPut) {
+          logger.warn(
+            `[延迟验证错误] ${pendingSignal.symbol} 未知的信号类型: ${pendingSignal.action}，跳过验证`
+          );
+          // 从待验证列表中移除
+          const index = lastState.pendingDelayedSignals.indexOf(pendingSignal);
+          if (index >= 0) {
+            lastState.pendingDelayedSignals.splice(index, 1);
+          }
+          continue;
+        }
+        
+        let verificationPassed = false;
+        let verificationReason = "";
+        
+        if (isBuyCall) {
+          // 买入做多标的：J2 > J1
+          verificationPassed = j2 > j1;
+          verificationReason = verificationPassed 
+            ? `J1=${j1.toFixed(2)} J2=${j2.toFixed(2)} (J2>J1)`
+            : `J1=${j1.toFixed(2)} J2=${j2.toFixed(2)} (J2<=J1)`;
+        } else if (isBuyPut) {
+          // 买入做空标的：J2 < J1
+          verificationPassed = j2 < j1;
+          verificationReason = verificationPassed 
+            ? `J1=${j1.toFixed(2)} J2=${j2.toFixed(2)} (J2<J1)`
+            : `J1=${j1.toFixed(2)} J2=${j2.toFixed(2)} (J2>=J1)`;
+        }
+        
+        if (verificationPassed) {
+          const actionDesc = isBuyCall ? "买入做多" : "买入做空";
+          logger.info(
+            `[延迟验证通过] ${pendingSignal.symbol} ${verificationReason}，执行${actionDesc}`
+          );
+          
+          // 获取标的的当前价格和最小买卖单位
+          let currentPrice = null;
+          let lotSize = null;
+          if (isBuyCall && longQuote) {
+            currentPrice = longQuote.price;
+            lotSize = longQuote.lotSize;
+          } else if (isBuyPut && shortQuote) {
+            currentPrice = shortQuote.price;
+            lotSize = shortQuote.lotSize;
+          }
+          
+          // 生成买入信号
+          const verifiedSignal = {
+            symbol: pendingSignal.symbol,
+            action: pendingSignal.action,
+            reason: `延迟验证通过：${verificationReason}`,
+            price: currentPrice,
+            lotSize: lotSize,
+          };
+          
+          // 添加到交易信号列表
+          tradingSignals.push(verifiedSignal);
+          hasChange = true;
+        } else {
+          const actionDesc = isBuyCall ? "买入做多" : "买入做空";
+          logger.info(
+            `[延迟验证失败] ${pendingSignal.symbol} ${verificationReason}，不执行${actionDesc}`
+          );
+        }
+      } else {
+        logger.warn(
+          `[延迟验证失败] ${pendingSignal.symbol} 无法获取有效的KDJ J值（J1=${j1}, J2=${j2}）`
+        );
+      }
+      
+      // 从待验证列表中移除（无论验证是否通过）
+      const index = lastState.pendingDelayedSignals.indexOf(pendingSignal);
+      if (index >= 0) {
+        lastState.pendingDelayedSignals.splice(index, 1);
+      }
+    } catch (err) {
+      logger.error(
+        `[延迟验证错误] 处理待验证信号 ${pendingSignal.symbol} 时发生错误`,
+        err?.message ?? err
+      );
+      // 从待验证列表中移除错误的信号
+      const index = lastState.pendingDelayedSignals.indexOf(pendingSignal);
+      if (index >= 0) {
+        lastState.pendingDelayedSignals.splice(index, 1);
+      }
+    }
+  }
   
   // 检测信号变化
   // 验证信号数组的有效性
@@ -781,6 +975,7 @@ async function main() {
     signal: null,
     canTrade: null,
     accountState: null,
+    pendingDelayedSignals: [], // 待验证的延迟信号列表
   };
 
   // 无限循环监控（用户要求不设执行次数上限）
