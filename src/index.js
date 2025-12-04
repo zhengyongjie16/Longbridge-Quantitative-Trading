@@ -555,13 +555,23 @@ async function runOnce({
             lotSize = shortQuote.lotSize;
           }
           
+          // 获取标的的中文名称
+          let symbolName = null;
+          if (isBuyCall && longQuote) {
+            symbolName = longQuote.name;
+          } else if (isBuyPut && shortQuote) {
+            symbolName = shortQuote.name;
+          }
+          
           // 生成买入信号
           const verifiedSignal = {
             symbol: pendingSignal.symbol,
+            symbolName: symbolName,
             action: pendingSignal.action,
             reason: `延迟验证通过：${verificationReason}`,
             price: currentPrice,
             lotSize: lotSize,
+            signalTriggerTime: pendingSignal.triggerTime, // 信号触发时间
           };
           
           // 添加到交易信号列表
@@ -678,22 +688,30 @@ async function runOnce({
     .map(signal => {
       const normalizedSigSymbol = normalizeHKSymbol(signal.symbol);
       
-      // 确定价格和lotSize
+      // 确定价格、lotSize和名称
       let price = null;
       let lotSize = null;
+      let symbolName = signal.symbolName || null; // 优先使用信号中的名称
       
       if (normalizedSigSymbol === normalizedLongSymbol && longQuote) {
         price = longQuote.price;
         lotSize = longQuote.lotSize;
+        if (!symbolName) {
+          symbolName = longQuote.name;
+        }
       } else if (normalizedSigSymbol === normalizedShortSymbol && shortQuote) {
         price = shortQuote.price;
         lotSize = shortQuote.lotSize;
+        if (!symbolName) {
+          symbolName = shortQuote.name;
+        }
       }
       
       return {
         ...signal,
         price,
         lotSize,
+        symbolName, // 添加名称信息
       };
     });
 
@@ -729,15 +747,22 @@ async function runOnce({
           : `${pos.symbol}.HK`;
         const isShortPos = normalizedPosSymbol === normalizedShortSymbol;
         
-        // 获取该标的的当前价格和最小买卖单位
+        // 获取该标的的当前价格、最小买卖单位和名称
         let currentPrice = null;
         let lotSize = null;
+        let symbolName = pos.symbolName || null; // 优先使用持仓中的名称
         if (normalizedPosSymbol === normalizedLongSymbol && longQuote) {
           currentPrice = longQuote.price;
           lotSize = longQuote.lotSize;
+          if (!symbolName) {
+            symbolName = longQuote.name;
+          }
         } else if (normalizedPosSymbol === normalizedShortSymbol && shortQuote) {
           currentPrice = shortQuote.price;
           lotSize = shortQuote.lotSize;
+          if (!symbolName) {
+            symbolName = shortQuote.name;
+          }
         }
         
         // 收盘前清仓逻辑：
@@ -748,10 +773,12 @@ async function runOnce({
         
         clearSignals.push({
           symbol: pos.symbol,
+          symbolName: symbolName, // 添加名称信息
           action: action,
           price: currentPrice, // 添加当前价格，用于增强限价单
           lotSize: lotSize, // 添加最小买卖单位
           reason: `收盘前5分钟自动清仓（${positionType}持仓）`,
+          signalTriggerTime: new Date(), // 收盘前清仓信号的触发时间
         });
         
         logger.info(

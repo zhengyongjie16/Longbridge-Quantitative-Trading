@@ -59,7 +59,52 @@ const toDecimal = (value) => {
 };
 
 /**
+ * 将时间转换为北京时间（UTC+8）的字符串
+ * 格式：YYYY/MM/DD/HH:mm:ss
+ * @param {Date} date 时间对象，如果为null则使用当前时间
+ * @returns {string} 北京时间的字符串格式 YYYY/MM/DD/HH:mm:ss
+ */
+function toBeijingTimeISO(date = null) {
+  const targetDate = date || new Date();
+  // 转换为北京时间（UTC+8）
+  const beijingOffset = 8 * 60 * 60 * 1000; // 8小时的毫秒数
+  const beijingTime = new Date(targetDate.getTime() + beijingOffset);
+  
+  // 使用UTC方法获取年月日时分秒，这样得到的就是北京时间
+  const year = beijingTime.getUTCFullYear();
+  const month = String(beijingTime.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(beijingTime.getUTCDate()).padStart(2, '0');
+  const hours = String(beijingTime.getUTCHours()).padStart(2, '0');
+  const minutes = String(beijingTime.getUTCMinutes()).padStart(2, '0');
+  const seconds = String(beijingTime.getUTCSeconds()).padStart(2, '0');
+  
+  // 返回格式：YYYY/MM/DD/HH:mm:ss（北京时间）
+  return `${year}/${month}/${day}/${hours}:${minutes}:${seconds}`;
+}
+
+/**
+ * 格式化标的显示：中文名称(代码.HK)
+ * @param {string} symbol 标的代码
+ * @param {string} symbolName 标的中文名称（可选）
+ * @returns {string} 格式化后的标的显示
+ */
+function formatSymbolDisplay(symbol, symbolName = null) {
+  if (!symbol) {
+    return symbol;
+  }
+  const normalizedSymbol = normalizeHKSymbol(symbol);
+  if (symbolName) {
+    return `${symbolName}(${normalizedSymbol})`;
+  }
+  return normalizedSymbol;
+}
+
+/**
  * 记录交易到文件
+ * @param {Object} tradeRecord 交易记录对象
+ * @param {string} tradeRecord.symbol 标的代码
+ * @param {string} tradeRecord.symbolName 标的中文名称（可选）
+ * @param {Date|string} tradeRecord.signalTriggerTime 信号触发时间（可选）
  */
 function recordTrade(tradeRecord) {
   try {
@@ -87,10 +132,39 @@ function recordTrade(tradeRecord) {
       }
     }
     
-    trades.push({
+    // 格式化标的显示
+    const symbolDisplay = formatSymbolDisplay(tradeRecord.symbol, tradeRecord.symbolName);
+    
+    // 处理信号触发时间
+    let signalTriggerTime = null;
+    if (tradeRecord.signalTriggerTime) {
+      if (tradeRecord.signalTriggerTime instanceof Date) {
+        signalTriggerTime = toBeijingTimeISO(tradeRecord.signalTriggerTime);
+      } else if (typeof tradeRecord.signalTriggerTime === 'string') {
+        // 如果是字符串，尝试解析为Date
+        const parsedDate = new Date(tradeRecord.signalTriggerTime);
+        if (!Number.isNaN(parsedDate.getTime())) {
+          signalTriggerTime = toBeijingTimeISO(parsedDate);
+        }
+      }
+    }
+    
+    // 构建记录对象
+    const record = {
       ...tradeRecord,
-      timestamp: new Date().toISOString(),
-    });
+      symbol: symbolDisplay, // 使用格式化后的标的显示
+      timestamp: toBeijingTimeISO(), // 记录时间使用北京时间
+    };
+    
+    // 如果有信号触发时间，添加到记录中
+    if (signalTriggerTime) {
+      record.signalTriggerTime = signalTriggerTime;
+    }
+    
+    // 移除symbolName字段（已经合并到symbol中）
+    delete record.symbolName;
+    
+    trades.push(record);
     
     fs.writeFileSync(logFile, JSON.stringify(trades, null, 2), "utf-8");
   } catch (err) {
@@ -707,10 +781,11 @@ export class Trader {
       // 更新最后交易时间
       this._updateLastTradeTime(originalOrder.symbol);
       
-      // 记录交易
+      // 记录交易（重新委托没有信号触发时间，因为这是价格优化操作）
       recordTrade({
         orderId: String(orderId),
         symbol: orderPayload.symbol,
+        symbolName: null, // 重新委托时无法获取名称，formatSymbolDisplay会处理
         action: actionDesc,
         side: originalOrder.side === OrderSide.Buy ? "BUY" : "SELL",
         quantity: String(adjustedQty),
@@ -718,6 +793,7 @@ export class Trader {
         orderType: "增强限价单",
         status: "REPLACED",
         reason: `价格优化重新委托（原订单ID=${originalOrder.orderId}）`,
+        signalTriggerTime: null, // 重新委托不是策略信号触发
       });
     } catch (err) {
       const errorMessage = err?.message ?? String(err);
@@ -753,6 +829,7 @@ export class Trader {
       recordTrade({
         orderId: "FAILED",
         symbol: originalOrder.symbol,
+        symbolName: null, // 重新委托时无法获取名称，formatSymbolDisplay会处理
         action: failedActionDesc,
         side: originalOrder.side === OrderSide.Buy ? "BUY" : "SELL",
         quantity: String(adjustedQty),
@@ -762,6 +839,7 @@ export class Trader {
         error: errorMessage,
         errorReason: errorReason,
         reason: `价格优化重新委托失败（原订单ID=${originalOrder.orderId}）`,
+        signalTriggerTime: null, // 重新委托不是策略信号触发
       });
     }
   }
@@ -1099,6 +1177,7 @@ export class Trader {
       recordTrade({
         orderId: String(orderId),
         symbol: orderPayload.symbol,
+        symbolName: signal.symbolName || null, // 标的中文名称
         action: actionDesc,
         side: signal.action || (side === OrderSide.Buy ? "BUY" : "SELL"),
         quantity: orderPayload.submittedQuantity.toString(),
@@ -1106,6 +1185,7 @@ export class Trader {
         orderType: orderType === OrderType.MO ? "市价单" : "限价单",
         status: "SUBMITTED",
         reason: signal.reason || "策略信号",
+        signalTriggerTime: signal.signalTriggerTime || null, // 信号触发时间
       });
     } catch (err) {
       // 根据信号类型确定操作描述
@@ -1149,6 +1229,7 @@ export class Trader {
       recordTrade({
         orderId: "FAILED",
         symbol: orderPayload.symbol,
+        symbolName: signal.symbolName || null, // 标的中文名称
         action: actionDesc,
         side: signal.action || (side === OrderSide.Buy ? "BUY" : "SELL"),
         quantity: orderPayload.submittedQuantity.toString(),
@@ -1157,6 +1238,7 @@ export class Trader {
         status: "FAILED",
         error: errorMessage,
         reason: signal.reason || "策略信号",
+        signalTriggerTime: signal.signalTriggerTime || null, // 信号触发时间
       });
     }
   }

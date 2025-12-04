@@ -192,6 +192,7 @@ export class HangSengMultiIndicatorStrategy {
         symbol: longPosition.symbol,
         action: SignalType.SELLCALL,
         reason: `做多标的当前价格(${longCurrentPrice.toFixed(3)}) > 持仓成本价(${longPosition.costPrice.toFixed(3)}) 且 RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(1)})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(1)}) 中至少 3 项触发清仓条件，立即清空所有做多标的持仓`,
+        signalTriggerTime: new Date(), // 立即执行信号的触发时间
       });
     }
 
@@ -230,6 +231,7 @@ export class HangSengMultiIndicatorStrategy {
         symbol: shortPosition.symbol,
         action: SignalType.SELLPUT, // 卖出做空标的（平空仓）
         reason: `做空标的当前价格(${shortCurrentPrice.toFixed(3)}) > 持仓成本价(${shortPosition.costPrice.toFixed(3)}) 且 RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(1)})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(1)}) 中至少 3 项触发清仓条件，立即清空所有做空标的持仓`,
+        signalTriggerTime: new Date(), // 立即执行信号的触发时间
       });
     }
 
