@@ -349,35 +349,110 @@ async function runOnce({
   // 只计算监控标的的指标
   const monitorSnapshot = buildIndicatorSnapshot(monitorSymbol, monitorCandles);
   
-  // 检测MACD值变化并实时显示
-  const currentMACD = monitorSnapshot?.macd;
-  const lastMACD = lastState.monitorMACD;
-  
-  // 检查MACD值是否有变化（首次显示或值发生变化）
-  const macdChanged = currentMACD && (
-    lastMACD === null || 
-    lastMACD === undefined ||
-    !Number.isFinite(lastMACD.dif) ||
-    !Number.isFinite(lastMACD.dea) ||
-    !Number.isFinite(lastMACD.macd) ||
-    Math.abs(currentMACD.dif - lastMACD.dif) > 0.0001 ||
-    Math.abs(currentMACD.dea - lastMACD.dea) > 0.0001 ||
-    Math.abs(currentMACD.macd - lastMACD.macd) > 0.0001
-  );
-  
-  if (macdChanged && currentMACD && 
-      Number.isFinite(currentMACD.dif) && 
-      Number.isFinite(currentMACD.dea) && 
-      Number.isFinite(currentMACD.macd)) {
-    hasChange = true;
-    logger.info(
-      `[监控标的MACD] ${monitorSymbolName}(${normalizeHKSymbol(monitorSymbol)}) DIF=${currentMACD.dif.toFixed(4)} DEA=${currentMACD.dea.toFixed(4)} MACD=${currentMACD.macd.toFixed(4)}`
-    );
-    lastState.monitorMACD = {
-      dif: currentMACD.dif,
-      dea: currentMACD.dea,
-      macd: currentMACD.macd,
+  // 检测监控标的的所有指标值变化并实时显示
+  if (monitorSnapshot) {
+    const currentValues = {
+      price: monitorSnapshot.price,
+      vwap: monitorSnapshot.vwap,
+      rsi6: monitorSnapshot.rsi6,
+      rsi12: monitorSnapshot.rsi12,
+      kdj: monitorSnapshot.kdj,
+      macd: monitorSnapshot.macd,
     };
+    
+    const lastValues = lastState.monitorValues || {};
+    
+    // 检查是否有任何值发生变化
+    const isFirstTime = !lastValues.price && !lastValues.vwap && !lastValues.rsi6;
+    
+    const hasValueChanged = isFirstTime || (
+      // 价格变化
+      (Number.isFinite(currentValues.price) && Number.isFinite(lastValues.price) && 
+       Math.abs(currentValues.price - lastValues.price) > 0.0001) ||
+      // VWAP变化
+      (Number.isFinite(currentValues.vwap) && Number.isFinite(lastValues.vwap) && 
+       Math.abs(currentValues.vwap - lastValues.vwap) > 0.0001) ||
+      // RSI6变化
+      (Number.isFinite(currentValues.rsi6) && Number.isFinite(lastValues.rsi6) && 
+       Math.abs(currentValues.rsi6 - lastValues.rsi6) > 0.01) ||
+      // RSI12变化
+      (Number.isFinite(currentValues.rsi12) && Number.isFinite(lastValues.rsi12) && 
+       Math.abs(currentValues.rsi12 - lastValues.rsi12) > 0.01) ||
+      // KDJ变化（首次或值变化）
+      (!lastValues.kdj && currentValues.kdj) ||
+      (currentValues.kdj && lastValues.kdj &&
+       (Math.abs((currentValues.kdj.k ?? 0) - (lastValues.kdj?.k ?? 0)) > 0.01 ||
+        Math.abs((currentValues.kdj.d ?? 0) - (lastValues.kdj?.d ?? 0)) > 0.01 ||
+        Math.abs((currentValues.kdj.j ?? 0) - (lastValues.kdj?.j ?? 0)) > 0.01)) ||
+      // MACD变化（首次或MACD柱值变化）
+      (!lastValues.macd && currentValues.macd && Number.isFinite(currentValues.macd.macd)) ||
+      (currentValues.macd && lastValues.macd &&
+       Number.isFinite(currentValues.macd.macd) && Number.isFinite(lastValues.macd?.macd) &&
+       Math.abs(currentValues.macd.macd - lastValues.macd.macd) > 0.0001)
+    );
+    
+    if (hasValueChanged) {
+      hasChange = true;
+      
+      // 构建显示信息
+      const parts = [];
+      
+      // 价格
+      if (Number.isFinite(currentValues.price)) {
+        parts.push(`价格=${currentValues.price.toFixed(3)}`);
+      }
+      
+      // VWAP
+      if (Number.isFinite(currentValues.vwap)) {
+        parts.push(`VWAP=${currentValues.vwap.toFixed(3)}`);
+      }
+      
+      // RSI
+      if (Number.isFinite(currentValues.rsi6)) {
+        parts.push(`RSI6=${currentValues.rsi6.toFixed(2)}`);
+      }
+      if (Number.isFinite(currentValues.rsi12)) {
+        parts.push(`RSI12=${currentValues.rsi12.toFixed(2)}`);
+      }
+      
+      // KDJ
+      if (currentValues.kdj && 
+          Number.isFinite(currentValues.kdj.k) && 
+          Number.isFinite(currentValues.kdj.d) && 
+          Number.isFinite(currentValues.kdj.j)) {
+        parts.push(`KDJ(K=${currentValues.kdj.k.toFixed(2)},D=${currentValues.kdj.d.toFixed(2)},J=${currentValues.kdj.j.toFixed(2)})`);
+      }
+      
+      // MACD（只显示MACD柱值）
+      if (currentValues.macd && 
+          Number.isFinite(currentValues.macd.macd)) {
+        parts.push(`MACD=${currentValues.macd.macd.toFixed(4)}`);
+      }
+      
+      if (parts.length > 0) {
+        logger.info(
+          `[监控标的指标] ${monitorSymbolName}(${normalizeHKSymbol(monitorSymbol)}) ${parts.join(' ')}`
+        );
+      }
+      
+      // 更新保存的值
+      lastState.monitorValues = {
+        price: currentValues.price,
+        vwap: currentValues.vwap,
+        rsi6: currentValues.rsi6,
+        rsi12: currentValues.rsi12,
+        kdj: currentValues.kdj ? {
+          k: currentValues.kdj.k,
+          d: currentValues.kdj.d,
+          j: currentValues.kdj.j,
+        } : null,
+        macd: currentValues.macd ? {
+          dif: currentValues.macd.dif,
+          dea: currentValues.macd.dea,
+          macd: currentValues.macd.macd,
+        } : null,
+      };
+    }
   }
   
   // 获取做多和做空标的的持仓信息
@@ -1034,7 +1109,7 @@ async function main() {
     canTrade: null,
     accountState: null,
     pendingDelayedSignals: [], // 待验证的延迟信号列表
-    monitorMACD: null, // 监控标的的MACD值
+    monitorValues: null, // 监控标的的所有指标值（price, vwap, rsi6, rsi12, kdj, macd）
   };
 
   // 无限循环监控（用户要求不设执行次数上限）
