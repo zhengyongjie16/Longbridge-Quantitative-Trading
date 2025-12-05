@@ -4,48 +4,104 @@ const toNumber = (value) =>
 const safeDivide = (numerator, denominator, fallback = 0) =>
   denominator === 0 ? fallback : numerator / denominator;
 
+/**
+ * 计算RSI指标（使用EMA方式）
+ * RSI的EMA计算方式：
+ * 1. 计算价格变化（涨跌值）
+ * 2. 分离涨幅和跌幅
+ * 3. 对涨幅和跌幅分别计算EMA
+ * 4. RS = EMA(涨幅) / EMA(跌幅)
+ * 5. RSI = 100 - 100 / (1 + RS)
+ * 
+ * @param {Array<number>} closes 收盘价数组
+ * @param {number} period RSI周期，默认14
+ * @returns {number|null} RSI值，如果无法计算则返回null
+ */
 export function calculateRSI(closes, period) {
   if (!closes || closes.length <= period || !Number.isFinite(period) || period <= 0) {
     return null;
   }
 
-  let gains = 0;
-  let losses = 0;
-  let validPairs = 0;
-  const slice = closes.slice(-period - 1);
-  
-  for (let i = 1; i < slice.length; i += 1) {
-    const current = toNumber(slice[i]);
-    const previous = toNumber(slice[i - 1]);
+  // 计算价格变化（涨跌值）
+  const changes = [];
+  for (let i = 1; i < closes.length; i++) {
+    const current = toNumber(closes[i]);
+    const previous = toNumber(closes[i - 1]);
     
     // 跳过无效数据
     if (!Number.isFinite(current) || !Number.isFinite(previous)) {
       continue;
     }
     
-    const diff = current - previous;
-    if (diff >= 0) {
-      gains += diff;
-    } else {
-      losses -= diff;
-    }
-    validPairs++;
+    const change = current - previous;
+    changes.push(change);
   }
 
-  // 如果没有有效数据对，返回null
-  if (validPairs === 0) {
+  if (changes.length < period) {
     return null;
   }
 
-  if (losses === 0) {
+  // 分离涨幅和跌幅
+  const gains = changes.map(change => Math.max(change, 0));
+  const losses = changes.map(change => Math.max(-change, 0));
+
+  // 计算涨幅和跌幅的EMA
+  // 首先计算初始值（使用SMA）
+  let avgGain = 0;
+  let avgLoss = 0;
+  let validCount = 0;
+  
+  for (let i = 0; i < period; i++) {
+    const gain = toNumber(gains[i]);
+    const loss = toNumber(losses[i]);
+    
+    if (Number.isFinite(gain) && Number.isFinite(loss)) {
+      avgGain += gain;
+      avgLoss += loss;
+      validCount++;
+    }
+  }
+
+  if (validCount === 0) {
+    return null;
+  }
+
+  // 初始EMA值使用SMA（简单移动平均）
+  // 使用validCount而不是period，确保即使有无效数据也能正确计算
+  avgGain = avgGain / validCount;
+  avgLoss = avgLoss / validCount;
+
+  // 如果平均跌幅为0，RSI为100
+  if (avgLoss === 0) {
     return 100;
   }
 
-  const rs = (gains / period) / (losses / period);
+  // 使用EMA平滑计算后续的涨幅和跌幅
+  const multiplier = 1 / period; // EMA平滑系数
+  
+  for (let i = period; i < changes.length; i++) {
+    const currentGain = toNumber(gains[i]);
+    const currentLoss = toNumber(losses[i]);
+    
+    if (Number.isFinite(currentGain) && Number.isFinite(currentLoss)) {
+      // EMA公式：新EMA = (当前值 * 平滑系数) + (旧EMA * (1 - 平滑系数))
+      // 或者：新EMA = 旧EMA + (当前值 - 旧EMA) * 平滑系数
+      avgGain = (currentGain * multiplier) + (avgGain * (1 - multiplier));
+      avgLoss = (currentLoss * multiplier) + (avgLoss * (1 - multiplier));
+    }
+  }
+
+  // 如果平均跌幅为0，RSI为100
+  if (avgLoss === 0) {
+    return 100;
+  }
+
+  // 计算RS和RSI
+  const rs = avgGain / avgLoss;
   const rsi = 100 - 100 / (1 + rs);
   
   // 验证RSI结果有效性
-  return Number.isFinite(rsi) ? rsi : null;
+  return Number.isFinite(rsi) && rsi >= 0 && rsi <= 100 ? rsi : null;
 }
 
 export function calculateVWAP(candles) {
@@ -280,9 +336,19 @@ export function buildIndicatorSnapshot(symbol, candles) {
   }
 
   const closes = candles.map((c) => toNumber(c.close));
+  
+  // 确保closes数组有效且至少有一个有效值
+  const validCloses = closes.filter(c => Number.isFinite(c) && c > 0);
+  if (validCloses.length === 0) {
+    return null;
+  }
+  
+  const lastPrice = closes.at(-1);
+  const validPrice = Number.isFinite(lastPrice) && lastPrice > 0 ? lastPrice : null;
+  
   return {
     symbol,
-    price: closes.at(-1),
+    price: validPrice,
     vwap: calculateVWAP(candles),
     rsi6: calculateRSI(closes, 6),
     rsi12: calculateRSI(closes, 12),
