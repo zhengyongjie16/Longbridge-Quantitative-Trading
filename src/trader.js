@@ -402,22 +402,32 @@ export class Trader {
       throw error;
     }
     
+    // 计算剩余数量（原订单数量 - 已成交数量）
+    const executedQty = decimalToNumber(originalOrder.executedQuantity || 0);
+    const originalQty = decimalToNumber(originalOrder.quantity);
+    const remainingQty = originalQty - executedQty;
+    
     // 构建修改订单的payload
+    // API要求必须提供submittedQuantity字段，使用剩余数量或提供的数量
+    let targetQuantity = remainingQty;
+    
+    // 如果提供了数量参数，使用提供的数量（但不能超过剩余数量）
+    if (quantity !== null && Number.isFinite(quantity) && quantity > 0) {
+      targetQuantity = Math.min(quantity, remainingQty);
+    }
+    
+    // 验证数量有效性
+    if (!Number.isFinite(targetQuantity) || targetQuantity <= 0) {
+      const error = new Error(`订单ID=${orderId} 剩余数量无效（剩余=${remainingQty}，原数量=${originalQty}，已成交=${executedQty}）`);
+      logger.error(`[订单修改失败] ${error.message}`);
+      throw error;
+    }
+    
     const replacePayload = {
       orderId: orderId,
       submittedPrice: toDecimal(newPrice),
+      submittedQuantity: toDecimal(targetQuantity), // API要求必须提供此字段
     };
-    
-    // 如果提供了数量，也更新数量
-    if (quantity !== null && Number.isFinite(quantity) && quantity > 0) {
-      const executedQty = decimalToNumber(originalOrder.executedQuantity || 0);
-      const remainingQty = decimalToNumber(originalOrder.quantity) - executedQty;
-      // 使用提供的数量或剩余数量中的较小值
-      const adjustedQty = Math.min(quantity, remainingQty);
-      if (adjustedQty > 0) {
-        replacePayload.submittedQuantity = toDecimal(adjustedQty);
-      }
-    }
     
     // 只使用官方API进行修改，失败时直接抛出错误
     try {
