@@ -6,28 +6,43 @@ import { SignalType } from "./signalTypes.js";
  * - 基于持仓成本价和指标条件生成清仓信号和开仓信号
  * 
  * 策略逻辑：
- * 1. 买入做多标的（BUYCALL）：RSI6<20, RSI12<20, KDJ.D<20, KDJ.J<0 满足3个以上，且监控标的价格<VWAP
+ * 1. 买入做多标的（BUYCALL）：RSI6<20, RSI12<20, KDJ.D<20, KDJ.J<-1 满足3个以上，且监控标的价格<VWAP
  * 2. 卖出做多标的（SELLCALL）：RSI6>80, RSI12>80, KDJ.D>80, KDJ.J>100 满足3个以上，且做多标的价格>持仓成本价，立即清空所有做多标的持仓
  * 3. 买入做空标的（BUYPUT）：RSI6>80, RSI12>80, KDJ.D>80, KDJ.J>100 满足3个以上，且监控标的价格>VWAP
  * 4. 卖出做空标的（SELLPUT）：RSI6<20, RSI12<20, KDJ.D<20, KDJ.J<0 满足3个以上，且做空标的价格>持仓成本价，立即清空所有做空标的持仓（注意不是卖空）
  */
 export class HangSengMultiIndicatorStrategy {
   constructor({
-    sell = {
-      rsi6: 79.5,
-      rsi12: 80,
-      d: 80,
-      j: 100,
-    },
-    buy = {
+    buycall = {
       rsi6: 20,
       rsi12: 20,
       d: 20,
       j: -1,
     },
+    sellcall = {
+      rsi6: 80,
+      rsi12: 80,
+      d: 80,
+      j: 100,
+    },
+    buyput = {
+      rsi6: 80,
+      rsi12: 80,
+      d: 80,
+      j: 100,
+    },
+    sellput = {
+      rsi6: 20,
+      rsi12: 20,
+      d: 20,
+      j: 0,
+    },
   } = {}) {
-    this.sellThreshold = sell;
-    this.buyThreshold = buy;
+    // 为每个信号类型单独配置阈值
+    this.buycallThreshold = buycall;
+    this.sellcallThreshold = sellcall;
+    this.buyputThreshold = buyput;
+    this.sellputThreshold = sellput;
   }
 
   /**
@@ -48,18 +63,68 @@ export class HangSengMultiIndicatorStrategy {
   }
 
   /**
+   * 根据信号类型获取对应的阈值配置
+   * @private
+   * @param {string} signalType 信号类型
+   * @returns {Object|null} 阈值配置对象 {rsi6, rsi12, d, j}
+   */
+  _getThresholdForSignal(signalType) {
+    switch (signalType) {
+      case SignalType.BUYCALL:
+        return this.buycallThreshold;
+      case SignalType.SELLCALL:
+        return this.sellcallThreshold;
+      case SignalType.BUYPUT:
+        return this.buyputThreshold;
+      case SignalType.SELLPUT:
+        return this.sellputThreshold;
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * 计算指定信号类型的指标条件满足数量
+   * @private
+   * @param {Object} state 监控标的的指标状态 {rsi6, rsi12, kdj}
+   * @param {string} signalType 信号类型
+   * @returns {number} 满足条件的数量（0-4）
+   */
+  _calculateConditionCount(state, signalType) {
+    const { rsi6, rsi12, kdj } = state;
+    const threshold = this._getThresholdForSignal(signalType);
+    
+    if (!threshold) {
+      return 0;
+    }
+
+    // 根据信号类型判断是大于还是小于阈值
+    const isBuySignal = signalType === SignalType.BUYCALL || signalType === SignalType.SELLPUT;
+    
+    const conditions = [
+      isBuySignal ? rsi6 < threshold.rsi6 : rsi6 > threshold.rsi6,
+      isBuySignal ? rsi12 < threshold.rsi12 : rsi12 > threshold.rsi12,
+      isBuySignal ? kdj.d < threshold.d : kdj.d > threshold.d,
+      isBuySignal ? kdj.j < threshold.j : kdj.j > threshold.j,
+    ];
+    
+    return conditions.filter(Boolean).length;
+  }
+
+  /**
    * 生成延迟验证信号（统一方法）
    * @private
    * @param {Object} state 监控标的的指标状态
-   * @param {Array} conditions 指标条件数组
-   * @param {number} satisfiedCount 满足条件的数量
    * @param {string} symbol 标的代码
    * @param {string} action 信号类型
    * @param {string} reasonPrefix 原因前缀
    * @returns {Object|null} 延迟验证信号对象
    */
-  _generateDelayedSignal(state, conditions, satisfiedCount, symbol, action, reasonPrefix) {
+  _generateDelayedSignal(state, symbol, action, reasonPrefix) {
     const { rsi6, rsi12, kdj, vwap, price: monitorPrice, macd } = state;
+    
+    // 计算该信号类型满足条件的数量
+    const satisfiedCount = this._calculateConditionCount(state, action);
     
     if (satisfiedCount < 3) {
       return null;
@@ -154,31 +219,12 @@ export class HangSengMultiIndicatorStrategy {
       return { immediateSignals, delayedSignals };
     }
 
-    // 计算指标条件
-    const sellConds = [
-      rsi6 > this.sellThreshold.rsi6,
-      rsi12 > this.sellThreshold.rsi12,
-      kdj.d > this.sellThreshold.d,
-      kdj.j > this.sellThreshold.j,
-    ];
-    const sellCount = sellConds.filter(Boolean).length;
-
-    const buyConds = [
-      rsi6 < this.buyThreshold.rsi6,
-      rsi12 < this.buyThreshold.rsi12,
-      kdj.d < this.buyThreshold.d,
-      kdj.j < this.buyThreshold.j,
-    ];
-    const buyCount = buyConds.filter(Boolean).length;
-
     // 1. 买入做多标的（延迟验证策略）
     // 条件：RSI6 < 20, RSI12 < 20, KDJ.D < 20, KDJ.J < -1 四个指标中满足三个以上
     // 且当前监控标的价格 < 监控标的VWAP
     if (longSymbol) {
       const delayedBuySignal = this._generateDelayedSignal(
         state,
-        buyConds,
-        buyCount,
         longSymbol,
         SignalType.BUYCALL,
         "延迟验证买入做多信号"
@@ -200,7 +246,8 @@ export class HangSengMultiIndicatorStrategy {
         Number.isFinite(longPosition.costPrice) && 
         longPosition.costPrice > 0;
     
-    if (canSellLong && sellCount >= 3 && longCurrentPrice > longPosition.costPrice) {
+    const sellcallCount = this._calculateConditionCount(state, SignalType.SELLCALL);
+    if (canSellLong && sellcallCount >= 3 && longCurrentPrice > longPosition.costPrice) {
       // 清仓做多标的
       immediateSignals.push({
         symbol: longPosition.symbol,
@@ -216,8 +263,6 @@ export class HangSengMultiIndicatorStrategy {
     if (shortSymbol) {
       const delayedSellSignal = this._generateDelayedSignal(
         state,
-        sellConds,
-        sellCount,
         shortSymbol,
         SignalType.BUYPUT,
         "延迟验证买入做空信号"
@@ -239,7 +284,8 @@ export class HangSengMultiIndicatorStrategy {
         Number.isFinite(shortPosition.costPrice) && 
         shortPosition.costPrice > 0;
     
-    if (canSellShort && buyCount >= 3 && shortCurrentPrice > shortPosition.costPrice) {
+    const sellputCount = this._calculateConditionCount(state, SignalType.SELLPUT);
+    if (canSellShort && sellputCount >= 3 && shortCurrentPrice > shortPosition.costPrice) {
       // 清仓做空标的（卖出平仓，不是卖空）
       immediateSignals.push({
         symbol: shortPosition.symbol,
