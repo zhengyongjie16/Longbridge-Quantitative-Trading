@@ -167,6 +167,113 @@ export function getKDJAt(candles, index, period = 9) {
   return Number.isFinite(j) ? j : null;
 }
 
+/**
+ * 计算指数移动平均线（EMA）
+ * @param {Array<number>} values 数值数组
+ * @param {number} period 周期
+ * @returns {Array<number>} EMA数组
+ */
+function calculateEMA(values, period) {
+  if (!values || values.length < period) {
+    return [];
+  }
+
+  const ema = [];
+  const multiplier = 2 / (period + 1);
+  
+  // 第一个EMA值使用SMA（简单移动平均）
+  let sum = 0;
+  for (let i = 0; i < period; i++) {
+    const value = toNumber(values[i]);
+    if (!Number.isFinite(value)) {
+      return [];
+    }
+    sum += value;
+  }
+  ema[period - 1] = sum / period;
+
+  // 后续EMA值使用公式：EMA = (当前值 - 前一日EMA) * 乘数 + 前一日EMA
+  for (let i = period; i < values.length; i++) {
+    const value = toNumber(values[i]);
+    if (!Number.isFinite(value)) {
+      return [];
+    }
+    ema[i] = (value - ema[i - 1]) * multiplier + ema[i - 1];
+  }
+
+  return ema;
+}
+
+/**
+ * 计算MACD指标
+ * @param {Array<number>} closes 收盘价数组
+ * @param {number} fastPeriod 快线周期，默认12
+ * @param {number} slowPeriod 慢线周期，默认26
+ * @param {number} signalPeriod 信号线周期，默认9
+ * @returns {Object|null} MACD对象 {dif, dea, macd}，如果无法计算则返回null
+ */
+export function calculateMACD(closes, fastPeriod = 12, slowPeriod = 26, signalPeriod = 9) {
+  if (!closes || closes.length < slowPeriod + signalPeriod) {
+    return null;
+  }
+
+  // 计算EMA12和EMA26
+  const ema12 = calculateEMA(closes, fastPeriod);
+  const ema26 = calculateEMA(closes, slowPeriod);
+
+  if (ema12.length === 0 || ema26.length === 0) {
+    return null;
+  }
+
+  // 计算DIF（快线 - 慢线）
+  // DIF从两个EMA都有值的位置开始计算
+  const startIndex = Math.max(fastPeriod - 1, slowPeriod - 1);
+  const dif = [];
+  
+  for (let i = startIndex; i < closes.length; i++) {
+    const difValue = ema12[i] - ema26[i];
+    if (Number.isFinite(difValue)) {
+      dif.push(difValue);
+    } else {
+      return null;
+    }
+  }
+
+  if (dif.length < signalPeriod) {
+    return null;
+  }
+
+  // 计算DEA（DIF的EMA，即信号线）
+  const deaArray = calculateEMA(dif, signalPeriod);
+  if (deaArray.length === 0) {
+    return null;
+  }
+
+  // 获取最新的值
+  const lastDifIndex = dif.length - 1;
+  const lastDeaIndex = deaArray.length - 1;
+
+  if (lastDifIndex < 0 || lastDeaIndex < 0) {
+    return null;
+  }
+
+  const difValue = dif[lastDifIndex];
+  const deaValue = deaArray[lastDeaIndex];
+  
+  // 计算MACD柱状图（(DIF - DEA) * 2）
+  const macdValue = (difValue - deaValue) * 2;
+
+  if (!Number.isFinite(difValue) || !Number.isFinite(deaValue) || !Number.isFinite(macdValue)) {
+    return null;
+  }
+
+  return {
+    dif: difValue,
+    dea: deaValue,
+    macd: macdValue,
+  };
+}
+
 export function buildIndicatorSnapshot(symbol, candles) {
   if (!candles || candles.length === 0) {
     return null;
@@ -180,6 +287,7 @@ export function buildIndicatorSnapshot(symbol, candles) {
     rsi6: calculateRSI(closes, 6),
     rsi12: calculateRSI(closes, 12),
     kdj: calculateKDJ(candles, 9),
+    macd: calculateMACD(closes),
   };
 }
 

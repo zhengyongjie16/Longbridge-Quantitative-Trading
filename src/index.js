@@ -349,6 +349,37 @@ async function runOnce({
   // 只计算监控标的的指标
   const monitorSnapshot = buildIndicatorSnapshot(monitorSymbol, monitorCandles);
   
+  // 检测MACD值变化并实时显示
+  const currentMACD = monitorSnapshot?.macd;
+  const lastMACD = lastState.monitorMACD;
+  
+  // 检查MACD值是否有变化（首次显示或值发生变化）
+  const macdChanged = currentMACD && (
+    lastMACD === null || 
+    lastMACD === undefined ||
+    !Number.isFinite(lastMACD.dif) ||
+    !Number.isFinite(lastMACD.dea) ||
+    !Number.isFinite(lastMACD.macd) ||
+    Math.abs(currentMACD.dif - lastMACD.dif) > 0.0001 ||
+    Math.abs(currentMACD.dea - lastMACD.dea) > 0.0001 ||
+    Math.abs(currentMACD.macd - lastMACD.macd) > 0.0001
+  );
+  
+  if (macdChanged && currentMACD && 
+      Number.isFinite(currentMACD.dif) && 
+      Number.isFinite(currentMACD.dea) && 
+      Number.isFinite(currentMACD.macd)) {
+    hasChange = true;
+    logger.info(
+      `[监控标的MACD] ${monitorSymbolName}(${normalizeHKSymbol(monitorSymbol)}) DIF=${currentMACD.dif.toFixed(4)} DEA=${currentMACD.dea.toFixed(4)} MACD=${currentMACD.macd.toFixed(4)}`
+    );
+    lastState.monitorMACD = {
+      dif: currentMACD.dif,
+      dea: currentMACD.dea,
+      macd: currentMACD.macd,
+    };
+  }
+  
   // 获取做多和做空标的的持仓信息
   const normalizedLongSymbol = normalizeHKSymbol(longSymbol);
   const normalizedShortSymbol = normalizeHKSymbol(shortSymbol);
@@ -1003,6 +1034,7 @@ async function main() {
     canTrade: null,
     accountState: null,
     pendingDelayedSignals: [], // 待验证的延迟信号列表
+    monitorMACD: null, // 监控标的的MACD值
   };
 
   // 无限循环监控（用户要求不设执行次数上限）
