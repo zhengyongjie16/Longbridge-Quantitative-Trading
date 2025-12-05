@@ -31,16 +31,13 @@ export class HangSengMultiIndicatorStrategy {
   }
 
   /**
-   * 计算下下分钟的开始时间
+   * 计算60秒后的验证时间
    * @private
-   * @returns {Date|null} 下下分钟的开始时间，如果计算失败返回null
+   * @returns {Date|null} 60秒后的时间，如果计算失败返回null
    */
-  _calculateNextNextMinute() {
+  _calculateVerificationTime() {
     const now = new Date();
-    const triggerTime = new Date(now);
-    triggerTime.setMinutes(triggerTime.getMinutes() + 2); // 加2分钟
-    triggerTime.setSeconds(0);
-    triggerTime.setMilliseconds(0);
+    const triggerTime = new Date(now.getTime() + 60 * 1000); // 加60秒
     
     // 如果目标时间已经过去，说明计算有误，返回null
     if (triggerTime <= now) {
@@ -62,7 +59,7 @@ export class HangSengMultiIndicatorStrategy {
    * @returns {Object|null} 延迟验证信号对象
    */
   _generateDelayedSignal(state, conditions, satisfiedCount, symbol, action, reasonPrefix) {
-    const { rsi6, rsi12, kdj, vwap, price: monitorPrice } = state;
+    const { rsi6, rsi12, kdj, vwap, price: monitorPrice, macd } = state;
     
     if (satisfiedCount < 3) {
       return null;
@@ -81,23 +78,40 @@ export class HangSengMultiIndicatorStrategy {
       return null;
     }
     
-    const triggerTime = this._calculateNextNextMinute();
+    // 验证KDJ和MACD值是否有效
+    if (!kdj || !Number.isFinite(kdj.j)) {
+      return null;
+    }
+    
+    if (!macd || !Number.isFinite(macd.macd)) {
+      return null;
+    }
+    
+    const triggerTime = this._calculateVerificationTime();
     if (!triggerTime) {
       return null;
     }
+    
+    // 记录当前的J值和MACD值（J1和MACD1）
+    const j1 = kdj.j;
+    const macd1 = macd.macd;
     
     const priceComparison = action === SignalType.BUYCALL ? "<" : ">";
     return {
       symbol,
       action,
       triggerTime,
-      reason: `${reasonPrefix}：监控标的 RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(1)})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(1)}) 中 ${satisfiedCount} 项满足条件，且监控标的价格(${monitorPrice.toFixed(3)}) ${priceComparison} VWAP(${vwap.toFixed(3)})，将在 ${triggerTime.toLocaleString("zh-CN", { timeZone: "Asia/Hong_Kong", hour12: false })} 进行验证`,
+      j1, // 记录触发时的J值
+      macd1, // 记录触发时的MACD值
+      verificationHistory: [], // 该信号专用的验证历史记录（每秒记录一次）
+      reason: `${reasonPrefix}：监控标的 RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(1)})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(2)}) 中 ${satisfiedCount} 项满足条件，且监控标的价格(${monitorPrice.toFixed(3)}) ${priceComparison} VWAP(${vwap.toFixed(3)})，J1=${j1.toFixed(2)} MACD1=${macd1.toFixed(4)}，将在 ${triggerTime.toLocaleString("zh-CN", { timeZone: "Asia/Hong_Kong", hour12: false })} 进行验证`,
       originalState: {
         rsi6,
         rsi12,
         kdj,
         vwap,
         price: monitorPrice,
+        macd,
       },
     };
   }
