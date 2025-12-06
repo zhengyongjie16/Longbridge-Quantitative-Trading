@@ -9,7 +9,11 @@
  */
 function getStringConfig(envKey) {
   const value = process.env[envKey];
-  if (!value || value.trim() === "" || value === `your_${envKey.toLowerCase()}_here`) {
+  if (
+    !value ||
+    value.trim() === "" ||
+    value === `your_${envKey.toLowerCase()}_here`
+  ) {
     return null;
   }
   return value.trim();
@@ -75,5 +79,3 @@ export const TRADING_CONFIG = {
   // 默认值在 .env 文件中设置为 true
   clearPositionsBeforeClose: getBooleanConfig("CLEAR_POSITIONS_BEFORE_CLOSE"),
 };
-
-

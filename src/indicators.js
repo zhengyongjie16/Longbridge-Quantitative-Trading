@@ -12,13 +12,18 @@ const safeDivide = (numerator, denominator, fallback = 0) =>
  * 3. 对涨幅和跌幅分别计算EMA
  * 4. RS = EMA(涨幅) / EMA(跌幅)
  * 5. RSI = 100 - 100 / (1 + RS)
- * 
+ *
  * @param {Array<number>} closes 收盘价数组
  * @param {number} period RSI周期，默认14
  * @returns {number|null} RSI值，如果无法计算则返回null
  */
 export function calculateRSI(closes, period) {
-  if (!closes || closes.length <= period || !Number.isFinite(period) || period <= 0) {
+  if (
+    !closes ||
+    closes.length <= period ||
+    !Number.isFinite(period) ||
+    period <= 0
+  ) {
     return null;
   }
 
@@ -27,12 +32,12 @@ export function calculateRSI(closes, period) {
   for (let i = 1; i < closes.length; i++) {
     const current = toNumber(closes[i]);
     const previous = toNumber(closes[i - 1]);
-    
+
     // 跳过无效数据
     if (!Number.isFinite(current) || !Number.isFinite(previous)) {
       continue;
     }
-    
+
     const change = current - previous;
     changes.push(change);
   }
@@ -42,19 +47,19 @@ export function calculateRSI(closes, period) {
   }
 
   // 分离涨幅和跌幅
-  const gains = changes.map(change => Math.max(change, 0));
-  const losses = changes.map(change => Math.max(-change, 0));
+  const gains = changes.map((change) => Math.max(change, 0));
+  const losses = changes.map((change) => Math.max(-change, 0));
 
   // 计算涨幅和跌幅的EMA
   // 首先计算初始值（使用SMA）
   let avgGain = 0;
   let avgLoss = 0;
   let validCount = 0;
-  
+
   for (let i = 0; i < period; i++) {
     const gain = toNumber(gains[i]);
     const loss = toNumber(losses[i]);
-    
+
     if (Number.isFinite(gain) && Number.isFinite(loss)) {
       avgGain += gain;
       avgLoss += loss;
@@ -78,16 +83,16 @@ export function calculateRSI(closes, period) {
 
   // 使用EMA平滑计算后续的涨幅和跌幅
   const multiplier = 1 / period; // EMA平滑系数
-  
+
   for (let i = period; i < changes.length; i++) {
     const currentGain = toNumber(gains[i]);
     const currentLoss = toNumber(losses[i]);
-    
+
     if (Number.isFinite(currentGain) && Number.isFinite(currentLoss)) {
       // EMA公式：新EMA = (当前值 * 平滑系数) + (旧EMA * (1 - 平滑系数))
       // 或者：新EMA = 旧EMA + (当前值 - 旧EMA) * 平滑系数
-      avgGain = (currentGain * multiplier) + (avgGain * (1 - multiplier));
-      avgLoss = (currentLoss * multiplier) + (avgLoss * (1 - multiplier));
+      avgGain = currentGain * multiplier + avgGain * (1 - multiplier);
+      avgLoss = currentLoss * multiplier + avgLoss * (1 - multiplier);
     }
   }
 
@@ -99,7 +104,7 @@ export function calculateRSI(closes, period) {
   // 计算RS和RSI
   const rs = avgGain / avgLoss;
   const rsi = 100 - 100 / (1 + rs);
-  
+
   // 验证RSI结果有效性
   return Number.isFinite(rsi) && rsi >= 0 && rsi <= 100 ? rsi : null;
 }
@@ -116,12 +121,12 @@ export function calculateVWAP(candles) {
   for (const candle of candles) {
     const close = toNumber(candle.close);
     const volume = toNumber(candle.volume);
-    
+
     // 跳过无效数据
     if (!Number.isFinite(close) || !Number.isFinite(volume) || volume < 0) {
       continue;
     }
-    
+
     totalValue += close * volume;
     totalVolume += volume;
     validCandles++;
@@ -146,24 +151,28 @@ export function calculateKDJ(candles, period = 9) {
 
   for (let i = period - 1; i < candles.length; i += 1) {
     const window = candles.slice(i - period + 1, i + 1);
-    const highs = window.map((c) => toNumber(c.high)).filter(v => Number.isFinite(v));
-    const lows = window.map((c) => toNumber(c.low)).filter(v => Number.isFinite(v));
+    const highs = window
+      .map((c) => toNumber(c.high))
+      .filter((v) => Number.isFinite(v));
+    const lows = window
+      .map((c) => toNumber(c.low))
+      .filter((v) => Number.isFinite(v));
     const close = toNumber(window.at(-1)?.close);
-    
+
     // 验证数据有效性
     if (highs.length === 0 || lows.length === 0 || !Number.isFinite(close)) {
       continue; // 跳过无效数据
     }
-    
+
     const highestHigh = Math.max(...highs);
     const lowestLow = Math.min(...lows);
     const range = highestHigh - lowestLow;
-    
+
     // 确保range不为0或NaN
     if (!Number.isFinite(range) || range === 0) {
       continue; // 跳过无效数据
     }
-    
+
     const rsv = ((close - lowestLow) / range) * 100;
     k = (2 / 3) * k + (1 / 3) * rsv;
     d = (2 / 3) * d + (1 / 3) * k;
@@ -197,23 +206,27 @@ export function getKDJAt(candles, index, period = 9) {
 
   for (let i = period - 1; i <= actualIndex; i += 1) {
     const window = candles.slice(i - period + 1, i + 1);
-    const highs = window.map((c) => toNumber(c.high)).filter(v => Number.isFinite(v));
-    const lows = window.map((c) => toNumber(c.low)).filter(v => Number.isFinite(v));
+    const highs = window
+      .map((c) => toNumber(c.high))
+      .filter((v) => Number.isFinite(v));
+    const lows = window
+      .map((c) => toNumber(c.low))
+      .filter((v) => Number.isFinite(v));
     const close = toNumber(window.at(-1)?.close);
-    
+
     // 验证数据有效性
     if (highs.length === 0 || lows.length === 0 || !Number.isFinite(close)) {
       continue;
     }
-    
+
     const highestHigh = Math.max(...highs);
     const lowestLow = Math.min(...lows);
     const range = highestHigh - lowestLow;
-    
+
     if (!Number.isFinite(range) || range === 0) {
       continue;
     }
-    
+
     const rsv = ((close - lowestLow) / range) * 100;
     k = (2 / 3) * k + (1 / 3) * rsv;
     d = (2 / 3) * d + (1 / 3) * k;
@@ -236,7 +249,7 @@ function calculateEMA(values, period) {
 
   const ema = [];
   const multiplier = 2 / (period + 1);
-  
+
   // 第一个EMA值使用SMA（简单移动平均）
   let sum = 0;
   for (let i = 0; i < period; i++) {
@@ -268,7 +281,12 @@ function calculateEMA(values, period) {
  * @param {number} signalPeriod 信号线周期，默认9
  * @returns {Object|null} MACD对象 {dif, dea, macd}，如果无法计算则返回null
  */
-export function calculateMACD(closes, fastPeriod = 12, slowPeriod = 26, signalPeriod = 9) {
+export function calculateMACD(
+  closes,
+  fastPeriod = 12,
+  slowPeriod = 26,
+  signalPeriod = 9
+) {
   if (!closes || closes.length < slowPeriod + signalPeriod) {
     return null;
   }
@@ -285,7 +303,7 @@ export function calculateMACD(closes, fastPeriod = 12, slowPeriod = 26, signalPe
   // DIF从两个EMA都有值的位置开始计算
   const startIndex = Math.max(fastPeriod - 1, slowPeriod - 1);
   const dif = [];
-  
+
   for (let i = startIndex; i < closes.length; i++) {
     const difValue = ema12[i] - ema26[i];
     if (Number.isFinite(difValue)) {
@@ -315,11 +333,15 @@ export function calculateMACD(closes, fastPeriod = 12, slowPeriod = 26, signalPe
 
   const difValue = dif[lastDifIndex];
   const deaValue = deaArray[lastDeaIndex];
-  
+
   // 计算MACD柱状图（(DIF - DEA) * 2）
   const macdValue = (difValue - deaValue) * 2;
 
-  if (!Number.isFinite(difValue) || !Number.isFinite(deaValue) || !Number.isFinite(macdValue)) {
+  if (
+    !Number.isFinite(difValue) ||
+    !Number.isFinite(deaValue) ||
+    !Number.isFinite(macdValue)
+  ) {
     return null;
   }
 
@@ -336,16 +358,17 @@ export function buildIndicatorSnapshot(symbol, candles) {
   }
 
   const closes = candles.map((c) => toNumber(c.close));
-  
+
   // 确保closes数组有效且至少有一个有效值
-  const validCloses = closes.filter(c => Number.isFinite(c) && c > 0);
+  const validCloses = closes.filter((c) => Number.isFinite(c) && c > 0);
   if (validCloses.length === 0) {
     return null;
   }
-  
+
   const lastPrice = closes.at(-1);
-  const validPrice = Number.isFinite(lastPrice) && lastPrice > 0 ? lastPrice : null;
-  
+  const validPrice =
+    Number.isFinite(lastPrice) && lastPrice > 0 ? lastPrice : null;
+
   return {
     symbol,
     price: validPrice,
@@ -356,6 +379,3 @@ export function buildIndicatorSnapshot(symbol, candles) {
     macd: calculateMACD(closes),
   };
 }
-
-
-

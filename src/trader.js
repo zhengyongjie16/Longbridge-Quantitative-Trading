@@ -69,15 +69,15 @@ function toBeijingTimeISO(date = null) {
   // 转换为北京时间（UTC+8）
   const beijingOffset = 8 * 60 * 60 * 1000; // 8小时的毫秒数
   const beijingTime = new Date(targetDate.getTime() + beijingOffset);
-  
+
   // 使用UTC方法获取年月日时分秒，这样得到的就是北京时间
   const year = beijingTime.getUTCFullYear();
-  const month = String(beijingTime.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(beijingTime.getUTCDate()).padStart(2, '0');
-  const hours = String(beijingTime.getUTCHours()).padStart(2, '0');
-  const minutes = String(beijingTime.getUTCMinutes()).padStart(2, '0');
-  const seconds = String(beijingTime.getUTCSeconds()).padStart(2, '0');
-  
+  const month = String(beijingTime.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(beijingTime.getUTCDate()).padStart(2, "0");
+  const hours = String(beijingTime.getUTCHours()).padStart(2, "0");
+  const minutes = String(beijingTime.getUTCMinutes()).padStart(2, "0");
+  const seconds = String(beijingTime.getUTCSeconds()).padStart(2, "0");
+
   // 返回格式：YYYY/MM/DD/HH:mm:ss（北京时间）
   return `${year}/${month}/${day}/${hours}:${minutes}:${seconds}`;
 }
@@ -112,10 +112,10 @@ function recordTrade(tradeRecord) {
     if (!fs.existsSync(logDir)) {
       fs.mkdirSync(logDir, { recursive: true });
     }
-    
+
     const today = new Date().toISOString().split("T")[0];
     const logFile = path.join(logDir, `trades_${today}.json`);
-    
+
     let trades = [];
     if (fs.existsSync(logFile)) {
       const content = fs.readFileSync(logFile, "utf-8");
@@ -127,20 +127,26 @@ function recordTrade(tradeRecord) {
           trades = [];
         }
       } catch (e) {
-        logger.warn(`解析交易记录文件失败，重置为空数组: ${logFile}`, e?.message ?? e);
+        logger.warn(
+          `解析交易记录文件失败，重置为空数组: ${logFile}`,
+          e?.message ?? e
+        );
         trades = [];
       }
     }
-    
+
     // 格式化标的显示
-    const symbolDisplay = formatSymbolDisplay(tradeRecord.symbol, tradeRecord.symbolName);
-    
+    const symbolDisplay = formatSymbolDisplay(
+      tradeRecord.symbol,
+      tradeRecord.symbolName
+    );
+
     // 处理信号触发时间
     let signalTriggerTime = null;
     if (tradeRecord.signalTriggerTime) {
       if (tradeRecord.signalTriggerTime instanceof Date) {
         signalTriggerTime = toBeijingTimeISO(tradeRecord.signalTriggerTime);
-      } else if (typeof tradeRecord.signalTriggerTime === 'string') {
+      } else if (typeof tradeRecord.signalTriggerTime === "string") {
         // 如果是字符串，尝试解析为Date
         const parsedDate = new Date(tradeRecord.signalTriggerTime);
         if (!Number.isNaN(parsedDate.getTime())) {
@@ -148,24 +154,24 @@ function recordTrade(tradeRecord) {
         }
       }
     }
-    
+
     // 构建记录对象
     const record = {
       ...tradeRecord,
       symbol: symbolDisplay, // 使用格式化后的标的显示
       timestamp: toBeijingTimeISO(), // 记录时间使用北京时间
     };
-    
+
     // 如果有信号触发时间，添加到记录中
     if (signalTriggerTime) {
       record.signalTriggerTime = signalTriggerTime;
     }
-    
+
     // 移除symbolName字段（已经合并到symbol中）
     delete record.symbolName;
-    
+
     trades.push(record);
-    
+
     fs.writeFileSync(logFile, JSON.stringify(trades, null, 2), "utf-8");
   } catch (err) {
     logger.error("写入交易记录失败", err);
@@ -258,18 +264,20 @@ export class Trader {
   async getPendingOrdersWithCache(symbols = null) {
     const now = Date.now();
     const threeMinutes = 3 * 60 * 1000; // 3分钟 = 180000毫秒
-    
+
     // 检查是否需要重新获取订单
-    const shouldFetch = 
-      !this._lastPendingOrdersFetchTime || 
-      (now - this._lastPendingOrdersFetchTime >= threeMinutes);
-    
+    const shouldFetch =
+      !this._lastPendingOrdersFetchTime ||
+      now - this._lastPendingOrdersFetchTime >= threeMinutes;
+
     if (shouldFetch) {
       // 需要重新获取订单
       try {
         this._cachedPendingOrders = await this.getPendingOrders(symbols);
         this._lastPendingOrdersFetchTime = now;
-        logger.debug(`[订单缓存] 重新获取未成交订单，共 ${this._cachedPendingOrders.length} 个`);
+        logger.debug(
+          `[订单缓存] 重新获取未成交订单，共 ${this._cachedPendingOrders.length} 个`
+        );
       } catch (err) {
         logger.warn("获取未成交订单失败，使用缓存数据", err?.message ?? err);
         // 如果获取失败，尝试使用缓存数据
@@ -279,10 +287,14 @@ export class Trader {
       }
     } else {
       // 使用缓存数据
-      const timeSinceLastFetch = Math.floor((now - this._lastPendingOrdersFetchTime) / 1000);
-      logger.debug(`[订单缓存] 使用缓存的未成交订单（距离上次获取 ${timeSinceLastFetch} 秒）`);
+      const timeSinceLastFetch = Math.floor(
+        (now - this._lastPendingOrdersFetchTime) / 1000
+      );
+      logger.debug(
+        `[订单缓存] 使用缓存的未成交订单（距离上次获取 ${timeSinceLastFetch} 秒）`
+      );
     }
-    
+
     // 返回缓存的订单（如果没有缓存则返回空数组）
     return this._cachedPendingOrders ?? [];
   }
@@ -303,17 +315,17 @@ export class Trader {
         OrderStatus.WaitToReplace,
         OrderStatus.PendingReplace,
       ]);
-      
+
       let allOrders = [];
-      
+
       if (!symbols || symbols.length === 0) {
         // 如果没有指定标的，获取所有订单
         allOrders = await ctx.todayOrders(undefined);
       } else {
         // 如果指定了标的，分别查询每个标的（因为 symbol 参数只接受单个字符串）
-        const normalizedSymbols = symbols.map(s => normalizeHKSymbol(s));
-        const orderPromises = normalizedSymbols.map(symbol => 
-          ctx.todayOrders({ symbol }).catch(err => {
+        const normalizedSymbols = symbols.map((s) => normalizeHKSymbol(s));
+        const orderPromises = normalizedSymbols.map((symbol) =>
+          ctx.todayOrders({ symbol }).catch((err) => {
             logger.warn(`获取标的 ${symbol} 的订单失败`, err?.message ?? err);
             return []; // 单个标的查询失败时返回空数组，不影响其他标的
           })
@@ -321,12 +333,13 @@ export class Trader {
         const orderArrays = await Promise.all(orderPromises);
         allOrders = orderArrays.flat();
       }
-      
+
       // 如果指定了标的，还需要在客户端再次过滤（因为可能获取了所有订单）
-      const normalizedTargetSymbols = symbols && symbols.length > 0
-        ? new Set(symbols.map(s => normalizeHKSymbol(s)))
-        : null;
-      
+      const normalizedTargetSymbols =
+        symbols && symbols.length > 0
+          ? new Set(symbols.map((s) => normalizeHKSymbol(s)))
+          : null;
+
       return allOrders
         .filter((order) => {
           // 先过滤状态
@@ -382,53 +395,59 @@ export class Trader {
    */
   async replaceOrderPrice(orderId, newPrice, quantity = null) {
     const ctx = await this._ctxPromise;
-    
+
     // 先获取原订单信息
     const allOrders = await ctx.todayOrders(undefined);
-    const originalOrder = allOrders.find(o => o.orderId === orderId);
-    
+    const originalOrder = allOrders.find((o) => o.orderId === orderId);
+
     if (!originalOrder) {
       const error = new Error(`未找到订单ID=${orderId}`);
       logger.error(`[订单修改失败] ${error.message}`);
       throw error;
     }
-    
+
     // 检查订单状态是否允许修改
-    if (originalOrder.status === OrderStatus.Filled ||
-        originalOrder.status === OrderStatus.Cancelled ||
-        originalOrder.status === OrderStatus.Rejected) {
-      const error = new Error(`订单ID=${orderId} 状态为 ${originalOrder.status}，不允许修改`);
+    if (
+      originalOrder.status === OrderStatus.Filled ||
+      originalOrder.status === OrderStatus.Cancelled ||
+      originalOrder.status === OrderStatus.Rejected
+    ) {
+      const error = new Error(
+        `订单ID=${orderId} 状态为 ${originalOrder.status}，不允许修改`
+      );
       logger.error(`[订单修改失败] ${error.message}`);
       throw error;
     }
-    
+
     // 计算剩余数量（原订单数量 - 已成交数量）
     const executedQty = decimalToNumber(originalOrder.executedQuantity || 0);
     const originalQty = decimalToNumber(originalOrder.quantity);
     const remainingQty = originalQty - executedQty;
-    
+
     // 构建修改订单的payload
     // API要求必须提供submittedQuantity字段，使用剩余数量或提供的数量
     let targetQuantity = remainingQty;
-    
+
     // 如果提供了数量参数，使用提供的数量（但不能超过剩余数量）
     if (quantity !== null && Number.isFinite(quantity) && quantity > 0) {
       targetQuantity = Math.min(quantity, remainingQty);
     }
-    
+
     // 验证数量有效性
     if (!Number.isFinite(targetQuantity) || targetQuantity <= 0) {
-      const error = new Error(`订单ID=${orderId} 剩余数量无效（剩余=${remainingQty}，原数量=${originalQty}，已成交=${executedQty}）`);
+      const error = new Error(
+        `订单ID=${orderId} 剩余数量无效（剩余=${remainingQty}，原数量=${originalQty}，已成交=${executedQty}）`
+      );
       logger.error(`[订单修改失败] ${error.message}`);
       throw error;
     }
-    
+
     const replacePayload = {
       orderId: orderId,
       submittedPrice: toDecimal(newPrice),
       submittedQuantity: toDecimal(targetQuantity), // API要求必须提供此字段
     };
-    
+
     // 只使用官方API进行修改，失败时直接抛出错误
     try {
       await ctx.replaceOrder(replacePayload);
@@ -438,7 +457,10 @@ export class Trader {
     } catch (err) {
       const errorMessage = err?.message ?? String(err);
       const error = new Error(`订单修改失败: ${errorMessage}`);
-      logger.error(`[订单修改失败] 订单ID=${orderId} 新价格=${newPrice.toFixed(3)}`, errorMessage);
+      logger.error(
+        `[订单修改失败] 订单ID=${orderId} 新价格=${newPrice.toFixed(3)}`,
+        errorMessage
+      );
       throw error;
     }
   }
@@ -447,30 +469,35 @@ export class Trader {
    * 通过撤销+重新提交的方式修改订单价格
    * @private
    */
-  async _replaceOrderByCancelAndResubmit(originalOrder, newPrice, quantity = null) {
+  async _replaceOrderByCancelAndResubmit(
+    originalOrder,
+    newPrice,
+    quantity = null
+  ) {
     const ctx = await this._ctxPromise;
     const longSymbol = normalizeHKSymbol(TRADING_CONFIG.longSymbol);
     const shortSymbol = normalizeHKSymbol(TRADING_CONFIG.shortSymbol);
-    
+
     // 撤销原订单
     const cancelSuccess = await this.cancelOrder(originalOrder.orderId);
     if (!cancelSuccess) {
       return false;
     }
-    
+
     // 等待一小段时间确保撤销完成
-    await new Promise(resolve => setTimeout(resolve, 200));
-    
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
     // 准备重新提交的订单信息
     const originalQty = decimalToNumber(originalOrder.quantity);
     const executedQty = decimalToNumber(originalOrder.executedQuantity || 0);
     const remainingQty = originalQty - executedQty;
-    
+
     // 如果提供了数量，使用提供的数量，否则使用剩余数量
-    const targetQty = quantity !== null && Number.isFinite(quantity) && quantity > 0
-      ? quantity
-      : remainingQty;
-    
+    const targetQty =
+      quantity !== null && Number.isFinite(quantity) && quantity > 0
+        ? quantity
+        : remainingQty;
+
     // 重新提交订单
     await this._resubmitOrderAtPrice(
       ctx,
@@ -485,7 +512,7 @@ export class Trader {
       longSymbol,
       shortSymbol
     );
-    
+
     return true;
   }
 
@@ -497,18 +524,20 @@ export class Trader {
   async hasTodayOrdersWithCache(symbols) {
     const now = Date.now();
     const oneMinute = 60 * 1000; // 1分钟 = 60000毫秒
-    
+
     // 检查是否需要重新检查
-    const shouldCheck = 
-      this._lastHasOrdersCheckTime === null || 
-      (now - this._lastHasOrdersCheckTime >= oneMinute);
-    
+    const shouldCheck =
+      this._lastHasOrdersCheckTime === null ||
+      now - this._lastHasOrdersCheckTime >= oneMinute;
+
     if (shouldCheck) {
       // 需要重新检查
       try {
         this._cachedHasOrders = await this.hasTodayOrders(symbols);
         this._lastHasOrdersCheckTime = now;
-        logger.debug(`[订单检查] 今日${this._cachedHasOrders ? '有' : '无'}交易`);
+        logger.debug(
+          `[订单检查] 今日${this._cachedHasOrders ? "有" : "无"}交易`
+        );
       } catch (err) {
         logger.debug("检查今日订单失败，使用缓存结果", err?.message ?? err);
         // 如果检查失败，使用缓存结果，如果没有缓存则假设有订单（保守策略）
@@ -517,7 +546,7 @@ export class Trader {
         }
       }
     }
-    
+
     return this._cachedHasOrders ?? true; // 默认假设有订单（保守策略）
   }
 
@@ -530,23 +559,26 @@ export class Trader {
     const ctx = await this._ctxPromise;
     try {
       let allOrders = [];
-      
+
       if (!symbols || symbols.length === 0) {
         // 如果没有指定标的，获取所有订单
         allOrders = await ctx.todayOrders(undefined);
       } else {
         // 如果指定了标的，分别查询每个标的
-        const normalizedSymbols = symbols.map(s => normalizeHKSymbol(s));
-        const orderPromises = normalizedSymbols.map(symbol => 
-          ctx.todayOrders({ symbol }).catch(err => {
-            logger.debug(`检查标的 ${symbol} 的今日订单失败`, err?.message ?? err);
+        const normalizedSymbols = symbols.map((s) => normalizeHKSymbol(s));
+        const orderPromises = normalizedSymbols.map((symbol) =>
+          ctx.todayOrders({ symbol }).catch((err) => {
+            logger.debug(
+              `检查标的 ${symbol} 的今日订单失败`,
+              err?.message ?? err
+            );
             return []; // 单个标的查询失败时返回空数组
           })
         );
         const orderArrays = await Promise.all(orderPromises);
         allOrders = orderArrays.flat();
       }
-      
+
       return allOrders.length > 0;
     } catch (err) {
       logger.debug("检查今日订单失败", err?.message ?? err);
@@ -568,67 +600,79 @@ export class Trader {
   async monitorAndManageOrders(longQuote, shortQuote) {
     const longSymbol = normalizeHKSymbol(TRADING_CONFIG.longSymbol);
     const shortSymbol = normalizeHKSymbol(TRADING_CONFIG.shortSymbol);
-    
+
     // 先检查今日是否有交易，如果没有交易则无需监控（带缓存，每分钟检查一次）
-    const hasOrders = await this.hasTodayOrdersWithCache([longSymbol, shortSymbol]);
+    const hasOrders = await this.hasTodayOrdersWithCache([
+      longSymbol,
+      shortSymbol,
+    ]);
     if (!hasOrders) {
       logger.debug("[订单监控] 今日无交易，跳过订单监控");
       return;
     }
-    
+
     // 获取所有未成交订单（带频率限制：每三分钟最多获取一次）
-    const pendingOrders = await this.getPendingOrdersWithCache([longSymbol, shortSymbol]);
-    
+    const pendingOrders = await this.getPendingOrdersWithCache([
+      longSymbol,
+      shortSymbol,
+    ]);
+
     if (pendingOrders.length === 0) {
       return; // 没有未成交订单，无需处理
     }
-    
-    logger.debug(`[订单监控] 发现 ${pendingOrders.length} 个未成交订单，开始检查价格...`);
-    
+
+    logger.debug(
+      `[订单监控] 发现 ${pendingOrders.length} 个未成交订单，开始检查价格...`
+    );
+
     for (const order of pendingOrders) {
       // 检查订单状态，如果已撤销、已成交或已完成，跳过监控
-      if (order.status === OrderStatus.Cancelled || 
-          order.status === OrderStatus.Filled || 
-          order.status === OrderStatus.Rejected) {
+      if (
+        order.status === OrderStatus.Cancelled ||
+        order.status === OrderStatus.Filled ||
+        order.status === OrderStatus.Rejected
+      ) {
         logger.debug(
           `[订单监控] 订单 ${order.orderId} 状态为 ${order.status}，跳过监控`
         );
         continue;
       }
-      
+
       // 如果订单正在被修改（Replaced状态），跳过本次监控，等待下次
-      if (order.status === OrderStatus.Replaced || 
-          order.status === OrderStatus.PendingReplace ||
-          order.status === OrderStatus.WaitToReplace) {
+      if (
+        order.status === OrderStatus.Replaced ||
+        order.status === OrderStatus.PendingReplace ||
+        order.status === OrderStatus.WaitToReplace
+      ) {
         logger.debug(
           `[订单监控] 订单 ${order.orderId} 正在修改中（状态：${order.status}），跳过本次监控`
         );
         continue;
       }
-      
+
       const normalizedOrderSymbol = normalizeHKSymbol(order.symbol);
       let currentPrice = null;
-      
+
       // 获取标的的当前价格
       if (normalizedOrderSymbol === longSymbol && longQuote) {
         currentPrice = longQuote.price;
       } else if (normalizedOrderSymbol === shortSymbol && shortQuote) {
         currentPrice = shortQuote.price;
       }
-      
+
       if (!currentPrice || !Number.isFinite(currentPrice)) {
         logger.debug(
           `[订单监控] 无法获取标的 ${order.symbol} 的当前价格，跳过处理订单 ${order.orderId}`
         );
         continue;
       }
-      
+
       const orderPrice = order.submittedPrice;
       const priceDiff = currentPrice - orderPrice;
-      
+
       // 判断是买入订单还是卖出订单
       const isBuyOrder = order.side === OrderSide.Buy;
-      
+
       if (isBuyOrder) {
         // 买入订单：如果当前价格低于委托价格，修改委托价格为当前价格
         // 只要价格降低0.001或以上就会进行修改
@@ -637,22 +681,38 @@ export class Trader {
           // 价格差异达到0.001或以上时进行修改
           if (priceDiffAbs >= 0.001) {
             logger.info(
-              `[订单监控] 买入订单 ${order.orderId} 当前价格(${currentPrice.toFixed(3)}) 低于委托价格(${orderPrice.toFixed(3)}) 差异=${priceDiffAbs.toFixed(3)}，修改委托价格为当前价格`
+              `[订单监控] 买入订单 ${
+                order.orderId
+              } 当前价格(${currentPrice.toFixed(
+                3
+              )}) 低于委托价格(${orderPrice.toFixed(
+                3
+              )}) 差异=${priceDiffAbs.toFixed(3)}，修改委托价格为当前价格`
             );
             try {
               await this.replaceOrderPrice(order.orderId, currentPrice);
               logger.info(
-                `[订单监控] 买入订单 ${order.orderId} 价格修改成功：${orderPrice.toFixed(3)} -> ${currentPrice.toFixed(3)} (降低${priceDiffAbs.toFixed(3)})`
+                `[订单监控] 买入订单 ${
+                  order.orderId
+                } 价格修改成功：${orderPrice.toFixed(
+                  3
+                )} -> ${currentPrice.toFixed(3)} (降低${priceDiffAbs.toFixed(
+                  3
+                )})`
               );
             } catch (err) {
               logger.error(
-                `[订单监控] 买入订单 ${order.orderId} 价格修改失败: ${err?.message ?? err}`
+                `[订单监控] 买入订单 ${order.orderId} 价格修改失败: ${
+                  err?.message ?? err
+                }`
               );
               // 错误已抛出，不执行其他修改方式
             }
           } else {
             logger.debug(
-              `[订单监控] 买入订单 ${order.orderId} 价格差异(${priceDiffAbs.toFixed(4)})小于0.001，暂不修改`
+              `[订单监控] 买入订单 ${
+                order.orderId
+              } 价格差异(${priceDiffAbs.toFixed(4)})小于0.001，暂不修改`
             );
           }
         }
@@ -666,28 +726,54 @@ export class Trader {
         if (priceDiffAbs >= 0.001) {
           if (currentPrice > orderPrice) {
             logger.info(
-              `[订单监控] 卖出订单 ${order.orderId} 当前价格(${currentPrice.toFixed(3)}) 高于委托价格(${orderPrice.toFixed(3)}) 差异=${priceDiffAbs.toFixed(3)}，修改委托价格为当前价格（获得更好价格）`
+              `[订单监控] 卖出订单 ${
+                order.orderId
+              } 当前价格(${currentPrice.toFixed(
+                3
+              )}) 高于委托价格(${orderPrice.toFixed(
+                3
+              )}) 差异=${priceDiffAbs.toFixed(
+                3
+              )}，修改委托价格为当前价格（获得更好价格）`
             );
           } else {
             logger.info(
-              `[订单监控] 卖出订单 ${order.orderId} 当前价格(${currentPrice.toFixed(3)}) 低于委托价格(${orderPrice.toFixed(3)}) 差异=${priceDiffAbs.toFixed(3)}，修改委托价格为当前价格（防止错过清仓时刻）`
+              `[订单监控] 卖出订单 ${
+                order.orderId
+              } 当前价格(${currentPrice.toFixed(
+                3
+              )}) 低于委托价格(${orderPrice.toFixed(
+                3
+              )}) 差异=${priceDiffAbs.toFixed(
+                3
+              )}，修改委托价格为当前价格（防止错过清仓时刻）`
             );
           }
           try {
             await this.replaceOrderPrice(order.orderId, currentPrice);
             const changeType = currentPrice > orderPrice ? "提高" : "降低";
             logger.info(
-              `[订单监控] 卖出订单 ${order.orderId} 价格修改成功：${orderPrice.toFixed(3)} -> ${currentPrice.toFixed(3)} (${changeType}${priceDiffAbs.toFixed(3)})`
+              `[订单监控] 卖出订单 ${
+                order.orderId
+              } 价格修改成功：${orderPrice.toFixed(
+                3
+              )} -> ${currentPrice.toFixed(
+                3
+              )} (${changeType}${priceDiffAbs.toFixed(3)})`
             );
           } catch (err) {
             logger.error(
-              `[订单监控] 卖出订单 ${order.orderId} 价格修改失败: ${err?.message ?? err}`
+              `[订单监控] 卖出订单 ${order.orderId} 价格修改失败: ${
+                err?.message ?? err
+              }`
             );
             // 错误已抛出，不执行其他修改方式
           }
         } else {
           logger.debug(
-            `[订单监控] 卖出订单 ${order.orderId} 价格差异(${priceDiffAbs.toFixed(4)})小于0.001，暂不修改`
+            `[订单监控] 卖出订单 ${
+              order.orderId
+            } 价格差异(${priceDiffAbs.toFixed(4)})小于0.001，暂不修改`
           );
         }
       }
@@ -698,10 +784,16 @@ export class Trader {
    * 以指定价格重新提交订单
    * @private
    */
-  async _resubmitOrderAtPrice(ctx, originalOrder, newPrice, longSymbol, shortSymbol) {
+  async _resubmitOrderAtPrice(
+    ctx,
+    originalOrder,
+    newPrice,
+    longSymbol,
+    shortSymbol
+  ) {
     const normalizedSymbol = normalizeHKSymbol(originalOrder.symbol);
     const isShortSymbol = normalizedSymbol === normalizeHKSymbol(shortSymbol);
-    
+
     // 验证价格
     if (!Number.isFinite(newPrice) || newPrice <= 0) {
       logger.error(
@@ -709,11 +801,11 @@ export class Trader {
       );
       return;
     }
-    
+
     // 计算剩余数量（原数量 - 已成交数量）
     const originalQty = Number(originalOrder.quantity) || 0;
     const executedQty = Number(originalOrder.executedQuantity) || 0;
-    
+
     // 验证数量有效性
     if (!Number.isFinite(originalQty) || originalQty <= 0) {
       logger.error(
@@ -721,14 +813,14 @@ export class Trader {
       );
       return;
     }
-    
+
     if (!Number.isFinite(executedQty) || executedQty < 0) {
       logger.error(
         `[重新委托失败] 订单 ${originalOrder.orderId} 已成交数量无效：${originalOrder.executedQuantity}`
       );
       return;
     }
-    
+
     const remainingQty = originalQty - executedQty;
     if (remainingQty <= 0) {
       logger.warn(
@@ -736,13 +828,15 @@ export class Trader {
       );
       return;
     }
-    
+
     // 获取最小买卖单位（需要从行情数据获取，这里使用配置值作为后备）
-    let lotSize = isShortSymbol ? TRADING_CONFIG.shortLotSize : TRADING_CONFIG.longLotSize;
+    let lotSize = isShortSymbol
+      ? TRADING_CONFIG.shortLotSize
+      : TRADING_CONFIG.longLotSize;
     if (!Number.isFinite(lotSize) || lotSize <= 0) {
       lotSize = 100; // 默认值
     }
-    
+
     // 确保数量是最小买卖单位的整数倍
     const adjustedQty = Math.floor(remainingQty / lotSize) * lotSize;
     if (adjustedQty <= 0 || adjustedQty < lotSize) {
@@ -751,17 +845,21 @@ export class Trader {
       );
       return;
     }
-    
+
     // 检查交易频率限制
     if (!this._canTradeNow(originalOrder.symbol)) {
-      const lastTime = this._lastTradeTime.get(normalizeHKSymbol(originalOrder.symbol));
-      const waitSeconds = Math.ceil((60 * 1000 - (Date.now() - lastTime)) / 1000);
+      const lastTime = this._lastTradeTime.get(
+        normalizeHKSymbol(originalOrder.symbol)
+      );
+      const waitSeconds = Math.ceil(
+        (60 * 1000 - (Date.now() - lastTime)) / 1000
+      );
       logger.warn(
         `[重新委托失败] 订单 ${originalOrder.orderId} 标的 ${originalOrder.symbol} 在1分钟内已交易过，需等待 ${waitSeconds} 秒`
       );
       return;
     }
-    
+
     const orderPayload = {
       symbol: originalOrder.symbol,
       orderType: OrderType.ELO, // 使用增强限价单
@@ -771,26 +869,30 @@ export class Trader {
       submittedPrice: toDecimal(newPrice),
       remark: "价格优化重新委托",
     };
-    
+
     // 定义操作描述（在 try-catch 外部，以便错误处理时使用）
     const actionDesc = this._getActionDescription(
       null, // 重新委托时没有信号类型
       isShortSymbol,
       originalOrder.side
     );
-    
+
     try {
       const resp = await ctx.submitOrder(orderPayload);
       const orderId =
         resp?.orderId ?? resp?.toString?.() ?? resp ?? "UNKNOWN_ORDER_ID";
-      
+
       logger.info(
-        `[重新委托成功] ${actionDesc} ${orderPayload.symbol} 数量=${adjustedQty}（原剩余=${remainingQty}） 价格=${newPrice.toFixed(3)} 订单ID=${orderId}`
+        `[重新委托成功] ${actionDesc} ${
+          orderPayload.symbol
+        } 数量=${adjustedQty}（原剩余=${remainingQty}） 价格=${newPrice.toFixed(
+          3
+        )} 订单ID=${orderId}`
       );
-      
+
       // 更新最后交易时间
       this._updateLastTradeTime(originalOrder.symbol);
-      
+
       // 记录交易（重新委托没有信号触发时间，因为这是价格优化操作）
       recordTrade({
         orderId: String(orderId),
@@ -808,28 +910,44 @@ export class Trader {
     } catch (err) {
       const errorMessage = err?.message ?? String(err);
       const errorStr = String(errorMessage).toLowerCase();
-      
+
       // 分析常见错误原因
       let errorReason = "未知错误";
       if (errorStr.includes("lot size") || errorStr.includes("买卖单位")) {
         errorReason = "数量不符合最小买卖单位要求";
-      } else if (errorStr.includes("balance") || errorStr.includes("余额") || errorStr.includes("资金")) {
+      } else if (
+        errorStr.includes("balance") ||
+        errorStr.includes("余额") ||
+        errorStr.includes("资金")
+      ) {
         errorReason = "账户余额不足";
       } else if (errorStr.includes("price") || errorStr.includes("价格")) {
         errorReason = "价格无效或超出限制";
-      } else if (errorStr.includes("frequency") || errorStr.includes("频率") || errorStr.includes("too many")) {
+      } else if (
+        errorStr.includes("frequency") ||
+        errorStr.includes("频率") ||
+        errorStr.includes("too many")
+      ) {
         errorReason = "交易频率过高";
-      } else if (errorStr.includes("market") || errorStr.includes("市场") || errorStr.includes("trading")) {
+      } else if (
+        errorStr.includes("market") ||
+        errorStr.includes("市场") ||
+        errorStr.includes("trading")
+      ) {
         errorReason = "市场状态不允许交易（可能已收盘或暂停交易）";
       } else if (errorStr.includes("position") || errorStr.includes("持仓")) {
         errorReason = "持仓数量不足（卖出订单）";
       }
-      
+
       logger.error(
-        `[重新委托失败] ${actionDesc} ${originalOrder.symbol} 数量=${adjustedQty} 价格=${newPrice.toFixed(3)} 原订单ID=${originalOrder.orderId}`,
+        `[重新委托失败] ${actionDesc} ${
+          originalOrder.symbol
+        } 数量=${adjustedQty} 价格=${newPrice.toFixed(3)} 原订单ID=${
+          originalOrder.orderId
+        }`,
         `错误原因：${errorReason}，错误信息：${errorMessage}`
       );
-      
+
       // 记录失败交易到文件
       const failedActionDesc = this._getActionDescription(
         null, // 重新委托时没有信号类型
@@ -862,15 +980,15 @@ export class Trader {
   _canTradeNow(symbol) {
     const normalizedSymbol = normalizeHKSymbol(symbol);
     const lastTime = this._lastTradeTime.get(normalizedSymbol);
-    
+
     if (!lastTime) {
       return true; // 从未交易过，可以交易
     }
-    
+
     const now = Date.now();
     const timeDiff = now - lastTime;
     const oneMinute = 60 * 1000; // 1分钟 = 60000毫秒
-    
+
     return timeDiff >= oneMinute;
   }
 
@@ -900,7 +1018,7 @@ export class Trader {
     if (signalAction === SignalType.SELLPUT) {
       return "卖出做空标的（平空仓）";
     }
-    
+
     // 兼容旧代码（如果没有信号类型，根据 side 判断）
     if (isShortSymbol) {
       return side === OrderSide.Buy
@@ -963,8 +1081,12 @@ export class Trader {
 
       // 检查交易频率限制：每个标的每分钟内只能交易一次
       if (!this._canTradeNow(targetSymbol)) {
-        const lastTime = this._lastTradeTime.get(normalizeHKSymbol(targetSymbol));
-        const waitSeconds = Math.ceil((60 * 1000 - (Date.now() - lastTime)) / 1000);
+        const lastTime = this._lastTradeTime.get(
+          normalizeHKSymbol(targetSymbol)
+        );
+        const waitSeconds = Math.ceil(
+          (60 * 1000 - (Date.now() - lastTime)) / 1000
+        );
         logger.warn(
           `[交易频率限制] 标的 ${targetSymbol} 在1分钟内已交易过，需等待 ${waitSeconds} 秒后才能再次交易`
         );
@@ -984,7 +1106,7 @@ export class Trader {
       } else {
         actualAction = `未知操作(${s.action})`;
       }
-      
+
       logger.info(
         `[交易计划] ${actualAction} ${targetSymbol} - ${s.reason || "策略信号"}`
       );
@@ -1001,7 +1123,9 @@ export class Trader {
     }
 
     if (!signal.symbol || typeof signal.symbol !== "string") {
-      logger.error(`[订单提交] 信号缺少有效的标的代码: ${JSON.stringify(signal)}`);
+      logger.error(
+        `[订单提交] 信号缺少有效的标的代码: ${JSON.stringify(signal)}`
+      );
       return;
     }
 
@@ -1020,7 +1144,9 @@ export class Trader {
     } else if (signal.action === SignalType.SELLPUT) {
       side = OrderSide.Sell; // 卖出做空标的（平空仓）
     } else {
-      logger.error(`[订单提交] 未知的信号类型: ${signal.action}, 标的: ${signal.symbol}`);
+      logger.error(
+        `[订单提交] 未知的信号类型: ${signal.action}, 标的: ${signal.symbol}`
+      );
       return;
     }
 
@@ -1035,12 +1161,12 @@ export class Trader {
     const symbol = targetSymbol;
 
     let submittedQtyDecimal;
-    
+
     // 判断是否需要清仓（平仓）
-    const needClosePosition = 
+    const needClosePosition =
       signal.action === SignalType.SELLCALL || // 卖出做多标的（清仓）
-      signal.action === SignalType.SELLPUT;    // 卖出做空标的（平空仓）
-    
+      signal.action === SignalType.SELLPUT; // 卖出做空标的（平空仓）
+
     if (needClosePosition) {
       // 平仓：按当前持仓可用数量全部清仓
       const resp = await ctx.stockPositions([symbol]);
@@ -1084,12 +1210,14 @@ export class Trader {
         submittedQtyDecimal = fallbackQty;
       } else {
         const notional = Number(
-          targetNotional && Number.isFinite(Number(targetNotional)) && targetNotional > 0
+          targetNotional &&
+            Number.isFinite(Number(targetNotional)) &&
+            targetNotional > 0
             ? targetNotional
             : 5000
         );
         const priceNum = Number(pricingSource);
-        
+
         // 验证价格有效性
         if (!Number.isFinite(priceNum) || priceNum <= 0) {
           logger.warn(
@@ -1097,9 +1225,9 @@ export class Trader {
           );
           return;
         }
-        
+
         let rawQty = Math.floor(notional / priceNum);
-        
+
         // 获取最小买卖单位（优先使用从API获取的值，其次使用配置值，最后使用默认值100）
         let lotSize = signal?.lotSize ?? null;
         if (!Number.isFinite(lotSize) || lotSize <= 0) {
@@ -1114,7 +1242,7 @@ export class Trader {
         if (!Number.isFinite(lotSize) || lotSize <= 0) {
           lotSize = 100; // 最后的默认值
         }
-        
+
         // 按最小买卖单位取整，确保数量是最小买卖单位的整数倍
         rawQty = Math.floor(rawQty / lotSize) * lotSize;
         if (!Number.isFinite(rawQty) || rawQty < lotSize) {
@@ -1124,7 +1252,9 @@ export class Trader {
           return;
         }
         submittedQtyDecimal = toDecimal(rawQty);
-        const actionType = isShortSymbol ? "买入做空标的（做空）" : "买入做多标的（做多）";
+        const actionType = isShortSymbol
+          ? "买入做空标的（做空）"
+          : "买入做多标的（做多）";
         logger.info(
           `[仓位计算] 按目标金额 ${notional} 计算得到${actionType}数量=${rawQty} 股（${lotSize} 股一手），单价≈${priceNum}`
         );
@@ -1168,21 +1298,23 @@ export class Trader {
       const resp = await ctx.submitOrder(orderPayload);
       const orderId =
         resp?.orderId ?? resp?.toString?.() ?? resp ?? "UNKNOWN_ORDER_ID";
-      
+
       // 根据信号类型确定操作描述
       const actionDesc = this._getActionDescription(
         signal.action,
         isShortSymbol,
         side
       );
-      
+
       logger.info(
-        `[订单提交成功] ${actionDesc} ${orderPayload.symbol} 数量=${orderPayload.submittedQuantity.toString()} 订单ID=${orderId}`
+        `[订单提交成功] ${actionDesc} ${
+          orderPayload.symbol
+        } 数量=${orderPayload.submittedQuantity.toString()} 订单ID=${orderId}`
       );
-      
+
       // 更新该标的的最后交易时间（订单提交成功后才更新）
       this._updateLastTradeTime(orderPayload.symbol);
-      
+
       // 记录交易到文件
       recordTrade({
         orderId: String(orderId),
@@ -1204,18 +1336,18 @@ export class Trader {
         isShortSymbol,
         side
       );
-      
+
       const errorMessage = err?.message ?? String(err);
       const errorStr = String(errorMessage).toLowerCase();
-      
+
       // 检查是否为做空不支持的错误（注意：做空是买入做空标的，所以检查买入订单）
-      const isShortSellingNotSupported = 
-        signal.action === SignalType.BUYPUT && 
+      const isShortSellingNotSupported =
+        signal.action === SignalType.BUYPUT &&
         (errorStr.includes("does not support short selling") ||
-         errorStr.includes("不支持做空") ||
-         errorStr.includes("short selling") ||
-         errorStr.includes("做空"));
-      
+          errorStr.includes("不支持做空") ||
+          errorStr.includes("short selling") ||
+          errorStr.includes("做空"));
+
       if (isShortSellingNotSupported) {
         logger.error(
           `[订单提交失败] ${actionDesc} ${orderPayload.symbol} 失败：该标的不支持做空交易`,
@@ -1223,10 +1355,10 @@ export class Trader {
         );
         logger.warn(
           `[做空错误提示] 标的 ${orderPayload.symbol} 不支持做空交易。可能的原因：\n` +
-          `  1. 该标的在港股市场不支持做空\n` +
-          `  2. 账户没有做空权限\n` +
-          `  3. 需要更换其他支持做空的标的\n` +
-          `  建议：检查配置中的 SHORT_SYMBOL 环境变量，或联系券商确认账户做空权限`
+            `  1. 该标的在港股市场不支持做空\n` +
+            `  2. 账户没有做空权限\n` +
+            `  3. 需要更换其他支持做空的标的\n` +
+            `  建议：检查配置中的 SHORT_SYMBOL 环境变量，或联系券商确认账户做空权限`
         );
       } else {
         logger.error(
@@ -1234,7 +1366,7 @@ export class Trader {
           errorMessage
         );
       }
-      
+
       // 记录失败交易到文件
       recordTrade({
         orderId: "FAILED",
@@ -1253,5 +1385,3 @@ export class Trader {
     }
   }
 }
-
-

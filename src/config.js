@@ -12,5 +12,3 @@ export function createConfig() {
   // 如果你不想用环境变量，也可以直接在这里传 app_key/app_secret/access_token
   return Config.fromEnv();
 }
-
-

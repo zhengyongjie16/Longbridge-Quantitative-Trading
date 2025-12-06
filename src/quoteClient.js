@@ -95,7 +95,7 @@ export class MarketDataClient {
       throw new TypeError("getQuotes 需要传入数组格式的标的代码");
     }
     // 规范化港股代码
-    const normalizedSymbols = symbols.map(s => normalizeHKSymbol(s));
+    const normalizedSymbols = symbols.map((s) => normalizeHKSymbol(s));
     return ctx.quote(normalizedSymbols);
   }
 
@@ -120,7 +120,9 @@ export class MarketDataClient {
       const staticInfo = statics?.[0];
       if (!quote) {
         console.warn(
-          `[行情获取] 标的 ${normalizedSymbol} (原始: ${symbol}) 未返回行情数据。quotes.length=${quotes?.length ?? 0}`
+          `[行情获取] 标的 ${normalizedSymbol} (原始: ${symbol}) 未返回行情数据。quotes.length=${
+            quotes?.length ?? 0
+          }`
         );
         return null;
       }
@@ -131,7 +133,8 @@ export class MarketDataClient {
       let lotSize = null;
       if (staticInfo) {
         // 尝试多种可能的字段名
-        const lotSizeValue = staticInfo.lotSize ?? staticInfo.lot_size ?? staticInfo.lot ?? null;
+        const lotSizeValue =
+          staticInfo.lotSize ?? staticInfo.lot_size ?? staticInfo.lot ?? null;
         if (lotSizeValue !== null && lotSizeValue !== undefined) {
           const parsed = Number(lotSizeValue);
           if (Number.isFinite(parsed) && parsed > 0) {
@@ -197,7 +200,13 @@ export class MarketDataClient {
   ) {
     const ctx = await this._ctxPromise;
     const periodEnum = this._normalizePeriod(period);
-    return ctx.candlesticks(symbol, periodEnum, count, adjustType, tradeSessions);
+    return ctx.candlesticks(
+      symbol,
+      periodEnum,
+      count,
+      adjustType,
+      tradeSessions
+    );
   }
 
   _normalizePeriod(period) {
@@ -223,19 +232,20 @@ export class MarketDataClient {
   async checkWarrantInfo(symbol) {
     const ctx = await this._ctxPromise;
     const normalizedSymbol = normalizeHKSymbol(symbol);
-    
+
     try {
       // 使用 warrantQuote API 获取轮证信息
       const warrantQuotes = await this._withRetry(
         () => ctx.warrantQuote([normalizedSymbol]),
         `获取 ${normalizedSymbol} 牛熊证信息`
       );
-      
+
       // warrantQuote 返回数组，取第一个
-      const warrantQuote = Array.isArray(warrantQuotes) && warrantQuotes.length > 0 
-        ? warrantQuotes[0] 
-        : null;
-      
+      const warrantQuote =
+        Array.isArray(warrantQuotes) && warrantQuotes.length > 0
+          ? warrantQuotes[0]
+          : null;
+
       if (!warrantQuote) {
         // 如果 warrantQuote 返回空，可能不是轮证，尝试从 staticInfo 获取基本信息
         try {
@@ -244,7 +254,7 @@ export class MarketDataClient {
             `获取 ${normalizedSymbol} 静态信息`
           );
           const staticInfo = statics?.[0];
-          
+
           // 如果 staticInfo 也没有，返回非轮证
           if (!staticInfo) {
             return {
@@ -254,16 +264,21 @@ export class MarketDataClient {
               underlyingSymbol: null,
             };
           }
-          
+
           // 尝试从 staticInfo 获取相关资产代码
-          const underlyingSymbol = staticInfo.underlyingSymbol ?? staticInfo.underlying_symbol ?? 
-                                  staticInfo.underlying ?? null;
-          
+          const underlyingSymbol =
+            staticInfo.underlyingSymbol ??
+            staticInfo.underlying_symbol ??
+            staticInfo.underlying ??
+            null;
+
           return {
             isWarrant: false,
             warrantType: null,
             strikePrice: null,
-            underlyingSymbol: underlyingSymbol ? String(underlyingSymbol) : null,
+            underlyingSymbol: underlyingSymbol
+              ? String(underlyingSymbol)
+              : null,
           };
         } catch (error) {
           // 如果获取 staticInfo 失败，返回非轮证
@@ -280,7 +295,7 @@ export class MarketDataClient {
       const category = warrantQuote.category;
       let isWarrant = false;
       let warrantType = null;
-      
+
       if (category === "Bull" || category === "BULL") {
         isWarrant = true;
         warrantType = "BULL";
@@ -292,7 +307,8 @@ export class MarketDataClient {
       // 获取回收价（call_price 字段）
       let strikePrice = null;
       if (isWarrant) {
-        const callPrice = warrantQuote.call_price ?? warrantQuote.callPrice ?? null;
+        const callPrice =
+          warrantQuote.call_price ?? warrantQuote.callPrice ?? null;
         if (callPrice !== null && callPrice !== undefined) {
           const parsed = decimalToNumber(callPrice);
           if (Number.isFinite(parsed) && parsed > 0) {
@@ -305,9 +321,11 @@ export class MarketDataClient {
       // warrantQuote 可能包含 underlying_symbol 或 underlying 字段
       let underlyingSymbol = null;
       if (isWarrant) {
-        const underlying = warrantQuote.underlying_symbol ?? 
-                          warrantQuote.underlyingSymbol ?? 
-                          warrantQuote.underlying ?? null;
+        const underlying =
+          warrantQuote.underlying_symbol ??
+          warrantQuote.underlyingSymbol ??
+          warrantQuote.underlying ??
+          null;
         if (underlying) {
           underlyingSymbol = String(underlying);
         } else {
@@ -319,9 +337,11 @@ export class MarketDataClient {
             );
             const staticInfo = statics?.[0];
             if (staticInfo) {
-              const underlyingFromStatic = staticInfo.underlyingSymbol ?? 
-                                          staticInfo.underlying_symbol ?? 
-                                          staticInfo.underlying ?? null;
+              const underlyingFromStatic =
+                staticInfo.underlyingSymbol ??
+                staticInfo.underlying_symbol ??
+                staticInfo.underlying ??
+                null;
               if (underlyingFromStatic) {
                 underlyingSymbol = String(underlyingFromStatic);
               }
@@ -362,7 +382,7 @@ export class MarketDataClient {
    */
   async getWarrantDistanceToStrike(symbol, underlyingPrice = null) {
     const warrantInfo = await this.checkWarrantInfo(symbol);
-    
+
     if (!warrantInfo.isWarrant || !warrantInfo.strikePrice) {
       return {
         isWarrant: false,
@@ -377,7 +397,9 @@ export class MarketDataClient {
     let actualUnderlyingPrice = underlyingPrice;
     if (actualUnderlyingPrice === null && warrantInfo.underlyingSymbol) {
       try {
-        const underlyingQuote = await this.getLatestQuote(warrantInfo.underlyingSymbol);
+        const underlyingQuote = await this.getLatestQuote(
+          warrantInfo.underlyingSymbol
+        );
         actualUnderlyingPrice = underlyingQuote?.price ?? null;
       } catch (err) {
         console.warn(
@@ -387,7 +409,10 @@ export class MarketDataClient {
       }
     }
 
-    if (actualUnderlyingPrice === null || !Number.isFinite(actualUnderlyingPrice)) {
+    if (
+      actualUnderlyingPrice === null ||
+      !Number.isFinite(actualUnderlyingPrice)
+    ) {
       return {
         isWarrant: true,
         distanceToStrikePercent: null,
@@ -400,7 +425,10 @@ export class MarketDataClient {
     // 计算距离回收价的百分比
     let distanceToStrikePercent = null;
     // 确保回收价不为0且有效
-    if (!Number.isFinite(warrantInfo.strikePrice) || warrantInfo.strikePrice <= 0) {
+    if (
+      !Number.isFinite(warrantInfo.strikePrice) ||
+      warrantInfo.strikePrice <= 0
+    ) {
       return {
         isWarrant: true,
         distanceToStrikePercent: null,
@@ -409,23 +437,29 @@ export class MarketDataClient {
         underlyingPrice: actualUnderlyingPrice,
       };
     }
-    
+
     if (warrantInfo.warrantType === "BULL") {
       // 牛证：距离回收价百分比 = (相关资产现价 - 回收价) / 回收价 * 100%
-      distanceToStrikePercent = ((actualUnderlyingPrice - warrantInfo.strikePrice) / warrantInfo.strikePrice) * 100;
+      distanceToStrikePercent =
+        ((actualUnderlyingPrice - warrantInfo.strikePrice) /
+          warrantInfo.strikePrice) *
+        100;
     } else if (warrantInfo.warrantType === "BEAR") {
       // 熊证：距离回收价百分比 = (回收价 - 相关资产现价) / 回收价 * 100%
-      distanceToStrikePercent = ((warrantInfo.strikePrice - actualUnderlyingPrice) / warrantInfo.strikePrice) * 100;
+      distanceToStrikePercent =
+        ((warrantInfo.strikePrice - actualUnderlyingPrice) /
+          warrantInfo.strikePrice) *
+        100;
     }
 
     return {
       isWarrant: true,
-      distanceToStrikePercent: Number.isFinite(distanceToStrikePercent) ? distanceToStrikePercent : null,
+      distanceToStrikePercent: Number.isFinite(distanceToStrikePercent)
+        ? distanceToStrikePercent
+        : null,
       warrantType: warrantInfo.warrantType,
       strikePrice: warrantInfo.strikePrice,
       underlyingPrice: actualUnderlyingPrice,
     };
   }
 }
-
-

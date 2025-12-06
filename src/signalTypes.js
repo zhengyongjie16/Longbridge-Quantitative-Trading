@@ -4,15 +4,15 @@
  */
 export const SignalType = {
   // 做多标的（CALL）相关信号
-  BUYCALL: "BUYCALL",   // 买入做多标的（做多操作）
+  BUYCALL: "BUYCALL", // 买入做多标的（做多操作）
   SELLCALL: "SELLCALL", // 卖出做多标的（清仓操作）
-  
+
   // 做空标的（PUT）相关信号
-  BUYPUT: "BUYPUT",     // 买入做空标的（做空操作）
-  SELLPUT: "SELLPUT",   // 卖出做空标的（平空仓操作）
-  
+  BUYPUT: "BUYPUT", // 买入做空标的（做空操作）
+  SELLPUT: "SELLPUT", // 卖出做空标的（平空仓操作）
+
   // 其他
-  HOLD: "HOLD",         // 持有，不操作
+  HOLD: "HOLD", // 持有，不操作
 };
 
 /**
@@ -50,4 +50,3 @@ export function isCallAction(action) {
 export function isPutAction(action) {
   return action === SignalType.BUYPUT || action === SignalType.SELLPUT;
 }
-

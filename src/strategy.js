@@ -4,7 +4,7 @@ import { SignalType } from "./signalTypes.js";
  * 恒生指数多指标策略：
  * - 监控 RSI6、RSI12、KDJ、成交均价（VWAP）
  * - 基于持仓成本价和指标条件生成清仓信号和开仓信号
- * 
+ *
  * 策略逻辑：
  * 1. 买入做多标的（BUYCALL）：RSI6<20, RSI12<20, KDJ.D<20, KDJ.J<-1 满足3个以上，且监控标的价格<VWAP
  * 2. 卖出做多标的（SELLCALL）：RSI6>80, RSI12>80, KDJ.D>80, KDJ.J>100 满足3个以上，且做多标的价格>持仓成本价，立即清空所有做多标的持仓
@@ -53,12 +53,12 @@ export class HangSengMultiIndicatorStrategy {
   _calculateVerificationTime() {
     const now = new Date();
     const triggerTime = new Date(now.getTime() + 60 * 1000); // 加60秒
-    
+
     // 如果目标时间已经过去，说明计算有误，返回null
     if (triggerTime <= now) {
       return null;
     }
-    
+
     return triggerTime;
   }
 
@@ -93,21 +93,22 @@ export class HangSengMultiIndicatorStrategy {
   _calculateConditionCount(state, signalType) {
     const { rsi6, rsi12, kdj } = state;
     const threshold = this._getThresholdForSignal(signalType);
-    
+
     if (!threshold) {
       return 0;
     }
 
     // 根据信号类型判断是大于还是小于阈值
-    const isBuySignal = signalType === SignalType.BUYCALL || signalType === SignalType.SELLPUT;
-    
+    const isBuySignal =
+      signalType === SignalType.BUYCALL || signalType === SignalType.SELLPUT;
+
     const conditions = [
       isBuySignal ? rsi6 < threshold.rsi6 : rsi6 > threshold.rsi6,
       isBuySignal ? rsi12 < threshold.rsi12 : rsi12 > threshold.rsi12,
       isBuySignal ? kdj.d < threshold.d : kdj.d > threshold.d,
       isBuySignal ? kdj.j < threshold.j : kdj.j > threshold.j,
     ];
-    
+
     return conditions.filter(Boolean).length;
   }
 
@@ -122,45 +123,45 @@ export class HangSengMultiIndicatorStrategy {
    */
   _generateDelayedSignal(state, symbol, action, reasonPrefix) {
     const { rsi6, rsi12, kdj, vwap, price: monitorPrice, macd } = state;
-    
+
     // 计算该信号类型满足条件的数量
     const satisfiedCount = this._calculateConditionCount(state, action);
-    
+
     if (satisfiedCount < 3) {
       return null;
     }
-    
+
     if (!Number.isFinite(monitorPrice) || !Number.isFinite(vwap)) {
       return null;
     }
-    
+
     // 根据信号类型判断价格条件
-    const priceConditionMet = 
+    const priceConditionMet =
       (action === SignalType.BUYCALL && monitorPrice < vwap) ||
       (action === SignalType.BUYPUT && monitorPrice > vwap);
-    
+
     if (!priceConditionMet) {
       return null;
     }
-    
+
     // 验证KDJ和MACD值是否有效
     if (!kdj || !Number.isFinite(kdj.j)) {
       return null;
     }
-    
+
     if (!macd || !Number.isFinite(macd.macd)) {
       return null;
     }
-    
+
     const triggerTime = this._calculateVerificationTime();
     if (!triggerTime) {
       return null;
     }
-    
+
     // 记录当前的J值和MACD值（J1和MACD1）
     const j1 = kdj.j;
     const macd1 = macd.macd;
-    
+
     const priceComparison = action === SignalType.BUYCALL ? "<" : ">";
     return {
       symbol,
@@ -169,7 +170,18 @@ export class HangSengMultiIndicatorStrategy {
       j1, // 记录触发时的J值
       macd1, // 记录触发时的MACD值
       verificationHistory: [], // 该信号专用的验证历史记录（每秒记录一次）
-      reason: `${reasonPrefix}：监控标的 RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(1)})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(2)}) 中 ${satisfiedCount} 项满足条件，且监控标的价格(${monitorPrice.toFixed(3)}) ${priceComparison} VWAP(${vwap.toFixed(3)})，J1=${j1.toFixed(2)} MACD1=${macd1.toFixed(4)}，将在 ${triggerTime.toLocaleString("zh-CN", { timeZone: "Asia/Hong_Kong", hour12: false })} 进行验证`,
+      reason: `${reasonPrefix}：监控标的 RSI6/12(${rsi6.toFixed(
+        1
+      )}/${rsi12.toFixed(1)})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(
+        2
+      )}) 中 ${satisfiedCount} 项满足条件，且监控标的价格(${monitorPrice.toFixed(
+        3
+      )}) ${priceComparison} VWAP(${vwap.toFixed(3)})，J1=${j1.toFixed(
+        2
+      )} MACD1=${macd1.toFixed(4)}，将在 ${triggerTime.toLocaleString("zh-CN", {
+        timeZone: "Asia/Hong_Kong",
+        hour12: false,
+      })} 进行验证`,
       originalState: {
         rsi6,
         rsi12,
@@ -205,7 +217,7 @@ export class HangSengMultiIndicatorStrategy {
   ) {
     const immediateSignals = [];
     const delayedSignals = [];
-    
+
     if (!state) {
       return { immediateSignals, delayedSignals };
     }
@@ -238,21 +250,37 @@ export class HangSengMultiIndicatorStrategy {
     // 条件：RSI6 > 80, RSI12 > 80, KDJ.D > 80, KDJ.J > 100 四个指标中满足三个以上
     // 且当前做多标的价格 > 做多标的持仓成本价
     // 立即清空所有做多标的持仓
-    const canSellLong = longPosition?.symbol && 
-        Number.isFinite(longPosition.availableQuantity) && 
-        longPosition.availableQuantity > 0 && 
-        Number.isFinite(longCurrentPrice) && 
-        longCurrentPrice > 0 &&
-        Number.isFinite(longPosition.costPrice) && 
-        longPosition.costPrice > 0;
-    
-    const sellcallCount = this._calculateConditionCount(state, SignalType.SELLCALL);
-    if (canSellLong && sellcallCount >= 3 && longCurrentPrice > longPosition.costPrice) {
+    const canSellLong =
+      longPosition?.symbol &&
+      Number.isFinite(longPosition.availableQuantity) &&
+      longPosition.availableQuantity > 0 &&
+      Number.isFinite(longCurrentPrice) &&
+      longCurrentPrice > 0 &&
+      Number.isFinite(longPosition.costPrice) &&
+      longPosition.costPrice > 0;
+
+    const sellcallCount = this._calculateConditionCount(
+      state,
+      SignalType.SELLCALL
+    );
+    if (
+      canSellLong &&
+      sellcallCount >= 3 &&
+      longCurrentPrice > longPosition.costPrice
+    ) {
       // 清仓做多标的
       immediateSignals.push({
         symbol: longPosition.symbol,
         action: SignalType.SELLCALL,
-        reason: `做多标的当前价格(${longCurrentPrice.toFixed(3)}) > 持仓成本价(${longPosition.costPrice.toFixed(3)}) 且 RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(1)})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(1)}) 中至少 3 项触发清仓条件，立即清空所有做多标的持仓`,
+        reason: `做多标的当前价格(${longCurrentPrice.toFixed(
+          3
+        )}) > 持仓成本价(${longPosition.costPrice.toFixed(
+          3
+        )}) 且 RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(
+          1
+        )})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(
+          1
+        )}) 中至少 3 项触发清仓条件，立即清空所有做多标的持仓`,
         signalTriggerTime: new Date(), // 立即执行信号的触发时间
       });
     }
@@ -276,28 +304,43 @@ export class HangSengMultiIndicatorStrategy {
     // 条件：RSI6 < 20, RSI12 < 20, KDJ.D < 20, KDJ.J < 0 四个指标中满足三个以上
     // 且当前做空标的价格 > 做空标的持仓成本价
     // 立即清空所有做空标的持仓（注意不是卖空）
-    const canSellShort = shortPosition?.symbol && 
-        Number.isFinite(shortPosition.availableQuantity) && 
-        shortPosition.availableQuantity > 0 && 
-        Number.isFinite(shortCurrentPrice) && 
-        shortCurrentPrice > 0 &&
-        Number.isFinite(shortPosition.costPrice) && 
-        shortPosition.costPrice > 0;
-    
-    const sellputCount = this._calculateConditionCount(state, SignalType.SELLPUT);
-    if (canSellShort && sellputCount >= 3 && shortCurrentPrice > shortPosition.costPrice) {
+    const canSellShort =
+      shortPosition?.symbol &&
+      Number.isFinite(shortPosition.availableQuantity) &&
+      shortPosition.availableQuantity > 0 &&
+      Number.isFinite(shortCurrentPrice) &&
+      shortCurrentPrice > 0 &&
+      Number.isFinite(shortPosition.costPrice) &&
+      shortPosition.costPrice > 0;
+
+    const sellputCount = this._calculateConditionCount(
+      state,
+      SignalType.SELLPUT
+    );
+    if (
+      canSellShort &&
+      sellputCount >= 3 &&
+      shortCurrentPrice > shortPosition.costPrice
+    ) {
       // 清仓做空标的（卖出平仓，不是卖空）
       immediateSignals.push({
         symbol: shortPosition.symbol,
         action: SignalType.SELLPUT, // 卖出做空标的（平空仓）
-        reason: `做空标的当前价格(${shortCurrentPrice.toFixed(3)}) > 持仓成本价(${shortPosition.costPrice.toFixed(3)}) 且 RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(1)})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(1)}) 中至少 3 项触发清仓条件，立即清空所有做空标的持仓`,
+        reason: `做空标的当前价格(${shortCurrentPrice.toFixed(
+          3
+        )}) > 持仓成本价(${shortPosition.costPrice.toFixed(
+          3
+        )}) 且 RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(
+          1
+        )})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(
+          1
+        )}) 中至少 3 项触发清仓条件，立即清空所有做空标的持仓`,
         signalTriggerTime: new Date(), // 立即执行信号的触发时间
       });
     }
 
     return { immediateSignals, delayedSignals };
   }
-
 
   /**
    * 生成信号（保留原有方法以兼容，但新策略主要使用 generateCloseSignals）
@@ -308,4 +351,3 @@ export class HangSengMultiIndicatorStrategy {
     return null;
   }
 }
-
