@@ -216,6 +216,7 @@ export class MarketDataClient {
 
   /**
    * 判断标的是否为牛熊证（窝轮）
+   * 使用 warrantQuote API 获取牛熊证信息
    * @param {string} symbol 标的代码
    * @returns {Promise<{isWarrant: boolean, warrantType: "BULL"|"BEAR"|null, strikePrice: number|null, underlyingSymbol: string|null}>}
    */
@@ -224,69 +225,76 @@ export class MarketDataClient {
     const normalizedSymbol = normalizeHKSymbol(symbol);
     
     try {
-      const [, statics] = await this._withRetry(
-        () =>
-          Promise.all([
-            ctx.quote([normalizedSymbol]),
-            ctx.staticInfo([normalizedSymbol]),
-          ]),
+      // 使用 warrantQuote API 获取轮证信息
+      const warrantQuotes = await this._withRetry(
+        () => ctx.warrantQuote([normalizedSymbol]),
         `获取 ${normalizedSymbol} 牛熊证信息`
       );
       
-      const staticInfo = statics?.[0];
-      if (!staticInfo) {
-        return {
-          isWarrant: false,
-          warrantType: null,
-          strikePrice: null,
-          underlyingSymbol: null,
-        };
+      // warrantQuote 返回数组，取第一个
+      const warrantQuote = Array.isArray(warrantQuotes) && warrantQuotes.length > 0 
+        ? warrantQuotes[0] 
+        : null;
+      
+      if (!warrantQuote) {
+        // 如果 warrantQuote 返回空，可能不是轮证，尝试从 staticInfo 获取基本信息
+        try {
+          const statics = await this._withRetry(
+            () => ctx.staticInfo([normalizedSymbol]),
+            `获取 ${normalizedSymbol} 静态信息`
+          );
+          const staticInfo = statics?.[0];
+          
+          // 如果 staticInfo 也没有，返回非轮证
+          if (!staticInfo) {
+            return {
+              isWarrant: false,
+              warrantType: null,
+              strikePrice: null,
+              underlyingSymbol: null,
+            };
+          }
+          
+          // 尝试从 staticInfo 获取相关资产代码
+          const underlyingSymbol = staticInfo.underlyingSymbol ?? staticInfo.underlying_symbol ?? 
+                                  staticInfo.underlying ?? null;
+          
+          return {
+            isWarrant: false,
+            warrantType: null,
+            strikePrice: null,
+            underlyingSymbol: underlyingSymbol ? String(underlyingSymbol) : null,
+          };
+        } catch (error) {
+          // 如果获取 staticInfo 失败，返回非轮证
+          return {
+            isWarrant: false,
+            warrantType: null,
+            strikePrice: null,
+            underlyingSymbol: null,
+          };
+        }
       }
 
-      // 尝试从staticInfo中判断是否为牛熊证
-      // 可能的字段：securityType, instrumentType, warrantType, etc.
-      const securityType = staticInfo.securityType ?? staticInfo.security_type ?? staticInfo.instrumentType ?? staticInfo.instrument_type ?? null;
-      const name = staticInfo.nameHk ?? staticInfo.nameCn ?? staticInfo.nameEn ?? "";
-      
-      // 判断是否为牛熊证：通过securityType或名称中包含"牛"、"熊"、"CALL"、"PUT"等关键词
+      // 从 warrantQuote 中获取 category 字段判断牛熊证类型
+      const category = warrantQuote.category;
       let isWarrant = false;
       let warrantType = null;
       
-      if (securityType) {
-        const typeStr = String(securityType).toUpperCase();
-        if (typeStr.includes("WARRANT") || typeStr.includes("CBBC") || typeStr.includes("CALLABLE")) {
-          isWarrant = true;
-          // 判断是牛证还是熊证
-          if (typeStr.includes("BULL") || typeStr.includes("CALL")) {
-            warrantType = "BULL";
-          } else if (typeStr.includes("BEAR") || typeStr.includes("PUT")) {
-            warrantType = "BEAR";
-          }
-        }
-      }
-      
-      // 如果securityType无法判断，尝试从名称判断
-      if (!isWarrant && name) {
-        const nameStr = String(name).toUpperCase();
-        if (nameStr.includes("牛") || nameStr.includes("BULL") || nameStr.includes("CALL")) {
-          isWarrant = true;
-          warrantType = "BULL";
-        } else if (nameStr.includes("熊") || nameStr.includes("BEAR") || nameStr.includes("PUT")) {
-          isWarrant = true;
-          warrantType = "BEAR";
-        }
+      if (category === "Bull" || category === "BULL") {
+        isWarrant = true;
+        warrantType = "BULL";
+      } else if (category === "Bear" || category === "BEAR") {
+        isWarrant = true;
+        warrantType = "BEAR";
       }
 
-      // 获取回收价（strike price / call price）
+      // 获取回收价（call_price 字段）
       let strikePrice = null;
       if (isWarrant) {
-        // 尝试多种可能的字段名
-        const strikeValue = staticInfo.strikePrice ?? staticInfo.strike_price ?? 
-                           staticInfo.callPrice ?? staticInfo.call_price ?? 
-                           staticInfo.callablePrice ?? staticInfo.callable_price ??
-                           staticInfo.strike ?? null;
-        if (strikeValue !== null && strikeValue !== undefined) {
-          const parsed = Number(strikeValue);
+        const callPrice = warrantQuote.call_price ?? warrantQuote.callPrice ?? null;
+        if (callPrice !== null && callPrice !== undefined) {
+          const parsed = decimalToNumber(callPrice);
           if (Number.isFinite(parsed) && parsed > 0) {
             strikePrice = parsed;
           }
@@ -294,12 +302,33 @@ export class MarketDataClient {
       }
 
       // 获取相关资产代码（underlying symbol）
+      // warrantQuote 可能包含 underlying_symbol 或 underlying 字段
       let underlyingSymbol = null;
       if (isWarrant) {
-        const underlying = staticInfo.underlyingSymbol ?? staticInfo.underlying_symbol ?? 
-                          staticInfo.underlying ?? null;
+        const underlying = warrantQuote.underlying_symbol ?? 
+                          warrantQuote.underlyingSymbol ?? 
+                          warrantQuote.underlying ?? null;
         if (underlying) {
           underlyingSymbol = String(underlying);
+        } else {
+          // 如果 warrantQuote 中没有，尝试从 staticInfo 获取
+          try {
+            const statics = await this._withRetry(
+              () => ctx.staticInfo([normalizedSymbol]),
+              `获取 ${normalizedSymbol} 相关资产代码`
+            );
+            const staticInfo = statics?.[0];
+            if (staticInfo) {
+              const underlyingFromStatic = staticInfo.underlyingSymbol ?? 
+                                          staticInfo.underlying_symbol ?? 
+                                          staticInfo.underlying ?? null;
+              if (underlyingFromStatic) {
+                underlyingSymbol = String(underlyingFromStatic);
+              }
+            }
+          } catch (error) {
+            // 如果获取 staticInfo 失败，忽略错误，继续使用 null
+          }
         }
       }
 
@@ -308,7 +337,7 @@ export class MarketDataClient {
         warrantType,
         strikePrice,
         underlyingSymbol,
-        staticInfo, // 返回完整的staticInfo以便调试
+        warrantQuote, // 返回完整的 warrantQuote 以便调试
       };
     } catch (err) {
       console.error(
