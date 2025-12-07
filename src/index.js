@@ -56,21 +56,26 @@ function isInContinuousHKSession(date) {
 
 /**
  * 判断是否在当日收盘前5分钟内
- * 港股当日收盘时间：下午 16:00
- * 收盘前5分钟：15:55 - 16:00（仅判断下午收盘，不包括上午收盘）
+ * 港股正常交易日收盘时间：下午 16:00，收盘前5分钟：15:55 - 15:59
+ * 港股半日交易日收盘时间：中午 12:00，收盘前5分钟：11:55 - 11:59
+ * @param {Date} date 时间对象（应该是UTC时间）
+ * @param {boolean} isHalfDay 是否是半日交易日
+ * @returns {boolean} true表示在收盘前5分钟，false表示不在
  */
-function isBeforeClose5Minutes(date) {
+function isBeforeClose5Minutes(date, isHalfDay = false) {
   if (!date) return false;
   const utcHour = date.getUTCHours();
   const utcMinute = date.getUTCMinutes();
   const hkHour = (utcHour + 8) % 24;
   const hkMinute = utcMinute;
 
-  // 仅判断下午收盘前5分钟：15:55 - 16:00
-  const beforeAfternoonClose =
-    (hkHour === 15 && hkMinute >= 55) || (hkHour === 16 && hkMinute === 0);
-
-  return beforeAfternoonClose;
+  if (isHalfDay) {
+    // 半日交易：收盘前5分钟为 11:55 - 11:59:59（12:00收盘）
+    return hkHour === 11 && hkMinute >= 55;
+  } else {
+    // 正常交易日：收盘前5分钟为 15:55 - 15:59:59（16:00收盘）
+    return hkHour === 15 && hkMinute >= 55;
+  }
 }
 
 /**
@@ -316,7 +321,7 @@ async function runOnce({
     hasChange = true;
 
     // 统一的行情显示格式化函数
-    const formatQuoteDisplay = (quote, symbol, label) => {
+    const formatQuoteDisplay = (quote, symbol) => {
       if (!quote) {
         return null;
       }
@@ -371,20 +376,20 @@ async function runOnce({
     };
 
     // 显示做多标的行情
-    const longDisplay = formatQuoteDisplay(longQuote, longSymbol, "做多");
+    const longDisplay = formatQuoteDisplay(longQuote, longSymbol);
     if (longDisplay) {
       logger.info(
-        `[做多] ${longDisplay.nameText}(${longDisplay.codeText}) 最新价格=${longDisplay.priceText} 涨跌额=${longDisplay.changeAmountText} 涨跌幅度=${longDisplay.changePercentText} 时间=${longDisplay.tsText}`
+        `[做多标的] ${longDisplay.nameText}(${longDisplay.codeText}) 最新价格=${longDisplay.priceText} 涨跌额=${longDisplay.changeAmountText} 涨跌幅度=${longDisplay.changePercentText} 时间=${longDisplay.tsText}`
       );
     } else {
       logger.warn(`未获取到做多标的行情。`);
     }
 
     // 显示做空标的行情
-    const shortDisplay = formatQuoteDisplay(shortQuote, shortSymbol, "做空");
+    const shortDisplay = formatQuoteDisplay(shortQuote, shortSymbol);
     if (shortDisplay) {
       logger.info(
-        `[做空] ${shortDisplay.nameText}(${shortDisplay.codeText}) 最新价格=${shortDisplay.priceText} 涨跌额=${shortDisplay.changeAmountText} 涨跌幅度=${shortDisplay.changePercentText} 时间=${shortDisplay.tsText}`
+        `[做空标的] ${shortDisplay.nameText}(${shortDisplay.codeText}) 最新价格=${shortDisplay.priceText} 涨跌额=${shortDisplay.changeAmountText} 涨跌幅度=${shortDisplay.changePercentText} 时间=${shortDisplay.tsText}`
       );
     } else {
       logger.warn(`未获取到做空标的行情。`);
@@ -1074,9 +1079,9 @@ async function runOnce({
       };
     });
 
-  // 检查是否需要在收盘前5分钟清仓
+  // 检查是否需要在收盘前5分钟清仓（使用当前系统时间，而非行情时间）
   const shouldClearBeforeClose = TRADING_CONFIG.clearPositionsBeforeClose;
-  const isBeforeClose = longQuote && isBeforeClose5Minutes(longQuote.timestamp);
+  const isBeforeClose = isBeforeClose5Minutes(currentTime, isHalfDayToday);
 
   let finalSignals = [];
 
@@ -1088,8 +1093,9 @@ async function runOnce({
     positions.length > 0
   ) {
     // 当日收盘前5分钟，清空所有持仓（无论是做多标的持仓还是做空标的持仓）
+    const closeTimeRange = isHalfDayToday ? "11:55-11:59" : "15:55-15:59";
     logger.info(
-      "[收盘清仓] 检测到当日收盘前5分钟（15:55-16:00），准备清空所有持仓"
+      `[收盘清仓] 检测到当日收盘前5分钟（${closeTimeRange}），准备清空所有持仓`
     );
 
     // 为每个持仓生成清仓信号

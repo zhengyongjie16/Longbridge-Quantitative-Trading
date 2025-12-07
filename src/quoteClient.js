@@ -111,8 +111,10 @@ class TradingDayCache {
    */
   setBatch(tradingDays, halfTradingDays = []) {
     const halfDaySet = new Set(halfTradingDays);
+    const allTradingDays = new Set([...tradingDays, ...halfTradingDays]);
 
-    for (const dateStr of tradingDays) {
+    // 缓存所有交易日（包括全日和半日）
+    for (const dateStr of allTradingDays) {
       const isHalfDay = halfDaySet.has(dateStr);
       this.set(dateStr, true, isHalfDay);
     }
