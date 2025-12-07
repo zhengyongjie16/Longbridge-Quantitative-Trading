@@ -1,5 +1,4 @@
 import { createConfig } from "./config.js";
-import { MarketDataClient } from "./quoteClient.js";
 import { HangSengMultiIndicatorStrategy } from "./strategy.js";
 import { Trader } from "./trader.js";
 import { buildIndicatorSnapshot } from "./indicators.js";
@@ -1340,9 +1339,10 @@ async function sleep(ms) {
 }
 
 async function main() {
-  // 首先验证配置
+  // 首先验证配置，并获取标的的中文名称
+  let symbolNames;
   try {
-    await validateAllConfig();
+    symbolNames = await validateAllConfig();
   } catch (err) {
     if (err.name === "ConfigValidationError") {
       logger.error("程序启动失败：配置验证未通过");
@@ -1358,24 +1358,11 @@ async function main() {
   const candleCount = 200;
   const intervalMs = 1000;
 
-  const marketDataClient = new MarketDataClient(config);
+  // 使用配置验证返回的标的名称和行情客户端实例（避免重复创建）
+  const { monitorName, longName, shortName, marketDataClient } = symbolNames;
   const strategy = new HangSengMultiIndicatorStrategy();
   const trader = new Trader(config);
 
-  // 获取标的的中文名称用于显示
-  const monitorQuote = await marketDataClient
-    .getLatestQuote(TRADING_CONFIG.monitorSymbol)
-    .catch(() => null);
-  const longQuoteForName = await marketDataClient
-    .getLatestQuote(TRADING_CONFIG.longSymbol)
-    .catch(() => null);
-  const shortQuoteForName = await marketDataClient
-    .getLatestQuote(TRADING_CONFIG.shortSymbol)
-    .catch(() => null);
-
-  const monitorName = monitorQuote?.name ?? TRADING_CONFIG.monitorSymbol;
-  const longName = longQuoteForName?.name ?? TRADING_CONFIG.longSymbol;
-  const shortName = shortQuoteForName?.name ?? TRADING_CONFIG.shortSymbol;
   logger.info(
     `监控标的: ${monitorName}(${normalizeHKSymbol(
       TRADING_CONFIG.monitorSymbol
