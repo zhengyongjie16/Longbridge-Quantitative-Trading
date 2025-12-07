@@ -23,7 +23,7 @@ function normalizeHKSymbol(symbol) {
 }
 
 /**
- * 判断是否在港股连续交易时段
+ * 判断是否在港股连续交易时段（仅检查时间，不检查是否是交易日）
  * 港股连续交易时段：
  * - 上午：09:30 - 12:00
  * - 下午：13:00 - 16:00
@@ -227,7 +227,44 @@ async function runOnce({
   // 判断是否在交易时段（使用当前系统时间，而不是行情数据的时间戳）
   // 因为行情数据的时间戳可能是历史数据或缓存数据，不能准确反映当前是否在交易时段
   const currentTime = new Date();
-  const canTradeNow = isInContinuousHKSession(currentTime);
+
+  // 首先检查今天是否是交易日（使用 API）
+  let isTradingDayToday = true;
+  let isHalfDayToday = false;
+
+  try {
+    const tradingDayInfo = await marketDataClient.isTradingDay(currentTime);
+    isTradingDayToday = tradingDayInfo.isTradingDay;
+    isHalfDayToday = tradingDayInfo.isHalfDay;
+
+    // 如果不是交易日，提前返回
+    if (!isTradingDayToday) {
+      if (lastState.canTrade !== false) {
+        hasChange = true;
+        logger.info("今天不是交易日，暂停实时监控。");
+        lastState.canTrade = false;
+      }
+      return hasChange;
+    }
+
+    // 如果是半日交易日，记录日志
+    if (isHalfDayToday && !lastState.isHalfDay) {
+      logger.info("今天是半日交易日。");
+      lastState.isHalfDay = true;
+      hasChange = true;
+    } else if (!isHalfDayToday && lastState.isHalfDay) {
+      lastState.isHalfDay = false;
+    }
+  } catch (err) {
+    logger.warn(
+      "无法获取交易日信息，将根据时间判断是否在交易时段",
+      err?.message ?? err
+    );
+    // 如果获取交易日信息失败，继续使用时间判断（保守策略）
+  }
+
+  // 如果是交易日，再检查是否在交易时段
+  const canTradeNow = isTradingDayToday && isInContinuousHKSession(currentTime);
 
   // 如果获取到了行情数据，记录一下行情时间用于调试（仅在DEBUG模式下）
   if (process.env.DEBUG === "true" && longQuote?.timestamp) {
@@ -241,9 +278,12 @@ async function runOnce({
   if (lastState.canTrade !== canTradeNow) {
     hasChange = true;
     if (canTradeNow) {
-      logger.info("进入连续交易时段，开始正常交易。");
+      const sessionType = isHalfDayToday ? "（半日交易）" : "";
+      logger.info(`进入连续交易时段${sessionType}，开始正常交易。`);
     } else {
-      logger.info("当前为竞价或非连续交易时段，暂停实时监控。");
+      if (isTradingDayToday) {
+        logger.info("当前为竞价或非连续交易时段，暂停实时监控。");
+      }
     }
     lastState.canTrade = canTradeNow;
   }
@@ -1343,6 +1383,13 @@ async function main() {
   );
   logger.info("程序开始运行，在交易时段将进行实时监控和交易（按 Ctrl+C 退出）");
 
+  // 预加载当月和下月的交易日信息到缓存
+  const today = new Date();
+  await marketDataClient.preloadTradingDaysForMonth(today);
+  // 同时加载下个月的交易日信息（如果当前是月底）
+  const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+  await marketDataClient.preloadTradingDaysForMonth(nextMonth);
+
   // 记录上一次的数据状态，用于检测变化
   let lastState = {
     longPrice: null,
@@ -1350,6 +1397,7 @@ async function main() {
     monitorPrice: null,
     signal: null,
     canTrade: null,
+    isHalfDay: null, // 记录是否是半日交易日
     accountState: null,
     pendingDelayedSignals: [], // 待验证的延迟信号列表（每个信号有自己独立的verificationHistory）
     monitorValues: null, // 监控标的的所有指标值（price, vwap, rsi6, rsi12, kdj, macd）

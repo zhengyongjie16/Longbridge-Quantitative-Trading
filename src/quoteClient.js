@@ -1,4 +1,11 @@
-import { AdjustType, Period, QuoteContext, TradeSessions } from "longport";
+import {
+  AdjustType,
+  Period,
+  QuoteContext,
+  TradeSessions,
+  Market,
+  NaiveDate,
+} from "longport";
 import { createConfig } from "./config.js";
 
 const decimalToNumber = (decimalLike) =>
@@ -50,6 +57,76 @@ class QuoteCache {
 }
 
 /**
+ * 交易日缓存类
+ * 缓存交易日信息，避免频繁调用 API
+ * 每天只需要获取一次交易日信息
+ */
+class TradingDayCache {
+  constructor() {
+    // 缓存格式: { date: "YYYY-MM-DD", isTradingDay: boolean, isHalfDay: boolean, timestamp: number }
+    this._cache = new Map();
+    // 缓存有效期：一天（单位：毫秒）
+    this._ttl = 24 * 60 * 60 * 1000;
+  }
+
+  /**
+   * 获取指定日期的交易日信息
+   * @param {string} dateStr 日期字符串 "YYYY-MM-DD"
+   * @returns {object|null} 交易日信息或 null
+   */
+  get(dateStr) {
+    const entry = this._cache.get(dateStr);
+    if (!entry) return null;
+
+    // 检查缓存是否过期
+    if (Date.now() - entry.timestamp > this._ttl) {
+      this._cache.delete(dateStr);
+      return null;
+    }
+
+    return {
+      isTradingDay: entry.isTradingDay,
+      isHalfDay: entry.isHalfDay,
+    };
+  }
+
+  /**
+   * 设置指定日期的交易日信息
+   * @param {string} dateStr 日期字符串 "YYYY-MM-DD"
+   * @param {boolean} isTradingDay 是否是交易日
+   * @param {boolean} isHalfDay 是否是半日交易日
+   */
+  set(dateStr, isTradingDay, isHalfDay = false) {
+    this._cache.set(dateStr, {
+      isTradingDay,
+      isHalfDay,
+      timestamp: Date.now(),
+    });
+  }
+
+  /**
+   * 批量设置交易日信息
+   * @param {Array<string>} tradingDays 交易日列表 ["YYYY-MM-DD", ...]
+   * @param {Array<string>} halfTradingDays 半日交易日列表 ["YYYY-MM-DD", ...]
+   */
+  setBatch(tradingDays, halfTradingDays = []) {
+    const halfDaySet = new Set(halfTradingDays);
+
+    for (const dateStr of tradingDays) {
+      const isHalfDay = halfDaySet.has(dateStr);
+      this.set(dateStr, true, isHalfDay);
+    }
+  }
+
+  /**
+   * 清空缓存
+   */
+  clear() {
+    this._cache.clear();
+  }
+}
+
+/**
  * 行情数据客户端，封装 LongPort QuoteContext 常用调用。
  * 参考：
  * - 快速开始：https://open.longbridge.com/zh-CN/docs/getting-started
@@ -60,9 +137,10 @@ export class MarketDataClient {
     this._config = config ?? createConfig();
     this._ctxPromise = QuoteContext.new(this._config);
     this._quoteCache = new QuoteCache();
+    this._tradingDayCache = new TradingDayCache();
   }
 
-  async _withRetry(fn, desc, { retries, delayMs } = DEFAULT_RETRY) {
+  async _withRetry(fn, { retries, delayMs } = DEFAULT_RETRY) {
     let lastErr;
     for (let i = 0; i <= retries; i += 1) {
       try {
@@ -70,10 +148,7 @@ export class MarketDataClient {
       } catch (err) {
         lastErr = err;
         if (i < retries) {
-          console.warn(
-            `[QuoteRetry] ${desc} 失败，第 ${i + 1} 次重试：`,
-            err?.message ?? err
-          );
+          // 重试中，静默处理
           if (delayMs > 0) {
             await new Promise((r) => setTimeout(r, delayMs));
           }
@@ -108,13 +183,11 @@ export class MarketDataClient {
       return cached;
     }
     try {
-      const [quotes, statics] = await this._withRetry(
-        () =>
-          Promise.all([
-            ctx.quote([normalizedSymbol]),
-            ctx.staticInfo([normalizedSymbol]),
-          ]),
-        `获取 ${normalizedSymbol} 行情`
+      const [quotes, statics] = await this._withRetry(() =>
+        Promise.all([
+          ctx.quote([normalizedSymbol]),
+          ctx.staticInfo([normalizedSymbol]),
+        ])
       );
       const quote = quotes?.[0];
       const staticInfo = statics?.[0];
@@ -235,9 +308,8 @@ export class MarketDataClient {
 
     try {
       // 使用 warrantQuote API 获取轮证信息
-      const warrantQuotes = await this._withRetry(
-        () => ctx.warrantQuote([normalizedSymbol]),
-        `获取 ${normalizedSymbol} 牛熊证信息`
+      const warrantQuotes = await this._withRetry(() =>
+        ctx.warrantQuote([normalizedSymbol])
       );
 
       // warrantQuote 返回数组，取第一个
@@ -249,9 +321,8 @@ export class MarketDataClient {
       if (!warrantQuote) {
         // 如果 warrantQuote 返回空，可能不是轮证，尝试从 staticInfo 获取基本信息
         try {
-          const statics = await this._withRetry(
-            () => ctx.staticInfo([normalizedSymbol]),
-            `获取 ${normalizedSymbol} 静态信息`
+          const statics = await this._withRetry(() =>
+            ctx.staticInfo([normalizedSymbol])
           );
           const staticInfo = statics?.[0];
 
@@ -331,9 +402,8 @@ export class MarketDataClient {
         } else {
           // 如果 warrantQuote 中没有，尝试从 staticInfo 获取
           try {
-            const statics = await this._withRetry(
-              () => ctx.staticInfo([normalizedSymbol]),
-              `获取 ${normalizedSymbol} 相关资产代码`
+            const statics = await this._withRetry(() =>
+              ctx.staticInfo([normalizedSymbol])
             );
             const staticInfo = statics?.[0];
             if (staticInfo) {
@@ -360,11 +430,7 @@ export class MarketDataClient {
         warrantQuote, // 返回完整的 warrantQuote 以便调试
       };
     } catch (err) {
-      console.error(
-        `[牛熊证检查] 获取标的 ${normalizedSymbol} 牛熊证信息时发生错误：`,
-        err?.message ?? err
-      );
-      // 出错时返回非牛熊证，避免阻止交易
+      // 牛熊证检查失败，静默处理，返回非牛熊证避免阻止交易
       return {
         isWarrant: false,
         warrantType: null,
@@ -402,10 +468,7 @@ export class MarketDataClient {
         );
         actualUnderlyingPrice = underlyingQuote?.price ?? null;
       } catch (err) {
-        console.warn(
-          `[牛熊证检查] 无法获取相关资产 ${warrantInfo.underlyingSymbol} 的价格：`,
-          err?.message ?? err
-        );
+        // 获取相关资产价格失败，静默处理
       }
     }
 
@@ -461,5 +524,123 @@ export class MarketDataClient {
       strikePrice: warrantInfo.strikePrice,
       underlyingPrice: actualUnderlyingPrice,
     };
+  }
+
+  /**
+   * 获取指定日期范围的交易日信息
+   * @param {Date} startDate 开始日期
+   * @param {Date} endDate 结束日期
+   * @param {Market} market 市场类型，默认为香港市场
+   * @returns {Promise<{tradingDays: string[], halfTradingDays: string[]}>}
+   */
+  async getTradingDays(startDate, endDate, market = Market.HK) {
+    const ctx = await this._ctxPromise;
+
+    // 转换为 NaiveDate 格式
+    const startNaive = new NaiveDate(
+      startDate.getFullYear(),
+      startDate.getMonth() + 1,
+      startDate.getDate()
+    );
+    const endNaive = new NaiveDate(
+      endDate.getFullYear(),
+      endDate.getMonth() + 1,
+      endDate.getDate()
+    );
+
+    try {
+      const resp = await this._withRetry(() =>
+        ctx.tradingDays(market, startNaive, endNaive)
+      );
+
+      // 将 NaiveDate 数组转换为字符串数组
+      const tradingDays = (resp.tradingDays || []).map((date) =>
+        date.toString()
+      );
+      const halfTradingDays = (resp.halfTradingDays || []).map((date) =>
+        date.toString()
+      );
+
+      // 批量缓存交易日信息
+      this._tradingDayCache.setBatch(tradingDays, halfTradingDays);
+
+      return {
+        tradingDays,
+        halfTradingDays,
+      };
+    } catch (err) {
+      // 获取交易日信息失败，抛出异常由上层处理
+      throw err;
+    }
+  }
+
+  /**
+   * 判断指定日期是否是交易日
+   * @param {Date} date 日期对象
+   * @param {Market} market 市场类型，默认为香港市场
+   * @returns {Promise<{isTradingDay: boolean, isHalfDay: boolean}>}
+   */
+  async isTradingDay(date, market = Market.HK) {
+    // 格式化日期为 YYYY-MM-DD
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const dateStr = `${year}-${month}-${day}`;
+
+    // 先检查缓存
+    const cached = this._tradingDayCache.get(dateStr);
+    if (cached !== null) {
+      return cached;
+    }
+
+    // 如果缓存未命中，查询 API（查询当天）
+    try {
+      const result = await this.getTradingDays(date, date, market);
+
+      // 检查返回的交易日列表中是否包含当天
+      const isInTradingDays = result.tradingDays.includes(dateStr);
+      const isInHalfTradingDays = result.halfTradingDays.includes(dateStr);
+
+      // 半日交易日也算交易日
+      const isTradingDay = isInTradingDays || isInHalfTradingDays;
+      const isHalfDay = isInHalfTradingDays;
+
+      // 缓存结果（无论是否是交易日都缓存）
+      this._tradingDayCache.set(dateStr, isTradingDay, isHalfDay);
+
+      return {
+        isTradingDay,
+        isHalfDay,
+      };
+    } catch (err) {
+      // 如果 API 调用失败，返回保守结果（假设是交易日，避免漏掉交易机会）
+      return {
+        isTradingDay: true,
+        isHalfDay: false,
+      };
+    }
+  }
+
+  /**
+   * 预加载指定月份的交易日信息到缓存
+   * 建议在程序启动时调用，提前加载当月和下月的交易日信息
+   * @param {Date} date 日期对象（将加载该日期所在月份的交易日信息）
+   * @param {Market} market 市场类型，默认为香港市场
+   * @returns {Promise<void>}
+   */
+  async preloadTradingDaysForMonth(date, market = Market.HK) {
+    try {
+      // 计算月初和月末
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const startOfMonth = new Date(year, month, 1);
+      const endOfMonth = new Date(year, month + 1, 0); // 下个月的第0天 = 当月最后一天
+
+      await this.getTradingDays(startOfMonth, endOfMonth, market);
+    } catch (err) {
+      // 预加载失败不影响程序运行，静默处理
+      // 如果需要调试，可以取消下面的注释
+      // console.warn(`[交易日预加载] 加载交易日信息失败：`, err?.message ?? err);
+    }
   }
 }
