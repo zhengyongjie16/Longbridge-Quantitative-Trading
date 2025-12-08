@@ -7,6 +7,7 @@ import { TRADING_CONFIG } from "./config.trading.js";
 import { logger } from "./logger.js";
 import { validateAllConfig } from "./config.validator.js";
 import { SignalType } from "./signalTypes.js";
+import { OrderRecorder } from "./orderRecorder.js";
 
 /**
  * 规范化港股代码，自动添加 .HK 后缀（如果还没有）
@@ -124,6 +125,7 @@ async function runOnce({
   candlePeriod,
   candleCount,
   lastState,
+  orderRecorder,
 }) {
   // 返回是否有数据变化
   let hasChange = false;
@@ -577,7 +579,8 @@ async function runOnce({
     shortPosition,
     shortQuote?.price ?? null,
     normalizedLongSymbol,
-    normalizedShortSymbol
+    normalizedShortSymbol,
+    orderRecorder
   );
 
   // 将立即执行的信号添加到交易信号列表
@@ -1239,6 +1242,43 @@ async function runOnce({
 
     // 交易后获取并显示账户和持仓信息（仅显示一次）
     await displayAccountAndPositions(trader, marketDataClient, lastState);
+
+    // 交易后刷新订单记录（买入或卖出后都需要刷新）
+    if (orderRecorder) {
+      const longSymbol = TRADING_CONFIG.longSymbol;
+      const shortSymbol = TRADING_CONFIG.shortSymbol;
+
+      // 检查是否有买入或卖出操作
+      const hasBuyOrSell = finalSignals.some(
+        (sig) =>
+          sig.action === SignalType.BUYCALL ||
+          sig.action === SignalType.BUYPUT ||
+          sig.action === SignalType.SELLCALL ||
+          sig.action === SignalType.SELLPUT
+      );
+
+      if (hasBuyOrSell) {
+        // 刷新做多标的的订单记录
+        if (longSymbol) {
+          await orderRecorder.refreshOrders(longSymbol, true).catch((err) => {
+            logger.warn(
+              `[订单记录刷新失败] 做多标的 ${longSymbol}`,
+              err?.message ?? err
+            );
+          });
+        }
+
+        // 刷新做空标的的订单记录
+        if (shortSymbol) {
+          await orderRecorder.refreshOrders(shortSymbol, false).catch((err) => {
+            logger.warn(
+              `[订单记录刷新失败] 做空标的 ${shortSymbol}`,
+              err?.message ?? err
+            );
+          });
+        }
+      }
+    }
   }
 
   // 返回是否有数据变化
@@ -1398,6 +1438,7 @@ async function main() {
   const { monitorName, longName, shortName, marketDataClient } = symbolNames;
   const strategy = new HangSengMultiIndicatorStrategy();
   const trader = new Trader(config);
+  const orderRecorder = new OrderRecorder(trader);
 
   logger.info(
     `监控标的: ${monitorName}(${normalizeHKSymbol(
@@ -1436,6 +1477,26 @@ async function main() {
   // 程序启动时立即获取一次账户和持仓信息
   await displayAccountAndPositions(trader, marketDataClient, lastState);
 
+  // 程序启动时刷新订单记录
+  const longSymbol = TRADING_CONFIG.longSymbol;
+  const shortSymbol = TRADING_CONFIG.shortSymbol;
+  if (longSymbol) {
+    await orderRecorder.refreshOrders(longSymbol, true).catch((err) => {
+      logger.warn(
+        `[订单记录初始化失败] 做多标的 ${longSymbol}`,
+        err?.message ?? err
+      );
+    });
+  }
+  if (shortSymbol) {
+    await orderRecorder.refreshOrders(shortSymbol, false).catch((err) => {
+      logger.warn(
+        `[订单记录初始化失败] 做空标的 ${shortSymbol}`,
+        err?.message ?? err
+      );
+    });
+  }
+
   // 无限循环监控（用户要求不设执行次数上限）
   // eslint-disable-next-line no-constant-condition
   while (true) {
@@ -1447,6 +1508,7 @@ async function main() {
         candlePeriod,
         candleCount,
         lastState,
+        orderRecorder,
       });
 
       // 更新状态
