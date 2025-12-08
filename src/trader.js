@@ -6,8 +6,8 @@ import {
   TimeInForceType,
   Decimal,
 } from "longport";
-import { createConfig } from "./config.js";
-import { TRADING_CONFIG } from "./config.trading.js";
+import { createConfig } from "./config/config.js";
+import { TRADING_CONFIG } from "./config/config.trading.js";
 import { logger } from "./logger.js";
 import { SignalType } from "./signalTypes.js";
 import {

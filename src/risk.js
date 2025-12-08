@@ -1,5 +1,5 @@
 // 基础风险管理模块：检查最大单日亏损与单标的最大持仓金额
-import { TRADING_CONFIG } from "./config.trading.js";
+import { TRADING_CONFIG } from "./config/config.trading.js";
 import { SignalType, isBuyAction } from "./signalTypes.js";
 import { normalizeHKSymbol } from "./utils.js";
 

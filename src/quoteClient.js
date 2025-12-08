@@ -6,7 +6,7 @@ import {
   Market,
   NaiveDate,
 } from "longport";
-import { createConfig } from "./config.js";
+import { createConfig } from "./config/config.js";
 import { normalizeHKSymbol, decimalToNumber } from "./utils.js";
 
 const DEFAULT_RETRY = {

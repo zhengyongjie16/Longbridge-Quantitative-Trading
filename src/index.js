@@ -1,11 +1,11 @@
-import { createConfig } from "./config.js";
+import { createConfig } from "./config/config.js";
 import { HangSengMultiIndicatorStrategy } from "./strategy.js";
 import { Trader } from "./trader.js";
 import { buildIndicatorSnapshot } from "./indicators.js";
 import { RiskChecker } from "./risk.js";
-import { TRADING_CONFIG } from "./config.trading.js";
+import { TRADING_CONFIG } from "./config/config.trading.js";
 import { logger } from "./logger.js";
-import { validateAllConfig } from "./config.validator.js";
+import { validateAllConfig } from "./config/config.validator.js";
 import { SignalType } from "./signalTypes.js";
 import { OrderRecorder } from "./orderRecorder.js";
 import {

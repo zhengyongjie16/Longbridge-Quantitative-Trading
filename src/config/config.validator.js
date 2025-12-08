@@ -1,7 +1,7 @@
-import { logger } from "./logger.js";
+import { logger } from "../logger.js";
 import { TRADING_CONFIG } from "./config.trading.js";
 import { createConfig } from "./config.js";
-import { MarketDataClient } from "./quoteClient.js";
+import { MarketDataClient } from "../quoteClient.js";
 
 /**
  * 配置验证错误类
@@ -85,7 +85,11 @@ async function validateSymbol(marketDataClient, symbol, symbolLabel) {
     }
 
     // 检查是否有名称（至少有一个名称字段）
-    const name = quote.name ?? quote.staticInfo?.nameHk ?? quote.staticInfo?.nameCn ?? quote.staticInfo?.nameEn;
+    const name =
+      quote.name ??
+      quote.staticInfo?.nameHk ??
+      quote.staticInfo?.nameCn ??
+      quote.staticInfo?.nameEn;
 
     if (!name) {
       return {
@@ -110,12 +114,16 @@ async function validateSymbol(marketDataClient, symbol, symbolLabel) {
       const status = quote.staticInfo.status ?? quote.staticInfo.tradingStatus;
 
       // 如果有状态字段且不是正常状态，发出警告（但不阻止）
-      if (status && typeof status === 'string') {
-        const normalStatuses = ['NORMAL', 'TRADING', 'ACTIVE', 'OPEN'];
-        const isNormal = normalStatuses.some(s => status.toUpperCase().includes(s));
+      if (status && typeof status === "string") {
+        const normalStatuses = ["NORMAL", "TRADING", "ACTIVE", "OPEN"];
+        const isNormal = normalStatuses.some((s) =>
+          status.toUpperCase().includes(s)
+        );
 
         if (!isNormal) {
-          logger.warn(`${symbolLabel} ${name}(${symbol}) 交易状态为 ${status}，请确认是否可以正常交易`);
+          logger.warn(
+            `${symbolLabel} ${name}(${symbol}) 交易状态为 ${status}，请确认是否可以正常交易`
+          );
         }
       }
     }
@@ -312,9 +320,15 @@ export async function validateAllConfig() {
     return symbol;
   };
 
-  logger.info(`监控标的: ${formatSymbol(monitorResult, TRADING_CONFIG.monitorSymbol)}`);
-  logger.info(`做多标的: ${formatSymbol(longResult, TRADING_CONFIG.longSymbol)}`);
-  logger.info(`做空标的: ${formatSymbol(shortResult, TRADING_CONFIG.shortSymbol)}`);
+  logger.info(
+    `监控标的: ${formatSymbol(monitorResult, TRADING_CONFIG.monitorSymbol)}`
+  );
+  logger.info(
+    `做多标的: ${formatSymbol(longResult, TRADING_CONFIG.longSymbol)}`
+  );
+  logger.info(
+    `做空标的: ${formatSymbol(shortResult, TRADING_CONFIG.shortSymbol)}`
+  );
   logger.info(`目标买入金额: ${TRADING_CONFIG.targetNotional} HKD`);
   logger.info(`最大持仓市值: ${TRADING_CONFIG.maxPositionNotional} HKD`);
   logger.info(`单日最大亏损: ${TRADING_CONFIG.maxDailyLoss} HKD`);
