@@ -405,13 +405,4 @@ export class HangSengMultiIndicatorStrategy {
 
     return { immediateSignals, delayedSignals };
   }
-
-  /**
-   * 生成信号（保留原有方法以兼容，但新策略主要使用 generateCloseSignals）
-   * @deprecated 新策略使用 generateCloseSignals 方法
-   */
-  generateSignal(state) {
-    // 保留原有逻辑，但新策略不再使用此方法
-    return null;
-  }
 }

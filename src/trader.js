@@ -207,14 +207,6 @@ export class Trader {
     this._shouldMonitorBuyOrders = false;
   }
 
-  getTargetSymbol() {
-    return this._orderOptions.symbol;
-  }
-
-  getTargetQuantity() {
-    return decimalToNumber(this._orderOptions.quantity ?? 0);
-  }
-
   async getAccountSnapshot() {
     const ctx = await this._ctxPromise;
     const balances = await ctx.accountBalance();
@@ -465,57 +457,6 @@ export class Trader {
       );
       throw error;
     }
-  }
-
-  /**
-   * 通过撤销+重新提交的方式修改订单价格
-   * @private
-   */
-  async _replaceOrderByCancelAndResubmit(
-    originalOrder,
-    newPrice,
-    quantity = null
-  ) {
-    const ctx = await this._ctxPromise;
-    const longSymbol = normalizeHKSymbol(TRADING_CONFIG.longSymbol);
-    const shortSymbol = normalizeHKSymbol(TRADING_CONFIG.shortSymbol);
-
-    // 撤销原订单
-    const cancelSuccess = await this.cancelOrder(originalOrder.orderId);
-    if (!cancelSuccess) {
-      return false;
-    }
-
-    // 等待一小段时间确保撤销完成
-    await new Promise((resolve) => setTimeout(resolve, 200));
-
-    // 准备重新提交的订单信息
-    const originalQty = decimalToNumber(originalOrder.quantity);
-    const executedQty = decimalToNumber(originalOrder.executedQuantity || 0);
-    const remainingQty = originalQty - executedQty;
-
-    // 如果提供了数量，使用提供的数量，否则使用剩余数量
-    const targetQty =
-      quantity !== null && Number.isFinite(quantity) && quantity > 0
-        ? quantity
-        : remainingQty;
-
-    // 重新提交订单
-    await this._resubmitOrderAtPrice(
-      ctx,
-      {
-        orderId: originalOrder.orderId,
-        symbol: originalOrder.symbol,
-        side: originalOrder.side,
-        quantity: String(targetQty),
-        executedQuantity: executedQty,
-      },
-      newPrice,
-      longSymbol,
-      shortSymbol
-    );
-
-    return true;
   }
 
   /**

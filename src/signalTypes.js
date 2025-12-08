@@ -23,30 +23,3 @@ export const SignalType = {
 export function isBuyAction(action) {
   return action === SignalType.BUYCALL || action === SignalType.BUYPUT;
 }
-
-/**
- * 判断信号是否为卖出操作（平仓）
- * @param {string} action 信号类型
- * @returns {boolean}
- */
-export function isSellAction(action) {
-  return action === SignalType.SELLCALL || action === SignalType.SELLPUT;
-}
-
-/**
- * 判断信号是否为做多标的相关操作
- * @param {string} action 信号类型
- * @returns {boolean}
- */
-export function isCallAction(action) {
-  return action === SignalType.BUYCALL || action === SignalType.SELLCALL;
-}
-
-/**
- * 判断信号是否为做空标的相关操作
- * @param {string} action 信号类型
- * @returns {boolean}
- */
-export function isPutAction(action) {
-  return action === SignalType.BUYPUT || action === SignalType.SELLPUT;
-}
