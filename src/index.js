@@ -22,6 +22,39 @@ function normalizeHKSymbol(symbol) {
 }
 
 /**
+ * 格式化账户渠道显示名称
+ * @param {string} accountChannel 账户渠道代码
+ * @returns {string} 格式化的账户渠道名称
+ */
+function formatAccountChannel(accountChannel) {
+  if (!accountChannel || typeof accountChannel !== "string") {
+    return "未知账户";
+  }
+
+  // 将账户渠道代码转换为友好的中文名称
+  const channelMap = {
+    lb_papertrading: "模拟交易",
+    paper_trading: "模拟交易",
+    papertrading: "模拟交易",
+    real_trading: "实盘交易",
+    realtrading: "实盘交易",
+    live: "实盘交易",
+    demo: "模拟交易",
+  };
+
+  // 转换为小写进行匹配
+  const lowerChannel = accountChannel.toLowerCase();
+
+  // 如果找到映射，返回中文名称
+  if (channelMap[lowerChannel]) {
+    return channelMap[lowerChannel];
+  }
+
+  // 如果没有找到映射，返回原始值（可能已经是友好的名称）
+  return accountChannel;
+}
+
+/**
  * 判断是否在港股连续交易时段（仅检查时间，不检查是否是交易日）
  * 港股连续交易时段：
  * - 上午：09:30 - 12:00
@@ -95,129 +128,9 @@ async function runOnce({
   // 返回是否有数据变化
   let hasChange = false;
 
-  const account = await trader.getAccountSnapshot().catch((err) => {
-    logger.warn("获取账户信息失败", err?.message ?? err);
-    return null;
-  });
-
-  const positions = await trader.getStockPositions().catch((err) => {
-    logger.warn("获取股票仓位失败", err?.message ?? err);
-    return [];
-  });
-
-  // 检测账户和持仓变化
-  const accountKey = account
-    ? `${account.totalCash.toFixed(2)}_${account.netAssets.toFixed(
-        2
-      )}_${account.positionValue.toFixed(2)}`
-    : null;
-  const positionsKey =
-    Array.isArray(positions) && positions.length > 0
-      ? positions
-          .filter((p) => p?.symbol) // 过滤无效持仓
-          .map((p) => `${p.symbol}_${p.quantity}_${p.availableQuantity}`)
-          .join("|")
-      : "empty";
-  const stateKey = `${accountKey}_${positionsKey}`;
-
-  if (!lastState.accountState || lastState.accountState !== stateKey) {
-    hasChange = true;
-    if (account) {
-      logger.info(
-        `账户概览 [${account.currency}] 余额=${account.totalCash.toFixed(
-          2
-        )} 市值=${account.netAssets.toFixed(
-          2
-        )} 持仓市值≈${account.positionValue.toFixed(2)}`
-      );
-    }
-    if (Array.isArray(positions) && positions.length > 0) {
-      logger.info("股票持仓：");
-      const formatNumber = (num, digits = 2) =>
-        Number.isFinite(num) ? num.toFixed(digits) : String(num ?? "-");
-
-      // 批量获取所有持仓标的的当前价格
-      const positionSymbols = positions.map((p) => p.symbol).filter(Boolean);
-      const quotesMap = new Map();
-      if (positionSymbols.length > 0) {
-        try {
-          const quotes = await marketDataClient.getQuotes(positionSymbols);
-          if (Array.isArray(quotes)) {
-            // decimalToNumber 函数定义（与 trader.js 中相同）
-            const decimalToNumber = (decimalLike) =>
-              decimalLike && typeof decimalLike.toNumber === "function"
-                ? decimalLike.toNumber()
-                : Number(decimalLike ?? 0);
-
-            quotes.forEach((quote) => {
-              if (quote?.symbol) {
-                // 从 quote 中提取价格（使用 lastDone 字段，这是 LongPort API 的标准字段）
-                const price = decimalToNumber(
-                  quote.lastDone ?? quote.price ?? 0
-                );
-                if (Number.isFinite(price) && price > 0) {
-                  quotesMap.set(normalizeHKSymbol(quote.symbol), price);
-                }
-              }
-            });
-          }
-        } catch (err) {
-          logger.warn(
-            `[持仓监控] 获取持仓标的行情失败: ${err?.message ?? err}`
-          );
-        }
-      }
-
-      // 计算总资产用于计算仓位百分比
-      const totalAssets = account?.netAssets ?? 0;
-
-      positions.forEach((pos) => {
-        const nameText = pos.symbolName ?? "-";
-        const codeText = normalizeHKSymbol(pos.symbol);
-
-        // 获取当前价格（优先使用实时价格，否则使用成本价）
-        const normalizedPosSymbol = normalizeHKSymbol(pos.symbol);
-        const currentPrice =
-          quotesMap.get(normalizedPosSymbol) ?? pos.costPrice ?? 0;
-
-        // 计算持仓市值
-        const posQuantity = Number(pos.quantity) || 0;
-        const marketValue =
-          Number.isFinite(currentPrice) && currentPrice > 0 && posQuantity > 0
-            ? posQuantity * currentPrice
-            : 0;
-
-        // 计算仓位百分比
-        const positionPercent =
-          Number.isFinite(totalAssets) && totalAssets > 0 && marketValue > 0
-            ? (marketValue / totalAssets) * 100
-            : 0;
-
-        // 构建价格显示文本
-        const priceText = quotesMap.has(normalizedPosSymbol)
-          ? `现价=${formatNumber(currentPrice, 3)}`
-          : `成本价=${formatNumber(pos.costPrice, 3)}`;
-
-        logger.info(
-          `- [${
-            pos.accountChannel
-          }] ${nameText}(${codeText}) 持仓=${formatNumber(
-            pos.quantity,
-            2
-          )} 可用=${formatNumber(
-            pos.availableQuantity,
-            2
-          )} ${priceText} 市值=${formatNumber(
-            marketValue,
-            2
-          )} 仓位=${formatNumber(positionPercent, 2)}% ${pos.currency ?? ""}`
-        );
-      });
-    } else {
-      logger.info("当前无股票持仓。");
-    }
-    lastState.accountState = stateKey;
-  }
+  // 使用缓存的账户和持仓信息（仅在交易后更新）
+  let account = lastState.cachedAccount ?? null;
+  let positions = lastState.cachedPositions ?? [];
   // 获取做多标的的行情（用于判断是否在交易时段）
   const longSymbol = TRADING_CONFIG.longSymbol;
   const longQuote = await marketDataClient
@@ -1323,10 +1236,133 @@ async function runOnce({
     hasChange = true;
     logger.info(`执行交易：共 ${finalSignals.length} 个交易信号`);
     await trader.executeSignals(finalSignals);
+
+    // 交易后获取并显示账户和持仓信息（仅显示一次）
+    await displayAccountAndPositions(trader, marketDataClient, lastState);
   }
 
   // 返回是否有数据变化
   return hasChange;
+}
+
+/**
+ * 显示账户和持仓信息（仅在交易后调用）
+ * @param {Object} trader Trader实例
+ * @param {Object} marketDataClient MarketDataClient实例
+ * @param {Object} lastState 状态对象，用于更新缓存
+ */
+async function displayAccountAndPositions(trader, marketDataClient, lastState) {
+  try {
+    const account = await trader.getAccountSnapshot().catch((err) => {
+      logger.warn("获取账户信息失败", err?.message ?? err);
+      return null;
+    });
+
+    const positions = await trader.getStockPositions().catch((err) => {
+      logger.warn("获取股票仓位失败", err?.message ?? err);
+      return [];
+    });
+
+    // 更新缓存
+    lastState.cachedAccount = account;
+    lastState.cachedPositions = positions;
+
+    // 显示账户和持仓信息
+    if (account) {
+      logger.info(
+        `账户概览 [${account.currency}] 余额=${account.totalCash.toFixed(
+          2
+        )} 市值=${account.netAssets.toFixed(
+          2
+        )} 持仓市值≈${account.positionValue.toFixed(2)}`
+      );
+    }
+    if (Array.isArray(positions) && positions.length > 0) {
+      logger.info("股票持仓：");
+      const formatNumber = (num, digits = 2) =>
+        Number.isFinite(num) ? num.toFixed(digits) : String(num ?? "-");
+
+      // 批量获取所有持仓标的的完整信息（包含中文名称和价格）
+      const positionSymbols = positions.map((p) => p.symbol).filter(Boolean);
+      const symbolInfoMap = new Map(); // key: normalizedSymbol, value: {name, price}
+      if (positionSymbols.length > 0) {
+        // 使用 getLatestQuote 获取每个标的的完整信息（包含 staticInfo 和中文名称）
+        const quotePromises = positionSymbols.map((symbol) =>
+          marketDataClient.getLatestQuote(symbol).catch((err) => {
+            logger.warn(
+              `[持仓监控] 获取标的 ${symbol} 信息失败: ${err?.message ?? err}`
+            );
+            return null;
+          })
+        );
+        const quotes = await Promise.all(quotePromises);
+
+        quotes.forEach((quote) => {
+          if (quote?.symbol) {
+            const normalizedSymbol = normalizeHKSymbol(quote.symbol);
+            symbolInfoMap.set(normalizedSymbol, {
+              name: quote.name ?? null,
+              price: quote.price ?? null,
+            });
+          }
+        });
+      }
+
+      // 计算总资产用于计算仓位百分比
+      const totalAssets = account?.netAssets ?? 0;
+
+      positions.forEach((pos) => {
+        const normalizedPosSymbol = normalizeHKSymbol(pos.symbol);
+        const symbolInfo = symbolInfoMap.get(normalizedPosSymbol);
+
+        // 优先使用从行情 API 获取的中文名称，否则使用持仓数据中的名称，最后使用 "-"
+        const nameText = symbolInfo?.name ?? pos.symbolName ?? "-";
+        const codeText = normalizeHKSymbol(pos.symbol);
+
+        // 获取当前价格（优先使用实时价格，否则使用成本价）
+        const currentPrice = symbolInfo?.price ?? pos.costPrice ?? 0;
+
+        // 计算持仓市值
+        const posQuantity = Number(pos.quantity) || 0;
+        const marketValue =
+          Number.isFinite(currentPrice) && currentPrice > 0 && posQuantity > 0
+            ? posQuantity * currentPrice
+            : 0;
+
+        // 计算仓位百分比
+        const positionPercent =
+          Number.isFinite(totalAssets) && totalAssets > 0 && marketValue > 0
+            ? (marketValue / totalAssets) * 100
+            : 0;
+
+        // 构建价格显示文本
+        const priceText =
+          symbolInfo?.price !== null && symbolInfo?.price !== undefined
+            ? `现价=${formatNumber(currentPrice, 3)}`
+            : `成本价=${formatNumber(pos.costPrice, 3)}`;
+
+        // 格式化账户渠道显示名称
+        const channelDisplay = formatAccountChannel(pos.accountChannel);
+
+        logger.info(
+          `- [${channelDisplay}] ${nameText}(${codeText}) 持仓=${formatNumber(
+            pos.quantity,
+            2
+          )} 可用=${formatNumber(
+            pos.availableQuantity,
+            2
+          )} ${priceText} 市值=${formatNumber(
+            marketValue,
+            2
+          )} 仓位=${formatNumber(positionPercent, 2)}% ${pos.currency ?? ""}`
+        );
+      });
+    } else {
+      logger.info("当前无股票持仓。");
+    }
+  } catch (err) {
+    logger.warn("获取账户和持仓信息失败", err?.message ?? err);
+  }
 }
 
 async function sleep(ms) {
@@ -1391,10 +1427,14 @@ async function main() {
     signal: null,
     canTrade: null,
     isHalfDay: null, // 记录是否是半日交易日
-    accountState: null,
     pendingDelayedSignals: [], // 待验证的延迟信号列表（每个信号有自己独立的verificationHistory）
     monitorValues: null, // 监控标的的所有指标值（price, vwap, rsi6, rsi12, kdj, macd）
+    cachedAccount: null, // 缓存的账户信息（仅在交易后更新）
+    cachedPositions: [], // 缓存的持仓信息（仅在交易后更新）
   };
+
+  // 程序启动时立即获取一次账户和持仓信息
+  await displayAccountAndPositions(trader, marketDataClient, lastState);
 
   // 无限循环监控（用户要求不设执行次数上限）
   // eslint-disable-next-line no-constant-condition
