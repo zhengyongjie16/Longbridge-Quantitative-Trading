@@ -203,6 +203,8 @@ export class Trader {
     this._lastHasOrdersCheckTime = null;
     // 缓存的今日是否有订单的结果
     this._cachedHasOrders = null;
+    // 是否需要监控买入订单（仅在发起买入交易后设置为true）
+    this._shouldMonitorBuyOrders = false;
   }
 
   getTargetSymbol() {
@@ -588,44 +590,79 @@ export class Trader {
   }
 
   /**
-   * 实时监控价格并管理未成交订单
+   * 检查是否有买入的未成交订单
+   * @param {string[]} symbols 标的代码数组
+   * @returns {Promise<boolean>} true表示有买入的未成交订单
+   */
+  async hasPendingBuyOrders(symbols) {
+    try {
+      const pendingOrders = await this.getPendingOrders(symbols);
+      return pendingOrders.some((order) => order.side === OrderSide.Buy);
+    } catch (err) {
+      logger.warn("检查买入订单失败", err?.message ?? err);
+      return false;
+    }
+  }
+
+  /**
+   * 启用买入订单监控
+   */
+  enableBuyOrderMonitoring() {
+    this._shouldMonitorBuyOrders = true;
+  }
+
+  /**
+   * 检查是否需要监控买入订单
+   * @returns {boolean} true表示需要监控
+   */
+  shouldMonitorBuyOrders() {
+    return this._shouldMonitorBuyOrders;
+  }
+
+  /**
+   * 实时监控价格并管理未成交的买入订单
    * 规则：
-   * - 买入订单：如果当前价格低于委托价格，立即修改委托价格为当前价格；如果当前价格高于委托价格，不做改变
-   * - 卖出订单：无论当前价格高于还是低于委托价格，都立即修改委托价格为当前价格
-   *   - 如果当前价格高于委托价格，修改以获得更好的卖出价格
-   *   - 如果当前价格低于委托价格，也要修改以防止错过清仓时刻
+   * - 仅在发起买入交易后才开始监控
+   * - 只监控买入订单，卖出订单不监控
+   * - 买入订单：如果当前价格低于委托价格，修改委托价格为当前价格
+   * - 当所有买入订单成交后停止监控
    * @param {Object} longQuote 做多标的的行情数据
    * @param {Object} shortQuote 做空标的的行情数据
    */
   async monitorAndManageOrders(longQuote, shortQuote) {
-    const longSymbol = normalizeHKSymbol(TRADING_CONFIG.longSymbol);
-    const shortSymbol = normalizeHKSymbol(TRADING_CONFIG.shortSymbol);
-
-    // 先检查今日是否有交易，如果没有交易则无需监控（带缓存，每分钟检查一次）
-    const hasOrders = await this.hasTodayOrdersWithCache([
-      longSymbol,
-      shortSymbol,
-    ]);
-    if (!hasOrders) {
-      logger.debug("[订单监控] 今日无交易，跳过订单监控");
+    // 如果不需要监控，直接返回
+    if (!this._shouldMonitorBuyOrders) {
       return;
     }
 
-    // 获取所有未成交订单（带频率限制：每三分钟最多获取一次）
-    const pendingOrders = await this.getPendingOrdersWithCache([
+    const longSymbol = normalizeHKSymbol(TRADING_CONFIG.longSymbol);
+    const shortSymbol = normalizeHKSymbol(TRADING_CONFIG.shortSymbol);
+
+    // 获取所有未成交订单（实时获取，不使用缓存）
+    const pendingOrders = await this.getPendingOrders([
       longSymbol,
       shortSymbol,
     ]);
 
-    if (pendingOrders.length === 0) {
-      return; // 没有未成交订单，无需处理
+    // 过滤出买入订单
+    const pendingBuyOrders = pendingOrders.filter(
+      (order) => order.side === OrderSide.Buy
+    );
+
+    // 如果没有买入订单，停止监控
+    if (pendingBuyOrders.length === 0) {
+      if (this._shouldMonitorBuyOrders) {
+        this._shouldMonitorBuyOrders = false;
+        logger.info("[订单监控] 所有买入订单已成交，停止监控");
+      }
+      return;
     }
 
     logger.debug(
-      `[订单监控] 发现 ${pendingOrders.length} 个未成交订单，开始检查价格...`
+      `[订单监控] 发现 ${pendingBuyOrders.length} 个未成交买入订单，开始检查价格...`
     );
 
-    for (const order of pendingOrders) {
+    for (const order of pendingBuyOrders) {
       // 检查订单状态，如果已撤销、已成交或已完成，跳过监控
       if (
         order.status === OrderStatus.Cancelled ||
@@ -633,7 +670,7 @@ export class Trader {
         order.status === OrderStatus.Rejected
       ) {
         logger.debug(
-          `[订单监控] 订单 ${order.orderId} 状态为 ${order.status}，跳过监控`
+          `[订单监控] 买入订单 ${order.orderId} 状态为 ${order.status}，跳过监控`
         );
         continue;
       }
@@ -645,7 +682,7 @@ export class Trader {
         order.status === OrderStatus.WaitToReplace
       ) {
         logger.debug(
-          `[订单监控] 订单 ${order.orderId} 正在修改中（状态：${order.status}），跳过本次监控`
+          `[订单监控] 买入订单 ${order.orderId} 正在修改中（状态：${order.status}），跳过本次监控`
         );
         continue;
       }
@@ -653,7 +690,7 @@ export class Trader {
       const normalizedOrderSymbol = normalizeHKSymbol(order.symbol);
       let currentPrice = null;
 
-      // 获取标的的当前价格
+      // 从实时行情获取标的的当前价格
       if (normalizedOrderSymbol === longSymbol && longQuote) {
         currentPrice = longQuote.price;
       } else if (normalizedOrderSymbol === shortSymbol && shortQuote) {
@@ -668,115 +705,46 @@ export class Trader {
       }
 
       const orderPrice = order.submittedPrice;
-      const priceDiff = currentPrice - orderPrice;
 
-      // 判断是买入订单还是卖出订单
-      const isBuyOrder = order.side === OrderSide.Buy;
-
-      if (isBuyOrder) {
-        // 买入订单：如果当前价格低于委托价格，修改委托价格为当前价格
-        // 只要价格降低0.001或以上就会进行修改
-        if (currentPrice < orderPrice) {
-          const priceDiffAbs = Math.abs(priceDiff);
-          // 价格差异达到0.001或以上时进行修改
-          if (priceDiffAbs >= 0.001) {
-            logger.info(
-              `[订单监控] 买入订单 ${
-                order.orderId
-              } 当前价格(${currentPrice.toFixed(
-                3
-              )}) 低于委托价格(${orderPrice.toFixed(
-                3
-              )}) 差异=${priceDiffAbs.toFixed(3)}，修改委托价格为当前价格`
-            );
-            try {
-              await this.replaceOrderPrice(order.orderId, currentPrice);
-              logger.info(
-                `[订单监控] 买入订单 ${
-                  order.orderId
-                } 价格修改成功：${orderPrice.toFixed(
-                  3
-                )} -> ${currentPrice.toFixed(3)} (降低${priceDiffAbs.toFixed(
-                  3
-                )})`
-              );
-            } catch (err) {
-              logger.error(
-                `[订单监控] 买入订单 ${order.orderId} 价格修改失败: ${
-                  err?.message ?? err
-                }`
-              );
-              // 错误已抛出，不执行其他修改方式
-            }
-          } else {
-            logger.debug(
-              `[订单监控] 买入订单 ${
-                order.orderId
-              } 价格差异(${priceDiffAbs.toFixed(4)})小于0.001，暂不修改`
-            );
-          }
-        }
-        // 如果当前价格高于委托价格，不做改变（按用户要求）
-      } else {
-        // 卖出订单：无论当前价格高于还是低于委托价格，都修改委托价格为当前价格
-        // 1. 如果当前价格高于委托价格，修改以获得更好的卖出价格
-        // 2. 如果当前价格低于委托价格，也要修改以防止错过清仓时刻
-        const priceDiffAbs = Math.abs(priceDiff);
+      // 买入订单：如果当前价格低于委托价格，修改委托价格为当前价格
+      if (currentPrice < orderPrice) {
+        const priceDiffAbs = Math.abs(currentPrice - orderPrice);
         // 价格差异达到0.001或以上时进行修改
         if (priceDiffAbs >= 0.001) {
-          if (currentPrice > orderPrice) {
-            logger.info(
-              `[订单监控] 卖出订单 ${
-                order.orderId
-              } 当前价格(${currentPrice.toFixed(
-                3
-              )}) 高于委托价格(${orderPrice.toFixed(
-                3
-              )}) 差异=${priceDiffAbs.toFixed(
-                3
-              )}，修改委托价格为当前价格（获得更好价格）`
-            );
-          } else {
-            logger.info(
-              `[订单监控] 卖出订单 ${
-                order.orderId
-              } 当前价格(${currentPrice.toFixed(
-                3
-              )}) 低于委托价格(${orderPrice.toFixed(
-                3
-              )}) 差异=${priceDiffAbs.toFixed(
-                3
-              )}，修改委托价格为当前价格（防止错过清仓时刻）`
-            );
-          }
+          logger.info(
+            `[订单监控] 买入订单 ${
+              order.orderId
+            } 当前价格(${currentPrice.toFixed(
+              3
+            )}) 低于委托价格(${orderPrice.toFixed(
+              3
+            )}) 差异=${priceDiffAbs.toFixed(3)}，修改委托价格为当前价格`
+          );
           try {
             await this.replaceOrderPrice(order.orderId, currentPrice);
-            const changeType = currentPrice > orderPrice ? "提高" : "降低";
             logger.info(
-              `[订单监控] 卖出订单 ${
+              `[订单监控] 买入订单 ${
                 order.orderId
               } 价格修改成功：${orderPrice.toFixed(
                 3
-              )} -> ${currentPrice.toFixed(
-                3
-              )} (${changeType}${priceDiffAbs.toFixed(3)})`
+              )} -> ${currentPrice.toFixed(3)} (降低${priceDiffAbs.toFixed(3)})`
             );
           } catch (err) {
             logger.error(
-              `[订单监控] 卖出订单 ${order.orderId} 价格修改失败: ${
+              `[订单监控] 买入订单 ${order.orderId} 价格修改失败: ${
                 err?.message ?? err
               }`
             );
-            // 错误已抛出，不执行其他修改方式
           }
         } else {
           logger.debug(
-            `[订单监控] 卖出订单 ${
+            `[订单监控] 买入订单 ${
               order.orderId
             } 价格差异(${priceDiffAbs.toFixed(4)})小于0.001，暂不修改`
           );
         }
       }
+      // 如果当前价格高于委托价格，不做改变
     }
   }
 
@@ -1111,7 +1079,15 @@ export class Trader {
         `[交易计划] ${actualAction} ${targetSymbol} - ${s.reason || "策略信号"}`
       );
 
+      const isBuyAction =
+        s.action === SignalType.BUYCALL || s.action === SignalType.BUYPUT;
       await this._submitTargetOrder(ctx, s, targetSymbol, isShortSymbol);
+
+      // 如果发起了买入交易，启用监控
+      if (isBuyAction) {
+        this.enableBuyOrderMonitoring();
+        logger.info("[订单监控] 已发起买入交易，开始监控买入订单");
+      }
     }
   }
 

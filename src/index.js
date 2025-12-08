@@ -1227,7 +1227,8 @@ async function runOnce({
     logger.info("当前为竞价或非连续交易时段，交易信号已生成但暂不执行。");
   }
 
-  // 实时监控价格并管理未成交订单
+  // 实时监控价格并管理未成交的买入订单（每秒一次，仅在交易时段且需要监控时执行）
+  // 注意：不在交易时段时，即使有买入订单也不监控
   if (canTradeNow && (longQuote || shortQuote)) {
     await trader.monitorAndManageOrders(longQuote, shortQuote).catch((err) => {
       logger.warn("订单监控失败", err?.message ?? err);
@@ -1495,6 +1496,22 @@ async function main() {
         err?.message ?? err
       );
     });
+  }
+
+  // 程序启动时检查一次是否有买入的未成交订单
+  try {
+    const normalizedLongSymbol = normalizeHKSymbol(longSymbol);
+    const normalizedShortSymbol = normalizeHKSymbol(shortSymbol);
+    const hasPendingBuyOrders = await trader.hasPendingBuyOrders([
+      normalizedLongSymbol,
+      normalizedShortSymbol,
+    ]);
+    if (hasPendingBuyOrders) {
+      trader.enableBuyOrderMonitoring();
+      logger.info("[订单监控] 程序启动时发现买入订单，开始监控");
+    }
+  } catch (err) {
+    logger.warn("[订单监控] 程序启动时检查买入订单失败", err?.message ?? err);
   }
 
   // 无限循环监控（用户要求不设执行次数上限）
