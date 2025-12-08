@@ -1,26 +1,6 @@
 import { OrderSide, OrderStatus } from "longport";
 import { logger } from "./logger.js";
-
-/**
- * 规范化港股代码，自动添加 .HK 后缀（如果还没有）
- */
-function normalizeHKSymbol(symbol) {
-  if (!symbol || typeof symbol !== "string") {
-    return symbol;
-  }
-  if (symbol.includes(".")) {
-    return symbol;
-  }
-  return `${symbol}.HK`;
-}
-
-/**
- * 将 Decimal 类型转换为数字
- */
-const decimalToNumber = (decimalLike) =>
-  decimalLike && typeof decimalLike.toNumber === "function"
-    ? decimalLike.toNumber()
-    : Number(decimalLike ?? 0);
+import { normalizeHKSymbol, decimalToNumber } from "./utils.js";
 
 /**
  * 订单记录管理器
@@ -136,11 +116,7 @@ export class OrderRecorder {
           : 0;
 
         // 验证卖出订单数据有效性
-        if (
-          !Number.isFinite(sellPrice) ||
-          sellPrice <= 0 ||
-          sellTime === 0
-        ) {
+        if (!Number.isFinite(sellPrice) || sellPrice <= 0 || sellTime === 0) {
           continue;
         }
 

@@ -1,6 +1,7 @@
 // 基础风险管理模块：检查最大单日亏损与单标的最大持仓金额
 import { TRADING_CONFIG } from "./config.trading.js";
 import { SignalType, isBuyAction } from "./signalTypes.js";
+import { normalizeHKSymbol } from "./utils.js";
 
 export class RiskChecker {
   constructor({ maxDailyLoss, maxPositionNotional } = {}) {
@@ -102,8 +103,8 @@ export class RiskChecker {
 
     const symbol = signal.symbol;
     const pos = positions?.find((p) => {
-      const posSymbol = p.symbol.includes(".") ? p.symbol : `${p.symbol}.HK`;
-      const sigSymbol = symbol.includes(".") ? symbol : `${symbol}.HK`;
+      const posSymbol = normalizeHKSymbol(p.symbol);
+      const sigSymbol = normalizeHKSymbol(symbol);
       return posSymbol === sigSymbol;
     });
 

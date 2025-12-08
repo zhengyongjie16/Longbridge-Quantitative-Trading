@@ -10,30 +10,14 @@ import { createConfig } from "./config.js";
 import { TRADING_CONFIG } from "./config.trading.js";
 import { logger } from "./logger.js";
 import { SignalType } from "./signalTypes.js";
+import {
+  normalizeHKSymbol,
+  decimalToNumber,
+  formatSymbolDisplay,
+  toBeijingTimeISO,
+} from "./utils.js";
 import fs from "node:fs";
 import path from "node:path";
-
-const decimalToNumber = (decimalLike) =>
-  decimalLike && typeof decimalLike.toNumber === "function"
-    ? decimalLike.toNumber()
-    : Number(decimalLike ?? 0);
-
-/**
- * 规范化港股代码，自动添加 .HK 后缀（如果还没有）
- * @param {string} symbol 标的代码，例如 "68547" 或 "68547.HK"
- * @returns {string} 规范化后的代码，例如 "68547.HK"
- */
-function normalizeHKSymbol(symbol) {
-  if (!symbol || typeof symbol !== "string") {
-    return symbol;
-  }
-  // 如果已经包含 .HK、.US 等后缀，直接返回
-  if (symbol.includes(".")) {
-    return symbol;
-  }
-  // 否则添加 .HK 后缀
-  return `${symbol}.HK`;
-}
 
 const DEFAULT_ORDER_CONFIG = {
   // 来自统一交易配置，可通过环境变量覆盖
@@ -57,47 +41,6 @@ const toDecimal = (value) => {
   }
   return Decimal.ZERO();
 };
-
-/**
- * 将时间转换为北京时间（UTC+8）的字符串
- * 格式：YYYY/MM/DD/HH:mm:ss
- * @param {Date} date 时间对象，如果为null则使用当前时间
- * @returns {string} 北京时间的字符串格式 YYYY/MM/DD/HH:mm:ss
- */
-function toBeijingTimeISO(date = null) {
-  const targetDate = date || new Date();
-  // 转换为北京时间（UTC+8）
-  const beijingOffset = 8 * 60 * 60 * 1000; // 8小时的毫秒数
-  const beijingTime = new Date(targetDate.getTime() + beijingOffset);
-
-  // 使用UTC方法获取年月日时分秒，这样得到的就是北京时间
-  const year = beijingTime.getUTCFullYear();
-  const month = String(beijingTime.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(beijingTime.getUTCDate()).padStart(2, "0");
-  const hours = String(beijingTime.getUTCHours()).padStart(2, "0");
-  const minutes = String(beijingTime.getUTCMinutes()).padStart(2, "0");
-  const seconds = String(beijingTime.getUTCSeconds()).padStart(2, "0");
-
-  // 返回格式：YYYY/MM/DD/HH:mm:ss（北京时间）
-  return `${year}/${month}/${day}/${hours}:${minutes}:${seconds}`;
-}
-
-/**
- * 格式化标的显示：中文名称(代码.HK)
- * @param {string} symbol 标的代码
- * @param {string} symbolName 标的中文名称（可选）
- * @returns {string} 格式化后的标的显示
- */
-function formatSymbolDisplay(symbol, symbolName = null) {
-  if (!symbol) {
-    return symbol;
-  }
-  const normalizedSymbol = normalizeHKSymbol(symbol);
-  if (symbolName) {
-    return `${symbolName}(${normalizedSymbol})`;
-  }
-  return normalizedSymbol;
-}
 
 /**
  * 记录交易到文件

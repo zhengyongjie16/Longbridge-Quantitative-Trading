@@ -7,28 +7,7 @@ import {
   NaiveDate,
 } from "longport";
 import { createConfig } from "./config.js";
-
-const decimalToNumber = (decimalLike) =>
-  decimalLike && typeof decimalLike.toNumber === "function"
-    ? decimalLike.toNumber()
-    : Number(decimalLike ?? 0);
-
-/**
- * 规范化港股代码，自动添加 .HK 后缀（如果还没有）
- * @param {string} symbol 标的代码，例如 "68547" 或 "68547.HK"
- * @returns {string} 规范化后的代码，例如 "68547.HK"
- */
-function normalizeHKSymbol(symbol) {
-  if (!symbol || typeof symbol !== "string") {
-    return symbol;
-  }
-  // 如果已经包含 .HK、.US 等后缀，直接返回
-  if (symbol.includes(".")) {
-    return symbol;
-  }
-  // 否则添加 .HK 后缀
-  return `${symbol}.HK`;
-}
+import { normalizeHKSymbol, decimalToNumber } from "./utils.js";
 
 const DEFAULT_RETRY = {
   retries: 2,

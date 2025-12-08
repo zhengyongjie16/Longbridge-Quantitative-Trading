@@ -8,52 +8,11 @@ import { logger } from "./logger.js";
 import { validateAllConfig } from "./config.validator.js";
 import { SignalType } from "./signalTypes.js";
 import { OrderRecorder } from "./orderRecorder.js";
-
-/**
- * 规范化港股代码，自动添加 .HK 后缀（如果还没有）
- */
-function normalizeHKSymbol(symbol) {
-  if (!symbol || typeof symbol !== "string") {
-    return symbol;
-  }
-  if (symbol.includes(".")) {
-    return symbol;
-  }
-  return `${symbol}.HK`;
-}
-
-/**
- * 格式化账户渠道显示名称
- * @param {string} accountChannel 账户渠道代码
- * @returns {string} 格式化的账户渠道名称
- */
-function formatAccountChannel(accountChannel) {
-  if (!accountChannel || typeof accountChannel !== "string") {
-    return "未知账户";
-  }
-
-  // 将账户渠道代码转换为友好的中文名称
-  const channelMap = {
-    lb_papertrading: "模拟交易",
-    paper_trading: "模拟交易",
-    papertrading: "模拟交易",
-    real_trading: "实盘交易",
-    realtrading: "实盘交易",
-    live: "实盘交易",
-    demo: "模拟交易",
-  };
-
-  // 转换为小写进行匹配
-  const lowerChannel = accountChannel.toLowerCase();
-
-  // 如果找到映射，返回中文名称
-  if (channelMap[lowerChannel]) {
-    return channelMap[lowerChannel];
-  }
-
-  // 如果没有找到映射，返回原始值（可能已经是友好的名称）
-  return accountChannel;
-}
+import {
+  normalizeHKSymbol,
+  formatAccountChannel,
+  formatNumber,
+} from "./utils.js";
 
 /**
  * 判断是否在港股连续交易时段（仅检查时间，不检查是否是交易日）
@@ -543,9 +502,7 @@ async function runOnce({
         continue; // 跳过无效持仓
       }
 
-      const normalizedPosSymbol = pos.symbol.includes(".")
-        ? pos.symbol
-        : `${pos.symbol}.HK`;
+      const normalizedPosSymbol = normalizeHKSymbol(pos.symbol);
 
       // 验证可用数量有效性
       const availableQty = Number(pos.availableQuantity) || 0;
@@ -1030,9 +987,7 @@ async function runOnce({
           continue; // 跳过无效或零持仓
         }
 
-        const normalizedPosSymbol = pos.symbol.includes(".")
-          ? pos.symbol
-          : `${pos.symbol}.HK`;
+        const normalizedPosSymbol = normalizeHKSymbol(pos.symbol);
         const isShortPos = normalizedPosSymbol === normalizedShortSymbol;
 
         // 获取该标的的当前价格、最小买卖单位和名称
@@ -1320,8 +1275,6 @@ async function displayAccountAndPositions(trader, marketDataClient, lastState) {
     }
     if (Array.isArray(positions) && positions.length > 0) {
       logger.info("股票持仓：");
-      const formatNumber = (num, digits = 2) =>
-        Number.isFinite(num) ? num.toFixed(digits) : String(num ?? "-");
 
       // 批量获取所有持仓标的的完整信息（包含中文名称和价格）
       const positionSymbols = positions.map((p) => p.symbol).filter(Boolean);
