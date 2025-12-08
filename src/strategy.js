@@ -202,6 +202,7 @@ export class HangSengMultiIndicatorStrategy {
    * @param {number} shortCurrentPrice 做空标的的当前价格
    * @param {string} longSymbol 做多标的的代码
    * @param {string} shortSymbol 做空标的的代码
+   * @param {Object} orderRecorder 订单记录器实例（可选）
    * @returns {Object} 包含立即执行信号和延迟验证信号的对象
    *   - immediateSignals: 立即执行的信号数组（清仓信号）
    *   - delayedSignals: 延迟验证的信号数组（开仓信号）
@@ -213,7 +214,8 @@ export class HangSengMultiIndicatorStrategy {
     shortPosition,
     shortCurrentPrice,
     longSymbol,
-    shortSymbol
+    shortSymbol,
+    orderRecorder = null
   ) {
     const immediateSignals = [];
     const delayedSignals = [];
@@ -263,26 +265,57 @@ export class HangSengMultiIndicatorStrategy {
       state,
       SignalType.SELLCALL
     );
-    if (
-      canSellLong &&
-      sellcallCount >= 3 &&
-      longCurrentPrice > longPosition.costPrice
-    ) {
-      // 清仓做多标的
-      immediateSignals.push({
-        symbol: longPosition.symbol,
-        action: SignalType.SELLCALL,
-        reason: `做多标的当前价格(${longCurrentPrice.toFixed(
-          3
-        )}) > 持仓成本价(${longPosition.costPrice.toFixed(
-          3
-        )}) 且 RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(
-          1
-        )})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(
-          1
-        )}) 中至少 3 项触发清仓条件，立即清空所有做多标的持仓`,
-        signalTriggerTime: new Date(), // 立即执行信号的触发时间
-      });
+    if (canSellLong && sellcallCount >= 3) {
+      if (longCurrentPrice > longPosition.costPrice) {
+        // 当前价格高于持仓成本价，立即清仓所有做多标的持仓
+        immediateSignals.push({
+          symbol: longPosition.symbol,
+          action: SignalType.SELLCALL,
+          reason: `做多标的当前价格(${longCurrentPrice.toFixed(
+            3
+          )}) > 持仓成本价(${longPosition.costPrice.toFixed(
+            3
+          )}) 且 RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(
+            1
+          )})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(
+            1
+          )}) 中至少 3 项触发清仓条件，立即清空所有做多标的持仓`,
+          signalTriggerTime: new Date(), // 立即执行信号的触发时间
+        });
+      } else {
+        // 当前价格没有高于持仓成本价，检查历史买入订单
+        if (
+          orderRecorder &&
+          Number.isFinite(longCurrentPrice) &&
+          longCurrentPrice > 0
+        ) {
+          const buyOrdersBelowPrice =
+            orderRecorder.getLongBuyOrdersBelowPrice(longCurrentPrice);
+          if (buyOrdersBelowPrice && buyOrdersBelowPrice.length > 0) {
+            // 计算这些订单的总成交数量
+            const totalQuantity =
+              orderRecorder.calculateTotalQuantity(buyOrdersBelowPrice);
+            if (totalQuantity > 0) {
+              // 生成卖出信号，卖出这些订单的总数量
+              immediateSignals.push({
+                symbol: longPosition.symbol,
+                action: SignalType.SELLCALL,
+                quantity: totalQuantity, // 指定卖出数量
+                reason: `做多标的当前价格(${longCurrentPrice.toFixed(
+                  3
+                )}) 未高于持仓成本价(${longPosition.costPrice.toFixed(
+                  3
+                )}) 但 RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(
+                  1
+                )})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(
+                  1
+                )}) 中至少 3 项触发卖出条件，卖出历史买入订单中买入价低于当前价的订单，共 ${totalQuantity} 股`,
+                signalTriggerTime: new Date(), // 立即执行信号的触发时间
+              });
+            }
+          }
+        }
+      }
     }
 
     // 3. 买入做空标的（延迟验证策略）
@@ -317,26 +350,57 @@ export class HangSengMultiIndicatorStrategy {
       state,
       SignalType.SELLPUT
     );
-    if (
-      canSellShort &&
-      sellputCount >= 3 &&
-      shortCurrentPrice > shortPosition.costPrice
-    ) {
-      // 清仓做空标的（卖出平仓，不是卖空）
-      immediateSignals.push({
-        symbol: shortPosition.symbol,
-        action: SignalType.SELLPUT, // 卖出做空标的（平空仓）
-        reason: `做空标的当前价格(${shortCurrentPrice.toFixed(
-          3
-        )}) > 持仓成本价(${shortPosition.costPrice.toFixed(
-          3
-        )}) 且 RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(
-          1
-        )})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(
-          1
-        )}) 中至少 3 项触发清仓条件，立即清空所有做空标的持仓`,
-        signalTriggerTime: new Date(), // 立即执行信号的触发时间
-      });
+    if (canSellShort && sellputCount >= 3) {
+      if (shortCurrentPrice > shortPosition.costPrice) {
+        // 当前价格高于持仓成本价，立即清仓所有做空标的持仓
+        immediateSignals.push({
+          symbol: shortPosition.symbol,
+          action: SignalType.SELLPUT, // 卖出做空标的（平空仓）
+          reason: `做空标的当前价格(${shortCurrentPrice.toFixed(
+            3
+          )}) > 持仓成本价(${shortPosition.costPrice.toFixed(
+            3
+          )}) 且 RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(
+            1
+          )})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(
+            1
+          )}) 中至少 3 项触发清仓条件，立即清空所有做空标的持仓`,
+          signalTriggerTime: new Date(), // 立即执行信号的触发时间
+        });
+      } else {
+        // 当前价格没有高于持仓成本价，检查历史买入订单
+        if (
+          orderRecorder &&
+          Number.isFinite(shortCurrentPrice) &&
+          shortCurrentPrice > 0
+        ) {
+          const buyOrdersBelowPrice =
+            orderRecorder.getShortBuyOrdersBelowPrice(shortCurrentPrice);
+          if (buyOrdersBelowPrice && buyOrdersBelowPrice.length > 0) {
+            // 计算这些订单的总成交数量
+            const totalQuantity =
+              orderRecorder.calculateTotalQuantity(buyOrdersBelowPrice);
+            if (totalQuantity > 0) {
+              // 生成卖出信号，卖出这些订单的总数量
+              immediateSignals.push({
+                symbol: shortPosition.symbol,
+                action: SignalType.SELLPUT, // 卖出做空标的（平空仓）
+                quantity: totalQuantity, // 指定卖出数量
+                reason: `做空标的当前价格(${shortCurrentPrice.toFixed(
+                  3
+                )}) 未高于持仓成本价(${shortPosition.costPrice.toFixed(
+                  3
+                )}) 但 RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(
+                  1
+                )})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(
+                  1
+                )}) 中至少 3 项触发卖出条件，卖出历史买入订单中买入价低于当前价的订单，共 ${totalQuantity} 股`,
+                signalTriggerTime: new Date(), // 立即执行信号的触发时间
+              });
+            }
+          }
+        }
+      }
     }
 
     return { immediateSignals, delayedSignals };

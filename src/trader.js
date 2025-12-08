@@ -1144,7 +1144,15 @@ export class Trader {
       signal.action === SignalType.SELLPUT; // 卖出做空标的（平空仓）
 
     if (needClosePosition) {
-      // 平仓：按当前持仓可用数量全部清仓
+      // 平仓：如果信号中指定了数量，使用指定数量；否则按当前持仓可用数量全部清仓
+      let targetQuantity = null;
+      if (signal.quantity !== undefined && signal.quantity !== null) {
+        const signalQty = Number(signal.quantity);
+        if (Number.isFinite(signalQty) && signalQty > 0) {
+          targetQuantity = signalQty;
+        }
+      }
+
       const resp = await ctx.stockPositions([symbol]);
       const channels = resp?.channels ?? [];
       let totalAvailable = 0;
@@ -1165,7 +1173,19 @@ export class Trader {
         );
         return;
       }
-      submittedQtyDecimal = toDecimal(totalAvailable);
+
+      // 如果指定了数量，使用指定数量（但不能超过可用数量）
+      if (targetQuantity !== null) {
+        submittedQtyDecimal = toDecimal(
+          Math.min(targetQuantity, totalAvailable)
+        );
+        logger.info(
+          `[部分卖出] 信号指定卖出数量=${targetQuantity}，可用数量=${totalAvailable}，实际卖出=${submittedQtyDecimal.toString()}`
+        );
+      } else {
+        // 未指定数量，全部清仓
+        submittedQtyDecimal = toDecimal(totalAvailable);
+      }
     } else {
       // BUY 信号：按目标金额（例如 5000 HKD）计算买入数量，
       // 尽量使 成交金额 <= targetNotional 且尽量接近 targetNotional
