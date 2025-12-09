@@ -528,7 +528,7 @@ async function runOnce({
     }
   }
 
-  // 根据新策略生成交易信号（包含立即执行的清仓信号和延迟验证的开仓信号）
+  // 根据策略生成交易信号（包含立即执行的清仓信号和延迟验证的开仓信号）
   const { immediateSignals, delayedSignals } = strategy.generateCloseSignals(
     monitorSnapshot,
     longPosition,

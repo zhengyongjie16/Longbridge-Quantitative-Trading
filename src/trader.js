@@ -138,14 +138,6 @@ export class Trader {
     }
     // 记录每个标的的最后交易时间（用于限制交易频率）
     this._lastTradeTime = new Map();
-    // 记录上次获取未成交订单的时间（用于限制获取频率为每三分钟一次）
-    this._lastPendingOrdersFetchTime = null;
-    // 缓存的未成交订单数据
-    this._cachedPendingOrders = null;
-    // 记录上次检查今日是否有订单的时间（用于限制检查频率）
-    this._lastHasOrdersCheckTime = null;
-    // 缓存的今日是否有订单的结果
-    this._cachedHasOrders = null;
     // 是否需要监控买入订单（仅在发起买入交易后设置为true）
     this._shouldMonitorBuyOrders = false;
   }
@@ -191,49 +183,6 @@ export class Trader {
         market: pos.market,
       }))
     );
-  }
-
-  /**
-   * 获取今日未成交订单（带缓存，每三分钟最多获取一次）
-   * @param {string[]} symbols 标的代码数组，如果为null或空数组则获取所有标的的订单
-   * @returns {Promise<Array>} 未成交订单列表
-   */
-  async getPendingOrdersWithCache(symbols = null) {
-    const now = Date.now();
-    const threeMinutes = 3 * 60 * 1000; // 3分钟 = 180000毫秒
-
-    // 检查是否需要重新获取订单
-    const shouldFetch =
-      !this._lastPendingOrdersFetchTime ||
-      now - this._lastPendingOrdersFetchTime >= threeMinutes;
-
-    if (shouldFetch) {
-      // 需要重新获取订单
-      try {
-        this._cachedPendingOrders = await this.getPendingOrders(symbols);
-        this._lastPendingOrdersFetchTime = now;
-        logger.debug(
-          `[订单缓存] 重新获取未成交订单，共 ${this._cachedPendingOrders.length} 个`
-        );
-      } catch (err) {
-        logger.warn("获取未成交订单失败，使用缓存数据", err?.message ?? err);
-        // 如果获取失败，尝试使用缓存数据
-        if (this._cachedPendingOrders === null) {
-          this._cachedPendingOrders = [];
-        }
-      }
-    } else {
-      // 使用缓存数据
-      const timeSinceLastFetch = Math.floor(
-        (now - this._lastPendingOrdersFetchTime) / 1000
-      );
-      logger.debug(
-        `[订单缓存] 使用缓存的未成交订单（距离上次获取 ${timeSinceLastFetch} 秒）`
-      );
-    }
-
-    // 返回缓存的订单（如果没有缓存则返回空数组）
-    return this._cachedPendingOrders ?? [];
   }
 
   /**
@@ -403,40 +352,6 @@ export class Trader {
   }
 
   /**
-   * 检查今日是否有交易（包括已成交和未成交的订单，带缓存）
-   * @param {string[]} symbols 标的代码数组
-   * @returns {Promise<boolean>} true表示今日有交易，false表示今日无交易
-   */
-  async hasTodayOrdersWithCache(symbols) {
-    const now = Date.now();
-    const oneMinute = 60 * 1000; // 1分钟 = 60000毫秒
-
-    // 检查是否需要重新检查
-    const shouldCheck =
-      this._lastHasOrdersCheckTime === null ||
-      now - this._lastHasOrdersCheckTime >= oneMinute;
-
-    if (shouldCheck) {
-      // 需要重新检查
-      try {
-        this._cachedHasOrders = await this.hasTodayOrders(symbols);
-        this._lastHasOrdersCheckTime = now;
-        logger.debug(
-          `[订单检查] 今日${this._cachedHasOrders ? "有" : "无"}交易`
-        );
-      } catch (err) {
-        logger.debug("检查今日订单失败，使用缓存结果", err?.message ?? err);
-        // 如果检查失败，使用缓存结果，如果没有缓存则假设有订单（保守策略）
-        if (this._cachedHasOrders === null) {
-          this._cachedHasOrders = true;
-        }
-      }
-    }
-
-    return this._cachedHasOrders ?? true; // 默认假设有订单（保守策略）
-  }
-
-  /**
    * 检查今日是否有交易（实际调用API）
    * @param {string[]} symbols 标的代码数组
    * @returns {Promise<boolean>} true表示今日有交易，false表示今日无交易
@@ -493,14 +408,6 @@ export class Trader {
    */
   enableBuyOrderMonitoring() {
     this._shouldMonitorBuyOrders = true;
-  }
-
-  /**
-   * 检查是否需要监控买入订单
-   * @returns {boolean} true表示需要监控
-   */
-  shouldMonitorBuyOrders() {
-    return this._shouldMonitorBuyOrders;
   }
 
   /**
