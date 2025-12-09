@@ -136,8 +136,11 @@ export class Trader {
     if (this._orderOptions.symbol) {
       this._orderOptions.symbol = normalizeHKSymbol(this._orderOptions.symbol);
     }
-    // 记录每个标的的最后交易时间（用于限制交易频率）
-    this._lastTradeTime = new Map();
+    // 记录每个方向标的的最后买入时间（用于限制交易频率）
+    // 键："LONG" 表示做多标的，"SHORT" 表示做空标的
+    // 只有买入同方向标的会触发频率检查，不同方向标的的买入不能互相阻塞
+    // 卖出操作不会触发频率限制
+    this._lastBuyTime = new Map();
     // 是否需要监控买入订单（仅在发起买入交易后设置为true）
     this._shouldMonitorBuyOrders = false;
   }
@@ -605,18 +608,34 @@ export class Trader {
       return;
     }
 
-    // 检查交易频率限制
-    if (!this._canTradeNow(originalOrder.symbol)) {
-      const lastTime = this._lastTradeTime.get(
-        normalizeHKSymbol(originalOrder.symbol)
-      );
-      const waitSeconds = Math.ceil(
-        (60 * 1000 - (Date.now() - lastTime)) / 1000
-      );
-      logger.warn(
-        `[重新委托失败] 订单 ${originalOrder.orderId} 标的 ${originalOrder.symbol} 在1分钟内已交易过，需等待 ${waitSeconds} 秒`
-      );
-      return;
+    // 检查交易频率限制（重新委托通常是买入订单的价格优化）
+    // 根据订单方向判断：Buy 订单对应 BUYCALL 或 BUYPUT，需要判断是哪个方向
+    // 通过标的代码判断是做多标的还是做空标的
+    if (originalOrder.side === OrderSide.Buy) {
+      const normalizedSymbol = normalizeHKSymbol(originalOrder.symbol);
+      const normalizedLongSymbol = normalizeHKSymbol(longSymbol);
+      const normalizedShortSymbol = normalizeHKSymbol(shortSymbol);
+      let signalAction = null;
+      if (normalizedSymbol === normalizedLongSymbol) {
+        signalAction = SignalType.BUYCALL;
+      } else if (normalizedSymbol === normalizedShortSymbol) {
+        signalAction = SignalType.BUYPUT;
+      }
+
+      if (signalAction && !this._canTradeNow(signalAction)) {
+        const direction =
+          signalAction === SignalType.BUYCALL ? "做多标的" : "做空标的";
+        const directionKey =
+          signalAction === SignalType.BUYCALL ? "LONG" : "SHORT";
+        const lastTime = this._lastBuyTime.get(directionKey);
+        const waitSeconds = lastTime
+          ? Math.ceil((60 * 1000 - (Date.now() - lastTime)) / 1000)
+          : 0;
+        logger.warn(
+          `[重新委托失败] 订单 ${originalOrder.orderId} ${direction} 在1分钟内已买入过，需等待 ${waitSeconds} 秒`
+        );
+        return;
+      }
     }
 
     const orderPayload = {
@@ -649,8 +668,17 @@ export class Trader {
         )} 订单ID=${orderId}`
       );
 
-      // 更新最后交易时间
-      this._updateLastTradeTime(originalOrder.symbol);
+      // 更新最后买入时间（仅对买入订单更新）
+      if (originalOrder.side === OrderSide.Buy) {
+        const normalizedSymbol = normalizeHKSymbol(originalOrder.symbol);
+        const normalizedLongSymbol = normalizeHKSymbol(longSymbol);
+        const normalizedShortSymbol = normalizeHKSymbol(shortSymbol);
+        if (normalizedSymbol === normalizedLongSymbol) {
+          this._updateLastBuyTime(SignalType.BUYCALL);
+        } else if (normalizedSymbol === normalizedShortSymbol) {
+          this._updateLastBuyTime(SignalType.BUYPUT);
+        }
+      }
 
       // 记录交易（重新委托没有信号触发时间，因为这是价格优化操作）
       recordTrade({
@@ -732,16 +760,28 @@ export class Trader {
   }
 
   /**
-   * 检查标的是否在1分钟内已经交易过
-   * @param {string} symbol 标的代码
+   * 检查是否可以买入（仅对买入操作进行频率检查）
+   * 只有买入同方向标的会触发频率检查，不同方向标的的买入不能互相阻塞
+   * 卖出操作不会触发频率限制
+   * @param {string} signalAction 信号类型（SignalType.BUYCALL, SignalType.BUYPUT, SignalType.SELLCALL, SignalType.SELLPUT）
    * @returns {boolean} true表示可以交易，false表示需要等待
    */
-  _canTradeNow(symbol) {
-    const normalizedSymbol = normalizeHKSymbol(symbol);
-    const lastTime = this._lastTradeTime.get(normalizedSymbol);
+  _canTradeNow(signalAction) {
+    // 卖出操作不触发频率限制
+    if (
+      signalAction === SignalType.SELLCALL ||
+      signalAction === SignalType.SELLPUT
+    ) {
+      return true;
+    }
+
+    // 确定方向：BUYCALL 是 LONG，BUYPUT 是 SHORT
+    const direction = signalAction === SignalType.BUYCALL ? "LONG" : "SHORT";
+
+    const lastTime = this._lastBuyTime.get(direction);
 
     if (!lastTime) {
-      return true; // 从未交易过，可以交易
+      return true; // 该方向从未买入过，可以交易
     }
 
     const now = Date.now();
@@ -752,12 +792,18 @@ export class Trader {
   }
 
   /**
-   * 更新标的的最后交易时间
-   * @param {string} symbol 标的代码
+   * 更新方向标的的最后买入时间（仅对买入操作更新）
+   * @param {string} signalAction 信号类型（SignalType.BUYCALL, SignalType.BUYPUT, SignalType.SELLCALL, SignalType.SELLPUT）
    */
-  _updateLastTradeTime(symbol) {
-    const normalizedSymbol = normalizeHKSymbol(symbol);
-    this._lastTradeTime.set(normalizedSymbol, Date.now());
+  _updateLastBuyTime(signalAction) {
+    // 只有买入操作才更新最后买入时间
+    if (
+      signalAction === SignalType.BUYCALL ||
+      signalAction === SignalType.BUYPUT
+    ) {
+      const direction = signalAction === SignalType.BUYCALL ? "LONG" : "SHORT";
+      this._lastBuyTime.set(direction, Date.now());
+    }
   }
 
   /**
@@ -838,16 +884,29 @@ export class Trader {
       const isShortSymbol = normalizedSignalSymbol === shortSymbol;
       const targetSymbol = isShortSymbol ? shortSymbol : longSymbol;
 
-      // 检查交易频率限制：每个标的每分钟内只能交易一次
-      if (!this._canTradeNow(targetSymbol)) {
-        const lastTime = this._lastTradeTime.get(
-          normalizeHKSymbol(targetSymbol)
-        );
-        const waitSeconds = Math.ceil(
-          (60 * 1000 - (Date.now() - lastTime)) / 1000
-        );
+      // 检查交易频率限制：只有买入同方向标的会触发频率检查
+      // 不同方向标的的买入不能互相阻塞，卖出操作不会触发频率限制
+      if (!this._canTradeNow(s.action)) {
+        const direction =
+          s.action === SignalType.BUYCALL
+            ? "做多标的"
+            : s.action === SignalType.BUYPUT
+            ? "做空标的"
+            : "未知";
+        const directionKey =
+          s.action === SignalType.BUYCALL
+            ? "LONG"
+            : s.action === SignalType.BUYPUT
+            ? "SHORT"
+            : null;
+        const lastTime = directionKey
+          ? this._lastBuyTime.get(directionKey)
+          : null;
+        const waitSeconds = lastTime
+          ? Math.ceil((60 * 1000 - (Date.now() - lastTime)) / 1000)
+          : 0;
         logger.warn(
-          `[交易频率限制] 标的 ${targetSymbol} 在1分钟内已交易过，需等待 ${waitSeconds} 秒后才能再次交易`
+          `[交易频率限制] ${direction} 在1分钟内已买入过，需等待 ${waitSeconds} 秒后才能再次买入`
         );
         continue;
       }
@@ -1099,8 +1158,8 @@ export class Trader {
         } 数量=${orderPayload.submittedQuantity.toString()} 订单ID=${orderId}`
       );
 
-      // 更新该标的的最后交易时间（订单提交成功后才更新）
-      this._updateLastTradeTime(orderPayload.symbol);
+      // 更新该方向标的的最后买入时间（仅对买入操作更新，订单提交成功后才更新）
+      this._updateLastBuyTime(signal.action);
 
       // 记录交易到文件
       recordTrade({
