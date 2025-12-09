@@ -7,9 +7,17 @@ import { SignalType } from "./signalTypes.js";
  *
  * 策略逻辑：
  * 1. 买入做多标的（BUYCALL）：RSI6<20, RSI12<20, KDJ.D<20, KDJ.J<-1 满足3个以上，且监控标的价格<VWAP
- * 2. 卖出做多标的（SELLCALL）：RSI6>80, RSI12>80, KDJ.D>80, KDJ.J>100 满足3个以上，且做多标的价格>持仓成本价，立即清空所有做多标的持仓
+ * 2. 卖出做多标的（SELLCALL）：
+ *    - 条件1：RSI6>80, RSI12>80, KDJ.D>80, KDJ.J>100 满足3个以上
+ *    - 条件2：或者当KDJ.J>110时
+ *    - 若当前做多标的价格>持仓成本价，立即清空所有做多标的持仓
+ *    - 若当前做多标的价格<=持仓成本价，检查历史买入订单，卖出买入价<当前价的订单数量
  * 3. 买入做空标的（BUYPUT）：RSI6>80, RSI12>80, KDJ.D>80, KDJ.J>100 满足3个以上，且监控标的价格>VWAP
- * 4. 卖出做空标的（SELLPUT）：RSI6<20, RSI12<20, KDJ.D<20, KDJ.J<0 满足3个以上，且做空标的价格>持仓成本价，立即清空所有做空标的持仓（注意不是卖空）
+ * 4. 卖出做空标的（SELLPUT）：
+ *    - 条件1：RSI6<20, RSI12<20, KDJ.D<20, KDJ.J<0 满足3个以上
+ *    - 条件2：或者当KDJ.J<-20时
+ *    - 若当前做空标的价格>持仓成本价，立即清空所有做空标的持仓
+ *    - 若当前做空标的价格<=持仓成本价，检查历史买入订单，卖出买入价<当前价的订单数量
  */
 export class HangSengMultiIndicatorStrategy {
   constructor({
@@ -249,9 +257,10 @@ export class HangSengMultiIndicatorStrategy {
     }
 
     // 2. 卖出做多标的的条件（立即执行）
-    // 条件：RSI6 > 80, RSI12 > 80, KDJ.D > 80, KDJ.J > 100 四个指标中满足三个以上
-    // 且当前做多标的价格 > 做多标的持仓成本价
-    // 立即清空所有做多标的持仓
+    // 条件1：RSI6 > 80, RSI12 > 80, KDJ.D > 80, KDJ.J > 100 四个指标中满足三个以上
+    // 条件2：或者当KDJ.J > 110时
+    // 若当前做多标的价格 > 做多标的持仓成本价，立即清空所有做多标的持仓
+    // 若当前做多标的价格 <= 做多标的持仓成本价，检查历史买入订单，卖出买入价<当前价的订单数量
     const canSellLong =
       longPosition?.symbol &&
       Number.isFinite(longPosition.availableQuantity) &&
@@ -265,7 +274,13 @@ export class HangSengMultiIndicatorStrategy {
       state,
       SignalType.SELLCALL
     );
-    if (canSellLong && sellcallCount >= 3) {
+    // 检查是否满足条件1（四个指标中满足三个以上）或条件2（J>110）
+    const jValue = kdj?.j;
+    const meetsCondition1 = sellcallCount >= 3;
+    const meetsCondition2 = Number.isFinite(jValue) && jValue > 110;
+    const shouldSellLong = meetsCondition1 || meetsCondition2;
+
+    if (canSellLong && shouldSellLong) {
       if (longCurrentPrice > longPosition.costPrice) {
         // 当前价格高于持仓成本价，立即清仓所有做多标的持仓
         immediateSignals.push({
@@ -273,13 +288,15 @@ export class HangSengMultiIndicatorStrategy {
           action: SignalType.SELLCALL,
           reason: `做多标的当前价格(${longCurrentPrice.toFixed(
             3
-          )}) > 持仓成本价(${longPosition.costPrice.toFixed(
-            3
-          )}) 且 RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(
-            1
-          )})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(
-            1
-          )}) 中至少 3 项触发清仓条件，立即清空所有做多标的持仓`,
+          )}) > 持仓成本价(${longPosition.costPrice.toFixed(3)}) 且 ${
+            meetsCondition1
+              ? `RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(
+                  1
+                )})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(
+                  1
+                )}) 中至少 3 项触发清仓条件`
+              : `KDJ.J(${kdj.j.toFixed(1)}) > 110 触发清仓条件`
+          }，立即清空所有做多标的持仓`,
           signalTriggerTime: new Date(), // 立即执行信号的触发时间
         });
       } else {
@@ -303,13 +320,15 @@ export class HangSengMultiIndicatorStrategy {
                 quantity: totalQuantity, // 指定卖出数量
                 reason: `做多标的当前价格(${longCurrentPrice.toFixed(
                   3
-                )}) 未高于持仓成本价(${longPosition.costPrice.toFixed(
-                  3
-                )}) 但 RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(
-                  1
-                )})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(
-                  1
-                )}) 中至少 3 项触发卖出条件，卖出历史买入订单中买入价低于当前价的订单，共 ${totalQuantity} 股`,
+                )}) 未高于持仓成本价(${longPosition.costPrice.toFixed(3)}) 但 ${
+                  meetsCondition1
+                    ? `RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(
+                        1
+                      )})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(
+                        1
+                      )}) 中至少 3 项触发卖出条件`
+                    : `KDJ.J(${kdj.j.toFixed(1)}) > 110 触发卖出条件`
+                }，卖出历史买入订单中买入价低于当前价的订单，共 ${totalQuantity} 股`,
                 signalTriggerTime: new Date(), // 立即执行信号的触发时间
               });
             }
@@ -334,9 +353,10 @@ export class HangSengMultiIndicatorStrategy {
     }
 
     // 4. 卖出做空标的的条件（立即执行）
-    // 条件：RSI6 < 20, RSI12 < 20, KDJ.D < 20, KDJ.J < 0 四个指标中满足三个以上
-    // 且当前做空标的价格 > 做空标的持仓成本价
-    // 立即清空所有做空标的持仓（注意不是卖空）
+    // 条件1：RSI6 < 20, RSI12 < 20, KDJ.D < 20, KDJ.J < 0 四个指标中满足三个以上
+    // 条件2：或者当KDJ.J < -20时
+    // 若当前做空标的价格 > 做空标的持仓成本价，立即清空所有做空标的持仓
+    // 若当前做空标的价格 <= 做空标的持仓成本价，检查历史买入订单，卖出买入价<当前价的订单数量
     const canSellShort =
       shortPosition?.symbol &&
       Number.isFinite(shortPosition.availableQuantity) &&
@@ -350,7 +370,14 @@ export class HangSengMultiIndicatorStrategy {
       state,
       SignalType.SELLPUT
     );
-    if (canSellShort && sellputCount >= 3) {
+    // 检查是否满足条件1（四个指标中满足三个以上）或条件2（J<-20）
+    const jValueShort = kdj?.j;
+    const meetsCondition1Short = sellputCount >= 3;
+    const meetsCondition2Short =
+      Number.isFinite(jValueShort) && jValueShort < -20;
+    const shouldSellShort = meetsCondition1Short || meetsCondition2Short;
+
+    if (canSellShort && shouldSellShort) {
       if (shortCurrentPrice > shortPosition.costPrice) {
         // 当前价格高于持仓成本价，立即清仓所有做空标的持仓
         immediateSignals.push({
@@ -358,13 +385,15 @@ export class HangSengMultiIndicatorStrategy {
           action: SignalType.SELLPUT, // 卖出做空标的（平空仓）
           reason: `做空标的当前价格(${shortCurrentPrice.toFixed(
             3
-          )}) > 持仓成本价(${shortPosition.costPrice.toFixed(
-            3
-          )}) 且 RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(
-            1
-          )})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(
-            1
-          )}) 中至少 3 项触发清仓条件，立即清空所有做空标的持仓`,
+          )}) > 持仓成本价(${shortPosition.costPrice.toFixed(3)}) 且 ${
+            meetsCondition1Short
+              ? `RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(
+                  1
+                )})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(
+                  1
+                )}) 中至少 3 项触发清仓条件`
+              : `KDJ.J(${kdj.j.toFixed(1)}) < -20 触发清仓条件`
+          }，立即清空所有做空标的持仓`,
           signalTriggerTime: new Date(), // 立即执行信号的触发时间
         });
       } else {
@@ -390,11 +419,15 @@ export class HangSengMultiIndicatorStrategy {
                   3
                 )}) 未高于持仓成本价(${shortPosition.costPrice.toFixed(
                   3
-                )}) 但 RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(
-                  1
-                )})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(
-                  1
-                )}) 中至少 3 项触发卖出条件，卖出历史买入订单中买入价低于当前价的订单，共 ${totalQuantity} 股`,
+                )}) 但 ${
+                  meetsCondition1Short
+                    ? `RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(
+                        1
+                      )})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(
+                        1
+                      )}) 中至少 3 项触发卖出条件`
+                    : `KDJ.J(${kdj.j.toFixed(1)}) < -20 触发卖出条件`
+                }，卖出历史买入订单中买入价低于当前价的订单，共 ${totalQuantity} 股`,
                 signalTriggerTime: new Date(), // 立即执行信号的触发时间
               });
             }
