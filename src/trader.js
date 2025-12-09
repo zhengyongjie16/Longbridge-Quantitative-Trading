@@ -14,7 +14,7 @@ import {
   normalizeHKSymbol,
   decimalToNumber,
   formatSymbolDisplay,
-  toBeijingTimeISO,
+  toBeijingTimeIso,
 } from "./utils.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -88,12 +88,12 @@ function recordTrade(tradeRecord) {
     let signalTriggerTime = null;
     if (tradeRecord.signalTriggerTime) {
       if (tradeRecord.signalTriggerTime instanceof Date) {
-        signalTriggerTime = toBeijingTimeISO(tradeRecord.signalTriggerTime);
+        signalTriggerTime = toBeijingTimeIso(tradeRecord.signalTriggerTime);
       } else if (typeof tradeRecord.signalTriggerTime === "string") {
         // 如果是字符串，尝试解析为Date
         const parsedDate = new Date(tradeRecord.signalTriggerTime);
         if (!Number.isNaN(parsedDate.getTime())) {
-          signalTriggerTime = toBeijingTimeISO(parsedDate);
+          signalTriggerTime = toBeijingTimeIso(parsedDate);
         }
       }
     }
@@ -102,7 +102,7 @@ function recordTrade(tradeRecord) {
     const record = {
       ...tradeRecord,
       symbol: symbolDisplay, // 使用格式化后的标的显示
-      timestamp: toBeijingTimeISO(), // 记录时间使用北京时间
+      timestamp: toBeijingTimeIso(), // 记录时间使用北京时间
     };
 
     // 如果有信号触发时间，添加到记录中

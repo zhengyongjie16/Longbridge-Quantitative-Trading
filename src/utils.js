@@ -94,11 +94,13 @@ export function formatSymbolDisplay(symbol, symbolName = null) {
 
 /**
  * 将时间转换为北京时间（UTC+8）的字符串
- * 格式：YYYY/MM/DD/HH:mm:ss
  * @param {Date|null} date 时间对象，如果为 null 则使用当前时间
- * @returns {string} 北京时间的字符串格式 YYYY/MM/DD/HH:mm:ss
+ * @param {Object} options 格式选项
+ * @param {string} options.format 格式类型：'iso' (YYYY/MM/DD/HH:mm:ss) 或 'log' (YYYY-MM-DD HH:mm:ss.sss)，默认为 'iso'
+ * @returns {string} 北京时间的字符串格式
  */
-export function toBeijingTimeISO(date = null) {
+function toBeijingTime(date = null, options = {}) {
+  const { format = "iso" } = options;
   const targetDate = date || new Date();
   // 转换为北京时间（UTC+8）
   const beijingOffset = 8 * 60 * 60 * 1000; // 8小时的毫秒数
@@ -112,6 +114,31 @@ export function toBeijingTimeISO(date = null) {
   const minutes = String(beijingTime.getUTCMinutes()).padStart(2, "0");
   const seconds = String(beijingTime.getUTCSeconds()).padStart(2, "0");
 
-  // 返回格式：YYYY/MM/DD/HH:mm:ss（北京时间）
-  return `${year}/${month}/${day}/${hours}:${minutes}:${seconds}`;
+  return format === "log"
+    ? // 日志格式：YYYY-MM-DD HH:mm:ss.sss（包含毫秒）
+      `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${String(
+        beijingTime.getUTCMilliseconds()
+      ).padStart(3, "0")}`
+    : // ISO 格式：YYYY/MM/DD/HH:mm:ss（不包含毫秒）
+      `${year}/${month}/${day}/${hours}:${minutes}:${seconds}`;
+}
+
+/**
+ * 将时间转换为北京时间（UTC+8）的 ISO 格式字符串
+ * 格式：YYYY/MM/DD/HH:mm:ss
+ * @param {Date|null} date 时间对象，如果为 null 则使用当前时间
+ * @returns {string} 北京时间的字符串格式 YYYY/MM/DD/HH:mm:ss
+ */
+export function toBeijingTimeIso(date = null) {
+  return toBeijingTime(date, { format: "iso" });
+}
+
+/**
+ * 将时间转换为北京时间（UTC+8）的日志格式字符串
+ * 格式：YYYY-MM-DD HH:mm:ss.sss（包含毫秒）
+ * @param {Date|null} date 时间对象，如果为 null 则使用当前时间
+ * @returns {string} 北京时间的字符串格式 YYYY-MM-DD HH:mm:ss.sss
+ */
+export function toBeijingTimeLog(date = null) {
+  return toBeijingTime(date, { format: "log" });
 }
