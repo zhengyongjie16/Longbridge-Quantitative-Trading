@@ -38,23 +38,61 @@ export class RiskChecker {
       };
     }
 
-    // 计算浮亏：持仓市值 = 净资产 - 现金
-    // 注意：这里假设 netAssets = totalCash + positionValue
-    // 如果持仓有浮亏，positionValue会小于持仓成本，导致netAssets < totalCash + 持仓成本
-    const unrealizedPnL = netAssets - totalCash;
+    // 计算浮亏：浮亏 = 持仓市值 - 持仓成本
+    // 持仓市值 = 净资产 - 现金
+    // 持仓成本 = 所有持仓的 quantity * costPrice 之和
+    const positionMarketValue = netAssets - totalCash;
 
-    // 简单认为当日浮亏超过 maxDailyLoss 时，停止开新仓（仅对买入操作检查）
-    if (
-      isBuyAction(signal.action) &&
-      Number.isFinite(unrealizedPnL) &&
-      unrealizedPnL <= -this.maxDailyLoss
-    ) {
-      return {
-        allowed: false,
-        reason: `当前浮亏约 ${unrealizedPnL.toFixed(2)} 已超过单日最大亏损 ${
-          this.maxDailyLoss
-        }, 禁止继续开新仓`,
-      };
+    // 计算总持仓成本
+    let totalCost = 0;
+    if (Array.isArray(positions) && positions.length > 0) {
+      for (const pos of positions) {
+        const quantity = Number(pos.quantity) || 0;
+        const costPrice = Number(pos.costPrice) || 0;
+        if (
+          Number.isFinite(quantity) &&
+          quantity > 0 &&
+          Number.isFinite(costPrice) &&
+          costPrice > 0
+        ) {
+          totalCost += quantity * costPrice;
+        }
+      }
+    }
+
+    // 浮亏 = 持仓市值 - 持仓成本（负数表示浮亏，正数表示浮盈）
+    const unrealizedPnL = positionMarketValue - totalCost;
+
+    // 当日浮亏超过 maxDailyLoss 时，停止开新仓（仅对买入操作检查）
+    if (isBuyAction(signal.action)) {
+      // 记录浮亏计算详情（仅在DEBUG模式下）
+      if (process.env.DEBUG === "true") {
+        console.log(
+          `[风险检查调试] 浮亏计算：持仓市值=${positionMarketValue.toFixed(
+            2
+          )} HKD，持仓成本=${totalCost.toFixed(
+            2
+          )} HKD，浮亏=${unrealizedPnL.toFixed(2)} HKD，最大允许亏损=${
+            this.maxDailyLoss
+          } HKD`
+        );
+      }
+
+      if (
+        Number.isFinite(unrealizedPnL) &&
+        unrealizedPnL <= -this.maxDailyLoss
+      ) {
+        return {
+          allowed: false,
+          reason: `当前浮亏约 ${unrealizedPnL.toFixed(
+            2
+          )} HKD（持仓市值=${positionMarketValue.toFixed(
+            2
+          )} HKD，持仓成本=${totalCost.toFixed(2)} HKD）已超过单日最大亏损 ${
+            this.maxDailyLoss
+          } HKD，禁止继续开新仓`,
+        };
+      }
     }
 
     // 检查单标的最大持仓市值限制（适用于所有买入和卖出操作）

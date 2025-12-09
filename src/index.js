@@ -1116,10 +1116,48 @@ async function runOnce({
       }
       // 卖出操作（平仓）时不检查牛熊证风险
 
-      // 基础风险检查
+      // 基础风险检查前，实时获取最新账户和持仓信息以确保准确性
+      // 这样可以避免使用过期的缓存数据，特别是在程序长时间运行或中断重启后
+      let accountForRiskCheck = account;
+      let positionsForRiskCheck = positions;
+
+      // 如果缓存为空或需要最新数据，实时获取
+      if (
+        !accountForRiskCheck ||
+        !positionsForRiskCheck ||
+        positionsForRiskCheck.length === 0
+      ) {
+        try {
+          const freshAccount = await trader
+            .getAccountSnapshot()
+            .catch((err) => {
+              logger.warn("风险检查前获取账户信息失败", err?.message ?? err);
+              return null;
+            });
+          const freshPositions = await trader
+            .getStockPositions()
+            .catch((err) => {
+              logger.warn("风险检查前获取持仓信息失败", err?.message ?? err);
+              return [];
+            });
+
+          if (freshAccount) {
+            accountForRiskCheck = freshAccount;
+            lastState.cachedAccount = freshAccount;
+          }
+          if (Array.isArray(freshPositions) && freshPositions.length > 0) {
+            positionsForRiskCheck = freshPositions;
+            lastState.cachedPositions = freshPositions;
+          }
+        } catch (err) {
+          logger.warn("风险检查前获取账户和持仓信息失败", err?.message ?? err);
+        }
+      }
+
+      // 基础风险检查（使用最新获取的账户和持仓信息）
       const riskResult = riskChecker.checkBeforeOrder(
-        account,
-        positions,
+        accountForRiskCheck,
+        positionsForRiskCheck,
         sig,
         orderNotional,
         currentPrice
