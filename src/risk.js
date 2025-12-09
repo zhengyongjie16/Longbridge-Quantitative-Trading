@@ -8,6 +8,14 @@ export class RiskChecker {
     this.maxDailyLoss = maxDailyLoss ?? TRADING_CONFIG.maxDailyLoss;
     this.maxPositionNotional =
       maxPositionNotional ?? TRADING_CONFIG.maxPositionNotional;
+
+    // 验证 maxDailyLoss 的有效性
+    if (!Number.isFinite(this.maxDailyLoss) || this.maxDailyLoss < 0) {
+      console.warn(
+        `[风险检查警告] maxDailyLoss 配置无效（${this.maxDailyLoss}），将使用默认值 0（禁止任何浮亏）`
+      );
+      this.maxDailyLoss = 0;
+    }
   }
 
   /**
@@ -24,7 +32,24 @@ export class RiskChecker {
     orderNotional,
     currentPrice = null
   ) {
-    if (!account || !signal || signal.action === SignalType.HOLD) {
+    // HOLD 信号不需要检查
+    if (!signal || signal.action === SignalType.HOLD) {
+      return { allowed: true };
+    }
+
+    // 判断是否为买入操作
+    const isBuy = isBuyAction(signal.action);
+
+    // 对于买入操作，账户数据是必需的（用于浮亏检查）
+    if (isBuy && !account) {
+      return {
+        allowed: false,
+        reason: `账户数据不可用，无法进行风险检查，禁止买入操作`,
+      };
+    }
+
+    // 对于卖出操作，如果没有账户数据，允许继续（卖出操作不检查浮亏）
+    if (!account) {
       return { allowed: true };
     }
 
@@ -32,10 +57,15 @@ export class RiskChecker {
 
     // 验证账户数据有效性
     if (!Number.isFinite(netAssets) || !Number.isFinite(totalCash)) {
-      return {
-        allowed: false,
-        reason: `账户数据无效，无法进行风险检查`,
-      };
+      // 对于买入操作，账户数据无效必须拒绝
+      if (isBuy) {
+        return {
+          allowed: false,
+          reason: `账户数据无效（netAssets=${netAssets}, totalCash=${totalCash}），无法进行风险检查，禁止买入操作`,
+        };
+      }
+      // 对于卖出操作，账户数据无效时允许继续（卖出操作不检查浮亏）
+      return { allowed: true };
     }
 
     // 计算浮亏：浮亏 = 持仓市值 - 持仓成本
@@ -64,7 +94,7 @@ export class RiskChecker {
     const unrealizedPnL = positionMarketValue - totalCost;
 
     // 当日浮亏超过 maxDailyLoss 时，停止开新仓（仅对买入操作检查）
-    if (isBuyAction(signal.action)) {
+    if (isBuy) {
       // 记录浮亏计算详情（仅在DEBUG模式下）
       if (process.env.DEBUG === "true") {
         console.log(
@@ -78,10 +108,20 @@ export class RiskChecker {
         );
       }
 
-      if (
-        Number.isFinite(unrealizedPnL) &&
-        unrealizedPnL <= -this.maxDailyLoss
-      ) {
+      // 如果浮亏计算结果不是有限数字，拒绝买入操作（安全策略）
+      if (!Number.isFinite(unrealizedPnL)) {
+        // 记录详细的错误信息以便调试
+        console.error(
+          `[风险检查错误] 浮亏计算结果无效：持仓市值=${positionMarketValue}, 持仓成本=${totalCost}, 浮亏=${unrealizedPnL}, netAssets=${netAssets}, totalCash=${totalCash}`
+        );
+        return {
+          allowed: false,
+          reason: `浮亏计算结果无效（持仓市值=${positionMarketValue}, 持仓成本=${totalCost}, 浮亏=${unrealizedPnL}），无法进行风险检查，禁止买入操作`,
+        };
+      }
+
+      // 检查浮亏是否超过最大允许亏损
+      if (unrealizedPnL <= -this.maxDailyLoss) {
         return {
           allowed: false,
           reason: `当前浮亏约 ${unrealizedPnL.toFixed(

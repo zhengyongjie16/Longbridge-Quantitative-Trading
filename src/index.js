@@ -1117,12 +1117,16 @@ async function runOnce({
       // 卖出操作（平仓）时不检查牛熊证风险
 
       // 基础风险检查前，实时获取最新账户和持仓信息以确保准确性
-      // 这样可以避免使用过期的缓存数据，特别是在程序长时间运行或中断重启后
+      // 对于买入操作，必须实时获取最新数据以确保浮亏计算准确
+      // 对于卖出操作，可以使用缓存数据（卖出操作不检查浮亏限制）
+      // 注意：isBuyAction 已在上面定义（第1070行），这里直接使用
       let accountForRiskCheck = account;
       let positionsForRiskCheck = positions;
 
-      // 如果缓存为空或需要最新数据，实时获取
+      // 对于买入操作，总是实时获取最新数据以确保浮亏检查准确
+      // 对于卖出操作，如果缓存为空才实时获取
       if (
+        isBuyAction ||
         !accountForRiskCheck ||
         !positionsForRiskCheck ||
         positionsForRiskCheck.length === 0
@@ -1141,13 +1145,29 @@ async function runOnce({
               return [];
             });
 
+          // 对于买入操作，必须确保账户数据可用
           if (freshAccount) {
             accountForRiskCheck = freshAccount;
             lastState.cachedAccount = freshAccount;
+          } else if (isBuyAction) {
+            // 买入操作时，如果获取账户信息失败，记录警告
+            // 风险检查会在 checkBeforeOrder 中拒绝（因为 account 为 null）
+            logger.warn(
+              "[风险检查] 买入操作前无法获取最新账户信息，风险检查将拒绝该操作"
+            );
           }
-          if (Array.isArray(freshPositions) && freshPositions.length > 0) {
-            positionsForRiskCheck = freshPositions;
-            lastState.cachedPositions = freshPositions;
+
+          // 对于买入操作，即使持仓数组为空也要更新（确保浮亏计算准确）
+          // 对于卖出操作，只在有持仓数据时更新
+          if (Array.isArray(freshPositions)) {
+            if (isBuyAction || freshPositions.length > 0) {
+              positionsForRiskCheck = freshPositions;
+              lastState.cachedPositions = freshPositions;
+            }
+          } else if (isBuyAction) {
+            // 买入操作时，如果获取持仓信息失败，使用空数组（确保浮亏计算能正常进行）
+            positionsForRiskCheck = [];
+            lastState.cachedPositions = [];
           }
         } catch (err) {
           logger.warn("风险检查前获取账户和持仓信息失败", err?.message ?? err);
