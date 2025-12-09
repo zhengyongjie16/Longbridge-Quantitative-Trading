@@ -20,9 +20,15 @@ export class OrderRecorder {
    * 过滤逻辑：
    * 1. 获取当日所有买入订单（已成交）
    * 2. 获取当日所有卖出订单（已成交）
-   * 3. 从最旧的卖出订单开始，逐个过滤买入订单：
-   *    - 每个卖出订单过滤出：成交时间>卖出订单成交时间 且 成交价>=卖出订单成交价 的买入订单
-   *    - 将上一步的过滤结果作为下一个卖出订单的输入，逐步缩小范围
+   * 3. 如果没有卖出订单，记录所有买入订单
+   * 4. 如果有卖出订单：
+   *    - M0: 成交时间 > 最新卖出订单时间的买入订单
+   *    - 将卖出订单按成交时间从新到旧排序（D3, D2, D1）
+   *    - 从最新的卖出订单开始，依次过滤：
+   *      - M1: 从所有买入订单中过滤出 成交时间 < D3成交时间 且 成交价 >= D3成交价 的买入订单
+   *      - M2: 从M1中过滤出 成交时间 < D2成交时间 且 成交价 >= D2成交价 的买入订单
+   *      - 以此类推，得到MN
+   *    - 最终订单列表 = M0 + MN
    * @param {string} symbol 标的代码
    * @param {boolean} isLongSymbol 是否为做多标的（true=做多，false=做空）
    * @returns {Promise<Array>} 记录的订单列表
@@ -53,15 +59,8 @@ export class OrderRecorder {
         );
       });
 
-      // 将卖出订单按成交时间从旧到新排序
-      filledSellOrders.sort((a, b) => {
-        const timeA = a.updatedAt ? a.updatedAt.getTime() : 0;
-        const timeB = b.updatedAt ? b.updatedAt.getTime() : 0;
-        return timeA - timeB;
-      });
-
       // 转换买入订单为标准格式
-      let candidateBuyOrders = filledBuyOrders
+      const allBuyOrders = filledBuyOrders
         .map((buyOrder) => {
           const executedPrice = decimalToNumber(buyOrder.executedPrice);
           const executedQuantity = decimalToNumber(buyOrder.executedQuantity);
@@ -95,81 +94,111 @@ export class OrderRecorder {
       // 如果没有卖出订单，记录所有买入订单
       if (filledSellOrders.length === 0) {
         if (isLongSymbol) {
-          this._longBuyOrders = candidateBuyOrders;
+          this._longBuyOrders = allBuyOrders;
           logger.info(
-            `[订单记录] 做多标的 ${normalizedSymbol}: 当日买入${candidateBuyOrders.length}笔, 当日卖出0笔, 记录全部买入订单`
+            `[订单记录] 做多标的 ${normalizedSymbol}: 当日买入${allBuyOrders.length}笔, 当日卖出0笔, 记录全部买入订单`
           );
         } else {
-          this._shortBuyOrders = candidateBuyOrders;
+          this._shortBuyOrders = allBuyOrders;
           logger.info(
-            `[订单记录] 做空标的 ${normalizedSymbol}: 当日买入${candidateBuyOrders.length}笔, 当日卖出0笔, 记录全部买入订单`
+            `[订单记录] 做空标的 ${normalizedSymbol}: 当日买入${allBuyOrders.length}笔, 当日卖出0笔, 记录全部买入订单`
           );
         }
-        return candidateBuyOrders;
+        return allBuyOrders;
       }
 
-      // 从最旧的卖出订单开始，逐个过滤买入订单
-      for (const sellOrder of filledSellOrders) {
-        const sellPrice = decimalToNumber(sellOrder.executedPrice);
-        const sellTime = sellOrder.updatedAt
-          ? sellOrder.updatedAt.getTime()
-          : 0;
+      // 将卖出订单按成交时间从新到旧排序（最新的在前）
+      const sortedSellOrders = filledSellOrders
+        .map((sellOrder) => {
+          const sellPrice = decimalToNumber(sellOrder.executedPrice);
+          const sellTime = sellOrder.updatedAt
+            ? sellOrder.updatedAt.getTime()
+            : 0;
 
-        // 验证卖出订单数据有效性
-        if (!Number.isFinite(sellPrice) || sellPrice <= 0 || sellTime === 0) {
-          continue;
+          // 验证卖出订单数据有效性
+          if (!Number.isFinite(sellPrice) || sellPrice <= 0 || sellTime === 0) {
+            return null;
+          }
+
+          return {
+            executedPrice: sellPrice,
+            executedTime: sellTime,
+          };
+        })
+        .filter((order) => order !== null)
+        .sort((a, b) => b.executedTime - a.executedTime); // 从新到旧排序
+
+      if (sortedSellOrders.length === 0) {
+        // 所有卖出订单数据无效，记录所有买入订单
+        if (isLongSymbol) {
+          this._longBuyOrders = allBuyOrders;
+          logger.info(
+            `[订单记录] 做多标的 ${normalizedSymbol}: 当日买入${allBuyOrders.length}笔, 卖出订单数据无效, 记录全部买入订单`
+          );
+        } else {
+          this._shortBuyOrders = allBuyOrders;
+          logger.info(
+            `[订单记录] 做空标的 ${normalizedSymbol}: 当日买入${allBuyOrders.length}笔, 卖出订单数据无效, 记录全部买入订单`
+          );
         }
+        return allBuyOrders;
+      }
 
-        // 过滤出符合条件的买入订单：成交时间>卖出订单成交时间 且 成交价>=卖出订单成交价
-        candidateBuyOrders = candidateBuyOrders.filter((buyOrder) => {
+      // 找到最新卖出订单的时间
+      const latestSellTime = sortedSellOrders[0].executedTime;
+
+      // M0: 成交时间 > 最新卖出订单时间的买入订单
+      const m0 = allBuyOrders.filter(
+        (buyOrder) => buyOrder.executedTime > latestSellTime
+      );
+
+      // 从最新的卖出订单开始，依次过滤买入订单
+      // 初始候选列表：所有买入订单（用于第一次过滤）
+      let filteredBuyOrders = [...allBuyOrders];
+
+      // 从最新的卖出订单开始，依次过滤
+      for (const sellOrder of sortedSellOrders) {
+        const sellTime = sellOrder.executedTime;
+        const sellPrice = sellOrder.executedPrice;
+
+        // 过滤出：成交时间 < 卖出订单成交时间 且 成交价 >= 卖出订单成交价 的买入订单
+        filteredBuyOrders = filteredBuyOrders.filter((buyOrder) => {
           return (
-            buyOrder.executedTime > sellTime &&
+            buyOrder.executedTime < sellTime &&
             buyOrder.executedPrice >= sellPrice
           );
         });
       }
 
+      // 最终订单列表 = M0 + MN（filteredBuyOrders）
+      const finalBuyOrders = [...m0, ...filteredBuyOrders];
+
       // 更新记录
       const positionType = isLongSymbol ? "做多标的" : "做空标的";
-      const originalBuyCount = filledBuyOrders.length;
-      const recordedCount = candidateBuyOrders.length;
+      const originalBuyCount = allBuyOrders.length;
+      const recordedCount = finalBuyOrders.length;
       const filteredCount = originalBuyCount - recordedCount;
 
       if (isLongSymbol) {
-        this._longBuyOrders = candidateBuyOrders;
+        this._longBuyOrders = finalBuyOrders;
       } else {
-        this._shortBuyOrders = candidateBuyOrders;
+        this._shortBuyOrders = finalBuyOrders;
       }
 
       logger.info(
         `[订单记录] ${positionType} ${normalizedSymbol}: ` +
           `当日买入${originalBuyCount}笔, ` +
           `当日卖出${filledSellOrders.length}笔, ` +
-          `经过${filledSellOrders.length}次过滤后记录${recordedCount}笔, ` +
+          `经过${sortedSellOrders.length}次过滤, ` +
+          `最终记录${recordedCount}笔, ` +
           `过滤${filteredCount}笔`
       );
 
-      return candidateBuyOrders;
+      return finalBuyOrders;
     } catch (error) {
       logger.error(`[订单记录失败] 标的 ${symbol}`, error.message || error);
       return [];
     }
-  }
-
-  /**
-   * 获取做多标的的已记录订单
-   * @returns {Array} 订单列表
-   */
-  getLongBuyOrders() {
-    return [...this._longBuyOrders];
-  }
-
-  /**
-   * 获取做空标的的已记录订单
-   * @returns {Array} 订单列表
-   */
-  getShortBuyOrders() {
-    return [...this._shortBuyOrders];
   }
 
   /**

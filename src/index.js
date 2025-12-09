@@ -1237,7 +1237,7 @@ async function runOnce({
     // 交易后获取并显示账户和持仓信息（仅显示一次）
     await displayAccountAndPositions(trader, marketDataClient, lastState);
 
-    // 交易后刷新订单记录（买入或卖出后都需要刷新）
+    // 交易后刷新订单记录（买入或卖出做多/做空标的时都需要刷新）
     if (orderRecorder) {
       const longSymbol = TRADING_CONFIG.longSymbol;
       const shortSymbol = TRADING_CONFIG.shortSymbol;
@@ -1252,8 +1252,13 @@ async function runOnce({
       );
 
       if (hasBuyOrSell) {
-        // 刷新做多标的的订单记录
-        if (longSymbol) {
+        // 检查是否有做多标的的交易（买入或卖出）
+        const hasLongSymbolTrade = finalSignals.some(
+          (sig) =>
+            sig.action === SignalType.BUYCALL ||
+            sig.action === SignalType.SELLCALL
+        );
+        if (hasLongSymbolTrade && longSymbol) {
           await orderRecorder.refreshOrders(longSymbol, true).catch((err) => {
             logger.warn(
               `[订单记录刷新失败] 做多标的 ${longSymbol}`,
@@ -1262,8 +1267,13 @@ async function runOnce({
           });
         }
 
-        // 刷新做空标的的订单记录
-        if (shortSymbol) {
+        // 检查是否有做空标的的交易（买入或卖出）
+        const hasShortSymbolTrade = finalSignals.some(
+          (sig) =>
+            sig.action === SignalType.BUYPUT ||
+            sig.action === SignalType.SELLPUT
+        );
+        if (hasShortSymbolTrade && shortSymbol) {
           await orderRecorder.refreshOrders(shortSymbol, false).catch((err) => {
             logger.warn(
               `[订单记录刷新失败] 做空标的 ${shortSymbol}`,
