@@ -1,7 +1,7 @@
 // 基础风险管理模块：检查最大单日亏损与单标的最大持仓金额
 import { TRADING_CONFIG } from "./config/config.trading.js";
 import { SignalType, isBuyAction } from "./signalTypes.js";
-import { normalizeHKSymbol } from "./utils.js";
+import { normalizeHKSymbol, decimalToNumber } from "./utils.js";
 
 export class RiskChecker {
   constructor({ maxDailyLoss, maxPositionNotional } = {}) {
@@ -16,6 +16,137 @@ export class RiskChecker {
       );
       this.maxDailyLoss = 0;
     }
+
+    // 牛熊证信息缓存
+    this.longWarrantInfo = null;  // 做多标的的牛熊证信息
+    this.shortWarrantInfo = null; // 做空标的的牛熊证信息
+  }
+
+  /**
+   * 初始化牛熊证信息（在程序启动时调用）
+   * @param {Object} marketDataClient MarketDataClient实例
+   * @param {string} longSymbol 做多标的代码
+   * @param {string} shortSymbol 做空标的代码
+   */
+  async initializeWarrantInfo(marketDataClient, longSymbol, shortSymbol) {
+    if (!marketDataClient) {
+      console.warn('[风险检查] 未提供 marketDataClient，跳过牛熊证信息初始化');
+      return;
+    }
+
+    // 初始化做多标的
+    if (longSymbol) {
+      try {
+        const warrantInfo = await this._checkWarrantType(marketDataClient, longSymbol, 'CALL');
+        this.longWarrantInfo = warrantInfo;
+
+        if (warrantInfo.isWarrant) {
+          console.log(
+            `[风险检查] 做多标的 ${longSymbol} 是${warrantInfo.warrantType === 'BULL' ? '牛证' : warrantInfo.warrantType === 'BEAR' ? '熊证' : '轮证'}，回收价=${warrantInfo.callPrice?.toFixed(3) ?? '未知'}`
+          );
+        } else {
+          console.log(`[风险检查] 做多标的 ${longSymbol} 不是牛熊证`);
+        }
+      } catch (err) {
+        console.warn(`[风险检查] 检查做多标的牛熊证信息时出错：`, err?.message ?? err);
+        this.longWarrantInfo = { isWarrant: false };
+      }
+    }
+
+    // 初始化做空标的
+    if (shortSymbol) {
+      try {
+        const warrantInfo = await this._checkWarrantType(marketDataClient, shortSymbol, 'PUT');
+        this.shortWarrantInfo = warrantInfo;
+
+        if (warrantInfo.isWarrant) {
+          console.log(
+            `[风险检查] 做空标的 ${shortSymbol} 是${warrantInfo.warrantType === 'BULL' ? '牛证' : warrantInfo.warrantType === 'BEAR' ? '熊证' : '轮证'}，回收价=${warrantInfo.callPrice?.toFixed(3) ?? '未知'}`
+          );
+        } else {
+          console.log(`[风险检查] 做空标的 ${shortSymbol} 不是牛熊证`);
+        }
+      } catch (err) {
+        console.warn(`[风险检查] 检查做空标的牛熊证信息时出错：`, err?.message ?? err);
+        this.shortWarrantInfo = { isWarrant: false };
+      }
+    }
+  }
+
+  /**
+   * 检查标的是否为牛熊证并获取回收价
+   * @private
+   * @param {Object} marketDataClient MarketDataClient实例
+   * @param {string} symbol 标的代码
+   * @param {string} expectedType 期望的类型：'CALL'（做多标的期望牛证）或 'PUT'（做空标的期望熊证）
+   * @returns {Promise<Object>} { isWarrant: boolean, warrantType: string, callPrice: number, category: string }
+   */
+  async _checkWarrantType(marketDataClient, symbol, expectedType) {
+    const normalizedSymbol = normalizeHKSymbol(symbol);
+    const ctx = await marketDataClient._getContext();
+
+    // 使用 warrantQuote API 获取牛熊证信息
+    const warrantQuotes = await ctx.warrantQuote([normalizedSymbol]);
+    const warrantQuote =
+      Array.isArray(warrantQuotes) && warrantQuotes.length > 0
+        ? warrantQuotes[0]
+        : null;
+
+    if (!warrantQuote) {
+      return { isWarrant: false };
+    }
+
+    // 从 warrantQuote 中获取 category 字段判断牛熊证类型
+    // 注意：category 是 WarrantType 枚举（数字类型），不是字符串
+    // WarrantType: Call=1, Put=2, Bull=3, Bear=4, Inline=5
+    const category = warrantQuote.category;
+    let warrantType = null;
+
+    // 判断牛证：category 可能是数字 3（枚举值）或字符串 "Bull"
+    if (category === 3 || category === 'Bull' || category === 'BULL') {
+      warrantType = 'BULL';
+    }
+    // 判断熊证：category 可能是数字 4（枚举值）或字符串 "Bear"
+    else if (category === 4 || category === 'Bear' || category === 'BEAR') {
+      warrantType = 'BEAR';
+    } else {
+      // 不是牛熊证（可能是 Call=1, Put=2, Inline=5 或其他类型）
+      return { isWarrant: false, category };
+    }
+
+    // 获取回收价（call_price 字段）
+    const callPriceRaw =
+      warrantQuote.call_price ?? warrantQuote.callPrice ?? null;
+
+    // 转换 Decimal 类型为 number（LongPort API 返回的价格字段可能是 Decimal 类型）
+    let callPrice = null;
+    if (callPriceRaw !== null && callPriceRaw !== undefined) {
+      // 如果是 Decimal 对象，使用 decimalToNumber 转换；否则直接使用 Number 转换
+      if (typeof callPriceRaw === 'object' && 'toString' in callPriceRaw) {
+        callPrice = decimalToNumber(callPriceRaw);
+      } else {
+        callPrice = Number(callPriceRaw);
+      }
+    }
+
+    // 验证：做多标的应该是牛证，做空标的应该是熊证
+    const isExpectedType =
+      (expectedType === 'CALL' && warrantType === 'BULL') ||
+      (expectedType === 'PUT' && warrantType === 'BEAR');
+
+    if (!isExpectedType) {
+      console.warn(
+        `[风险检查警告] ${symbol} 的牛熊证类型不符合预期：期望${expectedType === 'CALL' ? '牛证' : '熊证'}，实际是${warrantType === 'BULL' ? '牛证' : '熊证'}`
+      );
+    }
+
+    return {
+      isWarrant: true,
+      warrantType,
+      callPrice,
+      category,
+      symbol: normalizedSymbol,
+    };
   }
 
   /**
@@ -267,84 +398,96 @@ export class RiskChecker {
   /**
    * 检查牛熊证距离回收价的风险（仅在买入前检查）
    * @param {string} symbol 标的代码
-   * @param {Object} marketDataClient MarketDataClient实例，用于获取牛熊证信息
-   * @param {number} underlyingPrice 相关资产的最新价格（可选，如果不提供会尝试自动获取）
-   * @returns {Promise<{allowed: boolean, reason?: string, warrantInfo?: Object}>}
+   * @param {string} signalType 信号类型（SignalType.BUYCALL 或 SignalType.BUYPUT）
+   * @param {number} currentPrice 标的当前价格
+   * @returns {{allowed: boolean, reason?: string, warrantInfo?: Object}}
    */
-  async checkWarrantRisk(symbol, marketDataClient, underlyingPrice = null) {
-    if (!marketDataClient || !symbol) {
-      // 如果无法检查，默认允许交易（保守策略）
+  checkWarrantRisk(symbol, signalType, currentPrice) {
+    // 确定是做多还是做空标的
+    const isLong = signalType === SignalType.BUYCALL;
+    const warrantInfo = isLong ? this.longWarrantInfo : this.shortWarrantInfo;
+
+    // 如果没有初始化过牛熊证信息，或者不是牛熊证，允许交易
+    if (!warrantInfo || !warrantInfo.isWarrant) {
       return { allowed: true };
     }
 
-    try {
-      const warrantDistance = await marketDataClient.getWarrantDistanceToStrike(
-        symbol,
-        underlyingPrice
+    // 验证回收价是否有效
+    if (!Number.isFinite(warrantInfo.callPrice) || warrantInfo.callPrice <= 0) {
+      console.warn(
+        `[风险检查] ${symbol} 的回收价无效（${warrantInfo.callPrice}），允许交易`
       );
+      return { allowed: true };
+    }
 
-      // 如果不是牛熊证，直接允许交易
-      if (!warrantDistance.isWarrant) {
-        return { allowed: true };
-      }
+    // 验证当前价格是否有效
+    if (!Number.isFinite(currentPrice) || currentPrice <= 0) {
+      console.warn(
+        `[风险检查] ${symbol} 的当前价格无效（${currentPrice}），无法检查牛熊证风险`
+      );
+      return {
+        allowed: false,
+        reason: `标的价格无效（${currentPrice}），无法进行牛熊证风险检查`,
+      };
+    }
 
-      // 如果无法获取距离回收价的百分比，默认允许交易（避免误拦截）
-      if (warrantDistance.distanceToStrikePercent === null) {
-        return {
-          allowed: true,
-          reason: `无法获取牛熊证距离回收价的百分比，允许交易`,
-          warrantInfo: warrantDistance,
-        };
-      }
+    const callPrice = warrantInfo.callPrice;
+    const warrantType = warrantInfo.warrantType;
 
-      const distancePercent = warrantDistance.distanceToStrikePercent;
-      const warrantType = warrantDistance.warrantType;
-      const strikePrice = warrantDistance.strikePrice;
-      const underlyingPriceActual = warrantDistance.underlyingPrice;
+    // 计算距离回收价的百分比
+    // 牛证：(当前价 - 回收价) / 回收价 * 100
+    // 熊证：(当前价 - 回收价) / 回收价 * 100 （结果为负数）
+    const distancePercent = ((currentPrice - callPrice) / callPrice) * 100;
 
-      // 牛证：当距离回收价百分比低于0.5%时停止买入
-      if (warrantType === "BULL" && distancePercent < 0.5) {
+    // 牛证：当距离回收价百分比低于0.5%时停止买入
+    if (warrantType === 'BULL') {
+      if (distancePercent < 0.5) {
         return {
           allowed: false,
           reason: `牛证距离回收价百分比为 ${distancePercent.toFixed(
             2
-          )}%，低于0.5%阈值，停止买入（回收价=${
-            strikePrice?.toFixed(3) ?? "未知"
-          }，相关资产价格=${underlyingPriceActual?.toFixed(3) ?? "未知"}）`,
-          warrantInfo: warrantDistance,
+          )}%，低于0.5%阈值，停止买入（回收价=${callPrice.toFixed(
+            3
+          )}，当前价=${currentPrice.toFixed(3)}）`,
+          warrantInfo: {
+            isWarrant: true,
+            warrantType,
+            distanceToStrikePercent: distancePercent,
+          },
         };
       }
+    }
 
-      // 熊证：当距离回收价百分比高于-0.5%（即低于0.5%）时停止买入
-      if (warrantType === "BEAR" && distancePercent > -0.5) {
+    // 熊证：当距离回收价百分比高于-0.5%时停止买入
+    if (warrantType === 'BEAR') {
+      if (distancePercent > -0.5) {
         return {
           allowed: false,
           reason: `熊证距离回收价百分比为 ${distancePercent.toFixed(
             2
-          )}%，高于-0.5%阈值，停止买入（回收价=${
-            strikePrice?.toFixed(3) ?? "未知"
-          }，相关资产价格=${underlyingPriceActual?.toFixed(3) ?? "未知"}）`,
-          warrantInfo: warrantDistance,
+          )}%，高于-0.5%阈值，停止买入（回收价=${callPrice.toFixed(
+            3
+          )}，当前价=${currentPrice.toFixed(3)}）`,
+          warrantInfo: {
+            isWarrant: true,
+            warrantType,
+            distanceToStrikePercent: distancePercent,
+          },
         };
       }
-
-      // 风险检查通过
-      return {
-        allowed: true,
-        reason: `${
-          warrantType === "BULL" ? "牛证" : "熊证"
-        }距离回收价百分比为 ${distancePercent.toFixed(2)}%，在安全范围内`,
-        warrantInfo: warrantDistance,
-      };
-    } catch (err) {
-      // 如果检查出错，默认允许交易（避免误拦截）
-      console.warn(`[风险检查] 检查牛熊证风险时出错：`, err?.message ?? err);
-      return {
-        allowed: true,
-        reason: `牛熊证风险检查出错，默认允许交易：${
-          err?.message ?? String(err)
-        }`,
-      };
     }
+
+    // 风险检查通过
+    return {
+      allowed: true,
+      reason: `${
+        warrantType === 'BULL' ? '牛证' : '熊证'
+      }距离回收价百分比为 ${distancePercent.toFixed(2)}%，在安全范围内`,
+      warrantInfo: {
+        isWarrant: true,
+        warrantType,
+        distanceToStrikePercent: distancePercent,
+      },
+    };
   }
 }

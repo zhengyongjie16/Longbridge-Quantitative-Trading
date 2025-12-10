@@ -1,10 +1,10 @@
-import  {Config, QuoteContext, Period, AdjustType, TradeSessions} from "longport"
+import  {Config, QuoteContext} from "longport"
 
 let config = Config.fromEnv()
 QuoteContext.new(config)
-  .then((ctx) => ctx.candlesticks("HSI.HK", Period.Min_1, 200, AdjustType.NoAdjust, TradeSessions.Intraday))
+  .then((ctx) => ctx.warrantQuote(["54806.HK"]))
   .then((resp) => {
     for (let obj of resp) {
-      console.log(obj.toString());
+      console.log(obj.toString())
     }
   })

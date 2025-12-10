@@ -121,6 +121,14 @@ export class MarketDataClient {
     this._tradingDayCache = new TradingDayCache();
   }
 
+  /**
+   * 获取 QuoteContext 实例（供内部使用）
+   * @returns {Promise<QuoteContext>}
+   */
+  async _getContext() {
+    return this._ctxPromise;
+  }
+
   async _withRetry(fn, { retries, delayMs } = DEFAULT_RETRY) {
     let lastErr;
     for (let i = 0; i <= retries; i += 1) {

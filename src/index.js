@@ -81,6 +81,7 @@ async function runOnce({
   candleCount,
   lastState,
   orderRecorder,
+  riskChecker,
 }) {
   // 返回是否有数据变化
   let hasChange = false;
@@ -1037,7 +1038,6 @@ async function runOnce({
     }
   } else if (signals.length > 0 && canTradeNow) {
     // 正常交易信号处理
-    const riskChecker = new RiskChecker();
     const orderNotional = TRADING_CONFIG.targetNotional;
     for (const sig of signals) {
       // 获取标的的当前价格用于计算持仓市值
@@ -1046,7 +1046,6 @@ async function runOnce({
       const normalizedShortSymbol = normalizeHKSymbol(shortSymbol);
 
       let currentPrice = null;
-      let underlyingPrice = null;
       if (normalizedSigSymbol === normalizedLongSymbol && longQuote) {
         currentPrice = longQuote.price;
       } else if (normalizedSigSymbol === normalizedShortSymbol && shortQuote) {
@@ -1068,16 +1067,10 @@ async function runOnce({
 
       if (isBuyAction) {
         // 仅在买入时检查牛熊证风险
-        // 获取相关资产价格（如果是牛熊证，需要相关资产价格来计算距离回收价的百分比）
-        // 这里先尝试获取监控标的的价格作为相关资产价格
-        if (monitorQuote?.price) {
-          underlyingPrice = monitorQuote.price;
-        }
-
-        const warrantRiskResult = await riskChecker.checkWarrantRisk(
+        const warrantRiskResult = riskChecker.checkWarrantRisk(
           sig.symbol,
-          marketDataClient,
-          underlyingPrice
+          sig.action,
+          currentPrice
         );
 
         if (!warrantRiskResult.allowed) {
@@ -1458,6 +1451,9 @@ async function main() {
   const trader = new Trader(config);
   const orderRecorder = new OrderRecorder(trader);
 
+  // 初始化风险检查器
+  const riskChecker = new RiskChecker();
+
   logger.info(
     `监控标的: ${monitorName}(${normalizeHKSymbol(
       TRADING_CONFIG.monitorSymbol
@@ -1477,6 +1473,14 @@ async function main() {
   // 同时加载下个月的交易日信息（如果当前是月底）
   const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
   await marketDataClient.preloadTradingDaysForMonth(nextMonth);
+
+  // 初始化牛熊证信息（在程序启动时检查做多和做空标的是否为牛熊证）
+  logger.info("[风险检查] 正在初始化牛熊证信息...");
+  await riskChecker.initializeWarrantInfo(
+    marketDataClient,
+    TRADING_CONFIG.longSymbol,
+    TRADING_CONFIG.shortSymbol
+  );
 
   // 记录上一次的数据状态，用于检测变化
   let lastState = {
@@ -1543,6 +1547,7 @@ async function main() {
         candleCount,
         lastState,
         orderRecorder,
+        riskChecker,
       });
 
       // 更新状态
