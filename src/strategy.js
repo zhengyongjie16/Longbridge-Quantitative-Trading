@@ -12,8 +12,8 @@ import { SignalType } from "./signalTypes.js";
  *    条件2：J<-20
  *
  * 2. 卖出做多标的（SELLCALL）- 立即执行：
- *    条件1：RSI6>80, RSI12>80, KDJ.D>80, KDJ.J>100 四个指标满足3个以上，且做多标的价格>持仓成本价
- *    条件2：J>110
+ *    条件1：RSI6>80, RSI12>80, KDJ.D>79, KDJ.J>100 四个指标满足3个以上，且做多标的价格>持仓成本价
+ *    条件2：KDJ.J>110
  *    - 若满足条件且做多标的价格>持仓成本价，立即清空所有做多标的持仓
  *    - 若满足条件且做多标的价格<=持仓成本价，检查历史买入订单，卖出买入价<当前价的订单数量
  *
@@ -22,8 +22,8 @@ import { SignalType } from "./signalTypes.js";
  *    条件2：J>120
  *
  * 4. 卖出做空标的（SELLPUT）- 立即执行：
- *    条件1：RSI6<20, RSI12<20, KDJ.D<20, KDJ.J<0 四个指标满足3个以上，且做空标的价格>持仓成本价
- *    条件2：J<-15
+ *    条件1：RSI6<20, RSI12<20, KDJ.D<22, KDJ.J<0 四个指标满足3个以上，且做空标的价格>持仓成本价
+ *    条件2：KDJ.J<-15（无需检查均价）
  *    - 若满足条件且做空标的价格>持仓成本价，立即清空所有做空标的持仓
  *    - 若满足条件且做空标的价格<=持仓成本价，检查历史买入订单，卖出买入价<当前价的订单数量
  */
@@ -38,7 +38,7 @@ export class HangSengMultiIndicatorStrategy {
     sellcall = {
       rsi6: 80,
       rsi12: 80,
-      d: 80,
+      d: 79, // KDJ.D>79（注意：不是80）
       j: 100,
     },
     buyput = {
@@ -50,7 +50,7 @@ export class HangSengMultiIndicatorStrategy {
     sellput = {
       rsi6: 20,
       rsi12: 20,
-      d: 20,
+      d: 22, // KDJ.D<22（注意：不是20）
       j: 0,
     },
   } = {}) {
@@ -168,10 +168,10 @@ export class HangSengMultiIndicatorStrategy {
       // 条件2：J<-20
       condition2Met = kdj.j < -20;
 
-      if (condition1Met && condition2Met) {
-        conditionReason = `同时满足条件1（${satisfiedCount}项指标满足且价格${monitorPrice.toFixed(3)}<VWAP${vwap.toFixed(3)}）和条件2（J=${kdj.j.toFixed(2)}<-20）`;
-      } else if (condition1Met) {
-        conditionReason = `满足条件1：${satisfiedCount}项指标满足且监控标的价格${monitorPrice.toFixed(3)}<VWAP${vwap.toFixed(3)}`;
+      if (condition1Met) {
+        conditionReason = `满足条件1：${satisfiedCount}项指标满足且监控标的价格${monitorPrice.toFixed(
+          3
+        )}<VWAP${vwap.toFixed(3)}`;
       } else if (condition2Met) {
         conditionReason = `满足条件2：J值${kdj.j.toFixed(2)}<-20`;
       }
@@ -182,10 +182,10 @@ export class HangSengMultiIndicatorStrategy {
       // 条件2：J>120
       condition2Met = kdj.j > 120;
 
-      if (condition1Met && condition2Met) {
-        conditionReason = `同时满足条件1（${satisfiedCount}项指标满足且价格${monitorPrice.toFixed(3)}>VWAP${vwap.toFixed(3)}）和条件2（J=${kdj.j.toFixed(2)}>120）`;
-      } else if (condition1Met) {
-        conditionReason = `满足条件1：${satisfiedCount}项指标满足且监控标的价格${monitorPrice.toFixed(3)}>VWAP${vwap.toFixed(3)}`;
+      if (condition1Met) {
+        conditionReason = `满足条件1：${satisfiedCount}项指标满足且监控标的价格${monitorPrice.toFixed(
+          3
+        )}>VWAP${vwap.toFixed(3)}`;
       } else if (condition2Met) {
         conditionReason = `满足条件2：J值${kdj.j.toFixed(2)}>120`;
       }
@@ -289,8 +289,8 @@ export class HangSengMultiIndicatorStrategy {
     }
 
     // 2. 卖出做多标的的条件（立即执行）
-    // 条件1：RSI6>80, RSI12>80, KDJ.D>80, KDJ.J>100 四个指标满足3个以上，且做多标的价格>持仓成本价
-    // 条件2：J>110
+    // 条件1：RSI6>80, RSI12>80, KDJ.D>79, KDJ.J>100 四个指标满足3个以上，且做多标的价格>持仓成本价
+    // 条件2：KDJ.J>110
     const canSellLong =
       longPosition?.symbol &&
       Number.isFinite(longPosition.availableQuantity) &&
@@ -318,19 +318,15 @@ export class HangSengMultiIndicatorStrategy {
       if (shouldSellLong) {
         // 构建原因说明
         let reason = "";
-        if (condition1Met && condition2Met) {
-          reason = `同时满足条件1（RSI6/12(${rsi6.toFixed(
+        if (condition1Met) {
+          reason = `满足条件1：RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(
             1
-          )}/${rsi12.toFixed(1)})、KDJ(D=${kdj.d.toFixed(
+          )})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(
             1
-          )},J=${kdj.j.toFixed(1)}) 中${sellcallCount}项满足条件且做多标的价格${longCurrentPrice.toFixed(3)}>成本价${longPosition.costPrice.toFixed(3)}）和条件2（J=${kdj.j.toFixed(1)}>110）`;
-        } else if (condition1Met) {
-          reason = `满足条件1：RSI6/12(${rsi6.toFixed(
-            1
-          )}/${rsi12.toFixed(1)})、KDJ(D=${kdj.d.toFixed(
-            1
-          )},J=${kdj.j.toFixed(1)}) 中${sellcallCount}项满足条件，且做多标的价格${longCurrentPrice.toFixed(3)}>成本价${longPosition.costPrice.toFixed(3)}`;
-        } else {
+          )}) 中${sellcallCount}项满足条件，且做多标的价格${longCurrentPrice.toFixed(
+            3
+          )}>成本价${longPosition.costPrice.toFixed(3)}`;
+        } else if (condition2Met) {
           reason = `满足条件2：J值${kdj.j.toFixed(1)}>110`;
         }
 
@@ -361,7 +357,11 @@ export class HangSengMultiIndicatorStrategy {
                   symbol: longPosition.symbol,
                   action: SignalType.SELLCALL,
                   quantity: totalQuantity,
-                  reason: `${reason}，但做多标的价格${longCurrentPrice.toFixed(3)}未高于成本价${longPosition.costPrice.toFixed(3)}，卖出历史买入订单中买入价低于当前价的订单，共 ${totalQuantity} 股`,
+                  reason: `${reason}，但做多标的价格${longCurrentPrice.toFixed(
+                    3
+                  )}未高于成本价${longPosition.costPrice.toFixed(
+                    3
+                  )}，卖出历史买入订单中买入价低于当前价的订单，共 ${totalQuantity} 股`,
                   signalTriggerTime: new Date(),
                 });
               }
@@ -387,8 +387,8 @@ export class HangSengMultiIndicatorStrategy {
     }
 
     // 4. 卖出做空标的的条件（立即执行）
-    // 条件1：RSI6<20, RSI12<20, KDJ.D<20, KDJ.J<0 四个指标满足3个以上，且做空标的价格>持仓成本价
-    // 条件2：J<-15
+    // 条件1：RSI6<20, RSI12<20, KDJ.D<22, KDJ.J<0 四个指标满足3个以上，且做空标的价格>持仓成本价
+    // 条件2：KDJ.J<-15（无需检查均价）
     const canSellShort =
       shortPosition?.symbol &&
       Number.isFinite(shortPosition.availableQuantity) &&
@@ -416,19 +416,15 @@ export class HangSengMultiIndicatorStrategy {
       if (shouldSellShort) {
         // 构建原因说明
         let reason = "";
-        if (condition1Short && condition2Short) {
-          reason = `同时满足条件1（RSI6/12(${rsi6.toFixed(
+        if (condition1Short) {
+          reason = `满足条件1：RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(
             1
-          )}/${rsi12.toFixed(1)})、KDJ(D=${kdj.d.toFixed(
+          )})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(
             1
-          )},J=${kdj.j.toFixed(1)}) 中${sellputCount}项满足条件且做空标的价格${shortCurrentPrice.toFixed(3)}>成本价${shortPosition.costPrice.toFixed(3)}）和条件2（J=${kdj.j.toFixed(1)}<-15）`;
-        } else if (condition1Short) {
-          reason = `满足条件1：RSI6/12(${rsi6.toFixed(
-            1
-          )}/${rsi12.toFixed(1)})、KDJ(D=${kdj.d.toFixed(
-            1
-          )},J=${kdj.j.toFixed(1)}) 中${sellputCount}项满足条件，且做空标的价格${shortCurrentPrice.toFixed(3)}>成本价${shortPosition.costPrice.toFixed(3)}`;
-        } else {
+          )}) 中${sellputCount}项满足条件，且做空标的价格${shortCurrentPrice.toFixed(
+            3
+          )}>成本价${shortPosition.costPrice.toFixed(3)}`;
+        } else if (condition2Short) {
           reason = `满足条件2：J值${kdj.j.toFixed(1)}<-15`;
         }
 
@@ -459,7 +455,11 @@ export class HangSengMultiIndicatorStrategy {
                   symbol: shortPosition.symbol,
                   action: SignalType.SELLPUT,
                   quantity: totalQuantity,
-                  reason: `${reason}，但做空标的价格${shortCurrentPrice.toFixed(3)}未高于成本价${shortPosition.costPrice.toFixed(3)}，卖出历史买入订单中买入价低于当前价的订单，共 ${totalQuantity} 股`,
+                  reason: `${reason}，但做空标的价格${shortCurrentPrice.toFixed(
+                    3
+                  )}未高于成本价${shortPosition.costPrice.toFixed(
+                    3
+                  )}，卖出历史买入订单中买入价低于当前价的订单，共 ${totalQuantity} 股`,
                   signalTriggerTime: new Date(),
                 });
               }
