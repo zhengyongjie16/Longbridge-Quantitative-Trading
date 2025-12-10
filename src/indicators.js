@@ -104,14 +104,15 @@ export function calculateRSI(closes, period) {
     }
   }
 
-  if (validCount === 0) {
+  // 如果有效数据不足 period 的 80%，则返回 null
+  if (validCount < period * 0.8) {
     return null;
   }
 
   // 初始EMA值使用SMA（简单移动平均）
-  // 使用validCount而不是period，确保即使有无效数据也能正确计算
-  avgGain = avgGain / validCount;
-  avgLoss = avgLoss / validCount;
+  // 使用 period 作为分母，确保计算正确
+  avgGain = avgGain / period;
+  avgLoss = avgLoss / period;
 
   // 如果平均跌幅为0，RSI为100
   if (avgLoss === 0) {

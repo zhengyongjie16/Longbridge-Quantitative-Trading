@@ -30,18 +30,14 @@ function isInContinuousHKSession(date) {
   const hkHour = (utcHour + 8) % 24;
   const hkMinute = utcMinute;
 
-  // 上午连续交易时段：09:30 - 12:00
-  // 条件：小时数为9且分钟数>=30，或者小时数在10-11之间，或者（小时数为12且分钟数为0）
+  // 上午连续交易时段：09:30 - 12:00（不含 12:00 本身）
   const inMorning =
     (hkHour === 9 && hkMinute >= 30) || // 9:30 - 9:59
-    (hkHour >= 10 && hkHour < 12) || // 10:00 - 11:59
-    (hkHour === 12 && hkMinute === 0); // 12:00:00
+    (hkHour >= 10 && hkHour < 12); // 10:00 - 11:59
 
   // 下午连续交易时段：13:00 - 15:59:59
   // 注意：16:00:00 是收盘时间，不包含在连续交易时段内
-  const inAfternoon =
-    hkHour === 13 || // 13:00 - 13:59
-    (hkHour >= 14 && hkHour < 16); // 14:00 - 15:59
+  const inAfternoon = hkHour >= 13 && hkHour < 16; // 13:00 - 15:59
 
   return inMorning || inAfternoon;
 }
