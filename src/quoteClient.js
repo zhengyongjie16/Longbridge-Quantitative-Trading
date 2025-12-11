@@ -231,12 +231,6 @@ export class MarketDataClient {
    * @param {string[]} symbols 期权标的代码数组
    * @returns {Promise<import("longport").OptionQuote[]>}
    */
-  /**
-   * 获取期权实时行情
-   * https://open.longbridge.com/zh-CN/docs/quote/pull/option-quote
-   * @param {string[]} symbols 期权标的代码数组
-   * @returns {Promise<import("longport").OptionQuote[]>}
-   */
   async getOptionQuotes(symbols) {
     const ctx = await this._ctxPromise;
     // 确保 symbols 是数组格式

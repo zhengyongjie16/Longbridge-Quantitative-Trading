@@ -12,6 +12,7 @@ import {
   normalizeHKSymbol,
   formatAccountChannel,
   formatNumber,
+  getSymbolName,
 } from "./utils.js";
 
 /**
@@ -1063,11 +1064,13 @@ async function runOnce({
   } else if (signals.length > 0 && canTradeNow) {
     // 正常交易信号处理
     const orderNotional = TRADING_CONFIG.targetNotional;
+    // 在循环开始处统一规范化符号，避免重复调用
+    const normalizedLongSymbol = normalizeHKSymbol(longSymbol);
+    const normalizedShortSymbol = normalizeHKSymbol(shortSymbol);
+
     for (const sig of signals) {
       // 获取标的的当前价格用于计算持仓市值
       const normalizedSigSymbol = normalizeHKSymbol(sig.symbol);
-      const normalizedLongSymbol = normalizeHKSymbol(longSymbol);
-      const normalizedShortSymbol = normalizeHKSymbol(shortSymbol);
 
       let currentPrice = null;
       if (normalizedSigSymbol === normalizedLongSymbol && longQuote) {
@@ -1098,12 +1101,13 @@ async function runOnce({
         );
         if (shouldClearBeforeClose && isBeforeClose30) {
           // 获取标的的中文名称
-          let sigName = sig.symbol;
-          if (normalizedSigSymbol === normalizedLongSymbol) {
-            sigName = longSymbolName;
-          } else if (normalizedSigSymbol === normalizedShortSymbol) {
-            sigName = shortSymbolName;
-          }
+          const sigName = getSymbolName(
+            sig.symbol,
+            longSymbol,
+            shortSymbol,
+            longSymbolName,
+            shortSymbolName
+          );
           const codeText = normalizeHKSymbol(sig.symbol);
           const closeTimeRange = isHalfDayToday ? "11:30-12:00" : "15:30-16:00";
           logger.warn(
@@ -1127,40 +1131,13 @@ async function runOnce({
 
         if (!warrantRiskResult.allowed) {
           // 获取标的的中文名称
-          let sigName = sig.symbol;
-          if (normalizedSigSymbol === normalizedLongSymbol) {
-            sigName = longSymbolName;
-          } else if (normalizedSigSymbol === normalizedShortSymbol) {
-            sigName = shortSymbolName;
-          }
-          const codeText = normalizeHKSymbol(sig.symbol);
-          logger.warn(
-            `[牛熊证风险拦截] 信号被牛熊证风险控制拦截：${sigName}(${codeText}) ${sig.action} - ${warrantRiskResult.reason}`
+          const sigName = getSymbolName(
+            sig.symbol,
+            longSymbol,
+            shortSymbol,
+            longSymbolName,
+            shortSymbolName
           );
-          continue; // 跳过这个信号，不加入finalSignals
-        } else if (warrantRiskResult.warrantInfo?.isWarrant) {
-          // 如果是牛熊证且风险检查通过，记录信息
-          const warrantType =
-            warrantRiskResult.warrantInfo.warrantType === "BULL"
-              ? "牛证"
-              : "熊证";
-          const distancePercent =
-            warrantRiskResult.warrantInfo.distanceToStrikePercent;
-          logger.info(
-            `[牛熊证风险检查] ${sig.symbol} 为${warrantType}，距离回收价：${
-              distancePercent?.toFixed(2) ?? "未知"
-            }%，风险检查通过`
-          );
-        }
-
-        if (!warrantRiskResult.allowed) {
-          // 获取标的的中文名称
-          let sigName = sig.symbol;
-          if (normalizedSigSymbol === normalizedLongSymbol) {
-            sigName = longSymbolName;
-          } else if (normalizedSigSymbol === normalizedShortSymbol) {
-            sigName = shortSymbolName;
-          }
           const codeText = normalizeHKSymbol(sig.symbol);
           logger.warn(
             `[牛熊证风险拦截] 信号被牛熊证风险控制拦截：${sigName}(${codeText}) ${sig.action} - ${warrantRiskResult.reason}`
@@ -1255,15 +1232,13 @@ async function runOnce({
         finalSignals.push(sig);
       } else {
         // 获取标的的中文名称
-        const normalizedSigSymbol = normalizeHKSymbol(sig.symbol);
-        const normalizedLongSymbol = normalizeHKSymbol(longSymbol);
-        const normalizedShortSymbol = normalizeHKSymbol(shortSymbol);
-        let sigName = sig.symbol;
-        if (normalizedSigSymbol === normalizedLongSymbol) {
-          sigName = longSymbolName;
-        } else if (normalizedSigSymbol === normalizedShortSymbol) {
-          sigName = shortSymbolName;
-        }
+        const sigName = getSymbolName(
+          sig.symbol,
+          longSymbol,
+          shortSymbol,
+          longSymbolName,
+          shortSymbolName
+        );
         const codeText = normalizeHKSymbol(sig.symbol);
         logger.warn(
           `[风险拦截] 信号被风险控制拦截：${sigName}(${codeText}) ${sig.action} - ${riskResult.reason}`
@@ -1289,15 +1264,13 @@ async function runOnce({
         targetAction = "卖出";
       }
       // 获取标的的中文名称
-      const normalizedSigSymbol = normalizeHKSymbol(sig.symbol);
-      const normalizedLongSymbol = normalizeHKSymbol(longSymbol);
-      const normalizedShortSymbol = normalizeHKSymbol(shortSymbol);
-      let sigName = sig.symbol;
-      if (normalizedSigSymbol === normalizedLongSymbol) {
-        sigName = longSymbolName;
-      } else if (normalizedSigSymbol === normalizedShortSymbol) {
-        sigName = shortSymbolName;
-      }
+      const sigName = getSymbolName(
+        sig.symbol,
+        longSymbol,
+        shortSymbol,
+        longSymbolName,
+        shortSymbolName
+      );
       const codeText = normalizeHKSymbol(sig.symbol);
       logger.info(
         `[交易指令] 将对 ${sigName}(${codeText}) 执行${targetAction}操作 - ${sig.reason}`

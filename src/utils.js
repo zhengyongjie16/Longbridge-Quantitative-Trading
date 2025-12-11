@@ -93,6 +93,34 @@ export function formatSymbolDisplay(symbol, symbolName = null) {
 }
 
 /**
+ * 根据信号标的获取对应的中文名称
+ * @param {string} signalSymbol 信号中的标的代码
+ * @param {string} longSymbol 做多标的代码
+ * @param {string} shortSymbol 做空标的代码
+ * @param {string} longSymbolName 做多标的中文名称
+ * @param {string} shortSymbolName 做空标的中文名称
+ * @returns {string} 标的中文名称，如果未找到则返回原始代码
+ */
+export function getSymbolName(
+  signalSymbol,
+  longSymbol,
+  shortSymbol,
+  longSymbolName,
+  shortSymbolName
+) {
+  const normalizedSigSymbol = normalizeHKSymbol(signalSymbol);
+  const normalizedLongSymbol = normalizeHKSymbol(longSymbol);
+  const normalizedShortSymbol = normalizeHKSymbol(shortSymbol);
+
+  if (normalizedSigSymbol === normalizedLongSymbol) {
+    return longSymbolName;
+  } else if (normalizedSigSymbol === normalizedShortSymbol) {
+    return shortSymbolName;
+  }
+  return signalSymbol;
+}
+
+/**
  * 将时间转换为北京时间（UTC+8）的字符串
  * @param {Date|null} date 时间对象，如果为 null 则使用当前时间
  * @param {Object} options 格式选项
