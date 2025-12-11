@@ -884,32 +884,8 @@ export class Trader {
       const isShortSymbol = normalizedSignalSymbol === shortSymbol;
       const targetSymbol = isShortSymbol ? shortSymbol : longSymbol;
 
-      // 检查交易频率限制：只有买入同方向标的会触发频率检查
-      // 不同方向标的的买入不能互相阻塞，卖出操作不会触发频率限制
-      if (!this._canTradeNow(s.action)) {
-        const direction =
-          s.action === SignalType.BUYCALL
-            ? "做多标的"
-            : s.action === SignalType.BUYPUT
-            ? "做空标的"
-            : "未知";
-        const directionKey =
-          s.action === SignalType.BUYCALL
-            ? "LONG"
-            : s.action === SignalType.BUYPUT
-            ? "SHORT"
-            : null;
-        const lastTime = directionKey
-          ? this._lastBuyTime.get(directionKey)
-          : null;
-        const waitSeconds = lastTime
-          ? Math.ceil((60 * 1000 - (Date.now() - lastTime)) / 1000)
-          : 0;
-        logger.warn(
-          `[交易频率限制] ${direction} 在1分钟内已买入过，需等待 ${waitSeconds} 秒后才能再次买入`
-        );
-        continue;
-      }
+      // 注意：交易频率限制检查已在 index.js 的信号处理循环中进行（买入操作先检查交易频率，再进行风险检查）
+      // 这里不再重复检查，因为信号已经通过了所有检查才会到达这里
 
       // 根据信号类型显示操作描述
       let actualAction = "";

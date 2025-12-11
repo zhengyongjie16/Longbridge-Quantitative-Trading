@@ -1093,7 +1093,37 @@ async function runOnce({
         sig.action === SignalType.BUYCALL || sig.action === SignalType.BUYPUT;
 
       if (isBuyAction) {
-        // 末日保护程序：收盘前30分钟拒绝买入（卖出操作不受影响）
+        // 买入操作检查顺序：
+        // 1. 先检查交易频率限制（若不通过直接拒绝，不进行后续检查）
+        // 2. 再检查末日保护程序
+        // 3. 再检查牛熊证风险
+        // 4. 最后进行基础风险检查（浮亏检查和市值限制检查）
+
+        // 1. 检查交易频率限制（先检查，若不通过直接拒绝）
+        if (!trader._canTradeNow(sig.action)) {
+          const direction =
+            sig.action === SignalType.BUYCALL ? "做多标的" : "做空标的";
+          const directionKey =
+            sig.action === SignalType.BUYCALL ? "LONG" : "SHORT";
+          const lastTime = trader._lastBuyTime.get(directionKey);
+          const waitSeconds = lastTime
+            ? Math.ceil((60 * 1000 - (Date.now() - lastTime)) / 1000)
+            : 0;
+          const sigName = getSymbolName(
+            sig.symbol,
+            longSymbol,
+            shortSymbol,
+            longSymbolName,
+            shortSymbolName
+          );
+          const codeText = normalizeHKSymbol(sig.symbol);
+          logger.warn(
+            `[交易频率限制] ${direction} 在1分钟内已买入过，需等待 ${waitSeconds} 秒后才能再次买入：${sigName}(${codeText}) ${sig.action}`
+          );
+          continue; // 跳过这个买入信号，不进行后续检查
+        }
+
+        // 2. 末日保护程序：收盘前30分钟拒绝买入（卖出操作不受影响）
         const shouldClearBeforeClose = TRADING_CONFIG.clearPositionsBeforeClose;
         const isBeforeClose30 = isBeforeClose30Minutes(
           currentTime,
@@ -1116,7 +1146,7 @@ async function runOnce({
           continue; // 跳过这个买入信号
         }
 
-        // 仅在买入时检查牛熊证风险
+        // 3. 仅在买入时检查牛熊证风险
         // 注意：使用监控标的的实时价格（而非牛熊证本身的价格）来计算距离回收价的百分比
         // 优先使用实时行情价格，如果没有则使用K线收盘价
         const monitorCurrentPrice =
@@ -1160,12 +1190,12 @@ async function runOnce({
           );
         }
       }
-      // 卖出操作（平仓）时不检查牛熊证风险
+      // 卖出操作（平仓）时不检查交易频率限制、末日保护程序和牛熊证风险
 
-      // 基础风险检查前，实时获取最新账户和持仓信息以确保准确性
+      // 4. 基础风险检查前，实时获取最新账户和持仓信息以确保准确性
       // 对于买入操作，必须实时获取最新数据以确保浮亏计算准确
       // 对于卖出操作，可以使用缓存数据（卖出操作不检查浮亏限制）
-      // 注意：isBuyAction 已在上面定义（第1070行），这里直接使用
+      // 注意：isBuyAction 已在上面定义，这里直接使用
       let accountForRiskCheck = account;
       let positionsForRiskCheck = positions;
 
@@ -1221,6 +1251,7 @@ async function runOnce({
       }
 
       // 基础风险检查（使用最新获取的账户和持仓信息）
+      // 包括：浮亏检查（仅买入操作）和持仓市值限制检查（所有操作）
       const riskResult = riskChecker.checkBeforeOrder(
         accountForRiskCheck,
         positionsForRiskCheck,
@@ -1294,55 +1325,185 @@ async function runOnce({
   if (finalSignals.length > 0) {
     hasChange = true;
     logger.info(`执行交易：共 ${finalSignals.length} 个交易信号`);
-    await trader.executeSignals(finalSignals);
+
+    // 对卖出信号进行成本价判断和卖出数量计算
+    for (const sig of finalSignals) {
+      if (sig.action === SignalType.SELLCALL) {
+        // 卖出做多标的：判断成本价并计算卖出数量
+        if (
+          longPosition &&
+          Number.isFinite(longPosition.costPrice) &&
+          longPosition.costPrice > 0 &&
+          Number.isFinite(longPosition.availableQuantity) &&
+          longPosition.availableQuantity > 0 &&
+          longQuote &&
+          Number.isFinite(longQuote.price) &&
+          longQuote.price > 0
+        ) {
+          const currentPrice = longQuote.price;
+          const costPrice = longPosition.costPrice;
+
+          if (currentPrice > costPrice) {
+            // 当前价格高于持仓成本价，立即清仓所有做多标的持仓
+            sig.quantity = longPosition.availableQuantity;
+            sig.reason = `${sig.reason || ""}，当前价格${currentPrice.toFixed(
+              3
+            )}>成本价${costPrice.toFixed(3)}，立即清空所有做多标的持仓`;
+          } else {
+            // 当前价格没有高于持仓成本价，检查历史买入订单
+            if (orderRecorder) {
+              const buyOrdersBelowPrice =
+                orderRecorder.getLongBuyOrdersBelowPrice(currentPrice);
+              if (buyOrdersBelowPrice && buyOrdersBelowPrice.length > 0) {
+                const totalQuantity =
+                  orderRecorder.calculateTotalQuantity(buyOrdersBelowPrice);
+                if (totalQuantity > 0) {
+                  sig.quantity = totalQuantity;
+                  sig.reason = `${
+                    sig.reason || ""
+                  }，但做多标的价格${currentPrice.toFixed(
+                    3
+                  )}未高于成本价${costPrice.toFixed(
+                    3
+                  )}，卖出历史买入订单中买入价低于当前价的订单，共 ${totalQuantity} 股`;
+                } else {
+                  // 没有符合条件的订单，跳过此信号
+                  sig.action = SignalType.HOLD;
+                  sig.reason = `${
+                    sig.reason || ""
+                  }，但做多标的价格${currentPrice.toFixed(
+                    3
+                  )}未高于成本价${costPrice.toFixed(
+                    3
+                  )}，且没有买入价低于当前价的历史订单`;
+                }
+              } else {
+                // 没有符合条件的订单，跳过此信号
+                sig.action = SignalType.HOLD;
+                sig.reason = `${
+                  sig.reason || ""
+                }，但做多标的价格${currentPrice.toFixed(
+                  3
+                )}未高于成本价${costPrice.toFixed(
+                  3
+                )}，且没有买入价低于当前价的历史订单`;
+              }
+            }
+          }
+        }
+      } else if (sig.action === SignalType.SELLPUT) {
+        // 卖出做空标的：判断成本价并计算卖出数量
+        if (
+          shortPosition &&
+          Number.isFinite(shortPosition.costPrice) &&
+          shortPosition.costPrice > 0 &&
+          Number.isFinite(shortPosition.availableQuantity) &&
+          shortPosition.availableQuantity > 0 &&
+          shortQuote &&
+          Number.isFinite(shortQuote.price) &&
+          shortQuote.price > 0
+        ) {
+          const currentPrice = shortQuote.price;
+          const costPrice = shortPosition.costPrice;
+
+          if (currentPrice > costPrice) {
+            // 当前价格高于持仓成本价，立即清仓所有做空标的持仓
+            sig.quantity = shortPosition.availableQuantity;
+            sig.reason = `${sig.reason || ""}，当前价格${currentPrice.toFixed(
+              3
+            )}>成本价${costPrice.toFixed(3)}，立即清空所有做空标的持仓`;
+          } else {
+            // 当前价格没有高于持仓成本价，检查历史买入订单
+            if (orderRecorder) {
+              const buyOrdersBelowPrice =
+                orderRecorder.getShortBuyOrdersBelowPrice(currentPrice);
+              if (buyOrdersBelowPrice && buyOrdersBelowPrice.length > 0) {
+                const totalQuantity =
+                  orderRecorder.calculateTotalQuantity(buyOrdersBelowPrice);
+                if (totalQuantity > 0) {
+                  sig.quantity = totalQuantity;
+                  sig.reason = `${
+                    sig.reason || ""
+                  }，但做空标的价格${currentPrice.toFixed(
+                    3
+                  )}未高于成本价${costPrice.toFixed(
+                    3
+                  )}，卖出历史买入订单中买入价低于当前价的订单，共 ${totalQuantity} 股`;
+                } else {
+                  // 没有符合条件的订单，跳过此信号
+                  sig.action = SignalType.HOLD;
+                  sig.reason = `${
+                    sig.reason || ""
+                  }，但做空标的价格${currentPrice.toFixed(
+                    3
+                  )}未高于成本价${costPrice.toFixed(
+                    3
+                  )}，且没有买入价低于当前价的历史订单`;
+                }
+              } else {
+                // 没有符合条件的订单，跳过此信号
+                sig.action = SignalType.HOLD;
+                sig.reason = `${
+                  sig.reason || ""
+                }，但做空标的价格${currentPrice.toFixed(
+                  3
+                )}未高于成本价${costPrice.toFixed(
+                  3
+                )}，且没有买入价低于当前价的历史订单`;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // 过滤掉被设置为HOLD的信号
+    const signalsToExecute = finalSignals.filter(
+      (sig) => sig.action !== SignalType.HOLD
+    );
+
+    if (signalsToExecute.length > 0) {
+      await trader.executeSignals(signalsToExecute);
+    } else {
+      logger.info("所有卖出信号因成本价判断被跳过，无交易执行");
+    }
 
     // 交易后获取并显示账户和持仓信息（仅显示一次）
     await displayAccountAndPositions(trader, marketDataClient, lastState);
 
     // 交易后刷新订单记录（买入或卖出做多/做空标的时都需要刷新）
-    if (orderRecorder) {
+    // 注意：只刷新实际执行的交易（signalsToExecute），不包括被设置为HOLD的信号
+    if (orderRecorder && signalsToExecute.length > 0) {
       const longSymbol = TRADING_CONFIG.longSymbol;
       const shortSymbol = TRADING_CONFIG.shortSymbol;
 
-      // 检查是否有买入或卖出操作
-      const hasBuyOrSell = finalSignals.some(
+      // 检查是否有做多标的的交易（买入或卖出）
+      const hasLongSymbolTrade = signalsToExecute.some(
         (sig) =>
           sig.action === SignalType.BUYCALL ||
-          sig.action === SignalType.BUYPUT ||
-          sig.action === SignalType.SELLCALL ||
-          sig.action === SignalType.SELLPUT
+          sig.action === SignalType.SELLCALL
       );
+      if (hasLongSymbolTrade && longSymbol) {
+        await orderRecorder.refreshOrders(longSymbol, true).catch((err) => {
+          logger.warn(
+            `[订单记录刷新失败] 做多标的 ${longSymbol}`,
+            err?.message ?? err
+          );
+        });
+      }
 
-      if (hasBuyOrSell) {
-        // 检查是否有做多标的的交易（买入或卖出）
-        const hasLongSymbolTrade = finalSignals.some(
-          (sig) =>
-            sig.action === SignalType.BUYCALL ||
-            sig.action === SignalType.SELLCALL
-        );
-        if (hasLongSymbolTrade && longSymbol) {
-          await orderRecorder.refreshOrders(longSymbol, true).catch((err) => {
-            logger.warn(
-              `[订单记录刷新失败] 做多标的 ${longSymbol}`,
-              err?.message ?? err
-            );
-          });
-        }
-
-        // 检查是否有做空标的的交易（买入或卖出）
-        const hasShortSymbolTrade = finalSignals.some(
-          (sig) =>
-            sig.action === SignalType.BUYPUT ||
-            sig.action === SignalType.SELLPUT
-        );
-        if (hasShortSymbolTrade && shortSymbol) {
-          await orderRecorder.refreshOrders(shortSymbol, false).catch((err) => {
-            logger.warn(
-              `[订单记录刷新失败] 做空标的 ${shortSymbol}`,
-              err?.message ?? err
-            );
-          });
-        }
+      // 检查是否有做空标的的交易（买入或卖出）
+      const hasShortSymbolTrade = signalsToExecute.some(
+        (sig) =>
+          sig.action === SignalType.BUYPUT || sig.action === SignalType.SELLPUT
+      );
+      if (hasShortSymbolTrade && shortSymbol) {
+        await orderRecorder.refreshOrders(shortSymbol, false).catch((err) => {
+          logger.warn(
+            `[订单记录刷新失败] 做空标的 ${shortSymbol}`,
+            err?.message ?? err
+          );
+        });
       }
     }
   }

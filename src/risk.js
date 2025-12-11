@@ -378,8 +378,9 @@ export class RiskChecker {
       return { allowed: true };
     }
 
-    // 使用当前市价计算持仓市值，如果没有提供则使用成本价
-    const price = currentPrice ?? pos.costPrice ?? 0;
+    // 若已有持仓应以成本价计算当前持仓市值（用户要求）
+    // 优先使用成本价，如果没有成本价则使用当前市价
+    const price = pos.costPrice ?? currentPrice ?? 0;
 
     // 验证价格有效性
     if (!Number.isFinite(price) || price <= 0) {

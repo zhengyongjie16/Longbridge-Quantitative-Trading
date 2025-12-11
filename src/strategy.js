@@ -12,20 +12,18 @@ import { SignalType } from "./signalTypes.js";
  *    条件2：J<-20（无需检查均价）
  *
  * 2. 卖出做多标的（SELLCALL）- 立即执行：
- *    条件1：RSI6>80, RSI12>80, KDJ.D>79, KDJ.J>100 四个指标满足3个以上，且做多标的价格>持仓成本价
+ *    条件1：RSI6>80, RSI12>80, KDJ.D>79, KDJ.J>100 四个指标满足3个以上
  *    条件2：KDJ.J>110
- *    - 若满足条件且做多标的价格>持仓成本价，立即清空所有做多标的持仓
- *    - 若满足条件且做多标的价格<=持仓成本价，检查历史买入订单，卖出买入价<当前价的订单数量
+ *    注意：卖出信号生成时无需判断成本价，成本价判断在卖出策略中进行
  *
  * 3. 买入做空标的（BUYPUT）- 延迟验证：
  *    条件1：RSI6>80, RSI12>80, KDJ.D>80, KDJ.J>100 四个指标满足3个以上（无需检查均价）
  *    条件2：J>120
  *
  * 4. 卖出做空标的（SELLPUT）- 立即执行：
- *    条件1：RSI6<20, RSI12<20, KDJ.D<22, KDJ.J<0 四个指标满足3个以上，且做空标的价格>持仓成本价
+ *    条件1：RSI6<20, RSI12<20, KDJ.D<22, KDJ.J<0 四个指标满足3个以上
  *    条件2：KDJ.J<-15（无需检查均价）
- *    - 若满足条件且做空标的价格>持仓成本价，立即清空所有做空标的持仓
- *    - 若满足条件且做空标的价格<=持仓成本价，检查历史买入订单，卖出买入价<当前价的订单数量
+ *    注意：卖出信号生成时无需判断成本价，成本价判断在卖出策略中进行
  */
 export class HangSengMultiIndicatorStrategy {
   constructor({
@@ -286,16 +284,13 @@ export class HangSengMultiIndicatorStrategy {
     }
 
     // 2. 卖出做多标的的条件（立即执行）
-    // 条件1：RSI6>80, RSI12>80, KDJ.D>79, KDJ.J>100 四个指标满足3个以上，且做多标的价格>持仓成本价
+    // 条件1：RSI6>80, RSI12>80, KDJ.D>79, KDJ.J>100 四个指标满足3个以上
     // 条件2：KDJ.J>110
+    // 注意：卖出信号生成时无需判断成本价，成本价判断在卖出策略中进行
     const canSellLong =
       longPosition?.symbol &&
       Number.isFinite(longPosition.availableQuantity) &&
-      longPosition.availableQuantity > 0 &&
-      Number.isFinite(longCurrentPrice) &&
-      longCurrentPrice > 0 &&
-      Number.isFinite(longPosition.costPrice) &&
-      longPosition.costPrice > 0;
+      longPosition.availableQuantity > 0;
 
     if (canSellLong) {
       const sellcallCount = this._calculateConditionCount(
@@ -304,9 +299,8 @@ export class HangSengMultiIndicatorStrategy {
       );
       const jValue = kdj?.j;
 
-      // 条件1：四个指标满足3个以上 且 做多标的价格>持仓成本价
-      const condition1Met =
-        sellcallCount >= 3 && longCurrentPrice > longPosition.costPrice;
+      // 条件1：四个指标满足3个以上（无需检查成本价）
+      const condition1Met = sellcallCount >= 3;
       // 条件2：J>110
       const condition2Met = Number.isFinite(jValue) && jValue > 110;
 
@@ -320,51 +314,18 @@ export class HangSengMultiIndicatorStrategy {
             1
           )})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(
             1
-          )}) 中${sellcallCount}项满足条件，且做多标的价格${longCurrentPrice.toFixed(
-            3
-          )}>成本价${longPosition.costPrice.toFixed(3)}`;
+          )}) 中${sellcallCount}项满足条件`;
         } else if (condition2Met) {
           reason = `满足条件2：J值${kdj.j.toFixed(1)}>110`;
         }
 
-        if (longCurrentPrice > longPosition.costPrice) {
-          // 当前价格高于持仓成本价，立即清仓所有做多标的持仓
-          immediateSignals.push({
-            symbol: longPosition.symbol,
-            action: SignalType.SELLCALL,
-            reason: `${reason}，立即清空所有做多标的持仓`,
-            signalTriggerTime: new Date(),
-          });
-        } else {
-          // 当前价格没有高于持仓成本价，检查历史买入订单
-          if (
-            orderRecorder &&
-            Number.isFinite(longCurrentPrice) &&
-            longCurrentPrice > 0
-          ) {
-            const buyOrdersBelowPrice =
-              orderRecorder.getLongBuyOrdersBelowPrice(longCurrentPrice);
-            if (buyOrdersBelowPrice && buyOrdersBelowPrice.length > 0) {
-              // 计算这些订单的总成交数量
-              const totalQuantity =
-                orderRecorder.calculateTotalQuantity(buyOrdersBelowPrice);
-              if (totalQuantity > 0) {
-                // 生成卖出信号，卖出这些订单的总数量
-                immediateSignals.push({
-                  symbol: longPosition.symbol,
-                  action: SignalType.SELLCALL,
-                  quantity: totalQuantity,
-                  reason: `${reason}，但做多标的价格${longCurrentPrice.toFixed(
-                    3
-                  )}未高于成本价${longPosition.costPrice.toFixed(
-                    3
-                  )}，卖出历史买入订单中买入价低于当前价的订单，共 ${totalQuantity} 股`,
-                  signalTriggerTime: new Date(),
-                });
-              }
-            }
-          }
-        }
+        // 生成卖出信号，成本价判断和卖出数量计算在卖出策略中进行
+        immediateSignals.push({
+          symbol: longPosition.symbol,
+          action: SignalType.SELLCALL,
+          reason: reason,
+          signalTriggerTime: new Date(),
+        });
       }
     }
 
@@ -384,16 +345,13 @@ export class HangSengMultiIndicatorStrategy {
     }
 
     // 4. 卖出做空标的的条件（立即执行）
-    // 条件1：RSI6<20, RSI12<20, KDJ.D<22, KDJ.J<0 四个指标满足3个以上，且做空标的价格>持仓成本价
+    // 条件1：RSI6<20, RSI12<20, KDJ.D<22, KDJ.J<0 四个指标满足3个以上
     // 条件2：KDJ.J<-15（无需检查均价）
+    // 注意：卖出信号生成时无需判断成本价，成本价判断在卖出策略中进行
     const canSellShort =
       shortPosition?.symbol &&
       Number.isFinite(shortPosition.availableQuantity) &&
-      shortPosition.availableQuantity > 0 &&
-      Number.isFinite(shortCurrentPrice) &&
-      shortCurrentPrice > 0 &&
-      Number.isFinite(shortPosition.costPrice) &&
-      shortPosition.costPrice > 0;
+      shortPosition.availableQuantity > 0;
 
     if (canSellShort) {
       const sellputCount = this._calculateConditionCount(
@@ -402,9 +360,8 @@ export class HangSengMultiIndicatorStrategy {
       );
       const jValueShort = kdj?.j;
 
-      // 条件1：四个指标满足3个以上 且 做空标的价格>持仓成本价
-      const condition1Short =
-        sellputCount >= 3 && shortCurrentPrice > shortPosition.costPrice;
+      // 条件1：四个指标满足3个以上（无需检查成本价）
+      const condition1Short = sellputCount >= 3;
       // 条件2：J<-15
       const condition2Short = Number.isFinite(jValueShort) && jValueShort < -15;
 
@@ -418,51 +375,18 @@ export class HangSengMultiIndicatorStrategy {
             1
           )})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(
             1
-          )}) 中${sellputCount}项满足条件，且做空标的价格${shortCurrentPrice.toFixed(
-            3
-          )}>成本价${shortPosition.costPrice.toFixed(3)}`;
+          )}) 中${sellputCount}项满足条件`;
         } else if (condition2Short) {
           reason = `满足条件2：J值${kdj.j.toFixed(1)}<-15`;
         }
 
-        if (shortCurrentPrice > shortPosition.costPrice) {
-          // 当前价格高于持仓成本价，立即清仓所有做空标的持仓
-          immediateSignals.push({
-            symbol: shortPosition.symbol,
-            action: SignalType.SELLPUT,
-            reason: `${reason}，立即清空所有做空标的持仓`,
-            signalTriggerTime: new Date(),
-          });
-        } else {
-          // 当前价格没有高于持仓成本价，检查历史买入订单
-          if (
-            orderRecorder &&
-            Number.isFinite(shortCurrentPrice) &&
-            shortCurrentPrice > 0
-          ) {
-            const buyOrdersBelowPrice =
-              orderRecorder.getShortBuyOrdersBelowPrice(shortCurrentPrice);
-            if (buyOrdersBelowPrice && buyOrdersBelowPrice.length > 0) {
-              // 计算这些订单的总成交数量
-              const totalQuantity =
-                orderRecorder.calculateTotalQuantity(buyOrdersBelowPrice);
-              if (totalQuantity > 0) {
-                // 生成卖出信号，卖出这些订单的总数量
-                immediateSignals.push({
-                  symbol: shortPosition.symbol,
-                  action: SignalType.SELLPUT,
-                  quantity: totalQuantity,
-                  reason: `${reason}，但做空标的价格${shortCurrentPrice.toFixed(
-                    3
-                  )}未高于成本价${shortPosition.costPrice.toFixed(
-                    3
-                  )}，卖出历史买入订单中买入价低于当前价的订单，共 ${totalQuantity} 股`,
-                  signalTriggerTime: new Date(),
-                });
-              }
-            }
-          }
-        }
+        // 生成卖出信号，成本价判断和卖出数量计算在卖出策略中进行
+        immediateSignals.push({
+          symbol: shortPosition.symbol,
+          action: SignalType.SELLPUT,
+          reason: reason,
+          signalTriggerTime: new Date(),
+        });
       }
     }
 
