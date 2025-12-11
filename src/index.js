@@ -43,7 +43,31 @@ function isInContinuousHKSession(date) {
 }
 
 /**
- * 判断是否在当日收盘前5分钟内
+ * 判断是否在当日收盘前30分钟内（末日保护程序：拒绝买入）
+ * 港股正常交易日收盘时间：下午 16:00，收盘前30分钟：15:30 - 15:59
+ * 港股半日交易日收盘时间：中午 12:00，收盘前30分钟：11:30 - 11:59
+ * @param {Date} date 时间对象（应该是UTC时间）
+ * @param {boolean} isHalfDay 是否是半日交易日
+ * @returns {boolean} true表示在收盘前30分钟，false表示不在
+ */
+function isBeforeClose30Minutes(date, isHalfDay = false) {
+  if (!date) return false;
+  const utcHour = date.getUTCHours();
+  const utcMinute = date.getUTCMinutes();
+  const hkHour = (utcHour + 8) % 24;
+  const hkMinute = utcMinute;
+
+  if (isHalfDay) {
+    // 半日交易：收盘前30分钟为 11:30 - 11:59:59（12:00收盘）
+    return hkHour === 11 && hkMinute >= 30;
+  } else {
+    // 正常交易日：收盘前30分钟为 15:30 - 15:59:59（16:00收盘）
+    return hkHour === 15 && hkMinute >= 30;
+  }
+}
+
+/**
+ * 判断是否在当日收盘前5分钟内（末日保护程序：自动清仓）
  * 港股正常交易日收盘时间：下午 16:00，收盘前5分钟：15:55 - 15:59
  * 港股半日交易日收盘时间：中午 12:00，收盘前5分钟：11:55 - 11:59
  * @param {Date} date 时间对象（应该是UTC时间）
@@ -948,7 +972,7 @@ async function runOnce({
       };
     });
 
-  // 检查是否需要在收盘前5分钟清仓（使用当前系统时间，而非行情时间）
+  // 末日保护程序：检查是否需要在收盘前5分钟清仓（使用当前系统时间，而非行情时间）
   const shouldClearBeforeClose = TRADING_CONFIG.clearPositionsBeforeClose;
   const isBeforeClose = isBeforeClose5Minutes(currentTime, isHalfDayToday);
 
@@ -964,7 +988,7 @@ async function runOnce({
     // 当日收盘前5分钟，清空所有持仓（无论是做多标的持仓还是做空标的持仓）
     const closeTimeRange = isHalfDayToday ? "11:55-11:59" : "15:55-15:59";
     logger.info(
-      `[收盘清仓] 检测到当日收盘前5分钟（${closeTimeRange}），准备清空所有持仓`
+      `[末日保护程序] 收盘前5分钟（${closeTimeRange}），准备清空所有持仓`
     );
 
     // 为每个持仓生成清仓信号
@@ -1020,12 +1044,12 @@ async function runOnce({
           action: action,
           price: currentPrice, // 添加当前价格，用于增强限价单
           lotSize: lotSize, // 添加最小买卖单位
-          reason: `收盘前5分钟自动清仓（${positionType}持仓）`,
+          reason: `末日保护程序：收盘前5分钟自动清仓（${positionType}持仓）`,
           signalTriggerTime: new Date(), // 收盘前清仓信号的触发时间
         });
 
         logger.info(
-          `[收盘清仓] 生成清仓信号：${positionType} ${pos.symbol} 数量=${availableQty} 操作=${action}`
+          `[末日保护程序] 生成清仓信号：${positionType} ${pos.symbol} 数量=${availableQty} 操作=${action}`
         );
       }
     }
@@ -1033,7 +1057,7 @@ async function runOnce({
     if (clearSignals.length > 0) {
       finalSignals = clearSignals;
       logger.info(
-        `[收盘清仓] 共生成 ${clearSignals.length} 个清仓信号，准备执行`
+        `[末日保护程序] 共生成 ${clearSignals.length} 个清仓信号，准备执行`
       );
     }
   } else if (signals.length > 0 && canTradeNow) {
@@ -1066,11 +1090,37 @@ async function runOnce({
         sig.action === SignalType.BUYCALL || sig.action === SignalType.BUYPUT;
 
       if (isBuyAction) {
+        // 末日保护程序：收盘前30分钟拒绝买入（卖出操作不受影响）
+        const shouldClearBeforeClose = TRADING_CONFIG.clearPositionsBeforeClose;
+        const isBeforeClose30 = isBeforeClose30Minutes(
+          currentTime,
+          isHalfDayToday
+        );
+        if (shouldClearBeforeClose && isBeforeClose30) {
+          // 获取标的的中文名称
+          let sigName = sig.symbol;
+          if (normalizedSigSymbol === normalizedLongSymbol) {
+            sigName = longSymbolName;
+          } else if (normalizedSigSymbol === normalizedShortSymbol) {
+            sigName = shortSymbolName;
+          }
+          const codeText = normalizeHKSymbol(sig.symbol);
+          const closeTimeRange = isHalfDayToday ? "11:30-12:00" : "15:30-16:00";
+          logger.warn(
+            `[末日保护程序] 收盘前30分钟内拒绝买入：${sigName}(${codeText}) ${sig.action} - 当前时间在${closeTimeRange}范围内`
+          );
+          continue; // 跳过这个买入信号
+        }
+
         // 仅在买入时检查牛熊证风险
+        // 注意：使用监控标的的实时价格（而非牛熊证本身的价格）来计算距离回收价的百分比
+        // 优先使用实时行情价格，如果没有则使用K线收盘价
+        const monitorCurrentPrice =
+          monitorQuote?.price ?? monitorSnapshot?.price ?? null;
         const warrantRiskResult = riskChecker.checkWarrantRisk(
           sig.symbol,
           sig.action,
-          currentPrice
+          monitorCurrentPrice
         );
 
         if (!warrantRiskResult.allowed) {
