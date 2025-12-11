@@ -1117,11 +1117,41 @@ async function runOnce({
         // 优先使用实时行情价格，如果没有则使用K线收盘价
         const monitorCurrentPrice =
           monitorQuote?.price ?? monitorSnapshot?.price ?? null;
+
+        // 检查牛熊证风险
         const warrantRiskResult = riskChecker.checkWarrantRisk(
           sig.symbol,
           sig.action,
           monitorCurrentPrice
         );
+
+        if (!warrantRiskResult.allowed) {
+          // 获取标的的中文名称
+          let sigName = sig.symbol;
+          if (normalizedSigSymbol === normalizedLongSymbol) {
+            sigName = longSymbolName;
+          } else if (normalizedSigSymbol === normalizedShortSymbol) {
+            sigName = shortSymbolName;
+          }
+          const codeText = normalizeHKSymbol(sig.symbol);
+          logger.warn(
+            `[牛熊证风险拦截] 信号被牛熊证风险控制拦截：${sigName}(${codeText}) ${sig.action} - ${warrantRiskResult.reason}`
+          );
+          continue; // 跳过这个信号，不加入finalSignals
+        } else if (warrantRiskResult.warrantInfo?.isWarrant) {
+          // 如果是牛熊证且风险检查通过，记录信息
+          const warrantType =
+            warrantRiskResult.warrantInfo.warrantType === "BULL"
+              ? "牛证"
+              : "熊证";
+          const distancePercent =
+            warrantRiskResult.warrantInfo.distanceToStrikePercent;
+          logger.info(
+            `[牛熊证风险检查] ${sig.symbol} 为${warrantType}，距离回收价：${
+              distancePercent?.toFixed(2) ?? "未知"
+            }%，风险检查通过`
+          );
+        }
 
         if (!warrantRiskResult.allowed) {
           // 获取标的的中文名称

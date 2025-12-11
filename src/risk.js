@@ -459,6 +459,18 @@ export class RiskChecker {
       };
     }
 
+    // 额外验证：监控标的价格应该远大于牛熊证价格（通常>1000）
+    // 如果价格异常小（<100），可能是获取到了错误的价格（如牛熊证本身的价格），拒绝买入
+    if (monitorCurrentPrice < 100) {
+      console.warn(
+        `[风险检查] 监控标的价格异常小（${monitorCurrentPrice}），可能获取到了错误的价格（如牛熊证本身的价格），拒绝买入以确保安全`
+      );
+      return {
+        allowed: false, // 拒绝买入，确保安全
+        reason: `监控标的价格异常（${monitorCurrentPrice}），无法进行牛熊证风险检查，拒绝买入`,
+      };
+    }
+
     const callPrice = warrantInfo.callPrice;
     const warrantType = warrantInfo.warrantType;
 
