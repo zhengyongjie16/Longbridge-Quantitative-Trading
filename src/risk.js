@@ -461,8 +461,8 @@ export class RiskChecker {
     }
 
     // 额外验证：监控标的价格应该远大于牛熊证价格（通常>1000）
-    // 如果价格异常小（<100），可能是获取到了错误的价格（如牛熊证本身的价格），拒绝买入
-    if (monitorCurrentPrice < 100) {
+    // 如果价格异常小（<1），可能是获取到了错误的价格（如牛熊证本身的价格），拒绝买入
+    if (monitorCurrentPrice < 1) {
       console.warn(
         `[风险检查] 监控标的价格异常小（${monitorCurrentPrice}），可能获取到了错误的价格（如牛熊证本身的价格），拒绝买入以确保安全`
       );
