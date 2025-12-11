@@ -8,8 +8,8 @@ import { SignalType } from "./signalTypes.js";
  * 策略逻辑（所有信号条件1或条件2满足其一即可）：
  *
  * 1. 买入做多标的（BUYCALL）- 延迟验证：
- *    条件1：RSI6<20, RSI12<20, KDJ.D<20, KDJ.J<-1 四个指标满足3个以上，且监控标的价格<VWAP
- *    条件2：J<-20
+ *    条件1：RSI6<20, RSI12<20, KDJ.D<20, KDJ.J<-1 四个指标满足3个以上（无需检查均价）
+ *    条件2：J<-20（无需检查均价）
  *
  * 2. 卖出做多标的（SELLCALL）- 立即执行：
  *    条件1：RSI6>80, RSI12>80, KDJ.D>79, KDJ.J>100 四个指标满足3个以上，且做多标的价格>持仓成本价
@@ -18,7 +18,7 @@ import { SignalType } from "./signalTypes.js";
  *    - 若满足条件且做多标的价格<=持仓成本价，检查历史买入订单，卖出买入价<当前价的订单数量
  *
  * 3. 买入做空标的（BUYPUT）- 延迟验证：
- *    条件1：RSI6>80, RSI12>80, KDJ.D>80, KDJ.J>100 四个指标满足3个以上，且监控标的价格>VWAP
+ *    条件1：RSI6>80, RSI12>80, KDJ.D>80, KDJ.J>100 四个指标满足3个以上（无需检查均价）
  *    条件2：J>120
  *
  * 4. 卖出做空标的（SELLPUT）- 立即执行：
@@ -149,7 +149,8 @@ export class HangSengMultiIndicatorStrategy {
       return null;
     }
 
-    if (!Number.isFinite(monitorPrice) || !Number.isFinite(vwap)) {
+    // 价格必须有效（VWAP 不再强制要求，因为买入信号条件1不再需要检查均价）
+    if (!Number.isFinite(monitorPrice)) {
       return null;
     }
 
@@ -163,29 +164,25 @@ export class HangSengMultiIndicatorStrategy {
 
     if (action === SignalType.BUYCALL) {
       // 买入做多：
-      // 条件1：四个指标满足3个以上 且 价格<VWAP
-      condition1Met = satisfiedCount >= 3 && monitorPrice < vwap;
-      // 条件2：J<-20
+      // 条件1：四个指标满足3个以上（无需检查均价）
+      condition1Met = satisfiedCount >= 3;
+      // 条件2：J<-20（无需检查均价）
       condition2Met = kdj.j < -20;
 
       if (condition1Met) {
-        conditionReason = `满足条件1：${satisfiedCount}项指标满足且监控标的价格${monitorPrice.toFixed(
-          3
-        )}<VWAP${vwap.toFixed(3)}`;
+        conditionReason = `满足条件1：${satisfiedCount}项指标满足`;
       } else if (condition2Met) {
         conditionReason = `满足条件2：J值${kdj.j.toFixed(2)}<-20`;
       }
     } else if (action === SignalType.BUYPUT) {
       // 买入做空：
-      // 条件1：四个指标满足3个以上 且 价格>VWAP
-      condition1Met = satisfiedCount >= 3 && monitorPrice > vwap;
+      // 条件1：四个指标满足3个以上（无需检查均价）
+      condition1Met = satisfiedCount >= 3;
       // 条件2：J>120
       condition2Met = kdj.j > 120;
 
       if (condition1Met) {
-        conditionReason = `满足条件1：${satisfiedCount}项指标满足且监控标的价格${monitorPrice.toFixed(
-          3
-        )}>VWAP${vwap.toFixed(3)}`;
+        conditionReason = `满足条件1：${satisfiedCount}项指标满足`;
       } else if (condition2Met) {
         conditionReason = `满足条件2：J值${kdj.j.toFixed(2)}>120`;
       }
@@ -274,8 +271,8 @@ export class HangSengMultiIndicatorStrategy {
     }
 
     // 1. 买入做多标的（延迟验证策略）
-    // 条件1：RSI6<20, RSI12<20, KDJ.D<20, KDJ.J<-1 四个指标满足3个以上，且监控标的价格<VWAP
-    // 条件2：J<-20
+    // 条件1：RSI6<20, RSI12<20, KDJ.D<20, KDJ.J<-1 四个指标满足3个以上（无需检查均价）
+    // 条件2：J<-20（无需检查均价）
     if (longSymbol) {
       const delayedBuySignal = this._generateDelayedSignal(
         state,
@@ -372,7 +369,7 @@ export class HangSengMultiIndicatorStrategy {
     }
 
     // 3. 买入做空标的（延迟验证策略）
-    // 条件1：RSI6>80, RSI12>80, KDJ.D>80, KDJ.J>100 四个指标满足3个以上，且监控标的价格>VWAP
+    // 条件1：RSI6>80, RSI12>80, KDJ.D>80, KDJ.J>100 四个指标满足3个以上（无需检查均价）
     // 条件2：J>120
     if (shortSymbol) {
       const delayedSellSignal = this._generateDelayedSignal(
