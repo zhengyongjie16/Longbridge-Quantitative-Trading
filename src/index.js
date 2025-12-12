@@ -16,14 +16,6 @@ import {
 } from "./utils.js";
 
 /**
- * 判断是否在港股连续交易时段（仅检查时间，不检查是否是交易日）
- * 港股连续交易时段：
- * - 上午：09:30 - 12:00
- * - 下午：13:00 - 16:00
- * @param {Date} date 时间对象（应该是UTC时间）
- * @returns {boolean} true表示在连续交易时段，false表示不在
- */
-/**
  * 将UTC时间转换为香港时区（UTC+8）
  * @param {Date} date 时间对象（UTC时间）
  * @returns {{hkHour: number, hkMinute: number}|null} 香港时区的小时和分钟，如果date无效则返回null
@@ -38,6 +30,14 @@ function getHKTime(date) {
   };
 }
 
+/**
+ * 判断是否在港股连续交易时段（仅检查时间，不检查是否是交易日）
+ * 港股连续交易时段：
+ * - 上午：09:30 - 12:00
+ * - 下午：13:00 - 16:00
+ * @param {Date} date 时间对象（应该是UTC时间）
+ * @returns {boolean} true表示在连续交易时段，false表示不在
+ */
 function isInContinuousHKSession(date) {
   if (!date) return false;
   // 将时间转换为香港时区（UTC+8）
@@ -100,6 +100,134 @@ function isBeforeClose5Minutes(date, isHalfDay = false) {
   } else {
     // 正常交易日：收盘前5分钟为 15:55 - 15:59:59（16:00收盘）
     return hkHour === 15 && hkMinute >= 55;
+  }
+}
+
+/**
+ * 检查数值是否发生变化（超过阈值）
+ * @param {number} current 当前值
+ * @param {number} last 上次值
+ * @param {number} threshold 变化阈值
+ * @returns {boolean} true表示值发生变化，false表示未变化
+ */
+function hasChanged(current, last, threshold) {
+  return (
+    Number.isFinite(current) &&
+    Number.isFinite(last) &&
+    Math.abs(current - last) > threshold
+  );
+}
+
+/**
+ * 计算卖出信号的数量和原因（统一处理做多和做空标的的卖出逻辑）
+ * @param {Object} position 持仓对象（包含 costPrice 和 availableQuantity）
+ * @param {Object} quote 行情对象（包含 price）
+ * @param {Object} orderRecorder 订单记录器实例
+ * @param {string} direction 方向：'LONG'（做多）或 'SHORT'（做空）
+ * @param {string} originalReason 原始信号原因
+ * @returns {{quantity: number|null, shouldHold: boolean, reason: string}} 返回卖出数量和原因，shouldHold为true表示应跳过此信号
+ */
+function calculateSellQuantity(
+  position,
+  quote,
+  orderRecorder,
+  direction,
+  originalReason
+) {
+  // 验证输入参数
+  if (
+    !position ||
+    !Number.isFinite(position.costPrice) ||
+    position.costPrice <= 0 ||
+    !Number.isFinite(position.availableQuantity) ||
+    position.availableQuantity <= 0 ||
+    !quote ||
+    !Number.isFinite(quote.price) ||
+    quote.price <= 0
+  ) {
+    return {
+      quantity: null,
+      shouldHold: true,
+      reason: `${originalReason || ""}，持仓或行情数据无效`,
+    };
+  }
+
+  const currentPrice = quote.price;
+  const costPrice = position.costPrice;
+  const directionName = direction === "LONG" ? "做多标的" : "做空标的";
+
+  // 当前价格高于持仓成本价，立即清仓所有持仓
+  if (currentPrice > costPrice) {
+    return {
+      quantity: position.availableQuantity,
+      shouldHold: false,
+      reason: `${originalReason || ""}，当前价格${currentPrice.toFixed(
+        3
+      )}>成本价${costPrice.toFixed(3)}，立即清空所有${directionName}持仓`,
+    };
+  }
+
+  // 当前价格没有高于持仓成本价，检查历史买入订单
+  if (!orderRecorder) {
+    return {
+      quantity: null,
+      shouldHold: true,
+      reason: `${
+        originalReason || ""
+      }，但${directionName}价格${currentPrice.toFixed(
+        3
+      )}未高于成本价${costPrice.toFixed(3)}，且无法获取订单记录`,
+    };
+  }
+
+  // 根据方向获取符合条件的买入订单
+  const getBuyOrdersBelowPrice =
+    direction === "LONG"
+      ? orderRecorder.getLongBuyOrdersBelowPrice.bind(orderRecorder)
+      : orderRecorder.getShortBuyOrdersBelowPrice.bind(orderRecorder);
+
+  const buyOrdersBelowPrice = getBuyOrdersBelowPrice(currentPrice);
+
+  if (!buyOrdersBelowPrice || buyOrdersBelowPrice.length === 0) {
+    // 没有符合条件的订单，跳过此信号
+    return {
+      quantity: null,
+      shouldHold: true,
+      reason: `${
+        originalReason || ""
+      }，但${directionName}价格${currentPrice.toFixed(
+        3
+      )}未高于成本价${costPrice.toFixed(3)}，且没有买入价低于当前价的历史订单`,
+    };
+  }
+
+  const totalQuantity =
+    orderRecorder.calculateTotalQuantity(buyOrdersBelowPrice);
+
+  if (totalQuantity > 0) {
+    // 有符合条件的订单，卖出这些订单
+    return {
+      quantity: totalQuantity,
+      shouldHold: false,
+      reason: `${
+        originalReason || ""
+      }，但${directionName}价格${currentPrice.toFixed(
+        3
+      )}未高于成本价${costPrice.toFixed(
+        3
+      )}，卖出历史买入订单中买入价低于当前价的订单，共 ${totalQuantity} 股`,
+    };
+  } else {
+    // 总数量为0，跳过此信号
+    return {
+      quantity: null,
+      shouldHold: true,
+      reason: `${
+        originalReason || ""
+      }，但${directionName}价格${currentPrice.toFixed(
+        3
+      )}未高于成本价${costPrice.toFixed(3)}，且没有买入价低于当前价的历史订单`,
+    };
   }
 }
 
@@ -223,10 +351,19 @@ async function runOnce({
   const longPrice = longQuote?.price;
   const shortPrice = shortQuote?.price;
 
-  if (
-    longPrice !== lastState.longPrice ||
-    shortPrice !== lastState.shortPrice
-  ) {
+  // 检查做多标的价格是否变化（阈值：0.0001）
+  const longPriceChanged =
+    lastState.longPrice == null && Number.isFinite(longPrice)
+      ? true // 首次出现价格
+      : hasChanged(longPrice, lastState.longPrice, 0.0001);
+
+  // 检查做空标的价格是否变化（阈值：0.0001）
+  const shortPriceChanged =
+    lastState.shortPrice == null && Number.isFinite(shortPrice)
+      ? true // 首次出现价格
+      : hasChanged(shortPrice, lastState.shortPrice, 0.0001);
+
+  if (longPriceChanged || shortPriceChanged) {
     hasChange = true;
 
     // 统一的行情显示格式化函数
@@ -304,9 +441,13 @@ async function runOnce({
       logger.warn(`未获取到做空标的行情。`);
     }
 
-    // 更新价格状态
-    lastState.longPrice = longPrice;
-    lastState.shortPrice = shortPrice;
+    // 更新价格状态（只更新有效价格，避免将 undefined 写入状态）
+    if (Number.isFinite(longPrice)) {
+      lastState.longPrice = longPrice;
+    }
+    if (Number.isFinite(shortPrice)) {
+      lastState.shortPrice = shortPrice;
+    }
   }
 
   // 获取监控标的的K线数据（用于计算指标和生成信号）
@@ -327,135 +468,34 @@ async function runOnce({
   // 只计算监控标的的指标
   const monitorSnapshot = buildIndicatorSnapshot(monitorSymbol, monitorCandles);
 
-  // 检测监控标的的所有指标值变化并实时显示
+  // 检测监控标的的价格变化并实时显示（只检测价格变化）
   if (monitorSnapshot) {
-    const currentValues = {
-      price: monitorSnapshot.price,
-      vwap: monitorSnapshot.vwap,
-      rsi6: monitorSnapshot.rsi6,
-      rsi12: monitorSnapshot.rsi12,
-      kdj: monitorSnapshot.kdj,
-      macd: monitorSnapshot.macd,
-    };
+    const currentPrice = monitorSnapshot.price;
+    const lastPrice = lastState.monitorValues?.price;
 
-    const lastValues = lastState.monitorValues || {};
+    // 检查监控标的的价格是否发生变化（只检测价格变化）
+    const isFirstTime = lastPrice == null && Number.isFinite(currentPrice);
+    const hasPriceChanged =
+      isFirstTime || hasChanged(currentPrice, lastPrice, 0.0001);
 
-    // 检查是否有任何值发生变化
-    const isFirstTime =
-      !lastValues.price && !lastValues.vwap && !lastValues.rsi6;
-
-    const hasValueChanged =
-      isFirstTime ||
-      // 价格变化
-      (Number.isFinite(currentValues.price) &&
-        Number.isFinite(lastValues.price) &&
-        Math.abs(currentValues.price - lastValues.price) > 0.0001) ||
-      // VWAP变化
-      (Number.isFinite(currentValues.vwap) &&
-        Number.isFinite(lastValues.vwap) &&
-        Math.abs(currentValues.vwap - lastValues.vwap) > 0.0001) ||
-      // RSI6变化
-      (Number.isFinite(currentValues.rsi6) &&
-        Number.isFinite(lastValues.rsi6) &&
-        Math.abs(currentValues.rsi6 - lastValues.rsi6) > 0.01) ||
-      // RSI12变化
-      (Number.isFinite(currentValues.rsi12) &&
-        Number.isFinite(lastValues.rsi12) &&
-        Math.abs(currentValues.rsi12 - lastValues.rsi12) > 0.01) ||
-      // KDJ变化（首次或值变化）
-      (!lastValues.kdj && currentValues.kdj) ||
-      (currentValues.kdj &&
-        lastValues.kdj &&
-        (Math.abs((currentValues.kdj.k ?? 0) - (lastValues.kdj?.k ?? 0)) >
-          0.01 ||
-          Math.abs((currentValues.kdj.d ?? 0) - (lastValues.kdj?.d ?? 0)) >
-            0.01 ||
-          Math.abs((currentValues.kdj.j ?? 0) - (lastValues.kdj?.j ?? 0)) >
-            0.01)) ||
-      // MACD变化（首次或MACD柱值变化）
-      (!lastValues.macd &&
-        currentValues.macd &&
-        Number.isFinite(currentValues.macd.macd)) ||
-      (currentValues.macd &&
-        lastValues.macd &&
-        Number.isFinite(currentValues.macd.macd) &&
-        Number.isFinite(lastValues.macd?.macd) &&
-        Math.abs(currentValues.macd.macd - lastValues.macd.macd) > 0.0001);
-
-    if (hasValueChanged) {
+    if (hasPriceChanged) {
       hasChange = true;
 
-      // 构建显示信息
-      const parts = [];
-
-      // 价格
-      if (Number.isFinite(currentValues.price)) {
-        parts.push(`价格=${currentValues.price.toFixed(3)}`);
-      }
-
-      // VWAP
-      if (Number.isFinite(currentValues.vwap)) {
-        parts.push(`VWAP=${currentValues.vwap.toFixed(3)}`);
-      }
-
-      // RSI
-      if (Number.isFinite(currentValues.rsi6)) {
-        parts.push(`RSI6=${currentValues.rsi6.toFixed(2)}`);
-      }
-      if (Number.isFinite(currentValues.rsi12)) {
-        parts.push(`RSI12=${currentValues.rsi12.toFixed(2)}`);
-      }
-
-      // KDJ
-      if (
-        currentValues.kdj &&
-        Number.isFinite(currentValues.kdj.k) &&
-        Number.isFinite(currentValues.kdj.d) &&
-        Number.isFinite(currentValues.kdj.j)
-      ) {
-        parts.push(
-          `KDJ(K=${currentValues.kdj.k.toFixed(
-            2
-          )},D=${currentValues.kdj.d.toFixed(
-            2
-          )},J=${currentValues.kdj.j.toFixed(2)})`
-        );
-      }
-
-      // MACD（只显示MACD柱值）
-      if (currentValues.macd && Number.isFinite(currentValues.macd.macd)) {
-        parts.push(`MACD=${currentValues.macd.macd.toFixed(4)}`);
-      }
-
-      if (parts.length > 0) {
+      // 只显示价格变化
+      if (Number.isFinite(currentPrice)) {
         logger.info(
-          `[监控标的指标] ${monitorSymbolName}(${normalizeHKSymbol(
+          `[监控标的] ${monitorSymbolName}(${normalizeHKSymbol(
             monitorSymbol
-          )}) ${parts.join(" ")}`
+          )}) 价格=${currentPrice.toFixed(3)}`
         );
       }
 
-      // 更新保存的值
-      lastState.monitorValues = {
-        price: currentValues.price,
-        vwap: currentValues.vwap,
-        rsi6: currentValues.rsi6,
-        rsi12: currentValues.rsi12,
-        kdj: currentValues.kdj
-          ? {
-              k: currentValues.kdj.k,
-              d: currentValues.kdj.d,
-              j: currentValues.kdj.j,
-            }
-          : null,
-        macd: currentValues.macd
-          ? {
-              dif: currentValues.macd.dif,
-              dea: currentValues.macd.dea,
-              macd: currentValues.macd.macd,
-            }
-          : null,
-      };
+      // 更新保存的价格值（只保存有效价格，用于下次比较）
+      if (Number.isFinite(currentPrice)) {
+        lastState.monitorValues = {
+          price: currentPrice,
+        };
+      }
     }
   }
 
@@ -1339,129 +1379,35 @@ async function runOnce({
     for (const sig of finalSignals) {
       if (sig.action === SignalType.SELLCALL) {
         // 卖出做多标的：判断成本价并计算卖出数量
-        if (
-          longPosition &&
-          Number.isFinite(longPosition.costPrice) &&
-          longPosition.costPrice > 0 &&
-          Number.isFinite(longPosition.availableQuantity) &&
-          longPosition.availableQuantity > 0 &&
-          longQuote &&
-          Number.isFinite(longQuote.price) &&
-          longQuote.price > 0
-        ) {
-          const currentPrice = longQuote.price;
-          const costPrice = longPosition.costPrice;
-
-          if (currentPrice > costPrice) {
-            // 当前价格高于持仓成本价，立即清仓所有做多标的持仓
-            sig.quantity = longPosition.availableQuantity;
-            sig.reason = `${sig.reason || ""}，当前价格${currentPrice.toFixed(
-              3
-            )}>成本价${costPrice.toFixed(3)}，立即清空所有做多标的持仓`;
-          } else {
-            // 当前价格没有高于持仓成本价，检查历史买入订单
-            if (orderRecorder) {
-              const buyOrdersBelowPrice =
-                orderRecorder.getLongBuyOrdersBelowPrice(currentPrice);
-              if (buyOrdersBelowPrice && buyOrdersBelowPrice.length > 0) {
-                const totalQuantity =
-                  orderRecorder.calculateTotalQuantity(buyOrdersBelowPrice);
-                if (totalQuantity > 0) {
-                  sig.quantity = totalQuantity;
-                  sig.reason = `${
-                    sig.reason || ""
-                  }，但做多标的价格${currentPrice.toFixed(
-                    3
-                  )}未高于成本价${costPrice.toFixed(
-                    3
-                  )}，卖出历史买入订单中买入价低于当前价的订单，共 ${totalQuantity} 股`;
-                } else {
-                  // 没有符合条件的订单，跳过此信号
-                  sig.action = SignalType.HOLD;
-                  sig.reason = `${
-                    sig.reason || ""
-                  }，但做多标的价格${currentPrice.toFixed(
-                    3
-                  )}未高于成本价${costPrice.toFixed(
-                    3
-                  )}，且没有买入价低于当前价的历史订单`;
-                }
-              } else {
-                // 没有符合条件的订单，跳过此信号
-                sig.action = SignalType.HOLD;
-                sig.reason = `${
-                  sig.reason || ""
-                }，但做多标的价格${currentPrice.toFixed(
-                  3
-                )}未高于成本价${costPrice.toFixed(
-                  3
-                )}，且没有买入价低于当前价的历史订单`;
-              }
-            }
-          }
+        const result = calculateSellQuantity(
+          longPosition,
+          longQuote,
+          orderRecorder,
+          "LONG",
+          sig.reason
+        );
+        if (result.shouldHold) {
+          sig.action = SignalType.HOLD;
+          sig.reason = result.reason;
+        } else {
+          sig.quantity = result.quantity;
+          sig.reason = result.reason;
         }
       } else if (sig.action === SignalType.SELLPUT) {
         // 卖出做空标的：判断成本价并计算卖出数量
-        if (
-          shortPosition &&
-          Number.isFinite(shortPosition.costPrice) &&
-          shortPosition.costPrice > 0 &&
-          Number.isFinite(shortPosition.availableQuantity) &&
-          shortPosition.availableQuantity > 0 &&
-          shortQuote &&
-          Number.isFinite(shortQuote.price) &&
-          shortQuote.price > 0
-        ) {
-          const currentPrice = shortQuote.price;
-          const costPrice = shortPosition.costPrice;
-
-          if (currentPrice > costPrice) {
-            // 当前价格高于持仓成本价，立即清仓所有做空标的持仓
-            sig.quantity = shortPosition.availableQuantity;
-            sig.reason = `${sig.reason || ""}，当前价格${currentPrice.toFixed(
-              3
-            )}>成本价${costPrice.toFixed(3)}，立即清空所有做空标的持仓`;
-          } else {
-            // 当前价格没有高于持仓成本价，检查历史买入订单
-            if (orderRecorder) {
-              const buyOrdersBelowPrice =
-                orderRecorder.getShortBuyOrdersBelowPrice(currentPrice);
-              if (buyOrdersBelowPrice && buyOrdersBelowPrice.length > 0) {
-                const totalQuantity =
-                  orderRecorder.calculateTotalQuantity(buyOrdersBelowPrice);
-                if (totalQuantity > 0) {
-                  sig.quantity = totalQuantity;
-                  sig.reason = `${
-                    sig.reason || ""
-                  }，但做空标的价格${currentPrice.toFixed(
-                    3
-                  )}未高于成本价${costPrice.toFixed(
-                    3
-                  )}，卖出历史买入订单中买入价低于当前价的订单，共 ${totalQuantity} 股`;
-                } else {
-                  // 没有符合条件的订单，跳过此信号
-                  sig.action = SignalType.HOLD;
-                  sig.reason = `${
-                    sig.reason || ""
-                  }，但做空标的价格${currentPrice.toFixed(
-                    3
-                  )}未高于成本价${costPrice.toFixed(
-                    3
-                  )}，且没有买入价低于当前价的历史订单`;
-                }
-              } else {
-                // 没有符合条件的订单，跳过此信号
-                sig.action = SignalType.HOLD;
-                sig.reason = `${
-                  sig.reason || ""
-                }，但做空标的价格${currentPrice.toFixed(
-                  3
-                )}未高于成本价${costPrice.toFixed(
-                  3
-                )}，且没有买入价低于当前价的历史订单`;
-              }
-            }
-          }
+        const result = calculateSellQuantity(
+          shortPosition,
+          shortQuote,
+          orderRecorder,
+          "SHORT",
+          sig.reason
+        );
+        if (result.shouldHold) {
+          sig.action = SignalType.HOLD;
+          sig.reason = result.reason;
+        } else {
+          sig.quantity = result.quantity;
+          sig.reason = result.reason;
         }
       }
     }
@@ -1702,12 +1648,11 @@ async function main() {
   let lastState = {
     longPrice: null,
     shortPrice: null,
-    monitorPrice: null,
     signal: null,
     canTrade: null,
     isHalfDay: null, // 记录是否是半日交易日
     pendingDelayedSignals: [], // 待验证的延迟信号列表（每个信号有自己独立的verificationHistory）
-    monitorValues: null, // 监控标的的所有指标值（price, vwap, rsi6, rsi12, kdj, macd）
+    monitorValues: null, // 监控标的的价格值（仅保存价格用于变化检测）
     cachedAccount: null, // 缓存的账户信息（仅在交易后更新）
     cachedPositions: [], // 缓存的持仓信息（仅在交易后更新）
   };
