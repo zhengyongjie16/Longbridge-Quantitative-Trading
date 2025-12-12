@@ -214,12 +214,4 @@ export const logger = {
       );
     }
   },
-
-  /**
-   * 手动刷新日志（用于测试或特殊场景）
-   * 同步输出所有待处理的日志
-   */
-  flush() {
-    logQueue.flushSync();
-  },
 };

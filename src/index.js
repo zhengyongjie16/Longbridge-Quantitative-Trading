@@ -1678,13 +1678,6 @@ async function main() {
   );
   logger.info("程序开始运行，在交易时段将进行实时监控和交易（按 Ctrl+C 退出）");
 
-  // 预加载当月和下月的交易日信息到缓存
-  const today = new Date();
-  await marketDataClient.preloadTradingDaysForMonth(today);
-  // 同时加载下个月的交易日信息（如果当前是月底）
-  const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-  await marketDataClient.preloadTradingDaysForMonth(nextMonth);
-
   // 初始化牛熊证信息（在程序启动时检查做多和做空标的是否为牛熊证）
   logger.info("[风险检查] 正在初始化牛熊证信息...");
   await riskChecker.initializeWarrantInfo(

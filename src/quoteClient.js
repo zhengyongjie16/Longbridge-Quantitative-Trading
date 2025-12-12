@@ -98,13 +98,6 @@ class TradingDayCache {
       this.set(dateStr, true, isHalfDay);
     }
   }
-
-  /**
-   * 清空缓存
-   */
-  clear() {
-    this._cache.clear();
-  }
 }
 
 /**
@@ -145,22 +138,6 @@ export class MarketDataClient {
       }
     }
     throw lastErr;
-  }
-
-  /**
-   * 获取多个标的的实时行情
-   * @param {string[]} symbols 标的代码数组
-   * @returns {Promise<import("longport").SecurityQuote[]>}
-   */
-  async getQuotes(symbols) {
-    const ctx = await this._ctxPromise;
-    // 确保 symbols 是数组格式
-    if (!Array.isArray(symbols)) {
-      throw new TypeError("getQuotes 需要传入数组格式的标的代码");
-    }
-    // 规范化港股代码
-    const normalizedSymbols = symbols.map((s) => normalizeHKSymbol(s));
-    return ctx.quote(normalizedSymbols);
   }
 
   async getLatestQuote(symbol) {
@@ -226,21 +203,6 @@ export class MarketDataClient {
   }
 
   /**
-   * 获取期权实时行情
-   * https://open.longbridge.com/zh-CN/docs/quote/pull/option-quote
-   * @param {string[]} symbols 期权标的代码数组
-   * @returns {Promise<import("longport").OptionQuote[]>}
-   */
-  async getOptionQuotes(symbols) {
-    const ctx = await this._ctxPromise;
-    // 确保 symbols 是数组格式
-    if (!Array.isArray(symbols)) {
-      throw new TypeError("getOptionQuotes 需要传入数组格式的标的代码");
-    }
-    return ctx.optionQuote(symbols);
-  }
-
-  /**
    * 获取指定标的的 K 线数据，用于计算 RSI/KDJ/均价。
    * @param {string} symbol 例如 "HSI.HK"
    * @param {"1m"|"5m"|"15m"|"1h"|"1d"|Period} period 周期
@@ -277,236 +239,6 @@ export class MarketDataClient {
       "1d": Period.Day,
     };
     return map[period] ?? Period.Min_1;
-  }
-
-  /**
-   * 判断标的是否为牛熊证（窝轮）
-   * 使用 warrantQuote API 获取牛熊证信息
-   * @param {string} symbol 标的代码
-   * @returns {Promise<{isWarrant: boolean, warrantType: "BULL"|"BEAR"|null, strikePrice: number|null, underlyingSymbol: string|null}>}
-   */
-  async checkWarrantInfo(symbol) {
-    const ctx = await this._ctxPromise;
-    const normalizedSymbol = normalizeHKSymbol(symbol);
-
-    try {
-      // 使用 warrantQuote API 获取轮证信息
-      const warrantQuotes = await this._withRetry(() =>
-        ctx.warrantQuote([normalizedSymbol])
-      );
-
-      // warrantQuote 返回数组，取第一个
-      const warrantQuote =
-        Array.isArray(warrantQuotes) && warrantQuotes.length > 0
-          ? warrantQuotes[0]
-          : null;
-
-      if (!warrantQuote) {
-        // 如果 warrantQuote 返回空，可能不是轮证，尝试从 staticInfo 获取基本信息
-        try {
-          const statics = await this._withRetry(() =>
-            ctx.staticInfo([normalizedSymbol])
-          );
-          const staticInfo = statics?.[0];
-
-          // 如果 staticInfo 也没有，返回非轮证
-          if (!staticInfo) {
-            return {
-              isWarrant: false,
-              warrantType: null,
-              strikePrice: null,
-              underlyingSymbol: null,
-            };
-          }
-
-          // 尝试从 staticInfo 获取相关资产代码
-          const underlyingSymbol =
-            staticInfo.underlyingSymbol ??
-            staticInfo.underlying_symbol ??
-            staticInfo.underlying ??
-            null;
-
-          return {
-            isWarrant: false,
-            warrantType: null,
-            strikePrice: null,
-            underlyingSymbol: underlyingSymbol
-              ? String(underlyingSymbol)
-              : null,
-          };
-        } catch (error) {
-          // 如果获取 staticInfo 失败，返回非轮证
-          return {
-            isWarrant: false,
-            warrantType: null,
-            strikePrice: null,
-            underlyingSymbol: null,
-          };
-        }
-      }
-
-      // 从 warrantQuote 中获取 category 字段判断牛熊证类型
-      const category = warrantQuote.category;
-      let isWarrant = false;
-      let warrantType = null;
-
-      if (category === "Bull" || category === "BULL") {
-        isWarrant = true;
-        warrantType = "BULL";
-      } else if (category === "Bear" || category === "BEAR") {
-        isWarrant = true;
-        warrantType = "BEAR";
-      }
-
-      // 获取回收价（call_price 字段）
-      let strikePrice = null;
-      if (isWarrant) {
-        const callPrice =
-          warrantQuote.call_price ?? warrantQuote.callPrice ?? null;
-        if (callPrice !== null && callPrice !== undefined) {
-          const parsed = decimalToNumber(callPrice);
-          if (Number.isFinite(parsed) && parsed > 0) {
-            strikePrice = parsed;
-          }
-        }
-      }
-
-      // 获取相关资产代码（underlying symbol）
-      // warrantQuote 可能包含 underlying_symbol 或 underlying 字段
-      let underlyingSymbol = null;
-      if (isWarrant) {
-        const underlying =
-          warrantQuote.underlying_symbol ??
-          warrantQuote.underlyingSymbol ??
-          warrantQuote.underlying ??
-          null;
-        if (underlying) {
-          underlyingSymbol = String(underlying);
-        } else {
-          // 如果 warrantQuote 中没有，尝试从 staticInfo 获取
-          try {
-            const statics = await this._withRetry(() =>
-              ctx.staticInfo([normalizedSymbol])
-            );
-            const staticInfo = statics?.[0];
-            if (staticInfo) {
-              const underlyingFromStatic =
-                staticInfo.underlyingSymbol ??
-                staticInfo.underlying_symbol ??
-                staticInfo.underlying ??
-                null;
-              if (underlyingFromStatic) {
-                underlyingSymbol = String(underlyingFromStatic);
-              }
-            }
-          } catch (error) {
-            // 如果获取 staticInfo 失败，忽略错误，继续使用 null
-          }
-        }
-      }
-
-      return {
-        isWarrant,
-        warrantType,
-        strikePrice,
-        underlyingSymbol,
-        warrantQuote, // 返回完整的 warrantQuote 以便调试
-      };
-    } catch (err) {
-      // 牛熊证检查失败，静默处理，返回非牛熊证避免阻止交易
-      return {
-        isWarrant: false,
-        warrantType: null,
-        strikePrice: null,
-        underlyingSymbol: null,
-      };
-    }
-  }
-
-  /**
-   * 获取牛熊证距离回收价的百分比
-   * @param {string} symbol 标的代码
-   * @param {number} underlyingPrice 相关资产的最新价格（如果为null，会尝试自动获取）
-   * @returns {Promise<{isWarrant: boolean, distanceToStrikePercent: number|null, warrantType: "BULL"|"BEAR"|null, strikePrice: number|null, underlyingPrice: number|null}>}
-   */
-  async getWarrantDistanceToStrike(symbol, underlyingPrice = null) {
-    const warrantInfo = await this.checkWarrantInfo(symbol);
-
-    if (!warrantInfo.isWarrant || !warrantInfo.strikePrice) {
-      return {
-        isWarrant: false,
-        distanceToStrikePercent: null,
-        warrantType: null,
-        strikePrice: null,
-        underlyingPrice: null,
-      };
-    }
-
-    // 如果没有提供相关资产价格，尝试获取
-    let actualUnderlyingPrice = underlyingPrice;
-    if (actualUnderlyingPrice === null && warrantInfo.underlyingSymbol) {
-      try {
-        const underlyingQuote = await this.getLatestQuote(
-          warrantInfo.underlyingSymbol
-        );
-        actualUnderlyingPrice = underlyingQuote?.price ?? null;
-      } catch (err) {
-        // 获取相关资产价格失败，静默处理
-      }
-    }
-
-    if (
-      actualUnderlyingPrice === null ||
-      !Number.isFinite(actualUnderlyingPrice)
-    ) {
-      return {
-        isWarrant: true,
-        distanceToStrikePercent: null,
-        warrantType: warrantInfo.warrantType,
-        strikePrice: warrantInfo.strikePrice,
-        underlyingPrice: null,
-      };
-    }
-
-    // 计算距离回收价的百分比
-    let distanceToStrikePercent = null;
-    // 确保回收价不为0且有效
-    if (
-      !Number.isFinite(warrantInfo.strikePrice) ||
-      warrantInfo.strikePrice <= 0
-    ) {
-      return {
-        isWarrant: true,
-        distanceToStrikePercent: null,
-        warrantType: warrantInfo.warrantType,
-        strikePrice: warrantInfo.strikePrice,
-        underlyingPrice: actualUnderlyingPrice,
-      };
-    }
-
-    if (warrantInfo.warrantType === "BULL") {
-      // 牛证：距离回收价百分比 = (相关资产现价 - 回收价) / 回收价 * 100%
-      distanceToStrikePercent =
-        ((actualUnderlyingPrice - warrantInfo.strikePrice) /
-          warrantInfo.strikePrice) *
-        100;
-    } else if (warrantInfo.warrantType === "BEAR") {
-      // 熊证：距离回收价百分比 = (回收价 - 相关资产现价) / 回收价 * 100%
-      distanceToStrikePercent =
-        ((warrantInfo.strikePrice - actualUnderlyingPrice) /
-          warrantInfo.strikePrice) *
-        100;
-    }
-
-    return {
-      isWarrant: true,
-      distanceToStrikePercent: Number.isFinite(distanceToStrikePercent)
-        ? distanceToStrikePercent
-        : null,
-      warrantType: warrantInfo.warrantType,
-      strikePrice: warrantInfo.strikePrice,
-      underlyingPrice: actualUnderlyingPrice,
-    };
   }
 
   /**
@@ -601,29 +333,6 @@ export class MarketDataClient {
         isTradingDay: true,
         isHalfDay: false,
       };
-    }
-  }
-
-  /**
-   * 预加载指定月份的交易日信息到缓存
-   * 建议在程序启动时调用，提前加载当月和下月的交易日信息
-   * @param {Date} date 日期对象（将加载该日期所在月份的交易日信息）
-   * @param {Market} market 市场类型，默认为香港市场
-   * @returns {Promise<void>}
-   */
-  async preloadTradingDaysForMonth(date, market = Market.HK) {
-    try {
-      // 计算月初和月末
-      const year = date.getFullYear();
-      const month = date.getMonth();
-      const startOfMonth = new Date(year, month, 1);
-      const endOfMonth = new Date(year, month + 1, 0); // 下个月的第0天 = 当月最后一天
-
-      await this.getTradingDays(startOfMonth, endOfMonth, market);
-    } catch (err) {
-      // 预加载失败不影响程序运行，静默处理
-      // 如果需要调试，可以取消下面的注释
-      // console.warn(`[交易日预加载] 加载交易日信息失败：`, err?.message ?? err);
     }
   }
 }

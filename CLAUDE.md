@@ -12,7 +12,7 @@
 
 ```
 主循环 (index.js) → 每秒执行一次
-  ├─ 行情数据 (MarketDataClient)
+  ├─ 行情数据 (QuoteClient)
   ├─ 指标计算 (indicators.js)
   ├─ 信号生成 (strategy.js)
   ├─ 风险验证 (risk.js)
@@ -134,14 +134,13 @@ npm start
 - **类**：`MarketDataClient`
 - **缓存机制**：
   - 行情数据：1 秒 TTL（避免同一循环内重复 API 调用）
-  - 交易日信息：24 小时 TTL（启动时预加载当月和次月）
+  - 交易日信息：24 小时 TTL（按需查询当日是否为交易日）
 - **核心方法**：
   - `getLatestQuote(symbol)`：获取单个标的实时行情（带缓存和静态信息）
   - `getQuotes(symbols)`：获取多个标的实时行情
   - `getCandlesticks(symbol, period, count)`：获取 K 线数据（默认 200 根，1 分钟周期）
   - `isTradingDay(date)`：检查指定日期是否为交易日
   - `checkWarrantInfo(symbol)`：检查标的是否为牛熊证并获取回收价
-  - `preloadTradingDaysForMonth(date)`：预加载指定月份的交易日信息
 
 ## 关键数据流
 
@@ -218,8 +217,7 @@ npm start
 
 ```
 1. 验证所有配置（标的存在、是否有效港股）
-2. 预加载当月和次月的交易日信息
-3. 初始化组件：
+2. 初始化组件：
    ├─ Strategy（带指标阈值）
    ├─ Trader（延迟 TradeContext 初始化）
    ├─ OrderRecorder（链接到 Trader）
