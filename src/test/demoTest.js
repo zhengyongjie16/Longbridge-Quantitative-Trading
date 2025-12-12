@@ -22,11 +22,13 @@ const DEFAULT_SYMBOL = "HSI.HK";
 // 默认日期（如果未通过环境变量或命令行参数指定）
 // 格式：YYYY-MM-DD（例如：2024-12-11）
 // 设置为 null 则必须通过环境变量或命令行参数指定
-const DEFAULT_DATE = "2025-12-11"; // 例如：可以设置为 "2024-12-11"
+const DEFAULT_DATE = "2025-12-12"; // 例如：可以设置为 "2024-12-11"
 // ============================================
 
 /**
- * 格式化时间为 HH:mm:ss 格式（北京时间）
+ * 格式化时间为 HH:mm:ss 格式（香港时间）
+ * 使用与代码库其他地方相同的 toLocaleString 方法，确保时区转换的一致性
+ * 参考：index.js:235-237 使用相同的时区转换方法
  * @param {number|Date} timestamp 时间戳或日期对象
  * @returns {string} 格式化的时间字符串 HH:mm:ss
  */
@@ -36,12 +38,19 @@ function formatTimeHHMMSS(timestamp) {
       ? timestamp
       : timestamp?.getTime?.() || Date.now();
   const date = new Date(ts);
-  const beijingOffset = 8 * 60 * 60 * 1000; // 8小时的毫秒数
-  const beijingTime = new Date(date.getTime() + beijingOffset);
-  const hours = String(beijingTime.getUTCHours()).padStart(2, "0");
-  const minutes = String(beijingTime.getUTCMinutes()).padStart(2, "0");
-  const seconds = String(beijingTime.getUTCSeconds()).padStart(2, "0");
-  return `${hours}:${minutes}:${seconds}`;
+
+  // 使用与代码库其他地方相同的时区转换方法（index.js:235-237）
+  // 使用 toLocaleString 和 timeZone: "Asia/Hong_Kong" 确保准确的时区转换
+  // 直接指定只返回时间部分，避免手动解析
+  const formatted = date.toLocaleTimeString("zh-CN", {
+    timeZone: "Asia/Hong_Kong",
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+
+  return formatted; // 返回 "HH:mm:ss" 格式
 }
 
 /**
@@ -164,7 +173,8 @@ async function getIntradayCandlesticks(symbol, dateStr) {
     // 定义列宽（使用固定宽度确保对齐）
     const colWidths = {
       time: 10, // 时间
-      close: 16, // 收盘价
+      closeHeader: 12, // 收盘价
+      closeRow: 17, // 收盘价
       rsi6: 8, // RSI6
       rsi12: 8, // RSI12
       kdjK: 8, // KDJ.K
@@ -186,7 +196,7 @@ async function getIntradayCandlesticks(symbol, dateStr) {
     // 打印表头
     const header = [
       formatHeader("时间", colWidths.time),
-      formatHeader("收盘价", colWidths.close),
+      formatHeader("收盘价", colWidths.closeHeader),
       formatHeader("RSI6", colWidths.rsi6),
       formatHeader("RSI12", colWidths.rsi12),
       formatHeader("KDJ.K", colWidths.kdjK),
@@ -229,7 +239,7 @@ async function getIntradayCandlesticks(symbol, dateStr) {
       // 格式化数据行
       const row = [
         formatCell(timeStr, colWidths.time),
-        formatCell(close, colWidths.close),
+        formatCell(close, colWidths.closeRow),
         formatCell(rsi6Str, colWidths.rsi6),
         formatCell(rsi12Str, colWidths.rsi12),
         formatCell(kdjKStr, colWidths.kdjK),
