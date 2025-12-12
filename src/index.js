@@ -23,13 +23,27 @@ import {
  * @param {Date} date 时间对象（应该是UTC时间）
  * @returns {boolean} true表示在连续交易时段，false表示不在
  */
+/**
+ * 将UTC时间转换为香港时区（UTC+8）
+ * @param {Date} date 时间对象（UTC时间）
+ * @returns {{hkHour: number, hkMinute: number}|null} 香港时区的小时和分钟，如果date无效则返回null
+ */
+function getHKTime(date) {
+  if (!date) return null;
+  const utcHour = date.getUTCHours();
+  const utcMinute = date.getUTCMinutes();
+  return {
+    hkHour: (utcHour + 8) % 24,
+    hkMinute: utcMinute,
+  };
+}
+
 function isInContinuousHKSession(date) {
   if (!date) return false;
   // 将时间转换为香港时区（UTC+8）
-  const utcHour = date.getUTCHours();
-  const utcMinute = date.getUTCMinutes();
-  const hkHour = (utcHour + 8) % 24;
-  const hkMinute = utcMinute;
+  const hkTime = getHKTime(date);
+  if (!hkTime) return false;
+  const { hkHour, hkMinute } = hkTime;
 
   // 上午连续交易时段：09:30 - 12:00（不含 12:00 本身）
   const inMorning =
@@ -53,10 +67,9 @@ function isInContinuousHKSession(date) {
  */
 function isBeforeClose15Minutes(date, isHalfDay = false) {
   if (!date) return false;
-  const utcHour = date.getUTCHours();
-  const utcMinute = date.getUTCMinutes();
-  const hkHour = (utcHour + 8) % 24;
-  const hkMinute = utcMinute;
+  const hkTime = getHKTime(date);
+  if (!hkTime) return false;
+  const { hkHour, hkMinute } = hkTime;
 
   if (isHalfDay) {
     // 半日交易：收盘前15分钟为 11:45 - 11:59:59（12:00收盘）
@@ -77,10 +90,9 @@ function isBeforeClose15Minutes(date, isHalfDay = false) {
  */
 function isBeforeClose5Minutes(date, isHalfDay = false) {
   if (!date) return false;
-  const utcHour = date.getUTCHours();
-  const utcMinute = date.getUTCMinutes();
-  const hkHour = (utcHour + 8) % 24;
-  const hkMinute = utcMinute;
+  const hkTime = getHKTime(date);
+  if (!hkTime) return false;
+  const { hkHour, hkMinute } = hkTime;
 
   if (isHalfDay) {
     // 半日交易：收盘前5分钟为 11:55 - 11:59:59（12:00收盘）
