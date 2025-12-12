@@ -1118,9 +1118,17 @@ async function runOnce({
     const normalizedShortSymbol = normalizeHKSymbol(shortSymbol);
 
     for (const sig of signals) {
-      // 获取标的的当前价格用于计算持仓市值
+      // 性能优化：在循环开始时缓存常用的计算结果，避免重复调用
       const normalizedSigSymbol = normalizeHKSymbol(sig.symbol);
+      const sigName = getSymbolName(
+        sig.symbol,
+        longSymbol,
+        shortSymbol,
+        longSymbolName,
+        shortSymbolName
+      );
 
+      // 获取标的的当前价格用于计算持仓市值
       let currentPrice = null;
       if (normalizedSigSymbol === normalizedLongSymbol && longQuote) {
         currentPrice = longQuote.price;
@@ -1158,16 +1166,8 @@ async function runOnce({
           const waitSeconds = lastTime
             ? Math.ceil((60 * 1000 - (Date.now() - lastTime)) / 1000)
             : 0;
-          const sigName = getSymbolName(
-            sig.symbol,
-            longSymbol,
-            shortSymbol,
-            longSymbolName,
-            shortSymbolName
-          );
-          const codeText = normalizeHKSymbol(sig.symbol);
           logger.warn(
-            `[交易频率限制] ${direction} 在1分钟内已买入过，需等待 ${waitSeconds} 秒后才能再次买入：${sigName}(${codeText}) ${sig.action}`
+            `[交易频率限制] ${direction} 在1分钟内已买入过，需等待 ${waitSeconds} 秒后才能再次买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`
           );
           continue; // 跳过这个买入信号，不进行后续检查
         }
@@ -1179,18 +1179,9 @@ async function runOnce({
           isHalfDayToday
         );
         if (shouldClearBeforeClose && isBeforeClose15) {
-          // 获取标的的中文名称
-          const sigName = getSymbolName(
-            sig.symbol,
-            longSymbol,
-            shortSymbol,
-            longSymbolName,
-            shortSymbolName
-          );
-          const codeText = normalizeHKSymbol(sig.symbol);
           const closeTimeRange = isHalfDayToday ? "11:45-12:00" : "15:45-16:00";
           logger.warn(
-            `[末日保护程序] 收盘前15分钟内拒绝买入：${sigName}(${codeText}) ${sig.action} - 当前时间在${closeTimeRange}范围内`
+            `[末日保护程序] 收盘前15分钟内拒绝买入：${sigName}(${normalizedSigSymbol}) ${sig.action} - 当前时间在${closeTimeRange}范围内`
           );
           continue; // 跳过这个买入信号
         }
@@ -1209,17 +1200,8 @@ async function runOnce({
         );
 
         if (!warrantRiskResult.allowed) {
-          // 获取标的的中文名称
-          const sigName = getSymbolName(
-            sig.symbol,
-            longSymbol,
-            shortSymbol,
-            longSymbolName,
-            shortSymbolName
-          );
-          const codeText = normalizeHKSymbol(sig.symbol);
           logger.warn(
-            `[牛熊证风险拦截] 信号被牛熊证风险控制拦截：${sigName}(${codeText}) ${sig.action} - ${warrantRiskResult.reason}`
+            `[牛熊证风险拦截] 信号被牛熊证风险控制拦截：${sigName}(${normalizedSigSymbol}) ${sig.action} - ${warrantRiskResult.reason}`
           );
           continue; // 跳过这个信号，不加入finalSignals
         } else if (warrantRiskResult.warrantInfo?.isWarrant) {
@@ -1311,17 +1293,8 @@ async function runOnce({
       if (riskResult.allowed) {
         finalSignals.push(sig);
       } else {
-        // 获取标的的中文名称
-        const sigName = getSymbolName(
-          sig.symbol,
-          longSymbol,
-          shortSymbol,
-          longSymbolName,
-          shortSymbolName
-        );
-        const codeText = normalizeHKSymbol(sig.symbol);
         logger.warn(
-          `[风险拦截] 信号被风险控制拦截：${sigName}(${codeText}) ${sig.action} - ${riskResult.reason}`
+          `[风险拦截] 信号被风险控制拦截：${sigName}(${normalizedSigSymbol}) ${sig.action} - ${riskResult.reason}`
         );
       }
     }
@@ -1331,6 +1304,16 @@ async function runOnce({
   if (finalSignals.length > 0) {
     hasChange = true;
     for (const sig of finalSignals) {
+      // 性能优化：在循环开始时缓存常用的计算结果
+      const normalizedSigSymbol = normalizeHKSymbol(sig.symbol);
+      const sigName = getSymbolName(
+        sig.symbol,
+        longSymbol,
+        shortSymbol,
+        longSymbolName,
+        shortSymbolName
+      );
+
       let targetAction = "未知";
       if (
         sig.action === SignalType.BUYCALL ||
@@ -1343,17 +1326,9 @@ async function runOnce({
       ) {
         targetAction = "卖出";
       }
-      // 获取标的的中文名称
-      const sigName = getSymbolName(
-        sig.symbol,
-        longSymbol,
-        shortSymbol,
-        longSymbolName,
-        shortSymbolName
-      );
-      const codeText = normalizeHKSymbol(sig.symbol);
+
       logger.info(
-        `[交易指令] 将对 ${sigName}(${codeText}) 执行${targetAction}操作 - ${sig.reason}`
+        `[交易指令] 将对 ${sigName}(${normalizedSigSymbol}) 执行${targetAction}操作 - ${sig.reason}`
       );
     }
   } else if (signals.length > 0 && !canTradeNow) {
