@@ -8,7 +8,7 @@ import {
   TradeSessions,
 } from "longport";
 import { normalizeHKSymbol, decimalToNumber, formatNumber } from "../utils.js";
-import { calculateRSI, calculateKDJ, calculateMACD } from "../indicators.js";
+import { RSI, MACD, EMA } from "technicalindicators";
 
 // 加载环境变量
 dotenv.config();
@@ -217,16 +217,209 @@ async function getIntradayCandlesticks(symbol, dateStr) {
       // 获取到当前时间点为止的所有K线数据（包括前一天的数据，用于计算指标）
       const candlesUpToNow = candlesticks.slice(0, i + 1);
 
-      // 计算RSI6和RSI12（需要收盘价数组）
+      // 提取数据数组
       const closes = candlesUpToNow.map((c) => decimalToNumber(c.close));
-      const rsi6 = calculateRSI(closes, 6);
-      const rsi12 = calculateRSI(closes, 12);
 
-      // 计算KDJ（需要完整的K线数据）
-      const kdj = calculateKDJ(candlesUpToNow, 9);
+      // 使用 technicalindicators 库计算指标
+      // 该库提供了经过优化的指标计算实现，性能更好且经过充分测试
 
-      // 计算MACD（需要收盘价数组）
-      const macd = calculateMACD(closes);
+      // RSI6（相对强弱指标，周期6）
+      let rsi6 = null;
+      try {
+        if (closes.length > 6) {
+          // RSI.calculate 返回一个数组，最后一个元素是当前的 RSI 值
+          const rsi6Result = RSI.calculate({ values: closes, period: 6 });
+          if (rsi6Result && rsi6Result.length > 0) {
+            rsi6 = rsi6Result.at(-1);
+            // 确保 RSI 值在有效范围内（0-100）
+            if (!Number.isFinite(rsi6) || rsi6 < 0 || rsi6 > 100) {
+              rsi6 = null;
+            }
+          }
+        }
+      } catch (err) {
+        // 如果计算失败（如数据不足或无效），保持为 null
+        // 静默处理错误，不影响程序运行
+      }
+
+      // RSI12（相对强弱指标，周期12）
+      let rsi12 = null;
+      try {
+        if (closes.length > 12) {
+          const rsi12Result = RSI.calculate({ values: closes, period: 12 });
+          if (rsi12Result && rsi12Result.length > 0) {
+            rsi12 = rsi12Result.at(-1);
+            // 确保 RSI 值在有效范围内（0-100）
+            if (!Number.isFinite(rsi12) || rsi12 < 0 || rsi12 > 100) {
+              rsi12 = null;
+            }
+          }
+        }
+      } catch (err) {
+        // 如果计算失败，保持为 null
+        // 静默处理错误，不影响程序运行
+      }
+
+      // KDJ（使用 technicalindicators 的 EMA 函数优化计算，与 indicators.js 中的逻辑一致）
+      // 计算方式：
+      // 1. 计算所有 RSV（未成熟随机值）= ((收盘价 - 最低价) / (最高价 - 最低价)) * 100
+      // 2. 使用 EMA(period=5) 平滑 RSV 得到 K（平滑系数 = 2/(5+1) = 1/3，与当前代码一致）
+      // 3. 使用 EMA(period=5) 平滑 K 得到 D（平滑系数 = 1/3）
+      // 4. J = 3*K - 2*D
+      // 注意：EMA 的平滑系数 = 2/(period+1)，当 period=5 时，平滑系数 = 2/6 = 1/3
+      // 这与当前代码的 K = (2/3) * 前一个K + (1/3) * RSV 完全一致
+      let kdj = { k: null, d: null, j: null };
+      try {
+        if (candlesUpToNow.length >= 9) {
+          const period = 9; // KDJ 的周期（用于计算 RSV）
+          const emaPeriod = 5; // EMA 平滑周期（平滑系数 = 2/(5+1) = 1/3）
+
+          // 步骤1：计算所有 RSV 值
+          const rsvValues = [];
+          for (let i = period - 1; i < candlesUpToNow.length; i += 1) {
+            // 获取当前窗口（最近 period 根K线）
+            const window = candlesUpToNow.slice(i - period + 1, i + 1);
+
+            // 提取窗口内的最高价和最低价
+            const windowHighs = window
+              .map((c) => decimalToNumber(c.high))
+              .filter((v) => Number.isFinite(v));
+            const windowLows = window
+              .map((c) => decimalToNumber(c.low))
+              .filter((v) => Number.isFinite(v));
+            const close = decimalToNumber(window.at(-1)?.close);
+
+            // 验证数据有效性
+            if (
+              windowHighs.length === 0 ||
+              windowLows.length === 0 ||
+              !Number.isFinite(close)
+            ) {
+              continue; // 跳过无效数据
+            }
+
+            // 计算窗口内的最高价和最低价
+            const highestHigh = Math.max(...windowHighs);
+            const lowestLow = Math.min(...windowLows);
+            const range = highestHigh - lowestLow;
+
+            // 确保 range 不为 0 或 NaN（如果最高价等于最低价，跳过）
+            if (!Number.isFinite(range) || range === 0) {
+              continue; // 跳过无效数据
+            }
+
+            // 计算 RSV（未成熟随机值）
+            // RSV = ((收盘价 - 最低价) / (最高价 - 最低价)) * 100
+            const rsv = ((close - lowestLow) / range) * 100;
+            rsvValues.push(rsv);
+          }
+
+          if (rsvValues.length > 0) {
+            // 步骤2：使用 EMA(period=5) 平滑 RSV 得到 K 值
+            // EMA 的平滑系数 = 2/(period+1) = 2/6 = 1/3
+            // 公式：EMA = (1/3) * 当前值 + (2/3) * 前一个EMA
+            // 这与 indicators.js 的 K = (1/3) * RSV + (2/3) * 前一个K 完全一致
+            const emaK = new EMA({ period: emaPeriod, values: [] });
+            const kValues = [];
+            // 先用初始值 50 初始化 EMA（与 indicators.js 一致）
+            // 这样第一个 RSV 计算时：K = (1/3) * RSV + (2/3) * 50
+            emaK.nextValue(50); // 设置初始值为 50
+            // 然后对每个 RSV 应用 EMA 平滑
+            for (let i = 0; i < rsvValues.length; i++) {
+              const kValue = emaK.nextValue(rsvValues[i]);
+              if (kValue !== undefined) {
+                kValues.push(kValue);
+              } else {
+                // 如果返回 undefined（理论上不应该发生），使用前一个值或初始值
+                kValues.push(kValues.length > 0 ? kValues.at(-1) : 50);
+              }
+            }
+
+            // 步骤3：使用 EMA(period=5) 平滑 K 值得到 D 值
+            const emaD = new EMA({ period: emaPeriod, values: [] });
+            const dValues = [];
+            // 先用初始值 50 初始化 EMA（与 indicators.js 一致）
+            emaD.nextValue(50); // 设置初始值为 50
+            // 然后对每个 K 值应用 EMA 平滑
+            for (let i = 0; i < kValues.length; i++) {
+              const dValue = emaD.nextValue(kValues[i]);
+              if (dValue !== undefined) {
+                dValues.push(dValue);
+              } else {
+                // 如果返回 undefined（理论上不应该发生），使用前一个值或初始值
+                dValues.push(dValues.length > 0 ? dValues.at(-1) : 50);
+              }
+            }
+
+            // 获取最后的 K 和 D 值
+            const k = kValues.at(-1);
+            const d = dValues.at(-1);
+
+            // 步骤4：计算J值
+            // J = 3 * K - 2 * D
+            const j = 3 * k - 2 * d;
+
+            // 验证计算结果的有效性
+            if (
+              Number.isFinite(k) &&
+              Number.isFinite(d) &&
+              Number.isFinite(j)
+            ) {
+              kdj = { k, d, j };
+            }
+          }
+        }
+      } catch (err) {
+        // 如果计算失败，保持为 null
+        // 静默处理错误，不影响程序运行
+      }
+
+      // MACD（移动平均收敛散度指标）
+      let macd = null;
+      try {
+        // MACD 需要足够的数据：至少 slowPeriod + signalPeriod = 26 + 9 = 35 根K线
+        if (closes.length >= 26 + 9) {
+          // MACD 默认参数：fastPeriod=12, slowPeriod=26, signalPeriod=9
+          // SimpleMAOscillator: false 表示使用 EMA（指数移动平均）计算快慢线
+          // SimpleMASignal: false 表示使用 EMA 计算信号线
+          const macdResult = MACD.calculate({
+            values: closes,
+            fastPeriod: 12,
+            slowPeriod: 26,
+            signalPeriod: 9,
+            SimpleMAOscillator: false, // 使用 EMA（与当前代码逻辑一致）
+            SimpleMASignal: false, // 使用 EMA（与当前代码逻辑一致）
+          });
+          if (macdResult && macdResult.length > 0) {
+            const lastMacd = macdResult.at(-1);
+            // technicalindicators 返回 {MACD, signal, histogram}
+            // 根据当前代码逻辑（indicators.js:409-410），我们需要返回 {dif, dea, macd}
+            // MACD 对应 dif（快慢线差值 = EMA12 - EMA26）
+            // signal 对应 dea（信号线 = DIF 的 EMA9）
+            // histogram = MACD - signal = dif - dea
+            // 当前代码中 macd = (dif - dea) * 2，所以需要将 histogram 乘以 2 以保持一致性
+            const dif = lastMacd.MACD;
+            const dea = lastMacd.signal;
+            const macdValue = lastMacd.histogram * 2; // 保持与当前代码逻辑一致
+
+            // 验证数据有效性
+            if (
+              Number.isFinite(dif) &&
+              Number.isFinite(dea) &&
+              Number.isFinite(macdValue)
+            ) {
+              macd = {
+                dif,
+                dea,
+                macd: macdValue,
+              };
+            }
+          }
+        }
+      } catch (err) {
+        // 如果计算失败（如数据不足或无效），保持为 null
+        // 静默处理错误，不影响程序运行
+      }
 
       // 格式化指标值显示
       const rsi6Str = rsi6 !== null ? formatNumber(rsi6, 2) : "-";

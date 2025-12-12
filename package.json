@@ -9,9 +9,7 @@
   },
   "dependencies": {
     "dotenv": "^16.4.0",
-    "longport": "^3.0.0"
+    "longport": "^3.0.0",
+    "technicalindicators": "^3.1.0"
   }
 }
-
-
-
