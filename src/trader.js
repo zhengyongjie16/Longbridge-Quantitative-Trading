@@ -8,7 +8,7 @@ import {
 } from "longport";
 import { createConfig } from "./config/config.js";
 import { TRADING_CONFIG } from "./config/config.trading.js";
-import { logger } from "./logger.js";
+import { logger, colors } from "./logger.js";
 import { SignalType } from "./signalTypes.js";
 import {
   normalizeHKSymbol,
@@ -892,17 +892,20 @@ export class Trader {
       if (s.action === SignalType.BUYCALL) {
         actualAction = "买入做多标的（做多）";
       } else if (s.action === SignalType.SELLCALL) {
-        actualAction = "卖出做多标的（清仓）";
+        actualAction = "卖出做多标的（平仓）";
       } else if (s.action === SignalType.BUYPUT) {
         actualAction = "买入做空标的（做空）";
       } else if (s.action === SignalType.SELLPUT) {
-        actualAction = "卖出做空标的（平空仓）";
+        actualAction = "卖出做空标的（平仓）";
       } else {
         actualAction = `未知操作(${s.action})`;
       }
 
+      // 使用绿色显示交易计划
       logger.info(
-        `[交易计划] ${actualAction} ${targetSymbol} - ${s.reason || "策略信号"}`
+        `${colors.green}[交易计划] ${actualAction} ${targetSymbol} - ${
+          s.reason || "策略信号"
+        }${colors.reset}`
       );
 
       const isBuyAction =

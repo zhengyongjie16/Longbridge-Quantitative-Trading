@@ -2,11 +2,12 @@
 import { toBeijingTimeLog } from "./utils.js";
 
 // ANSI 颜色代码
-const colors = {
+export const colors = {
   reset: "\x1b[0m",
   yellow: "\x1b[33m",
   red: "\x1b[31m",
   gray: "\x1b[90m",
+  green: "\x1b[32m",
 };
 
 export const logger = {
@@ -40,9 +41,7 @@ export const logger = {
         extra
       );
     } else {
-      console.warn(
-        `${colors.yellow}[WARN] ${timestamp} ${msg}${colors.reset}`
-      );
+      console.warn(`${colors.yellow}[WARN] ${timestamp} ${msg}${colors.reset}`);
     }
   },
   error(msg, extra) {
@@ -53,9 +52,7 @@ export const logger = {
         extra
       );
     } else {
-      console.error(
-        `${colors.red}[ERROR] ${timestamp} ${msg}${colors.reset}`
-      );
+      console.error(`${colors.red}[ERROR] ${timestamp} ${msg}${colors.reset}`);
     }
   },
 };
