@@ -114,15 +114,6 @@ async function runOnce({
   // 使用缓存的账户和持仓信息（仅在交易后更新）
   let account = lastState.cachedAccount ?? null;
   let positions = lastState.cachedPositions ?? [];
-  // 获取做多标的的行情（用于判断是否在交易时段）
-  const longSymbol = TRADING_CONFIG.longSymbol;
-  const longQuote = await marketDataClient
-    .getLatestQuote(longSymbol)
-    .catch((err) => {
-      logger.warn(`[行情获取失败] 做多标的`, err?.message ?? err);
-      return null;
-    });
-  const longSymbolName = longQuote?.name ?? longSymbol;
 
   // 判断是否在交易时段（使用当前系统时间，而不是行情数据的时间戳）
   // 因为行情数据的时间戳可能是历史数据或缓存数据，不能准确反映当前是否在交易时段
@@ -166,6 +157,27 @@ async function runOnce({
   // 如果是交易日，再检查是否在交易时段
   const canTradeNow = isTradingDayToday && isInContinuousHKSession(currentTime);
 
+  // 并发获取三个标的的行情（优化性能：从串行改为并发）
+  const longSymbol = TRADING_CONFIG.longSymbol;
+  const shortSymbol = TRADING_CONFIG.shortSymbol;
+  const monitorSymbol = TRADING_CONFIG.monitorSymbol;
+
+  const [longQuote, shortQuote, monitorQuote] = await Promise.all([
+    marketDataClient.getLatestQuote(longSymbol).catch((err) => {
+      logger.warn(`[行情获取失败] 做多标的`, err?.message ?? err);
+      return null;
+    }),
+    marketDataClient.getLatestQuote(shortSymbol).catch((err) => {
+      logger.warn(`[行情获取失败] 做空标的`, err?.message ?? err);
+      return null;
+    }),
+    marketDataClient.getLatestQuote(monitorSymbol).catch(() => null),
+  ]);
+
+  const longSymbolName = longQuote?.name ?? longSymbol;
+  const shortSymbolName = shortQuote?.name ?? shortSymbol;
+  const monitorSymbolName = monitorQuote?.name ?? monitorSymbol;
+
   // 如果获取到了行情数据，记录一下行情时间用于调试（仅在DEBUG模式下）
   if (process.env.DEBUG === "true" && longQuote?.timestamp) {
     const quoteTime = longQuote.timestamp;
@@ -194,16 +206,6 @@ async function runOnce({
   }
 
   // 以下逻辑仅在连续交易时段执行
-  const shortSymbol = TRADING_CONFIG.shortSymbol;
-
-  // 获取做空标的的行情
-  const shortQuote = await marketDataClient
-    .getLatestQuote(shortSymbol)
-    .catch((err) => {
-      logger.warn(`[行情获取失败] 做空标的`, err?.message ?? err);
-      return null;
-    });
-  const shortSymbolName = shortQuote?.name ?? shortSymbol;
 
   // 检测价格变化，只在价格变化时显示
   const longPrice = longQuote?.price;
@@ -296,11 +298,6 @@ async function runOnce({
   }
 
   // 获取监控标的的K线数据（用于计算指标和生成信号）
-  const monitorSymbol = TRADING_CONFIG.monitorSymbol;
-  const monitorQuote = await marketDataClient
-    .getLatestQuote(monitorSymbol)
-    .catch(() => null);
-  const monitorSymbolName = monitorQuote?.name ?? monitorSymbol;
   const monitorCandles = await marketDataClient
     .getCandlesticks(monitorSymbol, candlePeriod, candleCount)
     .catch((err) => {
