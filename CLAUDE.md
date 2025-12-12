@@ -36,6 +36,7 @@ npm start
 ## 模块职责
 
 ### index.js（主入口）
+
 - **主循环**：`runOnce()` 每秒执行一次
 - **交易时段检查**：验证港股交易时间（09:30-12:00, 13:00-16:00）
 - **状态管理**：维护 `lastState` 对象，在循环迭代间保持：
@@ -43,7 +44,7 @@ npm start
   - 缓存的账户/持仓数据
   - 上次指标值（用于变化检测）
 - **收盘前保护机制**：
-  - 收盘前 30 分钟拒绝买入（正常日 15:30-16:00，半日 11:30-12:00）
+  - 收盘前 15 分钟拒绝买入（正常日 15:45-16:00，半日 11:45-12:00）
   - 收盘前 5 分钟自动清仓（正常日 15:55-15:59，半日 11:55-11:59）
 - **成本价判断与卖出策略**（index.js:1329-1458）：
   - 当 currentPrice > costPrice 时：立即清空所有持仓
@@ -51,30 +52,32 @@ npm start
   - 如果没有符合条件的订单，信号被设为 HOLD（持有）
 
 ### strategy.js（信号生成）
+
 - **类**：`HangSengMultiIndicatorStrategy`
 - **生成两类信号**：
   1. **立即信号**（卖出/平仓）：条件满足时立即执行
   2. **延迟信号**（买入/开仓）：等待 60 秒进行趋势确认
 - **多指标逻辑**：要求 4 个指标（RSI6、RSI12、KDJ.D、KDJ.J）中至少 3 个满足阈值
-- **信号类型及触发条件**（所有信号采用条件1或条件2的"或"关系）：
+- **信号类型及触发条件**（所有信号采用条件 1 或条件 2 的"或"关系）：
   - `BUYCALL`（买入做多 - 延迟验证）：
-    - 条件1：RSI6<20, RSI12<20, KDJ.D<20, KDJ.J<-1 四个指标满足3个以上
-    - 条件2：J < -20
+    - 条件 1：RSI6<20, RSI12<20, KDJ.D<20, KDJ.J<-1 四个指标满足 3 个以上
+    - 条件 2：J < -20
     - 验证：J2 > J1 且 MACD2 > MACD1
   - `SELLCALL`（卖出做多 - 立即执行）：
-    - 条件1：RSI6>80, RSI12>80, KDJ.D>79, KDJ.J>100 四个指标满足3个以上
-    - 条件2：J > 110
+    - 条件 1：RSI6>80, RSI12>80, KDJ.D>79, KDJ.J>100 四个指标满足 3 个以上
+    - 条件 2：J > 110
     - 注意：成本价判断在卖出策略中进行，信号生成时不检查
   - `BUYPUT`（买入做空 - 延迟验证）：
-    - 条件1：RSI6>80, RSI12>80, KDJ.D>80, KDJ.J>100 四个指标满足3个以上
-    - 条件2：J > 120
+    - 条件 1：RSI6>80, RSI12>80, KDJ.D>80, KDJ.J>100 四个指标满足 3 个以上
+    - 条件 2：J > 120
     - 验证：J2 < J1 且 MACD2 < MACD1
   - `SELLPUT`（卖出做空 - 立即执行）：
-    - 条件1：RSI6<20, RSI12<20, KDJ.D<22, KDJ.J<0 四个指标满足3个以上
-    - 条件2：J < -15
+    - 条件 1：RSI6<20, RSI12<20, KDJ.D<22, KDJ.J<0 四个指标满足 3 个以上
+    - 条件 2：J < -15
     - 注意：成本价判断在卖出策略中进行，信号生成时不检查
 
 ### trader.js（订单执行）
+
 - **类**：`Trader`
 - **核心方法**：
   - `executeSignals()`：根据过滤后的信号提交订单
@@ -85,6 +88,7 @@ npm start
 - **买单监控**：买入信号执行后自动启用，所有订单成交后停止
 
 ### risk.js（风险控制）
+
 - **类**：`RiskChecker`
 - **交易前检查**（仅针对买入信号）：
   1. **牛熊证风险**：牛证距离回收价 >0.5%，熊证 <-0.5%
@@ -99,11 +103,12 @@ npm start
   - 买入时必须有有效的账户数据，否则拒绝交易（安全策略）
 
 ### orderRecorder.js（历史订单跟踪）
+
 - **类**：`OrderRecorder`
 - **用途**：跟踪已成交买入订单，用于智能清仓决策
 - **过滤逻辑**（从旧到新累积过滤算法）：
   1. **M0**：在最新卖出时间之后成交的买入订单
-  2. **从旧到新过滤**：将卖出订单按成交时间从旧到新排序（D1是最旧的，D2次之，D3是最新的）：
+  2. **从旧到新过滤**：将卖出订单按成交时间从旧到新排序（D1 是最旧的，D2 次之，D3 是最新的）：
      - 对每个卖出订单（从 D1 到 D3）：
        a) 获取所有成交时间 < 该卖出订单时间的买入订单
        b) 计算这些买入订单的总数量
@@ -117,6 +122,7 @@ npm start
 - **智能清仓**：当 currentPrice ≤ costPrice 时，仅卖出 buyPrice < currentPrice 的订单（盈利部分）
 
 ### indicators.js（技术指标计算）
+
 - **RSI**：指数移动平均法（周期 6 和 12）
 - **KDJ**：随机指标，包含 K、D、J 值
 - **VWAP**：成交量加权平均价
@@ -124,6 +130,7 @@ npm start
 - **函数**：`buildIndicatorSnapshot()` 返回包含所有指标的统一对象
 
 ### quoteClient.js（行情数据）
+
 - **类**：`MarketDataClient`
 - **缓存机制**：
   - 行情数据：1 秒 TTL（避免同一循环内重复 API 调用）
@@ -169,7 +176,7 @@ npm start
 3. 执行阶段 (index.js + trader.executeSignals)
    ├─ 买入操作检查顺序（index.js:1095-1251）：
    │  1. 交易频率限制检查（若不通过直接拒绝，不进行后续检查）
-   │  2. 末日保护程序检查（收盘前30分钟拒绝买入）
+   │  2. 末日保护程序检查（收盘前15分钟拒绝买入）
    │  3. 牛熊证风险检查（距离回收价百分比检查）
    │  4. 基础风险检查（浮亏限制和持仓市值限制）
    ├─ 对所有信号：
@@ -191,6 +198,7 @@ npm start
 ### 状态管理模式
 
 **持久状态**（在 `lastState` 中跨循环迭代维护）：
+
 - `pendingDelayedSignals[]`：等待 60 秒验证的信号
 - `cachedAccount`：上次账户快照（交易后更新）
 - `cachedPositions[]`：上次持仓快照（交易后更新）
@@ -201,6 +209,7 @@ npm start
 - `isHalfDay`：半日交易标志
 
 **临时状态**（每次循环重置）：
+
 - `hasChange`：本次迭代数据是否变化
 - `finalSignals[]`：本次迭代要执行的信号
 - `account`、`positions`：用于风险检查的新快照
@@ -226,6 +235,7 @@ npm start
 ### 标的代码规范化
 
 所有标的代码使用 `normalizeHKSymbol()` 规范化为包含 `.HK` 后缀。这对以下场景至关重要：
+
 - Map 键（待处理订单、上次买入时间）
 - API 调用（有些接受带/不带后缀）
 - 相等性比较
@@ -233,6 +243,7 @@ npm start
 ### Decimal 到数字的转换
 
 LongPort API 返回 `Decimal` 对象。计算前务必使用 `decimalToNumber()` 转换：
+
 ```javascript
 const price = decimalToNumber(quote.lastDone);
 ```
@@ -255,7 +266,7 @@ const price = decimalToNumber(quote.lastDone);
 
 ```javascript
 // 买入：确保数量符合每手股数
-const qty = Math.floor((targetNotional / price) / lotSize) * lotSize;
+const qty = Math.floor(targetNotional / price / lotSize) * lotSize;
 
 // 卖出：使用可用持仓数量（向下取整到每手的倍数）
 const sellQty = clearAll ? availableQty : Math.min(calculateQty, availableQty);
@@ -284,9 +295,9 @@ const sellQty = clearAll ? availableQty : Math.min(calculateQty, availableQty);
 
 ### 收盘前保护机制
 
-- **收盘前 30 分钟拒绝买入**（index.js:1126-1147）：
-  - 正常交易日：15:30-16:00
-  - 半日交易日：11:30-12:00
+- **收盘前 15 分钟拒绝买入**（index.js:1123-1144）：
+  - 正常交易日：15:45-16:00
+  - 半日交易日：11:45-12:00
   - 所有买入信号在此时段内被拦截，卖出信号不受影响
 - **收盘前 5 分钟自动清仓**（index.js:976-1063）：
   - 正常交易日：15:55-15:59
@@ -320,11 +331,13 @@ const sellQty = clearAll ? availableQty : Math.min(calculateQty, availableQty);
 ### 验证指标计算
 
 在 `.env` 中启用 `DEBUG=true` 查看每秒记录的详细指标值：
+
 - RSI6、RSI12、VWAP、KDJ(K,D,J)、MACD(DIF,DEA,MACD)
 
 ### 检查订单记录
 
 每次交易后，`orderRecorder.refreshOrders()` 记录过滤过程：
+
 - 今日总买入订单数
 - 今日总卖出订单数
 - 过滤掉多少订单
@@ -333,6 +346,7 @@ const sellQty = clearAll ? availableQty : Math.min(calculateQty, availableQty);
 ### 监控未成交订单
 
 Trader 日志显示：
+
 - 买入订单监控何时启动/停止
 - 订单价格何时被修改（价格优化）
 - 所有订单何时成交
@@ -342,12 +356,14 @@ Trader 日志显示：
 所有配置必须在 `.env` 文件中设置（参见 `.env.example`）：
 
 **必需配置**：
+
 - LongPort API 凭证（APP_KEY、APP_SECRET、ACCESS_TOKEN）
 - 交易标的（MONITOR_SYMBOL、LONG_SYMBOL、SHORT_SYMBOL）
 - 交易金额（TARGET_NOTIONAL、LONG_LOT_SIZE、SHORT_LOT_SIZE）
 - 风险限制（MAX_POSITION_NOTIONAL、MAX_DAILY_LOSS）
 
 **可选配置**：
+
 - CLEAR_POSITIONS_BEFORE_CLOSE（默认：true）
 - DEBUG（默认：false）
 
@@ -360,12 +376,13 @@ Trader 日志显示：
 1. **添加新指标**：更新 `indicators.js` 和 `buildIndicatorSnapshot()`，然后修改策略阈值
 2. **修改信号逻辑**：编辑 `strategy.js` 条件，确保延迟信号仍记录 J1/MACD1
 3. **调整风险控制**：修改 `risk.js` 检查，始终仅对买入信号进行门控（允许卖出）
-4. **订单类型变更**：更新 `trader.js` _submitTargetOrder()，确保订单类型被 LongPort API 支持
+4. **订单类型变更**：更新 `trader.js` \_submitTargetOrder()，确保订单类型被 LongPort API 支持
 5. **测试**：使用模拟交易账户（在 LongPort API 设置中配置）
 
 ## 架构原则
 
 本代码库遵循以下模式：
+
 - **关注点分离**：每个模块单一职责
 - **故障安全设计**：多重风险检查门控高风险操作（买入）
 - **状态最小化**：仅必要状态跨迭代持久化

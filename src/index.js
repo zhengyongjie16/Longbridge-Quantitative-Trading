@@ -44,14 +44,14 @@ function isInContinuousHKSession(date) {
 }
 
 /**
- * 判断是否在当日收盘前30分钟内（末日保护程序：拒绝买入）
- * 港股正常交易日收盘时间：下午 16:00，收盘前30分钟：15:30 - 15:59
- * 港股半日交易日收盘时间：中午 12:00，收盘前30分钟：11:30 - 11:59
+ * 判断是否在当日收盘前15分钟内（末日保护程序：拒绝买入）
+ * 港股正常交易日收盘时间：下午 16:00，收盘前15分钟：15:45 - 15:59
+ * 港股半日交易日收盘时间：中午 12:00，收盘前15分钟：11:45 - 11:59
  * @param {Date} date 时间对象（应该是UTC时间）
  * @param {boolean} isHalfDay 是否是半日交易日
- * @returns {boolean} true表示在收盘前30分钟，false表示不在
+ * @returns {boolean} true表示在收盘前15分钟，false表示不在
  */
-function isBeforeClose30Minutes(date, isHalfDay = false) {
+function isBeforeClose15Minutes(date, isHalfDay = false) {
   if (!date) return false;
   const utcHour = date.getUTCHours();
   const utcMinute = date.getUTCMinutes();
@@ -59,11 +59,11 @@ function isBeforeClose30Minutes(date, isHalfDay = false) {
   const hkMinute = utcMinute;
 
   if (isHalfDay) {
-    // 半日交易：收盘前30分钟为 11:30 - 11:59:59（12:00收盘）
-    return hkHour === 11 && hkMinute >= 30;
+    // 半日交易：收盘前15分钟为 11:45 - 11:59:59（12:00收盘）
+    return hkHour === 11 && hkMinute >= 45;
   } else {
-    // 正常交易日：收盘前30分钟为 15:30 - 15:59:59（16:00收盘）
-    return hkHour === 15 && hkMinute >= 30;
+    // 正常交易日：收盘前15分钟为 15:45 - 15:59:59（16:00收盘）
+    return hkHour === 15 && hkMinute >= 45;
   }
 }
 
@@ -1120,13 +1120,13 @@ async function runOnce({
           continue; // 跳过这个买入信号，不进行后续检查
         }
 
-        // 2. 末日保护程序：收盘前30分钟拒绝买入（卖出操作不受影响）
+        // 2. 末日保护程序：收盘前15分钟拒绝买入（卖出操作不受影响）
         const shouldClearBeforeClose = TRADING_CONFIG.clearPositionsBeforeClose;
-        const isBeforeClose30 = isBeforeClose30Minutes(
+        const isBeforeClose15 = isBeforeClose15Minutes(
           currentTime,
           isHalfDayToday
         );
-        if (shouldClearBeforeClose && isBeforeClose30) {
+        if (shouldClearBeforeClose && isBeforeClose15) {
           // 获取标的的中文名称
           const sigName = getSymbolName(
             sig.symbol,
@@ -1136,9 +1136,9 @@ async function runOnce({
             shortSymbolName
           );
           const codeText = normalizeHKSymbol(sig.symbol);
-          const closeTimeRange = isHalfDayToday ? "11:30-12:00" : "15:30-16:00";
+          const closeTimeRange = isHalfDayToday ? "11:45-12:00" : "15:45-16:00";
           logger.warn(
-            `[末日保护程序] 收盘前30分钟内拒绝买入：${sigName}(${codeText}) ${sig.action} - 当前时间在${closeTimeRange}范围内`
+            `[末日保护程序] 收盘前15分钟内拒绝买入：${sigName}(${codeText}) ${sig.action} - 当前时间在${closeTimeRange}范围内`
           );
           continue; // 跳过这个买入信号
         }
