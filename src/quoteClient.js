@@ -8,6 +8,7 @@ import {
 } from "longport";
 import { createConfig } from "./config/config.js";
 import { normalizeHKSymbol, decimalToNumber } from "./utils.js";
+import { logger } from "./logger.js";
 
 const DEFAULT_RETRY = {
   retries: 2,
@@ -158,7 +159,7 @@ export class MarketDataClient {
       const quote = quotes?.[0];
       const staticInfo = statics?.[0];
       if (!quote) {
-        console.warn(
+        logger.warn(
           `[行情获取] 标的 ${normalizedSymbol} (原始: ${symbol}) 未返回行情数据。quotes.length=${
             quotes?.length ?? 0
           }`
@@ -194,7 +195,7 @@ export class MarketDataClient {
       this._quoteCache.set(normalizedSymbol, result);
       return result;
     } catch (err) {
-      console.error(
+      logger.error(
         `[行情获取] 获取标的 ${normalizedSymbol} (原始: ${symbol}) 行情时发生错误：`,
         err?.message ?? err
       );

@@ -253,9 +253,6 @@ async function runOnce({
   orderRecorder,
   riskChecker,
 }) {
-  // 返回是否有数据变化
-  let hasChange = false;
-
   // 使用缓存的账户和持仓信息（仅在交易后更新）
   let account = lastState.cachedAccount ?? null;
   let positions = lastState.cachedPositions ?? [];
@@ -284,18 +281,16 @@ async function runOnce({
     // 如果不是交易日，提前返回
     if (!isTradingDayToday) {
       if (lastState.canTrade !== false) {
-        hasChange = true;
         logger.info("今天不是交易日，暂停实时监控。");
         lastState.canTrade = false;
       }
-      return hasChange;
+      return;
     }
 
     // 如果是半日交易日，记录日志
     if (isHalfDayToday && !lastState.isHalfDay) {
       logger.info("今天是半日交易日。");
       lastState.isHalfDay = true;
-      hasChange = true;
     } else if (!isHalfDayToday && lastState.isHalfDay) {
       lastState.isHalfDay = false;
     }
@@ -337,7 +332,7 @@ async function runOnce({
 
   // 检测交易时段变化
   if (lastState.canTrade !== canTradeNow) {
-    hasChange = true;
+
     if (canTradeNow) {
       const sessionType = isHalfDayToday ? "（半日交易）" : "";
       logger.info(`进入连续交易时段${sessionType}，开始正常交易。`);
@@ -351,7 +346,7 @@ async function runOnce({
 
   // 如果不在交易时段，跳过所有实时监控逻辑
   if (!canTradeNow) {
-    return hasChange;
+    return;
   }
 
   // 以下逻辑仅在连续交易时段执行
@@ -373,7 +368,7 @@ async function runOnce({
       : hasChanged(shortPrice, lastState.shortPrice, 0.0001);
 
   if (longPriceChanged || shortPriceChanged) {
-    hasChange = true;
+
 
     // 显示做多标的行情
     const longDisplay = formatQuoteDisplay(longQuote, longSymbol);
@@ -433,7 +428,7 @@ async function runOnce({
       isFirstTime || hasChanged(currentPrice, lastPrice, 0.0001);
 
     if (hasPriceChanged) {
-      hasChange = true;
+
 
       // 只显示价格变化
       if (Number.isFinite(currentPrice)) {
@@ -601,7 +596,7 @@ async function runOnce({
 
       if (!existingSignal) {
         lastState.pendingDelayedSignals.push(delayedSignal);
-        hasChange = true;
+
         const actionDesc =
           delayedSignal.action === SignalType.BUYCALL ? "买入做多" : "买入做空";
         logger.info(
@@ -843,7 +838,7 @@ async function runOnce({
 
         // 添加到交易信号列表
         tradingSignals.push(verifiedSignal);
-        hasChange = true;
+
       } else {
         const actionDesc = isBuyCall ? "买入做多" : "买入做空";
         logger.info(
@@ -901,7 +896,7 @@ async function runOnce({
   const lastSignalKey = lastState.signal;
 
   if (currentSignalKey !== lastSignalKey) {
-    hasChange = true;
+
     const lastCandleTime = monitorCandles.at(-1)?.timestamp;
     if (lastCandleTime) {
       logger.info(
@@ -1271,7 +1266,7 @@ async function runOnce({
 
   // 只在有交易信号时显示执行信息（信号变化时已显示）
   if (finalSignals.length > 0) {
-    hasChange = true;
+
     for (const sig of finalSignals) {
       // 性能优化：在循环开始时缓存常用的计算结果
       const normalizedSigSymbol = normalizeHKSymbol(sig.symbol);
@@ -1302,7 +1297,7 @@ async function runOnce({
     }
   } else if (signals.length > 0 && !canTradeNow) {
     // 有信号但不在交易时段
-    hasChange = true;
+
     logger.info("当前为竞价或非连续交易时段，交易信号已生成但暂不执行。");
   }
 
@@ -1316,7 +1311,7 @@ async function runOnce({
 
   // 执行交易（只在有信号时显示）
   if (finalSignals.length > 0) {
-    hasChange = true;
+
     logger.info(`执行交易：共 ${finalSignals.length} 个交易信号`);
 
     // 对卖出信号进行成本价判断和卖出数量计算
@@ -1406,9 +1401,6 @@ async function runOnce({
       }
     }
   }
-
-  // 返回是否有数据变化
-  return hasChange;
 }
 
 /**
@@ -1644,7 +1636,7 @@ async function main() {
   // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
-      const hasChange = await runOnce({
+      await runOnce({
         marketDataClient,
         strategy,
         trader,

@@ -156,20 +156,5 @@ export const positionObjectPool = new ObjectPool(
   10 // 通常不会有超过10个持仓
 );
 
-/**
- * 打印所有对象池的统计信息（用于调试）
- */
-export function logPoolStats() {
-  console.log("[对象池统计] 验证历史条目池:", verificationEntryPool.getStats());
-  console.log("[对象池统计] 信号对象池:", signalObjectPool.getStats());
-  console.log("[对象池统计] 持仓对象池:", positionObjectPool.getStats());
-}
-
-/**
- * 清空所有对象池
- */
-export function clearAllPools() {
-  verificationEntryPool.clear();
-  signalObjectPool.clear();
-  positionObjectPool.clear();
-}
+// 导出对象池实例
+export { verificationEntryPool, signalObjectPool, positionObjectPool };

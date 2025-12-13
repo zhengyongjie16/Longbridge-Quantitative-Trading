@@ -2,6 +2,7 @@
 import { TRADING_CONFIG } from "./config/config.trading.js";
 import { SignalType, isBuyAction } from "./signalTypes.js";
 import { normalizeHKSymbol, decimalToNumber } from "./utils.js";
+import { logger } from "./logger.js";
 
 export class RiskChecker {
   constructor({ maxDailyLoss, maxPositionNotional } = {}) {
@@ -11,7 +12,7 @@ export class RiskChecker {
 
     // 验证 maxDailyLoss 的有效性
     if (!Number.isFinite(this.maxDailyLoss) || this.maxDailyLoss < 0) {
-      console.warn(
+      logger.warn(
         `[风险检查警告] maxDailyLoss 配置无效（${this.maxDailyLoss}），将使用默认值 0（禁止任何浮亏）`
       );
       this.maxDailyLoss = 0;
@@ -30,7 +31,7 @@ export class RiskChecker {
    */
   async initializeWarrantInfo(marketDataClient, longSymbol, shortSymbol) {
     if (!marketDataClient) {
-      console.warn("[风险检查] 未提供 marketDataClient，跳过牛熊证信息初始化");
+      logger.warn("[风险检查] 未提供 marketDataClient，跳过牛熊证信息初始化");
       return;
     }
 
@@ -45,7 +46,7 @@ export class RiskChecker {
         this.longWarrantInfo = warrantInfo;
 
         if (warrantInfo.isWarrant) {
-          console.log(
+          logger.info(
             `[风险检查] 做多标的 ${longSymbol} 是${
               warrantInfo.warrantType === "BULL"
                 ? "牛证"
@@ -55,10 +56,10 @@ export class RiskChecker {
             }，回收价=${warrantInfo.callPrice?.toFixed(3) ?? "未知"}`
           );
         } else {
-          console.log(`[风险检查] 做多标的 ${longSymbol} 不是牛熊证`);
+          logger.info(`[风险检查] 做多标的 ${longSymbol} 不是牛熊证`);
         }
       } catch (err) {
-        console.warn(
+        logger.warn(
           `[风险检查] 检查做多标的牛熊证信息时出错：`,
           err?.message ?? err
         );
@@ -77,7 +78,7 @@ export class RiskChecker {
         this.shortWarrantInfo = warrantInfo;
 
         if (warrantInfo.isWarrant) {
-          console.log(
+          logger.info(
             `[风险检查] 做空标的 ${shortSymbol} 是${
               warrantInfo.warrantType === "BULL"
                 ? "牛证"
@@ -87,10 +88,10 @@ export class RiskChecker {
             }，回收价=${warrantInfo.callPrice?.toFixed(3) ?? "未知"}`
           );
         } else {
-          console.log(`[风险检查] 做空标的 ${shortSymbol} 不是牛熊证`);
+          logger.info(`[风险检查] 做空标的 ${shortSymbol} 不是牛熊证`);
         }
       } catch (err) {
-        console.warn(
+        logger.warn(
           `[风险检查] 检查做空标的牛熊证信息时出错：`,
           err?.message ?? err
         );
@@ -161,7 +162,7 @@ export class RiskChecker {
       (expectedType === "PUT" && warrantType === "BEAR");
 
     if (!isExpectedType) {
-      console.warn(
+      logger.warn(
         `[风险检查警告] ${symbol} 的牛熊证类型不符合预期：期望${
           expectedType === "CALL" ? "牛证" : "熊证"
         }，实际是${warrantType === "BULL" ? "牛证" : "熊证"}`
@@ -256,7 +257,7 @@ export class RiskChecker {
     if (isBuy) {
       // 记录浮亏计算详情（仅在DEBUG模式下）
       if (process.env.DEBUG === "true") {
-        console.log(
+        logger.info(
           `[风险检查调试] 浮亏计算：持仓市值=${positionMarketValue.toFixed(
             2
           )} HKD，持仓成本=${totalCost.toFixed(
@@ -270,7 +271,7 @@ export class RiskChecker {
       // 如果浮亏计算结果不是有限数字，拒绝买入操作（安全策略）
       if (!Number.isFinite(unrealizedPnL)) {
         // 记录详细的错误信息以便调试
-        console.error(
+        logger.error(
           `[风险检查错误] 浮亏计算结果无效：持仓市值=${positionMarketValue}, 持仓成本=${totalCost}, 浮亏=${unrealizedPnL}, netAssets=${netAssets}, totalCash=${totalCash}`
         );
         return {
@@ -443,7 +444,7 @@ export class RiskChecker {
 
     // 验证回收价是否有效
     if (!Number.isFinite(warrantInfo.callPrice) || warrantInfo.callPrice <= 0) {
-      console.warn(
+      logger.warn(
         `[风险检查] ${symbol} 的回收价无效（${warrantInfo.callPrice}），允许交易`
       );
       return { allowed: true };
@@ -451,7 +452,7 @@ export class RiskChecker {
 
     // 验证监控标的的当前价格是否有效
     if (!Number.isFinite(monitorCurrentPrice) || monitorCurrentPrice <= 0) {
-      console.warn(
+      logger.warn(
         `[风险检查] 监控标的的当前价格无效（${monitorCurrentPrice}），无法检查牛熊证风险`
       );
       return {
@@ -463,7 +464,7 @@ export class RiskChecker {
     // 额外验证：监控标的价格应该远大于牛熊证价格（通常>1000）
     // 如果价格异常小（<1），可能是获取到了错误的价格（如牛熊证本身的价格），拒绝买入
     if (monitorCurrentPrice < 1) {
-      console.warn(
+      logger.warn(
         `[风险检查] 监控标的价格异常小（${monitorCurrentPrice}），可能获取到了错误的价格（如牛熊证本身的价格），拒绝买入以确保安全`
       );
       return {
