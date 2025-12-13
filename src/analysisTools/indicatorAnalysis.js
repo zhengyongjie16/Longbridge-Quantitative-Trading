@@ -35,7 +35,7 @@ const DEFAULT_SHORT_SYMBOL = "63372"; // 例如：可以设置为 "63372"
 //   - 单一日期：YYYY-MM-DD（例如：2024-12-11）
 //   - 日期范围：YYYY-MM-DD:YYYY-MM-DD 或 YYYY-MM-DD,YYYY-MM-DD（例如：2024-12-11:2024-12-15）
 // 设置为 null 则必须通过环境变量或命令行参数指定
-const DEFAULT_DATE = "2025-12-11:2025-12-12"; // 例如：可以设置为 "2024-12-11" 或 "2024-12-11:2024-12-15"
+const DEFAULT_DATE = "2025-12-3:2025-12-12"; // 例如：可以设置为 "2024-12-11" 或 "2024-12-11:2024-12-15"
 // ============================================
 
 /**
@@ -440,7 +440,100 @@ function parseDateRange(dateRangeStr) {
 }
 
 /**
- * 获取标的的分时线数据
+ * 计算日期的前一天
+ * @param {NaiveDate} date 日期对象
+ * @returns {NaiveDate} 前一天的日期对象
+ */
+function getPreviousDate(date) {
+  const jsDate = new Date(date.year, date.month - 1, date.day);
+  jsDate.setDate(jsDate.getDate() - 1);
+  return new NaiveDate(
+    jsDate.getFullYear(),
+    jsDate.getMonth() + 1,
+    jsDate.getDate()
+  );
+}
+
+/**
+ * 比较两个 NaiveDate 对象
+ * @param {NaiveDate} date1 第一个日期
+ * @param {NaiveDate} date2 第二个日期
+ * @returns {number} -1 如果 date1 < date2, 0 如果相等, 1 如果 date1 > date2
+ */
+function compareNaiveDate(date1, date2) {
+  if (date1.year !== date2.year) {
+    return date1.year < date2.year ? -1 : 1;
+  }
+  if (date1.month !== date2.month) {
+    return date1.month < date2.month ? -1 : 1;
+  }
+  if (date1.day !== date2.day) {
+    return date1.day < date2.day ? -1 : 1;
+  }
+  return 0;
+}
+
+/**
+ * 将日期范围分割成多个较小的范围（用于处理API的1000条限制）
+ * @param {NaiveDate} startDate 开始日期
+ * @param {NaiveDate} endDate 结束日期
+ * @param {number} maxDaysPerBatch 每批最多天数（默认2天，约1000条1分钟K线）
+ * @returns {Array<{start: NaiveDate, end: NaiveDate}>} 日期范围数组
+ */
+function splitDateRange(startDate, endDate, maxDaysPerBatch = 2) {
+  const ranges = [];
+  let currentStart = startDate;
+
+  while (compareNaiveDate(currentStart, endDate) <= 0) {
+    // 计算当前批次的结束日期
+    let currentEnd = currentStart;
+    for (
+      let i = 1;
+      i < maxDaysPerBatch && compareNaiveDate(currentEnd, endDate) < 0;
+      i++
+    ) {
+      const nextDate = new Date(
+        currentEnd.year,
+        currentEnd.month - 1,
+        currentEnd.day
+      );
+      nextDate.setDate(nextDate.getDate() + 1);
+      currentEnd = new NaiveDate(
+        nextDate.getFullYear(),
+        nextDate.getMonth() + 1,
+        nextDate.getDate()
+      );
+    }
+
+    // 确保不超过结束日期
+    if (compareNaiveDate(currentEnd, endDate) > 0) {
+      currentEnd = endDate;
+    }
+
+    ranges.push({ start: currentStart, end: currentEnd });
+
+    // 准备下一批的开始日期（当前结束日期的下一天）
+    if (compareNaiveDate(currentEnd, endDate) >= 0) {
+      break;
+    }
+    const nextStart = new Date(
+      currentEnd.year,
+      currentEnd.month - 1,
+      currentEnd.day
+    );
+    nextStart.setDate(nextStart.getDate() + 1);
+    currentStart = new NaiveDate(
+      nextStart.getFullYear(),
+      nextStart.getMonth() + 1,
+      nextStart.getDate()
+    );
+  }
+
+  return ranges;
+}
+
+/**
+ * 获取标的的分时线数据（支持自动分批获取，处理API的1000条限制）
  * @param {QuoteContext} ctx QuoteContext 实例
  * @param {string} symbol 标的代码
  * @param {NaiveDate} startDate 开始日期
@@ -458,17 +551,53 @@ async function fetchSymbolCandlesticks(
   try {
     const normalizedSymbol = normalizeHKSymbol(symbol);
     console.log(`正在获取${symbolName} ${normalizedSymbol} 的分时线数据...`);
-    const candlesticks = await ctx.historyCandlesticksByDate(
-      normalizedSymbol,
-      Period.Min_1,
-      AdjustType.NoAdjust,
-      startDate,
-      endDate,
-      TradeSessions.All
-    );
-    if (candlesticks?.length > 0) {
-      console.log(`成功获取${symbolName} ${candlesticks.length} 条分时线数据`);
-      return candlesticks;
+
+    // 将日期范围分割成多个批次（每批最多2天，避免超过1000条限制）
+    const dateRanges = splitDateRange(startDate, endDate, 2);
+
+    if (dateRanges.length > 1) {
+      console.log(
+        `日期范围较大，将分 ${dateRanges.length} 批获取数据（每批最多2天）...`
+      );
+    }
+
+    // 分批获取数据
+    const allCandlesticks = [];
+    for (let i = 0; i < dateRanges.length; i++) {
+      const { start, end } = dateRanges[i];
+      const batchCandlesticks = await ctx.historyCandlesticksByDate(
+        normalizedSymbol,
+        Period.Min_1,
+        AdjustType.NoAdjust,
+        start,
+        end,
+        TradeSessions.All
+      );
+
+      if (batchCandlesticks && batchCandlesticks.length > 0) {
+        allCandlesticks.push(...batchCandlesticks);
+
+        // 如果返回的数据达到1000条，说明可能还有更多数据，需要进一步分割
+        if (batchCandlesticks.length >= 1000) {
+          console.warn(
+            `警告：批次 ${i + 1} 返回了 ${
+              batchCandlesticks.length
+            } 条数据，可能达到API限制。如果数据不完整，请减小日期范围。`
+          );
+        }
+      }
+
+      // 添加短暂延迟，避免请求过于频繁
+      if (i < dateRanges.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    }
+
+    if (allCandlesticks.length > 0) {
+      console.log(
+        `成功获取${symbolName} ${allCandlesticks.length} 条分时线数据（共 ${dateRanges.length} 批）`
+      );
+      return allCandlesticks;
     }
     console.warn(`未获取到${symbolName}的分时线数据`);
     return [];
@@ -575,13 +704,13 @@ async function getIntradayCandlesticks(symbol, dateRangeStr) {
     }
 
     // 获取日期范围内的1分钟K线数据（分时线）
-    const rangeCandlesticks = await ctx.historyCandlesticksByDate(
+    // 使用 fetchSymbolCandlesticks 函数，它会自动处理API的1000条限制
+    const rangeCandlesticks = await fetchSymbolCandlesticks(
+      ctx,
       normalizedSymbol,
-      Period.Min_1, // 1分钟周期
-      AdjustType.NoAdjust, // 不复权
       startNaiveDate,
       endNaiveDate,
-      TradeSessions.All // 交易时段：所有时段
+      "监控标的"
     );
 
     // 合并数据：前一天的数据在前，日期范围内的数据在后
