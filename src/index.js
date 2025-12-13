@@ -9,10 +9,15 @@ import { validateAllConfig } from "./config/config.validator.js";
 import { SignalType } from "./signalTypes.js";
 import { OrderRecorder } from "./orderRecorder.js";
 import {
+  verificationEntryPool,
+  positionObjectPool,
+} from "./objectPool.js";
+import {
   normalizeHKSymbol,
   formatAccountChannel,
   formatNumber,
   getSymbolName,
+  formatQuoteDisplay,
 } from "./utils.js";
 
 /**
@@ -255,6 +260,14 @@ async function runOnce({
   let account = lastState.cachedAccount ?? null;
   let positions = lastState.cachedPositions ?? [];
 
+  // 性能优化：在函数开始时统一规范化符号，避免重复调用
+  const longSymbol = TRADING_CONFIG.longSymbol;
+  const shortSymbol = TRADING_CONFIG.shortSymbol;
+  const monitorSymbol = TRADING_CONFIG.monitorSymbol;
+  const normalizedLongSymbol = normalizeHKSymbol(longSymbol);
+  const normalizedShortSymbol = normalizeHKSymbol(shortSymbol);
+  const normalizedMonitorSymbol = normalizeHKSymbol(monitorSymbol);
+
   // 判断是否在交易时段（使用当前系统时间，而不是行情数据的时间戳）
   // 因为行情数据的时间戳可能是历史数据或缓存数据，不能准确反映当前是否在交易时段
   const currentTime = new Date();
@@ -298,10 +311,6 @@ async function runOnce({
   const canTradeNow = isTradingDayToday && isInContinuousHKSession(currentTime);
 
   // 并发获取三个标的的行情（优化性能：从串行改为并发）
-  const longSymbol = TRADING_CONFIG.longSymbol;
-  const shortSymbol = TRADING_CONFIG.shortSymbol;
-  const monitorSymbol = TRADING_CONFIG.monitorSymbol;
-
   const [longQuote, shortQuote, monitorQuote] = await Promise.all([
     marketDataClient.getLatestQuote(longSymbol).catch((err) => {
       logger.warn(`[行情获取失败] 做多标的`, err?.message ?? err);
@@ -366,61 +375,6 @@ async function runOnce({
   if (longPriceChanged || shortPriceChanged) {
     hasChange = true;
 
-    // 统一的行情显示格式化函数
-    const formatQuoteDisplay = (quote, symbol) => {
-      if (!quote) {
-        return null;
-      }
-
-      const nameText = quote.name ?? "-";
-      const codeText = normalizeHKSymbol(symbol);
-      const currentPrice = quote.price;
-
-      // 最新价格
-      const priceText = Number.isFinite(currentPrice)
-        ? currentPrice.toFixed(3)
-        : currentPrice ?? "-";
-
-      // 时间
-      const tsText = quote.timestamp
-        ? quote.timestamp.toLocaleString("zh-CN", {
-            timeZone: "Asia/Hong_Kong",
-            hour12: false,
-          })
-        : "未知时间";
-
-      // 涨跌额和涨跌幅度
-      let changeAmountText = "-";
-      let changePercentText = "-";
-
-      if (
-        Number.isFinite(currentPrice) &&
-        Number.isFinite(quote.prevClose) &&
-        quote.prevClose !== 0
-      ) {
-        // 涨跌额 = 当前价格 - 前收盘价
-        const changeAmount = currentPrice - quote.prevClose;
-        changeAmountText = `${
-          changeAmount >= 0 ? "+" : ""
-        }${changeAmount.toFixed(3)}`;
-
-        // 涨跌幅度 = (当前价格 - 前收盘价) / 前收盘价 * 100%
-        const changePercent = (changeAmount / quote.prevClose) * 100;
-        changePercentText = `${
-          changePercent >= 0 ? "+" : ""
-        }${changePercent.toFixed(2)}%`;
-      }
-
-      return {
-        nameText,
-        codeText,
-        priceText,
-        changeAmountText,
-        changePercentText,
-        tsText,
-      };
-    };
-
     // 显示做多标的行情
     const longDisplay = formatQuoteDisplay(longQuote, longSymbol);
     if (longDisplay) {
@@ -484,9 +438,9 @@ async function runOnce({
       // 只显示价格变化
       if (Number.isFinite(currentPrice)) {
         logger.info(
-          `[监控标的] ${monitorSymbolName}(${normalizeHKSymbol(
-            monitorSymbol
-          )}) 价格=${currentPrice.toFixed(3)}`
+          `[监控标的] ${monitorSymbolName}(${normalizedMonitorSymbol}) 价格=${currentPrice.toFixed(
+            3
+          )}`
         );
       }
 
@@ -538,15 +492,23 @@ async function runOnce({
 
             // 如果上一记录不是同一秒，则添加新记录
             if (lastEntrySeconds !== nowSeconds) {
+              // 从对象池获取条目对象，减少内存分配
+              const entry = verificationEntryPool.acquire();
+              entry.timestamp = now;
+              entry.j = currentJ;
+              entry.macd = currentMACD;
+
               // 记录当前值
-              pendingSignal.verificationHistory.push({
-                timestamp: now,
-                j: currentJ,
-                macd: currentMACD,
-              });
+              pendingSignal.verificationHistory.push(entry);
 
               // 只保留最近2分钟的数据（120秒），避免内存占用过大
               const twoMinutesAgo = now.getTime() - 120 * 1000;
+              const oldEntries = pendingSignal.verificationHistory.filter(
+                (entry) => entry.timestamp.getTime() < twoMinutesAgo
+              );
+              // 释放过期条目回对象池
+              verificationEntryPool.releaseAll(oldEntries);
+              // 保留有效条目
               pendingSignal.verificationHistory =
                 pendingSignal.verificationHistory.filter(
                   (entry) => entry.timestamp.getTime() >= twoMinutesAgo
@@ -559,9 +521,6 @@ async function runOnce({
   }
 
   // 获取做多和做空标的的持仓信息
-  const normalizedLongSymbol = normalizeHKSymbol(longSymbol);
-  const normalizedShortSymbol = normalizeHKSymbol(shortSymbol);
-
   let longPosition = null;
   let shortPosition = null;
 
@@ -582,19 +541,19 @@ async function runOnce({
       }
 
       if (normalizedPosSymbol === normalizedLongSymbol) {
-        longPosition = {
-          symbol: pos.symbol,
-          costPrice: Number(pos.costPrice) || 0,
-          quantity: Number(pos.quantity) || 0,
-          availableQuantity: availableQty,
-        };
+        // 使用对象池获取持仓对象
+        longPosition = positionObjectPool.acquire();
+        longPosition.symbol = pos.symbol;
+        longPosition.costPrice = Number(pos.costPrice) || 0;
+        longPosition.quantity = Number(pos.quantity) || 0;
+        longPosition.availableQuantity = availableQty;
       } else if (normalizedPosSymbol === normalizedShortSymbol) {
-        shortPosition = {
-          symbol: pos.symbol,
-          costPrice: Number(pos.costPrice) || 0,
-          quantity: Number(pos.quantity) || 0,
-          availableQuantity: availableQty,
-        };
+        // 使用对象池获取持仓对象
+        shortPosition = positionObjectPool.acquire();
+        shortPosition.symbol = pos.symbol;
+        shortPosition.costPrice = Number(pos.costPrice) || 0;
+        shortPosition.quantity = Number(pos.quantity) || 0;
+        shortPosition.availableQuantity = availableQty;
       }
     }
   }
@@ -610,6 +569,16 @@ async function runOnce({
     normalizedShortSymbol,
     orderRecorder
   );
+
+  // 释放持仓对象回池（信号生成完成后不再需要）
+  if (longPosition) {
+    positionObjectPool.release(longPosition);
+    longPosition = null;
+  }
+  if (shortPosition) {
+    positionObjectPool.release(shortPosition);
+    shortPosition = null;
+  }
 
   // 将立即执行的信号添加到交易信号列表
   const tradingSignals = [...immediateSignals];
@@ -657,8 +626,9 @@ async function runOnce({
         logger.warn(
           `[延迟验证错误] ${pendingSignal.symbol} 缺少triggerTime，跳过验证`
         );
-        // 清空该信号的历史记录
+        // 清空该信号的历史记录并释放对象回池
         if (pendingSignal.verificationHistory) {
+          verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
           pendingSignal.verificationHistory = [];
         }
         // 从待验证列表中移除
@@ -677,8 +647,9 @@ async function runOnce({
         logger.warn(
           `[延迟验证错误] ${pendingSignal.symbol} 缺少J1或MACD1值（J1=${j1}, MACD1=${macd1}），跳过验证`
         );
-        // 清空该信号的历史记录
+        // 清空该信号的历史记录并释放对象回池
         if (pendingSignal.verificationHistory) {
+          verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
           pendingSignal.verificationHistory = [];
         }
         // 从待验证列表中移除
@@ -738,8 +709,9 @@ async function runOnce({
             hour12: false,
           })}）`
         );
-        // 清空该信号的历史记录
+        // 清空该信号的历史记录并释放对象回池
         if (pendingSignal.verificationHistory) {
+          verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
           pendingSignal.verificationHistory = [];
         }
         // 从待验证列表中移除
@@ -765,8 +737,9 @@ async function runOnce({
         logger.warn(
           `[延迟验证错误] ${pendingSignal.symbol} 未知的信号类型: ${pendingSignal.action}，跳过验证`
         );
-        // 清空该信号的历史记录
+        // 清空该信号的历史记录并释放对象回池
         if (pendingSignal.verificationHistory) {
+          verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
           pendingSignal.verificationHistory = [];
         }
         // 从待验证列表中移除
@@ -819,8 +792,9 @@ async function runOnce({
         logger.warn(
           `[延迟验证错误] ${pendingSignal.symbol} ${verificationReason}，跳过验证`
         );
-        // 清空该信号的历史记录
+        // 清空该信号的历史记录并释放对象回池
         if (pendingSignal.verificationHistory) {
+          verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
           pendingSignal.verificationHistory = [];
         }
         // 从待验证列表中移除
@@ -877,8 +851,9 @@ async function runOnce({
         );
       }
 
-      // 清空该信号的历史记录
+      // 清空该信号的历史记录并释放对象回池
       if (pendingSignal.verificationHistory) {
+        verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
         pendingSignal.verificationHistory = [];
       }
 
@@ -892,8 +867,9 @@ async function runOnce({
         `[延迟验证错误] 处理待验证信号 ${pendingSignal.symbol} 时发生错误`,
         err?.message ?? err
       );
-      // 清空该信号的历史记录
+      // 清空该信号的历史记录并释放对象回池
       if (pendingSignal.verificationHistory) {
+        verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
         pendingSignal.verificationHistory = [];
       }
       // 从待验证列表中移除错误的信号
@@ -961,9 +937,7 @@ async function runOnce({
       });
     } else {
       logger.info(
-        `[监控标的信号] ${monitorSymbolName}(${normalizeHKSymbol(
-          monitorSymbol
-        )}) 无交易信号`
+        `[监控标的信号] ${monitorSymbolName}(${normalizedMonitorSymbol}) 无交易信号`
       );
     }
 
@@ -1043,8 +1017,6 @@ async function runOnce({
 
     // 为每个持仓生成清仓信号
     const clearSignals = [];
-    const normalizedLongSymbol = normalizeHKSymbol(longSymbol);
-    const normalizedShortSymbol = normalizeHKSymbol(shortSymbol);
     // 验证 positions 是数组
     if (Array.isArray(positions)) {
       for (const pos of positions) {
@@ -1113,9 +1085,6 @@ async function runOnce({
   } else if (signals.length > 0 && canTradeNow) {
     // 正常交易信号处理
     const orderNotional = TRADING_CONFIG.targetNotional;
-    // 在循环开始处统一规范化符号，避免重复调用
-    const normalizedLongSymbol = normalizeHKSymbol(longSymbol);
-    const normalizedShortSymbol = normalizeHKSymbol(shortSymbol);
 
     for (const sig of signals) {
       // 性能优化：在循环开始时缓存常用的计算结果，避免重复调用
@@ -1685,11 +1654,6 @@ async function main() {
         orderRecorder,
         riskChecker,
       });
-
-      // 更新状态
-      if (hasChange) {
-        // 状态已更新，继续下一次循环
-      }
     } catch (err) {
       logger.error("本次执行失败", err);
     }

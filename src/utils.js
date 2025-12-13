@@ -170,3 +170,63 @@ export function toBeijingTimeIso(date = null) {
 export function toBeijingTimeLog(date = null) {
   return toBeijingTime(date, { format: "log" });
 }
+
+/**
+ * 格式化行情数据显示
+ * @param {Object} quote 行情对象
+ * @param {string} symbol 标的代码
+ * @returns {Object|null} 格式化后的行情显示对象，如果quote无效则返回null
+ */
+export function formatQuoteDisplay(quote, symbol) {
+  if (!quote) {
+    return null;
+  }
+
+  const nameText = quote.name ?? "-";
+  const codeText = normalizeHKSymbol(symbol);
+  const currentPrice = quote.price;
+
+  // 最新价格
+  const priceText = Number.isFinite(currentPrice)
+    ? currentPrice.toFixed(3)
+    : currentPrice ?? "-";
+
+  // 时间
+  const tsText = quote.timestamp
+    ? quote.timestamp.toLocaleString("zh-CN", {
+        timeZone: "Asia/Hong_Kong",
+        hour12: false,
+      })
+    : "未知时间";
+
+  // 涨跌额和涨跌幅度
+  let changeAmountText = "-";
+  let changePercentText = "-";
+
+  if (
+    Number.isFinite(currentPrice) &&
+    Number.isFinite(quote.prevClose) &&
+    quote.prevClose !== 0
+  ) {
+    // 涨跌额 = 当前价格 - 前收盘价
+    const changeAmount = currentPrice - quote.prevClose;
+    changeAmountText = `${
+      changeAmount >= 0 ? "+" : ""
+    }${changeAmount.toFixed(3)}`;
+
+    // 涨跌幅度 = (当前价格 - 前收盘价) / 前收盘价 * 100%
+    const changePercent = (changeAmount / quote.prevClose) * 100;
+    changePercentText = `${
+      changePercent >= 0 ? "+" : ""
+    }${changePercent.toFixed(2)}%`;
+  }
+
+  return {
+    nameText,
+    codeText,
+    priceText,
+    changeAmountText,
+    changePercentText,
+    tsText,
+  };
+}
