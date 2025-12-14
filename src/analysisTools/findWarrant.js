@@ -1,4 +1,3 @@
-import dotenv from "dotenv";
 import {
   QuoteContext,
   Period,
@@ -14,9 +13,6 @@ import {
 import { createConfig } from "../config/config.js";
 import { TRADING_CONFIG } from "../config/config.trading.js";
 import { normalizeHKSymbol, decimalToNumber, formatNumber } from "../utils.js";
-
-// 加载环境变量
-dotenv.config();
 
 // ==================== 配置参数 ====================
 // 注意：修改以下配置后，需要重新运行程序才能生效

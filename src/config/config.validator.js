@@ -2,6 +2,7 @@ import { logger } from "../logger.js";
 import { TRADING_CONFIG } from "./config.trading.js";
 import { createConfig } from "./config.js";
 import { MarketDataClient } from "../quoteClient.js";
+import { formatSymbolDisplay } from "../utils.js";
 
 /**
  * 配置验证错误类
@@ -24,11 +25,14 @@ async function validateLongPortConfig() {
   const appKey = process.env.LONGPORT_APP_KEY;
   const appSecret = process.env.LONGPORT_APP_SECRET;
   const accessToken = process.env.LONGPORT_ACCESS_TOKEN;
+  const region = process.env.LONGPORT_REGION;
 
+  // 验证 appKey
   if (!appKey || appKey.trim() === "" || appKey === "your_app_key_here") {
     errors.push("LONGPORT_APP_KEY 未配置或使用默认值");
   }
 
+  // 验证 appSecret
   if (
     !appSecret ||
     appSecret.trim() === "" ||
@@ -37,12 +41,23 @@ async function validateLongPortConfig() {
     errors.push("LONGPORT_APP_SECRET 未配置或使用默认值");
   }
 
+  // 验证 accessToken
   if (
     !accessToken ||
     accessToken.trim() === "" ||
     accessToken === "your_access_token_here"
   ) {
     errors.push("LONGPORT_ACCESS_TOKEN 未配置或使用默认值");
+  }
+
+  // 验证 region（可选，如果设置了则验证值是否有效）
+  if (region) {
+    const normalizedRegion = region.toLowerCase();
+    if (normalizedRegion !== "cn" && normalizedRegion !== "hk") {
+      errors.push(
+        `LONGPORT_REGION 配置无效: ${region}，有效值为 "cn" 或 "hk"（默认：hk）`
+      );
+    }
   }
 
   // 如果基本配置存在，尝试创建配置对象验证
@@ -270,6 +285,15 @@ export async function validateAllConfig() {
   const config = createConfig();
   const marketDataClient = new MarketDataClient(config);
 
+  // 确保标的配置不为 null（validateTradingConfig 已经检查过，这里再次确认）
+  if (
+    !TRADING_CONFIG.monitorSymbol ||
+    !TRADING_CONFIG.longSymbol ||
+    !TRADING_CONFIG.shortSymbol
+  ) {
+    throw new ConfigValidationError("标的配置缺失，无法验证标的有效性", []);
+  }
+
   const symbolValidations = await Promise.all([
     validateSymbol(marketDataClient, TRADING_CONFIG.monitorSymbol, "监控标的"),
     validateSymbol(marketDataClient, TRADING_CONFIG.longSymbol, "做多标的"),
@@ -312,30 +336,30 @@ export async function validateAllConfig() {
 
   logger.info("配置验证通过，当前配置如下：");
 
-  // 使用中文名称（代码）格式显示
-  const formatSymbol = (result, symbol) => {
-    if (result.valid && result.name) {
-      return `${result.name}(${symbol})`;
-    }
-    return symbol;
-  };
-
+  // 使用工具库中的显示工具格式化标的显示
   logger.info(
-    `监控标的: ${formatSymbol(monitorResult, TRADING_CONFIG.monitorSymbol)}`
+    `监控标的: ${formatSymbolDisplay(
+      TRADING_CONFIG.monitorSymbol,
+      monitorResult.name
+    )}`
   );
   logger.info(
-    `做多标的: ${formatSymbol(longResult, TRADING_CONFIG.longSymbol)}`
+    `做多标的: ${formatSymbolDisplay(
+      TRADING_CONFIG.longSymbol,
+      longResult.name
+    )}`
   );
   logger.info(
-    `做空标的: ${formatSymbol(shortResult, TRADING_CONFIG.shortSymbol)}`
+    `做空标的: ${formatSymbolDisplay(
+      TRADING_CONFIG.shortSymbol,
+      shortResult.name
+    )}`
   );
   logger.info(`目标买入金额: ${TRADING_CONFIG.targetNotional} HKD`);
   logger.info(`最大持仓市值: ${TRADING_CONFIG.maxPositionNotional} HKD`);
   logger.info(`单日最大亏损: ${TRADING_CONFIG.maxDailyLoss} HKD`);
   logger.info(
-    `是否启动末日保护: ${
-      TRADING_CONFIG.doomsdayProtection ? "是" : "否"
-    }`
+    `是否启动末日保护: ${TRADING_CONFIG.doomsdayProtection ? "是" : "否"}`
   );
   logger.info("");
 

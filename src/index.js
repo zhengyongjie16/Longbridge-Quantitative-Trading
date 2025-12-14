@@ -1127,7 +1127,8 @@ async function runOnce({
         }
 
         // 2. 末日保护程序：收盘前15分钟拒绝买入（卖出操作不受影响）
-        const shouldEnableDoomsdayProtection = TRADING_CONFIG.doomsdayProtection;
+        const shouldEnableDoomsdayProtection =
+          TRADING_CONFIG.doomsdayProtection;
         const isBeforeClose15 = isBeforeClose15Minutes(
           currentTime,
           isHalfDayToday
@@ -1539,7 +1540,7 @@ async function main() {
   const intervalMs = 1000;
 
   // 使用配置验证返回的标的名称和行情客户端实例（避免重复创建）
-  const { monitorName, longName, shortName, marketDataClient } = symbolNames;
+  const { marketDataClient } = symbolNames;
   const strategy = new HangSengMultiIndicatorStrategy();
   const trader = new Trader(config);
   const orderRecorder = new OrderRecorder(trader);
@@ -1547,17 +1548,6 @@ async function main() {
   // 初始化风险检查器
   const riskChecker = new RiskChecker();
 
-  logger.info(
-    `监控标的: ${monitorName}(${normalizeHKSymbol(
-      TRADING_CONFIG.monitorSymbol
-    )})`
-  );
-  logger.info(
-    `做多标的: ${longName}(${normalizeHKSymbol(TRADING_CONFIG.longSymbol)})`
-  );
-  logger.info(
-    `做空标的: ${shortName}(${normalizeHKSymbol(TRADING_CONFIG.shortSymbol)})`
-  );
   logger.info("程序开始运行，在交易时段将进行实时监控和交易（按 Ctrl+C 退出）");
 
   // 初始化牛熊证信息（在程序启动时检查做多和做空标的是否为牛熊证）

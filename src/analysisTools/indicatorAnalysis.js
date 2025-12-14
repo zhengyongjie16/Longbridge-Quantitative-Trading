@@ -1,6 +1,4 @@
-import dotenv from "dotenv";
 import {
-  Config,
   QuoteContext,
   Period,
   AdjustType,
@@ -11,9 +9,7 @@ import {
 import { normalizeHKSymbol, decimalToNumber, formatNumber } from "../utils.js";
 import { RSI, MACD, EMA, MFI } from "technicalindicators";
 import { TRADING_CONFIG } from "../config/config.trading.js";
-
-// 加载环境变量
-dotenv.config();
+import { createConfig } from "../config/config.js";
 
 // ============================================
 // 配置变量（可直接修改）
@@ -691,7 +687,7 @@ function splitDateRange(startDate, endDate, maxDaysPerBatch = 2) {
 async function getIntradayCandlesticks(symbol, dateRangeStr) {
   try {
     // 创建配置
-    const config = Config.fromEnv();
+    const config = createConfig();
 
     // 初始化 QuoteContext
     const ctx = await QuoteContext.new(config);

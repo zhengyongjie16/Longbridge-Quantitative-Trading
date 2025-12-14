@@ -1,9 +1,6 @@
-import dotenv from "dotenv";
-import { Config, TradeContext, OrderStatus, OrderSide, Market } from "longport";
+import { TradeContext, OrderStatus, OrderSide, Market } from "longport";
 import { normalizeHKSymbol, decimalToNumber } from "../utils.js";
-
-// 加载环境变量
-dotenv.config();
+import { createConfig } from "../config/config.js";
 
 /**
  * 获取并记录指定标的的历史买入且已成交订单
@@ -263,7 +260,7 @@ async function getHistoryBuyOrders(ctx, symbol, isLongSymbol) {
 
 // 主函数
 try {
-  const config = Config.fromEnv();
+  const config = createConfig();
   const ctx = await TradeContext.new(config);
 
   // 获取做多和做空标的的代码
