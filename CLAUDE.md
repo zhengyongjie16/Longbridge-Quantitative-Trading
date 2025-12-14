@@ -301,7 +301,7 @@ const sellQty = clearAll ? availableQty : Math.min(calculateQty, availableQty);
   - 正常交易日：15:55-15:59
   - 半日交易日：11:55-11:59
   - 为所有持仓生成 SELLCALL 或 SELLPUT 信号（忽略其他条件）
-  - 由 `CLEAR_POSITIONS_BEFORE_CLOSE` 环境变量控制（默认 true）
+  - 由 `DOOMSDAY_PROTECTION` 环境变量控制（默认 true）
 
 ## 关键技术约束
 
@@ -362,7 +362,7 @@ Trader 日志显示：
 
 **可选配置**：
 
-- CLEAR_POSITIONS_BEFORE_CLOSE（默认：true）
+- DOOMSDAY_PROTECTION（默认：true）
 - DEBUG（默认：false）
 
 如果任何必需配置缺失或无效，启动将失败（config.validator.js 检查所有设置）。

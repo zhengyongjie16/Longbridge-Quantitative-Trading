@@ -223,7 +223,7 @@ function validateTradingConfig() {
     missingFields.push("MAX_DAILY_LOSS");
   }
 
-  // clearPositionsBeforeClose 是布尔值，不需要验证（默认值在 .env 文件中设置为 true）
+  // doomsdayProtection 是布尔值，不需要验证（默认值在 .env 文件中设置为 true）
 
   return {
     valid: errors.length === 0,
@@ -333,7 +333,9 @@ export async function validateAllConfig() {
   logger.info(`最大持仓市值: ${TRADING_CONFIG.maxPositionNotional} HKD`);
   logger.info(`单日最大亏损: ${TRADING_CONFIG.maxDailyLoss} HKD`);
   logger.info(
-    `是否收盘前清仓: ${TRADING_CONFIG.clearPositionsBeforeClose ? "是" : "否"}`
+    `是否启动末日保护: ${
+      TRADING_CONFIG.doomsdayProtection ? "是" : "否"
+    }`
   );
   logger.info("");
 

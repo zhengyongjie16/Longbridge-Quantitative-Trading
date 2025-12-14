@@ -155,6 +155,3 @@ export const positionObjectPool = new ObjectPool(
   },
   10 // 通常不会有超过10个持仓
 );
-
-// 导出对象池实例
-export { verificationEntryPool, signalObjectPool, positionObjectPool };

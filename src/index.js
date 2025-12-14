@@ -8,10 +8,7 @@ import { logger } from "./logger.js";
 import { validateAllConfig } from "./config/config.validator.js";
 import { SignalType } from "./signalTypes.js";
 import { OrderRecorder } from "./orderRecorder.js";
-import {
-  verificationEntryPool,
-  positionObjectPool,
-} from "./objectPool.js";
+import { verificationEntryPool, positionObjectPool } from "./objectPool.js";
 import {
   normalizeHKSymbol,
   formatAccountChannel,
@@ -332,7 +329,6 @@ async function runOnce({
 
   // 检测交易时段变化
   if (lastState.canTrade !== canTradeNow) {
-
     if (canTradeNow) {
       const sessionType = isHalfDayToday ? "（半日交易）" : "";
       logger.info(`进入连续交易时段${sessionType}，开始正常交易。`);
@@ -368,8 +364,6 @@ async function runOnce({
       : hasChanged(shortPrice, lastState.shortPrice, 0.0001);
 
   if (longPriceChanged || shortPriceChanged) {
-
-
     // 显示做多标的行情
     const longDisplay = formatQuoteDisplay(longQuote, longSymbol);
     if (longDisplay) {
@@ -428,8 +422,6 @@ async function runOnce({
       isFirstTime || hasChanged(currentPrice, lastPrice, 0.0001);
 
     if (hasPriceChanged) {
-
-
       // 只显示价格变化
       if (Number.isFinite(currentPrice)) {
         logger.info(
@@ -838,7 +830,6 @@ async function runOnce({
 
         // 添加到交易信号列表
         tradingSignals.push(verifiedSignal);
-
       } else {
         const actionDesc = isBuyCall ? "买入做多" : "买入做空";
         logger.info(
@@ -896,7 +887,6 @@ async function runOnce({
   const lastSignalKey = lastState.signal;
 
   if (currentSignalKey !== lastSignalKey) {
-
     const lastCandleTime = monitorCandles.at(-1)?.timestamp;
     if (lastCandleTime) {
       logger.info(
@@ -992,13 +982,13 @@ async function runOnce({
     });
 
   // 末日保护程序：检查是否需要在收盘前5分钟清仓（使用当前系统时间，而非行情时间）
-  const shouldClearBeforeClose = TRADING_CONFIG.clearPositionsBeforeClose;
+  const shouldEnableDoomsdayProtection = TRADING_CONFIG.doomsdayProtection;
   const isBeforeClose = isBeforeClose5Minutes(currentTime, isHalfDayToday);
 
   let finalSignals = [];
 
   if (
-    shouldClearBeforeClose &&
+    shouldEnableDoomsdayProtection &&
     isBeforeClose &&
     canTradeNow &&
     Array.isArray(positions) &&
@@ -1137,12 +1127,12 @@ async function runOnce({
         }
 
         // 2. 末日保护程序：收盘前15分钟拒绝买入（卖出操作不受影响）
-        const shouldClearBeforeClose = TRADING_CONFIG.clearPositionsBeforeClose;
+        const shouldEnableDoomsdayProtection = TRADING_CONFIG.doomsdayProtection;
         const isBeforeClose15 = isBeforeClose15Minutes(
           currentTime,
           isHalfDayToday
         );
-        if (shouldClearBeforeClose && isBeforeClose15) {
+        if (shouldEnableDoomsdayProtection && isBeforeClose15) {
           const closeTimeRange = isHalfDayToday ? "11:45-12:00" : "15:45-16:00";
           logger.warn(
             `[末日保护程序] 收盘前15分钟内拒绝买入：${sigName}(${normalizedSigSymbol}) ${sig.action} - 当前时间在${closeTimeRange}范围内`
@@ -1266,7 +1256,6 @@ async function runOnce({
 
   // 只在有交易信号时显示执行信息（信号变化时已显示）
   if (finalSignals.length > 0) {
-
     for (const sig of finalSignals) {
       // 性能优化：在循环开始时缓存常用的计算结果
       const normalizedSigSymbol = normalizeHKSymbol(sig.symbol);
@@ -1311,7 +1300,6 @@ async function runOnce({
 
   // 执行交易（只在有信号时显示）
   if (finalSignals.length > 0) {
-
     logger.info(`执行交易：共 ${finalSignals.length} 个交易信号`);
 
     // 对卖出信号进行成本价判断和卖出数量计算
@@ -1573,7 +1561,6 @@ async function main() {
   logger.info("程序开始运行，在交易时段将进行实时监控和交易（按 Ctrl+C 退出）");
 
   // 初始化牛熊证信息（在程序启动时检查做多和做空标的是否为牛熊证）
-  logger.info("[风险检查] 正在初始化牛熊证信息...");
   await riskChecker.initializeWarrantInfo(
     marketDataClient,
     TRADING_CONFIG.longSymbol,

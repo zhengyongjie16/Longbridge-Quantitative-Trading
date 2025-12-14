@@ -227,7 +227,7 @@ src/
 - **收盘前 5 分钟自动清仓**：收盘前 5 分钟内自动清空所有持仓
   - 正常交易日：15:55-15:59 清仓
   - 半日交易日：11:55-11:59 清仓
-- 配置参数：`CLEAR_POSITIONS_BEFORE_CLOSE`（启用/禁用末日保护程序）
+- 配置参数：`DOOMSDAY_PROTECTION`（启用/禁用末日保护程序）
 
 ---
 
@@ -348,7 +348,7 @@ SHORT_LOT_SIZE=100             # 做空标的最小买卖单位
 # 风险管理配置
 MAX_POSITION_NOTIONAL=200000   # 单标的最大持仓市值（HKD）
 MAX_DAILY_LOSS=20000           # 单日最大亏损（HKD）
-CLEAR_POSITIONS_BEFORE_CLOSE=true  # 末日保护程序（收盘前15分钟拒绝买入，收盘前5分钟清仓）
+DOOMSDAY_PROTECTION=true       # 末日保护程序（收盘前15分钟拒绝买入，收盘前5分钟清仓）
 
 # 调试配置（可选）
 DEBUG=false                    # 启用详细日志
@@ -441,7 +441,7 @@ npm start
 | `SHORT_LOT_SIZE`               | 做空标的最小买卖单位                                      | `100`             |
 | `MAX_POSITION_NOTIONAL`        | 单标的最大持仓市值（HKD）                                 | `200000`          |
 | `MAX_DAILY_LOSS`               | 单日最大亏损（HKD）                                       | `20000`           |
-| `CLEAR_POSITIONS_BEFORE_CLOSE` | 末日保护程序（收盘前 15 分钟拒绝买入，收盘前 5 分钟清仓） | `true` 或 `false` |
+| `DOOMSDAY_PROTECTION`          | 末日保护程序（收盘前 15 分钟拒绝买入，收盘前 5 分钟清仓） | `true` 或 `false` |
 
 ### 可选配置
 
