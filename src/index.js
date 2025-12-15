@@ -499,7 +499,7 @@ async function runOnce({
 
   // 为所有待验证的信号记录当前监控标的值（每秒记录一次）
   // 每个信号都有自己独立的历史记录
-  // 增加5秒缓冲，确保在验证时间点之后5秒内还能记录，用于容错获取最近的值
+  // 只记录触发时间点前后 5 秒（即 triggerTime ± 5 秒）内的值，并在验证时从这 10 秒窗口中选择最接近触发时间的一条
   if (
     monitorSnapshot &&
     lastState.pendingDelayedSignals &&
@@ -512,20 +512,21 @@ async function runOnce({
     // 为每个待验证信号记录当前值（如果值有效）
     if (Number.isFinite(currentJ) && Number.isFinite(currentMACD)) {
       for (const pendingSignal of lastState.pendingDelayedSignals) {
-        // 记录条件：triggerTime + 5秒 > 当前时间（增加5秒缓冲）
-        // 这样可以确保在验证时间点之后5秒内还能继续记录，用于容错获取最近的值
         if (pendingSignal.triggerTime) {
-          const bufferTime = new Date(
-            pendingSignal.triggerTime.getTime() + 5 * 1000
-          ); // triggerTime + 5秒
-          if (bufferTime > now) {
+          const triggerTimeMs = pendingSignal.triggerTime.getTime();
+          const windowStart = triggerTimeMs - 5 * 1000; // triggerTime - 5 秒
+          const windowEnd = triggerTimeMs + 5 * 1000; // triggerTime + 5 秒
+          const nowMs = now.getTime();
+
+          // 只在 triggerTime ±5 秒窗口内记录数据
+          if (nowMs >= windowStart && nowMs <= windowEnd) {
             // 确保信号有历史记录数组
             if (!pendingSignal.verificationHistory) {
               pendingSignal.verificationHistory = [];
             }
 
             // 避免在同一秒内重复记录（精确到秒）
-            const nowSeconds = Math.floor(now.getTime() / 1000);
+            const nowSeconds = Math.floor(nowMs / 1000);
             const lastEntry =
               pendingSignal.verificationHistory[
                 pendingSignal.verificationHistory.length - 1
@@ -545,18 +546,21 @@ async function runOnce({
               // 记录当前值
               pendingSignal.verificationHistory.push(entry);
 
-              // 只保留最近2分钟的数据（120秒），避免内存占用过大
-              const twoMinutesAgo = now.getTime() - 120 * 1000;
-              const oldEntries = pendingSignal.verificationHistory.filter(
-                (entry) => entry.timestamp.getTime() < twoMinutesAgo
-              );
-              // 释放过期条目回对象池
-              verificationEntryPool.releaseAll(oldEntries);
-              // 保留有效条目
-              pendingSignal.verificationHistory =
-                pendingSignal.verificationHistory.filter(
-                  (entry) => entry.timestamp.getTime() >= twoMinutesAgo
-                );
+              // 只保留当前信号触发时间点前后 5 秒窗口内的数据，释放其他条目
+              const entriesToKeep = [];
+              const entriesToRelease = [];
+              for (const e of pendingSignal.verificationHistory) {
+                const t = e.timestamp.getTime();
+                if (t >= windowStart && t <= windowEnd) {
+                  entriesToKeep.push(e);
+                } else {
+                  entriesToRelease.push(e);
+                }
+              }
+              if (entriesToRelease.length > 0) {
+                verificationEntryPool.releaseAll(entriesToRelease);
+              }
+              pendingSignal.verificationHistory = entriesToKeep;
             }
           }
         }
