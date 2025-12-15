@@ -13,11 +13,12 @@
 ```
 主循环 (index.js) → 每秒执行一次
   ├─ 行情数据 (QuoteClient)
-  ├─ 指标计算 (indicators.js)
+  ├─ 指标计算 (indicators.js) - 使用 technicalindicators 库
   ├─ 信号生成 (strategy.js)
   ├─ 风险验证 (risk.js)
   ├─ 订单执行 (trader.js)
-  └─ 订单记录 (orderRecorder.js)
+  ├─ 订单记录 (orderRecorder.js)
+  └─ 对象池 (objectPool.js) - 内存优化
 ```
 
 ## 运行系统
@@ -123,11 +124,23 @@ npm start
 
 ### indicators.js（技术指标计算）
 
-- **RSI**：指数移动平均法（周期 6 和 12）
-- **KDJ**：随机指标，包含 K、D、J 值
-- **VWAP**：成交量加权平均价
-- **MACD**：DIF（EMA12-EMA26）、DEA（DIF 的 EMA9）、MACD 柱（DIF-DEA）×2
+- **实现方式**：使用 `technicalindicators` 库优化指标计算，性能提升约 2.9 倍
+- **RSI**：使用 RSI.calculate（Wilder's Smoothing，平滑系数 = 1/period），计算周期 6 和 12
+- **KDJ**：使用 EMA(period=5) 实现平滑系数 1/3，包含 K、D、J 值
+- **MACD**：使用 MACD.calculate（EMA 计算方式），DIF（EMA12-EMA26）、DEA（DIF 的 EMA9）、MACD 柱（DIF-DEA）×2
 - **函数**：`buildIndicatorSnapshot()` 返回包含所有指标的统一对象
+
+### objectPool.js（对象池模块）
+
+- **类**：`ObjectPool`（通用对象池）
+- **用途**：减少频繁的对象创建和垃圾回收，提升内存效率
+- **实例化对象池**：
+  - `verificationEntryPool`：验证历史条目对象池（最大 50 个）
+  - `positionObjectPool`：持仓数据对象池（最大 10 个）
+- **核心方法**：
+  - `acquire()`：从池中获取对象
+  - `release(obj)`：将对象归还到池中
+  - `releaseAll(objects)`：批量释放对象数组
 
 ### quoteClient.js（行情数据）
 
@@ -330,7 +343,7 @@ const sellQty = clearAll ? availableQty : Math.min(calculateQty, availableQty);
 
 在 `.env` 中启用 `DEBUG=true` 查看每秒记录的详细指标值：
 
-- RSI6、RSI12、VWAP、KDJ(K,D,J)、MACD(DIF,DEA,MACD)
+- RSI6、RSI12、KDJ(K,D,J)、MACD(DIF,DEA,MACD)
 
 ### 检查订单记录
 
@@ -371,7 +384,7 @@ Trader 日志显示：
 
 修改本系统时：
 
-1. **添加新指标**：更新 `indicators.js` 和 `buildIndicatorSnapshot()`，然后修改策略阈值
+1. **添加新指标**：更新 `indicators.js`，利用 `technicalindicators` 库添加新指标，然后修改 `buildIndicatorSnapshot()` 和策略阈值
 2. **修改信号逻辑**：编辑 `strategy.js` 条件，确保延迟信号仍记录 J1/MACD1
 3. **调整风险控制**：修改 `risk.js` 检查，始终仅对买入信号进行门控（允许卖出）
 4. **订单类型变更**：更新 `trader.js` \_submitTargetOrder()，确保订单类型被 LongPort API 支持
@@ -385,5 +398,7 @@ Trader 日志显示：
 - **故障安全设计**：多重风险检查门控高风险操作（买入）
 - **状态最小化**：仅必要状态跨迭代持久化
 - **缓存策略**：1 秒行情缓存，24 小时交易日缓存
+- **对象池复用**：verificationEntryPool 和 positionObjectPool 减少 GC 压力
+- **异步日志队列**：logger.js 使用异步队列批量处理，避免阻塞主循环
 - **防御性编程**：广泛的验证和错误处理
 - **日志透明度**：详细日志解释每个决策

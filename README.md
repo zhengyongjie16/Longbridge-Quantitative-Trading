@@ -6,7 +6,7 @@
 
 ### 主要特点
 
-- ✅ **多指标组合策略**：结合 RSI、KDJ、VWAP、MACD 四种技术指标
+- ✅ **多指标组合策略**：结合 RSI、KDJ、MACD 三种技术指标
 - ✅ **双向交易支持**：支持做多和做空两个方向的标的交易
 - ✅ **延迟验证机制**：开仓信号采用 60 秒延迟验证，确保趋势确认后再执行
 - ✅ **智能风险控制**：单日最大亏损限制、单标的持仓市值限制、牛熊证距离回收价检查
@@ -27,7 +27,8 @@ src/
 ├── index.js                    # 主程序入口，包含交易主循环
 ├── strategy.js                 # 交易策略模块（多指标组合策略）
 ├── trader.js                   # 交易执行模块（订单提交、管理）
-├── indicators.js               # 技术指标计算模块（RSI、KDJ、VWAP、MACD）
+├── indicators.js               # 技术指标计算模块（RSI、KDJ、MACD）
+├── objectPool.js               # 对象池模块（内存优化）
 ├── risk.js                     # 风险控制模块（浮亏检查、持仓限制）
 ├── orderRecorder.js            # 订单记录模块（历史订单管理）
 ├── quoteClient.js              # 行情客户端（获取行情、K线数据）
@@ -45,7 +46,7 @@ src/
 ```
 监控标的行情数据 → 计算技术指标 → 策略生成信号 → 风险检查 → 订单执行 → 订单监控
      ↓                ↓              ↓            ↓           ↓           ↓
-  K线数据      RSI/KDJ/VWAP/MACD   立即/延迟    浮亏/持仓    做多/做空   价格优化
+  K线数据        RSI/KDJ/MACD     立即/延迟    浮亏/持仓    做多/做空   价格优化
 ```
 
 ---
@@ -73,13 +74,7 @@ src/
    - 超买：D > 80, J > 100
    - 超卖：D < 20, J < 0
 
-3. **VWAP（成交量加权平均价）**
-
-   - 用于判断价格相对位置
-   - 价格 < VWAP：偏弱
-   - 价格 > VWAP：偏强
-
-4. **MACD（指数平滑异同移动平均线）**
+3. **MACD（指数平滑异同移动平均线）**
    - DIF：快线（EMA12 - EMA26）
    - DEA：慢线（DIF 的 EMA9）
    - MACD 柱：(DIF - DEA) × 2
@@ -387,7 +382,7 @@ npm start
 
    - 检查是否在交易时段（连续交易时段）
    - 获取监控标的的 K 线数据和实时行情
-   - 计算技术指标（RSI、KDJ、VWAP、MACD）
+   - 计算技术指标（RSI、KDJ、MACD）
    - 生成交易信号（立即执行 + 延迟验证）
    - 对卖出信号进行成本价判断和卖出数量计算
    - 验证延迟信号（60 秒后，检查 J2 和 MACD2）
@@ -455,42 +450,37 @@ npm start
 
 ### RSI（相对强弱指标）
 
-使用 EMA（指数移动平均）方式计算：
+使用 `technicalindicators` 库的 RSI.calculate 方法，采用 Wilder's Smoothing（Wilder平滑法）：
 
 ```
-1. 计算价格变化：change[i] = close[i] - close[i-1]
-2. 分离涨跌幅：gains = max(change, 0), losses = max(-change, 0)
-3. 计算平均涨跌幅（EMA）：
-   avgGain = currentGain * (1/period) + avgGain * (1 - 1/period)
-   avgLoss = currentLoss * (1/period) + avgLoss * (1 - 1/period)
-4. 计算 RSI：
-   RS = avgGain / avgLoss
-   RSI = 100 - 100 / (1 + RS)
+1. 计算价格变化（涨跌值）
+2. 分离涨幅和跌幅
+3. 使用平滑系数 1/period 计算平均涨幅和平均跌幅
+4. 计算 RS = 平均涨幅 / 平均跌幅
+5. 计算 RSI = 100 - 100 / (1 + RS)
 ```
 
 ### KDJ（随机指标）
 
+使用 `technicalindicators` 库的 EMA 实现平滑系数 1/3：
+
 ```
 1. 计算 RSV（未成熟随机值）：
    RSV = ((close - lowestLow) / (highestHigh - lowestLow)) * 100
-2. 计算 K 值：
+2. 计算 K 值（使用 EMA(period=5) 平滑 RSV）：
    K = (2/3) * 前一个K值 + (1/3) * RSV
-3. 计算 D 值：
+3. 计算 D 值（使用 EMA(period=5) 平滑 K）：
    D = (2/3) * 前一个D值 + (1/3) * K值
 4. 计算 J 值：
    J = 3 * K - 2 * D
 ```
 
-### VWAP（成交量加权平均价）
-
-```
-VWAP = Σ(价格 × 成交量) / Σ成交量
-```
-
 ### MACD（指数平滑异同移动平均线）
 
+使用 `technicalindicators` 库的 MACD.calculate 方法：
+
 ```
-1. 计算快慢线：
+1. 计算快慢线（使用 EMA）：
    EMA12 = EMA(close, 12)
    EMA26 = EMA(close, 26)
 2. 计算 DIF（快线）：
@@ -601,6 +591,7 @@ VWAP = Σ(价格 × 成交量) / Σ成交量
 ### 核心依赖
 
 - `longport`：LongPort OpenAPI Node.js SDK
+- `technicalindicators`：技术指标计算库（RSI、KDJ、MACD）
 - `dotenv`：环境变量管理
 
 ### 代码结构
@@ -615,7 +606,8 @@ LongBrigeAutomationProgram/
 │   ├── risk.js                 # 风险控制
 │   ├── orderRecorder.js        # 订单记录
 │   ├── quoteClient.js          # 行情客户端
-│   ├── logger.js               # 日志管理
+│   ├── logger.js               # 日志管理（异步队列批量处理）
+│   ├── objectPool.js           # 对象池模块（内存优化）
 │   ├── utils.js                # 工具函数
 │   ├── signalTypes.js          # 信号类型
 │   └── config/                 # 配置目录
@@ -703,7 +695,7 @@ LongBrigeAutomationProgram/
 
 ### v1.0.0
 
-- ✅ 实现多指标组合策略（RSI、KDJ、VWAP、MACD）
+- ✅ 实现多指标组合策略（RSI、KDJ、MACD）
 - ✅ 支持双向交易（做多/做空）
 - ✅ 延迟验证机制（60 秒趋势确认）
 - ✅ 智能风险控制（浮亏限制、持仓限制、牛熊证风险检查）
