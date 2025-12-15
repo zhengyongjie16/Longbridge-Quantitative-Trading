@@ -2,7 +2,7 @@ import { SignalType } from "./signalTypes.js";
 
 /**
  * 恒生指数多指标策略：
- * - 监控 RSI6、RSI12、KDJ、成交均价（VWAP）
+ * - 监控 RSI6、RSI12、KDJ、MACD
  * - 基于持仓成本价和指标条件生成清仓信号和开仓信号
  *
  * 策略逻辑（所有信号条件1或条件2满足其一即可）：
@@ -136,7 +136,7 @@ export class HangSengMultiIndicatorStrategy {
    * @returns {Object|null} 延迟验证信号对象
    */
   _generateDelayedSignal(state, symbol, action, reasonPrefix) {
-    const { rsi6, rsi12, kdj, vwap, price: monitorPrice, macd } = state;
+    const { rsi6, rsi12, kdj, price: monitorPrice, macd } = state;
 
     // 验证KDJ和MACD值是否有效
     if (!kdj || !Number.isFinite(kdj.j)) {
@@ -147,7 +147,7 @@ export class HangSengMultiIndicatorStrategy {
       return null;
     }
 
-    // 价格必须有效（VWAP 不再强制要求，因为买入信号条件1不再需要检查均价）
+    // 价格必须有效
     if (!Number.isFinite(monitorPrice)) {
       return null;
     }
@@ -221,7 +221,6 @@ export class HangSengMultiIndicatorStrategy {
         rsi6,
         rsi12,
         kdj,
-        vwap,
         price: monitorPrice,
         macd,
       },
@@ -230,7 +229,7 @@ export class HangSengMultiIndicatorStrategy {
 
   /**
    * 生成基于持仓成本价的清仓信号和延迟验证的开仓信号
-   * @param {Object} state 监控标的的指标状态 {rsi6, rsi12, kdj, vwap, price}
+   * @param {Object} state 监控标的的指标状态 {rsi6, rsi12, kdj, price, macd}
    * @param {Object} longPosition 做多标的的持仓信息 {symbol, costPrice, quantity, availableQuantity}
    * @param {number} longCurrentPrice 做多标的的当前价格
    * @param {Object} shortPosition 做空标的的持仓信息 {symbol, costPrice, quantity, availableQuantity}

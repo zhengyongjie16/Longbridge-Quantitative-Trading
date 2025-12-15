@@ -80,38 +80,6 @@ export function calculateRSI(closes, period) {
   }
 }
 
-export function calculateVWAP(candles) {
-  if (!candles || candles.length === 0) {
-    return null;
-  }
-
-  let totalValue = 0;
-  let totalVolume = 0;
-  let validCandles = 0;
-
-  for (const candle of candles) {
-    const close = toNumber(candle.close);
-    const volume = toNumber(candle.volume);
-
-    // 跳过无效数据
-    if (!Number.isFinite(close) || !Number.isFinite(volume) || volume < 0) {
-      continue;
-    }
-
-    totalValue += close * volume;
-    totalVolume += volume;
-    validCandles++;
-  }
-
-  // 如果没有有效数据，返回最后一个收盘价
-  if (validCandles === 0 || totalVolume === 0) {
-    const lastClose = toNumber(candles.at(-1)?.close);
-    return Number.isFinite(lastClose) && lastClose > 0 ? lastClose : null;
-  }
-
-  return safeDivide(totalValue, totalVolume, toNumber(candles.at(-1)?.close));
-}
-
 /**
  * ============================================================================
  * KDJ（随机指标）计算函数
@@ -408,7 +376,6 @@ export function calculateMACD(
  * 【功能说明】
  *   统一计算并返回指定标的的所有技术指标，包括：
  *   - price: 最新收盘价
- *   - vwap: 成交量加权平均价
  *   - rsi6: 6周期RSI指标
  *   - rsi12: 12周期RSI指标
  *   - kdj: KDJ指标（包含k、d、j三个值，周期9）
@@ -416,10 +383,9 @@ export function calculateMACD(
  *
  * 【计算顺序】
  *   1. 提取收盘价数组
- *   2. 计算VWAP（需要完整的K线数据）
- *   3. 计算RSI6和RSI12（使用 technicalindicators 库）
- *   4. 计算KDJ（使用 technicalindicators 库的 EMA）
- *   5. 计算MACD（使用 technicalindicators 库）
+ *   2. 计算RSI6和RSI12（使用 technicalindicators 库）
+ *   3. 计算KDJ（使用 technicalindicators 库的 EMA）
+ *   4. 计算MACD（使用 technicalindicators 库）
  *
  * @param {string} symbol 标的代码
  * @param {Array<Object>} candles K线数据数组，每根K线包含 {open, high, low, close, volume} 等字段
@@ -449,7 +415,6 @@ export function buildIndicatorSnapshot(symbol, candles) {
   return {
     symbol,
     price: validPrice, // 最新收盘价
-    vwap: calculateVWAP(candles), // 成交量加权平均价
     rsi6: calculateRSI(closes, 6), // 6周期RSI
     rsi12: calculateRSI(closes, 12), // 12周期RSI
     kdj: calculateKDJ(candles, 9), // KDJ指标

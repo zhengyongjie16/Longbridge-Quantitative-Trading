@@ -237,7 +237,7 @@ function calculateSellQuantity(
  * 主程序：
  * 1. 从环境变量读取 LongPort 配置（见快速开始文档：https://open.longbridge.com/zh-CN/docs/getting-started）
  * 2. 拉取监控标的的 K 线数据（用于计算指标和生成信号）
- * 3. 计算 RSI / KDJ / VWAP，并生成策略信号
+ * 3. 计算 RSI / KDJ / MACD，并生成策略信号
  * 4. 根据监控标的的信号，对做多/做空标的执行交易
  */
 async function runOnce({
@@ -411,7 +411,7 @@ async function runOnce({
   // 只计算监控标的的指标
   const monitorSnapshot = buildIndicatorSnapshot(monitorSymbol, monitorCandles);
 
-  // 检测监控标的的价格变化并实时显示（只检测价格变化）
+  // 检测监控标的的价格变化并实时显示（包含所有技术指标）
   if (monitorSnapshot) {
     const currentPrice = monitorSnapshot.price;
     const lastPrice = lastState.monitorValues?.price;
@@ -422,11 +422,68 @@ async function runOnce({
       isFirstTime || hasChanged(currentPrice, lastPrice, 0.0001);
 
     if (hasPriceChanged) {
-      // 只显示价格变化
+      // 显示价格变化及所有技术指标
       if (Number.isFinite(currentPrice)) {
+        // 格式化指标值
+        const formatIndicator = (value, decimals = 2) => {
+          return value !== null && value !== undefined && Number.isFinite(value)
+            ? value.toFixed(decimals)
+            : "-";
+        };
+
+        // 构建指标显示字符串
+        const indicators = [];
+        indicators.push(`价格=${currentPrice.toFixed(3)}`);
+
+        // RSI 指标
+        if (
+          monitorSnapshot.rsi6 !== null &&
+          monitorSnapshot.rsi6 !== undefined
+        ) {
+          indicators.push(`RSI6=${formatIndicator(monitorSnapshot.rsi6, 2)}`);
+        }
+        if (
+          monitorSnapshot.rsi12 !== null &&
+          monitorSnapshot.rsi12 !== undefined
+        ) {
+          indicators.push(`RSI12=${formatIndicator(monitorSnapshot.rsi12, 2)}`);
+        }
+
+        // KDJ 指标
+        if (monitorSnapshot.kdj) {
+          if (
+            monitorSnapshot.kdj.k !== null &&
+            monitorSnapshot.kdj.k !== undefined
+          ) {
+            indicators.push(`K=${formatIndicator(monitorSnapshot.kdj.k, 2)}`);
+          }
+          if (
+            monitorSnapshot.kdj.d !== null &&
+            monitorSnapshot.kdj.d !== undefined
+          ) {
+            indicators.push(`D=${formatIndicator(monitorSnapshot.kdj.d, 2)}`);
+          }
+          if (
+            monitorSnapshot.kdj.j !== null &&
+            monitorSnapshot.kdj.j !== undefined
+          ) {
+            indicators.push(`J=${formatIndicator(monitorSnapshot.kdj.j, 2)}`);
+          }
+        }
+
+        // MACD 指标（只显示MACD值）
+        if (
+          monitorSnapshot.macd?.macd !== null &&
+          monitorSnapshot.macd?.macd !== undefined
+        ) {
+          indicators.push(
+            `MACD=${formatIndicator(monitorSnapshot.macd.macd, 4)}`
+          );
+        }
+
         logger.info(
-          `[监控标的] ${monitorSymbolName}(${normalizedMonitorSymbol}) 价格=${currentPrice.toFixed(
-            3
+          `[监控标的] ${monitorSymbolName}(${normalizedMonitorSymbol}) ${indicators.join(
+            " "
           )}`
         );
       }
@@ -556,16 +613,6 @@ async function runOnce({
     normalizedShortSymbol,
     orderRecorder
   );
-
-  // 释放持仓对象回池（信号生成完成后不再需要）
-  if (longPosition) {
-    positionObjectPool.release(longPosition);
-    longPosition = null;
-  }
-  if (shortPosition) {
-    positionObjectPool.release(shortPosition);
-    shortPosition = null;
-  }
 
   // 将立即执行的信号添加到交易信号列表
   const tradingSignals = [...immediateSignals];
@@ -1305,37 +1352,125 @@ async function runOnce({
 
     // 对卖出信号进行成本价判断和卖出数量计算
     for (const sig of finalSignals) {
+      // 检查是否是末日保护程序的清仓信号（无条件清仓，不受成本价判断影响）
+      const isDoomsdaySignal =
+        sig.reason && sig.reason.includes("末日保护程序");
+
       if (sig.action === SignalType.SELLCALL) {
         // 卖出做多标的：判断成本价并计算卖出数量
-        const result = calculateSellQuantity(
-          longPosition,
-          longQuote,
-          orderRecorder,
-          "LONG",
-          sig.reason
-        );
-        if (result.shouldHold) {
-          sig.action = SignalType.HOLD;
-          sig.reason = result.reason;
+        // 添加调试日志
+        if (!longPosition) {
+          logger.warn(
+            `[卖出信号处理] SELLCALL: 做多标的持仓对象为null，无法计算卖出数量`
+          );
+        }
+        if (!longQuote) {
+          logger.warn(
+            `[卖出信号处理] SELLCALL: 做多标的行情数据为null，无法计算卖出数量`
+          );
+        }
+        if (longPosition && longQuote) {
+          logger.info(
+            `[卖出信号处理] SELLCALL: 持仓成本价=${longPosition.costPrice.toFixed(
+              3
+            )}, 当前价格=${longQuote.price.toFixed(3)}, 可用数量=${
+              longPosition.availableQuantity
+            }`
+          );
+        }
+
+        if (isDoomsdaySignal) {
+          // 末日保护程序：无条件清仓，使用全部可用数量
+          if (longPosition && longPosition.availableQuantity > 0) {
+            sig.quantity = longPosition.availableQuantity;
+            logger.info(
+              `[卖出信号处理] SELLCALL(末日保护): 无条件清仓，卖出数量=${sig.quantity}`
+            );
+          } else {
+            logger.warn(
+              `[卖出信号处理] SELLCALL(末日保护): 持仓对象无效，无法清仓`
+            );
+            sig.action = SignalType.HOLD;
+            sig.reason = `${sig.reason}，但持仓对象无效`;
+          }
         } else {
-          sig.quantity = result.quantity;
-          sig.reason = result.reason;
+          // 正常卖出信号：进行成本价判断
+          const result = calculateSellQuantity(
+            longPosition,
+            longQuote,
+            orderRecorder,
+            "LONG",
+            sig.reason
+          );
+          if (result.shouldHold) {
+            logger.info(`[卖出信号处理] SELLCALL被跳过: ${result.reason}`);
+            sig.action = SignalType.HOLD;
+            sig.reason = result.reason;
+          } else {
+            logger.info(
+              `[卖出信号处理] SELLCALL通过: 卖出数量=${result.quantity}, 原因=${result.reason}`
+            );
+            sig.quantity = result.quantity;
+            sig.reason = result.reason;
+          }
         }
       } else if (sig.action === SignalType.SELLPUT) {
         // 卖出做空标的：判断成本价并计算卖出数量
-        const result = calculateSellQuantity(
-          shortPosition,
-          shortQuote,
-          orderRecorder,
-          "SHORT",
-          sig.reason
-        );
-        if (result.shouldHold) {
-          sig.action = SignalType.HOLD;
-          sig.reason = result.reason;
+        // 添加调试日志
+        if (!shortPosition) {
+          logger.warn(
+            `[卖出信号处理] SELLPUT: 做空标的持仓对象为null，无法计算卖出数量`
+          );
+        }
+        if (!shortQuote) {
+          logger.warn(
+            `[卖出信号处理] SELLPUT: 做空标的行情数据为null，无法计算卖出数量`
+          );
+        }
+        if (shortPosition && shortQuote) {
+          logger.info(
+            `[卖出信号处理] SELLPUT: 持仓成本价=${shortPosition.costPrice.toFixed(
+              3
+            )}, 当前价格=${shortQuote.price.toFixed(3)}, 可用数量=${
+              shortPosition.availableQuantity
+            }`
+          );
+        }
+
+        if (isDoomsdaySignal) {
+          // 末日保护程序：无条件清仓，使用全部可用数量
+          if (shortPosition && shortPosition.availableQuantity > 0) {
+            sig.quantity = shortPosition.availableQuantity;
+            logger.info(
+              `[卖出信号处理] SELLPUT(末日保护): 无条件清仓，卖出数量=${sig.quantity}`
+            );
+          } else {
+            logger.warn(
+              `[卖出信号处理] SELLPUT(末日保护): 持仓对象无效，无法清仓`
+            );
+            sig.action = SignalType.HOLD;
+            sig.reason = `${sig.reason}，但持仓对象无效`;
+          }
         } else {
-          sig.quantity = result.quantity;
-          sig.reason = result.reason;
+          // 正常卖出信号：进行成本价判断
+          const result = calculateSellQuantity(
+            shortPosition,
+            shortQuote,
+            orderRecorder,
+            "SHORT",
+            sig.reason
+          );
+          if (result.shouldHold) {
+            logger.info(`[卖出信号处理] SELLPUT被跳过: ${result.reason}`);
+            sig.action = SignalType.HOLD;
+            sig.reason = result.reason;
+          } else {
+            logger.info(
+              `[卖出信号处理] SELLPUT通过: 卖出数量=${result.quantity}, 原因=${result.reason}`
+            );
+            sig.quantity = result.quantity;
+            sig.reason = result.reason;
+          }
         }
       }
     }
@@ -1344,6 +1479,16 @@ async function runOnce({
     const signalsToExecute = finalSignals.filter(
       (sig) => sig.action !== SignalType.HOLD
     );
+
+    // 释放持仓对象回池（在计算卖出数量完成后释放）
+    if (longPosition) {
+      positionObjectPool.release(longPosition);
+      longPosition = null;
+    }
+    if (shortPosition) {
+      positionObjectPool.release(shortPosition);
+      shortPosition = null;
+    }
 
     if (signalsToExecute.length > 0) {
       await trader.executeSignals(signalsToExecute);

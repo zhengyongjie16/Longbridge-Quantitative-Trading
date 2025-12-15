@@ -29,23 +29,21 @@ async function getHistoryBuyOrders(ctx, symbol, isLongSymbol) {
     const normalizedSymbol = normalizeHKSymbol(symbol);
     const endAt = new Date();
 
-    // 获取全部已成交买入和卖出订单
-    const [buyOrdersResponse, sellOrdersResponse] = await Promise.all([
-      ctx.historyOrders({
-        symbol: normalizedSymbol,
-        status: [OrderStatus.Filled],
-        side: OrderSide.Buy,
-        market: Market.HK,
-        endAt,
-      }),
-      ctx.historyOrders({
-        symbol: normalizedSymbol,
-        status: [OrderStatus.Filled],
-        side: OrderSide.Sell,
-        market: Market.HK,
-        endAt,
-      }),
-    ]);
+    // 获取全部已成交订单（不指定 side 参数，获取所有方向的订单）
+    const allOrdersResponse = await ctx.historyOrders({
+      symbol: normalizedSymbol,
+      status: [OrderStatus.Filled],
+      market: Market.HK,
+      endAt,
+    });
+
+    // 在客户端过滤买入和卖出订单
+    const buyOrdersResponse = allOrdersResponse.filter(
+      (order) => order.side === OrderSide.Buy
+    );
+    const sellOrdersResponse = allOrdersResponse.filter(
+      (order) => order.side === OrderSide.Sell
+    );
 
     // 转换买入订单为标准格式
     const allBuyOrders = buyOrdersResponse
