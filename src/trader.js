@@ -765,7 +765,7 @@ export class Trader {
       // BUY 信号：按目标金额（例如 5000 HKD）计算买入数量，
       // 尽量使 成交金额 <= targetNotional 且尽量接近 targetNotional
       const pricingSource =
-        overridePrice ?? signal?.price ?? signal?.snapshotPrice ?? null;
+        overridePrice ?? signal?.price ?? null;
       if (!Number.isFinite(Number(pricingSource)) || pricingSource <= 0) {
         logger.warn(
           `[跳过订单] 无法获取有效价格，无法按金额计算买入数量，symbol=${symbol}, price=${pricingSource}`
@@ -841,7 +841,7 @@ export class Trader {
     };
 
     const resolvedPrice =
-      overridePrice ?? signal?.price ?? signal?.snapshotPrice ?? null;
+      overridePrice ?? signal?.price ?? null;
 
     if (
       orderType === OrderType.LO ||

@@ -191,14 +191,6 @@ export function formatQuoteDisplay(quote, symbol) {
     ? currentPrice.toFixed(3)
     : currentPrice ?? "-";
 
-  // 时间
-  const tsText = quote.timestamp
-    ? quote.timestamp.toLocaleString("zh-CN", {
-        timeZone: "Asia/Hong_Kong",
-        hour12: false,
-      })
-    : "未知时间";
-
   // 涨跌额和涨跌幅度
   let changeAmountText = "-";
   let changePercentText = "-";
@@ -227,6 +219,5 @@ export function formatQuoteDisplay(quote, symbol) {
     priceText,
     changeAmountText,
     changePercentText,
-    tsText,
   };
 }

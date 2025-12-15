@@ -3,9 +3,6 @@ import { RSI, MACD, EMA } from "technicalindicators";
 const toNumber = (value) =>
   typeof value === "number" ? value : Number(value ?? 0);
 
-const safeDivide = (numerator, denominator, fallback = 0) =>
-  denominator === 0 ? fallback : numerator / denominator;
-
 /**
  * ============================================================================
  * RSI（相对强弱指标）计算函数

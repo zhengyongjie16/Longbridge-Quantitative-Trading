@@ -368,7 +368,7 @@ async function runOnce({
     const longDisplay = formatQuoteDisplay(longQuote, longSymbol);
     if (longDisplay) {
       logger.info(
-        `[做多标的] ${longDisplay.nameText}(${longDisplay.codeText}) 最新价格=${longDisplay.priceText} 涨跌额=${longDisplay.changeAmountText} 涨跌幅度=${longDisplay.changePercentText} 时间=${longDisplay.tsText}`
+        `[做多标的] ${longDisplay.nameText}(${longDisplay.codeText}) 最新价格=${longDisplay.priceText} 涨跌额=${longDisplay.changeAmountText} 涨跌幅度=${longDisplay.changePercentText}`
       );
     } else {
       logger.warn(`未获取到做多标的行情。`);
@@ -378,7 +378,7 @@ async function runOnce({
     const shortDisplay = formatQuoteDisplay(shortQuote, shortSymbol);
     if (shortDisplay) {
       logger.info(
-        `[做空标的] ${shortDisplay.nameText}(${shortDisplay.codeText}) 最新价格=${shortDisplay.priceText} 涨跌额=${shortDisplay.changeAmountText} 涨跌幅度=${shortDisplay.changePercentText} 时间=${shortDisplay.tsText}`
+        `[做空标的] ${shortDisplay.nameText}(${shortDisplay.codeText}) 最新价格=${shortDisplay.priceText} 涨跌额=${shortDisplay.changeAmountText} 涨跌幅度=${shortDisplay.changePercentText}`
       );
     } else {
       logger.warn(`未获取到做空标的行情。`);
@@ -606,12 +606,9 @@ async function runOnce({
   const { immediateSignals, delayedSignals } = strategy.generateCloseSignals(
     monitorSnapshot,
     longPosition,
-    longQuote?.price ?? null,
     shortPosition,
-    shortQuote?.price ?? null,
     normalizedLongSymbol,
-    normalizedShortSymbol,
-    orderRecorder
+    normalizedShortSymbol
   );
 
   // 将立即执行的信号添加到交易信号列表

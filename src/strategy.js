@@ -217,13 +217,6 @@ export class HangSengMultiIndicatorStrategy {
         timeZone: "Asia/Hong_Kong",
         hour12: false,
       })} 进行验证`,
-      originalState: {
-        rsi6,
-        rsi12,
-        kdj,
-        price: monitorPrice,
-        macd,
-      },
     };
   }
 
@@ -231,12 +224,9 @@ export class HangSengMultiIndicatorStrategy {
    * 生成基于持仓成本价的清仓信号和延迟验证的开仓信号
    * @param {Object} state 监控标的的指标状态 {rsi6, rsi12, kdj, price, macd}
    * @param {Object} longPosition 做多标的的持仓信息 {symbol, costPrice, quantity, availableQuantity}
-   * @param {number} longCurrentPrice 做多标的的当前价格
    * @param {Object} shortPosition 做空标的的持仓信息 {symbol, costPrice, quantity, availableQuantity}
-   * @param {number} shortCurrentPrice 做空标的的当前价格
    * @param {string} longSymbol 做多标的的代码
    * @param {string} shortSymbol 做空标的的代码
-   * @param {Object} orderRecorder 订单记录器实例（可选）
    * @returns {Object} 包含立即执行信号和延迟验证信号的对象
    *   - immediateSignals: 立即执行的信号数组（清仓信号）
    *   - delayedSignals: 延迟验证的信号数组（开仓信号）
@@ -244,12 +234,9 @@ export class HangSengMultiIndicatorStrategy {
   generateCloseSignals(
     state,
     longPosition,
-    longCurrentPrice,
     shortPosition,
-    shortCurrentPrice,
     longSymbol,
-    shortSymbol,
-    orderRecorder = null
+    shortSymbol
   ) {
     const immediateSignals = [];
     const delayedSignals = [];

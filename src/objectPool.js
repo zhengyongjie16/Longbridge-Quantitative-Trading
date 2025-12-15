@@ -103,37 +103,6 @@ export const verificationEntryPool = new ObjectPool(
 );
 
 /**
- * 信号对象池
- * 用于交易信号对象的复用
- */
-export const signalObjectPool = new ObjectPool(
-  // 工厂函数：创建空对象
-  () => ({
-    symbol: null,
-    symbolName: null,
-    action: null,
-    reason: null,
-    price: null,
-    lotSize: null,
-    signalTriggerTime: null,
-    quantity: null,
-  }),
-  // 重置函数：清空所有属性
-  (obj) => {
-    obj.symbol = null;
-    obj.symbolName = null;
-    obj.action = null;
-    obj.reason = null;
-    obj.price = null;
-    obj.lotSize = null;
-    obj.signalTriggerTime = null;
-    obj.quantity = null;
-    return obj;
-  },
-  20 // 通常不会同时有超过20个信号
-);
-
-/**
  * 持仓对象池
  * 用于持仓数据对象的复用
  */
