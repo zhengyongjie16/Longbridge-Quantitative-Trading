@@ -914,17 +914,29 @@ async function runOnce({
     }
   }
 
+  // 提前过滤并验证信号数组的有效性（统一过滤，避免后续重复验证）
+  const validActions = [
+    SignalType.BUYCALL,
+    SignalType.SELLCALL,
+    SignalType.BUYPUT,
+    SignalType.SELLPUT,
+  ];
+  
+  const validSignals = tradingSignals.filter((signal) => {
+    if (!signal?.symbol || !signal?.action) {
+      logger.warn(`[跳过信号] 无效的信号对象: ${JSON.stringify(signal)}`);
+      return false;
+    }
+    if (!validActions.includes(signal.action)) {
+      logger.warn(
+        `[跳过信号] 未知的信号类型: ${signal.action}, 标的: ${signal.symbol}`
+      );
+      return false;
+    }
+    return true;
+  });
+
   // 检测信号变化
-  // 验证信号数组的有效性
-  const validSignals = tradingSignals.filter(
-    (s) =>
-      s?.symbol &&
-      s?.action &&
-      (s.action === SignalType.BUYCALL ||
-        s.action === SignalType.SELLCALL ||
-        s.action === SignalType.BUYPUT ||
-        s.action === SignalType.SELLPUT)
-  );
 
   const currentSignalKey =
     validSignals.length > 0
@@ -977,29 +989,8 @@ async function runOnce({
     lastState.signal = currentSignalKey;
   }
 
-  // 使用新策略生成的交易信号
-  // 过滤并验证信号，只处理有效的信号
-  const signals = tradingSignals
-    .filter((signal) => {
-      if (!signal?.symbol || !signal?.action) {
-        logger.warn(`[跳过信号] 无效的信号对象: ${JSON.stringify(signal)}`);
-        return false;
-      }
-      const validActions = [
-        SignalType.BUYCALL,
-        SignalType.SELLCALL,
-        SignalType.BUYPUT,
-        SignalType.SELLPUT,
-      ];
-      if (!validActions.includes(signal.action)) {
-        logger.warn(
-          `[跳过信号] 未知的信号类型: ${signal.action}, 标的: ${signal.symbol}`
-        );
-        return false;
-      }
-      return true;
-    })
-    .map((signal) => {
+  // 使用已过滤的有效信号，补充价格和lotSize信息
+  const signals = validSignals.map((signal) => {
       // 信号中的 symbol 已经是规范化的（来自策略或末日保护程序），无需重复规范化
       const normalizedSigSymbol = signal.symbol;
 
