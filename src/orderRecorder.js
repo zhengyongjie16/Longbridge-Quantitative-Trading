@@ -412,7 +412,7 @@ export class OrderRecorder {
       }
 
       logger.info(
-        `[现存订单记录] ${positionType} ${normalizedSymbol}: ` +
+        `[订单记录] ${positionType} ${normalizedSymbol}: ` +
           `历史买入${originalBuyCount}笔, ` +
           `历史卖出${filledSellOrders.length}笔(有效${sortedSellOrders.length}笔), ` +
           `最终已过滤${filteredCount}笔, ` +
