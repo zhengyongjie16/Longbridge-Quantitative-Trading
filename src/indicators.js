@@ -10,7 +10,7 @@ const toNumber = (value) =>
  *
  * 【调用位置】
  *   - buildIndicatorSnapshot() 函数中调用
- *   - 用于计算 rsi6（周期6）和 rsi12（周期12）
+ *   - 用于计算 rsi6（周期6）
  *
  * 【实现方式】
  *   使用 technicalindicators 库的 RSI.calculate 方法
@@ -27,11 +27,11 @@ const toNumber = (value) =>
  *   - RSI值范围：0-100
  *   - RSI > 70：通常认为超买
  *   - RSI < 30：通常认为超卖
- *   - 本策略使用：RSI6 > 80 或 RSI12 > 80 作为卖出信号
- *                 RSI6 < 20 或 RSI12 < 20 作为买入信号
+ *   - 本策略使用：RSI6 > 80 作为卖出信号
+ *                 RSI6 < 20 作为买入信号
  *
  * @param {Array<number>} closes 收盘价数组，按时间顺序排列
- * @param {number} period RSI周期，例如：6（RSI6）或 12（RSI12）
+ * @param {number} period RSI周期，例如：6（RSI6）
  * @returns {number|null} RSI值（0-100），如果无法计算则返回null
  */
 export function calculateRSI(closes, period) {
@@ -498,14 +498,13 @@ export function calculateMFI(candles, period = 14) {
  *   统一计算并返回指定标的的所有技术指标，包括：
  *   - price: 最新收盘价
  *   - rsi6: 6周期RSI指标
- *   - rsi12: 12周期RSI指标
  *   - kdj: KDJ指标（包含k、d、j三个值，周期9）
  *   - macd: MACD指标（包含dif、dea、macd三个值）
  *   - mfi: MFI指标（资金流量指标，周期14）
  *
  * 【计算顺序】
  *   1. 提取收盘价数组
- *   2. 计算RSI6和RSI12（使用 technicalindicators 库）
+ *   2. 计算RSI6（使用 technicalindicators 库）
  *   3. 计算KDJ（使用 technicalindicators 库的 EMA）
  *   4. 计算MACD（使用 technicalindicators 库）
  *   5. 计算MFI（使用 technicalindicators 库）
@@ -539,7 +538,6 @@ export function buildIndicatorSnapshot(symbol, candles) {
     symbol,
     price: validPrice, // 最新收盘价
     rsi6: calculateRSI(closes, 6), // 6周期RSI
-    rsi12: calculateRSI(closes, 12), // 12周期RSI
     kdj: calculateKDJ(candles, 9), // KDJ指标
     macd: calculateMACD(closes), // MACD指标
     mfi: calculateMFI(candles, 14), // MFI指标（资金流量指标，周期14）

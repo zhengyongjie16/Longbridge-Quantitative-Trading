@@ -442,12 +442,6 @@ async function runOnce({
         ) {
           indicators.push(`RSI6=${formatIndicator(monitorSnapshot.rsi6, 2)}`);
         }
-        if (
-          monitorSnapshot.rsi12 !== null &&
-          monitorSnapshot.rsi12 !== undefined
-        ) {
-          indicators.push(`RSI12=${formatIndicator(monitorSnapshot.rsi12, 2)}`);
-        }
 
         // KDJ 指标
         if (monitorSnapshot.kdj) {

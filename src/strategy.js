@@ -2,26 +2,26 @@ import { SignalType } from "./signalTypes.js";
 
 /**
  * 恒生指数多指标策略：
- * - 监控 RSI6、RSI12、KDJ、MACD
+ * - 监控 RSI6、MFI、KDJ、MACD
  * - 基于持仓成本价和指标条件生成清仓信号和开仓信号
  *
  * 策略逻辑（所有信号条件1或条件2满足其一即可）：
  *
  * 1. 买入做多标的（BUYCALL）- 延迟验证：
- *    条件1：RSI6<20, RSI12<20, KDJ.D<20, KDJ.J<-1 四个指标满足3个以上（无需检查均价）
+ *    条件1：RSI6<20, MFI<15, KDJ.D<20, KDJ.J<-1 四个指标满足3个以上（无需检查均价）
  *    条件2：J<-20（无需检查均价）
  *
  * 2. 卖出做多标的（SELLCALL）- 立即执行：
- *    条件1：RSI6>80, RSI12>80, KDJ.D>79, KDJ.J>100 四个指标满足3个以上
+ *    条件1：RSI6>80, MFI>85, KDJ.D>79, KDJ.J>100 四个指标满足3个以上
  *    条件2：KDJ.J>110
  *    注意：卖出信号生成时无需判断成本价，成本价判断在卖出策略中进行
  *
  * 3. 买入做空标的（BUYPUT）- 延迟验证：
- *    条件1：RSI6>80, RSI12>80, KDJ.D>80, KDJ.J>100 四个指标满足3个以上（无需检查均价）
+ *    条件1：RSI6>80, MFI>85, KDJ.D>80, KDJ.J>100 四个指标满足3个以上（无需检查均价）
  *    条件2：J>120
  *
  * 4. 卖出做空标的（SELLPUT）- 立即执行：
- *    条件1：RSI6<20, RSI12<20, KDJ.D<22, KDJ.J<0 四个指标满足3个以上
+ *    条件1：RSI6<20, MFI<15, KDJ.D<22, KDJ.J<0 四个指标满足3个以上
  *    条件2：KDJ.J<-15（无需检查均价）
  *    注意：卖出信号生成时无需判断成本价，成本价判断在卖出策略中进行
  */
@@ -29,25 +29,25 @@ export class HangSengMultiIndicatorStrategy {
   constructor({
     buycall = {
       rsi6: 20,
-      rsi12: 20,
+      mfi: 15,
       d: 20,
       j: -1,
     },
     sellcall = {
       rsi6: 80,
-      rsi12: 80,
+      mfi: 85,
       d: 79, // KDJ.D>79（注意：不是80）
       j: 100,
     },
     buyput = {
       rsi6: 80,
-      rsi12: 80,
+      mfi: 85,
       d: 80,
       j: 100,
     },
     sellput = {
       rsi6: 20,
-      rsi12: 20,
+      mfi: 15,
       d: 22, // KDJ.D<22（注意：不是20）
       j: 0,
     },
@@ -57,6 +57,49 @@ export class HangSengMultiIndicatorStrategy {
     this.sellcallThreshold = sellcall;
     this.buyputThreshold = buyput;
     this.sellputThreshold = sellput;
+  }
+
+  /**
+   * 检查值是否为有效的有限数字
+   * @private
+   * @param {*} value 待检查的值
+   * @returns {boolean} 如果值为有效的有限数字返回 true，否则返回 false
+   */
+  _isValidNumber(value) {
+    return value !== null && value !== undefined && Number.isFinite(value);
+  }
+
+  /**
+   * 验证指标状态的基本指标（RSI6, MFI, KDJ）
+   * @private
+   * @param {Object} state 指标状态对象
+   * @returns {boolean} 如果所有基本指标有效返回 true，否则返回 false
+   */
+  _validateBasicIndicators(state) {
+    const { rsi6, mfi, kdj } = state;
+    return (
+      this._isValidNumber(rsi6) &&
+      this._isValidNumber(mfi) &&
+      kdj &&
+      this._isValidNumber(kdj.d) &&
+      this._isValidNumber(kdj.j)
+    );
+  }
+
+  /**
+   * 验证指标状态（包括 MACD 和价格）
+   * @private
+   * @param {Object} state 指标状态对象
+   * @returns {boolean} 如果所有指标有效返回 true，否则返回 false
+   */
+  _validateAllIndicators(state) {
+    const { macd, price } = state;
+    return (
+      this._validateBasicIndicators(state) &&
+      macd &&
+      this._isValidNumber(macd.macd) &&
+      this._isValidNumber(price)
+    );
   }
 
   /**
@@ -80,7 +123,7 @@ export class HangSengMultiIndicatorStrategy {
    * 根据信号类型获取对应的阈值配置
    * @private
    * @param {string} signalType 信号类型
-   * @returns {Object|null} 阈值配置对象 {rsi6, rsi12, d, j}
+   * @returns {Object|null} 阈值配置对象 {rsi6, mfi, d, j}
    */
   _getThresholdForSignal(signalType) {
     switch (signalType) {
@@ -100,29 +143,29 @@ export class HangSengMultiIndicatorStrategy {
   /**
    * 计算指定信号类型的指标条件满足数量
    * @private
-   * @param {Object} state 监控标的的指标状态 {rsi6, rsi12, kdj}
+   * @param {Object} state 监控标的的指标状态 {rsi6, mfi, kdj}
    * @param {string} signalType 信号类型
    * @returns {number} 满足条件的数量（0-4）
    */
   _calculateConditionCount(state, signalType) {
-    const { rsi6, rsi12, kdj } = state;
+    const { rsi6, mfi, kdj } = state;
     const threshold = this._getThresholdForSignal(signalType);
 
-    if (!threshold) {
+    if (!threshold || !this._validateBasicIndicators(state)) {
       return 0;
     }
 
     // 根据信号类型判断是使用小于阈值还是大于阈值比较
-    // BUYCALL（买入做多）：RSI6<20, RSI12<20, KDJ.D<20, KDJ.J<-1 → 使用小于比较
-    // SELLPUT（卖出做空）：RSI6<20, RSI12<20, KDJ.D<22, KDJ.J<0 → 使用小于比较
-    // SELLCALL（卖出做多）：RSI6>80, RSI12>80, KDJ.D>79, KDJ.J>100 → 使用大于比较
-    // BUYPUT（买入做空）：RSI6>80, RSI12>80, KDJ.D>80, KDJ.J>100 → 使用大于比较
+    // BUYCALL（买入做多）：RSI6<20, MFI<15, KDJ.D<20, KDJ.J<-1 → 使用小于比较
+    // SELLPUT（卖出做空）：RSI6<20, MFI<15, KDJ.D<22, KDJ.J<0 → 使用小于比较
+    // SELLCALL（卖出做多）：RSI6>80, MFI>85, KDJ.D>79, KDJ.J>100 → 使用大于比较
+    // BUYPUT（买入做空）：RSI6>80, MFI>85, KDJ.D>80, KDJ.J>100 → 使用大于比较
     const useLessThanComparison =
       signalType === SignalType.BUYCALL || signalType === SignalType.SELLPUT;
 
     const conditions = [
       useLessThanComparison ? rsi6 < threshold.rsi6 : rsi6 > threshold.rsi6,
-      useLessThanComparison ? rsi12 < threshold.rsi12 : rsi12 > threshold.rsi12,
+      useLessThanComparison ? mfi < threshold.mfi : mfi > threshold.mfi,
       useLessThanComparison ? kdj.d < threshold.d : kdj.d > threshold.d,
       useLessThanComparison ? kdj.j < threshold.j : kdj.j > threshold.j,
     ];
@@ -140,21 +183,12 @@ export class HangSengMultiIndicatorStrategy {
    * @returns {Object|null} 延迟验证信号对象
    */
   _generateDelayedSignal(state, symbol, action, reasonPrefix) {
-    const { rsi6, rsi12, kdj, price: monitorPrice, macd } = state;
-
-    // 验证KDJ和MACD值是否有效
-    if (!kdj || !Number.isFinite(kdj.j)) {
+    // 验证所有必要的指标值是否有效
+    if (!this._validateAllIndicators(state)) {
       return null;
     }
 
-    if (!macd || !Number.isFinite(macd.macd)) {
-      return null;
-    }
-
-    // 价格必须有效
-    if (!Number.isFinite(monitorPrice)) {
-      return null;
-    }
+    const { rsi6, mfi, kdj, macd } = state;
 
     // 判断是否满足条件（条件1 或 条件2）
     let condition1Met = false;
@@ -211,11 +245,11 @@ export class HangSengMultiIndicatorStrategy {
       j1, // 记录触发时的J值
       macd1, // 记录触发时的MACD值
       verificationHistory: [], // 该信号专用的验证历史记录（每秒记录一次）
-      reason: `${reasonPrefix}：${conditionReason}，RSI6/12(${rsi6.toFixed(
+      reason: `${reasonPrefix}：${conditionReason}，RSI6(${rsi6.toFixed(
         1
-      )}/${rsi12.toFixed(1)})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(
-        2
-      )})，J1=${j1.toFixed(2)} MACD1=${macd1.toFixed(
+      )})、MFI(${mfi?.toFixed(1) ?? "-"})、KDJ(D=${kdj.d.toFixed(
+        1
+      )},J=${kdj.j.toFixed(2)})，J1=${j1.toFixed(2)} MACD1=${macd1.toFixed(
         4
       )}，将在 ${triggerTime.toLocaleString("zh-CN", {
         timeZone: "Asia/Hong_Kong",
@@ -226,7 +260,7 @@ export class HangSengMultiIndicatorStrategy {
 
   /**
    * 生成基于持仓成本价的清仓信号和延迟验证的开仓信号
-   * @param {Object} state 监控标的的指标状态 {rsi6, rsi12, kdj, price, macd}
+   * @param {Object} state 监控标的的指标状态 {rsi6, mfi, kdj, price, macd}
    * @param {Object} longPosition 做多标的的持仓信息 {symbol, costPrice, quantity, availableQuantity}
    * @param {Object} shortPosition 做空标的的持仓信息 {symbol, costPrice, quantity, availableQuantity}
    * @param {string} longSymbol 做多标的的代码
@@ -249,17 +283,15 @@ export class HangSengMultiIndicatorStrategy {
       return { immediateSignals, delayedSignals };
     }
 
-    const { rsi6, rsi12, kdj } = state;
-    if (
-      [rsi6, rsi12, kdj?.d, kdj?.j].some(
-        (value) => value === null || Number.isNaN(value)
-      )
-    ) {
+    // 验证所有必要的指标值是否有效
+    if (!this._validateBasicIndicators(state)) {
       return { immediateSignals, delayedSignals };
     }
 
+    const { rsi6, mfi, kdj } = state;
+
     // 1. 买入做多标的（延迟验证策略）
-    // 条件1：RSI6<20, RSI12<20, KDJ.D<20, KDJ.J<-1 四个指标满足3个以上（无需检查均价）
+    // 条件1：RSI6<20, MFI<15, KDJ.D<20, KDJ.J<-1 四个指标满足3个以上（无需检查均价）
     // 条件2：J<-20（无需检查均价）
     if (longSymbol) {
       const delayedBuySignal = this._generateDelayedSignal(
@@ -274,7 +306,7 @@ export class HangSengMultiIndicatorStrategy {
     }
 
     // 2. 卖出做多标的的条件（立即执行）
-    // 条件1：RSI6>80, RSI12>80, KDJ.D>79, KDJ.J>100 四个指标满足3个以上
+    // 条件1：RSI6>80, MFI>85, KDJ.D>79, KDJ.J>100 四个指标满足3个以上
     // 条件2：KDJ.J>110
     // 注意：卖出信号生成时无需判断成本价，成本价判断在卖出策略中进行
     const canSellLong =
@@ -300,9 +332,9 @@ export class HangSengMultiIndicatorStrategy {
         // 构建原因说明
         let reason = "";
         if (condition1Met) {
-          reason = `满足条件1：RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(
-            1
-          )})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(
+          reason = `满足条件1：RSI6(${rsi6.toFixed(1)})、MFI(${
+            mfi?.toFixed(1) ?? "-"
+          })、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(
             1
           )}) 中${sellcallCount}项满足条件`;
         } else if (condition2Met) {
@@ -320,7 +352,7 @@ export class HangSengMultiIndicatorStrategy {
     }
 
     // 3. 买入做空标的（延迟验证策略）
-    // 条件1：RSI6>80, RSI12>80, KDJ.D>80, KDJ.J>100 四个指标满足3个以上（无需检查均价）
+    // 条件1：RSI6>80, MFI>85, KDJ.D>80, KDJ.J>100 四个指标满足3个以上（无需检查均价）
     // 条件2：J>120
     if (shortSymbol) {
       const delayedSellSignal = this._generateDelayedSignal(
@@ -335,7 +367,7 @@ export class HangSengMultiIndicatorStrategy {
     }
 
     // 4. 卖出做空标的的条件（立即执行）
-    // 条件1：RSI6<20, RSI12<20, KDJ.D<22, KDJ.J<0 四个指标满足3个以上
+    // 条件1：RSI6<20, MFI<15, KDJ.D<22, KDJ.J<0 四个指标满足3个以上
     // 条件2：KDJ.J<-15（无需检查均价）
     // 注意：卖出信号生成时无需判断成本价，成本价判断在卖出策略中进行
     const canSellShort =
@@ -361,9 +393,9 @@ export class HangSengMultiIndicatorStrategy {
         // 构建原因说明
         let reason = "";
         if (condition1Short) {
-          reason = `满足条件1：RSI6/12(${rsi6.toFixed(1)}/${rsi12.toFixed(
-            1
-          )})、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(
+          reason = `满足条件1：RSI6(${rsi6.toFixed(1)})、MFI(${
+            mfi?.toFixed(1) ?? "-"
+          })、KDJ(D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(
             1
           )}) 中${sellputCount}项满足条件`;
         } else if (condition2Short) {
