@@ -1287,12 +1287,17 @@ async function runOnce({
 
       // 基础风险检查（使用最新获取的账户和持仓信息）
       // 包括：浮亏检查（仅买入操作）和持仓市值限制检查（所有操作）
+      // 获取做多和做空标的的当前价格用于浮亏计算
+      const longCurrentPrice = longQuote?.price ?? null;
+      const shortCurrentPrice = shortQuote?.price ?? null;
       const riskResult = riskChecker.checkBeforeOrder(
         accountForRiskCheck,
         positionsForRiskCheck,
         sig,
         orderNotional,
-        currentPrice
+        currentPrice,
+        longCurrentPrice,
+        shortCurrentPrice
       );
       if (riskResult.allowed) {
         finalSignals.push(sig);
