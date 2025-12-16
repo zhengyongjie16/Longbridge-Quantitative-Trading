@@ -1,10 +1,17 @@
-import { QuoteContext, Config, TradeSessions } from "longport";
+import { OrderStatus, Config, TradeContext, Market, OrderSide } from "longport";
 
 let config = Config.fromEnv();
-QuoteContext.new(config)
-  .then((ctx) => ctx.intraday("HSI.HK", TradeSessions.Intraday))
+TradeContext.new(config)
+  .then((ctx) =>
+    ctx.todayOrders({
+      symbol: "69650.HK",
+      status: [OrderStatus.Filled],
+      side: OrderSide.Buy,
+      market: Market.HK,
+    })
+  )
   .then((resp) => {
     for (let obj of resp) {
-      console.log(obj.toString());
+      console.log(obj.toJSON());
     }
   });
