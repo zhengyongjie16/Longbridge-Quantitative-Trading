@@ -4,14 +4,14 @@ import { normalizeHKSymbol, decimalToNumber } from "./utils.js";
 
 /**
  * 订单记录管理器
- * 用于记录做多和做空标的的历史买入且已成交订单
+ * 用于记录做多和做空标的的当日买入且已成交订单
  */
 export class OrderRecorder {
   constructor(trader) {
     this._trader = trader;
-    // 记录做多标的的历史买入且已成交订单
+    // 记录做多标的的当日买入且已成交订单
     this._longBuyOrders = [];
-    // 记录做空标的的历史买入且已成交订单
+    // 记录做空标的的当日买入且已成交订单
     this._shortBuyOrders = [];
   }
 
@@ -70,7 +70,7 @@ export class OrderRecorder {
       quantity <= 0
     ) {
       logger.warn(
-        `[订单记录] 本地买入记录参数无效，跳过记录：symbol=${symbol}, price=${executedPrice}, quantity=${executedQuantity}`
+        `[现存订单记录] 本地买入记录参数无效，跳过记录：symbol=${symbol}, price=${executedPrice}, quantity=${executedQuantity}`
       );
       return;
     }
@@ -90,7 +90,7 @@ export class OrderRecorder {
 
     const positionType = isLongSymbol ? "做多标的" : "做空标的";
     logger.info(
-      `[订单记录] 本地新增买入记录：${positionType} ${normalizedSymbol} 价格=${price.toFixed(
+      `[现存订单记录] 本地新增买入记录：${positionType} ${normalizedSymbol} 价格=${price.toFixed(
         3
       )} 数量=${quantity}`
     );
@@ -120,7 +120,7 @@ export class OrderRecorder {
       quantity <= 0
     ) {
       logger.warn(
-        `[订单记录] 本地卖出记录参数无效，跳过更新：symbol=${symbol}, price=${executedPrice}, quantity=${executedQuantity}`
+        `[现存订单记录] 本地卖出记录参数无效，跳过更新：symbol=${symbol}, price=${executedPrice}, quantity=${executedQuantity}`
       );
       return;
     }
@@ -141,7 +141,7 @@ export class OrderRecorder {
     if (quantity >= totalQuantity) {
       this._setBuyOrdersList(normalizedSymbol, isLongSymbol, []);
       logger.info(
-        `[订单记录] 本地卖出更新：${positionType} ${normalizedSymbol} 卖出数量=${quantity} >= 当前记录总数量=${totalQuantity}，清空所有买入记录`
+        `[现存订单记录] 本地卖出更新：${positionType} ${normalizedSymbol} 卖出数量=${quantity} >= 当前记录总数量=${totalQuantity}，清空所有买入记录`
       );
       return;
     }
@@ -155,15 +155,15 @@ export class OrderRecorder {
     this._setBuyOrdersList(normalizedSymbol, isLongSymbol, filtered);
 
     logger.info(
-      `[订单记录] 本地卖出更新：${positionType} ${normalizedSymbol} 卖出数量=${quantity}，按价格过滤后剩余买入记录 ${filtered.length} 笔`
+      `[现存订单记录] 本地卖出更新：${positionType} ${normalizedSymbol} 卖出数量=${quantity}，按价格过滤后剩余买入记录 ${filtered.length} 笔`
     );
   }
 
   /**
-   * 获取并记录指定标的的历史买入且已成交订单
+   * 获取并记录指定标的的当日买入且已成交订单
    * 过滤逻辑：
-   * 1. 获取历史所有买入订单（已成交）
-   * 2. 获取历史所有卖出订单（已成交）
+   * 1. 获取当日所有买入订单（已成交）
+   * 2. 获取当日所有卖出订单（已成交）
    * 3. 如果没有卖出订单，记录所有买入订单
    * 4. 如果有卖出订单：
    *    - M0: 成交时间 > 最新卖出订单时间的买入订单
@@ -186,10 +186,9 @@ export class OrderRecorder {
       const normalizedSymbol = normalizeHKSymbol(symbol);
       const ctx = await this._trader._ctxPromise;
 
-      // 获取历史订单（仅指定结束时间为当前时间）
-      const allOrders = await ctx.historyOrders({
+      // 获取当日订单
+      const allOrders = await ctx.todayOrders({
         symbol: normalizedSymbol,
-        endAt: new Date(),
       });
 
       // 过滤出买入且已成交的订单
@@ -245,12 +244,12 @@ export class OrderRecorder {
         if (isLongSymbol) {
           this._longBuyOrders = [];
           logger.info(
-            `[订单记录] 做多标的 ${normalizedSymbol}: 历史买入0笔, 无需记录`
+            `[现存订单记录] 做多标的 ${normalizedSymbol}: 当日买入0笔, 无需记录`
           );
         } else {
           this._shortBuyOrders = [];
           logger.info(
-            `[订单记录] 做空标的 ${normalizedSymbol}: 历史买入0笔, 无需记录`
+            `[现存订单记录] 做空标的 ${normalizedSymbol}: 当日买入0笔, 无需记录`
           );
         }
         return [];
@@ -261,12 +260,12 @@ export class OrderRecorder {
         if (isLongSymbol) {
           this._longBuyOrders = allBuyOrders;
           logger.info(
-            `[订单记录] 做多标的 ${normalizedSymbol}: 历史买入${allBuyOrders.length}笔, 无卖出记录, 记录全部买入订单`
+            `[现存订单记录] 做多标的 ${normalizedSymbol}: 当日买入${allBuyOrders.length}笔, 无卖出记录, 记录全部买入订单`
           );
         } else {
           this._shortBuyOrders = allBuyOrders;
           logger.info(
-            `[订单记录] 做空标的 ${normalizedSymbol}: 历史买入${allBuyOrders.length}笔, 无卖出记录, 记录全部买入订单`
+            `[现存订单记录] 做空标的 ${normalizedSymbol}: 当日买入${allBuyOrders.length}笔, 无卖出记录, 记录全部买入订单`
           );
         }
         return allBuyOrders;
@@ -307,12 +306,12 @@ export class OrderRecorder {
         if (isLongSymbol) {
           this._longBuyOrders = allBuyOrders;
           logger.info(
-            `[订单记录] 做多标的 ${normalizedSymbol}: 历史买入${allBuyOrders.length}笔, 卖出订单数据无效, 记录全部买入订单`
+            `[现存订单记录] 做多标的 ${normalizedSymbol}: 当日买入${allBuyOrders.length}笔, 卖出订单数据无效, 记录全部买入订单`
           );
         } else {
           this._shortBuyOrders = allBuyOrders;
           logger.info(
-            `[订单记录] 做空标的 ${normalizedSymbol}: 历史买入${allBuyOrders.length}笔, 卖出订单数据无效, 记录全部买入订单`
+            `[现存订单记录] 做空标的 ${normalizedSymbol}: 当日买入${allBuyOrders.length}笔, 卖出订单数据无效, 记录全部买入订单`
           );
         }
         return allBuyOrders;
@@ -413,8 +412,8 @@ export class OrderRecorder {
 
       logger.info(
         `[现存订单记录] ${positionType} ${normalizedSymbol}: ` +
-          `历史买入${originalBuyCount}笔, ` +
-          `历史卖出${filledSellOrders.length}笔(有效${sortedSellOrders.length}笔), ` +
+          `当日买入${originalBuyCount}笔, ` +
+          `当日卖出${filledSellOrders.length}笔(有效${sortedSellOrders.length}笔), ` +
           `最终已过滤${filteredCount}笔, ` +
           `最终记录${recordedCount}笔`
       );
