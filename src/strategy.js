@@ -112,15 +112,19 @@ export class HangSengMultiIndicatorStrategy {
       return 0;
     }
 
-    // 根据信号类型判断是大于还是小于阈值
-    const isBuySignal =
+    // 根据信号类型判断是使用小于阈值还是大于阈值比较
+    // BUYCALL（买入做多）：RSI6<20, RSI12<20, KDJ.D<20, KDJ.J<-1 → 使用小于比较
+    // SELLPUT（卖出做空）：RSI6<20, RSI12<20, KDJ.D<22, KDJ.J<0 → 使用小于比较
+    // SELLCALL（卖出做多）：RSI6>80, RSI12>80, KDJ.D>79, KDJ.J>100 → 使用大于比较
+    // BUYPUT（买入做空）：RSI6>80, RSI12>80, KDJ.D>80, KDJ.J>100 → 使用大于比较
+    const useLessThanComparison =
       signalType === SignalType.BUYCALL || signalType === SignalType.SELLPUT;
 
     const conditions = [
-      isBuySignal ? rsi6 < threshold.rsi6 : rsi6 > threshold.rsi6,
-      isBuySignal ? rsi12 < threshold.rsi12 : rsi12 > threshold.rsi12,
-      isBuySignal ? kdj.d < threshold.d : kdj.d > threshold.d,
-      isBuySignal ? kdj.j < threshold.j : kdj.j > threshold.j,
+      useLessThanComparison ? rsi6 < threshold.rsi6 : rsi6 > threshold.rsi6,
+      useLessThanComparison ? rsi12 < threshold.rsi12 : rsi12 > threshold.rsi12,
+      useLessThanComparison ? kdj.d < threshold.d : kdj.d > threshold.d,
+      useLessThanComparison ? kdj.j < threshold.j : kdj.j > threshold.j,
     ];
 
     return conditions.filter(Boolean).length;

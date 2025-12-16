@@ -589,16 +589,16 @@ async function runOnce({
       }
 
       if (normalizedPosSymbol === normalizedLongSymbol) {
-        // 使用对象池获取持仓对象
+        // 使用对象池获取持仓对象，使用规范化后的符号
         longPosition = positionObjectPool.acquire();
-        longPosition.symbol = pos.symbol;
+        longPosition.symbol = normalizedLongSymbol; // 使用规范化符号，避免后续重复规范化
         longPosition.costPrice = Number(pos.costPrice) || 0;
         longPosition.quantity = Number(pos.quantity) || 0;
         longPosition.availableQuantity = availableQty;
       } else if (normalizedPosSymbol === normalizedShortSymbol) {
-        // 使用对象池获取持仓对象
+        // 使用对象池获取持仓对象，使用规范化后的符号
         shortPosition = positionObjectPool.acquire();
-        shortPosition.symbol = pos.symbol;
+        shortPosition.symbol = normalizedShortSymbol; // 使用规范化符号，避免后续重复规范化
         shortPosition.costPrice = Number(pos.costPrice) || 0;
         shortPosition.quantity = Number(pos.quantity) || 0;
         shortPosition.availableQuantity = availableQty;
@@ -1000,7 +1000,8 @@ async function runOnce({
       return true;
     })
     .map((signal) => {
-      const normalizedSigSymbol = normalizeHKSymbol(signal.symbol);
+      // 信号中的 symbol 已经是规范化的（来自策略或末日保护程序），无需重复规范化
+      const normalizedSigSymbol = signal.symbol;
 
       // 确定价格、lotSize和名称
       let price = null;
@@ -1094,7 +1095,7 @@ async function runOnce({
         const positionType = isShortPos ? "做空标的" : "做多标的";
 
         clearSignals.push({
-          symbol: pos.symbol,
+          symbol: normalizedPosSymbol, // 使用规范化符号，避免后续重复规范化
           symbolName: symbolName, // 添加名称信息
           action: action,
           price: currentPrice, // 添加当前价格，用于增强限价单
@@ -1120,8 +1121,8 @@ async function runOnce({
     const orderNotional = TRADING_CONFIG.targetNotional;
 
     for (const sig of signals) {
-      // 性能优化：在循环开始时缓存常用的计算结果，避免重复调用
-      const normalizedSigSymbol = normalizeHKSymbol(sig.symbol);
+      // 信号中的 symbol 已经是规范化的（来自策略或末日保护程序），无需重复规范化
+      const normalizedSigSymbol = sig.symbol;
       const sigName = getSymbolName(
         sig.symbol,
         longSymbol,
@@ -1306,8 +1307,8 @@ async function runOnce({
   // 只在有交易信号时显示执行信息（信号变化时已显示）
   if (finalSignals.length > 0) {
     for (const sig of finalSignals) {
-      // 性能优化：在循环开始时缓存常用的计算结果
-      const normalizedSigSymbol = normalizeHKSymbol(sig.symbol);
+      // 信号中的 symbol 已经是规范化的，无需重复规范化
+      const normalizedSigSymbol = sig.symbol;
       const sigName = getSymbolName(
         sig.symbol,
         longSymbol,
@@ -1481,16 +1482,6 @@ async function runOnce({
       (sig) => sig.action !== SignalType.HOLD
     );
 
-    // 释放持仓对象回池（在计算卖出数量完成后释放）
-    if (longPosition) {
-      positionObjectPool.release(longPosition);
-      longPosition = null;
-    }
-    if (shortPosition) {
-      positionObjectPool.release(shortPosition);
-      shortPosition = null;
-    }
-
     if (signalsToExecute.length > 0) {
       await trader.executeSignals(signalsToExecute);
     } else {
@@ -1500,41 +1491,54 @@ async function runOnce({
     // 交易后获取并显示账户和持仓信息（仅显示一次）
     await displayAccountAndPositions(trader, marketDataClient, lastState);
 
-    // 交易后刷新订单记录（买入或卖出做多/做空标的时都需要刷新）
-    // 注意：只刷新实际执行的交易（signalsToExecute），不包括被设置为HOLD的信号
+    // 交易后本地更新订单记录（不再通过 API 刷新）
+    // 注意：只更新实际执行的交易（signalsToExecute），不包括被设置为 HOLD 的信号
     if (orderRecorder && signalsToExecute.length > 0) {
-      const longSymbol = TRADING_CONFIG.longSymbol;
-      const shortSymbol = TRADING_CONFIG.shortSymbol;
+      for (const sig of signalsToExecute) {
+        const quantity = Number(sig.quantity);
+        const price = Number(sig.price);
 
-      // 检查是否有做多标的的交易（买入或卖出）
-      const hasLongSymbolTrade = signalsToExecute.some(
-        (sig) =>
+        if (!Number.isFinite(quantity) || quantity <= 0) {
+          continue;
+        }
+        if (!Number.isFinite(price) || price <= 0) {
+          continue;
+        }
+
+        const isBuyAction =
+          sig.action === SignalType.BUYCALL || sig.action === SignalType.BUYPUT;
+        const isSellAction =
+          sig.action === SignalType.SELLCALL ||
+          sig.action === SignalType.SELLPUT;
+
+        if (!isBuyAction && !isSellAction) {
+          continue;
+        }
+
+        // 区分做多和做空标的
+        const isLongSymbol =
           sig.action === SignalType.BUYCALL ||
-          sig.action === SignalType.SELLCALL
-      );
-      if (hasLongSymbolTrade && longSymbol) {
-        await orderRecorder.refreshOrders(longSymbol, true).catch((err) => {
-          logger.warn(
-            `[订单记录刷新失败] 做多标的 ${longSymbol}`,
-            err?.message ?? err
-          );
-        });
-      }
+          sig.action === SignalType.SELLCALL;
+        const symbol = sig.symbol;
 
-      // 检查是否有做空标的的交易（买入或卖出）
-      const hasShortSymbolTrade = signalsToExecute.some(
-        (sig) =>
-          sig.action === SignalType.BUYPUT || sig.action === SignalType.SELLPUT
-      );
-      if (hasShortSymbolTrade && shortSymbol) {
-        await orderRecorder.refreshOrders(shortSymbol, false).catch((err) => {
-          logger.warn(
-            `[订单记录刷新失败] 做空标的 ${shortSymbol}`,
-            err?.message ?? err
-          );
-        });
+        if (isBuyAction) {
+          orderRecorder.recordLocalBuy(symbol, price, quantity, isLongSymbol);
+        } else if (isSellAction) {
+          orderRecorder.recordLocalSell(symbol, price, quantity, isLongSymbol);
+        }
       }
     }
+  }
+
+  // 释放持仓对象回池（无论是否有交易信号都必须释放，避免内存泄漏）
+  // 注意：必须在所有使用 longPosition 和 shortPosition 的代码执行完毕后释放
+  if (longPosition) {
+    positionObjectPool.release(longPosition);
+    longPosition = null;
+  }
+  if (shortPosition) {
+    positionObjectPool.release(shortPosition);
+    shortPosition = null;
   }
 }
 
