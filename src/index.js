@@ -481,6 +481,11 @@ async function runOnce({
           );
         }
 
+        // MFI 指标
+        if (monitorSnapshot.mfi !== null && monitorSnapshot.mfi !== undefined) {
+          indicators.push(`MFI=${formatIndicator(monitorSnapshot.mfi, 2)}`);
+        }
+
         logger.info(
           `[监控标的] ${monitorSymbolName}(${normalizedMonitorSymbol}) ${indicators.join(
             " "
@@ -921,7 +926,7 @@ async function runOnce({
     SignalType.BUYPUT,
     SignalType.SELLPUT,
   ];
-  
+
   const validSignals = tradingSignals.filter((signal) => {
     if (!signal?.symbol || !signal?.action) {
       logger.warn(`[跳过信号] 无效的信号对象: ${JSON.stringify(signal)}`);
@@ -991,35 +996,35 @@ async function runOnce({
 
   // 使用已过滤的有效信号，补充价格和lotSize信息
   const signals = validSignals.map((signal) => {
-      // 信号中的 symbol 已经是规范化的（来自策略或末日保护程序），无需重复规范化
-      const normalizedSigSymbol = signal.symbol;
+    // 信号中的 symbol 已经是规范化的（来自策略或末日保护程序），无需重复规范化
+    const normalizedSigSymbol = signal.symbol;
 
-      // 确定价格、lotSize和名称
-      let price = null;
-      let lotSize = null;
-      let symbolName = signal.symbolName || null; // 优先使用信号中的名称
+    // 确定价格、lotSize和名称
+    let price = null;
+    let lotSize = null;
+    let symbolName = signal.symbolName || null; // 优先使用信号中的名称
 
-      if (normalizedSigSymbol === normalizedLongSymbol && longQuote) {
-        price = longQuote.price;
-        lotSize = longQuote.lotSize;
-        if (!symbolName) {
-          symbolName = longQuote.name;
-        }
-      } else if (normalizedSigSymbol === normalizedShortSymbol && shortQuote) {
-        price = shortQuote.price;
-        lotSize = shortQuote.lotSize;
-        if (!symbolName) {
-          symbolName = shortQuote.name;
-        }
+    if (normalizedSigSymbol === normalizedLongSymbol && longQuote) {
+      price = longQuote.price;
+      lotSize = longQuote.lotSize;
+      if (!symbolName) {
+        symbolName = longQuote.name;
       }
+    } else if (normalizedSigSymbol === normalizedShortSymbol && shortQuote) {
+      price = shortQuote.price;
+      lotSize = shortQuote.lotSize;
+      if (!symbolName) {
+        symbolName = shortQuote.name;
+      }
+    }
 
-      return {
-        ...signal,
-        price,
-        lotSize,
-        symbolName, // 添加名称信息
-      };
-    });
+    return {
+      ...signal,
+      price,
+      lotSize,
+      symbolName, // 添加名称信息
+    };
+  });
 
   // 末日保护程序：检查是否需要在收盘前5分钟清仓（使用当前系统时间，而非行情时间）
   const shouldEnableDoomsdayProtection = TRADING_CONFIG.doomsdayProtection;

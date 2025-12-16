@@ -1,4 +1,4 @@
-import { RSI, MACD, EMA } from "technicalindicators";
+import { RSI, MACD, EMA, MFI } from "technicalindicators";
 
 const toNumber = (value) =>
   typeof value === "number" ? value : Number(value ?? 0);
@@ -357,6 +357,129 @@ export function calculateMACD(
 
 /**
  * ============================================================================
+ * MFI（资金流量指标）计算函数
+ * ============================================================================
+ *
+ * 【调用位置】
+ *   - buildIndicatorSnapshot() 函数中调用
+ *   - 用于计算 mfi（资金流量指标，周期14）
+ *
+ * 【实现方式】
+ *   使用 technicalindicators 库的 MFI.calculate 方法
+ *   MFI 是结合价格和成交量的超买超卖指标，类似于 RSI，但考虑了成交量
+ *
+ * 【计算方法：标准MFI公式】
+ *   1. 计算典型价格 TP = (High + Low + Close) / 3
+ *   2. 计算资金流量 MF = TP × Volume
+ *   3. 根据价格变化方向，将资金流量分为正资金流量和负资金流量
+ *   4. 计算资金流量比率 MFR = 正资金流量总和 / 负资金流量总和
+ *   5. 计算 MFI = 100 - (100 / (1 + MFR))
+ *
+ * 【公式说明】
+ *   - MFI值范围：0-100
+ *   - MFI > 80：通常认为超买
+ *   - MFI < 20：通常认为超卖
+ *   - MFI 结合了价格和成交量，比 RSI 更能反映资金流向
+ *
+ * 【注意事项】
+ *   - 默认周期 period = 14
+ *   - 需要至少 period + 1 根K线才能计算
+ *   - 需要 high、low、close、volume 四个数组
+ *
+ * @param {Array<Object>} candles K线数据数组，每根K线包含 {high, low, close, volume} 等字段
+ * @param {number} period MFI周期，默认14
+ * @returns {number|null} MFI值（0-100），如果无法计算则返回null
+ */
+export function calculateMFI(candles, period = 14) {
+  if (!candles || candles.length < period + 1) {
+    return null;
+  }
+
+  try {
+    // 提取所需数据数组
+    const highs = candles.map((c) => toNumber(c.high));
+    const lows = candles.map((c) => toNumber(c.low));
+    const closes = candles.map((c) => toNumber(c.close));
+    const volumes = candles.map((c) => toNumber(c.volume || 0));
+
+    // 验证数据有效性
+    const minRequired = period + 1;
+    if (
+      highs.length < minRequired ||
+      lows.length < minRequired ||
+      closes.length < minRequired ||
+      volumes.length < minRequired
+    ) {
+      return null;
+    }
+
+    // 过滤无效数据
+    const validData = [];
+    for (let i = 0; i < highs.length; i++) {
+      const high = highs[i];
+      const low = lows[i];
+      const close = closes[i];
+      const volume = volumes[i];
+
+      if (
+        Number.isFinite(high) &&
+        Number.isFinite(low) &&
+        Number.isFinite(close) &&
+        Number.isFinite(volume) &&
+        high > 0 &&
+        low > 0 &&
+        close > 0 &&
+        volume >= 0
+      ) {
+        validData.push({
+          high,
+          low,
+          close,
+          volume,
+        });
+      }
+    }
+
+    if (validData.length < minRequired) {
+      return null;
+    }
+
+    // 提取有效数据数组
+    const validHighs = validData.map((d) => d.high);
+    const validLows = validData.map((d) => d.low);
+    const validCloses = validData.map((d) => d.close);
+    const validVolumes = validData.map((d) => d.volume);
+
+    // 使用 technicalindicators 库计算 MFI
+    const mfiResult = MFI.calculate({
+      high: validHighs,
+      low: validLows,
+      close: validCloses,
+      volume: validVolumes,
+      period,
+    });
+
+    if (!mfiResult || mfiResult.length === 0) {
+      return null;
+    }
+
+    // 获取最后一个 MFI 值（当前值）
+    const mfi = mfiResult.at(-1);
+
+    // 验证 MFI 结果有效性（0-100 范围）
+    if (!Number.isFinite(mfi) || mfi < 0 || mfi > 100) {
+      return null;
+    }
+
+    return mfi;
+  } catch (err) {
+    // 如果计算失败，返回 null
+    return null;
+  }
+}
+
+/**
+ * ============================================================================
  * 构建指标快照（统一计算所有技术指标）
  * ============================================================================
  *
@@ -369,6 +492,7 @@ export function calculateMACD(
  *   - RSI：使用 RSI.calculate（Wilder's Smoothing，平滑系数 = 1/period）
  *   - KDJ：使用 EMA(period=5) 实现平滑系数 1/3
  *   - MACD：使用 MACD.calculate（EMA 计算方式）
+ *   - MFI：使用 MFI.calculate（资金流量指标，周期14）
  *
  * 【功能说明】
  *   统一计算并返回指定标的的所有技术指标，包括：
@@ -377,12 +501,14 @@ export function calculateMACD(
  *   - rsi12: 12周期RSI指标
  *   - kdj: KDJ指标（包含k、d、j三个值，周期9）
  *   - macd: MACD指标（包含dif、dea、macd三个值）
+ *   - mfi: MFI指标（资金流量指标，周期14）
  *
  * 【计算顺序】
  *   1. 提取收盘价数组
  *   2. 计算RSI6和RSI12（使用 technicalindicators 库）
  *   3. 计算KDJ（使用 technicalindicators 库的 EMA）
  *   4. 计算MACD（使用 technicalindicators 库）
+ *   5. 计算MFI（使用 technicalindicators 库）
  *
  * @param {string} symbol 标的代码
  * @param {Array<Object>} candles K线数据数组，每根K线包含 {open, high, low, close, volume} 等字段
@@ -416,5 +542,6 @@ export function buildIndicatorSnapshot(symbol, candles) {
     rsi12: calculateRSI(closes, 12), // 12周期RSI
     kdj: calculateKDJ(candles, 9), // KDJ指标
     macd: calculateMACD(closes), // MACD指标
+    mfi: calculateMFI(candles, 14), // MFI指标（资金流量指标，周期14）
   };
 }
