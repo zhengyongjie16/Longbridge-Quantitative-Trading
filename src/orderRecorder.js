@@ -13,6 +13,9 @@ export class OrderRecorder {
     this._longBuyOrders = [];
     // 记录做空标的的当日买入且已成交订单
     this._shortBuyOrders = [];
+    // 缓存订单数据，避免重复调用 todayOrders
+    // 格式：{ symbol: { buyOrders: [], sellOrders: [], fetchTime: number } }
+    this._ordersCache = new Map();
   }
 
   /**
@@ -160,7 +163,159 @@ export class OrderRecorder {
   }
 
   /**
-   * 获取并记录指定标的的当日买入且已成交订单
+   * 检查缓存是否有效
+   * @private
+   * @param {string} normalizedSymbol 规范化后的标的代码
+   * @param {number} maxAgeMs 缓存最大有效期（毫秒），默认5分钟
+   * @returns {boolean} 缓存是否有效
+   */
+  _isCacheValid(normalizedSymbol, maxAgeMs = 5 * 60 * 1000) {
+    const cached = this._ordersCache.get(normalizedSymbol);
+    if (!cached) {
+      return false;
+    }
+    const now = Date.now();
+    const cacheAge = now - cached.fetchTime;
+    return cacheAge < maxAgeMs;
+  }
+
+  /**
+   * 从缓存获取订单数据
+   * @private
+   * @param {string} normalizedSymbol 规范化后的标的代码
+   * @returns {{buyOrders: Array, sellOrders: Array}|null} 缓存的订单数据，如果不存在则返回null
+   */
+  _getCachedOrders(normalizedSymbol) {
+    const cached = this._ordersCache.get(normalizedSymbol);
+    if (!cached) {
+      return null;
+    }
+    return {
+      buyOrders: cached.buyOrders,
+      sellOrders: cached.sellOrders,
+    };
+  }
+
+  /**
+   * 更新缓存
+   * @private
+   * @param {string} normalizedSymbol 规范化后的标的代码
+   * @param {Array} buyOrders 买入订单列表
+   * @param {Array} sellOrders 卖出订单列表
+   */
+  _updateCache(normalizedSymbol, buyOrders, sellOrders) {
+    this._ordersCache.set(normalizedSymbol, {
+      buyOrders,
+      sellOrders,
+      fetchTime: Date.now(),
+    });
+  }
+
+  /**
+   * 从API获取并转换订单数据（公开方法，用于启动时或需要强制刷新时调用）
+   * 调用此方法会从API获取最新订单数据并更新缓存
+   * @param {string} symbol 标的代码
+   * @returns {Promise<{buyOrders: Array, sellOrders: Array}>} 返回已转换的买入和卖出订单
+   */
+  async fetchOrdersFromAPI(symbol) {
+    const normalizedSymbol = normalizeHKSymbol(symbol);
+    const ctx = await this._trader._ctxPromise;
+
+    // 获取当日订单
+    const allOrders = await ctx.todayOrders({
+      symbol: normalizedSymbol,
+    });
+
+    // 过滤出买入且已成交的订单
+    const filledBuyOrders = allOrders.filter((order) => {
+      return (
+        order.side === OrderSide.Buy && // 买入订单
+        order.status === OrderStatus.Filled // 已成交状态
+      );
+    });
+
+    // 过滤出卖出且已成交的订单
+    const filledSellOrders = allOrders.filter((order) => {
+      return (
+        order.side === OrderSide.Sell && // 卖出订单
+        order.status === OrderStatus.Filled // 已成交状态
+      );
+    });
+
+    // 转换订单为标准格式的通用函数
+    const convertOrder = (order, isBuyOrder) => {
+      const executedPrice = decimalToNumber(order.executedPrice);
+      const executedQuantity = decimalToNumber(order.executedQuantity);
+      const executedTime = order.updatedAt ? order.updatedAt.getTime() : 0;
+
+      // 验证数据有效性
+      if (
+        !Number.isFinite(executedPrice) ||
+        executedPrice <= 0 ||
+        !Number.isFinite(executedQuantity) ||
+        executedQuantity <= 0 ||
+        executedTime === 0
+      ) {
+        return null;
+      }
+
+      const converted = {
+        orderId: order.orderId,
+        symbol: normalizedSymbol,
+        executedPrice: executedPrice,
+        executedQuantity: executedQuantity,
+        executedTime: executedTime,
+      };
+
+      // 买入订单额外包含时间戳字段（用于refreshOrders）
+      if (isBuyOrder) {
+        converted.submittedAt = order.submittedAt;
+        converted.updatedAt = order.updatedAt;
+      }
+
+      return converted;
+    };
+
+    // 转换买入订单
+    const buyOrders = filledBuyOrders
+      .map((order) => convertOrder(order, true))
+      .filter((order) => order !== null);
+
+    // 转换卖出订单
+    const sellOrders = filledSellOrders
+      .map((order) => convertOrder(order, false))
+      .filter((order) => order !== null);
+
+    // 更新缓存
+    this._updateCache(normalizedSymbol, buyOrders, sellOrders);
+
+    return { buyOrders, sellOrders };
+  }
+
+  /**
+   * 获取并转换订单数据（统一入口，默认使用缓存）
+   * @private
+   * @param {string} symbol 标的代码
+   * @param {boolean} forceRefresh 是否强制刷新（忽略缓存），默认false（使用缓存）
+   * @returns {Promise<{buyOrders: Array, sellOrders: Array}>} 返回已转换的买入和卖出订单
+   */
+  async _fetchAndConvertOrders(symbol, forceRefresh = false) {
+    const normalizedSymbol = normalizeHKSymbol(symbol);
+
+    // 如果不强制刷新，先检查缓存
+    if (!forceRefresh && this._isCacheValid(normalizedSymbol)) {
+      const cached = this._getCachedOrders(normalizedSymbol);
+      if (cached) {
+        return cached;
+      }
+    }
+
+    // 缓存无效或强制刷新，从API获取
+    return await this.fetchOrdersFromAPI(symbol);
+  }
+
+  /**
+   * 刷新订单记录（用于智能清仓决策）
    * 过滤逻辑：
    * 1. 获取当日所有买入订单（已成交）
    * 2. 获取当日所有卖出订单（已成交）
@@ -179,65 +334,16 @@ export class OrderRecorder {
    *    - 最终订单列表 = M0 + MN
    * @param {string} symbol 标的代码
    * @param {boolean} isLongSymbol 是否为做多标的（true=做多，false=做空）
+   * @param {boolean} forceRefresh 是否强制刷新（忽略缓存），默认false（使用缓存）
    * @returns {Promise<Array>} 记录的订单列表
    */
-  async refreshOrders(symbol, isLongSymbol) {
+  async refreshOrders(symbol, isLongSymbol, forceRefresh = false) {
     try {
       const normalizedSymbol = normalizeHKSymbol(symbol);
-      const ctx = await this._trader._ctxPromise;
 
-      // 获取当日订单
-      const allOrders = await ctx.todayOrders({
-        symbol: normalizedSymbol,
-      });
-
-      // 过滤出买入且已成交的订单
-      const filledBuyOrders = allOrders.filter((order) => {
-        return (
-          order.side === OrderSide.Buy && // 买入订单
-          order.status === OrderStatus.Filled // 已成交状态
-        );
-      });
-
-      // 过滤出卖出且已成交的订单
-      const filledSellOrders = allOrders.filter((order) => {
-        return (
-          order.side === OrderSide.Sell && // 卖出订单
-          order.status === OrderStatus.Filled // 已成交状态
-        );
-      });
-
-      // 转换买入订单为标准格式
-      const allBuyOrders = filledBuyOrders
-        .map((buyOrder) => {
-          const executedPrice = decimalToNumber(buyOrder.executedPrice);
-          const executedQuantity = decimalToNumber(buyOrder.executedQuantity);
-          const executedTime = buyOrder.updatedAt
-            ? buyOrder.updatedAt.getTime()
-            : 0;
-
-          // 验证数据有效性
-          if (
-            !Number.isFinite(executedPrice) ||
-            executedPrice <= 0 ||
-            !Number.isFinite(executedQuantity) ||
-            executedQuantity <= 0 ||
-            executedTime === 0
-          ) {
-            return null;
-          }
-
-          return {
-            orderId: buyOrder.orderId,
-            symbol: normalizedSymbol,
-            executedPrice: executedPrice,
-            executedQuantity: executedQuantity,
-            executedTime: executedTime,
-            submittedAt: buyOrder.submittedAt,
-            updatedAt: buyOrder.updatedAt,
-          };
-        })
-        .filter((order) => order !== null);
+      // 使用统一方法获取和转换订单（默认使用缓存，forceRefresh=true时强制刷新）
+      const { buyOrders: allBuyOrders, sellOrders: filledSellOrders } =
+        await this._fetchAndConvertOrders(symbol, forceRefresh);
 
       // 如果没有买入订单，直接返回空列表
       if (allBuyOrders.length === 0) {
@@ -271,51 +377,10 @@ export class OrderRecorder {
         return allBuyOrders;
       }
 
-      // 将卖出订单按成交时间从旧到新排序（最旧的在前），并转换为标准格式
-      const sortedSellOrders = filledSellOrders
-        .map((sellOrder) => {
-          const sellPrice = decimalToNumber(sellOrder.executedPrice);
-          const sellQuantity = decimalToNumber(sellOrder.executedQuantity);
-          const sellTime = sellOrder.updatedAt
-            ? sellOrder.updatedAt.getTime()
-            : 0;
-
-          // 验证卖出订单数据有效性
-          if (
-            !Number.isFinite(sellPrice) ||
-            sellPrice <= 0 ||
-            !Number.isFinite(sellQuantity) ||
-            sellQuantity <= 0 ||
-            sellTime === 0
-          ) {
-            return null;
-          }
-
-          return {
-            orderId: sellOrder.orderId,
-            executedPrice: sellPrice,
-            executedQuantity: sellQuantity,
-            executedTime: sellTime,
-          };
-        })
-        .filter((order) => order !== null)
-        .sort((a, b) => a.executedTime - b.executedTime); // 从旧到新排序
-
-      if (sortedSellOrders.length === 0) {
-        // 所有卖出订单数据无效，记录所有买入订单
-        if (isLongSymbol) {
-          this._longBuyOrders = allBuyOrders;
-          logger.info(
-            `[现存订单记录] 做多标的 ${normalizedSymbol}: 当日买入${allBuyOrders.length}笔, 卖出订单数据无效, 记录全部买入订单`
-          );
-        } else {
-          this._shortBuyOrders = allBuyOrders;
-          logger.info(
-            `[现存订单记录] 做空标的 ${normalizedSymbol}: 当日买入${allBuyOrders.length}笔, 卖出订单数据无效, 记录全部买入订单`
-          );
-        }
-        return allBuyOrders;
-      }
+      // 将卖出订单按成交时间从旧到新排序（最旧的在前）
+      const sortedSellOrders = [...filledSellOrders].sort(
+        (a, b) => a.executedTime - b.executedTime
+      );
 
       // 1. 先获取M0：成交时间 > 最新卖出订单时间的买入订单
       const latestSellTime =
@@ -414,7 +479,7 @@ export class OrderRecorder {
         `[现存订单记录] ${positionType} ${normalizedSymbol}: ` +
           `当日买入${originalBuyCount}笔, ` +
           `当日卖出${filledSellOrders.length}笔(有效${sortedSellOrders.length}笔), ` +
-          `最终已过滤${filteredCount}笔, ` +
+          `最终过滤${filteredCount}笔, ` +
           `最终记录${recordedCount}笔`
       );
 
@@ -422,6 +487,29 @@ export class OrderRecorder {
     } catch (error) {
       logger.error(`[订单记录失败] 标的 ${symbol}`, error.message || error);
       return [];
+    }
+  }
+
+  /**
+   * 获取指定标的的全部买入和卖出订单（用于市值计算）
+   * 返回全部已成交的买入订单和卖出订单，不经过过滤
+   * @param {string} symbol 标的代码
+   * @param {boolean} forceRefresh 是否强制刷新（忽略缓存），默认false
+   * @returns {Promise<{buyOrders: Array, sellOrders: Array}>} 返回全部买入和卖出订单
+   */
+  async getAllOrdersForValueCalculation(symbol, forceRefresh = false) {
+    try {
+      // 使用统一方法获取和转换订单（默认使用缓存）
+      return await this._fetchAndConvertOrders(symbol, forceRefresh);
+    } catch (error) {
+      logger.error(
+        `[订单获取失败] 标的 ${symbol} 获取全部订单失败`,
+        error.message || error
+      );
+      return {
+        buyOrders: [],
+        sellOrders: [],
+      };
     }
   }
 

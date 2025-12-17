@@ -77,6 +77,15 @@ export const TRADING_CONFIG = {
   // 单日最大亏损（HKD），超过后禁止继续开新仓
   maxDailyLoss: getNumberConfig("MAX_DAILY_LOSS", 0),
 
+  // 单标的最大浮亏保护（HKD），当单个标的的浮亏超过此值时执行保护性清仓
+  // 浮亏计算方式：R1（成本市值）= 全部买入订单市值 - 全部卖出订单市值，R2（当前持仓市值）= 当前价格 × 剩余数量，浮亏 = R2 - R1
+  // 当浮亏 < -MAX_UNREALIZED_LOSS_PER_SYMBOL 时，立即执行保护性清仓（使用市价单）
+  // 设置为 null 或 0 表示禁用此功能
+  maxUnrealizedLossPerSymbol: getNumberConfig(
+    "MAX_UNREALIZED_LOSS_PER_SYMBOL",
+    0
+  ),
+
   // 末日保护程序：收盘前15分钟拒绝买入，收盘前5分钟清空所有持仓
   // 港股当日收盘时间：下午 16:00
   // 收盘前5分钟：15:55-16:00（仅判断当日收盘，不包括上午收盘）

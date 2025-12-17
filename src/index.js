@@ -391,6 +391,83 @@ async function runOnce({
     if (Number.isFinite(shortPrice)) {
       lastState.shortPrice = shortPrice;
     }
+
+    // 实时检查浮亏（仅在价格变化时检查，避免频繁检查）
+    if (TRADING_CONFIG.maxUnrealizedLossPerSymbol > 0) {
+      // 检查做多标的的浮亏
+      if (Number.isFinite(longPrice) && longPrice > 0 && longSymbol) {
+        const longLossCheck = riskChecker.checkUnrealizedLoss(
+          longSymbol,
+          longPrice,
+          true
+        );
+        if (longLossCheck.shouldLiquidate) {
+          // 执行保护性清仓（使用市价单）
+          logger.error(longLossCheck.reason);
+          try {
+            // 创建市价单清仓信号
+            const liquidationSignal = {
+              symbol: longSymbol,
+              action: SignalType.SELLCALL,
+              reason: longLossCheck.reason,
+              quantity: longLossCheck.quantity,
+              price: longPrice, // 使用当前价格作为参考
+              useMarketOrder: true, // 标记为使用市价单
+            };
+            await trader.executeSignals([liquidationSignal]);
+            // 清仓后刷新浮亏数据（强制刷新，确保获取最新订单状态）
+            await riskChecker.refreshUnrealizedLossData(
+              orderRecorder,
+              longSymbol,
+              true,
+              true
+            );
+          } catch (err) {
+            logger.error(
+              `[保护性清仓失败] 做多标的 ${longSymbol}`,
+              err?.message ?? err
+            );
+          }
+        }
+      }
+
+      // 检查做空标的的浮亏
+      if (Number.isFinite(shortPrice) && shortPrice > 0 && shortSymbol) {
+        const shortLossCheck = riskChecker.checkUnrealizedLoss(
+          shortSymbol,
+          shortPrice,
+          false
+        );
+        if (shortLossCheck.shouldLiquidate) {
+          // 执行保护性清仓（使用市价单）
+          logger.error(shortLossCheck.reason);
+          try {
+            // 创建市价单清仓信号
+            const liquidationSignal = {
+              symbol: shortSymbol,
+              action: SignalType.SELLPUT,
+              reason: shortLossCheck.reason,
+              quantity: shortLossCheck.quantity,
+              price: shortPrice, // 使用当前价格作为参考
+              useMarketOrder: true, // 标记为使用市价单
+            };
+            await trader.executeSignals([liquidationSignal]);
+            // 清仓后刷新浮亏数据（强制刷新，确保获取最新订单状态）
+            await riskChecker.refreshUnrealizedLossData(
+              orderRecorder,
+              shortSymbol,
+              false,
+              true
+            );
+          } catch (err) {
+            logger.error(
+              `[保护性清仓失败] 做空标的 ${shortSymbol}`,
+              err?.message ?? err
+            );
+          }
+        }
+      }
+    }
   }
 
   // 获取监控标的的K线数据（用于计算指标和生成信号）
@@ -1518,8 +1595,28 @@ async function runOnce({
 
         if (isBuyAction) {
           orderRecorder.recordLocalBuy(symbol, price, quantity, isLongSymbol);
+          // 更新浮亏监控数据（买入操作）
+          if (TRADING_CONFIG.maxUnrealizedLossPerSymbol > 0 && riskChecker) {
+            riskChecker.updateUnrealizedLossDataAfterTrade(
+              symbol,
+              isLongSymbol,
+              true,
+              price,
+              quantity
+            );
+          }
         } else if (isSellAction) {
           orderRecorder.recordLocalSell(symbol, price, quantity, isLongSymbol);
+          // 更新浮亏监控数据（卖出操作）
+          if (TRADING_CONFIG.maxUnrealizedLossPerSymbol > 0 && riskChecker) {
+            riskChecker.updateUnrealizedLossDataAfterTrade(
+              symbol,
+              isLongSymbol,
+              false,
+              price,
+              quantity
+            );
+          }
         }
       }
     }
@@ -1718,11 +1815,29 @@ async function main() {
   // 程序启动时立即获取一次账户和持仓信息
   await displayAccountAndPositions(trader, marketDataClient, lastState);
 
-  // 程序启动时刷新订单记录
+  // 程序启动时从API获取订单数据并更新缓存
   const longSymbol = TRADING_CONFIG.longSymbol;
   const shortSymbol = TRADING_CONFIG.shortSymbol;
   if (longSymbol) {
-    await orderRecorder.refreshOrders(longSymbol, true).catch((err) => {
+    await orderRecorder.fetchOrdersFromAPI(longSymbol).catch((err) => {
+      logger.warn(
+        `[订单API获取失败] 做多标的 ${longSymbol}`,
+        err?.message ?? err
+      );
+    });
+  }
+  if (shortSymbol) {
+    await orderRecorder.fetchOrdersFromAPI(shortSymbol).catch((err) => {
+      logger.warn(
+        `[订单API获取失败] 做空标的 ${shortSymbol}`,
+        err?.message ?? err
+      );
+    });
+  }
+
+  // 程序启动时刷新订单记录（从缓存读取）
+  if (longSymbol) {
+    await orderRecorder.refreshOrders(longSymbol, true, false).catch((err) => {
       logger.warn(
         `[订单记录初始化失败] 做多标的 ${longSymbol}`,
         err?.message ?? err
@@ -1730,12 +1845,38 @@ async function main() {
     });
   }
   if (shortSymbol) {
-    await orderRecorder.refreshOrders(shortSymbol, false).catch((err) => {
-      logger.warn(
-        `[订单记录初始化失败] 做空标的 ${shortSymbol}`,
-        err?.message ?? err
-      );
-    });
+    await orderRecorder
+      .refreshOrders(shortSymbol, false, false)
+      .catch((err) => {
+        logger.warn(
+          `[订单记录初始化失败] 做空标的 ${shortSymbol}`,
+          err?.message ?? err
+        );
+      });
+  }
+
+  // 程序启动时初始化浮亏监控数据（从缓存读取）
+  if (TRADING_CONFIG.maxUnrealizedLossPerSymbol > 0) {
+    if (longSymbol) {
+      await riskChecker
+        .refreshUnrealizedLossData(orderRecorder, longSymbol, true, false)
+        .catch((err) => {
+          logger.warn(
+            `[浮亏监控初始化失败] 做多标的 ${longSymbol}`,
+            err?.message ?? err
+          );
+        });
+    }
+    if (shortSymbol) {
+      await riskChecker
+        .refreshUnrealizedLossData(orderRecorder, shortSymbol, false, false)
+        .catch((err) => {
+          logger.warn(
+            `[浮亏监控初始化失败] 做空标的 ${shortSymbol}`,
+            err?.message ?? err
+          );
+        });
+    }
   }
 
   // 程序启动时检查一次是否有买入的未成交订单

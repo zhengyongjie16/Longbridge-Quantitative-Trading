@@ -711,6 +711,9 @@ export class Trader {
     } = this._orderOptions;
     const symbol = targetSymbol;
 
+    // 检查信号是否要求使用市价单（保护性清仓）
+    const useMarketOrder = signal.useMarketOrder === true;
+
     let submittedQtyDecimal;
 
     // 判断是否需要清仓（平仓）
@@ -832,9 +835,12 @@ export class Trader {
       }
     }
 
+    // 确定实际使用的订单类型：如果信号要求市价单，使用市价单；否则使用配置的订单类型
+    const actualOrderType = useMarketOrder ? OrderType.MO : orderType;
+
     const orderPayload = {
       symbol,
-      orderType,
+      orderType: actualOrderType,
       side,
       timeInForce,
       submittedQuantity: submittedQtyDecimal,
@@ -843,11 +849,16 @@ export class Trader {
     const resolvedPrice =
       overridePrice ?? signal?.price ?? null;
 
-    if (
-      orderType === OrderType.LO ||
-      orderType === OrderType.ELO ||
-      orderType === OrderType.ALO ||
-      orderType === OrderType.SLO
+    // 市价单不需要价格
+    if (actualOrderType === OrderType.MO) {
+      logger.info(
+        `[订单类型] 使用市价单(MO)进行保护性清仓，标的=${symbol}`
+      );
+    } else if (
+      actualOrderType === OrderType.LO ||
+      actualOrderType === OrderType.ELO ||
+      actualOrderType === OrderType.ALO ||
+      actualOrderType === OrderType.SLO
     ) {
       if (!resolvedPrice) {
         logger.warn(
@@ -895,7 +906,7 @@ export class Trader {
         side: signal.action || (side === OrderSide.Buy ? "BUY" : "SELL"),
         quantity: orderPayload.submittedQuantity.toString(),
         price: orderPayload.submittedPrice?.toString() || "市价",
-        orderType: orderType === OrderType.MO ? "市价单" : "限价单",
+        orderType: actualOrderType === OrderType.MO ? "市价单" : "限价单",
         status: "SUBMITTED",
         reason: signal.reason || "策略信号",
         signalTriggerTime: signal.signalTriggerTime || null, // 信号触发时间
@@ -947,7 +958,7 @@ export class Trader {
         side: signal.action || (side === OrderSide.Buy ? "BUY" : "SELL"),
         quantity: orderPayload.submittedQuantity.toString(),
         price: orderPayload.submittedPrice?.toString() || "市价",
-        orderType: orderType === OrderType.MO ? "市价单" : "限价单",
+        orderType: actualOrderType === OrderType.MO ? "市价单" : "限价单",
         status: "FAILED",
         error: errorMessage,
         reason: signal.reason || "策略信号",
