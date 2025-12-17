@@ -58,22 +58,22 @@ npm start
 - **生成两类信号**：
   1. **立即信号**（卖出/平仓）：条件满足时立即执行
   2. **延迟信号**（买入/开仓）：等待 60 秒进行趋势确认
-- **多指标逻辑**：要求 4 个指标（RSI6、RSI12、KDJ.D、KDJ.J）中至少 3 个满足阈值
+- **多指标逻辑**：要求 4 个指标（RSI6、MFI、KDJ.D、KDJ.J）中至少 3 个满足阈值
 - **信号类型及触发条件**（所有信号采用条件 1 或条件 2 的"或"关系）：
   - `BUYCALL`（买入做多 - 延迟验证）：
-    - 条件 1：RSI6<20, RSI12<20, KDJ.D<20, KDJ.J<-1 四个指标满足 3 个以上
+    - 条件 1：RSI6<20, MFI<15, KDJ.D<20, KDJ.J<-1 四个指标满足 3 个以上
     - 条件 2：J < -20
     - 验证：J2 > J1 且 MACD2 > MACD1
   - `SELLCALL`（卖出做多 - 立即执行）：
-    - 条件 1：RSI6>80, RSI12>80, KDJ.D>79, KDJ.J>100 四个指标满足 3 个以上
+    - 条件 1：RSI6>80, MFI>85, KDJ.D>79, KDJ.J>100 四个指标满足 3 个以上
     - 条件 2：J > 110
     - 注意：成本价判断在卖出策略中进行，信号生成时不检查
   - `BUYPUT`（买入做空 - 延迟验证）：
-    - 条件 1：RSI6>80, RSI12>80, KDJ.D>80, KDJ.J>100 四个指标满足 3 个以上
+    - 条件 1：RSI6>80, MFI>85, KDJ.D>80, KDJ.J>100 四个指标满足 3 个以上
     - 条件 2：J > 120
     - 验证：J2 < J1 且 MACD2 < MACD1
   - `SELLPUT`（卖出做空 - 立即执行）：
-    - 条件 1：RSI6<20, RSI12<20, KDJ.D<22, KDJ.J<0 四个指标满足 3 个以上
+    - 条件 1：RSI6<20, MFI<15, KDJ.D<22, KDJ.J<0 四个指标满足 3 个以上
     - 条件 2：J < -15
     - 注意：成本价判断在卖出策略中进行，信号生成时不检查
 
@@ -92,21 +92,39 @@ npm start
 
 - **类**：`RiskChecker`
 - **交易前检查**（仅针对买入信号）：
-  1. **牛熊证风险**：牛证距离回收价 >0.5%，熊证 <-0.5%
-  2. **单日亏损限制**：浮亏必须 > -MAX_DAILY_LOSS
-  3. **持仓市值限制**：单标的市值必须 ≤ MAX_POSITION_NOTIONAL
+  1. **牛熊证风险**：牛证距离回收价 > 0.5%，熊证 < -0.5%
+  2. **单日亏损限制**：整体浮亏必须 > `-MAX_DAILY_LOSS`
+  3. **持仓市值限制**：单标的市值必须 ≤ `MAX_POSITION_NOTIONAL`
 - **风险检查为门控**：检查失败则阻止信号执行，但允许卖出操作
-- **浮亏计算详情**（risk.js:230-294）：
-  - 持仓市值 = 净资产 - 现金余额
+- **整体浮亏计算详情**（用于 `maxDailyLoss` 限制）：
+  - 持仓市值 ≈ 净资产 − 现金余额
   - 持仓成本 = Σ(quantity × costPrice)
-  - 浮亏 = 持仓市值 - 持仓成本（负数表示浮亏，正数表示浮盈）
-  - 仅对买入操作检查浮亏，卖出操作不检查
-  - 买入时必须有有效的账户数据，否则拒绝交易（安全策略）
+  - 浮亏 = 持仓市值 − 持仓成本（负数表示浮亏，正数表示浮盈）
+- **单标的浮亏保护（`maxUnrealizedLossPerSymbol`）**：
+  - 通过 `unrealizedLossData: Map(symbol → { r1, n1, lastUpdateTime })` 维护：
+    - R1（成本市值）= 全部买入订单市值之和 − 全部卖出订单市值之和（允许为负）
+    - N1（剩余数量）= 全部买入数量之和 − 全部卖出数量之和
+  - 初始化：`refreshUnrealizedLossData(orderRecorder, symbol, isLong, forceRefresh)`：
+    - 内部调用 `orderRecorder.getAllOrdersForValueCalculation(symbol, forceRefresh)`，从 todayOrders 缓存或 API 获取全部买/卖订单
+    - 计算 R1/N1 并写入 `unrealizedLossData`
+  - 实时检查：`checkUnrealizedLoss(symbol, currentPrice, isLong)`：
+    - 使用缓存的 R1、N1 与当前价格计算 R2 和浮亏：`unrealizedLoss = currentPrice * N1 − R1`
+    - 当 `unrealizedLoss < -maxUnrealizedLossPerSymbol` 时返回 `shouldLiquidate=true` 和清仓数量（N1）
+  - 交易后更新：`updateUnrealizedLossDataAfterTrade(symbol, isLong, isBuy, price, quantity)`：
+    - 买入：R1 += price × quantity；N1 += quantity
+    - 卖出：数量 ≥ N1 时清空（R1 = 0, N1 = 0）；否则 R1 -= price × quantity，N1 -= quantity（成本市值允许为负）
+- **保护性清仓流程（index.js 中使用）**：
+  - 在价格变化时调用 `checkUnrealizedLoss` 判断是否需要保护性清仓
+  - 若需要清仓：
+    - 构造市价清仓信号（`useMarketOrder: true`，动作为 `SELLCALL` 或 `SELLPUT`）
+    - 交给 `trader.executeSignals` 执行市价单
+    - 清仓完成后调用 `refreshUnrealizedLossData(..., forceRefresh=true)`：
+      - 通过 `forceRefresh=true` 强制刷新 todayOrders，并基于最新订单状态重算 R1 与 N1
 
 ### orderRecorder.js（历史订单跟踪）
 
 - **类**：`OrderRecorder`
-- **用途**：跟踪已成交买入订单，用于智能清仓决策
+- **用途**：跟踪已成交买入订单，用于智能清仓决策，同时为浮亏监控提供原始订单数据（R1/N1）
 - **过滤逻辑**（从旧到新累积过滤算法）：
   1. **M0**：在最新卖出时间之后成交的买入订单
   2. **从旧到新过滤**：将卖出订单按成交时间从旧到新排序（D1 是最旧的，D2 次之，D3 是最新的）：
@@ -121,11 +139,26 @@ npm start
   - M0：最新买入，还未经历卖出
   - 过滤后的订单：历史高价买入且未被完全卖出的订单（价格高于对应卖出价或数量超出）
 - **智能清仓**：当 currentPrice ≤ costPrice 时，仅卖出 buyPrice < currentPrice 的订单（盈利部分）
+- **todayOrders 调用与缓存**：
+  - todayOrders 只通过 `fetchOrdersFromAPI(symbol)` 间接调用：
+    - 标准化 symbol → 调用 `ctx.todayOrders({ symbol })`
+    - 过滤出已成交买入/卖出单并转换为简化结构
+    - 更新内部缓存：`_ordersCache.set(normalizedSymbol, { buyOrders, sellOrders, fetchTime })`
+  - `_isCacheValid(normalizedSymbol, maxAgeMs=5*60*1000)`：
+    - 使用 `fetchTime` 判断缓存是否在 5 分钟有效期内
+  - `_fetchAndConvertOrders(symbol, forceRefresh=false)`：
+    - 当 `forceRefresh=false` 且缓存有效 → 返回缓存
+    - 否则 → 调用 `fetchOrdersFromAPI(symbol)` 刷新缓存并返回
+- **运行时本地更新（避免频繁 todayOrders 调用）**：
+  - `recordLocalBuy` / `recordLocalSell`：
+    - 在交易执行后由 `index.js` 调用，仅更新内存中的买入记录，不触发 API 调用
+  - 浮亏增量更新由 `RiskChecker.updateUnrealizedLossDataAfterTrade` 负责，避免每笔成交后重算 R1/N1
 
 ### indicators.js（技术指标计算）
 
 - **实现方式**：使用 `technicalindicators` 库优化指标计算，性能提升约 2.9 倍
-- **RSI**：使用 RSI.calculate（Wilder's Smoothing，平滑系数 = 1/period），计算周期 6 和 12
+- **RSI**：使用 RSI.calculate（Wilder's Smoothing，平滑系数 = 1/period），计算周期 6
+- **MFI**：使用 MFI.calculate（资金流量指标，周期 14），结合价格和成交量的超买超卖指标
 - **KDJ**：使用 EMA(period=5) 实现平滑系数 1/3，包含 K、D、J 值
 - **MACD**：使用 MACD.calculate（EMA 计算方式），DIF（EMA12-EMA26）、DEA（DIF 的 EMA9）、MACD 柱（DIF-DEA）×2
 - **函数**：`buildIndicatorSnapshot()` 返回包含所有指标的统一对象
@@ -235,10 +268,13 @@ npm start
    ├─ Trader（延迟 TradeContext 初始化）
    ├─ OrderRecorder（链接到 Trader）
    └─ RiskChecker（带亏损/持仓限制）
-4. 显示初始账户和持仓信息
-5. 刷新历史订单记录（做多 + 做空）
-6. 检查待处理买入订单 → 如有则启用监控
-7. 启动无限循环（runOnce 每秒执行）
+3. 显示初始账户和持仓信息（`displayAccountAndPositions`，并缓存 account/positions）
+4. 使用 todayOrders 初始化订单与浮亏数据（做多 + 做空）：
+   ├─ `orderRecorder.fetchOrdersFromAPI(longSymbol/shortSymbol)` → 从 API 获取当日订单并更新 5 分钟缓存
+   ├─ `orderRecorder.refreshOrders(symbol, isLong, false)` → 从缓存计算当前仍需记录的买入订单（用于智能清仓）
+   └─ `riskChecker.refreshUnrealizedLossData(orderRecorder, symbol, isLong, false)` → 从缓存读取全部买/卖单并计算 R1/N1
+5. 检查待处理买入订单 → 如有则启用订单监控
+6. 启动无限循环（`runOnce` 每秒执行）
 ```
 
 ## 重要模式和注意事项
@@ -343,7 +379,7 @@ const sellQty = clearAll ? availableQty : Math.min(calculateQty, availableQty);
 
 在 `.env` 中启用 `DEBUG=true` 查看每秒记录的详细指标值：
 
-- RSI6、RSI12、KDJ(K,D,J)、MACD(DIF,DEA,MACD)
+- RSI6、MFI、KDJ(K,D,J)、MACD(DIF,DEA,MACD)
 
 ### 检查订单记录
 

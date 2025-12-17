@@ -6,10 +6,11 @@
 
 ### 主要特点
 
-- ✅ **多指标组合策略**：结合 RSI、KDJ、MACD 三种技术指标
+- ✅ **多指标组合策略**：结合 RSI、MFI、KDJ、MACD 四种技术指标
 - ✅ **双向交易支持**：支持做多和做空两个方向的标的交易
 - ✅ **延迟验证机制**：开仓信号采用 60 秒延迟验证，确保趋势确认后再执行
 - ✅ **智能风险控制**：单日最大亏损限制、单标的持仓市值限制、牛熊证距离回收价检查
+- ✅ **单标的浮亏保护**：基于实时价格与成本市值的浮亏监控，超过阈值自动触发保护性清仓（市价单）
 - ✅ **智能订单管理**：自动监控未成交买入订单，当价格下跌时自动降低委托价格
 - ✅ **精细化清仓策略**：基于持仓成本价和历史订单的智能清仓逻辑
 - ✅ **末日保护程序**：可配置在收盘前 15 分钟拒绝买入，收盘前 5 分钟自动清空所有持仓
@@ -46,7 +47,7 @@ src/
 ```
 监控标的行情数据 → 计算技术指标 → 策略生成信号 → 风险检查 → 订单执行 → 订单监控
      ↓                ↓              ↓            ↓           ↓           ↓
-  K线数据        RSI/KDJ/MACD     立即/延迟    浮亏/持仓    做多/做空   价格优化
+  K线数据      RSI/MFI/KDJ/MACD   立即/延迟    浮亏/持仓    做多/做空   价格优化
 ```
 
 ---
@@ -62,11 +63,17 @@ src/
 1. **RSI（相对强弱指标）**
 
    - RSI6：6 周期 RSI
-   - RSI12：12 周期 RSI
    - 超买：> 80
    - 超卖：< 20
 
-2. **KDJ（随机指标）**
+2. **MFI（资金流量指标）**
+
+   - MFI：14 周期资金流量指标
+   - 结合价格和成交量的超买超卖指标，类似于 RSI，但考虑了成交量
+   - 超买：> 85
+   - 超卖：< 15
+
+3. **KDJ（随机指标）**
 
    - K：快速随机指标
    - D：慢速随机指标
@@ -74,7 +81,7 @@ src/
    - 超买：D > 80, J > 100
    - 超卖：D < 20, J < 0
 
-3. **MACD（指数平滑异同移动平均线）**
+4. **MACD（指数平滑异同移动平均线）**
    - DIF：快线（EMA12 - EMA26）
    - DEA：慢线（DIF 的 EMA9）
    - MACD 柱：(DIF - DEA) × 2
@@ -88,7 +95,7 @@ src/
 
 - **条件 1**：四个指标中至少 3 个满足
   - RSI6 < 20
-  - RSI12 < 20
+  - MFI < 15
   - KDJ.D < 20
   - KDJ.J < -1
 - **条件 2**：KDJ.J < -20
@@ -111,7 +118,7 @@ src/
 
 - **条件 1**：四个指标中至少 3 个满足
   - RSI6 > 80
-  - RSI12 > 80
+  - MFI > 85
   - KDJ.D > 79（注意：不是 80）
   - KDJ.J > 100
 - **条件 2**：KDJ.J > 110
@@ -133,7 +140,7 @@ src/
 
 - **条件 1**：四个指标中至少 3 个满足
   - RSI6 > 80
-  - RSI12 > 80
+  - MFI > 85
   - KDJ.D > 80
   - KDJ.J > 100
 - **条件 2**：KDJ.J > 120
@@ -156,7 +163,7 @@ src/
 
 - **条件 1**：四个指标中至少 3 个满足
   - RSI6 < 20
-  - RSI12 < 20
+  - MFI < 15
   - KDJ.D < 22（注意：不是 20）
   - KDJ.J < 0
 - **条件 2**：KDJ.J < -15
@@ -178,7 +185,7 @@ src/
 
 ### 1. 单日最大亏损限制
 
-- 实时计算浮亏：`浮亏 = 持仓市值 - 持仓成本`
+- 实时计算整体持仓浮亏：`浮亏 = 持仓市值 - 持仓成本`
 - 当浮亏超过 `MAX_DAILY_LOSS` 时，禁止开新仓（仅限制买入，不限制卖出）
 - 配置参数：`MAX_DAILY_LOSS`（单位：HKD）
 
@@ -204,7 +211,7 @@ src/
   - **风险阈值**：
     - 牛证：距离回收价百分比 < 0.5% 时停止买入
     - 熊证：距离回收价百分比 > -0.5% 时停止买入
-  - **异常价格保护**：如果监控标的价格异常（< 100），拒绝买入以确保安全
+  - **异常价格保护**：如果监控标的价格异常（< 1），可能是获取到了错误的价格（如牛熊证本身的价格），拒绝买入以确保安全
 
 ### 4. 交易频率限制
 
@@ -223,6 +230,36 @@ src/
   - 正常交易日：15:55-15:59 清仓
   - 半日交易日：11:55-11:59 清仓
 - 配置参数：`DOOMSDAY_PROTECTION`（启用/禁用末日保护程序）
+
+### 6. 单标的浮亏保护与保护性清仓
+
+- **配置项**：`MAX_UNREALIZED_LOSS_PER_SYMBOL`（`TRADING_CONFIG.maxUnrealizedLossPerSymbol`）
+  - 单位：HKD
+  - 为 0 或未配置时，关闭单标的浮亏保护和保护性清仓逻辑
+- **核心概念**：
+  - R1（成本市值）：全部买入订单市值之和 − 全部卖出订单市值之和（允许为负）
+  - N1（剩余数量）：全部买入数量之和 − 全部卖出数量之和
+  - R2（当前持仓市值）：`R2 = 当前价格 × N1`
+  - 浮亏：`浮亏 = R2 − R1`（浮亏为负数表示亏损）
+- **初始化流程（程序启动时）**：
+  1. 调用 `orderRecorder.fetchOrdersFromAPI(symbol)` 从 LongPort API 获取当日全部已成交买入/卖出订单，写入内部缓存（默认缓存有效期 5 分钟）
+  2. 调用 `orderRecorder.refreshOrders(symbol, isLong, false)` 从缓存中计算当前仍需记录的买入订单列表（用于智能清仓）
+  3. 调用 `riskChecker.refreshUnrealizedLossData(orderRecorder, symbol, isLong, false)` 从缓存中读取全部买入/卖出订单，计算并缓存 R1 与 N1
+- **运行时更新（每次成交后）**：
+  - 买入成交后：
+    - `orderRecorder.recordLocalBuy()` 本地追加买入记录（不再调用 todayOrders）
+    - `riskChecker.updateUnrealizedLossDataAfterTrade(..., isBuy=true, executedPrice, executedQuantity)` 增量更新 R1 和 N1
+  - 卖出成交后：
+    - `orderRecorder.recordLocalSell()` 本地按规则过滤/清空买入记录
+    - `riskChecker.updateUnrealizedLossDataAfterTrade(..., isBuy=false, executedPrice, executedQuantity)` 根据卖出数量增量减少 R1 和 N1（视为按当前成交价摊销）
+- **保护性清仓触发逻辑**：
+  - 在 `index.js` 的主循环中，当监控到做多/做空标的价格变化时：
+    - 调用 `riskChecker.checkUnrealizedLoss(symbol, currentPrice, isLong)`，使用缓存的 R1/N1 与最新价格计算浮亏
+    - 如果 `浮亏 < -MAX_UNREALIZED_LOSS_PER_SYMBOL`：
+      - 生成市价清仓信号（`useMarketOrder: true`，`SignalType.SELLCALL` 或 `SignalType.SELLPUT`）
+      - 通过 `trader.executeSignals()` 立即市价清仓
+      - 清仓完成后调用 `riskChecker.refreshUnrealizedLossData(orderRecorder, symbol, isLong, true)` 强制刷新浮亏数据（内部会使用 `forceRefresh=true` 重新从 todayOrders 获取订单并重算 R1/N1），确保后续监控基于最新成交状态
+  - 当未启用浮亏保护（`MAX_UNREALIZED_LOSS_PER_SYMBOL <= 0`）时，上述流程自动跳过，不会触发保护性清仓
 
 ---
 
@@ -248,23 +285,23 @@ src/
 
 ### 2. 历史订单记录
 
-系统会记录每日所有已成交的买入订单，用于智能清仓决策。
+系统会记录每日所有已成交的买入订单，用于智能清仓决策，并在程序运行期间通过本地增量更新保持同步。
 
 **记录时机：**
 
-- 程序启动时
-- 每次买入做多标的时
-- 每次买入做空标的时
-- 每次卖出做多标的时（卖出后刷新）
-- 每次卖出做空标的时（卖出后刷新）
+- 程序启动时（从 API 获取当日订单并初始化缓存与记录）
+- 每次买入做多标的后（本地追加记录）
+- 每次买入做空标的后（本地追加记录）
+- 每次卖出做多标的后（本地按规则过滤/清空）
+- 每次卖出做空标的后（本地按规则过滤/清空）
 
-**记录逻辑（M0 + MN 过滤算法）：**
+**启动时记录逻辑（M0 + MN 过滤算法）：**
 
 1. **获取订单**：
 
-   - 获取当日全部买入订单（已成交）
-   - 获取当日全部卖出订单（已成交）
-   - 注意：做多标的和做空标的分开获取和记录
+   - 调用 `orderRecorder.fetchOrdersFromAPI(symbol)` 获取当日全部买入/卖出已成交订单，并写入内部缓存（含 `fetchTime`，有效期默认 5 分钟）
+   - 调用 `orderRecorder.refreshOrders(symbol, isLong, false)` 从缓存中读取订单并进行过滤
+   - 做多标的和做空标的分开获取和记录
 
 2. **计算 M0**：
 
@@ -285,12 +322,22 @@ src/
        - 将过滤出的买入订单 + 时间范围内的买入订单 = 新的候选列表
    - 最终订单列表 = M0 + MN（经过所有卖出订单过滤后的候选列表）
 
+**运行时本地更新逻辑：**
+
+- 买入后（已提交且信号通过所有风控）：
+  - `recordLocalBuy(symbol, executedPrice, executedQuantity, isLong)` 直接在内存中追加一条买入记录，不再重新调用 todayOrders
+- 卖出后：
+  - `recordLocalSell(symbol, executedPrice, executedQuantity, isLong)` 按以下规则本地更新：
+    - 若卖出数量 ≥ 当前记录的总数量：认为全部卖出，清空记录
+    - 否则：仅保留成交价 ≥ 本次卖出价的买入订单
+
 **清仓应用：**
 
-- 当卖出信号触发但当前价格 ≤ 持仓成本价时
-- 检查历史买入且已成交订单（已记录的订单）是否有买入价 < 当前价的订单
-- 如果有，获取这些订单的全部成交数量并以当前价卖出
-- 实现"只卖盈利部分"的精细化清仓策略
+- 当卖出信号触发但当前价格 ≤ 持仓成本价时：
+  - 检查当前记录的买入订单列表（已按 M0 + MN 规则处理）
+  - 找出买入价 < 当前价的订单
+  - 获取这些订单的全部成交数量并以当前价卖出
+- 实现“只卖盈利部分”的精细化清仓策略，同时利用缓存和本地增量更新避免重复调用 todayOrders
 
 ---
 
@@ -426,17 +473,17 @@ npm start
 
 ### 必需配置
 
-| 参数                           | 说明                                                      | 示例              |
-| ------------------------------ | --------------------------------------------------------- | ----------------- |
-| `MONITOR_SYMBOL`               | 监控标的代码                                              | `HSI.HK`          |
-| `LONG_SYMBOL`                  | 做多标的代码                                              | `54806`           |
-| `SHORT_SYMBOL`                 | 做空标的代码                                              | `63372`           |
-| `TARGET_NOTIONAL`              | 每次目标买入金额（HKD）                                   | `10000`           |
-| `LONG_LOT_SIZE`                | 做多标的最小买卖单位                                      | `100`             |
-| `SHORT_LOT_SIZE`               | 做空标的最小买卖单位                                      | `100`             |
-| `MAX_POSITION_NOTIONAL`        | 单标的最大持仓市值（HKD）                                 | `200000`          |
-| `MAX_DAILY_LOSS`               | 单日最大亏损（HKD）                                       | `20000`           |
-| `DOOMSDAY_PROTECTION`          | 末日保护程序（收盘前 15 分钟拒绝买入，收盘前 5 分钟清仓） | `true` 或 `false` |
+| 参数                    | 说明                                                      | 示例              |
+| ----------------------- | --------------------------------------------------------- | ----------------- |
+| `MONITOR_SYMBOL`        | 监控标的代码                                              | `HSI.HK`          |
+| `LONG_SYMBOL`           | 做多标的代码                                              | `54806`           |
+| `SHORT_SYMBOL`          | 做空标的代码                                              | `63372`           |
+| `TARGET_NOTIONAL`       | 每次目标买入金额（HKD）                                   | `10000`           |
+| `LONG_LOT_SIZE`         | 做多标的最小买卖单位                                      | `100`             |
+| `SHORT_LOT_SIZE`        | 做空标的最小买卖单位                                      | `100`             |
+| `MAX_POSITION_NOTIONAL` | 单标的最大持仓市值（HKD）                                 | `200000`          |
+| `MAX_DAILY_LOSS`        | 单日最大亏损（HKD）                                       | `20000`           |
+| `DOOMSDAY_PROTECTION`   | 末日保护程序（收盘前 15 分钟拒绝买入，收盘前 5 分钟清仓） | `true` 或 `false` |
 
 ### 可选配置
 
@@ -450,7 +497,7 @@ npm start
 
 ### RSI（相对强弱指标）
 
-使用 `technicalindicators` 库的 RSI.calculate 方法，采用 Wilder's Smoothing（Wilder平滑法）：
+使用 `technicalindicators` 库的 RSI.calculate 方法，采用 Wilder's Smoothing（Wilder 平滑法）：
 
 ```
 1. 计算价格变化（涨跌值）
@@ -474,6 +521,26 @@ npm start
 4. 计算 J 值：
    J = 3 * K - 2 * D
 ```
+
+### MFI（资金流量指标）
+
+使用 `technicalindicators` 库的 MFI.calculate 方法，周期为 14：
+
+```
+1. 计算典型价格（Typical Price）：TP = (high + low + close) / 3
+2. 计算原始资金流量（Raw Money Flow）：RMF = TP × volume
+3. 分离正负资金流量：
+   - 如果今日 TP > 昨日 TP：正资金流量
+   - 如果今日 TP < 昨日 TP：负资金流量
+4. 计算资金流量比率（Money Flow Ratio）：MFR = 正资金流量总和 / 负资金流量总和
+5. 计算 MFI：MFI = 100 - (100 / (1 + MFR))
+```
+
+MFI 值范围：0-100
+
+- MFI > 85：通常认为超买
+- MFI < 15：通常认为超卖
+- MFI 结合了价格和成交量，比 RSI 更能反映资金流向
 
 ### MACD（指数平滑异同移动平均线）
 
@@ -651,6 +718,10 @@ LongBrigeAutomationProgram/
 
 ### v1.2.0 (最新版本)
 
+- ✅ **更新技术指标**：
+  - 将 RSI12 替换为 MFI（资金流量指标，周期 14）
+  - MFI 结合价格和成交量，比 RSI 更能反映资金流向
+  - 买入信号：MFI < 15（超卖），卖出信号：MFI > 85（超买）
 - ✅ **完善交易信号条件**：
   - 明确所有交易信号的触发条件（条件 1 或条件 2 满足其一即可）
   - 卖出信号生成时无需判断成本价，成本价判断在卖出策略中进行
