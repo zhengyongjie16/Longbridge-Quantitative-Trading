@@ -6,9 +6,9 @@ import {
   Market,
   NaiveDate,
 } from "longport";
-import { createConfig } from "./config/config.js";
-import { normalizeHKSymbol, decimalToNumber } from "./utils.js";
-import { logger } from "./logger.js";
+import { createConfig } from "../config/config.js";
+import { normalizeHKSymbol, decimalToNumber } from "../utils/helpers.js";
+import { logger } from "../utils/logger.js";
 
 const DEFAULT_RETRY = {
   retries: 2,

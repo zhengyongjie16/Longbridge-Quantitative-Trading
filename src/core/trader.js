@@ -6,16 +6,16 @@ import {
   TimeInForceType,
   Decimal,
 } from "longport";
-import { createConfig } from "./config/config.js";
-import { TRADING_CONFIG } from "./config/config.trading.js";
-import { logger, colors } from "./logger.js";
-import { SignalType } from "./signalTypes.js";
+import { createConfig } from "../config/config.js";
+import { TRADING_CONFIG } from "../config/config.trading.js";
+import { logger, colors } from "../utils/logger.js";
+import { SignalType } from "../utils/constants.js";
 import {
   normalizeHKSymbol,
   decimalToNumber,
   formatSymbolDisplay,
   toBeijingTimeIso,
-} from "./utils.js";
+} from "../utils/helpers.js";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -51,13 +51,13 @@ const toDecimal = (value) => {
  */
 function recordTrade(tradeRecord) {
   try {
-    const logDir = path.join(process.cwd(), "logs");
+    const logDir = path.join(process.cwd(), "logs", "trades");
     if (!fs.existsSync(logDir)) {
       fs.mkdirSync(logDir, { recursive: true });
     }
 
     const today = new Date().toISOString().split("T")[0];
-    const logFile = path.join(logDir, `trades_${today}.json`);
+    const logFile = path.join(logDir, `${today}.json`);
 
     let trades = [];
     if (fs.existsSync(logFile)) {

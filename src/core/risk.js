@@ -1,8 +1,8 @@
 // 基础风险管理模块：检查最大单日亏损与单标的最大持仓金额
-import { TRADING_CONFIG } from "./config/config.trading.js";
-import { SignalType, isBuyAction } from "./signalTypes.js";
-import { normalizeHKSymbol, decimalToNumber } from "./utils.js";
-import { logger } from "./logger.js";
+import { TRADING_CONFIG } from "../config/config.trading.js";
+import { SignalType, isBuyAction } from "../utils/constants.js";
+import { normalizeHKSymbol, decimalToNumber } from "../utils/helpers.js";
+import { logger } from "../utils/logger.js";
 
 export class RiskChecker {
   constructor({

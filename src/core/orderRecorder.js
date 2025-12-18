@@ -1,6 +1,6 @@
 import { OrderSide, OrderStatus } from "longport";
-import { logger } from "./logger.js";
-import { normalizeHKSymbol, decimalToNumber } from "./utils.js";
+import { logger } from "../utils/logger.js";
+import { normalizeHKSymbol, decimalToNumber } from "../utils/helpers.js";
 
 /**
  * 订单记录管理器

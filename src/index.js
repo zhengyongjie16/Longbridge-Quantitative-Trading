@@ -1,21 +1,21 @@
 import { createConfig } from "./config/config.js";
-import { HangSengMultiIndicatorStrategy } from "./strategy.js";
-import { Trader } from "./trader.js";
-import { buildIndicatorSnapshot } from "./indicators.js";
-import { RiskChecker } from "./risk.js";
+import { HangSengMultiIndicatorStrategy } from "./core/strategy.js";
+import { Trader } from "./core/trader.js";
+import { buildIndicatorSnapshot } from "./services/indicators.js";
+import { RiskChecker } from "./core/risk.js";
 import { TRADING_CONFIG } from "./config/config.trading.js";
-import { logger } from "./logger.js";
+import { logger } from "./utils/logger.js";
 import { validateAllConfig } from "./config/config.validator.js";
-import { SignalType } from "./signalTypes.js";
-import { OrderRecorder } from "./orderRecorder.js";
-import { verificationEntryPool, positionObjectPool } from "./objectPool.js";
+import { SignalType } from "./utils/constants.js";
+import { OrderRecorder } from "./core/orderRecorder.js";
+import { verificationEntryPool, positionObjectPool } from "./utils/objectPool.js";
 import {
   normalizeHKSymbol,
   formatAccountChannel,
   formatNumber,
   getSymbolName,
   formatQuoteDisplay,
-} from "./utils.js";
+} from "./utils/helpers.js";
 
 /**
  * 将UTC时间转换为香港时区（UTC+8）

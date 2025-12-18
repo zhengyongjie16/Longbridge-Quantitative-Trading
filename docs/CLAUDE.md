@@ -37,6 +37,7 @@ npm start
 ## 模块职责
 
 ### index.js（主入口）
+**路径**：`D:\Code\LongBrigeAutomationProgram\src\index.js`
 
 - **主循环**：`runOnce()` 每秒执行一次
 - **交易时段检查**：验证港股交易时间（09:30-12:00, 13:00-16:00）
@@ -52,7 +53,13 @@ npm start
   - 当 currentPrice ≤ costPrice 时：仅卖出 buyPrice < currentPrice 的历史订单（智能清仓）
   - 如果没有符合条件的订单，信号被设为 HOLD（持有）
 
+**关键函数**：
+- `isInContinuousHKSession()` - 交易时段验证
+- `isBeforeClose15Minutes()` / `isBeforeClose5Minutes()` - 收盘前检查
+- `getHKTime()` - UTC 到香港时区转换
+
 ### strategy.js（信号生成）
+**路径**：`D:\Code\LongBrigeAutomationProgram\src\core\strategy.js`
 
 - **类**：`HangSengMultiIndicatorStrategy`
 - **生成两类信号**：
@@ -78,6 +85,7 @@ npm start
     - 注意：成本价判断在卖出策略中进行，信号生成时不检查
 
 ### trader.js（订单执行）
+**路径**：`D:\Code\LongBrigeAutomationProgram\src\core\trader.js`
 
 - **类**：`Trader`
 - **核心方法**：
@@ -89,6 +97,7 @@ npm start
 - **买单监控**：买入信号执行后自动启用，所有订单成交后停止
 
 ### risk.js（风险控制）
+**路径**：`D:\Code\LongBrigeAutomationProgram\src\core\risk.js`
 
 - **类**：`RiskChecker`
 - **交易前检查**（仅针对买入信号）：
@@ -122,6 +131,7 @@ npm start
       - 通过 `forceRefresh=true` 强制刷新 todayOrders，并基于最新订单状态重算 R1 与 N1
 
 ### orderRecorder.js（历史订单跟踪）
+**路径**：`D:\Code\LongBrigeAutomationProgram\src\core\orderRecorder.js`
 
 - **类**：`OrderRecorder`
 - **用途**：跟踪已成交买入订单，用于智能清仓决策，同时为浮亏监控提供原始订单数据（R1/N1）
@@ -155,6 +165,7 @@ npm start
   - 浮亏增量更新由 `RiskChecker.updateUnrealizedLossDataAfterTrade` 负责，避免每笔成交后重算 R1/N1
 
 ### indicators.js（技术指标计算）
+**路径**：`D:\Code\LongBrigeAutomationProgram\src\services\indicators.js`
 
 - **实现方式**：使用 `technicalindicators` 库优化指标计算，性能提升约 2.9 倍
 - **RSI**：使用 RSI.calculate（Wilder's Smoothing，平滑系数 = 1/period），计算周期 6
@@ -164,6 +175,7 @@ npm start
 - **函数**：`buildIndicatorSnapshot()` 返回包含所有指标的统一对象
 
 ### objectPool.js（对象池模块）
+**路径**：`D:\Code\LongBrigeAutomationProgram\src\utils\objectPool.js`
 
 - **类**：`ObjectPool`（通用对象池）
 - **用途**：减少频繁的对象创建和垃圾回收，提升内存效率
@@ -176,6 +188,7 @@ npm start
   - `releaseAll(objects)`：批量释放对象数组
 
 ### quoteClient.js（行情数据）
+**路径**：`D:\Code\LongBrigeAutomationProgram\src\services\quoteClient.js`
 
 - **类**：`MarketDataClient`
 - **缓存机制**：
@@ -187,6 +200,58 @@ npm start
   - `getCandlesticks(symbol, period, count)`：获取 K 线数据（默认 200 根，1 分钟周期）
   - `isTradingDay(date)`：检查指定日期是否为交易日
   - `checkWarrantInfo(symbol)`：检查标的是否为牛熊证并获取回收价
+
+## 辅助模块和工具
+
+### logger.js（异步日志系统）
+**路径**：`D:\Code\LongBrigeAutomationProgram\src\utils\logger.js`
+
+- **类**：`AsyncLogQueue`
+- **设计**：非阻塞日志队列（最大 1000 条）
+- **批处理**：每批 20 条日志
+- **异步执行**：使用 `setImmediate()` 避免阻塞主循环
+- **同步刷新**：进程退出时同步刷新所有待处理日志
+- **方法**：`logger.info()`, `logger.warn()`, `logger.error()`, `logger.debug()`
+- **时间显示**：自动添加北京时间（UTC+8）前缀
+
+### utils.js（工具函数）
+**路径**：`D:\Code\LongBrigeAutomationProgram\src\utils\helpers.js`
+
+- **normalizeHKSymbol()**：标准化港股代码（添加 `.HK` 后缀）
+- **decimalToNumber()**：转换 LongPort API 的 Decimal 对象为数字
+- **toBeijingTimeIso()** / **toBeijingTimeLog()**：UTC 到北京时间转换
+
+### signalTypes.js（信号类型定义）
+**路径**：`D:\Code\LongBrigeAutomationProgram\src\utils\constants.js`
+
+- 定义所有交易信号类型：`BUYCALL`, `SELLCALL`, `BUYPUT`, `SELLPUT`, `HOLD`
+
+### 分析工具
+
+#### findWarrant.js（牛熊证搜索工具）
+**路径**：`D:\Code\LongBrigeAutomationProgram\src\tools\findWarrant.js`
+
+- **用途**：搜索符合条件的牛熊证
+- **运行**：`npm run find-warrant`
+- **功能**：根据标的、到期日、回收价等条件筛选牛熊证
+
+#### indicatorAnalysis.js（指标分析工具）
+**路径**：`D:\Code\LongBrigeAutomationProgram\src\tools\indicatorAnalysis.js`
+
+- **用途**：分析历史数据的技术指标表现
+- **功能**：回测指标策略效果
+
+### Windows 启动脚本
+
+#### start.bat
+**路径**：`D:\Code\LongBrigeAutomationProgram\start.bat`
+
+- **用途**：Windows 快捷启动脚本
+- **功能**：
+  1. 验证 Node.js 是否安装
+  2. 检查 `.env` 文件是否存在
+  3. 执行 `npm start`
+- **使用**：双击 `start.bat` 即可启动系统
 
 ## 关键数据流
 
@@ -369,11 +434,11 @@ const sellQty = clearAll ? availableQty : Math.min(calculateQty, availableQty);
 
 ### 追踪信号流
 
-1. 检查 `strategy.js` 日志查看信号生成（立即 vs 延迟）
+1. 检查 `strategy.js`（`D:\Code\LongBrigeAutomationProgram\src\core\strategy.js`）日志查看信号生成（立即 vs 延迟）
 2. 对于延迟信号，检查 lastState 中的 `pendingDelayedSignals`（等待 60 秒）
 3. 验证验证历史在触发时间点包含 J/MACD 值
-4. 检查 risk.js 日志了解信号被过滤的原因（牛熊证风险、单日亏损、持仓限制）
-5. 检查 trader.js 日志查看频率限制或订单提交错误
+4. 检查 `risk.js`（`D:\Code\LongBrigeAutomationProgram\src\core\risk.js`）日志了解信号被过滤的原因（牛熊证风险、单日亏损、持仓限制）
+5. 检查 `trader.js`（`D:\Code\LongBrigeAutomationProgram\src\core\trader.js`）日志查看频率限制或订单提交错误
 
 ### 验证指标计算
 
@@ -383,7 +448,7 @@ const sellQty = clearAll ? availableQty : Math.min(calculateQty, availableQty);
 
 ### 检查订单记录
 
-每次交易后，`orderRecorder.refreshOrders()` 记录过滤过程：
+每次交易后，`orderRecorder.refreshOrders()`（`D:\Code\LongBrigeAutomationProgram\src\core\orderRecorder.js`）记录过滤过程：
 
 - 今日总买入订单数
 - 今日总卖出订单数
@@ -398,9 +463,21 @@ Trader 日志显示：
 - 订单价格何时被修改（价格优化）
 - 所有订单何时成交
 
+### 日志文件位置
+
+- **交易记录**：`D:\Code\LongBrigeAutomationProgram\logs\trades\YYYY-MM-DD.json`
+- **控制台日志**：实时显示，由 `logger.js`（`D:\Code\LongBrigeAutomationProgram\src\utils\logger.js`）管理
+
 ## 配置要求
 
 所有配置必须在 `.env` 文件中设置（参见 `.env.example`）：
+
+**配置文件位置**：
+- 环境变量：`D:\Code\LongBrigeAutomationProgram\.env`
+- 配置示例：`D:\Code\LongBrigeAutomationProgram\.env.example`
+- API 配置：`D:\Code\LongBrigeAutomationProgram\src\config\config.js`
+- 交易配置：`D:\Code\LongBrigeAutomationProgram\src\config\config.trading.js`
+- 配置验证：`D:\Code\LongBrigeAutomationProgram\src\config\config.validator.js`
 
 **必需配置**：
 
@@ -413,6 +490,7 @@ Trader 日志显示：
 
 - DOOMSDAY_PROTECTION（默认：true）
 - DEBUG（默认：false）
+- MAX_UNREALIZED_LOSS_PER_SYMBOL（单标的浮亏保护阈值，默认：0，关闭保护）
 
 如果任何必需配置缺失或无效，启动将失败（config.validator.js 检查所有设置）。
 
@@ -420,11 +498,12 @@ Trader 日志显示：
 
 修改本系统时：
 
-1. **添加新指标**：更新 `indicators.js`，利用 `technicalindicators` 库添加新指标，然后修改 `buildIndicatorSnapshot()` 和策略阈值
-2. **修改信号逻辑**：编辑 `strategy.js` 条件，确保延迟信号仍记录 J1/MACD1
-3. **调整风险控制**：修改 `risk.js` 检查，始终仅对买入信号进行门控（允许卖出）
-4. **订单类型变更**：更新 `trader.js` \_submitTargetOrder()，确保订单类型被 LongPort API 支持
-5. **测试**：使用模拟交易账户（在 LongPort API 设置中配置）
+1. **添加新指标**：更新 `indicators.js`（`D:\Code\LongBrigeAutomationProgram\src\services\indicators.js`），利用 `technicalindicators` 库添加新指标，然后修改 `buildIndicatorSnapshot()` 和策略阈值
+2. **修改信号逻辑**：编辑 `strategy.js`（`D:\Code\LongBrigeAutomationProgram\src\core\strategy.js`）条件，确保延迟信号仍记录 J1/MACD1
+3. **调整风险控制**：修改 `risk.js`（`D:\Code\LongBrigeAutomationProgram\src\core\risk.js`）检查，始终仅对买入信号进行门控（允许卖出）
+4. **订单类型变更**：更新 `trader.js`（`D:\Code\LongBrigeAutomationProgram\src\core\trader.js`）\_submitTargetOrder()，确保订单类型被 LongPort API 支持
+5. **修改配置参数**：编辑 `.env` 文件或 `config.trading.js`（`D:\Code\LongBrigeAutomationProgram\src\config\config.trading.js`）
+6. **测试**：使用模拟交易账户（在 LongPort API 设置中配置）
 
 ## 架构原则
 
@@ -438,3 +517,38 @@ Trader 日志显示：
 - **异步日志队列**：logger.js 使用异步队列批量处理，避免阻塞主循环
 - **防御性编程**：广泛的验证和错误处理
 - **日志透明度**：详细日志解释每个决策
+
+## 快速文件导航
+
+**核心模块**：
+- 主入口：`D:\Code\LongBrigeAutomationProgram\src\index.js`
+- 交易策略：`D:\Code\LongBrigeAutomationProgram\src\core\strategy.js`
+- 订单执行：`D:\Code\LongBrigeAutomationProgram\src\core\trader.js`
+- 风险控制：`D:\Code\LongBrigeAutomationProgram\src\core\risk.js`
+- 订单记录：`D:\Code\LongBrigeAutomationProgram\src\core\orderRecorder.js`
+- 技术指标：`D:\Code\LongBrigeAutomationProgram\src\services\indicators.js`
+- 行情客户端：`D:\Code\LongBrigeAutomationProgram\src\services\quoteClient.js`
+
+**辅助模块**：
+- 对象池：`D:\Code\LongBrigeAutomationProgram\src\utils\objectPool.js`
+- 日志系统：`D:\Code\LongBrigeAutomationProgram\src\utils\logger.js`
+- 工具函数：`D:\Code\LongBrigeAutomationProgram\src\utils\helpers.js`
+- 信号类型：`D:\Code\LongBrigeAutomationProgram\src\utils\constants.js`
+
+**配置文件**：
+- API 配置：`D:\Code\LongBrigeAutomationProgram\src\config\config.js`
+- 交易配置：`D:\Code\LongBrigeAutomationProgram\src\config\config.trading.js`
+- 配置验证：`D:\Code\LongBrigeAutomationProgram\src\config\config.validator.js`
+- 环境变量：`D:\Code\LongBrigeAutomationProgram\.env`（需手动创建）
+- 配置示例：`D:\Code\LongBrigeAutomationProgram\.env.example`
+
+**分析工具**：
+- 牛熊证搜索：`D:\Code\LongBrigeAutomationProgram\src\tools\findWarrant.js`
+- 指标分析：`D:\Code\LongBrigeAutomationProgram\src\tools\indicatorAnalysis.js`
+
+**日志文件**：
+- 交易记录：`D:\Code\LongBrigeAutomationProgram\logs\trades\YYYY-MM-DD.json`
+
+**启动脚本**：
+- Windows 启动：`D:\Code\LongBrigeAutomationProgram\start.bat`
+

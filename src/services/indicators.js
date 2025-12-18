@@ -209,13 +209,13 @@ export function calculateKDJ(candles, period = 9) {
     // 先用初始值 50 初始化 EMA（与当前代码一致）
     emaK.nextValue(50); // 设置初始值为 50
     // 然后对每个 RSV 应用 EMA 平滑
-    for (let i = 0; i < rsvValues.length; i++) {
-      const kValue = emaK.nextValue(rsvValues[i]);
-      if (kValue !== undefined) {
-        kValues.push(kValue);
-      } else {
+    for (const rsv of rsvValues) {
+      const kValue = emaK.nextValue(rsv);
+      if (kValue === undefined) {
         // 如果返回 undefined（理论上不应该发生），使用前一个值或初始值
         kValues.push(kValues.length > 0 ? kValues.at(-1) : 50);
+      } else {
+        kValues.push(kValue);
       }
     }
 
@@ -225,13 +225,13 @@ export function calculateKDJ(candles, period = 9) {
     // 先用初始值 50 初始化 EMA（与当前代码一致）
     emaD.nextValue(50); // 设置初始值为 50
     // 然后对每个 K 值应用 EMA 平滑
-    for (let i = 0; i < kValues.length; i++) {
-      const dValue = emaD.nextValue(kValues[i]);
-      if (dValue !== undefined) {
-        dValues.push(dValue);
-      } else {
+    for (const kv of kValues) {
+      const dValue = emaD.nextValue(kv);
+      if (dValue === undefined) {
         // 如果返回 undefined（理论上不应该发生），使用前一个值或初始值
         dValues.push(dValues.length > 0 ? dValues.at(-1) : 50);
+      } else {
+        dValues.push(dValue);
       }
     }
 

@@ -1,39 +1,30 @@
-# 依赖
+# Dependencies
 node_modules/
-package-lock.json
 
-# 日志文件
-logs/
-*.log
-
-# 环境变量
+# Environment variables
 .env
 .env.local
 .env.*.local
 
-# 操作系统文件
-.DS_Store
-Thumbs.db
-desktop.ini
+# Logs
+logs/
+*.log
 
-# IDE 配置
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# 临时文件
-*.tmp
-*.temp
-.cache/
+# OS
+.DS_Store
+Thumbs.db
 
-# 敏感信息（如果有）
-*.key
-*.pem
-*.cert
+# Test files
+coverage/
+.nyc_output/
 
-# 构建输出（如果有）
+# Build output
 dist/
 build/
-

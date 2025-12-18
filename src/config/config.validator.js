@@ -1,8 +1,8 @@
-import { logger } from "../logger.js";
+import { logger } from "../utils/logger.js";
 import { TRADING_CONFIG } from "./config.trading.js";
 import { createConfig } from "./config.js";
-import { MarketDataClient } from "../quoteClient.js";
-import { formatSymbolDisplay } from "../utils.js";
+import { MarketDataClient } from "../services/quoteClient.js";
+import { formatSymbolDisplay } from "../utils/helpers.js";
 
 /**
  * 配置验证错误类

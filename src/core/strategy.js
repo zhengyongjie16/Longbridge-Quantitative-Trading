@@ -1,4 +1,4 @@
-import { SignalType } from "./signalTypes.js";
+import { SignalType } from "../utils/constants.js";
 
 /**
  * 恒生指数多指标策略：

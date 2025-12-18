@@ -1,6 +1,6 @@
 // 简单日志封装：统一输出格式，便于后续替换为专业日志库
 // 使用异步队列批量处理日志输出，避免阻塞主循环
-import { toBeijingTimeLog } from "./utils.js";
+import { toBeijingTimeLog } from "./helpers.js";
 
 // ANSI 颜色代码
 export const colors = {
