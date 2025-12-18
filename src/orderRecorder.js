@@ -383,8 +383,7 @@ export class OrderRecorder {
       );
 
       // 1. 先获取M0：成交时间 > 最新卖出订单时间的买入订单
-      const latestSellTime =
-        sortedSellOrders[sortedSellOrders.length - 1].executedTime; // 最新的卖出订单时间
+      const latestSellTime = sortedSellOrders.at(-1).executedTime; // 最新的卖出订单时间
       const m0 = allBuyOrders.filter(
         (buyOrder) => buyOrder.executedTime > latestSellTime
       );
@@ -409,11 +408,43 @@ export class OrderRecorder {
             : latestSellTime + 1; // 如果没有下一个，设为latestSellTime+1表示上限
 
         // 获取所有 成交时间 < 当前卖出订单成交时间 的买入订单（从currentBuyOrders中）
+        // 注意：对于D1，currentBuyOrders是所有成交时间 <= 最新卖出订单时间的买入订单
+        // 对于D2，currentBuyOrders是M1，所以这里获取的是M1中成交时间 < D2成交时间的买入订单
         const buyOrdersBeforeSell = currentBuyOrders.filter(
           (buyOrder) => buyOrder.executedTime < sellTime
         );
 
-        // 如果没有在此卖出订单之前的买入订单，跳过
+        // 判断是否全部卖出：
+        // - 对于D1：判断D1成交数量 >= 所有小于D1订单成交时间的买入订单的成交数量
+        // - 对于D2及后续：判断D2成交数量 >= M1的总数量（即currentBuyOrders的总数量）
+        const quantityToCompare =
+          i === 0
+            ? buyOrdersBeforeSell.reduce(
+                (sum, order) => sum + order.executedQuantity,
+                0
+              ) // D1：判断buyOrdersBeforeSell的总数量
+            : currentBuyOrders.reduce(
+                (sum, order) => sum + order.executedQuantity,
+                0
+              ); // D2及后续：判断currentBuyOrders的总数量
+
+        // 如果卖出数量 >= 比较数量，说明全部被卖出
+        if (sellQuantity >= quantityToCompare) {
+          if (i === 0) {
+            // D1：从候选列表中移除这些买入订单（视为全部被卖出）
+            // 保留成交时间 >= 当前卖出订单时间的买入订单
+            currentBuyOrders = currentBuyOrders.filter(
+              (buyOrder) => buyOrder.executedTime >= sellTime
+            );
+          } else {
+            // D2及后续：从候选列表中移除所有订单（视为全部被卖出）
+            currentBuyOrders = [];
+          }
+          // 无需继续过滤价格，直接跳到下一个卖出订单
+          continue;
+        }
+
+        // 如果没有在此卖出订单之前的买入订单，跳过价格过滤
         if (buyOrdersBeforeSell.length === 0) {
           // 更新currentBuyOrders：保留成交时间 >= 当前卖出订单时间的买入订单
           currentBuyOrders = currentBuyOrders.filter(
@@ -422,31 +453,15 @@ export class OrderRecorder {
           continue;
         }
 
-        // 计算这些买入订单的总数量
-        const totalBuyQuantity = buyOrdersBeforeSell.reduce(
-          (sum, order) => sum + order.executedQuantity,
-          0
-        );
-
-        // 判断：如果卖出数量 >= 买入总数量，说明这些买入订单全部被卖出
-        if (sellQuantity >= totalBuyQuantity) {
-          // 从候选列表中移除这些买入订单（视为全部被卖出）
-          // 保留成交时间 >= 当前卖出订单时间的买入订单
-          currentBuyOrders = currentBuyOrders.filter(
-            (buyOrder) => buyOrder.executedTime >= sellTime
-          );
-          // 无需继续过滤价格，直接跳到下一个卖出订单
-          continue;
-        }
-
         // 否则，按价格过滤：从这些买入订单中过滤出 成交价 >= 卖出价 的买入订单
+        // 例如：从M1中过滤出成交时间 < D2成交时间且成交价 >= D2成交价的买入订单
         const filteredBuyOrders = buyOrdersBeforeSell.filter(
           (buyOrder) => buyOrder.executedPrice >= sellPrice
         );
 
         // 获取成交时间 > 当前卖出订单时间 且 < 下一个卖出订单时间（如果存在）的买入订单
-        // 注意：这些订单应该从原始买入订单列表中获取，因为它们是未被过滤的
-        const buyOrdersBetweenSells = allBuyOrders.filter((buyOrder) => {
+        // 注意：这些订单应该从currentBuyOrders中获取，因为currentBuyOrders是经过之前卖出订单过滤后的结果（M1, M2等）
+        const buyOrdersBetweenSells = currentBuyOrders.filter((buyOrder) => {
           if (buyOrder.executedTime <= sellTime) {
             return false; // 排除 <= 当前卖出订单时间的订单
           }
@@ -456,11 +471,11 @@ export class OrderRecorder {
           return true;
         });
 
-        // 合并：过滤出的买入订单 + 时间范围内的买入订单 = 新的currentBuyOrders
+        // 合并：过滤出的买入订单 + 时间范围内的买入订单 = 新的currentBuyOrders（即M1, M2等）
         currentBuyOrders = [...filteredBuyOrders, ...buyOrdersBetweenSells];
       }
 
-      // 最终订单列表 = M0 + currentBuyOrders
+      // 最终订单列表 = M0 + currentBuyOrders（即M0 + MN）
       const finalBuyOrders = [...m0, ...currentBuyOrders];
 
       // 更新记录

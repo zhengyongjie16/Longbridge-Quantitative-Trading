@@ -4,7 +4,7 @@ let config = Config.fromEnv();
 TradeContext.new(config)
   .then((ctx) =>
     ctx.todayOrders({
-      symbol: "69650.HK",
+      symbol: "57250.HK",
       status: [OrderStatus.Filled],
       side: OrderSide.Buy,
       market: Market.HK,
