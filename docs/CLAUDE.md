@@ -21,6 +21,13 @@
   └─ 对象池 (objectPool.js) - 内存优化
 ```
 
+## 文档导航
+
+- **[技术指标说明](./TECHNICAL_INDICATORS.md)** - RSI、KDJ、MACD、MFI 计算原理和使用方法
+- **[项目结构说明](./PROJECT_STRUCTURE.md)** - 目录结构和模块组织
+- **[代码审查记录](./CODE_REVIEW.md)** - 代码检查结果和潜在问题
+- **[LongBridge API 参考](./LONGBRIDGE_API.md)** - LongBridge OpenAPI 完整使用指南
+
 ## 运行系统
 
 ```bash
