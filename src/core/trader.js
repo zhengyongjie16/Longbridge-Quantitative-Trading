@@ -122,6 +122,78 @@ function recordTrade(tradeRecord) {
 }
 
 /**
+ * Trade API 频率限制器
+ * Longbridge API 限制：30秒内不超过30次调用，两次调用间隔不少于0.02秒
+ */
+class TradeAPIRateLimiter {
+  constructor(maxCalls = 30, windowMs = 30000) {
+    this.maxCalls = maxCalls;
+    this.windowMs = windowMs;
+    this.callTimestamps = [];
+    this._throttlePromise = null; // 并发锁：防止多个并发请求导致超限
+  }
+
+  /**
+   * 在调用 Trade API 前进行频率控制
+   * 如果超过频率限制，会自动等待
+   * 支持并发调用（通过内部锁机制确保不会超限）
+   */
+  async throttle() {
+    // ===== 修复问题1: 并发安全 =====
+    // 如果有正在执行的 throttle，等待它完成
+    while (this._throttlePromise) {
+      await this._throttlePromise;
+    }
+
+    // 设置并发锁
+    let releaseLock;
+    this._throttlePromise = new Promise((resolve) => {
+      releaseLock = resolve;
+    });
+
+    try {
+      const now = Date.now();
+
+      // 清理超出时间窗口的调用记录
+      this.callTimestamps = this.callTimestamps.filter(
+        (timestamp) => now - timestamp < this.windowMs
+      );
+
+      // 如果已达到最大调用次数，等待最早的调用过期
+      if (this.callTimestamps.length >= this.maxCalls) {
+        const oldestCall = this.callTimestamps[0];
+        const waitTime = this.windowMs - (now - oldestCall) + 100; // 额外等待100ms作为缓冲
+        logger.warn(
+          `[频率限制] Trade API 调用频率达到上限 (${this.maxCalls}次/${this.windowMs}ms)，等待 ${waitTime}ms`
+        );
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
+
+        // ===== 修复问题3: 等待后重新清理过期记录 =====
+        const nowAfterWait = Date.now();
+        this.callTimestamps = this.callTimestamps.filter(
+          (timestamp) => nowAfterWait - timestamp < this.windowMs
+        );
+      }
+
+      // 记录本次调用时间
+      this.callTimestamps.push(Date.now());
+    } finally {
+      // 释放并发锁
+      this._throttlePromise = null;
+      releaseLock();
+    }
+  }
+
+  /**
+   * 重置频率限制器（仅用于测试）
+   */
+  reset() {
+    this.callTimestamps = [];
+    this._throttlePromise = null; // 同时重置锁状态
+  }
+}
+
+/**
  * 交易执行骨架，用于根据策略信号下单。
  * 真实策略中，你需要完善风险控制、仓位管理等逻辑。
  * TradeContext 文档见：
@@ -143,10 +215,23 @@ export class Trader {
     this._lastBuyTime = new Map();
     // 是否需要监控买入订单（仅在发起买入交易后设置为true）
     this._shouldMonitorBuyOrders = false;
+
+    // ===== 修复1: 添加订单缓存机制 =====
+    // 缓存未成交订单，避免频繁调用 todayOrders API
+    this._pendingOrdersCache = null;
+    this._pendingOrdersCacheSymbols = null; // ===== 修复问题2: 记录缓存对应的 symbols =====
+    this._pendingOrdersCacheTime = 0;
+    this._pendingOrdersCacheTTL = 2000; // 2秒缓存（订单状态变化相对较慢）
+
+    // ===== 修复3: 添加 Trade API 频率限制器 =====
+    // Longbridge API 限制：30秒内不超过30次调用
+    this._tradeAPILimiter = new TradeAPIRateLimiter(30, 30000);
   }
 
   async getAccountSnapshot() {
     const ctx = await this._ctxPromise;
+    // ===== 修复3: 应用频率限制 =====
+    await this._tradeAPILimiter.throttle();
     const balances = await ctx.accountBalance();
     const primary = balances?.[0];
     if (!primary) {
@@ -167,6 +252,8 @@ export class Trader {
 
   async getStockPositions(symbols = null) {
     const ctx = await this._ctxPromise;
+    // ===== 修复3: 应用频率限制 =====
+    await this._tradeAPILimiter.throttle();
     // stockPositions 接受 Array<string> | undefined | null，直接传递即可
     const resp = await ctx.stockPositions(symbols);
     const channels = resp?.channels ?? [];
@@ -189,11 +276,40 @@ export class Trader {
   }
 
   /**
-   * 获取今日未成交订单（实际调用API）
+   * 获取今日未成交订单（带缓存机制）
    * @param {string[]} symbols 标的代码数组，如果为null或空数组则获取所有标的的订单
+   * @param {boolean} forceRefresh 是否强制刷新缓存（默认false）
    * @returns {Promise<Array>} 未成交订单列表
    */
-  async getPendingOrders(symbols = null) {
+  async getPendingOrders(symbols = null, forceRefresh = false) {
+    // ===== 修复问题2: 规范化 symbols 参数用于缓存匹配 =====
+    // 将 symbols 数组规范化并排序，用于比较缓存是否对应同一组 symbols
+    const symbolsKey =
+      symbols && symbols.length > 0
+        ? symbols
+            .map((s) => normalizeHKSymbol(s))
+            .sort()
+            .join(",")
+        : "ALL"; // null 或空数组统一标记为 "ALL"
+
+    // ===== 修复1: 检查缓存 =====
+    const now = Date.now();
+    const isCacheValid =
+      this._pendingOrdersCache !== null &&
+      this._pendingOrdersCacheSymbols === symbolsKey && // ===== 修复问题2: 检查 symbols 是否匹配 =====
+      now - this._pendingOrdersCacheTime < this._pendingOrdersCacheTTL;
+
+    // 如果缓存有效且不强制刷新，直接返回缓存
+    if (isCacheValid && !forceRefresh) {
+      logger.debug(
+        `[订单缓存] 使用缓存的未成交订单数据 (symbols=${symbolsKey}, 缓存时间: ${
+          now - this._pendingOrdersCacheTime
+        }ms)`
+      );
+      return this._pendingOrdersCache;
+    }
+
+    // ===== 修复1: 缓存失效或强制刷新，调用API =====
     const ctx = await this._ctxPromise;
     try {
       // 过滤出未成交订单（New, PartialFilled, WaitToNew等状态）
@@ -209,16 +325,22 @@ export class Trader {
 
       if (!symbols || symbols.length === 0) {
         // 如果没有指定标的，获取所有订单
+        // ===== 修复3: 应用频率限制 =====
+        await this._tradeAPILimiter.throttle();
         allOrders = await ctx.todayOrders(undefined);
       } else {
         // 如果指定了标的，分别查询每个标的（因为 symbol 参数只接受单个字符串）
         const normalizedSymbols = symbols.map((s) => normalizeHKSymbol(s));
-        const orderPromises = normalizedSymbols.map((symbol) =>
-          ctx.todayOrders({ symbol }).catch((err) => {
+        const orderPromises = normalizedSymbols.map(async (symbol) => {
+          try {
+            // ===== 修复3: 应用频率限制 =====
+            await this._tradeAPILimiter.throttle();
+            return await ctx.todayOrders({ symbol });
+          } catch (err) {
             logger.warn(`获取标的 ${symbol} 的订单失败`, err?.message ?? err);
             return []; // 单个标的查询失败时返回空数组，不影响其他标的
-          })
-        );
+          }
+        });
         const orderArrays = await Promise.all(orderPromises);
         allOrders = orderArrays.flat();
       }
@@ -229,7 +351,7 @@ export class Trader {
           ? new Set(symbols.map((s) => normalizeHKSymbol(s)))
           : null;
 
-      return allOrders
+      const result = allOrders
         .filter((order) => {
           // 先过滤状态
           if (!pendingStatuses.has(order.status)) {
@@ -251,11 +373,34 @@ export class Trader {
           executedQuantity: decimalToNumber(order.executedQuantity),
           status: order.status,
           orderType: order.orderType,
+          // ===== 修复2: 保存原始订单对象供 replaceOrderPrice 使用 =====
+          _rawOrder: order,
         }));
+
+      // ===== 修复1: 更新缓存 =====
+      this._pendingOrdersCache = result;
+      this._pendingOrdersCacheSymbols = symbolsKey; // ===== 修复问题2: 记录缓存对应的 symbols =====
+      this._pendingOrdersCacheTime = Date.now();
+
+      logger.debug(
+        `[订单缓存] 已刷新未成交订单缓存 (symbols=${symbolsKey})，共 ${result.length} 个订单`
+      );
+
+      return result;
     } catch (err) {
       logger.error("获取未成交订单失败", err?.message ?? err);
       return [];
     }
+  }
+
+  /**
+   * 清除订单缓存（在订单状态可能变化时调用）
+   */
+  clearPendingOrdersCache() {
+    this._pendingOrdersCache = null;
+    this._pendingOrdersCacheSymbols = null; // ===== 修复问题2: 同时清除 symbols 缓存 =====
+    this._pendingOrdersCacheTime = 0;
+    logger.debug("[订单缓存] 已清除缓存");
   }
 
   /**
@@ -265,7 +410,13 @@ export class Trader {
   async cancelOrder(orderId) {
     const ctx = await this._ctxPromise;
     try {
+      // ===== 修复3: 应用频率限制 =====
+      await this._tradeAPILimiter.throttle();
       await ctx.cancelOrder(orderId);
+
+      // ===== 修复1: 撤销成功后清除缓存 =====
+      this.clearPendingOrdersCache();
+
       logger.info(`[订单撤销成功] 订单ID=${orderId}`);
       return true;
     } catch (err) {
@@ -275,19 +426,37 @@ export class Trader {
   }
 
   /**
-   * 修改订单价格（仅使用官方API）
+   * 修改订单价格（优化版，避免重复查询）
    * @param {string} orderId 订单ID
    * @param {number} newPrice 新价格
    * @param {number} quantity 数量（可选，如果不提供则使用原订单数量）
+   * @param {Object} cachedOrder 缓存的订单对象（可选，避免重复查询）
    * @returns {Promise<void>} 修改成功时不返回，失败时抛出错误
    * @throws {Error} 当修改失败时抛出错误
    */
-  async replaceOrderPrice(orderId, newPrice, quantity = null) {
+  async replaceOrderPrice(
+    orderId,
+    newPrice,
+    quantity = null,
+    cachedOrder = null
+  ) {
     const ctx = await this._ctxPromise;
 
-    // 先获取原订单信息
-    const allOrders = await ctx.todayOrders(undefined);
-    const originalOrder = allOrders.find((o) => o.orderId === orderId);
+    // ===== 修复2: 优先使用缓存的订单对象，避免重复查询 =====
+    let originalOrder = cachedOrder?._rawOrder || cachedOrder;
+
+    // 如果没有提供缓存的订单对象，才查询API
+    if (!originalOrder) {
+      logger.debug(
+        `[订单修改] 未提供缓存订单对象，查询API获取订单 ${orderId}`
+      );
+      // ===== 修复3: 应用频率限制 =====
+      await this._tradeAPILimiter.throttle();
+      const allOrders = await ctx.todayOrders(undefined);
+      originalOrder = allOrders.find((o) => o.orderId === orderId);
+    } else {
+      logger.debug(`[订单修改] 使用缓存的订单对象，订单ID=${orderId}`);
+    }
 
     if (!originalOrder) {
       const error = new Error(`未找到订单ID=${orderId}`);
@@ -339,7 +508,13 @@ export class Trader {
 
     // 只使用官方API进行修改，失败时直接抛出错误
     try {
+      // ===== 修复3: 应用频率限制 =====
+      await this._tradeAPILimiter.throttle();
       await ctx.replaceOrder(replacePayload);
+
+      // ===== 修复1: 修改成功后清除缓存 =====
+      this.clearPendingOrdersCache();
+
       logger.info(
         `[订单修改成功] 订单ID=${orderId} 新价格=${newPrice.toFixed(3)}`
       );
@@ -477,7 +652,13 @@ export class Trader {
             )}) 差异=${priceDiffAbs.toFixed(3)}，修改委托价格为当前价格`
           );
           try {
-            await this.replaceOrderPrice(order.orderId, currentPrice);
+            // ===== 修复2: 传递订单对象，避免重复查询 =====
+            await this.replaceOrderPrice(
+              order.orderId,
+              currentPrice,
+              null,
+              order
+            );
             logger.info(
               `[订单监控] 买入订单 ${
                 order.orderId
@@ -730,6 +911,8 @@ export class Trader {
         }
       }
 
+      // ===== 修复3: 应用频率限制 =====
+      await this._tradeAPILimiter.throttle();
       const resp = await ctx.stockPositions([symbol]);
       const channels = resp?.channels ?? [];
       let totalAvailable = 0;
@@ -872,7 +1055,13 @@ export class Trader {
     }
 
     try {
+      // ===== 修复3: 应用频率限制 =====
+      await this._tradeAPILimiter.throttle();
       const resp = await ctx.submitOrder(orderPayload);
+
+      // ===== 修复1: 提交成功后清除缓存 =====
+      this.clearPendingOrdersCache();
+
       const orderId =
         resp?.orderId ?? resp?.toString?.() ?? resp ?? "UNKNOWN_ORDER_ID";
 
