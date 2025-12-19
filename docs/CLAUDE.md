@@ -111,17 +111,18 @@ npm start
   - 浮亏 = 持仓市值 − 持仓成本（负数表示浮亏，正数表示浮盈）
 - **单标的浮亏保护（`maxUnrealizedLossPerSymbol`）**：
   - 通过 `unrealizedLossData: Map(symbol → { r1, n1, lastUpdateTime })` 维护：
-    - R1（成本市值）= 全部买入订单市值之和 − 全部卖出订单市值之和（允许为负）
-    - N1（剩余数量）= 全部买入数量之和 − 全部卖出数量之和
-  - 初始化：`refreshUnrealizedLossData(orderRecorder, symbol, isLong, forceRefresh)`：
-    - 内部调用 `orderRecorder.getAllOrdersForValueCalculation(symbol, forceRefresh)`，从 todayOrders 缓存或 API 获取全部买/卖订单
+    - R1（开仓成本）= 所有未平仓买入订单的市值总和（每个订单市值 = 成交价 × 成交数量）
+    - N1（持仓数量）= 所有未平仓买入订单的成交数量总和
+  - 初始化：`refreshUnrealizedLossData(orderRecorder, symbol, isLong)`：
+    - 直接从 `orderRecorder._longBuyOrders/_shortBuyOrders` 读取已过滤的订单列表
     - 计算 R1/N1 并写入 `unrealizedLossData`
+    - **注意**：调用前需确保订单记录已刷新（程序启动时先调用 `refreshOrders`，交易后已通过 `recordLocalBuy/recordLocalSell` 更新）
   - 实时检查：`checkUnrealizedLoss(symbol, currentPrice, isLong)`：
     - 使用缓存的 R1、N1 与当前价格计算 R2 和浮亏：`unrealizedLoss = currentPrice * N1 − R1`
     - 当 `unrealizedLoss < -maxUnrealizedLossPerSymbol` 时返回 `shouldLiquidate=true` 和清仓数量（N1）
-  - 交易后更新：`updateUnrealizedLossDataAfterTrade(symbol, isLong, isBuy, price, quantity)`：
-    - 买入：R1 += price × quantity；N1 += quantity
-    - 卖出：数量 ≥ N1 时清空（R1 = 0, N1 = 0）；否则 R1 -= price × quantity，N1 -= quantity（成本市值允许为负）
+  - 交易后更新：
+    - 买入/卖出后，`index.js` 先调用 `recordLocalBuy/recordLocalSell` 更新订单列表
+    - 然后调用 `refreshUnrealizedLossData` 从订单列表重新计算 R1/N1（不调用 API）
 - **保护性清仓流程（index.js 中使用）**：
   - 在价格变化时调用 `checkUnrealizedLoss` 判断是否需要保护性清仓
   - 若需要清仓：
