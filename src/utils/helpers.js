@@ -202,9 +202,9 @@ export function formatQuoteDisplay(quote, symbol) {
   ) {
     // 涨跌额 = 当前价格 - 前收盘价
     const changeAmount = currentPrice - quote.prevClose;
-    changeAmountText = `${
-      changeAmount >= 0 ? "+" : ""
-    }${changeAmount.toFixed(3)}`;
+    changeAmountText = `${changeAmount >= 0 ? "+" : ""}${changeAmount.toFixed(
+      3
+    )}`;
 
     // 涨跌幅度 = (当前价格 - 前收盘价) / 前收盘价 * 100%
     const changePercent = (changeAmount / quote.prevClose) * 100;

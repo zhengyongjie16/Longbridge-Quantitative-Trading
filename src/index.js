@@ -8,7 +8,10 @@ import { logger } from "./utils/logger.js";
 import { validateAllConfig } from "./config/config.validator.js";
 import { SignalType } from "./utils/constants.js";
 import { OrderRecorder } from "./core/orderRecorder.js";
-import { verificationEntryPool, positionObjectPool } from "./utils/objectPool.js";
+import {
+  verificationEntryPool,
+  positionObjectPool,
+} from "./utils/objectPool.js";
 import {
   normalizeHKSymbol,
   formatAccountChannel,

@@ -422,7 +422,6 @@ export class Trader {
     for (const order of pendingBuyOrders) {
       // 检查订单状态，如果已撤销、已成交或已完成，跳过监控
       if (
-        order.status === OrderStatus.Cancelled ||
         order.status === OrderStatus.Filled ||
         order.status === OrderStatus.Rejected
       ) {
@@ -767,8 +766,7 @@ export class Trader {
     } else {
       // BUY 信号：按目标金额（例如 5000 HKD）计算买入数量，
       // 尽量使 成交金额 <= targetNotional 且尽量接近 targetNotional
-      const pricingSource =
-        overridePrice ?? signal?.price ?? null;
+      const pricingSource = overridePrice ?? signal?.price ?? null;
       if (!Number.isFinite(Number(pricingSource)) || pricingSource <= 0) {
         logger.warn(
           `[跳过订单] 无法获取有效价格，无法按金额计算买入数量，symbol=${symbol}, price=${pricingSource}`
@@ -846,14 +844,11 @@ export class Trader {
       submittedQuantity: submittedQtyDecimal,
     };
 
-    const resolvedPrice =
-      overridePrice ?? signal?.price ?? null;
+    const resolvedPrice = overridePrice ?? signal?.price ?? null;
 
     // 市价单不需要价格
     if (actualOrderType === OrderType.MO) {
-      logger.info(
-        `[订单类型] 使用市价单(MO)进行保护性清仓，标的=${symbol}`
-      );
+      logger.info(`[订单类型] 使用市价单(MO)进行保护性清仓，标的=${symbol}`);
     } else if (
       actualOrderType === OrderType.LO ||
       actualOrderType === OrderType.ELO ||

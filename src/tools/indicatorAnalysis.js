@@ -6,7 +6,11 @@ import {
   TradeSessions,
   Market,
 } from "longport";
-import { normalizeHKSymbol, decimalToNumber, formatNumber } from "../utils/helpers.js";
+import {
+  normalizeHKSymbol,
+  decimalToNumber,
+  formatNumber,
+} from "../utils/helpers.js";
 import { RSI, MACD, EMA, MFI } from "technicalindicators";
 import { TRADING_CONFIG } from "../config/config.trading.js";
 import { createConfig } from "../config/config.js";

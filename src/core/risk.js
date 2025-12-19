@@ -274,7 +274,13 @@ export class RiskChecker {
             // 记录浮亏计算详情（仅在DEBUG模式下）
             if (process.env.DEBUG === "true") {
               logger.info(
-                `[风险检查调试] 做多标的浮亏检查: R1(开仓成本)=${r1.toFixed(2)}, R2(当前市值)=${r2.toFixed(2)}, 浮亏=${longUnrealizedPnL.toFixed(2)} HKD，最大允许亏损=${this.maxDailyLoss} HKD`
+                `[风险检查调试] 做多标的浮亏检查: R1(开仓成本)=${r1.toFixed(
+                  2
+                )}, R2(当前市值)=${r2.toFixed(
+                  2
+                )}, 浮亏=${longUnrealizedPnL.toFixed(2)} HKD，最大允许亏损=${
+                  this.maxDailyLoss
+                } HKD`
               );
             }
 
@@ -297,7 +303,9 @@ export class RiskChecker {
                   2
                 )} HKD 已超过单标的最大浮亏限制 ${
                   this.maxDailyLoss
-                } HKD，禁止买入做多标的（R1=${r1.toFixed(2)}, R2=${r2.toFixed(2)}, N1=${n1}）`,
+                } HKD，禁止买入做多标的（R1=${r1.toFixed(2)}, R2=${r2.toFixed(
+                  2
+                )}, N1=${n1}）`,
               };
             }
           }
@@ -321,7 +329,13 @@ export class RiskChecker {
             // 记录浮亏计算详情（仅在DEBUG模式下）
             if (process.env.DEBUG === "true") {
               logger.info(
-                `[风险检查调试] 做空标的浮亏检查: R1(开仓成本)=${r1.toFixed(2)}, R2(当前市值)=${r2.toFixed(2)}, 浮亏=${shortUnrealizedPnL.toFixed(2)} HKD，最大允许亏损=${this.maxDailyLoss} HKD`
+                `[风险检查调试] 做空标的浮亏检查: R1(开仓成本)=${r1.toFixed(
+                  2
+                )}, R2(当前市值)=${r2.toFixed(
+                  2
+                )}, 浮亏=${shortUnrealizedPnL.toFixed(2)} HKD，最大允许亏损=${
+                  this.maxDailyLoss
+                } HKD`
               );
             }
 
@@ -344,7 +358,9 @@ export class RiskChecker {
                   2
                 )} HKD 已超过单标的最大浮亏限制 ${
                   this.maxDailyLoss
-                } HKD，禁止买入做空标的（R1=${r1.toFixed(2)}, R2=${r2.toFixed(2)}, N1=${n1}）`,
+                } HKD，禁止买入做空标的（R1=${r1.toFixed(2)}, R2=${r2.toFixed(
+                  2
+                )}, N1=${n1}）`,
               };
             }
           }
