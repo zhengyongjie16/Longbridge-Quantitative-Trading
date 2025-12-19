@@ -415,11 +415,12 @@ async function runOnce({
               useMarketOrder: true, // 标记为使用市价单
             };
             await trader.executeSignals([liquidationSignal]);
-            // 清仓后刷新浮亏数据（强制刷新，确保获取最新订单状态）
+            // 清仓后刷新订单记录（强制从API获取最新状态）
+            await orderRecorder.refreshOrders(longSymbol, true, true);
+            // 重新计算浮亏数据
             await riskChecker.refreshUnrealizedLossData(
               orderRecorder,
               longSymbol,
-              true,
               true
             );
           } catch (err) {
@@ -452,12 +453,13 @@ async function runOnce({
               useMarketOrder: true, // 标记为使用市价单
             };
             await trader.executeSignals([liquidationSignal]);
-            // 清仓后刷新浮亏数据（强制刷新，确保获取最新订单状态）
+            // 清仓后刷新订单记录（强制从API获取最新状态）
+            await orderRecorder.refreshOrders(shortSymbol, false, true);
+            // 重新计算浮亏数据
             await riskChecker.refreshUnrealizedLossData(
               orderRecorder,
               shortSymbol,
-              false,
-              true
+              false
             );
           } catch (err) {
             logger.error(
@@ -1595,26 +1597,23 @@ async function runOnce({
 
         if (isBuyAction) {
           orderRecorder.recordLocalBuy(symbol, price, quantity, isLongSymbol);
-          // 更新浮亏监控数据（买入操作）
-          if (TRADING_CONFIG.maxUnrealizedLossPerSymbol > 0 && riskChecker) {
-            riskChecker.updateUnrealizedLossDataAfterTrade(
-              symbol,
-              isLongSymbol,
-              true,
-              price,
-              quantity
-            );
-          }
         } else if (isSellAction) {
           orderRecorder.recordLocalSell(symbol, price, quantity, isLongSymbol);
-          // 更新浮亏监控数据（卖出操作）
-          if (TRADING_CONFIG.maxUnrealizedLossPerSymbol > 0 && riskChecker) {
-            riskChecker.updateUnrealizedLossDataAfterTrade(
+        }
+
+        // 交易后刷新浮亏监控数据（从订单记录计算开仓成本）
+        // 订单记录已通过 recordLocalBuy/recordLocalSell 更新
+        if (TRADING_CONFIG.maxUnrealizedLossPerSymbol > 0 && riskChecker) {
+          try {
+            await riskChecker.refreshUnrealizedLossData(
+              orderRecorder,
               symbol,
-              isLongSymbol,
-              false,
-              price,
-              quantity
+              isLongSymbol
+            );
+          } catch (err) {
+            logger.warn(
+              `[浮亏监控] 交易后刷新浮亏数据失败: ${symbol}`,
+              err?.message ?? err
             );
           }
         }
@@ -1855,11 +1854,11 @@ async function main() {
       });
   }
 
-  // 程序启动时初始化浮亏监控数据（从缓存读取）
+  // 程序启动时初始化浮亏监控数据（订单记录已在上面刷新）
   if (TRADING_CONFIG.maxUnrealizedLossPerSymbol > 0) {
     if (longSymbol) {
       await riskChecker
-        .refreshUnrealizedLossData(orderRecorder, longSymbol, true, false)
+        .refreshUnrealizedLossData(orderRecorder, longSymbol, true)
         .catch((err) => {
           logger.warn(
             `[浮亏监控初始化失败] 做多标的 ${longSymbol}`,
@@ -1869,7 +1868,7 @@ async function main() {
     }
     if (shortSymbol) {
       await riskChecker
-        .refreshUnrealizedLossData(orderRecorder, shortSymbol, false, false)
+        .refreshUnrealizedLossData(orderRecorder, shortSymbol, false)
         .catch((err) => {
           logger.warn(
             `[浮亏监控初始化失败] 做空标的 ${shortSymbol}`,
