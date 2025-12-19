@@ -23,6 +23,7 @@
 
 ## 文档导航
 
+- **[业务逻辑完整说明](./BUSINESS_LOGIC.md)** ⭐ - 核心业务逻辑权威参考（必读）
 - **[技术指标说明](./TECHNICAL_INDICATORS.md)** - RSI、KDJ、MACD、MFI 计算原理和使用方法
 - **[项目结构说明](./PROJECT_STRUCTURE.md)** - 目录结构和模块组织
 - **[代码审查记录](./CODE_REVIEW.md)** - 代码检查结果和潜在问题
