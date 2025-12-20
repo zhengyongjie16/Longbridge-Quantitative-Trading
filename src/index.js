@@ -587,11 +587,11 @@ async function runOnce({
     lastState.pendingDelayedSignals.length > 0
   ) {
     const now = new Date();
-    const currentJ = monitorSnapshot.kdj?.j ?? null;
+    const currentK = monitorSnapshot.kdj?.k ?? null;
     const currentMACD = monitorSnapshot.macd?.macd ?? null;
 
     // 为每个待验证信号记录当前值（如果值有效）
-    if (Number.isFinite(currentJ) && Number.isFinite(currentMACD)) {
+    if (Number.isFinite(currentK) && Number.isFinite(currentMACD)) {
       for (const pendingSignal of lastState.pendingDelayedSignals) {
         if (pendingSignal.triggerTime) {
           const triggerTimeMs = pendingSignal.triggerTime.getTime();
@@ -621,7 +621,7 @@ async function runOnce({
               // 从对象池获取条目对象，减少内存分配
               const entry = verificationEntryPool.acquire();
               entry.timestamp = now;
-              entry.j = currentJ;
+              entry.k = currentK;
               entry.macd = currentMACD;
 
               // 记录当前值
@@ -736,8 +736,8 @@ async function runOnce({
   // 处理需要验证的信号
   for (const pendingSignal of signalsToVerify) {
     try {
-      // 验证策略更新：从实时监控标的的值获取J2和MACD2
-      // 触发信号时已记录J1和MACD1，现在需要获取60秒后的J2和MACD2
+      // 验证策略更新：从实时监控标的的值获取K2和MACD2
+      // 触发信号时已记录K1和MACD1，现在需要获取60秒后的K2和MACD2
       if (!pendingSignal.triggerTime) {
         logger.warn(
           `[延迟验证错误] ${pendingSignal.symbol} 缺少triggerTime，跳过验证`
@@ -755,13 +755,13 @@ async function runOnce({
         continue;
       }
 
-      // 获取J1和MACD1（从信号中获取，触发时已记录）
-      const j1 = pendingSignal.j1;
+      // 获取K1和MACD1（从信号中获取，触发时已记录）
+      const k1 = pendingSignal.k1;
       const macd1 = pendingSignal.macd1;
 
-      if (!Number.isFinite(j1) || !Number.isFinite(macd1)) {
+      if (!Number.isFinite(k1) || !Number.isFinite(macd1)) {
         logger.warn(
-          `[延迟验证错误] ${pendingSignal.symbol} 缺少J1或MACD1值（J1=${j1}, MACD1=${macd1}），跳过验证`
+          `[延迟验证错误] ${pendingSignal.symbol} 缺少K1或MACD1值（K1=${k1}, MACD1=${macd1}），跳过验证`
         );
         // 清空该信号的历史记录并释放对象回池
         if (pendingSignal.verificationHistory) {
@@ -779,7 +779,7 @@ async function runOnce({
       // 目标时间就是triggerTime（触发时已设置为当前时间+60秒）
       const targetTime = pendingSignal.triggerTime;
 
-      // 从该信号自己的验证历史记录中获取J2和MACD2
+      // 从该信号自己的验证历史记录中获取K2和MACD2
       // 优先获取精确匹配的值，如果失败则获取距离目标时间最近的值（误差5秒内）
       const history = pendingSignal.verificationHistory || [];
 
@@ -811,13 +811,13 @@ async function runOnce({
 
       if (
         !bestMatch ||
-        !Number.isFinite(bestMatch.j) ||
+        !Number.isFinite(bestMatch.k) ||
         !Number.isFinite(bestMatch.macd)
       ) {
         logger.warn(
           `[延迟验证失败] ${
             pendingSignal.symbol
-          } 无法获取有效的J2或MACD2值（目标时间=${targetTime.toLocaleString(
+          } 无法获取有效的K2或MACD2值（目标时间=${targetTime.toLocaleString(
             "zh-CN",
             { timeZone: "Asia/Hong_Kong", hour12: false }
           )}，当前时间=${now.toLocaleString("zh-CN", {
@@ -838,7 +838,7 @@ async function runOnce({
         continue;
       }
 
-      const j2 = bestMatch.j;
+      const k2 = bestMatch.k;
       const macd2 = bestMatch.macd;
       const actualTime = bestMatch.timestamp;
       const timeDiffSeconds =
@@ -870,35 +870,35 @@ async function runOnce({
       let verificationReason = "";
 
       if (isBuyCall) {
-        // 买入做多标的：J2 > J1 且 MACD2 > MACD1
-        const jCondition = j2 > j1;
+        // 买入做多标的：K2 > K1 且 MACD2 > MACD1
+        const kCondition = k2 > k1;
         const macdCondition = macd2 > macd1;
-        verificationPassed = jCondition && macdCondition;
+        verificationPassed = kCondition && macdCondition;
         verificationReason = verificationPassed
-          ? `J1=${j1.toFixed(2)} J2=${j2.toFixed(
+          ? `K1=${k1.toFixed(2)} K2=${k2.toFixed(
               2
-            )} (J2>J1) MACD1=${macd1.toFixed(4)} MACD2=${macd2.toFixed(
+            )} (K2>K1) MACD1=${macd1.toFixed(4)} MACD2=${macd2.toFixed(
               4
             )} (MACD2>MACD1) 时间差=${timeDiffSeconds.toFixed(1)}秒`
-          : `J1=${j1.toFixed(2)} J2=${j2.toFixed(2)} (J2${
-              j2 > j1 ? ">" : "<="
-            }J1) MACD1=${macd1.toFixed(4)} MACD2=${macd2.toFixed(4)} (MACD2${
+          : `K1=${k1.toFixed(2)} K2=${k2.toFixed(2)} (K2${
+              k2 > k1 ? ">" : "<="
+            }K1) MACD1=${macd1.toFixed(4)} MACD2=${macd2.toFixed(4)} (MACD2${
               macd2 > macd1 ? ">" : "<="
             }MACD1) 时间差=${timeDiffSeconds.toFixed(1)}秒`;
       } else if (isBuyPut) {
-        // 买入做空标的：J2 < J1 且 MACD2 < MACD1
-        const jCondition = j2 < j1;
+        // 买入做空标的：K2 < K1 且 MACD2 < MACD1
+        const kCondition = k2 < k1;
         const macdCondition = macd2 < macd1;
-        verificationPassed = jCondition && macdCondition;
+        verificationPassed = kCondition && macdCondition;
         verificationReason = verificationPassed
-          ? `J1=${j1.toFixed(2)} J2=${j2.toFixed(
+          ? `K1=${k1.toFixed(2)} K2=${k2.toFixed(
               2
-            )} (J2<J1) MACD1=${macd1.toFixed(4)} MACD2=${macd2.toFixed(
+            )} (K2<K1) MACD1=${macd1.toFixed(4)} MACD2=${macd2.toFixed(
               4
             )} (MACD2<MACD1) 时间差=${timeDiffSeconds.toFixed(1)}秒`
-          : `J1=${j1.toFixed(2)} J2=${j2.toFixed(2)} (J2${
-              j2 < j1 ? "<" : ">="
-            }J1) MACD1=${macd1.toFixed(4)} MACD2=${macd2.toFixed(4)} (MACD2${
+          : `K1=${k1.toFixed(2)} K2=${k2.toFixed(2)} (K2${
+              k2 < k1 ? "<" : ">="
+            }K1) MACD1=${macd1.toFixed(4)} MACD2=${macd2.toFixed(4)} (MACD2${
               macd2 < macd1 ? "<" : ">="
             }MACD1) 时间差=${timeDiffSeconds.toFixed(1)}秒`;
       } else {

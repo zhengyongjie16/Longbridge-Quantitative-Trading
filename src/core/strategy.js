@@ -234,24 +234,24 @@ export class HangSengMultiIndicatorStrategy {
       return null;
     }
 
-    // 记录当前的J值和MACD值（J1和MACD1）
-    const j1 = kdj.j;
+    // 记录当前的K值和MACD值（K1和MACD1）
+    const k1 = kdj.k;
     const macd1 = macd.macd;
 
     return {
       symbol,
       action,
       triggerTime,
-      j1, // 记录触发时的J值
+      k1, // 记录触发时的K值
       macd1, // 记录触发时的MACD值
       verificationHistory: [], // 该信号专用的验证历史记录（每秒记录一次）
       reason: `${reasonPrefix}：${conditionReason}，RSI6(${rsi6.toFixed(
         1
-      )})、MFI(${mfi?.toFixed(1) ?? "-"})、KDJ(D=${kdj.d.toFixed(
-        1
-      )},J=${kdj.j.toFixed(2)})，J1=${j1.toFixed(2)} MACD1=${macd1.toFixed(
-        4
-      )}，将在 ${triggerTime.toLocaleString("zh-CN", {
+      )})、MFI(${mfi?.toFixed(1) ?? "-"})、KDJ(K=${kdj.k.toFixed(
+        2
+      )},D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(2)})，K1=${k1.toFixed(
+        2
+      )} MACD1=${macd1.toFixed(4)}，将在 ${triggerTime.toLocaleString("zh-CN", {
         timeZone: "Asia/Hong_Kong",
         hour12: false,
       })} 进行验证`,
