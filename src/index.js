@@ -21,6 +21,35 @@ import {
 } from "./utils/helpers.js";
 
 /**
+ * 从指标状态中提取指定指标的值
+ * @param {Object} state 指标状态对象 {kdj, macd}
+ * @param {string} indicatorName 指标名称 (K, D, J, MACD, DIF, DEA)
+ * @returns {number|null} 指标值，如果无效则返回 null
+ */
+function getIndicatorValue(state, indicatorName) {
+  if (!state) return null;
+
+  const { kdj, macd } = state;
+
+  switch (indicatorName) {
+    case 'K':
+      return kdj && Number.isFinite(kdj.k) ? kdj.k : null;
+    case 'D':
+      return kdj && Number.isFinite(kdj.d) ? kdj.d : null;
+    case 'J':
+      return kdj && Number.isFinite(kdj.j) ? kdj.j : null;
+    case 'MACD':
+      return macd && Number.isFinite(macd.macd) ? macd.macd : null;
+    case 'DIF':
+      return macd && Number.isFinite(macd.dif) ? macd.dif : null;
+    case 'DEA':
+      return macd && Number.isFinite(macd.dea) ? macd.dea : null;
+    default:
+      return null;
+  }
+}
+
+/**
  * 将UTC时间转换为香港时区（UTC+8）
  * @param {Date} date 时间对象（UTC时间）
  * @returns {{hkHour: number, hkMinute: number}|null} 香港时区的小时和分钟，如果date无效则返回null
@@ -584,14 +613,27 @@ async function runOnce({
   if (
     monitorSnapshot &&
     lastState.pendingDelayedSignals &&
-    lastState.pendingDelayedSignals.length > 0
+    lastState.pendingDelayedSignals.length > 0 &&
+    TRADING_CONFIG.verificationConfig.indicators &&
+    TRADING_CONFIG.verificationConfig.indicators.length > 0
   ) {
     const now = new Date();
-    const currentK = monitorSnapshot.kdj?.k ?? null;
-    const currentMACD = monitorSnapshot.macd?.macd ?? null;
 
-    // 为每个待验证信号记录当前值（如果值有效）
-    if (Number.isFinite(currentK) && Number.isFinite(currentMACD)) {
+    // 提取当前配置的所有指标值
+    const currentIndicators = {};
+    let allIndicatorsValid = true;
+
+    for (const indicatorName of TRADING_CONFIG.verificationConfig.indicators) {
+      const value = getIndicatorValue(monitorSnapshot, indicatorName);
+      if (value === null || !Number.isFinite(value)) {
+        allIndicatorsValid = false;
+        break;
+      }
+      currentIndicators[indicatorName] = value;
+    }
+
+    // 为每个待验证信号记录当前值（如果所有配置的指标值有效）
+    if (allIndicatorsValid && Object.keys(currentIndicators).length > 0) {
       for (const pendingSignal of lastState.pendingDelayedSignals) {
         if (pendingSignal.triggerTime) {
           const triggerTimeMs = pendingSignal.triggerTime.getTime();
@@ -621,8 +663,8 @@ async function runOnce({
               // 从对象池获取条目对象，减少内存分配
               const entry = verificationEntryPool.acquire();
               entry.timestamp = now;
-              entry.k = currentK;
-              entry.macd = currentMACD;
+              // 将所有配置的指标值记录到 indicators 对象中
+              entry.indicators = { ...currentIndicators };
 
               // 记录当前值
               pendingSignal.verificationHistory.push(entry);
@@ -736,8 +778,31 @@ async function runOnce({
   // 处理需要验证的信号
   for (const pendingSignal of signalsToVerify) {
     try {
-      // 验证策略更新：从实时监控标的的值获取K2和MACD2
-      // 触发信号时已记录K1和MACD1，现在需要获取60秒后的K2和MACD2
+      // 安全检查：如果验证指标配置为null或空，跳过验证
+      // 这种情况理论上不应该发生（因为indicators为null时不会生成延迟信号）
+      // 但为了防御性编程，添加此检查以防配置在运行时被修改
+      if (
+        !TRADING_CONFIG.verificationConfig.indicators ||
+        TRADING_CONFIG.verificationConfig.indicators.length === 0
+      ) {
+        logger.warn(
+          `[延迟验证错误] ${pendingSignal.symbol} 验证指标配置为空，跳过验证`
+        );
+        // 清空该信号的历史记录并释放对象回池
+        if (pendingSignal.verificationHistory) {
+          verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
+          pendingSignal.verificationHistory = [];
+        }
+        // 从待验证列表中移除
+        const index = lastState.pendingDelayedSignals.indexOf(pendingSignal);
+        if (index >= 0) {
+          lastState.pendingDelayedSignals.splice(index, 1);
+        }
+        continue;
+      }
+
+      // 验证策略更新：从实时监控标的的值获取indicators2
+      // 触发信号时已记录indicators1，现在需要获取延迟时间后的indicators2
       if (!pendingSignal.triggerTime) {
         logger.warn(
           `[延迟验证错误] ${pendingSignal.symbol} 缺少triggerTime，跳过验证`
@@ -755,13 +820,12 @@ async function runOnce({
         continue;
       }
 
-      // 获取K1和MACD1（从信号中获取，触发时已记录）
-      const k1 = pendingSignal.k1;
-      const macd1 = pendingSignal.macd1;
+      // 获取indicators1（从信号中获取，触发时已记录）
+      const indicators1 = pendingSignal.indicators1;
 
-      if (!Number.isFinite(k1) || !Number.isFinite(macd1)) {
+      if (!indicators1 || typeof indicators1 !== 'object') {
         logger.warn(
-          `[延迟验证错误] ${pendingSignal.symbol} 缺少K1或MACD1值（K1=${k1}, MACD1=${macd1}），跳过验证`
+          `[延迟验证错误] ${pendingSignal.symbol} 缺少indicators1，跳过验证`
         );
         // 清空该信号的历史记录并释放对象回池
         if (pendingSignal.verificationHistory) {
@@ -776,10 +840,36 @@ async function runOnce({
         continue;
       }
 
-      // 目标时间就是triggerTime（触发时已设置为当前时间+60秒）
+      // 验证所有配置的指标值是否有效
+      let allIndicators1Valid = true;
+      for (const indicatorName of TRADING_CONFIG.verificationConfig.indicators) {
+        if (!Number.isFinite(indicators1[indicatorName])) {
+          allIndicators1Valid = false;
+          break;
+        }
+      }
+
+      if (!allIndicators1Valid) {
+        logger.warn(
+          `[延迟验证错误] ${pendingSignal.symbol} indicators1中存在无效值，跳过验证`
+        );
+        // 清空该信号的历史记录并释放对象回池
+        if (pendingSignal.verificationHistory) {
+          verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
+          pendingSignal.verificationHistory = [];
+        }
+        // 从待验证列表中移除
+        const index = lastState.pendingDelayedSignals.indexOf(pendingSignal);
+        if (index >= 0) {
+          lastState.pendingDelayedSignals.splice(index, 1);
+        }
+        continue;
+      }
+
+      // 目标时间就是triggerTime（触发时已设置为当前时间+延迟秒数）
       const targetTime = pendingSignal.triggerTime;
 
-      // 从该信号自己的验证历史记录中获取K2和MACD2
+      // 从该信号自己的验证历史记录中获取indicators2
       // 优先获取精确匹配的值，如果失败则获取距离目标时间最近的值（误差5秒内）
       const history = pendingSignal.verificationHistory || [];
 
@@ -809,15 +899,11 @@ async function runOnce({
         }
       }
 
-      if (
-        !bestMatch ||
-        !Number.isFinite(bestMatch.k) ||
-        !Number.isFinite(bestMatch.macd)
-      ) {
+      if (!bestMatch || !bestMatch.indicators) {
         logger.warn(
           `[延迟验证失败] ${
             pendingSignal.symbol
-          } 无法获取有效的K2或MACD2值（目标时间=${targetTime.toLocaleString(
+          } 无法获取有效的indicators2（目标时间=${targetTime.toLocaleString(
             "zh-CN",
             { timeZone: "Asia/Hong_Kong", hour12: false }
           )}，当前时间=${now.toLocaleString("zh-CN", {
@@ -838,11 +924,36 @@ async function runOnce({
         continue;
       }
 
-      const k2 = bestMatch.k;
-      const macd2 = bestMatch.macd;
+      const indicators2 = bestMatch.indicators;
       const actualTime = bestMatch.timestamp;
       const timeDiffSeconds =
         Math.abs(actualTime.getTime() - targetTime.getTime()) / 1000;
+
+      // 验证所有配置的指标值是否有效
+      let allIndicators2Valid = true;
+      for (const indicatorName of TRADING_CONFIG.verificationConfig.indicators) {
+        if (!Number.isFinite(indicators2[indicatorName])) {
+          allIndicators2Valid = false;
+          break;
+        }
+      }
+
+      if (!allIndicators2Valid) {
+        logger.warn(
+          `[延迟验证失败] ${pendingSignal.symbol} indicators2中存在无效值，跳过验证`
+        );
+        // 清空该信号的历史记录并释放对象回池
+        if (pendingSignal.verificationHistory) {
+          verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
+          pendingSignal.verificationHistory = [];
+        }
+        // 从待验证列表中移除
+        const index = lastState.pendingDelayedSignals.indexOf(pendingSignal);
+        if (index >= 0) {
+          lastState.pendingDelayedSignals.splice(index, 1);
+        }
+        continue;
+      }
 
       // 根据信号类型使用不同的验证条件
       const isBuyCall = pendingSignal.action === SignalType.BUYCALL;
@@ -866,48 +977,54 @@ async function runOnce({
         continue;
       }
 
-      let verificationPassed = false;
-      let verificationReason = "";
+      let verificationPassed = true;
+      const verificationDetails = [];
+      const failedIndicators = [];
+      let hasInvalidValue = false;
 
-      if (isBuyCall) {
-        // 买入做多标的：K2 > K1 且 MACD2 > MACD1
-        const kCondition = k2 > k1;
-        const macdCondition = macd2 > macd1;
-        verificationPassed = kCondition && macdCondition;
-        verificationReason = verificationPassed
-          ? `K1=${k1.toFixed(2)} K2=${k2.toFixed(
-              2
-            )} (K2>K1) MACD1=${macd1.toFixed(4)} MACD2=${macd2.toFixed(
-              4
-            )} (MACD2>MACD1) 时间差=${timeDiffSeconds.toFixed(1)}秒`
-          : `K1=${k1.toFixed(2)} K2=${k2.toFixed(2)} (K2${
-              k2 > k1 ? ">" : "<="
-            }K1) MACD1=${macd1.toFixed(4)} MACD2=${macd2.toFixed(4)} (MACD2${
-              macd2 > macd1 ? ">" : "<="
-            }MACD1) 时间差=${timeDiffSeconds.toFixed(1)}秒`;
-      } else if (isBuyPut) {
-        // 买入做空标的：K2 < K1 且 MACD2 < MACD1
-        const kCondition = k2 < k1;
-        const macdCondition = macd2 < macd1;
-        verificationPassed = kCondition && macdCondition;
-        verificationReason = verificationPassed
-          ? `K1=${k1.toFixed(2)} K2=${k2.toFixed(
-              2
-            )} (K2<K1) MACD1=${macd1.toFixed(4)} MACD2=${macd2.toFixed(
-              4
-            )} (MACD2<MACD1) 时间差=${timeDiffSeconds.toFixed(1)}秒`
-          : `K1=${k1.toFixed(2)} K2=${k2.toFixed(2)} (K2${
-              k2 < k1 ? "<" : ">="
-            }K1) MACD1=${macd1.toFixed(4)} MACD2=${macd2.toFixed(4)} (MACD2${
-              macd2 < macd1 ? "<" : ">="
-            }MACD1) 时间差=${timeDiffSeconds.toFixed(1)}秒`;
-      } else {
-        // 理论上不会执行到这里（前面已检查），但为了安全起见
-        verificationPassed = false;
-        verificationReason = `未知的信号类型: ${pendingSignal.action}`;
-        logger.warn(
-          `[延迟验证错误] ${pendingSignal.symbol} ${verificationReason}，跳过验证`
-        );
+      // 遍历所有配置的指标进行验证
+      for (const indicatorName of TRADING_CONFIG.verificationConfig.indicators) {
+        const value1 = indicators1[indicatorName];
+        const value2 = indicators2[indicatorName];
+
+        // 安全检查：确保两个值都是有效的数字
+        // 这种情况可能发生在配置在运行时被修改的情况下
+        if (!Number.isFinite(value1) || !Number.isFinite(value2)) {
+          logger.warn(
+            `[延迟验证错误] ${pendingSignal.symbol} 指标${indicatorName}的值无效（value1=${value1}, value2=${value2}），跳过该信号验证`
+          );
+          hasInvalidValue = true;
+          break;
+        }
+
+        // 根据指标类型选择合适的小数位数
+        const decimals = ['MACD', 'DIF', 'DEA'].includes(indicatorName) ? 4 : 2;
+
+        let indicatorPassed = false;
+        let comparisonSymbol = '';
+
+        if (isBuyCall) {
+          // 买入做多：所有指标的第二个值都要大于第一个值
+          indicatorPassed = value2 > value1;
+          comparisonSymbol = indicatorPassed ? '>' : '<=';
+        } else if (isBuyPut) {
+          // 买入做空：所有指标的第二个值都要小于第一个值
+          indicatorPassed = value2 < value1;
+          comparisonSymbol = indicatorPassed ? '<' : '>=';
+        }
+
+        // 构建详细信息字符串
+        const detail = `${indicatorName}1=${value1.toFixed(decimals)} ${indicatorName}2=${value2.toFixed(decimals)} (${indicatorName}2${comparisonSymbol}${indicatorName}1)`;
+        verificationDetails.push(detail);
+
+        if (!indicatorPassed) {
+          verificationPassed = false;
+          failedIndicators.push(indicatorName);
+        }
+      }
+
+      // 如果在检查过程中发现无效值，跳过该信号
+      if (hasInvalidValue) {
         // 清空该信号的历史记录并释放对象回池
         if (pendingSignal.verificationHistory) {
           verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
@@ -919,6 +1036,14 @@ async function runOnce({
           lastState.pendingDelayedSignals.splice(index, 1);
         }
         continue;
+      }
+
+      // 构建验证原因字符串
+      let verificationReason = verificationDetails.join(' ');
+      verificationReason += ` 时间差=${timeDiffSeconds.toFixed(1)}秒`;
+
+      if (!verificationPassed) {
+        verificationReason += ` [失败指标: ${failedIndicators.join(', ')}]`;
       }
 
       if (verificationPassed) {
@@ -1785,7 +1910,9 @@ async function main() {
 
   // 使用配置验证返回的标的名称和行情客户端实例（避免重复创建）
   const { marketDataClient } = symbolNames;
-  const strategy = new HangSengMultiIndicatorStrategy();
+  const strategy = new HangSengMultiIndicatorStrategy({
+    verificationConfig: TRADING_CONFIG.verificationConfig,
+  });
   const trader = new Trader(config);
   const orderRecorder = new OrderRecorder(trader);
 

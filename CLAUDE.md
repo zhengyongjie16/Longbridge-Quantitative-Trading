@@ -271,24 +271,26 @@ npm start
    ├─ 立即信号（卖出）：条件满足时立即执行
    │  ├─ SELLCALL: (4指标满足3个以上) 或 J>110
    │  └─ SELLPUT: (4指标满足3个以上) 或 J<-15
-   └─ 延迟信号（买入）：添加到待验证列表，记录 K1, MACD1
+   └─ 延迟信号（买入）：添加到待验证列表，记录 indicators1（所有配置的验证指标初始值）
       ├─ BUYCALL: (4指标满足3个以上) 或 J<-20
       └─ BUYPUT: (4指标满足3个以上) 或 J>120
    注意：成本价和VWAP检查不在信号生成阶段，而在执行策略中处理
 
-2. 验证阶段（60秒后在 runOnce 中）
-   ├─ 每秒记录当前 K 和 MACD 值到信号的验证历史中（index.js:581-650）
+2. 验证阶段（延迟时间后在 runOnce 中）
+   ├─ 延迟时间可配置（VERIFICATION_DELAY_SECONDS，默认 60 秒，设为 0 则不延迟验证）
+   ├─ 验证指标可配置（VERIFICATION_INDICATORS，可选 K、D、J、MACD、DIF、DEA，默认 K,MACD）
+   ├─ 每秒记录当前配置的所有验证指标值到信号的验证历史中（index.js:610-690）
    │  ├─ 条件：triggerTime ± 5秒窗口内（仅在此窗口内记录）
    │  ├─ 去重：避免在同一秒内重复记录（精确到秒）
    │  ├─ 限制：只保留 triggerTime ± 5秒窗口内的历史数据
    │  └─ 每个信号有独立的 verificationHistory 数组
    ├─ 对每个超过 triggerTime 的待验证信号：
-   │  ├─ 获取 K1, MACD1（触发时已记录）
-   │  ├─ 从验证历史中获取 K2, MACD2：
+   │  ├─ 获取 indicators1（触发时已记录的所有配置指标初始值）
+   │  ├─ 从验证历史中获取 indicators2（所有配置指标的第二个值）：
    │  │  ├─ 优先：精确匹配目标时间（triggerTime）
    │  │  └─ 备选：距离目标时间最近的值（误差≤5秒）
-   │  ├─ BUYCALL验证：K2 > K1 且 MACD2 > MACD1 → 通过
-   │  ├─ BUYPUT验证：K2 < K1 且 MACD2 < MACD1 → 通过
+   │  ├─ BUYCALL验证：所有配置指标的第二个值都要大于第一个值 → 通过
+   │  ├─ BUYPUT验证：所有配置指标的第二个值都要小于第一个值 → 通过
    │  └─ 验证通过 → 移至执行列表
    └─ 清理：从待验证列表中移除已处理的信号，并清空其验证历史
 
@@ -500,6 +502,8 @@ Trader 日志显示：
 - DOOMSDAY_PROTECTION（默认：true）
 - DEBUG（默认：false）
 - MAX_UNREALIZED_LOSS_PER_SYMBOL（单标的浮亏保护阈值，默认：0，关闭保护）
+- VERIFICATION_DELAY_SECONDS（延迟验证时间间隔，范围 0-120 秒，未设置时默认 60，设为 0 表示不延迟验证）
+- VERIFICATION_INDICATORS（延迟验证指标列表，可选值：K, D, J, MACD, DIF, DEA，逗号分隔，留空表示不延迟验证，启用时推荐 K,MACD）
 
 如果任何必需配置缺失或无效，启动将失败（config.validator.js 检查所有设置）。
 

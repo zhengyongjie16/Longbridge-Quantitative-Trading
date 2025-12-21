@@ -51,12 +51,19 @@ export class HangSengMultiIndicatorStrategy {
       d: 22, // KDJ.D<22（注意：不是20）
       j: 0,
     },
+    verificationConfig = {
+      delaySeconds: 60,
+      indicators: ['K', 'MACD'],
+    },
   } = {}) {
     // 为每个信号类型单独配置阈值
     this.buycallThreshold = buycall;
     this.sellcallThreshold = sellcall;
     this.buyputThreshold = buyput;
     this.sellputThreshold = sellput;
+
+    // 延迟验证配置
+    this.verificationConfig = verificationConfig || { delaySeconds: 60, indicators: ['K', 'MACD'] };
   }
 
   /**
@@ -103,13 +110,23 @@ export class HangSengMultiIndicatorStrategy {
   }
 
   /**
-   * 计算60秒后的验证时间
+   * 计算延迟验证时间
    * @private
-   * @returns {Date|null} 60秒后的时间，如果计算失败返回null
+   * @returns {Date|null} 延迟验证时间，如果不需要延迟验证则返回 null
    */
   _calculateVerificationTime() {
+    // 如果延迟时间为 0 或指标列表为空，则不进行延迟验证
+    if (
+      !this.verificationConfig.delaySeconds ||
+      this.verificationConfig.delaySeconds === 0 ||
+      !this.verificationConfig.indicators ||
+      this.verificationConfig.indicators.length === 0
+    ) {
+      return null;
+    }
+
     const now = new Date();
-    const triggerTime = new Date(now.getTime() + 60 * 1000); // 加60秒
+    const triggerTime = new Date(now.getTime() + this.verificationConfig.delaySeconds * 1000);
 
     // 如果目标时间已经过去，说明计算有误，返回null
     if (triggerTime <= now) {
@@ -135,6 +152,34 @@ export class HangSengMultiIndicatorStrategy {
         return this.buyputThreshold;
       case SignalType.SELLPUT:
         return this.sellputThreshold;
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * 从指标状态中提取指定指标的值
+   * @private
+   * @param {Object} state 指标状态对象 {kdj, macd}
+   * @param {string} indicatorName 指标名称 (K, D, J, MACD, DIF, DEA)
+   * @returns {number|null} 指标值，如果无效则返回 null
+   */
+  _getIndicatorValue(state, indicatorName) {
+    const { kdj, macd } = state;
+
+    switch (indicatorName) {
+      case 'K':
+        return kdj && this._isValidNumber(kdj.k) ? kdj.k : null;
+      case 'D':
+        return kdj && this._isValidNumber(kdj.d) ? kdj.d : null;
+      case 'J':
+        return kdj && this._isValidNumber(kdj.j) ? kdj.j : null;
+      case 'MACD':
+        return macd && this._isValidNumber(macd.macd) ? macd.macd : null;
+      case 'DIF':
+        return macd && this._isValidNumber(macd.dif) ? macd.dif : null;
+      case 'DEA':
+        return macd && this._isValidNumber(macd.dea) ? macd.dea : null;
       default:
         return null;
     }
@@ -230,28 +275,43 @@ export class HangSengMultiIndicatorStrategy {
     }
 
     const triggerTime = this._calculateVerificationTime();
+    // 如果不需要延迟验证（triggerTime 为 null），则返回 null
+    // 这种情况下，买入信号应该被当作立即执行的信号处理
     if (!triggerTime) {
       return null;
     }
 
-    // 记录当前的K值和MACD值（K1和MACD1）
-    const k1 = kdj.k;
-    const macd1 = macd.macd;
+    // 记录当前配置的所有指标的初始值（indicators1）
+    const indicators1 = {};
+    for (const indicatorName of this.verificationConfig.indicators) {
+      const value = this._getIndicatorValue(state, indicatorName);
+      if (value === null) {
+        // 如果任何配置的指标值无效，则无法生成延迟验证信号
+        return null;
+      }
+      indicators1[indicatorName] = value;
+    }
+
+    // 构建指标值的显示字符串（用于日志）
+    const indicators1Str = Object.entries(indicators1)
+      .map(([name, value]) => {
+        // 根据指标类型选择合适的小数位数
+        const decimals = ['MACD', 'DIF', 'DEA'].includes(name) ? 4 : 2;
+        return `${name}1=${value.toFixed(decimals)}`;
+      })
+      .join(' ');
 
     return {
       symbol,
       action,
       triggerTime,
-      k1, // 记录触发时的K值
-      macd1, // 记录触发时的MACD值
+      indicators1, // 记录触发时的所有配置指标值
       verificationHistory: [], // 该信号专用的验证历史记录（每秒记录一次）
       reason: `${reasonPrefix}：${conditionReason}，RSI6(${rsi6.toFixed(
         1
       )})、MFI(${mfi?.toFixed(1) ?? "-"})、KDJ(K=${kdj.k.toFixed(
         2
-      )},D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(2)})，K1=${k1.toFixed(
-        2
-      )} MACD1=${macd1.toFixed(4)}，将在 ${triggerTime.toLocaleString("zh-CN", {
+      )},D=${kdj.d.toFixed(1)},J=${kdj.j.toFixed(2)})，${indicators1Str}，将在 ${triggerTime.toLocaleString("zh-CN", {
         timeZone: "Asia/Hong_Kong",
         hour12: false,
       })} 进行验证`,

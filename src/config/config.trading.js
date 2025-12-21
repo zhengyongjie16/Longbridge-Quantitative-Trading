@@ -50,6 +50,39 @@ function getBooleanConfig(envKey) {
   return process.env[envKey] === "true";
 }
 
+/**
+ * 从环境变量读取数组配置（逗号分隔）
+ * @param {string} envKey 环境变量键名
+ * @param {string[]} allowedValues 允许的值列表（可选）
+ * @returns {string[]|null} 配置值数组，如果未设置或无效则返回 null
+ */
+function getArrayConfig(envKey, allowedValues = null) {
+  const value = process.env[envKey];
+  if (!value || value.trim() === "") {
+    return null;
+  }
+
+  // 分割并去除空白
+  const items = value.split(",").map(item => item.trim()).filter(item => item !== "");
+
+  if (items.length === 0) {
+    return null;
+  }
+
+  // 如果指定了允许的值，则验证
+  if (allowedValues && allowedValues.length > 0) {
+    const invalidItems = items.filter(item => !allowedValues.includes(item));
+    if (invalidItems.length > 0) {
+      console.warn(`[配置警告] ${envKey} 包含无效值: ${invalidItems.join(", ")}，允许的值: ${allowedValues.join(", ")}`);
+      // 过滤掉无效值
+      const validItems = items.filter(item => allowedValues.includes(item));
+      return validItems.length > 0 ? validItems : null;
+    }
+  }
+
+  return items;
+}
+
 export const TRADING_CONFIG = {
   // 监控标的（用于计算指标和生成交易信号，例如 "HSI.HK"）
   monitorSymbol: getStringConfig("MONITOR_SYMBOL"),
@@ -91,4 +124,40 @@ export const TRADING_CONFIG = {
   // 收盘前5分钟：15:55-16:00（仅判断当日收盘，不包括上午收盘）
   // 默认值在 .env 文件中设置为 true
   doomsdayProtection: getBooleanConfig("DOOMSDAY_PROTECTION"),
+
+  // 延迟验证配置
+  verificationConfig: {
+    // 验证时间间隔（秒），范围 0-120，默认 60 秒
+    // 设置为 0 或未设置则不进行延迟验证
+    delaySeconds: (() => {
+      const delay = getNumberConfig("VERIFICATION_DELAY_SECONDS", 0);
+      // 如果未设置，默认为 60 秒
+      if (delay === null) {
+        return 60;
+      }
+      // 限制范围在 0-120 秒之间
+      if (delay < 0) {
+        console.warn("[配置警告] VERIFICATION_DELAY_SECONDS 不能小于 0，已设置为 0");
+        return 0;
+      }
+      if (delay > 120) {
+        console.warn("[配置警告] VERIFICATION_DELAY_SECONDS 不能大于 120，已设置为 120");
+        return 120;
+      }
+      return delay;
+    })(),
+
+    // 验证指标列表（可选值: K, D, J, MACD, DIF, DEA）
+    // 留空或不设置则不进行延迟验证
+    indicators: (() => {
+      const allowedIndicators = ['K', 'D', 'J', 'MACD', 'DIF', 'DEA'];
+      const indicators = getArrayConfig("VERIFICATION_INDICATORS", allowedIndicators);
+      // 如果未设置或为空，返回 null 表示不进行延迟验证
+      // 注意：这里不设置默认值，让用户明确配置
+      if (indicators === null || indicators.length === 0) {
+        return null;
+      }
+      return indicators;
+    })(),
+  },
 };
