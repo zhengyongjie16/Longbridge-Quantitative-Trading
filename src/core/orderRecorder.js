@@ -34,6 +34,87 @@ export class OrderRecorder {
   }
 
   /**
+   * 输出订单列表的debug信息（仅在DEBUG模式下）
+   * @private
+   * @param {string} symbol 标的代码
+   * @param {boolean} isLongSymbol 是否为做多标的
+   */
+  _debugOutputOrders(symbol, isLongSymbol) {
+    if (process.env.DEBUG === "true") {
+      const positionType = isLongSymbol ? "做多标的" : "做空标的";
+      const normalizedSymbol = normalizeHKSymbol(symbol);
+      const currentOrders = isLongSymbol
+        ? this._longBuyOrders.filter((o) => o.symbol === normalizedSymbol)
+        : this._shortBuyOrders.filter((o) => o.symbol === normalizedSymbol);
+
+      // 批量构建日志消息，减少多次logger.debug调用
+      const logLines = [
+        `[订单记录变化] ${positionType} ${normalizedSymbol}: 当前订单列表 (共${currentOrders.length}笔)`,
+      ];
+
+      if (currentOrders.length > 0) {
+        // 批量计算统计信息
+        let totalQuantity = 0;
+        let totalValue = 0;
+
+        currentOrders.forEach((order, index) => {
+          // 安全地获取数值，防止 NaN 或无效值
+          const quantity = Number.isFinite(order.executedQuantity)
+            ? order.executedQuantity
+            : 0;
+          const price = Number.isFinite(order.executedPrice)
+            ? order.executedPrice
+            : 0;
+          totalQuantity += quantity;
+          totalValue += price * quantity;
+
+          // 安全地格式化时间
+          let timeStr = "未知时间";
+          if (order.executedTime) {
+            try {
+              const date = new Date(order.executedTime);
+              if (!Number.isNaN(date.getTime())) {
+                timeStr = date.toLocaleString("zh-CN", {
+                  timeZone: "Asia/Shanghai",
+                });
+              }
+            } catch (err) {
+              // 日期格式化失败，使用默认值
+              // 在debug输出中静默处理是合理的，避免影响主程序执行
+              timeStr = "无效时间";
+              // eslint-disable-next-line no-unused-vars
+              const _ = err; // 明确处理异常变量
+            }
+          }
+
+          // 安全地格式化价格
+          const priceStr = Number.isFinite(price) ? price.toFixed(3) : "N/A";
+          logLines.push(
+            `  [${index + 1}] 订单ID: ${order.orderId || "N/A"}, ` +
+              `价格: ${priceStr}, ` +
+              `数量: ${quantity}, ` +
+              `成交时间: ${timeStr}`
+          );
+        });
+
+        // 安全地计算和格式化平均价格
+        const avgPrice = totalQuantity > 0 ? totalValue / totalQuantity : 0;
+        const avgPriceStr = Number.isFinite(avgPrice)
+          ? avgPrice.toFixed(3)
+          : "N/A";
+        logLines.push(
+          `  统计: 总数量=${totalQuantity}, 平均价格=${avgPriceStr}`
+        );
+      } else {
+        logLines.push(`  当前无订单记录`);
+      }
+
+      // 一次性输出所有日志（减少多次调用）
+      logger.debug(logLines.join("\n"));
+    }
+  }
+
+  /**
    * 替换当前标的的买入订单记录列表（内部使用）
    * @param {string} symbol 标的代码
    * @param {boolean} isLongSymbol 是否为做多标的
@@ -52,6 +133,9 @@ export class OrderRecorder {
         ...newList,
       ];
     }
+
+    // 输出debug信息
+    this._debugOutputOrders(symbol, isLongSymbol);
   }
 
   /**
@@ -160,6 +244,31 @@ export class OrderRecorder {
     logger.info(
       `[现存订单记录] 本地卖出更新：${positionType} ${normalizedSymbol} 卖出数量=${quantity}，按价格过滤后剩余买入记录 ${filtered.length} 笔`
     );
+  }
+
+  /**
+   * 获取最新买入订单的成交价（用于买入价格限制检查）
+   * @param {string} symbol 标的代码
+   * @param {boolean} isLongSymbol 是否为做多标的
+   * @returns {number|null} 最新买入订单的成交价，如果没有订单则返回null
+   */
+  getLatestBuyOrderPrice(symbol, isLongSymbol) {
+    const normalizedSymbol = normalizeHKSymbol(symbol);
+    const list = this._getBuyOrdersList(normalizedSymbol, isLongSymbol);
+
+    if (!list.length) {
+      return null;
+    }
+
+    // 找出成交时间最新的订单
+    const latestOrder = list.reduce((latest, current) => {
+      if (!latest || current.executedTime > latest.executedTime) {
+        return current;
+      }
+      return latest;
+    }, null);
+
+    return latestOrder ? latestOrder.executedPrice : null;
   }
 
   /**
@@ -358,6 +467,8 @@ export class OrderRecorder {
             `[现存订单记录] 做空标的 ${normalizedSymbol}: 当日买入0笔, 无需记录`
           );
         }
+        // 输出debug信息
+        this._debugOutputOrders(symbol, isLongSymbol);
         return [];
       }
 
@@ -374,6 +485,8 @@ export class OrderRecorder {
             `[现存订单记录] 做空标的 ${normalizedSymbol}: 当日买入${allBuyOrders.length}笔, 无卖出记录, 记录全部买入订单`
           );
         }
+        // 输出debug信息
+        this._debugOutputOrders(symbol, isLongSymbol);
         return allBuyOrders;
       }
 
@@ -488,6 +601,9 @@ export class OrderRecorder {
           `最终过滤${filteredCount}笔, ` +
           `最终记录${recordedCount}笔`
       );
+
+      // 输出debug信息
+      this._debugOutputOrders(symbol, isLongSymbol);
 
       return finalBuyOrders;
     } catch (error) {

@@ -54,7 +54,8 @@ function formatLogLine(args) {
  * 负责创建和管理日志文件流
  */
 class FileLogManager {
-  constructor() {
+  constructor(logSubDir = "system") {
+    this._logSubDir = logSubDir;
     this._logDir = null;
     this._currentDate = null;
     this._fileStream = null;
@@ -69,7 +70,7 @@ class FileLogManager {
 
     try {
       // 创建日志目录
-      this._logDir = path.join(process.cwd(), "logs", "system");
+      this._logDir = path.join(process.cwd(), "logs", this._logSubDir);
       if (!fs.existsSync(this._logDir)) {
         fs.mkdirSync(this._logDir, { recursive: true });
       }
@@ -279,13 +280,17 @@ class AsyncLogQueue {
     this._processing = false; // 是否正在处理
     this._batchSize = 20; // 每批处理数量
     this._maxQueueSize = 1000; // 最大队列长度（防止内存溢出）
-    this._fileLogManager = new FileLogManager(); // 文件日志管理器
+    this._fileLogManager = new FileLogManager("system"); // 系统日志文件管理器
+    // 仅在DEBUG模式下创建debug文件管理器
+    this._debugFileLogManager =
+      process.env.DEBUG === "true" ? new FileLogManager("debug") : null;
   }
 
   /**
    * 添加日志到队列
    * @param {Function} outputFn 输出函数（console.log/warn/error）
    * @param {Array} args 日志参数
+   * @param {boolean} isDebugLog 是否为debug日志（可选，用于优化判断）
    */
   enqueue(outputFn, ...args) {
     // 防止队列无限增长
@@ -299,8 +304,18 @@ class AsyncLogQueue {
       }
     }
 
-    // 日志入队
-    this._queue.push({ outputFn, args });
+    // 判断是否为debug日志（通过检查第一个参数是否包含 [DEBUG] 标记）
+    // 使用更精确的匹配：检查是否以 [DEBUG] 开头（去除ANSI颜色代码后）
+    let isDebugLog = false;
+    if (args && args.length > 0 && typeof args[0] === "string") {
+      // 移除ANSI颜色代码后检查
+      const firstArg = stripAnsiCodes(args[0]);
+      // 检查是否以 [DEBUG] 开头（更精确的匹配）
+      isDebugLog = firstArg.startsWith("[DEBUG]");
+    }
+
+    // 日志入队，附带debug标记
+    this._queue.push({ outputFn, args, isDebugLog });
 
     // 如果当前没有在处理，启动处理
     if (!this._processing) {
@@ -327,7 +342,14 @@ class AsyncLogQueue {
         if (item.args && item.args.length > 0) {
           const logLine = formatLogLine(item.args);
           if (logLine) {
+            // 写入系统日志文件（所有日志）
             this._fileLogManager.write(logLine);
+
+            // 如果是debug日志且debug文件管理器存在，也写入debug文件
+            // 使用入队时标记的isDebugLog，避免字符串匹配
+            if (item.isDebugLog && this._debugFileLogManager) {
+              this._debugFileLogManager.write(logLine);
+            }
           }
         }
       } catch (err) {
@@ -374,7 +396,14 @@ class AsyncLogQueue {
         if (item.args && item.args.length > 0) {
           const logLine = formatLogLine(item.args);
           if (logLine) {
+            // 写入系统日志文件
             this._fileLogManager.write(logLine);
+
+            // 如果是debug日志且debug文件管理器存在，也写入debug文件
+            // 使用入队时标记的isDebugLog，避免字符串匹配
+            if (item.isDebugLog && this._debugFileLogManager) {
+              this._debugFileLogManager.write(logLine);
+            }
           }
         }
       } catch (err) {
@@ -385,6 +414,9 @@ class AsyncLogQueue {
 
     // 刷新文件流
     this._fileLogManager.flushSync();
+    if (this._debugFileLogManager) {
+      this._debugFileLogManager.flushSync();
+    }
   }
 }
 
@@ -410,6 +442,9 @@ if (!global.__loggerExitHandlersRegistered) {
     if (logQueue._fileLogManager) {
       logQueue._fileLogManager.close();
     }
+    if (logQueue._debugFileLogManager) {
+      logQueue._debugFileLogManager.close();
+    }
   });
 
   process.on("SIGINT", () => {
@@ -417,6 +452,9 @@ if (!global.__loggerExitHandlersRegistered) {
     // 关闭文件流
     if (logQueue._fileLogManager) {
       logQueue._fileLogManager.close();
+    }
+    if (logQueue._debugFileLogManager) {
+      logQueue._debugFileLogManager.close();
     }
     process.exit(0);
   });
@@ -427,6 +465,9 @@ if (!global.__loggerExitHandlersRegistered) {
     if (logQueue._fileLogManager) {
       logQueue._fileLogManager.close();
     }
+    if (logQueue._debugFileLogManager) {
+      logQueue._debugFileLogManager.close();
+    }
     process.exit(0);
   });
 
@@ -436,6 +477,9 @@ if (!global.__loggerExitHandlersRegistered) {
     // 关闭文件流
     if (logQueue._fileLogManager) {
       logQueue._fileLogManager.close();
+    }
+    if (logQueue._debugFileLogManager) {
+      logQueue._debugFileLogManager.close();
     }
     console.error("[FATAL] Uncaught Exception:", err);
     process.exit(1);
