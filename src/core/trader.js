@@ -183,14 +183,6 @@ class TradeAPIRateLimiter {
       releaseLock();
     }
   }
-
-  /**
-   * 重置频率限制器（仅用于测试）
-   */
-  reset() {
-    this.callTimestamps = [];
-    this._throttlePromise = null; // 同时重置锁状态
-  }
 }
 
 /**
@@ -447,9 +439,7 @@ export class Trader {
 
     // 如果没有提供缓存的订单对象，才查询API
     if (!originalOrder) {
-      logger.debug(
-        `[订单修改] 未提供缓存订单对象，查询API获取订单 ${orderId}`
-      );
+      logger.debug(`[订单修改] 未提供缓存订单对象，查询API获取订单 ${orderId}`);
       // ===== 修复3: 应用频率限制 =====
       await this._tradeAPILimiter.throttle();
       const allOrders = await ctx.todayOrders(undefined);

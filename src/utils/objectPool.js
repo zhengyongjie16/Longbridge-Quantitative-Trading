@@ -12,9 +12,6 @@ class ObjectPool {
     this.factory = factory; // 对象工厂函数
     this.reset = reset; // 对象重置函数
     this.maxSize = maxSize; // 池最大容量
-    this.createdCount = 0; // 创建的对象总数（用于统计）
-    this.acquireCount = 0; // 获取次数
-    this.releaseCount = 0; // 释放次数
   }
 
   /**
@@ -22,12 +19,10 @@ class ObjectPool {
    * @returns {Object} 可用的对象
    */
   acquire() {
-    this.acquireCount++;
     if (this.pool.length > 0) {
       return this.pool.pop();
     }
     // 池为空，创建新对象
-    this.createdCount++;
     return this.factory();
   }
 
@@ -37,8 +32,6 @@ class ObjectPool {
    */
   release(obj) {
     if (!obj) return;
-
-    this.releaseCount++;
 
     // 如果池已满，直接丢弃对象（让GC回收）
     if (this.pool.length >= this.maxSize) {
@@ -57,31 +50,6 @@ class ObjectPool {
   releaseAll(objects) {
     if (!Array.isArray(objects)) return;
     objects.forEach((obj) => this.release(obj));
-  }
-
-  /**
-   * 获取池的统计信息
-   * @returns {Object} 统计信息
-   */
-  getStats() {
-    return {
-      poolSize: this.pool.length,
-      maxSize: this.maxSize,
-      createdCount: this.createdCount,
-      acquireCount: this.acquireCount,
-      releaseCount: this.releaseCount,
-      hitRate:
-        this.acquireCount > 0
-          ? ((this.acquireCount - this.createdCount) / this.acquireCount) * 100
-          : 0,
-    };
-  }
-
-  /**
-   * 清空对象池
-   */
-  clear() {
-    this.pool = [];
   }
 }
 
