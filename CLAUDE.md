@@ -76,24 +76,24 @@ npm start
 - **生成两类信号**：
   1. **立即信号**（卖出/平仓）：条件满足时立即执行
   2. **延迟信号**（买入/开仓）：等待 60 秒进行趋势确认
-- **多指标逻辑**：要求 4 个指标（RSI6、MFI、KDJ.D、KDJ.J）中至少 3 个满足阈值
-- **信号类型及触发条件**（所有信号采用条件 1 或条件 2 的"或"关系）：
-  - `BUYCALL`（买入做多 - 延迟验证）：
-    - 条件 1：RSI6<20, MFI<15, KDJ.D<20, KDJ.J<-1 四个指标满足 3 个以上
-    - 条件 2：J < -20
-    - 验证：J2 > J1 且 MACD2 > MACD1
-  - `SELLCALL`（卖出做多 - 立即执行）：
-    - 条件 1：RSI6>80, MFI>85, KDJ.D>79, KDJ.J>100 四个指标满足 3 个以上
-    - 条件 2：J > 110
-    - 注意：成本价判断在卖出策略中进行，信号生成时不检查
-  - `BUYPUT`（买入做空 - 延迟验证）：
-    - 条件 1：RSI6>80, MFI>85, KDJ.D>80, KDJ.J>100 四个指标满足 3 个以上
-    - 条件 2：J > 120
-    - 验证：J2 < J1 且 MACD2 < MACD1
-  - `SELLPUT`（卖出做空 - 立即执行）：
-    - 条件 1：RSI6<20, MFI<15, KDJ.D<22, KDJ.J<0 四个指标满足 3 个以上
-    - 条件 2：J < -15
-    - 注意：成本价判断在卖出策略中进行，信号生成时不检查
+- **信号配置**：所有交易信号条件**完全可配置**，通过环境变量设置（`SIGNAL_BUYCALL`, `SIGNAL_SELLCALL`, `SIGNAL_BUYPUT`, `SIGNAL_SELLPUT`）
+- **配置格式**：`(条件1,条件2,...)/N|(条件A)|(条件B,条件C)/M`
+  - 括号内是条件列表，逗号分隔
+  - `/N`：括号内条件需满足 N 项，不设则全部满足
+  - `|`：分隔不同条件组（最多 3 个），满足任一组即可
+  - 支持指标：`RSI6`, `RSI12`, `MFI`, `D` (KDJ.D), `J` (KDJ.J)
+  - 支持运算符：`<` 和 `>`
+- **信号类型**：
+  - `BUYCALL`（买入做多 - 延迟验证）：使用 `SIGNAL_BUYCALL` 配置
+  - `SELLCALL`（卖出做多 - 立即执行）：使用 `SIGNAL_SELLCALL` 配置
+  - `BUYPUT`（买入做空 - 延迟验证）：使用 `SIGNAL_BUYPUT` 配置
+  - `SELLPUT`（卖出做空 - 立即执行）：使用 `SIGNAL_SELLPUT` 配置
+- **默认配置示例**（仅供参考，实际需在 `.env` 中配置）：
+  - BUYCALL: `(RSI6<20,MFI<15,D<20,J<-1)/3|(J<-20)`
+  - SELLCALL: `(RSI6>80,MFI>85,D>79,J>100)/3|(J>110)`
+  - BUYPUT: `(RSI6>80,MFI>85,D>80,J>100)/3|(J>120)`
+  - SELLPUT: `(RSI6<20,MFI<15,D<22,J<0)/3|(J<-15)`
+- **注意**：所有信号配置都是必需项，未配置或格式无效将导致程序启动失败
 
 ### trader.js（订单执行）
 
@@ -517,6 +517,7 @@ Trader 日志显示：
 - 交易标的（MONITOR_SYMBOL、LONG_SYMBOL、SHORT_SYMBOL）
 - 交易金额（TARGET_NOTIONAL、LONG_LOT_SIZE、SHORT_LOT_SIZE）
 - 风险限制（MAX_POSITION_NOTIONAL、MAX_DAILY_LOSS）
+- **信号配置**（SIGNAL_BUYCALL、SIGNAL_SELLCALL、SIGNAL_BUYPUT、SIGNAL_SELLPUT）
 
 **可选配置**：
 
@@ -532,8 +533,8 @@ Trader 日志显示：
 
 修改本系统时：
 
-1. **添加新指标**：更新 `indicators.js`（`D:\Code\LongBrigeAutomationProgram\src\services\indicators.js`），利用 `technicalindicators` 库添加新指标，然后修改 `buildIndicatorSnapshot()` 和策略阈值
-2. **修改信号逻辑**：编辑 `strategy.js`（`D:\Code\LongBrigeAutomationProgram\src\core\strategy.js`）条件，确保延迟信号仍记录 J1/MACD1
+1. **添加新指标**：更新 `indicators.js`（`D:\Code\LongBrigeAutomationProgram\src\services\indicators.js`），利用 `technicalindicators` 库添加新指标，然后修改 `buildIndicatorSnapshot()` 和 `signalConfigParser.js` 中的指标支持列表
+2. **修改信号逻辑**：直接编辑 `.env` 文件中的信号配置（`SIGNAL_BUYCALL`, `SIGNAL_SELLCALL`, `SIGNAL_BUYPUT`, `SIGNAL_SELLPUT`），无需修改代码。配置格式：`(条件1,条件2,...)/N|(条件A)|(条件B,条件C)/M`
 3. **调整风险控制**：修改 `risk.js`（`D:\Code\LongBrigeAutomationProgram\src\core\risk.js`）检查，始终仅对买入信号进行门控（允许卖出）
 4. **订单类型变更**：更新 `trader.js`（`D:\Code\LongBrigeAutomationProgram\src\core\trader.js`）\_submitTargetOrder()，确保订单类型被 LongPort API 支持
 5. **修改配置参数**：编辑 `.env` 文件或 `config.trading.js`（`D:\Code\LongBrigeAutomationProgram\src\config\config.trading.js`）

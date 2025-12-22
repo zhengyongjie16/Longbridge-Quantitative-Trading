@@ -3,6 +3,10 @@ import { TRADING_CONFIG } from "./config.trading.js";
 import { createConfig } from "./config.js";
 import { MarketDataClient } from "../services/quoteClient.js";
 import { formatSymbolDisplay } from "../utils/helpers.js";
+import {
+  validateSignalConfig,
+  formatSignalConfig,
+} from "../utils/signalConfigParser.js";
 
 /**
  * 配置验证错误类
@@ -240,6 +244,44 @@ function validateTradingConfig() {
 
   // doomsdayProtection 是布尔值，不需要验证（默认值在 .env 文件中设置为 true）
 
+  // 验证信号配置（必需）
+  const signalConfigKeys = ["buycall", "sellcall", "buyput", "sellput"];
+  const signalConfigEnvNames = {
+    buycall: "SIGNAL_BUYCALL",
+    sellcall: "SIGNAL_SELLCALL",
+    buyput: "SIGNAL_BUYPUT",
+    sellput: "SIGNAL_SELLPUT",
+  };
+
+  for (const key of signalConfigKeys) {
+    const envName = signalConfigEnvNames[key];
+    const envValue = process.env[envName];
+
+    // 检查是否配置
+    if (!envValue || envValue.trim() === "") {
+      errors.push(`${envName} 未配置（信号配置为必需项）`);
+      missingFields.push(envName);
+      continue; // 跳过后续验证
+    }
+
+    // 验证格式
+    const result = validateSignalConfig(envValue);
+    if (!result.valid) {
+      errors.push(`${envName} 配置格式无效: ${result.error}`);
+      continue;
+    }
+
+    // 验证最终的配置是否有效
+    const config = TRADING_CONFIG.signalConfig?.[key];
+    if (
+      !config ||
+      !config.conditionGroups ||
+      config.conditionGroups.length === 0
+    ) {
+      errors.push(`信号配置 ${key.toUpperCase()} 解析失败`);
+    }
+  }
+
   return {
     valid: errors.length === 0,
     errors,
@@ -360,6 +402,21 @@ export async function validateAllConfig() {
   logger.info(`单日最大亏损: ${TRADING_CONFIG.maxDailyLoss} HKD`);
   logger.info(
     `是否启动末日保护: ${TRADING_CONFIG.doomsdayProtection ? "是" : "否"}`
+  );
+
+  // 显示信号配置
+  logger.info("信号配置:");
+  logger.info(
+    `BUYCALL: ${formatSignalConfig(TRADING_CONFIG.signalConfig.buycall)}`
+  );
+  logger.info(
+    `SELLCALL: ${formatSignalConfig(TRADING_CONFIG.signalConfig.sellcall)}`
+  );
+  logger.info(
+    `BUYPUT: ${formatSignalConfig(TRADING_CONFIG.signalConfig.buyput)}`
+  );
+  logger.info(
+    `SELLPUT: ${formatSignalConfig(TRADING_CONFIG.signalConfig.sellput)}`
   );
   logger.info("");
 

@@ -538,6 +538,7 @@ export function buildIndicatorSnapshot(symbol, candles) {
     symbol,
     price: validPrice, // 最新收盘价
     rsi6: calculateRSI(closes, 6), // 6周期RSI
+    rsi12: calculateRSI(closes, 12), // 12周期RSI（用于信号配置）
     kdj: calculateKDJ(candles, 9), // KDJ指标
     macd: calculateMACD(closes), // MACD指标
     mfi: calculateMFI(candles, 14), // MFI指标（资金流量指标，周期14）

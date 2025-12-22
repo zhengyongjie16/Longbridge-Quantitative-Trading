@@ -1911,6 +1911,7 @@ async function main() {
   // 使用配置验证返回的标的名称和行情客户端实例（避免重复创建）
   const { marketDataClient } = symbolNames;
   const strategy = new HangSengMultiIndicatorStrategy({
+    signalConfig: TRADING_CONFIG.signalConfig,
     verificationConfig: TRADING_CONFIG.verificationConfig,
   });
   const trader = new Trader(config);

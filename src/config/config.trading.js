@@ -6,6 +6,8 @@
 import dotenv from "dotenv";
 dotenv.config();
 
+import { parseSignalConfig } from "../utils/signalConfigParser.js";
+
 /**
  * 从环境变量读取字符串配置
  * @param {string} envKey 环境变量键名
@@ -158,6 +160,71 @@ export const TRADING_CONFIG = {
         return null;
       }
       return indicators;
+    })(),
+  },
+
+  // 信号配置（必需）
+  // 格式：(条件1,条件2,...)/N|(条件A)|(条件B,条件C)/M
+  // - 括号内是条件列表，逗号分隔
+  // - /N：括号内条件需满足 N 项，不设则全部满足
+  // - |：分隔不同条件组（最多3个），满足任一组即可
+  // - 支持指标：RSI6, RSI12, MFI, D (KDJ.D), J (KDJ.J)
+  // - 支持运算符：< 和 >
+  signalConfig: {
+    // 买入做多信号配置
+    buycall: (() => {
+      const configStr = getStringConfig("SIGNAL_BUYCALL");
+      if (!configStr) {
+        return null; // 必需配置，如果未设置返回 null
+      }
+      const config = parseSignalConfig(configStr);
+      if (!config) {
+        console.error("[配置错误] SIGNAL_BUYCALL 格式无效");
+        return null;
+      }
+      return config;
+    })(),
+
+    // 卖出做多信号配置
+    sellcall: (() => {
+      const configStr = getStringConfig("SIGNAL_SELLCALL");
+      if (!configStr) {
+        return null; // 必需配置，如果未设置返回 null
+      }
+      const config = parseSignalConfig(configStr);
+      if (!config) {
+        console.error("[配置错误] SIGNAL_SELLCALL 格式无效");
+        return null;
+      }
+      return config;
+    })(),
+
+    // 买入做空信号配置
+    buyput: (() => {
+      const configStr = getStringConfig("SIGNAL_BUYPUT");
+      if (!configStr) {
+        return null; // 必需配置，如果未设置返回 null
+      }
+      const config = parseSignalConfig(configStr);
+      if (!config) {
+        console.error("[配置错误] SIGNAL_BUYPUT 格式无效");
+        return null;
+      }
+      return config;
+    })(),
+
+    // 卖出做空信号配置
+    sellput: (() => {
+      const configStr = getStringConfig("SIGNAL_SELLPUT");
+      if (!configStr) {
+        return null; // 必需配置，如果未设置返回 null
+      }
+      const config = parseSignalConfig(configStr);
+      if (!config) {
+        console.error("[配置错误] SIGNAL_SELLPUT 格式无效");
+        return null;
+      }
+      return config;
     })(),
   },
 };
