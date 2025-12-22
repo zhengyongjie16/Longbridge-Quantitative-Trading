@@ -576,13 +576,33 @@ async function runOnce({
           }
         }
 
-        // MACD 指标（只显示MACD值）
+        // MACD 指标（显示MACD值）
         if (
           monitorSnapshot.macd?.macd !== null &&
           monitorSnapshot.macd?.macd !== undefined
         ) {
           indicators.push(
             `MACD=${formatIndicator(monitorSnapshot.macd.macd, 4)}`
+          );
+        }
+
+        // MACD DIF 指标
+        if (
+          monitorSnapshot.macd?.dif !== null &&
+          monitorSnapshot.macd?.dif !== undefined
+        ) {
+          indicators.push(
+            `DIF=${formatIndicator(monitorSnapshot.macd.dif, 4)}`
+          );
+        }
+
+        // MACD DEA 指标
+        if (
+          monitorSnapshot.macd?.dea !== null &&
+          monitorSnapshot.macd?.dea !== undefined
+        ) {
+          indicators.push(
+            `DEA=${formatIndicator(monitorSnapshot.macd.dea, 4)}`
           );
         }
 
