@@ -1372,9 +1372,10 @@ async function runOnce({
       if (isBuyAction) {
         // 买入操作检查顺序：
         // 1. 先检查交易频率限制（若不通过直接拒绝，不进行后续检查）
-        // 2. 再检查末日保护程序
-        // 3. 再检查牛熊证风险
-        // 4. 最后进行基础风险检查（浮亏检查和市值限制检查）
+        // 2. 再检查买入价格限制（防止追高，当前价格必须低于或等于最新买入订单价格）
+        // 3. 再检查末日保护程序
+        // 4. 再检查牛熊证风险
+        // 5. 最后进行基础风险检查（浮亏检查和市值限制检查）
 
         // 1. 检查交易频率限制（先检查，若不通过直接拒绝）
         if (!trader._canTradeNow(sig.action)) {
@@ -1392,7 +1393,31 @@ async function runOnce({
           continue; // 跳过这个买入信号，不进行后续检查
         }
 
-        // 2. 末日保护程序：收盘前15分钟拒绝买入（卖出操作不受影响）
+        // 2. 买入价格限制：当前价格必须低于或等于最新买入订单的成交价
+        // 目的：防止追高，只允许在价格回落或持平时买入
+        const isLongBuyAction = sig.action === SignalType.BUYCALL;
+        const latestBuyPrice = orderRecorder.getLatestBuyOrderPrice(
+          normalizedSigSymbol,
+          isLongBuyAction
+        );
+
+        // 如果有历史买入订单，检查价格限制
+        if (latestBuyPrice !== null && currentPrice !== null) {
+          if (currentPrice > latestBuyPrice) {
+            const direction = isLongBuyAction ? "做多标的" : "做空标的";
+            logger.warn(
+              `[买入价格限制] ${direction} 当前价格 ${currentPrice.toFixed(3)} 高于最新买入订单价格 ${latestBuyPrice.toFixed(3)}，拒绝买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`
+            );
+            continue; // 跳过这个买入信号，不进行后续检查
+          } else {
+            const direction = isLongBuyAction ? "做多标的" : "做空标的";
+            logger.info(
+              `[买入价格限制] ${direction} 当前价格 ${currentPrice.toFixed(3)} 低于或等于最新买入订单价格 ${latestBuyPrice.toFixed(3)}，允许买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`
+            );
+          }
+        }
+
+        // 3. 末日保护程序：收盘前15分钟拒绝买入（卖出操作不受影响）
         const shouldEnableDoomsdayProtection =
           TRADING_CONFIG.doomsdayProtection;
         const isBeforeClose15 = isBeforeClose15Minutes(
@@ -1407,7 +1432,7 @@ async function runOnce({
           continue; // 跳过这个买入信号
         }
 
-        // 3. 仅在买入时检查牛熊证风险
+        // 4. 仅在买入时检查牛熊证风险
         // 注意：使用监控标的的实时价格（而非牛熊证本身的价格）来计算距离回收价的百分比
         // 优先使用实时行情价格，如果没有则使用K线收盘价
         const monitorCurrentPrice =
@@ -1442,9 +1467,9 @@ async function runOnce({
           );
         }
       }
-      // 卖出操作（平仓）时不检查交易频率限制、末日保护程序和牛熊证风险
+      // 卖出操作（平仓）时不检查交易频率限制、买入价格限制、末日保护程序和牛熊证风险
 
-      // 4. 基础风险检查前，实时获取最新账户和持仓信息以确保准确性
+      // 5. 基础风险检查前，实时获取最新账户和持仓信息以确保准确性
       // 对于买入操作，必须实时获取最新数据以确保浮亏计算准确
       // 对于卖出操作，可以使用缓存数据（卖出操作不检查浮亏限制）
       // 注意：isBuyAction 已在上面定义，这里直接使用
