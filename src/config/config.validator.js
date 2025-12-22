@@ -244,6 +244,62 @@ function validateTradingConfig() {
 
   // doomsdayProtection 是布尔值，不需要验证（默认值在 .env 文件中设置为 true）
 
+  // 验证单标的浮亏保护配置（可选）
+  // 注意：直接验证原始环境变量，而不是已处理的配置值
+  const maxUnrealizedLossEnv = process.env.MAX_UNREALIZED_LOSS_PER_SYMBOL;
+  if (maxUnrealizedLossEnv && maxUnrealizedLossEnv.trim() !== "") {
+    const maxUnrealizedLoss = Number(maxUnrealizedLossEnv);
+    if (!Number.isFinite(maxUnrealizedLoss) || maxUnrealizedLoss < 0) {
+      errors.push(
+        `MAX_UNREALIZED_LOSS_PER_SYMBOL 配置无效（当前值: ${maxUnrealizedLossEnv}，必须为非负数或 0 表示禁用）`
+      );
+      missingFields.push("MAX_UNREALIZED_LOSS_PER_SYMBOL");
+    }
+  }
+
+  // 验证延迟验证时间配置（可选）
+  // 注意：直接验证原始环境变量，而不是已处理的配置值
+  const delaySecondsEnv = process.env.VERIFICATION_DELAY_SECONDS;
+  if (delaySecondsEnv && delaySecondsEnv.trim() !== "") {
+    const delaySeconds = Number(delaySecondsEnv);
+    if (
+      !Number.isFinite(delaySeconds) ||
+      delaySeconds < 0 ||
+      delaySeconds > 120
+    ) {
+      errors.push(
+        `VERIFICATION_DELAY_SECONDS 配置无效（当前值: ${delaySecondsEnv}，必须在 0-120 秒范围内）`
+      );
+      missingFields.push("VERIFICATION_DELAY_SECONDS");
+    }
+  }
+
+  // 验证延迟验证指标配置（可选）
+  // 注意：直接验证原始环境变量，而不是已处理的配置值
+  const indicatorsEnv = process.env.VERIFICATION_INDICATORS;
+  if (indicatorsEnv && indicatorsEnv.trim() !== "") {
+    const allowedIndicators = ["K", "D", "J", "MACD", "DIF", "DEA"];
+    const indicators = indicatorsEnv
+      .split(",")
+      .map((item) => item.trim())
+      .filter((item) => item !== "");
+
+    if (indicators.length > 0) {
+      // 检查是否所有指标都在允许列表中
+      const invalidIndicators = indicators.filter(
+        (ind) => !allowedIndicators.includes(ind)
+      );
+      if (invalidIndicators.length > 0) {
+        errors.push(
+          `VERIFICATION_INDICATORS 包含无效指标: ${invalidIndicators.join(
+            ", "
+          )}，允许的值: ${allowedIndicators.join(", ")}`
+        );
+        missingFields.push("VERIFICATION_INDICATORS");
+      }
+    }
+  }
+
   // 验证信号配置（必需）
   const signalConfigKeys = ["buycall", "sellcall", "buyput", "sellput"];
   const signalConfigEnvNames = {
@@ -268,17 +324,15 @@ function validateTradingConfig() {
     const result = validateSignalConfig(envValue);
     if (!result.valid) {
       errors.push(`${envName} 配置格式无效: ${result.error}`);
+      missingFields.push(envName);
       continue;
     }
 
     // 验证最终的配置是否有效
     const config = TRADING_CONFIG.signalConfig?.[key];
-    if (
-      !config ||
-      !config.conditionGroups ||
-      config.conditionGroups.length === 0
-    ) {
+    if (!config?.conditionGroups || config.conditionGroups.length === 0) {
       errors.push(`信号配置 ${key.toUpperCase()} 解析失败`);
+      missingFields.push(envName);
     }
   }
 
@@ -400,9 +454,36 @@ export async function validateAllConfig() {
   logger.info(`目标买入金额: ${TRADING_CONFIG.targetNotional} HKD`);
   logger.info(`最大持仓市值: ${TRADING_CONFIG.maxPositionNotional} HKD`);
   logger.info(`单日最大亏损: ${TRADING_CONFIG.maxDailyLoss} HKD`);
+
+  // 显示单标的浮亏保护配置
+  if (
+    TRADING_CONFIG.maxUnrealizedLossPerSymbol &&
+    TRADING_CONFIG.maxUnrealizedLossPerSymbol > 0
+  ) {
+    logger.info(
+      `单标的浮亏保护阈值: ${TRADING_CONFIG.maxUnrealizedLossPerSymbol} HKD`
+    );
+  } else {
+    logger.info(`单标的浮亏保护: 已禁用`);
+  }
+
   logger.info(
     `是否启动末日保护: ${TRADING_CONFIG.doomsdayProtection ? "是" : "否"}`
   );
+
+  // 显示延迟验证配置
+  const verificationConfig = TRADING_CONFIG.verificationConfig;
+  if (
+    verificationConfig &&
+    verificationConfig.delaySeconds > 0 &&
+    verificationConfig.indicators &&
+    verificationConfig.indicators.length > 0
+  ) {
+    logger.info(`延迟验证时间: ${verificationConfig.delaySeconds} 秒`);
+    logger.info(`延迟验证指标: ${verificationConfig.indicators.join(", ")}`);
+  } else {
+    logger.info(`延迟验证: 已禁用`);
+  }
 
   // 显示信号配置
   logger.info("信号配置:");
