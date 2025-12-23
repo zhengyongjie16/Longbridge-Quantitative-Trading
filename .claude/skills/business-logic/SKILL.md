@@ -186,7 +186,7 @@ description: 当用户需要你阅读当前业务逻辑或者检查是否符合�
 
 **验证指标**：
 
-- 默认使用 `K` 和 `MACD` 两个指标
+- 默认使用 `J` 和 `MACD` 两个指标
 - 可通过 `VERIFICATION_INDICATORS` 环境变量配置（可选值：K, D, J, MACD, DIF, DEA，逗号分隔）
 - 留空或不设置则不进行延迟验证
 
@@ -195,7 +195,7 @@ description: 当用户需要你阅读当前业务逻辑或者检查是否符合�
 **步骤 1：记录初始值**
 
 - 当触发买入做多标信号时，立即记录所有配置的验证指标的初始值（indicators1）
-- 例如：如果配置了 K 和 MACD，则记录 K1 和 MACD1
+- 例如：如果配置了 J 和 MACD，则记录 J1 和 MACD1
 
 **步骤 2：等待延迟时间**
 
@@ -212,7 +212,7 @@ description: 当用户需要你阅读当前业务逻辑或者检查是否符合�
 **步骤 4：验证条件**
 
 - **验证通过条件**：所有配置指标的第二个值都要大于第一个值
-  - 例如：如果配置了 K 和 MACD，则要求 K2 > K1 **且** MACD2 > MACD1
+  - 例如：如果配置了 J 和 MACD，则要求 J2 > J1 **且** MACD2 > MACD1
 - 验证通过后，买入做多标的一次
 - 验证失败则放弃该信号
 
@@ -223,7 +223,7 @@ description: 当用户需要你阅读当前业务逻辑或者检查是否符合�
 **步骤 1：记录初始值**
 
 - 当触发买入做空标信号时，立即记录所有配置的验证指标的初始值（indicators1）
-- 例如：如果配置了 K 和 MACD，则记录 K1 和 MACD1
+- 例如：如果配置了 J 和 MACD，则记录 J1 和 MACD1
 
 **步骤 2：等待延迟时间**
 
@@ -240,7 +240,7 @@ description: 当用户需要你阅读当前业务逻辑或者检查是否符合�
 **步骤 4：验证条件**
 
 - **验证通过条件**：所有配置指标的第二个值都要小于第一个值
-  - 例如：如果配置了 K 和 MACD，则要求 K2 < K1 **且** MACD2 < MACD1
+  - 例如：如果配置了 J 和 MACD，则要求 J2 < J1 **且** MACD2 < MACD1
 - 验证通过后，买入做空标的一次
 - 验证失败则放弃该信号
 
@@ -255,6 +255,15 @@ description: 当用户需要你阅读当前业务逻辑或者检查是否符合�
 **程序启动时**：获取当日做多和做空标的的历史买入且已成交订单并记录。
 
 **注意**：做多和做空标的**分开获取**，互不影响。
+
+**订单数据缓存机制**：
+
+- `fetchOrdersFromAPI(symbol)` 方法会将获取的订单数据写入内部缓存（`_ordersCache`）
+- 缓存格式：`{ symbol: { buyOrders: [], sellOrders: [], fetchTime: number } }`
+- 缓存有效期：默认 5 分钟（`maxAgeMs = 5 * 60 * 1000`）
+- `refreshOrders(symbol, isLongSymbol, forceRefresh=false)` 方法默认使用缓存：
+  - 当 `forceRefresh=false` 且缓存有效时，直接使用缓存数据
+  - 当 `forceRefresh=true` 或缓存失效时，调用 `fetchOrdersFromAPI` 刷新缓存
 
 ---
 
@@ -399,8 +408,6 @@ D2: 时间=10:15, 价格=102, 数量=50
 ### 4.4 代码实现位置
 
 - **文件**：`src/core/orderRecorder.js`
-- **方法**：`refreshOrders(symbol, isLongSymbol, forceRefresh = false)`
-- **关键代码段**：orderRecorder.js:340-450
 
 ---
 
@@ -457,7 +464,7 @@ else:
 持仓成本价 = 从 API 获取的持仓成本价（costPrice）
 
 if 当前价格 > 持仓成本价:
-    # 盈利状态(做空标的会随监控标的反方向波动)：全仓清仓
+    # 盈利状态（做空标的会随监控标的反方向波动，价格高于成本价表示亏损）：全仓清仓
     立即清仓所有做空标的持仓（使用 availableQuantity）
 else:
     # 未盈利状态：智能平仓
@@ -503,8 +510,6 @@ N1 = sum(未平仓买入订单的 quantity)
 ### 5.4 代码实现位置
 
 - **文件**：`src/index.js`
-- **方法**：信号处理部分（index.js:1329-1458）
-- **辅助方法**：`orderRecorder.calculateSellQuantity(symbol, currentPrice, isLongSymbol)`
 
 ---
 
@@ -546,10 +551,13 @@ N1 = sum(未平仓买入订单的 quantity)
 #### 6.2.2 程序启动时初始化
 
 ```
-1. 从订单记录获取未平仓买入订单列表
-2. 计算开仓成本 R1 和持仓数量 N1
-3. 记录到浮亏监控缓存中
+1. 调用 orderRecorder.fetchOrdersFromAPI(symbol) 从 API 获取当日全部已成交买入/卖出订单，写入内部缓存（默认缓存有效期 5 分钟）
+2. 调用 orderRecorder.refreshOrders(symbol, isLong, false) 从缓存中计算当前仍需记录的买入订单列表（用于智能清仓）
+3. 调用 riskChecker.refreshUnrealizedLossData(orderRecorder, symbol, isLong) 从已过滤的订单列表计算开仓成本 R1 和持仓数量 N1
+4. 记录到浮亏监控缓存中
 ```
+
+**注意**：`refreshUnrealizedLossData` 方法直接从 `orderRecorder._longBuyOrders/_shortBuyOrders` 读取已过滤的订单列表（这些订单已经通过 M0 + MN 过滤算法处理），而不是从全部买入/卖出订单计算。
 
 #### 6.2.3 实时监控浮亏
 
@@ -560,17 +568,25 @@ N1 = sum(未平仓买入订单的 quantity)
 
 **更新时机**：
 
-- 每次实时价格更新时计算
-- 每次买入或卖出操作后重新计算（等待订单记录刷新完成）
+- 每次实时价格更新时计算（仅在价格变化时检查）
+- 每次买入或卖出操作后重新计算（等待订单记录本地更新完成）
 
 #### 6.2.4 浮亏数据刷新流程
 
 **买入/卖出操作后**：
 
 ```
-1. 等待订单记录刷新完成（refreshOrders）
-2. 从订单记录重新计算开仓成本 R1 和持仓数量 N1
+1. 调用 orderRecorder.recordLocalBuy() 或 recordLocalSell() 本地更新订单记录（不再调用 API）
+2. 调用 riskChecker.refreshUnrealizedLossData(orderRecorder, symbol, isLong) 从已更新的订单列表重新计算开仓成本 R1 和持仓数量 N1
 3. 更新浮亏监控缓存
+```
+
+**保护性清仓后**：
+
+```
+1. 执行市价单清仓
+2. 调用 orderRecorder.refreshOrders(symbol, isLong, true) 强制刷新订单记录（forceRefresh=true，从 API 获取最新状态）
+3. 调用 riskChecker.refreshUnrealizedLossData(orderRecorder, symbol, isLong) 重新计算浮亏数据
 ```
 
 ---
@@ -689,9 +705,10 @@ if 距回收价百分比 > -0.5%:
 ```
 1. 交易时段检查（是否在交易时间）
 2. 交易频率检查（同方向60秒内不能重复买入，若不通过直接拒绝，不进行后续检查）
-3. 末日保护程序检查（收盘前15分钟拒绝买入）
-4. 牛熊证距回收价检查（距离过近时拦截）
-5. 基础风险检查：
+3. 买入前价格检查（若当前标的价格 > 订单记录里最新订单的成交价则拒绝买入）
+4. 末日保护程序检查（收盘前15分钟拒绝买入）
+5. 牛熊证距回收价检查（距离过近时拦截）
+6. 基础风险检查：
    - 浮亏检查（X < -MAX_DAILY_LOSS 时拦截）
    - 最大持仓市值检查（超过限制时拦截）
 ```
@@ -700,15 +717,29 @@ if 距回收价百分比 > -0.5%:
 
 ---
 
+### 6.6.1 买入前价格检查
+
+**检查时机**：买入前（在交易频率检查之后）
+
+**检查逻辑**：
+
+- 从订单记录获取该标的的最新买入订单的成交价
+- 若当前标的价格大于最新订单的成交价，则拒绝买入
+- 若当前标的价格小于或等于最新订单的成交价，则允许买入
+- 若没有历史订单，则允许买入
+
+**重要提示**：
+
+- 做多标的和做空标的**分开检查**，互不影响
+- 此检查在交易频率检查之后、末日保护程序检查之前执行
+- 目的是防止在价格上涨时追高买入
+
+---
+
 ### 6.7 代码实现位置
 
 - **文件**：`src/core/risk.js`
 - **类**：`RiskChecker`
-- **关键方法**：
-  - `checkUnrealizedLossBeforeBuy(symbol, isLongSymbol)`：买入前浮亏检查
-  - `shouldExecuteProtectiveLiquidation(symbol, isLongSymbol)`：避难程序触发检查
-  - `checkWarrantCallPrice(symbol, currentPrice, isLongSymbol)`：牛熊证距回收价检查
-  - `refreshUnrealizedLossData(orderRecorder, symbol, isLongSymbol)`：刷新浮亏数据
 
 ---
 
@@ -755,10 +786,6 @@ if 最新价 < 委托价:
 ### 7.5 代码实现位置
 
 - **文件**：`src/core/trader.js`
-- **方法**：
-  - `monitorAndManageOrders(longQuote, shortQuote)`：监控和管理订单
-  - `replaceOrderPrice(orderId, newPrice, quantity)`：修改订单价格
-  - `enableBuyOrderMonitoring()`：启用买入订单监控
 
 ---
 
@@ -871,7 +898,7 @@ if 最新价 < 委托价:
 | 参数                         | 说明                                                    | 示例             |
 | ---------------------------- | ------------------------------------------------------- | ---------------- |
 | `VERIFICATION_DELAY_SECONDS` | 延迟验证时间间隔（秒，范围 0-120）                      | `60`（默认）     |
-| `VERIFICATION_INDICATORS`    | 验证指标列表（可选：K, D, J, MACD, DIF, DEA，逗号分隔） | `K,MACD`（默认） |
+| `VERIFICATION_INDICATORS`    | 验证指标列表（可选：K, D, J, MACD, DIF, DEA，逗号分隔） | `J,MACD`（默认） |
 
 ### 9.5 信号配置（必需）
 
@@ -963,20 +990,21 @@ if 最新价 < 委托价:
 
 ## 12. 代码文件映射
 
-| 业务逻辑     | 代码文件                     | 关键方法/类                                             |
-| ------------ | ---------------------------- | ------------------------------------------------------- |
-| 监控和显示   | `src/index.js`               | `runOnce()` 主循环                                      |
-| 交易信号生成 | `src/core/strategy.js`       | `HangSengMultiIndicatorStrategy.generateCloseSignals()` |
-| 买入验证策略 | `src/index.js`               | 延迟信号处理部分（index.js:610-1121）                   |
-| 订单记录策略 | `src/core/orderRecorder.js`  | `OrderRecorder.refreshOrders()`                         |
-| 卖出策略     | `src/index.js`               | `calculateSellQuantity()` 函数（index.js:164-266）      |
-| 风险管控     | `src/core/risk.js`           | `RiskChecker` 类                                        |
-| 修改订单     | `src/core/trader.js`         | `Trader.monitorAndManageOrders()`                       |
-| 订单执行     | `src/core/trader.js`         | `Trader.executeSignals()`                               |
-| 技术指标计算 | `src/services/indicators.js` | `buildIndicatorSnapshot()`                              |
+| 业务逻辑     | 代码文件                     |
+| ------------ | ---------------------------- |
+| 监控和显示   | `src/index.js`               |
+| 交易信号生成 | `src/core/strategy.js`       |
+| 买入验证策略 | `src/index.js`               |
+| 订单记录策略 | `src/core/orderRecorder.js`  |
+| 卖出策略     | `src/index.js`               |
+| 风险管控     | `src/core/risk.js`           |
+| 修改订单     | `src/core/trader.js`         |
+| 订单执行     | `src/core/trader.js`         |
+| 技术指标计算 | `src/services/indicators.js` |
 
 ---
 
 ## 版本历史
 
+- **v1.0.1** (2025-12-23): 审查并确认文档与核心业务逻辑一致
 - **v1.0.0** (2024-12-20): 初始版本，完整业务逻辑说明文档

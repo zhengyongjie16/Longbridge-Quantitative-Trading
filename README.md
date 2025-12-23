@@ -133,7 +133,7 @@ src/
 当触发买入做多标信号并进入验证阶段时：
 
 1. **立即记录**：记录所有配置的验证指标的初始值（indicators1）
-   - 默认使用 K 和 MACD 两个指标
+   - 推荐使用 D 和 DIF 两个指标
    - 可通过 `VERIFICATION_INDICATORS` 环境变量配置（可选：K, D, J, MACD, DIF, DEA）
 2. **等待延迟时间**：默认 60 秒，可通过 `VERIFICATION_DELAY_SECONDS` 环境变量配置（范围 0-120 秒）
    - 例如触发信号的时间为 10:30:30，延迟 60 秒，需等待至 10:31:30
@@ -142,7 +142,7 @@ src/
    - 优先：精确匹配目标时间（triggerTime）
    - 备选：距离目标时间最近的值（误差 ≤ 5 秒）
 4. **验证条件**：所有配置指标的第二个值都要大于第一个值
-   - 例如：如果配置了 K 和 MACD，则要求 K2 > K1 **且** MACD2 > MACD1
+   - 例如：如果配置了 D 和 DIF，则要求 D2 > D1 **且** DIF2 > DIF1
 5. **验证失败**：若验证条件不满足，则放弃该信号
 
 #### 2. 卖出做多标的（SELLCALL）- 立即执行
@@ -193,7 +193,7 @@ src/
 当触发买入做空标信号并进入验证阶段时：
 
 1. **立即记录**：记录所有配置的验证指标的初始值（indicators1）
-   - 默认使用 K 和 MACD 两个指标
+   - 推荐使用 D 和 DIF 两个指标
    - 可通过 `VERIFICATION_INDICATORS` 环境变量配置（可选：K, D, J, MACD, DIF, DEA）
 2. **等待延迟时间**：默认 60 秒，可通过 `VERIFICATION_DELAY_SECONDS` 环境变量配置（范围 0-120 秒）
    - 例如触发信号的时间为 10:30:30，延迟 60 秒，需等待至 10:31:30
@@ -202,7 +202,7 @@ src/
    - 优先：精确匹配目标时间（triggerTime）
    - 备选：距离目标时间最近的值（误差 ≤ 5 秒）
 4. **验证条件**：所有配置指标的第二个值都要小于第一个值
-   - 例如：如果配置了 K 和 MACD，则要求 K2 < K1 **且** MACD2 < MACD1
+   - 例如：如果配置了 D 和 DIF，则要求 D2 < D1 **且** DIF2 < DIF1
 5. **验证失败**：若验证条件不满足，则放弃该信号
 
 #### 4. 卖出做空标的（SELLPUT）- 立即执行
@@ -225,8 +225,8 @@ src/
 
 **卖出策略（在信号触发后执行）：**
 
-- **若当前做空标的价格 < 持仓成本价**：立即清仓所有做空标的持仓（做空标的价格下跌为盈利）
-- **若当前做空标的价格 ≥ 持仓成本价**：
+- **若当前做空标的价格 > 持仓成本价**：立即清仓所有做空标的持仓（做空标的会随监控标的反方向波动）
+- **若当前做空标的价格 ≤ 持仓成本价**：
   - 检查做空标的的历史买入且已成交订单（已记录的订单）
   - 找出买入价 < 当前价的订单
   - 获取这些订单的全部成交数量
@@ -280,6 +280,15 @@ src/
 - **卖出操作**：不受频率限制
 - **检查顺序**：对于买入操作，交易频率检查是最先进行的检查，若不通过直接拒绝，不进行后续风险检查
 
+### 7. 买入前价格检查
+
+- **检查时机**：买入前
+- **检查逻辑**：
+  - 检查订单记录里该标的的最新买入订单的成交价
+  - 若当前标的价格 > 最新订单的成交价，则拒绝买入
+  - 若当前标的价格 ≤ 最新订单的成交价，则允许买入
+- **注意**：做多标的和做空标的分开检查，互不影响
+
 ### 5. 末日保护程序
 
 - **收盘前 15 分钟拒绝买入**：当末日保护程序启用时，收盘前 15 分钟内禁止所有买入操作（卖出操作不受影响）
@@ -303,21 +312,23 @@ src/
 - **初始化流程（程序启动时）**：
   1. 调用 `orderRecorder.fetchOrdersFromAPI(symbol)` 从 LongPort API 获取当日全部已成交买入/卖出订单，写入内部缓存（默认缓存有效期 5 分钟）
   2. 调用 `orderRecorder.refreshOrders(symbol, isLong, false)` 从缓存中计算当前仍需记录的买入订单列表（用于智能清仓）
-  3. 调用 `riskChecker.refreshUnrealizedLossData(orderRecorder, symbol, isLong, false)` 从缓存中读取全部买入/卖出订单，计算并缓存 R1 与 N1
+  3. 调用 `riskChecker.refreshUnrealizedLossData(orderRecorder, symbol, isLong)` 从已过滤的订单列表计算并缓存 R1 与 N1
+  - **注意**：`refreshUnrealizedLossData` 方法直接从 `orderRecorder._longBuyOrders/_shortBuyOrders` 读取已过滤的订单列表（这些订单已经通过 M0 + MN 过滤算法处理），而不是从全部买入/卖出订单计算
 - **运行时更新（每次成交后）**：
   - 买入成交后：
     - `orderRecorder.recordLocalBuy()` 本地追加买入记录（不再调用 todayOrders）
-    - `riskChecker.updateUnrealizedLossDataAfterTrade(..., isBuy=true, executedPrice, executedQuantity)` 增量更新 R1 和 N1
+    - `riskChecker.refreshUnrealizedLossData(orderRecorder, symbol, isLong)` 从已更新的订单列表重新计算 R1 和 N1
   - 卖出成交后：
     - `orderRecorder.recordLocalSell()` 本地按规则过滤/清空买入记录
-    - `riskChecker.updateUnrealizedLossDataAfterTrade(..., isBuy=false, executedPrice, executedQuantity)` 根据卖出数量增量减少 R1 和 N1（视为按当前成交价摊销）
+    - `riskChecker.refreshUnrealizedLossData(orderRecorder, symbol, isLong)` 从已更新的订单列表重新计算 R1 和 N1
 - **保护性清仓触发逻辑**：
   - 在 `index.js` 的主循环中，当监控到做多/做空标的价格变化时：
     - 调用 `riskChecker.checkUnrealizedLoss(symbol, currentPrice, isLong)`，使用缓存的 R1/N1 与最新价格计算浮亏
     - 如果 `浮亏 < -MAX_UNREALIZED_LOSS_PER_SYMBOL`：
       - 生成市价清仓信号（`useMarketOrder: true`，`SignalType.SELLCALL` 或 `SignalType.SELLPUT`）
       - 通过 `trader.executeSignals()` 立即市价清仓
-      - 清仓完成后调用 `riskChecker.refreshUnrealizedLossData(orderRecorder, symbol, isLong, true)` 强制刷新浮亏数据（内部会使用 `forceRefresh=true` 重新从 todayOrders 获取订单并重算 R1/N1），确保后续监控基于最新成交状态
+      - 清仓完成后调用 `orderRecorder.refreshOrders(symbol, isLong, true)` 强制刷新订单记录（forceRefresh=true，从 API 获取最新状态）
+      - 然后调用 `riskChecker.refreshUnrealizedLossData(orderRecorder, symbol, isLong)` 从刷新后的订单列表重新计算 R1/N1，确保后续监控基于最新成交状态
   - 当未启用浮亏保护（`MAX_UNREALIZED_LOSS_PER_SYMBOL <= 0`）时，上述流程自动跳过，不会触发保护性清仓
 
 ---
@@ -414,7 +425,7 @@ src/
 ```bash
 # 克隆项目
 git clone <repository-url>
-cd LongBrigeAutomationProgram
+cd longBrige-automation-program
 
 # 安装依赖
 npm install
@@ -497,12 +508,13 @@ npm start
    - 计算技术指标（RSI、KDJ、MACD）
    - 生成交易信号（立即执行 + 延迟验证）
    - 对卖出信号进行成本价判断和卖出数量计算
-   - 验证延迟信号（60 秒后，检查 K2 和 MACD2）
+   - 验证延迟信号（60 秒后，检查配置的验证指标，默认 D2 和 DIF2）
    - 买入操作风险检查（按顺序）：
      1. 交易频率限制（若不通过直接拒绝）
-     2. 末日保护程序（收盘前 15 分钟拒绝买入）
-     3. 牛熊证风险检查（距离回收价百分比）
-     4. 基础风险检查（浮亏检查和持仓市值限制检查）
+     2. 买入前价格检查（若当前标的价格 > 订单记录里最新订单的成交价则拒绝买入）
+     3. 末日保护程序（收盘前 15 分钟拒绝买入）
+     4. 牛熊证风险检查（距离回收价百分比）
+     5. 基础风险检查（浮亏检查和持仓市值限制检查）
    - 执行交易订单
    - 监控未成交买入订单（价格优化）
    - 刷新订单记录（买入或卖出后）
@@ -571,7 +583,7 @@ npm start
 | `DEBUG`                          | 启用详细日志                                                | `false`     |
 | `MAX_UNREALIZED_LOSS_PER_SYMBOL` | 单标的浮亏保护阈值（HKD，0 表示关闭）                       | `0`（关闭） |
 | `VERIFICATION_DELAY_SECONDS`     | 延迟验证时间间隔（秒，范围 0-120）                          | `60`        |
-| `VERIFICATION_INDICATORS`        | 延迟验证指标列表（可选：K, D, J, MACD, DIF, DEA，逗号分隔） | `K,MACD`    |
+| `VERIFICATION_INDICATORS`        | 延迟验证指标列表（可选：K, D, J, MACD, DIF, DEA，逗号分隔） | `D,DIF`     |
 
 ---
 
@@ -747,7 +759,7 @@ MFI 值范围：0-100
 ### 代码结构
 
 ```
-LongBrigeAutomationProgram/
+longBrige-automation-program/
 ├── src/                        # 源代码目录
 │   ├── index.js                # 主程序入口
 │   ├── strategy.js             # 交易策略
@@ -825,9 +837,10 @@ LongBrigeAutomationProgram/
   - 卖出做空标的：KDJ.D 阈值 < 22
 - ✅ **完善验证阶段策略**：
   - 详细说明 60 秒延迟验证的具体流程
-  - 明确 K1、MACD1 的记录时机和 K2、MACD2 的获取方式（优先精确匹配，失败则获取 5 秒内最近值）
-  - 买入做多标的：K2 > K1 且 MACD2 > MACD1
-  - 买入做空标的：K2 < K1 且 MACD2 < MACD1
+  - 明确验证指标的记录时机和获取方式（优先精确匹配，失败则获取 5 秒内最近值）
+  - 验证条件支持配置多个指标（推荐使用 D 和 DIF）
+  - 买入做多标的：所有配置指标的第二个值都要大于第一个值
+  - 买入做空标的：所有配置指标的第二个值都要小于第一个值
 - ✅ **完善订单记录逻辑**：
   - 明确记录时机：程序启动时、每次买入/卖出后
   - 详细说明 M0 + MN 过滤算法（从最旧的卖出订单开始依次处理）
