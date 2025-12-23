@@ -645,11 +645,17 @@ export class OrderRecorder {
       return [];
     }
 
-    return this._longBuyOrders.filter(
+    const filteredOrders = this._longBuyOrders.filter(
       (order) =>
         Number.isFinite(order.executedPrice) &&
         order.executedPrice < currentPrice
     );
+
+    logger.debug(
+      `[根据订单记录过滤] 当前价格${currentPrice} 当前订单${this._longBuyOrders}，过滤后的订单${filteredOrders}`
+    );
+
+    return filteredOrders;
   }
 
   /**

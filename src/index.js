@@ -1396,11 +1396,12 @@ async function runOnce({
           const directionKey =
             sig.action === SignalType.BUYCALL ? "LONG" : "SHORT";
           const lastTime = trader._lastBuyTime.get(directionKey);
+          const intervalMs = TRADING_CONFIG.buyIntervalSeconds * 1000;
           const waitSeconds = lastTime
-            ? Math.ceil((60 * 1000 - (Date.now() - lastTime)) / 1000)
+            ? Math.ceil((intervalMs - (Date.now() - lastTime)) / 1000)
             : 0;
           logger.warn(
-            `[交易频率限制] ${direction} 在1分钟内已买入过，需等待 ${waitSeconds} 秒后才能再次买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`
+            `[交易频率限制] ${direction} 在${TRADING_CONFIG.buyIntervalSeconds}秒内已买入过，需等待 ${waitSeconds} 秒后才能再次买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`
           );
           continue; // 跳过这个买入信号，不进行后续检查
         }

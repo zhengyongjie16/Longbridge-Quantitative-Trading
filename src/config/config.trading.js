@@ -127,6 +127,26 @@ export const TRADING_CONFIG = {
   // 默认值在 .env 文件中设置为 true
   doomsdayProtection: getBooleanConfig("DOOMSDAY_PROTECTION"),
 
+  // 同方向买入时间间隔（秒），范围 10-600，默认 60 秒
+  // 用于限制同一方向（做多或做空）的买入频率，避免短时间内重复买入
+  buyIntervalSeconds: (() => {
+    const interval = getNumberConfig("BUY_INTERVAL_SECONDS", 0);
+    // 如果未设置，默认为 60 秒
+    if (interval === null) {
+      return 60;
+    }
+    // 限制范围在 10-600 秒之间
+    if (interval < 10) {
+      console.warn("[配置警告] BUY_INTERVAL_SECONDS 不能小于 10，已设置为 10");
+      return 10;
+    }
+    if (interval > 600) {
+      console.warn("[配置警告] BUY_INTERVAL_SECONDS 不能大于 600，已设置为 600");
+      return 600;
+    }
+    return interval;
+  })(),
+
   // 延迟验证配置
   verificationConfig: {
     // 验证时间间隔（秒），范围 0-120，默认 60 秒

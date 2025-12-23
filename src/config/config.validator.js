@@ -274,6 +274,23 @@ function validateTradingConfig() {
     }
   }
 
+  // 验证同方向买入时间间隔配置（可选）
+  // 注意：直接验证原始环境变量，而不是已处理的配置值
+  const buyIntervalEnv = process.env.BUY_INTERVAL_SECONDS;
+  if (buyIntervalEnv && buyIntervalEnv.trim() !== "") {
+    const buyInterval = Number(buyIntervalEnv);
+    if (
+      !Number.isFinite(buyInterval) ||
+      buyInterval < 10 ||
+      buyInterval > 600
+    ) {
+      errors.push(
+        `BUY_INTERVAL_SECONDS 配置无效（当前值: ${buyIntervalEnv}，必须在 10-600 秒范围内）`
+      );
+      missingFields.push("BUY_INTERVAL_SECONDS");
+    }
+  }
+
   // 验证延迟验证指标配置（可选）
   // 注意：直接验证原始环境变量，而不是已处理的配置值
   const indicatorsEnv = process.env.VERIFICATION_INDICATORS;
@@ -470,6 +487,7 @@ export async function validateAllConfig() {
   logger.info(
     `是否启动末日保护: ${TRADING_CONFIG.doomsdayProtection ? "是" : "否"}`
   );
+  logger.info(`同方向买入时间间隔: ${TRADING_CONFIG.buyIntervalSeconds} 秒`);
 
   // 显示延迟验证配置
   const verificationConfig = TRADING_CONFIG.verificationConfig;

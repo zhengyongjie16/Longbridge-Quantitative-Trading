@@ -104,7 +104,7 @@ npm start
   - `executeSignals()`：根据过滤后的信号提交订单
   - `monitorAndManageOrders()`：监控未成交买入订单，市场价下跌时降低委托价
   - `_submitTargetOrder()`：根据目标金额计算数量并提交 ELO 订单
-- **交易频率限制**：同方向 60 秒内不能重复买入
+- **交易频率限制**：同方向买入时间间隔可配置（`BUY_INTERVAL_SECONDS`，范围10-600秒，默认60秒）
 - **订单类型**：所有订单使用 `ELO`（增强限价单），保护性清仓使用 `MO`（市价单）
 - **买单监控**：买入信号执行后自动启用，所有订单成交后停止
 - **Trade API 频率限制**：
@@ -537,6 +537,7 @@ Trader 日志显示：
 - MAX_UNREALIZED_LOSS_PER_SYMBOL（单标的浮亏保护阈值，默认：0，关闭保护）
 - VERIFICATION_DELAY_SECONDS（延迟验证时间间隔，范围 0-120 秒，未设置时默认 60，设为 0 表示不延迟验证）
 - VERIFICATION_INDICATORS（延迟验证指标列表，可选值：K, D, J, MACD, DIF, DEA，逗号分隔，留空或不设置表示不延迟验证，推荐 D,DIF）
+- BUY_INTERVAL_SECONDS（同方向买入时间间隔，范围 10-600 秒，默认 60 秒，用于限制同一方向的买入频率）
 
 如果任何必需配置缺失或无效，启动将失败（config.validator.js 检查所有设置）。
 

@@ -702,9 +702,9 @@ export class Trader {
 
     const now = Date.now();
     const timeDiff = now - lastTime;
-    const oneMinute = 60 * 1000; // 1分钟 = 60000毫秒
+    const intervalMs = TRADING_CONFIG.buyIntervalSeconds * 1000; // 使用配置的间隔时间
 
-    return timeDiff >= oneMinute;
+    return timeDiff >= intervalMs;
   }
 
   /**
