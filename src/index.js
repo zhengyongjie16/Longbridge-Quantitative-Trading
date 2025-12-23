@@ -18,6 +18,7 @@ import {
   formatNumber,
   getSymbolName,
   formatQuoteDisplay,
+  toBeijingTimeLog,
 } from "./utils/helpers.js";
 
 /**
@@ -32,17 +33,17 @@ function getIndicatorValue(state, indicatorName) {
   const { kdj, macd } = state;
 
   switch (indicatorName) {
-    case 'K':
+    case "K":
       return kdj && Number.isFinite(kdj.k) ? kdj.k : null;
-    case 'D':
+    case "D":
       return kdj && Number.isFinite(kdj.d) ? kdj.d : null;
-    case 'J':
+    case "J":
       return kdj && Number.isFinite(kdj.j) ? kdj.j : null;
-    case 'MACD':
+    case "MACD":
       return macd && Number.isFinite(macd.macd) ? macd.macd : null;
-    case 'DIF':
+    case "DIF":
       return macd && Number.isFinite(macd.dif) ? macd.dif : null;
-    case 'DEA':
+    case "DEA":
       return macd && Number.isFinite(macd.dea) ? macd.dea : null;
     default:
       return null;
@@ -354,9 +355,13 @@ async function runOnce({
   // 如果获取到了行情数据，记录一下行情时间用于调试（仅在DEBUG模式下）
   if (process.env.DEBUG === "true" && longQuote?.timestamp) {
     const quoteTime = longQuote.timestamp;
-    logger.debug(
-      `[交易时段检查] 当前系统时间: ${currentTime.toISOString()}, 行情时间: ${quoteTime.toISOString()}, 是否在交易时段: ${canTradeNow}`
-    );
+    // logger.debug(
+    //   `[交易时段检查] 当前系统时间: ${toBeijingTimeLog(
+    //     currentTime
+    //   )}, 行情时间: ${toBeijingTimeLog(
+    //     quoteTime
+    //   )}, 是否在交易时段: ${canTradeNow}`
+    // );
   }
 
   // 检测交易时段变化
@@ -843,7 +848,7 @@ async function runOnce({
       // 获取indicators1（从信号中获取，触发时已记录）
       const indicators1 = pendingSignal.indicators1;
 
-      if (!indicators1 || typeof indicators1 !== 'object') {
+      if (!indicators1 || typeof indicators1 !== "object") {
         logger.warn(
           `[延迟验证错误] ${pendingSignal.symbol} 缺少indicators1，跳过验证`
         );
@@ -862,7 +867,8 @@ async function runOnce({
 
       // 验证所有配置的指标值是否有效
       let allIndicators1Valid = true;
-      for (const indicatorName of TRADING_CONFIG.verificationConfig.indicators) {
+      for (const indicatorName of TRADING_CONFIG.verificationConfig
+        .indicators) {
         if (!Number.isFinite(indicators1[indicatorName])) {
           allIndicators1Valid = false;
           break;
@@ -951,7 +957,8 @@ async function runOnce({
 
       // 验证所有配置的指标值是否有效
       let allIndicators2Valid = true;
-      for (const indicatorName of TRADING_CONFIG.verificationConfig.indicators) {
+      for (const indicatorName of TRADING_CONFIG.verificationConfig
+        .indicators) {
         if (!Number.isFinite(indicators2[indicatorName])) {
           allIndicators2Valid = false;
           break;
@@ -1003,7 +1010,8 @@ async function runOnce({
       let hasInvalidValue = false;
 
       // 遍历所有配置的指标进行验证
-      for (const indicatorName of TRADING_CONFIG.verificationConfig.indicators) {
+      for (const indicatorName of TRADING_CONFIG.verificationConfig
+        .indicators) {
         const value1 = indicators1[indicatorName];
         const value2 = indicators2[indicatorName];
 
@@ -1018,23 +1026,27 @@ async function runOnce({
         }
 
         // 根据指标类型选择合适的小数位数
-        const decimals = ['MACD', 'DIF', 'DEA'].includes(indicatorName) ? 4 : 2;
+        const decimals = ["MACD", "DIF", "DEA"].includes(indicatorName) ? 4 : 2;
 
         let indicatorPassed = false;
-        let comparisonSymbol = '';
+        let comparisonSymbol = "";
 
         if (isBuyCall) {
           // 买入做多：所有指标的第二个值都要大于第一个值
           indicatorPassed = value2 > value1;
-          comparisonSymbol = indicatorPassed ? '>' : '<=';
+          comparisonSymbol = indicatorPassed ? ">" : "<=";
         } else if (isBuyPut) {
           // 买入做空：所有指标的第二个值都要小于第一个值
           indicatorPassed = value2 < value1;
-          comparisonSymbol = indicatorPassed ? '<' : '>=';
+          comparisonSymbol = indicatorPassed ? "<" : ">=";
         }
 
         // 构建详细信息字符串
-        const detail = `${indicatorName}1=${value1.toFixed(decimals)} ${indicatorName}2=${value2.toFixed(decimals)} (${indicatorName}2${comparisonSymbol}${indicatorName}1)`;
+        const detail = `${indicatorName}1=${value1.toFixed(
+          decimals
+        )} ${indicatorName}2=${value2.toFixed(
+          decimals
+        )} (${indicatorName}2${comparisonSymbol}${indicatorName}1)`;
         verificationDetails.push(detail);
 
         if (!indicatorPassed) {
@@ -1059,11 +1071,11 @@ async function runOnce({
       }
 
       // 构建验证原因字符串
-      let verificationReason = verificationDetails.join(' ');
+      let verificationReason = verificationDetails.join(" ");
       verificationReason += ` 时间差=${timeDiffSeconds.toFixed(1)}秒`;
 
       if (!verificationPassed) {
-        verificationReason += ` [失败指标: ${failedIndicators.join(', ')}]`;
+        verificationReason += ` [失败指标: ${failedIndicators.join(", ")}]`;
       }
 
       if (verificationPassed) {
@@ -1406,13 +1418,21 @@ async function runOnce({
           if (currentPrice > latestBuyPrice) {
             const direction = isLongBuyAction ? "做多标的" : "做空标的";
             logger.warn(
-              `[买入价格限制] ${direction} 当前价格 ${currentPrice.toFixed(3)} 高于最新买入订单价格 ${latestBuyPrice.toFixed(3)}，拒绝买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`
+              `[买入价格限制] ${direction} 当前价格 ${currentPrice.toFixed(
+                3
+              )} 高于最新买入订单价格 ${latestBuyPrice.toFixed(
+                3
+              )}，拒绝买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`
             );
             continue; // 跳过这个买入信号，不进行后续检查
           } else {
             const direction = isLongBuyAction ? "做多标的" : "做空标的";
             logger.info(
-              `[买入价格限制] ${direction} 当前价格 ${currentPrice.toFixed(3)} 低于或等于最新买入订单价格 ${latestBuyPrice.toFixed(3)}，允许买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`
+              `[买入价格限制] ${direction} 当前价格 ${currentPrice.toFixed(
+                3
+              )} 低于或等于最新买入订单价格 ${latestBuyPrice.toFixed(
+                3
+              )}，允许买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`
             );
           }
         }
