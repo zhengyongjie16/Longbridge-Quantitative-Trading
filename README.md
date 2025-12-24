@@ -317,7 +317,7 @@ src/
   - **注意**：`refreshUnrealizedLossData` 方法直接从 `orderRecorder._longBuyOrders/_shortBuyOrders` 读取已过滤的订单列表（这些订单已经通过 M0 + MN 过滤算法处理），而不是从全部买入/卖出订单计算
 - **运行时更新（每次成交后）**：
   - 买入成交后：
-    - `orderRecorder.recordLocalBuy()` 本地追加买入记录（不再调用 todayOrders）
+    - `orderRecorder.recordLocalBuy()` 本地追加买入记录（不再调用 historyOrders）
     - `riskChecker.refreshUnrealizedLossData(orderRecorder, symbol, isLong)` 从已更新的订单列表重新计算 R1 和 N1
   - 卖出成交后：
     - `orderRecorder.recordLocalSell()` 本地按规则过滤/清空买入记录
@@ -370,7 +370,10 @@ src/
 
 1. **获取订单**：
 
-   - 调用 `orderRecorder.fetchOrdersFromAPI(symbol)` 获取当日全部买入/卖出已成交订单，并写入内部缓存（含 `fetchTime`，有效期默认 5 分钟）
+   - 程序启动时调用 `orderRecorder.fetchOrdersFromAPIWithRetry(symbol)` 获取历史全部买入/卖出已成交订单
+   - 使用重试机制：每 10 秒重试一次，最多重试 30 次（约 5 分钟）
+   - 如果重试失败，该标的会被禁用交易（信号执行时跳过）
+   - 获取成功后写入内部缓存（含 `fetchTime`，有效期默认 5 分钟）
    - 调用 `orderRecorder.refreshOrders(symbol, isLong, false)` 从缓存中读取订单并进行过滤
    - 做多标的和做空标的分开获取和记录
 
@@ -396,7 +399,7 @@ src/
 **运行时本地更新逻辑：**
 
 - 买入后（已提交且信号通过所有风控）：
-  - `recordLocalBuy(symbol, executedPrice, executedQuantity, isLong)` 直接在内存中追加一条买入记录，不再重新调用 todayOrders
+  - `recordLocalBuy(symbol, executedPrice, executedQuantity, isLong)` 直接在内存中追加一条买入记录，不再重新调用 historyOrders
 - 卖出后：
   - `recordLocalSell(symbol, executedPrice, executedQuantity, isLong)` 按以下规则本地更新：
     - 若卖出数量 ≥ 当前记录的总数量：认为全部卖出，清空记录
@@ -408,7 +411,7 @@ src/
   - 检查当前记录的买入订单列表（已按 M0 + MN 规则处理）
   - 找出买入价 < 当前价的订单
   - 获取这些订单的全部成交数量并以当前价卖出
-- 实现“只卖盈利部分”的精细化清仓策略，同时利用缓存和本地增量更新避免重复调用 todayOrders
+- 实现"只卖盈利部分"的精细化清仓策略，同时利用缓存和本地增量更新避免重复调用 historyOrders
 
 ---
 
@@ -522,8 +525,8 @@ npm start
 
 3. **交易时段判断**
 
-   - 上午连续交易时段：09:30 - 12:00
-   - 下午连续交易时段：13:00 - 16:00
+   - 正常交易日：上午 09:30 - 12:00，下午 13:00 - 16:00
+   - 半日交易日：仅上午 09:30 - 12:00（无下午时段）
    - 非交易时段暂停监控
    - 自动识别交易日和半日交易日
 
@@ -675,7 +678,7 @@ MFI 值范围：0-100
 
 **解决方法**：
 
-- 港股连续交易时段：09:30-12:00, 13:00-16:00
+- 港股连续交易时段：正常交易日 09:30-12:00 和 13:00-16:00，半日交易日仅 09:30-12:00
 - 检查系统时间是否正确
 - 确认当天是交易日（非周末、节假日）
 

@@ -49,7 +49,7 @@ npm start
 **路径**：`D:\Code\longBrige-automation-program\src\index.js`
 
 - **主循环**：`runOnce()` 每秒执行一次
-- **交易时段检查**：验证港股交易时间（09:30-12:00, 13:00-16:00）
+- **交易时段检查**：验证港股交易时间（正常日 09:30-12:00 和 13:00-16:00，半日仅 09:30-12:00）
 - **状态管理**：维护 `lastState` 对象，在循环迭代间保持：
   - 待验证的延迟信号（等待 60 秒验证）
   - 缓存的账户/持仓数据
@@ -64,7 +64,7 @@ npm start
 
 **关键函数**：
 
-- `isInContinuousHKSession()` - 交易时段验证
+- `isInContinuousHKSession(date, isHalfDay)` - 交易时段验证（半日交易日仅上午时段）
 - `isBeforeClose15Minutes()` / `isBeforeClose5Minutes()` - 收盘前检查
 - `getHKTime()` - UTC 到香港时区转换
 
@@ -173,9 +173,10 @@ npm start
   - M0：最新买入，还未经历卖出
   - 过滤后的订单：历史高价买入且未被完全卖出的订单（价格高于对应卖出价或数量超出）
 - **智能清仓**：当 currentPrice ≤ costPrice 时，仅卖出 buyPrice < currentPrice 的订单（盈利部分）
-- **todayOrders 调用与缓存**：
-  - todayOrders 只通过 `fetchOrdersFromAPI(symbol)` 间接调用：
-    - 标准化 symbol → 调用 `ctx.todayOrders({ symbol })`
+- **historyOrders 调用与缓存**：
+  - historyOrders 通过 `fetchOrdersFromAPI(symbol)` 间接调用：
+    - 标准化 symbol → 调用 `ctx.historyOrders({ symbol, endAt: new Date() })`
+    - 只设置截止时间为当前时间，不设置开始时间，获取完整历史订单
     - 过滤出已成交买入/卖出单并转换为简化结构
     - 更新内部缓存：`_ordersCache.set(normalizedSymbol, { buyOrders, sellOrders, fetchTime })`
   - `_isCacheValid(normalizedSymbol, maxAgeMs=5*60*1000)`：
@@ -183,7 +184,18 @@ npm start
   - `_fetchAndConvertOrders(symbol, forceRefresh=false)`：
     - 当 `forceRefresh=false` 且缓存有效 → 返回缓存
     - 否则 → 调用 `fetchOrdersFromAPI(symbol)` 刷新缓存并返回
-- **运行时本地更新（避免频繁 todayOrders 调用）**：
+- **程序启动时的重试机制**：
+  - `fetchOrdersFromAPIWithRetry(symbol, maxRetries=30)`：
+    - 程序启动时调用，每 10 秒重试一次，最多重试 30 次（约 5 分钟）
+    - 成功后调用 `enableSymbol()` 确保标的可交易
+    - 所有重试都失败后调用 `disableSymbol()` 禁用该标的的交易
+- **标的禁用机制**：
+  - `_disabledSymbols`：Set 类型，记录因订单获取失败而被禁用的标的
+  - `isSymbolDisabled(symbol)`：检查标的是否被禁用
+  - `disableSymbol(symbol)`：禁用标的交易
+  - `enableSymbol(symbol)`：启用标的交易
+  - 禁用的标的在信号执行时会被跳过（index.js:1370-1376）
+- **运行时本地更新（避免频繁 historyOrders 调用）**：
   - `recordLocalBuy` / `recordLocalSell`：
     - 在交易执行后由 `index.js` 调用，仅更新内存中的买入记录，不触发 API 调用
   - 交易后刷新浮亏数据：
@@ -376,10 +388,10 @@ npm start
    ├─ OrderRecorder（链接到 Trader）
    └─ RiskChecker（带亏损/持仓限制）
 3. 显示初始账户和持仓信息（`displayAccountAndPositions`，并缓存 account/positions）
-4. 使用 todayOrders 初始化订单与浮亏数据（做多 + 做空）：
-   ├─ `orderRecorder.fetchOrdersFromAPI(longSymbol/shortSymbol)` → 从 API 获取当日订单并更新 5 分钟缓存
-   ├─ `orderRecorder.refreshOrders(symbol, isLong, false)` → 从缓存计算当前仍需记录的买入订单（用于智能清仓）
-   └─ `riskChecker.refreshUnrealizedLossData(orderRecorder, symbol, isLong, false)` → 从缓存读取全部买/卖单并计算 R1/N1
+4. 使用 historyOrders 初始化订单与浮亏数据（做多 + 做空，带重试机制）：
+   ├─ `orderRecorder.fetchOrdersFromAPIWithRetry(longSymbol/shortSymbol)` → 从 API 获取历史订单（带重试，失败则禁用标的）
+   ├─ `orderRecorder.refreshOrders(symbol, isLong, false)` → 从缓存计算当前仍需记录的买入订单（仅对未被禁用的标的执行）
+   └─ `riskChecker.refreshUnrealizedLossData(orderRecorder, symbol, isLong, false)` → 从缓存读取全部买/卖单并计算 R1/N1（仅对未被禁用的标的执行）
 5. 检查待处理买入订单 → 如有则启用订单监控
 6. 启动无限循环（`runOnce` 每秒执行）
 ```
@@ -405,7 +417,7 @@ const price = decimalToNumber(quote.lastDone);
 ### 时区处理
 
 - **系统内部使用 UTC**
-- **港股交易时间**（UTC+8）：09:30-12:00, 13:00-16:00
+- **港股交易时间**（UTC+8）：正常交易日 09:30-12:00 和 13:00-16:00，半日交易日仅 09:30-12:00
 - **日志显示北京时间**（UTC+8），通过 `toBeijingTimeIso()` 和 `toBeijingTimeLog()` 转换
 - **API 时间戳**为 UTC，仅在显示时转换
 

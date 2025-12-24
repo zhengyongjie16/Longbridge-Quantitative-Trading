@@ -68,12 +68,13 @@ function getHKTime(date) {
 /**
  * 判断是否在港股连续交易时段（仅检查时间，不检查是否是交易日）
  * 港股连续交易时段：
- * - 上午：09:30 - 12:00
- * - 下午：13:00 - 16:00
+ * - 正常交易日：上午 09:30 - 12:00，下午 13:00 - 16:00
+ * - 半日交易日：仅上午 09:30 - 12:00（无下午时段）
  * @param {Date} date 时间对象（应该是UTC时间）
+ * @param {boolean} isHalfDay 是否是半日交易日
  * @returns {boolean} true表示在连续交易时段，false表示不在
  */
-function isInContinuousHKSession(date) {
+function isInContinuousHKSession(date, isHalfDay = false) {
   if (!date) return false;
   // 将时间转换为香港时区（UTC+8）
   const hkTime = getHKTime(date);
@@ -84,6 +85,11 @@ function isInContinuousHKSession(date) {
   const inMorning =
     (hkHour === 9 && hkMinute >= 30) || // 9:30 - 9:59
     (hkHour >= 10 && hkHour < 12); // 10:00 - 11:59
+
+  // 半日交易日：仅上午时段有效，下午无交易
+  if (isHalfDay) {
+    return inMorning;
+  }
 
   // 下午连续交易时段：13:00 - 15:59:59
   // 注意：16:00:00 是收盘时间，不包含在连续交易时段内
@@ -333,7 +339,8 @@ async function runOnce({
   }
 
   // 如果是交易日，再检查是否在交易时段
-  const canTradeNow = isTradingDayToday && isInContinuousHKSession(currentTime);
+  // 半日交易日仅上午时段有效（09:30-12:00），下午无交易
+  const canTradeNow = isTradingDayToday && isInContinuousHKSession(currentTime, isHalfDayToday);
 
   // 并发获取三个标的的行情（优化性能：从串行改为并发）
   const [longQuote, shortQuote, monitorQuote] = await Promise.all([
@@ -1360,6 +1367,14 @@ async function runOnce({
         shortSymbolName
       );
 
+      // 0. 检查标的是否因订单获取失败而被禁用交易
+      if (orderRecorder.isSymbolDisabled(normalizedSigSymbol)) {
+        logger.warn(
+          `[交易禁用] 标的 ${normalizedSigSymbol} 因订单获取失败已被禁用交易，跳过信号：${sigName} ${sig.action}`
+        );
+        continue;
+      }
+
       // 获取标的的当前价格用于计算持仓市值
       let currentPrice = null;
       if (normalizedSigSymbol === normalizedLongSymbol && longQuote) {
@@ -2011,28 +2026,18 @@ async function main() {
   // 程序启动时立即获取一次账户和持仓信息
   await displayAccountAndPositions(trader, marketDataClient, lastState);
 
-  // 程序启动时从API获取订单数据并更新缓存
+  // 程序启动时从API获取订单数据并更新缓存（带重试机制）
   const longSymbol = TRADING_CONFIG.longSymbol;
   const shortSymbol = TRADING_CONFIG.shortSymbol;
   if (longSymbol) {
-    await orderRecorder.fetchOrdersFromAPI(longSymbol).catch((err) => {
-      logger.warn(
-        `[订单API获取失败] 做多标的 ${longSymbol}`,
-        err?.message ?? err
-      );
-    });
+    await orderRecorder.fetchOrdersFromAPIWithRetry(longSymbol);
   }
   if (shortSymbol) {
-    await orderRecorder.fetchOrdersFromAPI(shortSymbol).catch((err) => {
-      logger.warn(
-        `[订单API获取失败] 做空标的 ${shortSymbol}`,
-        err?.message ?? err
-      );
-    });
+    await orderRecorder.fetchOrdersFromAPIWithRetry(shortSymbol);
   }
 
-  // 程序启动时刷新订单记录（从缓存读取）
-  if (longSymbol) {
+  // 程序启动时刷新订单记录（从缓存读取，仅对未被禁用的标的执行）
+  if (longSymbol && !orderRecorder.isSymbolDisabled(longSymbol)) {
     await orderRecorder.refreshOrders(longSymbol, true, false).catch((err) => {
       logger.warn(
         `[订单记录初始化失败] 做多标的 ${longSymbol}`,
@@ -2040,7 +2045,7 @@ async function main() {
       );
     });
   }
-  if (shortSymbol) {
+  if (shortSymbol && !orderRecorder.isSymbolDisabled(shortSymbol)) {
     await orderRecorder
       .refreshOrders(shortSymbol, false, false)
       .catch((err) => {
@@ -2051,9 +2056,9 @@ async function main() {
       });
   }
 
-  // 程序启动时初始化浮亏监控数据（订单记录已在上面刷新）
+  // 程序启动时初始化浮亏监控数据（订单记录已在上面刷新，仅对未被禁用的标的执行）
   if (TRADING_CONFIG.maxUnrealizedLossPerSymbol > 0) {
-    if (longSymbol) {
+    if (longSymbol && !orderRecorder.isSymbolDisabled(longSymbol)) {
       await riskChecker
         .refreshUnrealizedLossData(orderRecorder, longSymbol, true)
         .catch((err) => {
@@ -2063,7 +2068,7 @@ async function main() {
           );
         });
     }
-    if (shortSymbol) {
+    if (shortSymbol && !orderRecorder.isSymbolDisabled(shortSymbol)) {
       await riskChecker
         .refreshUnrealizedLossData(orderRecorder, shortSymbol, false)
         .catch((err) => {
