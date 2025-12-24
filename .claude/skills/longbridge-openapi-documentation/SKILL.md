@@ -93,121 +93,121 @@ openapi-trade.longportapp.com
 
 ## SDK
 
-- [Introduction](https://open.longbridge.com/docs.md)
+- [Introduction](./reference/docs.md)
 
 ## Docs
 
-- [llm](https://open.longbridge.com/docs/llm.md)
-- [Refresh Token](https://open.longbridge.com/docs/refresh-token-api.md)
-- [Get Socket OTP (One time password)](https://open.longbridge.com/docs/socket-token-api.md)
-- [Getting Started](https://open.longbridge.com/docs/getting-started.md)
-- [Overview](https://open.longbridge.com/docs/how-to-access-api.md)
-- [Error Codes](https://open.longbridge.com/docs/error-codes.md)
+- [llm](./reference/docs/llm.md)
+- [Refresh Token](./reference/docs/refresh-token-api.md)
+- [Get Socket OTP (One time password)](./reference/docs/socket-token-api.md)
+- [Getting Started](./reference/docs/getting-started.md)
+- [Overview](./reference/docs/how-to-access-api.md)
+- [Error Codes](./reference/docs/error-codes.md)
 
 ## Socket
 
-- [Control commands](https://open.longbridge.com/docs/socket/control-command.md)
-- [Endpoints](https://open.longbridge.com/docs/socket/hosts.md)
-- [Subscribe Real-Time Market Data](https://open.longbridge.com/docs/socket/subscribe_quote.md)
-- [Access differences between WebSocket and TCP](https://open.longbridge.com/docs/socket/diff_ws_tcp.md)
-- [Subscribe Real-Time Trading Data](https://open.longbridge.com/docs/socket/subscribe_trade.md)
-- [Data Commands](https://open.longbridge.com/docs/socket/biz-command.md)
+- [Control commands](./reference/docs/socket/control-command.md)
+- [Endpoints](./reference/docs/socket/hosts.md)
+- [Subscribe Real-Time Market Data](./reference/docs/socket/subscribe_quote.md)
+- [Access differences between WebSocket and TCP](./reference/docs/socket/diff_ws_tcp.md)
+- [Subscribe Real-Time Trading Data](./reference/docs/socket/subscribe_trade.md)
+- [Data Commands](./reference/docs/socket/biz-command.md)
 
 ## Protocol
 
-- [Parse Header of Packet](https://open.longbridge.com/docs/socket/protocol/header.md)
-- [Parse Request Packet](https://open.longbridge.com/docs/socket/protocol/request.md)
-- [Parse Response Packet](https://open.longbridge.com/docs/socket/protocol/response.md)
-- [Parse Handshake](https://open.longbridge.com/docs/socket/protocol/handshake.md)
-- [Communication Model](https://open.longbridge.com/docs/socket/protocol/connect.md)
-- [Parse Push Packet](https://open.longbridge.com/docs/socket/protocol/push.md)
-- [Protocol Overview](https://open.longbridge.com/docs/socket/protocol/overview.md)
+- [Parse Header of Packet](./reference/docs/socket/protocol/header.md)
+- [Parse Request Packet](./reference/docs/socket/protocol/request.md)
+- [Parse Response Packet](./reference/docs/socket/protocol/response.md)
+- [Parse Handshake](./reference/docs/socket/protocol/handshake.md)
+- [Communication Model](./reference/docs/socket/protocol/connect.md)
+- [Parse Push Packet](./reference/docs/socket/protocol/push.md)
+- [Protocol Overview](./reference/docs/socket/protocol/overview.md)
 
 ## Qa
 
-- [Quote Releated](https://open.longbridge.com/docs/qa/broker.md)
-- [General](https://open.longbridge.com/docs/qa/general.md)
-- [Trade](https://open.longbridge.com/docs/qa/trade.md)
+- [Quote Releated](./reference/docs/qa/broker.md)
+- [General](./reference/docs/qa/general.md)
+- [Trade](./reference/docs/qa/trade.md)
 
 ## Trade
 
-- [Definition](https://open.longbridge.com/docs/trade/trade-definition.md)
-- [Overview](https://open.longbridge.com/docs/trade/trade-overview.md)
-- [Trade Push](https://open.longbridge.com/docs/trade/trade-push.md)
+- [Definition](./reference/docs/trade/trade-definition.md)
+- [Overview](./reference/docs/trade/trade-overview.md)
+- [Trade Push](./reference/docs/trade/trade-push.md)
 
 ## Execution
 
-- [Get History Executions](https://open.longbridge.com/docs/trade/execution/history_executions.md)
-- [Get Today Executions](https://open.longbridge.com/docs/trade/execution/today_executions.md)
+- [Get History Executions](./reference/docs/trade/execution/history_executions.md)
+- [Get Today Executions](./reference/docs/trade/execution/today_executions.md)
 
 ## Asset
 
-- [Get Margin Ratio](https://open.longbridge.com/docs/trade/asset/margin_ratio.md)
-- [Get Fund Positions](https://open.longbridge.com/docs/trade/asset/fund.md)
-- [Get Account Balance](https://open.longbridge.com/docs/trade/asset/account.md)
-- [Get Cash Flow](https://open.longbridge.com/docs/trade/asset/cashflow.md)
-- [Get Stock Positions](https://open.longbridge.com/docs/trade/asset/stock.md)
+- [Get Margin Ratio](./reference/docs/trade/asset/margin_ratio.md)
+- [Get Fund Positions](./reference/docs/trade/asset/fund.md)
+- [Get Account Balance](./reference/docs/trade/asset/account.md)
+- [Get Cash Flow](./reference/docs/trade/asset/cashflow.md)
+- [Get Stock Positions](./reference/docs/trade/asset/stock.md)
 
 ## Order
 
-- [Withdraw Order](https://open.longbridge.com/docs/trade/order/withdraw.md)
-- [Order Details](https://open.longbridge.com/docs/trade/order/order_detail.md)
-- [Estimate Maximum Purchase Quantity](https://open.longbridge.com/docs/trade/order/estimate_available_buy_limit.md)
-- [Submit Order](https://open.longbridge.com/docs/trade/order/submit.md)
-- [Get History Order](https://open.longbridge.com/docs/trade/order/history_orders.md)
-- [Replace Order](https://open.longbridge.com/docs/trade/order/replace.md)
-- [Get Today Order](https://open.longbridge.com/docs/trade/order/today_orders.md)
+- [Withdraw Order](./reference/docs/trade/order/withdraw.md)
+- [Order Details](./reference/docs/trade/order/order_detail.md)
+- [Estimate Maximum Purchase Quantity](./reference/docs/trade/order/estimate_available_buy_limit.md)
+- [Submit Order](./reference/docs/trade/order/submit.md)
+- [Get History Order](./reference/docs/trade/order/history_orders.md)
+- [Replace Order](./reference/docs/trade/order/replace.md)
+- [Get Today Order](./reference/docs/trade/order/today_orders.md)
 
 ## Quote
 
-- [Definition](https://open.longbridge.com/docs/quote/objects.md)
-- [Overview](https://open.longbridge.com/docs/quote/overview.md)
+- [Definition](./reference/docs/quote/objects.md)
+- [Overview](./reference/docs/quote/overview.md)
 
 ## Pull
 
-- [Option Chain Expiry Date List](https://open.longbridge.com/docs/quote/pull/optionchain-date.md)
-- [Current Market Temperature](https://open.longbridge.com/docs/quote/pull/market_temperature.md)
-- [Basic Information of Securities](https://open.longbridge.com/docs/quote/pull/static.md)
-- [Historical Market Temperature](https://open.longbridge.com/docs/quote/pull/history_market_temperature.md)
-- [Real-time Quotes of Warrant](https://open.longbridge.com/docs/quote/pull/warrant-quote.md)
-- [Real-time Quotes Of Securities](https://open.longbridge.com/docs/quote/pull/quote.md)
-- [Broker IDs](https://open.longbridge.com/docs/quote/pull/broker-ids.md)
-- [Security Depth](https://open.longbridge.com/docs/quote/pull/depth.md)
-- [Calculate Indexes Of Securities](https://open.longbridge.com/docs/quote/pull/calc-index.md)
-- [Warrant Filter](https://open.longbridge.com/docs/quote/pull/warrant-filter.md)
-- [Warrant Issuer IDs](https://open.longbridge.com/docs/quote/pull/issuer.md)
-- [Security Trades](https://open.longbridge.com/docs/quote/pull/trade.md)
-- [Security Capital Flow Intraday](https://open.longbridge.com/docs/quote/pull/capital-flow-intraday.md)
-- [Trading Session of The Day](https://open.longbridge.com/docs/quote/pull/trade-session.md)
-- [Security Candlesticks](https://open.longbridge.com/docs/quote/pull/candlestick.md)
-- [Security Brokers](https://open.longbridge.com/docs/quote/pull/brokers.md)
-- [Option Chain By Date](https://open.longbridge.com/docs/quote/pull/optionchain-date-strike.md)
-- [Market Trading Days](https://open.longbridge.com/docs/quote/pull/trade-day.md)
-- [Security Capital Distribution](https://open.longbridge.com/docs/quote/pull/capital-distribution.md)
-- [Real-time Quotes of Option](https://open.longbridge.com/docs/quote/pull/option-quote.md)
-- [Security Intraday](https://open.longbridge.com/docs/quote/pull/intraday.md)
-- [Security History Candlesticks](https://open.longbridge.com/docs/quote/pull/history-candlestick.md)
+- [Option Chain Expiry Date List](./reference/docs/quote/pull/optionchain-date.md)
+- [Current Market Temperature](./reference/docs/quote/pull/market_temperature.md)
+- [Basic Information of Securities](./reference/docs/quote/pull/static.md)
+- [Historical Market Temperature](./reference/docs/quote/pull/history_market_temperature.md)
+- [Real-time Quotes of Warrant](./reference/docs/quote/pull/warrant-quote.md)
+- [Real-time Quotes Of Securities](./reference/docs/quote/pull/quote.md)
+- [Broker IDs](./reference/docs/quote/pull/broker-ids.md)
+- [Security Depth](./reference/docs/quote/pull/depth.md)
+- [Calculate Indexes Of Securities](./reference/docs/quote/pull/calc-index.md)
+- [Warrant Filter](./reference/docs/quote/pull/warrant-filter.md)
+- [Warrant Issuer IDs](./reference/docs/quote/pull/issuer.md)
+- [Security Trades](./reference/docs/quote/pull/trade.md)
+- [Security Capital Flow Intraday](./reference/docs/quote/pull/capital-flow-intraday.md)
+- [Trading Session of The Day](./reference/docs/quote/pull/trade-session.md)
+- [Security Candlesticks](./reference/docs/quote/pull/candlestick.md)
+- [Security Brokers](./reference/docs/quote/pull/brokers.md)
+- [Option Chain By Date](./reference/docs/quote/pull/optionchain-date-strike.md)
+- [Market Trading Days](./reference/docs/quote/pull/trade-day.md)
+- [Security Capital Distribution](./reference/docs/quote/pull/capital-distribution.md)
+- [Real-time Quotes of Option](./reference/docs/quote/pull/option-quote.md)
+- [Security Intraday](./reference/docs/quote/pull/intraday.md)
+- [Security History Candlesticks](./reference/docs/quote/pull/history-candlestick.md)
 
 ## Individual
 
-- [Create Watchlist Group](https://open.longbridge.com/docs/quote/individual/watchlist_create_group.md)
-- [Update Watchlist Group](https://open.longbridge.com/docs/quote/individual/watchlist_update_group.md)
-- [Delete Watchlist Group](https://open.longbridge.com/docs/quote/individual/watchlist_delete_group.md)
-- [Watchlist Group](https://open.longbridge.com/docs/quote/individual/watchlist_groups.md)
+- [Create Watchlist Group](./reference/docs/quote/individual/watchlist_create_group.md)
+- [Update Watchlist Group](./reference/docs/quote/individual/watchlist_update_group.md)
+- [Delete Watchlist Group](./reference/docs/quote/individual/watchlist_delete_group.md)
+- [Watchlist Group](./reference/docs/quote/individual/watchlist_groups.md)
 
 ## Subscribe
 
-- [Subscription Information](https://open.longbridge.com/docs/quote/subscribe/subscription.md)
-- [Subscribe Quote](https://open.longbridge.com/docs/quote/subscribe/subscribe.md)
-- [Unsubscribe Quote](https://open.longbridge.com/docs/quote/subscribe/unsubscribe.md)
+- [Subscription Information](./reference/docs/quote/subscribe/subscription.md)
+- [Subscribe Quote](./reference/docs/quote/subscribe/subscribe.md)
+- [Unsubscribe Quote](./reference/docs/quote/subscribe/unsubscribe.md)
 
 ## Security
 
-- [Retrieve the List of Securities](https://open.longbridge.com/docs/quote/security/security_list.md)
+- [Retrieve the List of Securities](./reference/docs/quote/security/security_list.md)
 
 ## Push
 
-- [Push Real-time Quote](https://open.longbridge.com/docs/quote/push/quote.md)
-- [Push Real-time Brokers](https://open.longbridge.com/docs/quote/push/broker.md)
-- [Push Real-time Depth](https://open.longbridge.com/docs/quote/push/depth.md)
-- [Push Real-time Trades](https://open.longbridge.com/docs/quote/push/trade.md)
+- [Push Real-time Quote](./reference/docs/quote/push/quote.md)
+- [Push Real-time Brokers](./reference/docs/quote/push/broker.md)
+- [Push Real-time Depth](./reference/docs/quote/push/depth.md)
+- [Push Real-time Trades](./reference/docs/quote/push/trade.md)
