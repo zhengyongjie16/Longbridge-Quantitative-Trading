@@ -38,7 +38,9 @@ export class OrderRecorder {
   disableSymbol(symbol) {
     const normalizedSymbol = normalizeHKSymbol(symbol);
     this._disabledSymbols.add(normalizedSymbol);
-    logger.warn(`[订单记录] 标的 ${normalizedSymbol} 已被禁用交易（订单获取失败）`);
+    logger.warn(
+      `[订单记录] 标的 ${normalizedSymbol} 已被禁用交易（订单获取失败）`
+    );
   }
 
   /**
@@ -460,7 +462,9 @@ export class OrderRecorder {
       } catch (err) {
         lastError = err;
         logger.warn(
-          `[订单API获取失败] 标的 ${normalizedSymbol} 第${attempt}/${maxRetries}次尝试失败: ${err?.message ?? err}`
+          `[订单API获取失败] 标的 ${normalizedSymbol} 第${attempt}/${maxRetries}次尝试失败: ${
+            err?.message ?? err
+          }`
         );
 
         // 如果还有重试机会，等待10秒后重试

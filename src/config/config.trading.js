@@ -65,7 +65,10 @@ function getArrayConfig(envKey, allowedValues = null) {
   }
 
   // 分割并去除空白
-  const items = value.split(",").map(item => item.trim()).filter(item => item !== "");
+  const items = value
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item !== "");
 
   if (items.length === 0) {
     return null;
@@ -73,11 +76,15 @@ function getArrayConfig(envKey, allowedValues = null) {
 
   // 如果指定了允许的值，则验证
   if (allowedValues && allowedValues.length > 0) {
-    const invalidItems = items.filter(item => !allowedValues.includes(item));
+    const invalidItems = items.filter((item) => !allowedValues.includes(item));
     if (invalidItems.length > 0) {
-      console.warn(`[配置警告] ${envKey} 包含无效值: ${invalidItems.join(", ")}，允许的值: ${allowedValues.join(", ")}`);
+      console.warn(
+        `[配置警告] ${envKey} 包含无效值: ${invalidItems.join(
+          ", "
+        )}，允许的值: ${allowedValues.join(", ")}`
+      );
       // 过滤掉无效值
-      const validItems = items.filter(item => allowedValues.includes(item));
+      const validItems = items.filter((item) => allowedValues.includes(item));
       return validItems.length > 0 ? validItems : null;
     }
   }
@@ -141,7 +148,9 @@ export const TRADING_CONFIG = {
       return 10;
     }
     if (interval > 600) {
-      console.warn("[配置警告] BUY_INTERVAL_SECONDS 不能大于 600，已设置为 600");
+      console.warn(
+        "[配置警告] BUY_INTERVAL_SECONDS 不能大于 600，已设置为 600"
+      );
       return 600;
     }
     return interval;
@@ -159,11 +168,15 @@ export const TRADING_CONFIG = {
       }
       // 限制范围在 0-120 秒之间
       if (delay < 0) {
-        console.warn("[配置警告] VERIFICATION_DELAY_SECONDS 不能小于 0，已设置为 0");
+        console.warn(
+          "[配置警告] VERIFICATION_DELAY_SECONDS 不能小于 0，已设置为 0"
+        );
         return 0;
       }
       if (delay > 120) {
-        console.warn("[配置警告] VERIFICATION_DELAY_SECONDS 不能大于 120，已设置为 120");
+        console.warn(
+          "[配置警告] VERIFICATION_DELAY_SECONDS 不能大于 120，已设置为 120"
+        );
         return 120;
       }
       return delay;
@@ -172,8 +185,11 @@ export const TRADING_CONFIG = {
     // 验证指标列表（可选值: K, D, J, MACD, DIF, DEA）
     // 留空或不设置则不进行延迟验证
     indicators: (() => {
-      const allowedIndicators = ['K', 'D', 'J', 'MACD', 'DIF', 'DEA'];
-      const indicators = getArrayConfig("VERIFICATION_INDICATORS", allowedIndicators);
+      const allowedIndicators = ["K", "D", "J", "MACD", "DIF", "DEA"];
+      const indicators = getArrayConfig(
+        "VERIFICATION_INDICATORS",
+        allowedIndicators
+      );
       // 如果未设置或为空，返回 null 表示不进行延迟验证
       // 注意：这里不设置默认值，让用户明确配置
       if (indicators === null || indicators.length === 0) {

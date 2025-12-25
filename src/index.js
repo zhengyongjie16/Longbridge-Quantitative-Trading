@@ -18,7 +18,6 @@ import {
   formatNumber,
   getSymbolName,
   formatQuoteDisplay,
-  toBeijingTimeLog,
 } from "./utils/helpers.js";
 
 /**
@@ -340,7 +339,8 @@ async function runOnce({
 
   // 如果是交易日，再检查是否在交易时段
   // 半日交易日仅上午时段有效（09:30-12:00），下午无交易
-  const canTradeNow = isTradingDayToday && isInContinuousHKSession(currentTime, isHalfDayToday);
+  const canTradeNow =
+    isTradingDayToday && isInContinuousHKSession(currentTime, isHalfDayToday);
 
   // 并发获取三个标的的行情（优化性能：从串行改为并发）
   const [longQuote, shortQuote, monitorQuote] = await Promise.all([
@@ -358,18 +358,6 @@ async function runOnce({
   const longSymbolName = longQuote?.name ?? longSymbol;
   const shortSymbolName = shortQuote?.name ?? shortSymbol;
   const monitorSymbolName = monitorQuote?.name ?? monitorSymbol;
-
-  // 如果获取到了行情数据，记录一下行情时间用于调试（仅在DEBUG模式下）
-  if (process.env.DEBUG === "true" && longQuote?.timestamp) {
-    const quoteTime = longQuote.timestamp;
-    // logger.debug(
-    //   `[交易时段检查] 当前系统时间: ${toBeijingTimeLog(
-    //     currentTime
-    //   )}, 行情时间: ${toBeijingTimeLog(
-    //     quoteTime
-    //   )}, 是否在交易时段: ${canTradeNow}`
-    // );
-  }
 
   // 检测交易时段变化
   if (lastState.canTrade !== canTradeNow) {

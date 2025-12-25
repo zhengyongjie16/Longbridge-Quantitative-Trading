@@ -13,16 +13,7 @@
  */
 
 // 支持的指标列表
-const SUPPORTED_INDICATORS = ['RSI6', 'RSI12', 'MFI', 'D', 'J'];
-
-// 指标名称到实际属性的映射
-const INDICATOR_MAPPING = {
-  RSI6: 'rsi6',
-  RSI12: 'rsi12',
-  MFI: 'mfi',
-  D: 'kdj.d',
-  J: 'kdj.j',
-};
+const SUPPORTED_INDICATORS = ["RSI6", "RSI12", "MFI", "D", "J"];
 
 /**
  * 解析单个条件
@@ -89,7 +80,7 @@ function parseConditionGroup(groupStr) {
   }
 
   // 解析条件列表
-  const conditionStrs = conditionsStr.split(',');
+  const conditionStrs = conditionsStr.split(",");
   const conditions = [];
 
   for (const condStr of conditionStrs) {
@@ -129,7 +120,7 @@ function parseConditionGroup(groupStr) {
  * @returns {{conditionGroups: Array}|null} 解析结果
  */
 export function parseSignalConfig(configStr) {
-  if (!configStr || typeof configStr !== 'string') {
+  if (!configStr || typeof configStr !== "string") {
     return null;
   }
 
@@ -140,7 +131,7 @@ export function parseSignalConfig(configStr) {
   }
 
   // 按 | 分隔条件组
-  const groupStrs = trimmed.split('|');
+  const groupStrs = trimmed.split("|");
 
   // 最多支持3个条件组
   if (groupStrs.length > 3) {
@@ -174,10 +165,10 @@ export function parseSignalConfig(configStr) {
  * @returns {{valid: boolean, error: string|null, config: Object|null}} 验证结果
  */
 export function validateSignalConfig(configStr) {
-  if (!configStr || typeof configStr !== 'string') {
+  if (!configStr || typeof configStr !== "string") {
     return {
       valid: false,
-      error: '配置不能为空',
+      error: "配置不能为空",
       config: null,
     };
   }
@@ -186,13 +177,13 @@ export function validateSignalConfig(configStr) {
   if (!trimmed) {
     return {
       valid: false,
-      error: '配置不能为空',
+      error: "配置不能为空",
       config: null,
     };
   }
 
   // 基本格式检查
-  const groupStrs = trimmed.split('|');
+  const groupStrs = trimmed.split("|");
 
   if (groupStrs.length > 3) {
     return {
@@ -233,7 +224,7 @@ export function validateSignalConfig(configStr) {
       conditionsStr = groupStr;
     }
 
-    const conditionStrs = conditionsStr.split(',');
+    const conditionStrs = conditionsStr.split(",");
 
     for (let j = 0; j < conditionStrs.length; j++) {
       const condStr = conditionStrs[j].trim();
@@ -250,7 +241,11 @@ export function validateSignalConfig(configStr) {
       if (!condition) {
         return {
           valid: false,
-          error: `条件组 ${i + 1} 的第 ${j + 1} 个条件 "${condStr}" 格式无效。支持的指标: ${SUPPORTED_INDICATORS.join(', ')}`,
+          error: `条件组 ${i + 1} 的第 ${
+            j + 1
+          } 个条件 "${condStr}" 格式无效。支持的指标: ${SUPPORTED_INDICATORS.join(
+            ", "
+          )}`,
           config: null,
         };
       }
@@ -268,7 +263,9 @@ export function validateSignalConfig(configStr) {
       if (minSatisfied > conditionStrs.length) {
         return {
           valid: false,
-          error: `条件组 ${i + 1} 的最小满足数量 ${minSatisfied} 超过条件数量 ${conditionStrs.length}`,
+          error: `条件组 ${i + 1} 的最小满足数量 ${minSatisfied} 超过条件数量 ${
+            conditionStrs.length
+          }`,
           config: null,
         };
       }
@@ -280,7 +277,7 @@ export function validateSignalConfig(configStr) {
   if (!config) {
     return {
       valid: false,
-      error: '配置解析失败',
+      error: "配置解析失败",
       config: null,
     };
   }
@@ -304,19 +301,19 @@ export function evaluateCondition(state, condition) {
   // 获取指标值
   let value;
   switch (indicator) {
-    case 'RSI6':
+    case "RSI6":
       value = state.rsi6;
       break;
-    case 'RSI12':
+    case "RSI12":
       value = state.rsi12;
       break;
-    case 'MFI':
+    case "MFI":
       value = state.mfi;
       break;
-    case 'D':
+    case "D":
       value = state.kdj?.d;
       break;
-    case 'J':
+    case "J":
       value = state.kdj?.j;
       break;
     default:
@@ -329,9 +326,9 @@ export function evaluateCondition(state, condition) {
   }
 
   // 根据运算符比较
-  if (operator === '<') {
+  if (operator === "<") {
     return value < threshold;
-  } else if (operator === '>') {
+  } else if (operator === ">") {
     return value > threshold;
   }
 
@@ -372,7 +369,7 @@ export function evaluateSignalConfig(state, signalConfig) {
       triggered: false,
       satisfiedGroupIndex: -1,
       satisfiedCount: 0,
-      reason: '无效的信号配置',
+      reason: "无效的信号配置",
     };
   }
 
@@ -384,13 +381,16 @@ export function evaluateSignalConfig(state, signalConfig) {
 
     if (result.satisfied) {
       // 生成原因说明
-      const conditionDescs = group.conditions.map(c =>
-        `${c.indicator}${c.operator}${c.threshold}`
-      ).join(',');
+      const conditionDescs = group.conditions
+        .map((c) => `${c.indicator}${c.operator}${c.threshold}`)
+        .join(",");
 
-      const reason = group.conditions.length === 1
-        ? `满足条件${i + 1}：${conditionDescs}`
-        : `满足条件${i + 1}：(${conditionDescs}) 中${result.count}/${group.conditions.length}项满足`;
+      const reason =
+        group.conditions.length === 1
+          ? `满足条件${i + 1}：${conditionDescs}`
+          : `满足条件${i + 1}：(${conditionDescs}) 中${result.count}/${
+              group.conditions.length
+            }项满足`;
 
       return {
         triggered: true,
@@ -405,7 +405,7 @@ export function evaluateSignalConfig(state, signalConfig) {
     triggered: false,
     satisfiedGroupIndex: -1,
     satisfiedCount: 0,
-    reason: '未满足任何条件组',
+    reason: "未满足任何条件组",
   };
 }
 
@@ -416,13 +416,13 @@ export function evaluateSignalConfig(state, signalConfig) {
  */
 export function formatSignalConfig(signalConfig) {
   if (!signalConfig || !signalConfig.conditionGroups) {
-    return '(无效配置)';
+    return "(无效配置)";
   }
 
-  const groups = signalConfig.conditionGroups.map(group => {
-    const conditions = group.conditions.map(c =>
-      `${c.indicator}${c.operator}${c.threshold}`
-    ).join(',');
+  const groups = signalConfig.conditionGroups.map((group) => {
+    const conditions = group.conditions
+      .map((c) => `${c.indicator}${c.operator}${c.threshold}`)
+      .join(",");
 
     if (group.conditions.length === 1) {
       return `(${conditions})`;
@@ -435,8 +435,8 @@ export function formatSignalConfig(signalConfig) {
     return `(${conditions})/${group.minSatisfied}`;
   });
 
-  return groups.join('|');
+  return groups.join("|");
 }
 
 // 导出支持的指标列表供验证使用
-export { SUPPORTED_INDICATORS, INDICATOR_MAPPING };
+export { SUPPORTED_INDICATORS };

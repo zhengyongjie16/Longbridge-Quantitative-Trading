@@ -31,14 +31,17 @@ export class HangSengMultiIndicatorStrategy {
     signalConfig = null,
     verificationConfig = {
       delaySeconds: 60,
-      indicators: ['K', 'MACD'],
+      indicators: ["K", "MACD"],
     },
   } = {}) {
     // 信号配置（包含 buycall, sellcall, buyput, sellput 四个信号的配置）
     this.signalConfig = signalConfig || {};
 
     // 延迟验证配置
-    this.verificationConfig = verificationConfig || { delaySeconds: 60, indicators: ['K', 'MACD'] };
+    this.verificationConfig = verificationConfig || {
+      delaySeconds: 60,
+      indicators: ["K", "MACD"],
+    };
   }
 
   /**
@@ -101,7 +104,9 @@ export class HangSengMultiIndicatorStrategy {
     }
 
     const now = new Date();
-    const triggerTime = new Date(now.getTime() + this.verificationConfig.delaySeconds * 1000);
+    const triggerTime = new Date(
+      now.getTime() + this.verificationConfig.delaySeconds * 1000
+    );
 
     // 如果目标时间已经过去，说明计算有误，返回null
     if (triggerTime <= now) {
@@ -143,17 +148,17 @@ export class HangSengMultiIndicatorStrategy {
     const { kdj, macd } = state;
 
     switch (indicatorName) {
-      case 'K':
+      case "K":
         return kdj && this._isValidNumber(kdj.k) ? kdj.k : null;
-      case 'D':
+      case "D":
         return kdj && this._isValidNumber(kdj.d) ? kdj.d : null;
-      case 'J':
+      case "J":
         return kdj && this._isValidNumber(kdj.j) ? kdj.j : null;
-      case 'MACD':
+      case "MACD":
         return macd && this._isValidNumber(macd.macd) ? macd.macd : null;
-      case 'DIF':
+      case "DIF":
         return macd && this._isValidNumber(macd.dif) ? macd.dif : null;
-      case 'DEA':
+      case "DEA":
         return macd && this._isValidNumber(macd.dea) ? macd.dea : null;
       default:
         return null;
@@ -191,11 +196,11 @@ export class HangSengMultiIndicatorStrategy {
         kdjParts.push(`J=${kdj.j.toFixed(2)}`);
       }
       if (kdjParts.length > 0) {
-        parts.push(`KDJ(${kdjParts.join(',')})`);
+        parts.push(`KDJ(${kdjParts.join(",")})`);
       }
     }
 
-    return parts.join('、');
+    return parts.join("、");
   }
 
   /**
@@ -249,10 +254,10 @@ export class HangSengMultiIndicatorStrategy {
     const indicators1Str = Object.entries(indicators1)
       .map(([name, value]) => {
         // 根据指标类型选择合适的小数位数
-        const decimals = ['MACD', 'DIF', 'DEA'].includes(name) ? 4 : 2;
+        const decimals = ["MACD", "DIF", "DEA"].includes(name) ? 4 : 2;
         return `${name}1=${value.toFixed(decimals)}`;
       })
-      .join(' ');
+      .join(" ");
 
     // 构建指标状态显示字符串
     const indicatorDisplayStr = this._buildIndicatorDisplayString(state);
@@ -263,10 +268,15 @@ export class HangSengMultiIndicatorStrategy {
       triggerTime,
       indicators1, // 记录触发时的所有配置指标值
       verificationHistory: [], // 该信号专用的验证历史记录（每秒记录一次）
-      reason: `${reasonPrefix}：${evalResult.reason}，${indicatorDisplayStr}，${indicators1Str}，将在 ${triggerTime.toLocaleString("zh-CN", {
-        timeZone: "Asia/Hong_Kong",
-        hour12: false,
-      })} 进行验证`,
+      reason: `${reasonPrefix}：${
+        evalResult.reason
+      }，${indicatorDisplayStr}，${indicators1Str}，将在 ${triggerTime.toLocaleString(
+        "zh-CN",
+        {
+          timeZone: "Asia/Hong_Kong",
+          hour12: false,
+        }
+      )} 进行验证`,
     };
   }
 
