@@ -19,6 +19,7 @@ import {
   getSymbolName,
   formatQuoteDisplay,
 } from "./utils/helpers.js";
+import { extractRSIPeriods } from "./utils/signalConfigParser.js";
 
 /**
  * 从指标状态中提取指定指标的值
@@ -558,116 +559,286 @@ async function runOnce({
     }
   }
 
-  // 只计算监控标的的指标（传递空数组作为 RSI 周期，传递提取的 EMA 周期）
+  // 如果没有配置EMA周期，使用默认值7
+  if (emaPeriods.length === 0) {
+    emaPeriods.push(7);
+  }
+
+  // 从信号配置中提取 RSI 周期
+  const rsiPeriods = extractRSIPeriods(TRADING_CONFIG.signalConfig);
+
+  // 如果没有配置RSI周期，使用默认值6
+  if (rsiPeriods.length === 0) {
+    rsiPeriods.push(6);
+  }
+
+  // 计算监控标的的指标（传递提取的 RSI 和 EMA 周期）
   const monitorSnapshot = buildIndicatorSnapshot(
     monitorSymbol,
     monitorCandles,
-    [],
+    rsiPeriods,
     emaPeriods
   );
 
-  // 检测监控标的的价格变化并实时显示（包含所有技术指标）
+  // 检测监控标的的指标变化并实时显示（包含所有技术指标）
   if (monitorSnapshot) {
     const currentPrice = monitorSnapshot.price;
+
+    // 从行情数据中获取上日收盘价
+    const prevClose = monitorQuote?.prevClose ?? null;
+
+    // 计算涨跌幅（基于上日收盘价）
+    let changePercent = null;
+    if (
+      Number.isFinite(currentPrice) &&
+      currentPrice > 0 &&
+      Number.isFinite(prevClose) &&
+      prevClose > 0
+    ) {
+      changePercent = ((currentPrice - prevClose) / prevClose) * 100;
+    }
+
+    // 格式化指标值
+    const formatIndicator = (value, decimals = 2) => {
+      return value !== null && value !== undefined && Number.isFinite(value)
+        ? value.toFixed(decimals)
+        : "-";
+    };
+
+    // 检测指标变化（检查所有指标是否发生变化）
+    let hasIndicatorChanged = false;
+
+    // 检查价格变化
     const lastPrice = lastState.monitorValues?.price;
+    if (
+      lastPrice == null &&
+      Number.isFinite(currentPrice) &&
+      currentPrice > 0
+    ) {
+      hasIndicatorChanged = true; // 首次出现价格
+    } else if (hasChanged(currentPrice, lastPrice, 0.0001)) {
+      hasIndicatorChanged = true;
+    }
 
-    // 检查监控标的的价格是否发生变化（只检测价格变化）
-    const isFirstTime = lastPrice == null && Number.isFinite(currentPrice);
-    const hasPriceChanged =
-      isFirstTime || hasChanged(currentPrice, lastPrice, 0.0001);
+    // 检查涨跌幅变化
+    const lastChangePercent = lastState.monitorValues?.changePercent;
+    if (!hasIndicatorChanged && changePercent !== null) {
+      if (lastChangePercent == null) {
+        hasIndicatorChanged = true;
+      } else if (hasChanged(changePercent, lastChangePercent, 0.01)) {
+        // 涨跌幅变化阈值：0.01%
+        hasIndicatorChanged = true;
+      }
+    }
 
-    if (hasPriceChanged) {
-      // 显示价格变化及所有技术指标
-      if (Number.isFinite(currentPrice)) {
-        // 格式化指标值
-        const formatIndicator = (value, decimals = 2) => {
-          return value !== null && value !== undefined && Number.isFinite(value)
-            ? value.toFixed(decimals)
-            : "-";
-        };
-
-        // 构建指标显示字符串
-        const indicators = [];
-        indicators.push(`价格=${currentPrice.toFixed(3)}`);
-
-        // RSI 指标
+    // 检查EMA变化
+    if (!hasIndicatorChanged && monitorSnapshot.ema) {
+      for (const period of emaPeriods) {
+        const currentEma = monitorSnapshot.ema[period];
+        const lastEma = lastState.monitorValues?.ema?.[period];
         if (
-          monitorSnapshot.rsi6 !== null &&
-          monitorSnapshot.rsi6 !== undefined
+          Number.isFinite(currentEma) &&
+          (lastEma == null || hasChanged(currentEma, lastEma, 0.0001))
         ) {
-          indicators.push(`RSI6=${formatIndicator(monitorSnapshot.rsi6, 2)}`);
+          hasIndicatorChanged = true;
+          break;
         }
+      }
+    }
 
-        // KDJ 指标
-        if (monitorSnapshot.kdj) {
-          if (
-            monitorSnapshot.kdj.k !== null &&
-            monitorSnapshot.kdj.k !== undefined
-          ) {
-            indicators.push(`K=${formatIndicator(monitorSnapshot.kdj.k, 2)}`);
-          }
-          if (
-            monitorSnapshot.kdj.d !== null &&
-            monitorSnapshot.kdj.d !== undefined
-          ) {
-            indicators.push(`D=${formatIndicator(monitorSnapshot.kdj.d, 2)}`);
-          }
-          if (
-            monitorSnapshot.kdj.j !== null &&
-            monitorSnapshot.kdj.j !== undefined
-          ) {
-            indicators.push(`J=${formatIndicator(monitorSnapshot.kdj.j, 2)}`);
-          }
-        }
-
-        // MACD 指标（显示MACD值）
+    // 检查RSI变化
+    if (!hasIndicatorChanged && monitorSnapshot.rsi) {
+      for (const period of rsiPeriods) {
+        const currentRsi = monitorSnapshot.rsi[period];
+        const lastRsi = lastState.monitorValues?.rsi?.[period];
         if (
-          monitorSnapshot.macd?.macd !== null &&
-          monitorSnapshot.macd?.macd !== undefined
+          Number.isFinite(currentRsi) &&
+          (lastRsi == null || hasChanged(currentRsi, lastRsi, 0.1))
+        ) {
+          hasIndicatorChanged = true;
+          break;
+        }
+      }
+    }
+
+    // 检查MFI变化
+    if (!hasIndicatorChanged) {
+      const lastMfi = lastState.monitorValues?.mfi;
+      if (
+        Number.isFinite(monitorSnapshot.mfi) &&
+        (lastMfi == null || hasChanged(monitorSnapshot.mfi, lastMfi, 0.1))
+      ) {
+        hasIndicatorChanged = true;
+      }
+    }
+
+    // 检查KDJ变化
+    if (!hasIndicatorChanged && monitorSnapshot.kdj) {
+      const lastKdj = lastState.monitorValues?.kdj;
+      if (
+        Number.isFinite(monitorSnapshot.kdj.k) &&
+        (lastKdj?.k == null ||
+          hasChanged(monitorSnapshot.kdj.k, lastKdj.k, 0.1))
+      ) {
+        hasIndicatorChanged = true;
+      } else if (
+        Number.isFinite(monitorSnapshot.kdj.d) &&
+        (lastKdj?.d == null ||
+          hasChanged(monitorSnapshot.kdj.d, lastKdj.d, 0.1))
+      ) {
+        hasIndicatorChanged = true;
+      } else if (
+        Number.isFinite(monitorSnapshot.kdj.j) &&
+        (lastKdj?.j == null ||
+          hasChanged(monitorSnapshot.kdj.j, lastKdj.j, 0.1))
+      ) {
+        hasIndicatorChanged = true;
+      }
+    }
+
+    // 检查MACD变化
+    if (!hasIndicatorChanged && monitorSnapshot.macd) {
+      const lastMacd = lastState.monitorValues?.macd;
+      if (
+        Number.isFinite(monitorSnapshot.macd.macd) &&
+        (lastMacd?.macd == null ||
+          hasChanged(monitorSnapshot.macd.macd, lastMacd.macd, 0.0001))
+      ) {
+        hasIndicatorChanged = true;
+      } else if (
+        Number.isFinite(monitorSnapshot.macd.dif) &&
+        (lastMacd?.dif == null ||
+          hasChanged(monitorSnapshot.macd.dif, lastMacd.dif, 0.0001))
+      ) {
+        hasIndicatorChanged = true;
+      } else if (
+        Number.isFinite(monitorSnapshot.macd.dea) &&
+        (lastMacd?.dea == null ||
+          hasChanged(monitorSnapshot.macd.dea, lastMacd.dea, 0.0001))
+      ) {
+        hasIndicatorChanged = true;
+      }
+    }
+
+    // 如果任何指标发生变化，则显示所有指标
+    if (hasIndicatorChanged) {
+      // 构建指标显示字符串（按照指定顺序：最新价、涨跌幅、EMAn、RSIn、MFI、K、D、J、MACD、DIF、DEA）
+      const indicators = [];
+
+      // 1. 最新价
+      if (Number.isFinite(currentPrice)) {
+        indicators.push(`价格=${currentPrice.toFixed(3)}`);
+      }
+
+      // 2. 涨跌幅（基于上日收盘价）
+      if (changePercent !== null) {
+        const sign = changePercent >= 0 ? "+" : "";
+        indicators.push(`涨跌幅=${sign}${changePercent.toFixed(2)}%`);
+      }
+
+      // 3. EMAn（所有配置的EMA周期）
+      if (monitorSnapshot.ema) {
+        for (const period of emaPeriods) {
+          const emaValue = monitorSnapshot.ema[period];
+          if (Number.isFinite(emaValue)) {
+            indicators.push(`EMA${period}=${formatIndicator(emaValue, 3)}`);
+          }
+        }
+      }
+
+      // 4. RSIn（所有配置的RSI周期）
+      if (monitorSnapshot.rsi) {
+        for (const period of rsiPeriods) {
+          const rsiValue = monitorSnapshot.rsi[period];
+          if (Number.isFinite(rsiValue)) {
+            indicators.push(`RSI${period}=${formatIndicator(rsiValue, 2)}`);
+          }
+        }
+      }
+
+      // 5. MFI
+      if (monitorSnapshot.mfi !== null && monitorSnapshot.mfi !== undefined) {
+        indicators.push(`MFI=${formatIndicator(monitorSnapshot.mfi, 2)}`);
+      }
+
+      // 6. KDJ（K、D、J三个值）
+      if (monitorSnapshot.kdj) {
+        if (
+          monitorSnapshot.kdj.k !== null &&
+          monitorSnapshot.kdj.k !== undefined
+        ) {
+          indicators.push(`K=${formatIndicator(monitorSnapshot.kdj.k, 2)}`);
+        }
+        if (
+          monitorSnapshot.kdj.d !== null &&
+          monitorSnapshot.kdj.d !== undefined
+        ) {
+          indicators.push(`D=${formatIndicator(monitorSnapshot.kdj.d, 2)}`);
+        }
+        if (
+          monitorSnapshot.kdj.j !== null &&
+          monitorSnapshot.kdj.j !== undefined
+        ) {
+          indicators.push(`J=${formatIndicator(monitorSnapshot.kdj.j, 2)}`);
+        }
+      }
+
+      // 7. MACD（MACD、DIF、DEA三个值）
+      if (monitorSnapshot.macd) {
+        if (
+          monitorSnapshot.macd.macd !== null &&
+          monitorSnapshot.macd.macd !== undefined
         ) {
           indicators.push(
             `MACD=${formatIndicator(monitorSnapshot.macd.macd, 4)}`
           );
         }
-
-        // MACD DIF 指标
         if (
-          monitorSnapshot.macd?.dif !== null &&
-          monitorSnapshot.macd?.dif !== undefined
+          monitorSnapshot.macd.dif !== null &&
+          monitorSnapshot.macd.dif !== undefined
         ) {
           indicators.push(
             `DIF=${formatIndicator(monitorSnapshot.macd.dif, 4)}`
           );
         }
-
-        // MACD DEA 指标
         if (
-          monitorSnapshot.macd?.dea !== null &&
-          monitorSnapshot.macd?.dea !== undefined
+          monitorSnapshot.macd.dea !== null &&
+          monitorSnapshot.macd.dea !== undefined
         ) {
           indicators.push(
             `DEA=${formatIndicator(monitorSnapshot.macd.dea, 4)}`
           );
         }
-
-        // MFI 指标
-        if (monitorSnapshot.mfi !== null && monitorSnapshot.mfi !== undefined) {
-          indicators.push(`MFI=${formatIndicator(monitorSnapshot.mfi, 2)}`);
-        }
-
-        logger.info(
-          `[监控标的] ${monitorSymbolName}(${normalizedMonitorSymbol}) ${indicators.join(
-            " "
-          )}`
-        );
       }
 
-      // 更新保存的价格值（只保存有效价格，用于下次比较）
-      if (Number.isFinite(currentPrice)) {
-        lastState.monitorValues = {
-          price: currentPrice,
-        };
-      }
+      logger.info(
+        `[监控标的] ${monitorSymbolName}(${normalizedMonitorSymbol}) ${indicators.join(
+          " "
+        )}`
+      );
+
+      // 更新保存的指标值（保存所有指标用于下次比较）
+      lastState.monitorValues = {
+        price: currentPrice,
+        changePercent: changePercent,
+        ema: monitorSnapshot.ema ? { ...monitorSnapshot.ema } : null,
+        rsi: monitorSnapshot.rsi ? { ...monitorSnapshot.rsi } : null,
+        mfi: monitorSnapshot.mfi,
+        kdj: monitorSnapshot.kdj
+          ? {
+              k: monitorSnapshot.kdj.k,
+              d: monitorSnapshot.kdj.d,
+              j: monitorSnapshot.kdj.j,
+            }
+          : null,
+        macd: monitorSnapshot.macd
+          ? {
+              macd: monitorSnapshot.macd.macd,
+              dif: monitorSnapshot.macd.dif,
+              dea: monitorSnapshot.macd.dea,
+            }
+          : null,
+      };
     }
   }
 
