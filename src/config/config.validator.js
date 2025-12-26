@@ -295,22 +295,45 @@ function validateTradingConfig() {
   // 注意：直接验证原始环境变量，而不是已处理的配置值
   const indicatorsEnv = process.env.VERIFICATION_INDICATORS;
   if (indicatorsEnv && indicatorsEnv.trim() !== "") {
-    const allowedIndicators = ["K", "D", "J", "MACD", "DIF", "DEA"];
+    const fixedIndicators = ["K", "D", "J", "MACD", "DIF", "DEA"];
     const indicators = indicatorsEnv
       .split(",")
       .map((item) => item.trim())
       .filter((item) => item !== "");
 
     if (indicators.length > 0) {
-      // 检查是否所有指标都在允许列表中
-      const invalidIndicators = indicators.filter(
-        (ind) => !allowedIndicators.includes(ind)
-      );
+      // 检查每个指标是否有效
+      const invalidIndicators = [];
+
+      for (const ind of indicators) {
+        // 检查是否是固定指标
+        if (fixedIndicators.includes(ind)) {
+          continue;
+        }
+
+        // 检查是否是 EMA:n 格式
+        if (ind.startsWith("EMA:")) {
+          const periodStr = ind.substring(4);
+          const period = parseInt(periodStr, 10);
+
+          // 验证周期范围（1-250）
+          if (Number.isFinite(period) && period >= 1 && period <= 250) {
+            continue;
+          }
+
+          // 周期无效
+          invalidIndicators.push(ind);
+        } else {
+          // 不是有效的指标
+          invalidIndicators.push(ind);
+        }
+      }
+
       if (invalidIndicators.length > 0) {
         errors.push(
           `VERIFICATION_INDICATORS 包含无效指标: ${invalidIndicators.join(
             ", "
-          )}，允许的值: ${allowedIndicators.join(", ")}`
+          )}，允许的值: K, D, J, MACD, DIF, DEA, EMA:n (n为1-250)`
         );
         missingFields.push("VERIFICATION_INDICATORS");
       }

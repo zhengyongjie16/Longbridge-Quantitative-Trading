@@ -22,14 +22,28 @@ import {
 
 /**
  * 从指标状态中提取指定指标的值
- * @param {Object} state 指标状态对象 {kdj, macd}
- * @param {string} indicatorName 指标名称 (K, D, J, MACD, DIF, DEA)
+ * @param {Object} state 指标状态对象 {kdj, macd, ema}
+ * @param {string} indicatorName 指标名称 (K, D, J, MACD, DIF, DEA, EMA:n)
  * @returns {number|null} 指标值，如果无效则返回 null
  */
 function getIndicatorValue(state, indicatorName) {
   if (!state) return null;
 
-  const { kdj, macd } = state;
+  const { kdj, macd, ema } = state;
+
+  // 处理 EMA:n 格式（例如 EMA:5, EMA:10）
+  if (indicatorName.startsWith("EMA:")) {
+    const periodStr = indicatorName.substring(4); // 提取周期部分
+    const period = parseInt(periodStr, 10);
+
+    // 验证周期是否有效
+    if (!Number.isFinite(period) || period < 1 || period > 250) {
+      return null;
+    }
+
+    // 从 ema 对象中提取对应周期的值
+    return ema && Number.isFinite(ema[period]) ? ema[period] : null;
+  }
 
   switch (indicatorName) {
     case "K":
@@ -519,8 +533,38 @@ async function runOnce({
     throw new Error(`未获取到监控标的 ${monitorSymbol} K 线数据`);
   }
 
-  // 只计算监控标的的指标
-  const monitorSnapshot = buildIndicatorSnapshot(monitorSymbol, monitorCandles);
+  // 从验证指标配置中提取 EMA 周期
+  const emaPeriods = [];
+  if (
+    TRADING_CONFIG.verificationConfig?.indicators &&
+    Array.isArray(TRADING_CONFIG.verificationConfig.indicators)
+  ) {
+    for (const indicator of TRADING_CONFIG.verificationConfig.indicators) {
+      // 检查是否是 EMA:n 格式
+      if (indicator.startsWith("EMA:")) {
+        const periodStr = indicator.substring(4);
+        const period = parseInt(periodStr, 10);
+
+        // 验证周期有效性并添加到周期数组
+        if (
+          Number.isFinite(period) &&
+          period >= 1 &&
+          period <= 250 &&
+          !emaPeriods.includes(period)
+        ) {
+          emaPeriods.push(period);
+        }
+      }
+    }
+  }
+
+  // 只计算监控标的的指标（传递空数组作为 RSI 周期，传递提取的 EMA 周期）
+  const monitorSnapshot = buildIndicatorSnapshot(
+    monitorSymbol,
+    monitorCandles,
+    [],
+    emaPeriods
+  );
 
   // 检测监控标的的价格变化并实时显示（包含所有技术指标）
   if (monitorSnapshot) {
@@ -1021,7 +1065,12 @@ async function runOnce({
         }
 
         // 根据指标类型选择合适的小数位数
-        const decimals = ["MACD", "DIF", "DEA"].includes(indicatorName) ? 4 : 2;
+        let decimals = 2; // 默认 2 位小数
+        if (["MACD", "DIF", "DEA"].includes(indicatorName)) {
+          decimals = 4; // MACD 相关指标使用 4 位小数
+        } else if (indicatorName.startsWith("EMA:")) {
+          decimals = 3; // EMA 使用 3 位小数（类似于价格）
+        }
 
         let indicatorPassed = false;
         let comparisonSymbol = "";

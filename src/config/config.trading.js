@@ -182,20 +182,65 @@ export const TRADING_CONFIG = {
       return delay;
     })(),
 
-    // 验证指标列表（可选值: K, D, J, MACD, DIF, DEA）
+    // 验证指标列表（可选值: K, D, J, MACD, DIF, DEA, EMA:n）
+    // EMA:n 格式：n 为周期，范围 1-250，例如 EMA:5, EMA:10
     // 留空或不设置则不进行延迟验证
     indicators: (() => {
-      const allowedIndicators = ["K", "D", "J", "MACD", "DIF", "DEA"];
-      const indicators = getArrayConfig(
-        "VERIFICATION_INDICATORS",
-        allowedIndicators
-      );
-      // 如果未设置或为空，返回 null 表示不进行延迟验证
-      // 注意：这里不设置默认值，让用户明确配置
-      if (indicators === null || indicators.length === 0) {
+      const value = process.env.VERIFICATION_INDICATORS;
+      if (!value || value.trim() === "") {
         return null;
       }
-      return indicators;
+
+      // 分割并去除空白
+      const items = value
+        .split(",")
+        .map((item) => item.trim())
+        .filter((item) => item !== "");
+
+      if (items.length === 0) {
+        return null;
+      }
+
+      // 验证每个指标
+      const fixedIndicators = ["K", "D", "J", "MACD", "DIF", "DEA"];
+      const validItems = [];
+      const invalidItems = [];
+
+      for (const item of items) {
+        // 检查是否是固定指标
+        if (fixedIndicators.includes(item)) {
+          validItems.push(item);
+          continue;
+        }
+
+        // 检查是否是 EMA:n 格式
+        if (item.startsWith("EMA:")) {
+          const periodStr = item.substring(4);
+          const period = parseInt(periodStr, 10);
+
+          // 验证周期范围（1-250）
+          if (Number.isFinite(period) && period >= 1 && period <= 250) {
+            validItems.push(item);
+            continue;
+          }
+
+          // 周期无效
+          invalidItems.push(item);
+        } else {
+          // 不是有效的指标
+          invalidItems.push(item);
+        }
+      }
+
+      if (invalidItems.length > 0) {
+        console.warn(
+          `[配置警告] VERIFICATION_INDICATORS 包含无效值: ${invalidItems.join(
+            ", "
+          )}，允许的值: K, D, J, MACD, DIF, DEA, EMA:n (n为1-250)`
+        );
+      }
+
+      return validItems.length > 0 ? validItems : null;
     })(),
   },
 

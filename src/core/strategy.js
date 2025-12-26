@@ -140,12 +140,26 @@ export class HangSengMultiIndicatorStrategy {
   /**
    * 从指标状态中提取指定指标的值
    * @private
-   * @param {Object} state 指标状态对象 {kdj, macd}
-   * @param {string} indicatorName 指标名称 (K, D, J, MACD, DIF, DEA)
+   * @param {Object} state 指标状态对象 {kdj, macd, ema}
+   * @param {string} indicatorName 指标名称 (K, D, J, MACD, DIF, DEA, EMA:n)
    * @returns {number|null} 指标值，如果无效则返回 null
    */
   _getIndicatorValue(state, indicatorName) {
-    const { kdj, macd } = state;
+    const { kdj, macd, ema } = state;
+
+    // 处理 EMA:n 格式（例如 EMA:5, EMA:10）
+    if (indicatorName.startsWith("EMA:")) {
+      const periodStr = indicatorName.substring(4); // 提取周期部分
+      const period = parseInt(periodStr, 10);
+
+      // 验证周期是否有效
+      if (!Number.isFinite(period) || period < 1 || period > 250) {
+        return null;
+      }
+
+      // 从 ema 对象中提取对应周期的值
+      return ema && this._isValidNumber(ema[period]) ? ema[period] : null;
+    }
 
     switch (indicatorName) {
       case "K":
@@ -254,7 +268,12 @@ export class HangSengMultiIndicatorStrategy {
     const indicators1Str = Object.entries(indicators1)
       .map(([name, value]) => {
         // 根据指标类型选择合适的小数位数
-        const decimals = ["MACD", "DIF", "DEA"].includes(name) ? 4 : 2;
+        let decimals = 2; // 默认 2 位小数
+        if (["MACD", "DIF", "DEA"].includes(name)) {
+          decimals = 4; // MACD 相关指标使用 4 位小数
+        } else if (name.startsWith("EMA:")) {
+          decimals = 3; // EMA 使用 3 位小数（类似于价格）
+        }
         return `${name}1=${value.toFixed(decimals)}`;
       })
       .join(" ");

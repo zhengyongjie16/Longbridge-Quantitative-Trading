@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Skill(longbridge-openapi-documentation)"
+      "Skill(longbridge-openapi-documentation)",
+      "Bash(node:*)"
     ]
   }
 }

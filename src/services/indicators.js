@@ -480,11 +480,88 @@ export function calculateMFI(candles, period = 14) {
 
 /**
  * ============================================================================
+ * EMA（指数移动平均线）计算函数
+ * ============================================================================
+ *
+ * 【调用位置】
+ *   - buildIndicatorSnapshot() 函数中调用
+ *   - 用于计算 EMA 指标，支持自定义周期
+ *
+ * 【实现方式】
+ *   使用 technicalindicators 库的 EMA.calculate 方法
+ *   EMA 更加重视近期数据，对价格变化反应更快
+ *
+ * 【计算方法：指数移动平均线公式】
+ *   EMA = (当前收盘价 × 平滑系数) + (前一日EMA × (1 - 平滑系数))
+ *   平滑系数 = 2 / (period + 1)
+ *
+ * 【公式说明】
+ *   - EMA 值越大，表示价格趋势向上
+ *   - EMA 值越小，表示价格趋势向下
+ *   - EMA 可以用于趋势确认和支撑/阻力判断
+ *
+ * 【注意事项】
+ *   - 周期范围：1-250
+ *   - 需要至少 period 根K线才能计算
+ *   - 周期越小，对价格变化越敏感
+ *   - 周期越大，曲线越平滑
+ *
+ * @param {Array<number>} closes 收盘价数组，按时间顺序排列
+ * @param {number} period EMA周期，范围 1-250
+ * @returns {number|null} EMA值，如果无法计算则返回null
+ */
+export function calculateEMA(closes, period) {
+  if (
+    !closes ||
+    closes.length < period ||
+    !Number.isFinite(period) ||
+    period <= 0 ||
+    period > 250
+  ) {
+    return null;
+  }
+
+  try {
+    // 过滤无效数据
+    const validCloses = closes
+      .map((c) => toNumber(c))
+      .filter((v) => Number.isFinite(v) && v > 0);
+
+    if (validCloses.length < period) {
+      return null;
+    }
+
+    // 使用 technicalindicators 库计算 EMA
+    // EMA.calculate 使用标准的指数移动平均公式
+    // 平滑系数 = 2 / (period + 1)
+    const emaResult = EMA.calculate({ values: validCloses, period });
+
+    if (!emaResult || emaResult.length === 0) {
+      return null;
+    }
+
+    // 获取最后一个 EMA 值（当前值）
+    const ema = emaResult.at(-1);
+
+    // 验证 EMA 结果有效性
+    if (!Number.isFinite(ema) || ema <= 0) {
+      return null;
+    }
+
+    return ema;
+  } catch (err) {
+    // 如果计算失败，返回 null
+    return null;
+  }
+}
+
+/**
+ * ============================================================================
  * 构建指标快照（统一计算所有技术指标）
  * ============================================================================
  *
  * 【调用位置】
- *   - src/index.js ：buildIndicatorSnapshot(monitorSymbol, monitorCandles, rsiPeriods)
+ *   - src/index.js ：buildIndicatorSnapshot(monitorSymbol, monitorCandles, rsiPeriods, emaPeriods)
  *   - 用于计算监控标的的所有技术指标，供策略使用
  *
  * 【实现方式】
@@ -493,6 +570,7 @@ export function calculateMFI(candles, period = 14) {
  *   - KDJ：使用 EMA(period=5) 实现平滑系数 1/3
  *   - MACD：使用 MACD.calculate（EMA 计算方式）
  *   - MFI：使用 MFI.calculate（资金流量指标，周期14）
+ *   - EMA：使用 EMA.calculate（指数移动平均线），支持动态周期
  *
  * 【功能说明】
  *   统一计算并返回指定标的的所有技术指标，包括：
@@ -501,6 +579,7 @@ export function calculateMFI(candles, period = 14) {
  *   - kdj: KDJ指标（包含k、d、j三个值，周期9）
  *   - macd: MACD指标（包含dif、dea、macd三个值）
  *   - mfi: MFI指标（资金流量指标，周期14）
+ *   - ema: EMA指标对象 {5: value, 10: value, ...}（根据 emaPeriods 参数动态计算）
  *
  * 【计算顺序】
  *   1. 提取收盘价数组
@@ -508,14 +587,21 @@ export function calculateMFI(candles, period = 14) {
  *   3. 计算KDJ（使用 technicalindicators 库的 EMA）
  *   4. 计算MACD（使用 technicalindicators 库）
  *   5. 计算MFI（使用 technicalindicators 库）
+ *   6. 根据 emaPeriods 参数计算对应周期的 EMA（使用 technicalindicators 库）
  *
  * @param {string} symbol 标的代码
  * @param {Array<Object>} candles K线数据数组，每根K线包含 {open, high, low, close, volume} 等字段
  * @param {Array<number>} rsiPeriods RSI周期数组，例如 [6, 12, 14]，默认为空数组
+ * @param {Array<number>} emaPeriods EMA周期数组，例如 [5, 10, 20]，默认为空数组
  * @returns {Object|null} 指标快照对象，包含所有计算好的指标值
  *   如果无法计算，返回 null
  */
-export function buildIndicatorSnapshot(symbol, candles, rsiPeriods = []) {
+export function buildIndicatorSnapshot(
+  symbol,
+  candles,
+  rsiPeriods = [],
+  emaPeriods = []
+) {
   if (!candles || candles.length === 0) {
     return null;
   }
@@ -553,6 +639,25 @@ export function buildIndicatorSnapshot(symbol, candles, rsiPeriods = []) {
     }
   }
 
+  // 计算所有需要的 EMA 周期
+  const ema = {};
+  if (Array.isArray(emaPeriods) && emaPeriods.length > 0) {
+    for (const period of emaPeriods) {
+      // 验证周期有效性
+      if (
+        Number.isFinite(period) &&
+        period >= 1 &&
+        period <= 250 &&
+        Number.isInteger(period)
+      ) {
+        const emaValue = calculateEMA(closes, period);
+        if (emaValue !== null) {
+          ema[period] = emaValue;
+        }
+      }
+    }
+  }
+
   // 统一计算所有指标并返回
   return {
     symbol,
@@ -561,5 +666,6 @@ export function buildIndicatorSnapshot(symbol, candles, rsiPeriods = []) {
     kdj: calculateKDJ(candles, 9), // KDJ指标
     macd: calculateMACD(closes), // MACD指标
     mfi: calculateMFI(candles, 14), // MFI指标（资金流量指标，周期14）
+    ema, // EMA指标对象 {5: value, 10: value, ...}
   };
 }
