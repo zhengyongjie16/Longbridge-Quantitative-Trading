@@ -58,13 +58,12 @@ class ObjectPool {
  * 用于 verificationHistory 数组中的条目对象
  */
 export const verificationEntryPool = new ObjectPool(
-  // 工厂函数：创建空对象
-  () => ({ timestamp: null, j: null, macd: null }),
+  // 工厂函数：创建空对象（支持动态配置的验证指标）
+  () => ({ timestamp: null, indicators: null }),
   // 重置函数：清空所有属性
   (obj) => {
     obj.timestamp = null;
-    obj.j = null;
-    obj.macd = null;
+    obj.indicators = null; // 清空引用，避免内存泄漏
     return obj;
   },
   50 // 最大保存50个对象（每个信号最多120个条目，通常不会同时存在这么多待验证信号）

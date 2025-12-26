@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Skill(longbridge-openapi-documentation)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(npm install:*)",
+      "Bash(DEBUG=true node:*)"
     ]
   }
 }

@@ -21,6 +21,19 @@ import { UnrealizedLossMonitor } from "./core/unrealizedLossMonitor.js";
 import { SignalVerificationManager } from "./core/signalVerification.js";
 import { SignalProcessor } from "./core/signalProcessor.js";
 
+// 性能优化：将循环中的常量提升到函数外部
+const VALID_SIGNAL_ACTIONS = [
+  SignalType.BUYCALL,
+  SignalType.SELLCALL,
+  SignalType.BUYPUT,
+  SignalType.SELLPUT,
+];
+
+const LOCALE_STRING_OPTIONS = {
+  timeZone: "Asia/Hong_Kong",
+  hour12: false,
+};
+
 /**
  * 主程序循环：
  * 1. 从环境变量读取 LongPort 配置
@@ -42,52 +55,74 @@ async function runOnce({
   unrealizedLossMonitor,
   signalVerificationManager,
   signalProcessor,
+  // 性能优化：将不变的配置通过参数传入
+  longSymbol,
+  shortSymbol,
+  monitorSymbol,
+  normalizedLongSymbol,
+  normalizedShortSymbol,
+  normalizedMonitorSymbol,
 }) {
   // 使用缓存的账户和持仓信息（仅在交易后更新）
   let account = lastState.cachedAccount ?? null;
   let positions = lastState.cachedPositions ?? [];
 
-  // 性能优化：在函数开始时统一规范化符号，避免重复调用
-  const longSymbol = TRADING_CONFIG.longSymbol;
-  const shortSymbol = TRADING_CONFIG.shortSymbol;
-  const monitorSymbol = TRADING_CONFIG.monitorSymbol;
-  const normalizedLongSymbol = normalizeHKSymbol(longSymbol);
-  const normalizedShortSymbol = normalizeHKSymbol(shortSymbol);
-  const normalizedMonitorSymbol = normalizeHKSymbol(monitorSymbol);
-
   // 判断是否在交易时段（使用当前系统时间）
   const currentTime = new Date();
 
-  // 首先检查今天是否是交易日（使用 API）
+  // 获取当前日期字符串（格式：YYYY-MM-DD）
+  const year = currentTime.getFullYear();
+  const month = String(currentTime.getMonth() + 1).padStart(2, "0");
+  const day = String(currentTime.getDate()).padStart(2, "0");
+  const currentDateStr = `${year}-${month}-${day}`;
+
+  // 检查是否需要重新获取交易日信息（跨天或首次运行）
   let isTradingDayToday = true;
   let isHalfDayToday = false;
 
-  try {
-    const tradingDayInfo = await marketDataClient.isTradingDay(currentTime);
-    isTradingDayToday = tradingDayInfo.isTradingDay;
-    isHalfDayToday = tradingDayInfo.isHalfDay;
+  if (
+    !lastState.cachedTradingDayInfo ||
+    lastState.cachedTradingDayInfo.checkDate !== currentDateStr
+  ) {
+    // 跨天或首次运行，重新调用 API 检查交易日信息
+    try {
+      const tradingDayInfo = await marketDataClient.isTradingDay(currentTime);
+      isTradingDayToday = tradingDayInfo.isTradingDay;
+      isHalfDayToday = tradingDayInfo.isHalfDay;
 
-    // 如果不是交易日，提前返回
-    if (!isTradingDayToday) {
-      if (lastState.canTrade !== false) {
-        logger.info("今天不是交易日，暂停实时监控。");
-        lastState.canTrade = false;
+      // 缓存到 lastState
+      lastState.cachedTradingDayInfo = {
+        isTradingDay: isTradingDayToday,
+        isHalfDay: isHalfDayToday,
+        checkDate: currentDateStr,
+      };
+
+      // 日志记录
+      if (isTradingDayToday) {
+        const dayType = isHalfDayToday ? "半日交易日" : "交易日";
+        logger.info(`今天是${dayType}（${currentDateStr}）`);
+      } else {
+        logger.info(`今天不是交易日（${currentDateStr}）`);
       }
-      return;
+    } catch (err) {
+      logger.warn(
+        "无法获取交易日信息，将根据时间判断是否在交易时段",
+        err?.message ?? err
+      );
     }
+  } else {
+    // 使用缓存的交易日信息
+    isTradingDayToday = lastState.cachedTradingDayInfo.isTradingDay;
+    isHalfDayToday = lastState.cachedTradingDayInfo.isHalfDay;
+  }
 
-    // 如果是半日交易日，记录日志
-    if (isHalfDayToday && !lastState.isHalfDay) {
-      logger.info("今天是半日交易日。");
-      lastState.isHalfDay = true;
-    } else if (!isHalfDayToday && lastState.isHalfDay) {
-      lastState.isHalfDay = false;
+  // 如果不是交易日，提前返回
+  if (!isTradingDayToday) {
+    if (lastState.canTrade !== false) {
+      logger.info("今天不是交易日，暂停实时监控。");
+      lastState.canTrade = false;
     }
-  } catch (err) {
-    logger.warn(
-      "无法获取交易日信息，将根据时间判断是否在交易时段",
-      err?.message ?? err
-    );
+    return;
   }
 
   // 如果是交易日，再检查是否在交易时段
@@ -284,19 +319,12 @@ async function runOnce({
   tradingSignals.push(...verifiedSignals);
 
   // 过滤并验证信号数组的有效性
-  const validActions = [
-    SignalType.BUYCALL,
-    SignalType.SELLCALL,
-    SignalType.BUYPUT,
-    SignalType.SELLPUT,
-  ];
-
   const validSignals = tradingSignals.filter((signal) => {
     if (!signal?.symbol || !signal?.action) {
       logger.warn(`[跳过信号] 无效的信号对象: ${JSON.stringify(signal)}`);
       return false;
     }
-    if (!validActions.includes(signal.action)) {
+    if (!VALID_SIGNAL_ACTIONS.includes(signal.action)) {
       logger.warn(
         `[跳过信号] 未知的信号类型: ${signal.action}, 标的: ${signal.symbol}`
       );
@@ -318,10 +346,10 @@ async function runOnce({
     const lastCandleTime = monitorCandles.at(-1)?.timestamp;
     if (lastCandleTime) {
       logger.info(
-        `交易所时间：${lastCandleTime.toLocaleString("zh-CN", {
-          timeZone: "Asia/Hong_Kong",
-          hour12: false,
-        })}`
+        `交易所时间：${lastCandleTime.toLocaleString(
+          "zh-CN",
+          LOCALE_STRING_OPTIONS
+        )}`
       );
     }
 
@@ -612,13 +640,21 @@ async function main() {
   );
   const signalProcessor = new SignalProcessor();
 
+  // 提前获取并缓存不会变化的配置
+  const longSymbol = TRADING_CONFIG.longSymbol;
+  const shortSymbol = TRADING_CONFIG.shortSymbol;
+  const monitorSymbol = TRADING_CONFIG.monitorSymbol;
+  const normalizedLongSymbol = normalizeHKSymbol(longSymbol);
+  const normalizedShortSymbol = normalizeHKSymbol(shortSymbol);
+  const normalizedMonitorSymbol = normalizeHKSymbol(monitorSymbol);
+
   logger.info("程序开始运行，在交易时段将进行实时监控和交易（按 Ctrl+C 退出）");
 
   // 初始化牛熊证信息
   await riskChecker.initializeWarrantInfo(
     marketDataClient,
-    TRADING_CONFIG.longSymbol,
-    TRADING_CONFIG.shortSymbol
+    longSymbol,
+    shortSymbol
   );
 
   // 记录上一次的数据状态
@@ -632,14 +668,13 @@ async function main() {
     monitorValues: null,
     cachedAccount: null,
     cachedPositions: [],
+    cachedTradingDayInfo: null, // 缓存的交易日信息 { isTradingDay, isHalfDay, checkDate }
   };
 
   // 程序启动时立即获取一次账户和持仓信息
   await displayAccountAndPositions(trader, marketDataClient, lastState);
 
   // 程序启动时从API获取订单数据并更新缓存
-  const longSymbol = TRADING_CONFIG.longSymbol;
-  const shortSymbol = TRADING_CONFIG.shortSymbol;
   if (longSymbol) {
     await orderRecorder.fetchOrdersFromAPIWithRetry(longSymbol);
   }
@@ -693,8 +728,6 @@ async function main() {
 
   // 程序启动时检查一次是否有买入的未成交订单
   try {
-    const normalizedLongSymbol = normalizeHKSymbol(longSymbol);
-    const normalizedShortSymbol = normalizeHKSymbol(shortSymbol);
     const hasPendingBuyOrders = await trader.hasPendingBuyOrders([
       normalizedLongSymbol,
       normalizedShortSymbol,
@@ -725,6 +758,13 @@ async function main() {
         unrealizedLossMonitor,
         signalVerificationManager,
         signalProcessor,
+        // 性能优化：传入常量配置
+        longSymbol,
+        shortSymbol,
+        monitorSymbol,
+        normalizedLongSymbol,
+        normalizedShortSymbol,
+        normalizedMonitorSymbol,
       });
     } catch (err) {
       logger.error("本次执行失败", err);
