@@ -18,6 +18,8 @@ import {
   formatNumber,
   getSymbolName,
   formatQuoteDisplay,
+  isDefined,
+  isValidNumber,
 } from "./utils/helpers.js";
 import { extractRSIPeriods } from "./utils/signalConfigParser.js";
 
@@ -600,9 +602,7 @@ async function runOnce({
 
     // 格式化指标值
     const formatIndicator = (value, decimals = 2) => {
-      return value !== null && value !== undefined && Number.isFinite(value)
-        ? value.toFixed(decimals)
-        : "-";
+      return isValidNumber(value) ? value.toFixed(decimals) : "-";
     };
 
     // 检测指标变化（检查所有指标是否发生变化）
@@ -757,54 +757,36 @@ async function runOnce({
       }
 
       // 5. MFI
-      if (monitorSnapshot.mfi !== null && monitorSnapshot.mfi !== undefined) {
+      if (isDefined(monitorSnapshot.mfi)) {
         indicators.push(`MFI=${formatIndicator(monitorSnapshot.mfi, 2)}`);
       }
 
       // 6. KDJ（K、D、J三个值）
       if (monitorSnapshot.kdj) {
-        if (
-          monitorSnapshot.kdj.k !== null &&
-          monitorSnapshot.kdj.k !== undefined
-        ) {
+        if (isDefined(monitorSnapshot.kdj.k)) {
           indicators.push(`K=${formatIndicator(monitorSnapshot.kdj.k, 2)}`);
         }
-        if (
-          monitorSnapshot.kdj.d !== null &&
-          monitorSnapshot.kdj.d !== undefined
-        ) {
+        if (isDefined(monitorSnapshot.kdj.d)) {
           indicators.push(`D=${formatIndicator(monitorSnapshot.kdj.d, 2)}`);
         }
-        if (
-          monitorSnapshot.kdj.j !== null &&
-          monitorSnapshot.kdj.j !== undefined
-        ) {
+        if (isDefined(monitorSnapshot.kdj.j)) {
           indicators.push(`J=${formatIndicator(monitorSnapshot.kdj.j, 2)}`);
         }
       }
 
       // 7. MACD（MACD、DIF、DEA三个值）
       if (monitorSnapshot.macd) {
-        if (
-          monitorSnapshot.macd.macd !== null &&
-          monitorSnapshot.macd.macd !== undefined
-        ) {
+        if (isDefined(monitorSnapshot.macd.macd)) {
           indicators.push(
             `MACD=${formatIndicator(monitorSnapshot.macd.macd, 4)}`
           );
         }
-        if (
-          monitorSnapshot.macd.dif !== null &&
-          monitorSnapshot.macd.dif !== undefined
-        ) {
+        if (isDefined(monitorSnapshot.macd.dif)) {
           indicators.push(
             `DIF=${formatIndicator(monitorSnapshot.macd.dif, 4)}`
           );
         }
-        if (
-          monitorSnapshot.macd.dea !== null &&
-          monitorSnapshot.macd.dea !== undefined
-        ) {
+        if (isDefined(monitorSnapshot.macd.dea)) {
           indicators.push(
             `DEA=${formatIndicator(monitorSnapshot.macd.dea, 4)}`
           );
@@ -2139,10 +2121,9 @@ async function displayAccountAndPositions(trader, marketDataClient, lastState) {
             : 0;
 
         // 构建价格显示文本
-        const priceText =
-          symbolInfo?.price !== null && symbolInfo?.price !== undefined
-            ? `现价=${formatNumber(currentPrice, 3)}`
-            : `成本价=${formatNumber(pos.costPrice, 3)}`;
+        const priceText = isDefined(symbolInfo?.price)
+          ? `现价=${formatNumber(currentPrice, 3)}`
+          : `成本价=${formatNumber(pos.costPrice, 3)}`;
 
         // 格式化账户渠道显示名称
         const channelDisplay = formatAccountChannel(pos.accountChannel);

@@ -7,7 +7,7 @@ import {
   NaiveDate,
 } from "longport";
 import { createConfig } from "../config/config.js";
-import { normalizeHKSymbol, decimalToNumber } from "../utils/helpers.js";
+import { normalizeHKSymbol, decimalToNumber, isDefined } from "../utils/helpers.js";
 import { logger } from "../utils/logger.js";
 
 const DEFAULT_RETRY = {
@@ -175,7 +175,7 @@ export class MarketDataClient {
         // 尝试多种可能的字段名
         const lotSizeValue =
           staticInfo.lotSize ?? staticInfo.lot_size ?? staticInfo.lot ?? null;
-        if (lotSizeValue !== null && lotSizeValue !== undefined) {
+        if (isDefined(lotSizeValue)) {
           const parsed = Number(lotSizeValue);
           if (Number.isFinite(parsed) && parsed > 0) {
             lotSize = parsed;

@@ -15,6 +15,7 @@ import {
   decimalToNumber,
   formatSymbolDisplay,
   toBeijingTimeIso,
+  isDefined,
 } from "../utils/helpers.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -894,7 +895,7 @@ export class Trader {
     if (needClosePosition) {
       // 平仓：如果信号中指定了数量，使用指定数量；否则按当前持仓可用数量全部清仓
       let targetQuantity = null;
-      if (signal.quantity !== undefined && signal.quantity !== null) {
+      if (isDefined(signal.quantity)) {
         const signalQty = Number(signal.quantity);
         if (Number.isFinite(signalQty) && signalQty > 0) {
           targetQuantity = signalQty;

@@ -1,5 +1,6 @@
 import { SignalType } from "../utils/constants.js";
 import { evaluateSignalConfig } from "../utils/signalConfigParser.js";
+import { isValidNumber } from "../utils/helpers.js";
 
 /**
  * 恒生指数多指标策略：
@@ -51,7 +52,7 @@ export class HangSengMultiIndicatorStrategy {
    * @returns {boolean} 如果值为有效的有限数字返回 true，否则返回 false
    */
   _isValidNumber(value) {
-    return value !== null && value !== undefined && Number.isFinite(value);
+    return isValidNumber(value);
   }
 
   /**

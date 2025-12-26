@@ -1,7 +1,7 @@
 // 基础风险管理模块：检查最大单日亏损与单标的最大持仓金额
 import { TRADING_CONFIG } from "../config/config.trading.js";
 import { SignalType, isBuyAction } from "../utils/constants.js";
-import { normalizeHKSymbol, decimalToNumber } from "../utils/helpers.js";
+import { normalizeHKSymbol, decimalToNumber, isDefined } from "../utils/helpers.js";
 import { logger } from "../utils/logger.js";
 
 export class RiskChecker {
@@ -157,7 +157,7 @@ export class RiskChecker {
 
     // 转换 Decimal 类型为 number（LongPort API 返回的价格字段可能是 Decimal 类型）
     let callPrice = null;
-    if (callPriceRaw !== null && callPriceRaw !== undefined) {
+    if (isDefined(callPriceRaw)) {
       // 如果是 Decimal 对象，使用 decimalToNumber 转换；否则直接使用 Number 转换
       if (typeof callPriceRaw === "object" && "toString" in callPriceRaw) {
         callPrice = decimalToNumber(callPriceRaw);

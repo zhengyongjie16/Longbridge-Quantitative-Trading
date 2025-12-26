@@ -10,6 +10,7 @@ import {
   normalizeHKSymbol,
   decimalToNumber,
   formatNumber,
+  isDefined,
 } from "../utils/helpers.js";
 import { RSI, MACD, EMA, MFI } from "technicalindicators";
 import { TRADING_CONFIG } from "../config/config.trading.js";
@@ -148,9 +149,7 @@ function calculateRSI(closes, period) {
  * @returns {string} 格式化后的字符串，如果值为 null 或 undefined 则返回 "-"
  */
 function formatIndicatorValue(value, decimals) {
-  return value !== null && value !== undefined
-    ? formatNumber(value, decimals)
-    : "-";
+  return isDefined(value) ? formatNumber(value, decimals) : "-";
 }
 
 /**

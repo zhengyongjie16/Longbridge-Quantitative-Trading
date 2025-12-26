@@ -1,6 +1,6 @@
 // 简单日志封装：统一输出格式，便于后续替换为专业日志库
 // 使用异步队列批量处理日志输出，避免阻塞主循环
-import { toBeijingTimeLog, toBeijingTimeIso } from "./helpers.js";
+import { toBeijingTimeLog, toBeijingTimeIso, isDefined } from "./helpers.js";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -221,7 +221,7 @@ class FileLogManager {
       try {
         // 尝试获取文件流的文件描述符并同步刷新
         // 注意：Node.js的WriteStream默认不暴露fd，需要检查是否存在
-        if (this._fileStream.fd !== null && this._fileStream.fd !== undefined) {
+        if (isDefined(this._fileStream.fd)) {
           try {
             fs.fsyncSync(this._fileStream.fd);
           } catch (err) {
