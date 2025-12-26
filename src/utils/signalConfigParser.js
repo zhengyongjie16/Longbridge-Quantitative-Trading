@@ -1,24 +1,24 @@
 /**
  * 信号配置解析器
  *
- * 解析格式如：(RSI6<20,MFI<15,D<20,J<-1)/3|(J<-20)
+ * 解析格式如：(RSI:6<20,MFI<15,D<20,J<-1)/3|(J<-20)
  *
  * 配置规则：
  * - 括号内是条件列表，逗号分隔
  * - /N：括号内条件需满足 N 项，不设则全部满足
  * - |：分隔不同条件组（最多3个），满足任一组即可
- * - 支持指标：RSI6, RSI12, MFI, D (KDJ.D), J (KDJ.J)
+ * - 支持指标：RSI:n (n为1-100), MFI, D (KDJ.D), J (KDJ.J)
  * - 支持运算符：< 和 >
  * - 支持负数阈值
  */
 
-// 支持的指标列表
-const SUPPORTED_INDICATORS = ["RSI6", "RSI12", "MFI", "D", "J"];
+// 支持的固定指标列表（不包括 RSI，因为 RSI 支持动态周期）
+const SUPPORTED_INDICATORS = ["MFI", "D", "J"];
 
 /**
  * 解析单个条件
- * @param {string} conditionStr 条件字符串，如 "RSI6<20" 或 "J<-1"
- * @returns {{indicator: string, operator: string, threshold: number}|null} 解析结果
+ * @param {string} conditionStr 条件字符串，如 "RSI:6<20" 或 "J<-1"
+ * @returns {{indicator: string, period?: number, operator: string, threshold: number}|null} 解析结果
  */
 function parseCondition(conditionStr) {
   // 去除空白
@@ -26,8 +26,36 @@ function parseCondition(conditionStr) {
   if (!trimmed) return null;
 
   // 匹配指标、运算符和阈值（支持负数）
-  // 格式：指标名(大写字母+可选数字) + 运算符(< 或 >) + 阈值(可选负号+数字，支持小数)
-  const match = trimmed.match(/^([A-Z]+\d*)\s*([<>])\s*(-?\d+(?:\.\d+)?)$/);
+  // 格式1：RSI:n<threshold (RSI 带周期)
+  // 格式2：INDICATOR<threshold (其他固定指标)
+  const rsiMatch = trimmed.match(/^RSI:(\d+)\s*([<>])\s*(-?\d+(?:\.\d+)?)$/);
+
+  if (rsiMatch) {
+    // RSI:n 格式
+    const [, periodStr, operator, thresholdStr] = rsiMatch;
+    const period = parseInt(periodStr, 10);
+    const threshold = parseFloat(thresholdStr);
+
+    // 验证周期范围（1-100）
+    if (!Number.isFinite(period) || period < 1 || period > 100) {
+      return null;
+    }
+
+    // 验证阈值是否为有效数字
+    if (!Number.isFinite(threshold)) {
+      return null;
+    }
+
+    return {
+      indicator: "RSI",
+      period,
+      operator,
+      threshold,
+    };
+  }
+
+  // 尝试匹配其他固定指标格式
+  const match = trimmed.match(/^([A-Z]+)\s*([<>])\s*(-?\d+(?:\.\d+)?)$/);
 
   if (!match) {
     return null;
@@ -243,7 +271,7 @@ export function validateSignalConfig(configStr) {
           valid: false,
           error: `条件组 ${i + 1} 的第 ${
             j + 1
-          } 个条件 "${condStr}" 格式无效。支持的指标: ${SUPPORTED_INDICATORS.join(
+          } 个条件 "${condStr}" 格式无效。支持的指标: RSI:n (n为1-100), ${SUPPORTED_INDICATORS.join(
             ", "
           )}`,
           config: null,
@@ -291,21 +319,22 @@ export function validateSignalConfig(configStr) {
 
 /**
  * 根据指标状态评估条件
- * @param {Object} state 指标状态 {rsi6, rsi12, mfi, kdj: {d, j}}
- * @param {Object} condition 条件 {indicator, operator, threshold}
+ * @param {Object} state 指标状态 {rsi: {6: value, 12: value, ...}, mfi, kdj: {d, j}}
+ * @param {Object} condition 条件 {indicator, period?, operator, threshold}
  * @returns {boolean} 条件是否满足
  */
 export function evaluateCondition(state, condition) {
-  const { indicator, operator, threshold } = condition;
+  const { indicator, period, operator, threshold } = condition;
 
   // 获取指标值
   let value;
   switch (indicator) {
-    case "RSI6":
-      value = state.rsi6;
-      break;
-    case "RSI12":
-      value = state.rsi12;
+    case "RSI":
+      // RSI:n 格式，从 state.rsi[period] 获取值
+      if (!period || !state.rsi || !state.rsi[period]) {
+        return false;
+      }
+      value = state.rsi[period];
       break;
     case "MFI":
       value = state.mfi;
@@ -421,7 +450,13 @@ export function formatSignalConfig(signalConfig) {
 
   const groups = signalConfig.conditionGroups.map((group) => {
     const conditions = group.conditions
-      .map((c) => `${c.indicator}${c.operator}${c.threshold}`)
+      .map((c) => {
+        // 如果是 RSI 指标，格式化为 RSI:n
+        if (c.indicator === "RSI" && c.period) {
+          return `RSI:${c.period}${c.operator}${c.threshold}`;
+        }
+        return `${c.indicator}${c.operator}${c.threshold}`;
+      })
       .join(",");
 
     if (group.conditions.length === 1) {
@@ -436,6 +471,51 @@ export function formatSignalConfig(signalConfig) {
   });
 
   return groups.join("|");
+}
+
+/**
+ * 从信号配置中提取所有 RSI 周期
+ * @param {Object} signalConfig 信号配置对象 {buycall, sellcall, buyput, sellput}
+ * @returns {Array<number>} RSI 周期数组（去重后排序）
+ */
+export function extractRSIPeriods(signalConfig) {
+  if (!signalConfig) {
+    return [];
+  }
+
+  const periods = new Set();
+
+  // 遍历所有信号类型的配置
+  const configs = [
+    signalConfig.buycall,
+    signalConfig.sellcall,
+    signalConfig.buyput,
+    signalConfig.sellput,
+  ];
+
+  for (const config of configs) {
+    if (!config || !config.conditionGroups) {
+      continue;
+    }
+
+    // 遍历所有条件组
+    for (const group of config.conditionGroups) {
+      if (!group.conditions) {
+        continue;
+      }
+
+      // 遍历所有条件
+      for (const condition of group.conditions) {
+        // 如果是 RSI 指标且有周期，添加到集合中
+        if (condition.indicator === "RSI" && condition.period) {
+          periods.add(condition.period);
+        }
+      }
+    }
+  }
+
+  // 转为数组并排序
+  return Array.from(periods).sort((a, b) => a - b);
 }
 
 // 导出支持的指标列表供验证使用

@@ -24,19 +24,19 @@ const DEFAULT_SYMBOL = "HSI.HK";
 // 默认做多标的代码（如果未通过环境变量指定）
 // 不带 .HK 后缀，内部会自动规范为港股
 // 设置为 null 则从环境变量 LONG_SYMBOL 或 TRADING_CONFIG 获取
-const DEFAULT_LONG_SYMBOL = "54806"; // 例如：可以设置为 "54806"
+const DEFAULT_LONG_SYMBOL = "60802"; // 例如：可以设置为 "54806"
 
 // 默认做空标的代码（如果未通过环境变量指定）
 // 不带 .HK 后缀，内部会自动规范为港股
 // 设置为 null 则从环境变量 SHORT_SYMBOL 或 TRADING_CONFIG 获取
-const DEFAULT_SHORT_SYMBOL = "63372"; // 例如：可以设置为 "63372"
+const DEFAULT_SHORT_SYMBOL = "53086"; // 例如：可以设置为 "63372"
 
 // 默认日期或日期范围（如果未通过环境变量或命令行参数指定）
 // 格式：
 //   - 单一日期：YYYY-MM-DD（例如：2024-12-11）
 //   - 日期范围：YYYY-MM-DD:YYYY-MM-DD 或 YYYY-MM-DD,YYYY-MM-DD（例如：2024-12-11:2024-12-15）
 // 设置为 null 则必须通过环境变量或命令行参数指定
-const DEFAULT_DATE = "2025-12-16"; // 例如：可以设置为 "2024-12-11" 或 "2024-12-11:2024-12-15"
+const DEFAULT_DATE = "2025-12-24"; // 例如：可以设置为 "2024-12-11" 或 "2024-12-11:2024-12-15"
 // ============================================
 
 /**

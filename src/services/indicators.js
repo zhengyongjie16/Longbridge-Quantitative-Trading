@@ -484,12 +484,12 @@ export function calculateMFI(candles, period = 14) {
  * ============================================================================
  *
  * 【调用位置】
- *   - src/index.js ：buildIndicatorSnapshot(monitorSymbol, monitorCandles)
+ *   - src/index.js ：buildIndicatorSnapshot(monitorSymbol, monitorCandles, rsiPeriods)
  *   - 用于计算监控标的的所有技术指标，供策略使用
  *
  * 【实现方式】
  *   使用 technicalindicators 库优化指标计算，性能提升约 2.9 倍
- *   - RSI：使用 RSI.calculate（Wilder's Smoothing，平滑系数 = 1/period）
+ *   - RSI：使用 RSI.calculate（Wilder's Smoothing，平滑系数 = 1/period），支持动态周期
  *   - KDJ：使用 EMA(period=5) 实现平滑系数 1/3
  *   - MACD：使用 MACD.calculate（EMA 计算方式）
  *   - MFI：使用 MFI.calculate（资金流量指标，周期14）
@@ -497,24 +497,25 @@ export function calculateMFI(candles, period = 14) {
  * 【功能说明】
  *   统一计算并返回指定标的的所有技术指标，包括：
  *   - price: 最新收盘价
- *   - rsi6: 6周期RSI指标
+ *   - rsi: RSI指标对象 {6: value, 12: value, ...}（根据 rsiPeriods 参数动态计算）
  *   - kdj: KDJ指标（包含k、d、j三个值，周期9）
  *   - macd: MACD指标（包含dif、dea、macd三个值）
  *   - mfi: MFI指标（资金流量指标，周期14）
  *
  * 【计算顺序】
  *   1. 提取收盘价数组
- *   2. 计算RSI6（使用 technicalindicators 库）
+ *   2. 根据 rsiPeriods 参数计算对应周期的 RSI（使用 technicalindicators 库）
  *   3. 计算KDJ（使用 technicalindicators 库的 EMA）
  *   4. 计算MACD（使用 technicalindicators 库）
  *   5. 计算MFI（使用 technicalindicators 库）
  *
  * @param {string} symbol 标的代码
  * @param {Array<Object>} candles K线数据数组，每根K线包含 {open, high, low, close, volume} 等字段
+ * @param {Array<number>} rsiPeriods RSI周期数组，例如 [6, 12, 14]，默认为空数组
  * @returns {Object|null} 指标快照对象，包含所有计算好的指标值
  *   如果无法计算，返回 null
  */
-export function buildIndicatorSnapshot(symbol, candles) {
+export function buildIndicatorSnapshot(symbol, candles, rsiPeriods = []) {
   if (!candles || candles.length === 0) {
     return null;
   }
@@ -533,12 +534,30 @@ export function buildIndicatorSnapshot(symbol, candles) {
   const validPrice =
     Number.isFinite(lastPrice) && lastPrice > 0 ? lastPrice : null;
 
+  // 计算所有需要的 RSI 周期
+  const rsi = {};
+  if (Array.isArray(rsiPeriods) && rsiPeriods.length > 0) {
+    for (const period of rsiPeriods) {
+      // 验证周期有效性
+      if (
+        Number.isFinite(period) &&
+        period >= 1 &&
+        period <= 100 &&
+        Number.isInteger(period)
+      ) {
+        const rsiValue = calculateRSI(closes, period);
+        if (rsiValue !== null) {
+          rsi[period] = rsiValue;
+        }
+      }
+    }
+  }
+
   // 统一计算所有指标并返回
   return {
     symbol,
     price: validPrice, // 最新收盘价
-    rsi6: calculateRSI(closes, 6), // 6周期RSI
-    rsi12: calculateRSI(closes, 12), // 12周期RSI（用于信号配置）
+    rsi, // RSI指标对象 {6: value, 12: value, ...}
     kdj: calculateKDJ(candles, 9), // KDJ指标
     macd: calculateMACD(closes), // MACD指标
     mfi: calculateMFI(candles, 14), // MFI指标（资金流量指标，周期14）
