@@ -11,14 +11,23 @@
 ## 核心架构
 
 ```
-主循环 (index.js) → 每秒执行一次
-  ├─ 行情数据 (QuoteClient)
+主循环 (index.js) → 每秒执行一次，协调所有模块
+  ├─ 行情监控 (marketMonitor.js) - 价格和指标变化监控
+  ├─ 浮亏监控 (unrealizedLossMonitor.js) - 实时浮亏检查
+  ├─ 行情数据 (quoteClient.js) - 获取实时行情和K线
   ├─ 指标计算 (indicators.js) - 使用 technicalindicators 库
-  ├─ 信号生成 (strategy.js)
-  ├─ 风险验证 (risk.js)
-  ├─ 订单执行 (trader.js)
-  ├─ 订单记录 (orderRecorder.js)
-  └─ 对象池 (objectPool.js) - 内存优化
+  ├─ 信号生成 (strategy.js) - 生成立即和延迟信号
+  ├─ 信号验证 (signalVerification.js) - 延迟信号验证
+  ├─ 信号处理 (signalProcessor.js) - 风险检查和卖出数量计算
+  ├─ 末日保护 (doomsdayProtection.js) - 收盘前保护机制
+  ├─ 风险控制 (risk.js) - 牛熊证和浮亏风险检查
+  ├─ 订单执行 (trader.js) - 提交和监控订单
+  ├─ 订单记录 (orderRecorder.js) - 历史订单跟踪
+  └─ 辅助模块
+      ├─ tradingTime.js - 交易时段和时区工具
+      ├─ accountDisplay.js - 账户和持仓显示
+      ├─ objectPool.js - 内存优化（对象池）
+      └─ logger.js - 异步日志系统
 ```
 
 ## 文档导航
@@ -44,29 +53,132 @@ npm start
 
 ## 模块职责
 
-### index.js（主入口）
+### index.js（主入口 - 已重构）
 
 **路径**：`D:\Code\longBrige-automation-program\src\index.js`
 
-- **主循环**：`runOnce()` 每秒执行一次
-- **交易时段检查**：验证港股交易时间（正常日 09:30-12:00 和 13:00-16:00，半日仅 09:30-12:00）
-- **状态管理**：维护 `lastState` 对象，在循环迭代间保持：
-  - 待验证的延迟信号（等待 60 秒验证）
-  - 缓存的账户/持仓数据
-  - 上次指标值（用于变化检测）
-- **收盘前保护机制**：
-  - 收盘前 15 分钟拒绝买入（正常日 15:45-16:00，半日 11:45-12:00）
-  - 收盘前 5 分钟自动清仓（正常日 15:55-15:59，半日 11:55-11:59）
-- **成本价判断与卖出策略**（index.js:1329-1458）：
-  - 当 currentPrice > costPrice 时：立即清空所有持仓
-  - 当 currentPrice ≤ costPrice 时：仅卖出 buyPrice < currentPrice 的历史订单（智能清仓）
-  - 如果没有符合条件的订单，信号被设为 HOLD（持有）
+**重构说明**：原文件从 2314 行缩减到 742 行（减少 68%），所有业务逻辑已模块化。
 
-**关键函数**：
+- **主循环**：`runOnce()` 每秒执行一次，作为模块协调器
+- **职责**：
+  - 初始化所有模块实例（MarketMonitor, DoomsdayProtection, UnrealizedLossMonitor等）
+  - 协调各模块间的数据流和调用顺序
+  - 管理 `lastState` 对象（待验证信号、缓存数据、上次指标值）
+  - 获取行情数据和K线数据
+  - 调用各模块执行具体业务逻辑
+- **核心流程**：
+  1. 检查交易时段（调用 tradingTime 模块）
+  2. 监控价格和指标变化（MarketMonitor）
+  3. 检查浮亏并执行保护性清仓（UnrealizedLossMonitor）
+  4. 生成和验证交易信号（Strategy + SignalVerificationManager）
+  5. 应用风险检查（SignalProcessor）
+  6. 执行末日保护程序（DoomsdayProtection）
+  7. 提交订单并更新状态（Trader + OrderRecorder）
 
-- `isInContinuousHKSession(date, isHalfDay)` - 交易时段验证（半日交易日仅上午时段）
-- `isBeforeClose15Minutes()` / `isBeforeClose5Minutes()` - 收盘前检查
-- `getHKTime()` - UTC 到香港时区转换
+### marketMonitor.js（行情监控）
+
+**路径**：`D:\Code\longBrige-automation-program\src\core\marketMonitor.js`
+
+- **类**：`MarketMonitor`
+- **职责**：监控价格变化和技术指标变化，并格式化显示
+- **核心方法**：
+  - `monitorPriceChanges()` - 监控做多/做空标的价格变化
+  - `monitorIndicatorChanges()` - 监控监控标的的技术指标变化
+- **变化检测**：
+  - 价格变化阈值：0.0001
+  - 指标变化阈值：RSI/MFI/KDJ为0.1，MACD为0.0001，EMA为0.0001
+- **显示内容**：价格、涨跌幅、EMA、RSI、MFI、KDJ、MACD等所有技术指标
+
+### doomsdayProtection.js（末日保护）
+
+**路径**：`D:\Code\longBrige-automation-program\src\core\doomsdayProtection.js`
+
+- **类**：`DoomsdayProtection`
+- **职责**：收盘前的风险控制
+- **核心方法**：
+  - `shouldRejectBuy()` - 判断是否应拒绝买入（收盘前15分钟）
+  - `shouldClearPositions()` - 判断是否应自动清仓（收盘前5分钟）
+  - `generateClearanceSignals()` - 生成清仓信号
+- **时间规则**：
+  - 正常交易日：15:45-16:00拒绝买入，15:55-15:59自动清仓
+  - 半日交易日：11:45-12:00拒绝买入，11:55-11:59自动清仓
+
+### unrealizedLossMonitor.js（浮亏监控）
+
+**路径**：`D:\Code\longBrige-automation-program\src\core\unrealizedLossMonitor.js`
+
+- **类**：`UnrealizedLossMonitor`
+- **职责**：实时监控单标的浮亏，触发阈值时执行保护性清仓
+- **核心方法**：
+  - `checkAndLiquidate()` - 检查并执行保护性清仓
+  - `monitorUnrealizedLoss()` - 监控做多/做空标的浮亏
+- **清仓流程**：
+  1. 检查浮亏是否超过阈值
+  2. 创建市价单清仓信号（`useMarketOrder: true`）
+  3. 执行清仓订单
+  4. 刷新订单记录和浮亏数据
+
+### signalVerification.js（信号验证）
+
+**路径**：`D:\Code\longBrige-automation-program\src\core\signalVerification.js`
+
+- **类**：`SignalVerificationManager`
+- **职责**：管理延迟信号的验证流程
+- **核心方法**：
+  - `addDelayedSignals()` - 添加延迟信号到待验证列表
+  - `recordVerificationHistory()` - 记录验证历史（每秒调用）
+  - `verifyPendingSignals()` - 验证到期的待验证信号
+- **验证逻辑**：
+  - 买入做多（BUYCALL）：所有配置指标的第二个值都要大于第一个值
+  - 买入做空（BUYPUT）：所有配置指标的第二个值都要小于第一个值
+- **验证窗口**：触发时间前后±5秒内记录指标值
+- **使用对象池**：使用 `verificationEntryPool` 优化内存分配
+
+### signalProcessor.js（信号处理）
+
+**路径**：`D:\Code\longBrige-automation-program\src\core\signalProcessor.js`
+
+- **类**：`SignalProcessor`
+- **职责**：信号过滤、风险检查、卖出数量计算
+- **核心方法**：
+  - `processSellSignals()` - 处理卖出信号的成本价判断和数量计算
+  - `applyRiskChecks()` - 应用所有风险检查
+- **买入检查顺序**：
+  1. 交易频率限制
+  2. 买入价格限制（防止追高）
+  3. 末日保护程序（收盘前15分钟拒绝买入）
+  4. 牛熊证风险检查
+  5. 基础风险检查（浮亏和持仓市值限制）
+- **卖出数量计算**：
+  - 当 currentPrice > costPrice：立即清空所有持仓
+  - 当 currentPrice ≤ costPrice：仅卖出 buyPrice < currentPrice 的历史订单
+  - 如果没有符合条件的订单：信号设为 HOLD
+
+### tradingTime.js（交易时段工具）
+
+**路径**：`D:\Code\longBrige-automation-program\src\utils\tradingTime.js`
+
+- **职责**：提供交易时段判断和时区转换功能
+- **核心函数**：
+  - `getHKTime(date)` - UTC时间转换为香港时区（UTC+8）
+  - `isInContinuousHKSession(date, isHalfDay)` - 判断是否在连续交易时段
+  - `isBeforeClose15Minutes(date, isHalfDay)` - 判断是否在收盘前15分钟
+  - `isBeforeClose5Minutes(date, isHalfDay)` - 判断是否在收盘前5分钟
+  - `hasChanged(current, last, threshold)` - 检查数值是否变化超过阈值
+- **交易时段**：
+  - 正常日：09:30-12:00 和 13:00-16:00
+  - 半日：仅 09:30-12:00
+
+### accountDisplay.js（账户显示）
+
+**路径**：`D:\Code\longBrige-automation-program\src\utils\accountDisplay.js`
+
+- **职责**：格式化显示账户和持仓信息
+- **核心函数**：
+  - `displayAccountAndPositions()` - 显示账户快照和持仓详情
+- **显示内容**：
+  - 账户：余额、市值、持仓市值
+  - 持仓：标的名称、持仓数量、可用数量、现价/成本价、市值、仓位百分比
 
 ### strategy.js（信号生成）
 
@@ -145,8 +257,8 @@ npm start
     - 买入/卖出后，`index.js` 先调用 `recordLocalBuy/recordLocalSell` 更新订单列表
     - 然后调用 `refreshUnrealizedLossData` 从已更新的订单列表重新计算 R1/N1（不调用 API）
     - **注意**：`refreshUnrealizedLossData` 方法直接从 `orderRecorder._longBuyOrders/_shortBuyOrders` 读取已过滤的订单列表计算，而不是从全部买入/卖出订单计算
-- **保护性清仓流程（index.js 中使用）**：
-  - 在价格变化时调用 `checkUnrealizedLoss` 判断是否需要保护性清仓（index.js:427-504）
+- **保护性清仓流程（UnrealizedLossMonitor 模块执行）**：
+  - 在价格变化时调用 `checkUnrealizedLoss` 判断是否需要保护性清仓
   - 若需要清仓：
     - 构造市价清仓信号（`useMarketOrder: true`，动作为 `SELLCALL` 或 `SELLPUT`）
     - 交给 `trader.executeSignals` 执行市价单
@@ -194,7 +306,7 @@ npm start
   - `isSymbolDisabled(symbol)`：检查标的是否被禁用
   - `disableSymbol(symbol)`：禁用标的交易
   - `enableSymbol(symbol)`：启用标的交易
-  - 禁用的标的在信号执行时会被跳过（index.js:1370-1376）
+  - 禁用的标的在信号执行时会被跳过（SignalProcessor 模块检查）
 - **运行时本地更新（避免频繁 historyOrders 调用）**：
   - `recordLocalBuy` / `recordLocalSell`：
     - 在交易执行后由 `index.js` 调用，仅更新内存中的买入记录，不触发 API 调用
@@ -317,7 +429,7 @@ npm start
 2. 验证阶段（延迟时间后在 runOnce 中）
    ├─ 延迟时间可配置（VERIFICATION_DELAY_SECONDS，默认 60 秒，设为 0 则不延迟验证）
    ├─ 验证指标可配置（VERIFICATION_INDICATORS，可选 K、D、J、MACD、DIF、DEA，默认 J,MACD）
-   ├─ 每秒记录当前配置的所有验证指标值到信号的验证历史中（index.js:610-690）
+   ├─ 每秒记录当前配置的所有验证指标值到信号的验证历史中（SignalVerificationManager 模块）
    │  ├─ 条件：triggerTime ± 5秒窗口内（仅在此窗口内记录）
    │  ├─ 去重：避免在同一秒内重复记录（精确到秒）
    │  ├─ 限制：只保留 triggerTime ± 5秒窗口内的历史数据
@@ -333,7 +445,7 @@ npm start
    └─ 清理：从待验证列表中移除已处理的信号，并清空其验证历史
 
 3. 执行阶段 (index.js + trader.executeSignals)
-   ├─ 买入操作检查顺序（index.js:1352-1506）：
+   ├─ 买入操作检查顺序（SignalProcessor 模块）：
    │  1. 交易频率限制检查（若不通过直接拒绝，不进行后续检查）
    │  2. 买入前价格检查（若当前标的价格 > 订单记录里最新订单的成交价则拒绝买入）
    │  3. 末日保护程序检查（收盘前15分钟拒绝买入）
@@ -342,7 +454,7 @@ npm start
    ├─ 对所有信号：
    │  ├─ 实时获取账户和持仓数据（买入操作必须获取最新数据）
    │  └─ 应用对应的风险检查规则
-   ├─ 卖出信号成本价判断与数量计算（index.js:1557-1680）：
+   ├─ 卖出信号成本价判断与数量计算（SignalProcessor 模块）：
    │  ├─ 使用 calculateSellQuantity() 函数统一处理做多和做空标的
    │  ├─ 如果 currentPrice > costPrice（做多）或 currentPrice < costPrice（做空）：卖出全部持仓
    │  ├─ 否则（未盈利状态）：
@@ -352,7 +464,7 @@ npm start
    │  └─ 卖出数量不能超过可用持仓数量
    ├─ 根据目标金额计算买入数量（trader.js:1015-1083）
    ├─ 提交 ELO 订单（trader.js:1119-1207）
-   ├─ 订单成交后本地更新订单记录（index.js:1696-1749）：
+   ├─ 订单成交后本地更新订单记录（index.js 主循环调用）：
    │  ├─ 买入成交后：调用 orderRecorder.recordLocalBuy() 本地追加记录
    │  ├─ 卖出成交后：调用 orderRecorder.recordLocalSell() 本地更新记录
    │  └─ 刷新浮亏数据：调用 riskChecker.refreshUnrealizedLossData()
@@ -461,11 +573,11 @@ const sellQty = clearAll ? availableQty : Math.min(calculateQty, availableQty);
 
 ### 收盘前保护机制
 
-- **收盘前 15 分钟拒绝买入**（index.js:1123-1144）：
+- **收盘前 15 分钟拒绝买入**（DoomsdayProtection 模块）：
   - 正常交易日：15:45-16:00
   - 半日交易日：11:45-12:00
   - 所有买入信号在此时段内被拦截，卖出信号不受影响
-- **收盘前 5 分钟自动清仓**（index.js:976-1063）：
+- **收盘前 5 分钟自动清仓**（DoomsdayProtection 模块）：
   - 正常交易日：15:55-15:59
   - 半日交易日：11:55-11:59
   - 为所有持仓生成 SELLCALL 或 SELLPUT 信号（忽略其他条件）
@@ -479,9 +591,9 @@ const sellQty = clearAll ? availableQty : Math.min(calculateQty, availableQty);
 4. **仅监控标的生成信号**：做多/做空标的仅为执行目标（不计算其指标）
 5. **1 分钟 K 线粒度**：200 根 K 线 = 约 200 分钟 = 约 3 小时历史
 6. **必须使用 ELO 订单类型**：所有订单必须使用增强限价单并指定价格
-7. **买入操作数据要求**：买入时必须实时获取最新账户和持仓数据以确保浮亏计算准确（index.js:1196-1251）
+7. **买入操作数据要求**：买入时必须实时获取最新账户和持仓数据以确保浮亏计算准确（SignalProcessor 模块实现）
 8. **卖出操作灵活性**：卖出时可使用缓存数据（卖出操作不检查浮亏限制）
-9. **HOLD 信号机制**：当卖出条件触发但成本价判断失败时，信号设为 HOLD（持有）而非拒绝（index.js:1371-1453）
+9. **HOLD 信号机制**：当卖出条件触发但成本价判断失败时，信号设为 HOLD（持有）而非拒绝（SignalProcessor 模块实现）
 10. **订单监控仅针对买入**：只监控买入订单的价格变化，卖出订单不监控（trader.js:426-543）
 
 ## 调试技巧

@@ -8,291 +8,24 @@ import { logger } from "./utils/logger.js";
 import { validateAllConfig } from "./config/config.validator.js";
 import { SignalType } from "./utils/constants.js";
 import { OrderRecorder } from "./core/orderRecorder.js";
-import {
-  verificationEntryPool,
-  positionObjectPool,
-} from "./utils/objectPool.js";
-import {
-  normalizeHKSymbol,
-  formatAccountChannel,
-  formatNumber,
-  getSymbolName,
-  formatQuoteDisplay,
-  isDefined,
-  isValidNumber,
-} from "./utils/helpers.js";
+import { positionObjectPool } from "./utils/objectPool.js";
+import { normalizeHKSymbol, getSymbolName } from "./utils/helpers.js";
 import { extractRSIPeriods } from "./utils/signalConfigParser.js";
 
-/**
- * 从指标状态中提取指定指标的值
- * @param {Object} state 指标状态对象 {kdj, macd, ema}
- * @param {string} indicatorName 指标名称 (K, D, J, MACD, DIF, DEA, EMA:n)
- * @returns {number|null} 指标值，如果无效则返回 null
- */
-function getIndicatorValue(state, indicatorName) {
-  if (!state) return null;
-
-  const { kdj, macd, ema } = state;
-
-  // 处理 EMA:n 格式（例如 EMA:5, EMA:10）
-  if (indicatorName.startsWith("EMA:")) {
-    const periodStr = indicatorName.substring(4); // 提取周期部分
-    const period = parseInt(periodStr, 10);
-
-    // 验证周期是否有效
-    if (!Number.isFinite(period) || period < 1 || period > 250) {
-      return null;
-    }
-
-    // 从 ema 对象中提取对应周期的值
-    return ema && Number.isFinite(ema[period]) ? ema[period] : null;
-  }
-
-  switch (indicatorName) {
-    case "K":
-      return kdj && Number.isFinite(kdj.k) ? kdj.k : null;
-    case "D":
-      return kdj && Number.isFinite(kdj.d) ? kdj.d : null;
-    case "J":
-      return kdj && Number.isFinite(kdj.j) ? kdj.j : null;
-    case "MACD":
-      return macd && Number.isFinite(macd.macd) ? macd.macd : null;
-    case "DIF":
-      return macd && Number.isFinite(macd.dif) ? macd.dif : null;
-    case "DEA":
-      return macd && Number.isFinite(macd.dea) ? macd.dea : null;
-    default:
-      return null;
-  }
-}
+// 导入新模块
+import { isInContinuousHKSession } from "./utils/tradingTime.js";
+import { displayAccountAndPositions } from "./utils/accountDisplay.js";
+import { MarketMonitor } from "./core/marketMonitor.js";
+import { DoomsdayProtection } from "./core/doomsdayProtection.js";
+import { UnrealizedLossMonitor } from "./core/unrealizedLossMonitor.js";
+import { SignalVerificationManager } from "./core/signalVerification.js";
+import { SignalProcessor } from "./core/signalProcessor.js";
 
 /**
- * 将UTC时间转换为香港时区（UTC+8）
- * @param {Date} date 时间对象（UTC时间）
- * @returns {{hkHour: number, hkMinute: number}|null} 香港时区的小时和分钟，如果date无效则返回null
- */
-function getHKTime(date) {
-  if (!date) return null;
-  const utcHour = date.getUTCHours();
-  const utcMinute = date.getUTCMinutes();
-  return {
-    hkHour: (utcHour + 8) % 24,
-    hkMinute: utcMinute,
-  };
-}
-
-/**
- * 判断是否在港股连续交易时段（仅检查时间，不检查是否是交易日）
- * 港股连续交易时段：
- * - 正常交易日：上午 09:30 - 12:00，下午 13:00 - 16:00
- * - 半日交易日：仅上午 09:30 - 12:00（无下午时段）
- * @param {Date} date 时间对象（应该是UTC时间）
- * @param {boolean} isHalfDay 是否是半日交易日
- * @returns {boolean} true表示在连续交易时段，false表示不在
- */
-function isInContinuousHKSession(date, isHalfDay = false) {
-  if (!date) return false;
-  // 将时间转换为香港时区（UTC+8）
-  const hkTime = getHKTime(date);
-  if (!hkTime) return false;
-  const { hkHour, hkMinute } = hkTime;
-
-  // 上午连续交易时段：09:30 - 12:00（不含 12:00 本身）
-  const inMorning =
-    (hkHour === 9 && hkMinute >= 30) || // 9:30 - 9:59
-    (hkHour >= 10 && hkHour < 12); // 10:00 - 11:59
-
-  // 半日交易日：仅上午时段有效，下午无交易
-  if (isHalfDay) {
-    return inMorning;
-  }
-
-  // 下午连续交易时段：13:00 - 15:59:59
-  // 注意：16:00:00 是收盘时间，不包含在连续交易时段内
-  const inAfternoon = hkHour >= 13 && hkHour < 16; // 13:00 - 15:59
-
-  return inMorning || inAfternoon;
-}
-
-/**
- * 判断是否在当日收盘前15分钟内（末日保护程序：拒绝买入）
- * 港股正常交易日收盘时间：下午 16:00，收盘前15分钟：15:45 - 15:59
- * 港股半日交易日收盘时间：中午 12:00，收盘前15分钟：11:45 - 11:59
- * @param {Date} date 时间对象（应该是UTC时间）
- * @param {boolean} isHalfDay 是否是半日交易日
- * @returns {boolean} true表示在收盘前15分钟，false表示不在
- */
-function isBeforeClose15Minutes(date, isHalfDay = false) {
-  if (!date) return false;
-  const hkTime = getHKTime(date);
-  if (!hkTime) return false;
-  const { hkHour, hkMinute } = hkTime;
-
-  if (isHalfDay) {
-    // 半日交易：收盘前15分钟为 11:45 - 11:59:59（12:00收盘）
-    return hkHour === 11 && hkMinute >= 45;
-  } else {
-    // 正常交易日：收盘前15分钟为 15:45 - 15:59:59（16:00收盘）
-    return hkHour === 15 && hkMinute >= 45;
-  }
-}
-
-/**
- * 判断是否在当日收盘前5分钟内（末日保护程序：自动清仓）
- * 港股正常交易日收盘时间：下午 16:00，收盘前5分钟：15:55 - 15:59
- * 港股半日交易日收盘时间：中午 12:00，收盘前5分钟：11:55 - 11:59
- * @param {Date} date 时间对象（应该是UTC时间）
- * @param {boolean} isHalfDay 是否是半日交易日
- * @returns {boolean} true表示在收盘前5分钟，false表示不在
- */
-function isBeforeClose5Minutes(date, isHalfDay = false) {
-  if (!date) return false;
-  const hkTime = getHKTime(date);
-  if (!hkTime) return false;
-  const { hkHour, hkMinute } = hkTime;
-
-  if (isHalfDay) {
-    // 半日交易：收盘前5分钟为 11:55 - 11:59:59（12:00收盘）
-    return hkHour === 11 && hkMinute >= 55;
-  } else {
-    // 正常交易日：收盘前5分钟为 15:55 - 15:59:59（16:00收盘）
-    return hkHour === 15 && hkMinute >= 55;
-  }
-}
-
-/**
- * 检查数值是否发生变化（超过阈值）
- * @param {number} current 当前值
- * @param {number} last 上次值
- * @param {number} threshold 变化阈值
- * @returns {boolean} true表示值发生变化，false表示未变化
- */
-function hasChanged(current, last, threshold) {
-  return (
-    Number.isFinite(current) &&
-    Number.isFinite(last) &&
-    Math.abs(current - last) > threshold
-  );
-}
-
-/**
- * 计算卖出信号的数量和原因（统一处理做多和做空标的的卖出逻辑）
- * @param {Object} position 持仓对象（包含 costPrice 和 availableQuantity）
- * @param {Object} quote 行情对象（包含 price）
- * @param {Object} orderRecorder 订单记录器实例
- * @param {string} direction 方向：'LONG'（做多）或 'SHORT'（做空）
- * @param {string} originalReason 原始信号原因
- * @returns {{quantity: number|null, shouldHold: boolean, reason: string}} 返回卖出数量和原因，shouldHold为true表示应跳过此信号
- */
-function calculateSellQuantity(
-  position,
-  quote,
-  orderRecorder,
-  direction,
-  originalReason
-) {
-  // 验证输入参数
-  if (
-    !position ||
-    !Number.isFinite(position.costPrice) ||
-    position.costPrice <= 0 ||
-    !Number.isFinite(position.availableQuantity) ||
-    position.availableQuantity <= 0 ||
-    !quote ||
-    !Number.isFinite(quote.price) ||
-    quote.price <= 0
-  ) {
-    return {
-      quantity: null,
-      shouldHold: true,
-      reason: `${originalReason || ""}，持仓或行情数据无效`,
-    };
-  }
-
-  const currentPrice = quote.price;
-  const costPrice = position.costPrice;
-  const directionName = direction === "LONG" ? "做多标的" : "做空标的";
-
-  // 当前价格高于持仓成本价，立即清仓所有持仓
-  if (currentPrice > costPrice) {
-    return {
-      quantity: position.availableQuantity,
-      shouldHold: false,
-      reason: `${originalReason || ""}，当前价格${currentPrice.toFixed(
-        3
-      )}>成本价${costPrice.toFixed(3)}，立即清空所有${directionName}持仓`,
-    };
-  }
-
-  // 当前价格没有高于持仓成本价，检查历史买入订单
-  if (!orderRecorder) {
-    return {
-      quantity: null,
-      shouldHold: true,
-      reason: `${
-        originalReason || ""
-      }，但${directionName}价格${currentPrice.toFixed(
-        3
-      )}未高于成本价${costPrice.toFixed(3)}，且无法获取订单记录`,
-    };
-  }
-
-  // 根据方向获取符合条件的买入订单
-  const getBuyOrdersBelowPrice =
-    direction === "LONG"
-      ? orderRecorder.getLongBuyOrdersBelowPrice.bind(orderRecorder)
-      : orderRecorder.getShortBuyOrdersBelowPrice.bind(orderRecorder);
-
-  const buyOrdersBelowPrice = getBuyOrdersBelowPrice(currentPrice);
-
-  if (!buyOrdersBelowPrice || buyOrdersBelowPrice.length === 0) {
-    // 没有符合条件的订单，跳过此信号
-    return {
-      quantity: null,
-      shouldHold: true,
-      reason: `${
-        originalReason || ""
-      }，但${directionName}价格${currentPrice.toFixed(
-        3
-      )}未高于成本价${costPrice.toFixed(3)}，且没有买入价低于当前价的历史订单`,
-    };
-  }
-
-  const totalQuantity =
-    orderRecorder.calculateTotalQuantity(buyOrdersBelowPrice);
-
-  if (totalQuantity > 0) {
-    // 有符合条件的订单，卖出这些订单
-    return {
-      quantity: totalQuantity,
-      shouldHold: false,
-      reason: `${
-        originalReason || ""
-      }，但${directionName}价格${currentPrice.toFixed(
-        3
-      )}未高于成本价${costPrice.toFixed(
-        3
-      )}，卖出历史买入订单中买入价低于当前价的订单，共 ${totalQuantity} 股`,
-    };
-  } else {
-    // 总数量为0，跳过此信号
-    return {
-      quantity: null,
-      shouldHold: true,
-      reason: `${
-        originalReason || ""
-      }，但${directionName}价格${currentPrice.toFixed(
-        3
-      )}未高于成本价${costPrice.toFixed(3)}，且没有买入价低于当前价的历史订单`,
-    };
-  }
-}
-
-/**
- * 主程序：
- * 1. 从环境变量读取 LongPort 配置（见快速开始文档：https://open.longbridge.com/zh-CN/docs/getting-started）
- * 2. 拉取监控标的的 K 线数据（用于计算指标和生成信号）
- * 3. 计算 RSI / KDJ / MACD，并生成策略信号
+ * 主程序循环：
+ * 1. 从环境变量读取 LongPort 配置
+ * 2. 拉取监控标的的 K 线数据
+ * 3. 计算技术指标，并生成策略信号
  * 4. 根据监控标的的信号，对做多/做空标的执行交易
  */
 async function runOnce({
@@ -304,6 +37,11 @@ async function runOnce({
   lastState,
   orderRecorder,
   riskChecker,
+  marketMonitor,
+  doomsdayProtection,
+  unrealizedLossMonitor,
+  signalVerificationManager,
+  signalProcessor,
 }) {
   // 使用缓存的账户和持仓信息（仅在交易后更新）
   let account = lastState.cachedAccount ?? null;
@@ -317,8 +55,7 @@ async function runOnce({
   const normalizedShortSymbol = normalizeHKSymbol(shortSymbol);
   const normalizedMonitorSymbol = normalizeHKSymbol(monitorSymbol);
 
-  // 判断是否在交易时段（使用当前系统时间，而不是行情数据的时间戳）
-  // 因为行情数据的时间戳可能是历史数据或缓存数据，不能准确反映当前是否在交易时段
+  // 判断是否在交易时段（使用当前系统时间）
   const currentTime = new Date();
 
   // 首先检查今天是否是交易日（使用 API）
@@ -351,15 +88,13 @@ async function runOnce({
       "无法获取交易日信息，将根据时间判断是否在交易时段",
       err?.message ?? err
     );
-    // 如果获取交易日信息失败，继续使用时间判断（保守策略）
   }
 
   // 如果是交易日，再检查是否在交易时段
-  // 半日交易日仅上午时段有效（09:30-12:00），下午无交易
   const canTradeNow =
     isTradingDayToday && isInContinuousHKSession(currentTime, isHalfDayToday);
 
-  // 并发获取三个标的的行情（优化性能：从串行改为并发）
+  // 并发获取三个标的的行情
   const [longQuote, shortQuote, monitorQuote] = await Promise.all([
     marketDataClient.getLatestQuote(longSymbol).catch((err) => {
       logger.warn(`[行情获取失败] 做多标的`, err?.message ?? err);
@@ -396,132 +131,29 @@ async function runOnce({
 
   // 以下逻辑仅在连续交易时段执行
 
-  // 检测价格变化，只在价格变化时显示
-  const longPrice = longQuote?.price;
-  const shortPrice = shortQuote?.price;
+  // 监控价格变化并显示
+  const priceChanged = marketMonitor.monitorPriceChanges(
+    longQuote,
+    shortQuote,
+    longSymbol,
+    shortSymbol,
+    lastState
+  );
 
-  // 检查做多标的价格是否变化（阈值：0.0001）
-  const longPriceChanged =
-    lastState.longPrice == null && Number.isFinite(longPrice)
-      ? true // 首次出现价格
-      : hasChanged(longPrice, lastState.longPrice, 0.0001);
-
-  // 检查做空标的价格是否变化（阈值：0.0001）
-  const shortPriceChanged =
-    lastState.shortPrice == null && Number.isFinite(shortPrice)
-      ? true // 首次出现价格
-      : hasChanged(shortPrice, lastState.shortPrice, 0.0001);
-
-  if (longPriceChanged || shortPriceChanged) {
-    // 显示做多标的行情
-    const longDisplay = formatQuoteDisplay(longQuote, longSymbol);
-    if (longDisplay) {
-      logger.info(
-        `[做多标的] ${longDisplay.nameText}(${longDisplay.codeText}) 最新价格=${longDisplay.priceText} 涨跌额=${longDisplay.changeAmountText} 涨跌幅度=${longDisplay.changePercentText}`
-      );
-    } else {
-      logger.warn(`未获取到做多标的行情。`);
-    }
-
-    // 显示做空标的行情
-    const shortDisplay = formatQuoteDisplay(shortQuote, shortSymbol);
-    if (shortDisplay) {
-      logger.info(
-        `[做空标的] ${shortDisplay.nameText}(${shortDisplay.codeText}) 最新价格=${shortDisplay.priceText} 涨跌额=${shortDisplay.changeAmountText} 涨跌幅度=${shortDisplay.changePercentText}`
-      );
-    } else {
-      logger.warn(`未获取到做空标的行情。`);
-    }
-
-    // 更新价格状态（只更新有效价格，避免将 undefined 写入状态）
-    if (Number.isFinite(longPrice)) {
-      lastState.longPrice = longPrice;
-    }
-    if (Number.isFinite(shortPrice)) {
-      lastState.shortPrice = shortPrice;
-    }
-
-    // 实时检查浮亏（仅在价格变化时检查，避免频繁检查）
-    if (TRADING_CONFIG.maxUnrealizedLossPerSymbol > 0) {
-      // 检查做多标的的浮亏
-      if (Number.isFinite(longPrice) && longPrice > 0 && longSymbol) {
-        const longLossCheck = riskChecker.checkUnrealizedLoss(
-          longSymbol,
-          longPrice,
-          true
-        );
-        if (longLossCheck.shouldLiquidate) {
-          // 执行保护性清仓（使用市价单）
-          logger.error(longLossCheck.reason);
-          try {
-            // 创建市价单清仓信号
-            const liquidationSignal = {
-              symbol: longSymbol,
-              action: SignalType.SELLCALL,
-              reason: longLossCheck.reason,
-              quantity: longLossCheck.quantity,
-              price: longPrice, // 使用当前价格作为参考
-              useMarketOrder: true, // 标记为使用市价单
-            };
-            await trader.executeSignals([liquidationSignal]);
-            // 清仓后刷新订单记录（强制从API获取最新状态）
-            await orderRecorder.refreshOrders(longSymbol, true, true);
-            // 重新计算浮亏数据
-            await riskChecker.refreshUnrealizedLossData(
-              orderRecorder,
-              longSymbol,
-              true
-            );
-          } catch (err) {
-            logger.error(
-              `[保护性清仓失败] 做多标的 ${longSymbol}`,
-              err?.message ?? err
-            );
-          }
-        }
-      }
-
-      // 检查做空标的的浮亏
-      if (Number.isFinite(shortPrice) && shortPrice > 0 && shortSymbol) {
-        const shortLossCheck = riskChecker.checkUnrealizedLoss(
-          shortSymbol,
-          shortPrice,
-          false
-        );
-        if (shortLossCheck.shouldLiquidate) {
-          // 执行保护性清仓（使用市价单）
-          logger.error(shortLossCheck.reason);
-          try {
-            // 创建市价单清仓信号
-            const liquidationSignal = {
-              symbol: shortSymbol,
-              action: SignalType.SELLPUT,
-              reason: shortLossCheck.reason,
-              quantity: shortLossCheck.quantity,
-              price: shortPrice, // 使用当前价格作为参考
-              useMarketOrder: true, // 标记为使用市价单
-            };
-            await trader.executeSignals([liquidationSignal]);
-            // 清仓后刷新订单记录（强制从API获取最新状态）
-            await orderRecorder.refreshOrders(shortSymbol, false, true);
-            // 重新计算浮亏数据
-            await riskChecker.refreshUnrealizedLossData(
-              orderRecorder,
-              shortSymbol,
-              false
-            );
-          } catch (err) {
-            logger.error(
-              `[保护性清仓失败] 做空标的 ${shortSymbol}`,
-              err?.message ?? err
-            );
-          }
-        }
-      }
-    }
+  // 实时检查浮亏（仅在价格变化时检查）
+  if (priceChanged) {
+    await unrealizedLossMonitor.monitorUnrealizedLoss(
+      longQuote,
+      shortQuote,
+      longSymbol,
+      shortSymbol,
+      riskChecker,
+      trader,
+      orderRecorder
+    );
   }
 
-  // 获取监控标的的K线数据（用于计算指标和生成信号）
+  // 获取监控标的的K线数据
   const monitorCandles = await marketDataClient
     .getCandlesticks(monitorSymbol, candlePeriod, candleCount)
     .catch((err) => {
@@ -543,12 +175,10 @@ async function runOnce({
     Array.isArray(TRADING_CONFIG.verificationConfig.indicators)
   ) {
     for (const indicator of TRADING_CONFIG.verificationConfig.indicators) {
-      // 检查是否是 EMA:n 格式
       if (indicator.startsWith("EMA:")) {
         const periodStr = indicator.substring(4);
         const period = parseInt(periodStr, 10);
 
-        // 验证周期有效性并添加到周期数组
         if (
           Number.isFinite(period) &&
           period >= 1 &&
@@ -561,20 +191,17 @@ async function runOnce({
     }
   }
 
-  // 如果没有配置EMA周期，使用默认值7
   if (emaPeriods.length === 0) {
     emaPeriods.push(7);
   }
 
   // 从信号配置中提取 RSI 周期
   const rsiPeriods = extractRSIPeriods(TRADING_CONFIG.signalConfig);
-
-  // 如果没有配置RSI周期，使用默认值6
   if (rsiPeriods.length === 0) {
     rsiPeriods.push(6);
   }
 
-  // 计算监控标的的指标（传递提取的 RSI 和 EMA 周期）
+  // 计算监控标的的指标
   const monitorSnapshot = buildIndicatorSnapshot(
     monitorSymbol,
     monitorCandles,
@@ -582,363 +209,48 @@ async function runOnce({
     emaPeriods
   );
 
-  // 检测监控标的的指标变化并实时显示（包含所有技术指标）
-  if (monitorSnapshot) {
-    const currentPrice = monitorSnapshot.price;
+  // 监控指标变化并显示
+  marketMonitor.monitorIndicatorChanges(
+    monitorSnapshot,
+    monitorQuote,
+    monitorSymbol,
+    emaPeriods,
+    rsiPeriods,
+    lastState
+  );
 
-    // 从行情数据中获取上日收盘价
-    const prevClose = monitorQuote?.prevClose ?? null;
-
-    // 计算涨跌幅（基于上日收盘价）
-    let changePercent = null;
-    if (
-      Number.isFinite(currentPrice) &&
-      currentPrice > 0 &&
-      Number.isFinite(prevClose) &&
-      prevClose > 0
-    ) {
-      changePercent = ((currentPrice - prevClose) / prevClose) * 100;
-    }
-
-    // 格式化指标值
-    const formatIndicator = (value, decimals = 2) => {
-      return isValidNumber(value) ? value.toFixed(decimals) : "-";
-    };
-
-    // 检测指标变化（检查所有指标是否发生变化）
-    let hasIndicatorChanged = false;
-
-    // 检查价格变化
-    const lastPrice = lastState.monitorValues?.price;
-    if (
-      lastPrice == null &&
-      Number.isFinite(currentPrice) &&
-      currentPrice > 0
-    ) {
-      hasIndicatorChanged = true; // 首次出现价格
-    } else if (hasChanged(currentPrice, lastPrice, 0.0001)) {
-      hasIndicatorChanged = true;
-    }
-
-    // 检查涨跌幅变化
-    const lastChangePercent = lastState.monitorValues?.changePercent;
-    if (!hasIndicatorChanged && changePercent !== null) {
-      if (lastChangePercent == null) {
-        hasIndicatorChanged = true;
-      } else if (hasChanged(changePercent, lastChangePercent, 0.01)) {
-        // 涨跌幅变化阈值：0.01%
-        hasIndicatorChanged = true;
-      }
-    }
-
-    // 检查EMA变化
-    if (!hasIndicatorChanged && monitorSnapshot.ema) {
-      for (const period of emaPeriods) {
-        const currentEma = monitorSnapshot.ema[period];
-        const lastEma = lastState.monitorValues?.ema?.[period];
-        if (
-          Number.isFinite(currentEma) &&
-          (lastEma == null || hasChanged(currentEma, lastEma, 0.0001))
-        ) {
-          hasIndicatorChanged = true;
-          break;
-        }
-      }
-    }
-
-    // 检查RSI变化
-    if (!hasIndicatorChanged && monitorSnapshot.rsi) {
-      for (const period of rsiPeriods) {
-        const currentRsi = monitorSnapshot.rsi[period];
-        const lastRsi = lastState.monitorValues?.rsi?.[period];
-        if (
-          Number.isFinite(currentRsi) &&
-          (lastRsi == null || hasChanged(currentRsi, lastRsi, 0.1))
-        ) {
-          hasIndicatorChanged = true;
-          break;
-        }
-      }
-    }
-
-    // 检查MFI变化
-    if (!hasIndicatorChanged) {
-      const lastMfi = lastState.monitorValues?.mfi;
-      if (
-        Number.isFinite(monitorSnapshot.mfi) &&
-        (lastMfi == null || hasChanged(monitorSnapshot.mfi, lastMfi, 0.1))
-      ) {
-        hasIndicatorChanged = true;
-      }
-    }
-
-    // 检查KDJ变化
-    if (!hasIndicatorChanged && monitorSnapshot.kdj) {
-      const lastKdj = lastState.monitorValues?.kdj;
-      if (
-        Number.isFinite(monitorSnapshot.kdj.k) &&
-        (lastKdj?.k == null ||
-          hasChanged(monitorSnapshot.kdj.k, lastKdj.k, 0.1))
-      ) {
-        hasIndicatorChanged = true;
-      } else if (
-        Number.isFinite(monitorSnapshot.kdj.d) &&
-        (lastKdj?.d == null ||
-          hasChanged(monitorSnapshot.kdj.d, lastKdj.d, 0.1))
-      ) {
-        hasIndicatorChanged = true;
-      } else if (
-        Number.isFinite(monitorSnapshot.kdj.j) &&
-        (lastKdj?.j == null ||
-          hasChanged(monitorSnapshot.kdj.j, lastKdj.j, 0.1))
-      ) {
-        hasIndicatorChanged = true;
-      }
-    }
-
-    // 检查MACD变化
-    if (!hasIndicatorChanged && monitorSnapshot.macd) {
-      const lastMacd = lastState.monitorValues?.macd;
-      if (
-        Number.isFinite(monitorSnapshot.macd.macd) &&
-        (lastMacd?.macd == null ||
-          hasChanged(monitorSnapshot.macd.macd, lastMacd.macd, 0.0001))
-      ) {
-        hasIndicatorChanged = true;
-      } else if (
-        Number.isFinite(monitorSnapshot.macd.dif) &&
-        (lastMacd?.dif == null ||
-          hasChanged(monitorSnapshot.macd.dif, lastMacd.dif, 0.0001))
-      ) {
-        hasIndicatorChanged = true;
-      } else if (
-        Number.isFinite(monitorSnapshot.macd.dea) &&
-        (lastMacd?.dea == null ||
-          hasChanged(monitorSnapshot.macd.dea, lastMacd.dea, 0.0001))
-      ) {
-        hasIndicatorChanged = true;
-      }
-    }
-
-    // 如果任何指标发生变化，则显示所有指标
-    if (hasIndicatorChanged) {
-      // 构建指标显示字符串（按照指定顺序：最新价、涨跌幅、EMAn、RSIn、MFI、K、D、J、MACD、DIF、DEA）
-      const indicators = [];
-
-      // 1. 最新价
-      if (Number.isFinite(currentPrice)) {
-        indicators.push(`价格=${currentPrice.toFixed(3)}`);
-      }
-
-      // 2. 涨跌幅（基于上日收盘价）
-      if (changePercent !== null) {
-        const sign = changePercent >= 0 ? "+" : "";
-        indicators.push(`涨跌幅=${sign}${changePercent.toFixed(2)}%`);
-      }
-
-      // 3. EMAn（所有配置的EMA周期）
-      if (monitorSnapshot.ema) {
-        for (const period of emaPeriods) {
-          const emaValue = monitorSnapshot.ema[period];
-          if (Number.isFinite(emaValue)) {
-            indicators.push(`EMA${period}=${formatIndicator(emaValue, 3)}`);
-          }
-        }
-      }
-
-      // 4. RSIn（所有配置的RSI周期）
-      if (monitorSnapshot.rsi) {
-        for (const period of rsiPeriods) {
-          const rsiValue = monitorSnapshot.rsi[period];
-          if (Number.isFinite(rsiValue)) {
-            indicators.push(`RSI${period}=${formatIndicator(rsiValue, 2)}`);
-          }
-        }
-      }
-
-      // 5. MFI
-      if (isDefined(monitorSnapshot.mfi)) {
-        indicators.push(`MFI=${formatIndicator(monitorSnapshot.mfi, 2)}`);
-      }
-
-      // 6. KDJ（K、D、J三个值）
-      if (monitorSnapshot.kdj) {
-        if (isDefined(monitorSnapshot.kdj.k)) {
-          indicators.push(`K=${formatIndicator(monitorSnapshot.kdj.k, 2)}`);
-        }
-        if (isDefined(monitorSnapshot.kdj.d)) {
-          indicators.push(`D=${formatIndicator(monitorSnapshot.kdj.d, 2)}`);
-        }
-        if (isDefined(monitorSnapshot.kdj.j)) {
-          indicators.push(`J=${formatIndicator(monitorSnapshot.kdj.j, 2)}`);
-        }
-      }
-
-      // 7. MACD（MACD、DIF、DEA三个值）
-      if (monitorSnapshot.macd) {
-        if (isDefined(monitorSnapshot.macd.macd)) {
-          indicators.push(
-            `MACD=${formatIndicator(monitorSnapshot.macd.macd, 4)}`
-          );
-        }
-        if (isDefined(monitorSnapshot.macd.dif)) {
-          indicators.push(
-            `DIF=${formatIndicator(monitorSnapshot.macd.dif, 4)}`
-          );
-        }
-        if (isDefined(monitorSnapshot.macd.dea)) {
-          indicators.push(
-            `DEA=${formatIndicator(monitorSnapshot.macd.dea, 4)}`
-          );
-        }
-      }
-
-      logger.info(
-        `[监控标的] ${monitorSymbolName}(${normalizedMonitorSymbol}) ${indicators.join(
-          " "
-        )}`
-      );
-
-      // 更新保存的指标值（保存所有指标用于下次比较）
-      lastState.monitorValues = {
-        price: currentPrice,
-        changePercent: changePercent,
-        ema: monitorSnapshot.ema ? { ...monitorSnapshot.ema } : null,
-        rsi: monitorSnapshot.rsi ? { ...monitorSnapshot.rsi } : null,
-        mfi: monitorSnapshot.mfi,
-        kdj: monitorSnapshot.kdj
-          ? {
-              k: monitorSnapshot.kdj.k,
-              d: monitorSnapshot.kdj.d,
-              j: monitorSnapshot.kdj.j,
-            }
-          : null,
-        macd: monitorSnapshot.macd
-          ? {
-              macd: monitorSnapshot.macd.macd,
-              dif: monitorSnapshot.macd.dif,
-              dea: monitorSnapshot.macd.dea,
-            }
-          : null,
-      };
-    }
-  }
-
-  // 为所有待验证的信号记录当前监控标的值（每秒记录一次）
-  // 每个信号都有自己独立的历史记录
-  // 只记录触发时间点前后 5 秒（即 triggerTime ± 5 秒）内的值，并在验证时从这 10 秒窗口中选择最接近触发时间的一条
-  if (
-    monitorSnapshot &&
-    lastState.pendingDelayedSignals &&
-    lastState.pendingDelayedSignals.length > 0 &&
-    TRADING_CONFIG.verificationConfig.indicators &&
-    TRADING_CONFIG.verificationConfig.indicators.length > 0
-  ) {
-    const now = new Date();
-
-    // 提取当前配置的所有指标值
-    const currentIndicators = {};
-    let allIndicatorsValid = true;
-
-    for (const indicatorName of TRADING_CONFIG.verificationConfig.indicators) {
-      const value = getIndicatorValue(monitorSnapshot, indicatorName);
-      if (value === null || !Number.isFinite(value)) {
-        allIndicatorsValid = false;
-        break;
-      }
-      currentIndicators[indicatorName] = value;
-    }
-
-    // 为每个待验证信号记录当前值（如果所有配置的指标值有效）
-    if (allIndicatorsValid && Object.keys(currentIndicators).length > 0) {
-      for (const pendingSignal of lastState.pendingDelayedSignals) {
-        if (pendingSignal.triggerTime) {
-          const triggerTimeMs = pendingSignal.triggerTime.getTime();
-          const windowStart = triggerTimeMs - 5 * 1000; // triggerTime - 5 秒
-          const windowEnd = triggerTimeMs + 5 * 1000; // triggerTime + 5 秒
-          const nowMs = now.getTime();
-
-          // 只在 triggerTime ±5 秒窗口内记录数据
-          if (nowMs >= windowStart && nowMs <= windowEnd) {
-            // 确保信号有历史记录数组
-            if (!pendingSignal.verificationHistory) {
-              pendingSignal.verificationHistory = [];
-            }
-
-            // 避免在同一秒内重复记录（精确到秒）
-            const nowSeconds = Math.floor(nowMs / 1000);
-            const lastEntry =
-              pendingSignal.verificationHistory[
-                pendingSignal.verificationHistory.length - 1
-              ];
-            const lastEntrySeconds = lastEntry
-              ? Math.floor(lastEntry.timestamp.getTime() / 1000)
-              : null;
-
-            // 如果上一记录不是同一秒，则添加新记录
-            if (lastEntrySeconds !== nowSeconds) {
-              // 从对象池获取条目对象，减少内存分配
-              const entry = verificationEntryPool.acquire();
-              entry.timestamp = now;
-              // 将所有配置的指标值记录到 indicators 对象中
-              entry.indicators = { ...currentIndicators };
-
-              // 记录当前值
-              pendingSignal.verificationHistory.push(entry);
-
-              // 只保留当前信号触发时间点前后 5 秒窗口内的数据，释放其他条目
-              const entriesToKeep = [];
-              const entriesToRelease = [];
-              for (const e of pendingSignal.verificationHistory) {
-                const t = e.timestamp.getTime();
-                if (t >= windowStart && t <= windowEnd) {
-                  entriesToKeep.push(e);
-                } else {
-                  entriesToRelease.push(e);
-                }
-              }
-              if (entriesToRelease.length > 0) {
-                verificationEntryPool.releaseAll(entriesToRelease);
-              }
-              pendingSignal.verificationHistory = entriesToKeep;
-            }
-          }
-        }
-      }
-    }
-  }
+  // 为所有待验证信号记录当前监控标的值
+  signalVerificationManager.recordVerificationHistory(
+    monitorSnapshot,
+    lastState
+  );
 
   // 获取做多和做空标的的持仓信息
   let longPosition = null;
   let shortPosition = null;
 
-  // 验证 positions 是数组
   if (Array.isArray(positions)) {
     for (const pos of positions) {
-      // 验证持仓对象有效性
       if (!pos?.symbol || typeof pos.symbol !== "string") {
-        continue; // 跳过无效持仓
+        continue;
       }
 
       const normalizedPosSymbol = normalizeHKSymbol(pos.symbol);
-
-      // 验证可用数量有效性
       const availableQty = Number(pos.availableQuantity) || 0;
+
       if (!Number.isFinite(availableQty) || availableQty <= 0) {
-        continue; // 跳过无效或零持仓
+        continue;
       }
 
       if (normalizedPosSymbol === normalizedLongSymbol) {
-        // 使用对象池获取持仓对象，使用规范化后的符号
         longPosition = positionObjectPool.acquire();
-        longPosition.symbol = normalizedLongSymbol; // 使用规范化符号，避免后续重复规范化
+        longPosition.symbol = normalizedLongSymbol;
         longPosition.costPrice = Number(pos.costPrice) || 0;
         longPosition.quantity = Number(pos.quantity) || 0;
         longPosition.availableQuantity = availableQty;
       } else if (normalizedPosSymbol === normalizedShortSymbol) {
-        // 使用对象池获取持仓对象，使用规范化后的符号
         shortPosition = positionObjectPool.acquire();
-        shortPosition.symbol = normalizedShortSymbol; // 使用规范化符号，避免后续重复规范化
+        shortPosition.symbol = normalizedShortSymbol;
         shortPosition.costPrice = Number(pos.costPrice) || 0;
         shortPosition.quantity = Number(pos.quantity) || 0;
         shortPosition.availableQuantity = availableQty;
@@ -946,7 +258,7 @@ async function runOnce({
     }
   }
 
-  // 根据策略生成交易信号（包含立即执行的清仓信号和延迟验证的开仓信号）
+  // 根据策略生成交易信号
   const { immediateSignals, delayedSignals } = strategy.generateCloseSignals(
     monitorSnapshot,
     longPosition,
@@ -958,398 +270,20 @@ async function runOnce({
   // 将立即执行的信号添加到交易信号列表
   const tradingSignals = [...immediateSignals];
 
-  // 初始化待验证信号数组（如果不存在）
-  if (!lastState.pendingDelayedSignals) {
-    lastState.pendingDelayedSignals = [];
-  }
+  // 添加延迟信号到待验证列表
+  signalVerificationManager.addDelayedSignals(delayedSignals, lastState);
 
-  // 处理延迟验证信号，添加到待验证列表
-  for (const delayedSignal of delayedSignals) {
-    if (delayedSignal && delayedSignal.triggerTime) {
-      // 检查是否已存在相同的待验证信号（避免重复添加）
-      const existingSignal = lastState.pendingDelayedSignals.find(
-        (s) =>
-          s.symbol === delayedSignal.symbol &&
-          s.action === delayedSignal.action &&
-          s.triggerTime.getTime() === delayedSignal.triggerTime.getTime()
-      );
-
-      if (!existingSignal) {
-        lastState.pendingDelayedSignals.push(delayedSignal);
-
-        const actionDesc =
-          delayedSignal.action === SignalType.BUYCALL ? "买入做多" : "买入做空";
-        logger.info(
-          `[延迟验证信号] 新增待验证${actionDesc}信号：${delayedSignal.symbol} - ${delayedSignal.reason}`
-        );
-      }
-    }
-  }
-
-  // 检查是否有待验证的信号到了验证时间
-  const now = new Date();
-  const signalsToVerify = lastState.pendingDelayedSignals.filter(
-    (s) => s.triggerTime && s.triggerTime <= now
+  // 验证待验证信号
+  const verifiedSignals = signalVerificationManager.verifyPendingSignals(
+    lastState,
+    longQuote,
+    shortQuote
   );
 
-  // 处理需要验证的信号
-  for (const pendingSignal of signalsToVerify) {
-    try {
-      // 安全检查：如果验证指标配置为null或空，跳过验证
-      // 这种情况理论上不应该发生（因为indicators为null时不会生成延迟信号）
-      // 但为了防御性编程，添加此检查以防配置在运行时被修改
-      if (
-        !TRADING_CONFIG.verificationConfig.indicators ||
-        TRADING_CONFIG.verificationConfig.indicators.length === 0
-      ) {
-        logger.warn(
-          `[延迟验证错误] ${pendingSignal.symbol} 验证指标配置为空，跳过验证`
-        );
-        // 清空该信号的历史记录并释放对象回池
-        if (pendingSignal.verificationHistory) {
-          verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
-          pendingSignal.verificationHistory = [];
-        }
-        // 从待验证列表中移除
-        const index = lastState.pendingDelayedSignals.indexOf(pendingSignal);
-        if (index >= 0) {
-          lastState.pendingDelayedSignals.splice(index, 1);
-        }
-        continue;
-      }
+  // 将验证通过的信号添加到交易信号列表
+  tradingSignals.push(...verifiedSignals);
 
-      // 验证策略更新：从实时监控标的的值获取indicators2
-      // 触发信号时已记录indicators1，现在需要获取延迟时间后的indicators2
-      if (!pendingSignal.triggerTime) {
-        logger.warn(
-          `[延迟验证错误] ${pendingSignal.symbol} 缺少triggerTime，跳过验证`
-        );
-        // 清空该信号的历史记录并释放对象回池
-        if (pendingSignal.verificationHistory) {
-          verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
-          pendingSignal.verificationHistory = [];
-        }
-        // 从待验证列表中移除
-        const index = lastState.pendingDelayedSignals.indexOf(pendingSignal);
-        if (index >= 0) {
-          lastState.pendingDelayedSignals.splice(index, 1);
-        }
-        continue;
-      }
-
-      // 获取indicators1（从信号中获取，触发时已记录）
-      const indicators1 = pendingSignal.indicators1;
-
-      if (!indicators1 || typeof indicators1 !== "object") {
-        logger.warn(
-          `[延迟验证错误] ${pendingSignal.symbol} 缺少indicators1，跳过验证`
-        );
-        // 清空该信号的历史记录并释放对象回池
-        if (pendingSignal.verificationHistory) {
-          verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
-          pendingSignal.verificationHistory = [];
-        }
-        // 从待验证列表中移除
-        const index = lastState.pendingDelayedSignals.indexOf(pendingSignal);
-        if (index >= 0) {
-          lastState.pendingDelayedSignals.splice(index, 1);
-        }
-        continue;
-      }
-
-      // 验证所有配置的指标值是否有效
-      let allIndicators1Valid = true;
-      for (const indicatorName of TRADING_CONFIG.verificationConfig
-        .indicators) {
-        if (!Number.isFinite(indicators1[indicatorName])) {
-          allIndicators1Valid = false;
-          break;
-        }
-      }
-
-      if (!allIndicators1Valid) {
-        logger.warn(
-          `[延迟验证错误] ${pendingSignal.symbol} indicators1中存在无效值，跳过验证`
-        );
-        // 清空该信号的历史记录并释放对象回池
-        if (pendingSignal.verificationHistory) {
-          verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
-          pendingSignal.verificationHistory = [];
-        }
-        // 从待验证列表中移除
-        const index = lastState.pendingDelayedSignals.indexOf(pendingSignal);
-        if (index >= 0) {
-          lastState.pendingDelayedSignals.splice(index, 1);
-        }
-        continue;
-      }
-
-      // 目标时间就是triggerTime（触发时已设置为当前时间+延迟秒数）
-      const targetTime = pendingSignal.triggerTime;
-
-      // 从该信号自己的验证历史记录中获取indicators2
-      // 优先获取精确匹配的值，如果失败则获取距离目标时间最近的值（误差5秒内）
-      const history = pendingSignal.verificationHistory || [];
-
-      // 查找精确匹配或最近的值
-      let bestMatch = null;
-      let minTimeDiff = Infinity;
-      const maxTimeDiff = 5 * 1000; // 5秒误差
-
-      for (const entry of history) {
-        const timeDiff = Math.abs(
-          entry.timestamp.getTime() - targetTime.getTime()
-        );
-        if (timeDiff <= maxTimeDiff && timeDiff < minTimeDiff) {
-          minTimeDiff = timeDiff;
-          bestMatch = entry;
-        }
-      }
-
-      // 如果找不到匹配的值，尝试使用历史记录中最新的值（如果时间差在合理范围内）
-      if (!bestMatch && history.length > 0) {
-        const latestEntry = history[history.length - 1];
-        const timeDiff = Math.abs(
-          latestEntry.timestamp.getTime() - targetTime.getTime()
-        );
-        if (timeDiff <= maxTimeDiff) {
-          bestMatch = latestEntry;
-        }
-      }
-
-      if (!bestMatch || !bestMatch.indicators) {
-        logger.warn(
-          `[延迟验证失败] ${
-            pendingSignal.symbol
-          } 无法获取有效的indicators2（目标时间=${targetTime.toLocaleString(
-            "zh-CN",
-            { timeZone: "Asia/Hong_Kong", hour12: false }
-          )}，当前时间=${now.toLocaleString("zh-CN", {
-            timeZone: "Asia/Hong_Kong",
-            hour12: false,
-          })}）`
-        );
-        // 清空该信号的历史记录并释放对象回池
-        if (pendingSignal.verificationHistory) {
-          verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
-          pendingSignal.verificationHistory = [];
-        }
-        // 从待验证列表中移除
-        const index = lastState.pendingDelayedSignals.indexOf(pendingSignal);
-        if (index >= 0) {
-          lastState.pendingDelayedSignals.splice(index, 1);
-        }
-        continue;
-      }
-
-      const indicators2 = bestMatch.indicators;
-      const actualTime = bestMatch.timestamp;
-      const timeDiffSeconds =
-        Math.abs(actualTime.getTime() - targetTime.getTime()) / 1000;
-
-      // 验证所有配置的指标值是否有效
-      let allIndicators2Valid = true;
-      for (const indicatorName of TRADING_CONFIG.verificationConfig
-        .indicators) {
-        if (!Number.isFinite(indicators2[indicatorName])) {
-          allIndicators2Valid = false;
-          break;
-        }
-      }
-
-      if (!allIndicators2Valid) {
-        logger.warn(
-          `[延迟验证失败] ${pendingSignal.symbol} indicators2中存在无效值，跳过验证`
-        );
-        // 清空该信号的历史记录并释放对象回池
-        if (pendingSignal.verificationHistory) {
-          verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
-          pendingSignal.verificationHistory = [];
-        }
-        // 从待验证列表中移除
-        const index = lastState.pendingDelayedSignals.indexOf(pendingSignal);
-        if (index >= 0) {
-          lastState.pendingDelayedSignals.splice(index, 1);
-        }
-        continue;
-      }
-
-      // 根据信号类型使用不同的验证条件
-      const isBuyCall = pendingSignal.action === SignalType.BUYCALL;
-      const isBuyPut = pendingSignal.action === SignalType.BUYPUT;
-
-      // 只处理延迟验证的信号类型
-      if (!isBuyCall && !isBuyPut) {
-        logger.warn(
-          `[延迟验证错误] ${pendingSignal.symbol} 未知的信号类型: ${pendingSignal.action}，跳过验证`
-        );
-        // 清空该信号的历史记录并释放对象回池
-        if (pendingSignal.verificationHistory) {
-          verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
-          pendingSignal.verificationHistory = [];
-        }
-        // 从待验证列表中移除
-        const index = lastState.pendingDelayedSignals.indexOf(pendingSignal);
-        if (index >= 0) {
-          lastState.pendingDelayedSignals.splice(index, 1);
-        }
-        continue;
-      }
-
-      let verificationPassed = true;
-      const verificationDetails = [];
-      const failedIndicators = [];
-      let hasInvalidValue = false;
-
-      // 遍历所有配置的指标进行验证
-      for (const indicatorName of TRADING_CONFIG.verificationConfig
-        .indicators) {
-        const value1 = indicators1[indicatorName];
-        const value2 = indicators2[indicatorName];
-
-        // 安全检查：确保两个值都是有效的数字
-        // 这种情况可能发生在配置在运行时被修改的情况下
-        if (!Number.isFinite(value1) || !Number.isFinite(value2)) {
-          logger.warn(
-            `[延迟验证错误] ${pendingSignal.symbol} 指标${indicatorName}的值无效（value1=${value1}, value2=${value2}），跳过该信号验证`
-          );
-          hasInvalidValue = true;
-          break;
-        }
-
-        // 根据指标类型选择合适的小数位数
-        let decimals = 2; // 默认 2 位小数
-        if (["MACD", "DIF", "DEA"].includes(indicatorName)) {
-          decimals = 4; // MACD 相关指标使用 4 位小数
-        } else if (indicatorName.startsWith("EMA:")) {
-          decimals = 3; // EMA 使用 3 位小数（类似于价格）
-        }
-
-        let indicatorPassed = false;
-        let comparisonSymbol = "";
-
-        if (isBuyCall) {
-          // 买入做多：所有指标的第二个值都要大于第一个值
-          indicatorPassed = value2 > value1;
-          comparisonSymbol = indicatorPassed ? ">" : "<=";
-        } else if (isBuyPut) {
-          // 买入做空：所有指标的第二个值都要小于第一个值
-          indicatorPassed = value2 < value1;
-          comparisonSymbol = indicatorPassed ? "<" : ">=";
-        }
-
-        // 构建详细信息字符串
-        const detail = `${indicatorName}1=${value1.toFixed(
-          decimals
-        )} ${indicatorName}2=${value2.toFixed(
-          decimals
-        )} (${indicatorName}2${comparisonSymbol}${indicatorName}1)`;
-        verificationDetails.push(detail);
-
-        if (!indicatorPassed) {
-          verificationPassed = false;
-          failedIndicators.push(indicatorName);
-        }
-      }
-
-      // 如果在检查过程中发现无效值，跳过该信号
-      if (hasInvalidValue) {
-        // 清空该信号的历史记录并释放对象回池
-        if (pendingSignal.verificationHistory) {
-          verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
-          pendingSignal.verificationHistory = [];
-        }
-        // 从待验证列表中移除
-        const index = lastState.pendingDelayedSignals.indexOf(pendingSignal);
-        if (index >= 0) {
-          lastState.pendingDelayedSignals.splice(index, 1);
-        }
-        continue;
-      }
-
-      // 构建验证原因字符串
-      let verificationReason = verificationDetails.join(" ");
-      verificationReason += ` 时间差=${timeDiffSeconds.toFixed(1)}秒`;
-
-      if (!verificationPassed) {
-        verificationReason += ` [失败指标: ${failedIndicators.join(", ")}]`;
-      }
-
-      if (verificationPassed) {
-        const actionDesc = isBuyCall ? "买入做多" : "买入做空";
-        logger.info(
-          `[延迟验证通过] ${pendingSignal.symbol} ${verificationReason}，执行${actionDesc}`
-        );
-
-        // 获取标的的当前价格和最小买卖单位
-        let currentPrice = null;
-        let lotSize = null;
-        if (isBuyCall && longQuote) {
-          currentPrice = longQuote.price;
-          lotSize = longQuote.lotSize;
-        } else if (isBuyPut && shortQuote) {
-          currentPrice = shortQuote.price;
-          lotSize = shortQuote.lotSize;
-        }
-
-        // 获取标的的中文名称
-        let symbolName = null;
-        if (isBuyCall && longQuote) {
-          symbolName = longQuote.name;
-        } else if (isBuyPut && shortQuote) {
-          symbolName = shortQuote.name;
-        }
-
-        // 生成买入信号
-        const verifiedSignal = {
-          symbol: pendingSignal.symbol,
-          symbolName: symbolName,
-          action: pendingSignal.action,
-          reason: `延迟验证通过：${verificationReason}`,
-          price: currentPrice,
-          lotSize: lotSize,
-          signalTriggerTime: pendingSignal.triggerTime, // 信号触发时间
-        };
-
-        // 添加到交易信号列表
-        tradingSignals.push(verifiedSignal);
-      } else {
-        const actionDesc = isBuyCall ? "买入做多" : "买入做空";
-        logger.info(
-          `[延迟验证失败] ${pendingSignal.symbol} ${verificationReason}，不执行${actionDesc}`
-        );
-      }
-
-      // 清空该信号的历史记录并释放对象回池
-      if (pendingSignal.verificationHistory) {
-        verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
-        pendingSignal.verificationHistory = [];
-      }
-
-      // 从待验证列表中移除（无论验证是否通过）
-      const index = lastState.pendingDelayedSignals.indexOf(pendingSignal);
-      if (index >= 0) {
-        lastState.pendingDelayedSignals.splice(index, 1);
-      }
-    } catch (err) {
-      logger.error(
-        `[延迟验证错误] 处理待验证信号 ${pendingSignal.symbol} 时发生错误`,
-        err?.message ?? err
-      );
-      // 清空该信号的历史记录并释放对象回池
-      if (pendingSignal.verificationHistory) {
-        verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
-        pendingSignal.verificationHistory = [];
-      }
-      // 从待验证列表中移除错误的信号
-      const index = lastState.pendingDelayedSignals.indexOf(pendingSignal);
-      if (index >= 0) {
-        lastState.pendingDelayedSignals.splice(index, 1);
-      }
-    }
-  }
-
-  // 提前过滤并验证信号数组的有效性（统一过滤，避免后续重复验证）
+  // 过滤并验证信号数组的有效性
   const validActions = [
     SignalType.BUYCALL,
     SignalType.SELLCALL,
@@ -1372,7 +306,6 @@ async function runOnce({
   });
 
   // 检测信号变化
-
   const currentSignalKey =
     validSignals.length > 0
       ? validSignals
@@ -1394,7 +327,6 @@ async function runOnce({
 
     if (validSignals.length > 0) {
       validSignals.forEach((signal) => {
-        // 判断信号类型
         let actionDesc = "";
 
         if (signal.action === SignalType.BUYCALL) {
@@ -1424,15 +356,13 @@ async function runOnce({
     lastState.signal = currentSignalKey;
   }
 
-  // 使用已过滤的有效信号，补充价格和lotSize信息
+  // 补充价格和lotSize信息
   const signals = validSignals.map((signal) => {
-    // 信号中的 symbol 已经是规范化的（来自策略或末日保护程序），无需重复规范化
     const normalizedSigSymbol = signal.symbol;
 
-    // 确定价格、lotSize和名称
     let price = null;
     let lotSize = null;
-    let symbolName = signal.symbolName || null; // 优先使用信号中的名称
+    let symbolName = signal.symbolName || null;
 
     if (normalizedSigSymbol === normalizedLongSymbol && longQuote) {
       price = longQuote.price;
@@ -1452,335 +382,57 @@ async function runOnce({
       ...signal,
       price,
       lotSize,
-      symbolName, // 添加名称信息
+      symbolName,
     };
   });
 
-  // 末日保护程序：检查是否需要在收盘前5分钟清仓（使用当前系统时间，而非行情时间）
-  const shouldEnableDoomsdayProtection = TRADING_CONFIG.doomsdayProtection;
-  const isBeforeClose = isBeforeClose5Minutes(currentTime, isHalfDayToday);
-
+  // 末日保护程序：检查是否需要在收盘前5分钟清仓
   let finalSignals = [];
 
   if (
-    shouldEnableDoomsdayProtection &&
-    isBeforeClose &&
+    TRADING_CONFIG.doomsdayProtection &&
+    doomsdayProtection.shouldClearPositions(currentTime, isHalfDayToday) &&
     canTradeNow &&
     Array.isArray(positions) &&
     positions.length > 0
   ) {
-    // 当日收盘前5分钟，清空所有持仓（无论是做多标的持仓还是做空标的持仓）
-    const closeTimeRange = isHalfDayToday ? "11:55-11:59" : "15:55-15:59";
-    logger.info(
-      `[末日保护程序] 收盘前5分钟（${closeTimeRange}），准备清空所有持仓`
+    // 生成清仓信号
+    finalSignals = doomsdayProtection.generateClearanceSignals(
+      positions,
+      longQuote,
+      shortQuote,
+      longSymbol,
+      shortSymbol,
+      isHalfDayToday
     );
-
-    // 为每个持仓生成清仓信号
-    const clearSignals = [];
-    // 验证 positions 是数组
-    if (Array.isArray(positions)) {
-      for (const pos of positions) {
-        // 验证持仓对象有效性
-        if (!pos || !pos.symbol || typeof pos.symbol !== "string") {
-          continue; // 跳过无效持仓
-        }
-
-        const availableQty = Number(pos.availableQuantity) || 0;
-        if (!Number.isFinite(availableQty) || availableQty <= 0) {
-          continue; // 跳过无效或零持仓
-        }
-
-        const normalizedPosSymbol = normalizeHKSymbol(pos.symbol);
-        const isShortPos = normalizedPosSymbol === normalizedShortSymbol;
-
-        // 获取该标的的当前价格、最小买卖单位和名称
-        let currentPrice = null;
-        let lotSize = null;
-        let symbolName = pos.symbolName || null; // 优先使用持仓中的名称
-        if (normalizedPosSymbol === normalizedLongSymbol && longQuote) {
-          currentPrice = longQuote.price;
-          lotSize = longQuote.lotSize;
-          if (!symbolName) {
-            symbolName = longQuote.name;
-          }
-        } else if (
-          normalizedPosSymbol === normalizedShortSymbol &&
-          shortQuote
-        ) {
-          currentPrice = shortQuote.price;
-          lotSize = shortQuote.lotSize;
-          if (!symbolName) {
-            symbolName = shortQuote.name;
-          }
-        }
-
-        // 收盘前清仓逻辑：
-        // - 做多标的持仓：使用 SELLCALL 信号 → OrderSide.Sell（卖出做多标的，清仓）
-        // - 做空标的持仓：使用 SELLPUT 信号 → OrderSide.Sell（卖出做空标的，平空仓）
-        const action = isShortPos ? SignalType.SELLPUT : SignalType.SELLCALL;
-        const positionType = isShortPos ? "做空标的" : "做多标的";
-
-        clearSignals.push({
-          symbol: normalizedPosSymbol, // 使用规范化符号，避免后续重复规范化
-          symbolName: symbolName, // 添加名称信息
-          action: action,
-          price: currentPrice, // 添加当前价格，用于增强限价单
-          lotSize: lotSize, // 添加最小买卖单位
-          reason: `末日保护程序：收盘前5分钟自动清仓（${positionType}持仓）`,
-          signalTriggerTime: new Date(), // 收盘前清仓信号的触发时间
-        });
-
-        logger.info(
-          `[末日保护程序] 生成清仓信号：${positionType} ${pos.symbol} 数量=${availableQty} 操作=${action}`
-        );
-      }
-    }
-
-    if (clearSignals.length > 0) {
-      finalSignals = clearSignals;
-      logger.info(
-        `[末日保护程序] 共生成 ${clearSignals.length} 个清仓信号，准备执行`
-      );
-    }
   } else if (signals.length > 0 && canTradeNow) {
-    // 正常交易信号处理
-    const orderNotional = TRADING_CONFIG.targetNotional;
+    // 正常交易信号处理：应用风险检查
+    const context = {
+      trader,
+      riskChecker,
+      orderRecorder,
+      longQuote,
+      shortQuote,
+      monitorQuote,
+      monitorSnapshot,
+      longSymbol,
+      shortSymbol,
+      longSymbolName,
+      shortSymbolName,
+      account,
+      positions,
+      lastState,
+      currentTime,
+      isHalfDay: isHalfDayToday,
+      doomsdayProtection,
+    };
 
-    for (const sig of signals) {
-      // 信号中的 symbol 已经是规范化的（来自策略或末日保护程序），无需重复规范化
-      const normalizedSigSymbol = sig.symbol;
-      const sigName = getSymbolName(
-        sig.symbol,
-        longSymbol,
-        shortSymbol,
-        longSymbolName,
-        shortSymbolName
-      );
-
-      // 0. 检查标的是否因订单获取失败而被禁用交易
-      if (orderRecorder.isSymbolDisabled(normalizedSigSymbol)) {
-        logger.warn(
-          `[交易禁用] 标的 ${normalizedSigSymbol} 因订单获取失败已被禁用交易，跳过信号：${sigName} ${sig.action}`
-        );
-        continue;
-      }
-
-      // 获取标的的当前价格用于计算持仓市值
-      let currentPrice = null;
-      if (normalizedSigSymbol === normalizedLongSymbol && longQuote) {
-        currentPrice = longQuote.price;
-      } else if (normalizedSigSymbol === normalizedShortSymbol && shortQuote) {
-        currentPrice = shortQuote.price;
-      }
-
-      // 检查牛熊证风险（仅在买入时检查，卖出时不检查）
-      // 注意：所有操作均无卖空操作，做空是指买入做空标的而非卖空做空标的
-      //
-      // 做多和做空操作根据监控标的信号产生：
-      //   - BUYCALL → 买入做多标的（做多操作，需要检查牛熊证风险）
-      //   - BUYPUT → 买入做空标的（做空操作，需要检查牛熊证风险）
-      //
-      // 卖出操作（不检查牛熊证风险）：
-      //   - SELLCALL → 卖出做多标的（清仓）
-      //   - SELLPUT → 卖出做空标的（平空仓）
-      const isBuyAction =
-        sig.action === SignalType.BUYCALL || sig.action === SignalType.BUYPUT;
-
-      if (isBuyAction) {
-        // 买入操作检查顺序：
-        // 1. 先检查交易频率限制（若不通过直接拒绝，不进行后续检查）
-        // 2. 再检查买入价格限制（防止追高，当前价格必须低于或等于最新买入订单价格）
-        // 3. 再检查末日保护程序
-        // 4. 再检查牛熊证风险
-        // 5. 最后进行基础风险检查（浮亏检查和市值限制检查）
-
-        // 1. 检查交易频率限制（先检查，若不通过直接拒绝）
-        if (!trader._canTradeNow(sig.action)) {
-          const direction =
-            sig.action === SignalType.BUYCALL ? "做多标的" : "做空标的";
-          const directionKey =
-            sig.action === SignalType.BUYCALL ? "LONG" : "SHORT";
-          const lastTime = trader._lastBuyTime.get(directionKey);
-          const intervalMs = TRADING_CONFIG.buyIntervalSeconds * 1000;
-          const waitSeconds = lastTime
-            ? Math.ceil((intervalMs - (Date.now() - lastTime)) / 1000)
-            : 0;
-          logger.warn(
-            `[交易频率限制] ${direction} 在${TRADING_CONFIG.buyIntervalSeconds}秒内已买入过，需等待 ${waitSeconds} 秒后才能再次买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`
-          );
-          continue; // 跳过这个买入信号，不进行后续检查
-        }
-
-        // 2. 买入价格限制：当前价格必须低于或等于最新买入订单的成交价
-        // 目的：防止追高，只允许在价格回落或持平时买入
-        const isLongBuyAction = sig.action === SignalType.BUYCALL;
-        const latestBuyPrice = orderRecorder.getLatestBuyOrderPrice(
-          normalizedSigSymbol,
-          isLongBuyAction
-        );
-
-        // 如果有历史买入订单，检查价格限制
-        if (latestBuyPrice !== null && currentPrice !== null) {
-          if (currentPrice > latestBuyPrice) {
-            const direction = isLongBuyAction ? "做多标的" : "做空标的";
-            logger.warn(
-              `[买入价格限制] ${direction} 当前价格 ${currentPrice.toFixed(
-                3
-              )} 高于最新买入订单价格 ${latestBuyPrice.toFixed(
-                3
-              )}，拒绝买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`
-            );
-            continue; // 跳过这个买入信号，不进行后续检查
-          } else {
-            const direction = isLongBuyAction ? "做多标的" : "做空标的";
-            logger.info(
-              `[买入价格限制] ${direction} 当前价格 ${currentPrice.toFixed(
-                3
-              )} 低于或等于最新买入订单价格 ${latestBuyPrice.toFixed(
-                3
-              )}，允许买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`
-            );
-          }
-        }
-
-        // 3. 末日保护程序：收盘前15分钟拒绝买入（卖出操作不受影响）
-        const shouldEnableDoomsdayProtection =
-          TRADING_CONFIG.doomsdayProtection;
-        const isBeforeClose15 = isBeforeClose15Minutes(
-          currentTime,
-          isHalfDayToday
-        );
-        if (shouldEnableDoomsdayProtection && isBeforeClose15) {
-          const closeTimeRange = isHalfDayToday ? "11:45-12:00" : "15:45-16:00";
-          logger.warn(
-            `[末日保护程序] 收盘前15分钟内拒绝买入：${sigName}(${normalizedSigSymbol}) ${sig.action} - 当前时间在${closeTimeRange}范围内`
-          );
-          continue; // 跳过这个买入信号
-        }
-
-        // 4. 仅在买入时检查牛熊证风险
-        // 注意：使用监控标的的实时价格（而非牛熊证本身的价格）来计算距离回收价的百分比
-        // 优先使用实时行情价格，如果没有则使用K线收盘价
-        const monitorCurrentPrice =
-          monitorQuote?.price ?? monitorSnapshot?.price ?? null;
-
-        // 检查牛熊证风险
-        const warrantRiskResult = riskChecker.checkWarrantRisk(
-          sig.symbol,
-          sig.action,
-          monitorCurrentPrice
-        );
-
-        if (!warrantRiskResult.allowed) {
-          logger.warn(
-            `[牛熊证风险拦截] 信号被牛熊证风险控制拦截：${sigName}(${normalizedSigSymbol}) ${sig.action} - ${warrantRiskResult.reason}`
-          );
-          continue; // 跳过这个信号，不加入finalSignals
-        } else if (warrantRiskResult.warrantInfo?.isWarrant) {
-          // 如果是牛熊证且风险检查通过，记录信息
-          const warrantType =
-            warrantRiskResult.warrantInfo.warrantType === "BULL"
-              ? "牛证"
-              : "熊证";
-          const distancePercent =
-            warrantRiskResult.warrantInfo.distanceToStrikePercent;
-          logger.info(
-            `[牛熊证风险检查] ${
-              sig.symbol
-            } 为${warrantType}，距离回收价百分比：${
-              distancePercent?.toFixed(2) ?? "未知"
-            }%，风险检查通过`
-          );
-        }
-      }
-      // 卖出操作（平仓）时不检查交易频率限制、买入价格限制、末日保护程序和牛熊证风险
-
-      // 5. 基础风险检查前，实时获取最新账户和持仓信息以确保准确性
-      // 对于买入操作，必须实时获取最新数据以确保浮亏计算准确
-      // 对于卖出操作，可以使用缓存数据（卖出操作不检查浮亏限制）
-      // 注意：isBuyAction 已在上面定义，这里直接使用
-      let accountForRiskCheck = account;
-      let positionsForRiskCheck = positions;
-
-      // 对于买入操作，总是实时获取最新数据以确保浮亏检查准确
-      // 对于卖出操作，如果缓存为空才实时获取
-      if (
-        isBuyAction ||
-        !accountForRiskCheck ||
-        !positionsForRiskCheck ||
-        positionsForRiskCheck.length === 0
-      ) {
-        try {
-          const freshAccount = await trader
-            .getAccountSnapshot()
-            .catch((err) => {
-              logger.warn("风险检查前获取账户信息失败", err?.message ?? err);
-              return null;
-            });
-          const freshPositions = await trader
-            .getStockPositions()
-            .catch((err) => {
-              logger.warn("风险检查前获取持仓信息失败", err?.message ?? err);
-              return [];
-            });
-
-          // 对于买入操作，必须确保账户数据可用
-          if (freshAccount) {
-            accountForRiskCheck = freshAccount;
-            lastState.cachedAccount = freshAccount;
-          } else if (isBuyAction) {
-            // 买入操作时，如果获取账户信息失败，记录警告
-            // 风险检查会在 checkBeforeOrder 中拒绝（因为 account 为 null）
-            logger.warn(
-              "[风险检查] 买入操作前无法获取最新账户信息，风险检查将拒绝该操作"
-            );
-          }
-
-          // 对于买入操作，即使持仓数组为空也要更新（确保浮亏计算准确）
-          // 对于卖出操作，只在有持仓数据时更新
-          if (Array.isArray(freshPositions)) {
-            if (isBuyAction || freshPositions.length > 0) {
-              positionsForRiskCheck = freshPositions;
-              lastState.cachedPositions = freshPositions;
-            }
-          } else if (isBuyAction) {
-            // 买入操作时，如果获取持仓信息失败，使用空数组（确保浮亏计算能正常进行）
-            positionsForRiskCheck = [];
-            lastState.cachedPositions = [];
-          }
-        } catch (err) {
-          logger.warn("风险检查前获取账户和持仓信息失败", err?.message ?? err);
-        }
-      }
-
-      // 基础风险检查（使用最新获取的账户和持仓信息）
-      // 包括：浮亏检查（仅买入操作）和持仓市值限制检查（所有操作）
-      // 获取做多和做空标的的当前价格用于浮亏计算
-      const longCurrentPrice = longQuote?.price ?? null;
-      const shortCurrentPrice = shortQuote?.price ?? null;
-      const riskResult = riskChecker.checkBeforeOrder(
-        accountForRiskCheck,
-        positionsForRiskCheck,
-        sig,
-        orderNotional,
-        currentPrice,
-        longCurrentPrice,
-        shortCurrentPrice
-      );
-      if (riskResult.allowed) {
-        finalSignals.push(sig);
-      } else {
-        logger.warn(
-          `[风险拦截] 信号被风险控制拦截：${sigName}(${normalizedSigSymbol}) ${sig.action} - ${riskResult.reason}`
-        );
-      }
-    }
+    finalSignals = await signalProcessor.applyRiskChecks(signals, context);
   }
 
-  // 只在有交易信号时显示执行信息（信号变化时已显示）
+  // 只在有交易信号时显示执行信息
   if (finalSignals.length > 0) {
     for (const sig of finalSignals) {
-      // 信号中的 symbol 已经是规范化的，无需重复规范化
       const normalizedSigSymbol = sig.symbol;
       const sigName = getSymbolName(
         sig.symbol,
@@ -1808,147 +460,29 @@ async function runOnce({
       );
     }
   } else if (signals.length > 0 && !canTradeNow) {
-    // 有信号但不在交易时段
-
     logger.info("当前为竞价或非连续交易时段，交易信号已生成但暂不执行。");
   }
 
-  // 实时监控价格并管理未成交的买入订单（每秒一次，仅在交易时段且需要监控时执行）
-  // 注意：不在交易时段时，即使有买入订单也不监控
+  // 实时监控价格并管理未成交的买入订单
   if (canTradeNow && (longQuote || shortQuote)) {
     await trader.monitorAndManageOrders(longQuote, shortQuote).catch((err) => {
       logger.warn("订单监控失败", err?.message ?? err);
     });
   }
 
-  // 执行交易（只在有信号时显示）
+  // 执行交易
   if (finalSignals.length > 0) {
     logger.info(`执行交易：共 ${finalSignals.length} 个交易信号`);
 
     // 对卖出信号进行成本价判断和卖出数量计算
-    for (const sig of finalSignals) {
-      // 检查是否是末日保护程序的清仓信号（无条件清仓，不受成本价判断影响）
-      const isDoomsdaySignal =
-        sig.reason && sig.reason.includes("末日保护程序");
-
-      if (sig.action === SignalType.SELLCALL) {
-        // 卖出做多标的：判断成本价并计算卖出数量
-        // 添加调试日志
-        if (!longPosition) {
-          logger.warn(
-            `[卖出信号处理] SELLCALL: 做多标的持仓对象为null，无法计算卖出数量`
-          );
-        }
-        if (!longQuote) {
-          logger.warn(
-            `[卖出信号处理] SELLCALL: 做多标的行情数据为null，无法计算卖出数量`
-          );
-        }
-        if (longPosition && longQuote) {
-          logger.info(
-            `[卖出信号处理] SELLCALL: 持仓成本价=${longPosition.costPrice.toFixed(
-              3
-            )}, 当前价格=${longQuote.price.toFixed(3)}, 可用数量=${
-              longPosition.availableQuantity
-            }`
-          );
-        }
-
-        if (isDoomsdaySignal) {
-          // 末日保护程序：无条件清仓，使用全部可用数量
-          if (longPosition && longPosition.availableQuantity > 0) {
-            sig.quantity = longPosition.availableQuantity;
-            logger.info(
-              `[卖出信号处理] SELLCALL(末日保护): 无条件清仓，卖出数量=${sig.quantity}`
-            );
-          } else {
-            logger.warn(
-              `[卖出信号处理] SELLCALL(末日保护): 持仓对象无效，无法清仓`
-            );
-            sig.action = SignalType.HOLD;
-            sig.reason = `${sig.reason}，但持仓对象无效`;
-          }
-        } else {
-          // 正常卖出信号：进行成本价判断
-          const result = calculateSellQuantity(
-            longPosition,
-            longQuote,
-            orderRecorder,
-            "LONG",
-            sig.reason
-          );
-          if (result.shouldHold) {
-            logger.info(`[卖出信号处理] SELLCALL被跳过: ${result.reason}`);
-            sig.action = SignalType.HOLD;
-            sig.reason = result.reason;
-          } else {
-            logger.info(
-              `[卖出信号处理] SELLCALL通过: 卖出数量=${result.quantity}, 原因=${result.reason}`
-            );
-            sig.quantity = result.quantity;
-            sig.reason = result.reason;
-          }
-        }
-      } else if (sig.action === SignalType.SELLPUT) {
-        // 卖出做空标的：判断成本价并计算卖出数量
-        // 添加调试日志
-        if (!shortPosition) {
-          logger.warn(
-            `[卖出信号处理] SELLPUT: 做空标的持仓对象为null，无法计算卖出数量`
-          );
-        }
-        if (!shortQuote) {
-          logger.warn(
-            `[卖出信号处理] SELLPUT: 做空标的行情数据为null，无法计算卖出数量`
-          );
-        }
-        if (shortPosition && shortQuote) {
-          logger.info(
-            `[卖出信号处理] SELLPUT: 持仓成本价=${shortPosition.costPrice.toFixed(
-              3
-            )}, 当前价格=${shortQuote.price.toFixed(3)}, 可用数量=${
-              shortPosition.availableQuantity
-            }`
-          );
-        }
-
-        if (isDoomsdaySignal) {
-          // 末日保护程序：无条件清仓，使用全部可用数量
-          if (shortPosition && shortPosition.availableQuantity > 0) {
-            sig.quantity = shortPosition.availableQuantity;
-            logger.info(
-              `[卖出信号处理] SELLPUT(末日保护): 无条件清仓，卖出数量=${sig.quantity}`
-            );
-          } else {
-            logger.warn(
-              `[卖出信号处理] SELLPUT(末日保护): 持仓对象无效，无法清仓`
-            );
-            sig.action = SignalType.HOLD;
-            sig.reason = `${sig.reason}，但持仓对象无效`;
-          }
-        } else {
-          // 正常卖出信号：进行成本价判断
-          const result = calculateSellQuantity(
-            shortPosition,
-            shortQuote,
-            orderRecorder,
-            "SHORT",
-            sig.reason
-          );
-          if (result.shouldHold) {
-            logger.info(`[卖出信号处理] SELLPUT被跳过: ${result.reason}`);
-            sig.action = SignalType.HOLD;
-            sig.reason = result.reason;
-          } else {
-            logger.info(
-              `[卖出信号处理] SELLPUT通过: 卖出数量=${result.quantity}, 原因=${result.reason}`
-            );
-            sig.quantity = result.quantity;
-            sig.reason = result.reason;
-          }
-        }
-      }
-    }
+    signalProcessor.processSellSignals(
+      finalSignals,
+      longPosition,
+      shortPosition,
+      longQuote,
+      shortQuote,
+      orderRecorder
+    );
 
     // 过滤掉被设置为HOLD的信号
     const signalsToExecute = finalSignals.filter(
@@ -1961,11 +495,10 @@ async function runOnce({
       logger.info("所有卖出信号因成本价判断被跳过，无交易执行");
     }
 
-    // 交易后获取并显示账户和持仓信息（仅显示一次）
+    // 交易后获取并显示账户和持仓信息
     await displayAccountAndPositions(trader, marketDataClient, lastState);
 
-    // 交易后本地更新订单记录（不再通过 API 刷新）
-    // 注意：只更新实际执行的交易（signalsToExecute），不包括被设置为 HOLD 的信号
+    // 交易后本地更新订单记录
     if (orderRecorder && signalsToExecute.length > 0) {
       for (const sig of signalsToExecute) {
         const quantity = Number(sig.quantity);
@@ -1988,7 +521,6 @@ async function runOnce({
           continue;
         }
 
-        // 区分做多和做空标的
         const isLongSymbol =
           sig.action === SignalType.BUYCALL ||
           sig.action === SignalType.SELLCALL;
@@ -2000,8 +532,7 @@ async function runOnce({
           orderRecorder.recordLocalSell(symbol, price, quantity, isLongSymbol);
         }
 
-        // 交易后刷新浮亏监控数据（从订单记录计算开仓成本）
-        // 订单记录已通过 recordLocalBuy/recordLocalSell 更新
+        // 交易后刷新浮亏监控数据
         if (TRADING_CONFIG.maxUnrealizedLossPerSymbol > 0 && riskChecker) {
           try {
             await riskChecker.refreshUnrealizedLossData(
@@ -2020,8 +551,7 @@ async function runOnce({
     }
   }
 
-  // 释放持仓对象回池（无论是否有交易信号都必须释放，避免内存泄漏）
-  // 注意：必须在所有使用 longPosition 和 shortPosition 的代码执行完毕后释放
+  // 释放持仓对象回池
   if (longPosition) {
     positionObjectPool.release(longPosition);
     longPosition = null;
@@ -2029,123 +559,6 @@ async function runOnce({
   if (shortPosition) {
     positionObjectPool.release(shortPosition);
     shortPosition = null;
-  }
-}
-
-/**
- * 显示账户和持仓信息（仅在交易后调用）
- * @param {Object} trader Trader实例
- * @param {Object} marketDataClient MarketDataClient实例
- * @param {Object} lastState 状态对象，用于更新缓存
- */
-async function displayAccountAndPositions(trader, marketDataClient, lastState) {
-  try {
-    const account = await trader.getAccountSnapshot().catch((err) => {
-      logger.warn("获取账户信息失败", err?.message ?? err);
-      return null;
-    });
-
-    const positions = await trader.getStockPositions().catch((err) => {
-      logger.warn("获取股票仓位失败", err?.message ?? err);
-      return [];
-    });
-
-    // 更新缓存
-    lastState.cachedAccount = account;
-    lastState.cachedPositions = positions;
-
-    // 显示账户和持仓信息
-    if (account) {
-      logger.info(
-        `账户概览 [${account.currency}] 余额=${account.totalCash.toFixed(
-          2
-        )} 市值=${account.netAssets.toFixed(
-          2
-        )} 持仓市值≈${account.positionValue.toFixed(2)}`
-      );
-    }
-    if (Array.isArray(positions) && positions.length > 0) {
-      logger.info("股票持仓：");
-
-      // 批量获取所有持仓标的的完整信息（包含中文名称和价格）
-      const positionSymbols = positions.map((p) => p.symbol).filter(Boolean);
-      const symbolInfoMap = new Map(); // key: normalizedSymbol, value: {name, price}
-      if (positionSymbols.length > 0) {
-        // 使用 getLatestQuote 获取每个标的的完整信息（包含 staticInfo 和中文名称）
-        const quotePromises = positionSymbols.map((symbol) =>
-          marketDataClient.getLatestQuote(symbol).catch((err) => {
-            logger.warn(
-              `[持仓监控] 获取标的 ${symbol} 信息失败: ${err?.message ?? err}`
-            );
-            return null;
-          })
-        );
-        const quotes = await Promise.all(quotePromises);
-
-        quotes.forEach((quote) => {
-          if (quote?.symbol) {
-            const normalizedSymbol = normalizeHKSymbol(quote.symbol);
-            symbolInfoMap.set(normalizedSymbol, {
-              name: quote.name ?? null,
-              price: quote.price ?? null,
-            });
-          }
-        });
-      }
-
-      // 计算总资产用于计算仓位百分比
-      const totalAssets = account?.netAssets ?? 0;
-
-      positions.forEach((pos) => {
-        const normalizedPosSymbol = normalizeHKSymbol(pos.symbol);
-        const symbolInfo = symbolInfoMap.get(normalizedPosSymbol);
-
-        // 优先使用从行情 API 获取的中文名称，否则使用持仓数据中的名称，最后使用 "-"
-        const nameText = symbolInfo?.name ?? pos.symbolName ?? "-";
-        const codeText = normalizeHKSymbol(pos.symbol);
-
-        // 获取当前价格（优先使用实时价格，否则使用成本价）
-        const currentPrice = symbolInfo?.price ?? pos.costPrice ?? 0;
-
-        // 计算持仓市值
-        const posQuantity = Number(pos.quantity) || 0;
-        const marketValue =
-          Number.isFinite(currentPrice) && currentPrice > 0 && posQuantity > 0
-            ? posQuantity * currentPrice
-            : 0;
-
-        // 计算仓位百分比
-        const positionPercent =
-          Number.isFinite(totalAssets) && totalAssets > 0 && marketValue > 0
-            ? (marketValue / totalAssets) * 100
-            : 0;
-
-        // 构建价格显示文本
-        const priceText = isDefined(symbolInfo?.price)
-          ? `现价=${formatNumber(currentPrice, 3)}`
-          : `成本价=${formatNumber(pos.costPrice, 3)}`;
-
-        // 格式化账户渠道显示名称
-        const channelDisplay = formatAccountChannel(pos.accountChannel);
-
-        logger.info(
-          `- [${channelDisplay}] ${nameText}(${codeText}) 持仓=${formatNumber(
-            pos.quantity,
-            2
-          )} 可用=${formatNumber(
-            pos.availableQuantity,
-            2
-          )} ${priceText} 市值=${formatNumber(
-            marketValue,
-            2
-          )} 仓位=${formatNumber(positionPercent, 2)}% ${pos.currency ?? ""}`
-        );
-      });
-    } else {
-      logger.info("当前无股票持仓。");
-    }
-  } catch (err) {
-    logger.warn("获取账户和持仓信息失败", err?.message ?? err);
   }
 }
 
@@ -2178,7 +591,7 @@ async function main() {
   const candleCount = 200;
   const intervalMs = 1000;
 
-  // 使用配置验证返回的标的名称和行情客户端实例（避免重复创建）
+  // 使用配置验证返回的标的名称和行情客户端实例
   const { marketDataClient } = symbolNames;
   const strategy = new HangSengMultiIndicatorStrategy({
     signalConfig: TRADING_CONFIG.signalConfig,
@@ -2186,36 +599,45 @@ async function main() {
   });
   const trader = new Trader(config);
   const orderRecorder = new OrderRecorder(trader);
-
-  // 初始化风险检查器
   const riskChecker = new RiskChecker();
+
+  // 初始化新模块实例
+  const marketMonitor = new MarketMonitor();
+  const doomsdayProtection = new DoomsdayProtection();
+  const unrealizedLossMonitor = new UnrealizedLossMonitor(
+    TRADING_CONFIG.maxUnrealizedLossPerSymbol
+  );
+  const signalVerificationManager = new SignalVerificationManager(
+    TRADING_CONFIG.verificationConfig
+  );
+  const signalProcessor = new SignalProcessor();
 
   logger.info("程序开始运行，在交易时段将进行实时监控和交易（按 Ctrl+C 退出）");
 
-  // 初始化牛熊证信息（在程序启动时检查做多和做空标的是否为牛熊证）
+  // 初始化牛熊证信息
   await riskChecker.initializeWarrantInfo(
     marketDataClient,
     TRADING_CONFIG.longSymbol,
     TRADING_CONFIG.shortSymbol
   );
 
-  // 记录上一次的数据状态，用于检测变化
+  // 记录上一次的数据状态
   let lastState = {
     longPrice: null,
     shortPrice: null,
     signal: null,
     canTrade: null,
-    isHalfDay: null, // 记录是否是半日交易日
-    pendingDelayedSignals: [], // 待验证的延迟信号列表（每个信号有自己独立的verificationHistory）
-    monitorValues: null, // 监控标的的价格值（仅保存价格用于变化检测）
-    cachedAccount: null, // 缓存的账户信息（仅在交易后更新）
-    cachedPositions: [], // 缓存的持仓信息（仅在交易后更新）
+    isHalfDay: null,
+    pendingDelayedSignals: [],
+    monitorValues: null,
+    cachedAccount: null,
+    cachedPositions: [],
   };
 
   // 程序启动时立即获取一次账户和持仓信息
   await displayAccountAndPositions(trader, marketDataClient, lastState);
 
-  // 程序启动时从API获取订单数据并更新缓存（带重试机制）
+  // 程序启动时从API获取订单数据并更新缓存
   const longSymbol = TRADING_CONFIG.longSymbol;
   const shortSymbol = TRADING_CONFIG.shortSymbol;
   if (longSymbol) {
@@ -2225,7 +647,7 @@ async function main() {
     await orderRecorder.fetchOrdersFromAPIWithRetry(shortSymbol);
   }
 
-  // 程序启动时刷新订单记录（从缓存读取，仅对未被禁用的标的执行）
+  // 程序启动时刷新订单记录
   if (longSymbol && !orderRecorder.isSymbolDisabled(longSymbol)) {
     await orderRecorder.refreshOrders(longSymbol, true, false).catch((err) => {
       logger.warn(
@@ -2245,7 +667,7 @@ async function main() {
       });
   }
 
-  // 程序启动时初始化浮亏监控数据（订单记录已在上面刷新，仅对未被禁用的标的执行）
+  // 程序启动时初始化浮亏监控数据
   if (TRADING_CONFIG.maxUnrealizedLossPerSymbol > 0) {
     if (longSymbol && !orderRecorder.isSymbolDisabled(longSymbol)) {
       await riskChecker
@@ -2285,7 +707,7 @@ async function main() {
     logger.warn("[订单监控] 程序启动时检查买入订单失败", err?.message ?? err);
   }
 
-  // 无限循环监控（用户要求不设执行次数上限）
+  // 无限循环监控
   // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
@@ -2298,6 +720,11 @@ async function main() {
         lastState,
         orderRecorder,
         riskChecker,
+        marketMonitor,
+        doomsdayProtection,
+        unrealizedLossMonitor,
+        signalVerificationManager,
+        signalProcessor,
       });
     } catch (err) {
       logger.error("本次执行失败", err);
