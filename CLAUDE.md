@@ -27,7 +27,9 @@
       ├─ tradingTime.js - 交易时段和时区工具
       ├─ accountDisplay.js - 账户和持仓显示
       ├─ objectPool.js - 内存优化（对象池）
-      └─ logger.js - 异步日志系统
+      ├─ logger.js - 基于 pino 的高性能日志系统
+      ├─ signalConfigParser.js - 信号配置解析器
+      └─ helpers.js - 工具函数
 ```
 
 ## 文档导航
@@ -193,7 +195,11 @@ npm start
   - 括号内是条件列表，逗号分隔
   - `/N`：括号内条件需满足 N 项，不设则全部满足
   - `|`：分隔不同条件组（最多 3 个），满足任一组即可
-  - 支持指标：`RSI6`, `RSI12`, `MFI`, `D` (KDJ.D), `J` (KDJ.J)
+  - **支持指标**：
+    - `RSI:n`：任意周期 RSI（n 范围 1-100），如 `RSI:6<20`
+    - `MFI`：资金流量指标
+    - `D`：KDJ 的 D 值
+    - `J`：KDJ 的 J 值
   - 支持运算符：`<` 和 `>`
 - **信号类型**：
   - `BUYCALL`（买入做多 - 延迟验证）：使用 `SIGNAL_BUYCALL` 配置
@@ -201,11 +207,15 @@ npm start
   - `BUYPUT`（买入做空 - 延迟验证）：使用 `SIGNAL_BUYPUT` 配置
   - `SELLPUT`（卖出做空 - 立即执行）：使用 `SIGNAL_SELLPUT` 配置
 - **默认配置示例**（仅供参考，实际需在 `.env` 中配置）：
-  - BUYCALL: `(RSI6<20,MFI<15,D<20,J<-1)/3|(J<-20)`
-  - SELLCALL: `(RSI6>80,MFI>85,D>79,J>100)/3|(J>110)`
-  - BUYPUT: `(RSI6>80,MFI>85,D>80,J>100)/3|(J>120)`
-  - SELLPUT: `(RSI6<20,MFI<15,D<22,J<0)/3|(J<-15)`
+  - BUYCALL: `(RSI:6<20,MFI<15,D<20,J<-1)/3|(J<-20)`
+  - SELLCALL: `(RSI:6>80,MFI>85,D>79,J>100)/3|(J>110)`
+  - BUYPUT: `(RSI:6>80,MFI>85,D>80,J>100)/3|(J>120)`
+  - SELLPUT: `(RSI:6<20,MFI<15,D<22,J<0)/3|(J<-15)`
 - **注意**：所有信号配置都是必需项，未配置或格式无效将导致程序启动失败
+- **动态 RSI 周期**：
+  - 系统自动从配置中提取所有 RSI 周期（`extractRSIPeriods`）
+  - 根据提取的周期列表计算相应 RSI 值
+  - 例如配置 `RSI:6` 和 `RSI:12`，会同时计算 RSI6 和 RSI12
 
 ### trader.js（订单执行）
 
@@ -331,13 +341,17 @@ npm start
 
 - **类**：`ObjectPool`（通用对象池）
 - **用途**：减少频繁的对象创建和垃圾回收，提升内存效率
-- **实例化对象池**：
-  - `verificationEntryPool`：验证历史条目对象池（最大 50 个）
-  - `positionObjectPool`：持仓数据对象池（最大 10 个）
+- **导出的对象池**：
+  - `verificationEntryPool`：验证历史条目对象池（最大 50 个），用于 `signalVerification.js` 记录每秒指标值
+  - `positionObjectPool`：持仓数据对象池（最大 10 个），用于 `accountDisplay.js` 格式化持仓信息
 - **核心方法**：
   - `acquire()`：从池中获取对象
-  - `release(obj)`：将对象归还到池中
+  - `release(obj)`：将对象归还到池中（自动重置对象状态）
   - `releaseAll(objects)`：批量释放对象数组
+- **设计特点**：
+  - 使用工厂函数创建对象
+  - 使用重置函数清空对象状态（避免内存泄漏）
+  - 池满时自动丢弃对象，让 GC 回收
 
 ### quoteClient.js（行情数据）
 
@@ -356,17 +370,29 @@ npm start
 
 ## 辅助模块和工具
 
-### logger.js（异步日志系统）
+### logger.js（基于 pino 的高性能日志系统）
 
 **路径**：`D:\Code\longBrige-automation-program\src\utils\logger.js`
 
-- **类**：`AsyncLogQueue`
-- **设计**：非阻塞日志队列（最大 1000 条）
-- **批处理**：每批 20 条日志
-- **异步执行**：使用 `setImmediate()` 避免阻塞主循环
-- **同步刷新**：进程退出时同步刷新所有待处理日志
-- **方法**：`logger.info()`, `logger.warn()`, `logger.error()`, `logger.debug()`
-- **时间显示**：自动添加北京时间（UTC+8）前缀
+- **实现**：基于 pino 的多流日志系统
+- **设计特点**：
+  - **双流输出**：同时输出到控制台和文件
+  - **按日期分割**：使用 `DateRotatingStream` 自动按日期分割日志文件
+  - **多目录存储**：
+    - `logs/system/`：系统日志（所有日志级别）
+    - `logs/debug/`：调试日志（仅 DEBUG 级别，启用 `DEBUG=true` 时）
+  - **自定义格式化**：
+    - 控制台输出：带颜色高亮
+    - 文件输出：纯文本格式，自动移除 ANSI 颜色代码
+  - **超时保护**：写入操作带有 drain 超时保护（3-5秒）
+- **日志级别**：
+  - DEBUG (20)、INFO (30)、WARN (40)、ERROR (50)
+  - 控制台：WARN 和 ERROR 输出到 stderr，其他输出到 stdout
+- **进程清理**：
+  - 支持同步清理（`cleanupSync`）和异步清理（`cleanupAsync`）
+  - 自动监听进程信号（SIGINT、SIGTERM、beforeExit）
+  - 处理未捕获异常和 Promise 拒绝
+- **API**：`logger.info()`, `logger.warn()`, `logger.error()`, `logger.debug(extra)`
 
 ### utils.js（工具函数）
 
@@ -375,6 +401,34 @@ npm start
 - **normalizeHKSymbol()**：标准化港股代码（添加 `.HK` 后缀）
 - **decimalToNumber()**：转换 LongPort API 的 Decimal 对象为数字
 - **toBeijingTimeIso()** / **toBeijingTimeLog()**：UTC 到北京时间转换
+
+### signalConfigParser.js（信号配置解析器）
+
+**路径**：`D:\Code\longBrige-automation-program\src\utils\signalConfigParser.js`
+
+- **用途**：解析和验证信号配置字符串，支持动态 RSI 周期
+- **核心函数**：
+  - `parseSignalConfig(configStr)`：解析信号配置字符串
+  - `validateSignalConfig(configStr)`：验证配置格式并返回详细信息
+  - `evaluateCondition(state, condition)`：评估单个条件是否满足
+  - `evaluateConditionGroup(state, conditionGroup)`：评估条件组
+  - `evaluateSignalConfig(state, signalConfig)`：评估完整信号配置
+  - `formatSignalConfig(signalConfig)`：格式化配置为可读字符串
+  - `extractRSIPeriods(signalConfig)`：从配置中提取所有 RSI 周期
+- **配置格式**：
+  - 标准格式：`(条件1,条件2,...)/N|(条件A)|(条件B,条件C)/M`
+  - RSI 动态周期：`RSI:n<threshold` 或 `RSI:n>threshold`（n 为 1-100）
+  - 固定指标：`MFI`、`D` (KDJ.D)、`J` (KDJ.J)
+- **支持指标**：
+  - `RSI:n`：任意周期 RSI（n 范围 1-100）
+  - `MFI`：资金流量指标
+  - `D`：KDJ 的 D 值
+  - `J`：KDJ 的 J 值
+- **验证特性**：
+  - 检查括号匹配
+  - 检查条件数量与 minSatisfied 范围
+  - 检查指标是否支持
+  - 返回详细的错误信息（指出具体问题位置）
 
 ### signalTypes.js（信号类型定义）
 
@@ -670,11 +724,15 @@ Trader 日志显示：
 修改本系统时：
 
 1. **添加新指标**：更新 `indicators.js`（`D:\Code\longBrige-automation-program\src\services\indicators.js`），利用 `technicalindicators` 库添加新指标，然后修改 `buildIndicatorSnapshot()` 和 `signalConfigParser.js` 中的指标支持列表
-2. **修改信号逻辑**：直接编辑 `.env` 文件中的信号配置（`SIGNAL_BUYCALL`, `SIGNAL_SELLCALL`, `SIGNAL_BUYPUT`, `SIGNAL_SELLPUT`），无需修改代码。配置格式：`(条件1,条件2,...)/N|(条件A)|(条件B,条件C)/M`
-3. **调整风险控制**：修改 `risk.js`（`D:\Code\longBrige-automation-program\src\core\risk.js`）检查，始终仅对买入信号进行门控（允许卖出）
-4. **订单类型变更**：更新 `trader.js`（`D:\Code\longBrige-automation-program\src\core\trader.js`）\_submitTargetOrder()，确保订单类型被 LongPort API 支持
-5. **修改配置参数**：编辑 `.env` 文件或 `config.trading.js`（`D:\Code\longBrige-automation-program\src\config\config.trading.js`）
-6. **测试**：使用模拟交易账户（在 LongPort API 设置中配置）
+2. **修改信号逻辑**：
+   - 直接编辑 `.env` 文件中的信号配置（`SIGNAL_BUYCALL`, `SIGNAL_SELLCALL`, `SIGNAL_BUYPUT`, `SIGNAL_SELLPUT`），无需修改代码
+   - 配置格式：`(RSI:n<20,MFI<15,D<20,J<-1)/3|(J<-20)`
+   - 支持动态 RSI 周期：`RSI:n`（n 范围 1-100）
+3. **添加/修改信号配置规则**：编辑 `signalConfigParser.js`（`D:\Code\longBrige-automation-program\src\utils\signalConfigParser.js`），修改 `SUPPORTED_INDICATORS` 数组添加新指标
+4. **调整风险控制**：修改 `risk.js`（`D:\Code\longBrige-automation-program\src\core\risk.js`）检查，始终仅对买入信号进行门控（允许卖出）
+5. **订单类型变更**：更新 `trader.js`（`D:\Code\longBrige-automation-program\src\core\trader.js`）\_submitTargetOrder()，确保订单类型被 LongPort API 支持
+6. **修改配置参数**：编辑 `.env` 文件或 `config.trading.js`（`D:\Code\longBrige-automation-program\src\config\config.trading.js`）
+7. **测试**：使用模拟交易账户（在 LongPort API 设置中配置）
 
 ## 架构原则
 
@@ -705,8 +763,11 @@ Trader 日志显示：
 
 - 对象池：`D:\Code\longBrige-automation-program\src\utils\objectPool.js`
 - 日志系统：`D:\Code\longBrige-automation-program\src\utils\logger.js`
+- 信号配置解析：`D:\Code\longBrige-automation-program\src\utils\signalConfigParser.js`
 - 工具函数：`D:\Code\longBrige-automation-program\src\utils\helpers.js`
 - 信号类型：`D:\Code\longBrige-automation-program\src\utils\constants.js`
+- 交易时段：`D:\Code\longBrige-automation-program\src\utils\tradingTime.js`
+- 账户显示：`D:\Code\longBrige-automation-program\src\utils\accountDisplay.js`
 
 **配置文件**：
 

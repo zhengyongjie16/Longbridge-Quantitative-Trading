@@ -26,16 +26,27 @@
 ```
 src/
 ├── index.js                    # 主程序入口，包含交易主循环
-├── strategy.js                 # 交易策略模块（多指标组合策略）
-├── trader.js                   # 交易执行模块（订单提交、管理）
-├── indicators.js               # 技术指标计算模块（RSI、KDJ、MACD）
-├── objectPool.js               # 对象池模块（内存优化）
-├── risk.js                     # 风险控制模块（浮亏检查、持仓限制）
-├── orderRecorder.js            # 订单记录模块（历史订单管理）
-├── quoteClient.js              # 行情客户端（获取行情、K线数据）
-├── logger.js                   # 日志管理模块
-├── utils.js                    # 工具函数模块
-├── signalTypes.js              # 信号类型定义
+├── core/                       # 核心业务模块
+│   ├── strategy.js             # 交易策略模块（多指标组合策略）
+│   ├── trader.js               # 交易执行模块（订单提交、管理）
+│   ├── risk.js                 # 风险控制模块（浮亏检查、持仓限制）
+│   ├── orderRecorder.js        # 订单记录模块（历史订单管理）
+│   ├── signalProcessor.js      # 信号处理模块（风险检查、卖出数量计算）
+│   ├── signalVerification.js   # 信号验证模块（延迟验证）
+│   ├── marketMonitor.js        # 行情监控模块（价格和指标变化监控）
+│   ├── doomsdayProtection.js   # 末日保护模块（收盘前保护机制）
+│   └── unrealizedLossMonitor.js # 浮亏监控模块（保护性清仓）
+├── services/                   # 服务模块
+│   ├── indicators.js           # 技术指标计算模块（RSI、KDJ、MACD、MFI）
+│   └── quoteClient.js          # 行情客户端（获取行情、K线数据）
+├── utils/                      # 工具模块
+│   ├── objectPool.js           # 对象池模块（内存优化）
+│   ├── logger.js               # 日志管理模块（基于 pino）
+│   ├── signalConfigParser.js   # 信号配置解析器（支持动态 RSI 周期）
+│   ├── helpers.js              # 工具函数模块
+│   ├── constants.js            # 信号类型定义
+│   ├── tradingTime.js          # 交易时段工具
+│   └── accountDisplay.js       # 账户显示工具
 └── config/
     ├── config.js               # LongPort API 配置
     ├── config.trading.js       # 交易配置（标的、金额、风控参数）
@@ -62,7 +73,9 @@ src/
 
 1. **RSI（相对强弱指标）**
 
-   - RSI6：6 周期 RSI
+   - **动态周期**：支持任意周期 RSI，格式为 `RSI:n`（n 范围 1-100）
+   - 例如：`RSI:6` 表示 6 周期 RSI，`RSI:12` 表示 12 周期 RSI
+   - 系统自动从信号配置中提取所有 RSI 周期并计算相应值
    - 超买：> 80
    - 超卖：< 20
 
@@ -100,17 +113,26 @@ src/
 - **括号内**：条件列表，逗号分隔
 - **/N**：括号内条件需满足 N 项，不设则全部满足
 - **|**：分隔不同条件组（最多 3 个），满足任一组即可触发信号
-- **支持指标**：`RSI6`, `RSI12`, `MFI`, `D` (KDJ.D), `J` (KDJ.J)
+- **支持指标**：
+  - `RSI:n`：任意周期 RSI（n 范围 1-100），如 `RSI:6<20`、`RSI:12>80`
+  - `MFI`：资金流量指标
+  - `D`：KDJ 的 D 值
+  - `J`：KDJ 的 J 值
 - **支持运算符**：`<` 和 `>`
 - **支持负数阈值**：如 `J<-20`
 
 **配置示例**：
 
 ```
-(RSI6<20,MFI<15,D<20,J<-1)/3|(J<-20)
+(RSI:6<20,MFI<15,D<20,J<-1)/3|(J<-20)
 ```
 
 表示：满足条件组 1（4 个条件中至少 3 个满足）**或** 满足条件组 2（J<-20）即可触发。
+
+**动态 RSI 周期**：
+- 系统自动从配置中提取所有 RSI 周期（如 `RSI:6`、`RSI:12`）
+- 根据提取的周期列表计算相应 RSI 值
+- 只需要在配置中写明需要的 RSI 周期，系统会自动计算
 
 #### 1. 买入做多标的（BUYCALL）- 延迟验证
 
@@ -119,12 +141,12 @@ src/
 **默认配置示例**（仅供参考，实际需在 `.env` 中配置）：
 
 ```
-(RSI6<20,MFI<15,D<20,J<-1)/3|(J<-20)
+(RSI:6<20,MFI<15,D<20,J<-1)/3|(J<-20)
 ```
 
 **配置说明**：
 
-- **条件组 1**：`(RSI6<20,MFI<15,D<20,J<-1)/3` - 四个指标中至少 3 个满足
+- **条件组 1**：`(RSI:6<20,MFI<15,D<20,J<-1)/3` - 四个指标中至少 3 个满足
 - **条件组 2**：`(J<-20)` - J 值小于-20
 - 满足任一条件组即可触发
 
@@ -152,12 +174,12 @@ src/
 **默认配置示例**（仅供参考，实际需在 `.env` 中配置）：
 
 ```
-(RSI6>80,MFI>85,D>79,J>100)/3|(J>110)
+(RSI:6>80,MFI>85,D>79,J>100)/3|(J>110)
 ```
 
 **配置说明**：
 
-- **条件组 1**：`(RSI6>80,MFI>85,D>79,J>100)/3` - 四个指标中至少 3 个满足（注意 D 的阈值是 79）
+- **条件组 1**：`(RSI:6>80,MFI>85,D>79,J>100)/3` - 四个指标中至少 3 个满足（注意 D 的阈值是 79）
 - **条件组 2**：`(J>110)` - J 值大于 110
 - 满足任一条件组即可触发
 
@@ -179,12 +201,12 @@ src/
 **默认配置示例**（仅供参考，实际需在 `.env` 中配置）：
 
 ```
-(RSI6>80,MFI>85,D>80,J>100)/3|(J>120)
+(RSI:6>80,MFI>85,D>80,J>100)/3|(J>120)
 ```
 
 **配置说明**：
 
-- **条件组 1**：`(RSI6>80,MFI>85,D>80,J>100)/3` - 四个指标中至少 3 个满足
+- **条件组 1**：`(RSI:6>80,MFI>85,D>80,J>100)/3` - 四个指标中至少 3 个满足
 - **条件组 2**：`(J>120)` - J 值大于 120
 - 满足任一条件组即可触发
 
@@ -212,12 +234,12 @@ src/
 **默认配置示例**（仅供参考，实际需在 `.env` 中配置）：
 
 ```
-(RSI6<20,MFI<15,D<22,J<0)/3|(J<-15)
+(RSI:6<20,MFI<15,D<22,J<0)/3|(J<-15)
 ```
 
 **配置说明**：
 
-- **条件组 1**：`(RSI6<20,MFI<15,D<22,J<0)/3` - 四个指标中至少 3 个满足（注意 D 的阈值是 22）
+- **条件组 1**：`(RSI:6<20,MFI<15,D<22,J<0)/3` - 四个指标中至少 3 个满足（注意 D 的阈值是 22）
 - **条件组 2**：`(J<-15)` - J 值小于-15
 - 满足任一条件组即可触发
 
@@ -467,10 +489,10 @@ MAX_DAILY_LOSS=20000           # 单日最大亏损（HKD）
 DOOMSDAY_PROTECTION=true       # 末日保护程序（收盘前15分钟拒绝买入，收盘前5分钟清仓）
 
 # 信号配置（必需）
-SIGNAL_BUYCALL=(RSI6<20,MFI<15,D<20,J<-1)/3|(J<-20)                    # 买入做多信号配置
-SIGNAL_SELLCALL=(RSI6>80,MFI>85,D>79,J>100)/3|(J>110)                  # 卖出做多信号配置
-SIGNAL_BUYPUT=(RSI6>80,MFI>85,D>80,J>100)/3|(J>120)                    # 买入做空信号配置
-SIGNAL_SELLPUT=(RSI6<20,MFI<15,D<22,J<0)/3|(J<-15)                     # 卖出做空信号配置
+SIGNAL_BUYCALL=(RSI:6<20,MFI<15,D<20,J<-1)/3|(J<-20)                   # 买入做多信号配置
+SIGNAL_SELLCALL=(RSI:6>80,MFI>85,D>79,J>100)/3|(J>110)                 # 卖出做多信号配置
+SIGNAL_BUYPUT=(RSI:6>80,MFI>85,D>80,J>100)/3|(J>120)                   # 买入做空信号配置
+SIGNAL_SELLPUT=(RSI:6<20,MFI<15,D<22,J<0)/3|(J<-15)                    # 卖出做空信号配置
 
 # 调试配置（可选）
 DEBUG=false                    # 启用详细日志
@@ -554,21 +576,21 @@ npm start
 
 ### 必需配置
 
-| 参数                    | 说明                                                      | 示例                                     |
-| ----------------------- | --------------------------------------------------------- | ---------------------------------------- |
-| `MONITOR_SYMBOL`        | 监控标的代码                                              | `HSI.HK`                                 |
-| `LONG_SYMBOL`           | 做多标的代码                                              | `54806`                                  |
-| `SHORT_SYMBOL`          | 做空标的代码                                              | `63372`                                  |
-| `TARGET_NOTIONAL`       | 每次目标买入金额（HKD）                                   | `10000`                                  |
-| `LONG_LOT_SIZE`         | 做多标的最小买卖单位                                      | `100`                                    |
-| `SHORT_LOT_SIZE`        | 做空标的最小买卖单位                                      | `100`                                    |
-| `MAX_POSITION_NOTIONAL` | 单标的最大持仓市值（HKD）                                 | `200000`                                 |
-| `MAX_DAILY_LOSS`        | 单日最大亏损（HKD）                                       | `20000`                                  |
-| `DOOMSDAY_PROTECTION`   | 末日保护程序（收盘前 15 分钟拒绝买入，收盘前 5 分钟清仓） | `true` 或 `false`                        |
-| `SIGNAL_BUYCALL`        | 买入做多信号配置（格式见交易信号章节）                    | `(RSI6<20,MFI<15,D<20,J<-1)/3\|(J<-20)`  |
-| `SIGNAL_SELLCALL`       | 卖出做多信号配置（格式见交易信号章节）                    | `(RSI6>80,MFI>85,D>79,J>100)/3\|(J>110)` |
-| `SIGNAL_BUYPUT`         | 买入做空信号配置（格式见交易信号章节）                    | `(RSI6>80,MFI>85,D>80,J>100)/3\|(J>120)` |
-| `SIGNAL_SELLPUT`        | 卖出做空信号配置（格式见交易信号章节）                    | `(RSI6<20,MFI<15,D<22,J<0)/3\|(J<-15)`   |
+| 参数                    | 说明                                                      | 示例                                       |
+| ----------------------- | --------------------------------------------------------- | ------------------------------------------ |
+| `MONITOR_SYMBOL`        | 监控标的代码                                              | `HSI.HK`                                   |
+| `LONG_SYMBOL`           | 做多标的代码                                              | `54806`                                    |
+| `SHORT_SYMBOL`          | 做空标的代码                                              | `63372`                                    |
+| `TARGET_NOTIONAL`       | 每次目标买入金额（HKD）                                   | `10000`                                    |
+| `LONG_LOT_SIZE`         | 做多标的最小买卖单位                                      | `100`                                      |
+| `SHORT_LOT_SIZE`        | 做空标的最小买卖单位                                      | `100`                                      |
+| `MAX_POSITION_NOTIONAL` | 单标的最大持仓市值（HKD）                                 | `200000`                                   |
+| `MAX_DAILY_LOSS`        | 单日最大亏损（HKD）                                       | `20000`                                    |
+| `DOOMSDAY_PROTECTION`   | 末日保护程序（收盘前 15 分钟拒绝买入，收盘前 5 分钟清仓） | `true` 或 `false`                          |
+| `SIGNAL_BUYCALL`        | 买入做多信号配置（格式见交易信号章节）                    | `(RSI:6<20,MFI<15,D<20,J<-1)/3\|(J<-20)`  |
+| `SIGNAL_SELLCALL`       | 卖出做多信号配置（格式见交易信号章节）                    | `(RSI:6>80,MFI>85,D>79,J>100)/3\|(J>110)` |
+| `SIGNAL_BUYPUT`         | 买入做空信号配置（格式见交易信号章节）                    | `(RSI:6>80,MFI>85,D>80,J>100)/3\|(J>120)` |
+| `SIGNAL_SELLPUT`        | 卖出做空信号配置（格式见交易信号章节）                    | `(RSI:6<20,MFI<15,D<22,J<0)/3\|(J<-15)`   |
 
 **信号配置格式说明**：
 
@@ -576,7 +598,11 @@ npm start
 - 括号内是条件列表，逗号分隔
 - `/N`：括号内条件需满足 N 项，不设则全部满足
 - `|`：分隔不同条件组（最多 3 个），满足任一组即可
-- 支持指标：`RSI6`, `RSI12`, `MFI`, `D` (KDJ.D), `J` (KDJ.J)
+- **支持指标**：
+  - `RSI:n`：任意周期 RSI（n 范围 1-100），如 `RSI:6`、`RSI:12`
+  - `MFI`：资金流量指标
+  - `D`：KDJ 的 D 值
+  - `J`：KDJ 的 J 值
 - 支持运算符：`<` 和 `>`
 - 支持负数阈值
 
@@ -758,7 +784,8 @@ MFI 值范围：0-100
 ### 核心依赖
 
 - `longport`：LongPort OpenAPI Node.js SDK
-- `technicalindicators`：技术指标计算库（RSI、KDJ、MACD）
+- `technicalindicators`：技术指标计算库（RSI、KDJ、MACD、MFI）
+- `pino`：高性能日志库
 - `dotenv`：环境变量管理
 
 ### 代码结构
@@ -767,22 +794,34 @@ MFI 值范围：0-100
 longBrige-automation-program/
 ├── src/                        # 源代码目录
 │   ├── index.js                # 主程序入口
-│   ├── strategy.js             # 交易策略
-│   ├── trader.js               # 交易执行
-│   ├── indicators.js           # 技术指标
-│   ├── risk.js                 # 风险控制
-│   ├── orderRecorder.js        # 订单记录
-│   ├── quoteClient.js          # 行情客户端
-│   ├── logger.js               # 日志管理（异步队列批量处理）
-│   ├── objectPool.js           # 对象池模块（内存优化）
-│   ├── utils.js                # 工具函数
-│   ├── signalTypes.js          # 信号类型
+│   ├── core/                   # 核心业务模块
+│   │   ├── strategy.js         # 交易策略
+│   │   ├── trader.js           # 交易执行
+│   │   ├── risk.js             # 风险控制
+│   │   ├── orderRecorder.js    # 订单记录
+│   │   ├── signalProcessor.js  # 信号处理
+│   │   ├── signalVerification.js # 信号验证
+│   │   ├── marketMonitor.js    # 行情监控
+│   │   ├── doomsdayProtection.js # 末日保护
+│   │   └── unrealizedLossMonitor.js # 浮亏监控
+│   ├── services/               # 服务模块
+│   │   ├── indicators.js       # 技术指标
+│   │   └── quoteClient.js      # 行情客户端
+│   ├── utils/                  # 工具模块
+│   │   ├── objectPool.js       # 对象池模块（内存优化）
+│   │   ├── logger.js           # 日志管理（基于 pino）
+│   │   ├── signalConfigParser.js # 信号配置解析器
+│   │   ├── helpers.js          # 工具函数
+│   │   ├── constants.js        # 信号类型
+│   │   ├── tradingTime.js      # 交易时段工具
+│   │   └── accountDisplay.js   # 账户显示
 │   └── config/                 # 配置目录
 │       ├── config.js           # API配置
 │       ├── config.trading.js   # 交易配置
 │       └── config.validator.js # 配置验证
 ├── logs/                       # 日志目录（自动生成）
-│   └── trades_YYYY-MM-DD.json  # 每日交易记录
+│   ├── system/                 # 系统日志
+│   └── debug/                  # 调试日志（DEBUG 模式）
 ├── .env                        # 环境变量配置（需自行创建）
 ├── .env.example                # 环境变量配置示例
 ├── package.json                # 项目依赖
@@ -793,10 +832,11 @@ longBrige-automation-program/
 
 如需自定义策略或功能，可以参考以下模块：
 
-1. **修改策略**：编辑 [src/strategy.js](src/strategy.js)
-2. **添加指标**：编辑 [src/indicators.js](src/indicators.js)
-3. **调整风控**：编辑 [src/risk.js](src/risk.js) 和 [src/config/config.trading.js](src/config/config.trading.js)
-4. **自定义日志**：编辑 [src/logger.js](src/logger.js)
+1. **修改策略**：编辑 [src/core/strategy.js](src/core/strategy.js)
+2. **添加/修改信号配置规则**：编辑 [src/utils/signalConfigParser.js](src/utils/signalConfigParser.js) 的 `SUPPORTED_INDICATORS` 数组
+3. **添加指标**：编辑 [src/services/indicators.js](src/services/indicators.js)
+4. **调整风控**：编辑 [src/core/risk.js](src/core/risk.js) 和 [src/config/config.trading.js](src/config/config.trading.js)
+5. **自定义日志**：编辑 [src/utils/logger.js](src/utils/logger.js)
 
 ---
 
