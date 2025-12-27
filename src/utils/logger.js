@@ -1,10 +1,23 @@
-// 简单日志封装：统一输出格式，便于后续替换为专业日志库
-// 使用异步队列批量处理日志输出，避免阻塞主循环
-import { toBeijingTimeLog, toBeijingTimeIso, isDefined } from "./helpers.js";
+// 基于 pino 的高性能日志系统
+// 充分利用 pino 的异步传输和多流能力
+import pino from "pino";
+import { toBeijingTimeLog } from "./helpers.js";
 import fs from "node:fs";
 import path from "node:path";
+import { Writable } from "node:stream";
 
-// ANSI 颜色代码
+// 缓存 DEBUG 环境变量，避免重复读取
+const IS_DEBUG = process.env.DEBUG === "true";
+
+// 日志级别常量
+const LOG_LEVELS = {
+  DEBUG: 20,
+  INFO: 30,
+  WARN: 40,
+  ERROR: 50,
+};
+
+// ANSI 颜色代码（保持兼容性）
 export const colors = {
   reset: "\x1b[0m",
   yellow: "\x1b[33m",
@@ -13,546 +26,608 @@ export const colors = {
   green: "\x1b[32m",
 };
 
-// 移除ANSI颜色代码的函数（用于文件日志）
+/**
+ * 按日期分割的文件流（用于 pino 传输）
+ */
+class DateRotatingStream extends Writable {
+  constructor(logSubDir = "system") {
+    super();
+    this._logSubDir = logSubDir;
+    this._logDir = path.join(process.cwd(), "logs", logSubDir);
+    this._currentDate = null;
+    this._fileStream = null;
+    this._isRotating = false; // 防止并发 rotate
+
+    // 确保日志目录存在
+    if (!fs.existsSync(this._logDir)) {
+      fs.mkdirSync(this._logDir, { recursive: true });
+    }
+  }
+
+  /**
+   * 获取当前北京时间日期字符串 (YYYY-MM-DD)
+   */
+  _getCurrentDate() {
+    const timestamp = toBeijingTimeLog(new Date());
+    // 从 "YYYY-MM-DD HH:mm:ss.sss" 提取日期部分
+    return timestamp.split(" ")[0];
+  }
+
+  /**
+   * 检查并切换日志文件（如果日期变化）
+   * 返回 Promise，确保旧流关闭完成后再继续
+   */
+  async _checkRotate() {
+    const today = this._getCurrentDate();
+
+    // 如果日期没有变化，直接返回
+    if (this._currentDate === today) {
+      return;
+    }
+
+    // 如果正在 rotate，等待完成
+    if (this._isRotating) {
+      // 简单的自旋等待，最多等待 1 秒
+      const startTime = Date.now();
+      while (this._isRotating && Date.now() - startTime < 1000) {
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+      // 等待完成后重新检查日期
+      if (this._currentDate === today) {
+        return;
+      }
+      // 如果超时或仍在 rotating，再次检查 rotating 标志
+      if (this._isRotating) {
+        console.error(
+          `[DateRotatingStream] rotate 超时 (${this._logSubDir})，强制继续`
+        );
+        // 重置标志，允许继续（但需要再次检查日期，避免重复 rotate）
+        this._isRotating = false;
+      }
+      // 再次检查日期和 rotating 标志（防止竞态）
+      if (this._currentDate === today || this._isRotating) {
+        return;
+      }
+    }
+
+    // 设置 rotating 标志（使用 CAS 思想）
+    const previousRotating = this._isRotating;
+    this._isRotating = true;
+    if (previousRotating) {
+      // 竞态：另一个调用已经先设置了标志，回退
+      return;
+    }
+
+    try {
+      // 关闭旧文件流
+      if (this._fileStream) {
+        const oldStream = this._fileStream;
+        this._fileStream = null;
+
+        await new Promise((resolve) => {
+          oldStream.once("finish", resolve);
+          oldStream.once("error", (err) => {
+            // 始终记录错误，不仅在 DEBUG 模式
+            console.error("[DateRotatingStream] 关闭旧流错误:", err);
+            resolve(); // 即使出错也继续
+          });
+          oldStream.end();
+        });
+      }
+
+      // 更新日期并打开新文件流
+      this._currentDate = today;
+      const logFile = path.join(this._logDir, `${this._currentDate}.log`);
+      this._fileStream = fs.createWriteStream(logFile, {
+        flags: "a",
+        encoding: "utf8",
+      });
+
+      this._fileStream.on("error", (err) => {
+        console.error(
+          `[DateRotatingStream] 文件流错误 (${this._logSubDir}):`,
+          err
+        );
+      });
+    } finally {
+      // 确保 rotating 标志被释放
+      this._isRotating = false;
+    }
+  }
+
+  /**
+   * 实现 Writable._write 方法
+   */
+  _write(chunk, encoding, callback) {
+    // 使用立即执行函数处理异步操作
+    (async () => {
+      try {
+        await this._checkRotate();
+
+        if (this._fileStream?.writable) {
+          // 保存当前流的引用，防止在等待 drain 时流被替换
+          const currentStream = this._fileStream;
+          // 文件流的 write 方法可能是同步或异步的
+          // 如果返回 false，表示需要等待 drain 事件
+          const canContinue = currentStream.write(chunk, encoding);
+          if (canContinue) {
+            callback();
+          } else {
+            // 添加超时保护，防止 drain 事件永远不触发导致阻塞
+            const DRAIN_TIMEOUT = 5000;
+            let resolved = false;
+
+            const onDrain = () => {
+              if (resolved) return;
+              resolved = true;
+              clearTimeout(timeoutId);
+              callback();
+            };
+
+            const timeoutId = setTimeout(() => {
+              if (resolved) return;
+              resolved = true;
+              currentStream.removeListener("drain", onDrain);
+              if (IS_DEBUG) {
+                console.error(
+                  `[DateRotatingStream] drain 超时 (${this._logSubDir})`
+                );
+              }
+              callback(); // 超时后仍调用 callback 避免阻塞
+            }, DRAIN_TIMEOUT);
+
+            currentStream.once("drain", onDrain);
+          }
+        } else {
+          // 如果文件流不可用，记录错误但不阻塞
+          if (IS_DEBUG) {
+            console.error(
+              `[DateRotatingStream] 文件流不可用 (${this._logSubDir})`
+            );
+          }
+          callback();
+        }
+      } catch (err) {
+        // 记录错误但不阻塞日志系统
+        console.error(
+          `[DateRotatingStream] 写入失败 (${this._logSubDir}):`,
+          err
+        );
+        callback();
+      }
+    })();
+  }
+
+  /**
+   * 同步关闭文件流
+   */
+  closeSync() {
+    if (this._fileStream) {
+      try {
+        // 同步结束流（不等待）
+        this._fileStream.end();
+        this._fileStream = null;
+      } catch (err) {
+        // 忽略错误
+      }
+    }
+  }
+
+  /**
+   * 异步关闭文件流，返回 Promise
+   */
+  async closeAsync() {
+    if (this._fileStream) {
+      const stream = this._fileStream;
+      this._fileStream = null;
+
+      return new Promise((resolve) => {
+        stream.once("finish", resolve);
+        stream.once("error", () => resolve()); // 即使出错也继续
+        stream.end();
+      });
+    }
+    return Promise.resolve();
+  }
+}
+
+/**
+ * 移除 ANSI 颜色代码
+ */
 function stripAnsiCodes(str) {
   if (typeof str !== "string") return str;
-  // 移除所有ANSI转义序列
   return str.replace(/\x1b\[[0-9;]*m/g, "");
 }
 
 /**
- * 格式化日志参数为字符串（用于文件输出）
- * @param {Array} args 日志参数数组
- * @returns {string} 格式化后的日志行
+ * 自定义格式化函数（用于文件输出）
  */
-function formatLogLine(args) {
-  if (!args || args.length === 0) return "";
+function formatForFile(obj) {
+  const level = obj.level;
+  const timestamp = toBeijingTimeLog(new Date(obj.time));
 
-  return args
-    .map((arg) => {
-      if (typeof arg === "string") {
-        return stripAnsiCodes(arg);
-      } else if (arg === null || arg === undefined) {
-        return String(arg);
-      } else if (typeof arg === "object") {
-        // 对于对象，转换为JSON字符串（紧凑格式，节省空间）
-        try {
-          // 使用紧凑格式，不格式化，节省文件空间
-          return JSON.stringify(arg);
-        } catch {
-          // 如果序列化失败（如循环引用），使用toString
-          return String(arg);
-        }
-      }
-      return String(arg);
-    })
-    .join(" ");
-}
+  // 将数字 level 转换为文本
+  const levelMap = {
+    20: "DEBUG",
+    30: "INFO",
+    40: "WARN",
+    50: "ERROR",
+  };
+  const levelStr = `[${(levelMap[level] || "INFO").padEnd(5)}]`;
 
-/**
- * 文件日志管理器
- * 负责创建和管理日志文件流
- */
-class FileLogManager {
-  constructor(logSubDir = "system") {
-    this._logSubDir = logSubDir;
-    this._logDir = null;
-    this._currentDate = null;
-    this._fileStream = null;
-    this._initialized = false;
-  }
+  let line = `${levelStr} ${timestamp} ${stripAnsiCodes(String(obj.msg))}`;
 
-  /**
-   * 初始化日志目录和文件流
-   */
-  _initialize() {
-    if (this._initialized) return;
-
-    try {
-      // 创建日志目录
-      this._logDir = path.join(process.cwd(), "logs", this._logSubDir);
-      if (!fs.existsSync(this._logDir)) {
-        fs.mkdirSync(this._logDir, { recursive: true });
-      }
-
-      // 获取当前日期（北京时间）- 使用统一的时区转换函数
-      const now = new Date();
-      // 使用 toBeijingTimeIso 获取日期部分
-      // toBeijingTimeIso 返回格式：YYYY/MM/DD/HH:mm:ss，需要转换为 YYYY-MM-DD
-      const beijingTimeStr = toBeijingTimeIso(now);
-      // 提取日期部分并替换分隔符
-      const datePart = beijingTimeStr.split("/").slice(0, 3).join("-");
-      this._currentDate = datePart;
-
-      // 创建日志文件流
-      this._openFileStream();
-
-      this._initialized = true;
-    } catch (err) {
-      // 文件日志初始化失败，静默处理（不影响控制台日志）
-      if (process.env.DEBUG === "true") {
-        console.error("[FileLogManager] 初始化失败:", err);
-      }
-    }
-  }
-
-  /**
-   * 打开日志文件流
-   */
-  _openFileStream() {
-    try {
-      const logFile = path.join(this._logDir, `${this._currentDate}.log`);
-      this._fileStream = fs.createWriteStream(logFile, {
-        flags: "a", // 追加模式
-        encoding: "utf8",
-        autoClose: false, // 不自动关闭，由我们手动管理
-      });
-
-      // 监听错误事件
-      this._fileStream.on("error", (err) => {
-        if (process.env.DEBUG === "true") {
-          console.error("[FileLogManager] 文件流错误:", err);
-        }
-      });
-    } catch (err) {
-      if (process.env.DEBUG === "true") {
-        console.error("[FileLogManager] 打开文件流失败:", err);
-      }
-    }
-  }
-
-  /**
-   * 检查是否需要切换日志文件（跨天时）
-   */
-  _checkDateChange() {
-    try {
-      // 如果还未初始化，不需要检查日期变化
-      if (!this._initialized || !this._logDir) return;
-
-      const now = new Date();
-      // 使用统一的时区转换函数
-      // toBeijingTimeIso 返回格式：YYYY/MM/DD/HH:mm:ss，需要转换为 YYYY-MM-DD
-      const beijingTimeStr = toBeijingTimeIso(now);
-      const datePart = beijingTimeStr.split("/").slice(0, 3).join("-");
-      const today = datePart;
-
-      // 如果当前日期为null（初始化失败），或者日期发生变化
-      if (this._currentDate === null || today !== this._currentDate) {
-        // 日期变化，关闭旧文件流，打开新文件流
-        this._closeFileStream();
-        this._currentDate = today;
-        this._openFileStream();
-      }
-    } catch (err) {
-      if (process.env.DEBUG === "true") {
-        console.error("[FileLogManager] 检查日期变化失败:", err);
-      }
-    }
-  }
-
-  /**
-   * 写入日志到文件
-   * @param {string} logLine 日志行（已移除ANSI颜色代码）
-   */
-  write(logLine) {
-    try {
-      this._initialize();
-      if (!this._fileStream) return;
-
-      this._checkDateChange();
-
-      // 写入文件（追加换行符）
-      this._fileStream.write(logLine + "\n", "utf8");
-    } catch (err) {
-      // 文件写入失败，静默处理
-      if (process.env.DEBUG === "true") {
-        console.error("[FileLogManager] 写入失败:", err);
-      }
-    }
-  }
-
-  /**
-   * 关闭文件流
-   */
-  _closeFileStream() {
-    if (this._fileStream) {
+  // 处理额外数据
+  if (obj.extra !== undefined && obj.extra !== null) {
+    if (typeof obj.extra === "object") {
       try {
-        // 先尝试同步刷新（如果可能）
-        this.flushSync();
-
-        // 保存文件路径，因为end()后可能无法访问
-        const logFile =
-          this._logDir && this._currentDate
-            ? path.join(this._logDir, `${this._currentDate}.log`)
-            : null;
-
-        // 结束流，这会确保所有缓冲数据都写入
-        // 注意：end()是异步的，但在退出时我们尽力而为
-        this._fileStream.end();
-
-        // 尝试通过文件路径刷新（在end()之后，文件流可能已关闭）
-        // 注意：这可能在end()完成前执行，但fsync会确保数据写入磁盘
-        if (logFile && fs.existsSync(logFile)) {
-          try {
-            // 使用同步方式打开文件并刷新
-            const fd = fs.openSync(logFile, "r+");
-            try {
-              fs.fsyncSync(fd);
-            } catch (err) {
-              // 忽略fsync错误（某些系统可能不支持）
-            }
-            fs.closeSync(fd);
-          } catch (err) {
-            // 忽略错误（文件可能已被关闭或不存在，或正在被其他进程使用）
-          }
-        }
-      } catch (err) {
-        // 忽略关闭错误
+        line += ` ${JSON.stringify(obj.extra)}`;
+      } catch {
+        line += ` ${String(obj.extra)}`;
       }
-      this._fileStream = null;
-    }
-  }
-
-  /**
-   * 同步刷新所有缓冲数据到文件
-   */
-  flushSync() {
-    if (this._fileStream && this._fileStream.writable) {
-      try {
-        // 尝试获取文件流的文件描述符并同步刷新
-        // 注意：Node.js的WriteStream默认不暴露fd，需要检查是否存在
-        if (isDefined(this._fileStream.fd)) {
-          try {
-            fs.fsyncSync(this._fileStream.fd);
-          } catch (err) {
-            // 如果fsync失败，忽略错误（某些系统可能不支持）
-          }
-        } else if (this._logDir && this._currentDate) {
-          // 如果fd不可用，尝试通过文件路径刷新
-          try {
-            const logFile = path.join(this._logDir, `${this._currentDate}.log`);
-            if (fs.existsSync(logFile)) {
-              const fd = fs.openSync(logFile, "r+");
-              try {
-                fs.fsyncSync(fd);
-              } catch (err) {
-                // 忽略fsync错误
-              }
-              fs.closeSync(fd);
-            }
-          } catch (err) {
-            // 忽略错误
-          }
-        }
-      } catch (err) {
-        // 忽略错误，尽力而为
-      }
-    }
-  }
-
-  /**
-   * 关闭文件日志管理器
-   */
-  close() {
-    this.flushSync();
-    this._closeFileStream();
-  }
-}
-
-/**
- * 异步日志队列（简化版）
- *
- * 设计原则：
- * 1. 简单可靠：避免复杂的并发控制
- * 2. 批量处理：减少异步任务数量
- * 3. 防止阻塞：日志调用立即返回
- * 4. 防止丢失：进程退出时同步刷新
- *
- * 工作流程：
- * 1. logger 调用 → 日志入队 → 立即返回（不阻塞）
- * 2. 如果队列空闲 → 调度 setImmediate 处理
- * 3. 处理函数批量输出日志（每批最多20条）
- * 4. 如果还有日志 → 继续调度下一批
- */
-class AsyncLogQueue {
-  constructor() {
-    this._queue = []; // 日志队列
-    this._processing = false; // 是否正在处理
-    this._batchSize = 20; // 每批处理数量
-    this._maxQueueSize = 1000; // 最大队列长度（防止内存溢出）
-    this._fileLogManager = new FileLogManager("system"); // 系统日志文件管理器
-    // 仅在DEBUG模式下创建debug文件管理器
-    this._debugFileLogManager =
-      process.env.DEBUG === "true" ? new FileLogManager("debug") : null;
-  }
-
-  /**
-   * 添加日志到队列
-   * @param {Function} outputFn 输出函数（console.log/warn/error）
-   * @param {Array} args 日志参数
-   * @param {boolean} isDebugLog 是否为debug日志（可选，用于优化判断）
-   */
-  enqueue(outputFn, ...args) {
-    // 防止队列无限增长
-    if (this._queue.length >= this._maxQueueSize) {
-      // 丢弃最旧的日志
-      this._queue.shift();
-
-      // 在控制台直接输出警告（不进入队列，避免递归）
-      if (process.env.DEBUG === "true") {
-        console.warn("[AsyncLogger] Queue overflow, dropping oldest log");
-      }
-    }
-
-    // 判断是否为debug日志（通过检查第一个参数是否包含 [DEBUG] 标记）
-    // 使用更精确的匹配：检查是否以 [DEBUG] 开头（去除ANSI颜色代码后）
-    let isDebugLog = false;
-    if (args && args.length > 0 && typeof args[0] === "string") {
-      // 移除ANSI颜色代码后检查
-      const firstArg = stripAnsiCodes(args[0]);
-      // 检查是否以 [DEBUG] 开头（更精确的匹配）
-      isDebugLog = firstArg.startsWith("[DEBUG]");
-    }
-
-    // 日志入队，附带debug标记
-    this._queue.push({ outputFn, args, isDebugLog });
-
-    // 如果当前没有在处理，启动处理
-    if (!this._processing) {
-      this._processing = true;
-      // 使用 setImmediate 异步处理，不阻塞当前执行
-      setImmediate(() => this._processQueue());
-    }
-  }
-
-  /**
-   * 批量处理队列中的日志
-   */
-  _processQueue() {
-    // 取出一批日志（最多 batchSize 条）
-    const batch = this._queue.splice(0, this._batchSize);
-
-    // 逐条输出
-    for (const item of batch) {
-      try {
-        // 输出到控制台
-        item.outputFn(...item.args);
-
-        // 同时写入文件（移除ANSI颜色代码）
-        if (item.args && item.args.length > 0) {
-          const logLine = formatLogLine(item.args);
-          if (logLine) {
-            // 写入系统日志文件（所有日志）
-            this._fileLogManager.write(logLine);
-
-            // 如果是debug日志且debug文件管理器存在，也写入debug文件
-            // 使用入队时标记的isDebugLog，避免字符串匹配
-            if (item.isDebugLog && this._debugFileLogManager) {
-              this._debugFileLogManager.write(logLine);
-            }
-          }
-        }
-      } catch (err) {
-        // 日志输出失败，静默处理（避免无限循环）
-        // 仅在 DEBUG 模式下输出到 stderr
-        if (process.env.DEBUG === "true") {
-          console.error("[AsyncLogger] Output error:", err);
-        }
-      }
-    }
-
-    // 检查队列是否还有日志
-    if (this._queue.length > 0) {
-      // 还有日志，继续处理
-      // _processing 保持为 true，无需重新设置
-      setImmediate(() => this._processQueue());
     } else {
-      // 队列为空，释放锁
-      this._processing = false;
-
-      // 关键修复：释放锁后立即再次检查队列
-      // 如果在释放锁的瞬间有新日志入队，立即重新获取锁
-      // 这个 if 语句必须紧跟在 _processing = false 之后，避免竞态窗口
-      if (this._queue.length > 0) {
-        // 有新日志入队了，重新获取锁
-        this._processing = true;
-        setImmediate(() => this._processQueue());
-      }
+      line += ` ${stripAnsiCodes(String(obj.extra))}`;
     }
   }
 
-  /**
-   * 同步刷新所有日志（用于进程退出时）
-   * 确保所有日志都被输出，不会丢失
-   */
-  flushSync() {
-    while (this._queue.length > 0) {
-      const item = this._queue.shift();
-      try {
-        // 输出到控制台
-        item.outputFn(...item.args);
-
-        // 同时写入文件（移除ANSI颜色代码）
-        if (item.args && item.args.length > 0) {
-          const logLine = formatLogLine(item.args);
-          if (logLine) {
-            // 写入系统日志文件
-            this._fileLogManager.write(logLine);
-
-            // 如果是debug日志且debug文件管理器存在，也写入debug文件
-            // 使用入队时标记的isDebugLog，避免字符串匹配
-            if (item.isDebugLog && this._debugFileLogManager) {
-              this._debugFileLogManager.write(logLine);
-            }
-          }
-        }
-      } catch (err) {
-        // 忽略错误，尽力输出
-      }
-    }
-    this._processing = false;
-
-    // 刷新文件流
-    this._fileLogManager.flushSync();
-    if (this._debugFileLogManager) {
-      this._debugFileLogManager.flushSync();
-    }
-  }
+  return line + "\n";
 }
-
-// 创建全局日志队列实例
-const logQueue = new AsyncLogQueue();
 
 /**
- * 异步日志输出函数
- * 将日志添加到队列，由队列批量处理
+ * 自定义格式化函数（用于控制台输出，带颜色）
  */
-function asyncLog(outputFn, ...args) {
-  logQueue.enqueue(outputFn, ...args);
+function formatForConsole(obj) {
+  const level = obj.level;
+  const timestamp = toBeijingTimeLog(new Date(obj.time));
+
+  // 将数字 level 转换为文本和颜色
+  const levelConfig = {
+    20: { name: "DEBUG", color: colors.gray },
+    30: { name: "INFO", color: "" },
+    40: { name: "WARN", color: colors.yellow },
+    50: { name: "ERROR", color: colors.red },
+  };
+
+  const config = levelConfig[level] || { name: "INFO", color: "" };
+  const levelStr = `[${config.name.padEnd(5)}]`;
+  const color = config.color;
+  const reset = color ? colors.reset : "";
+
+  let line = `${color}${levelStr} ${timestamp} ${obj.msg}${reset}`;
+
+  // 处理额外数据
+  if (obj.extra !== undefined && obj.extra !== null) {
+    if (typeof obj.extra === "object") {
+      try {
+        line += ` ${JSON.stringify(obj.extra)}`;
+      } catch {
+        line += ` ${String(obj.extra)}`;
+      }
+    } else {
+      line += ` ${obj.extra}`;
+    }
+  }
+
+  return line + "\n";
 }
 
-// 确保进程退出处理器只注册一次（使用全局标志）
-if (!global.__loggerExitHandlersRegistered) {
-  global.__loggerExitHandlersRegistered = true;
+// 创建文件流实例
+const systemFileStream = new DateRotatingStream("system");
+const debugFileStream = IS_DEBUG ? new DateRotatingStream("debug") : null;
 
-  // 进程退出时同步刷新日志，确保不丢失
-  process.on("beforeExit", () => {
-    logQueue.flushSync();
-    // 关闭文件流
-    if (logQueue._fileLogManager) {
-      logQueue._fileLogManager.close();
-    }
-    if (logQueue._debugFileLogManager) {
-      logQueue._debugFileLogManager.close();
-    }
-  });
+// drain 超时时间常量
+const CONSOLE_DRAIN_TIMEOUT = 3000;
 
-  process.on("SIGINT", () => {
-    logQueue.flushSync();
-    // 关闭文件流
-    if (logQueue._fileLogManager) {
-      logQueue._fileLogManager.close();
-    }
-    if (logQueue._debugFileLogManager) {
-      logQueue._debugFileLogManager.close();
-    }
-    process.exit(0);
-  });
+/**
+ * 带超时保护的写入辅助函数
+ */
+function writeWithDrainTimeout(stream, data, timeout, callback) {
+  const canContinue = stream.write(data);
+  if (canContinue) {
+    callback();
+  } else {
+    let resolved = false;
 
-  process.on("SIGTERM", () => {
-    logQueue.flushSync();
-    // 关闭文件流
-    if (logQueue._fileLogManager) {
-      logQueue._fileLogManager.close();
-    }
-    if (logQueue._debugFileLogManager) {
-      logQueue._debugFileLogManager.close();
-    }
-    process.exit(0);
-  });
+    const onDrain = () => {
+      if (resolved) return;
+      resolved = true;
+      clearTimeout(timeoutId);
+      callback();
+    };
 
-  // 未捕获异常时也刷新日志
-  process.on("uncaughtException", (err) => {
-    logQueue.flushSync();
-    // 关闭文件流
-    if (logQueue._fileLogManager) {
-      logQueue._fileLogManager.close();
-    }
-    if (logQueue._debugFileLogManager) {
-      logQueue._debugFileLogManager.close();
-    }
-    console.error("[FATAL] Uncaught Exception:", err);
-    process.exit(1);
-  });
+    const timeoutId = setTimeout(() => {
+      if (resolved) return;
+      resolved = true;
+      stream.removeListener("drain", onDrain);
+      callback(); // 超时后仍调用 callback 避免阻塞
+    }, timeout);
 
-  // 处理未处理的Promise拒绝
-  process.on("unhandledRejection", (reason, promise) => {
-    logQueue.flushSync();
-    // 注意：这里不关闭文件流，因为可能还有其他日志需要写入
-    console.error(
-      "[FATAL] Unhandled Rejection at:",
-      promise,
-      "reason:",
-      reason
-    );
-  });
+    stream.once("drain", onDrain);
+  }
 }
 
-export const logger = {
-  debug(msg, extra) {
-    // debug 级别日志，默认不输出（可以通过环境变量控制）
-    if (process.env.DEBUG === "true") {
-      const timestamp = toBeijingTimeLog();
-      if (extra) {
-        asyncLog(
-          console.log,
-          `${colors.gray}[DEBUG] ${timestamp} ${msg}${colors.reset}`,
-          extra
+// 创建控制台流（使用自定义格式）
+const consoleStream = new Writable({
+  write(chunk, encoding, callback) {
+    try {
+      const obj = JSON.parse(chunk.toString());
+      const formatted = formatForConsole(obj);
+
+      // 根据日志级别选择输出流
+      // ERROR (>=50) 和 WARN (>=40) 输出到 stderr，其他输出到 stdout
+      if (obj.level >= LOG_LEVELS.WARN) {
+        writeWithDrainTimeout(
+          process.stderr,
+          formatted,
+          CONSOLE_DRAIN_TIMEOUT,
+          callback
         );
       } else {
-        asyncLog(
-          console.log,
-          `${colors.gray}[DEBUG] ${timestamp} ${msg}${colors.reset}`
+        writeWithDrainTimeout(
+          process.stdout,
+          formatted,
+          CONSOLE_DRAIN_TIMEOUT,
+          callback
         );
+      }
+    } catch (err) {
+      // 解析或格式化失败时，至少输出原始内容
+      try {
+        process.stderr.write(`[Logger Error] ${err.message}\n`);
+      } catch {
+        // 如果连 stderr 都失败，只能忽略
+      }
+      callback();
+    }
+  },
+});
+
+// 创建文件流（使用自定义格式）
+const fileStream = new Writable({
+  write(chunk, encoding, callback) {
+    // 使用立即执行函数处理异步操作
+    (async () => {
+      let obj;
+      try {
+        obj = JSON.parse(chunk.toString());
+      } catch (err) {
+        try {
+          console.error("[FileStream] JSON解析失败:", err);
+        } catch {
+          // 忽略
+        }
+        callback();
+        return;
+      }
+
+      try {
+        const formatted = formatForFile(obj);
+
+        // 等待所有写入操作完成
+        const writePromises = [];
+
+        // 写入系统日志
+        writePromises.push(
+          new Promise((resolve) => {
+            systemFileStream.write(formatted, (err) => {
+              // 始终记录错误，不仅在 DEBUG 模式
+              if (err) {
+                console.error("[FileStream] 系统日志写入失败:", err);
+              }
+              resolve();
+            });
+          })
+        );
+
+        // 如果是 DEBUG 日志，同时写入 debug 日志
+        if (obj.level === LOG_LEVELS.DEBUG && debugFileStream) {
+          writePromises.push(
+            new Promise((resolve) => {
+              debugFileStream.write(formatted, (err) => {
+                // 始终记录错误，不仅在 DEBUG 模式
+                if (err) {
+                  console.error("[FileStream] Debug日志写入失败:", err);
+                }
+                resolve();
+              });
+            })
+          );
+        }
+
+        // 等待所有写入完成
+        await Promise.all(writePromises);
+        callback();
+      } catch (err) {
+        // 格式化或写入失败时记录错误
+        try {
+          console.error("[FileStream] 处理日志失败:", err);
+        } catch {
+          // 忽略
+        }
+        callback();
+      }
+    })().catch((err) => {
+      // 捕获 IIFE 中未处理的异常
+      try {
+        console.error("[FileStream] 未捕获的异常:", err);
+      } catch {
+        // 忽略
+      }
+      callback();
+    });
+  },
+});
+
+// 创建 pino 多流实例
+const streams = [
+  {
+    level: IS_DEBUG ? "debug" : "info",
+    stream: consoleStream,
+  },
+  {
+    level: IS_DEBUG ? "debug" : "info",
+    stream: fileStream,
+  },
+];
+
+const pinoLogger = pino(
+  {
+    level: IS_DEBUG ? "debug" : "info",
+    customLevels: {
+      debug: LOG_LEVELS.DEBUG,
+      info: LOG_LEVELS.INFO,
+      warn: LOG_LEVELS.WARN,
+      error: LOG_LEVELS.ERROR,
+    },
+    useOnlyCustomLevels: true,
+  },
+  pino.multistream(streams)
+);
+
+/**
+ * 导出的 logger 对象，保持与原有 API 兼容
+ */
+export const logger = {
+  debug(msg, extra) {
+    if (IS_DEBUG) {
+      if (extra == null) {
+        pinoLogger.debug(msg);
+      } else {
+        pinoLogger.debug({ extra }, msg);
       }
     }
   },
+
   info(msg, extra) {
-    const timestamp = toBeijingTimeLog();
-    if (extra) {
-      asyncLog(console.log, `[INFO] ${timestamp} ${msg}`, extra);
+    if (extra == null) {
+      pinoLogger.info(msg);
     } else {
-      asyncLog(console.log, `[INFO] ${timestamp} ${msg}`);
+      pinoLogger.info({ extra }, msg);
     }
   },
+
   warn(msg, extra) {
-    const timestamp = toBeijingTimeLog();
-    if (extra) {
-      asyncLog(
-        console.warn,
-        `${colors.yellow}[WARN] ${timestamp} ${msg}${colors.reset}`,
-        extra
-      );
+    if (extra == null) {
+      pinoLogger.warn(msg);
     } else {
-      asyncLog(
-        console.warn,
-        `${colors.yellow}[WARN] ${timestamp} ${msg}${colors.reset}`
-      );
+      pinoLogger.warn({ extra }, msg);
     }
   },
+
   error(msg, extra) {
-    const timestamp = toBeijingTimeLog();
-    if (extra) {
-      asyncLog(
-        console.error,
-        `${colors.red}[ERROR] ${timestamp} ${msg}${colors.reset}`,
-        extra
-      );
+    if (extra == null) {
+      pinoLogger.error(msg);
     } else {
-      asyncLog(
-        console.error,
-        `${colors.red}[ERROR] ${timestamp} ${msg}${colors.reset}`
-      );
+      pinoLogger.error({ extra }, msg);
     }
   },
 };
+
+// 分离同步和异步清理的状态标志，避免竞态条件
+let isSyncCleaningUp = false;
+let isAsyncCleaningUp = false;
+
+/**
+ * 同步清理函数（用于进程退出）
+ * 注意：此函数会在信号处理和异常处理中被调用
+ */
+function cleanupSync() {
+  if (isSyncCleaningUp) {
+    return;
+  }
+  isSyncCleaningUp = true;
+
+  try {
+    // pino 的 flush() 是同步的
+    pinoLogger.flush();
+
+    // 同步关闭所有文件流
+    systemFileStream.closeSync();
+    if (debugFileStream) {
+      debugFileStream.closeSync();
+    }
+  } catch (err) {
+    // 清理过程中的错误不应该阻止退出
+    try {
+      console.error("[Logger] 同步清理过程出错:", err);
+    } catch {
+      // 忽略
+    }
+  }
+}
+
+/**
+ * 异步清理函数（可选，用于优雅关闭）
+ * 注意：此函数独立于同步清理，可以在异步上下文中使用
+ */
+async function cleanupAsync() {
+  if (isAsyncCleaningUp) {
+    return;
+  }
+  isAsyncCleaningUp = true;
+
+  try {
+    // pino 的 flush() 是同步的
+    pinoLogger.flush();
+
+    // 异步等待所有文件流关闭完成
+    await Promise.all([
+      systemFileStream.closeAsync(),
+      debugFileStream ? debugFileStream.closeAsync() : Promise.resolve(),
+    ]);
+  } catch (err) {
+    try {
+      console.error("[Logger] 异步清理过程出错:", err);
+    } catch {
+      // 忽略
+    }
+  }
+}
+
+// beforeExit 事件处理（使用同步清理）
+process.on("beforeExit", () => {
+  cleanupSync();
+});
+
+// SIGINT 处理（Ctrl+C）
+process.on("SIGINT", () => {
+  cleanupSync();
+  process.exit(0);
+});
+
+// SIGTERM 处理
+process.on("SIGTERM", () => {
+  cleanupSync();
+  process.exit(0);
+});
+
+// 未捕获的异常处理
+process.on("uncaughtException", (err) => {
+  try {
+    logger.error("未捕获的异常", err);
+  } catch {
+    try {
+      console.error("未捕获的异常:", err);
+    } catch {
+      // 忽略
+    }
+  }
+  cleanupSync();
+  process.exit(1);
+});
+
+// 未处理的 Promise 拒绝
+process.on("unhandledRejection", (reason) => {
+  try {
+    logger.error("未处理的 Promise 拒绝", reason);
+  } catch {
+    try {
+      console.error("未处理的 Promise 拒绝:", reason);
+    } catch {
+      // 忽略
+    }
+  }
+});
+
+// 导出清理函数（供外部使用）
+export { cleanupSync, cleanupAsync };
