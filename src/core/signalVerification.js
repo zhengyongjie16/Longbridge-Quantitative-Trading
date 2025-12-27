@@ -4,7 +4,7 @@
  */
 
 import { logger } from "../utils/logger.js";
-import { verificationEntryPool } from "../utils/objectPool.js";
+import { verificationEntryPool, signalObjectPool } from "../utils/objectPool.js";
 import { SignalType } from "../utils/constants.js";
 
 /**
@@ -475,16 +475,17 @@ export class SignalVerificationManager {
         symbolName = shortQuote.name;
       }
 
-      // 生成买入信号
-      return {
-        symbol: pendingSignal.symbol,
-        symbolName: symbolName,
-        action: pendingSignal.action,
-        reason: `延迟验证通过：${verificationReason}`,
-        price: currentPrice,
-        lotSize: lotSize,
-        signalTriggerTime: pendingSignal.triggerTime, // 信号触发时间
-      };
+      // 从对象池获取信号对象
+      const signal = signalObjectPool.acquire();
+      signal.symbol = pendingSignal.symbol;
+      signal.symbolName = symbolName;
+      signal.action = pendingSignal.action;
+      signal.reason = `延迟验证通过：${verificationReason}`;
+      signal.price = currentPrice;
+      signal.lotSize = lotSize;
+      signal.signalTriggerTime = pendingSignal.triggerTime;
+
+      return signal;
     } else {
       const actionDesc = isBuyCall ? "买入做多" : "买入做空";
       logger.info(

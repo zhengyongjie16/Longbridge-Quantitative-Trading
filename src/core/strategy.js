@@ -1,6 +1,7 @@
 import { SignalType } from "../utils/constants.js";
 import { evaluateSignalConfig } from "../utils/signalConfigParser.js";
 import { isValidNumber } from "../utils/helpers.js";
+import { signalObjectPool } from "../utils/objectPool.js";
 
 /**
  * 恒生指数多指标策略：
@@ -282,22 +283,24 @@ export class HangSengMultiIndicatorStrategy {
     // 构建指标状态显示字符串
     const indicatorDisplayStr = this._buildIndicatorDisplayString(state);
 
-    return {
-      symbol,
-      action,
-      triggerTime,
-      indicators1, // 记录触发时的所有配置指标值
-      verificationHistory: [], // 该信号专用的验证历史记录（每秒记录一次）
-      reason: `${reasonPrefix}：${
-        evalResult.reason
-      }，${indicatorDisplayStr}，${indicators1Str}，将在 ${triggerTime.toLocaleString(
-        "zh-CN",
-        {
-          timeZone: "Asia/Hong_Kong",
-          hour12: false,
-        }
-      )} 进行验证`,
-    };
+    // 从对象池获取信号对象
+    const signal = signalObjectPool.acquire();
+    signal.symbol = symbol;
+    signal.action = action;
+    signal.triggerTime = triggerTime;
+    signal.indicators1 = indicators1;
+    signal.verificationHistory = [];
+    signal.reason = `${reasonPrefix}：${
+      evalResult.reason
+    }，${indicatorDisplayStr}，${indicators1Str}，将在 ${triggerTime.toLocaleString(
+      "zh-CN",
+      {
+        timeZone: "Asia/Hong_Kong",
+        hour12: false,
+      }
+    )} 进行验证`;
+
+    return signal;
   }
 
   /**
@@ -335,13 +338,14 @@ export class HangSengMultiIndicatorStrategy {
     // 构建指标状态显示字符串
     const indicatorDisplayStr = this._buildIndicatorDisplayString(state);
 
-    // 生成卖出信号，成本价判断和卖出数量计算在卖出策略中进行
-    return {
-      symbol: position.symbol,
-      action: action,
-      reason: `${evalResult.reason}，${indicatorDisplayStr}`,
-      signalTriggerTime: new Date(),
-    };
+    // 从对象池获取信号对象
+    const signal = signalObjectPool.acquire();
+    signal.symbol = position.symbol;
+    signal.action = action;
+    signal.reason = `${evalResult.reason}，${indicatorDisplayStr}`;
+    signal.signalTriggerTime = new Date();
+
+    return signal;
   }
 
   /**

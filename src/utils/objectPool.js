@@ -70,6 +70,116 @@ export const verificationEntryPool = new ObjectPool(
 );
 
 /**
+ * 交易信号对象池
+ * 用于所有类型的交易信号对象（买入、卖出、清仓等）
+ */
+export const signalObjectPool = new ObjectPool(
+  // 工厂函数：创建信号对象
+  () => ({
+    symbol: null,
+    symbolName: null,
+    action: null,
+    reason: null,
+    price: null,
+    lotSize: null,
+    quantity: null,
+    triggerTime: null,
+    indicators1: null,
+    verificationHistory: null,
+    signalTriggerTime: null,
+    useMarketOrder: false,
+  }),
+  // 重置函数：清空所有属性
+  (obj) => {
+    obj.symbol = null;
+    obj.symbolName = null;
+    obj.action = null;
+    obj.reason = null;
+    obj.price = null;
+    obj.lotSize = null;
+    obj.quantity = null;
+    obj.triggerTime = null;
+    obj.indicators1 = null;
+    obj.verificationHistory = null;
+    obj.signalTriggerTime = null;
+    obj.useMarketOrder = false;
+    return obj;
+  },
+  100 // 最大保存100个信号对象
+);
+
+/**
+ * KDJ指标对象池
+ * 用于KDJ指标数据对象的复用
+ */
+export const kdjObjectPool = new ObjectPool(
+  // 工厂函数：创建空对象
+  () => ({
+    k: null,
+    d: null,
+    j: null,
+  }),
+  // 重置函数：清空所有属性
+  (obj) => {
+    obj.k = null;
+    obj.d = null;
+    obj.j = null;
+    return obj;
+  },
+  50 // 最大保存50个KDJ对象
+);
+
+/**
+ * MACD指标对象池
+ * 用于MACD指标数据对象的复用
+ */
+export const macdObjectPool = new ObjectPool(
+  // 工厂函数：创建空对象
+  () => ({
+    macd: null,
+    dif: null,
+    dea: null,
+  }),
+  // 重置函数：清空所有属性
+  (obj) => {
+    obj.macd = null;
+    obj.dif = null;
+    obj.dea = null;
+    return obj;
+  },
+  50 // 最大保存50个MACD对象
+);
+
+/**
+ * 监控值对象池
+ * 用于监控标的指标缓存对象的复用
+ */
+export const monitorValuesObjectPool = new ObjectPool(
+  // 工厂函数：创建空对象
+  () => ({
+    price: null,
+    changePercent: null,
+    ema: null,
+    rsi: null,
+    mfi: null,
+    kdj: null,
+    macd: null,
+  }),
+  // 重置函数：清空所有属性
+  (obj) => {
+    obj.price = null;
+    obj.changePercent = null;
+    obj.ema = null;
+    obj.rsi = null;
+    obj.mfi = null;
+    obj.kdj = null;
+    obj.macd = null;
+    return obj;
+  },
+  20 // 最大保存20个监控值对象
+);
+
+/**
  * 持仓对象池
  * 用于持仓数据对象的复用
  */

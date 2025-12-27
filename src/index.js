@@ -8,7 +8,7 @@ import { logger } from "./utils/logger.js";
 import { validateAllConfig } from "./config/config.validator.js";
 import { SignalType } from "./utils/constants.js";
 import { OrderRecorder } from "./core/orderRecorder.js";
-import { positionObjectPool } from "./utils/objectPool.js";
+import { positionObjectPool, signalObjectPool } from "./utils/objectPool.js";
 import { normalizeHKSymbol, getSymbolName } from "./utils/helpers.js";
 import { extractRSIPeriods } from "./utils/signalConfigParser.js";
 
@@ -333,6 +333,14 @@ async function runOnce({
     return true;
   });
 
+  // 释放无效的信号对象（从 tradingSignals 中过滤掉的信号）
+  const invalidSignals = tradingSignals.filter(
+    (s) => !validSignals.includes(s)
+  );
+  if (invalidSignals.length > 0) {
+    signalObjectPool.releaseAll(invalidSignals);
+  }
+
   // 检测信号变化
   const currentSignalKey =
     validSignals.length > 0
@@ -384,35 +392,20 @@ async function runOnce({
     lastState.signal = currentSignalKey;
   }
 
-  // 补充价格和lotSize信息
-  const signals = validSignals.map((signal) => {
+  // 补充价格和lotSize信息（直接修改对象池中的信号对象，避免创建新对象）
+  for (const signal of validSignals) {
     const normalizedSigSymbol = signal.symbol;
 
-    let price = null;
-    let lotSize = null;
-    let symbolName = signal.symbolName || null;
-
     if (normalizedSigSymbol === normalizedLongSymbol && longQuote) {
-      price = longQuote.price;
-      lotSize = longQuote.lotSize;
-      if (!symbolName) {
-        symbolName = longQuote.name;
-      }
+      if (signal.price == null) signal.price = longQuote.price;
+      if (!signal.lotSize) signal.lotSize = longQuote.lotSize;
+      if (!signal.symbolName) signal.symbolName = longQuote.name;
     } else if (normalizedSigSymbol === normalizedShortSymbol && shortQuote) {
-      price = shortQuote.price;
-      lotSize = shortQuote.lotSize;
-      if (!symbolName) {
-        symbolName = shortQuote.name;
-      }
+      if (signal.price == null) signal.price = shortQuote.price;
+      if (!signal.lotSize) signal.lotSize = shortQuote.lotSize;
+      if (!signal.symbolName) signal.symbolName = shortQuote.name;
     }
-
-    return {
-      ...signal,
-      price,
-      lotSize,
-      symbolName,
-    };
-  });
+  }
 
   // 末日保护程序：检查是否需要在收盘前5分钟清仓
   let finalSignals = [];
@@ -433,7 +426,7 @@ async function runOnce({
       shortSymbol,
       isHalfDayToday
     );
-  } else if (signals.length > 0 && canTradeNow) {
+  } else if (validSignals.length > 0 && canTradeNow) {
     // 正常交易信号处理：应用风险检查
     const context = {
       trader,
@@ -455,7 +448,15 @@ async function runOnce({
       doomsdayProtection,
     };
 
-    finalSignals = await signalProcessor.applyRiskChecks(signals, context);
+    finalSignals = await signalProcessor.applyRiskChecks(validSignals, context);
+
+    // 释放在风险检查中被跳过的信号（validSignals 中不在 finalSignals 中的信号）
+    const skippedSignals = validSignals.filter(
+      (sig) => !finalSignals.includes(sig)
+    );
+    if (skippedSignals.length > 0) {
+      signalObjectPool.releaseAll(skippedSignals);
+    }
   }
 
   // 只在有交易信号时显示执行信息
@@ -487,8 +488,12 @@ async function runOnce({
         `[交易指令] 将对 ${sigName}(${normalizedSigSymbol}) 执行${targetAction}操作 - ${sig.reason}`
       );
     }
-  } else if (signals.length > 0 && !canTradeNow) {
+  } else if (validSignals.length > 0 && !canTradeNow) {
     logger.info("当前为竞价或非连续交易时段，交易信号已生成但暂不执行。");
+    // 释放信号对象（因为不会执行）
+    if (validSignals.length > 0) {
+      signalObjectPool.releaseAll(validSignals);
+    }
   }
 
   // 实时监控价格并管理未成交的买入订单
@@ -575,6 +580,20 @@ async function runOnce({
             );
           }
         }
+      }
+    }
+
+    // 释放所有信号对象回对象池
+    if (signalsToExecute && signalsToExecute.length > 0) {
+      signalObjectPool.releaseAll(signalsToExecute);
+    }
+    // 释放未执行的信号（finalSignals 中被过滤掉的 HOLD 信号）
+    if (finalSignals && finalSignals.length > 0) {
+      const heldSignals = finalSignals.filter(
+        (sig) => sig.action === SignalType.HOLD
+      );
+      if (heldSignals.length > 0) {
+        signalObjectPool.releaseAll(heldSignals);
       }
     }
   }

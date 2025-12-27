@@ -7,6 +7,7 @@ import { logger } from "../utils/logger.js";
 import { normalizeHKSymbol } from "../utils/helpers.js";
 import { isBeforeClose15Minutes, isBeforeClose5Minutes } from "../utils/tradingTime.js";
 import { SignalType } from "../utils/constants.js";
+import { signalObjectPool } from "../utils/objectPool.js";
 
 /**
  * 末日保护程序类
@@ -108,15 +109,17 @@ export class DoomsdayProtection {
       const action = isShortPos ? SignalType.SELLPUT : SignalType.SELLCALL;
       const positionType = isShortPos ? "做空标的" : "做多标的";
 
-      clearSignals.push({
-        symbol: normalizedPosSymbol, // 使用规范化符号，避免后续重复规范化
-        symbolName: symbolName, // 添加名称信息
-        action: action,
-        price: currentPrice, // 添加当前价格，用于增强限价单
-        lotSize: lotSize, // 添加最小买卖单位
-        reason: `末日保护程序：收盘前5分钟自动清仓（${positionType}持仓）`,
-        signalTriggerTime: new Date(), // 收盘前清仓信号的触发时间
-      });
+      // 从对象池获取信号对象
+      const signal = signalObjectPool.acquire();
+      signal.symbol = normalizedPosSymbol;
+      signal.symbolName = symbolName;
+      signal.action = action;
+      signal.price = currentPrice;
+      signal.lotSize = lotSize;
+      signal.reason = `末日保护程序：收盘前5分钟自动清仓（${positionType}持仓）`;
+      signal.signalTriggerTime = new Date();
+
+      clearSignals.push(signal);
 
       logger.info(
         `[末日保护程序] 生成清仓信号：${positionType} ${pos.symbol} 数量=${availableQty} 操作=${action}`

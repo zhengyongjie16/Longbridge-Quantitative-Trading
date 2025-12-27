@@ -6,6 +6,7 @@
 import { logger } from "../utils/logger.js";
 import { normalizeHKSymbol, formatQuoteDisplay, isValidNumber } from "../utils/helpers.js";
 import { hasChanged } from "../utils/tradingTime.js";
+import { monitorValuesObjectPool } from "../utils/objectPool.js";
 
 /**
  * 行情监控器类
@@ -240,28 +241,34 @@ export class MarketMonitor {
         rsiPeriods
       );
 
-      // 更新保存的指标值（保存所有指标用于下次比较）
-      lastState.monitorValues = {
-        price: currentPrice,
-        changePercent: changePercent,
-        ema: monitorSnapshot.ema ? { ...monitorSnapshot.ema } : null,
-        rsi: monitorSnapshot.rsi ? { ...monitorSnapshot.rsi } : null,
-        mfi: monitorSnapshot.mfi,
-        kdj: monitorSnapshot.kdj
-          ? {
-              k: monitorSnapshot.kdj.k,
-              d: monitorSnapshot.kdj.d,
-              j: monitorSnapshot.kdj.j,
-            }
-          : null,
-        macd: monitorSnapshot.macd
-          ? {
-              macd: monitorSnapshot.macd.macd,
-              dif: monitorSnapshot.macd.dif,
-              dea: monitorSnapshot.macd.dea,
-            }
-          : null,
-      };
+      // 如果存在旧的 monitorValues，先释放回对象池
+      if (lastState.monitorValues) {
+        monitorValuesObjectPool.release(lastState.monitorValues);
+      }
+
+      // 从对象池获取新的监控值对象
+      const newMonitorValues = monitorValuesObjectPool.acquire();
+      newMonitorValues.price = currentPrice;
+      newMonitorValues.changePercent = changePercent;
+      newMonitorValues.ema = monitorSnapshot.ema ? { ...monitorSnapshot.ema } : null;
+      newMonitorValues.rsi = monitorSnapshot.rsi ? { ...monitorSnapshot.rsi } : null;
+      newMonitorValues.mfi = monitorSnapshot.mfi;
+      newMonitorValues.kdj = monitorSnapshot.kdj
+        ? {
+            k: monitorSnapshot.kdj.k,
+            d: monitorSnapshot.kdj.d,
+            j: monitorSnapshot.kdj.j,
+          }
+        : null;
+      newMonitorValues.macd = monitorSnapshot.macd
+        ? {
+            macd: monitorSnapshot.macd.macd,
+            dif: monitorSnapshot.macd.dif,
+            dea: monitorSnapshot.macd.dea,
+          }
+        : null;
+
+      lastState.monitorValues = newMonitorValues;
 
       return true; // 指标发生变化
     }

@@ -5,6 +5,7 @@
 
 import { logger } from "../utils/logger.js";
 import { SignalType } from "../utils/constants.js";
+import { signalObjectPool } from "../utils/objectPool.js";
 
 /**
  * 浮亏监控器类
@@ -57,17 +58,16 @@ export class UnrealizedLossMonitor {
     // 执行保护性清仓（使用市价单）
     logger.error(lossCheck.reason);
 
-    try {
-      // 创建市价单清仓信号
-      const liquidationSignal = {
-        symbol: symbol,
-        action: isLong ? SignalType.SELLCALL : SignalType.SELLPUT,
-        reason: lossCheck.reason,
-        quantity: lossCheck.quantity,
-        price: currentPrice, // 使用当前价格作为参考
-        useMarketOrder: true, // 标记为使用市价单
-      };
+    // 从对象池获取信号对象
+    const liquidationSignal = signalObjectPool.acquire();
+    liquidationSignal.symbol = symbol;
+    liquidationSignal.action = isLong ? SignalType.SELLCALL : SignalType.SELLPUT;
+    liquidationSignal.reason = lossCheck.reason;
+    liquidationSignal.quantity = lossCheck.quantity;
+    liquidationSignal.price = currentPrice;
+    liquidationSignal.useMarketOrder = true;
 
+    try {
       await trader.executeSignals([liquidationSignal]);
 
       // 清仓后刷新订单记录（强制从API获取最新状态）
@@ -88,6 +88,9 @@ export class UnrealizedLossMonitor {
         err?.message ?? err
       );
       return false;
+    } finally {
+      // 无论成功或失败，都释放信号对象回对象池
+      signalObjectPool.release(liquidationSignal);
     }
   }
 
