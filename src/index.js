@@ -271,10 +271,7 @@ async function runOnce({
   if (lastState.lastMonitorSnapshot) {
     const lastSnapshot = lastState.lastMonitorSnapshot;
     // 检查旧的 kdj 对象是否被 monitorValues 引用
-    if (
-      lastSnapshot.kdj &&
-      lastState.monitorValues?.kdj !== lastSnapshot.kdj
-    ) {
+    if (lastSnapshot.kdj && lastState.monitorValues?.kdj !== lastSnapshot.kdj) {
       kdjObjectPool.release(lastSnapshot.kdj);
     }
     // 检查旧的 macd 对象是否被 monitorValues 引用
@@ -774,12 +771,12 @@ async function main() {
     }
   }
 
-  // 程序启动时检查一次是否有买入的未成交订单
+  // 程序启动时检查一次是否有买入的未成交订单（从 historyOrders 缓存中获取，避免重复调用 todayOrders）
   try {
-    const hasPendingBuyOrders = await trader.hasPendingBuyOrders([
-      normalizedLongSymbol,
-      normalizedShortSymbol,
-    ]);
+    const hasPendingBuyOrders = await trader.hasPendingBuyOrders(
+      [normalizedLongSymbol, normalizedShortSymbol],
+      orderRecorder // 传入 orderRecorder，从缓存获取未成交订单
+    );
     if (hasPendingBuyOrders) {
       trader.enableBuyOrderMonitoring();
       logger.info("[订单监控] 程序启动时发现买入订单，开始监控");

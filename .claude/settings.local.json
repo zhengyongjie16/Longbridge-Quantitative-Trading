@@ -6,7 +6,8 @@
       "Bash(DEBUG=true node:*)",
       "Skill(longbridge-openapi-documentation)",
       "Skill(typescript-review)",
-      "Bash(gh pr list)"
+      "Bash(gh pr list)",
+      "Skill(business-logic)"
     ]
   }
 }

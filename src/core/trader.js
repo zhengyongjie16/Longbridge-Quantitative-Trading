@@ -389,7 +389,10 @@ export class Trader {
             await this._tradeAPILimiter.throttle();
             return await ctx.todayOrders({ symbol });
           } catch (err) {
-            logger.warn(`获取标的 ${symbol} 的订单失败`, err?.message ?? err);
+            logger.warn(
+              `[今日订单API] 获取标的 ${symbol} 的今日订单失败`,
+              err?.message ?? err
+            );
             return []; // 单个标的查询失败时返回空数组，不影响其他标的
           }
         });
@@ -582,10 +585,33 @@ export class Trader {
   /**
    * 检查是否有买入的未成交订单
    * @param {string[]} symbols 标的代码数组
+   * @param {Object} orderRecorder OrderRecorder 实例（可选，用于启动时从缓存获取）
    * @returns {Promise<boolean>} true表示有买入的未成交订单
    */
-  async hasPendingBuyOrders(symbols) {
+  async hasPendingBuyOrders(symbols, orderRecorder = null) {
     try {
+      // 如果提供了 orderRecorder，尝试从缓存获取（启动时使用，避免重复调用 todayOrders）
+      if (orderRecorder) {
+        // 检查缓存中是否有对应标的的数据
+        const hasCache = symbols.some((symbol) => {
+          const normalizedSymbol = normalizeHKSymbol(symbol);
+          const cached = orderRecorder._ordersCache.get(normalizedSymbol);
+          return cached && cached.allOrders;
+        });
+
+        // 如果缓存存在，从缓存中提取未成交订单
+        // 注意：getPendingOrdersFromCache 已经过滤了未成交状态（New, PartialFilled 等），
+        // 返回的都是未成交订单，所以这里只需要检查 side 是否为 Buy
+        if (hasCache) {
+          const pendingOrders =
+            orderRecorder.getPendingOrdersFromCache(symbols);
+          return pendingOrders.some((order) => order.side === OrderSide.Buy);
+        }
+        // 如果缓存不存在，说明还没有调用过 historyOrders，回退到 API 调用
+      }
+      // 从 API 获取（运行时使用）
+      // 注意：getPendingOrders 已经过滤了未成交状态（New, PartialFilled 等），
+      // 返回的都是未成交订单，所以这里只需要检查 side 是否为 Buy
       const pendingOrders = await this.getPendingOrders(symbols);
       return pendingOrders.some((order) => order.side === OrderSide.Buy);
     } catch (err) {

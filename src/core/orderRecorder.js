@@ -15,7 +15,8 @@ export class OrderRecorder {
     // 记录做空标的的历史买入且已成交订单
     this._shortBuyOrders = [];
     // 缓存订单数据，避免重复调用 historyOrders
-    // 格式：{ symbol: { buyOrders: [], sellOrders: [], fetchTime: number } }
+    // 格式：{ symbol: { buyOrders: [], sellOrders: [], allOrders: [], fetchTime: number } }
+    // allOrders: 保存原始订单数据（包括未成交订单），用于启动时提取未成交订单
     this._ordersCache = new Map();
     // 记录因订单获取失败而禁用交易的标的
     this._disabledSymbols = new Set();
@@ -345,13 +346,15 @@ export class OrderRecorder {
    * 更新缓存
    * @private
    * @param {string} normalizedSymbol 规范化后的标的代码
-   * @param {Array} buyOrders 买入订单列表
-   * @param {Array} sellOrders 卖出订单列表
+   * @param {Array} buyOrders 买入订单列表（已成交）
+   * @param {Array} sellOrders 卖出订单列表（已成交）
+   * @param {Array} allOrders 原始订单列表（包含所有状态的订单，用于提取未成交订单）
    */
-  _updateCache(normalizedSymbol, buyOrders, sellOrders) {
+  _updateCache(normalizedSymbol, buyOrders, sellOrders, allOrders = null) {
     this._ordersCache.set(normalizedSymbol, {
       buyOrders,
       sellOrders,
+      allOrders, // 保存原始订单数据，用于启动时提取未成交订单
       fetchTime: Date.now(),
     });
   }
@@ -367,6 +370,7 @@ export class OrderRecorder {
     const ctx = await this._trader._ctxPromise;
 
     // 获取历史订单（只设置截止时间为当前时间，不设置开始时间）
+    // 注意：historyOrders 返回的订单包含所有状态的订单（包括未成交的）
     const allOrders = await ctx.historyOrders({
       symbol: normalizedSymbol,
       endAt: new Date(),
@@ -432,8 +436,8 @@ export class OrderRecorder {
       .map((order) => convertOrder(order, false))
       .filter((order) => order !== null);
 
-    // 更新缓存
-    this._updateCache(normalizedSymbol, buyOrders, sellOrders);
+    // 更新缓存（包含原始订单数据，用于启动时提取未成交订单）
+    this._updateCache(normalizedSymbol, buyOrders, sellOrders, allOrders);
 
     return { buyOrders, sellOrders };
   }
@@ -455,14 +459,14 @@ export class OrderRecorder {
         const result = await this.fetchOrdersFromAPI(symbol);
         // 成功后确保标的未被禁用
         this.enableSymbol(symbol);
-        logger.info(
-          `[订单API获取成功] 标的 ${normalizedSymbol} (第${attempt}次尝试)`
+        logger.debug(
+          `[历史订单API获取成功] 标的 ${normalizedSymbol} (第${attempt}次尝试)`
         );
         return { success: true, ...result };
       } catch (err) {
         lastError = err;
         logger.warn(
-          `[订单API获取失败] 标的 ${normalizedSymbol} 第${attempt}/${maxRetries}次尝试失败: ${
+          `[历史订单API获取失败] 标的 ${normalizedSymbol} 第${attempt}/${maxRetries}次尝试失败: ${
             err?.message ?? err
           }`
         );
@@ -482,6 +486,60 @@ export class OrderRecorder {
     );
 
     return { success: false, buyOrders: [], sellOrders: [] };
+  }
+
+  /**
+   * 从缓存的原始订单中提取未成交订单（用于启动时避免重复调用 todayOrders）
+   * @param {string[]} symbols 标的代码数组
+   * @returns {Array} 未成交订单列表，格式与 getPendingOrders 返回的格式一致
+   */
+  getPendingOrdersFromCache(symbols) {
+    const pendingStatuses = new Set([
+      OrderStatus.New,
+      OrderStatus.PartialFilled,
+      OrderStatus.WaitToNew,
+      OrderStatus.WaitToReplace,
+      OrderStatus.PendingReplace,
+    ]);
+
+    const result = [];
+
+    for (const symbol of symbols) {
+      const normalizedSymbol = normalizeHKSymbol(symbol);
+      const cached = this._ordersCache.get(normalizedSymbol);
+
+      // 如果缓存不存在或无效，跳过
+      if (!cached || !cached.allOrders) {
+        continue;
+      }
+
+      // 从缓存的原始订单中提取未成交订单
+      const pendingOrders = cached.allOrders
+        .filter((order) => {
+          // 过滤状态：只保留未成交订单
+          if (!pendingStatuses.has(order.status)) {
+            return false;
+          }
+          // 过滤标的
+          const normalizedOrderSymbol = normalizeHKSymbol(order.symbol);
+          return normalizedOrderSymbol === normalizedSymbol;
+        })
+        .map((order) => ({
+          orderId: order.orderId,
+          symbol: order.symbol,
+          side: order.side,
+          submittedPrice: decimalToNumber(order.price),
+          quantity: decimalToNumber(order.quantity),
+          executedQuantity: decimalToNumber(order.executedQuantity),
+          status: order.status,
+          orderType: order.orderType,
+          _rawOrder: order,
+        }));
+
+      result.push(...pendingOrders);
+    }
+
+    return result;
   }
 
   /**
