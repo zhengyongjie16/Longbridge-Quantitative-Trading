@@ -27,6 +27,7 @@
       ├─ tradingTime.js - 交易时段和时区工具
       ├─ accountDisplay.js - 账户和持仓显示
       ├─ objectPool.js - 内存优化（对象池）
+      ├─ indicatorHelpers.js - 指标辅助函数
       ├─ logger.js - 基于 pino 的高性能日志系统
       ├─ signalConfigParser.js - 信号配置解析器
       └─ helpers.js - 工具函数
@@ -122,6 +123,7 @@ npm start
 **路径**：`D:\Code\longBrige-automation-program\src\core\signalVerification.js`
 
 - **类**：`SignalVerificationManager`
+- **依赖**：使用 `indicatorHelpers.js` 中的 `getIndicatorValue` 函数统一提取指标值
 - **职责**：管理延迟信号的验证流程
 - **核心方法**：
   - `addDelayedSignals()` - 添加延迟信号到待验证列表
@@ -131,7 +133,8 @@ npm start
   - 买入做多（BUYCALL）：所有配置指标的第二个值都要大于第一个值
   - 买入做空（BUYPUT）：所有配置指标的第二个值都要小于第一个值
 - **验证窗口**：触发时间前后 ±5 秒内记录指标值
-- **使用对象池**：使用 `verificationEntryPool` 优化内存分配
+- **使用对象池**：使用 `verificationEntryPool` 和 `signalObjectPool` 优化内存分配
+- **支持的验证指标**：K、D、J、MACD、DIF、DEA、EMA:n
 
 ### signalProcessor.js（信号处理）
 
@@ -184,16 +187,17 @@ npm start
 **路径**：`D:\Code\longBrige-automation-program\src\core\strategy.js`
 
 - **类**：`HangSengMultiIndicatorStrategy`
+- **依赖**：使用 `indicatorHelpers.js` 中的 `getIndicatorValue` 函数统一提取指标值
 - **生成两类信号**：
   1. **立即信号**（卖出/平仓）：条件满足时立即执行
-  2. **延迟信号**（买入/开仓）：等待 60 秒进行趋势确认
+  2. **延迟信号**（买入/开仓）：等待验证时间进行趋势确认
 - **信号配置**：所有交易信号条件**完全可配置**，通过环境变量设置（`SIGNAL_BUYCALL`, `SIGNAL_SELLCALL`, `SIGNAL_BUYPUT`, `SIGNAL_SELLPUT`）
 - **配置格式**：`(条件1,条件2,...)/N|(条件A)|(条件B,条件C)/M`
   - 括号内是条件列表，逗号分隔
   - `/N`：括号内条件需满足 N 项，不设则全部满足
   - `|`：分隔不同条件组（最多 3 个），满足任一组即可
   - **支持指标**：
-    - `RSI:n`：任意周期 RSI（n 范围 1-100），如 `RSI:6<20`
+    - `RSI:n`：任意周期 RSI（n 范围 1-100），如 `RSI:6<20`、`RSI:12>80`
     - `MFI`：资金流量指标
     - `D`：KDJ 的 D 值
     - `J`：KDJ 的 J 值
@@ -209,10 +213,12 @@ npm start
   - BUYPUT: `(RSI:6>80,MFI>85,D>80,J>100)/3|(J>120)`
   - SELLPUT: `(RSI:6<20,MFI<15,D<22,J<0)/3|(J<-15)`
 - **注意**：所有信号配置都是必需项，未配置或格式无效将导致程序启动失败
-- **动态 RSI 周期**：
+- **动态指标周期**：
   - 系统自动从配置中提取所有 RSI 周期（`extractRSIPeriods`）
-  - 根据提取的周期列表计算相应 RSI 值
+  - 系统自动从配置中提取所有 EMA 周期（`EMA:n` 格式）
+  - 根据提取的周期列表计算相应指标值
   - 例如配置 `RSI:6` 和 `RSI:12`，会同时计算 RSI6 和 RSI12
+  - 例如配置 `EMA:5` 和 `EMA:10`，会同时计算 EMA5 和 EMA10
 
 ### trader.js（订单执行）
 
@@ -297,7 +303,8 @@ npm start
     - 标准化 symbol → 调用 `ctx.historyOrders({ symbol, endAt: new Date() })`
     - 只设置截止时间为当前时间，不设置开始时间，获取完整历史订单
     - 过滤出已成交买入/卖出单并转换为简化结构
-    - 更新内部缓存：`_ordersCache.set(normalizedSymbol, { buyOrders, sellOrders, fetchTime })`
+    - 更新内部缓存：`_ordersCache.set(normalizedSymbol, { buyOrders, sellOrders, allOrders, fetchTime })`
+    - `allOrders` 保存原始订单数据（包括未成交订单），用于启动时提取未成交订单
   - `_isCacheValid(normalizedSymbol, maxAgeMs=5*60*1000)`：
     - 使用 `fetchTime` 判断缓存是否在 5 分钟有效期内（默认 5 分钟）
   - `_fetchAndConvertOrders(symbol, forceRefresh=false)`：
@@ -314,6 +321,9 @@ npm start
   - `disableSymbol(symbol)`：禁用标的交易
   - `enableSymbol(symbol)`：启用标的交易
   - 禁用的标的在信号执行时会被跳过（SignalProcessor 模块检查）
+- **未成交订单提取**：
+  - `getPendingOrdersFromCache(symbols)`：从缓存的原始订单中提取未成交订单
+  - 用于启动时避免重复调用 todayOrders API
 - **运行时本地更新（避免频繁 historyOrders 调用）**：
   - `recordLocalBuy` / `recordLocalSell`：
     - 在交易执行后由 `index.js` 调用，仅更新内存中的买入记录，不触发 API 调用
@@ -326,10 +336,11 @@ npm start
 **路径**：`D:\Code\longBrige-automation-program\src\services\indicators.js`
 
 - **实现方式**：使用 `technicalindicators` 库优化指标计算，性能提升约 2.9 倍
-- **RSI**：使用 RSI.calculate（Wilder's Smoothing，平滑系数 = 1/period），计算周期 6
+- **RSI**：使用 RSI.calculate（Wilder's Smoothing，平滑系数 = 1/period），计算周期支持动态配置（默认 RSI6、RSI12）
 - **MFI**：使用 MFI.calculate（资金流量指标，周期 14），结合价格和成交量的超买超卖指标
 - **KDJ**：使用 EMA(period=5) 实现平滑系数 1/3，包含 K、D、J 值
 - **MACD**：使用 MACD.calculate（EMA 计算方式），DIF（EMA12-EMA26）、DEA（DIF 的 EMA9）、MACD 柱（DIF-DEA）×2
+- **EMA**：支持动态周期 EMA 计算（从配置中提取所有 EMA:n 周期）
 - **函数**：`buildIndicatorSnapshot()` 返回包含所有指标的统一对象
 
 ### objectPool.js（对象池模块）
@@ -341,6 +352,7 @@ npm start
 - **导出的对象池**：
   - `verificationEntryPool`：验证历史条目对象池（最大 50 个），用于 `signalVerification.js` 记录每秒指标值
   - `positionObjectPool`：持仓数据对象池（最大 10 个），用于 `accountDisplay.js` 格式化持仓信息
+  - `signalObjectPool`：信号对象池（最大 20 个），用于 `strategy.js` 和 `signalVerification.js` 复用信号对象
 - **核心方法**：
   - `acquire()`：从池中获取对象
   - `release(obj)`：将对象归还到池中（自动重置对象状态）
@@ -349,6 +361,20 @@ npm start
   - 使用工厂函数创建对象
   - 使用重置函数清空对象状态（避免内存泄漏）
   - 池满时自动丢弃对象，让 GC 回收
+
+### indicatorHelpers.js（指标辅助函数）
+
+**路径**：`D:\Code\longBrige-automation-program\src\utils\indicatorHelpers.js`
+
+- **用途**：从指标状态对象中提取指定指标的值，供策略模块和信号验证模块使用
+- **核心函数**：
+  - `getIndicatorValue(state, indicatorName)`：从指标状态中提取指定指标的值
+  - `isValidNumber(value)`：检查值是否为有效的有限数字
+- **支持的指标**：
+  - K、D、J（KDJ 指标）
+  - MACD、DIF、DEA（MACD 指标）
+  - EMA:n（任意周期的 EMA 指标，如 EMA:5, EMA:10）
+- **设计目的**：统一指标值提取逻辑，避免在 strategy.js 和 signalVerification.js 中重复实现
 
 ### quoteClient.js（行情数据）
 
@@ -403,7 +429,7 @@ npm start
 
 **路径**：`D:\Code\longBrige-automation-program\src\utils\signalConfigParser.js`
 
-- **用途**：解析和验证信号配置字符串，支持动态 RSI 周期
+- **用途**：解析和验证信号配置字符串，支持动态 RSI 和 EMA 周期
 - **核心函数**：
   - `parseSignalConfig(configStr)`：解析信号配置字符串
   - `validateSignalConfig(configStr)`：验证配置格式并返回详细信息
@@ -412,15 +438,22 @@ npm start
   - `evaluateSignalConfig(state, signalConfig)`：评估完整信号配置
   - `formatSignalConfig(signalConfig)`：格式化配置为可读字符串
   - `extractRSIPeriods(signalConfig)`：从配置中提取所有 RSI 周期
+  - `extractEMAPeriods(signalConfig)`：从配置中提取所有 EMA 周期
 - **配置格式**：
   - 标准格式：`(条件1,条件2,...)/N|(条件A)|(条件B,条件C)/M`
   - RSI 动态周期：`RSI:n<threshold` 或 `RSI:n>threshold`（n 为 1-100）
-  - 固定指标：`MFI`、`D` (KDJ.D)、`J` (KDJ.J)
+  - EMA 动态周期：`EMA:n<threshold` 或 `EMA:n>threshold`（n 为 1-250）
+  - 固定指标：`MFI`、`D` (KDJ.D)、`J` (KDJ.J)、`K` (KDJ.K)、`MACD`、`DIF`、`DEA`
 - **支持指标**：
   - `RSI:n`：任意周期 RSI（n 范围 1-100）
   - `MFI`：资金流量指标
   - `D`：KDJ 的 D 值
   - `J`：KDJ 的 J 值
+  - `K`：KDJ 的 K 值
+  - `MACD`：MACD 柱状值
+  - `DIF`：MACD DIF 值
+  - `DEA`：MACD DEA 值
+  - `EMA:n`：任意周期 EMA（n 范围 1-250）
 - **验证特性**：
   - 检查括号匹配
   - 检查条件数量与 minSatisfied 范围
@@ -759,6 +792,7 @@ Trader 日志显示：
 **辅助模块**：
 
 - [对象池](./src/utils/objectPool.js)
+- [指标辅助函数](./src/utils/indicatorHelpers.js)
 - [日志系统](./src/utils/logger.js)
 - [信号配置解析](./src/utils/signalConfigParser.js)
 - [工具函数](./src/utils/helpers.js)
