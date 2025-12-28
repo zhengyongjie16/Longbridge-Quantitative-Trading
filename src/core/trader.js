@@ -44,6 +44,65 @@ const toDecimal = (value) => {
 };
 
 /**
+ * 从错误对象中提取安全的错误消息字符串
+ * @param {Error|unknown} err - 错误对象
+ * @returns {string} 错误消息字符串
+ */
+const extractErrorMessage = (err) => {
+  if (err === null || err === undefined) {
+    return "未知错误";
+  }
+  if (typeof err === "string") {
+    return err;
+  }
+  if (typeof err === "number" || typeof err === "boolean") {
+    return String(err);
+  }
+  if (err instanceof Error && err.message) {
+    return err.message;
+  }
+  try {
+    return String(err);
+  } catch {
+    return "无法序列化的错误";
+  }
+};
+
+/**
+ * 错误类型识别辅助函数
+ * @param {string} errorMessage - 错误消息字符串
+ * @returns {Object} 错误类型标识对象
+ */
+const identifyErrorType = (errorMessage) => {
+  const lowerMsg = errorMessage.toLowerCase();
+
+  return {
+    isShortSellingNotSupported:
+      lowerMsg.includes("does not support short selling") ||
+      lowerMsg.includes("不支持做空") ||
+      lowerMsg.includes("short selling") ||
+      lowerMsg.includes("做空"),
+    isInsufficientFunds:
+      lowerMsg.includes("insufficient") ||
+      lowerMsg.includes("资金不足") ||
+      lowerMsg.includes("余额不足"),
+    isOrderNotFound:
+      lowerMsg.includes("not found") ||
+      lowerMsg.includes("不存在") ||
+      lowerMsg.includes("找不到"),
+    isNetworkError:
+      lowerMsg.includes("network") ||
+      lowerMsg.includes("网络") ||
+      lowerMsg.includes("timeout") ||
+      lowerMsg.includes("超时"),
+    isRateLimited:
+      lowerMsg.includes("rate limit") ||
+      lowerMsg.includes("频率") ||
+      lowerMsg.includes("too many"),
+  };
+};
+
+/**
  * 记录交易到文件
  * @param {Object} tradeRecord 交易记录对象
  * @param {string} tradeRecord.symbol 标的代码
@@ -1094,18 +1153,13 @@ export class Trader {
         side
       );
 
-      const errorMessage = err?.message ?? String(err);
-      const errorStr = String(errorMessage).toLowerCase();
+      // 使用辅助函数提取错误消息
+      const errorMessage = extractErrorMessage(err);
+      const errorType = identifyErrorType(errorMessage);
 
-      // 检查是否为做空不支持的错误（注意：做空是买入做空标的，所以检查买入订单）
-      const isShortSellingNotSupported =
-        signal.action === SignalType.BUYPUT &&
-        (errorStr.includes("does not support short selling") ||
-          errorStr.includes("不支持做空") ||
-          errorStr.includes("short selling") ||
-          errorStr.includes("做空"));
-
-      if (isShortSellingNotSupported) {
+      // 根据错误类型进行针对性处理
+      if (errorType.isShortSellingNotSupported) {
+        // 做空不支持的错误（做空是买入做空标的，所以检查买入订单）
         logger.error(
           `[订单提交失败] ${actionDesc} ${orderPayload.symbol} 失败：该标的不支持做空交易`,
           errorMessage
@@ -1117,7 +1171,26 @@ export class Trader {
             `  3. 需要更换其他支持做空的标的\n` +
             `  建议：检查配置中的 SHORT_SYMBOL 环境变量，或联系券商确认账户做空权限`
         );
+      } else if (errorType.isInsufficientFunds) {
+        // 资金不足错误
+        logger.error(
+          `[订单提交失败] ${actionDesc} ${orderPayload.symbol} 失败：账户资金不足`,
+          errorMessage
+        );
+      } else if (errorType.isNetworkError) {
+        // 网络错误
+        logger.error(
+          `[订单提交失败] ${actionDesc} ${orderPayload.symbol} 失败：网络异常，请检查连接`,
+          errorMessage
+        );
+      } else if (errorType.isRateLimited) {
+        // API 频率限制
+        logger.error(
+          `[订单提交失败] ${actionDesc} ${orderPayload.symbol} 失败：API 调用频率超限`,
+          errorMessage
+        );
       } else {
+        // 其他错误
         logger.error(
           `[订单提交失败] ${actionDesc} ${orderPayload.symbol} 失败：`,
           errorMessage

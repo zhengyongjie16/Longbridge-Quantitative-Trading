@@ -4,6 +4,23 @@ import { SignalType, isBuyAction } from "../utils/constants.js";
 import { normalizeHKSymbol, decimalToNumber, isDefined } from "../utils/helpers.js";
 import { logger } from "../utils/logger.js";
 
+// ============ 风险检查常量定义 ============
+
+/** 牛证最低距离回收价百分比（低于此值停止买入牛证） */
+const BULL_WARRANT_MIN_DISTANCE_PERCENT = 0.5;
+
+/** 熊证最高距离回收价百分比（高于此值停止买入熊证） */
+const BEAR_WARRANT_MAX_DISTANCE_PERCENT = -0.5;
+
+/** 监控标的价格最小有效值（低于此值认为价格异常） */
+const MIN_MONITOR_PRICE_THRESHOLD = 1;
+
+/** 默认价格小数位数 */
+const DEFAULT_PRICE_DECIMALS = 3;
+
+/** 默认百分比小数位数 */
+const DEFAULT_PERCENT_DECIMALS = 2;
+
 export class RiskChecker {
   constructor({
     maxDailyLoss,
@@ -273,7 +290,7 @@ export class RiskChecker {
 
             // 记录浮亏计算详情（仅在DEBUG模式下）
             if (process.env.DEBUG === "true") {
-              logger.info(
+              logger.debug(
                 `[风险检查调试] 做多标的浮亏检查: R1(开仓成本)=${r1.toFixed(
                   2
                 )}, R2(当前市值)=${r2.toFixed(
@@ -328,7 +345,7 @@ export class RiskChecker {
 
             // 记录浮亏计算详情（仅在DEBUG模式下）
             if (process.env.DEBUG === "true") {
-              logger.info(
+              logger.debug(
                 `[风险检查调试] 做空标的浮亏检查: R1(开仓成本)=${r1.toFixed(
                   2
                 )}, R2(当前市值)=${r2.toFixed(
@@ -535,8 +552,8 @@ export class RiskChecker {
     }
 
     // 额外验证：监控标的价格应该远大于牛熊证价格（通常>1000）
-    // 如果价格异常小（<1），可能是获取到了错误的价格（如牛熊证本身的价格），拒绝买入
-    if (monitorCurrentPrice < 1) {
+    // 如果价格异常小，可能获取到了错误的价格（如牛熊证本身的价格），拒绝买入
+    if (monitorCurrentPrice < MIN_MONITOR_PRICE_THRESHOLD) {
       logger.warn(
         `[风险检查] 监控标的价格异常小（${monitorCurrentPrice}），可能获取到了错误的价格（如牛熊证本身的价格），拒绝买入以确保安全`
       );
@@ -556,16 +573,16 @@ export class RiskChecker {
     const distancePercent =
       ((monitorCurrentPrice - callPrice) / callPrice) * 100;
 
-    // 牛证：当距离回收价百分比低于0.5%时停止买入
+    // 牛证：当距离回收价百分比低于阈值时停止买入
     if (warrantType === "BULL") {
-      if (distancePercent < 0.5) {
+      if (distancePercent < BULL_WARRANT_MIN_DISTANCE_PERCENT) {
         return {
           allowed: false,
           reason: `牛证距离回收价百分比为 ${distancePercent.toFixed(
-            2
-          )}%，低于0.5%阈值，停止买入（回收价=${callPrice.toFixed(
-            3
-          )}，监控标的当前价=${monitorCurrentPrice.toFixed(3)}）`,
+            DEFAULT_PERCENT_DECIMALS
+          )}%，低于${BULL_WARRANT_MIN_DISTANCE_PERCENT}%阈值，停止买入（回收价=${callPrice.toFixed(
+            DEFAULT_PRICE_DECIMALS
+          )}，监控标的当前价=${monitorCurrentPrice.toFixed(DEFAULT_PRICE_DECIMALS)}）`,
           warrantInfo: {
             isWarrant: true,
             warrantType,
@@ -575,16 +592,16 @@ export class RiskChecker {
       }
     }
 
-    // 熊证：当距离回收价百分比高于-0.5%时停止买入
+    // 熊证：当距离回收价百分比高于阈值时停止买入
     if (warrantType === "BEAR") {
-      if (distancePercent > -0.5) {
+      if (distancePercent > BEAR_WARRANT_MAX_DISTANCE_PERCENT) {
         return {
           allowed: false,
           reason: `熊证距离回收价百分比为 ${distancePercent.toFixed(
-            2
-          )}%，高于-0.5%阈值，停止买入（回收价=${callPrice.toFixed(
-            3
-          )}，监控标的当前价=${monitorCurrentPrice.toFixed(3)}）`,
+            DEFAULT_PERCENT_DECIMALS
+          )}%，高于${BEAR_WARRANT_MAX_DISTANCE_PERCENT}%阈值，停止买入（回收价=${callPrice.toFixed(
+            DEFAULT_PRICE_DECIMALS
+          )}，监控标的当前价=${monitorCurrentPrice.toFixed(DEFAULT_PRICE_DECIMALS)}）`,
           warrantInfo: {
             isWarrant: true,
             warrantType,
@@ -599,7 +616,7 @@ export class RiskChecker {
       allowed: true,
       reason: `${
         warrantType === "BULL" ? "牛证" : "熊证"
-      }距离回收价百分比为 ${distancePercent.toFixed(2)}%，在安全范围内`,
+      }距离回收价百分比为 ${distancePercent.toFixed(DEFAULT_PERCENT_DECIMALS)}%，在安全范围内`,
       warrantInfo: {
         isWarrant: true,
         warrantType,

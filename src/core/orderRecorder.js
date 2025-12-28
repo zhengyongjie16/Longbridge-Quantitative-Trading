@@ -724,21 +724,7 @@ export class OrderRecorder {
    * @returns {Array} 符合条件的订单列表
    */
   getLongBuyOrdersBelowPrice(currentPrice) {
-    if (!Number.isFinite(currentPrice) || currentPrice <= 0) {
-      return [];
-    }
-
-    const filteredOrders = this._longBuyOrders.filter(
-      (order) =>
-        Number.isFinite(order.executedPrice) &&
-        order.executedPrice < currentPrice
-    );
-
-    logger.debug(
-      `[根据订单记录过滤] 当前价格${currentPrice} 当前订单${this._longBuyOrders}，过滤后的订单${filteredOrders}`
-    );
-
-    return filteredOrders;
+    return this._getBuyOrdersBelowPrice(currentPrice, this._longBuyOrders, "做多标的");
   }
 
   /**
@@ -747,15 +733,33 @@ export class OrderRecorder {
    * @returns {Array} 符合条件的订单列表
    */
   getShortBuyOrdersBelowPrice(currentPrice) {
+    return this._getBuyOrdersBelowPrice(currentPrice, this._shortBuyOrders, "做空标的");
+  }
+
+  /**
+   * 通用函数：根据当前价格获取买入价低于当前价的订单
+   * @param {number} currentPrice 当前价格
+   * @param {Array} buyOrders 买入订单数组
+   * @param {string} directionName 方向描述（用于日志）
+   * @returns {Array} 符合条件的订单列表
+   * @private
+   */
+  _getBuyOrdersBelowPrice(currentPrice, buyOrders, directionName) {
     if (!Number.isFinite(currentPrice) || currentPrice <= 0) {
       return [];
     }
 
-    return this._shortBuyOrders.filter(
+    const filteredOrders = buyOrders.filter(
       (order) =>
         Number.isFinite(order.executedPrice) &&
         order.executedPrice < currentPrice
     );
+
+    logger.debug(
+      `[根据订单记录过滤] ${directionName}，当前价格=${currentPrice}，当前订单=${JSON.stringify(buyOrders.map(o => ({price: o.executedPrice, qty: o.executedQuantity})))}，过滤后订单=${JSON.stringify(filteredOrders.map(o => ({price: o.executedPrice, qty: o.executedQuantity})))}`
+    );
+
+    return filteredOrders;
   }
 
   /**

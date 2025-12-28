@@ -1,10 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Skill(longbridge-openapi-documentation)",
       "Bash(node:*)",
       "Bash(npm install:*)",
-      "Bash(DEBUG=true node:*)"
+      "Bash(DEBUG=true node:*)",
+      "Skill(longbridge-openapi-documentation)",
+      "Skill(typescript-review)",
+      "Bash(gh pr list)"
     ]
   }
 }

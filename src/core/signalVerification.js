@@ -234,6 +234,8 @@ export class SignalVerificationManager {
         if (index >= 0) {
           lastState.pendingDelayedSignals.splice(index, 1);
         }
+        // 释放待验证信号对象回对象池
+        signalObjectPool.release(pendingSignal);
       } catch (err) {
         logger.error(
           `[延迟验证错误] 处理待验证信号 ${pendingSignal.symbol} 时发生错误`,
@@ -249,6 +251,8 @@ export class SignalVerificationManager {
         if (index >= 0) {
           lastState.pendingDelayedSignals.splice(index, 1);
         }
+        // 释放待验证信号对象回对象池
+        signalObjectPool.release(pendingSignal);
       }
     }
 

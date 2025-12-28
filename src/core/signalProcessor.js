@@ -9,13 +9,26 @@ import { SignalType } from "../utils/constants.js";
 import { TRADING_CONFIG } from "../config/config.trading.js";
 
 /**
- * 计算卖出信号的数量和原因（统一处理做多和做空标的的卖出逻辑）
- * @param {Object} position 持仓对象（包含 costPrice 和 availableQuantity）
- * @param {Object} quote 行情对象（包含 price）
- * @param {Object} orderRecorder 订单记录器实例
- * @param {string} direction 方向：'LONG'（做多）或 'SHORT'（做空）
- * @param {string} originalReason 原始信号原因
- * @returns {{quantity: number|null, shouldHold: boolean, reason: string}} 返回卖出数量和原因，shouldHold为true表示应跳过此信号
+ * 计算卖出信号的数量和原因
+ * 统一处理做多和做空标的的卖出逻辑
+ *
+ * 卖出策略规则：
+ * 1. 如果当前价格 > 持仓成本价：立即清仓所有持仓
+ * 2. 如果当前价格 <= 持仓成本价：仅卖出买入价低于当前价的历史订单（盈利部分）
+ * 3. 如果没有符合条件的订单或数据无效：跳过此信号（shouldHold=true）
+ *
+ * @param {Object} position - 持仓对象，包含：
+ *   - costPrice: number 持仓成本价
+ *   - availableQuantity: number 可用持仓数量
+ * @param {Object} quote - 行情对象，包含：
+ *   - price: number 当前价格
+ * @param {Object} orderRecorder - 订单记录器实例，用于查询历史买入订单
+ * @param {string} direction - 方向标识，'LONG' 表示做多标的，'SHORT' 表示做空标的
+ * @param {string} originalReason - 原始信号的原因描述
+ * @returns {Object} 计算结果对象，包含：
+ *   - quantity: number|null 建议卖出的数量，null 表示不卖出
+ *   - shouldHold: boolean true 表示应跳过此信号，false 表示应执行卖出
+ *   - reason: string 执行或跳过的原因描述
  */
 export function calculateSellQuantity(
   position,
