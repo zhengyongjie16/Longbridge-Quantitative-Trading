@@ -1,16 +1,27 @@
 /**
  * 浮亏监控模块
- * 负责实时监控单标的浮亏，并在触发阈值时执行保护性清仓
+ *
+ * 功能：
+ * - 实时监控单标的的浮亏
+ * - 浮亏超过阈值时触发保护性清仓
+ * - 使用市价单执行清仓
+ *
+ * 浮亏计算：
+ * - unrealizedLoss = currentPrice * N1 - R1
+ * - R1：所有未平仓买入订单的市值总和
+ * - N1：所有未平仓买入订单的成交数量总和
+ *
+ * 清仓流程：
+ * 1. 检查浮亏是否超过阈值
+ * 2. 创建市价单清仓信号
+ * 3. 执行清仓订单
+ * 4. 刷新订单记录和浮亏数据
  */
 
 import { logger } from "../utils/logger.js";
 import { SignalType } from "../utils/constants.js";
 import { signalObjectPool } from "../utils/objectPool.js";
 
-/**
- * 浮亏监控器类
- * 监控做多/做空标的的浮亏，并在超过阈值时触发保护性清仓
- */
 export class UnrealizedLossMonitor {
   constructor(maxUnrealizedLossPerSymbol) {
     this.maxUnrealizedLossPerSymbol = maxUnrealizedLossPerSymbol;
@@ -61,7 +72,9 @@ export class UnrealizedLossMonitor {
     // 从对象池获取信号对象
     const liquidationSignal = signalObjectPool.acquire();
     liquidationSignal.symbol = symbol;
-    liquidationSignal.action = isLong ? SignalType.SELLCALL : SignalType.SELLPUT;
+    liquidationSignal.action = isLong
+      ? SignalType.SELLCALL
+      : SignalType.SELLPUT;
     liquidationSignal.reason = lossCheck.reason;
     liquidationSignal.quantity = lossCheck.quantity;
     liquidationSignal.price = currentPrice;

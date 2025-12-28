@@ -1,3 +1,21 @@
+/**
+ * 配置验证模块
+ *
+ * 功能：
+ * - 验证 LongPort API 配置的有效性
+ * - 验证信号配置的格式正确性
+ * - 验证交易配置的完整性
+ * - 在程序启动时确保所有必需配置已正确设置
+ *
+ * 验证内容：
+ * 1. API 凭证：appKey、appSecret、accessToken
+ * 2. 标的配置：监控标的、做多/做空标的是否存在且有效
+ * 3. 信号配置：格式验证、括号匹配、指标支持检查
+ *
+ * 抛出异常：
+ * - ConfigValidationError：配置验证失败时抛出
+ */
+
 import { logger } from "../utils/logger.js";
 import { TRADING_CONFIG } from "./config.trading.js";
 import { createConfig } from "./config.js";

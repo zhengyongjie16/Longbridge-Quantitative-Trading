@@ -1,6 +1,21 @@
 /**
- * 对象池模块 - 减少频繁的对象创建和垃圾回收
- * 用于复用高频创建的临时对象，提升内存效率
+ * 对象池模块
+ *
+ * 功能：
+ * - 复用高频创建的临时对象
+ * - 减少频繁的对象创建和垃圾回收
+ * - 提升内存效率和系统性能
+ *
+ * 导出的对象池：
+ * - verificationEntryPool：验证历史条目对象池（最大 50 个）
+ * - positionObjectPool：持仓数据对象池（最大 10 个）
+ * - signalObjectPool：信号对象池
+ * - kdjObjectPool / macdObjectPool：指标对象池
+ *
+ * 核心方法：
+ * - acquire()：从池中获取对象
+ * - release(obj)：将对象归还到池中
+ * - releaseAll(objects)：批量释放对象数组
  */
 
 /**

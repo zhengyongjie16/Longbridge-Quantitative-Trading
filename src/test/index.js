@@ -1,3 +1,20 @@
+/**
+ * 测试模块
+ *
+ * 功能：
+ * - 提供单元测试和集成测试功能
+ * - 测试指标计算逻辑
+ * - 测试信号配置解析
+ * - 测试交易流程模拟
+ *
+ * 运行方式：
+ * npm test
+ *
+ * 相关模块：
+ * - indicators.js：测试指标计算
+ * - signalConfigParser.js：测试配置解析
+ */
+
 import {
   QuoteContext,
   Period,

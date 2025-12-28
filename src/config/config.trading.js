@@ -1,8 +1,19 @@
-// 统一管理与交易相关的配置，避免在代码中硬编码
-// 如需调整标的或金额，只需改这里或对应的环境变量
-// 注意：所有配置项都必须从环境变量读取，没有默认值
+/**
+ * 交易配置模块
+ *
+ * 功能：
+ * - 从环境变量读取所有交易相关配置
+ * - 统一管理标的代码、交易金额、风险限制等配置
+ * - 提供配置验证和默认值处理
+ *
+ * 配置类别：
+ * 1. 标的配置：MONITOR_SYMBOL（监控标的）、LONG_SYMBOL（做多标的）、SHORT_SYMBOL（做空标的）
+ * 2. 交易金额：TARGET_NOTIONAL（目标金额）、LONG_LOT_SIZE/SHORT_LOT_SIZE（每手股数）
+ * 3. 风险限制：MAX_POSITION_NOTIONAL（最大持仓）、MAX_DAILY_LOSS（单日亏损限制）
+ * 4. 信号配置：SIGNAL_BUYCALL、SIGNAL_SELLCALL、SIGNAL_BUYPUT、SIGNAL_SELLPUT
+ * 5. 验证配置：VERIFICATION_DELAY_SECONDS（延迟验证时间）、VERIFICATION_INDICATORS（验证指标）
+ */
 
-// 加载环境变量（必须在读取配置之前）
 import dotenv from "dotenv";
 dotenv.config();
 

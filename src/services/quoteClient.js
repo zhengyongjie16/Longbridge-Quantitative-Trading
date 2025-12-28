@@ -1,3 +1,25 @@
+/**
+ * 行情数据客户端模块
+ *
+ * 功能：
+ * - 获取实时行情数据
+ * - 获取 K 线数据
+ * - 检查交易日信息
+ * - 检查牛熊证信息（回收价等）
+ *
+ * 缓存机制：
+ * - 行情数据：1 秒 TTL 缓存
+ * - 交易日信息：24 小时 TTL 缓存
+ * - 牛熊证信息：持久缓存
+ *
+ * 核心方法：
+ * - getLatestQuote()：获取单个标的实时行情
+ * - getQuotes()：获取多个标的实时行情
+ * - getCandlesticks()：获取 K 线数据
+ * - isTradingDay()：检查是否为交易日
+ * - checkWarrantInfo()：检查牛熊证回收价
+ */
+
 import {
   AdjustType,
   Period,

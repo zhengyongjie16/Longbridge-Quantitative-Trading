@@ -1,3 +1,24 @@
+/**
+ * 指标分析工具
+ *
+ * 功能：
+ * - 分析历史 K 线数据的技术指标表现
+ * - 回测指标策略效果
+ * - 生成指标统计报告
+ *
+ * 分析内容：
+ * - RSI、MACD、KDJ、MFI 等指标的历史值
+ * - 指标超买超卖区域的统计数据
+ * - 指标交叉信号的历史表现
+ *
+ * 运行方式：
+ * npm run analyze-indicators
+ *
+ * 配置参数：
+ * - DEFAULT_SYMBOL：分析标的
+ * - DEFAULT_DATE：分析日期范围
+ */
+
 import {
   QuoteContext,
   Period,

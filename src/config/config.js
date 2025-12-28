@@ -1,5 +1,19 @@
+/**
+ * LongBridge API 配置模块
+ *
+ * 功能：
+ * - 从环境变量读取 LongPort API 凭证（APP_KEY、APP_SECRET、ACCESS_TOKEN）
+ * - 根据区域配置 API 端点URL（大陆使用 .cn 域名，香港使用 .com 域名）
+ * - 创建并导出 LongPort Config 对象供其他模块使用
+ *
+ * 环境变量：
+ * - LONGPORT_APP_KEY：应用密钥
+ * - LONGPORT_APP_SECRET：应用密钥
+ * - LONGPORT_ACCESS_TOKEN：访问令牌
+ * - LONGPORT_REGION：区域配置（'cn' 或 'hk'，默认 'hk'）
+ */
+
 import dotenv from "dotenv";
-import { Config } from "longport";
 
 // 加载 .env 文件中的配置
 dotenv.config();

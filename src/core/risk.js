@@ -1,4 +1,23 @@
-// 基础风险管理模块：检查最大单日亏损与单标的最大持仓金额
+/**
+ * 风险控制模块
+ *
+ * 功能：
+ * - 实施买入前的风险检查
+ * - 监控单日和单标的浮亏
+ * - 检查牛熊证距离回收价的安全性
+ *
+ * 风险检查类型：
+ * 1. 牛熊证风险：牛证距离回收价 > 0.5%，熊证 < -0.5%
+ * 2. 单日亏损限制：整体浮亏必须 > -MAX_DAILY_LOSS
+ * 3. 持仓市值限制：单标的市值必须 ≤ MAX_POSITION_NOTIONAL
+ * 4. 单标的安全边际：监控标的价格必须 > 1
+ *
+ * 浮亏监控：
+ * - 实时计算持仓浮亏
+ * - 超过阈值时触发保护性清仓
+ * - 使用 R1（开仓成本）和 N1（持仓数量）计算
+ */
+
 import { TRADING_CONFIG } from "../config/config.trading.js";
 import { SignalType, isBuyAction } from "../utils/constants.js";
 import { normalizeHKSymbol, decimalToNumber, isDefined } from "../utils/helpers.js";

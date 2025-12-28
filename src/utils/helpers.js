@@ -1,6 +1,17 @@
 /**
- * 通用工具函数
- * 包含项目中重复使用的工具函数，避免代码重复
+ * 工具函数模块
+ *
+ * 功能：
+ * - 港股代码规范化（添加 .HK 后缀）
+ * - Decimal 类型转换
+ * - 时间格式化（北京时区）
+ * - 数值格式化
+ *
+ * 核心函数：
+ * - normalizeHKSymbol()：规范化港股代码
+ * - decimalToNumber()：转换 LongPort API 的 Decimal 对象
+ * - toBeijingTimeIso() / toBeijingTimeLog()：UTC 到北京时间转换
+ * - formatSymbolDisplay() / formatQuoteDisplay()：格式化显示
  */
 
 /**

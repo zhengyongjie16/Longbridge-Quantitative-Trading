@@ -1,12 +1,29 @@
+/**
+ * 订单记录模块
+ *
+ * 功能：
+ * - 跟踪已成交的买入/卖出订单
+ * - 提供智能清仓决策的历史订单数据
+ * - 为浮亏监控提供原始订单数据（R1/N1）
+ *
+ * 过滤算法（从旧到新累积过滤）：
+ * 1. M0：最新卖出时间之后成交的买入订单
+ * 2. 过滤历史高价买入且未被完全卖出的订单
+ * 3. 最终记录 = M0 + 过滤后的买入订单
+ *
+ * 智能清仓逻辑：
+ * - 当 currentPrice > costPrice：清空所有持仓
+ * - 当 currentPrice ≤ costPrice：仅卖出 buyPrice < currentPrice 的订单
+ *
+ * 缓存机制：
+ * - 订单数据缓存 5 分钟
+ * - 避免频繁调用 historyOrders API
+ */
+
 import { OrderSide, OrderStatus } from "longport";
 import { logger } from "../utils/logger.js";
 import { normalizeHKSymbol, decimalToNumber } from "../utils/helpers.js";
 
-/**
- * 订单记录管理器
- * 用于记录做多和做空标的的历史买入且已成交订单
- * 程序启动时通过 historyOrders API 获取历史订单（截止到当前时间）
- */
 export class OrderRecorder {
   constructor(trader) {
     this._trader = trader;

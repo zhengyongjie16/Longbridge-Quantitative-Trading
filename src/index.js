@@ -1,3 +1,25 @@
+/**
+ * LongBridge 港股自动化量化交易系统 - 主入口模块
+ *
+ * 系统概述：
+ * - 监控恒生指数等目标资产的技术指标（RSI、KDJ、MACD、MFI）
+ * - 根据指标信号在牛熊证上执行双向交易（做多/做空）
+ * - 采用多指标组合策略，开仓信号延迟验证60秒，平仓信号立即执行
+ *
+ * 核心流程：
+ * 1. 初始化所有模块实例（MarketMonitor、DoomsdayProtection、UnrealizedLossMonitor等）
+ * 2. 主循环 runOnce() 每秒执行一次，协调各模块
+ * 3. 获取行情数据和技术指标
+ * 4. 生成和验证交易信号
+ * 5. 执行风险检查和订单交易
+ *
+ * 相关模块：
+ * - strategy.js：信号生成
+ * - signalVerification.js：延迟信号验证
+ * - signalProcessor.js：信号处理和风险检查
+ * - trader.js：订单执行
+ */
+
 import { createConfig } from "./config/config.js";
 import { HangSengMultiIndicatorStrategy } from "./core/strategy.js";
 import { Trader } from "./core/trader.js";

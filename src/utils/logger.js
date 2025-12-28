@@ -1,5 +1,23 @@
-// 基于 pino 的高性能日志系统
-// 充分利用 pino 的异步传输和多流能力
+/**
+ * 日志系统模块
+ *
+ * 功能：
+ * - 基于 pino 的高性能日志系统
+ * - 双流输出：同时输出到控制台和文件
+ * - 按日期自动分割日志文件
+ * - 支持 DEBUG/INFO/WARN/ERROR 级别
+ *
+ * 日志目录：
+ * - logs/system/：系统日志（所有级别）
+ * - logs/debug/：调试日志（仅 DEBUG 级别，需设置 DEBUG=true）
+ *
+ * 特性：
+ * - 异步队列批量处理，避免阻塞主循环
+ * - 控制台输出带颜色高亮
+ * - 文件输出纯文本格式
+ * - 进程信号处理和异常捕获
+ */
+
 import pino from "pino";
 import { toBeijingTimeLog } from "./helpers.js";
 import fs from "node:fs";

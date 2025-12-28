@@ -1,33 +1,28 @@
+/**
+ * 多指标交易策略模块
+ *
+ * 功能：
+ * - 基于 RSI、KDJ、MACD、MFI 等技术指标生成交易信号
+ * - 支持可配置的信号条件格式
+ * - 生成两类信号：立即信号（卖出）和延迟信号（买入）
+ *
+ * 信号类型：
+ * - BUYCALL：买入做多标的（延迟验证）
+ * - SELLCALL：卖出做多标的（立即执行）
+ * - BUYPUT：买入做空标的（延迟验证）
+ * - SELLPUT：卖出做空标的（立即执行）
+ *
+ * 配置格式：(条件1,条件2,...)/N|(条件A)|(条件B,条件C)/M
+ * - 括号内是条件列表，逗号分隔
+ * - /N：括号内条件需满足 N 项
+ * - |：分隔不同条件组，满足任一组即可
+ */
+
 import { SignalType } from "../utils/constants.js";
 import { evaluateSignalConfig } from "../utils/signalConfigParser.js";
 import { signalObjectPool } from "../utils/objectPool.js";
 import { getIndicatorValue, isValidNumber } from "../utils/indicatorHelpers.js";
 
-/**
- * 恒生指数多指标策略：
- * - 监控 RSI6、RSI12、MFI、KDJ
- * - 基于可配置的信号条件生成清仓信号和开仓信号
- *
- * 信号配置格式：(条件1,条件2,...)/N|(条件A)|(条件B,条件C)/M
- * - 括号内是条件列表，逗号分隔
- * - /N：括号内条件需满足 N 项，不设则全部满足
- * - |：分隔不同条件组（最多3个），满足任一组即可
- * - 支持指标：RSI6, RSI12, MFI, D (KDJ.D), J (KDJ.J)
- *
- * 默认策略逻辑（所有信号条件组满足其一即可）：
- *
- * 1. 买入做多标的（BUYCALL）- 延迟验证：
- *    (RSI6<20,MFI<15,D<20,J<-1)/3|(J<-20)
- *
- * 2. 卖出做多标的（SELLCALL）- 立即执行：
- *    (RSI6>80,MFI>85,D>79,J>100)/3|(J>110)
- *
- * 3. 买入做空标的（BUYPUT）- 延迟验证：
- *    (RSI6>80,MFI>85,D>80,J>100)/3|(J>120)
- *
- * 4. 卖出做空标的（SELLPUT）- 立即执行：
- *    (RSI6<20,MFI<15,D<22,J<0)/3|(J<-15)
- */
 export class HangSengMultiIndicatorStrategy {
   constructor({
     signalConfig = null,
