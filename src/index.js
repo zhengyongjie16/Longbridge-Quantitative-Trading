@@ -8,7 +8,12 @@ import { logger } from "./utils/logger.js";
 import { validateAllConfig } from "./config/config.validator.js";
 import { SignalType } from "./utils/constants.js";
 import { OrderRecorder } from "./core/orderRecorder.js";
-import { positionObjectPool, signalObjectPool } from "./utils/objectPool.js";
+import {
+  positionObjectPool,
+  signalObjectPool,
+  kdjObjectPool,
+  macdObjectPool,
+} from "./utils/objectPool.js";
 import { normalizeHKSymbol, getSymbolName } from "./utils/helpers.js";
 import { extractRSIPeriods } from "./utils/signalConfigParser.js";
 
@@ -259,6 +264,29 @@ async function runOnce({
     monitorSnapshot,
     lastState
   );
+
+  // 释放上一次快照中的 kdj 和 macd 对象（如果它们没有被 monitorValues 引用）
+  // 注意：如果指标变化，monitorValues 会引用新的对象，旧的会在 marketMonitor 中释放
+  // 如果指标没有变化，monitorSnapshot 会被丢弃，其中的 kdj 和 macd 对象需要在这里释放
+  if (lastState.lastMonitorSnapshot) {
+    const lastSnapshot = lastState.lastMonitorSnapshot;
+    // 检查旧的 kdj 对象是否被 monitorValues 引用
+    if (
+      lastSnapshot.kdj &&
+      lastState.monitorValues?.kdj !== lastSnapshot.kdj
+    ) {
+      kdjObjectPool.release(lastSnapshot.kdj);
+    }
+    // 检查旧的 macd 对象是否被 monitorValues 引用
+    if (
+      lastSnapshot.macd &&
+      lastState.monitorValues?.macd !== lastSnapshot.macd
+    ) {
+      macdObjectPool.release(lastSnapshot.macd);
+    }
+  }
+  // 保存当前快照供下次循环使用
+  lastState.lastMonitorSnapshot = monitorSnapshot;
 
   // 获取做多和做空标的的持仓信息
   let longPosition = null;
@@ -688,6 +716,7 @@ async function main() {
     cachedAccount: null,
     cachedPositions: [],
     cachedTradingDayInfo: null, // 缓存的交易日信息 { isTradingDay, isHalfDay, checkDate }
+    lastMonitorSnapshot: null, // 上一次的监控快照，用于释放 kdj 和 macd 对象
   };
 
   // 程序启动时立即获取一次账户和持仓信息

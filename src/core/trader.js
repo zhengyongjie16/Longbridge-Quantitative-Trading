@@ -252,10 +252,10 @@ class TradeAPIRateLimiter {
  * https://longportapp.github.io/openapi/nodejs/modules.html
  */
 export class Trader {
-  constructor(config = null, orderOptions = {}) {
+  constructor(config = null) {
     this._config = config ?? createConfig();
     this._ctxPromise = TradeContext.new(this._config);
-    this._orderOptions = { ...DEFAULT_ORDER_CONFIG, ...orderOptions };
+    this._orderOptions = { ...DEFAULT_ORDER_CONFIG };
     // 规范化港股代码，自动添加 .HK 后缀
     if (this._orderOptions.symbol) {
       this._orderOptions.symbol = normalizeHKSymbol(this._orderOptions.symbol);

@@ -696,58 +696,24 @@ export class OrderRecorder {
   }
 
   /**
-   * 获取指定标的的全部买入和卖出订单（用于市值计算）
-   * 返回全部已成交的买入订单和卖出订单，不经过过滤
-   * @param {string} symbol 标的代码
-   * @param {boolean} forceRefresh 是否强制刷新（忽略缓存），默认false
-   * @returns {Promise<{buyOrders: Array, sellOrders: Array}>} 返回全部买入和卖出订单
-   */
-  async getAllOrdersForValueCalculation(symbol, forceRefresh = false) {
-    try {
-      // 使用统一方法获取和转换订单（默认使用缓存）
-      return await this._fetchAndConvertOrders(symbol, forceRefresh);
-    } catch (error) {
-      logger.error(
-        `[订单获取失败] 标的 ${symbol} 获取全部订单失败`,
-        error.message || error
-      );
-      return {
-        buyOrders: [],
-        sellOrders: [],
-      };
-    }
-  }
-
-  /**
-   * 根据当前价格，获取做多标的中买入价低于当前价的订单
+   * 通用函数：根据当前价格获取做多标的或做空标的中买入价低于当前价的订单
    * @param {number} currentPrice 当前价格
-   * @returns {Array} 符合条件的订单列表
-   */
-  getLongBuyOrdersBelowPrice(currentPrice) {
-    return this._getBuyOrdersBelowPrice(currentPrice, this._longBuyOrders, "做多标的");
-  }
-
-  /**
-   * 根据当前价格，获取做空标的中买入价低于当前价的订单
-   * @param {number} currentPrice 当前价格
-   * @returns {Array} 符合条件的订单列表
-   */
-  getShortBuyOrdersBelowPrice(currentPrice) {
-    return this._getBuyOrdersBelowPrice(currentPrice, this._shortBuyOrders, "做空标的");
-  }
-
-  /**
-   * 通用函数：根据当前价格获取买入价低于当前价的订单
-   * @param {number} currentPrice 当前价格
-   * @param {Array} buyOrders 买入订单数组
-   * @param {string} directionName 方向描述（用于日志）
+   * @param {string} direction 方向标识，'LONG' 表示做多标的，'SHORT' 表示做空标的
    * @returns {Array} 符合条件的订单列表
    * @private
    */
-  _getBuyOrdersBelowPrice(currentPrice, buyOrders, directionName) {
+  getBuyOrdersBelowPrice(currentPrice, direction) {
     if (!Number.isFinite(currentPrice) || currentPrice <= 0) {
       return [];
     }
+
+    const buyOrders =
+      (direction === "LONG" && this._longBuyOrders) ||
+      (direction === "SHORT" && this._shortBuyOrders);
+
+    const directionName =
+      (direction === "LONG" && "做多标的") ||
+      (direction === "SHORT" && "做空标的");
 
     const filteredOrders = buyOrders.filter(
       (order) =>
@@ -756,7 +722,9 @@ export class OrderRecorder {
     );
 
     logger.debug(
-      `[根据订单记录过滤] ${directionName}，当前价格=${currentPrice}，当前订单=${JSON.stringify(buyOrders.map(o => ({price: o.executedPrice, qty: o.executedQuantity})))}，过滤后订单=${JSON.stringify(filteredOrders.map(o => ({price: o.executedPrice, qty: o.executedQuantity})))}`
+      `[根据订单记录过滤] ${directionName}，当前价格=${currentPrice}，当前订单=${JSON.stringify(
+        buyOrders
+      )}，过滤后订单=${JSON.stringify(filteredOrders)}`
     );
 
     return filteredOrders;

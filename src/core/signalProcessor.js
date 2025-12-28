@@ -84,12 +84,10 @@ export function calculateSellQuantity(
   }
 
   // 根据方向获取符合条件的买入订单
-  const getBuyOrdersBelowPrice =
-    direction === "LONG"
-      ? orderRecorder.getLongBuyOrdersBelowPrice.bind(orderRecorder)
-      : orderRecorder.getShortBuyOrdersBelowPrice.bind(orderRecorder);
-
-  const buyOrdersBelowPrice = getBuyOrdersBelowPrice(currentPrice);
+  const buyOrdersBelowPrice = orderRecorder.getBuyOrdersBelowPrice(
+    currentPrice,
+    direction
+  );
 
   if (!buyOrdersBelowPrice || buyOrdersBelowPrice.length === 0) {
     // 没有符合条件的订单，跳过此信号
@@ -461,18 +459,17 @@ export class SignalProcessor {
         positionsForRiskCheck.length === 0
       ) {
         try {
-          const freshAccount = await trader
-            .getAccountSnapshot()
-            .catch((err) => {
+          // 并行获取账户信息和持仓信息，减少等待时间
+          const [freshAccount, freshPositions] = await Promise.all([
+            trader.getAccountSnapshot().catch((err) => {
               logger.warn("风险检查前获取账户信息失败", err?.message ?? err);
               return null;
-            });
-          const freshPositions = await trader
-            .getStockPositions()
-            .catch((err) => {
+            }),
+            trader.getStockPositions().catch((err) => {
               logger.warn("风险检查前获取持仓信息失败", err?.message ?? err);
               return [];
-            });
+            }),
+          ]);
 
           if (freshAccount) {
             accountForRiskCheck = freshAccount;

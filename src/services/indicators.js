@@ -1,4 +1,5 @@
 import { RSI, MACD, EMA, MFI } from "technicalindicators";
+import { kdjObjectPool, macdObjectPool } from "../utils/objectPool.js";
 
 const toNumber = (value) =>
   typeof value === "number" ? value : Number(value ?? 0);
@@ -150,7 +151,12 @@ export function calculateRSI(closes, period) {
  */
 export function calculateKDJ(candles, period = 9) {
   if (!candles || candles.length < period) {
-    return { k: null, d: null, j: null };
+    // 从对象池获取 KDJ 对象（即使计算失败也使用对象池）
+    const kdjObj = kdjObjectPool.acquire();
+    kdjObj.k = null;
+    kdjObj.d = null;
+    kdjObj.j = null;
+    return kdjObj;
   }
 
   try {
@@ -197,7 +203,12 @@ export function calculateKDJ(candles, period = 9) {
     }
 
     if (rsvValues.length === 0) {
-      return { k: null, d: null, j: null };
+      // 从对象池获取 KDJ 对象（即使计算失败也使用对象池）
+      const kdjObj = kdjObjectPool.acquire();
+      kdjObj.k = null;
+      kdjObj.d = null;
+      kdjObj.j = null;
+      return kdjObj;
     }
 
     // 步骤2：使用 EMA(period=5) 平滑 RSV 得到 K 值
@@ -245,13 +256,27 @@ export function calculateKDJ(candles, period = 9) {
 
     // 验证计算结果的有效性
     if (Number.isFinite(k) && Number.isFinite(d) && Number.isFinite(j)) {
-      return { k, d, j };
+      // 从对象池获取 KDJ 对象
+      const kdjObj = kdjObjectPool.acquire();
+      kdjObj.k = k;
+      kdjObj.d = d;
+      kdjObj.j = j;
+      return kdjObj;
     }
 
-    return { k: null, d: null, j: null };
+    // 如果计算失败，返回空对象（从对象池获取）
+    const kdjObj = kdjObjectPool.acquire();
+    kdjObj.k = null;
+    kdjObj.d = null;
+    kdjObj.j = null;
+    return kdjObj;
   } catch (err) {
-    // 如果计算失败，返回 null
-    return { k: null, d: null, j: null };
+    // 从对象池获取空对象（保持与其他返回路径的一致性）
+    const kdjObj = kdjObjectPool.acquire();
+    kdjObj.k = null;
+    kdjObj.d = null;
+    kdjObj.j = null;
+    return kdjObj;
   }
 }
 
@@ -344,11 +369,12 @@ export function calculateMACD(
       return null;
     }
 
-    return {
-      dif,
-      dea,
-      macd: macdValue,
-    };
+    // 从对象池获取 MACD 对象
+    const macdObj = macdObjectPool.acquire();
+    macdObj.dif = dif;
+    macdObj.dea = dea;
+    macdObj.macd = macdValue;
+    return macdObj;
   } catch (err) {
     // 如果计算失败，返回 null
     return null;

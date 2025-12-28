@@ -23,15 +23,17 @@ export async function displayAccountAndPositions(
   lastState
 ) {
   try {
-    const account = await trader.getAccountSnapshot().catch((err) => {
-      logger.warn("获取账户信息失败", err?.message ?? err);
-      return null;
-    });
-
-    const positions = await trader.getStockPositions().catch((err) => {
-      logger.warn("获取股票仓位失败", err?.message ?? err);
-      return [];
-    });
+    // 并行获取账户信息和持仓信息，减少等待时间
+    const [account, positions] = await Promise.all([
+      trader.getAccountSnapshot().catch((err) => {
+        logger.warn("获取账户信息失败", err?.message ?? err);
+        return null;
+      }),
+      trader.getStockPositions().catch((err) => {
+        logger.warn("获取股票仓位失败", err?.message ?? err);
+        return [];
+      }),
+    ]);
 
     // 更新缓存
     lastState.cachedAccount = account;

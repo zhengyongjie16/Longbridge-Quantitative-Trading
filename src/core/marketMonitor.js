@@ -4,9 +4,17 @@
  */
 
 import { logger } from "../utils/logger.js";
-import { normalizeHKSymbol, formatQuoteDisplay, isValidNumber } from "../utils/helpers.js";
+import {
+  normalizeHKSymbol,
+  formatQuoteDisplay,
+  isValidNumber,
+} from "../utils/helpers.js";
 import { hasChanged } from "../utils/tradingTime.js";
-import { monitorValuesObjectPool } from "../utils/objectPool.js";
+import {
+  monitorValuesObjectPool,
+  kdjObjectPool,
+  macdObjectPool,
+} from "../utils/objectPool.js";
 
 /**
  * 行情监控器类
@@ -26,7 +34,13 @@ export class MarketMonitor {
    * @param {Object} lastState 状态对象（包含 longPrice, shortPrice）
    * @returns {boolean} 价格是否发生变化
    */
-  monitorPriceChanges(longQuote, shortQuote, longSymbol, shortSymbol, lastState) {
+  monitorPriceChanges(
+    longQuote,
+    shortQuote,
+    longSymbol,
+    shortSymbol,
+    lastState
+  ) {
     const longPrice = longQuote?.price;
     const shortPrice = shortQuote?.price;
 
@@ -241,8 +255,17 @@ export class MarketMonitor {
         rsiPeriods
       );
 
-      // 如果存在旧的 monitorValues，先释放回对象池
+      // 如果存在旧的 monitorValues，先释放其中的 kdj 和 macd 对象，再释放 monitorValues 本身
       if (lastState.monitorValues) {
+        // 释放旧的 kdj 对象到对象池
+        if (lastState.monitorValues.kdj) {
+          kdjObjectPool.release(lastState.monitorValues.kdj);
+        }
+        // 释放旧的 macd 对象到对象池
+        if (lastState.monitorValues.macd) {
+          macdObjectPool.release(lastState.monitorValues.macd);
+        }
+        // 释放 monitorValues 对象本身
         monitorValuesObjectPool.release(lastState.monitorValues);
       }
 
@@ -250,23 +273,17 @@ export class MarketMonitor {
       const newMonitorValues = monitorValuesObjectPool.acquire();
       newMonitorValues.price = currentPrice;
       newMonitorValues.changePercent = changePercent;
-      newMonitorValues.ema = monitorSnapshot.ema ? { ...monitorSnapshot.ema } : null;
-      newMonitorValues.rsi = monitorSnapshot.rsi ? { ...monitorSnapshot.rsi } : null;
+      newMonitorValues.ema = monitorSnapshot.ema
+        ? { ...monitorSnapshot.ema }
+        : null;
+      newMonitorValues.rsi = monitorSnapshot.rsi
+        ? { ...monitorSnapshot.rsi }
+        : null;
       newMonitorValues.mfi = monitorSnapshot.mfi;
-      newMonitorValues.kdj = monitorSnapshot.kdj
-        ? {
-            k: monitorSnapshot.kdj.k,
-            d: monitorSnapshot.kdj.d,
-            j: monitorSnapshot.kdj.j,
-          }
-        : null;
-      newMonitorValues.macd = monitorSnapshot.macd
-        ? {
-            macd: monitorSnapshot.macd.macd,
-            dif: monitorSnapshot.macd.dif,
-            dea: monitorSnapshot.macd.dea,
-          }
-        : null;
+      // 直接引用 monitorSnapshot 中的 kdj 和 macd 对象（它们来自对象池）
+      // 注意：这里不创建新对象，直接引用，因为 monitorSnapshot 会在下次计算时被替换
+      newMonitorValues.kdj = monitorSnapshot.kdj || null;
+      newMonitorValues.macd = monitorSnapshot.macd || null;
 
       lastState.monitorValues = newMonitorValues;
 
@@ -359,14 +376,10 @@ export class MarketMonitor {
         );
       }
       if (Number.isFinite(monitorSnapshot.macd.dif)) {
-        indicators.push(
-          `DIF=${formatIndicator(monitorSnapshot.macd.dif, 4)}`
-        );
+        indicators.push(`DIF=${formatIndicator(monitorSnapshot.macd.dif, 4)}`);
       }
       if (Number.isFinite(monitorSnapshot.macd.dea)) {
-        indicators.push(
-          `DEA=${formatIndicator(monitorSnapshot.macd.dea, 4)}`
-        );
+        indicators.push(`DEA=${formatIndicator(monitorSnapshot.macd.dea, 4)}`);
       }
     }
 
