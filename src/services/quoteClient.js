@@ -352,6 +352,9 @@ export class MarketDataClient {
       };
     } catch (err) {
       // 如果 API 调用失败，返回保守结果（假设是交易日，避免漏掉交易机会）
+      logger.warn(
+        `[交易日判断] API 调用失败: ${err?.message ?? err}，假设为交易日继续运行`
+      );
       return {
         isTradingDay: true,
         isHalfDay: false,

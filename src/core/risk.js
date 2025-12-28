@@ -762,7 +762,13 @@ export class RiskChecker {
     // 获取缓存的浮亏数据
     const lossData = this.unrealizedLossData.get(normalizedSymbol);
     if (!lossData) {
-      // 如果没有缓存数据，说明可能还没有初始化，不执行清仓
+      // 如果没有缓存数据，说明可能还没有初始化
+      // 这种情况可能发生在：
+      // 1. 程序启动时订单获取失败导致标的被禁用
+      // 2. 浮亏监控数据尚未刷新
+      logger.warn(
+        `[浮亏监控] ${normalizedSymbol} 浮亏数据未初始化，跳过检查（可能是订单获取失败或数据尚未刷新）`
+      );
       return { shouldLiquidate: false };
     }
 

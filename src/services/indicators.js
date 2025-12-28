@@ -67,17 +67,17 @@ export function calculateRSI(validCloses, period) {
 
   try {
     // 过滤无效数据
-    const validCloses = validCloses
+    const filteredCloses = validCloses
       .map((c) => toNumber(c))
       .filter((v) => Number.isFinite(v) && v > 0);
 
-    if (validCloses.length <= period) {
+    if (filteredCloses.length <= period) {
       return null;
     }
 
     // 使用 technicalindicators 库计算 RSI
     // RSI.calculate 使用标准的 Wilder's Smoothing 方法（平滑系数 = 1/period）
-    const rsiResult = RSI.calculate({ values: validCloses, period });
+    const rsiResult = RSI.calculate({ values: filteredCloses, period });
 
     if (!rsiResult || rsiResult.length === 0) {
       return null;
@@ -342,11 +342,11 @@ export function calculateMACD(
 
   try {
     // 过滤无效数据
-    const validCloses = validCloses
+    const filteredCloses = validCloses
       .map((c) => toNumber(c))
       .filter((v) => Number.isFinite(v) && v > 0);
 
-    if (validCloses.length < slowPeriod + signalPeriod) {
+    if (filteredCloses.length < slowPeriod + signalPeriod) {
       return null;
     }
 
@@ -355,7 +355,7 @@ export function calculateMACD(
     // SimpleMAOscillator: false 表示使用 EMA（指数移动平均）计算快慢线
     // SimpleMASignal: false 表示使用 EMA 计算信号线
     const macdResult = MACD.calculate({
-      values: validCloses,
+      values: filteredCloses,
       fastPeriod,
       slowPeriod,
       signalPeriod,

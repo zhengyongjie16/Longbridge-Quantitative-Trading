@@ -14,6 +14,7 @@
  */
 
 import dotenv from "dotenv";
+import { Config } from "longport";
 
 // 加载 .env 文件中的配置
 dotenv.config();

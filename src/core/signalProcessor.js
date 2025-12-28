@@ -118,8 +118,13 @@ export function calculateSellQuantity(
     };
   }
 
-  const totalQuantity =
+  let totalQuantity =
     orderRecorder.calculateTotalQuantity(buyOrdersBelowPrice);
+
+  // 卖出数量不能超过可用持仓数量
+  if (totalQuantity > position.availableQuantity) {
+    totalQuantity = position.availableQuantity;
+  }
 
   if (totalQuantity > 0) {
     // 有符合条件的订单，卖出这些订单
@@ -440,6 +445,8 @@ export class SignalProcessor {
             logger.warn(
               "[风险检查] 买入操作前无法获取最新账户信息，风险检查将拒绝该操作"
             );
+            // 买入操作无法获取账户信息，直接返回，不添加此信号
+            return finalSignals;
           }
 
           if (Array.isArray(freshPositions)) {

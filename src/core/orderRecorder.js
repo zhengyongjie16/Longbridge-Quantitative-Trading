@@ -653,6 +653,14 @@ export class OrderRecorder {
         (a, b) => a.executedTime - b.executedTime
       );
 
+      // 防御性检查：确保有卖出订单
+      if (sortedSellOrders.length === 0) {
+        logger.warn(
+          `[现存订单记录] ${normalizedSymbol} 卖出订单列表为空，跳过过滤逻辑`
+        );
+        return allBuyOrders;
+      }
+
       // 1. 先获取M0：成交时间 > 最新卖出订单时间的买入订单
       const latestSellTime = sortedSellOrders.at(-1).executedTime; // 最新的卖出订单时间
       const m0 = allBuyOrders.filter(
