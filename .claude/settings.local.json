@@ -7,7 +7,8 @@
       "Skill(longbridge-openapi-documentation)",
       "Skill(typescript-review)",
       "Bash(gh pr list)",
-      "Skill(business-logic)"
+      "Skill(business-logic)",
+      "Bash(git show:*)"
     ]
   }
 }

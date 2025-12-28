@@ -34,11 +34,8 @@
 
 ## 文档导航
 
-- **[业务逻辑完整说明](./BUSINESS_LOGIC.md)** ⭐ - 核心业务逻辑权威参考（必读）
-- **[技术指标说明](./TECHNICAL_INDICATORS.md)** - RSI、KDJ、MACD、MFI 计算原理和使用方法
-- **[项目结构说明](./PROJECT_STRUCTURE.md)** - 目录结构和模块组织
-- **[代码审查记录](./CODE_REVIEW.md)** - 代码检查结果和潜在问题
-- **[LongBridge API 参考](./LONGBRIDGE_API.md)** - LongBridge OpenAPI 完整使用指南
+- **[README.md](./README.md)** - 项目完整使用文档（用户指南）
+- **[docs/TECHNICAL_INDICATORS.md](./docs/TECHNICAL_INDICATORS.md)** - RSI、KDJ、MACD、MFI 计算原理和使用方法
 
 ## 运行系统
 
@@ -63,10 +60,10 @@ npm start
 
 - **主循环**：`runOnce()` 每秒执行一次，作为模块协调器
 - **职责**：
-  - 初始化所有模块实例（MarketMonitor, DoomsdayProtection, UnrealizedLossMonitor等）
+  - 初始化所有模块实例（MarketMonitor, DoomsdayProtection, UnrealizedLossMonitor 等）
   - 协调各模块间的数据流和调用顺序
   - 管理 `lastState` 对象（待验证信号、缓存数据、上次指标值）
-  - 获取行情数据和K线数据
+  - 获取行情数据和 K 线数据
   - 调用各模块执行具体业务逻辑
 - **核心流程**：
   1. 检查交易时段（调用 tradingTime 模块）
@@ -88,8 +85,8 @@ npm start
   - `monitorIndicatorChanges()` - 监控监控标的的技术指标变化
 - **变化检测**：
   - 价格变化阈值：0.0001
-  - 指标变化阈值：RSI/MFI/KDJ为0.1，MACD为0.0001，EMA为0.0001
-- **显示内容**：价格、涨跌幅、EMA、RSI、MFI、KDJ、MACD等所有技术指标
+  - 指标变化阈值：RSI/MFI/KDJ 为 0.1，MACD 为 0.0001，EMA 为 0.0001
+- **显示内容**：价格、涨跌幅、EMA、RSI、MFI、KDJ、MACD 等所有技术指标
 
 ### doomsdayProtection.js（末日保护）
 
@@ -98,12 +95,12 @@ npm start
 - **类**：`DoomsdayProtection`
 - **职责**：收盘前的风险控制
 - **核心方法**：
-  - `shouldRejectBuy()` - 判断是否应拒绝买入（收盘前15分钟）
-  - `shouldClearPositions()` - 判断是否应自动清仓（收盘前5分钟）
+  - `shouldRejectBuy()` - 判断是否应拒绝买入（收盘前 15 分钟）
+  - `shouldClearPositions()` - 判断是否应自动清仓（收盘前 5 分钟）
   - `generateClearanceSignals()` - 生成清仓信号
 - **时间规则**：
-  - 正常交易日：15:45-16:00拒绝买入，15:55-15:59自动清仓
-  - 半日交易日：11:45-12:00拒绝买入，11:55-11:59自动清仓
+  - 正常交易日：15:45-16:00 拒绝买入，15:55-15:59 自动清仓
+  - 半日交易日：11:45-12:00 拒绝买入，11:55-11:59 自动清仓
 
 ### unrealizedLossMonitor.js（浮亏监控）
 
@@ -133,7 +130,7 @@ npm start
 - **验证逻辑**：
   - 买入做多（BUYCALL）：所有配置指标的第二个值都要大于第一个值
   - 买入做空（BUYPUT）：所有配置指标的第二个值都要小于第一个值
-- **验证窗口**：触发时间前后±5秒内记录指标值
+- **验证窗口**：触发时间前后 ±5 秒内记录指标值
 - **使用对象池**：使用 `verificationEntryPool` 优化内存分配
 
 ### signalProcessor.js（信号处理）
@@ -148,7 +145,7 @@ npm start
 - **买入检查顺序**：
   1. 交易频率限制
   2. 买入价格限制（防止追高）
-  3. 末日保护程序（收盘前15分钟拒绝买入）
+  3. 末日保护程序（收盘前 15 分钟拒绝买入）
   4. 牛熊证风险检查
   5. 基础风险检查（浮亏和持仓市值限制）
 - **卖出数量计算**：
@@ -162,10 +159,10 @@ npm start
 
 - **职责**：提供交易时段判断和时区转换功能
 - **核心函数**：
-  - `getHKTime(date)` - UTC时间转换为香港时区（UTC+8）
+  - `getHKTime(date)` - UTC 时间转换为香港时区（UTC+8）
   - `isInContinuousHKSession(date, isHalfDay)` - 判断是否在连续交易时段
-  - `isBeforeClose15Minutes(date, isHalfDay)` - 判断是否在收盘前15分钟
-  - `isBeforeClose5Minutes(date, isHalfDay)` - 判断是否在收盘前5分钟
+  - `isBeforeClose15Minutes(date, isHalfDay)` - 判断是否在收盘前 15 分钟
+  - `isBeforeClose5Minutes(date, isHalfDay)` - 判断是否在收盘前 5 分钟
   - `hasChanged(current, last, threshold)` - 检查数值是否变化超过阈值
 - **交易时段**：
   - 正常日：09:30-12:00 和 13:00-16:00
@@ -226,7 +223,7 @@ npm start
   - `executeSignals()`：根据过滤后的信号提交订单
   - `monitorAndManageOrders()`：监控未成交买入订单，市场价下跌时降低委托价
   - `_submitTargetOrder()`：根据目标金额计算数量并提交 ELO 订单
-- **交易频率限制**：同方向买入时间间隔可配置（`BUY_INTERVAL_SECONDS`，范围10-600秒，默认60秒）
+- **交易频率限制**：同方向买入时间间隔可配置（`BUY_INTERVAL_SECONDS`，范围 10-600 秒，默认 60 秒）
 - **订单类型**：所有订单使用 `ELO`（增强限价单），保护性清仓使用 `MO`（市价单）
 - **买单监控**：买入信号执行后自动启用，所有订单成交后停止
 - **Trade API 频率限制**：
@@ -384,7 +381,7 @@ npm start
   - **自定义格式化**：
     - 控制台输出：带颜色高亮
     - 文件输出：纯文本格式，自动移除 ANSI 颜色代码
-  - **超时保护**：写入操作带有 drain 超时保护（3-5秒）
+  - **超时保护**：写入操作带有 drain 超时保护（3-5 秒）
 - **日志级别**：
   - DEBUG (20)、INFO (30)、WARN (40)、ERROR (50)
   - 控制台：WARN 和 ERROR 输出到 stderr，其他输出到 stdout
@@ -751,41 +748,41 @@ Trader 日志显示：
 
 **核心模块**：
 
-- 主入口：`D:\Code\longBrige-automation-program\src\index.js`
-- 交易策略：`D:\Code\longBrige-automation-program\src\core\strategy.js`
-- 订单执行：`D:\Code\longBrige-automation-program\src\core\trader.js`
-- 风险控制：`D:\Code\longBrige-automation-program\src\core\risk.js`
-- 订单记录：`D:\Code\longBrige-automation-program\src\core\orderRecorder.js`
-- 技术指标：`D:\Code\longBrige-automation-program\src\services\indicators.js`
-- 行情客户端：`D:\Code\longBrige-automation-program\src\services\quoteClient.js`
+- [主入口](./src/index.js)
+- [交易策略](./src/core/strategy.js)
+- [订单执行](./src/core/trader.js)
+- [风险控制](./src/core/risk.js)
+- [订单记录](./src/core/orderRecorder.js)
+- [技术指标](./src/services/indicators.js)
+- [行情客户端](./src/services/quoteClient.js)
 
 **辅助模块**：
 
-- 对象池：`D:\Code\longBrige-automation-program\src\utils\objectPool.js`
-- 日志系统：`D:\Code\longBrige-automation-program\src\utils\logger.js`
-- 信号配置解析：`D:\Code\longBrige-automation-program\src\utils\signalConfigParser.js`
-- 工具函数：`D:\Code\longBrige-automation-program\src\utils\helpers.js`
-- 信号类型：`D:\Code\longBrige-automation-program\src\utils\constants.js`
-- 交易时段：`D:\Code\longBrige-automation-program\src\utils\tradingTime.js`
-- 账户显示：`D:\Code\longBrige-automation-program\src\utils\accountDisplay.js`
+- [对象池](./src/utils/objectPool.js)
+- [日志系统](./src/utils/logger.js)
+- [信号配置解析](./src/utils/signalConfigParser.js)
+- [工具函数](./src/utils/helpers.js)
+- [信号类型](./src/utils/constants.js)
+- [交易时段](./src/utils/tradingTime.js)
+- [账户显示](./src/utils/accountDisplay.js)
 
 **配置文件**：
 
-- API 配置：`D:\Code\longBrige-automation-program\src\config\config.js`
-- 交易配置：`D:\Code\longBrige-automation-program\src\config\config.trading.js`
-- 配置验证：`D:\Code\longBrige-automation-program\src\config\config.validator.js`
-- 环境变量：`D:\Code\longBrige-automation-program\.env`（需手动创建）
-- 配置示例：`D:\Code\longBrige-automation-program\.env.example`
+- [API 配置](./src/config/config.js)
+- [交易配置](./src/config/config.trading.js)
+- [配置验证](./src/config/config.validator.js)
+- 环境变量：[`.env`](./.env)（需手动创建）
+- 配置示例：[`.env.example`](./.env.example)
 
 **分析工具**：
 
-- 牛熊证搜索：`D:\Code\longBrige-automation-program\src\tools\findWarrant.js`
-- 指标分析：`D:\Code\longBrige-automation-program\src\tools\indicatorAnalysis.js`
+- [牛熊证搜索](./src/tools/findWarrant.js)
+- [指标分析](./src/tools/indicatorAnalysis.js)
 
 **日志文件**：
 
-- 交易记录：`D:\Code\longBrige-automation-program\logs\trades\YYYY-MM-DD.json`
+- 交易记录：`logs/trades/YYYY-MM-DD.json`
 
 **启动脚本**：
 
-- Windows 启动：`D:\Code\longBrige-automation-program\start.bat`
+- Windows 启动：[`start.bat`](./start.bat)
