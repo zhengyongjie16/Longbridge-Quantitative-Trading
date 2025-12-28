@@ -8,7 +8,8 @@
       "Skill(typescript-review)",
       "Bash(gh pr list)",
       "Skill(business-logic)",
-      "Bash(git show:*)"
+      "Bash(git show:*)",
+      "Bash(git checkout:*)"
     ]
   }
 }

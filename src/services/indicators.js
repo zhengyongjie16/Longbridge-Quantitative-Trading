@@ -31,14 +31,14 @@ const toNumber = (value) =>
  *   - 本策略使用：RSI6 > 80 作为卖出信号
  *                 RSI6 < 20 作为买入信号
  *
- * @param {Array<number>} closes 收盘价数组，按时间顺序排列
+ * @param {Array<number>} validCloses 收盘价数组，按时间顺序排列
  * @param {number} period RSI周期，例如：6（RSI6）
  * @returns {number|null} RSI值（0-100），如果无法计算则返回null
  */
-export function calculateRSI(closes, period) {
+export function calculateRSI(validCloses, period) {
   if (
-    !closes ||
-    closes.length <= period ||
+    !validCloses ||
+    validCloses.length <= period ||
     !Number.isFinite(period) ||
     period <= 0
   ) {
@@ -47,7 +47,7 @@ export function calculateRSI(closes, period) {
 
   try {
     // 过滤无效数据
-    const validCloses = closes
+    const validCloses = validCloses
       .map((c) => toNumber(c))
       .filter((v) => Number.isFinite(v) && v > 0);
 
@@ -304,25 +304,25 @@ export function calculateKDJ(candles, period = 9) {
  *   - 当前代码中 macd = (dif - dea) * 2，所以需要将 histogram 乘以 2
  *   - 使用 EMA 计算（SimpleMAOscillator: false, SimpleMASignal: false）
  *
- * @param {Array<number>} closes 收盘价数组
+ * @param {Array<number>} validCloses 收盘价数组
  * @param {number} fastPeriod 快线周期，默认12
  * @param {number} slowPeriod 慢线周期，默认26
  * @param {number} signalPeriod 信号线周期，默认9
  * @returns {Object|null} MACD对象 {dif, dea, macd}，如果无法计算则返回null
  */
 export function calculateMACD(
-  closes,
+  validCloses,
   fastPeriod = 12,
   slowPeriod = 26,
   signalPeriod = 9
 ) {
-  if (!closes || closes.length < slowPeriod + signalPeriod) {
+  if (!validCloses || validCloses.length < slowPeriod + signalPeriod) {
     return null;
   }
 
   try {
     // 过滤无效数据
-    const validCloses = closes
+    const validCloses = validCloses
       .map((c) => toNumber(c))
       .filter((v) => Number.isFinite(v) && v > 0);
 
@@ -425,7 +425,7 @@ export function calculateMFI(candles, period = 14) {
     // 提取所需数据数组
     const highs = candles.map((c) => toNumber(c.high));
     const lows = candles.map((c) => toNumber(c.low));
-    const closes = candles.map((c) => toNumber(c.close));
+    const validCloses = candles.map((c) => toNumber(c.close));
     const volumes = candles.map((c) => toNumber(c.volume || 0));
 
     // 验证数据有效性
@@ -433,7 +433,7 @@ export function calculateMFI(candles, period = 14) {
     if (
       highs.length < minRequired ||
       lows.length < minRequired ||
-      closes.length < minRequired ||
+      validCloses.length < minRequired ||
       volumes.length < minRequired
     ) {
       return null;
@@ -444,7 +444,7 @@ export function calculateMFI(candles, period = 14) {
     for (let i = 0; i < highs.length; i++) {
       const high = highs[i];
       const low = lows[i];
-      const close = closes[i];
+      const close = validCloses[i];
       const volume = volumes[i];
 
       if (
@@ -473,14 +473,14 @@ export function calculateMFI(candles, period = 14) {
     // 提取有效数据数组
     const validHighs = validData.map((d) => d.high);
     const validLows = validData.map((d) => d.low);
-    const validCloses = validData.map((d) => d.close);
+    const mfiCloses = validData.map((d) => d.close);
     const validVolumes = validData.map((d) => d.volume);
 
     // 使用 technicalindicators 库计算 MFI
     const mfiResult = MFI.calculate({
       high: validHighs,
       low: validLows,
-      close: validCloses,
+      close: mfiCloses,
       volume: validVolumes,
       period,
     });
@@ -532,14 +532,14 @@ export function calculateMFI(candles, period = 14) {
  *   - 周期越小，对价格变化越敏感
  *   - 周期越大，曲线越平滑
  *
- * @param {Array<number>} closes 收盘价数组，按时间顺序排列
+ * @param {Array<number>} validCloses 收盘价数组，按时间顺序排列
  * @param {number} period EMA周期，范围 1-250
  * @returns {number|null} EMA值，如果无法计算则返回null
  */
-export function calculateEMA(closes, period) {
+export function calculateEMA(validCloses, period) {
   if (
-    !closes ||
-    closes.length < period ||
+    !validCloses ||
+    validCloses.length < period ||
     !Number.isFinite(period) ||
     period <= 0 ||
     period > 250
@@ -549,7 +549,7 @@ export function calculateEMA(closes, period) {
 
   try {
     // 过滤无效数据
-    const validCloses = closes
+    const validCloses = validCloses
       .map((c) => toNumber(c))
       .filter((v) => Number.isFinite(v) && v > 0);
 
@@ -632,19 +632,22 @@ export function buildIndicatorSnapshot(
     return null;
   }
 
-  // 提取收盘价数组（用于RSI和MACD计算）
-  const closes = candles.map((c) => toNumber(c.close));
+  // 提取收盘价数组（用于RSI和MACD计算），一次遍历完成转换和过滤
+  const validCloses = [];
+  for (let i = 0; i < candles.length; i++) {
+    const close = toNumber(candles[i].close);
+    if (Number.isFinite(close) && close > 0) {
+      validCloses.push(close);
+    }
+  }
 
-  // 确保closes数组有效且至少有一个有效值
-  const validCloses = closes.filter((c) => Number.isFinite(c) && c > 0);
+  // 确保有效数组至少有一个值
   if (validCloses.length === 0) {
     return null;
   }
 
-  // 获取最新收盘价
-  const lastPrice = closes.at(-1);
-  const validPrice =
-    Number.isFinite(lastPrice) && lastPrice > 0 ? lastPrice : null;
+  // 获取最新有效收盘价
+  const lastPrice = validCloses[validCloses.length - 1];
 
   // 计算所有需要的 RSI 周期
   const rsi = {};
@@ -657,7 +660,7 @@ export function buildIndicatorSnapshot(
         period <= 100 &&
         Number.isInteger(period)
       ) {
-        const rsiValue = calculateRSI(closes, period);
+        const rsiValue = calculateRSI(validCloses, period);
         if (rsiValue !== null) {
           rsi[period] = rsiValue;
         }
@@ -676,7 +679,7 @@ export function buildIndicatorSnapshot(
         period <= 250 &&
         Number.isInteger(period)
       ) {
-        const emaValue = calculateEMA(closes, period);
+        const emaValue = calculateEMA(validCloses, period);
         if (emaValue !== null) {
           ema[period] = emaValue;
         }
@@ -687,10 +690,10 @@ export function buildIndicatorSnapshot(
   // 统一计算所有指标并返回
   return {
     symbol,
-    price: validPrice, // 最新收盘价
+    price: lastPrice, // 最新收盘价
     rsi, // RSI指标对象 {6: value, 12: value, ...}
     kdj: calculateKDJ(candles, 9), // KDJ指标
-    macd: calculateMACD(closes), // MACD指标
+    macd: calculateMACD(validCloses), // MACD指标
     mfi: calculateMFI(candles, 14), // MFI指标（资金流量指标，周期14）
     ema, // EMA指标对象 {5: value, 10: value, ...}
   };

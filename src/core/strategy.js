@@ -1,7 +1,7 @@
 import { SignalType } from "../utils/constants.js";
 import { evaluateSignalConfig } from "../utils/signalConfigParser.js";
-import { isValidNumber } from "../utils/helpers.js";
 import { signalObjectPool } from "../utils/objectPool.js";
+import { getIndicatorValue, isValidNumber } from "../utils/indicatorHelpers.js";
 
 /**
  * 恒生指数多指标策略：
@@ -47,16 +47,6 @@ export class HangSengMultiIndicatorStrategy {
   }
 
   /**
-   * 检查值是否为有效的有限数字
-   * @private
-   * @param {*} value 待检查的值
-   * @returns {boolean} 如果值为有效的有限数字返回 true，否则返回 false
-   */
-  _isValidNumber(value) {
-    return isValidNumber(value);
-  }
-
-  /**
    * 验证指标状态的基本指标（RSI6, MFI, KDJ）
    * @private
    * @param {Object} state 指标状态对象
@@ -65,11 +55,11 @@ export class HangSengMultiIndicatorStrategy {
   _validateBasicIndicators(state) {
     const { rsi6, mfi, kdj } = state;
     return (
-      this._isValidNumber(rsi6) &&
-      this._isValidNumber(mfi) &&
+      isValidNumber(rsi6) &&
+      isValidNumber(mfi) &&
       kdj &&
-      this._isValidNumber(kdj.d) &&
-      this._isValidNumber(kdj.j)
+      isValidNumber(kdj.d) &&
+      isValidNumber(kdj.j)
     );
   }
 
@@ -84,8 +74,8 @@ export class HangSengMultiIndicatorStrategy {
     return (
       this._validateBasicIndicators(state) &&
       macd &&
-      this._isValidNumber(macd.macd) &&
-      this._isValidNumber(price)
+      isValidNumber(macd.macd) &&
+      isValidNumber(price)
     );
   }
 
@@ -140,48 +130,6 @@ export class HangSengMultiIndicatorStrategy {
   }
 
   /**
-   * 从指标状态中提取指定指标的值
-   * @private
-   * @param {Object} state 指标状态对象 {kdj, macd, ema}
-   * @param {string} indicatorName 指标名称 (K, D, J, MACD, DIF, DEA, EMA:n)
-   * @returns {number|null} 指标值，如果无效则返回 null
-   */
-  _getIndicatorValue(state, indicatorName) {
-    const { kdj, macd, ema } = state;
-
-    // 处理 EMA:n 格式（例如 EMA:5, EMA:10）
-    if (indicatorName.startsWith("EMA:")) {
-      const periodStr = indicatorName.substring(4); // 提取周期部分
-      const period = parseInt(periodStr, 10);
-
-      // 验证周期是否有效
-      if (!Number.isFinite(period) || period < 1 || period > 250) {
-        return null;
-      }
-
-      // 从 ema 对象中提取对应周期的值
-      return ema && this._isValidNumber(ema[period]) ? ema[period] : null;
-    }
-
-    switch (indicatorName) {
-      case "K":
-        return kdj && this._isValidNumber(kdj.k) ? kdj.k : null;
-      case "D":
-        return kdj && this._isValidNumber(kdj.d) ? kdj.d : null;
-      case "J":
-        return kdj && this._isValidNumber(kdj.j) ? kdj.j : null;
-      case "MACD":
-        return macd && this._isValidNumber(macd.macd) ? macd.macd : null;
-      case "DIF":
-        return macd && this._isValidNumber(macd.dif) ? macd.dif : null;
-      case "DEA":
-        return macd && this._isValidNumber(macd.dea) ? macd.dea : null;
-      default:
-        return null;
-    }
-  }
-
-  /**
    * 构建指标状态的显示字符串（用于日志）
    * @private
    * @param {Object} state 指标状态对象
@@ -191,24 +139,24 @@ export class HangSengMultiIndicatorStrategy {
     const { rsi6, rsi12, mfi, kdj } = state;
     const parts = [];
 
-    if (this._isValidNumber(rsi6)) {
+    if (isValidNumber(rsi6)) {
       parts.push(`RSI6(${rsi6.toFixed(1)})`);
     }
-    if (this._isValidNumber(rsi12)) {
+    if (isValidNumber(rsi12)) {
       parts.push(`RSI12(${rsi12.toFixed(1)})`);
     }
-    if (this._isValidNumber(mfi)) {
+    if (isValidNumber(mfi)) {
       parts.push(`MFI(${mfi.toFixed(1)})`);
     }
     if (kdj) {
       const kdjParts = [];
-      if (this._isValidNumber(kdj.k)) {
+      if (isValidNumber(kdj.k)) {
         kdjParts.push(`K=${kdj.k.toFixed(2)}`);
       }
-      if (this._isValidNumber(kdj.d)) {
+      if (isValidNumber(kdj.d)) {
         kdjParts.push(`D=${kdj.d.toFixed(1)}`);
       }
-      if (this._isValidNumber(kdj.j)) {
+      if (isValidNumber(kdj.j)) {
         kdjParts.push(`J=${kdj.j.toFixed(2)}`);
       }
       if (kdjParts.length > 0) {
@@ -258,7 +206,7 @@ export class HangSengMultiIndicatorStrategy {
     // 记录当前配置的所有指标的初始值（indicators1）
     const indicators1 = {};
     for (const indicatorName of this.verificationConfig.indicators) {
-      const value = this._getIndicatorValue(state, indicatorName);
+      const value = getIndicatorValue(state, indicatorName);
       if (value === null) {
         // 如果任何配置的指标值无效，则无法生成延迟验证信号
         return null;

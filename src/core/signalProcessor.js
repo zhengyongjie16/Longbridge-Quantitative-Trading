@@ -160,125 +160,71 @@ export class SignalProcessor {
     orderRecorder
   ) {
     for (const sig of signals) {
+      // 根据信号类型确定对应的持仓和行情
+      const isLongSignal = sig.action === SignalType.SELLCALL;
+      const position = isLongSignal ? longPosition : shortPosition;
+      const quote = isLongSignal ? longQuote : shortQuote;
+      const direction = isLongSignal ? "LONG" : "SHORT";
+      const signalName = isLongSignal ? "SELLCALL" : "SELLPUT";
+
       // 检查是否是末日保护程序的清仓信号（无条件清仓，不受成本价判断影响）
       const isDoomsdaySignal =
         sig.reason && sig.reason.includes("末日保护程序");
 
-      if (sig.action === SignalType.SELLCALL) {
-        // 卖出做多标的：判断成本价并计算卖出数量
-        // 添加调试日志
-        if (!longPosition) {
-          logger.warn(
-            `[卖出信号处理] SELLCALL: 做多标的持仓对象为null，无法计算卖出数量`
-          );
-        }
-        if (!longQuote) {
-          logger.warn(
-            `[卖出信号处理] SELLCALL: 做多标的行情数据为null，无法计算卖出数量`
-          );
-        }
-        if (longPosition && longQuote) {
-          logger.info(
-            `[卖出信号处理] SELLCALL: 持仓成本价=${longPosition.costPrice.toFixed(
-              3
-            )}, 当前价格=${longQuote.price.toFixed(3)}, 可用数量=${
-              longPosition.availableQuantity
-            }`
-          );
-        }
+      // 添加调试日志
+      if (!position) {
+        logger.warn(
+          `[卖出信号处理] ${signalName}: ${direction === "LONG" ? "做多" : "做空"}标的持仓对象为null，无法计算卖出数量`
+        );
+      }
+      if (!quote) {
+        logger.warn(
+          `[卖出信号处理] ${signalName}: ${direction === "LONG" ? "做多" : "做空"}标的行情数据为null，无法计算卖出数量`
+        );
+      }
+      if (position && quote) {
+        logger.info(
+          `[卖出信号处理] ${signalName}: 持仓成本价=${position.costPrice.toFixed(
+            3
+          )}, 当前价格=${quote.price.toFixed(3)}, 可用数量=${
+            position.availableQuantity
+          }`
+        );
+      }
 
-        if (isDoomsdaySignal) {
-          // 末日保护程序：无条件清仓，使用全部可用数量
-          if (longPosition && longPosition.availableQuantity > 0) {
-            sig.quantity = longPosition.availableQuantity;
-            logger.info(
-              `[卖出信号处理] SELLCALL(末日保护): 无条件清仓，卖出数量=${sig.quantity}`
-            );
-          } else {
-            logger.warn(
-              `[卖出信号处理] SELLCALL(末日保护): 持仓对象无效，无法清仓`
-            );
-            sig.action = SignalType.HOLD;
-            sig.reason = `${sig.reason}，但持仓对象无效`;
-          }
-        } else {
-          // 正常卖出信号：进行成本价判断
-          const result = calculateSellQuantity(
-            longPosition,
-            longQuote,
-            orderRecorder,
-            "LONG",
-            sig.reason
-          );
-          if (result.shouldHold) {
-            logger.info(`[卖出信号处理] SELLCALL被跳过: ${result.reason}`);
-            sig.action = SignalType.HOLD;
-            sig.reason = result.reason;
-          } else {
-            logger.info(
-              `[卖出信号处理] SELLCALL通过: 卖出数量=${result.quantity}, 原因=${result.reason}`
-            );
-            sig.quantity = result.quantity;
-            sig.reason = result.reason;
-          }
-        }
-      } else if (sig.action === SignalType.SELLPUT) {
-        // 卖出做空标的：判断成本价并计算卖出数量
-        // 添加调试日志
-        if (!shortPosition) {
-          logger.warn(
-            `[卖出信号处理] SELLPUT: 做空标的持仓对象为null，无法计算卖出数量`
-          );
-        }
-        if (!shortQuote) {
-          logger.warn(
-            `[卖出信号处理] SELLPUT: 做空标的行情数据为null，无法计算卖出数量`
-          );
-        }
-        if (shortPosition && shortQuote) {
+      if (isDoomsdaySignal) {
+        // 末日保护程序：无条件清仓，使用全部可用数量
+        if (position && position.availableQuantity > 0) {
+          sig.quantity = position.availableQuantity;
           logger.info(
-            `[卖出信号处理] SELLPUT: 持仓成本价=${shortPosition.costPrice.toFixed(
-              3
-            )}, 当前价格=${shortQuote.price.toFixed(3)}, 可用数量=${
-              shortPosition.availableQuantity
-            }`
+            `[卖出信号处理] ${signalName}(末日保护): 无条件清仓，卖出数量=${sig.quantity}`
           );
-        }
-
-        if (isDoomsdaySignal) {
-          // 末日保护程序：无条件清仓，使用全部可用数量
-          if (shortPosition && shortPosition.availableQuantity > 0) {
-            sig.quantity = shortPosition.availableQuantity;
-            logger.info(
-              `[卖出信号处理] SELLPUT(末日保护): 无条件清仓，卖出数量=${sig.quantity}`
-            );
-          } else {
-            logger.warn(
-              `[卖出信号处理] SELLPUT(末日保护): 持仓对象无效，无法清仓`
-            );
-            sig.action = SignalType.HOLD;
-            sig.reason = `${sig.reason}，但持仓对象无效`;
-          }
         } else {
-          // 正常卖出信号：进行成本价判断
-          const result = calculateSellQuantity(
-            shortPosition,
-            shortQuote,
-            orderRecorder,
-            "SHORT",
-            sig.reason
+          logger.warn(
+            `[卖出信号处理] ${signalName}(末日保护): 持仓对象无效，无法清仓`
           );
-          if (result.shouldHold) {
-            logger.info(`[卖出信号处理] SELLPUT被跳过: ${result.reason}`);
-            sig.action = SignalType.HOLD;
-            sig.reason = result.reason;
-          } else {
-            logger.info(
-              `[卖出信号处理] SELLPUT通过: 卖出数量=${result.quantity}, 原因=${result.reason}`
-            );
-            sig.quantity = result.quantity;
-            sig.reason = result.reason;
-          }
+          sig.action = SignalType.HOLD;
+          sig.reason = `${sig.reason}，但持仓对象无效`;
+        }
+      } else {
+        // 正常卖出信号：进行成本价判断
+        const result = calculateSellQuantity(
+          position,
+          quote,
+          orderRecorder,
+          direction,
+          sig.reason
+        );
+        if (result.shouldHold) {
+          logger.info(`[卖出信号处理] ${signalName}被跳过: ${result.reason}`);
+          sig.action = SignalType.HOLD;
+          sig.reason = result.reason;
+        } else {
+          logger.info(
+            `[卖出信号处理] ${signalName}通过: 卖出数量=${result.quantity}, 原因=${result.reason}`
+          );
+          sig.quantity = result.quantity;
+          sig.reason = result.reason;
         }
       }
     }
