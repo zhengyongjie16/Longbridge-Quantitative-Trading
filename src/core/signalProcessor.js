@@ -451,8 +451,8 @@ export class SignalProcessor {
             logger.warn(
               "[风险检查] 买入操作前无法获取最新账户信息，风险检查将拒绝该操作"
             );
-            // 买入操作无法获取账户信息，直接返回，不添加此信号
-            return finalSignals;
+            // 买入操作无法获取账户信息，跳过此信号，继续处理下一个信号
+            continue;
           }
 
           if (Array.isArray(freshPositions)) {

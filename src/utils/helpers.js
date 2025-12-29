@@ -52,13 +52,18 @@ export function normalizeHKSymbol(symbol) {
 /**
  * 将 Decimal 类型转换为数字
  * @param {*} decimalLike Decimal 对象或数字
- * @returns {number} 转换后的数字
+ * @returns {number} 转换后的数字，如果输入为 null/undefined 返回 NaN（便于后续 Number.isFinite() 检查）
  */
 export function decimalToNumber(decimalLike) {
-  if (decimalLike && typeof decimalLike.toNumber === "function") {
+  // 如果输入为 null 或 undefined，返回 NaN 而非 0
+  // 这样 Number.isFinite() 检查会返回 false，避免错误地使用 0 作为有效值
+  if (decimalLike === null || decimalLike === undefined) {
+    return NaN;
+  }
+  if (typeof decimalLike.toNumber === "function") {
     return decimalLike.toNumber();
   }
-  return Number(decimalLike ?? 0);
+  return Number(decimalLike);
 }
 
 /**

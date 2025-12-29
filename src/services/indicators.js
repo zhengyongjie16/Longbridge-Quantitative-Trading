@@ -569,19 +569,19 @@ export function calculateEMA(validCloses, period) {
   }
 
   try {
-    // 过滤无效数据
-    const validCloses = validCloses
+    // 过滤无效数据（使用不同的变量名避免遮蔽参数）
+    const filteredCloses = validCloses
       .map((c) => toNumber(c))
       .filter((v) => Number.isFinite(v) && v > 0);
 
-    if (validCloses.length < period) {
+    if (filteredCloses.length < period) {
       return null;
     }
 
     // 使用 technicalindicators 库计算 EMA
     // EMA.calculate 使用标准的指数移动平均公式
     // 平滑系数 = 2 / (period + 1)
-    const emaResult = EMA.calculate({ values: validCloses, period });
+    const emaResult = EMA.calculate({ values: filteredCloses, period });
 
     if (!emaResult || emaResult.length === 0) {
       return null;

@@ -57,10 +57,24 @@ function getNumberConfig(envKey, minValue = 0) {
 /**
  * 从环境变量读取布尔配置
  * @param {string} envKey 环境变量键名
- * @returns {boolean} 配置值，默认为 false
+ * @param {boolean} defaultValue 默认值（当环境变量未设置时使用）
+ * @returns {boolean} 配置值
  */
-function getBooleanConfig(envKey) {
-  return process.env[envKey] === "true";
+function getBooleanConfig(envKey, defaultValue = false) {
+  const value = process.env[envKey];
+  // 如果环境变量未设置或为空，返回默认值
+  if (value === undefined || value === null || value.trim() === "") {
+    return defaultValue;
+  }
+  // 显式检查 "true" 和 "false"
+  if (value.toLowerCase() === "true") {
+    return true;
+  }
+  if (value.toLowerCase() === "false") {
+    return false;
+  }
+  // 其他值返回默认值
+  return defaultValue;
 }
 
 /**
@@ -142,8 +156,8 @@ export const TRADING_CONFIG = {
   // 末日保护程序：收盘前15分钟拒绝买入，收盘前5分钟清空所有持仓
   // 港股当日收盘时间：下午 16:00
   // 收盘前5分钟：15:55-16:00（仅判断当日收盘，不包括上午收盘）
-  // 默认值在 .env 文件中设置为 true
-  doomsdayProtection: getBooleanConfig("DOOMSDAY_PROTECTION"),
+  // 默认值为 true（如果未设置环境变量，自动启用末日保护）
+  doomsdayProtection: getBooleanConfig("DOOMSDAY_PROTECTION", true),
 
   // 同方向买入时间间隔（秒），范围 10-600，默认 60 秒
   // 用于限制同一方向（做多或做空）的买入频率，避免短时间内重复买入

@@ -293,10 +293,14 @@ export class MarketMonitor {
         ? { ...monitorSnapshot.rsi }
         : null;
       newMonitorValues.mfi = monitorSnapshot.mfi;
-      // 直接引用 monitorSnapshot 中的 kdj 和 macd 对象（它们来自对象池）
-      // 注意：这里不创建新对象，直接引用，因为 monitorSnapshot 会在下次计算时被替换
-      newMonitorValues.kdj = monitorSnapshot.kdj || null;
-      newMonitorValues.macd = monitorSnapshot.macd || null;
+      // 创建 kdj 和 macd 对象的浅拷贝，避免直接引用对象池中的对象
+      // 这样可以防止对象池回收时数据被意外修改
+      newMonitorValues.kdj = monitorSnapshot.kdj
+        ? { k: monitorSnapshot.kdj.k, d: monitorSnapshot.kdj.d, j: monitorSnapshot.kdj.j }
+        : null;
+      newMonitorValues.macd = monitorSnapshot.macd
+        ? { dif: monitorSnapshot.macd.dif, dea: monitorSnapshot.macd.dea, macd: monitorSnapshot.macd.macd }
+        : null;
 
       lastState.monitorValues = newMonitorValues;
 

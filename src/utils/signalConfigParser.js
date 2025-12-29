@@ -5,12 +5,13 @@
  * - 解析信号配置字符串
  * - 评估条件是否满足
  * - 提取配置中的 RSI 周期
+ * - 提取配置中的 EMA 周期
  *
  * 配置格式：(RSI:6<20,MFI<15,D<20,J<-1)/3|(J<-20)
  * - 括号内是条件列表，逗号分隔
  * - /N：括号内条件需满足 N 项，不设则全部满足
  * - |：分隔不同条件组（最多3个），满足任一组即可
- * - 支持指标：RSI:n (n为1-100), MFI, D (KDJ.D), J (KDJ.J)
+ * - 支持指标：RSI:n (n为1-100), EMA:n (n为1-250), MFI, K, D, J, MACD, DIF, DEA
  * - 支持运算符：< 和 >
  *
  * 核心函数：
@@ -19,14 +20,15 @@
  * - evaluateCondition()：评估单个条件
  * - evaluateSignalConfig()：评估完整配置
  * - extractRSIPeriods()：提取 RSI 周期列表
+ * - extractEMAPeriods()：提取 EMA 周期列表
  */
 
-// 支持的固定指标列表（不包括 RSI，因为 RSI 支持动态周期）
-const SUPPORTED_INDICATORS = ["MFI", "D", "J"];
+// 支持的固定指标列表（不包括 RSI 和 EMA，因为它们支持动态周期）
+const SUPPORTED_INDICATORS = ["MFI", "K", "D", "J", "MACD", "DIF", "DEA"];
 
 /**
  * 解析单个条件
- * @param {string} conditionStr 条件字符串，如 "RSI:6<20" 或 "J<-1"
+ * @param {string} conditionStr 条件字符串，如 "RSI:6<20" 或 "J<-1" 或 "EMA:5<20000"
  * @returns {{indicator: string, period?: number, operator: string, threshold: number}|null} 解析结果
  */
 function parseCondition(conditionStr) {
@@ -36,7 +38,8 @@ function parseCondition(conditionStr) {
 
   // 匹配指标、运算符和阈值（支持负数）
   // 格式1：RSI:n<threshold (RSI 带周期)
-  // 格式2：INDICATOR<threshold (其他固定指标)
+  // 格式2：EMA:n<threshold (EMA 带周期)
+  // 格式3：INDICATOR<threshold (其他固定指标)
   const rsiMatch = trimmed.match(/^RSI:(\d+)\s*([<>])\s*(-?\d+(?:\.\d+)?)$/);
 
   if (rsiMatch) {
@@ -57,6 +60,33 @@ function parseCondition(conditionStr) {
 
     return {
       indicator: "RSI",
+      period,
+      operator,
+      threshold,
+    };
+  }
+
+  // 尝试匹配 EMA:n 格式
+  const emaMatch = trimmed.match(/^EMA:(\d+)\s*([<>])\s*(-?\d+(?:\.\d+)?)$/);
+
+  if (emaMatch) {
+    // EMA:n 格式
+    const [, periodStr, operator, thresholdStr] = emaMatch;
+    const period = parseInt(periodStr, 10);
+    const threshold = parseFloat(thresholdStr);
+
+    // 验证周期范围（1-250）
+    if (!Number.isFinite(period) || period < 1 || period > 250) {
+      return null;
+    }
+
+    // 验证阈值是否为有效数字
+    if (!Number.isFinite(threshold)) {
+      return null;
+    }
+
+    return {
+      indicator: "EMA",
       period,
       operator,
       threshold,
@@ -280,7 +310,7 @@ export function validateSignalConfig(configStr) {
           valid: false,
           error: `条件组 ${i + 1} 的第 ${
             j + 1
-          } 个条件 "${condStr}" 格式无效。支持的指标: RSI:n (n为1-100), ${SUPPORTED_INDICATORS.join(
+          } 个条件 "${condStr}" 格式无效。支持的指标: RSI:n (n为1-100), EMA:n (n为1-250), ${SUPPORTED_INDICATORS.join(
             ", "
           )}`,
           config: null,
@@ -328,7 +358,7 @@ export function validateSignalConfig(configStr) {
 
 /**
  * 根据指标状态评估条件
- * @param {Object} state 指标状态 {rsi: {6: value, 12: value, ...}, mfi, kdj: {d, j}}
+ * @param {Object} state 指标状态 {rsi: {6: value, 12: value, ...}, mfi, kdj: {k, d, j}, macd: {macd, dif, dea}}
  * @param {Object} condition 条件 {indicator, period?, operator, threshold}
  * @returns {boolean} 条件是否满足
  */
@@ -348,11 +378,30 @@ export function evaluateCondition(state, condition) {
     case "MFI":
       value = state.mfi;
       break;
+    case "K":
+      value = state.kdj?.k;
+      break;
     case "D":
       value = state.kdj?.d;
       break;
     case "J":
       value = state.kdj?.j;
+      break;
+    case "MACD":
+      value = state.macd?.macd;
+      break;
+    case "DIF":
+      value = state.macd?.dif;
+      break;
+    case "DEA":
+      value = state.macd?.dea;
+      break;
+    case "EMA":
+      // EMA:n 格式，从 state.ema[period] 获取值
+      if (!period || !state.ema || !state.ema[period]) {
+        return false;
+      }
+      value = state.ema[period];
       break;
     default:
       return false;
@@ -464,6 +513,10 @@ export function formatSignalConfig(signalConfig) {
         if (c.indicator === "RSI" && c.period) {
           return `RSI:${c.period}${c.operator}${c.threshold}`;
         }
+        // 如果是 EMA 指标，格式化为 EMA:n
+        if (c.indicator === "EMA" && c.period) {
+          return `EMA:${c.period}${c.operator}${c.threshold}`;
+        }
         return `${c.indicator}${c.operator}${c.threshold}`;
       })
       .join(",");
@@ -517,6 +570,51 @@ export function extractRSIPeriods(signalConfig) {
       for (const condition of group.conditions) {
         // 如果是 RSI 指标且有周期，添加到集合中
         if (condition.indicator === "RSI" && condition.period) {
+          periods.add(condition.period);
+        }
+      }
+    }
+  }
+
+  // 转为数组并排序
+  return Array.from(periods).sort((a, b) => a - b);
+}
+
+/**
+ * 从信号配置中提取所有 EMA 周期
+ * @param {Object} signalConfig 信号配置对象 {buycall, sellcall, buyput, sellput}
+ * @returns {Array<number>} EMA 周期数组（去重后排序）
+ */
+export function extractEMAPeriods(signalConfig) {
+  if (!signalConfig) {
+    return [];
+  }
+
+  const periods = new Set();
+
+  // 遍历所有信号类型的配置
+  const configs = [
+    signalConfig.buycall,
+    signalConfig.sellcall,
+    signalConfig.buyput,
+    signalConfig.sellput,
+  ];
+
+  for (const config of configs) {
+    if (!config || !config.conditionGroups) {
+      continue;
+    }
+
+    // 遍历所有条件组
+    for (const group of config.conditionGroups) {
+      if (!group.conditions) {
+        continue;
+      }
+
+      // 遍历所有条件
+      for (const condition of group.conditions) {
+        // 如果是 EMA 指标且有周期，添加到集合中
+        if (condition.indicator === "EMA" && condition.period) {
           periods.add(condition.period);
         }
       }
