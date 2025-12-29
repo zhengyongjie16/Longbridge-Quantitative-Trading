@@ -134,7 +134,7 @@ async function runOnce({
     } catch (err) {
       logger.warn(
         "无法获取交易日信息，将根据时间判断是否在交易时段",
-        err?.message ?? err
+        err?.message ?? String(err) ?? "未知错误"
       );
     }
   } else {
@@ -159,11 +159,17 @@ async function runOnce({
   // 并发获取三个标的的行情
   const [longQuote, shortQuote, monitorQuote] = await Promise.all([
     marketDataClient.getLatestQuote(longSymbol).catch((err) => {
-      logger.warn(`[行情获取失败] 做多标的`, err?.message ?? err);
+      logger.warn(
+        `[行情获取失败] 做多标的`,
+        err?.message ?? String(err) ?? "未知错误"
+      );
       return null;
     }),
     marketDataClient.getLatestQuote(shortSymbol).catch((err) => {
-      logger.warn(`[行情获取失败] 做空标的`, err?.message ?? err);
+      logger.warn(
+        `[行情获取失败] 做空标的`,
+        err?.message ?? String(err) ?? "未知错误"
+      );
       return null;
     }),
     marketDataClient.getLatestQuote(monitorSymbol).catch(() => null),
@@ -221,7 +227,7 @@ async function runOnce({
     .catch((err) => {
       logger.error(
         `获取监控标的 ${monitorSymbol} K线数据失败`,
-        err?.message ?? err
+        err?.message ?? String(err) ?? "未知错误"
       );
       return null;
     });
@@ -546,7 +552,7 @@ async function runOnce({
   // 实时监控价格并管理未成交的买入订单
   if (canTradeNow && (longQuote || shortQuote)) {
     await trader.monitorAndManageOrders(longQuote, shortQuote).catch((err) => {
-      logger.warn("订单监控失败", err?.message ?? err);
+      logger.warn("订单监控失败", err?.message ?? String(err) ?? "未知错误");
     });
   }
 
@@ -623,7 +629,7 @@ async function runOnce({
           } catch (err) {
             logger.warn(
               `[浮亏监控] 交易后刷新浮亏数据失败: ${symbol}`,
-              err?.message ?? err
+              err?.message ?? String(err) ?? "未知错误"
             );
           }
         }
@@ -754,7 +760,7 @@ async function main() {
     await orderRecorder.refreshOrders(longSymbol, true, false).catch((err) => {
       logger.warn(
         `[订单记录初始化失败] 做多标的 ${longSymbol}`,
-        err?.message ?? err
+        err?.message ?? String(err) ?? "未知错误"
       );
     });
   }
@@ -764,7 +770,7 @@ async function main() {
       .catch((err) => {
         logger.warn(
           `[订单记录初始化失败] 做空标的 ${shortSymbol}`,
-          err?.message ?? err
+          err?.message ?? String(err) ?? "未知错误"
         );
       });
   }
@@ -777,7 +783,7 @@ async function main() {
         .catch((err) => {
           logger.warn(
             `[浮亏监控初始化失败] 做多标的 ${longSymbol}`,
-            err?.message ?? err
+            err?.message ?? String(err) ?? "未知错误"
           );
         });
     }
@@ -787,7 +793,7 @@ async function main() {
         .catch((err) => {
           logger.warn(
             `[浮亏监控初始化失败] 做空标的 ${shortSymbol}`,
-            err?.message ?? err
+            err?.message ?? String(err) ?? "未知错误"
           );
         });
     }
@@ -804,7 +810,10 @@ async function main() {
       logger.info("[订单监控] 程序启动时发现买入订单，开始监控");
     }
   } catch (err) {
-    logger.warn("[订单监控] 程序启动时检查买入订单失败", err?.message ?? err);
+    logger.warn(
+      "[订单监控] 程序启动时检查买入订单失败",
+      err?.message ?? String(err) ?? "未知错误"
+    );
   }
 
   // 无限循环监控
@@ -834,7 +843,7 @@ async function main() {
         normalizedMonitorSymbol,
       });
     } catch (err) {
-      logger.error("本次执行失败", err);
+      logger.error("本次执行失败", err?.message ?? String(err) ?? "未知错误");
     }
 
     await sleep(intervalMs);
@@ -842,6 +851,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  logger.error("程序异常退出", err);
+  logger.error("程序异常退出", err?.message ?? String(err) ?? "未知错误");
   process.exit(1);
 });

@@ -213,7 +213,7 @@ export class SignalVerificationManager {
       } catch (err) {
         logger.error(
           `[延迟验证错误] 处理待验证信号 ${pendingSignal.symbol} 时发生错误`,
-          err?.message ?? err
+          err?.message ?? String(err) ?? "未知错误"
         );
         // 清空该信号的历史记录并释放对象回池
         if (pendingSignal.verificationHistory) {

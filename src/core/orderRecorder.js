@@ -484,7 +484,7 @@ export class OrderRecorder {
         lastError = err;
         logger.warn(
           `[历史订单API获取失败] 标的 ${normalizedSymbol} 第${attempt}/${maxRetries}次尝试失败: ${
-            err?.message ?? err
+            err?.message ?? String(err) ?? "未知错误"
           }`
         );
 
@@ -773,7 +773,10 @@ export class OrderRecorder {
 
       return finalBuyOrders;
     } catch (error) {
-      logger.error(`[订单记录失败] 标的 ${symbol}`, error.message || error);
+      logger.error(
+        `[订单记录失败] 标的 ${symbol}`,
+        error?.message ?? String(error) ?? "未知错误"
+      );
       return [];
     }
   }

@@ -107,7 +107,7 @@ export class RiskChecker {
       } catch (err) {
         logger.warn(
           `[风险检查] 检查做多标的牛熊证信息时出错：`,
-          err?.message ?? err
+          err?.message ?? String(err) ?? "未知错误"
         );
         this.longWarrantInfo = { isWarrant: false };
       }
@@ -139,7 +139,7 @@ export class RiskChecker {
       } catch (err) {
         logger.warn(
           `[风险检查] 检查做空标的牛熊证信息时出错：`,
-          err?.message ?? err
+          err?.message ?? String(err) ?? "未知错误"
         );
         this.shortWarrantInfo = { isWarrant: false };
       }

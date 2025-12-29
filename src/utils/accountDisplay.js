@@ -38,11 +38,17 @@ export async function displayAccountAndPositions(
     // 并行获取账户信息和持仓信息，减少等待时间
     const [account, positions] = await Promise.all([
       trader.getAccountSnapshot().catch((err) => {
-        logger.warn("获取账户信息失败", err?.message ?? err);
+        logger.warn(
+          "获取账户信息失败",
+          err?.message ?? String(err) ?? "未知错误"
+        );
         return null;
       }),
       trader.getStockPositions().catch((err) => {
-        logger.warn("获取股票仓位失败", err?.message ?? err);
+        logger.warn(
+          "获取股票仓位失败",
+          err?.message ?? String(err) ?? "未知错误"
+        );
         return [];
       }),
     ]);
@@ -72,7 +78,9 @@ export async function displayAccountAndPositions(
         const quotePromises = positionSymbols.map((symbol) =>
           marketDataClient.getLatestQuote(symbol).catch((err) => {
             logger.warn(
-              `[持仓监控] 获取标的 ${symbol} 信息失败: ${err?.message ?? err}`
+              `[持仓监控] 获取标的 ${symbol} 信息失败: ${
+                err?.message ?? String(err) ?? "未知错误"
+              }`
             );
             return null;
           })
@@ -142,6 +150,9 @@ export async function displayAccountAndPositions(
       logger.info("当前无股票持仓。");
     }
   } catch (err) {
-    logger.warn("获取账户和持仓信息失败", err?.message ?? err);
+    logger.warn(
+      "获取账户和持仓信息失败",
+      err?.message ?? String(err) ?? "未知错误"
+    );
   }
 }

@@ -429,11 +429,17 @@ export class SignalProcessor {
           // 并行获取账户信息和持仓信息，减少等待时间
           const [freshAccount, freshPositions] = await Promise.all([
             trader.getAccountSnapshot().catch((err) => {
-              logger.warn("风险检查前获取账户信息失败", err?.message ?? err);
+              logger.warn(
+                "风险检查前获取账户信息失败",
+                err?.message ?? String(err) ?? "未知错误"
+              );
               return null;
             }),
             trader.getStockPositions().catch((err) => {
-              logger.warn("风险检查前获取持仓信息失败", err?.message ?? err);
+              logger.warn(
+                "风险检查前获取持仓信息失败",
+                err?.message ?? String(err) ?? "未知错误"
+              );
               return [];
             }),
           ]);
@@ -459,7 +465,10 @@ export class SignalProcessor {
             lastState.cachedPositions = [];
           }
         } catch (err) {
-          logger.warn("风险检查前获取账户和持仓信息失败", err?.message ?? err);
+          logger.warn(
+            "风险检查前获取账户和持仓信息失败",
+            err?.message ?? String(err) ?? "未知错误"
+          );
         }
       }
 

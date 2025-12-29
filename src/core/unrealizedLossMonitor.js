@@ -98,7 +98,7 @@ export class UnrealizedLossMonitor {
       const direction = isLong ? "做多标的" : "做空标的";
       logger.error(
         `[保护性清仓失败] ${direction} ${symbol}`,
-        err?.message ?? err
+        err?.message ?? String(err) ?? "未知错误"
       );
       return false;
     } finally {

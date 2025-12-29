@@ -29,7 +29,11 @@ import {
   NaiveDate,
 } from "longport";
 import { createConfig } from "../config/config.js";
-import { normalizeHKSymbol, decimalToNumber, isDefined } from "../utils/helpers.js";
+import {
+  normalizeHKSymbol,
+  decimalToNumber,
+  isDefined,
+} from "../utils/helpers.js";
 import { logger } from "../utils/logger.js";
 
 const DEFAULT_RETRY = {
@@ -219,7 +223,7 @@ export class MarketDataClient {
     } catch (err) {
       logger.error(
         `[行情获取] 获取标的 ${normalizedSymbol} (原始: ${symbol}) 行情时发生错误：`,
-        err?.message ?? err
+        err?.message ?? String(err) ?? "未知错误"
       );
       throw err;
     }
@@ -240,9 +244,10 @@ export class MarketDataClient {
     tradeSessions = TradeSessions.All
   ) {
     const ctx = await this._ctxPromise;
+    const normalizedSymbol = normalizeHKSymbol(symbol);
     const periodEnum = this._normalizePeriod(period);
     return ctx.candlesticks(
-      symbol,
+      normalizedSymbol,
       periodEnum,
       count,
       adjustType,
@@ -353,7 +358,9 @@ export class MarketDataClient {
     } catch (err) {
       // 如果 API 调用失败，返回保守结果（假设是交易日，避免漏掉交易机会）
       logger.warn(
-        `[交易日判断] API 调用失败: ${err?.message ?? err}，假设为交易日继续运行`
+        `[交易日判断] API 调用失败: ${
+          err?.message ?? String(err) ?? "未知错误"
+        }，假设为交易日继续运行`
       );
       return {
         isTradingDay: true,

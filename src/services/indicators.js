@@ -20,6 +20,7 @@
  */
 
 import { RSI, MACD, EMA, MFI } from "technicalindicators";
+import { kdjObjectPool, macdObjectPool } from "../utils/objectPool.js";
 
 const toNumber = (value) =>
   typeof value === "number" ? value : Number(value ?? 0);

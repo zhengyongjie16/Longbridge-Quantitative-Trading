@@ -414,7 +414,7 @@ export class Trader {
           } catch (err) {
             logger.warn(
               `[今日订单API] 获取标的 ${symbol} 的今日订单失败`,
-              err?.message ?? err
+              err?.message ?? String(err) ?? "未知错误"
             );
             return []; // 单个标的查询失败时返回空数组，不影响其他标的
           }
@@ -466,7 +466,10 @@ export class Trader {
 
       return result;
     } catch (err) {
-      logger.error("获取未成交订单失败", err?.message ?? err);
+      logger.error(
+        "获取未成交订单失败",
+        err?.message ?? String(err) ?? "未知错误"
+      );
       return [];
     }
   }
@@ -498,7 +501,10 @@ export class Trader {
       logger.info(`[订单撤销成功] 订单ID=${orderId}`);
       return true;
     } catch (err) {
-      logger.error(`[订单撤销失败] 订单ID=${orderId}`, err?.message ?? err);
+      logger.error(
+        `[订单撤销失败] 订单ID=${orderId}`,
+        err?.message ?? String(err) ?? "未知错误"
+      );
       return false;
     }
   }
@@ -638,7 +644,10 @@ export class Trader {
       const pendingOrders = await this.getPendingOrders(symbols);
       return pendingOrders.some((order) => order.side === OrderSide.Buy);
     } catch (err) {
-      logger.warn("检查买入订单失败", err?.message ?? err);
+      logger.warn(
+        "检查买入订单失败",
+        err?.message ?? String(err) ?? "未知错误"
+      );
       return false;
     }
   }
@@ -768,7 +777,7 @@ export class Trader {
           } catch (err) {
             logger.error(
               `[订单监控] 买入订单 ${order.orderId} 价格修改失败: ${
-                err?.message ?? err
+                err?.message ?? String(err) ?? "未知错误"
               }`
             );
           }
