@@ -65,6 +65,9 @@ export class SignalVerificationManager {
           logger.info(
             `[延迟验证信号] 新增待验证${actionDesc}信号：${delayedSignal.symbol} - ${delayedSignal.reason}`
           );
+        } else {
+          // 如果信号已存在，释放新的信号对象，避免内存泄漏
+          signalObjectPool.release(delayedSignal);
         }
       }
     }

@@ -9,7 +9,9 @@
       "Bash(gh pr list)",
       "Skill(business-logic)",
       "Bash(git show:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(npm start)",
+      "Bash(del test-fix.js)"
     ]
   }
 }

@@ -469,7 +469,13 @@ export function evaluateSignalConfig(state, signalConfig) {
     if (result.satisfied) {
       // 生成原因说明
       const conditionDescs = group.conditions
-        .map((c) => `${c.indicator}${c.operator}${c.threshold}`)
+        .map((c) => {
+          // 如果是 RSI 或 EMA 指标，需要包含周期信息
+          if ((c.indicator === "RSI" || c.indicator === "EMA") && c.period) {
+            return `${c.indicator}:${c.period}${c.operator}${c.threshold}`;
+          }
+          return `${c.indicator}${c.operator}${c.threshold}`;
+        })
         .join(",");
 
       const reason =

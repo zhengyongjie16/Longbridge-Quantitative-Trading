@@ -238,6 +238,7 @@ async function runOnce({
 
   // 从验证指标配置中提取 EMA 周期
   const emaPeriods = [];
+
   if (
     TRADING_CONFIG.verificationConfig?.indicators &&
     Array.isArray(TRADING_CONFIG.verificationConfig.indicators)
@@ -259,6 +260,7 @@ async function runOnce({
     }
   }
 
+  // 如果没有配置任何 EMA 周期，使用默认值 7
   if (emaPeriods.length === 0) {
     emaPeriods.push(7);
   }

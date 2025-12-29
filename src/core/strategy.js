@@ -42,15 +42,27 @@ export class HangSengMultiIndicatorStrategy {
   }
 
   /**
-   * 验证指标状态的基本指标（RSI6, MFI, KDJ）
+   * 验证指标状态的基本指标（RSI, MFI, KDJ）
    * @private
    * @param {Object} state 指标状态对象
    * @returns {boolean} 如果所有基本指标有效返回 true，否则返回 false
    */
   _validateBasicIndicators(state) {
-    const { rsi6, mfi, kdj } = state;
+    const { rsi, mfi, kdj } = state;
+
+    // 检查 rsi 对象是否存在且至少有一个有效的周期值
+    let hasValidRsi = false;
+    if (rsi && typeof rsi === 'object') {
+      for (const period in rsi) {
+        if (isValidNumber(rsi[period])) {
+          hasValidRsi = true;
+          break;
+        }
+      }
+    }
+
     return (
-      isValidNumber(rsi6) &&
+      hasValidRsi &&
       isValidNumber(mfi) &&
       kdj &&
       isValidNumber(kdj.d) &&
@@ -131,14 +143,18 @@ export class HangSengMultiIndicatorStrategy {
    * @returns {string} 指标状态显示字符串
    */
   _buildIndicatorDisplayString(state) {
-    const { rsi6, rsi12, mfi, kdj } = state;
+    const { rsi, mfi, kdj } = state;
     const parts = [];
 
-    if (isValidNumber(rsi6)) {
-      parts.push(`RSI6(${rsi6.toFixed(1)})`);
-    }
-    if (isValidNumber(rsi12)) {
-      parts.push(`RSI12(${rsi12.toFixed(1)})`);
+    // 遍历所有 RSI 周期值
+    if (rsi && typeof rsi === 'object') {
+      // 按周期从小到大排序
+      const periods = Object.keys(rsi).map(p => parseInt(p, 10)).filter(p => Number.isFinite(p)).sort((a, b) => a - b);
+      for (const period of periods) {
+        if (isValidNumber(rsi[period])) {
+          parts.push(`RSI${period}(${rsi[period].toFixed(1)})`);
+        }
+      }
     }
     if (isValidNumber(mfi)) {
       parts.push(`MFI(${mfi.toFixed(1)})`);
@@ -293,7 +309,7 @@ export class HangSengMultiIndicatorStrategy {
 
   /**
    * 生成基于持仓成本价的清仓信号和延迟验证的开仓信号
-   * @param {Object} state 监控标的的指标状态 {rsi6, rsi12, mfi, kdj, price, macd}
+   * @param {Object} state 监控标的的指标状态 {rsi: {6: value, 12: value, ...}, mfi, kdj, price, macd, ema: {5: value, 7: value, ...}}
    * @param {Object} longPosition 做多标的的持仓信息 {symbol, costPrice, quantity, availableQuantity}
    * @param {Object} shortPosition 做空标的的持仓信息 {symbol, costPrice, quantity, availableQuantity}
    * @param {string} longSymbol 做多标的的代码

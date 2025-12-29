@@ -655,8 +655,8 @@ export function buildIndicatorSnapshot(
 
   // 提取收盘价数组（用于RSI和MACD计算），一次遍历完成转换和过滤
   const validCloses = [];
-  for (let i = 0; i < candles.length; i++) {
-    const close = toNumber(candles[i].close);
+  for (const element of candles) {
+    const close = toNumber(element.close);
     if (Number.isFinite(close) && close > 0) {
       validCloses.push(close);
     }
