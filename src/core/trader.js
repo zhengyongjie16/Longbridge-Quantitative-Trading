@@ -296,7 +296,7 @@ export class Trader {
     this._pendingOrdersCache = null;
     this._pendingOrdersCacheSymbols = null; // ===== 修复问题2: 记录缓存对应的 symbols =====
     this._pendingOrdersCacheTime = 0;
-    this._pendingOrdersCacheTTL = 2000; // 2秒缓存（订单状态变化相对较慢）
+    this._pendingOrdersCacheTTL = 15000; // 15秒缓存（订单状态变化相对较慢）
 
     // ===== 修复3: 添加 Trade API 频率限制器 =====
     // Longbridge API 限制：30秒内不超过30次调用

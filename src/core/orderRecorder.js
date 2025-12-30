@@ -16,7 +16,8 @@
  * - 当 currentPrice ≤ costPrice：仅卖出 buyPrice < currentPrice 的订单
  *
  * 缓存机制：
- * - 订单数据缓存 5 分钟
+ * - 订单数据永久缓存（程序运行期间）
+ * - 只在 forceRefresh=true 时重新获取
  * - 避免频繁调用 historyOrders API
  */
 
@@ -329,17 +330,12 @@ export class OrderRecorder {
    * 检查缓存是否有效
    * @private
    * @param {string} normalizedSymbol 规范化后的标的代码
-   * @param {number} maxAgeMs 缓存最大有效期（毫秒），默认5分钟
    * @returns {boolean} 缓存是否有效
    */
-  _isCacheValid(normalizedSymbol, maxAgeMs = 5 * 60 * 1000) {
-    const cached = this._ordersCache.get(normalizedSymbol);
-    if (!cached) {
-      return false;
-    }
-    const now = Date.now();
-    const cacheAge = now - cached.fetchTime;
-    return cacheAge < maxAgeMs;
+  _isCacheValid(normalizedSymbol) {
+    // 缓存永久有效，只要存在就认为有效
+    // 只有在 forceRefresh=true 时才会重新从 API 获取
+    return this._ordersCache.has(normalizedSymbol);
   }
 
   /**
