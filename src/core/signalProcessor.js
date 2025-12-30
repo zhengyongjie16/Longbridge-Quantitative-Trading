@@ -181,6 +181,11 @@ export class SignalProcessor {
     orderRecorder
   ) {
     for (const sig of signals) {
+      // 只处理卖出信号（SELLCALL 和 SELLPUT），跳过买入信号
+      if (sig.action !== SignalType.SELLCALL && sig.action !== SignalType.SELLPUT) {
+        continue;
+      }
+
       // 根据信号类型确定对应的持仓和行情
       const isLongSignal = sig.action === SignalType.SELLCALL;
       const position = isLongSignal ? longPosition : shortPosition;
