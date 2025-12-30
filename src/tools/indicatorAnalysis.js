@@ -36,6 +36,7 @@ import {
 import { RSI, MACD, EMA, MFI } from "technicalindicators";
 import { TRADING_CONFIG } from "../config/config.trading.js";
 import { createConfig } from "../config/config.js";
+import { validatePercentage } from "../utils/indicatorHelpers.js";
 
 // ============================================
 // 配置变量（可直接修改）
@@ -153,7 +154,7 @@ function calculateRSI(closes, period) {
     if (rsiResult && rsiResult.length > 0) {
       const rsi = rsiResult.at(-1);
       // 确保 RSI 值在有效范围内（0-100）
-      if (Number.isFinite(rsi) && rsi >= 0 && rsi <= 100) {
+      if (validatePercentage(rsi)) {
         return rsi;
       }
     }
@@ -312,7 +313,7 @@ function calculateMFIIndicator(highs, lows, closes, volumes) {
       });
       if (mfiResult?.length > 0) {
         const mfiValue = mfiResult.at(-1);
-        if (Number.isFinite(mfiValue) && mfiValue >= 0 && mfiValue <= 100) {
+        if (validatePercentage(mfiValue)) {
           return mfiValue;
         }
       }

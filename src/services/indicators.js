@@ -21,6 +21,11 @@
 
 import { RSI, MACD, EMA, MFI } from "technicalindicators";
 import { kdjObjectPool, macdObjectPool } from "../utils/objectPool.js";
+import {
+  validateRsiPeriod,
+  validateEmaPeriod,
+  validatePercentage,
+} from "../utils/indicatorHelpers.js";
 
 const toNumber = (value) =>
   typeof value === "number" ? value : Number(value ?? 0);
@@ -88,7 +93,7 @@ export function calculateRSI(validCloses, period) {
     const rsi = rsiResult.at(-1);
 
     // 验证 RSI 结果有效性（0-100 范围）
-    if (!Number.isFinite(rsi) || rsi < 0 || rsi > 100) {
+    if (!validatePercentage(rsi)) {
       return null;
     }
 
@@ -514,7 +519,7 @@ export function calculateMFI(candles, period = 14) {
     const mfi = mfiResult.at(-1);
 
     // 验证 MFI 结果有效性（0-100 范围）
-    if (!Number.isFinite(mfi) || mfi < 0 || mfi > 100) {
+    if (!validatePercentage(mfi)) {
       return null;
     }
 
@@ -675,12 +680,7 @@ export function buildIndicatorSnapshot(
   if (Array.isArray(rsiPeriods) && rsiPeriods.length > 0) {
     for (const period of rsiPeriods) {
       // 验证周期有效性
-      if (
-        Number.isFinite(period) &&
-        period >= 1 &&
-        period <= 100 &&
-        Number.isInteger(period)
-      ) {
+      if (validateRsiPeriod(period) && Number.isInteger(period)) {
         const rsiValue = calculateRSI(validCloses, period);
         if (rsiValue !== null) {
           rsi[period] = rsiValue;
@@ -694,12 +694,7 @@ export function buildIndicatorSnapshot(
   if (Array.isArray(emaPeriods) && emaPeriods.length > 0) {
     for (const period of emaPeriods) {
       // 验证周期有效性
-      if (
-        Number.isFinite(period) &&
-        period >= 1 &&
-        period <= 250 &&
-        Number.isInteger(period)
-      ) {
+      if (validateEmaPeriod(period) && Number.isInteger(period)) {
         const emaValue = calculateEMA(validCloses, period);
         if (emaValue !== null) {
           ema[period] = emaValue;

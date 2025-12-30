@@ -23,6 +23,11 @@
  * - extractEMAPeriods()：提取 EMA 周期列表
  */
 
+import {
+  validateRsiPeriod,
+  validateEmaPeriod,
+} from "./indicatorHelpers.js";
+
 // 支持的固定指标列表（不包括 RSI 和 EMA，因为它们支持动态周期）
 const SUPPORTED_INDICATORS = ["MFI", "K", "D", "J", "MACD", "DIF", "DEA"];
 
@@ -49,7 +54,7 @@ function parseCondition(conditionStr) {
     const threshold = parseFloat(thresholdStr);
 
     // 验证周期范围（1-100）
-    if (!Number.isFinite(period) || period < 1 || period > 100) {
+    if (!validateRsiPeriod(period)) {
       return null;
     }
 
@@ -76,7 +81,7 @@ function parseCondition(conditionStr) {
     const threshold = parseFloat(thresholdStr);
 
     // 验证周期范围（1-250）
-    if (!Number.isFinite(period) || period < 1 || period > 250) {
+    if (!validateEmaPeriod(period)) {
       return null;
     }
 

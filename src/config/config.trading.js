@@ -18,6 +18,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import { parseSignalConfig } from "../utils/signalConfigParser.js";
+import { validateEmaPeriod } from "../utils/indicatorHelpers.js";
 
 /**
  * 从环境变量读取字符串配置
@@ -244,7 +245,7 @@ export const TRADING_CONFIG = {
           const period = parseInt(periodStr, 10);
 
           // 验证周期范围（1-250）
-          if (Number.isFinite(period) && period >= 1 && period <= 250) {
+          if (validateEmaPeriod(period)) {
             validItems.push(item);
             continue;
           }

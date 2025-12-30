@@ -25,6 +25,7 @@ import {
   validateSignalConfig,
   formatSignalConfig,
 } from "../utils/signalConfigParser.js";
+import { validateEmaPeriod } from "../utils/indicatorHelpers.js";
 
 /**
  * 配置验证错误类
@@ -335,7 +336,7 @@ function validateTradingConfig() {
           const period = parseInt(periodStr, 10);
 
           // 验证周期范围（1-250）
-          if (Number.isFinite(period) && period >= 1 && period <= 250) {
+          if (validateEmaPeriod(period)) {
             continue;
           }
 

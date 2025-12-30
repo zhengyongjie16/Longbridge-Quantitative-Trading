@@ -38,6 +38,7 @@ import {
 } from "./utils/objectPool.js";
 import { normalizeHKSymbol, getSymbolName } from "./utils/helpers.js";
 import { extractRSIPeriods } from "./utils/signalConfigParser.js";
+import { validateEmaPeriod } from "./utils/indicatorHelpers.js";
 
 // 导入新模块
 import { isInContinuousHKSession } from "./utils/tradingTime.js";
@@ -248,12 +249,7 @@ async function runOnce({
         const periodStr = indicator.substring(4);
         const period = parseInt(periodStr, 10);
 
-        if (
-          Number.isFinite(period) &&
-          period >= 1 &&
-          period <= 250 &&
-          !emaPeriods.includes(period)
-        ) {
+        if (validateEmaPeriod(period) && !emaPeriods.includes(period)) {
           emaPeriods.push(period);
         }
       }
