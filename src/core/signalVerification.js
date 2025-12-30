@@ -388,13 +388,8 @@ export class SignalVerificationManager {
         return null;
       }
 
-      // 根据指标类型选择合适的小数位数
-      let decimals = 2; // 默认 2 位小数
-      if (["MACD", "DIF", "DEA"].includes(indicatorName)) {
-        decimals = 4; // MACD 相关指标使用 4 位小数
-      } else if (indicatorName.startsWith("EMA:")) {
-        decimals = 3; // EMA 使用 3 位小数（类似于价格）
-      }
+      // 统一使用 3 位小数
+      const decimals = 3;
 
       let indicatorPassed = false;
       let comparisonSymbol = "";

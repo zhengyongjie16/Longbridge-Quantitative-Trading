@@ -152,23 +152,23 @@ export class HangSengMultiIndicatorStrategy {
       const periods = Object.keys(rsi).map(p => parseInt(p, 10)).filter(p => Number.isFinite(p)).sort((a, b) => a - b);
       for (const period of periods) {
         if (isValidNumber(rsi[period])) {
-          parts.push(`RSI${period}(${rsi[period].toFixed(1)})`);
+          parts.push(`RSI${period}(${rsi[period].toFixed(3)})`);
         }
       }
     }
     if (isValidNumber(mfi)) {
-      parts.push(`MFI(${mfi.toFixed(1)})`);
+      parts.push(`MFI(${mfi.toFixed(3)})`);
     }
     if (kdj) {
       const kdjParts = [];
       if (isValidNumber(kdj.k)) {
-        kdjParts.push(`K=${kdj.k.toFixed(2)}`);
+        kdjParts.push(`K=${kdj.k.toFixed(3)}`);
       }
       if (isValidNumber(kdj.d)) {
-        kdjParts.push(`D=${kdj.d.toFixed(1)}`);
+        kdjParts.push(`D=${kdj.d.toFixed(3)}`);
       }
       if (isValidNumber(kdj.j)) {
-        kdjParts.push(`J=${kdj.j.toFixed(2)}`);
+        kdjParts.push(`J=${kdj.j.toFixed(3)}`);
       }
       if (kdjParts.length > 0) {
         parts.push(`KDJ(${kdjParts.join(",")})`);
@@ -228,13 +228,8 @@ export class HangSengMultiIndicatorStrategy {
     // 构建指标值的显示字符串（用于日志）
     const indicators1Str = Object.entries(indicators1)
       .map(([name, value]) => {
-        // 根据指标类型选择合适的小数位数
-        let decimals = 2; // 默认 2 位小数
-        if (["MACD", "DIF", "DEA"].includes(name)) {
-          decimals = 4; // MACD 相关指标使用 4 位小数
-        } else if (name.startsWith("EMA:")) {
-          decimals = 3; // EMA 使用 3 位小数（类似于价格）
-        }
+        // 统一使用 3 位小数
+        const decimals = 3;
         return `${name}1=${value.toFixed(decimals)}`;
       })
       .join(" ");

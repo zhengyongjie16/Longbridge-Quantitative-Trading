@@ -362,26 +362,26 @@ export class MarketMonitor {
       for (const period of rsiPeriods) {
         const rsiValue = monitorSnapshot.rsi[period];
         if (Number.isFinite(rsiValue)) {
-          indicators.push(`RSI${period}=${formatIndicator(rsiValue, 2)}`);
+          indicators.push(`RSI${period}=${formatIndicator(rsiValue, 3)}`);
         }
       }
     }
 
     // 5. MFI
     if (Number.isFinite(monitorSnapshot.mfi)) {
-      indicators.push(`MFI=${formatIndicator(monitorSnapshot.mfi, 2)}`);
+      indicators.push(`MFI=${formatIndicator(monitorSnapshot.mfi, 3)}`);
     }
 
     // 6. KDJ（K、D、J三个值）
     if (monitorSnapshot.kdj) {
       if (Number.isFinite(monitorSnapshot.kdj.k)) {
-        indicators.push(`K=${formatIndicator(monitorSnapshot.kdj.k, 2)}`);
+        indicators.push(`K=${formatIndicator(monitorSnapshot.kdj.k, 3)}`);
       }
       if (Number.isFinite(monitorSnapshot.kdj.d)) {
-        indicators.push(`D=${formatIndicator(monitorSnapshot.kdj.d, 2)}`);
+        indicators.push(`D=${formatIndicator(monitorSnapshot.kdj.d, 3)}`);
       }
       if (Number.isFinite(monitorSnapshot.kdj.j)) {
-        indicators.push(`J=${formatIndicator(monitorSnapshot.kdj.j, 2)}`);
+        indicators.push(`J=${formatIndicator(monitorSnapshot.kdj.j, 3)}`);
       }
     }
 
@@ -389,14 +389,14 @@ export class MarketMonitor {
     if (monitorSnapshot.macd) {
       if (Number.isFinite(monitorSnapshot.macd.macd)) {
         indicators.push(
-          `MACD=${formatIndicator(monitorSnapshot.macd.macd, 4)}`
+          `MACD=${formatIndicator(monitorSnapshot.macd.macd, 3)}`
         );
       }
       if (Number.isFinite(monitorSnapshot.macd.dif)) {
-        indicators.push(`DIF=${formatIndicator(monitorSnapshot.macd.dif, 4)}`);
+        indicators.push(`DIF=${formatIndicator(monitorSnapshot.macd.dif, 3)}`);
       }
       if (Number.isFinite(monitorSnapshot.macd.dea)) {
-        indicators.push(`DEA=${formatIndicator(monitorSnapshot.macd.dea, 4)}`);
+        indicators.push(`DEA=${formatIndicator(monitorSnapshot.macd.dea, 3)}`);
       }
     }
 
