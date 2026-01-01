@@ -760,7 +760,6 @@ export class OrderRecorder {
         `[现存订单记录] ${positionType} ${normalizedSymbol}: ` +
           `历史买入${originalBuyCount}笔, ` +
           `历史卖出${filledSellOrders.length}笔(有效${sortedSellOrders.length}笔), ` +
-          `最终过滤${filteredCount}笔, ` +
           `最终记录${recordedCount}笔`
       );
 
