@@ -12,29 +12,29 @@ LongBridge 港股自动化量化交易系统。通过技术指标监控目标资
 
 ```
 src/
-├── index.js              # 主循环，每秒执行 runOnce()
+├── index.ts              # 主循环，每秒执行 runOnce()
 ├── core/
-│   ├── strategy.js       # 信号生成（立即/延迟）
-│   ├── signalVerification.js  # 延迟信号验证
-│   ├── signalProcessor.js     # 风险检查、卖出数量计算
-│   ├── trader.js         # 订单执行和监控
-│   ├── risk.js           # 风险控制（牛熊证/浮亏/持仓）
-│   ├── orderRecorder.js  # 历史订单跟踪
-│   ├── marketMonitor.js  # 价格和指标监控
-│   ├── doomsdayProtection.js  # 收盘前保护
-│   └── unrealizedLossMonitor.js  # 浮亏监控
+│   ├── strategy.ts       # 信号生成（立即/延迟）
+│   ├── signalVerification.ts  # 延迟信号验证
+│   ├── signalProcessor.ts     # 风险检查、卖出数量计算
+│   ├── trader.ts         # 订单执行和监控
+│   ├── risk.ts           # 风险控制（牛熊证/浮亏/持仓）
+│   ├── orderRecorder.ts  # 历史订单跟踪
+│   ├── marketMonitor.ts  # 价格和指标监控
+│   ├── doomsdayProtection.ts  # 收盘前保护
+│   └── unrealizedLossMonitor.ts  # 浮亏监控
 ├── services/
-│   ├── indicators.js     # 技术指标（RSI/MFI/KDJ/MACD/EMA）
-│   └── quoteClient.js    # 行情数据
+│   ├── indicators.ts     # 技术指标（RSI/MFI/KDJ/MACD/EMA）
+│   └── quoteClient.ts    # 行情数据
 ├── utils/
-│   ├── helpers.js        # 工具函数
-│   ├── signalConfigParser.js  # 信号配置解析
-│   ├── tradingTime.js    # 交易时段
-│   ├── logger.js         # 日志系统
-│   └── objectPool.js     # 对象池
+│   ├── helpers.ts        # 工具函数
+│   ├── signalConfigParser.ts  # 信号配置解析
+│   ├── tradingTime.ts    # 交易时段
+│   ├── logger.ts         # 日志系统
+│   └── objectPool.ts     # 对象池
 └── config/
-    ├── config.js         # API配置
-    └── config.trading.js # 交易配置
+    ├── config.ts         # API配置
+    └── config.trading.ts # 交易配置
 ```
 
 ## 运行
@@ -74,21 +74,22 @@ npm start
 
 ### 买入检查顺序
 1. 交易频率限制（同方向间隔，默认60秒）
-2. 买入价格限制（防止追高：当前价 > 最新成交价则拒绝）
+2. 买入价格限制（当前价 > 最新成交价时拒绝买入，防止追高）
 3. 末日保护（收盘前15分钟拒绝买入）
-4. 牛熊证风险（距回收价 > 0.5%）
-5. 浮亏和持仓限制
+4. 牛熊证风险（牛证距回收价 > 0.5%，熊证 < -0.5%）
+5. 基础风险检查（浮亏限制和持仓市值限制）
 
 ### 卖出数量计算
-- 盈利时（currentPrice > costPrice）：清空全部持仓
-- 未盈利时：仅卖出 buyPrice < currentPrice 的历史订单
-- 无符合订单：信号设为 HOLD
+- **盈利状态**（currentPrice > costPrice）：清空全部持仓
+- **未盈利状态**（currentPrice ≤ costPrice）：仅卖出 buyPrice < currentPrice 的历史订单
+- **无符合条件订单**：信号设为 HOLD，跳过本次卖出
 
-### 延迟验证逻辑
-- BUYCALL：验证指标的3个时间点值（T0, T0+5s, T0+10s）都要大于初始值
-- BUYPUT：验证指标的3个时间点值（T0, T0+5s, T0+10s）都要小于初始值
-- 验证窗口：触发时间前5秒到后15秒
-- 时间点误差：每个时间点允许±5秒误差
+### 延迟验证逻辑（60秒延迟确认趋势）
+- **BUYCALL**：验证指标的3个时间点值（T0, T0+5s, T0+10s）都要**大于**初始值（上涨趋势）
+- **BUYPUT**：验证指标的3个时间点值（T0, T0+5s, T0+10s）都要**小于**初始值（下跌趋势）
+- **验证窗口**：触发时间前5秒到后15秒内记录指标值
+- **时间点误差**：每个时间点允许±5秒误差
+- **验证指标**：默认为 D, DIF（可通过 VERIFICATION_INDICATORS 配置）
 
 ### 收盘保护（DoomsdayProtection）
 - 收盘前15分钟：拒绝买入
@@ -114,20 +115,26 @@ npm start
 
 ### 牛熊证风险计算
 ```javascript
-// 使用监控标的价格（非牛熊证价格）
+// 使用监控标的价格（非牛熊证价格）计算距离回收价百分比
 距离回收价% = (监控标的价 - 回收价) / 回收价 × 100%
-// 牛证要求 > 0.5%，熊证要求 < -0.5%
+
+// 风险阈值：
+// - 牛证：距离回收价 > 0.5% 时允许买入
+// - 熊证：距离回收价 < -0.5% 时允许买入
 ```
 
 ## 常见修改任务
 
-| 任务 | 修改位置 |
-|------|----------|
-| 修改信号条件 | `.env` 文件（无需改代码） |
-| 添加新指标 | `indicators.js` + `signalConfigParser.js` |
-| 调整风险检查 | `risk.js`（仅门控买入） |
-| 修改订单逻辑 | `trader.js` |
-| 修改配置参数 | `.env` 或 `config.trading.js` |
+| 任务         | 修改位置                                                   |
+| ------------ | ---------------------------------------------------------- |
+| 修改信号条件 | `.env` 文件（无需改代码）                                  |
+| 添加新指标   | `indicators.ts` + `signalConfigParser.ts`                  |
+| 调整风险检查 | `risk.ts`（仅门控买入）                                    |
+| 修改订单逻辑 | `trader.ts`                                                |
+| 修改卖出策略 | `signalProcessor.ts` 中的 `calculateSellQuantity` 函数     |
+| 修改配置参数 | `.env` 或 `config.trading.ts`                              |
+| 调整验证逻辑 | `signalVerification.ts` 中的 `_verifySingleSignal` 方法   |
+| 订单记录逻辑 | `orderRecorder.ts` 中的 `refreshOrders` 方法（过滤算法）   |
 
 ## 必需配置
 

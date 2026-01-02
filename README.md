@@ -96,31 +96,40 @@ npm start
 
 ### 四种信号
 
-| 信号     | 类型     | 环境变量          | 验证                           |
-| -------- | -------- | ----------------- | ------------------------------ |
-| BUYCALL  | 买入做多 | `SIGNAL_BUYCALL`  | 延迟 60 秒，D2>D1 且 DIF2>DIF1 |
-| SELLCALL | 卖出做多 | `SIGNAL_SELLCALL` | 立即执行                       |
-| BUYPUT   | 买入做空 | `SIGNAL_BUYPUT`   | 延迟 60 秒，D2<D1 且 DIF2<DIF1 |
-| SELLPUT  | 卖出做空 | `SIGNAL_SELLPUT`  | 立即执行                       |
+| 信号     | 类型     | 环境变量          | 验证                                                     |
+| -------- | -------- | ----------------- | -------------------------------------------------------- |
+| BUYCALL  | 买入做多 | `SIGNAL_BUYCALL`  | 延迟 60 秒验证趋势：T0、T0+5s、T0+10s 指标值均需大于初值 |
+| SELLCALL | 卖出做多 | `SIGNAL_SELLCALL` | 立即执行                                                 |
+| BUYPUT   | 买入做空 | `SIGNAL_BUYPUT`   | 延迟 60 秒验证趋势：T0、T0+5s、T0+10s 指标值均需小于初值 |
+| SELLPUT  | 卖出做空 | `SIGNAL_SELLPUT`  | 立即执行                                                 |
 
 ### 卖出策略
 
 - **盈利状态**（当前价 > 成本价）：清空全部持仓
 - **未盈利**（当前价 ≤ 成本价）：仅卖出盈利部分（买入价 < 当前价的订单）
+- **无符合条件订单**：信号设为 HOLD，跳过本次卖出
 
 ---
 
 ## 风险控制
 
-| 检查       | 说明                             | 买入    | 卖出 |
-| ---------- | -------------------------------- | ------- | ---- |
-| 交易频率   | 同方向买入间隔                   | ✅ 限制 | ❌   |
-| 买入价格   | 不追高（当前价 ≤ 最新成交价）    | ✅ 检查 | ❌   |
-| 末日保护   | 收盘前 15 分钟拒绝买入           | ✅ 限制 | ❌   |
-| 牛熊证风险 | 距离回收价 > 0.5%                | ✅ 检查 | ❌   |
-| 单日亏损   | 浮亏 > MAX_DAILY_LOSS            | ✅ 限制 | ❌   |
-| 持仓市值   | 单标持仓 > MAX_POSITION_NOTIONAL | ✅ 限制 | ❌   |
-| 浮亏保护   | 单标浮亏 > MAX_UNREALIZED_LOSS   | ✅ 清仓 | ❌   |
+### 买入检查顺序
+
+1. **交易频率限制**：同方向买入间隔（默认 60 秒）
+2. **买入价格限制**：当前价 > 最新成交价时拒绝（防止追高）
+3. **末日保护**：收盘前 15 分钟拒绝买入
+4. **牛熊证风险**：牛证距回收价 > 0.5%，熊证 < -0.5%
+5. **基础风险检查**：浮亏限制、持仓市值限制
+
+| 检查       | 说明                                | 买入    | 卖出 |
+| ---------- | ----------------------------------- | ------- | ---- |
+| 交易频率   | 同方向买入间隔                      | ✅ 限制 | ❌   |
+| 买入价格   | 当前价 > 最新成交价时拒绝（防追高） | ✅ 检查 | ❌   |
+| 末日保护   | 收盘前 15 分钟拒绝买入              | ✅ 限制 | ❌   |
+| 牛熊证风险 | 使用监控标的价格计算距回收价        | ✅ 检查 | ❌   |
+| 单日亏损   | 浮亏 > MAX_DAILY_LOSS               | ✅ 限制 | ❌   |
+| 持仓市值   | 单标持仓 > MAX_POSITION_NOTIONAL    | ✅ 限制 | ❌   |
+| 浮亏保护   | 单标浮亏 > MAX_UNREALIZED_LOSS      | ✅ 清仓 | ❌   |
 
 ### 末日保护（可配置）
 
@@ -144,31 +153,31 @@ npm start
 
 ```
 src/
-├── index.js              # 主入口（每秒循环）
+├── index.ts              # 主入口（每秒循环）
 ├── core/
-│   ├── strategy.js       # 信号生成
-│   ├── trader.js         # 订单执行
-│   ├── risk.js           # 风险检查
-│   ├── orderRecorder.js  # 订单记录
-│   ├── signalProcessor.js # 信号处理
-│   ├── signalVerification.js # 延迟验证
-│   ├── marketMonitor.js  # 行情监控
-│   ├── doomsdayProtection.js # 末日保护
-│   └── unrealizedLossMonitor.js # 浮亏监控
+│   ├── strategy.ts       # 信号生成
+│   ├── trader.ts         # 订单执行
+│   ├── risk.ts           # 风险检查
+│   ├── orderRecorder.ts  # 订单记录
+│   ├── signalProcessor.ts # 信号处理
+│   ├── signalVerification.ts # 延迟验证
+│   ├── marketMonitor.ts  # 行情监控
+│   ├── doomsdayProtection.ts # 末日保护
+│   └── unrealizedLossMonitor.ts # 浮亏监控
 ├── services/
-│   ├── indicators.js     # 技术指标计算
-│   └── quoteClient.js    # 行情数据
+│   ├── indicators.ts     # 技术指标计算
+│   └── quoteClient.ts    # 行情数据
 ├── utils/
-│   ├── objectPool.js     # 内存优化
-│   ├── indicatorHelpers.js # 指标辅助函数
-│   ├── logger.js         # 日志系统
-│   ├── signalConfigParser.js # 配置解析
-│   ├── helpers.js        # 工具函数
-│   └── tradingTime.js    # 交易时段
+│   ├── objectPool.ts     # 内存优化
+│   ├── indicatorHelpers.ts # 指标辅助函数
+│   ├── logger.ts         # 日志系统
+│   ├── signalConfigParser.ts # 配置解析
+│   ├── helpers.ts        # 工具函数
+│   └── tradingTime.ts    # 交易时段
 └── config/
-    ├── config.js         # API配置
-    ├── config.trading.js # 交易配置
-    └── config.validator.js # 配置验证
+    ├── config.ts         # API配置
+    ├── config.trading.ts # 交易配置
+    └── config.validator.ts # 配置验证
 ```
 
 ---
