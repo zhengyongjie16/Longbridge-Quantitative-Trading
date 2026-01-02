@@ -343,14 +343,6 @@ export class SignalProcessor {
         shortSymbolName
       );
 
-      // 0. 检查标的是否因订单获取失败而被禁用交易
-      if (orderRecorder.isSymbolDisabled(normalizedSigSymbol)) {
-        logger.warn(
-          `[交易禁用] 标的 ${normalizedSigSymbol} 因订单获取失败已被禁用交易，跳过信号：${sigName} ${sig.action}`
-        );
-        continue;
-      }
-
       // 获取标的的当前价格用于计算持仓市值
       let currentPrice: number | null = null;
       if (normalizedSigSymbol === normalizedLongSymbol && longQuote) {

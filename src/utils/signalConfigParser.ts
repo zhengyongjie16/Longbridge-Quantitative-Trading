@@ -5,7 +5,6 @@
  * - 解析信号配置字符串
  * - 评估条件是否满足
  * - 提取配置中的 RSI 周期
- * - 提取配置中的 EMA 周期
  *
  * 配置格式：(RSI:6<20,MFI<15,D<20,J<-1)/3|(J<-20)
  * - 括号内是条件列表，逗号分隔
@@ -20,7 +19,6 @@
  * - evaluateCondition()：评估单个条件
  * - evaluateSignalConfig()：评估完整配置
  * - extractRSIPeriods()：提取 RSI 周期列表
- * - extractEMAPeriods()：提取 EMA 周期列表
  */
 
 import {
@@ -643,54 +641,6 @@ export function extractRSIPeriods(signalConfig: SignalConfigSet | null): number[
       for (const condition of group.conditions) {
         // 如果是 RSI 指标且有周期，添加到集合中
         if (condition.indicator.startsWith('RSI:')) {
-          const period = parseInt(condition.indicator.split(':')[1]!, 10);
-          if (Number.isFinite(period)) {
-            periods.add(period);
-          }
-        }
-      }
-    }
-  }
-
-  // 转为数组并排序
-  return Array.from(periods).sort((a, b) => a - b);
-}
-
-/**
- * 从信号配置中提取所有 EMA 周期
- * @param signalConfig 信号配置对象 {buycall, sellcall, buyput, sellput}
- * @returns EMA 周期数组（去重后排序）
- */
-export function extractEMAPeriods(signalConfig: SignalConfigSet | null): number[] {
-  if (!signalConfig) {
-    return [];
-  }
-
-  const periods = new Set<number>();
-
-  // 遍历所有信号类型的配置
-  const configs = [
-    signalConfig.buycall,
-    signalConfig.sellcall,
-    signalConfig.buyput,
-    signalConfig.sellput,
-  ];
-
-  for (const config of configs) {
-    if (!config || !config.conditionGroups) {
-      continue;
-    }
-
-    // 遍历所有条件组
-    for (const group of config.conditionGroups) {
-      if (!group.conditions) {
-        continue;
-      }
-
-      // 遍历所有条件
-      for (const condition of group.conditions) {
-        // 如果是 EMA 指标且有周期，添加到集合中
-        if (condition.indicator.startsWith('EMA:')) {
           const period = parseInt(condition.indicator.split(':')[1]!, 10);
           if (Number.isFinite(period)) {
             periods.add(period);

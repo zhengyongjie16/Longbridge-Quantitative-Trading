@@ -78,7 +78,6 @@ export class OrderRecorder {
   _longBuyOrders: OrderRecord[];
   _shortBuyOrders: OrderRecord[];
   private _ordersCache: Map<string, OrderCache>;
-  private _disabledSymbols: Set<string>;
 
   constructor(trader: Trader) {
     this._trader = trader;
@@ -90,41 +89,6 @@ export class OrderRecorder {
     // 格式：{ symbol: { buyOrders: [], sellOrders: [], allOrders: [], fetchTime: number } }
     // allOrders: 保存原始订单数据（包括未成交订单），用于启动时提取未成交订单
     this._ordersCache = new Map();
-    // 记录因订单获取失败而禁用交易的标的
-    this._disabledSymbols = new Set();
-  }
-
-  /**
-   * 检查标的是否因订单获取失败而被禁用交易
-   * @param symbol 标的代码
-   * @returns 是否被禁用
-   */
-  isSymbolDisabled(symbol: string): boolean {
-    const normalizedSymbol = normalizeHKSymbol(symbol);
-    return this._disabledSymbols.has(normalizedSymbol);
-  }
-
-  /**
-   * 禁用标的交易
-   * @param symbol 标的代码
-   */
-  disableSymbol(symbol: string): void {
-    const normalizedSymbol = normalizeHKSymbol(symbol);
-    this._disabledSymbols.add(normalizedSymbol);
-    logger.warn(
-      `[订单记录] 标的 ${normalizedSymbol} 已被禁用交易（订单获取失败）`
-    );
-  }
-
-  /**
-   * 启用标的交易
-   * @param symbol 标的代码
-   */
-  enableSymbol(symbol: string): void {
-    const normalizedSymbol = normalizeHKSymbol(symbol);
-    if (this._disabledSymbols.delete(normalizedSymbol)) {
-      logger.info(`[订单记录] 标的 ${normalizedSymbol} 已恢复交易`);
-    }
   }
 
   /**
@@ -465,6 +429,8 @@ export class OrderRecorder {
       );
     });
 
+    logger.info(`[历史订单API获取成功] 标的 ${normalizedSymbol} 买入订单：${(JSON.stringify(filledBuyOrders))}`);
+
     // 过滤出卖出且已成交的订单
     const filledSellOrders = allOrders.filter((order: unknown) => {
       const o = order as { side: unknown; status: unknown };
@@ -473,6 +439,8 @@ export class OrderRecorder {
         o.status === OrderStatus.Filled // 已成交状态
       );
     });
+
+    logger.info(`[历史订单API获取成功] 标的 ${normalizedSymbol} 卖出订单：${JSON.stringify(filledSellOrders)}`);
 
     // 转换订单为标准格式的通用函数
     const convertOrder = (order: unknown, isBuyOrder: boolean): OrderRecord | null => {
@@ -529,55 +497,6 @@ export class OrderRecorder {
     this._updateCache(normalizedSymbol, buyOrders, sellOrders, allOrders);
 
     return { buyOrders, sellOrders };
-  }
-
-  /**
-   * 从API获取订单数据（带重试机制）
-   * 用于程序启动时调用，失败时每10秒重试一次直到成功
-   * 如果重试失败，会禁用该标的的交易
-   * @param symbol 标的代码
-   * @param maxRetries 最大重试次数，默认30次（5分钟）
-   * @returns 返回结果
-   */
-  async fetchOrdersFromAPIWithRetry(
-    symbol: string,
-    maxRetries: number = 30
-  ): Promise<FetchOrdersResult & { success: boolean }> {
-    const normalizedSymbol = normalizeHKSymbol(symbol);
-    let lastError: unknown = null;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        const result = await this.fetchOrdersFromAPI(symbol);
-        // 成功后确保标的未被禁用
-        this.enableSymbol(symbol);
-        logger.debug(
-          `[历史订单API获取成功] 标的 ${normalizedSymbol} (第${attempt}次尝试)`
-        );
-        return { success: true, ...result };
-      } catch (err) {
-        lastError = err;
-        logger.warn(
-          `[历史订单API获取失败] 标的 ${normalizedSymbol} 第${attempt}/${maxRetries}次尝试失败: ${
-            (err as Error)?.message ?? String(err) ?? '未知错误'
-          }`
-        );
-
-        // 如果还有重试机会，等待10秒后重试
-        if (attempt < maxRetries) {
-          await new Promise((resolve) => setTimeout(resolve, 10000));
-        }
-      }
-    }
-
-    // 所有重试都失败了，禁用该标的的交易
-    this.disableSymbol(symbol);
-    logger.error(
-      `[订单API获取失败] 标的 ${normalizedSymbol} 在${maxRetries}次重试后仍然失败，已禁用该标的交易。` +
-        `最后错误: ${(lastError as Error)?.message ?? lastError}`
-    );
-
-    return { success: false, buyOrders: [], sellOrders: [] };
   }
 
   /**

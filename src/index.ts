@@ -815,14 +815,24 @@ async function main(): Promise<void> {
 
   // 程序启动时从API获取订单数据并更新缓存
   if (LONG_SYMBOL) {
-    await orderRecorder.fetchOrdersFromAPIWithRetry(LONG_SYMBOL);
+    await orderRecorder.fetchOrdersFromAPI(LONG_SYMBOL).catch((err: unknown) => {
+      logger.warn(
+        `[订单记录初始化失败] 做多标的 ${LONG_SYMBOL}`,
+        formatError(err)
+      );
+    });
   }
   if (SHORT_SYMBOL) {
-    await orderRecorder.fetchOrdersFromAPIWithRetry(SHORT_SYMBOL);
+    await orderRecorder.fetchOrdersFromAPI(SHORT_SYMBOL).catch((err: unknown) => {
+      logger.warn(
+        `[订单记录初始化失败] 做空标的 ${SHORT_SYMBOL}`,
+        formatError(err)
+      );
+    });
   }
 
   // 程序启动时刷新订单记录
-  if (LONG_SYMBOL && !orderRecorder.isSymbolDisabled(LONG_SYMBOL)) {
+  if (LONG_SYMBOL) {
     await orderRecorder.refreshOrders(LONG_SYMBOL, true, false).catch((err: unknown) => {
       logger.warn(
         `[订单记录初始化失败] 做多标的 ${LONG_SYMBOL}`,
@@ -830,7 +840,7 @@ async function main(): Promise<void> {
       );
     });
   }
-  if (SHORT_SYMBOL && !orderRecorder.isSymbolDisabled(SHORT_SYMBOL)) {
+  if (SHORT_SYMBOL) {
     await orderRecorder
       .refreshOrders(SHORT_SYMBOL, false, false)
       .catch((err: unknown) => {
@@ -843,7 +853,7 @@ async function main(): Promise<void> {
 
   // 程序启动时初始化浮亏监控数据
   if ((TRADING_CONFIG.maxUnrealizedLossPerSymbol ?? 0) > 0) {
-    if (LONG_SYMBOL && !orderRecorder.isSymbolDisabled(LONG_SYMBOL)) {
+    if (LONG_SYMBOL) {
       await riskChecker
         .refreshUnrealizedLossData(orderRecorder, LONG_SYMBOL, true)
         .catch((err: unknown) => {
@@ -853,7 +863,7 @@ async function main(): Promise<void> {
           );
         });
     }
-    if (SHORT_SYMBOL && !orderRecorder.isSymbolDisabled(SHORT_SYMBOL)) {
+    if (SHORT_SYMBOL) {
       await riskChecker
         .refreshUnrealizedLossData(orderRecorder, SHORT_SYMBOL, false)
         .catch((err: unknown) => {
