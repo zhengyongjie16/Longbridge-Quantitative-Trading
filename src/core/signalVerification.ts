@@ -7,11 +7,13 @@
  * - 执行趋势确认（60秒延迟验证）
  *
  * 验证逻辑：
- * - BUYCALL：所有验证指标的第二个值 > 第一个值（上涨趋势）
- * - BUYPUT：所有验证指标的第二个值 < 第一个值（下跌趋势）
+ * - BUYCALL：验证指标的3个时间点值（T0, T0+5s, T0+10s）都大于初始值（上涨趋势）
+ * - BUYPUT：验证指标的3个时间点值（T0, T0+5s, T0+10s）都小于初始值（下跌趋势）
  *
  * 验证窗口：
- * - 触发时间前后 ±5 秒内记录指标值
+ * - 触发时间前 5 秒到后 15 秒内记录指标值
+ * - 验证时分别取3个时间点的值：T0（触发时间）、T0+5s、T0+10s
+ * - 每个时间点允许 ±5 秒误差
  * - 每个信号有独立的 verificationHistory 数组
  *
  * 验证指标（可配置）：
@@ -137,10 +139,10 @@ export class SignalVerificationManager {
         if (pendingSignal.triggerTime) {
           const triggerTimeMs = pendingSignal.triggerTime.getTime();
           const windowStart = triggerTimeMs - 5 * 1000; // triggerTime - 5 秒
-          const windowEnd = triggerTimeMs + 5 * 1000; // triggerTime + 5 秒
+          const windowEnd = triggerTimeMs + 15 * 1000; // triggerTime + 15 秒（考虑T0+10s时间点±5秒误差）
           const nowMs = now.getTime();
 
-          // 只在 triggerTime ±5 秒窗口内记录数据
+          // 只在 triggerTime -5秒 到 +15秒 窗口内记录数据
           if (nowMs >= windowStart && nowMs <= windowEnd) {
             // 确保信号有历史记录数组
             if (!pendingSignal.verificationHistory) {
@@ -168,7 +170,7 @@ export class SignalVerificationManager {
               // 记录当前值
               pendingSignal.verificationHistory.push(entry);
 
-              // 只保留当前信号触发时间点前后 5 秒窗口内的数据，释放其他条目
+              // 只保留当前信号触发时间点前后窗口内的数据，释放其他条目
               const entriesToKeep: VerificationEntry[] = [];
               const entriesToRelease: VerificationEntry[] = [];
               for (const e of pendingSignal.verificationHistory) {
@@ -212,10 +214,14 @@ export class SignalVerificationManager {
     }
 
     // 检查是否有待验证的信号到了验证时间
+    // 注意：需要等待 triggerTime + 15秒后才验证，确保所有3个时间点（T0, T0+5s, T0+10s）的数据都已记录
+    // 考虑到每个时间点允许±5秒误差，T0+10s最晚可能在T0+15秒记录
     const now = new Date();
-    const signalsToVerify = lastState.pendingDelayedSignals.filter(
-      (s) => s.triggerTime && s.triggerTime <= now,
-    );
+    const signalsToVerify = lastState.pendingDelayedSignals.filter((s) => {
+      if (!s.triggerTime) return false;
+      const verificationReadyTime = new Date(s.triggerTime.getTime() + 15 * 1000); // triggerTime + 15秒
+      return verificationReadyTime <= now;
+    });
 
     // 处理需要验证的信号
     for (const pendingSignal of signalsToVerify) {
@@ -327,75 +333,92 @@ export class SignalVerificationManager {
       return null;
     }
 
-    // 目标时间就是triggerTime（触发时已设置为当前时间+延迟秒数）
-    const targetTime = pendingSignal.triggerTime;
+    // 定义3个目标时间点：T0 = triggerTime, T1 = triggerTime + 5秒, T2 = triggerTime + 10秒
+    const targetTime0 = pendingSignal.triggerTime;
+    const targetTime1 = new Date(targetTime0.getTime() + 5 * 1000);
+    const targetTime2 = new Date(targetTime0.getTime() + 10 * 1000);
+    const targetTimes = [targetTime0, targetTime1, targetTime2];
+    const targetTimeLabels = ['T0', 'T0+5s', 'T0+10s'];
 
-    // 从该信号自己的验证历史记录中获取indicators2
+    // 从该信号自己的验证历史记录中获取indicators2a, indicators2b, indicators2c
     const history = pendingSignal.verificationHistory || [];
-
-    // 查找精确匹配或最近的值
-    let bestMatch: VerificationEntry | null = null;
-    let minTimeDiff = Infinity;
     const maxTimeDiff = 5 * 1000; // 5秒误差
 
-    for (const entry of history) {
-      const timeDiff = Math.abs(
-        entry.timestamp.getTime() - targetTime.getTime(),
-      );
-      if (timeDiff <= maxTimeDiff && timeDiff < minTimeDiff) {
-        minTimeDiff = timeDiff;
-        bestMatch = entry;
-      }
-    }
+    // 辅助函数：为指定目标时间查找最佳匹配
+    const findBestMatch = (targetTime: Date): VerificationEntry | null => {
+      let bestMatch: VerificationEntry | null = null;
+      let minTimeDiff = Infinity;
 
-    // 如果找不到匹配的值，尝试使用历史记录中最新的值
-    if (!bestMatch && history.length > 0) {
-      const latestEntry = history[history.length - 1];
-      if (latestEntry) {
+      for (const entry of history) {
         const timeDiff = Math.abs(
-          latestEntry.timestamp.getTime() - targetTime.getTime(),
+          entry.timestamp.getTime() - targetTime.getTime(),
         );
-        if (timeDiff <= maxTimeDiff) {
-          bestMatch = latestEntry;
+        if (timeDiff <= maxTimeDiff && timeDiff < minTimeDiff) {
+          minTimeDiff = timeDiff;
+          bestMatch = entry;
         }
       }
+
+      return bestMatch;
+    };
+
+    // 为3个时间点分别查找最佳匹配
+    const matches: (VerificationEntry | null)[] = [];
+    for (let i = 0; i < targetTimes.length; i++) {
+      const targetTime = targetTimes[i]!; // 使用非空断言，因为我们知道数组有3个元素
+      const targetTimeLabel = targetTimeLabels[i]!;
+      const match = findBestMatch(targetTime);
+      if (!match || !match.indicators) {
+        logger.warn(
+          `[延迟验证失败] ${
+            pendingSignal.symbol
+          } 无法获取有效的${targetTimeLabel}指标值（目标时间=${targetTime.toLocaleString('zh-CN', {
+            timeZone: 'Asia/Hong_Kong',
+            hour12: false,
+          })}，当前时间=${now.toLocaleString('zh-CN', {
+            timeZone: 'Asia/Hong_Kong',
+            hour12: false,
+          })}）`,
+        );
+        return null;
+      }
+      matches.push(match);
     }
 
-    if (!bestMatch || !bestMatch.indicators) {
-      logger.warn(
-        `[延迟验证失败] ${
-          pendingSignal.symbol
-        } 无法获取有效的indicators2（目标时间=${targetTime.toLocaleString(
-          'zh-CN',
-          { timeZone: 'Asia/Hong_Kong', hour12: false },
-        )}，当前时间=${now.toLocaleString('zh-CN', {
-          timeZone: 'Asia/Hong_Kong',
-          hour12: false,
-        })}）`,
-      );
-      return null;
-    }
-
-    const indicators2 = bestMatch.indicators;
-    const actualTime = bestMatch.timestamp;
-    const timeDiffSeconds =
-      Math.abs(actualTime.getTime() - targetTime.getTime()) / 1000;
-
-    // 验证所有配置的指标值是否有效
-    let allIndicators2Valid = true;
-    for (const indicatorName of this.verificationConfig.indicators) {
-      if (!Number.isFinite(indicators2[indicatorName])) {
-        allIndicators2Valid = false;
-        break;
+    // 验证所有3个时间点的指标值是否有效
+    for (let i = 0; i < matches.length; i++) {
+      const match = matches[i];
+      if (!match || !match.indicators) {
+        continue;
+      }
+      let allIndicatorsValid = true;
+      for (const indicatorName of this.verificationConfig.indicators) {
+        if (!Number.isFinite(match.indicators[indicatorName])) {
+          allIndicatorsValid = false;
+          break;
+        }
+      }
+      if (!allIndicatorsValid) {
+        logger.warn(
+          `[延迟验证失败] ${pendingSignal.symbol} ${targetTimeLabels[i]}指标值中存在无效值，跳过验证`,
+        );
+        return null;
       }
     }
 
-    if (!allIndicators2Valid) {
-      logger.warn(
-        `[延迟验证失败] ${pendingSignal.symbol} indicators2中存在无效值，跳过验证`,
-      );
-      return null;
-    }
+    // 提取3个时间点的指标值
+    const indicators2a = matches[0]!.indicators;
+    const indicators2b = matches[1]!.indicators;
+    const indicators2c = matches[2]!.indicators;
+    const actualTime0 = matches[0]!.timestamp;
+    const actualTime1 = matches[1]!.timestamp;
+    const actualTime2 = matches[2]!.timestamp;
+    const timeDiffSeconds0 =
+      Math.abs(actualTime0.getTime() - targetTime0.getTime()) / 1000;
+    const timeDiffSeconds1 =
+      Math.abs(actualTime1.getTime() - targetTime1.getTime()) / 1000;
+    const timeDiffSeconds2 =
+      Math.abs(actualTime2.getTime() - targetTime2.getTime()) / 1000;
 
     // 根据信号类型使用不同的验证条件
     const isBuyCall = pendingSignal.action === SignalType.BUYCALL;
@@ -413,48 +436,69 @@ export class SignalVerificationManager {
     const verificationDetails: string[] = [];
     const failedIndicators: string[] = [];
 
-    // 遍历所有配置的指标进行验证
+    // 遍历所有配置的指标进行验证（所有3个时间点的值都要满足条件）
     for (const indicatorName of this.verificationConfig.indicators) {
       const value1 = indicators1[indicatorName];
-      const value2 = indicators2[indicatorName];
+      const value2a = indicators2a[indicatorName];
+      const value2b = indicators2b[indicatorName];
+      const value2c = indicators2c[indicatorName];
 
-      // 安全检查：确保两个值都是有效的数字
-      if (!Number.isFinite(value1) || !Number.isFinite(value2)) {
+      // 安全检查：确保所有值都是有效的数字
+      if (
+        !Number.isFinite(value1) ||
+        !Number.isFinite(value2a) ||
+        !Number.isFinite(value2b) ||
+        !Number.isFinite(value2c)
+      ) {
         logger.warn(
-          `[延迟验证错误] ${pendingSignal.symbol} 指标${indicatorName}的值无效（value1=${value1}, value2=${value2}），跳过该信号验证`,
+          `[延迟验证错误] ${pendingSignal.symbol} 指标${indicatorName}的值无效（value1=${value1}, value2a=${value2a}, value2b=${value2b}, value2c=${value2c}），跳过该信号验证`,
         );
         return null;
       }
 
       // TypeScript 类型断言 - Number.isFinite 确保了这些是有效数字
       const v1 = value1 as number;
-      const v2 = value2 as number;
+      const v2a = value2a as number;
+      const v2b = value2b as number;
+      const v2c = value2c as number;
 
       // 统一使用 3 位小数
       const decimals = 3;
 
-      let indicatorPassed = false;
-      let comparisonSymbol = '';
+      let indicatorPassedA = false;
+      let indicatorPassedB = false;
+      let indicatorPassedC = false;
+      let comparisonSymbolA = '';
+      let comparisonSymbolB = '';
+      let comparisonSymbolC = '';
 
       if (isBuyCall) {
-        // 买入做多：所有指标的第二个值都要大于第一个值
-        indicatorPassed = v2 > v1;
-        comparisonSymbol = indicatorPassed ? '>' : '<=';
+        // 买入做多：所有3个时间点的指标值都要大于第一个值
+        indicatorPassedA = v2a > v1;
+        indicatorPassedB = v2b > v1;
+        indicatorPassedC = v2c > v1;
+        comparisonSymbolA = indicatorPassedA ? '>' : '<=';
+        comparisonSymbolB = indicatorPassedB ? '>' : '<=';
+        comparisonSymbolC = indicatorPassedC ? '>' : '<=';
       } else if (isBuyPut) {
-        // 买入做空：所有指标的第二个值都要小于第一个值
-        indicatorPassed = v2 < v1;
-        comparisonSymbol = indicatorPassed ? '<' : '>=';
+        // 买入做空：所有3个时间点的指标值都要小于第一个值
+        indicatorPassedA = v2a < v1;
+        indicatorPassedB = v2b < v1;
+        indicatorPassedC = v2c < v1;
+        comparisonSymbolA = indicatorPassedA ? '<' : '>=';
+        comparisonSymbolB = indicatorPassedB ? '<' : '>=';
+        comparisonSymbolC = indicatorPassedC ? '<' : '>=';
       }
 
       // 构建详细信息字符串
-      const detail = `${indicatorName}1=${v1.toFixed(
-        decimals,
-      )} ${indicatorName}2=${v2.toFixed(
-        decimals,
-      )} (${indicatorName}2${comparisonSymbol}${indicatorName}1)`;
+      const detail = `${indicatorName}1=${v1.toFixed(decimals)} ` +
+        `${indicatorName}2a=${v2a.toFixed(decimals)} (${indicatorName}2a${comparisonSymbolA}${indicatorName}1) ` +
+        `${indicatorName}2b=${v2b.toFixed(decimals)} (${indicatorName}2b${comparisonSymbolB}${indicatorName}1) ` +
+        `${indicatorName}2c=${v2c.toFixed(decimals)} (${indicatorName}2c${comparisonSymbolC}${indicatorName}1)`;
       verificationDetails.push(detail);
 
-      if (!indicatorPassed) {
+      // 只有所有3个时间点都满足条件，该指标才算通过
+      if (!indicatorPassedA || !indicatorPassedB || !indicatorPassedC) {
         verificationPassed = false;
         failedIndicators.push(indicatorName);
       }
@@ -462,7 +506,7 @@ export class SignalVerificationManager {
 
     // 构建验证原因字符串
     let verificationReason = verificationDetails.join(' ');
-    verificationReason += ` 时间差=${timeDiffSeconds.toFixed(1)}秒`;
+    verificationReason += ` 时间差T0=${timeDiffSeconds0.toFixed(1)}秒 T0+5s=${timeDiffSeconds1.toFixed(1)}秒 T0+10s=${timeDiffSeconds2.toFixed(1)}秒`;
 
     if (!verificationPassed) {
       verificationReason += ` [失败指标: ${failedIndicators.join(', ')}]`;
