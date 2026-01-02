@@ -121,7 +121,7 @@ export class RiskChecker {
     // 验证 maxDailyLoss 的有效性
     if (!Number.isFinite(this.maxDailyLoss) || this.maxDailyLoss < 0) {
       logger.warn(
-        `[风险检查警告] maxDailyLoss 配置无效（${this.maxDailyLoss}），将使用默认值 0（禁止任何浮亏）`
+        `[风险检查警告] maxDailyLoss 配置无效（${this.maxDailyLoss}），将使用默认值 0（禁止任何浮亏）`,
       );
       this.maxDailyLoss = 0;
     }
@@ -144,7 +144,7 @@ export class RiskChecker {
   async initializeWarrantInfo(
     marketDataClient: MarketDataClient,
     longSymbol: string,
-    shortSymbol: string
+    shortSymbol: string,
   ): Promise<void> {
     if (!marketDataClient) {
       logger.warn('[风险检查] 未提供 marketDataClient，跳过牛熊证信息初始化');
@@ -157,7 +157,7 @@ export class RiskChecker {
         const warrantInfo = await this._checkWarrantType(
           marketDataClient,
           longSymbol,
-          'CALL'
+          'CALL',
         );
         this.longWarrantInfo = warrantInfo;
 
@@ -167,17 +167,17 @@ export class RiskChecker {
               warrantInfo.warrantType === 'BULL'
                 ? '牛证'
                 : warrantInfo.warrantType === 'BEAR'
-                ? '熊证'
-                : '轮证'
-            }，回收价=${warrantInfo.callPrice?.toFixed(3) ?? '未知'}`
+                  ? '熊证'
+                  : '轮证'
+            }，回收价=${warrantInfo.callPrice?.toFixed(3) ?? '未知'}`,
           );
         } else {
           logger.info(`[风险检查] 做多标的 ${longSymbol} 不是牛熊证`);
         }
       } catch (err) {
         logger.warn(
-          `[风险检查] 检查做多标的牛熊证信息时出错：`,
-          (err as Error)?.message ?? String(err) ?? '未知错误'
+          '[风险检查] 检查做多标的牛熊证信息时出错：',
+          (err as Error)?.message ?? String(err),
         );
         this.longWarrantInfo = { isWarrant: false };
       }
@@ -189,7 +189,7 @@ export class RiskChecker {
         const warrantInfo = await this._checkWarrantType(
           marketDataClient,
           shortSymbol,
-          'PUT'
+          'PUT',
         );
         this.shortWarrantInfo = warrantInfo;
 
@@ -199,17 +199,17 @@ export class RiskChecker {
               warrantInfo.warrantType === 'BULL'
                 ? '牛证'
                 : warrantInfo.warrantType === 'BEAR'
-                ? '熊证'
-                : '轮证'
-            }，回收价=${warrantInfo.callPrice?.toFixed(3) ?? '未知'}`
+                  ? '熊证'
+                  : '轮证'
+            }，回收价=${warrantInfo.callPrice?.toFixed(3) ?? '未知'}`,
           );
         } else {
           logger.info(`[风险检查] 做空标的 ${shortSymbol} 不是牛熊证`);
         }
       } catch (err) {
         logger.warn(
-          `[风险检查] 检查做空标的牛熊证信息时出错：`,
-          (err as Error)?.message ?? String(err) ?? '未知错误'
+          '[风险检查] 检查做空标的牛熊证信息时出错：',
+          (err as Error)?.message ?? String(err),
         );
         this.shortWarrantInfo = { isWarrant: false };
       }
@@ -227,7 +227,7 @@ export class RiskChecker {
   private async _checkWarrantType(
     marketDataClient: MarketDataClient,
     symbol: string,
-    expectedType: 'CALL' | 'PUT'
+    expectedType: 'CALL' | 'PUT',
   ): Promise<WarrantInfo> {
     const normalizedSymbol = normalizeHKSymbol(symbol);
     const ctx = await marketDataClient._getContext();
@@ -287,7 +287,7 @@ export class RiskChecker {
       logger.warn(
         `[风险检查警告] ${symbol} 的牛熊证类型不符合预期：期望${
           expectedType === 'CALL' ? '牛证' : '熊证'
-        }，实际是${warrantType === 'BULL' ? '牛证' : '熊证'}`
+        }，实际是${warrantType === 'BULL' ? '牛证' : '熊证'}`,
       );
     }
 
@@ -317,7 +317,7 @@ export class RiskChecker {
     orderNotional: number,
     currentPrice: number | null = null,
     longCurrentPrice: number | null = null,
-    shortCurrentPrice: number | null = null
+    shortCurrentPrice: number | null = null,
   ): RiskCheckResult {
     // HOLD 信号不需要检查
     if (!signal || signal.action === SignalType.HOLD) {
@@ -331,7 +331,7 @@ export class RiskChecker {
     if (isBuy && !account) {
       return {
         allowed: false,
-        reason: `账户数据不可用，无法进行风险检查，禁止买入操作`,
+        reason: '账户数据不可用，无法进行风险检查，禁止买入操作',
       };
     }
 
@@ -388,19 +388,19 @@ export class RiskChecker {
             if (process.env.DEBUG === 'true') {
               logger.debug(
                 `[风险检查调试] 做多标的浮亏检查: R1(开仓成本)=${r1.toFixed(
-                  2
+                  2,
                 )}, R2(当前市值)=${r2.toFixed(
-                  2
+                  2,
                 )}, 浮亏=${longUnrealizedPnL.toFixed(2)} HKD，最大允许亏损=${
                   this.maxDailyLoss
-                } HKD`
+                } HKD`,
               );
             }
 
             // 如果浮亏计算结果不是有限数字，拒绝买入操作（安全策略）
             if (!Number.isFinite(longUnrealizedPnL)) {
               logger.error(
-                `[风险检查错误] 做多标的持仓浮亏计算结果无效：${longUnrealizedPnL}`
+                `[风险检查错误] 做多标的持仓浮亏计算结果无效：${longUnrealizedPnL}`,
               );
               return {
                 allowed: false,
@@ -413,11 +413,11 @@ export class RiskChecker {
               return {
                 allowed: false,
                 reason: `做多标的持仓浮亏约 ${longUnrealizedPnL.toFixed(
-                  2
+                  2,
                 )} HKD 已超过单标的最大浮亏限制 ${
                   this.maxDailyLoss
                 } HKD，禁止买入做多标的（R1=${r1.toFixed(2)}, R2=${r2.toFixed(
-                  2
+                  2,
                 )}, N1=${n1}）`,
               };
             }
@@ -443,19 +443,19 @@ export class RiskChecker {
             if (process.env.DEBUG === 'true') {
               logger.debug(
                 `[风险检查调试] 做空标的浮亏检查: R1(开仓成本)=${r1.toFixed(
-                  2
+                  2,
                 )}, R2(当前市值)=${r2.toFixed(
-                  2
+                  2,
                 )}, 浮亏=${shortUnrealizedPnL.toFixed(2)} HKD，最大允许亏损=${
                   this.maxDailyLoss
-                } HKD`
+                } HKD`,
               );
             }
 
             // 如果浮亏计算结果不是有限数字，拒绝买入操作（安全策略）
             if (!Number.isFinite(shortUnrealizedPnL)) {
               logger.error(
-                `[风险检查错误] 做空标的持仓浮亏计算结果无效：${shortUnrealizedPnL}`
+                `[风险检查错误] 做空标的持仓浮亏计算结果无效：${shortUnrealizedPnL}`,
               );
               return {
                 allowed: false,
@@ -468,11 +468,11 @@ export class RiskChecker {
               return {
                 allowed: false,
                 reason: `做空标的持仓浮亏约 ${shortUnrealizedPnL.toFixed(
-                  2
+                  2,
                 )} HKD 已超过单标的最大浮亏限制 ${
                   this.maxDailyLoss
                 } HKD，禁止买入做空标的（R1=${r1.toFixed(2)}, R2=${r2.toFixed(
-                  2
+                  2,
                 )}, N1=${n1}）`,
               };
             }
@@ -492,7 +492,7 @@ export class RiskChecker {
         signal,
         positions,
         orderNotional,
-        currentPrice
+        currentPrice,
       );
       if (!positionCheckResult.allowed) {
         return positionCheckResult;
@@ -510,7 +510,7 @@ export class RiskChecker {
     signal: Signal,
     positions: Position[] | null,
     orderNotional: number,
-    currentPrice: number | null
+    currentPrice: number | null,
   ): RiskCheckResult {
     // 验证下单金额有效性
     if (!Number.isFinite(orderNotional) || orderNotional < 0) {
@@ -525,7 +525,7 @@ export class RiskChecker {
       return {
         allowed: false,
         reason: `本次计划下单金额 ${orderNotional.toFixed(
-          2
+          2,
         )} HKD 超过单标的最大持仓市值限制 ${this.maxPositionNotional} HKD`,
       };
     }
@@ -546,7 +546,7 @@ export class RiskChecker {
     return this._checkPositionWithExistingHoldings(
       pos,
       orderNotional,
-      currentPrice
+      currentPrice,
     );
   }
 
@@ -557,7 +557,7 @@ export class RiskChecker {
   private _checkPositionWithExistingHoldings(
     pos: Position,
     orderNotional: number,
-    currentPrice: number | null
+    currentPrice: number | null,
   ): RiskCheckResult {
     // 验证持仓数量有效性
     const posQuantity = Number(pos.quantity) || 0;
@@ -567,7 +567,7 @@ export class RiskChecker {
         return {
           allowed: false,
           reason: `本次计划下单金额 ${orderNotional.toFixed(
-            2
+            2,
           )} HKD 超过单标的最大持仓市值限制 ${this.maxPositionNotional} HKD`,
         };
       }
@@ -585,7 +585,7 @@ export class RiskChecker {
         return {
           allowed: false,
           reason: `本次计划下单金额 ${orderNotional.toFixed(
-            2
+            2,
           )} HKD 超过单标的最大持仓市值限制 ${this.maxPositionNotional} HKD`,
         };
       }
@@ -608,11 +608,11 @@ export class RiskChecker {
       return {
         allowed: false,
         reason: `该标的当前持仓市值约 ${currentNotional.toFixed(
-          2
+          2,
         )} HKD（数量=${posQuantity} × 价格=${price.toFixed(
-          3
+          3,
         )}），加上本次计划下单 ${orderNotional.toFixed(
-          2
+          2,
         )} HKD 将超过单标的最大持仓市值限制 ${this.maxPositionNotional} HKD`,
       };
     }
@@ -630,7 +630,7 @@ export class RiskChecker {
   checkWarrantRisk(
     symbol: string,
     signalType: string,
-    monitorCurrentPrice: number
+    monitorCurrentPrice: number,
   ): RiskCheckResult {
     // 确定是做多还是做空标的
     const isLong = signalType === SignalType.BUYCALL;
@@ -644,7 +644,7 @@ export class RiskChecker {
     // 验证回收价是否有效
     if (!Number.isFinite(warrantInfo.callPrice) || !warrantInfo.callPrice || warrantInfo.callPrice <= 0) {
       logger.warn(
-        `[风险检查] ${symbol} 的回收价无效（${warrantInfo.callPrice}），允许交易`
+        `[风险检查] ${symbol} 的回收价无效（${warrantInfo.callPrice}），允许交易`,
       );
       return { allowed: true };
     }
@@ -652,7 +652,7 @@ export class RiskChecker {
     // 验证监控标的的当前价格是否有效
     if (!Number.isFinite(monitorCurrentPrice) || monitorCurrentPrice <= 0) {
       logger.warn(
-        `[风险检查] 监控标的的当前价格无效（${monitorCurrentPrice}），无法检查牛熊证风险`
+        `[风险检查] 监控标的的当前价格无效（${monitorCurrentPrice}），无法检查牛熊证风险`,
       );
       return {
         allowed: false,
@@ -664,7 +664,7 @@ export class RiskChecker {
     // 如果价格异常小，可能获取到了错误的价格（如牛熊证本身的价格），拒绝买入
     if (monitorCurrentPrice < MIN_MONITOR_PRICE_THRESHOLD) {
       logger.warn(
-        `[风险检查] 监控标的价格异常小（${monitorCurrentPrice}），可能获取到了错误的价格（如牛熊证本身的价格），拒绝买入以确保安全`
+        `[风险检查] 监控标的价格异常小（${monitorCurrentPrice}），可能获取到了错误的价格（如牛熊证本身的价格），拒绝买入以确保安全`,
       );
       return {
         allowed: false, // 拒绝买入，确保安全
@@ -688,9 +688,9 @@ export class RiskChecker {
         return {
           allowed: false,
           reason: `牛证距离回收价百分比为 ${distancePercent.toFixed(
-            DEFAULT_PERCENT_DECIMALS
+            DEFAULT_PERCENT_DECIMALS,
           )}%，低于${BULL_WARRANT_MIN_DISTANCE_PERCENT}%阈值，停止买入（回收价=${callPrice.toFixed(
-            DEFAULT_PRICE_DECIMALS
+            DEFAULT_PRICE_DECIMALS,
           )}，监控标的当前价=${monitorCurrentPrice.toFixed(DEFAULT_PRICE_DECIMALS)}）`,
           warrantInfo: {
             isWarrant: true,
@@ -707,9 +707,9 @@ export class RiskChecker {
         return {
           allowed: false,
           reason: `熊证距离回收价百分比为 ${distancePercent.toFixed(
-            DEFAULT_PERCENT_DECIMALS
+            DEFAULT_PERCENT_DECIMALS,
           )}%，高于${BEAR_WARRANT_MAX_DISTANCE_PERCENT}%阈值，停止买入（回收价=${callPrice.toFixed(
-            DEFAULT_PRICE_DECIMALS
+            DEFAULT_PRICE_DECIMALS,
           )}，监控标的当前价=${monitorCurrentPrice.toFixed(DEFAULT_PRICE_DECIMALS)}）`,
           warrantInfo: {
             isWarrant: true,
@@ -754,7 +754,7 @@ export class RiskChecker {
   async refreshUnrealizedLossData(
     orderRecorder: OrderRecorder,
     symbol: string,
-    isLongSymbol: boolean
+    isLongSymbol: boolean,
   ): Promise<{ r1: number; n1: number } | null> {
     // 如果未启用浮亏保护，跳过
     if (
@@ -767,7 +767,7 @@ export class RiskChecker {
 
     if (!orderRecorder) {
       logger.warn(
-        `[浮亏监控] 未提供 OrderRecorder 实例，无法刷新标的 ${symbol} 的浮亏数据`
+        `[浮亏监控] 未提供 OrderRecorder 实例，无法刷新标的 ${symbol} 的浮亏数据`,
       );
       return null;
     }
@@ -781,11 +781,11 @@ export class RiskChecker {
       // - 交易后：已通过 recordLocalBuy/recordLocalSell 更新
       const buyOrders = isLongSymbol
         ? orderRecorder._longBuyOrders.filter(
-            (o) => o.symbol === normalizedSymbol
-          )
+          (o) => o.symbol === normalizedSymbol,
+        )
         : orderRecorder._shortBuyOrders.filter(
-            (o) => o.symbol === normalizedSymbol
-          );
+          (o) => o.symbol === normalizedSymbol,
+        );
 
       // 计算R1（开仓成本）= 所有未平仓买入订单的市值总和
       // 计算N1（持仓数量）= 所有未平仓买入订单的成交数量总和
@@ -815,15 +815,15 @@ export class RiskChecker {
       const positionType = isLongSymbol ? '做多标的' : '做空标的';
       logger.info(
         `[浮亏监控] ${positionType} ${normalizedSymbol}: R1(开仓成本)=${r1.toFixed(
-          2
-        )} HKD, N1(持仓数量)=${n1}, 未平仓订单数=${buyOrders.length}`
+          2,
+        )} HKD, N1(持仓数量)=${n1}, 未平仓订单数=${buyOrders.length}`,
       );
 
       return { r1, n1 };
     } catch (error) {
       logger.error(
         `[浮亏监控] 刷新标的 ${symbol} 的浮亏数据失败`,
-        (error as Error).message || String(error)
+        (error as Error).message || String(error),
       );
       return null;
     }
@@ -839,7 +839,7 @@ export class RiskChecker {
   checkUnrealizedLoss(
     symbol: string,
     currentPrice: number,
-    isLongSymbol: boolean
+    isLongSymbol: boolean,
   ): UnrealizedLossCheckResult {
     // 如果未启用浮亏保护，跳过
     if (
@@ -865,7 +865,7 @@ export class RiskChecker {
       // 1. 程序启动时订单获取失败导致标的被禁用
       // 2. 浮亏监控数据尚未刷新
       logger.warn(
-        `[浮亏监控] ${normalizedSymbol} 浮亏数据未初始化，跳过检查（可能是订单获取失败或数据尚未刷新）`
+        `[浮亏监控] ${normalizedSymbol} 浮亏数据未初始化，跳过检查（可能是订单获取失败或数据尚未刷新）`,
       );
       return { shouldLiquidate: false };
     }
@@ -887,9 +887,9 @@ export class RiskChecker {
     if (unrealizedLoss < -this.maxUnrealizedLossPerSymbol) {
       const positionType = isLongSymbol ? '做多标的' : '做空标的';
       const reason = `[保护性清仓] ${positionType} ${normalizedSymbol} 浮亏=${unrealizedLoss.toFixed(
-        2
+        2,
       )} HKD 超过阈值 ${this.maxUnrealizedLossPerSymbol} HKD (R1=${r1.toFixed(
-        2
+        2,
       )}, R2=${r2.toFixed(2)}, N1=${n1})，执行保护性清仓`;
 
       logger.warn(reason);

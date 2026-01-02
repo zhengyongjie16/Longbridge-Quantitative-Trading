@@ -209,7 +209,7 @@ function formatDateString(date: Date): string {
  * @returns 格式化后的错误消息
  */
 function formatError(err: unknown): string {
-  return (err as Error)?.message ?? String(err) ?? '未知错误';
+  return (err as Error)?.message ?? String(err);
 }
 
 /**
@@ -273,7 +273,7 @@ async function runOnce({
     } catch (err) {
       logger.warn(
         '无法获取交易日信息，将根据时间判断是否在交易时段',
-        formatError(err)
+        formatError(err),
       );
     }
   } else {
@@ -298,11 +298,11 @@ async function runOnce({
   // 并发获取三个标的的行情
   const [longQuote, shortQuote, monitorQuote] = await Promise.all([
     marketDataClient.getLatestQuote(LONG_SYMBOL).catch((err: unknown) => {
-      logger.warn(`[行情获取失败] 做多标的`, formatError(err));
+      logger.warn('[行情获取失败] 做多标的', formatError(err));
       return null;
     }),
     marketDataClient.getLatestQuote(SHORT_SYMBOL).catch((err: unknown) => {
-      logger.warn(`[行情获取失败] 做空标的`, formatError(err));
+      logger.warn('[行情获取失败] 做空标的', formatError(err));
       return null;
     }),
     marketDataClient.getLatestQuote(MONITOR_SYMBOL).catch(() => null),
@@ -338,7 +338,7 @@ async function runOnce({
     shortQuote,
     LONG_SYMBOL,
     SHORT_SYMBOL,
-    lastState
+    lastState,
   );
 
   // 实时检查浮亏（仅在价格变化时检查）
@@ -350,7 +350,7 @@ async function runOnce({
       SHORT_SYMBOL,
       riskChecker,
       trader,
-      orderRecorder
+      orderRecorder,
     );
   }
 
@@ -360,7 +360,7 @@ async function runOnce({
     .catch((err: unknown) => {
       logger.error(
         `获取监控标的 ${MONITOR_SYMBOL} K线数据失败`,
-        formatError(err)
+        formatError(err),
       );
       return null;
     });
@@ -374,7 +374,7 @@ async function runOnce({
     MONITOR_SYMBOL,
     monitorCandles as CandleData[],
     RSI_PERIODS,
-    EMA_PERIODS
+    EMA_PERIODS,
   );
 
   // 监控指标变化并显示
@@ -384,13 +384,13 @@ async function runOnce({
     MONITOR_SYMBOL,
     EMA_PERIODS,
     RSI_PERIODS,
-    lastState
+    lastState,
   );
 
   // 为所有待验证信号记录当前监控标的值
   signalVerificationManager.recordVerificationHistory(
     monitorSnapshot,
-    lastState
+    lastState,
   );
 
   // 释放上一次快照中的 kdj 和 macd 对象（如果它们没有被 monitorValues 引用）
@@ -443,6 +443,11 @@ async function runOnce({
         shortPosition.quantity = Number(pos.quantity) || 0;
         shortPosition.availableQuantity = availableQty;
       }
+
+      // 早退优化：如果已找到两个position，无需继续遍历
+      if (longPosition && shortPosition) {
+        break;
+      }
     }
   }
 
@@ -452,7 +457,7 @@ async function runOnce({
     longPosition,
     shortPosition,
     NORMALIZED_LONG_SYMBOL,
-    NORMALIZED_SHORT_SYMBOL
+    NORMALIZED_SHORT_SYMBOL,
   );
 
   // 将立即执行的信号添加到交易信号列表
@@ -465,7 +470,7 @@ async function runOnce({
   const verifiedSignals = signalVerificationManager.verifyPendingSignals(
     lastState,
     longQuote,
-    shortQuote
+    shortQuote,
   );
 
   // 将验证通过的信号添加到交易信号列表
@@ -479,7 +484,7 @@ async function runOnce({
     }
     if (!VALID_SIGNAL_ACTIONS.includes(signal.action)) {
       logger.warn(
-        `[跳过信号] 未知的信号类型: ${signal.action}, 标的: ${signal.symbol}`
+        `[跳过信号] 未知的信号类型: ${signal.action}, 标的: ${signal.symbol}`,
       );
       return false;
     }
@@ -488,7 +493,7 @@ async function runOnce({
 
   // 释放无效的信号对象（从 tradingSignals 中过滤掉的信号）
   const invalidSignals = tradingSignals.filter(
-    (s) => !validSignals.includes(s)
+    (s) => !validSignals.includes(s),
   );
   if (invalidSignals.length > 0) {
     signalObjectPool.releaseAll(invalidSignals);
@@ -498,8 +503,8 @@ async function runOnce({
   const currentSignalKey =
     validSignals.length > 0
       ? validSignals
-          .map((s) => `${s.action}_${s.symbol}_${s.reason || ''}`)
-          .join('|')
+        .map((s) => `${s.action}_${s.symbol}_${s.reason || ''}`)
+        .join('|')
       : null;
   const lastSignalKey = lastState.signal;
 
@@ -509,8 +514,8 @@ async function runOnce({
       logger.info(
         `交易所时间：${lastCandleTime.toLocaleString(
           'zh-CN',
-          LOCALE_STRING_OPTIONS
-        )}`
+          LOCALE_STRING_OPTIONS,
+        )}`,
       );
     }
 
@@ -523,12 +528,12 @@ async function runOnce({
         logger.info(
           `[交易信号] ${actionDesc} ${signal.symbol} - ${
             signal.reason || '策略信号'
-          }`
+          }`,
         );
       });
     } else {
       logger.info(
-        `[监控标的信号] ${monitorSymbolName}(${NORMALIZED_MONITOR_SYMBOL}) 无交易信号`
+        `[监控标的信号] ${monitorSymbolName}(${NORMALIZED_MONITOR_SYMBOL}) 无交易信号`,
       );
     }
 
@@ -567,7 +572,7 @@ async function runOnce({
       shortQuote,
       LONG_SYMBOL,
       SHORT_SYMBOL,
-      isHalfDayToday
+      isHalfDayToday,
     );
   } else if (validSignals.length > 0 && canTradeNow) {
     // 正常交易信号处理：应用风险检查
@@ -595,7 +600,7 @@ async function runOnce({
 
     // 释放在风险检查中被跳过的信号（validSignals 中不在 finalSignals 中的信号）
     const skippedSignals = validSignals.filter(
-      (sig) => !finalSignals.includes(sig)
+      (sig) => !finalSignals.includes(sig),
     );
     if (skippedSignals.length > 0) {
       signalObjectPool.releaseAll(skippedSignals);
@@ -611,13 +616,13 @@ async function runOnce({
         LONG_SYMBOL,
         SHORT_SYMBOL,
         longSymbolName,
-        shortSymbolName
+        shortSymbolName,
       );
 
       const targetAction = SIGNAL_TARGET_ACTIONS[sig.action] || '未知';
 
       logger.info(
-        `[交易指令] 将对 ${sigName}(${normalizedSigSymbol}) 执行${targetAction}操作 - ${sig.reason}`
+        `[交易指令] 将对 ${sigName}(${normalizedSigSymbol}) 执行${targetAction}操作 - ${sig.reason}`,
       );
     }
   } else if (validSignals.length > 0 && !canTradeNow) {
@@ -646,12 +651,12 @@ async function runOnce({
       shortPosition,
       longQuote,
       shortQuote,
-      orderRecorder
+      orderRecorder,
     );
 
     // 过滤掉被设置为HOLD的信号
     const signalsToExecute = finalSignals.filter(
-      (sig) => sig.action !== SignalType.HOLD
+      (sig) => sig.action !== SignalType.HOLD,
     );
 
     if (signalsToExecute.length > 0) {
@@ -703,12 +708,12 @@ async function runOnce({
             await riskChecker.refreshUnrealizedLossData(
               orderRecorder,
               symbol,
-              isLongSymbol
+              isLongSymbol,
             );
           } catch (err) {
             logger.warn(
               `[浮亏监控] 交易后刷新浮亏数据失败: ${symbol}`,
-              formatError(err)
+              formatError(err),
             );
           }
         }
@@ -722,7 +727,7 @@ async function runOnce({
     // 释放未执行的信号（finalSignals 中被过滤掉的 HOLD 信号）
     if (finalSignals && finalSignals.length > 0) {
       const heldSignals = finalSignals.filter(
-        (sig) => sig.action === SignalType.HOLD
+        (sig) => sig.action === SignalType.HOLD,
       );
       if (heldSignals.length > 0) {
         signalObjectPool.releaseAll(heldSignals);
@@ -779,10 +784,10 @@ async function main(): Promise<void> {
   const marketMonitor = new MarketMonitor();
   const doomsdayProtection = new DoomsdayProtection();
   const unrealizedLossMonitor = new UnrealizedLossMonitor(
-    TRADING_CONFIG.maxUnrealizedLossPerSymbol ?? 0
+    TRADING_CONFIG.maxUnrealizedLossPerSymbol ?? 0,
   );
   const signalVerificationManager = new SignalVerificationManager(
-    TRADING_CONFIG.verificationConfig ?? { delaySeconds: 60, indicators: ['K', 'MACD'] }
+    TRADING_CONFIG.verificationConfig ?? { delaySeconds: 60, indicators: ['K', 'MACD'] },
   );
   const signalProcessor = new SignalProcessor();
 
@@ -792,7 +797,7 @@ async function main(): Promise<void> {
   await riskChecker.initializeWarrantInfo(
     marketDataClient,
     LONG_SYMBOL,
-    SHORT_SYMBOL
+    SHORT_SYMBOL,
   );
 
   // 记录上一次的数据状态
@@ -818,7 +823,7 @@ async function main(): Promise<void> {
     await orderRecorder.fetchOrdersFromAPI(LONG_SYMBOL).catch((err: unknown) => {
       logger.warn(
         `[订单记录初始化失败] 做多标的 ${LONG_SYMBOL}`,
-        formatError(err)
+        formatError(err),
       );
     });
   }
@@ -826,7 +831,7 @@ async function main(): Promise<void> {
     await orderRecorder.fetchOrdersFromAPI(SHORT_SYMBOL).catch((err: unknown) => {
       logger.warn(
         `[订单记录初始化失败] 做空标的 ${SHORT_SYMBOL}`,
-        formatError(err)
+        formatError(err),
       );
     });
   }
@@ -836,7 +841,7 @@ async function main(): Promise<void> {
     await orderRecorder.refreshOrders(LONG_SYMBOL, true, false).catch((err: unknown) => {
       logger.warn(
         `[订单记录初始化失败] 做多标的 ${LONG_SYMBOL}`,
-        formatError(err)
+        formatError(err),
       );
     });
   }
@@ -846,7 +851,7 @@ async function main(): Promise<void> {
       .catch((err: unknown) => {
         logger.warn(
           `[订单记录初始化失败] 做空标的 ${SHORT_SYMBOL}`,
-          formatError(err)
+          formatError(err),
         );
       });
   }
@@ -859,7 +864,7 @@ async function main(): Promise<void> {
         .catch((err: unknown) => {
           logger.warn(
             `[浮亏监控初始化失败] 做多标的 ${LONG_SYMBOL}`,
-            formatError(err)
+            formatError(err),
           );
         });
     }
@@ -869,7 +874,7 @@ async function main(): Promise<void> {
         .catch((err: unknown) => {
           logger.warn(
             `[浮亏监控初始化失败] 做空标的 ${SHORT_SYMBOL}`,
-            formatError(err)
+            formatError(err),
           );
         });
     }
@@ -879,7 +884,7 @@ async function main(): Promise<void> {
   try {
     const hasPendingBuyOrders = await trader.hasPendingBuyOrders(
       [NORMALIZED_LONG_SYMBOL, NORMALIZED_SHORT_SYMBOL],
-      orderRecorder // 传入 orderRecorder，从缓存获取未成交订单
+      orderRecorder, // 传入 orderRecorder，从缓存获取未成交订单
     );
     if (hasPendingBuyOrders) {
       trader.enableBuyOrderMonitoring();
@@ -888,12 +893,12 @@ async function main(): Promise<void> {
   } catch (err) {
     logger.warn(
       '[订单监控] 程序启动时检查买入订单失败',
-      formatError(err)
+      formatError(err),
     );
   }
 
   // 无限循环监控
-  // eslint-disable-next-line no-constant-condition
+
   while (true) {
     try {
       await runOnce({

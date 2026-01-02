@@ -262,7 +262,7 @@ export function parseSignalConfig(configStr: string | null | undefined): SignalC
 
   // 最多支持3个条件组
   if (groupStrs.length > 3) {
-    console.warn(`[信号配置警告] 条件组数量超过3个，将只使用前3个`);
+    console.warn('[信号配置警告] 条件组数量超过3个，将只使用前3个');
   }
 
   const conditionGroups: ConditionGroup[] = [];
@@ -379,7 +379,7 @@ export function validateSignalConfig(configStr: string | null | undefined): Vali
           error: `条件组 ${i + 1} 的第 ${
             j + 1
           } 个条件 "${condStr}" 格式无效。支持的指标: RSI:n (n为1-100), EMA:n (n为1-250), ${SUPPORTED_INDICATORS.join(
-            ', '
+            ', ',
           )}`,
           config: null,
         };
@@ -556,8 +556,8 @@ export function evaluateSignalConfig(state: IndicatorState, signalConfig: Signal
         group.conditions.length === 1
           ? `满足条件${i + 1}：${conditionDescs}`
           : `满足条件${i + 1}：(${conditionDescs}) 中${result.count}/${
-              group.conditions.length
-            }项满足`;
+            group.conditions.length
+          }项满足`;
 
       return {
         triggered: true,

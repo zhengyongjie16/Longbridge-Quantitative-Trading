@@ -123,7 +123,7 @@ interface FindWarrantsResult {
  */
 function calculateDistancePercent(
   callPrice: number,
-  monitorPrice: number
+  monitorPrice: number,
 ): number | null {
   if (
     !Number.isFinite(callPrice) ||
@@ -184,7 +184,7 @@ async function checkWarrant(
   monitorPrice: number,
   startDate: NaiveDate,
   endDate: NaiveDate,
-  isBull: boolean
+  isBull: boolean,
 ): Promise<QualifiedWarrant | null> {
   const warrantSymbol = warrant.symbol || warrant.code;
   if (!warrantSymbol) {
@@ -203,14 +203,14 @@ async function checkWarrant(
 
     // 获取回收价
     const callPriceNum = decimalToNumber(
-      (warrantQuote.call_price ?? warrantQuote.callPrice) as string | number | null
+      (warrantQuote.call_price ?? warrantQuote.callPrice) as string | number | null,
     );
     if (!Number.isFinite(callPriceNum) || callPriceNum <= 0) return null;
 
     // 计算回收价距离监控标的当前价的百分比
     const distancePercent = calculateDistancePercent(
       callPriceNum,
-      monitorPrice
+      monitorPrice,
     );
     if (distancePercent === null) return null;
 
@@ -233,7 +233,7 @@ async function checkWarrant(
       AdjustType.NoAdjust,
       startDate,
       endDate,
-      TradeSessions.All
+      TradeSessions.All,
     );
 
     if (!Array.isArray(candles) || candles.length === 0) return null;
@@ -267,14 +267,14 @@ async function checkWarrant(
 async function checkWarrantsBatch(
   warrants: WarrantInfo[],
   checkFunction: (warrant: WarrantInfo) => Promise<QualifiedWarrant | null>,
-  batchSize: number
+  batchSize: number,
 ): Promise<QualifiedWarrant[]> {
   if (!warrants?.length) return [];
 
   const results: QualifiedWarrant[] = [];
   for (let i = 0; i < warrants.length; i += batchSize) {
     const batchResults = await Promise.all(
-      warrants.slice(i, i + batchSize).map(checkFunction)
+      warrants.slice(i, i + batchSize).map(checkFunction),
     );
     for (const result of batchResults) {
       if (result) results.push(result);
@@ -289,7 +289,7 @@ async function checkWarrantsBatch(
  * @returns 符合条件的牛证和熊证列表
  */
 async function findQualifiedWarrants(
-  monitorSymbol: string
+  monitorSymbol: string,
 ): Promise<FindWarrantsResult> {
   try {
     // 创建配置
@@ -311,7 +311,7 @@ async function findQualifiedWarrants(
     const monitorPrice = decimalToNumber(monitorQuote.lastDone as string | number | null);
     if (!Number.isFinite(monitorPrice) || monitorPrice <= 0) {
       throw new Error(
-        `监控标的 ${normalizedMonitorSymbol} 的当前价无效: ${monitorPrice}`
+        `监控标的 ${normalizedMonitorSymbol} 的当前价无效: ${monitorPrice}`,
       );
     }
 
@@ -348,7 +348,7 @@ async function findQualifiedWarrants(
         commonParams[3],
         commonParams[4],
         commonParams[5],
-        commonParams[6]
+        commonParams[6],
       ),
       ctx.warrantList(
         commonParams[0],
@@ -358,7 +358,7 @@ async function findQualifiedWarrants(
         commonParams[3],
         commonParams[4],
         commonParams[5],
-        commonParams[6]
+        commonParams[6],
       ),
     ]);
 
@@ -405,7 +405,7 @@ async function findQualifiedWarrants(
       bearWarrants: qualifiedBearWarrants,
     };
   } catch (err) {
-    console.error(`[错误] 查找窝轮失败:`, err);
+    console.error('[错误] 查找窝轮失败:', err);
     throw err;
   }
 }
@@ -425,7 +425,7 @@ async function main(): Promise<void> {
     if (!monitorSymbol) {
       console.error('错误: 未指定监控标的');
       console.error(
-        '使用方法: node src/analysisTools/findWarrant.js <监控标的代码>'
+        '使用方法: node src/analysisTools/findWarrant.js <监控标的代码>',
       );
       console.error('例如: node src/analysisTools/findWarrant.js HSI.HK');
       console.error('或设置环境变量 MONITOR_SYMBOL');
@@ -441,11 +441,11 @@ async function main(): Promise<void> {
         '查找符合条件的牛熊证',
         SEPARATOR,
         `监控标的: ${monitorSymbol}`,
-        `筛选条件:`,
+        '筛选条件:',
         `  - 牛证: 过期日 >= ${MIN_EXPIRY_MONTHS}个月，三日内平均成交额 >= ${minAvgTurnoverWan}万，且距离百分比 > ${BULL_DISTANCE_PERCENT_THRESHOLD}%（监控标的当前价高于回收价）`,
         `  - 熊证: 过期日 >= ${MIN_EXPIRY_MONTHS}个月，三日内平均成交额 >= ${minAvgTurnoverWan}万，且距离百分比 < ${BEAR_DISTANCE_PERCENT_THRESHOLD}%（监控标的当前价低于回收价）`,
         SEPARATOR,
-      ].join('\n')
+      ].join('\n'),
     );
 
     const result = await findQualifiedWarrants(monitorSymbol);
@@ -462,7 +462,7 @@ async function main(): Promise<void> {
             `\n${i + 1}. ${w.name} (${w.symbol})`,
             `   回收价: ${formatNumber(w.callPrice, 2)} HKD`,
             `   距离百分比: ${formatNumber(w.distancePercent, 2)}%`,
-            `   三日内平均成交额: ${formatNumber(w.avgTurnoverInWan, 2)} 万 HKD`
+            `   三日内平均成交额: ${formatNumber(w.avgTurnoverInWan, 2)} 万 HKD`,
           );
         }
       }

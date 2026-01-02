@@ -79,7 +79,7 @@ export class SignalVerificationManager {
           (s) =>
             s.symbol === delayedSignal.symbol &&
             s.action === delayedSignal.action &&
-            s.triggerTime?.getTime() === delayedSignal.triggerTime?.getTime()
+            s.triggerTime?.getTime() === delayedSignal.triggerTime?.getTime(),
         );
 
         if (!existingSignal) {
@@ -90,7 +90,7 @@ export class SignalVerificationManager {
               ? '买入做多'
               : '买入做空';
           logger.info(
-            `[延迟验证信号] 新增待验证${actionDesc}信号：${delayedSignal.symbol} - ${delayedSignal.reason}`
+            `[延迟验证信号] 新增待验证${actionDesc}信号：${delayedSignal.symbol} - ${delayedSignal.reason}`,
           );
         } else {
           // 如果信号已存在，释放新的信号对象，避免内存泄漏
@@ -200,7 +200,7 @@ export class SignalVerificationManager {
   verifyPendingSignals(
     lastState: LastState,
     longQuote: Quote | null,
-    shortQuote: Quote | null
+    shortQuote: Quote | null,
   ): Signal[] {
     const verifiedSignals: Signal[] = [];
 
@@ -214,7 +214,7 @@ export class SignalVerificationManager {
     // 检查是否有待验证的信号到了验证时间
     const now = new Date();
     const signalsToVerify = lastState.pendingDelayedSignals.filter(
-      (s) => s.triggerTime && s.triggerTime <= now
+      (s) => s.triggerTime && s.triggerTime <= now,
     );
 
     // 处理需要验证的信号
@@ -224,7 +224,7 @@ export class SignalVerificationManager {
           pendingSignal,
           now,
           longQuote,
-          shortQuote
+          shortQuote,
         );
 
         if (verifiedSignal) {
@@ -247,7 +247,7 @@ export class SignalVerificationManager {
       } catch (err) {
         logger.error(
           `[延迟验证错误] 处理待验证信号 ${pendingSignal.symbol} 时发生错误`,
-          (err as Error)?.message ?? String(err) ?? '未知错误'
+          (err as Error)?.message ?? String(err),
         );
         // 清空该信号的历史记录并释放对象回池
         if (pendingSignal.verificationHistory) {
@@ -280,7 +280,7 @@ export class SignalVerificationManager {
     pendingSignal: DelayedSignal,
     now: Date,
     longQuote: Quote | null,
-    shortQuote: Quote | null
+    shortQuote: Quote | null,
   ): Signal | null {
     // 安全检查：如果验证指标配置为null或空，跳过验证
     if (
@@ -288,7 +288,7 @@ export class SignalVerificationManager {
       this.verificationConfig.indicators.length === 0
     ) {
       logger.warn(
-        `[延迟验证错误] ${pendingSignal.symbol} 验证指标配置为空，跳过验证`
+        `[延迟验证错误] ${pendingSignal.symbol} 验证指标配置为空，跳过验证`,
       );
       return null;
     }
@@ -296,7 +296,7 @@ export class SignalVerificationManager {
     // 验证策略更新：从实时监控标的的值获取indicators2
     if (!pendingSignal.triggerTime) {
       logger.warn(
-        `[延迟验证错误] ${pendingSignal.symbol} 缺少triggerTime，跳过验证`
+        `[延迟验证错误] ${pendingSignal.symbol} 缺少triggerTime，跳过验证`,
       );
       return null;
     }
@@ -306,7 +306,7 @@ export class SignalVerificationManager {
 
     if (!indicators1 || typeof indicators1 !== 'object') {
       logger.warn(
-        `[延迟验证错误] ${pendingSignal.symbol} 缺少indicators1，跳过验证`
+        `[延迟验证错误] ${pendingSignal.symbol} 缺少indicators1，跳过验证`,
       );
       return null;
     }
@@ -322,7 +322,7 @@ export class SignalVerificationManager {
 
     if (!allIndicators1Valid) {
       logger.warn(
-        `[延迟验证错误] ${pendingSignal.symbol} indicators1中存在无效值，跳过验证`
+        `[延迟验证错误] ${pendingSignal.symbol} indicators1中存在无效值，跳过验证`,
       );
       return null;
     }
@@ -340,7 +340,7 @@ export class SignalVerificationManager {
 
     for (const entry of history) {
       const timeDiff = Math.abs(
-        entry.timestamp.getTime() - targetTime.getTime()
+        entry.timestamp.getTime() - targetTime.getTime(),
       );
       if (timeDiff <= maxTimeDiff && timeDiff < minTimeDiff) {
         minTimeDiff = timeDiff;
@@ -353,7 +353,7 @@ export class SignalVerificationManager {
       const latestEntry = history[history.length - 1];
       if (latestEntry) {
         const timeDiff = Math.abs(
-          latestEntry.timestamp.getTime() - targetTime.getTime()
+          latestEntry.timestamp.getTime() - targetTime.getTime(),
         );
         if (timeDiff <= maxTimeDiff) {
           bestMatch = latestEntry;
@@ -367,11 +367,11 @@ export class SignalVerificationManager {
           pendingSignal.symbol
         } 无法获取有效的indicators2（目标时间=${targetTime.toLocaleString(
           'zh-CN',
-          { timeZone: 'Asia/Hong_Kong', hour12: false }
+          { timeZone: 'Asia/Hong_Kong', hour12: false },
         )}，当前时间=${now.toLocaleString('zh-CN', {
           timeZone: 'Asia/Hong_Kong',
           hour12: false,
-        })}）`
+        })}）`,
       );
       return null;
     }
@@ -392,7 +392,7 @@ export class SignalVerificationManager {
 
     if (!allIndicators2Valid) {
       logger.warn(
-        `[延迟验证失败] ${pendingSignal.symbol} indicators2中存在无效值，跳过验证`
+        `[延迟验证失败] ${pendingSignal.symbol} indicators2中存在无效值，跳过验证`,
       );
       return null;
     }
@@ -404,7 +404,7 @@ export class SignalVerificationManager {
     // 只处理延迟验证的信号类型
     if (!isBuyCall && !isBuyPut) {
       logger.warn(
-        `[延迟验证错误] ${pendingSignal.symbol} 未知的信号类型: ${pendingSignal.action}，跳过验证`
+        `[延迟验证错误] ${pendingSignal.symbol} 未知的信号类型: ${pendingSignal.action}，跳过验证`,
       );
       return null;
     }
@@ -421,7 +421,7 @@ export class SignalVerificationManager {
       // 安全检查：确保两个值都是有效的数字
       if (!Number.isFinite(value1) || !Number.isFinite(value2)) {
         logger.warn(
-          `[延迟验证错误] ${pendingSignal.symbol} 指标${indicatorName}的值无效（value1=${value1}, value2=${value2}），跳过该信号验证`
+          `[延迟验证错误] ${pendingSignal.symbol} 指标${indicatorName}的值无效（value1=${value1}, value2=${value2}），跳过该信号验证`,
         );
         return null;
       }
@@ -448,9 +448,9 @@ export class SignalVerificationManager {
 
       // 构建详细信息字符串
       const detail = `${indicatorName}1=${v1.toFixed(
-        decimals
+        decimals,
       )} ${indicatorName}2=${v2.toFixed(
-        decimals
+        decimals,
       )} (${indicatorName}2${comparisonSymbol}${indicatorName}1)`;
       verificationDetails.push(detail);
 
@@ -471,7 +471,7 @@ export class SignalVerificationManager {
     if (verificationPassed) {
       const actionDesc = isBuyCall ? '买入做多' : '买入做空';
       logger.info(
-        `[延迟验证通过] ${pendingSignal.symbol} ${verificationReason}，执行${actionDesc}`
+        `[延迟验证通过] ${pendingSignal.symbol} ${verificationReason}，执行${actionDesc}`,
       );
 
       // 获取标的的当前价格和最小买卖单位
@@ -507,7 +507,7 @@ export class SignalVerificationManager {
     } else {
       const actionDesc = isBuyCall ? '买入做多' : '买入做空';
       logger.info(
-        `[延迟验证失败] ${pendingSignal.symbol} ${verificationReason}，不执行${actionDesc}`
+        `[延迟验证失败] ${pendingSignal.symbol} ${verificationReason}，不执行${actionDesc}`,
       );
       return null;
     }

@@ -114,7 +114,7 @@ async function validateLongPortConfig(): Promise<ValidationResult> {
     const normalizedRegion = region.toLowerCase();
     if (normalizedRegion !== 'cn' && normalizedRegion !== 'hk') {
       errors.push(
-        `LONGPORT_REGION 配置无效: ${region}，有效值为 "cn" 或 "hk"（默认：hk）`
+        `LONGPORT_REGION 配置无效: ${region}，有效值为 "cn" 或 "hk"（默认：hk）`,
       );
     }
   }
@@ -148,7 +148,7 @@ async function validateLongPortConfig(): Promise<ValidationResult> {
 async function validateSymbol(
   marketDataClient: MarketDataClient,
   symbol: string,
-  symbolLabel: string
+  symbolLabel: string,
 ): Promise<SymbolValidationResult> {
   try {
     // 获取标的信息
@@ -286,7 +286,7 @@ function validateTradingConfig(): TradingValidationResult {
     const maxUnrealizedLoss = Number(maxUnrealizedLossEnv);
     if (!Number.isFinite(maxUnrealizedLoss) || maxUnrealizedLoss < 0) {
       errors.push(
-        `MAX_UNREALIZED_LOSS_PER_SYMBOL 配置无效（当前值: ${maxUnrealizedLossEnv}，必须为非负数或 0 表示禁用）`
+        `MAX_UNREALIZED_LOSS_PER_SYMBOL 配置无效（当前值: ${maxUnrealizedLossEnv}，必须为非负数或 0 表示禁用）`,
       );
       missingFields.push('MAX_UNREALIZED_LOSS_PER_SYMBOL');
     }
@@ -303,7 +303,7 @@ function validateTradingConfig(): TradingValidationResult {
       delaySeconds > 120
     ) {
       errors.push(
-        `VERIFICATION_DELAY_SECONDS 配置无效（当前值: ${delaySecondsEnv}，必须在 0-120 秒范围内）`
+        `VERIFICATION_DELAY_SECONDS 配置无效（当前值: ${delaySecondsEnv}，必须在 0-120 秒范围内）`,
       );
       missingFields.push('VERIFICATION_DELAY_SECONDS');
     }
@@ -320,7 +320,7 @@ function validateTradingConfig(): TradingValidationResult {
       buyInterval > 600
     ) {
       errors.push(
-        `BUY_INTERVAL_SECONDS 配置无效（当前值: ${buyIntervalEnv}，必须在 10-600 秒范围内）`
+        `BUY_INTERVAL_SECONDS 配置无效（当前值: ${buyIntervalEnv}，必须在 10-600 秒范围内）`,
       );
       missingFields.push('BUY_INTERVAL_SECONDS');
     }
@@ -367,8 +367,8 @@ function validateTradingConfig(): TradingValidationResult {
       if (invalidIndicators.length > 0) {
         errors.push(
           `VERIFICATION_INDICATORS 包含无效指标: ${invalidIndicators.join(
-            ', '
-          )}，允许的值: K, D, J, MACD, DIF, DEA, EMA:n (n为1-250)`
+            ', ',
+          )}，允许的值: K, D, J, MACD, DIF, DEA, EMA:n (n为1-250)`,
         );
         missingFields.push('VERIFICATION_INDICATORS');
       }
@@ -447,7 +447,7 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
 
     throw new ConfigValidationError(
       `配置验证失败：发现 ${allErrors.length} 个问题`,
-      allMissingFields
+      allMissingFields,
     );
   }
 
@@ -501,7 +501,7 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
 
     throw new ConfigValidationError(
       `标的验证失败：发现 ${symbolErrors.length} 个问题`,
-      []
+      [],
     );
   }
 
@@ -511,20 +511,20 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
   logger.info(
     `监控标的: ${formatSymbolDisplay(
       TRADING_CONFIG.monitorSymbol,
-      monitorResult.name
-    )}`
+      monitorResult.name,
+    )}`,
   );
   logger.info(
     `做多标的: ${formatSymbolDisplay(
       TRADING_CONFIG.longSymbol,
-      longResult.name
-    )}`
+      longResult.name,
+    )}`,
   );
   logger.info(
     `做空标的: ${formatSymbolDisplay(
       TRADING_CONFIG.shortSymbol,
-      shortResult.name
-    )}`
+      shortResult.name,
+    )}`,
   );
   logger.info(`目标买入金额: ${TRADING_CONFIG.targetNotional} HKD`);
   logger.info(`最大持仓市值: ${TRADING_CONFIG.maxPositionNotional} HKD`);
@@ -536,14 +536,14 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
     TRADING_CONFIG.maxUnrealizedLossPerSymbol > 0
   ) {
     logger.info(
-      `单标的浮亏保护阈值: ${TRADING_CONFIG.maxUnrealizedLossPerSymbol} HKD`
+      `单标的浮亏保护阈值: ${TRADING_CONFIG.maxUnrealizedLossPerSymbol} HKD`,
     );
   } else {
-    logger.info(`单标的浮亏保护: 已禁用`);
+    logger.info('单标的浮亏保护: 已禁用');
   }
 
   logger.info(
-    `是否启动末日保护: ${TRADING_CONFIG.doomsdayProtection ? '是' : '否'}`
+    `是否启动末日保护: ${TRADING_CONFIG.doomsdayProtection ? '是' : '否'}`,
   );
   logger.info(`同方向买入时间间隔: ${TRADING_CONFIG.buyIntervalSeconds} 秒`);
 
@@ -558,22 +558,22 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
     logger.info(`延迟验证时间: ${verificationConfig.delaySeconds} 秒`);
     logger.info(`延迟验证指标: ${verificationConfig.indicators.join(', ')}`);
   } else {
-    logger.info(`延迟验证: 已禁用`);
+    logger.info('延迟验证: 已禁用');
   }
 
   // 显示信号配置
   logger.info('信号配置:');
   logger.info(
-    `BUYCALL: ${formatSignalConfig(TRADING_CONFIG.signalConfig.buycall)}`
+    `BUYCALL: ${formatSignalConfig(TRADING_CONFIG.signalConfig.buycall)}`,
   );
   logger.info(
-    `SELLCALL: ${formatSignalConfig(TRADING_CONFIG.signalConfig.sellcall)}`
+    `SELLCALL: ${formatSignalConfig(TRADING_CONFIG.signalConfig.sellcall)}`,
   );
   logger.info(
-    `BUYPUT: ${formatSignalConfig(TRADING_CONFIG.signalConfig.buyput)}`
+    `BUYPUT: ${formatSignalConfig(TRADING_CONFIG.signalConfig.buyput)}`,
   );
   logger.info(
-    `SELLPUT: ${formatSignalConfig(TRADING_CONFIG.signalConfig.sellput)}`
+    `SELLPUT: ${formatSignalConfig(TRADING_CONFIG.signalConfig.sellput)}`,
   );
   logger.info('');
 

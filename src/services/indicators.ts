@@ -26,7 +26,11 @@ import {
   validateEmaPeriod,
   validatePercentage,
 } from '../utils/indicatorHelpers.js';
+import { logger } from '../utils/logger.js';
 import type { KDJIndicator, MACDIndicator } from '../types/index.js';
+
+// 读取DEBUG环境变量
+const IS_DEBUG = process.env.DEBUG === 'true';
 
 /**
  * 将值转换为数字
@@ -101,7 +105,10 @@ export function calculateRSI(validCloses: number[], period: number): number | nu
     }
 
     return rsi;
-  } catch {
+  } catch (err) {
+    if (IS_DEBUG) {
+      logger.debug(`RSI计算失败 (period=${period})`, err);
+    }
     return null;
   }
 }
@@ -204,7 +211,10 @@ export function calculateKDJ(candles: CandleData[], period: number = 9): KDJIndi
     }
 
     return null;
-  } catch {
+  } catch (err) {
+    if (IS_DEBUG) {
+      logger.debug('KDJ计算失败', err);
+    }
     return null;
   }
 }
@@ -221,7 +231,7 @@ export function calculateMACD(
   validCloses: number[],
   fastPeriod: number = 12,
   slowPeriod: number = 26,
-  signalPeriod: number = 9
+  signalPeriod: number = 9,
 ): MACDIndicator | null {
   if (!validCloses || validCloses.length < slowPeriod + signalPeriod) {
     return null;
@@ -272,7 +282,10 @@ export function calculateMACD(
     macdObj.dea = dea;
     macdObj.macd = macdValue;
     return macdObj as MACDIndicator;
-  } catch {
+  } catch (err) {
+    if (IS_DEBUG) {
+      logger.debug('MACD计算失败', err);
+    }
     return null;
   }
 }
@@ -360,7 +373,10 @@ export function calculateMFI(candles: CandleData[], period: number = 14): number
     }
 
     return mfi;
-  } catch {
+  } catch (err) {
+    if (IS_DEBUG) {
+      logger.debug(`MFI计算失败 (period=${period})`, err);
+    }
     return null;
   }
 }
@@ -404,7 +420,10 @@ export function calculateEMA(validCloses: number[], period: number): number | nu
     }
 
     return ema;
-  } catch {
+  } catch (err) {
+    if (IS_DEBUG) {
+      logger.debug(`EMA计算失败 (period=${period})`, err);
+    }
     return null;
   }
 }
@@ -421,7 +440,7 @@ export function buildIndicatorSnapshot(
   symbol: string,
   candles: CandleData[],
   rsiPeriods: number[] = [],
-  emaPeriods: number[] = []
+  emaPeriods: number[] = [],
 ): IndicatorSnapshotResult | null {
   if (!candles || candles.length === 0) {
     return null;

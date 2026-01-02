@@ -56,7 +56,7 @@ interface LastState {
 export async function displayAccountAndPositions(
   trader: Trader,
   marketDataClient: MarketDataClient,
-  lastState: LastState
+  lastState: LastState,
 ): Promise<void> {
   try {
     // 并行获取账户信息和持仓信息，减少等待时间
@@ -64,14 +64,14 @@ export async function displayAccountAndPositions(
       trader.getAccountSnapshot().catch((err: Error) => {
         logger.warn(
           '获取账户信息失败',
-          err?.message ?? String(err) ?? '未知错误'
+          err?.message ?? String(err),
         );
         return null;
       }),
       trader.getStockPositions().catch((err: Error) => {
         logger.warn(
           '获取股票仓位失败',
-          err?.message ?? String(err) ?? '未知错误'
+          err?.message ?? String(err),
         );
         return [];
       }),
@@ -85,10 +85,10 @@ export async function displayAccountAndPositions(
     if (account) {
       logger.info(
         `账户概览 [${account.currency}] 余额=${account.totalCash.toFixed(
-          2
+          2,
         )} 市值=${account.netAssets.toFixed(
-          2
-        )} 持仓市值≈${account.positionValue.toFixed(2)}`
+          2,
+        )} 持仓市值≈${account.positionValue.toFixed(2)}`,
       );
     }
     if (Array.isArray(positions) && positions.length > 0) {
@@ -103,11 +103,11 @@ export async function displayAccountAndPositions(
           marketDataClient.getLatestQuote(symbol).catch((err: Error) => {
             logger.warn(
               `[持仓监控] 获取标的 ${symbol} 信息失败: ${
-                err?.message ?? String(err) ?? '未知错误'
-              }`
+                err?.message ?? String(err)
+              }`,
             );
             return null;
-          })
+          }),
         );
         const quotes = await Promise.all(quotePromises);
 
@@ -160,14 +160,14 @@ export async function displayAccountAndPositions(
         logger.info(
           `- [${channelDisplay}] ${nameText}(${codeText}) 持仓=${formatNumber(
             pos.quantity,
-            2
+            2,
           )} 可用=${formatNumber(
             pos.availableQuantity,
-            2
+            2,
           )} ${priceText} 市值=${formatNumber(
             marketValue,
-            2
-          )} 仓位=${formatNumber(positionPercent, 2)}% ${pos.currency ?? ''}`
+            2,
+          )} 仓位=${formatNumber(positionPercent, 2)}% ${pos.currency ?? ''}`,
         );
       });
     } else {
@@ -176,7 +176,7 @@ export async function displayAccountAndPositions(
   } catch (err) {
     logger.warn(
       '获取账户和持仓信息失败',
-      (err as Error)?.message ?? String(err) ?? '未知错误'
+      (err as Error)?.message ?? String(err),
     );
   }
 }

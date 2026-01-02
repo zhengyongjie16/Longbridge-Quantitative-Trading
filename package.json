@@ -12,7 +12,9 @@
     "dev:watch": "tsc --watch & node --watch dist/index.js",
     "type-check": "tsc --noEmit",
     "clean": "rimraf dist",
-    "find-warrant": "node dist/tools/findWarrant.js"
+    "find-warrant": "node dist/tools/findWarrant.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "dotenv": "^16.4.0",
@@ -23,8 +25,13 @@
     "technicalindicators": "^3.1.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
     "@types/node": "^20.19.27",
+    "@typescript-eslint/eslint-plugin": "^8.51.0",
+    "@typescript-eslint/parser": "^8.51.0",
+    "eslint": "^9.39.2",
     "rimraf": "^5.0.10",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.51.0"
   }
 }

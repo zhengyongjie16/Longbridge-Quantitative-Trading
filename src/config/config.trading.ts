@@ -112,7 +112,7 @@ export const TRADING_CONFIG: TradingConfig = {
   // 设置为 null 或 0 表示禁用此功能
   maxUnrealizedLossPerSymbol: getNumberConfig(
     'MAX_UNREALIZED_LOSS_PER_SYMBOL',
-    0
+    0,
   ),
 
   // 末日保护程序：收盘前15分钟拒绝买入，收盘前5分钟清空所有持仓
@@ -136,7 +136,7 @@ export const TRADING_CONFIG: TradingConfig = {
     }
     if (interval > 600) {
       console.warn(
-        '[配置警告] BUY_INTERVAL_SECONDS 不能大于 600，已设置为 600'
+        '[配置警告] BUY_INTERVAL_SECONDS 不能大于 600，已设置为 600',
       );
       return 600;
     }
@@ -156,13 +156,13 @@ export const TRADING_CONFIG: TradingConfig = {
       // 限制范围在 0-120 秒之间
       if (delay < 0) {
         console.warn(
-          '[配置警告] VERIFICATION_DELAY_SECONDS 不能小于 0，已设置为 0'
+          '[配置警告] VERIFICATION_DELAY_SECONDS 不能小于 0，已设置为 0',
         );
         return 0;
       }
       if (delay > 120) {
         console.warn(
-          '[配置警告] VERIFICATION_DELAY_SECONDS 不能大于 120，已设置为 120'
+          '[配置警告] VERIFICATION_DELAY_SECONDS 不能大于 120，已设置为 120',
         );
         return 120;
       }
@@ -222,8 +222,8 @@ export const TRADING_CONFIG: TradingConfig = {
       if (invalidItems.length > 0) {
         console.warn(
           `[配置警告] VERIFICATION_INDICATORS 包含无效值: ${invalidItems.join(
-            ', '
-          )}，允许的值: K, D, J, MACD, DIF, DEA, EMA:n (n为1-250)`
+            ', ',
+          )}，允许的值: K, D, J, MACD, DIF, DEA, EMA:n (n为1-250)`,
         );
       }
 

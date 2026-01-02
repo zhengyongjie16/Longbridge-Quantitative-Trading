@@ -75,7 +75,7 @@ export class MarketMonitor {
     shortQuote: Quote | null,
     longSymbol: string,
     shortSymbol: string,
-    lastState: LastState
+    lastState: LastState,
   ): boolean {
     const longPrice = longQuote?.price;
     const shortPrice = shortQuote?.price;
@@ -97,20 +97,20 @@ export class MarketMonitor {
       const longDisplay = formatQuoteDisplay(longQuote, longSymbol);
       if (longDisplay) {
         logger.info(
-          `[做多标的] ${longDisplay.nameText}(${longDisplay.codeText}) 最新价格=${longDisplay.priceText} 涨跌额=${longDisplay.changeAmountText} 涨跌幅度=${longDisplay.changePercentText}`
+          `[做多标的] ${longDisplay.nameText}(${longDisplay.codeText}) 最新价格=${longDisplay.priceText} 涨跌额=${longDisplay.changeAmountText} 涨跌幅度=${longDisplay.changePercentText}`,
         );
       } else {
-        logger.warn(`未获取到做多标的行情。`);
+        logger.warn('未获取到做多标的行情。');
       }
 
       // 显示做空标的行情
       const shortDisplay = formatQuoteDisplay(shortQuote, shortSymbol);
       if (shortDisplay) {
         logger.info(
-          `[做空标的] ${shortDisplay.nameText}(${shortDisplay.codeText}) 最新价格=${shortDisplay.priceText} 涨跌额=${shortDisplay.changeAmountText} 涨跌幅度=${shortDisplay.changePercentText}`
+          `[做空标的] ${shortDisplay.nameText}(${shortDisplay.codeText}) 最新价格=${shortDisplay.priceText} 涨跌额=${shortDisplay.changeAmountText} 涨跌幅度=${shortDisplay.changePercentText}`,
         );
       } else {
-        logger.warn(`未获取到做空标的行情。`);
+        logger.warn('未获取到做空标的行情。');
       }
 
       // 更新价格状态（只更新有效价格，避免将 undefined 写入状态）
@@ -143,7 +143,7 @@ export class MarketMonitor {
     monitorSymbol: string,
     emaPeriods: number[],
     rsiPeriods: number[],
-    lastState: LastState
+    lastState: LastState,
   ): boolean {
     if (!monitorSnapshot) {
       return false;
@@ -291,7 +291,7 @@ export class MarketMonitor {
         currentPrice,
         changePercent,
         emaPeriods,
-        rsiPeriods
+        rsiPeriods,
       );
 
       // 如果存在旧的 monitorValues，先释放其中的 kdj 和 macd 对象，再释放 monitorValues 本身
@@ -354,7 +354,7 @@ export class MarketMonitor {
     currentPrice: number,
     changePercent: number | null,
     emaPeriods: number[],
-    rsiPeriods: number[]
+    rsiPeriods: number[],
   ): void {
     // 格式化指标值
     const formatIndicator = (value: number | null | undefined, decimals: number = 2): string => {
@@ -419,7 +419,7 @@ export class MarketMonitor {
       const macd = monitorSnapshot.macd as MACDIndicator;
       if (Number.isFinite(macd.macd)) {
         indicators.push(
-          `MACD=${formatIndicator(macd.macd, 3)}`
+          `MACD=${formatIndicator(macd.macd, 3)}`,
         );
       }
       if (Number.isFinite(macd.dif)) {
@@ -435,8 +435,8 @@ export class MarketMonitor {
 
     logger.info(
       `[监控标的] ${monitorSymbolName}(${normalizedMonitorSymbol}) ${indicators.join(
-        ' '
-      )}`
+        ' ',
+      )}`,
     );
   }
 }

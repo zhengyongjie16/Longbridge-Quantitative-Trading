@@ -221,7 +221,7 @@ export class MarketDataClient {
    */
   private async _withRetry<T>(
     fn: () => Promise<T>,
-    { retries, delayMs }: RetryConfig = DEFAULT_RETRY
+    { retries, delayMs }: RetryConfig = DEFAULT_RETRY,
   ): Promise<T> {
     let lastErr: unknown;
     for (let i = 0; i <= retries; i += 1) {
@@ -258,7 +258,7 @@ export class MarketDataClient {
         Promise.all([
           ctx.quote([normalizedSymbol]),
           ctx.staticInfo([normalizedSymbol]),
-        ])
+        ]),
       );
       const quote = quotes?.[0];
       const staticInfo = statics?.[0];
@@ -266,7 +266,7 @@ export class MarketDataClient {
         logger.warn(
           `[行情获取] 标的 ${normalizedSymbol} (原始: ${symbol}) 未返回行情数据。quotes.length=${
             quotes?.length ?? 0
-          }`
+          }`,
         );
         return null;
       }
@@ -304,7 +304,7 @@ export class MarketDataClient {
     } catch (err) {
       logger.error(
         `[行情获取] 获取标的 ${normalizedSymbol} (原始: ${symbol}) 行情时发生错误：`,
-        (err as Error)?.message ?? String(err) ?? '未知错误'
+        (err as Error)?.message ?? String(err),
       );
       throw err;
     }
@@ -324,7 +324,7 @@ export class MarketDataClient {
     period: PeriodString | Period = '1m',
     count: number = 200,
     adjustType: AdjustType = AdjustType.NoAdjust,
-    tradeSessions: TradeSessions = TradeSessions.All
+    tradeSessions: TradeSessions = TradeSessions.All,
   ): Promise<Candlestick[]> {
     const ctx = await this._ctxPromise;
     const normalizedSymbol = normalizeHKSymbol(symbol);
@@ -334,7 +334,7 @@ export class MarketDataClient {
       periodEnum,
       count,
       adjustType,
-      tradeSessions
+      tradeSessions,
     );
   }
 
@@ -367,7 +367,7 @@ export class MarketDataClient {
   async getTradingDays(
     startDate: Date,
     endDate: Date,
-    market: Market = Market.HK
+    market: Market = Market.HK,
   ): Promise<TradingDaysResult> {
     const ctx = await this._ctxPromise;
 
@@ -375,38 +375,33 @@ export class MarketDataClient {
     const startNaive = new NaiveDate(
       startDate.getFullYear(),
       startDate.getMonth() + 1,
-      startDate.getDate()
+      startDate.getDate(),
     );
     const endNaive = new NaiveDate(
       endDate.getFullYear(),
       endDate.getMonth() + 1,
-      endDate.getDate()
+      endDate.getDate(),
     );
 
-    try {
-      const resp = await this._withRetry(() =>
-        ctx.tradingDays(market, startNaive, endNaive)
-      );
+    const resp = await this._withRetry(() =>
+      ctx.tradingDays(market, startNaive, endNaive),
+    );
 
-      // 将 NaiveDate 数组转换为字符串数组
-      const tradingDays = (resp.tradingDays || []).map((date) =>
-        date.toString()
-      );
-      const halfTradingDays = (resp.halfTradingDays || []).map((date) =>
-        date.toString()
-      );
+    // 将 NaiveDate 数组转换为字符串数组
+    const tradingDays = (resp.tradingDays || []).map((date) =>
+      date.toString(),
+    );
+    const halfTradingDays = (resp.halfTradingDays || []).map((date) =>
+      date.toString(),
+    );
 
-      // 批量缓存交易日信息
-      this._tradingDayCache.setBatch(tradingDays, halfTradingDays);
+    // 批量缓存交易日信息
+    this._tradingDayCache.setBatch(tradingDays, halfTradingDays);
 
-      return {
-        tradingDays,
-        halfTradingDays,
-      };
-    } catch (err) {
-      // 获取交易日信息失败，抛出异常由上层处理
-      throw err;
-    }
+    return {
+      tradingDays,
+      halfTradingDays,
+    };
   }
 
   /**
@@ -417,7 +412,7 @@ export class MarketDataClient {
    */
   async isTradingDay(
     date: Date,
-    market: Market = Market.HK
+    market: Market = Market.HK,
   ): Promise<TradingDayInfo> {
     // 格式化日期为 YYYY-MM-DD
     const year = date.getFullYear();
@@ -454,8 +449,8 @@ export class MarketDataClient {
       // 如果 API 调用失败，返回保守结果（假设是交易日，避免漏掉交易机会）
       logger.warn(
         `[交易日判断] API 调用失败: ${
-          (err as Error)?.message ?? String(err) ?? '未知错误'
-        }，假设为交易日继续运行`
+          (err as Error)?.message ?? String(err)
+        }，假设为交易日继续运行`,
       );
       return {
         isTradingDay: true,

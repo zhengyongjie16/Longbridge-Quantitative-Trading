@@ -91,7 +91,7 @@ export function calculateSellQuantity(
   quote: Quote | null,
   orderRecorder: OrderRecorder | null,
   direction: 'LONG' | 'SHORT',
-  originalReason: string
+  originalReason: string,
 ): SellQuantityResult {
   // 验证输入参数
   if (
@@ -124,7 +124,7 @@ export function calculateSellQuantity(
       quantity: position.availableQuantity,
       shouldHold: false,
       reason: `${originalReason || ''}，当前价格${currentPrice.toFixed(
-        3
+        3,
       )}>成本价${costPrice.toFixed(3)}，立即清空所有${directionName}持仓`,
     };
   }
@@ -137,7 +137,7 @@ export function calculateSellQuantity(
       reason: `${
         originalReason || ''
       }，但${directionName}价格${currentPrice.toFixed(
-        3
+        3,
       )}未高于成本价${costPrice.toFixed(3)}，且无法获取订单记录`,
     };
   }
@@ -145,7 +145,7 @@ export function calculateSellQuantity(
   // 根据方向获取符合条件的买入订单
   const buyOrdersBelowPrice = orderRecorder.getBuyOrdersBelowPrice(
     currentPrice,
-    direction
+    direction,
   );
 
   if (!buyOrdersBelowPrice || buyOrdersBelowPrice.length === 0) {
@@ -156,7 +156,7 @@ export function calculateSellQuantity(
       reason: `${
         originalReason || ''
       }，但${directionName}价格${currentPrice.toFixed(
-        3
+        3,
       )}未高于成本价${costPrice.toFixed(3)}，且没有买入价低于当前价的历史订单`,
     };
   }
@@ -177,9 +177,9 @@ export function calculateSellQuantity(
       reason: `${
         originalReason || ''
       }，但${directionName}价格${currentPrice.toFixed(
-        3
+        3,
       )}未高于成本价${costPrice.toFixed(
-        3
+        3,
       )}，卖出历史买入订单中买入价低于当前价的订单，共 ${totalQuantity} 股`,
     };
   } else {
@@ -190,7 +190,7 @@ export function calculateSellQuantity(
       reason: `${
         originalReason || ''
       }，但${directionName}价格${currentPrice.toFixed(
-        3
+        3,
       )}未高于成本价${costPrice.toFixed(3)}，且没有买入价低于当前价的历史订单`,
     };
   }
@@ -221,7 +221,7 @@ export class SignalProcessor {
     shortPosition: Position | null,
     longQuote: Quote | null,
     shortQuote: Quote | null,
-    orderRecorder: OrderRecorder
+    orderRecorder: OrderRecorder,
   ): Signal[] {
     for (const sig of signals) {
       // 只处理卖出信号（SELLCALL 和 SELLPUT），跳过买入信号
@@ -243,21 +243,21 @@ export class SignalProcessor {
       // 添加调试日志
       if (!position) {
         logger.warn(
-          `[卖出信号处理] ${signalName}: ${direction === 'LONG' ? '做多' : '做空'}标的持仓对象为null，无法计算卖出数量`
+          `[卖出信号处理] ${signalName}: ${direction === 'LONG' ? '做多' : '做空'}标的持仓对象为null，无法计算卖出数量`,
         );
       }
       if (!quote) {
         logger.warn(
-          `[卖出信号处理] ${signalName}: ${direction === 'LONG' ? '做多' : '做空'}标的行情数据为null，无法计算卖出数量`
+          `[卖出信号处理] ${signalName}: ${direction === 'LONG' ? '做多' : '做空'}标的行情数据为null，无法计算卖出数量`,
         );
       }
       if (position && quote && position.costPrice !== null && quote.price !== null) {
         logger.info(
           `[卖出信号处理] ${signalName}: 持仓成本价=${position.costPrice.toFixed(
-            3
+            3,
           )}, 当前价格=${quote.price.toFixed(3)}, 可用数量=${
             position.availableQuantity
-          }`
+          }`,
         );
       }
 
@@ -266,11 +266,11 @@ export class SignalProcessor {
         if (position && position.availableQuantity !== null && position.availableQuantity > 0) {
           sig.quantity = position.availableQuantity;
           logger.info(
-            `[卖出信号处理] ${signalName}(末日保护): 无条件清仓，卖出数量=${sig.quantity}`
+            `[卖出信号处理] ${signalName}(末日保护): 无条件清仓，卖出数量=${sig.quantity}`,
           );
         } else {
           logger.warn(
-            `[卖出信号处理] ${signalName}(末日保护): 持仓对象无效，无法清仓`
+            `[卖出信号处理] ${signalName}(末日保护): 持仓对象无效，无法清仓`,
           );
           sig.action = SignalType.HOLD;
           sig.reason = `${sig.reason}，但持仓对象无效`;
@@ -282,7 +282,7 @@ export class SignalProcessor {
           quote,
           orderRecorder,
           direction,
-          sig.reason || ''
+          sig.reason || '',
         );
         if (result.shouldHold) {
           logger.info(`[卖出信号处理] ${signalName}被跳过: ${result.reason}`);
@@ -290,7 +290,7 @@ export class SignalProcessor {
           sig.reason = result.reason;
         } else {
           logger.info(
-            `[卖出信号处理] ${signalName}通过: 卖出数量=${result.quantity}, 原因=${result.reason}`
+            `[卖出信号处理] ${signalName}通过: 卖出数量=${result.quantity}, 原因=${result.reason}`,
           );
           sig.quantity = result.quantity;
           sig.reason = result.reason;
@@ -340,7 +340,7 @@ export class SignalProcessor {
         longSymbol,
         shortSymbol,
         longSymbolName,
-        shortSymbolName
+        shortSymbolName,
       );
 
       // 获取标的的当前价格用于计算持仓市值
@@ -375,7 +375,7 @@ export class SignalProcessor {
             ? Math.ceil((intervalMs - (Date.now() - lastTime)) / 1000)
             : 0;
           logger.warn(
-            `[交易频率限制] ${direction} 在${TRADING_CONFIG.buyIntervalSeconds}秒内已买入过，需等待 ${waitSeconds} 秒后才能再次买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`
+            `[交易频率限制] ${direction} 在${TRADING_CONFIG.buyIntervalSeconds}秒内已买入过，需等待 ${waitSeconds} 秒后才能再次买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`,
           );
           continue;
         }
@@ -384,7 +384,7 @@ export class SignalProcessor {
         const isLongBuyAction = sig.action === SignalType.BUYCALL;
         const latestBuyPrice = orderRecorder.getLatestBuyOrderPrice(
           normalizedSigSymbol,
-          isLongBuyAction
+          isLongBuyAction,
         );
 
         if (latestBuyPrice !== null && currentPrice !== null) {
@@ -392,20 +392,20 @@ export class SignalProcessor {
             const direction = isLongBuyAction ? '做多标的' : '做空标的';
             logger.warn(
               `[买入价格限制] ${direction} 当前价格 ${currentPrice.toFixed(
-                3
+                3,
               )} 高于最新买入订单价格 ${latestBuyPrice.toFixed(
-                3
-              )}，拒绝买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`
+                3,
+              )}，拒绝买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`,
             );
             continue;
           } else {
             const direction = isLongBuyAction ? '做多标的' : '做空标的';
             logger.info(
               `[买入价格限制] ${direction} 当前价格 ${currentPrice.toFixed(
-                3
+                3,
               )} 低于或等于最新买入订单价格 ${latestBuyPrice.toFixed(
-                3
-              )}，允许买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`
+                3,
+              )}，允许买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`,
             );
           }
         }
@@ -417,7 +417,7 @@ export class SignalProcessor {
         ) {
           const closeTimeRange = isHalfDay ? '11:45-12:00' : '15:45-16:00';
           logger.warn(
-            `[末日保护程序] 收盘前15分钟内拒绝买入：${sigName}(${normalizedSigSymbol}) ${sig.action} - 当前时间在${closeTimeRange}范围内`
+            `[末日保护程序] 收盘前15分钟内拒绝买入：${sigName}(${normalizedSigSymbol}) ${sig.action} - 当前时间在${closeTimeRange}范围内`,
           );
           continue;
         }
@@ -429,12 +429,12 @@ export class SignalProcessor {
         const warrantRiskResult = riskChecker.checkWarrantRisk(
           sig.symbol,
           sig.action,
-          monitorCurrentPrice ?? 0
+          monitorCurrentPrice ?? 0,
         );
 
         if (!warrantRiskResult.allowed) {
           logger.warn(
-            `[牛熊证风险拦截] 信号被牛熊证风险控制拦截：${sigName}(${normalizedSigSymbol}) ${sig.action} - ${warrantRiskResult.reason}`
+            `[牛熊证风险拦截] 信号被牛熊证风险控制拦截：${sigName}(${normalizedSigSymbol}) ${sig.action} - ${warrantRiskResult.reason}`,
           );
           continue;
         } else if (warrantRiskResult.warrantInfo?.isWarrant) {
@@ -449,7 +449,7 @@ export class SignalProcessor {
               sig.symbol
             } 为${warrantType}，距离回收价百分比：${
               distancePercent?.toFixed(2) ?? '未知'
-            }%，风险检查通过`
+            }%，风险检查通过`,
           );
         }
       }
@@ -471,14 +471,14 @@ export class SignalProcessor {
             trader.getAccountSnapshot().catch((err) => {
               logger.warn(
                 '风险检查前获取账户信息失败',
-                (err as Error)?.message ?? String(err) ?? '未知错误'
+                (err as Error)?.message ?? String(err),
               );
               return null;
             }),
             trader.getStockPositions().catch((err) => {
               logger.warn(
                 '风险检查前获取持仓信息失败',
-                (err as Error)?.message ?? String(err) ?? '未知错误'
+                (err as Error)?.message ?? String(err),
               );
               return [];
             }),
@@ -489,7 +489,7 @@ export class SignalProcessor {
             lastState.cachedAccount = freshAccount;
           } else if (isBuyActionCheck) {
             logger.warn(
-              '[风险检查] 买入操作前无法获取最新账户信息，风险检查将拒绝该操作'
+              '[风险检查] 买入操作前无法获取最新账户信息，风险检查将拒绝该操作',
             );
             // 买入操作无法获取账户信息，跳过此信号，继续处理下一个信号
             continue;
@@ -507,7 +507,7 @@ export class SignalProcessor {
         } catch (err) {
           logger.warn(
             '风险检查前获取账户和持仓信息失败',
-            (err as Error)?.message ?? String(err) ?? '未知错误'
+            (err as Error)?.message ?? String(err),
           );
         }
       }
@@ -523,14 +523,14 @@ export class SignalProcessor {
         orderNotional,
         currentPrice,
         longCurrentPrice,
-        shortCurrentPrice
+        shortCurrentPrice,
       );
 
       if (riskResult.allowed) {
         finalSignals.push(sig);
       } else {
         logger.warn(
-          `[风险拦截] 信号被风险控制拦截：${sigName}(${normalizedSigSymbol}) ${sig.action} - ${riskResult.reason}`
+          `[风险拦截] 信号被风险控制拦截：${sigName}(${normalizedSigSymbol}) ${sig.action} - ${riskResult.reason}`,
         );
       }
     }

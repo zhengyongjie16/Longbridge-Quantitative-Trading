@@ -147,7 +147,7 @@ export class HangSengMultiIndicatorStrategy {
 
     const now = new Date();
     const triggerTime = new Date(
-      now.getTime() + this.verificationConfig.delaySeconds * 1000
+      now.getTime() + this.verificationConfig.delaySeconds * 1000,
     );
 
     // 如果目标时间已经过去，说明计算有误，返回null
@@ -238,7 +238,7 @@ export class HangSengMultiIndicatorStrategy {
     state: IndicatorSnapshot,
     symbol: string,
     action: string,
-    reasonPrefix: string
+    reasonPrefix: string,
   ): DelayedSignal | null {
     // 验证所有必要的指标值是否有效
     if (!this._validateAllIndicators(state)) {
@@ -304,7 +304,7 @@ export class HangSengMultiIndicatorStrategy {
       {
         timeZone: 'Asia/Hong_Kong',
         hour12: false,
-      }
+      },
     )} 进行验证`;
 
     return signal;
@@ -321,7 +321,7 @@ export class HangSengMultiIndicatorStrategy {
   private _generateImmediateSignal(
     state: IndicatorSnapshot,
     position: Position | null,
-    action: string
+    action: string,
   ): Signal | null {
     // 检查是否有可卖出的持仓
     if (
@@ -375,7 +375,7 @@ export class HangSengMultiIndicatorStrategy {
     longPosition: Position | null,
     shortPosition: Position | null,
     longSymbol: string,
-    shortSymbol: string
+    shortSymbol: string,
   ): SignalGenerationResult {
     const immediateSignals: Signal[] = [];
     const delayedSignals: Signal[] = [];
@@ -395,7 +395,7 @@ export class HangSengMultiIndicatorStrategy {
         state,
         longSymbol,
         SignalType.BUYCALL,
-        '延迟验证买入做多信号'
+        '延迟验证买入做多信号',
       );
       if (delayedBuySignal) {
         delayedSignals.push(delayedBuySignal);
@@ -407,7 +407,7 @@ export class HangSengMultiIndicatorStrategy {
     const sellLongSignal = this._generateImmediateSignal(
       state,
       longPosition,
-      SignalType.SELLCALL
+      SignalType.SELLCALL,
     );
     if (sellLongSignal) {
       immediateSignals.push(sellLongSignal);
@@ -419,7 +419,7 @@ export class HangSengMultiIndicatorStrategy {
         state,
         shortSymbol,
         SignalType.BUYPUT,
-        '延迟验证买入做空信号'
+        '延迟验证买入做空信号',
       );
       if (delayedSellSignal) {
         delayedSignals.push(delayedSellSignal);
@@ -431,7 +431,7 @@ export class HangSengMultiIndicatorStrategy {
     const sellShortSignal = this._generateImmediateSignal(
       state,
       shortPosition,
-      SignalType.SELLPUT
+      SignalType.SELLPUT,
     );
     if (sellShortSignal) {
       immediateSignals.push(sellShortSignal);

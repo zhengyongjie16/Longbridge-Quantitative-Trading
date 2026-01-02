@@ -172,7 +172,7 @@ function formatDateYYYYMMDD(timestamp: number | Date | NaiveDate | DateObject): 
     const { year, month, day } = timestamp as DateObject;
     return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(
       2,
-      '0'
+      '0',
     )}`;
   }
 
@@ -270,7 +270,7 @@ function calculateKDJIndicator(
   closes: number[],
   highs: number[],
   lows: number[],
-  candlesLength: number
+  candlesLength: number,
 ): KDJResult {
   let kdj: KDJResult = { k: null, d: null, j: null };
   try {
@@ -368,7 +368,7 @@ function calculateMFIIndicator(
   highs: number[],
   lows: number[],
   closes: number[],
-  volumes: number[]
+  volumes: number[],
 ): number | null {
   try {
     const mfiPeriod = 14;
@@ -424,7 +424,7 @@ function calculateAllIndicators(
   highs: number[],
   lows: number[],
   volumes: number[],
-  candlesLength: number
+  candlesLength: number,
 ): AllIndicatorsResult {
   return {
     rsi6: calculateRSI(closes, 6),
@@ -485,7 +485,7 @@ function parseDateRange(dateRangeStr: string): DateRange {
     const startJsDate = new Date(
       startDate.year,
       startDate.month - 1,
-      startDate.day
+      startDate.day,
     );
     const endJsDate = new Date(endDate.year, endDate.month - 1, endDate.day);
     if (endJsDate < startJsDate) {
@@ -495,7 +495,7 @@ function parseDateRange(dateRangeStr: string): DateRange {
     return { startDate, endDate };
   } else {
     throw new TypeError(
-      `日期范围格式错误，应为 YYYY-MM-DD 或 YYYY-MM-DD:YYYY-MM-DD，实际：${dateRangeStr}`
+      `日期范围格式错误，应为 YYYY-MM-DD 或 YYYY-MM-DD:YYYY-MM-DD，实际：${dateRangeStr}`,
     );
   }
 }
@@ -512,7 +512,7 @@ async function getTradingDaysInRange(
   ctx: QuoteContext,
   startDate: NaiveDate,
   endDate: NaiveDate,
-  market: typeof Market[keyof typeof Market] = Market.HK
+  market: typeof Market[keyof typeof Market] = Market.HK,
 ): Promise<NaiveDate[]> {
   try {
     const resp = await ctx.tradingDays(market, startDate, endDate);
@@ -533,7 +533,7 @@ async function getTradingDaysInRange(
     });
     return allTradingDays;
   } catch (err) {
-    console.warn(`获取交易日列表失败，将使用所有日期：`, (err as Error)?.message ?? err);
+    console.warn('获取交易日列表失败，将使用所有日期：', (err as Error)?.message ?? err);
     return [];
   }
 }
@@ -550,7 +550,7 @@ async function getPreviousTradingDay(
   ctx: QuoteContext,
   date: NaiveDate,
   market: typeof Market[keyof typeof Market] = Market.HK,
-  maxDaysBack: number = 30
+  maxDaysBack: number = 30,
 ): Promise<NaiveDate | null> {
   try {
     const dateObj = date as unknown as DateObject;
@@ -560,7 +560,7 @@ async function getPreviousTradingDay(
     const startNaiveDate = new NaiveDate(
       startJsDate.getFullYear(),
       startJsDate.getMonth() + 1,
-      startJsDate.getDate()
+      startJsDate.getDate(),
     );
 
     // 计算查询的结束日期（指定日期的前一天）
@@ -569,7 +569,7 @@ async function getPreviousTradingDay(
     const endNaiveDate = new NaiveDate(
       endJsDate.getFullYear(),
       endJsDate.getMonth() + 1,
-      endJsDate.getDate()
+      endJsDate.getDate(),
     );
 
     // 获取这个日期范围内的交易日列表
@@ -577,7 +577,7 @@ async function getPreviousTradingDay(
       ctx,
       startNaiveDate,
       endNaiveDate,
-      market
+      market,
     );
 
     if (tradingDays.length > 0) {
@@ -587,7 +587,7 @@ async function getPreviousTradingDay(
 
     return null;
   } catch (err) {
-    console.warn(`获取上一个交易日失败：`, (err as Error)?.message ?? err);
+    console.warn('获取上一个交易日失败：', (err as Error)?.message ?? err);
     return null;
   }
 }
@@ -600,7 +600,7 @@ async function getPreviousTradingDay(
  */
 function splitTradingDaysIntoRanges(
   tradingDays: NaiveDate[],
-  maxDaysPerBatch: number = 2
+  maxDaysPerBatch: number = 2,
 ): DateRangeBatch[] {
   if (tradingDays.length === 0) {
     return [];
@@ -629,7 +629,7 @@ async function fetchCandlesticksByRanges(
   ctx: QuoteContext,
   normalizedSymbol: string,
   dateRanges: DateRangeBatch[],
-  symbolName: string
+  symbolName: string,
 ): Promise<CandleData[]> {
   const allCandlesticks: CandleData[] = [];
   for (let i = 0; i < dateRanges.length; i++) {
@@ -640,7 +640,7 @@ async function fetchCandlesticksByRanges(
       AdjustType.NoAdjust,
       start,
       end,
-      TradeSessions.All
+      TradeSessions.All,
     );
 
     if (batchCandlesticks && batchCandlesticks.length > 0) {
@@ -651,7 +651,7 @@ async function fetchCandlesticksByRanges(
         console.warn(
           `警告：批次 ${i + 1} 返回了 ${
             batchCandlesticks.length
-          } 条数据，可能达到API限制。如果数据不完整，请减小日期范围。`
+          } 条数据，可能达到API限制。如果数据不完整，请减小日期范围。`,
         );
       }
     }
@@ -664,7 +664,7 @@ async function fetchCandlesticksByRanges(
 
   if (allCandlesticks.length > 0) {
     console.log(
-      `成功获取${symbolName} ${allCandlesticks.length} 条分时线数据（共 ${dateRanges.length} 批）`
+      `成功获取${symbolName} ${allCandlesticks.length} 条分时线数据（共 ${dateRanges.length} 批）`,
     );
     return allCandlesticks;
   }
@@ -682,7 +682,7 @@ async function fetchCandlesticksByRanges(
 function splitDateRange(
   startDate: NaiveDate,
   endDate: NaiveDate,
-  maxDaysPerBatch: number = 2
+  maxDaysPerBatch: number = 2,
 ): DateRangeBatch[] {
   const startObj = startDate as unknown as DateObject;
   const endObj = endDate as unknown as DateObject;
@@ -710,7 +710,7 @@ function splitDateRange(
       const nextDate = new Date(
         currentEnd.year,
         currentEnd.month - 1,
-        currentEnd.day
+        currentEnd.day,
       );
       nextDate.setDate(nextDate.getDate() + 1);
       currentEnd = {
@@ -734,7 +734,7 @@ function splitDateRange(
     const nextStart = new Date(
       currentEnd.year,
       currentEnd.month - 1,
-      currentEnd.day
+      currentEnd.day,
     );
     nextStart.setDate(nextStart.getDate() + 1);
     currentStart = {
@@ -761,7 +761,7 @@ async function fetchSymbolCandlesticks(
   symbol: string,
   startDate: NaiveDate,
   endDate: NaiveDate,
-  symbolName: string
+  symbolName: string,
 ): Promise<CandleData[]> {
   try {
     const normalizedSymbol = normalizeHKSymbol(symbol);
@@ -772,7 +772,7 @@ async function fetchSymbolCandlesticks(
 
     if (tradingDays.length === 0) {
       console.warn(
-        `日期范围内没有交易日，将尝试获取所有日期的数据（可能包含非交易日）`
+        '日期范围内没有交易日，将尝试获取所有日期的数据（可能包含非交易日）',
       );
       // 如果没有交易日，回退到原来的逻辑
       const dateRanges = splitDateRange(startDate, endDate, 2);
@@ -780,12 +780,12 @@ async function fetchSymbolCandlesticks(
         ctx,
         normalizedSymbol,
         dateRanges,
-        symbolName
+        symbolName,
       );
     }
 
     console.log(
-      `日期范围内共有 ${tradingDays.length} 个交易日，将自动跳过非交易日`
+      `日期范围内共有 ${tradingDays.length} 个交易日，将自动跳过非交易日`,
     );
 
     // 将交易日列表分割成多个批次（每批最多2天，避免超过1000条限制）
@@ -793,7 +793,7 @@ async function fetchSymbolCandlesticks(
 
     if (dateRanges.length > 1) {
       console.log(
-        `将分 ${dateRanges.length} 批获取数据（每批最多2个交易日）...`
+        `将分 ${dateRanges.length} 批获取数据（每批最多2个交易日）...`,
       );
     }
 
@@ -801,7 +801,7 @@ async function fetchSymbolCandlesticks(
       ctx,
       normalizedSymbol,
       dateRanges,
-      symbolName
+      symbolName,
     );
   } catch (err) {
     console.warn(`获取${symbolName}分时线数据失败：`, (err as Error)?.message ?? err);
@@ -818,7 +818,7 @@ async function fetchSymbolCandlesticks(
  */
 async function getIntradayCandlesticks(
   symbol: string,
-  dateRangeStr: string
+  dateRangeStr: string,
 ): Promise<void> {
   try {
     // 创建配置
@@ -837,12 +837,12 @@ async function getIntradayCandlesticks(
     const startNaiveDate = new NaiveDate(
       startDate.year,
       startDate.month,
-      startDate.day
+      startDate.day,
     );
     const endNaiveDate = new NaiveDate(
       endDate.year,
       endDate.month,
-      endDate.day
+      endDate.day,
     );
 
     // 格式化日期字符串（使用统一的格式化函数）
@@ -854,24 +854,24 @@ async function getIntradayCandlesticks(
         : `${startDateStr} 至 ${endDateStr}`;
 
     console.log(
-      `\n正在获取 ${normalizedSymbol} 在 ${dateRangeDisplayStr} 的分时线数据...\n`
+      `\n正在获取 ${normalizedSymbol} 在 ${dateRangeDisplayStr} 的分时线数据...\n`,
     );
 
     // 获取开始日期之前的最后一个交易日（用于获取历史数据以计算指标）
     // MACD需要最多35根K线（26+9），获取上一个交易日的数据应该足够
-    console.log(`正在查找开始日期之前的最后一个交易日...`);
+    console.log('正在查找开始日期之前的最后一个交易日...');
     const previousTradingDay = await getPreviousTradingDay(
       ctx,
       startNaiveDate,
       Market.HK,
-      30
+      30,
     );
 
     let previousCandlesticks: CandleData[] = [];
     if (previousTradingDay) {
       const prevDateStr = formatDateYYYYMMDD(previousTradingDay);
       console.log(
-        `找到上一个交易日：${prevDateStr}，将获取该日期的数据以计算指标...\n`
+        `找到上一个交易日：${prevDateStr}，将获取该日期的数据以计算指标...\n`,
       );
 
       // 获取上一个交易日的数据（用于计算指标）
@@ -882,19 +882,19 @@ async function getIntradayCandlesticks(
           AdjustType.NoAdjust,
           previousTradingDay,
           previousTradingDay,
-          TradeSessions.All
+          TradeSessions.All,
         );
         previousCandlesticks = (rawCandlesticks || []) as CandleData[];
         if (previousCandlesticks.length > 0) {
           console.log(
-            `成功获取上一个交易日 ${previousCandlesticks.length} 条分时线数据`
+            `成功获取上一个交易日 ${previousCandlesticks.length} 条分时线数据`,
           );
         }
       } catch (err) {
-        console.warn(`获取上一个交易日数据失败：`, (err as Error)?.message ?? err);
+        console.warn('获取上一个交易日数据失败：', (err as Error)?.message ?? err);
       }
     } else {
-      console.log(`未找到上一个交易日，将仅使用日期范围内的数据计算指标...\n`);
+      console.log('未找到上一个交易日，将仅使用日期范围内的数据计算指标...\n');
     }
 
     // 获取日期范围内的1分钟K线数据（分时线）
@@ -904,7 +904,7 @@ async function getIntradayCandlesticks(
       normalizedSymbol,
       startNaiveDate,
       endNaiveDate,
-      '监控标的'
+      '监控标的',
     );
 
     // 合并数据：前一天的数据在前，日期范围内的数据在后
@@ -915,12 +915,12 @@ async function getIntradayCandlesticks(
 
     if (!rangeCandlesticks || rangeCandlesticks.length === 0) {
       console.log(
-        `未获取到 ${normalizedSymbol} 在 ${dateRangeDisplayStr} 的分时线数据。`
+        `未获取到 ${normalizedSymbol} 在 ${dateRangeDisplayStr} 的分时线数据。`,
       );
-      console.log(`可能原因：`);
-      console.log(`1. 该日期范围内没有交易日`);
-      console.log(`2. 该标的在该日期范围内没有交易数据`);
-      console.log(`3. 日期格式错误或日期超出可查询范围`);
+      console.log('可能原因：');
+      console.log('1. 该日期范围内没有交易日');
+      console.log('2. 该标的在该日期范围内没有交易数据');
+      console.log('3. 日期格式错误或日期超出可查询范围');
       return;
     }
 
@@ -930,7 +930,7 @@ async function getIntradayCandlesticks(
 
     // 输出结果
     console.log(
-      `成功获取 ${rangeCandlesticksCount} 条日期范围内分时线数据（共 ${candlesticks.length} 条数据，包含前一天）\n`
+      `成功获取 ${rangeCandlesticksCount} 条日期范围内分时线数据（共 ${candlesticks.length} 条数据，包含前一天）\n`,
     );
 
     // 获取做多和做空标的的分时线数据（日期范围内数据，用于显示价格）
@@ -950,21 +950,21 @@ async function getIntradayCandlesticks(
     const [longCandlesticks, shortCandlesticks] = await Promise.all([
       longSymbolStr
         ? fetchSymbolCandlesticks(
-            ctx,
-            longSymbolStr,
-            startNaiveDate,
-            endNaiveDate,
-            '做多标的'
-          )
+          ctx,
+          longSymbolStr,
+          startNaiveDate,
+          endNaiveDate,
+          '做多标的',
+        )
         : Promise.resolve([]),
       shortSymbolStr
         ? fetchSymbolCandlesticks(
-            ctx,
-            shortSymbolStr,
-            startNaiveDate,
-            endNaiveDate,
-            '做空标的'
-          )
+          ctx,
+          shortSymbolStr,
+          startNaiveDate,
+          endNaiveDate,
+          '做空标的',
+        )
         : Promise.resolve([]),
     ]);
 
@@ -982,7 +982,7 @@ async function getIntradayCandlesticks(
 
     // 创建价格查找器（优化：使用 Map 缓存精确匹配）
     const createPriceFinder = (
-      priceData: PriceDataItem[]
+      priceData: PriceDataItem[],
     ): ((targetTimestamp: number) => number | undefined) => {
       if (!priceData || priceData.length === 0) return () => undefined;
 
@@ -994,7 +994,7 @@ async function getIntradayCandlesticks(
 
       // 创建排序后的数组用于容差匹配（按时间戳排序）
       const sortedData = [...priceData].sort(
-        (a, b) => a.timestamp - b.timestamp
+        (a, b) => a.timestamp - b.timestamp,
       );
       const tolerance = 5000; // 5秒 = 5000毫秒
 
@@ -1110,7 +1110,7 @@ async function getIntradayCandlesticks(
         highs,
         lows,
         volumes,
-        i + 1
+        i + 1,
       );
 
       const { rsi6, rsi12, kdj, macd, mfi } = indicators;
@@ -1174,7 +1174,7 @@ async function getIntradayCandlesticks(
       const firstOpen = decimalToNumber(firstCandle.open as string | number | null);
       const lastClose = decimalToNumber(lastCandle.close as string | number | null);
 
-      console.log(`\n统计信息：`);
+      console.log('\n统计信息：');
       console.log(`日期范围：${dateRangeDisplayStr}`);
       console.log(`开始时间：${firstTime}`);
       console.log(`结束时间：${lastTime}`);
@@ -1184,9 +1184,9 @@ async function getIntradayCandlesticks(
       console.log(`收盘价：${formatNumber(lastClose, 2)}`);
     }
   } catch (error) {
-    console.error(`\n获取分时线数据失败：`, (error as Error).message || error);
+    console.error('\n获取分时线数据失败：', (error as Error).message || error);
     if ((error as Error).stack) {
-      console.error(`错误堆栈：`, (error as Error).stack);
+      console.error('错误堆栈：', (error as Error).stack);
     }
     process.exit(1);
   }
@@ -1215,7 +1215,7 @@ async function main(): Promise<void> {
     console.error('    修改文件顶部的 DEFAULT_SYMBOL 和 DEFAULT_DATE 变量');
     console.error('    例如：const DEFAULT_DATE = "2024-12-11";');
     console.error(
-      '    或日期范围：const DEFAULT_DATE = "2024-12-11:2024-12-15";'
+      '    或日期范围：const DEFAULT_DATE = "2024-12-11:2024-12-15";',
     );
     console.error('\n  方式2：通过环境变量配置');
     console.error('    export INTRADAY_SYMBOL=HSI.HK');
@@ -1224,10 +1224,10 @@ async function main(): Promise<void> {
     console.error('    node src/analysisTools/indicatorAnalysis.js');
     console.error('\n  方式3：通过命令行参数');
     console.error(
-      '    单一日期：node src/analysisTools/indicatorAnalysis.js HSI.HK 2024-12-11'
+      '    单一日期：node src/analysisTools/indicatorAnalysis.js HSI.HK 2024-12-11',
     );
     console.error(
-      '    日期范围：node src/analysisTools/indicatorAnalysis.js HSI.HK 2024-12-11:2024-12-15'
+      '    日期范围：node src/analysisTools/indicatorAnalysis.js HSI.HK 2024-12-11:2024-12-15',
     );
     console.error('\n  方式4：在 .env 文件中配置');
     console.error('    INTRADAY_SYMBOL=HSI.HK');
@@ -1237,7 +1237,7 @@ async function main(): Promise<void> {
     console.error('\n日期格式说明：');
     console.error('  - 单一日期：YYYY-MM-DD（例如：2024-12-11）');
     console.error(
-      '  - 日期范围：YYYY-MM-DD:YYYY-MM-DD 或 YYYY-MM-DD,YYYY-MM-DD（例如：2024-12-11:2024-12-15）'
+      '  - 日期范围：YYYY-MM-DD:YYYY-MM-DD 或 YYYY-MM-DD,YYYY-MM-DD（例如：2024-12-11:2024-12-15）',
     );
     process.exit(1);
   }

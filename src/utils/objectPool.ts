@@ -104,7 +104,7 @@ export const verificationEntryPool = new ObjectPool<PoolableVerificationEntry>(
     obj.indicators = null; // 清空引用，避免内存泄漏
     return obj;
   },
-  50 // 最大保存50个对象（每个信号最多120个条目，通常不会同时存在这么多待验证信号）
+  50, // 最大保存50个对象（每个信号最多120个条目，通常不会同时存在这么多待验证信号）
 );
 
 /**
@@ -143,7 +143,7 @@ export const signalObjectPool = new ObjectPool<PoolableSignal>(
     obj.useMarketOrder = false;
     return obj;
   },
-  100 // 最大保存100个信号对象
+  100, // 最大保存100个信号对象
 );
 
 /**
@@ -164,7 +164,7 @@ export const kdjObjectPool = new ObjectPool<PoolableKDJ>(
     obj.j = null;
     return obj;
   },
-  50 // 最大保存50个KDJ对象
+  50, // 最大保存50个KDJ对象
 );
 
 /**
@@ -185,7 +185,7 @@ export const macdObjectPool = new ObjectPool<PoolableMACD>(
     obj.dea = null;
     return obj;
   },
-  50 // 最大保存50个MACD对象
+  50, // 最大保存50个MACD对象
 );
 
 /**
@@ -214,7 +214,7 @@ export const monitorValuesObjectPool = new ObjectPool<PoolableMonitorValues>(
     obj.macd = null;
     return obj;
   },
-  20 // 最大保存20个监控值对象
+  20, // 最大保存20个监控值对象
 );
 
 /**
@@ -237,5 +237,5 @@ export const positionObjectPool = new ObjectPool<PoolablePosition>(
     obj.availableQuantity = 0;
     return obj;
   },
-  10 // 通常不会有超过10个持仓
+  10, // 通常不会有超过10个持仓
 );

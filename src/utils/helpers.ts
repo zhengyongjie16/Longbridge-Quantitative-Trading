@@ -39,7 +39,7 @@ export function isDefined<T>(value: T | null | undefined): value is T {
  */
 export function normalizeHKSymbol(symbol: string | null | undefined): string {
   if (!symbol || typeof symbol !== 'string') {
-    return symbol as string;
+    return '';
   }
   // 如果已经包含 .HK、.US 等后缀，直接返回
   if (symbol.includes('.')) {
@@ -122,7 +122,7 @@ export function formatAccountChannel(accountChannel: string | null | undefined):
  */
 export function formatSymbolDisplay(symbol: string | null | undefined, symbolName: string | null = null): string {
   if (!symbol) {
-    return symbol as string;
+    return '';
   }
   const normalizedSymbol = normalizeHKSymbol(symbol);
   if (symbolName) {
@@ -145,7 +145,7 @@ export function getSymbolName(
   longSymbol: string | null,
   shortSymbol: string | null,
   longSymbolName: string | null,
-  shortSymbolName: string | null
+  shortSymbolName: string | null,
 ): string | null {
   const normalizedSigSymbol = normalizeHKSymbol(signalSymbol);
   const normalizedLongSymbol = longSymbol ? normalizeHKSymbol(longSymbol) : null;
@@ -189,11 +189,11 @@ function toBeijingTime(date: Date | null = null, options: TimeFormatOptions = {}
 
   return format === 'log'
     ? // 日志格式：YYYY-MM-DD HH:mm:ss.sss（包含毫秒）
-      `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${String(
-        beijingTime.getUTCMilliseconds()
-      ).padStart(3, '0')}`
+    `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${String(
+      beijingTime.getUTCMilliseconds(),
+    ).padStart(3, '0')}`
     : // ISO 格式：YYYY/MM/DD/HH:mm:ss（不包含毫秒）
-      `${year}/${month}/${day}/${hours}:${minutes}:${seconds}`;
+    `${year}/${month}/${day}/${hours}:${minutes}:${seconds}`;
 }
 
 /**

@@ -49,7 +49,7 @@ export class UnrealizedLossMonitor {
     isLong: boolean,
     riskChecker: RiskChecker,
     trader: Trader,
-    orderRecorder: OrderRecorder
+    orderRecorder: OrderRecorder,
   ): Promise<boolean> {
     // 如果未启用浮亏监控，直接返回
     if (this.maxUnrealizedLossPerSymbol <= 0) {
@@ -65,7 +65,7 @@ export class UnrealizedLossMonitor {
     const lossCheck = riskChecker.checkUnrealizedLoss(
       symbol,
       currentPrice,
-      isLong
+      isLong,
     );
 
     if (!lossCheck.shouldLiquidate) {
@@ -96,7 +96,7 @@ export class UnrealizedLossMonitor {
       await riskChecker.refreshUnrealizedLossData(
         orderRecorder,
         symbol,
-        isLong
+        isLong,
       );
 
       return true; // 清仓成功
@@ -104,7 +104,7 @@ export class UnrealizedLossMonitor {
       const direction = isLong ? '做多标的' : '做空标的';
       logger.error(
         `[保护性清仓失败] ${direction} ${symbol}`,
-        (err as Error)?.message ?? String(err) ?? '未知错误'
+        (err as Error)?.message ?? String(err),
       );
       return false;
     } finally {
@@ -130,7 +130,7 @@ export class UnrealizedLossMonitor {
     shortSymbol: string,
     riskChecker: RiskChecker,
     trader: Trader,
-    orderRecorder: OrderRecorder
+    orderRecorder: OrderRecorder,
   ): Promise<void> {
     // 如果未启用浮亏监控，直接返回
     if (this.maxUnrealizedLossPerSymbol <= 0) {
@@ -147,7 +147,7 @@ export class UnrealizedLossMonitor {
           true,
           riskChecker,
           trader,
-          orderRecorder
+          orderRecorder,
         );
       }
     }
@@ -162,7 +162,7 @@ export class UnrealizedLossMonitor {
           false,
           riskChecker,
           trader,
-          orderRecorder
+          orderRecorder,
         );
       }
     }

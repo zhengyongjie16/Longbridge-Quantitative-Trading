@@ -64,7 +64,7 @@ export class DoomsdayProtection {
     shortQuote: Quote | null,
     longSymbol: string,
     shortSymbol: string,
-    isHalfDay: boolean
+    isHalfDay: boolean,
   ): Signal[] {
     const clearSignals: Signal[] = [];
     const normalizedLongSymbol = normalizeHKSymbol(longSymbol);
@@ -72,7 +72,7 @@ export class DoomsdayProtection {
 
     const closeTimeRange = isHalfDay ? '11:55-11:59' : '15:55-15:59';
     logger.info(
-      `[末日保护程序] 收盘前5分钟（${closeTimeRange}），准备清空所有持仓`
+      `[末日保护程序] 收盘前5分钟（${closeTimeRange}），准备清空所有持仓`,
     );
 
     // 验证 positions 是数组
@@ -134,13 +134,13 @@ export class DoomsdayProtection {
       clearSignals.push(signal);
 
       logger.info(
-        `[末日保护程序] 生成清仓信号：${positionType} ${pos.symbol} 数量=${availableQty} 操作=${action}`
+        `[末日保护程序] 生成清仓信号：${positionType} ${pos.symbol} 数量=${availableQty} 操作=${action}`,
       );
     }
 
     if (clearSignals.length > 0) {
       logger.info(
-        `[末日保护程序] 共生成 ${clearSignals.length} 个清仓信号，准备执行`
+        `[末日保护程序] 共生成 ${clearSignals.length} 个清仓信号，准备执行`,
       );
     }
 

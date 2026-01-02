@@ -64,7 +64,7 @@ class DateRotatingStream extends Writable {
   private _logDir: string;
   private _currentDate: string | null = null;
   private _fileStream: fs.WriteStream | null = null;
-  private _isRotating: boolean = false; // 防止并发 rotate
+  private _rotatePromise: Promise<void> | null = null; // Promise队列，确保串行执行
 
   constructor(logSubDir: string = 'system') {
     super();
@@ -88,7 +88,8 @@ class DateRotatingStream extends Writable {
 
   /**
    * 检查并切换日志文件（如果日期变化）
-   * 返回 Promise，确保旧流关闭完成后再继续
+   * 使用 Promise 队列确保串行执行，避免并发问题
+   * @returns Promise，确保旧流关闭完成后再继续
    */
   private async _checkRotate(): Promise<void> {
     const today = this._getCurrentDate();
@@ -98,39 +99,31 @@ class DateRotatingStream extends Writable {
       return;
     }
 
-    // 如果正在 rotate，等待完成
-    if (this._isRotating) {
-      // 简单的自旋等待，最多等待 1 秒
-      const startTime = Date.now();
-      while (this._isRotating && Date.now() - startTime < 1000) {
-        await new Promise((resolve) => setImmediate(resolve));
-      }
-      // 等待完成后重新检查日期
+    // 如果已有 rotate 正在进行，加入队列等待
+    if (this._rotatePromise) {
+      await this._rotatePromise;
+      // 等待完成后重新检查日期（可能已被其他调用处理）
       if (this._currentDate === today) {
         return;
       }
-      // 如果超时或仍在 rotating，再次检查 rotating 标志
-      if (this._isRotating) {
-        console.error(
-          `[DateRotatingStream] rotate 超时 (${this._logSubDir})，强制继续`
-        );
-        // 重置标志，允许继续（但需要再次检查日期，避免重复 rotate）
-        this._isRotating = false;
-      }
-      // 再次检查日期和 rotating 标志（防止竞态）
-      if (this._currentDate === today || this._isRotating) {
-        return;
-      }
     }
 
-    // 设置 rotating 标志（使用 CAS 思想）
-    const previousRotating = this._isRotating;
-    this._isRotating = true;
-    if (previousRotating) {
-      // 竞态：另一个调用已经先设置了标志，回退
-      return;
-    }
+    // 创建新的 rotate Promise 并加入队列
+    this._rotatePromise = this._doRotate(today);
 
+    try {
+      await this._rotatePromise;
+    } finally {
+      // 清空队列标志
+      this._rotatePromise = null;
+    }
+  }
+
+  /**
+   * 执行实际的日志轮转操作
+   * @param newDate 新日期字符串
+   */
+  private async _doRotate(newDate: string): Promise<void> {
     try {
       // 关闭旧文件流
       if (this._fileStream) {
@@ -140,7 +133,6 @@ class DateRotatingStream extends Writable {
         await new Promise<void>((resolve) => {
           oldStream.once('finish', () => resolve());
           oldStream.once('error', (err) => {
-            // 始终记录错误，不仅在 DEBUG 模式
             console.error('[DateRotatingStream] 关闭旧流错误:', err);
             resolve(); // 即使出错也继续
           });
@@ -149,7 +141,7 @@ class DateRotatingStream extends Writable {
       }
 
       // 更新日期并打开新文件流
-      this._currentDate = today;
+      this._currentDate = newDate;
       const logFile = path.join(this._logDir, `${this._currentDate}.log`);
       this._fileStream = fs.createWriteStream(logFile, {
         flags: 'a',
@@ -159,12 +151,14 @@ class DateRotatingStream extends Writable {
       this._fileStream.on('error', (err) => {
         console.error(
           `[DateRotatingStream] 文件流错误 (${this._logSubDir}):`,
-          err
+          err,
         );
       });
-    } finally {
-      // 确保 rotating 标志被释放
-      this._isRotating = false;
+    } catch (err) {
+      console.error(
+        `[DateRotatingStream] 日志轮转失败 (${this._logSubDir}):`,
+        err,
+      );
     }
   }
 
@@ -173,7 +167,7 @@ class DateRotatingStream extends Writable {
    */
   override _write(chunk: Buffer, encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
     // 使用立即执行函数处理异步操作
-    (async () => {
+    void (async () => {
       try {
         await this._checkRotate();
 
@@ -203,7 +197,7 @@ class DateRotatingStream extends Writable {
               currentStream.removeListener('drain', onDrain);
               if (IS_DEBUG) {
                 console.error(
-                  `[DateRotatingStream] drain 超时 (${this._logSubDir})`
+                  `[DateRotatingStream] drain 超时 (${this._logSubDir})`,
                 );
               }
               callback(); // 超时后仍调用 callback 避免阻塞
@@ -215,7 +209,7 @@ class DateRotatingStream extends Writable {
           // 如果文件流不可用，记录错误但不阻塞
           if (IS_DEBUG) {
             console.error(
-              `[DateRotatingStream] 文件流不可用 (${this._logSubDir})`
+              `[DateRotatingStream] 文件流不可用 (${this._logSubDir})`,
             );
           }
           callback();
@@ -224,7 +218,7 @@ class DateRotatingStream extends Writable {
         // 记录错误但不阻塞日志系统
         console.error(
           `[DateRotatingStream] 写入失败 (${this._logSubDir}):`,
-          err
+          err,
         );
         callback();
       }
@@ -240,7 +234,7 @@ class DateRotatingStream extends Writable {
         // 同步结束流（不等待）
         this._fileStream.end();
         this._fileStream = null;
-      } catch (err) {
+      } catch {
         // 忽略错误
       }
     }
@@ -269,6 +263,7 @@ class DateRotatingStream extends Writable {
  */
 function stripAnsiCodes(str: string): string {
   if (typeof str !== 'string') return str;
+  // eslint-disable-next-line no-control-regex
   return str.replace(/\x1b\[[0-9;]*m/g, '');
 }
 
@@ -358,7 +353,7 @@ function writeWithDrainTimeout(
   stream: NodeJS.WriteStream,
   data: string,
   timeout: number,
-  callback: () => void
+  callback: () => void,
 ): void {
   const canContinue = stream.write(data);
   if (canContinue) {
@@ -398,14 +393,14 @@ const consoleStream = new Writable({
           process.stderr,
           formatted,
           CONSOLE_DRAIN_TIMEOUT,
-          callback
+          callback,
         );
       } else {
         writeWithDrainTimeout(
           process.stdout,
           formatted,
           CONSOLE_DRAIN_TIMEOUT,
-          callback
+          callback,
         );
       }
     } catch (err) {
@@ -454,7 +449,7 @@ const fileStream = new Writable({
               }
               resolve();
             });
-          })
+          }),
         );
 
         // 如果是 DEBUG 日志，同时写入 debug 日志
@@ -468,7 +463,7 @@ const fileStream = new Writable({
                 }
                 resolve();
               });
-            })
+            }),
           );
         }
 
@@ -519,7 +514,7 @@ const pinoLogger = pino(
     },
     useOnlyCustomLevels: true,
   },
-  pino.multistream(streams)
+  pino.multistream(streams),
 );
 
 /**

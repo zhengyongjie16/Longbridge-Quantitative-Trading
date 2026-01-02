@@ -211,7 +211,7 @@ function recordTrade(tradeRecord: TradeRecord): void {
       } catch (e) {
         logger.warn(
           `解析交易记录文件失败，重置为空数组: ${logFile}`,
-          (e as Error)?.message ?? e
+          (e as Error)?.message ?? e,
         );
         trades = [];
       }
@@ -220,7 +220,7 @@ function recordTrade(tradeRecord: TradeRecord): void {
     // 格式化标的显示
     const symbolDisplay = formatSymbolDisplay(
       tradeRecord.symbol,
-      tradeRecord.symbolName ?? undefined
+      tradeRecord.symbolName ?? undefined,
     );
 
     // 处理信号触发时间
@@ -300,7 +300,7 @@ class TradeAPIRateLimiter {
 
       // 清理超出时间窗口的调用记录
       this.callTimestamps = this.callTimestamps.filter(
-        (timestamp) => now - timestamp < this.windowMs
+        (timestamp) => now - timestamp < this.windowMs,
       );
 
       // 如果已达到最大调用次数，等待最早的调用过期
@@ -308,14 +308,14 @@ class TradeAPIRateLimiter {
         const oldestCall = this.callTimestamps[0]!;
         const waitTime = this.windowMs - (now - oldestCall) + 100; // 额外等待100ms作为缓冲
         logger.warn(
-          `[频率限制] Trade API 调用频率达到上限 (${this.maxCalls}次/${this.windowMs}ms)，等待 ${waitTime}ms`
+          `[频率限制] Trade API 调用频率达到上限 (${this.maxCalls}次/${this.windowMs}ms)，等待 ${waitTime}ms`,
         );
         await new Promise((resolve) => setTimeout(resolve, waitTime));
 
         // ===== 修复问题3: 等待后重新清理过期记录 =====
         const nowAfterWait = Date.now();
         this.callTimestamps = this.callTimestamps.filter(
-          (timestamp) => nowAfterWait - timestamp < this.windowMs
+          (timestamp) => nowAfterWait - timestamp < this.windowMs,
         );
       }
 
@@ -418,7 +418,7 @@ export class Trader {
         currency: pos.currency,
         costPrice: decimalToNumber(pos.costPrice),
         market: pos.market,
-      }))
+      })),
     );
   }
 
@@ -430,16 +430,16 @@ export class Trader {
    */
   async getPendingOrders(
     symbols: string[] | null = null,
-    forceRefresh: boolean = false
+    forceRefresh: boolean = false,
   ): Promise<PendingOrder[]> {
     // ===== 修复问题2: 规范化 symbols 参数用于缓存匹配 =====
     // 将 symbols 数组规范化并排序，用于比较缓存是否对应同一组 symbols
     const symbolsKey =
       symbols && symbols.length > 0
         ? symbols
-            .map((s) => normalizeHKSymbol(s))
-            .sort()
-            .join(',')
+          .map((s) => normalizeHKSymbol(s))
+          .sort()
+          .join(',')
         : 'ALL'; // null 或空数组统一标记为 "ALL"
 
     // ===== 修复1: 检查缓存 =====
@@ -454,7 +454,7 @@ export class Trader {
       logger.debug(
         `[订单缓存] 使用缓存的未成交订单数据 (symbols=${symbolsKey}, 缓存时间: ${
           now - this._pendingOrdersCacheTime
-        }ms)`
+        }ms)`,
       );
       return this._pendingOrdersCache!;
     }
@@ -498,7 +498,7 @@ export class Trader {
           } catch (err) {
             logger.warn(
               `[今日订单API] 获取标的 ${symbol} 的今日订单失败`,
-              (err as Error)?.message ?? String(err) ?? '未知错误'
+              (err as Error)?.message ?? String(err),
             );
             return []; // 单个标的查询失败时返回空数组，不影响其他标的
           }
@@ -545,14 +545,14 @@ export class Trader {
       this._pendingOrdersCacheTime = Date.now();
 
       logger.debug(
-        `[订单缓存] 已刷新未成交订单缓存 (symbols=${symbolsKey})，共 ${result.length} 个订单`
+        `[订单缓存] 已刷新未成交订单缓存 (symbols=${symbolsKey})，共 ${result.length} 个订单`,
       );
 
       return result;
     } catch (err) {
       logger.error(
         '获取未成交订单失败',
-        (err as Error)?.message ?? String(err) ?? '未知错误'
+        (err as Error)?.message ?? String(err),
       );
       return [];
     }
@@ -587,7 +587,7 @@ export class Trader {
     } catch (err) {
       logger.error(
         `[订单撤销失败] 订单ID=${orderId}`,
-        (err as Error)?.message ?? String(err) ?? '未知错误'
+        (err as Error)?.message ?? String(err),
       );
       return false;
     }
@@ -606,7 +606,7 @@ export class Trader {
     orderId: string,
     newPrice: number,
     quantity: number | null = null,
-    cachedOrder: PendingOrder | null = null
+    cachedOrder: PendingOrder | null = null,
   ): Promise<void> {
     const ctx = await this._ctxPromise;
 
@@ -643,7 +643,7 @@ export class Trader {
       originalOrder.status === OrderStatus.Rejected
     ) {
       const error = new Error(
-        `订单ID=${orderId} 状态为 ${originalOrder.status}，不允许修改`
+        `订单ID=${orderId} 状态为 ${originalOrder.status}，不允许修改`,
       );
       logger.error(`[订单修改失败] ${error.message}`);
       throw error;
@@ -666,7 +666,7 @@ export class Trader {
     // 验证数量有效性
     if (!Number.isFinite(targetQuantity) || targetQuantity <= 0) {
       const error = new Error(
-        `订单ID=${orderId} 剩余数量无效（剩余=${remainingQty}，原数量=${originalQty}，已成交=${executedQty}）`
+        `订单ID=${orderId} 剩余数量无效（剩余=${remainingQty}，原数量=${originalQty}，已成交=${executedQty}）`,
       );
       logger.error(`[订单修改失败] ${error.message}`);
       throw error;
@@ -688,14 +688,14 @@ export class Trader {
       this.clearPendingOrdersCache();
 
       logger.info(
-        `[订单修改成功] 订单ID=${orderId} 新价格=${newPrice.toFixed(3)}`
+        `[订单修改成功] 订单ID=${orderId} 新价格=${newPrice.toFixed(3)}`,
       );
     } catch (err) {
       const errorMessage = (err as Error)?.message ?? String(err);
       const error = new Error(`订单修改失败: ${errorMessage}`);
       logger.error(
         `[订单修改失败] 订单ID=${orderId} 新价格=${newPrice.toFixed(3)}`,
-        errorMessage
+        errorMessage,
       );
       throw error;
     }
@@ -709,7 +709,7 @@ export class Trader {
    */
   async hasPendingBuyOrders(
     symbols: string[],
-    orderRecorder: OrderRecorder | null = null
+    orderRecorder: OrderRecorder | null = null,
   ): Promise<boolean> {
     try {
       // 如果提供了 orderRecorder，尝试从缓存获取（启动时使用，避免重复调用 todayOrders）
@@ -739,7 +739,7 @@ export class Trader {
     } catch (err) {
       logger.warn(
         '检查买入订单失败',
-        (err as Error)?.message ?? String(err) ?? '未知错误'
+        (err as Error)?.message ?? String(err),
       );
       return false;
     }
@@ -764,7 +764,7 @@ export class Trader {
    */
   async monitorAndManageOrders(
     longQuote: Quote | null,
-    shortQuote: Quote | null
+    shortQuote: Quote | null,
   ): Promise<void> {
     // 如果不需要监控，直接返回
     if (!this._shouldMonitorBuyOrders) {
@@ -782,7 +782,7 @@ export class Trader {
 
     // 过滤出买入订单
     const pendingBuyOrders = pendingOrders.filter(
-      (order) => order.side === OrderSide.Buy
+      (order) => order.side === OrderSide.Buy,
     );
 
     // 如果没有买入订单，停止监控
@@ -795,7 +795,7 @@ export class Trader {
     }
 
     logger.debug(
-      `[订单监控] 发现 ${pendingBuyOrders.length} 个未成交买入订单，开始检查价格...`
+      `[订单监控] 发现 ${pendingBuyOrders.length} 个未成交买入订单，开始检查价格...`,
     );
 
     for (const order of pendingBuyOrders) {
@@ -805,7 +805,7 @@ export class Trader {
         order.status === OrderStatus.Rejected
       ) {
         logger.debug(
-          `[订单监控] 买入订单 ${order.orderId} 状态为 ${order.status}，跳过监控`
+          `[订单监控] 买入订单 ${order.orderId} 状态为 ${order.status}，跳过监控`,
         );
         continue;
       }
@@ -817,7 +817,7 @@ export class Trader {
         order.status === OrderStatus.WaitToReplace
       ) {
         logger.debug(
-          `[订单监控] 买入订单 ${order.orderId} 正在修改中（状态：${order.status}），跳过本次监控`
+          `[订单监控] 买入订单 ${order.orderId} 正在修改中（状态：${order.status}），跳过本次监控`,
         );
         continue;
       }
@@ -834,7 +834,7 @@ export class Trader {
 
       if (!currentPrice || !Number.isFinite(currentPrice)) {
         logger.debug(
-          `[订单监控] 无法获取标的 ${order.symbol} 的当前价格，跳过处理订单 ${order.orderId}`
+          `[订单监控] 无法获取标的 ${order.symbol} 的当前价格，跳过处理订单 ${order.orderId}`,
         );
         continue;
       }
@@ -850,10 +850,10 @@ export class Trader {
             `[订单监控] 买入订单 ${
               order.orderId
             } 当前价格(${currentPrice.toFixed(
-              3
+              3,
             )}) 低于委托价格(${orderPrice.toFixed(
-              3
-            )}) 差异=${priceDiffAbs.toFixed(3)}，修改委托价格为当前价格`
+              3,
+            )}) 差异=${priceDiffAbs.toFixed(3)}，修改委托价格为当前价格`,
           );
           try {
             // ===== 修复2: 传递订单对象，避免重复查询 =====
@@ -861,27 +861,27 @@ export class Trader {
               order.orderId,
               currentPrice,
               null,
-              order
+              order,
             );
             logger.info(
               `[订单监控] 买入订单 ${
                 order.orderId
               } 价格修改成功：${orderPrice.toFixed(
-                3
-              )} -> ${currentPrice.toFixed(3)} (降低${priceDiffAbs.toFixed(3)})`
+                3,
+              )} -> ${currentPrice.toFixed(3)} (降低${priceDiffAbs.toFixed(3)})`,
             );
           } catch (err) {
             logger.error(
               `[订单监控] 买入订单 ${order.orderId} 价格修改失败: ${
-                (err as Error)?.message ?? String(err) ?? '未知错误'
-              }`
+                (err as Error)?.message ?? String(err)
+              }`,
             );
           }
         } else {
           logger.debug(
             `[订单监控] 买入订单 ${
               order.orderId
-            } 价格差异(${priceDiffAbs.toFixed(4)})小于0.001，暂不修改`
+            } 价格差异(${priceDiffAbs.toFixed(4)})小于0.001，暂不修改`,
           );
         }
       }
@@ -943,7 +943,7 @@ export class Trader {
   private _getActionDescription(
     signalAction: string,
     isShortSymbol: boolean,
-    side: typeof OrderSide[keyof typeof OrderSide]
+    side: typeof OrderSide[keyof typeof OrderSide],
   ): string {
     if (signalAction === SignalType.BUYCALL) {
       return '买入做多标的（做多）';
@@ -1009,7 +1009,7 @@ export class Trader {
       ];
       if (!validActions.includes(s.action)) {
         logger.warn(
-          `[跳过信号] 未知的信号类型: ${s.action}, 标的: ${s.symbol}`
+          `[跳过信号] 未知的信号类型: ${s.action}, 标的: ${s.symbol}`,
         );
         continue;
       }
@@ -1039,7 +1039,7 @@ export class Trader {
       logger.info(
         `${colors.green}[交易计划] ${actualAction} ${targetSymbol} - ${
           s.reason || '策略信号'
-        }${colors.reset}`
+        }${colors.reset}`,
       );
 
       const isBuyAction =
@@ -1058,7 +1058,7 @@ export class Trader {
     ctx: TradeContext,
     signal: Signal & { useMarketOrder?: boolean },
     targetSymbol: string,
-    isShortSymbol: boolean = false
+    isShortSymbol: boolean = false,
   ): Promise<void> {
     // 验证信号对象
     if (!signal || typeof signal !== 'object') {
@@ -1068,7 +1068,7 @@ export class Trader {
 
     if (!signal.symbol || typeof signal.symbol !== 'string') {
       logger.error(
-        `[订单提交] 信号缺少有效的标的代码: ${JSON.stringify(signal)}`
+        `[订单提交] 信号缺少有效的标的代码: ${JSON.stringify(signal)}`,
       );
       return;
     }
@@ -1089,7 +1089,7 @@ export class Trader {
       side = OrderSide.Sell; // 卖出做空标的（平空仓）
     } else {
       logger.error(
-        `[订单提交] 未知的信号类型: ${signal.action}, 标的: ${signal.symbol}`
+        `[订单提交] 未知的信号类型: ${signal.action}, 标的: ${signal.symbol}`,
       );
       return;
     }
@@ -1142,7 +1142,7 @@ export class Trader {
       }
       if (!Number.isFinite(totalAvailable) || totalAvailable <= 0) {
         logger.warn(
-          `[跳过订单] 当前无可用持仓，无需平仓。symbol=${symbol}, available=${totalAvailable}`
+          `[跳过订单] 当前无可用持仓，无需平仓。symbol=${symbol}, available=${totalAvailable}`,
         );
         return;
       }
@@ -1150,10 +1150,10 @@ export class Trader {
       // 如果指定了数量，使用指定数量（但不能超过可用数量）
       if (targetQuantity !== null) {
         submittedQtyDecimal = toDecimal(
-          Math.min(targetQuantity, totalAvailable)
+          Math.min(targetQuantity, totalAvailable),
         );
         logger.info(
-          `[部分卖出] 信号指定卖出数量=${targetQuantity}，可用数量=${totalAvailable}，实际卖出=${submittedQtyDecimal.toString()}`
+          `[部分卖出] 信号指定卖出数量=${targetQuantity}，可用数量=${totalAvailable}，实际卖出=${submittedQtyDecimal.toString()}`,
         );
       } else {
         // 未指定数量，全部清仓
@@ -1165,13 +1165,13 @@ export class Trader {
       const pricingSource = overridePrice ?? signal?.price ?? null;
       if (!Number.isFinite(Number(pricingSource)) || Number(pricingSource) <= 0) {
         logger.warn(
-          `[跳过订单] 无法获取有效价格，无法按金额计算买入数量，symbol=${symbol}, price=${pricingSource}`
+          `[跳过订单] 无法获取有效价格，无法按金额计算买入数量，symbol=${symbol}, price=${pricingSource}`,
         );
         // 回退到预设数量
         const fallbackQty = toDecimal(quantity);
         if (!fallbackQty || fallbackQty.isZero() || fallbackQty.isNegative()) {
           logger.warn(
-            `[跳过订单] 预设买入数量非法（${quantity}），跳过提交 ${symbol} 订单`
+            `[跳过订单] 预设买入数量非法（${quantity}），跳过提交 ${symbol} 订单`,
           );
           return;
         }
@@ -1182,14 +1182,14 @@ export class Trader {
             Number.isFinite(Number(targetNotional)) &&
             targetNotional > 0
             ? targetNotional
-            : 5000
+            : 5000,
         );
         const priceNum = Number(pricingSource);
 
         // 验证价格有效性
         if (!Number.isFinite(priceNum) || priceNum <= 0) {
           logger.warn(
-            `[跳过订单] 价格无效，无法计算买入数量，symbol=${symbol}, price=${priceNum}`
+            `[跳过订单] 价格无效，无法计算买入数量，symbol=${symbol}, price=${priceNum}`,
           );
           return;
         }
@@ -1215,7 +1215,7 @@ export class Trader {
         rawQty = Math.floor(rawQty / lotSize!) * lotSize!;
         if (!Number.isFinite(rawQty) || rawQty < lotSize!) {
           logger.warn(
-            `[跳过订单] 目标金额(${notional}) 相对于价格(${priceNum}) 太小，按每手 ${lotSize} 股计算得到数量=${rawQty}，跳过提交 ${symbol} 订单`
+            `[跳过订单] 目标金额(${notional}) 相对于价格(${priceNum}) 太小，按每手 ${lotSize} 股计算得到数量=${rawQty}，跳过提交 ${symbol} 订单`,
           );
           return;
         }
@@ -1224,7 +1224,7 @@ export class Trader {
           ? '买入做空标的（做空）'
           : '买入做多标的（做多）';
         logger.info(
-          `[仓位计算] 按目标金额 ${notional} 计算得到${actionType}数量=${rawQty} 股（${lotSize} 股一手），单价≈${priceNum}`
+          `[仓位计算] 按目标金额 ${notional} 计算得到${actionType}数量=${rawQty} 股（${lotSize} 股一手），单价≈${priceNum}`,
         );
       }
     }
@@ -1253,13 +1253,13 @@ export class Trader {
     ) {
       if (!resolvedPrice) {
         logger.warn(
-          `[跳过订单] ${symbol} 的增强限价单缺少价格，无法提交。请确保信号中包含价格信息或配置 orderOptions.price`
+          `[跳过订单] ${symbol} 的增强限价单缺少价格，无法提交。请确保信号中包含价格信息或配置 orderOptions.price`,
         );
         return;
       }
       orderPayload.submittedPrice = toDecimal(resolvedPrice);
       logger.info(
-        `[订单类型] 使用增强限价单(ELO)，标的=${symbol}，价格=${resolvedPrice}`
+        `[订单类型] 使用增强限价单(ELO)，标的=${symbol}，价格=${resolvedPrice}`,
       );
     }
 
@@ -1282,13 +1282,13 @@ export class Trader {
       const actionDesc = this._getActionDescription(
         signal.action,
         isShortSymbol,
-        side
+        side,
       );
 
       logger.info(
         `[订单提交成功] ${actionDesc} ${
           orderPayload.symbol
-        } 数量=${orderPayload.submittedQuantity.toString()} 订单ID=${orderId}`
+        } 数量=${orderPayload.submittedQuantity.toString()} 订单ID=${orderId}`,
       );
 
       // 更新该方向标的的最后买入时间（仅对买入操作更新，订单提交成功后才更新）
@@ -1313,7 +1313,7 @@ export class Trader {
       const actionDesc = this._getActionDescription(
         signal.action,
         isShortSymbol,
-        side
+        side,
       );
 
       // 使用辅助函数提取错误消息
@@ -1325,38 +1325,38 @@ export class Trader {
         // 做空不支持的错误（做空是买入做空标的，所以检查买入订单）
         logger.error(
           `[订单提交失败] ${actionDesc} ${orderPayload.symbol} 失败：该标的不支持做空交易`,
-          errorMessage
+          errorMessage,
         );
         logger.warn(
           `[做空错误提示] 标的 ${orderPayload.symbol} 不支持做空交易。可能的原因：\n` +
-            `  1. 该标的在港股市场不支持做空\n` +
-            `  2. 账户没有做空权限\n` +
-            `  3. 需要更换其他支持做空的标的\n` +
-            `  建议：检查配置中的 SHORT_SYMBOL 环境变量，或联系券商确认账户做空权限`
+            '  1. 该标的在港股市场不支持做空\n' +
+            '  2. 账户没有做空权限\n' +
+            '  3. 需要更换其他支持做空的标的\n' +
+            '  建议：检查配置中的 SHORT_SYMBOL 环境变量，或联系券商确认账户做空权限',
         );
       } else if (errorType.isInsufficientFunds) {
         // 资金不足错误
         logger.error(
           `[订单提交失败] ${actionDesc} ${orderPayload.symbol} 失败：账户资金不足`,
-          errorMessage
+          errorMessage,
         );
       } else if (errorType.isNetworkError) {
         // 网络错误
         logger.error(
           `[订单提交失败] ${actionDesc} ${orderPayload.symbol} 失败：网络异常，请检查连接`,
-          errorMessage
+          errorMessage,
         );
       } else if (errorType.isRateLimited) {
         // API 频率限制
         logger.error(
           `[订单提交失败] ${actionDesc} ${orderPayload.symbol} 失败：API 调用频率超限`,
-          errorMessage
+          errorMessage,
         );
       } else {
         // 其他错误
         logger.error(
           `[订单提交失败] ${actionDesc} ${orderPayload.symbol} 失败：`,
-          errorMessage
+          errorMessage,
         );
       }
 
