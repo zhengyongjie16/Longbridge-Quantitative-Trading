@@ -19,26 +19,53 @@
  * - MACD、DIF、DEA（MACD 指标）
  */
 
-import { logger } from "../utils/logger.js";
-import { verificationEntryPool, signalObjectPool } from "../utils/objectPool.js";
-import { SignalType } from "../utils/constants.js";
-import { getIndicatorValue } from "../utils/indicatorHelpers.js";
+import { logger } from '../utils/logger.js';
+import { verificationEntryPool, signalObjectPool } from '../utils/objectPool.js';
+import { SignalType } from '../utils/constants.js';
+import { getIndicatorValue } from '../utils/indicatorHelpers.js';
+import type { IndicatorSnapshot, Quote, Signal, VerificationConfig } from '../types/index.js';
+
+/**
+ * 验证历史记录条目
+ */
+interface VerificationEntry {
+  timestamp: Date;
+  indicators: Record<string, number>;
+}
+
+/**
+ * 延迟信号接口（扩展 Signal）
+ */
+interface DelayedSignal extends Signal {
+  triggerTime?: Date;
+  indicators1?: Record<string, number>;
+  verificationHistory?: VerificationEntry[];
+}
+
+/**
+ * 状态对象接口
+ */
+interface LastState {
+  pendingDelayedSignals?: DelayedSignal[];
+}
 
 /**
  * 信号验证管理器类
  * 管理延迟信号的验证流程：记录历史、执行验证、清理数据
  */
 export class SignalVerificationManager {
-  constructor(verificationConfig) {
+  private verificationConfig: VerificationConfig;
+
+  constructor(verificationConfig: VerificationConfig) {
     this.verificationConfig = verificationConfig;
   }
 
   /**
    * 添加延迟信号到待验证列表
-   * @param {Array} delayedSignals 延迟信号列表
-   * @param {Object} lastState 状态对象（包含 pendingDelayedSignals）
+   * @param delayedSignals 延迟信号列表
+   * @param lastState 状态对象（包含 pendingDelayedSignals）
    */
-  addDelayedSignals(delayedSignals, lastState) {
+  addDelayedSignals(delayedSignals: DelayedSignal[], lastState: LastState): void {
     // 初始化待验证信号数组（如果不存在）
     if (!lastState.pendingDelayedSignals) {
       lastState.pendingDelayedSignals = [];
@@ -52,7 +79,7 @@ export class SignalVerificationManager {
           (s) =>
             s.symbol === delayedSignal.symbol &&
             s.action === delayedSignal.action &&
-            s.triggerTime.getTime() === delayedSignal.triggerTime.getTime()
+            s.triggerTime?.getTime() === delayedSignal.triggerTime?.getTime()
         );
 
         if (!existingSignal) {
@@ -60,8 +87,8 @@ export class SignalVerificationManager {
 
           const actionDesc =
             delayedSignal.action === SignalType.BUYCALL
-              ? "买入做多"
-              : "买入做空";
+              ? '买入做多'
+              : '买入做空';
           logger.info(
             `[延迟验证信号] 新增待验证${actionDesc}信号：${delayedSignal.symbol} - ${delayedSignal.reason}`
           );
@@ -75,10 +102,10 @@ export class SignalVerificationManager {
 
   /**
    * 为所有待验证信号记录当前监控标的值（每秒调用一次）
-   * @param {Object} monitorSnapshot 监控标的指标快照
-   * @param {Object} lastState 状态对象（包含 pendingDelayedSignals）
+   * @param monitorSnapshot 监控标的指标快照
+   * @param lastState 状态对象（包含 pendingDelayedSignals）
    */
-  recordVerificationHistory(monitorSnapshot, lastState) {
+  recordVerificationHistory(monitorSnapshot: IndicatorSnapshot | null, lastState: LastState): void {
     if (
       !monitorSnapshot ||
       !lastState.pendingDelayedSignals ||
@@ -92,7 +119,7 @@ export class SignalVerificationManager {
     const now = new Date();
 
     // 提取当前配置的所有指标值
-    const currentIndicators = {};
+    const currentIndicators: Record<string, number> = {};
     let allIndicatorsValid = true;
 
     for (const indicatorName of this.verificationConfig.indicators) {
@@ -133,7 +160,7 @@ export class SignalVerificationManager {
             // 如果上一记录不是同一秒，则添加新记录
             if (lastEntrySeconds !== nowSeconds) {
               // 从对象池获取条目对象，减少内存分配
-              const entry = verificationEntryPool.acquire();
+              const entry = verificationEntryPool.acquire() as VerificationEntry;
               entry.timestamp = now;
               // 将所有配置的指标值记录到 indicators 对象中
               entry.indicators = { ...currentIndicators };
@@ -142,8 +169,8 @@ export class SignalVerificationManager {
               pendingSignal.verificationHistory.push(entry);
 
               // 只保留当前信号触发时间点前后 5 秒窗口内的数据，释放其他条目
-              const entriesToKeep = [];
-              const entriesToRelease = [];
+              const entriesToKeep: VerificationEntry[] = [];
+              const entriesToRelease: VerificationEntry[] = [];
               for (const e of pendingSignal.verificationHistory) {
                 const t = e.timestamp.getTime();
                 if (t >= windowStart && t <= windowEnd) {
@@ -165,13 +192,17 @@ export class SignalVerificationManager {
 
   /**
    * 验证所有到期的待验证信号
-   * @param {Object} lastState 状态对象（包含 pendingDelayedSignals）
-   * @param {Object} longQuote 做多标的行情
-   * @param {Object} shortQuote 做空标的行情
-   * @returns {Array} 验证通过的信号列表
+   * @param lastState 状态对象（包含 pendingDelayedSignals）
+   * @param longQuote 做多标的行情
+   * @param shortQuote 做空标的行情
+   * @returns 验证通过的信号列表
    */
-  verifyPendingSignals(lastState, longQuote, shortQuote) {
-    const verifiedSignals = [];
+  verifyPendingSignals(
+    lastState: LastState,
+    longQuote: Quote | null,
+    shortQuote: Quote | null
+  ): Signal[] {
+    const verifiedSignals: Signal[] = [];
 
     if (
       !lastState.pendingDelayedSignals ||
@@ -216,7 +247,7 @@ export class SignalVerificationManager {
       } catch (err) {
         logger.error(
           `[延迟验证错误] 处理待验证信号 ${pendingSignal.symbol} 时发生错误`,
-          err?.message ?? String(err) ?? "未知错误"
+          (err as Error)?.message ?? String(err) ?? '未知错误'
         );
         // 清空该信号的历史记录并释放对象回池
         if (pendingSignal.verificationHistory) {
@@ -238,14 +269,19 @@ export class SignalVerificationManager {
 
   /**
    * 验证单个信号（内部方法）
-   * @param {Object} pendingSignal 待验证信号
-   * @param {Date} now 当前时间
-   * @param {Object} longQuote 做多标的行情
-   * @param {Object} shortQuote 做空标的行情
-   * @returns {Object|null} 验证通过的信号，失败返回 null
+   * @param pendingSignal 待验证信号
+   * @param now 当前时间
+   * @param longQuote 做多标的行情
+   * @param shortQuote 做空标的行情
+   * @returns 验证通过的信号，失败返回 null
    * @private
    */
-  _verifySingleSignal(pendingSignal, now, longQuote, shortQuote) {
+  private _verifySingleSignal(
+    pendingSignal: DelayedSignal,
+    now: Date,
+    longQuote: Quote | null,
+    shortQuote: Quote | null
+  ): Signal | null {
     // 安全检查：如果验证指标配置为null或空，跳过验证
     if (
       !this.verificationConfig.indicators ||
@@ -268,7 +304,7 @@ export class SignalVerificationManager {
     // 获取indicators1（从信号中获取，触发时已记录）
     const indicators1 = pendingSignal.indicators1;
 
-    if (!indicators1 || typeof indicators1 !== "object") {
+    if (!indicators1 || typeof indicators1 !== 'object') {
       logger.warn(
         `[延迟验证错误] ${pendingSignal.symbol} 缺少indicators1，跳过验证`
       );
@@ -298,7 +334,7 @@ export class SignalVerificationManager {
     const history = pendingSignal.verificationHistory || [];
 
     // 查找精确匹配或最近的值
-    let bestMatch = null;
+    let bestMatch: VerificationEntry | null = null;
     let minTimeDiff = Infinity;
     const maxTimeDiff = 5 * 1000; // 5秒误差
 
@@ -315,11 +351,13 @@ export class SignalVerificationManager {
     // 如果找不到匹配的值，尝试使用历史记录中最新的值
     if (!bestMatch && history.length > 0) {
       const latestEntry = history[history.length - 1];
-      const timeDiff = Math.abs(
-        latestEntry.timestamp.getTime() - targetTime.getTime()
-      );
-      if (timeDiff <= maxTimeDiff) {
-        bestMatch = latestEntry;
+      if (latestEntry) {
+        const timeDiff = Math.abs(
+          latestEntry.timestamp.getTime() - targetTime.getTime()
+        );
+        if (timeDiff <= maxTimeDiff) {
+          bestMatch = latestEntry;
+        }
       }
     }
 
@@ -328,10 +366,10 @@ export class SignalVerificationManager {
         `[延迟验证失败] ${
           pendingSignal.symbol
         } 无法获取有效的indicators2（目标时间=${targetTime.toLocaleString(
-          "zh-CN",
-          { timeZone: "Asia/Hong_Kong", hour12: false }
-        )}，当前时间=${now.toLocaleString("zh-CN", {
-          timeZone: "Asia/Hong_Kong",
+          'zh-CN',
+          { timeZone: 'Asia/Hong_Kong', hour12: false }
+        )}，当前时间=${now.toLocaleString('zh-CN', {
+          timeZone: 'Asia/Hong_Kong',
           hour12: false,
         })}）`
       );
@@ -372,8 +410,8 @@ export class SignalVerificationManager {
     }
 
     let verificationPassed = true;
-    const verificationDetails = [];
-    const failedIndicators = [];
+    const verificationDetails: string[] = [];
+    const failedIndicators: string[] = [];
 
     // 遍历所有配置的指标进行验证
     for (const indicatorName of this.verificationConfig.indicators) {
@@ -388,26 +426,30 @@ export class SignalVerificationManager {
         return null;
       }
 
+      // TypeScript 类型断言 - Number.isFinite 确保了这些是有效数字
+      const v1 = value1 as number;
+      const v2 = value2 as number;
+
       // 统一使用 3 位小数
       const decimals = 3;
 
       let indicatorPassed = false;
-      let comparisonSymbol = "";
+      let comparisonSymbol = '';
 
       if (isBuyCall) {
         // 买入做多：所有指标的第二个值都要大于第一个值
-        indicatorPassed = value2 > value1;
-        comparisonSymbol = indicatorPassed ? ">" : "<=";
+        indicatorPassed = v2 > v1;
+        comparisonSymbol = indicatorPassed ? '>' : '<=';
       } else if (isBuyPut) {
         // 买入做空：所有指标的第二个值都要小于第一个值
-        indicatorPassed = value2 < value1;
-        comparisonSymbol = indicatorPassed ? "<" : ">=";
+        indicatorPassed = v2 < v1;
+        comparisonSymbol = indicatorPassed ? '<' : '>=';
       }
 
       // 构建详细信息字符串
-      const detail = `${indicatorName}1=${value1.toFixed(
+      const detail = `${indicatorName}1=${v1.toFixed(
         decimals
-      )} ${indicatorName}2=${value2.toFixed(
+      )} ${indicatorName}2=${v2.toFixed(
         decimals
       )} (${indicatorName}2${comparisonSymbol}${indicatorName}1)`;
       verificationDetails.push(detail);
@@ -419,32 +461,32 @@ export class SignalVerificationManager {
     }
 
     // 构建验证原因字符串
-    let verificationReason = verificationDetails.join(" ");
+    let verificationReason = verificationDetails.join(' ');
     verificationReason += ` 时间差=${timeDiffSeconds.toFixed(1)}秒`;
 
     if (!verificationPassed) {
-      verificationReason += ` [失败指标: ${failedIndicators.join(", ")}]`;
+      verificationReason += ` [失败指标: ${failedIndicators.join(', ')}]`;
     }
 
     if (verificationPassed) {
-      const actionDesc = isBuyCall ? "买入做多" : "买入做空";
+      const actionDesc = isBuyCall ? '买入做多' : '买入做空';
       logger.info(
         `[延迟验证通过] ${pendingSignal.symbol} ${verificationReason}，执行${actionDesc}`
       );
 
       // 获取标的的当前价格和最小买卖单位
-      let currentPrice = null;
-      let lotSize = null;
+      let currentPrice: number | null = null;
+      let lotSize: number | null = null;
       if (isBuyCall && longQuote) {
         currentPrice = longQuote.price;
-        lotSize = longQuote.lotSize;
+        lotSize = longQuote.lotSize ?? null;
       } else if (isBuyPut && shortQuote) {
         currentPrice = shortQuote.price;
-        lotSize = shortQuote.lotSize;
+        lotSize = shortQuote.lotSize ?? null;
       }
 
       // 获取标的的中文名称
-      let symbolName = null;
+      let symbolName: string | null = null;
       if (isBuyCall && longQuote) {
         symbolName = longQuote.name;
       } else if (isBuyPut && shortQuote) {
@@ -452,7 +494,7 @@ export class SignalVerificationManager {
       }
 
       // 从对象池获取信号对象
-      const signal = signalObjectPool.acquire();
+      const signal = signalObjectPool.acquire() as Signal;
       signal.symbol = pendingSignal.symbol;
       signal.symbolName = symbolName;
       signal.action = pendingSignal.action;
@@ -463,7 +505,7 @@ export class SignalVerificationManager {
 
       return signal;
     } else {
-      const actionDesc = isBuyCall ? "买入做多" : "买入做空";
+      const actionDesc = isBuyCall ? '买入做多' : '买入做空';
       logger.info(
         `[延迟验证失败] ${pendingSignal.symbol} ${verificationReason}，不执行${actionDesc}`
       );

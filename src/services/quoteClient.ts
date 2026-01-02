@@ -27,27 +27,53 @@ import {
   TradeSessions,
   Market,
   NaiveDate,
-} from "longport";
-import { createConfig } from "../config/config.js";
+  Config,
+  Candlestick,
+} from 'longport';
+import { createConfig } from '../config/config.js';
 import {
   normalizeHKSymbol,
   decimalToNumber,
   isDefined,
-} from "../utils/helpers.js";
-import { logger } from "../utils/logger.js";
+} from '../utils/helpers.js';
+import { logger } from '../utils/logger.js';
+import type { Quote } from '../types/index.js';
 
-const DEFAULT_RETRY = {
+/**
+ * 重试配置接口
+ */
+interface RetryConfig {
+  retries: number;
+  delayMs: number;
+}
+
+const DEFAULT_RETRY: RetryConfig = {
   retries: 2,
   delayMs: 300,
 };
 
-class QuoteCache {
-  constructor(ttlMs = 1000) {
+/**
+ * 缓存条目接口
+ */
+interface CacheEntry<T> {
+  value: T;
+  ts: number;
+}
+
+/**
+ * 行情缓存类
+ * 支持 TTL 过期机制
+ */
+class QuoteCache<T> {
+  private ttlMs: number;
+  private _map: Map<string, CacheEntry<T>>;
+
+  constructor(ttlMs: number = 1000) {
     this.ttlMs = ttlMs;
     this._map = new Map();
   }
 
-  get(key) {
+  get(key: string): T | null {
     const entry = this._map.get(key);
     if (!entry) return null;
     if (Date.now() - entry.ts > this.ttlMs) {
@@ -57,9 +83,34 @@ class QuoteCache {
     return entry.value;
   }
 
-  set(key, value) {
+  set(key: string, value: T): void {
     this._map.set(key, { value, ts: Date.now() });
   }
+}
+
+/**
+ * 交易日缓存条目接口
+ */
+interface TradingDayCacheEntry {
+  isTradingDay: boolean;
+  isHalfDay: boolean;
+  timestamp: number;
+}
+
+/**
+ * 交易日信息接口
+ */
+interface TradingDayInfo {
+  isTradingDay: boolean;
+  isHalfDay: boolean;
+}
+
+/**
+ * 交易日查询结果接口
+ */
+interface TradingDaysResult {
+  tradingDays: string[];
+  halfTradingDays: string[];
 }
 
 /**
@@ -68,6 +119,9 @@ class QuoteCache {
  * 每天只需要获取一次交易日信息
  */
 class TradingDayCache {
+  private _cache: Map<string, TradingDayCacheEntry>;
+  private _ttl: number;
+
   constructor() {
     // 缓存格式: { date: "YYYY-MM-DD", isTradingDay: boolean, isHalfDay: boolean, timestamp: number }
     this._cache = new Map();
@@ -77,10 +131,10 @@ class TradingDayCache {
 
   /**
    * 获取指定日期的交易日信息
-   * @param {string} dateStr 日期字符串 "YYYY-MM-DD"
-   * @returns {object|null} 交易日信息或 null
+   * @param dateStr 日期字符串 "YYYY-MM-DD"
+   * @returns 交易日信息或 null
    */
-  get(dateStr) {
+  get(dateStr: string): TradingDayInfo | null {
     const entry = this._cache.get(dateStr);
     if (!entry) return null;
 
@@ -98,11 +152,11 @@ class TradingDayCache {
 
   /**
    * 设置指定日期的交易日信息
-   * @param {string} dateStr 日期字符串 "YYYY-MM-DD"
-   * @param {boolean} isTradingDay 是否是交易日
-   * @param {boolean} isHalfDay 是否是半日交易日
+   * @param dateStr 日期字符串 "YYYY-MM-DD"
+   * @param isTradingDay 是否是交易日
+   * @param isHalfDay 是否是半日交易日
    */
-  set(dateStr, isTradingDay, isHalfDay = false) {
+  set(dateStr: string, isTradingDay: boolean, isHalfDay: boolean = false): void {
     this._cache.set(dateStr, {
       isTradingDay,
       isHalfDay,
@@ -112,10 +166,10 @@ class TradingDayCache {
 
   /**
    * 批量设置交易日信息
-   * @param {Array<string>} tradingDays 交易日列表 ["YYYY-MM-DD", ...]
-   * @param {Array<string>} halfTradingDays 半日交易日列表 ["YYYY-MM-DD", ...]
+   * @param tradingDays 交易日列表 ["YYYY-MM-DD", ...]
+   * @param halfTradingDays 半日交易日列表 ["YYYY-MM-DD", ...]
    */
-  setBatch(tradingDays, halfTradingDays = []) {
+  setBatch(tradingDays: string[], halfTradingDays: string[] = []): void {
     const halfDaySet = new Set(halfTradingDays);
     const allTradingDays = new Set([...tradingDays, ...halfTradingDays]);
 
@@ -128,29 +182,48 @@ class TradingDayCache {
 }
 
 /**
+ * K线周期字符串类型
+ */
+type PeriodString = '1m' | '5m' | '15m' | '1h' | '1d';
+
+/**
  * 行情数据客户端，封装 LongPort QuoteContext 常用调用。
  * 参考：
  * - 快速开始：https://open.longbridge.com/zh-CN/docs/getting-started
  * - Node SDK：https://longportapp.github.io/openapi/nodejs/modules.html
  */
 export class MarketDataClient {
-  constructor(config = null) {
+  private _config: Config;
+  private _ctxPromise: Promise<QuoteContext>;
+  private _quoteCache: QuoteCache<Quote>;
+  private _tradingDayCache: TradingDayCache;
+
+  constructor(config: Config | null = null) {
     this._config = config ?? createConfig();
     this._ctxPromise = QuoteContext.new(this._config);
-    this._quoteCache = new QuoteCache();
+    this._quoteCache = new QuoteCache<Quote>();
     this._tradingDayCache = new TradingDayCache();
   }
 
   /**
    * 获取 QuoteContext 实例（供内部使用）
-   * @returns {Promise<QuoteContext>}
+   * @returns QuoteContext 实例
    */
-  async _getContext() {
+  async _getContext(): Promise<QuoteContext> {
     return this._ctxPromise;
   }
 
-  async _withRetry(fn, { retries, delayMs } = DEFAULT_RETRY) {
-    let lastErr;
+  /**
+   * 带重试的异步操作包装器
+   * @param fn 要执行的异步函数
+   * @param config 重试配置
+   * @returns 函数执行结果
+   */
+  private async _withRetry<T>(
+    fn: () => Promise<T>,
+    { retries, delayMs }: RetryConfig = DEFAULT_RETRY
+  ): Promise<T> {
+    let lastErr: unknown;
     for (let i = 0; i <= retries; i += 1) {
       try {
         return await fn();
@@ -167,7 +240,12 @@ export class MarketDataClient {
     throw lastErr;
   }
 
-  async getLatestQuote(symbol) {
+  /**
+   * 获取单个标的的最新行情
+   * @param symbol 标的代码
+   * @returns 行情数据或 null
+   */
+  async getLatestQuote(symbol: string): Promise<Quote | null> {
     const ctx = await this._ctxPromise;
     // 规范化港股代码，自动添加 .HK 后缀
     const normalizedSymbol = normalizeHKSymbol(symbol);
@@ -196,11 +274,14 @@ export class MarketDataClient {
         staticInfo?.nameHk ?? staticInfo?.nameCn ?? staticInfo?.nameEn ?? null;
       // 从 staticInfo 中提取最小买卖单位（lotSize）
       // LongPort API 的 staticInfo 应该包含 lotSize 字段
-      let lotSize = null;
+      let lotSize: number | undefined = undefined;
       if (staticInfo) {
         // 尝试多种可能的字段名
         const lotSizeValue =
-          staticInfo.lotSize ?? staticInfo.lot_size ?? staticInfo.lot ?? null;
+          (staticInfo as unknown as Record<string, unknown>).lotSize ??
+          (staticInfo as unknown as Record<string, unknown>).lot_size ??
+          (staticInfo as unknown as Record<string, unknown>).lot ??
+          null;
         if (isDefined(lotSizeValue)) {
           const parsed = Number(lotSizeValue);
           if (Number.isFinite(parsed) && parsed > 0) {
@@ -208,13 +289,13 @@ export class MarketDataClient {
           }
         }
       }
-      const result = {
+      const result: Quote = {
         symbol: quote.symbol,
         name,
         price: decimalToNumber(quote.lastDone),
         prevClose: decimalToNumber(quote.prevClose),
-        timestamp: quote.timestamp,
-        lotSize: Number.isFinite(lotSize) && lotSize > 0 ? lotSize : null,
+        timestamp: quote.timestamp.getTime(),
+        lotSize: Number.isFinite(lotSize) && lotSize !== undefined && lotSize > 0 ? lotSize : undefined,
         raw: quote,
         staticInfo,
       };
@@ -223,7 +304,7 @@ export class MarketDataClient {
     } catch (err) {
       logger.error(
         `[行情获取] 获取标的 ${normalizedSymbol} (原始: ${symbol}) 行情时发生错误：`,
-        err?.message ?? String(err) ?? "未知错误"
+        (err as Error)?.message ?? String(err) ?? '未知错误'
       );
       throw err;
     }
@@ -231,18 +312,20 @@ export class MarketDataClient {
 
   /**
    * 获取指定标的的 K 线数据，用于计算 RSI/KDJ/均价。
-   * @param {string} symbol 例如 "HSI.HK"
-   * @param {"1m"|"5m"|"15m"|"1h"|"1d"|Period} period 周期
-   * @param {number} count 返回的 K 线数量
-   * @returns {Promise<import("longport").Candlestick[]>}
+   * @param symbol 例如 "HSI.HK"
+   * @param period 周期
+   * @param count 返回的 K 线数量
+   * @param adjustType 复权类型
+   * @param tradeSessions 交易时段
+   * @returns K 线数据数组
    */
   async getCandlesticks(
-    symbol,
-    period = "1m",
-    count = 200,
-    adjustType = AdjustType.NoAdjust,
-    tradeSessions = TradeSessions.All
-  ) {
+    symbol: string,
+    period: PeriodString | Period = '1m',
+    count: number = 200,
+    adjustType: AdjustType = AdjustType.NoAdjust,
+    tradeSessions: TradeSessions = TradeSessions.All
+  ): Promise<Candlestick[]> {
     const ctx = await this._ctxPromise;
     const normalizedSymbol = normalizeHKSymbol(symbol);
     const periodEnum = this._normalizePeriod(period);
@@ -255,28 +338,37 @@ export class MarketDataClient {
     );
   }
 
-  _normalizePeriod(period) {
-    if (typeof period === "number") {
+  /**
+   * 规范化周期参数
+   * @param period 周期字符串或枚举
+   * @returns Period 枚举值
+   */
+  private _normalizePeriod(period: PeriodString | Period): Period {
+    if (typeof period === 'number') {
       return period;
     }
-    const map = {
-      "1m": Period.Min_1,
-      "5m": Period.Min_5,
-      "15m": Period.Min_15,
-      "1h": Period.Min_60,
-      "1d": Period.Day,
+    const map: Record<PeriodString, Period> = {
+      '1m': Period.Min_1,
+      '5m': Period.Min_5,
+      '15m': Period.Min_15,
+      '1h': Period.Min_60,
+      '1d': Period.Day,
     };
     return map[period] ?? Period.Min_1;
   }
 
   /**
    * 获取指定日期范围的交易日信息
-   * @param {Date} startDate 开始日期
-   * @param {Date} endDate 结束日期
-   * @param {Market} market 市场类型，默认为香港市场
-   * @returns {Promise<{tradingDays: string[], halfTradingDays: string[]}>}
+   * @param startDate 开始日期
+   * @param endDate 结束日期
+   * @param market 市场类型，默认为香港市场
+   * @returns 交易日信息
    */
-  async getTradingDays(startDate, endDate, market = Market.HK) {
+  async getTradingDays(
+    startDate: Date,
+    endDate: Date,
+    market: Market = Market.HK
+  ): Promise<TradingDaysResult> {
     const ctx = await this._ctxPromise;
 
     // 转换为 NaiveDate 格式
@@ -319,15 +411,18 @@ export class MarketDataClient {
 
   /**
    * 判断指定日期是否是交易日
-   * @param {Date} date 日期对象
-   * @param {Market} market 市场类型，默认为香港市场
-   * @returns {Promise<{isTradingDay: boolean, isHalfDay: boolean}>}
+   * @param date 日期对象
+   * @param market 市场类型，默认为香港市场
+   * @returns 交易日信息
    */
-  async isTradingDay(date, market = Market.HK) {
+  async isTradingDay(
+    date: Date,
+    market: Market = Market.HK
+  ): Promise<TradingDayInfo> {
     // 格式化日期为 YYYY-MM-DD
     const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
     const dateStr = `${year}-${month}-${day}`;
 
     // 先检查缓存
@@ -359,7 +454,7 @@ export class MarketDataClient {
       // 如果 API 调用失败，返回保守结果（假设是交易日，避免漏掉交易机会）
       logger.warn(
         `[交易日判断] API 调用失败: ${
-          err?.message ?? String(err) ?? "未知错误"
+          (err as Error)?.message ?? String(err) ?? '未知错误'
         }，假设为交易日继续运行`
       );
       return {

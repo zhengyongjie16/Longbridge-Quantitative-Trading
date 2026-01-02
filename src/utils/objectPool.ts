@@ -18,24 +18,47 @@
  * - releaseAll(objects)：批量释放对象数组
  */
 
+import type {
+  PoolableSignal,
+  PoolableKDJ,
+  PoolableMACD,
+  PoolableMonitorValues,
+  PoolablePosition,
+  PoolableVerificationEntry,
+} from '../types/index.js';
+
+/**
+ * 工厂函数类型
+ */
+type Factory<T> = () => T;
+
+/**
+ * 重置函数类型
+ */
+type Reset<T> = (obj: T) => T;
+
 /**
  * 通用对象池类
  */
-class ObjectPool {
-  constructor(factory = () => ({}), reset = (obj) => obj, maxSize = 100) {
-    this.pool = [];
-    this.factory = factory; // 对象工厂函数
-    this.reset = reset; // 对象重置函数
-    this.maxSize = maxSize; // 池最大容量
+class ObjectPool<T> {
+  private pool: T[] = [];
+  private readonly factory: Factory<T>;
+  private readonly reset: Reset<T>;
+  private readonly maxSize: number;
+
+  constructor(factory: Factory<T> = () => ({} as T), reset: Reset<T> = (obj) => obj, maxSize: number = 100) {
+    this.factory = factory;
+    this.reset = reset;
+    this.maxSize = maxSize;
   }
 
   /**
    * 从池中获取一个对象
-   * @returns {Object} 可用的对象
+   * @returns 可用的对象
    */
-  acquire() {
+  acquire(): T {
     if (this.pool.length > 0) {
-      return this.pool.pop();
+      return this.pool.pop()!;
     }
     // 池为空，创建新对象
     return this.factory();
@@ -43,9 +66,9 @@ class ObjectPool {
 
   /**
    * 将对象归还到池中
-   * @param {Object} obj 要归还的对象
+   * @param obj 要归还的对象
    */
-  release(obj) {
+  release(obj: T | null | undefined): void {
     if (!obj) return;
 
     // 如果池已满，直接丢弃对象（让GC回收）
@@ -60,9 +83,9 @@ class ObjectPool {
 
   /**
    * 批量释放对象数组
-   * @param {Array} objects 对象数组
+   * @param objects 对象数组
    */
-  releaseAll(objects) {
+  releaseAll(objects: T[] | null | undefined): void {
     if (!Array.isArray(objects)) return;
     objects.forEach((obj) => this.release(obj));
   }
@@ -72,7 +95,7 @@ class ObjectPool {
  * 验证历史条目对象池
  * 用于 verificationHistory 数组中的条目对象
  */
-export const verificationEntryPool = new ObjectPool(
+export const verificationEntryPool = new ObjectPool<PoolableVerificationEntry>(
   // 工厂函数：创建空对象（支持动态配置的验证指标）
   () => ({ timestamp: null, indicators: null }),
   // 重置函数：清空所有属性
@@ -88,7 +111,7 @@ export const verificationEntryPool = new ObjectPool(
  * 交易信号对象池
  * 用于所有类型的交易信号对象（买入、卖出、清仓等）
  */
-export const signalObjectPool = new ObjectPool(
+export const signalObjectPool = new ObjectPool<PoolableSignal>(
   // 工厂函数：创建信号对象
   () => ({
     symbol: null,
@@ -127,7 +150,7 @@ export const signalObjectPool = new ObjectPool(
  * KDJ指标对象池
  * 用于KDJ指标数据对象的复用
  */
-export const kdjObjectPool = new ObjectPool(
+export const kdjObjectPool = new ObjectPool<PoolableKDJ>(
   // 工厂函数：创建空对象
   () => ({
     k: null,
@@ -148,7 +171,7 @@ export const kdjObjectPool = new ObjectPool(
  * MACD指标对象池
  * 用于MACD指标数据对象的复用
  */
-export const macdObjectPool = new ObjectPool(
+export const macdObjectPool = new ObjectPool<PoolableMACD>(
   // 工厂函数：创建空对象
   () => ({
     macd: null,
@@ -169,7 +192,7 @@ export const macdObjectPool = new ObjectPool(
  * 监控值对象池
  * 用于监控标的指标缓存对象的复用
  */
-export const monitorValuesObjectPool = new ObjectPool(
+export const monitorValuesObjectPool = new ObjectPool<PoolableMonitorValues>(
   // 工厂函数：创建空对象
   () => ({
     price: null,
@@ -198,7 +221,7 @@ export const monitorValuesObjectPool = new ObjectPool(
  * 持仓对象池
  * 用于持仓数据对象的复用
  */
-export const positionObjectPool = new ObjectPool(
+export const positionObjectPool = new ObjectPool<PoolablePosition>(
   // 工厂函数：创建空对象
   () => ({
     symbol: null,

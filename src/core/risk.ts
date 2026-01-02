@@ -18,10 +18,13 @@
  * - 使用 R1（开仓成本）和 N1（持仓数量）计算
  */
 
-import { TRADING_CONFIG } from "../config/config.trading.js";
-import { SignalType, isBuyAction } from "../utils/constants.js";
-import { normalizeHKSymbol, decimalToNumber, isDefined } from "../utils/helpers.js";
-import { logger } from "../utils/logger.js";
+import { TRADING_CONFIG } from '../config/config.trading.js';
+import { SignalType, isBuyAction } from '../utils/constants.js';
+import { normalizeHKSymbol, decimalToNumber, isDefined } from '../utils/helpers.js';
+import { logger } from '../utils/logger.js';
+import type { Position, Signal, AccountSnapshot } from '../types/index.js';
+import type { MarketDataClient } from '../services/quoteClient.js';
+import type { OrderRecorder } from './orderRecorder.js';
 
 // ============ 风险检查常量定义 ============
 
@@ -40,13 +43,76 @@ const DEFAULT_PRICE_DECIMALS = 3;
 /** 默认百分比小数位数 */
 const DEFAULT_PERCENT_DECIMALS = 2;
 
+/**
+ * 牛熊证类型
+ */
+type WarrantType = 'BULL' | 'BEAR';
+
+/**
+ * 牛熊证信息接口
+ */
+interface WarrantInfo {
+  isWarrant: boolean;
+  warrantType?: WarrantType;
+  callPrice?: number | null;
+  category?: number | string;
+  symbol?: string;
+}
+
+/**
+ * 风险检查结果接口
+ */
+interface RiskCheckResult {
+  allowed: boolean;
+  reason?: string;
+  warrantInfo?: {
+    isWarrant: boolean;
+    warrantType: WarrantType;
+    distanceToStrikePercent: number;
+  };
+}
+
+/**
+ * 浮亏数据接口
+ */
+interface UnrealizedLossData {
+  r1: number;
+  n1: number;
+  lastUpdateTime: number;
+}
+
+/**
+ * 浮亏检查结果接口
+ */
+interface UnrealizedLossCheckResult {
+  shouldLiquidate: boolean;
+  reason?: string;
+  quantity?: number;
+}
+
+/**
+ * RiskChecker 构造参数接口
+ */
+interface RiskCheckerOptions {
+  maxDailyLoss?: number | null;
+  maxPositionNotional?: number | null;
+  maxUnrealizedLossPerSymbol?: number | null;
+}
+
 export class RiskChecker {
+  maxDailyLoss: number;
+  maxPositionNotional: number | null;
+  maxUnrealizedLossPerSymbol: number | null;
+  longWarrantInfo: WarrantInfo | null;
+  shortWarrantInfo: WarrantInfo | null;
+  unrealizedLossData: Map<string, UnrealizedLossData>;
+
   constructor({
     maxDailyLoss,
     maxPositionNotional,
     maxUnrealizedLossPerSymbol,
-  } = {}) {
-    this.maxDailyLoss = maxDailyLoss ?? TRADING_CONFIG.maxDailyLoss;
+  }: RiskCheckerOptions = {}) {
+    this.maxDailyLoss = maxDailyLoss ?? TRADING_CONFIG.maxDailyLoss ?? 0;
     this.maxPositionNotional =
       maxPositionNotional ?? TRADING_CONFIG.maxPositionNotional;
     this.maxUnrealizedLossPerSymbol =
@@ -71,13 +137,17 @@ export class RiskChecker {
 
   /**
    * 初始化牛熊证信息（在程序启动时调用）
-   * @param {Object} marketDataClient MarketDataClient实例
-   * @param {string} longSymbol 做多标的代码
-   * @param {string} shortSymbol 做空标的代码
+   * @param marketDataClient MarketDataClient实例
+   * @param longSymbol 做多标的代码
+   * @param shortSymbol 做空标的代码
    */
-  async initializeWarrantInfo(marketDataClient, longSymbol, shortSymbol) {
+  async initializeWarrantInfo(
+    marketDataClient: MarketDataClient,
+    longSymbol: string,
+    shortSymbol: string
+  ): Promise<void> {
     if (!marketDataClient) {
-      logger.warn("[风险检查] 未提供 marketDataClient，跳过牛熊证信息初始化");
+      logger.warn('[风险检查] 未提供 marketDataClient，跳过牛熊证信息初始化');
       return;
     }
 
@@ -87,19 +157,19 @@ export class RiskChecker {
         const warrantInfo = await this._checkWarrantType(
           marketDataClient,
           longSymbol,
-          "CALL"
+          'CALL'
         );
         this.longWarrantInfo = warrantInfo;
 
         if (warrantInfo.isWarrant) {
           logger.info(
             `[风险检查] 做多标的 ${longSymbol} 是${
-              warrantInfo.warrantType === "BULL"
-                ? "牛证"
-                : warrantInfo.warrantType === "BEAR"
-                ? "熊证"
-                : "轮证"
-            }，回收价=${warrantInfo.callPrice?.toFixed(3) ?? "未知"}`
+              warrantInfo.warrantType === 'BULL'
+                ? '牛证'
+                : warrantInfo.warrantType === 'BEAR'
+                ? '熊证'
+                : '轮证'
+            }，回收价=${warrantInfo.callPrice?.toFixed(3) ?? '未知'}`
           );
         } else {
           logger.info(`[风险检查] 做多标的 ${longSymbol} 不是牛熊证`);
@@ -107,7 +177,7 @@ export class RiskChecker {
       } catch (err) {
         logger.warn(
           `[风险检查] 检查做多标的牛熊证信息时出错：`,
-          err?.message ?? String(err) ?? "未知错误"
+          (err as Error)?.message ?? String(err) ?? '未知错误'
         );
         this.longWarrantInfo = { isWarrant: false };
       }
@@ -119,19 +189,19 @@ export class RiskChecker {
         const warrantInfo = await this._checkWarrantType(
           marketDataClient,
           shortSymbol,
-          "PUT"
+          'PUT'
         );
         this.shortWarrantInfo = warrantInfo;
 
         if (warrantInfo.isWarrant) {
           logger.info(
             `[风险检查] 做空标的 ${shortSymbol} 是${
-              warrantInfo.warrantType === "BULL"
-                ? "牛证"
-                : warrantInfo.warrantType === "BEAR"
-                ? "熊证"
-                : "轮证"
-            }，回收价=${warrantInfo.callPrice?.toFixed(3) ?? "未知"}`
+              warrantInfo.warrantType === 'BULL'
+                ? '牛证'
+                : warrantInfo.warrantType === 'BEAR'
+                ? '熊证'
+                : '轮证'
+            }，回收价=${warrantInfo.callPrice?.toFixed(3) ?? '未知'}`
           );
         } else {
           logger.info(`[风险检查] 做空标的 ${shortSymbol} 不是牛熊证`);
@@ -139,7 +209,7 @@ export class RiskChecker {
       } catch (err) {
         logger.warn(
           `[风险检查] 检查做空标的牛熊证信息时出错：`,
-          err?.message ?? String(err) ?? "未知错误"
+          (err as Error)?.message ?? String(err) ?? '未知错误'
         );
         this.shortWarrantInfo = { isWarrant: false };
       }
@@ -149,12 +219,16 @@ export class RiskChecker {
   /**
    * 检查标的是否为牛熊证并获取回收价
    * @private
-   * @param {Object} marketDataClient MarketDataClient实例
-   * @param {string} symbol 标的代码
-   * @param {string} expectedType 期望的类型：'CALL'（做多标的期望牛证）或 'PUT'（做空标的期望熊证）
-   * @returns {Promise<Object>} { isWarrant: boolean, warrantType: string, callPrice: number, category: string }
+   * @param marketDataClient MarketDataClient实例
+   * @param symbol 标的代码
+   * @param expectedType 期望的类型：'CALL'（做多标的期望牛证）或 'PUT'（做空标的期望熊证）
+   * @returns { isWarrant: boolean, warrantType: string, callPrice: number, category: string }
    */
-  async _checkWarrantType(marketDataClient, symbol, expectedType) {
+  private async _checkWarrantType(
+    marketDataClient: MarketDataClient,
+    symbol: string,
+    expectedType: 'CALL' | 'PUT'
+  ): Promise<WarrantInfo> {
     const normalizedSymbol = normalizeHKSymbol(symbol);
     const ctx = await marketDataClient._getContext();
 
@@ -172,31 +246,33 @@ export class RiskChecker {
     // 从 warrantQuote 中获取 category 字段判断牛熊证类型
     // 注意：category 是 WarrantType 枚举（数字类型），不是字符串
     // WarrantType: Call=1, Put=2, Bull=3, Bear=4, Inline=5
-    const category = warrantQuote.category;
-    let warrantType = null;
+    const category = (warrantQuote as unknown as Record<string, unknown>).category;
+    let warrantType: WarrantType | null = null;
 
     // 判断牛证：category 可能是数字 3（枚举值）或字符串 "Bull"
-    if (category === 3 || category === "Bull" || category === "BULL") {
-      warrantType = "BULL";
+    if (category === 3 || category === 'Bull' || category === 'BULL') {
+      warrantType = 'BULL';
     }
     // 判断熊证：category 可能是数字 4（枚举值）或字符串 "Bear"
-    else if (category === 4 || category === "Bear" || category === "BEAR") {
-      warrantType = "BEAR";
+    else if (category === 4 || category === 'Bear' || category === 'BEAR') {
+      warrantType = 'BEAR';
     } else {
       // 不是牛熊证（可能是 Call=1, Put=2, Inline=5 或其他类型）
-      return { isWarrant: false, category };
+      return { isWarrant: false, category: category as number | string };
     }
 
     // 获取回收价（call_price 字段）
     const callPriceRaw =
-      warrantQuote.call_price ?? warrantQuote.callPrice ?? null;
+      (warrantQuote as unknown as Record<string, unknown>).call_price ??
+      (warrantQuote as unknown as Record<string, unknown>).callPrice ??
+      null;
 
     // 转换 Decimal 类型为 number（LongPort API 返回的价格字段可能是 Decimal 类型）
-    let callPrice = null;
+    let callPrice: number | null = null;
     if (isDefined(callPriceRaw)) {
       // 如果是 Decimal 对象，使用 decimalToNumber 转换；否则直接使用 Number 转换
-      if (typeof callPriceRaw === "object" && "toString" in callPriceRaw) {
-        callPrice = decimalToNumber(callPriceRaw);
+      if (typeof callPriceRaw === 'object' && callPriceRaw !== null && 'toString' in callPriceRaw) {
+        callPrice = decimalToNumber((callPriceRaw as { toString: () => string }).toString());
       } else {
         callPrice = Number(callPriceRaw);
       }
@@ -204,14 +280,14 @@ export class RiskChecker {
 
     // 验证：做多标的应该是牛证，做空标的应该是熊证
     const isExpectedType =
-      (expectedType === "CALL" && warrantType === "BULL") ||
-      (expectedType === "PUT" && warrantType === "BEAR");
+      (expectedType === 'CALL' && warrantType === 'BULL') ||
+      (expectedType === 'PUT' && warrantType === 'BEAR');
 
     if (!isExpectedType) {
       logger.warn(
         `[风险检查警告] ${symbol} 的牛熊证类型不符合预期：期望${
-          expectedType === "CALL" ? "牛证" : "熊证"
-        }，实际是${warrantType === "BULL" ? "牛证" : "熊证"}`
+          expectedType === 'CALL' ? '牛证' : '熊证'
+        }，实际是${warrantType === 'BULL' ? '牛证' : '熊证'}`
       );
     }
 
@@ -219,29 +295,30 @@ export class RiskChecker {
       isWarrant: true,
       warrantType,
       callPrice,
-      category,
+      category: category as number | string,
       symbol: normalizedSymbol,
     };
   }
 
   /**
-   * @param {{totalCash:number, netAssets:number}} account
-   * @param {Array<{symbol:string, quantity:number, costPrice:number}>} positions
-   * @param {{action:string, symbol:string}} signal 信号对象，action 可以是 BUYCALL, SELLCALL, BUYPUT, SELLPUT, HOLD
-   * @param {number} orderNotional 计划下单金额（HKD）
-   * @param {number} currentPrice 标的当前市价（用于计算持仓市值，如果未提供则使用成本价）
-   * @param {number} longCurrentPrice 做多标的的当前市价（用于计算做多标的持仓浮亏）
-   * @param {number} shortCurrentPrice 做空标的的当前市价（用于计算做空标的持仓浮亏）
+   * 检查订单前的风险
+   * @param account 账户快照
+   * @param positions 持仓列表
+   * @param signal 信号对象
+   * @param orderNotional 计划下单金额（HKD）
+   * @param currentPrice 标的当前市价
+   * @param longCurrentPrice 做多标的的当前市价
+   * @param shortCurrentPrice 做空标的的当前市价
    */
   checkBeforeOrder(
-    account,
-    positions,
-    signal,
-    orderNotional,
-    currentPrice = null,
-    longCurrentPrice = null,
-    shortCurrentPrice = null
-  ) {
+    account: AccountSnapshot | null,
+    positions: Position[] | null,
+    signal: Signal | null,
+    orderNotional: number,
+    currentPrice: number | null = null,
+    longCurrentPrice: number | null = null,
+    shortCurrentPrice: number | null = null
+  ): RiskCheckResult {
     // HOLD 信号不需要检查
     if (!signal || signal.action === SignalType.HOLD) {
       return { allowed: true };
@@ -302,13 +379,13 @@ export class RiskChecker {
           const checkPrice = longCurrentPrice;
 
           // 验证当前价格有效性
-          if (Number.isFinite(checkPrice) && checkPrice > 0) {
+          if (Number.isFinite(checkPrice) && checkPrice !== null && checkPrice > 0) {
             // 计算当前持仓市值R2和浮亏X
             const r2 = checkPrice * n1;
             const longUnrealizedPnL = r2 - r1;
 
             // 记录浮亏计算详情（仅在DEBUG模式下）
-            if (process.env.DEBUG === "true") {
+            if (process.env.DEBUG === 'true') {
               logger.debug(
                 `[风险检查调试] 做多标的浮亏检查: R1(开仓成本)=${r1.toFixed(
                   2
@@ -357,13 +434,13 @@ export class RiskChecker {
           const checkPrice = shortCurrentPrice;
 
           // 验证当前价格有效性
-          if (Number.isFinite(checkPrice) && checkPrice > 0) {
+          if (Number.isFinite(checkPrice) && checkPrice !== null && checkPrice > 0) {
             // 计算当前持仓市值R2和浮亏X
             const r2 = checkPrice * n1;
             const shortUnrealizedPnL = r2 - r1;
 
             // 记录浮亏计算详情（仅在DEBUG模式下）
-            if (process.env.DEBUG === "true") {
+            if (process.env.DEBUG === 'true') {
               logger.debug(
                 `[风险检查调试] 做空标的浮亏检查: R1(开仓成本)=${r1.toFixed(
                   2
@@ -429,7 +506,12 @@ export class RiskChecker {
    * 检查单标的最大持仓市值限制
    * @private
    */
-  _checkPositionNotionalLimit(signal, positions, orderNotional, currentPrice) {
+  private _checkPositionNotionalLimit(
+    signal: Signal,
+    positions: Position[] | null,
+    orderNotional: number,
+    currentPrice: number | null
+  ): RiskCheckResult {
     // 验证下单金额有效性
     if (!Number.isFinite(orderNotional) || orderNotional < 0) {
       return {
@@ -439,7 +521,7 @@ export class RiskChecker {
     }
 
     // 检查下单金额是否超过限制（无持仓时）
-    if (orderNotional > this.maxPositionNotional) {
+    if (this.maxPositionNotional !== null && orderNotional > this.maxPositionNotional) {
       return {
         allowed: false,
         reason: `本次计划下单金额 ${orderNotional.toFixed(
@@ -472,12 +554,16 @@ export class RiskChecker {
    * 检查有持仓时的市值限制
    * @private
    */
-  _checkPositionWithExistingHoldings(pos, orderNotional, currentPrice) {
+  private _checkPositionWithExistingHoldings(
+    pos: Position,
+    orderNotional: number,
+    currentPrice: number | null
+  ): RiskCheckResult {
     // 验证持仓数量有效性
     const posQuantity = Number(pos.quantity) || 0;
     if (!Number.isFinite(posQuantity) || posQuantity <= 0) {
       // 持仓数量无效，只检查下单金额
-      if (orderNotional > this.maxPositionNotional) {
+      if (this.maxPositionNotional !== null && orderNotional > this.maxPositionNotional) {
         return {
           allowed: false,
           reason: `本次计划下单金额 ${orderNotional.toFixed(
@@ -495,7 +581,7 @@ export class RiskChecker {
     // 验证价格有效性
     if (!Number.isFinite(price) || price <= 0) {
       // 价格无效，只检查下单金额
-      if (orderNotional > this.maxPositionNotional) {
+      if (this.maxPositionNotional !== null && orderNotional > this.maxPositionNotional) {
         return {
           allowed: false,
           reason: `本次计划下单金额 ${orderNotional.toFixed(
@@ -518,7 +604,7 @@ export class RiskChecker {
       };
     }
 
-    if (totalNotional > this.maxPositionNotional) {
+    if (this.maxPositionNotional !== null && totalNotional > this.maxPositionNotional) {
       return {
         allowed: false,
         reason: `该标的当前持仓市值约 ${currentNotional.toFixed(
@@ -536,12 +622,16 @@ export class RiskChecker {
 
   /**
    * 检查牛熊证距离回收价的风险（仅在买入前检查）
-   * @param {string} symbol 标的代码（牛熊证代码）
-   * @param {string} signalType 信号类型（SignalType.BUYCALL 或 SignalType.BUYPUT）
-   * @param {number} monitorCurrentPrice 监控标的的当前价格（用于计算距离回收价的百分比）
-   * @returns {{allowed: boolean, reason?: string, warrantInfo?: Object}}
+   * @param symbol 标的代码（牛熊证代码）
+   * @param signalType 信号类型（SignalType.BUYCALL 或 SignalType.BUYPUT）
+   * @param monitorCurrentPrice 监控标的的当前价格（用于计算距离回收价的百分比）
+   * @returns {allowed: boolean, reason?: string, warrantInfo?: Object}
    */
-  checkWarrantRisk(symbol, signalType, monitorCurrentPrice) {
+  checkWarrantRisk(
+    symbol: string,
+    signalType: string,
+    monitorCurrentPrice: number
+  ): RiskCheckResult {
     // 确定是做多还是做空标的
     const isLong = signalType === SignalType.BUYCALL;
     const warrantInfo = isLong ? this.longWarrantInfo : this.shortWarrantInfo;
@@ -552,7 +642,7 @@ export class RiskChecker {
     }
 
     // 验证回收价是否有效
-    if (!Number.isFinite(warrantInfo.callPrice) || warrantInfo.callPrice <= 0) {
+    if (!Number.isFinite(warrantInfo.callPrice) || !warrantInfo.callPrice || warrantInfo.callPrice <= 0) {
       logger.warn(
         `[风险检查] ${symbol} 的回收价无效（${warrantInfo.callPrice}），允许交易`
       );
@@ -583,7 +673,7 @@ export class RiskChecker {
     }
 
     const callPrice = warrantInfo.callPrice;
-    const warrantType = warrantInfo.warrantType;
+    const warrantType = warrantInfo.warrantType!;
 
     // 计算距离回收价的百分比
     // 使用监控标的的当前价格与牛熊证的回收价进行计算
@@ -593,7 +683,7 @@ export class RiskChecker {
       ((monitorCurrentPrice - callPrice) / callPrice) * 100;
 
     // 牛证：当距离回收价百分比低于阈值时停止买入
-    if (warrantType === "BULL") {
+    if (warrantType === 'BULL') {
       if (distancePercent < BULL_WARRANT_MIN_DISTANCE_PERCENT) {
         return {
           allowed: false,
@@ -612,7 +702,7 @@ export class RiskChecker {
     }
 
     // 熊证：当距离回收价百分比高于阈值时停止买入
-    if (warrantType === "BEAR") {
+    if (warrantType === 'BEAR') {
       if (distancePercent > BEAR_WARRANT_MAX_DISTANCE_PERCENT) {
         return {
           allowed: false,
@@ -634,7 +724,7 @@ export class RiskChecker {
     return {
       allowed: true,
       reason: `${
-        warrantType === "BULL" ? "牛证" : "熊证"
+        warrantType === 'BULL' ? '牛证' : '熊证'
       }距离回收价百分比为 ${distancePercent.toFixed(DEFAULT_PERCENT_DECIMALS)}%，在安全范围内`,
       warrantInfo: {
         isWarrant: true,
@@ -656,12 +746,16 @@ export class RiskChecker {
    * - 交易后：调用方已通过 recordLocalBuy/recordLocalSell 更新了订单记录
    * - 本方法仅从 orderRecorder 中已有的订单列表计算 R1 和 N1，不会重复调用 API
    *
-   * @param {Object} orderRecorder OrderRecorder实例
-   * @param {string} symbol 标的代码
-   * @param {boolean} isLongSymbol 是否为做多标的
-   * @returns {Promise<{r1: number, n1: number}|null>} 返回R1（开仓成本）和N1（持仓数量），如果计算失败返回null
+   * @param orderRecorder OrderRecorder实例
+   * @param symbol 标的代码
+   * @param isLongSymbol 是否为做多标的
+   * @returns 返回R1（开仓成本）和N1（持仓数量），如果计算失败返回null
    */
-  async refreshUnrealizedLossData(orderRecorder, symbol, isLongSymbol) {
+  async refreshUnrealizedLossData(
+    orderRecorder: OrderRecorder,
+    symbol: string,
+    isLongSymbol: boolean
+  ): Promise<{ r1: number; n1: number } | null> {
     // 如果未启用浮亏保护，跳过
     if (
       !this.maxUnrealizedLossPerSymbol ||
@@ -718,7 +812,7 @@ export class RiskChecker {
         lastUpdateTime: Date.now(),
       });
 
-      const positionType = isLongSymbol ? "做多标的" : "做空标的";
+      const positionType = isLongSymbol ? '做多标的' : '做空标的';
       logger.info(
         `[浮亏监控] ${positionType} ${normalizedSymbol}: R1(开仓成本)=${r1.toFixed(
           2
@@ -729,7 +823,7 @@ export class RiskChecker {
     } catch (error) {
       logger.error(
         `[浮亏监控] 刷新标的 ${symbol} 的浮亏数据失败`,
-        error.message || error
+        (error as Error).message || String(error)
       );
       return null;
     }
@@ -737,12 +831,16 @@ export class RiskChecker {
 
   /**
    * 检查标的的浮亏是否超过阈值，如果超过则返回清仓信号
-   * @param {string} symbol 标的代码
-   * @param {number} currentPrice 当前价格
-   * @param {boolean} isLongSymbol 是否为做多标的
-   * @returns {{shouldLiquidate: boolean, reason?: string, quantity?: number}} 返回是否需要清仓
+   * @param symbol 标的代码
+   * @param currentPrice 当前价格
+   * @param isLongSymbol 是否为做多标的
+   * @returns 返回是否需要清仓
    */
-  checkUnrealizedLoss(symbol, currentPrice, isLongSymbol) {
+  checkUnrealizedLoss(
+    symbol: string,
+    currentPrice: number,
+    isLongSymbol: boolean
+  ): UnrealizedLossCheckResult {
     // 如果未启用浮亏保护，跳过
     if (
       !this.maxUnrealizedLossPerSymbol ||
@@ -787,7 +885,7 @@ export class RiskChecker {
 
     // 检查浮亏是否超过阈值（浮亏为负数表示亏损）
     if (unrealizedLoss < -this.maxUnrealizedLossPerSymbol) {
-      const positionType = isLongSymbol ? "做多标的" : "做空标的";
+      const positionType = isLongSymbol ? '做多标的' : '做空标的';
       const reason = `[保护性清仓] ${positionType} ${normalizedSymbol} 浮亏=${unrealizedLoss.toFixed(
         2
       )} HKD 超过阈值 ${this.maxUnrealizedLossPerSymbol} HKD (R1=${r1.toFixed(

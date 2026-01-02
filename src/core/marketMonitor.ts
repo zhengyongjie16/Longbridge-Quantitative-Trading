@@ -16,18 +16,41 @@
  * - 监控标的的所有技术指标值
  */
 
-import { logger } from "../utils/logger.js";
+import { logger } from '../utils/logger.js';
 import {
   normalizeHKSymbol,
   formatQuoteDisplay,
   isValidNumber,
-} from "../utils/helpers.js";
-import { hasChanged } from "../utils/tradingTime.js";
+} from '../utils/helpers.js';
+import { hasChanged } from '../utils/tradingTime.js';
 import {
   monitorValuesObjectPool,
   kdjObjectPool,
   macdObjectPool,
-} from "../utils/objectPool.js";
+} from '../utils/objectPool.js';
+import type { Quote, IndicatorSnapshot, KDJIndicator, MACDIndicator } from '../types/index.js';
+
+/**
+ * 监控值接口
+ */
+interface MonitorValues {
+  price: number | null;
+  changePercent: number | null;
+  ema: Record<number, number> | null;
+  rsi: Record<number, number> | null;
+  mfi: number | null;
+  kdj: { k: number | null; d: number | null; j: number | null } | null;
+  macd: { dif: number | null; dea: number | null; macd: number | null } | null;
+}
+
+/**
+ * 状态对象接口
+ */
+interface LastState {
+  longPrice?: number | null;
+  shortPrice?: number | null;
+  monitorValues?: MonitorValues | null;
+}
 
 /**
  * 行情监控器类
@@ -40,20 +63,20 @@ export class MarketMonitor {
 
   /**
    * 监控并显示做多和做空标的的价格变化
-   * @param {Object} longQuote 做多标的行情数据
-   * @param {Object} shortQuote 做空标的行情数据
-   * @param {string} longSymbol 做多标的代码
-   * @param {string} shortSymbol 做空标的代码
-   * @param {Object} lastState 状态对象（包含 longPrice, shortPrice）
-   * @returns {boolean} 价格是否发生变化
+   * @param longQuote 做多标的行情数据
+   * @param shortQuote 做空标的行情数据
+   * @param longSymbol 做多标的代码
+   * @param shortSymbol 做空标的代码
+   * @param lastState 状态对象（包含 longPrice, shortPrice）
+   * @returns 价格是否发生变化
    */
   monitorPriceChanges(
-    longQuote,
-    shortQuote,
-    longSymbol,
-    shortSymbol,
-    lastState
-  ) {
+    longQuote: Quote | null,
+    shortQuote: Quote | null,
+    longSymbol: string,
+    shortSymbol: string,
+    lastState: LastState
+  ): boolean {
     const longPrice = longQuote?.price;
     const shortPrice = shortQuote?.price;
 
@@ -61,13 +84,13 @@ export class MarketMonitor {
     const longPriceChanged =
       lastState.longPrice == null && Number.isFinite(longPrice)
         ? true // 首次出现价格
-        : hasChanged(longPrice, lastState.longPrice, 0.0001);
+        : hasChanged(longPrice ?? null, lastState.longPrice ?? null, 0.0001);
 
     // 检查做空标的价格是否变化（阈值：0.0001）
     const shortPriceChanged =
       lastState.shortPrice == null && Number.isFinite(shortPrice)
         ? true // 首次出现价格
-        : hasChanged(shortPrice, lastState.shortPrice, 0.0001);
+        : hasChanged(shortPrice ?? null, lastState.shortPrice ?? null, 0.0001);
 
     if (longPriceChanged || shortPriceChanged) {
       // 显示做多标的行情
@@ -106,22 +129,22 @@ export class MarketMonitor {
 
   /**
    * 监控并显示监控标的的指标变化
-   * @param {Object} monitorSnapshot 监控标的指标快照
-   * @param {Object} monitorQuote 监控标的行情数据
-   * @param {string} monitorSymbol 监控标的代码
-   * @param {Array<number>} emaPeriods EMA周期数组
-   * @param {Array<number>} rsiPeriods RSI周期数组
-   * @param {Object} lastState 状态对象（包含 monitorValues）
-   * @returns {boolean} 指标是否发生变化
+   * @param monitorSnapshot 监控标的指标快照
+   * @param monitorQuote 监控标的行情数据
+   * @param monitorSymbol 监控标的代码
+   * @param emaPeriods EMA周期数组
+   * @param rsiPeriods RSI周期数组
+   * @param lastState 状态对象（包含 monitorValues）
+   * @returns 指标是否发生变化
    */
   monitorIndicatorChanges(
-    monitorSnapshot,
-    monitorQuote,
-    monitorSymbol,
-    emaPeriods,
-    rsiPeriods,
-    lastState
-  ) {
+    monitorSnapshot: IndicatorSnapshot | null,
+    monitorQuote: Quote | null,
+    monitorSymbol: string,
+    emaPeriods: number[],
+    rsiPeriods: number[],
+    lastState: LastState
+  ): boolean {
     if (!monitorSnapshot) {
       return false;
     }
@@ -132,11 +155,12 @@ export class MarketMonitor {
     const prevClose = monitorQuote?.prevClose ?? null;
 
     // 计算涨跌幅（基于上日收盘价）
-    let changePercent = null;
+    let changePercent: number | null = null;
     if (
       Number.isFinite(currentPrice) &&
       currentPrice > 0 &&
       Number.isFinite(prevClose) &&
+      prevClose !== null &&
       prevClose > 0
     ) {
       changePercent = ((currentPrice - prevClose) / prevClose) * 100;
@@ -153,7 +177,7 @@ export class MarketMonitor {
       currentPrice > 0
     ) {
       hasIndicatorChanged = true; // 首次出现价格
-    } else if (hasChanged(currentPrice, lastPrice, 0.0001)) {
+    } else if (hasChanged(currentPrice, lastPrice ?? null, 0.0001)) {
       hasIndicatorChanged = true;
     }
 
@@ -212,22 +236,23 @@ export class MarketMonitor {
     // 检查KDJ变化
     if (!hasIndicatorChanged && monitorSnapshot.kdj) {
       const lastKdj = lastState.monitorValues?.kdj;
+      const kdj = monitorSnapshot.kdj as KDJIndicator;
       if (
-        Number.isFinite(monitorSnapshot.kdj.k) &&
+        Number.isFinite(kdj.k) &&
         (lastKdj?.k == null ||
-          hasChanged(monitorSnapshot.kdj.k, lastKdj.k, 0.1))
+          hasChanged(kdj.k, lastKdj.k, 0.1))
       ) {
         hasIndicatorChanged = true;
       } else if (
-        Number.isFinite(monitorSnapshot.kdj.d) &&
+        Number.isFinite(kdj.d) &&
         (lastKdj?.d == null ||
-          hasChanged(monitorSnapshot.kdj.d, lastKdj.d, 0.1))
+          hasChanged(kdj.d, lastKdj.d, 0.1))
       ) {
         hasIndicatorChanged = true;
       } else if (
-        Number.isFinite(monitorSnapshot.kdj.j) &&
+        Number.isFinite(kdj.j) &&
         (lastKdj?.j == null ||
-          hasChanged(monitorSnapshot.kdj.j, lastKdj.j, 0.1))
+          hasChanged(kdj.j, lastKdj.j, 0.1))
       ) {
         hasIndicatorChanged = true;
       }
@@ -236,22 +261,23 @@ export class MarketMonitor {
     // 检查MACD变化
     if (!hasIndicatorChanged && monitorSnapshot.macd) {
       const lastMacd = lastState.monitorValues?.macd;
+      const macd = monitorSnapshot.macd as MACDIndicator;
       if (
-        Number.isFinite(monitorSnapshot.macd.macd) &&
+        Number.isFinite(macd.macd) &&
         (lastMacd?.macd == null ||
-          hasChanged(monitorSnapshot.macd.macd, lastMacd.macd, 0.0001))
+          hasChanged(macd.macd, lastMacd.macd, 0.0001))
       ) {
         hasIndicatorChanged = true;
       } else if (
-        Number.isFinite(monitorSnapshot.macd.dif) &&
+        Number.isFinite(macd.dif) &&
         (lastMacd?.dif == null ||
-          hasChanged(monitorSnapshot.macd.dif, lastMacd.dif, 0.0001))
+          hasChanged(macd.dif, lastMacd.dif, 0.0001))
       ) {
         hasIndicatorChanged = true;
       } else if (
-        Number.isFinite(monitorSnapshot.macd.dea) &&
+        Number.isFinite(macd.dea) &&
         (lastMacd?.dea == null ||
-          hasChanged(monitorSnapshot.macd.dea, lastMacd.dea, 0.0001))
+          hasChanged(macd.dea, lastMacd.dea, 0.0001))
       ) {
         hasIndicatorChanged = true;
       }
@@ -283,7 +309,7 @@ export class MarketMonitor {
       }
 
       // 从对象池获取新的监控值对象
-      const newMonitorValues = monitorValuesObjectPool.acquire();
+      const newMonitorValues = monitorValuesObjectPool.acquire() as MonitorValues;
       newMonitorValues.price = currentPrice;
       newMonitorValues.changePercent = changePercent;
       newMonitorValues.ema = monitorSnapshot.ema
@@ -295,11 +321,13 @@ export class MarketMonitor {
       newMonitorValues.mfi = monitorSnapshot.mfi;
       // 创建 kdj 和 macd 对象的浅拷贝，避免直接引用对象池中的对象
       // 这样可以防止对象池回收时数据被意外修改
-      newMonitorValues.kdj = monitorSnapshot.kdj
-        ? { k: monitorSnapshot.kdj.k, d: monitorSnapshot.kdj.d, j: monitorSnapshot.kdj.j }
+      const kdjData = monitorSnapshot.kdj as KDJIndicator | null;
+      const macdData = monitorSnapshot.macd as MACDIndicator | null;
+      newMonitorValues.kdj = kdjData
+        ? { k: kdjData.k, d: kdjData.d, j: kdjData.j }
         : null;
-      newMonitorValues.macd = monitorSnapshot.macd
-        ? { dif: monitorSnapshot.macd.dif, dea: monitorSnapshot.macd.dea, macd: monitorSnapshot.macd.macd }
+      newMonitorValues.macd = macdData
+        ? { dif: macdData.dif, dea: macdData.dea, macd: macdData.macd }
         : null;
 
       lastState.monitorValues = newMonitorValues;
@@ -312,29 +340,29 @@ export class MarketMonitor {
 
   /**
    * 显示监控标的的所有指标（内部方法）
-   * @param {Object} monitorSnapshot 监控标的指标快照
-   * @param {string} monitorSymbol 监控标的代码
-   * @param {number} currentPrice 当前价格
-   * @param {number|null} changePercent 涨跌幅
-   * @param {Array<number>} emaPeriods EMA周期数组
-   * @param {Array<number>} rsiPeriods RSI周期数组
+   * @param monitorSnapshot 监控标的指标快照
+   * @param monitorSymbol 监控标的代码
+   * @param currentPrice 当前价格
+   * @param changePercent 涨跌幅
+   * @param emaPeriods EMA周期数组
+   * @param rsiPeriods RSI周期数组
    * @private
    */
-  _displayIndicators(
-    monitorSnapshot,
-    monitorSymbol,
-    currentPrice,
-    changePercent,
-    emaPeriods,
-    rsiPeriods
-  ) {
+  private _displayIndicators(
+    monitorSnapshot: IndicatorSnapshot,
+    monitorSymbol: string,
+    currentPrice: number,
+    changePercent: number | null,
+    emaPeriods: number[],
+    rsiPeriods: number[]
+  ): void {
     // 格式化指标值
-    const formatIndicator = (value, decimals = 2) => {
-      return isValidNumber(value) ? value.toFixed(decimals) : "-";
+    const formatIndicator = (value: number | null | undefined, decimals: number = 2): string => {
+      return isValidNumber(value) ? value!.toFixed(decimals) : '-';
     };
 
     // 构建指标显示字符串（按照指定顺序：最新价、涨跌幅、EMAn、RSIn、MFI、K、D、J、MACD、DIF、DEA）
-    const indicators = [];
+    const indicators: string[] = [];
 
     // 1. 最新价
     if (Number.isFinite(currentPrice)) {
@@ -343,7 +371,7 @@ export class MarketMonitor {
 
     // 2. 涨跌幅（基于上日收盘价）
     if (changePercent !== null) {
-      const sign = changePercent >= 0 ? "+" : "";
+      const sign = changePercent >= 0 ? '+' : '';
       indicators.push(`涨跌幅=${sign}${changePercent.toFixed(2)}%`);
     }
 
@@ -374,38 +402,40 @@ export class MarketMonitor {
 
     // 6. KDJ（K、D、J三个值）
     if (monitorSnapshot.kdj) {
-      if (Number.isFinite(monitorSnapshot.kdj.k)) {
-        indicators.push(`K=${formatIndicator(monitorSnapshot.kdj.k, 3)}`);
+      const kdj = monitorSnapshot.kdj as KDJIndicator;
+      if (Number.isFinite(kdj.k)) {
+        indicators.push(`K=${formatIndicator(kdj.k, 3)}`);
       }
-      if (Number.isFinite(monitorSnapshot.kdj.d)) {
-        indicators.push(`D=${formatIndicator(monitorSnapshot.kdj.d, 3)}`);
+      if (Number.isFinite(kdj.d)) {
+        indicators.push(`D=${formatIndicator(kdj.d, 3)}`);
       }
-      if (Number.isFinite(monitorSnapshot.kdj.j)) {
-        indicators.push(`J=${formatIndicator(monitorSnapshot.kdj.j, 3)}`);
+      if (Number.isFinite(kdj.j)) {
+        indicators.push(`J=${formatIndicator(kdj.j, 3)}`);
       }
     }
 
     // 7. MACD（MACD、DIF、DEA三个值）
     if (monitorSnapshot.macd) {
-      if (Number.isFinite(monitorSnapshot.macd.macd)) {
+      const macd = monitorSnapshot.macd as MACDIndicator;
+      if (Number.isFinite(macd.macd)) {
         indicators.push(
-          `MACD=${formatIndicator(monitorSnapshot.macd.macd, 3)}`
+          `MACD=${formatIndicator(macd.macd, 3)}`
         );
       }
-      if (Number.isFinite(monitorSnapshot.macd.dif)) {
-        indicators.push(`DIF=${formatIndicator(monitorSnapshot.macd.dif, 3)}`);
+      if (Number.isFinite(macd.dif)) {
+        indicators.push(`DIF=${formatIndicator(macd.dif, 3)}`);
       }
-      if (Number.isFinite(monitorSnapshot.macd.dea)) {
-        indicators.push(`DEA=${formatIndicator(monitorSnapshot.macd.dea, 3)}`);
+      if (Number.isFinite(macd.dea)) {
+        indicators.push(`DEA=${formatIndicator(macd.dea, 3)}`);
       }
     }
 
     const normalizedMonitorSymbol = normalizeHKSymbol(monitorSymbol);
-    const monitorSymbolName = monitorSnapshot.symbolName ?? monitorSymbol;
+    const monitorSymbolName = (monitorSnapshot as unknown as { symbolName?: string }).symbolName ?? monitorSymbol;
 
     logger.info(
       `[监控标的] ${monitorSymbolName}(${normalizedMonitorSymbol}) ${indicators.join(
-        " "
+        ' '
       )}`
     );
   }

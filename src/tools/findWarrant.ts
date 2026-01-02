@@ -30,14 +30,14 @@ import {
   AdjustType,
   WarrantStatus,
   FilterWarrantExpiryDate,
-} from "longport";
-import { createConfig } from "../config/config.js";
-import { TRADING_CONFIG } from "../config/config.trading.js";
+} from 'longport';
+import { createConfig } from '../config/config.js';
+import { TRADING_CONFIG } from '../config/config.trading.js';
 import {
   normalizeHKSymbol,
   decimalToNumber,
   formatNumber,
-} from "../utils/helpers.js";
+} from '../utils/helpers.js';
 
 // ==================== 配置参数 ====================
 // 注意：修改以下配置后，需要重新运行程序才能生效
@@ -45,7 +45,7 @@ import {
 // ========== 监控标的配置 ==========
 // 需要查找窝轮的监控标的代码（例如 "HSI.HK" 表示恒生指数）
 // 优先级：命令行参数 > 环境变量 MONITOR_SYMBOL > 此配置 > config.trading.js 中的 monitorSymbol
-const DEFAULT_MONITOR_SYMBOL = "HSI.HK"; // 默认监控标的
+const DEFAULT_MONITOR_SYMBOL = 'HSI.HK'; // 默认监控标的
 
 // ========== 筛选条件配置 ==========
 // 距离回收价百分比阈值
@@ -74,14 +74,57 @@ const BATCH_SIZE = 50; // 每批处理数量
 // ==================== 配置参数结束 ====================
 
 /**
+ * 窝轮基本信息接口
+ */
+interface WarrantInfo {
+  symbol?: string;
+  code?: string;
+  name?: string;
+  turnover?: unknown;
+}
+
+/**
+ * 符合条件的窝轮结果接口
+ */
+interface QualifiedWarrant {
+  symbol: string;
+  name: string;
+  callPrice: number;
+  distancePercent: number;
+  avgTurnover: number;
+  avgTurnoverInWan: number;
+}
+
+/**
+ * K线数据接口
+ */
+interface CandleData {
+  turnover?: unknown;
+  close?: unknown;
+  volume?: unknown;
+  timestamp?: Date;
+}
+
+/**
+ * 查找结果接口
+ */
+interface FindWarrantsResult {
+  bullWarrants: QualifiedWarrant[];
+  bearWarrants: QualifiedWarrant[];
+}
+
+/**
  * 计算回收价距离监控标的当前价的百分比
  * 参考 risk.js 中的计算公式
- * @param {number} callPrice 回收价
- * @param {number} monitorPrice 监控标的当前价
- * @returns {number} 百分比
+ * @param callPrice 回收价
+ * @param monitorPrice 监控标的当前价
+ * @returns 百分比
  * 公式：(监控标的当前价 - 回收价) / 回收价 * 100
  */
-function calculateDistancePercent(callPrice, monitorPrice) {
+function calculateDistancePercent(
+  callPrice: number,
+  monitorPrice: number
+): number | null {
   if (
     !Number.isFinite(callPrice) ||
     !Number.isFinite(monitorPrice) ||
@@ -94,10 +137,10 @@ function calculateDistancePercent(callPrice, monitorPrice) {
 
 /**
  * 计算三日内的平均成交额
- * @param {Array} candles K线数据数组
- * @returns {number|null} 平均成交额（HKD），如果数据不足则返回 null
+ * @param candles K线数据数组
+ * @returns 平均成交额（HKD），如果数据不足则返回 null
  */
-function calculateAverageTurnover(candles) {
+function calculateAverageTurnover(candles: CandleData[]): number | null {
   if (!Array.isArray(candles) || candles.length === 0) return null;
 
   let totalTurnover = 0;
@@ -105,12 +148,12 @@ function calculateAverageTurnover(candles) {
 
   for (const candle of candles) {
     let turnover =
-      candle.turnover != null ? decimalToNumber(candle.turnover) : null;
+      candle.turnover != null ? decimalToNumber(candle.turnover as string | number | null) : null;
 
     // 如果没有 turnover 字段或无效，使用 close * volume 计算
-    if (!Number.isFinite(turnover) || turnover <= 0) {
-      const close = decimalToNumber(candle.close);
-      const volume = decimalToNumber(candle.volume);
+    if (!Number.isFinite(turnover) || (turnover !== null && turnover <= 0)) {
+      const close = decimalToNumber(candle.close as string | number | null);
+      const volume = decimalToNumber(candle.volume as string | number | null);
       if (Number.isFinite(close) && Number.isFinite(volume) && volume > 0) {
         turnover = close * volume;
       } else {
@@ -118,7 +161,7 @@ function calculateAverageTurnover(candles) {
       }
     }
 
-    totalTurnover += turnover;
+    totalTurnover += turnover!;
     validDays++;
   }
 
@@ -127,22 +170,22 @@ function calculateAverageTurnover(candles) {
 
 /**
  * 检查单个窝轮是否符合条件（通用函数，适用于牛证和熊证）
- * @param {Object} warrant 窝轮对象
- * @param {Object} ctx QuoteContext 实例
- * @param {number} monitorPrice 监控标的当前价
- * @param {NaiveDate} startDate 开始日期
- * @param {NaiveDate} endDate 结束日期
- * @param {boolean} isBull 是否为牛证（true=牛证，false=熊证）
- * @returns {Promise<Object|null>} 符合条件的窝轮信息，不符合则返回 null
+ * @param warrant 窝轮对象
+ * @param ctx QuoteContext 实例
+ * @param monitorPrice 监控标的当前价
+ * @param startDate 开始日期
+ * @param endDate 结束日期
+ * @param isBull 是否为牛证（true=牛证，false=熊证）
+ * @returns 符合条件的窝轮信息，不符合则返回 null
  */
 async function checkWarrant(
-  warrant,
-  ctx,
-  monitorPrice,
-  startDate,
-  endDate,
-  isBull
-) {
+  warrant: WarrantInfo,
+  ctx: QuoteContext,
+  monitorPrice: number,
+  startDate: NaiveDate,
+  endDate: NaiveDate,
+  isBull: boolean
+): Promise<QualifiedWarrant | null> {
   const warrantSymbol = warrant.symbol || warrant.code;
   if (!warrantSymbol) {
     return null;
@@ -151,12 +194,16 @@ async function checkWarrant(
   try {
     // 获取 warrantQuote 获取回收价
     const warrantQuotes = await ctx.warrantQuote([warrantSymbol]);
-    const warrantQuote = warrantQuotes?.[0];
+    const warrantQuote = warrantQuotes?.[0] as {
+      call_price?: unknown;
+      callPrice?: unknown;
+      name?: string;
+    } | null;
     if (!warrantQuote) return null;
 
     // 获取回收价
     const callPriceNum = decimalToNumber(
-      warrantQuote.call_price ?? warrantQuote.callPrice
+      (warrantQuote.call_price ?? warrantQuote.callPrice) as string | number | null
     );
     if (!Number.isFinite(callPriceNum) || callPriceNum <= 0) return null;
 
@@ -192,8 +239,8 @@ async function checkWarrant(
     if (!Array.isArray(candles) || candles.length === 0) return null;
 
     // 计算平均成交额
-    const avgTurnover = calculateAverageTurnover(candles);
-    if (!Number.isFinite(avgTurnover) || avgTurnover < MIN_AVG_TURNOVER)
+    const avgTurnover = calculateAverageTurnover(candles as CandleData[]);
+    if (!Number.isFinite(avgTurnover) || (avgTurnover !== null && avgTurnover < MIN_AVG_TURNOVER))
       return null;
 
     // 符合条件
@@ -202,25 +249,29 @@ async function checkWarrant(
       name: warrantQuote.name || warrant.name || warrantSymbol,
       callPrice: callPriceNum,
       distancePercent,
-      avgTurnover,
-      avgTurnoverInWan: avgTurnover / 10000,
+      avgTurnover: avgTurnover!,
+      avgTurnoverInWan: avgTurnover! / 10000,
     };
-  } catch (err) {
+  } catch {
     return null;
   }
 }
 
 /**
  * 批量并发处理窝轮检查（分批处理以避免API限流）
- * @param {Array} warrants 窝轮列表
- * @param {Function} checkFunction 检查函数（接受 warrant 作为参数）
- * @param {number} batchSize 每批处理的数量
- * @returns {Promise<Array>} 符合条件的窝轮列表
+ * @param warrants 窝轮列表
+ * @param checkFunction 检查函数（接受 warrant 作为参数）
+ * @param batchSize 每批处理的数量
+ * @returns 符合条件的窝轮列表
  */
-async function checkWarrantsBatch(warrants, checkFunction, batchSize) {
+async function checkWarrantsBatch(
+  warrants: WarrantInfo[],
+  checkFunction: (warrant: WarrantInfo) => Promise<QualifiedWarrant | null>,
+  batchSize: number
+): Promise<QualifiedWarrant[]> {
   if (!warrants?.length) return [];
 
-  const results = [];
+  const results: QualifiedWarrant[] = [];
   for (let i = 0; i < warrants.length; i += batchSize) {
     const batchResults = await Promise.all(
       warrants.slice(i, i + batchSize).map(checkFunction)
@@ -234,10 +285,12 @@ async function checkWarrantsBatch(warrants, checkFunction, batchSize) {
 
 /**
  * 获取符合条件的牛熊证
- * @param {string} monitorSymbol 监控标的代码（例如 "HSI.HK"）
- * @returns {Promise<{bullWarrants: Array, bearWarrants: Array}>} 符合条件的牛证和熊证列表
+ * @param monitorSymbol 监控标的代码（例如 "HSI.HK"）
+ * @returns 符合条件的牛证和熊证列表
  */
-async function findQualifiedWarrants(monitorSymbol) {
+async function findQualifiedWarrants(
+  monitorSymbol: string
+): Promise<FindWarrantsResult> {
   try {
     // 创建配置
     const config = createConfig();
@@ -250,12 +303,12 @@ async function findQualifiedWarrants(monitorSymbol) {
 
     // 1. 获取监控标的的当前价
     const monitorQuotes = await ctx.quote([normalizedMonitorSymbol]);
-    const monitorQuote = monitorQuotes?.[0];
+    const monitorQuote = monitorQuotes?.[0] as { lastDone?: unknown } | null;
     if (!monitorQuote) {
       throw new Error(`无法获取监控标的 ${normalizedMonitorSymbol} 的行情数据`);
     }
 
-    const monitorPrice = decimalToNumber(monitorQuote.lastDone);
+    const monitorPrice = decimalToNumber(monitorQuote.lastDone as string | number | null);
     if (!Number.isFinite(monitorPrice) || monitorPrice <= 0) {
       throw new Error(
         `监控标的 ${normalizedMonitorSymbol} 的当前价无效: ${monitorPrice}`
@@ -268,7 +321,15 @@ async function findQualifiedWarrants(monitorSymbol) {
       FilterWarrantExpiryDate.Between_6_12,
       FilterWarrantExpiryDate.GT_12,
     ];
-    const commonParams = [
+    const commonParams: [
+      string,
+      typeof WarrantSortBy[keyof typeof WarrantSortBy],
+      typeof SortOrderType[keyof typeof SortOrderType],
+      undefined,
+      typeof FilterWarrantExpiryDate[keyof typeof FilterWarrantExpiryDate][],
+      undefined,
+      typeof WarrantStatus[keyof typeof WarrantStatus][]
+    ] = [
       normalizedMonitorSymbol,
       WarrantSortBy.ExpiryDate,
       SortOrderType.Ascending,
@@ -280,25 +341,36 @@ async function findQualifiedWarrants(monitorSymbol) {
 
     const [bullWarrantList, bearWarrantList] = await Promise.all([
       ctx.warrantList(
-        ...commonParams.slice(0, 3),
+        commonParams[0],
+        commonParams[1],
+        commonParams[2],
         [WarrantType.Bull],
-        ...commonParams.slice(3)
+        commonParams[3],
+        commonParams[4],
+        commonParams[5],
+        commonParams[6]
       ),
       ctx.warrantList(
-        ...commonParams.slice(0, 3),
+        commonParams[0],
+        commonParams[1],
+        commonParams[2],
         [WarrantType.Bear],
-        ...commonParams.slice(3)
+        commonParams[3],
+        commonParams[4],
+        commonParams[5],
+        commonParams[6]
       ),
     ]);
 
     // 过滤：只保留当日成交额 >= MIN_DAILY_TURNOVER 的窝轮
-    const filterByTurnover = (warrants) => {
+    const filterByTurnover = (warrants: unknown[]): WarrantInfo[] => {
       if (!Array.isArray(warrants)) return [];
-      const result = [];
+      const result: WarrantInfo[] = [];
       for (const w of warrants) {
-        const turnover = decimalToNumber(w.turnover);
+        const warrant = w as WarrantInfo;
+        const turnover = decimalToNumber(warrant.turnover as string | number | null);
         if (Number.isFinite(turnover) && turnover >= MIN_DAILY_TURNOVER) {
-          result.push(w);
+          result.push(warrant);
         }
       }
       return result;
@@ -311,15 +383,15 @@ async function findQualifiedWarrants(monitorSymbol) {
     // 提前计算日期范围（3天前到今天）
     const today = new Date();
     const threeDaysAgo = new Date(today.getTime() - 259200000); // 3 * 24 * 60 * 60 * 1000
-    const toNaiveDate = (date) =>
+    const toNaiveDate = (date: Date): NaiveDate =>
       new NaiveDate(date.getFullYear(), date.getMonth() + 1, date.getDate());
     const startDate = toNaiveDate(threeDaysAgo);
     const endDate = toNaiveDate(today);
 
     // 创建检查函数的绑定版本
-    const checkBull = (w) =>
+    const checkBull = (w: WarrantInfo): Promise<QualifiedWarrant | null> =>
       checkWarrant(w, ctx, monitorPrice, startDate, endDate, true);
-    const checkBear = (w) =>
+    const checkBear = (w: WarrantInfo): Promise<QualifiedWarrant | null> =>
       checkWarrant(w, ctx, monitorPrice, startDate, endDate, false);
 
     // 并行检查牛证和熊证（分批处理以避免API限流）
@@ -341,7 +413,7 @@ async function findQualifiedWarrants(monitorSymbol) {
 /**
  * 主函数
  */
-async function main() {
+async function main(): Promise<void> {
   try {
     // 从配置获取监控标的，优先级：命令行参数 > 环境变量 > 文件配置 > 交易配置
     const monitorSymbol =
@@ -351,41 +423,41 @@ async function main() {
       TRADING_CONFIG.monitorSymbol;
 
     if (!monitorSymbol) {
-      console.error("错误: 未指定监控标的");
+      console.error('错误: 未指定监控标的');
       console.error(
-        "使用方法: node src/analysisTools/findWarrant.js <监控标的代码>"
+        '使用方法: node src/analysisTools/findWarrant.js <监控标的代码>'
       );
-      console.error("例如: node src/analysisTools/findWarrant.js HSI.HK");
-      console.error("或设置环境变量 MONITOR_SYMBOL");
-      console.error("或在文件配置中设置 DEFAULT_MONITOR_SYMBOL 常量");
+      console.error('例如: node src/analysisTools/findWarrant.js HSI.HK');
+      console.error('或设置环境变量 MONITOR_SYMBOL');
+      console.error('或在文件配置中设置 DEFAULT_MONITOR_SYMBOL 常量');
       process.exit(1);
     }
 
-    const SEPARATOR = "=".repeat(60);
+    const SEPARATOR = '='.repeat(60);
     const minAvgTurnoverWan = formatNumber(MIN_AVG_TURNOVER / 10000, 0);
     console.log(
       [
         SEPARATOR,
-        "查找符合条件的牛熊证",
+        '查找符合条件的牛熊证',
         SEPARATOR,
         `监控标的: ${monitorSymbol}`,
         `筛选条件:`,
         `  - 牛证: 过期日 >= ${MIN_EXPIRY_MONTHS}个月，三日内平均成交额 >= ${minAvgTurnoverWan}万，且距离百分比 > ${BULL_DISTANCE_PERCENT_THRESHOLD}%（监控标的当前价高于回收价）`,
         `  - 熊证: 过期日 >= ${MIN_EXPIRY_MONTHS}个月，三日内平均成交额 >= ${minAvgTurnoverWan}万，且距离百分比 < ${BEAR_DISTANCE_PERCENT_THRESHOLD}%（监控标的当前价低于回收价）`,
         SEPARATOR,
-      ].join("\n")
+      ].join('\n')
     );
 
     const result = await findQualifiedWarrants(monitorSymbol);
 
     // 输出结果
-    const printWarrants = (warrants, title) => {
+    const printWarrants = (warrants: QualifiedWarrant[], title: string): void => {
       const lines = [`\n${SEPARATOR}`, title, SEPARATOR];
       if (warrants.length === 0) {
-        lines.push(`无符合条件的${title.includes("牛证") ? "牛证" : "熊证"}`);
+        lines.push(`无符合条件的${title.includes('牛证') ? '牛证' : '熊证'}`);
       } else {
         for (let i = 0; i < warrants.length; i++) {
-          const w = warrants[i];
+          const w = warrants[i]!;
           lines.push(
             `\n${i + 1}. ${w.name} (${w.symbol})`,
             `   回收价: ${formatNumber(w.callPrice, 2)} HKD`,
@@ -394,20 +466,20 @@ async function main() {
           );
         }
       }
-      console.log(lines.join("\n"));
+      console.log(lines.join('\n'));
     };
 
-    printWarrants(result.bullWarrants, "符合条件的牛证:");
-    printWarrants(result.bearWarrants, "符合条件的熊证:");
+    printWarrants(result.bullWarrants, '符合条件的牛证:');
+    printWarrants(result.bearWarrants, '符合条件的熊证:');
   } catch (err) {
-    console.error("\n[致命错误]", err);
+    console.error('\n[致命错误]', err);
     process.exit(1);
   }
 }
 
 // 运行主函数
-main().catch((error) => {
-  console.error("程序执行失败：", error);
+main().catch((error: unknown) => {
+  console.error('程序执行失败：', error);
   process.exit(1);
 });
 

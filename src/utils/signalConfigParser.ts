@@ -26,17 +26,74 @@
 import {
   validateRsiPeriod,
   validateEmaPeriod,
-} from "./indicatorHelpers.js";
+} from './indicatorHelpers.js';
+import type { SignalConfig, Condition, ConditionGroup, SignalConfigSet } from '../types/index.js';
 
 // 支持的固定指标列表（不包括 RSI 和 EMA，因为它们支持动态周期）
-const SUPPORTED_INDICATORS = ["MFI", "K", "D", "J", "MACD", "DIF", "DEA"];
+const SUPPORTED_INDICATORS = ['MFI', 'K', 'D', 'J', 'MACD', 'DIF', 'DEA'] as const;
+
+/**
+ * 解析后的条件（带可选周期）
+ */
+interface ParsedCondition {
+  indicator: string;
+  period?: number;
+  operator: '<' | '>';
+  threshold: number;
+}
+
+/**
+ * 解析后的条件组
+ */
+interface ParsedConditionGroup {
+  conditions: ParsedCondition[];
+  minSatisfied: number;
+}
+
+/**
+ * 指标状态接口
+ */
+interface IndicatorState {
+  rsi?: Record<number, number> | null;
+  mfi?: number | null;
+  kdj?: { k?: number; d?: number; j?: number } | null;
+  macd?: { macd?: number; dif?: number; dea?: number } | null;
+  ema?: Record<number, number> | null;
+}
+
+/**
+ * 验证结果接口
+ */
+export interface ValidationResult {
+  valid: boolean;
+  error: string | null;
+  config: SignalConfig | null;
+}
+
+/**
+ * 评估结果接口
+ */
+export interface EvaluationResult {
+  triggered: boolean;
+  satisfiedGroupIndex: number;
+  satisfiedCount: number;
+  reason: string;
+}
+
+/**
+ * 条件组评估结果接口
+ */
+interface ConditionGroupResult {
+  satisfied: boolean;
+  count: number;
+}
 
 /**
  * 解析单个条件
- * @param {string} conditionStr 条件字符串，如 "RSI:6<20" 或 "J<-1" 或 "EMA:5<20000"
- * @returns {{indicator: string, period?: number, operator: string, threshold: number}|null} 解析结果
+ * @param conditionStr 条件字符串，如 "RSI:6<20" 或 "J<-1" 或 "EMA:5<20000"
+ * @returns 解析结果
  */
-function parseCondition(conditionStr) {
+function parseCondition(conditionStr: string): ParsedCondition | null {
   // 去除空白
   const trimmed = conditionStr.trim();
   if (!trimmed) return null;
@@ -50,8 +107,8 @@ function parseCondition(conditionStr) {
   if (rsiMatch) {
     // RSI:n 格式
     const [, periodStr, operator, thresholdStr] = rsiMatch;
-    const period = parseInt(periodStr, 10);
-    const threshold = parseFloat(thresholdStr);
+    const period = parseInt(periodStr!, 10);
+    const threshold = parseFloat(thresholdStr!);
 
     // 验证周期范围（1-100）
     if (!validateRsiPeriod(period)) {
@@ -64,9 +121,9 @@ function parseCondition(conditionStr) {
     }
 
     return {
-      indicator: "RSI",
+      indicator: 'RSI',
       period,
-      operator,
+      operator: operator as '<' | '>',
       threshold,
     };
   }
@@ -77,8 +134,8 @@ function parseCondition(conditionStr) {
   if (emaMatch) {
     // EMA:n 格式
     const [, periodStr, operator, thresholdStr] = emaMatch;
-    const period = parseInt(periodStr, 10);
-    const threshold = parseFloat(thresholdStr);
+    const period = parseInt(periodStr!, 10);
+    const threshold = parseFloat(thresholdStr!);
 
     // 验证周期范围（1-250）
     if (!validateEmaPeriod(period)) {
@@ -91,9 +148,9 @@ function parseCondition(conditionStr) {
     }
 
     return {
-      indicator: "EMA",
+      indicator: 'EMA',
       period,
-      operator,
+      operator: operator as '<' | '>',
       threshold,
     };
   }
@@ -106,10 +163,10 @@ function parseCondition(conditionStr) {
   }
 
   const [, indicator, operator, thresholdStr] = match;
-  const threshold = parseFloat(thresholdStr);
+  const threshold = parseFloat(thresholdStr!);
 
   // 验证指标是否支持
-  if (!SUPPORTED_INDICATORS.includes(indicator)) {
+  if (!SUPPORTED_INDICATORS.includes(indicator as (typeof SUPPORTED_INDICATORS)[number])) {
     return null;
   }
 
@@ -119,32 +176,32 @@ function parseCondition(conditionStr) {
   }
 
   return {
-    indicator,
-    operator,
+    indicator: indicator!,
+    operator: operator as '<' | '>',
     threshold,
   };
 }
 
 /**
  * 解析条件组
- * @param {string} groupStr 条件组字符串，如 "(RSI6<20,MFI<15,D<20,J<-1)/3" 或 "(J<-20)"
- * @returns {{conditions: Array, minSatisfied: number}|null} 解析结果
+ * @param groupStr 条件组字符串，如 "(RSI6<20,MFI<15,D<20,J<-1)/3" 或 "(J<-20)"
+ * @returns 解析结果
  */
-function parseConditionGroup(groupStr) {
+function parseConditionGroup(groupStr: string): ParsedConditionGroup | null {
   // 去除空白
   const trimmed = groupStr.trim();
   if (!trimmed) return null;
 
   // 匹配格式：(条件列表)/N 或 (条件列表)
   // 条件列表可以不带括号（单个条件时）
-  let conditionsStr;
-  let minSatisfied = null;
+  let conditionsStr: string;
+  let minSatisfied: number | null = null;
 
   // 尝试匹配带括号的格式
   const bracketMatch = trimmed.match(/^\(([^)]+)\)(?:\/(\d+))?$/);
 
   if (bracketMatch) {
-    conditionsStr = bracketMatch[1];
+    conditionsStr = bracketMatch[1]!;
     minSatisfied = bracketMatch[2] ? parseInt(bracketMatch[2], 10) : null;
   } else {
     // 不带括号的单个条件（兼容简单格式）
@@ -152,8 +209,8 @@ function parseConditionGroup(groupStr) {
   }
 
   // 解析条件列表
-  const conditionStrs = conditionsStr.split(",");
-  const conditions = [];
+  const conditionStrs = conditionsStr.split(',');
+  const conditions: ParsedCondition[] = [];
 
   for (const condStr of conditionStrs) {
     const condition = parseCondition(condStr);
@@ -188,11 +245,11 @@ function parseConditionGroup(groupStr) {
 
 /**
  * 解析完整的信号配置
- * @param {string} configStr 配置字符串，如 "(RSI6<20,MFI<15,D<20,J<-1)/3|(J<-20)"
- * @returns {{conditionGroups: Array}|null} 解析结果
+ * @param configStr 配置字符串，如 "(RSI6<20,MFI<15,D<20,J<-1)/3|(J<-20)"
+ * @returns 解析结果
  */
-export function parseSignalConfig(configStr) {
-  if (!configStr || typeof configStr !== "string") {
+export function parseSignalConfig(configStr: string | null | undefined): SignalConfig | null {
+  if (!configStr || typeof configStr !== 'string') {
     return null;
   }
 
@@ -203,22 +260,30 @@ export function parseSignalConfig(configStr) {
   }
 
   // 按 | 分隔条件组
-  const groupStrs = trimmed.split("|");
+  const groupStrs = trimmed.split('|');
 
   // 最多支持3个条件组
   if (groupStrs.length > 3) {
     console.warn(`[信号配置警告] 条件组数量超过3个，将只使用前3个`);
   }
 
-  const conditionGroups = [];
+  const conditionGroups: ConditionGroup[] = [];
 
   for (let i = 0; i < Math.min(groupStrs.length, 3); i++) {
-    const group = parseConditionGroup(groupStrs[i]);
+    const group = parseConditionGroup(groupStrs[i]!);
     if (!group) {
       // 如果有任何一个条件组解析失败，返回 null
       return null;
     }
-    conditionGroups.push(group);
+    // 转换为 ConditionGroup 格式
+    conditionGroups.push({
+      conditions: group.conditions.map((c) => ({
+        indicator: c.period ? `${c.indicator}:${c.period}` : c.indicator,
+        operator: c.operator,
+        threshold: c.threshold,
+      })),
+      requiredCount: group.minSatisfied,
+    });
   }
 
   // 如果没有有效的条件组，返回 null
@@ -233,14 +298,14 @@ export function parseSignalConfig(configStr) {
 
 /**
  * 验证信号配置格式
- * @param {string} configStr 配置字符串
- * @returns {{valid: boolean, error: string|null, config: Object|null}} 验证结果
+ * @param configStr 配置字符串
+ * @returns 验证结果
  */
-export function validateSignalConfig(configStr) {
-  if (!configStr || typeof configStr !== "string") {
+export function validateSignalConfig(configStr: string | null | undefined): ValidationResult {
+  if (!configStr || typeof configStr !== 'string') {
     return {
       valid: false,
-      error: "配置不能为空",
+      error: '配置不能为空',
       config: null,
     };
   }
@@ -249,13 +314,13 @@ export function validateSignalConfig(configStr) {
   if (!trimmed) {
     return {
       valid: false,
-      error: "配置不能为空",
+      error: '配置不能为空',
       config: null,
     };
   }
 
   // 基本格式检查
-  const groupStrs = trimmed.split("|");
+  const groupStrs = trimmed.split('|');
 
   if (groupStrs.length > 3) {
     return {
@@ -267,7 +332,7 @@ export function validateSignalConfig(configStr) {
 
   // 验证每个条件组
   for (let i = 0; i < groupStrs.length; i++) {
-    const groupStr = groupStrs[i].trim();
+    const groupStr = groupStrs[i]!.trim();
 
     // 检查括号匹配
     const openCount = (groupStr.match(/\(/g) || []).length;
@@ -283,11 +348,11 @@ export function validateSignalConfig(configStr) {
 
     // 检查是否有有效的条件
     const bracketMatch = groupStr.match(/^\(([^)]+)\)(?:\/(\d+))?$/);
-    let conditionsStr;
-    let minSatisfied = null;
+    let conditionsStr: string;
+    let minSatisfied: number | null = null;
 
     if (bracketMatch) {
-      conditionsStr = bracketMatch[1];
+      conditionsStr = bracketMatch[1]!;
       if (bracketMatch[2]) {
         minSatisfied = parseInt(bracketMatch[2], 10);
       }
@@ -296,10 +361,10 @@ export function validateSignalConfig(configStr) {
       conditionsStr = groupStr;
     }
 
-    const conditionStrs = conditionsStr.split(",");
+    const conditionStrs = conditionsStr.split(',');
 
     for (let j = 0; j < conditionStrs.length; j++) {
-      const condStr = conditionStrs[j].trim();
+      const condStr = conditionStrs[j]!.trim();
 
       if (!condStr) {
         return {
@@ -316,7 +381,7 @@ export function validateSignalConfig(configStr) {
           error: `条件组 ${i + 1} 的第 ${
             j + 1
           } 个条件 "${condStr}" 格式无效。支持的指标: RSI:n (n为1-100), EMA:n (n为1-250), ${SUPPORTED_INDICATORS.join(
-            ", "
+            ', '
           )}`,
           config: null,
         };
@@ -349,7 +414,7 @@ export function validateSignalConfig(configStr) {
   if (!config) {
     return {
       valid: false,
-      error: "配置解析失败",
+      error: '配置解析失败',
       config: null,
     };
   }
@@ -363,47 +428,57 @@ export function validateSignalConfig(configStr) {
 
 /**
  * 根据指标状态评估条件
- * @param {Object} state 指标状态 {rsi: {6: value, 12: value, ...}, mfi, kdj: {k, d, j}, macd: {macd, dif, dea}}
- * @param {Object} condition 条件 {indicator, period?, operator, threshold}
- * @returns {boolean} 条件是否满足
+ * @param state 指标状态 {rsi: {6: value, 12: value, ...}, mfi, kdj: {k, d, j}, macd: {macd, dif, dea}}
+ * @param condition 条件 {indicator, operator, threshold}
+ * @returns 条件是否满足
  */
-export function evaluateCondition(state, condition) {
-  const { indicator, period, operator, threshold } = condition;
+export function evaluateCondition(state: IndicatorState, condition: Condition): boolean {
+  const { indicator, operator, threshold } = condition;
+
+  // 解析指标名称（可能包含周期，如 RSI:6, EMA:10）
+  let indicatorName = indicator;
+  let period: number | undefined;
+
+  if (indicator.includes(':')) {
+    const parts = indicator.split(':');
+    indicatorName = parts[0]!;
+    period = parseInt(parts[1]!, 10);
+  }
 
   // 获取指标值
-  let value;
-  switch (indicator) {
-    case "RSI":
+  let value: number | undefined;
+  switch (indicatorName) {
+    case 'RSI':
       // RSI:n 格式，从 state.rsi[period] 获取值
-      if (!period || !state.rsi || !state.rsi[period]) {
+      if (!period || !state.rsi || state.rsi[period] === undefined) {
         return false;
       }
       value = state.rsi[period];
       break;
-    case "MFI":
-      value = state.mfi;
+    case 'MFI':
+      value = state.mfi ?? undefined;
       break;
-    case "K":
+    case 'K':
       value = state.kdj?.k;
       break;
-    case "D":
+    case 'D':
       value = state.kdj?.d;
       break;
-    case "J":
+    case 'J':
       value = state.kdj?.j;
       break;
-    case "MACD":
+    case 'MACD':
       value = state.macd?.macd;
       break;
-    case "DIF":
+    case 'DIF':
       value = state.macd?.dif;
       break;
-    case "DEA":
+    case 'DEA':
       value = state.macd?.dea;
       break;
-    case "EMA":
+    case 'EMA':
       // EMA:n 格式，从 state.ema[period] 获取值
-      if (!period || !state.ema || !state.ema[period]) {
+      if (!period || !state.ema || state.ema[period] === undefined) {
         return false;
       }
       value = state.ema[period];
@@ -413,14 +488,14 @@ export function evaluateCondition(state, condition) {
   }
 
   // 验证值是否有效
-  if (!Number.isFinite(value)) {
+  if (value === undefined || !Number.isFinite(value)) {
     return false;
   }
 
   // 根据运算符比较
-  if (operator === "<") {
+  if (operator === '<') {
     return value < threshold;
-  } else if (operator === ">") {
+  } else if (operator === '>') {
     return value > threshold;
   }
 
@@ -429,12 +504,12 @@ export function evaluateCondition(state, condition) {
 
 /**
  * 根据指标状态评估条件组
- * @param {Object} state 指标状态
- * @param {Object} conditionGroup 条件组 {conditions, minSatisfied}
- * @returns {{satisfied: boolean, count: number}} 评估结果
+ * @param state 指标状态
+ * @param conditionGroup 条件组 {conditions, requiredCount}
+ * @returns 评估结果
  */
-export function evaluateConditionGroup(state, conditionGroup) {
-  const { conditions, minSatisfied } = conditionGroup;
+export function evaluateConditionGroup(state: IndicatorState, conditionGroup: ConditionGroup): ConditionGroupResult {
+  const { conditions, requiredCount } = conditionGroup;
 
   let count = 0;
   for (const condition of conditions) {
@@ -442,6 +517,8 @@ export function evaluateConditionGroup(state, conditionGroup) {
       count++;
     }
   }
+
+  const minSatisfied = requiredCount ?? conditions.length;
 
   return {
     satisfied: count >= minSatisfied,
@@ -451,37 +528,31 @@ export function evaluateConditionGroup(state, conditionGroup) {
 
 /**
  * 根据指标状态评估完整的信号配置
- * @param {Object} state 指标状态
- * @param {Object} signalConfig 信号配置 {conditionGroups}
- * @returns {{triggered: boolean, satisfiedGroupIndex: number, satisfiedCount: number, reason: string}} 评估结果
+ * @param state 指标状态
+ * @param signalConfig 信号配置 {conditionGroups}
+ * @returns 评估结果
  */
-export function evaluateSignalConfig(state, signalConfig) {
+export function evaluateSignalConfig(state: IndicatorState, signalConfig: SignalConfig | null): EvaluationResult {
   if (!signalConfig || !signalConfig.conditionGroups) {
     return {
       triggered: false,
       satisfiedGroupIndex: -1,
       satisfiedCount: 0,
-      reason: "无效的信号配置",
+      reason: '无效的信号配置',
     };
   }
 
   const { conditionGroups } = signalConfig;
 
   for (let i = 0; i < conditionGroups.length; i++) {
-    const group = conditionGroups[i];
+    const group = conditionGroups[i]!;
     const result = evaluateConditionGroup(state, group);
 
     if (result.satisfied) {
       // 生成原因说明
       const conditionDescs = group.conditions
-        .map((c) => {
-          // 如果是 RSI 或 EMA 指标，需要包含周期信息
-          if ((c.indicator === "RSI" || c.indicator === "EMA") && c.period) {
-            return `${c.indicator}:${c.period}${c.operator}${c.threshold}`;
-          }
-          return `${c.indicator}${c.operator}${c.threshold}`;
-        })
-        .join(",");
+        .map((c) => `${c.indicator}${c.operator}${c.threshold}`)
+        .join(',');
 
       const reason =
         group.conditions.length === 1
@@ -503,60 +574,51 @@ export function evaluateSignalConfig(state, signalConfig) {
     triggered: false,
     satisfiedGroupIndex: -1,
     satisfiedCount: 0,
-    reason: "未满足任何条件组",
+    reason: '未满足任何条件组',
   };
 }
 
 /**
  * 格式化信号配置为可读字符串
- * @param {Object} signalConfig 信号配置
- * @returns {string} 格式化字符串
+ * @param signalConfig 信号配置
+ * @returns 格式化字符串
  */
-export function formatSignalConfig(signalConfig) {
+export function formatSignalConfig(signalConfig: SignalConfig | null): string {
   if (!signalConfig || !signalConfig.conditionGroups) {
-    return "(无效配置)";
+    return '(无效配置)';
   }
 
   const groups = signalConfig.conditionGroups.map((group) => {
     const conditions = group.conditions
-      .map((c) => {
-        // 如果是 RSI 指标，格式化为 RSI:n
-        if (c.indicator === "RSI" && c.period) {
-          return `RSI:${c.period}${c.operator}${c.threshold}`;
-        }
-        // 如果是 EMA 指标，格式化为 EMA:n
-        if (c.indicator === "EMA" && c.period) {
-          return `EMA:${c.period}${c.operator}${c.threshold}`;
-        }
-        return `${c.indicator}${c.operator}${c.threshold}`;
-      })
-      .join(",");
+      .map((c) => `${c.indicator}${c.operator}${c.threshold}`)
+      .join(',');
 
     if (group.conditions.length === 1) {
       return `(${conditions})`;
     }
 
-    if (group.minSatisfied === group.conditions.length) {
+    const minSatisfied = group.requiredCount ?? group.conditions.length;
+    if (minSatisfied === group.conditions.length) {
       return `(${conditions})`;
     }
 
-    return `(${conditions})/${group.minSatisfied}`;
+    return `(${conditions})/${minSatisfied}`;
   });
 
-  return groups.join("|");
+  return groups.join('|');
 }
 
 /**
  * 从信号配置中提取所有 RSI 周期
- * @param {Object} signalConfig 信号配置对象 {buycall, sellcall, buyput, sellput}
- * @returns {Array<number>} RSI 周期数组（去重后排序）
+ * @param signalConfig 信号配置对象 {buycall, sellcall, buyput, sellput}
+ * @returns RSI 周期数组（去重后排序）
  */
-export function extractRSIPeriods(signalConfig) {
+export function extractRSIPeriods(signalConfig: SignalConfigSet | null): number[] {
   if (!signalConfig) {
     return [];
   }
 
-  const periods = new Set();
+  const periods = new Set<number>();
 
   // 遍历所有信号类型的配置
   const configs = [
@@ -580,8 +642,11 @@ export function extractRSIPeriods(signalConfig) {
       // 遍历所有条件
       for (const condition of group.conditions) {
         // 如果是 RSI 指标且有周期，添加到集合中
-        if (condition.indicator === "RSI" && condition.period) {
-          periods.add(condition.period);
+        if (condition.indicator.startsWith('RSI:')) {
+          const period = parseInt(condition.indicator.split(':')[1]!, 10);
+          if (Number.isFinite(period)) {
+            periods.add(period);
+          }
         }
       }
     }
@@ -593,15 +658,15 @@ export function extractRSIPeriods(signalConfig) {
 
 /**
  * 从信号配置中提取所有 EMA 周期
- * @param {Object} signalConfig 信号配置对象 {buycall, sellcall, buyput, sellput}
- * @returns {Array<number>} EMA 周期数组（去重后排序）
+ * @param signalConfig 信号配置对象 {buycall, sellcall, buyput, sellput}
+ * @returns EMA 周期数组（去重后排序）
  */
-export function extractEMAPeriods(signalConfig) {
+export function extractEMAPeriods(signalConfig: SignalConfigSet | null): number[] {
   if (!signalConfig) {
     return [];
   }
 
-  const periods = new Set();
+  const periods = new Set<number>();
 
   // 遍历所有信号类型的配置
   const configs = [
@@ -625,8 +690,11 @@ export function extractEMAPeriods(signalConfig) {
       // 遍历所有条件
       for (const condition of group.conditions) {
         // 如果是 EMA 指标且有周期，添加到集合中
-        if (condition.indicator === "EMA" && condition.period) {
-          periods.add(condition.period);
+        if (condition.indicator.startsWith('EMA:')) {
+          const period = parseInt(condition.indicator.split(':')[1]!, 10);
+          if (Number.isFinite(period)) {
+            periods.add(period);
+          }
         }
       }
     }

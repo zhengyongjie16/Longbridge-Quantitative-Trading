@@ -26,114 +26,176 @@ import {
   NaiveDate,
   TradeSessions,
   Market,
-} from "longport";
+} from 'longport';
 import {
   normalizeHKSymbol,
   decimalToNumber,
   formatNumber,
   isDefined,
-} from "../utils/helpers.js";
-import { RSI, MACD, EMA, MFI } from "technicalindicators";
-import { TRADING_CONFIG } from "../config/config.trading.js";
-import { createConfig } from "../config/config.js";
-import { validatePercentage } from "../utils/indicatorHelpers.js";
+} from '../utils/helpers.js';
+import { RSI, MACD, EMA, MFI } from 'technicalindicators';
+import { TRADING_CONFIG } from '../config/config.trading.js';
+import { createConfig } from '../config/config.js';
+import { validatePercentage } from '../utils/indicatorHelpers.js';
 
 // ============================================
 // 配置变量（可直接修改）
 // ============================================
 // 默认标的代码（如果未通过环境变量或命令行参数指定）
-const DEFAULT_SYMBOL = "HSI.HK";
+const DEFAULT_SYMBOL = 'HSI.HK';
 
 // 默认做多标的代码（如果未通过环境变量指定）
 // 不带 .HK 后缀，内部会自动规范为港股
 // 设置为 null 则从环境变量 LONG_SYMBOL 或 TRADING_CONFIG 获取
-const DEFAULT_LONG_SYMBOL = "60802"; // 例如：可以设置为 "54806"
+const DEFAULT_LONG_SYMBOL = '60802'; // 例如：可以设置为 "54806"
 
 // 默认做空标的代码（如果未通过环境变量指定）
 // 不带 .HK 后缀，内部会自动规范为港股
 // 设置为 null 则从环境变量 SHORT_SYMBOL 或 TRADING_CONFIG 获取
-const DEFAULT_SHORT_SYMBOL = "53086"; // 例如：可以设置为 "63372"
+const DEFAULT_SHORT_SYMBOL = '53086'; // 例如：可以设置为 "63372"
 
 // 默认日期或日期范围（如果未通过环境变量或命令行参数指定）
 // 格式：
 //   - 单一日期：YYYY-MM-DD（例如：2024-12-11）
 //   - 日期范围：YYYY-MM-DD:YYYY-MM-DD 或 YYYY-MM-DD,YYYY-MM-DD（例如：2024-12-11:2024-12-15）
 // 设置为 null 则必须通过环境变量或命令行参数指定
-const DEFAULT_DATE = "2025-12-24"; // 例如：可以设置为 "2024-12-11" 或 "2024-12-11:2024-12-15"
+const DEFAULT_DATE = '2025-12-24'; // 例如：可以设置为 "2024-12-11" 或 "2024-12-11:2024-12-15"
 // ============================================
+
+/**
+ * K线数据接口
+ */
+interface CandleData {
+  timestamp: Date | number;
+  open?: unknown;
+  high?: unknown;
+  low?: unknown;
+  close?: unknown;
+  volume?: unknown;
+  turnover?: unknown;
+}
+
+/**
+ * 日期对象接口
+ */
+interface DateObject {
+  year: number;
+  month: number;
+  day: number;
+}
+
+/**
+ * 日期范围接口
+ */
+interface DateRange {
+  startDate: DateObject;
+  endDate: DateObject;
+}
+
+/**
+ * KDJ指标接口
+ */
+interface KDJResult {
+  k: number | null;
+  d: number | null;
+  j: number | null;
+}
+
+/**
+ * MACD指标接口
+ */
+interface MACDResult {
+  macd: number;
+}
+
+/**
+ * 价格数据项接口
+ */
+interface PriceDataItem {
+  timestamp: number;
+  price: number;
+}
+
+/**
+ * 日期范围批次接口
+ */
+interface DateRangeBatch {
+  start: NaiveDate;
+  end: NaiveDate;
+}
 
 /**
  * 格式化时间为 HH:mm:ss 格式（香港时间）
  * 使用与代码库其他地方相同的 toLocaleString 方法，确保时区转换的一致性
  * 参考：index.js:235-237 使用相同的时区转换方法
- * @param {number|Date} timestamp 时间戳或日期对象
- * @returns {string} 格式化的时间字符串 HH:mm:ss
+ * @param timestamp 时间戳或日期对象
+ * @returns 格式化的时间字符串 HH:mm:ss
  */
-function formatTimeHHMMSS(timestamp) {
+function formatTimeHHMMSS(timestamp: number | Date): string {
   const ts =
-    typeof timestamp === "number"
+    typeof timestamp === 'number'
       ? timestamp
-      : timestamp?.getTime?.() || Date.now();
+      : (timestamp as Date)?.getTime?.() || Date.now();
   const date = new Date(ts);
 
   // 使用与代码库其他地方相同的时区转换方法（index.js:235-237）
   // 使用 toLocaleString 和 timeZone: "Asia/Hong_Kong" 确保准确的时区转换
   // 直接指定只返回时间部分，避免手动解析
-  const formatted = date.toLocaleTimeString("zh-CN", {
-    timeZone: "Asia/Hong_Kong",
+  const formatted = date.toLocaleTimeString('zh-CN', {
+    timeZone: 'Asia/Hong_Kong',
     hour12: false,
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
   });
 
   return formatted;
 }
 
 // 缓存日期格式化器，避免重复创建
-const dateFormatter = new Intl.DateTimeFormat("zh-CN", {
-  timeZone: "Asia/Hong_Kong",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
+const dateFormatter = new Intl.DateTimeFormat('zh-CN', {
+  timeZone: 'Asia/Hong_Kong',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
 });
 
 /**
  * 格式化日期为 YYYY-MM-DD 格式（香港时间）
  * 使用缓存的 Intl.DateTimeFormat 确保时区转换的准确性
- * @param {number|Date|NaiveDate} timestamp 时间戳、日期对象或 NaiveDate
- * @returns {string} 格式化的日期字符串 YYYY-MM-DD
+ * @param timestamp 时间戳、日期对象或 NaiveDate
+ * @returns 格式化的日期字符串 YYYY-MM-DD
  */
-function formatDateYYYYMMDD(timestamp) {
+function formatDateYYYYMMDD(timestamp: number | Date | NaiveDate | DateObject): string {
   // 如果是 NaiveDate 对象，直接格式化
-  if (timestamp && typeof timestamp === "object" && "year" in timestamp) {
-    const { year, month, day } = timestamp;
-    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(
+  if (timestamp && typeof timestamp === 'object' && 'year' in timestamp) {
+    const { year, month, day } = timestamp as DateObject;
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(
       2,
-      "0"
+      '0'
     )}`;
   }
 
   const ts =
-    typeof timestamp === "number"
+    typeof timestamp === 'number'
       ? timestamp
-      : timestamp?.getTime?.() || Date.now();
+      : (timestamp as Date)?.getTime?.() || Date.now();
   const date = new Date(ts);
 
   const parts = dateFormatter.formatToParts(date);
-  const year = parts.find((p) => p.type === "year")?.value;
-  const month = parts.find((p) => p.type === "month")?.value;
-  const day = parts.find((p) => p.type === "day")?.value;
+  const year = parts.find((p) => p.type === 'year')?.value;
+  const month = parts.find((p) => p.type === 'month')?.value;
+  const day = parts.find((p) => p.type === 'day')?.value;
 
   if (!year || !month || !day) {
     // 如果格式化失败，使用备用方法
-    const dateStr = date.toLocaleDateString("zh-CN", {
-      timeZone: "Asia/Hong_Kong",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
+    const dateStr = date.toLocaleDateString('zh-CN', {
+      timeZone: 'Asia/Hong_Kong',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
     });
-    return dateStr.replaceAll("/", "-");
+    return dateStr.replaceAll('/', '-');
   }
 
   return `${year}-${month}-${day}`;
@@ -141,11 +203,11 @@ function formatDateYYYYMMDD(timestamp) {
 
 /**
  * 计算 RSI 指标
- * @param {number[]} closes 收盘价数组
- * @param {number} period RSI 周期
- * @returns {number|null} RSI 值，如果计算失败则返回 null
+ * @param closes 收盘价数组
+ * @param period RSI 周期
+ * @returns RSI 值，如果计算失败则返回 null
  */
-function calculateRSI(closes, period) {
+function calculateRSI(closes: number[], period: number): number | null {
   if (closes.length <= period) {
     return null;
   }
@@ -154,11 +216,11 @@ function calculateRSI(closes, period) {
     if (rsiResult && rsiResult.length > 0) {
       const rsi = rsiResult.at(-1);
       // 确保 RSI 值在有效范围内（0-100）
-      if (validatePercentage(rsi)) {
+      if (rsi !== undefined && validatePercentage(rsi)) {
         return rsi;
       }
     }
-  } catch (err) {
+  } catch {
     // 静默处理错误，不影响程序运行
   }
   return null;
@@ -166,24 +228,24 @@ function calculateRSI(closes, period) {
 
 /**
  * 格式化指标值显示
- * @param {number|null|undefined} value 指标值
- * @param {number} decimals 小数位数
- * @returns {string} 格式化后的字符串，如果值为 null 或 undefined 则返回 "-"
+ * @param value 指标值
+ * @param decimals 小数位数
+ * @returns 格式化后的字符串，如果值为 null 或 undefined 则返回 "-"
  */
-function formatIndicatorValue(value, decimals) {
-  return isDefined(value) ? formatNumber(value, decimals) : "-";
+function formatIndicatorValue(value: number | null | undefined, decimals: number): string {
+  return isDefined(value) ? formatNumber(value!, decimals) : '-';
 }
 
 /**
  * 使用 EMA 平滑数值数组
- * @param {number[]} values 待平滑的数值数组
- * @param {number} period EMA 周期
- * @param {number} initialValue 初始值
- * @returns {number[]} 平滑后的数值数组
+ * @param values 待平滑的数值数组
+ * @param period EMA 周期
+ * @param initialValue 初始值
+ * @returns 平滑后的数值数组
  */
-function smoothWithEMA(values, period, initialValue = 50) {
+function smoothWithEMA(values: number[], period: number, initialValue: number = 50): number[] {
   const ema = new EMA({ period, values: [] });
-  const smoothed = [];
+  const smoothed: number[] = [];
   ema.nextValue(initialValue);
   for (const value of values) {
     const smoothedValue = ema.nextValue(value);
@@ -198,14 +260,19 @@ function smoothWithEMA(values, period, initialValue = 50) {
 
 /**
  * 计算 KDJ 指标
- * @param {number[]} closes 收盘价数组
- * @param {number[]} highs 最高价数组
- * @param {number[]} lows 最低价数组
- * @param {number} candlesLength K线数量
- * @returns {{k: number|null, d: number|null, j: number|null}} KDJ 指标值
+ * @param closes 收盘价数组
+ * @param highs 最高价数组
+ * @param lows 最低价数组
+ * @param candlesLength K线数量
+ * @returns KDJ 指标值
  */
-function calculateKDJIndicator(closes, highs, lows, candlesLength) {
-  let kdj = { k: null, d: null, j: null };
+function calculateKDJIndicator(
+  closes: number[],
+  highs: number[],
+  lows: number[],
+  candlesLength: number
+): KDJResult {
+  let kdj: KDJResult = { k: null, d: null, j: null };
   try {
     const KDJ_MIN_PERIOD = 9;
     if (candlesLength >= KDJ_MIN_PERIOD) {
@@ -213,10 +280,10 @@ function calculateKDJIndicator(closes, highs, lows, candlesLength) {
       const emaPeriod = 5;
 
       // 计算所有 RSV 值（优化：使用循环查找最大值/最小值，避免展开操作）
-      const rsvValues = [];
+      const rsvValues: number[] = [];
       for (let j = period - 1; j < candlesLength; j++) {
         const windowStart = j - period + 1;
-        const close = closes[j];
+        const close = closes[j]!;
 
         if (!Number.isFinite(close)) continue;
 
@@ -224,8 +291,8 @@ function calculateKDJIndicator(closes, highs, lows, candlesLength) {
         let highestHigh = -Infinity;
         let lowestLow = Infinity;
         for (let k = windowStart; k <= j; k++) {
-          const high = highs[k];
-          const low = lows[k];
+          const high = highs[k]!;
+          const low = lows[k]!;
           if (Number.isFinite(high) && high > highestHigh) highestHigh = high;
           if (Number.isFinite(low) && low < lowestLow) lowestLow = low;
         }
@@ -240,8 +307,8 @@ function calculateKDJIndicator(closes, highs, lows, candlesLength) {
       if (rsvValues.length > 0) {
         const kValues = smoothWithEMA(rsvValues, emaPeriod, 50);
         const dValues = smoothWithEMA(kValues, emaPeriod, 50);
-        const k = kValues.at(-1);
-        const d = dValues.at(-1);
+        const k = kValues.at(-1)!;
+        const d = dValues.at(-1)!;
         const j = 3 * k - 2 * d;
 
         if (Number.isFinite(k) && Number.isFinite(d) && Number.isFinite(j)) {
@@ -249,7 +316,7 @@ function calculateKDJIndicator(closes, highs, lows, candlesLength) {
         }
       }
     }
-  } catch (err) {
+  } catch {
     // 静默处理错误
   }
   return kdj;
@@ -257,10 +324,10 @@ function calculateKDJIndicator(closes, highs, lows, candlesLength) {
 
 /**
  * 计算 MACD 指标
- * @param {number[]} closes 收盘价数组
- * @returns {{macd: number}|null} MACD 指标值（仅返回 MACD 柱状图值）
+ * @param closes 收盘价数组
+ * @returns MACD 指标值（仅返回 MACD 柱状图值）
  */
-function calculateMACDIndicator(closes) {
+function calculateMACDIndicator(closes: number[]): MACDResult | null {
   try {
     if (closes.length >= 35) {
       const macdResult = MACD.calculate({
@@ -273,14 +340,17 @@ function calculateMACDIndicator(closes) {
       });
       if (macdResult?.length > 0) {
         const lastMacd = macdResult.at(-1);
-        const macdValue = lastMacd.histogram * 2;
+        const histogram = lastMacd?.histogram;
+        if (histogram !== undefined) {
+          const macdValue = histogram * 2;
 
-        if (Number.isFinite(macdValue)) {
-          return { macd: macdValue };
+          if (Number.isFinite(macdValue)) {
+            return { macd: macdValue };
+          }
         }
       }
     }
-  } catch (err) {
+  } catch {
     // 静默处理错误
   }
   return null;
@@ -288,13 +358,18 @@ function calculateMACDIndicator(closes) {
 
 /**
  * 计算 MFI 指标
- * @param {number[]} highs 最高价数组
- * @param {number[]} lows 最低价数组
- * @param {number[]} closes 收盘价数组
- * @param {number[]} volumes 成交量数组
- * @returns {number|null} MFI 指标值
+ * @param highs 最高价数组
+ * @param lows 最低价数组
+ * @param closes 收盘价数组
+ * @param volumes 成交量数组
+ * @returns MFI 指标值
  */
-function calculateMFIIndicator(highs, lows, closes, volumes) {
+function calculateMFIIndicator(
+  highs: number[],
+  lows: number[],
+  closes: number[],
+  volumes: number[]
+): number | null {
   try {
     const mfiPeriod = 14;
     const minRequired = mfiPeriod + 1;
@@ -313,27 +388,44 @@ function calculateMFIIndicator(highs, lows, closes, volumes) {
       });
       if (mfiResult?.length > 0) {
         const mfiValue = mfiResult.at(-1);
-        if (validatePercentage(mfiValue)) {
+        if (mfiValue !== undefined && validatePercentage(mfiValue)) {
           return mfiValue;
         }
       }
     }
-  } catch (err) {
+  } catch {
     // 静默处理错误
   }
   return null;
 }
 
 /**
- * 计算所有技术指标（同步执行，避免不必要的 Promise 开销）
- * @param {number[]} closes 收盘价数组
- * @param {number[]} highs 最高价数组
- * @param {number[]} lows 最低价数组
- * @param {number[]} volumes 成交量数组
- * @param {number} candlesLength K线数量
- * @returns {Object} 包含所有指标值的对象
+ * 所有指标计算结果接口
  */
-function calculateAllIndicators(closes, highs, lows, volumes, candlesLength) {
+interface AllIndicatorsResult {
+  rsi6: number | null;
+  rsi12: number | null;
+  kdj: KDJResult;
+  macd: MACDResult | null;
+  mfi: number | null;
+}
+
+/**
+ * 计算所有技术指标（同步执行，避免不必要的 Promise 开销）
+ * @param closes 收盘价数组
+ * @param highs 最高价数组
+ * @param lows 最低价数组
+ * @param volumes 成交量数组
+ * @param candlesLength K线数量
+ * @returns 包含所有指标值的对象
+ */
+function calculateAllIndicators(
+  closes: number[],
+  highs: number[],
+  lows: number[],
+  volumes: number[],
+  candlesLength: number
+): AllIndicatorsResult {
   return {
     rsi6: calculateRSI(closes, 6),
     rsi12: calculateRSI(closes, 12),
@@ -348,24 +440,24 @@ function calculateAllIndicators(closes, highs, lows, volumes, candlesLength) {
  * 支持格式：
  * - 单一日期：YYYY-MM-DD（例如：2024-12-11）
  * - 日期范围：YYYY-MM-DD:YYYY-MM-DD 或 YYYY-MM-DD,YYYY-MM-DD（例如：2024-12-11:2024-12-15）
- * @param {string} dateRangeStr 日期范围字符串
- * @returns {{startDate: {year: number, month: number, day: number}, endDate: {year: number, month: number, day: number}}} 开始和结束日期对象
- * @throws {TypeError} 如果日期格式错误或解析失败
+ * @param dateRangeStr 日期范围字符串
+ * @returns 开始和结束日期对象
+ * @throws 如果日期格式错误或解析失败
  */
-function parseDateRange(dateRangeStr) {
-  if (!dateRangeStr || typeof dateRangeStr !== "string") {
-    throw new TypeError("日期范围字符串不能为空");
+function parseDateRange(dateRangeStr: string): DateRange {
+  if (!dateRangeStr || typeof dateRangeStr !== 'string') {
+    throw new TypeError('日期范围字符串不能为空');
   }
 
   // 解析单个日期字符串
-  const parseDateString = (dateStr) => {
-    const dateParts = dateStr.split("-");
+  const parseDateString = (dateStr: string): DateObject => {
+    const dateParts = dateStr.split('-');
     if (dateParts.length !== 3) {
       throw new TypeError(`日期格式错误，应为 YYYY-MM-DD，实际：${dateStr}`);
     }
-    const year = Number.parseInt(dateParts[0], 10);
-    const month = Number.parseInt(dateParts[1], 10);
-    const day = Number.parseInt(dateParts[2], 10);
+    const year = Number.parseInt(dateParts[0]!, 10);
+    const month = Number.parseInt(dateParts[1]!, 10);
+    const day = Number.parseInt(dateParts[2]!, 10);
     if (
       !Number.isFinite(year) ||
       !Number.isFinite(month) ||
@@ -377,17 +469,17 @@ function parseDateRange(dateRangeStr) {
   };
 
   // 支持两种分隔符：冒号(:) 或逗号(,)
-  const separator = dateRangeStr.includes(":") ? ":" : ",";
+  const separator = dateRangeStr.includes(':') ? ':' : ',';
   const parts = dateRangeStr.split(separator).map((s) => s.trim());
 
   if (parts.length === 1) {
     // 单一日期，开始和结束日期相同
-    const date = parseDateString(parts[0]);
+    const date = parseDateString(parts[0]!);
     return { startDate: date, endDate: date };
   } else if (parts.length === 2) {
     // 日期范围
-    const startDate = parseDateString(parts[0]);
-    const endDate = parseDateString(parts[1]);
+    const startDate = parseDateString(parts[0]!);
+    const endDate = parseDateString(parts[1]!);
 
     // 验证结束日期不能早于开始日期
     const startJsDate = new Date(
@@ -410,57 +502,60 @@ function parseDateRange(dateRangeStr) {
 
 /**
  * 获取日期范围内的交易日列表
- * @param {QuoteContext} ctx QuoteContext 实例
- * @param {NaiveDate} startDate 开始日期
- * @param {NaiveDate} endDate 结束日期
- * @param {Market} market 市场类型，默认为香港市场
- * @returns {Promise<NaiveDate[]>} 交易日列表（包括全日和半日交易日）
+ * @param ctx QuoteContext 实例
+ * @param startDate 开始日期
+ * @param endDate 结束日期
+ * @param market 市场类型，默认为香港市场
+ * @returns 交易日列表（包括全日和半日交易日）
  */
 async function getTradingDaysInRange(
-  ctx,
-  startDate,
-  endDate,
-  market = Market.HK
-) {
+  ctx: QuoteContext,
+  startDate: NaiveDate,
+  endDate: NaiveDate,
+  market: typeof Market[keyof typeof Market] = Market.HK
+): Promise<NaiveDate[]> {
   try {
     const resp = await ctx.tradingDays(market, startDate, endDate);
     // 合并全日交易日和半日交易日（半日交易日也算交易日）
-    const allTradingDays = [
-      ...(resp.tradingDays || []),
-      ...(resp.halfTradingDays || []),
+    const allTradingDays: NaiveDate[] = [
+      ...((resp as { tradingDays?: NaiveDate[] }).tradingDays || []),
+      ...((resp as { halfTradingDays?: NaiveDate[] }).halfTradingDays || []),
     ];
     // 按日期排序（优化：使用更简洁的比较）
     allTradingDays.sort((a, b) => {
-      const yearDiff = a.year - b.year;
+      const aObj = a as unknown as DateObject;
+      const bObj = b as unknown as DateObject;
+      const yearDiff = aObj.year - bObj.year;
       if (yearDiff !== 0) return yearDiff;
-      const monthDiff = a.month - b.month;
+      const monthDiff = aObj.month - bObj.month;
       if (monthDiff !== 0) return monthDiff;
-      return a.day - b.day;
+      return aObj.day - bObj.day;
     });
     return allTradingDays;
   } catch (err) {
-    console.warn(`获取交易日列表失败，将使用所有日期：`, err?.message ?? err);
+    console.warn(`获取交易日列表失败，将使用所有日期：`, (err as Error)?.message ?? err);
     return [];
   }
 }
 
 /**
  * 获取指定日期之前的最后一个交易日
- * @param {QuoteContext} ctx QuoteContext 实例
- * @param {NaiveDate} date 指定日期
- * @param {Market} market 市场类型，默认为香港市场
- * @param {number} maxDaysBack 最多向前查找的天数（默认30天）
- * @returns {Promise<NaiveDate|null>} 上一个交易日，如果找不到则返回 null
+ * @param ctx QuoteContext 实例
+ * @param date 指定日期
+ * @param market 市场类型，默认为香港市场
+ * @param maxDaysBack 最多向前查找的天数（默认30天）
+ * @returns 上一个交易日，如果找不到则返回 null
  */
 async function getPreviousTradingDay(
-  ctx,
-  date,
-  market = Market.HK,
-  maxDaysBack = 30
-) {
+  ctx: QuoteContext,
+  date: NaiveDate,
+  market: typeof Market[keyof typeof Market] = Market.HK,
+  maxDaysBack: number = 30
+): Promise<NaiveDate | null> {
   try {
+    const dateObj = date as unknown as DateObject;
     // 计算查询的开始日期（向前查找最多 maxDaysBack 天）
-    const startJsDate = new Date(date.year, date.month - 1, date.day);
+    const startJsDate = new Date(dateObj.year, dateObj.month - 1, dateObj.day);
     startJsDate.setDate(startJsDate.getDate() - maxDaysBack);
     const startNaiveDate = new NaiveDate(
       startJsDate.getFullYear(),
@@ -469,7 +564,7 @@ async function getPreviousTradingDay(
     );
 
     // 计算查询的结束日期（指定日期的前一天）
-    const endJsDate = new Date(date.year, date.month - 1, date.day);
+    const endJsDate = new Date(dateObj.year, dateObj.month - 1, dateObj.day);
     endJsDate.setDate(endJsDate.getDate() - 1);
     const endNaiveDate = new NaiveDate(
       endJsDate.getFullYear(),
@@ -487,32 +582,35 @@ async function getPreviousTradingDay(
 
     if (tradingDays.length > 0) {
       // 返回最后一个交易日（最接近指定日期的交易日）
-      return tradingDays.at(-1);
+      return tradingDays.at(-1) ?? null;
     }
 
     return null;
   } catch (err) {
-    console.warn(`获取上一个交易日失败：`, err?.message ?? err);
+    console.warn(`获取上一个交易日失败：`, (err as Error)?.message ?? err);
     return null;
   }
 }
 
 /**
  * 将交易日列表分割成多个较小的范围（用于处理API的1000条限制）
- * @param {NaiveDate[]} tradingDays 交易日列表
- * @param {number} maxDaysPerBatch 每批最多天数（默认2天，约1000条1分钟K线）
- * @returns {Array<{start: NaiveDate, end: NaiveDate}>} 日期范围数组
+ * @param tradingDays 交易日列表
+ * @param maxDaysPerBatch 每批最多天数（默认2天，约1000条1分钟K线）
+ * @returns 日期范围数组
  */
-function splitTradingDaysIntoRanges(tradingDays, maxDaysPerBatch = 2) {
+function splitTradingDaysIntoRanges(
+  tradingDays: NaiveDate[],
+  maxDaysPerBatch: number = 2
+): DateRangeBatch[] {
   if (tradingDays.length === 0) {
     return [];
   }
 
-  const ranges = [];
+  const ranges: DateRangeBatch[] = [];
   for (let i = 0; i < tradingDays.length; i += maxDaysPerBatch) {
     const batch = tradingDays.slice(i, i + maxDaysPerBatch);
-    const start = batch[0];
-    const end = batch.at(-1);
+    const start = batch[0]!;
+    const end = batch.at(-1)!;
     ranges.push({ start, end });
   }
 
@@ -520,21 +618,151 @@ function splitTradingDaysIntoRanges(tradingDays, maxDaysPerBatch = 2) {
 }
 
 /**
+ * 按日期范围批次获取K线数据（辅助函数）
+ * @param ctx QuoteContext 实例
+ * @param normalizedSymbol 规范化后的标的代码
+ * @param dateRanges 日期范围数组
+ * @param symbolName 标的名称（用于日志）
+ * @returns 分时线数据数组
+ */
+async function fetchCandlesticksByRanges(
+  ctx: QuoteContext,
+  normalizedSymbol: string,
+  dateRanges: DateRangeBatch[],
+  symbolName: string
+): Promise<CandleData[]> {
+  const allCandlesticks: CandleData[] = [];
+  for (let i = 0; i < dateRanges.length; i++) {
+    const { start, end } = dateRanges[i]!;
+    const batchCandlesticks = await ctx.historyCandlesticksByDate(
+      normalizedSymbol,
+      Period.Min_1,
+      AdjustType.NoAdjust,
+      start,
+      end,
+      TradeSessions.All
+    );
+
+    if (batchCandlesticks && batchCandlesticks.length > 0) {
+      allCandlesticks.push(...(batchCandlesticks as CandleData[]));
+
+      // 如果返回的数据达到1000条，说明可能还有更多数据，需要进一步分割
+      if (batchCandlesticks.length >= 1000) {
+        console.warn(
+          `警告：批次 ${i + 1} 返回了 ${
+            batchCandlesticks.length
+          } 条数据，可能达到API限制。如果数据不完整，请减小日期范围。`
+        );
+      }
+    }
+
+    // 添加短暂延迟，避免请求过于频繁
+    if (i < dateRanges.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+
+  if (allCandlesticks.length > 0) {
+    console.log(
+      `成功获取${symbolName} ${allCandlesticks.length} 条分时线数据（共 ${dateRanges.length} 批）`
+    );
+    return allCandlesticks;
+  }
+  console.warn(`未获取到${symbolName}的分时线数据`);
+  return [];
+}
+
+/**
+ * 将日期范围分割成多个较小的范围（用于处理API的1000条限制，回退方案）
+ * @param startDate 开始日期
+ * @param endDate 结束日期
+ * @param maxDaysPerBatch 每批最多天数（默认2天，约1000条1分钟K线）
+ * @returns 日期范围数组
+ */
+function splitDateRange(
+  startDate: NaiveDate,
+  endDate: NaiveDate,
+  maxDaysPerBatch: number = 2
+): DateRangeBatch[] {
+  const startObj = startDate as unknown as DateObject;
+  const endObj = endDate as unknown as DateObject;
+
+  // 内联比较函数
+  const compare = (date1: DateObject, date2: DateObject): number => {
+    if (date1.year !== date2.year) return date1.year < date2.year ? -1 : 1;
+    if (date1.month !== date2.month) return date1.month < date2.month ? -1 : 1;
+    if (date1.day < date2.day) return -1;
+    if (date1.day > date2.day) return 1;
+    return 0;
+  };
+
+  const ranges: DateRangeBatch[] = [];
+  let currentStart = startObj;
+
+  while (compare(currentStart, endObj) <= 0) {
+    // 计算当前批次的结束日期
+    let currentEnd = currentStart;
+    for (
+      let i = 1;
+      i < maxDaysPerBatch && compare(currentEnd, endObj) < 0;
+      i++
+    ) {
+      const nextDate = new Date(
+        currentEnd.year,
+        currentEnd.month - 1,
+        currentEnd.day
+      );
+      nextDate.setDate(nextDate.getDate() + 1);
+      currentEnd = {
+        year: nextDate.getFullYear(),
+        month: nextDate.getMonth() + 1,
+        day: nextDate.getDate(),
+      };
+    }
+
+    // 确保不超过结束日期
+    if (compare(currentEnd, endObj) > 0) currentEnd = endObj;
+
+    ranges.push({
+      start: new NaiveDate(currentStart.year, currentStart.month, currentStart.day),
+      end: new NaiveDate(currentEnd.year, currentEnd.month, currentEnd.day),
+    });
+
+    // 准备下一批的开始日期（当前结束日期的下一天）
+    if (compare(currentEnd, endObj) >= 0) break;
+
+    const nextStart = new Date(
+      currentEnd.year,
+      currentEnd.month - 1,
+      currentEnd.day
+    );
+    nextStart.setDate(nextStart.getDate() + 1);
+    currentStart = {
+      year: nextStart.getFullYear(),
+      month: nextStart.getMonth() + 1,
+      day: nextStart.getDate(),
+    };
+  }
+
+  return ranges;
+}
+
+/**
  * 获取标的的分时线数据（自动跳过非交易日，仅获取交易日的K线数据）
- * @param {QuoteContext} ctx QuoteContext 实例
- * @param {string} symbol 标的代码
- * @param {NaiveDate} startDate 开始日期
- * @param {NaiveDate} endDate 结束日期
- * @param {string} symbolName 标的名称（用于日志）
- * @returns {Promise<Array>} 分时线数据数组
+ * @param ctx QuoteContext 实例
+ * @param symbol 标的代码
+ * @param startDate 开始日期
+ * @param endDate 结束日期
+ * @param symbolName 标的名称（用于日志）
+ * @returns 分时线数据数组
  */
 async function fetchSymbolCandlesticks(
-  ctx,
-  symbol,
-  startDate,
-  endDate,
-  symbolName
-) {
+  ctx: QuoteContext,
+  symbol: string,
+  startDate: NaiveDate,
+  endDate: NaiveDate,
+  symbolName: string
+): Promise<CandleData[]> {
   try {
     const normalizedSymbol = normalizeHKSymbol(symbol);
     console.log(`正在获取${symbolName} ${normalizedSymbol} 的分时线数据...`);
@@ -576,140 +804,22 @@ async function fetchSymbolCandlesticks(
       symbolName
     );
   } catch (err) {
-    console.warn(`获取${symbolName}分时线数据失败：`, err?.message ?? err);
+    console.warn(`获取${symbolName}分时线数据失败：`, (err as Error)?.message ?? err);
     return [];
   }
 }
 
 /**
- * 按日期范围批次获取K线数据（辅助函数）
- * @param {QuoteContext} ctx QuoteContext 实例
- * @param {string} normalizedSymbol 规范化后的标的代码
- * @param {Array<{start: NaiveDate, end: NaiveDate}>} dateRanges 日期范围数组
- * @param {string} symbolName 标的名称（用于日志）
- * @returns {Promise<Array>} 分时线数据数组
- */
-async function fetchCandlesticksByRanges(
-  ctx,
-  normalizedSymbol,
-  dateRanges,
-  symbolName
-) {
-  const allCandlesticks = [];
-  for (let i = 0; i < dateRanges.length; i++) {
-    const { start, end } = dateRanges[i];
-    const batchCandlesticks = await ctx.historyCandlesticksByDate(
-      normalizedSymbol,
-      Period.Min_1,
-      AdjustType.NoAdjust,
-      start,
-      end,
-      TradeSessions.All
-    );
-
-    if (batchCandlesticks && batchCandlesticks.length > 0) {
-      allCandlesticks.push(...batchCandlesticks);
-
-      // 如果返回的数据达到1000条，说明可能还有更多数据，需要进一步分割
-      if (batchCandlesticks.length >= 1000) {
-        console.warn(
-          `警告：批次 ${i + 1} 返回了 ${
-            batchCandlesticks.length
-          } 条数据，可能达到API限制。如果数据不完整，请减小日期范围。`
-        );
-      }
-    }
-
-    // 添加短暂延迟，避免请求过于频繁
-    if (i < dateRanges.length - 1) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-  }
-
-  if (allCandlesticks.length > 0) {
-    console.log(
-      `成功获取${symbolName} ${allCandlesticks.length} 条分时线数据（共 ${dateRanges.length} 批）`
-    );
-    return allCandlesticks;
-  }
-  console.warn(`未获取到${symbolName}的分时线数据`);
-  return [];
-}
-
-/**
- * 将日期范围分割成多个较小的范围（用于处理API的1000条限制，回退方案）
- * @param {NaiveDate} startDate 开始日期
- * @param {NaiveDate} endDate 结束日期
- * @param {number} maxDaysPerBatch 每批最多天数（默认2天，约1000条1分钟K线）
- * @returns {Array<{start: NaiveDate, end: NaiveDate}>} 日期范围数组
- */
-function splitDateRange(startDate, endDate, maxDaysPerBatch = 2) {
-  // 内联比较函数
-  const compare = (date1, date2) => {
-    if (date1.year !== date2.year) return date1.year < date2.year ? -1 : 1;
-    if (date1.month !== date2.month) return date1.month < date2.month ? -1 : 1;
-    if (date1.day < date2.day) return -1;
-    if (date1.day > date2.day) return 1;
-    return 0;
-  };
-
-  const ranges = [];
-  let currentStart = startDate;
-
-  while (compare(currentStart, endDate) <= 0) {
-    // 计算当前批次的结束日期
-    let currentEnd = currentStart;
-    for (
-      let i = 1;
-      i < maxDaysPerBatch && compare(currentEnd, endDate) < 0;
-      i++
-    ) {
-      const nextDate = new Date(
-        currentEnd.year,
-        currentEnd.month - 1,
-        currentEnd.day
-      );
-      nextDate.setDate(nextDate.getDate() + 1);
-      currentEnd = new NaiveDate(
-        nextDate.getFullYear(),
-        nextDate.getMonth() + 1,
-        nextDate.getDate()
-      );
-    }
-
-    // 确保不超过结束日期
-    if (compare(currentEnd, endDate) > 0) currentEnd = endDate;
-
-    ranges.push({ start: currentStart, end: currentEnd });
-
-    // 准备下一批的开始日期（当前结束日期的下一天）
-    if (compare(currentEnd, endDate) >= 0) break;
-
-    const nextStart = new Date(
-      currentEnd.year,
-      currentEnd.month - 1,
-      currentEnd.day
-    );
-    nextStart.setDate(nextStart.getDate() + 1);
-    currentStart = new NaiveDate(
-      nextStart.getFullYear(),
-      nextStart.getMonth() + 1,
-      nextStart.getDate()
-    );
-  }
-
-  return ranges;
-}
-
-/**
  * 获取指定日期范围的分时线数据
- * @param {string} symbol 标的代码（例如：HSI.HK 或 700.HK）
- * @param {string} dateRangeStr 日期范围字符串，格式：
+ * @param symbol 标的代码（例如：HSI.HK 或 700.HK）
+ * @param dateRangeStr 日期范围字符串，格式：
  *   - 单一日期：YYYY-MM-DD（例如：2024-12-11）
  *   - 日期范围：YYYY-MM-DD:YYYY-MM-DD 或 YYYY-MM-DD,YYYY-MM-DD（例如：2024-12-11:2024-12-15）
- * @returns {Promise<void>}
  */
-async function getIntradayCandlesticks(symbol, dateRangeStr) {
+async function getIntradayCandlesticks(
+  symbol: string,
+  dateRangeStr: string
+): Promise<void> {
   try {
     // 创建配置
     const config = createConfig();
@@ -757,7 +867,7 @@ async function getIntradayCandlesticks(symbol, dateRangeStr) {
       30
     );
 
-    let previousCandlesticks = [];
+    let previousCandlesticks: CandleData[] = [];
     if (previousTradingDay) {
       const prevDateStr = formatDateYYYYMMDD(previousTradingDay);
       console.log(
@@ -766,7 +876,7 @@ async function getIntradayCandlesticks(symbol, dateRangeStr) {
 
       // 获取上一个交易日的数据（用于计算指标）
       try {
-        previousCandlesticks = await ctx.historyCandlesticksByDate(
+        const rawCandlesticks = await ctx.historyCandlesticksByDate(
           normalizedSymbol,
           Period.Min_1,
           AdjustType.NoAdjust,
@@ -774,13 +884,14 @@ async function getIntradayCandlesticks(symbol, dateRangeStr) {
           previousTradingDay,
           TradeSessions.All
         );
-        if (previousCandlesticks && previousCandlesticks.length > 0) {
+        previousCandlesticks = (rawCandlesticks || []) as CandleData[];
+        if (previousCandlesticks.length > 0) {
           console.log(
             `成功获取上一个交易日 ${previousCandlesticks.length} 条分时线数据`
           );
         }
       } catch (err) {
-        console.warn(`获取上一个交易日数据失败：`, err?.message ?? err);
+        console.warn(`获取上一个交易日数据失败：`, (err as Error)?.message ?? err);
       }
     } else {
       console.log(`未找到上一个交易日，将仅使用日期范围内的数据计算指标...\n`);
@@ -793,11 +904,11 @@ async function getIntradayCandlesticks(symbol, dateRangeStr) {
       normalizedSymbol,
       startNaiveDate,
       endNaiveDate,
-      "监控标的"
+      '监控标的'
     );
 
     // 合并数据：前一天的数据在前，日期范围内的数据在后
-    const candlesticks = [
+    const candlesticks: CandleData[] = [
       ...(previousCandlesticks || []),
       ...(rangeCandlesticks || []),
     ];
@@ -843,7 +954,7 @@ async function getIntradayCandlesticks(symbol, dateRangeStr) {
             longSymbolStr,
             startNaiveDate,
             endNaiveDate,
-            "做多标的"
+            '做多标的'
           )
         : Promise.resolve([]),
       shortSymbolStr
@@ -852,29 +963,31 @@ async function getIntradayCandlesticks(symbol, dateRangeStr) {
             shortSymbolStr,
             startNaiveDate,
             endNaiveDate,
-            "做空标的"
+            '做空标的'
           )
         : Promise.resolve([]),
     ]);
 
-    console.log("");
+    console.log('');
 
     // 创建做多和做空标的的价格映射（按时间戳索引，便于快速查找）
-    const longPriceData = longCandlesticks.map((c) => ({
-      timestamp: c.timestamp,
-      price: decimalToNumber(c.close),
+    const longPriceData: PriceDataItem[] = longCandlesticks.map((c) => ({
+      timestamp: typeof c.timestamp === 'number' ? c.timestamp : (c.timestamp as Date).getTime(),
+      price: decimalToNumber(c.close as string | number | null),
     }));
-    const shortPriceData = shortCandlesticks.map((c) => ({
-      timestamp: c.timestamp,
-      price: decimalToNumber(c.close),
+    const shortPriceData: PriceDataItem[] = shortCandlesticks.map((c) => ({
+      timestamp: typeof c.timestamp === 'number' ? c.timestamp : (c.timestamp as Date).getTime(),
+      price: decimalToNumber(c.close as string | number | null),
     }));
 
     // 创建价格查找器（优化：使用 Map 缓存精确匹配）
-    const createPriceFinder = (priceData) => {
+    const createPriceFinder = (
+      priceData: PriceDataItem[]
+    ): ((targetTimestamp: number) => number | undefined) => {
       if (!priceData || priceData.length === 0) return () => undefined;
 
       // 创建精确匹配的 Map 缓存
-      const exactMatchMap = new Map();
+      const exactMatchMap = new Map<number, number>();
       for (const item of priceData) {
         exactMatchMap.set(item.timestamp, item.price);
       }
@@ -885,13 +998,13 @@ async function getIntradayCandlesticks(symbol, dateRangeStr) {
       );
       const tolerance = 5000; // 5秒 = 5000毫秒
 
-      return (targetTimestamp) => {
+      return (targetTimestamp: number): number | undefined => {
         // 先尝试精确匹配
         const exactPrice = exactMatchMap.get(targetTimestamp);
         if (exactPrice !== undefined) return exactPrice;
 
         // 如果精确匹配失败，查找最接近的时间戳（容差匹配）
-        let closestItem = null;
+        let closestItem: PriceDataItem | null = null;
         let minDiff = Infinity;
 
         for (const item of sortedData) {
@@ -944,45 +1057,46 @@ async function getIntradayCandlesticks(symbol, dateRangeStr) {
     };
 
     // 格式化列标题和数据列
-    const formatHeader = (text, width) => text.padEnd(width, " ");
-    const formatCell = (text, width) => String(text).padEnd(width, " ");
+    const formatHeader = (text: string, width: number): string => text.padEnd(width, ' ');
+    const formatCell = (text: string | number, width: number): string => String(text).padEnd(width, ' ');
 
     // 打印表头
     const header = [
-      formatHeader("日期", colWidths.date),
-      formatHeader("时间", colWidths.time),
-      formatHeader("收盘价", colWidths.close),
-      formatHeader("做多标的", colWidths.longPrice),
-      formatHeader("做空标的", colWidths.shortPrice),
-      formatHeader("RSI6", colWidths.rsi6),
-      formatHeader("RSI12", colWidths.rsi12),
-      formatHeader("KDJ.K", colWidths.kdjK),
-      formatHeader("KDJ.D", colWidths.kdjD),
-      formatHeader("KDJ.J", colWidths.kdjJ),
-      formatHeader("MACD", colWidths.macd),
-      formatHeader("MFI", colWidths.mfi),
-    ].join("  ");
+      formatHeader('日期', colWidths.date),
+      formatHeader('时间', colWidths.time),
+      formatHeader('收盘价', colWidths.close),
+      formatHeader('做多标的', colWidths.longPrice),
+      formatHeader('做空标的', colWidths.shortPrice),
+      formatHeader('RSI6', colWidths.rsi6),
+      formatHeader('RSI12', colWidths.rsi12),
+      formatHeader('KDJ.K', colWidths.kdjK),
+      formatHeader('KDJ.D', colWidths.kdjD),
+      formatHeader('KDJ.J', colWidths.kdjJ),
+      formatHeader('MACD', colWidths.macd),
+      formatHeader('MFI', colWidths.mfi),
+    ].join('  ');
     console.log(header);
-    console.log("─".repeat(header.length + 15));
+    console.log('─'.repeat(header.length + 15));
 
     // 预先提取所有数据数组，避免在循环中重复提取
-    const allCloses = candlesticks.map((c) => decimalToNumber(c.close));
-    const allHighs = candlesticks.map((c) => decimalToNumber(c.high));
-    const allLows = candlesticks.map((c) => decimalToNumber(c.low));
-    const allVolumes = candlesticks.map((c) => decimalToNumber(c.volume));
+    const allCloses = candlesticks.map((c) => decimalToNumber(c.close as string | number | null));
+    const allHighs = candlesticks.map((c) => decimalToNumber(c.high as string | number | null));
+    const allLows = candlesticks.map((c) => decimalToNumber(c.low as string | number | null));
+    const allVolumes = candlesticks.map((c) => decimalToNumber(c.volume as string | number | null));
 
     // 遍历日期范围内的数据（从 rangeStartIndex 开始）
     for (let i = rangeStartIndex; i < candlesticks.length; i++) {
-      const candle = candlesticks[i];
-      const dateStr = formatDateYYYYMMDD(candle.timestamp);
-      const timeStr = formatTimeHHMMSS(candle.timestamp);
-      const close = formatNumber(decimalToNumber(candle.close), 2);
+      const candle = candlesticks[i]!;
+      const timestamp = typeof candle.timestamp === 'number' ? candle.timestamp : (candle.timestamp as Date).getTime();
+      const dateStr = formatDateYYYYMMDD(new Date(timestamp));
+      const timeStr = formatTimeHHMMSS(timestamp);
+      const close = formatNumber(decimalToNumber(candle.close as string | number | null), 2);
 
       // 获取做多和做空标的在当前时间点的价格（使用容差匹配）
-      const longPrice = findLongPrice(candle.timestamp);
-      const shortPrice = findShortPrice(candle.timestamp);
-      const longPriceStr = formatIndicatorValue(longPrice, 3);
-      const shortPriceStr = formatIndicatorValue(shortPrice, 3);
+      const longPrice = findLongPrice(timestamp);
+      const shortPrice = findShortPrice(timestamp);
+      const longPriceStr = formatIndicatorValue(longPrice ?? null, 3);
+      const shortPriceStr = formatIndicatorValue(shortPrice ?? null, 3);
 
       // 使用切片获取到当前时间点为止的数据（避免重复创建数组）
       const closes = allCloses.slice(0, i + 1);
@@ -1007,7 +1121,7 @@ async function getIntradayCandlesticks(symbol, dateRangeStr) {
       const kdjKStr = formatIndicatorValue(kdj.k, 2);
       const kdjDStr = formatIndicatorValue(kdj.d, 2);
       const kdjJStr = formatIndicatorValue(kdj.j, 2);
-      const macdStr = formatIndicatorValue(macd?.macd, 4);
+      const macdStr = formatIndicatorValue(macd?.macd ?? null, 4);
       const mfiStr = formatIndicatorValue(mfi, 2);
 
       // 格式化数据行
@@ -1024,34 +1138,41 @@ async function getIntradayCandlesticks(symbol, dateRangeStr) {
         formatCell(kdjJStr, rowWidths.kdjJ),
         formatCell(macdStr, rowWidths.macd),
         formatCell(mfiStr, rowWidths.mfi),
-      ].join("  ");
+      ].join('  ');
 
       console.log(row);
     }
 
-    console.log("\n" + "─".repeat(70));
+    console.log('\n' + '─'.repeat(70));
     console.log(`总计：${rangeCandlesticksCount} 条日期范围内数据`);
 
     // 计算统计信息（仅使用日期范围内的数据）
     if (rangeCandlesticks.length > 0) {
-      const firstCandle = rangeCandlesticks[0];
-      const lastCandle = rangeCandlesticks.at(-1);
+      const firstCandle = rangeCandlesticks[0]!;
+      const lastCandle = rangeCandlesticks.at(-1)!;
 
-      const firstTime = formatTimeHHMMSS(firstCandle.timestamp);
-      const lastTime = formatTimeHHMMSS(lastCandle.timestamp);
+      const firstTimestamp = typeof firstCandle.timestamp === 'number'
+        ? firstCandle.timestamp
+        : (firstCandle.timestamp as Date).getTime();
+      const lastTimestamp = typeof lastCandle.timestamp === 'number'
+        ? lastCandle.timestamp
+        : (lastCandle.timestamp as Date).getTime();
+
+      const firstTime = formatTimeHHMMSS(firstTimestamp);
+      const lastTime = formatTimeHHMMSS(lastTimestamp);
 
       // 使用工具函数转换和格式化价格（仅使用日期范围内的数据）
       // 优化：使用循环替代 Math.max/min 展开操作，避免潜在的性能问题
       let highest = -Infinity;
       let lowest = Infinity;
       for (const c of rangeCandlesticks) {
-        const high = decimalToNumber(c.high);
-        const low = decimalToNumber(c.low);
+        const high = decimalToNumber(c.high as string | number | null);
+        const low = decimalToNumber(c.low as string | number | null);
         if (high > highest) highest = high;
         if (low < lowest) lowest = low;
       }
-      const firstOpen = decimalToNumber(firstCandle.open);
-      const lastClose = decimalToNumber(lastCandle.close);
+      const firstOpen = decimalToNumber(firstCandle.open as string | number | null);
+      const lastClose = decimalToNumber(lastCandle.close as string | number | null);
 
       console.log(`\n统计信息：`);
       console.log(`日期范围：${dateRangeDisplayStr}`);
@@ -1063,16 +1184,16 @@ async function getIntradayCandlesticks(symbol, dateRangeStr) {
       console.log(`收盘价：${formatNumber(lastClose, 2)}`);
     }
   } catch (error) {
-    console.error(`\n获取分时线数据失败：`, error.message || error);
-    if (error.stack) {
-      console.error(`错误堆栈：`, error.stack);
+    console.error(`\n获取分时线数据失败：`, (error as Error).message || error);
+    if ((error as Error).stack) {
+      console.error(`错误堆栈：`, (error as Error).stack);
     }
     process.exit(1);
   }
 }
 
 // 主函数
-async function main() {
+async function main(): Promise<void> {
   // 配置优先级（从高到低）：
   // 1. 命令行参数（process.argv[2], process.argv[3]）- 最高优先级，最灵活
   // 2. 环境变量（INTRADAY_SYMBOL, INTRADAY_DATE）
@@ -1083,40 +1204,40 @@ async function main() {
     process.argv[2] ||
     process.env.INTRADAY_SYMBOL ||
     DEFAULT_SYMBOL ||
-    "HSI.HK";
+    'HSI.HK';
   const dateRangeStr =
     process.argv[3] || process.env.INTRADAY_DATE || DEFAULT_DATE || null;
 
   if (!dateRangeStr) {
-    console.error("错误：未指定日期或日期范围");
-    console.error("\n使用方法：");
-    console.error("  方式1：直接在代码中修改配置变量（推荐）");
-    console.error("    修改文件顶部的 DEFAULT_SYMBOL 和 DEFAULT_DATE 变量");
+    console.error('错误：未指定日期或日期范围');
+    console.error('\n使用方法：');
+    console.error('  方式1：直接在代码中修改配置变量（推荐）');
+    console.error('    修改文件顶部的 DEFAULT_SYMBOL 和 DEFAULT_DATE 变量');
     console.error('    例如：const DEFAULT_DATE = "2024-12-11";');
     console.error(
       '    或日期范围：const DEFAULT_DATE = "2024-12-11:2024-12-15";'
     );
-    console.error("\n  方式2：通过环境变量配置");
-    console.error("    export INTRADAY_SYMBOL=HSI.HK");
-    console.error("    export INTRADAY_DATE=2024-12-11");
-    console.error("    或日期范围：export INTRADAY_DATE=2024-12-11:2024-12-15");
-    console.error("    node src/analysisTools/indicatorAnalysis.js");
-    console.error("\n  方式3：通过命令行参数");
+    console.error('\n  方式2：通过环境变量配置');
+    console.error('    export INTRADAY_SYMBOL=HSI.HK');
+    console.error('    export INTRADAY_DATE=2024-12-11');
+    console.error('    或日期范围：export INTRADAY_DATE=2024-12-11:2024-12-15');
+    console.error('    node src/analysisTools/indicatorAnalysis.js');
+    console.error('\n  方式3：通过命令行参数');
     console.error(
-      "    单一日期：node src/analysisTools/indicatorAnalysis.js HSI.HK 2024-12-11"
+      '    单一日期：node src/analysisTools/indicatorAnalysis.js HSI.HK 2024-12-11'
     );
     console.error(
-      "    日期范围：node src/analysisTools/indicatorAnalysis.js HSI.HK 2024-12-11:2024-12-15"
+      '    日期范围：node src/analysisTools/indicatorAnalysis.js HSI.HK 2024-12-11:2024-12-15'
     );
-    console.error("\n  方式4：在 .env 文件中配置");
-    console.error("    INTRADAY_SYMBOL=HSI.HK");
-    console.error("    INTRADAY_DATE=2024-12-11");
-    console.error("    或日期范围：INTRADAY_DATE=2024-12-11:2024-12-15");
-    console.error("    node src/analysisTools/indicatorAnalysis.js");
-    console.error("\n日期格式说明：");
-    console.error("  - 单一日期：YYYY-MM-DD（例如：2024-12-11）");
+    console.error('\n  方式4：在 .env 文件中配置');
+    console.error('    INTRADAY_SYMBOL=HSI.HK');
+    console.error('    INTRADAY_DATE=2024-12-11');
+    console.error('    或日期范围：INTRADAY_DATE=2024-12-11:2024-12-15');
+    console.error('    node src/analysisTools/indicatorAnalysis.js');
+    console.error('\n日期格式说明：');
+    console.error('  - 单一日期：YYYY-MM-DD（例如：2024-12-11）');
     console.error(
-      "  - 日期范围：YYYY-MM-DD:YYYY-MM-DD 或 YYYY-MM-DD,YYYY-MM-DD（例如：2024-12-11:2024-12-15）"
+      '  - 日期范围：YYYY-MM-DD:YYYY-MM-DD 或 YYYY-MM-DD,YYYY-MM-DD（例如：2024-12-11:2024-12-15）'
     );
     process.exit(1);
   }
@@ -1125,7 +1246,7 @@ async function main() {
 }
 
 // 运行主函数
-main().catch((error) => {
-  console.error("程序执行失败：", error);
+main().catch((error: unknown) => {
+  console.error('程序执行失败：', error);
   process.exit(1);
 });

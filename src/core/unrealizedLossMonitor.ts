@@ -18,33 +18,39 @@
  * 4. 刷新订单记录和浮亏数据
  */
 
-import { logger } from "../utils/logger.js";
-import { SignalType } from "../utils/constants.js";
-import { signalObjectPool } from "../utils/objectPool.js";
+import { logger } from '../utils/logger.js';
+import { SignalType } from '../utils/constants.js';
+import { signalObjectPool } from '../utils/objectPool.js';
+import type { Quote, Signal } from '../types/index.js';
+import type { RiskChecker } from './risk.js';
+import type { Trader } from './trader.js';
+import type { OrderRecorder } from './orderRecorder.js';
 
 export class UnrealizedLossMonitor {
-  constructor(maxUnrealizedLossPerSymbol) {
+  private maxUnrealizedLossPerSymbol: number;
+
+  constructor(maxUnrealizedLossPerSymbol: number) {
     this.maxUnrealizedLossPerSymbol = maxUnrealizedLossPerSymbol;
   }
 
   /**
    * 检查并执行保护性清仓（如果浮亏超过阈值）
-   * @param {string} symbol 标的代码
-   * @param {number} currentPrice 当前价格
-   * @param {boolean} isLong 是否是做多标的
-   * @param {Object} riskChecker 风险检查器实例
-   * @param {Object} trader 交易执行器实例
-   * @param {Object} orderRecorder 订单记录器实例
-   * @returns {Promise<boolean>} 是否触发了清仓
+   * @param symbol 标的代码
+   * @param currentPrice 当前价格
+   * @param isLong 是否是做多标的
+   * @param riskChecker 风险检查器实例
+   * @param trader 交易执行器实例
+   * @param orderRecorder 订单记录器实例
+   * @returns 是否触发了清仓
    */
   async checkAndLiquidate(
-    symbol,
-    currentPrice,
-    isLong,
-    riskChecker,
-    trader,
-    orderRecorder
-  ) {
+    symbol: string,
+    currentPrice: number,
+    isLong: boolean,
+    riskChecker: RiskChecker,
+    trader: Trader,
+    orderRecorder: OrderRecorder
+  ): Promise<boolean> {
     // 如果未启用浮亏监控，直接返回
     if (this.maxUnrealizedLossPerSymbol <= 0) {
       return false;
@@ -67,15 +73,15 @@ export class UnrealizedLossMonitor {
     }
 
     // 执行保护性清仓（使用市价单）
-    logger.error(lossCheck.reason);
+    logger.error(lossCheck.reason || '浮亏超过阈值，执行保护性清仓');
 
     // 从对象池获取信号对象
-    const liquidationSignal = signalObjectPool.acquire();
+    const liquidationSignal = signalObjectPool.acquire() as Signal & { useMarketOrder?: boolean };
     liquidationSignal.symbol = symbol;
     liquidationSignal.action = isLong
       ? SignalType.SELLCALL
       : SignalType.SELLPUT;
-    liquidationSignal.reason = lossCheck.reason;
+    liquidationSignal.reason = lossCheck.reason || '';
     liquidationSignal.quantity = lossCheck.quantity;
     liquidationSignal.price = currentPrice;
     liquidationSignal.useMarketOrder = true;
@@ -95,10 +101,10 @@ export class UnrealizedLossMonitor {
 
       return true; // 清仓成功
     } catch (err) {
-      const direction = isLong ? "做多标的" : "做空标的";
+      const direction = isLong ? '做多标的' : '做空标的';
       logger.error(
         `[保护性清仓失败] ${direction} ${symbol}`,
-        err?.message ?? String(err) ?? "未知错误"
+        (err as Error)?.message ?? String(err) ?? '未知错误'
       );
       return false;
     } finally {
@@ -109,24 +115,23 @@ export class UnrealizedLossMonitor {
 
   /**
    * 监控做多和做空标的的浮亏（价格变化时调用）
-   * @param {Object} longQuote 做多标的行情
-   * @param {Object} shortQuote 做空标的行情
-   * @param {string} longSymbol 做多标的代码
-   * @param {string} shortSymbol 做空标的代码
-   * @param {Object} riskChecker 风险检查器实例
-   * @param {Object} trader 交易执行器实例
-   * @param {Object} orderRecorder 订单记录器实例
-   * @returns {Promise<void>}
+   * @param longQuote 做多标的行情
+   * @param shortQuote 做空标的行情
+   * @param longSymbol 做多标的代码
+   * @param shortSymbol 做空标的代码
+   * @param riskChecker 风险检查器实例
+   * @param trader 交易执行器实例
+   * @param orderRecorder 订单记录器实例
    */
   async monitorUnrealizedLoss(
-    longQuote,
-    shortQuote,
-    longSymbol,
-    shortSymbol,
-    riskChecker,
-    trader,
-    orderRecorder
-  ) {
+    longQuote: Quote | null,
+    shortQuote: Quote | null,
+    longSymbol: string,
+    shortSymbol: string,
+    riskChecker: RiskChecker,
+    trader: Trader,
+    orderRecorder: OrderRecorder
+  ): Promise<void> {
     // 如果未启用浮亏监控，直接返回
     if (this.maxUnrealizedLossPerSymbol <= 0) {
       return;
@@ -135,7 +140,7 @@ export class UnrealizedLossMonitor {
     // 检查做多标的的浮亏
     if (longQuote && longSymbol) {
       const longPrice = longQuote.price;
-      if (Number.isFinite(longPrice) && longPrice > 0) {
+      if (Number.isFinite(longPrice) && longPrice !== null && longPrice > 0) {
         await this.checkAndLiquidate(
           longSymbol,
           longPrice,
@@ -150,7 +155,7 @@ export class UnrealizedLossMonitor {
     // 检查做空标的的浮亏
     if (shortQuote && shortSymbol) {
       const shortPrice = shortQuote.price;
-      if (Number.isFinite(shortPrice) && shortPrice > 0) {
+      if (Number.isFinite(shortPrice) && shortPrice !== null && shortPrice > 0) {
         await this.checkAndLiquidate(
           shortSymbol,
           shortPrice,

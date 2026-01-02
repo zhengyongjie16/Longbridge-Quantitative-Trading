@@ -16,7 +16,9 @@
       "Bash(dir:*)",
       "Bash(tree:*)",
       "Bash(wc:*)",
-      "Bash(cloc:*)"
+      "Bash(cloc:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run build:*)"
     ]
   }
 }

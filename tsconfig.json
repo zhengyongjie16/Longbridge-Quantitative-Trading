@@ -1,0 +1,51 @@
+{
+  "compilerOptions": {
+    // ===== 编译目标 =====
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "lib": ["ES2022"],
+
+    // ===== 严格模式（核心配置）=====
+    "strict": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitAny": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+
+    // ===== 额外检查 =====
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+
+    // ===== 模块解析 =====
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    // 注意: 禁用 isolatedModules 因为 longport SDK 使用了 const enum
+    "isolatedModules": false,
+
+    // ===== 输出配置 =====
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "removeComments": false,
+
+    // ===== 渐进式迁移配置 =====
+    "allowJs": true,
+    "checkJs": false,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "logs", "src/test/**/*"]
+}

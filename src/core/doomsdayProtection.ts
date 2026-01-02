@@ -14,11 +14,12 @@
  * - DOOMSDAY_PROTECTION 环境变量（默认 true）
  */
 
-import { logger } from "../utils/logger.js";
-import { normalizeHKSymbol } from "../utils/helpers.js";
-import { isBeforeClose15Minutes, isBeforeClose5Minutes } from "../utils/tradingTime.js";
-import { SignalType } from "../utils/constants.js";
-import { signalObjectPool } from "../utils/objectPool.js";
+import { logger } from '../utils/logger.js';
+import { normalizeHKSymbol } from '../utils/helpers.js';
+import { isBeforeClose15Minutes, isBeforeClose5Minutes } from '../utils/tradingTime.js';
+import { SignalType } from '../utils/constants.js';
+import { signalObjectPool } from '../utils/objectPool.js';
+import type { Position, Quote, Signal } from '../types/index.js';
 
 /**
  * 末日保护程序类
@@ -29,47 +30,47 @@ import { signalObjectPool } from "../utils/objectPool.js";
 export class DoomsdayProtection {
   /**
    * 检查是否应该拒绝买入（收盘前15分钟）
-   * @param {Date} currentTime 当前时间
-   * @param {boolean} isHalfDay 是否是半日交易日
-   * @returns {boolean} true表示应该拒绝买入
+   * @param currentTime 当前时间
+   * @param isHalfDay 是否是半日交易日
+   * @returns true表示应该拒绝买入
    */
-  shouldRejectBuy(currentTime, isHalfDay) {
+  shouldRejectBuy(currentTime: Date, isHalfDay: boolean): boolean {
     return isBeforeClose15Minutes(currentTime, isHalfDay);
   }
 
   /**
    * 检查是否应该自动清仓（收盘前5分钟）
-   * @param {Date} currentTime 当前时间
-   * @param {boolean} isHalfDay 是否是半日交易日
-   * @returns {boolean} true表示应该自动清仓
+   * @param currentTime 当前时间
+   * @param isHalfDay 是否是半日交易日
+   * @returns true表示应该自动清仓
    */
-  shouldClearPositions(currentTime, isHalfDay) {
+  shouldClearPositions(currentTime: Date, isHalfDay: boolean): boolean {
     return isBeforeClose5Minutes(currentTime, isHalfDay);
   }
 
   /**
    * 生成清仓信号（收盘前5分钟自动清仓）
-   * @param {Array} positions 持仓列表
-   * @param {Object} longQuote 做多标的行情
-   * @param {Object} shortQuote 做空标的行情
-   * @param {string} longSymbol 做多标的代码
-   * @param {string} shortSymbol 做空标的代码
-   * @param {boolean} isHalfDay 是否是半日交易日
-   * @returns {Array} 清仓信号列表
+   * @param positions 持仓列表
+   * @param longQuote 做多标的行情
+   * @param shortQuote 做空标的行情
+   * @param longSymbol 做多标的代码
+   * @param shortSymbol 做空标的代码
+   * @param isHalfDay 是否是半日交易日
+   * @returns 清仓信号列表
    */
   generateClearanceSignals(
-    positions,
-    longQuote,
-    shortQuote,
-    longSymbol,
-    shortSymbol,
-    isHalfDay
-  ) {
-    const clearSignals = [];
+    positions: Position[],
+    longQuote: Quote | null,
+    shortQuote: Quote | null,
+    longSymbol: string,
+    shortSymbol: string,
+    isHalfDay: boolean
+  ): Signal[] {
+    const clearSignals: Signal[] = [];
     const normalizedLongSymbol = normalizeHKSymbol(longSymbol);
     const normalizedShortSymbol = normalizeHKSymbol(shortSymbol);
 
-    const closeTimeRange = isHalfDay ? "11:55-11:59" : "15:55-15:59";
+    const closeTimeRange = isHalfDay ? '11:55-11:59' : '15:55-15:59';
     logger.info(
       `[末日保护程序] 收盘前5分钟（${closeTimeRange}），准备清空所有持仓`
     );
@@ -81,7 +82,7 @@ export class DoomsdayProtection {
 
     for (const pos of positions) {
       // 验证持仓对象有效性
-      if (!pos || !pos.symbol || typeof pos.symbol !== "string") {
+      if (!pos || !pos.symbol || typeof pos.symbol !== 'string') {
         continue; // 跳过无效持仓
       }
 
@@ -94,12 +95,12 @@ export class DoomsdayProtection {
       const isShortPos = normalizedPosSymbol === normalizedShortSymbol;
 
       // 获取该标的的当前价格、最小买卖单位和名称
-      let currentPrice = null;
-      let lotSize = null;
-      let symbolName = pos.symbolName || null; // 优先使用持仓中的名称
+      let currentPrice: number | null = null;
+      let lotSize: number | null = null;
+      let symbolName: string | null = pos.symbolName || null; // 优先使用持仓中的名称
       if (normalizedPosSymbol === normalizedLongSymbol && longQuote) {
         currentPrice = longQuote.price;
-        lotSize = longQuote.lotSize;
+        lotSize = longQuote.lotSize ?? null;
         if (!symbolName) {
           symbolName = longQuote.name;
         }
@@ -108,7 +109,7 @@ export class DoomsdayProtection {
         shortQuote
       ) {
         currentPrice = shortQuote.price;
-        lotSize = shortQuote.lotSize;
+        lotSize = shortQuote.lotSize ?? null;
         if (!symbolName) {
           symbolName = shortQuote.name;
         }
@@ -118,10 +119,10 @@ export class DoomsdayProtection {
       // - 做多标的持仓：使用 SELLCALL 信号 → OrderSide.Sell（卖出做多标的，清仓）
       // - 做空标的持仓：使用 SELLPUT 信号 → OrderSide.Sell（卖出做空标的，平空仓）
       const action = isShortPos ? SignalType.SELLPUT : SignalType.SELLCALL;
-      const positionType = isShortPos ? "做空标的" : "做多标的";
+      const positionType = isShortPos ? '做空标的' : '做多标的';
 
       // 从对象池获取信号对象
-      const signal = signalObjectPool.acquire();
+      const signal = signalObjectPool.acquire() as Signal;
       signal.symbol = normalizedPosSymbol;
       signal.symbolName = symbolName;
       signal.action = action;

@@ -15,39 +15,63 @@
  * - 每次交易后显示更新后的账户和持仓
  */
 
-import { logger } from "./logger.js";
+import { logger } from './logger.js';
 import {
   normalizeHKSymbol,
   formatAccountChannel,
   formatNumber,
   isDefined,
-} from "./helpers.js";
+} from './helpers.js';
+import type { AccountSnapshot, Position, Quote } from '../types/index.js';
+
+/**
+ * Trader 接口定义
+ */
+interface Trader {
+  getAccountSnapshot(): Promise<AccountSnapshot | null>;
+  getStockPositions(): Promise<Position[]>;
+}
+
+/**
+ * MarketDataClient 接口定义
+ */
+interface MarketDataClient {
+  getLatestQuote(symbol: string): Promise<Quote | null>;
+}
+
+/**
+ * 状态对象接口
+ */
+interface LastState {
+  cachedAccount: AccountSnapshot | null;
+  cachedPositions: Position[];
+}
 
 /**
  * 显示账户和持仓信息（仅在交易后调用）
- * @param {Object} trader Trader实例
- * @param {Object} marketDataClient MarketDataClient实例
- * @param {Object} lastState 状态对象，用于更新缓存
+ * @param trader Trader实例
+ * @param marketDataClient MarketDataClient实例
+ * @param lastState 状态对象，用于更新缓存
  */
 export async function displayAccountAndPositions(
-  trader,
-  marketDataClient,
-  lastState
-) {
+  trader: Trader,
+  marketDataClient: MarketDataClient,
+  lastState: LastState
+): Promise<void> {
   try {
     // 并行获取账户信息和持仓信息，减少等待时间
     const [account, positions] = await Promise.all([
-      trader.getAccountSnapshot().catch((err) => {
+      trader.getAccountSnapshot().catch((err: Error) => {
         logger.warn(
-          "获取账户信息失败",
-          err?.message ?? String(err) ?? "未知错误"
+          '获取账户信息失败',
+          err?.message ?? String(err) ?? '未知错误'
         );
         return null;
       }),
-      trader.getStockPositions().catch((err) => {
+      trader.getStockPositions().catch((err: Error) => {
         logger.warn(
-          "获取股票仓位失败",
-          err?.message ?? String(err) ?? "未知错误"
+          '获取股票仓位失败',
+          err?.message ?? String(err) ?? '未知错误'
         );
         return [];
       }),
@@ -68,18 +92,18 @@ export async function displayAccountAndPositions(
       );
     }
     if (Array.isArray(positions) && positions.length > 0) {
-      logger.info("股票持仓：");
+      logger.info('股票持仓：');
 
       // 批量获取所有持仓标的的完整信息（包含中文名称和价格）
       const positionSymbols = positions.map((p) => p.symbol).filter(Boolean);
-      const symbolInfoMap = new Map(); // key: normalizedSymbol, value: {name, price}
+      const symbolInfoMap = new Map<string, { name: string | null; price: number | null }>(); // key: normalizedSymbol, value: {name, price}
       if (positionSymbols.length > 0) {
         // 使用 getLatestQuote 获取每个标的的完整信息（包含 staticInfo 和中文名称）
         const quotePromises = positionSymbols.map((symbol) =>
-          marketDataClient.getLatestQuote(symbol).catch((err) => {
+          marketDataClient.getLatestQuote(symbol).catch((err: Error) => {
             logger.warn(
               `[持仓监控] 获取标的 ${symbol} 信息失败: ${
-                err?.message ?? String(err) ?? "未知错误"
+                err?.message ?? String(err) ?? '未知错误'
               }`
             );
             return null;
@@ -106,7 +130,7 @@ export async function displayAccountAndPositions(
         const symbolInfo = symbolInfoMap.get(normalizedPosSymbol);
 
         // 优先使用从行情 API 获取的中文名称，否则使用持仓数据中的名称，最后使用 "-"
-        const nameText = symbolInfo?.name ?? pos.symbolName ?? "-";
+        const nameText = symbolInfo?.name ?? pos.symbolName ?? '-';
         const codeText = normalizeHKSymbol(pos.symbol);
 
         // 获取当前价格（优先使用实时价格，否则使用成本价）
@@ -143,16 +167,16 @@ export async function displayAccountAndPositions(
           )} ${priceText} 市值=${formatNumber(
             marketValue,
             2
-          )} 仓位=${formatNumber(positionPercent, 2)}% ${pos.currency ?? ""}`
+          )} 仓位=${formatNumber(positionPercent, 2)}% ${pos.currency ?? ''}`
         );
       });
     } else {
-      logger.info("当前无股票持仓。");
+      logger.info('当前无股票持仓。');
     }
   } catch (err) {
     logger.warn(
-      "获取账户和持仓信息失败",
-      err?.message ?? String(err) ?? "未知错误"
+      '获取账户和持仓信息失败',
+      (err as Error)?.message ?? String(err) ?? '未知错误'
     );
   }
 }
