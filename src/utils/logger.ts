@@ -571,9 +571,8 @@ export const logger: Logger = {
   },
 };
 
-// 分离同步和异步清理的状态标志，避免竞态条件
+// 同步清理的状态标志
 let isSyncCleaningUp = false;
-let isAsyncCleaningUp = false;
 
 /**
  * 同步清理函数（用于进程退出）
@@ -598,34 +597,6 @@ export function cleanupSync(): void {
     // 清理过程中的错误不应该阻止退出
     try {
       console.error('[Logger] 同步清理过程出错:', err);
-    } catch {
-      // 忽略
-    }
-  }
-}
-
-/**
- * 异步清理函数（可选，用于优雅关闭）
- * 注意：此函数独立于同步清理，可以在异步上下文中使用
- */
-export async function cleanupAsync(): Promise<void> {
-  if (isAsyncCleaningUp) {
-    return;
-  }
-  isAsyncCleaningUp = true;
-
-  try {
-    // pino 的 flush() 是同步的
-    pinoLogger.flush();
-
-    // 异步等待所有文件流关闭完成
-    await Promise.all([
-      systemFileStream.closeAsync(),
-      debugFileStream ? debugFileStream.closeAsync() : Promise.resolve(),
-    ]);
-  } catch (err) {
-    try {
-      console.error('[Logger] 异步清理过程出错:', err);
     } catch {
       // 忽略
     }

@@ -33,15 +33,6 @@ export function isDefined<T>(value: T | null | undefined): value is T {
 }
 
 /**
- * 检查值是否为有效的有限数字（已定义且是有限数字）
- * @param value 待检查的值
- * @returns 如果值为有效的有限数字返回 true，否则返回 false
- */
-export function isValidNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
-}
-
-/**
  * 规范化港股代码，自动添加 .HK 后缀（如果还没有）
  * @param symbol 标的代码，例如 "68547" 或 "68547.HK"
  * @returns 规范化后的代码，例如 "68547.HK"

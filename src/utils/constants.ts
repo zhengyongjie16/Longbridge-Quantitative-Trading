@@ -29,12 +29,3 @@ export { SignalType };
 export function isBuyAction(action: SignalType | string): boolean {
   return action === SignalType.BUYCALL || action === SignalType.BUYPUT;
 }
-
-/**
- * 判断信号是否为卖出操作（平仓）
- * @param action 信号类型
- * @returns 如果是卖出操作返回true
- */
-export function isSellAction(action: SignalType | string): boolean {
-  return action === SignalType.SELLCALL || action === SignalType.SELLPUT;
-}

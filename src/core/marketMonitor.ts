@@ -20,8 +20,8 @@ import { logger } from '../utils/logger.js';
 import {
   normalizeHKSymbol,
   formatQuoteDisplay,
-  isValidNumber,
 } from '../utils/helpers.js';
+import { isValidNumber } from '../utils/indicatorHelpers.js';
 import { hasChanged } from '../utils/tradingTime.js';
 import {
   monitorValuesObjectPool,
