@@ -47,9 +47,9 @@ interface MonitorValues {
  * 状态对象接口
  */
 interface LastState {
-  longPrice?: number | null;
-  shortPrice?: number | null;
-  monitorValues?: MonitorValues | null;
+  longPrice: number | null | undefined;
+  shortPrice: number | null | undefined;
+  monitorValues: MonitorValues | null | undefined;
 }
 
 /**

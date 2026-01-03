@@ -23,7 +23,6 @@
 
 import { logger } from '../utils/logger.js';
 import { verificationEntryPool, signalObjectPool } from '../utils/objectPool.js';
-import { SignalType } from '../utils/constants.js';
 import { getIndicatorValue } from '../utils/indicatorHelpers.js';
 import type { IndicatorSnapshot, Quote, Signal, VerificationConfig } from '../types/index.js';
 
@@ -36,13 +35,9 @@ interface VerificationEntry {
 }
 
 /**
- * 延迟信号接口（扩展 Signal）
+ * 延迟信号类型（等同于 Signal）
  */
-interface DelayedSignal extends Signal {
-  triggerTime?: Date;
-  indicators1?: Record<string, number>;
-  verificationHistory?: VerificationEntry[];
-}
+type DelayedSignal = Signal;
 
 /**
  * 状态对象接口
@@ -88,7 +83,7 @@ export class SignalVerificationManager {
           lastState.pendingDelayedSignals.push(delayedSignal);
 
           const actionDesc =
-            delayedSignal.action === SignalType.BUYCALL
+            delayedSignal.action === 'BUYCALL'
               ? '买入做多'
               : '买入做空';
           logger.info(
@@ -421,8 +416,8 @@ export class SignalVerificationManager {
       Math.abs(actualTime2.getTime() - targetTime2.getTime()) / 1000;
 
     // 根据信号类型使用不同的验证条件
-    const isBuyCall = pendingSignal.action === SignalType.BUYCALL;
-    const isBuyPut = pendingSignal.action === SignalType.BUYPUT;
+    const isBuyCall = pendingSignal.action === 'BUYCALL';
+    const isBuyPut = pendingSignal.action === 'BUYPUT';
 
     // 只处理延迟验证的信号类型
     if (!isBuyCall && !isBuyPut) {

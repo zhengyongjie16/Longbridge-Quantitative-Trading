@@ -21,7 +21,6 @@
 
 import { logger } from '../utils/logger.js';
 import { normalizeHKSymbol, getSymbolName } from '../utils/helpers.js';
-import { SignalType } from '../utils/constants.js';
 import { TRADING_CONFIG } from '../config/config.trading.js';
 import type { Quote, Position, Signal, AccountSnapshot, IndicatorSnapshot } from '../types/index.js';
 import type { OrderRecorder } from './orderRecorder.js';
@@ -225,12 +224,12 @@ export class SignalProcessor {
   ): Signal[] {
     for (const sig of signals) {
       // 只处理卖出信号（SELLCALL 和 SELLPUT），跳过买入信号
-      if (sig.action !== SignalType.SELLCALL && sig.action !== SignalType.SELLPUT) {
+      if (sig.action !== 'SELLCALL' && sig.action !== 'SELLPUT') {
         continue;
       }
 
       // 根据信号类型确定对应的持仓和行情
-      const isLongSignal = sig.action === SignalType.SELLCALL;
+      const isLongSignal = sig.action === 'SELLCALL';
       const position = isLongSignal ? longPosition : shortPosition;
       const quote = isLongSignal ? longQuote : shortQuote;
       const direction: 'LONG' | 'SHORT' = isLongSignal ? 'LONG' : 'SHORT';
@@ -272,7 +271,7 @@ export class SignalProcessor {
           logger.warn(
             `[卖出信号处理] ${signalName}(末日保护): 持仓对象无效，无法清仓`,
           );
-          sig.action = SignalType.HOLD;
+          sig.action = 'HOLD';
           sig.reason = `${sig.reason}，但持仓对象无效`;
         }
       } else {
@@ -286,7 +285,7 @@ export class SignalProcessor {
         );
         if (result.shouldHold) {
           logger.info(`[卖出信号处理] ${signalName}被跳过: ${result.reason}`);
-          sig.action = SignalType.HOLD;
+          sig.action = 'HOLD';
           sig.reason = result.reason;
         } else {
           logger.info(
@@ -353,7 +352,7 @@ export class SignalProcessor {
 
       // 检查是否是买入操作
       const isBuyActionCheck =
-        sig.action === SignalType.BUYCALL || sig.action === SignalType.BUYPUT;
+        sig.action === 'BUYCALL' || sig.action === 'BUYPUT';
 
       if (isBuyActionCheck) {
         // 买入操作检查顺序：
@@ -366,9 +365,9 @@ export class SignalProcessor {
         // 1. 检查交易频率限制
         if (!trader._canTradeNow(sig.action)) {
           const direction =
-            sig.action === SignalType.BUYCALL ? '做多标的' : '做空标的';
+            sig.action === 'BUYCALL' ? '做多标的' : '做空标的';
           const directionKey =
-            sig.action === SignalType.BUYCALL ? 'LONG' : 'SHORT';
+            sig.action === 'BUYCALL' ? 'LONG' : 'SHORT';
           const lastTime = trader._lastBuyTime.get(directionKey);
           const intervalMs = (TRADING_CONFIG.buyIntervalSeconds ?? 60) * 1000;
           const waitSeconds = lastTime
@@ -381,7 +380,7 @@ export class SignalProcessor {
         }
 
         // 2. 买入价格限制
-        const isLongBuyAction = sig.action === SignalType.BUYCALL;
+        const isLongBuyAction = sig.action === 'BUYCALL';
         const latestBuyPrice = orderRecorder.getLatestBuyOrderPrice(
           normalizedSigSymbol,
           isLongBuyAction,

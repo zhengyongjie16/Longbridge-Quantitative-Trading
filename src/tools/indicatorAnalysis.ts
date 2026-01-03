@@ -937,11 +937,11 @@ async function getIntradayCandlesticks(
     // 优先级：代码配置 > 环境变量 > TRADING_CONFIG，确保转换为字符串
     const longSymbolRaw =
       DEFAULT_LONG_SYMBOL ||
-      process.env.LONG_SYMBOL ||
+      process.env['LONG_SYMBOL'] ||
       TRADING_CONFIG.longSymbol;
     const shortSymbolRaw =
       DEFAULT_SHORT_SYMBOL ||
-      process.env.SHORT_SYMBOL ||
+      process.env['SHORT_SYMBOL'] ||
       TRADING_CONFIG.shortSymbol;
     const longSymbolStr = longSymbolRaw ? String(longSymbolRaw) : null;
     const shortSymbolStr = shortSymbolRaw ? String(shortSymbolRaw) : null;
@@ -1202,11 +1202,11 @@ async function main(): Promise<void> {
 
   const symbol =
     process.argv[2] ||
-    process.env.INTRADAY_SYMBOL ||
+    process.env['INTRADAY_SYMBOL'] ||
     DEFAULT_SYMBOL ||
     'HSI.HK';
   const dateRangeStr =
-    process.argv[3] || process.env.INTRADAY_DATE || DEFAULT_DATE || null;
+    process.argv[3] || process.env['INTRADAY_DATE'] || DEFAULT_DATE || null;
 
   if (!dateRangeStr) {
     console.error('错误：未指定日期或日期范围');

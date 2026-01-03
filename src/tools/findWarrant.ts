@@ -418,7 +418,7 @@ async function main(): Promise<void> {
     // 从配置获取监控标的，优先级：命令行参数 > 环境变量 > 文件配置 > 交易配置
     const monitorSymbol =
       process.argv[2] ||
-      process.env.MONITOR_SYMBOL ||
+      process.env['MONITOR_SYMBOL'] ||
       DEFAULT_MONITOR_SYMBOL ||
       TRADING_CONFIG.monitorSymbol;
 

@@ -29,14 +29,14 @@ import type { Trader } from './trader.js';
 /**
  * 订单记录接口
  */
-export interface OrderRecord {
+interface OrderRecord {
   orderId: string;
   symbol: string;
   executedPrice: number;
   executedQuantity: number;
   executedTime: number;
-  submittedAt?: Date;
-  updatedAt?: Date;
+  submittedAt: Date | undefined;
+  updatedAt: Date | undefined;
 }
 
 /**
@@ -116,7 +116,7 @@ export class OrderRecorder {
    * @param isLongSymbol 是否为做多标的
    */
   private _debugOutputOrders(symbol: string, isLongSymbol: boolean): void {
-    if (process.env.DEBUG === 'true') {
+    if (process.env['DEBUG'] === 'true') {
       const positionType = isLongSymbol ? '做多标的' : '做空标的';
       const normalizedSymbol = normalizeHKSymbol(symbol);
       const currentOrders = isLongSymbol
@@ -243,6 +243,8 @@ export class OrderRecorder {
       executedPrice: price,
       executedQuantity: quantity,
       executedTime: now,
+      submittedAt: undefined,
+      updatedAt: undefined,
     });
     this._setBuyOrdersList(normalizedSymbol, isLongSymbol, list);
     const positionType = isLongSymbol ? '做多标的' : '做空标的';
@@ -480,6 +482,8 @@ export class OrderRecorder {
         executedPrice: executedPrice,
         executedQuantity: executedQuantity,
         executedTime: executedTime,
+        submittedAt: undefined,
+        updatedAt: undefined,
       };
       // 买入订单额外包含时间戳字段（用于refreshOrders）
       if (isBuyOrder) {

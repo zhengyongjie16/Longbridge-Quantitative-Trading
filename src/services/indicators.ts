@@ -30,7 +30,7 @@ import { logger } from '../utils/logger.js';
 import type { KDJIndicator, MACDIndicator } from '../types/index.js';
 
 // 读取DEBUG环境变量
-const IS_DEBUG = process.env.DEBUG === 'true';
+const IS_DEBUG = process.env['DEBUG'] === 'true';
 
 /**
  * 将值转换为数字
@@ -69,7 +69,7 @@ interface IndicatorSnapshotResult {
  * @param period RSI周期，例如：6（RSI6）
  * @returns RSI值（0-100），如果无法计算则返回null
  */
-export function calculateRSI(validCloses: number[], period: number): number | null {
+function calculateRSI(validCloses: number[], period: number): number | null {
   if (
     !validCloses ||
     validCloses.length <= period ||
@@ -119,7 +119,7 @@ export function calculateRSI(validCloses: number[], period: number): number | nu
  * @param period KDJ周期，默认9
  * @returns KDJ对象 {k, d, j}，如果无法计算则返回null
  */
-export function calculateKDJ(candles: CandleData[], period: number = 9): KDJIndicator | null {
+function calculateKDJ(candles: CandleData[], period: number = 9): KDJIndicator | null {
   if (!candles || candles.length < period) {
     return null;
   }
@@ -227,7 +227,7 @@ export function calculateKDJ(candles: CandleData[], period: number = 9): KDJIndi
  * @param signalPeriod 信号线周期，默认9
  * @returns MACD对象 {dif, dea, macd}，如果无法计算则返回null
  */
-export function calculateMACD(
+function calculateMACD(
   validCloses: number[],
   fastPeriod: number = 12,
   slowPeriod: number = 26,
@@ -296,7 +296,7 @@ export function calculateMACD(
  * @param period MFI周期，默认14
  * @returns MFI值（0-100），如果无法计算则返回null
  */
-export function calculateMFI(candles: CandleData[], period: number = 14): number | null {
+function calculateMFI(candles: CandleData[], period: number = 14): number | null {
   if (!candles || candles.length < period + 1) {
     return null;
   }
@@ -387,7 +387,7 @@ export function calculateMFI(candles: CandleData[], period: number = 14): number
  * @param period EMA周期，范围 1-250
  * @returns EMA值，如果无法计算则返回null
  */
-export function calculateEMA(validCloses: number[], period: number): number | null {
+function calculateEMA(validCloses: number[], period: number): number | null {
   if (
     !validCloses ||
     validCloses.length < period ||

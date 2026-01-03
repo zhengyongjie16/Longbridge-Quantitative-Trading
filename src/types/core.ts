@@ -6,20 +6,32 @@ import { OrderSide, OrderStatus, OrderType, Market } from 'longport';
 
 // ==================== 信号类型 ====================
 
-export enum SignalType {
-  BUYCALL = 'BUYCALL',   // 买入做多
-  SELLCALL = 'SELLCALL', // 卖出做多
-  BUYPUT = 'BUYPUT',     // 买入做空
-  SELLPUT = 'SELLPUT',   // 卖出做空
-  HOLD = 'HOLD',         // 持有
-}
+/**
+ * 信号类型 - 使用联合类型代替 enum
+ */
+export type SignalType =
+  | 'BUYCALL'   // 买入做多
+  | 'SELLCALL'  // 卖出做多
+  | 'BUYPUT'    // 买入做空
+  | 'SELLPUT'   // 卖出做空
+  | 'HOLD';     // 持有
 
 /**
- * 通用信号接口 - 所有信号类型的基础
+ * 验证历史条目
+ * 注意：此类型不使用 readonly，因为需要在对象池中修改
  */
-export interface Signal {
+export type VerificationEntry = {
+  timestamp: Date;
+  indicators: Record<string, number>;
+};
+
+/**
+ * 通用信号类型 - 所有信号类型的基础
+ * 注意：此类型不使用 readonly，因为需要在运行时修改属性
+ */
+export type Signal = {
   symbol: string;
-  symbolName?: string | null;
+  symbolName: string | null;
   action: SignalType;
   reason?: string;
   price?: number | null;
@@ -28,24 +40,18 @@ export interface Signal {
   signalTriggerTime?: Date | null;
   useMarketOrder?: boolean;
   // 延迟验证字段
-  triggerTime?: Date;
-  indicators1?: Record<string, number>;
-  verificationHistory?: VerificationEntry[];
-}
-
-// 信号类型别名（用于类型守卫）
-export type BuySignal = Signal & { action: SignalType.BUYCALL | SignalType.BUYPUT };
-export type SellSignal = Signal & { action: SignalType.SELLCALL | SignalType.SELLPUT };
-export type HoldSignal = Signal & { action: SignalType.HOLD };
-
-export interface VerificationEntry {
-  timestamp: Date;
-  indicators: Record<string, number>;
-}
+  triggerTime?: Date | null;
+  indicators1?: Record<string, number> | null;
+  verificationHistory?: VerificationEntry[] | null;
+};
 
 // ==================== 持仓和账户 ====================
 
-export interface Position {
+/**
+ * 持仓信息
+ * 注意：此类型不使用 readonly，因为需要在运行时修改
+ */
+export type Position = {
   accountChannel: string;
   symbol: string;
   symbolName: string;
@@ -54,61 +60,72 @@ export interface Position {
   currency: string;
   costPrice: number;
   market: Market | string;
-}
+};
 
-export interface AccountSnapshot {
-  currency: string;
-  totalCash: number;
-  netAssets: number;
-  positionValue: number;
-}
+/**
+ * 账户快照
+ */
+export type AccountSnapshot = {
+  readonly currency: string;
+  readonly totalCash: number;
+  readonly netAssets: number;
+  readonly positionValue: number;
+};
 
 // ==================== 行情和指标 ====================
 
-export interface Quote {
-  symbol: string;
-  name: string | null;
-  price: number;
-  prevClose: number;
-  timestamp: number;
-  lotSize?: number;
-  raw?: unknown;
-  staticInfo?: unknown;
-}
+/**
+ * 行情数据
+ */
+export type Quote = {
+  readonly symbol: string;
+  readonly name: string | null;
+  readonly price: number;
+  readonly prevClose: number;
+  readonly timestamp: number;
+  readonly lotSize?: number;
+  readonly raw?: unknown;
+  readonly staticInfo?: unknown;
+};
 
-export interface IndicatorSnapshot {
-  price: number;
-  changePercent: number | null;
-  ema: Record<number, number> | null;
-  rsi: Record<number, number> | null;
-  mfi: number | null;
-  kdj: KDJIndicator | null;
-  macd: MACDIndicator | null;
-}
+/**
+ * KDJ 指标
+ */
+export type KDJIndicator = {
+  readonly k: number;
+  readonly d: number;
+  readonly j: number;
+};
 
-export interface KDJIndicator {
-  k: number;
-  d: number;
-  j: number;
-}
+/**
+ * MACD 指标
+ */
+export type MACDIndicator = {
+  readonly macd: number;
+  readonly dif: number;
+  readonly dea: number;
+};
 
-export interface MACDIndicator {
-  macd: number;
-  dif: number;
-  dea: number;
-}
+/**
+ * 指标快照
+ */
+export type IndicatorSnapshot = {
+  readonly price: number;
+  readonly changePercent: number | null;
+  readonly ema: Readonly<Record<number, number>> | null;
+  readonly rsi: Readonly<Record<number, number>> | null;
+  readonly mfi: number | null;
+  readonly kdj: KDJIndicator | null;
+  readonly macd: MACDIndicator | null;
+};
 
 // ==================== 订单 ====================
 
-export interface HistoricalOrder {
-  symbol: string;
-  orderId: string;
-  executedPrice: number;
-  executedQuantity: number;
-  executedTime: Date;
-}
-
-export interface PendingOrder {
+/**
+ * 待处理订单
+ * 注意：此类型不使用 readonly，因为需要在运行时修改
+ */
+export type PendingOrder = {
   orderId: string;
   symbol: string;
   side: OrderSide;
@@ -118,77 +135,65 @@ export interface PendingOrder {
   status: OrderStatus;
   orderType: OrderType;
   _rawOrder?: unknown;
-}
+};
 
 // ==================== 风险检查 ====================
 
-export interface RiskCheckResult {
-  allowed: boolean;
-  reason: string;
-  warrantInfo?: WarrantInfo;
-}
+/**
+ * 牛熊证信息
+ */
+export type WarrantInfo = {
+  readonly isWarrant: boolean;
+  readonly warrantType: 'BULL' | 'BEAR' | null;
+  readonly strikePrice: number | null;
+  readonly distanceToStrikePercent: number | null;
+};
 
-export interface WarrantInfo {
-  isWarrant: boolean;
-  warrantType: 'BULL' | 'BEAR' | null;
-  strikePrice: number | null;
-  distanceToStrikePercent: number | null;
-}
+/**
+ * 风险检查结果
+ */
+export type RiskCheckResult = {
+  readonly allowed: boolean;
+  readonly reason: string;
+  readonly warrantInfo?: WarrantInfo;
+};
 
 // ==================== 信号配置 ====================
 
-export interface Condition {
-  indicator: string;
-  operator: '<' | '>';
-  threshold: number;
-}
+/**
+ * 信号条件
+ */
+export type Condition = {
+  readonly indicator: string;
+  readonly operator: '<' | '>';
+  readonly threshold: number;
+};
 
-export interface ConditionGroup {
-  conditions: Condition[];
-  requiredCount: number | null;
-}
+/**
+ * 条件组
+ */
+export type ConditionGroup = {
+  readonly conditions: ReadonlyArray<Condition>;
+  readonly requiredCount: number | null;
+};
 
-export interface SignalConfig {
-  conditionGroups: ConditionGroup[];
-}
-
-export interface EvalResult {
-  triggered: boolean;
-  reason: string;
-}
-
-// ==================== K线数据 ====================
-
-export interface Candle {
-  high: number;
-  low: number;
-  close: number;
-  open: number;
-  volume: number;
-  turnover: number;
-  timestamp: Date;
-}
-
-// ==================== 卖出数量计算结果 ====================
-
-export interface SellQuantityResult {
-  quantity: number | null;
-  shouldHold: boolean;
-  reason: string;
-}
-
-// ==================== 信号生成结果 ====================
-
-export interface GenerateSignalsResult {
-  immediateSignals: Signal[];
-  delayedSignals: Signal[];
-}
+/**
+ * 信号配置
+ */
+export type SignalConfig = {
+  readonly conditionGroups: ReadonlyArray<ConditionGroup>;
+};
 
 // ==================== 对象池类型 ====================
 
-export interface PoolableSignal {
+/**
+ * 对象池 - Signal
+ * 注意：对象池类型是可变的，用于对象重用
+ * 属性使用可选标记以匹配 Signal 类型
+ */
+export type PoolableSignal = {
   symbol: string | null;
-  symbolName?: string | null;
+  symbolName: string | null;
   action: SignalType | null;
   reason?: string | null;
   price?: number | null;
@@ -198,22 +203,31 @@ export interface PoolableSignal {
   indicators1?: Record<string, number> | null;
   verificationHistory?: VerificationEntry[] | null;
   signalTriggerTime?: Date | null;
-  useMarketOrder?: boolean;
-}
+  useMarketOrder?: boolean | null;
+};
 
-export interface PoolableKDJ {
+/**
+ * 对象池 - KDJ
+ */
+export type PoolableKDJ = {
   k: number | null;
   d: number | null;
   j: number | null;
-}
+};
 
-export interface PoolableMACD {
+/**
+ * 对象池 - MACD
+ */
+export type PoolableMACD = {
   macd: number | null;
   dif: number | null;
   dea: number | null;
-}
+};
 
-export interface PoolableMonitorValues {
+/**
+ * 对象池 - 监控数值
+ */
+export type PoolableMonitorValues = {
   price: number | null;
   changePercent: number | null;
   ema: Record<number, number> | null;
@@ -221,16 +235,25 @@ export interface PoolableMonitorValues {
   mfi: number | null;
   kdj: PoolableKDJ | null;
   macd: PoolableMACD | null;
-}
+};
 
-export interface PoolablePosition {
+/**
+ * 对象池 - Position
+ */
+export type PoolablePosition = {
   symbol: string | null;
   costPrice: number;
   quantity: number;
   availableQuantity: number;
-}
+};
 
-export interface PoolableVerificationEntry {
+/**
+ * 对象池 - VerificationEntry
+ * 注意：对象池类型是可变的，用于对象重用
+ */
+export type PoolableVerificationEntry = {
   timestamp: Date | null;
   indicators: Record<string, number> | null;
-}
+};
+
+

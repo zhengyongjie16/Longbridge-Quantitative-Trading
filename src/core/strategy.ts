@@ -18,7 +18,6 @@
  * - |：分隔不同条件组，满足任一组即可
  */
 
-import { SignalType } from '../utils/constants.js';
 import { evaluateSignalConfig } from '../utils/signalConfigParser.js';
 import { signalObjectPool } from '../utils/objectPool.js';
 import { getIndicatorValue, isValidNumber } from '../utils/indicatorHelpers.js';
@@ -30,6 +29,7 @@ import type {
   SignalConfig,
   SignalConfigSet,
   KDJIndicator,
+  SignalType,
 } from '../types/index.js';
 
 /**
@@ -49,20 +49,13 @@ interface SignalGenerationResult {
 }
 
 /**
- * 延迟信号接口（扩展 Signal）
+ * 延迟信号类型（等同于 Signal）
  */
-interface DelayedSignal extends Signal {
-  triggerTime?: Date;
-  indicators1?: Record<string, number>;
-  verificationHistory?: Array<{
-    timestamp: Date;
-    indicators: Record<string, number>;
-  }>;
-}
+type DelayedSignal = Signal;
 
 export class HangSengMultiIndicatorStrategy {
-  private signalConfig: SignalConfigSet;
-  private verificationConfig: VerificationConfig;
+  private readonly signalConfig: SignalConfigSet;
+  private readonly verificationConfig: VerificationConfig;
 
   constructor({
     signalConfig = null,
@@ -166,13 +159,13 @@ export class HangSengMultiIndicatorStrategy {
    */
   private _getSignalConfigForType(signalType: string): SignalConfig | null {
     switch (signalType) {
-      case SignalType.BUYCALL:
+      case 'BUYCALL':
         return this.signalConfig.buycall ?? null;
-      case SignalType.SELLCALL:
+      case 'SELLCALL':
         return this.signalConfig.sellcall ?? null;
-      case SignalType.BUYPUT:
+      case 'BUYPUT':
         return this.signalConfig.buyput ?? null;
-      case SignalType.SELLPUT:
+      case 'SELLPUT':
         return this.signalConfig.sellput ?? null;
       default:
         return null;
@@ -394,7 +387,7 @@ export class HangSengMultiIndicatorStrategy {
       const delayedBuySignal = this._generateDelayedSignal(
         state,
         longSymbol,
-        SignalType.BUYCALL,
+        'BUYCALL',
         '延迟验证买入做多信号',
       );
       if (delayedBuySignal) {
@@ -407,7 +400,7 @@ export class HangSengMultiIndicatorStrategy {
     const sellLongSignal = this._generateImmediateSignal(
       state,
       longPosition,
-      SignalType.SELLCALL,
+      'SELLCALL',
     );
     if (sellLongSignal) {
       immediateSignals.push(sellLongSignal);
@@ -418,7 +411,7 @@ export class HangSengMultiIndicatorStrategy {
       const delayedSellSignal = this._generateDelayedSignal(
         state,
         shortSymbol,
-        SignalType.BUYPUT,
+        'BUYPUT',
         '延迟验证买入做空信号',
       );
       if (delayedSellSignal) {
@@ -431,7 +424,7 @@ export class HangSengMultiIndicatorStrategy {
     const sellShortSignal = this._generateImmediateSignal(
       state,
       shortPosition,
-      SignalType.SELLPUT,
+      'SELLPUT',
     );
     if (sellShortSignal) {
       immediateSignals.push(sellShortSignal);

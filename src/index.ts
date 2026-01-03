@@ -28,7 +28,6 @@ import { RiskChecker } from './core/risk.js';
 import { TRADING_CONFIG } from './config/config.trading.js';
 import { logger } from './utils/logger.js';
 import { validateAllConfig } from './config/config.validator.js';
-import { SignalType } from './utils/constants.js';
 import { OrderRecorder } from './core/orderRecorder.js';
 import {
   positionObjectPool,
@@ -36,7 +35,7 @@ import {
   kdjObjectPool,
   macdObjectPool,
 } from './utils/objectPool.js';
-import { normalizeHKSymbol, getSymbolName } from './utils/helpers.js';
+import { normalizeHKSymbol, getSymbolName,  isBuyAction, isSellAction } from './utils/helpers.js';
 import { extractRSIPeriods } from './utils/signalConfigParser.js';
 import { validateEmaPeriod } from './utils/indicatorHelpers.js';
 
@@ -107,12 +106,12 @@ interface LastState {
 }
 
 // 性能优化：将循环中的常量提升到函数外部
-const VALID_SIGNAL_ACTIONS = [
-  SignalType.BUYCALL,
-  SignalType.SELLCALL,
-  SignalType.BUYPUT,
-  SignalType.SELLPUT,
-];
+const VALID_SIGNAL_ACTIONS = new Set([
+  'BUYCALL',
+  'SELLCALL',
+  'BUYPUT',
+  'SELLPUT',
+]);
 
 const LOCALE_STRING_OPTIONS: Intl.DateTimeFormatOptions = {
   timeZone: 'Asia/Hong_Kong',
@@ -121,17 +120,17 @@ const LOCALE_STRING_OPTIONS: Intl.DateTimeFormatOptions = {
 
 // 信号动作描述映射（避免循环中的多次 if-else 判断）
 const SIGNAL_ACTION_DESCRIPTIONS: Record<string, string> = {
-  [SignalType.BUYCALL]: '买入做多标的（做多）',
-  [SignalType.SELLCALL]: '卖出做多标的（清仓）',
-  [SignalType.BUYPUT]: '买入做空标的（做空）',
-  [SignalType.SELLPUT]: '卖出做空标的（平空仓）',
+  'BUYCALL': '买入做多标的（做多）',
+  'SELLCALL': '卖出做多标的（清仓）',
+  'BUYPUT': '买入做空标的（做空）',
+  'SELLPUT': '卖出做空标的（平空仓）',
 };
 
 const SIGNAL_TARGET_ACTIONS: Record<string, string> = {
-  [SignalType.BUYCALL]: '买入',
-  [SignalType.SELLCALL]: '卖出',
-  [SignalType.BUYPUT]: '买入',
-  [SignalType.SELLPUT]: '卖出',
+  'BUYCALL': '买入',
+  'SELLCALL': '卖出',
+  'BUYPUT': '买入',
+  'SELLPUT': '卖出',
 };
 
 // 性能优化：从验证配置中提取 EMA 周期（模块加载时执行一次）
@@ -317,10 +316,8 @@ async function runOnce({
     if (canTradeNow) {
       const sessionType = isHalfDayToday ? '（半日交易）' : '';
       logger.info(`进入连续交易时段${sessionType}，开始正常交易。`);
-    } else {
-      if (isTradingDayToday) {
-        logger.info('当前为竞价或非连续交易时段，暂停实时监控。');
-      }
+    } else if (isTradingDayToday) {
+      logger.info('当前为竞价或非连续交易时段，暂停实时监控。');
     }
     lastState.canTrade = canTradeNow;
   }
@@ -482,7 +479,7 @@ async function runOnce({
       logger.warn(`[跳过信号] 无效的信号对象: ${JSON.stringify(signal)}`);
       return false;
     }
-    if (!VALID_SIGNAL_ACTIONS.includes(signal.action)) {
+    if (!VALID_SIGNAL_ACTIONS.has(signal.action)) {
       logger.warn(
         `[跳过信号] 未知的信号类型: ${signal.action}, 标的: ${signal.symbol}`,
       );
@@ -546,11 +543,11 @@ async function runOnce({
 
     if (normalizedSigSymbol === NORMALIZED_LONG_SYMBOL && longQuote) {
       if (signal.price == null) signal.price = longQuote.price;
-      if (!signal.lotSize) signal.lotSize = longQuote.lotSize;
+      if (!signal.lotSize && longQuote.lotSize != null) signal.lotSize = longQuote.lotSize;
       if (!signal.symbolName) signal.symbolName = longQuote.name;
     } else if (normalizedSigSymbol === NORMALIZED_SHORT_SYMBOL && shortQuote) {
       if (signal.price == null) signal.price = shortQuote.price;
-      if (!signal.lotSize) signal.lotSize = shortQuote.lotSize;
+      if (!signal.lotSize && shortQuote.lotSize != null) signal.lotSize = shortQuote.lotSize;
       if (!signal.symbolName) signal.symbolName = shortQuote.name;
     }
   }
@@ -656,7 +653,7 @@ async function runOnce({
 
     // 过滤掉被设置为HOLD的信号
     const signalsToExecute = finalSignals.filter(
-      (sig) => sig.action !== SignalType.HOLD,
+      (sig) => sig.action !== 'HOLD',
     );
 
     if (signalsToExecute.length > 0) {
@@ -680,25 +677,18 @@ async function runOnce({
         if (!Number.isFinite(price) || price <= 0) {
           continue;
         }
-
-        const isBuyAction =
-          sig.action === SignalType.BUYCALL || sig.action === SignalType.BUYPUT;
-        const isSellAction =
-          sig.action === SignalType.SELLCALL ||
-          sig.action === SignalType.SELLPUT;
-
-        if (!isBuyAction && !isSellAction) {
+        if (!isBuyAction(sig.action) && !isSellAction(sig.action)) {
           continue;
         }
 
         const isLongSymbol =
-          sig.action === SignalType.BUYCALL ||
-          sig.action === SignalType.SELLCALL;
+          sig.action === 'BUYCALL' ||
+          sig.action === 'SELLCALL';
         const symbol = sig.symbol;
 
-        if (isBuyAction) {
+        if (isBuyAction(sig.action)) {
           orderRecorder.recordLocalBuy(symbol, price, quantity, isLongSymbol);
-        } else if (isSellAction) {
+        } else if (isSellAction(sig.action)) {
           orderRecorder.recordLocalSell(symbol, price, quantity, isLongSymbol);
         }
 
@@ -727,7 +717,7 @@ async function runOnce({
     // 释放未执行的信号（finalSignals 中被过滤掉的 HOLD 信号）
     if (finalSignals && finalSignals.length > 0) {
       const heldSignals = finalSignals.filter(
-        (sig) => sig.action === SignalType.HOLD,
+        (sig) => sig.action === 'HOLD',
       );
       if (heldSignals.length > 0) {
         signalObjectPool.releaseAll(heldSignals);
@@ -898,7 +888,6 @@ async function main(): Promise<void> {
   }
 
   // 无限循环监控
-
   while (true) {
     try {
       await runOnce({

@@ -81,10 +81,10 @@ export interface ValidateAllConfigResult {
 async function validateLongPortConfig(): Promise<ValidationResult> {
   const errors: string[] = [];
 
-  const appKey = process.env.LONGPORT_APP_KEY;
-  const appSecret = process.env.LONGPORT_APP_SECRET;
-  const accessToken = process.env.LONGPORT_ACCESS_TOKEN;
-  const region = process.env.LONGPORT_REGION;
+  const appKey = process.env['LONGPORT_APP_KEY'];
+  const appSecret = process.env['LONGPORT_APP_SECRET'];
+  const accessToken = process.env['LONGPORT_ACCESS_TOKEN'];
+  const region = process.env['LONGPORT_REGION'];
 
   // 验证 appKey
   if (!appKey || appKey.trim() === '' || appKey === 'your_app_key_here') {
@@ -281,7 +281,7 @@ function validateTradingConfig(): TradingValidationResult {
 
   // 验证单标的浮亏保护配置（可选）
   // 注意：直接验证原始环境变量，而不是已处理的配置值
-  const maxUnrealizedLossEnv = process.env.MAX_UNREALIZED_LOSS_PER_SYMBOL;
+  const maxUnrealizedLossEnv = process.env['MAX_UNREALIZED_LOSS_PER_SYMBOL'];
   if (maxUnrealizedLossEnv && maxUnrealizedLossEnv.trim() !== '') {
     const maxUnrealizedLoss = Number(maxUnrealizedLossEnv);
     if (!Number.isFinite(maxUnrealizedLoss) || maxUnrealizedLoss < 0) {
@@ -294,7 +294,7 @@ function validateTradingConfig(): TradingValidationResult {
 
   // 验证延迟验证时间配置（可选）
   // 注意：直接验证原始环境变量，而不是已处理的配置值
-  const delaySecondsEnv = process.env.VERIFICATION_DELAY_SECONDS;
+  const delaySecondsEnv = process.env['VERIFICATION_DELAY_SECONDS'];
   if (delaySecondsEnv && delaySecondsEnv.trim() !== '') {
     const delaySeconds = Number(delaySecondsEnv);
     if (
@@ -311,7 +311,7 @@ function validateTradingConfig(): TradingValidationResult {
 
   // 验证同方向买入时间间隔配置（可选）
   // 注意：直接验证原始环境变量，而不是已处理的配置值
-  const buyIntervalEnv = process.env.BUY_INTERVAL_SECONDS;
+  const buyIntervalEnv = process.env['BUY_INTERVAL_SECONDS'];
   if (buyIntervalEnv && buyIntervalEnv.trim() !== '') {
     const buyInterval = Number(buyIntervalEnv);
     if (
@@ -328,7 +328,7 @@ function validateTradingConfig(): TradingValidationResult {
 
   // 验证延迟验证指标配置（可选）
   // 注意：直接验证原始环境变量，而不是已处理的配置值
-  const indicatorsEnv = process.env.VERIFICATION_INDICATORS;
+  const indicatorsEnv = process.env['VERIFICATION_INDICATORS'];
   if (indicatorsEnv && indicatorsEnv.trim() !== '') {
     const fixedIndicators = ['K', 'D', 'J', 'MACD', 'DIF', 'DEA'];
     const indicators = indicatorsEnv

@@ -40,12 +40,12 @@ import { logger } from '../utils/logger.js';
 import type { Quote } from '../types/index.js';
 
 /**
- * 重试配置接口
+ * 重试配置类型
  */
-interface RetryConfig {
-  retries: number;
-  delayMs: number;
-}
+type RetryConfig = {
+  readonly retries: number;
+  readonly delayMs: number;
+};
 
 const DEFAULT_RETRY: RetryConfig = {
   retries: 2,
@@ -53,12 +53,12 @@ const DEFAULT_RETRY: RetryConfig = {
 };
 
 /**
- * 缓存条目接口
+ * 缓存条目类型
  */
-interface CacheEntry<T> {
-  value: T;
-  ts: number;
-}
+type CacheEntry<T> = {
+  readonly value: T;
+  readonly ts: number;
+};
 
 /**
  * 行情缓存类
@@ -89,29 +89,29 @@ class QuoteCache<T> {
 }
 
 /**
- * 交易日缓存条目接口
+ * 交易日缓存条目类型
  */
-interface TradingDayCacheEntry {
-  isTradingDay: boolean;
-  isHalfDay: boolean;
-  timestamp: number;
-}
+type TradingDayCacheEntry = {
+  readonly isTradingDay: boolean;
+  readonly isHalfDay: boolean;
+  readonly timestamp: number;
+};
 
 /**
- * 交易日信息接口
+ * 交易日信息类型
  */
-interface TradingDayInfo {
-  isTradingDay: boolean;
-  isHalfDay: boolean;
-}
+type TradingDayInfo = {
+  readonly isTradingDay: boolean;
+  readonly isHalfDay: boolean;
+};
 
 /**
- * 交易日查询结果接口
+ * 交易日查询结果类型
  */
-interface TradingDaysResult {
-  tradingDays: string[];
-  halfTradingDays: string[];
-}
+type TradingDaysResult = {
+  readonly tradingDays: ReadonlyArray<string>;
+  readonly halfTradingDays: ReadonlyArray<string>;
+};
 
 /**
  * 交易日缓存类
@@ -278,9 +278,9 @@ export class MarketDataClient {
       if (staticInfo) {
         // 尝试多种可能的字段名
         const lotSizeValue =
-          (staticInfo as unknown as Record<string, unknown>).lotSize ??
-          (staticInfo as unknown as Record<string, unknown>).lot_size ??
-          (staticInfo as unknown as Record<string, unknown>).lot ??
+          (staticInfo as unknown as Record<string, unknown>)['lotSize'] ??
+          (staticInfo as unknown as Record<string, unknown>)['lot_size'] ??
+          (staticInfo as unknown as Record<string, unknown>)['lot'] ??
           null;
         if (isDefined(lotSizeValue)) {
           const parsed = Number(lotSizeValue);
@@ -295,7 +295,7 @@ export class MarketDataClient {
         price: decimalToNumber(quote.lastDone),
         prevClose: decimalToNumber(quote.prevClose),
         timestamp: quote.timestamp.getTime(),
-        lotSize: Number.isFinite(lotSize) && lotSize !== undefined && lotSize > 0 ? lotSize : undefined,
+        ...(Number.isFinite(lotSize) && lotSize !== undefined && lotSize > 0 ? { lotSize } : {}),
         raw: quote,
         staticInfo,
       };

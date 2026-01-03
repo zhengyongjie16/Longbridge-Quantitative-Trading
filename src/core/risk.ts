@@ -19,8 +19,7 @@
  */
 
 import { TRADING_CONFIG } from '../config/config.trading.js';
-import { SignalType, isBuyAction } from '../utils/constants.js';
-import { normalizeHKSymbol, decimalToNumber, isDefined } from '../utils/helpers.js';
+import { normalizeHKSymbol, decimalToNumber, isDefined, isBuyAction } from '../utils/helpers.js';
 import { logger } from '../utils/logger.js';
 import type { Position, Signal, AccountSnapshot } from '../types/index.js';
 import type { MarketDataClient } from '../services/quoteClient.js';
@@ -246,7 +245,7 @@ export class RiskChecker {
     // 从 warrantQuote 中获取 category 字段判断牛熊证类型
     // 注意：category 是 WarrantType 枚举（数字类型），不是字符串
     // WarrantType: Call=1, Put=2, Bull=3, Bear=4, Inline=5
-    const category = (warrantQuote as unknown as Record<string, unknown>).category;
+    const category = (warrantQuote as unknown as Record<string, unknown>)['category'];
     let warrantType: WarrantType | null = null;
 
     // 判断牛证：category 可能是数字 3（枚举值）或字符串 "Bull"
@@ -263,8 +262,8 @@ export class RiskChecker {
 
     // 获取回收价（call_price 字段）
     const callPriceRaw =
-      (warrantQuote as unknown as Record<string, unknown>).call_price ??
-      (warrantQuote as unknown as Record<string, unknown>).callPrice ??
+      (warrantQuote as unknown as Record<string, unknown>)['call_price'] ??
+      (warrantQuote as unknown as Record<string, unknown>)['callPrice'] ??
       null;
 
     // 转换 Decimal 类型为 number（LongPort API 返回的价格字段可能是 Decimal 类型）
@@ -320,7 +319,7 @@ export class RiskChecker {
     shortCurrentPrice: number | null = null,
   ): RiskCheckResult {
     // HOLD 信号不需要检查
-    if (!signal || signal.action === SignalType.HOLD) {
+    if (!signal || signal.action === 'HOLD') {
       return { allowed: true };
     }
 
@@ -367,8 +366,8 @@ export class RiskChecker {
         : null;
 
       // 判断当前信号是做多还是做空
-      const isBuyCall = signal.action === SignalType.BUYCALL;
-      const isBuyPut = signal.action === SignalType.BUYPUT;
+      const isBuyCall = signal.action === 'BUYCALL';
+      const isBuyPut = signal.action === 'BUYPUT';
 
       // 检查做多标的买入：从缓存获取浮亏数据
       if (isBuyCall && longSymbol) {
@@ -385,7 +384,7 @@ export class RiskChecker {
             const longUnrealizedPnL = r2 - r1;
 
             // 记录浮亏计算详情（仅在DEBUG模式下）
-            if (process.env.DEBUG === 'true') {
+            if (process.env['DEBUG'] === 'true') {
               logger.debug(
                 `[风险检查调试] 做多标的浮亏检查: R1(开仓成本)=${r1.toFixed(
                   2,
@@ -440,7 +439,7 @@ export class RiskChecker {
             const shortUnrealizedPnL = r2 - r1;
 
             // 记录浮亏计算详情（仅在DEBUG模式下）
-            if (process.env.DEBUG === 'true') {
+            if (process.env['DEBUG'] === 'true') {
               logger.debug(
                 `[风险检查调试] 做空标的浮亏检查: R1(开仓成本)=${r1.toFixed(
                   2,
@@ -483,10 +482,10 @@ export class RiskChecker {
 
     // 检查单标的最大持仓市值限制（适用于所有买入和卖出操作）
     if (
-      signal.action === SignalType.BUYCALL ||
-      signal.action === SignalType.SELLCALL ||
-      signal.action === SignalType.BUYPUT ||
-      signal.action === SignalType.SELLPUT
+      signal.action === 'BUYCALL' ||
+      signal.action === 'SELLCALL' ||
+      signal.action === 'BUYPUT' ||
+      signal.action === 'SELLPUT'
     ) {
       const positionCheckResult = this._checkPositionNotionalLimit(
         signal,
@@ -623,7 +622,7 @@ export class RiskChecker {
   /**
    * 检查牛熊证距离回收价的风险（仅在买入前检查）
    * @param symbol 标的代码（牛熊证代码）
-   * @param signalType 信号类型（SignalType.BUYCALL 或 SignalType.BUYPUT）
+   * @param signalType 信号类型（'BUYCALL' 或 'BUYPUT'）
    * @param monitorCurrentPrice 监控标的的当前价格（用于计算距离回收价的百分比）
    * @returns {allowed: boolean, reason?: string, warrantInfo?: Object}
    */
@@ -633,7 +632,7 @@ export class RiskChecker {
     monitorCurrentPrice: number,
   ): RiskCheckResult {
     // 确定是做多还是做空标的
-    const isLong = signalType === SignalType.BUYCALL;
+    const isLong = signalType === 'BUYCALL';
     const warrantInfo = isLong ? this.longWarrantInfo : this.shortWarrantInfo;
 
     // 如果没有初始化过牛熊证信息，或者不是牛熊证，允许交易

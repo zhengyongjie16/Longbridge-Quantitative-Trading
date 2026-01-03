@@ -19,7 +19,6 @@
  */
 
 import { logger } from '../utils/logger.js';
-import { SignalType } from '../utils/constants.js';
 import { signalObjectPool } from '../utils/objectPool.js';
 import type { Quote, Signal } from '../types/index.js';
 import type { RiskChecker } from './risk.js';
@@ -79,10 +78,10 @@ export class UnrealizedLossMonitor {
     const liquidationSignal = signalObjectPool.acquire() as Signal & { useMarketOrder?: boolean };
     liquidationSignal.symbol = symbol;
     liquidationSignal.action = isLong
-      ? SignalType.SELLCALL
-      : SignalType.SELLPUT;
+      ? 'SELLCALL'
+      : 'SELLPUT';
     liquidationSignal.reason = lossCheck.reason || '';
-    liquidationSignal.quantity = lossCheck.quantity;
+    liquidationSignal.quantity = lossCheck.quantity ?? null;
     liquidationSignal.price = currentPrice;
     liquidationSignal.useMarketOrder = true;
 

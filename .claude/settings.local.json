@@ -20,7 +20,8 @@
       "Bash(npx tsc:*)",
       "Bash(npm run build:*)",
       "Bash(npm run lint)",
-      "Bash(npm run lint:fix:*)"
+      "Bash(npm run lint:fix:*)",
+      "Skill(typescript-strict)"
     ]
   }
 }

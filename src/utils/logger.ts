@@ -25,7 +25,7 @@ import path from 'node:path';
 import { Writable } from 'node:stream';
 
 // 缓存 DEBUG 环境变量，避免重复读取
-const IS_DEBUG = process.env.DEBUG === 'true';
+const IS_DEBUG = process.env['DEBUG'] === 'true';
 
 // 日志级别常量
 const LOG_LEVELS = {
@@ -573,7 +573,7 @@ let isSyncCleaningUp = false;
  * 同步清理函数（用于进程退出）
  * 注意：此函数会在信号处理和异常处理中被调用
  */
-export function cleanupSync(): void {
+function cleanupSync(): void {
   if (isSyncCleaningUp) {
     return;
   }

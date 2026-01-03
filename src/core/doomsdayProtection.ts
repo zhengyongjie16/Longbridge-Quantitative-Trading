@@ -17,7 +17,6 @@
 import { logger } from '../utils/logger.js';
 import { normalizeHKSymbol } from '../utils/helpers.js';
 import { isBeforeClose15Minutes, isBeforeClose5Minutes } from '../utils/tradingTime.js';
-import { SignalType } from '../utils/constants.js';
 import { signalObjectPool } from '../utils/objectPool.js';
 import type { Position, Quote, Signal } from '../types/index.js';
 
@@ -118,7 +117,7 @@ export class DoomsdayProtection {
       // 收盘前清仓逻辑：
       // - 做多标的持仓：使用 SELLCALL 信号 → OrderSide.Sell（卖出做多标的，清仓）
       // - 做空标的持仓：使用 SELLPUT 信号 → OrderSide.Sell（卖出做空标的，平空仓）
-      const action = isShortPos ? SignalType.SELLPUT : SignalType.SELLCALL;
+      const action = isShortPos ? 'SELLPUT' : 'SELLCALL';
       const positionType = isShortPos ? '做空标的' : '做多标的';
 
       // 从对象池获取信号对象

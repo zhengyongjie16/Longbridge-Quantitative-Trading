@@ -62,9 +62,9 @@ function getRegionUrls(region: string | undefined): RegionUrls {
  * - LONGPORT_REGION=hk：香港及其他地区（默认，使用 .com 域名）
  */
 export function createConfig(): Config {
-  const appKey = process.env.LONGPORT_APP_KEY;
-  const appSecret = process.env.LONGPORT_APP_SECRET;
-  const accessToken = process.env.LONGPORT_ACCESS_TOKEN;
+  const appKey = process.env['LONGPORT_APP_KEY'];
+  const appSecret = process.env['LONGPORT_APP_SECRET'];
+  const accessToken = process.env['LONGPORT_ACCESS_TOKEN'];
 
   // 验证必需的凭证（fail-fast原则）
   if (!appKey || appKey.trim() === '') {
@@ -77,7 +77,7 @@ export function createConfig(): Config {
     throw new Error('LONGPORT_ACCESS_TOKEN is required but not set in environment variables');
   }
 
-  const region = process.env.LONGPORT_REGION || 'hk';
+  const region = process.env['LONGPORT_REGION'] || 'hk';
   const urls = getRegionUrls(region);
 
   return new Config({

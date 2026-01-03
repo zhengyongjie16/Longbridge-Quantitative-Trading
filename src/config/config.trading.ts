@@ -173,7 +173,7 @@ export const TRADING_CONFIG: TradingConfig = {
     // EMA:n 格式：n 为周期，范围 1-250，例如 EMA:5, EMA:10
     // 留空或不设置则不进行延迟验证
     indicators: (() => {
-      const value = process.env.VERIFICATION_INDICATORS;
+      const value = process.env['VERIFICATION_INDICATORS'];
       if (!value || value.trim() === '') {
         return null;
       }

@@ -33,13 +33,13 @@ import type { Config } from 'longport';
 import { createConfig } from '../config/config.js';
 import { TRADING_CONFIG } from '../config/config.trading.js';
 import { logger, colors } from '../utils/logger.js';
-import { SignalType } from '../utils/constants.js';
 import {
   normalizeHKSymbol,
   decimalToNumber,
   formatSymbolDisplay,
   toBeijingTimeIso,
   isDefined,
+  isBuyAction,
 } from '../utils/helpers.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -47,35 +47,35 @@ import type { Signal, Quote, AccountSnapshot, Position } from '../types/index.js
 import type { OrderRecorder, PendingOrder } from './orderRecorder.js';
 
 /**
- * 默认订单配置接口
+ * 默认订单配置类型
  */
-interface OrderOptions {
+type OrderOptions = {
   symbol: string;
-  targetNotional: number;
-  quantity: number;
-  orderType: typeof OrderType[keyof typeof OrderType];
-  timeInForce: typeof TimeInForceType[keyof typeof TimeInForceType];
-  remark: string;
-  price?: number;
-}
+  readonly targetNotional: number;
+  readonly quantity: number;
+  readonly orderType: typeof OrderType[keyof typeof OrderType];
+  readonly timeInForce: typeof TimeInForceType[keyof typeof TimeInForceType];
+  readonly remark: string;
+  readonly price?: number;
+};
 
 /**
- * 订单载荷接口
+ * 订单载荷类型
  */
-interface OrderPayload {
-  symbol: string;
-  orderType: typeof OrderType[keyof typeof OrderType];
-  side: typeof OrderSide[keyof typeof OrderSide];
-  timeInForce: typeof TimeInForceType[keyof typeof TimeInForceType];
-  submittedQuantity: Decimal;
+type OrderPayload = {
+  readonly symbol: string;
+  readonly orderType: typeof OrderType[keyof typeof OrderType];
+  readonly side: typeof OrderSide[keyof typeof OrderSide];
+  readonly timeInForce: typeof TimeInForceType[keyof typeof TimeInForceType];
+  readonly submittedQuantity: Decimal;
   submittedPrice?: Decimal;
   remark?: string;
-}
+};
 
 /**
- * 交易记录接口
+ * 交易记录类型
  */
-interface TradeRecord {
+type TradeRecord = {
   orderId?: string;
   symbol: string;
   symbolName?: string | null;
@@ -89,18 +89,18 @@ interface TradeRecord {
   reason?: string;
   signalTriggerTime?: Date | string | null;
   timestamp?: string;
-}
+};
 
 /**
- * 错误类型标识接口
+ * 错误类型标识类型
  */
-interface ErrorTypeIdentifier {
-  isShortSellingNotSupported: boolean;
-  isInsufficientFunds: boolean;
-  isOrderNotFound: boolean;
-  isNetworkError: boolean;
-  isRateLimited: boolean;
-}
+type ErrorTypeIdentifier = {
+  readonly isShortSellingNotSupported: boolean;
+  readonly isInsufficientFunds: boolean;
+  readonly isOrderNotFound: boolean;
+  readonly isNetworkError: boolean;
+  readonly isRateLimited: boolean;
+};
 
 const DEFAULT_ORDER_CONFIG: OrderOptions = {
   // 来自统一交易配置，可通过环境变量覆盖
@@ -893,20 +893,20 @@ export class Trader {
    * 检查是否可以买入（仅对买入操作进行频率检查）
    * 只有买入同方向标的会触发频率检查，不同方向标的的买入不能互相阻塞
    * 卖出操作不会触发频率限制
-   * @param signalAction 信号类型（SignalType.BUYCALL, SignalType.BUYPUT, SignalType.SELLCALL, SignalType.SELLPUT）
+   * @param signalAction 信号类型（'BUYCALL', 'BUYPUT', 'SELLCALL', 'SELLPUT'）
    * @returns true表示可以交易，false表示需要等待
    */
   _canTradeNow(signalAction: string): boolean {
     // 卖出操作不触发频率限制
     if (
-      signalAction === SignalType.SELLCALL ||
-      signalAction === SignalType.SELLPUT
+      signalAction === 'SELLCALL' ||
+      signalAction === 'SELLPUT'
     ) {
       return true;
     }
 
     // 确定方向：BUYCALL 是 LONG，BUYPUT 是 SHORT
-    const direction = signalAction === SignalType.BUYCALL ? 'LONG' : 'SHORT';
+    const direction = signalAction === 'BUYCALL' ? 'LONG' : 'SHORT';
 
     const lastTime = this._lastBuyTime.get(direction);
 
@@ -923,15 +923,15 @@ export class Trader {
 
   /**
    * 更新方向标的的最后买入时间（仅对买入操作更新）
-   * @param signalAction 信号类型（SignalType.BUYCALL, SignalType.BUYPUT, SignalType.SELLCALL, SignalType.SELLPUT）
+   * @param signalAction 信号类型（'BUYCALL', 'BUYPUT', 'SELLCALL', 'SELLPUT'）
    */
   private _updateLastBuyTime(signalAction: string): void {
     // 只有买入操作才更新最后买入时间
     if (
-      signalAction === SignalType.BUYCALL ||
-      signalAction === SignalType.BUYPUT
+      signalAction === 'BUYCALL' ||
+      signalAction === 'BUYPUT'
     ) {
-      const direction = signalAction === SignalType.BUYCALL ? 'LONG' : 'SHORT';
+      const direction = signalAction === 'BUYCALL' ? 'LONG' : 'SHORT';
       this._lastBuyTime.set(direction, Date.now());
     }
   }
@@ -945,16 +945,16 @@ export class Trader {
     isShortSymbol: boolean,
     side: typeof OrderSide[keyof typeof OrderSide],
   ): string {
-    if (signalAction === SignalType.BUYCALL) {
+    if (signalAction === 'BUYCALL') {
       return '买入做多标的（做多）';
     }
-    if (signalAction === SignalType.SELLCALL) {
+    if (signalAction === 'SELLCALL') {
       return '卖出做多标的（清仓）';
     }
-    if (signalAction === SignalType.BUYPUT) {
+    if (signalAction === 'BUYPUT') {
       return '买入做空标的（做空）';
     }
-    if (signalAction === SignalType.SELLPUT) {
+    if (signalAction === 'SELLPUT') {
       return '卖出做空标的（平空仓）';
     }
 
@@ -995,17 +995,17 @@ export class Trader {
         continue;
       }
 
-      if (s.action === SignalType.HOLD) {
+      if (s.action === 'HOLD') {
         logger.info(`[HOLD] ${s.symbol} - ${s.reason || '持有'}`);
         continue;
       }
 
       // 验证信号类型
       const validActions = [
-        SignalType.BUYCALL,
-        SignalType.SELLCALL,
-        SignalType.BUYPUT,
-        SignalType.SELLPUT,
+        'BUYCALL',
+        'SELLCALL',
+        'BUYPUT',
+        'SELLPUT',
       ];
       if (!validActions.includes(s.action)) {
         logger.warn(
@@ -1023,13 +1023,13 @@ export class Trader {
 
       // 根据信号类型显示操作描述
       let actualAction = '';
-      if (s.action === SignalType.BUYCALL) {
+      if (s.action === 'BUYCALL') {
         actualAction = '买入做多标的（做多）';
-      } else if (s.action === SignalType.SELLCALL) {
+      } else if (s.action === 'SELLCALL') {
         actualAction = '卖出做多标的（平仓）';
-      } else if (s.action === SignalType.BUYPUT) {
+      } else if (s.action === 'BUYPUT') {
         actualAction = '买入做空标的（做空）';
-      } else if (s.action === SignalType.SELLPUT) {
+      } else if (s.action === 'SELLPUT') {
         actualAction = '卖出做空标的（平仓）';
       } else {
         actualAction = `未知操作(${s.action})`;
@@ -1042,12 +1042,10 @@ export class Trader {
         }${colors.reset}`,
       );
 
-      const isBuyAction =
-        s.action === SignalType.BUYCALL || s.action === SignalType.BUYPUT;
       await this._submitTargetOrder(ctx, s, targetSymbol, isShortSymbol);
 
       // 如果发起了买入交易，启用监控
-      if (isBuyAction) {
+      if (isBuyAction(s.action)) {
         this.enableBuyOrderMonitoring();
         logger.info('[订单监控] 已发起买入交易，开始监控买入订单');
       }
@@ -1056,7 +1054,7 @@ export class Trader {
 
   private async _submitTargetOrder(
     ctx: TradeContext,
-    signal: Signal & { useMarketOrder?: boolean },
+    signal: Signal,
     targetSymbol: string,
     isShortSymbol: boolean = false,
   ): Promise<void> {
@@ -1079,13 +1077,13 @@ export class Trader {
     // BUYPUT: 买入做空标的 → OrderSide.Buy
     // SELLPUT: 卖出做空标的 → OrderSide.Sell
     let side: typeof OrderSide[keyof typeof OrderSide];
-    if (signal.action === SignalType.BUYCALL) {
+    if (signal.action === 'BUYCALL') {
       side = OrderSide.Buy; // 买入做多标的
-    } else if (signal.action === SignalType.SELLCALL) {
+    } else if (signal.action === 'SELLCALL') {
       side = OrderSide.Sell; // 卖出做多标的
-    } else if (signal.action === SignalType.BUYPUT) {
+    } else if (signal.action === 'BUYPUT') {
       side = OrderSide.Buy; // 买入做空标的（做空）
-    } else if (signal.action === SignalType.SELLPUT) {
+    } else if (signal.action === 'SELLPUT') {
       side = OrderSide.Sell; // 卖出做空标的（平空仓）
     } else {
       logger.error(
@@ -1111,8 +1109,8 @@ export class Trader {
 
     // 判断是否需要清仓（平仓）
     const needClosePosition =
-      signal.action === SignalType.SELLCALL || // 卖出做多标的（清仓）
-      signal.action === SignalType.SELLPUT; // 卖出做空标的（平空仓）
+      signal.action === 'SELLCALL' || // 卖出做多标的（清仓）
+      signal.action === 'SELLPUT'; // 卖出做空标的（平空仓）
 
     if (needClosePosition) {
       // 平仓：如果信号中指定了数量，使用指定数量；否则按当前持仓可用数量全部清仓
