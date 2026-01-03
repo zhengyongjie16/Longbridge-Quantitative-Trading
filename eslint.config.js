@@ -48,6 +48,7 @@ export default tseslint.config(
       'logs/**',
       '*.config.js',
       'src/test/**/*.js',
+      'scripts/**',
     ],
   }
 );

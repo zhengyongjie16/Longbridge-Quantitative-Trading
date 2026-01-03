@@ -14,7 +14,8 @@
     "clean": "rimraf dist",
     "find-warrant": "node dist/tools/findWarrant.js",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "sonarqube": "node scripts/run-sonar.js"
   },
   "dependencies": {
     "dotenv": "^16.4.0",
@@ -29,6 +30,7 @@
     "@types/node": "^20.19.27",
     "@typescript-eslint/eslint-plugin": "^8.51.0",
     "@typescript-eslint/parser": "^8.51.0",
+    "dotenv-cli": "^11.0.0",
     "eslint": "^9.39.2",
     "rimraf": "^5.0.10",
     "typescript": "^5.9.3",
