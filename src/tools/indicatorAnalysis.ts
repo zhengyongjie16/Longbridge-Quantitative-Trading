@@ -135,7 +135,7 @@ function formatTimeHHMMSS(timestamp: number | Date): string {
   const ts =
     typeof timestamp === 'number'
       ? timestamp
-      : (timestamp as Date)?.getTime?.() || Date.now();
+      : timestamp?.getTime?.() || Date.now();
   const date = new Date(ts);
 
   // 使用与代码库其他地方相同的时区转换方法（index.js:235-237）
@@ -179,7 +179,7 @@ function formatDateYYYYMMDD(timestamp: number | Date | NaiveDate | DateObject): 
   const ts =
     typeof timestamp === 'number'
       ? timestamp
-      : (timestamp as Date)?.getTime?.() || Date.now();
+      : timestamp?.getTime?.() || Date.now();
   const date = new Date(ts);
 
   const parts = dateFormatter.formatToParts(date);

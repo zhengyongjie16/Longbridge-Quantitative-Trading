@@ -26,6 +26,9 @@ import { logger } from '../utils/logger.js';
 import { normalizeHKSymbol, decimalToNumber } from '../utils/helpers.js';
 import type { Trader } from './trader.js';
 
+// ==================== 类型定义 ====================
+type DecimalLikeValue = string | number | null;
+
 /**
  * 订单记录接口
  */
@@ -73,10 +76,10 @@ interface FetchOrdersResult {
   sellOrders: OrderRecord[];
 }
 export class OrderRecorder {
-  private _trader: Trader;
+  private readonly _trader: Trader;
   _longBuyOrders: OrderRecord[];
   _shortBuyOrders: OrderRecord[];
-  private _ordersCache: Map<string, OrderCache>;
+  private readonly _ordersCache: Map<string, OrderCache>;
 
   constructor(trader: Trader) {
     this._trader = trader;
@@ -460,10 +463,10 @@ export class OrderRecorder {
         submittedAt?: Date;
       };
       const executedPrice = decimalToNumber(
-        o.executedPrice as string | number | null,
+        o.executedPrice as DecimalLikeValue,
       );
       const executedQuantity = decimalToNumber(
-        o.executedQuantity as string | number | null,
+        o.executedQuantity as DecimalLikeValue,
       );
       const executedTime = o.updatedAt ? o.updatedAt.getTime() : 0;
       // 验证数据有效性
@@ -523,7 +526,7 @@ export class OrderRecorder {
       const normalizedSymbol = normalizeHKSymbol(symbol);
       const cached = this._ordersCache.get(normalizedSymbol);
       // 如果缓存不存在或无效，跳过
-      if (!cached || !cached.allOrders) {
+      if (!cached?.allOrders) {
         continue;
       }
       // 从缓存的原始订单中提取未成交订单
@@ -558,11 +561,11 @@ export class OrderRecorder {
           symbol: order.symbol,
           side: order.side as (typeof OrderSide)[keyof typeof OrderSide],
           submittedPrice: decimalToNumber(
-            order.price as string | number | null,
+            order.price as DecimalLikeValue,
           ),
-          quantity: decimalToNumber(order.quantity as string | number | null),
+          quantity: decimalToNumber(order.quantity as DecimalLikeValue),
           executedQuantity: decimalToNumber(
-            order.executedQuantity as string | number | null,
+            order.executedQuantity as DecimalLikeValue,
           ),
           status:
             order.status as (typeof OrderStatus)[keyof typeof OrderStatus],

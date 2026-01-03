@@ -144,7 +144,7 @@ function extractEmaPeriods(verificationConfig: VerificationConfig | null | undef
     for (const indicator of verificationConfig.indicators) {
       if (indicator.startsWith('EMA:')) {
         const periodStr = indicator.substring(4);
-        const period = parseInt(periodStr, 10);
+        const period = Number.parseInt(periodStr, 10);
 
         if (validateEmaPeriod(period) && !emaPeriods.includes(period)) {
           emaPeriods.push(period);
@@ -246,7 +246,7 @@ async function runOnce({
   let isHalfDayToday = false;
 
   if (
-    !lastState.cachedTradingDayInfo ||
+    !lastState.cachedTradingDayInfo?.checkDate ||
     lastState.cachedTradingDayInfo.checkDate !== currentDateStr
   ) {
     // 跨天或首次运行，重新调用 API 检查交易日信息
@@ -397,14 +397,14 @@ async function runOnce({
     const lastSnapshot = lastState.lastMonitorSnapshot;
     // 检查旧的 kdj 对象是否被 monitorValues 引用
     if (lastSnapshot.kdj && lastState.monitorValues?.kdj !== lastSnapshot.kdj) {
-      kdjObjectPool.release(lastSnapshot.kdj as KDJIndicator);
+      kdjObjectPool.release(lastSnapshot.kdj);
     }
     // 检查旧的 macd 对象是否被 monitorValues 引用
     if (
       lastSnapshot.macd &&
       lastState.monitorValues?.macd !== lastSnapshot.macd
     ) {
-      macdObjectPool.release(lastSnapshot.macd as MACDIndicator);
+      macdObjectPool.release(lastSnapshot.macd);
     }
   }
   // 保存当前快照供下次循环使用
@@ -542,13 +542,13 @@ async function runOnce({
     const normalizedSigSymbol = signal.symbol;
 
     if (normalizedSigSymbol === NORMALIZED_LONG_SYMBOL && longQuote) {
-      if (signal.price == null) signal.price = longQuote.price;
-      if (!signal.lotSize && longQuote.lotSize != null) signal.lotSize = longQuote.lotSize;
-      if (!signal.symbolName) signal.symbolName = longQuote.name;
+      signal.price ??= longQuote.price;
+      if (signal.lotSize == null && longQuote.lotSize != null) signal.lotSize = longQuote.lotSize;
+      if (signal.symbolName == null && longQuote.name != null) signal.symbolName = longQuote.name;
     } else if (normalizedSigSymbol === NORMALIZED_SHORT_SYMBOL && shortQuote) {
-      if (signal.price == null) signal.price = shortQuote.price;
-      if (!signal.lotSize && shortQuote.lotSize != null) signal.lotSize = shortQuote.lotSize;
-      if (!signal.symbolName) signal.symbolName = shortQuote.name;
+      signal.price ??= shortQuote.price;
+      if (signal.lotSize == null && shortQuote.lotSize != null) signal.lotSize = shortQuote.lotSize;
+      if (signal.symbolName == null && shortQuote.name != null) signal.symbolName = shortQuote.name;
     }
   }
 
@@ -766,7 +766,7 @@ async function main(): Promise<void> {
     signalConfig: TRADING_CONFIG.signalConfig,
     verificationConfig: TRADING_CONFIG.verificationConfig,
   });
-  const trader = new Trader(config);
+  const trader = await Trader.create(config);
   const orderRecorder = new OrderRecorder(trader);
   const riskChecker = new RiskChecker();
 
@@ -911,7 +911,9 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err: unknown) => {
+try {
+  await main();
+} catch (err: unknown) {
   logger.error('程序异常退出', formatError(err));
   process.exit(1);
-});
+}

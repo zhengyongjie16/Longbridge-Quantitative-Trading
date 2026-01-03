@@ -454,7 +454,7 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
   // 验证标的有效性（创建 MarketDataClient 实例用于验证和后续使用）
   logger.info('验证标的有效性...');
   const config = createConfig();
-  const marketDataClient = new MarketDataClient(config);
+  const marketDataClient = await MarketDataClient.create(config);
 
   // 确保标的配置不为 null（validateTradingConfig 已经检查过，这里再次确认）
   if (

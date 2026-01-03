@@ -46,7 +46,7 @@ interface LastState {
  * 管理延迟信号的验证流程：记录历史、执行验证、清理数据
  */
 export class SignalVerificationManager {
-  private verificationConfig: VerificationConfig;
+  private readonly verificationConfig: VerificationConfig;
 
   constructor(verificationConfig: VerificationConfig) {
     this.verificationConfig = verificationConfig;
@@ -59,13 +59,11 @@ export class SignalVerificationManager {
    */
   addDelayedSignals(delayedSignals: Signal[], lastState: LastState): void {
     // 初始化待验证信号数组（如果不存在）
-    if (!lastState.pendingDelayedSignals) {
-      lastState.pendingDelayedSignals = [];
-    }
+    lastState.pendingDelayedSignals ??= [];
 
     // 处理延迟验证信号，添加到待验证列表
     for (const delayedSignal of delayedSignals) {
-      if (delayedSignal && delayedSignal.triggerTime) {
+      if (delayedSignal?.triggerTime) {
         // 检查是否已存在相同的待验证信号（避免重复添加）
         const existingSignal = lastState.pendingDelayedSignals.find(
           (s) =>
@@ -74,7 +72,7 @@ export class SignalVerificationManager {
             s.triggerTime?.getTime() === delayedSignal.triggerTime?.getTime(),
         );
 
-        if (!existingSignal) {
+        if (existingSignal === undefined) {
           lastState.pendingDelayedSignals.push(delayedSignal);
 
           const actionDesc =
@@ -135,16 +133,11 @@ export class SignalVerificationManager {
           // 只在 triggerTime -5秒 到 +15秒 窗口内记录数据
           if (nowMs >= windowStart && nowMs <= windowEnd) {
             // 确保信号有历史记录数组
-            if (!pendingSignal.verificationHistory) {
-              pendingSignal.verificationHistory = [];
-            }
+            pendingSignal.verificationHistory ??= [];
 
             // 避免在同一秒内重复记录（精确到秒）
             const nowSeconds = Math.floor(nowMs / 1000);
-            const lastEntry =
-              pendingSignal.verificationHistory[
-                pendingSignal.verificationHistory.length - 1
-              ];
+            const lastEntry = pendingSignal.verificationHistory.at(-1);
             const lastEntrySeconds = lastEntry
               ? Math.floor(lastEntry.timestamp.getTime() / 1000)
               : null;
@@ -358,7 +351,7 @@ export class SignalVerificationManager {
       const targetTime = targetTimes[i]!; // 使用非空断言，因为我们知道数组有3个元素
       const targetTimeLabel = targetTimeLabels[i]!;
       const match = findBestMatch(targetTime);
-      if (!match || !match.indicators) {
+      if (!match?.indicators) {
         logger.warn(
           `[延迟验证失败] ${
             pendingSignal.symbol
@@ -378,7 +371,7 @@ export class SignalVerificationManager {
     // 验证所有3个时间点的指标值是否有效
     for (let i = 0; i < matches.length; i++) {
       const match = matches[i];
-      if (!match || !match.indicators) {
+      if (!match?.indicators) {
         continue;
       }
       let allIndicatorsValid = true;

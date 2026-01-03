@@ -26,7 +26,7 @@ import type { Trader } from './trader.js';
 import type { OrderRecorder } from './orderRecorder.js';
 
 export class UnrealizedLossMonitor {
-  private maxUnrealizedLossPerSymbol: number;
+  private readonly maxUnrealizedLossPerSymbol: number;
 
   constructor(maxUnrealizedLossPerSymbol: number) {
     this.maxUnrealizedLossPerSymbol = maxUnrealizedLossPerSymbol;
@@ -139,7 +139,7 @@ export class UnrealizedLossMonitor {
     // 检查做多标的的浮亏
     if (longQuote && longSymbol) {
       const longPrice = longQuote.price;
-      if (Number.isFinite(longPrice) && longPrice !== null && longPrice > 0) {
+      if (Number.isFinite(longPrice) && longPrice > 0) {
         await this.checkAndLiquidate(
           longSymbol,
           longPrice,
@@ -154,7 +154,7 @@ export class UnrealizedLossMonitor {
     // 检查做空标的的浮亏
     if (shortQuote && shortSymbol) {
       const shortPrice = shortQuote.price;
-      if (Number.isFinite(shortPrice) && shortPrice !== null && shortPrice > 0) {
+      if (Number.isFinite(shortPrice) && shortPrice > 0) {
         await this.checkAndLiquidate(
           shortSymbol,
           shortPrice,

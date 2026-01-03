@@ -65,8 +65,8 @@ type CacheEntry<T> = {
  * 支持 TTL 过期机制
  */
 class QuoteCache<T> {
-  private ttlMs: number;
-  private _map: Map<string, CacheEntry<T>>;
+  private readonly ttlMs: number;
+  private readonly _map: Map<string, CacheEntry<T>>;
 
   constructor(ttlMs: number = 1000) {
     this.ttlMs = ttlMs;
@@ -119,8 +119,8 @@ type TradingDaysResult = {
  * 每天只需要获取一次交易日信息
  */
 class TradingDayCache {
-  private _cache: Map<string, TradingDayCacheEntry>;
-  private _ttl: number;
+  private readonly _cache: Map<string, TradingDayCacheEntry>;
+  private readonly _ttl: number;
 
   constructor() {
     // 缓存格式: { date: "YYYY-MM-DD", isTradingDay: boolean, isHalfDay: boolean, timestamp: number }
@@ -193,16 +193,28 @@ type PeriodString = '1m' | '5m' | '15m' | '1h' | '1d';
  * - Node SDK：https://longportapp.github.io/openapi/nodejs/modules.html
  */
 export class MarketDataClient {
-  private _config: Config;
-  private _ctxPromise: Promise<QuoteContext>;
-  private _quoteCache: QuoteCache<Quote>;
-  private _tradingDayCache: TradingDayCache;
+  private _ctxPromise!: Promise<QuoteContext>; // 使用 ! 断言，将在 create() 方法中初始化
+  private readonly _quoteCache: QuoteCache<Quote>;
+  private readonly _tradingDayCache: TradingDayCache;
 
-  constructor(config: Config | null = null) {
-    this._config = config ?? createConfig();
-    this._ctxPromise = QuoteContext.new(this._config);
+  private constructor() {
+    // _ctxPromise 将在 create() 静态方法中初始化，不在这里初始化
     this._quoteCache = new QuoteCache<Quote>();
     this._tradingDayCache = new TradingDayCache();
+  }
+
+  /**
+   * 创建 MarketDataClient 实例（静态工厂方法）
+   * 将异步初始化操作从构造函数中移出，符合 SonarQube 规范
+   * @param config 配置对象，如果为 null 则使用默认配置
+   * @returns MarketDataClient 实例
+   */
+  static async create(config: Config | null = null): Promise<MarketDataClient> {
+    const finalConfig = config ?? createConfig();
+    const client = new MarketDataClient();
+    // 在工厂方法中初始化 Promise，而不是在构造函数中
+    client._ctxPromise = QuoteContext.new(finalConfig);
+    return client;
   }
 
   /**

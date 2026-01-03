@@ -28,7 +28,7 @@ import {
   kdjObjectPool,
   macdObjectPool,
 } from '../utils/objectPool.js';
-import type { Quote, IndicatorSnapshot, KDJIndicator, MACDIndicator } from '../types/index.js';
+import type { Quote, IndicatorSnapshot } from '../types/index.js';
 
 /**
  * 监控值接口
@@ -57,9 +57,7 @@ interface LastState {
  * 监控做多/做空标的价格变化、监控标的指标变化，并格式化显示
  */
 export class MarketMonitor {
-  constructor() {
-    // 内部状态由外部 lastState 管理，这里不维护状态
-  }
+  // 内部状态由外部 lastState 管理，这里不维护状态
 
   /**
    * 监控并显示做多和做空标的的价格变化
@@ -172,21 +170,16 @@ export class MarketMonitor {
     // 检查价格变化
     const lastPrice = lastState.monitorValues?.price;
     if (
-      lastPrice == null &&
-      Number.isFinite(currentPrice) &&
-      currentPrice > 0
+      (lastPrice == null && Number.isFinite(currentPrice) && currentPrice > 0) ||
+      hasChanged(currentPrice, lastPrice ?? null, 0.0001)
     ) {
-      hasIndicatorChanged = true; // 首次出现价格
-    } else if (hasChanged(currentPrice, lastPrice ?? null, 0.0001)) {
       hasIndicatorChanged = true;
     }
 
     // 检查涨跌幅变化
     const lastChangePercent = lastState.monitorValues?.changePercent;
     if (!hasIndicatorChanged && changePercent !== null) {
-      if (lastChangePercent == null) {
-        hasIndicatorChanged = true;
-      } else if (hasChanged(changePercent, lastChangePercent, 0.01)) {
+      if (lastChangePercent == null || hasChanged(changePercent, lastChangePercent, 0.01)) {
         // 涨跌幅变化阈值：0.01%
         hasIndicatorChanged = true;
       }
@@ -236,23 +229,11 @@ export class MarketMonitor {
     // 检查KDJ变化
     if (!hasIndicatorChanged && monitorSnapshot.kdj) {
       const lastKdj = lastState.monitorValues?.kdj;
-      const kdj = monitorSnapshot.kdj as KDJIndicator;
+      const kdj = monitorSnapshot.kdj;
       if (
-        Number.isFinite(kdj.k) &&
-        (lastKdj?.k == null ||
-          hasChanged(kdj.k, lastKdj.k, 0.1))
-      ) {
-        hasIndicatorChanged = true;
-      } else if (
-        Number.isFinite(kdj.d) &&
-        (lastKdj?.d == null ||
-          hasChanged(kdj.d, lastKdj.d, 0.1))
-      ) {
-        hasIndicatorChanged = true;
-      } else if (
-        Number.isFinite(kdj.j) &&
-        (lastKdj?.j == null ||
-          hasChanged(kdj.j, lastKdj.j, 0.1))
+        (Number.isFinite(kdj.k) && (lastKdj?.k == null || hasChanged(kdj.k, lastKdj.k, 0.1))) ||
+        (Number.isFinite(kdj.d) && (lastKdj?.d == null || hasChanged(kdj.d, lastKdj.d, 0.1))) ||
+        (Number.isFinite(kdj.j) && (lastKdj?.j == null || hasChanged(kdj.j, lastKdj.j, 0.1)))
       ) {
         hasIndicatorChanged = true;
       }
@@ -261,23 +242,11 @@ export class MarketMonitor {
     // 检查MACD变化
     if (!hasIndicatorChanged && monitorSnapshot.macd) {
       const lastMacd = lastState.monitorValues?.macd;
-      const macd = monitorSnapshot.macd as MACDIndicator;
+      const macd = monitorSnapshot.macd;
       if (
-        Number.isFinite(macd.macd) &&
-        (lastMacd?.macd == null ||
-          hasChanged(macd.macd, lastMacd.macd, 0.0001))
-      ) {
-        hasIndicatorChanged = true;
-      } else if (
-        Number.isFinite(macd.dif) &&
-        (lastMacd?.dif == null ||
-          hasChanged(macd.dif, lastMacd.dif, 0.0001))
-      ) {
-        hasIndicatorChanged = true;
-      } else if (
-        Number.isFinite(macd.dea) &&
-        (lastMacd?.dea == null ||
-          hasChanged(macd.dea, lastMacd.dea, 0.0001))
+        (Number.isFinite(macd.macd) && (lastMacd?.macd == null || hasChanged(macd.macd, lastMacd.macd, 0.0001))) ||
+        (Number.isFinite(macd.dif) && (lastMacd?.dif == null || hasChanged(macd.dif, lastMacd.dif, 0.0001))) ||
+        (Number.isFinite(macd.dea) && (lastMacd?.dea == null || hasChanged(macd.dea, lastMacd.dea, 0.0001)))
       ) {
         hasIndicatorChanged = true;
       }
@@ -321,8 +290,8 @@ export class MarketMonitor {
       newMonitorValues.mfi = monitorSnapshot.mfi;
       // 创建 kdj 和 macd 对象的浅拷贝，避免直接引用对象池中的对象
       // 这样可以防止对象池回收时数据被意外修改
-      const kdjData = monitorSnapshot.kdj as KDJIndicator | null;
-      const macdData = monitorSnapshot.macd as MACDIndicator | null;
+      const kdjData = monitorSnapshot.kdj;
+      const macdData = monitorSnapshot.macd;
       newMonitorValues.kdj = kdjData
         ? { k: kdjData.k, d: kdjData.d, j: kdjData.j }
         : null;
@@ -358,7 +327,10 @@ export class MarketMonitor {
   ): void {
     // 格式化指标值
     const formatIndicator = (value: number | null | undefined, decimals: number = 2): string => {
-      return isValidNumber(value) ? value!.toFixed(decimals) : '-';
+      if (isValidNumber(value)) {
+        return value.toFixed(decimals);
+      }
+      return '-';
     };
 
     // 构建指标显示字符串（按照指定顺序：最新价、涨跌幅、EMAn、RSIn、MFI、K、D、J、MACD、DIF、DEA）
@@ -402,7 +374,7 @@ export class MarketMonitor {
 
     // 6. KDJ（K、D、J三个值）
     if (monitorSnapshot.kdj) {
-      const kdj = monitorSnapshot.kdj as KDJIndicator;
+      const kdj = monitorSnapshot.kdj;
       if (Number.isFinite(kdj.k)) {
         indicators.push(`K=${formatIndicator(kdj.k, 3)}`);
       }
@@ -416,7 +388,7 @@ export class MarketMonitor {
 
     // 7. MACD（MACD、DIF、DEA三个值）
     if (monitorSnapshot.macd) {
-      const macd = monitorSnapshot.macd as MACDIndicator;
+      const macd = monitorSnapshot.macd;
       if (Number.isFinite(macd.macd)) {
         indicators.push(
           `MACD=${formatIndicator(macd.macd, 3)}`,

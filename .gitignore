@@ -27,3 +27,6 @@ coverage/
 # Build output
 dist/
 build/
+
+# SonarQube
+.scannerwork/

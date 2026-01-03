@@ -60,6 +60,11 @@ type OrderOptions = {
 };
 
 /**
+ * 可转换为数字的类型
+ */
+type DecimalLikeValue = string | number | null;
+
+/**
  * 订单载荷类型
  */
 type OrderPayload = {
@@ -265,8 +270,8 @@ function recordTrade(tradeRecord: TradeRecord): void {
  * Longbridge API 限制：30秒内不超过30次调用，两次调用间隔不少于0.02秒
  */
 class TradeAPIRateLimiter {
-  private maxCalls: number;
-  private windowMs: number;
+  private readonly maxCalls: number;
+  private readonly windowMs: number;
   private callTimestamps: number[];
   private _throttlePromise: Promise<void> | null;
 
@@ -336,20 +341,18 @@ class TradeAPIRateLimiter {
  * https://longportapp.github.io/openapi/nodejs/modules.html
  */
 export class Trader {
-  private _config: Config;
-  _ctxPromise: Promise<TradeContext>;
-  private _orderOptions: OrderOptions;
+  _ctxPromise!: Promise<TradeContext>; // 使用 ! 断言，将在 create() 方法中初始化
+  private readonly _orderOptions: OrderOptions;
   _lastBuyTime: Map<string, number>;
   private _shouldMonitorBuyOrders: boolean;
   private _pendingOrdersCache: PendingOrder[] | null;
   private _pendingOrdersCacheSymbols: string | null;
   private _pendingOrdersCacheTime: number;
-  private _pendingOrdersCacheTTL: number;
-  private _tradeAPILimiter: TradeAPIRateLimiter;
+  private readonly _pendingOrdersCacheTTL: number;
+  private readonly _tradeAPILimiter: TradeAPIRateLimiter;
 
-  constructor(config: Config | null = null) {
-    this._config = config ?? createConfig();
-    this._ctxPromise = TradeContext.new(this._config);
+  private constructor() {
+    // _ctxPromise 将在 create() 静态方法中初始化，不在这里初始化
     this._orderOptions = { ...DEFAULT_ORDER_CONFIG };
     // 规范化港股代码，自动添加 .HK 后缀
     if (this._orderOptions.symbol) {
@@ -373,6 +376,20 @@ export class Trader {
     // ===== 修复3: 添加 Trade API 频率限制器 =====
     // Longbridge API 限制：30秒内不超过30次调用
     this._tradeAPILimiter = new TradeAPIRateLimiter(30, 30000);
+  }
+
+  /**
+   * 创建 Trader 实例（静态工厂方法）
+   * 将异步初始化操作从构造函数中移出，符合 SonarQube 规范
+   * @param config 配置对象，如果为 null 则使用默认配置
+   * @returns Trader 实例
+   */
+  static async create(config: Config | null = null): Promise<Trader> {
+    const finalConfig = config ?? createConfig();
+    const trader = new Trader();
+    // 在工厂方法中初始化 Promise，而不是在构造函数中
+    trader._ctxPromise = TradeContext.new(finalConfig);
+    return trader;
   }
 
   async getAccountSnapshot(): Promise<AccountSnapshot | null> {
@@ -438,7 +455,7 @@ export class Trader {
       symbols && symbols.length > 0
         ? symbols
           .map((s) => normalizeHKSymbol(s))
-          .sort()
+          .sort((a, b) => a.localeCompare(b))
           .join(',')
         : 'ALL'; // null 或空数组统一标记为 "ALL"
 
@@ -486,7 +503,7 @@ export class Trader {
         // 如果没有指定标的，获取所有订单
         // ===== 修复3: 应用频率限制 =====
         await this._tradeAPILimiter.throttle();
-        allOrders = (await ctx.todayOrders(undefined)) as typeof allOrders;
+        allOrders = (await ctx.todayOrders()) as typeof allOrders;
       } else {
         // 如果指定了标的，分别查询每个标的（因为 symbol 参数只接受单个字符串）
         const normalizedSymbols = symbols.map((s) => normalizeHKSymbol(s));
@@ -530,9 +547,9 @@ export class Trader {
           orderId: order.orderId,
           symbol: order.symbol,
           side: order.side,
-          submittedPrice: decimalToNumber(order.price as string | number | null),
-          quantity: decimalToNumber(order.quantity as string | number | null),
-          executedQuantity: decimalToNumber(order.executedQuantity as string | number | null),
+          submittedPrice: decimalToNumber(order.price as DecimalLikeValue),
+          quantity: decimalToNumber(order.quantity as DecimalLikeValue),
+          executedQuantity: decimalToNumber(order.executedQuantity as DecimalLikeValue),
           status: order.status,
           orderType: order.orderType,
           // ===== 修复2: 保存原始订单对象供 replaceOrderPrice 使用 =====
@@ -618,16 +635,16 @@ export class Trader {
       quantity: unknown;
     } | null = (cachedOrder?._rawOrder as typeof originalOrder) || cachedOrder as unknown as typeof originalOrder;
 
-    // 如果没有提供缓存的订单对象，才查询API
-    if (!originalOrder) {
+    // 如果提供了缓存的订单对象，使用缓存；否则查询API
+    if (originalOrder) {
+      logger.debug(`[订单修改] 使用缓存的订单对象，订单ID=${orderId}`);
+    } else {
       logger.debug(`[订单修改] 未提供缓存订单对象，查询API获取订单 ${orderId}`);
       // ===== 修复3: 应用频率限制 =====
       await this._tradeAPILimiter.throttle();
-      const allOrders = await ctx.todayOrders(undefined);
+      const allOrders = await ctx.todayOrders();
       const foundOrder = allOrders.find((o) => o.orderId === orderId);
       originalOrder = foundOrder ?? null;
-    } else {
-      logger.debug(`[订单修改] 使用缓存的订单对象，订单ID=${orderId}`);
     }
 
     if (!originalOrder) {
@@ -650,8 +667,8 @@ export class Trader {
     }
 
     // 计算剩余数量（原订单数量 - 已成交数量）
-    const executedQty = decimalToNumber((originalOrder as { executedQuantity?: string | number | null }).executedQuantity ?? 0);
-    const originalQty = decimalToNumber((originalOrder as { quantity?: string | number | null }).quantity ?? 0);
+    const executedQty = decimalToNumber((originalOrder as { executedQuantity?: DecimalLikeValue }).executedQuantity ?? 0);
+    const originalQty = decimalToNumber((originalOrder as { quantity?: DecimalLikeValue }).quantity ?? 0);
     const remainingQty = originalQty - executedQty;
 
     // 构建修改订单的payload
@@ -718,7 +735,7 @@ export class Trader {
         const hasCache = symbols.some((symbol) => {
           const normalizedSymbol = normalizeHKSymbol(symbol);
           const cached = (orderRecorder as unknown as { _ordersCache: Map<string, { allOrders?: unknown[] }> })._ordersCache.get(normalizedSymbol);
-          return cached && cached.allOrders;
+          return cached?.allOrders;
         });
 
         // 如果缓存存在，从缓存中提取未成交订单
@@ -1130,7 +1147,7 @@ export class Trader {
       for (const ch of channels) {
         const positions = Array.isArray(ch.positions) ? ch.positions : [];
         for (const pos of positions) {
-          if (pos && pos.symbol === symbol && pos.availableQuantity) {
+          if (pos?.symbol === symbol && pos.availableQuantity) {
             const qty = decimalToNumber(pos.availableQuantity);
             if (Number.isFinite(qty) && qty > 0) {
               totalAvailable += qty;
@@ -1146,16 +1163,16 @@ export class Trader {
       }
 
       // 如果指定了数量，使用指定数量（但不能超过可用数量）
-      if (targetQuantity !== null) {
+      if (targetQuantity == null) {
+        // 未指定数量，全部清仓
+        submittedQtyDecimal = toDecimal(totalAvailable);
+      } else {
         submittedQtyDecimal = toDecimal(
           Math.min(targetQuantity, totalAvailable),
         );
         logger.info(
           `[部分卖出] 信号指定卖出数量=${targetQuantity}，可用数量=${totalAvailable}，实际卖出=${submittedQtyDecimal.toString()}`,
         );
-      } else {
-        // 未指定数量，全部清仓
-        submittedQtyDecimal = toDecimal(totalAvailable);
       }
     } else {
       // BUY 信号：按目标金额（例如 5000 HKD）计算买入数量，

@@ -28,7 +28,6 @@ import type {
   VerificationConfig,
   SignalConfig,
   SignalConfigSet,
-  KDJIndicator,
   SignalType,
 } from '../types/index.js';
 
@@ -89,7 +88,7 @@ export class HangSengMultiIndicatorStrategy {
       }
     }
 
-    const kdjData = kdj as KDJIndicator | null;
+    const kdjData = kdj;
 
     return (
       hasValidRsi &&
@@ -181,29 +180,30 @@ export class HangSengMultiIndicatorStrategy {
     if (rsi && typeof rsi === 'object') {
       // 按周期从小到大排序
       const periods = Object.keys(rsi)
-        .map((p) => parseInt(p, 10))
+        .map((p) => Number.parseInt(p, 10))
         .filter((p) => Number.isFinite(p))
         .sort((a, b) => a - b);
       for (const period of periods) {
-        if (isValidNumber(rsi[period])) {
-          parts.push(`RSI${period}(${rsi[period]!.toFixed(3)})`);
+        const rsiValue = rsi[period];
+        if (isValidNumber(rsiValue)) {
+          parts.push(`RSI${period}(${rsiValue.toFixed(3)})`);
         }
       }
     }
     if (isValidNumber(mfi)) {
-      parts.push(`MFI(${mfi!.toFixed(3)})`);
+      parts.push(`MFI(${mfi.toFixed(3)})`);
     }
     if (kdj) {
-      const kdjData = kdj as KDJIndicator;
+      const kdjData = kdj;
       const kdjParts: string[] = [];
       if (isValidNumber(kdjData.k)) {
-        kdjParts.push(`K=${kdjData.k!.toFixed(3)}`);
+        kdjParts.push(`K=${kdjData.k.toFixed(3)}`);
       }
       if (isValidNumber(kdjData.d)) {
-        kdjParts.push(`D=${kdjData.d!.toFixed(3)}`);
+        kdjParts.push(`D=${kdjData.d.toFixed(3)}`);
       }
       if (isValidNumber(kdjData.j)) {
-        kdjParts.push(`J=${kdjData.j!.toFixed(3)}`);
+        kdjParts.push(`J=${kdjData.j.toFixed(3)}`);
       }
       if (kdjParts.length > 0) {
         parts.push(`KDJ(${kdjParts.join(',')})`);

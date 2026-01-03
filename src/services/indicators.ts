@@ -261,7 +261,7 @@ function calculateMACD(
 
     const lastMacd = macdResult.at(-1);
 
-    if (!lastMacd || lastMacd.MACD === undefined || lastMacd.signal === undefined || lastMacd.histogram === undefined) {
+    if (!lastMacd?.MACD || lastMacd.signal === undefined || lastMacd.histogram === undefined) {
       return null;
     }
 

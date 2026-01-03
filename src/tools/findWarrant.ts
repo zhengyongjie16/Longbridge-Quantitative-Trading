@@ -39,6 +39,9 @@ import {
   formatNumber,
 } from '../utils/helpers.js';
 
+// ==================== 类型定义 ====================
+type DecimalLikeValue = string | number | null;
+
 // ==================== 配置参数 ====================
 // 注意：修改以下配置后，需要重新运行程序才能生效
 
@@ -148,12 +151,12 @@ function calculateAverageTurnover(candles: CandleData[]): number | null {
 
   for (const candle of candles) {
     let turnover =
-      candle.turnover != null ? decimalToNumber(candle.turnover as string | number | null) : null;
+      candle.turnover == null ? null : decimalToNumber(candle.turnover as DecimalLikeValue);
 
     // 如果没有 turnover 字段或无效，使用 close * volume 计算
     if (!Number.isFinite(turnover) || (turnover !== null && turnover <= 0)) {
-      const close = decimalToNumber(candle.close as string | number | null);
-      const volume = decimalToNumber(candle.volume as string | number | null);
+      const close = decimalToNumber(candle.close as DecimalLikeValue);
+      const volume = decimalToNumber(candle.volume as DecimalLikeValue);
       if (Number.isFinite(close) && Number.isFinite(volume) && volume > 0) {
         turnover = close * volume;
       } else {
@@ -203,7 +206,7 @@ async function checkWarrant(
 
     // 获取回收价
     const callPriceNum = decimalToNumber(
-      (warrantQuote.call_price ?? warrantQuote.callPrice) as string | number | null,
+      (warrantQuote.call_price ?? warrantQuote.callPrice) as DecimalLikeValue,
     );
     if (!Number.isFinite(callPriceNum) || callPriceNum <= 0) return null;
 
@@ -308,7 +311,7 @@ async function findQualifiedWarrants(
       throw new Error(`无法获取监控标的 ${normalizedMonitorSymbol} 的行情数据`);
     }
 
-    const monitorPrice = decimalToNumber(monitorQuote.lastDone as string | number | null);
+    const monitorPrice = decimalToNumber(monitorQuote.lastDone as DecimalLikeValue);
     if (!Number.isFinite(monitorPrice) || monitorPrice <= 0) {
       throw new Error(
         `监控标的 ${normalizedMonitorSymbol} 的当前价无效: ${monitorPrice}`,
@@ -368,7 +371,7 @@ async function findQualifiedWarrants(
       const result: WarrantInfo[] = [];
       for (const w of warrants) {
         const warrant = w as WarrantInfo;
-        const turnover = decimalToNumber(warrant.turnover as string | number | null);
+        const turnover = decimalToNumber(warrant.turnover as DecimalLikeValue);
         if (Number.isFinite(turnover) && turnover >= MIN_DAILY_TURNOVER) {
           result.push(warrant);
         }
@@ -478,9 +481,11 @@ async function main(): Promise<void> {
 }
 
 // 运行主函数
-main().catch((error: unknown) => {
+try {
+  await main();
+} catch (error: unknown) {
   console.error('程序执行失败：', error);
   process.exit(1);
-});
+}
 
 export { findQualifiedWarrants };

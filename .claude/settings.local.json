@@ -21,7 +21,12 @@
       "Bash(npm run build:*)",
       "Bash(npm run lint)",
       "Bash(npm run lint:fix:*)",
-      "Skill(typescript-strict)"
+      "Skill(typescript-strict)",
+      "Bash(where:*)",
+      "Bash(sonar-scanner:*)",
+      "Bash(npm run type-check:*)",
+      "WebFetch(domain:sonarcloud.io)",
+      "Bash(curl:*)"
     ]
   }
 }

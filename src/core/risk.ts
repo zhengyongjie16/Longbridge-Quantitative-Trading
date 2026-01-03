@@ -161,14 +161,16 @@ export class RiskChecker {
         this.longWarrantInfo = warrantInfo;
 
         if (warrantInfo.isWarrant) {
+          let warrantTypeName: string;
+          if (warrantInfo.warrantType === 'BULL') {
+            warrantTypeName = '牛证';
+          } else if (warrantInfo.warrantType === 'BEAR') {
+            warrantTypeName = '熊证';
+          } else {
+            warrantTypeName = '轮证';
+          }
           logger.info(
-            `[风险检查] 做多标的 ${longSymbol} 是${
-              warrantInfo.warrantType === 'BULL'
-                ? '牛证'
-                : warrantInfo.warrantType === 'BEAR'
-                  ? '熊证'
-                  : '轮证'
-            }，回收价=${warrantInfo.callPrice?.toFixed(3) ?? '未知'}`,
+            `[风险检查] 做多标的 ${longSymbol} 是${warrantTypeName}，回收价=${warrantInfo.callPrice?.toFixed(3) ?? '未知'}`,
           );
         } else {
           logger.info(`[风险检查] 做多标的 ${longSymbol} 不是牛熊证`);
@@ -193,14 +195,16 @@ export class RiskChecker {
         this.shortWarrantInfo = warrantInfo;
 
         if (warrantInfo.isWarrant) {
+          let warrantTypeName: string;
+          if (warrantInfo.warrantType === 'BULL') {
+            warrantTypeName = '牛证';
+          } else if (warrantInfo.warrantType === 'BEAR') {
+            warrantTypeName = '熊证';
+          } else {
+            warrantTypeName = '轮证';
+          }
           logger.info(
-            `[风险检查] 做空标的 ${shortSymbol} 是${
-              warrantInfo.warrantType === 'BULL'
-                ? '牛证'
-                : warrantInfo.warrantType === 'BEAR'
-                  ? '熊证'
-                  : '轮证'
-            }，回收价=${warrantInfo.callPrice?.toFixed(3) ?? '未知'}`,
+            `[风险检查] 做空标的 ${shortSymbol} 是${warrantTypeName}，回收价=${warrantInfo.callPrice?.toFixed(3) ?? '未知'}`,
           );
         } else {
           logger.info(`[风险检查] 做空标的 ${shortSymbol} 不是牛熊证`);
@@ -378,7 +382,7 @@ export class RiskChecker {
           const checkPrice = longCurrentPrice;
 
           // 验证当前价格有效性
-          if (Number.isFinite(checkPrice) && checkPrice !== null && checkPrice > 0) {
+          if (checkPrice !== null && Number.isFinite(checkPrice) && checkPrice > 0) {
             // 计算当前持仓市值R2和浮亏X
             const r2 = checkPrice * n1;
             const longUnrealizedPnL = r2 - r1;
@@ -413,7 +417,7 @@ export class RiskChecker {
                 allowed: false,
                 reason: `做多标的持仓浮亏约 ${longUnrealizedPnL.toFixed(
                   2,
-                )} HKD 已超过单标的最大浮亏限制 ${
+                )} HKD 已超过单日最大亏损限制 ${
                   this.maxDailyLoss
                 } HKD，禁止买入做多标的（R1=${r1.toFixed(2)}, R2=${r2.toFixed(
                   2,
@@ -433,7 +437,7 @@ export class RiskChecker {
           const checkPrice = shortCurrentPrice;
 
           // 验证当前价格有效性
-          if (Number.isFinite(checkPrice) && checkPrice !== null && checkPrice > 0) {
+          if (checkPrice !== null && Number.isFinite(checkPrice) && checkPrice > 0) {
             // 计算当前持仓市值R2和浮亏X
             const r2 = checkPrice * n1;
             const shortUnrealizedPnL = r2 - r1;
@@ -468,7 +472,7 @@ export class RiskChecker {
                 allowed: false,
                 reason: `做空标的持仓浮亏约 ${shortUnrealizedPnL.toFixed(
                   2,
-                )} HKD 已超过单标的最大浮亏限制 ${
+                )} HKD 已超过单日最大亏损限制 ${
                   this.maxDailyLoss
                 } HKD，禁止买入做空标的（R1=${r1.toFixed(2)}, R2=${r2.toFixed(
                   2,
@@ -636,7 +640,7 @@ export class RiskChecker {
     const warrantInfo = isLong ? this.longWarrantInfo : this.shortWarrantInfo;
 
     // 如果没有初始化过牛熊证信息，或者不是牛熊证，允许交易
-    if (!warrantInfo || !warrantInfo.isWarrant) {
+    if (!warrantInfo?.isWarrant) {
       return { allowed: true };
     }
 
