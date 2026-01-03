@@ -654,5 +654,3 @@ export function extractRSIPeriods(signalConfig: SignalConfigSet | null): number[
   return Array.from(periods).sort((a, b) => a - b);
 }
 
-// 导出支持的指标列表供验证使用
-export { SUPPORTED_INDICATORS };

@@ -48,11 +48,6 @@ interface SignalGenerationResult {
   delayedSignals: Signal[];
 }
 
-/**
- * 延迟信号类型（等同于 Signal）
- */
-type DelayedSignal = Signal;
-
 export class HangSengMultiIndicatorStrategy {
   private readonly signalConfig: SignalConfigSet;
   private readonly verificationConfig: VerificationConfig;
@@ -232,7 +227,7 @@ export class HangSengMultiIndicatorStrategy {
     symbol: string,
     action: string,
     reasonPrefix: string,
-  ): DelayedSignal | null {
+  ): Signal | null {
     // 验证所有必要的指标值是否有效
     if (!this._validateAllIndicators(state)) {
       return null;
@@ -284,7 +279,7 @@ export class HangSengMultiIndicatorStrategy {
     const indicatorDisplayStr = this._buildIndicatorDisplayString(state);
 
     // 从对象池获取信号对象
-    const signal = signalObjectPool.acquire() as DelayedSignal;
+    const signal = signalObjectPool.acquire() as Signal;
     signal.symbol = symbol;
     signal.action = action as SignalType;
     signal.triggerTime = triggerTime;

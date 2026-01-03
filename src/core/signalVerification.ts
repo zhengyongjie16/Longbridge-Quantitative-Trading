@@ -35,15 +35,10 @@ interface VerificationEntry {
 }
 
 /**
- * 延迟信号类型（等同于 Signal）
- */
-type DelayedSignal = Signal;
-
-/**
  * 状态对象接口
  */
 interface LastState {
-  pendingDelayedSignals?: DelayedSignal[];
+  pendingDelayedSignals?: Signal[];
 }
 
 /**
@@ -62,7 +57,7 @@ export class SignalVerificationManager {
    * @param delayedSignals 延迟信号列表
    * @param lastState 状态对象（包含 pendingDelayedSignals）
    */
-  addDelayedSignals(delayedSignals: DelayedSignal[], lastState: LastState): void {
+  addDelayedSignals(delayedSignals: Signal[], lastState: LastState): void {
     // 初始化待验证信号数组（如果不存在）
     if (!lastState.pendingDelayedSignals) {
       lastState.pendingDelayedSignals = [];
@@ -278,7 +273,7 @@ export class SignalVerificationManager {
    * @private
    */
   private _verifySingleSignal(
-    pendingSignal: DelayedSignal,
+    pendingSignal: Signal,
     now: Date,
     longQuote: Quote | null,
     shortQuote: Quote | null,

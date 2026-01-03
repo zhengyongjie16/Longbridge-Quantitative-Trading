@@ -19,7 +19,7 @@
 /**
  * 香港时间结构
  */
-export interface HKTime {
+interface HKTime {
   hkHour: number;
   hkMinute: number;
 }
@@ -29,7 +29,7 @@ export interface HKTime {
  * @param date 时间对象（UTC时间）
  * @returns 香港时区的小时和分钟，如果date无效则返回null
  */
-export function getHKTime(date: Date | null | undefined): HKTime | null {
+function getHKTime(date: Date | null | undefined): HKTime | null {
   if (!date) return null;
   const utcHour = date.getUTCHours();
   const utcMinute = date.getUTCMinutes();

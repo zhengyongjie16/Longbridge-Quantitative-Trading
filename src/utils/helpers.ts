@@ -14,7 +14,7 @@
  * - formatSymbolDisplay() / formatQuoteDisplay()：格式化显示
  */
 
-import type { PoolableSignal, Quote, Signal, SignalType } from '../types/index.js';
+import type { Quote, SignalType } from '../types/index.js';
 
 /**
  * LongPort Decimal 类型接口
@@ -275,19 +275,6 @@ export function formatQuoteDisplay(quote: Quote | null, symbol: string): QuoteDi
 }
 
 /**
- * 类型守卫：判断是否为有效的 SignalType
- */
-export const isSignalType = (value: unknown): value is SignalType => {
-  return (
-    value === 'BUYCALL' ||
-    value === 'SELLCALL' ||
-    value === 'BUYPUT' ||
-    value === 'SELLPUT' ||
-    value === 'HOLD'
-  );
-};
-
-/**
 * 辅助函数：判断是否为买入操作
 */
 export const isBuyAction = (action: SignalType): boolean => {
@@ -301,13 +288,3 @@ export const isSellAction = (action: SignalType): boolean => {
   return action === 'SELLCALL' || action === 'SELLPUT';
 };
 
-/**
-* 类型守卫：验证对象池对象是否为有效 Signal
-*/
-export const isValidSignal = (obj: PoolableSignal): obj is Signal => {
-  return (
-    obj.symbol !== null &&
-    obj.action !== null &&
-    isSignalType(obj.action)
-  );
-};
