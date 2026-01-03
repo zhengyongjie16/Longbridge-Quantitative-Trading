@@ -19,6 +19,7 @@ dotenv.config();
 
 import { parseSignalConfig } from '../utils/signalConfigParser.js';
 import { validateEmaPeriod } from '../utils/indicatorHelpers.js';
+import { logger } from '../utils/logger.js';
 import type { TradingConfig } from '../types/index.js';
 
 /**
@@ -131,11 +132,11 @@ export const TRADING_CONFIG: TradingConfig = {
     }
     // 限制范围在 10-600 秒之间
     if (interval < 10) {
-      console.warn('[配置警告] BUY_INTERVAL_SECONDS 不能小于 10，已设置为 10');
+      logger.warn('[配置警告] BUY_INTERVAL_SECONDS 不能小于 10，已设置为 10');
       return 10;
     }
     if (interval > 600) {
-      console.warn(
+      logger.warn(
         '[配置警告] BUY_INTERVAL_SECONDS 不能大于 600，已设置为 600',
       );
       return 600;
@@ -155,13 +156,13 @@ export const TRADING_CONFIG: TradingConfig = {
       }
       // 限制范围在 0-120 秒之间
       if (delay < 0) {
-        console.warn(
+        logger.warn(
           '[配置警告] VERIFICATION_DELAY_SECONDS 不能小于 0，已设置为 0',
         );
         return 0;
       }
       if (delay > 120) {
-        console.warn(
+        logger.warn(
           '[配置警告] VERIFICATION_DELAY_SECONDS 不能大于 120，已设置为 120',
         );
         return 120;
@@ -220,7 +221,7 @@ export const TRADING_CONFIG: TradingConfig = {
       }
 
       if (invalidItems.length > 0) {
-        console.warn(
+        logger.warn(
           `[配置警告] VERIFICATION_INDICATORS 包含无效值: ${invalidItems.join(
             ', ',
           )}，允许的值: K, D, J, MACD, DIF, DEA, EMA:n (n为1-250)`,
@@ -247,7 +248,7 @@ export const TRADING_CONFIG: TradingConfig = {
       }
       const config = parseSignalConfig(configStr);
       if (!config) {
-        console.error('[配置错误] SIGNAL_BUYCALL 格式无效');
+        logger.error('[配置错误] SIGNAL_BUYCALL 格式无效');
         return null;
       }
       return config;
@@ -261,7 +262,7 @@ export const TRADING_CONFIG: TradingConfig = {
       }
       const config = parseSignalConfig(configStr);
       if (!config) {
-        console.error('[配置错误] SIGNAL_SELLCALL 格式无效');
+        logger.error('[配置错误] SIGNAL_SELLCALL 格式无效');
         return null;
       }
       return config;
@@ -275,7 +276,7 @@ export const TRADING_CONFIG: TradingConfig = {
       }
       const config = parseSignalConfig(configStr);
       if (!config) {
-        console.error('[配置错误] SIGNAL_BUYPUT 格式无效');
+        logger.error('[配置错误] SIGNAL_BUYPUT 格式无效');
         return null;
       }
       return config;
@@ -289,7 +290,7 @@ export const TRADING_CONFIG: TradingConfig = {
       }
       const config = parseSignalConfig(configStr);
       if (!config) {
-        console.error('[配置错误] SIGNAL_SELLPUT 格式无效');
+        logger.error('[配置错误] SIGNAL_SELLPUT 格式无效');
         return null;
       }
       return config;

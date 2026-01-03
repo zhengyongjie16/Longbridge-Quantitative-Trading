@@ -200,9 +200,6 @@ export function calculateSellQuantity(
  * 处理信号的过滤、风险检查、数量计算等逻辑
  */
 export class SignalProcessor {
-  constructor() {
-    // 信号处理器不维护状态，所有状态由外部管理
-  }
 
   /**
    * 处理卖出信号的成本价判断和数量计算
@@ -237,7 +234,7 @@ export class SignalProcessor {
 
       // 检查是否是末日保护程序的清仓信号（无条件清仓，不受成本价判断影响）
       const isDoomsdaySignal =
-        sig.reason && sig.reason.includes('末日保护程序');
+        sig.reason?.includes('末日保护程序');
 
       // 添加调试日志
       if (!position) {

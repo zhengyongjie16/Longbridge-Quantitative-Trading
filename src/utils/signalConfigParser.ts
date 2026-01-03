@@ -25,6 +25,7 @@ import {
   validateRsiPeriod,
   validateEmaPeriod,
 } from './indicatorHelpers.js';
+import { logger } from './logger.js';
 import type { SignalConfig, Condition, ConditionGroup, SignalConfigSet } from '../types/index.js';
 
 // 支持的固定指标列表（不包括 RSI 和 EMA，因为它们支持动态周期）
@@ -262,7 +263,7 @@ export function parseSignalConfig(configStr: string | null | undefined): SignalC
 
   // 最多支持3个条件组
   if (groupStrs.length > 3) {
-    console.warn('[信号配置警告] 条件组数量超过3个，将只使用前3个');
+    logger.warn('[信号配置警告] 条件组数量超过3个，将只使用前3个');
   }
 
   const conditionGroups: ConditionGroup[] = [];

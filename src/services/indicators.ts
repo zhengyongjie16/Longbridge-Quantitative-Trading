@@ -459,12 +459,12 @@ export function buildIndicatorSnapshot(
     return null;
   }
 
-  const lastPrice = validCloses[validCloses.length - 1]!;
+  const lastPrice = validCloses.at(-1)!;
 
   // 计算涨跌幅（如果有前一根K线的收盘价）
   let changePercent: number | null = null;
   if (validCloses.length >= 2) {
-    const prevClose = validCloses[validCloses.length - 2]!;
+    const prevClose = validCloses.at(-2)!;
     if (Number.isFinite(prevClose) && prevClose > 0) {
       changePercent = ((lastPrice - prevClose) / prevClose) * 100;
     }
