@@ -91,8 +91,6 @@ npm start
   - `EMA:n`：任意周期 EMA（n 范围 1-250）
 - **运算符**：`<`、`>`
 
-**示例**：`RSI:6<20,MFI<15,D<20,J<-1)/3|(J<-20)` 表示 4 条件满足 3 个**或** J<-20 即可触发。
-
 > **技术指标详解**：详见 [docs/TECHNICAL_INDICATORS.md](./docs/TECHNICAL_INDICATORS.md)
 
 ### 四种信号
@@ -125,13 +123,13 @@ npm start
 
 | 检查       | 说明                                | 买入    | 卖出 |
 | ---------- | ----------------------------------- | ------- | ---- |
-| 交易频率   | 同方向买入间隔                      | ✅ 限制 | ❌   |
+| 交易频率   | 同方向买入间隔（默认60秒）          | ✅ 限制 | ❌   |
 | 买入价格   | 当前价 > 最新成交价时拒绝（防追高） | ✅ 检查 | ❌   |
 | 末日保护   | 收盘前 15 分钟拒绝买入              | ✅ 限制 | ❌   |
 | 牛熊证风险 | 使用监控标的价格计算距回收价        | ✅ 检查 | ❌   |
 | 单日亏损   | 浮亏 > MAX_DAILY_LOSS               | ✅ 限制 | ❌   |
 | 持仓市值   | 单标持仓 > MAX_POSITION_NOTIONAL    | ✅ 限制 | ❌   |
-| 浮亏保护   | 单标浮亏 > MAX_UNREALIZED_LOSS      | ✅ 清仓（市价单） | ❌   |
+| 浮亏保护   | 单标浮亏 > MAX_UNREALIZED_LOSS      | 实时监控（市价单清仓） | ❌   |
 
 ### 末日保护（可配置）
 
@@ -157,20 +155,20 @@ npm start
 src/
 ├── index.ts              # 主入口（每秒循环）
 ├── core/
-│   ├── strategy.ts       # 信号生成
-│   ├── trader.ts         # 订单执行
-│   ├── risk.ts           # 风险检查
-│   ├── orderRecorder.ts  # 订单记录
-│   ├── signalProcessor.ts # 信号处理
-│   ├── signalVerification.ts # 延迟验证
-│   ├── marketMonitor.ts  # 行情监控
-│   ├── doomsdayProtection.ts # 末日保护
-│   └── unrealizedLossMonitor.ts # 浮亏监控
+│   ├── strategy/         # 信号生成
+│   ├── trader/           # 订单执行（含未成交订单管理）
+│   ├── risk/             # 风险检查
+│   ├── orderRecorder/    # 订单记录（永久缓存）
+│   ├── signalProcessor/  # 信号处理
+│   ├── signalVerification/ # 延迟验证
+│   ├── marketMonitor/    # 行情监控
+│   ├── doomsdayProtection/ # 末日保护
+│   └── unrealizedLossMonitor/ # 浮亏监控
 ├── services/
-│   ├── indicators.ts     # 技术指标计算
-│   └── quoteClient.ts    # 行情数据
+│   ├── indicators/       # 技术指标计算
+│   └── quoteClient/      # 行情数据
 ├── utils/
-│   ├── objectPool.ts     # 内存优化
+│   ├── objectPool.ts     # 内存优化（对象池）
 │   ├── indicatorHelpers.ts # 指标辅助函数
 │   ├── logger.ts         # 日志系统
 │   ├── signalConfigParser.ts # 配置解析
@@ -194,18 +192,14 @@ src/
 3. 计算技术指标（RSI/MFI/KDJ/MACD/EMA）
 4. 生成交易信号（立即/延迟）
 5. 记录延迟信号的验证历史
-6. 验证到期的延迟信号（60秒后）
+6. 验证到期的延迟信号（默认60秒后）
 7. 风险检查（仅买入：频率/价格/末日/牛熊证/浮亏/持仓）
 8. 处理卖出信号（成本价判断和数量计算）
 9. 执行订单（ELO限价单/MO市价单）
-10. 监控未成交买入订单（价格优化）
-11. 更新订单记录和账户显示
+10. 监控未成交买入订单（价格下跌时自动降价）
+11. 更新订单记录（永久缓存）和账户显示
+12. 浮亏监控（价格变化时检查，超阈值立即清仓）
 ```
-
-### 交易时段
-
-- **正常日**：09:30-12:00，13:00-16:00
-- **半日**：09:30-12:00（无下午盘）
 
 ---
 

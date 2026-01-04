@@ -16,24 +16,24 @@ LongBridge 港股自动化量化交易系统。通过技术指标监控目标资
 src/
 ├── index.ts              # 主循环，每秒执行 runOnce()
 ├── core/
-│   ├── strategy.ts       # 信号生成（立即/延迟）
-│   ├── signalVerification.ts  # 延迟信号验证
-│   ├── signalProcessor.ts     # 风险检查、卖出数量计算
-│   ├── trader.ts         # 订单执行和监控
-│   ├── risk.ts           # 风险控制（牛熊证/浮亏/持仓）
-│   ├── orderRecorder.ts  # 历史订单跟踪
-│   ├── marketMonitor.ts  # 价格和指标监控
-│   ├── doomsdayProtection.ts  # 收盘前保护
-│   └── unrealizedLossMonitor.ts  # 浮亏监控
+│   ├── strategy/         # 信号生成（立即/延迟）
+│   ├── signalVerification/  # 延迟信号验证
+│   ├── signalProcessor/  # 风险检查、卖出数量计算
+│   ├── trader/           # 订单执行和监控（含未成交订单管理）
+│   ├── risk/             # 风险控制（牛熊证/浮亏/持仓）
+│   ├── orderRecorder/    # 历史订单跟踪（含永久缓存机制）
+│   ├── marketMonitor/    # 价格和指标监控
+│   ├── doomsdayProtection/  # 收盘前保护
+│   └── unrealizedLossMonitor/  # 浮亏监控（市价单清仓）
 ├── services/
-│   ├── indicators.ts     # 技术指标（RSI/MFI/KDJ/MACD/EMA）
-│   └── quoteClient.ts    # 行情数据
+│   ├── indicators/       # 技术指标（RSI/MFI/KDJ/MACD/EMA）
+│   └── quoteClient/      # 行情数据
 ├── utils/
 │   ├── helpers.ts        # 工具函数
 │   ├── signalConfigParser.ts  # 信号配置解析
 │   ├── tradingTime.ts    # 交易时段
 │   ├── logger.ts         # 日志系统
-│   ├── objectPool.ts     # 对象池
+│   ├── objectPool.ts     # 对象池（减少 GC 压力）
 │   ├── accountDisplay.ts # 账户显示
 │   └── indicatorHelpers.ts # 指标辅助函数
 └── config/
@@ -84,11 +84,12 @@ npm start
 4. 牛熊证风险（牛证距回收价 > 0.5%，熊证 < -0.5%）
 5. 基础风险检查（浮亏限制和持仓市值限制）
 
-### 卖出数量计算（signalProcessor.ts）
+### 卖出数量计算（signalProcessor/index.ts）
 - **盈利状态**（currentPrice > costPrice）：清空全部持仓
 - **未盈利状态**（currentPrice ≤ costPrice）：仅卖出 buyPrice < currentPrice 的历史订单
 - **无符合条件订单**：信号设为 HOLD，跳过本次卖出
-- **末日保护**：无条件清仓，不受成本价判断影响
+- **末日保护**：无条件清仓，不受成本价判断影响（使用市价单）
+- **保护性清仓**：浮亏超阈值时无条件清仓（使用市价单）
 
 ### 延迟验证逻辑（60秒延迟确认趋势）
 - **BUYCALL**：验证指标的3个时间点值（T0, T0+5s, T0+10s）都要**大于**初始值（上涨趋势）
@@ -99,7 +100,17 @@ npm start
 
 ### 收盘保护（DoomsdayProtection）
 - 收盘前15分钟：拒绝买入
-- 收盘前5分钟：自动清仓
+- 收盘前5分钟：自动清仓（使用市价单）
+
+### 市场监控（MarketMonitor）
+- **价格监控**：监控做多/做空标的价格变化（阈值 0.0001）
+- **指标监控**：监控技术指标变化（RSI/MFI/KDJ 阈值 0.1，MACD/EMA 阈值 0.0001）
+- **对象池优化**：使用对象池复用监控值对象，减少 GC 压力
+
+### 未成交订单管理（Trader）
+- **订单监控**：监控未成交买入订单，价格下跌时自动降低委托价
+- **缓存机制**：未成交订单缓存 15 秒 TTL，避免频繁查询
+- **频率限制**：Trade API 30秒内不超过30次，间隔≥0.02秒
 
 ## 技术约束
 
@@ -109,6 +120,7 @@ npm start
 3. **订单类型**：所有订单用 ELO（增强限价单），保护性清仓用 MO（市价单）
 4. **买入必须实时数据**：买入前必须获取最新账户/持仓数据
 5. **卖出可用缓存**：卖出操作可使用缓存数据
+6. **订单记录缓存**：订单数据永久缓存（程序运行期间），避免频繁调用 historyOrders API
 
 ### 时区处理
 - 系统内部：UTC
@@ -134,15 +146,17 @@ npm start
 | 任务         | 修改位置                                                   |
 | ------------ | ---------------------------------------------------------- |
 | 修改信号条件 | `.env` 文件（无需改代码）                                  |
-| 添加新指标   | `indicators.ts` + `signalConfigParser.ts`                  |
-| 调整风险检查 | `risk.ts`（仅门控买入）                                    |
-| 修改订单逻辑 | `trader.ts`                                                |
-| 修改卖出策略 | `signalProcessor.ts` 中的 `calculateSellQuantity` 函数     |
-| 修改配置参数 | `.env` 或 `config.trading.ts`                              |
-| 调整验证逻辑 | `signalVerification/index.ts` 中的 `_verifySingleSignal` 方法 |
-| 订单记录逻辑 | `orderRecorder/index.ts` 中的 `refreshOrders` 方法（过滤算法） |
+| 添加新指标   | `services/indicators/index.ts` + `utils/signalConfigParser.ts` |
+| 调整风险检查 | `core/risk/index.ts`（仅门控买入）                         |
+| 修改订单逻辑 | `core/trader/index.ts`（订单执行和监控）                   |
+| 修改卖出策略 | `core/signalProcessor/index.ts` 中的 `calculateSellQuantity` 函数 |
+| 修改配置参数 | `.env` 或 `config/config.trading.ts`                       |
+| 调整验证逻辑 | `core/signalVerification/index.ts` 中的 `_verifySingleSignal` 方法 |
+| 订单记录逻辑 | `core/orderRecorder/index.ts`（`refreshOrders` 过滤算法、`clearBuyOrders` 清仓） |
 | 修改账户显示 | `utils/accountDisplay.ts` 中的 `displayAccountAndPositions` 函数 |
-| 修改指标计算 | `services/indicators/index.ts` 中的各指标计算函数 |
+| 修改指标计算 | `services/indicators/index.ts` 中的各指标计算函数          |
+| 调整浮亏监控 | `core/unrealizedLossMonitor/index.ts` 中的 `checkAndLiquidate` 方法 |
+| 调整市场监控 | `core/marketMonitor/index.ts` 中的监控逻辑和变化阈值        |
 
 ## 必需配置
 
