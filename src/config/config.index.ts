@@ -19,14 +19,7 @@ import { Config } from 'longport';
 // 加载 .env 文件中的配置
 dotenv.config();
 
-/**
- * 区域 URL 配置接口
- */
-interface RegionUrls {
-  httpUrl: string;
-  quoteWsUrl: string;
-  tradeWsUrl: string;
-}
+import type { RegionUrls } from './type.js';
 
 /**
  * 根据区域获取 API 端点 URL

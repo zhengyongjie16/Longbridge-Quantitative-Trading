@@ -20,15 +20,15 @@
  * - trader.ts：订单执行
  */
 
-import { createConfig } from './config/config.js';
-import { HangSengMultiIndicatorStrategy } from './core/strategy.js';
-import { Trader } from './core/trader.js';
-import { buildIndicatorSnapshot, CandleData } from './services/indicators.js';
-import { RiskChecker } from './core/risk.js';
+import { createConfig } from './config/config.index.js';
+import { HangSengMultiIndicatorStrategy } from './core/strategy/index.js';
+import { Trader } from './core/trader/index.js';
+import { buildIndicatorSnapshot } from './services/indicators/index.js';
+import { RiskChecker } from './core/risk/index.js';
 import { TRADING_CONFIG } from './config/config.trading.js';
 import { logger } from './utils/logger.js';
 import { validateAllConfig } from './config/config.validator.js';
-import { OrderRecorder } from './core/orderRecorder.js';
+import { OrderRecorder } from './core/orderRecorder/index.js';
 import {
   positionObjectPool,
   signalObjectPool,
@@ -42,21 +42,19 @@ import { validateEmaPeriod } from './utils/indicatorHelpers.js';
 // 导入新模块
 import { isInContinuousHKSession } from './utils/tradingTime.js';
 import { displayAccountAndPositions } from './utils/accountDisplay.js';
-import { MarketMonitor } from './core/marketMonitor.js';
-import { DoomsdayProtection } from './core/doomsdayProtection.js';
-import { UnrealizedLossMonitor } from './core/unrealizedLossMonitor.js';
-import { SignalVerificationManager } from './core/signalVerification.js';
-import { SignalProcessor } from './core/signalProcessor.js';
-import type { MarketDataClient } from './services/quoteClient.js';
+import { MarketMonitor } from './core/marketMonitor/index.js';
+import { DoomsdayProtection } from './core/doomsdayProtection/index.js';
+import { UnrealizedLossMonitor } from './core/unrealizedLossMonitor/index.js';
+import { SignalVerificationManager } from './core/signalVerification/index.js';
+import { SignalProcessor } from './core/signalProcessor/index.js';
+import type { MarketDataClient } from './services/quoteClient/index.js';
 import type {
+  CandleData,
   Signal,
   Position,
-  AccountSnapshot,
-  IndicatorSnapshot,
   VerificationConfig,
-  KDJIndicator,
-  MACDIndicator,
   SignalConfigSet,
+  LastState,
 } from './types/index.js';
 
 /**
@@ -76,36 +74,6 @@ interface RunOnceContext {
   signalProcessor: SignalProcessor;
 }
 
-/**
- * 状态对象接口
- */
-interface LastState {
-  longPrice: number | null;
-  shortPrice: number | null;
-  signal: string | null;
-  canTrade: boolean | null;
-  isHalfDay: boolean | null;
-  pendingDelayedSignals: Signal[];
-  monitorValues: {
-    price: number | null;
-    changePercent: number | null;
-    ema: Record<number, number> | null;
-    rsi: Record<number, number> | null;
-    mfi: number | null;
-    kdj: KDJIndicator | null;
-    macd: MACDIndicator | null;
-  } | null;
-  cachedAccount: AccountSnapshot | null;
-  cachedPositions: Position[];
-  cachedTradingDayInfo: {
-    isTradingDay: boolean;
-    isHalfDay: boolean;
-    checkDate: string;
-  } | null;
-  lastMonitorSnapshot: IndicatorSnapshot | null;
-}
-
-// 性能优化：将循环中的常量提升到函数外部
 const VALID_SIGNAL_ACTIONS = new Set([
   'BUYCALL',
   'SELLCALL',

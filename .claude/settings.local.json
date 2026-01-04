@@ -26,7 +26,8 @@
       "Bash(sonar-scanner:*)",
       "Bash(npm run type-check:*)",
       "WebFetch(domain:sonarcloud.io)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(mkdir:*)"
     ]
   }
 }

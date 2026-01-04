@@ -20,14 +20,14 @@
  */
 
 import { RSI, MACD, EMA, MFI } from 'technicalindicators';
-import { kdjObjectPool, macdObjectPool } from '../utils/objectPool.js';
+import { kdjObjectPool, macdObjectPool } from '../../utils/objectPool.js';
 import {
   validateRsiPeriod,
   validateEmaPeriod,
   validatePercentage,
-} from '../utils/indicatorHelpers.js';
-import { logger } from '../utils/logger.js';
-import type { KDJIndicator, MACDIndicator } from '../types/index.js';
+} from '../../utils/indicatorHelpers.js';
+import { logger } from '../../utils/logger.js';
+import type { KDJIndicator, MACDIndicator, CandleData, IndicatorSnapshot } from '../../types/index.js';
 
 // 读取DEBUG环境变量
 const IS_DEBUG = process.env['DEBUG'] === 'true';
@@ -37,31 +37,6 @@ const IS_DEBUG = process.env['DEBUG'] === 'true';
  */
 const toNumber = (value: unknown): number =>
   typeof value === 'number' ? value : Number(value ?? 0);
-
-/**
- * K线数据接口 - 支持 longport SDK 的 Decimal 类型
- */
-export interface CandleData {
-  high?: unknown;
-  low?: unknown;
-  close?: unknown;
-  open?: unknown;
-  volume?: unknown;
-}
-
-/**
- * 指标快照结果接口
- */
-interface IndicatorSnapshotResult {
-  symbol: string;
-  price: number;
-  changePercent: number | null;
-  rsi: Record<number, number>;
-  kdj: KDJIndicator | null;
-  macd: MACDIndicator | null;
-  mfi: number | null;
-  ema: Record<number, number>;
-}
 
 /**
  * 计算 RSI（相对强弱指标）
@@ -441,7 +416,7 @@ export function buildIndicatorSnapshot(
   candles: CandleData[],
   rsiPeriods: number[] = [],
   emaPeriods: number[] = [],
-): IndicatorSnapshotResult | null {
+): IndicatorSnapshot | null {
   if (!candles || candles.length === 0) {
     return null;
   }

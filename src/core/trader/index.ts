@@ -30,9 +30,9 @@ import {
   Decimal,
 } from 'longport';
 import type { Config } from 'longport';
-import { createConfig } from '../config/config.js';
-import { TRADING_CONFIG } from '../config/config.trading.js';
-import { logger, colors } from '../utils/logger.js';
+import { createConfig } from '../../config/config.index.js';
+import { TRADING_CONFIG } from '../../config/config.trading.js';
+import { logger, colors } from '../../utils/logger.js';
 import {
   normalizeHKSymbol,
   decimalToNumber,
@@ -40,72 +40,18 @@ import {
   toBeijingTimeIso,
   isDefined,
   isBuyAction,
-} from '../utils/helpers.js';
+} from '../../utils/helpers.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { Signal, Quote, AccountSnapshot, Position } from '../types/index.js';
-import type { OrderRecorder, PendingOrder } from './orderRecorder.js';
-
-/**
- * 默认订单配置类型
- */
-type OrderOptions = {
-  symbol: string;
-  readonly targetNotional: number;
-  readonly quantity: number;
-  readonly orderType: typeof OrderType[keyof typeof OrderType];
-  readonly timeInForce: typeof TimeInForceType[keyof typeof TimeInForceType];
-  readonly remark: string;
-  readonly price?: number;
-};
-
-/**
- * 可转换为数字的类型
- */
-type DecimalLikeValue = string | number | null;
-
-/**
- * 订单载荷类型
- */
-type OrderPayload = {
-  readonly symbol: string;
-  readonly orderType: typeof OrderType[keyof typeof OrderType];
-  readonly side: typeof OrderSide[keyof typeof OrderSide];
-  readonly timeInForce: typeof TimeInForceType[keyof typeof TimeInForceType];
-  readonly submittedQuantity: Decimal;
-  submittedPrice?: Decimal;
-  remark?: string;
-};
-
-/**
- * 交易记录类型
- */
-type TradeRecord = {
-  orderId?: string;
-  symbol: string;
-  symbolName?: string | null;
-  action?: string;
-  side?: string;
-  quantity?: string;
-  price?: string;
-  orderType?: string;
-  status?: string;
-  error?: string;
-  reason?: string;
-  signalTriggerTime?: Date | string | null;
-  timestamp?: string;
-};
-
-/**
- * 错误类型标识类型
- */
-type ErrorTypeIdentifier = {
-  readonly isShortSellingNotSupported: boolean;
-  readonly isInsufficientFunds: boolean;
-  readonly isOrderNotFound: boolean;
-  readonly isNetworkError: boolean;
-  readonly isRateLimited: boolean;
-};
+import type { Signal, Quote, AccountSnapshot, Position, DecimalLikeValue } from '../../types/index.js';
+import type { OrderRecorder  } from '../orderRecorder/index.js';
+import type {
+  OrderOptions,
+  OrderPayload,
+  TradeRecord,
+  ErrorTypeIdentifier,
+} from './type.js';
+import type { PendingOrder } from '../type.js';
 
 const DEFAULT_ORDER_CONFIG: OrderOptions = {
   // 来自统一交易配置，可通过环境变量覆盖
@@ -288,7 +234,6 @@ class TradeAPIRateLimiter {
    * 支持并发调用（通过内部锁机制确保不会超限）
    */
   async throttle(): Promise<void> {
-    // ===== 修复问题1: 并发安全 =====
     // 如果有正在执行的 throttle，等待它完成
     while (this._throttlePromise) {
       await this._throttlePromise;
@@ -317,7 +262,6 @@ class TradeAPIRateLimiter {
         );
         await new Promise((resolve) => setTimeout(resolve, waitTime));
 
-        // ===== 修复问题3: 等待后重新清理过期记录 =====
         const nowAfterWait = Date.now();
         this.callTimestamps = this.callTimestamps.filter(
           (timestamp) => nowAfterWait - timestamp < this.windowMs,
@@ -335,13 +279,12 @@ class TradeAPIRateLimiter {
 }
 
 /**
- * 交易执行骨架，用于根据策略信号下单。
- * 真实策略中，你需要完善风险控制、仓位管理等逻辑。
+ * 交易执行模块
  * TradeContext 文档见：
  * https://longportapp.github.io/openapi/nodejs/modules.html
  */
 export class Trader {
-  _ctxPromise!: Promise<TradeContext>; // 使用 ! 断言，将在 create() 方法中初始化
+  _ctxPromise!: Promise<TradeContext>;
   private readonly _orderOptions: OrderOptions;
   _lastBuyTime: Map<string, number>;
   private _shouldMonitorBuyOrders: boolean;
@@ -366,15 +309,10 @@ export class Trader {
     // 是否需要监控买入订单（仅在发起买入交易后设置为true）
     this._shouldMonitorBuyOrders = false;
 
-    // ===== 修复1: 添加订单缓存机制 =====
-    // 缓存未成交订单，避免频繁调用 todayOrders API
     this._pendingOrdersCache = null;
-    this._pendingOrdersCacheSymbols = null; // ===== 修复问题2: 记录缓存对应的 symbols =====
+    this._pendingOrdersCacheSymbols = null;
     this._pendingOrdersCacheTime = 0;
-    this._pendingOrdersCacheTTL = 15000; // 15秒缓存（订单状态变化相对较慢）
-
-    // ===== 修复3: 添加 Trade API 频率限制器 =====
-    // Longbridge API 限制：30秒内不超过30次调用
+    this._pendingOrdersCacheTTL = 15000;
     this._tradeAPILimiter = new TradeAPIRateLimiter(30, 30000);
   }
 
@@ -394,7 +332,6 @@ export class Trader {
 
   async getAccountSnapshot(): Promise<AccountSnapshot | null> {
     const ctx = await this._ctxPromise;
-    // ===== 修复3: 应用频率限制 =====
     await this._tradeAPILimiter.throttle();
     const balances = await ctx.accountBalance();
     const primary = balances?.[0];
@@ -416,7 +353,6 @@ export class Trader {
 
   async getStockPositions(symbols: string[] | null = null): Promise<Position[]> {
     const ctx = await this._ctxPromise;
-    // ===== 修复3: 应用频率限制 =====
     await this._tradeAPILimiter.throttle();
     // stockPositions 接受 Array<string> | undefined | null，直接传递即可
     const resp = await ctx.stockPositions(symbols ?? undefined);
@@ -449,7 +385,6 @@ export class Trader {
     symbols: string[] | null = null,
     forceRefresh: boolean = false,
   ): Promise<PendingOrder[]> {
-    // ===== 修复问题2: 规范化 symbols 参数用于缓存匹配 =====
     // 将 symbols 数组规范化并排序，用于比较缓存是否对应同一组 symbols
     const symbolsKey =
       symbols && symbols.length > 0
@@ -459,11 +394,10 @@ export class Trader {
           .join(',')
         : 'ALL'; // null 或空数组统一标记为 "ALL"
 
-    // ===== 修复1: 检查缓存 =====
     const now = Date.now();
     const isCacheValid =
       this._pendingOrdersCache !== null &&
-      this._pendingOrdersCacheSymbols === symbolsKey && // ===== 修复问题2: 检查 symbols 是否匹配 =====
+      this._pendingOrdersCacheSymbols === symbolsKey &&
       now - this._pendingOrdersCacheTime < this._pendingOrdersCacheTTL;
 
     // 如果缓存有效且不强制刷新，直接返回缓存
@@ -476,7 +410,6 @@ export class Trader {
       return this._pendingOrdersCache!;
     }
 
-    // ===== 修复1: 缓存失效或强制刷新，调用API =====
     const ctx = await this._ctxPromise;
     try {
       // 过滤出未成交订单（New, PartialFilled, WaitToNew等状态）
@@ -501,7 +434,6 @@ export class Trader {
 
       if (!symbols || symbols.length === 0) {
         // 如果没有指定标的，获取所有订单
-        // ===== 修复3: 应用频率限制 =====
         await this._tradeAPILimiter.throttle();
         allOrders = (await ctx.todayOrders()) as typeof allOrders;
       } else {
@@ -509,7 +441,6 @@ export class Trader {
         const normalizedSymbols = symbols.map((s) => normalizeHKSymbol(s));
         const orderPromises = normalizedSymbols.map(async (symbol) => {
           try {
-            // ===== 修复3: 应用频率限制 =====
             await this._tradeAPILimiter.throttle();
             return await ctx.todayOrders({ symbol });
           } catch (err) {
@@ -552,13 +483,11 @@ export class Trader {
           executedQuantity: decimalToNumber(order.executedQuantity as DecimalLikeValue),
           status: order.status,
           orderType: order.orderType,
-          // ===== 修复2: 保存原始订单对象供 replaceOrderPrice 使用 =====
           _rawOrder: order,
         }));
 
-      // ===== 修复1: 更新缓存 =====
       this._pendingOrdersCache = result;
-      this._pendingOrdersCacheSymbols = symbolsKey; // ===== 修复问题2: 记录缓存对应的 symbols =====
+      this._pendingOrdersCacheSymbols = symbolsKey;
       this._pendingOrdersCacheTime = Date.now();
 
       logger.debug(
@@ -580,7 +509,7 @@ export class Trader {
    */
   clearPendingOrdersCache(): void {
     this._pendingOrdersCache = null;
-    this._pendingOrdersCacheSymbols = null; // ===== 修复问题2: 同时清除 symbols 缓存 =====
+    this._pendingOrdersCacheSymbols = null;
     this._pendingOrdersCacheTime = 0;
     logger.debug('[订单缓存] 已清除缓存');
   }
@@ -592,11 +521,9 @@ export class Trader {
   async cancelOrder(orderId: string): Promise<boolean> {
     const ctx = await this._ctxPromise;
     try {
-      // ===== 修复3: 应用频率限制 =====
       await this._tradeAPILimiter.throttle();
       await ctx.cancelOrder(orderId);
 
-      // ===== 修复1: 撤销成功后清除缓存 =====
       this.clearPendingOrdersCache();
 
       logger.info(`[订单撤销成功] 订单ID=${orderId}`);
@@ -627,7 +554,6 @@ export class Trader {
   ): Promise<void> {
     const ctx = await this._ctxPromise;
 
-    // ===== 修复2: 优先使用缓存的订单对象，避免重复查询 =====
     let originalOrder: {
       orderId: string;
       status: typeof OrderStatus[keyof typeof OrderStatus];
@@ -640,7 +566,6 @@ export class Trader {
       logger.debug(`[订单修改] 使用缓存的订单对象，订单ID=${orderId}`);
     } else {
       logger.debug(`[订单修改] 未提供缓存订单对象，查询API获取订单 ${orderId}`);
-      // ===== 修复3: 应用频率限制 =====
       await this._tradeAPILimiter.throttle();
       const allOrders = await ctx.todayOrders();
       const foundOrder = allOrders.find((o) => o.orderId === orderId);
@@ -697,11 +622,9 @@ export class Trader {
 
     // 只使用官方API进行修改，失败时直接抛出错误
     try {
-      // ===== 修复3: 应用频率限制 =====
       await this._tradeAPILimiter.throttle();
       await ctx.replaceOrder(replacePayload);
 
-      // ===== 修复1: 修改成功后清除缓存 =====
       this.clearPendingOrdersCache();
 
       logger.info(
@@ -873,7 +796,6 @@ export class Trader {
             )}) 差异=${priceDiffAbs.toFixed(3)}，修改委托价格为当前价格`,
           );
           try {
-            // ===== 修复2: 传递订单对象，避免重复查询 =====
             await this.replaceOrderPrice(
               order.orderId,
               currentPrice,
@@ -1139,7 +1061,6 @@ export class Trader {
         }
       }
 
-      // ===== 修复3: 应用频率限制 =====
       await this._tradeAPILimiter.throttle();
       const resp = await ctx.stockPositions([symbol]);
       const channels = resp?.channels ?? [];
@@ -1283,11 +1204,9 @@ export class Trader {
     }
 
     try {
-      // ===== 修复3: 应用频率限制 =====
       await this._tradeAPILimiter.throttle();
       const resp = await ctx.submitOrder(orderPayload);
 
-      // ===== 修复1: 提交成功后清除缓存 =====
       this.clearPendingOrdersCache();
 
       const orderId =

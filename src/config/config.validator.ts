@@ -18,14 +18,19 @@
 
 import { logger } from '../utils/logger.js';
 import { TRADING_CONFIG } from './config.trading.js';
-import { createConfig } from './config.js';
-import { MarketDataClient } from '../services/quoteClient.js';
+import { createConfig } from './config.index.js';
+import { MarketDataClient } from '../services/quoteClient/index.js';
 import { formatSymbolDisplay } from '../utils/helpers.js';
 import {
   validateSignalConfig,
   formatSignalConfig,
 } from '../utils/signalConfigParser.js';
 import { validateEmaPeriod } from '../utils/indicatorHelpers.js';
+import type {
+  ValidationResult,
+  TradingValidationResult,
+  SymbolValidationResult,
+} from './type.js';
 
 /**
  * 配置验证错误类
@@ -38,30 +43,6 @@ export class ConfigValidationError extends Error {
     this.name = 'ConfigValidationError';
     this.missingFields = missingFields;
   }
-}
-
-/**
- * 验证结果接口
- */
-interface ValidationResult {
-  valid: boolean;
-  errors: string[];
-}
-
-/**
- * 交易配置验证结果接口
- */
-interface TradingValidationResult extends ValidationResult {
-  missingFields: string[];
-}
-
-/**
- * 标的验证结果接口
- */
-interface SymbolValidationResult {
-  valid: boolean;
-  name: string | null;
-  error: string | null;
 }
 
 /**
