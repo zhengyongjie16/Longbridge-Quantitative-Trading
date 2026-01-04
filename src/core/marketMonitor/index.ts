@@ -20,6 +20,7 @@ import { logger } from '../../utils/logger.js';
 import {
   normalizeHKSymbol,
   formatQuoteDisplay,
+  isValidPositiveNumber,
 } from '../../utils/helpers.js';
 import { isValidNumber } from '../../utils/indicatorHelpers.js';
 import { hasChanged } from '../../utils/tradingTime.js';
@@ -148,7 +149,7 @@ export class MarketMonitor {
     // 检查价格变化
     const lastPrice = lastState.monitorValues?.price;
     if (
-      (lastPrice == null && Number.isFinite(currentPrice) && currentPrice > 0) ||
+      (lastPrice == null && isValidPositiveNumber(currentPrice)) ||
       hasChanged(currentPrice, lastPrice ?? null, 0.0001)
     ) {
       hasIndicatorChanged = true;

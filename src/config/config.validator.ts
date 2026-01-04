@@ -31,6 +31,7 @@ import type {
   TradingValidationResult,
   SymbolValidationResult,
 } from './type.js';
+import type { ValidateAllConfigResult } from '../types/index.js';
 
 /**
  * 配置验证错误类
@@ -43,16 +44,6 @@ export class ConfigValidationError extends Error {
     this.name = 'ConfigValidationError';
     this.missingFields = missingFields;
   }
-}
-
-/**
- * 验证所有配置的返回结果接口
- */
-export interface ValidateAllConfigResult {
-  monitorName: string;
-  longName: string;
-  shortName: string;
-  marketDataClient: MarketDataClient;
 }
 
 /**
@@ -311,7 +302,7 @@ function validateTradingConfig(): TradingValidationResult {
   // 注意：直接验证原始环境变量，而不是已处理的配置值
   const indicatorsEnv = process.env['VERIFICATION_INDICATORS'];
   if (indicatorsEnv && indicatorsEnv.trim() !== '') {
-    const fixedIndicators = ['K', 'D', 'J', 'MACD', 'DIF', 'DEA'];
+    const fixedIndicators = new Set(['K', 'D', 'J', 'MACD', 'DIF', 'DEA']);
     const indicators = indicatorsEnv
       .split(',')
       .map((item) => item.trim())
@@ -323,14 +314,14 @@ function validateTradingConfig(): TradingValidationResult {
 
       for (const ind of indicators) {
         // 检查是否是固定指标
-        if (fixedIndicators.includes(ind)) {
+        if (fixedIndicators.has(ind)) {
           continue;
         }
 
         // 检查是否是 EMA:n 格式
         if (ind.startsWith('EMA:')) {
           const periodStr = ind.substring(4);
-          const period = parseInt(periodStr, 10);
+          const period = Number.parseInt(periodStr, 10);
 
           // 验证周期范围（1-250）
           if (validateEmaPeriod(period)) {

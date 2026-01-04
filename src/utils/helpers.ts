@@ -15,6 +15,7 @@
  */
 
 import type { Quote, SignalType } from '../types/index.js';
+import { inspect } from 'node:util';
 
 /**
  * LongPort Decimal 类型接口
@@ -67,6 +68,15 @@ export function decimalToNumber(decimalLike: DecimalLike | number | string | nul
 }
 
 /**
+ * 检查值是否为有效的正数（有限且大于0）
+ * @param value 待检查的值
+ * @returns 如果值为有效的正数返回 true，否则返回 false
+ */
+export function isValidPositiveNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
+/**
  * 格式化数字，保留指定小数位数
  * @param num 要格式化的数字
  * @param digits 保留的小数位数，默认为 2
@@ -76,7 +86,7 @@ export function formatNumber(num: number | null | undefined, digits: number = 2)
   if (num === null || num === undefined) {
     return '-';
   }
-  return Number.isFinite(num) ? num.toFixed(digits) : String(num ?? '-');
+  return Number.isFinite(num) ? num.toFixed(digits) : String(num);
 }
 
 /**
@@ -287,4 +297,56 @@ export const isBuyAction = (action: SignalType): boolean => {
 export const isSellAction = (action: SignalType): boolean => {
   return action === 'SELLCALL' || action === 'SELLPUT';
 };
+
+/**
+ * 获取方向名称（做多标的或做空标的）
+ * @param isLongSymbol 是否为做多标的
+ * @returns 方向名称字符串
+ */
+export function getDirectionName(isLongSymbol: boolean): string {
+  return (isLongSymbol && '做多标的') || '做空标的';
+}
+
+/**
+ * 格式化错误对象为可读字符串
+ * 避免使用 String(err) 导致普通对象返回 '[object Object]'
+ * @param err 错误对象
+ * @returns 格式化后的错误消息
+ */
+export function formatError(err: unknown): string {
+  // null/undefined
+  if (err == null) {
+    return '未知错误';
+  }
+  // 字符串直接返回
+  if (typeof err === 'string') {
+    return err;
+  }
+  // Error 实例优先提取 message
+  if (err instanceof Error) {
+    return err.message || err.name || 'Error';
+  }
+  // 基本类型直接转换
+  if (typeof err !== 'object') {
+    return inspect(err, { depth: 5, maxArrayLength: 100 });
+  }
+  // 处理普通对象：尝试提取常见错误属性
+  const obj = err as Record<string, unknown>;
+  const errorKeys = ['message', 'error', 'msg', 'code'];
+  for (const key of errorKeys) {
+    const value = obj[key];
+    if (typeof value === 'string' && value) {
+      return value;
+    }
+  }
+  // 尝试 JSON 序列化
+  try {
+    const jsonStr = JSON.stringify(err);
+    return jsonStr;
+  } catch {
+    // 如果 JSON 序列化失败，使用 inspect 来显示对象内容
+    // 限制深度和数组长度，避免输出过长
+    return inspect(err, { depth: 5, maxArrayLength: 100 });
+  }
+}
 

@@ -190,13 +190,13 @@ export const TRADING_CONFIG: TradingConfig = {
       }
 
       // 验证每个指标
-      const fixedIndicators = ['K', 'D', 'J', 'MACD', 'DIF', 'DEA'];
+      const fixedIndicators = new Set(['K', 'D', 'J', 'MACD', 'DIF', 'DEA']);
       const validItems: string[] = [];
       const invalidItems: string[] = [];
 
       for (const item of items) {
         // 检查是否是固定指标
-        if (fixedIndicators.includes(item)) {
+        if (fixedIndicators.has(item)) {
           validItems.push(item);
           continue;
         }
@@ -204,7 +204,7 @@ export const TRADING_CONFIG: TradingConfig = {
         // 检查是否是 EMA:n 格式
         if (item.startsWith('EMA:')) {
           const periodStr = item.substring(4);
-          const period = parseInt(periodStr, 10);
+          const period = Number.parseInt(periodStr, 10);
 
           // 验证周期范围（1-250）
           if (validateEmaPeriod(period)) {

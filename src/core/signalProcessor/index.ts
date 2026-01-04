@@ -20,7 +20,7 @@
  */
 
 import { logger } from '../../utils/logger.js';
-import { normalizeHKSymbol, getSymbolName } from '../../utils/helpers.js';
+import { normalizeHKSymbol, getSymbolName, getDirectionName } from '../../utils/helpers.js';
 import { TRADING_CONFIG } from '../../config/config.trading.js';
 import type { Quote, Position, Signal } from '../../types/index.js';
 import type { OrderRecorder } from '../orderRecorder/index.js';
@@ -78,7 +78,7 @@ export function calculateSellQuantity(
 
   const currentPrice = quote.price;
   const costPrice = position.costPrice;
-  const directionName = direction === 'LONG' ? '做多标的' : '做空标的';
+  const directionName = getDirectionName(direction === 'LONG');
 
   // 当前价格高于持仓成本价，立即清仓所有持仓
   if (currentPrice > costPrice) {

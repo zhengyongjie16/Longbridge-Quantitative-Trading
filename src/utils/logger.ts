@@ -23,6 +23,7 @@ import { toBeijingTimeLog } from './helpers.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Writable } from 'node:stream';
+import { inspect } from 'node:util';
 
 // 缓存 DEBUG 环境变量，避免重复读取
 const IS_DEBUG = process.env['DEBUG'] === 'true';
@@ -56,12 +57,16 @@ interface LogObject {
   extra?: unknown;
 }
 
+const formatExtra = (extra: unknown): string => {
+  return inspect(extra, { depth: 5, maxArrayLength: 100 });;
+};
+
 /**
  * 按日期分割的文件流（用于 pino 传输）
  */
 class DateRotatingStream extends Writable {
-  private _logSubDir: string;
-  private _logDir: string;
+  private readonly _logSubDir: string;
+  private readonly _logDir: string;
   private _currentDate: string | null = null;
   private _fileStream: fs.WriteStream | null = null;
   private _rotatePromise: Promise<void> | null = null; // Promise队列，确保串行执行
@@ -182,26 +187,18 @@ class DateRotatingStream extends Writable {
           } else {
             // 添加超时保护，防止 drain 事件永远不触发导致阻塞
             const DRAIN_TIMEOUT = 5000;
-            let resolved = false;
-
-            const onDrain = (): void => {
-              if (resolved) return;
-              resolved = true;
-              clearTimeout(timeoutId);
-              callback();
-            };
-
-            const timeoutId = setTimeout(() => {
-              if (resolved) return;
-              resolved = true;
-              currentStream.removeListener('drain', onDrain);
-              if (IS_DEBUG) {
-                console.error(
-                  `[DateRotatingStream] drain 超时 (${this._logSubDir})`,
-                );
-              }
-              callback(); // 超时后仍调用 callback 避免阻塞
-            }, DRAIN_TIMEOUT);
+            const { onDrain } = createDrainHandler(
+              currentStream,
+              DRAIN_TIMEOUT,
+              callback,
+              () => {
+                if (IS_DEBUG) {
+                  console.error(
+                    `[DateRotatingStream] drain 超时 (${this._logSubDir})`,
+                  );
+                }
+              },
+            );
 
             currentStream.once('drain', onDrain);
           }
@@ -254,17 +251,31 @@ class DateRotatingStream extends Writable {
         stream.end();
       });
     }
-    return Promise.resolve();
   }
 }
+
+/**
+ * ANSI 转义字符（ESC，ASCII 27）
+ * 使用 String.fromCodePoint 避免在正则表达式中直接使用控制字符
+ */
+const ANSI_ESC = String.fromCodePoint(27);
+
+/**
+ * ANSI 颜色代码正则表达式
+ * 匹配格式：ESC[数字;数字;...m
+ * 使用 String.raw 避免转义反斜杠，使用字符串拼接避免在正则表达式中直接使用控制字符
+ */
+const ANSI_CODE_REGEX = new RegExp(
+  ANSI_ESC + String.raw`\[[0-9;]*m`,
+  'g',
+);
 
 /**
  * 移除 ANSI 颜色代码
  */
 function stripAnsiCodes(str: string): string {
   if (typeof str !== 'string') return str;
-  // eslint-disable-next-line no-control-regex
-  return str.replace(/\x1b\[[0-9;]*m/g, '');
+  return str.replaceAll(ANSI_CODE_REGEX, '');
 }
 
 /**
@@ -291,10 +302,10 @@ function formatForFile(obj: LogObject): string {
       try {
         line += ` ${JSON.stringify(obj.extra)}`;
       } catch {
-        line += ` ${String(obj.extra)}`;
+        line += ` ${stripAnsiCodes(formatExtra(obj.extra))}`;
       }
     } else {
-      line += ` ${stripAnsiCodes(String(obj.extra))}`;
+      line += ` ${stripAnsiCodes(formatExtra(obj.extra))}`;
     }
   }
 
@@ -321,7 +332,7 @@ function formatForConsole(obj: LogObject): string {
   const color = config.color;
   const reset = color ? colors.reset : '';
 
-  let line = `${color}${levelStr} ${timestamp} ${obj.msg}${reset}`;
+  let line = `${color}${levelStr} ${timestamp} ${formatExtra(obj.extra)}${reset}`;
 
   // 处理额外数据
   if (obj.extra !== undefined && obj.extra !== null) {
@@ -329,10 +340,10 @@ function formatForConsole(obj: LogObject): string {
       try {
         line += ` ${JSON.stringify(obj.extra)}`;
       } catch {
-        line += ` ${String(obj.extra)}`;
+        line += ` ${formatExtra(obj.extra)}`;
       }
     } else {
-      line += ` ${obj.extra}`;
+      line += ` ${formatExtra(obj.extra)}`;
     }
   }
 
@@ -347,6 +358,40 @@ const debugFileStream = IS_DEBUG ? new DateRotatingStream('debug') : null;
 const CONSOLE_DRAIN_TIMEOUT = 3000;
 
 /**
+ * 创建带超时保护的 drain 事件处理器
+ * @param stream 要监听的流
+ * @param timeout 超时时间（毫秒）
+ * @param callback 回调函数
+ * @param onTimeout 超时时的额外处理（可选）
+ * @returns 返回 onDrain 处理函数和 timeoutId
+ */
+function createDrainHandler(
+  stream: NodeJS.WriteStream | fs.WriteStream,
+  timeout: number,
+  callback: () => void,
+  onTimeout?: () => void,
+): { onDrain: () => void; timeoutId: NodeJS.Timeout } {
+  let resolved = false;
+
+  const onDrain = (): void => {
+    if (resolved) return;
+    resolved = true;
+    clearTimeout(timeoutId);
+    callback();
+  };
+
+  const timeoutId = setTimeout(() => {
+    if (resolved) return;
+    resolved = true;
+    stream.removeListener('drain', onDrain);
+    onTimeout?.();
+    callback(); // 超时后仍调用 callback 避免阻塞
+  }, timeout);
+
+  return { onDrain, timeoutId };
+}
+
+/**
  * 带超时保护的写入辅助函数
  */
 function writeWithDrainTimeout(
@@ -359,22 +404,7 @@ function writeWithDrainTimeout(
   if (canContinue) {
     callback();
   } else {
-    let resolved = false;
-
-    const onDrain = (): void => {
-      if (resolved) return;
-      resolved = true;
-      clearTimeout(timeoutId);
-      callback();
-    };
-
-    const timeoutId = setTimeout(() => {
-      if (resolved) return;
-      resolved = true;
-      stream.removeListener('drain', onDrain);
-      callback(); // 超时后仍调用 callback 避免阻塞
-    }, timeout);
-
+    const { onDrain } = createDrainHandler(stream, timeout, callback);
     stream.once('drain', onDrain);
   }
 }

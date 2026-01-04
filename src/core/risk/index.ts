@@ -19,7 +19,7 @@
  */
 
 import { TRADING_CONFIG } from '../../config/config.trading.js';
-import { normalizeHKSymbol, decimalToNumber, isDefined, isBuyAction } from '../../utils/helpers.js';
+import { normalizeHKSymbol, decimalToNumber, isDefined, isBuyAction, isValidPositiveNumber, getDirectionName } from '../../utils/helpers.js';
 import { logger } from '../../utils/logger.js';
 import type { Position, Signal, AccountSnapshot } from '../../types/index.js';
 import type { MarketDataClient } from '../../services/quoteClient/index.js';
@@ -325,113 +325,94 @@ export class RiskChecker {
       const isBuyCall = signal.action === 'BUYCALL';
       const isBuyPut = signal.action === 'BUYPUT';
 
-      // 检查做多标的买入：从缓存获取浮亏数据
+      // 统一的浮亏检查逻辑（适用于做多和做空标的）
+      const checkUnrealizedLossForSymbol = (
+        symbol: string | null,
+        currentPrice: number | null,
+        directionName: string,
+      ): RiskCheckResult | null => {
+        if (!symbol) {
+          return null;
+        }
+
+        const lossData = this.unrealizedLossData.get(symbol);
+        if (!lossData || lossData.n1 <= 0) {
+          return null;
+        }
+
+        const { r1, n1 } = lossData;
+
+        // 验证当前价格有效性
+        if (currentPrice === null || !isValidPositiveNumber(currentPrice)) {
+          return null;
+        }
+
+        // 计算当前持仓市值R2和浮亏X
+        const r2 = currentPrice * n1;
+        const unrealizedPnL = r2 - r1;
+
+        // 记录浮亏计算详情（仅在DEBUG模式下）
+        if (process.env['DEBUG'] === 'true') {
+          logger.debug(
+            `[风险检查调试] ${directionName}浮亏检查: R1(开仓成本)=${r1.toFixed(
+              2,
+            )}, R2(当前市值)=${r2.toFixed(
+              2,
+            )}, 浮亏=${unrealizedPnL.toFixed(2)} HKD，最大允许亏损=${
+              this.maxDailyLoss
+            } HKD`,
+          );
+        }
+
+        // 如果浮亏计算结果不是有限数字，拒绝买入操作（安全策略）
+        if (!Number.isFinite(unrealizedPnL)) {
+          logger.error(
+            `[风险检查错误] ${directionName}持仓浮亏计算结果无效：${unrealizedPnL}`,
+          );
+          return {
+            allowed: false,
+            reason: `${directionName}持仓浮亏计算结果无效（${unrealizedPnL}），无法进行风险检查，禁止买入${directionName}`,
+          };
+        }
+
+        // 检查持仓浮亏是否超过最大允许亏损
+        if (unrealizedPnL <= -this.maxDailyLoss) {
+          return {
+            allowed: false,
+            reason: `${directionName}持仓浮亏约 ${unrealizedPnL.toFixed(
+              2,
+            )} HKD 已超过单日最大亏损限制 ${
+              this.maxDailyLoss
+            } HKD，禁止买入${directionName}（R1=${r1.toFixed(2)}, R2=${r2.toFixed(
+              2,
+            )}, N1=${n1}）`,
+          };
+        }
+
+        return null; // 检查通过
+      };
+
+      // 检查做多标的买入
       if (isBuyCall && longSymbol) {
-        const lossData = this.unrealizedLossData.get(longSymbol);
-
-        if (lossData && lossData.n1 > 0) {
-          const { r1, n1 } = lossData;
-          const checkPrice = longCurrentPrice;
-
-          // 验证当前价格有效性
-          if (checkPrice !== null && Number.isFinite(checkPrice) && checkPrice > 0) {
-            // 计算当前持仓市值R2和浮亏X
-            const r2 = checkPrice * n1;
-            const longUnrealizedPnL = r2 - r1;
-
-            // 记录浮亏计算详情（仅在DEBUG模式下）
-            if (process.env['DEBUG'] === 'true') {
-              logger.debug(
-                `[风险检查调试] 做多标的浮亏检查: R1(开仓成本)=${r1.toFixed(
-                  2,
-                )}, R2(当前市值)=${r2.toFixed(
-                  2,
-                )}, 浮亏=${longUnrealizedPnL.toFixed(2)} HKD，最大允许亏损=${
-                  this.maxDailyLoss
-                } HKD`,
-              );
-            }
-
-            // 如果浮亏计算结果不是有限数字，拒绝买入操作（安全策略）
-            if (!Number.isFinite(longUnrealizedPnL)) {
-              logger.error(
-                `[风险检查错误] 做多标的持仓浮亏计算结果无效：${longUnrealizedPnL}`,
-              );
-              return {
-                allowed: false,
-                reason: `做多标的持仓浮亏计算结果无效（${longUnrealizedPnL}），无法进行风险检查，禁止买入做多标的`,
-              };
-            }
-
-            // 检查做多标的持仓浮亏是否超过最大允许亏损
-            if (longUnrealizedPnL <= -this.maxDailyLoss) {
-              return {
-                allowed: false,
-                reason: `做多标的持仓浮亏约 ${longUnrealizedPnL.toFixed(
-                  2,
-                )} HKD 已超过单日最大亏损限制 ${
-                  this.maxDailyLoss
-                } HKD，禁止买入做多标的（R1=${r1.toFixed(2)}, R2=${r2.toFixed(
-                  2,
-                )}, N1=${n1}）`,
-              };
-            }
-          }
+        const result = checkUnrealizedLossForSymbol(
+          longSymbol,
+          longCurrentPrice,
+          '做多标的',
+        );
+        if (result) {
+          return result;
         }
       }
 
-      // 检查做空标的买入：从缓存获取浮亏数据
+      // 检查做空标的买入
       if (isBuyPut && shortSymbol) {
-        const lossData = this.unrealizedLossData.get(shortSymbol);
-
-        if (lossData && lossData.n1 > 0) {
-          const { r1, n1 } = lossData;
-          const checkPrice = shortCurrentPrice;
-
-          // 验证当前价格有效性
-          if (checkPrice !== null && Number.isFinite(checkPrice) && checkPrice > 0) {
-            // 计算当前持仓市值R2和浮亏X
-            const r2 = checkPrice * n1;
-            const shortUnrealizedPnL = r2 - r1;
-
-            // 记录浮亏计算详情（仅在DEBUG模式下）
-            if (process.env['DEBUG'] === 'true') {
-              logger.debug(
-                `[风险检查调试] 做空标的浮亏检查: R1(开仓成本)=${r1.toFixed(
-                  2,
-                )}, R2(当前市值)=${r2.toFixed(
-                  2,
-                )}, 浮亏=${shortUnrealizedPnL.toFixed(2)} HKD，最大允许亏损=${
-                  this.maxDailyLoss
-                } HKD`,
-              );
-            }
-
-            // 如果浮亏计算结果不是有限数字，拒绝买入操作（安全策略）
-            if (!Number.isFinite(shortUnrealizedPnL)) {
-              logger.error(
-                `[风险检查错误] 做空标的持仓浮亏计算结果无效：${shortUnrealizedPnL}`,
-              );
-              return {
-                allowed: false,
-                reason: `做空标的持仓浮亏计算结果无效（${shortUnrealizedPnL}），无法进行风险检查，禁止买入做空标的`,
-              };
-            }
-
-            // 检查做空标的持仓浮亏是否超过最大允许亏损
-            if (shortUnrealizedPnL <= -this.maxDailyLoss) {
-              return {
-                allowed: false,
-                reason: `做空标的持仓浮亏约 ${shortUnrealizedPnL.toFixed(
-                  2,
-                )} HKD 已超过单日最大亏损限制 ${
-                  this.maxDailyLoss
-                } HKD，禁止买入做空标的（R1=${r1.toFixed(2)}, R2=${r2.toFixed(
-                  2,
-                )}, N1=${n1}）`,
-              };
-            }
-          }
+        const result = checkUnrealizedLossForSymbol(
+          shortSymbol,
+          shortCurrentPrice,
+          '做空标的',
+        );
+        if (result) {
+          return result;
         }
       }
     }
@@ -767,7 +748,7 @@ export class RiskChecker {
         lastUpdateTime: Date.now(),
       });
 
-      const positionType = isLongSymbol ? '做多标的' : '做空标的';
+      const positionType = getDirectionName(isLongSymbol);
       logger.info(
         `[浮亏监控] ${positionType} ${normalizedSymbol}: R1(开仓成本)=${r1.toFixed(
           2,
@@ -808,7 +789,7 @@ export class RiskChecker {
     const normalizedSymbol = normalizeHKSymbol(symbol);
 
     // 验证当前价格有效性
-    if (!Number.isFinite(currentPrice) || currentPrice <= 0) {
+    if (!isValidPositiveNumber(currentPrice)) {
       return { shouldLiquidate: false };
     }
 
@@ -840,7 +821,7 @@ export class RiskChecker {
 
     // 检查浮亏是否超过阈值（浮亏为负数表示亏损）
     if (unrealizedLoss < -this.maxUnrealizedLossPerSymbol) {
-      const positionType = isLongSymbol ? '做多标的' : '做空标的';
+      const positionType = getDirectionName(isLongSymbol);
       const reason = `[保护性清仓] ${positionType} ${normalizedSymbol} 浮亏=${unrealizedLoss.toFixed(
         2,
       )} HKD 超过阈值 ${this.maxUnrealizedLossPerSymbol} HKD (R1=${r1.toFixed(

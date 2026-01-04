@@ -81,7 +81,7 @@ export class DoomsdayProtection {
 
     for (const pos of positions) {
       // 验证持仓对象有效性
-      if (!pos || !pos.symbol || typeof pos.symbol !== 'string') {
+      if (!pos?.symbol || typeof pos.symbol !== 'string') {
         continue; // 跳过无效持仓
       }
 

@@ -19,6 +19,7 @@
  */
 
 import { logger } from '../../utils/logger.js';
+import { isValidPositiveNumber } from '../../utils/helpers.js';
 import { signalObjectPool } from '../../utils/objectPool.js';
 import type { Quote, Signal } from '../../types/index.js';
 import type { RiskChecker } from '../risk/index.js';
@@ -56,7 +57,7 @@ export class UnrealizedLossMonitor {
     }
 
     // 验证价格有效性
-    if (!Number.isFinite(currentPrice) || currentPrice <= 0) {
+    if (!isValidPositiveNumber(currentPrice)) {
       return false;
     }
 
@@ -136,34 +137,32 @@ export class UnrealizedLossMonitor {
       return;
     }
 
-    // 检查做多标的的浮亏
-    if (longQuote && longSymbol) {
-      const longPrice = longQuote.price;
-      if (Number.isFinite(longPrice) && longPrice > 0) {
+    // 统一的浮亏检查逻辑（适用于做多和做空标的）
+    const checkSymbolLoss = async (
+      quote: Quote | null,
+      symbol: string | null,
+      isLong: boolean,
+    ): Promise<void> => {
+      if (!quote || !symbol) {
+        return;
+      }
+      const price = quote.price;
+      if (isValidPositiveNumber(price)) {
         await this.checkAndLiquidate(
-          longSymbol,
-          longPrice,
-          true,
+          symbol,
+          price,
+          isLong,
           riskChecker,
           trader,
           orderRecorder,
         );
       }
-    }
+    };
+
+    // 检查做多标的的浮亏
+    await checkSymbolLoss(longQuote, longSymbol, true);
 
     // 检查做空标的的浮亏
-    if (shortQuote && shortSymbol) {
-      const shortPrice = shortQuote.price;
-      if (Number.isFinite(shortPrice) && shortPrice > 0) {
-        await this.checkAndLiquidate(
-          shortSymbol,
-          shortPrice,
-          false,
-          riskChecker,
-          trader,
-          orderRecorder,
-        );
-      }
-    }
+    await checkSymbolLoss(shortQuote, shortSymbol, false);
   }
 }

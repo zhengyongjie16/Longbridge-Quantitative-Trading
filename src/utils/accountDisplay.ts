@@ -17,11 +17,14 @@
 
 import { logger } from './logger.js';
 import {
+  formatError,
   normalizeHKSymbol,
   formatAccountChannel,
   formatNumber,
   isDefined,
+  isValidPositiveNumber,
 } from './helpers.js';
+
 import type { AccountSnapshot, Position, Quote } from '../types/index.js';
 
 /**
@@ -64,14 +67,14 @@ export async function displayAccountAndPositions(
       trader.getAccountSnapshot().catch((err: Error) => {
         logger.warn(
           '获取账户信息失败',
-          err?.message ?? String(err),
+          formatError(err),
         );
         return null;
       }),
       trader.getStockPositions().catch((err: Error) => {
         logger.warn(
           '获取股票仓位失败',
-          err?.message ?? String(err),
+          formatError(err),
         );
         return [];
       }),
@@ -103,7 +106,7 @@ export async function displayAccountAndPositions(
           marketDataClient.getLatestQuote(symbol).catch((err: Error) => {
             logger.warn(
               `[持仓监控] 获取标的 ${symbol} 信息失败: ${
-                err?.message ?? String(err)
+                formatError(err)
               }`,
             );
             return null;
@@ -139,13 +142,13 @@ export async function displayAccountAndPositions(
         // 计算持仓市值
         const posQuantity = Number(pos.quantity) || 0;
         const marketValue =
-          Number.isFinite(currentPrice) && currentPrice > 0 && posQuantity > 0
+          isValidPositiveNumber(currentPrice) && isValidPositiveNumber(posQuantity)
             ? posQuantity * currentPrice
             : 0;
 
         // 计算仓位百分比
         const positionPercent =
-          Number.isFinite(totalAssets) && totalAssets > 0 && marketValue > 0
+          isValidPositiveNumber(totalAssets) && isValidPositiveNumber(marketValue)
             ? (marketValue / totalAssets) * 100
             : 0;
 
@@ -176,7 +179,7 @@ export async function displayAccountAndPositions(
   } catch (err) {
     logger.warn(
       '获取账户和持仓信息失败',
-      (err as Error)?.message ?? String(err),
+      formatError(err),
     );
   }
 }

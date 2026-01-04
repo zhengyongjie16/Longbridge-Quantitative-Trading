@@ -2,8 +2,7 @@
  * 策略模块类型定义
  */
 
-import type { SignalConfigSet, VerificationConfig } from '../../types/index.js';
-import type { Signal } from '../../types/index.js';
+import type { SignalConfigSet, VerificationConfig , Signal } from '../../types/index.js';
 
 /**
  * 策略配置接口

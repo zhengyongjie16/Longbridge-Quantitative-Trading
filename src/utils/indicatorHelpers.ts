@@ -38,7 +38,7 @@ export function getIndicatorValue(state: IndicatorState | null, indicatorName: s
   // 处理 EMA:n 格式（例如 EMA:5, EMA:10）
   if (indicatorName.startsWith('EMA:')) {
     const periodStr = indicatorName.substring(4); // 提取周期部分
-    const period = parseInt(periodStr, 10);
+    const period = Number.parseInt(periodStr, 10);
 
     // 验证周期是否有效
     if (!validateEmaPeriod(period)) {

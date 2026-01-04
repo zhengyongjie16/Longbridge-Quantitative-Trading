@@ -23,7 +23,7 @@
 
 import { OrderSide, OrderStatus } from 'longport';
 import { logger } from '../../utils/logger.js';
-import { normalizeHKSymbol, decimalToNumber } from '../../utils/helpers.js';
+import { normalizeHKSymbol, decimalToNumber, getDirectionName } from '../../utils/helpers.js';
 import type { Trader } from '../trader/index.js';
 import type { DecimalLikeValue } from '../../types/index.js';
 import type {
@@ -79,7 +79,7 @@ export class OrderRecorder {
    */
   private _debugOutputOrders(symbol: string, isLongSymbol: boolean): void {
     if (process.env['DEBUG'] === 'true') {
-      const positionType = isLongSymbol ? '做多标的' : '做空标的';
+      const positionType = getDirectionName(isLongSymbol);
       const normalizedSymbol = normalizeHKSymbol(symbol);
       const currentOrders = isLongSymbol
         ? this._longBuyOrders.filter((o) => o.symbol === normalizedSymbol)
@@ -209,7 +209,7 @@ export class OrderRecorder {
       updatedAt: undefined,
     });
     this._setBuyOrdersList(normalizedSymbol, isLongSymbol, list);
-    const positionType = isLongSymbol ? '做多标的' : '做空标的';
+    const positionType = getDirectionName(isLongSymbol);
     logger.info(
       `[现存订单记录] 本地新增买入记录：${positionType} ${normalizedSymbol} 价格=${price.toFixed(
         3,
@@ -257,7 +257,7 @@ export class OrderRecorder {
       (sum, order) => sum + (Number(order.executedQuantity) || 0),
       0,
     );
-    const positionType = isLongSymbol ? '做多标的' : '做空标的';
+    const positionType = getDirectionName(isLongSymbol);
     // 如果卖出数量大于等于当前记录的总数量，视为全部卖出，清空记录
     if (quantity >= totalQuantity) {
       this._setBuyOrdersList(normalizedSymbol, isLongSymbol, []);
@@ -638,7 +638,14 @@ export class OrderRecorder {
         return allBuyOrders;
       }
       // 1. 先获取M0：成交时间 > 最新卖出订单时间的买入订单
-      const latestSellTime = sortedSellOrders.at(-1)!.executedTime; // 最新的卖出订单时间
+      const lastSellOrder = sortedSellOrders.at(-1);
+      if (!lastSellOrder) {
+        logger.warn(
+          `[现存订单记录] ${normalizedSymbol} 无法获取最新卖出订单，跳过过滤逻辑`,
+        );
+        return allBuyOrders;
+      }
+      const latestSellTime = lastSellOrder.executedTime; // 最新的卖出订单时间
       const m0 = allBuyOrders.filter(
         (buyOrder) => buyOrder.executedTime > latestSellTime,
       );
@@ -649,15 +656,18 @@ export class OrderRecorder {
       );
       // 从最旧的卖出订单开始，依次过滤（D1 -> D2 -> D3，D1是最旧的）
       for (let i = 0; i < sortedSellOrders.length; i++) {
-        const sellOrder = sortedSellOrders[i]!;
+        const sellOrder = sortedSellOrders[i];
+        if (!sellOrder) {
+          continue;
+        }
         const sellTime = sellOrder.executedTime;
         const sellPrice = sellOrder.executedPrice;
         const sellQuantity = sellOrder.executedQuantity;
         // 获取下一个卖出订单的时间（如果存在），用于确定时间范围
-        const nextSellTime =
-          i < sortedSellOrders.length - 1
-            ? sortedSellOrders[i + 1]!.executedTime
-            : latestSellTime + 1; // 如果没有下一个，设为latestSellTime+1表示上限
+        const nextSellOrder = i < sortedSellOrders.length - 1 ? sortedSellOrders[i + 1] : null;
+        const nextSellTime = nextSellOrder
+          ? nextSellOrder.executedTime
+          : latestSellTime + 1; // 如果没有下一个，设为latestSellTime+1表示上限
         // 获取所有 成交时间 < 当前卖出订单成交时间 的买入订单（从currentBuyOrders中）
         // 注意：对于D1，currentBuyOrders是所有成交时间 <= 最新卖出订单时间的买入订单
         // 对于D2，currentBuyOrders是M1，所以这里获取的是M1中成交时间 < D2成交时间的买入订单
@@ -713,7 +723,7 @@ export class OrderRecorder {
       // 最终订单列表 = M0 + currentBuyOrders（即M0 + MN）
       const finalBuyOrders = [...m0, ...currentBuyOrders];
       // 更新记录
-      const positionType = isLongSymbol ? '做多标的' : '做空标的';
+      const positionType = getDirectionName(isLongSymbol);
       const originalBuyCount = allBuyOrders.length;
       const recordedCount = finalBuyOrders.length;
       if (isLongSymbol) {

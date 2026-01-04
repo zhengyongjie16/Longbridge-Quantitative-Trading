@@ -35,7 +35,7 @@ import {
   kdjObjectPool,
   macdObjectPool,
 } from './utils/objectPool.js';
-import { normalizeHKSymbol, getSymbolName,  isBuyAction, isSellAction } from './utils/helpers.js';
+import { normalizeHKSymbol, getSymbolName, isBuyAction, isSellAction, formatError } from './utils/helpers.js';
 import { extractRSIPeriods } from './utils/signalConfigParser.js';
 import { validateEmaPeriod } from './utils/indicatorHelpers.js';
 
@@ -55,6 +55,7 @@ import type {
   VerificationConfig,
   SignalConfigSet,
   LastState,
+  ValidateAllConfigResult,
 } from './types/index.js';
 
 /**
@@ -170,14 +171,6 @@ function formatDateString(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-/**
- * 格式化错误对象为可读字符串
- * @param err 错误对象
- * @returns 格式化后的错误消息
- */
-function formatError(err: unknown): string {
-  return (err as Error)?.message ?? String(err);
-}
 
 /**
  * 主程序循环：
@@ -272,7 +265,10 @@ async function runOnce({
       logger.warn('[行情获取失败] 做空标的', formatError(err));
       return null;
     }),
-    marketDataClient.getLatestQuote(MONITOR_SYMBOL).catch(() => null),
+    marketDataClient.getLatestQuote(MONITOR_SYMBOL).catch((err: unknown) => {
+      logger.warn('[行情获取失败] 监控标的', formatError(err));
+      return null;
+    }),
   ]);
 
   const longSymbolName = longQuote?.name ?? LONG_SYMBOL;
@@ -713,7 +709,7 @@ async function sleep(ms: number): Promise<void> {
 
 async function main(): Promise<void> {
   // 首先验证配置，并获取标的的中文名称
-  let symbolNames: { marketDataClient: MarketDataClient };
+  let symbolNames: ValidateAllConfigResult;
   try {
     symbolNames = await validateAllConfig();
   } catch (err) {

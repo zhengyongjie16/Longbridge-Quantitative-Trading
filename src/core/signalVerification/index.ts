@@ -24,8 +24,8 @@
 import { logger } from '../../utils/logger.js';
 import { verificationEntryPool, signalObjectPool } from '../../utils/objectPool.js';
 import { getIndicatorValue } from '../../utils/indicatorHelpers.js';
-import type { IndicatorSnapshot, Quote, Signal, VerificationConfig, VerificationEntry } from '../../types/index.js';
-import type { LastState } from '../../types/index.js';
+import { formatError } from '../../utils/helpers.js';
+import type { IndicatorSnapshot, Quote, Signal, VerificationConfig, VerificationEntry, LastState } from '../../types/index.js';
 
 /**
  * 信号验证管理器类
@@ -222,7 +222,7 @@ export class SignalVerificationManager {
       } catch (err) {
         logger.error(
           `[延迟验证错误] 处理待验证信号 ${pendingSignal.symbol} 时发生错误`,
-          (err as Error)?.message ?? String(err),
+          formatError(err),
         );
         // 清空该信号的历史记录并释放对象回池
         if (pendingSignal.verificationHistory) {
@@ -376,12 +376,31 @@ export class SignalVerificationManager {
     }
 
     // 提取3个时间点的指标值
-    const indicators2a = matches[0]!.indicators;
-    const indicators2b = matches[1]!.indicators;
-    const indicators2c = matches[2]!.indicators;
-    const actualTime0 = matches[0]!.timestamp;
-    const actualTime1 = matches[1]!.timestamp;
-    const actualTime2 = matches[2]!.timestamp;
+    // 防御性检查：确保有3个匹配项
+    if (matches.length < 3) {
+      logger.warn(
+        `[延迟验证失败] ${pendingSignal.symbol} 匹配项数量不足（期望3个，实际${matches.length}个）`,
+      );
+      return null;
+    }
+
+    const match0 = matches[0];
+    const match1 = matches[1];
+    const match2 = matches[2];
+
+    if (!match0 || !match1 || !match2) {
+      logger.warn(
+        `[延迟验证失败] ${pendingSignal.symbol} 匹配项为空`,
+      );
+      return null;
+    }
+
+    const indicators2a = match0.indicators;
+    const indicators2b = match1.indicators;
+    const indicators2c = match2.indicators;
+    const actualTime0 = match0.timestamp;
+    const actualTime1 = match1.timestamp;
+    const actualTime2 = match2.timestamp;
     const timeDiffSeconds0 =
       Math.abs(actualTime0.getTime() - targetTime0.getTime()) / 1000;
     const timeDiffSeconds1 =

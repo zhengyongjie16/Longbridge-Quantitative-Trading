@@ -40,11 +40,13 @@ import {
   toBeijingTimeIso,
   isDefined,
   isBuyAction,
+  formatError,
+  isValidPositiveNumber,
 } from '../../utils/helpers.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Signal, Quote, AccountSnapshot, Position, DecimalLikeValue } from '../../types/index.js';
-import type { OrderRecorder  } from '../orderRecorder/index.js';
+import type { OrderRecorder } from '../orderRecorder/index.js';
 import type {
   OrderOptions,
   OrderPayload,
@@ -76,30 +78,6 @@ const toDecimal = (value: unknown): Decimal => {
   return Decimal.ZERO();
 };
 
-/**
- * 从错误对象中提取安全的错误消息字符串
- * @param err - 错误对象
- * @returns 错误消息字符串
- */
-const extractErrorMessage = (err: unknown): string => {
-  if (err === null || err === undefined) {
-    return '未知错误';
-  }
-  if (typeof err === 'string') {
-    return err;
-  }
-  if (typeof err === 'number' || typeof err === 'boolean') {
-    return String(err);
-  }
-  if (err instanceof Error && err.message) {
-    return err.message;
-  }
-  try {
-    return String(err);
-  } catch {
-    return '无法序列化的错误';
-  }
-};
 
 /**
  * 错误类型识别辅助函数
@@ -601,7 +579,7 @@ export class Trader {
     let targetQuantity = remainingQty;
 
     // 如果提供了数量参数，使用提供的数量（但不能超过剩余数量）
-    if (quantity !== null && Number.isFinite(quantity) && quantity > 0) {
+    if (quantity !== null && isValidPositiveNumber(quantity)) {
       targetQuantity = Math.min(quantity, remainingQty);
     }
 
@@ -1056,7 +1034,7 @@ export class Trader {
       let targetQuantity: number | null = null;
       if (isDefined(signal.quantity)) {
         const signalQty = Number(signal.quantity);
-        if (Number.isFinite(signalQty) && signalQty > 0) {
+        if (isValidPositiveNumber(signalQty)) {
           targetQuantity = signalQty;
         }
       }
@@ -1070,7 +1048,7 @@ export class Trader {
         for (const pos of positions) {
           if (pos?.symbol === symbol && pos.availableQuantity) {
             const qty = decimalToNumber(pos.availableQuantity);
-            if (Number.isFinite(qty) && qty > 0) {
+            if (isValidPositiveNumber(qty)) {
               totalAvailable += qty;
             }
           }
@@ -1251,7 +1229,7 @@ export class Trader {
       );
 
       // 使用辅助函数提取错误消息
-      const errorMessage = extractErrorMessage(err);
+      const errorMessage = formatError(err);
       const errorType = identifyErrorType(errorMessage);
 
       // 根据错误类型进行针对性处理

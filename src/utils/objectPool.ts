@@ -106,7 +106,7 @@ type Reset<T> = (obj: T) => T;
  * 通用对象池类
  */
 class ObjectPool<T> {
-  private pool: T[] = [];
+  private readonly pool: T[] = [];
   private readonly factory: Factory<T>;
   private readonly reset: Reset<T>;
   private readonly maxSize: number;

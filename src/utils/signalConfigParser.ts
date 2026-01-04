@@ -101,13 +101,14 @@ function parseCondition(conditionStr: string): ParsedCondition | null {
   // 格式1：RSI:n<threshold (RSI 带周期)
   // 格式2：EMA:n<threshold (EMA 带周期)
   // 格式3：INDICATOR<threshold (其他固定指标)
-  const rsiMatch = trimmed.match(/^RSI:(\d+)\s*([<>])\s*(-?\d+(?:\.\d+)?)$/);
+  const rsiRegex = /^RSI:(\d+)\s*([<>])\s*(-?\d+(?:\.\d+)?)$/;
+  const rsiMatch = rsiRegex.exec(trimmed);
 
   if (rsiMatch) {
     // RSI:n 格式
     const [, periodStr, operator, thresholdStr] = rsiMatch;
-    const period = parseInt(periodStr!, 10);
-    const threshold = parseFloat(thresholdStr!);
+    const period = Number.parseInt(periodStr!, 10);
+    const threshold = Number.parseFloat(thresholdStr!);
 
     // 验证周期范围（1-100）
     if (!validateRsiPeriod(period)) {
@@ -128,13 +129,14 @@ function parseCondition(conditionStr: string): ParsedCondition | null {
   }
 
   // 尝试匹配 EMA:n 格式
-  const emaMatch = trimmed.match(/^EMA:(\d+)\s*([<>])\s*(-?\d+(?:\.\d+)?)$/);
+  const emaRegex = /^EMA:(\d+)\s*([<>])\s*(-?\d+(?:\.\d+)?)$/;
+  const emaMatch = emaRegex.exec(trimmed);
 
   if (emaMatch) {
     // EMA:n 格式
     const [, periodStr, operator, thresholdStr] = emaMatch;
-    const period = parseInt(periodStr!, 10);
-    const threshold = parseFloat(thresholdStr!);
+    const period = Number.parseInt(periodStr!, 10);
+    const threshold = Number.parseFloat(thresholdStr!);
 
     // 验证周期范围（1-250）
     if (!validateEmaPeriod(period)) {
@@ -155,14 +157,15 @@ function parseCondition(conditionStr: string): ParsedCondition | null {
   }
 
   // 尝试匹配其他固定指标格式
-  const match = trimmed.match(/^([A-Z]+)\s*([<>])\s*(-?\d+(?:\.\d+)?)$/);
+  const matchRegex = /^([A-Z]+)\s*([<>])\s*(-?\d+(?:\.\d+)?)$/;
+  const match = matchRegex.exec(trimmed);
 
   if (!match) {
     return null;
   }
 
   const [, indicator, operator, thresholdStr] = match;
-  const threshold = parseFloat(thresholdStr!);
+  const threshold = Number.parseFloat(thresholdStr!);
 
   // 验证指标是否支持
   if (!SUPPORTED_INDICATORS.includes(indicator as (typeof SUPPORTED_INDICATORS)[number])) {
@@ -197,11 +200,12 @@ function parseConditionGroup(groupStr: string): ParsedConditionGroup | null {
   let minSatisfied: number | null = null;
 
   // 尝试匹配带括号的格式
-  const bracketMatch = trimmed.match(/^\(([^)]+)\)(?:\/(\d+))?$/);
+  const bracketRegex = /^\(([^)]+)\)(?:\/(\d+))?$/;
+  const bracketMatch = bracketRegex.exec(trimmed);
 
   if (bracketMatch) {
     conditionsStr = bracketMatch[1]!;
-    minSatisfied = bracketMatch[2] ? parseInt(bracketMatch[2], 10) : null;
+    minSatisfied = bracketMatch[2] ? Number.parseInt(bracketMatch[2], 10) : null;
   } else {
     // 不带括号的单个条件（兼容简单格式）
     conditionsStr = trimmed;
@@ -226,9 +230,7 @@ function parseConditionGroup(groupStr: string): ParsedConditionGroup | null {
   }
 
   // 如果未指定 minSatisfied，默认为全部满足
-  if (minSatisfied === null) {
-    minSatisfied = conditions.length;
-  }
+  minSatisfied ??= conditions.length;
 
   // 验证 minSatisfied 的范围
   if (minSatisfied < 1 || minSatisfied > conditions.length) {
@@ -331,11 +333,15 @@ export function validateSignalConfig(configStr: string | null | undefined): Vali
 
   // 验证每个条件组
   for (let i = 0; i < groupStrs.length; i++) {
-    const groupStr = groupStrs[i]!.trim();
+    const groupStr = groupStrs[i];
+    if (!groupStr) {
+      continue;
+    }
+    const trimmedGroupStr = groupStr.trim();
 
     // 检查括号匹配
-    const openCount = (groupStr.match(/\(/g) || []).length;
-    const closeCount = (groupStr.match(/\)/g) || []).length;
+    const openCount = (trimmedGroupStr.match(/\(/g) || []).length;
+    const closeCount = (trimmedGroupStr.match(/\)/g) || []).length;
 
     if (openCount !== closeCount) {
       return {
@@ -346,26 +352,39 @@ export function validateSignalConfig(configStr: string | null | undefined): Vali
     }
 
     // 检查是否有有效的条件
-    const bracketMatch = groupStr.match(/^\(([^)]+)\)(?:\/(\d+))?$/);
+    const bracketRegex = /^\(([^)]+)\)(?:\/(\d+))?$/;
+    const bracketMatch = bracketRegex.exec(trimmedGroupStr);
     let conditionsStr: string;
     let minSatisfied: number | null = null;
 
     if (bracketMatch) {
-      conditionsStr = bracketMatch[1]!;
+      const capturedGroup = bracketMatch[1];
+      if (!capturedGroup) {
+        return {
+          valid: false,
+          error: `条件组 ${i + 1} 括号内为空`,
+          config: null,
+        };
+      }
+      conditionsStr = capturedGroup;
       if (bracketMatch[2]) {
-        minSatisfied = parseInt(bracketMatch[2], 10);
+        minSatisfied = Number.parseInt(bracketMatch[2], 10);
       }
     } else {
       // 尝试解析不带括号的单个条件
-      conditionsStr = groupStr;
+      conditionsStr = trimmedGroupStr;
     }
 
     const conditionStrs = conditionsStr.split(',');
 
     for (let j = 0; j < conditionStrs.length; j++) {
-      const condStr = conditionStrs[j]!.trim();
-
+      const condStr = conditionStrs[j];
       if (!condStr) {
+        continue;
+      }
+      const trimmedCondStr = condStr.trim();
+
+      if (!trimmedCondStr) {
         return {
           valid: false,
           error: `条件组 ${i + 1} 的第 ${j + 1} 个条件为空`,
@@ -373,13 +392,13 @@ export function validateSignalConfig(configStr: string | null | undefined): Vali
         };
       }
 
-      const condition = parseCondition(condStr);
+      const condition = parseCondition(trimmedCondStr);
       if (!condition) {
         return {
           valid: false,
           error: `条件组 ${i + 1} 的第 ${
             j + 1
-          } 个条件 "${condStr}" 格式无效。支持的指标: RSI:n (n为1-100), EMA:n (n为1-250), ${SUPPORTED_INDICATORS.join(
+          } 个条件 "${trimmedCondStr}" 格式无效。支持的指标: RSI:n (n为1-100), EMA:n (n为1-250), ${SUPPORTED_INDICATORS.join(
             ', ',
           )}`,
           config: null,
@@ -441,7 +460,7 @@ export function evaluateCondition(state: IndicatorState, condition: Condition): 
   if (indicator.includes(':')) {
     const parts = indicator.split(':');
     indicatorName = parts[0]!;
-    period = parseInt(parts[1]!, 10);
+    period = Number.parseInt(parts[1]!, 10);
   }
 
   // 获取指标值
@@ -449,7 +468,7 @@ export function evaluateCondition(state: IndicatorState, condition: Condition): 
   switch (indicatorName) {
     case 'RSI':
       // RSI:n 格式，从 state.rsi[period] 获取值
-      if (!period || !state.rsi || state.rsi[period] === undefined) {
+      if (!period || state.rsi?.[period] === undefined) {
         return false;
       }
       value = state.rsi[period];
@@ -477,7 +496,7 @@ export function evaluateCondition(state: IndicatorState, condition: Condition): 
       break;
     case 'EMA':
       // EMA:n 格式，从 state.ema[period] 获取值
-      if (!period || !state.ema || state.ema[period] === undefined) {
+      if (!period || state.ema?.[period] === undefined) {
         return false;
       }
       value = state.ema[period];
@@ -532,7 +551,7 @@ export function evaluateConditionGroup(state: IndicatorState, conditionGroup: Co
  * @returns 评估结果
  */
 export function evaluateSignalConfig(state: IndicatorState, signalConfig: SignalConfig | null): EvaluationResult {
-  if (!signalConfig || !signalConfig.conditionGroups) {
+  if (!signalConfig?.conditionGroups) {
     return {
       triggered: false,
       satisfiedGroupIndex: -1,
@@ -583,7 +602,7 @@ export function evaluateSignalConfig(state: IndicatorState, signalConfig: Signal
  * @returns 格式化字符串
  */
 export function formatSignalConfig(signalConfig: SignalConfig | null): string {
-  if (!signalConfig || !signalConfig.conditionGroups) {
+  if (!signalConfig?.conditionGroups) {
     return '(无效配置)';
   }
 
@@ -628,7 +647,7 @@ export function extractRSIPeriods(signalConfig: SignalConfigSet | null): number[
   ];
 
   for (const config of configs) {
-    if (!config || !config.conditionGroups) {
+    if (!config?.conditionGroups) {
       continue;
     }
 
@@ -642,7 +661,7 @@ export function extractRSIPeriods(signalConfig: SignalConfigSet | null): number[
       for (const condition of group.conditions) {
         // 如果是 RSI 指标且有周期，添加到集合中
         if (condition.indicator.startsWith('RSI:')) {
-          const period = parseInt(condition.indicator.split(':')[1]!, 10);
+          const period = Number.parseInt(condition.indicator.split(':')[1]!, 10);
           if (Number.isFinite(period)) {
             periods.add(period);
           }

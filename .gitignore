@@ -30,3 +30,4 @@ build/
 
 # SonarQube
 .scannerwork/
+sonar-*.json

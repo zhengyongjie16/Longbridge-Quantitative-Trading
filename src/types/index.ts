@@ -4,6 +4,7 @@
  */
 
 import { Market } from 'longport';
+import type { MarketDataClient } from '../services/quoteClient/index.js';
 
 // ==================== 信号类型 ====================
 
@@ -227,6 +228,16 @@ export type TradingConfig = {
   readonly verificationConfig: VerificationConfig;
   readonly signalConfig: SignalConfigSet;
 };
+
+/**
+ * 验证所有配置的返回结果接口
+ */
+export interface ValidateAllConfigResult {
+  monitorName: string;
+  longName: string;
+  shortName: string;
+  marketDataClient: MarketDataClient;
+}
 
 // ==================== 主入口模块类型 ====================
 
