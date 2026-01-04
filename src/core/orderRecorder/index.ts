@@ -17,7 +17,7 @@
  *
  * 缓存机制：
  * - 订单数据永久缓存（程序运行期间）
- * - 只在 forceRefresh=true 时重新获取
+ * - 首次调用时从 API 获取并缓存，之后使用缓存
  * - 避免频繁调用 historyOrders API
  */
 
@@ -218,6 +218,20 @@ export class OrderRecorder {
   }
 
   /**
+   * 清空指定标的的买入订单记录（用于保护性清仓等无条件清仓场景）
+   * @param symbol 标的代码
+   * @param isLongSymbol 是否为做多标的
+   */
+  clearBuyOrders(symbol: string, isLongSymbol: boolean): void {
+    const normalizedSymbol = normalizeHKSymbol(symbol);
+    const positionType = getDirectionName(isLongSymbol);
+    this._setBuyOrdersList(normalizedSymbol, isLongSymbol, []);
+    logger.info(
+      `[现存订单记录] 清空${positionType} ${normalizedSymbol}的所有买入记录（保护性清仓）`,
+    );
+  }
+
+  /**
    * 根据一笔新的卖出订单，本地更新买入订单记录（不再调用 API）
    *
    * 规则：
@@ -308,7 +322,6 @@ export class OrderRecorder {
    */
   private _isCacheValid(normalizedSymbol: string): boolean {
     // 缓存永久有效，只要存在就认为有效
-    // 只有在 forceRefresh=true 时才会重新从 API 获取
     return this._ordersCache.has(normalizedSymbol);
   }
 
@@ -540,22 +553,20 @@ export class OrderRecorder {
    * 获取并转换订单数据（统一入口，默认使用缓存）
    * @private
    * @param symbol 标的代码
-   * @param forceRefresh 是否强制刷新（忽略缓存），默认false（使用缓存）
    * @returns 返回已转换的买入和卖出订单
    */
   private async _fetchAndConvertOrders(
     symbol: string,
-    forceRefresh: boolean = false,
   ): Promise<FetchOrdersResult> {
     const normalizedSymbol = normalizeHKSymbol(symbol);
-    // 如果不强制刷新，先检查缓存
-    if (!forceRefresh && this._isCacheValid(normalizedSymbol)) {
+    // 先检查缓存，如果存在则直接返回
+    if (this._isCacheValid(normalizedSymbol)) {
       const cached = this._getCachedOrders(normalizedSymbol);
       if (cached) {
         return cached;
       }
     }
-    // 缓存无效或强制刷新，从API获取
+    // 缓存不存在，从API获取
     return await this.fetchOrdersFromAPI(symbol);
   }
 
@@ -579,19 +590,17 @@ export class OrderRecorder {
    *    - 最终订单列表 = M0 + MN
    * @param symbol 标的代码
    * @param isLongSymbol 是否为做多标的（true=做多，false=做空）
-   * @param forceRefresh 是否强制刷新（忽略缓存），默认false（使用缓存）
    * @returns 记录的订单列表
    */
   async refreshOrders(
     symbol: string,
     isLongSymbol: boolean,
-    forceRefresh: boolean = false,
   ): Promise<OrderRecord[]> {
     try {
       const normalizedSymbol = normalizeHKSymbol(symbol);
-      // 使用统一方法获取和转换订单（默认使用缓存，forceRefresh=true时强制刷新）
+      // 使用统一方法获取和转换订单（优先使用缓存，缓存不存在时从API获取）
       const { buyOrders: allBuyOrders, sellOrders: filledSellOrders } =
-        await this._fetchAndConvertOrders(symbol, forceRefresh);
+        await this._fetchAndConvertOrders(symbol);
       // 如果没有买入订单，直接返回空列表
       if (allBuyOrders.length === 0) {
         if (isLongSymbol) {

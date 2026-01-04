@@ -27,7 +27,8 @@
       "Bash(npm run type-check:*)",
       "WebFetch(domain:sonarcloud.io)",
       "Bash(curl:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }

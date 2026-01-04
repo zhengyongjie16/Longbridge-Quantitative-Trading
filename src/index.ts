@@ -772,39 +772,23 @@ async function main(): Promise<void> {
   // 程序启动时立即获取一次账户和持仓信息
   await displayAccountAndPositions(trader, marketDataClient, lastState);
 
-  // 程序启动时从API获取订单数据并更新缓存
-  if (LONG_SYMBOL) {
-    await orderRecorder.fetchOrdersFromAPI(LONG_SYMBOL).catch((err: unknown) => {
-      logger.warn(
-        `[订单记录初始化失败] 做多标的 ${LONG_SYMBOL}`,
-        formatError(err),
-      );
-    });
-  }
-  if (SHORT_SYMBOL) {
-    await orderRecorder.fetchOrdersFromAPI(SHORT_SYMBOL).catch((err: unknown) => {
-      logger.warn(
-        `[订单记录初始化失败] 做空标的 ${SHORT_SYMBOL}`,
-        formatError(err),
-      );
-    });
-  }
+  // 程序启动时刷新订单记录（内部会自动从API获取订单数据并更新缓存）
+  const symbolConfigs = [
+    { symbol: LONG_SYMBOL, isLongSymbol: true, directionName: '做多标的' },
+    { symbol: SHORT_SYMBOL, isLongSymbol: false, directionName: '做空标的' },
+  ];
 
-  // 程序启动时刷新订单记录
-  if (LONG_SYMBOL) {
-    await orderRecorder.refreshOrders(LONG_SYMBOL, true, false).catch((err: unknown) => {
-      logger.warn(
-        `[订单记录初始化失败] 做多标的 ${LONG_SYMBOL}`,
-        formatError(err),
-      );
-    });
-  }
-  if (SHORT_SYMBOL) {
+  for (const config of symbolConfigs) {
+    if (!config.symbol) {
+      continue;
+    }
+
+    // 然后使用缓存数据进行过滤处理，生成订单记录
     await orderRecorder
-      .refreshOrders(SHORT_SYMBOL, false, false)
+      .refreshOrders(config.symbol, config.isLongSymbol)
       .catch((err: unknown) => {
         logger.warn(
-          `[订单记录初始化失败] 做空标的 ${SHORT_SYMBOL}`,
+          `[订单记录初始化失败] ${config.directionName} ${config.symbol}`,
           formatError(err),
         );
       });

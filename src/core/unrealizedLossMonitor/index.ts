@@ -89,10 +89,11 @@ export class UnrealizedLossMonitor {
     try {
       await trader.executeSignals([liquidationSignal]);
 
-      // 清仓后刷新订单记录（强制从API获取最新状态）
-      await orderRecorder.refreshOrders(symbol, isLong, true);
+      // 保护性清仓后，无条件清空订单记录（不管价格如何，都要清空所有持仓）
+      // 使用专门的 clearBuyOrders 方法，而不是 recordLocalSell（避免价格过滤逻辑）
+      orderRecorder.clearBuyOrders(symbol, isLong);
 
-      // 重新计算浮亏数据
+      // 重新计算浮亏数据（订单记录已清空，浮亏数据也会为空）
       await riskChecker.refreshUnrealizedLossData(
         orderRecorder,
         symbol,
