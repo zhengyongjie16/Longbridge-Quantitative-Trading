@@ -31,13 +31,13 @@ import {
   WarrantStatus,
   FilterWarrantExpiryDate,
 } from 'longport';
-import { createConfig } from '../config/config.js';
-import { TRADING_CONFIG } from '../config/config.trading.js';
+import { createConfig } from '../src/config/config.js';
+import { TRADING_CONFIG } from '../src/config/config.trading.js';
 import {
   normalizeHKSymbol,
   decimalToNumber,
   formatNumber,
-} from '../utils/helpers.js';
+} from '../src/utils/helpers.js';
 
 // ==================== 类型定义 ====================
 type DecimalLikeValue = string | number | null;
@@ -428,9 +428,9 @@ async function main(): Promise<void> {
     if (!monitorSymbol) {
       console.error('错误: 未指定监控标的');
       console.error(
-        '使用方法: node src/analysisTools/findWarrant.js <监控标的代码>',
+        '使用方法: node dist/tools/findWarrant.js <监控标的代码>',
       );
-      console.error('例如: node src/analysisTools/findWarrant.js HSI.HK');
+      console.error('例如: node tools/findWarrant.js HSI.HK');
       console.error('或设置环境变量 MONITOR_SYMBOL');
       console.error('或在文件配置中设置 DEFAULT_MONITOR_SYMBOL 常量');
       process.exit(1);
@@ -489,3 +489,4 @@ try {
 }
 
 export { findQualifiedWarrants };
+

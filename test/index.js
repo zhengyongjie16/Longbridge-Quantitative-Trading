@@ -28,11 +28,11 @@ import {
   decimalToNumber,
   formatNumber,
   isDefined,
-} from "../utils/helpers.js";
+} from "../src/utils/helpers.js";
 import { RSI, MACD, EMA, MFI, HeikinAshi } from "technicalindicators";
-import { TRADING_CONFIG } from "../config/config.trading.js";
-import { createConfig } from "../config/config.js";
-import { validatePercentage } from "../utils/indicatorHelpers.js";
+import { TRADING_CONFIG } from "../src/config/config.trading.js";
+import { createConfig } from "../src/config/config.js";
+import { validatePercentage } from "../src/utils/indicatorHelpers.js";
 
 // ============================================
 // 配置变量（可直接修改）
