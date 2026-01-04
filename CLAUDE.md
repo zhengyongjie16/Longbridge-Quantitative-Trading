@@ -8,6 +8,8 @@ LongBridge 港股自动化量化交易系统。通过技术指标监控目标资
 
 **核心模式**：多指标组合策略，开仓信号延迟验证（默认60秒），平仓信号立即执行。
 
+**技术栈**：TypeScript + Node.js + LongPort OpenAPI + technicalindicators
+
 ## 架构
 
 ```
@@ -31,10 +33,13 @@ src/
 │   ├── signalConfigParser.ts  # 信号配置解析
 │   ├── tradingTime.ts    # 交易时段
 │   ├── logger.ts         # 日志系统
-│   └── objectPool.ts     # 对象池
+│   ├── objectPool.ts     # 对象池
+│   ├── accountDisplay.ts # 账户显示
+│   └── indicatorHelpers.ts # 指标辅助函数
 └── config/
-    ├── config.ts         # API配置
-    └── config.trading.ts # 交易配置
+    ├── config.index.ts   # API配置
+    ├── config.trading.ts # 交易配置
+    └── config.validator.ts # 配置验证
 ```
 
 ## 运行
@@ -79,10 +84,11 @@ npm start
 4. 牛熊证风险（牛证距回收价 > 0.5%，熊证 < -0.5%）
 5. 基础风险检查（浮亏限制和持仓市值限制）
 
-### 卖出数量计算
+### 卖出数量计算（signalProcessor.ts）
 - **盈利状态**（currentPrice > costPrice）：清空全部持仓
 - **未盈利状态**（currentPrice ≤ costPrice）：仅卖出 buyPrice < currentPrice 的历史订单
 - **无符合条件订单**：信号设为 HOLD，跳过本次卖出
+- **末日保护**：无条件清仓，不受成本价判断影响
 
 ### 延迟验证逻辑（60秒延迟确认趋势）
 - **BUYCALL**：验证指标的3个时间点值（T0, T0+5s, T0+10s）都要**大于**初始值（上涨趋势）
@@ -133,8 +139,10 @@ npm start
 | 修改订单逻辑 | `trader.ts`                                                |
 | 修改卖出策略 | `signalProcessor.ts` 中的 `calculateSellQuantity` 函数     |
 | 修改配置参数 | `.env` 或 `config.trading.ts`                              |
-| 调整验证逻辑 | `signalVerification.ts` 中的 `_verifySingleSignal` 方法   |
-| 订单记录逻辑 | `orderRecorder.ts` 中的 `refreshOrders` 方法（过滤算法）   |
+| 调整验证逻辑 | `signalVerification/index.ts` 中的 `_verifySingleSignal` 方法 |
+| 订单记录逻辑 | `orderRecorder/index.ts` 中的 `refreshOrders` 方法（过滤算法） |
+| 修改账户显示 | `utils/accountDisplay.ts` 中的 `displayAccountAndPositions` 函数 |
+| 修改指标计算 | `services/indicators/index.ts` 中的各指标计算函数 |
 
 ## 必需配置
 
