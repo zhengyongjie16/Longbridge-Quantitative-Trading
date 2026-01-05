@@ -8,8 +8,13 @@
  *
  * 筛选条件：
  * - 距离回收价百分比（牛证 > 2%，熊证 < -2%）
- * - 成交额阈值（日成交额 > 1000万）
+ * - 成交额阈值（三日内每日成交额都需 > 1000万）
+ * - 上市天数（至少上市三日，过滤新上市品种）
  * - 到期日要求（剩余 > 3个月）
+ *
+ * 排序规则：
+ * - 牛证：按距离回收价从小到大排序（离回收价越近越靠前）
+ * - 熊证：按距离回收价从大到小排序（离回收价越近越靠前）
  *
  * 运行方式：
  * npm run find-warrant
@@ -22,16 +27,15 @@
 import {
   QuoteContext,
   Period,
-  NaiveDate,
-  TradeSessions,
   WarrantSortBy,
   SortOrderType,
   WarrantType,
   AdjustType,
   WarrantStatus,
   FilterWarrantExpiryDate,
+  TradeSessions,
 } from 'longport';
-import { createConfig } from '../src/config/config.js';
+import { createConfig } from '../src/config/config.index.js';
 import { TRADING_CONFIG } from '../src/config/config.trading.js';
 import {
   normalizeHKSymbol,
@@ -60,10 +64,10 @@ const BEAR_DISTANCE_PERCENT_THRESHOLD = -2; // 单位：%，例如 -2 表示 < -
 
 // 成交额阈值（单位：HKD）
 // 当日成交额阈值：用于初步筛选窝轮列表
-const MIN_DAILY_TURNOVER = 10000000; // 2000万 = 20,000,000
+const MIN_DAILY_TURNOVER = 10000000; // 1000万 = 10,000,000
 
-// 三日内平均成交额阈值：用于详细检查每个窝轮
-const MIN_AVG_TURNOVER = 10000000; // 2000万 = 20,000,000
+// 三日内每日成交额阈值：用于详细检查每个窝轮，要求三日内每日成交额都必须高于此阈值
+const MIN_AVG_TURNOVER = 10000000; // 1000万 = 10,000,000
 
 // 过期日要求
 // 只筛选过期日在指定月数以上的窝轮（API使用枚举值：Between_3_6, Between_6_12, GT_12）
@@ -139,18 +143,27 @@ function calculateDistancePercent(
 }
 
 /**
- * 计算三日内的平均成交额
+ * 检查最近三日的每日成交额是否都高于指定阈值
  * @param candles K线数据数组
- * @returns 平均成交额（HKD），如果数据不足则返回 null
+ * @param minTurnover 最低成交额阈值
+ * @returns 如果最近三根K线的成交额都高于阈值则返回平均成交额，否则返回 null
  */
-function calculateAverageTurnover(candles: CandleData[]): number | null {
+function checkDailyTurnover(candles: CandleData[], minTurnover: number): number | null {
   if (!Array.isArray(candles) || candles.length === 0) return null;
+
+  // 检查K线数量，过滤上市不到三日的牛熊证
+  if (candles.length < 3) {
+    return null;
+  }
+
+  // 只取最近三根K线
+  const recentCandles = candles.slice(-3);
 
   let totalTurnover = 0;
   let validDays = 0;
 
-  for (const candle of candles) {
-    let turnover =
+  for (const candle of recentCandles) {
+    let turnover: number | null =
       candle.turnover == null ? null : decimalToNumber(candle.turnover as DecimalLikeValue);
 
     // 如果没有 turnover 字段或无效，使用 close * volume 计算
@@ -160,15 +173,27 @@ function calculateAverageTurnover(candles: CandleData[]): number | null {
       if (Number.isFinite(close) && Number.isFinite(volume) && volume > 0) {
         turnover = close * volume;
       } else {
-        continue;
+        continue; // 跳过无效数据
       }
     }
 
-    totalTurnover += turnover!;
+    // TypeScript类型守卫：此时 turnover 必定是有效数字
+    if (turnover === null || !Number.isFinite(turnover)) {
+      continue;
+    }
+
+    // 此时 turnover 已被类型守卫确认为 number
+    // 检查当天成交额是否低于阈值
+    if (turnover < minTurnover) {
+      return null; // 任何一天低于阈值，直接返回 null
+    }
+
+    totalTurnover += turnover;
     validDays++;
   }
 
-  return validDays > 0 ? totalTurnover / validDays : null;
+  // 必须有完整的三个交易日数据，且每日成交额都达标
+  return validDays === 3 ? totalTurnover / validDays : null;
 }
 
 /**
@@ -176,8 +201,6 @@ function calculateAverageTurnover(candles: CandleData[]): number | null {
  * @param warrant 窝轮对象
  * @param ctx QuoteContext 实例
  * @param monitorPrice 监控标的当前价
- * @param startDate 开始日期
- * @param endDate 结束日期
  * @param isBull 是否为牛证（true=牛证，false=熊证）
  * @returns 符合条件的窝轮信息，不符合则返回 null
  */
@@ -185,8 +208,6 @@ async function checkWarrant(
   warrant: WarrantInfo,
   ctx: QuoteContext,
   monitorPrice: number,
-  startDate: NaiveDate,
-  endDate: NaiveDate,
   isBull: boolean,
 ): Promise<QualifiedWarrant | null> {
   const warrantSymbol = warrant.symbol || warrant.code;
@@ -229,22 +250,30 @@ async function checkWarrant(
       return null;
     }
 
-    // 获取日K线数据
-    const candles = await ctx.historyCandlesticksByDate(
+    // 获取日K线数据（获取最近10根K线，从最新交易日向历史查询）
+    // 参数说明：
+    // - symbol: 标的代码
+    // - Period.Day: 日K线
+    // - AdjustType.NoAdjust: 不复权
+    // - false: 向历史方向查询（true=向未来，false=向历史）
+    // - null: 从最新交易日开始查询
+    // - 10: 查询10根K线
+    // - TradeSessions.Intraday: 日内交易时段
+    const candles = await ctx.historyCandlesticksByOffset(
       warrantSymbol,
       Period.Day,
       AdjustType.NoAdjust,
-      startDate,
-      endDate,
-      TradeSessions.All,
+      false,
+      null,
+      10,
+      TradeSessions.Intraday,
     );
 
     if (!Array.isArray(candles) || candles.length === 0) return null;
 
-    // 计算平均成交额
-    const avgTurnover = calculateAverageTurnover(candles as CandleData[]);
-    if (!Number.isFinite(avgTurnover) || (avgTurnover !== null && avgTurnover < MIN_AVG_TURNOVER))
-      return null;
+    // 检查最近三根K线的成交额是否都高于阈值
+    const avgTurnover = checkDailyTurnover(candles as CandleData[], MIN_AVG_TURNOVER);
+    if (avgTurnover === null) return null;
 
     // 符合条件
     return {
@@ -383,25 +412,23 @@ async function findQualifiedWarrants(
     const bearWarrants = filterByTurnover(bearWarrantList);
 
     // 3. 对每个牛证和熊证进行详细检查（回收价和成交额）
-    // 提前计算日期范围（3天前到今天）
-    const today = new Date();
-    const threeDaysAgo = new Date(today.getTime() - 259200000); // 3 * 24 * 60 * 60 * 1000
-    const toNaiveDate = (date: Date): NaiveDate =>
-      new NaiveDate(date.getFullYear(), date.getMonth() + 1, date.getDate());
-    const startDate = toNaiveDate(threeDaysAgo);
-    const endDate = toNaiveDate(today);
-
     // 创建检查函数的绑定版本
     const checkBull = (w: WarrantInfo): Promise<QualifiedWarrant | null> =>
-      checkWarrant(w, ctx, monitorPrice, startDate, endDate, true);
+      checkWarrant(w, ctx, monitorPrice, true);
     const checkBear = (w: WarrantInfo): Promise<QualifiedWarrant | null> =>
-      checkWarrant(w, ctx, monitorPrice, startDate, endDate, false);
+      checkWarrant(w, ctx, monitorPrice, false);
 
     // 并行检查牛证和熊证（分批处理以避免API限流）
     const [qualifiedBullWarrants, qualifiedBearWarrants] = await Promise.all([
       checkWarrantsBatch(bullWarrants, checkBull, BATCH_SIZE),
       checkWarrantsBatch(bearWarrants, checkBear, BATCH_SIZE),
     ]);
+
+    // 排序结果
+    // 牛证按距离回收价从小到大排序（离回收价越近排越前）
+    qualifiedBullWarrants.sort((a, b) => a.distancePercent - b.distancePercent);
+    // 熊证按距离回收价从大到小排序（离回收价越近排越前，因为是负值所以用降序）
+    qualifiedBearWarrants.sort((a, b) => b.distancePercent - a.distancePercent);
 
     return {
       bullWarrants: qualifiedBullWarrants,
@@ -445,8 +472,11 @@ async function main(): Promise<void> {
         SEPARATOR,
         `监控标的: ${monitorSymbol}`,
         '筛选条件:',
-        `  - 牛证: 过期日 >= ${MIN_EXPIRY_MONTHS}个月，三日内平均成交额 >= ${minAvgTurnoverWan}万，且距离百分比 > ${BULL_DISTANCE_PERCENT_THRESHOLD}%（监控标的当前价高于回收价）`,
-        `  - 熊证: 过期日 >= ${MIN_EXPIRY_MONTHS}个月，三日内平均成交额 >= ${minAvgTurnoverWan}万，且距离百分比 < ${BEAR_DISTANCE_PERCENT_THRESHOLD}%（监控标的当前价低于回收价）`,
+        `  - 牛证: 上市至少三日，过期日 >= ${MIN_EXPIRY_MONTHS}个月，三日内每日成交额都需 >= ${minAvgTurnoverWan}万，且距离百分比 > ${BULL_DISTANCE_PERCENT_THRESHOLD}%（监控标的当前价高于回收价）`,
+        `  - 熊证: 上市至少三日，过期日 >= ${MIN_EXPIRY_MONTHS}个月，三日内每日成交额都需 >= ${minAvgTurnoverWan}万，且距离百分比 < ${BEAR_DISTANCE_PERCENT_THRESHOLD}%（监控标的当前价低于回收价）`,
+        '排序规则:',
+        `  - 牛证: 按距离回收价从小到大排序（离回收价越近越靠前）`,
+        `  - 熊证: 按距离回收价从大到小排序（离回收价越近越靠前）`,
         SEPARATOR,
       ].join('\n'),
     );
@@ -465,7 +495,7 @@ async function main(): Promise<void> {
             `\n${i + 1}. ${w.name} (${w.symbol})`,
             `   回收价: ${formatNumber(w.callPrice, 2)} HKD`,
             `   距离百分比: ${formatNumber(w.distancePercent, 2)}%`,
-            `   三日内平均成交额: ${formatNumber(w.avgTurnoverInWan, 2)} 万 HKD`,
+            `   三日平均成交额: ${formatNumber(w.avgTurnoverInWan, 2)} 万 HKD（每日达标）`,
           );
         }
       }

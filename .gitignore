@@ -31,3 +31,7 @@ build/
 # SonarQube
 .scannerwork/
 sonar-*.json
+
+# Local settings
+settings.local.json
+ralph-loop.local.md

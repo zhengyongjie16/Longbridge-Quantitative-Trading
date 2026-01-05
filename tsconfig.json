@@ -34,7 +34,7 @@
     "isolatedModules": false,
     // ===== 输出配置 =====
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": "./",
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
@@ -46,13 +46,13 @@
     "forceConsistentCasingInFileNames": true
   },
   "include": [
-    "src/**/*"
+    "src/**/*",
+    "tools/**/*"
   ],
   "exclude": [
     "node_modules",
     "dist",
     "logs",
-    "tools",
     "test",
     "**/*.test.ts",
     "**/*.spec.ts"

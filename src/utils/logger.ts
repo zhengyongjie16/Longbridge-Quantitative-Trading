@@ -58,7 +58,7 @@ interface LogObject {
 }
 
 const formatExtra = (extra: unknown): string => {
-  return inspect(extra, { depth: 5, maxArrayLength: 100 });;
+  return inspect(extra, { depth: 5, maxArrayLength: 100 });
 };
 
 /**
@@ -332,7 +332,7 @@ function formatForConsole(obj: LogObject): string {
   const color = config.color;
   const reset = color ? colors.reset : '';
 
-  let line = `${color}${levelStr} ${timestamp} ${formatExtra(obj.extra)}${reset}`;
+  let line = `${color}${levelStr} ${timestamp} ${obj.msg}${reset}`;
 
   // 处理额外数据
   if (obj.extra !== undefined && obj.extra !== null) {

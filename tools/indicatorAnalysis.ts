@@ -35,7 +35,7 @@ import {
 } from '../src/utils/helpers.js';
 import { RSI, MACD, EMA, MFI } from 'technicalindicators';
 import { TRADING_CONFIG } from '../src/config/config.trading.js';
-import { createConfig } from '../src/config/config.js';
+import { createConfig } from '../src/config/config.index.js';
 import { validatePercentage } from '../src/utils/indicatorHelpers.js';
 
 // ============================================
