@@ -8,7 +8,7 @@ import type { OrderSide, OrderType, TimeInForceType } from 'longport';
  * 默认订单配置类型
  */
 export type OrderOptions = {
-  symbol: string;
+  readonly symbol: string;
   readonly targetNotional: number;
   readonly quantity: number;
   readonly orderType: typeof OrderType[keyof typeof OrderType];
@@ -26,27 +26,27 @@ export type OrderPayload = {
   readonly side: typeof OrderSide[keyof typeof OrderSide];
   readonly timeInForce: typeof TimeInForceType[keyof typeof TimeInForceType];
   readonly submittedQuantity: import('longport').Decimal;
-  submittedPrice?: import('longport').Decimal;
-  remark?: string;
+  readonly submittedPrice?: import('longport').Decimal;
+  readonly remark?: string;
 };
 
 /**
  * 交易记录类型
  */
 export type TradeRecord = {
-  orderId?: string;
-  symbol: string;
-  symbolName?: string | null;
-  action?: string;
-  side?: string;
-  quantity?: string;
-  price?: string;
-  orderType?: string;
-  status?: string;
-  error?: string;
-  reason?: string;
-  signalTriggerTime?: Date | string | null;
-  timestamp?: string;
+  readonly orderId?: string;
+  readonly symbol: string;
+  readonly symbolName?: string | null;
+  readonly action?: string;
+  readonly side?: string;
+  readonly quantity?: string;
+  readonly price?: string;
+  readonly orderType?: string;
+  readonly status?: string;
+  readonly error?: string;
+  readonly reason?: string;
+  readonly signalTriggerTime?: Date | string | null;
+  readonly timestamp?: string;
 };
 
 /**

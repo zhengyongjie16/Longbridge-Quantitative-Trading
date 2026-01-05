@@ -281,8 +281,8 @@ async function checkWarrant(
       name: warrantQuote.name || warrant.name || warrantSymbol,
       callPrice: callPriceNum,
       distancePercent,
-      avgTurnover: avgTurnover!,
-      avgTurnoverInWan: avgTurnover! / 10000,
+      avgTurnover: avgTurnover,
+      avgTurnoverInWan: avgTurnover / 10000,
     };
   } catch {
     return null;
