@@ -1,0 +1,222 @@
+/**
+ * 浮亏检查模块
+ *
+ * 功能：
+ * - 刷新浮亏监控数据
+ * - 检查浮亏是否超过阈值
+ * - 管理浮亏数据缓存
+ *
+ * 计算方式（开仓成本）：
+ * - R1 = 所有未平仓买入订单的市值总和（每个订单市值 = 成交价 × 成交数量）
+ * - N1 = 所有未平仓买入订单的成交数量总和
+ * - R2 = 当前持仓市值（当前价格 × N1）
+ * - 浮亏 = R2 - R1
+ */
+
+import { logger } from '../../utils/logger.js';
+import { normalizeHKSymbol, isValidPositiveNumber, getDirectionName } from '../../utils/helpers.js';
+import type { OrderRecorder } from '../orderRecorder/index.js';
+import type { UnrealizedLossData, UnrealizedLossCheckResult } from './type.js';
+
+/**
+ * 浮亏检查器
+ */
+export class UnrealizedLossChecker {
+  private readonly maxUnrealizedLossPerSymbol: number | null;
+  private readonly unrealizedLossData: Map<string, UnrealizedLossData>;
+
+  constructor(maxUnrealizedLossPerSymbol: number | null) {
+    this.maxUnrealizedLossPerSymbol = maxUnrealizedLossPerSymbol;
+    this.unrealizedLossData = new Map();
+  }
+
+  /**
+   * 获取浮亏数据
+   */
+  getUnrealizedLossData(symbol: string): UnrealizedLossData | undefined {
+    return this.unrealizedLossData.get(normalizeHKSymbol(symbol));
+  }
+
+  /**
+   * 获取所有浮亏数据（供外部访问）
+   */
+  getAllData(): Map<string, UnrealizedLossData> {
+    return new Map(this.unrealizedLossData.entries());
+  }
+
+  /**
+   * 检查是否启用浮亏保护
+   */
+  isEnabled(): boolean {
+    return (
+      this.maxUnrealizedLossPerSymbol !== null &&
+      Number.isFinite(this.maxUnrealizedLossPerSymbol) &&
+      this.maxUnrealizedLossPerSymbol > 0
+    );
+  }
+
+  /**
+   * 初始化或刷新标的的浮亏监控数据（在程序启动时或买入/卖出操作后调用）
+   *
+   * 注意：
+   * - 程序启动时：调用方需要先调用 orderRecorder.refreshOrders() 刷新订单记录
+   * - 交易后：调用方已通过 recordLocalBuy/recordLocalSell 更新了订单记录
+   * - 本方法仅从 orderRecorder 中已有的订单列表计算 R1 和 N1，不会重复调用 API
+   *
+   * @param orderRecorder OrderRecorder实例
+   * @param symbol 标的代码
+   * @param isLongSymbol 是否为做多标的
+   * @returns 返回R1（开仓成本）和N1（持仓数量），如果计算失败返回null
+   */
+  async refresh(
+    orderRecorder: OrderRecorder,
+    symbol: string,
+    isLongSymbol: boolean,
+  ): Promise<{ r1: number; n1: number } | null> {
+    // 如果未启用浮亏保护，跳过
+    if (!this.isEnabled()) {
+      return null;
+    }
+
+    if (!orderRecorder) {
+      logger.warn(
+        `[浮亏监控] 未提供 OrderRecorder 实例，无法刷新标的 ${symbol} 的浮亏数据`,
+      );
+      return null;
+    }
+
+    try {
+      const normalizedSymbol = normalizeHKSymbol(symbol);
+
+      // 使用公共方法获取订单列表
+      const buyOrders = orderRecorder.getBuyOrdersForSymbol(
+        normalizedSymbol,
+        isLongSymbol,
+      );
+
+      // 计算R1（开仓成本）和N1（持仓数量）
+      const { r1, n1 } = this._calculateCostAndQuantity(buyOrders);
+
+      // 更新缓存
+      this.unrealizedLossData.set(normalizedSymbol, {
+        r1,
+        n1,
+        lastUpdateTime: Date.now(),
+      });
+
+      const positionType = getDirectionName(isLongSymbol);
+      logger.info(
+        `[浮亏监控] ${positionType} ${normalizedSymbol}: R1(开仓成本)=${r1.toFixed(
+          2,
+        )} HKD, N1(持仓数量)=${n1}, 未平仓订单数=${buyOrders.length}`,
+      );
+
+      return { r1, n1 };
+    } catch (error) {
+      logger.error(
+        `[浮亏监控] 刷新标的 ${symbol} 的浮亏数据失败`,
+        (error as Error).message || String(error),
+      );
+      return null;
+    }
+  }
+
+  /**
+   * 计算开仓成本和持仓数量
+   * @private
+   */
+  private _calculateCostAndQuantity(
+    buyOrders: Array<{ executedPrice: number | string; executedQuantity: number | string }>,
+  ): { r1: number; n1: number } {
+    let r1 = 0;
+    let n1 = 0;
+
+    for (const order of buyOrders) {
+      const price = Number(order.executedPrice) || 0;
+      const quantity = Number(order.executedQuantity) || 0;
+
+      if (
+        Number.isFinite(price) &&
+        price > 0 &&
+        Number.isFinite(quantity) &&
+        quantity > 0
+      ) {
+        r1 += price * quantity;
+        n1 += quantity;
+      }
+    }
+
+    return { r1, n1 };
+  }
+
+  /**
+   * 检查标的的浮亏是否超过阈值，如果超过则返回清仓信号
+   * @param symbol 标的代码
+   * @param currentPrice 当前价格
+   * @param isLongSymbol 是否为做多标的
+   * @returns 返回是否需要清仓
+   */
+  check(
+    symbol: string,
+    currentPrice: number,
+    isLongSymbol: boolean,
+  ): UnrealizedLossCheckResult {
+    // 如果未启用浮亏保护，跳过
+    if (!this.isEnabled()) {
+      return { shouldLiquidate: false };
+    }
+
+    const normalizedSymbol = normalizeHKSymbol(symbol);
+
+    // 验证当前价格有效性
+    if (!isValidPositiveNumber(currentPrice)) {
+      return { shouldLiquidate: false };
+    }
+
+    // 获取缓存的浮亏数据
+    const lossData = this.unrealizedLossData.get(normalizedSymbol);
+    if (!lossData) {
+      logger.warn(
+        `[浮亏监控] ${normalizedSymbol} 浮亏数据未初始化，跳过检查（可能是订单获取失败或数据尚未刷新）`,
+      );
+      return { shouldLiquidate: false };
+    }
+
+    const { r1, n1 } = lossData;
+
+    // 如果剩余数量为0或负数，无需清仓
+    if (!Number.isFinite(n1) || n1 <= 0) {
+      return { shouldLiquidate: false };
+    }
+
+    // 计算当前持仓市值R2和浮亏
+    const r2 = currentPrice * n1;
+    const unrealizedLoss = r2 - r1;
+
+    // 检查浮亏是否超过阈值（浮亏为负数表示亏损）
+    // 此处已通过 isEnabled() 验证，maxUnrealizedLossPerSymbol 不为 null
+    const threshold = this.maxUnrealizedLossPerSymbol;
+    if (threshold === null || !Number.isFinite(threshold)) {
+      return { shouldLiquidate: false };
+    }
+
+    if (unrealizedLoss < -threshold) {
+      const positionType = getDirectionName(isLongSymbol);
+      const reason = `[保护性清仓] ${positionType} ${normalizedSymbol} 浮亏=${unrealizedLoss.toFixed(
+        2,
+      )} HKD 超过阈值 ${threshold} HKD (R1=${r1.toFixed(
+        2,
+      )}, R2=${r2.toFixed(2)}, N1=${n1})，执行保护性清仓`;
+
+      logger.warn(reason);
+
+      return {
+        shouldLiquidate: true,
+        reason,
+        quantity: n1,
+      };
+    }
+
+    return { shouldLiquidate: false };
+  }
+}

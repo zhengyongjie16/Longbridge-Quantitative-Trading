@@ -8,26 +8,37 @@
 export type WarrantType = 'BULL' | 'BEAR';
 
 /**
+ * 牛熊证报价接口（从 LongPort API 返回）
+ */
+export interface WarrantQuote {
+  readonly symbol?: string;
+  readonly category?: number | string;
+  readonly call_price?: unknown;
+  readonly callPrice?: unknown;
+  [key: string]: unknown;
+}
+
+/**
  * 牛熊证信息接口
  */
 export interface WarrantInfo {
-  isWarrant: boolean;
-  warrantType?: WarrantType;
-  callPrice?: number | null;
-  category?: number | string;
-  symbol?: string;
+  readonly isWarrant: boolean;
+  readonly warrantType?: WarrantType;
+  readonly callPrice?: number | null;
+  readonly category?: number | string;
+  readonly symbol?: string;
 }
 
 /**
  * 风险检查结果接口
  */
 export interface RiskCheckResult {
-  allowed: boolean;
-  reason?: string;
-  warrantInfo?: {
-    isWarrant: boolean;
-    warrantType: WarrantType;
-    distanceToStrikePercent: number;
+  readonly allowed: boolean;
+  readonly reason?: string;
+  readonly warrantInfo?: {
+    readonly isWarrant: boolean;
+    readonly warrantType: WarrantType;
+    readonly distanceToStrikePercent: number;
   };
 }
 
@@ -35,26 +46,26 @@ export interface RiskCheckResult {
  * 浮亏数据接口
  */
 export interface UnrealizedLossData {
-  r1: number;
-  n1: number;
-  lastUpdateTime: number;
+  readonly r1: number;
+  readonly n1: number;
+  readonly lastUpdateTime: number;
 }
 
 /**
  * 浮亏检查结果接口
  */
 export interface UnrealizedLossCheckResult {
-  shouldLiquidate: boolean;
-  reason?: string;
-  quantity?: number;
+  readonly shouldLiquidate: boolean;
+  readonly reason?: string;
+  readonly quantity?: number;
 }
 
 /**
  * RiskChecker 构造参数接口
  */
 export interface RiskCheckerOptions {
-  maxDailyLoss?: number | null;
-  maxPositionNotional?: number | null;
-  maxUnrealizedLossPerSymbol?: number | null;
+  readonly maxDailyLoss?: number | null;
+  readonly maxPositionNotional?: number | null;
+  readonly maxUnrealizedLossPerSymbol?: number | null;
 }
 

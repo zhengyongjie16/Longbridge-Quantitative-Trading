@@ -37,7 +37,7 @@ export class OrderAPIManager {
     const normalizedSymbol = normalizeHKSymbol(symbol);
 
     // 优先使用缓存
-    if (this._isCacheValid(normalizedSymbol)) {
+    if (this._hasCache(normalizedSymbol)) {
       const cached = this._getCachedOrders(normalizedSymbol);
       if (cached) {
         return cached;
@@ -47,13 +47,17 @@ export class OrderAPIManager {
     // 从 API 获取订单
     const ctx = await this._ctxPromise;
 
-    const [historyOrders, todayOrders] = await Promise.all([
+    const [historyOrdersRaw, todayOrdersRaw] = await Promise.all([
       ctx.historyOrders({
         symbol: normalizedSymbol,
         endAt: new Date(),
       }),
       ctx.todayOrders({ symbol: normalizedSymbol }),
     ]);
+
+    // 转换为 RawOrderFromAPI 类型（通过 unknown 进行安全转换）
+    const historyOrders = historyOrdersRaw as unknown as RawOrderFromAPI[];
+    const todayOrders = todayOrdersRaw as unknown as RawOrderFromAPI[];
 
     // 合并并去重
     const allOrders = this._mergeAndDeduplicateOrders(
@@ -135,10 +139,10 @@ export class OrderAPIManager {
   }
 
   /**
-   * 检查缓存是否有效
+   * 检查指定标的是否存在缓存（仅检查 key 是否存在）
    * @private
    */
-  private _isCacheValid(normalizedSymbol: string): boolean {
+  private _hasCache(normalizedSymbol: string): boolean {
     return this._ordersCache.has(normalizedSymbol);
   }
 
@@ -183,27 +187,25 @@ export class OrderAPIManager {
    * @private
    */
   private _mergeAndDeduplicateOrders(
-    historyOrders: unknown[],
-    todayOrders: unknown[],
+    historyOrders: RawOrderFromAPI[],
+    todayOrders: RawOrderFromAPI[],
   ): RawOrderFromAPI[] {
     const orderIdSet = new Set<string>();
     const allOrders: RawOrderFromAPI[] = [];
 
     // 先添加历史订单
     for (const order of historyOrders) {
-      const rawOrder = order as RawOrderFromAPI;
-      if (!orderIdSet.has(rawOrder.orderId)) {
-        orderIdSet.add(rawOrder.orderId);
-        allOrders.push(rawOrder);
+      if (!orderIdSet.has(order.orderId)) {
+        orderIdSet.add(order.orderId);
+        allOrders.push(order);
       }
     }
 
     // 再添加今日订单（去重）
     for (const order of todayOrders) {
-      const rawOrder = order as RawOrderFromAPI;
-      if (!orderIdSet.has(rawOrder.orderId)) {
-        orderIdSet.add(rawOrder.orderId);
-        allOrders.push(rawOrder);
+      if (!orderIdSet.has(order.orderId)) {
+        orderIdSet.add(order.orderId);
+        allOrders.push(order);
       }
     }
 

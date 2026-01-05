@@ -269,6 +269,37 @@ export class OrderRecorder {
   // 暴露内部状态（用于 RiskChecker）
   // ============================================
 
+  /**
+   * 获取做多标的的买入订单列表（公共方法）
+   */
+  getLongBuyOrders(): OrderRecord[] {
+    return this._storage.getLongBuyOrders();
+  }
+
+  /**
+   * 获取做空标的的买入订单列表（公共方法）
+   */
+  getShortBuyOrders(): OrderRecord[] {
+    return this._storage.getShortBuyOrders();
+  }
+
+  /**
+   * 获取指定标的的买入订单列表（公共方法）
+   * @param symbol 标的代码
+   * @param isLongSymbol 是否为做多标的
+   */
+  getBuyOrdersForSymbol(symbol: string, isLongSymbol: boolean): OrderRecord[] {
+    const normalizedSymbol = normalizeHKSymbol(symbol);
+    const orders = isLongSymbol
+      ? this._storage.getLongBuyOrders()
+      : this._storage.getShortBuyOrders();
+    return orders.filter((o) => o.symbol === normalizedSymbol);
+  }
+
+  // ============================================
+  // 向后兼容的属性访问器（已弃用，请使用公共方法）
+  // ============================================
+
   get _longBuyOrders(): OrderRecord[] {
     return this._storage.getLongBuyOrders();
   }
