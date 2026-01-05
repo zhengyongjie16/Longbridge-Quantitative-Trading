@@ -26,7 +26,7 @@ import {
   isValidPositiveNumber,
 } from '../../utils/helpers.js';
 import type { Signal } from '../../types/index.js';
-import type { OrderOptions, OrderPayload } from './type.js';
+import type { OrderOptions, OrderPayload, TradeCheckResult } from './type.js';
 import { recordTrade, identifyErrorType } from './tradeLogger.js';
 import type { RateLimiter } from './rateLimiter.js';
 import type { OrderCacheManager } from './orderCacheManager.js';
@@ -76,30 +76,40 @@ export class OrderExecutor {
   }
 
   /**
-   * 检查是否可以买入（仅对买入操作进行频率检查）
+   * 检查是否可以交易（仅对买入操作进行频率检查）
    * @param signalAction 信号类型
-   * @returns true表示可以交易，false表示需要等待
+   * @returns 交易检查结果，包含是否可以交易、需要等待的秒数等信息
    */
-  canTradeNow(signalAction: string): boolean {
+  canTradeNow(signalAction: string): TradeCheckResult {
     // 卖出操作不触发频率限制
     if (signalAction === 'SELLCALL' || signalAction === 'SELLPUT') {
-      return true;
+      return { canTrade: true };
     }
 
     // 确定方向：BUYCALL 是 LONG，BUYPUT 是 SHORT
-    const direction = signalAction === 'BUYCALL' ? 'LONG' : 'SHORT';
+    const direction: 'LONG' | 'SHORT' = signalAction === 'BUYCALL' ? 'LONG' : 'SHORT';
 
     const lastTime = this._lastBuyTime.get(direction);
 
     if (!lastTime) {
-      return true;
+      return { canTrade: true };
     }
 
     const now = Date.now();
     const timeDiff = now - lastTime;
     const intervalMs = (TRADING_CONFIG.buyIntervalSeconds ?? 60) * 1000;
 
-    return timeDiff >= intervalMs;
+    if (timeDiff >= intervalMs) {
+      return { canTrade: true };
+    }
+
+    const waitSeconds = Math.ceil((intervalMs - timeDiff) / 1000);
+    return {
+      canTrade: false,
+      waitSeconds,
+      direction,
+      reason: `需等待 ${waitSeconds} 秒`,
+    };
   }
 
   /**

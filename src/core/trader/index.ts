@@ -20,13 +20,14 @@ import { createConfig } from '../../config/config.index.js';
 import type { Signal, Quote, AccountSnapshot, Position } from '../../types/index.js';
 import type { OrderRecorder } from '../orderRecorder/index.js';
 import type { PendingOrder } from '../type.js';
+import type { TradeCheckResult } from './type.js';
 
 // 导入子模块
 import { RateLimiter } from './rateLimiter.js';
-import { AccountService } from './aaccountService.js';
+import { AccountService } from './accountService.js';
 import { OrderCacheManager } from './orderCacheManager.js';
 import { OrderMonitor } from './orderMonitor.js';
-import { OrderExecutor } from './aorderExecutor.js';
+import { OrderExecutor } from './orderExecutor.js';
 
 /**
  * 交易执行模块（门面类）
@@ -149,22 +150,11 @@ export class Trader {
 
   // ==================== 订单执行相关方法 ====================
 
-  _canTradeNow(signalAction: string): boolean {
+  _canTradeNow(signalAction: string): TradeCheckResult {
     return this.orderExecutor.canTradeNow(signalAction);
   }
 
   async executeSignals(signals: Signal[]): Promise<void> {
     return this.orderExecutor.executeSignals(signals);
-  }
-
-  // ==================== 兼容性属性（用于外部访问） ====================
-
-  /**
-   * 获取最后买入时间（用于兼容性）
-   * 注意：这是为了保持与原有代码的兼容性而暴露的属性
-   */
-  get _lastBuyTime(): Map<string, number> {
-    // 访问私有字段需要先转换为 unknown 再转换为目标类型
-    return (this.orderExecutor as unknown as { _lastBuyTime: Map<string, number> })._lastBuyTime;
   }
 }

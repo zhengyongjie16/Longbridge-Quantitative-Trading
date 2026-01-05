@@ -60,3 +60,23 @@ export type ErrorTypeIdentifier = {
   readonly isRateLimited: boolean;
 };
 
+/**
+ * 交易检查结果类型
+ */
+export type TradeCheckResult = {
+  readonly canTrade: boolean;
+  readonly waitSeconds?: number;
+  readonly direction?: 'LONG' | 'SHORT';
+  readonly reason?: string;
+};
+
+/**
+ * 订单对象类型（用于修改订单）
+ */
+export type OrderForReplace = {
+  readonly orderId: string;
+  readonly status: import('longport').OrderStatus;
+  readonly executedQuantity: unknown;
+  readonly quantity: unknown;
+};
+

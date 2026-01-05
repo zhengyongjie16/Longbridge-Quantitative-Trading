@@ -323,18 +323,12 @@ export class SignalProcessor {
         // 5. 基础风险检查
 
         // 1. 检查交易频率限制
-        if (!trader._canTradeNow(sig.action)) {
+        const tradeCheck = trader._canTradeNow(sig.action);
+        if (!tradeCheck.canTrade) {
           const direction =
             sig.action === 'BUYCALL' ? '做多标的' : '做空标的';
-          const directionKey =
-            sig.action === 'BUYCALL' ? 'LONG' : 'SHORT';
-          const lastTime = trader._lastBuyTime.get(directionKey);
-          const intervalMs = (TRADING_CONFIG.buyIntervalSeconds ?? 60) * 1000;
-          const waitSeconds = lastTime
-            ? Math.ceil((intervalMs - (Date.now() - lastTime)) / 1000)
-            : 0;
           logger.warn(
-            `[交易频率限制] ${direction} 在${TRADING_CONFIG.buyIntervalSeconds}秒内已买入过，需等待 ${waitSeconds} 秒后才能再次买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`,
+            `[交易频率限制] ${direction} 在${TRADING_CONFIG.buyIntervalSeconds}秒内已买入过，需等待 ${tradeCheck.waitSeconds ?? 0} 秒后才能再次买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`,
           );
           continue;
         }

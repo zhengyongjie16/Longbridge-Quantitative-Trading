@@ -179,13 +179,17 @@ export class OrderCacheManager {
       // 如果提供了 orderRecorder，尝试从缓存获取（启动时使用，避免重复调用 todayOrders）
       if (orderRecorder) {
         try {
-          const pendingOrders =
-            orderRecorder.getPendingOrdersFromCache(symbols);
-          // 如果从缓存中获取到了订单数据，直接使用
-          if (pendingOrders.length > 0 || symbols.length === 0) {
+          // 先检查缓存是否存在
+          if (orderRecorder.hasCacheForSymbols(symbols)) {
+            // 如果所有标的都有缓存，从缓存获取未成交订单（即使没有未成交订单也使用缓存结果）
+            const pendingOrders =
+              orderRecorder.getPendingOrdersFromCache(symbols);
             return pendingOrders.some((order) => order.side === OrderSide.Buy);
           }
-          // 如果缓存为空，说明可能没有缓存数据，继续从 API 获取
+          // 如果缓存不存在或不完整，继续从 API 获取
+          logger.debug(
+            'orderRecorder 缓存不存在或不完整，将从 API 获取未成交订单',
+          );
         } catch (error_) {
           // 缓存读取失败，继续从 API 获取
           logger.debug(
@@ -194,7 +198,7 @@ export class OrderCacheManager {
           );
         }
       }
-      // 从 API 获取（运行时使用）
+      // 从 API 获取（运行时使用，或缓存不存在时使用）
       const pendingOrders = await this.getPendingOrders(symbols);
       return pendingOrders.some((order) => order.side === OrderSide.Buy);
     } catch (err) {

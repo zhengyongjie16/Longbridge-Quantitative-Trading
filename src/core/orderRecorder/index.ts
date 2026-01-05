@@ -481,6 +481,23 @@ export class OrderRecorder {
   }
 
   /**
+   * 检查指定标的的缓存是否存在
+   * @param symbols 标的代码数组
+   * @returns 如果所有标的都有缓存且 allOrders 不为 null，返回 true；否则返回 false
+   */
+  hasCacheForSymbols(symbols: string[]): boolean {
+    if (symbols.length === 0) {
+      return false; // 空数组表示没有标的需要检查，返回 false
+    }
+    const normalizedSymbols = symbols.map((s) => normalizeHKSymbol(s));
+    return normalizedSymbols.every((symbol) => {
+      const cached = this._ordersCache.get(symbol);
+      // 检查缓存存在且 allOrders 不为 null 或 undefined（与 getPendingOrdersFromCache 的逻辑一致）
+      return cached?.allOrders != null;
+    });
+  }
+
+  /**
    * 从缓存的原始订单中提取未成交订单（用于启动时避免重复调用 todayOrders）
    * @param symbols 标的代码数组
    * @returns 未成交订单列表，格式与 getPendingOrders 返回的格式一致

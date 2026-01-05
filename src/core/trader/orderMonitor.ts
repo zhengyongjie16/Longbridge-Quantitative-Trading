@@ -16,6 +16,7 @@ import type { Quote, DecimalLikeValue } from '../../types/index.js';
 import type { PendingOrder } from '../type.js';
 import type { RateLimiter } from './rateLimiter.js';
 import type { OrderCacheManager } from './orderCacheManager.js';
+import type { OrderForReplace } from './type.js';
 
 const toDecimal = (value: unknown): Decimal => {
   if (value instanceof Decimal) {
@@ -83,22 +84,24 @@ export class OrderMonitor {
   ): Promise<void> {
     const ctx = await this.ctxPromise;
 
-    let originalOrder: {
-      orderId: string;
-      status: typeof OrderStatus[keyof typeof OrderStatus];
-      executedQuantity: unknown;
-      quantity: unknown;
-    } | null = (cachedOrder?._rawOrder as typeof originalOrder) || cachedOrder as unknown as typeof originalOrder;
+    let originalOrder: OrderForReplace | null = null;
 
     // 如果提供了缓存的订单对象，使用缓存；否则查询API
-    if (originalOrder) {
-      logger.debug(`[订单修改] 使用缓存的订单对象，订单ID=${orderId}`);
+    if (cachedOrder?._rawOrder) {
+      // 优先使用 _rawOrder（原始订单对象）
+      originalOrder = cachedOrder._rawOrder as OrderForReplace;
+      logger.debug(`[订单修改] 使用缓存的原始订单对象，订单ID=${orderId}`);
+    } else if (cachedOrder) {
+      // 尝试直接使用 cachedOrder（PendingOrder 对象）
+      originalOrder = cachedOrder as unknown as OrderForReplace;
+      logger.debug(`[订单修改] 使用缓存的 PendingOrder 对象，订单ID=${orderId}`);
     } else {
+      // 没有缓存，查询API
       logger.debug(`[订单修改] 未提供缓存订单对象，查询API获取订单 ${orderId}`);
       await this.rateLimiter.throttle();
       const allOrders = await ctx.todayOrders();
       const foundOrder = allOrders.find((o) => o.orderId === orderId);
-      originalOrder = foundOrder ?? null;
+      originalOrder = foundOrder ? (foundOrder as OrderForReplace) : null;
     }
 
     if (!originalOrder) {
