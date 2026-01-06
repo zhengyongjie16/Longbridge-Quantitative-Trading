@@ -11,7 +11,9 @@
  * 2. 交易金额：TARGET_NOTIONAL（目标金额）、LONG_LOT_SIZE/SHORT_LOT_SIZE（每手股数）
  * 3. 风险限制：MAX_POSITION_NOTIONAL（最大持仓）、MAX_DAILY_LOSS（单日亏损限制）
  * 4. 信号配置：SIGNAL_BUYCALL、SIGNAL_SELLCALL、SIGNAL_BUYPUT、SIGNAL_SELLPUT
- * 5. 验证配置：VERIFICATION_DELAY_SECONDS（延迟验证时间）、VERIFICATION_INDICATORS（验证指标）
+ * 5. 验证配置：
+ *    - 买入验证：VERIFICATION_DELAY_SECONDS_BUY（延迟验证时间）、VERIFICATION_INDICATORS_BUY（验证指标）
+ *    - 卖出验证：VERIFICATION_DELAY_SECONDS_SELL（延迟验证时间）、VERIFICATION_INDICATORS_SELL（验证指标）
  */
 
 import dotenv from 'dotenv';
@@ -80,6 +82,80 @@ function getBooleanConfig(envKey: string, defaultValue: boolean = false): boolea
   return defaultValue;
 }
 
+/**
+ * 解析验证延迟时间配置
+ * @param envKey 环境变量键名
+ * @param defaultValue 默认值
+ * @returns 延迟时间（秒），范围 0-120
+ */
+function parseVerificationDelay(envKey: string, defaultValue: number): number {
+  const delay = getNumberConfig(envKey, 0);
+  if (delay === null) {
+    return defaultValue;
+  }
+  if (delay < 0) {
+    logger.warn(`[配置警告] ${envKey} 不能小于 0，已设置为 0`);
+    return 0;
+  }
+  if (delay > 120) {
+    logger.warn(`[配置警告] ${envKey} 不能大于 120，已设置为 120`);
+    return 120;
+  }
+  return delay;
+}
+
+/**
+ * 解析验证指标配置
+ * @param envKey 环境变量键名
+ * @returns 指标列表，如果未设置或无效则返回 null
+ */
+function parseVerificationIndicators(envKey: string): ReadonlyArray<string> | null {
+  const value = process.env[envKey];
+  if (!value || value.trim() === '') {
+    return null;
+  }
+
+  const items = value
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => item !== '');
+
+  if (items.length === 0) {
+    return null;
+  }
+
+  const fixedIndicators = new Set(['K', 'D', 'J', 'MACD', 'DIF', 'DEA']);
+  const validItems: string[] = [];
+  const invalidItems: string[] = [];
+
+  for (const item of items) {
+    if (fixedIndicators.has(item)) {
+      validItems.push(item);
+      continue;
+    }
+
+    if (item.startsWith('EMA:')) {
+      const periodStr = item.substring(4);
+      const period = Number.parseInt(periodStr, 10);
+
+      if (validateEmaPeriod(period)) {
+        validItems.push(item);
+        continue;
+      }
+
+      invalidItems.push(item);
+    } else {
+      invalidItems.push(item);
+    }
+  }
+
+  if (invalidItems.length > 0) {
+    logger.warn(`[配置警告] ${envKey} 包含无效值: ${invalidItems.join(', ')}`);
+  }
+
+  return validItems.length > 0 ? validItems : null;
+}
+
 export const TRADING_CONFIG: TradingConfig = {
   // 监控标的（用于计算指标和生成交易信号，例如 "HSI.HK"）
   monitorSymbol: getStringConfig('MONITOR_SYMBOL'),
@@ -144,92 +220,18 @@ export const TRADING_CONFIG: TradingConfig = {
     return interval;
   })(),
 
-  // 延迟验证配置
+  // 延迟验证配置（区分买入和卖出）
   verificationConfig: {
-    // 验证时间间隔（秒），范围 0-120，默认 60 秒
-    // 设置为 0 或未设置则不进行延迟验证
-    delaySeconds: (() => {
-      const delay = getNumberConfig('VERIFICATION_DELAY_SECONDS', 0);
-      // 如果未设置，默认为 60 秒
-      if (delay === null) {
-        return 60;
-      }
-      // 限制范围在 0-120 秒之间
-      if (delay < 0) {
-        logger.warn(
-          '[配置警告] VERIFICATION_DELAY_SECONDS 不能小于 0，已设置为 0',
-        );
-        return 0;
-      }
-      if (delay > 120) {
-        logger.warn(
-          '[配置警告] VERIFICATION_DELAY_SECONDS 不能大于 120，已设置为 120',
-        );
-        return 120;
-      }
-      return delay;
-    })(),
-
-    // 验证指标列表（可选值: K, D, J, MACD, DIF, DEA, EMA:n）
-    // EMA:n 格式：n 为周期，范围 1-250，例如 EMA:5, EMA:10
-    // 留空或不设置则不进行延迟验证
-    indicators: (() => {
-      const value = process.env['VERIFICATION_INDICATORS'];
-      if (!value || value.trim() === '') {
-        return null;
-      }
-
-      // 分割并去除空白
-      const items = value
-        .split(',')
-        .map((item) => item.trim())
-        .filter((item) => item !== '');
-
-      if (items.length === 0) {
-        return null;
-      }
-
-      // 验证每个指标
-      const fixedIndicators = new Set(['K', 'D', 'J', 'MACD', 'DIF', 'DEA']);
-      const validItems: string[] = [];
-      const invalidItems: string[] = [];
-
-      for (const item of items) {
-        // 检查是否是固定指标
-        if (fixedIndicators.has(item)) {
-          validItems.push(item);
-          continue;
-        }
-
-        // 检查是否是 EMA:n 格式
-        if (item.startsWith('EMA:')) {
-          const periodStr = item.substring(4);
-          const period = Number.parseInt(periodStr, 10);
-
-          // 验证周期范围（1-250）
-          if (validateEmaPeriod(period)) {
-            validItems.push(item);
-            continue;
-          }
-
-          // 周期无效
-          invalidItems.push(item);
-        } else {
-          // 不是有效的指标
-          invalidItems.push(item);
-        }
-      }
-
-      if (invalidItems.length > 0) {
-        logger.warn(
-          `[配置警告] VERIFICATION_INDICATORS 包含无效值: ${invalidItems.join(
-            ', ',
-          )}，允许的值: K, D, J, MACD, DIF, DEA, EMA:n (n为1-250)`,
-        );
-      }
-
-      return validItems.length > 0 ? validItems : null;
-    })(),
+    // 买入信号验证配置（BUYCALL, BUYPUT）
+    buy: {
+      delaySeconds: parseVerificationDelay('VERIFICATION_DELAY_SECONDS_BUY', 60),
+      indicators: parseVerificationIndicators('VERIFICATION_INDICATORS_BUY'),
+    },
+    // 卖出信号验证配置（SELLCALL, SELLPUT）
+    sell: {
+      delaySeconds: parseVerificationDelay('VERIFICATION_DELAY_SECONDS_SELL', 60),
+      indicators: parseVerificationIndicators('VERIFICATION_INDICATORS_SELL'),
+    },
   },
 
   // 信号配置（必需）

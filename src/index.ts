@@ -115,11 +115,14 @@ const SIGNAL_TARGET_ACTIONS: Record<string, string> = {
 function extractEmaPeriods(verificationConfig: VerificationConfig | null | undefined): number[] {
   const emaPeriods: number[] = [];
 
-  if (
-    verificationConfig?.indicators &&
-    Array.isArray(verificationConfig.indicators)
-  ) {
-    for (const indicator of verificationConfig.indicators) {
+  if (verificationConfig) {
+    // 从买入和卖出配置中提取 EMA 周期
+    const allIndicators = [
+      ...(verificationConfig.buy.indicators || []),
+      ...(verificationConfig.sell.indicators || []),
+    ];
+
+    for (const indicator of allIndicators) {
       if (indicator.startsWith('EMA:')) {
         const periodStr = indicator.substring(4);
         const period = Number.parseInt(periodStr, 10);

@@ -9,6 +9,8 @@
  * 验证逻辑：
  * - BUYCALL：验证指标的3个时间点值（T0, T0+5s, T0+10s）都大于初始值（上涨趋势）
  * - BUYPUT：验证指标的3个时间点值（T0, T0+5s, T0+10s）都小于初始值（下跌趋势）
+ * - SELLCALL：验证指标的3个时间点值（T0, T0+5s, T0+10s）都小于初始值（下跌趋势）
+ * - SELLPUT：验证指标的3个时间点值（T0, T0+5s, T0+10s）都大于初始值（上涨趋势）
  *
  * 验证窗口：
  * - 触发时间前 5 秒到后 15 秒内记录指标值
@@ -96,10 +98,14 @@ export const createSignalVerificationManager = (
     longQuote: Quote | null,
     shortQuote: Quote | null,
   ): Signal | null => {
+    // 判断是买入还是卖出信号，选择对应的配置
+    const isBuySignal = pendingSignal.action === 'BUYCALL' || pendingSignal.action === 'BUYPUT';
+    const currentConfig = isBuySignal ? config.buy : config.sell;
+
     // 安全检查：如果验证指标配置为null或空，跳过验证
     if (
-      !config.indicators ||
-      config.indicators.length === 0
+      !currentConfig.indicators ||
+      currentConfig.indicators.length === 0
     ) {
       logger.warn(
         `[延迟验证错误] ${pendingSignal.symbol} 验证指标配置为空，跳过验证`,
@@ -127,7 +133,7 @@ export const createSignalVerificationManager = (
 
     // 验证所有配置的指标值是否有效
     let allIndicators1Valid = true;
-    for (const indicatorName of config.indicators) {
+    for (const indicatorName of currentConfig.indicators) {
       if (!Number.isFinite(indicators1[indicatorName])) {
         allIndicators1Valid = false;
         break;
@@ -200,7 +206,7 @@ export const createSignalVerificationManager = (
         continue;
       }
       let allIndicatorsValid = true;
-      for (const indicatorName of config.indicators) {
+      for (const indicatorName of currentConfig.indicators) {
         if (!Number.isFinite(match.indicators[indicatorName])) {
           allIndicatorsValid = false;
           break;
@@ -250,9 +256,11 @@ export const createSignalVerificationManager = (
     // 根据信号类型使用不同的验证条件
     const isBuyCall = pendingSignal.action === 'BUYCALL';
     const isBuyPut = pendingSignal.action === 'BUYPUT';
+    const isSellCall = pendingSignal.action === 'SELLCALL';
+    const isSellPut = pendingSignal.action === 'SELLPUT';
 
     // 只处理延迟验证的信号类型
-    if (!isBuyCall && !isBuyPut) {
+    if (!isBuyCall && !isBuyPut && !isSellCall && !isSellPut) {
       logger.warn(
         `[延迟验证错误] ${pendingSignal.symbol} 未知的信号类型: ${pendingSignal.action}，跳过验证`,
       );
@@ -264,7 +272,7 @@ export const createSignalVerificationManager = (
     const failedIndicators: string[] = [];
 
     // 遍历所有配置的指标进行验证（所有3个时间点的值都要满足条件）
-    for (const indicatorName of config.indicators) {
+    for (const indicatorName of currentConfig.indicators) {
       const value1 = indicators1[indicatorName];
       const value2a = indicators2a[indicatorName];
       const value2b = indicators2b[indicatorName];
@@ -299,16 +307,16 @@ export const createSignalVerificationManager = (
       let comparisonSymbolB = '';
       let comparisonSymbolC = '';
 
-      if (isBuyCall) {
-        // 买入做多：所有3个时间点的指标值都要大于第一个值
+      if (isBuyCall || isSellPut) {
+        // 买入做多 或 卖出做空：所有3个时间点的指标值都要大于第一个值（上涨趋势）
         indicatorPassedA = v2a > v1;
         indicatorPassedB = v2b > v1;
         indicatorPassedC = v2c > v1;
         comparisonSymbolA = indicatorPassedA ? '>' : '<=';
         comparisonSymbolB = indicatorPassedB ? '>' : '<=';
         comparisonSymbolC = indicatorPassedC ? '>' : '<=';
-      } else if (isBuyPut) {
-        // 买入做空：所有3个时间点的指标值都要小于第一个值
+      } else if (isBuyPut || isSellCall) {
+        // 买入做空 或 卖出做多：所有3个时间点的指标值都要小于第一个值（下跌趋势）
         indicatorPassedA = v2a < v1;
         indicatorPassedB = v2b < v1;
         indicatorPassedC = v2c < v1;
@@ -340,7 +348,17 @@ export const createSignalVerificationManager = (
     }
 
     if (verificationPassed) {
-      const actionDesc = isBuyCall ? '买入做多' : '买入做空';
+      let actionDesc = '';
+      if (isBuyCall) {
+        actionDesc = '买入做多';
+      } else if (isBuyPut) {
+        actionDesc = '买入做空';
+      } else if (isSellCall) {
+        actionDesc = '卖出做多';
+      } else if (isSellPut) {
+        actionDesc = '卖出做空';
+      }
+
       logger.info(
         `[延迟验证通过] ${pendingSignal.symbol} ${verificationReason}，执行${actionDesc}`,
       );
@@ -348,19 +366,19 @@ export const createSignalVerificationManager = (
       // 获取标的的当前价格和最小买卖单位
       let currentPrice: number | null = null;
       let lotSize: number | null = null;
-      if (isBuyCall && longQuote) {
+      if ((isBuyCall || isSellCall) && longQuote) {
         currentPrice = longQuote.price;
         lotSize = longQuote.lotSize ?? null;
-      } else if (isBuyPut && shortQuote) {
+      } else if ((isBuyPut || isSellPut) && shortQuote) {
         currentPrice = shortQuote.price;
         lotSize = shortQuote.lotSize ?? null;
       }
 
       // 获取标的的中文名称
       let symbolName: string | null = null;
-      if (isBuyCall && longQuote) {
+      if ((isBuyCall || isSellCall) && longQuote) {
         symbolName = longQuote.name;
-      } else if (isBuyPut && shortQuote) {
+      } else if ((isBuyPut || isSellPut) && shortQuote) {
         symbolName = shortQuote.name;
       }
 
@@ -376,7 +394,17 @@ export const createSignalVerificationManager = (
 
       return signal;
     } else {
-      const actionDesc = isBuyCall ? '买入做多' : '买入做空';
+      let actionDesc = '';
+      if (isBuyCall) {
+        actionDesc = '买入做多';
+      } else if (isBuyPut) {
+        actionDesc = '买入做空';
+      } else if (isSellCall) {
+        actionDesc = '卖出做多';
+      } else if (isSellPut) {
+        actionDesc = '卖出做空';
+      }
+
       logger.info(
         `[延迟验证失败] ${pendingSignal.symbol} ${verificationReason}，不执行${actionDesc}`,
       );
@@ -403,10 +431,17 @@ export const createSignalVerificationManager = (
           if (existingSignal === undefined) {
             lastState.pendingDelayedSignals.push(delayedSignal);
 
-            const actionDesc =
-              delayedSignal.action === 'BUYCALL'
-                ? '买入做多'
-                : '买入做空';
+            let actionDesc = '';
+            if (delayedSignal.action === 'BUYCALL') {
+              actionDesc = '买入做多';
+            } else if (delayedSignal.action === 'BUYPUT') {
+              actionDesc = '买入做空';
+            } else if (delayedSignal.action === 'SELLCALL') {
+              actionDesc = '卖出做多';
+            } else if (delayedSignal.action === 'SELLPUT') {
+              actionDesc = '卖出做空';
+            }
+
             logger.info(
               `[延迟验证信号] 新增待验证${actionDesc}信号：${delayedSignal.symbol} - ${delayedSignal.reason}`,
             );
@@ -422,76 +457,86 @@ export const createSignalVerificationManager = (
       if (
         !monitorSnapshot ||
         !lastState.pendingDelayedSignals ||
-        lastState.pendingDelayedSignals.length === 0 ||
-        !config.indicators ||
-        config.indicators.length === 0
+        lastState.pendingDelayedSignals.length === 0
       ) {
         return;
       }
 
       const now = new Date();
 
-      // 提取当前配置的所有指标值
-      const currentIndicators: Record<string, number> = {};
-      let allIndicatorsValid = true;
-
-      for (const indicatorName of config.indicators) {
-        const value = getIndicatorValue(monitorSnapshot, indicatorName);
-        if (value === null || !Number.isFinite(value)) {
-          allIndicatorsValid = false;
-          break;
+      // 为每个待验证信号记录当前值
+      for (const pendingSignal of lastState.pendingDelayedSignals) {
+        if (!pendingSignal.triggerTime) {
+          continue;
         }
-        currentIndicators[indicatorName] = value;
-      }
 
-      // 为每个待验证信号记录当前值（如果所有配置的指标值有效）
-      if (allIndicatorsValid && Object.keys(currentIndicators).length > 0) {
-        for (const pendingSignal of lastState.pendingDelayedSignals) {
-          if (pendingSignal.triggerTime) {
-            const triggerTimeMs = pendingSignal.triggerTime.getTime();
-            const windowStart = triggerTimeMs + VERIFICATION_WINDOW_START_OFFSET_SECONDS * MILLISECONDS_PER_SECOND;
-            const windowEnd = triggerTimeMs + VERIFICATION_WINDOW_END_OFFSET_SECONDS * MILLISECONDS_PER_SECOND;
-            const nowMs = now.getTime();
+        // 判断是买入还是卖出信号，选择对应的配置
+        const isBuySignal = pendingSignal.action === 'BUYCALL' || pendingSignal.action === 'BUYPUT';
+        const currentConfig = isBuySignal ? config.buy : config.sell;
 
-            // 只在 triggerTime -5秒 到 +15秒 窗口内记录数据
-            if (nowMs >= windowStart && nowMs <= windowEnd) {
-              // 确保信号有历史记录数组
-              pendingSignal.verificationHistory ??= [];
+        // 检查该信号的配置是否有效
+        if (!currentConfig.indicators || currentConfig.indicators.length === 0) {
+          continue;
+        }
 
-              // 避免在同一秒内重复记录（精确到秒）
-              const nowSeconds = Math.floor(nowMs / MILLISECONDS_PER_SECOND);
-              const lastEntry = pendingSignal.verificationHistory.at(-1);
-              const lastEntrySeconds = lastEntry
-                ? Math.floor(lastEntry.timestamp.getTime() / MILLISECONDS_PER_SECOND)
-                : null;
+        // 提取当前信号配置的所有指标值
+        const currentIndicators: Record<string, number> = {};
+        let allIndicatorsValid = true;
 
-              // 如果上一记录不是同一秒，则添加新记录
-              if (lastEntrySeconds !== nowSeconds) {
-                // 从对象池获取条目对象，减少内存分配
-                const entry = verificationEntryPool.acquire() as VerificationEntry;
-                entry.timestamp = now;
-                // 将所有配置的指标值记录到 indicators 对象中
-                entry.indicators = { ...currentIndicators };
+        for (const indicatorName of currentConfig.indicators) {
+          const value = getIndicatorValue(monitorSnapshot, indicatorName);
+          if (value === null || !Number.isFinite(value)) {
+            allIndicatorsValid = false;
+            break;
+          }
+          currentIndicators[indicatorName] = value;
+        }
 
-                // 记录当前值
-                pendingSignal.verificationHistory.push(entry);
+        // 如果所有配置的指标值有效，记录当前值
+        if (allIndicatorsValid && Object.keys(currentIndicators).length > 0) {
+          const triggerTimeMs = pendingSignal.triggerTime.getTime();
+          const windowStart = triggerTimeMs + VERIFICATION_WINDOW_START_OFFSET_SECONDS * MILLISECONDS_PER_SECOND;
+          const windowEnd = triggerTimeMs + VERIFICATION_WINDOW_END_OFFSET_SECONDS * MILLISECONDS_PER_SECOND;
+          const nowMs = now.getTime();
 
-                // 只保留当前信号触发时间点前后窗口内的数据，释放其他条目
-                const entriesToKeep: VerificationEntry[] = [];
-                const entriesToRelease: VerificationEntry[] = [];
-                for (const e of pendingSignal.verificationHistory) {
-                  const t = e.timestamp.getTime();
-                  if (t >= windowStart && t <= windowEnd) {
-                    entriesToKeep.push(e);
-                  } else {
-                    entriesToRelease.push(e);
-                  }
+          // 只在 triggerTime -5秒 到 +15秒 窗口内记录数据
+          if (nowMs >= windowStart && nowMs <= windowEnd) {
+            // 确保信号有历史记录数组
+            pendingSignal.verificationHistory ??= [];
+
+            // 避免在同一秒内重复记录（精确到秒）
+            const nowSeconds = Math.floor(nowMs / MILLISECONDS_PER_SECOND);
+            const lastEntry = pendingSignal.verificationHistory.at(-1);
+            const lastEntrySeconds = lastEntry
+              ? Math.floor(lastEntry.timestamp.getTime() / MILLISECONDS_PER_SECOND)
+              : null;
+
+            // 如果上一记录不是同一秒，则添加新记录
+            if (lastEntrySeconds !== nowSeconds) {
+              // 从对象池获取条目对象，减少内存分配
+              const entry = verificationEntryPool.acquire() as VerificationEntry;
+              entry.timestamp = now;
+              // 将所有配置的指标值记录到 indicators 对象中
+              entry.indicators = { ...currentIndicators };
+
+              // 记录当前值
+              pendingSignal.verificationHistory.push(entry);
+
+              // 只保留当前信号触发时间点前后窗口内的数据，释放其他条目
+              const entriesToKeep: VerificationEntry[] = [];
+              const entriesToRelease: VerificationEntry[] = [];
+              for (const e of pendingSignal.verificationHistory) {
+                const t = e.timestamp.getTime();
+                if (t >= windowStart && t <= windowEnd) {
+                  entriesToKeep.push(e);
+                } else {
+                  entriesToRelease.push(e);
                 }
-                if (entriesToRelease.length > 0) {
-                  verificationEntryPool.releaseAll(entriesToRelease);
-                }
-                pendingSignal.verificationHistory = entriesToKeep;
               }
+              if (entriesToRelease.length > 0) {
+                verificationEntryPool.releaseAll(entriesToRelease);
+              }
+              pendingSignal.verificationHistory = entriesToKeep;
             }
           }
         }

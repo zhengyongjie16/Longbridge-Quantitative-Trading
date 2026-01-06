@@ -4,13 +4,13 @@
  * 功能：
  * - 基于 RSI、KDJ、MACD、MFI 等技术指标生成交易信号
  * - 支持可配置的信号条件格式
- * - 生成两类信号：立即信号（卖出）和延迟信号（买入）
+ * - 生成延迟验证信号（买入和卖出）
  *
  * 信号类型：
  * - BUYCALL：买入做多标的（延迟验证）
- * - SELLCALL：卖出做多标的（立即执行）
+ * - SELLCALL：卖出做多标的（延迟验证）
  * - BUYPUT：买入做空标的（延迟验证）
- * - SELLPUT：卖出做空标的（立即执行）
+ * - SELLPUT：卖出做空标的（延迟验证）
  *
  * 配置格式：(条件1,条件2,...)/N|(条件A)|(条件B,条件C)/M
  * - 括号内是条件列表，逗号分隔
@@ -48,8 +48,8 @@ const MILLISECONDS_PER_SECOND = 1000;
 export const createHangSengMultiIndicatorStrategy = ({
   signalConfig = null,
   verificationConfig = {
-    delaySeconds: 60,
-    indicators: ['K', 'MACD'],
+    buy: { delaySeconds: 60, indicators: ['K', 'MACD'] },
+    sell: { delaySeconds: 60, indicators: ['K', 'MACD'] },
   },
 }: Partial<StrategyConfig> = {}): HangSengMultiIndicatorStrategy => {
   // 配置通过闭包捕获（不可变）
@@ -61,8 +61,8 @@ export const createHangSengMultiIndicatorStrategy = ({
   };
 
   const finalVerificationConfig: VerificationConfig = verificationConfig || {
-    delaySeconds: 60,
-    indicators: ['K', 'MACD'],
+    buy: { delaySeconds: 60, indicators: ['K', 'MACD'] },
+    sell: { delaySeconds: 60, indicators: ['K', 'MACD'] },
   };
 
   /**
@@ -109,21 +109,24 @@ export const createHangSengMultiIndicatorStrategy = ({
 
   /**
    * 计算延迟验证时间
+   * @param isBuySignal 是否为买入信号（true=买入，false=卖出）
    */
-  const calculateVerificationTime = (): Date | null => {
+  const calculateVerificationTime = (isBuySignal: boolean): Date | null => {
+    const config = isBuySignal ? finalVerificationConfig.buy : finalVerificationConfig.sell;
+
     // 如果延迟时间为 0 或指标列表为空，则不进行延迟验证
     if (
-      !finalVerificationConfig.delaySeconds ||
-      finalVerificationConfig.delaySeconds === 0 ||
-      !finalVerificationConfig.indicators ||
-      finalVerificationConfig.indicators.length === 0
+      !config.delaySeconds ||
+      config.delaySeconds === 0 ||
+      !config.indicators ||
+      config.indicators.length === 0
     ) {
       return null;
     }
 
     const now = new Date();
     const triggerTime = new Date(
-      now.getTime() + finalVerificationConfig.delaySeconds * MILLISECONDS_PER_SECOND,
+      now.getTime() + config.delaySeconds * MILLISECONDS_PER_SECOND,
     );
 
     // 如果目标时间已经过去，说明计算有误，返回null
@@ -197,17 +200,29 @@ export const createHangSengMultiIndicatorStrategy = ({
   };
 
   /**
-   * 生成延迟验证信号（买入信号）
+   * 生成延迟验证信号（买入和卖出信号）
    */
   const generateDelayedSignal = (
     state: IndicatorSnapshot,
     symbol: string,
     action: string,
     reasonPrefix: string,
+    position?: Position | null,
   ): Signal | null => {
     // 验证所有必要的指标值是否有效
     if (!validateAllIndicators(state)) {
       return null;
+    }
+
+    // 对于卖出信号，检查是否有可卖出的持仓
+    if ((action === 'SELLCALL' || action === 'SELLPUT') && position) {
+      if (
+        !position.symbol ||
+        !Number.isFinite(position.availableQuantity) ||
+        position.availableQuantity <= 0
+      ) {
+        return null;
+      }
     }
 
     // 获取该信号类型的配置
@@ -224,16 +239,20 @@ export const createHangSengMultiIndicatorStrategy = ({
       return null;
     }
 
-    const triggerTime = calculateVerificationTime();
+    // 判断是买入还是卖出信号
+    const isBuySignal = action === 'BUYCALL' || action === 'BUYPUT';
+    const verificationConfig = isBuySignal ? finalVerificationConfig.buy : finalVerificationConfig.sell;
+
+    const triggerTime = calculateVerificationTime(isBuySignal);
     // 如果不需要延迟验证（triggerTime 为 null），则返回 null
-    // 这种情况下，买入信号应该被当作立即执行的信号处理
+    // 这种情况下，信号应该被当作立即执行的信号处理
     if (!triggerTime) {
       return null;
     }
 
     // 记录当前配置的所有指标的初始值（indicators1）
     const indicators1: Record<string, number> = {};
-    const indicatorsList = finalVerificationConfig.indicators ?? [];
+    const indicatorsList = verificationConfig.indicators ?? [];
     for (const indicatorName of indicatorsList) {
       const value = getIndicatorValue(state, indicatorName);
       if (value === null) {
@@ -275,50 +294,6 @@ export const createHangSengMultiIndicatorStrategy = ({
     return signal;
   };
 
-  /**
-   * 生成立即执行的卖出信号
-   */
-  const generateImmediateSignal = (
-    state: IndicatorSnapshot,
-    position: Position | null,
-    action: string,
-  ): Signal | null => {
-    // 检查是否有可卖出的持仓
-    if (
-      !position?.symbol ||
-      !Number.isFinite(position.availableQuantity) ||
-      position.availableQuantity <= 0
-    ) {
-      return null;
-    }
-
-    // 获取该信号类型的配置
-    const signalConfig = getSignalConfigForType(action);
-    if (!signalConfig) {
-      return null;
-    }
-
-    // 使用配置评估信号条件
-    const evalResult = evaluateSignalConfig(state, signalConfig);
-
-    // 如果没有触发任何条件组，返回 null
-    if (!evalResult.triggered) {
-      return null;
-    }
-
-    // 构建指标状态显示字符串
-    const indicatorDisplayStr = buildIndicatorDisplayString(state);
-
-    // 从对象池获取信号对象
-    const signal = signalObjectPool.acquire() as Signal;
-    signal.symbol = position.symbol;
-    signal.action = action as SignalType;
-    signal.reason = `${evalResult.reason}，${indicatorDisplayStr}`;
-    signal.signalTriggerTime = new Date();
-
-    return signal;
-  };
-
   return {
     generateCloseSignals: (
       state: IndicatorSnapshot | null,
@@ -352,15 +327,19 @@ export const createHangSengMultiIndicatorStrategy = ({
         }
       }
 
-      // 2. 卖出做多标的的条件（立即执行）
+      // 2. 卖出做多标的的条件（延迟验证策略）
       // 注意：卖出信号生成时无需判断成本价，成本价判断在卖出策略中进行
-      const sellLongSignal = generateImmediateSignal(
-        state,
-        longPosition,
-        'SELLCALL',
-      );
-      if (sellLongSignal) {
-        immediateSignals.push(sellLongSignal);
+      if (longPosition?.symbol) {
+        const delayedSellLongSignal = generateDelayedSignal(
+          state,
+          longPosition.symbol,
+          'SELLCALL',
+          '延迟验证卖出做多信号',
+          longPosition,
+        );
+        if (delayedSellLongSignal) {
+          delayedSignals.push(delayedSellLongSignal);
+        }
       }
 
       // 3. 买入做空标的（延迟验证策略）
@@ -376,15 +355,19 @@ export const createHangSengMultiIndicatorStrategy = ({
         }
       }
 
-      // 4. 卖出做空标的的条件（立即执行）
+      // 4. 卖出做空标的的条件（延迟验证策略）
       // 注意：卖出信号生成时无需判断成本价，成本价判断在卖出策略中进行
-      const sellShortSignal = generateImmediateSignal(
-        state,
-        shortPosition,
-        'SELLPUT',
-      );
-      if (sellShortSignal) {
-        immediateSignals.push(sellShortSignal);
+      if (shortPosition?.symbol) {
+        const delayedSellShortSignal = generateDelayedSignal(
+          state,
+          shortPosition.symbol,
+          'SELLPUT',
+          '延迟验证卖出做空信号',
+          shortPosition,
+        );
+        if (delayedSellShortSignal) {
+          delayedSignals.push(delayedSellShortSignal);
+        }
       }
 
       return { immediateSignals, delayedSignals };

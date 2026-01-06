@@ -195,9 +195,20 @@ export type SignalConfig = {
 /**
  * 验证配置
  */
-export type VerificationConfig = {
+/**
+ * 单个验证配置
+ */
+export type SingleVerificationConfig = {
   readonly delaySeconds: number;
   readonly indicators: ReadonlyArray<string> | null;
+};
+
+/**
+ * 验证配置（区分买入和卖出）
+ */
+export type VerificationConfig = {
+  readonly buy: SingleVerificationConfig;
+  readonly sell: SingleVerificationConfig;
 };
 
 /**

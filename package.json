@@ -18,6 +18,7 @@
     "sonarqube": "node scripts/run-sonar.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
     "dotenv": "^16.4.0",
     "longport": "^3.0.0",
     "pino": "^10.1.0",

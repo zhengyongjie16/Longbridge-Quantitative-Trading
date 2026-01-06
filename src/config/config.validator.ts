@@ -265,20 +265,36 @@ function validateTradingConfig(): TradingValidationResult {
     }
   }
 
-  // 验证延迟验证时间配置（可选）
-  // 注意：直接验证原始环境变量，而不是已处理的配置值
-  const delaySecondsEnv = process.env['VERIFICATION_DELAY_SECONDS'];
-  if (delaySecondsEnv && delaySecondsEnv.trim() !== '') {
-    const delaySeconds = Number(delaySecondsEnv);
+  // 验证延迟验证配置（可选）
+  // 买入信号验证配置
+  const delaySecondsBuyEnv = process.env['VERIFICATION_DELAY_SECONDS_BUY'];
+  if (delaySecondsBuyEnv && delaySecondsBuyEnv.trim() !== '') {
+    const delaySeconds = Number(delaySecondsBuyEnv);
     if (
       !Number.isFinite(delaySeconds) ||
       delaySeconds < 0 ||
       delaySeconds > 120
     ) {
       errors.push(
-        `VERIFICATION_DELAY_SECONDS 配置无效（当前值: ${delaySecondsEnv}，必须在 0-120 秒范围内）`,
+        `VERIFICATION_DELAY_SECONDS_BUY 配置无效（当前值: ${delaySecondsBuyEnv}，必须在 0-120 秒范围内）`,
       );
-      missingFields.push('VERIFICATION_DELAY_SECONDS');
+      missingFields.push('VERIFICATION_DELAY_SECONDS_BUY');
+    }
+  }
+
+  // 卖出信号验证配置
+  const delaySecondsSellEnv = process.env['VERIFICATION_DELAY_SECONDS_SELL'];
+  if (delaySecondsSellEnv && delaySecondsSellEnv.trim() !== '') {
+    const delaySeconds = Number(delaySecondsSellEnv);
+    if (
+      !Number.isFinite(delaySeconds) ||
+      delaySeconds < 0 ||
+      delaySeconds > 120
+    ) {
+      errors.push(
+        `VERIFICATION_DELAY_SECONDS_SELL 配置无效（当前值: ${delaySecondsSellEnv}，必须在 0-120 秒范围内）`,
+      );
+      missingFields.push('VERIFICATION_DELAY_SECONDS_SELL');
     }
   }
 
@@ -300,50 +316,86 @@ function validateTradingConfig(): TradingValidationResult {
   }
 
   // 验证延迟验证指标配置（可选）
-  // 注意：直接验证原始环境变量，而不是已处理的配置值
-  const indicatorsEnv = process.env['VERIFICATION_INDICATORS'];
-  if (indicatorsEnv && indicatorsEnv.trim() !== '') {
+  // 买入信号验证指标
+  const indicatorsBuyEnv = process.env['VERIFICATION_INDICATORS_BUY'];
+  if (indicatorsBuyEnv && indicatorsBuyEnv.trim() !== '') {
     const fixedIndicators = new Set(['K', 'D', 'J', 'MACD', 'DIF', 'DEA']);
-    const indicators = indicatorsEnv
+    const indicators = indicatorsBuyEnv
       .split(',')
       .map((item) => item.trim())
       .filter((item) => item !== '');
 
     if (indicators.length > 0) {
-      // 检查每个指标是否有效
       const invalidIndicators: string[] = [];
 
       for (const ind of indicators) {
-        // 检查是否是固定指标
         if (fixedIndicators.has(ind)) {
           continue;
         }
 
-        // 检查是否是 EMA:n 格式
         if (ind.startsWith('EMA:')) {
           const periodStr = ind.substring(4);
           const period = Number.parseInt(periodStr, 10);
 
-          // 验证周期范围（1-250）
           if (validateEmaPeriod(period)) {
             continue;
           }
 
-          // 周期无效
           invalidIndicators.push(ind);
         } else {
-          // 不是有效的指标
           invalidIndicators.push(ind);
         }
       }
 
       if (invalidIndicators.length > 0) {
         errors.push(
-          `VERIFICATION_INDICATORS 包含无效指标: ${invalidIndicators.join(
+          `VERIFICATION_INDICATORS_BUY 包含无效指标: ${invalidIndicators.join(
             ', ',
           )}，允许的值: K, D, J, MACD, DIF, DEA, EMA:n (n为1-250)`,
         );
-        missingFields.push('VERIFICATION_INDICATORS');
+        missingFields.push('VERIFICATION_INDICATORS_BUY');
+      }
+    }
+  }
+
+  // 卖出信号验证指标
+  const indicatorsSellEnv = process.env['VERIFICATION_INDICATORS_SELL'];
+  if (indicatorsSellEnv && indicatorsSellEnv.trim() !== '') {
+    const fixedIndicators = new Set(['K', 'D', 'J', 'MACD', 'DIF', 'DEA']);
+    const indicators = indicatorsSellEnv
+      .split(',')
+      .map((item) => item.trim())
+      .filter((item) => item !== '');
+
+    if (indicators.length > 0) {
+      const invalidIndicators: string[] = [];
+
+      for (const ind of indicators) {
+        if (fixedIndicators.has(ind)) {
+          continue;
+        }
+
+        if (ind.startsWith('EMA:')) {
+          const periodStr = ind.substring(4);
+          const period = Number.parseInt(periodStr, 10);
+
+          if (validateEmaPeriod(period)) {
+            continue;
+          }
+
+          invalidIndicators.push(ind);
+        } else {
+          invalidIndicators.push(ind);
+        }
+      }
+
+      if (invalidIndicators.length > 0) {
+        errors.push(
+          `VERIFICATION_INDICATORS_SELL 包含无效指标: ${invalidIndicators.join(
+            ', ',
+          )}，允许的值: K, D, J, MACD, DIF, DEA, EMA:n (n为1-250)`,
+        );
+        missingFields.push('VERIFICATION_INDICATORS_SELL');
       }
     }
   }
@@ -522,16 +574,30 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
 
   // 显示延迟验证配置
   const verificationConfig = TRADING_CONFIG.verificationConfig;
-  if (
-    verificationConfig &&
-    verificationConfig.delaySeconds > 0 &&
-    verificationConfig.indicators &&
-    verificationConfig.indicators.length > 0
-  ) {
-    logger.info(`延迟验证时间: ${verificationConfig.delaySeconds} 秒`);
-    logger.info(`延迟验证指标: ${verificationConfig.indicators.join(', ')}`);
-  } else {
-    logger.info('延迟验证: 已禁用');
+  if (verificationConfig) {
+    // 买入信号验证配置
+    if (
+      verificationConfig.buy.delaySeconds > 0 &&
+      verificationConfig.buy.indicators &&
+      verificationConfig.buy.indicators.length > 0
+    ) {
+      logger.info(`买入信号延迟验证时间: ${verificationConfig.buy.delaySeconds} 秒`);
+      logger.info(`买入信号延迟验证指标: ${verificationConfig.buy.indicators.join(', ')}`);
+    } else {
+      logger.info('买入信号延迟验证: 已禁用');
+    }
+
+    // 卖出信号验证配置
+    if (
+      verificationConfig.sell.delaySeconds > 0 &&
+      verificationConfig.sell.indicators &&
+      verificationConfig.sell.indicators.length > 0
+    ) {
+      logger.info(`卖出信号延迟验证时间: ${verificationConfig.sell.delaySeconds} 秒`);
+      logger.info(`卖出信号延迟验证指标: ${verificationConfig.sell.indicators.join(', ')}`);
+    } else {
+      logger.info('卖出信号延迟验证: 已禁用');
+    }
   }
 
   // 显示信号配置
