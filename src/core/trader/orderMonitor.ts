@@ -68,7 +68,7 @@ export class OrderMonitor {
   }
 
   /**
-   * 修改订单价格（优化版，避免重复查询）
+   * 修改订单价格
    * @param orderId 订单ID
    * @param newPrice 新价格
    * @param quantity 数量（可选，如果不提供则使用原订单数量）
