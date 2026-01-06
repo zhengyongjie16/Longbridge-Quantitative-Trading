@@ -5,11 +5,9 @@
  * - 查询账户余额和资产
  * - 查询股票持仓
  */
-
-import type { TradeContext as _TradeContext } from 'longport';
 import { decimalToNumber } from '../../utils/helpers.js';
 import type { AccountSnapshot, Position } from '../../types/index.js';
-import type { AccountService, AccountServiceDeps, RateLimiter as _RateLimiter } from './type.js';
+import type { AccountService, AccountServiceDeps } from './type.js';
 
 /**
  * 创建账户服务
