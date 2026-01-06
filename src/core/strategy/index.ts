@@ -30,36 +30,45 @@ import type {
   SignalConfigSet,
   SignalType,
 } from '../../types/index.js';
-import type { StrategyConfig, SignalGenerationResult } from './type.js';
+import type { StrategyConfig, SignalGenerationResult, HangSengMultiIndicatorStrategy } from './type.js';
 
-export class HangSengMultiIndicatorStrategy {
-  private readonly signalConfig: SignalConfigSet;
-  private readonly verificationConfig: VerificationConfig;
+// 常量定义
+/**
+ * 每秒的毫秒数
+ * 用于时间单位转换（秒转毫秒）
+ * 在计算延迟信号的触发时间时使用
+ */
+const MILLISECONDS_PER_SECOND = 1000;
 
-  constructor({
-    signalConfig = null,
-    verificationConfig = {
-      delaySeconds: 60,
-      indicators: ['K', 'MACD'],
-    },
-  }: StrategyConfig = {}) {
-    // 信号配置（包含 buycall, sellcall, buyput, sellput 四个信号的配置）
-    this.signalConfig = signalConfig || { buycall: null, sellcall: null, buyput: null, sellput: null };
+/**
+ * 创建恒生多指标策略
+ * @param config 策略配置
+ * @returns 策略实例
+ */
+export const createHangSengMultiIndicatorStrategy = ({
+  signalConfig = null,
+  verificationConfig = {
+    delaySeconds: 60,
+    indicators: ['K', 'MACD'],
+  },
+}: Partial<StrategyConfig> = {}): HangSengMultiIndicatorStrategy => {
+  // 配置通过闭包捕获（不可变）
+  const finalSignalConfig: SignalConfigSet = signalConfig || {
+    buycall: null,
+    sellcall: null,
+    buyput: null,
+    sellput: null,
+  };
 
-    // 延迟验证配置
-    this.verificationConfig = verificationConfig || {
-      delaySeconds: 60,
-      indicators: ['K', 'MACD'],
-    };
-  }
+  const finalVerificationConfig: VerificationConfig = verificationConfig || {
+    delaySeconds: 60,
+    indicators: ['K', 'MACD'],
+  };
 
   /**
    * 验证指标状态的基本指标（RSI, MFI, KDJ）
-   * @private
-   * @param state 指标状态对象
-   * @returns 如果所有基本指标有效返回 true，否则返回 false
    */
-  private _validateBasicIndicators(state: IndicatorSnapshot): boolean {
+  const validateBasicIndicators = (state: IndicatorSnapshot): boolean => {
     const { rsi, mfi, kdj } = state;
 
     // 检查 rsi 对象是否存在且至少有一个有效的周期值
@@ -82,44 +91,39 @@ export class HangSengMultiIndicatorStrategy {
       isValidNumber(kdjData.d) &&
       isValidNumber(kdjData.j)
     );
-  }
+  };
 
   /**
    * 验证指标状态（包括 MACD 和价格）
-   * @private
-   * @param state 指标状态对象
-   * @returns 如果所有指标有效返回 true，否则返回 false
    */
-  private _validateAllIndicators(state: IndicatorSnapshot): boolean {
+  const validateAllIndicators = (state: IndicatorSnapshot): boolean => {
     const { macd, price } = state;
     const macdData = macd as { macd?: number } | null;
     return (
-      this._validateBasicIndicators(state) &&
+      validateBasicIndicators(state) &&
       macdData !== null &&
       isValidNumber(macdData.macd) &&
       isValidNumber(price)
     );
-  }
+  };
 
   /**
    * 计算延迟验证时间
-   * @private
-   * @returns 延迟验证时间，如果不需要延迟验证则返回 null
    */
-  private _calculateVerificationTime(): Date | null {
+  const calculateVerificationTime = (): Date | null => {
     // 如果延迟时间为 0 或指标列表为空，则不进行延迟验证
     if (
-      !this.verificationConfig.delaySeconds ||
-      this.verificationConfig.delaySeconds === 0 ||
-      !this.verificationConfig.indicators ||
-      this.verificationConfig.indicators.length === 0
+      !finalVerificationConfig.delaySeconds ||
+      finalVerificationConfig.delaySeconds === 0 ||
+      !finalVerificationConfig.indicators ||
+      finalVerificationConfig.indicators.length === 0
     ) {
       return null;
     }
 
     const now = new Date();
     const triggerTime = new Date(
-      now.getTime() + this.verificationConfig.delaySeconds * 1000,
+      now.getTime() + finalVerificationConfig.delaySeconds * MILLISECONDS_PER_SECOND,
     );
 
     // 如果目标时间已经过去，说明计算有误，返回null
@@ -128,36 +132,30 @@ export class HangSengMultiIndicatorStrategy {
     }
 
     return triggerTime;
-  }
+  };
 
   /**
    * 根据信号类型获取对应的信号配置
-   * @private
-   * @param signalType 信号类型
-   * @returns 信号配置对象 {conditionGroups}
    */
-  private _getSignalConfigForType(signalType: string): SignalConfig | null {
+  const getSignalConfigForType = (signalType: string): SignalConfig | null => {
     switch (signalType) {
       case 'BUYCALL':
-        return this.signalConfig.buycall ?? null;
+        return finalSignalConfig.buycall ?? null;
       case 'SELLCALL':
-        return this.signalConfig.sellcall ?? null;
+        return finalSignalConfig.sellcall ?? null;
       case 'BUYPUT':
-        return this.signalConfig.buyput ?? null;
+        return finalSignalConfig.buyput ?? null;
       case 'SELLPUT':
-        return this.signalConfig.sellput ?? null;
+        return finalSignalConfig.sellput ?? null;
       default:
         return null;
     }
-  }
+  };
 
   /**
    * 构建指标状态的显示字符串（用于日志）
-   * @private
-   * @param state 指标状态对象
-   * @returns 指标状态显示字符串
    */
-  private _buildIndicatorDisplayString(state: IndicatorSnapshot): string {
+  const buildIndicatorDisplayString = (state: IndicatorSnapshot): string => {
     const { rsi, mfi, kdj } = state;
     const parts: string[] = [];
 
@@ -196,30 +194,24 @@ export class HangSengMultiIndicatorStrategy {
     }
 
     return parts.join('、');
-  }
+  };
 
   /**
    * 生成延迟验证信号（买入信号）
-   * @private
-   * @param state 监控标的的指标状态
-   * @param symbol 标的代码
-   * @param action 信号类型
-   * @param reasonPrefix 原因前缀
-   * @returns 延迟验证信号对象
    */
-  private _generateDelayedSignal(
+  const generateDelayedSignal = (
     state: IndicatorSnapshot,
     symbol: string,
     action: string,
     reasonPrefix: string,
-  ): Signal | null {
+  ): Signal | null => {
     // 验证所有必要的指标值是否有效
-    if (!this._validateAllIndicators(state)) {
+    if (!validateAllIndicators(state)) {
       return null;
     }
 
     // 获取该信号类型的配置
-    const signalConfig = this._getSignalConfigForType(action);
+    const signalConfig = getSignalConfigForType(action);
     if (!signalConfig) {
       return null;
     }
@@ -232,7 +224,7 @@ export class HangSengMultiIndicatorStrategy {
       return null;
     }
 
-    const triggerTime = this._calculateVerificationTime();
+    const triggerTime = calculateVerificationTime();
     // 如果不需要延迟验证（triggerTime 为 null），则返回 null
     // 这种情况下，买入信号应该被当作立即执行的信号处理
     if (!triggerTime) {
@@ -241,7 +233,7 @@ export class HangSengMultiIndicatorStrategy {
 
     // 记录当前配置的所有指标的初始值（indicators1）
     const indicators1: Record<string, number> = {};
-    const indicatorsList = this.verificationConfig.indicators ?? [];
+    const indicatorsList = finalVerificationConfig.indicators ?? [];
     for (const indicatorName of indicatorsList) {
       const value = getIndicatorValue(state, indicatorName);
       if (value === null) {
@@ -261,7 +253,7 @@ export class HangSengMultiIndicatorStrategy {
       .join(' ');
 
     // 构建指标状态显示字符串
-    const indicatorDisplayStr = this._buildIndicatorDisplayString(state);
+    const indicatorDisplayStr = buildIndicatorDisplayString(state);
 
     // 从对象池获取信号对象
     const signal = signalObjectPool.acquire() as Signal;
@@ -281,21 +273,16 @@ export class HangSengMultiIndicatorStrategy {
     )} 进行验证`;
 
     return signal;
-  }
+  };
 
   /**
    * 生成立即执行的卖出信号
-   * @private
-   * @param state 监控标的的指标状态
-   * @param position 持仓信息 {symbol, costPrice, quantity, availableQuantity}
-   * @param action 信号类型
-   * @returns 立即执行的信号对象
    */
-  private _generateImmediateSignal(
+  const generateImmediateSignal = (
     state: IndicatorSnapshot,
     position: Position | null,
     action: string,
-  ): Signal | null {
+  ): Signal | null => {
     // 检查是否有可卖出的持仓
     if (
       !position?.symbol ||
@@ -306,7 +293,7 @@ export class HangSengMultiIndicatorStrategy {
     }
 
     // 获取该信号类型的配置
-    const signalConfig = this._getSignalConfigForType(action);
+    const signalConfig = getSignalConfigForType(action);
     if (!signalConfig) {
       return null;
     }
@@ -320,7 +307,7 @@ export class HangSengMultiIndicatorStrategy {
     }
 
     // 构建指标状态显示字符串
-    const indicatorDisplayStr = this._buildIndicatorDisplayString(state);
+    const indicatorDisplayStr = buildIndicatorDisplayString(state);
 
     // 从对象池获取信号对象
     const signal = signalObjectPool.acquire() as Signal;
@@ -330,86 +317,77 @@ export class HangSengMultiIndicatorStrategy {
     signal.signalTriggerTime = new Date();
 
     return signal;
-  }
+  };
 
-  /**
-   * 生成基于持仓成本价的清仓信号和延迟验证的开仓信号
-   * @param state 监控标的的指标状态 {rsi: {6: value, 12: value, ...}, mfi, kdj, price, macd, ema: {5: value, 7: value, ...}}
-   * @param longPosition 做多标的的持仓信息 {symbol, costPrice, quantity, availableQuantity}
-   * @param shortPosition 做空标的的持仓信息 {symbol, costPrice, quantity, availableQuantity}
-   * @param longSymbol 做多标的的代码
-   * @param shortSymbol 做空标的的代码
-   * @returns 包含立即执行信号和延迟验证信号的对象
-   *   - immediateSignals: 立即执行的信号数组（清仓信号）
-   *   - delayedSignals: 延迟验证的信号数组（开仓信号）
-   */
-  generateCloseSignals(
-    state: IndicatorSnapshot | null,
-    longPosition: Position | null,
-    shortPosition: Position | null,
-    longSymbol: string,
-    shortSymbol: string,
-  ): SignalGenerationResult {
-    const immediateSignals: Signal[] = [];
-    const delayedSignals: Signal[] = [];
+  return {
+    generateCloseSignals: (
+      state: IndicatorSnapshot | null,
+      longPosition: Position | null,
+      shortPosition: Position | null,
+      longSymbol: string,
+      shortSymbol: string,
+    ): SignalGenerationResult => {
+      const immediateSignals: Signal[] = [];
+      const delayedSignals: Signal[] = [];
 
-    if (!state) {
-      return { immediateSignals, delayedSignals };
-    }
-
-    // 验证所有必要的指标值是否有效
-    if (!this._validateBasicIndicators(state)) {
-      return { immediateSignals, delayedSignals };
-    }
-
-    // 1. 买入做多标的（延迟验证策略）
-    if (longSymbol) {
-      const delayedBuySignal = this._generateDelayedSignal(
-        state,
-        longSymbol,
-        'BUYCALL',
-        '延迟验证买入做多信号',
-      );
-      if (delayedBuySignal) {
-        delayedSignals.push(delayedBuySignal);
+      if (!state) {
+        return { immediateSignals, delayedSignals };
       }
-    }
 
-    // 2. 卖出做多标的的条件（立即执行）
-    // 注意：卖出信号生成时无需判断成本价，成本价判断在卖出策略中进行
-    const sellLongSignal = this._generateImmediateSignal(
-      state,
-      longPosition,
-      'SELLCALL',
-    );
-    if (sellLongSignal) {
-      immediateSignals.push(sellLongSignal);
-    }
-
-    // 3. 买入做空标的（延迟验证策略）
-    if (shortSymbol) {
-      const delayedSellSignal = this._generateDelayedSignal(
-        state,
-        shortSymbol,
-        'BUYPUT',
-        '延迟验证买入做空信号',
-      );
-      if (delayedSellSignal) {
-        delayedSignals.push(delayedSellSignal);
+      // 验证所有必要的指标值是否有效
+      if (!validateBasicIndicators(state)) {
+        return { immediateSignals, delayedSignals };
       }
-    }
 
-    // 4. 卖出做空标的的条件（立即执行）
-    // 注意：卖出信号生成时无需判断成本价，成本价判断在卖出策略中进行
-    const sellShortSignal = this._generateImmediateSignal(
-      state,
-      shortPosition,
-      'SELLPUT',
-    );
-    if (sellShortSignal) {
-      immediateSignals.push(sellShortSignal);
-    }
+      // 1. 买入做多标的（延迟验证策略）
+      if (longSymbol) {
+        const delayedBuySignal = generateDelayedSignal(
+          state,
+          longSymbol,
+          'BUYCALL',
+          '延迟验证买入做多信号',
+        );
+        if (delayedBuySignal) {
+          delayedSignals.push(delayedBuySignal);
+        }
+      }
 
-    return { immediateSignals, delayedSignals };
-  }
-}
+      // 2. 卖出做多标的的条件（立即执行）
+      // 注意：卖出信号生成时无需判断成本价，成本价判断在卖出策略中进行
+      const sellLongSignal = generateImmediateSignal(
+        state,
+        longPosition,
+        'SELLCALL',
+      );
+      if (sellLongSignal) {
+        immediateSignals.push(sellLongSignal);
+      }
+
+      // 3. 买入做空标的（延迟验证策略）
+      if (shortSymbol) {
+        const delayedSellSignal = generateDelayedSignal(
+          state,
+          shortSymbol,
+          'BUYPUT',
+          '延迟验证买入做空信号',
+        );
+        if (delayedSellSignal) {
+          delayedSignals.push(delayedSellSignal);
+        }
+      }
+
+      // 4. 卖出做空标的的条件（立即执行）
+      // 注意：卖出信号生成时无需判断成本价，成本价判断在卖出策略中进行
+      const sellShortSignal = generateImmediateSignal(
+        state,
+        shortPosition,
+        'SELLPUT',
+      );
+      if (sellShortSignal) {
+        immediateSignals.push(sellShortSignal);
+      }
+
+      return { immediateSignals, delayedSignals };
+    },
+  };
+};

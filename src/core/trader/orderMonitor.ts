@@ -8,15 +8,21 @@
  * - 修改订单价格
  */
 
-import { OrderStatus, OrderSide, type TradeContext, Decimal } from 'longport';
+import { OrderStatus, OrderSide, Decimal } from 'longport';
 import { logger } from '../../utils/logger.js';
 import { normalizeHKSymbol, decimalToNumber, isValidPositiveNumber } from '../../utils/helpers.js';
 import { TRADING_CONFIG } from '../../config/config.trading.js';
 import type { Quote, DecimalLikeValue } from '../../types/index.js';
 import type { PendingOrder } from '../type.js';
-import type { RateLimiter } from './rateLimiter.js';
-import type { OrderCacheManager } from './orderCacheManager.js';
-import type { OrderForReplace } from './type.js';
+import type { OrderMonitor, OrderMonitorDeps, OrderForReplace } from './type.js';
+
+// 常量定义
+/**
+ * 价格差异阈值（港币）
+ * 买入订单监控时，当前价格与委托价格的差异必须达到此阈值才会触发价格修改
+ * 避免因微小价格波动频繁修改订单，减少不必要的 API 调用
+ */
+const PRICE_DIFF_THRESHOLD = 0.001;
 
 const toDecimal = (value: unknown): Decimal => {
   if (value instanceof Decimal) {
@@ -28,33 +34,35 @@ const toDecimal = (value: unknown): Decimal => {
   return Decimal.ZERO();
 };
 
-export class OrderMonitor {
-  private _shouldMonitorBuyOrders: boolean = false;
+/**
+ * 创建订单监控器
+ * @param deps 依赖注入
+ * @returns OrderMonitor 接口实例
+ */
+export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
+  const { ctxPromise, rateLimiter, cacheManager } = deps;
 
-  constructor(
-    private readonly ctxPromise: Promise<TradeContext>,
-    private readonly rateLimiter: RateLimiter,
-    private readonly cacheManager: OrderCacheManager,
-  ) {}
+  // 闭包捕获的私有状态
+  let shouldMonitorBuyOrders = false;
 
   /**
    * 启用买入订单监控
    */
-  enableMonitoring(): void {
-    this._shouldMonitorBuyOrders = true;
-  }
+  const enableMonitoring = (): void => {
+    shouldMonitorBuyOrders = true;
+  };
 
   /**
    * 撤销订单
    * @param orderId 订单ID
    */
-  async cancelOrder(orderId: string): Promise<boolean> {
-    const ctx = await this.ctxPromise;
+  const cancelOrder = async (orderId: string): Promise<boolean> => {
+    const ctx = await ctxPromise;
     try {
-      await this.rateLimiter.throttle();
+      await rateLimiter.throttle();
       await ctx.cancelOrder(orderId);
 
-      this.cacheManager.clearCache();
+      cacheManager.clearCache();
 
       logger.info(`[订单撤销成功] 订单ID=${orderId}`);
       return true;
@@ -65,7 +73,7 @@ export class OrderMonitor {
       );
       return false;
     }
-  }
+  };
 
   /**
    * 修改订单价格
@@ -76,13 +84,13 @@ export class OrderMonitor {
    * @returns 修改成功时不返回，失败时抛出错误
    * @throws 当修改失败时抛出错误
    */
-  async replaceOrderPrice(
+  const replaceOrderPrice = async (
     orderId: string,
     newPrice: number,
     quantity: number | null = null,
     cachedOrder: PendingOrder | null = null,
-  ): Promise<void> {
-    const ctx = await this.ctxPromise;
+  ): Promise<void> => {
+    const ctx = await ctxPromise;
 
     let originalOrder: OrderForReplace | null = null;
 
@@ -98,7 +106,7 @@ export class OrderMonitor {
     } else {
       // 没有缓存，查询API
       logger.debug(`[订单修改] 未提供缓存订单对象，查询API获取订单 ${orderId}`);
-      await this.rateLimiter.throttle();
+      await rateLimiter.throttle();
       const allOrders = await ctx.todayOrders();
       const foundOrder = allOrders.find((o) => o.orderId === orderId);
       originalOrder = foundOrder ? (foundOrder as OrderForReplace) : null;
@@ -152,10 +160,10 @@ export class OrderMonitor {
     };
 
     try {
-      await this.rateLimiter.throttle();
+      await rateLimiter.throttle();
       await ctx.replaceOrder(replacePayload);
 
-      this.cacheManager.clearCache();
+      cacheManager.clearCache();
 
       logger.info(
         `[订单修改成功] 订单ID=${orderId} 新价格=${newPrice.toFixed(3)}`,
@@ -169,7 +177,7 @@ export class OrderMonitor {
       );
       throw error;
     }
-  }
+  };
 
   /**
    * 实时监控价格并管理未成交的买入订单
@@ -181,12 +189,12 @@ export class OrderMonitor {
    * @param longQuote 做多标的的行情数据
    * @param shortQuote 做空标的的行情数据
    */
-  async monitorAndManageOrders(
+  const monitorAndManageOrders = async (
     longQuote: Quote | null,
     shortQuote: Quote | null,
-  ): Promise<void> {
+  ): Promise<void> => {
     // 如果不需要监控，直接返回
-    if (!this._shouldMonitorBuyOrders) {
+    if (!shouldMonitorBuyOrders) {
       return;
     }
 
@@ -194,7 +202,7 @@ export class OrderMonitor {
     const shortSymbol = normalizeHKSymbol(TRADING_CONFIG.shortSymbol);
 
     // 获取所有未成交订单（实时获取，不使用缓存）
-    const pendingOrders = await this.cacheManager.getPendingOrders([
+    const pendingOrders = await cacheManager.getPendingOrders([
       longSymbol,
       shortSymbol,
     ]);
@@ -206,8 +214,8 @@ export class OrderMonitor {
 
     // 如果没有买入订单，停止监控
     if (pendingBuyOrders.length === 0) {
-      if (this._shouldMonitorBuyOrders) {
-        this._shouldMonitorBuyOrders = false;
+      if (shouldMonitorBuyOrders) {
+        shouldMonitorBuyOrders = false;
         logger.info('[订单监控] 所有买入订单已成交，停止监控');
       }
       return;
@@ -263,8 +271,8 @@ export class OrderMonitor {
       // 买入订单：如果当前价格低于委托价格，修改委托价格为当前价格
       if (currentPrice < orderPrice) {
         const priceDiffAbs = Math.abs(currentPrice - orderPrice);
-        // 价格差异达到0.001或以上时进行修改
-        if (priceDiffAbs >= 0.001) {
+        // 价格差异达到阈值或以上时进行修改
+        if (priceDiffAbs >= PRICE_DIFF_THRESHOLD) {
           logger.info(
             `[订单监控] 买入订单 ${
               order.orderId
@@ -275,7 +283,7 @@ export class OrderMonitor {
             )}) 差异=${priceDiffAbs.toFixed(3)}，修改委托价格为当前价格`,
           );
           try {
-            await this.replaceOrderPrice(
+            await replaceOrderPrice(
               order.orderId,
               currentPrice,
               null,
@@ -299,10 +307,17 @@ export class OrderMonitor {
           logger.debug(
             `[订单监控] 买入订单 ${
               order.orderId
-            } 价格差异(${priceDiffAbs.toFixed(4)})小于0.001，暂不修改`,
+            } 价格差异(${priceDiffAbs.toFixed(4)})小于${PRICE_DIFF_THRESHOLD}，暂不修改`,
           );
         }
       }
     }
-  }
-}
+  };
+
+  return {
+    enableMonitoring,
+    cancelOrder,
+    replaceOrderPrice,
+    monitorAndManageOrders,
+  };
+};

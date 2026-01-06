@@ -16,65 +16,81 @@
 import { logger } from '../../utils/logger.js';
 import { normalizeHKSymbol, isValidPositiveNumber, getDirectionName } from '../../utils/helpers.js';
 import type { OrderRecorder } from '../orderRecorder/index.js';
-import type { UnrealizedLossData, UnrealizedLossCheckResult } from './type.js';
+import type { UnrealizedLossData, UnrealizedLossCheckResult, UnrealizedLossChecker, UnrealizedLossCheckerDeps } from './type.js';
 
 /**
- * 浮亏检查器
+ * 创建浮亏检查器
+ * @param deps 依赖注入
+ * @returns UnrealizedLossChecker 接口实例
  */
-export class UnrealizedLossChecker {
-  private readonly maxUnrealizedLossPerSymbol: number | null;
-  private readonly unrealizedLossData: Map<string, UnrealizedLossData>;
+export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): UnrealizedLossChecker => {
+  const maxUnrealizedLossPerSymbol = deps.maxUnrealizedLossPerSymbol;
 
-  constructor(maxUnrealizedLossPerSymbol: number | null) {
-    this.maxUnrealizedLossPerSymbol = maxUnrealizedLossPerSymbol;
-    this.unrealizedLossData = new Map();
-  }
+  // 闭包捕获的私有状态
+  const unrealizedLossData = new Map<string, UnrealizedLossData>();
 
   /**
    * 获取浮亏数据
    */
-  getUnrealizedLossData(symbol: string): UnrealizedLossData | undefined {
-    return this.unrealizedLossData.get(normalizeHKSymbol(symbol));
-  }
+  const getUnrealizedLossData = (symbol: string): UnrealizedLossData | undefined => {
+    return unrealizedLossData.get(normalizeHKSymbol(symbol));
+  };
 
   /**
    * 获取所有浮亏数据（供外部访问）
    */
-  getAllData(): Map<string, UnrealizedLossData> {
-    return new Map(this.unrealizedLossData.entries());
-  }
+  const getAllData = (): Map<string, UnrealizedLossData> => {
+    return new Map(unrealizedLossData.entries());
+  };
 
   /**
    * 检查是否启用浮亏保护
    */
-  isEnabled(): boolean {
+  const isEnabled = (): boolean => {
     return (
-      this.maxUnrealizedLossPerSymbol !== null &&
-      Number.isFinite(this.maxUnrealizedLossPerSymbol) &&
-      this.maxUnrealizedLossPerSymbol > 0
+      maxUnrealizedLossPerSymbol !== null &&
+      Number.isFinite(maxUnrealizedLossPerSymbol) &&
+      maxUnrealizedLossPerSymbol > 0
     );
-  }
+  };
+
+  /**
+   * 计算开仓成本和持仓数量
+   */
+  const calculateCostAndQuantity = (
+    buyOrders: Array<{ executedPrice: number | string; executedQuantity: number | string }>,
+  ): { r1: number; n1: number } => {
+    let r1 = 0;
+    let n1 = 0;
+
+    for (const order of buyOrders) {
+      const price = Number(order.executedPrice) || 0;
+      const quantity = Number(order.executedQuantity) || 0;
+
+      if (
+        Number.isFinite(price) &&
+        price > 0 &&
+        Number.isFinite(quantity) &&
+        quantity > 0
+      ) {
+        r1 += price * quantity;
+        n1 += quantity;
+      }
+    }
+
+    return { r1, n1 };
+  };
 
   /**
    * 初始化或刷新标的的浮亏监控数据（在程序启动时或买入/卖出操作后调用）
-   *
-   * 注意：
-   * - 程序启动时：调用方需要先调用 orderRecorder.refreshOrders() 刷新订单记录
-   * - 交易后：调用方已通过 recordLocalBuy/recordLocalSell 更新了订单记录
-   * - 本方法仅从 orderRecorder 中已有的订单列表计算 R1 和 N1，不会重复调用 API
-   *
-   * @param orderRecorder OrderRecorder实例
-   * @param symbol 标的代码
-   * @param isLongSymbol 是否为做多标的
-   * @returns 返回R1（开仓成本）和N1（持仓数量），如果计算失败返回null
    */
-  async refresh(
+  const refresh = async (
     orderRecorder: OrderRecorder,
     symbol: string,
     isLongSymbol: boolean,
-  ): Promise<{ r1: number; n1: number } | null> {
+  ): Promise<{ r1: number; n1: number } | null> => {
     // 如果未启用浮亏保护，跳过
-    if (!this.isEnabled()) {
+    if (!isEnabled()) {
       return null;
     }
 
@@ -95,10 +111,10 @@ export class UnrealizedLossChecker {
       );
 
       // 计算R1（开仓成本）和N1（持仓数量）
-      const { r1, n1 } = this._calculateCostAndQuantity(buyOrders);
+      const { r1, n1 } = calculateCostAndQuantity(buyOrders);
 
       // 更新缓存
-      this.unrealizedLossData.set(normalizedSymbol, {
+      unrealizedLossData.set(normalizedSymbol, {
         r1,
         n1,
         lastUpdateTime: Date.now(),
@@ -119,50 +135,18 @@ export class UnrealizedLossChecker {
       );
       return null;
     }
-  }
-
-  /**
-   * 计算开仓成本和持仓数量
-   * @private
-   */
-  private _calculateCostAndQuantity(
-    buyOrders: Array<{ executedPrice: number | string; executedQuantity: number | string }>,
-  ): { r1: number; n1: number } {
-    let r1 = 0;
-    let n1 = 0;
-
-    for (const order of buyOrders) {
-      const price = Number(order.executedPrice) || 0;
-      const quantity = Number(order.executedQuantity) || 0;
-
-      if (
-        Number.isFinite(price) &&
-        price > 0 &&
-        Number.isFinite(quantity) &&
-        quantity > 0
-      ) {
-        r1 += price * quantity;
-        n1 += quantity;
-      }
-    }
-
-    return { r1, n1 };
-  }
+  };
 
   /**
    * 检查标的的浮亏是否超过阈值，如果超过则返回清仓信号
-   * @param symbol 标的代码
-   * @param currentPrice 当前价格
-   * @param isLongSymbol 是否为做多标的
-   * @returns 返回是否需要清仓
    */
-  check(
+  const check = (
     symbol: string,
     currentPrice: number,
     isLongSymbol: boolean,
-  ): UnrealizedLossCheckResult {
+  ): UnrealizedLossCheckResult => {
     // 如果未启用浮亏保护，跳过
-    if (!this.isEnabled()) {
+    if (!isEnabled()) {
       return { shouldLiquidate: false };
     }
 
@@ -174,7 +158,7 @@ export class UnrealizedLossChecker {
     }
 
     // 获取缓存的浮亏数据
-    const lossData = this.unrealizedLossData.get(normalizedSymbol);
+    const lossData = unrealizedLossData.get(normalizedSymbol);
     if (!lossData) {
       logger.warn(
         `[浮亏监控] ${normalizedSymbol} 浮亏数据未初始化，跳过检查（可能是订单获取失败或数据尚未刷新）`,
@@ -195,7 +179,7 @@ export class UnrealizedLossChecker {
 
     // 检查浮亏是否超过阈值（浮亏为负数表示亏损）
     // 此处已通过 isEnabled() 验证，maxUnrealizedLossPerSymbol 不为 null
-    const threshold = this.maxUnrealizedLossPerSymbol;
+    const threshold = maxUnrealizedLossPerSymbol;
     if (threshold === null || !Number.isFinite(threshold)) {
       return { shouldLiquidate: false };
     }
@@ -218,5 +202,13 @@ export class UnrealizedLossChecker {
     }
 
     return { shouldLiquidate: false };
-  }
-}
+  };
+
+  return {
+    getUnrealizedLossData,
+    getAllData,
+    isEnabled,
+    refresh,
+    check,
+  };
+};

@@ -15,146 +15,121 @@
  */
 
 import { TradeContext } from 'longport';
-import type { Config } from 'longport';
 import { createConfig } from '../../config/config.index.js';
 import type { Signal, Quote, AccountSnapshot, Position } from '../../types/index.js';
 import type { OrderRecorder } from '../orderRecorder/index.js';
 import type { PendingOrder } from '../type.js';
-import type { TradeCheckResult } from './type.js';
+import type {
+  Trader,
+  TraderDeps,
+  TradeCheckResult,
+} from './type.js';
 
-// 导入子模块
-import { RateLimiter } from './rateLimiter.js';
-import { AccountService } from './accountService.js';
-import { OrderCacheManager } from './orderCacheManager.js';
-import { OrderMonitor } from './orderMonitor.js';
-import { OrderExecutor } from './orderExecutor.js';
+// 导入子模块工厂函数
+import { createRateLimiter } from './rateLimiter.js';
+import { createAccountService } from './accountService.js';
+import { createOrderCacheManager } from './orderCacheManager.js';
+import { createOrderMonitor } from './orderMonitor.js';
+import { createOrderExecutor } from './orderExecutor.js';
 
 /**
- * 交易执行模块（门面类）
+ * 创建交易执行模块（门面模式）
+ * @param deps 依赖配置
+ * @returns Promise<Trader> 接口实例
  */
-export class Trader {
-  _ctxPromise!: Promise<TradeContext>;
+export const createTrader = async (deps: TraderDeps = {}): Promise<Trader> => {
+  const finalConfig = deps.config ?? createConfig();
 
-  // 子模块
-  private readonly accountService: AccountService;
-  private readonly cacheManager: OrderCacheManager;
-  private readonly orderMonitor: OrderMonitor;
-  private readonly orderExecutor: OrderExecutor;
+  // 初始化 TradeContext
+  const ctxPromise = TradeContext.new(finalConfig);
 
-  private constructor(
-    ctxPromise: Promise<TradeContext>,
-    accountService: AccountService,
-    cacheManager: OrderCacheManager,
-    orderMonitor: OrderMonitor,
-    orderExecutor: OrderExecutor,
-  ) {
-    this._ctxPromise = ctxPromise;
-    this.accountService = accountService;
-    this.cacheManager = cacheManager;
-    this.orderMonitor = orderMonitor;
-    this.orderExecutor = orderExecutor;
-  }
+  // 初始化子模块（按依赖顺序创建）
+  const rateLimiter = createRateLimiter({ config: { maxCalls: 30, windowMs: 30000 } });
 
-  /**
-   * 创建 Trader 实例（静态工厂方法）
-   * @param config 配置对象，如果为 null 则使用默认配置
-   * @returns Trader 实例
-   */
-  static async create(config: Config | null = null): Promise<Trader> {
-    const finalConfig = config ?? createConfig();
+  const accountService = createAccountService({ ctxPromise, rateLimiter });
 
-    // 初始化 TradeContext
-    const ctxPromise = TradeContext.new(finalConfig);
+  const cacheManager = createOrderCacheManager({ ctxPromise, rateLimiter });
 
-    // 初始化子模块（按依赖顺序创建）
-    const rateLimiter = new RateLimiter(30, 30000);
+  const orderMonitor = createOrderMonitor({ ctxPromise, rateLimiter, cacheManager });
 
-    const accountService = new AccountService(ctxPromise, rateLimiter);
+  const orderExecutor = createOrderExecutor({
+    ctxPromise,
+    rateLimiter,
+    cacheManager,
+    orderMonitor,
+  });
 
-    const cacheManager = new OrderCacheManager(ctxPromise, rateLimiter);
+  // 创建 Trader 实例
+  return {
+    _ctxPromise: ctxPromise,
 
-    const orderMonitor = new OrderMonitor(ctxPromise, rateLimiter, cacheManager);
+    // ==================== 账户相关方法 ====================
 
-    const orderExecutor = new OrderExecutor(
-      ctxPromise,
-      rateLimiter,
-      cacheManager,
-      orderMonitor,
-    );
+    getAccountSnapshot(): Promise<AccountSnapshot | null> {
+      return accountService.getAccountSnapshot();
+    },
 
-    // 创建 Trader 实例
-    return new Trader(
-      ctxPromise,
-      accountService,
-      cacheManager,
-      orderMonitor,
-      orderExecutor,
-    );
-  }
+    getStockPositions(symbols: string[] | null = null): Promise<Position[]> {
+      return accountService.getStockPositions(symbols);
+    },
 
-  // ==================== 账户相关方法 ====================
+    // ==================== 订单缓存相关方法 ====================
 
-  async getAccountSnapshot(): Promise<AccountSnapshot | null> {
-    return this.accountService.getAccountSnapshot();
-  }
+    getPendingOrders(
+      symbols: string[] | null = null,
+      forceRefresh: boolean = false,
+    ): Promise<PendingOrder[]> {
+      return cacheManager.getPendingOrders(symbols, forceRefresh);
+    },
 
-  async getStockPositions(symbols: string[] | null = null): Promise<Position[]> {
-    return this.accountService.getStockPositions(symbols);
-  }
+    clearPendingOrdersCache(): void {
+      cacheManager.clearCache();
+    },
 
-  // ==================== 订单缓存相关方法 ====================
+    hasPendingBuyOrders(
+      symbols: string[],
+      orderRecorder: OrderRecorder | null = null,
+    ): Promise<boolean> {
+      return cacheManager.hasPendingBuyOrders(symbols, orderRecorder);
+    },
 
-  async getPendingOrders(
-    symbols: string[] | null = null,
-    forceRefresh: boolean = false,
-  ): Promise<PendingOrder[]> {
-    return this.cacheManager.getPendingOrders(symbols, forceRefresh);
-  }
+    // ==================== 订单监控相关方法 ====================
 
-  clearPendingOrdersCache(): void {
-    this.cacheManager.clearCache();
-  }
+    enableBuyOrderMonitoring(): void {
+      orderMonitor.enableMonitoring();
+    },
 
-  async hasPendingBuyOrders(
-    symbols: string[],
-    orderRecorder: OrderRecorder | null = null,
-  ): Promise<boolean> {
-    return this.cacheManager.hasPendingBuyOrders(symbols, orderRecorder);
-  }
+    cancelOrder(orderId: string): Promise<boolean> {
+      return orderMonitor.cancelOrder(orderId);
+    },
 
-  // ==================== 订单监控相关方法 ====================
+    replaceOrderPrice(
+      orderId: string,
+      newPrice: number,
+      quantity: number | null = null,
+      cachedOrder: PendingOrder | null = null,
+    ): Promise<void> {
+      return orderMonitor.replaceOrderPrice(orderId, newPrice, quantity, cachedOrder);
+    },
 
-  enableBuyOrderMonitoring(): void {
-    this.orderMonitor.enableMonitoring();
-  }
+    monitorAndManageOrders(
+      longQuote: Quote | null,
+      shortQuote: Quote | null,
+    ): Promise<void> {
+      return orderMonitor.monitorAndManageOrders(longQuote, shortQuote);
+    },
 
-  async cancelOrder(orderId: string): Promise<boolean> {
-    return this.orderMonitor.cancelOrder(orderId);
-  }
+    // ==================== 订单执行相关方法 ====================
 
-  async replaceOrderPrice(
-    orderId: string,
-    newPrice: number,
-    quantity: number | null = null,
-    cachedOrder: PendingOrder | null = null,
-  ): Promise<void> {
-    return this.orderMonitor.replaceOrderPrice(orderId, newPrice, quantity, cachedOrder);
-  }
+    _canTradeNow(signalAction: string): TradeCheckResult {
+      return orderExecutor.canTradeNow(signalAction);
+    },
 
-  async monitorAndManageOrders(
-    longQuote: Quote | null,
-    shortQuote: Quote | null,
-  ): Promise<void> {
-    return this.orderMonitor.monitorAndManageOrders(longQuote, shortQuote);
-  }
+    executeSignals(signals: Signal[]): Promise<void> {
+      return orderExecutor.executeSignals(signals);
+    },
+  };
+};
 
-  // ==================== 订单执行相关方法 ====================
-
-  _canTradeNow(signalAction: string): TradeCheckResult {
-    return this.orderExecutor.canTradeNow(signalAction);
-  }
-
-  async executeSignals(signals: Signal[]): Promise<void> {
-    return this.orderExecutor.executeSignals(signals);
-  }
-}
+// 导出类型
+export type { Trader } from './type.js';

@@ -9,90 +9,58 @@
 
 import { normalizeHKSymbol } from '../../utils/helpers.js';
 import type { Position, Signal } from '../../types/index.js';
-import type { RiskCheckResult } from './type.js';
+import type { RiskCheckResult, PositionLimitChecker, PositionLimitCheckerDeps } from './type.js';
 
 /**
- * 持仓市值限制检查器
+ * 创建持仓市值限制检查器
+ * @param deps 依赖注入
+ * @returns PositionLimitChecker 接口实例
  */
-export class PositionLimitChecker {
-  private readonly maxPositionNotional: number | null;
-
-  constructor(maxPositionNotional: number | null) {
-    this.maxPositionNotional = maxPositionNotional;
-  }
-
-  /**
-   * 检查单标的最大持仓市值限制
-   * @param signal 信号对象
-   * @param positions 持仓列表
-   * @param orderNotional 计划下单金额
-   * @param currentPrice 标的当前市价
-   */
-  checkLimit(
-    signal: Signal,
-    positions: Position[] | null,
-    orderNotional: number,
-    currentPrice: number | null,
-  ): RiskCheckResult {
-    // 验证下单金额有效性
-    if (!Number.isFinite(orderNotional) || orderNotional < 0) {
-      return {
-        allowed: false,
-        reason: `计划下单金额无效：${orderNotional}`,
-      };
-    }
-
-    // 检查下单金额是否超过限制（无持仓时）
-    if (this.maxPositionNotional !== null && orderNotional > this.maxPositionNotional) {
-      return {
-        allowed: false,
-        reason: `本次计划下单金额 ${orderNotional.toFixed(
-          2,
-        )} HKD 超过单标的最大持仓市值限制 ${this.maxPositionNotional} HKD`,
-      };
-    }
-
-    const symbol = signal.symbol;
-    const pos = this._findPosition(positions, symbol);
-
-    // 如果没有持仓，直接通过（下单金额已在上面检查）
-    if (!pos?.quantity || pos.quantity <= 0) {
-      return { allowed: true };
-    }
-
-    // 检查有持仓时的市值限制
-    return this._checkWithExistingHoldings(pos, orderNotional, currentPrice);
-  }
+export const createPositionLimitChecker = (deps: PositionLimitCheckerDeps): PositionLimitChecker => {
+  const maxPositionNotional = deps.maxPositionNotional;
 
   /**
    * 查找持仓
-   * @private
    */
-  private _findPosition(
-    positions: Position[] | null,
+  const findPosition = (
+    positions: ReadonlyArray<Position> | null,
     symbol: string,
-  ): Position | undefined {
+  ): Position | undefined => {
     return positions?.find((p) => {
       const posSymbol = normalizeHKSymbol(p.symbol);
       const sigSymbol = normalizeHKSymbol(symbol);
       return posSymbol === sigSymbol;
     });
-  }
+  };
+
+  /**
+   * 仅检查下单金额
+   */
+  const checkOrderNotionalOnly = (orderNotional: number): RiskCheckResult => {
+    if (maxPositionNotional !== null && orderNotional > maxPositionNotional) {
+      return {
+        allowed: false,
+        reason: `本次计划下单金额 ${orderNotional.toFixed(
+          2,
+        )} HKD 超过单标的最大持仓市值限制 ${maxPositionNotional} HKD`,
+      };
+    }
+    return { allowed: true };
+  };
 
   /**
    * 检查有持仓时的市值限制
-   * @private
    */
-  private _checkWithExistingHoldings(
+  const checkWithExistingHoldings = (
     pos: Position,
     orderNotional: number,
     currentPrice: number | null,
-  ): RiskCheckResult {
+  ): RiskCheckResult => {
     // 验证持仓数量有效性
     const posQuantity = Number(pos.quantity) || 0;
     if (!Number.isFinite(posQuantity) || posQuantity <= 0) {
       // 持仓数量无效，只检查下单金额
-      return this._checkOrderNotionalOnly(orderNotional);
+      return checkOrderNotionalOnly(orderNotional);
     }
 
     // 若已有持仓应以成本价计算当前持仓市值（用户要求）
@@ -102,7 +70,7 @@ export class PositionLimitChecker {
     // 验证价格有效性
     if (!Number.isFinite(price) || price <= 0) {
       // 价格无效，只检查下单金额
-      return this._checkOrderNotionalOnly(orderNotional);
+      return checkOrderNotionalOnly(orderNotional);
     }
 
     const currentNotional = posQuantity * price;
@@ -115,7 +83,7 @@ export class PositionLimitChecker {
       };
     }
 
-    if (this.maxPositionNotional !== null && totalNotional > this.maxPositionNotional) {
+    if (maxPositionNotional !== null && totalNotional > maxPositionNotional) {
       return {
         allowed: false,
         reason: `该标的当前持仓市值约 ${currentNotional.toFixed(
@@ -124,26 +92,53 @@ export class PositionLimitChecker {
           3,
         )}），加上本次计划下单 ${orderNotional.toFixed(
           2,
-        )} HKD 将超过单标的最大持仓市值限制 ${this.maxPositionNotional} HKD`,
+        )} HKD 将超过单标的最大持仓市值限制 ${maxPositionNotional} HKD`,
       };
     }
 
     return { allowed: true };
-  }
+  };
 
   /**
-   * 仅检查下单金额
-   * @private
+   * 检查单标的最大持仓市值限制
    */
-  private _checkOrderNotionalOnly(orderNotional: number): RiskCheckResult {
-    if (this.maxPositionNotional !== null && orderNotional > this.maxPositionNotional) {
+  const checkLimit = (
+    signal: Signal,
+    positions: Position[] | null,
+    orderNotional: number,
+    currentPrice: number | null,
+  ): RiskCheckResult => {
+    // 验证下单金额有效性
+    if (!Number.isFinite(orderNotional) || orderNotional < 0) {
+      return {
+        allowed: false,
+        reason: `计划下单金额无效：${orderNotional}`,
+      };
+    }
+
+    // 检查下单金额是否超过限制（无持仓时）
+    if (maxPositionNotional !== null && orderNotional > maxPositionNotional) {
       return {
         allowed: false,
         reason: `本次计划下单金额 ${orderNotional.toFixed(
           2,
-        )} HKD 超过单标的最大持仓市值限制 ${this.maxPositionNotional} HKD`,
+        )} HKD 超过单标的最大持仓市值限制 ${maxPositionNotional} HKD`,
       };
     }
-    return { allowed: true };
-  }
-}
+
+    const symbol = signal.symbol;
+    const pos = findPosition(positions, symbol);
+
+    // 如果没有持仓，直接通过（下单金额已在上面检查）
+    if (!pos?.quantity || pos.quantity <= 0) {
+      return { allowed: true };
+    }
+
+    // 检查有持仓时的市值限制
+    return checkWithExistingHoldings(pos, orderNotional, currentPrice);
+  };
+
+  return {
+    checkLimit,
+  };
+};

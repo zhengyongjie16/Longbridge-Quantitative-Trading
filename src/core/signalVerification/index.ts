@@ -26,241 +26,80 @@ import { verificationEntryPool, signalObjectPool } from '../../utils/objectPool.
 import { getIndicatorValue } from '../../utils/indicatorHelpers.js';
 import { formatError } from '../../utils/helpers.js';
 import type { IndicatorSnapshot, Quote, Signal, VerificationConfig, VerificationEntry, LastState } from '../../types/index.js';
+import type { SignalVerificationManager } from './type.js';
+
+// 常量定义
+/**
+ * 每秒的毫秒数
+ * 用于时间单位转换（秒转毫秒）
+ */
+const MILLISECONDS_PER_SECOND = 1000;
 
 /**
- * 信号验证管理器类
+ * 验证时间点1偏移量（秒）
+ * 延迟验证的第一个时间点：T0 + 5秒
+ * T0 为信号触发时间，此时间点用于验证指标趋势的延续性
+ */
+const VERIFICATION_TIME_OFFSET_1_SECONDS = 5;
+
+/**
+ * 验证时间点2偏移量（秒）
+ * 延迟验证的第二个时间点：T0 + 10秒
+ * T0 为信号触发时间，此时间点用于进一步确认指标趋势
+ */
+const VERIFICATION_TIME_OFFSET_2_SECONDS = 10;
+
+/**
+ * 验证时间点误差容忍度（毫秒）
+ * 在查找验证历史记录时，允许的时间点误差范围
+ * 由于系统循环执行可能存在时间偏差，允许 ±5 秒的误差
+ */
+const VERIFICATION_TIME_TOLERANCE_MS = 5 * MILLISECONDS_PER_SECOND;
+
+/**
+ * 验证窗口开始时间偏移量（秒）
+ * 验证历史记录的开始时间：T0 - 5秒
+ * 在信号触发前5秒开始记录指标值，确保能捕获到 T0 时间点的数据
+ */
+const VERIFICATION_WINDOW_START_OFFSET_SECONDS = -5;
+
+/**
+ * 验证窗口结束时间偏移量（秒）
+ * 验证历史记录的结束时间：T0 + 15秒
+ * 考虑到 T0+10秒 时间点允许 ±5 秒误差，最晚可能在 T0+15秒 记录数据
+ */
+const VERIFICATION_WINDOW_END_OFFSET_SECONDS = 15;
+
+/**
+ * 验证就绪延迟时间（秒）
+ * 信号触发后需要等待此时间才能执行验证：T0 + 15秒
+ * 确保所有3个验证时间点（T0, T0+5s, T0+10s）的数据都已记录完成
+ */
+const VERIFICATION_READY_DELAY_SECONDS = 15;
+
+/**
+ * 创建信号验证管理器
  * 管理延迟信号的验证流程：记录历史、执行验证、清理数据
  */
-export class SignalVerificationManager {
-  private readonly verificationConfig: VerificationConfig;
-
-  constructor(verificationConfig: VerificationConfig) {
-    this.verificationConfig = verificationConfig;
-  }
-
-  /**
-   * 添加延迟信号到待验证列表
-   * @param delayedSignals 延迟信号列表
-   * @param lastState 状态对象（包含 pendingDelayedSignals）
-   */
-  addDelayedSignals(delayedSignals: Signal[], lastState: LastState): void {
-    // 初始化待验证信号数组（如果不存在）
-    lastState.pendingDelayedSignals ??= [];
-
-    // 处理延迟验证信号，添加到待验证列表
-    for (const delayedSignal of delayedSignals) {
-      if (delayedSignal?.triggerTime) {
-        // 检查是否已存在相同的待验证信号（避免重复添加）
-        const existingSignal = lastState.pendingDelayedSignals.find(
-          (s) =>
-            s.symbol === delayedSignal.symbol &&
-            s.action === delayedSignal.action &&
-            s.triggerTime?.getTime() === delayedSignal.triggerTime?.getTime(),
-        );
-
-        if (existingSignal === undefined) {
-          lastState.pendingDelayedSignals.push(delayedSignal);
-
-          const actionDesc =
-            delayedSignal.action === 'BUYCALL'
-              ? '买入做多'
-              : '买入做空';
-          logger.info(
-            `[延迟验证信号] 新增待验证${actionDesc}信号：${delayedSignal.symbol} - ${delayedSignal.reason}`,
-          );
-        } else {
-          // 如果信号已存在，释放新的信号对象，避免内存泄漏
-          signalObjectPool.release(delayedSignal);
-        }
-      }
-    }
-  }
+export const createSignalVerificationManager = (
+  verificationConfig: VerificationConfig,
+): SignalVerificationManager => {
+  // 配置通过闭包捕获（不可变）
+  const config = verificationConfig;
 
   /**
-   * 为所有待验证信号记录当前监控标的值（每秒调用一次）
-   * @param monitorSnapshot 监控标的指标快照
-   * @param lastState 状态对象（包含 pendingDelayedSignals）
+   * 验证单个信号（内部辅助函数）
    */
-  recordVerificationHistory(monitorSnapshot: IndicatorSnapshot | null, lastState: LastState): void {
-    if (
-      !monitorSnapshot ||
-      !lastState.pendingDelayedSignals ||
-      lastState.pendingDelayedSignals.length === 0 ||
-      !this.verificationConfig.indicators ||
-      this.verificationConfig.indicators.length === 0
-    ) {
-      return;
-    }
-
-    const now = new Date();
-
-    // 提取当前配置的所有指标值
-    const currentIndicators: Record<string, number> = {};
-    let allIndicatorsValid = true;
-
-    for (const indicatorName of this.verificationConfig.indicators) {
-      const value = getIndicatorValue(monitorSnapshot, indicatorName);
-      if (value === null || !Number.isFinite(value)) {
-        allIndicatorsValid = false;
-        break;
-      }
-      currentIndicators[indicatorName] = value;
-    }
-
-    // 为每个待验证信号记录当前值（如果所有配置的指标值有效）
-    if (allIndicatorsValid && Object.keys(currentIndicators).length > 0) {
-      for (const pendingSignal of lastState.pendingDelayedSignals) {
-        if (pendingSignal.triggerTime) {
-          const triggerTimeMs = pendingSignal.triggerTime.getTime();
-          const windowStart = triggerTimeMs - 5 * 1000; // triggerTime - 5 秒
-          const windowEnd = triggerTimeMs + 15 * 1000; // triggerTime + 15 秒（考虑T0+10s时间点±5秒误差）
-          const nowMs = now.getTime();
-
-          // 只在 triggerTime -5秒 到 +15秒 窗口内记录数据
-          if (nowMs >= windowStart && nowMs <= windowEnd) {
-            // 确保信号有历史记录数组
-            pendingSignal.verificationHistory ??= [];
-
-            // 避免在同一秒内重复记录（精确到秒）
-            const nowSeconds = Math.floor(nowMs / 1000);
-            const lastEntry = pendingSignal.verificationHistory.at(-1);
-            const lastEntrySeconds = lastEntry
-              ? Math.floor(lastEntry.timestamp.getTime() / 1000)
-              : null;
-
-            // 如果上一记录不是同一秒，则添加新记录
-            if (lastEntrySeconds !== nowSeconds) {
-              // 从对象池获取条目对象，减少内存分配
-              const entry = verificationEntryPool.acquire() as VerificationEntry;
-              entry.timestamp = now;
-              // 将所有配置的指标值记录到 indicators 对象中
-              entry.indicators = { ...currentIndicators };
-
-              // 记录当前值
-              pendingSignal.verificationHistory.push(entry);
-
-              // 只保留当前信号触发时间点前后窗口内的数据，释放其他条目
-              const entriesToKeep: VerificationEntry[] = [];
-              const entriesToRelease: VerificationEntry[] = [];
-              for (const e of pendingSignal.verificationHistory) {
-                const t = e.timestamp.getTime();
-                if (t >= windowStart && t <= windowEnd) {
-                  entriesToKeep.push(e);
-                } else {
-                  entriesToRelease.push(e);
-                }
-              }
-              if (entriesToRelease.length > 0) {
-                verificationEntryPool.releaseAll(entriesToRelease);
-              }
-              pendingSignal.verificationHistory = entriesToKeep;
-            }
-          }
-        }
-      }
-    }
-  }
-
-  /**
-   * 验证所有到期的待验证信号
-   * @param lastState 状态对象（包含 pendingDelayedSignals）
-   * @param longQuote 做多标的行情
-   * @param shortQuote 做空标的行情
-   * @returns 验证通过的信号列表
-   */
-  verifyPendingSignals(
-    lastState: LastState,
-    longQuote: Quote | null,
-    shortQuote: Quote | null,
-  ): Signal[] {
-    const verifiedSignals: Signal[] = [];
-
-    if (
-      !lastState.pendingDelayedSignals ||
-      lastState.pendingDelayedSignals.length === 0
-    ) {
-      return verifiedSignals;
-    }
-
-    // 检查是否有待验证的信号到了验证时间
-    // 注意：需要等待 triggerTime + 15秒后才验证，确保所有3个时间点（T0, T0+5s, T0+10s）的数据都已记录
-    // 考虑到每个时间点允许±5秒误差，T0+10s最晚可能在T0+15秒记录
-    const now = new Date();
-    const signalsToVerify = lastState.pendingDelayedSignals.filter((s) => {
-      if (!s.triggerTime) return false;
-      const verificationReadyTime = new Date(s.triggerTime.getTime() + 15 * 1000); // triggerTime + 15秒
-      return verificationReadyTime <= now;
-    });
-
-    // 处理需要验证的信号
-    for (const pendingSignal of signalsToVerify) {
-      try {
-        const verifiedSignal = this._verifySingleSignal(
-          pendingSignal,
-          now,
-          longQuote,
-          shortQuote,
-        );
-
-        if (verifiedSignal) {
-          verifiedSignals.push(verifiedSignal);
-        }
-
-        // 清空该信号的历史记录并释放对象回池
-        if (pendingSignal.verificationHistory) {
-          verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
-          pendingSignal.verificationHistory = [];
-        }
-
-        // 从待验证列表中移除（无论验证是否通过）
-        const index = lastState.pendingDelayedSignals.indexOf(pendingSignal);
-        if (index >= 0) {
-          lastState.pendingDelayedSignals.splice(index, 1);
-        }
-        // 释放待验证信号对象回对象池
-        signalObjectPool.release(pendingSignal);
-      } catch (err) {
-        logger.error(
-          `[延迟验证错误] 处理待验证信号 ${pendingSignal.symbol} 时发生错误`,
-          formatError(err),
-        );
-        // 清空该信号的历史记录并释放对象回池
-        if (pendingSignal.verificationHistory) {
-          verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
-          pendingSignal.verificationHistory = [];
-        }
-        // 从待验证列表中移除错误的信号
-        const index = lastState.pendingDelayedSignals.indexOf(pendingSignal);
-        if (index >= 0) {
-          lastState.pendingDelayedSignals.splice(index, 1);
-        }
-        // 释放待验证信号对象回对象池
-        signalObjectPool.release(pendingSignal);
-      }
-    }
-
-    return verifiedSignals;
-  }
-
-  /**
-   * 验证单个信号（内部方法）
-   * @param pendingSignal 待验证信号
-   * @param now 当前时间
-   * @param longQuote 做多标的行情
-   * @param shortQuote 做空标的行情
-   * @returns 验证通过的信号，失败返回 null
-   * @private
-   */
-  private _verifySingleSignal(
+  const verifySingleSignal = (
     pendingSignal: Signal,
     now: Date,
     longQuote: Quote | null,
     shortQuote: Quote | null,
-  ): Signal | null {
+  ): Signal | null => {
     // 安全检查：如果验证指标配置为null或空，跳过验证
     if (
-      !this.verificationConfig.indicators ||
-      this.verificationConfig.indicators.length === 0
+      !config.indicators ||
+      config.indicators.length === 0
     ) {
       logger.warn(
         `[延迟验证错误] ${pendingSignal.symbol} 验证指标配置为空，跳过验证`,
@@ -288,7 +127,7 @@ export class SignalVerificationManager {
 
     // 验证所有配置的指标值是否有效
     let allIndicators1Valid = true;
-    for (const indicatorName of this.verificationConfig.indicators) {
+    for (const indicatorName of config.indicators) {
       if (!Number.isFinite(indicators1[indicatorName])) {
         allIndicators1Valid = false;
         break;
@@ -304,14 +143,14 @@ export class SignalVerificationManager {
 
     // 定义3个目标时间点：T0 = triggerTime, T1 = triggerTime + 5秒, T2 = triggerTime + 10秒
     const targetTime0 = pendingSignal.triggerTime;
-    const targetTime1 = new Date(targetTime0.getTime() + 5 * 1000);
-    const targetTime2 = new Date(targetTime0.getTime() + 10 * 1000);
+    const targetTime1 = new Date(targetTime0.getTime() + VERIFICATION_TIME_OFFSET_1_SECONDS * MILLISECONDS_PER_SECOND);
+    const targetTime2 = new Date(targetTime0.getTime() + VERIFICATION_TIME_OFFSET_2_SECONDS * MILLISECONDS_PER_SECOND);
     const targetTimes = [targetTime0, targetTime1, targetTime2];
     const targetTimeLabels = ['T0', 'T0+5s', 'T0+10s'];
 
     // 从该信号自己的验证历史记录中获取indicators2a, indicators2b, indicators2c
     const history = pendingSignal.verificationHistory || [];
-    const maxTimeDiff = 5 * 1000; // 5秒误差
+    const maxTimeDiff = VERIFICATION_TIME_TOLERANCE_MS;
 
     // 辅助函数：为指定目标时间查找最佳匹配
     const findBestMatch = (targetTime: Date): VerificationEntry | null => {
@@ -361,7 +200,7 @@ export class SignalVerificationManager {
         continue;
       }
       let allIndicatorsValid = true;
-      for (const indicatorName of this.verificationConfig.indicators) {
+      for (const indicatorName of config.indicators) {
         if (!Number.isFinite(match.indicators[indicatorName])) {
           allIndicatorsValid = false;
           break;
@@ -402,11 +241,11 @@ export class SignalVerificationManager {
     const actualTime1 = match1.timestamp;
     const actualTime2 = match2.timestamp;
     const timeDiffSeconds0 =
-      Math.abs(actualTime0.getTime() - targetTime0.getTime()) / 1000;
+      Math.abs(actualTime0.getTime() - targetTime0.getTime()) / MILLISECONDS_PER_SECOND;
     const timeDiffSeconds1 =
-      Math.abs(actualTime1.getTime() - targetTime1.getTime()) / 1000;
+      Math.abs(actualTime1.getTime() - targetTime1.getTime()) / MILLISECONDS_PER_SECOND;
     const timeDiffSeconds2 =
-      Math.abs(actualTime2.getTime() - targetTime2.getTime()) / 1000;
+      Math.abs(actualTime2.getTime() - targetTime2.getTime()) / MILLISECONDS_PER_SECOND;
 
     // 根据信号类型使用不同的验证条件
     const isBuyCall = pendingSignal.action === 'BUYCALL';
@@ -425,7 +264,7 @@ export class SignalVerificationManager {
     const failedIndicators: string[] = [];
 
     // 遍历所有配置的指标进行验证（所有3个时间点的值都要满足条件）
-    for (const indicatorName of this.verificationConfig.indicators) {
+    for (const indicatorName of config.indicators) {
       const value1 = indicators1[indicatorName];
       const value2a = indicators2a[indicatorName];
       const value2b = indicators2b[indicatorName];
@@ -543,5 +382,194 @@ export class SignalVerificationManager {
       );
       return null;
     }
-  }
-}
+  };
+
+  return {
+    addDelayedSignals: (delayedSignals: ReadonlyArray<Signal>, lastState: LastState): void => {
+      // 初始化待验证信号数组（如果不存在）
+      lastState.pendingDelayedSignals ??= [];
+
+      // 处理延迟验证信号，添加到待验证列表
+      for (const delayedSignal of delayedSignals) {
+        if (delayedSignal?.triggerTime) {
+          // 检查是否已存在相同的待验证信号（避免重复添加）
+          const existingSignal = lastState.pendingDelayedSignals.find(
+            (s) =>
+              s.symbol === delayedSignal.symbol &&
+              s.action === delayedSignal.action &&
+              s.triggerTime?.getTime() === delayedSignal.triggerTime?.getTime(),
+          );
+
+          if (existingSignal === undefined) {
+            lastState.pendingDelayedSignals.push(delayedSignal);
+
+            const actionDesc =
+              delayedSignal.action === 'BUYCALL'
+                ? '买入做多'
+                : '买入做空';
+            logger.info(
+              `[延迟验证信号] 新增待验证${actionDesc}信号：${delayedSignal.symbol} - ${delayedSignal.reason}`,
+            );
+          } else {
+            // 如果信号已存在，释放新的信号对象，避免内存泄漏
+            signalObjectPool.release(delayedSignal);
+          }
+        }
+      }
+    },
+
+    recordVerificationHistory: (monitorSnapshot: IndicatorSnapshot | null, lastState: LastState): void => {
+      if (
+        !monitorSnapshot ||
+        !lastState.pendingDelayedSignals ||
+        lastState.pendingDelayedSignals.length === 0 ||
+        !config.indicators ||
+        config.indicators.length === 0
+      ) {
+        return;
+      }
+
+      const now = new Date();
+
+      // 提取当前配置的所有指标值
+      const currentIndicators: Record<string, number> = {};
+      let allIndicatorsValid = true;
+
+      for (const indicatorName of config.indicators) {
+        const value = getIndicatorValue(monitorSnapshot, indicatorName);
+        if (value === null || !Number.isFinite(value)) {
+          allIndicatorsValid = false;
+          break;
+        }
+        currentIndicators[indicatorName] = value;
+      }
+
+      // 为每个待验证信号记录当前值（如果所有配置的指标值有效）
+      if (allIndicatorsValid && Object.keys(currentIndicators).length > 0) {
+        for (const pendingSignal of lastState.pendingDelayedSignals) {
+          if (pendingSignal.triggerTime) {
+            const triggerTimeMs = pendingSignal.triggerTime.getTime();
+            const windowStart = triggerTimeMs + VERIFICATION_WINDOW_START_OFFSET_SECONDS * MILLISECONDS_PER_SECOND;
+            const windowEnd = triggerTimeMs + VERIFICATION_WINDOW_END_OFFSET_SECONDS * MILLISECONDS_PER_SECOND;
+            const nowMs = now.getTime();
+
+            // 只在 triggerTime -5秒 到 +15秒 窗口内记录数据
+            if (nowMs >= windowStart && nowMs <= windowEnd) {
+              // 确保信号有历史记录数组
+              pendingSignal.verificationHistory ??= [];
+
+              // 避免在同一秒内重复记录（精确到秒）
+              const nowSeconds = Math.floor(nowMs / MILLISECONDS_PER_SECOND);
+              const lastEntry = pendingSignal.verificationHistory.at(-1);
+              const lastEntrySeconds = lastEntry
+                ? Math.floor(lastEntry.timestamp.getTime() / MILLISECONDS_PER_SECOND)
+                : null;
+
+              // 如果上一记录不是同一秒，则添加新记录
+              if (lastEntrySeconds !== nowSeconds) {
+                // 从对象池获取条目对象，减少内存分配
+                const entry = verificationEntryPool.acquire() as VerificationEntry;
+                entry.timestamp = now;
+                // 将所有配置的指标值记录到 indicators 对象中
+                entry.indicators = { ...currentIndicators };
+
+                // 记录当前值
+                pendingSignal.verificationHistory.push(entry);
+
+                // 只保留当前信号触发时间点前后窗口内的数据，释放其他条目
+                const entriesToKeep: VerificationEntry[] = [];
+                const entriesToRelease: VerificationEntry[] = [];
+                for (const e of pendingSignal.verificationHistory) {
+                  const t = e.timestamp.getTime();
+                  if (t >= windowStart && t <= windowEnd) {
+                    entriesToKeep.push(e);
+                  } else {
+                    entriesToRelease.push(e);
+                  }
+                }
+                if (entriesToRelease.length > 0) {
+                  verificationEntryPool.releaseAll(entriesToRelease);
+                }
+                pendingSignal.verificationHistory = entriesToKeep;
+              }
+            }
+          }
+        }
+      }
+    },
+
+    verifyPendingSignals: (
+      lastState: LastState,
+      longQuote: Quote | null,
+      shortQuote: Quote | null,
+    ): ReadonlyArray<Signal> => {
+      const verifiedSignals: Signal[] = [];
+
+      if (
+        !lastState.pendingDelayedSignals ||
+        lastState.pendingDelayedSignals.length === 0
+      ) {
+        return verifiedSignals;
+      }
+
+      // 检查是否有待验证的信号到了验证时间
+      // 注意：需要等待 triggerTime + 15秒后才验证，确保所有3个时间点（T0, T0+5s, T0+10s）的数据都已记录
+      // 考虑到每个时间点允许±5秒误差，T0+10s最晚可能在T0+15秒记录
+      const now = new Date();
+      const signalsToVerify = lastState.pendingDelayedSignals.filter((s) => {
+        if (!s.triggerTime) return false;
+        const verificationReadyTime = new Date(s.triggerTime.getTime() + VERIFICATION_READY_DELAY_SECONDS * MILLISECONDS_PER_SECOND);
+        return verificationReadyTime <= now;
+      });
+
+      // 处理需要验证的信号
+      for (const pendingSignal of signalsToVerify) {
+        try {
+          const verifiedSignal = verifySingleSignal(
+            pendingSignal,
+            now,
+            longQuote,
+            shortQuote,
+          );
+
+          if (verifiedSignal) {
+            verifiedSignals.push(verifiedSignal);
+          }
+
+          // 清空该信号的历史记录并释放对象回池
+          if (pendingSignal.verificationHistory) {
+            verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
+            pendingSignal.verificationHistory = [];
+          }
+
+          // 从待验证列表中移除（无论验证是否通过）
+          const index = lastState.pendingDelayedSignals.indexOf(pendingSignal);
+          if (index >= 0) {
+            lastState.pendingDelayedSignals.splice(index, 1);
+          }
+          // 释放待验证信号对象回对象池
+          signalObjectPool.release(pendingSignal);
+        } catch (err) {
+          logger.error(
+            `[延迟验证错误] 处理待验证信号 ${pendingSignal.symbol} 时发生错误`,
+            formatError(err),
+          );
+          // 清空该信号的历史记录并释放对象回池
+          if (pendingSignal.verificationHistory) {
+            verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
+            pendingSignal.verificationHistory = [];
+          }
+          // 从待验证列表中移除错误的信号
+          const index = lastState.pendingDelayedSignals.indexOf(pendingSignal);
+          if (index >= 0) {
+            lastState.pendingDelayedSignals.splice(index, 1);
+          }
+          // 释放待验证信号对象回对象池
+          signalObjectPool.release(pendingSignal);
+        }
+      }
+
+      return verifiedSignals;
+    },
+  };
+};

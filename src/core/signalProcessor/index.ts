@@ -24,7 +24,7 @@ import { normalizeHKSymbol, getSymbolName, getDirectionName } from '../../utils/
 import { TRADING_CONFIG } from '../../config/config.trading.js';
 import type { Quote, Position, Signal } from '../../types/index.js';
 import type { OrderRecorder } from '../orderRecorder/index.js';
-import type { RiskCheckContext, SellQuantityResult } from './type.js';
+import type { RiskCheckContext, SellQuantityResult, SignalProcessor, SignalProcessorDeps } from './type.js';
 
 /**
  * 计算卖出信号的数量和原因
@@ -159,29 +159,22 @@ export function calculateSellQuantity(
 }
 
 /**
- * 信号处理器类
- * 处理信号的过滤、风险检查、数量计算等逻辑
+ * 创建信号处理器
+ * @param _deps 依赖注入（当前为空）
+ * @returns SignalProcessor 接口实例
  */
-export class SignalProcessor {
-
+export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalProcessor => {
   /**
    * 处理卖出信号的成本价判断和数量计算
-   * @param signals 信号列表
-   * @param longPosition 做多标的持仓
-   * @param shortPosition 做空标的持仓
-   * @param longQuote 做多标的行情
-   * @param shortQuote 做空标的行情
-   * @param orderRecorder 订单记录器
-   * @returns 处理后的信号列表
    */
-  processSellSignals(
+  const processSellSignals = (
     signals: Signal[],
     longPosition: Position | null,
     shortPosition: Position | null,
     longQuote: Quote | null,
     shortQuote: Quote | null,
     orderRecorder: OrderRecorder,
-  ): Signal[] {
+  ): Signal[] => {
     for (const sig of signals) {
       // 只处理卖出信号（SELLCALL 和 SELLPUT），跳过买入信号
       if (sig.action !== 'SELLCALL' && sig.action !== 'SELLPUT') {
@@ -258,15 +251,12 @@ export class SignalProcessor {
     }
 
     return signals;
-  }
+  };
 
   /**
    * 应用风险检查到信号列表
-   * @param signals 信号列表
-   * @param context 上下文对象（包含所有需要的参数）
-   * @returns 通过风险检查的信号列表
    */
-  async applyRiskChecks(signals: Signal[], context: RiskCheckContext): Promise<Signal[]> {
+  const applyRiskChecks = async (signals: Signal[], context: RiskCheckContext): Promise<Signal[]> => {
     const {
       trader,
       riskChecker,
@@ -489,5 +479,13 @@ export class SignalProcessor {
     }
 
     return finalSignals;
-  }
-}
+  };
+
+  return {
+    processSellSignals,
+    applyRiskChecks,
+  };
+};
+
+// 导出类型
+export type { SignalProcessor } from './type.js';

@@ -36,6 +36,21 @@ const LOG_LEVELS = {
   ERROR: 50,
 } as const;
 
+// 时间常量（毫秒）
+/**
+ * 文件流 drain 超时时间（毫秒）
+ * 当文件流写入缓冲区满时，需要等待 drain 事件才能继续写入
+ * 如果超过此时间仍未触发 drain 事件，则超时继续执行，避免阻塞日志系统
+ */
+const DRAIN_TIMEOUT_MS = 5000;
+
+/**
+ * 控制台流 drain 超时时间（毫秒）
+ * 当控制台流写入缓冲区满时，需要等待 drain 事件才能继续写入
+ * 如果超过此时间仍未触发 drain 事件，则超时继续执行，避免阻塞日志系统
+ */
+const CONSOLE_DRAIN_TIMEOUT_MS = 3000;
+
 type LogLevel = (typeof LOG_LEVELS)[keyof typeof LOG_LEVELS];
 
 // ANSI 颜色代码（保持兼容性）
@@ -186,10 +201,9 @@ class DateRotatingStream extends Writable {
             callback();
           } else {
             // 添加超时保护，防止 drain 事件永远不触发导致阻塞
-            const DRAIN_TIMEOUT = 5000;
             const { onDrain } = createDrainHandler(
               currentStream,
-              DRAIN_TIMEOUT,
+              DRAIN_TIMEOUT_MS,
               callback,
               () => {
                 if (IS_DEBUG) {
@@ -354,8 +368,6 @@ function formatForConsole(obj: LogObject): string {
 const systemFileStream = new DateRotatingStream('system');
 const debugFileStream = IS_DEBUG ? new DateRotatingStream('debug') : null;
 
-// drain 超时时间常量
-const CONSOLE_DRAIN_TIMEOUT = 3000;
 
 /**
  * 创建带超时保护的 drain 事件处理器
@@ -422,14 +434,14 @@ const consoleStream = new Writable({
         writeWithDrainTimeout(
           process.stderr,
           formatted,
-          CONSOLE_DRAIN_TIMEOUT,
+          CONSOLE_DRAIN_TIMEOUT_MS,
           callback,
         );
       } else {
         writeWithDrainTimeout(
           process.stdout,
           formatted,
-          CONSOLE_DRAIN_TIMEOUT,
+          CONSOLE_DRAIN_TIMEOUT_MS,
           callback,
         );
       }

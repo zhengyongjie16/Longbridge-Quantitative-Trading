@@ -2,7 +2,9 @@
  * 订单执行模块类型定义
  */
 
-import type { OrderSide, OrderType, TimeInForceType } from 'longport';
+import type { OrderSide, OrderType, TimeInForceType, TradeContext } from 'longport';
+import type { Signal, Quote, AccountSnapshot, Position } from '../../types/index.js';
+import type { PendingOrder } from '../type.js';
 
 /**
  * 默认订单配置类型
@@ -80,3 +82,129 @@ export type OrderForReplace = {
   readonly quantity: unknown;
 };
 
+// ==================== 服务接口定义 ====================
+
+/**
+ * 频率限制器接口
+ */
+export interface RateLimiter {
+  throttle(): Promise<void>;
+}
+
+/**
+ * 账户服务接口
+ */
+export interface AccountService {
+  getAccountSnapshot(): Promise<AccountSnapshot | null>;
+  getStockPositions(symbols?: string[] | null): Promise<Position[]>;
+}
+
+/**
+ * 订单缓存管理器接口
+ */
+export interface OrderCacheManager {
+  getPendingOrders(symbols?: string[] | null, forceRefresh?: boolean): Promise<PendingOrder[]>;
+  clearCache(): void;
+  hasPendingBuyOrders(symbols: string[], orderRecorder?: import('../orderRecorder/index.js').OrderRecorder | null): Promise<boolean>;
+}
+
+/**
+ * 订单监控器接口
+ */
+export interface OrderMonitor {
+  enableMonitoring(): void;
+  cancelOrder(orderId: string): Promise<boolean>;
+  replaceOrderPrice(orderId: string, newPrice: number, quantity?: number | null, cachedOrder?: PendingOrder | null): Promise<void>;
+  monitorAndManageOrders(longQuote: Quote | null, shortQuote: Quote | null): Promise<void>;
+}
+
+/**
+ * 订单执行器接口
+ */
+export interface OrderExecutor {
+  canTradeNow(signalAction: string): TradeCheckResult;
+  executeSignals(signals: Signal[]): Promise<void>;
+}
+
+/**
+ * 交易器接口（门面）
+ */
+export interface Trader {
+  readonly _ctxPromise: Promise<TradeContext>;
+
+  // 账户相关方法
+  getAccountSnapshot(): Promise<AccountSnapshot | null>;
+  getStockPositions(symbols?: string[] | null): Promise<Position[]>;
+
+  // 订单缓存相关方法
+  getPendingOrders(symbols?: string[] | null, forceRefresh?: boolean): Promise<PendingOrder[]>;
+  clearPendingOrdersCache(): void;
+  hasPendingBuyOrders(symbols: string[], orderRecorder?: import('../orderRecorder/index.js').OrderRecorder | null): Promise<boolean>;
+
+  // 订单监控相关方法
+  enableBuyOrderMonitoring(): void;
+  cancelOrder(orderId: string): Promise<boolean>;
+  replaceOrderPrice(orderId: string, newPrice: number, quantity?: number | null, cachedOrder?: PendingOrder | null): Promise<void>;
+  monitorAndManageOrders(longQuote: Quote | null, shortQuote: Quote | null): Promise<void>;
+
+  // 订单执行相关方法
+  _canTradeNow(signalAction: string): TradeCheckResult;
+  executeSignals(signals: Signal[]): Promise<void>;
+}
+
+/**
+ * 频率限制器配置类型
+ */
+export type RateLimiterConfig = {
+  readonly maxCalls: number;
+  readonly windowMs: number;
+};
+
+/**
+ * 频率限制器依赖类型
+ */
+export type RateLimiterDeps = {
+  readonly config?: RateLimiterConfig;
+};
+
+/**
+ * 账户服务依赖类型
+ */
+export type AccountServiceDeps = {
+  readonly ctxPromise: Promise<TradeContext>;
+  readonly rateLimiter: RateLimiter;
+};
+
+/**
+ * 订单缓存管理器依赖类型
+ */
+export type OrderCacheManagerDeps = {
+  readonly ctxPromise: Promise<TradeContext>;
+  readonly rateLimiter: RateLimiter;
+};
+
+/**
+ * 订单监控器依赖类型
+ */
+export type OrderMonitorDeps = {
+  readonly ctxPromise: Promise<TradeContext>;
+  readonly rateLimiter: RateLimiter;
+  readonly cacheManager: OrderCacheManager;
+};
+
+/**
+ * 订单执行器依赖类型
+ */
+export type OrderExecutorDeps = {
+  readonly ctxPromise: Promise<TradeContext>;
+  readonly rateLimiter: RateLimiter;
+  readonly cacheManager: OrderCacheManager;
+  readonly orderMonitor: OrderMonitor;
+};
+
+/**
+ * 交易器依赖类型
+ */
+export type TraderDeps = {
+  readonly config?: import('longport').Config | null;
+};

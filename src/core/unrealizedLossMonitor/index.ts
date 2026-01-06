@@ -25,34 +25,29 @@ import type { Quote, Signal } from '../../types/index.js';
 import type { RiskChecker } from '../risk/index.js';
 import type { Trader } from '../trader/index.js';
 import type { OrderRecorder } from '../orderRecorder/index.js';
+import type { UnrealizedLossMonitor, UnrealizedLossMonitorDeps } from './type.js';
 
-export class UnrealizedLossMonitor {
-  private readonly maxUnrealizedLossPerSymbol: number;
-
-  constructor(maxUnrealizedLossPerSymbol: number) {
-    this.maxUnrealizedLossPerSymbol = maxUnrealizedLossPerSymbol;
-  }
+/**
+ * 创建浮亏监控器
+ * @param deps 依赖注入
+ * @returns UnrealizedLossMonitor 接口实例
+ */
+export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): UnrealizedLossMonitor => {
+  const maxUnrealizedLossPerSymbol = deps.maxUnrealizedLossPerSymbol;
 
   /**
    * 检查并执行保护性清仓（如果浮亏超过阈值）
-   * @param symbol 标的代码
-   * @param currentPrice 当前价格
-   * @param isLong 是否是做多标的
-   * @param riskChecker 风险检查器实例
-   * @param trader 交易执行器实例
-   * @param orderRecorder 订单记录器实例
-   * @returns 是否触发了清仓
    */
-  async checkAndLiquidate(
+  const checkAndLiquidate = async (
     symbol: string,
     currentPrice: number,
     isLong: boolean,
     riskChecker: RiskChecker,
     trader: Trader,
     orderRecorder: OrderRecorder,
-  ): Promise<boolean> {
+  ): Promise<boolean> => {
     // 如果未启用浮亏监控，直接返回
-    if (this.maxUnrealizedLossPerSymbol <= 0) {
+    if (maxUnrealizedLossPerSymbol <= 0) {
       return false;
     }
 
@@ -112,19 +107,12 @@ export class UnrealizedLossMonitor {
       // 无论成功或失败，都释放信号对象回对象池
       signalObjectPool.release(liquidationSignal);
     }
-  }
+  };
 
   /**
    * 监控做多和做空标的的浮亏（价格变化时调用）
-   * @param longQuote 做多标的行情
-   * @param shortQuote 做空标的行情
-   * @param longSymbol 做多标的代码
-   * @param shortSymbol 做空标的代码
-   * @param riskChecker 风险检查器实例
-   * @param trader 交易执行器实例
-   * @param orderRecorder 订单记录器实例
    */
-  async monitorUnrealizedLoss(
+  const monitorUnrealizedLoss = async (
     longQuote: Quote | null,
     shortQuote: Quote | null,
     longSymbol: string,
@@ -132,9 +120,9 @@ export class UnrealizedLossMonitor {
     riskChecker: RiskChecker,
     trader: Trader,
     orderRecorder: OrderRecorder,
-  ): Promise<void> {
+  ): Promise<void> => {
     // 如果未启用浮亏监控，直接返回
-    if (this.maxUnrealizedLossPerSymbol <= 0) {
+    if (maxUnrealizedLossPerSymbol <= 0) {
       return;
     }
 
@@ -149,7 +137,7 @@ export class UnrealizedLossMonitor {
       }
       const price = quote.price;
       if (isValidPositiveNumber(price)) {
-        await this.checkAndLiquidate(
+        await checkAndLiquidate(
           symbol,
           price,
           isLong,
@@ -165,5 +153,13 @@ export class UnrealizedLossMonitor {
 
     // 检查做空标的的浮亏
     await checkSymbolLoss(shortQuote, shortSymbol, false);
-  }
-}
+  };
+
+  return {
+    checkAndLiquidate,
+    monitorUnrealizedLoss,
+  };
+};
+
+// 导出类型
+export type { UnrealizedLossMonitor } from './type.js';

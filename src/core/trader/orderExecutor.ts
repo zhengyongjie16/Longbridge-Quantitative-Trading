@@ -26,11 +26,28 @@ import {
   isValidPositiveNumber,
 } from '../../utils/helpers.js';
 import type { Signal } from '../../types/index.js';
-import type { OrderOptions, OrderPayload, TradeCheckResult } from './type.js';
+import type { OrderOptions, OrderPayload, TradeCheckResult, OrderExecutor, OrderExecutorDeps } from './type.js';
 import { recordTrade, identifyErrorType } from './tradeLogger.js';
-import type { RateLimiter } from './rateLimiter.js';
-import type { OrderCacheManager } from './orderCacheManager.js';
-import type { OrderMonitor } from './orderMonitor.js';
+
+// 常量定义
+/**
+ * 每秒的毫秒数
+ * 用于时间单位转换（秒转毫秒）
+ */
+const MILLISECONDS_PER_SECOND = 1000;
+
+/**
+ * 默认目标金额（港币）
+ * 当配置中未指定目标金额或目标金额无效时，使用此默认值计算买入数量
+ */
+const DEFAULT_TARGET_NOTIONAL = 5000;
+
+/**
+ * 默认每手股数
+ * 当信号和配置中都未指定有效的每手股数时，使用此默认值
+ * 港股市场常见的每手股数为 100 股
+ */
+const DEFAULT_LOT_SIZE = 100;
 
 const DEFAULT_ORDER_CONFIG: OrderOptions = {
   symbol: TRADING_CONFIG.longSymbol || '',
@@ -51,36 +68,34 @@ const toDecimal = (value: unknown): Decimal => {
   return Decimal.ZERO();
 };
 
-export class OrderExecutor {
-  private readonly _orderOptions: OrderOptions;
-  private readonly _lastBuyTime: Map<string, number>;
+/**
+ * 创建订单执行器
+ * @param deps 依赖注入
+ * @returns OrderExecutor 接口实例
+ */
+export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
+  const { ctxPromise, rateLimiter, cacheManager, orderMonitor } = deps;
 
-  constructor(
-    private readonly ctxPromise: Promise<TradeContext>,
-    private readonly rateLimiter: RateLimiter,
-    private readonly cacheManager: OrderCacheManager,
-    private readonly orderMonitor: OrderMonitor,
-  ) {
-    // 规范化港股代码（不可变方式）
-    const normalizedSymbol = DEFAULT_ORDER_CONFIG.symbol
-      ? normalizeHKSymbol(DEFAULT_ORDER_CONFIG.symbol)
-      : '';
+  // 规范化港股代码（不可变方式）
+  const normalizedSymbol = DEFAULT_ORDER_CONFIG.symbol
+    ? normalizeHKSymbol(DEFAULT_ORDER_CONFIG.symbol)
+    : '';
 
-    this._orderOptions = {
-      ...DEFAULT_ORDER_CONFIG,
-      symbol: normalizedSymbol,
-    };
+  const orderOptions: OrderOptions = {
+    ...DEFAULT_ORDER_CONFIG,
+    symbol: normalizedSymbol,
+  };
 
-    // 记录每个方向标的的最后买入时间
-    this._lastBuyTime = new Map();
-  }
+  // 闭包捕获的私有状态
+  // 记录每个方向标的的最后买入时间
+  const lastBuyTime = new Map<string, number>();
 
   /**
    * 检查是否可以交易（仅对买入操作进行频率检查）
    * @param signalAction 信号类型
    * @returns 交易检查结果，包含是否可以交易、需要等待的秒数等信息
    */
-  canTradeNow(signalAction: string): TradeCheckResult {
+  const canTradeNow = (signalAction: string): TradeCheckResult => {
     // 卖出操作不触发频率限制
     if (signalAction === 'SELLCALL' || signalAction === 'SELLPUT') {
       return { canTrade: true };
@@ -89,7 +104,7 @@ export class OrderExecutor {
     // 确定方向：BUYCALL 是 LONG，BUYPUT 是 SHORT
     const direction: 'LONG' | 'SHORT' = signalAction === 'BUYCALL' ? 'LONG' : 'SHORT';
 
-    const lastTime = this._lastBuyTime.get(direction);
+    const lastTime = lastBuyTime.get(direction);
 
     if (!lastTime) {
       return { canTrade: true };
@@ -97,39 +112,39 @@ export class OrderExecutor {
 
     const now = Date.now();
     const timeDiff = now - lastTime;
-    const intervalMs = (TRADING_CONFIG.buyIntervalSeconds ?? 60) * 1000;
+    const intervalMs = (TRADING_CONFIG.buyIntervalSeconds ?? 60) * MILLISECONDS_PER_SECOND;
 
     if (timeDiff >= intervalMs) {
       return { canTrade: true };
     }
 
-    const waitSeconds = Math.ceil((intervalMs - timeDiff) / 1000);
+    const waitSeconds = Math.ceil((intervalMs - timeDiff) / MILLISECONDS_PER_SECOND);
     return {
       canTrade: false,
       waitSeconds,
       direction,
       reason: `需等待 ${waitSeconds} 秒`,
     };
-  }
+  };
 
   /**
    * 更新方向标的的最后买入时间
    */
-  private _updateLastBuyTime(signalAction: string): void {
+  const updateLastBuyTime = (signalAction: string): void => {
     if (signalAction === 'BUYCALL' || signalAction === 'BUYPUT') {
       const direction = signalAction === 'BUYCALL' ? 'LONG' : 'SHORT';
-      this._lastBuyTime.set(direction, Date.now());
+      lastBuyTime.set(direction, Date.now());
     }
-  }
+  };
 
   /**
    * 根据信号类型和订单方向获取操作描述
    */
-  private _getActionDescription(
+  const getActionDescription = (
     signalAction: string,
     isShortSymbol: boolean,
     side: typeof OrderSide[keyof typeof OrderSide],
-  ): string {
+  ): string => {
     if (signalAction === 'BUYCALL') {
       return '买入做多标的（做多）';
     }
@@ -152,181 +167,16 @@ export class OrderExecutor {
     return side === OrderSide.Buy
       ? '买入做多标的（做多）'
       : '卖出做多标的（清仓）';
-  }
-
-  /**
-   * 根据策略信号提交订单
-   * @param signals 信号数组
-   */
-  async executeSignals(signals: Signal[]): Promise<void> {
-    const ctx = await this.ctxPromise;
-    const longSymbol = normalizeHKSymbol(TRADING_CONFIG.longSymbol);
-    const shortSymbol = normalizeHKSymbol(TRADING_CONFIG.shortSymbol);
-
-    for (const s of signals) {
-      // 验证信号对象
-      if (!s || typeof s !== 'object') {
-        logger.warn(`[跳过信号] 无效的信号对象: ${JSON.stringify(s)}`);
-        continue;
-      }
-
-      if (!s.symbol || typeof s.symbol !== 'string') {
-        logger.warn(`[跳过信号] 信号缺少有效的标的代码: ${JSON.stringify(s)}`);
-        continue;
-      }
-
-      if (s.action === 'HOLD') {
-        logger.info(`[HOLD] ${s.symbol} - ${s.reason || '持有'}`);
-        continue;
-      }
-
-      // 验证信号类型
-      const validActions = ['BUYCALL', 'SELLCALL', 'BUYPUT', 'SELLPUT'];
-      if (!validActions.includes(s.action)) {
-        logger.warn(
-          `[跳过信号] 未知的信号类型: ${s.action}, 标的: ${s.symbol}`,
-        );
-        continue;
-      }
-
-      const normalizedSignalSymbol = normalizeHKSymbol(s.symbol);
-      const isShortSymbol = normalizedSignalSymbol === shortSymbol;
-      const targetSymbol = isShortSymbol ? shortSymbol : longSymbol;
-
-      // 根据信号类型显示操作描述
-      let actualAction = '';
-      if (s.action === 'BUYCALL') {
-        actualAction = '买入做多标的（做多）';
-      } else if (s.action === 'SELLCALL') {
-        actualAction = '卖出做多标的（平仓）';
-      } else if (s.action === 'BUYPUT') {
-        actualAction = '买入做空标的（做空）';
-      } else if (s.action === 'SELLPUT') {
-        actualAction = '卖出做空标的（平仓）';
-      } else {
-        actualAction = `未知操作(${s.action})`;
-      }
-
-      // 使用绿色显示交易计划
-      logger.info(
-        `${colors.green}[交易计划] ${actualAction} ${targetSymbol} - ${
-          s.reason || '策略信号'
-        }${colors.reset}`,
-      );
-
-      await this._submitTargetOrder(ctx, s, targetSymbol, isShortSymbol);
-
-      // 如果发起了买入交易，启用监控
-      if (isBuyAction(s.action)) {
-        this.orderMonitor.enableMonitoring();
-        logger.info('[订单监控] 已发起买入交易，开始监控买入订单');
-      }
-    }
-  }
-
-  /**
-   * 提交目标订单
-   */
-  private async _submitTargetOrder(
-    ctx: TradeContext,
-    signal: Signal,
-    targetSymbol: string,
-    isShortSymbol: boolean = false,
-  ): Promise<void> {
-    // 验证信号对象
-    if (!signal || typeof signal !== 'object') {
-      logger.error(`[订单提交] 无效的信号对象: ${JSON.stringify(signal)}`);
-      return;
-    }
-
-    if (!signal.symbol || typeof signal.symbol !== 'string') {
-      logger.error(
-        `[订单提交] 信号缺少有效的标的代码: ${JSON.stringify(signal)}`,
-      );
-      return;
-    }
-
-    // 根据信号类型转换为订单方向
-    let side: typeof OrderSide[keyof typeof OrderSide];
-    if (signal.action === 'BUYCALL') {
-      side = OrderSide.Buy;
-    } else if (signal.action === 'SELLCALL') {
-      side = OrderSide.Sell;
-    } else if (signal.action === 'BUYPUT') {
-      side = OrderSide.Buy;
-    } else if (signal.action === 'SELLPUT') {
-      side = OrderSide.Sell;
-    } else {
-      logger.error(
-        `[订单提交] 未知的信号类型: ${signal.action}, 标的: ${signal.symbol}`,
-      );
-      return;
-    }
-
-    const {
-      quantity,
-      targetNotional,
-      orderType,
-      timeInForce,
-      remark,
-      price: overridePrice,
-    } = this._orderOptions;
-    const symbol = targetSymbol;
-
-    // 检查信号是否要求使用市价单
-    const useMarketOrder = signal.useMarketOrder === true;
-
-    let submittedQtyDecimal: Decimal;
-
-    // 判断是否需要清仓
-    const needClosePosition =
-      signal.action === 'SELLCALL' || signal.action === 'SELLPUT';
-
-    if (needClosePosition) {
-      submittedQtyDecimal = await this._calculateSellQuantity(
-        ctx,
-        symbol,
-        signal,
-      );
-      if (submittedQtyDecimal.isZero()) {
-        return;
-      }
-    } else {
-      submittedQtyDecimal = this._calculateBuyQuantity(
-        signal,
-        isShortSymbol,
-        overridePrice,
-        quantity,
-        targetNotional,
-      );
-      if (submittedQtyDecimal.isZero()) {
-        return;
-      }
-    }
-
-    await this._submitOrder(
-      ctx,
-      signal,
-      symbol,
-      side,
-      submittedQtyDecimal,
-      useMarketOrder,
-      orderType,
-      timeInForce,
-      remark,
-      overridePrice,
-      isShortSymbol,
-    );
-  }
+  };
 
   /**
    * 计算卖出数量
    */
-  private async _calculateSellQuantity(
+  const calculateSellQuantity = async (
     ctx: TradeContext,
     symbol: string,
     signal: Signal,
-  ): Promise<Decimal> {
+  ): Promise<Decimal> => {
     let targetQuantity: number | null = null;
     if (isDefined(signal.quantity)) {
       const signalQty = Number(signal.quantity);
@@ -335,7 +185,7 @@ export class OrderExecutor {
       }
     }
 
-    await this.rateLimiter.throttle();
+    await rateLimiter.throttle();
     const resp = await ctx.stockPositions([symbol]);
     const channels = resp?.channels ?? [];
     let totalAvailable = 0;
@@ -367,18 +217,18 @@ export class OrderExecutor {
       );
       return toDecimal(actualQty);
     }
-  }
+  };
 
   /**
    * 计算买入数量
    */
-  private _calculateBuyQuantity(
+  const calculateBuyQuantity = (
     signal: Signal,
     isShortSymbol: boolean,
     overridePrice: number | undefined,
     quantity: number,
     targetNotional: number,
-  ): Decimal {
+  ): Decimal => {
     const pricingSource = overridePrice ?? signal?.price ?? null;
     if (!Number.isFinite(Number(pricingSource)) || Number(pricingSource) <= 0) {
       logger.warn(
@@ -399,7 +249,7 @@ export class OrderExecutor {
         Number.isFinite(Number(targetNotional)) &&
         targetNotional > 0
         ? targetNotional
-        : 5000,
+        : DEFAULT_TARGET_NOTIONAL,
     );
     const priceNum = Number(pricingSource);
 
@@ -424,9 +274,9 @@ export class OrderExecutor {
       }
     }
 
-    // 如果配置中的值也无效，使用默认值 100
+    // 如果配置中的值也无效，使用默认值
     if (!Number.isFinite(lotSize) || lotSize <= 0) {
-      lotSize = 100;
+      lotSize = DEFAULT_LOT_SIZE;
     }
 
     // 此时 lotSize 一定是有效的正数
@@ -446,115 +296,20 @@ export class OrderExecutor {
     );
 
     return toDecimal(rawQty);
-  }
-
-  /**
-   * 提交订单（核心方法）
-   */
-  private async _submitOrder(
-    ctx: TradeContext,
-    signal: Signal,
-    symbol: string,
-    side: typeof OrderSide[keyof typeof OrderSide],
-    submittedQtyDecimal: Decimal,
-    useMarketOrder: boolean,
-    orderType: typeof OrderType[keyof typeof OrderType],
-    timeInForce: typeof TimeInForceType[keyof typeof TimeInForceType],
-    remark: string | undefined,
-    overridePrice: number | undefined,
-    isShortSymbol: boolean,
-  ): Promise<void> {
-    // 确定实际使用的订单类型
-    const actualOrderType = useMarketOrder ? OrderType.MO : orderType;
-
-    const resolvedPrice = overridePrice ?? signal?.price ?? null;
-
-    // 市价单不需要价格
-    if (actualOrderType === OrderType.MO) {
-      logger.info(`[订单类型] 使用市价单(MO)进行保护性清仓，标的=${symbol}`);
-    } else if (
-      actualOrderType === OrderType.LO ||
-      actualOrderType === OrderType.ELO ||
-      actualOrderType === OrderType.ALO ||
-      actualOrderType === OrderType.SLO
-    ) {
-      if (!resolvedPrice) {
-        logger.warn(
-          `[跳过订单] ${symbol} 的增强限价单缺少价格，无法提交。请确保信号中包含价格信息或配置 orderOptions.price`,
-        );
-        return;
-      }
-      logger.info(
-        `[订单类型] 使用增强限价单(ELO)，标的=${symbol}，价格=${resolvedPrice}`,
-      );
-    }
-
-    // 构建订单载荷（不可变方式，一次性创建包含所有字段的对象）
-    const orderPayload: OrderPayload = {
-      symbol,
-      orderType: actualOrderType,
-      side,
-      timeInForce,
-      submittedQuantity: submittedQtyDecimal,
-      // 仅在需要时添加价格字段
-      ...(resolvedPrice && actualOrderType !== OrderType.MO && { submittedPrice: toDecimal(resolvedPrice) }),
-      // 仅在有备注时添加备注字段
-      ...(remark && { remark: `${remark}`.slice(0, 60) }),
-    };
-
-    try {
-      await this.rateLimiter.throttle();
-      const resp = await ctx.submitOrder(orderPayload);
-
-      this.cacheManager.clearCache();
-
-      const orderId =
-        (resp as { orderId?: string })?.orderId ?? resp?.toString?.() ?? resp ?? 'UNKNOWN_ORDER_ID';
-
-      const actionDesc = this._getActionDescription(
-        signal.action,
-        isShortSymbol,
-        side,
-      );
-
-      logger.info(
-        `[订单提交成功] ${actionDesc} ${
-          orderPayload.symbol
-        } 数量=${orderPayload.submittedQuantity.toString()} 订单ID=${orderId}`,
-      );
-
-      this._updateLastBuyTime(signal.action);
-
-      recordTrade({
-        orderId: String(orderId),
-        symbol: orderPayload.symbol,
-        symbolName: signal.symbolName || null,
-        action: actionDesc,
-        side: signal.action || (side === OrderSide.Buy ? 'BUY' : 'SELL'),
-        quantity: orderPayload.submittedQuantity.toString(),
-        price: orderPayload.submittedPrice?.toString() || '市价',
-        orderType: actualOrderType === OrderType.MO ? '市价单' : '限价单',
-        status: 'SUBMITTED',
-        reason: signal.reason || '策略信号',
-        signalTriggerTime: signal.signalTriggerTime || null,
-      });
-    } catch (err) {
-      this._handleSubmitError(err, signal, orderPayload, side, isShortSymbol, actualOrderType);
-    }
-  }
+  };
 
   /**
    * 处理订单提交错误
    */
-  private _handleSubmitError(
+  const handleSubmitError = (
     err: unknown,
     signal: Signal,
     orderPayload: OrderPayload,
     side: typeof OrderSide[keyof typeof OrderSide],
     isShortSymbol: boolean,
     actualOrderType: typeof OrderType[keyof typeof OrderType],
-  ): void {
-    const actionDesc = this._getActionDescription(
+  ): void => {
+    const actionDesc = getActionDescription(
       signal.action,
       isShortSymbol,
       side,
@@ -613,5 +368,270 @@ export class OrderExecutor {
       reason: signal.reason || '策略信号',
       signalTriggerTime: signal.signalTriggerTime || null,
     });
-  }
-}
+  };
+
+  /**
+   * 提交订单（核心方法）
+   */
+  const submitOrder = async (
+    ctx: TradeContext,
+    signal: Signal,
+    symbol: string,
+    side: typeof OrderSide[keyof typeof OrderSide],
+    submittedQtyDecimal: Decimal,
+    useMarketOrder: boolean,
+    orderTypeParam: typeof OrderType[keyof typeof OrderType],
+    timeInForce: typeof TimeInForceType[keyof typeof TimeInForceType],
+    remark: string | undefined,
+    overridePrice: number | undefined,
+    isShortSymbol: boolean,
+  ): Promise<void> => {
+    // 确定实际使用的订单类型
+    const actualOrderType = useMarketOrder ? OrderType.MO : orderTypeParam;
+
+    const resolvedPrice = overridePrice ?? signal?.price ?? null;
+
+    // 市价单不需要价格
+    if (actualOrderType === OrderType.MO) {
+      logger.info(`[订单类型] 使用市价单(MO)进行保护性清仓，标的=${symbol}`);
+    } else if (
+      actualOrderType === OrderType.LO ||
+      actualOrderType === OrderType.ELO ||
+      actualOrderType === OrderType.ALO ||
+      actualOrderType === OrderType.SLO
+    ) {
+      if (!resolvedPrice) {
+        logger.warn(
+          `[跳过订单] ${symbol} 的增强限价单缺少价格，无法提交。请确保信号中包含价格信息或配置 orderOptions.price`,
+        );
+        return;
+      }
+      logger.info(
+        `[订单类型] 使用增强限价单(ELO)，标的=${symbol}，价格=${resolvedPrice}`,
+      );
+    }
+
+    // 构建订单载荷（不可变方式，一次性创建包含所有字段的对象）
+    const orderPayload: OrderPayload = {
+      symbol,
+      orderType: actualOrderType,
+      side,
+      timeInForce,
+      submittedQuantity: submittedQtyDecimal,
+      // 仅在需要时添加价格字段
+      ...(resolvedPrice && actualOrderType !== OrderType.MO && { submittedPrice: toDecimal(resolvedPrice) }),
+      // 仅在有备注时添加备注字段
+      ...(remark && { remark: `${remark}`.slice(0, 60) }),
+    };
+
+    try {
+      await rateLimiter.throttle();
+      const resp = await ctx.submitOrder(orderPayload);
+
+      cacheManager.clearCache();
+
+      const orderId =
+        (resp as { orderId?: string })?.orderId ?? resp?.toString?.() ?? resp ?? 'UNKNOWN_ORDER_ID';
+
+      const actionDesc = getActionDescription(
+        signal.action,
+        isShortSymbol,
+        side,
+      );
+
+      logger.info(
+        `[订单提交成功] ${actionDesc} ${
+          orderPayload.symbol
+        } 数量=${orderPayload.submittedQuantity.toString()} 订单ID=${orderId}`,
+      );
+
+      updateLastBuyTime(signal.action);
+
+      recordTrade({
+        orderId: String(orderId),
+        symbol: orderPayload.symbol,
+        symbolName: signal.symbolName || null,
+        action: actionDesc,
+        side: signal.action || (side === OrderSide.Buy ? 'BUY' : 'SELL'),
+        quantity: orderPayload.submittedQuantity.toString(),
+        price: orderPayload.submittedPrice?.toString() || '市价',
+        orderType: actualOrderType === OrderType.MO ? '市价单' : '限价单',
+        status: 'SUBMITTED',
+        reason: signal.reason || '策略信号',
+        signalTriggerTime: signal.signalTriggerTime || null,
+      });
+    } catch (err) {
+      handleSubmitError(err, signal, orderPayload, side, isShortSymbol, actualOrderType);
+    }
+  };
+
+  /**
+   * 提交目标订单
+   */
+  const submitTargetOrder = async (
+    ctx: TradeContext,
+    signal: Signal,
+    targetSymbol: string,
+    isShortSymbol: boolean = false,
+  ): Promise<void> => {
+    // 验证信号对象
+    if (!signal || typeof signal !== 'object') {
+      logger.error(`[订单提交] 无效的信号对象: ${JSON.stringify(signal)}`);
+      return;
+    }
+
+    if (!signal.symbol || typeof signal.symbol !== 'string') {
+      logger.error(
+        `[订单提交] 信号缺少有效的标的代码: ${JSON.stringify(signal)}`,
+      );
+      return;
+    }
+
+    // 根据信号类型转换为订单方向
+    let side: typeof OrderSide[keyof typeof OrderSide];
+    if (signal.action === 'BUYCALL') {
+      side = OrderSide.Buy;
+    } else if (signal.action === 'SELLCALL') {
+      side = OrderSide.Sell;
+    } else if (signal.action === 'BUYPUT') {
+      side = OrderSide.Buy;
+    } else if (signal.action === 'SELLPUT') {
+      side = OrderSide.Sell;
+    } else {
+      logger.error(
+        `[订单提交] 未知的信号类型: ${signal.action}, 标的: ${signal.symbol}`,
+      );
+      return;
+    }
+
+    const {
+      quantity,
+      targetNotional,
+      orderType,
+      timeInForce,
+      remark,
+      price: overridePrice,
+    } = orderOptions;
+    const symbol = targetSymbol;
+
+    // 检查信号是否要求使用市价单
+    const useMarketOrder = signal.useMarketOrder === true;
+
+    let submittedQtyDecimal: Decimal;
+
+    // 判断是否需要清仓
+    const needClosePosition =
+      signal.action === 'SELLCALL' || signal.action === 'SELLPUT';
+
+    if (needClosePosition) {
+      submittedQtyDecimal = await calculateSellQuantity(
+        ctx,
+        symbol,
+        signal,
+      );
+      if (submittedQtyDecimal.isZero()) {
+        return;
+      }
+    } else {
+      submittedQtyDecimal = calculateBuyQuantity(
+        signal,
+        isShortSymbol,
+        overridePrice,
+        quantity,
+        targetNotional,
+      );
+      if (submittedQtyDecimal.isZero()) {
+        return;
+      }
+    }
+
+    await submitOrder(
+      ctx,
+      signal,
+      symbol,
+      side,
+      submittedQtyDecimal,
+      useMarketOrder,
+      orderType,
+      timeInForce,
+      remark,
+      overridePrice,
+      isShortSymbol,
+    );
+  };
+
+  /**
+   * 根据策略信号提交订单
+   * @param signals 信号数组
+   */
+  const executeSignals = async (signals: Signal[]): Promise<void> => {
+    const ctx = await ctxPromise;
+    const longSymbol = normalizeHKSymbol(TRADING_CONFIG.longSymbol);
+    const shortSymbol = normalizeHKSymbol(TRADING_CONFIG.shortSymbol);
+
+    for (const s of signals) {
+      // 验证信号对象
+      if (!s || typeof s !== 'object') {
+        logger.warn(`[跳过信号] 无效的信号对象: ${JSON.stringify(s)}`);
+        continue;
+      }
+
+      if (!s.symbol || typeof s.symbol !== 'string') {
+        logger.warn(`[跳过信号] 信号缺少有效的标的代码: ${JSON.stringify(s)}`);
+        continue;
+      }
+
+      if (s.action === 'HOLD') {
+        logger.info(`[HOLD] ${s.symbol} - ${s.reason || '持有'}`);
+        continue;
+      }
+
+      // 验证信号类型
+      const validActions = ['BUYCALL', 'SELLCALL', 'BUYPUT', 'SELLPUT'];
+      if (!validActions.includes(s.action)) {
+        logger.warn(
+          `[跳过信号] 未知的信号类型: ${s.action}, 标的: ${s.symbol}`,
+        );
+        continue;
+      }
+
+      const normalizedSignalSymbol = normalizeHKSymbol(s.symbol);
+      const isShortSymbol = normalizedSignalSymbol === shortSymbol;
+      const targetSymbol = isShortSymbol ? shortSymbol : longSymbol;
+
+      // 根据信号类型显示操作描述
+      let actualAction = '';
+      if (s.action === 'BUYCALL') {
+        actualAction = '买入做多标的（做多）';
+      } else if (s.action === 'SELLCALL') {
+        actualAction = '卖出做多标的（平仓）';
+      } else if (s.action === 'BUYPUT') {
+        actualAction = '买入做空标的（做空）';
+      } else if (s.action === 'SELLPUT') {
+        actualAction = '卖出做空标的（平仓）';
+      } else {
+        actualAction = `未知操作(${s.action})`;
+      }
+
+      // 使用绿色显示交易计划
+      logger.info(
+        `${colors.green}[交易计划] ${actualAction} ${targetSymbol} - ${
+          s.reason || '策略信号'
+        }${colors.reset}`,
+      );
+
+      await submitTargetOrder(ctx, s, targetSymbol, isShortSymbol);
+
+      // 如果发起了买入交易，启用监控
+      if (isBuyAction(s.action)) {
+        orderMonitor.enableMonitoring();
+        logger.info('[订单监控] 已发起买入交易，开始监控买入订单');
+      }
+    }
+  };
+
+  return {
+    canTradeNow,
+    executeSignals,
+  };
+};

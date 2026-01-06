@@ -21,14 +21,14 @@
  */
 
 import { createConfig } from './config/config.index.js';
-import { HangSengMultiIndicatorStrategy } from './core/strategy/index.js';
-import { Trader } from './core/trader/index.js';
+import { createHangSengMultiIndicatorStrategy } from './core/strategy/index.js';
+import { createTrader } from './core/trader/index.js';
 import { buildIndicatorSnapshot } from './services/indicators/index.js';
-import { RiskChecker } from './core/risk/index.js';
+import { createRiskChecker } from './core/risk/index.js';
 import { TRADING_CONFIG } from './config/config.trading.js';
 import { logger } from './utils/logger.js';
 import { validateAllConfig } from './config/config.validator.js';
-import { OrderRecorder } from './core/orderRecorder/index.js';
+import { createOrderRecorder } from './core/orderRecorder/index.js';
 import {
   positionObjectPool,
   signalObjectPool,
@@ -42,11 +42,11 @@ import { validateEmaPeriod } from './utils/indicatorHelpers.js';
 // 导入新模块
 import { isInContinuousHKSession } from './utils/tradingTime.js';
 import { displayAccountAndPositions } from './utils/accountDisplay.js';
-import { MarketMonitor } from './core/marketMonitor/index.js';
-import { DoomsdayProtection } from './core/doomsdayProtection/index.js';
-import { UnrealizedLossMonitor } from './core/unrealizedLossMonitor/index.js';
-import { SignalVerificationManager } from './core/signalVerification/index.js';
-import { SignalProcessor } from './core/signalProcessor/index.js';
+import { createMarketMonitor } from './core/marketMonitor/index.js';
+import { createDoomsdayProtection } from './core/doomsdayProtection/index.js';
+import { createUnrealizedLossMonitor } from './core/unrealizedLossMonitor/index.js';
+import { createSignalVerificationManager } from './core/signalVerification/index.js';
+import { createSignalProcessor } from './core/signalProcessor/index.js';
 import type { MarketDataClient } from './services/quoteClient/index.js';
 import type {
   CandleData,
@@ -57,6 +57,15 @@ import type {
   LastState,
   ValidateAllConfigResult,
 } from './types/index.js';
+import type { HangSengMultiIndicatorStrategy } from './core/strategy/type.js';
+import type { MarketMonitor } from './core/marketMonitor/type.js';
+import type { DoomsdayProtection } from './core/doomsdayProtection/type.js';
+import type { SignalVerificationManager } from './core/signalVerification/type.js';
+import type { Trader } from './core/trader/type.js';
+import type { OrderRecorder } from './core/orderRecorder/type.js';
+import type { RiskChecker } from './core/risk/type.js';
+import type { UnrealizedLossMonitor } from './core/unrealizedLossMonitor/type.js';
+import type { SignalProcessor } from './core/signalProcessor/type.js';
 
 /**
  * 运行上下文接口
@@ -155,9 +164,32 @@ const NORMALIZED_SHORT_SYMBOL = normalizeHKSymbol(SHORT_SYMBOL);
 const NORMALIZED_MONITOR_SYMBOL = normalizeHKSymbol(MONITOR_SYMBOL);
 
 // K线和循环配置常量
+/**
+ * K线周期
+ * 获取 K 线数据的时间周期，'1m' 表示1分钟K线
+ */
 const CANDLE_PERIOD = '1m';
+
+/**
+ * K线数量
+ * 每次获取的 K 线数据条数
+ * 用于计算技术指标（RSI、KDJ、MACD等）需要足够的历史数据
+ */
 const CANDLE_COUNT = 200;
-const INTERVAL_MS = 1000;
+
+/**
+ * 每秒的毫秒数
+ * 用于时间单位转换（秒转毫秒）
+ * 主循环每秒执行一次，间隔时间为1秒 = 1000毫秒
+ */
+const MILLISECONDS_PER_SECOND = 1000;
+
+/**
+ * 主循环执行间隔（毫秒）
+ * 系统主循环每次执行后等待的时间间隔
+ * 设置为1秒，确保每秒执行一次交易逻辑检查
+ */
+const INTERVAL_MS = MILLISECONDS_PER_SECOND;
 
 /**
  * 格式化日期为 YYYY-MM-DD 字符串
@@ -527,14 +559,14 @@ async function runOnce({
     positions.length > 0
   ) {
     // 生成清仓信号
-    finalSignals = doomsdayProtection.generateClearanceSignals(
+    finalSignals = [...doomsdayProtection.generateClearanceSignals(
       positions,
       longQuote,
       shortQuote,
       LONG_SYMBOL,
       SHORT_SYMBOL,
       isHalfDayToday,
-    );
+    )];
   } else if (validSignals.length > 0 && canTradeNow) {
     // 正常交易信号处理：应用风险检查
     const context = {
@@ -701,8 +733,8 @@ async function runOnce({
 async function sleep(ms: number): Promise<void> {
   const delay = Number(ms);
   if (!Number.isFinite(delay) || delay < 0) {
-    logger.warn(`[sleep] 无效的延迟时间 ${ms}，使用默认值 1000ms`);
-    return new Promise((resolve) => setTimeout(resolve, 1000));
+    logger.warn(`[sleep] 无效的延迟时间 ${ms}，使用默认值 ${MILLISECONDS_PER_SECOND}ms`);
+    return new Promise((resolve) => setTimeout(resolve, MILLISECONDS_PER_SECOND));
   }
   return new Promise((resolve) => setTimeout(resolve, delay));
 }
@@ -726,24 +758,24 @@ async function main(): Promise<void> {
 
   // 使用配置验证返回的标的名称和行情客户端实例
   const { marketDataClient } = symbolNames;
-  const strategy = new HangSengMultiIndicatorStrategy({
+  const strategy = createHangSengMultiIndicatorStrategy({
     signalConfig: TRADING_CONFIG.signalConfig,
     verificationConfig: TRADING_CONFIG.verificationConfig,
   });
-  const trader = await Trader.create(config);
-  const orderRecorder = new OrderRecorder(trader);
-  const riskChecker = new RiskChecker();
+  const trader = await createTrader({ config });
+  const orderRecorder = createOrderRecorder({ trader });
+  const riskChecker = createRiskChecker();
 
   // 初始化新模块实例
-  const marketMonitor = new MarketMonitor();
-  const doomsdayProtection = new DoomsdayProtection();
-  const unrealizedLossMonitor = new UnrealizedLossMonitor(
-    TRADING_CONFIG.maxUnrealizedLossPerSymbol ?? 0,
-  );
-  const signalVerificationManager = new SignalVerificationManager(
+  const marketMonitor = createMarketMonitor();
+  const doomsdayProtection = createDoomsdayProtection();
+  const unrealizedLossMonitor = createUnrealizedLossMonitor({
+    maxUnrealizedLossPerSymbol: TRADING_CONFIG.maxUnrealizedLossPerSymbol ?? 0,
+  });
+  const signalVerificationManager = createSignalVerificationManager(
     TRADING_CONFIG.verificationConfig ?? { delaySeconds: 60, indicators: ['K', 'MACD'] },
   );
-  const signalProcessor = new SignalProcessor();
+  const signalProcessor = createSignalProcessor();
 
   logger.info('程序开始运行，在交易时段将进行实时监控和交易（按 Ctrl+C 退出）');
 

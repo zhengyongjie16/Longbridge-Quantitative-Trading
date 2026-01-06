@@ -1,5 +1,5 @@
 /**
- * 订单记录模块（门面类）
+ * 订单记录模块（门面模式）
  *
  * 功能：
  * - 跟踪已成交的买入/卖出订单
@@ -26,287 +26,30 @@ import {
   normalizeHKSymbol,
   getDirectionName,
 } from '../../utils/helpers.js';
-import type { Trader } from '../trader/index.js';
 import type {
   OrderRecord,
   FetchOrdersResult,
   OrderStatistics,
+  OrderRecorder,
+  OrderRecorderDeps,
 } from './type.js';
 import type { PendingOrder } from '../type.js';
-import { OrderStorage } from './orderStorage.js';
-import { OrderAPIManager } from './orderAPIManager.js';
-import { OrderFilteringEngine } from './orderFilteringEngine.js';
+import { createOrderStorage } from './orderStorage.js';
+import { createOrderAPIManager } from './orderAPIManager.js';
+import { createOrderFilteringEngine } from './orderFilteringEngine.js';
 
-export class OrderRecorder {
-  private readonly _storage: OrderStorage;
-  private readonly _apiManager: OrderAPIManager;
-  private readonly _filteringEngine: OrderFilteringEngine;
+/**
+ * 创建订单记录器（门面模式）
+ * @param deps 依赖注入
+ * @returns OrderRecorder 接口实例
+ */
+export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
+  const trader = deps.trader;
 
-  constructor(trader: Trader) {
-    // 按依赖顺序初始化子模块
-    this._storage = new OrderStorage();
-    this._apiManager = new OrderAPIManager(trader._ctxPromise);
-    this._filteringEngine = new OrderFilteringEngine();
-  }
-
-  // ============================================
-  // 公有方法 - 订单记录操作
-  // ============================================
-
-  /**
-   * 记录一笔新的买入订单（仅在程序运行期间本地更新，不调用 API）
-   * @param symbol 标的代码
-   * @param executedPrice 成交价
-   * @param executedQuantity 成交数量
-   * @param isLongSymbol 是否为做多标的
-   */
-  recordLocalBuy(
-    symbol: string,
-    executedPrice: number,
-    executedQuantity: number,
-    isLongSymbol: boolean,
-  ): void {
-    const price = Number(executedPrice);
-    const quantity = Number(executedQuantity);
-
-    if (!this._validateOrderParams(price, quantity, symbol)) {
-      return;
-    }
-
-    this._storage.addBuyOrder(symbol, price, quantity, isLongSymbol);
-    this._debugOutputOrders(symbol, isLongSymbol);
-  }
-
-  /**
-   * 根据一笔新的卖出订单，本地更新买入订单记录（不再调用 API）
-   *
-   * 规则：
-   * 1. 如果本地买入记录的总数量 <= 本次卖出数量，认为全部卖出，清空记录
-   * 2. 否则，仅保留成交价 >= 本次卖出价的买入订单
-   *
-   * @param symbol 标的代码
-   * @param executedPrice 卖出成交价
-   * @param executedQuantity 卖出成交数量
-   * @param isLongSymbol 是否为做多标的
-   */
-  recordLocalSell(
-    symbol: string,
-    executedPrice: number,
-    executedQuantity: number,
-    isLongSymbol: boolean,
-  ): void {
-    const price = Number(executedPrice);
-    const quantity = Number(executedQuantity);
-
-    if (!this._validateOrderParams(price, quantity, symbol)) {
-      return;
-    }
-
-    this._storage.updateAfterSell(symbol, price, quantity, isLongSymbol);
-    this._debugOutputOrders(symbol, isLongSymbol);
-  }
-
-  /**
-   * 清空指定标的的买入订单记录（用于保护性清仓等无条件清仓场景）
-   * @param symbol 标的代码
-   * @param isLongSymbol 是否为做多标的
-   */
-  clearBuyOrders(symbol: string, isLongSymbol: boolean): void {
-    this._storage.clearBuyOrders(symbol, isLongSymbol);
-  }
-
-  /**
-   * 获取最新买入订单的成交价（用于买入价格限制检查）
-   * @param symbol 标的代码
-   * @param isLongSymbol 是否为做多标的
-   * @returns 最新买入订单的成交价，如果没有订单则返回null
-   */
-  getLatestBuyOrderPrice(symbol: string, isLongSymbol: boolean): number | null {
-    return this._storage.getLatestBuyOrderPrice(symbol, isLongSymbol);
-  }
-
-  /**
-   * 根据当前价格获取做多标的或做空标的中买入价低于当前价的订单
-   * @param currentPrice 当前价格
-   * @param direction 方向标识，'LONG' 表示做多标的，'SHORT' 表示做空标的
-   * @returns 符合条件的订单列表
-   */
-  getBuyOrdersBelowPrice(
-    currentPrice: number,
-    direction: 'LONG' | 'SHORT',
-  ): OrderRecord[] {
-    return this._storage.getBuyOrdersBelowPrice(currentPrice, direction);
-  }
-
-  /**
-   * 计算订单列表的总成交数量
-   * @param orders 订单列表
-   * @returns 总成交数量
-   */
-  calculateTotalQuantity(orders: OrderRecord[]): number {
-    return this._storage.calculateTotalQuantity(orders);
-  }
-
-  // ============================================
-  // 公有方法 - 订单获取和刷新
-  // ============================================
-
-  /**
-   * 从API获取并转换订单数据（公开方法，用于启动时或需要强制刷新时调用）
-   * 调用此方法会同时从历史订单和今日订单API获取数据，合并并去重后更新缓存
-   * @param symbol 标的代码
-   * @returns 返回已转换的买入和卖出订单
-   */
-  async fetchOrdersFromAPI(symbol: string): Promise<FetchOrdersResult> {
-    return await this._apiManager.fetchOrdersFromAPI(symbol);
-  }
-
-  /**
-   * 刷新订单记录（用于智能清仓决策）
-   * 过滤逻辑：
-   * 1. 获取历史所有买入订单（已成交）
-   * 2. 获取历史所有卖出订单（已成交）
-   * 3. 如果没有卖出订单，记录所有买入订单
-   * 4. 如果有卖出订单，应用复杂的过滤算法
-   * @param symbol 标的代码
-   * @param isLongSymbol 是否为做多标的（true=做多，false=做空）
-   * @returns 记录的订单列表
-   */
-  async refreshOrders(
-    symbol: string,
-    isLongSymbol: boolean,
-  ): Promise<OrderRecord[]> {
-    try {
-      const normalizedSymbol = normalizeHKSymbol(symbol);
-      const { buyOrders: allBuyOrders, sellOrders: filledSellOrders } =
-        await this._apiManager.fetchOrdersFromAPI(symbol);
-
-      // 如果没有买入订单，直接返回空列表
-      if (allBuyOrders.length === 0) {
-        this._storage.setBuyOrdersList(normalizedSymbol, isLongSymbol, []);
-        this._logRefreshResult(
-          normalizedSymbol,
-          isLongSymbol,
-          0,
-          0,
-          0,
-          '历史买入0笔, 无需记录',
-        );
-        return [];
-      }
-
-      // 如果没有卖出订单，记录所有买入订单
-      if (filledSellOrders.length === 0) {
-        this._storage.setBuyOrdersList(
-          normalizedSymbol,
-          isLongSymbol,
-          allBuyOrders,
-        );
-        this._logRefreshResult(
-          normalizedSymbol,
-          isLongSymbol,
-          allBuyOrders.length,
-          0,
-          allBuyOrders.length,
-          '无卖出记录, 记录全部买入订单',
-        );
-        return allBuyOrders;
-      }
-
-      // 应用过滤算法
-      const finalBuyOrders = this._filteringEngine.applyFilteringAlgorithm(
-        allBuyOrders,
-        filledSellOrders,
-      );
-
-      // 更新记录
-      this._storage.setBuyOrdersList(
-        normalizedSymbol,
-        isLongSymbol,
-        finalBuyOrders,
-      );
-      this._logRefreshResult(
-        normalizedSymbol,
-        isLongSymbol,
-        allBuyOrders.length,
-        filledSellOrders.length,
-        finalBuyOrders.length,
-      );
-
-      return finalBuyOrders;
-    } catch (error) {
-      logger.error(
-        `[订单记录失败] 标的 ${symbol}`,
-        (error as Error)?.message ?? String(error),
-      );
-      return [];
-    }
-  }
-
-  // ============================================
-  // 公有方法 - 缓存管理
-  // ============================================
-
-  /**
-   * 检查指定标的的缓存是否存在
-   * @param symbols 标的代码数组
-   * @returns 如果所有标的都有缓存且 allOrders 不为 null，返回 true；否则返回 false
-   */
-  hasCacheForSymbols(symbols: string[]): boolean {
-    return this._apiManager.hasCacheForSymbols(symbols);
-  }
-
-  /**
-   * 从缓存的原始订单中提取未成交订单（用于启动时避免重复调用 todayOrders）
-   * @param symbols 标的代码数组
-   * @returns 未成交订单列表
-   */
-  getPendingOrdersFromCache(symbols: string[]): PendingOrder[] {
-    return this._apiManager.getPendingOrdersFromCache(symbols);
-  }
-
-  // ============================================
-  // 暴露内部状态（用于 RiskChecker）
-  // ============================================
-
-  /**
-   * 获取做多标的的买入订单列表（公共方法）
-   */
-  getLongBuyOrders(): OrderRecord[] {
-    return this._storage.getLongBuyOrders();
-  }
-
-  /**
-   * 获取做空标的的买入订单列表（公共方法）
-   */
-  getShortBuyOrders(): OrderRecord[] {
-    return this._storage.getShortBuyOrders();
-  }
-
-  /**
-   * 获取指定标的的买入订单列表（公共方法）
-   * @param symbol 标的代码
-   * @param isLongSymbol 是否为做多标的
-   */
-  getBuyOrdersForSymbol(symbol: string, isLongSymbol: boolean): OrderRecord[] {
-    const normalizedSymbol = normalizeHKSymbol(symbol);
-    const orders = isLongSymbol
-      ? this._storage.getLongBuyOrders()
-      : this._storage.getShortBuyOrders();
-    return orders.filter((o) => o.symbol === normalizedSymbol);
-  }
-
-  // ============================================
-  // 向后兼容的属性访问器（已弃用，请使用公共方法）
-  // ============================================
-
-  get _longBuyOrders(): OrderRecord[] {
-    return this._storage.getLongBuyOrders();
-  }
-
-  get _shortBuyOrders(): OrderRecord[] {
-    return this._storage.getShortBuyOrders();
-  }
+  // 按依赖顺序初始化子模块
+  const storage = createOrderStorage();
+  const apiManager = createOrderAPIManager({ ctxPromise: trader._ctxPromise });
+  const filteringEngine = createOrderFilteringEngine();
 
   // ============================================
   // 私有方法 - 验证和工具
@@ -314,13 +57,12 @@ export class OrderRecorder {
 
   /**
    * 验证订单参数
-   * @private
    */
-  private _validateOrderParams(
+  const validateOrderParams = (
     price: number,
     quantity: number,
     symbol: string,
-  ): boolean {
+  ): boolean => {
     if (
       !Number.isFinite(price) ||
       price <= 0 ||
@@ -333,7 +75,7 @@ export class OrderRecorder {
       return false;
     }
     return true;
-  }
+  };
 
   // ============================================
   // 私有方法 - 日志和调试
@@ -341,16 +83,15 @@ export class OrderRecorder {
 
   /**
    * 输出刷新结果日志
-   * @private
    */
-  private _logRefreshResult(
+  const logRefreshResult = (
     symbol: string,
     isLongSymbol: boolean,
     originalBuyCount: number,
     sellCount: number,
     recordedCount: number,
     extraInfo?: string,
-  ): void {
+  ): void => {
     const positionType = getDirectionName(isLongSymbol);
 
     if (extraInfo) {
@@ -363,60 +104,14 @@ export class OrderRecorder {
           `最终记录${recordedCount}笔`,
       );
     }
-  }
-
-  /**
-   * 输出订单列表的debug信息（仅在DEBUG模式下）
-   * @private
-   */
-  private _debugOutputOrders(symbol: string, isLongSymbol: boolean): void {
-    if (process.env['DEBUG'] !== 'true') {
-      return;
-    }
-
-    const positionType = getDirectionName(isLongSymbol);
-    const normalizedSymbol = normalizeHKSymbol(symbol);
-    const currentOrders = this._storage.getBuyOrdersList(
-      normalizedSymbol,
-      isLongSymbol,
-    );
-
-    const logLines = [
-      `[订单记录变化] ${positionType} ${normalizedSymbol}: 当前订单列表 (共${currentOrders.length}笔)`,
-    ];
-
-    if (currentOrders.length > 0) {
-      const stats = this._calculateOrderStatistics(currentOrders);
-
-      currentOrders.forEach((order, index) => {
-        const timeStr = this._formatOrderTime(order.executedTime);
-        const priceStr = this._formatPrice(order.executedPrice);
-
-        logLines.push(
-          `  [${index + 1}] 订单ID: ${order.orderId || 'N/A'}, ` +
-            `价格: ${priceStr}, ` +
-            `数量: ${order.executedQuantity}, ` +
-            `成交时间: ${timeStr}`,
-        );
-      });
-
-      logLines.push(
-        `  统计: 总数量=${stats.totalQuantity}, 平均价格=${this._formatPrice(stats.averagePrice)}`,
-      );
-    } else {
-      logLines.push('  当前无订单记录');
-    }
-
-    logger.debug(logLines.join('\n'));
-  }
+  };
 
   /**
    * 计算订单统计信息
-   * @private
    */
-  private _calculateOrderStatistics(
+  const calculateOrderStatistics = (
     orders: OrderRecord[],
-  ): OrderStatistics {
+  ): OrderStatistics => {
     let totalQuantity = 0;
     let totalValue = 0;
 
@@ -435,13 +130,12 @@ export class OrderRecorder {
     const averagePrice = totalQuantity > 0 ? totalValue / totalQuantity : 0;
 
     return { totalQuantity, totalValue, averagePrice };
-  }
+  };
 
   /**
    * 格式化订单时间
-   * @private
    */
-  private _formatOrderTime(executedTime: number): string {
+  const formatOrderTime = (executedTime: number): string => {
     if (!executedTime) {
       return '未知时间';
     }
@@ -457,13 +151,300 @@ export class OrderRecorder {
     } catch {
       return '无效时间';
     }
-  }
+  };
 
   /**
    * 格式化价格
-   * @private
    */
-  private _formatPrice(price: number): string {
+  const formatPrice = (price: number): string => {
     return Number.isFinite(price) ? price.toFixed(3) : 'N/A';
-  }
-}
+  };
+
+  /**
+   * 输出订单列表的debug信息（仅在DEBUG模式下）
+   */
+  const debugOutputOrders = (symbol: string, isLongSymbol: boolean): void => {
+    if (process.env['DEBUG'] !== 'true') {
+      return;
+    }
+
+    const positionType = getDirectionName(isLongSymbol);
+    const normalizedSymbol = normalizeHKSymbol(symbol);
+    const currentOrders = storage.getBuyOrdersList(
+      normalizedSymbol,
+      isLongSymbol,
+    );
+
+    const logLines = [
+      `[订单记录变化] ${positionType} ${normalizedSymbol}: 当前订单列表 (共${currentOrders.length}笔)`,
+    ];
+
+    if (currentOrders.length > 0) {
+      const stats = calculateOrderStatistics(currentOrders);
+
+      currentOrders.forEach((order, index) => {
+        const timeStr = formatOrderTime(order.executedTime);
+        const priceStr = formatPrice(order.executedPrice);
+
+        logLines.push(
+          `  [${index + 1}] 订单ID: ${order.orderId || 'N/A'}, ` +
+            `价格: ${priceStr}, ` +
+            `数量: ${order.executedQuantity}, ` +
+            `成交时间: ${timeStr}`,
+        );
+      });
+
+      logLines.push(
+        `  统计: 总数量=${stats.totalQuantity}, 平均价格=${formatPrice(stats.averagePrice)}`,
+      );
+    } else {
+      logLines.push('  当前无订单记录');
+    }
+
+    logger.debug(logLines.join('\n'));
+  };
+
+  // ============================================
+  // 公有方法 - 订单记录操作
+  // ============================================
+
+  /**
+   * 记录一笔新的买入订单（仅在程序运行期间本地更新，不调用 API）
+   */
+  const recordLocalBuy = (
+    symbol: string,
+    executedPrice: number,
+    executedQuantity: number,
+    isLongSymbol: boolean,
+  ): void => {
+    const price = Number(executedPrice);
+    const quantity = Number(executedQuantity);
+
+    if (!validateOrderParams(price, quantity, symbol)) {
+      return;
+    }
+
+    storage.addBuyOrder(symbol, price, quantity, isLongSymbol);
+    debugOutputOrders(symbol, isLongSymbol);
+  };
+
+  /**
+   * 根据一笔新的卖出订单，本地更新买入订单记录（不再调用 API）
+   *
+   * 规则：
+   * 1. 如果本地买入记录的总数量 <= 本次卖出数量，认为全部卖出，清空记录
+   * 2. 否则，仅保留成交价 >= 本次卖出价的买入订单
+   */
+  const recordLocalSell = (
+    symbol: string,
+    executedPrice: number,
+    executedQuantity: number,
+    isLongSymbol: boolean,
+  ): void => {
+    const price = Number(executedPrice);
+    const quantity = Number(executedQuantity);
+
+    if (!validateOrderParams(price, quantity, symbol)) {
+      return;
+    }
+
+    storage.updateAfterSell(symbol, price, quantity, isLongSymbol);
+    debugOutputOrders(symbol, isLongSymbol);
+  };
+
+  /**
+   * 清空指定标的的买入订单记录（用于保护性清仓等无条件清仓场景）
+   */
+  const clearBuyOrders = (symbol: string, isLongSymbol: boolean): void => {
+    storage.clearBuyOrders(symbol, isLongSymbol);
+  };
+
+  /**
+   * 获取最新买入订单的成交价（用于买入价格限制检查）
+   */
+  const getLatestBuyOrderPrice = (symbol: string, isLongSymbol: boolean): number | null => {
+    return storage.getLatestBuyOrderPrice(symbol, isLongSymbol);
+  };
+
+  /**
+   * 根据当前价格获取做多标的或做空标的中买入价低于当前价的订单
+   */
+  const getBuyOrdersBelowPrice = (
+    currentPrice: number,
+    direction: 'LONG' | 'SHORT',
+  ): OrderRecord[] => {
+    return storage.getBuyOrdersBelowPrice(currentPrice, direction);
+  };
+
+  /**
+   * 计算订单列表的总成交数量
+   */
+  const calculateTotalQuantity = (orders: OrderRecord[]): number => {
+    return storage.calculateTotalQuantity(orders);
+  };
+
+  // ============================================
+  // 公有方法 - 订单获取和刷新
+  // ============================================
+
+  /**
+   * 从API获取并转换订单数据（公开方法，用于启动时或需要强制刷新时调用）
+   * 调用此方法会同时从历史订单和今日订单API获取数据，合并并去重后更新缓存
+   */
+  const fetchOrdersFromAPI = async (symbol: string): Promise<FetchOrdersResult> => {
+    return await apiManager.fetchOrdersFromAPI(symbol);
+  };
+
+  /**
+   * 刷新订单记录（用于智能清仓决策）
+   * 过滤逻辑：
+   * 1. 获取历史所有买入订单（已成交）
+   * 2. 获取历史所有卖出订单（已成交）
+   * 3. 如果没有卖出订单，记录所有买入订单
+   * 4. 如果有卖出订单，应用复杂的过滤算法
+   */
+  const refreshOrders = async (
+    symbol: string,
+    isLongSymbol: boolean,
+  ): Promise<OrderRecord[]> => {
+    try {
+      const normalizedSymbol = normalizeHKSymbol(symbol);
+      const { buyOrders: allBuyOrders, sellOrders: filledSellOrders } =
+        await apiManager.fetchOrdersFromAPI(symbol);
+
+      // 如果没有买入订单，直接返回空列表
+      if (allBuyOrders.length === 0) {
+        storage.setBuyOrdersList(normalizedSymbol, isLongSymbol, []);
+        logRefreshResult(
+          normalizedSymbol,
+          isLongSymbol,
+          0,
+          0,
+          0,
+          '历史买入0笔, 无需记录',
+        );
+        return [];
+      }
+
+      // 如果没有卖出订单，记录所有买入订单
+      if (filledSellOrders.length === 0) {
+        const buyOrdersArray = [...allBuyOrders];
+        storage.setBuyOrdersList(
+          normalizedSymbol,
+          isLongSymbol,
+          buyOrdersArray,
+        );
+        logRefreshResult(
+          normalizedSymbol,
+          isLongSymbol,
+          allBuyOrders.length,
+          0,
+          allBuyOrders.length,
+          '无卖出记录, 记录全部买入订单',
+        );
+        return buyOrdersArray;
+      }
+
+      // 应用过滤算法
+      const finalBuyOrders = filteringEngine.applyFilteringAlgorithm(
+        [...allBuyOrders],
+        [...filledSellOrders],
+      );
+
+      // 更新记录
+      storage.setBuyOrdersList(
+        normalizedSymbol,
+        isLongSymbol,
+        finalBuyOrders,
+      );
+      logRefreshResult(
+        normalizedSymbol,
+        isLongSymbol,
+        allBuyOrders.length,
+        filledSellOrders.length,
+        finalBuyOrders.length,
+      );
+
+      return finalBuyOrders;
+    } catch (error) {
+      logger.error(
+        `[订单记录失败] 标的 ${symbol}`,
+        (error as Error)?.message ?? String(error),
+      );
+      return [];
+    }
+  };
+
+  // ============================================
+  // 公有方法 - 缓存管理
+  // ============================================
+
+  /**
+   * 检查指定标的的缓存是否存在
+   */
+  const hasCacheForSymbols = (symbols: string[]): boolean => {
+    return apiManager.hasCacheForSymbols(symbols);
+  };
+
+  /**
+   * 从缓存的原始订单中提取未成交订单（用于启动时避免重复调用 todayOrders）
+   */
+  const getPendingOrdersFromCache = (symbols: string[]): PendingOrder[] => {
+    return apiManager.getPendingOrdersFromCache(symbols);
+  };
+
+  // ============================================
+  // 暴露内部状态（用于 RiskChecker）
+  // ============================================
+
+  /**
+   * 获取做多标的的买入订单列表（公共方法）
+   */
+  const getLongBuyOrders = (): OrderRecord[] => {
+    return storage.getLongBuyOrders();
+  };
+
+  /**
+   * 获取做空标的的买入订单列表（公共方法）
+   */
+  const getShortBuyOrders = (): OrderRecord[] => {
+    return storage.getShortBuyOrders();
+  };
+
+  /**
+   * 获取指定标的的买入订单列表（公共方法）
+   */
+  const getBuyOrdersForSymbol = (symbol: string, isLongSymbol: boolean): OrderRecord[] => {
+    const normalizedSymbol = normalizeHKSymbol(symbol);
+    const orders = isLongSymbol
+      ? storage.getLongBuyOrders()
+      : storage.getShortBuyOrders();
+    return orders.filter((o) => o.symbol === normalizedSymbol);
+  };
+
+  return {
+    recordLocalBuy,
+    recordLocalSell,
+    clearBuyOrders,
+    getLatestBuyOrderPrice,
+    getBuyOrdersBelowPrice,
+    calculateTotalQuantity,
+    fetchOrdersFromAPI,
+    refreshOrders,
+    hasCacheForSymbols,
+    getPendingOrdersFromCache,
+    getLongBuyOrders,
+    getShortBuyOrders,
+    getBuyOrdersForSymbol,
+    // 向后兼容的属性访问器（已弃用，请使用公共方法）
+    get _longBuyOrders(): OrderRecord[] {
+      return storage.getLongBuyOrders();
+    },
+    get _shortBuyOrders(): OrderRecord[] {
+      return storage.getShortBuyOrders();
+    },
+  };
+};
+
+// 导出类型
+export type { OrderRecorder } from './type.js';

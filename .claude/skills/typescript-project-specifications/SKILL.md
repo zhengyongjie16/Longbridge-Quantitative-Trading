@@ -1,6 +1,6 @@
 ---
 name: typescript-project-specifications
-description: 编写简洁、易于维护且遵循严格规范的 TypeScript 代码。在编写、修改或重构 .ts 文件时使用。强制执行类型安全（禁用 any）、工厂函数模式、依赖注入、不可变数据结构（readonly）。适用于：创建新 TypeScript 文件、重构现有代码、代码审查、修复类型错误。
+description: 编写简洁、易于维护且遵循严格规范的 TypeScript 代码。在编写、修改或重构 .ts 文件时使用。强制执行：禁用 any 类型、工厂函数模式、依赖注入、readonly 不可变数据、类型安全。适用场景：创建新 TypeScript 文件、重构现有代码、代码审查 code review、修复类型错误、检查代码规范、eslint type-check。当用户提到"写代码"、"重构"、"修改"，"检查"时自动使用。
 ---
 
 # TypeScript Project Specifications
@@ -9,13 +9,17 @@ description: 编写简洁、易于维护且遵循严格规范的 TypeScript 代�
 
 ## 快速开始（Quick Start）
 
+> **💡 提示**：当你编写或修改 .ts 文件时，此 Skill 会自动激活。你也可以手动使用 `/typescript-project-specifications` 调用。
+
 在编写或修改任何 TypeScript 代码时，请遵循以下核心原则：
 
-1. **类型安全优先**：禁止使用 `any`，优先使用 `unknown`
+1. **类型安全优先**：禁止使用 `any`，优先使用 `unknown`并减少使用断言，不允许多重断言
 2. **依赖注入模式**：所有依赖通过参数注入，永远不在内部创建
 3. **工厂函数模式**：使用工厂函数而非类来创建对象
 4. **不可变数据**：所有类型属性使用 `readonly`，数组使用 `ReadonlyArray`
-5. **类型组织**：类型定义放在 `type.ts` 文件中，共享类型放在最近的公共位置
+5. **清除无用代码**：不要保留无用/无效的代码或者已弃用的代码
+6. **类型组织**：类型定义放在 `type.ts` 文件中，共享类型放在最近的公共位置
+7. **完成检查**：在编写完成后自动运行eslint和type-check检查并修复存在的问题
 
 ## 核心规则（Core Rules）
 
@@ -269,17 +273,20 @@ export const createOrderService = ({
 
 ### 步骤 4: 验证代码
 
-编写完成后，检查：
+编写完成后，**自动运行检查**：
 
-1. **类型检查**：确保没有 `any` 类型
+```bash
+npm run lint
+npm run type-check
+```
+
+**关键检查点**：
+1. **类型检查**：确保没有 `any` 类型，没有多重断言
 2. **依赖注入**：确保所有依赖都是注入的
 3. **不可变性**：确保所有类型属性都是 `readonly`
-4. **文件命名**：确保文件名符合规范
-5. **运行检查**：
-   ```bash
-   npm run lint
-   npm run type-check
-   ```
+4. **文件命名**：确保文件名符合 camelCase 规范
+5. **代码清理**：移除所有无用的代码、函数、类、变量和参数
+6. **修复问题**：根据 eslint 和 type-check 的输出修复所有问题
 
 ## 常见场景（Common Scenarios）
 
@@ -397,18 +404,21 @@ export const processPayment = (
 
 ## 检查清单（Checklist）
 
-在完成代码编写后，请检查：
+**在完成代码编写后，必须逐项检查并运行验证命令：**
 
 - [ ] 没有使用 `any` 类型
 - [ ] 没有使用类型断言（除非有充分理由）
+- [ ] 没有使用多重断言（如 `as unknown as Type`）
 - [ ] 数据结构使用 `type` + `readonly`
 - [ ] 服务接口使用 `interface`
-- [ ] 所有依赖都通过参数注入
+- [ ] 所有依赖都通过参数注入（没有在函数内部创建依赖）
 - [ ] 使用工厂函数而非类
-- [ ] 数组使用 `ReadonlyArray`
+- [ ] 数组使用 `ReadonlyArray<T>` 或 `readonly T[]`
 - [ ] 类型定义放在正确的 `type.ts` 文件中
-- [ ] 文件命名使用小写驼峰命名
-- [ ] 代码通过 ESLint 和 TypeScript 检查
+- [ ] 文件命名使用小写驼峰命名（camelCase）
+- [ ] 已清理所有无用的代码、函数、类、变量和参数
+- [ ] 已运行 `npm run lint` 并修复所有问题
+- [ ] 已运行 `npm run type-check` 并修复所有类型错误
 
 ## 故障排除（Troubleshooting）
 

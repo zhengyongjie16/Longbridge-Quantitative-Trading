@@ -6,23 +6,25 @@
  * - 查询股票持仓
  */
 
-import type { TradeContext } from 'longport';
+import type { TradeContext as _TradeContext } from 'longport';
 import { decimalToNumber } from '../../utils/helpers.js';
 import type { AccountSnapshot, Position } from '../../types/index.js';
-import type { RateLimiter } from './rateLimiter.js';
+import type { AccountService, AccountServiceDeps, RateLimiter as _RateLimiter } from './type.js';
 
-export class AccountService {
-  constructor(
-    private readonly ctxPromise: Promise<TradeContext>,
-    private readonly rateLimiter: RateLimiter,
-  ) {}
+/**
+ * 创建账户服务
+ * @param deps 依赖注入
+ * @returns AccountService 接口实例
+ */
+export const createAccountService = (deps: AccountServiceDeps): AccountService => {
+  const { ctxPromise, rateLimiter } = deps;
 
   /**
    * 获取账户快照（余额、资产等）
    */
-  async getAccountSnapshot(): Promise<AccountSnapshot | null> {
-    const ctx = await this.ctxPromise;
-    await this.rateLimiter.throttle();
+  const getAccountSnapshot = async (): Promise<AccountSnapshot | null> => {
+    const ctx = await ctxPromise;
+    await rateLimiter.throttle();
     const balances = await ctx.accountBalance();
     const primary = balances?.[0];
     if (!primary) {
@@ -39,15 +41,15 @@ export class AccountService {
       netAssets,
       positionValue,
     };
-  }
+  };
 
   /**
    * 获取股票持仓
    * @param symbols 标的代码数组，如果为null则获取所有持仓
    */
-  async getStockPositions(symbols: string[] | null = null): Promise<Position[]> {
-    const ctx = await this.ctxPromise;
-    await this.rateLimiter.throttle();
+  const getStockPositions = async (symbols: string[] | null = null): Promise<Position[]> => {
+    const ctx = await ctxPromise;
+    await rateLimiter.throttle();
     // stockPositions 接受 Array<string> | undefined | null，直接传递即可
     const resp = await ctx.stockPositions(symbols ?? undefined);
     const channels = resp?.channels ?? [];
@@ -67,5 +69,10 @@ export class AccountService {
         market: pos.market,
       })),
     );
-  }
-}
+  };
+
+  return {
+    getAccountSnapshot,
+    getStockPositions,
+  };
+};

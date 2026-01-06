@@ -19,7 +19,8 @@
 import { logger } from '../utils/logger.js';
 import { TRADING_CONFIG } from './config.trading.js';
 import { createConfig } from './config.index.js';
-import { MarketDataClient } from '../services/quoteClient/index.js';
+import { createMarketDataClient } from '../services/quoteClient/index.js';
+import type { MarketDataClient } from '../services/quoteClient/type.js';
 import { formatSymbolDisplay } from '../utils/helpers.js';
 import {
   validateSignalConfig,
@@ -426,7 +427,7 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
   // 验证标的有效性（创建 MarketDataClient 实例用于验证和后续使用）
   logger.info('验证标的有效性...');
   const config = createConfig();
-  const marketDataClient = await MarketDataClient.create(config);
+  const marketDataClient = await createMarketDataClient({ config });
 
   // 确保标的配置不为 null（validateTradingConfig 已经检查过，这里再次确认）
   if (
