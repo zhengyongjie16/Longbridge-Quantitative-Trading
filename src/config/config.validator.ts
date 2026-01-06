@@ -250,7 +250,7 @@ function validateTradingConfig(): TradingValidationResult {
     missingFields.push('MAX_DAILY_LOSS');
   }
 
-  // doomsdayProtection 是布尔值，不需要验证（默认值在 .env 文件中设置为 true）
+  // doomsdayProtection 是布尔值，不需要验证（默认值在 .env.product 文件中设置为 true）
 
   // 验证单标的浮亏保护配置（可选）
   // 注意：直接验证原始环境变量，而不是已处理的配置值
@@ -466,7 +466,7 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
     });
     logger.error('='.repeat(60));
     logger.error('');
-    logger.error('请检查 .env 文件，确保所有必需的配置项都已正确设置。');
+    logger.error('请检查 .env.product 文件，确保所有必需的配置项都已正确设置。');
     logger.error('参考 .env.example 文件或 ENV_SETUP.md 文档了解配置说明。');
     logger.error('');
 
@@ -518,7 +518,7 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
     });
     logger.error('='.repeat(60));
     logger.error('');
-    logger.error('请检查 .env 文件中的标的代码配置，确保：');
+    logger.error('请检查 .env.product 文件中的标的代码配置，确保：');
     logger.error('  1. 标的代码正确且存在');
     logger.error('  2. 标的正在正常交易');
     logger.error('  3. API 有权限访问该标的行情');

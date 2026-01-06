@@ -1234,7 +1234,7 @@ async function main(): Promise<void> {
     console.error(
       '    日期范围：node dist/tools/indicatorAnalysis.js HSI.HK 2024-12-11:2024-12-15',
     );
-    console.error('\n  方式4：在 .env 文件中配置');
+    console.error('\n  方式4：在 .env.product 文件中配置');
     console.error('    INTRADAY_SYMBOL=HSI.HK');
     console.error('    INTRADAY_DATE=2024-12-11');
     console.error('    或日期范围：INTRADAY_DATE=2024-12-11:2024-12-15');
