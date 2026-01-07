@@ -12,10 +12,10 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM 检查 .env.product 文件是否存在
-if not exist ".env.product" (
-    echo [警告] 未找到 .env.product 文件，请先配置环境变量
-    echo 请复制 .env.example 为 .env.product 并填写配置
+REM 检查 .env.local 文件是否存在
+if not exist ".env.local" (
+    echo [警告] 未找到 .env.local 文件，请先配置环境变量
+    echo 请复制 .env.example 为 .env.local 并填写配置
     pause
     exit /b 1
 )

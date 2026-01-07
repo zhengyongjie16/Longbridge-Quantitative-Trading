@@ -7,8 +7,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const projectRoot = join(__dirname, '..');
 
-// 读取 .env.product 文件
-const envPath = join(projectRoot, '.env.product');
+// 读取 .env.local 文件
+const envPath = join(projectRoot, '.env.local');
 let sonarToken = '';
 let sonarOrganization = '';
 
@@ -24,17 +24,17 @@ try {
     sonarOrganization = orgMatch[1].trim();
   }
 } catch (error) {
-  console.error('无法读取 .env.product 文件:', error.message);
+  console.error('无法读取 .env.local 文件:', error.message);
   process.exit(1);
 }
 
 if (!sonarToken) {
-  console.error('在 .env.product 文件中未找到 SONAR_TOKEN');
+  console.error('在 .env.local 文件中未找到 SONAR_TOKEN');
   process.exit(1);
 }
 
 if (!sonarOrganization) {
-  console.error('在 .env.product 文件中未找到 SONAR_ORGANIZATION');
+  console.error('在 .env.local 文件中未找到 SONAR_ORGANIZATION');
   process.exit(1);
 }
 

@@ -36,11 +36,11 @@
 
 ```bash
 npm install
-cp .env.example .env.product
-# 编辑 .env.product 填写配置
+cp .env.example .env.local
+# 编辑 .env.local 填写配置
 ```
 
-### 配置必需参数 (.env.product)
+### 配置必需参数 (.env.local)
 
 ```env
 # API 配置

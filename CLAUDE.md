@@ -46,7 +46,7 @@ src/
 
 ```bash
 npm install
-cp .env.example .env.product  # 填写配置
+cp .env.example .env.local  # 填写配置
 npm start
 ```
 
@@ -147,12 +147,12 @@ npm start
 
 | 任务         | 修改位置                                                   |
 | ------------ | ---------------------------------------------------------- |
-| 修改信号条件 | `.env.product` 文件（无需改代码）                                  |
+| 修改信号条件 | `.env.local` 文件（无需改代码）                                  |
 | 添加新指标   | `services/indicators/index.ts` + `utils/signalConfigParser.ts` |
 | 调整风险检查 | `core/risk/index.ts`（仅门控买入）                         |
 | 修改订单逻辑 | `core/trader/index.ts`（订单执行和监控）                   |
 | 修改卖出策略 | `core/signalProcessor/index.ts` 中的 `calculateSellQuantity` 函数 |
-| 修改配置参数 | `.env.product` 或 `config/config.trading.ts`                       |
+| 修改配置参数 | `.env.local` 或 `config/config.trading.ts`                       |
 | 调整验证逻辑 | `core/signalVerification/index.ts` 中的 `_verifySingleSignal` 方法 |
 | 订单记录逻辑 | `core/orderRecorder/index.ts`（`refreshOrders` 过滤算法、`clearBuyOrders` 清仓） |
 | 修改账户显示 | `utils/accountDisplay.ts` 中的 `displayAccountAndPositions` 函数 |

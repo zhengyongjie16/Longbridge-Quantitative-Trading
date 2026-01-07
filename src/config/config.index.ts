@@ -16,8 +16,8 @@
 import dotenv from 'dotenv';
 import { Config } from 'longport';
 
-// 加载 .env.product 文件中的配置
-dotenv.config({ path: '.env.product' });
+// 加载 .env.local 文件中的配置
+dotenv.config({ path: '.env.local' });
 
 import type { RegionUrls } from './type.js';
 

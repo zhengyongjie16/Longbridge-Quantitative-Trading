@@ -319,7 +319,7 @@ description: 港股量化交易系统业务逻辑知识库。包含信号生成�
 
 ## 8. 配置
 
-**文件**：`src/config/*.ts`、`.env.product`
+**文件**：`src/config/*.ts`、`.env.local`
 
 ### 8.1 必需配置
 
