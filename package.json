@@ -13,6 +13,7 @@
     "type-check": "tsc --noEmit",
     "clean": "rimraf dist",
     "find-warrant": "node dist/tools/findWarrant.js",
+    "analyze-indicators": "node dist/tools/indicatorAnalysis.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "sonarqube": "node scripts/run-sonar.js"

@@ -91,11 +91,6 @@ const VALID_SIGNAL_ACTIONS = new Set([
   'SELLPUT',
 ]);
 
-const LOCALE_STRING_OPTIONS: Intl.DateTimeFormatOptions = {
-  timeZone: 'Asia/Hong_Kong',
-  hour12: false,
-};
-
 // 信号动作描述映射（避免循环中的多次 if-else 判断）
 const SIGNAL_ACTION_DESCRIPTIONS: Record<string, string> = {
   'BUYCALL': '买入做多标的（做多）',
@@ -505,16 +500,6 @@ async function runOnce({
   const lastSignalKey = lastState.signal;
 
   if (currentSignalKey !== lastSignalKey) {
-    const lastCandleTime = monitorCandles.at(-1)?.timestamp;
-    if (lastCandleTime) {
-      logger.info(
-        `交易所时间：${lastCandleTime.toLocaleString(
-          'zh-CN',
-          LOCALE_STRING_OPTIONS,
-        )}`,
-      );
-    }
-
     if (validSignals.length > 0) {
       validSignals.forEach((signal) => {
         const actionDesc =

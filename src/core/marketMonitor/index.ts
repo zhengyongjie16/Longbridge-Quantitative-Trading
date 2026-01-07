@@ -16,11 +16,12 @@
  * - 监控标的的所有技术指标值
  */
 
-import { logger } from '../../utils/logger.js';
+import { logger, colors } from '../../utils/logger.js';
 import {
   normalizeHKSymbol,
   formatQuoteDisplay,
   isValidPositiveNumber,
+  toBeijingTimeLog,
 } from '../../utils/helpers.js';
 import { isValidNumber } from '../../utils/indicatorHelpers.js';
 import { hasChanged } from '../../utils/tradingTime.js';
@@ -42,11 +43,13 @@ export const createMarketMonitor = (): MarketMonitor => {
    */
   const displayIndicators = (
     monitorSnapshot: IndicatorSnapshot,
+    monitorQuote: Quote | null,
     monitorSymbol: string,
     currentPrice: number,
     changePercent: number | null,
     emaPeriods: ReadonlyArray<number>,
     rsiPeriods: ReadonlyArray<number>,
+    klineTimestamp: number | null,
   ): void => {
     // 格式化指标值
     const formatIndicator = (value: number | null | undefined, decimals: number = 2): string => {
@@ -126,12 +129,17 @@ export const createMarketMonitor = (): MarketMonitor => {
     }
 
     const normalizedMonitorSymbol = normalizeHKSymbol(monitorSymbol);
-    const monitorSymbolName = (monitorSnapshot as unknown as { symbolName?: string }).symbolName ?? monitorSymbol;
+    const monitorSymbolName = monitorQuote?.name ?? monitorSymbol;
+
+    // 格式化K线时间戳（仅显示时分秒）
+    const timePrefix = klineTimestamp && Number.isFinite(klineTimestamp)
+      ? `[K线时间: ${toBeijingTimeLog(new Date(klineTimestamp)).split(' ')[1]}] `
+      : '';
 
     logger.info(
-      `[监控标的] ${monitorSymbolName}(${normalizedMonitorSymbol}) ${indicators.join(
+      `${colors.cyan}${timePrefix}[监控标的] ${monitorSymbolName}(${normalizedMonitorSymbol}) ${indicators.join(
         ' ',
-      )}`,
+      )}${colors.reset}`,
     );
   };
 
@@ -162,8 +170,12 @@ export const createMarketMonitor = (): MarketMonitor => {
         // 显示做多标的行情
         const longDisplay = formatQuoteDisplay(longQuote, longSymbol);
         if (longDisplay) {
+          // 格式化K线时间戳（仅显示时分秒）
+          const longTimePrefix = longQuote?.timestamp && Number.isFinite(longQuote.timestamp)
+            ? `[K线时间: ${toBeijingTimeLog(new Date(longQuote.timestamp)).split(' ')[1]}] `
+            : '';
           logger.info(
-            `[做多标的] ${longDisplay.nameText}(${longDisplay.codeText}) 最新价格=${longDisplay.priceText} 涨跌额=${longDisplay.changeAmountText} 涨跌幅度=${longDisplay.changePercentText}`,
+            `${longTimePrefix}[做多标的] ${longDisplay.nameText}(${longDisplay.codeText}) 最新价格=${longDisplay.priceText} 涨跌额=${longDisplay.changeAmountText} 涨跌幅度=${longDisplay.changePercentText}`,
           );
         } else {
           logger.warn('未获取到做多标的行情。');
@@ -172,8 +184,12 @@ export const createMarketMonitor = (): MarketMonitor => {
         // 显示做空标的行情
         const shortDisplay = formatQuoteDisplay(shortQuote, shortSymbol);
         if (shortDisplay) {
+          // 格式化K线时间戳（仅显示时分秒）
+          const shortTimePrefix = shortQuote?.timestamp && Number.isFinite(shortQuote.timestamp)
+            ? `[K线时间: ${toBeijingTimeLog(new Date(shortQuote.timestamp)).split(' ')[1]}] `
+            : '';
           logger.info(
-            `[做空标的] ${shortDisplay.nameText}(${shortDisplay.codeText}) 最新价格=${shortDisplay.priceText} 涨跌额=${shortDisplay.changeAmountText} 涨跌幅度=${shortDisplay.changePercentText}`,
+            `${shortTimePrefix}[做空标的] ${shortDisplay.nameText}(${shortDisplay.codeText}) 最新价格=${shortDisplay.priceText} 涨跌额=${shortDisplay.changeAmountText} 涨跌幅度=${shortDisplay.changePercentText}`,
           );
         } else {
           logger.warn('未获取到做空标的行情。');
@@ -314,11 +330,13 @@ export const createMarketMonitor = (): MarketMonitor => {
       if (hasIndicatorChanged) {
         displayIndicators(
           monitorSnapshot,
+          monitorQuote,
           monitorSymbol,
           currentPrice,
           changePercent,
           emaPeriods,
           rsiPeriods,
+          monitorQuote?.timestamp ?? null,
         );
 
         // 如果存在旧的 monitorValues，先释放其中的 kdj 和 macd 对象，再释放 monitorValues 本身

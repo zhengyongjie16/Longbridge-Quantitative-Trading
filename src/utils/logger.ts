@@ -60,6 +60,7 @@ export const colors = {
   red: '\x1b[31m',
   gray: '\x1b[90m',
   green: '\x1b[32m',
+  cyan: '\x1b[96m', // 天蓝色
 } as const;
 
 /**
@@ -306,7 +307,7 @@ function formatForFile(obj: LogObject): string {
     40: 'WARN',
     50: 'ERROR',
   };
-  const levelStr = `[${(levelMap[level] || 'INFO').padEnd(5)}]`;
+  const levelStr = `[${levelMap[level] || 'INFO'}]`;
 
   let line = `${levelStr} ${timestamp} ${stripAnsiCodes(String(obj.msg))}`;
 
@@ -342,7 +343,7 @@ function formatForConsole(obj: LogObject): string {
   };
 
   const config = levelConfig[level] || { name: 'INFO', color: '' };
-  const levelStr = `[${config.name.padEnd(5)}]`;
+  const levelStr = `[${config.name}]`;
   const color = config.color;
   const reset = color ? colors.reset : '';
 
