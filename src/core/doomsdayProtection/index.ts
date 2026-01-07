@@ -14,10 +14,10 @@
  * - DOOMSDAY_PROTECTION 环境变量（默认 true）
  */
 
-import { logger } from '../../utils/logger.js';
-import { normalizeHKSymbol } from '../../utils/helpers.js';
-import { isBeforeClose15Minutes, isBeforeClose5Minutes } from '../../utils/tradingTime.js';
-import { signalObjectPool } from '../../utils/objectPool.js';
+import { logger } from '../../utils/logger/index.js';
+import { normalizeHKSymbol } from '../../utils/helpers/index.js';
+import { isBeforeClose15Minutes, isBeforeClose5Minutes } from '../../utils/tradingTime/index.js';
+import { signalObjectPool } from '../../utils/objectPool/index.js';
 import type { Position, Quote, Signal } from '../../types/index.js';
 import type { DoomsdayProtection } from './type.js';
 

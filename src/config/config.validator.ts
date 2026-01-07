@@ -16,17 +16,17 @@
  * - ConfigValidationError：配置验证失败时抛出
  */
 
-import { logger } from '../utils/logger.js';
+import { logger } from '../utils/logger/index.js';
 import { TRADING_CONFIG } from './config.trading.js';
 import { createConfig } from './config.index.js';
 import { createMarketDataClient } from '../services/quoteClient/index.js';
 import type { MarketDataClient } from '../services/quoteClient/type.js';
-import { formatSymbolDisplay } from '../utils/helpers.js';
+import { formatSymbolDisplay } from '../utils/helpers/index.js';
 import {
   validateSignalConfig,
   formatSignalConfig,
-} from '../utils/signalConfigParser.js';
-import { validateEmaPeriod } from '../utils/indicatorHelpers.js';
+} from '../utils/signalConfigParser/index.js';
+import { validateEmaPeriod } from '../utils/indicatorHelpers/index.js';
 import type {
   ValidationResult,
   TradingValidationResult,

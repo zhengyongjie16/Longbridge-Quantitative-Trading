@@ -16,7 +16,7 @@ import {
   Decimal,
 } from 'longport';
 import { TRADING_CONFIG } from '../../config/config.trading.js';
-import { logger, colors } from '../../utils/logger.js';
+import { logger, colors } from '../../utils/logger/index.js';
 import {
   normalizeHKSymbol,
   decimalToNumber,
@@ -24,7 +24,7 @@ import {
   isDefined,
   isBuyAction,
   isValidPositiveNumber,
-} from '../../utils/helpers.js';
+} from '../../utils/helpers/index.js';
 import type { Signal } from '../../types/index.js';
 import type { OrderOptions, OrderPayload, TradeCheckResult, OrderExecutor, OrderExecutorDeps } from './type.js';
 import { recordTrade, identifyErrorType } from './tradeLogger.js';

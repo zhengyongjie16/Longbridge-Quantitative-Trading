@@ -19,7 +19,7 @@
  */
 
 import pino from 'pino';
-import { toBeijingTimeLog } from './helpers.js';
+import { toBeijingTimeLog } from '../helpers/index.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Writable } from 'node:stream';

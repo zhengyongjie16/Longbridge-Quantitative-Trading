@@ -18,9 +18,9 @@
  * 4. 刷新订单记录和浮亏数据
  */
 
-import { logger } from '../../utils/logger.js';
-import { isValidPositiveNumber } from '../../utils/helpers.js';
-import { signalObjectPool } from '../../utils/objectPool.js';
+import { logger } from '../../utils/logger/index.js';
+import { isValidPositiveNumber } from '../../utils/helpers/index.js';
+import { signalObjectPool } from '../../utils/objectPool/index.js';
 import type { Quote, Signal } from '../../types/index.js';
 import type { RiskChecker } from '../risk/index.js';
 import type { Trader } from '../trader/index.js';

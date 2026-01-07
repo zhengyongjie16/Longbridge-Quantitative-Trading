@@ -34,8 +34,8 @@ import {
   normalizeHKSymbol,
   decimalToNumber,
   isDefined,
-} from '../../utils/helpers.js';
-import { logger } from '../../utils/logger.js';
+} from '../../utils/helpers/index.js';
+import { logger } from '../../utils/logger/index.js';
 import type { Quote, TradingDayInfo } from '../../types/index.js';
 import type {
   RetryConfig,

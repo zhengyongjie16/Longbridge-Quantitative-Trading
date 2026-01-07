@@ -5,7 +5,7 @@
  * - 查询账户余额和资产
  * - 查询股票持仓
  */
-import { decimalToNumber } from '../../utils/helpers.js';
+import { decimalToNumber } from '../../utils/helpers/index.js';
 import type { AccountSnapshot, Position } from '../../types/index.js';
 import type { AccountService, AccountServiceDeps } from './type.js';
 

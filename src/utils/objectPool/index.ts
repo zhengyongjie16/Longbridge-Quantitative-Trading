@@ -18,7 +18,7 @@
  * - releaseAll(objects)：批量释放对象数组
  */
 
-import type { SignalType, VerificationEntry } from '../types/index.js';
+import type { SignalType, VerificationEntry } from '../../types/index.js';
 
 // ==================== 对象池类型 ====================
 

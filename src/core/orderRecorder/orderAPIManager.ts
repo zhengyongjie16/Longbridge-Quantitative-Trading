@@ -11,7 +11,7 @@ import { OrderSide, OrderStatus } from 'longport';
 import {
   normalizeHKSymbol,
   decimalToNumber,
-} from '../../utils/helpers.js';
+} from '../../utils/helpers/index.js';
 import type {
   OrderRecord,
   OrderCache,

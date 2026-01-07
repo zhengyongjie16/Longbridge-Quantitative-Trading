@@ -21,11 +21,11 @@
  * - 避免频繁调用 historyOrders API
  */
 
-import { logger } from '../../utils/logger.js';
+import { logger } from '../../utils/logger/index.js';
 import {
   normalizeHKSymbol,
   getDirectionName,
-} from '../../utils/helpers.js';
+} from '../../utils/helpers/index.js';
 import type {
   OrderRecord,
   FetchOrdersResult,

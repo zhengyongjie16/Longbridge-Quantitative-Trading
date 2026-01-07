@@ -8,8 +8,8 @@
  */
 
 import { OrderStatus, OrderSide } from 'longport';
-import { logger } from '../../utils/logger.js';
-import { normalizeHKSymbol, decimalToNumber } from '../../utils/helpers.js';
+import { logger } from '../../utils/logger/index.js';
+import { normalizeHKSymbol, decimalToNumber } from '../../utils/helpers/index.js';
 import type { PendingOrder } from '../type.js';
 import type { DecimalLikeValue } from '../../types/index.js';
 import type { OrderCacheManager, OrderCacheManagerDeps } from './type.js';

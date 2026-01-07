@@ -6,7 +6,7 @@
  */
 
 import { RSI } from 'technicalindicators';
-import { validatePercentage } from '../../utils/indicatorHelpers.js';
+import { validatePercentage } from '../../utils/indicatorHelpers/index.js';
 import { toNumber, logDebug } from './utils.js';
 
 /**

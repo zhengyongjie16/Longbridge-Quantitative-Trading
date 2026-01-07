@@ -2,7 +2,7 @@
  * 指标计算工具函数
  */
 
-import { logger } from '../../utils/logger.js';
+import { logger } from '../../utils/logger/index.js';
 
 // 读取DEBUG环境变量
 export const IS_DEBUG = process.env['DEBUG'] === 'true';

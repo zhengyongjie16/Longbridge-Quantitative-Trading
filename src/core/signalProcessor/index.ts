@@ -19,8 +19,8 @@
  * - 无符合条件订单：信号设为 HOLD
  */
 
-import { logger } from '../../utils/logger.js';
-import { normalizeHKSymbol, getSymbolName, getDirectionName } from '../../utils/helpers.js';
+import { logger } from '../../utils/logger/index.js';
+import { normalizeHKSymbol, getSymbolName, getDirectionName } from '../../utils/helpers/index.js';
 import { TRADING_CONFIG } from '../../config/config.trading.js';
 import type { Quote, Position, Signal } from '../../types/index.js';
 import type { OrderRecorder } from '../orderRecorder/index.js';

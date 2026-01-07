@@ -24,9 +24,9 @@
 import {
   validateRsiPeriod,
   validateEmaPeriod,
-} from './indicatorHelpers.js';
-import { logger } from './logger.js';
-import type { SignalConfig, Condition, ConditionGroup, SignalConfigSet } from '../types/index.js';
+} from '../indicatorHelpers/index.js';
+import { logger } from '../logger/index.js';
+import type { SignalConfig, Condition, ConditionGroup, SignalConfigSet } from '../../types/index.js';
 
 // 支持的固定指标列表（不包括 RSI 和 EMA，因为它们支持动态周期）
 const SUPPORTED_INDICATORS = ['MFI', 'K', 'D', 'J', 'MACD', 'DIF', 'DEA'] as const;

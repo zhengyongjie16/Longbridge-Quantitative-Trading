@@ -6,7 +6,7 @@
  */
 
 import { MACD } from 'technicalindicators';
-import { macdObjectPool } from '../../utils/objectPool.js';
+import { macdObjectPool } from '../../utils/objectPool/index.js';
 import { toNumber, logDebug } from './utils.js';
 import type { MACDIndicator } from '../../types/index.js';
 

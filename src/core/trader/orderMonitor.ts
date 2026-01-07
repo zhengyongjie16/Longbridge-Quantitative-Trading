@@ -9,8 +9,8 @@
  */
 
 import { OrderStatus, OrderSide, Decimal } from 'longport';
-import { logger } from '../../utils/logger.js';
-import { normalizeHKSymbol, decimalToNumber, isValidPositiveNumber } from '../../utils/helpers.js';
+import { logger } from '../../utils/logger/index.js';
+import { normalizeHKSymbol, decimalToNumber, isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { TRADING_CONFIG } from '../../config/config.trading.js';
 import type { Quote, DecimalLikeValue } from '../../types/index.js';
 import type { PendingOrder } from '../type.js';

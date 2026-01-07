@@ -26,7 +26,7 @@ import { createTrader } from './core/trader/index.js';
 import { buildIndicatorSnapshot } from './services/indicators/index.js';
 import { createRiskChecker } from './core/risk/index.js';
 import { TRADING_CONFIG } from './config/config.trading.js';
-import { logger } from './utils/logger.js';
+import { logger } from './utils/logger/index.js';
 import { validateAllConfig } from './config/config.validator.js';
 import { createOrderRecorder } from './core/orderRecorder/index.js';
 import {
@@ -34,14 +34,14 @@ import {
   signalObjectPool,
   kdjObjectPool,
   macdObjectPool,
-} from './utils/objectPool.js';
-import { normalizeHKSymbol, getSymbolName, isBuyAction, isSellAction, formatError } from './utils/helpers.js';
-import { extractRSIPeriods } from './utils/signalConfigParser.js';
-import { validateEmaPeriod } from './utils/indicatorHelpers.js';
+} from './utils/objectPool/index.js';
+import { normalizeHKSymbol, getSymbolName, isBuyAction, isSellAction, formatError } from './utils/helpers/index.js';
+import { extractRSIPeriods } from './utils/signalConfigParser/index.js';
+import { validateEmaPeriod } from './utils/indicatorHelpers/index.js';
 
 // 导入新模块
-import { isInContinuousHKSession } from './utils/tradingTime.js';
-import { displayAccountAndPositions } from './utils/accountDisplay.js';
+import { isInContinuousHKSession } from './utils/tradingTime/index.js';
+import { displayAccountAndPositions } from './utils/accountDisplay/index.js';
 import { createMarketMonitor } from './core/marketMonitor/index.js';
 import { createDoomsdayProtection } from './core/doomsdayProtection/index.js';
 import { createUnrealizedLossMonitor } from './core/unrealizedLossMonitor/index.js';

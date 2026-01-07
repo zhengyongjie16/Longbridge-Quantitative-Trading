@@ -7,7 +7,7 @@
  * - 计算持仓市值
  */
 
-import { normalizeHKSymbol } from '../../utils/helpers.js';
+import { normalizeHKSymbol } from '../../utils/helpers/index.js';
 import type { Position, Signal } from '../../types/index.js';
 import type { RiskCheckResult, PositionLimitChecker, PositionLimitCheckerDeps } from './type.js';
 

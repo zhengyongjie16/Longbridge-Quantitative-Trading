@@ -19,9 +19,9 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-import { parseSignalConfig } from '../utils/signalConfigParser.js';
-import { validateEmaPeriod } from '../utils/indicatorHelpers.js';
-import { logger } from '../utils/logger.js';
+import { parseSignalConfig } from '../utils/signalConfigParser/index.js';
+import { validateEmaPeriod } from '../utils/indicatorHelpers/index.js';
+import { logger } from '../utils/logger/index.js';
 import type { TradingConfig } from '../types/index.js';
 
 /**

@@ -7,11 +7,11 @@
  * - 纯内存操作，无异步方法
  */
 
-import { logger } from '../../utils/logger.js';
+import { logger } from '../../utils/logger/index.js';
 import {
   normalizeHKSymbol,
   getDirectionName,
-} from '../../utils/helpers.js';
+} from '../../utils/helpers/index.js';
 import type { OrderRecord, OrderStorage, OrderStorageDeps } from './type.js';
 
 /**

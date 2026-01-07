@@ -21,8 +21,8 @@
  */
 
 import { TRADING_CONFIG } from '../../config/config.trading.js';
-import { normalizeHKSymbol, isBuyAction, isValidPositiveNumber } from '../../utils/helpers.js';
-import { logger } from '../../utils/logger.js';
+import { normalizeHKSymbol, isBuyAction, isValidPositiveNumber } from '../../utils/helpers/index.js';
+import { logger } from '../../utils/logger/index.js';
 import type { Position, Signal, AccountSnapshot } from '../../types/index.js';
 import type { MarketDataClient } from '../../services/quoteClient/index.js';
 import type { OrderRecorder } from '../orderRecorder/index.js';

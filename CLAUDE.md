@@ -1,235 +1,77 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## 项目概述
+**LongBridge 量化交易系统** - 港股双向轮证自动交易系统，基于受监控标的的技术指标。
 
-## Project Overview
+- **技术栈**: Node.js, TypeScript, LongPort OpenAPI SDK
+- **交易策略**: 技术指标(RSI/KDJ/MACD/MFI/EMA) → 延迟验证(60-90s) → 执行牛熊证交易
+- **系统架构**: 1秒事件循环，工厂模式，对象池优化
 
-**LongBridge Quantitative Trading System** - Automated Hong Kong stock trading system for warrant (牛熊证) trading based on Hang Seng Index technical indicators.
+## 配置说明
+配置文件: `.env.local` (从 `.env.example` 复制)
+关键配置: API凭证、监控标的(MONITOR_SYMBOL)、交易标的(LONG/SHORT_SYMBOL)、信号配置、风险限额
 
-- **Tech Stack**: Node.js, TypeScript, LongPort OpenAPI SDK
-- **Trading Strategy**: Monitors HSI technical indicators (RSI, KDJ, MACD, MFI, EMA) → Generates signals with 60-90s delayed verification → Executes bull/bear warrant trades with intelligent position management
-- **Architecture**: Event-driven 1-second loop, modular core services with factory pattern, object pool optimization
+## 系统架构
 
-## Configuration Setup
+### 执行流程 (`src/index.ts` 1秒循环)
+检查交易时段 → 获取K线 → 计算指标 → 生成信号 → 记录指标历史 → 延迟验证 → 风险检查(6项固定顺序) → 处理卖出信号 → 执行订单 → 监控未成交/浮亏
 
-1. Copy `.env.example` to `.env.local`
-2. Fill in **required** fields:
-   - `LONGPORT_APP_KEY`, `LONGPORT_APP_SECRET`, `LONGPORT_ACCESS_TOKEN`
-   - `MONITOR_SYMBOL` (e.g., HSI.HK - generates signals)
-   - `LONG_SYMBOL`, `SHORT_SYMBOL` (warrant symbols for trading)
-   - Signal configurations: `SIGNAL_BUYCALL`, `SIGNAL_SELLCALL`, `SIGNAL_BUYPUT`, `SIGNAL_SELLPUT`
-   - Trading parameters: `TARGET_NOTIONAL`, `LONG_LOT_SIZE`, `SHORT_LOT_SIZE`
-   - Risk limits: `MAX_POSITION_NOTIONAL`, `MAX_DAILY_LOSS`, `MAX_UNREALIZED_LOSS_PER_SYMBOL`
+### 模块结构
+- `src/core/`: 策略、信号验证、信号处理、交易员、订单记录、风险、市场监控、末日保护、浮亏监控
+- `src/services/`: 指标计算、行情客户端
+- `src/utils/`: 对象池、信号配置解析、指标辅助、交易时间、日志、工具函数
+- `src/config/`: API配置、交易配置、配置验证器
 
-**Configuration is validated on startup** - program will not run if validation fails.
+### 设计模式
+1. **工厂模式**: 使用工厂函数，禁用类
+2. **依赖注入**: 依赖作为参数传入，禁止内部创建
+3. **对象池**: 复用 Signal/Position/KDJ/MACD 对象
+4. **类型组织**: 模块级 `type.ts` + 共享 `src/types/index.ts`，优先使用 `readonly`
 
-## Code Architecture
+### 风险检查顺序 (固定顺序，不可调整)
+1. 买入间隔限制(60s)
+2. 买入价格验证(ask > 最新成交价则拒绝)
+3. 末日保护(收盘前15分钟禁买)
+4. 牛熊证风险检查(距行权价距离)
+5. 每日亏损限额(MAX_DAILY_LOSS)
+6. 持仓限额(MAX_POSITION_NOTIONAL)
 
-### Execution Flow (1-second loop in `src/index.ts`)
+### 订单过滤算法 (订单记录器)
+**关键**: 必须按时间顺序处理(从旧到新)
+算法: M0(最新卖出后的买单) + 历史高价未完全卖出的买单
+实现智能平仓: 当前价>成本价则全卖，当前价≤成本价则只卖买价<当前价的订单
 
-```
-runOnce() executes every 1 second:
-├─ Check trading session & trading day
-├─ Fetch candlestick data (1m period, 200 bars)
-├─ Calculate indicators (RSI/MFI/KDJ/MACD/EMA)
-├─ Strategy generates signals (buy/sell)
-├─ Record indicator history for pending signals
-├─ Verify pending signals (T0+60-90s with T0/T0+5s/T0+10s trend validation)
-├─ Apply risk checks (6 checks in fixed order)
-├─ Process sell signals (cost-based quantity calculation)
-├─ Execute orders (ELO limit orders / MO market orders)
-├─ Monitor unfilled buy orders (auto price adjustment)
-└─ Update order records & monitor unrealized loss
-```
+## skills模块
+- `/business-logic`: 业务逻辑知识库(信号生成、买卖策略、风险检查等)
+- `/longbridge-openapi-documentation`: LongPort API文档
+- `/typescript-project-specifications`: TypeScript编码规范(写代码时必须使用)
 
-### Module Structure
+## TypeScript 规范
+- **严格模式**: 编写代码时必须严格遵循typescript-project-specifications skill
 
-**Core Modules** (`src/core/`):
-- `strategy/` - Signal generation based on technical indicators
-- `signalVerification/` - Delayed signal verification with trend validation
-- `signalProcessor/` - Risk checking and sell signal processing
-- `trader/` - Order execution (facade for sub-modules: rateLimiter, accountService, orderCacheManager, orderMonitor, orderExecutor)
-- `orderRecorder/` - Order tracking & filtering (for intelligent position closing)
-- `risk/` - Risk checkers (position limits, warrant risk, unrealized loss)
-- `marketMonitor/` - Real-time price & indicator monitoring
-- `doomsdayProtection/` - End-of-day protection (15min no-buy, 5min force-close)
-- `unrealizedLossMonitor/` - Real-time loss monitoring & emergency liquidation
+## 信号配置 DSL
+格式: `(条件1,条件2,...)/N|(条件A)|(条件B,条件C)/M`
+- `/N`: 组内需满足N个条件
+- `|`: 组间或运算 (最多3组)
+- 支持指标: `RSI:n`, `MFI`, `K`, `D`, `J`, `MACD`, `DIF`, `DEA`, `EMA:n`
+- 操作符: `<`, `>`
+示例: `(RSI:6<20,MFI<15,D<20,J<-1)/3|(J<-20)` → 组1满足3/4个条件 或 组2满足J<-20
 
-**Services** (`src/services/`):
-- `indicators/` - Technical indicator calculations using `technicalindicators` library
-- `quoteClient/` - Market data fetching from LongPort API
+## 延迟验证
+买入信号: T0+90s, 卖出信号: T0+75s
+验证机制: 记录T0指标值 → T0+5s/T0+10s/T0+delay再检查
+- BUYCALL/SELLPUT: 需上升趋势(T0+5s/T0+10s > T0)
+- BUYPUT/SELLCALL: 需下降趋势(T0+5s/T0+10s < T0)
+配置: `VERIFICATION_INDICATORS_BUY/SELL` (默认: `D,DIF`)
 
-**Utilities** (`src/utils/`):
-- `objectPool.ts` - Memory optimization (Signal/Position/KDJ/MACD object reuse)
-- `signalConfigParser.ts` - Parse signal configuration DSL
-- `indicatorHelpers.ts` - Indicator value extraction and validation
-- `tradingTime.ts` - HK trading session calculations
-- `accountDisplay.ts` - Account & position display formatting
-- `logger.ts` - Pino-based logging system
-- `helpers.ts` - Symbol normalization, action checking, error formatting
+## 末日保护
+- 收盘前15分钟: 拒绝所有买单
+- 收盘前5分钟: 强制市价平仓
+- 支持半日市(12:00收盘)
 
-**Configuration** (`src/config/`):
-- `config.index.ts` - LongPort API configuration
-- `config.trading.ts` - Trading parameters (loaded from env)
-- `config.validator.ts` - Startup validation (API connectivity, symbol validity)
+## 核心概念
+- **监控标的** vs **交易标的**: 监控标的(HSI.HK)生成信号，交易标的(LONG/SHORT_SYMBOL)执行订单
+- **信号类型**: BUYCALL(买牛证), SELLCALL(卖牛证), BUYPUT(买熊证), SELLPUT(卖熊证)
+- **成本价**: 平摊成本价(卖出决策) vs 开仓成本(浮亏计算R1/N1算法)
+- **订单类型**: ELO(限价单) vs MO(市价单，紧急清仓用)
 
-### Critical Design Patterns
-
-**1. Factory Pattern**: All modules use factory functions (e.g., `createTrader()`, `createRiskChecker()`), **never classes**
-
-**2. Dependency Injection**: Dependencies passed as parameters, never created internally
-```typescript
-// Good
-export const createTrader = async (deps: TraderDeps = {}): Promise<Trader> => {
-  const config = deps.config ?? createConfig();
-  // ...
-}
-
-// Bad - DON'T create dependencies internally
-export const createTrader = async (): Promise<Trader> => {
-  const config = createConfig(); // ❌
-  // ...
-}
-```
-
-**3. Object Pools**: Reuse Signal/Position/KDJ/MACD objects to reduce GC pressure
-```typescript
-// Acquire from pool
-const signal = signalObjectPool.acquire();
-// Use it...
-// Release back to pool
-signalObjectPool.release(signal);
-```
-
-**4. Type Organization**:
-- Each module has `type.ts` for module-specific types
-- Shared types in `src/types/index.ts`
-- Use `readonly` for immutability where performance allows
-
-### Risk Check Execution Order (FIXED)
-
-From `src/core/signalProcessor/index.ts` - **6 checks in this exact order**:
-1. Buy interval limit (60s between same-direction buys)
-2. Buy price validation (reject if ask > last trade price)
-3. Doomsday protection (no buy 15min before close)
-4. Warrant risk check (bull/bear distance from strike price)
-5. Daily loss limit (`MAX_DAILY_LOSS`)
-6. Position limit (`MAX_POSITION_NOTIONAL`)
-
-### Order Filtering Algorithm (OrderRecorder)
-
-**Critical**: Process orders **chronologically from oldest to newest** (never reverse)
-
-Algorithm flow:
-1. M0 = Buy orders after latest sell timestamp
-2. Filter historical high-price buys not fully sold
-3. Final records = M0 + filtered buys
-
-This enables **intelligent position closing**:
-- If `currentPrice > costPrice`: Sell all positions
-- If `currentPrice ≤ costPrice`: Only sell orders where `buyPrice < currentPrice`
-
-## Built-in Skills
-
-This project has 3 Claude Code skills in `.claude/skills/`:
-
-1. **`/business-logic`**: Business logic knowledge base
-   - Signal generation, buy/sell strategies, order filtering
-   - Risk checks, unrealized loss monitoring, warrant risk
-   - Cost-based selling, delayed verification
-   - **Use when**: Understanding trading logic, verifying code against business rules, debugging issues
-
-2. **`/longbridge-openapi-documentation`**: LongPort API docs
-   - **Use when**: Working with LongPort SDK API calls, checking API parameters/responses
-
-3. **`/typescript-project-specifications`**: Strict TypeScript coding standards
-   - Factory pattern, dependency injection, immutability, type organization
-   - **MUST use** when writing/modifying ANY TypeScript code
-   - Enforces project conventions (no classes, readonly types, camelCase files)
-
-**Important**: When user mentions skill names or modifying code, invoke the appropriate skill.
-
-## TypeScript Requirements
-
-This project uses **STRICT TypeScript** (`tsconfig.json` has all strict flags enabled):
-- `strict: true` + all individual strict flags
-- `noUnusedLocals`, `noUnusedParameters`, `noImplicitReturns`
-- `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`
-- **ES2022 target**, **ESNext modules** with `.js` imports (not `.ts`)
-
-**Before ANY commit**:
-1. Run `npm run type-check` - must pass with 0 errors
-2. Run `npm run lint` - must pass (or use `npm run lint:fix`)
-
-## Signal Configuration DSL
-
-Format: `(condition1,condition2,...)/N|(conditionA)|(conditionB,conditionC)/M`
-
-- Parentheses group conditions (comma-separated)
-- `/N`: Require N conditions in group to be satisfied
-- `|`: OR operator between groups (max 3 groups)
-- Supported indicators: `RSI:n`, `MFI`, `K`, `D`, `J`, `MACD`, `DIF`, `DEA`, `EMA:n`
-- Operators: `<`, `>`
-- Supports negative thresholds (e.g., `J<-20`)
-
-Example: `(RSI:6<20,MFI<15,D<20,J<-1)/3|(J<-20)`
-→ Group1 needs 3/4 conditions OR Group2 needs J<-20
-
-## Delayed Signal Verification
-
-**All signals** (buy AND sell) undergo delayed verification:
-- Buy signals: `VERIFICATION_DELAY_SECONDS_BUY` (default 90s)
-- Sell signals: `VERIFICATION_DELAY_SECONDS_SELL` (default 75s)
-
-Verification mechanism:
-- Record indicator values at T0 (signal trigger)
-- Check again at T0+5s, T0+10s, and T0+delay
-- **BUYCALL/SELLPUT**: Indicators must show **uptrend** (T0+5s/T0+10s > T0)
-- **BUYPUT/SELLCALL**: Indicators must show **downtrend** (T0+5s/T0+10s < T0)
-
-Configured via `VERIFICATION_INDICATORS_BUY` / `VERIFICATION_INDICATORS_SELL` (default: `D,DIF`)
-
-## Doomsday Protection
-
-When `DOOMSDAY_PROTECTION=true`:
-- **15 minutes before close** (15:45-16:00): Reject all buy orders
-- **5 minutes before close** (15:55-16:00): Force liquidate all positions (market orders)
-- Supports half-day trading (12:00 close → protection at 11:45 and 11:55)
-
-## Key Trading Concepts
-
-**Monitor Symbol vs Trading Symbols**:
-- Monitor symbol (e.g., HSI.HK): Generates signals via indicators
-- Trading symbols (LONG_SYMBOL, SHORT_SYMBOL): Warrants executed on
-
-**Signal Types**:
-- BUYCALL: Buy bull warrant (bullish on HSI)
-- SELLCALL: Sell bull warrant (close long position)
-- BUYPUT: Buy bear warrant (bearish on HSI)
-- SELLPUT: Sell bear warrant (close short position)
-
-**Cost Price vs Opening Cost**:
-- **平摊成本价 (Average Cost)**: For profit determination (sell decision)
-- **开仓成本 (Opening Cost)**: For unrealized loss calculation (R1/N1 algorithm)
-
-**Order Types**:
-- **ELO (Enhanced Limit Order)**: Normal trading
-- **MO (Market Order)**: Emergency liquidation (doomsday/unrealized loss triggers)
-
-## Common Pitfalls
-
-1. **Never modify object pool objects after release** - they're reused
-2. **Order filtering MUST be chronological** - oldest to newest
-3. **Risk checks have fixed order** - don't reorder them
-4. **Import paths use `.js` extension** not `.ts` (ESNext modules)
-5. **All dependencies injected** - no internal creation
-6. **Types use `readonly`** where performance allows
-7. **File naming is camelCase** not PascalCase or kebab-case
-
-## Logging
-
-- Console: Real-time status (Pino with pino-pretty)
-- Files: `logs/system/` (always) and `logs/debug/` (if `DEBUG=true`)
-- Trade records: `logs/trades/YYYY-MM-DD.json`
-
-Debug mode: Set `DEBUG=true` in `.env.local` for verbose logging

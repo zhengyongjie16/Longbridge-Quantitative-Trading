@@ -20,7 +20,7 @@
  * - MACD：EMA12-EMA26-DIF 的 EMA9
  */
 
-import { validateRsiPeriod, validateEmaPeriod } from '../../utils/indicatorHelpers.js';
+import { validateRsiPeriod, validateEmaPeriod } from '../../utils/indicatorHelpers/index.js';
 import { toNumber } from './utils.js';
 import { calculateRSI } from './rsi.js';
 import { calculateMFI } from './mfi.js';

@@ -41,7 +41,7 @@ import {
   normalizeHKSymbol,
   decimalToNumber,
   formatNumber,
-} from '../src/utils/helpers.js';
+} from '../src/utils/helpers/index.js';
 
 // ==================== 类型定义 ====================
 type DecimalLikeValue = string | number | null;

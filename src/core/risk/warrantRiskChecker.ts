@@ -8,8 +8,8 @@
  * - 判断是否超过风险阈值
  */
 
-import { logger } from '../../utils/logger.js';
-import { normalizeHKSymbol, decimalToNumber, isDefined } from '../../utils/helpers.js';
+import { logger } from '../../utils/logger/index.js';
+import { normalizeHKSymbol, decimalToNumber, isDefined } from '../../utils/helpers/index.js';
 import type { MarketDataClient } from '../../services/quoteClient/index.js';
 import type { WarrantType, WarrantInfo, RiskCheckResult, WarrantQuote, WarrantRiskChecker, WarrantRiskCheckerDeps } from './type.js';
 import {

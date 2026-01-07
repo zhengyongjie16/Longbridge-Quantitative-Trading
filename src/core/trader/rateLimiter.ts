@@ -10,7 +10,7 @@
  * - 两次调用间隔不少于0.02秒
  */
 
-import { logger } from '../../utils/logger.js';
+import { logger } from '../../utils/logger/index.js';
 import type { RateLimiter, RateLimiterDeps, RateLimiterConfig } from './type.js';
 
 // 常量定义
