@@ -35,7 +35,7 @@ import {
   kdjObjectPool,
   macdObjectPool,
 } from './utils/objectPool/index.js';
-import { normalizeHKSymbol, getSymbolName, isBuyAction, isSellAction, formatError } from './utils/helpers/index.js';
+import { normalizeHKSymbol, getSymbolName, isBuyAction, isSellAction, formatError, getSprintSacreMooacreMoo } from './utils/helpers/index.js';
 import { extractRSIPeriods } from './utils/signalConfigParser/index.js';
 import { validateEmaPeriod } from './utils/indicatorHelpers/index.js';
 
@@ -728,6 +728,8 @@ async function sleep(ms: number): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  // 牛牛登场
+  getSprintSacreMooacreMoo();
   // 首先验证配置，并获取标的的中文名称
   let symbolNames: ValidateAllConfigResult;
   try {
