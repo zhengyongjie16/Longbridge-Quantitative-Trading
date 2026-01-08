@@ -3,26 +3,10 @@
  */
 
 import type { CandleData, IndicatorSnapshot, KDJIndicator, MACDIndicator } from '../../types/index.js';
+import type { ObjectPool } from '../../utils/objectPool/types.js';
+import type { Logger } from '../../utils/logger/types.js';
 
 // ==================== 数据结构类型 ====================
-
-/**
- * 对象池接口
- */
-export type ObjectPool<T> = {
-  acquire(): T;
-  release(obj: T): void;
-};
-
-/**
- * 日志接口
- */
-export interface Logger {
-  debug(message: string, ...args: unknown[]): void;
-  info(message: string, ...args: unknown[]): void;
-  warn(message: string, ...args: unknown[]): void;
-  error(message: string, ...args: unknown[]): void;
-}
 
 /**
  * 指标计算配置

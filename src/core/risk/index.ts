@@ -23,13 +23,17 @@
 import { TRADING_CONFIG } from '../../config/config.trading.js';
 import { normalizeHKSymbol, isBuyAction, isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { logger } from '../../utils/logger/index.js';
-import type { Position, Signal, AccountSnapshot } from '../../types/index.js';
-import type { MarketDataClient } from '../../services/quoteClient/index.js';
-import type { OrderRecorder } from '../orderRecorder/index.js';
 import type {
+  Position,
+  Signal,
+  AccountSnapshot,
+  MarketDataClient,
+  OrderRecorder,
   RiskCheckResult,
   UnrealizedLossCheckResult,
   RiskChecker,
+} from '../../types/index.js';
+import type {
   RiskCheckerDeps,
 } from './type.js';
 import { createWarrantRiskChecker } from './warrantRiskChecker.js';
@@ -309,7 +313,4 @@ export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
     },
   };
 };
-
-// 导出类型
-export type { RiskChecker } from './type.js';
 

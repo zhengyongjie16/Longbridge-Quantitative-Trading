@@ -47,7 +47,6 @@ import { createDoomsdayProtection } from './core/doomsdayProtection/index.js';
 import { createUnrealizedLossMonitor } from './core/unrealizedLossMonitor/index.js';
 import { createSignalVerificationManager } from './core/signalVerification/index.js';
 import { createSignalProcessor } from './core/signalProcessor/index.js';
-import type { MarketDataClient } from './services/quoteClient/index.js';
 import type {
   CandleData,
   Signal,
@@ -56,14 +55,15 @@ import type {
   SignalConfigSet,
   LastState,
   ValidateAllConfigResult,
+  MarketDataClient,
+  Trader,
+  OrderRecorder,
+  RiskChecker,
 } from './types/index.js';
 import type { HangSengMultiIndicatorStrategy } from './core/strategy/type.js';
 import type { MarketMonitor } from './core/marketMonitor/type.js';
 import type { DoomsdayProtection } from './core/doomsdayProtection/type.js';
 import type { SignalVerificationManager } from './core/signalVerification/type.js';
-import type { Trader } from './core/trader/type.js';
-import type { OrderRecorder } from './core/orderRecorder/type.js';
-import type { RiskChecker } from './core/risk/type.js';
 import type { UnrealizedLossMonitor } from './core/unrealizedLossMonitor/type.js';
 import type { SignalProcessor } from './core/signalProcessor/type.js';
 

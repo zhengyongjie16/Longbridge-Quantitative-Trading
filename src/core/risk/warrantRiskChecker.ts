@@ -10,8 +10,8 @@
 
 import { logger } from '../../utils/logger/index.js';
 import { normalizeHKSymbol, decimalToNumber, isDefined } from '../../utils/helpers/index.js';
-import type { MarketDataClient } from '../../services/quoteClient/index.js';
-import type { WarrantType, WarrantInfo, RiskCheckResult, WarrantQuote, WarrantRiskChecker, WarrantRiskCheckerDeps } from './type.js';
+import type { MarketDataClient, WarrantType, RiskCheckResult } from '../../types/index.js';
+import type { WarrantInfo, WarrantQuote, WarrantRiskChecker, WarrantRiskCheckerDeps } from './type.js';
 import {
   BULL_WARRANT_MIN_DISTANCE_PERCENT,
   BEAR_WARRANT_MAX_DISTANCE_PERCENT,

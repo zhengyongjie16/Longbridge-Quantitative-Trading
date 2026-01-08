@@ -12,7 +12,8 @@
  * 3. 最终记录 = M0 + 过滤后的买入订单
  */
 
-import type { OrderRecord, FilteringState, OrderFilteringEngine, OrderFilteringEngineDeps } from './type.js';
+import type { OrderRecord } from '../../types/index.js';
+import type { FilteringState, OrderFilteringEngine, OrderFilteringEngineDeps } from './type.js';
 
 /**
  * 创建订单过滤引擎

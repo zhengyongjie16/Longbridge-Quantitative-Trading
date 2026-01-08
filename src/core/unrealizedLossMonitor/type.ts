@@ -2,10 +2,7 @@
  * 浮亏监控模块类型定义
  */
 
-import type { Quote } from '../../types/index.js';
-import type { RiskChecker } from '../risk/index.js';
-import type { Trader } from '../trader/index.js';
-import type { OrderRecorder } from '../orderRecorder/index.js';
+import type { Quote, RiskChecker, Trader, OrderRecorder } from '../../types/index.js';
 
 // ==================== 服务接口定义 ====================
 

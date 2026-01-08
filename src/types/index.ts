@@ -4,7 +4,6 @@
  */
 
 import { Market } from 'longport';
-import type { MarketDataClient } from '../services/quoteClient/index.js';
 
 // ==================== 信号类型 ====================
 
@@ -281,3 +280,204 @@ export interface LastState {
   } | null;
   lastMonitorSnapshot: IndicatorSnapshot | null;
 }
+
+// ==================== 核心服务接口 ====================
+
+/**
+ * K线周期字符串类型
+ */
+export type PeriodString = '1m' | '5m' | '15m' | '1h' | '1d';
+
+/**
+ * 交易日查询结果类型
+ */
+export type TradingDaysResult = {
+  readonly tradingDays: ReadonlyArray<string>;
+  readonly halfTradingDays: ReadonlyArray<string>;
+};
+
+/**
+ * 行情数据客户端接口（公共服务接口）
+ */
+export interface MarketDataClient {
+  _getContext(): Promise<import('longport').QuoteContext>;
+  getLatestQuote(symbol: string): Promise<Quote | null>;
+  getCandlesticks(
+    symbol: string,
+    period?: PeriodString | import('longport').Period,
+    count?: number,
+    adjustType?: import('longport').AdjustType,
+    tradeSessions?: import('longport').TradeSessions,
+  ): Promise<import('longport').Candlestick[]>;
+  getTradingDays(startDate: Date, endDate: Date, market?: import('longport').Market): Promise<TradingDaysResult>;
+  isTradingDay(date: Date, market?: import('longport').Market): Promise<TradingDayInfo>;
+}
+
+/**
+ * 待处理订单接口
+ * 注意：此类型不使用 readonly，因为需要在运行时修改
+ */
+export interface PendingOrder {
+  orderId: string;
+  symbol: string;
+  side: (typeof import('longport').OrderSide)[keyof typeof import('longport').OrderSide];
+  submittedPrice: number;
+  quantity: number;
+  executedQuantity: number;
+  status: (typeof import('longport').OrderStatus)[keyof typeof import('longport').OrderStatus];
+  orderType: unknown;
+  _rawOrder?: unknown;
+}
+
+/**
+ * 订单记录类型
+ */
+export type OrderRecord = {
+  readonly orderId: string;
+  readonly symbol: string;
+  readonly executedPrice: number;
+  readonly executedQuantity: number;
+  readonly executedTime: number;
+  readonly submittedAt: Date | undefined;
+  readonly updatedAt: Date | undefined;
+};
+
+/**
+ * 获取订单结果类型
+ */
+export type FetchOrdersResult = {
+  readonly success?: boolean;
+  readonly buyOrders: ReadonlyArray<OrderRecord>;
+  readonly sellOrders: ReadonlyArray<OrderRecord>;
+};
+
+/**
+ * 交易检查结果类型
+ */
+export type TradeCheckResult = {
+  readonly canTrade: boolean;
+  readonly waitSeconds?: number;
+  readonly direction?: 'LONG' | 'SHORT';
+  readonly reason?: string;
+};
+
+/**
+ * 订单记录器接口（公共服务接口）
+ */
+export interface OrderRecorder {
+  recordLocalBuy(symbol: string, executedPrice: number, executedQuantity: number, isLongSymbol: boolean): void;
+  recordLocalSell(symbol: string, executedPrice: number, executedQuantity: number, isLongSymbol: boolean): void;
+  clearBuyOrders(symbol: string, isLongSymbol: boolean): void;
+  getLatestBuyOrderPrice(symbol: string, isLongSymbol: boolean): number | null;
+  getBuyOrdersBelowPrice(currentPrice: number, direction: 'LONG' | 'SHORT'): OrderRecord[];
+  calculateTotalQuantity(orders: OrderRecord[]): number;
+  fetchOrdersFromAPI(symbol: string): Promise<FetchOrdersResult>;
+  refreshOrders(symbol: string, isLongSymbol: boolean): Promise<OrderRecord[]>;
+  hasCacheForSymbols(symbols: string[]): boolean;
+  getPendingOrdersFromCache(symbols: string[]): PendingOrder[];
+  getLongBuyOrders(): OrderRecord[];
+  getShortBuyOrders(): OrderRecord[];
+  getBuyOrdersForSymbol(symbol: string, isLongSymbol: boolean): OrderRecord[];
+  readonly _longBuyOrders: OrderRecord[];
+  readonly _shortBuyOrders: OrderRecord[];
+}
+
+/**
+ * 交易器接口（公共服务接口）
+ */
+export interface Trader {
+  readonly _ctxPromise: Promise<import('longport').TradeContext>;
+
+  // 账户相关方法
+  getAccountSnapshot(): Promise<AccountSnapshot | null>;
+  getStockPositions(symbols?: string[] | null): Promise<Position[]>;
+
+  // 订单缓存相关方法
+  getPendingOrders(symbols?: string[] | null, forceRefresh?: boolean): Promise<PendingOrder[]>;
+  clearPendingOrdersCache(): void;
+  hasPendingBuyOrders(symbols: string[], orderRecorder?: OrderRecorder | null): Promise<boolean>;
+
+  // 订单监控相关方法
+  enableBuyOrderMonitoring(): void;
+  cancelOrder(orderId: string): Promise<boolean>;
+  replaceOrderPrice(orderId: string, newPrice: number, quantity?: number | null, cachedOrder?: PendingOrder | null): Promise<void>;
+  monitorAndManageOrders(longQuote: Quote | null, shortQuote: Quote | null): Promise<void>;
+
+  // 订单执行相关方法
+  _canTradeNow(signalAction: string): TradeCheckResult;
+  executeSignals(signals: Signal[]): Promise<void>;
+}
+
+/**
+ * 牛熊证类型
+ */
+export type WarrantType = 'BULL' | 'BEAR';
+
+/**
+ * 风险检查结果接口
+ */
+export type RiskCheckResult = {
+  readonly allowed: boolean;
+  readonly reason?: string;
+  readonly warrantInfo?: {
+    readonly isWarrant: boolean;
+    readonly warrantType: WarrantType;
+    readonly distanceToStrikePercent: number;
+  };
+};
+
+/**
+ * 浮亏数据接口
+ */
+export type UnrealizedLossData = {
+  readonly r1: number;
+  readonly n1: number;
+  readonly lastUpdateTime: number;
+};
+
+/**
+ * 浮亏检查结果接口
+ */
+export type UnrealizedLossCheckResult = {
+  readonly shouldLiquidate: boolean;
+  readonly reason?: string;
+  readonly quantity?: number;
+};
+
+/**
+ * 风险检查器接口（公共服务接口）
+ */
+export interface RiskChecker {
+  readonly unrealizedLossData: Map<string, UnrealizedLossData>;
+  initializeWarrantInfo(
+    marketDataClient: MarketDataClient,
+    longSymbol: string,
+    shortSymbol: string,
+  ): Promise<void>;
+  checkBeforeOrder(
+    account: AccountSnapshot | null,
+    positions: ReadonlyArray<Position> | null,
+    signal: Signal | null,
+    orderNotional: number,
+    currentPrice?: number | null,
+    longCurrentPrice?: number | null,
+    shortCurrentPrice?: number | null,
+  ): RiskCheckResult;
+  checkWarrantRisk(
+    symbol: string,
+    signalType: string,
+    monitorCurrentPrice: number,
+  ): RiskCheckResult;
+  refreshUnrealizedLossData(
+    orderRecorder: OrderRecorder,
+    symbol: string,
+    isLongSymbol: boolean,
+  ): Promise<{ r1: number; n1: number } | null>;
+  checkUnrealizedLoss(
+    symbol: string,
+    currentPrice: number,
+    isLongSymbol: boolean,
+  ): UnrealizedLossCheckResult;
+}
+
+

@@ -15,14 +15,7 @@
  * - isValidNumber()：检查数值有效性
  */
 
-/**
- * 指标状态接口（用于获取指标值）
- */
-interface IndicatorState {
-  kdj?: { k?: number; d?: number; j?: number } | null;
-  macd?: { macd?: number; dif?: number; dea?: number } | null;
-  ema?: Record<number, number> | null;
-}
+import type { IndicatorState } from './types.js';
 
 /**
  * 从指标状态中提取指定指标的值

@@ -16,14 +16,8 @@
 
 import { TradeContext } from 'longport';
 import { createConfig } from '../../config/config.index.js';
-import type { Signal, Quote, AccountSnapshot, Position } from '../../types/index.js';
-import type { OrderRecorder } from '../orderRecorder/index.js';
-import type { PendingOrder } from '../type.js';
-import type {
-  Trader,
-  TraderDeps,
-  TradeCheckResult,
-} from './type.js';
+import type { Signal, Quote, AccountSnapshot, Position, OrderRecorder, PendingOrder, Trader, TradeCheckResult } from '../../types/index.js';
+import type { TraderDeps } from './type.js';
 
 // 导入子模块工厂函数
 import { createRateLimiter } from './rateLimiter.js';
@@ -130,6 +124,3 @@ export const createTrader = async (deps: TraderDeps = {}): Promise<Trader> => {
     },
   };
 };
-
-// 导出类型
-export type { Trader } from './type.js';

@@ -2,9 +2,17 @@
  * 订单执行模块类型定义
  */
 
-import type { OrderSide, OrderType, TimeInForceType, TradeContext } from 'longport';
-import type { Signal, Quote, AccountSnapshot, Position } from '../../types/index.js';
-import type { PendingOrder } from '../type.js';
+import type { OrderSide, OrderType, OrderStatus, TimeInForceType, TradeContext, Decimal } from 'longport';
+import type { Signal, Quote, AccountSnapshot, Position, PendingOrder, TradeCheckResult, DecimalLikeValue } from '../../types/index.js';
+
+/**
+ * 用于订单替换的订单类型（longport SDK 返回的订单对象）
+ */
+export type OrderForReplace = {
+  status: OrderStatus;
+  executedQuantity?: Decimal | DecimalLikeValue;
+  [key: string]: unknown;
+};
 
 /**
  * 默认订单配置类型
@@ -62,26 +70,6 @@ export type ErrorTypeIdentifier = {
   readonly isRateLimited: boolean;
 };
 
-/**
- * 交易检查结果类型
- */
-export type TradeCheckResult = {
-  readonly canTrade: boolean;
-  readonly waitSeconds?: number;
-  readonly direction?: 'LONG' | 'SHORT';
-  readonly reason?: string;
-};
-
-/**
- * 订单对象类型（用于修改订单）
- */
-export type OrderForReplace = {
-  readonly orderId: string;
-  readonly status: import('longport').OrderStatus;
-  readonly executedQuantity: unknown;
-  readonly quantity: unknown;
-};
-
 // ==================== 服务接口定义 ====================
 
 /**
@@ -105,7 +93,7 @@ export interface AccountService {
 export interface OrderCacheManager {
   getPendingOrders(symbols?: string[] | null, forceRefresh?: boolean): Promise<PendingOrder[]>;
   clearCache(): void;
-  hasPendingBuyOrders(symbols: string[], orderRecorder?: import('../orderRecorder/index.js').OrderRecorder | null): Promise<boolean>;
+  hasPendingBuyOrders(symbols: string[], orderRecorder?: import('../../types/index.js').OrderRecorder | null): Promise<boolean>;
 }
 
 /**
@@ -123,32 +111,6 @@ export interface OrderMonitor {
  */
 export interface OrderExecutor {
   canTradeNow(signalAction: string): TradeCheckResult;
-  executeSignals(signals: Signal[]): Promise<void>;
-}
-
-/**
- * 交易器接口（门面）
- */
-export interface Trader {
-  readonly _ctxPromise: Promise<TradeContext>;
-
-  // 账户相关方法
-  getAccountSnapshot(): Promise<AccountSnapshot | null>;
-  getStockPositions(symbols?: string[] | null): Promise<Position[]>;
-
-  // 订单缓存相关方法
-  getPendingOrders(symbols?: string[] | null, forceRefresh?: boolean): Promise<PendingOrder[]>;
-  clearPendingOrdersCache(): void;
-  hasPendingBuyOrders(symbols: string[], orderRecorder?: import('../orderRecorder/index.js').OrderRecorder | null): Promise<boolean>;
-
-  // 订单监控相关方法
-  enableBuyOrderMonitoring(): void;
-  cancelOrder(orderId: string): Promise<boolean>;
-  replaceOrderPrice(orderId: string, newPrice: number, quantity?: number | null, cachedOrder?: PendingOrder | null): Promise<void>;
-  monitorAndManageOrders(longQuote: Quote | null, shortQuote: Quote | null): Promise<void>;
-
-  // 订单执行相关方法
-  _canTradeNow(signalAction: string): TradeCheckResult;
   executeSignals(signals: Signal[]): Promise<void>;
 }
 

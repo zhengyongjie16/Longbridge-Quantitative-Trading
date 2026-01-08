@@ -29,11 +29,13 @@ import {
 import type {
   OrderRecord,
   FetchOrdersResult,
-  OrderStatistics,
   OrderRecorder,
+  PendingOrder,
+} from '../../types/index.js';
+import type {
+  OrderStatistics,
   OrderRecorderDeps,
 } from './type.js';
-import type { PendingOrder } from '../type.js';
 import { createOrderStorage } from './orderStorage.js';
 import { createOrderAPIManager } from './orderAPIManager.js';
 import { createOrderFilteringEngine } from './orderFilteringEngine.js';
@@ -445,6 +447,3 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
     },
   };
 };
-
-// 导出类型
-export type { OrderRecorder } from './type.js';

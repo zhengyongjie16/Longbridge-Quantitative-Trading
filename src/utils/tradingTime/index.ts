@@ -16,13 +16,7 @@
  * - 收盘前 5 分钟：15:55-15:59（正常日）/ 11:55-11:59（半日）
  */
 
-/**
- * 香港时间结构
- */
-interface HKTime {
-  hkHour: number;
-  hkMinute: number;
-}
+import type { HKTime } from './types.js';
 
 /**
  * 将UTC时间转换为香港时区（UTC+8）

@@ -20,7 +20,7 @@ import { logger } from '../utils/logger/index.js';
 import { TRADING_CONFIG } from './config.trading.js';
 import { createConfig } from './config.index.js';
 import { createMarketDataClient } from '../services/quoteClient/index.js';
-import type { MarketDataClient } from '../services/quoteClient/type.js';
+import type { MarketDataClient, ValidateAllConfigResult } from '../types/index.js';
 import { formatSymbolDisplay } from '../utils/helpers/index.js';
 import {
   validateSignalConfig,
@@ -32,7 +32,6 @@ import type {
   TradingValidationResult,
   SymbolValidationResult,
 } from './type.js';
-import type { ValidateAllConfigResult } from '../types/index.js';
 
 /**
  * 配置验证错误类

@@ -16,13 +16,10 @@
 
 import type { Quote, SignalType } from '../../types/index.js';
 import { inspect } from 'node:util';
+import type { DecimalLike, TimeFormatOptions, QuoteDisplayResult } from './types.js';
 
-/**
- * LongPort Decimal 类型接口
- */
-interface DecimalLike {
-  toNumber(): number;
-}
+// 导出类型
+export type { QuoteDisplayResult };
 
 /**
  * 检查值是否已定义（不是 null 或 undefined）
@@ -169,19 +166,6 @@ export function getSymbolName(
   return signalSymbol;
 }
 
-/**
- * 时间格式化选项
- */
-interface TimeFormatOptions {
-  format?: 'iso' | 'log';
-}
-
-/**
- * 将时间转换为北京时间（UTC+8）的字符串
- * @param date 时间对象，如果为 null 则使用当前时间
- * @param options 格式选项
- * @returns 北京时间的字符串格式
- */
 // 常量定义
 /**
  * 每秒的毫秒数
@@ -256,17 +240,6 @@ export function toBeijingTimeIso(date: Date | null = null): string {
  */
 export function toBeijingTimeLog(date: Date | null = null): string {
   return toBeijingTime(date, { format: 'log' });
-}
-
-/**
- * 行情显示格式化结果
- */
-export interface QuoteDisplayResult {
-  nameText: string;
-  codeText: string;
-  priceText: string;
-  changeAmountText: string;
-  changePercentText: string;
 }
 
 /**

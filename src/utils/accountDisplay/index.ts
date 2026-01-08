@@ -25,30 +25,7 @@ import {
   isValidPositiveNumber,
 } from '../helpers/index.js';
 
-import type { AccountSnapshot, Position, Quote } from '../../types/index.js';
-
-/**
- * Trader 接口定义
- */
-interface Trader {
-  getAccountSnapshot(): Promise<AccountSnapshot | null>;
-  getStockPositions(): Promise<Position[]>;
-}
-
-/**
- * MarketDataClient 接口定义
- */
-interface MarketDataClient {
-  getLatestQuote(symbol: string): Promise<Quote | null>;
-}
-
-/**
- * 状态对象接口
- */
-interface LastState {
-  cachedAccount: AccountSnapshot | null;
-  cachedPositions: Position[];
-}
+import type { Trader, MarketDataClient, LastState } from './types.js';
 
 /**
  * 显示账户和持仓信息（仅在交易后调用）

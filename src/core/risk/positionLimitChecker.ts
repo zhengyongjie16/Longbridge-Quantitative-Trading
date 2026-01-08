@@ -8,8 +8,8 @@
  */
 
 import { normalizeHKSymbol } from '../../utils/helpers/index.js';
-import type { Position, Signal } from '../../types/index.js';
-import type { RiskCheckResult, PositionLimitChecker, PositionLimitCheckerDeps } from './type.js';
+import type { Position, Signal, RiskCheckResult } from '../../types/index.js';
+import type { PositionLimitChecker, PositionLimitCheckerDeps } from './type.js';
 
 /**
  * 创建持仓市值限制检查器

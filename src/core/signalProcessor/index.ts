@@ -22,8 +22,7 @@
 import { logger } from '../../utils/logger/index.js';
 import { normalizeHKSymbol, getSymbolName, getDirectionName } from '../../utils/helpers/index.js';
 import { TRADING_CONFIG } from '../../config/config.trading.js';
-import type { Quote, Position, Signal } from '../../types/index.js';
-import type { OrderRecorder } from '../orderRecorder/index.js';
+import type { Quote, Position, Signal, OrderRecorder } from '../../types/index.js';
 import type { RiskCheckContext, SellQuantityResult, SignalProcessor, SignalProcessorDeps } from './type.js';
 
 /**

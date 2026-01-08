@@ -36,15 +36,12 @@ import {
   isDefined,
 } from '../../utils/helpers/index.js';
 import { logger } from '../../utils/logger/index.js';
-import type { Quote, TradingDayInfo } from '../../types/index.js';
+import type { Quote, TradingDayInfo, MarketDataClient, TradingDaysResult, PeriodString } from '../../types/index.js';
 import type {
   RetryConfig,
   CacheEntry,
-  TradingDaysResult,
-  PeriodString,
   QuoteCache,
   TradingDayCache,
-  MarketDataClient,
   QuoteCacheDeps,
   TradingDayCacheDeps,
   MarketDataClientDeps,
@@ -431,4 +428,4 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps = {}): P
 };
 
 // 导出类型
-export type { MarketDataClient, QuoteCache, TradingDayCache } from './type.js';
+export type { QuoteCache, TradingDayCache } from './type.js';

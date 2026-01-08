@@ -26,66 +26,22 @@ import {
   validateEmaPeriod,
 } from '../indicatorHelpers/index.js';
 import { logger } from '../logger/index.js';
-import type { SignalConfig, Condition, ConditionGroup, SignalConfigSet } from '../../types/index.js';
+import type { Condition, ConditionGroup, SignalConfigSet } from '../../types/index.js';
+import type {
+  ParsedCondition,
+  ParsedConditionGroup,
+  IndicatorState,
+  SignalValidationResult,
+  EvaluationResult,
+  ConditionGroupResult,
+} from './types.js';
+import type { SignalConfig } from '../../types/index.js';
+
+// 导出类型
+export type { SignalValidationResult, EvaluationResult };
 
 // 支持的固定指标列表（不包括 RSI 和 EMA，因为它们支持动态周期）
 const SUPPORTED_INDICATORS = ['MFI', 'K', 'D', 'J', 'MACD', 'DIF', 'DEA'] as const;
-
-/**
- * 解析后的条件（带可选周期）
- */
-interface ParsedCondition {
-  indicator: string;
-  period?: number;
-  operator: '<' | '>';
-  threshold: number;
-}
-
-/**
- * 解析后的条件组
- */
-interface ParsedConditionGroup {
-  conditions: ParsedCondition[];
-  minSatisfied: number;
-}
-
-/**
- * 指标状态接口
- */
-interface IndicatorState {
-  rsi?: Record<number, number> | null;
-  mfi?: number | null;
-  kdj?: { k?: number; d?: number; j?: number } | null;
-  macd?: { macd?: number; dif?: number; dea?: number } | null;
-  ema?: Record<number, number> | null;
-}
-
-/**
- * 验证结果接口
- */
-export interface ValidationResult {
-  valid: boolean;
-  error: string | null;
-  config: SignalConfig | null;
-}
-
-/**
- * 评估结果接口
- */
-export interface EvaluationResult {
-  triggered: boolean;
-  satisfiedGroupIndex: number;
-  satisfiedCount: number;
-  reason: string;
-}
-
-/**
- * 条件组评估结果接口
- */
-interface ConditionGroupResult {
-  satisfied: boolean;
-  count: number;
-}
 
 /**
  * 解析单个条件
@@ -302,7 +258,7 @@ export function parseSignalConfig(configStr: string | null | undefined): SignalC
  * @param configStr 配置字符串
  * @returns 验证结果
  */
-export function validateSignalConfig(configStr: string | null | undefined): ValidationResult {
+export function validateSignalConfig(configStr: string | null | undefined): SignalValidationResult {
   if (!configStr || typeof configStr !== 'string') {
     return {
       valid: false,

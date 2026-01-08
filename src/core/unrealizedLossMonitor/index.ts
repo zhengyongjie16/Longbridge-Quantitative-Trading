@@ -21,10 +21,7 @@
 import { logger } from '../../utils/logger/index.js';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
-import type { Quote, Signal } from '../../types/index.js';
-import type { RiskChecker } from '../risk/index.js';
-import type { Trader } from '../trader/index.js';
-import type { OrderRecorder } from '../orderRecorder/index.js';
+import type { Quote, Signal, RiskChecker, Trader, OrderRecorder } from '../../types/index.js';
 import type { UnrealizedLossMonitor, UnrealizedLossMonitorDeps } from './type.js';
 
 /**

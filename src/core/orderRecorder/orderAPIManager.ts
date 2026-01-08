@@ -14,13 +14,15 @@ import {
 } from '../../utils/helpers/index.js';
 import type {
   OrderRecord,
-  OrderCache,
   FetchOrdersResult,
+  PendingOrder,
+} from '../../types/index.js';
+import type {
+  OrderCache,
   RawOrderFromAPI,
   OrderAPIManager,
   OrderAPIManagerDeps,
 } from './type.js';
-import type { PendingOrder } from '../type.js';
 
 /**
  * 创建订单API管理器

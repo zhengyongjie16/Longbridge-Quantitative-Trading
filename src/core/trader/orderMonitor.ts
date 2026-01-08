@@ -12,8 +12,7 @@ import { OrderStatus, OrderSide, Decimal } from 'longport';
 import { logger } from '../../utils/logger/index.js';
 import { normalizeHKSymbol, decimalToNumber, isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { TRADING_CONFIG } from '../../config/config.trading.js';
-import type { Quote, DecimalLikeValue } from '../../types/index.js';
-import type { PendingOrder } from '../type.js';
+import type { Quote, DecimalLikeValue, PendingOrder } from '../../types/index.js';
 import type { OrderMonitor, OrderMonitorDeps, OrderForReplace } from './type.js';
 
 // 常量定义
@@ -104,12 +103,12 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
       originalOrder = cachedOrder as unknown as OrderForReplace;
       logger.debug(`[订单修改] 使用缓存的 PendingOrder 对象，订单ID=${orderId}`);
     } else {
-      // 没有缓存，查询API
+      // 没有缓存,查询API
       logger.debug(`[订单修改] 未提供缓存订单对象，查询API获取订单 ${orderId}`);
       await rateLimiter.throttle();
       const allOrders = await ctx.todayOrders();
       const foundOrder = allOrders.find((o) => o.orderId === orderId);
-      originalOrder = foundOrder ? (foundOrder as OrderForReplace) : null;
+      originalOrder = foundOrder ? (foundOrder as unknown as OrderForReplace) : null;
     }
 
     if (!originalOrder) {

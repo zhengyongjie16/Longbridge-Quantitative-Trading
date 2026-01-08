@@ -3,22 +3,7 @@
  */
 
 import type { OrderSide, OrderStatus, OrderType, TradeContext } from 'longport';
-import type { DecimalLikeValue } from '../../types/index.js';
-import type { PendingOrder } from '../type.js';
-import type { Trader } from '../trader/index.js';
-
-/**
- * 订单记录类型
- */
-export type OrderRecord = {
-  readonly orderId: string;
-  readonly symbol: string;
-  readonly executedPrice: number;
-  readonly executedQuantity: number;
-  readonly executedTime: number;
-  readonly submittedAt: Date | undefined;
-  readonly updatedAt: Date | undefined;
-};
+import type { DecimalLikeValue, PendingOrder, OrderRecord, FetchOrdersResult, Trader } from '../../types/index.js';
 
 /**
  * API 返回的原始订单类型（用于类型安全的转换）
@@ -45,15 +30,6 @@ export type OrderCache = {
   readonly sellOrders: ReadonlyArray<OrderRecord>;
   readonly allOrders: ReadonlyArray<RawOrderFromAPI> | null;
   readonly fetchTime: number;
-};
-
-/**
- * 获取订单结果类型
- */
-export type FetchOrdersResult = {
-  readonly success?: boolean;
-  readonly buyOrders: ReadonlyArray<OrderRecord>;
-  readonly sellOrders: ReadonlyArray<OrderRecord>;
 };
 
 /**
@@ -105,27 +81,6 @@ export interface OrderAPIManager {
   fetchOrdersFromAPI(symbol: string): Promise<FetchOrdersResult>;
   hasCacheForSymbols(symbols: string[]): boolean;
   getPendingOrdersFromCache(symbols: string[]): PendingOrder[];
-}
-
-/**
- * 订单记录器接口
- */
-export interface OrderRecorder {
-  recordLocalBuy(symbol: string, executedPrice: number, executedQuantity: number, isLongSymbol: boolean): void;
-  recordLocalSell(symbol: string, executedPrice: number, executedQuantity: number, isLongSymbol: boolean): void;
-  clearBuyOrders(symbol: string, isLongSymbol: boolean): void;
-  getLatestBuyOrderPrice(symbol: string, isLongSymbol: boolean): number | null;
-  getBuyOrdersBelowPrice(currentPrice: number, direction: 'LONG' | 'SHORT'): OrderRecord[];
-  calculateTotalQuantity(orders: OrderRecord[]): number;
-  fetchOrdersFromAPI(symbol: string): Promise<FetchOrdersResult>;
-  refreshOrders(symbol: string, isLongSymbol: boolean): Promise<OrderRecord[]>;
-  hasCacheForSymbols(symbols: string[]): boolean;
-  getPendingOrdersFromCache(symbols: string[]): PendingOrder[];
-  getLongBuyOrders(): OrderRecord[];
-  getShortBuyOrders(): OrderRecord[];
-  getBuyOrdersForSymbol(symbol: string, isLongSymbol: boolean): OrderRecord[];
-  readonly _longBuyOrders: OrderRecord[];
-  readonly _shortBuyOrders: OrderRecord[];
 }
 
 // ==================== 依赖类型定义 ====================

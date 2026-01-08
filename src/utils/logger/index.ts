@@ -24,17 +24,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Writable } from 'node:stream';
 import { inspect } from 'node:util';
+import { LOG_LEVELS, type LogObject, type Logger } from './types.js';
 
 // 缓存 DEBUG 环境变量，避免重复读取
 const IS_DEBUG = process.env['DEBUG'] === 'true';
-
-// 日志级别常量
-const LOG_LEVELS = {
-  DEBUG: 20,
-  INFO: 30,
-  WARN: 40,
-  ERROR: 50,
-} as const;
 
 // 时间常量（毫秒）
 /**
@@ -51,8 +44,6 @@ const DRAIN_TIMEOUT_MS = 5000;
  */
 const CONSOLE_DRAIN_TIMEOUT_MS = 3000;
 
-type LogLevel = (typeof LOG_LEVELS)[keyof typeof LOG_LEVELS];
-
 // ANSI 颜色代码（保持兼容性）
 export const colors = {
   reset: '\x1b[0m',
@@ -62,16 +53,6 @@ export const colors = {
   green: '\x1b[32m',
   cyan: '\x1b[96m', // 天蓝色
 } as const;
-
-/**
- * 日志对象接口
- */
-interface LogObject {
-  level: LogLevel;
-  time: number;
-  msg: string;
-  extra?: unknown;
-}
 
 const formatExtra = (extra: unknown): string => {
   return inspect(extra, { depth: 5, maxArrayLength: 100 });
@@ -559,16 +540,6 @@ const pinoLogger = pino(
   },
   pino.multistream(streams),
 );
-
-/**
- * Logger 接口定义
- */
-export interface Logger {
-  debug(msg: string, extra?: unknown): void;
-  info(msg: string, extra?: unknown): void;
-  warn(msg: string, extra?: unknown): void;
-  error(msg: string, extra?: unknown): void;
-}
 
 /**
  * 导出的 logger 对象，保持与原有 API 兼容

@@ -25,8 +25,8 @@ import {
   isBuyAction,
   isValidPositiveNumber,
 } from '../../utils/helpers/index.js';
-import type { Signal } from '../../types/index.js';
-import type { OrderOptions, OrderPayload, TradeCheckResult, OrderExecutor, OrderExecutorDeps } from './type.js';
+import type { Signal, TradeCheckResult } from '../../types/index.js';
+import type { OrderOptions, OrderPayload, OrderExecutor, OrderExecutorDeps } from './type.js';
 import { recordTrade, identifyErrorType } from './tradeLogger.js';
 
 // 常量定义

@@ -2,10 +2,7 @@
  * 信号处理模块类型定义
  */
 
-import type { Quote, Position, AccountSnapshot, IndicatorSnapshot, Signal } from '../../types/index.js';
-import type { OrderRecorder } from '../orderRecorder/index.js';
-import type { Trader } from '../trader/index.js';
-import type { RiskChecker } from '../risk/index.js';
+import type { Quote, Position, AccountSnapshot, IndicatorSnapshot, Signal, OrderRecorder, Trader, RiskChecker } from '../../types/index.js';
 import type { DoomsdayProtection } from '../doomsdayProtection/type.js';
 
 /**

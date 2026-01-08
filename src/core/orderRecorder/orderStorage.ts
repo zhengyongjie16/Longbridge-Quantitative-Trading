@@ -12,7 +12,8 @@ import {
   normalizeHKSymbol,
   getDirectionName,
 } from '../../utils/helpers/index.js';
-import type { OrderRecord, OrderStorage, OrderStorageDeps } from './type.js';
+import type { OrderRecord } from '../../types/index.js';
+import type { OrderStorage, OrderStorageDeps } from './type.js';
 
 /**
  * 创建订单存储管理器
