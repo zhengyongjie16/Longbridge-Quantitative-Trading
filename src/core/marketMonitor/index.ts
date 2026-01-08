@@ -31,7 +31,7 @@ import {
   macdObjectPool,
 } from '../../utils/objectPool/index.js';
 import type { Quote, IndicatorSnapshot, MonitorValues, LastState } from '../../types/index.js';
-import type { MarketMonitor } from './type.js';
+import type { MarketMonitor } from './types.js';
 
 /**
  * 创建行情监控器

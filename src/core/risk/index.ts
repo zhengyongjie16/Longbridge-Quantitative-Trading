@@ -35,7 +35,7 @@ import type {
 } from '../../types/index.js';
 import type {
   RiskCheckerDeps,
-} from './type.js';
+} from './types.js';
 import { createWarrantRiskChecker } from './warrantRiskChecker.js';
 import { createPositionLimitChecker } from './positionLimitChecker.js';
 import { createUnrealizedLossChecker } from './unrealizedLossChecker.js';

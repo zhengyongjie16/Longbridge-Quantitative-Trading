@@ -31,7 +31,7 @@ import type {
   ValidationResult,
   TradingValidationResult,
   SymbolValidationResult,
-} from './type.js';
+} from './types.js';
 
 /**
  * 配置验证错误类

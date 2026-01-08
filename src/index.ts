@@ -35,7 +35,7 @@ import {
   kdjObjectPool,
   macdObjectPool,
 } from './utils/objectPool/index.js';
-import { normalizeHKSymbol, getSymbolName, isBuyAction, isSellAction, formatError, getSprintSacreMooacreMoo } from './utils/helpers/index.js';
+import { normalizeHKSymbol, getSymbolName, isBuyAction, isSellAction, formatError } from './utils/helpers/index.js';
 import { extractRSIPeriods } from './utils/signalConfigParser/index.js';
 import { validateEmaPeriod } from './utils/indicatorHelpers/index.js';
 
@@ -60,12 +60,13 @@ import type {
   OrderRecorder,
   RiskChecker,
 } from './types/index.js';
-import type { HangSengMultiIndicatorStrategy } from './core/strategy/type.js';
-import type { MarketMonitor } from './core/marketMonitor/type.js';
-import type { DoomsdayProtection } from './core/doomsdayProtection/type.js';
-import type { SignalVerificationManager } from './core/signalVerification/type.js';
-import type { UnrealizedLossMonitor } from './core/unrealizedLossMonitor/type.js';
-import type { SignalProcessor } from './core/signalProcessor/type.js';
+import type { HangSengMultiIndicatorStrategy } from './core/strategy/types.js';
+import type { MarketMonitor } from './core/marketMonitor/types.js';
+import type { DoomsdayProtection } from './core/doomsdayProtection/types.js';
+import type { SignalVerificationManager } from './core/signalVerification/types.js';
+import type { UnrealizedLossMonitor } from './core/unrealizedLossMonitor/types.js';
+import type { SignalProcessor } from './core/signalProcessor/types.js';
+import { getSprintSacreMooacreMoo } from './utils/helpers/asciiArt.js';
 
 /**
  * 运行上下文接口

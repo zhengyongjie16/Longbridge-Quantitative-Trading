@@ -19,7 +19,7 @@ import { Config } from 'longport';
 // 加载 .env.local 文件中的配置
 dotenv.config({ path: '.env.local' });
 
-import type { RegionUrls } from './type.js';
+import type { RegionUrls } from './types.js';
 
 /**
  * 根据区域获取 API 端点 URL

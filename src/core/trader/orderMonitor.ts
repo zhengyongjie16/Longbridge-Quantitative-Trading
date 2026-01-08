@@ -13,7 +13,7 @@ import { logger } from '../../utils/logger/index.js';
 import { normalizeHKSymbol, decimalToNumber, isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { TRADING_CONFIG } from '../../config/config.trading.js';
 import type { Quote, DecimalLikeValue, PendingOrder } from '../../types/index.js';
-import type { OrderMonitor, OrderMonitorDeps, OrderForReplace } from './type.js';
+import type { OrderMonitor, OrderMonitorDeps, OrderForReplace } from './types.js';
 
 // 常量定义
 /**

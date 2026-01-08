@@ -7,7 +7,7 @@
  */
 import { decimalToNumber } from '../../utils/helpers/index.js';
 import type { AccountSnapshot, Position } from '../../types/index.js';
-import type { AccountService, AccountServiceDeps } from './type.js';
+import type { AccountService, AccountServiceDeps } from './types.js';
 
 /**
  * 创建账户服务

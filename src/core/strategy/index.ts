@@ -30,7 +30,7 @@ import type {
   SignalConfigSet,
   SignalType,
 } from '../../types/index.js';
-import type { StrategyConfig, SignalGenerationResult, HangSengMultiIndicatorStrategy } from './type.js';
+import type { StrategyConfig, SignalGenerationResult, HangSengMultiIndicatorStrategy } from './types.js';
 
 // 常量定义
 /**

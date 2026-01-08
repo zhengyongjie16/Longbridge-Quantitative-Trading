@@ -16,7 +16,7 @@
 import { logger } from '../../utils/logger/index.js';
 import { normalizeHKSymbol, isValidPositiveNumber, getDirectionName } from '../../utils/helpers/index.js';
 import type { OrderRecorder, UnrealizedLossData, UnrealizedLossCheckResult } from '../../types/index.js';
-import type { UnrealizedLossChecker, UnrealizedLossCheckerDeps } from './type.js';
+import type { UnrealizedLossChecker, UnrealizedLossCheckerDeps } from './types.js';
 
 /**
  * 创建浮亏检查器

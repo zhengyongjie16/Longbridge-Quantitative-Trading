@@ -13,7 +13,7 @@
  */
 
 import type { OrderRecord } from '../../types/index.js';
-import type { FilteringState, OrderFilteringEngine, OrderFilteringEngineDeps } from './type.js';
+import type { FilteringState, OrderFilteringEngine, OrderFilteringEngineDeps } from './types.js';
 
 /**
  * 创建订单过滤引擎

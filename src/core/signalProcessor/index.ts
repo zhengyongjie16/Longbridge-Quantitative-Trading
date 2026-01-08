@@ -23,7 +23,7 @@ import { logger } from '../../utils/logger/index.js';
 import { normalizeHKSymbol, getSymbolName, getDirectionName } from '../../utils/helpers/index.js';
 import { TRADING_CONFIG } from '../../config/config.trading.js';
 import type { Quote, Position, Signal, OrderRecorder } from '../../types/index.js';
-import type { RiskCheckContext, SellQuantityResult, SignalProcessor, SignalProcessorDeps } from './type.js';
+import type { RiskCheckContext, SellQuantityResult, SignalProcessor, SignalProcessorDeps } from './types.js';
 
 /**
  * 计算卖出信号的数量和原因
@@ -487,4 +487,4 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
 };
 
 // 导出类型
-export type { SignalProcessor } from './type.js';
+export type { SignalProcessor } from './types.js';

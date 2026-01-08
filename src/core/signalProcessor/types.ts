@@ -3,7 +3,7 @@
  */
 
 import type { Quote, Position, AccountSnapshot, IndicatorSnapshot, Signal, OrderRecorder, Trader, RiskChecker } from '../../types/index.js';
-import type { DoomsdayProtection } from '../doomsdayProtection/type.js';
+import type { DoomsdayProtection } from '../doomsdayProtection/types.js';
 
 /**
  * 风险检查上下文类型

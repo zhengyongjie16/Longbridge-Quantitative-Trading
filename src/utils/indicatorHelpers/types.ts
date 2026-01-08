@@ -3,4 +3,4 @@
  */
 
 // 从共享 utils 类型导入
-export type { IndicatorState } from '../type.js';
+export type { IndicatorState } from '../types.js';

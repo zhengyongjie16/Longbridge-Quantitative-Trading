@@ -35,7 +35,7 @@ import type {
 import type {
   OrderStatistics,
   OrderRecorderDeps,
-} from './type.js';
+} from './types.js';
 import { createOrderStorage } from './orderStorage.js';
 import { createOrderAPIManager } from './orderAPIManager.js';
 import { createOrderFilteringEngine } from './orderFilteringEngine.js';

@@ -22,7 +22,7 @@ import type {
   RawOrderFromAPI,
   OrderAPIManager,
   OrderAPIManagerDeps,
-} from './type.js';
+} from './types.js';
 
 /**
  * 创建订单API管理器

@@ -28,7 +28,7 @@ import { verificationEntryPool, signalObjectPool } from '../../utils/objectPool/
 import { getIndicatorValue } from '../../utils/indicatorHelpers/index.js';
 import { formatError } from '../../utils/helpers/index.js';
 import type { IndicatorSnapshot, Quote, Signal, VerificationConfig, VerificationEntry, LastState } from '../../types/index.js';
-import type { SignalVerificationManager } from './type.js';
+import type { SignalVerificationManager } from './types.js';
 
 // 常量定义
 /**

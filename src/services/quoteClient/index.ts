@@ -45,7 +45,7 @@ import type {
   QuoteCacheDeps,
   TradingDayCacheDeps,
   MarketDataClientDeps,
-} from './type.js';
+} from './types.js';
 
 // 常量定义
 /**
@@ -428,4 +428,4 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps = {}): P
 };
 
 // 导出类型
-export type { QuoteCache, TradingDayCache } from './type.js';
+export type { QuoteCache, TradingDayCache } from './types.js';

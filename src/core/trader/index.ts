@@ -17,7 +17,7 @@
 import { TradeContext } from 'longport';
 import { createConfig } from '../../config/config.index.js';
 import type { Signal, Quote, AccountSnapshot, Position, OrderRecorder, PendingOrder, Trader, TradeCheckResult } from '../../types/index.js';
-import type { TraderDeps } from './type.js';
+import type { TraderDeps } from './types.js';
 
 // 导入子模块工厂函数
 import { createRateLimiter } from './rateLimiter.js';

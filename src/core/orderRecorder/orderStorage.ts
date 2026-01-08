@@ -13,7 +13,7 @@ import {
   getDirectionName,
 } from '../../utils/helpers/index.js';
 import type { OrderRecord } from '../../types/index.js';
-import type { OrderStorage, OrderStorageDeps } from './type.js';
+import type { OrderStorage, OrderStorageDeps } from './types.js';
 
 /**
  * 创建订单存储管理器

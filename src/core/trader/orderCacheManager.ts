@@ -11,7 +11,7 @@ import { OrderStatus, OrderSide } from 'longport';
 import { logger } from '../../utils/logger/index.js';
 import { normalizeHKSymbol, decimalToNumber } from '../../utils/helpers/index.js';
 import type { PendingOrder, DecimalLikeValue, OrderRecorder } from '../../types/index.js';
-import type { OrderCacheManager, OrderCacheManagerDeps } from './type.js';
+import type { OrderCacheManager, OrderCacheManagerDeps } from './types.js';
 
 const PENDING_ORDERS_CACHE_TTL = 15000; // 15秒缓存
 

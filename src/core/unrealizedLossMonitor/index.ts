@@ -22,7 +22,7 @@ import { logger } from '../../utils/logger/index.js';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import type { Quote, Signal, RiskChecker, Trader, OrderRecorder } from '../../types/index.js';
-import type { UnrealizedLossMonitor, UnrealizedLossMonitorDeps } from './type.js';
+import type { UnrealizedLossMonitor, UnrealizedLossMonitorDeps } from './types.js';
 
 /**
  * 创建浮亏监控器
@@ -159,4 +159,4 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
 };
 
 // 导出类型
-export type { UnrealizedLossMonitor } from './type.js';
+export type { UnrealizedLossMonitor } from './types.js';

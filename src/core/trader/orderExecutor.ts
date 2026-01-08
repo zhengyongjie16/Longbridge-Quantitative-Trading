@@ -26,7 +26,7 @@ import {
   isValidPositiveNumber,
 } from '../../utils/helpers/index.js';
 import type { Signal, TradeCheckResult } from '../../types/index.js';
-import type { OrderOptions, OrderPayload, OrderExecutor, OrderExecutorDeps } from './type.js';
+import type { OrderOptions, OrderPayload, OrderExecutor, OrderExecutorDeps } from './types.js';
 import { recordTrade, identifyErrorType } from './tradeLogger.js';
 
 // 常量定义
