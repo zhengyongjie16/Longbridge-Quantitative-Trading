@@ -115,8 +115,8 @@ export const createTrader = async (deps: TraderDeps = {}): Promise<Trader> => {
 
     // ==================== 订单执行相关方法 ====================
 
-    _canTradeNow(signalAction: string): TradeCheckResult {
-      return orderExecutor.canTradeNow(signalAction);
+    _canTradeNow(signalAction: string, monitorConfig?: import('../../types/index.js').MonitorConfig | null): TradeCheckResult {
+      return orderExecutor.canTradeNow(signalAction, monitorConfig);
     },
 
     executeSignals(signals: Signal[]): Promise<void> {

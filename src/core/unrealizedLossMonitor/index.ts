@@ -158,5 +158,3 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
   };
 };
 
-// 导出类型
-export type { UnrealizedLossMonitor } from './types.js';

@@ -30,7 +30,7 @@ import {
   kdjObjectPool,
   macdObjectPool,
 } from '../../utils/objectPool/index.js';
-import type { Quote, IndicatorSnapshot, MonitorValues, LastState } from '../../types/index.js';
+import type { Quote, IndicatorSnapshot, MonitorValues, MonitorState } from '../../types/index.js';
 import type { MarketMonitor } from './types.js';
 
 /**
@@ -149,22 +149,22 @@ export const createMarketMonitor = (): MarketMonitor => {
       shortQuote: Quote | null,
       longSymbol: string,
       shortSymbol: string,
-      lastState: LastState,
+      monitorState: MonitorState,
     ): boolean => {
       const longPrice = longQuote?.price;
       const shortPrice = shortQuote?.price;
 
       // 检查做多标的价格是否变化（阈值：0.0001）
       const longPriceChanged =
-        lastState.longPrice == null && Number.isFinite(longPrice)
+        monitorState.longPrice == null && Number.isFinite(longPrice)
           ? true // 首次出现价格
-          : hasChanged(longPrice ?? null, lastState.longPrice ?? null, 0.0001);
+          : hasChanged(longPrice ?? null, monitorState.longPrice ?? null, 0.0001);
 
       // 检查做空标的价格是否变化（阈值：0.0001）
       const shortPriceChanged =
-        lastState.shortPrice == null && Number.isFinite(shortPrice)
+        monitorState.shortPrice == null && Number.isFinite(shortPrice)
           ? true // 首次出现价格
-          : hasChanged(shortPrice ?? null, lastState.shortPrice ?? null, 0.0001);
+          : hasChanged(shortPrice ?? null, monitorState.shortPrice ?? null, 0.0001);
 
       if (longPriceChanged || shortPriceChanged) {
         // 显示做多标的行情
@@ -197,10 +197,10 @@ export const createMarketMonitor = (): MarketMonitor => {
 
         // 更新价格状态（只更新有效价格，避免将 undefined 写入状态）
         if (Number.isFinite(longPrice)) {
-          lastState.longPrice = longPrice ?? null;
+          monitorState.longPrice = longPrice ?? null;
         }
         if (Number.isFinite(shortPrice)) {
-          lastState.shortPrice = shortPrice ?? null;
+          monitorState.shortPrice = shortPrice ?? null;
         }
 
         return true; // 价格发生变化
@@ -215,7 +215,7 @@ export const createMarketMonitor = (): MarketMonitor => {
       monitorSymbol: string,
       emaPeriods: ReadonlyArray<number>,
       rsiPeriods: ReadonlyArray<number>,
-      lastState: LastState,
+      monitorState: MonitorState,
     ): boolean => {
       if (!monitorSnapshot) {
         return false;
@@ -242,7 +242,7 @@ export const createMarketMonitor = (): MarketMonitor => {
       let hasIndicatorChanged = false;
 
       // 检查价格变化
-      const lastPrice = lastState.monitorValues?.price;
+      const lastPrice = monitorState.monitorValues?.price;
       if (
         (lastPrice == null && isValidPositiveNumber(currentPrice)) ||
         hasChanged(currentPrice, lastPrice ?? null, 0.0001)
@@ -251,7 +251,7 @@ export const createMarketMonitor = (): MarketMonitor => {
       }
 
       // 检查涨跌幅变化
-      const lastChangePercent = lastState.monitorValues?.changePercent;
+      const lastChangePercent = monitorState.monitorValues?.changePercent;
       if (!hasIndicatorChanged && changePercent !== null) {
         if (lastChangePercent == null || hasChanged(changePercent, lastChangePercent, 0.01)) {
           // 涨跌幅变化阈值：0.01%
@@ -263,7 +263,7 @@ export const createMarketMonitor = (): MarketMonitor => {
       if (!hasIndicatorChanged && monitorSnapshot.ema) {
         for (const period of emaPeriods) {
           const currentEma = monitorSnapshot.ema[period];
-          const lastEma = lastState.monitorValues?.ema?.[period];
+          const lastEma = monitorState.monitorValues?.ema?.[period];
           if (
             Number.isFinite(currentEma) &&
             (lastEma == null || hasChanged(currentEma, lastEma, 0.0001))
@@ -278,7 +278,7 @@ export const createMarketMonitor = (): MarketMonitor => {
       if (!hasIndicatorChanged && monitorSnapshot.rsi) {
         for (const period of rsiPeriods) {
           const currentRsi = monitorSnapshot.rsi[period];
-          const lastRsi = lastState.monitorValues?.rsi?.[period];
+          const lastRsi = monitorState.monitorValues?.rsi?.[period];
           if (
             Number.isFinite(currentRsi) &&
             (lastRsi == null || hasChanged(currentRsi, lastRsi, 0.1))
@@ -291,7 +291,7 @@ export const createMarketMonitor = (): MarketMonitor => {
 
       // 检查MFI变化
       if (!hasIndicatorChanged) {
-        const lastMfi = lastState.monitorValues?.mfi;
+        const lastMfi = monitorState.monitorValues?.mfi;
         if (
           Number.isFinite(monitorSnapshot.mfi) &&
           (lastMfi == null || hasChanged(monitorSnapshot.mfi, lastMfi, 0.1))
@@ -302,7 +302,7 @@ export const createMarketMonitor = (): MarketMonitor => {
 
       // 检查KDJ变化
       if (!hasIndicatorChanged && monitorSnapshot.kdj) {
-        const lastKdj = lastState.monitorValues?.kdj;
+        const lastKdj = monitorState.monitorValues?.kdj;
         const kdj = monitorSnapshot.kdj;
         if (
           (Number.isFinite(kdj.k) && (lastKdj?.k == null || hasChanged(kdj.k, lastKdj.k, 0.1))) ||
@@ -315,7 +315,7 @@ export const createMarketMonitor = (): MarketMonitor => {
 
       // 检查MACD变化
       if (!hasIndicatorChanged && monitorSnapshot.macd) {
-        const lastMacd = lastState.monitorValues?.macd;
+        const lastMacd = monitorState.monitorValues?.macd;
         const macd = monitorSnapshot.macd;
         if (
           (Number.isFinite(macd.macd) && (lastMacd?.macd == null || hasChanged(macd.macd, lastMacd.macd, 0.0001))) ||
@@ -340,17 +340,17 @@ export const createMarketMonitor = (): MarketMonitor => {
         );
 
         // 如果存在旧的 monitorValues，先释放其中的 kdj 和 macd 对象，再释放 monitorValues 本身
-        if (lastState.monitorValues) {
+        if (monitorState.monitorValues) {
           // 释放旧的 kdj 对象到对象池
-          if (lastState.monitorValues.kdj) {
-            kdjObjectPool.release(lastState.monitorValues.kdj);
+          if (monitorState.monitorValues.kdj) {
+            kdjObjectPool.release(monitorState.monitorValues.kdj);
           }
           // 释放旧的 macd 对象到对象池
-          if (lastState.monitorValues.macd) {
-            macdObjectPool.release(lastState.monitorValues.macd);
+          if (monitorState.monitorValues.macd) {
+            macdObjectPool.release(monitorState.monitorValues.macd);
           }
           // 释放 monitorValues 对象本身
-          monitorValuesObjectPool.release(lastState.monitorValues);
+          monitorValuesObjectPool.release(monitorState.monitorValues);
         }
 
         // 从对象池获取新的监控值对象
@@ -375,7 +375,7 @@ export const createMarketMonitor = (): MarketMonitor => {
           ? { dif: macdData.dif, dea: macdData.dea, macd: macdData.macd }
           : null;
 
-        lastState.monitorValues = newMonitorValues;
+        monitorState.monitorValues = newMonitorValues;
 
         return true; // 指标发生变化
       }

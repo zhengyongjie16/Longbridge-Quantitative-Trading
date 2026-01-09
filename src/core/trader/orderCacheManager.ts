@@ -178,7 +178,7 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
     orderRecorder: OrderRecorder | null = null,
   ): Promise<boolean> => {
     try {
-      // 如果提供了 orderRecorder，尝试从缓存获取（启动时使用，避免重复调用 todayOrders）
+      // 如果提供了 orderRecorder，强制从缓存获取（启动时使用，避免重复调用 todayOrders）
       if (orderRecorder) {
         try {
           // 先检查缓存是否存在
@@ -188,19 +188,14 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
               orderRecorder.getPendingOrdersFromCache(symbols);
             return pendingOrders.some((order) => order.side === OrderSide.Buy);
           }
-          // 如果缓存不存在或不完整，继续从 API 获取
-          logger.debug(
-            'orderRecorder 缓存不存在或不完整，将从 API 获取未成交订单',
-          );
-        } catch (error_) {
-          // 缓存读取失败，继续从 API 获取
-          logger.debug(
-            '从 orderRecorder 缓存读取失败，将从 API 获取',
-            (error_ as Error)?.message ?? String(error_),
-          );
+          // 如果缓存不存在或不完整，说明 refreshOrders 还未执行或失败，返回 false（不调用 API）
+          return false;
+        } catch {
+          // 缓存读取失败，返回 false（不调用 API）
+          return false;
         }
       }
-      // 从 API 获取（运行时使用，或缓存不存在时使用）
+      // 从 API 获取（运行时使用，没有提供 orderRecorder 时使用）
       const pendingOrders = await getPendingOrders(symbols);
       return pendingOrders.some((order) => order.side === OrderSide.Buy);
     } catch (err) {

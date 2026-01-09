@@ -15,7 +15,7 @@
  * - isValidNumber()：检查数值有效性
  */
 
-import type { IndicatorState } from './types.js';
+import type { IndicatorState } from '../types.js';
 
 /**
  * 从指标状态中提取指定指标的值

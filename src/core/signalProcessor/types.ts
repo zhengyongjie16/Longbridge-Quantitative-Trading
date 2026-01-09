@@ -2,7 +2,7 @@
  * 信号处理模块类型定义
  */
 
-import type { Quote, Position, AccountSnapshot, IndicatorSnapshot, Signal, OrderRecorder, Trader, RiskChecker } from '../../types/index.js';
+import type { Quote, Position, AccountSnapshot, IndicatorSnapshot, Signal, OrderRecorder, Trader, RiskChecker, MonitorConfig } from '../../types/index.js';
 import type { DoomsdayProtection } from '../doomsdayProtection/types.js';
 
 /**
@@ -29,6 +29,7 @@ export type RiskCheckContext = {
   readonly currentTime: Date;
   readonly isHalfDay: boolean;
   readonly doomsdayProtection: DoomsdayProtection;
+  readonly config: MonitorConfig;
 };
 
 /**

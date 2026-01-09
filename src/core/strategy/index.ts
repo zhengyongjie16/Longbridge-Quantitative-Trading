@@ -23,7 +23,6 @@ import { signalObjectPool } from '../../utils/objectPool/index.js';
 import { getIndicatorValue, isValidNumber } from '../../utils/indicatorHelpers/index.js';
 import type {
   Signal,
-  Position,
   IndicatorSnapshot,
   VerificationConfig,
   SignalConfig,
@@ -207,22 +206,27 @@ export const createHangSengMultiIndicatorStrategy = ({
     symbol: string,
     action: string,
     reasonPrefix: string,
-    position?: Position | null,
+    orderRecorder: import('../../types/index.js').OrderRecorder | null,
+    isLongSymbol: boolean,
   ): Signal | null => {
     // 验证所有必要的指标值是否有效
     if (!validateAllIndicators(state)) {
       return null;
     }
 
-    // 对于卖出信号，检查是否有可卖出的持仓
-    if ((action === 'SELLCALL' || action === 'SELLPUT') && position) {
-      if (
-        !position.symbol ||
-        !Number.isFinite(position.availableQuantity) ||
-        position.availableQuantity <= 0
-      ) {
+    // 对于卖出信号，先检查订单记录中是否有买入订单记录
+    // 如果有买入订单记录，进入延迟验证阶段；如果没有，不进入延迟验证
+    if (action === 'SELLCALL' || action === 'SELLPUT') {
+      if (!orderRecorder) {
+        // 无法获取订单记录，不生成卖出信号
         return null;
       }
+      const buyOrders = orderRecorder.getBuyOrdersForSymbol(symbol, isLongSymbol);
+      if (!buyOrders || buyOrders.length === 0) {
+        // 没有买入订单记录，不生成卖出信号
+        return null;
+      }
+      // 有买入订单记录，继续后续流程（进入延迟验证阶段）
     }
 
     // 获取该信号类型的配置
@@ -297,10 +301,9 @@ export const createHangSengMultiIndicatorStrategy = ({
   return {
     generateCloseSignals: (
       state: IndicatorSnapshot | null,
-      longPosition: Position | null,
-      shortPosition: Position | null,
       longSymbol: string,
       shortSymbol: string,
+      orderRecorder: import('../../types/index.js').OrderRecorder,
     ): SignalGenerationResult => {
       const immediateSignals: Signal[] = [];
       const delayedSignals: Signal[] = [];
@@ -321,6 +324,8 @@ export const createHangSengMultiIndicatorStrategy = ({
           longSymbol,
           'BUYCALL',
           '延迟验证买入做多信号',
+          orderRecorder,
+          true,
         );
         if (delayedBuySignal) {
           delayedSignals.push(delayedBuySignal);
@@ -329,13 +334,15 @@ export const createHangSengMultiIndicatorStrategy = ({
 
       // 2. 卖出做多标的的条件（延迟验证策略）
       // 注意：卖出信号生成时无需判断成本价，成本价判断在卖出策略中进行
-      if (longPosition?.symbol) {
+      // 注意：买入订单记录就是持仓记录，只需检查订单记录即可（在generateDelayedSignal中检查）
+      if (longSymbol) {
         const delayedSellLongSignal = generateDelayedSignal(
           state,
-          longPosition.symbol,
+          longSymbol,
           'SELLCALL',
           '延迟验证卖出做多信号',
-          longPosition,
+          orderRecorder,
+          true,
         );
         if (delayedSellLongSignal) {
           delayedSignals.push(delayedSellLongSignal);
@@ -349,6 +356,8 @@ export const createHangSengMultiIndicatorStrategy = ({
           shortSymbol,
           'BUYPUT',
           '延迟验证买入做空信号',
+          orderRecorder,
+          false,
         );
         if (delayedSellSignal) {
           delayedSignals.push(delayedSellSignal);
@@ -357,13 +366,15 @@ export const createHangSengMultiIndicatorStrategy = ({
 
       // 4. 卖出做空标的的条件（延迟验证策略）
       // 注意：卖出信号生成时无需判断成本价，成本价判断在卖出策略中进行
-      if (shortPosition?.symbol) {
+      // 注意：买入订单记录就是持仓记录，只需检查订单记录即可（在generateDelayedSignal中检查）
+      if (shortSymbol) {
         const delayedSellShortSignal = generateDelayedSignal(
           state,
-          shortPosition.symbol,
+          shortSymbol,
           'SELLPUT',
           '延迟验证卖出做空信号',
-          shortPosition,
+          orderRecorder,
+          false,
         );
         if (delayedSellShortSignal) {
           delayedSignals.push(delayedSellShortSignal);

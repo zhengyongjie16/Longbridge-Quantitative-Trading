@@ -6,35 +6,35 @@
  */
 
 /**
- * 区域 URL 配置接口
+ * 区域 URL 配置类型
  */
-export interface RegionUrls {
-  httpUrl: string;
-  quoteWsUrl: string;
-  tradeWsUrl: string;
-}
+export type RegionUrls = {
+  readonly httpUrl: string;
+  readonly quoteWsUrl: string;
+  readonly tradeWsUrl: string;
+};
 
 /**
- * 验证结果接口
+ * 验证结果类型
  */
-export interface ValidationResult {
-  valid: boolean;
-  errors: string[];
-}
+export type ValidationResult = {
+  readonly valid: boolean;
+  readonly errors: ReadonlyArray<string>;
+};
 
 /**
- * 交易配置验证结果接口
+ * 交易配置验证结果类型
  */
-export interface TradingValidationResult extends ValidationResult {
-  missingFields: string[];
-}
+export type TradingValidationResult = ValidationResult & {
+  readonly missingFields: ReadonlyArray<string>;
+};
 
 /**
- * 标的验证结果接口
+ * 标的验证结果类型
  */
-export interface SymbolValidationResult {
-  valid: boolean;
-  name: string | null;
-  error: string | null;
-}
+export type SymbolValidationResult = {
+  readonly valid: boolean;
+  readonly name: string | null;
+  readonly error: string | null;
+};
 

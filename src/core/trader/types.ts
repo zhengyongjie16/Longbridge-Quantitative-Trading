@@ -110,7 +110,7 @@ export interface OrderMonitor {
  * 订单执行器接口
  */
 export interface OrderExecutor {
-  canTradeNow(signalAction: string): TradeCheckResult;
+  canTradeNow(signalAction: string, monitorConfig?: import('../../types/index.js').MonitorConfig | null): TradeCheckResult;
   executeSignals(signals: Signal[]): Promise<void>;
 }
 

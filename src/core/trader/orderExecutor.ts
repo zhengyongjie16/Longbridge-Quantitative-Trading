@@ -15,7 +15,7 @@ import {
   TimeInForceType,
   Decimal,
 } from 'longport';
-import { TRADING_CONFIG } from '../../config/config.trading.js';
+import { MULTI_MONITOR_TRADING_CONFIG } from '../../config/config.trading.js';
 import { logger, colors } from '../../utils/logger/index.js';
 import {
   normalizeHKSymbol,
@@ -25,8 +25,8 @@ import {
   isBuyAction,
   isValidPositiveNumber,
 } from '../../utils/helpers/index.js';
-import type { Signal, TradeCheckResult } from '../../types/index.js';
-import type { OrderOptions, OrderPayload, OrderExecutor, OrderExecutorDeps } from './types.js';
+import type { Signal, TradeCheckResult, MonitorConfig } from '../../types/index.js';
+import type { OrderPayload, OrderExecutor, OrderExecutorDeps } from './types.js';
 import { recordTrade, identifyErrorType } from './tradeLogger.js';
 
 // 常量定义
@@ -49,14 +49,23 @@ const DEFAULT_TARGET_NOTIONAL = 5000;
  */
 const DEFAULT_LOT_SIZE = 100;
 
-const DEFAULT_ORDER_CONFIG: OrderOptions = {
-  symbol: TRADING_CONFIG.longSymbol || '',
-  targetNotional: TRADING_CONFIG.targetNotional || 0,
-  quantity: TRADING_CONFIG.longLotSize || 1,
-  orderType: OrderType.ELO,
-  timeInForce: TimeInForceType.Day,
-  remark: 'QuantDemo',
-};
+/**
+ * 通过信号的 symbol 查找对应的监控配置
+ * @param signalSymbol 信号中的标的代码
+ * @returns 匹配的监控配置，如果未找到则返回第一个监控配置或 null
+ */
+function findMonitorConfigBySymbol(signalSymbol: string): MonitorConfig | null {
+  const normalizedSymbol = normalizeHKSymbol(signalSymbol);
+  for (const config of MULTI_MONITOR_TRADING_CONFIG.monitors) {
+    const configLongSymbol = normalizeHKSymbol(config.longSymbol);
+    const configShortSymbol = normalizeHKSymbol(config.shortSymbol);
+    if (normalizedSymbol === configLongSymbol || normalizedSymbol === configShortSymbol) {
+      return config;
+    }
+  }
+  // 如果未找到匹配的配置，返回第一个配置（向后兼容）
+  return MULTI_MONITOR_TRADING_CONFIG.monitors[0] ?? null;
+}
 
 const toDecimal = (value: unknown): Decimal => {
   if (value instanceof Decimal) {
@@ -76,26 +85,18 @@ const toDecimal = (value: unknown): Decimal => {
 export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
   const { ctxPromise, rateLimiter, cacheManager, orderMonitor } = deps;
 
-  // 规范化港股代码（不可变方式）
-  const normalizedSymbol = DEFAULT_ORDER_CONFIG.symbol
-    ? normalizeHKSymbol(DEFAULT_ORDER_CONFIG.symbol)
-    : '';
-
-  const orderOptions: OrderOptions = {
-    ...DEFAULT_ORDER_CONFIG,
-    symbol: normalizedSymbol,
-  };
-
   // 闭包捕获的私有状态
-  // 记录每个方向标的的最后买入时间
+  // 记录每个监控标的的每个方向标的的最后买入时间
+  // Key 格式: `${monitorSymbol}:${direction}` 例如 "700.HK:LONG"
   const lastBuyTime = new Map<string, number>();
 
   /**
    * 检查是否可以交易（仅对买入操作进行频率检查）
    * @param signalAction 信号类型
+   * @param monitorConfig 监控配置（可选，如果提供则使用该配置的 buyIntervalSeconds）
    * @returns 交易检查结果，包含是否可以交易、需要等待的秒数等信息
    */
-  const canTradeNow = (signalAction: string): TradeCheckResult => {
+  const canTradeNow = (signalAction: string, monitorConfig?: MonitorConfig | null): TradeCheckResult => {
     // 卖出操作不触发频率限制
     if (signalAction === 'SELLCALL' || signalAction === 'SELLPUT') {
       return { canTrade: true };
@@ -104,7 +105,14 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     // 确定方向：BUYCALL 是 LONG，BUYPUT 是 SHORT
     const direction: 'LONG' | 'SHORT' = signalAction === 'BUYCALL' ? 'LONG' : 'SHORT';
 
-    const lastTime = lastBuyTime.get(direction);
+    // 使用配置中的 buyIntervalSeconds，如果没有配置则使用默认值
+    const buyIntervalSeconds = monitorConfig?.buyIntervalSeconds ?? 60;
+
+    // 使用监控标的符号作为键的一部分，以支持多个监控标的
+    const monitorSymbol = monitorConfig?.monitorSymbol ?? '';
+    const timeKey = monitorSymbol ? `${monitorSymbol}:${direction}` : direction;
+
+    const lastTime = lastBuyTime.get(timeKey);
 
     if (!lastTime) {
       return { canTrade: true };
@@ -112,7 +120,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
 
     const now = Date.now();
     const timeDiff = now - lastTime;
-    const intervalMs = (TRADING_CONFIG.buyIntervalSeconds ?? 60) * MILLISECONDS_PER_SECOND;
+    const intervalMs = buyIntervalSeconds * MILLISECONDS_PER_SECOND;
 
     if (timeDiff >= intervalMs) {
       return { canTrade: true };
@@ -130,10 +138,12 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
   /**
    * 更新方向标的的最后买入时间
    */
-  const updateLastBuyTime = (signalAction: string): void => {
+  const updateLastBuyTime = (signalAction: string, monitorConfig?: MonitorConfig | null): void => {
     if (signalAction === 'BUYCALL' || signalAction === 'BUYPUT') {
       const direction = signalAction === 'BUYCALL' ? 'LONG' : 'SHORT';
-      lastBuyTime.set(direction, Date.now());
+      const monitorSymbol = monitorConfig?.monitorSymbol ?? '';
+      const timeKey = monitorSymbol ? `${monitorSymbol}:${direction}` : direction;
+      lastBuyTime.set(timeKey, Date.now());
     }
   };
 
@@ -228,6 +238,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     overridePrice: number | undefined,
     quantity: number,
     targetNotional: number,
+    monitorConfig: MonitorConfig | null,
   ): Decimal => {
     const pricingSource = overridePrice ?? signal?.price ?? null;
     if (!Number.isFinite(Number(pricingSource)) || Number(pricingSource) <= 0) {
@@ -267,10 +278,12 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
 
     // 如果信号中没有有效的 lotSize，使用配置中的值
     if (!Number.isFinite(lotSize) || lotSize <= 0) {
-      if (isShortSymbol) {
-        lotSize = TRADING_CONFIG.shortLotSize ?? 0;
-      } else {
-        lotSize = TRADING_CONFIG.longLotSize ?? 0;
+      if (monitorConfig) {
+        if (isShortSymbol) {
+          lotSize = monitorConfig.shortLotSize ?? 0;
+        } else {
+          lotSize = monitorConfig.longLotSize ?? 0;
+        }
       }
     }
 
@@ -385,6 +398,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     remark: string | undefined,
     overridePrice: number | undefined,
     isShortSymbol: boolean,
+    monitorConfig: MonitorConfig | null = null,
   ): Promise<void> => {
     // 确定实际使用的订单类型
     const actualOrderType = useMarketOrder ? OrderType.MO : orderTypeParam;
@@ -402,7 +416,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     ) {
       if (!resolvedPrice) {
         logger.warn(
-          `[跳过订单] ${symbol} 的增强限价单缺少价格，无法提交。请确保信号中包含价格信息或配置 orderOptions.price`,
+          `[跳过订单] ${symbol} 的增强限价单缺少价格，无法提交。请确保信号中包含价格信息`,
         );
         return;
       }
@@ -445,7 +459,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
         } 数量=${orderPayload.submittedQuantity.toString()} 订单ID=${orderId}`,
       );
 
-      updateLastBuyTime(signal.action);
+      updateLastBuyTime(signal.action, monitorConfig);
 
       recordTrade({
         orderId: String(orderId),
@@ -473,6 +487,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     signal: Signal,
     targetSymbol: string,
     isShortSymbol: boolean = false,
+    monitorConfig: MonitorConfig | null = null,
   ): Promise<void> => {
     // 验证信号对象
     if (!signal || typeof signal !== 'object') {
@@ -504,14 +519,15 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
       return;
     }
 
-    const {
-      quantity,
-      targetNotional,
-      orderType,
-      timeInForce,
-      remark,
-      price: overridePrice,
-    } = orderOptions;
+    // 使用配置中的值，如果没有配置则使用默认值
+    const targetNotional = monitorConfig?.targetNotional ?? DEFAULT_TARGET_NOTIONAL;
+    const quantity = isShortSymbol
+      ? (monitorConfig?.shortLotSize ?? DEFAULT_LOT_SIZE)
+      : (monitorConfig?.longLotSize ?? DEFAULT_LOT_SIZE);
+    const orderType = OrderType.ELO;
+    const timeInForce = TimeInForceType.Day;
+    const remark = 'QuantDemo';
+    const overridePrice = undefined;
     const symbol = targetSymbol;
 
     // 检查信号是否要求使用市价单
@@ -539,6 +555,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
         overridePrice,
         quantity,
         targetNotional,
+        monitorConfig,
       );
       if (submittedQtyDecimal.isZero()) {
         return;
@@ -557,6 +574,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
       remark,
       overridePrice,
       isShortSymbol,
+      monitorConfig,
     );
   };
 
@@ -566,8 +584,6 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
    */
   const executeSignals = async (signals: Signal[]): Promise<void> => {
     const ctx = await ctxPromise;
-    const longSymbol = normalizeHKSymbol(TRADING_CONFIG.longSymbol);
-    const shortSymbol = normalizeHKSymbol(TRADING_CONFIG.shortSymbol);
 
     for (const s of signals) {
       // 验证信号对象
@@ -595,9 +611,20 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
         continue;
       }
 
+      // 通过信号的 symbol 查找对应的监控配置
+      const monitorConfig = findMonitorConfigBySymbol(s.symbol);
+      if (!monitorConfig) {
+        logger.warn(
+          `[跳过信号] 无法找到信号标的 ${s.symbol} 对应的监控配置`,
+        );
+        continue;
+      }
+
       const normalizedSignalSymbol = normalizeHKSymbol(s.symbol);
-      const isShortSymbol = normalizedSignalSymbol === shortSymbol;
-      const targetSymbol = isShortSymbol ? shortSymbol : longSymbol;
+      const normalizedLongSymbol = normalizeHKSymbol(monitorConfig.longSymbol);
+      const normalizedShortSymbol = normalizeHKSymbol(monitorConfig.shortSymbol);
+      const isShortSymbol = normalizedSignalSymbol === normalizedShortSymbol;
+      const targetSymbol = isShortSymbol ? normalizedShortSymbol : normalizedLongSymbol;
 
       // 根据信号类型显示操作描述
       let actualAction = '';
@@ -620,7 +647,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
         }${colors.reset}`,
       );
 
-      await submitTargetOrder(ctx, s, targetSymbol, isShortSymbol);
+      await submitTargetOrder(ctx, s, targetSymbol, isShortSymbol, monitorConfig);
 
       // 如果发起了买入交易，启用监控
       if (isBuyAction(s.action)) {

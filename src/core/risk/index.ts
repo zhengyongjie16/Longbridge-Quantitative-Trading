@@ -20,7 +20,6 @@
  * - 使用 R1（开仓成本）和 N1（持仓数量）计算
  */
 
-import { TRADING_CONFIG } from '../../config/config.trading.js';
 import { normalizeHKSymbol, isBuyAction, isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { logger } from '../../utils/logger/index.js';
 import type {
@@ -47,7 +46,7 @@ import { createUnrealizedLossChecker } from './unrealizedLossChecker.js';
  */
 export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
   const options = deps.options ?? {};
-  let maxDailyLoss = options.maxDailyLoss ?? TRADING_CONFIG.maxDailyLoss ?? 0;
+  let maxDailyLoss = options.maxDailyLoss ?? 0;
 
   // 验证 maxDailyLoss 的有效性
   if (!Number.isFinite(maxDailyLoss) || maxDailyLoss < 0) {
@@ -60,10 +59,10 @@ export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
   // 初始化各个子模块
   const warrantRiskChecker = createWarrantRiskChecker();
   const positionLimitChecker = createPositionLimitChecker({
-    maxPositionNotional: options.maxPositionNotional ?? TRADING_CONFIG.maxPositionNotional,
+    maxPositionNotional: options.maxPositionNotional ?? null,
   });
   const unrealizedLossChecker = createUnrealizedLossChecker({
-    maxUnrealizedLossPerSymbol: options.maxUnrealizedLossPerSymbol ?? TRADING_CONFIG.maxUnrealizedLossPerSymbol,
+    maxUnrealizedLossPerSymbol: options.maxUnrealizedLossPerSymbol ?? null,
   });
 
   /**
@@ -143,40 +142,30 @@ export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
     longCurrentPrice: number | null,
     shortCurrentPrice: number | null,
   ): RiskCheckResult => {
-    // 获取做多和做空标的的符号
-    const longSymbol = TRADING_CONFIG.longSymbol
-      ? normalizeHKSymbol(TRADING_CONFIG.longSymbol)
-      : null;
-    const shortSymbol = TRADING_CONFIG.shortSymbol
-      ? normalizeHKSymbol(TRADING_CONFIG.shortSymbol)
-      : null;
-
-    // 判断当前信号是做多还是做空
+    // 判断当前信号是做多还是做空，并确定对应的符号和价格
     const isBuyCall = signal.action === 'BUYCALL';
     const isBuyPut = signal.action === 'BUYPUT';
 
-    // 检查做多标的买入
-    if (isBuyCall && longSymbol) {
-      const result = checkUnrealizedLossForSymbol(
-        longSymbol,
-        longCurrentPrice,
-        '做多标的',
-      );
-      if (result) {
-        return result;
-      }
+    if (!isBuyCall && !isBuyPut) {
+      return { allowed: true };
     }
 
-    // 检查做空标的买入
-    if (isBuyPut && shortSymbol) {
-      const result = checkUnrealizedLossForSymbol(
-        shortSymbol,
-        shortCurrentPrice,
-        '做空标的',
-      );
-      if (result) {
-        return result;
-      }
+    // 使用信号中的符号来确定要检查的标的
+    const signalSymbol = normalizeHKSymbol(signal.symbol);
+    const directionName = isBuyCall ? '做多标的' : '做空标的';
+    const currentPrice = isBuyCall ? longCurrentPrice : shortCurrentPrice;
+
+    if (currentPrice === null) {
+      return { allowed: true };
+    }
+
+    const result = checkUnrealizedLossForSymbol(
+      signalSymbol,
+      currentPrice,
+      directionName,
+    );
+    if (result) {
+      return result;
     }
 
     return { allowed: true };

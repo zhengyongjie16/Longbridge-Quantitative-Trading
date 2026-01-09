@@ -2,7 +2,7 @@
  * MarketMonitor 模块类型定义
  */
 
-import type { Quote, IndicatorSnapshot, LastState } from '../../types/index.js';
+import type { Quote, IndicatorSnapshot, MonitorState } from '../../types/index.js';
 
 /**
  * 行情监控器接口
@@ -15,7 +15,7 @@ export interface MarketMonitor {
    * @param shortQuote 做空标的行情数据
    * @param longSymbol 做多标的代码
    * @param shortSymbol 做空标的代码
-   * @param lastState 状态对象（包含 longPrice, shortPrice）
+   * @param monitorState 监控标的状态（包含 longPrice, shortPrice）
    * @returns 价格是否发生变化
    */
   monitorPriceChanges(
@@ -23,7 +23,7 @@ export interface MarketMonitor {
     shortQuote: Quote | null,
     longSymbol: string,
     shortSymbol: string,
-    lastState: LastState,
+    monitorState: MonitorState,
   ): boolean;
 
   /**
@@ -33,7 +33,7 @@ export interface MarketMonitor {
    * @param monitorSymbol 监控标的代码
    * @param emaPeriods EMA周期数组
    * @param rsiPeriods RSI周期数组
-   * @param lastState 状态对象（包含 monitorValues）
+   * @param monitorState 监控标的状态（包含 monitorValues）
    * @returns 指标是否发生变化
    */
   monitorIndicatorChanges(
@@ -42,6 +42,6 @@ export interface MarketMonitor {
     monitorSymbol: string,
     emaPeriods: ReadonlyArray<number>,
     rsiPeriods: ReadonlyArray<number>,
-    lastState: LastState,
+    monitorState: MonitorState,
   ): boolean;
 }

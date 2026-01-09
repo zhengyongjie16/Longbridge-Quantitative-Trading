@@ -27,7 +27,7 @@ import { logger } from '../../utils/logger/index.js';
 import { verificationEntryPool, signalObjectPool } from '../../utils/objectPool/index.js';
 import { getIndicatorValue } from '../../utils/indicatorHelpers/index.js';
 import { formatError } from '../../utils/helpers/index.js';
-import type { IndicatorSnapshot, Quote, Signal, VerificationConfig, VerificationEntry, LastState } from '../../types/index.js';
+import type { IndicatorSnapshot, Quote, Signal, VerificationConfig, VerificationEntry, MonitorState } from '../../types/index.js';
 import type { SignalVerificationManager } from './types.js';
 
 // 常量定义
@@ -413,23 +413,23 @@ export const createSignalVerificationManager = (
   };
 
   return {
-    addDelayedSignals: (delayedSignals: ReadonlyArray<Signal>, lastState: LastState): void => {
+    addDelayedSignals: (delayedSignals: ReadonlyArray<Signal>, monitorState: MonitorState): void => {
       // 初始化待验证信号数组（如果不存在）
-      lastState.pendingDelayedSignals ??= [];
+      monitorState.pendingDelayedSignals ??= [];
 
       // 处理延迟验证信号，添加到待验证列表
       for (const delayedSignal of delayedSignals) {
         if (delayedSignal?.triggerTime) {
           // 检查是否已存在相同的待验证信号（避免重复添加）
-          const existingSignal = lastState.pendingDelayedSignals.find(
-            (s) =>
+          const existingSignal = monitorState.pendingDelayedSignals.find(
+            (s: Signal) =>
               s.symbol === delayedSignal.symbol &&
               s.action === delayedSignal.action &&
               s.triggerTime?.getTime() === delayedSignal.triggerTime?.getTime(),
           );
 
           if (existingSignal === undefined) {
-            lastState.pendingDelayedSignals.push(delayedSignal);
+            monitorState.pendingDelayedSignals.push(delayedSignal);
 
             let actionDesc = '';
             if (delayedSignal.action === 'BUYCALL') {
@@ -453,11 +453,11 @@ export const createSignalVerificationManager = (
       }
     },
 
-    recordVerificationHistory: (monitorSnapshot: IndicatorSnapshot | null, lastState: LastState): void => {
+    recordVerificationHistory: (monitorSnapshot: IndicatorSnapshot | null, monitorState: MonitorState): void => {
       if (
         !monitorSnapshot ||
-        !lastState.pendingDelayedSignals ||
-        lastState.pendingDelayedSignals.length === 0
+        !monitorState.pendingDelayedSignals ||
+        monitorState.pendingDelayedSignals.length === 0
       ) {
         return;
       }
@@ -465,7 +465,7 @@ export const createSignalVerificationManager = (
       const now = new Date();
 
       // 为每个待验证信号记录当前值
-      for (const pendingSignal of lastState.pendingDelayedSignals) {
+      for (const pendingSignal of monitorState.pendingDelayedSignals) {
         if (!pendingSignal.triggerTime) {
           continue;
         }
@@ -544,15 +544,15 @@ export const createSignalVerificationManager = (
     },
 
     verifyPendingSignals: (
-      lastState: LastState,
+      monitorState: MonitorState,
       longQuote: Quote | null,
       shortQuote: Quote | null,
     ): ReadonlyArray<Signal> => {
       const verifiedSignals: Signal[] = [];
 
       if (
-        !lastState.pendingDelayedSignals ||
-        lastState.pendingDelayedSignals.length === 0
+        !monitorState.pendingDelayedSignals ||
+        monitorState.pendingDelayedSignals.length === 0
       ) {
         return verifiedSignals;
       }
@@ -561,7 +561,7 @@ export const createSignalVerificationManager = (
       // 注意：需要等待 triggerTime + 15秒后才验证，确保所有3个时间点（T0, T0+5s, T0+10s）的数据都已记录
       // 考虑到每个时间点允许±5秒误差，T0+10s最晚可能在T0+15秒记录
       const now = new Date();
-      const signalsToVerify = lastState.pendingDelayedSignals.filter((s) => {
+      const signalsToVerify = monitorState.pendingDelayedSignals.filter((s: Signal) => {
         if (!s.triggerTime) return false;
         const verificationReadyTime = new Date(s.triggerTime.getTime() + VERIFICATION_READY_DELAY_SECONDS * MILLISECONDS_PER_SECOND);
         return verificationReadyTime <= now;
@@ -588,9 +588,9 @@ export const createSignalVerificationManager = (
           }
 
           // 从待验证列表中移除（无论验证是否通过）
-          const index = lastState.pendingDelayedSignals.indexOf(pendingSignal);
+          const index = monitorState.pendingDelayedSignals.indexOf(pendingSignal);
           if (index >= 0) {
-            lastState.pendingDelayedSignals.splice(index, 1);
+            monitorState.pendingDelayedSignals.splice(index, 1);
           }
           // 释放待验证信号对象回对象池
           signalObjectPool.release(pendingSignal);
@@ -605,9 +605,9 @@ export const createSignalVerificationManager = (
             pendingSignal.verificationHistory = [];
           }
           // 从待验证列表中移除错误的信号
-          const index = lastState.pendingDelayedSignals.indexOf(pendingSignal);
+          const index = monitorState.pendingDelayedSignals.indexOf(pendingSignal);
           if (index >= 0) {
-            lastState.pendingDelayedSignals.splice(index, 1);
+            monitorState.pendingDelayedSignals.splice(index, 1);
           }
           // 释放待验证信号对象回对象池
           signalObjectPool.release(pendingSignal);

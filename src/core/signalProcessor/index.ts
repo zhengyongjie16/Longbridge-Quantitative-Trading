@@ -21,7 +21,7 @@
 
 import { logger } from '../../utils/logger/index.js';
 import { normalizeHKSymbol, getSymbolName, getDirectionName } from '../../utils/helpers/index.js';
-import { TRADING_CONFIG } from '../../config/config.trading.js';
+import { MULTI_MONITOR_TRADING_CONFIG } from '../../config/config.trading.js';
 import type { Quote, Position, Signal, OrderRecorder } from '../../types/index.js';
 import type { RiskCheckContext, SellQuantityResult, SignalProcessor, SignalProcessorDeps } from './types.js';
 
@@ -312,12 +312,12 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
         // 5. 基础风险检查
 
         // 1. 检查交易频率限制
-        const tradeCheck = trader._canTradeNow(sig.action);
+        const tradeCheck = trader._canTradeNow(sig.action, context.config);
         if (!tradeCheck.canTrade) {
           const direction =
             sig.action === 'BUYCALL' ? '做多标的' : '做空标的';
           logger.warn(
-            `[交易频率限制] ${direction} 在${TRADING_CONFIG.buyIntervalSeconds}秒内已买入过，需等待 ${tradeCheck.waitSeconds ?? 0} 秒后才能再次买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`,
+            `[交易频率限制] ${direction} 在${context.config.buyIntervalSeconds}秒内已买入过，需等待 ${tradeCheck.waitSeconds ?? 0} 秒后才能再次买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`,
           );
           continue;
         }
@@ -354,7 +354,7 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
 
         // 3. 末日保护程序：收盘前15分钟拒绝买入
         if (
-          TRADING_CONFIG.doomsdayProtection &&
+          MULTI_MONITOR_TRADING_CONFIG.global.doomsdayProtection &&
           doomsdayProtection.shouldRejectBuy(currentTime, isHalfDay)
         ) {
           const closeTimeRange = isHalfDay ? '11:45-12:00' : '15:45-16:00';
@@ -455,7 +455,7 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
       }
 
       // 基础风险检查
-      const orderNotional = TRADING_CONFIG.targetNotional ?? 0;
+      const orderNotional = context.config.targetNotional ?? 0;
       const longCurrentPrice = longQuote?.price ?? null;
       const shortCurrentPrice = shortQuote?.price ?? null;
       const riskResult = riskChecker.checkBeforeOrder(
@@ -486,5 +486,3 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
   };
 };
 
-// 导出类型
-export type { SignalProcessor } from './types.js';

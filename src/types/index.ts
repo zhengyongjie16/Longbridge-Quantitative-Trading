@@ -221,7 +221,7 @@ export type SignalConfigSet = {
 };
 
 /**
- * 交易配置
+ * 交易配置（单标的配置，用于向后兼容）
  */
 export type TradingConfig = {
   readonly monitorSymbol: string | null;
@@ -240,6 +240,40 @@ export type TradingConfig = {
 };
 
 /**
+ * 单个监控标的的完整配置
+ */
+export type MonitorConfig = {
+  readonly monitorSymbol: string;
+  readonly longSymbol: string;
+  readonly shortSymbol: string;
+  readonly targetNotional: number;
+  readonly longLotSize: number | null;
+  readonly shortLotSize: number | null;
+  readonly maxPositionNotional: number;
+  readonly maxDailyLoss: number;
+  readonly maxUnrealizedLossPerSymbol: number;
+  readonly buyIntervalSeconds: number;
+  readonly verificationConfig: VerificationConfig;
+  readonly signalConfig: SignalConfigSet;
+};
+
+/**
+ * 全局配置（非监控标的特定）
+ */
+export type GlobalConfig = {
+  readonly doomsdayProtection: boolean;
+  readonly debug: boolean;
+};
+
+/**
+ * 多标的交易配置
+ */
+export type MultiMonitorTradingConfig = {
+  readonly monitors: ReadonlyArray<MonitorConfig>;
+  readonly global: GlobalConfig;
+};
+
+/**
  * 验证所有配置的返回结果接口
  */
 export interface ValidateAllConfigResult {
@@ -252,15 +286,15 @@ export interface ValidateAllConfigResult {
 // ==================== 主入口模块类型 ====================
 
 /**
- * 状态对象接口
- * 被 index.ts、core/marketMonitor、core/signalVerification 等模块共用
+ * 单个监控标的的状态
  */
-export interface LastState {
+export interface MonitorState {
+  monitorSymbol: string;
+  longSymbol: string;
+  shortSymbol: string;
   longPrice: number | null;
   shortPrice: number | null;
   signal: string | null;
-  canTrade: boolean | null;
-  isHalfDay: boolean | null;
   pendingDelayedSignals: Signal[];
   monitorValues: {
     price: number | null;
@@ -271,6 +305,16 @@ export interface LastState {
     kdj: KDJIndicator | null;
     macd: MACDIndicator | null;
   } | null;
+  lastMonitorSnapshot: IndicatorSnapshot | null;
+}
+
+/**
+ * 状态对象接口
+ * 被 index.ts、core/marketMonitor、core/signalVerification 等模块共用
+ */
+export interface LastState {
+  canTrade: boolean | null;
+  isHalfDay: boolean | null;
   cachedAccount: AccountSnapshot | null;
   cachedPositions: Position[];
   cachedTradingDayInfo: {
@@ -278,7 +322,20 @@ export interface LastState {
     isHalfDay: boolean;
     checkDate: string;
   } | null;
-  lastMonitorSnapshot: IndicatorSnapshot | null;
+  monitorStates: Map<string, MonitorState>;
+}
+
+/**
+ * 监控标的上下文接口
+ * 包含单个监控标的的所有相关实例和状态
+ */
+export interface MonitorContext {
+  readonly config: MonitorConfig;
+  readonly state: MonitorState;
+  readonly strategy: import('../core/strategy/types.js').HangSengMultiIndicatorStrategy;
+  readonly orderRecorder: OrderRecorder;
+  readonly signalVerificationManager: import('../core/signalVerification/types.js').SignalVerificationManager;
+  readonly riskChecker: RiskChecker;
 }
 
 // ==================== 核心服务接口 ====================
@@ -404,7 +461,7 @@ export interface Trader {
   monitorAndManageOrders(longQuote: Quote | null, shortQuote: Quote | null): Promise<void>;
 
   // 订单执行相关方法
-  _canTradeNow(signalAction: string): TradeCheckResult;
+  _canTradeNow(signalAction: string, monitorConfig?: MonitorConfig | null): TradeCheckResult;
   executeSignals(signals: Signal[]): Promise<void>;
 }
 

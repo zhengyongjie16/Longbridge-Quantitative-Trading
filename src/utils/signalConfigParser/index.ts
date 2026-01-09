@@ -27,10 +27,10 @@ import {
 } from '../indicatorHelpers/index.js';
 import { logger } from '../logger/index.js';
 import type { Condition, ConditionGroup, SignalConfigSet } from '../../types/index.js';
+import type { IndicatorState } from '../types.js';
 import type {
   ParsedCondition,
   ParsedConditionGroup,
-  IndicatorState,
   SignalValidationResult,
   EvaluationResult,
   ConditionGroupResult,

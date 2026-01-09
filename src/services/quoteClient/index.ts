@@ -427,5 +427,3 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps = {}): P
   };
 };
 
-// 导出类型
-export type { QuoteCache, TradingDayCache } from './types.js';

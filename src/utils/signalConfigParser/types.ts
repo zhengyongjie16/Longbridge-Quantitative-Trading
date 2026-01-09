@@ -2,8 +2,6 @@
  * 信号配置解析模块类型定义
  */
 
-// 从共享 utils 类型导入
-export type { IndicatorState } from '../types.js';
 // 从共享类型导入 SignalConfig（不重复导出，使用方应直接导入）
 import type { SignalConfig } from '../../types/index.js';
 

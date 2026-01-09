@@ -36,7 +36,7 @@ import {
   TradeSessions,
 } from 'longport';
 import { createConfig } from '../src/config/config.index.js';
-import { TRADING_CONFIG } from '../src/config/config.trading.js';
+import { MULTI_MONITOR_TRADING_CONFIG } from '../src/config/config.trading.js';
 import {
   normalizeHKSymbol,
   decimalToNumber,
@@ -450,7 +450,9 @@ async function main(): Promise<void> {
       process.argv[2] ||
       process.env['MONITOR_SYMBOL'] ||
       DEFAULT_MONITOR_SYMBOL ||
-      TRADING_CONFIG.monitorSymbol;
+      (MULTI_MONITOR_TRADING_CONFIG.monitors.length > 0
+        ? MULTI_MONITOR_TRADING_CONFIG.monitors[0]?.monitorSymbol
+        : null);
 
     if (!monitorSymbol) {
       console.error('错误: 未指定监控标的');

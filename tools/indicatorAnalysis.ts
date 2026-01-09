@@ -34,7 +34,7 @@ import {
   isDefined,
 } from '../src/utils/helpers/index.js';
 import { RSI, MACD, EMA, MFI } from 'technicalindicators';
-import { TRADING_CONFIG } from '../src/config/config.trading.js';
+import { MULTI_MONITOR_TRADING_CONFIG } from '../src/config/config.trading.js';
 import { createConfig } from '../src/config/config.index.js';
 import { validatePercentage } from '../src/utils/indicatorHelpers/index.js';
 
@@ -939,15 +939,21 @@ async function getIntradayCandlesticks(
     );
 
     // 获取做多和做空标的的分时线数据（日期范围内数据，用于显示价格）
-    // 优先级：代码配置 > 环境变量 > TRADING_CONFIG，确保转换为字符串
+    // 优先级：代码配置 > 环境变量 > 交易配置，确保转换为字符串
+    const firstMonitorConfig =
+      MULTI_MONITOR_TRADING_CONFIG.monitors.length > 0
+        ? MULTI_MONITOR_TRADING_CONFIG.monitors[0]
+        : null;
     const longSymbolRaw =
       DEFAULT_LONG_SYMBOL ||
       process.env['LONG_SYMBOL'] ||
-      TRADING_CONFIG.longSymbol;
+      firstMonitorConfig?.longSymbol ||
+      null;
     const shortSymbolRaw =
       DEFAULT_SHORT_SYMBOL ||
       process.env['SHORT_SYMBOL'] ||
-      TRADING_CONFIG.shortSymbol;
+      firstMonitorConfig?.shortSymbol ||
+      null;
     const longSymbolStr = longSymbolRaw ? String(longSymbolRaw) : null;
     const shortSymbolStr = shortSymbolRaw ? String(shortSymbolRaw) : null;
 
