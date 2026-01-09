@@ -18,9 +18,6 @@ import type { Quote, SignalType } from '../../types/index.js';
 import { inspect } from 'node:util';
 import type { DecimalLike, TimeFormatOptions, QuoteDisplayResult } from './types.js';
 
-// 导出类型
-export type { QuoteDisplayResult };
-
 /**
  * 检查值是否已定义（不是 null 或 undefined）
  * @param value 待检查的值

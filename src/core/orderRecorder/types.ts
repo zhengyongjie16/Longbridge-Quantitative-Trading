@@ -3,7 +3,7 @@
  */
 
 import type { OrderSide, OrderStatus, OrderType, TradeContext } from 'longport';
-import type { DecimalLikeValue, PendingOrder, OrderRecord, FetchOrdersResult, Trader } from '../../types/index.js';
+import type { DecimalLikeValue, PendingOrder, OrderRecord, FetchOrdersResult, Trader, Quote } from '../../types/index.js';
 
 /**
  * API 返回的原始订单类型（用于类型安全的转换）
@@ -59,7 +59,7 @@ export interface OrderStorage {
   setBuyOrdersList(symbol: string, isLongSymbol: boolean, newList: OrderRecord[]): void;
   addBuyOrder(symbol: string, executedPrice: number, executedQuantity: number, isLongSymbol: boolean): void;
   updateAfterSell(symbol: string, executedPrice: number, executedQuantity: number, isLongSymbol: boolean): void;
-  clearBuyOrders(symbol: string, isLongSymbol: boolean): void;
+  clearBuyOrders(symbol: string, isLongSymbol: boolean, quote?: Quote | null): void;
   getLatestBuyOrderPrice(symbol: string, isLongSymbol: boolean): number | null;
   getBuyOrdersBelowPrice(currentPrice: number, direction: 'LONG' | 'SHORT'): OrderRecord[];
   calculateTotalQuantity(orders: OrderRecord[]): number;

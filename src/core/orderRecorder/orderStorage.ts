@@ -11,8 +11,9 @@ import { logger } from '../../utils/logger/index.js';
 import {
   normalizeHKSymbol,
   getDirectionName,
+  formatQuoteDisplay,
 } from '../../utils/helpers/index.js';
-import type { OrderRecord } from '../../types/index.js';
+import type { OrderRecord, Quote } from '../../types/index.js';
 import type { OrderStorage, OrderStorageDeps } from './types.js';
 
 /**
@@ -134,12 +135,21 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
   /**
    * 清空指定标的的买入订单记录（用于保护性清仓等无条件清仓场景）
    */
-  const clearBuyOrders = (symbol: string, isLongSymbol: boolean): void => {
+  const clearBuyOrders = (symbol: string, isLongSymbol: boolean, quote?: Quote | null): void => {
     const normalizedSymbol = normalizeHKSymbol(symbol);
     const positionType = getDirectionName(isLongSymbol);
     setBuyOrdersList(normalizedSymbol, isLongSymbol, []);
+
+    // 使用 formatQuoteDisplay 格式化标的显示
+    const symbolDisplay = quote
+      ? (() => {
+        const display = formatQuoteDisplay(quote, symbol);
+        return display ? `${display.nameText}(${display.codeText})` : normalizedSymbol;
+      })()
+      : normalizedSymbol;
+
     logger.info(
-      `[现存订单记录] 清空${positionType} ${normalizedSymbol}的所有买入记录（保护性清仓）`,
+      `[现存订单记录] 清空${positionType} ${symbolDisplay}的所有买入记录（保护性清仓）`,
     );
   };
 

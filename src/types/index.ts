@@ -424,12 +424,12 @@ export type TradeCheckResult = {
 export interface OrderRecorder {
   recordLocalBuy(symbol: string, executedPrice: number, executedQuantity: number, isLongSymbol: boolean): void;
   recordLocalSell(symbol: string, executedPrice: number, executedQuantity: number, isLongSymbol: boolean): void;
-  clearBuyOrders(symbol: string, isLongSymbol: boolean): void;
+  clearBuyOrders(symbol: string, isLongSymbol: boolean, quote?: Quote | null): void;
   getLatestBuyOrderPrice(symbol: string, isLongSymbol: boolean): number | null;
   getBuyOrdersBelowPrice(currentPrice: number, direction: 'LONG' | 'SHORT'): OrderRecord[];
   calculateTotalQuantity(orders: OrderRecord[]): number;
   fetchOrdersFromAPI(symbol: string): Promise<FetchOrdersResult>;
-  refreshOrders(symbol: string, isLongSymbol: boolean): Promise<OrderRecord[]>;
+  refreshOrders(symbol: string, isLongSymbol: boolean, quote?: Quote | null): Promise<OrderRecord[]>;
   hasCacheForSymbols(symbols: string[]): boolean;
   getPendingOrdersFromCache(symbols: string[]): PendingOrder[];
   getLongBuyOrders(): OrderRecord[];
@@ -529,6 +529,7 @@ export interface RiskChecker {
     orderRecorder: OrderRecorder,
     symbol: string,
     isLongSymbol: boolean,
+    quote?: Quote | null,
   ): Promise<{ r1: number; n1: number } | null>;
   checkUnrealizedLoss(
     symbol: string,

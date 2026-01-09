@@ -37,9 +37,6 @@ import type {
 } from './types.js';
 import type { SignalConfig } from '../../types/index.js';
 
-// 导出类型
-export type { SignalValidationResult, EvaluationResult };
-
 // 支持的固定指标列表（不包括 RSI 和 EMA，因为它们支持动态周期）
 const SUPPORTED_INDICATORS = ['MFI', 'K', 'D', 'J', 'MACD', 'DIF', 'DEA'] as const;
 

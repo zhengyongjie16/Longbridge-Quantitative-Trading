@@ -85,6 +85,7 @@ export interface UnrealizedLossChecker {
     orderRecorder: OrderRecorder,
     symbol: string,
     isLongSymbol: boolean,
+    quote?: import('../../types/index.js').Quote | null,
   ): Promise<{ r1: number; n1: number } | null>;
   check(
     symbol: string,

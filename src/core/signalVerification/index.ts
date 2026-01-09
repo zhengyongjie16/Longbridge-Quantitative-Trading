@@ -26,7 +26,7 @@
 import { logger } from '../../utils/logger/index.js';
 import { verificationEntryPool, signalObjectPool } from '../../utils/objectPool/index.js';
 import { getIndicatorValue } from '../../utils/indicatorHelpers/index.js';
-import { formatError } from '../../utils/helpers/index.js';
+import { formatError, formatQuoteDisplay, normalizeHKSymbol } from '../../utils/helpers/index.js';
 import type { IndicatorSnapshot, Quote, Signal, VerificationConfig, VerificationEntry, MonitorState } from '../../types/index.js';
 import type { SignalVerificationManager } from './types.js';
 
@@ -98,6 +98,27 @@ export const createSignalVerificationManager = (
     longQuote: Quote | null,
     shortQuote: Quote | null,
   ): Signal | null => {
+    // 获取对应的行情数据用于格式化显示
+    const getQuoteForSymbol = (symbol: string): Quote | null => {
+      const normalizedSymbol = normalizeHKSymbol(symbol);
+      if (longQuote && normalizeHKSymbol(longQuote.symbol) === normalizedSymbol) {
+        return longQuote;
+      }
+      if (shortQuote && normalizeHKSymbol(shortQuote.symbol) === normalizedSymbol) {
+        return shortQuote;
+      }
+      return null;
+    };
+
+    const formatSymbolDisplay = (symbol: string): string => {
+      const quote = getQuoteForSymbol(symbol);
+      if (quote) {
+        const display = formatQuoteDisplay(quote, symbol);
+        return display ? `${display.nameText}(${display.codeText})` : normalizeHKSymbol(symbol);
+      }
+      return normalizeHKSymbol(symbol);
+    };
+
     // 判断是买入还是卖出信号，选择对应的配置
     const isBuySignal = pendingSignal.action === 'BUYCALL' || pendingSignal.action === 'BUYPUT';
     const currentConfig = isBuySignal ? config.buy : config.sell;
@@ -183,10 +204,9 @@ export const createSignalVerificationManager = (
       const targetTimeLabel = targetTimeLabels[i]!;
       const match = findBestMatch(targetTime);
       if (!match?.indicators) {
+        const symbolDisplay = formatSymbolDisplay(pendingSignal.symbol);
         logger.warn(
-          `[延迟验证失败] ${
-            pendingSignal.symbol
-          } 无法获取有效的${targetTimeLabel}指标值（目标时间=${targetTime.toLocaleString('zh-CN', {
+          `[延迟验证失败] ${symbolDisplay} 无法获取有效的${targetTimeLabel}指标值（目标时间=${targetTime.toLocaleString('zh-CN', {
             timeZone: 'Asia/Hong_Kong',
             hour12: false,
           })}，当前时间=${now.toLocaleString('zh-CN', {
@@ -213,8 +233,9 @@ export const createSignalVerificationManager = (
         }
       }
       if (!allIndicatorsValid) {
+        const symbolDisplay = formatSymbolDisplay(pendingSignal.symbol);
         logger.warn(
-          `[延迟验证失败] ${pendingSignal.symbol} ${targetTimeLabels[i]}指标值中存在无效值，跳过验证`,
+          `[延迟验证失败] ${symbolDisplay} ${targetTimeLabels[i]}指标值中存在无效值，跳过验证`,
         );
         return null;
       }
@@ -223,8 +244,9 @@ export const createSignalVerificationManager = (
     // 提取3个时间点的指标值
     // 防御性检查：确保有3个匹配项
     if (matches.length < 3) {
+      const symbolDisplay = formatSymbolDisplay(pendingSignal.symbol);
       logger.warn(
-        `[延迟验证失败] ${pendingSignal.symbol} 匹配项数量不足（期望3个，实际${matches.length}个）`,
+        `[延迟验证失败] ${symbolDisplay} 匹配项数量不足（期望3个，实际${matches.length}个）`,
       );
       return null;
     }
@@ -234,8 +256,9 @@ export const createSignalVerificationManager = (
     const match2 = matches[2];
 
     if (!match0 || !match1 || !match2) {
+      const symbolDisplay = formatSymbolDisplay(pendingSignal.symbol);
       logger.warn(
-        `[延迟验证失败] ${pendingSignal.symbol} 匹配项为空`,
+        `[延迟验证失败] ${symbolDisplay} 匹配项为空`,
       );
       return null;
     }
@@ -359,8 +382,9 @@ export const createSignalVerificationManager = (
         actionDesc = '卖出做空';
       }
 
+      const symbolDisplay = formatSymbolDisplay(pendingSignal.symbol);
       logger.info(
-        `[延迟验证通过] ${pendingSignal.symbol} ${verificationReason}，执行${actionDesc}`,
+        `[延迟验证通过] ${symbolDisplay} ${verificationReason}，执行${actionDesc}`,
       );
 
       // 获取标的的当前价格和最小买卖单位
@@ -405,8 +429,9 @@ export const createSignalVerificationManager = (
         actionDesc = '卖出做空';
       }
 
+      const symbolDisplay = formatSymbolDisplay(pendingSignal.symbol);
       logger.info(
-        `[延迟验证失败] ${pendingSignal.symbol} ${verificationReason}，不执行${actionDesc}`,
+        `[延迟验证失败] ${symbolDisplay} ${verificationReason}，不执行${actionDesc}`,
       );
       return null;
     }

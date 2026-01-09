@@ -14,8 +14,8 @@
  */
 
 import { logger } from '../../utils/logger/index.js';
-import { normalizeHKSymbol, isValidPositiveNumber, getDirectionName } from '../../utils/helpers/index.js';
-import type { OrderRecorder, UnrealizedLossData, UnrealizedLossCheckResult } from '../../types/index.js';
+import { normalizeHKSymbol, isValidPositiveNumber, getDirectionName, formatQuoteDisplay } from '../../utils/helpers/index.js';
+import type { OrderRecorder, UnrealizedLossData, UnrealizedLossCheckResult, Quote } from '../../types/index.js';
 import type { UnrealizedLossChecker, UnrealizedLossCheckerDeps } from './types.js';
 
 /**
@@ -88,6 +88,7 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
     orderRecorder: OrderRecorder,
     symbol: string,
     isLongSymbol: boolean,
+    quote?: Quote | null,
   ): Promise<{ r1: number; n1: number } | null> => {
     // 如果未启用浮亏保护，跳过
     if (!isEnabled()) {
@@ -121,8 +122,17 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
       });
 
       const positionType = getDirectionName(isLongSymbol);
+
+      // 使用 formatQuoteDisplay 格式化标的显示
+      const symbolDisplay = quote
+        ? (() => {
+          const display = formatQuoteDisplay(quote, symbol);
+          return display ? `${display.nameText}(${display.codeText})` : normalizedSymbol;
+        })()
+        : normalizedSymbol;
+
       logger.info(
-        `[浮亏监控] ${positionType} ${normalizedSymbol}: R1(开仓成本)=${r1.toFixed(
+        `[浮亏监控] ${positionType} ${symbolDisplay}: R1(开仓成本)=${r1.toFixed(
           2,
         )} HKD, N1(持仓数量)=${n1}, 未平仓订单数=${buyOrders.length}`,
       );

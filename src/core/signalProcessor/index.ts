@@ -20,7 +20,7 @@
  */
 
 import { logger } from '../../utils/logger/index.js';
-import { normalizeHKSymbol, getSymbolName, getDirectionName } from '../../utils/helpers/index.js';
+import { normalizeHKSymbol, getSymbolName, getDirectionName, formatQuoteDisplay } from '../../utils/helpers/index.js';
 import { MULTI_MONITOR_TRADING_CONFIG } from '../../config/config.trading.js';
 import type { Quote, Position, Signal, OrderRecorder } from '../../types/index.js';
 import type { RiskCheckContext, SellQuantityResult, SignalProcessor, SignalProcessorDeps } from './types.js';
@@ -216,6 +216,13 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
         // 末日保护程序：无条件清仓，使用全部可用数量
         if (position && position.availableQuantity !== null && position.availableQuantity > 0) {
           sig.quantity = position.availableQuantity;
+          // 设置价格和最小买卖单位（从行情数据获取，仅在缺失时设置）
+          if (quote?.price != null) {
+            sig.price ??= quote.price;
+          }
+          if (quote?.lotSize != null) {
+            sig.lotSize ??= quote.lotSize;
+          }
           logger.info(
             `[卖出信号处理] ${signalName}(末日保护): 无条件清仓，卖出数量=${sig.quantity}`,
           );
@@ -245,6 +252,13 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
           );
           sig.quantity = result.quantity;
           sig.reason = result.reason;
+          // 设置价格和最小买卖单位（从行情数据获取，仅在缺失时设置）
+          if (quote?.price != null) {
+            sig.price ??= quote.price;
+          }
+          if (quote?.lotSize != null) {
+            sig.lotSize ??= quote.lotSize;
+          }
         }
       }
     }
@@ -386,10 +400,25 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
               : '熊证';
           const distancePercent =
             warrantRiskResult.warrantInfo.distanceToStrikePercent;
+
+          // 使用 formatQuoteDisplay 格式化标的显示
+          const quoteForSymbol =
+            normalizedSigSymbol === normalizedLongSymbol
+              ? longQuote
+              : normalizedSigSymbol === normalizedShortSymbol
+                ? shortQuote
+                : null;
+          const symbolDisplay = quoteForSymbol
+            ? (() => {
+              const display = formatQuoteDisplay(quoteForSymbol, sig.symbol);
+              return display
+                ? `${display.nameText}(${display.codeText})`
+                : normalizeHKSymbol(sig.symbol);
+            })()
+            : normalizeHKSymbol(sig.symbol);
+
           logger.info(
-            `[牛熊证风险检查] ${
-              sig.symbol
-            } 为${warrantType}，距离回收价百分比：${
+            `[牛熊证风险检查] ${symbolDisplay} 为${warrantType}，距离回收价百分比：${
               distancePercent?.toFixed(2) ?? '未知'
             }%，风险检查通过`,
           );

@@ -42,6 +42,7 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
     riskChecker: RiskChecker,
     trader: Trader,
     orderRecorder: OrderRecorder,
+    quote?: Quote | null,
   ): Promise<boolean> => {
     // 如果未启用浮亏监控，直接返回
     if (maxUnrealizedLossPerSymbol <= 0) {
@@ -83,13 +84,14 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
 
       // 保护性清仓后，无条件清空订单记录（不管价格如何，都要清空所有持仓）
       // 使用专门的 clearBuyOrders 方法，而不是 recordLocalSell（避免价格过滤逻辑）
-      orderRecorder.clearBuyOrders(symbol, isLong);
+      orderRecorder.clearBuyOrders(symbol, isLong, quote);
 
       // 重新计算浮亏数据（订单记录已清空，浮亏数据也会为空）
       await riskChecker.refreshUnrealizedLossData(
         orderRecorder,
         symbol,
         isLong,
+        quote,
       );
 
       return true; // 清仓成功
@@ -141,6 +143,7 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
           riskChecker,
           trader,
           orderRecorder,
+          quote,
         );
       }
     };

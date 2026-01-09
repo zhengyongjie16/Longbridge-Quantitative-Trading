@@ -583,10 +583,13 @@ async function processMonitor(
         // 交易后刷新浮亏监控数据
         if ((config.maxUnrealizedLossPerSymbol ?? 0) > 0 && riskChecker) {
           try {
+            // 获取对应的行情数据用于格式化显示
+            const quoteForSymbol = isLongSymbol ? longQuote : shortQuote;
             await riskChecker.refreshUnrealizedLossData(
               orderRecorder,
               symbol,
               isLongSymbol,
+              quoteForSymbol,
             );
           } catch (err) {
             logger.warn(
@@ -787,10 +790,12 @@ async function runOnce({
       for (const monitorContext of monitorContexts.values()) {
         const { config, orderRecorder } = monitorContext;
         if (config.longSymbol) {
-          orderRecorder.clearBuyOrders(config.longSymbol, true);
+          const quote = quoteMap.get(config.longSymbol) ?? null;
+          orderRecorder.clearBuyOrders(config.longSymbol, true, quote);
         }
         if (config.shortSymbol) {
-          orderRecorder.clearBuyOrders(config.shortSymbol, false);
+          const quote = quoteMap.get(config.shortSymbol) ?? null;
+          orderRecorder.clearBuyOrders(config.shortSymbol, false, quote);
         }
       }
 
@@ -1000,12 +1005,24 @@ async function main(): Promise<void> {
     }
   }
 
+  // 获取所有交易标的的行情数据用于格式化显示
+  const quoteMapForInit = new Map<string, Quote | null>();
+  for (const symbol of allTradingSymbolsForInit) {
+    try {
+      const quote = await marketDataClient.getLatestQuote(symbol).catch(() => null);
+      quoteMapForInit.set(symbol, quote);
+    } catch {
+      quoteMapForInit.set(symbol, null);
+    }
+  }
+
   // 为每个监控标的初始化订单记录
   for (const monitorContext of monitorContexts.values()) {
     const { config, orderRecorder } = monitorContext;
     if (config.longSymbol) {
+      const quote = quoteMapForInit.get(config.longSymbol) ?? null;
       await orderRecorder
-        .refreshOrders(config.longSymbol, true)
+        .refreshOrders(config.longSymbol, true, quote)
         .catch((err: unknown) => {
           logger.warn(
             `[订单记录初始化失败] 监控标的 ${config.monitorSymbol} 做多标的 ${config.longSymbol}`,
@@ -1014,8 +1031,9 @@ async function main(): Promise<void> {
         });
     }
     if (config.shortSymbol) {
+      const quote = quoteMapForInit.get(config.shortSymbol) ?? null;
       await orderRecorder
-        .refreshOrders(config.shortSymbol, false)
+        .refreshOrders(config.shortSymbol, false, quote)
         .catch((err: unknown) => {
           logger.warn(
             `[订单记录初始化失败] 监控标的 ${config.monitorSymbol} 做空标的 ${config.shortSymbol}`,
@@ -1030,8 +1048,9 @@ async function main(): Promise<void> {
     const { config, riskChecker, orderRecorder } = monitorContext;
     if ((config.maxUnrealizedLossPerSymbol ?? 0) > 0) {
       if (config.longSymbol) {
+        const quote = quoteMapForInit.get(config.longSymbol) ?? null;
         await riskChecker
-          .refreshUnrealizedLossData(orderRecorder, config.longSymbol, true)
+          .refreshUnrealizedLossData(orderRecorder, config.longSymbol, true, quote)
           .catch((err: unknown) => {
             logger.warn(
               `[浮亏监控初始化失败] 监控标的 ${config.monitorSymbol} 做多标的 ${config.longSymbol}`,
@@ -1040,8 +1059,9 @@ async function main(): Promise<void> {
           });
       }
       if (config.shortSymbol) {
+        const quote = quoteMapForInit.get(config.shortSymbol) ?? null;
         await riskChecker
-          .refreshUnrealizedLossData(orderRecorder, config.shortSymbol, false)
+          .refreshUnrealizedLossData(orderRecorder, config.shortSymbol, false, quote)
           .catch((err: unknown) => {
             logger.warn(
               `[浮亏监控初始化失败] 监控标的 ${config.monitorSymbol} 做空标的 ${config.shortSymbol}`,

@@ -30,17 +30,6 @@ import type {
   PoolableVerificationEntry,
 } from './types.js';
 
-// 导出类型
-export type {
-  ObjectPool,
-  PoolableSignal,
-  PoolableKDJ,
-  PoolableMACD,
-  PoolableMonitorValues,
-  PoolablePosition,
-  PoolableVerificationEntry,
-};
-
 /**
  * 创建通用对象池
  * @param factory 工厂函数，用于创建新对象

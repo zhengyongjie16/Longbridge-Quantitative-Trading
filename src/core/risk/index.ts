@@ -28,6 +28,7 @@ import type {
   AccountSnapshot,
   MarketDataClient,
   OrderRecorder,
+  Quote,
   RiskCheckResult,
   UnrealizedLossCheckResult,
   RiskChecker,
@@ -285,11 +286,13 @@ export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
       orderRecorder: OrderRecorder,
       symbol: string,
       isLongSymbol: boolean,
+      quote?: Quote | null,
     ): Promise<{ r1: number; n1: number } | null> {
       return await unrealizedLossChecker.refresh(
         orderRecorder,
         symbol,
         isLongSymbol,
+        quote,
       );
     },
 

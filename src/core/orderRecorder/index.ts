@@ -25,12 +25,14 @@ import { logger } from '../../utils/logger/index.js';
 import {
   normalizeHKSymbol,
   getDirectionName,
+  formatQuoteDisplay,
 } from '../../utils/helpers/index.js';
 import type {
   OrderRecord,
   FetchOrdersResult,
   OrderRecorder,
   PendingOrder,
+  Quote,
 } from '../../types/index.js';
 import type {
   OrderStatistics,
@@ -93,14 +95,23 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
     sellCount: number,
     recordedCount: number,
     extraInfo?: string,
+    quote?: Quote | null,
   ): void => {
     const positionType = getDirectionName(isLongSymbol);
 
+    // 使用 formatQuoteDisplay 格式化标的显示
+    const symbolDisplay = quote
+      ? (() => {
+        const display = formatQuoteDisplay(quote, symbol);
+        return display ? `${display.nameText}(${display.codeText})` : normalizeHKSymbol(symbol);
+      })()
+      : normalizeHKSymbol(symbol);
+
     if (extraInfo) {
-      logger.info(`[现存订单记录] ${positionType} ${symbol}: ${extraInfo}`);
+      logger.info(`[现存订单记录] ${positionType} ${symbolDisplay}: ${extraInfo}`);
     } else {
       logger.info(
-        `[现存订单记录] ${positionType} ${symbol}: ` +
+        `[现存订单记录] ${positionType} ${symbolDisplay}: ` +
           `历史买入${originalBuyCount}笔, ` +
           `历史卖出${sellCount}笔, ` +
           `最终记录${recordedCount}笔`,
@@ -257,8 +268,8 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
   /**
    * 清空指定标的的买入订单记录（用于保护性清仓等无条件清仓场景）
    */
-  const clearBuyOrders = (symbol: string, isLongSymbol: boolean): void => {
-    storage.clearBuyOrders(symbol, isLongSymbol);
+  const clearBuyOrders = (symbol: string, isLongSymbol: boolean, quote?: Quote | null): void => {
+    storage.clearBuyOrders(symbol, isLongSymbol, quote);
   };
 
   /**
@@ -308,6 +319,7 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
   const refreshOrders = async (
     symbol: string,
     isLongSymbol: boolean,
+    quote?: Quote | null,
   ): Promise<OrderRecord[]> => {
     try {
       const normalizedSymbol = normalizeHKSymbol(symbol);
@@ -324,6 +336,7 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
           0,
           0,
           '历史买入0笔, 无需记录',
+          quote,
         );
         return [];
       }
@@ -343,6 +356,7 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
           0,
           allBuyOrders.length,
           '无卖出记录, 记录全部买入订单',
+          quote,
         );
         return buyOrdersArray;
       }
@@ -365,6 +379,8 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
         allBuyOrders.length,
         filledSellOrders.length,
         finalBuyOrders.length,
+        undefined,
+        quote,
       );
 
       return finalBuyOrders;
