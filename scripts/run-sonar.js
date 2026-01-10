@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { execSync, spawn } from 'node:child_process';
+import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 

@@ -163,19 +163,15 @@ function formatReport(data) {
 }
 
 // 主函数
-async function main() {
-  try {
-    console.log('正在获取 SonarQube 报告...');
-    const data = await getAllData();
-    formatReport(data);
-  } catch (error) {
-    console.error('\n❌ 错误:', error.message);
-    console.error('\n请检查:');
-    console.error('  1. SonarQube 服务是否运行 (http://localhost:9000)');
-    console.error('  2. .env.sonar 配置是否正确');
-    console.error('  3. 项目是否已扫描\n');
-    process.exit(1);
-  }
+try {
+  console.log('正在获取 SonarQube 报告...');
+  const data = await getAllData();
+  formatReport(data);
+} catch (error) {
+  console.error('\n❌ 错误:', error.message);
+  console.error('\n请检查:');
+  console.error('  1. SonarQube 服务是否运行 (http://localhost:9000)');
+  console.error('  2. .env.sonar 配置是否正确');
+  console.error('  3. 项目是否已扫描\n');
+  process.exit(1);
 }
-
-main();
