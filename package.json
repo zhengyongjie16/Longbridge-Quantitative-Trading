@@ -16,7 +16,8 @@
     "analyze-indicators": "node dist/tools/indicatorAnalysis.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "sonarqube": "node scripts/run-sonar.js"
+    "sonarqube": "node scripts/run-sonar.js",
+    "sonarqube:report": "node scripts/get-report.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
