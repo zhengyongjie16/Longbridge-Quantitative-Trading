@@ -287,6 +287,21 @@ export function formatQuoteDisplay(quote: Quote | null, symbol: string): QuoteDi
 }
 
 /**
+ * 格式化标的显示字符串（从行情对象生成）
+ * 如果 quote 存在，返回 "中文名称(代码.HK)" 格式；否则返回规范化后的代码
+ * @param quote 行情对象（可选）
+ * @param symbol 标的代码
+ * @returns 格式化后的标的显示字符串
+ */
+export function formatSymbolDisplayFromQuote(quote: Quote | null | undefined, symbol: string): string {
+  if (quote) {
+    const display = formatQuoteDisplay(quote, symbol);
+    return display ? `${display.nameText}(${display.codeText})` : normalizeHKSymbol(symbol);
+  }
+  return normalizeHKSymbol(symbol);
+}
+
+/**
 * 辅助函数：判断是否为买入操作
 */
 export const isBuyAction = (action: SignalType): boolean => {

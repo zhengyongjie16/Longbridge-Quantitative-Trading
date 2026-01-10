@@ -11,7 +11,7 @@ import { logger } from '../../utils/logger/index.js';
 import {
   normalizeHKSymbol,
   getDirectionName,
-  formatQuoteDisplay,
+  formatSymbolDisplayFromQuote,
 } from '../../utils/helpers/index.js';
 import type { OrderRecord, Quote } from '../../types/index.js';
 import type { OrderStorage, OrderStorageDeps } from './types.js';
@@ -35,37 +35,33 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
   };
 
   /**
-   * 替换指定标的的买入订单列表（做多）
+   * 替换指定标的的买入订单列表（内部辅助函数）
    */
-  const setLongBuyOrdersList = (symbol: string, newList: OrderRecord[]): void => {
-    longBuyOrders = [
-      ...longBuyOrders.filter((o) => o.symbol !== symbol),
+  const setBuyOrdersList = (symbol: string, newList: OrderRecord[], isLongSymbol: boolean): void => {
+    const targetList = isLongSymbol ? longBuyOrders : shortBuyOrders;
+    const updatedList = [
+      ...targetList.filter((o) => o.symbol !== symbol),
       ...newList,
     ];
-  };
-
-  /**
-   * 替换指定标的的买入订单列表（做空）
-   */
-  const setShortBuyOrdersList = (symbol: string, newList: OrderRecord[]): void => {
-    shortBuyOrders = [
-      ...shortBuyOrders.filter((o) => o.symbol !== symbol),
-      ...newList,
-    ];
+    if (isLongSymbol) {
+      longBuyOrders = updatedList;
+    } else {
+      shortBuyOrders = updatedList;
+    }
   };
 
   /**
    * 替换指定标的的买入订单列表（做多）- 公开方法
    */
   const setBuyOrdersListForLong = (symbol: string, newList: OrderRecord[]): void => {
-    setLongBuyOrdersList(symbol, newList);
+    setBuyOrdersList(symbol, newList, true);
   };
 
   /**
    * 替换指定标的的买入订单列表（做空）- 公开方法
    */
   const setBuyOrdersListForShort = (symbol: string, newList: OrderRecord[]): void => {
-    setShortBuyOrdersList(symbol, newList);
+    setBuyOrdersList(symbol, newList, false);
   };
 
   /**
@@ -91,11 +87,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
       updatedAt: undefined,
     });
 
-    if (isLongSymbol) {
-      setLongBuyOrdersList(normalizedSymbol, list);
-    } else {
-      setShortBuyOrdersList(normalizedSymbol, list);
-    }
+    setBuyOrdersList(normalizedSymbol, list, isLongSymbol);
 
     const positionType = getDirectionName(isLongSymbol);
     logger.info(
@@ -130,11 +122,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
     // 如果卖出数量大于等于当前记录的总数量，视为全部卖出，清空记录
     if (executedQuantity >= totalQuantity) {
-      if (isLongSymbol) {
-        setLongBuyOrdersList(normalizedSymbol, []);
-      } else {
-        setShortBuyOrdersList(normalizedSymbol, []);
-      }
+      setBuyOrdersList(normalizedSymbol, [], isLongSymbol);
       logger.info(
         `[现存订单记录] 本地卖出更新：${positionType} ${normalizedSymbol} 卖出数量=${executedQuantity} >= 当前记录总数量=${totalQuantity}，清空所有买入记录`,
       );
@@ -147,11 +135,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
         Number.isFinite(order.executedPrice) &&
         order.executedPrice >= executedPrice,
     );
-    if (isLongSymbol) {
-      setLongBuyOrdersList(normalizedSymbol, filtered);
-    } else {
-      setShortBuyOrdersList(normalizedSymbol, filtered);
-    }
+    setBuyOrdersList(normalizedSymbol, filtered, isLongSymbol);
     logger.info(
       `[现存订单记录] 本地卖出更新：${positionType} ${normalizedSymbol} 卖出数量=${executedQuantity}，按价格过滤后剩余买入记录 ${filtered.length} 笔`,
     );
@@ -163,19 +147,10 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
   const clearBuyOrders = (symbol: string, isLongSymbol: boolean, quote?: Quote | null): void => {
     const normalizedSymbol = normalizeHKSymbol(symbol);
     const positionType = getDirectionName(isLongSymbol);
-    if (isLongSymbol) {
-      setLongBuyOrdersList(normalizedSymbol, []);
-    } else {
-      setShortBuyOrdersList(normalizedSymbol, []);
-    }
+    setBuyOrdersList(normalizedSymbol, [], isLongSymbol);
 
-    // 使用 formatQuoteDisplay 格式化标的显示
-    const symbolDisplay = quote
-      ? (() => {
-        const display = formatQuoteDisplay(quote, symbol);
-        return display ? `${display.nameText}(${display.codeText})` : normalizedSymbol;
-      })()
-      : normalizedSymbol;
+    // 使用 formatSymbolDisplayFromQuote 格式化标的显示
+    const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
 
     logger.info(
       `[现存订单记录] 清空${positionType} ${symbolDisplay}的所有买入记录（保护性清仓）`,

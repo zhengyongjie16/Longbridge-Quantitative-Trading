@@ -25,7 +25,7 @@ import { logger } from '../../utils/logger/index.js';
 import {
   normalizeHKSymbol,
   getDirectionName,
-  formatQuoteDisplay,
+  formatSymbolDisplayFromQuote,
 } from '../../utils/helpers/index.js';
 import type {
   OrderRecord,
@@ -99,13 +99,8 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
   ): void => {
     const positionType = getDirectionName(isLongSymbol);
 
-    // 使用 formatQuoteDisplay 格式化标的显示
-    const symbolDisplay = quote
-      ? (() => {
-        const display = formatQuoteDisplay(quote, symbol);
-        return display ? `${display.nameText}(${display.codeText})` : normalizeHKSymbol(symbol);
-      })()
-      : normalizeHKSymbol(symbol);
+    // 使用 formatSymbolDisplayFromQuote 格式化标的显示
+    const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
 
     if (extraInfo) {
       logger.info(`[现存订单记录] ${positionType} ${symbolDisplay}: ${extraInfo}`);

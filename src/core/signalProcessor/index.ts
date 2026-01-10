@@ -20,7 +20,7 @@
  */
 
 import { logger } from '../../utils/logger/index.js';
-import { normalizeHKSymbol, getSymbolName, getDirectionName, formatQuoteDisplay } from '../../utils/helpers/index.js';
+import { normalizeHKSymbol, getSymbolName, getDirectionName, formatSymbolDisplayFromQuote } from '../../utils/helpers/index.js';
 import { MULTI_MONITOR_TRADING_CONFIG } from '../../config/config.trading.js';
 import type { Quote, Position, Signal, OrderRecorder } from '../../types/index.js';
 import type { RiskCheckContext, SellQuantityResult, SignalProcessor, SignalProcessorDeps } from './types.js';
@@ -401,7 +401,7 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
           const distancePercent =
             warrantRiskResult.warrantInfo.distanceToStrikePercent;
 
-          // 使用 formatQuoteDisplay 格式化标的显示
+          // 使用 formatSymbolDisplayFromQuote 格式化标的显示
           let quoteForSymbol: Quote | null = null;
 
           if (normalizedSigSymbol === normalizedLongSymbol) {
@@ -410,15 +410,7 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
             quoteForSymbol = shortQuote;
           }
 
-          let symbolDisplay: string;
-          if (quoteForSymbol) {
-            const display = formatQuoteDisplay(quoteForSymbol, sig.symbol);
-            symbolDisplay = display
-              ? `${display.nameText}(${display.codeText})`
-              : normalizeHKSymbol(sig.symbol);
-          } else {
-            symbolDisplay = normalizeHKSymbol(sig.symbol);
-          }
+          const symbolDisplay = formatSymbolDisplayFromQuote(quoteForSymbol, sig.symbol);
 
           logger.info(
             `[牛熊证风险检查] ${symbolDisplay} 为${warrantType}，距离回收价百分比：${

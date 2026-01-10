@@ -26,7 +26,7 @@
 import { logger } from '../../utils/logger/index.js';
 import { verificationEntryPool, signalObjectPool } from '../../utils/objectPool/index.js';
 import { getIndicatorValue } from '../../utils/indicatorHelpers/index.js';
-import { formatError, formatQuoteDisplay, normalizeHKSymbol } from '../../utils/helpers/index.js';
+import { formatError, formatSymbolDisplayFromQuote, normalizeHKSymbol } from '../../utils/helpers/index.js';
 import type { IndicatorSnapshot, Quote, Signal, VerificationConfig, VerificationEntry, MonitorState } from '../../types/index.js';
 import type { SignalVerificationManager } from './types.js';
 
@@ -112,11 +112,7 @@ export const createSignalVerificationManager = (
 
     const formatSymbolDisplay = (symbol: string): string => {
       const quote = getQuoteForSymbol(symbol);
-      if (quote) {
-        const display = formatQuoteDisplay(quote, symbol);
-        return display ? `${display.nameText}(${display.codeText})` : normalizeHKSymbol(symbol);
-      }
-      return normalizeHKSymbol(symbol);
+      return formatSymbolDisplayFromQuote(quote, symbol);
     };
 
     // 判断是买入还是卖出信号，选择对应的配置
@@ -547,21 +543,30 @@ export const createSignalVerificationManager = (
               // 记录当前值
               pendingSignal.verificationHistory.push(entry);
 
-              // 只保留当前信号触发时间点前后窗口内的数据，释放其他条目
-              const entriesToKeep: VerificationEntry[] = [];
-              const entriesToRelease: VerificationEntry[] = [];
-              for (const e of pendingSignal.verificationHistory) {
-                const t = e.timestamp.getTime();
-                if (t >= windowStart && t <= windowEnd) {
-                  entriesToKeep.push(e);
-                } else {
-                  entriesToRelease.push(e);
+              // 优化：只在历史记录超过一定数量或超出窗口时才清理，减少遍历次数
+              // 窗口大小为20秒（-5到+15），正常情况下记录不会太多
+              // 但如果历史记录超过30条，或者最早记录已超出窗口，则进行清理
+              const historyLength = pendingSignal.verificationHistory.length;
+              const oldestEntry = pendingSignal.verificationHistory[0];
+              const oldestTime = oldestEntry?.timestamp.getTime() ?? nowMs;
+
+              if (historyLength > 30 || oldestTime < windowStart) {
+                // 只保留当前信号触发时间点前后窗口内的数据，释放其他条目
+                const entriesToKeep: VerificationEntry[] = [];
+                const entriesToRelease: VerificationEntry[] = [];
+                for (const e of pendingSignal.verificationHistory) {
+                  const t = e.timestamp.getTime();
+                  if (t >= windowStart && t <= windowEnd) {
+                    entriesToKeep.push(e);
+                  } else {
+                    entriesToRelease.push(e);
+                  }
                 }
+                if (entriesToRelease.length > 0) {
+                  verificationEntryPool.releaseAll(entriesToRelease);
+                }
+                pendingSignal.verificationHistory = entriesToKeep;
               }
-              if (entriesToRelease.length > 0) {
-                verificationEntryPool.releaseAll(entriesToRelease);
-              }
-              pendingSignal.verificationHistory = entriesToKeep;
             }
           }
         }

@@ -61,6 +61,7 @@ import type {
   ValidateAllConfigResult,
   MarketDataClient,
   Trader,
+  IndicatorSnapshot,
 } from './types/index.js';
 import type { MarketMonitor } from './core/marketMonitor/types.js';
 import type { DoomsdayProtection } from './core/doomsdayProtection/types.js';
@@ -162,6 +163,41 @@ function createMonitorState(config: MonitorConfig): MonitorState {
     monitorValues: null,
     lastMonitorSnapshot: null,
   };
+}
+
+/**
+ * 释放快照中的 KDJ 和 MACD 对象（如果它们没有被 monitorValues 引用）
+ * @param snapshot 要释放的快照
+ * @param monitorValues 监控值对象，用于检查引用
+ */
+function releaseSnapshotObjects(
+  snapshot: IndicatorSnapshot | null,
+  monitorValues: MonitorState['monitorValues'],
+): void {
+  if (!snapshot) {
+    return;
+  }
+
+  // 释放 KDJ 对象（如果它没有被 monitorValues 引用）
+  if (snapshot.kdj && monitorValues?.kdj !== snapshot.kdj) {
+    kdjObjectPool.release(snapshot.kdj);
+  }
+
+  // 释放 MACD 对象（如果它没有被 monitorValues 引用）
+  if (snapshot.macd && monitorValues?.macd !== snapshot.macd) {
+    macdObjectPool.release(snapshot.macd);
+  }
+}
+
+/**
+ * 释放所有监控标的的最后一个快照对象
+ * @param monitorStates 监控状态Map
+ */
+function releaseAllMonitorSnapshots(monitorStates: Map<string, MonitorState>): void {
+  for (const monitorState of monitorStates.values()) {
+    releaseSnapshotObjects(monitorState.lastMonitorSnapshot, monitorState.monitorValues);
+    monitorState.lastMonitorSnapshot = null;
+  }
 }
 
 
@@ -367,278 +403,271 @@ async function processMonitor(
   );
 
   // 释放上一次快照中的 kdj 和 macd 对象（如果它们没有被 monitorValues 引用）
-  if (state.lastMonitorSnapshot) {
-    const lastSnapshot = state.lastMonitorSnapshot;
-    // 检查旧的 kdj 对象是否被 monitorValues 引用
-    if (lastSnapshot.kdj && state.monitorValues?.kdj !== lastSnapshot.kdj) {
-      kdjObjectPool.release(lastSnapshot.kdj);
-    }
-    // 检查旧的 macd 对象是否被 monitorValues 引用
-    if (lastSnapshot.macd && state.monitorValues?.macd !== lastSnapshot.macd) {
-      macdObjectPool.release(lastSnapshot.macd);
-    }
-  }
+  releaseSnapshotObjects(state.lastMonitorSnapshot, state.monitorValues);
   // 保存当前快照供下次循环使用
   state.lastMonitorSnapshot = monitorSnapshot;
 
-  // 4. 获取持仓
+  // 4. 获取持仓（使用 try-finally 确保释放）
   const { longPosition, shortPosition } = getPositions(
     globalState.cachedPositions,
     LONG_SYMBOL,
     SHORT_SYMBOL,
   );
 
-  // 5. 生成信号
-  const { immediateSignals, delayedSignals } = strategy.generateCloseSignals(
-    monitorSnapshot,
-    NORMALIZED_LONG_SYMBOL,
-    NORMALIZED_SHORT_SYMBOL,
-    orderRecorder,
-  );
+  try {
+    // 5. 生成信号
+    const { immediateSignals, delayedSignals } = strategy.generateCloseSignals(
+      monitorSnapshot,
+      NORMALIZED_LONG_SYMBOL,
+      NORMALIZED_SHORT_SYMBOL,
+      orderRecorder,
+    );
 
-  // 6. 处理延迟验证（先添加新信号，再记录验证历史，确保新添加的信号也能被记录）
-  signalVerificationManager.addDelayedSignals(delayedSignals, state);
-  // 记录验证历史（在添加新信号后调用，确保新添加的信号也能被记录）
-  signalVerificationManager.recordVerificationHistory(monitorSnapshot, state);
-  const verifiedSignals = signalVerificationManager.verifyPendingSignals(
-    state,
-    longQuote,
-    shortQuote,
-  );
+    // 6. 处理延迟验证（先添加新信号，再记录验证历史，确保新添加的信号也能被记录）
+    signalVerificationManager.addDelayedSignals(delayedSignals, state);
+    // 记录验证历史（在添加新信号后调用，确保新添加的信号也能被记录）
+    signalVerificationManager.recordVerificationHistory(monitorSnapshot, state);
+    const verifiedSignals = signalVerificationManager.verifyPendingSignals(
+      state,
+      longQuote,
+      shortQuote,
+    );
 
-  const tradingSignals = [...immediateSignals, ...verifiedSignals];
+    const tradingSignals = [...immediateSignals, ...verifiedSignals];
 
-  // 过滤并验证信号数组的有效性
-  const validSignals = tradingSignals.filter((signal) => {
-    if (!signal?.symbol || !signal?.action) {
-      logger.warn(`[跳过信号] 无效的信号对象: ${JSON.stringify(signal)}`);
-      return false;
+    // 过滤并验证信号数组的有效性
+    const validSignals = tradingSignals.filter((signal) => {
+      if (!signal?.symbol || !signal?.action) {
+        logger.warn(`[跳过信号] 无效的信号对象: ${JSON.stringify(signal)}`);
+        return false;
+      }
+      if (!VALID_SIGNAL_ACTIONS.has(signal.action)) {
+        logger.warn(
+          `[跳过信号] 未知的信号类型: ${signal.action}, 标的: ${signal.symbol}`,
+        );
+        return false;
+      }
+      return true;
+    });
+
+    // 释放无效的信号对象
+    const invalidSignals = tradingSignals.filter((s) => !validSignals.includes(s));
+    if (invalidSignals.length > 0) {
+      signalObjectPool.releaseAll(invalidSignals);
     }
-    if (!VALID_SIGNAL_ACTIONS.has(signal.action)) {
-      logger.warn(
-        `[跳过信号] 未知的信号类型: ${signal.action}, 标的: ${signal.symbol}`,
-      );
-      return false;
-    }
-    return true;
-  });
 
-  // 释放无效的信号对象
-  const invalidSignals = tradingSignals.filter((s) => !validSignals.includes(s));
-  if (invalidSignals.length > 0) {
-    signalObjectPool.releaseAll(invalidSignals);
-  }
-
-  // 检测信号变化
-  const currentSignalKey =
+    // 检测信号变化
+    const currentSignalKey =
     validSignals.length > 0
       ? validSignals
         .map((s) => `${s.action}_${s.symbol}_${s.reason || ''}`)
         .join('|')
       : null;
-  const lastSignalKey = state.signal;
+    const lastSignalKey = state.signal;
 
-  if (currentSignalKey !== lastSignalKey) {
-    if (validSignals.length > 0) {
-      validSignals.forEach((signal) => {
-        const actionDesc =
+    if (currentSignalKey !== lastSignalKey) {
+      if (validSignals.length > 0) {
+        validSignals.forEach((signal) => {
+          const actionDesc =
           SIGNAL_ACTION_DESCRIPTIONS[signal.action] ||
           `未知操作(${signal.action})`;
 
+          logger.info(
+            `[交易信号] ${actionDesc} ${signal.symbol} - ${
+              signal.reason || '策略信号'
+            }`,
+          );
+        });
+      } else {
         logger.info(
-          `[交易信号] ${actionDesc} ${signal.symbol} - ${
-            signal.reason || '策略信号'
-          }`,
+          `[监控标的信号] ${monitorSymbolName}(${NORMALIZED_MONITOR_SYMBOL}) 无交易信号`,
         );
-      });
-    } else {
-      logger.info(
-        `[监控标的信号] ${monitorSymbolName}(${NORMALIZED_MONITOR_SYMBOL}) 无交易信号`,
-      );
+      }
+
+      state.signal = currentSignalKey;
     }
 
-    state.signal = currentSignalKey;
-  }
+    // 补充价格和lotSize信息
+    for (const signal of validSignals) {
+      const normalizedSigSymbol = signal.symbol;
 
-  // 补充价格和lotSize信息
-  for (const signal of validSignals) {
-    const normalizedSigSymbol = signal.symbol;
-
-    if (normalizedSigSymbol === NORMALIZED_LONG_SYMBOL && longQuote) {
-      signal.price ??= longQuote.price;
-      if (signal.lotSize == null && longQuote.lotSize != null) signal.lotSize = longQuote.lotSize;
-      if (signal.symbolName == null && longQuote.name != null) signal.symbolName = longQuote.name;
-    } else if (normalizedSigSymbol === NORMALIZED_SHORT_SYMBOL && shortQuote) {
-      signal.price ??= shortQuote.price;
-      if (signal.lotSize == null && shortQuote.lotSize != null) signal.lotSize = shortQuote.lotSize;
-      if (signal.symbolName == null && shortQuote.name != null) signal.symbolName = shortQuote.name;
+      if (normalizedSigSymbol === NORMALIZED_LONG_SYMBOL && longQuote) {
+        signal.price ??= longQuote.price;
+        if (signal.lotSize == null && longQuote.lotSize != null) signal.lotSize = longQuote.lotSize;
+        if (signal.symbolName == null && longQuote.name != null) signal.symbolName = longQuote.name;
+      } else if (normalizedSigSymbol === NORMALIZED_SHORT_SYMBOL && shortQuote) {
+        signal.price ??= shortQuote.price;
+        if (signal.lotSize == null && shortQuote.lotSize != null) signal.lotSize = shortQuote.lotSize;
+        if (signal.symbolName == null && shortQuote.name != null) signal.symbolName = shortQuote.name;
+      }
     }
-  }
 
-  // 8. 风险检查和信号处理
-  // 注意：末日保护是全局性的，应该在runOnce中处理，不在processMonitor中处理
-  const account = globalState.cachedAccount ?? null;
-  const positions = globalState.cachedPositions ?? [];
+    // 8. 风险检查和信号处理
+    // 注意：末日保护是全局性的，应该在runOnce中处理，不在processMonitor中处理
+    const account = globalState.cachedAccount ?? null;
+    const positions = globalState.cachedPositions ?? [];
 
-  let finalSignals: Signal[] = [];
+    let finalSignals: Signal[] = [];
 
-  // 正常交易信号处理：应用风险检查
-  if (validSignals.length > 0 && canTradeNow) {
-    const riskCheckContext = {
-      trader,
-      riskChecker,
-      orderRecorder,
-      longQuote,
-      shortQuote,
-      monitorQuote,
-      monitorSnapshot,
-      longSymbol: LONG_SYMBOL,
-      shortSymbol: SHORT_SYMBOL,
-      longSymbolName,
-      shortSymbolName,
-      account,
-      positions,
-      lastState: {
-        cachedAccount: account,
-        cachedPositions: positions,
-      },
-      currentTime,
-      isHalfDay: context.isHalfDay,
-      doomsdayProtection: context.doomsdayProtection,
-      config,
-    };
-
-    finalSignals = await context.signalProcessor.applyRiskChecks(validSignals, riskCheckContext);
-
-    // 释放在风险检查中被跳过的信号
-    const skippedSignals = validSignals.filter(
-      (sig) => !finalSignals.includes(sig),
-    );
-    if (skippedSignals.length > 0) {
-      signalObjectPool.releaseAll(skippedSignals);
-    }
-  }
-
-  // 只在有交易信号时显示执行信息
-  if (finalSignals.length > 0) {
-    for (const sig of finalSignals) {
-      const normalizedSigSymbol = sig.symbol;
-      const sigName = getSymbolName(
-        sig.symbol,
-        LONG_SYMBOL,
-        SHORT_SYMBOL,
+    // 正常交易信号处理：应用风险检查
+    if (validSignals.length > 0 && canTradeNow) {
+      const riskCheckContext = {
+        trader,
+        riskChecker,
+        orderRecorder,
+        longQuote,
+        shortQuote,
+        monitorQuote,
+        monitorSnapshot,
+        longSymbol: LONG_SYMBOL,
+        shortSymbol: SHORT_SYMBOL,
         longSymbolName,
         shortSymbolName,
+        account,
+        positions,
+        lastState: {
+          cachedAccount: account,
+          cachedPositions: positions,
+        },
+        currentTime,
+        isHalfDay: context.isHalfDay,
+        doomsdayProtection: context.doomsdayProtection,
+        config,
+      };
+
+      finalSignals = await context.signalProcessor.applyRiskChecks(validSignals, riskCheckContext);
+
+      // 释放在风险检查中被跳过的信号
+      const skippedSignals = validSignals.filter(
+        (sig) => !finalSignals.includes(sig),
+      );
+      if (skippedSignals.length > 0) {
+        signalObjectPool.releaseAll(skippedSignals);
+      }
+    }
+
+    // 只在有交易信号时显示执行信息
+    if (finalSignals.length > 0) {
+      for (const sig of finalSignals) {
+        const normalizedSigSymbol = sig.symbol;
+        const sigName = getSymbolName(
+          sig.symbol,
+          LONG_SYMBOL,
+          SHORT_SYMBOL,
+          longSymbolName,
+          shortSymbolName,
+        );
+
+        const targetAction = SIGNAL_TARGET_ACTIONS[sig.action] || '未知';
+
+        logger.info(
+          `[交易指令] 将对 ${sigName}(${normalizedSigSymbol}) 执行${targetAction}操作 - ${sig.reason}`,
+        );
+      }
+    } else if (validSignals.length > 0 && !canTradeNow) {
+      logger.info('当前为竞价或非连续交易时段，交易信号已生成但暂不执行。');
+      // 释放信号对象（因为不会执行）
+      if (validSignals.length > 0) {
+        signalObjectPool.releaseAll(validSignals);
+      }
+    }
+
+    // 9. 执行交易
+    if (finalSignals.length > 0) {
+      logger.info(`[监控标的 ${monitorSymbolName}] 执行交易：共 ${finalSignals.length} 个交易信号`);
+
+      // 对卖出信号进行成本价判断和卖出数量计算
+      context.signalProcessor.processSellSignals(
+        finalSignals,
+        longPosition,
+        shortPosition,
+        longQuote,
+        shortQuote,
+        orderRecorder,
       );
 
-      const targetAction = SIGNAL_TARGET_ACTIONS[sig.action] || '未知';
-
-      logger.info(
-        `[交易指令] 将对 ${sigName}(${normalizedSigSymbol}) 执行${targetAction}操作 - ${sig.reason}`,
+      // 过滤掉被设置为HOLD的信号
+      const signalsToExecute = finalSignals.filter(
+        (sig) => sig.action !== 'HOLD',
       );
-    }
-  } else if (validSignals.length > 0 && !canTradeNow) {
-    logger.info('当前为竞价或非连续交易时段，交易信号已生成但暂不执行。');
-    // 释放信号对象（因为不会执行）
-    if (validSignals.length > 0) {
-      signalObjectPool.releaseAll(validSignals);
-    }
-  }
 
-  // 9. 执行交易
-  if (finalSignals.length > 0) {
-    logger.info(`[监控标的 ${monitorSymbolName}] 执行交易：共 ${finalSignals.length} 个交易信号`);
+      if (signalsToExecute.length > 0) {
+        await trader.executeSignals(signalsToExecute);
+      } else {
+        logger.info('所有卖出信号因成本价判断被跳过，无交易执行');
+      }
 
-    // 对卖出信号进行成本价判断和卖出数量计算
-    context.signalProcessor.processSellSignals(
-      finalSignals,
-      longPosition,
-      shortPosition,
-      longQuote,
-      shortQuote,
-      orderRecorder,
-    );
+      // 交易后本地更新订单记录
+      if (orderRecorder && signalsToExecute.length > 0) {
+        for (const sig of signalsToExecute) {
+          const quantity = Number(sig.quantity);
+          const price = Number(sig.price);
 
-    // 过滤掉被设置为HOLD的信号
-    const signalsToExecute = finalSignals.filter(
-      (sig) => sig.action !== 'HOLD',
-    );
+          if (!Number.isFinite(quantity) || quantity <= 0) {
+            continue;
+          }
+          if (!Number.isFinite(price) || price <= 0) {
+            continue;
+          }
+          if (!isBuyAction(sig.action) && !isSellAction(sig.action)) {
+            continue;
+          }
 
-    if (signalsToExecute.length > 0) {
-      await trader.executeSignals(signalsToExecute);
-    } else {
-      logger.info('所有卖出信号因成本价判断被跳过，无交易执行');
-    }
-
-    // 交易后本地更新订单记录
-    if (orderRecorder && signalsToExecute.length > 0) {
-      for (const sig of signalsToExecute) {
-        const quantity = Number(sig.quantity);
-        const price = Number(sig.price);
-
-        if (!Number.isFinite(quantity) || quantity <= 0) {
-          continue;
-        }
-        if (!Number.isFinite(price) || price <= 0) {
-          continue;
-        }
-        if (!isBuyAction(sig.action) && !isSellAction(sig.action)) {
-          continue;
-        }
-
-        const isLongSymbol =
+          const isLongSymbol =
           sig.action === 'BUYCALL' ||
           sig.action === 'SELLCALL';
-        const symbol = sig.symbol;
+          const symbol = sig.symbol;
 
-        if (isBuyAction(sig.action)) {
-          orderRecorder.recordLocalBuy(symbol, price, quantity, isLongSymbol);
-        } else if (isSellAction(sig.action)) {
-          orderRecorder.recordLocalSell(symbol, price, quantity, isLongSymbol);
-        }
+          if (isBuyAction(sig.action)) {
+            orderRecorder.recordLocalBuy(symbol, price, quantity, isLongSymbol);
+          } else if (isSellAction(sig.action)) {
+            orderRecorder.recordLocalSell(symbol, price, quantity, isLongSymbol);
+          }
 
-        // 交易后刷新浮亏监控数据
-        if ((config.maxUnrealizedLossPerSymbol ?? 0) > 0 && riskChecker) {
-          try {
+          // 交易后刷新浮亏监控数据
+          if ((config.maxUnrealizedLossPerSymbol ?? 0) > 0 && riskChecker) {
+            try {
             // 获取对应的行情数据用于格式化显示
-            const quoteForSymbol = isLongSymbol ? longQuote : shortQuote;
-            await riskChecker.refreshUnrealizedLossData(
-              orderRecorder,
-              symbol,
-              isLongSymbol,
-              quoteForSymbol,
-            );
-          } catch (err) {
-            logger.warn(
-              `[浮亏监控] 交易后刷新浮亏数据失败: ${symbol}`,
-              formatError(err),
-            );
+              const quoteForSymbol = isLongSymbol ? longQuote : shortQuote;
+              await riskChecker.refreshUnrealizedLossData(
+                orderRecorder,
+                symbol,
+                isLongSymbol,
+                quoteForSymbol,
+              );
+            } catch (err) {
+              logger.warn(
+                `[浮亏监控] 交易后刷新浮亏数据失败: ${symbol}`,
+                formatError(err),
+              );
+            }
           }
         }
       }
-    }
 
-    // 释放所有信号对象回对象池
-    if (signalsToExecute && signalsToExecute.length > 0) {
-      signalObjectPool.releaseAll(signalsToExecute);
-    }
-    // 释放未执行的信号（finalSignals 中被过滤掉的 HOLD 信号）
-    if (finalSignals && finalSignals.length > 0) {
-      const heldSignals = finalSignals.filter(
-        (sig) => sig.action === 'HOLD',
-      );
-      if (heldSignals.length > 0) {
-        signalObjectPool.releaseAll(heldSignals);
+      // 释放所有信号对象回对象池
+      if (signalsToExecute && signalsToExecute.length > 0) {
+        signalObjectPool.releaseAll(signalsToExecute);
+      }
+      // 释放未执行的信号（finalSignals 中被过滤掉的 HOLD 信号）
+      if (finalSignals && finalSignals.length > 0) {
+        const heldSignals = finalSignals.filter(
+          (sig) => sig.action === 'HOLD',
+        );
+        if (heldSignals.length > 0) {
+          signalObjectPool.releaseAll(heldSignals);
+        }
       }
     }
-  }
 
-  // 释放持仓对象回池
-  if (longPosition) {
-    positionObjectPool.release(longPosition);
-  }
-  if (shortPosition) {
-    positionObjectPool.release(shortPosition);
+  } finally {
+    // 释放持仓对象回池（确保在所有退出路径上都释放）
+    if (longPosition) {
+      positionObjectPool.release(longPosition);
+    }
+    if (shortPosition) {
+      positionObjectPool.release(shortPosition);
+    }
   }
 }
 
@@ -1097,6 +1126,21 @@ async function main(): Promise<void> {
     );
   }
 
+  // 注册退出处理函数，确保程序退出时释放所有对象池对象
+  const cleanup = (): void => {
+    logger.info('程序退出，正在清理资源...');
+    releaseAllMonitorSnapshots(lastState.monitorStates);
+  };
+
+  process.on('SIGINT', () => {
+    cleanup();
+    process.exit(0);
+  });
+  process.on('SIGTERM', () => {
+    cleanup();
+    process.exit(0);
+  });
+
   // 无限循环监控
   while (true) {
     try {
@@ -1122,5 +1166,6 @@ try {
   await main();
 } catch (err: unknown) {
   logger.error('程序异常退出', formatError(err));
+  // 注意：异常退出时无法访问lastState，所以不在catch中清理
   process.exit(1);
 }
