@@ -328,7 +328,11 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
 
       // 如果没有买入订单，直接返回空列表
       if (allBuyOrders.length === 0) {
-        storage.setBuyOrdersList(normalizedSymbol, isLongSymbol, []);
+        if (isLongSymbol) {
+          storage.setBuyOrdersListForLong(normalizedSymbol, []);
+        } else {
+          storage.setBuyOrdersListForShort(normalizedSymbol, []);
+        }
         logRefreshResult(
           normalizedSymbol,
           isLongSymbol,
@@ -344,11 +348,11 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
       // 如果没有卖出订单，记录所有买入订单
       if (filledSellOrders.length === 0) {
         const buyOrdersArray = [...allBuyOrders];
-        storage.setBuyOrdersList(
-          normalizedSymbol,
-          isLongSymbol,
-          buyOrdersArray,
-        );
+        if (isLongSymbol) {
+          storage.setBuyOrdersListForLong(normalizedSymbol, buyOrdersArray);
+        } else {
+          storage.setBuyOrdersListForShort(normalizedSymbol, buyOrdersArray);
+        }
         logRefreshResult(
           normalizedSymbol,
           isLongSymbol,
@@ -368,11 +372,11 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
       );
 
       // 更新记录
-      storage.setBuyOrdersList(
-        normalizedSymbol,
-        isLongSymbol,
-        finalBuyOrders,
-      );
+      if (isLongSymbol) {
+        storage.setBuyOrdersListForLong(normalizedSymbol, finalBuyOrders);
+      } else {
+        storage.setBuyOrdersListForShort(normalizedSymbol, finalBuyOrders);
+      }
       logRefreshResult(
         normalizedSymbol,
         isLongSymbol,

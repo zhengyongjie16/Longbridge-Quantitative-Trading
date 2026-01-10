@@ -56,7 +56,8 @@ export type FilteringState = {
  */
 export interface OrderStorage {
   getBuyOrdersList(symbol: string, isLongSymbol: boolean): OrderRecord[];
-  setBuyOrdersList(symbol: string, isLongSymbol: boolean, newList: OrderRecord[]): void;
+  setBuyOrdersListForLong(symbol: string, newList: OrderRecord[]): void;
+  setBuyOrdersListForShort(symbol: string, newList: OrderRecord[]): void;
   addBuyOrder(symbol: string, executedPrice: number, executedQuantity: number, isLongSymbol: boolean): void;
   updateAfterSell(symbol: string, executedPrice: number, executedQuantity: number, isLongSymbol: boolean): void;
   clearBuyOrders(symbol: string, isLongSymbol: boolean, quote?: Quote | null): void;

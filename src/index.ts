@@ -147,6 +147,23 @@ function extractRsiPeriodsWithDefault(signalConfig: SignalConfigSet | null): num
   return rsiPeriods;
 }
 
+/**
+ * 创建监控标的状态
+ */
+function createMonitorState(config: MonitorConfig): MonitorState {
+  return {
+    monitorSymbol: config.monitorSymbol,
+    longSymbol: config.longSymbol,
+    shortSymbol: config.shortSymbol,
+    longPrice: null,
+    shortPrice: null,
+    signal: null,
+    pendingDelayedSignals: [],
+    monitorValues: null,
+    lastMonitorSnapshot: null,
+  };
+}
+
 
 // K线和循环配置常量
 /**
@@ -872,6 +889,33 @@ async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delay));
 }
 
+/**
+ * 创建监控标的上下文
+ */
+function createMonitorContext(
+  config: MonitorConfig,
+  state: MonitorState,
+  trader: Trader,
+): MonitorContext {
+  return {
+    config,
+    state,
+    strategy: createHangSengMultiIndicatorStrategy({
+      signalConfig: config.signalConfig,
+      verificationConfig: config.verificationConfig,
+    }),
+    orderRecorder: createOrderRecorder({ trader }),
+    signalVerificationManager: createSignalVerificationManager(config.verificationConfig),
+    riskChecker: createRiskChecker({
+      options: {
+        maxDailyLoss: config.maxDailyLoss,
+        maxPositionNotional: config.maxPositionNotional,
+        maxUnrealizedLossPerSymbol: config.maxUnrealizedLossPerSymbol,
+      },
+    }),
+  };
+}
+
 async function main(): Promise<void> {
   // 牛牛登场
   getSprintSacreMooacreMoo();
@@ -897,23 +941,6 @@ async function main(): Promise<void> {
 
   logger.info('程序开始运行，在交易时段将进行实时监控和交易（按 Ctrl+C 退出）');
 
-  /**
-   * 创建监控标的状态
-   */
-  function createMonitorState(config: MonitorConfig): MonitorState {
-    return {
-      monitorSymbol: config.monitorSymbol,
-      longSymbol: config.longSymbol,
-      shortSymbol: config.shortSymbol,
-      longPrice: null,
-      shortPrice: null,
-      signal: null,
-      pendingDelayedSignals: [],
-      monitorValues: null,
-      lastMonitorSnapshot: null,
-    };
-  }
-
   // 记录上一次的数据状态
   const lastState: LastState = {
     canTrade: null,
@@ -928,33 +955,6 @@ async function main(): Promise<void> {
       ]),
     ),
   };
-
-  /**
-   * 创建监控标的上下文
-   */
-  function createMonitorContext(
-    config: MonitorConfig,
-    state: MonitorState,
-    trader: Trader,
-  ): MonitorContext {
-    return {
-      config,
-      state,
-      strategy: createHangSengMultiIndicatorStrategy({
-        signalConfig: config.signalConfig,
-        verificationConfig: config.verificationConfig,
-      }),
-      orderRecorder: createOrderRecorder({ trader }),
-      signalVerificationManager: createSignalVerificationManager(config.verificationConfig),
-      riskChecker: createRiskChecker({
-        options: {
-          maxDailyLoss: config.maxDailyLoss,
-          maxPositionNotional: config.maxPositionNotional,
-          maxUnrealizedLossPerSymbol: config.maxUnrealizedLossPerSymbol,
-        },
-      }),
-    };
-  }
 
   // 初始化监控标的上下文
   const monitorContexts: Map<string, MonitorContext> = new Map();

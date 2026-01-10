@@ -402,20 +402,23 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
             warrantRiskResult.warrantInfo.distanceToStrikePercent;
 
           // 使用 formatQuoteDisplay 格式化标的显示
-          const quoteForSymbol =
-            normalizedSigSymbol === normalizedLongSymbol
-              ? longQuote
-              : normalizedSigSymbol === normalizedShortSymbol
-                ? shortQuote
-                : null;
-          const symbolDisplay = quoteForSymbol
-            ? (() => {
-              const display = formatQuoteDisplay(quoteForSymbol, sig.symbol);
-              return display
-                ? `${display.nameText}(${display.codeText})`
-                : normalizeHKSymbol(sig.symbol);
-            })()
-            : normalizeHKSymbol(sig.symbol);
+          let quoteForSymbol: Quote | null = null;
+
+          if (normalizedSigSymbol === normalizedLongSymbol) {
+            quoteForSymbol = longQuote;
+          } else if (normalizedSigSymbol === normalizedShortSymbol) {
+            quoteForSymbol = shortQuote;
+          }
+
+          let symbolDisplay: string;
+          if (quoteForSymbol) {
+            const display = formatQuoteDisplay(quoteForSymbol, sig.symbol);
+            symbolDisplay = display
+              ? `${display.nameText}(${display.codeText})`
+              : normalizeHKSymbol(sig.symbol);
+          } else {
+            symbolDisplay = normalizeHKSymbol(sig.symbol);
+          }
 
           logger.info(
             `[牛熊证风险检查] ${symbolDisplay} 为${warrantType}，距离回收价百分比：${

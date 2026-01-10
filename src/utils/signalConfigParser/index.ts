@@ -26,7 +26,12 @@ import {
   validateEmaPeriod,
 } from '../indicatorHelpers/index.js';
 import { logger } from '../logger/index.js';
-import type { Condition, ConditionGroup, SignalConfigSet } from '../../types/index.js';
+import type {
+  Condition,
+  ConditionGroup,
+  SignalConfigSet,
+  SignalConfig,
+} from '../../types/index.js';
 import type { IndicatorState } from '../types.js';
 import type {
   ParsedCondition,
@@ -35,7 +40,6 @@ import type {
   EvaluationResult,
   ConditionGroupResult,
 } from './types.js';
-import type { SignalConfig } from '../../types/index.js';
 
 // 支持的固定指标列表（不包括 RSI 和 EMA，因为它们支持动态周期）
 const SUPPORTED_INDICATORS = ['MFI', 'K', 'D', 'J', 'MACD', 'DIF', 'DEA'] as const;
