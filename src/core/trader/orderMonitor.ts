@@ -184,36 +184,31 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
    * - 只监控买入订单，卖出订单不监控
    * - 买入订单：如果当前价格低于委托价格，修改委托价格为当前价格
    * - 当所有买入订单成交后停止监控
-   * @param longQuote 做多标的的行情数据（用于向后兼容，在多标的下会被忽略）
-   * @param shortQuote 做空标的的行情数据（用于向后兼容，在多标的下会被忽略）
+   * @param quotesMap 行情数据 Map（symbol -> Quote）
    */
   const monitorAndManageOrders = async (
-    longQuote: Quote | null,
-    shortQuote: Quote | null,
+    quotesMap: ReadonlyMap<string, Quote | null>,
   ): Promise<void> => {
     // 如果不需要监控，直接返回
     if (!shouldMonitorBuyOrders) {
       return;
     }
 
-    // 只获取传入的 quote 对应的标的的订单（按标的隔离监控）
-    const targetSymbols: string[] = [];
-    if (longQuote) {
-      targetSymbols.push(normalizeHKSymbol(longQuote.symbol));
-    }
-    if (shortQuote) {
-      const normalizedShortSymbol = normalizeHKSymbol(shortQuote.symbol);
-      // 避免重复添加（如果 longQuote 和 shortQuote 是同一个标的）
-      if (!targetSymbols.includes(normalizedShortSymbol)) {
-        targetSymbols.push(normalizedShortSymbol);
-      }
-    }
-
-    if (targetSymbols.length === 0) {
+    if (quotesMap.size === 0) {
       return;
     }
 
-    // 只获取传入的 quote 对应的标的的未成交订单（实时获取，不使用缓存）
+    // 获取所有需要监控的标的（标准化后的标的代码）
+    const normalizedQuotesMap = new Map<string, Quote | null>();
+    for (const [symbol, quote] of quotesMap.entries()) {
+      if (quote) {
+        normalizedQuotesMap.set(normalizeHKSymbol(symbol), quote);
+      }
+    }
+
+    const targetSymbols = Array.from(normalizedQuotesMap.keys());
+
+    // 获取所有标的的未成交订单（实时获取，不使用缓存）
     const pendingOrders = await cacheManager.getPendingOrders(targetSymbols);
 
     // 过滤出买入订单
@@ -221,7 +216,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
       (order) => order.side === OrderSide.Buy,
     );
 
-    // 如果没有买入订单，停止监控（只针对传入的标的）
+    // 如果没有买入订单，停止监控
     if (pendingBuyOrders.length === 0) {
       if (shouldMonitorBuyOrders) {
         shouldMonitorBuyOrders = false;
@@ -259,14 +254,10 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
       }
 
       const normalizedOrderSymbol = normalizeHKSymbol(order.symbol);
-      let currentPrice: number | null = null;
 
-      // 从实时行情获取标的的当前价格（只处理传入的 quote 对应的订单）
-      if (longQuote && normalizedOrderSymbol === normalizeHKSymbol(longQuote.symbol)) {
-        currentPrice = longQuote.price;
-      } else if (shortQuote && normalizedOrderSymbol === normalizeHKSymbol(shortQuote.symbol)) {
-        currentPrice = shortQuote.price;
-      }
+      // 从行情数据 Map 中获取标的的当前价格
+      const quote = normalizedQuotesMap.get(normalizedOrderSymbol);
+      const currentPrice = quote?.price ?? null;
 
       if (!currentPrice || !Number.isFinite(currentPrice)) {
         logger.debug(

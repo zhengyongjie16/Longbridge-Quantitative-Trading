@@ -107,10 +107,9 @@ export const createTrader = async (deps: TraderDeps = {}): Promise<Trader> => {
     },
 
     monitorAndManageOrders(
-      longQuote: Quote | null,
-      shortQuote: Quote | null,
+      quotesMap: ReadonlyMap<string, Quote | null>,
     ): Promise<void> {
-      return orderMonitor.monitorAndManageOrders(longQuote, shortQuote);
+      return orderMonitor.monitorAndManageOrders(quotesMap);
     },
 
     // ==================== 订单执行相关方法 ====================

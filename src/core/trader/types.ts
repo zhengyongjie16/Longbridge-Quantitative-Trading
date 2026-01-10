@@ -103,7 +103,7 @@ export interface OrderMonitor {
   enableMonitoring(): void;
   cancelOrder(orderId: string): Promise<boolean>;
   replaceOrderPrice(orderId: string, newPrice: number, quantity?: number | null, cachedOrder?: PendingOrder | null): Promise<void>;
-  monitorAndManageOrders(longQuote: Quote | null, shortQuote: Quote | null): Promise<void>;
+  monitorAndManageOrders(quotesMap: ReadonlyMap<string, Quote | null>): Promise<void>;
 }
 
 /**

@@ -842,23 +842,24 @@ async function runOnce({
 
   if (canTradeNow && allTradingSymbols.size > 0) {
     // 获取所有交易标的的行情用于订单监控
-    const tradingQuotes = await Promise.all(
-      Array.from(allTradingSymbols).map((symbol) =>
-        marketDataClient.getLatestQuote(symbol).catch(() => null),
-      ),
+    const quotesMap = new Map<string, Quote | null>();
+
+    const quotePromises = Array.from(allTradingSymbols).map((symbol) =>
+      marketDataClient.getLatestQuote(symbol)
+        .then((quote) => ({ symbol, quote }))
+        .catch(() => ({ symbol, quote: null as Quote | null })),
     );
 
-    // 由于 monitorAndManageOrders 函数签名限制，只能传入两个 quote 参数
-    // 在多标的场景下，只能监控部分标的的订单
-    // 使用前两个有效的行情进行订单监控
-    const validQuotes = tradingQuotes.filter((quote) => quote !== null);
-    const firstQuote = validQuotes[0] ?? null;
-    const secondQuote = validQuotes[1] ?? null;
-    if (firstQuote) {
-      await trader.monitorAndManageOrders(firstQuote, secondQuote).catch((err: unknown) => {
-        logger.warn('订单监控失败', formatError(err));
-      });
+    const quoteResults = await Promise.all(quotePromises);
+
+    for (const { symbol, quote } of quoteResults) {
+      quotesMap.set(symbol, quote);
     }
+
+    // 使用新的 Map 方式调用订单监控，支持所有标的
+    await trader.monitorAndManageOrders(quotesMap).catch((err: unknown) => {
+      logger.warn('订单监控失败', formatError(err));
+    });
   }
 }
 
