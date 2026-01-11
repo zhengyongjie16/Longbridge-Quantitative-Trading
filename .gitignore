@@ -2,9 +2,8 @@
 node_modules/
 
 # Environment variables
-# .env.local - 现在被跟踪，但敏感属性会被自动过滤
 .env.*.local
-# .env.sonar - 现在被跟踪，但敏感属性会被自动过滤
+.env.local
 
 # Logs
 logs/

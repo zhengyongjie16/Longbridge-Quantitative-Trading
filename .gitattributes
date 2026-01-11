@@ -1,3 +1,0 @@
-# Git attributes for filtering sensitive environment variables
-.env.sonar filter=clean-env-sonar
-.env.local filter=clean-env-local
