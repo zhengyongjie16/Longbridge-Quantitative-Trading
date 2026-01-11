@@ -453,12 +453,5 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
     getLongBuyOrders,
     getShortBuyOrders,
     getBuyOrdersForSymbol,
-    // 向后兼容的属性访问器（已弃用，请使用公共方法）
-    get _longBuyOrders(): OrderRecord[] {
-      return storage.getLongBuyOrders();
-    },
-    get _shortBuyOrders(): OrderRecord[] {
-      return storage.getShortBuyOrders();
-    },
   };
 };

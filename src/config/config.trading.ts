@@ -21,6 +21,7 @@ dotenv.config();
 
 import { parseSignalConfig } from '../utils/signalConfigParser/index.js';
 import { validateEmaPeriod } from '../utils/indicatorHelpers/index.js';
+import { normalizeHKSymbol } from '../utils/helpers/index.js';
 import { logger } from '../utils/logger/index.js';
 import type {
   MonitorConfig,
@@ -269,9 +270,9 @@ function parseMonitorConfig(index: number): MonitorConfig | null {
   };
 
   return {
-    monitorSymbol,
-    longSymbol,
-    shortSymbol,
+    monitorSymbol: normalizeHKSymbol(monitorSymbol),
+    longSymbol: normalizeHKSymbol(longSymbol),
+    shortSymbol: normalizeHKSymbol(shortSymbol),
     targetNotional,
     longLotSize,
     shortLotSize,

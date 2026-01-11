@@ -1,0 +1,118 @@
+/**
+ * 全局常量定义
+ * 统一管理项目中使用的所有常量
+ */
+
+import type { SignalType } from '../types/index.js';
+
+/**
+ * 时间相关常量
+ */
+export const TIME = {
+  /** 每秒的毫秒数 */
+  MILLISECONDS_PER_SECOND: 1000,
+  /** 每分钟的秒数 */
+  SECONDS_PER_MINUTE: 60,
+  /** 每小时的分钟数 */
+  MINUTES_PER_HOUR: 60,
+  /** 每天的小时数 */
+  HOURS_PER_DAY: 24,
+  /** 每天的毫秒数 */
+  MILLISECONDS_PER_DAY: 24 * 60 * 60 * 1000,
+  /** 北京时区偏移量（小时） */
+  BEIJING_TIMEZONE_OFFSET_HOURS: 8,
+  /** 北京时区偏移量（毫秒） */
+  BEIJING_TIMEZONE_OFFSET_MS: 8 * 60 * 60 * 1000,
+} as const;
+
+/**
+ * 交易相关常量
+ */
+export const TRADING = {
+  /** 默认目标金额（港币） */
+  DEFAULT_TARGET_NOTIONAL: 5000,
+  /** 默认每手股数 */
+  DEFAULT_LOT_SIZE: 100,
+  /** 价格差异阈值（港币） */
+  PRICE_DIFF_THRESHOLD: 0.001,
+  /** K线周期 */
+  CANDLE_PERIOD: '1m' as const,
+  /** K线数量 */
+  CANDLE_COUNT: 200,
+  /** 主循环执行间隔（毫秒） */
+  INTERVAL_MS: 1000,
+} as const;
+
+/**
+ * 验证相关常量
+ */
+export const VERIFICATION = {
+  /** 验证时间点1偏移量（秒） */
+  TIME_OFFSET_1_SECONDS: 5,
+  /** 验证时间点2偏移量（秒） */
+  TIME_OFFSET_2_SECONDS: 10,
+  /** 验证时间点误差容忍度（毫秒） */
+  TIME_TOLERANCE_MS: 5 * 1000,
+  /** 验证窗口开始时间偏移量（秒） */
+  WINDOW_START_OFFSET_SECONDS: -5,
+  /** 验证窗口结束时间偏移量（秒） */
+  WINDOW_END_OFFSET_SECONDS: 15,
+  /** 验证就绪延迟时间（秒） */
+  READY_DELAY_SECONDS: 15,
+} as const;
+
+/**
+ * 日志相关常量
+ */
+export const LOGGING = {
+  /** 文件流 drain 超时时间（毫秒） */
+  DRAIN_TIMEOUT_MS: 5000,
+  /** 控制台流 drain 超时时间（毫秒） */
+  CONSOLE_DRAIN_TIMEOUT_MS: 3000,
+} as const;
+
+/**
+ * API 相关常量
+ */
+export const API = {
+  /** 默认重试次数 */
+  DEFAULT_RETRY_COUNT: 2,
+  /** 默认重试延迟（毫秒） */
+  DEFAULT_RETRY_DELAY_MS: 300,
+  /** 行情缓存 TTL（毫秒） */
+  QUOTE_CACHE_TTL_MS: 1000,
+  /** 交易日缓存 TTL（毫秒） */
+  TRADING_DAY_CACHE_TTL_MS: 24 * 60 * 60 * 1000,
+} as const;
+
+/**
+ * 信号类型常量
+ */
+export const SIGNAL_ACTIONS = {
+  BUYCALL: 'BUYCALL' as const,
+  SELLCALL: 'SELLCALL' as const,
+  BUYPUT: 'BUYPUT' as const,
+  SELLPUT: 'SELLPUT' as const,
+  HOLD: 'HOLD' as const,
+} as const;
+
+/**
+ * 有效的信号操作集合
+ */
+export const VALID_SIGNAL_ACTIONS = new Set<SignalType>([
+  SIGNAL_ACTIONS.BUYCALL,
+  SIGNAL_ACTIONS.SELLCALL,
+  SIGNAL_ACTIONS.BUYPUT,
+  SIGNAL_ACTIONS.SELLPUT,
+]);
+
+/**
+ * 信号操作描述映射
+ */
+export const SIGNAL_ACTION_DESCRIPTIONS: Record<SignalType, string> = {
+  [SIGNAL_ACTIONS.BUYCALL]: '买入做多标的（做多）',
+  [SIGNAL_ACTIONS.SELLCALL]: '卖出做多标的（清仓）',
+  [SIGNAL_ACTIONS.BUYPUT]: '买入做空标的（做空）',
+  [SIGNAL_ACTIONS.SELLPUT]: '卖出做空标的（平空仓）',
+  [SIGNAL_ACTIONS.HOLD]: '持有',
+};

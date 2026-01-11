@@ -306,7 +306,7 @@ function validateTradingConfig(): TradingValidationResult {
 
 /**
  * 验证所有配置
- * @returns 返回第一个监控标的的中文名称和行情客户端实例（保持向后兼容）
+ * @returns 返回行情客户端实例
  * @throws {ConfigValidationError} 如果配置验证失败
  */
 export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
@@ -507,11 +507,8 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
   );
   logger.info('');
 
-  // 返回第一个监控标的的名称和行情客户端实例供后续使用（保持向后兼容）
+  // 返回行情客户端实例供后续使用
   return {
-    monitorName: monitorResult.name ?? firstMonitorConfig.monitorSymbol,
-    longName: longResult.name ?? firstMonitorConfig.longSymbol,
-    shortName: shortResult.name ?? firstMonitorConfig.shortSymbol,
     marketDataClient, // 返回已创建的实例，避免重复创建
   };
 }

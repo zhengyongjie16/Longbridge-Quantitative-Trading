@@ -35,9 +35,20 @@ import {
   kdjObjectPool,
   macdObjectPool,
 } from './utils/objectPool/index.js';
-import { normalizeHKSymbol, getSymbolName, isBuyAction, isSellAction, formatError } from './utils/helpers/index.js';
+import {
+  normalizeHKSymbol,
+  getSymbolName,
+  isBuyAction,
+  isSellAction,
+  formatError,
+  formatSignalLog,
+} from './utils/helpers/index.js';
 import { extractRSIPeriods } from './utils/signalConfigParser/index.js';
 import { validateEmaPeriod } from './utils/indicatorHelpers/index.js';
+import { batchGetQuotes } from './utils/quoteHelpers/index.js';
+import {
+  VALID_SIGNAL_ACTIONS,
+} from './constants/index.js';
 
 // 导入新模块
 import { isInContinuousHKSession } from './utils/tradingTime/index.js';
@@ -83,20 +94,6 @@ interface RunOnceContext {
   monitorContexts: Map<string, MonitorContext>;
 }
 
-const VALID_SIGNAL_ACTIONS = new Set([
-  'BUYCALL',
-  'SELLCALL',
-  'BUYPUT',
-  'SELLPUT',
-]);
-
-// 信号动作描述映射（避免循环中的多次 if-else 判断）
-const SIGNAL_ACTION_DESCRIPTIONS: Record<string, string> = {
-  'BUYCALL': '买入做多标的（做多）',
-  'SELLCALL': '卖出做多标的（清仓）',
-  'BUYPUT': '买入做空标的（做空）',
-  'SELLPUT': '卖出做空标的（平空仓）',
-};
 
 const SIGNAL_TARGET_ACTIONS: Record<string, string> = {
   'BUYCALL': '买入',
@@ -253,9 +250,6 @@ function getPositions(
   let longPosition: Position | null = null;
   let shortPosition: Position | null = null;
 
-  const NORMALIZED_LONG_SYMBOL = normalizeHKSymbol(longSymbol);
-  const NORMALIZED_SHORT_SYMBOL = normalizeHKSymbol(shortSymbol);
-
   if (Array.isArray(positions)) {
     for (const pos of positions) {
       if (!pos?.symbol || typeof pos.symbol !== 'string') {
@@ -269,9 +263,9 @@ function getPositions(
         continue;
       }
 
-      if (normalizedPosSymbol === NORMALIZED_LONG_SYMBOL) {
+      if (normalizedPosSymbol === longSymbol) {
         longPosition = positionObjectPool.acquire() as Position;
-        longPosition.symbol = NORMALIZED_LONG_SYMBOL;
+        longPosition.symbol = longSymbol;
         longPosition.costPrice = Number(pos.costPrice) || 0;
         longPosition.quantity = Number(pos.quantity) || 0;
         longPosition.availableQuantity = availableQty;
@@ -279,9 +273,9 @@ function getPositions(
         longPosition.symbolName = pos.symbolName;
         longPosition.currency = pos.currency;
         longPosition.market = pos.market;
-      } else if (normalizedPosSymbol === NORMALIZED_SHORT_SYMBOL) {
+      } else if (normalizedPosSymbol === shortSymbol) {
         shortPosition = positionObjectPool.acquire() as Position;
-        shortPosition.symbol = NORMALIZED_SHORT_SYMBOL;
+        shortPosition.symbol = shortSymbol;
         shortPosition.costPrice = Number(pos.costPrice) || 0;
         shortPosition.quantity = Number(pos.quantity) || 0;
         shortPosition.availableQuantity = availableQty;
@@ -335,9 +329,11 @@ async function processMonitor(
   const LONG_SYMBOL = config.longSymbol;
   const SHORT_SYMBOL = config.shortSymbol;
   const MONITOR_SYMBOL = config.monitorSymbol;
-  const NORMALIZED_LONG_SYMBOL = normalizeHKSymbol(LONG_SYMBOL);
-  const NORMALIZED_SHORT_SYMBOL = normalizeHKSymbol(SHORT_SYMBOL);
-  const NORMALIZED_MONITOR_SYMBOL = normalizeHKSymbol(MONITOR_SYMBOL);
+
+  // 使用缓存的标的名称（避免每次循环重复获取）
+  const longSymbolName = monitorContext.longSymbolName;
+  const shortSymbolName = monitorContext.shortSymbolName;
+  const monitorSymbolName = monitorContext.monitorSymbolName;
 
   // 1. 获取行情
   const [longQuote, shortQuote, monitorQuote] = await Promise.all([
@@ -345,10 +341,6 @@ async function processMonitor(
     marketDataClient.getLatestQuote(SHORT_SYMBOL).catch(() => null),
     marketDataClient.getLatestQuote(MONITOR_SYMBOL).catch(() => null),
   ]);
-
-  const longSymbolName = longQuote?.name ?? LONG_SYMBOL;
-  const shortSymbolName = shortQuote?.name ?? SHORT_SYMBOL;
-  const monitorSymbolName = monitorQuote?.name ?? MONITOR_SYMBOL;
 
   // 监控价格变化并显示
   const priceChanged = marketMonitor.monitorPriceChanges(
@@ -418,8 +410,8 @@ async function processMonitor(
     // 5. 生成信号
     const { immediateSignals, delayedSignals } = strategy.generateCloseSignals(
       monitorSnapshot,
-      NORMALIZED_LONG_SYMBOL,
-      NORMALIZED_SHORT_SYMBOL,
+      LONG_SYMBOL,
+      SHORT_SYMBOL,
       orderRecorder,
     );
 
@@ -451,7 +443,8 @@ async function processMonitor(
     });
 
     // 释放无效的信号对象
-    const invalidSignals = tradingSignals.filter((s) => !validSignals.includes(s));
+    const validSignalsSet = new Set(validSignals);
+    const invalidSignals = tradingSignals.filter((s) => !validSignalsSet.has(s));
     if (invalidSignals.length > 0) {
       signalObjectPool.releaseAll(invalidSignals);
     }
@@ -468,19 +461,11 @@ async function processMonitor(
     if (currentSignalKey !== lastSignalKey) {
       if (validSignals.length > 0) {
         validSignals.forEach((signal) => {
-          const actionDesc =
-          SIGNAL_ACTION_DESCRIPTIONS[signal.action] ||
-          `未知操作(${signal.action})`;
-
-          logger.info(
-            `[交易信号] ${actionDesc} ${signal.symbol} - ${
-              signal.reason || '策略信号'
-            }`,
-          );
+          logger.info(`[交易信号] ${formatSignalLog(signal)}`);
         });
       } else {
         logger.info(
-          `[监控标的信号] ${monitorSymbolName}(${NORMALIZED_MONITOR_SYMBOL}) 无交易信号`,
+          `[监控标的信号] ${monitorSymbolName}(${MONITOR_SYMBOL}) 无交易信号`,
         );
       }
 
@@ -491,11 +476,11 @@ async function processMonitor(
     for (const signal of validSignals) {
       const normalizedSigSymbol = signal.symbol;
 
-      if (normalizedSigSymbol === NORMALIZED_LONG_SYMBOL && longQuote) {
+      if (normalizedSigSymbol === LONG_SYMBOL && longQuote) {
         signal.price ??= longQuote.price;
         if (signal.lotSize == null && longQuote.lotSize != null) signal.lotSize = longQuote.lotSize;
         if (signal.symbolName == null && longQuote.name != null) signal.symbolName = longQuote.name;
-      } else if (normalizedSigSymbol === NORMALIZED_SHORT_SYMBOL && shortQuote) {
+      } else if (normalizedSigSymbol === SHORT_SYMBOL && shortQuote) {
         signal.price ??= shortQuote.price;
         if (signal.lotSize == null && shortQuote.lotSize != null) signal.lotSize = shortQuote.lotSize;
         if (signal.symbolName == null && shortQuote.name != null) signal.symbolName = shortQuote.name;
@@ -786,14 +771,7 @@ async function runOnce({
     }
 
     // 获取所有交易标的的行情
-    const quotePromises = Array.from(allTradingSymbols).map((symbol) =>
-      marketDataClient.getLatestQuote(symbol).then((quote) => ({ symbol, quote })).catch(() => ({ symbol, quote: null as Quote | null })),
-    );
-    const quoteResults = await Promise.all(quotePromises);
-    const quoteMap = new Map<string, Quote | null>();
-    for (const { symbol, quote } of quoteResults) {
-      quoteMap.set(symbol, quote);
-    }
+    const quoteMap = await batchGetQuotes(marketDataClient, allTradingSymbols);
 
     // 为每个监控标的生成清仓信号，然后合并去重
     const allClearanceSignals: Signal[] = [];
@@ -888,19 +866,7 @@ async function runOnce({
 
   if (canTradeNow && allTradingSymbols.size > 0) {
     // 获取所有交易标的的行情用于订单监控
-    const quotesMap = new Map<string, Quote | null>();
-
-    const quotePromises = Array.from(allTradingSymbols).map((symbol) =>
-      marketDataClient.getLatestQuote(symbol)
-        .then((quote) => ({ symbol, quote }))
-        .catch(() => ({ symbol, quote: null as Quote | null })),
-    );
-
-    const quoteResults = await Promise.all(quotePromises);
-
-    for (const { symbol, quote } of quoteResults) {
-      quotesMap.set(symbol, quote);
-    }
+    const quotesMap = await batchGetQuotes(marketDataClient, allTradingSymbols);
 
     // 使用新的 Map 方式调用订单监控，支持所有标的
     await trader.monitorAndManageOrders(quotesMap).catch((err: unknown) => {
@@ -921,11 +887,19 @@ async function sleep(ms: number): Promise<void> {
 /**
  * 创建监控标的上下文
  */
-function createMonitorContext(
+async function createMonitorContext(
   config: MonitorConfig,
   state: MonitorState,
   trader: Trader,
-): MonitorContext {
+  marketDataClient: MarketDataClient,
+): Promise<MonitorContext> {
+  // 获取标的名称（只在初始化时执行一次）
+  const [longQuote, shortQuote, monitorQuote] = await Promise.all([
+    marketDataClient.getLatestQuote(config.longSymbol).catch(() => null),
+    marketDataClient.getLatestQuote(config.shortSymbol).catch(() => null),
+    marketDataClient.getLatestQuote(config.monitorSymbol).catch(() => null),
+  ]);
+
   return {
     config,
     state,
@@ -942,6 +916,14 @@ function createMonitorContext(
         maxUnrealizedLossPerSymbol: config.maxUnrealizedLossPerSymbol,
       },
     }),
+    // 缓存标的名称（避免每次循环重复获取）
+    longSymbolName: longQuote?.name ?? config.longSymbol,
+    shortSymbolName: shortQuote?.name ?? config.shortSymbol,
+    monitorSymbolName: monitorQuote?.name ?? config.monitorSymbol,
+    // 缓存规范化后的标的代码（config中已经规范化，直接使用）
+    normalizedLongSymbol: config.longSymbol,
+    normalizedShortSymbol: config.shortSymbol,
+    normalizedMonitorSymbol: config.monitorSymbol,
   };
 }
 
@@ -994,7 +976,7 @@ async function main(): Promise<void> {
       continue;
     }
 
-    const context = createMonitorContext(monitorConfig, monitorState, trader);
+    const context = await createMonitorContext(monitorConfig, monitorState, trader, marketDataClient);
     monitorContexts.set(monitorConfig.monitorSymbol, context);
 
     // 初始化每个监控标的牛熊证信息

@@ -52,7 +52,7 @@ const DEFAULT_LOT_SIZE = 100;
 /**
  * 通过信号的 symbol 查找对应的监控配置
  * @param signalSymbol 信号中的标的代码
- * @returns 匹配的监控配置，如果未找到则返回第一个监控配置或 null
+ * @returns 匹配的监控配置，如果未找到则返回 null
  */
 function findMonitorConfigBySymbol(signalSymbol: string): MonitorConfig | null {
   const normalizedSymbol = normalizeHKSymbol(signalSymbol);
@@ -63,8 +63,8 @@ function findMonitorConfigBySymbol(signalSymbol: string): MonitorConfig | null {
       return config;
     }
   }
-  // 如果未找到匹配的配置，返回第一个配置（向后兼容）
-  return MULTI_MONITOR_TRADING_CONFIG.monitors[0] ?? null;
+  // 未找到匹配的配置
+  return null;
 }
 
 const toDecimal = (value: unknown): Decimal => {

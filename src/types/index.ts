@@ -221,25 +221,6 @@ export type SignalConfigSet = {
 };
 
 /**
- * 交易配置（单标的配置，用于向后兼容）
- */
-export type TradingConfig = {
-  readonly monitorSymbol: string | null;
-  readonly longSymbol: string | null;
-  readonly shortSymbol: string | null;
-  readonly targetNotional: number | null;
-  readonly longLotSize: number | null;
-  readonly shortLotSize: number | null;
-  readonly maxPositionNotional: number | null;
-  readonly maxDailyLoss: number | null;
-  readonly maxUnrealizedLossPerSymbol: number | null;
-  readonly doomsdayProtection: boolean;
-  readonly buyIntervalSeconds: number;
-  readonly verificationConfig: VerificationConfig;
-  readonly signalConfig: SignalConfigSet;
-};
-
-/**
  * 单个监控标的的完整配置
  */
 export type MonitorConfig = {
@@ -277,9 +258,6 @@ export type MultiMonitorTradingConfig = {
  * 验证所有配置的返回结果接口
  */
 export interface ValidateAllConfigResult {
-  monitorName: string;
-  longName: string;
-  shortName: string;
   marketDataClient: MarketDataClient;
 }
 
@@ -336,6 +314,14 @@ export interface MonitorContext {
   readonly orderRecorder: OrderRecorder;
   readonly signalVerificationManager: import('../core/signalVerification/types.js').SignalVerificationManager;
   readonly riskChecker: RiskChecker;
+  // 缓存标的名称（初始化时获取一次，避免每次循环重复获取）
+  longSymbolName: string;
+  shortSymbolName: string;
+  monitorSymbolName: string;
+  // 缓存规范化后的标的代码（避免每次循环重复规范化）
+  normalizedLongSymbol: string;
+  normalizedShortSymbol: string;
+  normalizedMonitorSymbol: string;
 }
 
 // ==================== 核心服务接口 ====================
@@ -435,8 +421,6 @@ export interface OrderRecorder {
   getLongBuyOrders(): OrderRecord[];
   getShortBuyOrders(): OrderRecord[];
   getBuyOrdersForSymbol(symbol: string, isLongSymbol: boolean): OrderRecord[];
-  readonly _longBuyOrders: OrderRecord[];
-  readonly _shortBuyOrders: OrderRecord[];
 }
 
 /**
