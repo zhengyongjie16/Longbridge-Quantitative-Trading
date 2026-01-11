@@ -2,7 +2,30 @@
  * DoomsdayProtection 模块类型定义
  */
 
-import type { Position, Quote, Signal } from '../../types/index.js';
+import type { Position, Quote, Signal, MonitorConfig, MonitorContext, Trader, MarketDataClient, LastState } from '../../types/index.js';
+
+/**
+ * 末日保护执行上下文
+ */
+export type DoomsdayClearanceContext = {
+  readonly currentTime: Date;
+  readonly isHalfDay: boolean;
+  readonly positions: ReadonlyArray<Position>;
+  readonly monitorConfigs: ReadonlyArray<MonitorConfig>;
+  readonly monitorContexts: ReadonlyMap<string, MonitorContext>;
+  readonly trader: Trader;
+  readonly marketDataClient: MarketDataClient;
+  readonly lastState: LastState;
+  readonly displayAccountAndPositions: (trader: Trader, marketDataClient: MarketDataClient, lastState: LastState) => Promise<void>;
+};
+
+/**
+ * 末日保护执行结果
+ */
+export type DoomsdayClearanceResult = {
+  readonly executed: boolean;
+  readonly signalCount: number;
+};
 
 /**
  * 末日保护程序接口
@@ -45,4 +68,12 @@ export interface DoomsdayProtection {
     shortSymbol: string,
     isHalfDay: boolean,
   ): ReadonlyArray<Signal>;
+
+  /**
+   * 执行末日保护清仓流程
+   * 包括：收集标的、获取行情、生成信号、去重、执行清仓、清空订单记录
+   * @param context 执行上下文
+   * @returns 执行结果
+   */
+  executeClearance(context: DoomsdayClearanceContext): Promise<DoomsdayClearanceResult>;
 }

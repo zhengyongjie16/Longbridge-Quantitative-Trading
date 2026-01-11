@@ -727,79 +727,20 @@ async function runOnce({
   }
 
   // 2. 检查末日保护（全局性，在所有监控标的处理之前）
-  if (
-    MULTI_MONITOR_TRADING_CONFIG.global.doomsdayProtection &&
-    doomsdayProtection.shouldClearPositions(currentTime, isHalfDayToday) &&
-    Array.isArray(positions) &&
-    positions.length > 0
-  ) {
-    // 收集所有唯一的交易标的
-    const allTradingSymbols = new Set<string>();
-    for (const monitorConfig of MULTI_MONITOR_TRADING_CONFIG.monitors) {
-      if (monitorConfig.longSymbol) {
-        allTradingSymbols.add(monitorConfig.longSymbol);
-      }
-      if (monitorConfig.shortSymbol) {
-        allTradingSymbols.add(monitorConfig.shortSymbol);
-      }
-    }
+  if (MULTI_MONITOR_TRADING_CONFIG.global.doomsdayProtection) {
+    const clearanceResult = await doomsdayProtection.executeClearance({
+      currentTime,
+      isHalfDay: isHalfDayToday,
+      positions,
+      monitorConfigs: MULTI_MONITOR_TRADING_CONFIG.monitors,
+      monitorContexts,
+      trader,
+      marketDataClient,
+      lastState,
+      displayAccountAndPositions,
+    });
 
-    // 获取所有交易标的的行情
-    const quoteMap = await batchGetQuotes(marketDataClient, allTradingSymbols);
-
-    // 为每个监控标的生成清仓信号，然后合并去重
-    const allClearanceSignals: Signal[] = [];
-    for (const monitorConfig of MULTI_MONITOR_TRADING_CONFIG.monitors) {
-      const longQuote = quoteMap.get(monitorConfig.longSymbol) ?? null;
-      const shortQuote = quoteMap.get(monitorConfig.shortSymbol) ?? null;
-
-      const clearanceSignals = doomsdayProtection.generateClearanceSignals(
-        positions,
-        longQuote,
-        shortQuote,
-        monitorConfig.longSymbol,
-        monitorConfig.shortSymbol,
-        isHalfDayToday,
-      );
-
-      allClearanceSignals.push(...clearanceSignals);
-    }
-
-    // 去重：使用 (action, symbol) 作为唯一键
-    const uniqueSignalsMap = new Map<string, Signal>();
-    for (const signal of allClearanceSignals) {
-      const key = `${signal.action}_${signal.symbol}`;
-      if (!uniqueSignalsMap.has(key)) {
-        uniqueSignalsMap.set(key, signal);
-      }
-    }
-    const uniqueClearanceSignals = Array.from(uniqueSignalsMap.values());
-
-    if (uniqueClearanceSignals.length > 0) {
-      logger.info(`[末日保护程序] 生成 ${uniqueClearanceSignals.length} 个清仓信号，准备执行`);
-
-      // 执行清仓信号
-      await trader.executeSignals(uniqueClearanceSignals);
-
-      // 交易后获取并显示账户和持仓信息
-      await displayAccountAndPositions(trader, marketDataClient, lastState);
-
-      // 清空所有监控标的的订单记录（末日保护清仓后清空所有订单记录）
-      for (const monitorContext of monitorContexts.values()) {
-        const { config, orderRecorder } = monitorContext;
-        if (config.longSymbol) {
-          const quote = quoteMap.get(config.longSymbol) ?? null;
-          orderRecorder.clearBuyOrders(config.longSymbol, true, quote);
-        }
-        if (config.shortSymbol) {
-          const quote = quoteMap.get(config.shortSymbol) ?? null;
-          orderRecorder.clearBuyOrders(config.shortSymbol, false, quote);
-        }
-      }
-
-      // 释放信号对象
-      signalObjectPool.releaseAll(uniqueClearanceSignals);
-
+    if (clearanceResult.executed) {
       // 末日保护已执行清仓，跳过本次循环的监控标的处理
       return;
     }
