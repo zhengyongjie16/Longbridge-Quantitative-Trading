@@ -999,22 +999,28 @@ async function main(): Promise<void> {
     }
   }
 
-  // 程序启动时检查一次是否有买入的未成交订单（检查所有监控标的的交易标的）
+  // 程序启动时检查一次是否有买入的未成交订单（每个 orderRecorder 检查自己负责的标的）
   try {
-    const allTradingSymbolsArray = Array.from(allTradingSymbolsForInit).map((symbol) =>
-      normalizeHKSymbol(symbol),
-    );
-    if (allTradingSymbolsArray.length > 0) {
-      // 使用第一个监控标的的 orderRecorder 来检查缓存（所有 orderRecorder 共享相同的 API 缓存）
-      const firstOrderRecorder = monitorContexts.values().next().value?.orderRecorder ?? null;
-      const hasPendingBuyOrders = await trader.hasPendingBuyOrders(
-        allTradingSymbolsArray,
-        firstOrderRecorder, // 传入 orderRecorder，从缓存获取未成交订单
-      );
-      if (hasPendingBuyOrders) {
-        trader.enableBuyOrderMonitoring();
-        logger.info('[订单监控] 程序启动时发现买入订单，开始监控');
+    let hasAnyPendingBuyOrders = false;
+
+    for (const monitorContext of monitorContexts.values()) {
+      const { config, orderRecorder } = monitorContext;
+      const symbols = [config.longSymbol, config.shortSymbol]
+        .filter(Boolean)
+        .map((s) => normalizeHKSymbol(s));
+
+      if (symbols.length > 0) {
+        const hasPending = await trader.hasPendingBuyOrders(symbols, orderRecorder);
+        if (hasPending) {
+          hasAnyPendingBuyOrders = true;
+          break; // 找到一个就够了
+        }
       }
+    }
+
+    if (hasAnyPendingBuyOrders) {
+      trader.enableBuyOrderMonitoring();
+      logger.info('[订单监控] 程序启动时发现买入订单，开始监控');
     }
   } catch (err) {
     logger.warn(
