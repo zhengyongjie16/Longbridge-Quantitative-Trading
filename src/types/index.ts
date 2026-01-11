@@ -313,6 +313,7 @@ export interface MonitorContext {
   readonly orderRecorder: OrderRecorder;
   readonly signalVerificationManager: import('../core/signalVerification/types.js').SignalVerificationManager;
   readonly riskChecker: RiskChecker;
+  readonly unrealizedLossMonitor: import('../core/unrealizedLossMonitor/types.js').UnrealizedLossMonitor;
   // 缓存标的名称（初始化时获取一次，避免每次循环重复获取）
   longSymbolName: string;
   shortSymbolName: string;

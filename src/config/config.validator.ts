@@ -350,6 +350,7 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
 
   // 验证所有监控标的的标的有效性（统一验证，避免重复）
   const symbolErrors: string[] = [];
+  // 为每个监控标的保存验证结果（使用索引作为键的一部分）
   const symbolValidationResults = new Map<string, SymbolValidationResult>();
 
   for (let i = 0; i < MULTI_MONITOR_TRADING_CONFIG.monitors.length; i++) {
@@ -367,12 +368,10 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
 
     const [monitorValid, longValid, shortValid] = allSymbolValidations;
 
-    // 存储第一个监控标的的验证结果（用于返回名称和显示配置）
-    if (i === 0) {
-      symbolValidationResults.set('monitor', monitorValid);
-      symbolValidationResults.set('long', longValid);
-      symbolValidationResults.set('short', shortValid);
-    }
+    // 存储每个监控标的的验证结果（使用索引区分不同监控标的）
+    symbolValidationResults.set(`monitor_${i}`, monitorValid);
+    symbolValidationResults.set(`long_${i}`, longValid);
+    symbolValidationResults.set(`short_${i}`, shortValid);
 
     // 收集所有错误
     if (!monitorValid.valid && monitorValid.error) {
@@ -385,10 +384,6 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
       symbolErrors.push(shortValid.error);
     }
   }
-
-  const monitorResult = symbolValidationResults.get('monitor')!;
-  const longResult = symbolValidationResults.get('long')!;
-  const shortResult = symbolValidationResults.get('short')!;
 
   if (symbolErrors.length > 0) {
     logger.error('标的验证失败！');
@@ -422,11 +417,13 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
     }
     const index = i + 1;
 
-    // 为每个监控标的获取标的名称（从验证结果中获取，如果没有则使用标的代码）
-    // 注意：这里只显示第一个监控标的的名称，其他监控标的显示标的代码
-    const monitorName = i === 0 ? monitorResult.name : null;
-    const longName = i === 0 ? longResult.name : null;
-    const shortName = i === 0 ? shortResult.name : null;
+    // 为每个监控标的获取标的名称（从验证结果中获取）
+    const monitorResult = symbolValidationResults.get(`monitor_${i}`);
+    const longResult = symbolValidationResults.get(`long_${i}`);
+    const shortResult = symbolValidationResults.get(`short_${i}`);
+    const monitorName = monitorResult?.name ?? null;
+    const longName = longResult?.name ?? null;
+    const shortName = shortResult?.name ?? null;
 
     logger.info(`\n监控标的 ${index}:`);
     logger.info(

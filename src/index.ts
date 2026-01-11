@@ -79,7 +79,6 @@ import type {
 } from './types/index.js';
 import type { MarketMonitor } from './core/marketMonitor/types.js';
 import type { DoomsdayProtection } from './core/doomsdayProtection/types.js';
-import type { UnrealizedLossMonitor } from './core/unrealizedLossMonitor/types.js';
 import type { SignalProcessor } from './core/signalProcessor/types.js';
 import { getSprintSacreMooacreMoo } from './utils/helpers/asciiArt.js';
 
@@ -92,7 +91,6 @@ interface RunOnceContext {
   lastState: LastState;
   marketMonitor: MarketMonitor;
   doomsdayProtection: DoomsdayProtection;
-  unrealizedLossMonitor: UnrealizedLossMonitor;
   signalProcessor: SignalProcessor;
   monitorContexts: Map<string, MonitorContext>;
 }
@@ -268,7 +266,6 @@ async function processMonitor(
     globalState: LastState;
     marketMonitor: MarketMonitor;
     doomsdayProtection: DoomsdayProtection;
-    unrealizedLossMonitor: UnrealizedLossMonitor;
     signalProcessor: SignalProcessor;
     currentTime: Date;
     isHalfDay: boolean;
@@ -281,11 +278,10 @@ async function processMonitor(
     trader,
     globalState,
     marketMonitor,
-    unrealizedLossMonitor,
     currentTime,
     canTradeNow,
   } = context;
-  const { config, state, strategy, orderRecorder, signalVerificationManager, riskChecker } = monitorContext;
+  const { config, state, strategy, orderRecorder, signalVerificationManager, riskChecker, unrealizedLossMonitor } = monitorContext;
 
   const LONG_SYMBOL = config.longSymbol;
   const SHORT_SYMBOL = config.shortSymbol;
@@ -630,7 +626,6 @@ async function runOnce({
   lastState,
   marketMonitor,
   doomsdayProtection,
-  unrealizedLossMonitor,
   signalProcessor,
   monitorContexts,
 }: RunOnceContext): Promise<void> {
@@ -736,7 +731,6 @@ async function runOnce({
         globalState: lastState,
         marketMonitor,
         doomsdayProtection,
-        unrealizedLossMonitor,
         signalProcessor,
         currentTime,
         isHalfDay: isHalfDayToday,
@@ -810,6 +804,10 @@ async function createMonitorContext(
         maxPositionNotional: config.maxPositionNotional,
         maxUnrealizedLossPerSymbol: config.maxUnrealizedLossPerSymbol,
       },
+    }),
+    // 每个监控标的独立的浮亏监控器（使用各自的 maxUnrealizedLossPerSymbol 配置）
+    unrealizedLossMonitor: createUnrealizedLossMonitor({
+      maxUnrealizedLossPerSymbol: config.maxUnrealizedLossPerSymbol ?? 0,
     }),
     // 缓存标的名称（避免每次循环重复获取）
     longSymbolName: longQuote?.name ?? config.longSymbol,
@@ -892,10 +890,6 @@ async function main(): Promise<void> {
   // 初始化新模块实例
   const marketMonitor = createMarketMonitor();
   const doomsdayProtection = createDoomsdayProtection();
-  const firstMonitorConfig = MULTI_MONITOR_TRADING_CONFIG.monitors[0];
-  const unrealizedLossMonitor = createUnrealizedLossMonitor({
-    maxUnrealizedLossPerSymbol: firstMonitorConfig?.maxUnrealizedLossPerSymbol ?? 0,
-  });
   const signalProcessor = createSignalProcessor();
 
   // 程序启动时立即获取一次账户和持仓信息
@@ -1033,7 +1027,6 @@ async function main(): Promise<void> {
         lastState,
         marketMonitor,
         doomsdayProtection,
-        unrealizedLossMonitor,
         signalProcessor,
         monitorContexts,
       });
