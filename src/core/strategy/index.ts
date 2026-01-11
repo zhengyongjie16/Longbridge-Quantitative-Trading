@@ -90,11 +90,10 @@ export const createHangSengMultiIndicatorStrategy = ({
    */
   const validateAllIndicators = (state: IndicatorSnapshot): boolean => {
     const { macd, price } = state;
-    const macdData = macd as { macd?: number } | null;
     return (
       validateBasicIndicators(state) &&
-      macdData !== null &&
-      isValidNumber(macdData.macd) &&
+      macd !== null &&
+      isValidNumber(macd.macd) &&
       isValidNumber(price)
     );
   };
