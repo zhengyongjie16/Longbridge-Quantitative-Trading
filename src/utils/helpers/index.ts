@@ -16,6 +16,7 @@
 
 import type { Quote, SignalType } from '../../types/index.js';
 import { inspect } from 'node:util';
+import { TIME } from '../../constants/index.js';
 import type { DecimalLike, TimeFormatOptions, QuoteDisplayResult } from './types.js';
 
 /**
@@ -163,43 +164,13 @@ export function getSymbolName(
   return signalSymbol;
 }
 
-// 常量定义
-/**
- * 每秒的毫秒数
- * 用于时间单位转换（秒转毫秒）
- */
-const MILLISECONDS_PER_SECOND = 1000;
-
-/**
- * 每分钟的秒数
- * 用于时间单位转换
- */
-const SECONDS_PER_MINUTE = 60;
-
-/**
- * 每小时的分钟数
- * 用于时间单位转换
- */
-const MINUTES_PER_HOUR = 60;
-
-/**
- * 北京时区偏移量（小时）
- * 北京时间相对于 UTC 的时区偏移：UTC+8
- */
-const BEIJING_TIMEZONE_OFFSET_HOURS = 8;
-
-/**
- * 北京时区偏移量（毫秒）
- * 用于将 UTC 时间转换为北京时间
- * 计算公式：8小时 = 8 * 60 * 60 * 1000 毫秒
- */
-const BEIJING_TIMEZONE_OFFSET_MS = BEIJING_TIMEZONE_OFFSET_HOURS * MINUTES_PER_HOUR * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND;
+// 常量定义（已从统一常量文件导入）
 
 function toBeijingTime(date: Date | null = null, options: TimeFormatOptions = {}): string {
   const { format = 'iso' } = options;
   const targetDate = date || new Date();
   // 转换为北京时间（UTC+8）
-  const beijingOffset = BEIJING_TIMEZONE_OFFSET_MS;
+  const beijingOffset = TIME.BEIJING_TIMEZONE_OFFSET_MS;
   const beijingTime = new Date(targetDate.getTime() + beijingOffset);
 
   // 使用UTC方法获取年月日时分秒，这样得到的就是北京时间

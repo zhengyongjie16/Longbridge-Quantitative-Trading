@@ -17,6 +17,7 @@ import {
 } from 'longport';
 import { MULTI_MONITOR_TRADING_CONFIG } from '../../config/config.trading.js';
 import { logger, colors } from '../../utils/logger/index.js';
+import { TIME, TRADING } from '../../constants/index.js';
 import {
   normalizeHKSymbol,
   decimalToNumber,
@@ -28,26 +29,6 @@ import {
 import type { Signal, TradeCheckResult, MonitorConfig } from '../../types/index.js';
 import type { OrderPayload, OrderExecutor, OrderExecutorDeps } from './types.js';
 import { recordTrade, identifyErrorType } from './tradeLogger.js';
-
-// 常量定义
-/**
- * 每秒的毫秒数
- * 用于时间单位转换（秒转毫秒）
- */
-const MILLISECONDS_PER_SECOND = 1000;
-
-/**
- * 默认目标金额（港币）
- * 当配置中未指定目标金额或目标金额无效时，使用此默认值计算买入数量
- */
-const DEFAULT_TARGET_NOTIONAL = 5000;
-
-/**
- * 默认每手股数
- * 当信号和配置中都未指定有效的每手股数时，使用此默认值
- * 港股市场常见的每手股数为 100 股
- */
-const DEFAULT_LOT_SIZE = 100;
 
 /**
  * 通过信号的 symbol 查找对应的监控配置
@@ -120,13 +101,13 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
 
     const now = Date.now();
     const timeDiff = now - lastTime;
-    const intervalMs = buyIntervalSeconds * MILLISECONDS_PER_SECOND;
+    const intervalMs = buyIntervalSeconds * TIME.MILLISECONDS_PER_SECOND;
 
     if (timeDiff >= intervalMs) {
       return { canTrade: true };
     }
 
-    const waitSeconds = Math.ceil((intervalMs - timeDiff) / MILLISECONDS_PER_SECOND);
+    const waitSeconds = Math.ceil((intervalMs - timeDiff) / TIME.MILLISECONDS_PER_SECOND);
     return {
       canTrade: false,
       waitSeconds,
@@ -260,7 +241,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
         Number.isFinite(Number(targetNotional)) &&
         targetNotional > 0
         ? targetNotional
-        : DEFAULT_TARGET_NOTIONAL,
+        : TRADING.DEFAULT_TARGET_NOTIONAL,
     );
     const priceNum = Number(pricingSource);
 
@@ -289,7 +270,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
 
     // 如果配置中的值也无效，使用默认值
     if (!Number.isFinite(lotSize) || lotSize <= 0) {
-      lotSize = DEFAULT_LOT_SIZE;
+      lotSize = TRADING.DEFAULT_LOT_SIZE;
     }
 
     // 此时 lotSize 一定是有效的正数
@@ -520,10 +501,10 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     }
 
     // 使用配置中的值，如果没有配置则使用默认值
-    const targetNotional = monitorConfig?.targetNotional ?? DEFAULT_TARGET_NOTIONAL;
+    const targetNotional = monitorConfig?.targetNotional ?? TRADING.DEFAULT_TARGET_NOTIONAL;
     const quantity = isShortSymbol
-      ? (monitorConfig?.shortLotSize ?? DEFAULT_LOT_SIZE)
-      : (monitorConfig?.longLotSize ?? DEFAULT_LOT_SIZE);
+      ? (monitorConfig?.shortLotSize ?? TRADING.DEFAULT_LOT_SIZE)
+      : (monitorConfig?.longLotSize ?? TRADING.DEFAULT_LOT_SIZE);
     const orderType = OrderType.ELO;
     const timeInForce = TimeInForceType.Day;
     const remark = 'QuantDemo';

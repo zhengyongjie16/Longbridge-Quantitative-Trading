@@ -48,6 +48,8 @@ import { validateEmaPeriod } from './utils/helpers/indicatorHelpers.js';
 import { batchGetQuotes } from './utils/helpers/quoteHelpers.js';
 import {
   VALID_SIGNAL_ACTIONS,
+  TRADING,
+  TIME,
 } from './constants/index.js';
 
 // 导入新模块
@@ -198,33 +200,11 @@ function releaseAllMonitorSnapshots(monitorStates: Map<string, MonitorState>): v
 }
 
 
-// K线和循环配置常量
-/**
- * K线周期
- * 获取 K 线数据的时间周期，'1m' 表示1分钟K线
- */
-const CANDLE_PERIOD = '1m';
-
-/**
- * K线数量
- * 每次获取的 K 线数据条数
- * 用于计算技术指标（RSI、KDJ、MACD等）需要足够的历史数据
- */
-const CANDLE_COUNT = 200;
-
-/**
- * 每秒的毫秒数
- * 用于时间单位转换（秒转毫秒）
- * 主循环每秒执行一次，间隔时间为1秒 = 1000毫秒
- */
-const MILLISECONDS_PER_SECOND = 1000;
-
-/**
- * 主循环执行间隔（毫秒）
- * 系统主循环每次执行后等待的时间间隔
- * 设置为1秒，确保每秒执行一次交易逻辑检查
- */
-const INTERVAL_MS = MILLISECONDS_PER_SECOND;
+// K线和循环配置常量（从 constants/index.ts 导入）
+const CANDLE_PERIOD = TRADING.CANDLE_PERIOD;
+const CANDLE_COUNT = TRADING.CANDLE_COUNT;
+const INTERVAL_MS = TRADING.INTERVAL_MS;
+const MILLISECONDS_PER_SECOND = TIME.MILLISECONDS_PER_SECOND;
 
 /**
  * 格式化日期为 YYYY-MM-DD 字符串

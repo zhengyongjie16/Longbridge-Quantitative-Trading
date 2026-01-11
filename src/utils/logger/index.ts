@@ -20,6 +20,7 @@
 
 import pino from 'pino';
 import { toBeijingTimeLog } from '../helpers/index.js';
+import { LOGGING } from '../../constants/index.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Writable } from 'node:stream';
@@ -28,21 +29,6 @@ import { LOG_LEVELS, type LogObject, type Logger } from './types.js';
 
 // 缓存 DEBUG 环境变量，避免重复读取
 const IS_DEBUG = process.env['DEBUG'] === 'true';
-
-// 时间常量（毫秒）
-/**
- * 文件流 drain 超时时间（毫秒）
- * 当文件流写入缓冲区满时，需要等待 drain 事件才能继续写入
- * 如果超过此时间仍未触发 drain 事件，则超时继续执行，避免阻塞日志系统
- */
-const DRAIN_TIMEOUT_MS = 5000;
-
-/**
- * 控制台流 drain 超时时间（毫秒）
- * 当控制台流写入缓冲区满时，需要等待 drain 事件才能继续写入
- * 如果超过此时间仍未触发 drain 事件，则超时继续执行，避免阻塞日志系统
- */
-const CONSOLE_DRAIN_TIMEOUT_MS = 3000;
 
 // ANSI 颜色代码（保持兼容性）
 export const colors = {
@@ -185,7 +171,7 @@ class DateRotatingStream extends Writable {
             // 添加超时保护，防止 drain 事件永远不触发导致阻塞
             const { onDrain } = createDrainHandler(
               currentStream,
-              DRAIN_TIMEOUT_MS,
+              LOGGING.DRAIN_TIMEOUT_MS,
               callback,
               () => {
                 if (IS_DEBUG) {
@@ -416,14 +402,14 @@ const consoleStream = new Writable({
         writeWithDrainTimeout(
           process.stderr,
           formatted,
-          CONSOLE_DRAIN_TIMEOUT_MS,
+          LOGGING.CONSOLE_DRAIN_TIMEOUT_MS,
           callback,
         );
       } else {
         writeWithDrainTimeout(
           process.stdout,
           formatted,
-          CONSOLE_DRAIN_TIMEOUT_MS,
+          LOGGING.CONSOLE_DRAIN_TIMEOUT_MS,
           callback,
         );
       }

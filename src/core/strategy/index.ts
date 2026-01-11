@@ -21,6 +21,7 @@
 import { evaluateSignalConfig } from '../../utils/helpers/signalConfigParser.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import { getIndicatorValue, isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
+import { TIME } from '../../constants/index.js';
 import type {
   Signal,
   IndicatorSnapshot,
@@ -30,14 +31,6 @@ import type {
   SignalType,
 } from '../../types/index.js';
 import type { StrategyConfig, SignalGenerationResult, HangSengMultiIndicatorStrategy } from './types.js';
-
-// 常量定义
-/**
- * 每秒的毫秒数
- * 用于时间单位转换（秒转毫秒）
- * 在计算延迟信号的触发时间时使用
- */
-const MILLISECONDS_PER_SECOND = 1000;
 
 /**
  * 创建恒生多指标策略
@@ -125,7 +118,7 @@ export const createHangSengMultiIndicatorStrategy = ({
 
     const now = new Date();
     const triggerTime = new Date(
-      now.getTime() + config.delaySeconds * MILLISECONDS_PER_SECOND,
+      now.getTime() + config.delaySeconds * TIME.MILLISECONDS_PER_SECOND,
     );
 
     // 如果目标时间已经过去，说明计算有误，返回null

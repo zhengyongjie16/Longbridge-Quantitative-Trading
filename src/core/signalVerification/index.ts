@@ -27,57 +27,9 @@ import { logger } from '../../utils/logger/index.js';
 import { verificationEntryPool, signalObjectPool } from '../../utils/objectPool/index.js';
 import { getIndicatorValue } from '../../utils/helpers/indicatorHelpers.js';
 import { formatError, formatSymbolDisplayFromQuote, normalizeHKSymbol } from '../../utils/helpers/index.js';
+import { TIME, VERIFICATION } from '../../constants/index.js';
 import type { IndicatorSnapshot, Quote, Signal, VerificationConfig, VerificationEntry, MonitorState } from '../../types/index.js';
 import type { SignalVerificationManager } from './types.js';
-
-// 常量定义
-/**
- * 每秒的毫秒数
- * 用于时间单位转换（秒转毫秒）
- */
-const MILLISECONDS_PER_SECOND = 1000;
-
-/**
- * 验证时间点1偏移量（秒）
- * 延迟验证的第一个时间点：T0 + 5秒
- * T0 为信号触发时间，此时间点用于验证指标趋势的延续性
- */
-const VERIFICATION_TIME_OFFSET_1_SECONDS = 5;
-
-/**
- * 验证时间点2偏移量（秒）
- * 延迟验证的第二个时间点：T0 + 10秒
- * T0 为信号触发时间，此时间点用于进一步确认指标趋势
- */
-const VERIFICATION_TIME_OFFSET_2_SECONDS = 10;
-
-/**
- * 验证时间点误差容忍度（毫秒）
- * 在查找验证历史记录时，允许的时间点误差范围
- * 由于系统循环执行可能存在时间偏差，允许 ±5 秒的误差
- */
-const VERIFICATION_TIME_TOLERANCE_MS = 5 * MILLISECONDS_PER_SECOND;
-
-/**
- * 验证窗口开始时间偏移量（秒）
- * 验证历史记录的开始时间：T0 - 5秒
- * 在信号触发前5秒开始记录指标值，确保能捕获到 T0 时间点的数据
- */
-const VERIFICATION_WINDOW_START_OFFSET_SECONDS = -5;
-
-/**
- * 验证窗口结束时间偏移量（秒）
- * 验证历史记录的结束时间：T0 + 15秒
- * 考虑到 T0+10秒 时间点允许 ±5 秒误差，最晚可能在 T0+15秒 记录数据
- */
-const VERIFICATION_WINDOW_END_OFFSET_SECONDS = 15;
-
-/**
- * 验证就绪延迟时间（秒）
- * 信号触发后需要等待此时间才能执行验证：T0 + 15秒
- * 确保所有3个验证时间点（T0, T0+5s, T0+10s）的数据都已记录完成
- */
-const VERIFICATION_READY_DELAY_SECONDS = 15;
 
 /**
  * 创建信号验证管理器
@@ -166,14 +118,14 @@ export const createSignalVerificationManager = (
 
     // 定义3个目标时间点：T0 = triggerTime, T1 = triggerTime + 5秒, T2 = triggerTime + 10秒
     const targetTime0 = pendingSignal.triggerTime;
-    const targetTime1 = new Date(targetTime0.getTime() + VERIFICATION_TIME_OFFSET_1_SECONDS * MILLISECONDS_PER_SECOND);
-    const targetTime2 = new Date(targetTime0.getTime() + VERIFICATION_TIME_OFFSET_2_SECONDS * MILLISECONDS_PER_SECOND);
+    const targetTime1 = new Date(targetTime0.getTime() + VERIFICATION.TIME_OFFSET_1_SECONDS * TIME.MILLISECONDS_PER_SECOND);
+    const targetTime2 = new Date(targetTime0.getTime() + VERIFICATION.TIME_OFFSET_2_SECONDS * TIME.MILLISECONDS_PER_SECOND);
     const targetTimes = [targetTime0, targetTime1, targetTime2];
     const targetTimeLabels = ['T0', 'T0+5s', 'T0+10s'];
 
     // 从该信号自己的验证历史记录中获取indicators2a, indicators2b, indicators2c
     const history = pendingSignal.verificationHistory || [];
-    const maxTimeDiff = VERIFICATION_TIME_TOLERANCE_MS;
+    const maxTimeDiff = VERIFICATION.TIME_TOLERANCE_MS;
 
     // 辅助函数：为指定目标时间查找最佳匹配
     const findBestMatch = (targetTime: Date): VerificationEntry | null => {
@@ -266,11 +218,11 @@ export const createSignalVerificationManager = (
     const actualTime1 = match1.timestamp;
     const actualTime2 = match2.timestamp;
     const timeDiffSeconds0 =
-      Math.abs(actualTime0.getTime() - targetTime0.getTime()) / MILLISECONDS_PER_SECOND;
+      Math.abs(actualTime0.getTime() - targetTime0.getTime()) / TIME.MILLISECONDS_PER_SECOND;
     const timeDiffSeconds1 =
-      Math.abs(actualTime1.getTime() - targetTime1.getTime()) / MILLISECONDS_PER_SECOND;
+      Math.abs(actualTime1.getTime() - targetTime1.getTime()) / TIME.MILLISECONDS_PER_SECOND;
     const timeDiffSeconds2 =
-      Math.abs(actualTime2.getTime() - targetTime2.getTime()) / MILLISECONDS_PER_SECOND;
+      Math.abs(actualTime2.getTime() - targetTime2.getTime()) / TIME.MILLISECONDS_PER_SECOND;
 
     // 根据信号类型使用不同的验证条件
     const isBuyCall = pendingSignal.action === 'BUYCALL';
@@ -516,8 +468,8 @@ export const createSignalVerificationManager = (
         // 如果所有配置的指标值有效，记录当前值
         if (allIndicatorsValid && Object.keys(currentIndicators).length > 0) {
           const triggerTimeMs = pendingSignal.triggerTime.getTime();
-          const windowStart = triggerTimeMs + VERIFICATION_WINDOW_START_OFFSET_SECONDS * MILLISECONDS_PER_SECOND;
-          const windowEnd = triggerTimeMs + VERIFICATION_WINDOW_END_OFFSET_SECONDS * MILLISECONDS_PER_SECOND;
+          const windowStart = triggerTimeMs + VERIFICATION.WINDOW_START_OFFSET_SECONDS * TIME.MILLISECONDS_PER_SECOND;
+          const windowEnd = triggerTimeMs + VERIFICATION.WINDOW_END_OFFSET_SECONDS * TIME.MILLISECONDS_PER_SECOND;
           const nowMs = now.getTime();
 
           // 只在 triggerTime -5秒 到 +15秒 窗口内记录数据
@@ -526,10 +478,10 @@ export const createSignalVerificationManager = (
             pendingSignal.verificationHistory ??= [];
 
             // 避免在同一秒内重复记录（精确到秒）
-            const nowSeconds = Math.floor(nowMs / MILLISECONDS_PER_SECOND);
+            const nowSeconds = Math.floor(nowMs / TIME.MILLISECONDS_PER_SECOND);
             const lastEntry = pendingSignal.verificationHistory.at(-1);
             const lastEntrySeconds = lastEntry
-              ? Math.floor(lastEntry.timestamp.getTime() / MILLISECONDS_PER_SECOND)
+              ? Math.floor(lastEntry.timestamp.getTime() / TIME.MILLISECONDS_PER_SECOND)
               : null;
 
             // 如果上一记录不是同一秒，则添加新记录
@@ -593,7 +545,7 @@ export const createSignalVerificationManager = (
       const now = new Date();
       const signalsToVerify = monitorState.pendingDelayedSignals.filter((s: Signal) => {
         if (!s.triggerTime) return false;
-        const verificationReadyTime = new Date(s.triggerTime.getTime() + VERIFICATION_READY_DELAY_SECONDS * MILLISECONDS_PER_SECOND);
+        const verificationReadyTime = new Date(s.triggerTime.getTime() + VERIFICATION.READY_DELAY_SECONDS * TIME.MILLISECONDS_PER_SECOND);
         return verificationReadyTime <= now;
       });
 

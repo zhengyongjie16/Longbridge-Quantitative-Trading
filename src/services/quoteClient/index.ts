@@ -36,6 +36,7 @@ import {
   isDefined,
 } from '../../utils/helpers/index.js';
 import { logger } from '../../utils/logger/index.js';
+import { API } from '../../constants/index.js';
 import type { Quote, TradingDayInfo, MarketDataClient, TradingDaysResult, PeriodString } from '../../types/index.js';
 import type {
   RetryConfig,
@@ -47,41 +48,10 @@ import type {
   MarketDataClientDeps,
 } from './types.js';
 
-// 常量定义
-/**
- * 每秒的毫秒数
- * 用于时间单位转换（秒转毫秒）
- */
-const MILLISECONDS_PER_SECOND = 1000;
-
-/**
- * 每分钟的秒数
- * 用于时间单位转换
- */
-const SECONDS_PER_MINUTE = 60;
-
-/**
- * 每小时的分钟数
- * 用于时间单位转换
- */
-const MINUTES_PER_HOUR = 60;
-
-/**
- * 每天的小时数
- * 用于时间单位转换
- */
-const HOURS_PER_DAY = 24;
-
-/**
- * 每天的毫秒数
- * 用于交易日缓存的 TTL（Time To Live）计算
- * 交易日信息缓存有效期设置为一天，避免频繁查询交易日历
- */
-const MILLISECONDS_PER_DAY = HOURS_PER_DAY * MINUTES_PER_HOUR * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND;
-
+// 默认重试配置（使用统一常量）
 const DEFAULT_RETRY: RetryConfig = {
-  retries: 2,
-  delayMs: 300,
+  retries: API.DEFAULT_RETRY_COUNT,
+  delayMs: API.DEFAULT_RETRY_DELAY_MS,
 };
 
 /**
@@ -90,7 +60,7 @@ const DEFAULT_RETRY: RetryConfig = {
  * @returns QuoteCache 接口实例
  */
 export const createQuoteCache = <T>(deps: QuoteCacheDeps = {}): QuoteCache<T> => {
-  const ttlMs = deps.ttlMs ?? MILLISECONDS_PER_SECOND;
+  const ttlMs = deps.ttlMs ?? API.QUOTE_CACHE_TTL_MS;
   const map = new Map<string, CacheEntry<T>>();
 
   const get = (key: string): T | null => {
@@ -121,7 +91,7 @@ export const createQuoteCache = <T>(deps: QuoteCacheDeps = {}): QuoteCache<T> =>
 export const createTradingDayCache = (_deps: TradingDayCacheDeps = {}): TradingDayCache => {
   // 闭包捕获的私有状态
   const cache = new Map<string, { isTradingDay: boolean; isHalfDay: boolean; timestamp: number }>();
-  const ttl = MILLISECONDS_PER_DAY; // 缓存有效期：一天（单位：毫秒）
+  const ttl = API.TRADING_DAY_CACHE_TTL_MS; // 缓存有效期：一天（单位：毫秒）
 
   /**
    * 获取指定日期的交易日信息

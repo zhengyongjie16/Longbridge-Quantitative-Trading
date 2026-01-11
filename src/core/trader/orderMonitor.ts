@@ -10,17 +10,10 @@
 
 import { OrderStatus, OrderSide, Decimal } from 'longport';
 import { logger } from '../../utils/logger/index.js';
+import { TRADING } from '../../constants/index.js';
 import { normalizeHKSymbol, decimalToNumber, isValidPositiveNumber } from '../../utils/helpers/index.js';
 import type { Quote, DecimalLikeValue, PendingOrder } from '../../types/index.js';
 import type { OrderMonitor, OrderMonitorDeps, OrderForReplace } from './types.js';
-
-// 常量定义
-/**
- * 价格差异阈值（港币）
- * 买入订单监控时，当前价格与委托价格的差异必须达到此阈值才会触发价格修改
- * 避免因微小价格波动频繁修改订单，减少不必要的 API 调用
- */
-const PRICE_DIFF_THRESHOLD = 0.001;
 
 const toDecimal = (value: unknown): Decimal => {
   if (value instanceof Decimal) {
@@ -272,7 +265,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
       if (currentPrice < orderPrice) {
         const priceDiffAbs = Math.abs(currentPrice - orderPrice);
         // 价格差异达到阈值或以上时进行修改
-        if (priceDiffAbs >= PRICE_DIFF_THRESHOLD) {
+        if (priceDiffAbs >= TRADING.PRICE_DIFF_THRESHOLD) {
           logger.info(
             `[订单监控] 买入订单 ${
               order.orderId
@@ -307,7 +300,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
           logger.debug(
             `[订单监控] 买入订单 ${
               order.orderId
-            } 价格差异(${priceDiffAbs.toFixed(4)})小于${PRICE_DIFF_THRESHOLD}，暂不修改`,
+            } 价格差异(${priceDiffAbs.toFixed(4)})小于${TRADING.PRICE_DIFF_THRESHOLD}，暂不修改`,
           );
         }
       }
