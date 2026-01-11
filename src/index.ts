@@ -48,6 +48,7 @@ import { validateEmaPeriod } from './utils/helpers/indicatorHelpers.js';
 import { batchGetQuotes } from './utils/helpers/quoteHelpers.js';
 import {
   VALID_SIGNAL_ACTIONS,
+  SIGNAL_TARGET_ACTIONS,
   TRADING,
   TIME,
 } from './constants/index.js';
@@ -96,13 +97,6 @@ interface RunOnceContext {
   monitorContexts: Map<string, MonitorContext>;
 }
 
-
-const SIGNAL_TARGET_ACTIONS: Record<string, string> = {
-  'BUYCALL': '买入',
-  'SELLCALL': '卖出',
-  'BUYPUT': '买入',
-  'SELLPUT': '卖出',
-};
 
 // 性能优化：从验证配置中提取 EMA 周期（模块加载时执行一次）
 function extractEmaPeriods(verificationConfig: VerificationConfig | null | undefined): number[] {

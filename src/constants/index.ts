@@ -116,3 +116,22 @@ export const SIGNAL_ACTION_DESCRIPTIONS: Record<SignalType, string> = {
   [SIGNAL_ACTIONS.SELLPUT]: '卖出做空标的（平空仓）',
   [SIGNAL_ACTIONS.HOLD]: '持有',
 };
+
+/**
+ * 交易操作类型文本
+ */
+export const TRADE_OPERATION_TEXTS = {
+  BUY: '买入',
+  SELL: '卖出',
+} as const;
+
+/**
+ * 信号目标操作映射（简化版，用于日志显示）
+ * 将信号类型映射到交易操作（买入/卖出）
+ */
+export const SIGNAL_TARGET_ACTIONS: Record<string, string> = {
+  [SIGNAL_ACTIONS.BUYCALL]: TRADE_OPERATION_TEXTS.BUY,
+  [SIGNAL_ACTIONS.SELLCALL]: TRADE_OPERATION_TEXTS.SELL,
+  [SIGNAL_ACTIONS.BUYPUT]: TRADE_OPERATION_TEXTS.BUY,
+  [SIGNAL_ACTIONS.SELLPUT]: TRADE_OPERATION_TEXTS.SELL,
+};
