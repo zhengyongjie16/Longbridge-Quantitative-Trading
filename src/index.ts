@@ -43,16 +43,16 @@ import {
   formatError,
   formatSignalLog,
 } from './utils/helpers/index.js';
-import { extractRSIPeriods } from './utils/signalConfigParser/index.js';
-import { validateEmaPeriod } from './utils/indicatorHelpers/index.js';
-import { batchGetQuotes } from './utils/quoteHelpers/index.js';
+import { extractRSIPeriods } from './utils/helpers/signalConfigParser.js';
+import { validateEmaPeriod } from './utils/helpers/indicatorHelpers.js';
+import { batchGetQuotes } from './utils/helpers/quoteHelpers.js';
 import {
   VALID_SIGNAL_ACTIONS,
 } from './constants/index.js';
 
 // 导入新模块
-import { isInContinuousHKSession } from './utils/tradingTime/index.js';
-import { displayAccountAndPositions } from './utils/accountDisplay/index.js';
+import { isInContinuousHKSession } from './utils/helpers/tradingTime.js';
+import { displayAccountAndPositions } from './utils/helpers/accountDisplay.js';
 import { createMarketMonitor } from './core/marketMonitor/index.js';
 import { createDoomsdayProtection } from './core/doomsdayProtection/index.js';
 import { createUnrealizedLossMonitor } from './core/unrealizedLossMonitor/index.js';

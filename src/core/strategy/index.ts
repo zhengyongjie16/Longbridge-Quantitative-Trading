@@ -18,9 +18,9 @@
  * - |：分隔不同条件组，满足任一组即可
  */
 
-import { evaluateSignalConfig } from '../../utils/signalConfigParser/index.js';
+import { evaluateSignalConfig } from '../../utils/helpers/signalConfigParser.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
-import { getIndicatorValue, isValidNumber } from '../../utils/indicatorHelpers/index.js';
+import { getIndicatorValue, isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
 import type {
   Signal,
   IndicatorSnapshot,

@@ -23,7 +23,7 @@ import {
   formatNumber,
   isDefined,
   isValidPositiveNumber,
-} from '../helpers/index.js';
+} from './index.js';
 
 import type { Trader, MarketDataClient, LastState } from './types.js';
 

@@ -6,7 +6,7 @@
  */
 
 import { MFI } from 'technicalindicators';
-import { validatePercentage } from '../../utils/indicatorHelpers/index.js';
+import { validatePercentage } from '../../utils/helpers/indicatorHelpers.js';
 import { toNumber, logDebug } from './utils.js';
 import type { CandleData } from '../../types/index.js';
 

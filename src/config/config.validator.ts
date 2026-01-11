@@ -13,7 +13,7 @@ import { createConfig } from './config.index.js';
 import { createMarketDataClient } from '../services/quoteClient/index.js';
 import type { MarketDataClient, ValidateAllConfigResult, MonitorConfig } from '../types/index.js';
 import { formatSymbolDisplay } from '../utils/helpers/index.js';
-import { formatSignalConfig } from '../utils/signalConfigParser/index.js';
+import { formatSignalConfig } from '../utils/helpers/signalConfigParser.js';
 
 /**
  * 配置验证错误类型

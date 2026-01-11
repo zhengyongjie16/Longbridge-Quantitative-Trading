@@ -19,8 +19,8 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-import { parseSignalConfig } from '../utils/signalConfigParser/index.js';
-import { validateEmaPeriod } from '../utils/indicatorHelpers/index.js';
+import { parseSignalConfig } from '../utils/helpers/signalConfigParser.js';
+import { validateEmaPeriod } from '../utils/helpers/indicatorHelpers.js';
 import { normalizeHKSymbol } from '../utils/helpers/index.js';
 import { logger } from '../utils/logger/index.js';
 import type {

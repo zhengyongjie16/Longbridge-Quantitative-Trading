@@ -23,8 +23,8 @@ import {
   isValidPositiveNumber,
   toBeijingTimeLog,
 } from '../../utils/helpers/index.js';
-import { isValidNumber } from '../../utils/indicatorHelpers/index.js';
-import { hasChanged } from '../../utils/tradingTime/index.js';
+import { isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
+import { hasChanged } from '../../utils/helpers/tradingTime.js';
 import {
   monitorValuesObjectPool,
   kdjObjectPool,

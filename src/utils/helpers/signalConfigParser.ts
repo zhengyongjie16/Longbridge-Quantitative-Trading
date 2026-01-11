@@ -24,7 +24,7 @@
 import {
   validateRsiPeriod,
   validateEmaPeriod,
-} from '../indicatorHelpers/index.js';
+} from './indicatorHelpers.js';
 import { logger } from '../logger/index.js';
 import type {
   Condition,
@@ -630,4 +630,3 @@ export function extractRSIPeriods(signalConfig: SignalConfigSet | null): number[
   // 转为数组并排序
   return Array.from(periods).sort((a, b) => a - b);
 }
-

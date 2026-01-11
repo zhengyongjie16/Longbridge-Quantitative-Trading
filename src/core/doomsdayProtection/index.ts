@@ -16,7 +16,7 @@
 
 import { logger } from '../../utils/logger/index.js';
 import { normalizeHKSymbol } from '../../utils/helpers/index.js';
-import { isBeforeClose15Minutes, isBeforeClose5Minutes } from '../../utils/tradingTime/index.js';
+import { isBeforeClose15Minutes, isBeforeClose5Minutes } from '../../utils/helpers/tradingTime.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import type { Position, Quote, Signal } from '../../types/index.js';
 import type { DoomsdayProtection } from './types.js';
