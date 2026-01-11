@@ -201,19 +201,6 @@ const INTERVAL_MS = TRADING.INTERVAL_MS;
 const MILLISECONDS_PER_SECOND = TIME.MILLISECONDS_PER_SECOND;
 
 /**
- * 格式化日期为 YYYY-MM-DD 字符串
- * @param date 日期对象
- * @returns 格式化后的日期字符串
- */
-function formatDateString(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-
-/**
  * 从持仓数组中获取指定标的的持仓
  */
 function getPositions(
@@ -653,18 +640,16 @@ async function runOnce({
   // 判断是否在交易时段（使用当前系统时间）
   const currentTime = new Date();
 
-  // 获取当前日期字符串（格式：YYYY-MM-DD）- 使用工具函数
-  const currentDateStr = formatDateString(currentTime);
-
-  // 检查是否需要重新获取交易日信息（跨天或首次运行）
+  // 首次运行时获取交易日信息
   let isTradingDayToday = true;
   let isHalfDayToday = false;
 
-  if (
-    !lastState.cachedTradingDayInfo?.checkDate ||
-    lastState.cachedTradingDayInfo.checkDate !== currentDateStr
-  ) {
-    // 跨天或首次运行，重新调用 API 检查交易日信息
+  if (lastState.cachedTradingDayInfo) {
+    // 使用缓存的交易日信息
+    isTradingDayToday = lastState.cachedTradingDayInfo.isTradingDay;
+    isHalfDayToday = lastState.cachedTradingDayInfo.isHalfDay;
+  } else {
+    // 首次运行，调用 API 检查交易日信息
     try {
       const tradingDayInfo = await marketDataClient.isTradingDay(currentTime);
       isTradingDayToday = tradingDayInfo.isTradingDay;
@@ -674,15 +659,14 @@ async function runOnce({
       lastState.cachedTradingDayInfo = {
         isTradingDay: isTradingDayToday,
         isHalfDay: isHalfDayToday,
-        checkDate: currentDateStr,
       };
 
       // 日志记录
       if (isTradingDayToday) {
         const dayType = isHalfDayToday ? '半日交易日' : '交易日';
-        logger.info(`今天是${dayType}（${currentDateStr}）`);
+        logger.info(`今天是${dayType}`);
       } else {
-        logger.info(`今天不是交易日（${currentDateStr}）`);
+        logger.info('今天不是交易日');
       }
     } catch (err) {
       logger.warn(
@@ -690,10 +674,6 @@ async function runOnce({
         formatError(err),
       );
     }
-  } else {
-    // 使用缓存的交易日信息
-    isTradingDayToday = lastState.cachedTradingDayInfo.isTradingDay;
-    isHalfDayToday = lastState.cachedTradingDayInfo.isHalfDay;
   }
 
   // 如果不是交易日，提前返回

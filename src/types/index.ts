@@ -298,7 +298,6 @@ export interface LastState {
   cachedTradingDayInfo: {
     isTradingDay: boolean;
     isHalfDay: boolean;
-    checkDate: string;
   } | null;
   monitorStates: Map<string, MonitorState>;
 }
