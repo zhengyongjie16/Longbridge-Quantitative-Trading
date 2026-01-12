@@ -184,7 +184,7 @@ export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManage
 
     // 从 API 获取订单
     const ctx = await ctxPromise;
-
+    // 此处 API 调用由外部进行错误捕获，这里不需要try-catch
     const [historyOrdersRaw, todayOrdersRaw] = await Promise.all([
       ctx.historyOrders({
         symbol: normalizedSymbol,

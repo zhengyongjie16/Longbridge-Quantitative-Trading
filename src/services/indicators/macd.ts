@@ -7,6 +7,7 @@
 
 import { MACD } from 'technicalindicators';
 import { macdObjectPool } from '../../utils/objectPool/index.js';
+import { isValidMACD } from '../../utils/objectPool/types.js';
 import { toNumber, logDebug } from './utils.js';
 import type { MACDIndicator } from '../../types/index.js';
 
@@ -72,7 +73,15 @@ export function calculateMACD(
     macdObj.dif = dif;
     macdObj.dea = dea;
     macdObj.macd = macdValue;
-    return macdObj as MACDIndicator;
+
+    // 使用类型守卫验证对象有效性
+    if (isValidMACD(macdObj)) {
+      return macdObj;
+    }
+
+    // 如果类型验证失败，释放对象并返回 null
+    macdObjectPool.release(macdObj);
+    return null;
   } catch (err) {
     logDebug('MACD计算失败', err);
     return null;

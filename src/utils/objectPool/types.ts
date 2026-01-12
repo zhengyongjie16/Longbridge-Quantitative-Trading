@@ -92,3 +92,48 @@ export type ObjectPool<T> = {
   release(obj: T | null | undefined): void;
   releaseAll(objects: T[] | null | undefined): void;
 };
+
+/**
+ * 检查 PoolableKDJ 是否可以安全转换为 KDJIndicator
+ * @param obj 对象池中的 KDJ 对象
+ * @returns 如果所有字段都是有效数字则返回 true
+ */
+export const isValidKDJ = (obj: PoolableKDJ): obj is PoolableKDJ & { k: number; d: number; j: number } => {
+  return (
+    typeof obj.k === 'number' &&
+    typeof obj.d === 'number' &&
+    typeof obj.j === 'number' &&
+    Number.isFinite(obj.k) &&
+    Number.isFinite(obj.d) &&
+    Number.isFinite(obj.j)
+  );
+};
+
+/**
+ * 检查 PoolableMACD 是否可以安全转换为 MACDIndicator
+ * @param obj 对象池中的 MACD 对象
+ * @returns 如果所有字段都是有效数字则返回 true
+ */
+export const isValidMACD = (obj: PoolableMACD): obj is PoolableMACD & { macd: number; dif: number; dea: number } => {
+  return (
+    typeof obj.macd === 'number' &&
+    typeof obj.dif === 'number' &&
+    typeof obj.dea === 'number' &&
+    Number.isFinite(obj.macd) &&
+    Number.isFinite(obj.dif) &&
+    Number.isFinite(obj.dea)
+  );
+};
+
+/**
+ * 检查 PoolableSignal 是否可以安全转换为 Signal
+ * @param obj 对象池中的 Signal 对象
+ * @returns 如果必要字段都有效则返回 true
+ */
+export const isValidSignal = (obj: PoolableSignal): obj is PoolableSignal & { symbol: string; action: import('../../types/index.js').SignalType } => {
+  return (
+    typeof obj.symbol === 'string' &&
+    obj.symbol.length > 0 &&
+    obj.action !== null
+  );
+};

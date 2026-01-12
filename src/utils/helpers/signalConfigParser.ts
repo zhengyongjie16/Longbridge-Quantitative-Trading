@@ -64,8 +64,14 @@ function parseCondition(conditionStr: string): ParsedCondition | null {
   if (rsiMatch) {
     // RSI:n 格式
     const [, periodStr, operator, thresholdStr] = rsiMatch;
-    const period = Number.parseInt(periodStr!, 10);
-    const threshold = Number.parseFloat(thresholdStr!);
+
+    // 验证正则捕获组存在
+    if (!periodStr || !operator || !thresholdStr) {
+      return null;
+    }
+
+    const period = Number.parseInt(periodStr, 10);
+    const threshold = Number.parseFloat(thresholdStr);
 
     // 验证周期范围（1-100）
     if (!validateRsiPeriod(period)) {
@@ -92,8 +98,14 @@ function parseCondition(conditionStr: string): ParsedCondition | null {
   if (emaMatch) {
     // EMA:n 格式
     const [, periodStr, operator, thresholdStr] = emaMatch;
-    const period = Number.parseInt(periodStr!, 10);
-    const threshold = Number.parseFloat(thresholdStr!);
+
+    // 验证正则捕获组存在
+    if (!periodStr || !operator || !thresholdStr) {
+      return null;
+    }
+
+    const period = Number.parseInt(periodStr, 10);
+    const threshold = Number.parseFloat(thresholdStr);
 
     // 验证周期范围（1-250）
     if (!validateEmaPeriod(period)) {
@@ -122,7 +134,13 @@ function parseCondition(conditionStr: string): ParsedCondition | null {
   }
 
   const [, indicator, operator, thresholdStr] = match;
-  const threshold = Number.parseFloat(thresholdStr!);
+
+  // 验证正则捕获组存在
+  if (!indicator || !operator || !thresholdStr) {
+    return null;
+  }
+
+  const threshold = Number.parseFloat(thresholdStr);
 
   // 验证指标是否支持
   if (!SUPPORTED_INDICATORS.includes(indicator as (typeof SUPPORTED_INDICATORS)[number])) {
@@ -135,7 +153,7 @@ function parseCondition(conditionStr: string): ParsedCondition | null {
   }
 
   return {
-    indicator: indicator!,
+    indicator,
     operator: operator as '<' | '>',
     threshold,
   };
@@ -161,8 +179,13 @@ function parseConditionGroup(groupStr: string): ParsedConditionGroup | null {
   const bracketMatch = bracketRegex.exec(trimmed);
 
   if (bracketMatch) {
-    conditionsStr = bracketMatch[1]!;
-    minSatisfied = bracketMatch[2] ? Number.parseInt(bracketMatch[2], 10) : null;
+    const capturedConditions = bracketMatch[1];
+    if (!capturedConditions) {
+      return null;
+    }
+    conditionsStr = capturedConditions;
+    const minSatisfiedStr = bracketMatch[2];
+    minSatisfied = minSatisfiedStr ? Number.parseInt(minSatisfiedStr, 10) : null;
   } else {
     // 不带括号的单个条件（兼容简单格式）
     conditionsStr = trimmed;
@@ -228,7 +251,11 @@ export function parseSignalConfig(configStr: string | null | undefined): SignalC
   const conditionGroups: ConditionGroup[] = [];
 
   for (let i = 0; i < Math.min(groupStrs.length, 3); i++) {
-    const group = parseConditionGroup(groupStrs[i]!);
+    const groupStr = groupStrs[i];
+    if (!groupStr) {
+      continue;
+    }
+    const group = parseConditionGroup(groupStr);
     if (!group) {
       // 如果有任何一个条件组解析失败，返回 null
       return null;
@@ -416,8 +443,12 @@ export function evaluateCondition(state: IndicatorState, condition: Condition): 
 
   if (indicator.includes(':')) {
     const parts = indicator.split(':');
-    indicatorName = parts[0]!;
-    period = Number.parseInt(parts[1]!, 10);
+    const namePart = parts[0];
+    const periodPart = parts[1];
+    if (namePart && periodPart) {
+      indicatorName = namePart;
+      period = Number.parseInt(periodPart, 10);
+    }
   }
 
   // 获取指标值
@@ -520,7 +551,10 @@ export function evaluateSignalConfig(state: IndicatorState, signalConfig: Signal
   const { conditionGroups } = signalConfig;
 
   for (let i = 0; i < conditionGroups.length; i++) {
-    const group = conditionGroups[i]!;
+    const group = conditionGroups[i];
+    if (!group) {
+      continue;
+    }
     const result = evaluateConditionGroup(state, group);
 
     if (result.satisfied) {
@@ -618,9 +652,13 @@ export function extractRSIPeriods(signalConfig: SignalConfigSet | null): number[
       for (const condition of group.conditions) {
         // 如果是 RSI 指标且有周期，添加到集合中
         if (condition.indicator.startsWith('RSI:')) {
-          const period = Number.parseInt(condition.indicator.split(':')[1]!, 10);
-          if (Number.isFinite(period)) {
-            periods.add(period);
+          const parts = condition.indicator.split(':');
+          const periodStr = parts[1];
+          if (periodStr) {
+            const period = Number.parseInt(periodStr, 10);
+            if (Number.isFinite(period)) {
+              periods.add(period);
+            }
           }
         }
       }

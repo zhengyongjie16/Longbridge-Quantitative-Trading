@@ -29,13 +29,6 @@ import { calculateMACD } from './macd.js';
 import { calculateEMA } from './ema.js';
 import type { CandleData, IndicatorSnapshot } from '../../types/index.js';
 
-// 重新导出所有指标计算函数
-export { calculateRSI } from './rsi.js';
-export { calculateMFI } from './mfi.js';
-export { calculateKDJ } from './kdj.js';
-export { calculateMACD } from './macd.js';
-export { calculateEMA } from './ema.js';
-
 /**
  * 构建指标快照（统一计算所有技术指标）
  * @param symbol 标的代码

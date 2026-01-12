@@ -41,5 +41,7 @@
     "javascript",
     "typescript",
     "javascriptreact"
-  ]
+  ],
+  "editor.bracketPairColorization.enabled": true,
+  "editor.guides.bracketPairs": "active"
 }

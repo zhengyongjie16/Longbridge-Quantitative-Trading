@@ -7,6 +7,7 @@
 
 import { EMA } from 'technicalindicators';
 import { kdjObjectPool } from '../../utils/objectPool/index.js';
+import { isValidKDJ } from '../../utils/objectPool/types.js';
 import { toNumber, logDebug } from './utils.js';
 import type { KDJIndicator, CandleData } from '../../types/index.js';
 
@@ -104,7 +105,14 @@ export function calculateKDJ(candles: ReadonlyArray<CandleData>, period: number 
       kdjObj.k = k;
       kdjObj.d = d;
       kdjObj.j = j;
-      return kdjObj as KDJIndicator;
+
+      // 使用类型守卫验证对象有效性
+      if (isValidKDJ(kdjObj)) {
+        return kdjObj;
+      }
+
+      // 如果类型验证失败，释放对象并返回 null
+      kdjObjectPool.release(kdjObj);
     }
 
     return null;

@@ -9,9 +9,38 @@ import type { Signal, Quote, AccountSnapshot, Position, PendingOrder, TradeCheck
  * 用于订单替换的订单类型（longport SDK 返回的订单对象）
  */
 export type OrderForReplace = {
-  status: OrderStatus;
-  executedQuantity?: Decimal | DecimalLikeValue;
-  [key: string]: unknown;
+  readonly status: OrderStatus;
+  readonly executedQuantity?: Decimal | DecimalLikeValue | undefined;
+  readonly quantity?: Decimal | DecimalLikeValue | undefined;
+  readonly orderId?: string | undefined;
+};
+
+/**
+ * 从 PendingOrder 或 API 订单对象转换为 OrderForReplace
+ * @param order 待转换的订单对象
+ * @returns OrderForReplace 对象，如果状态无效则返回 null
+ */
+export const toOrderForReplace = (order: {
+  status?: unknown;
+  executedQuantity?: unknown;
+  quantity?: unknown;
+  orderId?: unknown;
+  _rawOrder?: unknown;
+}): OrderForReplace | null => {
+  // 优先使用原始订单对象
+  const source = (order._rawOrder as typeof order) ?? order;
+
+  // 验证 status 是有效的 OrderStatus
+  if (typeof source.status !== 'number') {
+    return null;
+  }
+
+  return {
+    status: source.status as OrderStatus,
+    executedQuantity: source.executedQuantity as Decimal | DecimalLikeValue | undefined,
+    quantity: source.quantity as Decimal | DecimalLikeValue | undefined,
+    orderId: typeof source.orderId === 'string' ? source.orderId : undefined,
+  };
 };
 
 /**

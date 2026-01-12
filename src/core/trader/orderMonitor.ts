@@ -12,8 +12,9 @@ import { OrderStatus, OrderSide, Decimal } from 'longport';
 import { logger } from '../../utils/logger/index.js';
 import { TRADING } from '../../constants/index.js';
 import { normalizeHKSymbol, decimalToNumber, isValidPositiveNumber } from '../../utils/helpers/index.js';
-import type { Quote, DecimalLikeValue, PendingOrder } from '../../types/index.js';
+import type { Quote, PendingOrder } from '../../types/index.js';
 import type { OrderMonitor, OrderMonitorDeps, OrderForReplace } from './types.js';
+import { toOrderForReplace } from './types.js';
 
 const toDecimal = (value: unknown): Decimal => {
   if (value instanceof Decimal) {
@@ -95,21 +96,23 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
     let originalOrder: OrderForReplace | null = null;
 
     // 如果提供了缓存的订单对象，使用缓存；否则查询API
-    if (cachedOrder?._rawOrder) {
-      // 优先使用 _rawOrder（原始订单对象）
-      originalOrder = cachedOrder._rawOrder as OrderForReplace;
-      logger.debug(`[订单修改] 使用缓存的原始订单对象，订单ID=${orderId}`);
-    } else if (cachedOrder) {
-      // 尝试直接使用 cachedOrder（PendingOrder 对象）
-      originalOrder = cachedOrder as unknown as OrderForReplace;
-      logger.debug(`[订单修改] 使用缓存的 PendingOrder 对象，订单ID=${orderId}`);
-    } else {
-      // 没有缓存,查询API
-      logger.debug(`[订单修改] 未提供缓存订单对象，查询API获取订单 ${orderId}`);
+    if (cachedOrder) {
+      // 使用类型安全的转换函数
+      originalOrder = toOrderForReplace(cachedOrder);
+      if (originalOrder) {
+        logger.debug(`[订单修改] 使用缓存订单对象，订单ID=${orderId}`);
+      }
+    }
+
+    if (!originalOrder) {
+      // 没有缓存或转换失败，查询API
+      logger.debug(`[订单修改] 未提供有效缓存订单对象，查询API获取订单 ${orderId}`);
       await rateLimiter.throttle();
       const allOrders = await ctx.todayOrders();
       const foundOrder = allOrders.find((o) => o.orderId === orderId);
-      originalOrder = foundOrder ? (foundOrder as unknown as OrderForReplace) : null;
+      if (foundOrder) {
+        originalOrder = toOrderForReplace(foundOrder);
+      }
     }
 
     if (!originalOrder) {
@@ -132,8 +135,8 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
     }
 
     // 计算剩余数量（原订单数量 - 已成交数量）
-    const executedQty = decimalToNumber((originalOrder as { executedQuantity?: DecimalLikeValue }).executedQuantity ?? 0);
-    const originalQty = decimalToNumber((originalOrder as { quantity?: DecimalLikeValue }).quantity ?? 0);
+    const executedQty = decimalToNumber(originalOrder.executedQuantity ?? 0);
+    const originalQty = decimalToNumber(originalOrder.quantity ?? 0);
     const remainingQty = originalQty - executedQty;
 
     // 构建修改订单的payload

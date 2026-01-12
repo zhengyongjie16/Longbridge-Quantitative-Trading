@@ -33,7 +33,6 @@ import { createConfig } from '../../config/config.index.js';
 import {
   normalizeHKSymbol,
   decimalToNumber,
-  isDefined,
 } from '../../utils/helpers/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { API } from '../../constants/index.js';
@@ -47,6 +46,7 @@ import type {
   TradingDayCacheDeps,
   MarketDataClientDeps,
 } from './types.js';
+import { extractLotSize, extractName } from './types.js';
 
 // 默认重试配置（使用统一常量）
 const DEFAULT_RETRY: RetryConfig = {
@@ -231,32 +231,16 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps = {}): P
         );
         return null;
       }
-      const name =
-        staticInfo?.nameHk ?? staticInfo?.nameCn ?? staticInfo?.nameEn ?? null;
-      // 从 staticInfo 中提取最小买卖单位（lotSize）
-      // LongPort API 的 staticInfo 应该包含 lotSize 字段
-      let lotSize: number | undefined = undefined;
-      if (staticInfo) {
-        // 尝试多种可能的字段名
-        const lotSizeValue =
-          (staticInfo as unknown as Record<string, unknown>)['lotSize'] ??
-          (staticInfo as unknown as Record<string, unknown>)['lot_size'] ??
-          (staticInfo as unknown as Record<string, unknown>)['lot'] ??
-          null;
-        if (isDefined(lotSizeValue)) {
-          const parsed = Number(lotSizeValue);
-          if (Number.isFinite(parsed) && parsed > 0) {
-            lotSize = parsed;
-          }
-        }
-      }
+      // 使用类型安全的提取函数
+      const name = extractName(staticInfo);
+      const lotSize = extractLotSize(staticInfo);
       const result: Quote = {
         symbol: quote.symbol,
         name,
         price: decimalToNumber(quote.lastDone),
         prevClose: decimalToNumber(quote.prevClose),
         timestamp: quote.timestamp.getTime(),
-        ...(Number.isFinite(lotSize) && lotSize !== undefined && lotSize > 0 ? { lotSize } : {}),
+        ...(lotSize !== undefined ? { lotSize } : {}),
         raw: quote,
         staticInfo,
       };

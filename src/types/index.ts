@@ -140,14 +140,21 @@ export type TradingDayInfo = {
 // ==================== 数据接口 ====================
 
 /**
+ * K线数据值类型 - 支持 longport SDK 的 Decimal 类型或原始数值
+ * 使用此类型代替 unknown，提供更明确的类型信息
+ */
+export type CandleValue = number | string | { toString(): string } | null | undefined;
+
+/**
  * K线数据接口 - 支持 longport SDK 的 Decimal 类型
+ * 字段使用 CandleValue 类型，兼容 Decimal 对象和原始数值
  */
 export interface CandleData {
-  high?: unknown;
-  low?: unknown;
-  close?: unknown;
-  open?: unknown;
-  volume?: unknown;
+  readonly high?: CandleValue;
+  readonly low?: CandleValue;
+  readonly close?: CandleValue;
+  readonly open?: CandleValue;
+  readonly volume?: CandleValue;
 }
 
 /**

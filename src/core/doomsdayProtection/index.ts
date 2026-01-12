@@ -18,9 +18,120 @@ import { logger } from '../../utils/logger/index.js';
 import { normalizeHKSymbol } from '../../utils/helpers/index.js';
 import { batchGetQuotes } from '../../utils/helpers/quoteHelpers.js';
 import { isBeforeClose15Minutes, isBeforeClose5Minutes } from '../../utils/helpers/tradingTime.js';
-import { signalObjectPool } from '../../utils/objectPool/index.js';
-import type { Position, Quote, Signal } from '../../types/index.js';
+import type { Position, Quote, Signal, SignalType } from '../../types/index.js';
 import type { DoomsdayProtection, DoomsdayClearanceContext, DoomsdayClearanceResult } from './types.js';
+
+/**
+ * 清仓信号创建参数
+ */
+type ClearanceSignalParams = {
+  readonly normalizedSymbol: string;
+  readonly symbolName: string | null;
+  readonly action: SignalType;
+  readonly price: number | null;
+  readonly lotSize: number | null;
+  readonly positionType: string;
+};
+
+/**
+ * 创建单个清仓信号
+ * @param params 信号参数
+ * @returns Signal 对象，如果创建失败则返回 null
+ */
+const createClearanceSignal = (params: ClearanceSignalParams): Signal | null => {
+  const { normalizedSymbol, symbolName, action, price, lotSize, positionType } = params;
+
+  // 直接构建 Signal 对象，避免对象池类型转换问题
+  const signal: Signal = {
+    symbol: normalizedSymbol,
+    symbolName: symbolName,
+    action: action,
+    reason: `末日保护程序：收盘前5分钟自动清仓（${positionType}持仓）`,
+    price: price,
+    lotSize: lotSize,
+    signalTriggerTime: new Date(),
+  };
+
+  return signal;
+};
+
+/**
+ * 处理单个持仓生成清仓信号的核心逻辑
+ * @param pos 持仓
+ * @param normalizedLongSymbol 规范化的做多标的代码
+ * @param normalizedShortSymbol 规范化的做空标的代码
+ * @param longQuote 做多标的行情
+ * @param shortQuote 做空标的行情
+ * @returns 清仓信号，如果该持仓不需要清仓则返回 null
+ */
+const processPositionForClearance = (
+  pos: Position,
+  normalizedLongSymbol: string,
+  normalizedShortSymbol: string,
+  longQuote: Quote | null,
+  shortQuote: Quote | null,
+): Signal | null => {
+  // 验证持仓对象有效性
+  if (!pos?.symbol || typeof pos.symbol !== 'string') {
+    return null;
+  }
+
+  const availableQty = Number(pos.availableQuantity) || 0;
+  if (!Number.isFinite(availableQty) || availableQty <= 0) {
+    return null;
+  }
+
+  const normalizedPosSymbol = normalizeHKSymbol(pos.symbol);
+
+  // 只处理属于当前监控配置的持仓
+  if (normalizedPosSymbol !== normalizedLongSymbol && normalizedPosSymbol !== normalizedShortSymbol) {
+    return null;
+  }
+
+  const isShortPos = normalizedPosSymbol === normalizedShortSymbol;
+
+  // 获取该标的的当前价格、最小买卖单位和名称
+  let currentPrice: number | null = null;
+  let lotSize: number | null = null;
+  let symbolName: string | null = pos.symbolName || null;
+
+  if (normalizedPosSymbol === normalizedLongSymbol && longQuote) {
+    currentPrice = longQuote.price;
+    lotSize = longQuote.lotSize ?? null;
+    if (!symbolName) {
+      symbolName = longQuote.name;
+    }
+  } else if (normalizedPosSymbol === normalizedShortSymbol && shortQuote) {
+    currentPrice = shortQuote.price;
+    lotSize = shortQuote.lotSize ?? null;
+    if (!symbolName) {
+      symbolName = shortQuote.name;
+    }
+  }
+
+  // 收盘前清仓逻辑：
+  // - 做多标的持仓：使用 SELLCALL 信号 → OrderSide.Sell（卖出做多标的，清仓）
+  // - 做空标的持仓：使用 SELLPUT 信号 → OrderSide.Sell（卖出做空标的，平空仓）
+  const action: SignalType = isShortPos ? 'SELLPUT' : 'SELLCALL';
+  const positionType = isShortPos ? '做空标的' : '做多标的';
+
+  const signal = createClearanceSignal({
+    normalizedSymbol: normalizedPosSymbol,
+    symbolName,
+    action,
+    price: currentPrice,
+    lotSize,
+    positionType,
+  });
+
+  if (signal) {
+    logger.info(
+      `[末日保护程序] 生成清仓信号：${positionType} ${pos.symbol} 数量=${availableQty} 操作=${action}`,
+    );
+  }
+
+  return signal;
+};
 
 /**
  * 创建末日保护程序
@@ -61,61 +172,17 @@ export const createDoomsdayProtection = (): DoomsdayProtection => {
       }
 
       for (const pos of positions) {
-        // 验证持仓对象有效性
-        if (!pos?.symbol || typeof pos.symbol !== 'string') {
-          continue; // 跳过无效持仓
-        }
-
-        const availableQty = Number(pos.availableQuantity) || 0;
-        if (!Number.isFinite(availableQty) || availableQty <= 0) {
-          continue; // 跳过无效或零持仓
-        }
-
-        const normalizedPosSymbol = normalizeHKSymbol(pos.symbol);
-        const isShortPos = normalizedPosSymbol === normalizedShortSymbol;
-
-        // 获取该标的的当前价格、最小买卖单位和名称
-        let currentPrice: number | null = null;
-        let lotSize: number | null = null;
-        let symbolName: string | null = pos.symbolName || null; // 优先使用持仓中的名称
-        if (normalizedPosSymbol === normalizedLongSymbol && longQuote) {
-          currentPrice = longQuote.price;
-          lotSize = longQuote.lotSize ?? null;
-          if (!symbolName) {
-            symbolName = longQuote.name;
-          }
-        } else if (
-          normalizedPosSymbol === normalizedShortSymbol &&
-          shortQuote
-        ) {
-          currentPrice = shortQuote.price;
-          lotSize = shortQuote.lotSize ?? null;
-          if (!symbolName) {
-            symbolName = shortQuote.name;
-          }
-        }
-
-        // 收盘前清仓逻辑：
-        // - 做多标的持仓：使用 SELLCALL 信号 → OrderSide.Sell（卖出做多标的，清仓）
-        // - 做空标的持仓：使用 SELLPUT 信号 → OrderSide.Sell（卖出做空标的，平空仓）
-        const action = isShortPos ? 'SELLPUT' : 'SELLCALL';
-        const positionType = isShortPos ? '做空标的' : '做多标的';
-
-        // 从对象池获取信号对象
-        const signal = signalObjectPool.acquire() as Signal;
-        signal.symbol = normalizedPosSymbol;
-        signal.symbolName = symbolName;
-        signal.action = action;
-        signal.price = currentPrice;
-        signal.lotSize = lotSize;
-        signal.reason = `末日保护程序：收盘前5分钟自动清仓（${positionType}持仓）`;
-        signal.signalTriggerTime = new Date();
-
-        clearSignals.push(signal);
-
-        logger.info(
-          `[末日保护程序] 生成清仓信号：${positionType} ${pos.symbol} 数量=${availableQty} 操作=${action}`,
+        const signal = processPositionForClearance(
+          pos,
+          normalizedLongSymbol,
+          normalizedShortSymbol,
+          longQuote,
+          shortQuote,
         );
+
+        if (signal) {
+          clearSignals.push(signal);
+        }
       }
 
       if (clearSignals.length > 0) {
@@ -171,68 +238,22 @@ export const createDoomsdayProtection = (): DoomsdayProtection => {
       for (const monitorConfig of monitorConfigs) {
         const longQuote = quoteMap.get(monitorConfig.longSymbol) ?? null;
         const shortQuote = quoteMap.get(monitorConfig.shortSymbol) ?? null;
-
-        // 使用内部的 generateClearanceSignals 方法
         const normalizedLongSymbol = normalizeHKSymbol(monitorConfig.longSymbol);
         const normalizedShortSymbol = normalizeHKSymbol(monitorConfig.shortSymbol);
 
-        const closeTimeRange = isHalfDay ? '11:55-11:59' : '15:55-15:59';
-        logger.info(
-          `[末日保护程序] 收盘前5分钟（${closeTimeRange}），准备清空所有持仓`,
-        );
-
+        // 复用 processPositionForClearance 处理每个持仓
         for (const pos of positions) {
-          if (!pos?.symbol || typeof pos.symbol !== 'string') {
-            continue;
-          }
-
-          const availableQty = Number(pos.availableQuantity) || 0;
-          if (!Number.isFinite(availableQty) || availableQty <= 0) {
-            continue;
-          }
-
-          const normalizedPosSymbol = normalizeHKSymbol(pos.symbol);
-          const isShortPos = normalizedPosSymbol === normalizedShortSymbol;
-
-          let currentPrice: number | null = null;
-          let lotSize: number | null = null;
-          let symbolName: string | null = pos.symbolName || null;
-          if (normalizedPosSymbol === normalizedLongSymbol && longQuote) {
-            currentPrice = longQuote.price;
-            lotSize = longQuote.lotSize ?? null;
-            if (!symbolName) {
-              symbolName = longQuote.name;
-            }
-          } else if (normalizedPosSymbol === normalizedShortSymbol && shortQuote) {
-            currentPrice = shortQuote.price;
-            lotSize = shortQuote.lotSize ?? null;
-            if (!symbolName) {
-              symbolName = shortQuote.name;
-            }
-          }
-
-          // 只处理属于当前监控配置的持仓
-          if (normalizedPosSymbol !== normalizedLongSymbol && normalizedPosSymbol !== normalizedShortSymbol) {
-            continue;
-          }
-
-          const action = isShortPos ? 'SELLPUT' : 'SELLCALL';
-          const positionType = isShortPos ? '做空标的' : '做多标的';
-
-          const signal = signalObjectPool.acquire() as Signal;
-          signal.symbol = normalizedPosSymbol;
-          signal.symbolName = symbolName;
-          signal.action = action;
-          signal.price = currentPrice;
-          signal.lotSize = lotSize;
-          signal.reason = `末日保护程序：收盘前5分钟自动清仓（${positionType}持仓）`;
-          signal.signalTriggerTime = new Date();
-
-          allClearanceSignals.push(signal);
-
-          logger.info(
-            `[末日保护程序] 生成清仓信号：${positionType} ${pos.symbol} 数量=${availableQty} 操作=${action}`,
+          const signal = processPositionForClearance(
+            pos,
+            normalizedLongSymbol,
+            normalizedShortSymbol,
+            longQuote,
+            shortQuote,
           );
+
+          if (signal) {
+            allClearanceSignals.push(signal);
+          }
         }
       }
 
@@ -245,14 +266,6 @@ export const createDoomsdayProtection = (): DoomsdayProtection => {
         }
       }
       const uniqueClearanceSignals = Array.from(uniqueSignalsMap.values());
-
-      // 释放被去重掉的信号对象
-      for (const signal of allClearanceSignals) {
-        const key = `${signal.action}_${signal.symbol}`;
-        if (uniqueSignalsMap.get(key) !== signal) {
-          signalObjectPool.release(signal);
-        }
-      }
 
       if (uniqueClearanceSignals.length === 0) {
         return { executed: false, signalCount: 0 };
@@ -278,9 +291,6 @@ export const createDoomsdayProtection = (): DoomsdayProtection => {
           orderRecorder.clearBuyOrders(config.shortSymbol, false, quote);
         }
       }
-
-      // 释放信号对象
-      signalObjectPool.releaseAll(uniqueClearanceSignals);
 
       return { executed: true, signalCount: uniqueClearanceSignals.length };
     },
