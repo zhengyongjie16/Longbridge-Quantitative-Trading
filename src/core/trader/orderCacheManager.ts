@@ -13,7 +13,7 @@ import { normalizeHKSymbol, decimalToNumber } from '../../utils/helpers/index.js
 import type { PendingOrder, DecimalLikeValue, OrderRecorder } from '../../types/index.js';
 import type { OrderCacheManager, OrderCacheManagerDeps } from './types.js';
 
-const PENDING_ORDERS_CACHE_TTL = 15000; // 15秒缓存
+const PENDING_ORDERS_CACHE_TTL = 30000; // 30秒缓存
 
 /**
  * 创建订单缓存管理器

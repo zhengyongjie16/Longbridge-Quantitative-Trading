@@ -25,6 +25,9 @@ const toDecimal = (value: unknown): Decimal => {
   return Decimal.ZERO();
 };
 
+// 首次检查延迟时间（毫秒），与缓存TTL保持一致
+const INITIAL_CHECK_DELAY_MS = 30000;
+
 /**
  * 创建订单监控器
  * @param deps 依赖注入
@@ -35,11 +38,17 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
 
   // 闭包捕获的私有状态
   let shouldMonitorBuyOrders = false;
+  // 记录监控启用的时间，用于计算首次检查延迟
+  let monitoringEnabledTime: number | null = null;
 
   /**
    * 启用买入订单监控
    */
   const enableMonitoring = (): void => {
+    // 仅在首次启用时记录时间
+    if (!shouldMonitorBuyOrders) {
+      monitoringEnabledTime = Date.now();
+    }
     shouldMonitorBuyOrders = true;
   };
 
@@ -174,6 +183,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
    * 实时监控价格并管理未成交的买入订单
    * 规则：
    * - 仅在发起买入交易后才开始监控
+   * - 买入后等待30秒再进行首次检查
    * - 只监控买入订单，卖出订单不监控
    * - 买入订单：如果当前价格低于委托价格，修改委托价格为当前价格
    * - 当所有买入订单成交后停止监控
@@ -185,6 +195,14 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
     // 如果不需要监控，直接返回
     if (!shouldMonitorBuyOrders) {
       return;
+    }
+
+    // 检查是否已过首次检查延迟时间
+    if (monitoringEnabledTime !== null) {
+      const elapsed = Date.now() - monitoringEnabledTime;
+      if (elapsed < INITIAL_CHECK_DELAY_MS) {
+        return;
+      }
     }
 
     if (quotesMap.size === 0) {
@@ -213,6 +231,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
     if (pendingBuyOrders.length === 0) {
       if (shouldMonitorBuyOrders) {
         shouldMonitorBuyOrders = false;
+        monitoringEnabledTime = null;
         logger.info(`[订单监控] 标的 ${targetSymbols.join(', ')} 的买入订单已全部成交，停止监控`);
       }
       return;
