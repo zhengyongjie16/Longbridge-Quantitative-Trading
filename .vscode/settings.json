@@ -41,9 +41,5 @@
     "javascript",
     "typescript",
     "javascriptreact"
-  ],
-  "sonarlint.connectedMode.project": {
-    "connectionId": "zhengyongjie16",
-    "projectKey": "longbridge-option-quant"
-  }
+  ]
 }

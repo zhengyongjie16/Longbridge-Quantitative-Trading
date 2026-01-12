@@ -440,6 +440,15 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
         } 数量=${orderPayload.submittedQuantity.toString()} 订单ID=${orderId}`,
       );
 
+      // 将实际使用的数量和价格回写到 Signal 对象，供后续 recordLocalBuy/recordLocalSell 使用
+      const submittedQuantityNum = decimalToNumber(orderPayload.submittedQuantity);
+      if (Number.isFinite(submittedQuantityNum) && submittedQuantityNum > 0) {
+        signal.quantity = submittedQuantityNum;
+      }
+      if (resolvedPrice && Number.isFinite(resolvedPrice) && resolvedPrice > 0) {
+        signal.price = resolvedPrice;
+      }
+
       updateLastBuyTime(signal.action, monitorConfig);
 
       recordTrade({

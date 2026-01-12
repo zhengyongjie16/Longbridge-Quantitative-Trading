@@ -415,8 +415,14 @@ export const createSignalVerificationManager = (
               actionDesc = '卖出做空';
             }
 
+            // 格式化标的显示：中文名称（代码）
+            const normalizedSymbol = normalizeHKSymbol(delayedSignal.symbol);
+            const symbolDisplay = delayedSignal.symbolName
+              ? `${delayedSignal.symbolName}(${normalizedSymbol})`
+              : normalizedSymbol;
+
             logger.info(
-              `[延迟验证信号] 新增待验证${actionDesc}信号：${delayedSignal.symbol} - ${delayedSignal.reason}`,
+              `[延迟验证信号] 新增待验证${actionDesc}信号：${symbolDisplay} - ${delayedSignal.reason}`,
             );
           } else {
             // 如果信号已存在，释放新的信号对象，避免内存泄漏

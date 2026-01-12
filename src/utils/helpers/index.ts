@@ -18,6 +18,7 @@ import type { Quote, SignalType } from '../../types/index.js';
 import { inspect } from 'node:util';
 import { TIME } from '../../constants/index.js';
 import type { DecimalLike, TimeFormatOptions, QuoteDisplayResult } from './types.js';
+import { logger } from '../logger/index.js';
 
 /**
  * 检查值是否已定义（不是 null 或 undefined）
@@ -412,5 +413,17 @@ export function formatError(err: unknown): string {
     // 限制深度和数组长度，避免输出过长
     return inspect(err, { depth: 5, maxArrayLength: 100 });
   }
+}
+
+/**
+ * 主程序循环间隔
+ */
+export async function sleep(ms: number): Promise<void> {
+  const delay = Number(ms);
+  if (!Number.isFinite(delay) || delay < 0) {
+    logger.warn(`[sleep] 无效的延迟时间 ${ms}，使用默认值 ${TIME.MILLISECONDS_PER_SECOND}ms`);
+    return new Promise((resolve) => setTimeout(resolve, TIME.MILLISECONDS_PER_SECOND));
+  }
+  return new Promise((resolve) => setTimeout(resolve, delay));
 }
 

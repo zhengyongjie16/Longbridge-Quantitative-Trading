@@ -42,6 +42,7 @@ import {
   isSellAction,
   formatError,
   formatSignalLog,
+  sleep,
 } from './utils/helpers/index.js';
 import { extractRSIPeriods } from './utils/helpers/signalConfigParser.js';
 import { validateEmaPeriod } from './utils/helpers/indicatorHelpers.js';
@@ -50,7 +51,6 @@ import {
   VALID_SIGNAL_ACTIONS,
   SIGNAL_TARGET_ACTIONS,
   TRADING,
-  TIME,
 } from './constants/index.js';
 
 // 导入新模块
@@ -191,13 +191,6 @@ function releaseAllMonitorSnapshots(monitorStates: Map<string, MonitorState>): v
   }
 }
 
-
-// K线和循环配置常量（从 constants/index.ts 导入）
-const CANDLE_PERIOD = TRADING.CANDLE_PERIOD;
-const CANDLE_COUNT = TRADING.CANDLE_COUNT;
-const INTERVAL_MS = TRADING.INTERVAL_MS;
-const MILLISECONDS_PER_SECOND = TIME.MILLISECONDS_PER_SECOND;
-
 /**
  * 从持仓数组中获取指定标的的持仓
  */
@@ -323,7 +316,7 @@ async function processMonitor(
 
   // 2. 获取K线和计算指标
   const monitorCandles = await marketDataClient
-    .getCandlesticks(MONITOR_SYMBOL, CANDLE_PERIOD, CANDLE_COUNT)
+    .getCandlesticks(MONITOR_SYMBOL, TRADING.CANDLE_PERIOD, TRADING.CANDLE_COUNT)
     .catch(() => null);
 
   if (!monitorCandles || monitorCandles.length === 0) {
@@ -764,15 +757,6 @@ async function runOnce({
   }
 }
 
-async function sleep(ms: number): Promise<void> {
-  const delay = Number(ms);
-  if (!Number.isFinite(delay) || delay < 0) {
-    logger.warn(`[sleep] 无效的延迟时间 ${ms}，使用默认值 ${MILLISECONDS_PER_SECOND}ms`);
-    return new Promise((resolve) => setTimeout(resolve, MILLISECONDS_PER_SECOND));
-  }
-  return new Promise((resolve) => setTimeout(resolve, delay));
-}
-
 /**
  * 创建监控标的上下文
  */
@@ -1034,7 +1018,7 @@ async function main(): Promise<void> {
       logger.error('本次执行失败', formatError(err));
     }
 
-    await sleep(INTERVAL_MS);
+    await sleep(TRADING.INTERVAL_MS);
   }
 }
 
