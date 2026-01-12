@@ -38,19 +38,22 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
   const { ctxPromise, rateLimiter, cacheManager } = deps;
 
   // 闭包捕获的私有状态
-  let shouldMonitorBuyOrders = false;
-  // 记录监控启用的时间，用于计算首次检查延迟
-  let monitoringEnabledTime: number | null = null;
+  // 需要监控的标的集合（标准化后的标的代码）
+  const monitoringSymbols = new Set<string>();
+  // 记录每个标的的监控启用时间，用于计算首次检查延迟
+  const monitoringEnabledTimeMap = new Map<string, number>();
 
   /**
-   * 启用买入订单监控
+   * 启用指定标的的买入订单监控
+   * @param symbol 需要监控的标的代码
    */
-  const enableMonitoring = (): void => {
-    // 仅在首次启用时记录时间
-    if (!shouldMonitorBuyOrders) {
-      monitoringEnabledTime = Date.now();
+  const enableMonitoring = (symbol: string): void => {
+    const normalizedSymbol = normalizeHKSymbol(symbol);
+    // 仅在该标的首次启用监控时记录时间
+    if (!monitoringSymbols.has(normalizedSymbol)) {
+      monitoringEnabledTimeMap.set(normalizedSymbol, Date.now());
     }
-    shouldMonitorBuyOrders = true;
+    monitoringSymbols.add(normalizedSymbol);
   };
 
   /**
@@ -195,34 +198,51 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
   const monitorAndManageOrders = async (
     quotesMap: ReadonlyMap<string, Quote | null>,
   ): Promise<void> => {
-    // 如果不需要监控，直接返回
-    if (!shouldMonitorBuyOrders) {
+    // 如果没有需要监控的标的，直接返回
+    if (monitoringSymbols.size === 0) {
       return;
-    }
-
-    // 检查是否已过首次检查延迟时间
-    if (monitoringEnabledTime !== null) {
-      const elapsed = Date.now() - monitoringEnabledTime;
-      if (elapsed < INITIAL_CHECK_DELAY_MS) {
-        return;
-      }
     }
 
     if (quotesMap.size === 0) {
       return;
     }
 
-    // 获取所有需要监控的标的（标准化后的标的代码）
+    // 筛选出需要监控且已过首次检查延迟时间的标的
+    const now = Date.now();
+    const activeSymbols: string[] = [];
+    for (const symbol of monitoringSymbols) {
+      const enabledTime = monitoringEnabledTimeMap.get(symbol);
+      if (enabledTime !== undefined) {
+        const elapsed = now - enabledTime;
+        if (elapsed >= INITIAL_CHECK_DELAY_MS) {
+          activeSymbols.push(symbol);
+        }
+      }
+    }
+
+    // 如果没有已激活的监控标的（都还在等待延迟），直接返回
+    if (activeSymbols.length === 0) {
+      return;
+    }
+
+    // 从行情数据中获取需要监控的标的的行情
     const normalizedQuotesMap = new Map<string, Quote | null>();
     for (const [symbol, quote] of quotesMap.entries()) {
-      if (quote) {
-        normalizedQuotesMap.set(normalizeHKSymbol(symbol), quote);
+      const normalizedSymbol = normalizeHKSymbol(symbol);
+      // 只保留需要监控的标的的行情
+      if (quote && activeSymbols.includes(normalizedSymbol)) {
+        normalizedQuotesMap.set(normalizedSymbol, quote);
       }
+    }
+
+    // 如果没有需要监控的标的的行情数据，直接返回
+    if (normalizedQuotesMap.size === 0) {
+      return;
     }
 
     const targetSymbols = Array.from(normalizedQuotesMap.keys());
 
-    // 获取所有标的的未成交订单（实时获取，不使用缓存）
+    // 仅获取需要监控的标的的未成交订单（而非所有标的）
     const pendingOrders = await cacheManager.getPendingOrders(targetSymbols);
 
     // 过滤出买入订单
@@ -230,18 +250,32 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
       (order) => order.side === OrderSide.Buy,
     );
 
-    // 如果没有买入订单，停止监控
-    if (pendingBuyOrders.length === 0) {
-      if (shouldMonitorBuyOrders) {
-        shouldMonitorBuyOrders = false;
-        monitoringEnabledTime = null;
-        logger.info(`[订单监控] 标的 ${targetSymbols.join(', ')} 的买入订单已全部成交，停止监控`);
+    // 找出哪些标的有未成交买入订单
+    const symbolsWithPendingBuyOrders = new Set<string>();
+    for (const order of pendingBuyOrders) {
+      symbolsWithPendingBuyOrders.add(normalizeHKSymbol(order.symbol));
+    }
+
+    // 清除已经没有未成交买入订单的标的（精确清除，而非全部清除）
+    const symbolsToRemove: string[] = [];
+    for (const symbol of targetSymbols) {
+      if (!symbolsWithPendingBuyOrders.has(symbol)) {
+        symbolsToRemove.push(symbol);
+        monitoringSymbols.delete(symbol);
+        monitoringEnabledTimeMap.delete(symbol);
       }
+    }
+    if (symbolsToRemove.length > 0) {
+      logger.info(`[订单监控] 标的 ${symbolsToRemove.join(', ')} 的买入订单已全部成交，停止监控`);
+    }
+
+    // 如果没有买入订单需要监控，直接返回
+    if (pendingBuyOrders.length === 0) {
       return;
     }
 
     logger.debug(
-      `[订单监控] 发现标的 ${targetSymbols.join(', ')} 的 ${pendingBuyOrders.length} 个未成交买入订单，开始检查价格...`,
+      `[订单监控] 发现标的 ${Array.from(symbolsWithPendingBuyOrders).join(', ')} 的 ${pendingBuyOrders.length} 个未成交买入订单，开始检查价格...`,
     );
 
     for (const order of pendingBuyOrders) {

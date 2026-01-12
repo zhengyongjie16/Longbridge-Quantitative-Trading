@@ -639,10 +639,10 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
 
       await submitTargetOrder(ctx, s, targetSymbol, isShortSymbol, monitorConfig);
 
-      // 如果发起了买入交易，启用监控
+      // 如果发起了买入交易，启用对该标的的监控
       if (isBuyAction(s.action)) {
-        orderMonitor.enableMonitoring();
-        logger.info('[订单监控] 已发起买入交易，开始监控买入订单');
+        orderMonitor.enableMonitoring(targetSymbol);
+        logger.info(`[订单监控] 已发起买入交易，开始监控 ${targetSymbol} 的买入订单`);
       }
     }
   };

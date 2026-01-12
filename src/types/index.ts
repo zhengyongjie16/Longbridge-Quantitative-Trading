@@ -446,7 +446,7 @@ export interface Trader {
   hasPendingBuyOrders(symbols: string[], orderRecorder?: OrderRecorder | null): Promise<boolean>;
 
   // 订单监控相关方法
-  enableBuyOrderMonitoring(): void;
+  enableBuyOrderMonitoring(symbol: string): void;
   cancelOrder(orderId: string): Promise<boolean>;
   replaceOrderPrice(orderId: string, newPrice: number, quantity?: number | null, cachedOrder?: PendingOrder | null): Promise<void>;
   monitorAndManageOrders(quotesMap: ReadonlyMap<string, Quote | null>): Promise<void>;

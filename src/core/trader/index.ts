@@ -89,8 +89,8 @@ export const createTrader = async (deps: TraderDeps = {}): Promise<Trader> => {
 
     // ==================== 订单监控相关方法 ====================
 
-    enableBuyOrderMonitoring(): void {
-      orderMonitor.enableMonitoring();
+    enableBuyOrderMonitoring(symbol: string): void {
+      orderMonitor.enableMonitoring(symbol);
     },
 
     cancelOrder(orderId: string): Promise<boolean> {

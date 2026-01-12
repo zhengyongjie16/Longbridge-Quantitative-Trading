@@ -129,7 +129,7 @@ export interface OrderCacheManager {
  * 订单监控器接口
  */
 export interface OrderMonitor {
-  enableMonitoring(): void;
+  enableMonitoring(symbol: string): void;
   cancelOrder(orderId: string): Promise<boolean>;
   replaceOrderPrice(orderId: string, newPrice: number, quantity?: number | null, cachedOrder?: PendingOrder | null): Promise<void>;
   monitorAndManageOrders(quotesMap: ReadonlyMap<string, Quote | null>): Promise<void>;

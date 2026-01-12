@@ -52,6 +52,7 @@ import {
   SIGNAL_TARGET_ACTIONS,
   TRADING,
 } from './constants/index.js';
+import { OrderSide } from 'longport';
 
 // 导入新模块
 import { isInContinuousHKSession } from './utils/helpers/tradingTime.js';
@@ -959,7 +960,8 @@ async function main(): Promise<void> {
 
   // 程序启动时检查一次是否有买入的未成交订单（每个 orderRecorder 检查自己负责的标的）
   try {
-    let hasAnyPendingBuyOrders = false;
+    // 使用 Set 去重，避免同一标的被多次监控
+    const pendingBuySymbolsSet = new Set<string>();
 
     for (const monitorContext of monitorContexts.values()) {
       const { config, orderRecorder } = monitorContext;
@@ -967,18 +969,25 @@ async function main(): Promise<void> {
         .filter(Boolean)
         .map((s) => normalizeHKSymbol(s));
 
-      if (symbols.length > 0) {
-        const hasPending = await trader.hasPendingBuyOrders(symbols, orderRecorder);
-        if (hasPending) {
-          hasAnyPendingBuyOrders = true;
-          break; // 找到一个就够了
+      if (symbols.length > 0 && orderRecorder.hasCacheForSymbols(symbols)) {
+        // 从缓存获取未成交订单，精确找出哪个标的有未成交买入订单
+        const pendingOrders = orderRecorder.getPendingOrdersFromCache(symbols);
+        for (const order of pendingOrders) {
+          if (order.side === OrderSide.Buy) {
+            const normalizedSymbol = normalizeHKSymbol(order.symbol);
+            pendingBuySymbolsSet.add(normalizedSymbol);
+          }
         }
       }
     }
 
-    if (hasAnyPendingBuyOrders) {
-      trader.enableBuyOrderMonitoring();
-      logger.info('[订单监控] 程序启动时发现买入订单，开始监控');
+    // 为每个有未成交买入订单的标的启用监控
+    if (pendingBuySymbolsSet.size > 0) {
+      for (const symbol of pendingBuySymbolsSet) {
+        trader.enableBuyOrderMonitoring(symbol);
+      }
+      const symbolsList = Array.from(pendingBuySymbolsSet).join(', ');
+      logger.info(`[订单监控] 程序启动时发现买入订单，开始监控标的: ${symbolsList}`);
     }
   } catch (err) {
     logger.warn(
