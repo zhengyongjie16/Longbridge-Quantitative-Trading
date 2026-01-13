@@ -53,22 +53,14 @@ function getRegionUrls(region: string | undefined): RegionUrls {
  * 支持的区域配置：
  * - LONGPORT_REGION=cn：中国大陆区域（使用 .cn 域名）
  * - LONGPORT_REGION=hk：香港及其他地区（默认，使用 .com 域名）
+ *
  */
 export function createConfig(): Config {
-  const appKey = process.env['LONGPORT_APP_KEY'];
-  const appSecret = process.env['LONGPORT_APP_SECRET'];
-  const accessToken = process.env['LONGPORT_ACCESS_TOKEN'];
-
-  // 验证必需的凭证（fail-fast原则）
-  if (!appKey || appKey.trim() === '') {
-    throw new Error('LONGPORT_APP_KEY is required but not set in environment variables');
-  }
-  if (!appSecret || appSecret.trim() === '') {
-    throw new Error('LONGPORT_APP_SECRET is required but not set in environment variables');
-  }
-  if (!accessToken || accessToken.trim() === '') {
-    throw new Error('LONGPORT_ACCESS_TOKEN is required but not set in environment variables');
-  }
+  // 配置验证已在 config.validator.ts 的 validateAllConfig() 中统一处理
+  // 此处使用非空断言，因为调用前已完成验证
+  const appKey = process.env['LONGPORT_APP_KEY'] ?? '';
+  const appSecret = process.env['LONGPORT_APP_SECRET'] ?? '';
+  const accessToken = process.env['LONGPORT_ACCESS_TOKEN'] ?? '';
 
   const region = process.env['LONGPORT_REGION'] || 'hk';
   const urls = getRegionUrls(region);
