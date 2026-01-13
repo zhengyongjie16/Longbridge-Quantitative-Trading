@@ -14,12 +14,13 @@
  * - DOOMSDAY_PROTECTION 环境变量（默认 true）
  */
 
+import { OrderSide } from 'longport';
 import { logger } from '../../utils/logger/index.js';
 import { normalizeHKSymbol } from '../../utils/helpers/index.js';
 import { batchGetQuotes } from '../../utils/helpers/quoteHelpers.js';
 import { isBeforeClose15Minutes, isBeforeClose5Minutes } from '../../utils/helpers/tradingTime.js';
 import type { Position, Quote, Signal, SignalType } from '../../types/index.js';
-import type { DoomsdayProtection, DoomsdayClearanceContext, DoomsdayClearanceResult } from './types.js';
+import type { DoomsdayProtection, DoomsdayClearanceContext, DoomsdayClearanceResult, CancelPendingBuyOrdersContext, CancelPendingBuyOrdersResult } from './types.js';
 
 /**
  * 清仓信号创建参数
@@ -293,6 +294,83 @@ export const createDoomsdayProtection = (): DoomsdayProtection => {
       }
 
       return { executed: true, signalCount: uniqueClearanceSignals.length };
+    },
+
+    cancelPendingBuyOrders: async (
+      context: CancelPendingBuyOrdersContext,
+    ): Promise<CancelPendingBuyOrdersResult> => {
+      const {
+        currentTime,
+        isHalfDay,
+        monitorConfigs,
+        trader,
+      } = context;
+
+      // 检查是否在收盘前15分钟内
+      if (!isBeforeClose15Minutes(currentTime, isHalfDay)) {
+        return { executed: false, cancelledCount: 0 };
+      }
+
+      // 收集所有唯一的交易标的
+      const allTradingSymbols = new Set<string>();
+      for (const monitorConfig of monitorConfigs) {
+        if (monitorConfig.longSymbol) {
+          allTradingSymbols.add(normalizeHKSymbol(monitorConfig.longSymbol));
+        }
+        if (monitorConfig.shortSymbol) {
+          allTradingSymbols.add(normalizeHKSymbol(monitorConfig.shortSymbol));
+        }
+      }
+
+      if (allTradingSymbols.size === 0) {
+        return { executed: false, cancelledCount: 0 };
+      }
+
+      const symbolsArray = Array.from(allTradingSymbols);
+
+      // 获取所有标的的未成交订单（强制刷新，确保获取最新数据）
+      const pendingOrders = await trader.getPendingOrders(symbolsArray, true);
+
+      // 过滤出买入订单
+      const pendingBuyOrders = pendingOrders.filter(
+        (order) => order.side === OrderSide.Buy,
+      );
+
+      if (pendingBuyOrders.length === 0) {
+        return { executed: false, cancelledCount: 0 };
+      }
+
+      const closeTimeRange = isHalfDay ? '11:45-12:00' : '15:45-16:00';
+      logger.info(
+        `[末日保护程序] 收盘前15分钟（${closeTimeRange}），发现 ${pendingBuyOrders.length} 个未成交买入订单，准备撤单`,
+      );
+
+      // 撤销所有买入订单
+      let cancelledCount = 0;
+      for (const order of pendingBuyOrders) {
+        try {
+          const success = await trader.cancelOrder(order.orderId);
+          if (success) {
+            cancelledCount++;
+            logger.info(
+              `[末日保护程序] 撤销买入订单成功：${order.symbol} 订单ID=${order.orderId} 数量=${order.quantity} 价格=${order.submittedPrice.toFixed(3)}`,
+            );
+          }
+        } catch (err) {
+          logger.warn(
+            `[末日保护程序] 撤销买入订单失败：${order.symbol} 订单ID=${order.orderId}`,
+            (err as Error)?.message ?? String(err),
+          );
+        }
+      }
+
+      if (cancelledCount > 0) {
+        logger.info(
+          `[末日保护程序] 已撤销 ${cancelledCount}/${pendingBuyOrders.length} 个买入订单`,
+        );
+      }
+
+      return { executed: true, cancelledCount };
     },
   };
 };

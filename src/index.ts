@@ -708,8 +708,21 @@ async function runOnce({
     return;
   }
 
-  // 2. 检查末日保护（全局性，在所有监控标的处理之前）
+  // 末日保护检查（全局性，在所有监控标的处理之前）
   if (MULTI_MONITOR_TRADING_CONFIG.global.doomsdayProtection) {
+    // 收盘前15分钟：撤销所有未成交的买入订单
+    const cancelResult = await doomsdayProtection.cancelPendingBuyOrders({
+      currentTime,
+      isHalfDay: isHalfDayToday,
+      monitorConfigs: MULTI_MONITOR_TRADING_CONFIG.monitors,
+      trader,
+    });
+
+    if (cancelResult.executed && cancelResult.cancelledCount > 0) {
+      logger.info(`[末日保护程序] 收盘前15分钟撤单完成，共撤销 ${cancelResult.cancelledCount} 个买入订单`);
+    }
+
+    // 收盘前5分钟：自动清仓所有持仓
     const clearanceResult = await doomsdayProtection.executeClearance({
       currentTime,
       isHalfDay: isHalfDayToday,
@@ -728,7 +741,7 @@ async function runOnce({
     }
   }
 
-  // 3. 并发处理所有监控标的
+  // 并发处理所有监控标的
   const monitorTasks = Array.from(monitorContexts.entries()).map(
     ([monitorSymbol, monitorContext]) =>
       processMonitor(monitorSymbol, {
@@ -749,7 +762,7 @@ async function runOnce({
 
   await Promise.allSettled(monitorTasks);
 
-  // 4. 全局操作：订单监控（在所有监控标的处理完成后）
+  // 全局操作：订单监控（在所有监控标的处理完成后）
   const allTradingSymbols = new Set<string>();
   for (const monitorConfig of MULTI_MONITOR_TRADING_CONFIG.monitors) {
     if (monitorConfig.longSymbol) {

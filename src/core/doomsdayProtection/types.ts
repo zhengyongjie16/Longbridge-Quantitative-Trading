@@ -28,9 +28,28 @@ export type DoomsdayClearanceResult = {
 };
 
 /**
+ * 撤销买入订单上下文
+ */
+export type CancelPendingBuyOrdersContext = {
+  readonly currentTime: Date;
+  readonly isHalfDay: boolean;
+  readonly monitorConfigs: ReadonlyArray<MonitorConfig>;
+  readonly trader: Trader;
+};
+
+/**
+ * 撤销买入订单结果
+ */
+export type CancelPendingBuyOrdersResult = {
+  readonly executed: boolean;
+  readonly cancelledCount: number;
+};
+
+/**
  * 末日保护程序接口
  * 在收盘前执行保护性操作：
  * - 收盘前15分钟拒绝买入
+ * - 收盘前15分钟撤销所有未成交的买入订单
  * - 收盘前5分钟自动清仓
  */
 export interface DoomsdayProtection {
@@ -76,4 +95,11 @@ export interface DoomsdayProtection {
    * @returns 执行结果
    */
   executeClearance(context: DoomsdayClearanceContext): Promise<DoomsdayClearanceResult>;
+
+  /**
+   * 撤销所有未成交的买入订单（收盘前15分钟）
+   * @param context 撤单上下文
+   * @returns 撤单结果
+   */
+  cancelPendingBuyOrders(context: CancelPendingBuyOrdersContext): Promise<CancelPendingBuyOrdersResult>;
 }
