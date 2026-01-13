@@ -461,10 +461,8 @@ async function processMonitor(
         shortSymbolName,
         account,
         positions,
-        lastState: {
-          cachedAccount: account,
-          cachedPositions: positions,
-        },
+        // 使用 globalState 引用，确保在 applyRiskChecks 中获取的新持仓数据能同步回全局状态
+        lastState: globalState,
         currentTime,
         isHalfDay: context.isHalfDay,
         doomsdayProtection: context.doomsdayProtection,
@@ -529,6 +527,21 @@ async function processMonitor(
 
       if (signalsToExecute.length > 0) {
         await trader.executeSignals(signalsToExecute);
+
+        // 交易执行后刷新持仓缓存，确保下次循环能获取最新持仓
+        // 这对于买入后的卖出信号处理尤为重要
+        const hasBuySignal = signalsToExecute.some((sig) => isBuyAction(sig.action));
+        if (hasBuySignal) {
+          try {
+            const freshPositions = await trader.getStockPositions();
+            if (Array.isArray(freshPositions)) {
+              globalState.cachedPositions = freshPositions;
+              logger.debug(`[持仓缓存] 买入执行后刷新持仓缓存，当前持仓数量: ${freshPositions.length}`);
+            }
+          } catch (err) {
+            logger.warn('[持仓缓存] 买入执行后刷新持仓缓存失败', formatError(err));
+          }
+        }
       } else {
         logger.info('所有卖出信号因成本价判断被跳过，无交易执行');
       }
