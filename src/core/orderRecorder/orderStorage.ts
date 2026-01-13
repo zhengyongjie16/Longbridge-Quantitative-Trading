@@ -5,6 +5,10 @@
  * - 管理本地订单列表的增删改查
  * - 提供订单查询功能
  * - 纯内存操作，无异步方法
+ *
+ * 优化：
+ * - 使用 Map<symbol, OrderRecord[]> 提供 O(1) 查找性能
+ * - 避免每次查询都遍历整个数组
  */
 
 import { logger } from '../../utils/logger/index.js';
@@ -22,31 +26,28 @@ import type { OrderStorage, OrderStorageDeps } from './types.js';
  * @returns OrderStorage 接口实例
  */
 export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage => {
-  // 闭包捕获的私有状态
-  let longBuyOrders: OrderRecord[] = [];
-  let shortBuyOrders: OrderRecord[] = [];
+  // 使用 Map 存储订单，key 为 symbol，提供 O(1) 查找性能
+  const longBuyOrdersMap: Map<string, OrderRecord[]> = new Map();
+  const shortBuyOrdersMap: Map<string, OrderRecord[]> = new Map();
 
   /**
-   * 获取指定标的的买入订单列表
+   * 获取指定标的的买入订单列表（O(1) 查找）
    */
   const getBuyOrdersList = (symbol: string, isLongSymbol: boolean): OrderRecord[] => {
-    const targetList = isLongSymbol ? longBuyOrders : shortBuyOrders;
-    return targetList.filter((order) => order.symbol === symbol);
+    const targetMap = isLongSymbol ? longBuyOrdersMap : shortBuyOrdersMap;
+    return targetMap.get(symbol) ?? [];
   };
 
   /**
-   * 替换指定标的的买入订单列表（内部辅助函数）
+   * 替换指定标的的买入订单列表（内部辅助函数，O(1) 操作）
    */
   const setBuyOrdersList = (symbol: string, newList: OrderRecord[], isLongSymbol: boolean): void => {
-    const targetList = isLongSymbol ? longBuyOrders : shortBuyOrders;
-    const updatedList = [
-      ...targetList.filter((o) => o.symbol !== symbol),
-      ...newList,
-    ];
-    if (isLongSymbol) {
-      longBuyOrders = updatedList;
+    const targetMap = isLongSymbol ? longBuyOrdersMap : shortBuyOrdersMap;
+
+    if (newList.length === 0) {
+      targetMap.delete(symbol);
     } else {
-      shortBuyOrders = updatedList;
+      targetMap.set(symbol, newList);
     }
   };
 
@@ -188,10 +189,16 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
       return [];
     }
 
-    const buyOrders = direction === 'LONG' ? longBuyOrders : shortBuyOrders;
+    const targetMap = direction === 'LONG' ? longBuyOrdersMap : shortBuyOrdersMap;
     const directionName = direction === 'LONG' ? '做多标的' : '做空标的';
 
-    const filteredOrders = buyOrders.filter(
+    // 从 Map 中获取所有订单
+    const allOrders: OrderRecord[] = [];
+    for (const orders of targetMap.values()) {
+      allOrders.push(...orders);
+    }
+
+    const filteredOrders = allOrders.filter(
       (order) =>
         Number.isFinite(order.executedPrice) &&
         order.executedPrice < currentPrice,
@@ -199,7 +206,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
     logger.debug(
       `[根据订单记录过滤] ${directionName}，当前价格=${currentPrice}，当前订单=${JSON.stringify(
-        buyOrders,
+        allOrders,
       )}，过滤后订单=${JSON.stringify(filteredOrders)}`,
     );
 
@@ -217,13 +224,22 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
   /**
    * 暴露给外部访问的 getter（用于 RiskChecker）
+   * 返回所有做多/做空订单
    */
   const getLongBuyOrders = (): OrderRecord[] => {
-    return longBuyOrders;
+    const allOrders: OrderRecord[] = [];
+    for (const orders of longBuyOrdersMap.values()) {
+      allOrders.push(...orders);
+    }
+    return allOrders;
   };
 
   const getShortBuyOrders = (): OrderRecord[] => {
-    return shortBuyOrders;
+    const allOrders: OrderRecord[] = [];
+    for (const orders of shortBuyOrdersMap.values()) {
+      allOrders.push(...orders);
+    }
+    return allOrders;
   };
 
   return {
