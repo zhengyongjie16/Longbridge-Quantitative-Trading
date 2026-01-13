@@ -6,7 +6,7 @@ import { logger } from '../../utils/logger/index.js';
 import type { CandleValue } from '../../types/index.js';
 
 // 读取DEBUG环境变量
-export const IS_DEBUG = process.env['DEBUG'] === 'true';
+const IS_DEBUG = process.env['DEBUG'] === 'true';
 
 /**
  * 将 K 线数据值转换为数字

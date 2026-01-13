@@ -273,29 +273,6 @@ export function formatSymbolDisplayFromQuote(quote: Quote | null | undefined, sy
   return normalizeHKSymbol(symbol);
 }
 
-/**
- * 判断是否为买入做多操作
- */
-export const isBuyCallAction = (action: SignalType): action is 'BUYCALL' =>
-  action === 'BUYCALL';
-
-/**
- * 判断是否为卖出做多操作
- */
-export const isSellCallAction = (action: SignalType): action is 'SELLCALL' =>
-  action === 'SELLCALL';
-
-/**
- * 判断是否为买入做空操作
- */
-export const isBuyPutAction = (action: SignalType): action is 'BUYPUT' =>
-  action === 'BUYPUT';
-
-/**
- * 判断是否为卖出做空操作
- */
-export const isSellPutAction = (action: SignalType): action is 'SELLPUT' =>
-  action === 'SELLPUT';
 
 /**
  * 判断是否为做多相关操作
@@ -332,14 +309,6 @@ export function getDirectionName(isLongSymbol: boolean): string {
   return (isLongSymbol && '做多标的') || '做空标的';
 }
 
-/**
- * 获取信号的方向（做多或做空）
- */
-export const getSignalDirection = (action: SignalType): 'LONG' | 'SHORT' | null => {
-  if (isLongAction(action)) return 'LONG';
-  if (isShortAction(action)) return 'SHORT';
-  return null;
-};
 
 /**
  * 格式化信号操作描述
@@ -364,13 +333,6 @@ export function formatSignalLog(signal: { action: SignalType; symbol: string; re
   return `${actionDesc} ${signal.symbol} - ${signal.reason || '策略信号'}`;
 }
 
-/**
- * 格式化交易计划日志
- */
-export function formatTradePlanLog(signal: { action: SignalType; reason?: string }, targetSymbol: string): string {
-  const actionDesc = getSignalActionDescription(signal.action);
-  return `${actionDesc} ${targetSymbol} - ${signal.reason || '策略信号'}`;
-}
 
 /**
  * 格式化错误对象为可读字符串

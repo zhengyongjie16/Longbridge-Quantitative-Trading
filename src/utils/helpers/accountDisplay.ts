@@ -25,8 +25,7 @@ import {
   isValidPositiveNumber,
 } from './index.js';
 
-import type { Trader, MarketDataClient } from './types.js';
-import type { LastState } from '../../types/index.js';
+import type { Trader, MarketDataClient, LastState } from '../../types/index.js';
 
 /**
  * 显示账户和持仓信息（仅在交易后调用）

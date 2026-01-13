@@ -2,7 +2,7 @@
  * 工具函数模块类型定义
  */
 
-import type { AccountSnapshot, Position, Quote, SignalConfig } from '../../types/index.js';
+import type { SignalConfig } from '../../types/index.js';
 
 /**
  * LongPort Decimal 类型接口
@@ -76,31 +76,6 @@ export type ConditionGroupResult = {
   readonly count: number;
 };
 
-// ============= accountDisplay 类型定义 =============
-
-/**
- * Trader 接口定义
- */
-export type Trader = {
-  getAccountSnapshot(): Promise<AccountSnapshot | null>;
-  getStockPositions(): Promise<Position[]>;
-};
-
-/**
- * MarketDataClient 接口定义
- */
-export type MarketDataClient = {
-  getLatestQuote(symbol: string): Promise<Quote | null>;
-  getQuotes(symbols: ReadonlyArray<string>): Promise<Map<string, Quote | null>>;
-};
-
-/**
- * 状态对象接口
- */
-export type LastState = {
-  cachedAccount: AccountSnapshot | null;
-  cachedPositions: Position[];
-};
 
 // ============= tradingTime 类型定义 =============
 
