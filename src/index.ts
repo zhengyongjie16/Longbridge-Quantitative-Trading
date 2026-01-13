@@ -57,6 +57,7 @@ import { OrderSide } from 'longport';
 // 导入新模块
 import { isInContinuousHKSession } from './utils/helpers/tradingTime.js';
 import { displayAccountAndPositions } from './utils/helpers/accountDisplay.js';
+import { createPositionCache } from './utils/helpers/positionCache.js';
 import { createMarketMonitor } from './core/marketMonitor/index.js';
 import { createDoomsdayProtection } from './core/doomsdayProtection/index.js';
 import { createUnrealizedLossMonitor } from './core/unrealizedLossMonitor/index.js';
@@ -81,7 +82,7 @@ import type {
 import type { MarketMonitor } from './core/marketMonitor/types.js';
 import type { DoomsdayProtection } from './core/doomsdayProtection/types.js';
 import type { SignalProcessor } from './core/signalProcessor/types.js';
-import { getSprintSacreMooacreMoo } from './utils/helpers/asciiArt.js';
+import { getSprintSacreMooacreMoo } from './utils/asciiArt/sacreMooacre.js';
 
 /**
  * 运行上下文接口
@@ -193,56 +194,48 @@ function releaseAllMonitorSnapshots(monitorStates: Map<string, MonitorState>): v
 }
 
 /**
- * 从持仓数组中获取指定标的的持仓
+ * 从持仓缓存中获取指定标的的持仓
+ * 使用 PositionCache 提供 O(1) 查找性能
+ *
+ * @param positionCache 持仓缓存
+ * @param longSymbol 做多标的代码（已规范化）
+ * @param shortSymbol 做空标的代码（已规范化）
  */
 function getPositions(
-  positions: ReadonlyArray<Position>,
+  positionCache: import('./types/index.js').PositionCache,
   longSymbol: string,
   shortSymbol: string,
 ): { longPosition: Position | null; shortPosition: Position | null } {
+  // O(1) 查找
+  const longPos = positionCache.get(longSymbol);
+  const shortPos = positionCache.get(shortSymbol);
+
   let longPosition: Position | null = null;
   let shortPosition: Position | null = null;
 
-  if (Array.isArray(positions)) {
-    for (const pos of positions) {
-      if (!pos?.symbol || typeof pos.symbol !== 'string') {
-        continue;
-      }
+  // 创建持仓对象（复用对象池）
+  if (longPos) {
+    longPosition = positionObjectPool.acquire() as Position;
+    longPosition.symbol = longSymbol;
+    longPosition.costPrice = Number(longPos.costPrice) || 0;
+    longPosition.quantity = Number(longPos.quantity) || 0;
+    longPosition.availableQuantity = Number(longPos.availableQuantity) || 0;
+    longPosition.accountChannel = longPos.accountChannel;
+    longPosition.symbolName = longPos.symbolName;
+    longPosition.currency = longPos.currency;
+    longPosition.market = longPos.market;
+  }
 
-      const normalizedPosSymbol = normalizeHKSymbol(pos.symbol);
-      const availableQty = Number(pos.availableQuantity) || 0;
-
-      if (!Number.isFinite(availableQty) || availableQty <= 0) {
-        continue;
-      }
-
-      if (normalizedPosSymbol === longSymbol) {
-        longPosition = positionObjectPool.acquire() as Position;
-        longPosition.symbol = longSymbol;
-        longPosition.costPrice = Number(pos.costPrice) || 0;
-        longPosition.quantity = Number(pos.quantity) || 0;
-        longPosition.availableQuantity = availableQty;
-        longPosition.accountChannel = pos.accountChannel;
-        longPosition.symbolName = pos.symbolName;
-        longPosition.currency = pos.currency;
-        longPosition.market = pos.market;
-      } else if (normalizedPosSymbol === shortSymbol) {
-        shortPosition = positionObjectPool.acquire() as Position;
-        shortPosition.symbol = shortSymbol;
-        shortPosition.costPrice = Number(pos.costPrice) || 0;
-        shortPosition.quantity = Number(pos.quantity) || 0;
-        shortPosition.availableQuantity = availableQty;
-        shortPosition.accountChannel = pos.accountChannel;
-        shortPosition.symbolName = pos.symbolName;
-        shortPosition.currency = pos.currency;
-        shortPosition.market = pos.market;
-      }
-
-      // 早退优化：如果已找到两个position，无需继续遍历
-      if (longPosition && shortPosition) {
-        break;
-      }
-    }
+  if (shortPos) {
+    shortPosition = positionObjectPool.acquire() as Position;
+    shortPosition.symbol = shortSymbol;
+    shortPosition.costPrice = Number(shortPos.costPrice) || 0;
+    shortPosition.quantity = Number(shortPos.quantity) || 0;
+    shortPosition.availableQuantity = Number(shortPos.availableQuantity) || 0;
+    shortPosition.accountChannel = shortPos.accountChannel;
+    shortPosition.symbolName = shortPos.symbolName;
+    shortPosition.currency = shortPos.currency;
+    shortPosition.market = shortPos.market;
   }
 
   return { longPosition, shortPosition };
@@ -351,8 +344,9 @@ async function processMonitor(
   state.lastMonitorSnapshot = monitorSnapshot;
 
   // 4. 获取持仓（使用 try-finally 确保释放）
+  // 使用 PositionCache 进行 O(1) 查找
   const { longPosition, shortPosition } = getPositions(
-    globalState.cachedPositions,
+    globalState.positionCache,
     LONG_SYMBOL,
     SHORT_SYMBOL,
   );
@@ -536,6 +530,8 @@ async function processMonitor(
             const freshPositions = await trader.getStockPositions();
             if (Array.isArray(freshPositions)) {
               globalState.cachedPositions = freshPositions;
+              // 同步更新持仓缓存（O(1) 查找优化）
+              globalState.positionCache.update(freshPositions);
               logger.debug(`[持仓缓存] 买入执行后刷新持仓缓存，当前持仓数量: ${freshPositions.length}`);
             }
           } catch (err) {
@@ -862,6 +858,7 @@ async function main(): Promise<void> {
     isHalfDay: null,
     cachedAccount: null,
     cachedPositions: [],
+    positionCache: createPositionCache(), // 初始化持仓缓存（O(1) 查找）
     cachedTradingDayInfo: null, // 缓存的交易日信息 { isTradingDay, isHalfDay, checkDate }
     monitorStates: new Map(
       MULTI_MONITOR_TRADING_CONFIG.monitors.map((config) => [

@@ -2,7 +2,7 @@
  * 信号处理模块类型定义
  */
 
-import type { Quote, Position, AccountSnapshot, IndicatorSnapshot, Signal, OrderRecorder, Trader, RiskChecker, MonitorConfig } from '../../types/index.js';
+import type { Quote, Position, AccountSnapshot, IndicatorSnapshot, Signal, OrderRecorder, Trader, RiskChecker, MonitorConfig, PositionCache } from '../../types/index.js';
 import type { DoomsdayProtection } from '../doomsdayProtection/types.js';
 
 /**
@@ -25,6 +25,8 @@ export type RiskCheckContext = {
   readonly lastState: {
     cachedAccount?: AccountSnapshot | null;
     cachedPositions?: Position[];
+    /** 持仓缓存，使用 Map 提供 O(1) 查找性能 */
+    positionCache: PositionCache;
   };
   readonly currentTime: Date;
   readonly isHalfDay: boolean;

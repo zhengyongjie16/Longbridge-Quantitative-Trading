@@ -302,6 +302,8 @@ export interface LastState {
   isHalfDay: boolean | null;
   cachedAccount: AccountSnapshot | null;
   cachedPositions: Position[];
+  /** 持仓缓存，使用 Map 提供 O(1) 查找性能 */
+  positionCache: PositionCache;
   cachedTradingDayInfo: {
     isTradingDay: boolean;
     isHalfDay: boolean;
@@ -491,6 +493,34 @@ export type UnrealizedLossCheckResult = {
   readonly reason?: string;
   readonly quantity?: number;
 };
+
+/**
+ * 持仓缓存接口
+ * 使用 Map 提供 O(1) 查找性能
+ */
+export interface PositionCache {
+  /**
+   * 更新持仓缓存
+   * @param positions 持仓数组
+   */
+  update(positions: ReadonlyArray<Position>): void;
+
+  /**
+   * 获取指定标的的持仓（O(1) 查找）
+   * @param symbol 标的代码（已规范化）
+   */
+  get(symbol: string): Position | null;
+
+  /**
+   * 获取缓存版本号（用于检测持仓是否更新）
+   */
+  getVersion(): number;
+
+  /**
+   * 获取所有持仓
+   */
+  getAll(): Position[];
+}
 
 /**
  * 风险检查器接口（公共服务接口）

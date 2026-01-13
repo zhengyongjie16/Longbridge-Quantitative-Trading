@@ -25,7 +25,8 @@ import {
   isValidPositiveNumber,
 } from './index.js';
 
-import type { Trader, MarketDataClient, LastState } from './types.js';
+import type { Trader, MarketDataClient } from './types.js';
+import type { LastState } from '../../types/index.js';
 
 /**
  * 显示账户和持仓信息（仅在交易后调用）
@@ -60,6 +61,8 @@ export async function displayAccountAndPositions(
     // 更新缓存
     lastState.cachedAccount = account;
     lastState.cachedPositions = positions;
+    // 同步更新持仓缓存（O(1) 查找优化）
+    lastState.positionCache.update(positions);
 
     // 显示账户和持仓信息
     if (account) {

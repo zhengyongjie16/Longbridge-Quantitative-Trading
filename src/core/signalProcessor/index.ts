@@ -465,10 +465,14 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
             if (isBuyActionCheck || freshPositions.length > 0) {
               positionsForRiskCheck = freshPositions;
               lastState.cachedPositions = freshPositions;
+              // 同步更新持仓缓存（O(1) 查找优化）
+              lastState.positionCache.update(freshPositions);
             }
           } else if (isBuyActionCheck) {
             positionsForRiskCheck = [];
             lastState.cachedPositions = [];
+            // 同步更新持仓缓存（O(1) 查找优化）
+            lastState.positionCache.update([]);
           }
         } catch (err) {
           logger.warn(
