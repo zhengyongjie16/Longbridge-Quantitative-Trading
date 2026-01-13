@@ -81,28 +81,17 @@ export async function displayAccountAndPositions(
       const positionSymbols = positions.map((p) => p.symbol).filter(Boolean);
       const symbolInfoMap = new Map<string, { name: string | null; price: number | null }>(); // key: normalizedSymbol, value: {name, price}
       if (positionSymbols.length > 0) {
-        // 使用 getLatestQuote 获取每个标的的完整信息（包含 staticInfo 和中文名称）
-        const quotePromises = positionSymbols.map((symbol) =>
-          marketDataClient.getLatestQuote(symbol).catch((err: Error) => {
-            logger.warn(
-              `[持仓监控] 获取标的 ${symbol} 信息失败: ${
-                formatError(err)
-              }`,
-            );
-            return null;
-          }),
-        );
-        const quotes = await Promise.all(quotePromises);
+        // 使用 getQuotes 单次 API 调用批量获取所有标的的完整信息
+        const quotesMap = await marketDataClient.getQuotes(positionSymbols);
 
-        quotes.forEach((quote) => {
-          if (quote?.symbol) {
-            const normalizedSymbol = normalizeHKSymbol(quote.symbol);
-            symbolInfoMap.set(normalizedSymbol, {
+        for (const [symbol, quote] of quotesMap) {
+          if (quote) {
+            symbolInfoMap.set(symbol, {
               name: quote.name ?? null,
               price: quote.price ?? null,
             });
           }
-        });
+        }
       }
 
       // 计算总资产用于计算仓位百分比

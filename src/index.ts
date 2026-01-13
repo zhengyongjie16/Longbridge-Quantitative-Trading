@@ -46,7 +46,7 @@ import {
 } from './utils/helpers/index.js';
 import { extractRSIPeriods } from './utils/helpers/signalConfigParser.js';
 import { validateEmaPeriod } from './utils/helpers/indicatorHelpers.js';
-import { batchGetQuotes } from './utils/helpers/quoteHelpers.js';
+import { collectAllQuoteSymbols } from './utils/helpers/quoteHelpers.js';
 import {
   VALID_SIGNAL_ACTIONS,
   SIGNAL_TARGET_ACTIONS,
@@ -243,6 +243,10 @@ function getPositions(
 
 /**
  * 处理单个监控标的
+ *
+ * @param _monitorSymbol 监控标的代码（用于日志标识）
+ * @param context 处理上下文，包含所有必要的依赖和状态
+ * @param quotesMap 预先批量获取的行情数据 Map（提升性能，避免每个监控标的单独获取行情）
  */
 async function processMonitor(
   _monitorSymbol: string,
@@ -258,6 +262,7 @@ async function processMonitor(
     isHalfDay: boolean;
     canTradeNow: boolean;
   },
+  quotesMap: ReadonlyMap<string, Quote | null>,
 ): Promise<void> {
   const {
     monitorContext,
@@ -279,12 +284,10 @@ async function processMonitor(
   const shortSymbolName = monitorContext.shortSymbolName;
   const monitorSymbolName = monitorContext.monitorSymbolName;
 
-  // 1. 获取行情
-  const [longQuote, shortQuote, monitorQuote] = await Promise.all([
-    marketDataClient.getLatestQuote(LONG_SYMBOL).catch(() => null),
-    marketDataClient.getLatestQuote(SHORT_SYMBOL).catch(() => null),
-    marketDataClient.getLatestQuote(MONITOR_SYMBOL).catch(() => null),
-  ]);
+  // 1. 从预先获取的行情 Map 中提取当前监控标的需要的行情（无需单独 API 调用）
+  const longQuote = quotesMap.get(LONG_SYMBOL) ?? null;
+  const shortQuote = quotesMap.get(SHORT_SYMBOL) ?? null;
+  const monitorQuote = quotesMap.get(MONITOR_SYMBOL) ?? null;
 
   // 监控价格变化并显示
   const priceChanged = marketMonitor.monitorPriceChanges(
@@ -737,7 +740,11 @@ async function runOnce({
     }
   }
 
-  // 并发处理所有监控标的
+  // 收集所有需要获取行情的标的，一次性批量获取（减少 API 调用次数）
+  const allQuoteSymbols = collectAllQuoteSymbols(MULTI_MONITOR_TRADING_CONFIG.monitors);
+  const quotesMap = await marketDataClient.getQuotes(Array.from(allQuoteSymbols));
+
+  // 并发处理所有监控标的（使用预先获取的行情数据）
   const monitorTasks = Array.from(monitorContexts.entries()).map(
     ([monitorSymbol, monitorContext]) =>
       processMonitor(monitorSymbol, {
@@ -751,7 +758,7 @@ async function runOnce({
         currentTime,
         isHalfDay: isHalfDayToday,
         canTradeNow,
-      }).catch((err: unknown) => {
+      }, quotesMap).catch((err: unknown) => {
         logger.error(`处理监控标的 ${monitorSymbol} 失败`, formatError(err));
       }),
   );
@@ -770,10 +777,7 @@ async function runOnce({
   }
 
   if (canTradeNow && allTradingSymbols.size > 0) {
-    // 获取所有交易标的的行情用于订单监控
-    const quotesMap = await batchGetQuotes(marketDataClient, allTradingSymbols);
-
-    // 使用新的 Map 方式调用订单监控，支持所有标的
+    // 复用前面批量获取的行情数据进行订单监控（quotesMap 已包含所有交易标的的行情）
     await trader.monitorAndManageOrders(quotesMap).catch((err: unknown) => {
       logger.warn('订单监控失败', formatError(err));
     });
@@ -782,19 +786,22 @@ async function runOnce({
 
 /**
  * 创建监控标的上下文
+ *
+ * @param config 监控配置
+ * @param state 监控状态
+ * @param trader 交易器
+ * @param quotesMap 预先批量获取的行情数据 Map（用于获取标的名称，减少 API 调用）
  */
-async function createMonitorContext(
+function createMonitorContext(
   config: MonitorConfig,
   state: MonitorState,
   trader: Trader,
-  marketDataClient: MarketDataClient,
-): Promise<MonitorContext> {
-  // 获取标的名称（只在初始化时执行一次）
-  const [longQuote, shortQuote, monitorQuote] = await Promise.all([
-    marketDataClient.getLatestQuote(config.longSymbol).catch(() => null),
-    marketDataClient.getLatestQuote(config.shortSymbol).catch(() => null),
-    marketDataClient.getLatestQuote(config.monitorSymbol).catch(() => null),
-  ]);
+  quotesMap: ReadonlyMap<string, Quote | null>,
+): MonitorContext {
+  // 从预先获取的行情 Map 中提取标的名称（无需单独 API 调用）
+  const longQuote = quotesMap.get(config.longSymbol) ?? null;
+  const shortQuote = quotesMap.get(config.shortSymbol) ?? null;
+  const monitorQuote = quotesMap.get(config.monitorSymbol) ?? null;
 
   return {
     config,
@@ -869,6 +876,10 @@ async function main(): Promise<void> {
   };
 
   // 初始化监控标的上下文
+  // 首先批量获取所有标的行情（用于获取标的名称，减少 API 调用次数）
+  const allInitSymbols = collectAllQuoteSymbols(MULTI_MONITOR_TRADING_CONFIG.monitors);
+  const initQuotesMap = await marketDataClient.getQuotes(Array.from(allInitSymbols));
+
   const monitorContexts: Map<string, MonitorContext> = new Map();
   for (const monitorConfig of MULTI_MONITOR_TRADING_CONFIG.monitors) {
     const monitorState = lastState.monitorStates.get(monitorConfig.monitorSymbol);
@@ -877,7 +888,8 @@ async function main(): Promise<void> {
       continue;
     }
 
-    const context = await createMonitorContext(monitorConfig, monitorState, trader, marketDataClient);
+    // 使用预先获取的行情数据创建上下文（无需单独 API 调用）
+    const context = createMonitorContext(monitorConfig, monitorState, trader, initQuotesMap);
     monitorContexts.set(monitorConfig.monitorSymbol, context);
 
     // 初始化每个监控标的牛熊证信息
@@ -904,32 +916,12 @@ async function main(): Promise<void> {
   await displayAccountAndPositions(trader, marketDataClient, lastState);
 
   // 程序启动时刷新订单记录（为所有监控标的初始化订单记录）
-  const allTradingSymbolsForInit = new Set<string>();
-  for (const monitorConfig of MULTI_MONITOR_TRADING_CONFIG.monitors) {
-    if (monitorConfig.longSymbol) {
-      allTradingSymbolsForInit.add(monitorConfig.longSymbol);
-    }
-    if (monitorConfig.shortSymbol) {
-      allTradingSymbolsForInit.add(monitorConfig.shortSymbol);
-    }
-  }
-
-  // 获取所有交易标的的行情数据用于格式化显示
-  const quoteMapForInit = new Map<string, Quote | null>();
-  for (const symbol of allTradingSymbolsForInit) {
-    try {
-      const quote = await marketDataClient.getLatestQuote(symbol).catch(() => null);
-      quoteMapForInit.set(symbol, quote);
-    } catch {
-      quoteMapForInit.set(symbol, null);
-    }
-  }
-
+  // 复用之前批量获取的行情数据（initQuotesMap 已包含所有交易标的的行情）
   // 为每个监控标的初始化订单记录
   for (const monitorContext of monitorContexts.values()) {
     const { config, orderRecorder } = monitorContext;
     if (config.longSymbol) {
-      const quote = quoteMapForInit.get(config.longSymbol) ?? null;
+      const quote = initQuotesMap.get(config.longSymbol) ?? null;
       await orderRecorder
         .refreshOrders(config.longSymbol, true, quote)
         .catch((err: unknown) => {
@@ -940,7 +932,7 @@ async function main(): Promise<void> {
         });
     }
     if (config.shortSymbol) {
-      const quote = quoteMapForInit.get(config.shortSymbol) ?? null;
+      const quote = initQuotesMap.get(config.shortSymbol) ?? null;
       await orderRecorder
         .refreshOrders(config.shortSymbol, false, quote)
         .catch((err: unknown) => {
@@ -957,7 +949,7 @@ async function main(): Promise<void> {
     const { config, riskChecker, orderRecorder } = monitorContext;
     if ((config.maxUnrealizedLossPerSymbol ?? 0) > 0) {
       if (config.longSymbol) {
-        const quote = quoteMapForInit.get(config.longSymbol) ?? null;
+        const quote = initQuotesMap.get(config.longSymbol) ?? null;
         await riskChecker
           .refreshUnrealizedLossData(orderRecorder, config.longSymbol, true, quote)
           .catch((err: unknown) => {
@@ -968,7 +960,7 @@ async function main(): Promise<void> {
           });
       }
       if (config.shortSymbol) {
-        const quote = quoteMapForInit.get(config.shortSymbol) ?? null;
+        const quote = initQuotesMap.get(config.shortSymbol) ?? null;
         await riskChecker
           .refreshUnrealizedLossData(orderRecorder, config.shortSymbol, false, quote)
           .catch((err: unknown) => {

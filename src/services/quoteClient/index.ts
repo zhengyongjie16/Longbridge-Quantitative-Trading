@@ -240,7 +240,7 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps = {}): P
         price: decimalToNumber(quote.lastDone),
         prevClose: decimalToNumber(quote.prevClose),
         timestamp: quote.timestamp.getTime(),
-        ...(lotSize !== undefined ? { lotSize } : {}),
+        ...(lotSize === undefined ? {} : { lotSize }),
         raw: quote,
         staticInfo,
       };
@@ -252,6 +252,109 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps = {}): P
         (err as Error)?.message ?? String(err),
       );
       throw err;
+    }
+  };
+
+  /**
+   * 批量获取多个标的的最新行情
+   * 使用单次 API 调用获取所有标的行情，减少 API 调用次数
+   *
+   * @param symbols 标的代码数组
+   * @returns 标的代码到行情数据的 Map（使用规范化后的标的代码作为 key）
+   */
+  const getQuotes = async (symbols: ReadonlyArray<string>): Promise<Map<string, Quote | null>> => {
+    const ctx = await ctxPromise;
+    const result = new Map<string, Quote | null>();
+
+    // 规范化所有标的代码
+    const normalizedSymbols = symbols.map(normalizeHKSymbol);
+
+    // 分离已缓存和未缓存的标的
+    const uncachedSymbols: string[] = [];
+    for (const symbol of normalizedSymbols) {
+      const cached = quoteCache.get(symbol);
+      if (cached) {
+        result.set(symbol, cached);
+      } else {
+        uncachedSymbols.push(symbol);
+      }
+    }
+
+    // 如果所有标的都已缓存，直接返回
+    if (uncachedSymbols.length === 0) {
+      return result;
+    }
+
+    try {
+      // 单次 API 调用获取所有未缓存标的的行情和静态信息
+      const [quotes, statics] = await withRetry(() =>
+        Promise.all([
+          ctx.quote(uncachedSymbols),
+          ctx.staticInfo(uncachedSymbols),
+        ]),
+      );
+
+      // 创建静态信息查找 Map（按标的代码索引）
+      const staticInfoMap = new Map<string, unknown>();
+      if (statics) {
+        for (const info of statics) {
+          if (info && typeof info === 'object' && 'symbol' in info) {
+            const symbol = (info as { symbol: string }).symbol;
+            staticInfoMap.set(symbol, info);
+          }
+        }
+      }
+
+      // 处理每个行情数据
+      if (quotes) {
+        for (const quote of quotes) {
+          if (!quote) continue;
+
+          const symbol = quote.symbol;
+          const staticInfo = staticInfoMap.get(symbol);
+          const name = extractName(staticInfo);
+          const lotSize = extractLotSize(staticInfo);
+
+          const quoteResult: Quote = {
+            symbol: quote.symbol,
+            name,
+            price: decimalToNumber(quote.lastDone),
+            prevClose: decimalToNumber(quote.prevClose),
+            timestamp: quote.timestamp.getTime(),
+            ...(lotSize === undefined ? {} : { lotSize }),
+            raw: quote,
+            staticInfo,
+          };
+
+          // 缓存并添加到结果
+          quoteCache.set(symbol, quoteResult);
+          result.set(symbol, quoteResult);
+        }
+      }
+
+      // 对于未返回数据的标的，设置为 null
+      for (const symbol of uncachedSymbols) {
+        if (!result.has(symbol)) {
+          logger.warn(`[行情获取] 标的 ${symbol} 未返回行情数据`);
+          result.set(symbol, null);
+        }
+      }
+
+      return result;
+    } catch (err) {
+      logger.error(
+        '[行情获取] 批量获取标的行情时发生错误：',
+        (err as Error)?.message ?? String(err),
+      );
+
+      // 发生错误时，将所有未缓存的标的设为 null
+      for (const symbol of uncachedSymbols) {
+        if (!result.has(symbol)) {
+          result.set(symbol, null);
+        }
+      }
+
+      return result;
     }
   };
 
@@ -375,6 +478,7 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps = {}): P
   return {
     _getContext,
     getLatestQuote,
+    getQuotes,
     getCandlesticks,
     getTradingDays,
     isTradingDay,

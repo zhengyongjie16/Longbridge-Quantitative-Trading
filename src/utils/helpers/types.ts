@@ -91,6 +91,7 @@ export type Trader = {
  */
 export type MarketDataClient = {
   getLatestQuote(symbol: string): Promise<Quote | null>;
+  getQuotes(symbols: ReadonlyArray<string>): Promise<Map<string, Quote | null>>;
 };
 
 /**

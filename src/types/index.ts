@@ -354,6 +354,14 @@ export type TradingDaysResult = {
 export interface MarketDataClient {
   _getContext(): Promise<import('longport').QuoteContext>;
   getLatestQuote(symbol: string): Promise<Quote | null>;
+  /**
+   * 批量获取多个标的的最新行情
+   * 使用单次 API 调用获取所有标的行情，减少 API 调用次数
+   *
+   * @param symbols 标的代码数组
+   * @returns 标的代码到行情数据的 Map（使用规范化后的标的代码作为 key）
+   */
+  getQuotes(symbols: ReadonlyArray<string>): Promise<Map<string, Quote | null>>;
   getCandlesticks(
     symbol: string,
     period?: PeriodString | import('longport').Period,
