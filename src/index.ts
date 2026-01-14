@@ -967,11 +967,11 @@ async function main(): Promise<void> {
     releaseAllMonitorSnapshots(lastState.monitorStates);
   };
 
-  process.on('SIGINT', () => {
+  process.once('SIGINT', () => {
     cleanup();
     process.exit(0);
   });
-  process.on('SIGTERM', () => {
+  process.once('SIGTERM', () => {
     cleanup();
     process.exit(0);
   });

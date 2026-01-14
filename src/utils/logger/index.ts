@@ -603,16 +603,10 @@ process.on('beforeExit', () => {
   cleanupSync();
 });
 
-// SIGINT 处理（Ctrl+C）
-process.on('SIGINT', () => {
+// exit 事件处理（覆盖 process.exit() 场景）
+// 注意：process.exit() 不会触发 beforeExit，但会触发 exit
+process.on('exit', () => {
   cleanupSync();
-  process.exit(0);
-});
-
-// SIGTERM 处理
-process.on('SIGTERM', () => {
-  cleanupSync();
-  process.exit(0);
 });
 
 // 未捕获的异常处理
