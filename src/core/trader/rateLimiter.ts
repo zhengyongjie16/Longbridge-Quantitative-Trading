@@ -21,6 +21,13 @@ import type { RateLimiter, RateLimiterDeps, RateLimiterConfig } from './types.js
  */
 const RATE_LIMIT_BUFFER_MS = 100;
 
+/**
+ * 两次调用之间的最小间隔（毫秒）
+ * API 限制：两次调用间隔不少于0.02秒 = 20ms
+ * 添加 10ms 缓冲以确保安全
+ */
+const MIN_CALL_INTERVAL_MS = 30;
+
 const DEFAULT_CONFIG: RateLimiterConfig = {
   maxCalls: 30,
   windowMs: 30000,
@@ -58,14 +65,25 @@ export const createRateLimiter = (deps: RateLimiterDeps = {}): RateLimiter => {
     });
 
     try {
-      const now = Date.now();
+      let now = Date.now();
 
-      // 清理超出时间窗口的调用记录
+      // 1. 检查最小调用间隔（两次调用间隔不少于0.02秒）
+      const lastCallTime = callTimestamps.at(-1);
+      if (lastCallTime) {
+        const timeSinceLastCall = now - lastCallTime;
+        if (timeSinceLastCall < MIN_CALL_INTERVAL_MS) {
+          const waitTime = MIN_CALL_INTERVAL_MS - timeSinceLastCall;
+          await new Promise((resolve) => setTimeout(resolve, waitTime));
+          now = Date.now(); // 更新当前时间
+        }
+      }
+
+      // 2. 清理超出时间窗口的调用记录
       callTimestamps = callTimestamps.filter(
         (timestamp) => now - timestamp < windowMs,
       );
 
-      // 如果已达到最大调用次数，等待最早的调用过期
+      // 3. 如果已达到最大调用次数，等待最早的调用过期
       if (callTimestamps.length >= maxCalls) {
         const oldestCall = callTimestamps[0];
         if (!oldestCall) {
@@ -84,7 +102,7 @@ export const createRateLimiter = (deps: RateLimiterDeps = {}): RateLimiter => {
         );
       }
 
-      // 记录本次调用时间
+      // 4. 记录本次调用时间
       callTimestamps.push(Date.now());
     } finally {
       // 释放并发锁

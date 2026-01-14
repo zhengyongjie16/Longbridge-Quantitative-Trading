@@ -90,22 +90,22 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
         await rateLimiter.throttle();
         allOrders = (await ctx.todayOrders()) as typeof allOrders;
       } else {
-        // 如果指定了标的，分别查询每个标的（因为 symbol 参数只接受单个字符串）
+        // 如果指定了标的，串行查询每个标的（避免并发导致 API 限流）
+        // 注意：必须串行调用，因为 Promise.all 会导致多个请求同时发出超过 API 限制
         const normalizedSymbols = symbols.map((s) => normalizeHKSymbol(s));
-        const orderPromises = normalizedSymbols.map(async (symbol) => {
+        for (const symbol of normalizedSymbols) {
           try {
             await rateLimiter.throttle();
-            return await ctx.todayOrders({ symbol });
+            const orders = await ctx.todayOrders({ symbol });
+            allOrders.push(...(orders as typeof allOrders));
           } catch (err) {
             logger.warn(
               `[今日订单API] 获取标的 ${symbol} 的今日订单失败`,
               (err as Error)?.message ?? String(err),
             );
-            return []; // 单个标的查询失败时返回空数组，不影响其他标的
+            // 单个标的查询失败时继续处理下一个标的
           }
-        });
-        const orderArrays = await Promise.all(orderPromises);
-        allOrders = orderArrays.flat() as typeof allOrders;
+        }
       }
 
       // 如果指定了标的，还需要在客户端再次过滤（因为可能获取了所有订单）

@@ -28,7 +28,6 @@ import { createRiskChecker } from './core/risk/index.js';
 import { MULTI_MONITOR_TRADING_CONFIG } from './config/config.trading.js';
 import { logger } from './utils/logger/index.js';
 import { validateAllConfig } from './config/config.validator.js';
-import { createOrderRecorder } from './core/orderRecorder/index.js';
 import {
   positionObjectPool,
   signalObjectPool,
@@ -36,10 +35,8 @@ import {
   macdObjectPool,
 } from './utils/objectPool/index.js';
 import {
-  normalizeHKSymbol,
   getSymbolName,
   isBuyAction,
-  isSellAction,
   formatError,
   formatSignalLog,
   sleep,
@@ -52,7 +49,6 @@ import {
   SIGNAL_TARGET_ACTIONS,
   TRADING,
 } from './constants/index.js';
-import { OrderSide } from 'longport';
 
 // 导入新模块
 import { isInContinuousHKSession } from './utils/helpers/tradingTime.js';
@@ -555,53 +551,10 @@ async function processMonitor(
         logger.info('所有卖出信号因成本价判断被跳过，无交易执行');
       }
 
-      // 交易后本地更新订单记录
-      if (orderRecorder && signalsToExecute.length > 0) {
-        for (const sig of signalsToExecute) {
-          const quantity = Number(sig.quantity);
-          const price = Number(sig.price);
-
-          if (!Number.isFinite(quantity) || quantity <= 0) {
-            continue;
-          }
-          if (!Number.isFinite(price) || price <= 0) {
-            continue;
-          }
-          if (!isBuyAction(sig.action) && !isSellAction(sig.action)) {
-            continue;
-          }
-
-          const isLongSymbol =
-          sig.action === 'BUYCALL' ||
-          sig.action === 'SELLCALL';
-          const symbol = sig.symbol;
-
-          if (isBuyAction(sig.action)) {
-            orderRecorder.recordLocalBuy(symbol, price, quantity, isLongSymbol);
-          } else if (isSellAction(sig.action)) {
-            orderRecorder.recordLocalSell(symbol, price, quantity, isLongSymbol);
-          }
-
-          // 交易后刷新浮亏监控数据
-          if ((config.maxUnrealizedLossPerSymbol ?? 0) > 0 && riskChecker) {
-            try {
-            // 获取对应的行情数据用于格式化显示
-              const quoteForSymbol = isLongSymbol ? longQuote : shortQuote;
-              await riskChecker.refreshUnrealizedLossData(
-                orderRecorder,
-                symbol,
-                isLongSymbol,
-                quoteForSymbol,
-              );
-            } catch (err) {
-              logger.warn(
-                `[浮亏监控] 交易后刷新浮亏数据失败: ${symbol}`,
-                formatError(err),
-              );
-            }
-          }
-        }
-      }
+      // 注意：订单记录更新和浮亏数据刷新已移至 orderMonitor 中
+      // 当订单完全成交时，WebSocket 推送会触发 handleOrderChanged：
+      // 1. 使用实际成交价（而非委托价）更新本地订单记录
+      // 2. 将标的加入待刷新列表，在 runOnce 末尾统一刷新浮亏数据
 
       // 释放所有信号对象回对象池
       if (signalsToExecute && signalsToExecute.length > 0) {
@@ -791,6 +744,28 @@ async function runOnce({
     await trader.monitorAndManageOrders(quotesMap).catch((err: unknown) => {
       logger.warn('订单监控失败', formatError(err));
     });
+
+    // 订单成交后刷新浮亏数据（由 WebSocket 推送触发，在此处统一处理）
+    // 相比订单提交后立即刷新，此时本地订单记录已经更新，数据更准确
+    const pendingRefreshSymbols = trader.getAndClearPendingRefreshSymbols();
+    if (pendingRefreshSymbols.length > 0) {
+      for (const { symbol, isLongSymbol } of pendingRefreshSymbols) {
+        // 查找对应的监控上下文
+        const monitorContext = Array.from(monitorContexts.values()).find((ctx) => {
+          const normalizedSymbol = symbol;
+          return ctx.config.longSymbol === normalizedSymbol || ctx.config.shortSymbol === normalizedSymbol;
+        });
+
+        if (monitorContext && (monitorContext.config.maxUnrealizedLossPerSymbol ?? 0) > 0) {
+          const quote = quotesMap.get(symbol) ?? null;
+          await monitorContext.riskChecker
+            .refreshUnrealizedLossData(monitorContext.orderRecorder, symbol, isLongSymbol, quote)
+            .catch((err: unknown) => {
+              logger.warn(`[浮亏监控] 订单成交后刷新浮亏数据失败: ${symbol}`, formatError(err));
+            });
+        }
+      }
+    }
   }
 }
 
@@ -820,7 +795,9 @@ function createMonitorContext(
       signalConfig: config.signalConfig,
       verificationConfig: config.verificationConfig,
     }),
-    orderRecorder: createOrderRecorder({ trader }),
+    // 使用 trader 内部创建的共享 orderRecorder 实例
+    // 订单记录更新已移至 orderMonitor，成交时自动更新
+    orderRecorder: trader._orderRecorder,
     signalVerificationManager: createSignalVerificationManager(config.verificationConfig),
     riskChecker: createRiskChecker({
       options: {
@@ -983,43 +960,8 @@ async function main(): Promise<void> {
     }
   }
 
-  // 程序启动时检查一次是否有买入的未成交订单（每个 orderRecorder 检查自己负责的标的）
-  try {
-    // 使用 Set 去重，避免同一标的被多次监控
-    const pendingBuySymbolsSet = new Set<string>();
-
-    for (const monitorContext of monitorContexts.values()) {
-      const { config, orderRecorder } = monitorContext;
-      const symbols = [config.longSymbol, config.shortSymbol]
-        .filter(Boolean)
-        .map((s) => normalizeHKSymbol(s));
-
-      if (symbols.length > 0 && orderRecorder.hasCacheForSymbols(symbols)) {
-        // 从缓存获取未成交订单，精确找出哪个标的有未成交买入订单
-        const pendingOrders = orderRecorder.getPendingOrdersFromCache(symbols);
-        for (const order of pendingOrders) {
-          if (order.side === OrderSide.Buy) {
-            const normalizedSymbol = normalizeHKSymbol(order.symbol);
-            pendingBuySymbolsSet.add(normalizedSymbol);
-          }
-        }
-      }
-    }
-
-    // 为每个有未成交买入订单的标的启用监控
-    if (pendingBuySymbolsSet.size > 0) {
-      for (const symbol of pendingBuySymbolsSet) {
-        trader.enableBuyOrderMonitoring(symbol);
-      }
-      const symbolsList = Array.from(pendingBuySymbolsSet).join(', ');
-      logger.info(`[订单监控] 程序启动时发现买入订单，开始监控标的: ${symbolsList}`);
-    }
-  } catch (err) {
-    logger.warn(
-      '[订单监控] 程序启动时检查买入订单失败',
-      formatError(err),
-    );
-  }
+  // 注意：程序启动时的订单追踪恢复已在 createTrader 中完成
+  // orderMonitor.recoverTrackedOrders() 会自动查询并恢复所有未完成订单的追踪
 
   // 注册退出处理函数，确保程序退出时释放所有对象池对象
   const cleanup = (): void => {

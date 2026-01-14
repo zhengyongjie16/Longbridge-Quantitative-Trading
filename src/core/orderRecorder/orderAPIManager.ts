@@ -30,7 +30,7 @@ import type {
  * @returns OrderAPIManager 接口实例
  */
 export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManager => {
-  const ctxPromise = deps.ctxPromise;
+  const { ctxPromise, rateLimiter } = deps;
 
   // 闭包捕获的私有状态
   const ordersCache = new Map<string, OrderCache>();
@@ -182,16 +182,19 @@ export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManage
       }
     }
 
-    // 从 API 获取订单
+    // 从 API 获取订单（使用 rateLimiter 控制频率）
     const ctx = await ctxPromise;
     // 此处 API 调用由外部进行错误捕获，这里不需要try-catch
-    const [historyOrdersRaw, todayOrdersRaw] = await Promise.all([
-      ctx.historyOrders({
-        symbol: normalizedSymbol,
-        endAt: new Date(),
-      }),
-      ctx.todayOrders({ symbol: normalizedSymbol }),
-    ]);
+    // 注意：必须串行调用并在每次调用前 throttle，以符合 API 限制
+    // - 30秒内不超过30次调用
+    // - 两次调用间隔不少于0.02秒
+    await rateLimiter.throttle();
+    const historyOrdersRaw = await ctx.historyOrders({
+      symbol: normalizedSymbol,
+      endAt: new Date(),
+    });
+    await rateLimiter.throttle();
+    const todayOrdersRaw = await ctx.todayOrders({ symbol: normalizedSymbol });
 
     // 转换为 RawOrderFromAPI 类型（通过 unknown 进行安全转换）
     const historyOrders = historyOrdersRaw as unknown as RawOrderFromAPI[];

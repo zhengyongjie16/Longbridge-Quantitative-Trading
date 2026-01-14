@@ -2,46 +2,8 @@
  * 订单执行模块类型定义
  */
 
-import type { OrderSide, OrderType, OrderStatus, TimeInForceType, TradeContext, Decimal } from 'longport';
-import type { Signal, Quote, AccountSnapshot, Position, PendingOrder, TradeCheckResult, DecimalLikeValue } from '../../types/index.js';
-
-/**
- * 用于订单替换的订单类型（longport SDK 返回的订单对象）
- */
-export type OrderForReplace = {
-  readonly status: OrderStatus;
-  readonly executedQuantity?: Decimal | DecimalLikeValue | undefined;
-  readonly quantity?: Decimal | DecimalLikeValue | undefined;
-  readonly orderId?: string | undefined;
-};
-
-/**
- * 从 PendingOrder 或 API 订单对象转换为 OrderForReplace
- * @param order 待转换的订单对象
- * @returns OrderForReplace 对象，如果状态无效则返回 null
- */
-export const toOrderForReplace = (order: {
-  status?: unknown;
-  executedQuantity?: unknown;
-  quantity?: unknown;
-  orderId?: unknown;
-  _rawOrder?: unknown;
-}): OrderForReplace | null => {
-  // 优先使用原始订单对象
-  const source = (order._rawOrder as typeof order) ?? order;
-
-  // 验证 status 是有效的 OrderStatus
-  if (typeof source.status !== 'number') {
-    return null;
-  }
-
-  return {
-    status: source.status as OrderStatus,
-    executedQuantity: source.executedQuantity as Decimal | DecimalLikeValue | undefined,
-    quantity: source.quantity as Decimal | DecimalLikeValue | undefined,
-    orderId: typeof source.orderId === 'string' ? source.orderId : undefined,
-  };
-};
+import type { OrderSide, OrderType, OrderStatus, TimeInForceType, TradeContext } from 'longport';
+import type { Signal, Quote, AccountSnapshot, Position, PendingOrder, TradeCheckResult } from '../../types/index.js';
 
 /**
  * 默认订单配置类型
@@ -126,13 +88,63 @@ export interface OrderCacheManager {
 }
 
 /**
- * 订单监控器接口
+ * 需要刷新浮亏数据的标的信息
+ */
+export interface PendingRefreshSymbol {
+  readonly symbol: string;
+  readonly isLongSymbol: boolean;
+}
+
+/**
+ * 订单监控器接口（重构后）
  */
 export interface OrderMonitor {
-  enableMonitoring(symbol: string): void;
+  /** 初始化 WebSocket 订阅 */
+  initialize(): Promise<void>;
+
+  /**
+   * 开始追踪订单
+   * @param orderId 订单ID
+   * @param symbol 标的代码
+   * @param side 订单方向
+   * @param price 委托价格
+   * @param quantity 委托数量
+   * @param isLongSymbol 是否为做多标的
+   */
+  trackOrder(
+    orderId: string,
+    symbol: string,
+    side: OrderSide,
+    price: number,
+    quantity: number,
+    isLongSymbol: boolean,
+  ): void;
+
+  /** 撤销订单 */
   cancelOrder(orderId: string): Promise<boolean>;
-  replaceOrderPrice(orderId: string, newPrice: number, quantity?: number | null, cachedOrder?: PendingOrder | null): Promise<void>;
-  monitorAndManageOrders(quotesMap: ReadonlyMap<string, Quote | null>): Promise<void>;
+
+  /** 修改订单价格 */
+  replaceOrderPrice(orderId: string, newPrice: number, quantity?: number | null): Promise<void>;
+
+  /**
+   * 处理价格更新（主循环调用）
+   * 根据最新行情价格，更新未成交订单的委托价
+   */
+  processWithLatestQuotes(quotesMap: ReadonlyMap<string, Quote | null>): Promise<void>;
+
+  /** 恢复订单追踪（程序启动时调用） */
+  recoverTrackedOrders(): Promise<void>;
+
+  /**
+   * 获取并清空待刷新浮亏数据的标的列表
+   * 订单成交后会将标的添加到此列表，主循环中应调用此方法获取并刷新
+   *
+   * @returns 待刷新的标的列表（调用后列表会被清空）
+   */
+  getAndClearPendingRefreshSymbols(): PendingRefreshSymbol[];
+
+  /** 销毁监控器 */
+  destroy(): Promise<void>;
 }
 
 /**
@@ -175,12 +187,54 @@ export type OrderCacheManagerDeps = {
 };
 
 /**
+ * 待追踪订单信息（用于 WebSocket 推送方案）
+ */
+export interface TrackedOrder {
+  /** 订单ID */
+  readonly orderId: string;
+  /** 标的代码 */
+  readonly symbol: string;
+  /** 订单方向 */
+  readonly side: OrderSide;
+  /** 是否为做多标的（用于成交后更新本地记录） */
+  readonly isLongSymbol: boolean;
+  /** 委托价格 */
+  submittedPrice: number;
+  /** 委托数量 */
+  readonly submittedQuantity: number;
+  /** 已成交数量 */
+  executedQuantity: number;
+  /** 订单状态 */
+  status: OrderStatus;
+  /** 订单提交时间（用于超时检测） */
+  readonly submittedAt: number;
+  /** 最后一次修改价格的时间 */
+  lastPriceUpdateAt: number;
+  /** 是否已转为市价单 */
+  convertedToMarket: boolean;
+}
+
+/**
+ * 订单监控配置
+ */
+export interface OrderMonitorConfig {
+  /** 超时时间（毫秒），默认 3 分钟 */
+  readonly timeoutMs: number;
+  /** 价格修改最小间隔（毫秒），避免频繁修改 */
+  readonly priceUpdateIntervalMs: number;
+  /** 价格差异阈值，低于此值不修改 */
+  readonly priceDiffThreshold: number;
+}
+
+/**
  * 订单监控器依赖类型
  */
 export type OrderMonitorDeps = {
   readonly ctxPromise: Promise<TradeContext>;
   readonly rateLimiter: RateLimiter;
   readonly cacheManager: OrderCacheManager;
+  /** 订单记录器（用于成交后更新本地记录） */
+  readonly orderRecorder: import('../../types/index.js').OrderRecorder;
 };
 
 /**

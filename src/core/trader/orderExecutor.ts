@@ -23,7 +23,6 @@ import {
   decimalToNumber,
   formatError,
   isDefined,
-  isBuyAction,
   isValidPositiveNumber,
   formatSymbolDisplay,
 } from '../../utils/helpers/index.js';
@@ -441,14 +440,20 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
         } 数量=${orderPayload.submittedQuantity.toString()} 订单ID=${orderId}`,
       );
 
-      // 将实际使用的数量和价格回写到 Signal 对象，供后续 recordLocalBuy/recordLocalSell 使用
+      // ========== 开始追踪订单（由 orderMonitor 在成交后更新本地记录） ==========
       const submittedQuantityNum = decimalToNumber(orderPayload.submittedQuantity);
-      if (Number.isFinite(submittedQuantityNum) && submittedQuantityNum > 0) {
-        signal.quantity = submittedQuantityNum;
-      }
-      if (resolvedPrice && Number.isFinite(resolvedPrice) && resolvedPrice > 0) {
-        signal.price = resolvedPrice;
-      }
+      const isLongSymbol = !isShortSymbol;
+      orderMonitor.trackOrder(
+        String(orderId),
+        symbol,
+        side,
+        resolvedPrice ?? 0,
+        submittedQuantityNum,
+        isLongSymbol,
+      );
+
+      // 注意：不再立即更新本地记录
+      // 本地记录更新改为在订单完全成交后由 orderMonitor.handleOrderChanged 触发
 
       updateLastBuyTime(signal.action, monitorConfig);
 
@@ -641,11 +646,8 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
 
       await submitTargetOrder(ctx, s, targetSymbol, isShortSymbol, monitorConfig);
 
-      // 如果发起了买入交易，启用对该标的的监控
-      if (isBuyAction(s.action)) {
-        orderMonitor.enableMonitoring(targetSymbol);
-        logger.info(`[订单监控] 已发起买入交易，开始监控 ${targetSymbol} 的买入订单`);
-      }
+      // 注意：订单追踪已在 submitOrder 中通过 trackOrder 自动启用
+      // 不再需要单独调用 enableMonitoring
     }
   };
 

@@ -48,11 +48,11 @@ import { createOrderFilteringEngine } from './orderFilteringEngine.js';
  * @returns OrderRecorder 接口实例
  */
 export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
-  const trader = deps.trader;
+  const { ctxPromise, rateLimiter } = deps;
 
   // 按依赖顺序初始化子模块
   const storage = createOrderStorage();
-  const apiManager = createOrderAPIManager({ ctxPromise: trader._ctxPromise });
+  const apiManager = createOrderAPIManager({ ctxPromise, rateLimiter });
   const filteringEngine = createOrderFilteringEngine();
 
   // ============================================

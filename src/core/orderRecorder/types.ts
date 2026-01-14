@@ -3,7 +3,8 @@
  */
 
 import type { OrderSide, OrderStatus, OrderType, TradeContext } from 'longport';
-import type { DecimalLikeValue, PendingOrder, OrderRecord, FetchOrdersResult, Trader, Quote } from '../../types/index.js';
+import type { DecimalLikeValue, PendingOrder, OrderRecord, FetchOrdersResult, Quote } from '../../types/index.js';
+import type { RateLimiter } from '../trader/types.js';
 
 /**
  * API 返回的原始订单类型（用于类型安全的转换）
@@ -101,12 +102,19 @@ export type OrderFilteringEngineDeps = Record<string, never>;
  */
 export type OrderAPIManagerDeps = {
   readonly ctxPromise: Promise<TradeContext>;
+  readonly rateLimiter: RateLimiter;
 };
 
 /**
  * 订单记录器依赖类型
+ *
+ * 重构说明：
+ * - 移除对 Trader 的依赖，改为直接依赖 ctxPromise
+ * - 消除过度依赖，使模块可被 orderMonitor 引用
+ * - 添加 rateLimiter 以控制 Trade API 调用频率
  */
 export type OrderRecorderDeps = {
-  readonly trader: Trader;
+  readonly ctxPromise: Promise<TradeContext>;
+  readonly rateLimiter: RateLimiter;
 };
 

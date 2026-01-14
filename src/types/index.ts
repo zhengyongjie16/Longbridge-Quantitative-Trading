@@ -445,6 +445,8 @@ export interface OrderRecorder {
  */
 export interface Trader {
   readonly _ctxPromise: Promise<import('longport').TradeContext>;
+  /** 订单记录器实例（内部创建，供外部直接使用） */
+  readonly _orderRecorder: OrderRecorder;
 
   // 账户相关方法
   getAccountSnapshot(): Promise<AccountSnapshot | null>;
@@ -456,10 +458,34 @@ export interface Trader {
   hasPendingBuyOrders(symbols: string[], orderRecorder?: OrderRecorder | null): Promise<boolean>;
 
   // 订单监控相关方法
-  enableBuyOrderMonitoring(symbol: string): void;
+  /**
+   * 开始追踪订单
+   * @param orderId 订单ID
+   * @param symbol 标的代码
+   * @param side 订单方向
+   * @param price 委托价格
+   * @param quantity 委托数量
+   * @param isLongSymbol 是否为做多标的
+   */
+  trackOrder(
+    orderId: string,
+    symbol: string,
+    side: (typeof import('longport').OrderSide)[keyof typeof import('longport').OrderSide],
+    price: number,
+    quantity: number,
+    isLongSymbol: boolean,
+  ): void;
   cancelOrder(orderId: string): Promise<boolean>;
-  replaceOrderPrice(orderId: string, newPrice: number, quantity?: number | null, cachedOrder?: PendingOrder | null): Promise<void>;
+  replaceOrderPrice(orderId: string, newPrice: number, quantity?: number | null): Promise<void>;
   monitorAndManageOrders(quotesMap: ReadonlyMap<string, Quote | null>): Promise<void>;
+
+  /**
+   * 获取并清空待刷新浮亏数据的标的列表
+   * 订单成交后会将标的添加到此列表，主循环中应调用此方法获取并刷新
+   *
+   * @returns 待刷新的标的列表（调用后列表会被清空）
+   */
+  getAndClearPendingRefreshSymbols(): ReadonlyArray<{ readonly symbol: string; readonly isLongSymbol: boolean }>;
 
   // 订单执行相关方法
   _canTradeNow(signalAction: string, monitorConfig?: MonitorConfig | null): TradeCheckResult;

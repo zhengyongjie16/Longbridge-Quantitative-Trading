@@ -1,20 +1,42 @@
 /**
- * 订单监控模块
+ * 订单监控模块（重构版 - WebSocket 推送方案）
  *
  * 功能：
- * - 监控未成交的买入订单
- * - 当价格下跌时自动降低委托价
- * - 撤销订单
- * - 修改订单价格
+ * - 使用 WebSocket 订阅订单状态变化，实时响应
+ * - 双向监控买入和卖出订单
+ * - 价格跟踪：委托价始终跟随最新市场价格
+ * - 超时转市价：委托超过3分钟未成交，撤销并使用市价单重新委托
+ * - 成交后更新：订单完全成交时，使用成交价（非委托价）更新本地记录
  */
 
-import { OrderStatus, OrderSide, Decimal } from 'longport';
+import {
+  OrderStatus,
+  OrderSide,
+  OrderType,
+  TimeInForceType,
+  TopicType,
+  Decimal,
+} from 'longport';
+import type { PushOrderChanged } from 'longport';
 import { logger } from '../../utils/logger/index.js';
-import { TRADING } from '../../constants/index.js';
-import { normalizeHKSymbol, decimalToNumber, isValidPositiveNumber } from '../../utils/helpers/index.js';
-import type { Quote, PendingOrder } from '../../types/index.js';
-import type { OrderMonitor, OrderMonitorDeps, OrderForReplace } from './types.js';
-import { toOrderForReplace } from './types.js';
+import { normalizeHKSymbol, decimalToNumber } from '../../utils/helpers/index.js';
+import { MULTI_MONITOR_TRADING_CONFIG } from '../../config/config.trading.js';
+import type { Quote } from '../../types/index.js';
+import type {
+  OrderMonitor,
+  OrderMonitorDeps,
+  TrackedOrder,
+  OrderMonitorConfig,
+} from './types.js';
+
+/**
+ * 默认订单监控配置
+ */
+const DEFAULT_CONFIG: OrderMonitorConfig = {
+  timeoutMs: 3 * 60 * 1000,           // 3 分钟
+  priceUpdateIntervalMs: 5 * 1000,    // 5 秒（避免频繁修改）
+  priceDiffThreshold: 0.001,          // 0.001 元
+};
 
 const toDecimal = (value: unknown): Decimal => {
   if (value instanceof Decimal) {
@@ -26,47 +48,256 @@ const toDecimal = (value: unknown): Decimal => {
   return Decimal.ZERO();
 };
 
-// 首次检查延迟时间（毫秒），与缓存TTL保持一致
-const INITIAL_CHECK_DELAY_MS = 30000;
+/**
+ * 需要刷新浮亏数据的标的信息
+ */
+export interface PendingRefreshSymbol {
+  readonly symbol: string;
+  readonly isLongSymbol: boolean;
+}
 
 /**
- * 创建订单监控器
+ * 创建订单监控器（依赖注入 OrderRecorder）
  * @param deps 依赖注入
  * @returns OrderMonitor 接口实例
  */
 export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
-  const { ctxPromise, rateLimiter, cacheManager } = deps;
+  const { ctxPromise, rateLimiter, cacheManager, orderRecorder } = deps;
+  const config = DEFAULT_CONFIG;
 
-  // 闭包捕获的私有状态
-  // 需要监控的标的集合（标准化后的标的代码）
-  const monitoringSymbols = new Set<string>();
-  // 记录每个标的的监控启用时间，用于计算首次检查延迟
-  const monitoringEnabledTimeMap = new Map<string, number>();
+  // 追踪中的订单
+  const trackedOrders = new Map<string, TrackedOrder>();
+
+  // 待刷新浮亏数据的标的列表（订单成交后添加，主循环中处理后清空）
+  const pendingRefreshSymbols: PendingRefreshSymbol[] = [];
 
   /**
-   * 启用指定标的的买入订单监控
-   * @param symbol 需要监控的标的代码
+   * 根据标的代码判断是否为做多标的
    */
-  const enableMonitoring = (symbol: string): void => {
+  const isLongSymbolByConfig = (symbol: string): boolean => {
     const normalizedSymbol = normalizeHKSymbol(symbol);
-    // 仅在该标的首次启用监控时记录时间
-    if (!monitoringSymbols.has(normalizedSymbol)) {
-      monitoringEnabledTimeMap.set(normalizedSymbol, Date.now());
+    for (const monitor of MULTI_MONITOR_TRADING_CONFIG.monitors) {
+      if (normalizeHKSymbol(monitor.longSymbol) === normalizedSymbol) {
+        return true;
+      }
+      if (normalizeHKSymbol(monitor.shortSymbol) === normalizedSymbol) {
+        return false;
+      }
     }
-    monitoringSymbols.add(normalizedSymbol);
+    return true; // 默认视为做多
+  };
+
+  /**
+   * 处理订单状态变化（来自 WebSocket 推送）
+   *
+   * 核心逻辑：订单完全成交时，使用成交价更新本地订单记录
+   */
+  const handleOrderChanged = (event: PushOrderChanged): void => {
+    const orderId = event.orderId;
+    const trackedOrder = trackedOrders.get(orderId);
+
+    if (!trackedOrder) {
+      // 不是我们追踪的订单，忽略
+      return;
+    }
+
+    // 更新订单状态
+    trackedOrder.status = event.status as OrderStatus;
+    trackedOrder.executedQuantity = Number(event.executedQuantity) || 0;
+
+    // ========== 订单完全成交：使用成交价更新本地记录 ==========
+    if (event.status === OrderStatus.Filled) {
+      const executedPrice = Number(event.executedPrice);
+      const executedQuantity = Number(event.executedQuantity);
+
+      if (
+        Number.isFinite(executedPrice) && executedPrice > 0 &&
+        Number.isFinite(executedQuantity) && executedQuantity > 0
+      ) {
+        // 直接调用 orderRecorder 更新本地记录（无回调，无闭包）
+        if (trackedOrder.side === OrderSide.Buy) {
+          orderRecorder.recordLocalBuy(
+            trackedOrder.symbol,
+            executedPrice,
+            executedQuantity,
+            trackedOrder.isLongSymbol,
+          );
+        } else {
+          orderRecorder.recordLocalSell(
+            trackedOrder.symbol,
+            executedPrice,
+            executedQuantity,
+            trackedOrder.isLongSymbol,
+          );
+        }
+
+        logger.info(
+          `[订单监控] 订单 ${orderId} 完全成交，` +
+          `成交价=${executedPrice.toFixed(3)}，成交数量=${executedQuantity}，` +
+          '已更新本地订单记录',
+        );
+
+        // 记录需要刷新浮亏数据的标的（主循环中会处理）
+        pendingRefreshSymbols.push({
+          symbol: trackedOrder.symbol,
+          isLongSymbol: trackedOrder.isLongSymbol,
+        });
+      } else {
+        logger.warn(
+          `[订单监控] 订单 ${orderId} 成交数据无效，` +
+          `executedPrice=${event.executedPrice}，executedQuantity=${event.executedQuantity}`,
+        );
+      }
+
+      // 移除追踪
+      trackedOrders.delete(orderId);
+      return;
+    }
+
+    // ========== 订单撤销或拒绝 ==========
+    if (
+      event.status === OrderStatus.Canceled ||
+      event.status === OrderStatus.Rejected
+    ) {
+      trackedOrders.delete(orderId);
+      logger.info(`[订单监控] 订单 ${orderId} 状态变为 ${event.status}，停止追踪`);
+      return;
+    }
+
+    // ========== 部分成交：继续追踪，不更新本地记录 ==========
+    if (event.status === OrderStatus.PartialFilled) {
+      logger.info(
+        `[订单监控] 订单 ${orderId} 部分成交，` +
+        `已成交=${trackedOrder.executedQuantity}/${trackedOrder.submittedQuantity}，` +
+        '等待完全成交后更新本地记录',
+      );
+    }
+  };
+
+  /**
+   * 初始化 WebSocket 订阅
+   */
+  const initialize = async (): Promise<void> => {
+    const ctx = await ctxPromise;
+
+    // 设置订单变化回调（回调签名包含 err 和 event 两个参数）
+    ctx.setOnOrderChanged((err: Error | null, event: PushOrderChanged) => {
+      if (err) {
+        logger.error('[订单监控] WebSocket 推送错误:', err.message);
+        return;
+      }
+      handleOrderChanged(event);
+    });
+
+    // 订阅私有通知
+    await ctx.subscribe([TopicType.Private]);
+
+    logger.info('[订单监控] WebSocket 订阅初始化成功');
+  };
+
+  /**
+   * 开始追踪订单
+   */
+  const trackOrder = (
+    orderId: string,
+    symbol: string,
+    side: OrderSide,
+    price: number,
+    quantity: number,
+    isLongSymbol: boolean,
+  ): void => {
+    const now = Date.now();
+
+    const order: TrackedOrder = {
+      orderId,
+      symbol: normalizeHKSymbol(symbol),
+      side,
+      isLongSymbol,
+      submittedPrice: price,
+      submittedQuantity: quantity,
+      executedQuantity: 0,
+      status: OrderStatus.New,
+      submittedAt: now,
+      lastPriceUpdateAt: now,
+      convertedToMarket: false,
+    };
+
+    trackedOrders.set(orderId, order);
+
+    logger.info(
+      `[订单监控] 开始追踪订单 ${orderId}，` +
+      `标的=${symbol}，方向=${side === OrderSide.Buy ? '买入' : '卖出'}，` +
+      `${isLongSymbol ? '做多' : '做空'}标的`,
+    );
+  };
+
+  /**
+   * 程序启动时恢复订单追踪
+   */
+  const recoverTrackedOrders = async (): Promise<void> => {
+    const ctx = await ctxPromise;
+
+    await rateLimiter.throttle();
+    const todayOrders = await ctx.todayOrders();
+
+    let recoveredCount = 0;
+
+    for (const order of todayOrders) {
+      // 跳过已完成的订单
+      if (
+        order.status === OrderStatus.Filled ||
+        order.status === OrderStatus.Canceled ||
+        order.status === OrderStatus.Rejected
+      ) {
+        continue;
+      }
+
+      const symbol = order.symbol;
+      const isLongSymbol = isLongSymbolByConfig(symbol);
+
+      // 获取已成交数量（用于部分成交订单的正确恢复）
+      const executedQuantity = decimalToNumber(order.executedQuantity);
+
+      // 重新追踪未完成的订单
+      trackOrder(
+        order.orderId,
+        symbol,
+        order.side,
+        decimalToNumber(order.price),
+        decimalToNumber(order.quantity),
+        isLongSymbol,
+      );
+
+      // 修复：恢复部分成交订单的已成交数量
+      // trackOrder 内部会将 executedQuantity 设为 0，这里需要更新为实际已成交数量
+      const trackedOrder = trackedOrders.get(order.orderId);
+      if (trackedOrder && executedQuantity > 0) {
+        trackedOrder.executedQuantity = executedQuantity;
+        logger.debug(
+          `[订单监控] 恢复部分成交订单 ${order.orderId}，已成交数量=${executedQuantity}`,
+        );
+      }
+
+      recoveredCount++;
+    }
+
+    if (recoveredCount > 0) {
+      logger.info(`[订单监控] 程序启动恢复追踪 ${recoveredCount} 个未完成订单`);
+    }
   };
 
   /**
    * 撤销订单
-   * @param orderId 订单ID
    */
   const cancelOrder = async (orderId: string): Promise<boolean> => {
     const ctx = await ctxPromise;
+
     try {
       await rateLimiter.throttle();
       await ctx.cancelOrder(orderId);
 
       cacheManager.clearCache();
+      trackedOrders.delete(orderId);
 
       logger.info(`[订单撤销成功] 订单ID=${orderId}`);
       return true;
@@ -81,86 +312,31 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
 
   /**
    * 修改订单价格
-   * @param orderId 订单ID
-   * @param newPrice 新价格
-   * @param quantity 数量（可选，如果不提供则使用原订单数量）
-   * @param cachedOrder 缓存的订单对象（可选，避免重复查询）
-   * @returns 修改成功时不返回，失败时抛出错误
-   * @throws 当修改失败时抛出错误
    */
   const replaceOrderPrice = async (
     orderId: string,
     newPrice: number,
     quantity: number | null = null,
-    cachedOrder: PendingOrder | null = null,
   ): Promise<void> => {
     const ctx = await ctxPromise;
+    const trackedOrder = trackedOrders.get(orderId);
 
-    let originalOrder: OrderForReplace | null = null;
-
-    // 如果提供了缓存的订单对象，使用缓存；否则查询API
-    if (cachedOrder) {
-      // 使用类型安全的转换函数
-      originalOrder = toOrderForReplace(cachedOrder);
-      if (originalOrder) {
-        logger.debug(`[订单修改] 使用缓存订单对象，订单ID=${orderId}`);
-      }
+    if (!trackedOrder) {
+      logger.warn(`[订单修改] 订单 ${orderId} 未在追踪列表中`);
+      return;
     }
 
-    if (!originalOrder) {
-      // 没有缓存或转换失败，查询API
-      logger.debug(`[订单修改] 未提供有效缓存订单对象，查询API获取订单 ${orderId}`);
-      await rateLimiter.throttle();
-      const allOrders = await ctx.todayOrders();
-      const foundOrder = allOrders.find((o) => o.orderId === orderId);
-      if (foundOrder) {
-        originalOrder = toOrderForReplace(foundOrder);
-      }
-    }
+    // 计算剩余数量
+    const remainingQty = trackedOrder.submittedQuantity - trackedOrder.executedQuantity;
+    const targetQuantity = quantity ?? remainingQty;
 
-    if (!originalOrder) {
-      const error = new Error(`未找到订单ID=${orderId}`);
-      logger.error(`[订单修改失败] ${error.message}`);
-      throw error;
-    }
-
-    // 检查订单状态是否允许修改
-    if (
-      originalOrder.status === OrderStatus.Filled ||
-      originalOrder.status === OrderStatus.Canceled ||
-      originalOrder.status === OrderStatus.Rejected
-    ) {
-      const error = new Error(
-        `订单ID=${orderId} 状态为 ${originalOrder.status}，不允许修改`,
-      );
-      logger.error(`[订单修改失败] ${error.message}`);
-      throw error;
-    }
-
-    // 计算剩余数量（原订单数量 - 已成交数量）
-    const executedQty = decimalToNumber(originalOrder.executedQuantity ?? 0);
-    const originalQty = decimalToNumber(originalOrder.quantity ?? 0);
-    const remainingQty = originalQty - executedQty;
-
-    // 构建修改订单的payload
-    let targetQuantity = remainingQty;
-
-    // 如果提供了数量参数，使用提供的数量（但不能超过剩余数量）
-    if (quantity !== null && isValidPositiveNumber(quantity)) {
-      targetQuantity = Math.min(quantity, remainingQty);
-    }
-
-    // 验证数量有效性
     if (!Number.isFinite(targetQuantity) || targetQuantity <= 0) {
-      const error = new Error(
-        `订单ID=${orderId} 剩余数量无效（剩余=${remainingQty}，原数量=${originalQty}，已成交=${executedQty}）`,
-      );
-      logger.error(`[订单修改失败] ${error.message}`);
-      throw error;
+      logger.warn(`[订单修改] 订单 ${orderId} 剩余数量无效: ${targetQuantity}`);
+      return;
     }
 
     const replacePayload = {
-      orderId: orderId,
+      orderId,
       price: toDecimal(newPrice),
       quantity: toDecimal(targetQuantity),
     };
@@ -176,197 +352,185 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
       );
     } catch (err) {
       const errorMessage = (err as Error)?.message ?? String(err);
-      const error = new Error(`订单修改失败: ${errorMessage}`);
       logger.error(
         `[订单修改失败] 订单ID=${orderId} 新价格=${newPrice.toFixed(3)}`,
         errorMessage,
       );
-      throw error;
+      throw new Error(`订单修改失败: ${errorMessage}`);
     }
   };
 
   /**
-   * 实时监控价格并管理未成交的买入订单
-   * 规则：
-   * - 仅在发起买入交易后才开始监控
-   * - 买入后等待30秒再进行首次检查
-   * - 只监控买入订单，卖出订单不监控
-   * - 买入订单：如果当前价格低于委托价格，修改委托价格为当前价格
-   * - 当所有买入订单成交后停止监控
-   * @param quotesMap 行情数据 Map（symbol -> Quote）
+   * 处理超时订单（转市价单）
    */
-  const monitorAndManageOrders = async (
+  const handleTimeoutOrder = async (orderId: string, order: TrackedOrder): Promise<void> => {
+    const elapsed = Date.now() - order.submittedAt;
+
+    logger.warn(
+      `[订单监控] 订单 ${orderId} 超时(${Math.floor(elapsed / 1000)}秒)，转换为市价单`,
+    );
+
+    // 计算剩余数量
+    const remainingQuantity = order.submittedQuantity - order.executedQuantity;
+    if (remainingQuantity <= 0) {
+      // 已经全部成交，移除追踪
+      trackedOrders.delete(orderId);
+      return;
+    }
+
+    try {
+      // 1. 撤销原订单
+      const cancelled = await cancelOrder(orderId);
+
+      // 如果撤销失败（订单可能已成交或已撤销），不继续提交市价单
+      // 避免重复下单导致持仓数据错误
+      if (!cancelled) {
+        logger.warn(
+          `[订单监控] 订单 ${orderId} 撤销失败（可能已成交或已撤销），跳过市价单提交`,
+        );
+        return;
+      }
+
+      // 2. 撤销成功后，使用市价单重新提交
+      const ctx = await ctxPromise;
+      const marketOrderPayload = {
+        symbol: order.symbol,
+        side: order.side,
+        orderType: OrderType.MO,
+        submittedQuantity: toDecimal(remainingQuantity),
+        timeInForce: TimeInForceType.Day,
+        remark: `超时转市价-原订单${orderId}`,
+      };
+
+      await rateLimiter.throttle();
+      const resp = await ctx.submitOrder(marketOrderPayload);
+
+      const newOrderId = (resp as { orderId?: string })?.orderId ?? 'UNKNOWN';
+
+      logger.info(
+        `[订单监控] 订单 ${orderId} 已转为市价单，新订单ID=${newOrderId}，数量=${remainingQuantity}`,
+      );
+
+      // 追踪新的市价单（市价单通常很快成交，但仍需追踪）
+      // 继承原订单的 isLongSymbol，确保成交后能正确更新本地记录
+      trackOrder(
+        String(newOrderId),
+        order.symbol,
+        order.side,
+        0,                    // 市价单无价格
+        remainingQuantity,
+        order.isLongSymbol,   // 继承原订单的做多/做空标识
+      );
+
+      // 标记新订单已转换为市价单（避免再次转换）
+      const newTrackedOrder = trackedOrders.get(String(newOrderId));
+      if (newTrackedOrder) {
+        newTrackedOrder.convertedToMarket = true;
+      }
+
+    } catch (err) {
+      logger.error(`[订单监控] 订单 ${orderId} 转市价单失败:`, err);
+    }
+  };
+
+  /**
+   * 根据最新行情更新委托价格（主循环调用）
+   *
+   * 规则：
+   * - 买入订单和卖出订单都跟踪当前价
+   * - 无论当前价高于还是低于委托价，都更新委托价为当前价
+   * - 目的：确保订单能够成交，避免因价格差异导致无法买入或卖出
+   */
+  const processWithLatestQuotes = async (
     quotesMap: ReadonlyMap<string, Quote | null>,
   ): Promise<void> => {
-    // 如果没有需要监控的标的，直接返回
-    if (monitoringSymbols.size === 0) {
-      return;
-    }
-
-    if (quotesMap.size === 0) {
-      return;
-    }
-
-    // 筛选出需要监控且已过首次检查延迟时间的标的
     const now = Date.now();
-    const activeSymbols: string[] = [];
-    for (const symbol of monitoringSymbols) {
-      const enabledTime = monitoringEnabledTimeMap.get(symbol);
-      if (enabledTime !== undefined) {
-        const elapsed = now - enabledTime;
-        if (elapsed >= INITIAL_CHECK_DELAY_MS) {
-          activeSymbols.push(symbol);
-        }
-      }
-    }
 
-    // 如果没有已激活的监控标的（都还在等待延迟），直接返回
-    if (activeSymbols.length === 0) {
-      return;
-    }
-
-    // 从行情数据中获取需要监控的标的的行情
-    const normalizedQuotesMap = new Map<string, Quote | null>();
-    for (const [symbol, quote] of quotesMap.entries()) {
-      const normalizedSymbol = normalizeHKSymbol(symbol);
-      // 只保留需要监控的标的的行情
-      if (quote && activeSymbols.includes(normalizedSymbol)) {
-        normalizedQuotesMap.set(normalizedSymbol, quote);
-      }
-    }
-
-    // 如果没有需要监控的标的的行情数据，直接返回
-    if (normalizedQuotesMap.size === 0) {
-      return;
-    }
-
-    const targetSymbols = Array.from(normalizedQuotesMap.keys());
-
-    // 仅获取需要监控的标的的未成交订单（而非所有标的）
-    const pendingOrders = await cacheManager.getPendingOrders(targetSymbols);
-
-    // 过滤出买入订单
-    const pendingBuyOrders = pendingOrders.filter(
-      (order) => order.side === OrderSide.Buy,
-    );
-
-    // 找出哪些标的有未成交买入订单
-    const symbolsWithPendingBuyOrders = new Set<string>();
-    for (const order of pendingBuyOrders) {
-      symbolsWithPendingBuyOrders.add(normalizeHKSymbol(order.symbol));
-    }
-
-    // 清除已经没有未成交买入订单的标的（精确清除，而非全部清除）
-    const symbolsToRemove: string[] = [];
-    for (const symbol of targetSymbols) {
-      if (!symbolsWithPendingBuyOrders.has(symbol)) {
-        symbolsToRemove.push(symbol);
-        monitoringSymbols.delete(symbol);
-        monitoringEnabledTimeMap.delete(symbol);
-      }
-    }
-    if (symbolsToRemove.length > 0) {
-      logger.info(`[订单监控] 标的 ${symbolsToRemove.join(', ')} 的买入订单已全部成交，停止监控`);
-    }
-
-    // 如果没有买入订单需要监控，直接返回
-    if (pendingBuyOrders.length === 0) {
-      return;
-    }
-
-    logger.debug(
-      `[订单监控] 发现标的 ${Array.from(symbolsWithPendingBuyOrders).join(', ')} 的 ${pendingBuyOrders.length} 个未成交买入订单，开始检查价格...`,
-    );
-
-    for (const order of pendingBuyOrders) {
-      // 检查订单状态，如果已撤销、已成交或已完成，跳过监控
-      if (
-        order.status === OrderStatus.Filled ||
-        order.status === OrderStatus.Rejected
-      ) {
-        logger.debug(
-          `[订单监控] 买入订单 ${order.orderId} 状态为 ${order.status}，跳过监控`,
-        );
+    for (const [orderId, order] of trackedOrders) {
+      // 跳过已转为市价单的订单
+      if (order.convertedToMarket) {
         continue;
       }
 
-      // 如果订单正在被修改（Replaced状态），跳过本次监控，等待下次
-      if (
-        order.status === OrderStatus.Replaced ||
-        order.status === OrderStatus.PendingReplace ||
-        order.status === OrderStatus.WaitToReplace
-      ) {
-        logger.debug(
-          `[订单监控] 买入订单 ${order.orderId} 正在修改中（状态：${order.status}），跳过本次监控`,
-        );
+      // 检查超时
+      const elapsed = now - order.submittedAt;
+      if (elapsed >= config.timeoutMs) {
+        await handleTimeoutOrder(orderId, order);
         continue;
       }
 
-      const normalizedOrderSymbol = normalizeHKSymbol(order.symbol);
-
-      // 从行情数据 Map 中获取标的的当前价格
-      const quote = normalizedQuotesMap.get(normalizedOrderSymbol);
-      const currentPrice = quote?.price ?? null;
-
-      if (!currentPrice || !Number.isFinite(currentPrice)) {
-        logger.debug(
-          `[订单监控] 无法获取标的 ${order.symbol} 的当前价格，跳过处理订单 ${order.orderId}`,
-        );
+      // 检查是否在修改间隔内
+      if (now - order.lastPriceUpdateAt < config.priceUpdateIntervalMs) {
         continue;
       }
 
-      const orderPrice = order.submittedPrice;
+      // 获取最新行情
+      const quote = quotesMap.get(order.symbol);
+      if (!quote?.price || !Number.isFinite(quote.price)) {
+        continue;
+      }
 
-      // 买入订单：如果当前价格低于委托价格，修改委托价格为当前价格
-      if (currentPrice < orderPrice) {
-        const priceDiffAbs = Math.abs(currentPrice - orderPrice);
-        // 价格差异达到阈值或以上时进行修改
-        if (priceDiffAbs >= TRADING.PRICE_DIFF_THRESHOLD) {
-          logger.info(
-            `[订单监控] 买入订单 ${
-              order.orderId
-            } 当前价格(${currentPrice.toFixed(
-              3,
-            )}) 低于委托价格(${orderPrice.toFixed(
-              3,
-            )}) 差异=${priceDiffAbs.toFixed(3)}，修改委托价格为当前价格`,
-          );
-          try {
-            await replaceOrderPrice(
-              order.orderId,
-              currentPrice,
-              null,
-              order,
-            );
-            logger.info(
-              `[订单监控] 买入订单 ${
-                order.orderId
-              } 价格修改成功：${orderPrice.toFixed(
-                3,
-              )} -> ${currentPrice.toFixed(3)} (降低${priceDiffAbs.toFixed(3)})`,
-            );
-          } catch (err) {
-            logger.error(
-              `[订单监控] 买入订单 ${order.orderId} 价格修改失败: ${
-                (err as Error)?.message ?? String(err)
-              }`,
-            );
-          }
-        } else {
-          logger.debug(
-            `[订单监控] 买入订单 ${
-              order.orderId
-            } 价格差异(${priceDiffAbs.toFixed(4)})小于${TRADING.PRICE_DIFF_THRESHOLD}，暂不修改`,
-          );
-        }
+      const currentPrice = quote.price;
+      const priceDiff = Math.abs(currentPrice - order.submittedPrice);
+
+      // 价格差异小于阈值，不修改
+      if (priceDiff < config.priceDiffThreshold) {
+        continue;
+      }
+
+      // 更新委托价
+      const sideDesc = order.side === OrderSide.Buy ? '买入' : '卖出';
+      const priceDirection = currentPrice > order.submittedPrice ? '上涨' : '下跌';
+
+      logger.info(
+        `[订单监控] ${sideDesc}订单 ${orderId} 当前价(${currentPrice.toFixed(3)}) ` +
+        `${priceDirection}，更新委托价：${order.submittedPrice.toFixed(3)} → ${currentPrice.toFixed(3)}`,
+      );
+
+      try {
+        await replaceOrderPrice(orderId, currentPrice);
+        order.submittedPrice = currentPrice;
+        order.lastPriceUpdateAt = now;
+      } catch (err) {
+        logger.error(`[订单监控] 修改订单 ${orderId} 价格失败:`, err);
       }
     }
   };
 
+  /**
+   * 获取并清空待刷新浮亏数据的标的列表
+   * 订单成交后会将标的添加到此列表，主循环中应调用此方法获取并刷新
+   *
+   * @returns 待刷新的标的列表（调用后列表会被清空）
+   */
+  const getAndClearPendingRefreshSymbols = (): PendingRefreshSymbol[] => {
+    if (pendingRefreshSymbols.length === 0) {
+      return [];
+    }
+
+    // 复制列表并清空原列表
+    const result = [...pendingRefreshSymbols];
+    pendingRefreshSymbols.length = 0;
+    return result;
+  };
+
+  /**
+   * 销毁监控器
+   */
+  const destroy = async (): Promise<void> => {
+    trackedOrders.clear();
+    pendingRefreshSymbols.length = 0;
+    logger.info('[订单监控] 监控器已销毁');
+  };
+
   return {
-    enableMonitoring,
+    initialize,
+    trackOrder,
     cancelOrder,
     replaceOrderPrice,
-    monitorAndManageOrders,
+    processWithLatestQuotes,
+    recoverTrackedOrders,
+    getAndClearPendingRefreshSymbols,
+    destroy,
   };
 };
