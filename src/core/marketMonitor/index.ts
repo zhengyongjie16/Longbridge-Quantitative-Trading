@@ -39,6 +39,86 @@ import type { MarketMonitor } from './types.js';
  */
 export const createMarketMonitor = (): MarketMonitor => {
   /**
+   * 格式化K线时间戳为日志前缀（仅显示时分秒）
+   * @param timestamp 时间戳（毫秒）
+   * @returns 格式化的时间前缀字符串，如 "[K线时间: 10:30:15] " 或空字符串
+   */
+  const formatKlineTimePrefix = (timestamp: number | null | undefined): string => {
+    // 保持与原实现一致：timestamp 为 0 时不显示
+    if (timestamp && Number.isFinite(timestamp)) {
+      const timeStr = toBeijingTimeLog(new Date(timestamp));
+      return `[K线时间: ${timeStr.split(' ')[1]}] `;
+    }
+    return '';
+  };
+
+  /**
+   * 显示标的行情信息
+   * @param quote 行情数据
+   * @param symbol 标的代码
+   * @param label 标的类型标签（如 "做多标的"、"做空标的"）
+   */
+  const displayQuoteInfo = (
+    quote: Quote | null,
+    symbol: string,
+    label: string,
+  ): void => {
+    const display = formatQuoteDisplay(quote, symbol);
+    if (display) {
+      const timePrefix = formatKlineTimePrefix(quote?.timestamp);
+      logger.info(
+        `${timePrefix}[${label}] ${display.nameText}(${display.codeText}) 最新价格=${display.priceText} 涨跌额=${display.changeAmountText} 涨跌幅度=${display.changePercentText}`,
+      );
+    } else {
+      logger.warn(`未获取到${label}行情。`);
+    }
+  };
+
+  /**
+   * 添加周期指标到显示列表
+   * @param indicators 显示列表
+   * @param indicatorData 指标数据（如 ema 或 rsi）
+   * @param periods 周期数组
+   * @param indicatorName 指标名称（如 "EMA"、"RSI"）
+   * @param decimals 小数位数
+   */
+  const addPeriodIndicators = (
+    indicators: string[],
+    indicatorData: Record<number, number> | null | undefined,
+    periods: ReadonlyArray<number>,
+    indicatorName: string,
+    decimals: number = 3,
+  ): void => {
+    if (!indicatorData) return;
+
+    for (const period of periods) {
+      const value = indicatorData[period];
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        indicators.push(`${indicatorName}${period}=${value.toFixed(decimals)}`);
+      }
+    }
+  };
+
+  /**
+   * 释放旧的监控值对象及其嵌套对象
+   * @param monitorValues 旧的监控值对象
+   */
+  const releaseMonitorValuesObjects = (monitorValues: MonitorValues | null): void => {
+    if (!monitorValues) return;
+
+    // 释放嵌套的 kdj 对象到对象池
+    if (monitorValues.kdj) {
+      kdjObjectPool.release(monitorValues.kdj);
+    }
+    // 释放嵌套的 macd 对象到对象池
+    if (monitorValues.macd) {
+      macdObjectPool.release(monitorValues.macd);
+    }
+    // 释放 monitorValues 对象本身
+    monitorValuesObjectPool.release(monitorValues);
+  };
+
+  /**
    * 显示监控标的的所有指标（内部辅助函数）
    */
   const displayIndicators = (
@@ -74,24 +154,10 @@ export const createMarketMonitor = (): MarketMonitor => {
     }
 
     // 3. EMAn（所有配置的EMA周期）
-    if (monitorSnapshot.ema) {
-      for (const period of emaPeriods) {
-        const emaValue = monitorSnapshot.ema[period];
-        if (Number.isFinite(emaValue)) {
-          indicators.push(`EMA${period}=${formatIndicator(emaValue, 3)}`);
-        }
-      }
-    }
+    addPeriodIndicators(indicators, monitorSnapshot.ema, emaPeriods, 'EMA', 3);
 
     // 4. RSIn（所有配置的RSI周期）
-    if (monitorSnapshot.rsi) {
-      for (const period of rsiPeriods) {
-        const rsiValue = monitorSnapshot.rsi[period];
-        if (Number.isFinite(rsiValue)) {
-          indicators.push(`RSI${period}=${formatIndicator(rsiValue, 3)}`);
-        }
-      }
-    }
+    addPeriodIndicators(indicators, monitorSnapshot.rsi, rsiPeriods, 'RSI', 3);
 
     // 5. MFI
     if (Number.isFinite(monitorSnapshot.mfi)) {
@@ -132,9 +198,7 @@ export const createMarketMonitor = (): MarketMonitor => {
     const monitorSymbolName = monitorQuote?.name ?? monitorSymbol;
 
     // 格式化K线时间戳（仅显示时分秒）
-    const timePrefix = klineTimestamp && Number.isFinite(klineTimestamp)
-      ? `[K线时间: ${toBeijingTimeLog(new Date(klineTimestamp)).split(' ')[1]}] `
-      : '';
+    const timePrefix = formatKlineTimePrefix(klineTimestamp);
 
     logger.info(
       `${colors.cyan}${timePrefix}[监控标的] ${monitorSymbolName}(${normalizedMonitorSymbol}) ${indicators.join(
@@ -167,33 +231,8 @@ export const createMarketMonitor = (): MarketMonitor => {
           : hasChanged(shortPrice ?? null, monitorState.shortPrice ?? null, 0.0001);
 
       if (longPriceChanged || shortPriceChanged) {
-        // 显示做多标的行情
-        const longDisplay = formatQuoteDisplay(longQuote, longSymbol);
-        if (longDisplay) {
-          // 格式化K线时间戳（仅显示时分秒）
-          const longTimePrefix = longQuote?.timestamp && Number.isFinite(longQuote.timestamp)
-            ? `[K线时间: ${toBeijingTimeLog(new Date(longQuote.timestamp)).split(' ')[1]}] `
-            : '';
-          logger.info(
-            `${longTimePrefix}[做多标的] ${longDisplay.nameText}(${longDisplay.codeText}) 最新价格=${longDisplay.priceText} 涨跌额=${longDisplay.changeAmountText} 涨跌幅度=${longDisplay.changePercentText}`,
-          );
-        } else {
-          logger.warn('未获取到做多标的行情。');
-        }
-
-        // 显示做空标的行情
-        const shortDisplay = formatQuoteDisplay(shortQuote, shortSymbol);
-        if (shortDisplay) {
-          // 格式化K线时间戳（仅显示时分秒）
-          const shortTimePrefix = shortQuote?.timestamp && Number.isFinite(shortQuote.timestamp)
-            ? `[K线时间: ${toBeijingTimeLog(new Date(shortQuote.timestamp)).split(' ')[1]}] `
-            : '';
-          logger.info(
-            `${shortTimePrefix}[做空标的] ${shortDisplay.nameText}(${shortDisplay.codeText}) 最新价格=${shortDisplay.priceText} 涨跌额=${shortDisplay.changeAmountText} 涨跌幅度=${shortDisplay.changePercentText}`,
-          );
-        } else {
-          logger.warn('未获取到做空标的行情。');
-        }
+        displayQuoteInfo(longQuote, longSymbol, '做多标的');
+        displayQuoteInfo(shortQuote, shortSymbol, '做空标的');
 
         // 更新价格状态（只更新有效价格，避免将 undefined 写入状态）
         if (Number.isFinite(longPrice)) {
@@ -339,19 +378,7 @@ export const createMarketMonitor = (): MarketMonitor => {
           monitorQuote?.timestamp ?? null,
         );
 
-        // 如果存在旧的 monitorValues，先释放其中的 kdj 和 macd 对象，再释放 monitorValues 本身
-        if (monitorState.monitorValues) {
-          // 释放旧的 kdj 对象到对象池
-          if (monitorState.monitorValues.kdj) {
-            kdjObjectPool.release(monitorState.monitorValues.kdj);
-          }
-          // 释放旧的 macd 对象到对象池
-          if (monitorState.monitorValues.macd) {
-            macdObjectPool.release(monitorState.monitorValues.macd);
-          }
-          // 释放 monitorValues 对象本身
-          monitorValuesObjectPool.release(monitorState.monitorValues);
-        }
+        releaseMonitorValuesObjects(monitorState.monitorValues);
 
         // 从对象池获取新的监控值对象
         const newMonitorValues = monitorValuesObjectPool.acquire() as MonitorValues;
