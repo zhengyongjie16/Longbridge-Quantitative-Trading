@@ -9,7 +9,7 @@
 
 import { OrderStatus, OrderSide } from 'longport';
 import { logger } from '../../utils/logger/index.js';
-import { normalizeHKSymbol, decimalToNumber } from '../../utils/helpers/index.js';
+import { normalizeHKSymbol, decimalToNumber, formatError } from '../../utils/helpers/index.js';
 import type { PendingOrder, DecimalLikeValue, OrderRecorder } from '../../types/index.js';
 import type { OrderCacheManager, OrderCacheManagerDeps } from './types.js';
 
@@ -54,13 +54,15 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
       now - pendingOrdersCacheTime < PENDING_ORDERS_CACHE_TTL;
 
     // 如果缓存有效且不强制刷新，直接返回缓存
-    if (isCacheValid && !forceRefresh) {
+    // 注意：虽然 isCacheValid 已经检查了 pendingOrdersCache !== null，
+    // 但 TypeScript 无法推断变量中的条件关系，需要显式检查来缩窄类型
+    if (isCacheValid && !forceRefresh && pendingOrdersCache !== null) {
       logger.debug(
         `[订单缓存] 使用缓存的未成交订单数据 (symbols=${symbolsKey}, 缓存时间: ${
           now - pendingOrdersCacheTime
         }ms)`,
       );
-      return pendingOrdersCache!;
+      return pendingOrdersCache;
     }
 
     const ctx = await ctxPromise;
@@ -101,7 +103,7 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
           } catch (err) {
             logger.warn(
               `[今日订单API] 获取标的 ${symbol} 的今日订单失败`,
-              (err as Error)?.message ?? String(err),
+              formatError(err),
             );
             // 单个标的查询失败时继续处理下一个标的
           }
@@ -151,7 +153,7 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
     } catch (err) {
       logger.error(
         '获取未成交订单失败',
-        (err as Error)?.message ?? String(err),
+        formatError(err),
       );
       return [];
     }
@@ -201,7 +203,7 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
     } catch (err) {
       logger.warn(
         '检查买入订单失败',
-        (err as Error)?.message ?? String(err),
+        formatError(err),
       );
       return false;
     }

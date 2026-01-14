@@ -34,6 +34,7 @@ import { createConfig } from '../../config/config.index.js';
 import {
   normalizeHKSymbol,
   decimalToNumber,
+  formatError,
 } from '../../utils/helpers/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { API } from '../../constants/index.js';
@@ -208,7 +209,7 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps = {}): P
     } catch (err) {
       logger.error(
         '[静态信息缓存] 批量缓存失败：',
-        (err as Error)?.message ?? String(err),
+        formatError(err),
       );
       throw err;
     }
@@ -322,7 +323,7 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps = {}): P
     } catch (err) {
       logger.error(
         '[行情获取] 批量获取标的行情时发生错误：',
-        (err as Error)?.message ?? String(err),
+        formatError(err),
       );
 
       // 发生错误时，将所有未缓存的标的设为 null
@@ -442,9 +443,7 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps = {}): P
     } catch (err) {
       // 如果 API 调用失败，返回保守结果（假设是交易日，避免漏掉交易机会）
       logger.warn(
-        `[交易日判断] API 调用失败: ${
-          (err as Error)?.message ?? String(err)
-        }，假设为交易日继续运行`,
+        `[交易日判断] API 调用失败: ${formatError(err)}，假设为交易日继续运行`,
       );
       return {
         isTradingDay: true,

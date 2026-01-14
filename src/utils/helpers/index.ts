@@ -47,6 +47,31 @@ export function isDefined<T>(value: T | null | undefined): value is T {
   return value != null; // != null 会同时检查 null 和 undefined
 }
 
+/**
+ * 类型保护：检查是否为 Error 实例
+ * @param value 待检查的值
+ * @returns 如果是 Error 实例返回 true
+ */
+export function isError(value: unknown): value is Error {
+  return value instanceof Error;
+}
+
+/**
+ * 类型保护：检查是否为类似错误的对象（包含错误属性）
+ * @param value 待检查的值
+ * @returns 如果对象包含常见错误属性返回 true
+ */
+export function isErrorLike(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const obj = value as Record<string, unknown>;
+  return typeof obj['message'] === 'string' ||
+         typeof obj['error'] === 'string' ||
+         typeof obj['msg'] === 'string' ||
+         typeof obj['code'] === 'string';
+}
+
 
 /**
  * 规范化港股代码，自动添加 .HK 后缀（如果还没有）
@@ -351,21 +376,22 @@ export function formatError(err: unknown): string {
   if (typeof err === 'string') {
     return err;
   }
-  // Error 实例优先提取 message
-  if (err instanceof Error) {
+  // Error 实例优先提取 message（使用类型保护）
+  if (isError(err)) {
     return err.message || err.name || 'Error';
   }
   // 基本类型直接转换
   if (typeof err !== 'object') {
     return inspect(err, { depth: 5, maxArrayLength: 100 });
   }
-  // 处理普通对象：尝试提取常见错误属性
-  const obj = err as Record<string, unknown>;
-  const errorKeys = ['message', 'error', 'msg', 'code'];
-  for (const key of errorKeys) {
-    const value = obj[key];
-    if (typeof value === 'string' && value) {
-      return value;
+  // 处理类似错误的对象（使用类型保护）
+  if (isErrorLike(err)) {
+    const errorKeys = ['message', 'error', 'msg', 'code'] as const;
+    for (const key of errorKeys) {
+      const value = err[key];
+      if (typeof value === 'string' && value) {
+        return value;
+      }
     }
   }
   // 尝试 JSON 序列化

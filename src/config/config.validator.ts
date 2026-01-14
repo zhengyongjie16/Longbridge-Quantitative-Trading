@@ -12,7 +12,7 @@ import { MULTI_MONITOR_TRADING_CONFIG } from './config.trading.js';
 import { createConfig } from './config.index.js';
 import { createMarketDataClient } from '../services/quoteClient/index.js';
 import type { MarketDataClient, ValidateAllConfigResult, MonitorConfig } from '../types/index.js';
-import { formatSymbolDisplay, normalizeHKSymbol } from '../utils/helpers/index.js';
+import { formatSymbolDisplay, normalizeHKSymbol, formatError } from '../utils/helpers/index.js';
 import { formatSignalConfig } from '../utils/helpers/signalConfigParser.js';
 
 /**
@@ -159,9 +159,7 @@ async function validateSymbolsBatch(
     return symbols.map((symbol, index) => ({
       valid: false,
       name: null,
-      error: `${symbolLabels[index]} ${symbol} 验证失败: ${
-        (err as Error)?.message ?? err
-      }`,
+      error: `${symbolLabels[index]} ${symbol} 验证失败: ${formatError(err)}`,
     }));
   }
 }

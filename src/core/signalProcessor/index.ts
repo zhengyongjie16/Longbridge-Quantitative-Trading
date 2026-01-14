@@ -20,7 +20,7 @@
  */
 
 import { logger } from '../../utils/logger/index.js';
-import { normalizeHKSymbol, getSymbolName, getDirectionName, formatSymbolDisplayFromQuote } from '../../utils/helpers/index.js';
+import { normalizeHKSymbol, getSymbolName, getDirectionName, formatSymbolDisplayFromQuote, formatError } from '../../utils/helpers/index.js';
 import { MULTI_MONITOR_TRADING_CONFIG } from '../../config/config.trading.js';
 import type { Quote, Position, Signal, OrderRecorder } from '../../types/index.js';
 import type { RiskCheckContext, SellQuantityResult, SignalProcessor, SignalProcessorDeps } from './types.js';
@@ -437,14 +437,14 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
             trader.getAccountSnapshot().catch((err) => {
               logger.warn(
                 '风险检查前获取账户信息失败',
-                (err as Error)?.message ?? String(err),
+                formatError(err),
               );
               return null;
             }),
             trader.getStockPositions().catch((err) => {
               logger.warn(
                 '风险检查前获取持仓信息失败',
-                (err as Error)?.message ?? String(err),
+                formatError(err),
               );
               return [];
             }),
@@ -477,7 +477,7 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
         } catch (err) {
           logger.warn(
             '风险检查前获取账户和持仓信息失败',
-            (err as Error)?.message ?? String(err),
+            formatError(err),
           );
         }
       }

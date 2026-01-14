@@ -45,6 +45,7 @@ export function getIndicatorValue(state: IndicatorState | null, indicatorName: s
 
   switch (indicatorName) {
     case 'K':
+      // 非空断言：Number.isFinite 确保值不是 null/undefined，但 TypeScript 无法推断类型缩窄
       return kdj && Number.isFinite(kdj.k) ? kdj.k! : null;
     case 'D':
       return kdj && Number.isFinite(kdj.d) ? kdj.d! : null;

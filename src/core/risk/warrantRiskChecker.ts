@@ -9,7 +9,7 @@
  */
 
 import { logger } from '../../utils/logger/index.js';
-import { normalizeHKSymbol, decimalToNumber, isDefined } from '../../utils/helpers/index.js';
+import { normalizeHKSymbol, decimalToNumber, isDefined, formatError } from '../../utils/helpers/index.js';
 import type { MarketDataClient, WarrantType, RiskCheckResult } from '../../types/index.js';
 import type { WarrantInfo, WarrantQuote, WarrantRiskChecker, WarrantRiskCheckerDeps } from './types.js';
 import {
@@ -176,7 +176,7 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
     } catch (err) {
       logger.warn(
         `[风险检查] 检查${isLong ? '做多' : '做空'}标的牛熊证信息时出错：`,
-        (err as Error)?.message ?? String(err),
+        formatError(err),
       );
       if (isLong) {
         longWarrantInfo = { isWarrant: false };

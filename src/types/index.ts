@@ -146,21 +146,25 @@ export type TradingDayInfo = {
 export type CandleValue = number | string | { toString(): string } | null | undefined;
 
 /**
- * K线数据接口 - 支持 longport SDK 的 Decimal 类型
+ * K线数据类型 - 支持 longport SDK 的 Decimal 类型
  * 字段使用 CandleValue 类型，兼容 Decimal 对象和原始数值
+ *
+ * 注意：使用 type 而非 interface，因为这是数据结构而非行为契约
  */
-export interface CandleData {
+export type CandleData = {
   readonly high?: CandleValue;
   readonly low?: CandleValue;
   readonly close?: CandleValue;
   readonly open?: CandleValue;
   readonly volume?: CandleValue;
-}
+};
 
 /**
- * 监控值接口
+ * 监控值类型
+ *
+ * 注意：使用 type 而非 interface，因为这是数据结构而非行为契约
  */
-export interface MonitorValues {
+export type MonitorValues = {
   price: number | null;
   changePercent: number | null;
   ema: Record<number, number> | null;
@@ -168,7 +172,7 @@ export interface MonitorValues {
   mfi: number | null;
   kdj: KDJIndicator | null;
   macd: MACDIndicator | null;
-}
+};
 
 // ==================== 信号配置 ====================
 
@@ -266,18 +270,22 @@ export type MultiMonitorTradingConfig = {
 };
 
 /**
- * 验证所有配置的返回结果接口
+ * 验证所有配置的返回结果类型
+ *
+ * 注意：使用 type 而非 interface，因为这是数据结构而非行为契约
  */
-export interface ValidateAllConfigResult {
+export type ValidateAllConfigResult = {
   marketDataClient: MarketDataClient;
-}
+};
 
 // ==================== 主入口模块类型 ====================
 
 /**
  * 单个监控标的的状态
+ *
+ * 注意：使用 type 而非 interface，因为这是数据结构而非行为契约
  */
-export interface MonitorState {
+export type MonitorState = {
   monitorSymbol: string;
   longSymbol: string;
   shortSymbol: string;
@@ -295,13 +303,15 @@ export interface MonitorState {
     macd: MACDIndicator | null;
   } | null;
   lastMonitorSnapshot: IndicatorSnapshot | null;
-}
+};
 
 /**
- * 状态对象接口
+ * 状态对象类型
  * 被 index.ts、core/marketMonitor、core/signalVerification 等模块共用
+ *
+ * 注意：使用 type 而非 interface，因为这是数据结构而非行为契约
  */
-export interface LastState {
+export type LastState = {
   canTrade: boolean | null;
   isHalfDay: boolean | null;
   cachedAccount: AccountSnapshot | null;
@@ -313,13 +323,15 @@ export interface LastState {
     isHalfDay: boolean;
   } | null;
   monitorStates: Map<string, MonitorState>;
-}
+};
 
 /**
- * 监控标的上下文接口
+ * 监控标的上下文类型
  * 包含单个监控标的的所有相关实例和状态
+ *
+ * 注意：使用 type 而非 interface，因为这主要是数据聚合而非行为契约
  */
-export interface MonitorContext {
+export type MonitorContext = {
   readonly config: MonitorConfig;
   readonly state: MonitorState;
   readonly strategy: import('../core/strategy/types.js').HangSengMultiIndicatorStrategy;
@@ -335,7 +347,7 @@ export interface MonitorContext {
   normalizedLongSymbol: string;
   normalizedShortSymbol: string;
   normalizedMonitorSymbol: string;
-}
+};
 
 // ==================== 核心服务接口 ====================
 

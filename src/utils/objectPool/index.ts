@@ -130,6 +130,9 @@ export const indicatorRecordPool = createObjectPool<Record<string, number>>(
 /**
  * 交易信号对象池
  * 用于所有类型的交易信号对象（买入、卖出、清仓等）
+ *
+ * 注意：acquire() 返回 PoolableSignal，使用时需要断言为 Signal 类型
+ * 这是对象池模式的标准实现，类型断言在此场景下是安全的
  */
 export const signalObjectPool = createObjectPool<PoolableSignal>(
   // 工厂函数：创建信号对象
@@ -229,6 +232,9 @@ export const macdObjectPool = createObjectPool<PoolableMACD>(
 /**
  * 监控值对象池
  * 用于监控标的指标缓存对象的复用
+ *
+ * 注意：acquire() 返回 PoolableMonitorValues，使用时需要断言为 MonitorValues 类型
+ * 这是对象池模式的标准实现，类型断言在此场景下是安全的
  */
 export const monitorValuesObjectPool = createObjectPool<PoolableMonitorValues>(
   // 工厂函数：创建空对象
@@ -258,6 +264,9 @@ export const monitorValuesObjectPool = createObjectPool<PoolableMonitorValues>(
 /**
  * 持仓对象池
  * 用于持仓数据对象的复用
+ *
+ * 注意：acquire() 返回 PoolablePosition，使用时需要断言为 Position 类型
+ * 这是对象池模式的标准实现，类型断言在此场景下是安全的
  */
 export const positionObjectPool = createObjectPool<PoolablePosition>(
   // 工厂函数：创建空对象

@@ -16,7 +16,7 @@
 
 import { OrderSide } from 'longport';
 import { logger } from '../../utils/logger/index.js';
-import { normalizeHKSymbol } from '../../utils/helpers/index.js';
+import { normalizeHKSymbol, formatError } from '../../utils/helpers/index.js';
 import { batchGetQuotes } from '../../utils/helpers/quoteHelpers.js';
 import { isBeforeClose15Minutes, isBeforeClose5Minutes } from '../../utils/helpers/tradingTime.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
@@ -362,7 +362,7 @@ export const createDoomsdayProtection = (): DoomsdayProtection => {
         } catch (err) {
           logger.warn(
             `[末日保护程序] 撤销买入订单失败：${order.symbol} 订单ID=${order.orderId}`,
-            (err as Error)?.message ?? String(err),
+            formatError(err),
           );
         }
       }

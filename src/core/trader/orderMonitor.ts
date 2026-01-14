@@ -19,7 +19,7 @@ import {
 } from 'longport';
 import type { PushOrderChanged } from 'longport';
 import { logger } from '../../utils/logger/index.js';
-import { normalizeHKSymbol, decimalToNumber } from '../../utils/helpers/index.js';
+import { normalizeHKSymbol, decimalToNumber, formatError } from '../../utils/helpers/index.js';
 import { MULTI_MONITOR_TRADING_CONFIG } from '../../config/config.trading.js';
 import type { Quote } from '../../types/index.js';
 import type {
@@ -303,7 +303,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
     } catch (err) {
       logger.error(
         `[订单撤销失败] 订单ID=${orderId}`,
-        (err as Error)?.message ?? String(err),
+        formatError(err),
       );
       return false;
     }
@@ -350,7 +350,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
         `[订单修改成功] 订单ID=${orderId} 新价格=${newPrice.toFixed(3)}`,
       );
     } catch (err) {
-      const errorMessage = (err as Error)?.message ?? String(err);
+      const errorMessage = formatError(err);
       logger.error(
         `[订单修改失败] 订单ID=${orderId} 新价格=${newPrice.toFixed(3)}`,
         errorMessage,

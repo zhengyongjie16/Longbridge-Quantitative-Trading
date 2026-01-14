@@ -416,7 +416,8 @@ const consoleStream = new Writable({
     } catch (err) {
       // 解析或格式化失败时，至少输出原始内容
       try {
-        process.stderr.write(`[Logger Error] ${(err as Error).message}\n`);
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        process.stderr.write(`[Logger Error] ${errorMessage}\n`);
       } catch {
         // 如果连 stderr 都失败，只能忽略
       }
