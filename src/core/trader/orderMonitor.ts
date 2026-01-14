@@ -30,12 +30,16 @@ import type {
 } from './types.js';
 
 /**
- * 默认订单监控配置
+ * 从全局配置构建订单监控配置
+ * 将环境变量配置（秒）转换为毫秒
  */
-const DEFAULT_CONFIG: OrderMonitorConfig = {
-  timeoutMs: 3 * 60 * 1000,           // 3 分钟
-  priceUpdateIntervalMs: 5 * 1000,    // 5 秒（避免频繁修改）
-  priceDiffThreshold: 0.001,          // 0.001 元
+const buildOrderMonitorConfig = (): OrderMonitorConfig => {
+  const globalConfig = MULTI_MONITOR_TRADING_CONFIG.global;
+  return {
+    timeoutMs: globalConfig.orderMonitorTimeoutSeconds * 1000,
+    priceUpdateIntervalMs: globalConfig.orderMonitorPriceUpdateInterval * 1000,
+    priceDiffThreshold: 0.001,  // 固定值，不需要配置
+  };
 };
 
 const toDecimal = (value: unknown): Decimal => {
@@ -63,7 +67,7 @@ export interface PendingRefreshSymbol {
  */
 export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
   const { ctxPromise, rateLimiter, cacheManager, orderRecorder } = deps;
-  const config = DEFAULT_CONFIG;
+  const config = buildOrderMonitorConfig();
 
   // 追踪中的订单
   const trackedOrders = new Map<string, TrackedOrder>();

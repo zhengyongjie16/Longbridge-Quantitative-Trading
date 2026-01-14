@@ -251,6 +251,10 @@ export type MonitorConfig = {
 export type GlobalConfig = {
   readonly doomsdayProtection: boolean;
   readonly debug: boolean;
+  /** 订单监控超时时间（秒），默认 180（3分钟） */
+  readonly orderMonitorTimeoutSeconds: number;
+  /** 订单监控价格修改最小间隔（秒），默认 5 */
+  readonly orderMonitorPriceUpdateInterval: number;
 };
 
 /**

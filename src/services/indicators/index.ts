@@ -33,7 +33,7 @@ import type { CandleData, IndicatorSnapshot } from '../../types/index.js';
 // ==================== 指标缓存 ====================
 
 /** 缓存 TTL（毫秒） */
-const CACHE_TTL_MS = 5000;
+const CACHE_TTL_MS = 1000;
 
 /** 最大缓存条目数（防止内存泄漏） */
 const MAX_CACHE_SIZE = 50;

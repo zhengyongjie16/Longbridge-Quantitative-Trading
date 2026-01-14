@@ -299,6 +299,8 @@ export const MULTI_MONITOR_TRADING_CONFIG: MultiMonitorTradingConfig = (() => {
       global: {
         doomsdayProtection: getBooleanConfig('DOOMSDAY_PROTECTION', true),
         debug: getBooleanConfig('DEBUG', false),
+        orderMonitorTimeoutSeconds: 180,
+        orderMonitorPriceUpdateInterval: 5,
       },
     };
   }
@@ -312,11 +314,47 @@ export const MULTI_MONITOR_TRADING_CONFIG: MultiMonitorTradingConfig = (() => {
     }
   }
 
+  // 解析订单监控超时配置
+  const orderMonitorTimeoutSeconds = (() => {
+    const timeout = getNumberConfig('ORDER_MONITOR_TIMEOUT_SECONDS', 0);
+    if (timeout === null) {
+      return 180; // 默认 3 分钟
+    }
+    if (timeout < 30) {
+      logger.warn('[配置警告] ORDER_MONITOR_TIMEOUT_SECONDS 不能小于 30，已设置为 30');
+      return 30;
+    }
+    if (timeout > 600) {
+      logger.warn('[配置警告] ORDER_MONITOR_TIMEOUT_SECONDS 不能大于 600，已设置为 600');
+      return 600;
+    }
+    return timeout;
+  })();
+
+  // 解析订单监控价格更新间隔配置
+  const orderMonitorPriceUpdateInterval = (() => {
+    const interval = getNumberConfig('ORDER_MONITOR_PRICE_UPDATE_INTERVAL', 0);
+    if (interval === null) {
+      return 5; // 默认 5 秒
+    }
+    if (interval < 1) {
+      logger.warn('[配置警告] ORDER_MONITOR_PRICE_UPDATE_INTERVAL 不能小于 1，已设置为 1');
+      return 1;
+    }
+    if (interval > 60) {
+      logger.warn('[配置警告] ORDER_MONITOR_PRICE_UPDATE_INTERVAL 不能大于 60，已设置为 60');
+      return 60;
+    }
+    return interval;
+  })();
+
   return {
     monitors,
     global: {
       doomsdayProtection: getBooleanConfig('DOOMSDAY_PROTECTION', true),
       debug: getBooleanConfig('DEBUG', false),
+      orderMonitorTimeoutSeconds,
+      orderMonitorPriceUpdateInterval,
     },
   };
 })();
