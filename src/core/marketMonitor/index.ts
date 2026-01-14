@@ -29,6 +29,7 @@ import {
   monitorValuesObjectPool,
   kdjObjectPool,
   macdObjectPool,
+  periodRecordPool,
 } from '../../utils/objectPool/index.js';
 import type { Quote, IndicatorSnapshot, MonitorValues, MonitorState } from '../../types/index.js';
 import type { MarketMonitor } from './types.js';
@@ -106,6 +107,14 @@ export const createMarketMonitor = (): MarketMonitor => {
   const releaseMonitorValuesObjects = (monitorValues: MonitorValues | null): void => {
     if (!monitorValues) return;
 
+    // 释放嵌套的 ema 对象到对象池
+    if (monitorValues.ema) {
+      periodRecordPool.release(monitorValues.ema);
+    }
+    // 释放嵌套的 rsi 对象到对象池
+    if (monitorValues.rsi) {
+      periodRecordPool.release(monitorValues.rsi);
+    }
     // 释放嵌套的 kdj 对象到对象池
     if (monitorValues.kdj) {
       kdjObjectPool.release(monitorValues.kdj);
@@ -384,23 +393,64 @@ export const createMarketMonitor = (): MarketMonitor => {
         const newMonitorValues = monitorValuesObjectPool.acquire() as MonitorValues;
         newMonitorValues.price = currentPrice;
         newMonitorValues.changePercent = changePercent;
-        newMonitorValues.ema = monitorSnapshot.ema
-          ? { ...monitorSnapshot.ema }
-          : null;
-        newMonitorValues.rsi = monitorSnapshot.rsi
-          ? { ...monitorSnapshot.rsi }
-          : null;
+
+        // 从对象池获取 ema 对象，复制值
+        if (monitorSnapshot.ema) {
+          const emaRecord = periodRecordPool.acquire();
+          for (const key in monitorSnapshot.ema) {
+            const numKey = Number(key);
+            const value = monitorSnapshot.ema[numKey];
+            if (value !== undefined) {
+              emaRecord[numKey] = value;
+            }
+          }
+          newMonitorValues.ema = emaRecord;
+        } else {
+          newMonitorValues.ema = null;
+        }
+
+        // 从对象池获取 rsi 对象，复制值
+        if (monitorSnapshot.rsi) {
+          const rsiRecord = periodRecordPool.acquire();
+          for (const key in monitorSnapshot.rsi) {
+            const numKey = Number(key);
+            const value = monitorSnapshot.rsi[numKey];
+            if (value !== undefined) {
+              rsiRecord[numKey] = value;
+            }
+          }
+          newMonitorValues.rsi = rsiRecord;
+        } else {
+          newMonitorValues.rsi = null;
+        }
+
         newMonitorValues.mfi = monitorSnapshot.mfi;
-        // 创建 kdj 和 macd 对象的浅拷贝，避免直接引用对象池中的对象
-        // 这样可以防止对象池回收时数据被意外修改
+
+        // 从对象池获取 kdj 和 macd 对象，复制值
+        // 避免直接引用对象池中的对象，防止对象池回收时数据被意外修改
         const kdjData = monitorSnapshot.kdj;
+        if (kdjData) {
+          const kdjRecord = kdjObjectPool.acquire();
+          kdjRecord.k = kdjData.k;
+          kdjRecord.d = kdjData.d;
+          kdjRecord.j = kdjData.j;
+          // 类型断言：kdjData 已验证非空，kdj 字段值已赋值
+          newMonitorValues.kdj = kdjRecord as MonitorValues['kdj'];
+        } else {
+          newMonitorValues.kdj = null;
+        }
+
         const macdData = monitorSnapshot.macd;
-        newMonitorValues.kdj = kdjData
-          ? { k: kdjData.k, d: kdjData.d, j: kdjData.j }
-          : null;
-        newMonitorValues.macd = macdData
-          ? { dif: macdData.dif, dea: macdData.dea, macd: macdData.macd }
-          : null;
+        if (macdData) {
+          const macdRecord = macdObjectPool.acquire();
+          macdRecord.dif = macdData.dif;
+          macdRecord.dea = macdData.dea;
+          macdRecord.macd = macdData.macd;
+          // 类型断言：macdData 已验证非空，macd 字段值已赋值
+          newMonitorValues.macd = macdRecord as MonitorValues['macd'];
+        } else {
+          newMonitorValues.macd = null;
+        }
 
         monitorState.monitorValues = newMonitorValues;
 

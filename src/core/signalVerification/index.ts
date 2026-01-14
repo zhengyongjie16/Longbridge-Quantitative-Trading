@@ -24,7 +24,7 @@
  */
 
 import { logger } from '../../utils/logger/index.js';
-import { verificationEntryPool, signalObjectPool } from '../../utils/objectPool/index.js';
+import { verificationEntryPool, signalObjectPool, indicatorRecordPool } from '../../utils/objectPool/index.js';
 import { getIndicatorValue } from '../../utils/helpers/indicatorHelpers.js';
 import { formatError, formatSymbolDisplayFromQuote, normalizeHKSymbol } from '../../utils/helpers/index.js';
 import { TIME, VERIFICATION } from '../../constants/index.js';
@@ -459,7 +459,8 @@ export const createSignalVerificationManager = (
         }
 
         // 提取当前信号配置的所有指标值
-        const currentIndicators: Record<string, number> = {};
+        // 从对象池获取 currentIndicators 对象，减少内存分配
+        const currentIndicators = indicatorRecordPool.acquire();
         let allIndicatorsValid = true;
 
         for (const indicatorName of currentConfig.indicators) {
@@ -495,8 +496,15 @@ export const createSignalVerificationManager = (
               // 从对象池获取条目对象，减少内存分配
               const entry = verificationEntryPool.acquire() as VerificationEntry;
               entry.timestamp = now;
-              // 将所有配置的指标值记录到 indicators 对象中
-              entry.indicators = { ...currentIndicators };
+              // 从对象池获取 indicators 对象，并复制当前指标值
+              const entryIndicators = indicatorRecordPool.acquire();
+              for (const key in currentIndicators) {
+                const value = currentIndicators[key];
+                if (value !== undefined) {
+                  entryIndicators[key] = value;
+                }
+              }
+              entry.indicators = entryIndicators;
 
               // 记录当前值
               pendingSignal.verificationHistory.push(entry);
@@ -517,6 +525,10 @@ export const createSignalVerificationManager = (
                   if (t >= windowStart && t <= windowEnd) {
                     entriesToKeep.push(e);
                   } else {
+                    // 释放 entry.indicators 到对象池
+                    if (e.indicators) {
+                      indicatorRecordPool.release(e.indicators);
+                    }
                     entriesToRelease.push(e);
                   }
                 }
@@ -528,6 +540,8 @@ export const createSignalVerificationManager = (
             }
           }
         }
+        // 释放临时的 currentIndicators 对象回对象池
+        indicatorRecordPool.release(currentIndicators);
       }
     },
 
@@ -571,6 +585,12 @@ export const createSignalVerificationManager = (
 
           // 清空该信号的历史记录并释放对象回池
           if (pendingSignal.verificationHistory) {
+            // 先释放每个 entry 的 indicators 对象
+            for (const entry of pendingSignal.verificationHistory) {
+              if (entry.indicators) {
+                indicatorRecordPool.release(entry.indicators);
+              }
+            }
             verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
             pendingSignal.verificationHistory = [];
           }
@@ -589,6 +609,12 @@ export const createSignalVerificationManager = (
           );
           // 清空该信号的历史记录并释放对象回池
           if (pendingSignal.verificationHistory) {
+            // 先释放每个 entry 的 indicators 对象
+            for (const entry of pendingSignal.verificationHistory) {
+              if (entry.indicators) {
+                indicatorRecordPool.release(entry.indicators);
+              }
+            }
             verificationEntryPool.releaseAll(pendingSignal.verificationHistory);
             pendingSignal.verificationHistory = [];
           }

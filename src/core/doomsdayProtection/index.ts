@@ -19,6 +19,7 @@ import { logger } from '../../utils/logger/index.js';
 import { normalizeHKSymbol } from '../../utils/helpers/index.js';
 import { batchGetQuotes } from '../../utils/helpers/quoteHelpers.js';
 import { isBeforeClose15Minutes, isBeforeClose5Minutes } from '../../utils/helpers/tradingTime.js';
+import { signalObjectPool } from '../../utils/objectPool/index.js';
 import type { Position, Quote, Signal, SignalType } from '../../types/index.js';
 import type { DoomsdayProtection, DoomsdayClearanceContext, DoomsdayClearanceResult, CancelPendingBuyOrdersContext, CancelPendingBuyOrdersResult } from './types.js';
 
@@ -42,16 +43,15 @@ type ClearanceSignalParams = {
 const createClearanceSignal = (params: ClearanceSignalParams): Signal | null => {
   const { normalizedSymbol, symbolName, action, price, lotSize, positionType } = params;
 
-  // 直接构建 Signal 对象，避免对象池类型转换问题
-  const signal: Signal = {
-    symbol: normalizedSymbol,
-    symbolName: symbolName,
-    action: action,
-    reason: `末日保护程序：收盘前5分钟自动清仓（${positionType}持仓）`,
-    price: price,
-    lotSize: lotSize,
-    signalTriggerTime: new Date(),
-  };
+  // 从对象池获取信号对象，减少内存分配
+  const signal = signalObjectPool.acquire() as Signal;
+  signal.symbol = normalizedSymbol;
+  signal.symbolName = symbolName;
+  signal.action = action;
+  signal.reason = `末日保护程序：收盘前5分钟自动清仓（${positionType}持仓）`;
+  signal.price = price;
+  signal.lotSize = lotSize;
+  signal.signalTriggerTime = new Date();
 
   return signal;
 };
@@ -276,6 +276,9 @@ export const createDoomsdayProtection = (): DoomsdayProtection => {
 
       // 执行清仓信号
       await trader.executeSignals(uniqueClearanceSignals);
+
+      // 释放执行后的清仓信号对象回对象池
+      signalObjectPool.releaseAll(uniqueClearanceSignals);
 
       // 交易后获取并显示账户和持仓信息
       await displayAccountAndPositions(trader, marketDataClient, lastState);

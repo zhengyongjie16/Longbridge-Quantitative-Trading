@@ -11,6 +11,8 @@
  * - positionObjectPool：持仓数据对象池（最大 10 个）
  * - signalObjectPool：信号对象池
  * - kdjObjectPool / macdObjectPool：指标对象池
+ * - indicatorRecordPool：指标记录对象池 Record<string, number>（最大 100 个）
+ * - periodRecordPool：周期指标记录对象池 Record<number, number>（最大 100 个）
  *
  * 核心方法：
  * - acquire()：从池中获取对象
@@ -104,6 +106,28 @@ export const verificationEntryPool = createObjectPool<PoolableVerificationEntry>
 );
 
 /**
+ * 指标记录对象池（字符串键）
+ * 用于 indicators1、currentIndicators 等 Record<string, number> 对象的复用
+ * 主要用于：
+ * - strategy/index.ts 中的 indicators1
+ * - signalVerification/index.ts 中的 currentIndicators
+ *
+ * 注意：此对象池需要在 signalObjectPool 之前定义，因为 signalObjectPool 的重置函数需要使用它
+ */
+export const indicatorRecordPool = createObjectPool<Record<string, number>>(
+  // 工厂函数：创建空对象
+  () => ({}),
+  // 重置函数：清空所有属性
+  (obj) => {
+    for (const key in obj) {
+      delete obj[key];
+    }
+    return obj;
+  },
+  100, // 最大保存100个对象
+);
+
+/**
  * 交易信号对象池
  * 用于所有类型的交易信号对象（买入、卖出、清仓等）
  */
@@ -124,7 +148,25 @@ export const signalObjectPool = createObjectPool<PoolableSignal>(
     useMarketOrder: false,
   }),
   // 重置函数：清空所有属性
+  // 注意：需要释放 indicators1 和 verificationHistory 中的对象，避免内存泄漏
   (obj) => {
+    // 释放 indicators1 到 indicatorRecordPool（如果存在）
+    if (obj.indicators1) {
+      indicatorRecordPool.release(obj.indicators1);
+    }
+    // 释放 verificationHistory 中每个 entry 的 indicators 对象和 entry 本身
+    if (obj.verificationHistory && Array.isArray(obj.verificationHistory)) {
+      for (const entry of obj.verificationHistory) {
+        if (entry) {
+          // 先释放 entry 中的 indicators 对象
+          if (entry.indicators) {
+            indicatorRecordPool.release(entry.indicators);
+          }
+          // 再释放 entry 本身
+          verificationEntryPool.release(entry);
+        }
+      }
+    }
     obj.symbol = null;
     obj.symbolName = null;
     obj.action = null;
@@ -234,4 +276,24 @@ export const positionObjectPool = createObjectPool<PoolablePosition>(
     return obj;
   },
   10, // 通常不会有超过10个持仓
+);
+
+/**
+ * 周期指标记录对象池（数字键）
+ * 用于 rsi、ema 等 Record<number, number> 对象的复用
+ * 主要用于：
+ * - indicators/index.ts 中的 rsi、ema
+ * - marketMonitor/index.ts 中的 EMA/RSI 浅拷贝
+ */
+export const periodRecordPool = createObjectPool<Record<number, number>>(
+  // 工厂函数：创建空对象
+  () => ({}),
+  // 重置函数：清空所有属性
+  (obj) => {
+    for (const key in obj) {
+      delete obj[key];
+    }
+    return obj;
+  },
+  100, // 最大保存100个对象
 );

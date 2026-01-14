@@ -336,7 +336,11 @@ async function processMonitor(
   );
 
   // 释放上一次快照中的 kdj 和 macd 对象（如果它们没有被 monitorValues 引用）
-  releaseSnapshotObjects(state.lastMonitorSnapshot, state.monitorValues);
+  // 注意：如果缓存命中，state.lastMonitorSnapshot 可能与 monitorSnapshot 是同一个对象
+  // 此时不应释放，否则会导致缓存的 snapshot 中的 kdj/macd 对象被意外释放
+  if (state.lastMonitorSnapshot !== monitorSnapshot) {
+    releaseSnapshotObjects(state.lastMonitorSnapshot, state.monitorValues);
+  }
   // 保存当前快照供下次循环使用
   state.lastMonitorSnapshot = monitorSnapshot;
 

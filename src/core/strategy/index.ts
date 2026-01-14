@@ -19,7 +19,7 @@
  */
 
 import { evaluateSignalConfig } from '../../utils/helpers/signalConfigParser.js';
-import { signalObjectPool } from '../../utils/objectPool/index.js';
+import { signalObjectPool, indicatorRecordPool } from '../../utils/objectPool/index.js';
 import { getIndicatorValue, isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
 import { TIME } from '../../constants/index.js';
 import type {
@@ -247,12 +247,15 @@ export const createHangSengMultiIndicatorStrategy = ({
     }
 
     // 记录当前配置的所有指标的初始值（indicators1）
-    const indicators1: Record<string, number> = {};
+    // 从对象池获取 indicators1 对象，减少内存分配
+    const indicators1 = indicatorRecordPool.acquire();
     const indicatorsList = verificationConfig.indicators ?? [];
     for (const indicatorName of indicatorsList) {
       const value = getIndicatorValue(state, indicatorName);
       if (value === null) {
         // 如果任何配置的指标值无效，则无法生成延迟验证信号
+        // 释放已获取的对象回对象池
+        indicatorRecordPool.release(indicators1);
         return null;
       }
       indicators1[indicatorName] = value;

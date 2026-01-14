@@ -22,6 +22,7 @@
  */
 
 import { validateRsiPeriod, validateEmaPeriod } from '../../utils/helpers/indicatorHelpers.js';
+import { periodRecordPool } from '../../utils/objectPool/index.js';
 import { toNumber } from './utils.js';
 import { calculateRSI } from './rsi.js';
 import { calculateMFI } from './mfi.js';
@@ -78,6 +79,20 @@ const buildDataFingerprint = (
 };
 
 /**
+ * 释放缓存条目中的对象池对象
+ * @param entry 缓存条目
+ */
+const releaseCacheEntryObjects = (entry: IndicatorCacheEntry): void => {
+  // 释放 rsi 和 ema 对象回对象池
+  if (entry.snapshot.rsi) {
+    periodRecordPool.release(entry.snapshot.rsi);
+  }
+  if (entry.snapshot.ema) {
+    periodRecordPool.release(entry.snapshot.ema);
+  }
+};
+
+/**
  * 清理过期缓存条目
  * 当缓存条目超过最大数量时，删除最旧的条目
  */
@@ -97,6 +112,10 @@ const cleanupCache = (): void => {
   }
 
   for (const key of entriesToDelete) {
+    const entry = indicatorCache.get(key);
+    if (entry) {
+      releaseCacheEntryObjects(entry);
+    }
     indicatorCache.delete(key);
   }
 
@@ -107,9 +126,10 @@ const cleanupCache = (): void => {
     );
     const deleteCount = indicatorCache.size - MAX_CACHE_SIZE;
     for (let i = 0; i < deleteCount; i++) {
-      const entry = sortedEntries[i];
-      if (entry) {
-        indicatorCache.delete(entry[0]);
+      const sortedEntry = sortedEntries[i];
+      if (sortedEntry) {
+        releaseCacheEntryObjects(sortedEntry[1]);
+        indicatorCache.delete(sortedEntry[0]);
       }
     }
   }
@@ -192,7 +212,8 @@ export function buildIndicatorSnapshot(
   }
 
   // 计算所有需要的 RSI 周期
-  const rsi: Record<number, number> = {};
+  // 从对象池获取 rsi 对象，减少内存分配
+  const rsi = periodRecordPool.acquire();
   if (Array.isArray(rsiPeriods) && rsiPeriods.length > 0) {
     for (const period of rsiPeriods) {
       if (validateRsiPeriod(period) && Number.isInteger(period)) {
@@ -205,7 +226,8 @@ export function buildIndicatorSnapshot(
   }
 
   // 计算所有需要的 EMA 周期
-  const ema: Record<number, number> = {};
+  // 从对象池获取 ema 对象，减少内存分配
+  const ema = periodRecordPool.acquire();
   if (Array.isArray(emaPeriods) && emaPeriods.length > 0) {
     for (const period of emaPeriods) {
       if (validateEmaPeriod(period) && Number.isInteger(period)) {
@@ -232,6 +254,12 @@ export function buildIndicatorSnapshot(
   const cacheKey = buildCacheKey(symbol, rsiPeriods, emaPeriods);
   const dataFingerprint = buildDataFingerprint(candles, lastPrice);
   const now = Date.now();
+
+  // 释放旧缓存条目中的对象池对象（如果存在）
+  const oldEntry = indicatorCache.get(cacheKey);
+  if (oldEntry) {
+    releaseCacheEntryObjects(oldEntry);
+  }
 
   indicatorCache.set(cacheKey, {
     snapshot,
