@@ -326,11 +326,12 @@ export function getSignalActionDescription(action: SignalType): string {
 }
 
 /**
- * 格式化信号日志
+ * 格式化信号日志（标的显示为：中文名称(代码)）
  */
-export function formatSignalLog(signal: { action: SignalType; symbol: string; reason?: string }): string {
+export function formatSignalLog(signal: { action: SignalType; symbol: string; symbolName?: string | null; reason?: string }): string {
   const actionDesc = getSignalActionDescription(signal.action);
-  return `${actionDesc} ${signal.symbol} - ${signal.reason || '策略信号'}`;
+  const symbolDisplay = formatSymbolDisplay(signal.symbol, signal.symbolName ?? null);
+  return `${actionDesc} ${symbolDisplay} - ${signal.reason || '策略信号'}`;
 }
 
 

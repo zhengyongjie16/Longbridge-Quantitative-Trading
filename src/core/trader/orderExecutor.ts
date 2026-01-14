@@ -25,6 +25,7 @@ import {
   isDefined,
   isBuyAction,
   isValidPositiveNumber,
+  formatSymbolDisplay,
 } from '../../utils/helpers/index.js';
 import type { Signal, TradeCheckResult, MonitorConfig } from '../../types/index.js';
 import type { OrderPayload, OrderExecutor, OrderExecutorDeps } from './types.js';
@@ -630,9 +631,10 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
         actualAction = `未知操作(${s.action})`;
       }
 
-      // 使用绿色显示交易计划
+      // 使用绿色显示交易计划（格式化标的显示：中文名称(代码)）
+      const symbolDisplay = formatSymbolDisplay(targetSymbol, s.symbolName);
       logger.info(
-        `${colors.green}[交易计划] ${actualAction} ${targetSymbol} - ${
+        `${colors.green}[交易计划] ${actualAction} ${symbolDisplay} - ${
           s.reason || '策略信号'
         }${colors.reset}`,
       );

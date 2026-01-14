@@ -363,6 +363,16 @@ async function processMonitor(
       orderRecorder,
     );
 
+    // 为延迟信号设置标的中文名称（用于日志显示）
+    for (const signal of delayedSignals) {
+      const normalizedSigSymbol = signal.symbol;
+      if (normalizedSigSymbol === LONG_SYMBOL && longQuote) {
+        if (signal.symbolName == null && longQuote.name != null) signal.symbolName = longQuote.name;
+      } else if (normalizedSigSymbol === SHORT_SYMBOL && shortQuote) {
+        if (signal.symbolName == null && shortQuote.name != null) signal.symbolName = shortQuote.name;
+      }
+    }
+
     // 6. 处理延迟验证（先添加新信号，再记录验证历史，确保新添加的信号也能被记录）
     signalVerificationManager.addDelayedSignals(delayedSignals, state);
     // 记录验证历史（在添加新信号后调用，确保新添加的信号也能被记录）
