@@ -15,7 +15,6 @@
  *
  * 核心函数：
  * - parseSignalConfig()：解析配置字符串
- * - validateSignalConfig()：验证配置格式
  * - evaluateCondition()：评估单个条件
  * - evaluateSignalConfig()：评估完整配置
  * - extractRSIPeriods()：提取 RSI 周期列表
@@ -25,7 +24,6 @@ import {
   validateRsiPeriod,
   validateEmaPeriod,
 } from './indicatorHelpers.js';
-import { logger } from '../logger/index.js';
 import type {
   Condition,
   ConditionGroup,
@@ -36,7 +34,6 @@ import type { IndicatorState } from '../types.js';
 import type {
   ParsedCondition,
   ParsedConditionGroup,
-  SignalValidationResult,
   EvaluationResult,
   ConditionGroupResult,
 } from './types.js';
@@ -243,11 +240,7 @@ export function parseSignalConfig(configStr: string | null | undefined): SignalC
   // 按 | 分隔条件组
   const groupStrs = trimmed.split('|');
 
-  // 最多支持3个条件组
-  if (groupStrs.length > 3) {
-    logger.warn('[信号配置警告] 条件组数量超过3个，将只使用前3个');
-  }
-
+  // 最多支持3个条件组（不输出警告）
   const conditionGroups: ConditionGroup[] = [];
 
   for (let i = 0; i < Math.min(groupStrs.length, 3); i++) {
@@ -278,153 +271,6 @@ export function parseSignalConfig(configStr: string | null | undefined): SignalC
 
   return {
     conditionGroups,
-  };
-}
-
-/**
- * 验证信号配置格式
- * @param configStr 配置字符串
- * @returns 验证结果
- */
-export function validateSignalConfig(configStr: string | null | undefined): SignalValidationResult {
-  if (!configStr || typeof configStr !== 'string') {
-    return {
-      valid: false,
-      error: '配置不能为空',
-      config: null,
-    };
-  }
-
-  const trimmed = configStr.trim();
-  if (!trimmed) {
-    return {
-      valid: false,
-      error: '配置不能为空',
-      config: null,
-    };
-  }
-
-  // 基本格式检查
-  const groupStrs = trimmed.split('|');
-
-  if (groupStrs.length > 3) {
-    return {
-      valid: false,
-      error: `条件组数量超过3个（当前: ${groupStrs.length}）`,
-      config: null,
-    };
-  }
-
-  // 验证每个条件组
-  for (let i = 0; i < groupStrs.length; i++) {
-    const groupStr = groupStrs[i];
-    if (!groupStr) {
-      continue;
-    }
-    const trimmedGroupStr = groupStr.trim();
-
-    // 检查括号匹配
-    const openCount = (trimmedGroupStr.match(/\(/g) || []).length;
-    const closeCount = (trimmedGroupStr.match(/\)/g) || []).length;
-
-    if (openCount !== closeCount) {
-      return {
-        valid: false,
-        error: `条件组 ${i + 1} 括号不匹配`,
-        config: null,
-      };
-    }
-
-    // 检查是否有有效的条件
-    const bracketRegex = /^\(([^)]+)\)(?:\/(\d+))?$/;
-    const bracketMatch = bracketRegex.exec(trimmedGroupStr);
-    let conditionsStr: string;
-    let minSatisfied: number | null = null;
-
-    if (bracketMatch) {
-      const capturedGroup = bracketMatch[1];
-      if (!capturedGroup) {
-        return {
-          valid: false,
-          error: `条件组 ${i + 1} 括号内为空`,
-          config: null,
-        };
-      }
-      conditionsStr = capturedGroup;
-      if (bracketMatch[2]) {
-        minSatisfied = Number.parseInt(bracketMatch[2], 10);
-      }
-    } else {
-      // 尝试解析不带括号的单个条件
-      conditionsStr = trimmedGroupStr;
-    }
-
-    const conditionStrs = conditionsStr.split(',');
-
-    for (let j = 0; j < conditionStrs.length; j++) {
-      const condStr = conditionStrs[j];
-      if (!condStr) {
-        continue;
-      }
-      const trimmedCondStr = condStr.trim();
-
-      if (!trimmedCondStr) {
-        return {
-          valid: false,
-          error: `条件组 ${i + 1} 的第 ${j + 1} 个条件为空`,
-          config: null,
-        };
-      }
-
-      const condition = parseCondition(trimmedCondStr);
-      if (!condition) {
-        return {
-          valid: false,
-          error: `条件组 ${i + 1} 的第 ${
-            j + 1
-          } 个条件 "${trimmedCondStr}" 格式无效。支持的指标: RSI:n (n为1-100), EMA:n (n为1-250), ${SUPPORTED_INDICATORS.join(
-            ', ',
-          )}`,
-          config: null,
-        };
-      }
-    }
-
-    // 验证 minSatisfied
-    if (minSatisfied !== null) {
-      if (minSatisfied < 1) {
-        return {
-          valid: false,
-          error: `条件组 ${i + 1} 的最小满足数量必须 >= 1`,
-          config: null,
-        };
-      }
-      if (minSatisfied > conditionStrs.length) {
-        return {
-          valid: false,
-          error: `条件组 ${i + 1} 的最小满足数量 ${minSatisfied} 超过条件数量 ${
-            conditionStrs.length
-          }`,
-          config: null,
-        };
-      }
-    }
-  }
-
-  // 解析配置
-  const config = parseSignalConfig(trimmed);
-  if (!config) {
-    return {
-      valid: false,
-      error: '配置解析失败',
-      config: null,
-    };
-  }
-
-  return {
-    valid: true,
-    error: null,
-    config,
   };
 }
 

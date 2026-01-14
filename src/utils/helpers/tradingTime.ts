@@ -134,3 +134,4 @@ export function hasChanged(current: number | null | undefined, last: number | nu
   }
   return Math.abs(current - last) > threshold;
 }
+

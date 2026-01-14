@@ -357,7 +357,6 @@ export type TradingDaysResult = {
  */
 export interface MarketDataClient {
   _getContext(): Promise<import('longport').QuoteContext>;
-  getLatestQuote(symbol: string): Promise<Quote | null>;
   /**
    * 批量获取多个标的的最新行情
    * 使用单次 API 调用获取所有标的行情，减少 API 调用次数
@@ -375,6 +374,13 @@ export interface MarketDataClient {
   ): Promise<import('longport').Candlestick[]>;
   getTradingDays(startDate: Date, endDate: Date, market?: import('longport').Market): Promise<TradingDaysResult>;
   isTradingDay(date: Date, market?: import('longport').Market): Promise<TradingDayInfo>;
+  /**
+   * 批量缓存静态信息（供配置验证流程使用）
+   * 在程序启动时由 validateSymbolsBatch 调用
+   *
+   * @param symbols 标的代码数组
+   */
+  cacheStaticInfo(symbols: ReadonlyArray<string>): Promise<void>;
 }
 
 /**

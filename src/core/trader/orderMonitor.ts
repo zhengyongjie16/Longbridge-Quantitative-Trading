@@ -27,6 +27,7 @@ import type {
   OrderMonitorDeps,
   TrackedOrder,
   OrderMonitorConfig,
+  PendingRefreshSymbol,
 } from './types.js';
 
 /**
@@ -51,14 +52,6 @@ const toDecimal = (value: unknown): Decimal => {
   }
   return Decimal.ZERO();
 };
-
-/**
- * 需要刷新浮亏数据的标的信息
- */
-export interface PendingRefreshSymbol {
-  readonly symbol: string;
-  readonly isLongSymbol: boolean;
-}
 
 /**
  * 创建订单监控器（依赖注入 OrderRecorder）
@@ -106,13 +99,15 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
     }
 
     // 更新订单状态
-    trackedOrder.status = event.status as OrderStatus;
-    trackedOrder.executedQuantity = Number(event.executedQuantity) || 0;
+    trackedOrder.status = event.status;
+    // PushOrderChanged 的 executedQuantity / executedPrice 在 SDK 中通常为 Decimal
+    // 必须使用 decimalToNumber() 进行安全转换，避免 Number(Decimal) -> NaN
+    trackedOrder.executedQuantity = decimalToNumber(event.executedQuantity) || 0;
 
     // ========== 订单完全成交：使用成交价更新本地记录 ==========
     if (event.status === OrderStatus.Filled) {
-      const executedPrice = Number(event.executedPrice);
-      const executedQuantity = Number(event.executedQuantity);
+      const executedPrice = decimalToNumber(event.executedPrice);
+      const executedQuantity = decimalToNumber(event.executedQuantity);
 
       if (
         Number.isFinite(executedPrice) && executedPrice > 0 &&
@@ -470,7 +465,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
 
       // 获取最新行情
       const quote = quotesMap.get(order.symbol);
-      if (!quote?.price || !Number.isFinite(quote.price)) {
+      if (!quote || !Number.isFinite(quote.price)) {
         continue;
       }
 

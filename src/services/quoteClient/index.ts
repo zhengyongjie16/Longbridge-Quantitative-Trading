@@ -11,13 +11,14 @@
  * - 行情数据：1 秒 TTL 缓存
  * - 交易日信息：24 小时 TTL 缓存
  * - 牛熊证信息：持久缓存
+ * - 静态信息（name、lotSize）：永久缓存（程序启动时填充）
  *
  * 核心方法：
- * - getLatestQuote()：获取单个标的实时行情
- * - getQuotes()：获取多个标的实时行情
+ * - getQuotes()：批量获取多个标的实时行情
  * - getCandlesticks()：获取 K 线数据
  * - isTradingDay()：检查是否为交易日
  * - checkWarrantInfo()：检查牛熊证回收价
+ * - cacheStaticInfo()：批量缓存静态信息（由配置验证流程调用）
  */
 
 import {
@@ -155,6 +156,9 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps = {}): P
   const quoteCache = createQuoteCache<Quote>();
   const tradingDayCache = createTradingDayCache();
 
+  // staticInfo 永久缓存（在配置验证阶段填充，运行时只读）
+  const staticInfoCache = new Map<string, unknown>();
+
   /**
    * 带重试的异步操作包装器
    */
@@ -177,6 +181,37 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps = {}): P
       }
     }
     throw lastErr;
+  };
+
+  /**
+   * 批量缓存静态信息（供配置验证流程使用）
+   * 在程序启动时调用一次，将所有标的的静态信息缓存起来
+   * @param symbols 标的代码数组
+   */
+  const cacheStaticInfo = async (symbols: ReadonlyArray<string>): Promise<void> => {
+    const ctx = await ctxPromise;
+    const normalizedSymbols = symbols.map(normalizeHKSymbol);
+    if (normalizedSymbols.length === 0) {
+      return;
+    }
+    try {
+      const statics = await withRetry(() => ctx.staticInfo(normalizedSymbols));
+      if (statics) {
+        for (const info of statics) {
+          if (info && typeof info === 'object' && 'symbol' in info) {
+            const symbol = (info as { symbol: string }).symbol;
+            staticInfoCache.set(symbol, info);
+          }
+        }
+        logger.debug(`[静态信息缓存] 成功缓存 ${statics.length} 个标的的静态信息`);
+      }
+    } catch (err) {
+      logger.error(
+        '[静态信息缓存] 批量缓存失败：',
+        (err as Error)?.message ?? String(err),
+      );
+      throw err;
+    }
   };
 
   /**
@@ -204,60 +239,9 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps = {}): P
   };
 
   /**
-   * 获取单个标的的最新行情
-   */
-  const getLatestQuote = async (symbol: string): Promise<Quote | null> => {
-    const ctx = await ctxPromise;
-    // 规范化港股代码，自动添加 .HK 后缀
-    const normalizedSymbol = normalizeHKSymbol(symbol);
-    const cached = quoteCache.get(normalizedSymbol);
-    if (cached) {
-      return cached;
-    }
-    try {
-      const [quotes, statics] = await withRetry(() =>
-        Promise.all([
-          ctx.quote([normalizedSymbol]),
-          ctx.staticInfo([normalizedSymbol]),
-        ]),
-      );
-      const quote = quotes?.[0];
-      const staticInfo = statics?.[0];
-      if (!quote) {
-        logger.warn(
-          `[行情获取] 标的 ${normalizedSymbol} (原始: ${symbol}) 未返回行情数据。quotes.length=${
-            quotes?.length ?? 0
-          }`,
-        );
-        return null;
-      }
-      // 使用类型安全的提取函数
-      const name = extractName(staticInfo);
-      const lotSize = extractLotSize(staticInfo);
-      const result: Quote = {
-        symbol: quote.symbol,
-        name,
-        price: decimalToNumber(quote.lastDone),
-        prevClose: decimalToNumber(quote.prevClose),
-        timestamp: quote.timestamp.getTime(),
-        ...(lotSize === undefined ? {} : { lotSize }),
-        raw: quote,
-        staticInfo,
-      };
-      quoteCache.set(normalizedSymbol, result);
-      return result;
-    } catch (err) {
-      logger.error(
-        `[行情获取] 获取标的 ${normalizedSymbol} (原始: ${symbol}) 行情时发生错误：`,
-        (err as Error)?.message ?? String(err),
-      );
-      throw err;
-    }
-  };
-
-  /**
    * 批量获取多个标的的最新行情
    * 使用单次 API 调用获取所有标的行情，减少 API 调用次数
+   * 静态信息（name、lotSize）从永久缓存读取，不调用 staticInfo API
    *
    * @param symbols 标的代码数组
    * @returns 标的代码到行情数据的 Map（使用规范化后的标的代码作为 key）
@@ -286,23 +270,17 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps = {}): P
     }
 
     try {
-      // 单次 API 调用获取所有未缓存标的的行情和静态信息
-      const [quotes, statics] = await withRetry(() =>
-        Promise.all([
-          ctx.quote(uncachedSymbols),
-          ctx.staticInfo(uncachedSymbols),
-        ]),
-      );
+      // 只调用 quote API 获取实时行情，不调用 staticInfo API
+      const quotes = await withRetry(() => ctx.quote(uncachedSymbols));
 
-      // 创建静态信息查找 Map（按标的代码索引）
+      // 从永久缓存读取静态信息
       const staticInfoMap = new Map<string, unknown>();
-      if (statics) {
-        for (const info of statics) {
-          if (info && typeof info === 'object' && 'symbol' in info) {
-            const symbol = (info as { symbol: string }).symbol;
-            staticInfoMap.set(symbol, info);
-          }
+      for (const symbol of uncachedSymbols) {
+        const cachedStaticInfo = staticInfoCache.get(symbol);
+        if (cachedStaticInfo) {
+          staticInfoMap.set(symbol, cachedStaticInfo);
         }
+        // 缓存未命中时不处理，staticInfoMap 中就没有该 symbol
       }
 
       // 处理每个行情数据
@@ -477,11 +455,11 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps = {}): P
 
   return {
     _getContext,
-    getLatestQuote,
     getQuotes,
     getCandlesticks,
     getTradingDays,
     isTradingDay,
+    cacheStaticInfo,
   };
 };
 

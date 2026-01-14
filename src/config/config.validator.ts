@@ -12,7 +12,7 @@ import { MULTI_MONITOR_TRADING_CONFIG } from './config.trading.js';
 import { createConfig } from './config.index.js';
 import { createMarketDataClient } from '../services/quoteClient/index.js';
 import type { MarketDataClient, ValidateAllConfigResult, MonitorConfig } from '../types/index.js';
-import { formatSymbolDisplay } from '../utils/helpers/index.js';
+import { formatSymbolDisplay, normalizeHKSymbol } from '../utils/helpers/index.js';
 import { formatSignalConfig } from '../utils/helpers/signalConfigParser.js';
 
 /**
@@ -94,40 +94,75 @@ async function validateLongPortConfig(): Promise<ValidationResult> {
 }
 
 /**
- * 验证标的有效性
- * @param marketDataClient 行情客户端实例
+ * 验证标的有效性（从已获取的行情数据中验证）
+ * @param quote 行情数据（可能为 null）
  * @param symbol 标的代码
  * @param symbolLabel 标的标签（用于错误提示）
  * @returns 验证结果
  */
-async function validateSymbol(
-  marketDataClient: MarketDataClient,
+function validateSymbolFromQuote(
+  quote: import('../types/index.js').Quote | null,
   symbol: string,
   symbolLabel: string,
-): Promise<SymbolValidationResult> {
-  try {
-    const quote = await marketDataClient.getLatestQuote(symbol);
-
-    if (!quote) {
-      return {
-        valid: false,
-        name: null,
-        error: `${symbolLabel} ${symbol} 不存在或无法获取行情数据`,
-      };
-    }
-
-    return {
-      valid: true,
-      name: quote.name ?? null,
-    };
-  } catch (err) {
+): SymbolValidationResult {
+  if (!quote) {
     return {
       valid: false,
       name: null,
-      error: `${symbolLabel} ${symbol} 验证失败: ${
+      error: `${symbolLabel} ${symbol} 不存在或无法获取行情数据`,
+    };
+  }
+
+  return {
+    valid: true,
+    name: quote.name ?? null,
+  };
+}
+
+/**
+ * 批量验证标的有效性
+ * @param marketDataClient 行情客户端实例
+ * @param symbols 标的代码数组
+ * @param symbolLabels 标的标签数组（用于错误提示，与 symbols 一一对应）
+ * @returns 验证结果数组
+ */
+async function validateSymbolsBatch(
+  marketDataClient: MarketDataClient,
+  symbols: ReadonlyArray<string>,
+  symbolLabels: ReadonlyArray<string>,
+): Promise<ReadonlyArray<SymbolValidationResult>> {
+  try {
+    // 先批量缓存所有标的的静态信息（一次 API 调用）
+    await marketDataClient.cacheStaticInfo(symbols);
+
+    // 然后使用 getQuotes 批量获取所有标的的行情（一次 API 调用）
+    // 此时 getQuotes 会从缓存读取 staticInfo，不会再调用 staticInfo API
+    const quotesMap = await marketDataClient.getQuotes(symbols);
+
+    // 为每个标的生成验证结果
+    return symbols.map((symbol, index) => {
+      const symbolLabel = symbolLabels[index];
+      if (!symbolLabel) {
+        return {
+          valid: false,
+          name: null,
+          error: `标的 ${symbol} 缺少标签信息`,
+        };
+      }
+      // 从 quotesMap 中获取行情（使用规范化后的标的代码作为 key）
+      const normalizedSymbol = normalizeHKSymbol(symbol);
+      const quote = quotesMap.get(normalizedSymbol) ?? null;
+      return validateSymbolFromQuote(quote, symbol, symbolLabel);
+    });
+  } catch (err) {
+    // 如果批量获取失败，为所有标的返回错误结果
+    return symbols.map((symbol, index) => ({
+      valid: false,
+      name: null,
+      error: `${symbolLabels[index]} ${symbol} 验证失败: ${
         (err as Error)?.message ?? err
       }`,
-    };
+    }));
   }
 }
 
@@ -257,8 +292,9 @@ function validateTradingConfig(): TradingValidationResult {
     }
     const index = i + 1;
 
-    const normalizedLongSymbol = config.longSymbol.trim();
-    const normalizedShortSymbol = config.shortSymbol.trim();
+    // 统一规范化，避免 "12345" 与 "12345.HK" 这种形式绕过重复检测
+    const normalizedLongSymbol = normalizeHKSymbol(config.longSymbol.trim());
+    const normalizedShortSymbol = normalizeHKSymbol(config.shortSymbol.trim());
 
     // 检查做多标的
     if (tradingSymbols.has(normalizedLongSymbol)) {
@@ -348,10 +384,15 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
     throw createConfigValidationError('未找到第一个监控标的配置', []);
   }
 
-  // 验证所有监控标的的标的有效性（统一验证，避免重复）
+  // 验证所有监控标的的标的有效性（使用批量获取，避免多次 API 调用）
   const symbolErrors: string[] = [];
   // 为每个监控标的保存验证结果（使用索引作为键的一部分）
   const symbolValidationResults = new Map<string, SymbolValidationResult>();
+
+  // 收集所有需要验证的标的代码和标签
+  const allSymbols: string[] = [];
+  const allSymbolLabels: string[] = [];
+  const symbolIndexMap = new Map<number, { monitorIndex: number; longIndex: number; shortIndex: number }>();
 
   for (let i = 0; i < MULTI_MONITOR_TRADING_CONFIG.monitors.length; i++) {
     const monitorConfig = MULTI_MONITOR_TRADING_CONFIG.monitors[i];
@@ -360,13 +401,39 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
     }
     const index = i + 1;
 
-    const allSymbolValidations = await Promise.all([
-      validateSymbol(marketDataClient, monitorConfig.monitorSymbol, `监控标的 ${index}`),
-      validateSymbol(marketDataClient, monitorConfig.longSymbol, `做多标的 ${index}`),
-      validateSymbol(marketDataClient, monitorConfig.shortSymbol, `做空标的 ${index}`),
-    ]);
+    // 记录每个监控标的的三个标的在批量数组中的索引位置
+    const monitorIndex = allSymbols.length;
+    allSymbols.push(monitorConfig.monitorSymbol);
+    allSymbolLabels.push(`监控标的 ${index}`);
 
-    const [monitorValid, longValid, shortValid] = allSymbolValidations;
+    const longIndex = allSymbols.length;
+    allSymbols.push(monitorConfig.longSymbol);
+    allSymbolLabels.push(`做多标的 ${index}`);
+
+    const shortIndex = allSymbols.length;
+    allSymbols.push(monitorConfig.shortSymbol);
+    allSymbolLabels.push(`做空标的 ${index}`);
+
+    symbolIndexMap.set(i, { monitorIndex, longIndex, shortIndex });
+  }
+
+  // 批量验证所有标的（一次 API 调用）
+  const allValidationResults = await validateSymbolsBatch(marketDataClient, allSymbols, allSymbolLabels);
+
+  // 将验证结果分配到各个监控标的
+  for (let i = 0; i < MULTI_MONITOR_TRADING_CONFIG.monitors.length; i++) {
+    const indices = symbolIndexMap.get(i);
+    if (!indices) {
+      continue;
+    }
+
+    const monitorValid = allValidationResults[indices.monitorIndex];
+    const longValid = allValidationResults[indices.longIndex];
+    const shortValid = allValidationResults[indices.shortIndex];
+
+    if (!monitorValid || !longValid || !shortValid) {
+      continue;
+    }
 
     // 存储每个监控标的的验证结果（使用索引区分不同监控标的）
     symbolValidationResults.set(`monitor_${i}`, monitorValid);

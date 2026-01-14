@@ -240,12 +240,10 @@ function getPositions(
 /**
  * 处理单个监控标的
  *
- * @param _monitorSymbol 监控标的代码（用于日志标识）
  * @param context 处理上下文，包含所有必要的依赖和状态
  * @param quotesMap 预先批量获取的行情数据 Map（提升性能，避免每个监控标的单独获取行情）
  */
 async function processMonitor(
-  _monitorSymbol: string,
   context: {
     monitorContext: MonitorContext;
     marketDataClient: MarketDataClient;
@@ -710,7 +708,7 @@ async function runOnce({
   // 并发处理所有监控标的（使用预先获取的行情数据）
   const monitorTasks = Array.from(monitorContexts.entries()).map(
     ([monitorSymbol, monitorContext]) =>
-      processMonitor(monitorSymbol, {
+      processMonitor({
         monitorContext,
         marketDataClient,
         trader,

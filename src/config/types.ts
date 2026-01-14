@@ -14,27 +14,3 @@ export type RegionUrls = {
   readonly tradeWsUrl: string;
 };
 
-/**
- * 验证结果类型
- */
-export type ValidationResult = {
-  readonly valid: boolean;
-  readonly errors: ReadonlyArray<string>;
-};
-
-/**
- * 交易配置验证结果类型
- */
-export type TradingValidationResult = ValidationResult & {
-  readonly missingFields: ReadonlyArray<string>;
-};
-
-/**
- * 标的验证结果类型
- */
-export type SymbolValidationResult = {
-  readonly valid: boolean;
-  readonly name: string | null;
-  readonly error: string | null;
-};
-

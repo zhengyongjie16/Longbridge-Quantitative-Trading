@@ -14,11 +14,29 @@
  * - formatSymbolDisplay() / formatQuoteDisplay()：格式化显示
  */
 
-import type { Quote, SignalType } from '../../types/index.js';
+import type { SignalType } from '../../types/index.js';
 import { inspect } from 'node:util';
 import { TIME } from '../../constants/index.js';
-import type { DecimalLike, TimeFormatOptions, QuoteDisplayResult } from './types.js';
+import type { DecimalLike } from './types.js';
 import { logger } from '../logger/index.js';
+
+/**
+ * 时间格式化选项（内部使用）
+ */
+type TimeFormatOptions = {
+  readonly format?: 'iso' | 'log';
+};
+
+/**
+ * 行情显示格式化结果
+ */
+type QuoteDisplayResult = {
+  readonly nameText: string;
+  readonly codeText: string;
+  readonly priceText: string;
+  readonly changeAmountText: string;
+  readonly changePercentText: string;
+};
 
 /**
  * 检查值是否已定义（不是 null 或 undefined）
@@ -28,6 +46,7 @@ import { logger } from '../logger/index.js';
 export function isDefined<T>(value: T | null | undefined): value is T {
   return value != null; // != null 会同时检查 null 和 undefined
 }
+
 
 /**
  * 规范化港股代码，自动添加 .HK 后缀（如果还没有）
@@ -119,6 +138,7 @@ export function formatAccountChannel(accountChannel: string | null | undefined):
   // 否则返回原始值
   return accountChannel;
 }
+
 
 /**
  * 格式化标的显示：中文名称(代码.HK)
@@ -217,7 +237,7 @@ export function toBeijingTimeLog(date: Date | null = null): string {
  * @param symbol 标的代码
  * @returns 格式化后的行情显示对象，如果quote无效则返回null
  */
-export function formatQuoteDisplay(quote: Quote | null, symbol: string): QuoteDisplayResult | null {
+export function formatQuoteDisplay(quote: import('../../types/index.js').Quote | null, symbol: string): QuoteDisplayResult | null {
   if (!quote) {
     return null;
   }
@@ -265,7 +285,7 @@ export function formatQuoteDisplay(quote: Quote | null, symbol: string): QuoteDi
  * @param symbol 标的代码
  * @returns 格式化后的标的显示字符串
  */
-export function formatSymbolDisplayFromQuote(quote: Quote | null | undefined, symbol: string): string {
+export function formatSymbolDisplayFromQuote(quote: import('../../types/index.js').Quote | null | undefined, symbol: string): string {
   if (quote) {
     const display = formatQuoteDisplay(quote, symbol);
     return display ? `${display.nameText}(${display.codeText})` : normalizeHKSymbol(symbol);
@@ -274,30 +294,12 @@ export function formatSymbolDisplayFromQuote(quote: Quote | null | undefined, sy
 }
 
 
-/**
- * 判断是否为做多相关操作
- */
-export const isLongAction = (action: SignalType): boolean =>
-  action === 'BUYCALL' || action === 'SELLCALL';
-
-/**
- * 判断是否为做空相关操作
- */
-export const isShortAction = (action: SignalType): boolean =>
-  action === 'BUYPUT' || action === 'SELLPUT';
 
 /**
 * 辅助函数：判断是否为买入操作
 */
 export const isBuyAction = (action: SignalType): boolean => {
   return action === 'BUYCALL' || action === 'BUYPUT';
-};
-
-/**
-* 辅助函数：判断是否为卖出操作
-*/
-export const isSellAction = (action: SignalType): boolean => {
-  return action === 'SELLCALL' || action === 'SELLPUT';
 };
 
 /**
@@ -309,11 +311,10 @@ export function getDirectionName(isLongSymbol: boolean): string {
   return (isLongSymbol && '做多标的') || '做空标的';
 }
 
-
 /**
- * 格式化信号操作描述
+ * 格式化信号操作描述（内部使用）
  */
-export function getSignalActionDescription(action: SignalType): string {
+function getSignalActionDescription(action: SignalType): string {
   const descriptions: Record<SignalType, string> = {
     'BUYCALL': '买入做多标的（做多）',
     'SELLCALL': '卖出做多标的（清仓）',

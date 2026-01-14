@@ -2,31 +2,11 @@
  * 工具函数模块类型定义
  */
 
-import type { SignalConfig } from '../../types/index.js';
-
 /**
  * LongPort Decimal 类型接口
  */
 export type DecimalLike = {
   toNumber(): number;
-};
-
-/**
- * 时间格式化选项
- */
-export type TimeFormatOptions = {
-  readonly format?: 'iso' | 'log';
-};
-
-/**
- * 行情显示格式化结果
- */
-export type QuoteDisplayResult = {
-  readonly nameText: string;
-  readonly codeText: string;
-  readonly priceText: string;
-  readonly changeAmountText: string;
-  readonly changePercentText: string;
 };
 
 // ============= signalConfigParser 类型定义 =============
@@ -50,15 +30,6 @@ export type ParsedConditionGroup = {
 };
 
 /**
- * 信号配置验证结果接口
- */
-export type SignalValidationResult = {
-  readonly valid: boolean;
-  readonly error: string | null;
-  readonly config: SignalConfig | null;
-};
-
-/**
  * 评估结果接口
  */
 export type EvaluationResult = {
@@ -75,7 +46,6 @@ export type ConditionGroupResult = {
   readonly satisfied: boolean;
   readonly count: number;
 };
-
 
 // ============= tradingTime 类型定义 =============
 

@@ -125,15 +125,3 @@ export const isValidMACD = (obj: PoolableMACD): obj is PoolableMACD & { macd: nu
   );
 };
 
-/**
- * 检查 PoolableSignal 是否可以安全转换为 Signal
- * @param obj 对象池中的 Signal 对象
- * @returns 如果必要字段都有效则返回 true
- */
-export const isValidSignal = (obj: PoolableSignal): obj is PoolableSignal & { symbol: string; action: import('../../types/index.js').SignalType } => {
-  return (
-    typeof obj.symbol === 'string' &&
-    obj.symbol.length > 0 &&
-    obj.action !== null
-  );
-};
