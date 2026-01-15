@@ -393,13 +393,12 @@ export const createSignalVerificationManager = (
       // 处理延迟验证信号，添加到待验证列表
       for (const delayedSignal of delayedSignals) {
         if (delayedSignal?.triggerTime) {
-          // 关键修复：检查是否已存在相同标的+动作的待验证信号（忽略 triggerTime）
-          // 防止同一标的同一方向累积多个待验证信号
-          // 这样可以避免休市后开盘时多个信号同时通过验证导致重复下单
+          // 检查是否已存在相同的待验证信号（避免重复添加）
           const existingSignal = monitorState.pendingDelayedSignals.find(
             (s: Signal) =>
               s.symbol === delayedSignal.symbol &&
-              s.action === delayedSignal.action,
+              s.action === delayedSignal.action &&
+              s.triggerTime?.getTime() === delayedSignal.triggerTime?.getTime(),
           );
 
           if (existingSignal === undefined) {
@@ -427,15 +426,6 @@ export const createSignalVerificationManager = (
             );
           } else {
             // 如果信号已存在，释放新的信号对象，避免内存泄漏
-            // 格式化标的显示用于日志
-            const normalizedSymbol = normalizeHKSymbol(delayedSignal.symbol);
-            const symbolDisplay = delayedSignal.symbolName
-              ? `${delayedSignal.symbolName}(${normalizedSymbol})`
-              : normalizedSymbol;
-
-            logger.debug(
-              `[延迟验证信号] 跳过重复信号：${symbolDisplay} ${delayedSignal.action}，已存在相同标的和动作的待验证信号`,
-            );
             signalObjectPool.release(delayedSignal);
           }
         }
