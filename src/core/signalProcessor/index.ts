@@ -29,10 +29,13 @@ import type { RiskCheckContext, SellQuantityResult, SignalProcessor, SignalProce
  * 计算卖出信号的数量和原因
  * 统一处理做多和做空标的的卖出逻辑
  *
- * 卖出策略规则：
+ * 卖出策略规则（智能平仓开启时）：
  * 1. 如果当前价格 > 持仓成本价：立即清仓所有持仓
  * 2. 如果当前价格 <= 持仓成本价：仅卖出买入价低于当前价的历史订单（盈利部分）
  * 3. 如果没有符合条件的订单或数据无效：跳过此信号（shouldHold=true）
+ *
+ * 卖出策略规则（智能平仓关闭时）：
+ * 直接清仓所有持仓，不检查成本价
  *
  * @param position - 持仓对象，包含：
  *   - costPrice: number 持仓成本价
@@ -42,6 +45,7 @@ import type { RiskCheckContext, SellQuantityResult, SignalProcessor, SignalProce
  * @param orderRecorder - 订单记录器实例，用于查询历史买入订单
  * @param direction - 方向标识，'LONG' 表示做多标的，'SHORT' 表示做空标的
  * @param originalReason - 原始信号的原因描述
+ * @param smartCloseEnabled - 智能平仓策略开关，true 时检查成本价，false 时直接全部平仓
  * @returns 计算结果对象，包含：
  *   - quantity: number|null 建议卖出的数量，null 表示不卖出
  *   - shouldHold: boolean true 表示应跳过此信号，false 表示应执行卖出
@@ -53,6 +57,7 @@ export function calculateSellQuantity(
   orderRecorder: OrderRecorder | null,
   direction: 'LONG' | 'SHORT',
   originalReason: string,
+  smartCloseEnabled: boolean = true,
 ): SellQuantityResult {
   // 验证输入参数
   if (
@@ -78,6 +83,15 @@ export function calculateSellQuantity(
   const currentPrice = quote.price;
   const costPrice = position.costPrice;
   const directionName = getDirectionName(direction === 'LONG');
+
+  // 智能平仓关闭：直接清仓所有持仓，不检查成本价
+  if (!smartCloseEnabled) {
+    return {
+      quantity: position.availableQuantity,
+      shouldHold: false,
+      reason: `${originalReason || ''}，智能平仓已关闭，直接清空所有${directionName}持仓`,
+    };
+  }
 
   // 当前价格高于持仓成本价，立即清仓所有持仓
   if (currentPrice > costPrice) {
@@ -173,6 +187,7 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
     longQuote: Quote | null,
     shortQuote: Quote | null,
     orderRecorder: OrderRecorder,
+    smartCloseEnabled: boolean = true,
   ): Signal[] => {
     for (const sig of signals) {
       // 只处理卖出信号（SELLCALL 和 SELLPUT），跳过买入信号
@@ -234,13 +249,14 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
           sig.reason = `${sig.reason}，但持仓对象无效`;
         }
       } else {
-        // 正常卖出信号：进行成本价判断
+        // 正常卖出信号：根据智能平仓配置进行成本价判断
         const result = calculateSellQuantity(
           position,
           quote,
           orderRecorder,
           direction,
           sig.reason || '',
+          smartCloseEnabled,
         );
         if (result.shouldHold) {
           logger.info(`[卖出信号处理] ${signalName}被跳过: ${result.reason}`);

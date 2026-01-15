@@ -523,6 +523,7 @@ async function processMonitor(
         longQuote,
         shortQuote,
         orderRecorder,
+        config.smartCloseEnabled,
       );
 
       // 过滤掉被设置为HOLD的信号

@@ -56,6 +56,7 @@ export interface SignalProcessor {
     longQuote: Quote | null,
     shortQuote: Quote | null,
     orderRecorder: OrderRecorder,
+    smartCloseEnabled?: boolean,
   ): Signal[];
   applyRiskChecks(signals: Signal[], context: RiskCheckContext): Promise<Signal[]>;
 }

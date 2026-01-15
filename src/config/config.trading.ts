@@ -218,6 +218,9 @@ function parseMonitorConfig(index: number): MonitorConfig | null {
     },
   };
 
+  // 智能平仓策略开关，默认启用
+  const smartCloseEnabled = getBooleanConfig(`SMART_CLOSE_ENABLED${suffix}`, true);
+
   const signalConfig = {
     buycall: (() => {
       const configStr = getStringConfig(`SIGNAL_BUYCALL${suffix}`);
@@ -282,6 +285,7 @@ function parseMonitorConfig(index: number): MonitorConfig | null {
     buyIntervalSeconds,
     verificationConfig,
     signalConfig,
+    smartCloseEnabled,
   };
 }
 
