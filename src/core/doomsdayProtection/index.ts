@@ -135,12 +135,25 @@ const processPositionForClearance = (
 };
 
 /**
+ * 获取当前日期字符串（用于状态重置判断）
+ * @param date 日期对象
+ * @returns YYYY-MM-DD 格式的日期字符串
+ */
+const getDateString = (date: Date): string => {
+  return date.toISOString().slice(0, 10);
+};
+
+/**
  * 创建末日保护程序
  * 在收盘前执行保护性操作：
  * - 收盘前15分钟拒绝买入
  * - 收盘前5分钟自动清仓
  */
 export const createDoomsdayProtection = (): DoomsdayProtection => {
+  // 状态：记录当天是否已执行过收盘前15分钟的撤单检查
+  // 格式为日期字符串（YYYY-MM-DD），用于跨天自动重置
+  let cancelCheckExecutedDate: string | null = null;
+
   return {
     shouldRejectBuy: (currentTime: Date, isHalfDay: boolean): boolean => {
       return isBeforeClose15Minutes(currentTime, isHalfDay);
@@ -311,6 +324,18 @@ export const createDoomsdayProtection = (): DoomsdayProtection => {
 
       // 检查是否在收盘前15分钟内
       if (!isBeforeClose15Minutes(currentTime, isHalfDay)) {
+        // 不在 15 分钟范围内，重置状态（为下次进入做准备）
+        // 注意：这里不重置 cancelCheckExecutedDate，因为跨天时日期字符串会自动不匹配
+        return { executed: false, cancelledCount: 0 };
+      }
+
+      // 检查当天是否已执行过撤单检查
+      // 逻辑：首次进入 15 分钟范围时执行一次，之后不再重复
+      // 原因：末日保护期间已拒绝新买入，不会有新的买入订单产生
+      //       已撤销的订单会进入 WebSocket 监控，无需重复查询
+      const todayDateString = getDateString(currentTime);
+      if (cancelCheckExecutedDate === todayDateString) {
+        // 当天已执行过，直接返回
         return { executed: false, cancelledCount: 0 };
       }
 
@@ -331,8 +356,17 @@ export const createDoomsdayProtection = (): DoomsdayProtection => {
 
       const symbolsArray = Array.from(allTradingSymbols);
 
-      // 获取所有标的的未成交订单（强制刷新，确保获取最新数据）
+      // 首次进入收盘前 15 分钟，查询未成交订单
+      // 注意：这是当天唯一一次查询，之后不再重复调用 Trade API
+      const closeTimeRange = isHalfDay ? '11:45-12:00' : '15:45-16:00';
+      logger.info(
+        `[末日保护程序] 首次进入收盘前15分钟（${closeTimeRange}），检查未成交买入订单`,
+      );
+
       const pendingOrders = await trader.getPendingOrders(symbolsArray, true);
+
+      // 标记当天已执行过检查（无论是否有订单需要撤销）
+      cancelCheckExecutedDate = todayDateString;
 
       // 过滤出买入订单
       const pendingBuyOrders = pendingOrders.filter(
@@ -340,12 +374,12 @@ export const createDoomsdayProtection = (): DoomsdayProtection => {
       );
 
       if (pendingBuyOrders.length === 0) {
+        logger.info('[末日保护程序] 无未成交买入订单，无需撤单');
         return { executed: false, cancelledCount: 0 };
       }
 
-      const closeTimeRange = isHalfDay ? '11:45-12:00' : '15:45-16:00';
       logger.info(
-        `[末日保护程序] 收盘前15分钟（${closeTimeRange}），发现 ${pendingBuyOrders.length} 个未成交买入订单，准备撤单`,
+        `[末日保护程序] 发现 ${pendingBuyOrders.length} 个未成交买入订单，准备撤单`,
       );
 
       // 撤销所有买入订单
