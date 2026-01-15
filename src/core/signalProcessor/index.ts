@@ -336,6 +336,10 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
           continue;
         }
 
+        // 频率检查通过后立即标记买入意图（预占时间槽）
+        // 防止同一批次中的多个延迟验证信号同时通过频率检查
+        trader._markBuyAttempt(sig.action, context.config);
+
         // 2. 买入价格限制
         const isLongBuyAction = sig.action === 'BUYCALL';
         const latestBuyPrice = orderRecorder.getLatestBuyOrderPrice(

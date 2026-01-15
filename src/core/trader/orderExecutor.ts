@@ -129,6 +129,17 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
   };
 
   /**
+   * 标记买入意图（预占买入时间槽）
+   * 在 signalProcessor 检查通过后立即调用，防止同一批次中的多个信号同时通过频率检查
+   * 注意：此方法与 updateLastBuyTime 功能相同，但语义不同
+   * - markBuyAttempt: 在频率检查通过后立即调用，预占时间槽
+   * - updateLastBuyTime: 在订单提交成功后调用，确认时间槽
+   */
+  const markBuyAttempt = (signalAction: string, monitorConfig?: MonitorConfig | null): void => {
+    updateLastBuyTime(signalAction, monitorConfig);
+  };
+
+  /**
    * 根据信号类型和订单方向获取操作描述
    */
   const getActionDescription = (
@@ -653,6 +664,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
 
   return {
     canTradeNow,
+    markBuyAttempt,
     executeSignals,
   };
 };

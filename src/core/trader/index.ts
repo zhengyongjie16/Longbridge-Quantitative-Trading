@@ -154,6 +154,10 @@ export const createTrader = async (deps: TraderDeps = {}): Promise<Trader> => {
       return orderExecutor.canTradeNow(signalAction, monitorConfig);
     },
 
+    _markBuyAttempt(signalAction: string, monitorConfig?: import('../../types/index.js').MonitorConfig | null): void {
+      orderExecutor.markBuyAttempt(signalAction, monitorConfig);
+    },
+
     executeSignals(signals: Signal[]): Promise<void> {
       return orderExecutor.executeSignals(signals);
     },
