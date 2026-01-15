@@ -239,8 +239,6 @@ export type MonitorConfig = {
   readonly longSymbol: string;
   readonly shortSymbol: string;
   readonly targetNotional: number;
-  readonly longLotSize: number | null;
-  readonly shortLotSize: number | null;
   readonly maxPositionNotional: number;
   readonly maxDailyLoss: number;
   readonly maxUnrealizedLossPerSymbol: number;

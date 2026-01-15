@@ -72,8 +72,6 @@ SHORT_SYMBOL_1=63372       # 做空标的（熊证）
 
 # 交易参数(示例)
 TARGET_NOTIONAL_1=10000    # 每次买入金额（HKD）
-LONG_LOT_SIZE_1=100        # 做多每手股数
-SHORT_LOT_SIZE_1=100       # 做空每手股数
 
 # 风控参数(示例)
 MAX_POSITION_NOTIONAL_1=200000  # 单标持仓上限

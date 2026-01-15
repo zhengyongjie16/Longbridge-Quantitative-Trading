@@ -228,23 +228,14 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     signal: Signal,
     isShortSymbol: boolean,
     overridePrice: number | undefined,
-    quantity: number,
     targetNotional: number,
-    monitorConfig: MonitorConfig | null,
   ): Decimal => {
     const pricingSource = overridePrice ?? signal?.price ?? null;
     if (!Number.isFinite(Number(pricingSource)) || Number(pricingSource) <= 0) {
       logger.warn(
         `[跳过订单] 无法获取有效价格，无法按金额计算买入数量，price=${pricingSource}`,
       );
-      const fallbackQty = toDecimal(quantity);
-      if (!fallbackQty || fallbackQty.isZero() || fallbackQty.isNegative()) {
-        logger.warn(
-          `[跳过订单] 预设买入数量非法（${quantity}），跳过提交订单`,
-        );
-        return Decimal.ZERO();
-      }
-      return fallbackQty;
+      return Decimal.ZERO();
     }
 
     const notional = Number(
@@ -265,23 +256,13 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
 
     let rawQty = Math.floor(notional / priceNum);
 
-    // 获取最小买卖单位
-    let lotSize: number = signal?.lotSize ?? 0;
-
-    // 如果信号中没有有效的 lotSize，使用配置中的值
+    // 获取最小买卖单位（已在配置验证阶段确保 lotSize 有效）
+    const lotSize: number = signal?.lotSize ?? 0;
     if (!Number.isFinite(lotSize) || lotSize <= 0) {
-      if (monitorConfig) {
-        if (isShortSymbol) {
-          lotSize = monitorConfig.shortLotSize ?? 0;
-        } else {
-          lotSize = monitorConfig.longLotSize ?? 0;
-        }
-      }
-    }
-
-    // 如果配置中的值也无效，使用默认值
-    if (!Number.isFinite(lotSize) || lotSize <= 0) {
-      lotSize = TRADING.DEFAULT_LOT_SIZE;
+      logger.error(
+        `[跳过订单] lotSize 无效(${lotSize})，这不应该发生，请检查配置验证逻辑`,
+      );
+      return Decimal.ZERO();
     }
 
     // 此时 lotSize 一定是有效的正数
@@ -528,9 +509,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
 
     // 使用配置中的值，如果没有配置则使用默认值
     const targetNotional = monitorConfig?.targetNotional ?? TRADING.DEFAULT_TARGET_NOTIONAL;
-    const quantity = isShortSymbol
-      ? (monitorConfig?.shortLotSize ?? TRADING.DEFAULT_LOT_SIZE)
-      : (monitorConfig?.longLotSize ?? TRADING.DEFAULT_LOT_SIZE);
+    // 注意：lotSize 现在从 API 获取（signal.lotSize），不需要从配置读取
     const orderType = OrderType.ELO;
     const timeInForce = TimeInForceType.Day;
     const remark = 'QuantDemo';
@@ -560,9 +539,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
         signal,
         isShortSymbol,
         overridePrice,
-        quantity,
         targetNotional,
-        monitorConfig,
       );
       if (submittedQtyDecimal.isZero()) {
         return;

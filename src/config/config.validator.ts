@@ -61,7 +61,8 @@ interface TradingValidationResult extends ValidationResult {
 interface SymbolValidationResult {
   readonly valid: boolean;
   readonly name: string | null;
-  readonly error?: string;
+  readonly lotSize?: number | undefined;
+  readonly error?: string | undefined;
 }
 
 /**
@@ -98,12 +99,14 @@ async function validateLongPortConfig(): Promise<ValidationResult> {
  * @param quote 行情数据（可能为 null）
  * @param symbol 标的代码
  * @param symbolLabel 标的标签（用于错误提示）
+ * @param requireLotSize 是否要求必须有 lotSize（交易标的需要，监控标的不需要）
  * @returns 验证结果
  */
 function validateSymbolFromQuote(
   quote: import('../types/index.js').Quote | null,
   symbol: string,
   symbolLabel: string,
+  requireLotSize: boolean = false,
 ): SymbolValidationResult {
   if (!quote) {
     return {
@@ -113,9 +116,32 @@ function validateSymbolFromQuote(
     };
   }
 
+  const errors: string[] = [];
+
+  // 验证名称（所有标的都建议有名称，但不阻止程序运行）
+  if (!quote.name) {
+    // 名称缺失只是警告，不阻止验证通过
+    logger.warn(`${symbolLabel} ${symbol} 缺少中文名称信息`);
+  }
+
+  // 验证 lotSize（交易标的必须有）
+  if (requireLotSize && (quote.lotSize === undefined || quote.lotSize === null || quote.lotSize <= 0)) {
+    errors.push(`${symbolLabel} ${symbol} 缺少每手股数(lotSize)信息，无法进行交易计算`);
+  }
+
+  if (errors.length > 0) {
+    return {
+      valid: false,
+      name: quote.name ?? null,
+      lotSize: quote.lotSize,
+      error: errors.join('；'),
+    };
+  }
+
   return {
     valid: true,
     name: quote.name ?? null,
+    lotSize: quote.lotSize,
   };
 }
 
@@ -124,12 +150,14 @@ function validateSymbolFromQuote(
  * @param marketDataClient 行情客户端实例
  * @param symbols 标的代码数组
  * @param symbolLabels 标的标签数组（用于错误提示，与 symbols 一一对应）
+ * @param requireLotSizeFlags 是否要求 lotSize 的标志数组（与 symbols 一一对应）
  * @returns 验证结果数组
  */
 async function validateSymbolsBatch(
   marketDataClient: MarketDataClient,
   symbols: ReadonlyArray<string>,
   symbolLabels: ReadonlyArray<string>,
+  requireLotSizeFlags: ReadonlyArray<boolean>,
 ): Promise<ReadonlyArray<SymbolValidationResult>> {
   try {
     // 先批量缓存所有标的的静态信息（一次 API 调用）
@@ -142,6 +170,7 @@ async function validateSymbolsBatch(
     // 为每个标的生成验证结果
     return symbols.map((symbol, index) => {
       const symbolLabel = symbolLabels[index];
+      const requireLotSize = requireLotSizeFlags[index] ?? false;
       if (!symbolLabel) {
         return {
           valid: false,
@@ -152,7 +181,7 @@ async function validateSymbolsBatch(
       // 从 quotesMap 中获取行情（使用规范化后的标的代码作为 key）
       const normalizedSymbol = normalizeHKSymbol(symbol);
       const quote = quotesMap.get(normalizedSymbol) ?? null;
-      return validateSymbolFromQuote(quote, symbol, symbolLabel);
+      return validateSymbolFromQuote(quote, symbol, symbolLabel, requireLotSize);
     });
   } catch (err) {
     // 如果批量获取失败，为所有标的返回错误结果
@@ -197,17 +226,6 @@ function validateMonitorConfig(config: MonitorConfig, index: number): TradingVal
   if (!Number.isFinite(config.targetNotional) || config.targetNotional <= 0) {
     errors.push(`${prefix}: TARGET_NOTIONAL_${index} 未配置或无效（必须为正数）`);
     missingFields.push(`TARGET_NOTIONAL_${index}`);
-  }
-
-  // 验证最小买卖单位（可选，但如果有值必须为正数）
-  if (config.longLotSize !== null && (!Number.isFinite(config.longLotSize) || config.longLotSize <= 0)) {
-    errors.push(`${prefix}: LONG_LOT_SIZE_${index} 配置无效（必须为正数）`);
-    missingFields.push(`LONG_LOT_SIZE_${index}`);
-  }
-
-  if (config.shortLotSize !== null && (!Number.isFinite(config.shortLotSize) || config.shortLotSize <= 0)) {
-    errors.push(`${prefix}: SHORT_LOT_SIZE_${index} 配置无效（必须为正数）`);
-    missingFields.push(`SHORT_LOT_SIZE_${index}`);
   }
 
   // 验证风险管理配置
@@ -390,6 +408,7 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
   // 收集所有需要验证的标的代码和标签
   const allSymbols: string[] = [];
   const allSymbolLabels: string[] = [];
+  const allRequireLotSizeFlags: boolean[] = [];
   const symbolIndexMap = new Map<number, { monitorIndex: number; longIndex: number; shortIndex: number }>();
 
   for (let i = 0; i < MULTI_MONITOR_TRADING_CONFIG.monitors.length; i++) {
@@ -403,20 +422,23 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
     const monitorIndex = allSymbols.length;
     allSymbols.push(monitorConfig.monitorSymbol);
     allSymbolLabels.push(`监控标的 ${index}`);
+    allRequireLotSizeFlags.push(false); // 监控标的不需要 lotSize
 
     const longIndex = allSymbols.length;
     allSymbols.push(monitorConfig.longSymbol);
     allSymbolLabels.push(`做多标的 ${index}`);
+    allRequireLotSizeFlags.push(true); // 交易标的需要 lotSize
 
     const shortIndex = allSymbols.length;
     allSymbols.push(monitorConfig.shortSymbol);
     allSymbolLabels.push(`做空标的 ${index}`);
+    allRequireLotSizeFlags.push(true); // 交易标的需要 lotSize
 
     symbolIndexMap.set(i, { monitorIndex, longIndex, shortIndex });
   }
 
   // 批量验证所有标的（一次 API 调用）
-  const allValidationResults = await validateSymbolsBatch(marketDataClient, allSymbols, allSymbolLabels);
+  const allValidationResults = await validateSymbolsBatch(marketDataClient, allSymbols, allSymbolLabels, allRequireLotSizeFlags);
 
   // 将验证结果分配到各个监控标的
   for (let i = 0; i < MULTI_MONITOR_TRADING_CONFIG.monitors.length; i++) {
@@ -463,6 +485,7 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
     logger.error('1. 标的代码正确且存在');
     logger.error('2. 标的正在正常交易');
     logger.error('3. API 有权限访问该标的行情');
+    logger.error('4. 交易标的（做多/做空）必须能获取到每手股数(lotSize)信息');
     logger.error('');
 
     throw createConfigValidationError(
@@ -495,10 +518,10 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
       `监控标的: ${formatSymbolDisplay(monitorConfig.monitorSymbol, monitorName)}`,
     );
     logger.info(
-      `做多标的: ${formatSymbolDisplay(monitorConfig.longSymbol, longName)}`,
+      `做多标的: ${formatSymbolDisplay(monitorConfig.longSymbol, longName)} (每手 ${longResult?.lotSize ?? '未知'} 股)`,
     );
     logger.info(
-      `做空标的: ${formatSymbolDisplay(monitorConfig.shortSymbol, shortName)}`,
+      `做空标的: ${formatSymbolDisplay(monitorConfig.shortSymbol, shortName)} (每手 ${shortResult?.lotSize ?? '未知'} 股)`,
     );
     logger.info(`目标买入金额: ${monitorConfig.targetNotional} HKD`);
     logger.info(`最大持仓市值: ${monitorConfig.maxPositionNotional} HKD`);

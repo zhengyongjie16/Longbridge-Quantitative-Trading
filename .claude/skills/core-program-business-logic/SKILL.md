@@ -551,8 +551,6 @@ candidateOrders = [B1, B2, B3]（时间 ≤ 350）
 | MONITOR_SYMBOL_N | 监控标的（恒指等） |
 | LONG_SYMBOL_N | 做多标的（牛证） |
 | SHORT_SYMBOL_N | 做空标的（熊证） |
-| LONG_LOT_SIZE_N | 做多每手股数 |
-| SHORT_LOT_SIZE_N | 做空每手股数 |
 | TARGET_NOTIONAL_N | 每次买入金额 |
 | SIGNAL_BUYCALL_N/SELLCALL_N/BUYPUT_N/SELLPUT_N | 信号配置 |
 

@@ -8,12 +8,14 @@
  *
  * 配置类别：
  * 1. 标的配置：MONITOR_SYMBOL（监控标的）、LONG_SYMBOL（做多标的）、SHORT_SYMBOL（做空标的）
- * 2. 交易金额：TARGET_NOTIONAL（目标金额）、LONG_LOT_SIZE/SHORT_LOT_SIZE（每手股数）
+ * 2. 交易金额：TARGET_NOTIONAL（目标金额）
  * 3. 风险限制：MAX_POSITION_NOTIONAL（最大持仓）、MAX_DAILY_LOSS（单日亏损限制）
  * 4. 信号配置：SIGNAL_BUYCALL、SIGNAL_SELLCALL、SIGNAL_BUYPUT、SIGNAL_SELLPUT
  * 5. 验证配置：
  *    - 买入验证：VERIFICATION_DELAY_SECONDS_BUY（延迟验证时间）、VERIFICATION_INDICATORS_BUY（验证指标）
  *    - 卖出验证：VERIFICATION_DELAY_SECONDS_SELL（延迟验证时间）、VERIFICATION_INDICATORS_SELL（验证指标）
+ *
+ * 注意：每手股数（lotSize）将通过 LongPort API 自动获取，无需手动配置
  */
 
 import dotenv from 'dotenv';
@@ -180,8 +182,6 @@ function parseMonitorConfig(index: number): MonitorConfig | null {
   const shortSymbol = getStringConfig(`SHORT_SYMBOL${suffix}`) || '';
 
   const targetNotional = getNumberConfig(`TARGET_NOTIONAL${suffix}`, 1) ?? 10000;
-  const longLotSize = getNumberConfig(`LONG_LOT_SIZE${suffix}`, 1);
-  const shortLotSize = getNumberConfig(`SHORT_LOT_SIZE${suffix}`, 1);
   const maxPositionNotional = getNumberConfig(`MAX_POSITION_NOTIONAL${suffix}`, 1) ?? 100000;
   const maxDailyLoss = getNumberConfig(`MAX_DAILY_LOSS${suffix}`, 0) ?? 0;
   const maxUnrealizedLossPerSymbol =
@@ -277,8 +277,6 @@ function parseMonitorConfig(index: number): MonitorConfig | null {
     longSymbol: normalizeHKSymbol(longSymbol),
     shortSymbol: normalizeHKSymbol(shortSymbol),
     targetNotional,
-    longLotSize,
-    shortLotSize,
     maxPositionNotional,
     maxDailyLoss,
     maxUnrealizedLossPerSymbol,
