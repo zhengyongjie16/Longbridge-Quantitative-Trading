@@ -16,7 +16,10 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "sonarqube": "node scripts/run-sonar.js",
-    "sonarqube:report": "node scripts/get-report.js"
+    "sonarqube:report": "node scripts/get-report.js",
+    "perf:test": "tsc && cross-env PERF_TEST_DURATION_MS=60000 clinic doctor --dest ./clinic-report -- node dist/src/index.js",
+    "perf:test:custom": "tsc && clinic doctor --dest ./clinic-report -- node dist/src/index.js",
+    "perf:bubbleprof": "tsc && npx clinic bubbleprof --dest ./clinic-report -- node dist/src/index.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
@@ -32,6 +35,8 @@
     "@types/node": "^20.19.27",
     "@typescript-eslint/eslint-plugin": "^8.51.0",
     "@typescript-eslint/parser": "^8.51.0",
+    "clinic": "^13.0.0",
+    "cross-env": "^7.0.3",
     "dotenv-cli": "^11.0.0",
     "eslint": "^9.39.2",
     "rimraf": "^5.0.10",
