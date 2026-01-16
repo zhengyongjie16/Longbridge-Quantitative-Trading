@@ -392,8 +392,6 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
 
   // 验证标的有效性（创建 MarketDataClient 实例用于验证和后续使用）
   logger.info('验证标的有效性...');
-  const config = createConfig();
-  const marketDataClient = await createMarketDataClient({ config });
 
   const firstMonitorConfig = MULTI_MONITOR_TRADING_CONFIG.monitors[0];
   if (!firstMonitorConfig) {
@@ -405,7 +403,7 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
   // 为每个监控标的保存验证结果（使用索引作为键的一部分）
   const symbolValidationResults = new Map<string, SymbolValidationResult>();
 
-  // 收集所有需要验证的标的代码和标签
+  // 收集所有需要验证的标的代码和标签（在创建 marketDataClient 之前收集）
   const allSymbols: string[] = [];
   const allSymbolLabels: string[] = [];
   const allRequireLotSizeFlags: boolean[] = [];
@@ -437,7 +435,14 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
     symbolIndexMap.set(i, { monitorIndex, longIndex, shortIndex });
   }
 
-  // 批量验证所有标的（一次 API 调用）
+  // 创建行情客户端（传入需要订阅的标的列表，自动初始化 WebSocket 订阅）
+  const config = createConfig();
+  const marketDataClient = await createMarketDataClient({
+    config,
+    symbols: allSymbols, // 传入需要订阅的标的列表
+  });
+
+  // 批量验证所有标的（从本地缓存读取，已在 createMarketDataClient 中初始化）
   const allValidationResults = await validateSymbolsBatch(marketDataClient, allSymbols, allSymbolLabels, allRequireLotSizeFlags);
 
   // 将验证结果分配到各个监控标的
