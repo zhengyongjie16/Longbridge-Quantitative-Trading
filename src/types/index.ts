@@ -39,12 +39,17 @@ export type Signal = {
   lotSize?: number | null;
   quantity?: number | null;
   signalTriggerTime?: Date | null;
-  useMarketOrder?: boolean;
   // 延迟验证字段
   triggerTime?: Date | null;
   indicators1?: Record<string, number> | null;
   verificationHistory?: VerificationEntry[] | null;
 };
+
+/**
+ * 订单类型配置值
+ * 对应 LongPort SDK 的 OrderType 枚举
+ */
+export type OrderTypeConfig = 'LO' | 'ELO' | 'MO';
 
 // ==================== 持仓和账户 ====================
 
@@ -259,6 +264,12 @@ export type GlobalConfig = {
   readonly orderMonitorTimeoutSeconds: number;
   /** 订单监控价格修改最小间隔（秒），默认 5 */
   readonly orderMonitorPriceUpdateInterval: number;
+  /** 交易标的的订单类型，默认 ELO（增强限价单） */
+  readonly tradingOrderType: OrderTypeConfig;
+  /** 触发最大浮亏清仓的订单类型，默认 MO（市价单） */
+  readonly liquidationOrderType: OrderTypeConfig;
+  /** 是否启用订单超时检测，默认 true */
+  readonly enableOrderTimeoutMonitor: boolean;
 };
 
 /**

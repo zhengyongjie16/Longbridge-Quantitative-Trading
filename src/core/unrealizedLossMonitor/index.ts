@@ -4,7 +4,7 @@
  * 功能：
  * - 实时监控单标的的浮亏
  * - 浮亏超过阈值时触发保护性清仓
- * - 使用市价单执行清仓
+ * - 使用增强限价单执行清仓
  *
  * 浮亏计算：
  * - unrealizedLoss = currentPrice * N1 - R1
@@ -13,7 +13,7 @@
  *
  * 清仓流程：
  * 1. 检查浮亏是否超过阈值
- * 2. 创建市价单清仓信号
+ * 2. 创建增强限价单清仓信号
  * 3. 执行清仓订单
  * 4. 刷新订单记录和浮亏数据
  */
@@ -65,11 +65,11 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
       return false;
     }
 
-    // 执行保护性清仓（使用市价单）
+    // 执行保护性清仓（使用增强限价单）
     logger.error(lossCheck.reason || '浮亏超过阈值，执行保护性清仓');
 
     // 从对象池获取信号对象
-    const liquidationSignal = signalObjectPool.acquire() as Signal & { useMarketOrder?: boolean };
+    const liquidationSignal = signalObjectPool.acquire() as Signal;
     liquidationSignal.symbol = symbol;
     liquidationSignal.action = isLong
       ? 'SELLCALL'
@@ -77,7 +77,11 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
     liquidationSignal.reason = lossCheck.reason || '';
     liquidationSignal.quantity = lossCheck.quantity ?? null;
     liquidationSignal.price = currentPrice;
-    liquidationSignal.useMarketOrder = true;
+    // 订单类型将由 orderExecutor 根据全局配置自动选择（LIQUIDATION_ORDER_TYPE）
+    // 设置最小买卖单位（从行情数据获取，仅在缺失时设置）
+    if (quote?.lotSize != null) {
+      liquidationSignal.lotSize ??= quote.lotSize;
+    }
 
     try {
       await trader.executeSignals([liquidationSignal]);
@@ -156,7 +160,6 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
   };
 
   return {
-    checkAndLiquidate,
     monitorUnrealizedLoss,
   };
 };

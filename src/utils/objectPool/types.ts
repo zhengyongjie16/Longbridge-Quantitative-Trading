@@ -21,7 +21,6 @@ export type PoolableSignal = {
   indicators1?: Record<string, number> | null;
   verificationHistory?: VerificationEntry[] | null;
   signalTriggerTime?: Date | null;
-  useMarketOrder?: boolean | null;
 };
 
 /**

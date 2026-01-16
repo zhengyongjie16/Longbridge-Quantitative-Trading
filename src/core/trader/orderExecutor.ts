@@ -59,6 +59,26 @@ const toDecimal = (value: unknown): Decimal => {
 };
 
 /**
+ * 将配置的订单类型字符串转换为 OrderType 枚举
+ * @param typeConfig 订单类型配置字符串
+ * @returns OrderType 枚举值
+ */
+const getOrderTypeFromConfig = (typeConfig: 'LO' | 'ELO' | 'MO'): typeof OrderType[keyof typeof OrderType] => {
+  if (typeConfig === 'LO') return OrderType.LO;
+  if (typeConfig === 'MO') return OrderType.MO;
+  return OrderType.ELO;
+};
+
+/**
+ * 判断信号是否为保护性清仓信号
+ * @param signal 交易信号
+ * @returns 是否为清仓信号
+ */
+const isLiquidationSignal = (signal: Signal): boolean => {
+  return signal.reason != null && signal.reason.includes('[保护性清仓]');
+};
+
+/**
  * 创建订单执行器
  * @param deps 依赖注入
  * @returns OrderExecutor 接口实例
@@ -365,7 +385,6 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     symbol: string,
     side: typeof OrderSide[keyof typeof OrderSide],
     submittedQtyDecimal: Decimal,
-    useMarketOrder: boolean,
     orderTypeParam: typeof OrderType[keyof typeof OrderType],
     timeInForce: typeof TimeInForceType[keyof typeof TimeInForceType],
     remark: string | undefined,
@@ -373,14 +392,13 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     isShortSymbol: boolean,
     monitorConfig: MonitorConfig | null = null,
   ): Promise<void> => {
-    // 确定实际使用的订单类型
-    const actualOrderType = useMarketOrder ? OrderType.MO : orderTypeParam;
+    const actualOrderType = orderTypeParam;
 
     const resolvedPrice = overridePrice ?? signal?.price ?? null;
 
     // 市价单不需要价格
     if (actualOrderType === OrderType.MO) {
-      logger.info(`[订单类型] 使用市价单(MO)进行保护性清仓，标的=${symbol}`);
+      logger.info(`[订单类型] 使用市价单(MO)，标的=${symbol}`);
     } else if (
       actualOrderType === OrderType.LO ||
       actualOrderType === OrderType.ELO ||
@@ -389,12 +407,13 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     ) {
       if (!resolvedPrice) {
         logger.warn(
-          `[跳过订单] ${symbol} 的增强限价单缺少价格，无法提交。请确保信号中包含价格信息`,
+          `[跳过订单] ${symbol} 的限价单缺少价格，无法提交。请确保信号中包含价格信息`,
         );
         return;
       }
+      const orderTypeName = actualOrderType === OrderType.LO ? 'LO' : actualOrderType === OrderType.ELO ? 'ELO' : actualOrderType === OrderType.ALO ? 'ALO' : 'SLO';
       logger.info(
-        `[订单类型] 使用增强限价单(ELO)，标的=${symbol}，价格=${resolvedPrice}`,
+        `[订单类型] 使用限价单(${orderTypeName})，标的=${symbol}，价格=${resolvedPrice}`,
       );
     }
 
@@ -510,14 +529,15 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     // 使用配置中的值，如果没有配置则使用默认值
     const targetNotional = monitorConfig?.targetNotional ?? TRADING.DEFAULT_TARGET_NOTIONAL;
     // 注意：lotSize 现在从 API 获取（signal.lotSize），不需要从配置读取
-    const orderType = OrderType.ELO;
+    // 根据信号类型选择订单类型
+    // 保护性清仓使用 liquidationOrderType，普通交易使用 tradingOrderType
+    const orderType = isLiquidationSignal(signal)
+      ? getOrderTypeFromConfig(MULTI_MONITOR_TRADING_CONFIG.global.liquidationOrderType)
+      : getOrderTypeFromConfig(MULTI_MONITOR_TRADING_CONFIG.global.tradingOrderType);
     const timeInForce = TimeInForceType.Day;
     const remark = 'QuantDemo';
     const overridePrice = undefined;
     const symbol = targetSymbol;
-
-    // 检查信号是否要求使用市价单
-    const useMarketOrder = signal.useMarketOrder === true;
 
     let submittedQtyDecimal: Decimal;
 
@@ -552,7 +572,6 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
       symbol,
       side,
       submittedQtyDecimal,
-      useMarketOrder,
       orderType,
       timeInForce,
       remark,

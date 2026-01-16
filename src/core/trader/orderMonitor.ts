@@ -451,11 +451,14 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
         continue;
       }
 
-      // 检查超时
-      const elapsed = now - order.submittedAt;
-      if (elapsed >= config.timeoutMs) {
-        await handleTimeoutOrder(orderId, order);
-        continue;
+      // 检查超时（如果启用了超时监控）
+      const enableTimeoutMonitor = MULTI_MONITOR_TRADING_CONFIG.global.enableOrderTimeoutMonitor;
+      if (enableTimeoutMonitor) {
+        const elapsed = now - order.submittedAt;
+        if (elapsed >= config.timeoutMs) {
+          await handleTimeoutOrder(orderId, order);
+          continue;
+        }
       }
 
       // 检查是否在修改间隔内

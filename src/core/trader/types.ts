@@ -6,19 +6,6 @@ import type { OrderSide, OrderType, OrderStatus, TimeInForceType, TradeContext }
 import type { Signal, Quote, AccountSnapshot, Position, PendingOrder, TradeCheckResult } from '../../types/index.js';
 
 /**
- * 默认订单配置类型
- */
-export type OrderOptions = {
-  readonly symbol: string;
-  readonly targetNotional: number;
-  readonly quantity: number;
-  readonly orderType: typeof OrderType[keyof typeof OrderType];
-  readonly timeInForce: typeof TimeInForceType[keyof typeof TimeInForceType];
-  readonly remark: string;
-  readonly price?: number;
-};
-
-/**
  * 订单载荷类型
  */
 export type OrderPayload = {

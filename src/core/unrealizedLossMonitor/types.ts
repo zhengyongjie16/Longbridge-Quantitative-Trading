@@ -10,14 +10,6 @@ import type { Quote, RiskChecker, Trader, OrderRecorder } from '../../types/inde
  * 浮亏监控器接口
  */
 export interface UnrealizedLossMonitor {
-  checkAndLiquidate(
-    symbol: string,
-    currentPrice: number,
-    isLong: boolean,
-    riskChecker: RiskChecker,
-    trader: Trader,
-    orderRecorder: OrderRecorder,
-  ): Promise<boolean>;
   monitorUnrealizedLoss(
     longQuote: Quote | null,
     shortQuote: Quote | null,

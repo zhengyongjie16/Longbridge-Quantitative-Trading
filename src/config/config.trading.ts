@@ -25,6 +25,7 @@ import { parseSignalConfig } from '../utils/helpers/signalConfigParser.js';
 import { validateEmaPeriod } from '../utils/helpers/indicatorHelpers.js';
 import { normalizeHKSymbol } from '../utils/helpers/index.js';
 import { logger } from '../utils/logger/index.js';
+import { OrderType } from 'longport';
 import type {
   MonitorConfig,
   MultiMonitorTradingConfig,
@@ -160,6 +161,48 @@ function parseVerificationIndicators(envKey: string): ReadonlyArray<string> | nu
   }
 
   return validItems.length > 0 ? validItems : null;
+}
+
+/**
+ * 将配置字符串映射到 OrderType 枚举
+ * @param envKey 环境变量键名
+ * @param defaultType 默认订单类型
+ * @returns OrderType 枚举值
+ */
+function parseOrderTypeConfig(
+  envKey: string,
+  defaultType: 'LO' | 'ELO' | 'MO' = 'ELO',
+): OrderType {
+  const value = getStringConfig(envKey);
+
+  // 验证配置值（必须使用全大写，区分大小写）
+  const trimmedValue = value ? value.trim() : null;
+
+  if (trimmedValue === 'LO') {
+    return OrderType.LO;
+  }
+  if (trimmedValue === 'ELO') {
+    return OrderType.ELO;
+  }
+  if (trimmedValue === 'MO') {
+    return OrderType.MO;
+  }
+
+  // 如果配置值无效或未配置，使用默认值
+  if (value && trimmedValue !== 'LO' && trimmedValue !== 'ELO' && trimmedValue !== 'MO') {
+    logger.warn(
+      `[配置警告] ${envKey} 值无效: ${value}，必须使用全大写: LO, ELO, MO。已使用默认值: ${defaultType}`,
+    );
+  }
+
+  // 返回默认值
+  if (defaultType === 'LO') {
+    return OrderType.LO;
+  }
+  if (defaultType === 'MO') {
+    return OrderType.MO;
+  }
+  return OrderType.ELO;
 }
 
 /**
@@ -303,6 +346,9 @@ export const MULTI_MONITOR_TRADING_CONFIG: MultiMonitorTradingConfig = (() => {
         debug: getBooleanConfig('DEBUG', false),
         orderMonitorTimeoutSeconds: 180,
         orderMonitorPriceUpdateInterval: 5,
+        tradingOrderType: 'ELO' as const,
+        liquidationOrderType: 'MO' as const,
+        enableOrderTimeoutMonitor: true,
       },
     };
   }
@@ -350,6 +396,27 @@ export const MULTI_MONITOR_TRADING_CONFIG: MultiMonitorTradingConfig = (() => {
     return interval;
   })();
 
+  // 解析交易订单类型配置
+  const tradingOrderType = (() => {
+    const orderType = parseOrderTypeConfig('TRADING_ORDER_TYPE', 'ELO');
+    // 将 OrderType 枚举值转换回字符串以符合 GlobalConfig 类型
+    if (orderType === OrderType.LO) return 'LO' as const;
+    if (orderType === OrderType.MO) return 'MO' as const;
+    return 'ELO' as const;
+  })();
+
+  // 解析清仓订单类型配置
+  const liquidationOrderType = (() => {
+    const orderType = parseOrderTypeConfig('LIQUIDATION_ORDER_TYPE', 'MO');
+    // 将 OrderType 枚举值转换回字符串以符合 GlobalConfig 类型
+    if (orderType === OrderType.LO) return 'LO' as const;
+    if (orderType === OrderType.ELO) return 'ELO' as const;
+    return 'MO' as const;
+  })();
+
+  // 解析订单超时监控开关
+  const enableOrderTimeoutMonitor = getBooleanConfig('ENABLE_ORDER_TIMEOUT_MONITOR', true);
+
   return {
     monitors,
     global: {
@@ -357,6 +424,9 @@ export const MULTI_MONITOR_TRADING_CONFIG: MultiMonitorTradingConfig = (() => {
       debug: getBooleanConfig('DEBUG', false),
       orderMonitorTimeoutSeconds,
       orderMonitorPriceUpdateInterval,
+      tradingOrderType,
+      liquidationOrderType,
+      enableOrderTimeoutMonitor,
     },
   };
 })();
