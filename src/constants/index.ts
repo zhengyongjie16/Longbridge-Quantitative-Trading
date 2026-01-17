@@ -11,16 +11,6 @@ import type { SignalType } from '../types/index.js';
 export const TIME = {
   /** 每秒的毫秒数 */
   MILLISECONDS_PER_SECOND: 1000,
-  /** 每分钟的秒数 */
-  SECONDS_PER_MINUTE: 60,
-  /** 每小时的分钟数 */
-  MINUTES_PER_HOUR: 60,
-  /** 每天的小时数 */
-  HOURS_PER_DAY: 24,
-  /** 每天的毫秒数 */
-  MILLISECONDS_PER_DAY: 24 * 60 * 60 * 1000,
-  /** 北京时区偏移量（小时） */
-  BEIJING_TIMEZONE_OFFSET_HOURS: 8,
   /** 北京时区偏移量（毫秒） */
   BEIJING_TIMEZONE_OFFSET_MS: 8 * 60 * 60 * 1000,
 } as const;
@@ -31,10 +21,6 @@ export const TIME = {
 export const TRADING = {
   /** 默认目标金额（港币） */
   DEFAULT_TARGET_NOTIONAL: 5000,
-  /** 默认每手股数 */
-  DEFAULT_LOT_SIZE: 100,
-  /** 价格差异阈值（港币） */
-  PRICE_DIFF_THRESHOLD: 0.001,
   /** K线周期 */
   CANDLE_PERIOD: '1m' as const,
   /** K线数量 */
@@ -79,8 +65,6 @@ export const API = {
   DEFAULT_RETRY_COUNT: 2,
   /** 默认重试延迟（毫秒） */
   DEFAULT_RETRY_DELAY_MS: 300,
-  /** 行情缓存 TTL（毫秒） */
-  QUOTE_CACHE_TTL_MS: 1000,
   /** 交易日缓存 TTL（毫秒） */
   TRADING_DAY_CACHE_TTL_MS: 24 * 60 * 60 * 1000,
 } as const;

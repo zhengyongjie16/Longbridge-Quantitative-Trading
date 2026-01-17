@@ -69,6 +69,18 @@ export type Position = {
 };
 
 /**
+ * 现金详情类型
+ * 对应 LongPort API accountBalance 返回的 cash_infos 数组元素
+ */
+export type CashInfo = {
+  readonly currency: string;
+  readonly availableCash: number;
+  readonly withdrawCash: number;
+  readonly frozenCash: number;
+  readonly settlingCash: number;
+};
+
+/**
  * 账户快照
  */
 export type AccountSnapshot = {
@@ -76,6 +88,10 @@ export type AccountSnapshot = {
   readonly totalCash: number;
   readonly netAssets: number;
   readonly positionValue: number;
+  /** 各币种现金详情（用于获取港币可用现金） */
+  readonly cashInfos: ReadonlyArray<CashInfo>;
+  /** 购买力 */
+  readonly buyPower: number;
 };
 
 // ==================== 行情和指标 ====================
@@ -513,12 +529,17 @@ export interface Trader {
   monitorAndManageOrders(quotesMap: ReadonlyMap<string, Quote | null>): Promise<void>;
 
   /**
-   * 获取并清空待刷新浮亏数据的标的列表
+   * 获取并清空待刷新数据的标的列表
    * 订单成交后会将标的添加到此列表，主循环中应调用此方法获取并刷新
    *
    * @returns 待刷新的标的列表（调用后列表会被清空）
    */
-  getAndClearPendingRefreshSymbols(): ReadonlyArray<{ readonly symbol: string; readonly isLongSymbol: boolean }>;
+  getAndClearPendingRefreshSymbols(): ReadonlyArray<{
+    readonly symbol: string;
+    readonly isLongSymbol: boolean;
+    readonly refreshAccount: boolean;
+    readonly refreshPositions: boolean;
+  }>;
 
   // 订单执行相关方法
   _canTradeNow(signalAction: string, monitorConfig?: MonitorConfig | null): TradeCheckResult;

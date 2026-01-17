@@ -75,11 +75,16 @@ export interface OrderCacheManager {
 }
 
 /**
- * 需要刷新浮亏数据的标的信息
+ * 需要刷新数据的标的信息
+ * 订单成交后触发刷新账户、持仓和浮亏数据
  */
 export interface PendingRefreshSymbol {
   readonly symbol: string;
   readonly isLongSymbol: boolean;
+  /** 是否需要刷新账户数据 */
+  readonly refreshAccount: boolean;
+  /** 是否需要刷新持仓数据 */
+  readonly refreshPositions: boolean;
 }
 
 /**

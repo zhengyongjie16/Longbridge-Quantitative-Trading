@@ -22,7 +22,7 @@
 import { logger } from '../../utils/logger/index.js';
 import { normalizeHKSymbol, getSymbolName, getDirectionName, formatSymbolDisplayFromQuote, formatError } from '../../utils/helpers/index.js';
 import { MULTI_MONITOR_TRADING_CONFIG } from '../../config/config.trading.js';
-import type { Quote, Position, Signal, OrderRecorder } from '../../types/index.js';
+import type { Quote, Position, Signal, OrderRecorder, AccountSnapshot } from '../../types/index.js';
 import type { RiskCheckContext, SellQuantityResult, SignalProcessor, SignalProcessorDeps } from './types.js';
 
 /**
@@ -298,9 +298,6 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
       shortSymbol,
       longSymbolName,
       shortSymbolName,
-      account,
-      positions,
-      lastState,
       currentTime,
       isHalfDay,
       doomsdayProtection,
@@ -440,69 +437,42 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
         }
       }
 
-      // 5. 基础风险检查（买入操作需要实时数据，卖出操作可用缓存）
-      let accountForRiskCheck = account;
-      let positionsForRiskCheck = positions;
+      // 5. 基础风险检查
+      // 重要：买入检查逻辑要求：
+      // - 买入前必须从API获取最新账户信息和持仓信息，不使用缓存
+      // - 这确保了并发订单时数据准确性，避免短时间内多笔订单导致的缓存不及时问题
+      // - API调用失败时直接拒绝买入交易，不使用缓存降级，确保资金安全
+      let accountForRiskCheck: AccountSnapshot | null = null;
+      let positionsForRiskCheck: Position[] = [];
 
-      // 对于买入操作，总是实时获取最新数据
-      if (
-        isBuyActionCheck ||
-        !accountForRiskCheck ||
-        !positionsForRiskCheck ||
-        positionsForRiskCheck.length === 0
-      ) {
-        try {
-          // 并行获取账户信息和持仓信息，减少等待时间
-          const [freshAccount, freshPositions] = await Promise.all([
-            trader.getAccountSnapshot().catch((err) => {
-              logger.warn(
-                '风险检查前获取账户信息失败',
-                formatError(err),
-              );
-              return null;
-            }),
-            trader.getStockPositions().catch((err) => {
-              logger.warn(
-                '风险检查前获取持仓信息失败',
-                formatError(err),
-              );
-              return [];
-            }),
-          ]);
+      // 从API获取最新数据
+      try {
+        const [freshAccount, freshPositions] = await Promise.all([
+          trader.getAccountSnapshot(),
+          trader.getStockPositions(),
+        ]);
 
-          if (freshAccount) {
-            accountForRiskCheck = freshAccount;
-            lastState.cachedAccount = freshAccount;
-          } else if (isBuyActionCheck) {
-            logger.warn(
-              '[风险检查] 买入操作前无法获取最新账户信息，风险检查将拒绝该操作',
-            );
-            // 买入操作无法获取账户信息，跳过此信号，继续处理下一个信号
-            continue;
-          }
-
-          if (Array.isArray(freshPositions)) {
-            if (isBuyActionCheck || freshPositions.length > 0) {
-              positionsForRiskCheck = freshPositions;
-              lastState.cachedPositions = freshPositions;
-              // 同步更新持仓缓存（O(1) 查找优化）
-              lastState.positionCache.update(freshPositions);
-            }
-          } else if (isBuyActionCheck) {
-            positionsForRiskCheck = [];
-            lastState.cachedPositions = [];
-            // 同步更新持仓缓存（O(1) 查找优化）
-            lastState.positionCache.update([]);
-          }
-        } catch (err) {
-          logger.warn(
-            '风险检查前获取账户和持仓信息失败',
-            formatError(err),
-          );
-        }
+        accountForRiskCheck = freshAccount;
+        positionsForRiskCheck = freshPositions ?? [];
+      } catch (err) {
+        logger.warn(
+          '风险检查前获取账户和持仓信息失败，拒绝交易',
+          formatError(err),
+        );
+        // API调用失败时直接拒绝交易，不使用缓存降级
+        // 这样可以避免使用过期数据导致的资金风险
+        accountForRiskCheck = null;
+        positionsForRiskCheck = [];
       }
 
-      // 基础风险检查
+      // 对于买入操作，账户数据是必需的（用于购买力检查和持仓市值检查）
+      // 如果无法获取最新账户信息，拒绝买入操作以确保资金安全
+      if (isBuyActionCheck && accountForRiskCheck === null) {
+        logger.warn('[风险检查] 买入操作无法获取账户信息，跳过该信号');
+        continue;
+      }
+
+      // 使用从API获取的最新数据进行风险检查（而非缓存数据）
       const orderNotional = context.config.targetNotional ?? 0;
       const longCurrentPrice = longQuote?.price ?? null;
       const shortCurrentPrice = shortQuote?.price ?? null;

@@ -136,10 +136,13 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
           '已更新本地订单记录',
         );
 
-        // 记录需要刷新浮亏数据的标的（主循环中会处理）
+        // 记录需要刷新的数据（订单成交后资金和持仓都会变化）
+        // 主循环中会统一刷新账户、持仓和浮亏数据
         pendingRefreshSymbols.push({
           symbol: trackedOrder.symbol,
           isLongSymbol: trackedOrder.isLongSymbol,
+          refreshAccount: true,
+          refreshPositions: true,
         });
       } else {
         logger.warn(

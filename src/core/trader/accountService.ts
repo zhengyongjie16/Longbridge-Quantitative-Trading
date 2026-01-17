@@ -6,7 +6,7 @@
  * - 查询股票持仓
  */
 import { decimalToNumber } from '../../utils/helpers/index.js';
-import type { AccountSnapshot, Position } from '../../types/index.js';
+import type { AccountSnapshot, Position, CashInfo } from '../../types/index.js';
 import type { AccountService, AccountServiceDeps } from './types.js';
 
 /**
@@ -33,11 +33,22 @@ export const createAccountService = (deps: AccountServiceDeps): AccountService =
     const netAssets = decimalToNumber(primary.netAssets);
     const positionValue = netAssets - totalCash;
 
+    // 解析现金详情（用于获取各币种可用现金）
+    const cashInfos: CashInfo[] = (primary.cashInfos ?? []).map((info) => ({
+      currency: info.currency ?? 'HKD',
+      availableCash: decimalToNumber(info.availableCash),
+      withdrawCash: decimalToNumber(info.withdrawCash),
+      frozenCash: decimalToNumber(info.frozenCash),
+      settlingCash: decimalToNumber(info.settlingCash),
+    }));
+
     return {
       currency: primary.currency ?? 'HKD',
       totalCash,
       netAssets,
       positionValue,
+      cashInfos,
+      buyPower: decimalToNumber(primary.buyPower),
     };
   };
 

@@ -36,7 +36,6 @@ import {
 } from './utils/objectPool/index.js';
 import {
   getSymbolName,
-  isBuyAction,
   formatError,
   formatSignalLog,
   sleep,
@@ -445,6 +444,8 @@ async function processMonitor(
 
     // 8. 风险检查和信号处理
     // 注意：末日保护是全局性的，应该在runOnce中处理，不在processMonitor中处理
+    // 注意：以下缓存数据仅用于日志显示，不用于风险检查
+    // 风险检查时会从API获取最新账户和持仓信息，确保数据准确性
     const account = globalState.cachedAccount ?? null;
     const positions = globalState.cachedPositions ?? [];
 
@@ -464,6 +465,8 @@ async function processMonitor(
         shortSymbol: SHORT_SYMBOL,
         longSymbolName,
         shortSymbolName,
+        // 注意：account 和 positions 仅用于日志显示，不用于风险检查
+        // applyRiskChecks 内部会从API获取最新数据进行风险检查
         account,
         positions,
         // 使用 globalState 引用，确保在 applyRiskChecks 中获取的新持仓数据能同步回全局状态
@@ -533,23 +536,8 @@ async function processMonitor(
 
       if (signalsToExecute.length > 0) {
         await trader.executeSignals(signalsToExecute);
-
-        // 交易执行后刷新持仓缓存，确保下次循环能获取最新持仓
-        // 这对于买入后的卖出信号处理尤为重要
-        const hasBuySignal = signalsToExecute.some((sig) => isBuyAction(sig.action));
-        if (hasBuySignal) {
-          try {
-            const freshPositions = await trader.getStockPositions();
-            if (Array.isArray(freshPositions)) {
-              globalState.cachedPositions = freshPositions;
-              // 同步更新持仓缓存（O(1) 查找优化）
-              globalState.positionCache.update(freshPositions);
-              logger.debug(`[持仓缓存] 买入执行后刷新持仓缓存，当前持仓数量: ${freshPositions.length}`);
-            }
-          } catch (err) {
-            logger.warn('[持仓缓存] 买入执行后刷新持仓缓存失败', formatError(err));
-          }
-        }
+        // 注意：账户和持仓缓存刷新已移至 runOnce 末尾
+        // 由 WebSocket 推送驱动，订单成交后统一刷新，数据更准确
       } else {
         logger.info('所有卖出信号因成本价判断被跳过，无交易执行');
       }
@@ -748,10 +736,40 @@ async function runOnce({
       logger.warn('订单监控失败', formatError(err));
     });
 
-    // 订单成交后刷新浮亏数据（由 WebSocket 推送触发，在此处统一处理）
+    // 订单成交后刷新缓存数据（由 WebSocket 推送触发，在此处统一处理）
     // 相比订单提交后立即刷新，此时本地订单记录已经更新，数据更准确
+    // 注意：刷新后的缓存仅用于日志显示，不用于风险检查
+    // 买入检查时会从API获取最新数据，确保风险检查使用最新账户和持仓信息
     const pendingRefreshSymbols = trader.getAndClearPendingRefreshSymbols();
     if (pendingRefreshSymbols.length > 0) {
+      // 检查是否需要刷新账户和持仓
+      const needRefreshAccount = pendingRefreshSymbols.some((r) => r.refreshAccount);
+      const needRefreshPositions = pendingRefreshSymbols.some((r) => r.refreshPositions);
+
+      // 刷新账户和持仓缓存（仅用于日志显示）
+      if (needRefreshAccount || needRefreshPositions) {
+        try {
+          const [freshAccount, freshPositions] = await Promise.all([
+            needRefreshAccount ? trader.getAccountSnapshot() : Promise.resolve(null),
+            needRefreshPositions ? trader.getStockPositions() : Promise.resolve(null),
+          ]);
+
+          if (freshAccount !== null) {
+            lastState.cachedAccount = freshAccount;
+            logger.debug('[缓存刷新] 订单成交后刷新账户缓存');
+          }
+
+          if (Array.isArray(freshPositions)) {
+            lastState.cachedPositions = freshPositions;
+            lastState.positionCache.update(freshPositions);
+            logger.debug('[缓存刷新] 订单成交后刷新持仓缓存');
+          }
+        } catch (err) {
+          logger.warn('[缓存刷新] 订单成交后刷新缓存失败', formatError(err));
+        }
+      }
+
+      // 刷新浮亏数据
       for (const { symbol, isLongSymbol } of pendingRefreshSymbols) {
         // 查找对应的监控上下文
         const monitorContext = Array.from(monitorContexts.values()).find((ctx) => {
@@ -904,6 +922,20 @@ async function main(): Promise<void> {
 
   // 程序启动时立即获取一次账户和持仓信息
   await displayAccountAndPositions(trader, marketDataClient, lastState);
+
+  // 验证账户信息获取成功（程序启动必须获取到账户信息）
+  if (!lastState.cachedAccount) {
+    logger.error('程序启动失败：无法获取账户信息');
+    process.exit(1);
+  }
+
+  // 验证持仓信息获取成功（空数组是有效的，表示无持仓）
+  if (!Array.isArray(lastState.cachedPositions)) {
+    logger.error('程序启动失败：无法获取持仓信息');
+    process.exit(1);
+  }
+
+  logger.info('账户和持仓信息获取成功，程序初始化完成');
 
   // 程序启动时刷新订单记录（为所有监控标的初始化订单记录）
   // 复用之前批量获取的行情数据（initQuotesMap 已包含所有交易标的的行情）

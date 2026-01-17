@@ -48,20 +48,20 @@ export function isDefined<T>(value: T | null | undefined): value is T {
 }
 
 /**
- * 类型保护：检查是否为 Error 实例
+ * 类型保护：检查是否为 Error 实例（内部使用）
  * @param value 待检查的值
  * @returns 如果是 Error 实例返回 true
  */
-export function isError(value: unknown): value is Error {
+function isError(value: unknown): value is Error {
   return value instanceof Error;
 }
 
 /**
- * 类型保护：检查是否为类似错误的对象（包含错误属性）
+ * 类型保护：检查是否为类似错误的对象（内部使用）
  * @param value 待检查的值
  * @returns 如果对象包含常见错误属性返回 true
  */
-export function isErrorLike(value: unknown): value is Record<string, unknown> {
+function isErrorLike(value: unknown): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null) {
     return false;
   }

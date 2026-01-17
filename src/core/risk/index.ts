@@ -220,6 +220,19 @@ export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
       return { allowed: true };
     }
 
+    // 对于买入操作，检查港币可用现金是否足够
+    if (isBuy) {
+      const hkdCashInfo = account.cashInfos?.find((c) => c.currency === 'HKD');
+      const availableCash = hkdCashInfo?.availableCash ?? 0;
+
+      if (availableCash < orderNotional) {
+        return {
+          allowed: false,
+          reason: `港币可用现金 ${availableCash.toFixed(2)} HKD 不足以支付买入金额 ${orderNotional.toFixed(2)} HKD`,
+        };
+      }
+    }
+
     // 当日浮亏超过 maxDailyLoss 时，停止开新仓（仅对买入操作检查）
     if (isBuy) {
       const unrealizedLossResult = checkUnrealizedLossBeforeBuy(

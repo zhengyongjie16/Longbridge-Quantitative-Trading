@@ -20,7 +20,9 @@ export type RiskCheckContext = {
   readonly shortSymbol: string;
   readonly longSymbolName: string | null;
   readonly shortSymbolName: string | null;
+  /** 账户缓存（仅用于日志显示，不用于风险检查） */
   readonly account: AccountSnapshot | null;
+  /** 持仓缓存（仅用于日志显示，不用于风险检查） */
   readonly positions: ReadonlyArray<Position>;
   readonly lastState: {
     cachedAccount?: AccountSnapshot | null;
