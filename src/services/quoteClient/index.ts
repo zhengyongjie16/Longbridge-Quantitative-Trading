@@ -189,7 +189,7 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps): Promis
       price: Number(pushData.lastDone),
       prevClose,
       timestamp: pushData.timestamp.getTime(),
-      ...(lotSize !== undefined ? { lotSize } : {}),
+      ...(lotSize === undefined ? {} : { lotSize }),
       raw: pushData,
       staticInfo,
     };
@@ -232,7 +232,7 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps): Promis
       price: decimalToNumber(quote.lastDone),
       prevClose: decimalToNumber(quote.prevClose),
       timestamp: quote.timestamp.getTime(),
-      ...(lotSize !== undefined ? { lotSize } : {}),
+      ...(lotSize === undefined ? {} : { lotSize }),
       raw: quote,
       staticInfo,
     };
@@ -273,44 +273,42 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps): Promis
 
       if (cached) {
         result.set(normalizedSymbol, cached);
+      } else if (subscribedSymbols.has(normalizedSymbol)) {
+        // 已订阅但无数据（可能是刚订阅还未收到推送）
+        logger.warn(`[行情获取] 标的 ${normalizedSymbol} 无缓存数据`);
+        result.set(normalizedSymbol, null);
       } else {
         // 如果请求的标的不在订阅列表中，尝试动态订阅
-        if (!subscribedSymbols.has(normalizedSymbol)) {
-          logger.warn(`[行情获取] 标的 ${normalizedSymbol} 未订阅，尝试动态添加`);
-          try {
-            // 获取静态信息
-            const [info] = await ctx.staticInfo([normalizedSymbol]);
-            if (info) {
-              staticInfoCache.set(normalizedSymbol, info);
-            }
-            // 获取初始行情
-            const [dynamicQuote] = await ctx.quote([normalizedSymbol]);
-            if (dynamicQuote) {
-              prevCloseCache.set(normalizedSymbol, decimalToNumber(dynamicQuote.prevClose));
-              const dynamicLotSize = extractLotSize(info);
-              const quoteResult: Quote = {
-                symbol: normalizedSymbol,
-                name: extractName(info),
-                price: decimalToNumber(dynamicQuote.lastDone),
-                prevClose: decimalToNumber(dynamicQuote.prevClose),
-                timestamp: dynamicQuote.timestamp.getTime(),
-                ...(dynamicLotSize !== undefined ? { lotSize: dynamicLotSize } : {}),
-                raw: dynamicQuote,
-                staticInfo: info,
-              };
-              quoteCache.set(normalizedSymbol, quoteResult);
-              result.set(normalizedSymbol, quoteResult);
-            }
-            // 订阅该标的
-            await ctx.subscribe([normalizedSymbol], [SubType.Quote], true);
-            subscribedSymbols.add(normalizedSymbol);
-          } catch (err) {
-            logger.warn(`[行情获取] 动态订阅失败: ${normalizedSymbol}`, formatError(err));
-            result.set(normalizedSymbol, null);
+        logger.warn(`[行情获取] 标的 ${normalizedSymbol} 未订阅，尝试动态添加`);
+        try {
+          // 获取静态信息
+          const [info] = await ctx.staticInfo([normalizedSymbol]);
+          if (info) {
+            staticInfoCache.set(normalizedSymbol, info);
           }
-        } else {
-          // 已订阅但无数据（可能是刚订阅还未收到推送）
-          logger.warn(`[行情获取] 标的 ${normalizedSymbol} 无缓存数据`);
+          // 获取初始行情
+          const [dynamicQuote] = await ctx.quote([normalizedSymbol]);
+          if (dynamicQuote) {
+            prevCloseCache.set(normalizedSymbol, decimalToNumber(dynamicQuote.prevClose));
+            const dynamicLotSize = extractLotSize(info);
+            const quoteResult: Quote = {
+              symbol: normalizedSymbol,
+              name: extractName(info),
+              price: decimalToNumber(dynamicQuote.lastDone),
+              prevClose: decimalToNumber(dynamicQuote.prevClose),
+              timestamp: dynamicQuote.timestamp.getTime(),
+              ...(dynamicLotSize === undefined ? {} : { lotSize: dynamicLotSize }),
+              raw: dynamicQuote,
+              staticInfo: info,
+            };
+            quoteCache.set(normalizedSymbol, quoteResult);
+            result.set(normalizedSymbol, quoteResult);
+          }
+          // 订阅该标的
+          await ctx.subscribe([normalizedSymbol], [SubType.Quote], true);
+          subscribedSymbols.add(normalizedSymbol);
+        } catch (err) {
+          logger.warn(`[行情获取] 动态订阅失败: ${normalizedSymbol}`, formatError(err));
           result.set(normalizedSymbol, null);
         }
       }

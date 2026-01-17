@@ -75,7 +75,7 @@ const getOrderTypeFromConfig = (typeConfig: 'LO' | 'ELO' | 'MO'): typeof OrderTy
  * @returns 是否为清仓信号
  */
 const isLiquidationSignal = (signal: Signal): boolean => {
-  return signal.reason != null && signal.reason.includes('[保护性清仓]');
+  return signal.reason?.includes('[保护性清仓]') ?? false;
 };
 
 /**
@@ -411,7 +411,16 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
         );
         return;
       }
-      const orderTypeName = actualOrderType === OrderType.LO ? 'LO' : actualOrderType === OrderType.ELO ? 'ELO' : actualOrderType === OrderType.ALO ? 'ALO' : 'SLO';
+      let orderTypeName: string;
+      if (actualOrderType === OrderType.LO) {
+        orderTypeName = 'LO';
+      } else if (actualOrderType === OrderType.ELO) {
+        orderTypeName = 'ELO';
+      } else if (actualOrderType === OrderType.ALO) {
+        orderTypeName = 'ALO';
+      } else {
+        orderTypeName = 'SLO';
+      }
       logger.info(
         `[订单类型] 使用限价单(${orderTypeName})，标的=${symbol}，价格=${resolvedPrice}`,
       );
