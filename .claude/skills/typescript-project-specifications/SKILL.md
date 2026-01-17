@@ -15,7 +15,8 @@ description: 编写简洁、易于维护且遵循严格规范的 TypeScript 代�
 6. **无兼容性代码**：不要编写兼容式、补丁式和临时性的代码，必须编写完整的系统性代码
 7. **清除无用代码**：不要保留无用/无效的代码或已弃用的代码
 8. **类型组织**：类型定义放在 `type.ts` 文件中，共享类型应定义在公共的`type.ts` 文件中，不要定义重复的类型，类型不要重复导入导出(避免re-export模式)，应直接引入源类型
-9. **完成检查**：编写完成后**必须**运行 `npm run lint` 和 `npm run type-check` 并修复所有问题
+9. **对象池模式例外**：对象池类型（如 `PoolableSignal`）使用可变属性和 `| null` 标记，这是性能优化的必要例外。使用对象池对象后**必须**及时释放，嵌套对象也需要递归释放
+10. **完成检查**：编写完成后**必须**运行 `npm run lint` 和 `npm run type-check` 并修复所有问题
 
 ### 完整示例
 
@@ -56,6 +57,61 @@ export const createOrderService = ({
 };
 ```
 
+### 对象池模式示例
+
+```typescript
+// objectPool/types.ts - 对象池类型（例外：使用可变属性）
+export type PoolableSignal = {
+  symbol: string | null;
+  action: SignalType | null;
+  price: number | null;
+  indicators: Record<string, number> | null;
+};
+
+export type ObjectPool<T> = {
+  acquire(): T;
+  release(obj: T | null | undefined): void;
+};
+
+// objectPool/index.ts - 对象池实现
+export const createObjectPool = <T>(
+  factory: () => T,
+  reset: (obj: T) => T,
+  maxSize: number = 100,
+): ObjectPool<T> => {
+  const pool: T[] = [];
+
+  return {
+    acquire: () => (pool.length > 0 ? pool.pop()! : factory()),
+    release: (obj) => {
+      if (!obj || pool.length >= maxSize) return;
+      pool.push(reset(obj));
+    },
+  };
+};
+
+// 使用示例
+export const signalPool = createObjectPool<PoolableSignal>(
+  () => ({ symbol: null, action: null, price: null, indicators: null }),
+  (obj) => {
+    // 释放嵌套对象
+    if (obj.indicators) indicatorPool.release(obj.indicators);
+    obj.symbol = null;
+    obj.action = null;
+    obj.price = null;
+    obj.indicators = null;
+    return obj;
+  },
+);
+
+// 使用对象池
+const signal = signalPool.acquire() as Signal; // 类型断言是安全的
+signal.symbol = 'AAPL';
+signal.action = 'BUY';
+// ... 使用 signal
+signalPool.release(signal); // 必须释放！
+```
+
 ## 验证检查清单
 
 完成代码后必须逐项检查：
@@ -64,6 +120,8 @@ export const createOrderService = ({
 - [ ] 所有依赖通过参数注入（没有在函数内部创建）
 - [ ] 使用工厂函数而非类
 - [ ] 所有类型属性使用 `readonly`，数组使用 `ReadonlyArray`，可以部分宽容
+- [ ] 对象池类型使用可变属性和 `| null` 标记（例外情况）
+- [ ] 使用对象池对象后及时调用 `release()`，嵌套对象也需要释放
 - [ ] 类型定义放在 `type.ts` 文件中，公共类型在公共`type.ts` 文件中，不允许re-export模式
 - [ ] 文件命名使用 camelCase
 - [ ] 没有兼容式、补丁式和临时性的代码
