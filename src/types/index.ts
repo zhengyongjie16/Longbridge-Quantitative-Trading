@@ -374,6 +374,9 @@ export type MonitorContext = {
   normalizedLongSymbol: string;
   normalizedShortSymbol: string;
   normalizedMonitorSymbol: string;
+  // 缓存指标周期配置（避免每次循环重复提取）
+  rsiPeriods: number[];
+  emaPeriods: number[];
 };
 
 // ==================== 核心服务接口 ====================

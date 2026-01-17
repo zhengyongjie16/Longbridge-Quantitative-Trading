@@ -314,8 +314,9 @@ async function processMonitor(
     return;
   }
 
-  const rsiPeriods = extractRsiPeriodsWithDefault(config.signalConfig);
-  const emaPeriods = extractEmaPeriods(config.verificationConfig);
+  // 使用缓存的配置（避免每次循环重复提取）
+  const rsiPeriods = context.monitorContext.rsiPeriods;
+  const emaPeriods = context.monitorContext.emaPeriods;
 
   const monitorSnapshot = buildIndicatorSnapshot(
     MONITOR_SYMBOL,
@@ -839,6 +840,9 @@ function createMonitorContext(
     normalizedLongSymbol: config.longSymbol,
     normalizedShortSymbol: config.shortSymbol,
     normalizedMonitorSymbol: config.monitorSymbol,
+    // 缓存指标周期配置（避免每次循环重复提取）
+    rsiPeriods: extractRsiPeriodsWithDefault(config.signalConfig),
+    emaPeriods: extractEmaPeriods(config.verificationConfig),
   };
 }
 

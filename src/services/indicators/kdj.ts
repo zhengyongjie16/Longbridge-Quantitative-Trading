@@ -25,19 +25,24 @@ export function calculateKDJ(candles: ReadonlyArray<CandleData>, period: number 
   try {
     const emaPeriod = 5;
 
+    // 优化：预先提取所有high、low、close值,避免重复toNumber转换
+    const highs: number[] = [];
+    const lows: number[] = [];
+    const closes: number[] = [];
+
+    for (const candle of candles) {
+      highs.push(toNumber(candle.high));
+      lows.push(toNumber(candle.low));
+      closes.push(toNumber(candle.close));
+    }
+
     // 步骤1：计算所有 RSV 值
     const rsvValues: number[] = [];
     for (let i = period - 1; i < candles.length; i += 1) {
-      const window = candles.slice(i - period + 1, i + 1);
-
-      const windowHighs = window
-        .map((c) => toNumber(c.high))
-        .filter((v) => Number.isFinite(v));
-      const windowLows = window
-        .map((c) => toNumber(c.low))
-        .filter((v) => Number.isFinite(v));
-      const lastCandle = window.at(-1);
-      const close = toNumber(lastCandle?.close);
+      // 获取窗口内的high和low值(已转换,直接slice)
+      const windowHighs = highs.slice(i - period + 1, i + 1).filter((v) => Number.isFinite(v));
+      const windowLows = lows.slice(i - period + 1, i + 1).filter((v) => Number.isFinite(v));
+      const close = closes[i]!;
 
       if (
         windowHighs.length === 0 ||

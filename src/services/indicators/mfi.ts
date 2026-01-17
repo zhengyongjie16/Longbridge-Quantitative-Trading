@@ -22,57 +22,36 @@ export function calculateMFI(candles: ReadonlyArray<CandleData>, period: number 
   }
 
   try {
-    const highs = candles.map((c) => toNumber(c.high));
-    const lows = candles.map((c) => toNumber(c.low));
-    const closes = candles.map((c) => toNumber(c.close));
-    const volumes = candles.map((c) => toNumber(c.volume || 0));
+    // 优化：一次遍历完成数据提取、验证和构建（原来需要9次遍历）
+    const validHighs: number[] = [];
+    const validLows: number[] = [];
+    const mfiCloses: number[] = [];
+    const validVolumes: number[] = [];
 
-    const minRequired = period + 1;
-    if (
-      highs.length < minRequired ||
-      lows.length < minRequired ||
-      closes.length < minRequired ||
-      volumes.length < minRequired
-    ) {
-      return null;
-    }
+    for (const candle of candles) {
+      const high = toNumber(candle.high);
+      const low = toNumber(candle.low);
+      const close = toNumber(candle.close);
+      const volume = toNumber(candle.volume || 0);
 
-    interface ValidDataPoint {
-      high: number;
-      low: number;
-      close: number;
-      volume: number;
-    }
-
-    const validData: ValidDataPoint[] = [];
-    for (let i = 0; i < highs.length; i++) {
-      const high = highs[i]!;
-      const low = lows[i]!;
-      const close = closes[i]!;
-      const volume = volumes[i]!;
-
+      // 边提取边验证
       if (
-        Number.isFinite(high) &&
-        Number.isFinite(low) &&
-        Number.isFinite(close) &&
-        Number.isFinite(volume) &&
-        high > 0 &&
-        low > 0 &&
-        close > 0 &&
-        volume >= 0
+        Number.isFinite(high) && high > 0 &&
+        Number.isFinite(low) && low > 0 &&
+        Number.isFinite(close) && close > 0 &&
+        Number.isFinite(volume) && volume >= 0
       ) {
-        validData.push({ high, low, close, volume });
+        validHighs.push(high);
+        validLows.push(low);
+        mfiCloses.push(close);
+        validVolumes.push(volume);
       }
     }
 
-    if (validData.length < minRequired) {
+    const minRequired = period + 1;
+    if (validHighs.length < minRequired) {
       return null;
     }
-
-    const validHighs = validData.map((d) => d.high);
-    const validLows = validData.map((d) => d.low);
-    const mfiCloses = validData.map((d) => d.close);
-    const validVolumes = validData.map((d) => d.volume);
 
     const mfiResult = MFI.calculate({
       high: validHighs,
