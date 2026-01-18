@@ -25,6 +25,17 @@ import type {
 } from './types.js';
 
 /**
+ * 未成交订单状态集合（模块级常量，避免函数内重复创建）
+ */
+const PENDING_ORDER_STATUSES = new Set([
+  OrderStatus.New,
+  OrderStatus.PartialFilled,
+  OrderStatus.WaitToNew,
+  OrderStatus.WaitToReplace,
+  OrderStatus.PendingReplace,
+]) as ReadonlySet<typeof OrderStatus[keyof typeof OrderStatus]>;
+
+/**
  * 创建订单API管理器
  * @param deps 依赖注入
  * @returns OrderAPIManager 接口实例
@@ -231,14 +242,7 @@ export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManage
    * 从缓存的原始订单中提取未成交订单（用于启动时避免重复调用 todayOrders）
    */
   const getPendingOrdersFromCache = (symbols: string[]): PendingOrder[] => {
-    const pendingStatuses = new Set([
-      OrderStatus.New,
-      OrderStatus.PartialFilled,
-      OrderStatus.WaitToNew,
-      OrderStatus.WaitToReplace,
-      OrderStatus.PendingReplace,
-    ]);
-
+    // 使用模块级常量 PENDING_ORDER_STATUSES，避免每次调用创建新 Set
     const result: PendingOrder[] = [];
 
     for (const symbol of symbols) {
@@ -253,7 +257,7 @@ export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManage
         .filter((order) => {
           const normalizedOrderSymbol = normalizeHKSymbol(order.symbol);
           return (
-            pendingStatuses.has(order.status) &&
+            PENDING_ORDER_STATUSES.has(order.status) &&
             normalizedOrderSymbol === normalizedSymbol
           );
         })

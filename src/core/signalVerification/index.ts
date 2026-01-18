@@ -117,25 +117,24 @@ export const createSignalVerificationManager = (
     }
 
     // 定义3个目标时间点：T0 = triggerTime, T1 = triggerTime + 5秒, T2 = triggerTime + 10秒
-    const targetTime0 = pendingSignal.triggerTime;
-    const targetTime1 = new Date(targetTime0.getTime() + VERIFICATION.TIME_OFFSET_1_SECONDS * TIME.MILLISECONDS_PER_SECOND);
-    const targetTime2 = new Date(targetTime0.getTime() + VERIFICATION.TIME_OFFSET_2_SECONDS * TIME.MILLISECONDS_PER_SECOND);
-    const targetTimes = [targetTime0, targetTime1, targetTime2];
+    // 使用时间戳数字进行比较，避免创建 Date 对象
+    const targetTimestamp0 = pendingSignal.triggerTime.getTime();
+    const targetTimestamp1 = targetTimestamp0 + VERIFICATION.TIME_OFFSET_1_SECONDS * TIME.MILLISECONDS_PER_SECOND;
+    const targetTimestamp2 = targetTimestamp0 + VERIFICATION.TIME_OFFSET_2_SECONDS * TIME.MILLISECONDS_PER_SECOND;
+    const targetTimestamps = [targetTimestamp0, targetTimestamp1, targetTimestamp2];
     const targetTimeLabels = ['T0', 'T0+5s', 'T0+10s'];
 
     // 从该信号自己的验证历史记录中获取indicators2a, indicators2b, indicators2c
     const history = pendingSignal.verificationHistory || [];
     const maxTimeDiff = VERIFICATION.TIME_TOLERANCE_MS;
 
-    // 辅助函数：为指定目标时间查找最佳匹配
-    const findBestMatch = (targetTime: Date): VerificationEntry | null => {
+    // 辅助函数：为指定目标时间戳查找最佳匹配
+    const findBestMatch = (targetTimestamp: number): VerificationEntry | null => {
       let bestMatch: VerificationEntry | null = null;
       let minTimeDiff = Infinity;
 
       for (const entry of history) {
-        const timeDiff = Math.abs(
-          entry.timestamp.getTime() - targetTime.getTime(),
-        );
+        const timeDiff = Math.abs(entry.timestamp.getTime() - targetTimestamp);
         if (timeDiff <= maxTimeDiff && timeDiff < minTimeDiff) {
           minTimeDiff = timeDiff;
           bestMatch = entry;
@@ -147,14 +146,15 @@ export const createSignalVerificationManager = (
 
     // 为3个时间点分别查找最佳匹配
     const matches: (VerificationEntry | null)[] = [];
-    for (let i = 0; i < targetTimes.length; i++) {
-      const targetTime = targetTimes[i]!; // 使用非空断言，因为我们知道数组有3个元素
+    for (let i = 0; i < targetTimestamps.length; i++) {
+      const targetTimestamp = targetTimestamps[i]!; // 使用非空断言，因为我们知道数组有3个元素
       const targetTimeLabel = targetTimeLabels[i]!;
-      const match = findBestMatch(targetTime);
+      const match = findBestMatch(targetTimestamp);
       if (!match?.indicators) {
         const symbolDisplay = formatSymbolDisplay(pendingSignal.symbol);
+        // 仅在需要日志输出时创建 Date 对象
         logger.warn(
-          `[延迟验证失败] ${symbolDisplay} 无法获取有效的${targetTimeLabel}指标值（目标时间=${targetTime.toLocaleString('zh-CN', {
+          `[延迟验证失败] ${symbolDisplay} 无法获取有效的${targetTimeLabel}指标值（目标时间=${new Date(targetTimestamp).toLocaleString('zh-CN', {
             timeZone: 'Asia/Hong_Kong',
             hour12: false,
           })}，当前时间=${now.toLocaleString('zh-CN', {
@@ -214,15 +214,13 @@ export const createSignalVerificationManager = (
     const indicators2a = match0.indicators;
     const indicators2b = match1.indicators;
     const indicators2c = match2.indicators;
-    const actualTime0 = match0.timestamp;
-    const actualTime1 = match1.timestamp;
-    const actualTime2 = match2.timestamp;
+    // 直接使用时间戳计算时间差，避免中间变量
     const timeDiffSeconds0 =
-      Math.abs(actualTime0.getTime() - targetTime0.getTime()) / TIME.MILLISECONDS_PER_SECOND;
+      Math.abs(match0.timestamp.getTime() - targetTimestamp0) / TIME.MILLISECONDS_PER_SECOND;
     const timeDiffSeconds1 =
-      Math.abs(actualTime1.getTime() - targetTime1.getTime()) / TIME.MILLISECONDS_PER_SECOND;
+      Math.abs(match1.timestamp.getTime() - targetTimestamp1) / TIME.MILLISECONDS_PER_SECOND;
     const timeDiffSeconds2 =
-      Math.abs(actualTime2.getTime() - targetTime2.getTime()) / TIME.MILLISECONDS_PER_SECOND;
+      Math.abs(match2.timestamp.getTime() - targetTimestamp2) / TIME.MILLISECONDS_PER_SECOND;
 
     // 根据信号类型使用不同的验证条件
     const isBuyCall = pendingSignal.action === 'BUYCALL';
@@ -562,11 +560,13 @@ export const createSignalVerificationManager = (
       // 检查是否有待验证的信号到了验证时间
       // 注意：需要等待 triggerTime + 15秒后才验证，确保所有3个时间点（T0, T0+5s, T0+10s）的数据都已记录
       // 考虑到每个时间点允许±5秒误差，T0+10s最晚可能在T0+15秒记录
-      const now = new Date();
+      // 使用时间戳数字比较，避免创建 Date 对象
+      const nowTimestamp = Date.now();
+      const now = new Date(nowTimestamp); // 仅用于传递给 verifySingleSignal 进行日志输出
       const signalsToVerify = monitorState.pendingDelayedSignals.filter((s: Signal) => {
         if (!s.triggerTime) return false;
-        const verificationReadyTime = new Date(s.triggerTime.getTime() + VERIFICATION.READY_DELAY_SECONDS * TIME.MILLISECONDS_PER_SECOND);
-        return verificationReadyTime <= now;
+        const verificationReadyTimestamp = s.triggerTime.getTime() + VERIFICATION.READY_DELAY_SECONDS * TIME.MILLISECONDS_PER_SECOND;
+        return verificationReadyTimestamp <= nowTimestamp;
       });
 
       // 处理需要验证的信号

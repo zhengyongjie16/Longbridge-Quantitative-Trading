@@ -16,6 +16,17 @@ import type { OrderCacheManager, OrderCacheManagerDeps } from './types.js';
 const PENDING_ORDERS_CACHE_TTL = 30000; // 30秒缓存
 
 /**
+ * 未成交订单状态集合（模块级常量，避免函数内重复创建）
+ */
+const PENDING_ORDER_STATUSES = new Set([
+  OrderStatus.New,
+  OrderStatus.PartialFilled,
+  OrderStatus.WaitToNew,
+  OrderStatus.WaitToReplace,
+  OrderStatus.PendingReplace,
+]) as ReadonlySet<typeof OrderStatus[keyof typeof OrderStatus]>;
+
+/**
  * 创建订单缓存管理器
  * @param deps 依赖注入
  * @returns OrderCacheManager 接口实例
@@ -67,15 +78,7 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
 
     const ctx = await ctxPromise;
     try {
-      // 过滤出未成交订单（New, PartialFilled, WaitToNew等状态）
-      const pendingStatuses = new Set([
-        OrderStatus.New,
-        OrderStatus.PartialFilled,
-        OrderStatus.WaitToNew,
-        OrderStatus.WaitToReplace,
-        OrderStatus.PendingReplace,
-      ]);
-
+      // 使用模块级常量 PENDING_ORDER_STATUSES 过滤未成交订单，避免每次调用创建新 Set
       let allOrders: Array<{
         orderId: string;
         symbol: string;
@@ -102,7 +105,7 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
       const result: PendingOrder[] = allOrders
         .filter((order) => {
           // 先过滤状态
-          if (!pendingStatuses.has(order.status)) {
+          if (!PENDING_ORDER_STATUSES.has(order.status)) {
             return false;
           }
           // 如果指定了标的，再过滤标的

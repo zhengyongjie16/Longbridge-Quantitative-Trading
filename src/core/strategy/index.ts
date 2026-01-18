@@ -115,17 +115,17 @@ export const createHangSengMultiIndicatorStrategy = ({
       return null;
     }
 
-    const now = new Date();
-    const triggerTime = new Date(
-      now.getTime() + config.delaySeconds * TIME.MILLISECONDS_PER_SECOND,
-    );
+    // 使用 Date.now() 获取时间戳，只创建一个 Date 对象（triggerTime）
+    const nowTimestamp = Date.now();
+    const triggerTimestamp = nowTimestamp + config.delaySeconds * TIME.MILLISECONDS_PER_SECOND;
 
     // 如果目标时间已经过去，说明计算有误，返回null
-    if (triggerTime <= now) {
+    // 注意：delaySeconds > 0 时不可能发生，但保留此检查作为防御性编程
+    if (triggerTimestamp <= nowTimestamp) {
       return null;
     }
 
-    return triggerTime;
+    return new Date(triggerTimestamp);
   };
 
   /**

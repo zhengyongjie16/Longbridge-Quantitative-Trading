@@ -260,10 +260,10 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps): Promis
 
   /**
    * 获取行情数据（从本地缓存读取）
-   * 接口签名与原实现完全一致，调用方无需修改
+   * 支持任意可迭代对象（Array、Set 等），调用方无需转换
    */
   const getQuotes = async (
-    requestSymbols: ReadonlyArray<string>,
+    requestSymbols: Iterable<string>,
   ): Promise<Map<string, Quote | null>> => {
     const result = new Map<string, Quote | null>();
 

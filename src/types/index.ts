@@ -350,6 +350,8 @@ export type LastState = {
     isHalfDay: boolean;
   } | null;
   monitorStates: Map<string, MonitorState>;
+  /** 所有交易标的集合（静态配置，初始化时计算一次） */
+  allTradingSymbols: ReadonlySet<string>;
 };
 
 /**
@@ -403,10 +405,10 @@ export interface MarketDataClient {
    * 批量获取多个标的的最新行情
    * 使用单次 API 调用获取所有标的行情，减少 API 调用次数
    *
-   * @param symbols 标的代码数组
+   * @param symbols 标的代码可迭代对象（支持 Array、Set 等）
    * @returns 标的代码到行情数据的 Map（使用规范化后的标的代码作为 key）
    */
-  getQuotes(symbols: ReadonlyArray<string>): Promise<Map<string, Quote | null>>;
+  getQuotes(symbols: Iterable<string>): Promise<Map<string, Quote | null>>;
   getCandlesticks(
     symbol: string,
     period?: PeriodString | import('longport').Period,

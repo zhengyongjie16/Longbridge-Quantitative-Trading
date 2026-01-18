@@ -93,7 +93,7 @@ interface RunOnceContext {
 }
 
 
-// 性能优化：从验证配置中提取 EMA 周期（模块加载时执行一次）
+// 从验证配置中提取 EMA 周期（模块加载时执行一次）
 function extractEmaPeriods(verificationConfig: VerificationConfig | null | undefined): number[] {
   const emaPeriods: number[] = [];
 
@@ -124,7 +124,7 @@ function extractEmaPeriods(verificationConfig: VerificationConfig | null | undef
   return emaPeriods;
 }
 
-// 性能优化：从信号配置中提取 RSI 周期（模块加载时执行一次）
+// 从信号配置中提取 RSI 周期（模块加载时执行一次）
 function extractRsiPeriodsWithDefault(signalConfig: SignalConfigSet | null): number[] {
   const rsiPeriods = extractRSIPeriods(signalConfig);
 
@@ -696,12 +696,15 @@ async function runOnce({
   }
 
   // 收集所有需要获取行情的标的，一次性批量获取（减少 API 调用次数）
+  // getQuotes 接口已支持 Iterable，无需 Array.from() 转换
   const allQuoteSymbols = collectAllQuoteSymbols(MULTI_MONITOR_TRADING_CONFIG.monitors);
-  const quotesMap = await marketDataClient.getQuotes(Array.from(allQuoteSymbols));
+  const quotesMap = await marketDataClient.getQuotes(allQuoteSymbols);
 
   // 并发处理所有监控标的（使用预先获取的行情数据）
-  const monitorTasks = Array.from(monitorContexts.entries()).map(
-    ([monitorSymbol, monitorContext]) =>
+  // 使用 for...of 直接迭代 Map，避免 Array.from() 创建中间数组
+  const monitorTasks: Promise<void>[] = [];
+  for (const [monitorSymbol, monitorContext] of monitorContexts) {
+    monitorTasks.push(
       processMonitor({
         monitorContext,
         marketDataClient,
@@ -716,22 +719,14 @@ async function runOnce({
       }, quotesMap).catch((err: unknown) => {
         logger.error(`处理监控标的 ${monitorSymbol} 失败`, formatError(err));
       }),
-  );
+    );
+  }
 
   await Promise.allSettled(monitorTasks);
 
   // 全局操作：订单监控（在所有监控标的处理完成后）
-  const allTradingSymbols = new Set<string>();
-  for (const monitorConfig of MULTI_MONITOR_TRADING_CONFIG.monitors) {
-    if (monitorConfig.longSymbol) {
-      allTradingSymbols.add(monitorConfig.longSymbol);
-    }
-    if (monitorConfig.shortSymbol) {
-      allTradingSymbols.add(monitorConfig.shortSymbol);
-    }
-  }
-
-  if (canTradeNow && allTradingSymbols.size > 0) {
+  // 使用预先缓存的 allTradingSymbols（静态配置，启动时计算一次）
+  if (canTradeNow && lastState.allTradingSymbols.size > 0) {
     // 复用前面批量获取的行情数据进行订单监控（quotesMap 已包含所有交易标的的行情）
     await trader.monitorAndManageOrders(quotesMap).catch((err: unknown) => {
       logger.warn('订单监控失败', formatError(err));
@@ -773,10 +768,14 @@ async function runOnce({
       // 刷新浮亏数据
       for (const { symbol, isLongSymbol } of pendingRefreshSymbols) {
         // 查找对应的监控上下文
-        const monitorContext = Array.from(monitorContexts.values()).find((ctx) => {
-          const normalizedSymbol = symbol;
-          return ctx.config.longSymbol === normalizedSymbol || ctx.config.shortSymbol === normalizedSymbol;
-        });
+        // 使用 for...of + break 替代 Array.from().find()，避免创建中间数组
+        let monitorContext: MonitorContext | undefined;
+        for (const ctx of monitorContexts.values()) {
+          if (ctx.config.longSymbol === symbol || ctx.config.shortSymbol === symbol) {
+            monitorContext = ctx;
+            break;
+          }
+        }
 
         if (monitorContext && (monitorContext.config.maxUnrealizedLossPerSymbol ?? 0) > 0) {
           const quote = quotesMap.get(symbol) ?? null;
@@ -871,6 +870,17 @@ async function main(): Promise<void> {
 
   logger.info('程序开始运行，在交易时段将进行实时监控和交易（按 Ctrl+C 退出）');
 
+  // 预先计算所有交易标的集合（静态配置，只计算一次）
+  const allTradingSymbols = new Set<string>();
+  for (const monitorConfig of MULTI_MONITOR_TRADING_CONFIG.monitors) {
+    if (monitorConfig.longSymbol) {
+      allTradingSymbols.add(monitorConfig.longSymbol);
+    }
+    if (monitorConfig.shortSymbol) {
+      allTradingSymbols.add(monitorConfig.shortSymbol);
+    }
+  }
+
   // 记录上一次的数据状态
   const lastState: LastState = {
     canTrade: null,
@@ -885,12 +895,14 @@ async function main(): Promise<void> {
         createMonitorState(config),
       ]),
     ),
+    allTradingSymbols, // 缓存所有交易标的集合
   };
 
   // 初始化监控标的上下文
   // 首先批量获取所有标的行情（用于获取标的名称，减少 API 调用次数）
   const allInitSymbols = collectAllQuoteSymbols(MULTI_MONITOR_TRADING_CONFIG.monitors);
-  const initQuotesMap = await marketDataClient.getQuotes(Array.from(allInitSymbols));
+  // getQuotes 接口已支持 Iterable，无需 Array.from() 转换
+  const initQuotesMap = await marketDataClient.getQuotes(allInitSymbols);
 
   const monitorContexts: Map<string, MonitorContext> = new Map();
   for (const monitorConfig of MULTI_MONITOR_TRADING_CONFIG.monitors) {
