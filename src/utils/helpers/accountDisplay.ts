@@ -21,17 +21,25 @@ import {
   normalizeHKSymbol,
   formatAccountChannel,
   formatNumber,
-  isDefined,
   isValidPositiveNumber,
 } from './index.js';
 
 import type { Trader, MarketDataClient, LastState } from '../../types/index.js';
 
 /**
- * 显示账户和持仓信息（仅在交易后调用）
+ * 显示账户和持仓信息
+ *
+ * 调用场景：
+ * - 程序启动时：缓存为空，调用 API 获取账户和持仓信息
+ * - 订单成交后：缓存已由主循环刷新，直接使用缓存显示
+ *
+ * API 调用说明：
+ * - 账户/持仓 API：仅在程序启动时调用（缓存为空时）
+ * - 行情 API（getQuotes）：从本地 WebSocket 缓存读取，不发起 HTTP 请求
+ *
  * @param trader Trader实例
  * @param marketDataClient MarketDataClient实例
- * @param lastState 状态对象，用于更新缓存
+ * @param lastState 状态对象，用于读取/更新缓存
  */
 export async function displayAccountAndPositions(
   trader: Trader,
@@ -39,29 +47,41 @@ export async function displayAccountAndPositions(
   lastState: LastState,
 ): Promise<void> {
   try {
-    // 并行获取账户信息和持仓信息，减少等待时间
-    const [account, positions] = await Promise.all([
-      trader.getAccountSnapshot().catch((err: Error) => {
-        logger.warn(
-          '获取账户信息失败',
-          formatError(err),
-        );
-        return null;
-      }),
-      trader.getStockPositions().catch((err: Error) => {
-        logger.warn(
-          '获取股票仓位失败',
-          formatError(err),
-        );
-        return [];
-      }),
-    ]);
+    // 检查是否有缓存数据（账户缓存非空即可，持仓缓存可以是空数组表示无持仓）
+    const hasCache = lastState.cachedAccount !== null;
 
-    // 更新缓存
-    lastState.cachedAccount = account;
-    lastState.cachedPositions = positions;
-    // 同步更新持仓缓存（O(1) 查找优化）
-    lastState.positionCache.update(positions);
+    let account = lastState.cachedAccount;
+    let positions = lastState.cachedPositions;
+
+    // 仅当缓存为空时才从 API 获取数据
+    if (!hasCache) {
+      // 并行获取账户信息和持仓信息，减少等待时间
+      const [freshAccount, freshPositions] = await Promise.all([
+        trader.getAccountSnapshot().catch((err: Error) => {
+          logger.warn(
+            '获取账户信息失败',
+            formatError(err),
+          );
+          return null;
+        }),
+        trader.getStockPositions().catch((err: Error) => {
+          logger.warn(
+            '获取股票仓位失败',
+            formatError(err),
+          );
+          return [];
+        }),
+      ]);
+
+      account = freshAccount;
+      positions = freshPositions;
+
+      // 更新缓存
+      lastState.cachedAccount = account;
+      lastState.cachedPositions = positions;
+      // 同步更新持仓缓存（O(1) 查找优化）
+      lastState.positionCache.update(positions);
+    }
 
     // 显示账户和持仓信息
     if (account) {
@@ -80,16 +100,21 @@ export async function displayAccountAndPositions(
       const positionSymbols = positions.map((p) => p.symbol).filter(Boolean);
       const symbolInfoMap = new Map<string, { name: string | null; price: number | null }>(); // key: normalizedSymbol, value: {name, price}
       if (positionSymbols.length > 0) {
-        // 使用 getQuotes 单次 API 调用批量获取所有标的的完整信息
-        const quotesMap = await marketDataClient.getQuotes(positionSymbols);
+        // 使用 getQuotes 批量获取所有标的的完整信息
+        // 单独 catch：持仓中可能存在未订阅的标的（如用户手动交易的）
+        try {
+          const quotesMap = await marketDataClient.getQuotes(positionSymbols);
 
-        for (const [symbol, quote] of quotesMap) {
-          if (quote) {
-            symbolInfoMap.set(symbol, {
-              name: quote.name ?? null,
-              price: quote.price ?? null,
-            });
+          for (const [symbol, quote] of quotesMap) {
+            if (quote) {
+              symbolInfoMap.set(symbol, {
+                name: quote.name ?? null,
+                price: quote.price ?? null,
+              });
+            }
           }
+        } catch (error) {
+          logger.warn(`[账户显示] 获取持仓行情失败: ${formatError(error)}`);
         }
       }
 
@@ -104,13 +129,13 @@ export async function displayAccountAndPositions(
         const nameText = symbolInfo?.name ?? pos.symbolName ?? '-';
         const codeText = normalizeHKSymbol(pos.symbol);
 
-        // 获取当前价格（优先使用实时价格，否则使用成本价）
-        const currentPrice = symbolInfo?.price ?? pos.costPrice ?? 0;
+        // 获取当前价格（仅使用实时价格）
+        const currentPrice = symbolInfo?.price ?? null;
 
-        // 计算持仓市值
+        // 计算持仓市值（无实时价格时显示 0）
         const posQuantity = Number(pos.quantity) || 0;
         const marketValue =
-          isValidPositiveNumber(currentPrice) && isValidPositiveNumber(posQuantity)
+          currentPrice !== null && isValidPositiveNumber(currentPrice) && isValidPositiveNumber(posQuantity)
             ? posQuantity * currentPrice
             : 0;
 
@@ -120,10 +145,10 @@ export async function displayAccountAndPositions(
             ? (marketValue / totalAssets) * 100
             : 0;
 
-        // 构建价格显示文本
-        const priceText = isDefined(symbolInfo?.price)
-          ? `现价=${formatNumber(currentPrice, 3)}`
-          : `成本价=${formatNumber(pos.costPrice, 3)}`;
+        // 构建价格显示文本（无实时价格时显示 N/A）
+        const priceText = currentPrice === null
+          ? '现价=N/A'
+          : `现价=${formatNumber(currentPrice, 3)}`;
 
         // 格式化账户渠道显示名称
         const channelDisplay = formatAccountChannel(pos.accountChannel);

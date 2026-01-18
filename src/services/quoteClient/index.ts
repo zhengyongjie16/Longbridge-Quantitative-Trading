@@ -10,7 +10,7 @@
  * - 创建客户端时自动初始化 WebSocket 订阅
  * - 行情数据由推送实时更新到本地缓存
  * - getQuotes() 从本地缓存读取，无 HTTP 请求
- * - 支持动态订阅运行时新增的标的
+ * - 不支持动态订阅：请求未订阅的标的会抛出错误，确保配置正确
  *
  * 缓存机制：
  * - 行情数据：持久缓存（由 WebSocket 推送实时更新）
@@ -278,39 +278,10 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps): Promis
         logger.warn(`[行情获取] 标的 ${normalizedSymbol} 无缓存数据`);
         result.set(normalizedSymbol, null);
       } else {
-        // 如果请求的标的不在订阅列表中，尝试动态订阅
-        logger.warn(`[行情获取] 标的 ${normalizedSymbol} 未订阅，尝试动态添加`);
-        try {
-          // 获取静态信息
-          const [info] = await ctx.staticInfo([normalizedSymbol]);
-          if (info) {
-            staticInfoCache.set(normalizedSymbol, info);
-          }
-          // 获取初始行情
-          const [dynamicQuote] = await ctx.quote([normalizedSymbol]);
-          if (dynamicQuote) {
-            prevCloseCache.set(normalizedSymbol, decimalToNumber(dynamicQuote.prevClose));
-            const dynamicLotSize = extractLotSize(info);
-            const quoteResult: Quote = {
-              symbol: normalizedSymbol,
-              name: extractName(info),
-              price: decimalToNumber(dynamicQuote.lastDone),
-              prevClose: decimalToNumber(dynamicQuote.prevClose),
-              timestamp: dynamicQuote.timestamp.getTime(),
-              ...(dynamicLotSize === undefined ? {} : { lotSize: dynamicLotSize }),
-              raw: dynamicQuote,
-              staticInfo: info,
-            };
-            quoteCache.set(normalizedSymbol, quoteResult);
-            result.set(normalizedSymbol, quoteResult);
-          }
-          // 订阅该标的
-          await ctx.subscribe([normalizedSymbol], [SubType.Quote], true);
-          subscribedSymbols.add(normalizedSymbol);
-        } catch (err) {
-          logger.warn(`[行情获取] 动态订阅失败: ${normalizedSymbol}`, formatError(err));
-          result.set(normalizedSymbol, null);
-        }
+        // 请求的标的不在订阅列表中，抛出错误以尽早发现配置问题
+        throw new Error(
+          `[行情获取] 标的 ${normalizedSymbol} 未在初始化时订阅，请检查 symbols 配置`,
+        );
       }
     }
 

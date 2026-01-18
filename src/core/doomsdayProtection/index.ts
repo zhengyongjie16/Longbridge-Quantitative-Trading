@@ -159,55 +159,6 @@ export const createDoomsdayProtection = (): DoomsdayProtection => {
       return isBeforeClose15Minutes(currentTime, isHalfDay);
     },
 
-    shouldClearPositions: (currentTime: Date, isHalfDay: boolean): boolean => {
-      return isBeforeClose5Minutes(currentTime, isHalfDay);
-    },
-
-    generateClearanceSignals: (
-      positions: ReadonlyArray<Position>,
-      longQuote: Quote | null,
-      shortQuote: Quote | null,
-      longSymbol: string,
-      shortSymbol: string,
-      isHalfDay: boolean,
-    ): ReadonlyArray<Signal> => {
-      const clearSignals: Signal[] = [];
-      const normalizedLongSymbol = normalizeHKSymbol(longSymbol);
-      const normalizedShortSymbol = normalizeHKSymbol(shortSymbol);
-
-      const closeTimeRange = isHalfDay ? '11:55-11:59' : '15:55-15:59';
-      logger.info(
-        `[末日保护程序] 收盘前5分钟（${closeTimeRange}），准备清空所有持仓`,
-      );
-
-      // 验证 positions 是数组
-      if (!Array.isArray(positions) || positions.length === 0) {
-        return clearSignals;
-      }
-
-      for (const pos of positions) {
-        const signal = processPositionForClearance(
-          pos,
-          normalizedLongSymbol,
-          normalizedShortSymbol,
-          longQuote,
-          shortQuote,
-        );
-
-        if (signal) {
-          clearSignals.push(signal);
-        }
-      }
-
-      if (clearSignals.length > 0) {
-        logger.info(
-          `[末日保护程序] 共生成 ${clearSignals.length} 个清仓信号，准备执行`,
-        );
-      }
-
-      return clearSignals;
-    },
-
     executeClearance: async (
       context: DoomsdayClearanceContext,
     ): Promise<DoomsdayClearanceResult> => {
@@ -220,7 +171,6 @@ export const createDoomsdayProtection = (): DoomsdayProtection => {
         trader,
         marketDataClient,
         lastState,
-        displayAccountAndPositions,
       } = context;
 
       // 检查是否应该清仓
@@ -293,8 +243,10 @@ export const createDoomsdayProtection = (): DoomsdayProtection => {
       // 释放执行后的清仓信号对象回对象池
       signalObjectPool.releaseAll(uniqueClearanceSignals);
 
-      // 交易后获取并显示账户和持仓信息
-      await displayAccountAndPositions(trader, marketDataClient, lastState);
+      // 清空缓存（订单成交后会在主循环中刷新并显示账户和持仓信息）
+      lastState.cachedAccount = null;
+      lastState.cachedPositions = [];
+      lastState.positionCache.update([]);
 
       // 清空所有监控标的的订单记录
       for (const monitorContext of monitorContexts.values()) {

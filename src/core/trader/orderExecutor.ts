@@ -171,13 +171,13 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
       return '买入做多标的（做多）';
     }
     if (signalAction === 'SELLCALL') {
-      return '卖出做多标的（清仓）';
+      return '卖出做多标的（平仓）';
     }
     if (signalAction === 'BUYPUT') {
       return '买入做空标的（做空）';
     }
     if (signalAction === 'SELLPUT') {
-      return '卖出做空标的（平空仓）';
+      return '卖出做空标的（平仓）';
     }
 
     // 兼容旧代码

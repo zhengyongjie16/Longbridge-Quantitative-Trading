@@ -280,7 +280,7 @@ export function parseSignalConfig(configStr: string | null | undefined): SignalC
  * @param condition 条件 {indicator, operator, threshold}
  * @returns 条件是否满足
  */
-export function evaluateCondition(state: IndicatorState, condition: Condition): boolean {
+function evaluateCondition(state: IndicatorState, condition: Condition): boolean {
   const { indicator, operator, threshold } = condition;
 
   // 解析指标名称（可能包含周期，如 RSI:6, EMA:10）
@@ -360,7 +360,7 @@ export function evaluateCondition(state: IndicatorState, condition: Condition): 
  * @param conditionGroup 条件组 {conditions, requiredCount}
  * @returns 评估结果
  */
-export function evaluateConditionGroup(state: IndicatorState, conditionGroup: ConditionGroup): ConditionGroupResult {
+function evaluateConditionGroup(state: IndicatorState, conditionGroup: ConditionGroup): ConditionGroupResult {
   const { conditions, requiredCount } = conditionGroup;
 
   let count = 0;

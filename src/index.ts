@@ -686,7 +686,6 @@ async function runOnce({
       trader,
       marketDataClient,
       lastState,
-      displayAccountAndPositions,
     });
 
     if (clearanceResult.executed) {
@@ -786,6 +785,9 @@ async function runOnce({
             });
         }
       }
+
+      // 订单成交后显示账户和持仓信息（此时缓存已刷新，直接使用缓存）
+      await displayAccountAndPositions(trader, marketDataClient, lastState);
     }
   }
 }

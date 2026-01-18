@@ -51,7 +51,7 @@ import type { RiskCheckContext, SellQuantityResult, SignalProcessor, SignalProce
  *   - shouldHold: boolean true 表示应跳过此信号，false 表示应执行卖出
  *   - reason: string 执行或跳过的原因描述
  */
-export function calculateSellQuantity(
+function calculateSellQuantity(
   position: Position | null,
   quote: Quote | null,
   orderRecorder: OrderRecorder | null,
