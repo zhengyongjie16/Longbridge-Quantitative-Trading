@@ -53,7 +53,7 @@ import {
 import { isInContinuousHKSession } from './utils/helpers/tradingTime.js';
 import { displayAccountAndPositions } from './utils/helpers/accountDisplay.js';
 import { createPositionCache } from './utils/helpers/positionCache.js';
-import { createMarketMonitor } from './core/marketMonitor/index.js';
+import { createMarketMonitor } from './services/marketMonitor/index.js';
 import { createDoomsdayProtection } from './core/doomsdayProtection/index.js';
 import { createUnrealizedLossMonitor } from './core/unrealizedLossMonitor/index.js';
 import { createSignalVerificationManager } from './core/signalVerification/index.js';
@@ -74,7 +74,7 @@ import type {
   Trader,
   IndicatorSnapshot,
 } from './types/index.js';
-import type { MarketMonitor } from './core/marketMonitor/types.js';
+import type { MarketMonitor } from './services/marketMonitor/types.js';
 import type { DoomsdayProtection } from './core/doomsdayProtection/types.js';
 import type { SignalProcessor } from './core/signalProcessor/types.js';
 import { getSprintSacreMooacreMoo } from './utils/asciiArt/sacreMooacre.js';

@@ -32,7 +32,7 @@ import {
 } from '../../utils/objectPool/index.js';
 import { MONITOR } from '../../constants/index.js';
 import type { Quote, IndicatorSnapshot, MonitorValues, MonitorState } from '../../types/index.js';
-import type { MarketMonitor } from './types.js';
+import { MarketMonitor } from './types.js';
 
 /**
  * 创建行情监控器
