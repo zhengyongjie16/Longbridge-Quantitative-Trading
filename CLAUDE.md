@@ -15,22 +15,22 @@
 ### 项目结构
 ```
 src/
-├── core/                    # 核心业务逻辑
-│   ├── strategy/           # 信号生成
-│   ├── signalVerification/ # 延迟验证
-│   ├── signalProcessor/    # 风险检查与卖出计算
-│   ├── trader/             # 订单执行与监控
-│   ├── orderRecorder/      # 订单记录与查询
-│   ├── risk/               # 风险检查器
-│   ├── unrealizedLossMonitor/ # 浮亏监控
-│   ├── doomsdayProtection/ # 末日保护
-│   └── marketMonitor/      # 市场监控
-├── services/               # 外部服务
-│   ├── quoteClient/        # 行情数据
-│   └── indicators/         # 技术指标计算
-└── utils/                  # 工具模块
-    ├── objectPool/         # 对象池
-    └── logger/             # 日志系统
+├── core/                       # 核心业务逻辑
+│   ├── strategy/               # 信号生成
+│   ├── signalVerification/     # 延迟验证
+│   ├── signalProcessor/        # 风险检查与卖出计算
+│   ├── trader/                 # 订单执行与监控
+│   ├── orderRecorder/          # 订单记录与查询
+│   ├── risk/                   # 风险检查器
+│   ├── unrealizedLossMonitor/  # 浮亏监控
+│   ├── doomsdayProtection/     # 末日保护
+│   └── marketMonitor/          # 市场监控
+├── services/                   # 外部服务
+│   ├── quoteClient/            # 行情数据
+│   └── indicators/             # 技术指标计算
+└── utils/                      # 工具模块
+    ├── objectPool/             # 对象池
+    └── logger/                 # 日志系统
 ```
 
 ### 核心概念
