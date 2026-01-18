@@ -6,10 +6,9 @@
  * - 监控监控标的的技术指标变化
  * - 格式化显示价格和指标信息
  *
- * 变化检测阈值：
- * - 价格变化：0.0001
- * - RSI/MFI/KDJ 变化：0.1
- * - MACD/EMA 变化：0.0001
+ * 变化检测阈值（定义在 constants/index.ts 的 MONITOR 常量中）：
+ * - 价格变化：MONITOR.PRICE_CHANGE_THRESHOLD
+ * - 技术指标变化（EMA/RSI/MFI/KDJ/MACD）：MONITOR.INDICATOR_CHANGE_THRESHOLD
  *
  * 显示内容：
  * - 做多/做空标的的现价和涨跌幅
@@ -31,6 +30,7 @@ import {
   macdObjectPool,
   periodRecordPool,
 } from '../../utils/objectPool/index.js';
+import { MONITOR } from '../../constants/index.js';
 import type { Quote, IndicatorSnapshot, MonitorValues, MonitorState } from '../../types/index.js';
 import type { MarketMonitor } from './types.js';
 
@@ -227,17 +227,17 @@ export const createMarketMonitor = (): MarketMonitor => {
       const longPrice = longQuote?.price;
       const shortPrice = shortQuote?.price;
 
-      // 检查做多标的价格是否变化（阈值：0.0001）
+      // 检查做多标的价格是否变化
       const longPriceChanged =
         monitorState.longPrice == null && Number.isFinite(longPrice)
           ? true // 首次出现价格
-          : hasChanged(longPrice ?? null, monitorState.longPrice ?? null, 0.0001);
+          : hasChanged(longPrice ?? null, monitorState.longPrice ?? null, MONITOR.PRICE_CHANGE_THRESHOLD);
 
-      // 检查做空标的价格是否变化（阈值：0.0001）
+      // 检查做空标的价格是否变化
       const shortPriceChanged =
         monitorState.shortPrice == null && Number.isFinite(shortPrice)
           ? true // 首次出现价格
-          : hasChanged(shortPrice ?? null, monitorState.shortPrice ?? null, 0.0001);
+          : hasChanged(shortPrice ?? null, monitorState.shortPrice ?? null, MONITOR.PRICE_CHANGE_THRESHOLD);
 
       if (longPriceChanged || shortPriceChanged) {
         displayQuoteInfo(longQuote, longSymbol, '做多标的');
@@ -293,7 +293,7 @@ export const createMarketMonitor = (): MarketMonitor => {
       const lastPrice = monitorState.monitorValues?.price;
       if (
         (lastPrice == null && isValidPositiveNumber(currentPrice)) ||
-        hasChanged(currentPrice, lastPrice ?? null, 0.0001)
+        hasChanged(currentPrice, lastPrice ?? null, MONITOR.PRICE_CHANGE_THRESHOLD)
       ) {
         hasIndicatorChanged = true;
       }
@@ -301,8 +301,7 @@ export const createMarketMonitor = (): MarketMonitor => {
       // 检查涨跌幅变化
       const lastChangePercent = monitorState.monitorValues?.changePercent;
       if (!hasIndicatorChanged && changePercent !== null) {
-        if (lastChangePercent == null || hasChanged(changePercent, lastChangePercent, 0.01)) {
-          // 涨跌幅变化阈值：0.01%
+        if (lastChangePercent == null || hasChanged(changePercent, lastChangePercent, MONITOR.CHANGE_PERCENT_THRESHOLD)) {
           hasIndicatorChanged = true;
         }
       }
@@ -314,7 +313,7 @@ export const createMarketMonitor = (): MarketMonitor => {
           const lastEma = monitorState.monitorValues?.ema?.[period];
           if (
             Number.isFinite(currentEma) &&
-            (lastEma == null || hasChanged(currentEma, lastEma, 0.0001))
+            (lastEma == null || hasChanged(currentEma, lastEma, MONITOR.INDICATOR_CHANGE_THRESHOLD))
           ) {
             hasIndicatorChanged = true;
             break;
@@ -329,7 +328,7 @@ export const createMarketMonitor = (): MarketMonitor => {
           const lastRsi = monitorState.monitorValues?.rsi?.[period];
           if (
             Number.isFinite(currentRsi) &&
-            (lastRsi == null || hasChanged(currentRsi, lastRsi, 0.1))
+            (lastRsi == null || hasChanged(currentRsi, lastRsi, MONITOR.INDICATOR_CHANGE_THRESHOLD))
           ) {
             hasIndicatorChanged = true;
             break;
@@ -342,7 +341,7 @@ export const createMarketMonitor = (): MarketMonitor => {
         const lastMfi = monitorState.monitorValues?.mfi;
         if (
           Number.isFinite(monitorSnapshot.mfi) &&
-          (lastMfi == null || hasChanged(monitorSnapshot.mfi, lastMfi, 0.1))
+          (lastMfi == null || hasChanged(monitorSnapshot.mfi, lastMfi, MONITOR.INDICATOR_CHANGE_THRESHOLD))
         ) {
           hasIndicatorChanged = true;
         }
@@ -353,9 +352,9 @@ export const createMarketMonitor = (): MarketMonitor => {
         const lastKdj = monitorState.monitorValues?.kdj;
         const kdj = monitorSnapshot.kdj;
         if (
-          (Number.isFinite(kdj.k) && (lastKdj?.k == null || hasChanged(kdj.k, lastKdj.k, 0.1))) ||
-          (Number.isFinite(kdj.d) && (lastKdj?.d == null || hasChanged(kdj.d, lastKdj.d, 0.1))) ||
-          (Number.isFinite(kdj.j) && (lastKdj?.j == null || hasChanged(kdj.j, lastKdj.j, 0.1)))
+          (Number.isFinite(kdj.k) && (lastKdj?.k == null || hasChanged(kdj.k, lastKdj.k, MONITOR.INDICATOR_CHANGE_THRESHOLD))) ||
+          (Number.isFinite(kdj.d) && (lastKdj?.d == null || hasChanged(kdj.d, lastKdj.d, MONITOR.INDICATOR_CHANGE_THRESHOLD))) ||
+          (Number.isFinite(kdj.j) && (lastKdj?.j == null || hasChanged(kdj.j, lastKdj.j, MONITOR.INDICATOR_CHANGE_THRESHOLD)))
         ) {
           hasIndicatorChanged = true;
         }
@@ -366,9 +365,9 @@ export const createMarketMonitor = (): MarketMonitor => {
         const lastMacd = monitorState.monitorValues?.macd;
         const macd = monitorSnapshot.macd;
         if (
-          (Number.isFinite(macd.macd) && (lastMacd?.macd == null || hasChanged(macd.macd, lastMacd.macd, 0.0001))) ||
-          (Number.isFinite(macd.dif) && (lastMacd?.dif == null || hasChanged(macd.dif, lastMacd.dif, 0.0001))) ||
-          (Number.isFinite(macd.dea) && (lastMacd?.dea == null || hasChanged(macd.dea, lastMacd.dea, 0.0001)))
+          (Number.isFinite(macd.macd) && (lastMacd?.macd == null || hasChanged(macd.macd, lastMacd.macd, MONITOR.INDICATOR_CHANGE_THRESHOLD))) ||
+          (Number.isFinite(macd.dif) && (lastMacd?.dif == null || hasChanged(macd.dif, lastMacd.dif, MONITOR.INDICATOR_CHANGE_THRESHOLD))) ||
+          (Number.isFinite(macd.dea) && (lastMacd?.dea == null || hasChanged(macd.dea, lastMacd.dea, MONITOR.INDICATOR_CHANGE_THRESHOLD)))
         ) {
           hasIndicatorChanged = true;
         }
