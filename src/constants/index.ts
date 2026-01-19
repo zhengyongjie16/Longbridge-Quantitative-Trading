@@ -45,6 +45,8 @@ export const VERIFICATION = {
   WINDOW_END_OFFSET_SECONDS: 15,
   /** 验证就绪延迟时间（秒） */
   READY_DELAY_SECONDS: 15,
+  /** 验证通过信号冷却时间（秒）- 同标的同方向在此时间内只允许一个信号进入风险检查 */
+  VERIFIED_SIGNAL_COOLDOWN_SECONDS: 10,
 } as const;
 
 /**
@@ -85,11 +87,11 @@ export const MONITOR = {
  * 信号类型常量
  */
 export const SIGNAL_ACTIONS = {
-  BUYCALL: 'BUYCALL' as const,
-  SELLCALL: 'SELLCALL' as const,
-  BUYPUT: 'BUYPUT' as const,
-  SELLPUT: 'SELLPUT' as const,
-  HOLD: 'HOLD' as const,
+  BUYCALL: 'BUYCALL',
+  SELLCALL: 'SELLCALL',
+  BUYPUT: 'BUYPUT',
+  SELLPUT: 'SELLPUT',
+  HOLD: 'HOLD',
 } as const;
 
 /**
@@ -106,9 +108,10 @@ export const VALID_SIGNAL_ACTIONS = new Set<SignalType>([
  * 信号目标操作映射（简化版，用于日志显示）
  * 将信号类型映射到交易操作（买入/卖出）
  */
-export const SIGNAL_TARGET_ACTIONS: Record<string, string> = {
-  [SIGNAL_ACTIONS.BUYCALL]: '买入',
-  [SIGNAL_ACTIONS.SELLCALL]: '卖出',
-  [SIGNAL_ACTIONS.BUYPUT]: '买入',
-  [SIGNAL_ACTIONS.SELLPUT]: '卖出',
+export const SIGNAL_TARGET_ACTIONS: Record<SignalType, string> = {
+  BUYCALL: '买入',
+  SELLCALL: '卖出',
+  BUYPUT: '买入',
+  SELLPUT: '卖出',
+  HOLD: '',
 };

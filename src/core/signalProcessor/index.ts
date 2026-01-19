@@ -22,8 +22,49 @@
 import { logger } from '../../utils/logger/index.js';
 import { normalizeHKSymbol, getSymbolName, getDirectionName, formatSymbolDisplayFromQuote, formatError } from '../../utils/helpers/index.js';
 import { MULTI_MONITOR_TRADING_CONFIG } from '../../config/config.trading.js';
+import { VERIFICATION } from '../../constants/index.js';
 import type { Quote, Position, Signal, OrderRecorder, AccountSnapshot } from '../../types/index.js';
 import type { RiskCheckContext, SellQuantityResult, SignalProcessor, SignalProcessorDeps } from './types.js';
+
+/**
+ * 记录每个标的每个方向最近一次进入风险检查的时间
+ * 格式: Map<`${symbol}_${direction}`, timestamp>
+ * 用于实现验证信号冷却机制，避免同标的同方向的重复信号在短时间内多次触发风险检查
+ */
+const lastRiskCheckTime = new Map<string, number>();
+
+/**
+ * 验证持仓和行情数据是否有效
+ */
+function isValidPositionAndQuote(
+  position: Position | null,
+  quote: Quote | null,
+): position is Position & { costPrice: number; availableQuantity: number } {
+  return (
+    position !== null &&
+    Number.isFinite(position.costPrice) &&
+    position.costPrice !== null &&
+    position.costPrice > 0 &&
+    Number.isFinite(position.availableQuantity) &&
+    position.availableQuantity !== null &&
+    position.availableQuantity > 0 &&
+    quote !== null &&
+    Number.isFinite(quote.price) &&
+    quote.price !== null &&
+    quote.price > 0
+  );
+}
+
+/**
+ * 格式化价格比较描述
+ */
+function formatPriceComparison(
+  directionName: string,
+  currentPrice: number,
+  costPrice: number,
+): string {
+  return `${directionName}价格${currentPrice.toFixed(3)}未高于成本价${costPrice.toFixed(3)}`;
+}
 
 /**
  * 计算卖出信号的数量和原因
@@ -36,20 +77,6 @@ import type { RiskCheckContext, SellQuantityResult, SignalProcessor, SignalProce
  *
  * 卖出策略规则（智能平仓关闭时）：
  * 直接清仓所有持仓，不检查成本价
- *
- * @param position - 持仓对象，包含：
- *   - costPrice: number 持仓成本价
- *   - availableQuantity: number 可用持仓数量
- * @param quote - 行情对象，包含：
- *   - price: number 当前价格
- * @param orderRecorder - 订单记录器实例，用于查询历史买入订单
- * @param direction - 方向标识，'LONG' 表示做多标的，'SHORT' 表示做空标的
- * @param originalReason - 原始信号的原因描述
- * @param smartCloseEnabled - 智能平仓策略开关，true 时检查成本价，false 时直接全部平仓
- * @returns 计算结果对象，包含：
- *   - quantity: number|null 建议卖出的数量，null 表示不卖出
- *   - shouldHold: boolean true 表示应跳过此信号，false 表示应执行卖出
- *   - reason: string 执行或跳过的原因描述
  */
 function calculateSellQuantity(
   position: Position | null,
@@ -59,37 +86,28 @@ function calculateSellQuantity(
   originalReason: string,
   smartCloseEnabled: boolean = true,
 ): SellQuantityResult {
+  const reason = originalReason || '';
+  const directionName = getDirectionName(direction === 'LONG');
+
   // 验证输入参数
-  if (
-    !position ||
-    !Number.isFinite(position.costPrice) ||
-    position.costPrice === null ||
-    position.costPrice <= 0 ||
-    !Number.isFinite(position.availableQuantity) ||
-    position.availableQuantity === null ||
-    position.availableQuantity <= 0 ||
-    !quote ||
-    !Number.isFinite(quote.price) ||
-    quote.price === null ||
-    quote.price <= 0
-  ) {
+  if (!isValidPositionAndQuote(position, quote)) {
     return {
       quantity: null,
       shouldHold: true,
-      reason: `${originalReason || ''}，持仓或行情数据无效`,
+      reason: `${reason}，持仓或行情数据无效`,
     };
   }
 
-  const currentPrice = quote.price;
+  // 类型守卫已验证 quote 不为 null，这里使用非空断言
+  const currentPrice = quote!.price;
   const costPrice = position.costPrice;
-  const directionName = getDirectionName(direction === 'LONG');
 
   // 智能平仓关闭：直接清仓所有持仓，不检查成本价
   if (!smartCloseEnabled) {
     return {
       quantity: position.availableQuantity,
       shouldHold: false,
-      reason: `${originalReason || ''}，智能平仓已关闭，直接清空所有${directionName}持仓`,
+      reason: `${reason}，智能平仓已关闭，直接清空所有${directionName}持仓`,
     };
   }
 
@@ -98,77 +116,50 @@ function calculateSellQuantity(
     return {
       quantity: position.availableQuantity,
       shouldHold: false,
-      reason: `${originalReason || ''}，当前价格${currentPrice.toFixed(
-        3,
-      )}>成本价${costPrice.toFixed(3)}，立即清空所有${directionName}持仓`,
+      reason: `${reason}，当前价格${currentPrice.toFixed(3)}>成本价${costPrice.toFixed(3)}，立即清空所有${directionName}持仓`,
     };
   }
 
   // 当前价格没有高于持仓成本价，检查历史买入订单
+  const priceComparisonDesc = formatPriceComparison(directionName, currentPrice, costPrice);
+
   if (!orderRecorder) {
     return {
       quantity: null,
       shouldHold: true,
-      reason: `${
-        originalReason || ''
-      }，但${directionName}价格${currentPrice.toFixed(
-        3,
-      )}未高于成本价${costPrice.toFixed(3)}，且无法获取订单记录`,
+      reason: `${reason}，但${priceComparisonDesc}，且无法获取订单记录`,
     };
   }
 
   // 根据方向获取符合条件的买入订单
-  const buyOrdersBelowPrice = orderRecorder.getBuyOrdersBelowPrice(
-    currentPrice,
-    direction,
-  );
+  const buyOrdersBelowPrice = orderRecorder.getBuyOrdersBelowPrice(currentPrice, direction);
 
   if (!buyOrdersBelowPrice || buyOrdersBelowPrice.length === 0) {
-    // 没有符合条件的订单，跳过此信号
     return {
       quantity: null,
       shouldHold: true,
-      reason: `${
-        originalReason || ''
-      }，但${directionName}价格${currentPrice.toFixed(
-        3,
-      )}未高于成本价${costPrice.toFixed(3)}，且没有买入价低于当前价的历史订单`,
+      reason: `${reason}，但${priceComparisonDesc}，且没有买入价低于当前价的历史订单`,
     };
   }
 
-  let totalQuantity =
-    orderRecorder.calculateTotalQuantity(buyOrdersBelowPrice);
-
-  // 卖出数量不能超过可用持仓数量
-  if (totalQuantity > position.availableQuantity) {
-    totalQuantity = position.availableQuantity;
-  }
+  const totalQuantity = Math.min(
+    orderRecorder.calculateTotalQuantity(buyOrdersBelowPrice),
+    position.availableQuantity,
+  );
 
   if (totalQuantity > 0) {
-    // 有符合条件的订单，卖出这些订单
     return {
       quantity: totalQuantity,
       shouldHold: false,
-      reason: `${
-        originalReason || ''
-      }，但${directionName}价格${currentPrice.toFixed(
-        3,
-      )}未高于成本价${costPrice.toFixed(
-        3,
-      )}，卖出历史买入订单中买入价低于当前价的订单，共 ${totalQuantity} 股`,
-    };
-  } else {
-    // 总数量为0，跳过此信号
-    return {
-      quantity: null,
-      shouldHold: true,
-      reason: `${
-        originalReason || ''
-      }，但${directionName}价格${currentPrice.toFixed(
-        3,
-      )}未高于成本价${costPrice.toFixed(3)}，且没有买入价低于当前价的历史订单`,
+      reason: `${reason}，但${priceComparisonDesc}，卖出历史买入订单中买入价低于当前价的订单，共 ${totalQuantity} 股`,
     };
   }
+
+  return {
+    quantity: null,
+    shouldHold: true,
+    reason: `${reason}，但${priceComparisonDesc}，且没有买入价低于当前价的历史订单`,
+  };
 }
 
 /**
@@ -306,8 +297,43 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
     const normalizedLongSymbol = normalizeHKSymbol(longSymbol);
     const normalizedShortSymbol = normalizeHKSymbol(shortSymbol);
 
-    // 买入信号需要实时账户数据，卖出信号使用缓存数据
-    const hasBuySignals = signals.some(
+    // 步骤1：在 API 调用之前先过滤冷却期内的信号
+    // 这样可以避免所有买入信号都在冷却期内时的无效 API 调用
+    const now = Date.now();
+    const cooldownMs = VERIFICATION.VERIFIED_SIGNAL_COOLDOWN_SECONDS * 1000;
+    const signalsAfterCooldown: Signal[] = [];
+
+    for (const sig of signals) {
+      const normalizedSigSymbol = sig.symbol;
+      const direction = sig.action === 'BUYCALL' || sig.action === 'BUYPUT' ? 'BUY' : 'SELL';
+      const cooldownKey = `${normalizedSigSymbol}_${direction}`;
+      const lastTime = lastRiskCheckTime.get(cooldownKey);
+
+      if (lastTime && now - lastTime < cooldownMs) {
+        const remainingSeconds = Math.ceil((lastTime + cooldownMs - now) / 1000);
+        const sigName = getSymbolName(
+          sig.symbol,
+          longSymbol,
+          shortSymbol,
+          longSymbolName,
+          shortSymbolName,
+        );
+        logger.debug(
+          `[验证冷却] ${sigName}(${normalizedSigSymbol}) ${sig.action} 在冷却期内，剩余 ${remainingSeconds} 秒，跳过风险检查`,
+        );
+        // 被冷却跳过的信号会在主循环中通过 validSignals.filter 被识别并释放到对象池
+      } else {
+        signalsAfterCooldown.push(sig);
+      }
+    }
+
+    // 如果所有信号都被冷却拦截，直接返回空数组
+    if (signalsAfterCooldown.length === 0) {
+      return [];
+    }
+
+    // 步骤2：检查过滤后是否有买入信号，决定是否调用 API
+    const hasBuySignals = signalsAfterCooldown.some(
       (s) => s.action === 'BUYCALL' || s.action === 'BUYPUT',
     );
 
@@ -332,7 +358,8 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
 
     const finalSignals: Signal[] = [];
 
-    for (const sig of signals) {
+    // 步骤3：遍历过滤后的信号进行风险检查
+    for (const sig of signalsAfterCooldown) {
       const normalizedSigSymbol = sig.symbol;
       const sigName = getSymbolName(
         sig.symbol,
@@ -341,6 +368,11 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
         longSymbolName,
         shortSymbolName,
       );
+
+      // 标记进入风险检查的时间（在处理信号前标记，确保后续相同信号被冷却）
+      const direction = sig.action === 'BUYCALL' || sig.action === 'BUYPUT' ? 'BUY' : 'SELL';
+      const cooldownKey = `${normalizedSigSymbol}_${direction}`;
+      lastRiskCheckTime.set(cooldownKey, now);
 
       // 获取标的的当前价格用于计算持仓市值
       let currentPrice: number | null = null;
@@ -372,10 +404,9 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
         // 1. 检查交易频率限制
         const tradeCheck = trader._canTradeNow(sig.action, context.config);
         if (!tradeCheck.canTrade) {
-          const direction =
-            sig.action === 'BUYCALL' ? '做多标的' : '做空标的';
+          const directionDesc = sig.action === 'BUYCALL' ? '做多标的' : '做空标的';
           logger.warn(
-            `[交易频率限制] ${direction} 在${context.config.buyIntervalSeconds}秒内已买入过，需等待 ${tradeCheck.waitSeconds ?? 0} 秒后才能再次买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`,
+            `[交易频率限制] ${directionDesc} 在${context.config.buyIntervalSeconds}秒内已买入过，需等待 ${tradeCheck.waitSeconds ?? 0} 秒后才能再次买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`,
           );
           continue;
         }
@@ -392,26 +423,20 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
         );
 
         if (latestBuyPrice !== null && currentPrice !== null) {
+          const directionDesc = isLongBuyAction ? '做多标的' : '做空标的';
+          const currentPriceStr = currentPrice.toFixed(3);
+          const latestBuyPriceStr = latestBuyPrice.toFixed(3);
+          const signalDesc = `${sigName}(${normalizedSigSymbol}) ${sig.action}`;
+
           if (currentPrice > latestBuyPrice) {
-            const direction = isLongBuyAction ? '做多标的' : '做空标的';
             logger.warn(
-              `[买入价格限制] ${direction} 当前价格 ${currentPrice.toFixed(
-                3,
-              )} 高于最新买入订单价格 ${latestBuyPrice.toFixed(
-                3,
-              )}，拒绝买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`,
+              `[买入价格限制] ${directionDesc} 当前价格 ${currentPriceStr} 高于最新买入订单价格 ${latestBuyPriceStr}，拒绝买入：${signalDesc}`,
             );
             continue;
-          } else {
-            const direction = isLongBuyAction ? '做多标的' : '做空标的';
-            logger.info(
-              `[买入价格限制] ${direction} 当前价格 ${currentPrice.toFixed(
-                3,
-              )} 低于或等于最新买入订单价格 ${latestBuyPrice.toFixed(
-                3,
-              )}，允许买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`,
-            );
           }
+          logger.info(
+            `[买入价格限制] ${directionDesc} 当前价格 ${currentPriceStr} 低于或等于最新买入订单价格 ${latestBuyPriceStr}，允许买入：${signalDesc}`,
+          );
         }
 
         // 3. 末日保护程序：收盘前15分钟拒绝买入
