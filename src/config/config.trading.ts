@@ -344,11 +344,17 @@ export const MULTI_MONITOR_TRADING_CONFIG: MultiMonitorTradingConfig = (() => {
       global: {
         doomsdayProtection: getBooleanConfig('DOOMSDAY_PROTECTION', true),
         debug: getBooleanConfig('DEBUG', false),
-        orderMonitorTimeoutSeconds: 180,
         orderMonitorPriceUpdateInterval: 5,
         tradingOrderType: 'ELO' as const,
         liquidationOrderType: 'MO' as const,
-        enableOrderTimeoutMonitor: true,
+        buyOrderTimeout: {
+          enabled: true,
+          timeoutSeconds: 180,
+        },
+        sellOrderTimeout: {
+          enabled: true,
+          timeoutSeconds: 180,
+        },
       },
     };
   }
@@ -362,18 +368,37 @@ export const MULTI_MONITOR_TRADING_CONFIG: MultiMonitorTradingConfig = (() => {
     }
   }
 
-  // 解析订单监控超时配置
-  const orderMonitorTimeoutSeconds = (() => {
-    const timeout = getNumberConfig('ORDER_MONITOR_TIMEOUT_SECONDS', 0);
+  // 解析买入订单超时配置
+  const buyOrderTimeoutEnabled = getBooleanConfig('BUY_ORDER_TIMEOUT_ENABLED', true);
+  const buyOrderTimeoutSeconds = (() => {
+    const timeout = getNumberConfig('BUY_ORDER_TIMEOUT_SECONDS', 0);
     if (timeout === null) {
       return 180; // 默认 3 分钟
     }
     if (timeout < 30) {
-      logger.warn('[配置警告] ORDER_MONITOR_TIMEOUT_SECONDS 不能小于 30，已设置为 30');
+      logger.warn('[配置警告] BUY_ORDER_TIMEOUT_SECONDS 不能小于 30，已设置为 30');
       return 30;
     }
     if (timeout > 600) {
-      logger.warn('[配置警告] ORDER_MONITOR_TIMEOUT_SECONDS 不能大于 600，已设置为 600');
+      logger.warn('[配置警告] BUY_ORDER_TIMEOUT_SECONDS 不能大于 600，已设置为 600');
+      return 600;
+    }
+    return timeout;
+  })();
+
+  // 解析卖出订单超时配置
+  const sellOrderTimeoutEnabled = getBooleanConfig('SELL_ORDER_TIMEOUT_ENABLED', true);
+  const sellOrderTimeoutSeconds = (() => {
+    const timeout = getNumberConfig('SELL_ORDER_TIMEOUT_SECONDS', 0);
+    if (timeout === null) {
+      return 180; // 默认 3 分钟
+    }
+    if (timeout < 30) {
+      logger.warn('[配置警告] SELL_ORDER_TIMEOUT_SECONDS 不能小于 30，已设置为 30');
+      return 30;
+    }
+    if (timeout > 600) {
+      logger.warn('[配置警告] SELL_ORDER_TIMEOUT_SECONDS 不能大于 600，已设置为 600');
       return 600;
     }
     return timeout;
@@ -414,19 +439,22 @@ export const MULTI_MONITOR_TRADING_CONFIG: MultiMonitorTradingConfig = (() => {
     return 'MO' as const;
   })();
 
-  // 解析订单超时监控开关
-  const enableOrderTimeoutMonitor = getBooleanConfig('ENABLE_ORDER_TIMEOUT_MONITOR', true);
-
   return {
     monitors,
     global: {
       doomsdayProtection: getBooleanConfig('DOOMSDAY_PROTECTION', true),
       debug: getBooleanConfig('DEBUG', false),
-      orderMonitorTimeoutSeconds,
       orderMonitorPriceUpdateInterval,
       tradingOrderType,
       liquidationOrderType,
-      enableOrderTimeoutMonitor,
+      buyOrderTimeout: {
+        enabled: buyOrderTimeoutEnabled,
+        timeoutSeconds: buyOrderTimeoutSeconds,
+      },
+      sellOrderTimeout: {
+        enabled: sellOrderTimeoutEnabled,
+        timeoutSeconds: sellOrderTimeoutSeconds,
+      },
     },
   };
 })();

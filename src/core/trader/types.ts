@@ -214,11 +214,23 @@ export interface TrackedOrder {
 }
 
 /**
+ * 单向订单超时配置（买入或卖出）
+ */
+export type OrderSideTimeoutConfig = {
+  /** 是否启用超时检测 */
+  readonly enabled: boolean;
+  /** 超时时间（毫秒） */
+  readonly timeoutMs: number;
+};
+
+/**
  * 订单监控配置
  */
 export interface OrderMonitorConfig {
-  /** 超时时间（毫秒），默认 3 分钟 */
-  readonly timeoutMs: number;
+  /** 买入订单超时配置 */
+  readonly buyTimeout: OrderSideTimeoutConfig;
+  /** 卖出订单超时配置 */
+  readonly sellTimeout: OrderSideTimeoutConfig;
   /** 价格修改最小间隔（毫秒），避免频繁修改 */
   readonly priceUpdateIntervalMs: number;
   /** 价格差异阈值，低于此值不修改 */

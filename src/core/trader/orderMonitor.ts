@@ -5,8 +5,11 @@
  * - 使用 WebSocket 订阅订单状态变化，实时响应
  * - 双向监控买入和卖出订单
  * - 价格跟踪：委托价始终跟随最新市场价格
- * - 超时转市价：委托超过3分钟未成交，撤销并使用市价单重新委托
  * - 成交后更新：订单完全成交时，使用成交价（非委托价）更新本地记录
+ *
+ * 超时处理（买入/卖出分开配置）：
+ * - 买入订单超时：仅撤销订单（避免追高买入）
+ * - 卖出订单超时：撤销订单后转换为市价单（确保能够卖出）
  */
 
 import {
@@ -37,7 +40,14 @@ import type {
 const buildOrderMonitorConfig = (): OrderMonitorConfig => {
   const globalConfig = MULTI_MONITOR_TRADING_CONFIG.global;
   return {
-    timeoutMs: globalConfig.orderMonitorTimeoutSeconds * 1000,
+    buyTimeout: {
+      enabled: globalConfig.buyOrderTimeout.enabled,
+      timeoutMs: globalConfig.buyOrderTimeout.timeoutSeconds * 1000,
+    },
+    sellTimeout: {
+      enabled: globalConfig.sellOrderTimeout.enabled,
+      timeoutMs: globalConfig.sellOrderTimeout.timeoutSeconds * 1000,
+    },
     priceUpdateIntervalMs: globalConfig.orderMonitorPriceUpdateInterval * 1000,
     priceDiffThreshold: 0.001,  // 固定值，不需要配置
   };
@@ -363,13 +373,47 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
   };
 
   /**
-   * 处理超时订单（转市价单）
+   * 处理买入订单超时（仅撤销订单）
+   * 买入订单超时后直接撤销，不转换为市价单
    */
-  const handleTimeoutOrder = async (orderId: string, order: TrackedOrder): Promise<void> => {
+  const handleBuyOrderTimeout = async (orderId: string, order: TrackedOrder): Promise<void> => {
     const elapsed = Date.now() - order.submittedAt;
 
     logger.warn(
-      `[订单监控] 订单 ${orderId} 超时(${Math.floor(elapsed / 1000)}秒)，转换为市价单`,
+      `[订单监控] 买入订单 ${orderId} 超时(${Math.floor(elapsed / 1000)}秒)，撤销订单`,
+    );
+
+    // 计算剩余数量
+    const remainingQuantity = order.submittedQuantity - order.executedQuantity;
+    if (remainingQuantity <= 0) {
+      // 已经全部成交，移除追踪
+      trackedOrders.delete(orderId);
+      return;
+    }
+
+    // 撤销订单
+    const cancelled = await cancelOrder(orderId);
+
+    if (cancelled) {
+      logger.info(
+        `[订单监控] 买入订单 ${orderId} 已撤销，剩余未成交数量=${remainingQuantity}`,
+      );
+    } else {
+      logger.warn(
+        `[订单监控] 买入订单 ${orderId} 撤销失败（可能已成交或已撤销）`,
+      );
+    }
+  };
+
+  /**
+   * 处理卖出订单超时（撤销后转市价单）
+   * 卖出订单超时后撤销原订单，然后使用市价单重新提交
+   */
+  const handleSellOrderTimeout = async (orderId: string, order: TrackedOrder): Promise<void> => {
+    const elapsed = Date.now() - order.submittedAt;
+
+    logger.warn(
+      `[订单监控] 卖出订单 ${orderId} 超时(${Math.floor(elapsed / 1000)}秒)，转换为市价单`,
     );
 
     // 计算剩余数量
@@ -388,7 +432,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
       // 避免重复下单导致持仓数据错误
       if (!cancelled) {
         logger.warn(
-          `[订单监控] 订单 ${orderId} 撤销失败（可能已成交或已撤销），跳过市价单提交`,
+          `[订单监控] 卖出订单 ${orderId} 撤销失败（可能已成交或已撤销），跳过市价单提交`,
         );
         return;
       }
@@ -410,7 +454,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
       const newOrderId = (resp as { orderId?: string })?.orderId ?? 'UNKNOWN';
 
       logger.info(
-        `[订单监控] 订单 ${orderId} 已转为市价单，新订单ID=${newOrderId}，数量=${remainingQuantity}`,
+        `[订单监控] 卖出订单 ${orderId} 已转为市价单，新订单ID=${newOrderId}，数量=${remainingQuantity}`,
       );
 
       // 追踪新的市价单（市价单通常很快成交，但仍需追踪）
@@ -431,7 +475,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
       }
 
     } catch (err) {
-      logger.error(`[订单监控] 订单 ${orderId} 转市价单失败:`, err);
+      logger.error(`[订单监控] 卖出订单 ${orderId} 转市价单失败:`, err);
     }
   };
 
@@ -442,6 +486,10 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
    * - 买入订单和卖出订单都跟踪当前价
    * - 无论当前价高于还是低于委托价，都更新委托价为当前价
    * - 目的：确保订单能够成交，避免因价格差异导致无法买入或卖出
+   *
+   * 超时处理规则：
+   * - 买入订单超时：仅撤销订单，不转换为市价单
+   * - 卖出订单超时：撤销订单后转换为市价单
    */
   const processWithLatestQuotes = async (
     quotesMap: ReadonlyMap<string, Quote | null>,
@@ -454,12 +502,18 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
         continue;
       }
 
-      // 检查超时（如果启用了超时监控）
-      const enableTimeoutMonitor = MULTI_MONITOR_TRADING_CONFIG.global.enableOrderTimeoutMonitor;
-      if (enableTimeoutMonitor) {
+      // 根据订单方向检查超时
+      const isBuyOrder = order.side === OrderSide.Buy;
+      const timeoutConfig = isBuyOrder ? config.buyTimeout : config.sellTimeout;
+
+      if (timeoutConfig.enabled) {
         const elapsed = now - order.submittedAt;
-        if (elapsed >= config.timeoutMs) {
-          await handleTimeoutOrder(orderId, order);
+        if (elapsed >= timeoutConfig.timeoutMs) {
+          if (isBuyOrder) {
+            await handleBuyOrderTimeout(orderId, order);
+          } else {
+            await handleSellOrderTimeout(orderId, order);
+          }
           continue;
         }
       }
@@ -484,7 +538,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
       }
 
       // 更新委托价
-      const sideDesc = order.side === OrderSide.Buy ? '买入' : '卖出';
+      const sideDesc = isBuyOrder ? '买入' : '卖出';
       const priceDirection = currentPrice > order.submittedPrice ? '上涨' : '下跌';
 
       logger.info(

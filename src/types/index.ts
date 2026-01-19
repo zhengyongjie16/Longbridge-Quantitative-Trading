@@ -271,21 +271,41 @@ export type MonitorConfig = {
 };
 
 /**
+ * 买入订单超时配置
+ */
+export type BuyOrderTimeoutConfig = {
+  /** 是否启用买入订单超时检测，默认 true */
+  readonly enabled: boolean;
+  /** 买入订单超时时间（秒），默认 180（3分钟） */
+  readonly timeoutSeconds: number;
+};
+
+/**
+ * 卖出订单超时配置
+ */
+export type SellOrderTimeoutConfig = {
+  /** 是否启用卖出订单超时检测，默认 true */
+  readonly enabled: boolean;
+  /** 卖出订单超时时间（秒），默认 180（3分钟） */
+  readonly timeoutSeconds: number;
+};
+
+/**
  * 全局配置（非监控标的特定）
  */
 export type GlobalConfig = {
   readonly doomsdayProtection: boolean;
   readonly debug: boolean;
-  /** 订单监控超时时间（秒），默认 180（3分钟） */
-  readonly orderMonitorTimeoutSeconds: number;
   /** 订单监控价格修改最小间隔（秒），默认 5 */
   readonly orderMonitorPriceUpdateInterval: number;
   /** 交易标的的订单类型，默认 ELO（增强限价单） */
   readonly tradingOrderType: OrderTypeConfig;
   /** 触发最大浮亏清仓的订单类型，默认 MO（市价单） */
   readonly liquidationOrderType: OrderTypeConfig;
-  /** 是否启用订单超时检测，默认 true */
-  readonly enableOrderTimeoutMonitor: boolean;
+  /** 买入订单超时配置 */
+  readonly buyOrderTimeout: BuyOrderTimeoutConfig;
+  /** 卖出订单超时配置 */
+  readonly sellOrderTimeout: SellOrderTimeoutConfig;
 };
 
 /**
