@@ -306,6 +306,30 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
     const normalizedLongSymbol = normalizeHKSymbol(longSymbol);
     const normalizedShortSymbol = normalizeHKSymbol(shortSymbol);
 
+    // 买入信号需要实时账户数据，卖出信号使用缓存数据
+    const hasBuySignals = signals.some(
+      (s) => s.action === 'BUYCALL' || s.action === 'BUYPUT',
+    );
+
+    let freshAccount: AccountSnapshot | null = null;
+    let freshPositions: Position[] = [];
+    let buyApiFetchFailed = false;
+
+    if (hasBuySignals) {
+      try {
+        [freshAccount, freshPositions] = await Promise.all([
+          trader.getAccountSnapshot(),
+          trader.getStockPositions(),
+        ]);
+      } catch (err) {
+        logger.warn(
+          '[风险检查] 批量获取账户和持仓信息失败，买入信号将被拒绝',
+          formatError(err),
+        );
+        buyApiFetchFailed = true;
+      }
+    }
+
     const finalSignals: Signal[] = [];
 
     for (const sig of signals) {
@@ -331,6 +355,13 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
         sig.action === 'BUYCALL' || sig.action === 'BUYPUT';
 
       if (isBuyActionCheck) {
+        if (buyApiFetchFailed) {
+          logger.warn(
+            `[风险检查] 买入操作无法获取账户信息，跳过该信号：${sigName}(${normalizedSigSymbol}) ${sig.action}`,
+          );
+          continue;
+        }
+
         // 买入操作检查顺序：
         // 1. 交易频率限制
         // 2. 买入价格限制
@@ -438,41 +469,18 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
       }
 
       // 5. 基础风险检查
-      // 重要：买入检查逻辑要求：
-      // - 买入前必须从API获取最新账户信息和持仓信息，不使用缓存
-      // - 这确保了并发订单时数据准确性，避免短时间内多笔订单导致的缓存不及时问题
-      // - API调用失败时直接拒绝买入交易，不使用缓存降级，确保资金安全
-      let accountForRiskCheck: AccountSnapshot | null = null;
-      let positionsForRiskCheck: Position[] = [];
+      // 买入信号使用实时数据，卖出信号使用缓存数据
+      const accountForRiskCheck = isBuyActionCheck ? freshAccount : context.account;
+      const positionsForRiskCheck = isBuyActionCheck ? freshPositions : (context.positions ?? []);
 
-      // 从API获取最新数据
-      try {
-        const [freshAccount, freshPositions] = await Promise.all([
-          trader.getAccountSnapshot(),
-          trader.getStockPositions(),
-        ]);
-
-        accountForRiskCheck = freshAccount;
-        positionsForRiskCheck = freshPositions ?? [];
-      } catch (err) {
-        logger.warn(
-          '风险检查前获取账户和持仓信息失败，拒绝交易',
-          formatError(err),
-        );
-        // API调用失败时直接拒绝交易，不使用缓存降级
-        // 这样可以避免使用过期数据导致的资金风险
-        accountForRiskCheck = null;
-        positionsForRiskCheck = [];
-      }
-
-      // 对于买入操作，账户数据是必需的（用于购买力检查和持仓市值检查）
-      // 如果无法获取最新账户信息，拒绝买入操作以确保资金安全
       if (isBuyActionCheck && accountForRiskCheck === null) {
-        logger.warn('[风险检查] 买入操作无法获取账户信息，跳过该信号');
+        logger.warn(
+          `[风险检查] 买入操作无法获取账户信息，跳过该信号：${sigName}(${normalizedSigSymbol}) ${sig.action}`,
+        );
         continue;
       }
 
-      // 使用从API获取的最新数据进行风险检查（而非缓存数据）
+      // 使用选择的数据进行风险检查
       const orderNotional = context.config.targetNotional ?? 0;
       const longCurrentPrice = longQuote?.price ?? null;
       const shortCurrentPrice = shortQuote?.price ?? null;
