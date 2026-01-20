@@ -58,12 +58,16 @@ import { createUnrealizedLossMonitor } from './core/unrealizedLossMonitor/index.
 import { createSignalProcessor } from './core/signalProcessor/index.js';
 
 // 导入重构后的新架构模块
-import { createIndicatorCache, type IndicatorCache } from './program/indicatorCache/index.js';
-import { createBuyTaskQueue, type BuyTaskQueue } from './program/buyTaskQueue/index.js';
-import { createSellTaskQueue, type SellTaskQueue } from './program/sellTaskQueue/index.js';
+import { createIndicatorCache } from './program/indicatorCache/index.js';
+import { createBuyTaskQueue, createSellTaskQueue } from './program/tradeTaskQueue/index.js';
 import { createDelayedSignalVerifier } from './program/delayedSignalVerifier/index.js';
-import { createBuyProcessor, type BuyProcessor } from './program/buyProcessor/index.js';
-import { createSellProcessor, type SellProcessor } from './program/sellProcessor/index.js';
+import { createBuyProcessor } from './program/buyProcessor/index.js';
+import { createSellProcessor } from './program/sellProcessor/index.js';
+// 类型直接从 types.ts 导入，避免 re-export 模式
+import type { IndicatorCache } from './program/indicatorCache/types.js';
+import type { BuyTaskQueue, SellTaskQueue } from './program/tradeTaskQueue/types.js';
+import type { BuyProcessor } from './program/buyProcessor/types.js';
+import type { SellProcessor } from './program/sellProcessor/types.js';
 import type {
   CandleData,
   Signal,

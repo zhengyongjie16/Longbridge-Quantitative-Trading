@@ -20,12 +20,10 @@
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
-import type { BuyProcessorStats, BuyProcessor, BuyProcessorDeps } from './types.js';
-import type { BuyTask } from '../buyTaskQueue/types.js';
+import type { BuyProcessor, BuyProcessorDeps } from './types.js';
+import type { ProcessorStats } from '../types.js';
+import type { BuyTask } from '../tradeTaskQueue/types.js';
 import type { RiskCheckContext } from '../../core/signalProcessor/types.js';
-
-// 导出类型
-export type { BuyProcessor, BuyProcessorDeps, BuyProcessorStats } from './types.js';
 
 /**
  * 创建买入处理器
@@ -246,7 +244,7 @@ export const createBuyProcessor = (deps: BuyProcessorDeps): BuyProcessor => {
   /**
    * 获取处理器统计信息
    */
-  const getStats = (): BuyProcessorStats => ({
+  const getStats = (): ProcessorStats => ({
     processedCount,
     successCount,
     failedCount,

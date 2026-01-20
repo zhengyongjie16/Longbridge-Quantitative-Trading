@@ -21,6 +21,7 @@ import { TIME, TRADING } from '../../constants/index.js';
 import {
   normalizeHKSymbol,
   decimalToNumber,
+  toDecimal,
   formatError,
   isDefined,
   isValidPositiveNumber,
@@ -47,16 +48,6 @@ function findMonitorConfigBySymbol(signalSymbol: string): MonitorConfig | null {
   // 未找到匹配的配置
   return null;
 }
-
-const toDecimal = (value: unknown): Decimal => {
-  if (value instanceof Decimal) {
-    return value;
-  }
-  if (typeof value === 'number' || typeof value === 'string') {
-    return new Decimal(value);
-  }
-  return Decimal.ZERO();
-};
 
 /**
  * 将配置的订单类型字符串转换为 OrderType 枚举

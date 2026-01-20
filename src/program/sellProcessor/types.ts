@@ -3,18 +3,9 @@
  */
 
 import type { MonitorContext, Trader, LastState } from '../../types/index.js';
-import type { SellTaskQueue } from '../sellTaskQueue/types.js';
+import type { ProcessorStats } from '../types.js';
+import type { SellTaskQueue } from '../tradeTaskQueue/types.js';
 import type { SignalProcessor } from '../../core/signalProcessor/types.js';
-
-/**
- * 处理器统计信息
- */
-export type SellProcessorStats = {
-  readonly processedCount: number;
-  readonly successCount: number;
-  readonly failedCount: number;
-  readonly lastProcessTime: number | null;
-};
 
 /**
  * 卖出处理器接口
@@ -24,7 +15,7 @@ export interface SellProcessor {
   stop(): void;
   processNow(): Promise<void>;
   isRunning(): boolean;
-  getStats(): SellProcessorStats;
+  getStats(): ProcessorStats;
 }
 
 /**

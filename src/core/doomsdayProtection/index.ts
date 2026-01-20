@@ -21,19 +21,7 @@ import { batchGetQuotes } from '../../utils/helpers/quoteHelpers.js';
 import { isBeforeClose15Minutes, isBeforeClose5Minutes } from '../../utils/helpers/tradingTime.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import type { Position, Quote, Signal, SignalType } from '../../types/index.js';
-import type { DoomsdayProtection, DoomsdayClearanceContext, DoomsdayClearanceResult, CancelPendingBuyOrdersContext, CancelPendingBuyOrdersResult } from './types.js';
-
-/**
- * 清仓信号创建参数
- */
-type ClearanceSignalParams = {
-  readonly normalizedSymbol: string;
-  readonly symbolName: string | null;
-  readonly action: SignalType;
-  readonly price: number | null;
-  readonly lotSize: number | null;
-  readonly positionType: string;
-};
+import type { DoomsdayProtection, DoomsdayClearanceContext, DoomsdayClearanceResult, CancelPendingBuyOrdersContext, CancelPendingBuyOrdersResult, ClearanceSignalParams } from './types.js';
 
 /**
  * 创建单个清仓信号
@@ -132,15 +120,6 @@ const processPositionForClearance = (
   }
 
   return signal;
-};
-
-/**
- * 获取当前日期字符串（用于状态重置判断）
- * @param date 日期对象
- * @returns YYYY-MM-DD 格式的日期字符串
- */
-const getDateString = (date: Date): string => {
-  return date.toISOString().slice(0, 10);
 };
 
 /**
@@ -285,7 +264,7 @@ export const createDoomsdayProtection = (): DoomsdayProtection => {
       // 逻辑：首次进入 15 分钟范围时执行一次，之后不再重复
       // 原因：末日保护期间已拒绝新买入，不会有新的买入订单产生
       //       已撤销的订单会进入 WebSocket 监控，无需重复查询
-      const todayDateString = getDateString(currentTime);
+      const todayDateString = currentTime.toISOString().slice(0, 10);
       if (cancelCheckExecutedDate === todayDateString) {
         // 当天已执行过，直接返回
         return { executed: false, cancelledCount: 0 };

@@ -3,11 +3,11 @@
  */
 
 import { EMA } from 'technicalindicators';
-import { toNumber, logDebug } from './utils.js';
+import { logDebug } from './utils.js';
 
 /**
  * 计算 EMA（指数移动平均线）
- * @param validCloses 收盘价数组
+ * @param validCloses 已过滤的收盘价数组（由 buildIndicatorSnapshot 预处理）
  * @param period EMA周期，范围 1-250
  * @returns EMA值，如果无法计算则返回null
  */
@@ -23,15 +23,8 @@ export function calculateEMA(validCloses: ReadonlyArray<number>, period: number)
   }
 
   try {
-    const filteredCloses = validCloses
-      .map((c) => toNumber(c))
-      .filter((v) => Number.isFinite(v) && v > 0);
-
-    if (filteredCloses.length < period) {
-      return null;
-    }
-
-    const emaResult = EMA.calculate({ values: filteredCloses, period });
+    // validCloses 已由 buildIndicatorSnapshot 预处理，无需再次过滤
+    const emaResult = EMA.calculate({ values: validCloses as number[], period });
 
     if (!emaResult || emaResult.length === 0) {
       return null;

@@ -18,11 +18,10 @@ import {
   OrderType,
   TimeInForceType,
   TopicType,
-  Decimal,
 } from 'longport';
 import type { PushOrderChanged } from 'longport';
 import { logger } from '../../utils/logger/index.js';
-import { normalizeHKSymbol, decimalToNumber, formatError } from '../../utils/helpers/index.js';
+import { normalizeHKSymbol, decimalToNumber, toDecimal, formatError } from '../../utils/helpers/index.js';
 import { MULTI_MONITOR_TRADING_CONFIG } from '../../config/config.trading.js';
 import type { Quote } from '../../types/index.js';
 import type {
@@ -51,16 +50,6 @@ const buildOrderMonitorConfig = (): OrderMonitorConfig => {
     priceUpdateIntervalMs: globalConfig.orderMonitorPriceUpdateInterval * 1000,
     priceDiffThreshold: 0.001,  // 固定值，不需要配置
   };
-};
-
-const toDecimal = (value: unknown): Decimal => {
-  if (value instanceof Decimal) {
-    return value;
-  }
-  if (typeof value === 'number' || typeof value === 'string') {
-    return new Decimal(value);
-  }
-  return Decimal.ZERO();
 };
 
 /**

@@ -18,7 +18,7 @@
 import { logger } from '../../utils/logger/index.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import { formatSymbolDisplay } from '../../utils/helpers/index.js';
-import { TIME, VERIFICATION } from '../../constants/index.js';
+import { TIME, VERIFICATION, ACTION_DESCRIPTIONS } from '../../constants/index.js';
 import type { Signal } from '../../types/index.js';
 import type {
   DelayedSignalVerifier,
@@ -27,12 +27,7 @@ import type {
   VerifiedCallback,
   RejectedCallback,
 } from './types.js';
-import {
-  ACTION_DESCRIPTIONS,
-  generateSignalId,
-  extractInitialIndicators,
-  performVerification,
-} from './utils.js';
+import { generateSignalId, extractInitialIndicators, performVerification } from './utils.js';
 
 // 导出类型
 export type {

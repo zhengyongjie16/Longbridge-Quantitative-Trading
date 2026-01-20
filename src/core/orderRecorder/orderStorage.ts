@@ -19,6 +19,7 @@ import {
 } from '../../utils/helpers/index.js';
 import type { OrderRecord, Quote } from '../../types/index.js';
 import type { OrderStorage, OrderStorageDeps } from './types.js';
+import { calculateTotalQuantity } from './utils.js';
 
 /**
  * 创建订单存储管理器
@@ -214,15 +215,6 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     );
 
     return filteredOrders;
-  };
-
-  /**
-   * 计算订单列表的总成交数量
-   */
-  const calculateTotalQuantity = (orders: OrderRecord[]): number => {
-    return orders.reduce((sum, order) => {
-      return sum + (order.executedQuantity || 0);
-    }, 0);
   };
 
   /**

@@ -2,7 +2,19 @@
  * DoomsdayProtection 模块类型定义
  */
 
-import type { Position, MonitorConfig, MonitorContext, Trader, MarketDataClient, LastState } from '../../types/index.js';
+import type { Position, MonitorConfig, MonitorContext, Trader, MarketDataClient, LastState, SignalType } from '../../types/index.js';
+
+/**
+ * 清仓信号创建参数
+ */
+export type ClearanceSignalParams = {
+  readonly normalizedSymbol: string;
+  readonly symbolName: string | null;
+  readonly action: SignalType;
+  readonly price: number | null;
+  readonly lotSize: number | null;
+  readonly positionType: string;
+};
 
 /**
  * 末日保护执行上下文

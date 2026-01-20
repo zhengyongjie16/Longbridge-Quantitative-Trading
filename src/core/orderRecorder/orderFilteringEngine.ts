@@ -25,6 +25,7 @@
 
 import type { OrderRecord } from '../../types/index.js';
 import type { FilteringState, OrderFilteringEngine, OrderFilteringEngineDeps } from './types.js';
+import { calculateTotalQuantity } from './utils.js';
 
 /**
  * 创建订单过滤引擎
@@ -32,15 +33,6 @@ import type { FilteringState, OrderFilteringEngine, OrderFilteringEngineDeps } f
  * @returns OrderFilteringEngine 接口实例
  */
 export const createOrderFilteringEngine = (_deps: OrderFilteringEngineDeps = {}): OrderFilteringEngine => {
-  /**
-   * 计算订单列表的总成交数量
-   */
-  const calculateTotalQuantity = (orders: ReadonlyArray<OrderRecord>): number => {
-    return orders.reduce((sum, order) => {
-      return sum + (order.executedQuantity || 0);
-    }, 0);
-  };
-
   /**
    * 初始化过滤状态
    * - M0: 成交时间 > 最新卖出时间的买入订单（这些订单在所有卖出之后，无条件保留）

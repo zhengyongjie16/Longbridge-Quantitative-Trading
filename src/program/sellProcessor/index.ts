@@ -23,11 +23,9 @@
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
-import type { SellProcessorStats, SellProcessor, SellProcessorDeps } from './types.js';
-import type { SellTask } from '../sellTaskQueue/types.js';
-
-// 导出类型
-export type { SellProcessor, SellProcessorDeps, SellProcessorStats } from './types.js';
+import type { SellProcessor, SellProcessorDeps } from './types.js';
+import type { ProcessorStats } from '../types.js';
+import type { SellTask } from '../tradeTaskQueue/types.js';
 
 /**
  * 创建卖出处理器
@@ -228,7 +226,7 @@ export const createSellProcessor = (deps: SellProcessorDeps): SellProcessor => {
   /**
    * 获取处理器统计信息
    */
-  const getStats = (): SellProcessorStats => ({
+  const getStats = (): ProcessorStats => ({
     processedCount,
     successCount,
     failedCount,

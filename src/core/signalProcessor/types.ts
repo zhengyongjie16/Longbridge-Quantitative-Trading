@@ -6,6 +6,28 @@ import type { Quote, Position, AccountSnapshot, IndicatorSnapshot, Signal, Order
 import type { DoomsdayProtection } from '../doomsdayProtection/types.js';
 
 /**
+ * 验证持仓和行情数据是否有效
+ */
+export function isValidPositionAndQuote(
+  position: Position | null,
+  quote: Quote | null,
+): position is Position & { costPrice: number; availableQuantity: number } {
+  return (
+    position !== null &&
+    Number.isFinite(position.costPrice) &&
+    position.costPrice !== null &&
+    position.costPrice > 0 &&
+    Number.isFinite(position.availableQuantity) &&
+    position.availableQuantity !== null &&
+    position.availableQuantity > 0 &&
+    quote !== null &&
+    Number.isFinite(quote.price) &&
+    quote.price !== null &&
+    quote.price > 0
+  );
+}
+
+/**
  * 风险检查上下文类型
  */
 export type RiskCheckContext = {

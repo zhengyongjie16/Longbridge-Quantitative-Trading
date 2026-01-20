@@ -4,19 +4,10 @@
  */
 
 import type { MonitorContext, Trader, LastState } from '../../types/index.js';
-import type { BuyTaskQueue } from '../buyTaskQueue/types.js';
+import type { ProcessorStats } from '../types.js';
+import type { BuyTaskQueue } from '../tradeTaskQueue/types.js';
 import type { SignalProcessor } from '../../core/signalProcessor/types.js';
 import type { DoomsdayProtection } from '../../core/doomsdayProtection/types.js';
-
-/**
- * 处理器统计信息
- */
-export type BuyProcessorStats = {
-  readonly processedCount: number;
-  readonly successCount: number;
-  readonly failedCount: number;
-  readonly lastProcessTime: number | null;
-};
 
 /**
  * 买入处理器接口
@@ -26,7 +17,7 @@ export interface BuyProcessor {
   stop(): void;
   processNow(): Promise<void>;
   isRunning(): boolean;
-  getStats(): BuyProcessorStats;
+  getStats(): ProcessorStats;
 }
 
 /**

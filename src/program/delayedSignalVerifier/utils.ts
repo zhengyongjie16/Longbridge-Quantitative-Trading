@@ -4,20 +4,9 @@
 
 import { getIndicatorValue } from '../../utils/helpers/indicatorHelpers.js';
 import { TIME, VERIFICATION } from '../../constants/index.js';
-import type { Signal, SingleVerificationConfig, SignalType } from '../../types/index.js';
+import type { Signal, SingleVerificationConfig } from '../../types/index.js';
 import type { IndicatorCache, IndicatorCacheEntry } from '../indicatorCache/types.js';
 import type { PendingSignalEntry, VerificationResult } from './types.js';
-
-/**
- * 信号操作描述映射
- */
-export const ACTION_DESCRIPTIONS: Record<SignalType, string> = {
-  BUYCALL: '买入做多',
-  BUYPUT: '买入做空',
-  SELLCALL: '卖出做多',
-  SELLPUT: '卖出做空',
-  HOLD: '持有',
-};
 
 /**
  * 生成信号的唯一 ID

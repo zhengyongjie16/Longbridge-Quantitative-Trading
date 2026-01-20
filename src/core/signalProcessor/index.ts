@@ -24,6 +24,7 @@ import { normalizeHKSymbol, getSymbolName, getDirectionName, formatSymbolDisplay
 import { MULTI_MONITOR_TRADING_CONFIG } from '../../config/config.trading.js';
 import { VERIFICATION } from '../../constants/index.js';
 import type { Quote, Position, Signal, OrderRecorder, AccountSnapshot } from '../../types/index.js';
+import { isValidPositionAndQuote } from './types.js';
 import type { RiskCheckContext, SellQuantityResult, SignalProcessor, SignalProcessorDeps } from './types.js';
 
 /**
@@ -32,28 +33,6 @@ import type { RiskCheckContext, SellQuantityResult, SignalProcessor, SignalProce
  * 用于实现验证信号冷却机制，避免同标的同方向的重复信号在短时间内多次触发风险检查
  */
 const lastRiskCheckTime = new Map<string, number>();
-
-/**
- * 验证持仓和行情数据是否有效
- */
-function isValidPositionAndQuote(
-  position: Position | null,
-  quote: Quote | null,
-): position is Position & { costPrice: number; availableQuantity: number } {
-  return (
-    position !== null &&
-    Number.isFinite(position.costPrice) &&
-    position.costPrice !== null &&
-    position.costPrice > 0 &&
-    Number.isFinite(position.availableQuantity) &&
-    position.availableQuantity !== null &&
-    position.availableQuantity > 0 &&
-    quote !== null &&
-    Number.isFinite(quote.price) &&
-    quote.price !== null &&
-    quote.price > 0
-  );
-}
 
 /**
  * 格式化价格比较描述

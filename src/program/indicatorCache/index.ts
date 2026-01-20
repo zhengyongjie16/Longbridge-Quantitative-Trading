@@ -18,9 +18,6 @@ import {
   cloneIndicatorSnapshot,
 } from './utils.js';
 
-// 导出类型
-export type { IndicatorCache, IndicatorCacheEntry, IndicatorCacheOptions } from './types.js';
-
 /**
  * 默认最大缓存条目数
  * 计算公式：max(buyDelay, sellDelay) + 15 + 10，默认 100

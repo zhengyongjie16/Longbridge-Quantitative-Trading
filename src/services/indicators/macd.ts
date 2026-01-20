@@ -8,12 +8,12 @@
 import { MACD } from 'technicalindicators';
 import { macdObjectPool } from '../../utils/objectPool/index.js';
 import { isValidMACD } from '../../utils/objectPool/types.js';
-import { toNumber, logDebug } from './utils.js';
+import { logDebug } from './utils.js';
 import type { MACDIndicator } from '../../types/index.js';
 
 /**
  * 计算 MACD（移动平均收敛散度指标）
- * @param validCloses 收盘价数组
+ * @param validCloses 已过滤的收盘价数组（由 buildIndicatorSnapshot 预处理）
  * @param fastPeriod 快线周期，默认12
  * @param slowPeriod 慢线周期，默认26
  * @param signalPeriod 信号线周期，默认9
@@ -30,16 +30,9 @@ export function calculateMACD(
   }
 
   try {
-    const filteredCloses = validCloses
-      .map((c) => toNumber(c))
-      .filter((v) => Number.isFinite(v) && v > 0);
-
-    if (filteredCloses.length < slowPeriod + signalPeriod) {
-      return null;
-    }
-
+    // validCloses 已由 buildIndicatorSnapshot 预处理，无需再次过滤
     const macdResult = MACD.calculate({
-      values: filteredCloses,
+      values: validCloses as number[],
       fastPeriod,
       slowPeriod,
       signalPeriod,
@@ -74,12 +67,10 @@ export function calculateMACD(
     macdObj.dea = dea;
     macdObj.macd = macdValue;
 
-    // 使用类型守卫验证对象有效性
     if (isValidMACD(macdObj)) {
       return macdObj;
     }
 
-    // 如果类型验证失败，释放对象并返回 null
     macdObjectPool.release(macdObj);
     return null;
   } catch (err) {

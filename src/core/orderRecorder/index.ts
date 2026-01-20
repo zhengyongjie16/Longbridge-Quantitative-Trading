@@ -141,34 +141,6 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
   };
 
   /**
-   * 格式化订单时间
-   */
-  const formatOrderTime = (executedTime: number): string => {
-    if (!executedTime) {
-      return '未知时间';
-    }
-
-    try {
-      const date = new Date(executedTime);
-      if (Number.isNaN(date.getTime())) {
-        return '无效时间';
-      }
-      return date.toLocaleString('zh-CN', {
-        timeZone: 'Asia/Shanghai',
-      });
-    } catch {
-      return '无效时间';
-    }
-  };
-
-  /**
-   * 格式化价格
-   */
-  const formatPrice = (price: number): string => {
-    return Number.isFinite(price) ? price.toFixed(3) : 'N/A';
-  };
-
-  /**
    * 输出订单列表的debug信息（仅在DEBUG模式下）
    */
   const debugOutputOrders = (symbol: string, isLongSymbol: boolean): void => {
@@ -190,9 +162,23 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
     if (currentOrders.length > 0) {
       const stats = calculateOrderStatistics(currentOrders);
 
-      currentOrders.forEach((order, index) => {
-        const timeStr = formatOrderTime(order.executedTime);
-        const priceStr = formatPrice(order.executedPrice);
+      for (let index = 0; index < currentOrders.length; index++) {
+        const order = currentOrders[index];
+        if (!order) continue;
+
+        // Inline time formatting (DEBUG only)
+        let timeStr = '未知时间';
+        if (order.executedTime) {
+          const date = new Date(order.executedTime);
+          timeStr = Number.isNaN(date.getTime())
+            ? '无效时间'
+            : date.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+        }
+
+        // Inline price formatting
+        const priceStr = Number.isFinite(order.executedPrice)
+          ? order.executedPrice.toFixed(3)
+          : 'N/A';
 
         logLines.push(
           `  [${index + 1}] 订单ID: ${order.orderId || 'N/A'}, ` +
@@ -200,10 +186,13 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
             `数量: ${order.executedQuantity}, ` +
             `成交时间: ${timeStr}`,
         );
-      });
+      }
 
+      const avgPriceStr = Number.isFinite(stats.averagePrice)
+        ? stats.averagePrice.toFixed(3)
+        : 'N/A';
       logLines.push(
-        `  统计: 总数量=${stats.totalQuantity}, 平均价格=${formatPrice(stats.averagePrice)}`,
+        `  统计: 总数量=${stats.totalQuantity}, 平均价格=${avgPriceStr}`,
       );
     } else {
       logLines.push('  当前无订单记录');

@@ -103,3 +103,14 @@ export const VALID_SIGNAL_ACTIONS = new Set<SignalType>([
   SIGNAL_ACTIONS.BUYPUT,
   SIGNAL_ACTIONS.SELLPUT,
 ]);
+
+/**
+ * 信号操作描述映射
+ */
+export const ACTION_DESCRIPTIONS: Record<SignalType, string> = {
+  BUYCALL: '买入做多',
+  BUYPUT: '买入做空',
+  SELLCALL: '卖出做多',
+  SELLPUT: '卖出做空',
+  HOLD: '持有',
+};

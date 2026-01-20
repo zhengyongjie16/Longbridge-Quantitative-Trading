@@ -16,6 +16,7 @@
 
 import type { SignalType } from '../../types/index.js';
 import { inspect } from 'node:util';
+import { Decimal } from 'longport';
 import { TIME } from '../../constants/index.js';
 import type { DecimalLike } from './types.js';
 import { logger } from '../logger/index.js';
@@ -88,6 +89,21 @@ export function normalizeHKSymbol(symbol: string | null | undefined): string {
   }
   // 否则添加 .HK 后缀
   return `${symbol}.HK`;
+}
+
+/**
+ * 将值转换为 LongPort Decimal 类型
+ * @param value 要转换的值（number、string 或已存在的 Decimal）
+ * @returns Decimal 对象，如果值无效则返回 Decimal.ZERO()
+ */
+export function toDecimal(value: unknown): Decimal {
+  if (value instanceof Decimal) {
+    return value;
+  }
+  if (typeof value === 'number' || typeof value === 'string') {
+    return new Decimal(value);
+  }
+  return Decimal.ZERO();
 }
 
 /**
