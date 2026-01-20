@@ -1,20 +1,20 @@
 /**
- * TradeTaskQueue 实现
- * 缓冲待处理的常规交易任务，支持 FIFO 顺序处理
+ * SellTaskQueue 实现
+ * 缓冲待处理的卖出交易任务，支持 FIFO 顺序处理
  */
 
 import { randomUUID } from 'node:crypto';
-import type { TradeTask, TradeTaskQueue, TaskAddedCallback } from './types.js';
+import type { SellTask, SellTaskQueue, SellTaskAddedCallback } from './types.js';
 
 // 导出类型
-export type { TradeTask, TaskType, TradeTaskQueue, TaskAddedCallback } from './types.js';
+export type { SellTask, SellTaskType, SellTaskQueue, SellTaskAddedCallback } from './types.js';
 
 /**
- * 创建交易任务队列
+ * 创建卖出任务队列
  */
-export const createTradeTaskQueue = (): TradeTaskQueue => {
-  const queue: TradeTask[] = [];
-  const callbacks: TaskAddedCallback[] = [];
+export const createSellTaskQueue = (): SellTaskQueue => {
+  const queue: SellTask[] = [];
+  const callbacks: SellTaskAddedCallback[] = [];
 
   const notifyCallbacks = (): void => {
     for (const callback of callbacks) {
@@ -23,8 +23,8 @@ export const createTradeTaskQueue = (): TradeTaskQueue => {
   };
 
   return {
-    push(task: Omit<TradeTask, 'id' | 'createdAt'>): void {
-      const fullTask: TradeTask = {
+    push(task: Omit<SellTask, 'id' | 'createdAt'>): void {
+      const fullTask: SellTask = {
         id: randomUUID(),
         type: task.type,
         data: task.data,
@@ -35,11 +35,11 @@ export const createTradeTaskQueue = (): TradeTaskQueue => {
       notifyCallbacks();
     },
 
-    pop(): TradeTask | null {
+    pop(): SellTask | null {
       return queue.shift() ?? null;
     },
 
-    peek(): TradeTask | null {
+    peek(): SellTask | null {
       return queue[0] ?? null;
     },
 
@@ -55,7 +55,7 @@ export const createTradeTaskQueue = (): TradeTaskQueue => {
       queue.length = 0;
     },
 
-    onTaskAdded(callback: TaskAddedCallback): void {
+    onTaskAdded(callback: SellTaskAddedCallback): void {
       callbacks.push(callback);
     },
   };

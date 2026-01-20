@@ -27,6 +27,7 @@ src/
 │   ├── types.ts            # core模块中的公共类型
 │   ├── utils.ts            # core模块中的公共函数
 │   └── risk/               # 风险检查模块（示例）
+│        ├── index.ts       # 风险检查模块逻辑
 │        ├── types.ts       # 风险检查模块独享类型
 │        └── utils.ts       # 风险检查模块独享工具函数
 ├── utils/                  # 公共工具模块（包含主index的公共函数）

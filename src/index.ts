@@ -59,9 +59,11 @@ import { createSignalProcessor } from './core/signalProcessor/index.js';
 
 // 导入重构后的新架构模块
 import { createIndicatorCache, type IndicatorCache } from './program/indicatorCache/index.js';
-import { createTradeTaskQueue, type TradeTaskQueue } from './program/tradeTaskQueue/index.js';
+import { createBuyTaskQueue, type BuyTaskQueue } from './program/buyTaskQueue/index.js';
+import { createSellTaskQueue, type SellTaskQueue } from './program/sellTaskQueue/index.js';
 import { createDelayedSignalVerifier } from './program/delayedSignalVerifier/index.js';
-import { createTradeProcessor, type TradeProcessor } from './program/tradeProcessor/index.js';
+import { createBuyProcessor, type BuyProcessor } from './program/buyProcessor/index.js';
+import { createSellProcessor, type SellProcessor } from './program/sellProcessor/index.js';
 import type {
   CandleData,
   Signal,
@@ -96,8 +98,10 @@ interface RunOnceContext {
   monitorContexts: Map<string, MonitorContext>;
   // 新架构模块
   indicatorCache: IndicatorCache;
-  tradeTaskQueue: TradeTaskQueue;
-  tradeProcessor: TradeProcessor;
+  buyTaskQueue: BuyTaskQueue;
+  sellTaskQueue: SellTaskQueue;
+  buyProcessor: BuyProcessor;
+  sellProcessor: SellProcessor;
 }
 
 
@@ -264,7 +268,8 @@ async function processMonitor(
     canTradeNow: boolean;
     // 新架构模块
     indicatorCache: IndicatorCache;
-    tradeTaskQueue: TradeTaskQueue;
+    buyTaskQueue: BuyTaskQueue;
+    sellTaskQueue: SellTaskQueue;
   },
   quotesMap: ReadonlyMap<string, Quote | null>,
 ): Promise<void> {
@@ -276,7 +281,8 @@ async function processMonitor(
     marketMonitor,
     canTradeNow,
     indicatorCache,
-    tradeTaskQueue,
+    buyTaskQueue,
+    sellTaskQueue,
   } = context;
   // 使用各自监控标的独立的延迟信号验证器（每个监控标的使用各自的验证配置）
   const { config, state, strategy, orderRecorder, riskChecker, unrealizedLossMonitor, delayedSignalVerifier } = monitorContext;
@@ -397,7 +403,7 @@ async function processMonitor(
       }
     };
 
-    // 7. 信号分流：立即信号 → TaskQueue，延迟信号 → DelayedSignalVerifier
+    // 7. 信号分流：立即信号 → TaskQueue/SellTaskQueue，延迟信号 → DelayedSignalVerifier
     // 处理立即信号
     for (const signal of immediateSignals) {
       // 验证信号有效性
@@ -418,11 +424,25 @@ async function processMonitor(
       // 只在交易时段才推入任务队列
       if (canTradeNow) {
         logger.info(`[立即信号] ${formatSignalLog(signal)}`);
-        tradeTaskQueue.push({
-          type: 'IMMEDIATE_SIGNAL',
-          data: signal,
-          monitorSymbol: MONITOR_SYMBOL,
-        });
+
+        // 根据信号类型分流到不同队列
+        const isSellSignal = signal.action === 'SELLCALL' || signal.action === 'SELLPUT';
+
+        if (isSellSignal) {
+          // 卖出信号 → SellTaskQueue（独立队列，不被买入阻塞）
+          sellTaskQueue.push({
+            type: 'IMMEDIATE_SELL',
+            data: signal,
+            monitorSymbol: MONITOR_SYMBOL,
+          });
+        } else {
+          // 买入信号 → BuyTaskQueue
+          buyTaskQueue.push({
+            type: 'IMMEDIATE_BUY',
+            data: signal,
+            monitorSymbol: MONITOR_SYMBOL,
+          });
+        }
       } else {
         logger.info(`[立即信号] ${formatSignalLog(signal)}（非交易时段，暂不执行）`);
         signalObjectPool.release(signal);
@@ -488,9 +508,11 @@ async function runOnce({
   signalProcessor,
   monitorContexts,
   indicatorCache,
-  tradeTaskQueue,
-  // TradeProcessor 是自动运行的（通过 start()），不需要在 runOnce 中显式调用
-  tradeProcessor: _tradeProcessor,
+  buyTaskQueue,
+  sellTaskQueue,
+  // BuyProcessor 和 SellProcessor 是自动运行的（通过 start()），不需要在 runOnce 中显式调用
+  buyProcessor: _buyProcessor,
+  sellProcessor: _sellProcessor,
 }: RunOnceContext): Promise<void> {
   // 使用缓存的账户和持仓信息（仅在交易后更新）
   const positions = lastState.cachedPositions ?? [];
@@ -634,7 +656,8 @@ async function runOnce({
         canTradeNow,
         // 新架构模块
         indicatorCache,
-        tradeTaskQueue,
+        buyTaskQueue,
+        sellTaskQueue,
       }, quotesMap).catch((err: unknown) => {
         logger.error(`处理监控标的 ${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)} 失败`, formatError(err));
       }),
@@ -848,7 +871,8 @@ async function main(): Promise<void> {
   );
   const indicatorCacheMaxEntries = maxDelaySeconds + 15 + 10;
   const indicatorCache = createIndicatorCache({ maxEntries: indicatorCacheMaxEntries });
-  const tradeTaskQueue = createTradeTaskQueue();
+  const buyTaskQueue = createBuyTaskQueue();
+  const sellTaskQueue = createSellTaskQueue();
 
   // 初始化监控标的上下文
   // 首先批量获取所有标的行情（用于获取标的名称，减少 API 调用次数）
@@ -968,17 +992,31 @@ async function main(): Promise<void> {
   // orderMonitor.recoverTrackedOrders() 会自动查询并恢复所有未完成订单的追踪
 
   // 为每个监控标的的 DelayedSignalVerifier 注册回调
-  // 验证通过后将信号推入 TradeTaskQueue
+  // 验证通过后根据信号类型分流到不同队列
   for (const [monitorSymbol, monitorContext] of monitorContexts) {
     const { delayedSignalVerifier } = monitorContext;
 
     delayedSignalVerifier.onVerified((signal, signalMonitorSymbol) => {
       logger.info(`[延迟验证通过] 信号推入任务队列: ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${signal.action}`);
-      tradeTaskQueue.push({
-        type: 'VERIFIED_SIGNAL',
-        data: signal,
-        monitorSymbol: signalMonitorSymbol,
-      });
+
+      // 根据信号类型分流到不同队列
+      const isSellSignal = signal.action === 'SELLCALL' || signal.action === 'SELLPUT';
+
+      if (isSellSignal) {
+        // 卖出信号 → SellTaskQueue（独立队列，不被买入阻塞）
+        sellTaskQueue.push({
+          type: 'VERIFIED_SELL',
+          data: signal,
+          monitorSymbol: signalMonitorSymbol,
+        });
+      } else {
+        // 买入信号 → BuyTaskQueue
+        buyTaskQueue.push({
+          type: 'VERIFIED_BUY',
+          data: signal,
+          monitorSymbol: signalMonitorSymbol,
+        });
+      }
     });
 
     delayedSignalVerifier.onRejected((signal, _signalMonitorSymbol, reason) => {
@@ -989,9 +1027,9 @@ async function main(): Promise<void> {
     logger.debug(`[DelayedSignalVerifier] 监控标的 ${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)} 的验证器已初始化`);
   }
 
-  // 创建 TradeProcessor
-  const tradeProcessor = createTradeProcessor({
-    taskQueue: tradeTaskQueue,
+  // 创建 BuyProcessor（处理买入信号）
+  const buyProcessor = createBuyProcessor({
+    taskQueue: buyTaskQueue,
     getMonitorContext: (monitorSymbol: string) => monitorContexts.get(monitorSymbol),
     signalProcessor,
     trader,
@@ -1000,15 +1038,27 @@ async function main(): Promise<void> {
     getIsHalfDay: () => lastState.isHalfDay ?? false,
   });
 
-  // 启动 TradeProcessor
-  tradeProcessor.start();
-  logger.info('[TradeProcessor] 交易处理器已启动');
+  // 创建 SellProcessor（处理卖出信号）
+  const sellProcessor = createSellProcessor({
+    taskQueue: sellTaskQueue,
+    getMonitorContext: (monitorSymbol: string) => monitorContexts.get(monitorSymbol),
+    signalProcessor,
+    trader,
+    getLastState: () => lastState,
+  });
+
+  // 启动 BuyProcessor 和 SellProcessor
+  buyProcessor.start();
+  sellProcessor.start();
+  logger.info('[BuyProcessor] 买入处理器已启动');
+  logger.info('[SellProcessor] 卖出处理器已启动');
 
   // 注册退出处理函数，确保程序退出时释放所有对象池对象
   const cleanup = (): void => {
     logger.info('程序退出，正在清理资源...');
-    // 停止 TradeProcessor
-    tradeProcessor.stop();
+    // 停止 BuyProcessor 和 SellProcessor
+    buyProcessor.stop();
+    sellProcessor.stop();
     // 销毁所有监控标的的 DelayedSignalVerifier
     for (const monitorContext of monitorContexts.values()) {
       monitorContext.delayedSignalVerifier.destroy();
@@ -1041,8 +1091,10 @@ async function main(): Promise<void> {
         monitorContexts,
         // 新架构模块
         indicatorCache,
-        tradeTaskQueue,
-        tradeProcessor,
+        buyTaskQueue,
+        sellTaskQueue,
+        buyProcessor,
+        sellProcessor,
       });
     } catch (err) {
       logger.error('本次执行失败', formatError(err));
