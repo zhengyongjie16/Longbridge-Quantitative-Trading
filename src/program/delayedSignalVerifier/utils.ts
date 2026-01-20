@@ -68,7 +68,14 @@ const verifyTimePoint = (
     }
 
     const passed = isUptrend ? currentValue! > initialValue : currentValue! < initialValue;
-    const symbol = passed ? (isUptrend ? '>' : '<') : (isUptrend ? '<=' : '>=');
+
+    // 根据趋势方向和验证结果确定比较符号
+    let symbol: string;
+    if (passed) {
+      symbol = isUptrend ? '>' : '<';
+    } else {
+      symbol = isUptrend ? '<=' : '>=';
+    }
 
     details.push(`${name}=${currentValue!.toFixed(3)}${symbol}${initialValue.toFixed(3)}`);
 

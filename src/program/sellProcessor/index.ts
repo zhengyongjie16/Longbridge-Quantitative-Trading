@@ -155,7 +155,10 @@ export const createSellProcessor = (deps: SellProcessorDeps): SellProcessor => {
     immediateHandle = setImmediate(() => {
       if (!running) return;
 
-      if (!taskQueue.isEmpty()) {
+      if (taskQueue.isEmpty()) {
+        // 队列已空，停止调度（等待 onTaskAdded 回调触发重新调度）
+        immediateHandle = null;
+      } else {
         processQueue()
           .catch((err) => {
             logger.error('[SellProcessor] 处理队列时发生错误', formatError(err));
@@ -163,9 +166,6 @@ export const createSellProcessor = (deps: SellProcessorDeps): SellProcessor => {
           .finally(() => {
             scheduleNextProcess();
           });
-      } else {
-        // 队列已空，停止调度（等待 onTaskAdded 回调触发重新调度）
-        immediateHandle = null;
       }
     });
   };
