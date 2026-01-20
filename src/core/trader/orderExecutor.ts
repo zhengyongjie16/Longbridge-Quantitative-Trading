@@ -375,7 +375,8 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
       status: 'FAILED',
       error: errorMessage,
       reason: signal.reason || '策略信号',
-      signalTriggerTime: signal.signalTriggerTime || null,
+      // 优先使用 triggerTime，兼容旧的 signalTriggerTime
+      signalTriggerTime: signal.triggerTime || signal.signalTriggerTime || null,
     });
   };
 
@@ -494,7 +495,8 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
         orderType: actualOrderType === OrderType.MO ? '市价单' : '限价单',
         status: 'SUBMITTED',
         reason: signal.reason || '策略信号',
-        signalTriggerTime: signal.signalTriggerTime || null,
+        // 优先使用 triggerTime，兼容旧的 signalTriggerTime
+        signalTriggerTime: signal.triggerTime || signal.signalTriggerTime || null,
       });
     } catch (err) {
       handleSubmitError(err, signal, orderPayload, side, isShortSymbol, actualOrderType);

@@ -17,9 +17,16 @@ export type PoolableSignal = {
   price?: number | null;
   lotSize?: number | null;
   quantity?: number | null;
+  /**
+   * 信号触发时间（统一使用此字段）
+   * - 立即信号：信号生成时间
+   * - 延迟信号：延迟验证的基准时间（T0）
+   * - 末日保护信号：信号生成时间
+   */
   triggerTime?: Date | null;
   indicators1?: Record<string, number> | null;
   verificationHistory?: VerificationEntry[] | null;
+  /** @deprecated 已废弃，请使用 triggerTime */
   signalTriggerTime?: Date | null;
 };
 

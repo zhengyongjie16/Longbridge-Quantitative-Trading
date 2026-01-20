@@ -51,7 +51,7 @@ const createClearanceSignal = (params: ClearanceSignalParams): Signal | null => 
   signal.reason = `末日保护程序：收盘前5分钟自动清仓（${positionType}持仓）`;
   signal.price = price;
   signal.lotSize = lotSize;
-  signal.signalTriggerTime = new Date();
+  signal.triggerTime = new Date(); // 末日保护信号的触发时间为当前时间
 
   return signal;
 };
