@@ -84,9 +84,9 @@ export const MONITOR = {
 } as const;
 
 /**
- * 信号类型常量
+ * 信号类型常量（内部使用，不导出）
  */
-export const SIGNAL_ACTIONS = {
+const SIGNAL_ACTIONS = {
   BUYCALL: 'BUYCALL',
   SELLCALL: 'SELLCALL',
   BUYPUT: 'BUYPUT',
@@ -103,15 +103,3 @@ export const VALID_SIGNAL_ACTIONS = new Set<SignalType>([
   SIGNAL_ACTIONS.BUYPUT,
   SIGNAL_ACTIONS.SELLPUT,
 ]);
-
-/**
- * 信号目标操作映射（简化版，用于日志显示）
- * 将信号类型映射到交易操作（买入/卖出）
- */
-export const SIGNAL_TARGET_ACTIONS: Record<SignalType, string> = {
-  BUYCALL: '买入',
-  SELLCALL: '卖出',
-  BUYPUT: '买入',
-  SELLPUT: '卖出',
-  HOLD: '',
-};

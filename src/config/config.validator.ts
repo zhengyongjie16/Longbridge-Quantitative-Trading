@@ -16,9 +16,9 @@ import { formatSymbolDisplay, normalizeHKSymbol, formatError } from '../utils/he
 import { formatSignalConfig } from '../utils/helpers/signalConfigParser.js';
 
 /**
- * 配置验证错误类型
+ * 配置验证错误类型（内部使用，不导出）
  */
-export type ConfigValidationError = Error & {
+type ConfigValidationError = Error & {
   readonly name: 'ConfigValidationError';
   readonly missingFields: ReadonlyArray<string>;
 };
@@ -286,27 +286,26 @@ function validateTradingConfig(): TradingValidationResult {
   }
 
   // 验证每个监控标的的配置
-  for (let i = 0; i < MULTI_MONITOR_TRADING_CONFIG.monitors.length; i++) {
-    const config = MULTI_MONITOR_TRADING_CONFIG.monitors[i];
+  for (const config of MULTI_MONITOR_TRADING_CONFIG.monitors) {
     if (!config) {
       continue;
     }
-    const index = i + 1; // 索引从1开始（对应环境变量的 _1, _2 等）
-    const result = validateMonitorConfig(config, index);
+    // 使用配置中保存的原始索引（对应环境变量的 _1, _2 等后缀）
+    const result = validateMonitorConfig(config, config.originalIndex);
     errors.push(...result.errors);
     missingFields.push(...result.missingFields);
   }
 
   // 检测重复的交易标的（不允许多个监控标的使用相同的交易标的）
-  const tradingSymbols = new Map<string, number>(); // symbol -> monitorIndex
+  const tradingSymbols = new Map<string, number>(); // symbol -> originalIndex
   const duplicateSymbols: Array<{ symbol: string; index: number; previousIndex: number }> = [];
 
-  for (let i = 0; i < MULTI_MONITOR_TRADING_CONFIG.monitors.length; i++) {
-    const config = MULTI_MONITOR_TRADING_CONFIG.monitors[i];
+  for (const config of MULTI_MONITOR_TRADING_CONFIG.monitors) {
     if (!config) {
       continue;
     }
-    const index = i + 1;
+    // 使用配置中保存的原始索引
+    const index = config.originalIndex;
 
     // 统一规范化，避免 "12345" 与 "12345.HK" 这种形式绕过重复检测
     const normalizedLongSymbol = normalizeHKSymbol(config.longSymbol.trim());
@@ -407,14 +406,15 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
   const allSymbols: string[] = [];
   const allSymbolLabels: string[] = [];
   const allRequireLotSizeFlags: boolean[] = [];
+  // 使用原始索引作为键（而非数组索引），确保跳过配置时索引正确
   const symbolIndexMap = new Map<number, { monitorIndex: number; longIndex: number; shortIndex: number }>();
 
-  for (let i = 0; i < MULTI_MONITOR_TRADING_CONFIG.monitors.length; i++) {
-    const monitorConfig = MULTI_MONITOR_TRADING_CONFIG.monitors[i];
+  for (const monitorConfig of MULTI_MONITOR_TRADING_CONFIG.monitors) {
     if (!monitorConfig) {
       continue;
     }
-    const index = i + 1;
+    // 使用配置中保存的原始索引
+    const index = monitorConfig.originalIndex;
 
     // 记录每个监控标的的三个标的在批量数组中的索引位置
     const monitorIndex = allSymbols.length;
@@ -432,7 +432,8 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
     allSymbolLabels.push(`做空标的 ${index}`);
     allRequireLotSizeFlags.push(true); // 交易标的需要 lotSize
 
-    symbolIndexMap.set(i, { monitorIndex, longIndex, shortIndex });
+    // 使用原始索引作为键
+    symbolIndexMap.set(index, { monitorIndex, longIndex, shortIndex });
   }
 
   // 创建行情客户端（传入需要订阅的标的列表，自动初始化 WebSocket 订阅）
@@ -446,8 +447,12 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
   const allValidationResults = await validateSymbolsBatch(marketDataClient, allSymbols, allSymbolLabels, allRequireLotSizeFlags);
 
   // 将验证结果分配到各个监控标的
-  for (let i = 0; i < MULTI_MONITOR_TRADING_CONFIG.monitors.length; i++) {
-    const indices = symbolIndexMap.get(i);
+  for (const monitorConfig of MULTI_MONITOR_TRADING_CONFIG.monitors) {
+    if (!monitorConfig) {
+      continue;
+    }
+    // 使用原始索引作为键查找
+    const indices = symbolIndexMap.get(monitorConfig.originalIndex);
     if (!indices) {
       continue;
     }
@@ -460,10 +465,10 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
       continue;
     }
 
-    // 存储每个监控标的的验证结果（使用索引区分不同监控标的）
-    symbolValidationResults.set(`monitor_${i}`, monitorValid);
-    symbolValidationResults.set(`long_${i}`, longValid);
-    symbolValidationResults.set(`short_${i}`, shortValid);
+    // 存储每个监控标的的验证结果（使用原始索引区分不同监控标的）
+    symbolValidationResults.set(`monitor_${monitorConfig.originalIndex}`, monitorValid);
+    symbolValidationResults.set(`long_${monitorConfig.originalIndex}`, longValid);
+    symbolValidationResults.set(`short_${monitorConfig.originalIndex}`, shortValid);
 
     // 收集所有错误
     if (!monitorValid.valid && monitorValid.error) {
@@ -503,17 +508,17 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
   logger.info(`监控标的数量: ${MULTI_MONITOR_TRADING_CONFIG.monitors.length}`);
 
   // 显示所有监控标的的配置
-  for (let i = 0; i < MULTI_MONITOR_TRADING_CONFIG.monitors.length; i++) {
-    const monitorConfig = MULTI_MONITOR_TRADING_CONFIG.monitors[i];
+  for (const monitorConfig of MULTI_MONITOR_TRADING_CONFIG.monitors) {
     if (!monitorConfig) {
       continue;
     }
-    const index = i + 1;
+    // 使用原始索引
+    const index = monitorConfig.originalIndex;
 
-    // 为每个监控标的获取标的名称（从验证结果中获取）
-    const monitorResult = symbolValidationResults.get(`monitor_${i}`);
-    const longResult = symbolValidationResults.get(`long_${i}`);
-    const shortResult = symbolValidationResults.get(`short_${i}`);
+    // 为每个监控标的获取标的名称（从验证结果中获取，使用原始索引）
+    const monitorResult = symbolValidationResults.get(`monitor_${index}`);
+    const longResult = symbolValidationResults.get(`long_${index}`);
+    const shortResult = symbolValidationResults.get(`short_${index}`);
     const monitorName = monitorResult?.name ?? null;
     const longName = longResult?.name ?? null;
     const shortName = shortResult?.name ?? null;

@@ -324,14 +324,17 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     const errorMessage = formatError(err);
     const errorType = identifyErrorType(errorMessage);
 
+    // 格式化标的显示（用于错误日志）
+    const symbolDisplayForError = formatSymbolDisplay(orderPayload.symbol, signal.symbolName ?? null);
+
     // 根据错误类型进行针对性处理
     if (errorType.isShortSellingNotSupported) {
       logger.error(
-        `[订单提交失败] ${actionDesc} ${orderPayload.symbol} 失败：该标的不支持做空交易`,
+        `[订单提交失败] ${actionDesc} ${symbolDisplayForError} 失败：该标的不支持做空交易`,
         errorMessage,
       );
       logger.warn(
-        `[做空错误提示] 标的 ${orderPayload.symbol} 不支持做空交易。可能的原因：\n` +
+        `[做空错误提示] 标的 ${symbolDisplayForError} 不支持做空交易。可能的原因：\n` +
           '  1. 该标的在港股市场不支持做空\n' +
           '  2. 账户没有做空权限\n' +
           '  3. 需要更换其他支持做空的标的\n' +
@@ -339,22 +342,22 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
       );
     } else if (errorType.isInsufficientFunds) {
       logger.error(
-        `[订单提交失败] ${actionDesc} ${orderPayload.symbol} 失败：账户资金不足`,
+        `[订单提交失败] ${actionDesc} ${symbolDisplayForError} 失败：账户资金不足`,
         errorMessage,
       );
     } else if (errorType.isNetworkError) {
       logger.error(
-        `[订单提交失败] ${actionDesc} ${orderPayload.symbol} 失败：网络异常，请检查连接`,
+        `[订单提交失败] ${actionDesc} ${symbolDisplayForError} 失败：网络异常，请检查连接`,
         errorMessage,
       );
     } else if (errorType.isRateLimited) {
       logger.error(
-        `[订单提交失败] ${actionDesc} ${orderPayload.symbol} 失败：API 调用频率超限`,
+        `[订单提交失败] ${actionDesc} ${symbolDisplayForError} 失败：API 调用频率超限`,
         errorMessage,
       );
     } else {
       logger.error(
-        `[订单提交失败] ${actionDesc} ${orderPayload.symbol} 失败：`,
+        `[订单提交失败] ${actionDesc} ${symbolDisplayForError} 失败：`,
         errorMessage,
       );
     }
@@ -396,9 +399,12 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
 
     const resolvedPrice = overridePrice ?? signal?.price ?? null;
 
+    // 格式化标的显示（用于日志）
+    const symbolDisplayForLog = formatSymbolDisplay(symbol, signal.symbolName ?? null);
+
     // 市价单不需要价格
     if (actualOrderType === OrderType.MO) {
-      logger.info(`[订单类型] 使用市价单(MO)，标的=${symbol}`);
+      logger.info(`[订单类型] 使用市价单(MO)，标的=${symbolDisplayForLog}`);
     } else if (
       actualOrderType === OrderType.LO ||
       actualOrderType === OrderType.ELO ||
@@ -407,7 +413,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     ) {
       if (!resolvedPrice) {
         logger.warn(
-          `[跳过订单] ${symbol} 的限价单缺少价格，无法提交。请确保信号中包含价格信息`,
+          `[跳过订单] ${symbolDisplayForLog} 的限价单缺少价格，无法提交。请确保信号中包含价格信息`,
         );
         return;
       }
@@ -422,7 +428,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
         orderTypeName = 'SLO';
       }
       logger.info(
-        `[订单类型] 使用限价单(${orderTypeName})，标的=${symbol}，价格=${resolvedPrice}`,
+        `[订单类型] 使用限价单(${orderTypeName})，标的=${symbolDisplayForLog}，价格=${resolvedPrice}`,
       );
     }
 
@@ -609,8 +615,11 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
         continue;
       }
 
+      // 缓存格式化后的信号标的显示（用于早期退出的日志）
+      const signalSymbolDisplay = formatSymbolDisplay(s.symbol, s.symbolName ?? null);
+
       if (s.action === 'HOLD') {
-        logger.info(`[HOLD] ${s.symbol} - ${s.reason || '持有'}`);
+        logger.info(`[HOLD] ${signalSymbolDisplay} - ${s.reason || '持有'}`);
         continue;
       }
 
@@ -618,7 +627,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
       const validActions = ['BUYCALL', 'SELLCALL', 'BUYPUT', 'SELLPUT'];
       if (!validActions.includes(s.action)) {
         logger.warn(
-          `[跳过信号] 未知的信号类型: ${s.action}, 标的: ${s.symbol}`,
+          `[跳过信号] 未知的信号类型: ${s.action}, 标的: ${signalSymbolDisplay}`,
         );
         continue;
       }
@@ -627,7 +636,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
       const monitorConfig = findMonitorConfigBySymbol(s.symbol);
       if (!monitorConfig) {
         logger.warn(
-          `[跳过信号] 无法找到信号标的 ${s.symbol} 对应的监控配置`,
+          `[跳过信号] 无法找到信号标的 ${signalSymbolDisplay} 对应的监控配置`,
         );
         continue;
       }

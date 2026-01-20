@@ -275,13 +275,18 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
   };
 
   /**
-   * 根据当前价格获取做多标的或做空标的中买入价低于当前价的订单
+   * 根据当前价格获取指定标的中买入价低于当前价的订单
+   *
+   * @param currentPrice 当前价格
+   * @param direction 方向（LONG 或 SHORT）
+   * @param symbol 标的代码（必须指定，用于多标的场景下精确查询）
    */
   const getBuyOrdersBelowPrice = (
     currentPrice: number,
     direction: 'LONG' | 'SHORT',
+    symbol: string,
   ): OrderRecord[] => {
-    return storage.getBuyOrdersBelowPrice(currentPrice, direction);
+    return storage.getBuyOrdersBelowPrice(currentPrice, direction, symbol);
   };
 
   /**
@@ -430,13 +435,11 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
 
   /**
    * 获取指定标的的买入订单列表（公共方法）
+   * 使用 O(1) 查找性能，直接从 Map 获取
    */
   const getBuyOrdersForSymbol = (symbol: string, isLongSymbol: boolean): OrderRecord[] => {
     const normalizedSymbol = normalizeHKSymbol(symbol);
-    const orders = isLongSymbol
-      ? storage.getLongBuyOrders()
-      : storage.getShortBuyOrders();
-    return orders.filter((o) => o.symbol === normalizedSymbol);
+    return storage.getBuyOrdersList(normalizedSymbol, isLongSymbol);
   };
 
   return {

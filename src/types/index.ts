@@ -256,6 +256,8 @@ export type SignalConfigSet = {
  * 单个监控标的的完整配置
  */
 export type MonitorConfig = {
+  /** 原始环境变量索引（对应 _1, _2 等后缀），用于错误提示 */
+  readonly originalIndex: number;
   readonly monitorSymbol: string;
   readonly longSymbol: string;
   readonly shortSymbol: string;
@@ -385,9 +387,10 @@ export type MonitorContext = {
   readonly state: MonitorState;
   readonly strategy: import('../core/strategy/types.js').HangSengMultiIndicatorStrategy;
   readonly orderRecorder: OrderRecorder;
-  readonly signalVerificationManager: import('../core/signalVerification/types.js').SignalVerificationManager;
   readonly riskChecker: RiskChecker;
   readonly unrealizedLossMonitor: import('../core/unrealizedLossMonitor/types.js').UnrealizedLossMonitor;
+  /** 延迟信号验证器（每个监控标的独立，使用各自的验证配置） */
+  readonly delayedSignalVerifier: import('../program/delayedSignalVerifier/types.js').DelayedSignalVerifier;
   // 缓存标的名称（初始化时获取一次，避免每次循环重复获取）
   longSymbolName: string;
   shortSymbolName: string;
@@ -399,6 +402,11 @@ export type MonitorContext = {
   // 缓存指标周期配置（避免每次循环重复提取）
   rsiPeriods: number[];
   emaPeriods: number[];
+  // 缓存的行情数据（主循环每秒更新，供 TradeProcessor 使用）
+  longQuote: Quote | null;
+  shortQuote: Quote | null;
+  monitorQuote: Quote | null;
+  // 注意：持仓数据通过 lastState.positionCache 获取，不在 MonitorContext 中缓存
 };
 
 // ==================== 核心服务接口 ====================
@@ -503,7 +511,7 @@ export interface OrderRecorder {
   recordLocalSell(symbol: string, executedPrice: number, executedQuantity: number, isLongSymbol: boolean): void;
   clearBuyOrders(symbol: string, isLongSymbol: boolean, quote?: Quote | null): void;
   getLatestBuyOrderPrice(symbol: string, isLongSymbol: boolean): number | null;
-  getBuyOrdersBelowPrice(currentPrice: number, direction: 'LONG' | 'SHORT'): OrderRecord[];
+  getBuyOrdersBelowPrice(currentPrice: number, direction: 'LONG' | 'SHORT', symbol: string): OrderRecord[];
   calculateTotalQuantity(orders: OrderRecord[]): number;
   fetchOrdersFromAPI(symbol: string): Promise<FetchOrdersResult>;
   refreshOrders(symbol: string, isLongSymbol: boolean, quote?: Quote | null): Promise<OrderRecord[]>;
@@ -651,6 +659,8 @@ export interface RiskChecker {
     marketDataClient: MarketDataClient,
     longSymbol: string,
     shortSymbol: string,
+    longSymbolName?: string | null,
+    shortSymbolName?: string | null,
   ): Promise<void>;
   checkBeforeOrder(
     account: AccountSnapshot | null,

@@ -54,6 +54,8 @@ export interface WarrantRiskChecker {
     marketDataClient: MarketDataClient,
     longSymbol: string,
     shortSymbol: string,
+    longSymbolName?: string | null,
+    shortSymbolName?: string | null,
   ): Promise<void>;
   checkRisk(
     symbol: string,

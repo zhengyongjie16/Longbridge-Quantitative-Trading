@@ -77,6 +77,14 @@ function formatPriceComparison(
  *
  * 卖出策略规则（智能平仓关闭时）：
  * 直接清仓所有持仓，不检查成本价
+ *
+ * @param position 持仓信息
+ * @param quote 行情数据
+ * @param orderRecorder 订单记录器
+ * @param direction 方向（LONG 或 SHORT）
+ * @param originalReason 原始原因
+ * @param smartCloseEnabled 是否启用智能平仓
+ * @param symbol 标的代码（必须指定，用于多标的场景下精确筛选订单记录）
  */
 function calculateSellQuantity(
   position: Position | null,
@@ -84,7 +92,8 @@ function calculateSellQuantity(
   orderRecorder: OrderRecorder | null,
   direction: 'LONG' | 'SHORT',
   originalReason: string,
-  smartCloseEnabled: boolean = true,
+  smartCloseEnabled: boolean,
+  symbol: string,
 ): SellQuantityResult {
   const reason = originalReason || '';
   const directionName = getDirectionName(direction === 'LONG');
@@ -131,8 +140,9 @@ function calculateSellQuantity(
     };
   }
 
-  // 根据方向获取符合条件的买入订单
-  const buyOrdersBelowPrice = orderRecorder.getBuyOrdersBelowPrice(currentPrice, direction);
+  // 根据方向和标的获取符合条件的买入订单
+  // 传入 symbol 参数以精确筛选，避免多标的支持时的混淆
+  const buyOrdersBelowPrice = orderRecorder.getBuyOrdersBelowPrice(currentPrice, direction, symbol);
 
   if (!buyOrdersBelowPrice || buyOrdersBelowPrice.length === 0) {
     return {
@@ -241,6 +251,7 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
         }
       } else {
         // 正常卖出信号：根据智能平仓配置进行成本价判断
+        // 传入 sig.symbol 以精确筛选订单记录（多标的支持）
         const result = calculateSellQuantity(
           position,
           quote,
@@ -248,6 +259,7 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
           direction,
           sig.reason || '',
           smartCloseEnabled,
+          sig.symbol,
         );
         if (result.shouldHold) {
           logger.info(`[卖出信号处理] ${signalName}被跳过: ${result.reason}`);

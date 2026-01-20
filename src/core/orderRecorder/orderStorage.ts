@@ -179,11 +179,16 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
   };
 
   /**
-   * 根据当前价格获取做多标的或做空标的中买入价低于当前价的订单
+   * 根据当前价格获取指定标的中买入价低于当前价的订单
+   *
+   * @param currentPrice 当前价格
+   * @param direction 方向（LONG 或 SHORT）
+   * @param symbol 标的代码（必须指定，用于多标的场景下精确查询）
    */
   const getBuyOrdersBelowPrice = (
     currentPrice: number,
     direction: 'LONG' | 'SHORT',
+    symbol: string,
   ): OrderRecord[] => {
     if (!Number.isFinite(currentPrice) || currentPrice <= 0) {
       return [];
@@ -192,11 +197,9 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     const targetMap = direction === 'LONG' ? longBuyOrdersMap : shortBuyOrdersMap;
     const directionName = direction === 'LONG' ? '做多标的' : '做空标的';
 
-    // 从 Map 中获取所有订单
-    const allOrders: OrderRecord[] = [];
-    for (const orders of targetMap.values()) {
-      allOrders.push(...orders);
-    }
+    // 获取指定标的的订单（O(1) 查找）
+    const normalizedSymbol = normalizeHKSymbol(symbol);
+    const allOrders = targetMap.get(normalizedSymbol) ?? [];
 
     const filteredOrders = allOrders.filter(
       (order) =>
@@ -205,7 +208,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     );
 
     logger.debug(
-      `[根据订单记录过滤] ${directionName}，当前价格=${currentPrice}，当前订单=${JSON.stringify(
+      `[根据订单记录过滤] ${directionName} ${normalizedSymbol}，当前价格=${currentPrice}，当前订单=${JSON.stringify(
         allOrders,
       )}，过滤后订单=${JSON.stringify(filteredOrders)}`,
     );

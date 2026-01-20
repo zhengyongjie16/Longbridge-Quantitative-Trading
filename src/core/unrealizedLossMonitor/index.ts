@@ -19,7 +19,7 @@
  */
 
 import { logger } from '../../utils/logger/index.js';
-import { isValidPositiveNumber, formatError } from '../../utils/helpers/index.js';
+import { isValidPositiveNumber, formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import type { Quote, Signal, RiskChecker, Trader, OrderRecorder } from '../../types/index.js';
 import type { UnrealizedLossMonitor, UnrealizedLossMonitorDeps } from './types.js';
@@ -101,8 +101,9 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
       return true; // 清仓成功
     } catch (err) {
       const direction = isLong ? '做多标的' : '做空标的';
+      const symbolDisplay = formatSymbolDisplay(symbol, quote?.name ?? null);
       logger.error(
-        `[保护性清仓失败] ${direction} ${symbol}`,
+        `[保护性清仓失败] ${direction} ${symbolDisplay}`,
         formatError(err),
       );
       return false;

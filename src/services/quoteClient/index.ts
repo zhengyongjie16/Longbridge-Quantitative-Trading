@@ -40,6 +40,7 @@ import {
   normalizeHKSymbol,
   decimalToNumber,
   formatError,
+  formatSymbolDisplay,
 } from '../../utils/helpers/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { API } from '../../constants/index.js';
@@ -275,7 +276,9 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps): Promis
         result.set(normalizedSymbol, cached);
       } else if (subscribedSymbols.has(normalizedSymbol)) {
         // 已订阅但无数据（可能是刚订阅还未收到推送）
-        logger.warn(`[行情获取] 标的 ${normalizedSymbol} 无缓存数据`);
+        const staticInfo = staticInfoCache.get(normalizedSymbol);
+        const symbolName = extractName(staticInfo);
+        logger.warn(`[行情获取] 标的 ${formatSymbolDisplay(normalizedSymbol, symbolName)} 无缓存数据`);
         result.set(normalizedSymbol, null);
       } else {
         // 请求的标的不在订阅列表中，抛出错误以尽早发现配置问题

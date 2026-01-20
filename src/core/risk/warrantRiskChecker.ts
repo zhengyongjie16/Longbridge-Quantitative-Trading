@@ -9,7 +9,7 @@
  */
 
 import { logger } from '../../utils/logger/index.js';
-import { normalizeHKSymbol, decimalToNumber, isDefined, formatError } from '../../utils/helpers/index.js';
+import { normalizeHKSymbol, decimalToNumber, isDefined, formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
 import type { MarketDataClient, WarrantType, RiskCheckResult } from '../../types/index.js';
 import type { WarrantInfo, WarrantQuote, WarrantRiskChecker, WarrantRiskCheckerDeps } from './types.js';
 import {
@@ -151,7 +151,9 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
     symbol: string,
     expectedType: 'CALL' | 'PUT',
     isLong: boolean,
+    symbolName: string | null = null,
   ): Promise<void> => {
+    const symbolDisplay = formatSymbolDisplay(symbol, symbolName);
     try {
       const warrantInfo = await checkWarrantType(
         marketDataClient,
@@ -168,14 +170,14 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
       if (warrantInfo.isWarrant) {
         const warrantTypeName = getWarrantTypeName(warrantInfo.warrantType);
         logger.info(
-          `[风险检查] ${isLong ? '做多' : '做空'}标的 ${symbol} 是${warrantTypeName}，回收价=${warrantInfo.callPrice?.toFixed(3) ?? '未知'}`,
+          `[风险检查] ${isLong ? '做多' : '做空'}标的 ${symbolDisplay} 是${warrantTypeName}，回收价=${warrantInfo.callPrice?.toFixed(3) ?? '未知'}`,
         );
       } else {
-        logger.info(`[风险检查] ${isLong ? '做多' : '做空'}标的 ${symbol} 不是牛熊证`);
+        logger.info(`[风险检查] ${isLong ? '做多' : '做空'}标的 ${symbolDisplay} 不是牛熊证`);
       }
     } catch (err) {
       logger.warn(
-        `[风险检查] 检查${isLong ? '做多' : '做空'}标的牛熊证信息时出错：`,
+        `[风险检查] 检查${isLong ? '做多' : '做空'}标的 ${symbolDisplay} 牛熊证信息时出错：`,
         formatError(err),
       );
       if (isLong) {
@@ -308,6 +310,8 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
     marketDataClient: MarketDataClient,
     longSymbol: string,
     shortSymbol: string,
+    longSymbolName: string | null = null,
+    shortSymbolName: string | null = null,
   ): Promise<void> => {
     if (!marketDataClient) {
       logger.warn('[风险检查] 未提供 marketDataClient，跳过牛熊证信息初始化');
@@ -321,6 +325,7 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
         longSymbol,
         'CALL',
         true,
+        longSymbolName,
       );
     }
 
@@ -331,6 +336,7 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
         shortSymbol,
         'PUT',
         false,
+        shortSymbolName,
       );
     }
   };

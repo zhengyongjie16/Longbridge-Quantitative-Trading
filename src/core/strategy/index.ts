@@ -29,8 +29,31 @@ import type {
   SignalConfig,
   SignalConfigSet,
   SignalType,
+  SingleVerificationConfig,
 } from '../../types/index.js';
 import type { StrategyConfig, SignalGenerationResult, HangSengMultiIndicatorStrategy } from './types.js';
+
+/**
+ * 判断是否需要延迟验证
+ * @param config 验证配置
+ * @returns true 需要延迟验证，false 立即执行
+ */
+const needsDelayedVerification = (config: SingleVerificationConfig): boolean => {
+  return config.delaySeconds > 0 && config.indicators != null && config.indicators.length > 0;
+};
+
+/**
+ * 信号类型映射类型
+ */
+type SignalTypeCategory = 'immediate' | 'delayed';
+
+/**
+ * 信号生成结果（内部使用）
+ */
+type SignalWithCategory = {
+  readonly signal: Signal;
+  readonly isImmediate: boolean;
+};
 
 /**
  * 创建恒生多指标策略
@@ -55,6 +78,14 @@ export const createHangSengMultiIndicatorStrategy = ({
   const finalVerificationConfig: VerificationConfig = verificationConfig || {
     buy: { delaySeconds: 60, indicators: ['K', 'MACD'] },
     sell: { delaySeconds: 60, indicators: ['K', 'MACD'] },
+  };
+
+  // 预计算信号类型映射（策略创建时计算一次）
+  const signalTypeMap: Record<string, SignalTypeCategory> = {
+    BUYCALL: needsDelayedVerification(finalVerificationConfig.buy) ? 'delayed' : 'immediate',
+    SELLCALL: needsDelayedVerification(finalVerificationConfig.sell) ? 'delayed' : 'immediate',
+    BUYPUT: needsDelayedVerification(finalVerificationConfig.buy) ? 'delayed' : 'immediate',
+    SELLPUT: needsDelayedVerification(finalVerificationConfig.sell) ? 'delayed' : 'immediate',
   };
 
   /**
@@ -191,23 +222,24 @@ export const createHangSengMultiIndicatorStrategy = ({
   };
 
   /**
-   * 生成延迟验证信号（买入和卖出信号）
+   * 生成信号（支持立即信号和延迟验证信号）
+   * @returns { signal, isImmediate } 或 null
    */
-  const generateDelayedSignal = (
+  const generateSignal = (
     state: IndicatorSnapshot,
     symbol: string,
     action: string,
     reasonPrefix: string,
     orderRecorder: import('../../types/index.js').OrderRecorder | null,
     isLongSymbol: boolean,
-  ): Signal | null => {
+  ): SignalWithCategory | null => {
     // 验证所有必要的指标值是否有效
     if (!validateAllIndicators(state)) {
       return null;
     }
 
     // 对于卖出信号，先检查订单记录中是否有买入订单记录
-    // 如果有买入订单记录，进入延迟验证阶段；如果没有，不进入延迟验证
+    // 如果有买入订单记录，进入验证阶段；如果没有，不生成卖出信号
     if (action === 'SELLCALL' || action === 'SELLPUT') {
       if (!orderRecorder) {
         // 无法获取订单记录，不生成卖出信号
@@ -218,17 +250,17 @@ export const createHangSengMultiIndicatorStrategy = ({
         // 没有买入订单记录，不生成卖出信号
         return null;
       }
-      // 有买入订单记录，继续后续流程（进入延迟验证阶段）
+      // 有买入订单记录，继续后续流程
     }
 
     // 获取该信号类型的配置
-    const signalConfig = getSignalConfigForType(action);
-    if (!signalConfig) {
+    const signalConfigForAction = getSignalConfigForType(action);
+    if (!signalConfigForAction) {
       return null;
     }
 
     // 使用配置评估信号条件
-    const evalResult = evaluateSignalConfig(state, signalConfig);
+    const evalResult = evaluateSignalConfig(state, signalConfigForAction);
 
     // 如果没有触发任何条件组，返回 null
     if (!evalResult.triggered) {
@@ -237,19 +269,38 @@ export const createHangSengMultiIndicatorStrategy = ({
 
     // 判断是买入还是卖出信号
     const isBuySignal = action === 'BUYCALL' || action === 'BUYPUT';
-    const verificationConfig = isBuySignal ? finalVerificationConfig.buy : finalVerificationConfig.sell;
+    const currentVerificationConfig = isBuySignal ? finalVerificationConfig.buy : finalVerificationConfig.sell;
 
+    // 根据预计算的信号类型映射判断是立即信号还是延迟信号
+    const isImmediate = signalTypeMap[action] === 'immediate';
+
+    if (isImmediate) {
+      // 生成立即执行信号（不需要延迟验证）
+      const indicatorDisplayStr = buildIndicatorDisplayString(state);
+
+      // 从对象池获取信号对象
+      const signal = signalObjectPool.acquire() as Signal;
+      signal.symbol = symbol;
+      signal.action = action as SignalType;
+      signal.triggerTime = null; // 立即信号无 triggerTime
+      signal.indicators1 = null;
+      signal.verificationHistory = null;
+      signal.reason = `${reasonPrefix}（立即执行）：${evalResult.reason}，${indicatorDisplayStr}`;
+
+      return { signal, isImmediate: true };
+    }
+
+    // 生成延迟验证信号
     const triggerTime = calculateVerificationTime(isBuySignal);
-    // 如果不需要延迟验证（triggerTime 为 null），则返回 null
-    // 这种情况下，信号应该被当作立即执行的信号处理
     if (!triggerTime) {
+      // 理论上不会发生，因为 isImmediate 已经处理了这种情况
       return null;
     }
 
     // 记录当前配置的所有指标的初始值（indicators1）
     // 从对象池获取 indicators1 对象，减少内存分配
     const indicators1 = indicatorRecordPool.acquire();
-    const indicatorsList = verificationConfig.indicators ?? [];
+    const indicatorsList = currentVerificationConfig.indicators ?? [];
     for (const indicatorName of indicatorsList) {
       const value = getIndicatorValue(state, indicatorName);
       if (value === null) {
@@ -290,7 +341,24 @@ export const createHangSengMultiIndicatorStrategy = ({
       },
     )} 进行验证`;
 
-    return signal;
+    return { signal, isImmediate: false };
+  };
+
+  /**
+   * 辅助函数：将信号分流到正确的数组
+   */
+  const pushSignalToCorrectArray = (
+    result: SignalWithCategory | null,
+    immediateSignals: Signal[],
+    delayedSignals: Signal[],
+  ): void => {
+    if (!result) return;
+
+    if (result.isImmediate) {
+      immediateSignals.push(result.signal);
+    } else {
+      delayedSignals.push(result.signal);
+    }
   };
 
   return {
@@ -312,68 +380,60 @@ export const createHangSengMultiIndicatorStrategy = ({
         return { immediateSignals, delayedSignals };
       }
 
-      // 1. 买入做多标的（延迟验证策略）
+      // 1. 买入做多标的
       if (longSymbol) {
-        const delayedBuySignal = generateDelayedSignal(
+        const buyLongResult = generateSignal(
           state,
           longSymbol,
           'BUYCALL',
-          '延迟验证买入做多信号',
+          '买入做多信号',
           orderRecorder,
           true,
         );
-        if (delayedBuySignal) {
-          delayedSignals.push(delayedBuySignal);
-        }
+        pushSignalToCorrectArray(buyLongResult, immediateSignals, delayedSignals);
       }
 
-      // 2. 卖出做多标的的条件（延迟验证策略）
+      // 2. 卖出做多标的
       // 注意：卖出信号生成时无需判断成本价，成本价判断在卖出策略中进行
-      // 注意：买入订单记录就是持仓记录，只需检查订单记录即可（在generateDelayedSignal中检查）
+      // 注意：买入订单记录就是持仓记录，只需检查订单记录即可（在 generateSignal 中检查）
       if (longSymbol) {
-        const delayedSellLongSignal = generateDelayedSignal(
+        const sellLongResult = generateSignal(
           state,
           longSymbol,
           'SELLCALL',
-          '延迟验证卖出做多信号',
+          '卖出做多信号',
           orderRecorder,
           true,
         );
-        if (delayedSellLongSignal) {
-          delayedSignals.push(delayedSellLongSignal);
-        }
+        pushSignalToCorrectArray(sellLongResult, immediateSignals, delayedSignals);
       }
 
-      // 3. 买入做空标的（延迟验证策略）
+      // 3. 买入做空标的
       if (shortSymbol) {
-        const delayedSellSignal = generateDelayedSignal(
+        const buyShortResult = generateSignal(
           state,
           shortSymbol,
           'BUYPUT',
-          '延迟验证买入做空信号',
+          '买入做空信号',
           orderRecorder,
           false,
         );
-        if (delayedSellSignal) {
-          delayedSignals.push(delayedSellSignal);
-        }
+        pushSignalToCorrectArray(buyShortResult, immediateSignals, delayedSignals);
       }
 
-      // 4. 卖出做空标的的条件（延迟验证策略）
+      // 4. 卖出做空标的
       // 注意：卖出信号生成时无需判断成本价，成本价判断在卖出策略中进行
-      // 注意：买入订单记录就是持仓记录，只需检查订单记录即可（在generateDelayedSignal中检查）
+      // 注意：买入订单记录就是持仓记录，只需检查订单记录即可（在 generateSignal 中检查）
       if (shortSymbol) {
-        const delayedSellShortSignal = generateDelayedSignal(
+        const sellShortResult = generateSignal(
           state,
           shortSymbol,
           'SELLPUT',
-          '延迟验证卖出做空信号',
+          '卖出做空信号',
           orderRecorder,
           false,
         );
-        if (delayedSellShortSignal) {
-          delayedSignals.push(delayedSellShortSignal);
-        }
+        pushSignalToCorrectArray(sellShortResult, immediateSignals, delayedSignals);
       }
 
       return { immediateSignals, delayedSignals };

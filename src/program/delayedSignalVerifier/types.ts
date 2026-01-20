@@ -1,0 +1,89 @@
+/**
+ * DelayedSignalVerifier 模块类型定义
+ * 使用 setTimeout 自行计时进行延迟验证
+ */
+
+import type { Signal, VerificationConfig } from '../../types/index.js';
+import type { IndicatorCache } from '../indicatorCache/types.js';
+
+/**
+ * 待验证信号条目
+ */
+export type PendingSignalEntry = {
+  readonly signal: Signal;
+  readonly monitorSymbol: string;
+  readonly triggerTime: number;
+  readonly verifyTime: number;
+  readonly initialIndicators: Readonly<Record<string, number>>;
+  readonly timerId: ReturnType<typeof setTimeout>;
+};
+
+/**
+ * 验证结果
+ */
+export type VerificationResult = {
+  readonly passed: boolean;
+  readonly reason: string;
+  readonly failedIndicators?: ReadonlyArray<string>;
+};
+
+/**
+ * 验证回调函数类型
+ */
+export type VerifiedCallback = (signal: Signal, monitorSymbol: string) => void;
+export type RejectedCallback = (signal: Signal, monitorSymbol: string, reason: string) => void;
+
+/**
+ * DelayedSignalVerifier 依赖配置
+ */
+export type DelayedSignalVerifierDeps = {
+  readonly indicatorCache: IndicatorCache;
+  readonly verificationConfig: VerificationConfig;
+};
+
+/**
+ * DelayedSignalVerifier 行为契约
+ */
+export interface DelayedSignalVerifier {
+  /**
+   * 添加信号到待验证队列
+   * @param signal 信号对象（必须包含 triggerTime）
+   * @param monitorSymbol 监控标的代码
+   */
+  addSignal(signal: Signal, monitorSymbol: string): void;
+
+  /**
+   * 取消指定信号的验证
+   * @param signalId 信号ID（格式：symbol:action:triggerTime）
+   * @returns 是否成功取消
+   */
+  cancelSignal(signalId: string): boolean;
+
+  /**
+   * 取消指定标的的所有待验证信号
+   * @param monitorSymbol 监控标的代码
+   */
+  cancelAllForSymbol(monitorSymbol: string): void;
+
+  /**
+   * 获取待验证信号数量
+   */
+  getPendingCount(): number;
+
+  /**
+   * 注册验证通过回调
+   * @param callback 验证通过时调用
+   */
+  onVerified(callback: VerifiedCallback): void;
+
+  /**
+   * 注册验证拒绝回调
+   * @param callback 验证拒绝时调用
+   */
+  onRejected(callback: RejectedCallback): void;
+
+  /**
+   * 销毁验证器，清理所有定时器和资源
+   */
+  destroy(): void;
+}

@@ -273,11 +273,15 @@ export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
       marketDataClient: MarketDataClient,
       longSymbol: string,
       shortSymbol: string,
+      longSymbolName: string | null = null,
+      shortSymbolName: string | null = null,
     ): Promise<void> {
       await warrantRiskChecker.initialize(
         marketDataClient,
         longSymbol,
         shortSymbol,
+        longSymbolName,
+        shortSymbolName,
       );
     },
 

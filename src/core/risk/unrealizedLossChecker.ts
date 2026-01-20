@@ -96,8 +96,9 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
     }
 
     if (!orderRecorder) {
+      const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
       logger.warn(
-        `[浮亏监控] 未提供 OrderRecorder 实例，无法刷新标的 ${symbol} 的浮亏数据`,
+        `[浮亏监控] 未提供 OrderRecorder 实例，无法刷新标的 ${symbolDisplay} 的浮亏数据`,
       );
       return null;
     }
@@ -134,8 +135,9 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
 
       return { r1, n1 };
     } catch (error) {
+      const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
       logger.error(
-        `[浮亏监控] 刷新标的 ${symbol} 的浮亏数据失败`,
+        `[浮亏监控] 刷新标的 ${symbolDisplay} 的浮亏数据失败`,
         (error as Error).message || String(error),
       );
       return null;

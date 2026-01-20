@@ -316,6 +316,7 @@ function parseMonitorConfig(index: number): MonitorConfig | null {
   };
 
   return {
+    originalIndex: index, // 保存原始索引，用于错误提示
     monitorSymbol: normalizeHKSymbol(monitorSymbol),
     longSymbol: normalizeHKSymbol(longSymbol),
     shortSymbol: normalizeHKSymbol(shortSymbol),

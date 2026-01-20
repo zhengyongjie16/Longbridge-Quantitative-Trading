@@ -30,19 +30,11 @@ export type MarketDataClientDeps = {
 };
 
 /**
- * 订阅状态类型
- */
-export type SubscriptionStatus = {
-  readonly isConnected: boolean;
-  readonly subscribedSymbols: ReadonlyArray<string>;
-  readonly lastUpdateTime: number | null;
-};
-
-/**
  * 静态信息类型（来自 LongPort API）
  * 包含标的的基本信息，如名称和交易单位
+ * 仅内部使用
  */
-export type StaticInfo = {
+type StaticInfo = {
   readonly nameHk?: string | null;
   readonly nameCn?: string | null;
   readonly nameEn?: string | null;

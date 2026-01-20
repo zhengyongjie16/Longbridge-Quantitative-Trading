@@ -63,7 +63,7 @@ export interface OrderStorage {
   updateAfterSell(symbol: string, executedPrice: number, executedQuantity: number, isLongSymbol: boolean): void;
   clearBuyOrders(symbol: string, isLongSymbol: boolean, quote?: Quote | null): void;
   getLatestBuyOrderPrice(symbol: string, isLongSymbol: boolean): number | null;
-  getBuyOrdersBelowPrice(currentPrice: number, direction: 'LONG' | 'SHORT'): OrderRecord[];
+  getBuyOrdersBelowPrice(currentPrice: number, direction: 'LONG' | 'SHORT', symbol: string): OrderRecord[];
   calculateTotalQuantity(orders: OrderRecord[]): number;
   getLongBuyOrders(): OrderRecord[];
   getShortBuyOrders(): OrderRecord[];

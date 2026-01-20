@@ -24,9 +24,13 @@ src/
 │   └── config.validator.ts     # 配置验证
 ├── constants/                  # 全局常量定义
 ├── types/                      # TypeScript 类型定义
+├── program/                    # 程序架构模块（异步任务处理）
+│   ├── delayedSignalVerifier/  # 延迟信号验证器（setTimeout 计时）
+│   ├── indicatorCache/         # 指标缓存（环形缓冲区）
+│   ├── tradeProcessor/         # 交易处理器（消费任务队列）
+│   └── tradeTaskQueue/         # 交易任务队列（FIFO）
 ├── core/                       # 核心业务逻辑
 │   ├── strategy/               # 信号生成
-│   ├── signalVerification/     # 延迟验证
 │   ├── signalProcessor/        # 风险检查与卖出计算
 │   ├── trader/                 # 订单执行与监控
 │   │   ├── orderExecutor.ts    # 订单执行
@@ -60,14 +64,17 @@ src/
 ### 核心概念
 - **多标的支持**: 通过 `MONITOR_COUNT` 和 `_N` 后缀配置多个监控标的
 - **主循环**: 每秒执行一次 `runOnce`，协调所有模块
-- **延迟验证**: 开仓信号需经过 15 秒趋势验证后才执行，平仓信号立即执行
+- **异步任务队列**: 使用 `TradeTaskQueue` + `TradeProcessor` 实现异步交易处理，不阻塞主循环
+- **延迟验证**: 开仓信号经过 `DelayedSignalVerifier` 进行趋势验证，使用 `IndicatorCache` 查询历史数据
 - **技术指标**: RSI、KDJ、MACD、MFI、EMA（支持多周期配置）
 - **对象池**: Signal、Position、KDJ、MACD、IndicatorRecord、PeriodRecord 等对象复用
 
 ## HOW - 工作方式
 
 ### 关键工作流程
-1. **信号处理流程**: strategy → signalVerification → signalProcessor → trader
+1. **信号处理流程**:
+   - 立即信号: strategy → tradeTaskQueue → tradeProcessor → signalProcessor → trader
+   - 延迟信号: strategy → delayedSignalVerifier → tradeTaskQueue → tradeProcessor → signalProcessor → trader
 2. **对象池使用**: 使用 `objectPool.acquire()` 获取，`objectPool.release()` 释放
 3. **日志查看**: `logs/system/` (系统日志), `logs/trades/` (交易记录)
 4. **订单监控**: WebSocket 推送订单状态，成交后自动刷新缓存
