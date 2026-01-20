@@ -26,8 +26,6 @@ export type PoolableSignal = {
   triggerTime?: Date | null;
   indicators1?: Record<string, number> | null;
   verificationHistory?: VerificationEntry[] | null;
-  /** @deprecated 已废弃，请使用 triggerTime */
-  signalTriggerTime?: Date | null;
 };
 
 /**

@@ -147,7 +147,6 @@ export const signalObjectPool = createObjectPool<PoolableSignal>(
     triggerTime: null,
     indicators1: null,
     verificationHistory: null,
-    signalTriggerTime: null,
   }),
   // 重置函数：清空所有属性
   // 注意：需要释放 indicators1 和 verificationHistory 中的对象，避免内存泄漏
@@ -179,7 +178,6 @@ export const signalObjectPool = createObjectPool<PoolableSignal>(
     obj.triggerTime = null;
     obj.indicators1 = null;
     obj.verificationHistory = null;
-    obj.signalTriggerTime = null;
     return obj;
   },
   100, // 最大保存100个信号对象

@@ -46,11 +46,6 @@ export type Signal = {
    * 用于交易记录追溯和延迟验证计算
    */
   triggerTime?: Date | null;
-  /**
-   * @deprecated 已废弃，请使用 triggerTime
-   * 保留仅为兼容旧代码，新代码统一使用 triggerTime
-   */
-  signalTriggerTime?: Date | null;
   // 延迟验证字段
   indicators1?: Record<string, number> | null;
   verificationHistory?: VerificationEntry[] | null;
