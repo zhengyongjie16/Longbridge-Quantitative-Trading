@@ -21,18 +21,14 @@
  */
 
 import { createConfig } from './config/config.index.js';
-import { createHangSengMultiIndicatorStrategy } from './core/strategy/index.js';
 import { createTrader } from './core/trader/index.js';
 import { buildIndicatorSnapshot } from './services/indicators/index.js';
-import { createRiskChecker } from './core/risk/index.js';
 import { MULTI_MONITOR_TRADING_CONFIG } from './config/config.trading.js';
 import { logger } from './utils/logger/index.js';
 import { validateAllConfig } from './config/config.validator.js';
 import {
   positionObjectPool,
   signalObjectPool,
-  kdjObjectPool,
-  macdObjectPool,
 } from './utils/objectPool/index.js';
 import {
   formatError,
@@ -40,8 +36,6 @@ import {
   formatSymbolDisplay,
   sleep,
 } from './utils/helpers/index.js';
-import { extractRSIPeriods } from './utils/helpers/signalConfigParser.js';
-import { validateEmaPeriod } from './utils/helpers/indicatorHelpers.js';
 import { collectAllQuoteSymbols } from './utils/helpers/quoteHelpers.js';
 import {
   VALID_SIGNAL_ACTIONS,
@@ -54,203 +48,41 @@ import { displayAccountAndPositions } from './utils/helpers/accountDisplay.js';
 import { createPositionCache } from './utils/helpers/positionCache.js';
 import { createMarketMonitor } from './services/marketMonitor/index.js';
 import { createDoomsdayProtection } from './core/doomsdayProtection/index.js';
-import { createUnrealizedLossMonitor } from './core/unrealizedLossMonitor/index.js';
 import { createSignalProcessor } from './core/signalProcessor/index.js';
 
 // 导入重构后的新架构模块
 import { createIndicatorCache } from './program/indicatorCache/index.js';
 import { createBuyTaskQueue, createSellTaskQueue } from './program/tradeTaskQueue/index.js';
-import { createDelayedSignalVerifier } from './program/delayedSignalVerifier/index.js';
 import { createBuyProcessor } from './program/buyProcessor/index.js';
 import { createSellProcessor } from './program/sellProcessor/index.js';
+
+// 导入主程序初始化模块（从 src/main/ 拆分出来的工具函数和工厂函数）
+import {
+  initMonitorState,
+  releaseSnapshotObjects,
+  getPositions,
+  createMonitorContext,
+  createCleanup,
+} from './main/index.js';
+
 // 类型直接从 types.ts 导入，避免 re-export 模式
 import type { IndicatorCache } from './program/indicatorCache/types.js';
 import type { BuyTaskQueue, SellTaskQueue } from './program/tradeTaskQueue/types.js';
-import type { BuyProcessor } from './program/buyProcessor/types.js';
-import type { SellProcessor } from './program/sellProcessor/types.js';
 import type {
   CandleData,
   Signal,
-  Position,
-  Quote,
-  VerificationConfig,
-  SignalConfigSet,
   LastState,
-  MonitorState,
-  MonitorConfig,
   MonitorContext,
   ValidateAllConfigResult,
   MarketDataClient,
   Trader,
-  IndicatorSnapshot,
+  Quote,
 } from './types/index.js';
 import type { MarketMonitor } from './services/marketMonitor/types.js';
 import type { DoomsdayProtection } from './core/doomsdayProtection/types.js';
 import type { SignalProcessor } from './core/signalProcessor/types.js';
+import type { RunOnceContext } from './main/types.js';
 import { getSprintSacreMooacreMoo } from './utils/asciiArt/sacreMooacre.js';
-
-/**
- * 运行上下文接口
- */
-interface RunOnceContext {
-  marketDataClient: MarketDataClient;
-  trader: Trader;
-  lastState: LastState;
-  marketMonitor: MarketMonitor;
-  doomsdayProtection: DoomsdayProtection;
-  signalProcessor: SignalProcessor;
-  monitorContexts: Map<string, MonitorContext>;
-  // 新架构模块
-  indicatorCache: IndicatorCache;
-  buyTaskQueue: BuyTaskQueue;
-  sellTaskQueue: SellTaskQueue;
-  buyProcessor: BuyProcessor;
-  sellProcessor: SellProcessor;
-}
-
-
-// 从验证配置中提取 EMA 周期（模块加载时执行一次）
-function extractEmaPeriods(verificationConfig: VerificationConfig | null | undefined): number[] {
-  const emaPeriods: number[] = [];
-
-  if (verificationConfig) {
-    // 从买入和卖出配置中提取 EMA 周期
-    const allIndicators = [
-      ...(verificationConfig.buy.indicators || []),
-      ...(verificationConfig.sell.indicators || []),
-    ];
-
-    for (const indicator of allIndicators) {
-      if (indicator.startsWith('EMA:')) {
-        const periodStr = indicator.substring(4);
-        const period = Number.parseInt(periodStr, 10);
-
-        if (validateEmaPeriod(period) && !emaPeriods.includes(period)) {
-          emaPeriods.push(period);
-        }
-      }
-    }
-  }
-
-  // 如果没有配置任何 EMA 周期，使用默认值 7
-  if (emaPeriods.length === 0) {
-    emaPeriods.push(7);
-  }
-
-  return emaPeriods;
-}
-
-// 从信号配置中提取 RSI 周期（模块加载时执行一次）
-function extractRsiPeriodsWithDefault(signalConfig: SignalConfigSet | null): number[] {
-  const rsiPeriods = extractRSIPeriods(signalConfig);
-
-  // 如果没有配置任何 RSI 周期，使用默认值 6
-  if (rsiPeriods.length === 0) {
-    rsiPeriods.push(6);
-  }
-
-  return rsiPeriods;
-}
-
-/**
- * 创建监控标的状态
- */
-function createMonitorState(config: MonitorConfig): MonitorState {
-  return {
-    monitorSymbol: config.monitorSymbol,
-    longSymbol: config.longSymbol,
-    shortSymbol: config.shortSymbol,
-    longPrice: null,
-    shortPrice: null,
-    signal: null,
-    pendingDelayedSignals: [],
-    monitorValues: null,
-    lastMonitorSnapshot: null,
-  };
-}
-
-/**
- * 释放快照中的 KDJ 和 MACD 对象（如果它们没有被 monitorValues 引用）
- * @param snapshot 要释放的快照
- * @param monitorValues 监控值对象，用于检查引用
- */
-function releaseSnapshotObjects(
-  snapshot: IndicatorSnapshot | null,
-  monitorValues: MonitorState['monitorValues'],
-): void {
-  if (!snapshot) {
-    return;
-  }
-
-  // 释放 KDJ 对象（如果它没有被 monitorValues 引用）
-  if (snapshot.kdj && monitorValues?.kdj !== snapshot.kdj) {
-    kdjObjectPool.release(snapshot.kdj);
-  }
-
-  // 释放 MACD 对象（如果它没有被 monitorValues 引用）
-  if (snapshot.macd && monitorValues?.macd !== snapshot.macd) {
-    macdObjectPool.release(snapshot.macd);
-  }
-}
-
-/**
- * 释放所有监控标的的最后一个快照对象
- * @param monitorStates 监控状态Map
- */
-function releaseAllMonitorSnapshots(monitorStates: Map<string, MonitorState>): void {
-  for (const monitorState of monitorStates.values()) {
-    releaseSnapshotObjects(monitorState.lastMonitorSnapshot, monitorState.monitorValues);
-    monitorState.lastMonitorSnapshot = null;
-  }
-}
-
-/**
- * 从持仓缓存中获取指定标的的持仓
- * 使用 PositionCache 提供 O(1) 查找性能
- *
- * @param positionCache 持仓缓存
- * @param longSymbol 做多标的代码（已规范化）
- * @param shortSymbol 做空标的代码（已规范化）
- */
-function getPositions(
-  positionCache: import('./types/index.js').PositionCache,
-  longSymbol: string,
-  shortSymbol: string,
-): { longPosition: Position | null; shortPosition: Position | null } {
-  // O(1) 查找
-  const longPos = positionCache.get(longSymbol);
-  const shortPos = positionCache.get(shortSymbol);
-
-  let longPosition: Position | null = null;
-  let shortPosition: Position | null = null;
-
-  // 创建持仓对象（复用对象池）
-  if (longPos) {
-    longPosition = positionObjectPool.acquire() as Position;
-    longPosition.symbol = longSymbol;
-    longPosition.costPrice = Number(longPos.costPrice) || 0;
-    longPosition.quantity = Number(longPos.quantity) || 0;
-    longPosition.availableQuantity = Number(longPos.availableQuantity) || 0;
-    longPosition.accountChannel = longPos.accountChannel;
-    longPosition.symbolName = longPos.symbolName;
-    longPosition.currency = longPos.currency;
-    longPosition.market = longPos.market;
-  }
-
-  if (shortPos) {
-    shortPosition = positionObjectPool.acquire() as Position;
-    shortPosition.symbol = shortSymbol;
-    shortPosition.costPrice = Number(shortPos.costPrice) || 0;
-    shortPosition.quantity = Number(shortPos.quantity) || 0;
-    shortPosition.availableQuantity = Number(shortPos.availableQuantity) || 0;
-    shortPosition.accountChannel = shortPos.accountChannel;
-    shortPosition.symbolName = shortPos.symbolName;
-    shortPosition.currency = shortPos.currency;
-    shortPosition.market = shortPos.market;
-  }
-
-  return { longPosition, shortPosition };
-}
 
 /**
  * 处理单个监控标的
@@ -740,72 +572,6 @@ async function runOnce({
   }
 }
 
-/**
- * 创建监控标的上下文
- *
- * @param config 监控配置
- * @param state 监控状态
- * @param trader 交易器
- * @param quotesMap 预先批量获取的行情数据 Map（用于获取标的名称，减少 API 调用）
- * @param indicatorCache 指标缓存（全局共享，供延迟验证器查询）
- */
-function createMonitorContext(
-  config: MonitorConfig,
-  state: MonitorState,
-  trader: Trader,
-  quotesMap: ReadonlyMap<string, Quote | null>,
-  indicatorCache: IndicatorCache,
-): MonitorContext {
-  // 从预先获取的行情 Map 中提取标的名称（无需单独 API 调用）
-  const longQuote = quotesMap.get(config.longSymbol) ?? null;
-  const shortQuote = quotesMap.get(config.shortSymbol) ?? null;
-  const monitorQuote = quotesMap.get(config.monitorSymbol) ?? null;
-
-  return {
-    config,
-    state,
-    strategy: createHangSengMultiIndicatorStrategy({
-      signalConfig: config.signalConfig,
-      verificationConfig: config.verificationConfig,
-    }),
-    // 使用 trader 内部创建的共享 orderRecorder 实例
-    // 订单记录更新已移至 orderMonitor，成交时自动更新
-    orderRecorder: trader._orderRecorder,
-    riskChecker: createRiskChecker({
-      options: {
-        maxDailyLoss: config.maxDailyLoss,
-        maxPositionNotional: config.maxPositionNotional,
-        maxUnrealizedLossPerSymbol: config.maxUnrealizedLossPerSymbol,
-      },
-    }),
-    // 每个监控标的独立的浮亏监控器（使用各自的 maxUnrealizedLossPerSymbol 配置）
-    unrealizedLossMonitor: createUnrealizedLossMonitor({
-      maxUnrealizedLossPerSymbol: config.maxUnrealizedLossPerSymbol ?? 0,
-    }),
-    // 每个监控标的独立的延迟信号验证器（使用各自的验证配置）
-    delayedSignalVerifier: createDelayedSignalVerifier({
-      indicatorCache,
-      verificationConfig: config.verificationConfig,
-    }),
-    // 缓存标的名称（避免每次循环重复获取）
-    longSymbolName: longQuote?.name ?? config.longSymbol,
-    shortSymbolName: shortQuote?.name ?? config.shortSymbol,
-    monitorSymbolName: monitorQuote?.name ?? config.monitorSymbol,
-    // 缓存规范化后的标的代码（config中已经规范化，直接使用）
-    normalizedLongSymbol: config.longSymbol,
-    normalizedShortSymbol: config.shortSymbol,
-    normalizedMonitorSymbol: config.monitorSymbol,
-    // 缓存指标周期配置（避免每次循环重复提取）
-    rsiPeriods: extractRsiPeriodsWithDefault(config.signalConfig),
-    emaPeriods: extractEmaPeriods(config.verificationConfig),
-    // 缓存的行情数据（主循环每秒更新，供 TradeProcessor 使用）
-    longQuote,
-    shortQuote,
-    monitorQuote,
-    // 注意：持仓数据通过 lastState.positionCache 获取，不在 MonitorContext 中缓存
-  };
-}
-
 async function main(): Promise<void> {
   // 牛牛登场
   getSprintSacreMooacreMoo();
@@ -853,7 +619,7 @@ async function main(): Promise<void> {
     monitorStates: new Map(
       MULTI_MONITOR_TRADING_CONFIG.monitors.map((config) => [
         config.monitorSymbol,
-        createMonitorState(config),
+        initMonitorState(config),
       ]),
     ),
     allTradingSymbols, // 缓存所有交易标的集合
@@ -1057,30 +823,15 @@ async function main(): Promise<void> {
   logger.info('[BuyProcessor] 买入处理器已启动');
   logger.info('[SellProcessor] 卖出处理器已启动');
 
-  // 注册退出处理函数，确保程序退出时释放所有对象池对象
-  const cleanup = (): void => {
-    logger.info('程序退出，正在清理资源...');
-    // 停止 BuyProcessor 和 SellProcessor
-    buyProcessor.stop();
-    sellProcessor.stop();
-    // 销毁所有监控标的的 DelayedSignalVerifier
-    for (const monitorContext of monitorContexts.values()) {
-      monitorContext.delayedSignalVerifier.destroy();
-    }
-    // 清理 IndicatorCache
-    indicatorCache.clearAll();
-    // 释放快照对象
-    releaseAllMonitorSnapshots(lastState.monitorStates);
-  };
-
-  process.once('SIGINT', () => {
-    cleanup();
-    process.exit(0);
+  // 使用 createCleanup 创建清理模块并注册退出处理函数
+  const cleanup = createCleanup({
+    buyProcessor,
+    sellProcessor,
+    monitorContexts,
+    indicatorCache,
+    lastState,
   });
-  process.once('SIGTERM', () => {
-    cleanup();
-    process.exit(0);
-  });
+  cleanup.registerExitHandlers();
 
   // 无限循环监控
   while (true) {
