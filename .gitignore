@@ -30,6 +30,7 @@ build/
 # SonarQube
 .scannerwork/
 sonar-*.json
+.env.sonar
 
 # Local settings
 settings.local.json
