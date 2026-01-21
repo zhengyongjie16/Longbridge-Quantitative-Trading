@@ -92,7 +92,7 @@ SIGNAL_SELLPUT_1=(RSI:6<20,MFI<15,D<22,J<0)/3|(J<-15)
 ### 启动
 
 ```bash
-npm run dev
+npm start
 ```
 
 ---
