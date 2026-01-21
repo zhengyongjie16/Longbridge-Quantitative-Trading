@@ -64,10 +64,10 @@ const BEAR_DISTANCE_PERCENT_THRESHOLD = -2; // 单位：%，例如 -2 表示 < -
 
 // 成交额阈值（单位：HKD）
 // 当日成交额阈值：用于初步筛选窝轮列表
-const MIN_DAILY_TURNOVER = 10000000; // 1000万 = 10,000,000
+const MIN_DAILY_TURNOVER = 8000000; // 1000万 = 10,000,000
 
 // 三日内每日成交额阈值：用于详细检查每个窝轮，要求三日内每日成交额都必须高于此阈值
-const MIN_AVG_TURNOVER = 10000000; // 1000万 = 10,000,000
+const MIN_AVG_TURNOVER = 8000000; // 1000万 = 10,000,000
 
 // 过期日要求
 // 只筛选过期日在指定月数以上的窝轮（API使用枚举值：Between_3_6, Between_6_12, GT_12）
