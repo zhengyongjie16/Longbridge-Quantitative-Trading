@@ -2,10 +2,10 @@
  * SellProcessor 类型定义
  */
 
-import type { MonitorContext, Trader, LastState } from '../../types/index.js';
+import type { MonitorContext, Trader, LastState } from '../../../types/index.js';
 import type { ProcessorStats } from '../types.js';
 import type { SellTaskQueue } from '../tradeTaskQueue/types.js';
-import type { SignalProcessor } from '../../core/signalProcessor/types.js';
+import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
 
 /**
  * 卖出处理器接口

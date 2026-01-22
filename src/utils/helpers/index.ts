@@ -198,34 +198,6 @@ export function formatSymbolDisplay(symbol: string | null | undefined, symbolNam
   return normalizedSymbol;
 }
 
-/**
- * 根据信号标的获取对应的中文名称
- * @param signalSymbol 信号中的标的代码
- * @param longSymbol 做多标的代码
- * @param shortSymbol 做空标的代码
- * @param longSymbolName 做多标的中文名称
- * @param shortSymbolName 做空标的中文名称
- * @returns 标的中文名称，如果未找到则返回原始代码
- */
-export function getSymbolName(
-  signalSymbol: string,
-  longSymbol: string | null,
-  shortSymbol: string | null,
-  longSymbolName: string | null,
-  shortSymbolName: string | null,
-): string | null {
-  const normalizedSigSymbol = normalizeHKSymbol(signalSymbol);
-  const normalizedLongSymbol = longSymbol ? normalizeHKSymbol(longSymbol) : null;
-  const normalizedShortSymbol = shortSymbol ? normalizeHKSymbol(shortSymbol) : null;
-
-  if (normalizedSigSymbol === normalizedLongSymbol) {
-    return longSymbolName;
-  } else if (normalizedSigSymbol === normalizedShortSymbol) {
-    return shortSymbolName;
-  }
-  return signalSymbol;
-}
-
 // 常量定义（已从统一常量文件导入）
 
 function toBeijingTime(date: Date | null = null, options: TimeFormatOptions = {}): string {

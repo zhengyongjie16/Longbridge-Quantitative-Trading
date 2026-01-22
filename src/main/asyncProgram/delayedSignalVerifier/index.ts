@@ -15,11 +15,11 @@
  * - 时间容忍度为 ±5秒
  */
 
-import { logger } from '../../utils/logger/index.js';
-import { signalObjectPool } from '../../utils/objectPool/index.js';
-import { formatSymbolDisplay } from '../../utils/helpers/index.js';
-import { TIME, VERIFICATION, ACTION_DESCRIPTIONS } from '../../constants/index.js';
-import type { Signal } from '../../types/index.js';
+import { logger } from '../../../utils/logger/index.js';
+import { signalObjectPool } from '../../../utils/objectPool/index.js';
+import { formatSymbolDisplay } from '../../../utils/helpers/index.js';
+import { TIME, VERIFICATION, ACTION_DESCRIPTIONS } from '../../../constants/index.js';
+import type { Signal } from '../../../types/index.js';
 import type {
   DelayedSignalVerifier,
   DelayedSignalVerifierDeps,

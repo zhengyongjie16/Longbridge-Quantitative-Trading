@@ -7,8 +7,7 @@
 
 import { EMA } from 'technicalindicators';
 import { kdjObjectPool } from '../../utils/objectPool/index.js';
-import { isValidKDJ } from '../../utils/objectPool/types.js';
-import { toNumber, logDebug } from './utils.js';
+import { toNumber, logDebug, isValidKDJ } from './utils.js';
 import type { KDJIndicator, CandleData } from '../../types/index.js';
 
 /**

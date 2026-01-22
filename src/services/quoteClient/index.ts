@@ -50,7 +50,7 @@ import type {
   TradingDayCacheDeps,
   MarketDataClientDeps,
 } from './types.js';
-import { extractLotSize, extractName } from './types.js';
+import { extractLotSize, extractName } from './utils.js';
 
 // 默认重试配置（使用统一常量）
 const DEFAULT_RETRY: RetryConfig = {

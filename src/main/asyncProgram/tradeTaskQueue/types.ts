@@ -3,7 +3,7 @@
  * 统一的买入/卖出任务队列类型
  */
 
-import type { Signal } from '../../types/index.js';
+import type { Signal } from '../../../types/index.js';
 
 /**
  * 任务添加回调函数

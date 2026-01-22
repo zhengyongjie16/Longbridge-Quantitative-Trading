@@ -3,7 +3,7 @@
  * 使用 setTimeout 自行计时进行延迟验证
  */
 
-import type { Signal, VerificationConfig } from '../../types/index.js';
+import type { Signal, VerificationConfig } from '../../../types/index.js';
 import type { IndicatorCache } from '../indicatorCache/types.js';
 
 /**

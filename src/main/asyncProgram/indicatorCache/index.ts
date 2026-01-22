@@ -8,7 +8,7 @@
  * - 延迟验证器查询历史数据时，数据保持完整有效
  */
 
-import type { IndicatorSnapshot } from '../../types/index.js';
+import type { IndicatorSnapshot } from '../../../types/index.js';
 import type { IndicatorCache, IndicatorCacheEntry, IndicatorCacheOptions, RingBuffer } from './types.js';
 import {
   createRingBuffer,

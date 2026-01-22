@@ -2,19 +2,19 @@
  * 监控标的上下文工厂
  */
 
-import { createHangSengMultiIndicatorStrategy } from '../core/strategy/index.js';
-import { createRiskChecker } from '../core/risk/index.js';
-import { createUnrealizedLossMonitor } from '../core/unrealizedLossMonitor/index.js';
-import { createDelayedSignalVerifier } from '../program/delayedSignalVerifier/index.js';
+import { createHangSengMultiIndicatorStrategy } from '../../core/strategy/index.js';
+import { createRiskChecker } from '../../core/risk/index.js';
+import { createUnrealizedLossMonitor } from '../../core/unrealizedLossMonitor/index.js';
+import { createDelayedSignalVerifier } from '../../main/asyncProgram/delayedSignalVerifier/index.js';
 import { extractEmaPeriods, extractRsiPeriodsWithDefault } from './utils.js';
-import type { IndicatorCache } from '../program/indicatorCache/types.js';
+import type { IndicatorCache } from '../../main/asyncProgram/indicatorCache/types.js';
 import type {
   MonitorConfig,
   MonitorState,
   MonitorContext,
   Quote,
   Trader,
-} from '../types/index.js';
+} from '../../types/index.js';
 
 /**
  * 创建监控标的上下文

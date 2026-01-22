@@ -17,8 +17,7 @@
 import { OrderSide } from 'longport';
 import { logger } from '../../utils/logger/index.js';
 import { normalizeHKSymbol, formatError } from '../../utils/helpers/index.js';
-import { batchGetQuotes } from '../../utils/helpers/quoteHelpers.js';
-import { isBeforeClose15Minutes, isBeforeClose5Minutes } from '../../utils/helpers/tradingTime.js';
+import { batchGetQuotes, isBeforeClose15Minutes, isBeforeClose5Minutes } from './utils.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import type { Position, Quote, Signal, SignalType } from '../../types/index.js';
 import type { DoomsdayProtection, DoomsdayClearanceContext, DoomsdayClearanceResult, CancelPendingBuyOrdersContext, CancelPendingBuyOrdersResult, ClearanceSignalParams } from './types.js';

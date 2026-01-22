@@ -396,7 +396,7 @@ export type MonitorContext = {
   readonly riskChecker: RiskChecker;
   readonly unrealizedLossMonitor: import('../core/unrealizedLossMonitor/types.js').UnrealizedLossMonitor;
   /** 延迟信号验证器（每个监控标的独立，使用各自的验证配置） */
-  readonly delayedSignalVerifier: import('../program/delayedSignalVerifier/types.js').DelayedSignalVerifier;
+  readonly delayedSignalVerifier: import('../main/asyncProgram/delayedSignalVerifier/types.js').DelayedSignalVerifier;
   // 缓存标的名称（初始化时获取一次，避免每次循环重复获取）
   longSymbolName: string;
   shortSymbolName: string;

@@ -3,11 +3,11 @@
  * 专用于处理买入信号
  */
 
-import type { MonitorContext, Trader, LastState } from '../../types/index.js';
+import type { MonitorContext, Trader, LastState } from '../../../types/index.js';
 import type { ProcessorStats } from '../types.js';
 import type { BuyTaskQueue } from '../tradeTaskQueue/types.js';
-import type { SignalProcessor } from '../../core/signalProcessor/types.js';
-import type { DoomsdayProtection } from '../../core/doomsdayProtection/types.js';
+import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
+import type { DoomsdayProtection } from '../../../core/doomsdayProtection/types.js';
 
 /**
  * 买入处理器接口

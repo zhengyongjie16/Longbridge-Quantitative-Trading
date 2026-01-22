@@ -23,7 +23,7 @@ import {
   toBeijingTimeLog,
 } from '../../utils/helpers/index.js';
 import { isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
-import { hasChanged } from '../../utils/helpers/tradingTime.js';
+import { hasChanged } from './utils.js';
 import {
   monitorValuesObjectPool,
   kdjObjectPool,

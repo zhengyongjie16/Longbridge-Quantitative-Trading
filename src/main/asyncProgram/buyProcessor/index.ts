@@ -1,39 +1,37 @@
 /**
- * 卖出处理器模块
+ * 买入处理器模块
  *
  * 功能：
- * - 消费 SellTaskQueue 中的卖出任务
+ * - 消费 BuyTaskQueue 中的买入任务
  * - 使用 setImmediate 异步执行，不阻塞主循环
- * - 卖出信号不经过风险检查，直接计算卖出数量并执行
+ * - 执行风险检查和订单提交
  * - 统一管理信号对象的生命周期（释放到对象池）
  *
- * 设计原因：
- * - 卖出操作的优先级高于买入，应优先允许执行
- * - 卖出信号不需要 API 调用的风险检查，处理速度 <10ms
- * - 独立队列避免被买入任务阻塞
+ * 注意：卖出信号由独立的 SellProcessor 处理，以避免被买入风险检查阻塞
  *
  * 执行顺序：
- * 1. 从队列获取任务
+ * 1. 从任务队列获取任务
  * 2. 获取监控上下文（行情、持仓数据）
- * 3. 调用 signalProcessor.processSellSignals() 计算卖出数量
- * 4. 如果信号未被转为 HOLD，执行 trader.executeSignals()
+ * 3. 执行风险检查（买入信号需要 API 调用）
+ * 4. 提交订单执行
  * 5. 释放信号对象到对象池
  */
 
-import { signalObjectPool } from '../../utils/objectPool/index.js';
-import { logger } from '../../utils/logger/index.js';
-import { formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
-import type { SellProcessor, SellProcessorDeps } from './types.js';
+import { signalObjectPool } from '../../../utils/objectPool/index.js';
+import { logger } from '../../../utils/logger/index.js';
+import { formatError, formatSymbolDisplay } from '../../../utils/helpers/index.js';
+import type { BuyProcessor, BuyProcessorDeps } from './types.js';
 import type { ProcessorStats } from '../types.js';
-import type { SellTask } from '../tradeTaskQueue/types.js';
+import type { BuyTask } from '../tradeTaskQueue/types.js';
+import type { RiskCheckContext } from '../../../core/signalProcessor/types.js';
 
 /**
- * 创建卖出处理器
+ * 创建买入处理器
  * @param deps 依赖注入
- * @returns SellProcessor 接口实例
+ * @returns BuyProcessor 接口实例
  */
-export const createSellProcessor = (deps: SellProcessorDeps): SellProcessor => {
-  const { taskQueue, getMonitorContext, signalProcessor, trader, getLastState } = deps;
+export const createBuyProcessor = (deps: BuyProcessorDeps): BuyProcessor => {
+  const { taskQueue, getMonitorContext, signalProcessor, trader, doomsdayProtection, getLastState, getIsHalfDay } = deps;
 
   // 内部状态
   let running = false;
@@ -44,65 +42,85 @@ export const createSellProcessor = (deps: SellProcessorDeps): SellProcessor => {
   let immediateHandle: ReturnType<typeof setImmediate> | null = null;
 
   /**
-   * 处理单个卖出任务
+   * 处理单个买入任务
+   * 注意：卖出信号由 SellProcessor 处理，此处只处理买入信号
    */
-  const processTask = async (task: SellTask): Promise<boolean> => {
+  const processTask = async (task: BuyTask): Promise<boolean> => {
     const signal = task.data;
     const monitorSymbol = task.monitorSymbol;
     // 缓存格式化后的标的显示（用于日志）
     const symbolDisplay = formatSymbolDisplay(signal.symbol, signal.symbolName ?? null);
 
     try {
+      // 验证信号类型：此处理器只处理买入信号
+      const isBuySignal = signal.action === 'BUYCALL' || signal.action === 'BUYPUT';
+      if (!isBuySignal) {
+        logger.warn(`[BuyProcessor] 收到非买入信号，跳过: ${symbolDisplay} ${signal.action}`);
+        return true; // 非预期信号，但不算失败
+      }
+
       // 获取监控上下文
       const ctx = getMonitorContext(monitorSymbol);
       if (!ctx) {
-        logger.warn(`[SellProcessor] 无法获取监控上下文: ${formatSymbolDisplay(monitorSymbol, null)}`);
+        logger.warn(`[BuyProcessor] 无法获取监控上下文: ${formatSymbolDisplay(monitorSymbol, null)}`);
         return false;
       }
 
-      const { config, orderRecorder } = ctx;
+      const { config, state, orderRecorder, riskChecker } = ctx;
 
       // 获取行情数据（从 MonitorContext 缓存中获取，主循环每秒更新）
-      // 注意：必须使用 ctx.longQuote/shortQuote，这些字段每秒更新
+      // 注意：必须使用 ctx.longQuote/shortQuote/monitorQuote，这些字段每秒更新
+      // 不能使用 state.longPrice/shortPrice，因为这些只在价格变化超过阈值时才更新
       const longQuote = ctx.longQuote;
       const shortQuote = ctx.shortQuote;
+      const monitorQuote = ctx.monitorQuote;
 
       // 获取全局状态
       const lastState = getLastState();
+      const isHalfDay = getIsHalfDay();
 
-      // 获取持仓数据（从 positionCache 获取）
-      const longPosition = lastState.positionCache.get(ctx.normalizedLongSymbol);
-      const shortPosition = lastState.positionCache.get(ctx.normalizedShortSymbol);
-
-      // 卖出信号处理：计算卖出数量（不经过风险检查）
-      // 原因：
-      // 1. 卖出操作的优先级高于买入，应优先允许执行
-      // 2. checkBeforeOrder 对卖出信号基本是直接放行（只有持仓市值限制检查，但对卖出无意义）
-      // 3. applyRiskChecks 的冷却期检查会阻止 10 秒内的重复卖出，不适用于卖出场景
-      const processedSignals = signalProcessor.processSellSignals(
-        [signal],
-        longPosition,
-        shortPosition,
+      // 买入信号：执行风险检查（需要 API 调用获取最新账户和持仓）
+      // 构建风险检查上下文
+      const riskCheckContext: RiskCheckContext = {
+        trader,
+        riskChecker,
+        orderRecorder,
         longQuote,
         shortQuote,
-        orderRecorder,
-        config.smartCloseEnabled,
-      );
+        monitorQuote,
+        monitorSnapshot: state.lastMonitorSnapshot,
+        longSymbol: config.longSymbol,
+        shortSymbol: config.shortSymbol,
+        longSymbolName: ctx.longSymbolName,
+        shortSymbolName: ctx.shortSymbolName,
+        account: lastState.cachedAccount,
+        positions: lastState.cachedPositions,
+        lastState: {
+          cachedAccount: lastState.cachedAccount,
+          cachedPositions: lastState.cachedPositions,
+          positionCache: lastState.positionCache,
+        },
+        currentTime: new Date(),
+        isHalfDay,
+        doomsdayProtection,
+        config,
+      };
 
-      // 如果信号被转为 HOLD，跳过执行
-      const firstSignal = processedSignals[0];
-      if (processedSignals.length === 0 || !firstSignal || firstSignal.action === 'HOLD') {
-        logger.info(`[SellProcessor] 卖出信号被跳过: ${symbolDisplay} ${signal.action}`);
-        return true; // 处理成功（虽然跳过了）
+      const checkedSignals = await signalProcessor.applyRiskChecks([signal], riskCheckContext);
+
+      // 如果信号被风险检查拦截，跳过执行
+      if (checkedSignals.length === 0) {
+        logger.info(`[BuyProcessor] 买入信号被风险检查拦截: ${symbolDisplay} ${signal.action}`);
+        return true; // 处理成功（虽然被拦截了）
       }
 
-      // 执行卖出订单
+      // 执行买入订单
       await trader.executeSignals([signal]);
-      logger.info(`[SellProcessor] 卖出订单执行完成: ${symbolDisplay} ${signal.action}`);
+      logger.info(`[BuyProcessor] 买入订单执行完成: ${symbolDisplay} ${signal.action}`);
 
       return true;
     } catch (err) {
-      logger.error(`[SellProcessor] 处理任务失败: ${symbolDisplay} ${signal.action}`, formatError(err));
+      logger.error(`[BuyProcessor] 处理任务失败: ${symbolDisplay} ${signal.action}`, formatError(err));
       return false;
     }
   };
@@ -161,7 +179,7 @@ export const createSellProcessor = (deps: SellProcessorDeps): SellProcessor => {
       } else {
         processQueue()
           .catch((err) => {
-            logger.error('[SellProcessor] 处理队列时发生错误', formatError(err));
+            logger.error('[BuyProcessor] 处理队列时发生错误', formatError(err));
           })
           .finally(() => {
             scheduleNextProcess();
@@ -175,7 +193,7 @@ export const createSellProcessor = (deps: SellProcessorDeps): SellProcessor => {
    */
   const start = (): void => {
     if (running) {
-      logger.warn('[SellProcessor] 处理器已在运行中');
+      logger.warn('[BuyProcessor] 处理器已在运行中');
       return;
     }
 
@@ -197,7 +215,7 @@ export const createSellProcessor = (deps: SellProcessorDeps): SellProcessor => {
    */
   const stop = (): void => {
     if (!running) {
-      logger.warn('[SellProcessor] 处理器未在运行');
+      logger.warn('[BuyProcessor] 处理器未在运行');
       return;
     }
 
@@ -208,7 +226,7 @@ export const createSellProcessor = (deps: SellProcessorDeps): SellProcessor => {
       immediateHandle = null;
     }
 
-    logger.info('[SellProcessor] 处理器已停止');
+    logger.info('[BuyProcessor] 处理器已停止');
   };
 
   /**

@@ -3,7 +3,7 @@
  * 存储每秒的指标快照，供延迟验证器查询
  */
 
-import type { IndicatorSnapshot } from '../../types/index.js';
+import type { IndicatorSnapshot } from '../../../types/index.js';
 
 /**
  * 指标缓存条目

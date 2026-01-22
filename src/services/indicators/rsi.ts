@@ -6,8 +6,7 @@
  */
 
 import { RSI } from 'technicalindicators';
-import { validatePercentage } from '../../utils/helpers/indicatorHelpers.js';
-import { logDebug } from './utils.js';
+import { logDebug, validatePercentage } from './utils.js';
 
 /**
  * 计算 RSI（相对强弱指标）

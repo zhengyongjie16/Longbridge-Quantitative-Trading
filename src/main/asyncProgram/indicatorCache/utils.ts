@@ -3,7 +3,7 @@
  * 环形缓冲区相关操作和快照克隆
  */
 
-import type { IndicatorSnapshot } from '../../types/index.js';
+import type { IndicatorSnapshot } from '../../../types/index.js';
 import type { IndicatorCacheEntry, RingBuffer } from './types.js';
 
 /**

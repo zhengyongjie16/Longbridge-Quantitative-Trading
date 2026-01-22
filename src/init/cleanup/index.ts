@@ -2,7 +2,7 @@
  * 程序退出清理模块
  */
 
-import { logger } from '../utils/logger/index.js';
+import { logger } from '../../utils/logger/index.js';
 import { releaseAllMonitorSnapshots } from './utils.js';
 import type { CleanupContext } from './types.js';
 

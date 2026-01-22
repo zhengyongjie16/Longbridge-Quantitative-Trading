@@ -20,11 +20,12 @@
  */
 
 import { logger } from '../../utils/logger/index.js';
-import { normalizeHKSymbol, getSymbolName, getDirectionName, formatSymbolDisplayFromQuote, formatError } from '../../utils/helpers/index.js';
+import { normalizeHKSymbol, getDirectionName, formatSymbolDisplayFromQuote, formatError } from '../../utils/helpers/index.js';
+import { getSymbolName } from './utils.js';
 import { MULTI_MONITOR_TRADING_CONFIG } from '../../config/config.trading.js';
 import { VERIFICATION } from '../../constants/index.js';
 import type { Quote, Position, Signal, OrderRecorder, AccountSnapshot } from '../../types/index.js';
-import { isValidPositionAndQuote } from './types.js';
+import { isValidPositionAndQuote } from './utils.js';
 import type { RiskCheckContext, SellQuantityResult, SignalProcessor, SignalProcessorDeps } from './types.js';
 
 /**

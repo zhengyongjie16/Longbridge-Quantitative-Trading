@@ -7,8 +7,7 @@
 
 import { MACD } from 'technicalindicators';
 import { macdObjectPool } from '../../utils/objectPool/index.js';
-import { isValidMACD } from '../../utils/objectPool/types.js';
-import { logDebug } from './utils.js';
+import { logDebug, isValidMACD } from './utils.js';
 import type { MACDIndicator } from '../../types/index.js';
 
 /**
