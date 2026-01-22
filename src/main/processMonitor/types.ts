@@ -3,7 +3,7 @@
  */
 
 import type { IndicatorCache } from '../asyncProgram/indicatorCache/types.js';
-import type { BuyTaskQueue, SellTaskQueue } from '../asyncProgram/tradeTaskQueue/types.js';
+import type { BuyTaskQueue, SellTaskQueue } from '../asyncProgram/types.js';
 import type {
   MonitorContext,
   MarketDataClient,

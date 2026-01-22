@@ -11,7 +11,8 @@
  */
 
 import { logger } from '../../utils/logger/index.js';
-import type { RateLimiter, RateLimiterDeps, RateLimiterConfig } from './types.js';
+import type { RateLimiter } from '../../types/index.js';
+import type { RateLimiterDeps, RateLimiterConfig } from './types.js';
 
 // 常量定义
 /**

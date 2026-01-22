@@ -33,10 +33,10 @@ import {
   formatNumber,
   isDefined,
 } from '../src/utils/helpers/index.js';
+import { validatePercentage } from '../src/utils/helpers/indicatorHelpers.js';
 import { RSI, MACD, EMA, MFI } from 'technicalindicators';
 import { MULTI_MONITOR_TRADING_CONFIG } from '../src/config/config.trading.js';
 import { createConfig } from '../src/config/config.index.js';
-import { validatePercentage } from '../src/services/indicators/utils.js';
 
 // ============================================
 // 配置变量（可直接修改）

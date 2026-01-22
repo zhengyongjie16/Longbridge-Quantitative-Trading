@@ -4,6 +4,7 @@
  */
 
 import { Market } from 'longport';
+import type { DoomsdayProtection } from '../core/doomsdayProtection/types.js';
 
 // ==================== 信号类型 ====================
 
@@ -510,6 +511,13 @@ export type TradeCheckResult = {
 };
 
 /**
+ * 频率限制器接口
+ */
+export interface RateLimiter {
+  throttle(): Promise<void>;
+}
+
+/**
  * 订单记录器接口（公共服务接口）
  */
 export interface OrderRecorder {
@@ -573,12 +581,7 @@ export interface Trader {
    *
    * @returns 待刷新的标的列表（调用后列表会被清空）
    */
-  getAndClearPendingRefreshSymbols(): ReadonlyArray<{
-    readonly symbol: string;
-    readonly isLongSymbol: boolean;
-    readonly refreshAccount: boolean;
-    readonly refreshPositions: boolean;
-  }>;
+  getAndClearPendingRefreshSymbols(): ReadonlyArray<PendingRefreshSymbol>;
 
   // 订单执行相关方法
   _canTradeNow(signalAction: string, monitorConfig?: MonitorConfig | null): TradeCheckResult;
@@ -591,6 +594,50 @@ export interface Trader {
   _markBuyAttempt(signalAction: string, monitorConfig?: MonitorConfig | null): void;
   executeSignals(signals: Signal[]): Promise<void>;
 }
+
+/**
+ * 风险检查上下文类型
+ */
+export type RiskCheckContext = {
+  readonly trader: Trader;
+  readonly riskChecker: RiskChecker;
+  readonly orderRecorder: OrderRecorder;
+  readonly longQuote: Quote | null;
+  readonly shortQuote: Quote | null;
+  readonly monitorQuote: Quote | null;
+  readonly monitorSnapshot: IndicatorSnapshot | null;
+  readonly longSymbol: string;
+  readonly shortSymbol: string;
+  readonly longSymbolName: string | null;
+  readonly shortSymbolName: string | null;
+  /** 账户缓存（仅用于日志显示，不用于风险检查） */
+  readonly account: AccountSnapshot | null;
+  /** 持仓缓存（仅用于日志显示，不用于风险检查） */
+  readonly positions: ReadonlyArray<Position>;
+  readonly lastState: {
+    cachedAccount?: AccountSnapshot | null;
+    cachedPositions?: Position[];
+    /** 持仓缓存，使用 Map 提供 O(1) 查找性能 */
+    positionCache: PositionCache;
+  };
+  readonly currentTime: Date;
+  readonly isHalfDay: boolean;
+  readonly doomsdayProtection: DoomsdayProtection;
+  readonly config: MonitorConfig;
+};
+
+/**
+ * 待刷新数据的标的信息
+ * 订单成交后触发刷新账户、持仓和浮亏数据
+ */
+export type PendingRefreshSymbol = {
+  readonly symbol: string;
+  readonly isLongSymbol: boolean;
+  /** 是否需要刷新账户数据 */
+  readonly refreshAccount: boolean;
+  /** 是否需要刷新持仓数据 */
+  readonly refreshPositions: boolean;
+};
 
 /**
  * 牛熊证类型

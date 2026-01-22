@@ -3,7 +3,7 @@
  */
 
 import type { OrderSide, OrderType, OrderStatus, TimeInForceType, TradeContext } from 'longport';
-import type { Signal, Quote, AccountSnapshot, Position, PendingOrder, TradeCheckResult } from '../../types/index.js';
+import type { Signal, Quote, AccountSnapshot, Position, PendingOrder, TradeCheckResult, RateLimiter, PendingRefreshSymbol } from '../../types/index.js';
 
 /**
  * 订单载荷类型
@@ -51,13 +51,6 @@ export type ErrorTypeIdentifier = {
 // ==================== 服务接口定义 ====================
 
 /**
- * 频率限制器接口
- */
-export interface RateLimiter {
-  throttle(): Promise<void>;
-}
-
-/**
  * 账户服务接口
  */
 export interface AccountService {
@@ -72,19 +65,6 @@ export interface OrderCacheManager {
   getPendingOrders(symbols?: string[] | null, forceRefresh?: boolean): Promise<PendingOrder[]>;
   clearCache(): void;
   hasPendingBuyOrders(symbols: string[], orderRecorder?: import('../../types/index.js').OrderRecorder | null): Promise<boolean>;
-}
-
-/**
- * 需要刷新数据的标的信息
- * 订单成交后触发刷新账户、持仓和浮亏数据
- */
-export interface PendingRefreshSymbol {
-  readonly symbol: string;
-  readonly isLongSymbol: boolean;
-  /** 是否需要刷新账户数据 */
-  readonly refreshAccount: boolean;
-  /** 是否需要刷新持仓数据 */
-  readonly refreshPositions: boolean;
 }
 
 /**

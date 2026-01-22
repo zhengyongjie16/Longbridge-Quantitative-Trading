@@ -23,13 +23,12 @@ import type { PushOrderChanged } from 'longport';
 import { logger } from '../../utils/logger/index.js';
 import { normalizeHKSymbol, decimalToNumber, toDecimal, formatError } from '../../utils/helpers/index.js';
 import { MULTI_MONITOR_TRADING_CONFIG } from '../../config/config.trading.js';
-import type { Quote } from '../../types/index.js';
+import type { Quote, PendingRefreshSymbol } from '../../types/index.js';
 import type {
   OrderMonitor,
   OrderMonitorDeps,
   TrackedOrder,
   OrderMonitorConfig,
-  PendingRefreshSymbol,
 } from './types.js';
 
 /**

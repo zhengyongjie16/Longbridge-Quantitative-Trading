@@ -23,7 +23,7 @@ import { formatError, formatSymbolDisplay } from '../../../utils/helpers/index.j
 import type { BuyProcessor, BuyProcessorDeps } from './types.js';
 import type { ProcessorStats } from '../types.js';
 import type { BuyTask } from '../tradeTaskQueue/types.js';
-import type { RiskCheckContext } from '../../../core/signalProcessor/types.js';
+import type { RiskCheckContext } from '../../../types/index.js';
 
 /**
  * 创建买入处理器

@@ -2,10 +2,7 @@
  * mainProgram 模块类型定义
  */
 import type { IndicatorCache } from '../asyncProgram/indicatorCache/types.js';
-import type {
-  BuyTaskQueue,
-  SellTaskQueue,
-} from '../asyncProgram/tradeTaskQueue/types.js';
+import type { BuyTaskQueue, SellTaskQueue } from '../asyncProgram/types.js';
 import type { BuyProcessor } from '../asyncProgram/buyProcessor/types.js';
 import type { SellProcessor } from '../asyncProgram/sellProcessor/types.js';
 import type {

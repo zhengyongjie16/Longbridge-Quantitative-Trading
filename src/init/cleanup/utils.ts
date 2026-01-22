@@ -2,7 +2,7 @@
  * 清理模块独享的工具函数
  */
 
-import { releaseSnapshotObjects } from '../../utils/helpers/utils.js';
+import { releaseSnapshotObjects } from '../../utils/helpers/index.js';
 import type { MonitorState } from '../../types/index.js';
 
 /**

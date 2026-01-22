@@ -17,9 +17,9 @@ import {
 import {
   formatSignalLog,
   formatSymbolDisplay,
+  releaseSnapshotObjects,
 } from '../../utils/helpers/index.js';
 import { VALID_SIGNAL_ACTIONS, TRADING } from '../../constants/index.js';
-import { releaseSnapshotObjects } from '../../utils/helpers/utils.js';
 import { getPositions } from './utils.js';
 
 import type { CandleData, Signal, Quote } from '../../types/index.js';

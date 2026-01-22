@@ -11,7 +11,7 @@
 import { MULTI_MONITOR_TRADING_CONFIG } from '../../config/config.trading.js';
 import { logger } from '../../utils/logger/index.js';
 import { formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
-import { isInContinuousHKSession } from './utils.js';
+import { isInContinuousHKSession } from '../../utils/helpers/tradingTime.js';
 import { displayAccountAndPositions } from '../../utils/helpers/accountDisplay.js';
 import { collectAllQuoteSymbols } from '../../utils/helpers/quoteHelpers.js';
 import { processMonitor } from '../processMonitor/index.js';

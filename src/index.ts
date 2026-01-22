@@ -28,6 +28,7 @@ import { validateAllConfig } from './config/config.validator.js';
 import {
   formatError,
   formatSymbolDisplay,
+  initMonitorState,
   sleep,
 } from './utils/helpers/index.js';
 import { collectAllQuoteSymbols } from './utils/helpers/quoteHelpers.js';
@@ -47,7 +48,6 @@ import { createBuyProcessor } from './main/asyncProgram/buyProcessor/index.js';
 import { createSellProcessor } from './main/asyncProgram/sellProcessor/index.js';
 
 // 导入主程序初始化模块（从 src/init/ 拆分出来的工具函数和工厂函数）
-import { initMonitorState } from './utils/helpers/utils.js';
 import { createMonitorContext } from './init/monitorContext/index.js';
 import { createCleanup } from './init/cleanup/index.js';
 

@@ -3,8 +3,7 @@
  */
 
 import type { OrderSide, OrderStatus, OrderType, TradeContext } from 'longport';
-import type { DecimalLikeValue, PendingOrder, OrderRecord, FetchOrdersResult, Quote } from '../../types/index.js';
-import type { RateLimiter } from '../trader/types.js';
+import type { DecimalLikeValue, PendingOrder, OrderRecord, FetchOrdersResult, Quote, RateLimiter } from '../../types/index.js';
 
 /**
  * API 返回的原始订单类型（用于类型安全的转换）

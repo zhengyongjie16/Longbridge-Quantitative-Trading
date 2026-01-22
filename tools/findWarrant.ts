@@ -42,9 +42,7 @@ import {
   decimalToNumber,
   formatNumber,
 } from '../src/utils/helpers/index.js';
-
-// ==================== 类型定义 ====================
-type DecimalLikeValue = string | number | null;
+import type { DecimalLikeValue } from '../src/types/index.js';
 
 // ==================== 配置参数 ====================
 // 注意：修改以下配置后，需要重新运行程序才能生效

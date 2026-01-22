@@ -4,7 +4,8 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import type { Task, TaskQueue, TaskAddedCallback, BuyTask, BuyTaskQueue, SellTask, SellTaskQueue } from './types.js';
+import type { Task, TaskQueue, TaskAddedCallback, BuyTask, SellTask } from './types.js';
+import type { BuyTaskQueue, SellTaskQueue } from '../types.js';
 
 /**
  * 创建通用任务队列

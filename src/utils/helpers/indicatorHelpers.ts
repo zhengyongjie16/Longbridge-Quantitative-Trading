@@ -89,3 +89,12 @@ export function validateRsiPeriod(period: unknown): period is number {
   return typeof period === 'number' && Number.isFinite(period) && period >= 1 && period <= 100;
 }
 
+/**
+ * 验证百分比值是否有效（0-100）
+ * @param value 百分比值
+ * @returns 如果值在 0-100 范围内返回 true，否则返回 false
+ */
+export function validatePercentage(value: unknown): boolean {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100;
+}
+

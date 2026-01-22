@@ -38,15 +38,6 @@ export function logDebug(message: string, error?: unknown): void {
 }
 
 /**
- * 验证百分比值是否有效（0-100）
- * @param value 百分比值
- * @returns 如果值在 0-100 范围内返回 true，否则返回 false
- */
-export function validatePercentage(value: unknown): boolean {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100;
-}
-
-/**
  * 检查 PoolableKDJ 是否可以安全转换为 KDJIndicator
  * @param obj 对象池中的 KDJ 对象
  * @returns 如果所有字段都是有效数字则返回 true

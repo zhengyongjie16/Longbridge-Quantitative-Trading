@@ -50,11 +50,6 @@ export type BuyTaskType = 'IMMEDIATE_BUY' | 'VERIFIED_BUY';
  */
 export type BuyTask = Task<BuyTaskType>;
 
-/**
- * 买入任务队列接口
- */
-export type BuyTaskQueue = TaskQueue<BuyTask>;
-
 // ============================================================================
 // 卖出任务队列类型
 // ============================================================================
@@ -69,7 +64,3 @@ export type SellTaskType = 'IMMEDIATE_SELL' | 'VERIFIED_SELL';
  */
 export type SellTask = Task<SellTaskType>;
 
-/**
- * 卖出任务队列接口
- */
-export type SellTaskQueue = TaskQueue<SellTask>;

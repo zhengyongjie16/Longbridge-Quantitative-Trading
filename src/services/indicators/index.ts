@@ -39,14 +39,14 @@ const CACHE_TTL_MS = 5000;
 const MAX_CACHE_SIZE = 50;
 
 /** 缓存条目类型 */
-type IndicatorCacheEntry = {
+type IndicatorCalculationCacheEntry = {
   readonly snapshot: IndicatorSnapshot;
   readonly timestamp: number;
   readonly dataFingerprint: string;
 };
 
 /** 指标计算结果缓存 */
-const indicatorCache = new Map<string, IndicatorCacheEntry>();
+const indicatorCache = new Map<string, IndicatorCalculationCacheEntry>();
 
 /**
  * 构建缓存键
@@ -81,7 +81,7 @@ const buildDataFingerprint = (
  * 释放缓存条目中的对象池对象
  * @param entry 缓存条目
  */
-const releaseCacheEntryObjects = (entry: IndicatorCacheEntry): void => {
+const releaseCacheEntryObjects = (entry: IndicatorCalculationCacheEntry): void => {
   // 释放 rsi 和 ema 对象回对象池
   if (entry.snapshot.rsi) {
     periodRecordPool.release(entry.snapshot.rsi);

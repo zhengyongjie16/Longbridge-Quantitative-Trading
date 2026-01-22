@@ -26,7 +26,8 @@ import { MULTI_MONITOR_TRADING_CONFIG } from '../../config/config.trading.js';
 import { VERIFICATION } from '../../constants/index.js';
 import type { Quote, Position, Signal, OrderRecorder, AccountSnapshot } from '../../types/index.js';
 import { isValidPositionAndQuote } from './utils.js';
-import type { RiskCheckContext, SellQuantityResult, SignalProcessor, SignalProcessorDeps } from './types.js';
+import type { SellQuantityResult, SignalProcessor, SignalProcessorDeps } from './types.js';
+import type { RiskCheckContext } from '../../types/index.js';
 
 /**
  * 记录每个标的每个方向最近一次进入风险检查的时间
