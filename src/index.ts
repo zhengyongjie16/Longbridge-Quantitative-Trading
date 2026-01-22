@@ -126,7 +126,7 @@ async function main(): Promise<void> {
   const doomsdayProtection = createDoomsdayProtection();
   const signalProcessor = createSignalProcessor({ tradingConfig });
 
-  // 初始化新架构模块
+  // 初始化异步程序架构模块
   // 计算 IndicatorCache 的容量：max(buyDelay, sellDelay) + 15 + 10
   // 注意：IndicatorCache 需要在 monitorContexts 创建之前初始化，因为每个 MonitorContext 中的
   // DelayedSignalVerifier 需要引用 IndicatorCache
@@ -254,9 +254,6 @@ async function main(): Promise<void> {
     }
   }
 
-  // 注意：程序启动时的订单追踪恢复已在 createTrader 中完成
-  // orderMonitor.recoverTrackedOrders() 会自动查询并恢复所有未完成订单的追踪
-
   // 为每个监控标的的 DelayedSignalVerifier 注册回调
   // 验证通过后根据信号类型分流到不同队列
   for (const [monitorSymbol, monitorContext] of monitorContexts) {
@@ -316,8 +313,6 @@ async function main(): Promise<void> {
   // 启动 BuyProcessor 和 SellProcessor
   buyProcessor.start();
   sellProcessor.start();
-  logger.info('[BuyProcessor] 买入处理器已启动');
-  logger.info('[SellProcessor] 卖出处理器已启动');
 
   // 使用 createCleanup 创建清理模块并注册退出处理函数
   const cleanup = createCleanup({
@@ -341,7 +336,7 @@ async function main(): Promise<void> {
         signalProcessor,
         tradingConfig,
         monitorContexts,
-        // 新架构模块
+        // 异步程序架构模块
         indicatorCache,
         buyTaskQueue,
         sellTaskQueue,
