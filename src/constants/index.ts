@@ -42,9 +42,9 @@ export const VERIFICATION = {
   /** 验证窗口开始时间偏移量（秒） */
   WINDOW_START_OFFSET_SECONDS: -5,
   /** 验证窗口结束时间偏移量（秒） */
-  WINDOW_END_OFFSET_SECONDS: 15,
+  WINDOW_END_OFFSET_SECONDS: 10,
   /** 验证就绪延迟时间（秒） */
-  READY_DELAY_SECONDS: 15,
+  READY_DELAY_SECONDS: 10,
   /** 验证通过信号冷却时间（秒）- 同标的同方向在此时间内只允许一个信号进入风险检查 */
   VERIFIED_SIGNAL_COOLDOWN_SECONDS: 10,
 } as const;

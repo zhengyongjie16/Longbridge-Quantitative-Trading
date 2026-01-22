@@ -227,7 +227,7 @@ src/
 │   └── types.ts                # 配置类型定义
 ├── constants/                  # 全局常量定义
 ├── types/                      # TypeScript 类型定义
-├── program/                    # 程序架构模块（异步任务处理）
+├── program/                    # 主程序架构模块（异步任务处理）
 │   ├── delayedSignalVerifier/  # 延迟信号验证器（setTimeout 计时验证）
 │   ├── indicatorCache/         # 指标缓存（环形缓冲区存储历史快照）
 │   ├── tradeProcessor/         # 交易处理器（setImmediate 异步消费任务）
