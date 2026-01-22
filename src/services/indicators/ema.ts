@@ -24,7 +24,7 @@ export function calculateEMA(validCloses: ReadonlyArray<number>, period: number)
 
   try {
     // validCloses 已由 buildIndicatorSnapshot 预处理，无需再次过滤
-    const emaResult = EMA.calculate({ values: validCloses as number[], period });
+    const emaResult = EMA.calculate({ values: Array.from(validCloses), period });
 
     if (!emaResult || emaResult.length === 0) {
       return null;

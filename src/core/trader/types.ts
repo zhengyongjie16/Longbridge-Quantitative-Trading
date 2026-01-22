@@ -3,7 +3,17 @@
  */
 
 import type { OrderSide, OrderType, OrderStatus, TimeInForceType, TradeContext } from 'longport';
-import type { Signal, Quote, AccountSnapshot, Position, PendingOrder, TradeCheckResult, RateLimiter, PendingRefreshSymbol } from '../../types/index.js';
+import type {
+  Signal,
+  Quote,
+  AccountSnapshot,
+  Position,
+  PendingOrder,
+  TradeCheckResult,
+  RateLimiter,
+  PendingRefreshSymbol,
+  MultiMonitorTradingConfig,
+} from '../../types/index.js';
 
 /**
  * 订单载荷类型
@@ -226,6 +236,8 @@ export type OrderMonitorDeps = {
   readonly cacheManager: OrderCacheManager;
   /** 订单记录器（用于成交后更新本地记录） */
   readonly orderRecorder: import('../../types/index.js').OrderRecorder;
+  /** 全局交易配置 */
+  readonly tradingConfig: MultiMonitorTradingConfig;
 };
 
 /**
@@ -236,11 +248,15 @@ export type OrderExecutorDeps = {
   readonly rateLimiter: RateLimiter;
   readonly cacheManager: OrderCacheManager;
   readonly orderMonitor: OrderMonitor;
+  /** 全局交易配置 */
+  readonly tradingConfig: MultiMonitorTradingConfig;
 };
 
 /**
  * 交易器依赖类型
  */
 export type TraderDeps = {
-  readonly config?: import('longport').Config | null;
+  readonly config: import('longport').Config;
+  readonly tradingConfig: MultiMonitorTradingConfig;
+  readonly rateLimiterConfig?: RateLimiterConfig;
 };

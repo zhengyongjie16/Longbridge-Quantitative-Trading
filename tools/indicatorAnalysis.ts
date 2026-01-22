@@ -27,6 +27,7 @@ import {
   TradeSessions,
   Market,
 } from 'longport';
+import dotenv from 'dotenv';
 import {
   normalizeHKSymbol,
   decimalToNumber,
@@ -35,8 +36,13 @@ import {
 } from '../src/utils/helpers/index.js';
 import { validatePercentage } from '../src/utils/helpers/indicatorHelpers.js';
 import { RSI, MACD, EMA, MFI } from 'technicalindicators';
-import { MULTI_MONITOR_TRADING_CONFIG } from '../src/config/config.trading.js';
+import { createMultiMonitorTradingConfig } from '../src/config/config.trading.js';
 import { createConfig } from '../src/config/config.index.js';
+
+dotenv.config({ path: '.env.local' });
+
+const env = process.env;
+const tradingConfig = createMultiMonitorTradingConfig({ env });
 
 // ============================================
 // 配置变量（可直接修改）
@@ -827,7 +833,7 @@ async function getIntradayCandlesticks(
 ): Promise<void> {
   try {
     // 创建配置
-    const config = createConfig();
+    const config = createConfig({ env });
 
     // 初始化 QuoteContext
     const ctx = await QuoteContext.new(config);
@@ -941,8 +947,8 @@ async function getIntradayCandlesticks(
     // 获取做多和做空标的的分时线数据（日期范围内数据，用于显示价格）
     // 优先级：代码配置 > 环境变量 > 交易配置，确保转换为字符串
     const firstMonitorConfig =
-      MULTI_MONITOR_TRADING_CONFIG.monitors.length > 0
-        ? MULTI_MONITOR_TRADING_CONFIG.monitors[0]
+      tradingConfig.monitors.length > 0
+        ? tradingConfig.monitors[0]
         : null;
     const longSymbolRaw =
       DEFAULT_LONG_SYMBOL ||

@@ -22,19 +22,11 @@
 import { logger } from '../../utils/logger/index.js';
 import { normalizeHKSymbol, getDirectionName, formatSymbolDisplayFromQuote, formatError } from '../../utils/helpers/index.js';
 import { getSymbolName } from './utils.js';
-import { MULTI_MONITOR_TRADING_CONFIG } from '../../config/config.trading.js';
 import { VERIFICATION } from '../../constants/index.js';
 import type { Quote, Position, Signal, OrderRecorder, AccountSnapshot } from '../../types/index.js';
 import { isValidPositionAndQuote } from './utils.js';
 import type { SellQuantityResult, SignalProcessor, SignalProcessorDeps } from './types.js';
 import type { RiskCheckContext } from '../../types/index.js';
-
-/**
- * 记录每个标的每个方向最近一次进入风险检查的时间
- * 格式: Map<`${symbol}_${direction}`, timestamp>
- * 用于实现验证信号冷却机制，避免同标的同方向的重复信号在短时间内多次触发风险检查
- */
-const lastRiskCheckTime = new Map<string, number>();
 
 /**
  * 格式化价格比较描述
@@ -155,10 +147,17 @@ function calculateSellQuantity(
 
 /**
  * 创建信号处理器
- * @param _deps 依赖注入（当前为空）
+ * @param deps 依赖注入
  * @returns SignalProcessor 接口实例
  */
-export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalProcessor => {
+export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): SignalProcessor => {
+  /**
+   * 记录每个标的每个方向最近一次进入风险检查的时间
+   * 格式: Map<`${symbol}_${direction}`, timestamp>
+   * 用于实现验证信号冷却机制，避免同标的同方向的重复信号在短时间内多次触发风险检查
+   */
+  const lastRiskCheckTime = new Map<string, number>();
+
   /**
    * 处理卖出信号的成本价判断和数量计算
    */
@@ -169,7 +168,7 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
     longQuote: Quote | null,
     shortQuote: Quote | null,
     orderRecorder: OrderRecorder,
-    smartCloseEnabled: boolean = true,
+    smartCloseEnabled: boolean,
   ): Signal[] => {
     for (const sig of signals) {
       // 只处理卖出信号（SELLCALL 和 SELLPUT），跳过买入信号
@@ -434,7 +433,7 @@ export const createSignalProcessor = (_deps: SignalProcessorDeps = {}): SignalPr
 
         // 3. 末日保护程序：收盘前15分钟拒绝买入
         if (
-          MULTI_MONITOR_TRADING_CONFIG.global.doomsdayProtection &&
+          tradingConfig.global.doomsdayProtection &&
           doomsdayProtection.shouldRejectBuy(currentTime, isHalfDay)
         ) {
           const closeTimeRange = isHalfDay ? '11:45-12:00' : '15:45-16:00';

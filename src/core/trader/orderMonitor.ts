@@ -22,8 +22,7 @@ import {
 import type { PushOrderChanged } from 'longport';
 import { logger } from '../../utils/logger/index.js';
 import { normalizeHKSymbol, decimalToNumber, toDecimal, formatError } from '../../utils/helpers/index.js';
-import { MULTI_MONITOR_TRADING_CONFIG } from '../../config/config.trading.js';
-import type { Quote, PendingRefreshSymbol } from '../../types/index.js';
+import type { Quote, PendingRefreshSymbol, GlobalConfig } from '../../types/index.js';
 import type {
   OrderMonitor,
   OrderMonitorDeps,
@@ -35,8 +34,7 @@ import type {
  * 从全局配置构建订单监控配置
  * 将环境变量配置（秒）转换为毫秒
  */
-const buildOrderMonitorConfig = (): OrderMonitorConfig => {
-  const globalConfig = MULTI_MONITOR_TRADING_CONFIG.global;
+const buildOrderMonitorConfig = (globalConfig: GlobalConfig): OrderMonitorConfig => {
   return {
     buyTimeout: {
       enabled: globalConfig.buyOrderTimeout.enabled,
@@ -57,8 +55,8 @@ const buildOrderMonitorConfig = (): OrderMonitorConfig => {
  * @returns OrderMonitor 接口实例
  */
 export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
-  const { ctxPromise, rateLimiter, cacheManager, orderRecorder } = deps;
-  const config = buildOrderMonitorConfig();
+  const { ctxPromise, rateLimiter, cacheManager, orderRecorder, tradingConfig } = deps;
+  const config = buildOrderMonitorConfig(tradingConfig.global);
 
   // 追踪中的订单
   const trackedOrders = new Map<string, TrackedOrder>();
@@ -71,7 +69,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
    */
   const isLongSymbolByConfig = (symbol: string): boolean => {
     const normalizedSymbol = normalizeHKSymbol(symbol);
-    for (const monitor of MULTI_MONITOR_TRADING_CONFIG.monitors) {
+    for (const monitor of tradingConfig.monitors) {
       if (normalizeHKSymbol(monitor.longSymbol) === normalizedSymbol) {
         return true;
       }

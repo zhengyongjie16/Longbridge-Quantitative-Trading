@@ -8,7 +8,6 @@
  * - 管理订单监控和缓存刷新
  */
 
-import { MULTI_MONITOR_TRADING_CONFIG } from '../../config/config.trading.js';
 import { logger } from '../../utils/logger/index.js';
 import { formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
 import { isInContinuousHKSession } from '../../utils/helpers/tradingTime.js';
@@ -38,13 +37,11 @@ export async function mainProgram({
   marketMonitor,
   doomsdayProtection,
   signalProcessor,
+  tradingConfig,
   monitorContexts,
   indicatorCache,
   buyTaskQueue,
   sellTaskQueue,
-  // BuyProcessor 和 SellProcessor 是自动运行的（通过 start()），不需要在 mainProgram 中显式调用
-  buyProcessor: _buyProcessor,
-  sellProcessor: _sellProcessor,
 }: MainProgramContext): Promise<void> {
   // 使用缓存的账户和持仓信息（仅在交易后更新）
   const positions = lastState.cachedPositions ?? [];
@@ -134,12 +131,12 @@ export async function mainProgram({
   }
 
   // 末日保护检查（全局性，在所有监控标的处理之前）
-  if (MULTI_MONITOR_TRADING_CONFIG.global.doomsdayProtection) {
+  if (tradingConfig.global.doomsdayProtection) {
     // 收盘前15分钟：撤销所有未成交的买入订单
     const cancelResult = await doomsdayProtection.cancelPendingBuyOrders({
       currentTime,
       isHalfDay: isHalfDayToday,
-      monitorConfigs: MULTI_MONITOR_TRADING_CONFIG.monitors,
+      monitorConfigs: tradingConfig.monitors,
       trader,
     });
 
@@ -152,7 +149,7 @@ export async function mainProgram({
       currentTime,
       isHalfDay: isHalfDayToday,
       positions,
-      monitorConfigs: MULTI_MONITOR_TRADING_CONFIG.monitors,
+      monitorConfigs: tradingConfig.monitors,
       monitorContexts,
       trader,
       marketDataClient,
@@ -167,7 +164,7 @@ export async function mainProgram({
 
   // 收集所有需要获取行情的标的，一次性批量获取（减少 API 调用次数）
   // getQuotes 接口已支持 Iterable，无需 Array.from() 转换
-  const allQuoteSymbols = collectAllQuoteSymbols(MULTI_MONITOR_TRADING_CONFIG.monitors);
+  const allQuoteSymbols = collectAllQuoteSymbols(tradingConfig.monitors);
   const quotesMap = await marketDataClient.getQuotes(allQuoteSymbols);
 
   // 并发处理所有监控标的（使用预先获取的行情数据）

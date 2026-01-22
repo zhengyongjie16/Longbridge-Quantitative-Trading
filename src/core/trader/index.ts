@@ -23,7 +23,6 @@
  */
 
 import { TradeContext, OrderSide } from 'longport';
-import { createConfig } from '../../config/config.index.js';
 import { createOrderRecorder } from '../orderRecorder/index.js';
 import type { Signal, Quote, AccountSnapshot, Position, OrderRecorder, PendingOrder, Trader, TradeCheckResult, PendingRefreshSymbol } from '../../types/index.js';
 import type { TraderDeps } from './types.js';
@@ -40,14 +39,15 @@ import { createOrderExecutor } from './orderExecutor.js';
  * @param deps 依赖配置
  * @returns Promise<Trader> 接口实例
  */
-export const createTrader = async (deps: TraderDeps = {}): Promise<Trader> => {
-  const finalConfig = deps.config ?? createConfig();
+export const createTrader = async (deps: TraderDeps): Promise<Trader> => {
+  const { config, tradingConfig } = deps;
 
   // ========== 1. 创建基础依赖 ==========
-  const ctxPromise = TradeContext.new(finalConfig);
+  const ctxPromise = TradeContext.new(config);
 
   // ========== 2. 创建无依赖的基础模块 ==========
-  const rateLimiter = createRateLimiter({ config: { maxCalls: 30, windowMs: 30000 } });
+  const rateLimiterConfig = deps.rateLimiterConfig ?? { maxCalls: 30, windowMs: 30000 };
+  const rateLimiter = createRateLimiter({ config: rateLimiterConfig });
 
   const cacheManager = createOrderCacheManager({ ctxPromise, rateLimiter });
 
@@ -62,6 +62,7 @@ export const createTrader = async (deps: TraderDeps = {}): Promise<Trader> => {
     rateLimiter,
     cacheManager,
     orderRecorder,
+    tradingConfig,
   });
 
   // ========== 5. 创建 orderExecutor ==========
@@ -70,6 +71,7 @@ export const createTrader = async (deps: TraderDeps = {}): Promise<Trader> => {
     rateLimiter,
     cacheManager,
     orderMonitor,
+    tradingConfig,
   });
 
   // ========== 6. 初始化 WebSocket 订阅 ==========

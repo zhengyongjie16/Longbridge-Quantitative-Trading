@@ -35,7 +35,6 @@ import {
   SubType,
 } from 'longport';
 import type { Candlestick, PushQuoteEvent } from 'longport';
-import { createConfig } from '../../config/config.index.js';
 import {
   normalizeHKSymbol,
   decimalToNumber,
@@ -130,9 +129,8 @@ const createTradingDayCache = (_deps: TradingDayCacheDeps = {}) => {
  * @param deps 依赖注入，必须提供 symbols（需要订阅的标的列表）
  */
 export const createMarketDataClient = async (deps: MarketDataClientDeps): Promise<MarketDataClient> => {
-  const { symbols } = deps;
-  const finalConfig = deps.config ?? createConfig();
-  const ctx = await QuoteContext.new(finalConfig);
+  const { symbols, config } = deps;
+  const ctx = await QuoteContext.new(config);
   const tradingDayCache = createTradingDayCache();
 
   // 行情缓存（由 WebSocket 推送实时更新）

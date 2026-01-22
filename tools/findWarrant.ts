@@ -35,14 +35,20 @@ import {
   FilterWarrantExpiryDate,
   TradeSessions,
 } from 'longport';
+import dotenv from 'dotenv';
 import { createConfig } from '../src/config/config.index.js';
-import { MULTI_MONITOR_TRADING_CONFIG } from '../src/config/config.trading.js';
+import { createMultiMonitorTradingConfig } from '../src/config/config.trading.js';
 import {
   normalizeHKSymbol,
   decimalToNumber,
   formatNumber,
 } from '../src/utils/helpers/index.js';
 import type { DecimalLikeValue } from '../src/types/index.js';
+
+dotenv.config({ path: '.env.local' });
+
+const env = process.env;
+const tradingConfig = createMultiMonitorTradingConfig({ env });
 
 // ==================== 配置参数 ====================
 // 注意：修改以下配置后，需要重新运行程序才能生效
@@ -323,7 +329,7 @@ async function findQualifiedWarrants(
 ): Promise<FindWarrantsResult> {
   try {
     // 创建配置
-    const config = createConfig();
+    const config = createConfig({ env });
 
     // 初始化 QuoteContext
     const ctx = await QuoteContext.new(config);
@@ -448,8 +454,8 @@ async function main(): Promise<void> {
       process.argv[2] ||
       process.env['MONITOR_SYMBOL'] ||
       DEFAULT_MONITOR_SYMBOL ||
-      (MULTI_MONITOR_TRADING_CONFIG.monitors.length > 0
-        ? MULTI_MONITOR_TRADING_CONFIG.monitors[0]?.monitorSymbol
+      (tradingConfig.monitors.length > 0
+        ? tradingConfig.monitors[0]?.monitorSymbol
         : null);
 
     if (!monitorSymbol) {

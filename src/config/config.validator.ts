@@ -8,20 +8,12 @@
  */
 
 import { logger } from '../utils/logger/index.js';
-import { MULTI_MONITOR_TRADING_CONFIG } from './config.trading.js';
 import { createConfig } from './config.index.js';
 import { createMarketDataClient } from '../services/quoteClient/index.js';
-import type { MarketDataClient, ValidateAllConfigResult, MonitorConfig } from '../types/index.js';
+import type { MarketDataClient, ValidateAllConfigResult, MonitorConfig, MultiMonitorTradingConfig } from '../types/index.js';
 import { formatSymbolDisplay, normalizeHKSymbol, formatError } from '../utils/helpers/index.js';
 import { formatSignalConfig } from '../utils/helpers/signalConfigParser.js';
-
-/**
- * 配置验证错误类型（内部使用，不导出）
- */
-type ConfigValidationError = Error & {
-  readonly name: 'ConfigValidationError';
-  readonly missingFields: ReadonlyArray<string>;
-};
+import type { ConfigValidationError } from './types.js';
 
 /**
  * 创建配置验证错误
@@ -69,12 +61,12 @@ interface SymbolValidationResult {
  * 验证 LongPort API 配置
  * @returns 验证结果
  */
-async function validateLongPortConfig(): Promise<ValidationResult> {
+async function validateLongPortConfig(env: NodeJS.ProcessEnv): Promise<ValidationResult> {
   const errors: string[] = [];
 
-  const appKey = process.env['LONGPORT_APP_KEY'];
-  const appSecret = process.env['LONGPORT_APP_SECRET'];
-  const accessToken = process.env['LONGPORT_ACCESS_TOKEN'];
+  const appKey = env['LONGPORT_APP_KEY'];
+  const appSecret = env['LONGPORT_APP_SECRET'];
+  const accessToken = env['LONGPORT_ACCESS_TOKEN'];
 
   if (!appKey || appKey.trim() === '' || appKey === 'your_app_key_here') {
     errors.push('LONGPORT_APP_KEY 未配置');
@@ -269,12 +261,12 @@ function validateMonitorConfig(config: MonitorConfig, index: number): TradingVal
  * 验证交易配置（验证所有监控标的）
  * @returns 验证结果
  */
-function validateTradingConfig(): TradingValidationResult {
+function validateTradingConfig(tradingConfig: MultiMonitorTradingConfig): TradingValidationResult {
   const errors: string[] = [];
   const missingFields: string[] = [];
 
   // 验证 MONITOR_COUNT
-  const monitorCount = MULTI_MONITOR_TRADING_CONFIG.monitors.length;
+  const monitorCount = tradingConfig.monitors.length;
   if (monitorCount === 0) {
     errors.push('未找到任何监控标的配置，请设置 MONITOR_COUNT >= 1 并配置相应的监控标的');
     missingFields.push('MONITOR_COUNT');
@@ -286,7 +278,7 @@ function validateTradingConfig(): TradingValidationResult {
   }
 
   // 验证每个监控标的的配置
-  for (const config of MULTI_MONITOR_TRADING_CONFIG.monitors) {
+  for (const config of tradingConfig.monitors) {
     if (!config) {
       continue;
     }
@@ -300,7 +292,7 @@ function validateTradingConfig(): TradingValidationResult {
   const tradingSymbols = new Map<string, number>(); // symbol -> originalIndex
   const duplicateSymbols: Array<{ symbol: string; index: number; previousIndex: number }> = [];
 
-  for (const config of MULTI_MONITOR_TRADING_CONFIG.monitors) {
+  for (const config of tradingConfig.monitors) {
     if (!config) {
       continue;
     }
@@ -360,11 +352,17 @@ function validateTradingConfig(): TradingValidationResult {
  * @returns 返回行情客户端实例
  * @throws {ConfigValidationError} 如果配置验证失败
  */
-export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
+export async function validateAllConfig({
+  env,
+  tradingConfig,
+}: {
+  env: NodeJS.ProcessEnv;
+  tradingConfig: MultiMonitorTradingConfig;
+}): Promise<ValidateAllConfigResult> {
   logger.info('开始验证配置...');
 
-  const longPortResult = await validateLongPortConfig();
-  const tradingResult = validateTradingConfig();
+  const longPortResult = await validateLongPortConfig(env);
+  const tradingResult = validateTradingConfig(tradingConfig);
 
   const allErrors = [...longPortResult.errors, ...tradingResult.errors];
   const allMissingFields = [...tradingResult.missingFields];
@@ -392,7 +390,7 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
   // 验证标的有效性（创建 MarketDataClient 实例用于验证和后续使用）
   logger.info('验证标的有效性...');
 
-  const firstMonitorConfig = MULTI_MONITOR_TRADING_CONFIG.monitors[0];
+  const firstMonitorConfig = tradingConfig.monitors[0];
   if (!firstMonitorConfig) {
     throw createConfigValidationError('未找到第一个监控标的配置', []);
   }
@@ -409,7 +407,7 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
   // 使用原始索引作为键（而非数组索引），确保跳过配置时索引正确
   const symbolIndexMap = new Map<number, { monitorIndex: number; longIndex: number; shortIndex: number }>();
 
-  for (const monitorConfig of MULTI_MONITOR_TRADING_CONFIG.monitors) {
+  for (const monitorConfig of tradingConfig.monitors) {
     if (!monitorConfig) {
       continue;
     }
@@ -437,7 +435,7 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
   }
 
   // 创建行情客户端（传入需要订阅的标的列表，自动初始化 WebSocket 订阅）
-  const config = createConfig();
+  const config = createConfig({ env });
   const marketDataClient = await createMarketDataClient({
     config,
     symbols: allSymbols, // 传入需要订阅的标的列表
@@ -447,7 +445,7 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
   const allValidationResults = await validateSymbolsBatch(marketDataClient, allSymbols, allSymbolLabels, allRequireLotSizeFlags);
 
   // 将验证结果分配到各个监控标的
-  for (const monitorConfig of MULTI_MONITOR_TRADING_CONFIG.monitors) {
+  for (const monitorConfig of tradingConfig.monitors) {
     if (!monitorConfig) {
       continue;
     }
@@ -505,10 +503,10 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
   }
 
   logger.info('配置验证通过，当前配置如下：');
-  logger.info(`监控标的数量: ${MULTI_MONITOR_TRADING_CONFIG.monitors.length}`);
+  logger.info(`监控标的数量: ${tradingConfig.monitors.length}`);
 
   // 显示所有监控标的的配置
-  for (const monitorConfig of MULTI_MONITOR_TRADING_CONFIG.monitors) {
+  for (const monitorConfig of tradingConfig.monitors) {
     if (!monitorConfig) {
       continue;
     }
@@ -598,7 +596,7 @@ export async function validateAllConfig(): Promise<ValidateAllConfigResult> {
 
   logger.info('');
   logger.info(
-    `是否启动末日保护: ${MULTI_MONITOR_TRADING_CONFIG.global.doomsdayProtection ? '是' : '否'}`,
+    `是否启动末日保护: ${tradingConfig.global.doomsdayProtection ? '是' : '否'}`,
   );
   logger.info('');
 

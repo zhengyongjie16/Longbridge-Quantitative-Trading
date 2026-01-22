@@ -2,19 +2,7 @@
  * 行情数据客户端模块工具函数
  */
 
-/**
- * 静态信息类型（来自 LongPort API）
- * 包含标的的基本信息，如名称和交易单位
- * 仅内部使用
- */
-type StaticInfo = {
-  readonly nameHk?: string | null;
-  readonly nameCn?: string | null;
-  readonly nameEn?: string | null;
-  readonly lotSize?: number | null;
-  readonly lot_size?: number | null;
-  readonly lot?: number | null;
-};
+import type { StaticInfo } from './types.js';
 
 /**
  * 从静态信息中安全提取 lotSize

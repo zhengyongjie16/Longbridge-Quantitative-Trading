@@ -15,7 +15,6 @@ import {
   TimeInForceType,
   Decimal,
 } from 'longport';
-import { MULTI_MONITOR_TRADING_CONFIG } from '../../config/config.trading.js';
 import { logger, colors } from '../../utils/logger/index.js';
 import { TIME, TRADING } from '../../constants/index.js';
 import {
@@ -30,24 +29,6 @@ import {
 import type { Signal, TradeCheckResult, MonitorConfig } from '../../types/index.js';
 import type { OrderPayload, OrderExecutor, OrderExecutorDeps } from './types.js';
 import { recordTrade, identifyErrorType } from './tradeLogger.js';
-
-/**
- * 通过信号的 symbol 查找对应的监控配置
- * @param signalSymbol 信号中的标的代码
- * @returns 匹配的监控配置，如果未找到则返回 null
- */
-function findMonitorConfigBySymbol(signalSymbol: string): MonitorConfig | null {
-  const normalizedSymbol = normalizeHKSymbol(signalSymbol);
-  for (const config of MULTI_MONITOR_TRADING_CONFIG.monitors) {
-    const configLongSymbol = normalizeHKSymbol(config.longSymbol);
-    const configShortSymbol = normalizeHKSymbol(config.shortSymbol);
-    if (normalizedSymbol === configLongSymbol || normalizedSymbol === configShortSymbol) {
-      return config;
-    }
-  }
-  // 未找到匹配的配置
-  return null;
-}
 
 /**
  * 将配置的订单类型字符串转换为 OrderType 枚举
@@ -75,7 +56,26 @@ const isLiquidationSignal = (signal: Signal): boolean => {
  * @returns OrderExecutor 接口实例
  */
 export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
-  const { ctxPromise, rateLimiter, cacheManager, orderMonitor } = deps;
+  const { ctxPromise, rateLimiter, cacheManager, orderMonitor, tradingConfig } = deps;
+  const { global, monitors } = tradingConfig;
+
+  /**
+   * 通过信号的 symbol 查找对应的监控配置
+   * @param signalSymbol 信号中的标的代码
+   * @returns 匹配的监控配置，如果未找到则返回 null
+   */
+  const findMonitorConfigBySymbol = (signalSymbol: string): MonitorConfig | null => {
+    const normalizedSymbol = normalizeHKSymbol(signalSymbol);
+    for (const config of monitors) {
+      const configLongSymbol = normalizeHKSymbol(config.longSymbol);
+      const configShortSymbol = normalizeHKSymbol(config.shortSymbol);
+      if (normalizedSymbol === configLongSymbol || normalizedSymbol === configShortSymbol) {
+        return config;
+      }
+    }
+    // 未找到匹配的配置
+    return null;
+  };
 
   // 闭包捕获的私有状态
   // 记录每个监控标的的每个方向标的的最后买入时间
@@ -499,7 +499,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     ctx: TradeContext,
     signal: Signal,
     targetSymbol: string,
-    isShortSymbol: boolean = false,
+    isShortSymbol: boolean,
     monitorConfig: MonitorConfig | null = null,
   ): Promise<void> => {
     // 验证信号对象
@@ -538,8 +538,8 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     // 根据信号类型选择订单类型
     // 保护性清仓使用 liquidationOrderType，普通交易使用 tradingOrderType
     const orderType = isLiquidationSignal(signal)
-      ? getOrderTypeFromConfig(MULTI_MONITOR_TRADING_CONFIG.global.liquidationOrderType)
-      : getOrderTypeFromConfig(MULTI_MONITOR_TRADING_CONFIG.global.tradingOrderType);
+      ? getOrderTypeFromConfig(global.liquidationOrderType)
+      : getOrderTypeFromConfig(global.tradingOrderType);
     const timeInForce = TimeInForceType.Day;
     const remark = 'QuantDemo';
     const overridePrice = undefined;

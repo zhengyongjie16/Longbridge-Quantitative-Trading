@@ -14,3 +14,11 @@ export type RegionUrls = {
   readonly tradeWsUrl: string;
 };
 
+/**
+ * 配置验证错误类型
+ */
+export type ConfigValidationError = Error & {
+  readonly name: 'ConfigValidationError';
+  readonly missingFields: ReadonlyArray<string>;
+};
+

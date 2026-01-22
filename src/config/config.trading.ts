@@ -18,220 +18,69 @@
  * 注意：每手股数（lotSize）将通过 LongPort API 自动获取，无需手动配置
  */
 
-import dotenv from 'dotenv';
-dotenv.config();
-
 import { parseSignalConfig } from '../utils/helpers/signalConfigParser.js';
-import { validateEmaPeriod } from '../utils/helpers/indicatorHelpers.js';
 import { normalizeHKSymbol } from '../utils/helpers/index.js';
 import { logger } from '../utils/logger/index.js';
 import { OrderType } from 'longport';
+import {
+  getBooleanConfig,
+  getNumberConfig,
+  getStringConfig,
+  parseOrderTypeConfig,
+  parseVerificationDelay,
+  parseVerificationIndicators,
+} from './utils.js';
 import type {
   MonitorConfig,
   MultiMonitorTradingConfig,
 } from '../types/index.js';
 
 /**
- * 从环境变量读取字符串配置
- * @param envKey 环境变量键名
- * @returns 配置值，如果未设置则返回 null
+ * 解析信号配置（内部复用逻辑）
  */
-function getStringConfig(envKey: string): string | null {
-  const value = process.env[envKey];
-  if (
-    !value ||
-    value.trim() === '' ||
-    value === `your_${envKey.toLowerCase()}_here`
-  ) {
-    return null;
-  }
-  return value.trim();
-}
-
-/**
- * 从环境变量读取数字配置
- * @param envKey 环境变量键名
- * @param minValue 最小值（可选）
- * @returns 配置值，如果未设置或无效则返回 null
- */
-function getNumberConfig(envKey: string, minValue: number = 0): number | null {
-  const value = process.env[envKey];
-  if (!value || value.trim() === '') {
-    return null;
-  }
-  const num = Number(value);
-  if (!Number.isFinite(num) || num < minValue) {
-    return null;
-  }
-  return num;
-}
-
-/**
- * 从环境变量读取布尔配置
- * @param envKey 环境变量键名
- * @param defaultValue 默认值（当环境变量未设置时使用）
- * @returns 配置值
- */
-function getBooleanConfig(envKey: string, defaultValue: boolean = false): boolean {
-  const value = process.env[envKey];
-  // 如果环境变量未设置或为空，返回默认值
-  if (value === undefined || value === null || value.trim() === '') {
-    return defaultValue;
-  }
-  // 显式检查 "true" 和 "false"
-  if (value.toLowerCase() === 'true') {
-    return true;
-  }
-  if (value.toLowerCase() === 'false') {
-    return false;
-  }
-  // 其他值返回默认值
-  return defaultValue;
-}
-
-/**
- * 解析验证延迟时间配置
- * @param envKey 环境变量键名
- * @param defaultValue 默认值
- * @returns 延迟时间（秒），范围 0-120
- */
-function parseVerificationDelay(envKey: string, defaultValue: number): number {
-  const delay = getNumberConfig(envKey, 0);
-  if (delay === null) {
-    return defaultValue;
-  }
-  if (delay < 0) {
-    logger.warn(`[配置警告] ${envKey} 不能小于 0，已设置为 0`);
-    return 0;
-  }
-  if (delay > 120) {
-    logger.warn(`[配置警告] ${envKey} 不能大于 120，已设置为 120`);
-    return 120;
-  }
-  return delay;
-}
-
-/**
- * 解析验证指标配置
- * @param envKey 环境变量键名
- * @returns 指标列表，如果未设置或无效则返回 null
- */
-function parseVerificationIndicators(envKey: string): ReadonlyArray<string> | null {
-  const value = process.env[envKey];
-  if (!value || value.trim() === '') {
-    return null;
-  }
-
-  const items = value
-    .split(',')
-    .map((item) => item.trim())
-    .filter((item) => item !== '');
-
-  if (items.length === 0) {
-    return null;
-  }
-
-  const fixedIndicators = new Set(['K', 'D', 'J', 'MACD', 'DIF', 'DEA']);
-  const validItems: string[] = [];
-  const invalidItems: string[] = [];
-
-  for (const item of items) {
-    if (fixedIndicators.has(item)) {
-      validItems.push(item);
-      continue;
-    }
-
-    if (item.startsWith('EMA:')) {
-      const periodStr = item.substring(4);
-      const period = Number.parseInt(periodStr, 10);
-
-      if (validateEmaPeriod(period)) {
-        validItems.push(item);
-        continue;
-      }
-
-      invalidItems.push(item);
-    } else {
-      invalidItems.push(item);
-    }
-  }
-
-  if (invalidItems.length > 0) {
-    logger.warn(`[配置警告] ${envKey} 包含无效值: ${invalidItems.join(', ')}`);
-  }
-
-  return validItems.length > 0 ? validItems : null;
-}
-
-/**
- * 将配置字符串映射到 OrderType 枚举
- * @param envKey 环境变量键名
- * @param defaultType 默认订单类型
- * @returns OrderType 枚举值
- */
-function parseOrderTypeConfig(
+const parseSignalConfigFromEnv = (
+  env: NodeJS.ProcessEnv,
   envKey: string,
-  defaultType: 'LO' | 'ELO' | 'MO' = 'ELO',
-): OrderType {
-  const value = getStringConfig(envKey);
-
-  // 验证配置值（必须使用全大写，区分大小写）
-  const trimmedValue = value ? value.trim() : null;
-
-  if (trimmedValue === 'LO') {
-    return OrderType.LO;
+): ReturnType<typeof parseSignalConfig> | null => {
+  const configStr = getStringConfig(env, envKey);
+  if (!configStr) {
+    return null;
   }
-  if (trimmedValue === 'ELO') {
-    return OrderType.ELO;
+  const config = parseSignalConfig(configStr);
+  if (!config) {
+    logger.error(`[配置错误] ${envKey} 格式无效`);
+    return null;
   }
-  if (trimmedValue === 'MO') {
-    return OrderType.MO;
-  }
-
-  // 如果配置值无效或未配置，使用默认值
-  if (value && trimmedValue !== 'LO' && trimmedValue !== 'ELO' && trimmedValue !== 'MO') {
-    logger.warn(
-      `[配置警告] ${envKey} 值无效: ${value}，必须使用全大写: LO, ELO, MO。已使用默认值: ${defaultType}`,
-    );
-  }
-
-  // 返回默认值
-  if (defaultType === 'LO') {
-    return OrderType.LO;
-  }
-  if (defaultType === 'MO') {
-    return OrderType.MO;
-  }
-  return OrderType.ELO;
-}
+  return config;
+};
 
 /**
  * 解析单个监控标的的配置（从带索引的环境变量）
  * @param index 监控标的索引（必须 >= 1）
  * @returns 监控标的配置，如果未找到则返回 null
  */
-function parseMonitorConfig(index: number): MonitorConfig | null {
+function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfig | null {
   if (index < 1) {
     return null;
   }
   const suffix = `_${index}`;
 
-  const monitorSymbol = getStringConfig(`MONITOR_SYMBOL${suffix}`);
+  const monitorSymbol = getStringConfig(env, `MONITOR_SYMBOL${suffix}`);
   if (!monitorSymbol) {
     return null; // 该索引无配置
   }
 
-  const longSymbol = getStringConfig(`LONG_SYMBOL${suffix}`) || '';
-  const shortSymbol = getStringConfig(`SHORT_SYMBOL${suffix}`) || '';
+  const longSymbol = getStringConfig(env, `LONG_SYMBOL${suffix}`) || '';
+  const shortSymbol = getStringConfig(env, `SHORT_SYMBOL${suffix}`) || '';
 
-  const targetNotional = getNumberConfig(`TARGET_NOTIONAL${suffix}`, 1) ?? 10000;
-  const maxPositionNotional = getNumberConfig(`MAX_POSITION_NOTIONAL${suffix}`, 1) ?? 100000;
-  const maxDailyLoss = getNumberConfig(`MAX_DAILY_LOSS${suffix}`, 0) ?? 0;
+  const targetNotional = getNumberConfig(env, `TARGET_NOTIONAL${suffix}`, 1) ?? 10000;
+  const maxPositionNotional = getNumberConfig(env, `MAX_POSITION_NOTIONAL${suffix}`, 1) ?? 100000;
+  const maxDailyLoss = getNumberConfig(env, `MAX_DAILY_LOSS${suffix}`, 0) ?? 0;
   const maxUnrealizedLossPerSymbol =
-    getNumberConfig(`MAX_UNREALIZED_LOSS_PER_SYMBOL${suffix}`, 0) ?? 0;
+    getNumberConfig(env, `MAX_UNREALIZED_LOSS_PER_SYMBOL${suffix}`, 0) ?? 0;
 
   const buyIntervalSeconds = (() => {
-    const interval = getNumberConfig(`BUY_INTERVAL_SECONDS${suffix}`, 0);
+    const interval = getNumberConfig(env, `BUY_INTERVAL_SECONDS${suffix}`, 0);
     if (interval === null) {
       return 60;
     }
@@ -252,67 +101,23 @@ function parseMonitorConfig(index: number): MonitorConfig | null {
 
   const verificationConfig = {
     buy: {
-      delaySeconds: parseVerificationDelay(`VERIFICATION_DELAY_SECONDS_BUY${suffix}`, 60),
-      indicators: parseVerificationIndicators(`VERIFICATION_INDICATORS_BUY${suffix}`),
+      delaySeconds: parseVerificationDelay(env, `VERIFICATION_DELAY_SECONDS_BUY${suffix}`, 60),
+      indicators: parseVerificationIndicators(env, `VERIFICATION_INDICATORS_BUY${suffix}`),
     },
     sell: {
-      delaySeconds: parseVerificationDelay(`VERIFICATION_DELAY_SECONDS_SELL${suffix}`, 60),
-      indicators: parseVerificationIndicators(`VERIFICATION_INDICATORS_SELL${suffix}`),
+      delaySeconds: parseVerificationDelay(env, `VERIFICATION_DELAY_SECONDS_SELL${suffix}`, 60),
+      indicators: parseVerificationIndicators(env, `VERIFICATION_INDICATORS_SELL${suffix}`),
     },
   };
 
   // 智能平仓策略开关，默认启用
-  const smartCloseEnabled = getBooleanConfig(`SMART_CLOSE_ENABLED${suffix}`, true);
+  const smartCloseEnabled = getBooleanConfig(env, `SMART_CLOSE_ENABLED${suffix}`, true);
 
   const signalConfig = {
-    buycall: (() => {
-      const configStr = getStringConfig(`SIGNAL_BUYCALL${suffix}`);
-      if (!configStr) {
-        return null;
-      }
-      const config = parseSignalConfig(configStr);
-      if (!config) {
-        logger.error(`[配置错误] SIGNAL_BUYCALL${suffix} 格式无效`);
-        return null;
-      }
-      return config;
-    })(),
-    sellcall: (() => {
-      const configStr = getStringConfig(`SIGNAL_SELLCALL${suffix}`);
-      if (!configStr) {
-        return null;
-      }
-      const config = parseSignalConfig(configStr);
-      if (!config) {
-        logger.error(`[配置错误] SIGNAL_SELLCALL${suffix} 格式无效`);
-        return null;
-      }
-      return config;
-    })(),
-    buyput: (() => {
-      const configStr = getStringConfig(`SIGNAL_BUYPUT${suffix}`);
-      if (!configStr) {
-        return null;
-      }
-      const config = parseSignalConfig(configStr);
-      if (!config) {
-        logger.error(`[配置错误] SIGNAL_BUYPUT${suffix} 格式无效`);
-        return null;
-      }
-      return config;
-    })(),
-    sellput: (() => {
-      const configStr = getStringConfig(`SIGNAL_SELLPUT${suffix}`);
-      if (!configStr) {
-        return null;
-      }
-      const config = parseSignalConfig(configStr);
-      if (!config) {
-        logger.error(`[配置错误] SIGNAL_SELLPUT${suffix} 格式无效`);
-        return null;
-      }
-      return config;
-    })(),
+    buycall: parseSignalConfigFromEnv(env, `SIGNAL_BUYCALL${suffix}`),
+    sellcall: parseSignalConfigFromEnv(env, `SIGNAL_SELLCALL${suffix}`),
+    buyput: parseSignalConfigFromEnv(env, `SIGNAL_BUYPUT${suffix}`),
+    sellput: parseSignalConfigFromEnv(env, `SIGNAL_SELLPUT${suffix}`),
   };
 
   return {
@@ -334,17 +139,21 @@ function parseMonitorConfig(index: number): MonitorConfig | null {
 /**
  * 解析所有监控标的配置
  */
-export const MULTI_MONITOR_TRADING_CONFIG: MultiMonitorTradingConfig = (() => {
+export const createMultiMonitorTradingConfig = ({
+  env,
+}: {
+  env: NodeJS.ProcessEnv;
+}): MultiMonitorTradingConfig => {
   const monitors: MonitorConfig[] = [];
 
-  const monitorCount = getNumberConfig('MONITOR_COUNT', 1);
+  const monitorCount = getNumberConfig(env, 'MONITOR_COUNT', 1);
   if (!monitorCount || monitorCount < 1) {
     logger.error('[配置错误] MONITOR_COUNT 未配置或无效，必须 >= 1');
     return {
       monitors: [],
       global: {
-        doomsdayProtection: getBooleanConfig('DOOMSDAY_PROTECTION', true),
-        debug: getBooleanConfig('DEBUG', false),
+        doomsdayProtection: getBooleanConfig(env, 'DOOMSDAY_PROTECTION', true),
+        debug: getBooleanConfig(env, 'DEBUG', false),
         orderMonitorPriceUpdateInterval: 5,
         tradingOrderType: 'ELO' as const,
         liquidationOrderType: 'MO' as const,
@@ -361,7 +170,7 @@ export const MULTI_MONITOR_TRADING_CONFIG: MultiMonitorTradingConfig = (() => {
   }
 
   for (let i = 1; i <= monitorCount; i++) {
-    const config = parseMonitorConfig(i);
+    const config = parseMonitorConfig(env, i);
     if (config) {
       monitors.push(config);
     } else {
@@ -370,9 +179,9 @@ export const MULTI_MONITOR_TRADING_CONFIG: MultiMonitorTradingConfig = (() => {
   }
 
   // 解析买入订单超时配置
-  const buyOrderTimeoutEnabled = getBooleanConfig('BUY_ORDER_TIMEOUT_ENABLED', true);
+  const buyOrderTimeoutEnabled = getBooleanConfig(env, 'BUY_ORDER_TIMEOUT_ENABLED', true);
   const buyOrderTimeoutSeconds = (() => {
-    const timeout = getNumberConfig('BUY_ORDER_TIMEOUT_SECONDS', 0);
+    const timeout = getNumberConfig(env, 'BUY_ORDER_TIMEOUT_SECONDS', 0);
     if (timeout === null) {
       return 180; // 默认 3 分钟
     }
@@ -388,9 +197,9 @@ export const MULTI_MONITOR_TRADING_CONFIG: MultiMonitorTradingConfig = (() => {
   })();
 
   // 解析卖出订单超时配置
-  const sellOrderTimeoutEnabled = getBooleanConfig('SELL_ORDER_TIMEOUT_ENABLED', true);
+  const sellOrderTimeoutEnabled = getBooleanConfig(env, 'SELL_ORDER_TIMEOUT_ENABLED', true);
   const sellOrderTimeoutSeconds = (() => {
-    const timeout = getNumberConfig('SELL_ORDER_TIMEOUT_SECONDS', 0);
+    const timeout = getNumberConfig(env, 'SELL_ORDER_TIMEOUT_SECONDS', 0);
     if (timeout === null) {
       return 180; // 默认 3 分钟
     }
@@ -407,7 +216,7 @@ export const MULTI_MONITOR_TRADING_CONFIG: MultiMonitorTradingConfig = (() => {
 
   // 解析订单监控价格更新间隔配置
   const orderMonitorPriceUpdateInterval = (() => {
-    const interval = getNumberConfig('ORDER_MONITOR_PRICE_UPDATE_INTERVAL', 0);
+    const interval = getNumberConfig(env, 'ORDER_MONITOR_PRICE_UPDATE_INTERVAL', 0);
     if (interval === null) {
       return 5; // 默认 5 秒
     }
@@ -424,7 +233,7 @@ export const MULTI_MONITOR_TRADING_CONFIG: MultiMonitorTradingConfig = (() => {
 
   // 解析交易订单类型配置
   const tradingOrderType = (() => {
-    const orderType = parseOrderTypeConfig('TRADING_ORDER_TYPE', 'ELO');
+    const orderType = parseOrderTypeConfig(env, 'TRADING_ORDER_TYPE', 'ELO');
     // 将 OrderType 枚举值转换回字符串以符合 GlobalConfig 类型
     if (orderType === OrderType.LO) return 'LO' as const;
     if (orderType === OrderType.MO) return 'MO' as const;
@@ -433,7 +242,7 @@ export const MULTI_MONITOR_TRADING_CONFIG: MultiMonitorTradingConfig = (() => {
 
   // 解析清仓订单类型配置
   const liquidationOrderType = (() => {
-    const orderType = parseOrderTypeConfig('LIQUIDATION_ORDER_TYPE', 'MO');
+    const orderType = parseOrderTypeConfig(env, 'LIQUIDATION_ORDER_TYPE', 'MO');
     // 将 OrderType 枚举值转换回字符串以符合 GlobalConfig 类型
     if (orderType === OrderType.LO) return 'LO' as const;
     if (orderType === OrderType.ELO) return 'ELO' as const;
@@ -443,8 +252,8 @@ export const MULTI_MONITOR_TRADING_CONFIG: MultiMonitorTradingConfig = (() => {
   return {
     monitors,
     global: {
-      doomsdayProtection: getBooleanConfig('DOOMSDAY_PROTECTION', true),
-      debug: getBooleanConfig('DEBUG', false),
+      doomsdayProtection: getBooleanConfig(env, 'DOOMSDAY_PROTECTION', true),
+      debug: getBooleanConfig(env, 'DEBUG', false),
       orderMonitorPriceUpdateInterval,
       tradingOrderType,
       liquidationOrderType,
@@ -458,5 +267,5 @@ export const MULTI_MONITOR_TRADING_CONFIG: MultiMonitorTradingConfig = (() => {
       },
     },
   };
-})();
+};
 

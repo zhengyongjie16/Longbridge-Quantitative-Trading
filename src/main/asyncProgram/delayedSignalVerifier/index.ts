@@ -29,16 +29,6 @@ import type {
 } from './types.js';
 import { generateSignalId, extractInitialIndicators, performVerification } from './utils.js';
 
-// 导出类型
-export type {
-  DelayedSignalVerifier,
-  DelayedSignalVerifierDeps,
-  PendingSignalEntry,
-  VerificationResult,
-  VerifiedCallback,
-  RejectedCallback,
-} from './types.js';
-
 /**
  * 创建延迟信号验证器
  */

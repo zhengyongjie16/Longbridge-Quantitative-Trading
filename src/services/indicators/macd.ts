@@ -31,7 +31,7 @@ export function calculateMACD(
   try {
     // validCloses 已由 buildIndicatorSnapshot 预处理，无需再次过滤
     const macdResult = MACD.calculate({
-      values: validCloses as number[],
+      values: Array.from(validCloses),
       fastPeriod,
       slowPeriod,
       signalPeriod,

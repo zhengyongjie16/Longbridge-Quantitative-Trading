@@ -20,9 +20,10 @@
  * - trader.ts：订单执行
  */
 
+import dotenv from 'dotenv';
 import { createConfig } from './config/config.index.js';
 import { createTrader } from './core/trader/index.js';
-import { MULTI_MONITOR_TRADING_CONFIG } from './config/config.trading.js';
+import { createMultiMonitorTradingConfig } from './config/config.trading.js';
 import { logger } from './utils/logger/index.js';
 import { validateAllConfig } from './config/config.validator.js';
 import {
@@ -62,13 +63,18 @@ import type {
 } from './types/index.js';
 import { getSprintSacreMooacreMoo } from './utils/asciiArt/sacreMooacre.js';
 
+dotenv.config({ path: '.env.local' });
+
 async function main(): Promise<void> {
   // 牛牛登场
   getSprintSacreMooacreMoo();
   // 首先验证配置，并获取标的的中文名称
+  const env = process.env;
+  const tradingConfig = createMultiMonitorTradingConfig({ env });
+
   let symbolNames: ValidateAllConfigResult;
   try {
-    symbolNames = await validateAllConfig();
+    symbolNames = await validateAllConfig({ env, tradingConfig });
   } catch (err) {
     if ((err as { name?: string }).name === 'ConfigValidationError') {
       logger.error('程序启动失败：配置验证未通过');
@@ -79,17 +85,17 @@ async function main(): Promise<void> {
     }
   }
 
-  const config = createConfig();
+  const config = createConfig({ env });
 
   // 使用配置验证返回的标的名称和行情客户端实例
   const { marketDataClient } = symbolNames;
-  const trader = await createTrader({ config });
+  const trader = await createTrader({ config, tradingConfig });
 
   logger.info('程序开始运行，在交易时段将进行实时监控和交易（按 Ctrl+C 退出）');
 
   // 预先计算所有交易标的集合（静态配置，只计算一次）
   const allTradingSymbols = new Set<string>();
-  for (const monitorConfig of MULTI_MONITOR_TRADING_CONFIG.monitors) {
+  for (const monitorConfig of tradingConfig.monitors) {
     if (monitorConfig.longSymbol) {
       allTradingSymbols.add(monitorConfig.longSymbol);
     }
@@ -107,7 +113,7 @@ async function main(): Promise<void> {
     positionCache: createPositionCache(), // 初始化持仓缓存（O(1) 查找）
     cachedTradingDayInfo: null, // 缓存的交易日信息 { isTradingDay, isHalfDay, checkDate }
     monitorStates: new Map(
-      MULTI_MONITOR_TRADING_CONFIG.monitors.map((monitorConfig) => [
+      tradingConfig.monitors.map((monitorConfig) => [
         monitorConfig.monitorSymbol,
         initMonitorState(monitorConfig),
       ]),
@@ -118,14 +124,14 @@ async function main(): Promise<void> {
   // 初始化新模块实例
   const marketMonitor = createMarketMonitor();
   const doomsdayProtection = createDoomsdayProtection();
-  const signalProcessor = createSignalProcessor();
+  const signalProcessor = createSignalProcessor({ tradingConfig });
 
   // 初始化新架构模块
   // 计算 IndicatorCache 的容量：max(buyDelay, sellDelay) + 15 + 10
   // 注意：IndicatorCache 需要在 monitorContexts 创建之前初始化，因为每个 MonitorContext 中的
   // DelayedSignalVerifier 需要引用 IndicatorCache
   const maxDelaySeconds = Math.max(
-    ...MULTI_MONITOR_TRADING_CONFIG.monitors.map((m) =>
+    ...tradingConfig.monitors.map((m) =>
       Math.max(m.verificationConfig.buy.delaySeconds, m.verificationConfig.sell.delaySeconds),
     ),
   );
@@ -136,12 +142,12 @@ async function main(): Promise<void> {
 
   // 初始化监控标的上下文
   // 首先批量获取所有标的行情（用于获取标的名称，减少 API 调用次数）
-  const allInitSymbols = collectAllQuoteSymbols(MULTI_MONITOR_TRADING_CONFIG.monitors);
+  const allInitSymbols = collectAllQuoteSymbols(tradingConfig.monitors);
   // getQuotes 接口已支持 Iterable，无需 Array.from() 转换
   const initQuotesMap = await marketDataClient.getQuotes(allInitSymbols);
 
   const monitorContexts: Map<string, MonitorContext> = new Map();
-  for (const monitorConfig of MULTI_MONITOR_TRADING_CONFIG.monitors) {
+  for (const monitorConfig of tradingConfig.monitors) {
     const monitorState = lastState.monitorStates.get(monitorConfig.monitorSymbol);
     // 获取监控标的名称（用于日志显示）
     const monitorQuote = initQuotesMap.get(monitorConfig.monitorSymbol) ?? null;
@@ -333,13 +339,12 @@ async function main(): Promise<void> {
         marketMonitor,
         doomsdayProtection,
         signalProcessor,
+        tradingConfig,
         monitorContexts,
         // 新架构模块
         indicatorCache,
         buyTaskQueue,
         sellTaskQueue,
-        buyProcessor,
-        sellProcessor,
       });
     } catch (err) {
       logger.error('本次执行失败', formatError(err));

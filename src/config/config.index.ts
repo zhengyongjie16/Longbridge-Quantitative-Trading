@@ -13,38 +13,8 @@
  * - LONGPORT_REGION：区域配置（'cn' 或 'hk'，默认 'hk'）
  */
 
-import dotenv from 'dotenv';
 import { Config } from 'longport';
-
-// 加载 .env.local 文件中的配置
-dotenv.config({ path: '.env.local' });
-
-import type { RegionUrls } from './types.js';
-
-/**
- * 根据区域获取 API 端点 URL
- * @param region 区域代码 ('cn' 或 'hk')
- * @returns API 端点 URL
- */
-function getRegionUrls(region: string | undefined): RegionUrls {
-  const normalizedRegion = (region || 'hk').toLowerCase();
-
-  if (normalizedRegion === 'cn') {
-    // 中国大陆区域
-    return {
-      httpUrl: 'https://openapi.longportapp.cn',
-      quoteWsUrl: 'wss://openapi-quote.longportapp.cn/v2',
-      tradeWsUrl: 'wss://openapi-trade.longportapp.cn/v2',
-    };
-  } else {
-    // 香港及其他地区（默认）
-    return {
-      httpUrl: 'https://openapi.longportapp.com',
-      quoteWsUrl: 'wss://openapi-quote.longportapp.com/v2',
-      tradeWsUrl: 'wss://openapi-trade.longportapp.com/v2',
-    };
-  }
-}
+import { getRegionUrls } from './utils.js';
 
 /*
  * 创建 LongPort Config
@@ -55,14 +25,14 @@ function getRegionUrls(region: string | undefined): RegionUrls {
  * - LONGPORT_REGION=hk：香港及其他地区（默认，使用 .com 域名）
  *
  */
-export function createConfig(): Config {
+export function createConfig({ env }: { env: NodeJS.ProcessEnv }): Config {
   // 配置验证已在 config.validator.ts 的 validateAllConfig() 中统一处理
   // 此处使用非空断言，因为调用前已完成验证
-  const appKey = process.env['LONGPORT_APP_KEY'] ?? '';
-  const appSecret = process.env['LONGPORT_APP_SECRET'] ?? '';
-  const accessToken = process.env['LONGPORT_ACCESS_TOKEN'] ?? '';
+  const appKey = env['LONGPORT_APP_KEY'] ?? '';
+  const appSecret = env['LONGPORT_APP_SECRET'] ?? '';
+  const accessToken = env['LONGPORT_ACCESS_TOKEN'] ?? '';
 
-  const region = process.env['LONGPORT_REGION'] || 'hk';
+  const region = env['LONGPORT_REGION'] || 'hk';
   const urls = getRegionUrls(region);
 
   return new Config({

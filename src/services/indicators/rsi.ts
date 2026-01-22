@@ -27,7 +27,7 @@ export function calculateRSI(validCloses: ReadonlyArray<number>, period: number)
 
   try {
     // validCloses 已由 buildIndicatorSnapshot 预处理，无需再次过滤
-    const rsiResult = RSI.calculate({ values: validCloses as number[], period });
+    const rsiResult = RSI.calculate({ values: Array.from(validCloses), period });
 
     if (!rsiResult || rsiResult.length === 0) {
       return null;

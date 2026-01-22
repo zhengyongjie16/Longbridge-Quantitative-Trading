@@ -3,13 +3,12 @@
  */
 import type { IndicatorCache } from '../asyncProgram/indicatorCache/types.js';
 import type { BuyTaskQueue, SellTaskQueue } from '../asyncProgram/types.js';
-import type { BuyProcessor } from '../asyncProgram/buyProcessor/types.js';
-import type { SellProcessor } from '../asyncProgram/sellProcessor/types.js';
 import type {
   LastState,
   MonitorContext,
   MarketDataClient,
   Trader,
+  MultiMonitorTradingConfig,
 } from '../../types/index.js';
 import type { MarketMonitor } from '../../services/marketMonitor/types.js';
 import type { DoomsdayProtection } from '../../core/doomsdayProtection/types.js';
@@ -25,10 +24,9 @@ export type MainProgramContext = {
   readonly marketMonitor: MarketMonitor;
   readonly doomsdayProtection: DoomsdayProtection;
   readonly signalProcessor: SignalProcessor;
+  readonly tradingConfig: MultiMonitorTradingConfig;
   readonly monitorContexts: Map<string, MonitorContext>;
   readonly indicatorCache: IndicatorCache;
   readonly buyTaskQueue: BuyTaskQueue;
   readonly sellTaskQueue: SellTaskQueue;
-  readonly buyProcessor: BuyProcessor;
-  readonly sellProcessor: SellProcessor;
 };

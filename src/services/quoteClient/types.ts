@@ -13,6 +13,20 @@ export type RetryConfig = {
   readonly delayMs: number;
 };
 
+/**
+ * 静态信息类型（来自 LongPort API）
+ * 包含标的的基本信息，如名称和交易单位
+ * 仅内部使用
+ */
+export type StaticInfo = {
+  readonly nameHk?: string | null;
+  readonly nameCn?: string | null;
+  readonly nameEn?: string | null;
+  readonly lotSize?: number | null;
+  readonly lot_size?: number | null;
+  readonly lot?: number | null;
+};
+
 // ==================== 依赖类型定义 ====================
 
 /**
@@ -24,7 +38,7 @@ export type TradingDayCacheDeps = Record<string, never>;
  * 行情数据客户端依赖类型
  */
 export type MarketDataClientDeps = {
-  readonly config?: Config | null;
+  readonly config: Config;
   /** 需要订阅的标的列表（WebSocket 订阅模式必须提供） */
   readonly symbols: ReadonlyArray<string>;
 };

@@ -2,7 +2,14 @@
  * 信号处理模块类型定义
  */
 
-import type { Quote, Position, Signal, OrderRecorder, RiskCheckContext } from '../../types/index.js';
+import type {
+  Quote,
+  Position,
+  Signal,
+  OrderRecorder,
+  RiskCheckContext,
+  MultiMonitorTradingConfig,
+} from '../../types/index.js';
 
 /**
  * 卖出数量计算结果类型
@@ -26,7 +33,7 @@ export interface SignalProcessor {
     longQuote: Quote | null,
     shortQuote: Quote | null,
     orderRecorder: OrderRecorder,
-    smartCloseEnabled?: boolean,
+    smartCloseEnabled: boolean,
   ): Signal[];
   applyRiskChecks(signals: Signal[], context: RiskCheckContext): Promise<Signal[]>;
 }
@@ -36,5 +43,7 @@ export interface SignalProcessor {
 /**
  * 信号处理器依赖类型
  */
-export type SignalProcessorDeps = Record<string, never>;
+export type SignalProcessorDeps = {
+  readonly tradingConfig: MultiMonitorTradingConfig;
+};
 
