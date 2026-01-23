@@ -265,11 +265,11 @@ function validateTradingConfig(tradingConfig: MultiMonitorTradingConfig): Tradin
   const errors: string[] = [];
   const missingFields: string[] = [];
 
-  // 验证 MONITOR_COUNT
+  // 验证是否存在监控标的配置
   const monitorCount = tradingConfig.monitors.length;
   if (monitorCount === 0) {
-    errors.push('未找到任何监控标的配置，请设置 MONITOR_COUNT >= 1 并配置相应的监控标的');
-    missingFields.push('MONITOR_COUNT');
+    errors.push('未找到任何监控标的配置，请配置 MONITOR_SYMBOL_1 及相应的交易参数');
+    missingFields.push('MONITOR_SYMBOL_1');
     return {
       valid: false,
       errors,
@@ -378,7 +378,7 @@ export async function validateAllConfig({
     logger.error('');
     logger.error('请检查 .env.local 文件，确保所有必需的配置项都已正确设置。');
     logger.error('参考 .env.example 文件了解配置说明。');
-    logger.error('注意：配置必须使用索引后缀（_1, _2 等），即使只有一个监控标的也必须使用 _1 后缀。');
+    logger.error('注意：配置必须使用索引后缀（_1, _2 等），系统会自动检测存在的监控标的配置。');
     logger.error('');
 
     throw createConfigValidationError(

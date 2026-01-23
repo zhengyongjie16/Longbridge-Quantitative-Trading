@@ -137,7 +137,14 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
 }
 
 /**
+ * 自动检测监控标的数量的最大扫描范围
+ * 从 _1 开始扫描，直到连续找不到配置为止
+ */
+const MAX_MONITOR_SCAN_RANGE = 100;
+
+/**
  * 解析所有监控标的配置
+ * 自动检测环境变量中存在的监控标的配置（MONITOR_SYMBOL_1, MONITOR_SYMBOL_2, ...）
  */
 export const createMultiMonitorTradingConfig = ({
   env,
@@ -146,30 +153,14 @@ export const createMultiMonitorTradingConfig = ({
 }): MultiMonitorTradingConfig => {
   const monitors: MonitorConfig[] = [];
 
-  const monitorCount = getNumberConfig(env, 'MONITOR_COUNT', 1);
-  if (!monitorCount || monitorCount < 1) {
-    logger.error('[配置错误] MONITOR_COUNT 未配置或无效，必须 >= 1');
-    return {
-      monitors: [],
-      global: {
-        doomsdayProtection: getBooleanConfig(env, 'DOOMSDAY_PROTECTION', true),
-        debug: getBooleanConfig(env, 'DEBUG', false),
-        orderMonitorPriceUpdateInterval: 5,
-        tradingOrderType: 'ELO' as const,
-        liquidationOrderType: 'MO' as const,
-        buyOrderTimeout: {
-          enabled: true,
-          timeoutSeconds: 180,
-        },
-        sellOrderTimeout: {
-          enabled: true,
-          timeoutSeconds: 180,
-        },
-      },
-    };
-  }
+  // 自动扫描监控标的配置，从 _1 开始，直到找不到 MONITOR_SYMBOL_N 为止
+  for (let i = 1; i <= MAX_MONITOR_SCAN_RANGE; i++) {
+    const monitorSymbol = getStringConfig(env, `MONITOR_SYMBOL_${i}`);
+    if (!monitorSymbol) {
+      // 未找到 MONITOR_SYMBOL_N，停止扫描
+      break;
+    }
 
-  for (let i = 1; i <= monitorCount; i++) {
     const config = parseMonitorConfig(env, i);
     if (config) {
       monitors.push(config);

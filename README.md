@@ -4,12 +4,12 @@
 
 ### 项目介绍
 
-基于 LongPort OpenAPI / Node.js / TypeScript 的港股自动化量化交易系统，通过监控目标资产（如恒生指数）的技术指标，在轮证上自动执行双向（做多/做空）交易。支持多指标组合策略、延迟验证、风险控制和订单管理。
+基于 LongPort OpenAPI / Node.js / TypeScript 的港股自动化量化交易系统，通过监控目标资产（如恒生指数）的技术指标，在轮证/ETF上自动执行双向（做多/做空）交易。支持多指标组合策略、延迟验证、风险控制和订单管理。
 
 ### 重要提示（必读）
 
 1. 请先务必掌握港股、轮证以及技术指标的相关知识，轮证自带杠杆属性且存在到期时间和回收等机制，这些因素都存在较大风险。
-2. 该程序一般不会交易正股（正股仅用作实时分析，即配置中的监控标的），而是在轮证上进行多空交易，主要为交易做多或做空方向的权证或牛熊证，这存在较高风险。
+2. 该程序一般不会交易正股（正股仅用作实时分析，即配置中的监控标的），而是在轮证/ETF等衍生品上进行多空交易，主要为交易做多或做空方向的权证或牛熊证，这存在较高风险。
 3. 目前的交易策略仅针对日内交易，在交易时段内每秒获取分钟级k线进行技术指标的计算用于生成交易信号（虽然是获取分钟k线但最新的k线是是实时变动的），由于通过交易轮证这样的高杠杆衍生品，所以不需要监控大周期的k线，但这也存在更高的风险。
 4. 请务必掌握相关代码知识（主要为typescript），不建议非开发者使用。
 5. 该程序代码几乎全部由vibe coding（主要使用Claude Opus 4.5和GPT-5.2 Codex模型）编写，推荐使用顶级模型进行优化和再开发，这是保证代码质量的关键。
@@ -30,12 +30,12 @@
 | ----- | ------------------------- |
 | 多标的支持 | 支持并发监控多个标的，每个标的独立配置       |
 | 多指标组合 | RSI、MFI、KDJ、MACD、EMA 组合判断 |
-| 双向交易  | 支持做多（牛证）和做空（熊证）           |
-| 延迟验证  | 买入/卖出信号均支持延迟验证（可配置，默认 60 秒后查询 T0/T0+5s/T0+10s 三点趋势） |
-| 异步处理  | TradeTaskQueue + TradeProcessor 异步执行交易，不阻塞主循环 |
+| 双向交易  | 支持双向交易（做多和做空）           |
+| 延迟验证  | 买入/卖出信号均支持延迟验证（趋势验证） |
+| 异步处理  | 异步执行交易，不阻塞主循环 |
 | 智能风控  | 浮亏保护、持仓限制、牛熊证回收价检查        |
 | 末日保护  | 收盘前15分钟拒绝买入并撤销未成交订单，收盘前5分钟自动清仓 |
-| 订单调整  | 自动监控和调整未成交买入订单价格（支持超时撤单） |
+| 订单调整  | 自动监控和调整未成交订单价格（买入超时撤单，卖出超时转市价单） |
 | 内存优化  | 对象池复用减少 GC 压力，IndicatorCache 使用环形缓冲区 |
 | 卖出策略  | 盈利清仓，未盈利仅卖出盈利部分订单         |
 
@@ -54,18 +54,16 @@ cp .env.example .env.local
 
 ### 配置必需参数 (.env.local)
 
-系统支持多个监控标的，通过 `MONITOR_COUNT` 指定数量，每个监控标的使用后缀 `_N`（N从1开始）区分配置。
+系统支持多个监控标的，每个监控标的使用后缀 `_N`（N从1开始）区分配置，系统会自动检测存在的监控标的配置。
 
 ```env
 # API 配置
 LONGPORT_APP_KEY=your_key
 LONGPORT_APP_SECRET=your_secret
 LONGPORT_ACCESS_TOKEN=your_token
+LONGPORT_REGION=hk    # 可选，默认 hk（cn 为中国大陆区域）
 
-# 监控标的数量（必须 >= 1）
-MONITOR_COUNT=1
-
-# 交易标的配置（使用后缀 _N，N从1开始）
+# 交易标的配置（使用后缀 _N，N从1开始，系统自动检测）
 # 示例：第一个监控标的（_1）
 MONITOR_SYMBOL_1=HSI.HK    # 监控标的（恒生指数）
 LONG_SYMBOL_1=54806        # 做多标的（牛证）
@@ -77,6 +75,7 @@ TARGET_NOTIONAL_1=10000    # 每次买入金额（HKD）
 # 风控参数(示例)
 MAX_POSITION_NOTIONAL_1=200000  # 单标持仓上限
 MAX_DAILY_LOSS_1=20000          # 单日亏损上限
+MAX_UNREALIZED_LOSS_PER_SYMBOL_1=5000  # 单标浮亏保护阈值（0 表示禁用）
 
 # 信号配置（示例，格式见下方）
 SIGNAL_BUYCALL_1=(RSI:6<20,MFI<15,D<20,J<-1)/3|(J<-20)
@@ -95,6 +94,13 @@ SIGNAL_SELLPUT_1=(RSI:6<20,MFI<15,D<22,J<0)/3|(J<-15)
 npm start
 ```
 
+> Windows 一键启动：`start.bat`（会检查 Node.js 与 `.env.local`）
+
+常用命令：
+- 开发：`npm run dev:watch`
+- 构建：`npm run build`
+- 类型检查：`npm run type-check`
+
 ---
 
 ## 信号配置格式
@@ -111,6 +117,7 @@ npm start
   - `MACD`、`DIF`、`DEA`：MACD 指标
   - `EMA:n`：任意周期 EMA（n 范围 1-250）
 - **运算符**：`<`、`>`
+- **条件组数量**：最多 3 组，满足任一组即可
 
 > **技术指标详解**：详见 [docs/TECHNICAL_INDICATORS.md](./docs/TECHNICAL_INDICATORS.md)
 
@@ -118,7 +125,7 @@ npm start
 
 #### 信号生成与验证流程
 
-系统采用延迟验证机制，所有交易信号（买入和卖出）都需要经过延迟验证后才能执行。
+系统支持延迟验证，是否延迟由配置决定：延迟时间为 0 或验证指标为空则为立即信号，否则进入延迟验证流程。
 
 **四种信号类型**：
 
@@ -133,32 +140,28 @@ npm start
 
 > **注意**：环境变量中的 `N` 表示监控标的索引（如 `_1`、`_2`）。买入和卖出的延迟验证时间（默认60秒）、验证指标可独立配置。
 
-**延迟验证机制**（通过 `DelayedSignalVerifier` 实现）：
+**延迟验证机制**：
 
-1. 信号触发时记录 `triggerTime` 和初始指标值（indicators1）
-2. 主循环每秒将指标快照存入 `IndicatorCache`（环形缓冲区）
-3. `DelayedSignalVerifier` 使用 `setTimeout` 在配置的延迟时间（默认 60 秒）+ 15 秒后执行验证
-4. 验证时从 `IndicatorCache` 查询 T0、T0+5s、T0+10s 三个时间点的历史数据（允许 ±5 秒误差）
-5. 验证通过后信号推入 `TradeTaskQueue`，验证失败则释放信号对象
+1. 信号触发后记录触发时间与初始指标值
+2. 主循环每秒保存指标快照，供后续验证使用
+3. 延迟期结束后验证 T0/T0+5s/T0+10s 三点趋势（允许 ±5 秒误差）
+4. 验证通过进入交易执行流程，失败则丢弃该信号
 
 #### 买入策略
 
-1. **信号生成**：监控标的技术指标满足配置条件时，生成延迟验证买入信号
-2. **延迟验证**：信号添加到 `DelayedSignalVerifier`，配置的延迟时间后验证 T0/T0+5s/T0+10s 三点指标趋势
-3. **任务入队**：验证通过后，信号推入 `TradeTaskQueue`
-4. **异步执行**：`TradeProcessor` 消费任务，执行多层风险检查（频率限制、价格限制、末日保护、牛熊证风险、浮亏限制、持仓限制）
-5. **订单执行**：风险检查通过后，按目标金额计算买入数量并提交限价单（默认 ELO 增强限价单）
+1. **信号生成**：监控标的技术指标满足配置条件时，生成买入信号（立即/延迟）
+2. **延迟验证**：若启用延迟验证，按配置在延迟期后验证三点趋势
+3. **异步执行**：验证通过后进入异步执行流程
+4. **风险检查**：频率限制、价格限制、末日保护、牛熊证风险、浮亏/持仓/现金限制
+5. **订单执行**：按目标金额计算买入数量并提交订单（订单类型可配置）
 
 #### 卖出策略
 
-1. **信号生成**：监控标的技术指标满足配置条件，且存在买入订单记录时，生成卖出信号
-2. **延迟验证**：卖出信号同样支持延迟验证（可配置，默认延迟 60 秒），验证通过后推入 `TradeTaskQueue`
-3. **智能平仓判断**（可通过 `SMART_CLOSE_ENABLED_N` 关闭）：`TradeProcessor` 根据当前价格与持仓成本价的关系决定卖出数量：
-   - **当前价 > 持仓成本价**：清空全部持仓（盈利状态）
-   - **当前价 ≤ 持仓成本价**：仅卖出历史买入订单中买入价低于当前价的部分（部分盈利订单）
-   - **无符合条件订单**：信号设为 HOLD，跳过本次卖出
-4. **特殊规则**：末日保护程序的清仓信号无条件清仓，不受智能平仓判断影响
-5. **订单执行**：确定卖出数量后提交订单执行（默认 MO 市价单）
+1. **信号生成**：监控标的技术指标满足配置条件，且存在买入订单记录时，生成卖出信号（立即/延迟）
+2. **延迟验证**：若启用延迟验证，需通过趋势验证后进入执行流程
+3. **智能平仓判断**：根据当前价与持仓成本价决定是否全仓卖出或仅卖出盈利订单（无符合条件则跳过）
+4. **特殊规则**：末日保护清仓无条件执行，不受智能平仓影响
+5. **订单执行**：按卖出数量提交订单，清仓订单可与常规订单类型不同
 
 ---
 
@@ -169,8 +172,8 @@ npm start
 1. **交易频率限制**：同方向买入间隔（默认 60 秒）
 2. **买入价格限制**：当前价 > 最新成交价时拒绝（防止追高）
 3. **末日保护**：收盘前 15 分钟拒绝买入
-4. **牛熊证风险**：牛证距回收价 > 0.5%，熊证 < -0.5%
-5. **基础风险检查**：浮亏限制、持仓市值限制
+4. **牛熊证风险**：牛证距回收价 > 0.5%，熊证 < -0.5%，且监控标的价格需 > 1
+5. **基础风险检查**：浮亏限制、持仓市值限制、港币可用现金
 
 
 | 检查    | 说明                           | 买入          | 卖出  |
@@ -179,9 +182,9 @@ npm start
 | 买入价格  | 当前价 > 最新成交价时拒绝（防追高）          | ✅ 检查        | ❌   |
 | 末日保护  | 收盘前 15 分钟拒绝买入                | ✅ 限制        | ❌   |
 | 牛熊证风险 | 使用监控标的价格计算距回收价               | ✅ 检查        | ❌   |
-| 单日亏损  | 浮亏 > MAX_DAILY_LOSS          | ✅ 限制        | ❌   |
-| 持仓市值  | 单标持仓 > MAX_POSITION_NOTIONAL | ✅ 限制        | ❌   |
-| 浮亏保护  | 单标浮亏 > MAX_UNREALIZED_LOSS   | 实时监控（市价单清仓） | ❌   |
+| 单日亏损  | 浮亏 > MAX_DAILY_LOSS_N        | ✅ 限制        | ❌   |
+| 持仓市值  | 单标持仓 > MAX_POSITION_NOTIONAL_N | ✅ 限制        | ❌   |
+| 浮亏保护  | 单标浮亏 > MAX_UNREALIZED_LOSS_PER_SYMBOL_N | 实时监控（按 `LIQUIDATION_ORDER_TYPE` 清仓） | ❌   |
 
 ### 可选配置
 
@@ -190,13 +193,16 @@ npm start
 
 | 参数                                  | 默认值   | 说明                                       |
 | ----------------------------------- | ----- | ---------------------------------------- |
+| `LONGPORT_REGION`                   | `hk`   | API 区域配置（`cn`=中国大陆，`hk`=香港及其他） |
 | `DOOMSDAY_PROTECTION`               | `true`  | 启用末日保护                                 |
 | `DEBUG`                             | `false` | 启用调试日志                                 |
 | `TRADING_ORDER_TYPE`                | `ELO`   | 交易订单类型（LO 限价单 / ELO 增强限价单 / MO 市价单） |
 | `LIQUIDATION_ORDER_TYPE`            | `MO`    | 清仓订单类型（LO / ELO / MO）                 |
-| `ORDER_MONITOR_TIMEOUT_SECONDS`     | `180`   | 订单监控超时时间（秒，范围30-600）               |
+| `BUY_ORDER_TIMEOUT_ENABLED`         | `true`  | 启用买入订单超时检测（超时后撤单）                  |
+| `BUY_ORDER_TIMEOUT_SECONDS`         | `180`   | 买入订单超时时间（秒，范围30-600）               |
+| `SELL_ORDER_TIMEOUT_ENABLED`        | `true`  | 启用卖出订单超时检测（超时后转市价单）               |
+| `SELL_ORDER_TIMEOUT_SECONDS`        | `180`   | 卖出订单超时时间（秒，范围30-600）               |
 | `ORDER_MONITOR_PRICE_UPDATE_INTERVAL` | `5`   | 订单价格更新间隔（秒，范围1-60）                  |
-| `ENABLE_ORDER_TIMEOUT_MONITOR`      | `true`  | 启用订单超时监控（超时后自动撤单）                  |
 
 
 **每个监控标的配置**（使用后缀 `_N`，如 `_1`、`_2`）：
@@ -227,11 +233,18 @@ src/
 │   └── types.ts                # 配置类型定义
 ├── constants/                  # 全局常量定义
 ├── types/                      # TypeScript 类型定义
-├── program/                    # 主程序架构模块（异步任务处理）
-│   ├── delayedSignalVerifier/  # 延迟信号验证器（setTimeout 计时验证）
-│   ├── indicatorCache/         # 指标缓存（环形缓冲区存储历史快照）
-│   ├── tradeProcessor/         # 交易处理器（setImmediate 异步消费任务）
-│   └── tradeTaskQueue/         # 交易任务队列（FIFO 顺序处理）
+├── init/                       # 初始化与清理
+│   ├── monitorContext/         # 监控上下文工厂
+│   └── cleanup/                # 退出清理
+├── main/                       # 主程序架构模块
+│   ├── mainProgram/            # 主循环逻辑
+│   ├── processMonitor/         # 单标的处理
+│   └── asyncProgram/           # 异步任务处理
+│       ├── indicatorCache/     # 指标缓存（环形缓冲区存储历史快照）
+│       ├── delayedSignalVerifier/ # 延迟信号验证器（setTimeout 计时验证）
+│       ├── tradeTaskQueue/     # 买入/卖出任务队列
+│       ├── buyProcessor/       # 买入处理器
+│       └── sellProcessor/      # 卖出处理器
 ├── core/                       # 核心业务逻辑
 │   ├── strategy/               # 信号生成
 │   ├── signalProcessor/        # 风险检查与卖出计算
@@ -277,22 +290,21 @@ src/
    c. 监控指标变化
    d. 将指标快照存入 IndicatorCache（供延迟验证器查询历史数据）
    e. 生成交易信号（立即信号和延迟信号）
-   f. 立即信号 → 直接推入 TradeTaskQueue
+   f. 立即信号 → 直接推入 BuyTaskQueue / SellTaskQueue
    g. 延迟信号 → 添加到 DelayedSignalVerifier（setTimeout 计时验证）
-5. TradeProcessor 异步消费 TradeTaskQueue（使用 setImmediate，不阻塞主循环）：
-   a. 从队列获取任务
-   b. 买入信号：执行风险检查（频率/价格/末日/牛熊证/浮亏/持仓）
-   c. 卖出信号：智能平仓处理（成本价判断和数量计算）
-   d. 执行订单
-6. 订单监控（WebSocket 推送订单状态，未成交订单价格调整和超时撤单）
+5. BuyProcessor / SellProcessor 异步消费任务队列（使用 setImmediate，不阻塞主循环）：
+   a. 买入信号：执行风险检查（频率/价格/末日/牛熊证/浮亏/持仓/现金）
+   b. 卖出信号：智能平仓处理（成本价判断和数量计算）
+   c. 执行订单
+6. 订单监控（WebSocket 推送订单状态，未成交订单价格调整；买入超时撤单、卖出超时转市价单）
 7. 订单成交后刷新缓存（账户、持仓、浮亏数据）
 
 DelayedSignalVerifier 延迟验证流程（独立于主循环）：
 1. 信号添加时记录 triggerTime（当前时间 + 配置的延迟秒数）和初始指标值
-2. 设置 setTimeout 在验证时间（triggerTime + 15秒）后执行
+2. 设置 setTimeout 在验证时间（triggerTime + 10秒）后执行
 3. 验证时查询 IndicatorCache 获取 T0（triggerTime）、T0+5s、T0+10s 的历史数据
 4. 检查趋势（BUYCALL/SELLPUT 需上涨，BUYPUT/SELLCALL 需下跌）
-5. 验证通过 → 推入 TradeTaskQueue，验证失败 → 释放信号对象
+5. 验证通过 → 推入 BuyTaskQueue / SellTaskQueue，验证失败 → 释放信号对象
 ```
 
 ---
@@ -300,8 +312,16 @@ DelayedSignalVerifier 延迟验证流程（独立于主循环）：
 ## 日志
 
 - **控制台**：实时运行状态
-- **文件**：`logs/system/` 、 `logs/debug/`（DEBUG 模式）和`logs/trades/`（交易信息）
-- **交易记录**：`logs/trades/YYYY-MM-DD.json`
+- **文件**：`logs/system/`、`logs/debug/`（需 `DEBUG=true`）和 `logs/trades/`
+- **交易记录**：`logs/trades/YYYY-MM-DD.json`（JSON 交易明细）
+
+---
+
+## 工具脚本
+
+- 代码质量：`npm run sonarqube` / `npm run sonarqube:report`（需要 `.env.sonar`，可配合 `docker-compose.yml` 启动）
+- 性能分析：`npm run perf:test` / `npm run perf:test:custom` / `npm run perf:bubbleprof`
+- 其他：`npm run lint` / `npm run lint:fix` / `npm run clean`
 
 ---
 

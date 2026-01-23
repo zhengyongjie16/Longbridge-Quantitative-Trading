@@ -62,7 +62,7 @@ src/
         └── ...
 
 ### 核心概念
-- **多标的支持**: 通过 `MONITOR_COUNT` 和 `_N` 后缀配置多个监控标的
+- **多标的支持**: 通过 `_N` 后缀配置多个监控标的，系统自动检测存在的配置
 - **主循环**: 每秒执行一次 `runOnce`，协调所有模块
 - **异步任务队列**: 使用 `TradeTaskQueue` + `TradeProcessor` 实现异步交易处理，不阻塞主循环
 - **延迟验证**: 开仓信号经过 `DelayedSignalVerifier` 进行趋势验证，使用 `IndicatorCache` 查询历史数据

@@ -61,10 +61,10 @@ const DEFAULT_MONITOR_SYMBOL = 'HSI.HK'; // 默认监控标的
 // ========== 筛选条件配置 ==========
 // 距离回收价百分比阈值
 // 牛证要求：监控标的当前价高于回收价，距离百分比必须大于此阈值
-const BULL_DISTANCE_PERCENT_THRESHOLD = 2; // 单位：%，例如 2 表示 > 2%
+const BULL_DISTANCE_PERCENT_THRESHOLD = 1.5; // 单位：%，例如 2 表示 > 2%
 
 // 熊证要求：监控标的当前价低于回收价，距离百分比必须小于此阈值
-const BEAR_DISTANCE_PERCENT_THRESHOLD = -2; // 单位：%，例如 -2 表示 < -2%
+const BEAR_DISTANCE_PERCENT_THRESHOLD = 1.5; // 单位：%，例如 -2 表示 < -2%
 
 // 成交额阈值（单位：HKD）
 // 当日成交额阈值：用于初步筛选窝轮列表
