@@ -225,8 +225,6 @@ export const createBuyProcessor = (deps: BuyProcessorDeps): BuyProcessor => {
       clearImmediate(immediateHandle);
       immediateHandle = null;
     }
-
-    logger.info('[BuyProcessor] 处理器已停止');
   };
 
   /**

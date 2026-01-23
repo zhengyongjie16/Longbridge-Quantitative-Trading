@@ -207,8 +207,6 @@ export const createSellProcessor = (deps: SellProcessorDeps): SellProcessor => {
       clearImmediate(immediateHandle);
       immediateHandle = null;
     }
-
-    logger.info('[SellProcessor] 处理器已停止');
   };
 
   /**
