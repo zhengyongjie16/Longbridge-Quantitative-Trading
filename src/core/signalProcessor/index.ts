@@ -14,42 +14,31 @@
  * 5. 基础风险检查（浮亏和持仓限制）
  *
  * 卖出策略：
- * - currentPrice > costPrice：清空所有持仓
- * - currentPrice ≤ costPrice：仅卖出盈利部分订单
+ * - 智能平仓开启：仅卖出盈利订单
+ * - 智能平仓关闭：清空所有持仓
  * - 无符合条件订单：信号设为 HOLD
  */
 
 import { logger } from '../../utils/logger/index.js';
 import { normalizeHKSymbol, getDirectionName, formatSymbolDisplayFromQuote, formatError } from '../../utils/helpers/index.js';
-import { getSymbolName } from './utils.js';
+import {
+  getSymbolName,
+  buildSellReason,
+  validateSellContext,
+  resolveSellQuantityByFullClose,
+  resolveSellQuantityBySmartClose,
+} from './utils.js';
 import { VERIFICATION } from '../../constants/index.js';
 import type { Quote, Position, Signal, OrderRecorder, AccountSnapshot } from '../../types/index.js';
-import { isValidPositionAndQuote } from './utils.js';
 import type { SellQuantityResult, SignalProcessor, SignalProcessorDeps } from './types.js';
 import type { RiskCheckContext } from '../../types/index.js';
-
-/**
- * 格式化价格比较描述
- */
-function formatPriceComparison(
-  directionName: string,
-  currentPrice: number,
-  costPrice: number,
-): string {
-  return `${directionName}价格${currentPrice.toFixed(3)}未高于成本价${costPrice.toFixed(3)}`;
-}
 
 /**
  * 计算卖出信号的数量和原因
  * 统一处理做多和做空标的的卖出逻辑
  *
- * 卖出策略规则（智能平仓开启时）：
- * 1. 如果当前价格 > 持仓成本价：立即清仓所有持仓
- * 2. 如果当前价格 <= 持仓成本价：仅卖出买入价低于当前价的历史订单（盈利部分）
- * 3. 如果没有符合条件的订单或数据无效：跳过此信号（shouldHold=true）
- *
- * 卖出策略规则（智能平仓关闭时）：
- * 直接清仓所有持仓，不检查成本价
+ * 卖出策略规则（智能平仓开启时）：仅卖出盈利订单，若无盈利订单或订单记录不可用则跳过
+ * 卖出策略规则（智能平仓关闭时）：直接清仓所有持仓
  *
  * @param position 持仓信息
  * @param quote 行情数据
@@ -72,76 +61,41 @@ function calculateSellQuantity(
   const directionName = getDirectionName(direction === 'LONG');
 
   // 验证输入参数
-  if (!isValidPositionAndQuote(position, quote)) {
+  const validationResult = validateSellContext(position, quote);
+  if (!validationResult.valid) {
     return {
       quantity: null,
       shouldHold: true,
-      reason: `${reason}，持仓或行情数据无效`,
+      reason: buildSellReason(reason, validationResult.reason),
     };
   }
 
-  // 类型守卫已验证 quote 不为 null，这里使用非空断言
-  const currentPrice = quote!.price;
-  const costPrice = position.costPrice;
+  const { currentPrice, availableQuantity } = validationResult;
 
-  // 智能平仓关闭：直接清仓所有持仓，不检查成本价
+  // 智能平仓关闭：直接清仓所有持仓
   if (!smartCloseEnabled) {
+    const fullCloseResult = resolveSellQuantityByFullClose({
+      availableQuantity,
+      directionName,
+    });
     return {
-      quantity: position.availableQuantity,
-      shouldHold: false,
-      reason: `${reason}，智能平仓已关闭，直接清空所有${directionName}持仓`,
+      ...fullCloseResult,
+      reason: buildSellReason(reason, fullCloseResult.reason),
     };
   }
 
-  // 当前价格高于持仓成本价，立即清仓所有持仓
-  if (currentPrice > costPrice) {
-    return {
-      quantity: position.availableQuantity,
-      shouldHold: false,
-      reason: `${reason}，当前价格${currentPrice.toFixed(3)}>成本价${costPrice.toFixed(3)}，立即清空所有${directionName}持仓`,
-    };
-  }
-
-  // 当前价格没有高于持仓成本价，检查历史买入订单
-  const priceComparisonDesc = formatPriceComparison(directionName, currentPrice, costPrice);
-
-  if (!orderRecorder) {
-    return {
-      quantity: null,
-      shouldHold: true,
-      reason: `${reason}，但${priceComparisonDesc}，且无法获取订单记录`,
-    };
-  }
-
-  // 根据方向和标的获取符合条件的买入订单
-  // 传入 symbol 参数以精确筛选，避免多标的支持时的混淆
-  const buyOrdersBelowPrice = orderRecorder.getBuyOrdersBelowPrice(currentPrice, direction, symbol);
-
-  if (!buyOrdersBelowPrice || buyOrdersBelowPrice.length === 0) {
-    return {
-      quantity: null,
-      shouldHold: true,
-      reason: `${reason}，但${priceComparisonDesc}，且没有买入价低于当前价的历史订单`,
-    };
-  }
-
-  const totalQuantity = Math.min(
-    orderRecorder.calculateTotalQuantity(buyOrdersBelowPrice),
-    position.availableQuantity,
-  );
-
-  if (totalQuantity > 0) {
-    return {
-      quantity: totalQuantity,
-      shouldHold: false,
-      reason: `${reason}，但${priceComparisonDesc}，卖出历史买入订单中买入价低于当前价的订单，共 ${totalQuantity} 股`,
-    };
-  }
+  // 智能平仓开启：仅卖出盈利订单
+  const smartCloseResult = resolveSellQuantityBySmartClose({
+    orderRecorder,
+    currentPrice,
+    availableQuantity,
+    direction,
+    symbol,
+  });
 
   return {
-    quantity: null,
-    shouldHold: true,
-    reason: `${reason}，但${priceComparisonDesc}，且没有买入价低于当前价的历史订单`,
+    ...smartCloseResult,
+    reason: buildSellReason(reason, smartCloseResult.reason),
   };
 }
 
@@ -159,7 +113,7 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
   const lastRiskCheckTime = new Map<string, number>();
 
   /**
-   * 处理卖出信号的成本价判断和数量计算
+   * 处理卖出信号的智能平仓数量计算
    */
   const processSellSignals = (
     signals: Signal[],
@@ -183,7 +137,7 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
       const direction: 'LONG' | 'SHORT' = isLongSignal ? 'LONG' : 'SHORT';
       const signalName = isLongSignal ? 'SELLCALL' : 'SELLPUT';
 
-      // 检查是否是末日保护程序的清仓信号（无条件清仓，不受成本价判断影响）
+      // 检查是否是末日保护程序的清仓信号（无条件清仓，不受智能平仓影响）
       const isDoomsdaySignal =
         sig.reason?.includes('末日保护程序');
 
@@ -198,11 +152,9 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
           `[卖出信号处理] ${signalName}: ${direction === 'LONG' ? '做多' : '做空'}标的行情数据为null，无法计算卖出数量`,
         );
       }
-      if (position && quote && position.costPrice !== null && quote.price !== null) {
+      if (position && quote && Number.isFinite(position.availableQuantity) && Number.isFinite(quote.price)) {
         logger.info(
-          `[卖出信号处理] ${signalName}: 持仓成本价=${position.costPrice.toFixed(
-            3,
-          )}, 当前价格=${quote.price.toFixed(3)}, 可用数量=${
+          `[卖出信号处理] ${signalName}: 当前价格=${quote.price.toFixed(3)}, 可用数量=${
             position.availableQuantity
           }`,
         );
@@ -230,7 +182,7 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
           sig.reason = `${sig.reason}，但持仓对象无效`;
         }
       } else {
-        // 正常卖出信号：根据智能平仓配置进行成本价判断
+        // 正常卖出信号：根据智能平仓配置进行数量计算
         // 传入 sig.symbol 以精确筛选订单记录（多标的支持）
         const result = calculateSellQuantity(
           position,

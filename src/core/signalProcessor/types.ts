@@ -20,6 +20,20 @@ export type SellQuantityResult = {
   readonly reason: string;
 };
 
+/**
+ * 卖出上下文校验结果
+ */
+export type SellContextValidationResult =
+  | {
+      readonly valid: true;
+      readonly availableQuantity: number;
+      readonly currentPrice: number;
+    }
+  | {
+      readonly valid: false;
+      readonly reason: string;
+    };
+
 // ==================== 服务接口定义 ====================
 
 /**

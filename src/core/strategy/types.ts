@@ -25,7 +25,7 @@ export type SignalGenerationResult = {
  */
 export interface HangSengMultiIndicatorStrategy {
   /**
-   * 生成基于持仓成本价的清仓信号和延迟验证的开仓信号
+   * 生成卖出信号（卖出数量由智能平仓策略处理）和延迟验证的开仓信号
    * @param state 监控标的的指标状态
    * @param longSymbol 做多标的的代码
    * @param shortSymbol 做空标的的代码

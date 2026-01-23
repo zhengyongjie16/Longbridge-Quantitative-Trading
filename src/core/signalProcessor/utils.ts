@@ -3,7 +3,8 @@
  */
 
 import { normalizeHKSymbol } from '../../utils/helpers/index.js';
-import type { Quote, Position } from '../../types/index.js';
+import type { OrderRecorder, Quote, Position } from '../../types/index.js';
+import type { SellContextValidationResult, SellQuantityResult } from './types.js';
 
 /**
  * 验证持仓和行情数据是否有效
@@ -11,12 +12,9 @@ import type { Quote, Position } from '../../types/index.js';
 export function isValidPositionAndQuote(
   position: Position | null,
   quote: Quote | null,
-): position is Position & { costPrice: number; availableQuantity: number } {
+): position is Position & { availableQuantity: number } {
   return (
     position !== null &&
-    Number.isFinite(position.costPrice) &&
-    position.costPrice !== null &&
-    position.costPrice > 0 &&
     Number.isFinite(position.availableQuantity) &&
     position.availableQuantity !== null &&
     position.availableQuantity > 0 &&
@@ -25,6 +23,110 @@ export function isValidPositionAndQuote(
     quote.price !== null &&
     quote.price > 0
   );
+}
+
+/**
+ * 构建统一的卖出原因文本
+ */
+export function buildSellReason(originalReason: string, detail: string): string {
+  const trimmedReason = originalReason.trim();
+  if (!trimmedReason) {
+    return detail;
+  }
+  return `${trimmedReason}，${detail}`;
+}
+
+/**
+ * 校验卖出上下文所需的最小数据
+ */
+export function validateSellContext(
+  position: Position | null,
+  quote: Quote | null,
+): SellContextValidationResult {
+  if (!isValidPositionAndQuote(position, quote) || !quote) {
+    return { valid: false, reason: '持仓或行情数据无效' };
+  }
+
+  return {
+    valid: true,
+    availableQuantity: position.availableQuantity,
+    currentPrice: quote.price,
+  };
+}
+
+/**
+ * 智能平仓开启时，根据盈利订单计算卖出数量
+ */
+export function resolveSellQuantityBySmartClose({
+  orderRecorder,
+  currentPrice,
+  availableQuantity,
+  direction,
+  symbol,
+}: {
+  orderRecorder: OrderRecorder | null;
+  currentPrice: number;
+  availableQuantity: number;
+  direction: 'LONG' | 'SHORT';
+  symbol: string;
+}): SellQuantityResult {
+  if (!orderRecorder) {
+    return {
+      quantity: null,
+      shouldHold: true,
+      reason: '智能平仓：订单记录不可用，保持持仓',
+    };
+  }
+
+  const buyOrdersBelowPrice = orderRecorder.getBuyOrdersBelowPrice(
+    currentPrice,
+    direction,
+    symbol,
+  );
+
+  if (!buyOrdersBelowPrice || buyOrdersBelowPrice.length === 0) {
+    return {
+      quantity: null,
+      shouldHold: true,
+      reason: '智能平仓：无盈利订单，保持持仓',
+    };
+  }
+
+  const totalQuantity = Math.min(
+    orderRecorder.calculateTotalQuantity(buyOrdersBelowPrice),
+    availableQuantity,
+  );
+
+  if (!Number.isFinite(totalQuantity) || totalQuantity <= 0) {
+    return {
+      quantity: null,
+      shouldHold: true,
+      reason: '智能平仓：无盈利订单，保持持仓',
+    };
+  }
+
+  return {
+    quantity: totalQuantity,
+    shouldHold: false,
+    reason: `智能平仓：当前价=${currentPrice.toFixed(3)}，卖出盈利订单数量=${totalQuantity}`,
+  };
+}
+
+/**
+ * 智能平仓关闭时，直接全仓卖出
+ */
+export function resolveSellQuantityByFullClose({
+  availableQuantity,
+  directionName,
+}: {
+  availableQuantity: number;
+  directionName: string;
+}): SellQuantityResult {
+  return {
+    quantity: availableQuantity,
+    shouldHold: false,
+    reason: `智能平仓已关闭，直接清空所有${directionName}持仓`,
+  };
 }
 
 /**

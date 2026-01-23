@@ -12,8 +12,8 @@
  * 3. 最终记录 = M0 + 过滤后的买入订单
  *
  * 智能清仓逻辑：
- * - 当 currentPrice > costPrice：清空所有持仓
- * - 当 currentPrice ≤ costPrice：仅卖出 buyPrice < currentPrice 的订单
+ * - 智能平仓开启：仅卖出 buyPrice < currentPrice 的盈利订单
+ * - 智能平仓关闭：直接清空所有持仓
  *
  * 缓存机制：
  * - 订单数据永久缓存（程序运行期间）

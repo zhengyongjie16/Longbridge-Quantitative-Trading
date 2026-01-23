@@ -394,7 +394,7 @@ export const createHangSengMultiIndicatorStrategy = ({
       }
 
       // 2. 卖出做多标的
-      // 注意：卖出信号生成时无需判断成本价，成本价判断在卖出策略中进行
+      // 注意：卖出信号生成时不做智能平仓判断，卖出数量由 signalProcessor 统一计算
       // 注意：买入订单记录就是持仓记录，只需检查订单记录即可（在 generateSignal 中检查）
       if (longSymbol) {
         const sellLongResult = generateSignal(
@@ -422,7 +422,7 @@ export const createHangSengMultiIndicatorStrategy = ({
       }
 
       // 4. 卖出做空标的
-      // 注意：卖出信号生成时无需判断成本价，成本价判断在卖出策略中进行
+      // 注意：卖出信号生成时不做智能平仓判断，卖出数量由 signalProcessor 统一计算
       // 注意：买入订单记录就是持仓记录，只需检查订单记录即可（在 generateSignal 中检查）
       if (shortSymbol) {
         const sellShortResult = generateSignal(

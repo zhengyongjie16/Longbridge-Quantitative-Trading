@@ -275,7 +275,7 @@ export type MonitorConfig = {
   readonly buyIntervalSeconds: number;
   readonly verificationConfig: VerificationConfig;
   readonly signalConfig: SignalConfigSet;
-  /** 智能平仓策略开关，true 时检查成本价可能部分平仓，false 时直接全部平仓 */
+  /** 智能平仓策略开关，true 时仅卖出盈利订单，false 时直接全部平仓 */
   readonly smartCloseEnabled: boolean;
 };
 
