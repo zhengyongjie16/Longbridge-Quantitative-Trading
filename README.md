@@ -233,9 +233,6 @@ src/
 │   └── types.ts                # 配置类型定义
 ├── constants/                  # 全局常量定义
 ├── types/                      # TypeScript 类型定义
-├── init/                       # 初始化与清理
-│   ├── monitorContext/         # 监控上下文工厂
-│   └── cleanup/                # 退出清理
 ├── main/                       # 主程序架构模块
 │   ├── mainProgram/            # 主循环逻辑
 │   ├── processMonitor/         # 单标的处理
@@ -262,6 +259,8 @@ src/
 ├── services/                   # 外部服务
 │   ├── quoteClient/            # 行情数据客户端
 │   ├── marketMonitor/          # 市场监控（价格/指标变化）
+│   ├── monitorContext/         # 监控上下文工厂
+│   ├── cleanup/                # 退出清理
 │   └── indicators/             # 技术指标计算（RSI/KDJ/MACD/MFI/EMA）
 └── utils/                      # 工具模块
     ├── objectPool/             # 对象池（减少 GC）

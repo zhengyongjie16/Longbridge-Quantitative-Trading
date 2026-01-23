@@ -49,6 +49,8 @@ src/
 ├── services/                   # 外部服务
 │   ├── quoteClient/            # 行情数据客户端
 │   ├── marketMonitor/          # 市场监控（价格/指标变化）
+│   ├── monitorContext/         # 监控上下文工厂
+│   ├── cleanup/                # 退出清理
 │   └── indicators/             # 技术指标计算
 │       ├── rsi.ts / kdj.ts / macd.ts / mfi.ts / ema.ts
 │       └── index.ts            # buildIndicatorSnapshot 统一入口
