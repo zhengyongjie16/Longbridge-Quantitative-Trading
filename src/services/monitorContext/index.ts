@@ -6,7 +6,6 @@ import { createHangSengMultiIndicatorStrategy } from '../../core/strategy/index.
 import { createRiskChecker } from '../../core/risk/index.js';
 import { createUnrealizedLossMonitor } from '../../core/unrealizedLossMonitor/index.js';
 import { createDelayedSignalVerifier } from '../../main/asyncProgram/delayedSignalVerifier/index.js';
-import { extractEmaPeriods, extractRsiPeriodsWithDefault } from './utils.js';
 import type { IndicatorCache } from '../../main/asyncProgram/indicatorCache/types.js';
 import type {
   MonitorConfig,
@@ -15,6 +14,7 @@ import type {
   Quote,
   Trader,
 } from '../../types/index.js';
+import { extractEmaPeriods, extractRsiPeriodsWithDefault } from './utils.js';
 
 /**
  * 创建监控标的上下文

@@ -48,9 +48,9 @@ import { createBuyTaskQueue, createSellTaskQueue } from './main/asyncProgram/tra
 import { createBuyProcessor } from './main/asyncProgram/buyProcessor/index.js';
 import { createSellProcessor } from './main/asyncProgram/sellProcessor/index.js';
 
-// 导入主程序初始化模块（从 src/init/ 拆分出来的工具函数和工厂函数）
-import { createMonitorContext } from './init/monitorContext/index.js';
-import { createCleanup } from './init/cleanup/index.js';
+// 导入主程序初始化模块（已迁移至 src/services/）
+import { createMonitorContext } from './services/monitorContext/index.js';
+import { createCleanup } from './services/cleanup/index.js';
 
 // 导入主程序循环
 import { mainProgram } from './main/mainProgram/index.js';
