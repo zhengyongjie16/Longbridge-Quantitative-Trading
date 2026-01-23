@@ -13,6 +13,7 @@
     "clean": "rimraf dist",
     "find-warrant": "tsc && node dist/tools/findWarrant.js",
     "analyze-indicators": "tsc && node dist/tools/indicatorAnalysis.js",
+    "monitor-daily": "tsc && node dist/tools/dailyKlineMonitor.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "sonarqube": "node scripts/run-sonar.js",
