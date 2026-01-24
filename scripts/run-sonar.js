@@ -3,6 +3,8 @@ import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
+const dangerousShellChars = /[;&|`$(){}[\]<>!#*?'"\r\n^%]/;
+
 /**
  * 验证 URL 格式，防止命令注入
  * @param {string} url
@@ -11,7 +13,16 @@ import { dirname, join } from 'node:path';
 function isValidUrl(url) {
   try {
     const parsed = new URL(url);
-    return ['http:', 'https:'].includes(parsed.protocol);
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return false;
+    }
+    if (parsed.username || parsed.password) {
+      return false;
+    }
+    if (parsed.search || parsed.hash) {
+      return false;
+    }
+    return !dangerousShellChars.test(url);
   } catch {
     return false;
   }
@@ -25,8 +36,7 @@ function isValidUrl(url) {
  */
 function isValidPath(filePath) {
   // 禁止包含 shell 特殊字符（允许 Windows 路径分隔符 \ 和正斜杠 /）
-  const dangerousChars = /[;&|`$(){}[\]<>!#*?'"]/;
-  return !dangerousChars.test(filePath);
+  return !dangerousShellChars.test(filePath);
 }
 
 /**
@@ -80,16 +90,15 @@ try {
 
 // 验证必需的配置
 const required = ['SONAR_TOKEN', 'SONAR_HOST_URL', 'SONAR_PROJECT_KEY', 'SONAR_SCANNER_PATH'];
-for (const key of required) {
-  if (!config[key]) {
-    console.error(`❌ 配置文件中缺少 ${key}`);
-    process.exit(1);
-  }
+const missingKey = required.find(key => !config[key]);
+if (missingKey) {
+  console.error(`❌ 配置文件中缺少 ${missingKey}`);
+  process.exit(1);
 }
 
 // 验证配置值的安全性，防止命令注入
 if (!isValidUrl(config.SONAR_HOST_URL)) {
-  console.error('❌ SONAR_HOST_URL 格式无效，必须是有效的 http/https URL');
+  console.error('❌ SONAR_HOST_URL 格式无效，必须是安全的 http/https URL（不含查询参数和 shell 特殊字符）');
   process.exit(1);
 }
 
@@ -140,7 +149,9 @@ async function checkSonarQubeStatus() {
 async function startSonarQube() {
   const dockerComposePath = join(projectRoot, 'docker-compose.yml');
   try {
-    readFileSync(dockerComposePath, 'utf-8');
+    if (!existsSync(dockerComposePath)) {
+      throw new Error('docker-compose.yml 不存在');
+    }
     console.log('📦 启动 Docker 容器...');
     // docker-compose 是固定命令，安全
     execSync('docker-compose up -d', {
@@ -164,11 +175,12 @@ if (!isRunning) {
 console.log('\n🚀 开始 SonarQube 扫描...');
 console.log(`   项目: ${config.SONAR_PROJECT_KEY}`);
 console.log(`   服务器: ${config.SONAR_HOST_URL}`);
-console.log('');
-
 // 构建扫描命令
-const scannerPath = join(config.SONAR_SCANNER_PATH, 'bin', 'sonar-scanner.bat');
-const scannerCmd = process.platform === 'win32' ? scannerPath : join(config.SONAR_SCANNER_PATH, 'bin', 'sonar-scanner');
+const scannerCmd = join(
+  config.SONAR_SCANNER_PATH,
+  'bin',
+  process.platform === 'win32' ? 'sonar-scanner.bat' : 'sonar-scanner'
+);
 
 // 验证 scanner 可执行文件存在
 if (!existsSync(scannerCmd)) {
