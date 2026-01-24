@@ -3,7 +3,7 @@
  */
 
 import { OrderType } from 'longport';
-import { validateEmaPeriod } from '../utils/helpers/indicatorHelpers.js';
+import { validateEmaPeriod, validatePsyPeriod } from '../utils/helpers/indicatorHelpers.js';
 import { logger } from '../utils/logger/index.js';
 import type { RegionUrls } from './types.js';
 
@@ -161,6 +161,19 @@ export const parseVerificationIndicators = (
   for (const item of items) {
     if (fixedIndicators.has(item)) {
       validItems.push(item);
+      continue;
+    }
+
+    if (item.startsWith('PSY:')) {
+      const periodStr = item.substring(4);
+      const period = Number.parseInt(periodStr, 10);
+
+      if (validatePsyPeriod(period)) {
+        validItems.push(item);
+        continue;
+      }
+
+      invalidItems.push(item);
       continue;
     }
 

@@ -74,7 +74,7 @@ export function createMonitorContext(
     // 缓存指标周期配置（避免每次循环重复提取）
     rsiPeriods: extractRsiPeriodsWithDefault(config.signalConfig),
     emaPeriods: extractEmaPeriods(config.verificationConfig),
-    psyPeriods: extractPsyPeriods(config.signalConfig),
+    psyPeriods: extractPsyPeriods(config.signalConfig, config.verificationConfig),
     // 缓存的行情数据（主循环每秒更新，供 TradeProcessor 使用）
     longQuote,
     shortQuote,

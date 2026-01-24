@@ -6,7 +6,7 @@ import {
   extractRSIPeriods,
   extractPsyPeriods as extractPsyPeriodsFromSignalConfig,
 } from '../../utils/helpers/signalConfigParser.js';
-import { validateEmaPeriod } from '../../utils/helpers/indicatorHelpers.js';
+import { validateEmaPeriod, validatePsyPeriod } from '../../utils/helpers/indicatorHelpers.js';
 import type { VerificationConfig, SignalConfigSet } from '../../types/index.js';
 
 /**
@@ -61,10 +61,40 @@ export function extractRsiPeriodsWithDefault(signalConfig: SignalConfigSet | nul
 }
 
 /**
- * 从信号配置中提取 PSY 周期（不设置默认周期）
+ * 从信号配置和验证配置中提取 PSY 周期（不设置默认周期）
  * @param signalConfig 信号配置
+ * @param verificationConfig 验证配置
  * @returns PSY 周期数组
  */
-export function extractPsyPeriods(signalConfig: SignalConfigSet | null): number[] {
-  return extractPsyPeriodsFromSignalConfig(signalConfig);
+export function extractPsyPeriods(
+  signalConfig: SignalConfigSet | null,
+  verificationConfig?: VerificationConfig | null,
+): number[] {
+  const periods = new Set<number>();
+
+  for (const period of extractPsyPeriodsFromSignalConfig(signalConfig)) {
+    if (validatePsyPeriod(period)) {
+      periods.add(period);
+    }
+  }
+
+  if (verificationConfig) {
+    const allIndicators = [
+      ...(verificationConfig.buy.indicators ?? []),
+      ...(verificationConfig.sell.indicators ?? []),
+    ];
+    for (const indicator of allIndicators) {
+      if (!indicator.startsWith('PSY:')) {
+        continue;
+      }
+
+      const periodStr = indicator.substring(4);
+      const period = Number.parseInt(periodStr, 10);
+      if (validatePsyPeriod(period)) {
+        periods.add(period);
+      }
+    }
+  }
+
+  return Array.from(periods).sort((a, b) => a - b);
 }

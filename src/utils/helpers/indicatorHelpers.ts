@@ -9,6 +9,7 @@
  * - K、D、J（KDJ 指标）
  * - MACD、DIF、DEA（MACD 指标）
  * - EMA:n（任意周期的 EMA 指标）
+ * - PSY:n（任意周期的 PSY 指标）
  *
  * 核心函数：
  * - getIndicatorValue()：提取指标值
@@ -19,14 +20,14 @@ import type { IndicatorState } from './types.js';
 
 /**
  * 从指标状态中提取指定指标的值（用于延迟验证指标）
- * @param state 指标状态对象 {kdj, macd, ema}
- * @param indicatorName 指标名称 (K, D, J, MACD, DIF, DEA, EMA:n)
+ * @param state 指标状态对象 {kdj, macd, ema, psy}
+ * @param indicatorName 指标名称 (K, D, J, MACD, DIF, DEA, EMA:n, PSY:n)
  * @returns 指标值，如果无效则返回 null
  */
 export function getIndicatorValue(state: IndicatorState | null, indicatorName: string): number | null {
   if (!state) return null;
 
-  const { kdj, macd, ema } = state;
+  const { kdj, macd, ema, psy } = state;
 
   // 处理 EMA:n 格式（例如 EMA:5, EMA:10）
   if (indicatorName.startsWith('EMA:')) {
@@ -41,6 +42,18 @@ export function getIndicatorValue(state: IndicatorState | null, indicatorName: s
     // 从 ema 对象中提取对应周期的值
     const emaValue = ema?.[period];
     return emaValue !== undefined && Number.isFinite(emaValue) ? emaValue : null;
+  }
+
+  if (indicatorName.startsWith('PSY:')) {
+    const periodStr = indicatorName.substring(4);
+    const period = Number.parseInt(periodStr, 10);
+
+    if (!validatePsyPeriod(period)) {
+      return null;
+    }
+
+    const psyValue = psy?.[period];
+    return psyValue !== undefined && Number.isFinite(psyValue) ? psyValue : null;
   }
 
   switch (indicatorName) {
