@@ -4,6 +4,7 @@
  * 功能：
  * - 计算 RSI（相对强弱指标）
  * - 计算 MFI（资金流量指标）
+ * - 计算 PSY（心理线指标）
  * - 计算 KDJ（随机指标）
  * - 计算 MACD（指数平滑异同移动平均线）
  * - 计算 EMA（指数移动平均线）
@@ -20,7 +21,7 @@
  * - MACD：EMA12-EMA26-DIF 的 EMA9
  */
 
-import { validateRsiPeriod, validateEmaPeriod } from '../../utils/helpers/indicatorHelpers.js';
+import { validateRsiPeriod, validateEmaPeriod, validatePsyPeriod } from '../../utils/helpers/indicatorHelpers.js';
 import { periodRecordPool } from '../../utils/objectPool/index.js';
 import { toNumber } from './utils.js';
 import { calculateRSI } from './rsi.js';
@@ -28,6 +29,7 @@ import { calculateMFI } from './mfi.js';
 import { calculateKDJ } from './kdj.js';
 import { calculateMACD } from './macd.js';
 import { calculateEMA } from './ema.js';
+import { calculatePSY } from './psy.js';
 import type { CandleData, IndicatorSnapshot } from '../../types/index.js';
 
 // ==================== 指标缓存 ====================
@@ -53,14 +55,16 @@ const indicatorCache = new Map<string, IndicatorCalculationCacheEntry>();
  * @param symbol 标的代码
  * @param rsiPeriods RSI 周期数组
  * @param emaPeriods EMA 周期数组
+ * @param psyPeriods PSY 周期数组
  */
-const buildCacheKey = (
+function buildCacheKey(
   symbol: string,
   rsiPeriods: ReadonlyArray<number>,
   emaPeriods: ReadonlyArray<number>,
-): string => {
-  return `${symbol}_${rsiPeriods.join(',')}_${emaPeriods.join(',')}`;
-};
+  psyPeriods: ReadonlyArray<number>,
+): string {
+  return `${symbol}_${rsiPeriods.join(',')}_${emaPeriods.join(',')}_${psyPeriods.join(',')}`;
+}
 
 /**
  * 构建 K 线数据指纹（用于检测数据是否变化）
@@ -70,52 +74,56 @@ const buildCacheKey = (
  * @param candles K 线数据数组
  * @param lastClose 最后收盘价（已计算）
  */
-const buildDataFingerprint = (
+function buildDataFingerprint(
   candles: ReadonlyArray<CandleData>,
   lastClose: number,
-): string => {
+): string {
   return `${candles.length}_${lastClose}`;
-};
+}
 
 /**
  * 释放缓存条目中的对象池对象
  * @param entry 缓存条目
  */
-const releaseCacheEntryObjects = (entry: IndicatorCalculationCacheEntry): void => {
-  // 释放 rsi 和 ema 对象回对象池
+function releaseCacheEntryObjects(entry: IndicatorCalculationCacheEntry): void {
+  // 释放 rsi、ema、psy 对象回对象池
   if (entry.snapshot.rsi) {
     periodRecordPool.release(entry.snapshot.rsi);
   }
   if (entry.snapshot.ema) {
     periodRecordPool.release(entry.snapshot.ema);
   }
-};
+  if (entry.snapshot.psy) {
+    periodRecordPool.release(entry.snapshot.psy);
+  }
+}
+
+function deleteCacheEntry(key: string, entry: IndicatorCalculationCacheEntry): void {
+  releaseCacheEntryObjects(entry);
+  indicatorCache.delete(key);
+}
 
 /**
  * 清理过期缓存条目
  * 当缓存条目超过最大数量时，删除最旧的条目
  */
-const cleanupCache = (): void => {
+function cleanupCache(): void {
   if (indicatorCache.size <= MAX_CACHE_SIZE) {
     return;
   }
 
   const now = Date.now();
-  const entriesToDelete: string[] = [];
+  const expiredEntries: Array<[string, IndicatorCalculationCacheEntry]> = [];
 
   // 首先删除过期条目
   for (const [key, entry] of indicatorCache) {
     if (now - entry.timestamp > CACHE_TTL_MS) {
-      entriesToDelete.push(key);
+      expiredEntries.push([key, entry]);
     }
   }
 
-  for (const key of entriesToDelete) {
-    const entry = indicatorCache.get(key);
-    if (entry) {
-      releaseCacheEntryObjects(entry);
-    }
-    indicatorCache.delete(key);
+  for (const [key, entry] of expiredEntries) {
+    deleteCacheEntry(key, entry);
   }
 
   // 如果仍然超过限制，删除最旧的条目
@@ -127,12 +135,11 @@ const cleanupCache = (): void => {
     for (let i = 0; i < deleteCount; i++) {
       const sortedEntry = sortedEntries[i];
       if (sortedEntry) {
-        releaseCacheEntryObjects(sortedEntry[1]);
-        indicatorCache.delete(sortedEntry[0]);
+        deleteCacheEntry(sortedEntry[0], sortedEntry[1]);
       }
     }
   }
-};
+}
 
 /**
  * 构建指标快照（统一计算所有技术指标）
@@ -146,6 +153,7 @@ const cleanupCache = (): void => {
  * @param candles K线数据数组
  * @param rsiPeriods RSI周期数组
  * @param emaPeriods EMA周期数组
+ * @param psyPeriods PSY周期数组
  * @returns 指标快照对象
  */
 export function buildIndicatorSnapshot(
@@ -153,10 +161,13 @@ export function buildIndicatorSnapshot(
   candles: ReadonlyArray<CandleData>,
   rsiPeriods: ReadonlyArray<number> = [],
   emaPeriods: ReadonlyArray<number> = [],
+  psyPeriods: ReadonlyArray<number> = [],
 ): IndicatorSnapshot | null {
   if (!candles || candles.length === 0) {
     return null;
   }
+
+  const cacheKey = buildCacheKey(symbol, rsiPeriods, emaPeriods, psyPeriods);
 
   // ========== 轻量级缓存检查（避免遍历整个数组） ==========
   // 先用最后一根 K 线的收盘价构建指纹，检查缓存
@@ -165,7 +176,6 @@ export function buildIndicatorSnapshot(
 
   // 只有当最后收盘价有效时才检查缓存
   if (Number.isFinite(lastCandleClose) && lastCandleClose > 0) {
-    const cacheKey = buildCacheKey(symbol, rsiPeriods, emaPeriods);
     const dataFingerprint = buildDataFingerprint(candles, lastCandleClose);
     const cached = indicatorCache.get(cacheKey);
     const now = Date.now();
@@ -237,11 +247,34 @@ export function buildIndicatorSnapshot(
     }
   }
 
+  // 计算所有需要的 PSY 周期
+  // 从对象池获取 psy 对象，减少内存分配
+  let psy: Record<number, number> | null = null;
+  if (Array.isArray(psyPeriods) && psyPeriods.length > 0) {
+    const psyRecord = periodRecordPool.acquire();
+    let hasPsyValue = false;
+    for (const period of psyPeriods) {
+      if (validatePsyPeriod(period) && Number.isInteger(period)) {
+        const psyValue = calculatePSY(validCloses, period);
+        if (psyValue !== null) {
+          psyRecord[period] = psyValue;
+          hasPsyValue = true;
+        }
+      }
+    }
+    if (hasPsyValue) {
+      psy = psyRecord;
+    } else {
+      periodRecordPool.release(psyRecord);
+    }
+  }
+
   const snapshot: IndicatorSnapshot = {
     symbol,
     price: lastPrice,
     changePercent,
     rsi,
+    psy,
     kdj: calculateKDJ(candles, 9),
     macd: calculateMACD(validCloses),
     mfi: calculateMFI(candles, 14),
@@ -249,7 +282,6 @@ export function buildIndicatorSnapshot(
   };
 
   // ========== 更新缓存 ==========
-  const cacheKey = buildCacheKey(symbol, rsiPeriods, emaPeriods);
   const dataFingerprint = buildDataFingerprint(candles, lastPrice);
   const now = Date.now();
 

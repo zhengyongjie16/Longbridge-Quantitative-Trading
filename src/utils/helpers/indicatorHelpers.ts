@@ -18,7 +18,7 @@
 import type { IndicatorState } from './types.js';
 
 /**
- * 从指标状态中提取指定指标的值
+ * 从指标状态中提取指定指标的值（用于延迟验证指标）
  * @param state 指标状态对象 {kdj, macd, ema}
  * @param indicatorName 指标名称 (K, D, J, MACD, DIF, DEA, EMA:n)
  * @returns 指标值，如果无效则返回 null
@@ -86,6 +86,15 @@ export function validateEmaPeriod(period: unknown): period is number {
  * @returns 如果周期有效返回 true，否则返回 false
  */
 export function validateRsiPeriod(period: unknown): period is number {
+  return typeof period === 'number' && Number.isFinite(period) && period >= 1 && period <= 100;
+}
+
+/**
+ * 验证 PSY 周期是否有效（1-100）
+ * @param period PSY 周期
+ * @returns 如果周期有效返回 true，否则返回 false
+ */
+export function validatePsyPeriod(period: unknown): period is number {
   return typeof period === 'number' && Number.isFinite(period) && period >= 1 && period <= 100;
 }
 

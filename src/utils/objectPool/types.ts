@@ -54,6 +54,7 @@ export type PoolableMonitorValues = {
   changePercent: number | null;
   ema: Record<number, number> | null;
   rsi: Record<number, number> | null;
+  psy: Record<number, number> | null;
   mfi: number | null;
   kdj: PoolableKDJ | null;
   macd: PoolableMACD | null;
@@ -94,6 +95,6 @@ export type Reset<T> = (obj: T) => T;
 export type ObjectPool<T> = {
   acquire(): T;
   release(obj: T | null | undefined): void;
-  releaseAll(objects: T[] | null | undefined): void;
+  releaseAll(objects: ReadonlyArray<T> | null | undefined): void;
 };
 

@@ -12,12 +12,15 @@ export type DecimalLike = {
 /**
  * 指标状态接口（用于获取指标值）
  */
+export type IndicatorSeries = Record<number, number> | null;
+
 export type IndicatorState = {
-  readonly rsi?: Record<number, number> | null;
+  readonly ema?: IndicatorSeries;
+  readonly rsi?: IndicatorSeries;
+  readonly psy?: IndicatorSeries;
   readonly mfi?: number | null;
   readonly kdj?: { readonly k?: number; readonly d?: number; readonly j?: number } | null;
   readonly macd?: { readonly macd?: number; readonly dif?: number; readonly dea?: number } | null;
-  readonly ema?: Record<number, number> | null;
 };
 
 // ============= signalConfigParser 类型定义 =============

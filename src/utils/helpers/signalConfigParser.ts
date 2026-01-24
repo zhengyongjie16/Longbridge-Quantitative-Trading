@@ -4,13 +4,13 @@
  * 功能：
  * - 解析信号配置字符串
  * - 评估条件是否满足
- * - 提取配置中的 RSI 周期
+ * - 提取配置中的 RSI/PSY 周期
  *
  * 配置格式：(RSI:6<20,MFI<15,D<20,J<-1)/3|(J<-20)
  * - 括号内是条件列表，逗号分隔
  * - /N：括号内条件需满足 N 项，不设则全部满足
  * - |：分隔不同条件组（最多3个），满足任一组即可
- * - 支持指标：RSI:n (n为1-100), EMA:n (n为1-250), MFI, K, D, J, MACD, DIF, DEA
+ * - 支持指标：RSI:n (n为1-100), PSY:n (n为1-100), EMA:n (n为1-250), MFI, K, D, J, MACD, DIF, DEA
  * - 支持运算符：< 和 >
  *
  * 核心函数：
@@ -18,11 +18,13 @@
  * - evaluateCondition()：评估单个条件
  * - evaluateSignalConfig()：评估完整配置
  * - extractRSIPeriods()：提取 RSI 周期列表
+ * - extractPsyPeriods()：提取 PSY 周期列表
  */
 
 import {
   validateRsiPeriod,
   validateEmaPeriod,
+  validatePsyPeriod,
 } from './indicatorHelpers.js';
 import type {
   Condition,
@@ -82,6 +84,35 @@ function parseCondition(conditionStr: string): ParsedCondition | null {
 
     return {
       indicator: 'RSI',
+      period,
+      operator: operator as '<' | '>',
+      threshold,
+    };
+  }
+
+  // 尝试匹配 PSY:n 格式
+  const psyRegex = /^PSY:(\d+)\s*([<>])\s*(-?\d+(?:\.\d+)?)$/;
+  const psyMatch = psyRegex.exec(trimmed);
+
+  if (psyMatch) {
+    // PSY:n 格式
+    const [, periodStr, operator, thresholdStr] = psyMatch;
+
+    // 验证正则捕获组存在
+    if (!periodStr || !operator || !thresholdStr) {
+      return null;
+    }
+
+    const period = Number.parseInt(periodStr, 10);
+    const threshold = Number.parseFloat(thresholdStr);
+
+    // 验证周期范围（1-100）和阈值有效性
+    if (!validatePsyPeriod(period) || !Number.isFinite(threshold)) {
+      return null;
+    }
+
+    return {
+      indicator: 'PSY',
       period,
       operator: operator as '<' | '>',
       threshold,
@@ -276,7 +307,7 @@ export function parseSignalConfig(configStr: string | null | undefined): SignalC
 
 /**
  * 根据指标状态评估条件
- * @param state 指标状态 {rsi: {6: value, 12: value, ...}, mfi, kdj: {k, d, j}, macd: {macd, dif, dea}}
+ * @param state 指标状态 {rsi: {6: value, 12: value, ...}, psy: {6: value, 12: value, ...}, mfi, kdj: {k, d, j}, macd: {macd, dif, dea}}
  * @param condition 条件 {indicator, operator, threshold}
  * @returns 条件是否满足
  */
@@ -306,6 +337,13 @@ function evaluateCondition(state: IndicatorState, condition: Condition): boolean
         return false;
       }
       value = state.rsi[period];
+      break;
+    case 'PSY':
+      // PSY:n 格式，从 state.psy[period] 获取值
+      if (!period || state.psy?.[period] === undefined) {
+        return false;
+      }
+      value = state.psy[period];
       break;
     case 'MFI':
       value = state.mfi ?? undefined;
@@ -503,6 +541,58 @@ export function extractRSIPeriods(signalConfig: SignalConfigSet | null): number[
           if (periodStr) {
             const period = Number.parseInt(periodStr, 10);
             if (Number.isFinite(period)) {
+              periods.add(period);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // 转为数组并排序
+  return Array.from(periods).sort((a, b) => a - b);
+}
+
+/**
+ * 从信号配置中提取所有 PSY 周期
+ * @param signalConfig 信号配置对象 {buycall, sellcall, buyput, sellput}
+ * @returns PSY 周期数组（去重后排序）
+ */
+export function extractPsyPeriods(signalConfig: SignalConfigSet | null): number[] {
+  if (!signalConfig) {
+    return [];
+  }
+
+  const periods = new Set<number>();
+
+  // 遍历所有信号类型的配置
+  const configs = [
+    signalConfig.buycall,
+    signalConfig.sellcall,
+    signalConfig.buyput,
+    signalConfig.sellput,
+  ];
+
+  for (const config of configs) {
+    if (!config?.conditionGroups) {
+      continue;
+    }
+
+    // 遍历所有条件组
+    for (const group of config.conditionGroups) {
+      if (!group.conditions) {
+        continue;
+      }
+
+      // 遍历所有条件
+      for (const condition of group.conditions) {
+        // 如果是 PSY 指标且有周期，添加到集合中
+        if (condition.indicator.startsWith('PSY:')) {
+          const parts = condition.indicator.split(':');
+          const periodStr = parts[1];
+          if (periodStr) {
+            const period = Number.parseInt(periodStr, 10);
+            if (validatePsyPeriod(period)) {
               periods.add(period);
             }
           }

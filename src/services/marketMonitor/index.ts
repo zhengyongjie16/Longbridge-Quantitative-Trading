@@ -8,30 +8,30 @@
  *
  * 变化检测阈值（定义在 constants/index.ts 的 MONITOR 常量中）：
  * - 价格变化：MONITOR.PRICE_CHANGE_THRESHOLD
- * - 技术指标变化（EMA/RSI/MFI/KDJ/MACD）：MONITOR.INDICATOR_CHANGE_THRESHOLD
+ * - 技术指标变化（EMA/RSI/PSY/MFI/KDJ/MACD）：MONITOR.INDICATOR_CHANGE_THRESHOLD
  *
  * 显示内容：
  * - 做多/做空标的的现价和涨跌幅
  * - 监控标的的所有技术指标值
  */
 
-import { logger, colors } from '../../utils/logger/index.js';
+import { colors, logger } from '../../utils/logger/index.js';
 import {
-  normalizeHKSymbol,
   formatQuoteDisplay,
   isValidPositiveNumber,
+  normalizeHKSymbol,
   toBeijingTimeLog,
 } from '../../utils/helpers/index.js';
 import { isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
 import { hasChanged } from './utils.js';
 import {
-  monitorValuesObjectPool,
   kdjObjectPool,
   macdObjectPool,
+  monitorValuesObjectPool,
   periodRecordPool,
 } from '../../utils/objectPool/index.js';
 import { MONITOR } from '../../constants/index.js';
-import type { Quote, IndicatorSnapshot, MonitorValues, MonitorState } from '../../types/index.js';
+import type { IndicatorSnapshot, MonitorState, MonitorValues, Quote } from '../../types/index.js';
 import { MarketMonitor } from './types.js';
 
 /**
@@ -115,6 +115,10 @@ export const createMarketMonitor = (): MarketMonitor => {
     if (monitorValues.rsi) {
       periodRecordPool.release(monitorValues.rsi);
     }
+    // 释放嵌套的 psy 对象到对象池
+    if (monitorValues.psy) {
+      periodRecordPool.release(monitorValues.psy);
+    }
     // 释放嵌套的 kdj 对象到对象池
     if (monitorValues.kdj) {
       kdjObjectPool.release(monitorValues.kdj);
@@ -138,6 +142,7 @@ export const createMarketMonitor = (): MarketMonitor => {
     changePercent: number | null,
     emaPeriods: ReadonlyArray<number>,
     rsiPeriods: ReadonlyArray<number>,
+    psyPeriods: ReadonlyArray<number>,
     klineTimestamp: number | null,
   ): void => {
     // 格式化指标值
@@ -148,7 +153,7 @@ export const createMarketMonitor = (): MarketMonitor => {
       return '-';
     };
 
-    // 构建指标显示字符串（按照指定顺序：最新价、涨跌幅、EMAn、RSIn、MFI、K、D、J、MACD、DIF、DEA）
+    // 构建指标显示字符串（按照指定顺序：最新价、涨跌幅、EMAn、RSIn、MFI、PSY、K、D、J、MACD、DIF、DEA）
     const indicators: string[] = [];
 
     // 1. 最新价
@@ -173,7 +178,10 @@ export const createMarketMonitor = (): MarketMonitor => {
       indicators.push(`MFI=${formatIndicator(monitorSnapshot.mfi, 3)}`);
     }
 
-    // 6. KDJ（K、D、J三个值）
+    // 6. PSY（所有配置的PSY周期）
+    addPeriodIndicators(indicators, monitorSnapshot.psy, psyPeriods, 'PSY', 3);
+
+    // 7. KDJ（K、D、J三个值）
     if (monitorSnapshot.kdj) {
       const kdj = monitorSnapshot.kdj;
       if (Number.isFinite(kdj.k)) {
@@ -187,7 +195,7 @@ export const createMarketMonitor = (): MarketMonitor => {
       }
     }
 
-    // 7. MACD（MACD、DIF、DEA三个值）
+    // 8. MACD（MACD、DIF、DEA三个值）
     if (monitorSnapshot.macd) {
       const macd = monitorSnapshot.macd;
       if (Number.isFinite(macd.macd)) {
@@ -263,6 +271,7 @@ export const createMarketMonitor = (): MarketMonitor => {
       monitorSymbol: string,
       emaPeriods: ReadonlyArray<number>,
       rsiPeriods: ReadonlyArray<number>,
+      psyPeriods: ReadonlyArray<number>,
       monitorState: MonitorState,
     ): boolean => {
       if (!monitorSnapshot) {
@@ -336,6 +345,21 @@ export const createMarketMonitor = (): MarketMonitor => {
         }
       }
 
+      // 检查PSY变化
+      if (!hasIndicatorChanged && monitorSnapshot.psy) {
+        for (const period of psyPeriods) {
+          const currentPsy = monitorSnapshot.psy[period];
+          const lastPsy = monitorState.monitorValues?.psy?.[period];
+          if (
+            Number.isFinite(currentPsy) &&
+            (lastPsy == null || hasChanged(currentPsy, lastPsy, MONITOR.INDICATOR_CHANGE_THRESHOLD))
+          ) {
+            hasIndicatorChanged = true;
+            break;
+          }
+        }
+      }
+
       // 检查MFI变化
       if (!hasIndicatorChanged) {
         const lastMfi = monitorState.monitorValues?.mfi;
@@ -383,6 +407,7 @@ export const createMarketMonitor = (): MarketMonitor => {
           changePercent,
           emaPeriods,
           rsiPeriods,
+          psyPeriods,
           monitorQuote?.timestamp ?? null,
         );
 
@@ -421,6 +446,21 @@ export const createMarketMonitor = (): MarketMonitor => {
           newMonitorValues.rsi = rsiRecord;
         } else {
           newMonitorValues.rsi = null;
+        }
+
+        // 从对象池获取 psy 对象，复制值
+        if (monitorSnapshot.psy) {
+          const psyRecord = periodRecordPool.acquire();
+          for (const key in monitorSnapshot.psy) {
+            const numKey = Number(key);
+            const value = monitorSnapshot.psy[numKey];
+            if (value !== undefined) {
+              psyRecord[numKey] = value;
+            }
+          }
+          newMonitorValues.psy = psyRecord;
+        } else {
+          newMonitorValues.psy = null;
         }
 
         newMonitorValues.mfi = monitorSnapshot.mfi;

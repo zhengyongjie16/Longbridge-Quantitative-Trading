@@ -324,7 +324,7 @@ async function main(): Promise<void> {
   });
   cleanup.registerExitHandlers();
 
-  // 无限循环监控
+  // 主循环监控
   while (true) {
     try {
       await mainProgram({

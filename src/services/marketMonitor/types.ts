@@ -2,7 +2,7 @@
  * MarketMonitor 模块类型定义
  */
 
-import type { Quote, IndicatorSnapshot, MonitorState } from '../../types/index.js';
+import type { IndicatorSnapshot, MonitorState, Quote } from '../../types/index.js';
 
 /**
  * 行情监控器接口
@@ -33,6 +33,7 @@ export interface MarketMonitor {
    * @param monitorSymbol 监控标的代码
    * @param emaPeriods EMA周期数组
    * @param rsiPeriods RSI周期数组
+   * @param psyPeriods PSY周期数组
    * @param monitorState 监控标的状态（包含 monitorValues）
    * @returns 指标是否发生变化
    */
@@ -42,6 +43,7 @@ export interface MarketMonitor {
     monitorSymbol: string,
     emaPeriods: ReadonlyArray<number>,
     rsiPeriods: ReadonlyArray<number>,
+    psyPeriods: ReadonlyArray<number>,
     monitorState: MonitorState,
   ): boolean;
 }

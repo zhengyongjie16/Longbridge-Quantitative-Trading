@@ -145,6 +145,7 @@ export type IndicatorSnapshot = {
   readonly changePercent: number | null;
   readonly ema: Readonly<Record<number, number>> | null;
   readonly rsi: Readonly<Record<number, number>> | null;
+  readonly psy: Readonly<Record<number, number>> | null;
   readonly mfi: number | null;
   readonly kdj: KDJIndicator | null;
   readonly macd: MACDIndicator | null;
@@ -197,6 +198,7 @@ export type MonitorValues = {
   changePercent: number | null;
   ema: Record<number, number> | null;
   rsi: Record<number, number> | null;
+  psy: Record<number, number> | null;
   mfi: number | null;
   kdj: KDJIndicator | null;
   macd: MACDIndicator | null;
@@ -230,9 +232,6 @@ export type SignalConfig = {
 
 // ==================== 配置相关类型 ====================
 
-/**
- * 验证配置
- */
 /**
  * 单个验证配置
  */
@@ -349,15 +348,7 @@ export type MonitorState = {
   shortPrice: number | null;
   signal: string | null;
   pendingDelayedSignals: Signal[];
-  monitorValues: {
-    price: number | null;
-    changePercent: number | null;
-    ema: Record<number, number> | null;
-    rsi: Record<number, number> | null;
-    mfi: number | null;
-    kdj: KDJIndicator | null;
-    macd: MACDIndicator | null;
-  } | null;
+  monitorValues: MonitorValues | null;
   lastMonitorSnapshot: IndicatorSnapshot | null;
 };
 
@@ -374,10 +365,7 @@ export type LastState = {
   cachedPositions: Position[];
   /** 持仓缓存，使用 Map 提供 O(1) 查找性能 */
   positionCache: PositionCache;
-  cachedTradingDayInfo: {
-    isTradingDay: boolean;
-    isHalfDay: boolean;
-  } | null;
+  cachedTradingDayInfo: TradingDayInfo | null;
   monitorStates: Map<string, MonitorState>;
   /** 所有交易标的集合（静态配置，初始化时计算一次） */
   allTradingSymbols: ReadonlySet<string>;
@@ -409,6 +397,7 @@ export type MonitorContext = {
   // 缓存指标周期配置（避免每次循环重复提取）
   rsiPeriods: number[];
   emaPeriods: number[];
+  psyPeriods: number[];
   // 缓存的行情数据（主循环每秒更新，供 TradeProcessor 使用）
   longQuote: Quote | null;
   shortQuote: Quote | null;

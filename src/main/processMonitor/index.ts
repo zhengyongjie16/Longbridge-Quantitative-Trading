@@ -47,7 +47,15 @@ export async function processMonitor(
     sellTaskQueue,
   } = context;
   // 使用各自监控标的独立的延迟信号验证器（每个监控标的使用各自的验证配置）
-  const { config, state, strategy, orderRecorder, riskChecker, unrealizedLossMonitor, delayedSignalVerifier } = monitorContext;
+  const {
+    config,
+    state,
+    strategy,
+    orderRecorder,
+    riskChecker,
+    unrealizedLossMonitor,
+    delayedSignalVerifier,
+  } = monitorContext;
 
   const LONG_SYMBOL = config.longSymbol;
   const SHORT_SYMBOL = config.shortSymbol;
@@ -96,14 +104,14 @@ export async function processMonitor(
   }
 
   // 使用缓存的配置（避免每次循环重复提取）
-  const rsiPeriods = context.monitorContext.rsiPeriods;
-  const emaPeriods = context.monitorContext.emaPeriods;
+  const { rsiPeriods, emaPeriods, psyPeriods } = monitorContext;
 
   const monitorSnapshot = buildIndicatorSnapshot(
     MONITOR_SYMBOL,
     monitorCandles as CandleData[],
     rsiPeriods,
     emaPeriods,
+    psyPeriods,
   );
 
   // 如果指标快照为 null，提前返回
@@ -113,12 +121,13 @@ export async function processMonitor(
   }
 
   // 3. 监控指标变化
-  context.marketMonitor.monitorIndicatorChanges(
+  marketMonitor.monitorIndicatorChanges(
     monitorSnapshot,
     monitorQuote,
     MONITOR_SYMBOL,
     emaPeriods,
     rsiPeriods,
+    psyPeriods,
     state,
   );
 

@@ -14,7 +14,7 @@ import type {
   Quote,
   Trader,
 } from '../../types/index.js';
-import { extractEmaPeriods, extractRsiPeriodsWithDefault } from './utils.js';
+import { extractRsiPeriodsWithDefault, extractEmaPeriods, extractPsyPeriods } from './utils.js';
 
 /**
  * 创建监控标的上下文
@@ -74,6 +74,7 @@ export function createMonitorContext(
     // 缓存指标周期配置（避免每次循环重复提取）
     rsiPeriods: extractRsiPeriodsWithDefault(config.signalConfig),
     emaPeriods: extractEmaPeriods(config.verificationConfig),
+    psyPeriods: extractPsyPeriods(config.signalConfig),
     // 缓存的行情数据（主循环每秒更新，供 TradeProcessor 使用）
     longQuote,
     shortQuote,

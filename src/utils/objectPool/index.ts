@@ -39,55 +39,51 @@ import type {
  * @param maxSize 池的最大容量
  * @returns ObjectPool 接口实例
  */
-export const createObjectPool = <T>(
-  factory: Factory<T> = () => ({} as T),
-  reset: Reset<T> = (obj) => obj,
+export function createObjectPool<T>(
+  factory: Factory<T>,
+  reset: Reset<T>,
   maxSize: number = 100,
-): ObjectPool<T> => {
+): ObjectPool<T> {
   // 闭包捕获的私有状态
   const pool: T[] = [];
 
   /**
    * 从池中获取一个对象
    */
-  const acquire = (): T => {
+  function acquire(): T {
     if (pool.length > 0) {
       return pool.pop()!;
     }
     // 池为空，创建新对象
     return factory();
-  };
+  }
 
   /**
    * 将对象归还到池中
    */
-  const release = (obj: T | null | undefined): void => {
-    if (!obj) return;
-
-    // 如果池已满，直接丢弃对象（让GC回收）
-    if (pool.length >= maxSize) {
-      return;
-    }
+  function release(obj: T | null | undefined): void {
+    if (!obj || pool.length >= maxSize) return;
 
     // 重置对象状态
-    const resetObj = reset(obj);
-    pool.push(resetObj);
-  };
+    pool.push(reset(obj));
+  }
 
   /**
    * 批量释放对象数组
    */
-  const releaseAll = (objects: T[] | null | undefined): void => {
+  function releaseAll(objects: ReadonlyArray<T> | null | undefined): void {
     if (!Array.isArray(objects)) return;
-    objects.forEach((obj) => release(obj));
-  };
+    for (const obj of objects) {
+      release(obj);
+    }
+  }
 
   return {
     acquire,
     release,
     releaseAll,
   };
-};
+}
 
 /**
  * 验证历史条目对象池
@@ -239,6 +235,7 @@ export const monitorValuesObjectPool = createObjectPool<PoolableMonitorValues>(
     changePercent: null,
     ema: null,
     rsi: null,
+    psy: null,
     mfi: null,
     kdj: null,
     macd: null,
@@ -249,6 +246,7 @@ export const monitorValuesObjectPool = createObjectPool<PoolableMonitorValues>(
     obj.changePercent = null;
     obj.ema = null;
     obj.rsi = null;
+    obj.psy = null;
     obj.mfi = null;
     obj.kdj = null;
     obj.macd = null;

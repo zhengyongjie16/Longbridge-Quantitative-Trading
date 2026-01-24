@@ -2,7 +2,10 @@
  * 监控上下文模块独享的工具函数
  */
 
-import { extractRSIPeriods } from '../../utils/helpers/signalConfigParser.js';
+import {
+  extractRSIPeriods,
+  extractPsyPeriods as extractPsyPeriodsFromSignalConfig,
+} from '../../utils/helpers/signalConfigParser.js';
 import { validateEmaPeriod } from '../../utils/helpers/indicatorHelpers.js';
 import type { VerificationConfig, SignalConfigSet } from '../../types/index.js';
 
@@ -55,4 +58,13 @@ export function extractRsiPeriodsWithDefault(signalConfig: SignalConfigSet | nul
   }
 
   return rsiPeriods;
+}
+
+/**
+ * 从信号配置中提取 PSY 周期（不设置默认周期）
+ * @param signalConfig 信号配置
+ * @returns PSY 周期数组
+ */
+export function extractPsyPeriods(signalConfig: SignalConfigSet | null): number[] {
+  return extractPsyPeriodsFromSignalConfig(signalConfig);
 }
