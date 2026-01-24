@@ -108,6 +108,7 @@ async function main(): Promise<void> {
   const lastState: LastState = {
     canTrade: null,
     isHalfDay: null,
+    openProtectionActive: null,
     cachedAccount: null,
     cachedPositions: [],
     positionCache: createPositionCache(), // 初始化持仓缓存（O(1) 查找）

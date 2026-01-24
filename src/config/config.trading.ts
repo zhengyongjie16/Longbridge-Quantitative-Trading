@@ -222,6 +222,10 @@ export const createMultiMonitorTradingConfig = ({
     return interval;
   })();
 
+  // 开盘波动较大，指标可靠性下降，可在早盘启用保护避免误触发
+  const openProtectionEnabled = getBooleanConfig(env, 'OPENING_PROTECTION_ENABLED', false);
+  const openProtectionMinutes = getNumberConfig(env, 'OPENING_PROTECTION_MINUTES', 0);
+
   // 解析交易订单类型配置
   const tradingOrderType = (() => {
     const orderType = parseOrderTypeConfig(env, 'TRADING_ORDER_TYPE', 'ELO');
@@ -245,6 +249,10 @@ export const createMultiMonitorTradingConfig = ({
     global: {
       doomsdayProtection: getBooleanConfig(env, 'DOOMSDAY_PROTECTION', true),
       debug: getBooleanConfig(env, 'DEBUG', false),
+      openProtection: {
+        enabled: openProtectionEnabled,
+        minutes: openProtectionMinutes,
+      },
       orderMonitorPriceUpdateInterval,
       tradingOrderType,
       liquidationOrderType,

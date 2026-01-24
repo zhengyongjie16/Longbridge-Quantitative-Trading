@@ -10,7 +10,10 @@
 
 import { logger } from '../../utils/logger/index.js';
 import { formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
-import { isInContinuousHKSession } from '../../utils/helpers/tradingTime.js';
+import {
+  isInContinuousHKSession,
+  isWithinMorningOpenProtection,
+} from '../../utils/helpers/tradingTime.js';
 import { displayAccountAndPositions } from '../../utils/helpers/accountDisplay.js';
 import { collectAllQuoteSymbols } from '../../utils/helpers/quoteHelpers.js';
 import { processMonitor } from '../processMonitor/index.js';
@@ -130,6 +133,27 @@ export async function mainProgram({
     return;
   }
 
+  const openProtectionConfig = tradingConfig.global.openProtection;
+  const openProtectionActive =
+    openProtectionConfig.enabled &&
+    openProtectionConfig.minutes != null &&
+    isWithinMorningOpenProtection(currentTime, openProtectionConfig.minutes);
+
+  if (
+    openProtectionConfig.enabled &&
+    openProtectionConfig.minutes != null &&
+    lastState.openProtectionActive !== openProtectionActive
+  ) {
+    if (openProtectionActive) {
+      logger.info(
+        `[开盘保护] 早盘开盘后 ${openProtectionConfig.minutes} 分钟内暂停信号生成`,
+      );
+    } else if (lastState.openProtectionActive !== null) {
+      logger.info('[开盘保护] 保护期结束，恢复信号生成');
+    }
+  }
+  lastState.openProtectionActive = openProtectionActive;
+
   // 末日保护检查（全局性，在所有监控标的处理之前）
   if (tradingConfig.global.doomsdayProtection) {
     // 收盘前15分钟：撤销所有未成交的买入订单
@@ -183,6 +207,7 @@ export async function mainProgram({
         currentTime,
         isHalfDay: isHalfDayToday,
         canTradeNow,
+        openProtectionActive,
         // 新架构模块
         indicatorCache,
         buyTaskQueue,

@@ -42,6 +42,7 @@ export async function processMonitor(
     globalState,
     marketMonitor,
     canTradeNow,
+    openProtectionActive,
     indicatorCache,
     buyTaskQueue,
     sellTaskQueue,
@@ -152,6 +153,11 @@ export async function processMonitor(
   );
 
   try {
+    if (openProtectionActive) {
+      // 开盘保护期间仅保留行情/指标展示，跳过信号生成
+      return;
+    }
+
     // 5. 生成信号
     const { immediateSignals, delayedSignals } = strategy.generateCloseSignals(
       monitorSnapshot,

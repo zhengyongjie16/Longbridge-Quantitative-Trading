@@ -56,6 +56,34 @@ export function isInContinuousHKSession(
 }
 
 /**
+ * 判断是否在早盘开盘保护时段（仅早盘有效）
+ * 开盘波动较大，指标可靠性下降，可在此窗口暂缓信号生成
+ * @param date 时间对象（应该是UTC时间）
+ * @param minutes 保护时长（分钟）
+ * @returns true表示在保护时段，false表示不在
+ */
+export function isWithinMorningOpenProtection(
+  date: Date | null | undefined,
+  minutes: number,
+): boolean {
+  if (!date || !Number.isFinite(minutes) || minutes <= 0) return false;
+  const hkTime = getHKTime(date);
+  if (!hkTime) return false;
+  const { hkHour, hkMinute } = hkTime;
+
+  // 下午时段一律不生效
+  if (hkHour >= 12) {
+    return false;
+  }
+
+  const currentMinutes = hkHour * 60 + hkMinute;
+  const startMinutes = 9 * 60 + 30;
+  const endMinutes = startMinutes + minutes;
+
+  return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+}
+
+/**
  * 判断是否在当日收盘前15分钟内（末日保护程序：拒绝买入）
  * 港股正常交易日收盘时间：下午 16:00，收盘前15分钟：15:45 - 15:59
  * 港股半日交易日收盘时间：中午 12:00，收盘前15分钟：11:45 - 11:59

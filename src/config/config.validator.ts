@@ -340,6 +340,17 @@ function validateTradingConfig(tradingConfig: MultiMonitorTradingConfig): Tradin
     );
   }
 
+  // 验证开盘保护配置（仅在启用时要求完整且范围合法）
+  const openProtectionConfig = tradingConfig.global.openProtection;
+  if (openProtectionConfig.enabled) {
+    if (openProtectionConfig.minutes == null) {
+      errors.push('OPENING_PROTECTION_MINUTES 未配置（启用开盘保护时为必填，范围 1-60）');
+      missingFields.push('OPENING_PROTECTION_MINUTES');
+    } else if (openProtectionConfig.minutes < 1 || openProtectionConfig.minutes > 60) {
+      errors.push('OPENING_PROTECTION_MINUTES 无效（范围 1-60）');
+    }
+  }
+
   return {
     valid: errors.length === 0,
     errors,

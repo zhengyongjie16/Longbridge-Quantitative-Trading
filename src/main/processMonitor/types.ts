@@ -28,6 +28,7 @@ export type ProcessMonitorParams = {
   readonly currentTime: Date;
   readonly isHalfDay: boolean;
   readonly canTradeNow: boolean;
+  readonly openProtectionActive: boolean;
   readonly indicatorCache: IndicatorCache;
   readonly buyTaskQueue: BuyTaskQueue;
   readonly sellTaskQueue: SellTaskQueue;

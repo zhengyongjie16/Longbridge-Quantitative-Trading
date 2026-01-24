@@ -299,11 +299,23 @@ export type SellOrderTimeoutConfig = {
 };
 
 /**
+ * 开盘保护配置（仅早盘生效）
+ */
+export type OpenProtectionConfig = {
+  /** 是否启用开盘保护 */
+  readonly enabled: boolean;
+  /** 保护时长（分钟），未配置时为 null */
+  readonly minutes: number | null;
+};
+
+/**
  * 全局配置（非监控标的特定）
  */
 export type GlobalConfig = {
   readonly doomsdayProtection: boolean;
   readonly debug: boolean;
+  /** 开盘保护配置（早盘开盘后 N 分钟内暂停信号生成） */
+  readonly openProtection: OpenProtectionConfig;
   /** 订单监控价格修改最小间隔（秒），默认 5 */
   readonly orderMonitorPriceUpdateInterval: number;
   /** 交易标的的订单类型，默认 ELO（增强限价单） */
@@ -361,6 +373,7 @@ export type MonitorState = {
 export type LastState = {
   canTrade: boolean | null;
   isHalfDay: boolean | null;
+  openProtectionActive: boolean | null;
   cachedAccount: AccountSnapshot | null;
   cachedPositions: Position[];
   /** 持仓缓存，使用 Map 提供 O(1) 查找性能 */
