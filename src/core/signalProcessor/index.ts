@@ -29,9 +29,15 @@ import {
   resolveSellQuantityBySmartClose,
 } from './utils.js';
 import { VERIFICATION } from '../../constants/index.js';
-import type { Quote, Position, Signal, OrderRecorder, AccountSnapshot } from '../../types/index.js';
+import type {
+  Quote,
+  Position,
+  Signal,
+  OrderRecorder,
+  AccountSnapshot,
+  RiskCheckContext,
+} from '../../types/index.js';
 import type { SellQuantityResult, SignalProcessor, SignalProcessorDeps } from './types.js';
-import type { RiskCheckContext } from '../../types/index.js';
 
 /**
  * 计算卖出信号的数量和原因

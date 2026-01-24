@@ -32,8 +32,8 @@ import type {
   SignalConfigSet,
   SignalConfig,
 } from '../../types/index.js';
-import type { IndicatorState } from './types.js';
 import type {
+  IndicatorState,
   ParsedCondition,
   ParsedConditionGroup,
   EvaluationResult,
