@@ -3,6 +3,8 @@ import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
+import { assertSafePathEnv } from './pathEnvSafety.js';
+
 const dangerousShellChars = /[;&|`$(){}[\]<>!#*?'"\r\n^%]/;
 
 /**
@@ -151,6 +153,13 @@ async function startSonarQube() {
   try {
     if (!existsSync(dockerComposePath)) {
       throw new Error('docker-compose.yml 不存在');
+    }
+    try {
+      assertSafePathEnv(process.env.PATH ?? '');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`❌ PATH 环境变量不安全，无法安全执行 docker-compose: ${message}`);
+      process.exit(1);
     }
     console.log('📦 启动 Docker 容器...');
     // docker-compose 是固定命令，安全
