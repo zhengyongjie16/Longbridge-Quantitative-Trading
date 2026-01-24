@@ -19,7 +19,7 @@ description: 编写简洁、易于维护且遵循严格规范的 TypeScript 代�
 10. **对象池模式例外**：对象池类型（如 `PoolableSignal`）使用可变属性和 `| null` 标记，这是性能优化的必要例外。使用对象池对象后**必须**及时释放，嵌套对象也需要递归释放
 11. **完成检查**：编写完成后**必须**运行 `npm run lint` 和 `npm run type-check` 并修复所有问题
 
-### 类型和工具函数定义位置（示例）
+## 类型和工具函数定义位置（示例）
 
 ```
 src/
@@ -34,99 +34,13 @@ src/
 └── types/                  # 公共类型模块（包含主index的公共类型）
 ```
 
-### 完整示例
+## 完整示例代码
 
-```typescript
-// type.ts - 类型定义
-export type Order = {
-  readonly id: string;
-  readonly symbol: string;
-  readonly price: number;
-};
+以下示例展示了核心原则的完整实现，包含详细注释和最佳实践：
 
-export interface OrderRepository {
-  save(order: Order): Promise<void>;
-}
-
-export type OrderResult =
-  | { readonly success: true; readonly data: Order }
-  | { readonly success: false; readonly error: Error };
-
-// index.ts - 实现
-export const createOrderService = ({
-  orderRepository,
-  priceValidator,
-}: {
-  orderRepository: OrderRepository;
-  priceValidator: PriceValidator;
-}) => {
-  return {
-    async createOrder(data: Omit<Order, 'id'>): Promise<OrderResult> {
-      const validation = priceValidator.validate(data.price);
-      if (!validation.success) return validation;
-
-      const order: Order = { ...data, id: generateId() };
-      await orderRepository.save(order);
-      return { success: true, data: order };
-    },
-  };
-};
-```
-
-### 对象池模式示例
-
-```typescript
-// objectPool/types.ts - 对象池类型（例外：使用可变属性）
-export type PoolableSignal = {
-  symbol: string | null;
-  action: SignalType | null;
-  price: number | null;
-  indicators: Record<string, number> | null;
-};
-
-export type ObjectPool<T> = {
-  acquire(): T;
-  release(obj: T | null | undefined): void;
-};
-
-// objectPool/index.ts - 对象池实现
-export const createObjectPool = <T>(
-  factory: () => T,
-  reset: (obj: T) => T,
-  maxSize: number = 100,
-): ObjectPool<T> => {
-  const pool: T[] = [];
-
-  return {
-    acquire: () => (pool.length > 0 ? pool.pop()! : factory()),
-    release: (obj) => {
-      if (!obj || pool.length >= maxSize) return;
-      pool.push(reset(obj));
-    },
-  };
-};
-
-// 使用示例
-export const signalPool = createObjectPool<PoolableSignal>(
-  () => ({ symbol: null, action: null, price: null, indicators: null }),
-  (obj) => {
-    // 释放嵌套对象
-    if (obj.indicators) indicatorPool.release(obj.indicators);
-    obj.symbol = null;
-    obj.action = null;
-    obj.price = null;
-    obj.indicators = null;
-    return obj;
-  },
-);
-
-// 使用对象池
-const signal = signalPool.acquire() as Signal; // 类型断言是安全的
-signal.symbol = 'AAPL';
-signal.action = 'BUY';
-// ... 使用 signal
-signalPool.release(signal); // 必须释放！
-```
+- [工厂函数模式](./examples/factory-pattern.ts) - 展示如何使用工厂函数而非类创建对象，包含依赖注入和封装
+- [依赖注入模式](./examples/dependency-injection.ts) - 展示如何正确实现依赖注入，包含正确和错误示例对比
+- [对象池模式](./examples/object-pool.ts) - 展示对象池的实现和使用，包含嵌套对象释放和异常安全处理
 
 ## 验证检查清单
 

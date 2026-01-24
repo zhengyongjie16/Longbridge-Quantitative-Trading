@@ -50,6 +50,7 @@ export default tseslint.config(
       'tools/**',
       'test/**',
       'scripts/**',
+      '.claude/**',
     ],
   }
 );

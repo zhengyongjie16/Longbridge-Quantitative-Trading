@@ -55,6 +55,7 @@
     "logs",
     "test",
     "**/*.test.ts",
-    "**/*.spec.ts"
+    "**/*.spec.ts",
+    ".claude"
   ]
 }
