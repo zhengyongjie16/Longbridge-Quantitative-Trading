@@ -1,11 +1,10 @@
 /**
  * 牛熊证风险检查模块
  *
- * 功能：
- * - 检查标的是否为牛熊证
- * - 获取牛熊证回收价信息
- * - 计算距离回收价的百分比
- * - 判断是否超过风险阈值
+ * 检查牛熊证距离回收价的安全性：
+ * - 初始化时获取牛熊证回收价
+ * - 买入前计算距离回收价百分比
+ * - 牛证低于 0.5% 或熊证高于 -0.5% 时拒绝买入
  */
 
 import { logger } from '../../utils/logger/index.js';
@@ -20,19 +19,13 @@ import {
   DEFAULT_PERCENT_DECIMALS,
 } from './constants.js';
 
-/**
- * 创建牛熊证风险检查器
- * @param _deps 依赖注入（当前为空）
- * @returns WarrantRiskChecker 接口实例
- */
+/** 创建牛熊证风险检查器 */
 export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): WarrantRiskChecker => {
   // 闭包捕获的私有状态
   let longWarrantInfo: WarrantInfo | null = null;
   let shortWarrantInfo: WarrantInfo | null = null;
 
-  /**
-   * 获取牛熊证类型名称
-   */
+  /** 获取牛熊证类型的中文名称 */
   const getWarrantTypeName = (warrantType: WarrantType | undefined): string => {
     if (warrantType === 'BULL') {
       return '牛证';
@@ -43,9 +36,7 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
     }
   };
 
-  /**
-   * 解析牛熊证类型
-   */
+  /** 解析 API 返回的 category 字段为牛熊证类型 */
   const parseWarrantType = (category: unknown): WarrantType | null => {
     // 判断牛证：category 可能是数字 3（枚举值）或字符串 "Bull"
     if (category === 3 || category === 'Bull' || category === 'BULL') {
@@ -58,9 +49,7 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
     return null;
   };
 
-  /**
-   * 提取回收价
-   */
+  /** 从 API 响应中提取回收价（支持 Decimal 对象） */
   const extractCallPrice = (warrantQuote: WarrantQuote): number | null => {
     const callPriceRaw = warrantQuote.call_price ?? warrantQuote.callPrice ?? null;
 
@@ -75,9 +64,7 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
     return Number(callPriceRaw);
   };
 
-  /**
-   * 验证牛熊证类型是否符合预期
-   */
+  /** 验证牛熊证类型：做多应为牛证，做空应为熊证 */
   const validateWarrantType = (
     symbol: string,
     warrantType: WarrantType,
@@ -96,9 +83,7 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
     }
   };
 
-  /**
-   * 检查标的是否为牛熊证并获取回收价
-   */
+  /** 调用 API 检查标的是否为牛熊证并获取回收价 */
   const checkWarrantType = async (
     marketDataClient: MarketDataClient,
     symbol: string,
@@ -143,9 +128,7 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
     };
   };
 
-  /**
-   * 初始化单个标的的牛熊证信息
-   */
+  /** 初始化单个标的的牛熊证信息并缓存 */
   const initializeSymbolWarrantInfo = async (
     marketDataClient: MarketDataClient,
     symbol: string,
@@ -188,9 +171,7 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
     }
   };
 
-  /**
-   * 验证回收价有效性
-   */
+  /** 验证回收价有效性，无效时允许交易 */
   const validateCallPrice = (
     symbol: string,
     callPrice: number | null | undefined,
@@ -204,9 +185,7 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
     return null;
   };
 
-  /**
-   * 验证监控标的价格有效性
-   */
+  /** 验证监控标的价格有效性，防止使用错误的价格 */
   const validateMonitorPrice = (monitorCurrentPrice: number): RiskCheckResult | null => {
     if (!Number.isFinite(monitorCurrentPrice) || monitorCurrentPrice <= 0) {
       logger.warn(
@@ -232,9 +211,7 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
     return null;
   };
 
-  /**
-   * 计算距离回收价的百分比
-   */
+  /** 计算距离回收价的百分比：(当前价 - 回收价) / 回收价 * 100 */
   const calculateDistancePercent = (
     monitorCurrentPrice: number,
     callPrice: number,
@@ -242,9 +219,7 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
     return ((monitorCurrentPrice - callPrice) / callPrice) * 100;
   };
 
-  /**
-   * 检查距离回收价是否超过阈值
-   */
+  /** 检查距离回收价是否在安全范围内 */
   const checkDistanceThreshold = (
     warrantType: WarrantType,
     distancePercent: number,
@@ -303,9 +278,7 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
     };
   };
 
-  /**
-   * 初始化牛熊证信息（在程序启动时调用）
-   */
+  /** 初始化做多/做空标的的牛熊证信息 */
   const initialize = async (
     marketDataClient: MarketDataClient,
     longSymbol: string,
@@ -341,9 +314,7 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
     }
   };
 
-  /**
-   * 检查牛熊证距离回收价的风险（仅在买入前检查）
-   */
+  /** 检查牛熊证距离回收价的风险 */
   const checkRisk = (
     symbol: string,
     signalType: string,

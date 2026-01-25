@@ -42,14 +42,10 @@ const needsDelayedVerification = (config: SingleVerificationConfig): boolean => 
   return config.delaySeconds > 0 && config.indicators != null && config.indicators.length > 0;
 };
 
-/**
- * 信号类型映射类型
- */
+/** 信号类型分类：立即执行或延迟验证 */
 type SignalTypeCategory = 'immediate' | 'delayed';
 
-/**
- * 信号生成结果（内部使用）
- */
+/** 带分类标记的信号（内部使用） */
 type SignalWithCategory = {
   readonly signal: Signal;
   readonly isImmediate: boolean;
@@ -89,7 +85,8 @@ export const createHangSengMultiIndicatorStrategy = ({
   };
 
   /**
-   * 验证指标状态的基本指标（RSI, MFI, KDJ）
+   * 验证基本指标有效性（RSI、MFI、KDJ）
+   * @returns true 所有基本指标有效
    */
   const validateBasicIndicators = (state: IndicatorSnapshot): boolean => {
     const { rsi, mfi, kdj } = state;
@@ -117,7 +114,8 @@ export const createHangSengMultiIndicatorStrategy = ({
   };
 
   /**
-   * 验证指标状态（包括 MACD 和价格）
+   * 验证所有指标有效性（基本指标 + MACD + 价格）
+   * @returns true 所有指标有效
    */
   const validateAllIndicators = (state: IndicatorSnapshot): boolean => {
     const { macd, price } = state;
@@ -130,8 +128,9 @@ export const createHangSengMultiIndicatorStrategy = ({
   };
 
   /**
-   * 计算延迟验证时间
-   * @param isBuySignal 是否为买入信号（true=买入，false=卖出）
+   * 计算延迟验证触发时间
+   * @param isBuySignal true=买入信号，false=卖出信号
+   * @returns 触发时间，null 表示无需延迟验证
    */
   const calculateVerificationTime = (isBuySignal: boolean): Date | null => {
     const config = isBuySignal ? finalVerificationConfig.buy : finalVerificationConfig.sell;
@@ -160,7 +159,8 @@ export const createHangSengMultiIndicatorStrategy = ({
   };
 
   /**
-   * 根据信号类型获取对应的信号配置
+   * 获取信号类型对应的配置
+   * @param signalType 信号类型（BUYCALL/SELLCALL/BUYPUT/SELLPUT）
    */
   const getSignalConfigForType = (signalType: string): SignalConfig | null => {
     switch (signalType) {
@@ -178,7 +178,8 @@ export const createHangSengMultiIndicatorStrategy = ({
   };
 
   /**
-   * 构建指标状态的显示字符串（用于日志）
+   * 构建指标状态显示字符串
+   * @returns 格式化的指标值字符串，用于日志记录
    */
   const buildIndicatorDisplayString = (state: IndicatorSnapshot): string => {
     const { rsi, mfi, kdj } = state;
@@ -222,8 +223,17 @@ export const createHangSengMultiIndicatorStrategy = ({
   };
 
   /**
-   * 生成信号（支持立即信号和延迟验证信号）
-   * @returns { signal, isImmediate } 或 null
+   * 生成交易信号
+   *
+   * 流程：验证指标 → 检查卖出条件 → 评估信号配置 → 创建信号对象
+   *
+   * @param state 当前指标快照
+   * @param symbol 标的代码
+   * @param action 信号类型
+   * @param reasonPrefix 信号原因前缀
+   * @param orderRecorder 订单记录器
+   * @param isLongSymbol 是否为做多标的
+   * @returns 带分类的信号，null 表示不生成信号
    */
   const generateSignal = (
     state: IndicatorSnapshot,
@@ -344,9 +354,7 @@ export const createHangSengMultiIndicatorStrategy = ({
     return { signal, isImmediate: false };
   };
 
-  /**
-   * 辅助函数：将信号分流到正确的数组
-   */
+  /** 将信号按类型分流到对应数组 */
   const pushSignalToCorrectArray = (
     result: SignalWithCategory | null,
     immediateSignals: Signal[],

@@ -1,10 +1,7 @@
 /**
  * 配置验证模块
  *
- * 功能：
- * - 验证 LongPort API 配置
- * - 验证所有监控标的的交易配置
- * - 验证标的有效性
+ * 验证 LongPort API 凭证、交易配置完整性、标的代码有效性
  */
 
 import { logger } from '../utils/logger/index.js';
@@ -15,12 +12,7 @@ import { formatSymbolDisplay, normalizeHKSymbol, formatError } from '../utils/he
 import { formatSignalConfig } from '../utils/helpers/signalConfigParser.js';
 import type { ConfigValidationError } from './types.js';
 
-/**
- * 创建配置验证错误
- * @param message 错误消息
- * @param missingFields 缺失的字段列表
- * @returns ConfigValidationError 错误对象
- */
+/** 创建配置验证错误对象 */
 export const createConfigValidationError = (
   message: string,
   missingFields: ReadonlyArray<string> = [],
@@ -32,24 +24,18 @@ export const createConfigValidationError = (
   }) as ConfigValidationError;
 };
 
-/**
- * 验证结果接口
- */
+/** 验证结果 */
 interface ValidationResult {
   readonly valid: boolean;
   readonly errors: string[];
 }
 
-/**
- * 交易配置验证结果接口
- */
+/** 交易配置验证结果（含缺失字段列表） */
 interface TradingValidationResult extends ValidationResult {
   readonly missingFields: string[];
 }
 
-/**
- * 标的验证结果接口
- */
+/** 标的验证结果（含名称和每手股数） */
 interface SymbolValidationResult {
   readonly valid: boolean;
   readonly name: string | null;
@@ -57,10 +43,7 @@ interface SymbolValidationResult {
   readonly error?: string | undefined;
 }
 
-/**
- * 验证 LongPort API 配置
- * @returns 验证结果
- */
+/** 验证 LongPort API 凭证是否已配置 */
 async function validateLongPortConfig(env: NodeJS.ProcessEnv): Promise<ValidationResult> {
   const errors: string[] = [];
 
@@ -86,14 +69,7 @@ async function validateLongPortConfig(env: NodeJS.ProcessEnv): Promise<Validatio
   };
 }
 
-/**
- * 验证标的有效性（从已获取的行情数据中验证）
- * @param quote 行情数据（可能为 null）
- * @param symbol 标的代码
- * @param symbolLabel 标的标签（用于错误提示）
- * @param requireLotSize 是否要求必须有 lotSize（交易标的需要，监控标的不需要）
- * @returns 验证结果
- */
+/** 从行情数据验证标的有效性（交易标的需要 lotSize，监控标的不需要） */
 function validateSymbolFromQuote(
   quote: import('../types/index.js').Quote | null,
   symbol: string,
@@ -137,14 +113,7 @@ function validateSymbolFromQuote(
   };
 }
 
-/**
- * 批量验证标的有效性
- * @param marketDataClient 行情客户端实例
- * @param symbols 标的代码数组
- * @param symbolLabels 标的标签数组（用于错误提示，与 symbols 一一对应）
- * @param requireLotSizeFlags 是否要求 lotSize 的标志数组（与 symbols 一一对应）
- * @returns 验证结果数组
- */
+/** 批量验证标的有效性（一次 API 调用获取所有标的行情） */
 async function validateSymbolsBatch(
   marketDataClient: MarketDataClient,
   symbols: ReadonlyArray<string>,
@@ -185,12 +154,7 @@ async function validateSymbolsBatch(
   }
 }
 
-/**
- * 验证单个监控标的的配置
- * @param config 监控标的配置
- * @param index 监控标的索引（用于错误提示）
- * @returns 验证结果
- */
+/** 验证单个监控标的的配置完整性 */
 function validateMonitorConfig(config: MonitorConfig, index: number): TradingValidationResult {
   const errors: string[] = [];
   const missingFields: string[] = [];
@@ -257,10 +221,7 @@ function validateMonitorConfig(config: MonitorConfig, index: number): TradingVal
   };
 }
 
-/**
- * 验证交易配置（验证所有监控标的）
- * @returns 验证结果
- */
+/** 验证所有监控标的的交易配置（含重复标的检测） */
 function validateTradingConfig(tradingConfig: MultiMonitorTradingConfig): TradingValidationResult {
   const errors: string[] = [];
   const missingFields: string[] = [];
@@ -359,9 +320,8 @@ function validateTradingConfig(tradingConfig: MultiMonitorTradingConfig): Tradin
 }
 
 /**
- * 验证所有配置
- * @returns 返回行情客户端实例
- * @throws {ConfigValidationError} 如果配置验证失败
+ * 验证所有配置并返回行情客户端
+ * @throws {ConfigValidationError} 配置验证失败时抛出
  */
 export async function validateAllConfig({
   env,

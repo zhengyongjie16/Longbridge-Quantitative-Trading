@@ -14,11 +14,13 @@
  * - 使用 technicalindicators 库优化指标计算
  * - 使用缓存减少重复计算（K 线数据未变时跳过计算）
  *
- * 指标参数：
- * - RSI：周期 6，Wilder's Smoothing 平滑
+ * 指标参数（默认值，可配置）：
+ * - RSI：支持多周期配置，常用周期 6、14
  * - MFI：周期 14，结合价格和成交量
- * - KDJ：EMA 周期 5，K、D、J 三值
- * - MACD：EMA12-EMA26-DIF 的 EMA9
+ * - PSY：支持多周期配置，统计周期内上涨天数占比
+ * - KDJ：RSV 周期 9，EMA 平滑周期 5，计算 K、D、J 三值
+ * - MACD：快线 EMA12、慢线 EMA26、信号线 EMA9
+ * - EMA：支持多周期配置，范围 1-250
  */
 
 import { validateRsiPeriod, validateEmaPeriod, validatePsyPeriod } from '../../utils/helpers/indicatorHelpers.js';

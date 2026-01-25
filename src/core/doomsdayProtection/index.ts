@@ -3,12 +3,12 @@
  *
  * 功能：
  * - 收盘前的风险控制
- * - 收盘前 15 分钟拒绝买入新订单
+ * - 收盘前 15 分钟拒绝买入新订单并撤销未成交买入订单
  * - 收盘前 5 分钟自动清仓所有持仓
  *
  * 时间规则：
- * - 正常交易日：15:45-16:00 拒绝买入，15:55-15:59 自动清仓
- * - 半日交易日：11:45-12:00 拒绝买入，11:55-11:59 自动清仓
+ * - 正常交易日：15:45-16:00 拒绝买入，15:55-16:00 自动清仓
+ * - 半日交易日：11:45-12:00 拒绝买入，11:55-12:00 自动清仓
  *
  * 控制开关：
  * - DOOMSDAY_PROTECTION 环境变量（默认 true）
@@ -23,11 +23,7 @@ import { signalObjectPool } from '../../utils/objectPool/index.js';
 import type { Position, Quote, Signal, SignalType } from '../../types/index.js';
 import type { DoomsdayProtection, DoomsdayClearanceContext, DoomsdayClearanceResult, CancelPendingBuyOrdersContext, CancelPendingBuyOrdersResult, ClearanceSignalParams } from './types.js';
 
-/**
- * 创建单个清仓信号
- * @param params 信号参数
- * @returns Signal 对象，如果创建失败则返回 null
- */
+/** 创建单个清仓信号，从对象池获取 Signal 对象 */
 const createClearanceSignal = (params: ClearanceSignalParams): Signal | null => {
   const { normalizedSymbol, symbolName, action, price, lotSize, positionType } = params;
 
@@ -44,15 +40,7 @@ const createClearanceSignal = (params: ClearanceSignalParams): Signal | null => 
   return signal;
 };
 
-/**
- * 处理单个持仓生成清仓信号的核心逻辑
- * @param pos 持仓
- * @param normalizedLongSymbol 规范化的做多标的代码
- * @param normalizedShortSymbol 规范化的做空标的代码
- * @param longQuote 做多标的行情
- * @param shortQuote 做空标的行情
- * @returns 清仓信号，如果该持仓不需要清仓则返回 null
- */
+/** 处理单个持仓，生成清仓信号（仅处理属于当前监控配置的持仓） */
 const processPositionForClearance = (
   pos: Position,
   normalizedLongSymbol: string,
@@ -122,12 +110,7 @@ const processPositionForClearance = (
   return signal;
 };
 
-/**
- * 创建末日保护程序
- * 在收盘前执行保护性操作：
- * - 收盘前15分钟拒绝买入
- * - 收盘前5分钟自动清仓
- */
+/** 创建末日保护程序（收盘前15分钟拒绝买入，收盘前5分钟自动清仓） */
 export const createDoomsdayProtection = (): DoomsdayProtection => {
   // 状态：记录当天是否已执行过收盘前15分钟的撤单检查
   // 格式为日期字符串（YYYY-MM-DD），用于跨天自动重置

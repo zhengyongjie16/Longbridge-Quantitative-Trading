@@ -1,11 +1,15 @@
 /**
  * 订单执行模块
  *
- * 功能：
- * - 执行交易信号
- * - 提交买入/卖出订单
- * - 计算买入/卖出数量
- * - 管理交易频率限制
+ * 职责：
+ * - 执行交易信号（BUYCALL/SELLCALL/BUYPUT/SELLPUT）
+ * - 计算买入数量（按目标金额和每手股数）
+ * - 计算卖出数量（查询实际可用持仓）
+ * - 管理同方向买入频率限制（防止重复开仓）
+ *
+ * 订单类型：
+ * - 普通交易使用 tradingOrderType（LO/ELO/MO）
+ * - 保护性清仓使用 liquidationOrderType
  */
 
 import {
@@ -30,22 +34,14 @@ import type { Signal, TradeCheckResult, MonitorConfig } from '../../types/index.
 import type { OrderPayload, OrderExecutor, OrderExecutorDeps } from './types.js';
 import { recordTrade, identifyErrorType } from './tradeLogger.js';
 
-/**
- * 将配置的订单类型字符串转换为 OrderType 枚举
- * @param typeConfig 订单类型配置字符串
- * @returns OrderType 枚举值
- */
+/** 配置字符串转 OrderType 枚举 */
 const getOrderTypeFromConfig = (typeConfig: 'LO' | 'ELO' | 'MO'): typeof OrderType[keyof typeof OrderType] => {
   if (typeConfig === 'LO') return OrderType.LO;
   if (typeConfig === 'MO') return OrderType.MO;
   return OrderType.ELO;
 };
 
-/**
- * 判断信号是否为保护性清仓信号
- * @param signal 交易信号
- * @returns 是否为清仓信号
- */
+/** 判断是否为保护性清仓信号（末日保护、强制止损等） */
 const isLiquidationSignal = (signal: Signal): boolean => {
   return signal.reason?.includes('[保护性清仓]') ?? false;
 };
@@ -59,11 +55,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
   const { ctxPromise, rateLimiter, cacheManager, orderMonitor, tradingConfig } = deps;
   const { global, monitors } = tradingConfig;
 
-  /**
-   * 通过信号的 symbol 查找对应的监控配置
-   * @param signalSymbol 信号中的标的代码
-   * @returns 匹配的监控配置，如果未找到则返回 null
-   */
+  /** 通过信号标的查找对应的监控配置 */
   const findMonitorConfigBySymbol = (signalSymbol: string): MonitorConfig | null => {
     const normalizedSymbol = normalizeHKSymbol(signalSymbol);
     for (const config of monitors) {
@@ -83,10 +75,8 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
   const lastBuyTime = new Map<string, number>();
 
   /**
-   * 检查是否可以交易（仅对买入操作进行频率检查）
-   * @param signalAction 信号类型
-   * @param monitorConfig 监控配置（可选，如果提供则使用该配置的 buyIntervalSeconds）
-   * @returns 交易检查结果，包含是否可以交易、需要等待的秒数等信息
+   * 检查买入频率限制
+   * 卖出无限制，买入需满足 buyIntervalSeconds 间隔
    */
   const canTradeNow = (signalAction: string, monitorConfig?: MonitorConfig | null): TradeCheckResult => {
     // 卖出操作不触发频率限制
@@ -127,9 +117,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     };
   };
 
-  /**
-   * 更新方向标的的最后买入时间
-   */
+  /** 记录买入时间（用于频率限制） */
   const updateLastBuyTime = (signalAction: string, monitorConfig?: MonitorConfig | null): void => {
     if (signalAction === 'BUYCALL' || signalAction === 'BUYPUT') {
       const direction = signalAction === 'BUYCALL' ? 'LONG' : 'SHORT';
@@ -140,19 +128,14 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
   };
 
   /**
-   * 标记买入意图（预占买入时间槽）
-   * 在 signalProcessor 检查通过后立即调用，防止同一批次中的多个信号同时通过频率检查
-   * 注意：此方法与 updateLastBuyTime 功能相同，但语义不同
-   * - markBuyAttempt: 在频率检查通过后立即调用，预占时间槽
-   * - updateLastBuyTime: 在订单提交成功后调用，确认时间槽
+   * 预占买入时间槽
+   * 在频率检查通过后立即调用，防止同批次信号重复通过检查
    */
   const markBuyAttempt = (signalAction: string, monitorConfig?: MonitorConfig | null): void => {
     updateLastBuyTime(signalAction, monitorConfig);
   };
 
-  /**
-   * 根据信号类型和订单方向获取操作描述
-   */
+  /** 获取操作描述（用于日志） */
   const getActionDescription = (
     signalAction: string,
     isShortSymbol: boolean,
@@ -182,9 +165,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
       : '卖出做多标的（清仓）';
   };
 
-  /**
-   * 计算卖出数量
-   */
+  /** 计算卖出数量（查询实际可用持仓） */
   const calculateSellQuantity = async (
     ctx: TradeContext,
     symbol: string,
@@ -232,9 +213,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     }
   };
 
-  /**
-   * 计算买入数量
-   */
+  /** 计算买入数量（按目标金额和每手股数） */
   const calculateBuyQuantity = (
     signal: Signal,
     isShortSymbol: boolean,
@@ -295,9 +274,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     return toDecimal(rawQty);
   };
 
-  /**
-   * 处理订单提交错误
-   */
+  /** 处理订单提交错误（分类记录日志） */
   const handleSubmitError = (
     err: unknown,
     signal: Signal,
@@ -370,9 +347,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     });
   };
 
-  /**
-   * 提交订单（核心方法）
-   */
+  /** 提交订单到 API */
   const submitOrder = async (
     ctx: TradeContext,
     signal: Signal,
@@ -492,9 +467,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     }
   };
 
-  /**
-   * 提交目标订单
-   */
+  /** 根据信号类型构建并提交订单 */
   const submitTargetOrder = async (
     ctx: TradeContext,
     signal: Signal,
@@ -587,10 +560,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     );
   };
 
-  /**
-   * 根据策略信号提交订单
-   * @param signals 信号数组
-   */
+  /** 执行交易信号（遍历信号数组，逐个提交订单） */
   const executeSignals = async (signals: Signal[]): Promise<void> => {
     const ctx = await ctxPromise;
 

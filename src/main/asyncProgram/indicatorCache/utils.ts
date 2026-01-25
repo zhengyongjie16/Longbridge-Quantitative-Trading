@@ -1,6 +1,12 @@
 /**
  * IndicatorCache 工具函数
- * 环形缓冲区相关操作和快照克隆
+ *
+ * 提供环形缓冲区相关操作和快照克隆功能：
+ * - createRingBuffer: 创建指定容量的环形缓冲区
+ * - pushToBuffer: 向缓冲区推送数据
+ * - getBufferEntries: 获取所有有效条目（按时间升序）
+ * - getLatestFromBuffer: 获取最新条目
+ * - cloneIndicatorSnapshot: 深拷贝指标快照
  */
 
 import type { IndicatorSnapshot } from '../../../types/index.js';
@@ -8,6 +14,7 @@ import type { IndicatorCacheEntry, RingBuffer } from './types.js';
 
 /**
  * 创建环形缓冲区
+ * @param capacity 缓冲区容量
  */
 export function createRingBuffer(capacity: number): RingBuffer {
   return {
@@ -20,6 +27,9 @@ export function createRingBuffer(capacity: number): RingBuffer {
 
 /**
  * 向环形缓冲区推送数据
+ *
+ * 在 head 位置写入新条目，然后移动 head 指针。
+ * 若缓冲区已满，会覆盖最旧的数据。
  */
 export function pushToBuffer(buffer: RingBuffer, entry: IndicatorCacheEntry): void {
   buffer.entries[buffer.head] = entry;
@@ -30,7 +40,9 @@ export function pushToBuffer(buffer: RingBuffer, entry: IndicatorCacheEntry): vo
 }
 
 /**
- * 获取环形缓冲区中所有有效条目（按时间升序）
+ * 获取环形缓冲区中所有有效条目
+ *
+ * 返回按写入顺序排列的条目数组（即按时间升序）
  */
 export function getBufferEntries(buffer: RingBuffer): IndicatorCacheEntry[] {
   if (buffer.size === 0) return [];
@@ -51,6 +63,8 @@ export function getBufferEntries(buffer: RingBuffer): IndicatorCacheEntry[] {
 
 /**
  * 获取环形缓冲区最新条目
+ *
+ * 返回最后写入的条目（head - 1 位置）
  */
 export function getLatestFromBuffer(buffer: RingBuffer): IndicatorCacheEntry | null {
   if (buffer.size === 0) return null;

@@ -1,5 +1,11 @@
 /**
- * 订单执行模块类型定义
+ * 交易执行模块类型定义
+ *
+ * 包含：
+ * - 订单相关类型：OrderPayload、TradeRecord、TrackedOrder
+ * - 服务接口：AccountService、OrderCacheManager、OrderMonitor、OrderExecutor
+ * - 依赖注入类型：各服务的 Deps 类型
+ * - 配置类型：RateLimiterConfig、OrderMonitorConfig
  */
 
 import type { OrderSide, OrderType, OrderStatus, TimeInForceType, TradeContext } from 'longport';
@@ -16,7 +22,8 @@ import type {
 } from '../../types/index.js';
 
 /**
- * 订单载荷类型
+ * 订单提交载荷
+ * 用于调用 ctx.submitOrder() 时的参数
  */
 export type OrderPayload = {
   readonly symbol: string;
@@ -29,7 +36,8 @@ export type OrderPayload = {
 };
 
 /**
- * 交易记录类型
+ * 交易记录（用于日志持久化）
+ * 记录每笔交易的完整信息，保存到 JSON 文件
  */
 export type TradeRecord = {
   readonly orderId?: string;
@@ -48,7 +56,8 @@ export type TradeRecord = {
 };
 
 /**
- * 错误类型标识类型
+ * 错误类型标识
+ * 用于识别 API 错误的具体类型，便于针对性处理
  */
 export type ErrorTypeIdentifier = {
   readonly isShortSellingNotSupported: boolean;
@@ -176,40 +185,34 @@ export type OrderCacheManagerDeps = {
 };
 
 /**
- * 待追踪订单信息（用于 WebSocket 推送方案）
+ * 追踪中的订单信息
+ * 用于 WebSocket 监控订单状态变化，跟踪委托价和成交情况
  */
 export interface TrackedOrder {
-  /** 订单ID */
   readonly orderId: string;
-  /** 标的代码 */
   readonly symbol: string;
-  /** 订单方向 */
   readonly side: OrderSide;
-  /** 是否为做多标的（用于成交后更新本地记录） */
+  /** 是否为做多标的（成交后更新本地记录时使用） */
   readonly isLongSymbol: boolean;
-  /** 委托价格 */
+  /** 当前委托价（会随市价更新） */
   submittedPrice: number;
-  /** 委托数量 */
   readonly submittedQuantity: number;
-  /** 已成交数量 */
+  /** 已成交数量（部分成交时累加） */
   executedQuantity: number;
-  /** 订单状态 */
   status: OrderStatus;
-  /** 订单提交时间（用于超时检测） */
+  /** 提交时间戳（用于超时检测） */
   readonly submittedAt: number;
-  /** 最后一次修改价格的时间 */
+  /** 上次修改价格的时间（用于控制修改频率） */
   lastPriceUpdateAt: number;
-  /** 是否已转为市价单 */
+  /** 是否已转为市价单（防止重复转换） */
   convertedToMarket: boolean;
 }
 
 /**
- * 单向订单超时配置（买入或卖出）
+ * 订单超时配置（买入/卖出分开配置）
  */
 export type OrderSideTimeoutConfig = {
-  /** 是否启用超时检测 */
   readonly enabled: boolean;
-  /** 超时时间（毫秒） */
   readonly timeoutMs: number;
 };
 
@@ -217,13 +220,11 @@ export type OrderSideTimeoutConfig = {
  * 订单监控配置
  */
 export interface OrderMonitorConfig {
-  /** 买入订单超时配置 */
   readonly buyTimeout: OrderSideTimeoutConfig;
-  /** 卖出订单超时配置 */
   readonly sellTimeout: OrderSideTimeoutConfig;
-  /** 价格修改最小间隔（毫秒），避免频繁修改 */
+  /** 价格修改最小间隔（毫秒） */
   readonly priceUpdateIntervalMs: number;
-  /** 价格差异阈值，低于此值不修改 */
+  /** 价格差异阈值（低于此值不触发修改） */
   readonly priceDiffThreshold: number;
 }
 

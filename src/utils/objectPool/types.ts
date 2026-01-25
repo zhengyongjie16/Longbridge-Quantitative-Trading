@@ -1,5 +1,15 @@
 /**
- * 对象池模块类型定义
+ * 对象池类型定义模块
+ *
+ * 定义对象池相关的类型：
+ * - Poolable* 系列：可池化对象类型（属性可变，支持 null）
+ * - Factory：对象工厂函数类型
+ * - Reset：对象重置函数类型
+ * - ObjectPool：对象池接口
+ *
+ * 设计说明：
+ * - 对象池类型使用可变属性和 | null 标记，这是性能优化的必要例外
+ * - 使用对象池对象后必须及时释放，嵌套对象也需递归释放
  */
 
 import type { SignalType, VerificationEntry } from '../../types/index.js';

@@ -1,10 +1,14 @@
 /**
  * 订单缓存管理模块
  *
- * 功能：
- * - 管理未成交订单的缓存
- * - 提供缓存刷新和清除功能
- * - 检查是否有买入的未成交订单
+ * 职责：
+ * - 缓存未成交订单列表（30秒 TTL）
+ * - 提供按标的查询和强制刷新功能
+ * - 检查是否存在买入挂单（用于开仓前检查）
+ *
+ * 缓存策略：
+ * - 按 symbols 组合作为缓存键
+ * - 订单状态变化后自动失效
  */
 
 import { OrderStatus, OrderSide } from 'longport';
@@ -13,11 +17,10 @@ import { normalizeHKSymbol, decimalToNumber, formatError } from '../../utils/hel
 import type { PendingOrder, DecimalLikeValue, OrderRecorder } from '../../types/index.js';
 import type { OrderCacheManager, OrderCacheManagerDeps } from './types.js';
 
-const PENDING_ORDERS_CACHE_TTL = 30000; // 30秒缓存
+/** 缓存有效期 30 秒 */
+const PENDING_ORDERS_CACHE_TTL = 30000;
 
-/**
- * 未成交订单状态集合（模块级常量，避免函数内重复创建）
- */
+/** 未成交订单状态集合（New/PartialFilled/WaitToNew/WaitToReplace/PendingReplace） */
 const PENDING_ORDER_STATUSES = new Set([
   OrderStatus.New,
   OrderStatus.PartialFilled,
@@ -40,10 +43,8 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
   let pendingOrdersCacheTime: number = 0;
 
   /**
-   * 获取今日未成交订单（带缓存机制）
-   * @param symbols 标的代码数组，如果为null或空数组则获取所有标的的订单
-   * @param forceRefresh 是否强制刷新缓存（默认false）
-   * @returns 未成交订单列表
+   * 获取今日未成交订单
+   * 优先使用缓存，超过 TTL 或 forceRefresh 时调用 API 刷新
    */
   const getPendingOrders = async (
     symbols: string[] | null = null,
@@ -145,9 +146,7 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
     }
   };
 
-  /**
-   * 清除订单缓存（在订单状态可能变化时调用）
-   */
+  /** 清除缓存（订单提交/撤销/修改后调用） */
   const clearCache = (): void => {
     pendingOrdersCache = null;
     pendingOrdersCacheSymbols = null;
@@ -156,10 +155,8 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
   };
 
   /**
-   * 检查是否有买入的未成交订单
-   * @param symbols 标的代码数组
-   * @param orderRecorder OrderRecorder 实例（可选，用于启动时从缓存获取）
-   * @returns true表示有买入的未成交订单
+   * 检查是否有买入挂单
+   * 提供 orderRecorder 时从本地缓存查询（启动时），否则调用 API
    */
   const hasPendingBuyOrders = async (
     symbols: string[],

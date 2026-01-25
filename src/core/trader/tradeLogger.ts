@@ -1,9 +1,11 @@
 /**
  * 交易记录模块
  *
- * 功能：
- * - 记录交易到文件
- * - 识别错误类型
+ * 职责：
+ * - 记录交易到 JSON 文件（logs/trades/YYYY-MM-DD.json）
+ * - 识别错误类型（资金不足、不支持做空、网络错误等）
+ *
+ * 记录内容：订单ID、标的、方向、数量、价格、状态、原因、时间戳
  */
 
 import fs from 'node:fs';
@@ -12,11 +14,7 @@ import { logger } from '../../utils/logger/index.js';
 import { toBeijingTimeIso, formatSymbolDisplay } from '../../utils/helpers/index.js';
 import type { TradeRecord, ErrorTypeIdentifier } from './types.js';
 
-/**
- * 错误类型识别辅助函数
- * @param errorMessage - 错误消息字符串
- * @returns 错误类型标识对象
- */
+/** 识别错误类型（通过错误消息关键词匹配） */
 export function identifyErrorType(errorMessage: string): ErrorTypeIdentifier {
   const lowerMsg = errorMessage.toLowerCase();
 
@@ -46,10 +44,7 @@ export function identifyErrorType(errorMessage: string): ErrorTypeIdentifier {
   };
 }
 
-/**
- * 记录交易到文件
- * @param tradeRecord 交易记录对象
- */
+/** 记录交易到 JSON 文件（按日期分文件存储） */
 export function recordTrade(tradeRecord: TradeRecord): void {
   try {
     const logDir = path.join(process.cwd(), 'logs', 'trades');

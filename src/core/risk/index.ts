@@ -1,23 +1,15 @@
 /**
  * 风险控制模块（门面模式）
  *
- * 功能：
- * - 协调各个风险检查子模块
- * - 提供统一的风险检查接口
- * - 实施买入前的风险检查
- * - 监控单日和单标的浮亏
- * - 检查牛熊证距离回收价的安全性
+ * 协调三个子检查器，提供统一的风险检查接口：
+ * - warrantRiskChecker: 牛熊证距离回收价检查
+ * - positionLimitChecker: 单标的持仓市值限制
+ * - unrealizedLossChecker: 单标的浮亏监控
  *
- * 风险检查类型：
- * 1. 牛熊证风险：牛证距离回收价 > 0.5%，熊证 < -0.5%
- * 2. 单日亏损限制：整体浮亏必须 > -MAX_DAILY_LOSS
- * 3. 持仓市值限制：单标的市值必须 ≤ MAX_POSITION_NOTIONAL
- * 4. 单标的安全边际：监控标的价格必须 > 1
- *
- * 浮亏监控：
- * - 实时计算持仓浮亏
- * - 超过阈值时触发保护性清仓
- * - 使用 R1（开仓成本）和 N1（持仓数量）计算
+ * 风险阈值（均为配置项）：
+ * - 牛证距离回收价 > 0.5%，熊证 < -0.5%
+ * - 单标的市值 ≤ maxPositionNotional
+ * - 单标的浮亏 > -maxUnrealizedLossPerSymbol
  */
 
 import { normalizeHKSymbol, isBuyAction, isValidPositiveNumber } from '../../utils/helpers/index.js';
@@ -40,11 +32,7 @@ import { createWarrantRiskChecker } from './warrantRiskChecker.js';
 import { createPositionLimitChecker } from './positionLimitChecker.js';
 import { createUnrealizedLossChecker } from './unrealizedLossChecker.js';
 
-/**
- * 创建风险检查器（门面模式）
- * @param deps 依赖注入
- * @returns RiskChecker 接口实例
- */
+/** 创建风险检查器（门面模式） */
 export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
   const options = deps.options ?? {};
   let maxDailyLoss = options.maxDailyLoss ?? 0;
@@ -66,9 +54,7 @@ export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
     maxUnrealizedLossPerSymbol: options.maxUnrealizedLossPerSymbol ?? null,
   });
 
-  /**
-   * 检查单个标的的浮亏
-   */
+  /** 检查单个标的的浮亏，返回 null 表示通过 */
   const checkUnrealizedLossForSymbol = (
     symbol: string | null,
     currentPrice: number | null,
@@ -135,9 +121,7 @@ export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
     return null; // 检查通过
   };
 
-  /**
-   * 检查买入前的浮亏
-   */
+  /** 检查买入前的浮亏（仅检查信号对应方向的标的） */
   const checkUnrealizedLossBeforeBuy = (
     signal: Signal,
     longCurrentPrice: number | null,
@@ -172,9 +156,7 @@ export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
     return { allowed: true };
   };
 
-  /**
-   * 检查订单前的风险
-   */
+  /** 订单前综合风险检查：账户、浮亏、持仓限制 */
   const checkBeforeOrder = (
     account: AccountSnapshot | null,
     positions: ReadonlyArray<Position> | null,

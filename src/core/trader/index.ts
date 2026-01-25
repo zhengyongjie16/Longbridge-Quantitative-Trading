@@ -1,25 +1,21 @@
 /**
- * 订单执行模块（门面模式）
+ * 交易执行模块入口（门面模式）
  *
- * 功能：
- * - 协调各个子模块完成交易功能
- * - 提供统一的对外接口
- * - 保持与原有代码的兼容性
+ * 职责：
+ * - 协调各子模块（账户、缓存、监控、执行）完成交易功能
+ * - 提供统一的 Trader 接口供外部调用
  *
- * 架构：
- * - RateLimiter: API频率限制
- * - AccountService: 账户查询
- * - OrderCacheManager: 订单缓存管理
- * - OrderRecorder: 订单记录（先于 OrderMonitor 创建）
- * - OrderMonitor: 未成交订单监控（依赖 OrderRecorder）
- * - OrderExecutor: 订单执行核心
+ * 子模块：
+ * - rateLimiter: API 频率限制（30次/30秒）
+ * - accountService: 账户余额和持仓查询
+ * - orderCacheManager: 未成交订单缓存
+ * - orderRecorder: 订单记录持久化
+ * - orderMonitor: WebSocket 订单状态监控
+ * - orderExecutor: 信号执行和订单提交
  *
- * 模块初始化顺序（解决依赖问题）：
- * 1. ctxPromise - 最基础的依赖
- * 2. rateLimiter, cacheManager, accountService - 无其他模块依赖
- * 3. orderRecorder - 依赖 ctxPromise 和 rateLimiter（控制 Trade API 调用频率）
- * 4. orderMonitor - 依赖 orderRecorder
- * 5. orderExecutor - 依赖 orderMonitor
+ * 初始化顺序：
+ * 1. ctxPromise → 2. rateLimiter/cacheManager/accountService
+ * 3. orderRecorder → 4. orderMonitor → 5. orderExecutor
  */
 
 import { TradeContext, OrderSide } from 'longport';

@@ -1,21 +1,8 @@
 /**
  * 交易配置模块
  *
- * 功能：
- * - 从环境变量读取所有交易相关配置
- * - 统一管理标的代码、交易金额、风险限制等配置
- * - 提供配置验证和默认值处理
- *
- * 配置类别：
- * 1. 标的配置：MONITOR_SYMBOL（监控标的）、LONG_SYMBOL（做多标的）、SHORT_SYMBOL（做空标的）
- * 2. 交易金额：TARGET_NOTIONAL（目标金额）
- * 3. 风险限制：MAX_POSITION_NOTIONAL（最大持仓）、MAX_DAILY_LOSS（单日亏损限制）
- * 4. 信号配置：SIGNAL_BUYCALL、SIGNAL_SELLCALL、SIGNAL_BUYPUT、SIGNAL_SELLPUT
- * 5. 验证配置：
- *    - 买入验证：VERIFICATION_DELAY_SECONDS_BUY（延迟验证时间）、VERIFICATION_INDICATORS_BUY（验证指标）
- *    - 卖出验证：VERIFICATION_DELAY_SECONDS_SELL（延迟验证时间）、VERIFICATION_INDICATORS_SELL（验证指标）
- *
- * 注意：每手股数（lotSize）将通过 LongPort API 自动获取，无需手动配置
+ * 从环境变量读取交易相关配置，支持多标的配置（通过 _N 后缀区分）
+ * 配置包括：标的代码、交易金额、风险限制、信号规则、延迟验证等
  */
 
 import { parseSignalConfig } from '../utils/helpers/signalConfigParser.js';
@@ -35,9 +22,7 @@ import type {
   MultiMonitorTradingConfig,
 } from '../types/index.js';
 
-/**
- * 解析信号配置（内部复用逻辑）
- */
+/** 从环境变量解析信号配置 */
 const parseSignalConfigFromEnv = (
   env: NodeJS.ProcessEnv,
   envKey: string,
@@ -54,11 +39,7 @@ const parseSignalConfigFromEnv = (
   return config;
 };
 
-/**
- * 解析单个监控标的的配置（从带索引的环境变量）
- * @param index 监控标的索引（必须 >= 1）
- * @returns 监控标的配置，如果未找到则返回 null
- */
+/** 解析单个监控标的配置（索引 >= 1），未找到返回 null */
 function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfig | null {
   if (index < 1) {
     return null;
@@ -136,16 +117,10 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
   };
 }
 
-/**
- * 自动检测监控标的数量的最大扫描范围
- * 从 _1 开始扫描，直到连续找不到配置为止
- */
+/** 监控标的最大扫描范围（从 _1 扫描到 _100） */
 const MAX_MONITOR_SCAN_RANGE = 100;
 
-/**
- * 解析所有监控标的配置
- * 自动检测环境变量中存在的监控标的配置（MONITOR_SYMBOL_1, MONITOR_SYMBOL_2, ...）
- */
+/** 解析所有监控标的配置，自动扫描 MONITOR_SYMBOL_1, _2, ... */
 export const createMultiMonitorTradingConfig = ({
   env,
 }: {
@@ -153,7 +128,8 @@ export const createMultiMonitorTradingConfig = ({
 }): MultiMonitorTradingConfig => {
   const monitors: MonitorConfig[] = [];
 
-  // 自动扫描监控标的配置，从 _1 开始，直到找不到 MONITOR_SYMBOL_N 为止
+  // 连续扫描监控标的配置：从 _1 开始，遇到第一个未配置的索引即停止
+  // 注意：索引必须连续，如配置了 _1 和 _3 但跳过 _2，则 _3 不会被读取
   for (let i = 1; i <= MAX_MONITOR_SCAN_RANGE; i++) {
     const monitorSymbol = getStringConfig(env, `MONITOR_SYMBOL_${i}`);
     if (!monitorSymbol) {

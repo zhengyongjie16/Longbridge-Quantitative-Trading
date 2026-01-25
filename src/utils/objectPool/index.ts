@@ -13,6 +13,7 @@
  * - kdjObjectPool / macdObjectPool：指标对象池
  * - indicatorRecordPool：指标记录对象池 Record<string, number>（最大 100 个）
  * - periodRecordPool：周期指标记录对象池 Record<number, number>（最大 100 个）
+ * - monitorValuesObjectPool：监控值对象池（最大 20 个）
  *
  * 核心方法：
  * - acquire()：从池中获取对象

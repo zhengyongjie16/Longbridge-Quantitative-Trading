@@ -1,27 +1,21 @@
 /**
  * 持仓市值限制检查模块
  *
- * 功能：
- * - 检查下单金额是否超过限制
- * - 检查持仓市值是否超过限制
- * - 计算持仓市值
+ * 检查单标的持仓市值是否超过限制：
+ * - 下单金额不能超过 maxPositionNotional
+ * - 现有持仓市值 + 下单金额不能超过限制
+ * - 已有持仓时使用成本价计算市值
  */
 
 import { normalizeHKSymbol } from '../../utils/helpers/index.js';
 import type { Position, Signal, RiskCheckResult } from '../../types/index.js';
 import type { PositionLimitChecker, PositionLimitCheckerDeps } from './types.js';
 
-/**
- * 创建持仓市值限制检查器
- * @param deps 依赖注入
- * @returns PositionLimitChecker 接口实例
- */
+/** 创建持仓市值限制检查器 */
 export const createPositionLimitChecker = (deps: PositionLimitCheckerDeps): PositionLimitChecker => {
   const maxPositionNotional = deps.maxPositionNotional;
 
-  /**
-   * 查找持仓
-   */
+  /** 根据标的代码查找持仓 */
   const findPosition = (
     positions: ReadonlyArray<Position> | null,
     symbol: string,
@@ -33,9 +27,7 @@ export const createPositionLimitChecker = (deps: PositionLimitCheckerDeps): Posi
     });
   };
 
-  /**
-   * 仅检查下单金额
-   */
+  /** 仅检查下单金额是否超限（无持仓时使用） */
   const checkOrderNotionalOnly = (orderNotional: number): RiskCheckResult => {
     if (maxPositionNotional !== null && orderNotional > maxPositionNotional) {
       return {
@@ -48,9 +40,7 @@ export const createPositionLimitChecker = (deps: PositionLimitCheckerDeps): Posi
     return { allowed: true };
   };
 
-  /**
-   * 检查有持仓时的市值限制
-   */
+  /** 检查有持仓时的市值限制（现有市值 + 下单金额） */
   const checkWithExistingHoldings = (
     pos: Position,
     orderNotional: number,
@@ -99,9 +89,7 @@ export const createPositionLimitChecker = (deps: PositionLimitCheckerDeps): Posi
     return { allowed: true };
   };
 
-  /**
-   * 检查单标的最大持仓市值限制
-   */
+  /** 检查单标的最大持仓市值限制 */
   const checkLimit = (
     signal: Signal,
     positions: Position[] | null,

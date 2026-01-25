@@ -1,15 +1,15 @@
 /**
- * 订单监控模块（WebSocket 推送方案）
+ * 订单监控模块（WebSocket 推送）
  *
- * 功能：
- * - 使用 WebSocket 订阅订单状态变化，实时响应
- * - 双向监控买入和卖出订单
- * - 价格跟踪：委托价始终跟随最新市场价格
- * - 成交后更新：订单完全成交时，使用成交价（非委托价）更新本地记录
+ * 职责：
+ * - WebSocket 订阅订单状态变化，实时响应成交/撤销/拒绝
+ * - 价格跟踪：委托价跟随最新市价，确保订单能够成交
+ * - 成交后更新：使用实际成交价更新本地订单记录
+ * - 程序重启恢复：自动恢复追踪未完成订单
  *
- * 超时处理（买入/卖出分开配置）：
- * - 买入订单超时：仅撤销订单（避免追高买入）
- * - 卖出订单超时：撤销订单后转换为市价单（确保能够卖出）
+ * 超时策略：
+ * - 买入超时：仅撤销订单（避免追高）
+ * - 卖出超时：撤销后转市价单（确保平仓）
  */
 
 import {
@@ -30,10 +30,7 @@ import type {
   OrderMonitorConfig,
 } from './types.js';
 
-/**
- * 从全局配置构建订单监控配置
- * 将环境变量配置（秒）转换为毫秒
- */
+/** 构建监控配置（将秒转换为毫秒） */
 const buildOrderMonitorConfig = (globalConfig: GlobalConfig): OrderMonitorConfig => {
   return {
     buyTimeout: {
@@ -64,9 +61,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
   // 待刷新浮亏数据的标的列表（订单成交后添加，主循环中处理后清空）
   const pendingRefreshSymbols: PendingRefreshSymbol[] = [];
 
-  /**
-   * 根据标的代码判断是否为做多标的
-   */
+  /** 根据配置判断标的是做多还是做空 */
   const isLongSymbolByConfig = (symbol: string): boolean => {
     const normalizedSymbol = normalizeHKSymbol(symbol);
     for (const monitor of tradingConfig.monitors) {
@@ -81,9 +76,8 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
   };
 
   /**
-   * 处理订单状态变化（来自 WebSocket 推送）
-   *
-   * 核心逻辑：订单完全成交时，使用成交价更新本地订单记录
+   * 处理 WebSocket 订单状态变化
+   * 完全成交时用成交价更新本地记录，部分成交时继续追踪
    */
   const handleOrderChanged = (event: PushOrderChanged): void => {
     const orderId = event.orderId;
@@ -172,9 +166,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
     }
   };
 
-  /**
-   * 初始化 WebSocket 订阅
-   */
+  /** 初始化 WebSocket 订阅（订阅 Private 主题） */
   const initialize = async (): Promise<void> => {
     const ctx = await ctxPromise;
 
@@ -193,9 +185,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
     logger.info('[订单监控] WebSocket 订阅初始化成功');
   };
 
-  /**
-   * 开始追踪订单
-   */
+  /** 开始追踪订单（订单提交后调用） */
   const trackOrder = (
     orderId: string,
     symbol: string,
@@ -229,9 +219,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
     );
   };
 
-  /**
-   * 程序启动时恢复订单追踪
-   */
+  /** 程序重启时恢复未完成订单的追踪 */
   const recoverTrackedOrders = async (): Promise<void> => {
     const ctx = await ctxPromise;
 
@@ -284,9 +272,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
     }
   };
 
-  /**
-   * 撤销订单
-   */
+  /** 撤销订单 */
   const cancelOrder = async (orderId: string): Promise<boolean> => {
     const ctx = await ctxPromise;
 
@@ -308,9 +294,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
     }
   };
 
-  /**
-   * 修改订单价格
-   */
+  /** 修改订单委托价格 */
   const replaceOrderPrice = async (
     orderId: string,
     newPrice: number,
@@ -358,10 +342,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
     }
   };
 
-  /**
-   * 处理买入订单超时（仅撤销订单）
-   * 买入订单超时后直接撤销，不转换为市价单
-   */
+  /** 处理买入订单超时：仅撤销（避免追高） */
   const handleBuyOrderTimeout = async (orderId: string, order: TrackedOrder): Promise<void> => {
     const elapsed = Date.now() - order.submittedAt;
 
@@ -391,10 +372,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
     }
   };
 
-  /**
-   * 处理卖出订单超时（撤销后转市价单）
-   * 卖出订单超时后撤销原订单，然后使用市价单重新提交
-   */
+  /** 处理卖出订单超时：撤销后转市价单（确保平仓） */
   const handleSellOrderTimeout = async (orderId: string, order: TrackedOrder): Promise<void> => {
     const elapsed = Date.now() - order.submittedAt;
 
@@ -466,16 +444,8 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
   };
 
   /**
-   * 根据最新行情更新委托价格（主循环调用）
-   *
-   * 规则：
-   * - 买入订单和卖出订单都跟踪当前价
-   * - 无论当前价高于还是低于委托价，都更新委托价为当前价
-   * - 目的：确保订单能够成交，避免因价格差异导致无法买入或卖出
-   *
-   * 超时处理规则：
-   * - 买入订单超时：仅撤销订单，不转换为市价单
-   * - 卖出订单超时：撤销订单后转换为市价单
+   * 根据最新行情更新委托价（主循环每秒调用）
+   * 委托价跟随市价变化，确保订单能够成交
    */
   const processWithLatestQuotes = async (
     quotesMap: ReadonlyMap<string, Quote | null>,
@@ -542,12 +512,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
     }
   };
 
-  /**
-   * 获取并清空待刷新浮亏数据的标的列表
-   * 订单成交后会将标的添加到此列表，主循环中应调用此方法获取并刷新
-   *
-   * @returns 待刷新的标的列表（调用后列表会被清空）
-   */
+  /** 获取并清空待刷新标的列表（订单成交后需刷新持仓和浮亏） */
   const getAndClearPendingRefreshSymbols = (): PendingRefreshSymbol[] => {
     if (pendingRefreshSymbols.length === 0) {
       return [];
@@ -559,9 +524,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
     return result;
   };
 
-  /**
-   * 销毁监控器
-   */
+  /** 销毁监控器（清理追踪列表） */
   const destroy = async (): Promise<void> => {
     trackedOrders.clear();
     pendingRefreshSymbols.length = 0;

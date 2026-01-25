@@ -1,5 +1,8 @@
 /**
- * 监控标的处理模块独享的工具函数
+ * @module processMonitor/utils
+ * @description processMonitor 模块的工具函数
+ *
+ * 提供持仓查询等辅助功能，与对象池配合使用
  */
 
 import { positionObjectPool } from '../../utils/objectPool/index.js';
@@ -7,11 +10,14 @@ import type { Position, PositionCache } from '../../types/index.js';
 
 /**
  * 从持仓缓存中获取指定标的的持仓
- * 使用 PositionCache 提供 O(1) 查找性能
  *
- * @param positionCache 持仓缓存
- * @param longSymbol 做多标的代码（已规范化）
- * @param shortSymbol 做空标的代码（已规范化）
+ * 使用 PositionCache 提供 O(1) 查找，并从对象池获取 Position 对象
+ * 注意：调用方需负责释放返回的 Position 对象到对象池
+ *
+ * @param positionCache 持仓缓存（O(1) 查找）
+ * @param longSymbol 做多标的代码
+ * @param shortSymbol 做空标的代码
+ * @returns longPosition 和 shortPosition，无持仓时为 null
  */
 export function getPositions(
   positionCache: PositionCache,

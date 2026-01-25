@@ -41,18 +41,7 @@ import type { SellQuantityResult, SignalProcessor, SignalProcessorDeps } from '.
 
 /**
  * 计算卖出信号的数量和原因
- * 统一处理做多和做空标的的卖出逻辑
- *
- * 卖出策略规则（智能平仓开启时）：仅卖出盈利订单，若无盈利订单或订单记录不可用则跳过
- * 卖出策略规则（智能平仓关闭时）：直接清仓所有持仓
- *
- * @param position 持仓信息
- * @param quote 行情数据
- * @param orderRecorder 订单记录器
- * @param direction 方向（LONG 或 SHORT）
- * @param originalReason 原始原因
- * @param smartCloseEnabled 是否启用智能平仓
- * @param symbol 标的代码（必须指定，用于多标的场景下精确筛选订单记录）
+ * 智能平仓开启：仅卖出盈利订单；关闭：清仓所有持仓
  */
 function calculateSellQuantity(
   position: Position | null,
@@ -105,22 +94,12 @@ function calculateSellQuantity(
   };
 }
 
-/**
- * 创建信号处理器
- * @param deps 依赖注入
- * @returns SignalProcessor 接口实例
- */
+/** 创建信号处理器（工厂函数） */
 export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): SignalProcessor => {
-  /**
-   * 记录每个标的每个方向最近一次进入风险检查的时间
-   * 格式: Map<`${symbol}_${direction}`, timestamp>
-   * 用于实现验证信号冷却机制，避免同标的同方向的重复信号在短时间内多次触发风险检查
-   */
+  /** 冷却时间记录：Map<symbol_direction, timestamp>，防止重复信号频繁触发风险检查 */
   const lastRiskCheckTime = new Map<string, number>();
 
-  /**
-   * 处理卖出信号的智能平仓数量计算
-   */
+  /** 处理卖出信号，计算智能平仓数量 */
   const processSellSignals = (
     signals: Signal[],
     longPosition: Position | null,
@@ -223,9 +202,7 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
     return signals;
   };
 
-  /**
-   * 应用风险检查到信号列表
-   */
+  /** 对信号列表应用风险检查，过滤不符合条件的信号 */
   const applyRiskChecks = async (signals: Signal[], context: RiskCheckContext): Promise<Signal[]> => {
     const {
       trader,

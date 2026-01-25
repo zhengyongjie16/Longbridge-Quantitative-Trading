@@ -8,8 +8,8 @@
  * - 支持 DEBUG/INFO/WARN/ERROR 级别
  *
  * 日志目录：
- * - logs/system/：系统日志（所有级别）
- * - logs/debug/：调试日志（仅 DEBUG 级别，需设置 DEBUG=true）
+ * - logs/system/：系统日志（所有级别，包括 DEBUG）
+ * - logs/debug/：调试日志副本（DEBUG 级别日志的额外副本，需设置 DEBUG=true）
  *
  * 特性：
  * - 异步队列批量处理，避免阻塞主循环

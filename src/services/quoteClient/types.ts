@@ -1,6 +1,11 @@
 /**
  * 行情数据客户端模块类型定义
  *
+ * 包含：
+ * - RetryConfig：重试配置
+ * - StaticInfo：标的静态信息
+ * - TradingDayCacheDeps：交易日缓存依赖
+ * - MarketDataClientDeps：行情客户端依赖
  */
 
 import type { Config } from 'longport';

@@ -1,5 +1,9 @@
 /**
  * EMA（指数移动平均线）计算模块
+ *
+ * 指标特点：
+ * - 赋予近期数据更高权重，对价格变化更敏感
+ * - 周期范围：1-250
  */
 
 import { EMA } from 'technicalindicators';

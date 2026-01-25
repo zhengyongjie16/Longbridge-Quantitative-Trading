@@ -1,9 +1,11 @@
 /**
  * 账户服务模块
  *
- * 功能：
- * - 查询账户余额和资产
- * - 查询股票持仓
+ * 职责：
+ * - 查询账户余额、净资产、购买力等财务信息
+ * - 查询股票持仓（支持按标的过滤）
+ *
+ * 依赖：ctxPromise（Trade API 上下文）、rateLimiter（频率限制）
  */
 import { decimalToNumber } from '../../utils/helpers/index.js';
 import type { AccountSnapshot, Position, CashInfo } from '../../types/index.js';

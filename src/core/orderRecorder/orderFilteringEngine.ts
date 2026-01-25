@@ -27,16 +27,12 @@ import type { OrderRecord } from '../../types/index.js';
 import type { FilteringState, OrderFilteringEngine, OrderFilteringEngineDeps } from './types.js';
 import { calculateTotalQuantity } from './utils.js';
 
-/**
- * 创建订单过滤引擎
- * @param _deps 依赖注入（当前为空）
- * @returns OrderFilteringEngine 接口实例
- */
+/** 创建订单过滤引擎 */
 export const createOrderFilteringEngine = (_deps: OrderFilteringEngineDeps = {}): OrderFilteringEngine => {
   /**
    * 初始化过滤状态
-   * - M0: 成交时间 > 最新卖出时间的买入订单（这些订单在所有卖出之后，无条件保留）
-   * - candidateOrders: 成交时间 <= 最新卖出时间的买入订单（需要过滤）
+   * - M0: 最新卖出后的买入订单（无条件保留）
+   * - candidateOrders: 需要过滤的候选订单
    */
   const initializeFilteringState = (
     allBuyOrders: OrderRecord[],
@@ -63,14 +59,8 @@ export const createOrderFilteringEngine = (_deps: OrderFilteringEngineDeps = {})
   };
 
   /**
-   * 按数量限制调整订单列表（关键修复）
-   *
-   * 当按价格过滤后保留的数量超过应保留数量时，需要进一步移除订单。
-   * 按价格从低到高移除（低价订单更可能被卖出，因为它们是盈利的）。
-   *
-   * @param orders 待调整的订单列表
-   * @param maxQuantity 最大允许保留的数量（= 买入总量 - 卖出数量）
-   * @returns 调整后的订单列表
+   * 按数量限制调整订单列表
+   * 当按价格过滤后保留数量超过限制时，优先保留高价订单（亏损订单）
    */
   const adjustOrdersByQuantityLimit = (
     orders: OrderRecord[],
@@ -117,20 +107,10 @@ export const createOrderFilteringEngine = (_deps: OrderFilteringEngineDeps = {})
 
   /**
    * 应用单个卖出订单的过滤
-   *
-   * 核心逻辑（按用户描述的策略）：
-   * 1. 获取当前轮次中成交时间 < 卖出时间的买入订单
-   * 2. 如果卖出数量 >= 这些买入订单总量：视为全部卖出，这些订单不保留
+   * 1. 获取成交时间 < 卖出时间的买入订单
+   * 2. 卖出数量 >= 买入总量：视为全部卖出
    * 3. 否则按价格过滤：保留成交价 >= 卖出价的订单
-   * 4. 关键：确保保留数量不超过"应保留数量"（买入总量 - 卖出数量）
-   * 5. 将过滤结果 + 时间间隔内的订单（从原始候选订单获取）作为下一轮的输入
-   *
-   * @param currentBuyOrders 当前轮次的买入订单列表（上一轮的 M_i）
-   * @param candidateOrders 原始候选订单列表（用于获取时间间隔内的订单）
-   * @param sellOrder 当前处理的卖出订单
-   * @param nextSellOrder 下一个卖出订单（用于确定时间间隔）
-   * @param latestSellTime 最新卖出订单的时间
-   * @returns 过滤后的订单列表（M_{i+1}）
+   * 4. 合并时间间隔内的订单作为下一轮输入
    */
   const applySingleSellOrderFilter = (
     currentBuyOrders: OrderRecord[],
@@ -200,14 +180,8 @@ export const createOrderFilteringEngine = (_deps: OrderFilteringEngineDeps = {})
   };
 
   /**
-   * 依次应用每个卖出订单的过滤（从旧到新累积过滤）
-   *
-   * 处理流程：
-   * 1. 初始候选 = 时间 < D1 的买入订单
-   * 2. 处理 D1 → M1（时间间隔订单从原始候选获取）
-   * 3. 处理 D2（基于 M1）→ M2（时间间隔订单从原始候选获取）
-   * 4. 以此类推...
-   * 5. 返回最终的 MN
+   * 依次应用每个卖出订单的过滤（从旧到新累积）
+   * 每轮基于上一轮结果过滤，时间间隔订单从原始候选获取
    */
   const applySequentialFiltering = (
     state: FilteringState,
@@ -243,13 +217,8 @@ export const createOrderFilteringEngine = (_deps: OrderFilteringEngineDeps = {})
   };
 
   /**
-   * 应用订单过滤算法
-   *
-   * 主入口函数：
-   * 1. 将卖出订单按时间从旧到新排序
-   * 2. 分离 M0（最新卖出后的买入）和候选订单
-   * 3. 依次应用每个卖出订单的过滤
-   * 4. 返回 M0 + 最终过滤结果
+   * 应用订单过滤算法（主入口）
+   * 按时间顺序处理卖出订单，返回当前仍持有的买入订单
    */
   const applyFilteringAlgorithm = (
     allBuyOrders: OrderRecord[],

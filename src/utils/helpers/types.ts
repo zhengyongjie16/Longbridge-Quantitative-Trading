@@ -1,10 +1,15 @@
 /**
- * 工具函数模块类型定义
+ * 辅助函数类型定义模块
+ *
+ * 定义辅助函数相关的类型：
+ * - DecimalLike：LongPort Decimal 兼容接口
+ * - IndicatorState：指标状态接口（KDJ、MACD、EMA、RSI、PSY、MFI）
+ * - ParsedCondition / ParsedConditionGroup：信号配置解析结果
+ * - EvaluationResult / ConditionGroupResult：条件评估结果
+ * - HKTime：香港时间结构
  */
 
-/**
- * LongPort Decimal 类型接口
- */
+/** LongPort Decimal 类型兼容接口 */
 export type DecimalLike = {
   toNumber(): number;
 };

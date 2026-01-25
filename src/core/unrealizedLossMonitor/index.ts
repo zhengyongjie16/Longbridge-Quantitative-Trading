@@ -4,18 +4,18 @@
  * 功能：
  * - 实时监控单标的的浮亏
  * - 浮亏超过阈值时触发保护性清仓
- * - 使用增强限价单执行清仓
+ * - 订单类型由 LIQUIDATION_ORDER_TYPE 配置决定
  *
- * 浮亏计算：
- * - unrealizedLoss = currentPrice * N1 - R1
+ * 浮亏计算（由 riskChecker.checkUnrealizedLoss 执行）：
+ * - unrealizedLoss = currentPrice * N1 - R1（负数表示亏损）
  * - R1：所有未平仓买入订单的市值总和
  * - N1：所有未平仓买入订单的成交数量总和
  *
  * 清仓流程：
  * 1. 检查浮亏是否超过阈值
- * 2. 创建增强限价单清仓信号
+ * 2. 创建清仓信号
  * 3. 执行清仓订单
- * 4. 刷新订单记录和浮亏数据
+ * 4. 清空订单记录后刷新浮亏数据
  */
 
 import { logger } from '../../utils/logger/index.js';
@@ -24,17 +24,11 @@ import { signalObjectPool } from '../../utils/objectPool/index.js';
 import type { Quote, Signal, RiskChecker, Trader, OrderRecorder } from '../../types/index.js';
 import type { UnrealizedLossMonitor, UnrealizedLossMonitorDeps } from './types.js';
 
-/**
- * 创建浮亏监控器
- * @param deps 依赖注入
- * @returns UnrealizedLossMonitor 接口实例
- */
+/** 创建浮亏监控器（通过依赖注入配置最大浮亏阈值） */
 export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): UnrealizedLossMonitor => {
   const maxUnrealizedLossPerSymbol = deps.maxUnrealizedLossPerSymbol;
 
-  /**
-   * 检查并执行保护性清仓（如果浮亏超过阈值）
-   */
+  /** 检查浮亏并执行保护性清仓 */
   const checkAndLiquidate = async (
     symbol: string,
     currentPrice: number,
@@ -65,7 +59,7 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
       return false;
     }
 
-    // 执行保护性清仓（使用增强限价单）
+    // 执行保护性清仓
     logger.error(lossCheck.reason || '浮亏超过阈值，执行保护性清仓');
 
     // 从对象池获取信号对象
@@ -113,9 +107,7 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
     }
   };
 
-  /**
-   * 监控做多和做空标的的浮亏（价格变化时调用）
-   */
+  /** 监控做多和做空标的的浮亏（价格变化时调用） */
   const monitorUnrealizedLoss = async (
     longQuote: Quote | null,
     shortQuote: Quote | null,

@@ -1,8 +1,10 @@
 /**
  * RSI（相对强弱指标）计算模块
  *
- * 指标参数：
- * - RSI：周期 6，Wilder's Smoothing 平滑
+ * 指标特点：
+ * - 周期可配置（通过参数传入）
+ * - 使用 technicalindicators 库计算
+ * - 返回值范围 0-100
  */
 
 import { RSI } from 'technicalindicators';

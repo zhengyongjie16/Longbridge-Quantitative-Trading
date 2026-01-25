@@ -1,5 +1,7 @@
 /**
  * 配置模块工具函数
+ *
+ * 提供环境变量读取、解析和转换的工具函数
  */
 
 import { OrderType } from 'longport';
@@ -7,11 +9,7 @@ import { validateEmaPeriod, validatePsyPeriod } from '../utils/helpers/indicator
 import { logger } from '../utils/logger/index.js';
 import type { RegionUrls } from './types.js';
 
-/**
- * 根据区域获取 API 端点 URL
- * @param region 区域代码 ('cn' 或 'hk')
- * @returns API 端点 URL
- */
+/** 根据区域获取 API 端点 URL（cn 使用 .cn 域名，其他使用 .com） */
 export const getRegionUrls = (region: string | undefined): RegionUrls => {
   const normalizedRegion = (region || 'hk').toLowerCase();
 
@@ -31,12 +29,7 @@ export const getRegionUrls = (region: string | undefined): RegionUrls => {
   };
 };
 
-/**
- * 从环境变量读取字符串配置
- * @param env 环境变量集合
- * @param envKey 环境变量键名
- * @returns 配置值，如果未设置则返回 null
- */
+/** 读取字符串配置，未设置或为占位符时返回 null */
 export const getStringConfig = (
   env: NodeJS.ProcessEnv,
   envKey: string,
@@ -52,13 +45,7 @@ export const getStringConfig = (
   return value.trim();
 };
 
-/**
- * 从环境变量读取数字配置
- * @param env 环境变量集合
- * @param envKey 环境变量键名
- * @param minValue 最小值（可选）
- * @returns 配置值，如果未设置或无效则返回 null
- */
+/** 读取数字配置，未设置或小于最小值时返回 null */
 export const getNumberConfig = (
   env: NodeJS.ProcessEnv,
   envKey: string,
@@ -75,13 +62,7 @@ export const getNumberConfig = (
   return num;
 };
 
-/**
- * 从环境变量读取布尔配置
- * @param env 环境变量集合
- * @param envKey 环境变量键名
- * @param defaultValue 默认值（当环境变量未设置时使用）
- * @returns 配置值
- */
+/** 读取布尔配置，仅识别 'true'/'false'，其他返回默认值 */
 export const getBooleanConfig = (
   env: NodeJS.ProcessEnv,
   envKey: string,
@@ -103,13 +84,7 @@ export const getBooleanConfig = (
   return defaultValue;
 };
 
-/**
- * 解析验证延迟时间配置
- * @param env 环境变量集合
- * @param envKey 环境变量键名
- * @param defaultValue 默认值
- * @returns 延迟时间（秒），范围 0-120
- */
+/** 解析延迟验证时间（秒），范围 0-120 */
 export const parseVerificationDelay = (
   env: NodeJS.ProcessEnv,
   envKey: string,
@@ -130,12 +105,7 @@ export const parseVerificationDelay = (
   return delay;
 };
 
-/**
- * 解析验证指标配置
- * @param env 环境变量集合
- * @param envKey 环境变量键名
- * @returns 指标列表，如果未设置或无效则返回 null
- */
+/** 解析延迟验证指标列表（支持 K/D/J/MACD/DIF/DEA/EMA:N/PSY:N） */
 export const parseVerificationIndicators = (
   env: NodeJS.ProcessEnv,
   envKey: string,
@@ -199,13 +169,7 @@ export const parseVerificationIndicators = (
   return validItems.length > 0 ? validItems : null;
 };
 
-/**
- * 将配置字符串映射到 OrderType 枚举
- * @param env 环境变量集合
- * @param envKey 环境变量键名
- * @param defaultType 默认订单类型
- * @returns OrderType 枚举值
- */
+/** 解析订单类型配置（LO/ELO/MO），必须大写 */
 export const parseOrderTypeConfig = (
   env: NodeJS.ProcessEnv,
   envKey: string,

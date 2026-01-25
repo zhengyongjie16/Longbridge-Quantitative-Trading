@@ -1,16 +1,11 @@
 /**
  * 浮亏检查模块
  *
- * 功能：
- * - 刷新浮亏监控数据
- * - 检查浮亏是否超过阈值
- * - 管理浮亏数据缓存
- *
- * 计算方式（开仓成本）：
- * - R1 = 所有未平仓买入订单的市值总和（每个订单市值 = 成交价 × 成交数量）
- * - N1 = 所有未平仓买入订单的成交数量总和
- * - R2 = 当前持仓市值（当前价格 × N1）
- * - 浮亏 = R2 - R1
+ * 监控单标的浮亏，超过阈值时触发保护性清仓：
+ * - R1 = 开仓成本（未平仓买入订单的市值总和）
+ * - N1 = 持仓数量（未平仓买入订单的成交数量总和）
+ * - R2 = 当前市值（当前价格 × N1）
+ * - 浮亏 = R2 - R1（负值表示亏损）
  */
 
 import { logger } from '../../utils/logger/index.js';
@@ -18,34 +13,24 @@ import { normalizeHKSymbol, isValidPositiveNumber, getDirectionName, formatSymbo
 import type { OrderRecorder, UnrealizedLossData, UnrealizedLossCheckResult, Quote } from '../../types/index.js';
 import type { UnrealizedLossChecker, UnrealizedLossCheckerDeps } from './types.js';
 
-/**
- * 创建浮亏检查器
- * @param deps 依赖注入
- * @returns UnrealizedLossChecker 接口实例
- */
+/** 创建浮亏检查器 */
 export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): UnrealizedLossChecker => {
   const maxUnrealizedLossPerSymbol = deps.maxUnrealizedLossPerSymbol;
 
   // 闭包捕获的私有状态
   const unrealizedLossData = new Map<string, UnrealizedLossData>();
 
-  /**
-   * 获取浮亏数据
-   */
+  /** 获取指定标的的浮亏数据 */
   const getUnrealizedLossData = (symbol: string): UnrealizedLossData | undefined => {
     return unrealizedLossData.get(normalizeHKSymbol(symbol));
   };
 
-  /**
-   * 获取所有浮亏数据（供外部访问）
-   */
+  /** 获取所有标的的浮亏数据（返回副本） */
   const getAllData = (): Map<string, UnrealizedLossData> => {
     return new Map(unrealizedLossData.entries());
   };
 
-  /**
-   * 检查是否启用浮亏保护
-   */
+  /** 检查浮亏保护是否启用 */
   const isEnabled = (): boolean => {
     return (
       maxUnrealizedLossPerSymbol !== null &&
@@ -54,9 +39,7 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
     );
   };
 
-  /**
-   * 计算开仓成本和持仓数量
-   */
+  /** 从订单列表计算 R1（开仓成本）和 N1（持仓数量） */
   const calculateCostAndQuantity = (
     buyOrders: Array<{ executedPrice: number | string; executedQuantity: number | string }>,
   ): { r1: number; n1: number } => {
@@ -81,9 +64,7 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
     return { r1, n1 };
   };
 
-  /**
-   * 初始化或刷新标的的浮亏监控数据（在程序启动时或买入/卖出操作后调用）
-   */
+  /** 刷新标的的浮亏数据（启动时或交易后调用） */
   const refresh = async (
     orderRecorder: OrderRecorder,
     symbol: string,
@@ -144,9 +125,7 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
     }
   };
 
-  /**
-   * 检查标的的浮亏是否超过阈值，如果超过则返回清仓信号
-   */
+  /** 检查浮亏是否超过阈值，超过则返回清仓信号 */
   const check = (
     symbol: string,
     currentPrice: number,

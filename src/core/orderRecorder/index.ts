@@ -42,11 +42,7 @@ import { createOrderStorage } from './orderStorage.js';
 import { createOrderAPIManager } from './orderAPIManager.js';
 import { createOrderFilteringEngine } from './orderFilteringEngine.js';
 
-/**
- * 创建订单记录器（门面模式）
- * @param deps 依赖注入
- * @returns OrderRecorder 接口实例
- */
+/** 创建订单记录器（门面模式），协调存储、API和过滤引擎 */
 export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
   const { ctxPromise, rateLimiter } = deps;
 
@@ -59,9 +55,7 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
   // 私有方法 - 验证和工具
   // ============================================
 
-  /**
-   * 验证订单参数
-   */
+  /** 验证订单参数有效性 */
   const validateOrderParams = (
     price: number,
     quantity: number,
@@ -85,9 +79,7 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
   // 私有方法 - 日志和调试
   // ============================================
 
-  /**
-   * 输出刷新结果日志
-   */
+  /** 输出订单刷新结果日志 */
   const logRefreshResult = (
     symbol: string,
     isLongSymbol: boolean,
@@ -114,9 +106,7 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
     }
   };
 
-  /**
-   * 计算订单统计信息
-   */
+  /** 计算订单统计信息（用于调试输出） */
   const calculateOrderStatistics = (
     orders: OrderRecord[],
   ): OrderStatistics => {
@@ -140,9 +130,7 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
     return { totalQuantity, totalValue, averagePrice };
   };
 
-  /**
-   * 输出订单列表的debug信息（仅在DEBUG模式下）
-   */
+  /** 输出订单列表的 debug 信息（仅 DEBUG 模式） */
   const debugOutputOrders = (symbol: string, isLongSymbol: boolean): void => {
     if (process.env['DEBUG'] !== 'true') {
       return;
@@ -205,9 +193,7 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
   // 公有方法 - 订单记录操作
   // ============================================
 
-  /**
-   * 记录一笔新的买入订单（仅在程序运行期间本地更新，不调用 API）
-   */
+  /** 记录一笔新的买入订单（本地更新，不调用 API） */
   const recordLocalBuy = (
     symbol: string,
     executedPrice: number,
@@ -226,11 +212,9 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
   };
 
   /**
-   * 根据一笔新的卖出订单，本地更新买入订单记录（不再调用 API）
-   *
-   * 规则：
-   * 1. 如果本地买入记录的总数量 <= 本次卖出数量，认为全部卖出，清空记录
-   * 2. 否则，仅保留成交价 >= 本次卖出价的买入订单
+   * 根据卖出订单更新本地买入记录
+   * - 卖出数量 >= 总数量：清空记录
+   * - 否则保留成交价 >= 卖出价的订单
    */
   const recordLocalSell = (
     symbol: string,
@@ -249,27 +233,17 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
     debugOutputOrders(symbol, isLongSymbol);
   };
 
-  /**
-   * 清空指定标的的买入订单记录（用于保护性清仓等无条件清仓场景）
-   */
+  /** 清空指定标的的买入订单记录（用于保护性清仓） */
   const clearBuyOrders = (symbol: string, isLongSymbol: boolean, quote?: Quote | null): void => {
     storage.clearBuyOrders(symbol, isLongSymbol, quote);
   };
 
-  /**
-   * 获取最新买入订单的成交价（用于买入价格限制检查）
-   */
+  /** 获取最新买入订单的成交价（用于买入价格限制检查） */
   const getLatestBuyOrderPrice = (symbol: string, isLongSymbol: boolean): number | null => {
     return storage.getLatestBuyOrderPrice(symbol, isLongSymbol);
   };
 
-  /**
-   * 根据当前价格获取指定标的中买入价低于当前价的订单
-   *
-   * @param currentPrice 当前价格
-   * @param direction 方向（LONG 或 SHORT）
-   * @param symbol 标的代码（必须指定，用于多标的场景下精确查询）
-   */
+  /** 获取买入价低于当前价的订单（用于智能清仓决策） */
   const getBuyOrdersBelowPrice = (
     currentPrice: number,
     direction: 'LONG' | 'SHORT',
@@ -278,9 +252,7 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
     return storage.getBuyOrdersBelowPrice(currentPrice, direction, symbol);
   };
 
-  /**
-   * 计算订单列表的总成交数量
-   */
+  /** 计算订单列表的总成交数量 */
   const calculateTotalQuantity = (orders: OrderRecord[]): number => {
     return storage.calculateTotalQuantity(orders);
   };
@@ -289,21 +261,14 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
   // 公有方法 - 订单获取和刷新
   // ============================================
 
-  /**
-   * 从API获取并转换订单数据（公开方法，用于启动时或需要强制刷新时调用）
-   * 调用此方法会同时从历史订单和今日订单API获取数据，合并并去重后更新缓存
-   */
+  /** 从 API 获取订单数据（启动时或强制刷新时调用） */
   const fetchOrdersFromAPI = async (symbol: string): Promise<FetchOrdersResult> => {
     return await apiManager.fetchOrdersFromAPI(symbol);
   };
 
   /**
    * 刷新订单记录（用于智能清仓决策）
-   * 过滤逻辑：
-   * 1. 获取历史所有买入订单（已成交）
-   * 2. 获取历史所有卖出订单（已成交）
-   * 3. 如果没有卖出订单，记录所有买入订单
-   * 4. 如果有卖出订单，应用复杂的过滤算法
+   * 从 API 获取订单后应用过滤算法，更新本地存储
    */
   const refreshOrders = async (
     symbol: string,
@@ -390,16 +355,12 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
   // 公有方法 - 缓存管理
   // ============================================
 
-  /**
-   * 检查指定标的的缓存是否存在
-   */
+  /** 检查指定标的列表是否都有缓存 */
   const hasCacheForSymbols = (symbols: string[]): boolean => {
     return apiManager.hasCacheForSymbols(symbols);
   };
 
-  /**
-   * 从缓存的原始订单中提取未成交订单（用于启动时避免重复调用 todayOrders）
-   */
+  /** 从缓存中提取未成交订单（避免重复调用 todayOrders API） */
   const getPendingOrdersFromCache = (symbols: string[]): PendingOrder[] => {
     return apiManager.getPendingOrdersFromCache(symbols);
   };
@@ -408,24 +369,17 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
   // 暴露内部状态（用于 RiskChecker）
   // ============================================
 
-  /**
-   * 获取做多标的的买入订单列表（公共方法）
-   */
+  /** 获取所有做多标的的买入订单 */
   const getLongBuyOrders = (): OrderRecord[] => {
     return storage.getLongBuyOrders();
   };
 
-  /**
-   * 获取做空标的的买入订单列表（公共方法）
-   */
+  /** 获取所有做空标的的买入订单 */
   const getShortBuyOrders = (): OrderRecord[] => {
     return storage.getShortBuyOrders();
   };
 
-  /**
-   * 获取指定标的的买入订单列表（公共方法）
-   * 使用 O(1) 查找性能，直接从 Map 获取
-   */
+  /** 获取指定标的的买入订单列表 */
   const getBuyOrdersForSymbol = (symbol: string, isLongSymbol: boolean): OrderRecord[] => {
     const normalizedSymbol = normalizeHKSymbol(symbol);
     return storage.getBuyOrdersList(normalizedSymbol, isLongSymbol);

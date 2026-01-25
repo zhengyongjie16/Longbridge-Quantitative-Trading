@@ -1,5 +1,19 @@
 /**
- * 监控标的上下文工厂
+ * 监控标的上下文工厂模块
+ *
+ * 功能：
+ * - 创建每个监控标的的独立上下文（MonitorContext）
+ * - 初始化策略、风险检查器、浮亏监控器、延迟验证器等组件
+ * - 缓存标的名称和指标周期配置，避免重复计算
+ *
+ * 上下文内容：
+ * - config/state：监控配置和状态
+ * - strategy：信号生成策略
+ * - orderRecorder：订单记录器（共享实例）
+ * - riskChecker：风险检查器
+ * - unrealizedLossMonitor：浮亏监控器
+ * - delayedSignalVerifier：延迟信号验证器
+ * - 缓存的标的名称和指标周期
  */
 
 import { createHangSengMultiIndicatorStrategy } from '../../core/strategy/index.js';

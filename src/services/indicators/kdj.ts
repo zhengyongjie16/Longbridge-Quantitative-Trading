@@ -2,7 +2,9 @@
  * KDJ（随机指标）计算模块
  *
  * 指标参数：
- * - KDJ：EMA 周期 5，K、D、J 三值
+ * - RSV 窗口周期：默认 9（计算最高价、最低价的窗口大小）
+ * - EMA 平滑周期：5（用于平滑 RSV 得到 K，平滑 K 得到 D）
+ * - J = 3K - 2D
  */
 
 import { EMA } from 'technicalindicators';

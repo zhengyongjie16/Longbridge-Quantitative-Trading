@@ -1,5 +1,10 @@
 /**
  * DelayedSignalVerifier 工具函数
+ *
+ * 提供信号验证相关的工具函数：
+ * - generateSignalId: 生成信号唯一标识
+ * - extractInitialIndicators: 提取信号初始指标值
+ * - performVerification: 执行完整验证流程
  */
 
 import { getIndicatorValue } from '../../../utils/helpers/indicatorHelpers.js';
@@ -10,6 +15,8 @@ import type { PendingSignalEntry, VerificationResult } from './types.js';
 
 /**
  * 生成信号的唯一 ID
+ * @param signal 信号对象
+ * @returns 格式为 "symbol:action:triggerTime" 的唯一标识
  */
 export const generateSignalId = (signal: Signal): string => {
   const triggerTime = signal.triggerTime?.getTime() ?? 0;
@@ -18,6 +25,9 @@ export const generateSignalId = (signal: Signal): string => {
 
 /**
  * 提取信号的初始指标值
+ * @param signal 信号对象
+ * @param indicatorNames 需要提取的指标名称列表
+ * @returns 指标名称到值的映射，若任一指标无效则返回 null
  */
 export const extractInitialIndicators = (
   signal: Signal,
@@ -40,7 +50,11 @@ export const extractInitialIndicators = (
 };
 
 /**
- * 验证单个时间点的指标值（内部使用，不导出）
+ * 验证单个时间点的指标值
+ *
+ * 检查该时间点的所有指标是否满足趋势条件：
+ * - 上涨趋势：当前值 > 初始值
+ * - 下跌趋势：当前值 < 初始值
  */
 const verifyTimePoint = (
   entry: IndicatorCacheEntry | null,
@@ -90,6 +104,16 @@ const verifyTimePoint = (
 
 /**
  * 执行完整的验证流程
+ *
+ * 验证逻辑：
+ * - 从 IndicatorCache 获取 T0、T0+5s、T0+10s 三个时间点的数据
+ * - 所有时间点的所有配置指标都必须满足趋势条件才算通过
+ * - 时间容忍度为 ±5 秒
+ *
+ * @param indicatorCache 指标缓存
+ * @param entry 待验证信号条目
+ * @param verificationConfig 验证配置
+ * @returns 验证结果
  */
 export const performVerification = (
   indicatorCache: IndicatorCache,

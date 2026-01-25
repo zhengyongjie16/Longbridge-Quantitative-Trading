@@ -1,10 +1,13 @@
 /**
- * ASCII 艺术图案输出模块
+ * ASCII 艺术图案模块
+ *
+ * 功能：
+ * - 在程序启动时输出牛爷（Sacre Moo）ASCII 艺术图案
+ * - 为交易系统增添趣味性
  */
 
 /**
  * 输出 Sacre Moo ASCII 艺术图案到控制台
- * @returns ASCII艺术图案字符串
  */
 export function getSprintSacreMooacreMoo(): void {
   console.log( `                        ..---.

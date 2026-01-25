@@ -21,27 +21,19 @@ import type { OrderRecord, Quote } from '../../types/index.js';
 import type { OrderStorage, OrderStorageDeps } from './types.js';
 import { calculateTotalQuantity } from './utils.js';
 
-/**
- * 创建订单存储管理器
- * @param _deps 依赖注入（当前为空）
- * @returns OrderStorage 接口实例
- */
+/** 创建订单存储管理器 */
 export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage => {
   // 使用 Map 存储订单，key 为 symbol，提供 O(1) 查找性能
   const longBuyOrdersMap: Map<string, OrderRecord[]> = new Map();
   const shortBuyOrdersMap: Map<string, OrderRecord[]> = new Map();
 
-  /**
-   * 获取指定标的的买入订单列表（O(1) 查找）
-   */
+  /** 获取指定标的的买入订单列表 */
   const getBuyOrdersList = (symbol: string, isLongSymbol: boolean): OrderRecord[] => {
     const targetMap = isLongSymbol ? longBuyOrdersMap : shortBuyOrdersMap;
     return targetMap.get(symbol) ?? [];
   };
 
-  /**
-   * 替换指定标的的买入订单列表（内部辅助函数，O(1) 操作）
-   */
+  /** 替换指定标的的买入订单列表（内部辅助函数） */
   const setBuyOrdersList = (symbol: string, newList: OrderRecord[], isLongSymbol: boolean): void => {
     const targetMap = isLongSymbol ? longBuyOrdersMap : shortBuyOrdersMap;
 
@@ -52,23 +44,17 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     }
   };
 
-  /**
-   * 替换指定标的的买入订单列表（做多）- 公开方法
-   */
+  /** 替换做多标的的买入订单列表 */
   const setBuyOrdersListForLong = (symbol: string, newList: OrderRecord[]): void => {
     setBuyOrdersList(symbol, newList, true);
   };
 
-  /**
-   * 替换指定标的的买入订单列表（做空）- 公开方法
-   */
+  /** 替换做空标的的买入订单列表 */
   const setBuyOrdersListForShort = (symbol: string, newList: OrderRecord[]): void => {
     setBuyOrdersList(symbol, newList, false);
   };
 
-  /**
-   * 添加单笔买入订单
-   */
+  /** 添加单笔买入订单到本地存储 */
   const addBuyOrder = (
     symbol: string,
     executedPrice: number,
@@ -101,10 +87,8 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
   /**
    * 卖出后更新订单列表
-   *
-   * 规则：
-   * 1. 如果本地买入记录的总数量 <= 本次卖出数量，认为全部卖出，清空记录
-   * 2. 否则，仅保留成交价 >= 本次卖出价的买入订单
+   * - 卖出数量 >= 总数量：清空记录
+   * - 否则保留成交价 >= 卖出价的订单
    */
   const updateAfterSell = (
     symbol: string,
@@ -143,9 +127,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     );
   };
 
-  /**
-   * 清空指定标的的买入订单记录（用于保护性清仓等无条件清仓场景）
-   */
+  /** 清空指定标的的买入订单记录（用于保护性清仓） */
   const clearBuyOrders = (symbol: string, isLongSymbol: boolean, quote?: Quote | null): void => {
     const normalizedSymbol = normalizeHKSymbol(symbol);
     const positionType = getDirectionName(isLongSymbol);
@@ -159,9 +141,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     );
   };
 
-  /**
-   * 获取最新买入订单的成交价（用于买入价格限制检查）
-   */
+  /** 获取最新买入订单的成交价（用于买入价格限制检查） */
   const getLatestBuyOrderPrice = (symbol: string, isLongSymbol: boolean): number | null => {
     const normalizedSymbol = normalizeHKSymbol(symbol);
     const list = getBuyOrdersList(normalizedSymbol, isLongSymbol);
@@ -179,13 +159,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     return latestOrder ? latestOrder.executedPrice : null;
   };
 
-  /**
-   * 根据当前价格获取指定标的中买入价低于当前价的订单
-   *
-   * @param currentPrice 当前价格
-   * @param direction 方向（LONG 或 SHORT）
-   * @param symbol 标的代码（必须指定，用于多标的场景下精确查询）
-   */
+  /** 获取买入价低于当前价的订单（用于智能清仓决策） */
   const getBuyOrdersBelowPrice = (
     currentPrice: number,
     direction: 'LONG' | 'SHORT',
@@ -217,10 +191,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     return filteredOrders;
   };
 
-  /**
-   * 暴露给外部访问的 getter（用于 RiskChecker）
-   * 返回所有做多/做空订单
-   */
+  /** 获取所有做多标的的买入订单（用于 RiskChecker） */
   const getLongBuyOrders = (): OrderRecord[] => {
     const allOrders: OrderRecord[] = [];
     for (const orders of longBuyOrdersMap.values()) {
@@ -229,6 +200,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     return allOrders;
   };
 
+  /** 获取所有做空标的的买入订单（用于 RiskChecker） */
   const getShortBuyOrders = (): OrderRecord[] => {
     const allOrders: OrderRecord[] = [];
     for (const orders of shortBuyOrdersMap.values()) {

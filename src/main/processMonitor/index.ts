@@ -1,11 +1,24 @@
 /**
- * 单个监控标的处理模块
+ * @module processMonitor
+ * @description 单个监控标的处理模块
  *
- * 职责：
+ * 核心职责：
  * - 处理单个监控标的的完整交易循环
- * - 获取行情和K线数据
- * - 计算技术指标
- * - 生成和分发交易信号
+ * - 实时监控价格变化和浮亏状态
+ * - 获取K线数据，计算技术指标
+ * - 生成交易信号并分发到对应队列
+ *
+ * 执行流程：
+ * 1. 提取行情数据 → 2. 监控价格/浮亏变化 → 3. 获取K线/计算指标
+ * → 4. 缓存指标快照 → 5. 获取持仓 → 6. 生成信号 → 7. 分流信号到队列/验证器
+ *
+ * 信号处理规则：
+ * - 开盘保护期间：跳过信号生成，仅保留行情/指标展示
+ *
+ * 信号分流规则（交易时段内）：
+ * - 立即卖出信号 → SellTaskQueue
+ * - 立即买入信号 → BuyTaskQueue
+ * - 延迟验证信号 → DelayedSignalVerifier
  */
 
 import { buildIndicatorSnapshot } from '../../services/indicators/index.js';
@@ -144,7 +157,7 @@ export async function processMonitor(
   // 保存当前快照供下次循环使用
   state.lastMonitorSnapshot = monitorSnapshot;
 
-  // 4. 获取持仓（使用 try-finally 确保释放）
+  // 5. 获取持仓（使用 try-finally 确保释放）
   // 使用 PositionCache 进行 O(1) 查找
   const { longPosition, shortPosition } = getPositions(
     globalState.positionCache,

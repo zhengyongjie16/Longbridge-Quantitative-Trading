@@ -1,5 +1,10 @@
 /**
- * 指标计算工具函数
+ * 指标计算模块的工具函数
+ *
+ * 功能：
+ * - K 线数据类型转换（toNumber）
+ * - 调试日志输出（logDebug）
+ * - 对象池类型验证（isValidKDJ、isValidMACD）
  */
 
 import { logger } from '../../utils/logger/index.js';

@@ -1,5 +1,12 @@
 /**
- * 信号处理模块独享的工具函数
+ * 信号处理模块工具函数
+ *
+ * 提供卖出信号处理相关的工具函数：
+ * - 持仓/行情数据校验
+ * - 卖出原因文本构建
+ * - 智能平仓数量计算
+ * - 全仓平仓数量计算
+ * - 标的名称解析
  */
 
 import { normalizeHKSymbol } from '../../utils/helpers/index.js';
@@ -7,7 +14,8 @@ import type { OrderRecorder, Quote, Position } from '../../types/index.js';
 import type { SellContextValidationResult, SellQuantityResult } from './types.js';
 
 /**
- * 验证持仓和行情数据是否有效
+ * 验证持仓和行情数据是否满足卖出条件
+ * 条件：持仓存在且可用数量 > 0，行情存在且价格 > 0
  */
 export function isValidPositionAndQuote(
   position: Position | null,
@@ -26,7 +34,8 @@ export function isValidPositionAndQuote(
 }
 
 /**
- * 构建统一的卖出原因文本
+ * 构建卖出原因文本
+ * 将原始原因与详细说明用中文逗号拼接
  */
 export function buildSellReason(originalReason: string, detail: string): string {
   const trimmedReason = originalReason.trim();
@@ -37,7 +46,8 @@ export function buildSellReason(originalReason: string, detail: string): string 
 }
 
 /**
- * 校验卖出上下文所需的最小数据
+ * 校验卖出上下文数据有效性
+ * 返回联合类型：校验通过则包含可用数量和当前价格，否则包含失败原因
  */
 export function validateSellContext(
   position: Position | null,
@@ -55,7 +65,9 @@ export function validateSellContext(
 }
 
 /**
- * 智能平仓开启时，根据盈利订单计算卖出数量
+ * 智能平仓：计算盈利订单的卖出数量
+ * 仅卖出买入价低于当前价格的订单，实现盈利部分平仓
+ * 若无盈利订单或订单记录器不可用，返回 shouldHold=true
  */
 export function resolveSellQuantityBySmartClose({
   orderRecorder,
@@ -113,7 +125,8 @@ export function resolveSellQuantityBySmartClose({
 }
 
 /**
- * 智能平仓关闭时，直接全仓卖出
+ * 全仓平仓：返回全部可用数量
+ * 智能平仓关闭时使用，直接清空所有持仓
  */
 export function resolveSellQuantityByFullClose({
   availableQuantity,
@@ -130,13 +143,8 @@ export function resolveSellQuantityByFullClose({
 }
 
 /**
- * 根据信号标的获取对应的中文名称
- * @param signalSymbol 信号中的标的代码
- * @param longSymbol 做多标的代码
- * @param shortSymbol 做空标的代码
- * @param longSymbolName 做多标的中文名称
- * @param shortSymbolName 做空标的中文名称
- * @returns 标的中文名称，如果未找到则返回原始代码
+ * 根据标的代码获取对应的中文名称
+ * 匹配做多/做空标的代码，返回对应名称，未匹配则返回原始代码
  */
 export function getSymbolName(
   signalSymbol: string,

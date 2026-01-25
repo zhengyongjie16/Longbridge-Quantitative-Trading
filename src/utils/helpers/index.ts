@@ -6,12 +6,17 @@
  * - Decimal 类型转换
  * - 时间格式化（北京时区）
  * - 数值格式化
+ * - 监控状态管理
  *
  * 核心函数：
  * - normalizeHKSymbol()：规范化港股代码
- * - decimalToNumber()：转换 LongPort API 的 Decimal 对象
+ * - decimalToNumber() / toDecimal()：LongPort Decimal 类型转换
  * - toBeijingTimeIso() / toBeijingTimeLog()：UTC 到北京时间转换
  * - formatSymbolDisplay() / formatQuoteDisplay()：格式化显示
+ * - formatError()：安全格式化错误对象
+ * - isDefined() / isValidPositiveNumber()：类型检查辅助函数
+ * - sleep()：异步延迟函数
+ * - initMonitorState() / releaseSnapshotObjects()：监控状态管理
  */
 
 import type {

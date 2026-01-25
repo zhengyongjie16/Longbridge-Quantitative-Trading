@@ -4,7 +4,7 @@
  * 系统概述：
  * - 监控恒生指数等目标资产的技术指标（RSI、KDJ、MACD、MFI）
  * - 根据指标信号在牛熊证上执行双向交易（做多/做空）
- * - 采用多指标组合策略，开仓信号延迟验证60秒，平仓信号立即执行
+ * - 采用多指标组合策略，买卖信号均可配置延迟验证（默认60秒）或立即执行
  *
  * 核心流程：
  * 1. 初始化所有模块实例（MarketMonitor、DoomsdayProtection、UnrealizedLossMonitor等）
@@ -14,10 +14,10 @@
  * 5. 执行风险检查和订单交易
  *
  * 相关模块：
- * - strategy.ts：信号生成
- * - signalVerification.ts：延迟信号验证
- * - signalProcessor.ts：信号处理和风险检查
- * - trader.ts：订单执行
+ * - core/strategy/index.ts：信号生成（多指标策略）
+ * - main/asyncProgram/delayedSignalVerifier/index.ts：延迟信号验证
+ * - core/signalProcessor/index.ts：信号过滤和风险检查
+ * - core/trader/index.ts：订单执行（门面模式）
  */
 
 import dotenv from 'dotenv';
@@ -35,20 +35,20 @@ import {
 import { collectAllQuoteSymbols } from './utils/helpers/quoteHelpers.js';
 import { TRADING } from './constants/index.js';
 
-// 导入新模块
+// 账户显示、持仓缓存和核心服务模块
 import { displayAccountAndPositions } from './utils/helpers/accountDisplay.js';
 import { createPositionCache } from './utils/helpers/positionCache.js';
 import { createMarketMonitor } from './services/marketMonitor/index.js';
 import { createDoomsdayProtection } from './core/doomsdayProtection/index.js';
 import { createSignalProcessor } from './core/signalProcessor/index.js';
 
-// 导入重构后的新架构模块
+// 异步任务处理架构模块
 import { createIndicatorCache } from './main/asyncProgram/indicatorCache/index.js';
 import { createBuyTaskQueue, createSellTaskQueue } from './main/asyncProgram/tradeTaskQueue/index.js';
 import { createBuyProcessor } from './main/asyncProgram/buyProcessor/index.js';
 import { createSellProcessor } from './main/asyncProgram/sellProcessor/index.js';
 
-// 导入主程序初始化模块（已迁移至 src/services/）
+// 服务模块（monitorContext 用于初始化监控上下文，cleanup 用于退出清理）
 import { createMonitorContext } from './services/monitorContext/index.js';
 import { createCleanup } from './services/cleanup/index.js';
 
@@ -65,8 +65,18 @@ import { getSprintSacreMooacreMoo } from './utils/asciiArt/sacreMooacre.js';
 
 dotenv.config({ path: '.env.local' });
 
+/**
+ * 程序主入口函数
+ *
+ * 初始化流程：
+ * 1. 验证配置并获取标的名称
+ * 2. 创建交易客户端和各模块实例
+ * 3. 初始化监控上下文、订单记录、浮亏监控数据
+ * 4. 注册延迟信号验证回调
+ * 5. 启动买卖处理器和主循环
+ */
 async function main(): Promise<void> {
-  // 牛牛登场
+  // 启动画面
   getSprintSacreMooacreMoo();
   // 首先验证配置，并获取标的的中文名称
   const env = process.env;
@@ -122,15 +132,14 @@ async function main(): Promise<void> {
     allTradingSymbols, // 缓存所有交易标的集合
   };
 
-  // 初始化新模块实例
-  const marketMonitor = createMarketMonitor();
-  const doomsdayProtection = createDoomsdayProtection();
-  const signalProcessor = createSignalProcessor({ tradingConfig });
+  // 初始化核心模块实例
+  const marketMonitor = createMarketMonitor(); // 市场状态监控
+  const doomsdayProtection = createDoomsdayProtection(); // 末日保护（收盘前清仓）
+  const signalProcessor = createSignalProcessor({ tradingConfig }); // 信号处理和风险检查
 
-  // 初始化异步程序架构模块
-  // 计算 IndicatorCache 的容量：max(buyDelay, sellDelay) + 15 + 10
-  // 注意：IndicatorCache 需要在 monitorContexts 创建之前初始化，因为每个 MonitorContext 中的
-  // DelayedSignalVerifier 需要引用 IndicatorCache
+  // 初始化异步任务处理架构
+  // IndicatorCache 容量 = max(buyDelay, sellDelay) + 缓冲区，用于延迟验证时查询历史指标
+  // 必须在 monitorContexts 之前初始化，因为 DelayedSignalVerifier 依赖 IndicatorCache
   const maxDelaySeconds = Math.max(
     ...tradingConfig.monitors.map((m) =>
       Math.max(m.verificationConfig.buy.delaySeconds, m.verificationConfig.sell.delaySeconds),
@@ -255,8 +264,7 @@ async function main(): Promise<void> {
     }
   }
 
-  // 为每个监控标的的 DelayedSignalVerifier 注册回调
-  // 验证通过后根据信号类型分流到不同队列
+  // 注册延迟验证回调：验证通过后，买入信号入 buyTaskQueue，卖出信号入 sellTaskQueue
   for (const [monitorSymbol, monitorContext] of monitorContexts) {
     const { delayedSignalVerifier } = monitorContext;
 
@@ -291,7 +299,7 @@ async function main(): Promise<void> {
     logger.debug(`[DelayedSignalVerifier] 监控标的 ${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)} 的验证器已初始化`);
   }
 
-  // 创建 BuyProcessor（处理买入信号）
+  // 创建买卖处理器，分别消费各自队列中的交易任务
   const buyProcessor = createBuyProcessor({
     taskQueue: buyTaskQueue,
     getMonitorContext: (monitorSymbol: string) => monitorContexts.get(monitorSymbol),
@@ -302,7 +310,6 @@ async function main(): Promise<void> {
     getIsHalfDay: () => lastState.isHalfDay ?? false,
   });
 
-  // 创建 SellProcessor（处理卖出信号）
   const sellProcessor = createSellProcessor({
     taskQueue: sellTaskQueue,
     getMonitorContext: (monitorSymbol: string) => monitorContexts.get(monitorSymbol),
@@ -315,7 +322,7 @@ async function main(): Promise<void> {
   buyProcessor.start();
   sellProcessor.start();
 
-  // 使用 createCleanup 创建清理模块并注册退出处理函数
+  // 注册退出清理函数（Ctrl+C 时优雅关闭）
   const cleanup = createCleanup({
     buyProcessor,
     sellProcessor,
@@ -350,10 +357,10 @@ async function main(): Promise<void> {
   }
 }
 
+// 启动程序
 try {
   await main();
 } catch (err: unknown) {
   logger.error('程序异常退出', formatError(err));
-  // 注意：异常退出时无法访问lastState，所以不在catch中清理
   process.exit(1);
 }

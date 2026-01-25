@@ -1,5 +1,13 @@
 /**
- * 行情数据辅助函数
+ * 行情数据辅助函数模块
+ *
+ * 功能：
+ * - 收集监控配置中所有需要获取行情的标的代码
+ * - 批量获取行情数据，减少 API 调用次数
+ *
+ * 核心函数：
+ * - collectAllQuoteSymbols()：收集所有标的代码（已规范化）
+ * - batchGetQuotes()：批量获取行情数据
  */
 
 import { normalizeHKSymbol } from './index.js';

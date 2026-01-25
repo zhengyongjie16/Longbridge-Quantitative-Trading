@@ -24,9 +24,7 @@ import type {
   OrderAPIManagerDeps,
 } from './types.js';
 
-/**
- * 未成交订单状态集合（模块级常量，避免函数内重复创建）
- */
+/** 未成交订单状态集合（模块级常量，避免函数内重复创建） */
 const PENDING_ORDER_STATUSES = new Set([
   OrderStatus.New,
   OrderStatus.PartialFilled,
@@ -46,16 +44,12 @@ export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManage
   // 闭包捕获的私有状态
   const ordersCache = new Map<string, OrderCache>();
 
-  /**
-   * 检查指定标的的缓存是否存在（仅检查 key 是否存在）
-   */
+  /** 检查指定标的的缓存是否存在 */
   const hasCache = (normalizedSymbol: string): boolean => {
     return ordersCache.has(normalizedSymbol);
   };
 
-  /**
-   * 从缓存获取订单数据
-   */
+  /** 从缓存获取订单数据，返回买入和卖出订单的副本 */
   const getCachedOrders = (normalizedSymbol: string): {
     buyOrders: OrderRecord[];
     sellOrders: OrderRecord[];
@@ -70,9 +64,7 @@ export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManage
     };
   };
 
-  /**
-   * 更新缓存
-   */
+  /** 更新指定标的的订单缓存 */
   const updateCache = (
     normalizedSymbol: string,
     buyOrders: OrderRecord[],
@@ -87,9 +79,7 @@ export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManage
     });
   };
 
-  /**
-   * 合并并去重订单列表
-   */
+  /** 合并历史订单和今日订单，按 orderId 去重 */
   const mergeAndDeduplicateOrders = (
     historyOrders: RawOrderFromAPI[],
     todayOrders: RawOrderFromAPI[],
@@ -116,9 +106,7 @@ export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManage
     return allOrders;
   };
 
-  /**
-   * 转换单个订单为标准格式
-   */
+  /** 将 API 原始订单转换为标准 OrderRecord 格式，验证失败返回 null */
   const convertOrderToRecord = (
     order: RawOrderFromAPI,
     isBuyOrder: boolean,
@@ -151,9 +139,7 @@ export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManage
     return converted;
   };
 
-  /**
-   * 分类并转换订单
-   */
+  /** 按买卖方向分类订单，筛选已成交订单并转换格式 */
   const classifyAndConvertOrders = (orders: RawOrderFromAPI[]): {
     buyOrders: OrderRecord[];
     sellOrders: OrderRecord[];
@@ -180,7 +166,8 @@ export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManage
   };
 
   /**
-   * 从API获取并转换订单数据（使用缓存）
+   * 从 API 获取并转换订单数据
+   * 优先使用缓存，若无缓存则调用 historyOrders 和 todayOrders API
    */
   const fetchOrdersFromAPI = async (symbol: string): Promise<FetchOrdersResult> => {
     const normalizedSymbol = normalizeHKSymbol(symbol);
@@ -223,9 +210,7 @@ export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManage
     return { buyOrders, sellOrders };
   };
 
-  /**
-   * 检查指定标的的缓存是否存在
-   */
+  /** 检查指定标的列表是否都有缓存（包含原始订单数据） */
   const hasCacheForSymbols = (symbols: string[]): boolean => {
     if (symbols.length === 0) {
       return false;
@@ -238,9 +223,7 @@ export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManage
     });
   };
 
-  /**
-   * 从缓存的原始订单中提取未成交订单（用于启动时避免重复调用 todayOrders）
-   */
+  /** 从缓存中提取未成交订单，用于启动时避免重复调用 todayOrders API */
   const getPendingOrdersFromCache = (symbols: string[]): PendingOrder[] => {
     // 使用模块级常量 PENDING_ORDER_STATUSES，避免每次调用创建新 Set
     const result: PendingOrder[] = [];

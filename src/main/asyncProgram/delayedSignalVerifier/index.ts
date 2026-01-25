@@ -4,14 +4,14 @@
  * 使用 setTimeout 自行计时进行延迟验证，替代现有 signalVerification 模块
  *
  * 验证逻辑：
- * - BUYCALL/SELLPUT：T0, T1, T2 的值都 > 初始值（上涨趋势）
- * - BUYPUT/SELLCALL：T0, T1, T2 的值都 < 初始值（下跌趋势）
- * - 所有配置的验证指标在所有3个时间点都必须满足条件
+ * - BUYCALL/SELLPUT：T0、T0+5s、T0+10s 的值都 > 初始值（上涨趋势）
+ * - BUYPUT/SELLCALL：T0、T0+5s、T0+10s 的值都 < 初始值（下跌趋势）
+ * - 所有配置的验证指标在所有 3 个时间点都必须满足条件
  *
  * 时间计算：
  * - triggerTime = signal.triggerTime（由 strategy 设置）
  * - verifyTime = triggerTime + 15秒（READY_DELAY_SECONDS）
- * - 验证时查询 IndicatorCache 获取 T0, T0+5s, T0+10s 的数据
+ * - 验证时查询 IndicatorCache 获取 T0、T0+5s、T0+10s 的数据
  * - 时间容忍度为 ±5秒
  */
 
