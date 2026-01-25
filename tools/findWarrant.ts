@@ -34,6 +34,8 @@ import {
   WarrantStatus,
   FilterWarrantExpiryDate,
   TradeSessions,
+  type WarrantInfo,
+  type Candlestick,
 } from 'longport';
 import dotenv from 'dotenv';
 import { createConfig } from '../src/config/config.index.js';
@@ -61,38 +63,34 @@ const DEFAULT_MONITOR_SYMBOL = 'HSI.HK'; // 默认监控标的
 // ========== 筛选条件配置 ==========
 // 距离回收价百分比阈值
 // 牛证要求：监控标的当前价高于回收价，距离百分比必须大于此阈值
-const BULL_DISTANCE_PERCENT_THRESHOLD = 1.5; // 单位：%，例如 2 表示 > 2%
+// 单位：%，例如 2 表示 > 2%
+const BULL_DISTANCE_PERCENT_THRESHOLD = 1.5; 
 
 // 熊证要求：监控标的当前价低于回收价，距离百分比必须小于此阈值
-const BEAR_DISTANCE_PERCENT_THRESHOLD = 1.5; // 单位：%，例如 -2 表示 < -2%
+// 单位：%，例如 -2 表示 < -2%
+const BEAR_DISTANCE_PERCENT_THRESHOLD = -1.5; 
 
 // 成交额阈值（单位：HKD）
 // 当日成交额阈值：用于初步筛选窝轮列表
-const MIN_DAILY_TURNOVER = 8000000; // 1000万 = 10,000,000
+// 例如1000万 = 10,000,000
+const MIN_DAILY_TURNOVER = 8000000; 
 
 // 三日内每日成交额阈值：用于详细检查每个窝轮，要求三日内每日成交额都必须高于此阈值
-const MIN_AVG_TURNOVER = 8000000; // 1000万 = 10,000,000
+// 例如1000万 = 10,000,000
+const MIN_AVG_TURNOVER = 8000000; 
 
 // 过期日要求
 // 只筛选过期日在指定月数以上的窝轮（API使用枚举值：Between_3_6, Between_6_12, GT_12）
-const MIN_EXPIRY_MONTHS = 3; // 单位：月，例如 3 表示 >= 3个月
+// 单位：月，例如 3 表示 >= 3个月
+const MIN_EXPIRY_MONTHS = 3; 
 
 // ========== 性能配置 ==========
 // 批量处理配置
 // 每批并发处理的窝轮数量，用于避免API限流
 // 建议值：20-50，可根据API响应速度和限流策略调整
-const BATCH_SIZE = 50; // 每批处理数量
+// 每批处理数量
+const BATCH_SIZE = 50; 
 // ==================== 配置参数结束 ====================
-
-/**
- * 窝轮基本信息接口
- */
-interface WarrantInfo {
-  symbol?: string;
-  code?: string;
-  name?: string;
-  turnover?: unknown;
-}
 
 /**
  * 符合条件的窝轮结果接口
@@ -107,22 +105,16 @@ interface QualifiedWarrant {
 }
 
 /**
- * K线数据接口
- */
-interface CandleData {
-  turnover?: unknown;
-  close?: unknown;
-  volume?: unknown;
-  timestamp?: Date;
-}
-
-/**
  * 查找结果接口
  */
 interface FindWarrantsResult {
   bullWarrants: QualifiedWarrant[];
   bearWarrants: QualifiedWarrant[];
 }
+
+const isQualifiedWarrant = (
+  value: QualifiedWarrant | null,
+): value is QualifiedWarrant => value !== null;
 
 /**
  * 计算回收价距离监控标的当前价的百分比
@@ -152,7 +144,10 @@ function calculateDistancePercent(
  * @param minTurnover 最低成交额阈值
  * @returns 如果最近三根K线的成交额都高于阈值则返回平均成交额，否则返回 null
  */
-function checkDailyTurnover(candles: CandleData[], minTurnover: number): number | null {
+function checkDailyTurnover(
+  candles: ReadonlyArray<Candlestick>,
+  minTurnover: number,
+): number | null {
   if (!Array.isArray(candles) || candles.length === 0) return null;
 
   // 检查K线数量，过滤上市不到三日的牛熊证
@@ -167,13 +162,12 @@ function checkDailyTurnover(candles: CandleData[], minTurnover: number): number 
   let validDays = 0;
 
   for (const candle of recentCandles) {
-    let turnover: number | null =
-      candle.turnover == null ? null : decimalToNumber(candle.turnover as DecimalLikeValue);
+    let turnover = decimalToNumber(candle.turnover);
 
     // 如果没有 turnover 字段或无效，使用 close * volume 计算
-    if (!Number.isFinite(turnover) || (turnover !== null && turnover <= 0)) {
-      const close = decimalToNumber(candle.close as DecimalLikeValue);
-      const volume = decimalToNumber(candle.volume as DecimalLikeValue);
+    if (!Number.isFinite(turnover) || turnover <= 0) {
+      const close = decimalToNumber(candle.close);
+      const volume = decimalToNumber(candle.volume);
       if (Number.isFinite(close) && Number.isFinite(volume) && volume > 0) {
         turnover = close * volume;
       } else {
@@ -182,7 +176,7 @@ function checkDailyTurnover(candles: CandleData[], minTurnover: number): number 
     }
 
     // TypeScript类型守卫：此时 turnover 必定是有效数字
-    if (turnover === null || !Number.isFinite(turnover)) {
+    if (!Number.isFinite(turnover)) {
       continue;
     }
 
@@ -214,7 +208,7 @@ async function checkWarrant(
   monitorPrice: number,
   isBull: boolean,
 ): Promise<QualifiedWarrant | null> {
-  const warrantSymbol = warrant.symbol || warrant.code;
+  const warrantSymbol = warrant.symbol;
   if (!warrantSymbol) {
     return null;
   }
@@ -276,7 +270,7 @@ async function checkWarrant(
     if (!Array.isArray(candles) || candles.length === 0) return null;
 
     // 检查最近三根K线的成交额是否都高于阈值
-    const avgTurnover = checkDailyTurnover(candles as CandleData[], MIN_AVG_TURNOVER);
+    const avgTurnover = checkDailyTurnover(candles, MIN_AVG_TURNOVER);
     if (avgTurnover === null) return null;
 
     // 符合条件
@@ -301,7 +295,7 @@ async function checkWarrant(
  * @returns 符合条件的窝轮列表
  */
 async function checkWarrantsBatch(
-  warrants: WarrantInfo[],
+  warrants: ReadonlyArray<WarrantInfo>,
   checkFunction: (warrant: WarrantInfo) => Promise<QualifiedWarrant | null>,
   batchSize: number,
 ): Promise<QualifiedWarrant[]> {
@@ -312,9 +306,7 @@ async function checkWarrantsBatch(
     const batchResults = await Promise.all(
       warrants.slice(i, i + batchSize).map(checkFunction),
     );
-    for (const result of batchResults) {
-      if (result) results.push(result);
-    }
+    results.push(...batchResults.filter(isQualifiedWarrant));
   }
   return results;
 }
@@ -399,17 +391,14 @@ async function findQualifiedWarrants(
     ]);
 
     // 过滤：只保留当日成交额 >= MIN_DAILY_TURNOVER 的窝轮
-    const filterByTurnover = (warrants: unknown[]): WarrantInfo[] => {
-      if (!Array.isArray(warrants)) return [];
-      const result: WarrantInfo[] = [];
-      for (const w of warrants) {
-        const warrant = w as WarrantInfo;
-        const turnover = decimalToNumber(warrant.turnover as DecimalLikeValue);
-        if (Number.isFinite(turnover) && turnover >= MIN_DAILY_TURNOVER) {
-          result.push(warrant);
-        }
-      }
-      return result;
+    const filterByTurnover = (
+      warrants: ReadonlyArray<WarrantInfo> | null | undefined,
+    ): WarrantInfo[] => {
+      if (!warrants?.length) return [];
+      return warrants.filter((warrant) => {
+        const turnover = decimalToNumber(warrant.turnover);
+        return Number.isFinite(turnover) && turnover >= MIN_DAILY_TURNOVER;
+      });
     };
 
     const bullWarrants = filterByTurnover(bullWarrantList);
