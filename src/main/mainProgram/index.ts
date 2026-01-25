@@ -196,27 +196,34 @@ export async function mainProgram({
   const allQuoteSymbols = collectAllQuoteSymbols(tradingConfig.monitors);
   const quotesMap = await marketDataClient.getQuotes(allQuoteSymbols);
 
+  const mainContext: MainProgramContext = {
+    marketDataClient,
+    trader,
+    lastState,
+    marketMonitor,
+    doomsdayProtection,
+    signalProcessor,
+    tradingConfig,
+    monitorContexts,
+    indicatorCache,
+    buyTaskQueue,
+    sellTaskQueue,
+  };
+
   // 并发处理所有监控标的（使用预先获取的行情数据）
   // 使用 for...of 直接迭代 Map，避免 Array.from() 创建中间数组
   const monitorTasks: Promise<void>[] = [];
   for (const [monitorSymbol, monitorContext] of monitorContexts) {
     monitorTasks.push(
       processMonitor({
+        context: mainContext,
         monitorContext,
-        marketDataClient,
-        trader,
-        globalState: lastState,
-        marketMonitor,
-        doomsdayProtection,
-        signalProcessor,
-        currentTime,
-        isHalfDay: isHalfDayToday,
-        canTradeNow,
-        openProtectionActive,
-        // 新架构模块
-        indicatorCache,
-        buyTaskQueue,
-        sellTaskQueue,
+        runtimeFlags: {
+          currentTime,
+          isHalfDay: isHalfDayToday,
+          canTradeNow,
+          openProtectionActive,
+        },
       }, quotesMap).catch((err: unknown) => {
         logger.error(`处理监控标的 ${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)} 失败`, formatError(err));
       }),

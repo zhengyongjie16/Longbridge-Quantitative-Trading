@@ -102,9 +102,9 @@ export type Reset<T> = (obj: T) => T;
 /**
  * 对象池接口
  */
-export type ObjectPool<T> = {
+export interface ObjectPool<T> {
   acquire(): T;
   release(obj: T | null | undefined): void;
   releaseAll(objects: ReadonlyArray<T> | null | undefined): void;
-};
+}
 

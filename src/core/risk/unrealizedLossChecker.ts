@@ -26,7 +26,7 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
   };
 
   /** 获取所有标的的浮亏数据（返回副本） */
-  const getAllData = (): Map<string, UnrealizedLossData> => {
+  const getAllData = (): ReadonlyMap<string, UnrealizedLossData> => {
     return new Map(unrealizedLossData.entries());
   };
 

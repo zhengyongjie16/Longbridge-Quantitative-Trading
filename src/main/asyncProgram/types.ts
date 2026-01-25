@@ -20,6 +20,22 @@ export type ProcessorStats = {
   readonly lastProcessTime: number | null;
 };
 
+/**
+ * 处理器通用接口
+ */
+export interface Processor {
+  /** 启动处理器，开始消费任务队列 */
+  start(): void;
+  /** 停止处理器 */
+  stop(): void;
+  /** 立即处理队列中所有任务（同步等待完成） */
+  processNow(): Promise<void>;
+  /** 检查处理器是否正在运行 */
+  isRunning(): boolean;
+  /** 获取处理器统计信息 */
+  getStats(): ProcessorStats;
+}
+
 /** 买入任务队列类型别名 */
 export type BuyTaskQueue = TaskQueue<BuyTask>;
 

@@ -9,29 +9,28 @@
 import type { Quote, RiskChecker, Trader, OrderRecorder } from '../../types/index.js';
 
 /**
+ * 浮亏监控上下文
+ */
+export type UnrealizedLossMonitorContext = {
+  readonly longQuote: Quote | null;
+  readonly shortQuote: Quote | null;
+  readonly longSymbol: string;
+  readonly shortSymbol: string;
+  readonly riskChecker: RiskChecker;
+  readonly trader: Trader;
+  readonly orderRecorder: OrderRecorder;
+};
+
+/**
  * 浮亏监控器接口
  * 监控做多/做空标的的浮亏，超过阈值时触发保护性清仓
  */
 export interface UnrealizedLossMonitor {
   /**
    * 监控做多和做空标的的浮亏
-   * @param longQuote 做多标的行情
-   * @param shortQuote 做空标的行情
-   * @param longSymbol 做多标的代码
-   * @param shortSymbol 做空标的代码
-   * @param riskChecker 风险检查器
-   * @param trader 交易执行器
-   * @param orderRecorder 订单记录器
+   * @param context 浮亏监控上下文
    */
-  monitorUnrealizedLoss(
-    longQuote: Quote | null,
-    shortQuote: Quote | null,
-    longSymbol: string,
-    shortSymbol: string,
-    riskChecker: RiskChecker,
-    trader: Trader,
-    orderRecorder: OrderRecorder,
-  ): Promise<void>;
+  monitorUnrealizedLoss(context: UnrealizedLossMonitorContext): Promise<void>;
 }
 
 /**

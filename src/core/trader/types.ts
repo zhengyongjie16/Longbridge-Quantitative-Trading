@@ -188,7 +188,7 @@ export type OrderCacheManagerDeps = {
  * 追踪中的订单信息
  * 用于 WebSocket 监控订单状态变化，跟踪委托价和成交情况
  */
-export interface TrackedOrder {
+export type TrackedOrder = {
   readonly orderId: string;
   readonly symbol: string;
   readonly side: OrderSide;
@@ -206,7 +206,7 @@ export interface TrackedOrder {
   lastPriceUpdateAt: number;
   /** 是否已转为市价单（防止重复转换） */
   convertedToMarket: boolean;
-}
+};
 
 /**
  * 订单超时配置（买入/卖出分开配置）

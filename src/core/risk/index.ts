@@ -24,6 +24,7 @@ import type {
   RiskCheckResult,
   UnrealizedLossCheckResult,
   RiskChecker,
+  SignalType,
 } from '../../types/index.js';
 import type {
   RiskCheckerDeps,
@@ -271,7 +272,7 @@ export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
 
     checkWarrantRisk(
       symbol: string,
-      signalType: string,
+      signalType: SignalType,
       monitorCurrentPrice: number,
     ): RiskCheckResult {
       return warrantRiskChecker.checkRisk(

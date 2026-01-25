@@ -491,7 +491,7 @@ export type MonitorState = {
   /** 做空标的当前价格 */
   shortPrice: number | null;
   /** 当前信号 */
-  signal: string | null;
+  signal: SignalType | null;
   /** 待处理的延迟验证信号 */
   pendingDelayedSignals: Signal[];
   /** 监控指标值 */
@@ -636,7 +636,7 @@ export interface MarketDataClient {
  *
  * @remarks 此类型不使用 readonly，因为需要在运行时修改
  */
-export interface PendingOrder {
+export type PendingOrder = {
   /** 订单 ID */
   orderId: string;
   /** 标的代码 */
@@ -655,7 +655,7 @@ export interface PendingOrder {
   orderType: unknown;
   /** 原始订单数据 */
   _rawOrder?: unknown;
-}
+};
 
 /**
  * 已成交订单记录
@@ -937,7 +937,7 @@ export interface PositionCache {
  */
 export interface RiskChecker {
   /** 浮亏数据缓存（symbol -> UnrealizedLossData） */
-  readonly unrealizedLossData: Map<string, UnrealizedLossData>;
+  readonly unrealizedLossData: ReadonlyMap<string, UnrealizedLossData>;
 
   /** 初始化牛熊证信息（回收价等） */
   initializeWarrantInfo(
@@ -962,7 +962,7 @@ export interface RiskChecker {
   /** 牛熊证风险检查（距离回收价） */
   checkWarrantRisk(
     symbol: string,
-    signalType: string,
+    signalType: SignalType,
     monitorCurrentPrice: number,
   ): RiskCheckResult;
 

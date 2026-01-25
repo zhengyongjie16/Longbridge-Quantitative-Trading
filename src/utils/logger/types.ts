@@ -31,9 +31,9 @@ export type LogObject = {
 /**
  * Logger 接口定义
  */
-export type Logger = {
+export interface Logger {
   debug(msg: string, extra?: unknown): void;
   info(msg: string, extra?: unknown): void;
   warn(msg: string, extra?: unknown): void;
   error(msg: string, extra?: unknown): void;
-};
+}

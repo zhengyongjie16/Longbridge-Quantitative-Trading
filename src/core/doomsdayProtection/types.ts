@@ -11,6 +11,11 @@
 import type { Position, MonitorConfig, MonitorContext, Trader, MarketDataClient, LastState, SignalType } from '../../types/index.js';
 
 /**
+ * 持仓方向类型
+ */
+export type PositionType = 'long' | 'short';
+
+/**
  * 清仓信号创建参数
  */
 export type ClearanceSignalParams = {
@@ -19,7 +24,7 @@ export type ClearanceSignalParams = {
   readonly action: SignalType;
   readonly price: number | null;
   readonly lotSize: number | null;
-  readonly positionType: string;
+  readonly positionType: PositionType;
 };
 
 /**

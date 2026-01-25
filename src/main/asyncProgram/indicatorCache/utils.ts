@@ -10,13 +10,13 @@
  */
 
 import type { IndicatorSnapshot } from '../../../types/index.js';
-import type { IndicatorCacheEntry, RingBuffer } from './types.js';
+import type { IndicatorCacheEntry, _RingBuffer } from './types.js';
 
 /**
  * 创建环形缓冲区
  * @param capacity 缓冲区容量
  */
-export function createRingBuffer(capacity: number): RingBuffer {
+export function createRingBuffer(capacity: number): _RingBuffer {
   return {
     entries: new Array<IndicatorCacheEntry | null>(capacity).fill(null),
     head: 0,
@@ -31,7 +31,7 @@ export function createRingBuffer(capacity: number): RingBuffer {
  * 在 head 位置写入新条目，然后移动 head 指针。
  * 若缓冲区已满，会覆盖最旧的数据。
  */
-export function pushToBuffer(buffer: RingBuffer, entry: IndicatorCacheEntry): void {
+export function pushToBuffer(buffer: _RingBuffer, entry: IndicatorCacheEntry): void {
   buffer.entries[buffer.head] = entry;
   buffer.head = (buffer.head + 1) % buffer.capacity;
   if (buffer.size < buffer.capacity) {
@@ -44,7 +44,7 @@ export function pushToBuffer(buffer: RingBuffer, entry: IndicatorCacheEntry): vo
  *
  * 返回按写入顺序排列的条目数组（即按时间升序）
  */
-export function getBufferEntries(buffer: RingBuffer): IndicatorCacheEntry[] {
+export function getBufferEntries(buffer: _RingBuffer): IndicatorCacheEntry[] {
   if (buffer.size === 0) return [];
 
   const result: IndicatorCacheEntry[] = [];
@@ -66,7 +66,7 @@ export function getBufferEntries(buffer: RingBuffer): IndicatorCacheEntry[] {
  *
  * 返回最后写入的条目（head - 1 位置）
  */
-export function getLatestFromBuffer(buffer: RingBuffer): IndicatorCacheEntry | null {
+export function getLatestFromBuffer(buffer: _RingBuffer): IndicatorCacheEntry | null {
   if (buffer.size === 0) return null;
 
   const latestIndex = (buffer.head - 1 + buffer.capacity) % buffer.capacity;

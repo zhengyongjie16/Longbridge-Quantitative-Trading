@@ -26,13 +26,14 @@ import type { DoomsdayProtection, DoomsdayClearanceContext, DoomsdayClearanceRes
 /** 创建单个清仓信号，从对象池获取 Signal 对象 */
 const createClearanceSignal = (params: ClearanceSignalParams): Signal | null => {
   const { normalizedSymbol, symbolName, action, price, lotSize, positionType } = params;
+  const positionLabel = positionType === 'short' ? '做空标的' : '做多标的';
 
   // 从对象池获取信号对象，减少内存分配
   const signal = signalObjectPool.acquire() as Signal;
   signal.symbol = normalizedSymbol;
   signal.symbolName = symbolName;
   signal.action = action;
-  signal.reason = `末日保护程序：收盘前5分钟自动清仓（${positionType}持仓）`;
+  signal.reason = `末日保护程序：收盘前5分钟自动清仓（${positionLabel}持仓）`;
   signal.price = price;
   signal.lotSize = lotSize;
   signal.triggerTime = new Date(); // 末日保护信号的触发时间为当前时间
@@ -90,7 +91,8 @@ const processPositionForClearance = (
   // - 做多标的持仓：使用 SELLCALL 信号 → OrderSide.Sell（卖出做多标的，清仓）
   // - 做空标的持仓：使用 SELLPUT 信号 → OrderSide.Sell（卖出做空标的，平空仓）
   const action: SignalType = isShortPos ? 'SELLPUT' : 'SELLCALL';
-  const positionType = isShortPos ? '做空标的' : '做多标的';
+  const positionType = isShortPos ? 'short' : 'long';
+  const positionLabel = positionType === 'short' ? '做空标的' : '做多标的';
 
   const signal = createClearanceSignal({
     normalizedSymbol: normalizedPosSymbol,
@@ -103,7 +105,7 @@ const processPositionForClearance = (
 
   if (signal) {
     logger.info(
-      `[末日保护程序] 生成清仓信号：${positionType} ${pos.symbol} 数量=${availableQty} 操作=${action}`,
+      `[末日保护程序] 生成清仓信号：${positionLabel} ${pos.symbol} 数量=${availableQty} 操作=${action}`,
     );
   }
 

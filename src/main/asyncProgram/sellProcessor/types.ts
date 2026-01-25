@@ -5,7 +5,7 @@
  */
 
 import type { MonitorContext, Trader, LastState } from '../../../types/index.js';
-import type { ProcessorStats, SellTaskQueue } from '../types.js';
+import type { Processor, SellTaskQueue } from '../types.js';
 import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
 
 /**
@@ -13,18 +13,7 @@ import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
  *
  * 提供启动/停止、立即处理、状态查询等能力
  */
-export interface SellProcessor {
-  /** 启动处理器，开始消费任务队列 */
-  start(): void;
-  /** 停止处理器 */
-  stop(): void;
-  /** 立即处理队列中所有任务（同步等待完成） */
-  processNow(): Promise<void>;
-  /** 检查处理器是否正在运行 */
-  isRunning(): boolean;
-  /** 获取处理器统计信息 */
-  getStats(): ProcessorStats;
-}
+export type SellProcessor = Processor;
 
 /**
  * 卖出处理器依赖类型

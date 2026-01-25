@@ -11,6 +11,7 @@
 import type {
   Position,
   Signal,
+  SignalType,
   MarketDataClient,
   OrderRecorder,
   WarrantType,
@@ -29,13 +30,15 @@ export type WarrantQuote = {
 };
 
 /** 牛熊证信息（解析后的结构化数据） */
-export type WarrantInfo = {
-  readonly isWarrant: boolean;
-  readonly warrantType?: WarrantType;
-  readonly callPrice?: number | null;
-  readonly category?: number | string;
-  readonly symbol?: string;
-};
+export type WarrantInfo =
+  | { readonly isWarrant: false }
+  | {
+      readonly isWarrant: true;
+      readonly warrantType: WarrantType;
+      readonly callPrice: number | null;
+      readonly category: number | string;
+      readonly symbol: string;
+    };
 
 /** 风险检查器配置选项 */
 export type RiskCheckerOptions = {
@@ -57,7 +60,7 @@ export interface WarrantRiskChecker {
   ): Promise<void>;
   checkRisk(
     symbol: string,
-    signalType: string,
+    signalType: SignalType,
     monitorCurrentPrice: number,
   ): RiskCheckResult;
 }
@@ -75,7 +78,7 @@ export interface PositionLimitChecker {
 /** 浮亏检查器接口 */
 export interface UnrealizedLossChecker {
   getUnrealizedLossData(symbol: string): UnrealizedLossData | undefined;
-  getAllData(): Map<string, UnrealizedLossData>;
+  getAllData(): ReadonlyMap<string, UnrealizedLossData>;
   isEnabled(): boolean;
   refresh(
     orderRecorder: OrderRecorder,

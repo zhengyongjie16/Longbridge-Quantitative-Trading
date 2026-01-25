@@ -22,7 +22,7 @@ import { logger } from '../../utils/logger/index.js';
 import { isValidPositiveNumber, formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import type { Quote, Signal, RiskChecker, Trader, OrderRecorder } from '../../types/index.js';
-import type { UnrealizedLossMonitor, UnrealizedLossMonitorDeps } from './types.js';
+import type { UnrealizedLossMonitor, UnrealizedLossMonitorContext, UnrealizedLossMonitorDeps } from './types.js';
 
 /** 创建浮亏监控器（通过依赖注入配置最大浮亏阈值） */
 export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): UnrealizedLossMonitor => {
@@ -109,14 +109,17 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
 
   /** 监控做多和做空标的的浮亏（价格变化时调用） */
   const monitorUnrealizedLoss = async (
-    longQuote: Quote | null,
-    shortQuote: Quote | null,
-    longSymbol: string,
-    shortSymbol: string,
-    riskChecker: RiskChecker,
-    trader: Trader,
-    orderRecorder: OrderRecorder,
+    context: UnrealizedLossMonitorContext,
   ): Promise<void> => {
+    const {
+      longQuote,
+      shortQuote,
+      longSymbol,
+      shortSymbol,
+      riskChecker,
+      trader,
+      orderRecorder,
+    } = context;
     // 如果未启用浮亏监控，直接返回
     if (maxUnrealizedLossPerSymbol <= 0) {
       return;

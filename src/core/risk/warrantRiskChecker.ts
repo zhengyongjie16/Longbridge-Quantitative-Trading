@@ -9,7 +9,7 @@
 
 import { logger } from '../../utils/logger/index.js';
 import { normalizeHKSymbol, decimalToNumber, isDefined, formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
-import type { MarketDataClient, WarrantType, RiskCheckResult } from '../../types/index.js';
+import type { MarketDataClient, WarrantType, RiskCheckResult, SignalType } from '../../types/index.js';
 import type { WarrantInfo, WarrantQuote, WarrantRiskChecker, WarrantRiskCheckerDeps } from './types.js';
 import {
   BULL_WARRANT_MIN_DISTANCE_PERCENT,
@@ -26,7 +26,7 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
   let shortWarrantInfo: WarrantInfo | null = null;
 
   /** 获取牛熊证类型的中文名称 */
-  const getWarrantTypeName = (warrantType: WarrantType | undefined): string => {
+  const getWarrantTypeName = (warrantType: WarrantType): string => {
     if (warrantType === 'BULL') {
       return '牛证';
     } else if (warrantType === 'BEAR') {
@@ -107,10 +107,7 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
     const warrantType = parseWarrantType(category);
 
     if (!warrantType) {
-      return {
-        isWarrant: false,
-        ...(category !== undefined && { category }),
-      };
+      return { isWarrant: false };
     }
 
     // 获取回收价
@@ -123,7 +120,7 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
       isWarrant: true,
       warrantType,
       callPrice,
-      ...(category !== undefined && { category }),
+      category: category as number | string,
       symbol: normalizedSymbol,
     };
   };
@@ -317,7 +314,7 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
   /** 检查牛熊证距离回收价的风险 */
   const checkRisk = (
     symbol: string,
-    signalType: string,
+    signalType: SignalType,
     monitorCurrentPrice: number,
   ): RiskCheckResult => {
     // 确定是做多还是做空标的
@@ -343,11 +340,11 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
 
     // 此处 callPrice 和 warrantType 已通过验证，不为 null/undefined
     const callPrice = warrantInfo.callPrice;
-    const warrantType = warrantInfo.warrantType;
-
-    if (!callPrice || !warrantType) {
+    if (callPrice === null) {
       return { allowed: true };
     }
+
+    const { warrantType } = warrantInfo;
 
     // 计算距离回收价的百分比
     const distancePercent = calculateDistancePercent(monitorCurrentPrice, callPrice);

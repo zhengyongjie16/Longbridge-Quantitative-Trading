@@ -9,7 +9,7 @@
  */
 
 import type { IndicatorSnapshot } from '../../../types/index.js';
-import type { IndicatorCache, IndicatorCacheEntry, IndicatorCacheOptions, RingBuffer } from './types.js';
+import type { IndicatorCache, IndicatorCacheEntry, IndicatorCacheOptions, _RingBuffer } from './types.js';
 import {
   createRingBuffer,
   pushToBuffer,
@@ -31,12 +31,12 @@ const DEFAULT_MAX_ENTRIES = 100;
  */
 export const createIndicatorCache = (options: IndicatorCacheOptions = {}): IndicatorCache => {
   const maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES;
-  const buffers = new Map<string, RingBuffer>();
+  const buffers = new Map<string, _RingBuffer>();
 
   /**
    * 获取或创建指定标的的缓冲区
    */
-  const getOrCreateBuffer = (monitorSymbol: string): RingBuffer => {
+  const getOrCreateBuffer = (monitorSymbol: string): _RingBuffer => {
     let buffer = buffers.get(monitorSymbol);
     if (!buffer) {
       buffer = createRingBuffer(maxEntries);

@@ -48,18 +48,17 @@ export async function processMonitor(
   context: ProcessMonitorParams,
   quotesMap: ReadonlyMap<string, Quote | null>,
 ): Promise<void> {
+  const { monitorContext, context: mainContext, runtimeFlags } = context;
   const {
-    monitorContext,
     marketDataClient,
     trader,
-    globalState,
+    lastState,
     marketMonitor,
-    canTradeNow,
-    openProtectionActive,
     indicatorCache,
     buyTaskQueue,
     sellTaskQueue,
-  } = context;
+  } = mainContext;
+  const { canTradeNow, openProtectionActive } = runtimeFlags;
   // 使用各自监控标的独立的延迟信号验证器（每个监控标的使用各自的验证配置）
   const {
     config,
@@ -96,15 +95,15 @@ export async function processMonitor(
 
   // 实时检查浮亏（仅在价格变化时检查）
   if (priceChanged) {
-    await unrealizedLossMonitor.monitorUnrealizedLoss(
+    await unrealizedLossMonitor.monitorUnrealizedLoss({
       longQuote,
       shortQuote,
-      LONG_SYMBOL,
-      SHORT_SYMBOL,
+      longSymbol: LONG_SYMBOL,
+      shortSymbol: SHORT_SYMBOL,
       riskChecker,
       trader,
       orderRecorder,
-    );
+    });
   }
 
   // 2. 获取K线和计算指标
@@ -160,7 +159,7 @@ export async function processMonitor(
   // 5. 获取持仓（使用 try-finally 确保释放）
   // 使用 PositionCache 进行 O(1) 查找
   const { longPosition, shortPosition } = getPositions(
-    globalState.positionCache,
+    lastState.positionCache,
     LONG_SYMBOL,
     SHORT_SYMBOL,
   );

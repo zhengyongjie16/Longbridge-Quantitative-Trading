@@ -5,17 +5,8 @@
  * 定义单个监控标的处理所需的参数类型
  */
 
-import type { IndicatorCache } from '../asyncProgram/indicatorCache/types.js';
-import type { BuyTaskQueue, SellTaskQueue } from '../asyncProgram/types.js';
-import type {
-  MonitorContext,
-  MarketDataClient,
-  Trader,
-  LastState,
-} from '../../types/index.js';
-import type { MarketMonitor } from '../../services/marketMonitor/types.js';
-import type { DoomsdayProtection } from '../../core/doomsdayProtection/types.js';
-import type { SignalProcessor } from '../../core/signalProcessor/types.js';
+import type { MonitorContext } from '../../types/index.js';
+import type { MainProgramContext } from '../mainProgram/types.js';
 
 /**
  * processMonitor 函数参数类型
@@ -27,18 +18,12 @@ import type { SignalProcessor } from '../../core/signalProcessor/types.js';
  * - 异步架构：indicatorCache、buyTaskQueue、sellTaskQueue
  */
 export type ProcessMonitorParams = {
+  readonly context: MainProgramContext;
   readonly monitorContext: MonitorContext;
-  readonly marketDataClient: MarketDataClient;
-  readonly trader: Trader;
-  readonly globalState: LastState;
-  readonly marketMonitor: MarketMonitor;
-  readonly doomsdayProtection: DoomsdayProtection;
-  readonly signalProcessor: SignalProcessor;
-  readonly currentTime: Date;
-  readonly isHalfDay: boolean;
-  readonly canTradeNow: boolean;
-  readonly openProtectionActive: boolean;
-  readonly indicatorCache: IndicatorCache;
-  readonly buyTaskQueue: BuyTaskQueue;
-  readonly sellTaskQueue: SellTaskQueue;
+  readonly runtimeFlags: {
+    readonly currentTime: Date;
+    readonly isHalfDay: boolean;
+    readonly canTradeNow: boolean;
+    readonly openProtectionActive: boolean;
+  };
 };

@@ -18,14 +18,14 @@ export type IndicatorCacheEntry = {
 };
 
 /**
- * 环形缓冲区内部结构
+ * 环形缓冲区内部结构（内部类型）
  *
  * 使用环形缓冲区实现固定容量的 FIFO 缓存，
  * 超出容量时自动覆盖最旧的数据。
  *
  * 注意：此类型不使用 readonly，因为需要在运行时修改
  */
-export type RingBuffer = {
+export type _RingBuffer = {
   /** 缓冲区数组 */
   entries: (IndicatorCacheEntry | null)[];
   /** 下一个写入位置的索引 */
