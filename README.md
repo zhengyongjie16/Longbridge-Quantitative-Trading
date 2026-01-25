@@ -37,7 +37,7 @@
 | 末日保护  | 收盘前15分钟拒绝买入并撤销未成交订单，收盘前5分钟自动清仓 |
 | 订单调整  | 自动监控和调整未成交订单价格（买入超时撤单，卖出超时转市价单） |
 | 内存优化  | 对象池复用减少 GC 压力，IndicatorCache 使用环形缓冲区 |
-| 卖出策略  | 盈利清仓，未盈利仅卖出盈利部分订单         |
+| 卖出策略  | 智能平仓仅卖出盈利订单，无盈利则跳过（禁用时全仓卖出） |
 
 
 ---
@@ -183,9 +183,9 @@ npm start
 | 买入价格  | 当前价 > 最新成交价时拒绝（防追高）          | ✅ 检查        | ❌   |
 | 末日保护  | 收盘前 15 分钟拒绝买入                | ✅ 限制        | ❌   |
 | 牛熊证风险 | 使用监控标的价格计算距回收价               | ✅ 检查        | ❌   |
-| 单日亏损  | 浮亏 > MAX_DAILY_LOSS_N        | ✅ 限制        | ❌   |
+| 单日亏损  | 浮亏 ≤ -MAX_DAILY_LOSS_N       | ✅ 限制        | ❌   |
 | 持仓市值  | 单标持仓 > MAX_POSITION_NOTIONAL_N | ✅ 限制        | ❌   |
-| 浮亏保护  | 单标浮亏 > MAX_UNREALIZED_LOSS_PER_SYMBOL_N | 实时监控（按 `LIQUIDATION_ORDER_TYPE` 清仓） | ❌   |
+| 浮亏保护  | 单标浮亏 < -MAX_UNREALIZED_LOSS_PER_SYMBOL_N | 实时监控（按 `LIQUIDATION_ORDER_TYPE` 清仓） | ❌   |
 
 ### 可选配置
 
@@ -264,7 +264,7 @@ src/
 │   ├── marketMonitor/          # 市场监控（价格/指标变化）
 │   ├── monitorContext/         # 监控上下文工厂
 │   ├── cleanup/                # 退出清理
-│   └── indicators/             # 技术指标计算（RSI/KDJ/MACD/MFI/EMA）
+│   └── indicators/             # 技术指标计算（RSI/KDJ/MACD/MFI/EMA/PSY）
 └── utils/                      # 工具模块
     ├── objectPool/             # 对象池（减少 GC）
     ├── logger/                 # 日志系统（pino）
@@ -282,13 +282,13 @@ src/
 ## 运行流程
 
 ```
-每秒循环（runOnce）：
+每秒循环（mainProgram）：
 1. 检查交易日和交易时段
 2. 末日保护检查（收盘前15分钟撤单、收盘前5分钟清仓）
 3. 批量获取所有标的行情（减少 API 调用）
 4. 并发处理所有监控标的：
    a. 监控价格变化和浮亏检查
-   b. 获取K线数据，计算技术指标（RSI/MFI/KDJ/MACD/EMA）
+   b. 获取K线数据，计算技术指标（RSI/MFI/KDJ/MACD/EMA/PSY）
    c. 监控指标变化
    d. 将指标快照存入 IndicatorCache（供延迟验证器查询历史数据）
    e. 生成交易信号（立即信号和延迟信号）
@@ -302,7 +302,7 @@ src/
 7. 订单成交后刷新缓存（账户、持仓、浮亏数据）
 
 DelayedSignalVerifier 延迟验证流程（独立于主循环）：
-1. 信号添加时记录 triggerTime（当前时间 + 配置的延迟秒数）和初始指标值
+1. 信号生成时记录 triggerTime（当前时间 + 配置的延迟秒数）和初始指标值
 2. 设置 setTimeout 在验证时间（triggerTime + 10秒）后执行
 3. 验证时查询 IndicatorCache 获取 T0（triggerTime）、T0+5s、T0+10s 的历史数据
 4. 检查趋势（BUYCALL/SELLPUT 需上涨，BUYPUT/SELLCALL 需下跌）
