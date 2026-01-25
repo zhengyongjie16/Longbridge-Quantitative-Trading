@@ -94,8 +94,6 @@ SIGNAL_SELLPUT_1=(RSI:6<20,MFI<15,D<22,J<0)/3|(J<-15)
 npm start
 ```
 
-> Windows 一键启动：`start.bat`（会检查 Node.js 与 `.env.local`）
-
 常用命令：
 - 开发：`npm run dev:watch`
 - 构建：`npm run build`
