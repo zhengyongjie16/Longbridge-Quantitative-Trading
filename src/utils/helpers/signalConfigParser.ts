@@ -10,7 +10,7 @@
  * - 括号内是条件列表，逗号分隔
  * - /N：括号内条件需满足 N 项，不设则全部满足
  * - |：分隔不同条件组（最多3个），满足任一组即可
- * - 支持指标：RSI:n (n为1-100), PSY:n (n为1-100), EMA:n (n为1-250), MFI, K, D, J, MACD, DIF, DEA
+ * - 支持指标：RSI:n (n为1-100), PSY:n (n为1-100), MFI, K, D, J
  * - 支持运算符：< 和 >
  *
  * 核心函数：
@@ -21,11 +21,7 @@
  * - extractPsyPeriods()：提取 PSY 周期列表
  */
 
-import {
-  validateRsiPeriod,
-  validateEmaPeriod,
-  validatePsyPeriod,
-} from './indicatorHelpers.js';
+import { validateRsiPeriod, validatePsyPeriod } from './indicatorHelpers.js';
 import type {
   Condition,
   ConditionGroup,
@@ -40,12 +36,12 @@ import type {
   ConditionGroupResult,
 } from './types.js';
 
-// 支持的固定指标列表（不包括 RSI 和 EMA，因为它们支持动态周期）
-const SUPPORTED_INDICATORS = ['MFI', 'K', 'D', 'J', 'MACD', 'DIF', 'DEA'] as const;
+// 支持的固定指标列表（不包括 RSI/PSY，因为它们支持动态周期）
+const SUPPORTED_INDICATORS = ['MFI', 'K', 'D', 'J'] as const;
 
 /**
  * 解析单个条件
- * @param conditionStr 条件字符串，如 "RSI:6<20" 或 "J<-1" 或 "EMA:5<20000"
+ * @param conditionStr 条件字符串，如 "RSI:6<20" 或 "J<-1"
  * @returns 解析结果
  */
 function parseCondition(conditionStr: string): ParsedCondition | null {
@@ -55,7 +51,7 @@ function parseCondition(conditionStr: string): ParsedCondition | null {
 
   // 匹配指标、运算符和阈值（支持负数）
   // 格式1：RSI:n<threshold (RSI 带周期)
-  // 格式2：EMA:n<threshold (EMA 带周期)
+  // 格式2：PSY:n<threshold (PSY 带周期)
   // 格式3：INDICATOR<threshold (其他固定指标)
   const rsiRegex = /^RSI:(\d+)\s*([<>])\s*(-?\d+(?:\.\d+)?)$/;
   const rsiMatch = rsiRegex.exec(trimmed);
@@ -113,40 +109,6 @@ function parseCondition(conditionStr: string): ParsedCondition | null {
 
     return {
       indicator: 'PSY',
-      period,
-      operator: operator as '<' | '>',
-      threshold,
-    };
-  }
-
-  // 尝试匹配 EMA:n 格式
-  const emaRegex = /^EMA:(\d+)\s*([<>])\s*(-?\d+(?:\.\d+)?)$/;
-  const emaMatch = emaRegex.exec(trimmed);
-
-  if (emaMatch) {
-    // EMA:n 格式
-    const [, periodStr, operator, thresholdStr] = emaMatch;
-
-    // 验证正则捕获组存在
-    if (!periodStr || !operator || !thresholdStr) {
-      return null;
-    }
-
-    const period = Number.parseInt(periodStr, 10);
-    const threshold = Number.parseFloat(thresholdStr);
-
-    // 验证周期范围（1-250）
-    if (!validateEmaPeriod(period)) {
-      return null;
-    }
-
-    // 验证阈值是否为有效数字
-    if (!Number.isFinite(threshold)) {
-      return null;
-    }
-
-    return {
-      indicator: 'EMA',
       period,
       operator: operator as '<' | '>',
       threshold,
@@ -307,14 +269,14 @@ export function parseSignalConfig(configStr: string | null | undefined): SignalC
 
 /**
  * 根据指标状态评估条件
- * @param state 指标状态 {rsi: {6: value, 12: value, ...}, psy: {6: value, 12: value, ...}, mfi, kdj: {k, d, j}, macd: {macd, dif, dea}}
+ * @param state 指标状态 {rsi: {6: value, 12: value, ...}, psy: {6: value, 12: value, ...}, mfi, kdj: {k, d, j}}
  * @param condition 条件 {indicator, operator, threshold}
  * @returns 条件是否满足
  */
 function evaluateCondition(state: IndicatorState, condition: Condition): boolean {
   const { indicator, operator, threshold } = condition;
 
-  // 解析指标名称（可能包含周期，如 RSI:6, EMA:10）
+  // 解析指标名称（可能包含周期，如 RSI:6, PSY:12）
   let indicatorName = indicator;
   let period: number | undefined;
 
@@ -356,22 +318,6 @@ function evaluateCondition(state: IndicatorState, condition: Condition): boolean
       break;
     case 'J':
       value = state.kdj?.j;
-      break;
-    case 'MACD':
-      value = state.macd?.macd;
-      break;
-    case 'DIF':
-      value = state.macd?.dif;
-      break;
-    case 'DEA':
-      value = state.macd?.dea;
-      break;
-    case 'EMA':
-      // EMA:n 格式，从 state.ema[period] 获取值
-      if (!period || state.ema?.[period] === undefined) {
-        return false;
-      }
-      value = state.ema[period];
       break;
     default:
       return false;
