@@ -36,7 +36,7 @@ import { createOrderExecutor } from './orderExecutor.js';
  * @returns Promise<Trader> 接口实例
  */
 export const createTrader = async (deps: TraderDeps): Promise<Trader> => {
-  const { config, tradingConfig } = deps;
+  const { config, tradingConfig, liquidationCooldownTracker } = deps;
 
   // ========== 1. 创建基础依赖 ==========
   const ctxPromise = TradeContext.new(config);
@@ -58,6 +58,7 @@ export const createTrader = async (deps: TraderDeps): Promise<Trader> => {
     rateLimiter,
     cacheManager,
     orderRecorder,
+    liquidationCooldownTracker,
     tradingConfig,
   });
 
@@ -120,8 +121,17 @@ export const createTrader = async (deps: TraderDeps): Promise<Trader> => {
       price: number,
       quantity: number,
       isLongSymbol: boolean,
+      isProtectiveLiquidation: boolean,
     ): void {
-      orderMonitor.trackOrder(orderId, symbol, side, price, quantity, isLongSymbol);
+      orderMonitor.trackOrder(
+        orderId,
+        symbol,
+        side,
+        price,
+        quantity,
+        isLongSymbol,
+        isProtectiveLiquidation,
+      );
     },
 
     cancelOrder(orderId: string): Promise<boolean> {

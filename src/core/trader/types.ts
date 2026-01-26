@@ -8,7 +8,7 @@
  * - 配置类型：RateLimiterConfig、OrderMonitorConfig
  */
 
-import type { OrderSide, OrderType, OrderStatus, TimeInForceType, TradeContext } from 'longport';
+import type { OrderSide, OrderType, OrderStatus, TimeInForceType, TradeContext, PushOrderChanged } from 'longport';
 import type {
   Signal,
   Quote,
@@ -20,6 +20,7 @@ import type {
   PendingRefreshSymbol,
   MultiMonitorTradingConfig,
 } from '../../types/index.js';
+import type { LiquidationCooldownTracker } from '../liquidationCooldown/types.js';
 
 /**
  * 订单提交载荷
@@ -109,6 +110,7 @@ export interface OrderMonitor {
     price: number,
     quantity: number,
     isLongSymbol: boolean,
+    isProtectiveLiquidation: boolean,
   ): void;
 
   /** 撤销订单 */
@@ -194,6 +196,8 @@ export type TrackedOrder = {
   readonly side: OrderSide;
   /** 是否为做多标的（成交后更新本地记录时使用） */
   readonly isLongSymbol: boolean;
+  /** 是否为保护性清仓订单（用于触发买入冷却） */
+  readonly isProtectiveLiquidation: boolean;
   /** 当前委托价（会随市价更新） */
   submittedPrice: number;
   readonly submittedQuantity: number;
@@ -237,6 +241,12 @@ export type OrderMonitorDeps = {
   readonly cacheManager: OrderCacheManager;
   /** 订单记录器（用于成交后更新本地记录） */
   readonly orderRecorder: import('../../types/index.js').OrderRecorder;
+  /** 清仓冷却追踪器（用于记录保护性清仓） */
+  readonly liquidationCooldownTracker: LiquidationCooldownTracker;
+  /** 可选测试钩子（仅用于单元测试） */
+  readonly testHooks?: {
+    readonly setHandleOrderChanged?: (handler: (event: PushOrderChanged) => void) => void;
+  };
   /** 全局交易配置 */
   readonly tradingConfig: MultiMonitorTradingConfig;
 };
@@ -259,5 +269,6 @@ export type OrderExecutorDeps = {
 export type TraderDeps = {
   readonly config: import('longport').Config;
   readonly tradingConfig: MultiMonitorTradingConfig;
+  readonly liquidationCooldownTracker: LiquidationCooldownTracker;
   readonly rateLimiterConfig?: RateLimiterConfig;
 };

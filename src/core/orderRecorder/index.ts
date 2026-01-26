@@ -191,15 +191,21 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
     executedPrice: number,
     executedQuantity: number,
     isLongSymbol: boolean,
+    executedTimeMs: number,
   ): void => {
     const price = Number(executedPrice);
     const quantity = Number(executedQuantity);
+    const executedTime = Number(executedTimeMs);
 
     if (!validateOrderParams(price, quantity, symbol)) {
       return;
     }
 
-    storage.addBuyOrder(symbol, price, quantity, isLongSymbol);
+    const validExecutedTime = Number.isFinite(executedTime) && executedTime > 0
+      ? executedTime
+      : Date.now();
+
+    storage.addBuyOrder(symbol, price, quantity, isLongSymbol, validExecutedTime);
     debugOutputOrders(symbol, isLongSymbol);
   };
 

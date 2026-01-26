@@ -722,7 +722,13 @@ export interface RateLimiter {
  */
 export interface OrderRecorder {
   /** 记录本地买入订单 */
-  recordLocalBuy(symbol: string, executedPrice: number, executedQuantity: number, isLongSymbol: boolean): void;
+  recordLocalBuy(
+    symbol: string,
+    executedPrice: number,
+    executedQuantity: number,
+    isLongSymbol: boolean,
+    executedTimeMs: number,
+  ): void;
   /** 记录本地卖出订单 */
   recordLocalSell(symbol: string, executedPrice: number, executedQuantity: number, isLongSymbol: boolean): void;
   /** 清空指定标的的买入订单记录 */
@@ -785,6 +791,7 @@ export interface Trader {
     price: number,
     quantity: number,
     isLongSymbol: boolean,
+    isProtectiveLiquidation: boolean,
   ): void;
   /** 撤销订单 */
   cancelOrder(orderId: string): Promise<boolean>;

@@ -56,16 +56,19 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     executedPrice: number,
     executedQuantity: number,
     isLongSymbol: boolean,
+    executedTimeMs: number,
   ): void => {
-    const now = Date.now();
+    const executedTime = Number.isFinite(executedTimeMs) && executedTimeMs > 0
+      ? executedTimeMs
+      : Date.now();
     const list = getBuyOrdersList(symbol, isLongSymbol);
 
     list.push({
-      orderId: `LOCAL_${now}`,
+      orderId: `LOCAL_${executedTime}`,
       symbol,
       executedPrice,
       executedQuantity,
-      executedTime: now,
+      executedTime,
       submittedAt: undefined,
       updatedAt: undefined,
     });

@@ -45,6 +45,29 @@ const isLiquidationSignal = (signal: Signal): boolean => {
   return signal.reason?.includes('[保护性清仓]') ?? false;
 };
 
+/** 根据信号动作解析订单方向 */
+const resolveOrderSide = (
+  action: Signal['action'],
+): typeof OrderSide[keyof typeof OrderSide] | null => {
+  switch (action) {
+    case 'BUYCALL':
+    case 'BUYPUT':
+      return OrderSide.Buy;
+    case 'SELLCALL':
+    case 'SELLPUT':
+      return OrderSide.Sell;
+    default:
+      return null;
+  }
+};
+
+/** 生成买入频率限制的时间键 */
+const buildBuyTimeKey = (signalAction: string, monitorConfig?: MonitorConfig | null): string => {
+  const direction: 'LONG' | 'SHORT' = signalAction === 'BUYCALL' ? 'LONG' : 'SHORT';
+  const monitorSymbol = monitorConfig?.monitorSymbol ?? '';
+  return monitorSymbol ? `${monitorSymbol}:${direction}` : direction;
+};
+
 /**
  * 创建订单执行器
  * @param deps 依赖注入
@@ -87,8 +110,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     const buyIntervalSeconds = monitorConfig?.buyIntervalSeconds ?? 60;
 
     // 使用监控标的符号作为键的一部分，以支持多个监控标的
-    const monitorSymbol = monitorConfig?.monitorSymbol ?? '';
-    const timeKey = monitorSymbol ? `${monitorSymbol}:${direction}` : direction;
+    const timeKey = buildBuyTimeKey(signalAction, monitorConfig);
 
     const lastTime = lastBuyTime.get(timeKey);
 
@@ -116,10 +138,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
   /** 记录买入时间（用于频率限制） */
   const updateLastBuyTime = (signalAction: string, monitorConfig?: MonitorConfig | null): void => {
     if (signalAction === 'BUYCALL' || signalAction === 'BUYPUT') {
-      const direction = signalAction === 'BUYCALL' ? 'LONG' : 'SHORT';
-      const monitorSymbol = monitorConfig?.monitorSymbol ?? '';
-      const timeKey = monitorSymbol ? `${monitorSymbol}:${direction}` : direction;
-      lastBuyTime.set(timeKey, Date.now());
+      lastBuyTime.set(buildBuyTimeKey(signalAction, monitorConfig), Date.now());
     }
   };
 
@@ -137,17 +156,17 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     isShortSymbol: boolean,
     side: typeof OrderSide[keyof typeof OrderSide],
   ): string => {
-    if (signalAction === 'BUYCALL') {
-      return '买入做多标的（做多）';
-    }
-    if (signalAction === 'SELLCALL') {
-      return '卖出做多标的（平仓）';
-    }
-    if (signalAction === 'BUYPUT') {
-      return '买入做空标的（做空）';
-    }
-    if (signalAction === 'SELLPUT') {
-      return '卖出做空标的（平仓）';
+    switch (signalAction) {
+      case 'BUYCALL':
+        return '买入做多标的（做多）';
+      case 'SELLCALL':
+        return '卖出做多标的（平仓）';
+      case 'BUYPUT':
+        return '买入做空标的（做空）';
+      case 'SELLPUT':
+        return '卖出做空标的（平仓）';
+      default:
+        break;
     }
 
     // 兼容旧代码
@@ -224,13 +243,9 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
       return Decimal.ZERO();
     }
 
-    const notional = Number(
-      targetNotional &&
-        Number.isFinite(Number(targetNotional)) &&
-        targetNotional > 0
-        ? targetNotional
-        : TRADING.DEFAULT_TARGET_NOTIONAL,
-    );
+    const notional = isValidPositiveNumber(targetNotional)
+      ? targetNotional
+      : TRADING.DEFAULT_TARGET_NOTIONAL;
     const priceNum = Number(pricingSource);
 
     if (!Number.isFinite(priceNum) || priceNum <= 0) {
@@ -429,6 +444,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
       // ========== 开始追踪订单（由 orderMonitor 在成交后更新本地记录） ==========
       const submittedQuantityNum = decimalToNumber(orderPayload.submittedQuantity);
       const isLongSymbol = !isShortSymbol;
+      const isProtectiveLiquidation = isLiquidationSignal(signal);
       orderMonitor.trackOrder(
         String(orderId),
         symbol,
@@ -436,6 +452,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
         resolvedPrice ?? 0,
         submittedQuantityNum,
         isLongSymbol,
+        isProtectiveLiquidation,
       );
 
       // 注意：不再立即更新本地记录
@@ -483,16 +500,8 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     }
 
     // 根据信号类型转换为订单方向
-    let side: typeof OrderSide[keyof typeof OrderSide];
-    if (signal.action === 'BUYCALL') {
-      side = OrderSide.Buy;
-    } else if (signal.action === 'SELLCALL') {
-      side = OrderSide.Sell;
-    } else if (signal.action === 'BUYPUT') {
-      side = OrderSide.Buy;
-    } else if (signal.action === 'SELLPUT') {
-      side = OrderSide.Sell;
-    } else {
+    const side = resolveOrderSide(signal.action);
+    if (!side) {
       logger.error(
         `[订单提交] 未知的信号类型: ${signal.action}, 标的: ${signal.symbol}`,
       );
@@ -577,8 +586,8 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
       }
 
       // 验证信号类型
-      const validActions = ['BUYCALL', 'SELLCALL', 'BUYPUT', 'SELLPUT'];
-      if (!validActions.includes(s.action)) {
+      const side = resolveOrderSide(s.action);
+      if (!side) {
         logger.warn(
           `[跳过信号] 未知的信号类型: ${s.action}, 标的: ${signalSymbolDisplay}`,
         );
@@ -598,18 +607,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
       const targetSymbol = isShortSymbol ? monitorConfig.shortSymbol : monitorConfig.longSymbol;
 
       // 根据信号类型显示操作描述
-      let actualAction = '';
-      if (s.action === 'BUYCALL') {
-        actualAction = '买入做多标的（做多）';
-      } else if (s.action === 'SELLCALL') {
-        actualAction = '卖出做多标的（平仓）';
-      } else if (s.action === 'BUYPUT') {
-        actualAction = '买入做空标的（做空）';
-      } else if (s.action === 'SELLPUT') {
-        actualAction = '卖出做空标的（平仓）';
-      } else {
-        actualAction = `未知操作(${s.action})`;
-      }
+      const actualAction = getActionDescription(s.action, isShortSymbol, side);
 
       // 使用绿色显示交易计划（格式化标的显示：中文名称(代码)）
       const symbolDisplay = formatSymbolDisplay(targetSymbol, s.symbolName);

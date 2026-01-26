@@ -41,6 +41,7 @@ import { createPositionCache } from './utils/helpers/positionCache.js';
 import { createMarketMonitor } from './services/marketMonitor/index.js';
 import { createDoomsdayProtection } from './core/doomsdayProtection/index.js';
 import { createSignalProcessor } from './core/signalProcessor/index.js';
+import { createLiquidationCooldownTracker } from './core/liquidationCooldown/index.js';
 
 // 异步任务处理架构模块
 import { createIndicatorCache } from './main/asyncProgram/indicatorCache/index.js';
@@ -96,10 +97,11 @@ async function main(): Promise<void> {
   }
 
   const config = createConfig({ env });
+  const liquidationCooldownTracker = createLiquidationCooldownTracker({ nowMs: () => Date.now() });
 
   // 使用配置验证返回的标的名称和行情客户端实例
   const { marketDataClient } = symbolNames;
-  const trader = await createTrader({ config, tradingConfig });
+  const trader = await createTrader({ config, tradingConfig, liquidationCooldownTracker });
 
   logger.info('程序开始运行，在交易时段将进行实时监控和交易（按 Ctrl+C 退出）');
 
@@ -135,7 +137,7 @@ async function main(): Promise<void> {
   // 初始化核心模块实例
   const marketMonitor = createMarketMonitor(); // 市场状态监控
   const doomsdayProtection = createDoomsdayProtection(); // 末日保护（收盘前清仓）
-  const signalProcessor = createSignalProcessor({ tradingConfig }); // 信号处理和风险检查
+  const signalProcessor = createSignalProcessor({ tradingConfig, liquidationCooldownTracker }); // 信号处理和风险检查
 
   // 初始化异步任务处理架构
   // IndicatorCache 容量 = max(buyDelay, sellDelay) + 缓冲区，用于延迟验证时查询历史指标

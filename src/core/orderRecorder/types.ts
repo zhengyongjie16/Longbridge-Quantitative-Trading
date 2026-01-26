@@ -69,7 +69,13 @@ export interface OrderStorage {
   getBuyOrdersList(symbol: string, isLongSymbol: boolean): OrderRecord[];
   setBuyOrdersListForLong(symbol: string, newList: OrderRecord[]): void;
   setBuyOrdersListForShort(symbol: string, newList: OrderRecord[]): void;
-  addBuyOrder(symbol: string, executedPrice: number, executedQuantity: number, isLongSymbol: boolean): void;
+  addBuyOrder(
+    symbol: string,
+    executedPrice: number,
+    executedQuantity: number,
+    isLongSymbol: boolean,
+    executedTimeMs: number,
+  ): void;
   updateAfterSell(symbol: string, executedPrice: number, executedQuantity: number, isLongSymbol: boolean): void;
   clearBuyOrders(symbol: string, isLongSymbol: boolean, quote?: Quote | null): void;
   getLatestBuyOrderPrice(symbol: string, isLongSymbol: boolean): number | null;
