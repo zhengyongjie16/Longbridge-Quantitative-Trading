@@ -106,10 +106,10 @@ function calculateOrderFees(quantity: number, price: number): {
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-const tradesFile = join(process.cwd(), 'logs', 'trades', '2026-01-26.json');
+const tradesFile = join(process.cwd(), 'logs', 'trades', '2026-01-21.json');
 const trades: Trade[] = JSON.parse(readFileSync(tradesFile, 'utf-8'));
 
-console.log('=== 2026-01-26 交易费用计算 ===\n');
+console.log('=== 2026-01-21 交易费用计算 ===\n');
 console.log(`总订单数：${trades.length}\n`);
 
 let totalPlatformFee = 0;
