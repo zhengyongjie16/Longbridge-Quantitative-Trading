@@ -42,7 +42,9 @@ export type OrderPayload = {
  */
 export type TradeRecord = {
   readonly orderId?: string;
+  /** 标的代码（如 55131.HK） */
   readonly symbol: string;
+  /** 标的名称（如 阿里摩通六甲牛G） */
   readonly symbolName?: string | null;
   readonly action?: string;
   readonly side?: string;
@@ -54,6 +56,8 @@ export type TradeRecord = {
   readonly reason?: string;
   readonly signalTriggerTime?: Date | string | null;
   readonly timestamp?: string;
+  /** 是否为保护性清仓（浮亏超阈值触发） */
+  readonly isProtectiveClearance?: boolean;
 };
 
 /**

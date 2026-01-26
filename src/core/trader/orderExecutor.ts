@@ -343,6 +343,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     }
 
     // 记录失败交易到文件
+    const isProtectiveClearance = isLiquidationSignal(signal);
     recordTrade({
       orderId: 'FAILED',
       symbol: orderPayload.symbol,
@@ -356,6 +357,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
       error: errorMessage,
       reason: signal.reason || '策略信号',
       signalTriggerTime: signal.triggerTime || null,
+      ...(isProtectiveClearance && { isProtectiveClearance }),
     });
   };
 
@@ -474,6 +476,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
         status: 'SUBMITTED',
         reason: signal.reason || '策略信号',
         signalTriggerTime: signal.triggerTime || null,
+        ...(isProtectiveLiquidation && { isProtectiveClearance: isProtectiveLiquidation }),
       });
     } catch (err) {
       handleSubmitError(err, signal, orderPayload, side, isShortSymbol, orderTypeParam);

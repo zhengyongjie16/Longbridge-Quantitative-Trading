@@ -11,7 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { logger } from '../../utils/logger/index.js';
-import { toBeijingTimeIso, formatSymbolDisplay } from '../../utils/helpers/index.js';
+import { toBeijingTimeIso } from '../../utils/helpers/index.js';
 import type { TradeRecord, ErrorTypeIdentifier } from './types.js';
 
 /** 识别错误类型（通过错误消息关键词匹配） */
@@ -74,12 +74,6 @@ export function recordTrade(tradeRecord: TradeRecord): void {
       }
     }
 
-    // 格式化标的显示
-    const symbolDisplay = formatSymbolDisplay(
-      tradeRecord.symbol,
-      tradeRecord.symbolName ?? undefined,
-    );
-
     // 处理信号触发时间
     let signalTriggerTime: string | null = null;
     if (tradeRecord.signalTriggerTime) {
@@ -94,16 +88,12 @@ export function recordTrade(tradeRecord: TradeRecord): void {
       }
     }
 
-    // 构建记录对象（不可变方式）
-    // 先创建包含所有字段的对象，然后使用解构移除 symbolName
-    const { symbolName: _unused, ...recordWithoutSymbolName } = {
+    // 构建记录对象
+    const record: TradeRecord = {
       ...tradeRecord,
-      symbol: symbolDisplay, // 使用格式化后的标的显示
       timestamp: toBeijingTimeIso(), // 记录时间使用北京时间
       ...(signalTriggerTime && { signalTriggerTime }), // 条件性添加 signalTriggerTime
     };
-
-    const record: TradeRecord = recordWithoutSymbolName;
 
     trades.push(record);
 
