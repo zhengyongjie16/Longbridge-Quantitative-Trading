@@ -51,6 +51,7 @@ export default tseslint.config(
       'test/**',
       'tests/**',
       'scripts/**',
+      '.worktrees/**',
       '.claude/**',
     ],
   }

@@ -32,6 +32,7 @@ import {
 import type { Signal, TradeCheckResult, MonitorConfig } from '../../types/index.js';
 import type { OrderPayload, OrderExecutor, OrderExecutorDeps } from './types.js';
 import { recordTrade, identifyErrorType } from './tradeLogger.js';
+import { formatOrderTypeLabel } from './utils.js';
 
 /** 配置字符串转 OrderType 枚举 */
 const getOrderTypeFromConfig = (typeConfig: 'LO' | 'ELO' | 'MO'): typeof OrderType[keyof typeof OrderType] => {
@@ -350,7 +351,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
       side: signal.action || (side === OrderSide.Buy ? 'BUY' : 'SELL'),
       quantity: orderPayload.submittedQuantity.toString(),
       price: orderPayload.submittedPrice?.toString() || '市价',
-      orderType: actualOrderType === OrderType.MO ? '市价单' : '限价单',
+      orderType: formatOrderTypeLabel(actualOrderType),
       status: 'FAILED',
       error: errorMessage,
       reason: signal.reason || '策略信号',
@@ -386,9 +387,10 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
       orderTypeParam === OrderType.ALO ||
       orderTypeParam === OrderType.SLO
     ) {
+      const orderTypeLabel = formatOrderTypeLabel(orderTypeParam);
       if (!resolvedPrice) {
         logger.warn(
-          `[跳过订单] ${symbolDisplayForLog} 的限价单缺少价格，无法提交。请确保信号中包含价格信息`,
+          `[跳过订单] ${symbolDisplayForLog} 的${orderTypeLabel}缺少价格，无法提交。请确保信号中包含价格信息`,
         );
         return;
       }
@@ -403,7 +405,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
         orderTypeName = 'SLO';
       }
       logger.info(
-        `[订单类型] 使用限价单(${orderTypeName})，标的=${symbolDisplayForLog}，价格=${resolvedPrice}`,
+        `[订单类型] 使用${orderTypeLabel}(${orderTypeName})，标的=${symbolDisplayForLog}，价格=${resolvedPrice}`,
       );
     }
 
@@ -468,7 +470,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
         side: signal.action || (side === OrderSide.Buy ? 'BUY' : 'SELL'),
         quantity: orderPayload.submittedQuantity.toString(),
         price: orderPayload.submittedPrice?.toString() || '市价',
-        orderType: orderTypeParam === OrderType.MO ? '市价单' : '限价单',
+        orderType: formatOrderTypeLabel(orderTypeParam),
         status: 'SUBMITTED',
         reason: signal.reason || '策略信号',
         signalTriggerTime: signal.triggerTime || null,
