@@ -12,6 +12,7 @@ import {
   extractPsyPeriods as extractPsyPeriodsFromSignalConfig,
 } from '../../utils/helpers/signalConfigParser.js';
 import { validateEmaPeriod, validatePsyPeriod } from '../../utils/helpers/indicatorHelpers.js';
+import { DEFAULT_EMA_PERIOD, DEFAULT_PSY_PERIOD, DEFAULT_RSI_PERIOD } from '../../constants/index.js';
 import type { VerificationConfig, SignalConfigSet } from '../../types/index.js';
 
 /**
@@ -43,7 +44,7 @@ export function extractEmaPeriods(verificationConfig: VerificationConfig | null 
 
   // 如果没有配置任何 EMA 周期，使用默认值 7
   if (emaPeriods.length === 0) {
-    emaPeriods.push(7);
+    emaPeriods.push(DEFAULT_EMA_PERIOD);
   }
 
   return emaPeriods;
@@ -59,14 +60,14 @@ export function extractRsiPeriodsWithDefault(signalConfig: SignalConfigSet | nul
 
   // 如果没有配置任何 RSI 周期，使用默认值 6
   if (rsiPeriods.length === 0) {
-    rsiPeriods.push(6);
+    rsiPeriods.push(DEFAULT_RSI_PERIOD);
   }
 
   return rsiPeriods;
 }
 
 /**
- * 从信号配置和验证配置中提取 PSY 周期（不设置默认周期）
+ * 从信号配置和验证配置中提取 PSY 周期（未配置时使用默认周期）
  * @param signalConfig 信号配置
  * @param verificationConfig 验证配置
  * @returns PSY 周期数组
@@ -99,6 +100,10 @@ export function extractPsyPeriods(
         periods.add(period);
       }
     }
+  }
+
+  if (periods.size === 0 && validatePsyPeriod(DEFAULT_PSY_PERIOD)) {
+    periods.add(DEFAULT_PSY_PERIOD);
   }
 
   return Array.from(periods).sort((a, b) => a - b);

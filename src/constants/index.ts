@@ -29,9 +29,14 @@ export const TRADING = {
   CANDLE_PERIOD: '1m' as const,
   /** K线数量，获取的历史K线条数 */
   CANDLE_COUNT: 200,
-  /** 主循环执行间隔（毫秒），runOnce 的执行频率 */
+  /** 主循环执行间隔（毫秒），mainProgram 的执行频率 */
   INTERVAL_MS: 1000,
 } as const;
+
+/** 指标默认周期常量 */
+export const DEFAULT_EMA_PERIOD = 7;
+export const DEFAULT_RSI_PERIOD = 6;
+export const DEFAULT_PSY_PERIOD = 12;
 
 /**
  * 延迟信号验证相关常量
