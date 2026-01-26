@@ -49,6 +49,7 @@ export default tseslint.config(
       '*.config.js',
       'tools/**',
       'test/**',
+      'tests/**',
       'scripts/**',
       '.claude/**',
     ],
