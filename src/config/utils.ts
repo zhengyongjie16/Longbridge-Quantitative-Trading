@@ -5,6 +5,7 @@
  */
 
 import { OrderType } from 'longport';
+import type { LiquidationCooldownConfig } from '../types/index.js';
 import { validateEmaPeriod, validatePsyPeriod } from '../utils/helpers/indicatorHelpers.js';
 import { logger } from '../utils/logger/index.js';
 import type { RegionUrls } from './types.js';
@@ -82,6 +83,30 @@ export const getBooleanConfig = (
   }
   // 其他值返回默认值
   return defaultValue;
+};
+
+/** 解析保护性清仓冷却配置（支持 minutes / half-day / one-day） */
+export const parseLiquidationCooldownConfig = (
+  env: NodeJS.ProcessEnv,
+  envKey: string,
+): LiquidationCooldownConfig | null => {
+  const value = getStringConfig(env, envKey);
+  if (!value) {
+    return null;
+  }
+  const normalizedValue = value.trim().toLowerCase();
+  if (normalizedValue === 'half-day') {
+    return { mode: 'half-day' };
+  }
+  if (normalizedValue === 'one-day') {
+    return { mode: 'one-day' };
+  }
+
+  const minutes = Number(value);
+  if (!Number.isFinite(minutes) || minutes < 1 || minutes > 120) {
+    return null;
+  }
+  return { mode: 'minutes', minutes };
 };
 
 /** 解析延迟验证时间（秒），范围 0-120 */

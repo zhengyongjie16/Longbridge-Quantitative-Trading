@@ -367,6 +367,21 @@ export type SignalConfigSet = {
 };
 
 /**
+ * 保护性清仓后的买入冷却配置
+ */
+export type LiquidationCooldownConfig =
+  | {
+      readonly mode: 'minutes';
+      readonly minutes: number;
+    }
+  | {
+      readonly mode: 'half-day';
+    }
+  | {
+      readonly mode: 'one-day';
+    };
+
+/**
  * 单个监控标的的完整配置
  * 包含交易标的、风控参数和信号配置
  */
@@ -389,8 +404,8 @@ export type MonitorConfig = {
   readonly maxUnrealizedLossPerSymbol: number;
   /** 买入间隔时间（秒） */
   readonly buyIntervalSeconds: number;
-  /** 保护性清仓后买入冷却时间（分钟） */
-  readonly liquidationCooldownMinutes: number;
+  /** 保护性清仓后买入冷却配置（未配置时为 null） */
+  readonly liquidationCooldown: LiquidationCooldownConfig | null;
   /** 延迟验证配置 */
   readonly verificationConfig: VerificationConfig;
   /** 信号配置集 */

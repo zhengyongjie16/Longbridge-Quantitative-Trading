@@ -6,10 +6,12 @@
 
 import { logger } from '../utils/logger/index.js';
 import { createConfig } from './config.index.js';
+import { getStringConfig } from './utils.js';
 import { createMarketDataClient } from '../services/quoteClient/index.js';
 import { formatSymbolDisplay, isSymbolWithRegion, formatError } from '../utils/helpers/index.js';
 import { formatSignalConfig } from '../utils/helpers/signalConfigParser.js';
 import type {
+  LiquidationCooldownConfig,
   MarketDataClient,
   MonitorConfig,
   MultiMonitorTradingConfig,
@@ -81,6 +83,16 @@ type SignalConfigKey = keyof MonitorConfig['signalConfig'];
 
 function formatSymbolFormatError(prefix: string, envKey: string, symbol: string): string {
   return `${prefix}: ${envKey} 必须使用 ticker.region 格式（如 68711.HK），当前值: ${symbol}`;
+}
+
+function formatLiquidationCooldownConfig(config: LiquidationCooldownConfig | null): string {
+  if (!config) {
+    return '未配置（不冷却）';
+  }
+  if (config.mode === 'minutes') {
+    return `${config.minutes} 分钟`;
+  }
+  return config.mode;
 }
 
 function validateRequiredSymbol({
@@ -246,7 +258,11 @@ async function validateSymbolsBatch(
 }
 
 /** 验证单个监控标的的配置完整性 */
-function validateMonitorConfig(config: MonitorConfig, index: number): TradingValidationResult {
+function validateMonitorConfig(
+  config: MonitorConfig,
+  index: number,
+  env: NodeJS.ProcessEnv,
+): TradingValidationResult {
   const errors: string[] = [];
   const missingFields: string[] = [];
   const prefix = `监控标的 ${index}`;
@@ -295,12 +311,22 @@ function validateMonitorConfig(config: MonitorConfig, index: number): TradingVal
     missingFields.push(`MAX_DAILY_LOSS_${index}`);
   }
 
-  if (
-    !Number.isFinite(config.liquidationCooldownMinutes) ||
-    config.liquidationCooldownMinutes < 1 ||
-    config.liquidationCooldownMinutes > 120
-  ) {
-    errors.push(`${prefix}: LIQUIDATION_COOLDOWN_MINUTES_${index} 无效（范围 1-120）`);
+  const liquidationCooldownEnvKey = `LIQUIDATION_COOLDOWN_MINUTES_${index}`;
+  const configuredCooldown = getStringConfig(env, liquidationCooldownEnvKey);
+  if (configuredCooldown && !config.liquidationCooldown) {
+    errors.push(
+      `${prefix}: ${liquidationCooldownEnvKey} 无效（范围 1-120 或 half-day / one-day）`,
+    );
+  } else if (config.liquidationCooldown?.mode === 'minutes') {
+    if (
+      !Number.isFinite(config.liquidationCooldown.minutes) ||
+      config.liquidationCooldown.minutes < 1 ||
+      config.liquidationCooldown.minutes > 120
+    ) {
+      errors.push(
+        `${prefix}: ${liquidationCooldownEnvKey} 无效（范围 1-120 或 half-day / one-day）`,
+      );
+    }
   }
 
   // 验证信号配置（必需）
@@ -335,7 +361,10 @@ function validateMonitorConfig(config: MonitorConfig, index: number): TradingVal
 }
 
 /** 验证所有监控标的的交易配置（含重复标的检测） */
-function validateTradingConfig(tradingConfig: MultiMonitorTradingConfig): TradingValidationResult {
+function validateTradingConfig(
+  tradingConfig: MultiMonitorTradingConfig,
+  env: NodeJS.ProcessEnv,
+): TradingValidationResult {
   const errors: string[] = [];
   const missingFields: string[] = [];
 
@@ -357,7 +386,7 @@ function validateTradingConfig(tradingConfig: MultiMonitorTradingConfig): Tradin
       continue;
     }
     // 使用配置中保存的原始索引（对应环境变量的 _1, _2 等后缀）
-    const result = validateMonitorConfig(config, config.originalIndex);
+    const result = validateMonitorConfig(config, config.originalIndex, env);
     errors.push(...result.errors);
     missingFields.push(...result.missingFields);
   }
@@ -427,7 +456,7 @@ export async function validateAllConfig({
   logger.info('开始验证配置...');
 
   const longPortResult = await validateLongPortConfig(env);
-  const tradingResult = validateTradingConfig(tradingConfig);
+  const tradingResult = validateTradingConfig(tradingConfig, env);
 
   const allErrors = [...longPortResult.errors, ...tradingResult.errors];
   const allMissingFields = [...tradingResult.missingFields];
@@ -637,7 +666,9 @@ export async function validateAllConfig({
     }
 
     logger.info(`同方向买入时间间隔: ${monitorConfig.buyIntervalSeconds} 秒`);
-    logger.info(`保护性清仓后买入冷却: ${monitorConfig.liquidationCooldownMinutes} 分钟`);
+    logger.info(
+      `保护性清仓后买入冷却: ${formatLiquidationCooldownConfig(monitorConfig.liquidationCooldown)}`,
+    );
 
     // 显示延迟验证配置
     const verificationConfig = monitorConfig.verificationConfig;

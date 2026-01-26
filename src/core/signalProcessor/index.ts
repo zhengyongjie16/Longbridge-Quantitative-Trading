@@ -353,7 +353,7 @@ export const createSignalProcessor = ({
         const remainingMs = liquidationCooldownTracker.getRemainingMs({
           symbol: sig.symbol,
           direction: liquidationDirection,
-          cooldownMinutes: context.config.liquidationCooldownMinutes,
+          cooldownConfig: context.config.liquidationCooldown,
         });
         if (remainingMs > 0) {
           const remainingSeconds = Math.ceil(remainingMs / 1000);

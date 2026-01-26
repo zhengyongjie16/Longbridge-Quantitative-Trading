@@ -6,13 +6,19 @@
  */
 
 import { OrderType } from 'longport';
-import type { MonitorConfig, MultiMonitorTradingConfig, OrderTypeConfig, SignalConfig } from '../types/index.js';
+import type {
+  MonitorConfig,
+  MultiMonitorTradingConfig,
+  OrderTypeConfig,
+  SignalConfig,
+} from '../types/index.js';
 import { parseSignalConfig } from '../utils/helpers/signalConfigParser.js';
 import { logger } from '../utils/logger/index.js';
 import {
   getBooleanConfig,
   getNumberConfig,
   getStringConfig,
+  parseLiquidationCooldownConfig,
   parseOrderTypeConfig,
   parseVerificationDelay,
   parseVerificationIndicators,
@@ -104,13 +110,10 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
     max: 600,
   });
 
-  const liquidationCooldownMinutes = parseBoundedNumberConfig({
+  const liquidationCooldown = parseLiquidationCooldownConfig(
     env,
-    envKey: `LIQUIDATION_COOLDOWN_MINUTES${suffix}`,
-    defaultValue: 30,
-    min: 1,
-    max: 120,
-  });
+    `LIQUIDATION_COOLDOWN_MINUTES${suffix}`,
+  );
 
   const verificationConfig = {
     buy: {
@@ -143,7 +146,7 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
     maxDailyLoss,
     maxUnrealizedLossPerSymbol,
     buyIntervalSeconds,
-    liquidationCooldownMinutes,
+    liquidationCooldown,
     verificationConfig,
     signalConfig,
     smartCloseEnabled,

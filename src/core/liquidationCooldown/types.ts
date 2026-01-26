@@ -4,6 +4,8 @@
  * 定义冷却追踪器所需的方向、入参和依赖类型。
  */
 
+import type { LiquidationCooldownConfig } from '../../types/index.js';
+
 /**
  * 冷却方向（做多/做空）
  */
@@ -24,7 +26,7 @@ export type RecordCooldownParams = {
 export type GetRemainingMsParams = {
   readonly symbol: string;
   readonly direction: LiquidationDirection;
-  readonly cooldownMinutes: number;
+  readonly cooldownConfig: LiquidationCooldownConfig | null;
 };
 
 /**

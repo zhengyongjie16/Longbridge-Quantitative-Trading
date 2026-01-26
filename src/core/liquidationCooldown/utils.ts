@@ -2,6 +2,7 @@
  * 清仓冷却模块工具函数
  */
 
+import { TIME } from '../../constants/index.js';
 import type { LiquidationDirection } from './types.js';
 
 /**
@@ -19,4 +20,33 @@ export function convertMinutesToMs(minutes: number): number {
     return 0;
   }
   return Math.floor(minutes * 60_000);
+}
+
+/**
+ * 获取香港时区的小时与分钟
+ */
+/**
+ * 基于香港时区日期计算目标时间的 UTC 毫秒
+ */
+export function resolveHongKongTimeMs({
+  baseTimestampMs,
+  hour,
+  minute,
+  dayOffset = 0,
+}: {
+  readonly baseTimestampMs: number;
+  readonly hour: number;
+  readonly minute: number;
+  readonly dayOffset?: number;
+}): number | null {
+  if (!Number.isFinite(baseTimestampMs)) {
+    return null;
+  }
+  const offsetMs = TIME.BEIJING_TIMEZONE_OFFSET_MS;
+  const hkDate = new Date(baseTimestampMs + offsetMs);
+  const year = hkDate.getUTCFullYear();
+  const month = hkDate.getUTCMonth();
+  const day = hkDate.getUTCDate() + dayOffset;
+  const targetHkMs = Date.UTC(year, month, day, hour, minute, 0, 0);
+  return targetHkMs - offsetMs;
 }
