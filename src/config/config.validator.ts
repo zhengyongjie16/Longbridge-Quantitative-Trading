@@ -8,7 +8,7 @@ import { logger } from '../utils/logger/index.js';
 import { createConfig } from './config.index.js';
 import { createMarketDataClient } from '../services/quoteClient/index.js';
 import type { MarketDataClient, ValidateAllConfigResult, MonitorConfig, MultiMonitorTradingConfig } from '../types/index.js';
-import { formatSymbolDisplay, normalizeHKSymbol, formatError } from '../utils/helpers/index.js';
+import { formatSymbolDisplay, isSymbolWithRegion, formatError } from '../utils/helpers/index.js';
 import { formatSignalConfig } from '../utils/helpers/signalConfigParser.js';
 import type { ConfigValidationError } from './types.js';
 
@@ -139,9 +139,8 @@ async function validateSymbolsBatch(
           error: `标的 ${symbol} 缺少标签信息`,
         };
       }
-      // 从 quotesMap 中获取行情（使用规范化后的标的代码作为 key）
-      const normalizedSymbol = normalizeHKSymbol(symbol);
-      const quote = quotesMap.get(normalizedSymbol) ?? null;
+      // 从 quotesMap 中获取行情（使用原始标的代码作为 key）
+      const quote = quotesMap.get(symbol) ?? null;
       return validateSymbolFromQuote(quote, symbol, symbolLabel, requireLotSize);
     });
   } catch (err) {
@@ -159,23 +158,31 @@ function validateMonitorConfig(config: MonitorConfig, index: number): TradingVal
   const errors: string[] = [];
   const missingFields: string[] = [];
   const prefix = `监控标的 ${index}`;
+  const formatSymbolFormatError = (envKey: string, symbol: string): string =>
+    `${prefix}: ${envKey} 必须使用 ticker.region 格式（如 68711.HK），当前值: ${symbol}`;
 
   // 验证监控标的
   if (!config.monitorSymbol || config.monitorSymbol.trim() === '') {
     errors.push(`${prefix}: MONITOR_SYMBOL_${index} 未配置`);
     missingFields.push(`MONITOR_SYMBOL_${index}`);
+  } else if (!isSymbolWithRegion(config.monitorSymbol)) {
+    errors.push(formatSymbolFormatError(`MONITOR_SYMBOL_${index}`, config.monitorSymbol));
   }
 
   // 验证做多标的
   if (!config.longSymbol || config.longSymbol.trim() === '') {
     errors.push(`${prefix}: LONG_SYMBOL_${index} 未配置`);
     missingFields.push(`LONG_SYMBOL_${index}`);
+  } else if (!isSymbolWithRegion(config.longSymbol)) {
+    errors.push(formatSymbolFormatError(`LONG_SYMBOL_${index}`, config.longSymbol));
   }
 
   // 验证做空标的
   if (!config.shortSymbol || config.shortSymbol.trim() === '') {
     errors.push(`${prefix}: SHORT_SYMBOL_${index} 未配置`);
     missingFields.push(`SHORT_SYMBOL_${index}`);
+  } else if (!isSymbolWithRegion(config.shortSymbol)) {
+    errors.push(formatSymbolFormatError(`SHORT_SYMBOL_${index}`, config.shortSymbol));
   }
 
   // 验证目标买入金额
@@ -260,32 +267,31 @@ function validateTradingConfig(tradingConfig: MultiMonitorTradingConfig): Tradin
     // 使用配置中保存的原始索引
     const index = config.originalIndex;
 
-    // 统一规范化，避免 "12345" 与 "12345.HK" 这种形式绕过重复检测
-    const normalizedLongSymbol = normalizeHKSymbol(config.longSymbol.trim());
-    const normalizedShortSymbol = normalizeHKSymbol(config.shortSymbol.trim());
+    const longSymbol = config.longSymbol;
+    const shortSymbol = config.shortSymbol;
 
     // 检查做多标的
-    if (tradingSymbols.has(normalizedLongSymbol)) {
-      const previousIndex = tradingSymbols.get(normalizedLongSymbol)!;
+    if (tradingSymbols.has(longSymbol)) {
+      const previousIndex = tradingSymbols.get(longSymbol)!;
       duplicateSymbols.push({
-        symbol: normalizedLongSymbol,
+        symbol: longSymbol,
         index,
         previousIndex,
       });
     } else {
-      tradingSymbols.set(normalizedLongSymbol, index);
+      tradingSymbols.set(longSymbol, index);
     }
 
     // 检查做空标的
-    if (tradingSymbols.has(normalizedShortSymbol)) {
-      const previousIndex = tradingSymbols.get(normalizedShortSymbol)!;
+    if (tradingSymbols.has(shortSymbol)) {
+      const previousIndex = tradingSymbols.get(shortSymbol)!;
       duplicateSymbols.push({
-        symbol: normalizedShortSymbol,
+        symbol: shortSymbol,
         index,
         previousIndex,
       });
     } else {
-      tradingSymbols.set(normalizedShortSymbol, index);
+      tradingSymbols.set(shortSymbol, index);
     }
   }
 

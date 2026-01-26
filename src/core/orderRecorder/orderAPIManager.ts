@@ -8,10 +8,7 @@
  */
 
 import { OrderSide, OrderStatus } from 'longport';
-import {
-  normalizeHKSymbol,
-  decimalToNumber,
-} from '../../utils/helpers/index.js';
+import { decimalToNumber } from '../../utils/helpers/index.js';
 import type {
   OrderRecord,
   FetchOrdersResult,
@@ -45,16 +42,16 @@ export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManage
   const ordersCache = new Map<string, OrderCache>();
 
   /** 检查指定标的的缓存是否存在 */
-  const hasCache = (normalizedSymbol: string): boolean => {
-    return ordersCache.has(normalizedSymbol);
+  const hasCache = (symbol: string): boolean => {
+    return ordersCache.has(symbol);
   };
 
   /** 从缓存获取订单数据，返回买入和卖出订单的副本 */
-  const getCachedOrders = (normalizedSymbol: string): {
+  const getCachedOrders = (symbol: string): {
     buyOrders: OrderRecord[];
     sellOrders: OrderRecord[];
   } | null => {
-    const cached = ordersCache.get(normalizedSymbol);
+    const cached = ordersCache.get(symbol);
     if (!cached) {
       return null;
     }
@@ -66,12 +63,12 @@ export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManage
 
   /** 更新指定标的的订单缓存 */
   const updateCache = (
-    normalizedSymbol: string,
+    symbol: string,
     buyOrders: OrderRecord[],
     sellOrders: OrderRecord[],
     allOrders: RawOrderFromAPI[] | null = null,
   ): void => {
-    ordersCache.set(normalizedSymbol, {
+    ordersCache.set(symbol, {
       buyOrders,
       sellOrders,
       allOrders,
@@ -128,7 +125,7 @@ export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManage
 
     const converted: OrderRecord = {
       orderId: order.orderId,
-      symbol: normalizeHKSymbol(order.symbol),
+      symbol: order.symbol,
       executedPrice: executedPrice,
       executedQuantity: executedQuantity,
       executedTime: executedTime,
@@ -170,11 +167,9 @@ export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManage
    * 优先使用缓存，若无缓存则调用 historyOrders 和 todayOrders API
    */
   const fetchOrdersFromAPI = async (symbol: string): Promise<FetchOrdersResult> => {
-    const normalizedSymbol = normalizeHKSymbol(symbol);
-
     // 优先使用缓存
-    if (hasCache(normalizedSymbol)) {
-      const cached = getCachedOrders(normalizedSymbol);
+    if (hasCache(symbol)) {
+      const cached = getCachedOrders(symbol);
       if (cached) {
         return cached;
       }
@@ -188,11 +183,11 @@ export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManage
     // - 两次调用间隔不少于0.02秒
     await rateLimiter.throttle();
     const historyOrdersRaw = await ctx.historyOrders({
-      symbol: normalizedSymbol,
+      symbol,
       endAt: new Date(),
     });
     await rateLimiter.throttle();
-    const todayOrdersRaw = await ctx.todayOrders({ symbol: normalizedSymbol });
+    const todayOrdersRaw = await ctx.todayOrders({ symbol });
 
     // 转换为 RawOrderFromAPI 类型（通过 unknown 进行安全转换）
     const historyOrders = historyOrdersRaw as unknown as RawOrderFromAPI[];
@@ -205,7 +200,7 @@ export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManage
     const { buyOrders, sellOrders } = classifyAndConvertOrders(allOrders);
 
     // 更新缓存
-    updateCache(normalizedSymbol, buyOrders, sellOrders, allOrders);
+    updateCache(symbol, buyOrders, sellOrders, allOrders);
 
     return { buyOrders, sellOrders };
   };
@@ -216,8 +211,7 @@ export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManage
       return false;
     }
 
-    const normalizedSymbols = symbols.map((s) => normalizeHKSymbol(s));
-    return normalizedSymbols.every((symbol) => {
+    return symbols.every((symbol) => {
       const cached = ordersCache.get(symbol);
       return cached?.allOrders != null;
     });
@@ -229,21 +223,16 @@ export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManage
     const result: PendingOrder[] = [];
 
     for (const symbol of symbols) {
-      const normalizedSymbol = normalizeHKSymbol(symbol);
-      const cached = ordersCache.get(normalizedSymbol);
+      const cached = ordersCache.get(symbol);
 
       if (!cached?.allOrders) {
         continue;
       }
 
       const pendingOrders = cached.allOrders
-        .filter((order) => {
-          const normalizedOrderSymbol = normalizeHKSymbol(order.symbol);
-          return (
-            PENDING_ORDER_STATUSES.has(order.status) &&
-            normalizedOrderSymbol === normalizedSymbol
-          );
-        })
+        .filter((order) =>
+          PENDING_ORDER_STATUSES.has(order.status) && order.symbol === symbol,
+        )
         .map((order) => ({
           orderId: order.orderId,
           symbol: order.symbol,

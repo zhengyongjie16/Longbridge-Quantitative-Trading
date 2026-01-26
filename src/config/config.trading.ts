@@ -6,7 +6,6 @@
  */
 
 import { parseSignalConfig } from '../utils/helpers/signalConfigParser.js';
-import { normalizeHKSymbol } from '../utils/helpers/index.js';
 import { logger } from '../utils/logger/index.js';
 import { OrderType } from 'longport';
 import {
@@ -103,9 +102,9 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
 
   return {
     originalIndex: index, // 保存原始索引，用于错误提示
-    monitorSymbol: normalizeHKSymbol(monitorSymbol),
-    longSymbol: normalizeHKSymbol(longSymbol),
-    shortSymbol: normalizeHKSymbol(shortSymbol),
+    monitorSymbol,
+    longSymbol,
+    shortSymbol,
     targetNotional,
     maxPositionNotional,
     maxDailyLoss,

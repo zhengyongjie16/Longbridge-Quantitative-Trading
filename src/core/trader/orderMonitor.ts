@@ -21,7 +21,7 @@ import {
 } from 'longport';
 import type { PushOrderChanged } from 'longport';
 import { logger } from '../../utils/logger/index.js';
-import { normalizeHKSymbol, decimalToNumber, toDecimal, formatError } from '../../utils/helpers/index.js';
+import { decimalToNumber, toDecimal, formatError } from '../../utils/helpers/index.js';
 import type { Quote, PendingRefreshSymbol, GlobalConfig } from '../../types/index.js';
 import type {
   OrderMonitor,
@@ -63,12 +63,11 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
 
   /** 根据配置判断标的是做多还是做空 */
   const isLongSymbolByConfig = (symbol: string): boolean => {
-    const normalizedSymbol = normalizeHKSymbol(symbol);
     for (const monitor of tradingConfig.monitors) {
-      if (normalizeHKSymbol(monitor.longSymbol) === normalizedSymbol) {
+      if (monitor.longSymbol === symbol) {
         return true;
       }
-      if (normalizeHKSymbol(monitor.shortSymbol) === normalizedSymbol) {
+      if (monitor.shortSymbol === symbol) {
         return false;
       }
     }
@@ -198,7 +197,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
 
     const order: TrackedOrder = {
       orderId,
-      symbol: normalizeHKSymbol(symbol),
+      symbol,
       side,
       isLongSymbol,
       submittedPrice: price,

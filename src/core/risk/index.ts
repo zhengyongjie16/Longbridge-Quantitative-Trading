@@ -12,7 +12,7 @@
  * - 单标的浮亏 > -maxUnrealizedLossPerSymbol
  */
 
-import { normalizeHKSymbol, isBuyAction, isValidPositiveNumber } from '../../utils/helpers/index.js';
+import { isBuyAction, isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { logger } from '../../utils/logger/index.js';
 import type {
   Position,
@@ -137,7 +137,7 @@ export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
     }
 
     // 使用信号中的符号来确定要检查的标的
-    const signalSymbol = normalizeHKSymbol(signal.symbol);
+    const signalSymbol = signal.symbol;
     const directionName = isBuyCall ? '做多标的' : '做空标的';
     const currentPrice = isBuyCall ? longCurrentPrice : shortCurrentPrice;
 

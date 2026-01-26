@@ -29,7 +29,6 @@ import {
 } from 'longport';
 import dotenv from 'dotenv';
 import {
-  normalizeHKSymbol,
   decimalToNumber,
   formatNumber,
   isDefined,
@@ -51,14 +50,14 @@ const tradingConfig = createMultiMonitorTradingConfig({ env });
 const DEFAULT_SYMBOL = 'HSI.HK';
 
 // 默认做多标的代码（如果未通过环境变量指定）
-// 不带 .HK 后缀，内部会自动规范为港股
+// 必须使用 ticker.region 格式
 // 设置为 null 则从环境变量 LONG_SYMBOL 或 TRADING_CONFIG 获取
-const DEFAULT_LONG_SYMBOL = '60802'; // 例如：可以设置为 "54806"
+const DEFAULT_LONG_SYMBOL = '60802.HK'; // 例如：可以设置为 "54806.HK"
 
 // 默认做空标的代码（如果未通过环境变量指定）
-// 不带 .HK 后缀，内部会自动规范为港股
+// 必须使用 ticker.region 格式
 // 设置为 null 则从环境变量 SHORT_SYMBOL 或 TRADING_CONFIG 获取
-const DEFAULT_SHORT_SYMBOL = '53086'; // 例如：可以设置为 "63372"
+const DEFAULT_SHORT_SYMBOL = '53086.HK'; // 例如：可以设置为 "63372.HK"
 
 // 默认日期或日期范围（如果未通过环境变量或命令行参数指定）
 // 格式：
@@ -631,14 +630,14 @@ function splitTradingDaysIntoRanges(
 /**
  * 按日期范围批次获取K线数据（辅助函数）
  * @param ctx QuoteContext 实例
- * @param normalizedSymbol 规范化后的标的代码
+ * @param symbol 标的代码（ticker.region）
  * @param dateRanges 日期范围数组
  * @param symbolName 标的名称（用于日志）
  * @returns 分时线数据数组
  */
 async function fetchCandlesticksByRanges(
   ctx: QuoteContext,
-  normalizedSymbol: string,
+  symbol: string,
   dateRanges: DateRangeBatch[],
   symbolName: string,
 ): Promise<CandleData[]> {
@@ -646,7 +645,7 @@ async function fetchCandlesticksByRanges(
   for (let i = 0; i < dateRanges.length; i++) {
     const { start, end } = dateRanges[i]!;
     const batchCandlesticks = await ctx.historyCandlesticksByDate(
-      normalizedSymbol,
+      symbol,
       Period.Min_1,
       AdjustType.NoAdjust,
       start,
@@ -775,8 +774,7 @@ async function fetchSymbolCandlesticks(
   symbolName: string,
 ): Promise<CandleData[]> {
   try {
-    const normalizedSymbol = normalizeHKSymbol(symbol);
-    console.log(`正在获取${symbolName} ${normalizedSymbol} 的分时线数据...`);
+    console.log(`正在获取${symbolName} ${symbol} 的分时线数据...`);
 
     // 先获取日期范围内的交易日列表
     const tradingDays = await getTradingDaysInRange(ctx, startDate, endDate);
@@ -789,7 +787,7 @@ async function fetchSymbolCandlesticks(
       const dateRanges = splitDateRange(startDate, endDate, 2);
       return await fetchCandlesticksByRanges(
         ctx,
-        normalizedSymbol,
+        symbol,
         dateRanges,
         symbolName,
       );
@@ -810,7 +808,7 @@ async function fetchSymbolCandlesticks(
 
     return await fetchCandlesticksByRanges(
       ctx,
-      normalizedSymbol,
+      symbol,
       dateRanges,
       symbolName,
     );
@@ -838,9 +836,6 @@ async function getIntradayCandlesticks(
     // 初始化 QuoteContext
     const ctx = await QuoteContext.new(config);
 
-    // 规范化标的代码
-    const normalizedSymbol = normalizeHKSymbol(symbol);
-
     // 解析日期范围字符串
     const { startDate, endDate } = parseDateRange(dateRangeStr);
 
@@ -865,7 +860,7 @@ async function getIntradayCandlesticks(
         : `${startDateStr} 至 ${endDateStr}`;
 
     console.log(
-      `\n正在获取 ${normalizedSymbol} 在 ${dateRangeDisplayStr} 的分时线数据...\n`,
+      `\n正在获取 ${symbol} 在 ${dateRangeDisplayStr} 的分时线数据...\n`,
     );
 
     // 获取开始日期之前的最后一个交易日（用于获取历史数据以计算指标）
@@ -888,7 +883,7 @@ async function getIntradayCandlesticks(
       // 获取上一个交易日的数据（用于计算指标）
       try {
         const rawCandlesticks = await ctx.historyCandlesticksByDate(
-          normalizedSymbol,
+          symbol,
           Period.Min_1,
           AdjustType.NoAdjust,
           previousTradingDay,
@@ -912,7 +907,7 @@ async function getIntradayCandlesticks(
     // 使用 fetchSymbolCandlesticks 函数，它会自动处理API的1000条限制
     const rangeCandlesticks = await fetchSymbolCandlesticks(
       ctx,
-      normalizedSymbol,
+      symbol,
       startNaiveDate,
       endNaiveDate,
       '监控标的',
@@ -926,7 +921,7 @@ async function getIntradayCandlesticks(
 
     if (!rangeCandlesticks || rangeCandlesticks.length === 0) {
       console.log(
-        `未获取到 ${normalizedSymbol} 在 ${dateRangeDisplayStr} 的分时线数据。`,
+        `未获取到 ${symbol} 在 ${dateRangeDisplayStr} 的分时线数据。`,
       );
       console.log('可能原因：');
       console.log('1. 该日期范围内没有交易日');

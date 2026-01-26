@@ -81,7 +81,7 @@ export function createMonitorContext(
     longSymbolName: longQuote?.name ?? config.longSymbol,
     shortSymbolName: shortQuote?.name ?? config.shortSymbol,
     monitorSymbolName: monitorQuote?.name ?? config.monitorSymbol,
-    // 缓存规范化后的标的代码（config中已经规范化，直接使用）
+    // 缓存已校验的标的代码（配置要求 ticker.region，直接使用）
     normalizedLongSymbol: config.longSymbol,
     normalizedShortSymbol: config.shortSymbol,
     normalizedMonitorSymbol: config.monitorSymbol,

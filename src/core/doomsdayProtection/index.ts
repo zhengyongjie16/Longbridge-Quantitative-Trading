@@ -16,7 +16,7 @@
 
 import { OrderSide } from 'longport';
 import { logger } from '../../utils/logger/index.js';
-import { normalizeHKSymbol, formatError } from '../../utils/helpers/index.js';
+import { formatError } from '../../utils/helpers/index.js';
 import { batchGetQuotes } from '../../utils/helpers/quoteHelpers.js';
 import { isBeforeClose15Minutes, isBeforeClose5Minutes } from '../../utils/helpers/tradingTime.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
@@ -25,12 +25,12 @@ import type { DoomsdayProtection, DoomsdayClearanceContext, DoomsdayClearanceRes
 
 /** 创建单个清仓信号，从对象池获取 Signal 对象 */
 const createClearanceSignal = (params: ClearanceSignalParams): Signal | null => {
-  const { normalizedSymbol, symbolName, action, price, lotSize, positionType } = params;
+  const { symbol, symbolName, action, price, lotSize, positionType } = params;
   const positionLabel = positionType === 'short' ? '做空标的' : '做多标的';
 
   // 从对象池获取信号对象，减少内存分配
   const signal = signalObjectPool.acquire() as Signal;
-  signal.symbol = normalizedSymbol;
+  signal.symbol = symbol;
   signal.symbolName = symbolName;
   signal.action = action;
   signal.reason = `末日保护程序：收盘前5分钟自动清仓（${positionLabel}持仓）`;
@@ -44,8 +44,8 @@ const createClearanceSignal = (params: ClearanceSignalParams): Signal | null => 
 /** 处理单个持仓，生成清仓信号（仅处理属于当前监控配置的持仓） */
 const processPositionForClearance = (
   pos: Position,
-  normalizedLongSymbol: string,
-  normalizedShortSymbol: string,
+  longSymbol: string,
+  shortSymbol: string,
   longQuote: Quote | null,
   shortQuote: Quote | null,
 ): Signal | null => {
@@ -59,27 +59,25 @@ const processPositionForClearance = (
     return null;
   }
 
-  const normalizedPosSymbol = normalizeHKSymbol(pos.symbol);
-
   // 只处理属于当前监控配置的持仓
-  if (normalizedPosSymbol !== normalizedLongSymbol && normalizedPosSymbol !== normalizedShortSymbol) {
+  if (pos.symbol !== longSymbol && pos.symbol !== shortSymbol) {
     return null;
   }
 
-  const isShortPos = normalizedPosSymbol === normalizedShortSymbol;
+  const isShortPos = pos.symbol === shortSymbol;
 
   // 获取该标的的当前价格、最小买卖单位和名称
   let currentPrice: number | null = null;
   let lotSize: number | null = null;
   let symbolName: string | null = pos.symbolName || null;
 
-  if (normalizedPosSymbol === normalizedLongSymbol && longQuote) {
+  if (pos.symbol === longSymbol && longQuote) {
     currentPrice = longQuote.price;
     lotSize = longQuote.lotSize ?? null;
     if (!symbolName) {
       symbolName = longQuote.name;
     }
-  } else if (normalizedPosSymbol === normalizedShortSymbol && shortQuote) {
+  } else if (pos.symbol === shortSymbol && shortQuote) {
     currentPrice = shortQuote.price;
     lotSize = shortQuote.lotSize ?? null;
     if (!symbolName) {
@@ -95,7 +93,7 @@ const processPositionForClearance = (
   const positionLabel = positionType === 'short' ? '做空标的' : '做多标的';
 
   const signal = createClearanceSignal({
-    normalizedSymbol: normalizedPosSymbol,
+    symbol: pos.symbol,
     symbolName,
     action,
     price: currentPrice,
@@ -166,15 +164,12 @@ export const createDoomsdayProtection = (): DoomsdayProtection => {
       for (const monitorConfig of monitorConfigs) {
         const longQuote = quoteMap.get(monitorConfig.longSymbol) ?? null;
         const shortQuote = quoteMap.get(monitorConfig.shortSymbol) ?? null;
-        const normalizedLongSymbol = normalizeHKSymbol(monitorConfig.longSymbol);
-        const normalizedShortSymbol = normalizeHKSymbol(monitorConfig.shortSymbol);
-
         // 复用 processPositionForClearance 处理每个持仓
         for (const pos of positions) {
           const signal = processPositionForClearance(
             pos,
-            normalizedLongSymbol,
-            normalizedShortSymbol,
+            monitorConfig.longSymbol,
+            monitorConfig.shortSymbol,
             longQuote,
             shortQuote,
           );
@@ -259,10 +254,10 @@ export const createDoomsdayProtection = (): DoomsdayProtection => {
       const allTradingSymbols = new Set<string>();
       for (const monitorConfig of monitorConfigs) {
         if (monitorConfig.longSymbol) {
-          allTradingSymbols.add(normalizeHKSymbol(monitorConfig.longSymbol));
+          allTradingSymbols.add(monitorConfig.longSymbol);
         }
         if (monitorConfig.shortSymbol) {
-          allTradingSymbols.add(normalizeHKSymbol(monitorConfig.shortSymbol));
+          allTradingSymbols.add(monitorConfig.shortSymbol);
         }
       }
 

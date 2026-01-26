@@ -2,14 +2,14 @@
  * 工具函数模块
  *
  * 功能：
- * - 港股代码规范化（添加 .HK 后缀）
+ * - 标的代码格式校验（ticker.region）
  * - Decimal 类型转换
  * - 时间格式化（北京时区）
  * - 数值格式化
  * - 监控状态管理
  *
  * 核心函数：
- * - normalizeHKSymbol()：规范化港股代码
+ * - isSymbolWithRegion()：校验标的代码格式
  * - decimalToNumber() / toDecimal()：LongPort Decimal 类型转换
  * - toBeijingTimeIso() / toBeijingTimeLog()：UTC 到北京时间转换
  * - formatSymbolDisplay() / formatQuoteDisplay()：格式化显示
@@ -86,20 +86,17 @@ function isErrorLike(value: unknown): value is Record<string, unknown> {
 
 
 /**
- * 规范化港股代码，自动添加 .HK 后缀（如果还没有）
- * @param symbol 标的代码，例如 "68547" 或 "68547.HK"
- * @returns 规范化后的代码，例如 "68547.HK"
+ * 校验标的代码格式（ticker.region）
+ * @param symbol 标的代码，例如 "68547.HK"
+ * @returns 是否符合 ticker.region 格式
  */
-export function normalizeHKSymbol(symbol: string | null | undefined): string {
+const SYMBOL_WITH_REGION_REGEX = /^[A-Z0-9]+\.[A-Z]{2,5}$/;
+
+export function isSymbolWithRegion(symbol: string | null | undefined): symbol is string {
   if (!symbol || typeof symbol !== 'string') {
-    return '';
+    return false;
   }
-  // 如果已经包含 .HK、.US 等后缀，直接返回
-  if (symbol.includes('.')) {
-    return symbol;
-  }
-  // 否则添加 .HK 后缀
-  return `${symbol}.HK`;
+  return SYMBOL_WITH_REGION_REGEX.test(symbol);
 }
 
 /**
@@ -193,7 +190,7 @@ export function formatAccountChannel(accountChannel: string | null | undefined):
 
 
 /**
- * 格式化标的显示：中文名称(代码.HK)
+ * 格式化标的显示：中文名称(代码)
  * @param symbol 标的代码
  * @param symbolName 标的中文名称（可选）
  * @returns 格式化后的标的显示
@@ -202,11 +199,10 @@ export function formatSymbolDisplay(symbol: string | null | undefined, symbolNam
   if (!symbol) {
     return '';
   }
-  const normalizedSymbol = normalizeHKSymbol(symbol);
   if (symbolName) {
-    return `${symbolName}(${normalizedSymbol})`;
+    return `${symbolName}(${symbol})`;
   }
-  return normalizedSymbol;
+  return symbol;
 }
 
 // 常量定义（已从统一常量文件导入）
@@ -267,7 +263,6 @@ export function formatQuoteDisplay(quote: import('../../types/index.js').Quote |
   }
 
   const nameText = quote.name ?? '-';
-  const codeText = normalizeHKSymbol(symbol);
   const currentPrice = quote.price;
 
   // 最新价格
@@ -295,7 +290,7 @@ export function formatQuoteDisplay(quote: import('../../types/index.js').Quote |
 
   return {
     nameText,
-    codeText,
+    codeText: symbol,
     priceText,
     changeAmountText,
     changePercentText,
@@ -304,7 +299,7 @@ export function formatQuoteDisplay(quote: import('../../types/index.js').Quote |
 
 /**
  * 格式化标的显示字符串（从行情对象生成）
- * 如果 quote 存在，返回 "中文名称(代码.HK)" 格式；否则返回规范化后的代码
+ * 如果 quote 存在，返回 "中文名称(代码)" 格式；否则返回原始代码
  * @param quote 行情对象（可选）
  * @param symbol 标的代码
  * @returns 格式化后的标的显示字符串
@@ -312,9 +307,9 @@ export function formatQuoteDisplay(quote: import('../../types/index.js').Quote |
 export function formatSymbolDisplayFromQuote(quote: import('../../types/index.js').Quote | null | undefined, symbol: string): string {
   if (quote) {
     const display = formatQuoteDisplay(quote, symbol);
-    return display ? `${display.nameText}(${display.codeText})` : normalizeHKSymbol(symbol);
+    return display ? `${display.nameText}(${display.codeText})` : symbol;
   }
-  return normalizeHKSymbol(symbol);
+  return symbol;
 }
 
 

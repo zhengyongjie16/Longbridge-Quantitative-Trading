@@ -22,11 +22,7 @@
  */
 
 import { logger } from '../../utils/logger/index.js';
-import {
-  normalizeHKSymbol,
-  getDirectionName,
-  formatSymbolDisplayFromQuote,
-} from '../../utils/helpers/index.js';
+import { getDirectionName, formatSymbolDisplayFromQuote } from '../../utils/helpers/index.js';
 import type {
   OrderRecord,
   FetchOrdersResult,
@@ -137,14 +133,10 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
     }
 
     const positionType = getDirectionName(isLongSymbol);
-    const normalizedSymbol = normalizeHKSymbol(symbol);
-    const currentOrders = storage.getBuyOrdersList(
-      normalizedSymbol,
-      isLongSymbol,
-    );
+    const currentOrders = storage.getBuyOrdersList(symbol, isLongSymbol);
 
     const logLines = [
-      `[订单记录变化] ${positionType} ${normalizedSymbol}: 当前订单列表 (共${currentOrders.length}笔)`,
+      `[订单记录变化] ${positionType} ${symbol}: 当前订单列表 (共${currentOrders.length}笔)`,
     ];
 
     if (currentOrders.length > 0) {
@@ -276,19 +268,18 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
     quote?: Quote | null,
   ): Promise<OrderRecord[]> => {
     try {
-      const normalizedSymbol = normalizeHKSymbol(symbol);
       const { buyOrders: allBuyOrders, sellOrders: filledSellOrders } =
         await apiManager.fetchOrdersFromAPI(symbol);
 
       // 如果没有买入订单，直接返回空列表
       if (allBuyOrders.length === 0) {
         if (isLongSymbol) {
-          storage.setBuyOrdersListForLong(normalizedSymbol, []);
+          storage.setBuyOrdersListForLong(symbol, []);
         } else {
-          storage.setBuyOrdersListForShort(normalizedSymbol, []);
+          storage.setBuyOrdersListForShort(symbol, []);
         }
         logRefreshResult(
-          normalizedSymbol,
+          symbol,
           isLongSymbol,
           0,
           0,
@@ -303,12 +294,12 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
       if (filledSellOrders.length === 0) {
         const buyOrdersArray = [...allBuyOrders];
         if (isLongSymbol) {
-          storage.setBuyOrdersListForLong(normalizedSymbol, buyOrdersArray);
+          storage.setBuyOrdersListForLong(symbol, buyOrdersArray);
         } else {
-          storage.setBuyOrdersListForShort(normalizedSymbol, buyOrdersArray);
+          storage.setBuyOrdersListForShort(symbol, buyOrdersArray);
         }
         logRefreshResult(
-          normalizedSymbol,
+          symbol,
           isLongSymbol,
           allBuyOrders.length,
           0,
@@ -327,12 +318,12 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
 
       // 更新记录
       if (isLongSymbol) {
-        storage.setBuyOrdersListForLong(normalizedSymbol, finalBuyOrders);
+        storage.setBuyOrdersListForLong(symbol, finalBuyOrders);
       } else {
-        storage.setBuyOrdersListForShort(normalizedSymbol, finalBuyOrders);
+        storage.setBuyOrdersListForShort(symbol, finalBuyOrders);
       }
       logRefreshResult(
-        normalizedSymbol,
+        symbol,
         isLongSymbol,
         allBuyOrders.length,
         filledSellOrders.length,
@@ -381,8 +372,7 @@ export const createOrderRecorder = (deps: OrderRecorderDeps): OrderRecorder => {
 
   /** 获取指定标的的买入订单列表 */
   const getBuyOrdersForSymbol = (symbol: string, isLongSymbol: boolean): OrderRecord[] => {
-    const normalizedSymbol = normalizeHKSymbol(symbol);
-    return storage.getBuyOrdersList(normalizedSymbol, isLongSymbol);
+    return storage.getBuyOrdersList(symbol, isLongSymbol);
   };
 
   return {

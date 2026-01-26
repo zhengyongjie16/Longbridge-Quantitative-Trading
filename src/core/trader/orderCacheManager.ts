@@ -13,7 +13,7 @@
 
 import { OrderStatus, OrderSide } from 'longport';
 import { logger } from '../../utils/logger/index.js';
-import { normalizeHKSymbol, decimalToNumber, formatError } from '../../utils/helpers/index.js';
+import { decimalToNumber, formatError } from '../../utils/helpers/index.js';
 import type { PendingOrder, DecimalLikeValue, OrderRecorder } from '../../types/index.js';
 import type { OrderCacheManager, OrderCacheManagerDeps } from './types.js';
 
@@ -50,11 +50,11 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
     symbols: string[] | null = null,
     forceRefresh: boolean = false,
   ): Promise<PendingOrder[]> => {
-    // 将 symbols 数组规范化并排序，用于比较缓存是否对应同一组 symbols
+    // 将 symbols 数组排序，用于比较缓存是否对应同一组 symbols
     const symbolsKey =
       symbols && symbols.length > 0
         ? symbols
-          .map((s) => normalizeHKSymbol(s))
+          .slice()
           .sort((a, b) => a.localeCompare(b))
           .join(',')
         : 'ALL'; // null 或空数组统一标记为 "ALL"
@@ -98,9 +98,9 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
       allOrders = (await ctx.todayOrders()) as typeof allOrders;
 
       // 如果指定了标的，还需要在客户端再次过滤（因为可能获取了所有订单）
-      const normalizedTargetSymbols =
+      const targetSymbols =
         symbols && symbols.length > 0
-          ? new Set(symbols.map((s) => normalizeHKSymbol(s)))
+          ? new Set(symbols)
           : null;
 
       const result: PendingOrder[] = allOrders
@@ -110,9 +110,8 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
             return false;
           }
           // 如果指定了标的，再过滤标的
-          if (normalizedTargetSymbols) {
-            const normalizedOrderSymbol = normalizeHKSymbol(order.symbol);
-            return normalizedTargetSymbols.has(normalizedOrderSymbol);
+          if (targetSymbols) {
+            return targetSymbols.has(order.symbol);
           }
           return true;
         })

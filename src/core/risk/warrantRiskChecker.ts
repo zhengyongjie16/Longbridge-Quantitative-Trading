@@ -8,7 +8,7 @@
  */
 
 import { logger } from '../../utils/logger/index.js';
-import { normalizeHKSymbol, decimalToNumber, isDefined, formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
+import { decimalToNumber, isDefined, formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
 import type { MarketDataClient, WarrantType, RiskCheckResult, SignalType } from '../../types/index.js';
 import type { WarrantInfo, WarrantQuote, WarrantRiskChecker, WarrantRiskCheckerDeps } from './types.js';
 import {
@@ -89,11 +89,10 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
     symbol: string,
     expectedType: 'CALL' | 'PUT',
   ): Promise<WarrantInfo> => {
-    const normalizedSymbol = normalizeHKSymbol(symbol);
     const ctx = await marketDataClient._getContext();
 
     // 使用 warrantQuote API 获取牛熊证信息
-    const warrantQuotesRaw = await ctx.warrantQuote([normalizedSymbol]);
+    const warrantQuotesRaw = await ctx.warrantQuote([symbol]);
     const warrantQuote = (Array.isArray(warrantQuotesRaw) && warrantQuotesRaw.length > 0
       ? warrantQuotesRaw[0]
       : null) as WarrantQuote | null;
@@ -121,7 +120,7 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
       warrantType,
       callPrice,
       category: category as number | string,
-      symbol: normalizedSymbol,
+      symbol,
     };
   };
 

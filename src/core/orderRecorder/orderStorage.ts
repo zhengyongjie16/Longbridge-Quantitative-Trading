@@ -12,11 +12,7 @@
  */
 
 import { logger } from '../../utils/logger/index.js';
-import {
-  normalizeHKSymbol,
-  getDirectionName,
-  formatSymbolDisplayFromQuote,
-} from '../../utils/helpers/index.js';
+import { getDirectionName, formatSymbolDisplayFromQuote } from '../../utils/helpers/index.js';
 import type { OrderRecord, Quote } from '../../types/index.js';
 import type { OrderStorage, OrderStorageDeps } from './types.js';
 import { calculateTotalQuantity } from './utils.js';
@@ -61,13 +57,12 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     executedQuantity: number,
     isLongSymbol: boolean,
   ): void => {
-    const normalizedSymbol = normalizeHKSymbol(symbol);
     const now = Date.now();
-    const list = getBuyOrdersList(normalizedSymbol, isLongSymbol);
+    const list = getBuyOrdersList(symbol, isLongSymbol);
 
     list.push({
       orderId: `LOCAL_${now}`,
-      symbol: normalizedSymbol,
+      symbol,
       executedPrice,
       executedQuantity,
       executedTime: now,
@@ -75,11 +70,11 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
       updatedAt: undefined,
     });
 
-    setBuyOrdersList(normalizedSymbol, list, isLongSymbol);
+    setBuyOrdersList(symbol, list, isLongSymbol);
 
     const positionType = getDirectionName(isLongSymbol);
     logger.info(
-      `[现存订单记录] 本地新增买入记录：${positionType} ${normalizedSymbol} 价格=${executedPrice.toFixed(
+      `[现存订单记录] 本地新增买入记录：${positionType} ${symbol} 价格=${executedPrice.toFixed(
         3,
       )} 数量=${executedQuantity}`,
     );
@@ -96,8 +91,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     executedQuantity: number,
     isLongSymbol: boolean,
   ): void => {
-    const normalizedSymbol = normalizeHKSymbol(symbol);
-    const list = getBuyOrdersList(normalizedSymbol, isLongSymbol);
+    const list = getBuyOrdersList(symbol, isLongSymbol);
 
     if (!list.length) {
       return;
@@ -108,9 +102,9 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
     // 如果卖出数量大于等于当前记录的总数量，视为全部卖出，清空记录
     if (executedQuantity >= totalQuantity) {
-      setBuyOrdersList(normalizedSymbol, [], isLongSymbol);
+      setBuyOrdersList(symbol, [], isLongSymbol);
       logger.info(
-        `[现存订单记录] 本地卖出更新：${positionType} ${normalizedSymbol} 卖出数量=${executedQuantity} >= 当前记录总数量=${totalQuantity}，清空所有买入记录`,
+        `[现存订单记录] 本地卖出更新：${positionType} ${symbol} 卖出数量=${executedQuantity} >= 当前记录总数量=${totalQuantity}，清空所有买入记录`,
       );
       return;
     }
@@ -121,17 +115,16 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
         Number.isFinite(order.executedPrice) &&
         order.executedPrice >= executedPrice,
     );
-    setBuyOrdersList(normalizedSymbol, filtered, isLongSymbol);
+    setBuyOrdersList(symbol, filtered, isLongSymbol);
     logger.info(
-      `[现存订单记录] 本地卖出更新：${positionType} ${normalizedSymbol} 卖出数量=${executedQuantity}，按价格过滤后剩余买入记录 ${filtered.length} 笔`,
+      `[现存订单记录] 本地卖出更新：${positionType} ${symbol} 卖出数量=${executedQuantity}，按价格过滤后剩余买入记录 ${filtered.length} 笔`,
     );
   };
 
   /** 清空指定标的的买入订单记录（用于保护性清仓） */
   const clearBuyOrders = (symbol: string, isLongSymbol: boolean, quote?: Quote | null): void => {
-    const normalizedSymbol = normalizeHKSymbol(symbol);
     const positionType = getDirectionName(isLongSymbol);
-    setBuyOrdersList(normalizedSymbol, [], isLongSymbol);
+    setBuyOrdersList(symbol, [], isLongSymbol);
 
     // 使用 formatSymbolDisplayFromQuote 格式化标的显示
     const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
@@ -143,8 +136,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
   /** 获取最新买入订单的成交价（用于买入价格限制检查） */
   const getLatestBuyOrderPrice = (symbol: string, isLongSymbol: boolean): number | null => {
-    const normalizedSymbol = normalizeHKSymbol(symbol);
-    const list = getBuyOrdersList(normalizedSymbol, isLongSymbol);
+    const list = getBuyOrdersList(symbol, isLongSymbol);
     if (!list.length) {
       return null;
     }
@@ -173,8 +165,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     const directionName = direction === 'LONG' ? '做多标的' : '做空标的';
 
     // 获取指定标的的订单（O(1) 查找）
-    const normalizedSymbol = normalizeHKSymbol(symbol);
-    const allOrders = targetMap.get(normalizedSymbol) ?? [];
+    const allOrders = targetMap.get(symbol) ?? [];
 
     const filteredOrders = allOrders.filter(
       (order) =>
@@ -183,7 +174,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     );
 
     logger.debug(
-      `[根据订单记录过滤] ${directionName} ${normalizedSymbol}，当前价格=${currentPrice}，当前订单=${JSON.stringify(
+      `[根据订单记录过滤] ${directionName} ${symbol}，当前价格=${currentPrice}，当前订单=${JSON.stringify(
         allOrders,
       )}，过滤后订单=${JSON.stringify(filteredOrders)}`,
     );

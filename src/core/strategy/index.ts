@@ -102,14 +102,12 @@ export const createHangSengMultiIndicatorStrategy = ({
       }
     }
 
-    const kdjData = kdj;
-
     return (
       hasValidRsi &&
       isValidNumber(mfi) &&
-      kdjData !== null &&
-      isValidNumber(kdjData.d) &&
-      isValidNumber(kdjData.j)
+      kdj !== null &&
+      isValidNumber(kdj.d) &&
+      isValidNumber(kdj.j)
     );
   };
 
@@ -203,16 +201,15 @@ export const createHangSengMultiIndicatorStrategy = ({
       parts.push(`MFI(${mfi.toFixed(3)})`);
     }
     if (kdj) {
-      const kdjData = kdj;
       const kdjParts: string[] = [];
-      if (isValidNumber(kdjData.k)) {
-        kdjParts.push(`K=${kdjData.k.toFixed(3)}`);
+      if (isValidNumber(kdj.k)) {
+        kdjParts.push(`K=${kdj.k.toFixed(3)}`);
       }
-      if (isValidNumber(kdjData.d)) {
-        kdjParts.push(`D=${kdjData.d.toFixed(3)}`);
+      if (isValidNumber(kdj.d)) {
+        kdjParts.push(`D=${kdj.d.toFixed(3)}`);
       }
-      if (isValidNumber(kdjData.j)) {
-        kdjParts.push(`J=${kdjData.j.toFixed(3)}`);
+      if (isValidNumber(kdj.j)) {
+        kdjParts.push(`J=${kdj.j.toFixed(3)}`);
       }
       if (kdjParts.length > 0) {
         parts.push(`KDJ(${kdjParts.join(',')})`);

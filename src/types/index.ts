@@ -550,11 +550,11 @@ export type MonitorContext = {
   shortSymbolName: string;
   /** 监控标的名称缓存 */
   monitorSymbolName: string;
-  /** 规范化的做多标的代码 */
+  /** 已校验的做多标的代码 */
   normalizedLongSymbol: string;
-  /** 规范化的做空标的代码 */
+  /** 已校验的做空标的代码 */
   normalizedShortSymbol: string;
-  /** 规范化的监控标的代码 */
+  /** 已校验的监控标的代码 */
   normalizedMonitorSymbol: string;
   /** RSI 指标周期配置 */
   rsiPeriods: number[];

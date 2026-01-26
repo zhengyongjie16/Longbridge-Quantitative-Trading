@@ -20,7 +20,7 @@
  */
 
 import { logger } from '../../utils/logger/index.js';
-import { normalizeHKSymbol, getDirectionName, formatSymbolDisplayFromQuote, formatError } from '../../utils/helpers/index.js';
+import { getDirectionName, formatSymbolDisplayFromQuote, formatError } from '../../utils/helpers/index.js';
 import {
   getSymbolName,
   buildSellReason,
@@ -221,9 +221,6 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
       doomsdayProtection,
     } = context;
 
-    const normalizedLongSymbol = normalizeHKSymbol(longSymbol);
-    const normalizedShortSymbol = normalizeHKSymbol(shortSymbol);
-
     // 步骤1：在 API 调用之前先过滤冷却期内的信号
     // 这样可以避免所有买入信号都在冷却期内时的无效 API 调用
     const now = Date.now();
@@ -231,9 +228,9 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
     const signalsAfterCooldown: Signal[] = [];
 
     for (const sig of signals) {
-      const normalizedSigSymbol = sig.symbol;
+      const sigSymbol = sig.symbol;
       const direction = sig.action === 'BUYCALL' || sig.action === 'BUYPUT' ? 'BUY' : 'SELL';
-      const cooldownKey = `${normalizedSigSymbol}_${direction}`;
+      const cooldownKey = `${sigSymbol}_${direction}`;
       const lastTime = lastRiskCheckTime.get(cooldownKey);
 
       if (lastTime && now - lastTime < cooldownMs) {
@@ -246,7 +243,7 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
           shortSymbolName,
         );
         logger.debug(
-          `[验证冷却] ${sigName}(${normalizedSigSymbol}) ${sig.action} 在冷却期内，剩余 ${remainingSeconds} 秒，跳过风险检查`,
+          `[验证冷却] ${sigName}(${sigSymbol}) ${sig.action} 在冷却期内，剩余 ${remainingSeconds} 秒，跳过风险检查`,
         );
         // 被冷却跳过的信号会在主循环中通过 validSignals.filter 被识别并释放到对象池
       } else {
@@ -287,7 +284,7 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
 
     // 步骤3：遍历过滤后的信号进行风险检查
     for (const sig of signalsAfterCooldown) {
-      const normalizedSigSymbol = sig.symbol;
+      const sigSymbol = sig.symbol;
       const sigName = getSymbolName(
         sig.symbol,
         longSymbol,
@@ -298,14 +295,14 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
 
       // 标记进入风险检查的时间（在处理信号前标记，确保后续相同信号被冷却）
       const direction = sig.action === 'BUYCALL' || sig.action === 'BUYPUT' ? 'BUY' : 'SELL';
-      const cooldownKey = `${normalizedSigSymbol}_${direction}`;
+      const cooldownKey = `${sigSymbol}_${direction}`;
       lastRiskCheckTime.set(cooldownKey, now);
 
       // 获取标的的当前价格用于计算持仓市值
       let currentPrice: number | null = null;
-      if (normalizedSigSymbol === normalizedLongSymbol && longQuote) {
+      if (sigSymbol === longSymbol && longQuote) {
         currentPrice = longQuote.price;
-      } else if (normalizedSigSymbol === normalizedShortSymbol && shortQuote) {
+      } else if (sigSymbol === shortSymbol && shortQuote) {
         currentPrice = shortQuote.price;
       }
 
@@ -316,7 +313,7 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
       if (isBuyActionCheck) {
         if (buyApiFetchFailed) {
           logger.warn(
-            `[风险检查] 买入操作无法获取账户信息，跳过该信号：${sigName}(${normalizedSigSymbol}) ${sig.action}`,
+            `[风险检查] 买入操作无法获取账户信息，跳过该信号：${sigName}(${sigSymbol}) ${sig.action}`,
           );
           continue;
         }
@@ -333,7 +330,7 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
         if (!tradeCheck.canTrade) {
           const directionDesc = sig.action === 'BUYCALL' ? '做多标的' : '做空标的';
           logger.warn(
-            `[交易频率限制] ${directionDesc} 在${context.config.buyIntervalSeconds}秒内已买入过，需等待 ${tradeCheck.waitSeconds ?? 0} 秒后才能再次买入：${sigName}(${normalizedSigSymbol}) ${sig.action}`,
+            `[交易频率限制] ${directionDesc} 在${context.config.buyIntervalSeconds}秒内已买入过，需等待 ${tradeCheck.waitSeconds ?? 0} 秒后才能再次买入：${sigName}(${sigSymbol}) ${sig.action}`,
           );
           continue;
         }
@@ -344,16 +341,13 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
 
         // 2. 买入价格限制
         const isLongBuyAction = sig.action === 'BUYCALL';
-        const latestBuyPrice = orderRecorder.getLatestBuyOrderPrice(
-          normalizedSigSymbol,
-          isLongBuyAction,
-        );
+        const latestBuyPrice = orderRecorder.getLatestBuyOrderPrice(sigSymbol, isLongBuyAction);
 
         if (latestBuyPrice !== null && currentPrice !== null) {
           const directionDesc = isLongBuyAction ? '做多标的' : '做空标的';
           const currentPriceStr = currentPrice.toFixed(3);
           const latestBuyPriceStr = latestBuyPrice.toFixed(3);
-          const signalDesc = `${sigName}(${normalizedSigSymbol}) ${sig.action}`;
+          const signalDesc = `${sigName}(${sigSymbol}) ${sig.action}`;
 
           if (currentPrice > latestBuyPrice) {
             logger.warn(
@@ -373,7 +367,7 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
         ) {
           const closeTimeRange = isHalfDay ? '11:45-12:00' : '15:45-16:00';
           logger.warn(
-            `[末日保护程序] 收盘前15分钟内拒绝买入：${sigName}(${normalizedSigSymbol}) ${sig.action} - 当前时间在${closeTimeRange}范围内`,
+            `[末日保护程序] 收盘前15分钟内拒绝买入：${sigName}(${sigSymbol}) ${sig.action} - 当前时间在${closeTimeRange}范围内`,
           );
           continue;
         }
@@ -390,7 +384,7 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
 
         if (!warrantRiskResult.allowed) {
           logger.warn(
-            `[牛熊证风险拦截] 信号被牛熊证风险控制拦截：${sigName}(${normalizedSigSymbol}) ${sig.action} - ${warrantRiskResult.reason}`,
+            `[牛熊证风险拦截] 信号被牛熊证风险控制拦截：${sigName}(${sigSymbol}) ${sig.action} - ${warrantRiskResult.reason}`,
           );
           continue;
         } else if (warrantRiskResult.warrantInfo?.isWarrant) {
@@ -404,9 +398,9 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
           // 使用 formatSymbolDisplayFromQuote 格式化标的显示
           let quoteForSymbol: Quote | null = null;
 
-          if (normalizedSigSymbol === normalizedLongSymbol) {
+          if (sigSymbol === longSymbol) {
             quoteForSymbol = longQuote;
-          } else if (normalizedSigSymbol === normalizedShortSymbol) {
+          } else if (sigSymbol === shortSymbol) {
             quoteForSymbol = shortQuote;
           }
 
@@ -427,7 +421,7 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
 
       if (isBuyActionCheck && accountForRiskCheck === null) {
         logger.warn(
-          `[风险检查] 买入操作无法获取账户信息，跳过该信号：${sigName}(${normalizedSigSymbol}) ${sig.action}`,
+          `[风险检查] 买入操作无法获取账户信息，跳过该信号：${sigName}(${sigSymbol}) ${sig.action}`,
         );
         continue;
       }
@@ -450,7 +444,7 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
         finalSignals.push(sig);
       } else {
         logger.warn(
-          `[风险拦截] 信号被风险控制拦截：${sigName}(${normalizedSigSymbol}) ${sig.action} - ${riskResult.reason}`,
+          `[风险拦截] 信号被风险控制拦截：${sigName}(${sigSymbol}) ${sig.action} - ${riskResult.reason}`,
         );
       }
     }

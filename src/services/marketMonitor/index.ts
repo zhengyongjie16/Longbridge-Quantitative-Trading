@@ -19,7 +19,6 @@ import { colors, logger } from '../../utils/logger/index.js';
 import {
   formatQuoteDisplay,
   isValidPositiveNumber,
-  normalizeHKSymbol,
   toBeijingTimeLog,
 } from '../../utils/helpers/index.js';
 import { isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
@@ -211,14 +210,13 @@ export const createMarketMonitor = (): MarketMonitor => {
       }
     }
 
-    const normalizedMonitorSymbol = normalizeHKSymbol(monitorSymbol);
     const monitorSymbolName = monitorQuote?.name ?? monitorSymbol;
 
     // 格式化K线时间戳（仅显示时分秒）
     const timePrefix = formatKlineTimePrefix(klineTimestamp);
 
     logger.info(
-      `${colors.cyan}${timePrefix}[监控标的] ${monitorSymbolName}(${normalizedMonitorSymbol}) ${indicators.join(
+      `${colors.cyan}${timePrefix}[监控标的] ${monitorSymbolName}(${monitorSymbol}) ${indicators.join(
         ' ',
       )}${colors.reset}`,
     );

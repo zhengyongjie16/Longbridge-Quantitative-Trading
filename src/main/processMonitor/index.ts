@@ -180,12 +180,12 @@ export async function processMonitor(
 
     // 6. 为信号设置标的中文名称和价格信息（用于日志显示和后续处理）
     const enrichSignal = (signal: Signal): void => {
-      const normalizedSigSymbol = signal.symbol;
-      if (normalizedSigSymbol === LONG_SYMBOL && longQuote) {
+      const sigSymbol = signal.symbol;
+      if (sigSymbol === LONG_SYMBOL && longQuote) {
         if (signal.symbolName == null && longQuote.name != null) signal.symbolName = longQuote.name;
         signal.price ??= longQuote.price;
         if (signal.lotSize == null && longQuote.lotSize != null) signal.lotSize = longQuote.lotSize;
-      } else if (normalizedSigSymbol === SHORT_SYMBOL && shortQuote) {
+      } else if (sigSymbol === SHORT_SYMBOL && shortQuote) {
         if (signal.symbolName == null && shortQuote.name != null) signal.symbolName = shortQuote.name;
         signal.price ??= shortQuote.price;
         if (signal.lotSize == null && shortQuote.lotSize != null) signal.lotSize = shortQuote.lotSize;

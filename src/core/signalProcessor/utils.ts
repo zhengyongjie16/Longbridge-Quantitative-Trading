@@ -9,7 +9,6 @@
  * - 标的名称解析
  */
 
-import { normalizeHKSymbol } from '../../utils/helpers/index.js';
 import type { OrderRecorder, Quote, Position } from '../../types/index.js';
 import type { SellContextValidationResult, SellQuantityResult } from './types.js';
 
@@ -153,13 +152,9 @@ export function getSymbolName(
   longSymbolName: string | null,
   shortSymbolName: string | null,
 ): string | null {
-  const normalizedSigSymbol = normalizeHKSymbol(signalSymbol);
-  const normalizedLongSymbol = longSymbol ? normalizeHKSymbol(longSymbol) : null;
-  const normalizedShortSymbol = shortSymbol ? normalizeHKSymbol(shortSymbol) : null;
-
-  if (normalizedSigSymbol === normalizedLongSymbol) {
+  if (longSymbol && signalSymbol === longSymbol) {
     return longSymbolName;
-  } else if (normalizedSigSymbol === normalizedShortSymbol) {
+  } else if (shortSymbol && signalSymbol === shortSymbol) {
     return shortSymbolName;
   }
   return signalSymbol;

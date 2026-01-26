@@ -18,7 +18,6 @@
 import { logger } from '../logger/index.js';
 import {
   formatError,
-  normalizeHKSymbol,
   formatAccountChannel,
   formatNumber,
   isValidPositiveNumber,
@@ -98,7 +97,7 @@ export async function displayAccountAndPositions(
 
       // 批量获取所有持仓标的的完整信息（包含中文名称和价格）
       const positionSymbols = positions.map((p) => p.symbol).filter(Boolean);
-      const symbolInfoMap = new Map<string, { name: string | null; price: number | null }>(); // key: normalizedSymbol, value: {name, price}
+      const symbolInfoMap = new Map<string, { name: string | null; price: number | null }>(); // key: symbol, value: {name, price}
       if (positionSymbols.length > 0) {
         // 使用 getQuotes 批量获取所有标的的完整信息
         // 单独 catch：持仓中可能存在未订阅的标的（如用户手动交易的）
@@ -122,12 +121,11 @@ export async function displayAccountAndPositions(
       const totalAssets = account?.netAssets ?? 0;
 
       positions.forEach((pos) => {
-        const normalizedPosSymbol = normalizeHKSymbol(pos.symbol);
-        const symbolInfo = symbolInfoMap.get(normalizedPosSymbol);
+        const symbolInfo = symbolInfoMap.get(pos.symbol);
 
         // 优先使用从行情 API 获取的中文名称，否则使用持仓数据中的名称，最后使用 "-"
         const nameText = symbolInfo?.name ?? pos.symbolName ?? '-';
-        const codeText = normalizeHKSymbol(pos.symbol);
+        const codeText = pos.symbol;
 
         // 获取当前价格（仅使用实时价格）
         const currentPrice = symbolInfo?.price ?? null;

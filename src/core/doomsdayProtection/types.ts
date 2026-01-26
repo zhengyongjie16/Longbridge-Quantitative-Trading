@@ -19,7 +19,7 @@ export type PositionType = 'long' | 'short';
  * 清仓信号创建参数
  */
 export type ClearanceSignalParams = {
-  readonly normalizedSymbol: string;
+  readonly symbol: string;
   readonly symbolName: string | null;
   readonly action: SignalType;
   readonly price: number | null;

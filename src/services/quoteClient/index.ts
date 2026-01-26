@@ -35,12 +35,7 @@ import {
   SubType,
 } from 'longport';
 import type { Candlestick, PushQuoteEvent } from 'longport';
-import {
-  normalizeHKSymbol,
-  decimalToNumber,
-  formatError,
-  formatSymbolDisplay,
-} from '../../utils/helpers/index.js';
+import { decimalToNumber, formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { API } from '../../constants/index.js';
 import type { Quote, TradingDayInfo, MarketDataClient, TradingDaysResult, PeriodString } from '../../types/index.js';
@@ -176,14 +171,14 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps): Promis
    * 处理行情推送（WebSocket 回调）
    */
   const handleQuotePush = (event: PushQuoteEvent): void => {
-    const normalizedSymbol = normalizeHKSymbol(event.symbol);
-    const staticInfo = staticInfoCache.get(normalizedSymbol);
-    const prevClose = prevCloseCache.get(normalizedSymbol) ?? 0;
+    const symbol = event.symbol;
+    const staticInfo = staticInfoCache.get(symbol);
+    const prevClose = prevCloseCache.get(symbol) ?? 0;
     const lotSize = extractLotSize(staticInfo);
     const pushData = event.data;
 
     const quote: Quote = {
-      symbol: normalizedSymbol,
+      symbol,
       name: extractName(staticInfo),
       price: Number(pushData.lastDone),
       prevClose,
@@ -193,17 +188,17 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps): Promis
       staticInfo,
     };
 
-    quoteCache.set(normalizedSymbol, quote);
+    quoteCache.set(symbol, quote);
     state.lastUpdateTime = Date.now();
   };
 
   // ==================== 初始化订阅（自动执行） ====================
 
-  const normalizedSymbols = symbols.map(normalizeHKSymbol);
-  logger.info(`[行情订阅] 正在初始化 ${normalizedSymbols.length} 个标的...`);
+  const subscriptionSymbols = [...symbols];
+  logger.info(`[行情订阅] 正在初始化 ${subscriptionSymbols.length} 个标的...`);
 
   // 1. 缓存静态信息
-  const staticInfoList = await withRetry(() => ctx.staticInfo(normalizedSymbols));
+  const staticInfoList = await withRetry(() => ctx.staticInfo(subscriptionSymbols));
   for (const info of staticInfoList) {
     if (info && typeof info === 'object' && 'symbol' in info) {
       const infoSymbol = (info as { symbol: string }).symbol;
@@ -213,7 +208,7 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps): Promis
   logger.debug(`[行情订阅] 已缓存 ${staticInfoList.length} 个标的的静态信息`);
 
   // 2. 拉取初始行情数据（获取 prevClose，保证有初始数据）
-  const initialQuotes = await withRetry(() => ctx.quote(normalizedSymbols));
+  const initialQuotes = await withRetry(() => ctx.quote(subscriptionSymbols));
   for (const quote of initialQuotes) {
     if (!quote) continue;
 
@@ -249,11 +244,11 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps): Promis
   });
 
   // 4. 订阅行情（is_first_push = true：订阅后立即推送一次当前数据）
-  await ctx.subscribe(normalizedSymbols, [SubType.Quote], true);
+  await ctx.subscribe(subscriptionSymbols, [SubType.Quote], true);
 
   state.isConnected = true;
   state.lastUpdateTime = Date.now();
-  logger.info(`[行情订阅] 成功订阅 ${normalizedSymbols.length} 个标的`);
+  logger.info(`[行情订阅] 成功订阅 ${subscriptionSymbols.length} 个标的`);
 
   // ==================== 公共方法实现 ====================
 
@@ -267,21 +262,20 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps): Promis
     const result = new Map<string, Quote | null>();
 
     for (const reqSymbol of requestSymbols) {
-      const normalizedSymbol = normalizeHKSymbol(reqSymbol);
-      const cached = quoteCache.get(normalizedSymbol);
+      const cached = quoteCache.get(reqSymbol);
 
       if (cached) {
-        result.set(normalizedSymbol, cached);
-      } else if (subscribedSymbols.has(normalizedSymbol)) {
+        result.set(reqSymbol, cached);
+      } else if (subscribedSymbols.has(reqSymbol)) {
         // 已订阅但无数据（可能是刚订阅还未收到推送）
-        const staticInfo = staticInfoCache.get(normalizedSymbol);
+        const staticInfo = staticInfoCache.get(reqSymbol);
         const symbolName = extractName(staticInfo);
-        logger.warn(`[行情获取] 标的 ${formatSymbolDisplay(normalizedSymbol, symbolName)} 无缓存数据`);
-        result.set(normalizedSymbol, null);
+        logger.warn(`[行情获取] 标的 ${formatSymbolDisplay(reqSymbol, symbolName)} 无缓存数据`);
+        result.set(reqSymbol, null);
       } else {
         // 请求的标的不在订阅列表中，抛出错误以尽早发现配置问题
         throw new Error(
-          `[行情获取] 标的 ${normalizedSymbol} 未在初始化时订阅，请检查 symbols 配置`,
+          `[行情获取] 标的 ${reqSymbol} 未在初始化时订阅，请检查 symbols 配置`,
         );
       }
     }
@@ -293,8 +287,7 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps): Promis
    * 缓存静态信息（保持接口兼容，内部已在初始化时完成）
    */
   const cacheStaticInfo = async (newSymbols: ReadonlyArray<string>): Promise<void> => {
-    const normalizedNewSymbols = newSymbols.map(normalizeHKSymbol);
-    const uncachedSymbols = normalizedNewSymbols.filter((s) => !staticInfoCache.has(s));
+    const uncachedSymbols = newSymbols.filter((s) => !staticInfoCache.has(s));
 
     if (uncachedSymbols.length === 0) return;
 
@@ -342,10 +335,9 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps): Promis
     adjustType: AdjustType = AdjustType.NoAdjust,
     tradeSessions: TradeSessions = TradeSessions.All,
   ): Promise<Candlestick[]> => {
-    const normalizedSymbol = normalizeHKSymbol(symbol);
     const periodEnum = normalizePeriod(period);
     return ctx.candlesticks(
-      normalizedSymbol,
+      symbol,
       periodEnum,
       count,
       adjustType,
@@ -423,14 +415,13 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps): Promis
 
       // 半日交易日也算交易日
       const isTradingDayResult = isInTradingDays || isInHalfTradingDays;
-      const isHalfDay = isInHalfTradingDays;
 
       // 缓存结果（无论是否是交易日都缓存）
-      tradingDayCache.set(dateStr, isTradingDayResult, isHalfDay);
+      tradingDayCache.set(dateStr, isTradingDayResult, isInHalfTradingDays);
 
       return {
         isTradingDay: isTradingDayResult,
-        isHalfDay,
+        isHalfDay: isInHalfTradingDays,
       };
     } catch (err) {
       // 如果 API 调用失败，返回保守结果（假设是交易日，避免漏掉交易机会）

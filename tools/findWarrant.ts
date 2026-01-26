@@ -41,7 +41,6 @@ import dotenv from 'dotenv';
 import { createConfig } from '../src/config/config.index.js';
 import { createMultiMonitorTradingConfig } from '../src/config/config.trading.js';
 import {
-  normalizeHKSymbol,
   decimalToNumber,
   formatNumber,
 } from '../src/utils/helpers/index.js';
@@ -326,20 +325,17 @@ async function findQualifiedWarrants(
     // 初始化 QuoteContext
     const ctx = await QuoteContext.new(config);
 
-    // 规范化监控标的代码
-    const normalizedMonitorSymbol = normalizeHKSymbol(monitorSymbol);
-
     // 1. 获取监控标的的当前价
-    const monitorQuotes = await ctx.quote([normalizedMonitorSymbol]);
+    const monitorQuotes = await ctx.quote([monitorSymbol]);
     const monitorQuote = monitorQuotes?.[0] as { lastDone?: unknown } | null;
     if (!monitorQuote) {
-      throw new Error(`无法获取监控标的 ${normalizedMonitorSymbol} 的行情数据`);
+      throw new Error(`无法获取监控标的 ${monitorSymbol} 的行情数据`);
     }
 
     const monitorPrice = decimalToNumber(monitorQuote.lastDone as DecimalLikeValue);
     if (!Number.isFinite(monitorPrice) || monitorPrice <= 0) {
       throw new Error(
-        `监控标的 ${normalizedMonitorSymbol} 的当前价无效: ${monitorPrice}`,
+        `监控标的 ${monitorSymbol} 的当前价无效: ${monitorPrice}`,
       );
     }
 
@@ -358,7 +354,7 @@ async function findQualifiedWarrants(
       undefined,
       typeof WarrantStatus[keyof typeof WarrantStatus][]
     ] = [
-      normalizedMonitorSymbol,
+      monitorSymbol,
       WarrantSortBy.ExpiryDate,
       SortOrderType.Ascending,
       undefined, // issuer

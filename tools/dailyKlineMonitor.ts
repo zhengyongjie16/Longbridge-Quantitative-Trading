@@ -20,7 +20,6 @@ import { QuoteContext, Period, AdjustType, TradeSessions } from 'longport';
 import { buildIndicatorSnapshot } from '../src/services/indicators/index.js';
 import { createConfig } from '../src/config/config.index.js';
 import {
-  normalizeHKSymbol,
   decimalToNumber,
   formatNumber,
   sleep,
@@ -141,9 +140,8 @@ async function getDailyCandles(
   symbol: string,
   count: number = DAILY_CANDLE_COUNT,
 ): Promise<CandleData[]> {
-  const normalizedSymbol = normalizeHKSymbol(symbol);
   const candles = await ctx.candlesticks(
-    normalizedSymbol,
+    symbol,
     Period.Day,
     count,
     AdjustType.NoAdjust,
@@ -156,13 +154,12 @@ async function getDailyCandles(
  * 获取标的实时行情
  */
 async function getQuote(ctx: QuoteContext, symbol: string): Promise<Quote | null> {
-  const normalizedSymbol = normalizeHKSymbol(symbol);
-  const quotes = await ctx.quote([normalizedSymbol]);
+  const quotes = await ctx.quote([symbol]);
   const quote = quotes[0];
   if (!quote) return null;
 
   return {
-    symbol: normalizedSymbol,
+    symbol,
     name: quote.symbol ?? null,
     price: decimalToNumber(quote.lastDone),
     prevClose: decimalToNumber(quote.prevClose),
@@ -359,11 +356,10 @@ function displayIndicators(
     if (Number.isFinite(dea)) indicators.push(`DEA=${formatIndicator(dea, 3)}`);
   }
 
-  const normalizedSymbol = normalizeHKSymbol(monitorSymbol);
   const symbolName = quote?.name ?? monitorSymbol;
   const timePrefix = formatKlineTimePrefix(quote?.timestamp);
 
-  console.log(`${timePrefix}[监控标的] ${symbolName}(${normalizedSymbol}) ${indicators.join(' ')}`);
+  console.log(`${timePrefix}[监控标的] ${symbolName}(${monitorSymbol}) ${indicators.join(' ')}`);
 }
 
 /**
@@ -407,7 +403,7 @@ async function createMonitorContext(monitorSymbol: string): Promise<MonitorConte
 
   return {
     ctx,
-    monitorSymbol: normalizeHKSymbol(monitorSymbol),
+    monitorSymbol,
     state: {
       lastPrice: null,
       lastChangePercent: null,
@@ -427,7 +423,7 @@ async function main(): Promise<void> {
   const monitorSymbol = process.argv[2] || process.env['DAILY_MONITOR_SYMBOL'] || DEFAULT_SYMBOL;
 
   console.log(`正在初始化日级K线实时监控...`);
-  console.log(`监控标的: ${normalizeHKSymbol(monitorSymbol)}`);
+  console.log(`监控标的: ${monitorSymbol}`);
   console.log('');
 
   const context = await createMonitorContext(monitorSymbol);

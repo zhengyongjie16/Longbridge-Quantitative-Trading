@@ -9,7 +9,7 @@
  */
 
 import { logger } from '../../utils/logger/index.js';
-import { normalizeHKSymbol, isValidPositiveNumber, getDirectionName, formatSymbolDisplayFromQuote } from '../../utils/helpers/index.js';
+import { isValidPositiveNumber, getDirectionName, formatSymbolDisplayFromQuote } from '../../utils/helpers/index.js';
 import type { OrderRecorder, UnrealizedLossData, UnrealizedLossCheckResult, Quote } from '../../types/index.js';
 import type { UnrealizedLossChecker, UnrealizedLossCheckerDeps } from './types.js';
 
@@ -22,7 +22,7 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
 
   /** 获取指定标的的浮亏数据 */
   const getUnrealizedLossData = (symbol: string): UnrealizedLossData | undefined => {
-    return unrealizedLossData.get(normalizeHKSymbol(symbol));
+    return unrealizedLossData.get(symbol);
   };
 
   /** 获取所有标的的浮亏数据（返回副本） */
@@ -85,11 +85,9 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
     }
 
     try {
-      const normalizedSymbol = normalizeHKSymbol(symbol);
-
       // 使用公共方法获取订单列表
       const buyOrders = orderRecorder.getBuyOrdersForSymbol(
-        normalizedSymbol,
+        symbol,
         isLongSymbol,
       );
 
@@ -97,7 +95,7 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
       const { r1, n1 } = calculateCostAndQuantity(buyOrders);
 
       // 更新缓存
-      unrealizedLossData.set(normalizedSymbol, {
+      unrealizedLossData.set(symbol, {
         r1,
         n1,
         lastUpdateTime: Date.now(),
@@ -136,18 +134,16 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
       return { shouldLiquidate: false };
     }
 
-    const normalizedSymbol = normalizeHKSymbol(symbol);
-
     // 验证当前价格有效性
     if (!isValidPositiveNumber(currentPrice)) {
       return { shouldLiquidate: false };
     }
 
     // 获取缓存的浮亏数据
-    const lossData = unrealizedLossData.get(normalizedSymbol);
+    const lossData = unrealizedLossData.get(symbol);
     if (!lossData) {
       logger.warn(
-        `[浮亏监控] ${normalizedSymbol} 浮亏数据未初始化，跳过检查（可能是订单获取失败或数据尚未刷新）`,
+        `[浮亏监控] ${symbol} 浮亏数据未初始化，跳过检查（可能是订单获取失败或数据尚未刷新）`,
       );
       return { shouldLiquidate: false };
     }
@@ -165,16 +161,15 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
 
     // 检查浮亏是否超过阈值（浮亏为负数表示亏损）
     // 此处已通过 isEnabled() 验证，maxUnrealizedLossPerSymbol 不为 null
-    const threshold = maxUnrealizedLossPerSymbol;
-    if (threshold === null || !Number.isFinite(threshold)) {
+    if (maxUnrealizedLossPerSymbol === null || !Number.isFinite(maxUnrealizedLossPerSymbol)) {
       return { shouldLiquidate: false };
     }
 
-    if (unrealizedLoss < -threshold) {
+    if (unrealizedLoss < -maxUnrealizedLossPerSymbol) {
       const positionType = getDirectionName(isLongSymbol);
-      const reason = `[保护性清仓] ${positionType} ${normalizedSymbol} 浮亏=${unrealizedLoss.toFixed(
+      const reason = `[保护性清仓] ${positionType} ${symbol} 浮亏=${unrealizedLoss.toFixed(
         2,
-      )} HKD 超过阈值 ${threshold} HKD (R1=${r1.toFixed(
+      )} HKD 超过阈值 ${maxUnrealizedLossPerSymbol} HKD (R1=${r1.toFixed(
         2,
       )}, R2=${r2.toFixed(2)}, N1=${n1})，执行保护性清仓`;
 

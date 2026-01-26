@@ -63,11 +63,11 @@ LONGPORT_APP_SECRET=your_secret
 LONGPORT_ACCESS_TOKEN=your_token
 LONGPORT_REGION=hk    # 可选，默认 hk（cn 为中国大陆区域）
 
-# 交易标的配置（使用后缀 _N，N从1开始，系统自动检测）
+# 交易标的配置（使用后缀 _N，N从1开始，系统自动检测；标的必须为 ticker.region）
 # 示例：第一个监控标的（_1）
 MONITOR_SYMBOL_1=9988.HK    # 监控标的（阿里巴巴）
-LONG_SYMBOL_1=55131         # 做多标的（阿里摩通六甲牛G）
-SHORT_SYMBOL_1=56614        # 做空标的（阿里摩通六七熊A）
+LONG_SYMBOL_1=55131.HK      # 做多标的（阿里摩通六甲牛G）
+SHORT_SYMBOL_1=56614.HK     # 做空标的（阿里摩通六七熊A）
 
 # 交易参数(示例，接近取值)
 TARGET_NOTIONAL_1=10000    # 每次买入金额（HKD）
@@ -84,8 +84,8 @@ SIGNAL_BUYPUT_1=(RSI:6>80,MFI>85,D>80,J>100)/3|(J>120)
 SIGNAL_SELLPUT_1=(RSI:6<20,MFI<15,D<22,J<0)/3|(J<-15)
 
 # 如需配置第二个监控标的，使用后缀 _2，以此类推
-# MONITOR_SYMBOL_2=...
-# LONG_SYMBOL_2=...
+# MONITOR_SYMBOL_2=9988.HK
+# LONG_SYMBOL_2=55131.HK
 ```
 
 ### 启动

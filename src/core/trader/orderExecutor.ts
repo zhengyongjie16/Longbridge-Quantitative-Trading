@@ -22,7 +22,6 @@ import {
 import { logger, colors } from '../../utils/logger/index.js';
 import { TIME, TRADING } from '../../constants/index.js';
 import {
-  normalizeHKSymbol,
   decimalToNumber,
   toDecimal,
   formatError,
@@ -57,11 +56,8 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
 
   /** 通过信号标的查找对应的监控配置 */
   const findMonitorConfigBySymbol = (signalSymbol: string): MonitorConfig | null => {
-    const normalizedSymbol = normalizeHKSymbol(signalSymbol);
     for (const config of monitors) {
-      const configLongSymbol = normalizeHKSymbol(config.longSymbol);
-      const configShortSymbol = normalizeHKSymbol(config.shortSymbol);
-      if (normalizedSymbol === configLongSymbol || normalizedSymbol === configShortSymbol) {
+      if (signalSymbol === config.longSymbol || signalSymbol === config.shortSymbol) {
         return config;
       }
     }
@@ -361,21 +357,19 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     isShortSymbol: boolean,
     monitorConfig: MonitorConfig | null = null,
   ): Promise<void> => {
-    const actualOrderType = orderTypeParam;
-
     const resolvedPrice = overridePrice ?? signal?.price ?? null;
 
     // 格式化标的显示（用于日志）
     const symbolDisplayForLog = formatSymbolDisplay(symbol, signal.symbolName ?? null);
 
     // 市价单不需要价格
-    if (actualOrderType === OrderType.MO) {
+    if (orderTypeParam === OrderType.MO) {
       logger.info(`[订单类型] 使用市价单(MO)，标的=${symbolDisplayForLog}`);
     } else if (
-      actualOrderType === OrderType.LO ||
-      actualOrderType === OrderType.ELO ||
-      actualOrderType === OrderType.ALO ||
-      actualOrderType === OrderType.SLO
+      orderTypeParam === OrderType.LO ||
+      orderTypeParam === OrderType.ELO ||
+      orderTypeParam === OrderType.ALO ||
+      orderTypeParam === OrderType.SLO
     ) {
       if (!resolvedPrice) {
         logger.warn(
@@ -384,11 +378,11 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
         return;
       }
       let orderTypeName: string;
-      if (actualOrderType === OrderType.LO) {
+      if (orderTypeParam === OrderType.LO) {
         orderTypeName = 'LO';
-      } else if (actualOrderType === OrderType.ELO) {
+      } else if (orderTypeParam === OrderType.ELO) {
         orderTypeName = 'ELO';
-      } else if (actualOrderType === OrderType.ALO) {
+      } else if (orderTypeParam === OrderType.ALO) {
         orderTypeName = 'ALO';
       } else {
         orderTypeName = 'SLO';
@@ -401,12 +395,12 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     // 构建订单载荷（不可变方式，一次性创建包含所有字段的对象）
     const orderPayload: OrderPayload = {
       symbol,
-      orderType: actualOrderType,
+      orderType: orderTypeParam,
       side,
       timeInForce,
       submittedQuantity: submittedQtyDecimal,
       // 仅在需要时添加价格字段
-      ...(resolvedPrice && actualOrderType !== OrderType.MO && { submittedPrice: toDecimal(resolvedPrice) }),
+      ...(resolvedPrice && orderTypeParam !== OrderType.MO && { submittedPrice: toDecimal(resolvedPrice) }),
       // 仅在有备注时添加备注字段
       ...(remark && { remark: `${remark}`.slice(0, 60) }),
     };
@@ -457,13 +451,13 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
         side: signal.action || (side === OrderSide.Buy ? 'BUY' : 'SELL'),
         quantity: orderPayload.submittedQuantity.toString(),
         price: orderPayload.submittedPrice?.toString() || '市价',
-        orderType: actualOrderType === OrderType.MO ? '市价单' : '限价单',
+        orderType: orderTypeParam === OrderType.MO ? '市价单' : '限价单',
         status: 'SUBMITTED',
         reason: signal.reason || '策略信号',
         signalTriggerTime: signal.triggerTime || null,
       });
     } catch (err) {
-      handleSubmitError(err, signal, orderPayload, side, isShortSymbol, actualOrderType);
+      handleSubmitError(err, signal, orderPayload, side, isShortSymbol, orderTypeParam);
     }
   };
 
@@ -515,8 +509,6 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
       : getOrderTypeFromConfig(global.tradingOrderType);
     const timeInForce = TimeInForceType.Day;
     const remark = 'QuantDemo';
-    const overridePrice = undefined;
-    const symbol = targetSymbol;
 
     let submittedQtyDecimal: Decimal;
 
@@ -527,7 +519,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     if (needClosePosition) {
       submittedQtyDecimal = await calculateSellQuantity(
         ctx,
-        symbol,
+        targetSymbol,
         signal,
       );
       if (submittedQtyDecimal.isZero()) {
@@ -537,7 +529,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
       submittedQtyDecimal = calculateBuyQuantity(
         signal,
         isShortSymbol,
-        overridePrice,
+        undefined,
         targetNotional,
       );
       if (submittedQtyDecimal.isZero()) {
@@ -548,13 +540,13 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     await submitOrder(
       ctx,
       signal,
-      symbol,
+      targetSymbol,
       side,
       submittedQtyDecimal,
       orderType,
       timeInForce,
       remark,
-      overridePrice,
+      undefined,
       isShortSymbol,
       monitorConfig,
     );
@@ -602,11 +594,8 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
         continue;
       }
 
-      const normalizedSignalSymbol = normalizeHKSymbol(s.symbol);
-      const normalizedLongSymbol = normalizeHKSymbol(monitorConfig.longSymbol);
-      const normalizedShortSymbol = normalizeHKSymbol(monitorConfig.shortSymbol);
-      const isShortSymbol = normalizedSignalSymbol === normalizedShortSymbol;
-      const targetSymbol = isShortSymbol ? normalizedShortSymbol : normalizedLongSymbol;
+      const isShortSymbol = s.symbol === monitorConfig.shortSymbol;
+      const targetSymbol = isShortSymbol ? monitorConfig.shortSymbol : monitorConfig.longSymbol;
 
       // 根据信号类型显示操作描述
       let actualAction = '';

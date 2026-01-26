@@ -7,7 +7,6 @@
  * - 已有持仓时使用成本价计算市值
  */
 
-import { normalizeHKSymbol } from '../../utils/helpers/index.js';
 import type { Position, Signal, RiskCheckResult } from '../../types/index.js';
 import type { PositionLimitChecker, PositionLimitCheckerDeps } from './types.js';
 
@@ -20,11 +19,7 @@ export const createPositionLimitChecker = (deps: PositionLimitCheckerDeps): Posi
     positions: ReadonlyArray<Position> | null,
     symbol: string,
   ): Position | undefined => {
-    return positions?.find((p) => {
-      const posSymbol = normalizeHKSymbol(p.symbol);
-      const sigSymbol = normalizeHKSymbol(symbol);
-      return posSymbol === sigSymbol;
-    });
+    return positions?.find((p) => p.symbol === symbol);
   };
 
   /** 仅检查下单金额是否超限（无持仓时使用） */
