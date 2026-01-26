@@ -94,8 +94,23 @@ function calculateSellQuantity(
   };
 }
 
+function isBuyAction(action: Signal['action']): boolean {
+  return action === 'BUYCALL' || action === 'BUYPUT';
+}
+
+function getRiskCheckCooldownKey(symbol: string, action: Signal['action']): string {
+  if (isBuyAction(action)) {
+    return `${symbol}_BUY`;
+  }
+
+  return `${symbol}_SELL`;
+}
+
 /** 创建信号处理器（工厂函数） */
-export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): SignalProcessor => {
+export const createSignalProcessor = ({
+  tradingConfig,
+  liquidationCooldownTracker,
+}: SignalProcessorDeps): SignalProcessor => {
   /** 冷却时间记录：Map<symbol_direction, timestamp>，防止重复信号频繁触发风险检查 */
   const lastRiskCheckTime = new Map<string, number>();
 
@@ -229,8 +244,7 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
 
     for (const sig of signals) {
       const sigSymbol = sig.symbol;
-      const direction = sig.action === 'BUYCALL' || sig.action === 'BUYPUT' ? 'BUY' : 'SELL';
-      const cooldownKey = `${sigSymbol}_${direction}`;
+      const cooldownKey = getRiskCheckCooldownKey(sigSymbol, sig.action);
       const lastTime = lastRiskCheckTime.get(cooldownKey);
 
       if (lastTime && now - lastTime < cooldownMs) {
@@ -257,9 +271,7 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
     }
 
     // 步骤2：检查过滤后是否有买入信号，决定是否调用 API
-    const hasBuySignals = signalsAfterCooldown.some(
-      (s) => s.action === 'BUYCALL' || s.action === 'BUYPUT',
-    );
+    const hasBuySignals = signalsAfterCooldown.some((signal) => isBuyAction(signal.action));
 
     let freshAccount: AccountSnapshot | null = null;
     let freshPositions: Position[] = [];
@@ -292,10 +304,10 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
         longSymbolName,
         shortSymbolName,
       );
+      const signalLabel = `${sigName}(${sigSymbol}) ${sig.action}`;
 
       // 标记进入风险检查的时间（在处理信号前标记，确保后续相同信号被冷却）
-      const direction = sig.action === 'BUYCALL' || sig.action === 'BUYPUT' ? 'BUY' : 'SELL';
-      const cooldownKey = `${sigSymbol}_${direction}`;
+      const cooldownKey = getRiskCheckCooldownKey(sigSymbol, sig.action);
       lastRiskCheckTime.set(cooldownKey, now);
 
       // 获取标的的当前价格用于计算持仓市值
@@ -307,16 +319,18 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
       }
 
       // 检查是否是买入操作
-      const isBuyActionCheck =
-        sig.action === 'BUYCALL' || sig.action === 'BUYPUT';
+      const isBuyActionCheck = isBuyAction(sig.action);
 
       if (isBuyActionCheck) {
         if (buyApiFetchFailed) {
           logger.warn(
-            `[风险检查] 买入操作无法获取账户信息，跳过该信号：${sigName}(${sigSymbol}) ${sig.action}`,
+            `[风险检查] 买入操作无法获取账户信息，跳过该信号：${signalLabel}`,
           );
           continue;
         }
+
+        const isLongBuyAction = sig.action === 'BUYCALL';
+        const directionDesc = isLongBuyAction ? '做多标的' : '做空标的';
 
         // 买入操作检查顺序：
         // 1. 交易频率限制
@@ -328,9 +342,23 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
         // 1. 检查交易频率限制
         const tradeCheck = trader._canTradeNow(sig.action, context.config);
         if (!tradeCheck.canTrade) {
-          const directionDesc = sig.action === 'BUYCALL' ? '做多标的' : '做空标的';
           logger.warn(
-            `[交易频率限制] ${directionDesc} 在${context.config.buyIntervalSeconds}秒内已买入过，需等待 ${tradeCheck.waitSeconds ?? 0} 秒后才能再次买入：${sigName}(${sigSymbol}) ${sig.action}`,
+            `[交易频率限制] ${directionDesc} 在${context.config.buyIntervalSeconds}秒内已买入过，需等待 ${tradeCheck.waitSeconds ?? 0} 秒后才能再次买入：${signalLabel}`,
+          );
+          continue;
+        }
+
+        // 保护性清仓冷却：拦截冷却时间内的买入
+        const liquidationDirection = isLongBuyAction ? 'LONG' : 'SHORT';
+        const remainingMs = liquidationCooldownTracker.getRemainingMs({
+          symbol: sig.symbol,
+          direction: liquidationDirection,
+          cooldownMinutes: context.config.liquidationCooldownMinutes,
+        });
+        if (remainingMs > 0) {
+          const remainingSeconds = Math.ceil(remainingMs / 1000);
+          logger.warn(
+            `[清仓冷却] ${signalLabel} 在冷却期内，剩余 ${remainingSeconds} 秒，拒绝买入`,
           );
           continue;
         }
@@ -340,23 +368,20 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
         trader._markBuyAttempt(sig.action, context.config);
 
         // 2. 买入价格限制
-        const isLongBuyAction = sig.action === 'BUYCALL';
         const latestBuyPrice = orderRecorder.getLatestBuyOrderPrice(sigSymbol, isLongBuyAction);
 
         if (latestBuyPrice !== null && currentPrice !== null) {
-          const directionDesc = isLongBuyAction ? '做多标的' : '做空标的';
           const currentPriceStr = currentPrice.toFixed(3);
           const latestBuyPriceStr = latestBuyPrice.toFixed(3);
-          const signalDesc = `${sigName}(${sigSymbol}) ${sig.action}`;
 
           if (currentPrice > latestBuyPrice) {
             logger.warn(
-              `[买入价格限制] ${directionDesc} 当前价格 ${currentPriceStr} 高于最新买入订单价格 ${latestBuyPriceStr}，拒绝买入：${signalDesc}`,
+              `[买入价格限制] ${directionDesc} 当前价格 ${currentPriceStr} 高于最新买入订单价格 ${latestBuyPriceStr}，拒绝买入：${signalLabel}`,
             );
             continue;
           }
           logger.info(
-            `[买入价格限制] ${directionDesc} 当前价格 ${currentPriceStr} 低于或等于最新买入订单价格 ${latestBuyPriceStr}，允许买入：${signalDesc}`,
+            `[买入价格限制] ${directionDesc} 当前价格 ${currentPriceStr} 低于或等于最新买入订单价格 ${latestBuyPriceStr}，允许买入：${signalLabel}`,
           );
         }
 
@@ -367,7 +392,7 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
         ) {
           const closeTimeRange = isHalfDay ? '11:45-12:00' : '15:45-16:00';
           logger.warn(
-            `[末日保护程序] 收盘前15分钟内拒绝买入：${sigName}(${sigSymbol}) ${sig.action} - 当前时间在${closeTimeRange}范围内`,
+            `[末日保护程序] 收盘前15分钟内拒绝买入：${signalLabel} - 当前时间在${closeTimeRange}范围内`,
           );
           continue;
         }
@@ -384,7 +409,7 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
 
         if (!warrantRiskResult.allowed) {
           logger.warn(
-            `[牛熊证风险拦截] 信号被牛熊证风险控制拦截：${sigName}(${sigSymbol}) ${sig.action} - ${warrantRiskResult.reason}`,
+            `[牛熊证风险拦截] 信号被牛熊证风险控制拦截：${signalLabel} - ${warrantRiskResult.reason}`,
           );
           continue;
         } else if (warrantRiskResult.warrantInfo?.isWarrant) {
@@ -421,7 +446,7 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
 
       if (isBuyActionCheck && accountForRiskCheck === null) {
         logger.warn(
-          `[风险检查] 买入操作无法获取账户信息，跳过该信号：${sigName}(${sigSymbol}) ${sig.action}`,
+          `[风险检查] 买入操作无法获取账户信息，跳过该信号：${signalLabel}`,
         );
         continue;
       }
@@ -444,7 +469,7 @@ export const createSignalProcessor = ({ tradingConfig }: SignalProcessorDeps): S
         finalSignals.push(sig);
       } else {
         logger.warn(
-          `[风险拦截] 信号被风险控制拦截：${sigName}(${sigSymbol}) ${sig.action} - ${riskResult.reason}`,
+          `[风险拦截] 信号被风险控制拦截：${signalLabel} - ${riskResult.reason}`,
         );
       }
     }

@@ -16,6 +16,7 @@ import type {
   RiskCheckContext,
   MultiMonitorTradingConfig,
 } from '../../types/index.js';
+import type { LiquidationCooldownTracker } from '../liquidationCooldown/types.js';
 
 // ==================== 结果类型定义 ====================
 
@@ -70,7 +71,7 @@ export interface SignalProcessor {
 
   /**
    * 对信号列表应用风险检查
-   * 检查顺序：冷却期 → 交易频率 → 买入价格限制 → 末日保护 → 牛熊证风险 → 基础风险
+   * 检查顺序：验证冷却 → 交易频率 → 清仓冷却 → 买入价格限制 → 末日保护 → 牛熊证风险 → 基础风险
    */
   applyRiskChecks(signals: Signal[], context: RiskCheckContext): Promise<Signal[]>;
 }
@@ -83,5 +84,6 @@ export interface SignalProcessor {
  */
 export type SignalProcessorDeps = {
   readonly tradingConfig: MultiMonitorTradingConfig;
+  readonly liquidationCooldownTracker: LiquidationCooldownTracker;
 };
 
