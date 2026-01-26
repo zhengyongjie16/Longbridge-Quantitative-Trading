@@ -65,11 +65,11 @@ LONGPORT_REGION=hk    # 可选，默认 hk（cn 为中国大陆区域）
 
 # 交易标的配置（使用后缀 _N，N从1开始，系统自动检测）
 # 示例：第一个监控标的（_1）
-MONITOR_SYMBOL_1=HSI.HK    # 监控标的（恒生指数）
-LONG_SYMBOL_1=54806        # 做多标的（牛证）
-SHORT_SYMBOL_1=63372       # 做空标的（熊证）
+MONITOR_SYMBOL_1=9988.HK    # 监控标的（阿里巴巴）
+LONG_SYMBOL_1=55131         # 做多标的（阿里摩通六甲牛G）
+SHORT_SYMBOL_1=56614        # 做空标的（阿里摩通六七熊A）
 
-# 交易参数(示例)
+# 交易参数(示例，接近取值)
 TARGET_NOTIONAL_1=10000    # 每次买入金额（HKD）
 
 # 风控参数(示例)

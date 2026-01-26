@@ -36,7 +36,7 @@ export const TRADING = {
 /** 指标默认周期常量 */
 export const DEFAULT_EMA_PERIOD = 7;
 export const DEFAULT_RSI_PERIOD = 6;
-export const DEFAULT_PSY_PERIOD = 12;
+export const DEFAULT_PSY_PERIOD = 13;
 
 /**
  * 延迟信号验证相关常量
