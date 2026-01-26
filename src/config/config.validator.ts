@@ -7,40 +7,133 @@
 import { logger } from '../utils/logger/index.js';
 import { createConfig } from './config.index.js';
 import { createMarketDataClient } from '../services/quoteClient/index.js';
-import type { MarketDataClient, ValidateAllConfigResult, MonitorConfig, MultiMonitorTradingConfig } from '../types/index.js';
 import { formatSymbolDisplay, isSymbolWithRegion, formatError } from '../utils/helpers/index.js';
 import { formatSignalConfig } from '../utils/helpers/signalConfigParser.js';
+import type {
+  MarketDataClient,
+  MonitorConfig,
+  MultiMonitorTradingConfig,
+  Quote,
+  ValidateAllConfigResult,
+} from '../types/index.js';
 import type { ConfigValidationError } from './types.js';
 
 /** 创建配置验证错误对象 */
-export const createConfigValidationError = (
+export function createConfigValidationError(
   message: string,
   missingFields: ReadonlyArray<string> = [],
-): ConfigValidationError => {
+): ConfigValidationError {
   const error = new Error(message);
+  const name: 'ConfigValidationError' = 'ConfigValidationError';
   return Object.assign(error, {
-    name: 'ConfigValidationError' as const,
+    name,
     missingFields,
-  }) as ConfigValidationError;
-};
+  });
+}
 
 /** 验证结果 */
-interface ValidationResult {
+type ValidationResult = {
   readonly valid: boolean;
-  readonly errors: string[];
-}
+  readonly errors: ReadonlyArray<string>;
+};
 
 /** 交易配置验证结果（含缺失字段列表） */
-interface TradingValidationResult extends ValidationResult {
-  readonly missingFields: string[];
-}
+type TradingValidationResult = ValidationResult & {
+  readonly missingFields: ReadonlyArray<string>;
+};
 
 /** 标的验证结果（含名称和每手股数） */
-interface SymbolValidationResult {
+type SymbolValidationResult = {
   readonly valid: boolean;
   readonly name: string | null;
   readonly lotSize?: number | undefined;
   readonly error?: string | undefined;
+};
+
+type SymbolValidationContext = {
+  readonly prefix: string;
+  readonly symbol: string;
+  readonly envKey: string;
+  readonly errors: string[];
+  readonly missingFields: string[];
+};
+
+type DuplicateSymbol = {
+  readonly symbol: string;
+  readonly index: number;
+  readonly previousIndex: number;
+};
+
+type SymbolRole = 'monitor' | 'long' | 'short';
+
+type SymbolIndexEntry = {
+  readonly monitorIndex: number;
+  readonly longIndex: number;
+  readonly shortIndex: number;
+};
+
+type SymbolValidationInput = {
+  readonly symbol: string;
+  readonly label: string;
+  readonly requireLotSize: boolean;
+};
+
+type SignalConfigKey = keyof MonitorConfig['signalConfig'];
+
+function formatSymbolFormatError(prefix: string, envKey: string, symbol: string): string {
+  return `${prefix}: ${envKey} 必须使用 ticker.region 格式（如 68711.HK），当前值: ${symbol}`;
+}
+
+function validateRequiredSymbol({
+  prefix,
+  symbol,
+  envKey,
+  errors,
+  missingFields,
+}: SymbolValidationContext): void {
+  if (!symbol || symbol.trim() === '') {
+    errors.push(`${prefix}: ${envKey} 未配置`);
+    missingFields.push(envKey);
+    return;
+  }
+  if (!isSymbolWithRegion(symbol)) {
+    errors.push(formatSymbolFormatError(prefix, envKey, symbol));
+  }
+}
+
+function recordTradingSymbolUsage(
+  symbol: string,
+  index: number,
+  tradingSymbols: Map<string, number>,
+  duplicateSymbols: DuplicateSymbol[],
+): void {
+  const previousIndex = tradingSymbols.get(symbol);
+  if (previousIndex !== undefined) {
+    duplicateSymbols.push({
+      symbol,
+      index,
+      previousIndex,
+    });
+    return;
+  }
+  tradingSymbols.set(symbol, index);
+}
+
+function buildSymbolKey(role: SymbolRole, index: number): string {
+  return `${role}_${index}`;
+}
+
+function pushSymbolForValidation(
+  input: SymbolValidationInput,
+  symbols: string[],
+  symbolLabels: string[],
+  requireLotSizeFlags: boolean[],
+): number {
+  const index = symbols.length;
+  symbols.push(input.symbol);
+  symbolLabels.push(input.label);
+  requireLotSizeFlags.push(input.requireLotSize);
+  return index;
 }
 
 /** 验证 LongPort API 凭证是否已配置 */
@@ -71,7 +164,7 @@ async function validateLongPortConfig(env: NodeJS.ProcessEnv): Promise<Validatio
 
 /** 从行情数据验证标的有效性（交易标的需要 lotSize，监控标的不需要） */
 function validateSymbolFromQuote(
-  quote: import('../types/index.js').Quote | null,
+  quote: Quote | null,
   symbol: string,
   symbolLabel: string,
   requireLotSize: boolean = false,
@@ -158,32 +251,33 @@ function validateMonitorConfig(config: MonitorConfig, index: number): TradingVal
   const errors: string[] = [];
   const missingFields: string[] = [];
   const prefix = `监控标的 ${index}`;
-  const formatSymbolFormatError = (envKey: string, symbol: string): string =>
-    `${prefix}: ${envKey} 必须使用 ticker.region 格式（如 68711.HK），当前值: ${symbol}`;
 
   // 验证监控标的
-  if (!config.monitorSymbol || config.monitorSymbol.trim() === '') {
-    errors.push(`${prefix}: MONITOR_SYMBOL_${index} 未配置`);
-    missingFields.push(`MONITOR_SYMBOL_${index}`);
-  } else if (!isSymbolWithRegion(config.monitorSymbol)) {
-    errors.push(formatSymbolFormatError(`MONITOR_SYMBOL_${index}`, config.monitorSymbol));
-  }
+  validateRequiredSymbol({
+    prefix,
+    symbol: config.monitorSymbol,
+    envKey: `MONITOR_SYMBOL_${index}`,
+    errors,
+    missingFields,
+  });
 
   // 验证做多标的
-  if (!config.longSymbol || config.longSymbol.trim() === '') {
-    errors.push(`${prefix}: LONG_SYMBOL_${index} 未配置`);
-    missingFields.push(`LONG_SYMBOL_${index}`);
-  } else if (!isSymbolWithRegion(config.longSymbol)) {
-    errors.push(formatSymbolFormatError(`LONG_SYMBOL_${index}`, config.longSymbol));
-  }
+  validateRequiredSymbol({
+    prefix,
+    symbol: config.longSymbol,
+    envKey: `LONG_SYMBOL_${index}`,
+    errors,
+    missingFields,
+  });
 
   // 验证做空标的
-  if (!config.shortSymbol || config.shortSymbol.trim() === '') {
-    errors.push(`${prefix}: SHORT_SYMBOL_${index} 未配置`);
-    missingFields.push(`SHORT_SYMBOL_${index}`);
-  } else if (!isSymbolWithRegion(config.shortSymbol)) {
-    errors.push(formatSymbolFormatError(`SHORT_SYMBOL_${index}`, config.shortSymbol));
-  }
+  validateRequiredSymbol({
+    prefix,
+    symbol: config.shortSymbol,
+    envKey: `SHORT_SYMBOL_${index}`,
+    errors,
+    missingFields,
+  });
 
   // 验证目标买入金额
   if (!Number.isFinite(config.targetNotional) || config.targetNotional <= 0) {
@@ -202,9 +296,22 @@ function validateMonitorConfig(config: MonitorConfig, index: number): TradingVal
     missingFields.push(`MAX_DAILY_LOSS_${index}`);
   }
 
+  if (
+    !Number.isFinite(config.liquidationCooldownMinutes) ||
+    config.liquidationCooldownMinutes < 1 ||
+    config.liquidationCooldownMinutes > 120
+  ) {
+    errors.push(`${prefix}: LIQUIDATION_COOLDOWN_MINUTES_${index} 无效（范围 1-120）`);
+  }
+
   // 验证信号配置（必需）
-  const signalConfigKeys = ['buycall', 'sellcall', 'buyput', 'sellput'] as const;
-  const signalConfigEnvNames: Record<typeof signalConfigKeys[number], string> = {
+  const signalConfigKeys: ReadonlyArray<SignalConfigKey> = [
+    'buycall',
+    'sellcall',
+    'buyput',
+    'sellput',
+  ];
+  const signalConfigEnvNames: Record<SignalConfigKey, string> = {
     buycall: `SIGNAL_BUYCALL_${index}`,
     sellcall: `SIGNAL_SELLCALL_${index}`,
     buyput: `SIGNAL_BUYPUT_${index}`,
@@ -258,7 +365,7 @@ function validateTradingConfig(tradingConfig: MultiMonitorTradingConfig): Tradin
 
   // 检测重复的交易标的（不允许多个监控标的使用相同的交易标的）
   const tradingSymbols = new Map<string, number>(); // symbol -> originalIndex
-  const duplicateSymbols: Array<{ symbol: string; index: number; previousIndex: number }> = [];
+  const duplicateSymbols: DuplicateSymbol[] = [];
 
   for (const config of tradingConfig.monitors) {
     if (!config) {
@@ -271,28 +378,10 @@ function validateTradingConfig(tradingConfig: MultiMonitorTradingConfig): Tradin
     const shortSymbol = config.shortSymbol;
 
     // 检查做多标的
-    if (tradingSymbols.has(longSymbol)) {
-      const previousIndex = tradingSymbols.get(longSymbol)!;
-      duplicateSymbols.push({
-        symbol: longSymbol,
-        index,
-        previousIndex,
-      });
-    } else {
-      tradingSymbols.set(longSymbol, index);
-    }
+    recordTradingSymbolUsage(longSymbol, index, tradingSymbols, duplicateSymbols);
 
     // 检查做空标的
-    if (tradingSymbols.has(shortSymbol)) {
-      const previousIndex = tradingSymbols.get(shortSymbol)!;
-      duplicateSymbols.push({
-        symbol: shortSymbol,
-        index,
-        previousIndex,
-      });
-    } else {
-      tradingSymbols.set(shortSymbol, index);
-    }
+    recordTradingSymbolUsage(shortSymbol, index, tradingSymbols, duplicateSymbols);
   }
 
   // 如果有重复标的，添加错误信息
@@ -382,7 +471,7 @@ export async function validateAllConfig({
   const allSymbolLabels: string[] = [];
   const allRequireLotSizeFlags: boolean[] = [];
   // 使用原始索引作为键（而非数组索引），确保跳过配置时索引正确
-  const symbolIndexMap = new Map<number, { monitorIndex: number; longIndex: number; shortIndex: number }>();
+  const symbolIndexMap = new Map<number, SymbolIndexEntry>();
 
   for (const monitorConfig of tradingConfig.monitors) {
     if (!monitorConfig) {
@@ -392,20 +481,38 @@ export async function validateAllConfig({
     const index = monitorConfig.originalIndex;
 
     // 记录每个监控标的的三个标的在批量数组中的索引位置
-    const monitorIndex = allSymbols.length;
-    allSymbols.push(monitorConfig.monitorSymbol);
-    allSymbolLabels.push(`监控标的 ${index}`);
-    allRequireLotSizeFlags.push(false); // 监控标的不需要 lotSize
+    const monitorIndex = pushSymbolForValidation(
+      {
+        symbol: monitorConfig.monitorSymbol,
+        label: `监控标的 ${index}`,
+        requireLotSize: false,
+      },
+      allSymbols,
+      allSymbolLabels,
+      allRequireLotSizeFlags,
+    );
 
-    const longIndex = allSymbols.length;
-    allSymbols.push(monitorConfig.longSymbol);
-    allSymbolLabels.push(`做多标的 ${index}`);
-    allRequireLotSizeFlags.push(true); // 交易标的需要 lotSize
+    const longIndex = pushSymbolForValidation(
+      {
+        symbol: monitorConfig.longSymbol,
+        label: `做多标的 ${index}`,
+        requireLotSize: true,
+      },
+      allSymbols,
+      allSymbolLabels,
+      allRequireLotSizeFlags,
+    );
 
-    const shortIndex = allSymbols.length;
-    allSymbols.push(monitorConfig.shortSymbol);
-    allSymbolLabels.push(`做空标的 ${index}`);
-    allRequireLotSizeFlags.push(true); // 交易标的需要 lotSize
+    const shortIndex = pushSymbolForValidation(
+      {
+        symbol: monitorConfig.shortSymbol,
+        label: `做空标的 ${index}`,
+        requireLotSize: true,
+      },
+      allSymbols,
+      allSymbolLabels,
+      allRequireLotSizeFlags,
+    );
 
     // 使用原始索引作为键
     symbolIndexMap.set(index, { monitorIndex, longIndex, shortIndex });
@@ -441,9 +548,18 @@ export async function validateAllConfig({
     }
 
     // 存储每个监控标的的验证结果（使用原始索引区分不同监控标的）
-    symbolValidationResults.set(`monitor_${monitorConfig.originalIndex}`, monitorValid);
-    symbolValidationResults.set(`long_${monitorConfig.originalIndex}`, longValid);
-    symbolValidationResults.set(`short_${monitorConfig.originalIndex}`, shortValid);
+    symbolValidationResults.set(
+      buildSymbolKey('monitor', monitorConfig.originalIndex),
+      monitorValid,
+    );
+    symbolValidationResults.set(
+      buildSymbolKey('long', monitorConfig.originalIndex),
+      longValid,
+    );
+    symbolValidationResults.set(
+      buildSymbolKey('short', monitorConfig.originalIndex),
+      shortValid,
+    );
 
     // 收集所有错误
     if (!monitorValid.valid && monitorValid.error) {
@@ -491,9 +607,9 @@ export async function validateAllConfig({
     const index = monitorConfig.originalIndex;
 
     // 为每个监控标的获取标的名称（从验证结果中获取，使用原始索引）
-    const monitorResult = symbolValidationResults.get(`monitor_${index}`);
-    const longResult = symbolValidationResults.get(`long_${index}`);
-    const shortResult = symbolValidationResults.get(`short_${index}`);
+    const monitorResult = symbolValidationResults.get(buildSymbolKey('monitor', index));
+    const longResult = symbolValidationResults.get(buildSymbolKey('long', index));
+    const shortResult = symbolValidationResults.get(buildSymbolKey('short', index));
     const monitorName = monitorResult?.name ?? null;
     const longName = longResult?.name ?? null;
     const shortName = shortResult?.name ?? null;
@@ -522,6 +638,7 @@ export async function validateAllConfig({
     }
 
     logger.info(`同方向买入时间间隔: ${monitorConfig.buyIntervalSeconds} 秒`);
+    logger.info(`保护性清仓后买入冷却: ${monitorConfig.liquidationCooldownMinutes} 分钟`);
 
     // 显示延迟验证配置
     const verificationConfig = monitorConfig.verificationConfig;

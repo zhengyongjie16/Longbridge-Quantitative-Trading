@@ -5,9 +5,10 @@
  * 配置包括：标的代码、交易金额、风险限制、信号规则、延迟验证等
  */
 
+import { OrderType } from 'longport';
+import type { MonitorConfig, MultiMonitorTradingConfig, OrderTypeConfig, SignalConfig } from '../types/index.js';
 import { parseSignalConfig } from '../utils/helpers/signalConfigParser.js';
 import { logger } from '../utils/logger/index.js';
-import { OrderType } from 'longport';
 import {
   getBooleanConfig,
   getNumberConfig,
@@ -16,16 +17,12 @@ import {
   parseVerificationDelay,
   parseVerificationIndicators,
 } from './utils.js';
-import type {
-  MonitorConfig,
-  MultiMonitorTradingConfig,
-} from '../types/index.js';
 
 /** 从环境变量解析信号配置 */
-const parseSignalConfigFromEnv = (
+function parseSignalConfigFromEnv(
   env: NodeJS.ProcessEnv,
   envKey: string,
-): ReturnType<typeof parseSignalConfig> | null => {
+): SignalConfig | null {
   const configStr = getStringConfig(env, envKey);
   if (!configStr) {
     return null;
@@ -36,7 +33,47 @@ const parseSignalConfigFromEnv = (
     return null;
   }
   return config;
+}
+
+type BoundedNumberConfig = {
+  readonly env: NodeJS.ProcessEnv;
+  readonly envKey: string;
+  readonly defaultValue: number;
+  readonly min: number;
+  readonly max: number;
 };
+
+function parseBoundedNumberConfig({
+  env,
+  envKey,
+  defaultValue,
+  min,
+  max,
+}: BoundedNumberConfig): number {
+  const value = getNumberConfig(env, envKey, 0);
+  if (value === null) {
+    return defaultValue;
+  }
+  if (value < min) {
+    logger.warn(`[配置警告] ${envKey} 不能小于 ${min}，已设置为 ${min}`);
+    return min;
+  }
+  if (value > max) {
+    logger.warn(`[配置警告] ${envKey} 不能大于 ${max}，已设置为 ${max}`);
+    return max;
+  }
+  return value;
+}
+
+function mapOrderTypeConfig(orderType: OrderType): OrderTypeConfig {
+  if (orderType === OrderType.LO) {
+    return 'LO';
+  }
+  if (orderType === OrderType.MO) {
+    return 'MO';
+  }
+  return 'ELO';
+}
 
 /** 解析单个监控标的配置（索引 >= 1），未找到返回 null */
 function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfig | null {
@@ -59,25 +96,21 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
   const maxUnrealizedLossPerSymbol =
     getNumberConfig(env, `MAX_UNREALIZED_LOSS_PER_SYMBOL${suffix}`, 0) ?? 0;
 
-  const buyIntervalSeconds = (() => {
-    const interval = getNumberConfig(env, `BUY_INTERVAL_SECONDS${suffix}`, 0);
-    if (interval === null) {
-      return 60;
-    }
-    if (interval < 10) {
-      logger.warn(
-        `[配置警告] BUY_INTERVAL_SECONDS${suffix} 不能小于 10，已设置为 10`,
-      );
-      return 10;
-    }
-    if (interval > 600) {
-      logger.warn(
-        `[配置警告] BUY_INTERVAL_SECONDS${suffix} 不能大于 600，已设置为 600`,
-      );
-      return 600;
-    }
-    return interval;
-  })();
+  const buyIntervalSeconds = parseBoundedNumberConfig({
+    env,
+    envKey: `BUY_INTERVAL_SECONDS${suffix}`,
+    defaultValue: 60,
+    min: 10,
+    max: 600,
+  });
+
+  const liquidationCooldownMinutes = parseBoundedNumberConfig({
+    env,
+    envKey: `LIQUIDATION_COOLDOWN_MINUTES${suffix}`,
+    defaultValue: 30,
+    min: 1,
+    max: 120,
+  });
 
   const verificationConfig = {
     buy: {
@@ -110,6 +143,7 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
     maxDailyLoss,
     maxUnrealizedLossPerSymbol,
     buyIntervalSeconds,
+    liquidationCooldownMinutes,
     verificationConfig,
     signalConfig,
     smartCloseEnabled,
@@ -120,11 +154,11 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
 const MAX_MONITOR_SCAN_RANGE = 100;
 
 /** 解析所有监控标的配置，自动扫描 MONITOR_SYMBOL_1, _2, ... */
-export const createMultiMonitorTradingConfig = ({
+export function createMultiMonitorTradingConfig({
   env,
 }: {
   env: NodeJS.ProcessEnv;
-}): MultiMonitorTradingConfig => {
+}): MultiMonitorTradingConfig {
   const monitors: MonitorConfig[] = [];
 
   // 连续扫描监控标的配置：从 _1 开始，遇到第一个未配置的索引即停止
@@ -146,78 +180,46 @@ export const createMultiMonitorTradingConfig = ({
 
   // 解析买入订单超时配置
   const buyOrderTimeoutEnabled = getBooleanConfig(env, 'BUY_ORDER_TIMEOUT_ENABLED', true);
-  const buyOrderTimeoutSeconds = (() => {
-    const timeout = getNumberConfig(env, 'BUY_ORDER_TIMEOUT_SECONDS', 0);
-    if (timeout === null) {
-      return 180; // 默认 3 分钟
-    }
-    if (timeout < 30) {
-      logger.warn('[配置警告] BUY_ORDER_TIMEOUT_SECONDS 不能小于 30，已设置为 30');
-      return 30;
-    }
-    if (timeout > 600) {
-      logger.warn('[配置警告] BUY_ORDER_TIMEOUT_SECONDS 不能大于 600，已设置为 600');
-      return 600;
-    }
-    return timeout;
-  })();
+  const buyOrderTimeoutSeconds = parseBoundedNumberConfig({
+    env,
+    envKey: 'BUY_ORDER_TIMEOUT_SECONDS',
+    defaultValue: 180,
+    min: 30,
+    max: 600,
+  });
 
   // 解析卖出订单超时配置
   const sellOrderTimeoutEnabled = getBooleanConfig(env, 'SELL_ORDER_TIMEOUT_ENABLED', true);
-  const sellOrderTimeoutSeconds = (() => {
-    const timeout = getNumberConfig(env, 'SELL_ORDER_TIMEOUT_SECONDS', 0);
-    if (timeout === null) {
-      return 180; // 默认 3 分钟
-    }
-    if (timeout < 30) {
-      logger.warn('[配置警告] SELL_ORDER_TIMEOUT_SECONDS 不能小于 30，已设置为 30');
-      return 30;
-    }
-    if (timeout > 600) {
-      logger.warn('[配置警告] SELL_ORDER_TIMEOUT_SECONDS 不能大于 600，已设置为 600');
-      return 600;
-    }
-    return timeout;
-  })();
+  const sellOrderTimeoutSeconds = parseBoundedNumberConfig({
+    env,
+    envKey: 'SELL_ORDER_TIMEOUT_SECONDS',
+    defaultValue: 180,
+    min: 30,
+    max: 600,
+  });
 
   // 解析订单监控价格更新间隔配置
-  const orderMonitorPriceUpdateInterval = (() => {
-    const interval = getNumberConfig(env, 'ORDER_MONITOR_PRICE_UPDATE_INTERVAL', 0);
-    if (interval === null) {
-      return 5; // 默认 5 秒
-    }
-    if (interval < 1) {
-      logger.warn('[配置警告] ORDER_MONITOR_PRICE_UPDATE_INTERVAL 不能小于 1，已设置为 1');
-      return 1;
-    }
-    if (interval > 60) {
-      logger.warn('[配置警告] ORDER_MONITOR_PRICE_UPDATE_INTERVAL 不能大于 60，已设置为 60');
-      return 60;
-    }
-    return interval;
-  })();
+  const orderMonitorPriceUpdateInterval = parseBoundedNumberConfig({
+    env,
+    envKey: 'ORDER_MONITOR_PRICE_UPDATE_INTERVAL',
+    defaultValue: 5,
+    min: 1,
+    max: 60,
+  });
 
   // 开盘波动较大，指标可靠性下降，可在早盘启用保护避免误触发
   const openProtectionEnabled = getBooleanConfig(env, 'OPENING_PROTECTION_ENABLED', false);
   const openProtectionMinutes = getNumberConfig(env, 'OPENING_PROTECTION_MINUTES', 0);
 
   // 解析交易订单类型配置
-  const tradingOrderType = (() => {
-    const orderType = parseOrderTypeConfig(env, 'TRADING_ORDER_TYPE', 'ELO');
-    // 将 OrderType 枚举值转换回字符串以符合 GlobalConfig 类型
-    if (orderType === OrderType.LO) return 'LO' as const;
-    if (orderType === OrderType.MO) return 'MO' as const;
-    return 'ELO' as const;
-  })();
+  const tradingOrderType = mapOrderTypeConfig(
+    parseOrderTypeConfig(env, 'TRADING_ORDER_TYPE', 'ELO'),
+  );
 
   // 解析清仓订单类型配置
-  const liquidationOrderType = (() => {
-    const orderType = parseOrderTypeConfig(env, 'LIQUIDATION_ORDER_TYPE', 'MO');
-    // 将 OrderType 枚举值转换回字符串以符合 GlobalConfig 类型
-    if (orderType === OrderType.LO) return 'LO' as const;
-    if (orderType === OrderType.ELO) return 'ELO' as const;
-    return 'MO' as const;
-  })();
+  const liquidationOrderType = mapOrderTypeConfig(
+    parseOrderTypeConfig(env, 'LIQUIDATION_ORDER_TYPE', 'MO'),
+  );
 
   return {
     monitors,
@@ -241,5 +243,5 @@ export const createMultiMonitorTradingConfig = ({
       },
     },
   };
-};
+}
 

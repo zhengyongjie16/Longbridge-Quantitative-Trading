@@ -389,6 +389,8 @@ export type MonitorConfig = {
   readonly maxUnrealizedLossPerSymbol: number;
   /** 买入间隔时间（秒） */
   readonly buyIntervalSeconds: number;
+  /** 保护性清仓后买入冷却时间（分钟） */
+  readonly liquidationCooldownMinutes: number;
   /** 延迟验证配置 */
   readonly verificationConfig: VerificationConfig;
   /** 信号配置集 */
