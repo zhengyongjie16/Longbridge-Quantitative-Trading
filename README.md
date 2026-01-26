@@ -217,6 +217,7 @@ npm start
 | `VERIFICATION_DELAY_SECONDS_SELL_N` | `60`     | 卖出延迟验证时间（秒，范围0-120）                    |
 | `VERIFICATION_INDICATORS_SELL_N`    | `K,MACD` | 卖出验证指标（逗号分隔，可选：K/D/J/MACD/DIF/DEA/EMA:n/PSY:n） |
 | `BUY_INTERVAL_SECONDS_N`            | `60`     | 同向买入间隔（秒，范围10-600）                      |
+| `LIQUIDATION_COOLDOWN_MINUTES_N`    | `30`     | 保护性清仓后买入冷却（分钟，范围1-120）              |
 | `SMART_CLOSE_ENABLED_N`             | `true`   | 智能平仓开关（启用时仅卖出盈利订单，禁用时全仓卖出）     |
 
 

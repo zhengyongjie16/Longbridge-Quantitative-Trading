@@ -24,9 +24,8 @@ export function createConfigValidationError(
   missingFields: ReadonlyArray<string> = [],
 ): ConfigValidationError {
   const error = new Error(message);
-  const name: 'ConfigValidationError' = 'ConfigValidationError';
   return Object.assign(error, {
-    name,
+    name: 'ConfigValidationError' as const,
     missingFields,
   });
 }
