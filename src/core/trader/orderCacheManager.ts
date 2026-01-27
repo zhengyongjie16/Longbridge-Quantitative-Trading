@@ -103,19 +103,17 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
           ? new Set(symbols)
           : null;
 
-      const result: PendingOrder[] = allOrders
-        .filter((order) => {
-          // 先过滤状态
-          if (!PENDING_ORDER_STATUSES.has(order.status)) {
-            return false;
-          }
-          // 如果指定了标的，再过滤标的
-          if (targetSymbols) {
-            return targetSymbols.has(order.symbol);
-          }
-          return true;
-        })
-        .map((order) => ({
+      const result: PendingOrder[] = [];
+      for (const order of allOrders) {
+        // 先过滤状态
+        if (!PENDING_ORDER_STATUSES.has(order.status)) {
+          continue;
+        }
+        // 如果指定了标的，再过滤标的
+        if (targetSymbols && !targetSymbols.has(order.symbol)) {
+          continue;
+        }
+        result.push({
           orderId: order.orderId,
           symbol: order.symbol,
           side: order.side,
@@ -125,7 +123,8 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
           status: order.status,
           orderType: order.orderType,
           _rawOrder: order,
-        }));
+        });
+      }
 
       pendingOrdersCache = result;
       pendingOrdersCacheSymbols = symbolsKey;

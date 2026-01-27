@@ -40,21 +40,36 @@ export function calculateKDJ(candles: ReadonlyArray<CandleData>, period: number 
     // 步骤1：计算所有 RSV 值
     const rsvValues: number[] = [];
     for (let i = period - 1; i < candles.length; i += 1) {
-      // 获取窗口内的high和low值(已转换,直接slice)
-      const windowHighs = highs.slice(i - period + 1, i + 1).filter((v) => Number.isFinite(v));
-      const windowLows = lows.slice(i - period + 1, i + 1).filter((v) => Number.isFinite(v));
+      const windowStart = i - period + 1;
+      let highestHigh = Number.NEGATIVE_INFINITY;
+      let lowestLow = Number.POSITIVE_INFINITY;
+      let hasHigh = false;
+      let hasLow = false;
+
+      for (let j = windowStart; j <= i; j += 1) {
+        const high = highs[j]!;
+        if (Number.isFinite(high)) {
+          if (high > highestHigh) {
+            highestHigh = high;
+          }
+          hasHigh = true;
+        }
+
+        const low = lows[j]!;
+        if (Number.isFinite(low)) {
+          if (low < lowestLow) {
+            lowestLow = low;
+          }
+          hasLow = true;
+        }
+      }
+
       const close = closes[i]!;
 
-      if (
-        windowHighs.length === 0 ||
-        windowLows.length === 0 ||
-        !Number.isFinite(close)
-      ) {
+      if (!hasHigh || !hasLow || !Number.isFinite(close)) {
         continue;
       }
 
-      const highestHigh = Math.max(...windowHighs);
-      const lowestLow = Math.min(...windowLows);
       const range = highestHigh - lowestLow;
 
       if (!Number.isFinite(range) || range === 0) {

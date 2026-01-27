@@ -141,23 +141,32 @@ export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManage
     buyOrders: OrderRecord[];
     sellOrders: OrderRecord[];
   } => {
-    const filledBuyOrders = orders.filter(
-      (order) =>
-        order.side === OrderSide.Buy && order.status === OrderStatus.Filled,
-    );
+    const buyOrders: OrderRecord[] = [];
+    const sellOrders: OrderRecord[] = [];
 
-    const filledSellOrders = orders.filter(
-      (order) =>
-        order.side === OrderSide.Sell && order.status === OrderStatus.Filled,
-    );
+    for (const order of orders) {
+      if (order.status !== OrderStatus.Filled) {
+        continue;
+      }
 
-    const buyOrders = filledBuyOrders
-      .map((order) => convertOrderToRecord(order, true))
-      .filter((order): order is OrderRecord => order !== null);
+      const isBuyOrder = order.side === OrderSide.Buy;
+      const isSellOrder = order.side === OrderSide.Sell;
 
-    const sellOrders = filledSellOrders
-      .map((order) => convertOrderToRecord(order, false))
-      .filter((order): order is OrderRecord => order !== null);
+      if (!isBuyOrder && !isSellOrder) {
+        continue;
+      }
+
+      const converted = convertOrderToRecord(order, isBuyOrder);
+      if (!converted) {
+        continue;
+      }
+
+      if (isBuyOrder) {
+        buyOrders.push(converted);
+      } else {
+        sellOrders.push(converted);
+      }
+    }
 
     return { buyOrders, sellOrders };
   };

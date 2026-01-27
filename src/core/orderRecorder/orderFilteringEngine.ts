@@ -46,14 +46,19 @@ export const createOrderFilteringEngine = (_deps: OrderFilteringEngineDeps = {})
     const latestSellTime = lastSellOrder.executedTime;
 
     // M0: 成交时间 > 最新卖出订单时间的买入订单
-    const m0Orders = allBuyOrders.filter(
-      (buyOrder) => buyOrder.executedTime > latestSellTime,
-    );
+    const m0Orders: OrderRecord[] = [];
 
     // 候选订单：成交时间 <= 最新卖出订单时间的买入订单
-    const candidateOrders = allBuyOrders.filter(
-      (buyOrder) => buyOrder.executedTime <= latestSellTime,
-    );
+    const candidateOrders: OrderRecord[] = [];
+
+    for (const buyOrder of allBuyOrders) {
+      if (buyOrder.executedTime > latestSellTime) {
+        m0Orders.push(buyOrder);
+        continue;
+      }
+
+      candidateOrders.push(buyOrder);
+    }
 
     return { m0Orders, candidateOrders };
   };

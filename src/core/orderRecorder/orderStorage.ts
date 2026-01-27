@@ -187,18 +187,42 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
   /** 获取所有做多标的的买入订单（用于 RiskChecker） */
   const getLongBuyOrders = (): OrderRecord[] => {
-    const allOrders: OrderRecord[] = [];
+    let totalLength = 0;
     for (const orders of longBuyOrdersMap.values()) {
-      allOrders.push(...orders);
+      totalLength += orders.length;
+    }
+    if (totalLength === 0) {
+      return [];
+    }
+
+    const allOrders = new Array<OrderRecord>(totalLength);
+    let offset = 0;
+    for (const orders of longBuyOrdersMap.values()) {
+      for (const order of orders) {
+        allOrders[offset] = order;
+        offset += 1;
+      }
     }
     return allOrders;
   };
 
   /** 获取所有做空标的的买入订单（用于 RiskChecker） */
   const getShortBuyOrders = (): OrderRecord[] => {
-    const allOrders: OrderRecord[] = [];
+    let totalLength = 0;
     for (const orders of shortBuyOrdersMap.values()) {
-      allOrders.push(...orders);
+      totalLength += orders.length;
+    }
+    if (totalLength === 0) {
+      return [];
+    }
+
+    const allOrders = new Array<OrderRecord>(totalLength);
+    let offset = 0;
+    for (const orders of shortBuyOrdersMap.values()) {
+      for (const order of orders) {
+        allOrders[offset] = order;
+        offset += 1;
+      }
     }
     return allOrders;
   };

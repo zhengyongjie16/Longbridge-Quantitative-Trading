@@ -273,18 +273,19 @@ export async function mainProgram({
         }
       }
 
-      // 刷新浮亏数据
-      for (const { symbol, isLongSymbol } of pendingRefreshSymbols) {
-        // 查找对应的监控上下文
-        // 使用 for...of + break 替代 Array.from().find()，避免创建中间数组
-        let monitorContext: MonitorContext | undefined;
-        for (const ctx of monitorContexts.values()) {
-          if (ctx.config.longSymbol === symbol || ctx.config.shortSymbol === symbol) {
-            monitorContext = ctx;
-            break;
-          }
+      // 刷新浮亏数据（预先构建 symbol -> MonitorContext 索引）
+      const monitorContextBySymbol = new Map<string, MonitorContext>();
+      for (const ctx of monitorContexts.values()) {
+        const { longSymbol, shortSymbol } = ctx.config;
+        if (longSymbol && !monitorContextBySymbol.has(longSymbol)) {
+          monitorContextBySymbol.set(longSymbol, ctx);
         }
-
+        if (shortSymbol && !monitorContextBySymbol.has(shortSymbol)) {
+          monitorContextBySymbol.set(shortSymbol, ctx);
+        }
+      }
+      for (const { symbol, isLongSymbol } of pendingRefreshSymbols) {
+        const monitorContext = monitorContextBySymbol.get(symbol);
         if (monitorContext && (monitorContext.config.maxUnrealizedLossPerSymbol ?? 0) > 0) {
           const quote = quotesMap.get(symbol) ?? null;
           const symbolName = isLongSymbol ? monitorContext.longSymbolName : monitorContext.shortSymbolName;
