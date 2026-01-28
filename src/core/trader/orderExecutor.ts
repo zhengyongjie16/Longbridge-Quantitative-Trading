@@ -32,7 +32,7 @@ import {
 import type { Signal, TradeCheckResult, MonitorConfig } from '../../types/index.js';
 import type { OrderPayload, OrderExecutor, OrderExecutorDeps } from './types.js';
 import { identifyErrorType } from './tradeLogger.js';
-import { formatOrderTypeLabel } from './utils.js';
+import { formatOrderTypeLabel, resolveOrderTypeConfig } from './utils.js';
 
 /** 配置字符串转 OrderType 枚举 */
 const getOrderTypeFromConfig = (typeConfig: 'LO' | 'ELO' | 'MO'): typeof OrderType[keyof typeof OrderType] => {
@@ -43,7 +43,7 @@ const getOrderTypeFromConfig = (typeConfig: 'LO' | 'ELO' | 'MO'): typeof OrderTy
 
 /** 判断是否为保护性清仓信号（末日保护、强制止损等） */
 const isLiquidationSignal = (signal: Signal): boolean => {
-  return signal.reason?.includes('[保护性清仓]') ?? false;
+  return signal.isProtectiveLiquidation === true;
 };
 
 /** 根据信号动作解析订单方向 */
@@ -179,6 +179,12 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     return side === OrderSide.Buy
       ? '买入做多标的（做多）'
       : '卖出做多标的（清仓）';
+  };
+
+  /** 解析订单类型（覆盖优先，其次保护性清仓） */
+  const resolveOrderType = (signal: Signal): typeof OrderType[keyof typeof OrderType] => {
+    const orderTypeConfig = resolveOrderTypeConfig(signal, global);
+    return getOrderTypeFromConfig(orderTypeConfig);
   };
 
   /** 计算卖出数量（查询实际可用持仓） */
@@ -485,11 +491,8 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     // 使用配置中的值，如果没有配置则使用默认值
     const targetNotional = monitorConfig?.targetNotional ?? TRADING.DEFAULT_TARGET_NOTIONAL;
     // 注意：lotSize 现在从 API 获取（signal.lotSize），不需要从配置读取
-    // 根据信号类型选择订单类型
-    // 保护性清仓使用 liquidationOrderType，普通交易使用 tradingOrderType
-    const orderType = isLiquidationSignal(signal)
-      ? getOrderTypeFromConfig(global.liquidationOrderType)
-      : getOrderTypeFromConfig(global.tradingOrderType);
+    // 订单类型解析：覆盖优先，其次保护性清仓
+    const orderType = resolveOrderType(signal);
     const timeInForce = TimeInForceType.Day;
     const remark = 'QuantDemo';
 

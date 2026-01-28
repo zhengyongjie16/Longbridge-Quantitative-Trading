@@ -17,6 +17,7 @@ import type {
   WarrantType,
   RiskCheckResult,
   WarrantDistanceInfo,
+  WarrantDistanceLiquidationResult,
   UnrealizedLossData,
   UnrealizedLossCheckResult,
 } from '../../types/index.js';
@@ -65,6 +66,11 @@ export interface WarrantRiskChecker {
     monitorCurrentPrice: number,
     warrantCurrentPrice: number | null,
   ): RiskCheckResult;
+  checkWarrantDistanceLiquidation(
+    symbol: string,
+    isLongSymbol: boolean,
+    monitorCurrentPrice: number,
+  ): WarrantDistanceLiquidationResult;
   getWarrantDistanceInfo(
     isLongSymbol: boolean,
     monitorCurrentPrice: number | null,

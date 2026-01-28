@@ -59,6 +59,10 @@ export type Signal = {
   action: SignalType;
   /** 信号触发原因 */
   reason?: string;
+  /** 订单类型覆盖（优先级高于全局配置） */
+  orderTypeOverride?: OrderTypeConfig | null;
+  /** 是否为保护性清仓（触发买入冷却） */
+  isProtectiveLiquidation?: boolean;
   /** 交易价格 */
   price?: number | null;
   /** 每手股数 */
@@ -499,6 +503,8 @@ export type ValidateAllConfigResult = {
 export type MonitorState = {
   /** 监控标的代码 */
   monitorSymbol: string;
+  /** 监控标的当前价格 */
+  monitorPrice: number | null;
   /** 做多标的代码 */
   longSymbol: string;
   /** 做空标的代码 */
@@ -908,6 +914,20 @@ export type WarrantDistanceInfo = {
 };
 
 /**
+ * 牛熊证距回收价清仓判定结果
+ */
+export type WarrantDistanceLiquidationResult = {
+  /** 是否触发清仓 */
+  readonly shouldLiquidate: boolean;
+  /** 牛熊证类型 */
+  readonly warrantType?: WarrantType;
+  /** 距离回收价百分比 */
+  readonly distancePercent?: number | null;
+  /** 判定原因 */
+  readonly reason?: string;
+};
+
+/**
  * 风险检查结果
  */
 export type RiskCheckResult = {
@@ -1001,6 +1021,13 @@ export interface RiskChecker {
     monitorCurrentPrice: number,
     warrantCurrentPrice: number | null,
   ): RiskCheckResult;
+
+  /** 牛熊证距回收价清仓检查 */
+  checkWarrantDistanceLiquidation(
+    symbol: string,
+    isLongSymbol: boolean,
+    monitorCurrentPrice: number,
+  ): WarrantDistanceLiquidationResult;
 
   /** 获取牛熊证距离回收价信息（实时展示用） */
   getWarrantDistanceInfo(

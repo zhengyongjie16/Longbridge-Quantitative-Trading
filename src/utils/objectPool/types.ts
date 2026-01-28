@@ -12,7 +12,7 @@
  * - 使用对象池对象后必须及时释放，嵌套对象也需递归释放
  */
 
-import type { SignalType, VerificationEntry } from '../../types/index.js';
+import type { OrderTypeConfig, SignalType, VerificationEntry } from '../../types/index.js';
 
 /**
  * 对象池 - Signal
@@ -24,6 +24,8 @@ export type PoolableSignal = {
   symbolName: string | null;
   action: SignalType | null;
   reason?: string | null;
+  orderTypeOverride?: OrderTypeConfig | null;
+  isProtectiveLiquidation?: boolean | null;
   price?: number | null;
   lotSize?: number | null;
   quantity?: number | null;

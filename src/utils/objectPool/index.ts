@@ -138,6 +138,8 @@ export const signalObjectPool = createObjectPool<PoolableSignal>(
     symbolName: null,
     action: null,
     reason: null,
+    orderTypeOverride: null,
+    isProtectiveLiquidation: null,
     price: null,
     lotSize: null,
     quantity: null,
@@ -169,6 +171,8 @@ export const signalObjectPool = createObjectPool<PoolableSignal>(
     obj.symbolName = null;
     obj.action = null;
     obj.reason = null;
+    obj.orderTypeOverride = null;
+    obj.isProtectiveLiquidation = null;
     obj.price = null;
     obj.lotSize = null;
     obj.quantity = null;

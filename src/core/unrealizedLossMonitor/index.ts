@@ -69,6 +69,7 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
       ? 'SELLCALL'
       : 'SELLPUT';
     liquidationSignal.reason = lossCheck.reason || '';
+    liquidationSignal.isProtectiveLiquidation = true;
     liquidationSignal.quantity = lossCheck.quantity ?? null;
     liquidationSignal.price = currentPrice;
     // 订单类型将由 orderExecutor 根据全局配置自动选择（LIQUIDATION_ORDER_TYPE）

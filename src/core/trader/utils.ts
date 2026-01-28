@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { OrderType } from 'longport';
+import type { OrderTypeConfig, Signal } from '../../types/index.js';
 
 type OrderTypeValue = typeof OrderType[keyof typeof OrderType];
 
@@ -18,4 +19,22 @@ export const formatOrderTypeLabel = (orderType: OrderTypeValue): string => {
 export const buildTradeLogPath = (cwd: string, date: Date): string => {
   const dayKey = date.toISOString().split('T')[0];
   return path.join(cwd, 'logs', 'trades', `${dayKey}.json`);
+};
+
+type OrderTypeResolutionConfig = {
+  readonly tradingOrderType: OrderTypeConfig;
+  readonly liquidationOrderType: OrderTypeConfig;
+};
+
+export const resolveOrderTypeConfig = (
+  signal: Pick<Signal, 'orderTypeOverride' | 'isProtectiveLiquidation'>,
+  globalConfig: OrderTypeResolutionConfig,
+): OrderTypeConfig => {
+  if (signal.orderTypeOverride != null) {
+    return signal.orderTypeOverride;
+  }
+  if (signal.isProtectiveLiquidation === true) {
+    return globalConfig.liquidationOrderType;
+  }
+  return globalConfig.tradingOrderType;
 };

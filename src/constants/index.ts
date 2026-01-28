@@ -11,7 +11,7 @@
  * - 信号相关：交易信号类型定义
  */
 
-import type { SignalType } from '../types/index.js';
+import type { OrderTypeConfig, SignalType } from '../types/index.js';
 
 /** 时间相关常量 */
 export const TIME = {
@@ -92,6 +92,10 @@ export const MONITOR = {
 export const BULL_WARRANT_MIN_DISTANCE_PERCENT = 0.5;
 /** 熊证最高距离回收价百分比（高于此值拒绝买入） */
 export const BEAR_WARRANT_MAX_DISTANCE_PERCENT = -0.5;
+/** 牛证触发清仓的距离回收价百分比 */
+export const BULL_WARRANT_LIQUIDATION_DISTANCE_PERCENT = 0.5;
+/** 熊证触发清仓的距离回收价百分比 */
+export const BEAR_WARRANT_LIQUIDATION_DISTANCE_PERCENT = -0.5;
 /** 监控标的价格最小有效值（低于此值视为异常） */
 export const MIN_MONITOR_PRICE_THRESHOLD = 1;
 /** 牛熊证当前价格最小阈值（小于或等于拒绝买入） */
@@ -100,6 +104,8 @@ export const MIN_WARRANT_PRICE_THRESHOLD = 0.015;
 export const DEFAULT_PRICE_DECIMALS = 3;
 /** 百分比格式化小数位数 */
 export const DEFAULT_PERCENT_DECIMALS = 2;
+/** 牛熊证距离回收价清仓订单类型 */
+export const WARRANT_LIQUIDATION_ORDER_TYPE: OrderTypeConfig = 'ELO';
 
 /** 信号类型常量（内部使用） */
 const SIGNAL_ACTIONS = {

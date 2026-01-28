@@ -30,12 +30,13 @@ import {
 import {
   formatSignalLog,
   formatSymbolDisplay,
+  formatError,
   releaseSnapshotObjects,
 } from '../../utils/helpers/index.js';
-import { VALID_SIGNAL_ACTIONS, TRADING } from '../../constants/index.js';
+import { MONITOR, VALID_SIGNAL_ACTIONS, TRADING, WARRANT_LIQUIDATION_ORDER_TYPE } from '../../constants/index.js';
 import { getPositions } from './utils.js';
 
-import type { CandleData, Signal, Quote } from '../../types/index.js';
+import type { CandleData, Signal, Quote, Position } from '../../types/index.js';
 import type { ProcessMonitorParams } from './types.js';
 
 /**
@@ -85,6 +86,17 @@ export async function processMonitor(
   monitorContext.monitorQuote = monitorQuote;
 
   const monitorCurrentPrice = monitorQuote?.price ?? null;
+  const resolvedMonitorPrice = Number.isFinite(monitorCurrentPrice) ? monitorCurrentPrice : null;
+  const lastMonitorPrice = Number.isFinite(state.monitorPrice) ? state.monitorPrice : null;
+  const monitorPriceChanged =
+    resolvedMonitorPrice != null && lastMonitorPrice == null
+      ? true
+      : resolvedMonitorPrice != null &&
+        lastMonitorPrice != null &&
+        Math.abs(resolvedMonitorPrice - lastMonitorPrice) > MONITOR.PRICE_CHANGE_THRESHOLD;
+  if (monitorPriceChanged && resolvedMonitorPrice != null) {
+    state.monitorPrice = resolvedMonitorPrice;
+  }
   const longWarrantDistanceInfo = riskChecker.getWarrantDistanceInfo(
     true,
     monitorCurrentPrice,
@@ -177,6 +189,106 @@ export async function processMonitor(
   );
 
   try {
+    const tryCreateLiquidationSignal = (
+      symbol: string,
+      symbolName: string | null,
+      isLongSymbol: boolean,
+      position: Position | null,
+      quote: Quote | null,
+    ): {
+      signal: Signal;
+      isLongSymbol: boolean;
+      quote: Quote | null;
+    } | null => {
+      const availableQuantity = position?.availableQuantity ?? 0;
+      if (!Number.isFinite(availableQuantity) || availableQuantity <= 0) {
+        return null;
+      }
+
+      if (resolvedMonitorPrice == null) {
+        return null;
+      }
+
+      const liquidationResult = riskChecker.checkWarrantDistanceLiquidation(
+        symbol,
+        isLongSymbol,
+        resolvedMonitorPrice,
+      );
+      if (!liquidationResult.shouldLiquidate) {
+        return null;
+      }
+
+      const signal = signalObjectPool.acquire() as Signal;
+      signal.symbol = symbol;
+      signal.symbolName = symbolName;
+      signal.action = isLongSymbol ? 'SELLCALL' : 'SELLPUT';
+      signal.reason = liquidationResult.reason ?? '牛熊证距回收价触发清仓';
+      signal.price = quote?.price ?? null;
+      signal.lotSize = quote?.lotSize ?? null;
+      signal.quantity = availableQuantity;
+      signal.triggerTime = new Date();
+      signal.orderTypeOverride = WARRANT_LIQUIDATION_ORDER_TYPE;
+      signal.isProtectiveLiquidation = false;
+
+      return { signal, isLongSymbol, quote };
+    };
+
+    if (monitorPriceChanged) {
+      const liquidationTasks: Array<{
+        signal: Signal;
+        isLongSymbol: boolean;
+        quote: Quote | null;
+      }> = [];
+      const longSymbolName = longQuote?.name ?? monitorContext.longSymbolName ?? null;
+      const shortSymbolName = shortQuote?.name ?? monitorContext.shortSymbolName ?? null;
+
+      const longTask = tryCreateLiquidationSignal(
+        LONG_SYMBOL,
+        longSymbolName,
+        true,
+        longPosition,
+        longQuote,
+      );
+      if (longTask) {
+        liquidationTasks.push(longTask);
+      }
+
+      const shortTask = tryCreateLiquidationSignal(
+        SHORT_SYMBOL,
+        shortSymbolName,
+        false,
+        shortPosition,
+        shortQuote,
+      );
+      if (shortTask) {
+        liquidationTasks.push(shortTask);
+      }
+
+      if (liquidationTasks.length > 0) {
+        try {
+          await trader.executeSignals(liquidationTasks.map((task) => task.signal));
+
+          for (const task of liquidationTasks) {
+            orderRecorder.clearBuyOrders(task.signal.symbol, task.isLongSymbol, task.quote);
+            await riskChecker.refreshUnrealizedLossData(
+              orderRecorder,
+              task.signal.symbol,
+              task.isLongSymbol,
+              task.quote,
+            );
+          }
+        } catch (err) {
+          logger.error(
+            `[牛熊证距回收价清仓失败] ${formatError(err)}`,
+          );
+        } finally {
+          for (const task of liquidationTasks) {
+            signalObjectPool.release(task.signal);
+          }
+        }
+      }
+    }
+
     if (openProtectionActive) {
       // 开盘保护期间仅保留行情/指标展示，跳过信号生成
       return;

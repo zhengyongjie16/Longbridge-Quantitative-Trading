@@ -284,6 +284,18 @@ export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
       );
     },
 
+    checkWarrantDistanceLiquidation(
+      symbol: string,
+      isLongSymbol: boolean,
+      monitorCurrentPrice: number,
+    ) {
+      return warrantRiskChecker.checkWarrantDistanceLiquidation(
+        symbol,
+        isLongSymbol,
+        monitorCurrentPrice,
+      );
+    },
+
     getWarrantDistanceInfo(
       isLongSymbol: boolean,
       monitorCurrentPrice: number | null,

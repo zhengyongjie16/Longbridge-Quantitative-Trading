@@ -419,6 +419,7 @@ export async function sleep(ms: number): Promise<void> {
 export function initMonitorState(config: MonitorConfig): MonitorState {
   return {
     monitorSymbol: config.monitorSymbol,
+    monitorPrice: null,
     longSymbol: config.longSymbol,
     shortSymbol: config.shortSymbol,
     longPrice: null,
