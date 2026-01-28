@@ -4,7 +4,9 @@
  * 定义冷却追踪器所需的方向、入参和依赖类型。
  */
 
-import type { LiquidationCooldownConfig } from '../../types/index.js';
+import type { MultiMonitorTradingConfig, LiquidationCooldownConfig } from '../../types/index.js';
+import type { TradeRecord } from '../../core/trader/types.js';
+import type { Logger } from '../../utils/logger/types.js';
 
 /**
  * 冷却方向（做多/做空）
@@ -43,3 +45,22 @@ export interface LiquidationCooldownTracker {
   recordCooldown(params: RecordCooldownParams): void;
   getRemainingMs(params: GetRemainingMsParams): number;
 }
+
+export type TradeLogHydratorDeps = {
+  readonly readFileSync: (path: string, encoding: BufferEncoding) => string;
+  readonly existsSync: (path: string) => boolean;
+  readonly cwd: () => string;
+  readonly nowMs: () => number;
+  readonly logger: Logger;
+  readonly tradingConfig: MultiMonitorTradingConfig;
+  readonly liquidationCooldownTracker: LiquidationCooldownTracker;
+};
+
+export interface TradeLogHydrator {
+  hydrate(): void;
+}
+
+export type NormalizedTradeRecord = {
+  readonly record: TradeRecord;
+  readonly direction: LiquidationDirection;
+};

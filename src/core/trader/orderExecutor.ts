@@ -31,7 +31,7 @@ import {
 } from '../../utils/helpers/index.js';
 import type { Signal, TradeCheckResult, MonitorConfig } from '../../types/index.js';
 import type { OrderPayload, OrderExecutor, OrderExecutorDeps } from './types.js';
-import { recordTrade, identifyErrorType } from './tradeLogger.js';
+import { identifyErrorType } from './tradeLogger.js';
 import { formatOrderTypeLabel } from './utils.js';
 
 /** 配置字符串转 OrderType 枚举 */
@@ -293,7 +293,6 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     orderPayload: OrderPayload,
     side: typeof OrderSide[keyof typeof OrderSide],
     isShortSymbol: boolean,
-    actualOrderType: typeof OrderType[keyof typeof OrderType],
   ): void => {
     const actionDesc = getActionDescription(
       signal.action,
@@ -342,23 +341,6 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
       );
     }
 
-    // 记录失败交易到文件
-    const isProtectiveClearance = isLiquidationSignal(signal);
-    recordTrade({
-      orderId: 'FAILED',
-      symbol: orderPayload.symbol,
-      symbolName: signal.symbolName || null,
-      action: actionDesc,
-      side: signal.action || (side === OrderSide.Buy ? 'BUY' : 'SELL'),
-      quantity: orderPayload.submittedQuantity.toString(),
-      price: orderPayload.submittedPrice?.toString() || '市价',
-      orderType: formatOrderTypeLabel(actualOrderType),
-      status: 'FAILED',
-      error: errorMessage,
-      reason: signal.reason || '策略信号',
-      signalTriggerTime: signal.triggerTime || null,
-      ...(isProtectiveClearance && { isProtectiveClearance }),
-    });
   };
 
   /** 提交订单到 API */
@@ -456,6 +438,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
         resolvedPrice ?? 0,
         submittedQuantityNum,
         isLongSymbol,
+        monitorConfig?.monitorSymbol ?? null,
         isProtectiveLiquidation,
       );
 
@@ -464,22 +447,8 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
 
       updateLastBuyTime(signal.action, monitorConfig);
 
-      recordTrade({
-        orderId: String(orderId),
-        symbol: orderPayload.symbol,
-        symbolName: signal.symbolName || null,
-        action: actionDesc,
-        side: signal.action || (side === OrderSide.Buy ? 'BUY' : 'SELL'),
-        quantity: orderPayload.submittedQuantity.toString(),
-        price: orderPayload.submittedPrice?.toString() || '市价',
-        orderType: formatOrderTypeLabel(orderTypeParam),
-        status: 'SUBMITTED',
-        reason: signal.reason || '策略信号',
-        signalTriggerTime: signal.triggerTime || null,
-        ...(isProtectiveLiquidation && { isProtectiveClearance: isProtectiveLiquidation }),
-      });
     } catch (err) {
-      handleSubmitError(err, signal, orderPayload, side, isShortSymbol, orderTypeParam);
+      handleSubmitError(err, signal, orderPayload, side, isShortSymbol);
     }
   };
 

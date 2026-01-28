@@ -20,7 +20,7 @@ import type {
   PendingRefreshSymbol,
   MultiMonitorTradingConfig,
 } from '../../types/index.js';
-import type { LiquidationCooldownTracker } from '../liquidationCooldown/types.js';
+import type { LiquidationCooldownTracker } from '../../services/liquidationCooldown/types.js';
 
 /**
  * 订单提交载荷
@@ -41,23 +41,39 @@ export type OrderPayload = {
  * 记录每笔交易的完整信息，保存到 JSON 文件
  */
 export type TradeRecord = {
-  readonly orderId?: string;
-  /** 标的代码（如 55131.HK） */
-  readonly symbol: string;
-  /** 标的名称（如 阿里摩通六甲牛G） */
-  readonly symbolName?: string | null;
-  readonly action?: string;
-  readonly side?: string;
-  readonly quantity?: string;
-  readonly price?: string;
-  readonly orderType?: string;
-  readonly status?: string;
-  readonly error?: string;
-  readonly reason?: string;
-  readonly signalTriggerTime?: Date | string | null;
-  readonly timestamp?: string;
+  readonly orderId: string | null;
+  /** 交易标的代码（如 55131.HK） */
+  readonly symbol: string | null;
+  /** 交易标的名称（如 阿里摩通六甲牛G） */
+  readonly symbolName: string | null;
+  /** 监控标的代码（如 HSI.HK） */
+  readonly monitorSymbol: string | null;
+  /** 信号动作（BUYCALL/SELLCALL/BUYPUT/SELLPUT） */
+  readonly action: string | null;
+  /** 订单方向（BUY/SELL） */
+  readonly side: string | null;
+  /** 成交数量 */
+  readonly quantity: string | null;
+  /** 成交价格 */
+  readonly price: string | null;
+  /** 订单类型（可为空） */
+  readonly orderType: string | null;
+  /** 订单状态（成交日志仅记录 FILLED） */
+  readonly status: string | null;
+  /** 错误信息（成交日志默认 null） */
+  readonly error: string | null;
+  /** 信号原因 */
+  readonly reason: string | null;
+  /** 信号触发时间（北京时间字符串） */
+  readonly signalTriggerTime: string | null;
+  /** 成交时间（北京时间字符串） */
+  readonly executedAt: string | null;
+  /** 成交时间（毫秒时间戳） */
+  readonly executedAtMs: number | null;
+  /** 日志记录时间（北京时间字符串） */
+  readonly timestamp: string | null;
   /** 是否为保护性清仓（浮亏超阈值触发） */
-  readonly isProtectiveClearance?: boolean;
+  readonly isProtectiveClearance: boolean | null;
 };
 
 /**
@@ -114,6 +130,7 @@ export interface OrderMonitor {
     price: number,
     quantity: number,
     isLongSymbol: boolean,
+    monitorSymbol: string | null,
     isProtectiveLiquidation: boolean,
   ): void;
 
@@ -200,6 +217,8 @@ export type TrackedOrder = {
   readonly side: OrderSide;
   /** 是否为做多标的（成交后更新本地记录时使用） */
   readonly isLongSymbol: boolean;
+  /** 监控标的代码（用于成交日志与冷却恢复） */
+  readonly monitorSymbol: string | null;
   /** 是否为保护性清仓订单（用于触发买入冷却） */
   readonly isProtectiveLiquidation: boolean;
   /** 当前委托价（会随市价更新） */

@@ -121,6 +121,7 @@ export const createTrader = async (deps: TraderDeps): Promise<Trader> => {
       price: number,
       quantity: number,
       isLongSymbol: boolean,
+      monitorSymbol: string | null,
       isProtectiveLiquidation: boolean,
     ): void {
       orderMonitor.trackOrder(
@@ -130,6 +131,7 @@ export const createTrader = async (deps: TraderDeps): Promise<Trader> => {
         price,
         quantity,
         isLongSymbol,
+        monitorSymbol,
         isProtectiveLiquidation,
       );
     },

@@ -21,6 +21,7 @@
  */
 
 import dotenv from 'dotenv';
+import fs from 'node:fs';
 import { createConfig } from './config/config.index.js';
 import { createTrader } from './core/trader/index.js';
 import { createMultiMonitorTradingConfig } from './config/config.trading.js';
@@ -41,7 +42,8 @@ import { createPositionCache } from './utils/helpers/positionCache.js';
 import { createMarketMonitor } from './services/marketMonitor/index.js';
 import { createDoomsdayProtection } from './core/doomsdayProtection/index.js';
 import { createSignalProcessor } from './core/signalProcessor/index.js';
-import { createLiquidationCooldownTracker } from './core/liquidationCooldown/index.js';
+import { createLiquidationCooldownTracker } from './services/liquidationCooldown/index.js';
+import { createTradeLogHydrator } from './services/liquidationCooldown/tradeLogHydrator.js';
 
 // 异步任务处理架构模块
 import { createIndicatorCache } from './main/asyncProgram/indicatorCache/index.js';
@@ -98,6 +100,17 @@ async function main(): Promise<void> {
 
   const config = createConfig({ env });
   const liquidationCooldownTracker = createLiquidationCooldownTracker({ nowMs: () => Date.now() });
+  const tradeLogHydrator = createTradeLogHydrator({
+    readFileSync: fs.readFileSync,
+    existsSync: fs.existsSync,
+    cwd: () => process.cwd(),
+    nowMs: () => Date.now(),
+    logger,
+    tradingConfig,
+    liquidationCooldownTracker,
+  });
+
+  tradeLogHydrator.hydrate();
 
   // 使用配置验证返回的标的名称和行情客户端实例
   const { marketDataClient } = symbolNames;

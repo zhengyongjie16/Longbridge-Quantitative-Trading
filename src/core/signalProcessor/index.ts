@@ -358,7 +358,7 @@ export const createSignalProcessor = ({
         // 保护性清仓冷却：拦截冷却时间内的买入
         const liquidationDirection = isLongBuyAction ? 'LONG' : 'SHORT';
         const remainingMs = liquidationCooldownTracker.getRemainingMs({
-          symbol: sig.symbol,
+          symbol: context.config.monitorSymbol,
           direction: liquidationDirection,
           cooldownConfig: context.config.liquidationCooldown,
         });

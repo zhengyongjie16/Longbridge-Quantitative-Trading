@@ -16,7 +16,7 @@ import type {
   RiskCheckContext,
   MultiMonitorTradingConfig,
 } from '../../types/index.js';
-import type { LiquidationCooldownTracker } from '../liquidationCooldown/types.js';
+import type { LiquidationCooldownTracker } from '../../services/liquidationCooldown/types.js';
 
 // ==================== 结果类型定义 ====================
 

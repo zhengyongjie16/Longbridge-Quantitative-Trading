@@ -806,6 +806,7 @@ export interface Trader {
     price: number,
     quantity: number,
     isLongSymbol: boolean,
+    monitorSymbol: string | null,
     isProtectiveLiquidation: boolean,
   ): void;
   /** 撤销订单 */

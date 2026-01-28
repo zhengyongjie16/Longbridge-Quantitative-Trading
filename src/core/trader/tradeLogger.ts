@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { logger } from '../../utils/logger/index.js';
 import { toBeijingTimeIso } from '../../utils/helpers/index.js';
+import { buildTradeLogPath } from './utils.js';
 import type { TradeRecord, ErrorTypeIdentifier } from './types.js';
 
 /** 识别错误类型（通过错误消息关键词匹配） */
@@ -51,9 +52,7 @@ export function recordTrade(tradeRecord: TradeRecord): void {
     if (!fs.existsSync(logDir)) {
       fs.mkdirSync(logDir, { recursive: true });
     }
-
-    const today = new Date().toISOString().split('T')[0];
-    const logFile = path.join(logDir, `${today}.json`);
+    const logFile = buildTradeLogPath(process.cwd(), new Date());
 
     let trades: TradeRecord[] = [];
     if (fs.existsSync(logFile)) {
@@ -74,25 +73,31 @@ export function recordTrade(tradeRecord: TradeRecord): void {
       }
     }
 
-    // 处理信号触发时间
-    let signalTriggerTime: string | null = null;
-    if (tradeRecord.signalTriggerTime) {
-      if (tradeRecord.signalTriggerTime instanceof Date) {
-        signalTriggerTime = toBeijingTimeIso(tradeRecord.signalTriggerTime);
-      } else if (typeof tradeRecord.signalTriggerTime === 'string') {
-        // 如果是字符串，尝试解析为Date
-        const parsedDate = new Date(tradeRecord.signalTriggerTime);
-        if (!Number.isNaN(parsedDate.getTime())) {
-          signalTriggerTime = toBeijingTimeIso(parsedDate);
-        }
-      }
-    }
+    const executedAtMs = Number.isFinite(tradeRecord.executedAtMs ?? Number.NaN)
+      ? tradeRecord.executedAtMs
+      : null;
+    const signalTriggerTime = tradeRecord.signalTriggerTime ?? null;
+    const executedAt = tradeRecord.executedAt ?? null;
 
-    // 构建记录对象
+    // 构建记录对象（缺失字段写入 null）
     const record: TradeRecord = {
-      ...tradeRecord,
-      timestamp: toBeijingTimeIso(), // 记录时间使用北京时间
-      ...(signalTriggerTime && { signalTriggerTime }), // 条件性添加 signalTriggerTime
+      orderId: tradeRecord.orderId ?? null,
+      symbol: tradeRecord.symbol ?? null,
+      symbolName: tradeRecord.symbolName ?? null,
+      monitorSymbol: tradeRecord.monitorSymbol ?? null,
+      action: tradeRecord.action ?? null,
+      side: tradeRecord.side ?? null,
+      quantity: tradeRecord.quantity ?? null,
+      price: tradeRecord.price ?? null,
+      orderType: tradeRecord.orderType ?? null,
+      status: tradeRecord.status ?? null,
+      error: tradeRecord.error ?? null,
+      reason: tradeRecord.reason ?? null,
+      signalTriggerTime,
+      executedAt,
+      executedAtMs,
+      timestamp: toBeijingTimeIso(),
+      isProtectiveClearance: tradeRecord.isProtectiveClearance ?? null,
     };
 
     trades.push(record);

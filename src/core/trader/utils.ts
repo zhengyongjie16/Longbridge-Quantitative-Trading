@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { OrderType } from 'longport';
 
 type OrderTypeValue = typeof OrderType[keyof typeof OrderType];
@@ -12,4 +13,9 @@ const orderTypeLabelMap: ReadonlyMap<OrderTypeValue, string> = new Map([
 
 export const formatOrderTypeLabel = (orderType: OrderTypeValue): string => {
   return orderTypeLabelMap.get(orderType) ?? '限价单';
+};
+
+export const buildTradeLogPath = (cwd: string, date: Date): string => {
+  const dayKey = date.toISOString().split('T')[0];
+  return path.join(cwd, 'logs', 'trades', `${dayKey}.json`);
 };

@@ -21,7 +21,7 @@ import {
 } from 'longport';
 import type { PushOrderChanged } from 'longport';
 import { logger } from '../../utils/logger/index.js';
-import { decimalToNumber, toDecimal, formatError } from '../../utils/helpers/index.js';
+import { decimalToNumber, toDecimal, formatError, toBeijingTimeIso } from '../../utils/helpers/index.js';
 import type { Quote, PendingRefreshSymbol, GlobalConfig } from '../../types/index.js';
 import type {
   OrderMonitor,
@@ -29,6 +29,7 @@ import type {
   TrackedOrder,
   OrderMonitorConfig,
 } from './types.js';
+import { recordTrade } from './tradeLogger.js';
 
 const PRICE_DIFF_THRESHOLD = 0.001;
 
@@ -98,6 +99,25 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
     return true; // 默认视为做多
   };
 
+  const resolveMonitorSymbolByConfig = (symbol: string): string | null => {
+    for (const monitor of tradingConfig.monitors) {
+      if (monitor.longSymbol === symbol || monitor.shortSymbol === symbol) {
+        return monitor.monitorSymbol;
+      }
+    }
+    return null;
+  };
+
+  const resolveSignalAction = (
+    side: OrderSide,
+    isLongSymbol: boolean,
+  ): 'BUYCALL' | 'BUYPUT' | 'SELLCALL' | 'SELLPUT' => {
+    if (side === OrderSide.Buy) {
+      return isLongSymbol ? 'BUYCALL' : 'BUYPUT';
+    }
+    return isLongSymbol ? 'SELLCALL' : 'SELLPUT';
+  };
+
   /**
    * 处理 WebSocket 订单状态变化
    * 完全成交时用成交价更新本地记录，部分成交时继续追踪
@@ -127,7 +147,15 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
         Number.isFinite(executedPrice) && executedPrice > 0 &&
         Number.isFinite(filledQuantity) && filledQuantity > 0
       ) {
-        const executedTimeMs = resolveUpdatedAtMs(event.updatedAt) ?? Date.now();
+        const executedTimeMs = resolveUpdatedAtMs(event.updatedAt);
+        if (executedTimeMs == null) {
+          logger.error(
+            `[订单监控] 订单 ${orderId} 成交时间缺失，无法更新订单记录`,
+          );
+          trackedOrders.delete(orderId);
+          return;
+        }
+
         // 直接调用 orderRecorder 更新本地记录（无回调，无闭包）
         if (trackedOrder.side === OrderSide.Buy) {
           orderRecorder.recordLocalBuy(
@@ -148,12 +176,44 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
 
         if (trackedOrder.isProtectiveLiquidation) {
           const direction = trackedOrder.isLongSymbol ? 'LONG' : 'SHORT';
-          liquidationCooldownTracker.recordCooldown({
-            symbol: trackedOrder.symbol,
-            direction,
-            executedTimeMs,
-          });
+          if (trackedOrder.monitorSymbol) {
+            liquidationCooldownTracker.recordCooldown({
+              symbol: trackedOrder.monitorSymbol,
+              direction,
+              executedTimeMs,
+            });
+          } else {
+            logger.error(
+              `[订单监控] 订单 ${orderId} 缺少监控标的代码，无法记录清仓冷却`,
+            );
+          }
         }
+
+        const signalAction = resolveSignalAction(
+          trackedOrder.side,
+          trackedOrder.isLongSymbol,
+        );
+        const executedAt = toBeijingTimeIso(new Date(executedTimeMs));
+
+        recordTrade({
+          orderId: String(orderId),
+          symbol: trackedOrder.symbol,
+          symbolName: null,
+          monitorSymbol: trackedOrder.monitorSymbol,
+          action: signalAction,
+          side: trackedOrder.side === OrderSide.Buy ? 'BUY' : 'SELL',
+          quantity: String(filledQuantity),
+          price: String(executedPrice),
+          orderType: null,
+          status: 'FILLED',
+          error: null,
+          reason: null,
+          signalTriggerTime: null,
+          executedAt,
+          executedAtMs: executedTimeMs,
+          timestamp: null,
+          isProtectiveClearance: trackedOrder.isProtectiveLiquidation,
+        });
 
         logger.info(
           `[订单监控] 订单 ${orderId} 完全成交，` +
@@ -230,6 +290,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
     price: number,
     quantity: number,
     isLongSymbol: boolean,
+    monitorSymbol: string | null,
     isProtectiveLiquidation: boolean,
   ): void => {
     const now = Date.now();
@@ -239,6 +300,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
       symbol,
       side,
       isLongSymbol,
+      monitorSymbol,
       isProtectiveLiquidation,
       submittedPrice: price,
       submittedQuantity: quantity,
@@ -284,6 +346,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
       const executedQuantity = decimalToNumber(order.executedQuantity);
 
       // 重新追踪未完成的订单
+      const monitorSymbol = resolveMonitorSymbolByConfig(symbol);
       trackOrder(
         order.orderId,
         symbol,
@@ -291,6 +354,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
         decimalToNumber(order.price),
         decimalToNumber(order.quantity),
         isLongSymbol,
+        monitorSymbol,
         false,
       );
 
@@ -470,6 +534,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
         0,                    // 市价单无价格
         remainingQuantity,
         order.isLongSymbol,   // 继承原订单的做多/做空标识
+        order.monitorSymbol,
         order.isProtectiveLiquidation,
       );
 

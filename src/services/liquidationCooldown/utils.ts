@@ -50,3 +50,27 @@ export function resolveHongKongTimeMs({
   const targetHkMs = Date.UTC(year, month, day, hour, minute, 0, 0);
   return targetHkMs - offsetMs;
 }
+
+export const resolveDirectionFromAction = (
+  action: string | null,
+): LiquidationDirection | null => {
+  if (action === 'BUYCALL' || action === 'SELLCALL') {
+    return 'LONG';
+  }
+  if (action === 'BUYPUT' || action === 'SELLPUT') {
+    return 'SHORT';
+  }
+  return null;
+};
+
+export const toStringOrNull = (value: unknown): string | null => {
+  return typeof value === 'string' && value.trim() ? value : null;
+};
+
+export const toNumberOrNull = (value: unknown): number | null => {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+};
+
+export const toBooleanOrNull = (value: unknown): boolean | null => {
+  return value === true || value === false ? value : null;
+};
