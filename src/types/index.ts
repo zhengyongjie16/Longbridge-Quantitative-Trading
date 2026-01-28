@@ -897,6 +897,16 @@ export type PendingRefreshSymbol = {
 export type WarrantType = 'BULL' | 'BEAR';
 
 /**
+ * 牛熊证距离回收价信息（用于实时显示）
+ */
+export type WarrantDistanceInfo = {
+  /** 牛熊证类型 */
+  readonly warrantType: WarrantType;
+  /** 距离回收价百分比 */
+  readonly distanceToStrikePercent: number | null;
+};
+
+/**
  * 风险检查结果
  */
 export type RiskCheckResult = {
@@ -990,6 +1000,12 @@ export interface RiskChecker {
     monitorCurrentPrice: number,
     warrantCurrentPrice: number | null,
   ): RiskCheckResult;
+
+  /** 获取牛熊证距离回收价信息（实时展示用） */
+  getWarrantDistanceInfo(
+    isLongSymbol: boolean,
+    monitorCurrentPrice: number | null,
+  ): WarrantDistanceInfo | null;
 
   /** 刷新浮亏数据 */
   refreshUnrealizedLossData(

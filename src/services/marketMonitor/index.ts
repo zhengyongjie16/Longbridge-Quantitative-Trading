@@ -22,7 +22,7 @@ import {
   toBeijingTimeLog,
 } from '../../utils/helpers/index.js';
 import { isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
-import { hasChanged } from './utils.js';
+import { formatWarrantDistanceDisplay, hasChanged } from './utils.js';
 import {
   kdjObjectPool,
   macdObjectPool,
@@ -30,7 +30,13 @@ import {
   periodRecordPool,
 } from '../../utils/objectPool/index.js';
 import { MONITOR } from '../../constants/index.js';
-import type { IndicatorSnapshot, MonitorState, MonitorValues, Quote } from '../../types/index.js';
+import type {
+  IndicatorSnapshot,
+  MonitorState,
+  MonitorValues,
+  Quote,
+  WarrantDistanceInfo,
+} from '../../types/index.js';
 import { MarketMonitor } from './types.js';
 
 /**
@@ -62,12 +68,15 @@ export const createMarketMonitor = (): MarketMonitor => {
     quote: Quote | null,
     symbol: string,
     label: string,
+    warrantDistanceInfo: WarrantDistanceInfo | null,
   ): void => {
     const display = formatQuoteDisplay(quote, symbol);
     if (display) {
       const timePrefix = formatKlineTimePrefix(quote?.timestamp);
+      const distanceText = formatWarrantDistanceDisplay(warrantDistanceInfo);
+      const distanceSuffix = distanceText ? ` ${distanceText}` : '';
       logger.info(
-        `${timePrefix}[${label}] ${display.nameText}(${display.codeText}) 最新价格=${display.priceText} 涨跌额=${display.changeAmountText} 涨跌幅度=${display.changePercentText}`,
+        `${timePrefix}[${label}] ${display.nameText}(${display.codeText}) 最新价格=${display.priceText} 涨跌额=${display.changeAmountText} 涨跌幅度=${display.changePercentText}${distanceSuffix}`,
       );
     } else {
       logger.warn(`未获取到${label}行情。`);
@@ -229,6 +238,8 @@ export const createMarketMonitor = (): MarketMonitor => {
       longSymbol: string,
       shortSymbol: string,
       monitorState: MonitorState,
+      longWarrantDistanceInfo: WarrantDistanceInfo | null = null,
+      shortWarrantDistanceInfo: WarrantDistanceInfo | null = null,
     ): boolean => {
       const longPrice = longQuote?.price;
       const shortPrice = shortQuote?.price;
@@ -246,8 +257,8 @@ export const createMarketMonitor = (): MarketMonitor => {
           : hasChanged(shortPrice ?? null, monitorState.shortPrice ?? null, MONITOR.PRICE_CHANGE_THRESHOLD);
 
       if (longPriceChanged || shortPriceChanged) {
-        displayQuoteInfo(longQuote, longSymbol, '做多标的');
-        displayQuoteInfo(shortQuote, shortSymbol, '做空标的');
+        displayQuoteInfo(longQuote, longSymbol, '做多标的', longWarrantDistanceInfo);
+        displayQuoteInfo(shortQuote, shortSymbol, '做空标的', shortWarrantDistanceInfo);
 
         // 更新价格状态（只更新有效价格，避免将 undefined 写入状态）
         if (Number.isFinite(longPrice)) {

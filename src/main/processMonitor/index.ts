@@ -84,6 +84,16 @@ export async function processMonitor(
   monitorContext.shortQuote = shortQuote;
   monitorContext.monitorQuote = monitorQuote;
 
+  const monitorCurrentPrice = monitorQuote?.price ?? null;
+  const longWarrantDistanceInfo = riskChecker.getWarrantDistanceInfo(
+    true,
+    monitorCurrentPrice,
+  );
+  const shortWarrantDistanceInfo = riskChecker.getWarrantDistanceInfo(
+    false,
+    monitorCurrentPrice,
+  );
+
   // 监控价格变化并显示
   const priceChanged = marketMonitor.monitorPriceChanges(
     longQuote,
@@ -91,6 +101,8 @@ export async function processMonitor(
     LONG_SYMBOL,
     SHORT_SYMBOL,
     state,
+    longWarrantDistanceInfo,
+    shortWarrantDistanceInfo,
   );
 
   // 实时检查浮亏（仅在价格变化时检查）

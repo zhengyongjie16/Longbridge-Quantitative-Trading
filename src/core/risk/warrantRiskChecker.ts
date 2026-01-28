@@ -10,7 +10,13 @@
 
 import { logger } from '../../utils/logger/index.js';
 import { decimalToNumber, isDefined, formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
-import type { MarketDataClient, WarrantType, RiskCheckResult, SignalType } from '../../types/index.js';
+import type {
+  MarketDataClient,
+  WarrantType,
+  RiskCheckResult,
+  SignalType,
+  WarrantDistanceInfo,
+} from '../../types/index.js';
 import type { WarrantInfo, WarrantQuote, WarrantRiskChecker, WarrantRiskCheckerDeps } from './types.js';
 import {
   BULL_WARRANT_MIN_DISTANCE_PERCENT,
@@ -249,6 +255,41 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
     return ((monitorCurrentPrice - callPrice) / callPrice) * 100;
   };
 
+  /** 构建距离回收价信息（用于实时展示；此函数仅计算，不直接输出日志） */
+  const buildWarrantDistanceInfo = (
+    warrantInfo: WarrantInfo | null,
+    monitorCurrentPrice: number | null,
+  ): WarrantDistanceInfo | null => {
+    if (!warrantInfo?.isWarrant) {
+      return null;
+    }
+
+    const callPrice = warrantInfo.callPrice;
+    if (callPrice === null || !Number.isFinite(callPrice) || callPrice <= 0) {
+      return {
+        warrantType: warrantInfo.warrantType,
+        distanceToStrikePercent: null,
+      };
+    }
+
+    if (
+      monitorCurrentPrice === null ||
+      !Number.isFinite(monitorCurrentPrice) ||
+      monitorCurrentPrice <= 0
+    ) {
+      return {
+        warrantType: warrantInfo.warrantType,
+        distanceToStrikePercent: null,
+      };
+    }
+
+    const distancePercent = calculateDistancePercent(monitorCurrentPrice, callPrice);
+    return {
+      warrantType: warrantInfo.warrantType,
+      distanceToStrikePercent: distancePercent,
+    };
+  };
+
   /** 检查距离回收价是否在安全范围内 */
   const checkDistanceThreshold = (
     warrantType: WarrantType,
@@ -403,8 +444,17 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
     );
   };
 
+  const getWarrantDistanceInfo = (
+    isLongSymbol: boolean,
+    monitorCurrentPrice: number | null,
+  ): WarrantDistanceInfo | null => {
+    const warrantInfo = isLongSymbol ? longWarrantInfo : shortWarrantInfo;
+    return buildWarrantDistanceInfo(warrantInfo, monitorCurrentPrice);
+  };
+
   return {
     initialize,
     checkRisk,
+    getWarrantDistanceInfo,
   };
 };

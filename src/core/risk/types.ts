@@ -16,6 +16,7 @@ import type {
   OrderRecorder,
   WarrantType,
   RiskCheckResult,
+  WarrantDistanceInfo,
   UnrealizedLossData,
   UnrealizedLossCheckResult,
 } from '../../types/index.js';
@@ -64,6 +65,10 @@ export interface WarrantRiskChecker {
     monitorCurrentPrice: number,
     warrantCurrentPrice: number | null,
   ): RiskCheckResult;
+  getWarrantDistanceInfo(
+    isLongSymbol: boolean,
+    monitorCurrentPrice: number | null,
+  ): WarrantDistanceInfo | null;
 }
 
 /** 持仓限制检查器接口 */

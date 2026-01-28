@@ -2,7 +2,12 @@
  * MarketMonitor 模块类型定义
  */
 
-import type { IndicatorSnapshot, MonitorState, Quote } from '../../types/index.js';
+import type {
+  IndicatorSnapshot,
+  MonitorState,
+  Quote,
+  WarrantDistanceInfo,
+} from '../../types/index.js';
 
 /**
  * 行情监控器接口
@@ -24,6 +29,8 @@ export interface MarketMonitor {
     longSymbol: string,
     shortSymbol: string,
     monitorState: MonitorState,
+    longWarrantDistanceInfo?: WarrantDistanceInfo | null,
+    shortWarrantDistanceInfo?: WarrantDistanceInfo | null,
   ): boolean;
 
   /**

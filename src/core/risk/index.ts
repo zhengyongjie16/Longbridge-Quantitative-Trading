@@ -284,6 +284,16 @@ export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
       );
     },
 
+    getWarrantDistanceInfo(
+      isLongSymbol: boolean,
+      monitorCurrentPrice: number | null,
+    ) {
+      return warrantRiskChecker.getWarrantDistanceInfo(
+        isLongSymbol,
+        monitorCurrentPrice,
+      );
+    },
+
     async refreshUnrealizedLossData(
       orderRecorder: OrderRecorder,
       symbol: string,
