@@ -110,7 +110,11 @@ export const createBuyProcessor = (deps: BuyProcessorDeps): BuyProcessor => {
 
       // 如果信号被风险检查拦截，跳过执行
       if (checkedSignals.length === 0) {
-        logger.info(`[BuyProcessor] 买入信号被风险检查拦截: ${symbolDisplay} ${signal.action}`);
+        const rejectReason = signal.reason?.trim();
+        const reasonSuffix = rejectReason ? ` - ${rejectReason}` : '';
+        logger.info(
+          `[BuyProcessor] 买入信号被风险检查拦截: ${symbolDisplay} ${signal.action}${reasonSuffix}`,
+        );
         return true; // 处理成功（虽然被拦截了）
       }
 

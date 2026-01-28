@@ -249,6 +249,8 @@ export const createSignalProcessor = ({
 
       if (lastTime && now - lastTime < cooldownMs) {
         const remainingSeconds = Math.ceil((lastTime + cooldownMs - now) / 1000);
+        const reason = `风险检查冷却期内，剩余 ${remainingSeconds} 秒`;
+        sig.reason = reason;
         const sigName = getSymbolName(
           sig.symbol,
           longSymbol,
@@ -323,8 +325,10 @@ export const createSignalProcessor = ({
 
       if (isBuyActionCheck) {
         if (buyApiFetchFailed) {
+          const reason = '批量获取账户和持仓信息失败，买入信号被拒绝';
+          sig.reason = reason;
           logger.warn(
-            `[风险检查] 买入操作无法获取账户信息，跳过该信号：${signalLabel}`,
+            `[风险检查] ${reason}：${signalLabel}`,
           );
           continue;
         }
@@ -342,8 +346,11 @@ export const createSignalProcessor = ({
         // 1. 检查交易频率限制
         const tradeCheck = trader._canTradeNow(sig.action, context.config);
         if (!tradeCheck.canTrade) {
+          const waitSeconds = tradeCheck.waitSeconds ?? 0;
+          const reason = `交易频率限制：${directionDesc} 在${context.config.buyIntervalSeconds}秒内已买入过，需等待 ${waitSeconds} 秒后才能再次买入`;
+          sig.reason = reason;
           logger.warn(
-            `[交易频率限制] ${directionDesc} 在${context.config.buyIntervalSeconds}秒内已买入过，需等待 ${tradeCheck.waitSeconds ?? 0} 秒后才能再次买入：${signalLabel}`,
+            `[交易频率限制] ${reason}：${signalLabel}`,
           );
           continue;
         }
@@ -357,8 +364,10 @@ export const createSignalProcessor = ({
         });
         if (remainingMs > 0) {
           const remainingSeconds = Math.ceil(remainingMs / 1000);
+          const reason = `清仓冷却期内，剩余 ${remainingSeconds} 秒，拒绝买入`;
+          sig.reason = reason;
           logger.warn(
-            `[清仓冷却] ${signalLabel} 在冷却期内，剩余 ${remainingSeconds} 秒，拒绝买入`,
+            `[清仓冷却] ${signalLabel} ${reason}`,
           );
           continue;
         }
@@ -375,6 +384,8 @@ export const createSignalProcessor = ({
           const latestBuyPriceStr = latestBuyPrice.toFixed(3);
 
           if (currentPrice > latestBuyPrice) {
+            const reason = `买入价格限制：当前价格 ${currentPriceStr} 高于最新买入订单价格 ${latestBuyPriceStr}`;
+            sig.reason = reason;
             logger.warn(
               `[买入价格限制] ${directionDesc} 当前价格 ${currentPriceStr} 高于最新买入订单价格 ${latestBuyPriceStr}，拒绝买入：${signalLabel}`,
             );
@@ -391,8 +402,10 @@ export const createSignalProcessor = ({
           doomsdayProtection.shouldRejectBuy(currentTime, isHalfDay)
         ) {
           const closeTimeRange = isHalfDay ? '11:45-12:00' : '15:45-16:00';
+          const reason = `末日保护程序：收盘前15分钟内拒绝买入（当前时间在${closeTimeRange}范围内）`;
+          sig.reason = reason;
           logger.warn(
-            `[末日保护程序] 收盘前15分钟内拒绝买入：${signalLabel} - 当前时间在${closeTimeRange}范围内`,
+            `[末日保护程序] ${reason}：${signalLabel}`,
           );
           continue;
         }
@@ -408,8 +421,10 @@ export const createSignalProcessor = ({
         );
 
         if (!warrantRiskResult.allowed) {
+          const reason = warrantRiskResult.reason ?? '牛熊证风险检查未通过';
+          sig.reason = reason;
           logger.warn(
-            `[牛熊证风险拦截] 信号被牛熊证风险控制拦截：${signalLabel} - ${warrantRiskResult.reason}`,
+            `[牛熊证风险拦截] 信号被牛熊证风险控制拦截：${signalLabel} - ${reason}`,
           );
           continue;
         } else if (warrantRiskResult.warrantInfo?.isWarrant) {
@@ -445,8 +460,10 @@ export const createSignalProcessor = ({
       const positionsForRiskCheck = isBuyActionCheck ? freshPositions : (context.positions ?? []);
 
       if (isBuyActionCheck && accountForRiskCheck === null) {
+        const reason = '买入操作无法获取账户信息，买入信号被拒绝';
+        sig.reason = reason;
         logger.warn(
-          `[风险检查] 买入操作无法获取账户信息，跳过该信号：${signalLabel}`,
+          `[风险检查] ${reason}：${signalLabel}`,
         );
         continue;
       }
@@ -468,8 +485,10 @@ export const createSignalProcessor = ({
       if (riskResult.allowed) {
         finalSignals.push(sig);
       } else {
+        const reason = riskResult.reason ?? '基础风险检查未通过';
+        sig.reason = reason;
         logger.warn(
-          `[风险拦截] 信号被风险控制拦截：${signalLabel} - ${riskResult.reason}`,
+          `[风险拦截] 信号被风险控制拦截：${signalLabel} - ${reason}`,
         );
       }
     }
