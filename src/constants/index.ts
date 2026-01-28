@@ -92,10 +92,10 @@ export const MONITOR = {
 export const BULL_WARRANT_MIN_DISTANCE_PERCENT = 0.5;
 /** 熊证最高距离回收价百分比（高于此值拒绝买入） */
 export const BEAR_WARRANT_MAX_DISTANCE_PERCENT = -0.5;
-/** 牛证触发清仓的距离回收价百分比 */
-export const BULL_WARRANT_LIQUIDATION_DISTANCE_PERCENT = 0.5;
-/** 熊证触发清仓的距离回收价百分比 */
-export const BEAR_WARRANT_LIQUIDATION_DISTANCE_PERCENT = -0.5;
+/** 牛证触发清仓的距离回收价百分比（低于此值触发保护清仓） */
+export const BULL_WARRANT_LIQUIDATION_DISTANCE_PERCENT = 0.3;
+/** 熊证触发清仓的距离回收价百分比（高于此值触发保护清仓） */
+export const BEAR_WARRANT_LIQUIDATION_DISTANCE_PERCENT = -0.3;
 /** 监控标的价格最小有效值（低于此值视为异常） */
 export const MIN_MONITOR_PRICE_THRESHOLD = 1;
 /** 牛熊证当前价格最小阈值（小于或等于拒绝买入） */
