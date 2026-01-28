@@ -87,6 +87,20 @@ export const MONITOR = {
   CHANGE_PERCENT_THRESHOLD: 0.01,
 } as const;
 
+/** 风险检查相关常量（牛熊证） */
+/** 牛证最低距离回收价百分比（低于此值拒绝买入） */
+export const BULL_WARRANT_MIN_DISTANCE_PERCENT = 0.5;
+/** 熊证最高距离回收价百分比（高于此值拒绝买入） */
+export const BEAR_WARRANT_MAX_DISTANCE_PERCENT = -0.5;
+/** 监控标的价格最小有效值（低于此值视为异常） */
+export const MIN_MONITOR_PRICE_THRESHOLD = 1;
+/** 牛熊证当前价格最小阈值（小于或等于拒绝买入） */
+export const MIN_WARRANT_PRICE_THRESHOLD = 0.015;
+/** 价格格式化小数位数 */
+export const DEFAULT_PRICE_DECIMALS = 3;
+/** 百分比格式化小数位数 */
+export const DEFAULT_PERCENT_DECIMALS = 2;
+
 /** 信号类型常量（内部使用） */
 const SIGNAL_ACTIONS = {
   BUYCALL: 'BUYCALL',

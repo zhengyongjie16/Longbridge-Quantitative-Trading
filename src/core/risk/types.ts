@@ -62,6 +62,7 @@ export interface WarrantRiskChecker {
     symbol: string,
     signalType: SignalType,
     monitorCurrentPrice: number,
+    warrantCurrentPrice: number | null,
   ): RiskCheckResult;
 }
 

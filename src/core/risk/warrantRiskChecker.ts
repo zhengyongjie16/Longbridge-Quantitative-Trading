@@ -5,6 +5,7 @@
  * - 初始化时获取牛熊证回收价
  * - 买入前计算距离回收价百分比
  * - 牛证低于 0.5% 或熊证高于 -0.5% 时拒绝买入
+ * - 牛熊证当前价格过低时拒绝买入
  */
 
 import { logger } from '../../utils/logger/index.js';
@@ -15,9 +16,10 @@ import {
   BULL_WARRANT_MIN_DISTANCE_PERCENT,
   BEAR_WARRANT_MAX_DISTANCE_PERCENT,
   MIN_MONITOR_PRICE_THRESHOLD,
+  MIN_WARRANT_PRICE_THRESHOLD,
   DEFAULT_PRICE_DECIMALS,
   DEFAULT_PERCENT_DECIMALS,
-} from './constants.js';
+} from '../../constants/index.js';
 
 /** 创建牛熊证风险检查器 */
 export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): WarrantRiskChecker => {
@@ -167,16 +169,19 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
     }
   };
 
-  /** 验证回收价有效性，无效时允许交易 */
+  /** 验证回收价有效性，无效时拒绝买入 */
   const validateCallPrice = (
     symbol: string,
     callPrice: number | null | undefined,
   ): RiskCheckResult | null => {
     if (!Number.isFinite(callPrice) || !callPrice || callPrice <= 0) {
       logger.warn(
-        `[风险检查] ${symbol} 的回收价无效（${callPrice}），允许交易`,
+        `[风险检查] ${symbol} 的回收价无效（${callPrice}），拒绝买入`,
       );
-      return { allowed: true };
+      return {
+        allowed: false,
+        reason: `回收价无效（${callPrice}），无法进行牛熊证风险检查，拒绝买入`,
+      };
     }
     return null;
   };
@@ -201,6 +206,35 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
       return {
         allowed: false,
         reason: `监控标的价格异常（${monitorCurrentPrice}），无法进行牛熊证风险检查，拒绝买入`,
+      };
+    }
+
+    return null;
+  };
+
+  /** 验证牛熊证当前价格有效性并检查最低价阈值 */
+  const validateWarrantCurrentPrice = (
+    symbol: string,
+    warrantCurrentPrice: number | null,
+  ): RiskCheckResult | null => {
+    if (warrantCurrentPrice === null || !Number.isFinite(warrantCurrentPrice)) {
+      logger.warn(
+        `[风险检查] ${symbol} 的牛熊证当前价格无效（${warrantCurrentPrice}），无法进行牛熊证风险检查`,
+      );
+      return {
+        allowed: false,
+        reason: `牛熊证当前价格无效（${warrantCurrentPrice}），无法进行风险检查，拒绝买入`,
+      };
+    }
+
+    if (warrantCurrentPrice <= MIN_WARRANT_PRICE_THRESHOLD) {
+      return {
+        allowed: false,
+        reason: `牛熊证当前价格 ${warrantCurrentPrice.toFixed(
+          DEFAULT_PRICE_DECIMALS,
+        )} 低于或等于 ${MIN_WARRANT_PRICE_THRESHOLD.toFixed(
+          DEFAULT_PRICE_DECIMALS,
+        )}，拒绝买入`,
       };
     }
 
@@ -315,6 +349,7 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
     symbol: string,
     signalType: SignalType,
     monitorCurrentPrice: number,
+    warrantCurrentPrice: number | null,
   ): RiskCheckResult => {
     // 确定是做多还是做空标的
     const isLong = signalType === 'BUYCALL';
@@ -337,10 +372,21 @@ export const createWarrantRiskChecker = (_deps: WarrantRiskCheckerDeps = {}): Wa
       return priceValidation;
     }
 
-    // 此处 callPrice 和 warrantType 已通过验证，不为 null/undefined
+    const warrantPriceValidation = validateWarrantCurrentPrice(
+      symbol,
+      warrantCurrentPrice,
+    );
+    if (warrantPriceValidation) {
+      return warrantPriceValidation;
+    }
+
+    // 此处 callPrice 已通过验证，不为 null/undefined
     const callPrice = warrantInfo.callPrice;
     if (callPrice === null) {
-      return { allowed: true };
+      return {
+        allowed: false,
+        reason: `回收价无效（${callPrice}），无法进行牛熊证风险检查，拒绝买入`,
+      };
     }
 
     const { warrantType } = warrantInfo;

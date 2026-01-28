@@ -7,7 +7,7 @@
  * - unrealizedLossChecker: 单标的浮亏监控
  *
  * 风险阈值（均为配置项）：
- * - 牛证距离回收价 > 0.5%，熊证 < -0.5%
+ * - 牛证距离回收价 > 0.5%，熊证 < -0.5%，牛熊证当前价 > 0.015
  * - 单标的市值 ≤ maxPositionNotional
  * - 单标的浮亏 > -maxUnrealizedLossPerSymbol
  */
@@ -274,11 +274,13 @@ export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
       symbol: string,
       signalType: SignalType,
       monitorCurrentPrice: number,
+      warrantCurrentPrice: number | null,
     ): RiskCheckResult {
       return warrantRiskChecker.checkRisk(
         symbol,
         signalType,
         monitorCurrentPrice,
+        warrantCurrentPrice,
       );
     },
 

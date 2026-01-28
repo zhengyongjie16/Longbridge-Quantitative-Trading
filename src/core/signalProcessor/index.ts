@@ -418,6 +418,7 @@ export const createSignalProcessor = ({
           sig.symbol,
           sig.action,
           monitorCurrentPrice ?? 0,
+          currentPrice,
         );
 
         if (!warrantRiskResult.allowed) {

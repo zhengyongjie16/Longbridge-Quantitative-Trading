@@ -983,11 +983,12 @@ export interface RiskChecker {
     shortCurrentPrice?: number | null,
   ): RiskCheckResult;
 
-  /** 牛熊证风险检查（距离回收价） */
+  /** 牛熊证风险检查（距离回收价 + 当前价阈值） */
   checkWarrantRisk(
     symbol: string,
     signalType: SignalType,
     monitorCurrentPrice: number,
+    warrantCurrentPrice: number | null,
   ): RiskCheckResult;
 
   /** 刷新浮亏数据 */
