@@ -53,7 +53,7 @@
     "node_modules",
     "dist",
     "logs",
-    "test",
+    "tests",
     "**/*.test.ts",
     "**/*.spec.ts",
     ".claude"
