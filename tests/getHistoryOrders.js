@@ -1,10 +1,10 @@
 /**
- * 获取最近一周的所有已成交订单
+ * 获取所有已成交订单（上限1000条）
  *
  * 说明：
  * - historyOrders API 不包含当日订单
  * - todayOrders API 获取当日订单
- * - 本脚本合并两个 API 的结果以获取完整的一周订单记录
+ * - 本脚本合并两个 API 的结果以获取完整的订单记录
  * - 使用订单过滤算法识别当前仍持有的买入订单（多标的支持）
  *
  * 使用: node tests/getHistoryOrders.js
@@ -18,9 +18,6 @@ import { Config, TradeContext, OrderStatus, OrderSide } from 'longport';
 // 加载环境变量
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '..', '.env.local') });
-
-/** 一周的毫秒数 */
-const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 // ==================== 工具函数 ====================
 
@@ -414,22 +411,16 @@ function printFilteredOrderList(orders, title) {
 // ==================== 主程序 ====================
 
 async function main() {
-  const now = new Date();
-  const oneWeekAgo = new Date(now.getTime() - ONE_WEEK_MS);
-
-  console.log('\n====== 获取最近一周已成交订单 ======');
-  console.log(`查询时间范围: ${oneWeekAgo.toLocaleDateString('zh-CN')} ~ ${now.toLocaleDateString('zh-CN')}\n`);
+  console.log('\n====== 获取所有已成交订单（上限1000条） ======\n');
 
   // 初始化交易上下文
   const config = Config.fromEnv();
   const ctx = await TradeContext.new(config);
 
-  // 获取历史订单（已成交状态，不包含当日）
+  // 获取历史订单（已成交状态，不包含当日，不设日期范围）
   console.log('正在获取历史订单...');
   const historyOrders = await ctx.historyOrders({
     status: [OrderStatus.Filled],
-    startAt: oneWeekAgo,
-    endAt: now,
   });
   console.log(`历史订单: ${historyOrders.length} 笔`);
 
@@ -459,7 +450,7 @@ async function main() {
   console.log(`\n合并去重后共 ${orders.length} 笔已成交订单\n`);
 
   if (orders.length === 0) {
-    console.log('最近一周没有已成交的订单');
+    console.log('没有已成交的订单');
     return { orders: [], summary: null };
   }
 
