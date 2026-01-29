@@ -20,13 +20,16 @@ import { createHangSengMultiIndicatorStrategy } from '../../core/strategy/index.
 import { createRiskChecker } from '../../core/risk/index.js';
 import { createUnrealizedLossMonitor } from '../../core/unrealizedLossMonitor/index.js';
 import { createDelayedSignalVerifier } from '../../main/asyncProgram/delayedSignalVerifier/index.js';
+import { createAutoSymbolManager } from '../autoSymbolManager/index.js';
 import type { IndicatorCache } from '../../main/asyncProgram/indicatorCache/types.js';
 import type {
+  MarketDataClient,
   MonitorConfig,
   MonitorState,
   MonitorContext,
   Quote,
   Trader,
+  SymbolRegistry,
 } from '../../types/index.js';
 import { extractRsiPeriodsWithDefault, extractEmaPeriods, extractPsyPeriods } from './utils.js';
 
@@ -43,17 +46,46 @@ export function createMonitorContext(
   config: MonitorConfig,
   state: MonitorState,
   trader: Trader,
+  marketDataClient: MarketDataClient,
   quotesMap: ReadonlyMap<string, Quote | null>,
   indicatorCache: IndicatorCache,
+  symbolRegistry: SymbolRegistry,
 ): MonitorContext {
   // 从预先获取的行情 Map 中提取标的名称（无需单独 API 调用）
   const longQuote = quotesMap.get(config.longSymbol) ?? null;
   const shortQuote = quotesMap.get(config.shortSymbol) ?? null;
   const monitorQuote = quotesMap.get(config.monitorSymbol) ?? null;
 
+  const riskChecker = createRiskChecker({
+    options: {
+      maxDailyLoss: config.maxDailyLoss,
+      maxPositionNotional: config.maxPositionNotional,
+      maxUnrealizedLossPerSymbol: config.maxUnrealizedLossPerSymbol,
+    },
+  });
+
+  const autoSymbolManager = createAutoSymbolManager({
+    monitorConfig: config,
+    symbolRegistry,
+    marketDataClient,
+    trader,
+    orderRecorder: trader._orderRecorder,
+    riskChecker,
+  });
+
   return {
     config,
     state,
+    symbolRegistry,
+    seatState: {
+      long: symbolRegistry.getSeatState(config.monitorSymbol, 'LONG'),
+      short: symbolRegistry.getSeatState(config.monitorSymbol, 'SHORT'),
+    },
+    seatVersion: {
+      long: symbolRegistry.getSeatVersion(config.monitorSymbol, 'LONG'),
+      short: symbolRegistry.getSeatVersion(config.monitorSymbol, 'SHORT'),
+    },
+    autoSymbolManager,
     strategy: createHangSengMultiIndicatorStrategy({
       signalConfig: config.signalConfig,
       verificationConfig: config.verificationConfig,
@@ -61,13 +93,7 @@ export function createMonitorContext(
     // 使用 trader 内部创建的共享 orderRecorder 实例
     // 订单记录更新已移至 orderMonitor，成交时自动更新
     orderRecorder: trader._orderRecorder,
-    riskChecker: createRiskChecker({
-      options: {
-        maxDailyLoss: config.maxDailyLoss,
-        maxPositionNotional: config.maxPositionNotional,
-        maxUnrealizedLossPerSymbol: config.maxUnrealizedLossPerSymbol,
-      },
-    }),
+    riskChecker,
     // 每个监控标的独立的浮亏监控器（使用各自的 maxUnrealizedLossPerSymbol 配置）
     unrealizedLossMonitor: createUnrealizedLossMonitor({
       maxUnrealizedLossPerSymbol: config.maxUnrealizedLossPerSymbol ?? 0,
@@ -89,7 +115,7 @@ export function createMonitorContext(
     rsiPeriods: extractRsiPeriodsWithDefault(config.signalConfig),
     emaPeriods: extractEmaPeriods(config.verificationConfig),
     psyPeriods: extractPsyPeriods(config.signalConfig, config.verificationConfig),
-    // 缓存的行情数据（主循环每秒更新，供 TradeProcessor 使用）
+    // 缓存的行情数据（主循环每秒更新，供买入/卖出处理器使用）
     longQuote,
     shortQuote,
     monitorQuote,

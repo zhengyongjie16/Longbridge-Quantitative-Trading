@@ -7,8 +7,8 @@
  * - 收盘前 5 分钟自动清仓所有持仓
  *
  * 时间规则：
- * - 正常交易日：15:45-16:00 拒绝买入，15:55-16:00 自动清仓
- * - 半日交易日：11:45-12:00 拒绝买入，11:55-12:00 自动清仓
+ * - 正常交易日：15:45-15:59:59 拒绝买入，15:55-15:59:59 自动清仓
+ * - 半日交易日：11:45-11:59:59 拒绝买入，11:55-11:59:59 自动清仓
  *
  * 控制开关：
  * - DOOMSDAY_PROTECTION 环境变量（默认 true）
@@ -20,11 +20,20 @@ import { formatError } from '../../utils/helpers/index.js';
 import { batchGetQuotes } from '../../utils/helpers/quoteHelpers.js';
 import { isBeforeClose15Minutes, isBeforeClose5Minutes } from '../../utils/helpers/tradingTime.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
-import type { Position, Quote, Signal, SignalType } from '../../types/index.js';
+import type { MonitorContext, Position, Quote, Signal, SignalType } from '../../types/index.js';
 import type { DoomsdayProtection, DoomsdayClearanceContext, DoomsdayClearanceResult, CancelPendingBuyOrdersContext, CancelPendingBuyOrdersResult, ClearanceSignalParams } from './types.js';
 
+function getConfiguredSymbols(
+  monitorConfig: DoomsdayClearanceContext['monitorConfigs'][number],
+): { longSymbol: string | null; shortSymbol: string | null } {
+  return {
+    longSymbol: monitorConfig.longSymbol || null,
+    shortSymbol: monitorConfig.shortSymbol || null,
+  };
+}
+
 /** 创建单个清仓信号，从对象池获取 Signal 对象 */
-const createClearanceSignal = (params: ClearanceSignalParams): Signal | null => {
+function createClearanceSignal(params: ClearanceSignalParams): Signal | null {
   const { symbol, symbolName, action, price, lotSize, positionType } = params;
   const positionLabel = positionType === 'short' ? '做空标的' : '做多标的';
 
@@ -39,16 +48,53 @@ const createClearanceSignal = (params: ClearanceSignalParams): Signal | null => 
   signal.triggerTime = new Date(); // 末日保护信号的触发时间为当前时间
 
   return signal;
-};
+}
+
+function resolveSeatSymbol(
+  context: MonitorContext | undefined,
+  monitorSymbol: string,
+  direction: 'LONG' | 'SHORT',
+): string | null {
+  if (!context) {
+    return null;
+  }
+  const seatState = context.symbolRegistry.getSeatState(monitorSymbol, direction);
+  if (seatState.status !== 'READY') {
+    return null;
+  }
+  return seatState.symbol ?? null;
+}
+
+function resolveMonitorSymbols(
+  monitorConfig: DoomsdayClearanceContext['monitorConfigs'][number],
+  monitorContexts: DoomsdayClearanceContext['monitorContexts'],
+): { longSymbol: string | null; shortSymbol: string | null } {
+  if (!monitorConfig.autoSearchConfig.autoSearchEnabled) {
+    return getConfiguredSymbols(monitorConfig);
+  }
+
+  const context = monitorContexts.get(monitorConfig.monitorSymbol);
+  if (!context) {
+    logger.warn(
+      `[末日保护程序] 未找到监控上下文，使用配置标的清仓: ${monitorConfig.monitorSymbol}`,
+    );
+    return getConfiguredSymbols(monitorConfig);
+  }
+
+  return {
+    longSymbol: resolveSeatSymbol(context, monitorConfig.monitorSymbol, 'LONG'),
+    shortSymbol: resolveSeatSymbol(context, monitorConfig.monitorSymbol, 'SHORT'),
+  };
+}
 
 /** 处理单个持仓，生成清仓信号（仅处理属于当前监控配置的持仓） */
-const processPositionForClearance = (
+function processPositionForClearance(
   pos: Position,
-  longSymbol: string,
-  shortSymbol: string,
+  longSymbol: string | null,
+  shortSymbol: string | null,
   longQuote: Quote | null,
   shortQuote: Quote | null,
-): Signal | null => {
+): Signal | null {
   // 验证持仓对象有效性
   if (!pos?.symbol || typeof pos.symbol !== 'string') {
     return null;
@@ -108,22 +154,22 @@ const processPositionForClearance = (
   }
 
   return signal;
-};
+}
 
 /** 创建末日保护程序（收盘前15分钟拒绝买入，收盘前5分钟自动清仓） */
-export const createDoomsdayProtection = (): DoomsdayProtection => {
+export function createDoomsdayProtection(): DoomsdayProtection {
   // 状态：记录当天是否已执行过收盘前15分钟的撤单检查
   // 格式为日期字符串（YYYY-MM-DD），用于跨天自动重置
   let cancelCheckExecutedDate: string | null = null;
 
   return {
-    shouldRejectBuy: (currentTime: Date, isHalfDay: boolean): boolean => {
+    shouldRejectBuy(currentTime: Date, isHalfDay: boolean): boolean {
       return isBeforeClose15Minutes(currentTime, isHalfDay);
     },
 
-    executeClearance: async (
+    async executeClearance(
       context: DoomsdayClearanceContext,
-    ): Promise<DoomsdayClearanceResult> => {
+    ): Promise<DoomsdayClearanceResult> {
       const {
         currentTime,
         isHalfDay,
@@ -148,11 +194,15 @@ export const createDoomsdayProtection = (): DoomsdayProtection => {
       // 收集所有唯一的交易标的
       const allTradingSymbols = new Set<string>();
       for (const monitorConfig of monitorConfigs) {
-        if (monitorConfig.longSymbol) {
-          allTradingSymbols.add(monitorConfig.longSymbol);
+        const { longSymbol, shortSymbol } = resolveMonitorSymbols(
+          monitorConfig,
+          monitorContexts,
+        );
+        if (longSymbol) {
+          allTradingSymbols.add(longSymbol);
         }
-        if (monitorConfig.shortSymbol) {
-          allTradingSymbols.add(monitorConfig.shortSymbol);
+        if (shortSymbol) {
+          allTradingSymbols.add(shortSymbol);
         }
       }
 
@@ -162,14 +212,18 @@ export const createDoomsdayProtection = (): DoomsdayProtection => {
       // 为每个监控标的生成清仓信号，然后合并去重
       const allClearanceSignals: Signal[] = [];
       for (const monitorConfig of monitorConfigs) {
-        const longQuote = quoteMap.get(monitorConfig.longSymbol) ?? null;
-        const shortQuote = quoteMap.get(monitorConfig.shortSymbol) ?? null;
+        const { longSymbol, shortSymbol } = resolveMonitorSymbols(
+          monitorConfig,
+          monitorContexts,
+        );
+        const longQuote = longSymbol ? quoteMap.get(longSymbol) ?? null : null;
+        const shortQuote = shortSymbol ? quoteMap.get(shortSymbol) ?? null : null;
         // 复用 processPositionForClearance 处理每个持仓
         for (const pos of positions) {
           const signal = processPositionForClearance(
             pos,
-            monitorConfig.longSymbol,
-            monitorConfig.shortSymbol,
+            longSymbol,
+            shortSymbol,
             longQuote,
             shortQuote,
           );
@@ -223,9 +277,9 @@ export const createDoomsdayProtection = (): DoomsdayProtection => {
       return { executed: true, signalCount: uniqueClearanceSignals.length };
     },
 
-    cancelPendingBuyOrders: async (
+    async cancelPendingBuyOrders(
       context: CancelPendingBuyOrdersContext,
-    ): Promise<CancelPendingBuyOrdersResult> => {
+    ): Promise<CancelPendingBuyOrdersResult> {
       const {
         currentTime,
         isHalfDay,
@@ -321,4 +375,4 @@ export const createDoomsdayProtection = (): DoomsdayProtection => {
       return { executed: true, cancelledCount };
     },
   };
-};
+}

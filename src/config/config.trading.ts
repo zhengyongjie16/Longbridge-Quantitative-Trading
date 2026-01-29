@@ -19,10 +19,12 @@ import {
   getNumberConfig,
   getStringConfig,
   parseLiquidationCooldownConfig,
+  parseNumberRangeConfig,
   parseOrderTypeConfig,
   parseVerificationDelay,
   parseVerificationIndicators,
 } from './utils.js';
+import type { BoundedNumberConfig } from './types.js';
 
 /** 从环境变量解析信号配置 */
 function parseSignalConfigFromEnv(
@@ -40,14 +42,6 @@ function parseSignalConfigFromEnv(
   }
   return config;
 }
-
-type BoundedNumberConfig = {
-  readonly env: NodeJS.ProcessEnv;
-  readonly envKey: string;
-  readonly defaultValue: number;
-  readonly min: number;
-  readonly max: number;
-};
 
 function parseBoundedNumberConfig({
   env,
@@ -72,13 +66,14 @@ function parseBoundedNumberConfig({
 }
 
 function mapOrderTypeConfig(orderType: OrderType): OrderTypeConfig {
-  if (orderType === OrderType.LO) {
-    return 'LO';
+  switch (orderType) {
+    case OrderType.LO:
+      return 'LO';
+    case OrderType.MO:
+      return 'MO';
+    default:
+      return 'ELO';
   }
-  if (orderType === OrderType.MO) {
-    return 'MO';
-  }
-  return 'ELO';
 }
 
 /** 解析单个监控标的配置（索引 >= 1），未找到返回 null */
@@ -95,6 +90,36 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
 
   const longSymbol = getStringConfig(env, `LONG_SYMBOL${suffix}`) || '';
   const shortSymbol = getStringConfig(env, `SHORT_SYMBOL${suffix}`) || '';
+
+  const autoSearchEnabled = getBooleanConfig(env, `AUTO_SEARCH_ENABLED${suffix}`, false);
+  const autoSearchMinPriceBull = getNumberConfig(env, `AUTO_SEARCH_MIN_PRICE_BULL${suffix}`, 0);
+  const autoSearchMinPriceBear = getNumberConfig(env, `AUTO_SEARCH_MIN_PRICE_BEAR${suffix}`, 0);
+  const autoSearchMinTurnoverPerMinuteBull = getNumberConfig(
+    env,
+    `AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_BULL${suffix}`,
+    0,
+  );
+  const autoSearchMinTurnoverPerMinuteBear = getNumberConfig(
+    env,
+    `AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_BEAR${suffix}`,
+    0,
+  );
+  const autoSearchExpiryMinMonths = parseBoundedNumberConfig({
+    env,
+    envKey: `AUTO_SEARCH_EXPIRY_MIN_MONTHS${suffix}`,
+    defaultValue: 3,
+    min: 1,
+    max: 120,
+  });
+  const autoSearchOpenDelayMinutes = parseBoundedNumberConfig({
+    env,
+    envKey: `AUTO_SEARCH_OPEN_DELAY_MINUTES${suffix}`,
+    defaultValue: 5,
+    min: 0,
+    max: 60,
+  });
+  const switchDistanceRangeBull = parseNumberRangeConfig(env, `SWITCH_DISTANCE_RANGE_BULL${suffix}`);
+  const switchDistanceRangeBear = parseNumberRangeConfig(env, `SWITCH_DISTANCE_RANGE_BEAR${suffix}`);
 
   const targetNotional = getNumberConfig(env, `TARGET_NOTIONAL${suffix}`, 1) ?? 10000;
   const maxPositionNotional = getNumberConfig(env, `MAX_POSITION_NOTIONAL${suffix}`, 1) ?? 100000;
@@ -141,6 +166,17 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
     monitorSymbol,
     longSymbol,
     shortSymbol,
+    autoSearchConfig: {
+      autoSearchEnabled,
+      autoSearchMinPriceBull,
+      autoSearchMinPriceBear,
+      autoSearchMinTurnoverPerMinuteBull,
+      autoSearchMinTurnoverPerMinuteBear,
+      autoSearchExpiryMinMonths,
+      autoSearchOpenDelayMinutes,
+      switchDistanceRangeBull,
+      switchDistanceRangeBear,
+    },
     targetNotional,
     maxPositionNotional,
     maxDailyLoss,

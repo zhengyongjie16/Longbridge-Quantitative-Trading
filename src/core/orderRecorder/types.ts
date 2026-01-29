@@ -7,26 +7,15 @@
  * - 依赖类型：各服务的依赖注入类型
  */
 
-import type { OrderSide, OrderStatus, OrderType, TradeContext } from 'longport';
-import type { DecimalLikeValue, PendingOrder, OrderRecord, FetchOrdersResult, Quote, RateLimiter } from '../../types/index.js';
-
-/**
- * API 返回的原始订单类型
- * 用于从 LongPort API 接收订单数据时的类型安全转换
- */
-export type RawOrderFromAPI = {
-  readonly orderId: string;
-  readonly symbol: string;
-  readonly side: OrderSide;
-  readonly status: OrderStatus;
-  readonly orderType: OrderType;
-  readonly price: DecimalLikeValue;
-  readonly quantity: DecimalLikeValue;
-  readonly executedPrice: DecimalLikeValue;
-  readonly executedQuantity: DecimalLikeValue;
-  readonly submittedAt?: Date;
-  readonly updatedAt?: Date;
-};
+import type { TradeContext } from 'longport';
+import type {
+  PendingOrder,
+  OrderRecord,
+  FetchOrdersResult,
+  Quote,
+  RateLimiter,
+  RawOrderFromAPI,
+} from '../../types/index.js';
 
 /**
  * 订单缓存类型
@@ -37,6 +26,15 @@ export type OrderCache = {
   readonly sellOrders: ReadonlyArray<OrderRecord>;
   readonly allOrders: ReadonlyArray<RawOrderFromAPI> | null;
   readonly fetchTime: number;
+};
+
+/**
+ * 订单归属解析结果
+ * 用于标记订单对应的监控标的与方向
+ */
+export type OrderOwnership = {
+  readonly monitorSymbol: string;
+  readonly direction: 'LONG' | 'SHORT';
 };
 
 /**
@@ -99,6 +97,14 @@ export interface OrderFilteringEngine {
  */
 export interface OrderAPIManager {
   fetchOrdersFromAPI(symbol: string): Promise<FetchOrdersResult>;
+  fetchAllOrdersFromAPI(forceRefresh?: boolean): Promise<ReadonlyArray<RawOrderFromAPI>>;
+  cacheOrdersForSymbol(
+    symbol: string,
+    buyOrders: ReadonlyArray<OrderRecord>,
+    sellOrders: ReadonlyArray<OrderRecord>,
+    allOrders: ReadonlyArray<RawOrderFromAPI>,
+  ): void;
+  clearCacheForSymbol(symbol: string): void;
   hasCacheForSymbols(symbols: string[]): boolean;
   getPendingOrdersFromCache(symbols: string[]): PendingOrder[];
 }

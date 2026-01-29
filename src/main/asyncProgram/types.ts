@@ -6,7 +6,7 @@
  * - BuyTaskQueue / SellTaskQueue: 任务队列类型别名
  */
 
-import type { BuyTask, SellTask, TaskQueue } from './tradeTaskQueue/types.js';
+import type { BuyTaskType, SellTaskType, TaskQueue } from './tradeTaskQueue/types.js';
 
 /** 处理器统计信息（买入/卖出处理器共用） */
 export type ProcessorStats = {
@@ -37,7 +37,7 @@ export interface Processor {
 }
 
 /** 买入任务队列类型别名 */
-export type BuyTaskQueue = TaskQueue<BuyTask>;
+export type BuyTaskQueue = TaskQueue<BuyTaskType>;
 
 /** 卖出任务队列类型别名 */
-export type SellTaskQueue = TaskQueue<SellTask>;
+export type SellTaskQueue = TaskQueue<SellTaskType>;

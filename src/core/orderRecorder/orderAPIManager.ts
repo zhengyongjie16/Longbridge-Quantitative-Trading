@@ -3,20 +3,21 @@
  *
  * 职责：
  * - 从 LongPort API 获取订单
- * - 管理订单缓存（永久缓存，程序运行期间）
+ * - 管理订单缓存（缓存到显式清理/刷新为止）
  * - 订单数据转换和验证
  */
 
-import { OrderSide, OrderStatus } from 'longport';
+import { OrderStatus } from 'longport';
 import { decimalToNumber } from '../../utils/helpers/index.js';
+import { classifyAndConvertOrders } from './utils.js';
 import type {
   OrderRecord,
   FetchOrdersResult,
   PendingOrder,
+  RawOrderFromAPI,
 } from '../../types/index.js';
 import type {
   OrderCache,
-  RawOrderFromAPI,
   OrderAPIManager,
   OrderAPIManagerDeps,
 } from './types.js';
@@ -35,22 +36,23 @@ const PENDING_ORDER_STATUSES = new Set([
  * @param deps 依赖注入
  * @returns OrderAPIManager 接口实例
  */
-export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManager => {
+export function createOrderAPIManager(deps: OrderAPIManagerDeps): OrderAPIManager {
   const { ctxPromise, rateLimiter } = deps;
 
   // 闭包捕获的私有状态
   const ordersCache = new Map<string, OrderCache>();
+  let allOrdersCache: RawOrderFromAPI[] | null = null;
 
   /** 检查指定标的的缓存是否存在 */
-  const hasCache = (symbol: string): boolean => {
+  function hasCache(symbol: string): boolean {
     return ordersCache.has(symbol);
-  };
+  }
 
   /** 从缓存获取订单数据，返回买入和卖出订单的副本 */
-  const getCachedOrders = (symbol: string): {
+  function getCachedOrders(symbol: string): {
     buyOrders: OrderRecord[];
     sellOrders: OrderRecord[];
-  } | null => {
+  } | null {
     const cached = ordersCache.get(symbol);
     if (!cached) {
       return null;
@@ -59,28 +61,28 @@ export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManage
       buyOrders: [...cached.buyOrders],
       sellOrders: [...cached.sellOrders],
     };
-  };
+  }
 
   /** 更新指定标的的订单缓存 */
-  const updateCache = (
+  function updateCache(
     symbol: string,
     buyOrders: OrderRecord[],
     sellOrders: OrderRecord[],
     allOrders: RawOrderFromAPI[] | null = null,
-  ): void => {
+  ): void {
     ordersCache.set(symbol, {
       buyOrders,
       sellOrders,
       allOrders,
       fetchTime: Date.now(),
     });
-  };
+  }
 
   /** 合并历史订单和今日订单，按 orderId 去重 */
-  const mergeAndDeduplicateOrders = (
+  function mergeAndDeduplicateOrders(
     historyOrders: RawOrderFromAPI[],
     todayOrders: RawOrderFromAPI[],
-  ): RawOrderFromAPI[] => {
+  ): RawOrderFromAPI[] {
     const orderIdSet = new Set<string>();
     const allOrders: RawOrderFromAPI[] = [];
 
@@ -101,81 +103,52 @@ export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManage
     }
 
     return allOrders;
-  };
+  }
 
-  /** 将 API 原始订单转换为标准 OrderRecord 格式，验证失败返回 null */
-  const convertOrderToRecord = (
-    order: RawOrderFromAPI,
-    isBuyOrder: boolean,
-  ): OrderRecord | null => {
-    const executedPrice = decimalToNumber(order.executedPrice);
-    const executedQuantity = decimalToNumber(order.executedQuantity);
-    const executedTime = order.updatedAt ? order.updatedAt.getTime() : 0;
+  /** 使用外部订单列表刷新指定标的缓存 */
+  function cacheOrdersForSymbol(
+    symbol: string,
+    buyOrders: ReadonlyArray<OrderRecord>,
+    sellOrders: ReadonlyArray<OrderRecord>,
+    allOrders: ReadonlyArray<RawOrderFromAPI>,
+  ): void {
+    updateCache(symbol, [...buyOrders], [...sellOrders], [...allOrders]);
+  }
 
-    // 验证数据有效性
-    if (
-      !Number.isFinite(executedPrice) ||
-      executedPrice <= 0 ||
-      !Number.isFinite(executedQuantity) ||
-      executedQuantity <= 0 ||
-      executedTime === 0
-    ) {
-      return null;
+  /** 清理指定标的的订单缓存 */
+  function clearCacheForSymbol(symbol: string): void {
+    ordersCache.delete(symbol);
+  }
+
+  /** 从 API 获取全量订单数据（history + today） */
+  async function fetchAllOrdersFromAPI(
+    forceRefresh = false,
+  ): Promise<ReadonlyArray<RawOrderFromAPI>> {
+    if (allOrdersCache && !forceRefresh) {
+      return [...allOrdersCache];
     }
 
-    const converted: OrderRecord = {
-      orderId: order.orderId,
-      symbol: order.symbol,
-      executedPrice: executedPrice,
-      executedQuantity: executedQuantity,
-      executedTime: executedTime,
-      submittedAt: isBuyOrder ? order.submittedAt : undefined,
-      updatedAt: isBuyOrder ? order.updatedAt : undefined,
-    };
+    const ctx = await ctxPromise;
+    await rateLimiter.throttle();
+    const historyOrdersRaw = await ctx.historyOrders({
+      endAt: new Date(),
+    });
+    await rateLimiter.throttle();
+    const todayOrdersRaw = await ctx.todayOrders();
 
-    return converted;
-  };
+    const historyOrders = historyOrdersRaw as unknown as RawOrderFromAPI[];
+    const todayOrders = todayOrdersRaw as unknown as RawOrderFromAPI[];
+    const allOrders = mergeAndDeduplicateOrders(historyOrders, todayOrders);
 
-  /** 按买卖方向分类订单，筛选已成交订单并转换格式 */
-  const classifyAndConvertOrders = (orders: RawOrderFromAPI[]): {
-    buyOrders: OrderRecord[];
-    sellOrders: OrderRecord[];
-  } => {
-    const buyOrders: OrderRecord[] = [];
-    const sellOrders: OrderRecord[] = [];
-
-    for (const order of orders) {
-      if (order.status !== OrderStatus.Filled) {
-        continue;
-      }
-
-      const isBuyOrder = order.side === OrderSide.Buy;
-      const isSellOrder = order.side === OrderSide.Sell;
-
-      if (!isBuyOrder && !isSellOrder) {
-        continue;
-      }
-
-      const converted = convertOrderToRecord(order, isBuyOrder);
-      if (!converted) {
-        continue;
-      }
-
-      if (isBuyOrder) {
-        buyOrders.push(converted);
-      } else {
-        sellOrders.push(converted);
-      }
-    }
-
-    return { buyOrders, sellOrders };
-  };
+    allOrdersCache = allOrders;
+    return [...allOrders];
+  }
 
   /**
    * 从 API 获取并转换订单数据
    * 优先使用缓存，若无缓存则调用 historyOrders 和 todayOrders API
    */
-  const fetchOrdersFromAPI = async (symbol: string): Promise<FetchOrdersResult> => {
+  async function fetchOrdersFromAPI(symbol: string): Promise<FetchOrdersResult> {
     // 优先使用缓存
     if (hasCache(symbol)) {
       const cached = getCachedOrders(symbol);
@@ -212,10 +185,10 @@ export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManage
     updateCache(symbol, buyOrders, sellOrders, allOrders);
 
     return { buyOrders, sellOrders };
-  };
+  }
 
   /** 检查指定标的列表是否都有缓存（包含原始订单数据） */
-  const hasCacheForSymbols = (symbols: string[]): boolean => {
+  function hasCacheForSymbols(symbols: string[]): boolean {
     if (symbols.length === 0) {
       return false;
     }
@@ -224,10 +197,10 @@ export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManage
       const cached = ordersCache.get(symbol);
       return cached?.allOrders != null;
     });
-  };
+  }
 
   /** 从缓存中提取未成交订单，用于启动时避免重复调用 todayOrders API */
-  const getPendingOrdersFromCache = (symbols: string[]): PendingOrder[] => {
+  function getPendingOrdersFromCache(symbols: string[]): PendingOrder[] {
     // 使用模块级常量 PENDING_ORDER_STATUSES，避免每次调用创建新 Set
     const result: PendingOrder[] = [];
 
@@ -258,11 +231,14 @@ export const createOrderAPIManager = (deps: OrderAPIManagerDeps): OrderAPIManage
     }
 
     return result;
-  };
+  }
 
   return {
+    fetchAllOrdersFromAPI,
     fetchOrdersFromAPI,
+    cacheOrdersForSymbol,
+    clearCacheForSymbol,
     hasCacheForSymbols,
     getPendingOrdersFromCache,
   };
-};
+}

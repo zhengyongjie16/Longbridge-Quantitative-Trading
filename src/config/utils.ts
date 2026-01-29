@@ -5,13 +5,13 @@
  */
 
 import { OrderType } from 'longport';
-import type { LiquidationCooldownConfig } from '../types/index.js';
+import type { LiquidationCooldownConfig, NumberRange } from '../types/index.js';
 import { validateEmaPeriod, validatePsyPeriod } from '../utils/helpers/indicatorHelpers.js';
 import { logger } from '../utils/logger/index.js';
 import type { RegionUrls } from './types.js';
 
 /** 根据区域获取 API 端点 URL（cn 使用 .cn 域名，其他使用 .com） */
-export const getRegionUrls = (region: string | undefined): RegionUrls => {
+export function getRegionUrls(region: string | undefined): RegionUrls {
   const normalizedRegion = (region || 'hk').toLowerCase();
 
   if (normalizedRegion === 'cn') {
@@ -28,13 +28,13 @@ export const getRegionUrls = (region: string | undefined): RegionUrls => {
     quoteWsUrl: 'wss://openapi-quote.longportapp.com/v2',
     tradeWsUrl: 'wss://openapi-trade.longportapp.com/v2',
   };
-};
+}
 
 /** 读取字符串配置，未设置或为占位符时返回 null */
-export const getStringConfig = (
+export function getStringConfig(
   env: NodeJS.ProcessEnv,
   envKey: string,
-): string | null => {
+): string | null {
   const value = env[envKey];
   if (
     !value ||
@@ -44,14 +44,14 @@ export const getStringConfig = (
     return null;
   }
   return value.trim();
-};
+}
 
 /** 读取数字配置，未设置或小于最小值时返回 null */
-export const getNumberConfig = (
+export function getNumberConfig(
   env: NodeJS.ProcessEnv,
   envKey: string,
   minValue: number = 0,
-): number | null => {
+): number | null {
   const value = env[envKey];
   if (!value || value.trim() === '') {
     return null;
@@ -61,35 +61,33 @@ export const getNumberConfig = (
     return null;
   }
   return num;
-};
+}
 
 /** 读取布尔配置，仅识别 'true'/'false'，其他返回默认值 */
-export const getBooleanConfig = (
+export function getBooleanConfig(
   env: NodeJS.ProcessEnv,
   envKey: string,
   defaultValue: boolean = false,
-): boolean => {
+): boolean {
   const value = env[envKey];
-  // 如果环境变量未设置或为空，返回默认值
   if (value === undefined || value === null || value.trim() === '') {
     return defaultValue;
   }
-  // 显式检查 "true" 和 "false"
-  if (value.toLowerCase() === 'true') {
+  const normalizedValue = value.trim().toLowerCase();
+  if (normalizedValue === 'true') {
     return true;
   }
-  if (value.toLowerCase() === 'false') {
+  if (normalizedValue === 'false') {
     return false;
   }
-  // 其他值返回默认值
   return defaultValue;
-};
+}
 
 /** 解析保护性清仓冷却配置（支持 minutes / half-day / one-day） */
-export const parseLiquidationCooldownConfig = (
+export function parseLiquidationCooldownConfig(
   env: NodeJS.ProcessEnv,
   envKey: string,
-): LiquidationCooldownConfig | null => {
+): LiquidationCooldownConfig | null {
   const value = getStringConfig(env, envKey);
   if (!value) {
     return null;
@@ -107,14 +105,49 @@ export const parseLiquidationCooldownConfig = (
     return null;
   }
   return { mode: 'minutes', minutes };
-};
+}
+
+/** 解析数值范围配置（格式：min,max） */
+export function parseNumberRangeConfig(
+  env: NodeJS.ProcessEnv,
+  envKey: string,
+): NumberRange | null {
+  const value = getStringConfig(env, envKey);
+  if (!value) {
+    return null;
+  }
+
+  const parts = value
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part !== '');
+  if (parts.length !== 2) {
+    logger.warn(`[配置警告] ${envKey} 格式无效，必须为 "min,max"`);
+    return null;
+  }
+
+  const min = Number(parts[0]);
+  const max = Number(parts[1]);
+
+  if (!Number.isFinite(min) || !Number.isFinite(max)) {
+    logger.warn(`[配置警告] ${envKey} 格式无效，min/max 必须为数字`);
+    return null;
+  }
+
+  if (min > max) {
+    logger.warn(`[配置警告] ${envKey} 格式无效，min 不能大于 max`);
+    return null;
+  }
+
+  return { min, max };
+}
 
 /** 解析延迟验证时间（秒），范围 0-120 */
-export const parseVerificationDelay = (
+export function parseVerificationDelay(
   env: NodeJS.ProcessEnv,
   envKey: string,
   defaultValue: number,
-): number => {
+): number {
   const delay = getNumberConfig(env, envKey, 0);
   if (delay === null) {
     return defaultValue;
@@ -128,13 +161,15 @@ export const parseVerificationDelay = (
     return 120;
   }
   return delay;
-};
+}
+
+const FIXED_INDICATORS = new Set(['K', 'D', 'J', 'MACD', 'DIF', 'DEA']);
 
 /** 解析延迟验证指标列表（支持 K/D/J/MACD/DIF/DEA/EMA:N/PSY:N） */
-export const parseVerificationIndicators = (
+export function parseVerificationIndicators(
   env: NodeJS.ProcessEnv,
   envKey: string,
-): ReadonlyArray<string> | null => {
+): ReadonlyArray<string> | null {
   const value = env[envKey];
   if (!value || value.trim() === '') {
     return null;
@@ -149,42 +184,39 @@ export const parseVerificationIndicators = (
     return null;
   }
 
-  const fixedIndicators = new Set(['K', 'D', 'J', 'MACD', 'DIF', 'DEA']);
   const validItems: string[] = [];
   const invalidItems: string[] = [];
 
+  function tryParseIndicatorWithPeriod(
+    item: string,
+    prefix: 'PSY:' | 'EMA:',
+    validator: (period: number) => boolean,
+  ): boolean {
+    if (!item.startsWith(prefix)) {
+      return false;
+    }
+    const period = Number.parseInt(item.slice(prefix.length), 10);
+    if (validator(period)) {
+      validItems.push(item);
+      return true;
+    }
+    invalidItems.push(item);
+    return true;
+  }
+
   for (const item of items) {
-    if (fixedIndicators.has(item)) {
+    if (FIXED_INDICATORS.has(item)) {
       validItems.push(item);
       continue;
     }
 
-    if (item.startsWith('PSY:')) {
-      const periodStr = item.substring(4);
-      const period = Number.parseInt(periodStr, 10);
-
-      if (validatePsyPeriod(period)) {
-        validItems.push(item);
-        continue;
-      }
-
-      invalidItems.push(item);
+    if (tryParseIndicatorWithPeriod(item, 'PSY:', validatePsyPeriod)) {
       continue;
     }
-
-    if (item.startsWith('EMA:')) {
-      const periodStr = item.substring(4);
-      const period = Number.parseInt(periodStr, 10);
-
-      if (validateEmaPeriod(period)) {
-        validItems.push(item);
-        continue;
-      }
-
-      invalidItems.push(item);
-    } else {
-      invalidItems.push(item);
+    if (tryParseIndicatorWithPeriod(item, 'EMA:', validateEmaPeriod)) {
+      continue;
     }
+    invalidItems.push(item);
   }
 
   if (invalidItems.length > 0) {
@@ -192,37 +224,30 @@ export const parseVerificationIndicators = (
   }
 
   return validItems.length > 0 ? validItems : null;
-};
+}
 
 /** 解析订单类型配置（LO/ELO/MO），必须大写 */
-export const parseOrderTypeConfig = (
+export function parseOrderTypeConfig(
   env: NodeJS.ProcessEnv,
   envKey: string,
   defaultType: 'LO' | 'ELO' | 'MO' = 'ELO',
-): OrderType => {
+): OrderType {
   const value = getStringConfig(env, envKey);
-
-  // 验证配置值（必须使用全大写，区分大小写）
   const trimmedValue = value ? value.trim() : null;
-
-  if (trimmedValue === 'LO') {
-    return OrderType.LO;
+  const mapping: Record<string, OrderType> = {
+    LO: OrderType.LO,
+    ELO: OrderType.ELO,
+    MO: OrderType.MO,
+  };
+  const parsed = trimmedValue ? mapping[trimmedValue] : undefined;
+  if (parsed) {
+    return parsed;
   }
-  if (trimmedValue === 'ELO') {
-    return OrderType.ELO;
-  }
-  if (trimmedValue === 'MO') {
-    return OrderType.MO;
-  }
-
-  // 如果配置值无效或未配置，使用默认值
   if (value && trimmedValue !== 'LO' && trimmedValue !== 'ELO' && trimmedValue !== 'MO') {
     logger.warn(
       `[配置警告] ${envKey} 值无效: ${value}，必须使用全大写: LO, ELO, MO。已使用默认值: ${defaultType}`,
     );
   }
-
-  // 返回默认值
   if (defaultType === 'LO') {
     return OrderType.LO;
   }
@@ -230,4 +255,4 @@ export const parseOrderTypeConfig = (
     return OrderType.MO;
   }
   return OrderType.ELO;
-};
+}

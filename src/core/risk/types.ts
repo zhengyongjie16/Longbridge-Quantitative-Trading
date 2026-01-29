@@ -18,6 +18,7 @@ import type {
   RiskCheckResult,
   WarrantDistanceInfo,
   WarrantDistanceLiquidationResult,
+  WarrantRefreshResult,
   UnrealizedLossData,
   UnrealizedLossCheckResult,
 } from '../../types/index.js';
@@ -60,6 +61,12 @@ export interface WarrantRiskChecker {
     longSymbolName?: string | null,
     shortSymbolName?: string | null,
   ): Promise<void>;
+  refreshWarrantInfoForSymbol(
+    marketDataClient: MarketDataClient,
+    symbol: string,
+    isLongSymbol: boolean,
+    symbolName?: string | null,
+  ): Promise<WarrantRefreshResult>;
   checkRisk(
     symbol: string,
     signalType: SignalType,

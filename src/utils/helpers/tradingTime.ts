@@ -37,6 +37,41 @@ export function getHKTime(date: Date | null | undefined): HKTime | null {
 }
 
 /**
+ * 计算已开盘分钟数（不区分半日交易日）
+ * @param date 时间对象（UTC）
+ * @returns 已开盘分钟数
+ */
+export function getTradingMinutesSinceOpen(date: Date | null | undefined): number {
+  if (!date) return 0;
+  const hkTime = getHKTime(date);
+  if (!hkTime) return 0;
+
+  const { hkHour, hkMinute } = hkTime;
+  const currentMinutes = hkHour * 60 + hkMinute;
+
+  const morningOpen = 9 * 60 + 30;
+  const morningClose = 12 * 60;
+  const afternoonOpen = 13 * 60;
+  const afternoonClose = 16 * 60;
+  const morningMinutes = morningClose - morningOpen;
+  const afternoonMinutes = afternoonClose - afternoonOpen;
+
+  if (currentMinutes < morningOpen) {
+    return 0;
+  }
+  if (currentMinutes < morningClose) {
+    return currentMinutes - morningOpen;
+  }
+  if (currentMinutes < afternoonOpen) {
+    return morningMinutes;
+  }
+  if (currentMinutes < afternoonClose) {
+    return morningMinutes + (currentMinutes - afternoonOpen);
+  }
+  return morningMinutes + afternoonMinutes;
+}
+
+/**
  * 判断是否在港股连续交易时段（仅检查时间，不检查是否是交易日）
  * 港股连续交易时段：
  * - 正常交易日：上午 09:30 - 12:00，下午 13:00 - 16:00

@@ -19,6 +19,7 @@ import type {
   RateLimiter,
   PendingRefreshSymbol,
   MultiMonitorTradingConfig,
+  SymbolRegistry,
 } from '../../types/index.js';
 import type { LiquidationCooldownTracker } from '../../services/liquidationCooldown/types.js';
 
@@ -266,6 +267,8 @@ export type OrderMonitorDeps = {
   readonly orderRecorder: import('../../types/index.js').OrderRecorder;
   /** 清仓冷却追踪器（用于记录保护性清仓） */
   readonly liquidationCooldownTracker: LiquidationCooldownTracker;
+  /** 标的注册表（用于解析动态标的归属） */
+  readonly symbolRegistry: SymbolRegistry;
   /** 可选测试钩子（仅用于单元测试） */
   readonly testHooks?: {
     readonly setHandleOrderChanged?: (handler: (event: PushOrderChanged) => void) => void;
@@ -284,6 +287,8 @@ export type OrderExecutorDeps = {
   readonly orderMonitor: OrderMonitor;
   /** 全局交易配置 */
   readonly tradingConfig: MultiMonitorTradingConfig;
+  /** 标的注册表（用于解析动态标的归属） */
+  readonly symbolRegistry: SymbolRegistry;
 };
 
 /**
@@ -294,4 +299,6 @@ export type TraderDeps = {
   readonly tradingConfig: MultiMonitorTradingConfig;
   readonly liquidationCooldownTracker: LiquidationCooldownTracker;
   readonly rateLimiterConfig?: RateLimiterConfig;
+  /** 标的注册表（用于动态标的映射） */
+  readonly symbolRegistry: SymbolRegistry;
 };

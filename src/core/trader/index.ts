@@ -35,8 +35,8 @@ import { createOrderExecutor } from './orderExecutor.js';
  * @param deps 依赖配置
  * @returns Promise<Trader> 接口实例
  */
-export const createTrader = async (deps: TraderDeps): Promise<Trader> => {
-  const { config, tradingConfig, liquidationCooldownTracker } = deps;
+export async function createTrader(deps: TraderDeps): Promise<Trader> {
+  const { config, tradingConfig, liquidationCooldownTracker, symbolRegistry } = deps;
 
   // ========== 1. 创建基础依赖 ==========
   const ctxPromise = TradeContext.new(config);
@@ -60,6 +60,7 @@ export const createTrader = async (deps: TraderDeps): Promise<Trader> => {
     orderRecorder,
     liquidationCooldownTracker,
     tradingConfig,
+    symbolRegistry,
   });
 
   // ========== 5. 创建 orderExecutor ==========
@@ -69,6 +70,7 @@ export const createTrader = async (deps: TraderDeps): Promise<Trader> => {
     cacheManager,
     orderMonitor,
     tradingConfig,
+    symbolRegistry,
   });
 
   // ========== 6. 初始化 WebSocket 订阅 ==========
@@ -172,4 +174,4 @@ export const createTrader = async (deps: TraderDeps): Promise<Trader> => {
       return orderExecutor.executeSignals(signals);
     },
   };
-};
+}

@@ -239,6 +239,15 @@ npm start
 | `BUY_INTERVAL_SECONDS_N`            | `60`     | 同向买入间隔（秒，范围10-600）                      |
 | `LIQUIDATION_COOLDOWN_MINUTES_N`    | `无`     | 保护性清仓后买入冷却（可选，不设置则不冷却：1-120 / half-day / one-day） |
 | `SMART_CLOSE_ENABLED_N`             | `true`   | 智能平仓开关（启用时仅卖出盈利订单，禁用时全仓卖出）     |
+| `AUTO_SEARCH_ENABLED_N`             | `false`  | 自动寻标开关（启用后忽略 LONG/SHORT 标的配置）          |
+| `AUTO_SEARCH_MIN_PRICE_BULL_N`      | `无`     | 牛证最低价格阈值                                     |
+| `AUTO_SEARCH_MIN_PRICE_BEAR_N`      | `无`     | 熊证最低价格阈值                                     |
+| `AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_BULL_N` | `无` | 牛证分均成交额阈值（HKD/分钟）                     |
+| `AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_BEAR_N` | `无` | 熊证分均成交额阈值（HKD/分钟）                     |
+| `AUTO_SEARCH_EXPIRY_MIN_MONTHS_N`   | `3`      | 到期日最小月份                                       |
+| `AUTO_SEARCH_OPEN_DELAY_MINUTES_N`  | `5`      | 早盘开盘延迟分钟数（仅早盘生效）                      |
+| `SWITCH_DISTANCE_RANGE_BULL_N`      | `无`     | 牛证距回收价换标范围（格式 min,max，包含等于）        |
+| `SWITCH_DISTANCE_RANGE_BEAR_N`      | `无`     | 熊证距回收价换标范围（格式 min,max，包含等于）        |
 
 **清仓冷却说明（香港时间）**：
 `LIQUIDATION_COOLDOWN_MINUTES_N` 未设置则不启用冷却；`half-day` 为上午触发冷却到 13:00、下午触发则当日不再买入；`one-day` 为当日不再买入。

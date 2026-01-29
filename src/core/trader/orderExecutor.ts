@@ -35,21 +35,27 @@ import { identifyErrorType } from './tradeLogger.js';
 import { formatOrderTypeLabel, resolveOrderTypeConfig } from './utils.js';
 
 /** 配置字符串转 OrderType 枚举 */
-const getOrderTypeFromConfig = (typeConfig: 'LO' | 'ELO' | 'MO'): typeof OrderType[keyof typeof OrderType] => {
-  if (typeConfig === 'LO') return OrderType.LO;
-  if (typeConfig === 'MO') return OrderType.MO;
+function getOrderTypeFromConfig(
+  typeConfig: 'LO' | 'ELO' | 'MO',
+): typeof OrderType[keyof typeof OrderType] {
+  if (typeConfig === 'LO') {
+    return OrderType.LO;
+  }
+  if (typeConfig === 'MO') {
+    return OrderType.MO;
+  }
   return OrderType.ELO;
-};
+}
 
 /** 判断是否为保护性清仓信号（末日保护、强制止损等） */
-const isLiquidationSignal = (signal: Signal): boolean => {
+function isLiquidationSignal(signal: Signal): boolean {
   return signal.isProtectiveLiquidation === true;
-};
+}
 
 /** 根据信号动作解析订单方向 */
-const resolveOrderSide = (
+function resolveOrderSide(
   action: Signal['action'],
-): typeof OrderSide[keyof typeof OrderSide] | null => {
+): typeof OrderSide[keyof typeof OrderSide] | null {
   switch (action) {
     case 'BUYCALL':
     case 'BUYPUT':
@@ -60,34 +66,55 @@ const resolveOrderSide = (
     default:
       return null;
   }
-};
+}
 
 /** 生成买入频率限制的时间键 */
-const buildBuyTimeKey = (signalAction: string, monitorConfig?: MonitorConfig | null): string => {
+function buildBuyTimeKey(
+  signalAction: string,
+  monitorConfig?: MonitorConfig | null,
+): string {
   const direction: 'LONG' | 'SHORT' = signalAction === 'BUYCALL' ? 'LONG' : 'SHORT';
   const monitorSymbol = monitorConfig?.monitorSymbol ?? '';
   return monitorSymbol ? `${monitorSymbol}:${direction}` : direction;
-};
+}
 
 /**
  * 创建订单执行器
  * @param deps 依赖注入
  * @returns OrderExecutor 接口实例
  */
-export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
-  const { ctxPromise, rateLimiter, cacheManager, orderMonitor, tradingConfig } = deps;
+export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
+  const { ctxPromise, rateLimiter, cacheManager, orderMonitor, tradingConfig, symbolRegistry } = deps;
   const { global, monitors } = tradingConfig;
 
-  /** 通过信号标的查找对应的监控配置 */
-  const findMonitorConfigBySymbol = (signalSymbol: string): MonitorConfig | null => {
+  /** 通过信号标的解析监控配置与方向 */
+  function resolveMonitorConfigBySymbol(
+    signalSymbol: string,
+  ): { monitorConfig: MonitorConfig; isShortSymbol: boolean } | null {
+    const resolvedSeat = symbolRegistry.resolveSeatBySymbol(signalSymbol);
+    if (resolvedSeat) {
+      const monitorConfig = monitors.find(
+        (config) => config.monitorSymbol === resolvedSeat.monitorSymbol,
+      );
+      if (monitorConfig) {
+        return {
+          monitorConfig,
+          isShortSymbol: resolvedSeat.direction === 'SHORT',
+        };
+      }
+    }
+
     for (const config of monitors) {
       if (signalSymbol === config.longSymbol || signalSymbol === config.shortSymbol) {
-        return config;
+        return {
+          monitorConfig: config,
+          isShortSymbol: signalSymbol === config.shortSymbol,
+        };
       }
     }
     // 未找到匹配的配置
     return null;
-  };
+  }
 
   // 闭包捕获的私有状态
   // 记录每个监控标的的每个方向标的的最后买入时间
@@ -98,7 +125,10 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
    * 检查买入频率限制
    * 卖出无限制，买入需满足 buyIntervalSeconds 间隔
    */
-  const canTradeNow = (signalAction: string, monitorConfig?: MonitorConfig | null): TradeCheckResult => {
+  function canTradeNow(
+    signalAction: string,
+    monitorConfig?: MonitorConfig | null,
+  ): TradeCheckResult {
     // 卖出操作不触发频率限制
     if (signalAction === 'SELLCALL' || signalAction === 'SELLPUT') {
       return { canTrade: true };
@@ -134,29 +164,32 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
       direction,
       reason: `需等待 ${waitSeconds} 秒`,
     };
-  };
+  }
 
   /** 记录买入时间（用于频率限制） */
-  const updateLastBuyTime = (signalAction: string, monitorConfig?: MonitorConfig | null): void => {
+  function updateLastBuyTime(
+    signalAction: string,
+    monitorConfig?: MonitorConfig | null,
+  ): void {
     if (signalAction === 'BUYCALL' || signalAction === 'BUYPUT') {
       lastBuyTime.set(buildBuyTimeKey(signalAction, monitorConfig), Date.now());
     }
-  };
+  }
 
   /**
    * 预占买入时间槽
    * 在频率检查通过后立即调用，防止同批次信号重复通过检查
    */
-  const markBuyAttempt = (signalAction: string, monitorConfig?: MonitorConfig | null): void => {
+  function markBuyAttempt(signalAction: string, monitorConfig?: MonitorConfig | null): void {
     updateLastBuyTime(signalAction, monitorConfig);
-  };
+  }
 
   /** 获取操作描述（用于日志） */
-  const getActionDescription = (
+  function getActionDescription(
     signalAction: string,
     isShortSymbol: boolean,
     side: typeof OrderSide[keyof typeof OrderSide],
-  ): string => {
+  ): string {
     switch (signalAction) {
       case 'BUYCALL':
         return '买入做多标的（做多）';
@@ -179,20 +212,20 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     return side === OrderSide.Buy
       ? '买入做多标的（做多）'
       : '卖出做多标的（清仓）';
-  };
+  }
 
   /** 解析订单类型（覆盖优先，其次保护性清仓） */
-  const resolveOrderType = (signal: Signal): typeof OrderType[keyof typeof OrderType] => {
+  function resolveOrderType(signal: Signal): typeof OrderType[keyof typeof OrderType] {
     const orderTypeConfig = resolveOrderTypeConfig(signal, global);
     return getOrderTypeFromConfig(orderTypeConfig);
-  };
+  }
 
   /** 计算卖出数量（查询实际可用持仓） */
-  const calculateSellQuantity = async (
+  async function calculateSellQuantity(
     ctx: TradeContext,
     symbol: string,
     signal: Signal,
-  ): Promise<Decimal> => {
+  ): Promise<Decimal> {
     let targetQuantity: number | null = null;
     if (isDefined(signal.quantity)) {
       const signalQty = Number(signal.quantity);
@@ -226,22 +259,21 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
 
     if (targetQuantity == null) {
       return toDecimal(totalAvailable);
-    } else {
-      const actualQty = Math.min(targetQuantity, totalAvailable);
-      logger.info(
-        `[部分卖出] 信号指定卖出数量=${targetQuantity}，可用数量=${totalAvailable}，实际卖出=${actualQty}`,
-      );
-      return toDecimal(actualQty);
     }
-  };
+    const actualQty = Math.min(targetQuantity, totalAvailable);
+    logger.info(
+      `[部分卖出] 信号指定卖出数量=${targetQuantity}，可用数量=${totalAvailable}，实际卖出=${actualQty}`,
+    );
+    return toDecimal(actualQty);
+  }
 
   /** 计算买入数量（按目标金额和每手股数） */
-  const calculateBuyQuantity = (
+  function calculateBuyQuantity(
     signal: Signal,
     isShortSymbol: boolean,
     overridePrice: number | undefined,
     targetNotional: number,
-  ): Decimal => {
+  ): Decimal {
     const pricingSource = overridePrice ?? signal?.price ?? null;
     if (!Number.isFinite(Number(pricingSource)) || Number(pricingSource) <= 0) {
       logger.warn(
@@ -290,16 +322,16 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     );
 
     return toDecimal(rawQty);
-  };
+  }
 
   /** 处理订单提交错误（分类记录日志） */
-  const handleSubmitError = (
+  function handleSubmitError(
     err: unknown,
     signal: Signal,
     orderPayload: OrderPayload,
     side: typeof OrderSide[keyof typeof OrderSide],
     isShortSymbol: boolean,
-  ): void => {
+  ): void {
     const actionDesc = getActionDescription(
       signal.action,
       isShortSymbol,
@@ -347,10 +379,10 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
       );
     }
 
-  };
+  }
 
   /** 提交订单到 API */
-  const submitOrder = async (
+  async function submitOrder(
     ctx: TradeContext,
     signal: Signal,
     symbol: string,
@@ -362,7 +394,7 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     overridePrice: number | undefined,
     isShortSymbol: boolean,
     monitorConfig: MonitorConfig | null = null,
-  ): Promise<void> => {
+  ): Promise<void> {
     const resolvedPrice = overridePrice ?? signal?.price ?? null;
 
     // 格式化标的显示（用于日志）
@@ -456,16 +488,16 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
     } catch (err) {
       handleSubmitError(err, signal, orderPayload, side, isShortSymbol);
     }
-  };
+  }
 
   /** 根据信号类型构建并提交订单 */
-  const submitTargetOrder = async (
+  async function submitTargetOrder(
     ctx: TradeContext,
     signal: Signal,
     targetSymbol: string,
     isShortSymbol: boolean,
     monitorConfig: MonitorConfig | null = null,
-  ): Promise<void> => {
+  ): Promise<void> {
     // 验证信号对象
     if (!signal || typeof signal !== 'object') {
       logger.error(`[订单提交] 无效的信号对象: ${JSON.stringify(signal)}`);
@@ -536,10 +568,10 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
       isShortSymbol,
       monitorConfig,
     );
-  };
+  }
 
   /** 执行交易信号（遍历信号数组，逐个提交订单） */
-  const executeSignals = async (signals: Signal[]): Promise<void> => {
+  async function executeSignals(signals: Signal[]): Promise<void> {
     const ctx = await ctxPromise;
 
     for (const s of signals) {
@@ -572,16 +604,16 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
       }
 
       // 通过信号的 symbol 查找对应的监控配置
-      const monitorConfig = findMonitorConfigBySymbol(s.symbol);
-      if (!monitorConfig) {
+      const resolved = resolveMonitorConfigBySymbol(s.symbol);
+      if (!resolved) {
         logger.warn(
           `[跳过信号] 无法找到信号标的 ${signalSymbolDisplay} 对应的监控配置`,
         );
         continue;
       }
 
-      const isShortSymbol = s.symbol === monitorConfig.shortSymbol;
-      const targetSymbol = isShortSymbol ? monitorConfig.shortSymbol : monitorConfig.longSymbol;
+      const { monitorConfig, isShortSymbol } = resolved;
+      const targetSymbol = s.symbol;
 
       // 根据信号类型显示操作描述
       const actualAction = getActionDescription(s.action, isShortSymbol, side);
@@ -599,11 +631,11 @@ export const createOrderExecutor = (deps: OrderExecutorDeps): OrderExecutor => {
       // 注意：订单追踪已在 submitOrder 中通过 trackOrder 自动启用
       // 不再需要单独调用 enableMonitoring
     }
-  };
+  }
 
   return {
     canTradeNow,
     markBuyAttempt,
     executeSignals,
   };
-};
+}

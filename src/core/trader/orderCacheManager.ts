@@ -88,7 +88,7 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
         quantity: unknown;
         executedQuantity: unknown;
         status: typeof OrderStatus[keyof typeof OrderStatus];
-        orderType: unknown;
+        orderType: PendingOrder['orderType'];
       }> = [];
 
       // 优化：始终一次性获取所有今日订单，然后在客户端按标的过滤

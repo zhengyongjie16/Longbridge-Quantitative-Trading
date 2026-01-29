@@ -20,7 +20,7 @@ import {
   isWithinMorningOpenProtection,
 } from '../../utils/helpers/tradingTime.js';
 import { displayAccountAndPositions } from '../../utils/helpers/accountDisplay.js';
-import { collectAllQuoteSymbols } from '../../utils/helpers/quoteHelpers.js';
+import { collectAllQuoteSymbols, diffQuoteSymbols } from '../../utils/helpers/quoteHelpers.js';
 import { processMonitor } from '../processMonitor/index.js';
 
 import type { MainProgramContext } from './types.js';
@@ -47,6 +47,7 @@ export async function mainProgram({
   signalProcessor,
   tradingConfig,
   monitorContexts,
+  symbolRegistry,
   indicatorCache,
   buyTaskQueue,
   sellTaskQueue,
@@ -193,8 +194,39 @@ export async function mainProgram({
 
   // 收集所有需要获取行情的标的，一次性批量获取（减少 API 调用次数）
   // getQuotes 接口已支持 Iterable，无需 Array.from() 转换
-  const allQuoteSymbols = collectAllQuoteSymbols(tradingConfig.monitors);
-  const quotesMap = await marketDataClient.getQuotes(allQuoteSymbols);
+  const desiredSymbols = collectAllQuoteSymbols(tradingConfig.monitors, symbolRegistry);
+  const { added, removed } = diffQuoteSymbols(lastState.allTradingSymbols, desiredSymbols);
+
+  if (added.length > 0) {
+    await marketDataClient.subscribeSymbols(added);
+  }
+
+  let removableSymbols = removed;
+  if (removed.length > 0) {
+    const pendingOrders = await trader.getPendingOrders(removed);
+    const pendingSymbols = new Set(pendingOrders.map((order) => order.symbol));
+    removableSymbols = removed.filter((symbol) => {
+      if (pendingSymbols.has(symbol)) {
+        return false;
+      }
+      return lastState.positionCache.get(symbol) == null;
+    });
+  }
+
+  if (removableSymbols.length > 0) {
+    await marketDataClient.unsubscribeSymbols(removableSymbols);
+  }
+
+  const nextSymbols = new Set(lastState.allTradingSymbols);
+  for (const symbol of added) {
+    nextSymbols.add(symbol);
+  }
+  for (const symbol of removableSymbols) {
+    nextSymbols.delete(symbol);
+  }
+  lastState.allTradingSymbols = nextSymbols;
+
+  const quotesMap = await marketDataClient.getQuotes(nextSymbols);
 
   const mainContext: MainProgramContext = {
     marketDataClient,
@@ -205,6 +237,7 @@ export async function mainProgram({
     signalProcessor,
     tradingConfig,
     monitorContexts,
+    symbolRegistry,
     indicatorCache,
     buyTaskQueue,
     sellTaskQueue,

@@ -20,6 +20,7 @@
 import { signalObjectPool } from '../../../utils/objectPool/index.js';
 import { logger } from '../../../utils/logger/index.js';
 import { formatError, formatSymbolDisplay } from '../../../utils/helpers/index.js';
+import { isSeatReady, isSeatVersionMatch } from '../../../services/autoSymbolManager/utils.js';
 import type { BuyProcessor, BuyProcessorDeps } from './types.js';
 import type { ProcessorStats } from '../types.js';
 import type { BuyTask } from '../tradeTaskQueue/types.js';
@@ -30,7 +31,7 @@ import type { RiskCheckContext } from '../../../types/index.js';
  * @param deps 依赖注入
  * @returns BuyProcessor 接口实例
  */
-export const createBuyProcessor = (deps: BuyProcessorDeps): BuyProcessor => {
+export function createBuyProcessor(deps: BuyProcessorDeps): BuyProcessor {
   const { taskQueue, getMonitorContext, signalProcessor, trader, doomsdayProtection, getLastState, getIsHalfDay } = deps;
 
   // 内部状态
@@ -45,7 +46,7 @@ export const createBuyProcessor = (deps: BuyProcessorDeps): BuyProcessor => {
    * 处理单个买入任务
    * 注意：卖出信号由 SellProcessor 处理，此处只处理买入信号
    */
-  const processTask = async (task: BuyTask): Promise<boolean> => {
+  async function processTask(task: BuyTask): Promise<boolean> {
     const signal = task.data;
     const monitorSymbol = task.monitorSymbol;
     // 缓存格式化后的标的显示（用于日志）
@@ -75,12 +76,35 @@ export const createBuyProcessor = (deps: BuyProcessorDeps): BuyProcessor => {
       const shortQuote = ctx.shortQuote;
       const monitorQuote = ctx.monitorQuote;
 
+      const isLongSignal = signal.action === 'BUYCALL';
+      const direction = isLongSignal ? 'LONG' : 'SHORT';
+      const seatState = ctx.symbolRegistry.getSeatState(monitorSymbol, direction);
+      const seatVersion = ctx.symbolRegistry.getSeatVersion(monitorSymbol, direction);
+
+      if (!isSeatReady(seatState)) {
+        logger.info(`[BuyProcessor] 席位不可用，跳过信号: ${symbolDisplay} ${signal.action}`);
+        return true;
+      }
+      if (!isSeatVersionMatch(signal.seatVersion, seatVersion)) {
+        logger.info(`[BuyProcessor] 席位版本不匹配，跳过信号: ${symbolDisplay} ${signal.action}`);
+        return true;
+      }
+      if (signal.symbol !== seatState.symbol) {
+        logger.info(`[BuyProcessor] 标的已切换，跳过信号: ${symbolDisplay} ${signal.action}`);
+        return true;
+      }
+
       // 获取全局状态
       const lastState = getLastState();
       const isHalfDay = getIsHalfDay();
 
       // 买入信号：执行风险检查（需要 API 调用获取最新账户和持仓）
       // 构建风险检查上下文
+      const longSeatState = ctx.symbolRegistry.getSeatState(monitorSymbol, 'LONG');
+      const shortSeatState = ctx.symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
+      const longSymbol = isSeatReady(longSeatState) ? longSeatState.symbol : '';
+      const shortSymbol = isSeatReady(shortSeatState) ? shortSeatState.symbol : '';
+
       const riskCheckContext: RiskCheckContext = {
         trader,
         riskChecker,
@@ -89,8 +113,8 @@ export const createBuyProcessor = (deps: BuyProcessorDeps): BuyProcessor => {
         shortQuote,
         monitorQuote,
         monitorSnapshot: state.lastMonitorSnapshot,
-        longSymbol: config.longSymbol,
-        shortSymbol: config.shortSymbol,
+        longSymbol,
+        shortSymbol,
         longSymbolName: ctx.longSymbolName,
         shortSymbolName: ctx.shortSymbolName,
         account: lastState.cachedAccount,
@@ -127,12 +151,12 @@ export const createBuyProcessor = (deps: BuyProcessorDeps): BuyProcessor => {
       logger.error(`[BuyProcessor] 处理任务失败: ${symbolDisplay} ${signal.action}`, formatError(err));
       return false;
     }
-  };
+  }
 
   /**
    * 处理队列中的所有任务
    */
-  const processQueue = async (): Promise<void> => {
+  async function processQueue(): Promise<void> {
     while (!taskQueue.isEmpty()) {
       const task = taskQueue.pop();
       if (!task) break;
@@ -155,7 +179,7 @@ export const createBuyProcessor = (deps: BuyProcessorDeps): BuyProcessor => {
         signalObjectPool.release(signal);
       }
     }
-  };
+  }
 
   /**
    * 调度下一次处理（使用 setImmediate）
@@ -165,7 +189,7 @@ export const createBuyProcessor = (deps: BuyProcessorDeps): BuyProcessor => {
    * - 队列为空时：停止调度，等待 onTaskAdded 回调触发重新调度
    * - 避免忙等待（busy-waiting），防止 CPU 高占用
    */
-  const scheduleNextProcess = (): void => {
+  function scheduleNextProcess(): void {
     if (!running) return;
 
     // 如果队列为空，停止调度（等待新任务触发）
@@ -190,12 +214,12 @@ export const createBuyProcessor = (deps: BuyProcessorDeps): BuyProcessor => {
           });
       }
     });
-  };
+  }
 
   /**
    * 启动处理器
    */
-  const start = (): void => {
+  function start(): void {
     if (running) {
       logger.warn('[BuyProcessor] 处理器已在运行中');
       return;
@@ -212,12 +236,12 @@ export const createBuyProcessor = (deps: BuyProcessorDeps): BuyProcessor => {
 
     // 启动调度循环
     scheduleNextProcess();
-  };
+  }
 
   /**
    * 停止处理器
    */
-  const stop = (): void => {
+  function stop(): void {
     if (!running) {
       logger.warn('[BuyProcessor] 处理器未在运行');
       return;
@@ -229,29 +253,33 @@ export const createBuyProcessor = (deps: BuyProcessorDeps): BuyProcessor => {
       clearImmediate(immediateHandle);
       immediateHandle = null;
     }
-  };
+  }
 
   /**
    * 立即处理队列中的所有任务（同步等待完成）
    */
-  const processNow = async (): Promise<void> => {
+  async function processNow(): Promise<void> {
     await processQueue();
-  };
+  }
 
   /**
    * 检查处理器是否正在运行
    */
-  const isRunning = (): boolean => running;
+  function isRunning(): boolean {
+    return running;
+  }
 
   /**
    * 获取处理器统计信息
    */
-  const getStats = (): ProcessorStats => ({
-    processedCount,
-    successCount,
-    failedCount,
-    lastProcessTime,
-  });
+  function getStats(): ProcessorStats {
+    return {
+      processedCount,
+      successCount,
+      failedCount,
+      lastProcessTime,
+    };
+  }
 
   return {
     start,
@@ -260,4 +288,4 @@ export const createBuyProcessor = (deps: BuyProcessorDeps): BuyProcessor => {
     isRunning,
     getStats,
   };
-};
+}

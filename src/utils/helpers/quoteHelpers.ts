@@ -10,7 +10,7 @@
  * - batchGetQuotes()：批量获取行情数据
  */
 
-import type { MarketDataClient, Quote } from '../../types/index.js';
+import type { MarketDataClient, Quote, SymbolRegistry } from '../../types/index.js';
 
 /**
  * 收集所有需要获取行情的标的代码
@@ -25,21 +25,65 @@ export function collectAllQuoteSymbols(
     readonly longSymbol: string;
     readonly shortSymbol: string;
   }>,
+  symbolRegistry?: SymbolRegistry | null,
 ): Set<string> {
   const symbols = new Set<string>();
 
   for (const config of monitorConfigs) {
     symbols.add(config.monitorSymbol);
-    symbols.add(config.longSymbol);
-    symbols.add(config.shortSymbol);
+    if (symbolRegistry) {
+      const longSeat = symbolRegistry.getSeatState(config.monitorSymbol, 'LONG');
+      const shortSeat = symbolRegistry.getSeatState(config.monitorSymbol, 'SHORT');
+      if (longSeat.symbol) {
+        symbols.add(longSeat.symbol);
+      }
+      if (shortSeat.symbol) {
+        symbols.add(shortSeat.symbol);
+      }
+      continue;
+    }
+    if (config.longSymbol) {
+      symbols.add(config.longSymbol);
+    }
+    if (config.shortSymbol) {
+      symbols.add(config.shortSymbol);
+    }
   }
 
   return symbols;
 }
 
 /**
+ * 计算行情标的集合的增量变化
+ * @param prevSymbols 上一次订阅的标的集合
+ * @param nextSymbols 最新需要订阅的标的集合
+ * @returns 新增与移除的标的列表
+ */
+export function diffQuoteSymbols(
+  prevSymbols: ReadonlySet<string>,
+  nextSymbols: ReadonlySet<string>,
+): { added: string[]; removed: string[] } {
+  const added: string[] = [];
+  const removed: string[] = [];
+
+  for (const symbol of nextSymbols) {
+    if (!prevSymbols.has(symbol)) {
+      added.push(symbol);
+    }
+  }
+
+  for (const symbol of prevSymbols) {
+    if (!nextSymbols.has(symbol)) {
+      removed.push(symbol);
+    }
+  }
+
+  return { added, removed };
+}
+
+/**
  * 批量获取行情数据
- * 使用 marketDataClient.getQuotes 进行单次 API 调用批量获取，减少 API 调用次数
+ * 从行情客户端缓存批量读取（未订阅标的会抛错）
  *
  * @param marketDataClient 行情客户端
  * @param symbols 标的代码列表

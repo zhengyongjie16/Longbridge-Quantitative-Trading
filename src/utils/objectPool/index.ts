@@ -143,6 +143,7 @@ export const signalObjectPool = createObjectPool<PoolableSignal>(
     price: null,
     lotSize: null,
     quantity: null,
+    seatVersion: null,
     triggerTime: null,
     indicators1: null,
     verificationHistory: null,
@@ -176,6 +177,7 @@ export const signalObjectPool = createObjectPool<PoolableSignal>(
     obj.price = null;
     obj.lotSize = null;
     obj.quantity = null;
+    obj.seatVersion = null;
     obj.triggerTime = null;
     obj.indicators1 = null;
     obj.verificationHistory = null;

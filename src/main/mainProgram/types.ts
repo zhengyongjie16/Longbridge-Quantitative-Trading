@@ -12,6 +12,7 @@ import type {
   MarketDataClient,
   Trader,
   MultiMonitorTradingConfig,
+  SymbolRegistry,
 } from '../../types/index.js';
 import type { MarketMonitor } from '../../services/marketMonitor/types.js';
 import type { DoomsdayProtection } from '../../core/doomsdayProtection/types.js';
@@ -35,6 +36,7 @@ export type MainProgramContext = {
   readonly signalProcessor: SignalProcessor;
   readonly tradingConfig: MultiMonitorTradingConfig;
   readonly monitorContexts: Map<string, MonitorContext>;
+  readonly symbolRegistry: SymbolRegistry;
   readonly indicatorCache: IndicatorCache;
   readonly buyTaskQueue: BuyTaskQueue;
   readonly sellTaskQueue: SellTaskQueue;
