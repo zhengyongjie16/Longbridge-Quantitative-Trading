@@ -1,8 +1,9 @@
-import { OrderSide, OrderStatus } from 'longport';
+import { OrderSide } from 'longport';
 import { findBestWarrant } from '../autoSymbolFinder/index.js';
 import { getTradingMinutesSinceOpen, isWithinMorningOpenProtection } from '../../utils/helpers/tradingTime.js';
 import { logger } from '../../utils/logger/index.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
+import { AUTO_SYMBOL_SEARCH_COOLDOWN_MS, PENDING_ORDER_STATUSES } from '../../constants/index.js';
 import type {
   Signal,
   Position,
@@ -20,15 +21,6 @@ import type {
   SwitchOnDistanceParams,
   SwitchState,
 } from './types.js';
-
-const SEARCH_COOLDOWN_MS = 30_000;
-const CANCELABLE_BUY_ORDER_STATUSES = new Set<OrderStatus>([
-  OrderStatus.New,
-  OrderStatus.PartialFilled,
-  OrderStatus.WaitToNew,
-  OrderStatus.WaitToReplace,
-  OrderStatus.PendingReplace,
-]);
 
 function resolveDirectionSymbols(direction: SeatDirection): {
   readonly isBull: boolean;
@@ -102,7 +94,7 @@ function isCancelableBuyOrder(order: PendingOrder, symbol: string): boolean {
   if (order.side !== OrderSide.Buy) {
     return false;
   }
-  return CANCELABLE_BUY_ORDER_STATUSES.has(order.status);
+  return PENDING_ORDER_STATUSES.has(order.status);
 }
 
 function calculateBuyQuantityByNotional(
@@ -156,7 +148,7 @@ function buildOrderSignal({
 }
 
 export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbolManager {
-  const { monitorConfig, symbolRegistry, marketDataClient, trader, riskChecker } = deps;
+  const { monitorConfig, symbolRegistry, marketDataClient, trader, riskChecker, orderRecorder } = deps;
   const now = deps.now ?? (() => new Date());
 
   const monitorSymbol = monitorConfig.monitorSymbol;
@@ -224,7 +216,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
 
     const lastSearchAt = seatState.lastSearchAt ?? 0;
     const nowMs = currentTime.getTime();
-    if (nowMs - lastSearchAt < SEARCH_COOLDOWN_MS) {
+    if (nowMs - lastSearchAt < AUTO_SYMBOL_SEARCH_COOLDOWN_MS) {
       return;
     }
 
@@ -255,6 +247,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
       minPrice,
       minTurnoverPerMinute,
       expiryMinMonths: autoSearchConfig.autoSearchExpiryMinMonths,
+      logger,
     });
 
     if (!best) {
@@ -319,19 +312,21 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
           seatVersion,
         });
 
-        const sellNotional =
-          Number.isFinite(signal.price) && Number.isFinite(availableQuantity)
-            ? Number(signal.price) * availableQuantity
-            : null;
-
         await trader.executeSignals([signal]);
         signalObjectPool.release(signal);
 
         state.sellSubmitted = true;
-        state.sellNotional = sellNotional;
         return;
       }
       return;
+    }
+
+    const latestSellRecord = orderRecorder.getLatestSellRecord(state.oldSymbol, direction === 'LONG');
+    if (latestSellRecord && latestSellRecord.executedTime >= state.startedAt) {
+      const actualNotional = latestSellRecord.executedPrice * latestSellRecord.executedQuantity;
+      if (Number.isFinite(actualNotional) && actualNotional > 0) {
+        state.sellNotional = actualNotional;
+      }
     }
 
     const { minPrice, minTurnoverPerMinute } = resolveAutoSearchThresholds(direction, autoSearchConfig);
@@ -352,6 +347,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
       minPrice,
       minTurnoverPerMinute,
       expiryMinMonths: autoSearchConfig.autoSearchExpiryMinMonths,
+      logger,
     });
 
     if (!best) {

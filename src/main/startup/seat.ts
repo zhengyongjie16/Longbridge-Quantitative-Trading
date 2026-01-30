@@ -218,6 +218,7 @@ export async function prepareSeatsOnStartup(
       minPrice,
       minTurnoverPerMinute,
       expiryMinMonths: autoSearchConfig.autoSearchExpiryMinMonths,
+      logger,
     });
 
     if (!best) {

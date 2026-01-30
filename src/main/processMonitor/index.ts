@@ -92,7 +92,7 @@ export async function processMonitor(
     state.monitorPrice = resolvedMonitorPrice;
   }
 
-  if (monitorPriceChanged) {
+  if (autoSearchEnabled) {
     await autoSymbolManager.maybeSearchOnTick({
       direction: 'LONG',
       currentTime: runtimeFlags.currentTime,
@@ -103,7 +103,9 @@ export async function processMonitor(
       currentTime: runtimeFlags.currentTime,
       canTradeNow,
     });
+  }
 
+  if (monitorPriceChanged) {
     if (autoSearchEnabled) {
       const seatLong = symbolRegistry.getSeatState(MONITOR_SYMBOL, 'LONG');
       const seatShort = symbolRegistry.getSeatState(MONITOR_SYMBOL, 'SHORT');

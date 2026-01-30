@@ -1,5 +1,6 @@
 import type { QuoteContext, WarrantStatus, WarrantType } from 'longport';
 import type { DecimalLike } from '../../utils/helpers/types.js';
+import type { Logger } from '../../utils/logger/types.js';
 
 export type FindBestWarrantInput = {
   readonly ctx: QuoteContext;
@@ -9,6 +10,7 @@ export type FindBestWarrantInput = {
   readonly minPrice: number;
   readonly minTurnoverPerMinute: number;
   readonly expiryMinMonths: number;
+  readonly logger: Logger;
 };
 
 export type WarrantListItem = {

@@ -36,6 +36,9 @@ export const TRADING = {
   INTERVAL_MS: 1000,
 } as const;
 
+/** 自动寻标相关常量 */
+export const AUTO_SYMBOL_SEARCH_COOLDOWN_MS = 30_000;
+
 /** 指标默认周期常量 */
 export const DEFAULT_EMA_PERIOD = 7;
 export const DEFAULT_RSI_PERIOD = 6;

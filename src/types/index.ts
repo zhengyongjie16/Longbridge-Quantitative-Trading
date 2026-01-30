@@ -880,11 +880,20 @@ export interface OrderRecorder {
     executedTimeMs: number,
   ): void;
   /** 记录本地卖出订单 */
-  recordLocalSell(symbol: string, executedPrice: number, executedQuantity: number, isLongSymbol: boolean): void;
+  recordLocalSell(
+    symbol: string,
+    executedPrice: number,
+    executedQuantity: number,
+    isLongSymbol: boolean,
+    executedTimeMs: number,
+    orderId?: string | null,
+  ): void;
   /** 清空指定标的的买入订单记录 */
   clearBuyOrders(symbol: string, isLongSymbol: boolean, quote?: Quote | null): void;
   /** 获取最新买入订单价格 */
   getLatestBuyOrderPrice(symbol: string, isLongSymbol: boolean): number | null;
+  /** 获取最新卖出订单记录 */
+  getLatestSellRecord(symbol: string, isLongSymbol: boolean): OrderRecord | null;
   /** 获取低于指定价格的买入订单（用于智能平仓） */
   getBuyOrdersBelowPrice(currentPrice: number, direction: 'LONG' | 'SHORT', symbol: string): OrderRecord[];
   /** 计算订单列表的总数量 */

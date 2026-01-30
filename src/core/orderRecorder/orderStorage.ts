@@ -22,6 +22,8 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
   // 使用 Map 存储订单，key 为 symbol，提供 O(1) 查找性能
   const longBuyOrdersMap: Map<string, OrderRecord[]> = new Map();
   const shortBuyOrdersMap: Map<string, OrderRecord[]> = new Map();
+  const longSellRecordMap: Map<string, OrderRecord> = new Map();
+  const shortSellRecordMap: Map<string, OrderRecord> = new Map();
 
   /** 获取指定标的的买入订单列表 */
   const getBuyOrdersList = (symbol: string, isLongSymbol: boolean): OrderRecord[] => {
@@ -48,6 +50,19 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
   /** 替换做空标的的买入订单列表 */
   const setBuyOrdersListForShort = (symbol: string, newList: OrderRecord[]): void => {
     setBuyOrdersList(symbol, newList, false);
+  };
+
+  const setLatestSellRecord = (symbol: string, isLongSymbol: boolean, record: OrderRecord): void => {
+    const targetMap = isLongSymbol ? longSellRecordMap : shortSellRecordMap;
+    const existing = targetMap.get(symbol);
+    if (!existing || record.executedTime >= existing.executedTime) {
+      targetMap.set(symbol, record);
+    }
+  };
+
+  const getLatestSellRecord = (symbol: string, isLongSymbol: boolean): OrderRecord | null => {
+    const targetMap = isLongSymbol ? longSellRecordMap : shortSellRecordMap;
+    return targetMap.get(symbol) ?? null;
   };
 
   /** 添加单笔买入订单到本地存储 */
@@ -93,8 +108,23 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     executedPrice: number,
     executedQuantity: number,
     isLongSymbol: boolean,
+    executedTimeMs: number,
+    orderId?: string | null,
   ): void => {
     const list = getBuyOrdersList(symbol, isLongSymbol);
+    const executedTime = Number.isFinite(executedTimeMs) && executedTimeMs > 0
+      ? executedTimeMs
+      : Date.now();
+
+    setLatestSellRecord(symbol, isLongSymbol, {
+      orderId: orderId ?? `LOCAL_SELL_${executedTime}`,
+      symbol,
+      executedPrice,
+      executedQuantity,
+      executedTime,
+      submittedAt: undefined,
+      updatedAt: undefined,
+    });
 
     if (!list.length) {
       return;
@@ -235,6 +265,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     updateAfterSell,
     clearBuyOrders,
     getLatestBuyOrderPrice,
+    getLatestSellRecord,
     getBuyOrdersBelowPrice,
     calculateTotalQuantity,
     getLongBuyOrders,

@@ -163,6 +163,8 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
             executedPrice,
             filledQuantity,
             trackedOrder.isLongSymbol,
+            executedTimeMs,
+            String(orderId),
           );
         }
 

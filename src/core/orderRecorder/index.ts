@@ -274,6 +274,8 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     executedPrice: number,
     executedQuantity: number,
     isLongSymbol: boolean,
+    executedTimeMs: number,
+    orderId?: string | null,
   ): void {
     const price = Number(executedPrice);
     const quantity = Number(executedQuantity);
@@ -282,7 +284,7 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
       return;
     }
 
-    storage.updateAfterSell(symbol, price, quantity, isLongSymbol);
+    storage.updateAfterSell(symbol, price, quantity, isLongSymbol, executedTimeMs, orderId);
     debugOutputOrders(symbol, isLongSymbol);
   }
 
@@ -298,6 +300,10 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
   /** 获取最新买入订单的成交价（用于买入价格限制检查） */
   function getLatestBuyOrderPrice(symbol: string, isLongSymbol: boolean): number | null {
     return storage.getLatestBuyOrderPrice(symbol, isLongSymbol);
+  }
+
+  function getLatestSellRecord(symbol: string, isLongSymbol: boolean): OrderRecord | null {
+    return storage.getLatestSellRecord(symbol, isLongSymbol);
   }
 
   /** 获取买入价低于当前价的订单（用于智能清仓决策） */
@@ -395,6 +401,7 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     recordLocalSell,
     clearBuyOrders,
     getLatestBuyOrderPrice,
+    getLatestSellRecord,
     getBuyOrdersBelowPrice,
     calculateTotalQuantity,
     fetchAllOrdersFromAPI,

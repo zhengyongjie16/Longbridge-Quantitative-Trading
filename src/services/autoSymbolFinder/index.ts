@@ -1,6 +1,5 @@
 import { SortOrderType, WarrantSortBy, WarrantStatus, WarrantType } from 'longport';
 import { formatError } from '../../utils/helpers/index.js';
-import { logger } from '../../utils/logger/index.js';
 import { buildExpiryDateFilters, selectBestWarrant } from './utils.js';
 import type { FindBestWarrantInput, WarrantCandidate } from './types.js';
 
@@ -12,6 +11,7 @@ export async function findBestWarrant({
   minPrice,
   minTurnoverPerMinute,
   expiryMinMonths,
+  logger,
 }: FindBestWarrantInput): Promise<WarrantCandidate | null> {
   try {
     const warrantType = isBull ? WarrantType.Bull : WarrantType.Bear;
