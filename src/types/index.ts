@@ -522,15 +522,6 @@ export type MultiMonitorTradingConfig = {
   readonly global: GlobalConfig;
 };
 
-/**
- * 配置验证结果
- * validateAllConfig 函数的返回类型
- */
-export type ValidateAllConfigResult = {
-  /** 验证通过后创建的行情客户端 */
-  marketDataClient: MarketDataClient;
-};
-
 // ==================== 席位与标的注册表 ====================
 
 /**
@@ -582,6 +573,28 @@ export interface SymbolRegistry {
   /** 递增席位版本号 */
   bumpSeatVersion(monitorSymbol: string, direction: 'LONG' | 'SHORT'): SeatVersion;
 }
+
+/**
+ * 运行模式
+ */
+export type RunMode = 'prod' | 'dev';
+
+/**
+ * 门禁模式
+ */
+export type GateMode = 'strict' | 'skip';
+
+export type StartupGateMode = GateMode;
+export type RuntimeGateMode = GateMode;
+
+/**
+ * 启动阶段的席位标的快照条目
+ */
+export type SeatSymbolSnapshotEntry = {
+  readonly monitorSymbol: string;
+  readonly direction: 'LONG' | 'SHORT';
+  readonly symbol: string;
+};
 
 // ==================== 主入口模块类型 ====================
 

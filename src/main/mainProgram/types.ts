@@ -13,6 +13,7 @@ import type {
   Trader,
   MultiMonitorTradingConfig,
   SymbolRegistry,
+  RuntimeGateMode,
 } from '../../types/index.js';
 import type { MarketMonitor } from '../../services/marketMonitor/types.js';
 import type { DoomsdayProtection } from '../../core/doomsdayProtection/types.js';
@@ -40,4 +41,5 @@ export type MainProgramContext = {
   readonly indicatorCache: IndicatorCache;
   readonly buyTaskQueue: BuyTaskQueue;
   readonly sellTaskQueue: SellTaskQueue;
+  readonly runtimeGateMode: RuntimeGateMode;
 };

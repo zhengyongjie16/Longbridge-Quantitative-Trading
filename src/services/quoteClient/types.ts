@@ -44,7 +44,5 @@ export type TradingDayCacheDeps = Record<string, never>;
  */
 export type MarketDataClientDeps = {
   readonly config: Config;
-  /** 需要订阅的标的列表（WebSocket 订阅模式必须提供） */
-  readonly symbols: ReadonlyArray<string>;
 };
 

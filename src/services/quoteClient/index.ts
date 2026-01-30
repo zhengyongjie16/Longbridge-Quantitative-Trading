@@ -7,7 +7,7 @@
  * - 检查交易日信息
  *
  * 订阅机制：
- * - 创建客户端时自动初始化 WebSocket 订阅
+ * - 创建客户端时不自动订阅，需显式调用 subscribeSymbols
  * - 行情数据由推送实时更新到本地缓存
  * - getQuotes() 从本地缓存读取，无 HTTP 请求
  * - 支持动态订阅；未订阅标的调用 getQuotes 会抛错，需要先订阅
@@ -127,12 +127,12 @@ function createTradingDayCache(
  * - getQuotes() 从本地缓存读取，无 HTTP 请求
  * - 订阅模式是默认且唯一的行情获取方式
  *
- * @param deps 依赖注入，必须提供 symbols（需要订阅的标的列表）
+ * @param deps 依赖注入
  */
 export async function createMarketDataClient(
   deps: MarketDataClientDeps,
 ): Promise<MarketDataClient> {
-  const { symbols, config } = deps;
+  const { config } = deps;
   const ctx = await QuoteContext.new(config);
   const tradingDayCache = createTradingDayCache();
 
@@ -200,49 +200,7 @@ export async function createMarketDataClient(
     state.lastUpdateTime = Date.now();
   }
 
-  // ==================== 初始化订阅（自动执行） ====================
-
-  const subscriptionSymbols = [...symbols];
-  logger.info(`[行情订阅] 正在初始化 ${subscriptionSymbols.length} 个标的...`);
-
-  // 1. 缓存静态信息
-  const staticInfoList = await withRetry(() => ctx.staticInfo(subscriptionSymbols));
-  for (const info of staticInfoList) {
-    if (info && typeof info === 'object' && 'symbol' in info) {
-      const infoSymbol = (info as { symbol: string }).symbol;
-      staticInfoCache.set(infoSymbol, info);
-    }
-  }
-  logger.debug(`[行情订阅] 已缓存 ${staticInfoList.length} 个标的的静态信息`);
-
-  // 2. 拉取初始行情数据（获取 prevClose，保证有初始数据）
-  const initialQuotes = await withRetry(() => ctx.quote(subscriptionSymbols));
-  for (const quote of initialQuotes) {
-    if (!quote) continue;
-
-    const quoteSymbol = quote.symbol;
-    const staticInfo = staticInfoCache.get(quoteSymbol);
-
-    // 缓存 prevClose
-    prevCloseCache.set(quoteSymbol, decimalToNumber(quote.prevClose));
-
-    // 初始化行情缓存
-    const lotSize = extractLotSize(staticInfo);
-    const quoteResult: Quote = {
-      symbol: quoteSymbol,
-      name: extractName(staticInfo),
-      price: decimalToNumber(quote.lastDone),
-      prevClose: decimalToNumber(quote.prevClose),
-      timestamp: quote.timestamp.getTime(),
-      ...(lotSize === undefined ? {} : { lotSize }),
-      raw: quote,
-      staticInfo,
-    };
-    quoteCache.set(quoteSymbol, quoteResult);
-    subscribedSymbols.add(quoteSymbol);
-  }
-
-  // 3. 设置推送回调
+  // 设置推送回调
   ctx.setOnQuote((err: Error | null, event: PushQuoteEvent) => {
     if (err) {
       logger.warn(`[行情推送] 接收推送时发生错误: ${formatError(err)}`);
@@ -250,13 +208,6 @@ export async function createMarketDataClient(
     }
     handleQuotePush(event);
   });
-
-  // 4. 订阅行情（is_first_push = true：订阅后立即推送一次当前数据）
-  await ctx.subscribe(subscriptionSymbols, [SubType.Quote], true);
-
-  state.isConnected = true;
-  state.lastUpdateTime = Date.now();
-  logger.info(`[行情订阅] 成功订阅 ${subscriptionSymbols.length} 个标的`);
 
   // ==================== 公共方法实现 ====================
 
@@ -283,7 +234,7 @@ export async function createMarketDataClient(
       } else {
         // 请求的标的不在订阅列表中，抛出错误以尽早发现配置问题
         throw new Error(
-          `[行情获取] 标的 ${reqSymbol} 未在初始化时订阅，请检查 symbols 配置`,
+          `[行情获取] 标的 ${reqSymbol} 未订阅，请先订阅`,
         );
       }
     }
@@ -325,6 +276,8 @@ export async function createMarketDataClient(
     }
 
     await withRetry(() => ctx.subscribe(newSymbols, [SubType.Quote], true));
+    state.isConnected = true;
+    state.lastUpdateTime = Date.now();
     logger.info(`[行情订阅] 新增订阅 ${newSymbols.length} 个标的`);
   }
 

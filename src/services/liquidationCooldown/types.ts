@@ -4,7 +4,11 @@
  * 定义冷却追踪器所需的方向、入参和依赖类型。
  */
 
-import type { MultiMonitorTradingConfig, LiquidationCooldownConfig } from '../../types/index.js';
+import type {
+  LiquidationCooldownConfig,
+  MultiMonitorTradingConfig,
+  SeatSymbolSnapshotEntry,
+} from '../../types/index.js';
 import type { TradeRecord } from '../../core/trader/types.js';
 import type { Logger } from '../../utils/logger/types.js';
 
@@ -57,10 +61,15 @@ export type TradeLogHydratorDeps = {
 };
 
 export interface TradeLogHydrator {
-  hydrate(): void;
+  hydrate(params: { readonly seatSymbols: ReadonlyArray<SeatSymbolSnapshotEntry> }): void;
 }
 
 export type NormalizedTradeRecord = {
   readonly record: TradeRecord;
+};
+
+export type CooldownCandidate = {
+  readonly monitorSymbol: string;
   readonly direction: LiquidationDirection;
+  readonly executedAtMs: number;
 };

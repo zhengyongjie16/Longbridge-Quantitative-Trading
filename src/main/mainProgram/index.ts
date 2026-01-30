@@ -20,7 +20,7 @@ import {
   isWithinMorningOpenProtection,
 } from '../../utils/helpers/tradingTime.js';
 import { displayAccountAndPositions } from '../../utils/helpers/accountDisplay.js';
-import { collectAllQuoteSymbols, diffQuoteSymbols } from '../../utils/helpers/quoteHelpers.js';
+import { collectRuntimeQuoteSymbols, diffQuoteSymbols } from '../../utils/helpers/quoteHelpers.js';
 import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
 import { processMonitor } from '../processMonitor/index.js';
 
@@ -52,6 +52,7 @@ export async function mainProgram({
   indicatorCache,
   buyTaskQueue,
   sellTaskQueue,
+  runtimeGateMode,
 }: MainProgramContext): Promise<void> {
   // 使用缓存的账户和持仓信息（仅在交易后更新）
   const positions = lastState.cachedPositions ?? [];
@@ -59,28 +60,20 @@ export async function mainProgram({
   // 判断是否在交易时段（使用当前系统时间）
   const currentTime = new Date();
 
-  // 首次运行时获取交易日信息
-  let isTradingDayToday = true;
-  let isHalfDayToday = false;
+  let isTradingDayToday = lastState.cachedTradingDayInfo?.isTradingDay ?? true;
+  let isHalfDayToday = lastState.cachedTradingDayInfo?.isHalfDay ?? false;
 
-  if (lastState.cachedTradingDayInfo) {
-    // 使用缓存的交易日信息
-    isTradingDayToday = lastState.cachedTradingDayInfo.isTradingDay;
-    isHalfDayToday = lastState.cachedTradingDayInfo.isHalfDay;
-  } else {
-    // 首次运行，调用 API 检查交易日信息
+  if (!lastState.cachedTradingDayInfo && runtimeGateMode === 'strict') {
     try {
       const tradingDayInfo = await marketDataClient.isTradingDay(currentTime);
       isTradingDayToday = tradingDayInfo.isTradingDay;
       isHalfDayToday = tradingDayInfo.isHalfDay;
 
-      // 缓存到 lastState
       lastState.cachedTradingDayInfo = {
         isTradingDay: isTradingDayToday,
         isHalfDay: isHalfDayToday,
       };
 
-      // 日志记录
       if (isTradingDayToday) {
         const dayType = isHalfDayToday ? '半日交易日' : '交易日';
         logger.info(`今天是${dayType}`);
@@ -95,71 +88,75 @@ export async function mainProgram({
     }
   }
 
-  // 如果不是交易日，提前返回
-  if (!isTradingDayToday) {
-    if (lastState.canTrade !== false) {
-      logger.info('今天不是交易日，暂停实时监控。');
-      lastState.canTrade = false;
+  let canTradeNow = true;
+  let openProtectionActive = false;
+
+  if (runtimeGateMode === 'strict') {
+    if (!isTradingDayToday) {
+      if (lastState.canTrade !== false) {
+        logger.info('今天不是交易日，暂停实时监控。');
+        lastState.canTrade = false;
+      }
+      return;
     }
-    return;
-  }
 
-  // 如果是交易日，再检查是否在交易时段
-  const canTradeNow =
-    isTradingDayToday && isInContinuousHKSession(currentTime, isHalfDayToday);
+    canTradeNow = isInContinuousHKSession(currentTime, isHalfDayToday);
 
-  // 检测交易时段变化
-  if (lastState.canTrade !== canTradeNow) {
-    if (canTradeNow) {
-      const sessionType = isHalfDayToday ? '（半日交易）' : '';
-      logger.info(`进入连续交易时段${sessionType}，开始正常交易。`);
-    } else if (isTradingDayToday) {
-      logger.info('当前为竞价或非连续交易时段，暂停实时监控。');
+    if (lastState.canTrade !== canTradeNow) {
+      if (canTradeNow) {
+        const sessionType = isHalfDayToday ? '（半日交易）' : '';
+        logger.info(`进入连续交易时段${sessionType}，开始正常交易。`);
+      } else if (isTradingDayToday) {
+        logger.info('当前为竞价或非连续交易时段，暂停实时监控。');
 
-      // 收盘时清理所有待验证的信号
-      // 原因：收盘后 IndicatorCache 不再更新，待验证信号无法获取到 T0+5s/T0+10s 的数据
-      // 会导致大量"缺少时间点数据"的验证失败日志
-      let totalCancelled = 0;
-      for (const [monitorSymbol, monitorContext] of monitorContexts) {
-        const pendingCount = monitorContext.delayedSignalVerifier.getPendingCount();
-        if (pendingCount > 0) {
-          monitorContext.delayedSignalVerifier.cancelAllForSymbol(monitorSymbol);
-          totalCancelled += pendingCount;
+        let totalCancelled = 0;
+        for (const [monitorSymbol, monitorContext] of monitorContexts) {
+          const pendingCount = monitorContext.delayedSignalVerifier.getPendingCount();
+          if (pendingCount > 0) {
+            monitorContext.delayedSignalVerifier.cancelAllForSymbol(monitorSymbol);
+            totalCancelled += pendingCount;
+          }
+        }
+        if (totalCancelled > 0) {
+          logger.info(`[交易时段结束] 已清理 ${totalCancelled} 个待验证信号`);
         }
       }
-      if (totalCancelled > 0) {
-        logger.info(`[交易时段结束] 已清理 ${totalCancelled} 个待验证信号`);
+      lastState.canTrade = canTradeNow;
+      lastState.isHalfDay = isHalfDayToday;
+    }
+
+    if (!canTradeNow) {
+      return;
+    }
+
+    const openProtectionConfig = tradingConfig.global.openProtection;
+    openProtectionActive =
+      openProtectionConfig.enabled &&
+      openProtectionConfig.minutes != null &&
+      isWithinMorningOpenProtection(currentTime, openProtectionConfig.minutes);
+
+    if (
+      openProtectionConfig.enabled &&
+      openProtectionConfig.minutes != null &&
+      lastState.openProtectionActive !== openProtectionActive
+    ) {
+      if (openProtectionActive) {
+        logger.info(
+          `[开盘保护] 早盘开盘后 ${openProtectionConfig.minutes} 分钟内暂停信号生成`,
+        );
+      } else if (lastState.openProtectionActive !== null) {
+        logger.info('[开盘保护] 保护期结束，恢复信号生成');
       }
     }
-    lastState.canTrade = canTradeNow;
-    lastState.isHalfDay = isHalfDayToday;
-  }
-
-  // 如果不在交易时段，跳过所有实时监控逻辑
-  if (!canTradeNow) {
-    return;
-  }
-
-  const openProtectionConfig = tradingConfig.global.openProtection;
-  const openProtectionActive =
-    openProtectionConfig.enabled &&
-    openProtectionConfig.minutes != null &&
-    isWithinMorningOpenProtection(currentTime, openProtectionConfig.minutes);
-
-  if (
-    openProtectionConfig.enabled &&
-    openProtectionConfig.minutes != null &&
-    lastState.openProtectionActive !== openProtectionActive
-  ) {
-    if (openProtectionActive) {
-      logger.info(
-        `[开盘保护] 早盘开盘后 ${openProtectionConfig.minutes} 分钟内暂停信号生成`,
-      );
-    } else if (lastState.openProtectionActive !== null) {
-      logger.info('[开盘保护] 保护期结束，恢复信号生成');
+    lastState.openProtectionActive = openProtectionActive;
+  } else {
+    if (lastState.canTrade !== true) {
+      logger.info('[运行模式] 已跳过交易时段检查');
     }
+    lastState.canTrade = true;
+    lastState.isHalfDay = isHalfDayToday;
+    lastState.openProtectionActive = false;
   }
-  lastState.openProtectionActive = openProtectionActive;
 
   // 末日保护检查（全局性，在所有监控标的处理之前）
   if (tradingConfig.global.doomsdayProtection) {
@@ -196,7 +193,11 @@ export async function mainProgram({
 
   // 收集所有需要获取行情的标的，一次性批量获取（减少 API 调用次数）
   // getQuotes 接口已支持 Iterable，无需 Array.from() 转换
-  const desiredSymbols = collectAllQuoteSymbols(tradingConfig.monitors, symbolRegistry);
+  const desiredSymbols = collectRuntimeQuoteSymbols(
+    tradingConfig.monitors,
+    symbolRegistry,
+    positions,
+  );
   const { added, removed } = diffQuoteSymbols(lastState.allTradingSymbols, desiredSymbols);
 
   if (added.length > 0) {
@@ -243,6 +244,7 @@ export async function mainProgram({
     indicatorCache,
     buyTaskQueue,
     sellTaskQueue,
+    runtimeGateMode,
   };
 
   // 并发处理所有监控标的（使用预先获取的行情数据）
@@ -335,7 +337,7 @@ export async function mainProgram({
       }
 
       // 订单成交后显示账户和持仓信息（此时缓存已刷新，直接使用缓存）
-      await displayAccountAndPositions(trader, marketDataClient, lastState);
+      await displayAccountAndPositions({ lastState, quotesMap });
     }
   }
 }

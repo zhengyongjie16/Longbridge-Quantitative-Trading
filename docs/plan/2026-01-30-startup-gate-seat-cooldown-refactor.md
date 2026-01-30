@@ -2,9 +2,9 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** 在满足门禁后立即完成账户/持仓与席位确定；冷却恢复改为“先取席位标的→查该标的最后一笔订单是否为保护性清仓”；新增 `npm run dev` 跳过启动门禁。
+**Goal:** 在满足门禁后立即完成账户/持仓与席位确定；席位完全占用后统一订阅（监控+席位+持仓）；冷却恢复改为“先取席位标的→查该标的最后一笔订单是否为保护性清仓”；新增 `npm run dev` 同时跳过启动与运行期门禁。
 
-**Architecture:** 引入 `startup` 分层（Gate / Account+Position / Seat / Cooldown / ContextInit），由统一的启动编排器串联。冷却恢复不再以监控标的过滤日志，而是以席位标的为入口并回写监控标的方向的冷却。启动门禁以“策略对象 + 运行模式”控制，`dev` 模式只跳过启动门禁但保留运行期交易时段检查。
+**Architecture:** 引入 `startup` 分层（Gate / Account+Position / Seat / Subscription / Cooldown / ContextInit），由统一的启动编排器串联。账户/持仓仅做缓存，行情订阅与展示延后到席位就绪之后统一处理。标的验证拆分为“静态配置校验（无订阅）”与“运行期校验（订阅后）”。冷却恢复不再以监控标的过滤日志，而是以席位标的为入口并回写监控标的方向的冷却。门禁以“策略对象 + 运行模式”控制，`dev` 模式同时跳过启动与运行期交易时段检查。
 
 **Tech Stack:** TypeScript, Node.js, LongPort OpenAPI, pino
 
@@ -17,6 +17,10 @@
 - Modify: `src/index.ts`
 - Modify: `package.json`
 - Modify: `src/types/index.ts`（若需要新增 RunMode/StartupGatePolicy）
+- Modify: `src/main/mainProgram/index.ts`
+- Modify: `src/main/mainProgram/types.ts`
+- Modify: `src/services/quoteClient/index.ts`（取消创建时订阅）
+- Modify: `src/config/config.validator.ts`（静态校验与运行期校验拆分）
 
 **Step 1: Write the failing test**
 ```javascript
@@ -53,6 +57,9 @@ export function createStartupGate(deps: GateDeps) {
   return { wait };
 }
 ```
+同时在 `mainProgram` 中加入 `runtimeGateMode`，当 `dev` 时跳过交易日/交易时段/开盘保护的运行期检查。
+并将启动订阅从 `accountDisplay` 中移除，改为席位就绪后统一订阅。
+并将 `createMarketDataClient` 改为无自动订阅，标的有效性验证移至席位就绪后执行。
 
 **Step 4: Run test to verify it passes**
 Run: `npm run build && node tests/startup/startup-gate.test.js`  
@@ -178,8 +185,8 @@ Expected: FAIL with "order mismatch"
 
 **Step 3: Write minimal implementation**
 - 将 `src/index.ts` 拆为 `startup` 阶段函数，并显式顺序：
-  `gate → account/positions → seat → cooldown hydrate → seat-based init → run`.
-- 仅在席位就绪后执行：行情订阅、monitorContext 创建、牛熊证信息、订单记录、浮亏初始化。
+  `gate → account/positions(cache) → seat → unified subscription → cooldown hydrate → seat-based init → run`.
+- 仅在席位就绪后执行：行情订阅、持仓行情展示、monitorContext 创建、牛熊证信息、订单记录、浮亏初始化。
 
 **Step 4: Run test to verify it passes**
 Run: `npm run build && node tests/startup/startup-sequence.test.js`  
@@ -194,7 +201,7 @@ git commit -m "refactor: recompose startup sequence around seat readiness"
 ---
 
 ## 验证建议
-- `npm run dev` 启动时无需交易时段即可进入启动流程（但运行期仍会暂停监控）。
+- `npm run dev` 启动时无需交易时段即可进入启动流程，运行期门禁也跳过。
 - 非交易日运行 `start`：启动门禁阻塞，日志周期输出等待信息。
 - 席位标的切换后，冷却恢复只看当前席位标的的最后订单是否为保护性清仓。
 - 席位未就绪时，席位相关初始化全部延后。

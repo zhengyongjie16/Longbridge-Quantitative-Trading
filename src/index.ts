@@ -26,7 +26,7 @@ import { createConfig } from './config/config.index.js';
 import { createTrader } from './core/trader/index.js';
 import { createMultiMonitorTradingConfig } from './config/config.trading.js';
 import { logger } from './utils/logger/index.js';
-import { validateAllConfig } from './config/config.validator.js';
+import { validateAllConfig, validateRuntimeSymbolsFromQuotesMap } from './config/config.validator.js';
 import { createHangSengMultiIndicatorStrategy } from './core/strategy/index.js';
 import { createRiskChecker } from './core/risk/index.js';
 import { createUnrealizedLossMonitor } from './core/unrealizedLossMonitor/index.js';
@@ -36,8 +36,7 @@ import {
   initMonitorState,
   sleep,
 } from './utils/helpers/index.js';
-import { collectAllQuoteSymbols } from './utils/helpers/quoteHelpers.js';
-import { getLatestTradedSymbol } from './core/orderRecorder/orderOwnershipParser.js';
+import { collectRuntimeQuoteSymbols } from './utils/helpers/quoteHelpers.js';
 import { TRADING } from './constants/index.js';
 import {
   getTradingMinutesSinceOpen,
@@ -46,13 +45,17 @@ import {
 } from './utils/helpers/tradingTime.js';
 
 // 账户显示、持仓缓存和核心服务模块
-import { displayAccountAndPositions } from './utils/helpers/accountDisplay.js';
+import { displayAccountAndPositions, refreshAccountAndPositions } from './utils/helpers/accountDisplay.js';
 import { createPositionCache } from './utils/helpers/positionCache.js';
 import { createMarketMonitor } from './services/marketMonitor/index.js';
 import { createDoomsdayProtection } from './core/doomsdayProtection/index.js';
 import { createSignalProcessor } from './core/signalProcessor/index.js';
 import { createLiquidationCooldownTracker } from './services/liquidationCooldown/index.js';
 import { createTradeLogHydrator } from './services/liquidationCooldown/tradeLogHydrator.js';
+import { createMarketDataClient } from './services/quoteClient/index.js';
+import { createStartupGate } from './main/startup/gate.js';
+import { prepareSeatsOnStartup, resolveReadySeatSymbol } from './main/startup/seat.js';
+import { resolveGatePolicies, resolveRunMode } from './main/startup/utils.js';
 
 // 异步任务处理架构模块
 import { createIndicatorCache } from './main/asyncProgram/indicatorCache/index.js';
@@ -64,12 +67,10 @@ import { createSellProcessor } from './main/asyncProgram/sellProcessor/index.js'
 // 服务模块（monitorContext 用于初始化监控上下文，cleanup 用于退出清理）
 import { createMonitorContext } from './services/monitorContext/index.js';
 import { createAutoSymbolManager } from './services/autoSymbolManager/index.js';
-import { findBestWarrant } from './services/autoSymbolFinder/index.js';
 import {
   createSymbolRegistry,
   isSeatReady,
   isSeatVersionMatch,
-  resolveSeatOnStartup,
 } from './services/autoSymbolManager/utils.js';
 import { createCleanup } from './services/cleanup/index.js';
 
@@ -81,7 +82,6 @@ import type {
   LastState,
   MonitorContext,
   RawOrderFromAPI,
-  ValidateAllConfigResult,
 } from './types/index.js';
 import { getSprintSacreMooacreMoo } from './utils/asciiArt/sacreMooacre.js';
 import { signalObjectPool } from './utils/objectPool/index.js';
@@ -106,9 +106,8 @@ async function main(): Promise<void> {
   const tradingConfig = createMultiMonitorTradingConfig({ env });
   const symbolRegistry = createSymbolRegistry(tradingConfig.monitors);
 
-  let symbolNames: ValidateAllConfigResult;
   try {
-    symbolNames = await validateAllConfig({ env, tradingConfig });
+    await validateAllConfig({ env, tradingConfig });
   } catch (err) {
     if ((err as { name?: string }).name === 'ConfigValidationError') {
       logger.error('程序启动失败：配置验证未通过');
@@ -119,19 +118,13 @@ async function main(): Promise<void> {
     }
   }
 
-  // 使用配置验证返回的标的名称和行情客户端实例
-  const { marketDataClient } = symbolNames;
+  const config = createConfig({ env });
+  const marketDataClient = await createMarketDataClient({ config });
+  const runMode = resolveRunMode(env);
+  const gatePolicies = resolveGatePolicies(runMode);
+
   let cachedTradingDayInfo: { dateStr: string; info: { isTradingDay: boolean; isHalfDay: boolean } } | null =
     null;
-  let startupGateState: 'notTradingDay' | 'outOfSession' | 'openProtection' | 'ready' | null =
-    null;
-
-  function logStartupGate(state: typeof startupGateState, message: string): void {
-    if (startupGateState !== state) {
-      startupGateState = state;
-      logger.info(message);
-    }
-  }
 
   async function resolveTradingDayInfo(currentTime: Date): Promise<{ isTradingDay: boolean; isHalfDay: boolean }> {
     const dateStr = currentTime.toISOString().slice(0, 10);
@@ -150,58 +143,20 @@ async function main(): Promise<void> {
     }
   }
 
-  async function waitForStartupGate(): Promise<{ isTradingDay: boolean; isHalfDay: boolean }> {
-    const openProtectionConfig = tradingConfig.global.openProtection;
-    while (true) {
-      const currentTime = new Date();
-      const tradingDayInfo = await resolveTradingDayInfo(currentTime);
-
-      if (!tradingDayInfo.isTradingDay) {
-        logStartupGate('notTradingDay', '今天不是交易日，等待开市...');
-        await sleep(TRADING.INTERVAL_MS);
-        continue;
-      }
-
-      const inSession = isInContinuousHKSession(currentTime, tradingDayInfo.isHalfDay);
-      if (!inSession) {
-        logStartupGate('outOfSession', '当前不在连续交易时段，等待开市...');
-        await sleep(TRADING.INTERVAL_MS);
-        continue;
-      }
-
-      const openProtectionActive =
-        openProtectionConfig.enabled &&
-        openProtectionConfig.minutes != null &&
-        isWithinMorningOpenProtection(currentTime, openProtectionConfig.minutes);
-      if (openProtectionActive) {
-        logStartupGate(
-          'openProtection',
-          `[开盘保护] 早盘开盘后 ${openProtectionConfig.minutes} 分钟内等待启动`,
-        );
-        await sleep(TRADING.INTERVAL_MS);
-        continue;
-      }
-
-      logStartupGate('ready', '交易时段门禁通过，继续初始化');
-      return tradingDayInfo;
-    }
-  }
-
-  const startupTradingDayInfo = await waitForStartupGate();
-
-  const config = createConfig({ env });
-  const liquidationCooldownTracker = createLiquidationCooldownTracker({ nowMs: () => Date.now() });
-  const tradeLogHydrator = createTradeLogHydrator({
-    readFileSync: fs.readFileSync,
-    existsSync: fs.existsSync,
-    cwd: () => process.cwd(),
-    nowMs: () => Date.now(),
+  const startupGate = createStartupGate({
+    now: () => new Date(),
+    sleep,
+    resolveTradingDayInfo,
+    isInSession: isInContinuousHKSession,
+    isInOpenProtection: isWithinMorningOpenProtection,
+    openProtection: tradingConfig.global.openProtection,
+    intervalMs: TRADING.INTERVAL_MS,
     logger,
-    tradingConfig,
-    liquidationCooldownTracker,
   });
 
-  tradeLogHydrator.hydrate();
+  const startupTradingDayInfo = await startupGate.wait({ mode: gatePolicies.startupGate });
+
+  const liquidationCooldownTracker = createLiquidationCooldownTracker({ nowMs: () => Date.now() });
 
   const trader = await createTrader({
     config,
@@ -230,26 +185,8 @@ async function main(): Promise<void> {
     allTradingSymbols: new Set(), // 启动完成后再填充
   };
 
-  // 初始化核心模块实例
-  const marketMonitor = createMarketMonitor(); // 市场状态监控
-  const doomsdayProtection = createDoomsdayProtection(); // 末日保护（收盘前清仓）
-  const signalProcessor = createSignalProcessor({ tradingConfig, liquidationCooldownTracker }); // 信号处理和风险检查
-
-  // 初始化异步任务处理架构
-  // IndicatorCache 容量 = max(buyDelay, sellDelay) + 缓冲区，用于延迟验证时查询历史指标
-  // 必须在 monitorContexts 之前初始化，因为 DelayedSignalVerifier 依赖 IndicatorCache
-  const maxDelaySeconds = Math.max(
-    ...tradingConfig.monitors.map((m) =>
-      Math.max(m.verificationConfig.buy.delaySeconds, m.verificationConfig.sell.delaySeconds),
-    ),
-  );
-  const indicatorCacheMaxEntries = maxDelaySeconds + 15 + 10;
-  const indicatorCache = createIndicatorCache({ maxEntries: indicatorCacheMaxEntries });
-  const buyTaskQueue = createBuyTaskQueue();
-  const sellTaskQueue = createSellTaskQueue();
-
   // 程序启动时立即获取一次账户和持仓信息
-  await displayAccountAndPositions(trader, marketDataClient, lastState);
+  await refreshAccountAndPositions(trader, lastState);
 
   // 验证账户信息获取成功（程序启动必须获取到账户信息）
   if (!lastState.cachedAccount) {
@@ -273,216 +210,55 @@ async function main(): Promise<void> {
   }
 
   const positionsSnapshot = lastState.cachedPositions ?? [];
+  const seatResult = await prepareSeatsOnStartup({
+    tradingConfig,
+    symbolRegistry,
+    positions: positionsSnapshot,
+    orders: allOrders,
+    marketDataClient,
+    sleep,
+    now: () => new Date(),
+    intervalMs: TRADING.INTERVAL_MS,
+    logger,
+    getTradingMinutesSinceOpen,
+    isWithinMorningOpenProtection,
+  });
 
-  function updateSeatOnStartup(
-    monitorSymbol: string,
-    direction: 'LONG' | 'SHORT',
-    symbol: string | null,
-  ): void {
-    symbolRegistry.updateSeatState(monitorSymbol, direction, {
-      symbol,
-      status: symbol ? 'READY' : 'EMPTY',
-      lastSwitchAt: null,
-      lastSearchAt: null,
-    });
-  }
+  const tradeLogHydrator = createTradeLogHydrator({
+    readFileSync: fs.readFileSync,
+    existsSync: fs.existsSync,
+    cwd: () => process.cwd(),
+    nowMs: () => Date.now(),
+    logger,
+    tradingConfig,
+    liquidationCooldownTracker,
+  });
 
-  function resolveReadySeatSymbol(
-    monitorSymbol: string,
-    direction: 'LONG' | 'SHORT',
-  ): string | null {
-    const seatState = symbolRegistry.getSeatState(monitorSymbol, direction);
-    return isSeatReady(seatState) ? seatState.symbol : null;
-  }
+  tradeLogHydrator.hydrate({ seatSymbols: seatResult.seatSymbols });
 
-  function resolveAutoSearchThresholds(
-    direction: 'LONG' | 'SHORT',
-    autoSearchConfig: {
-      readonly autoSearchMinPriceBull: number | null;
-      readonly autoSearchMinPriceBear: number | null;
-      readonly autoSearchMinTurnoverPerMinuteBull: number | null;
-      readonly autoSearchMinTurnoverPerMinuteBear: number | null;
-    },
-  ): { minPrice: number | null; minTurnoverPerMinute: number | null } {
-    if (direction === 'LONG') {
-      return {
-        minPrice: autoSearchConfig.autoSearchMinPriceBull,
-        minTurnoverPerMinute: autoSearchConfig.autoSearchMinTurnoverPerMinuteBull,
-      };
-    }
-    return {
-      minPrice: autoSearchConfig.autoSearchMinPriceBear,
-      minTurnoverPerMinute: autoSearchConfig.autoSearchMinTurnoverPerMinuteBear,
-    };
-  }
+  // 初始化核心模块实例
+  const marketMonitor = createMarketMonitor(); // 市场状态监控
+  const doomsdayProtection = createDoomsdayProtection(); // 末日保护（收盘前清仓）
+  const signalProcessor = createSignalProcessor({ tradingConfig, liquidationCooldownTracker }); // 信号处理和风险检查
 
-  const quoteContextPromise = marketDataClient._getContext();
+  // 初始化异步任务处理架构
+  // IndicatorCache 容量 = max(buyDelay, sellDelay) + 缓冲区，用于延迟验证时查询历史指标
+  // 必须在 monitorContexts 之前初始化，因为 DelayedSignalVerifier 依赖 IndicatorCache
+  const maxDelaySeconds = Math.max(
+    ...tradingConfig.monitors.map((m) =>
+      Math.max(m.verificationConfig.buy.delaySeconds, m.verificationConfig.sell.delaySeconds),
+    ),
+  );
+  const indicatorCacheMaxEntries = maxDelaySeconds + 15 + 10;
+  const indicatorCache = createIndicatorCache({ maxEntries: indicatorCacheMaxEntries });
+  const buyTaskQueue = createBuyTaskQueue();
+  const sellTaskQueue = createSellTaskQueue();
 
-  async function searchSeatSymbol({
-    monitorSymbol,
-    direction,
-    autoSearchConfig,
-    currentTime,
-  }: {
-    monitorSymbol: string;
-    direction: 'LONG' | 'SHORT';
-    autoSearchConfig: {
-      readonly autoSearchExpiryMinMonths: number;
-      readonly autoSearchMinPriceBull: number | null;
-      readonly autoSearchMinPriceBear: number | null;
-      readonly autoSearchMinTurnoverPerMinuteBull: number | null;
-      readonly autoSearchMinTurnoverPerMinuteBear: number | null;
-    };
-    currentTime: Date;
-  }): Promise<string | null> {
-    const { minPrice, minTurnoverPerMinute } = resolveAutoSearchThresholds(
-      direction,
-      autoSearchConfig,
-    );
-    if (minPrice == null || minTurnoverPerMinute == null) {
-      logger.error(`[启动席位] 缺少自动寻标阈值配置: ${monitorSymbol} ${direction}`);
-      return null;
-    }
-
-    const nowMs = currentTime.getTime();
-    const currentSeat = symbolRegistry.getSeatState(monitorSymbol, direction);
-    symbolRegistry.updateSeatState(monitorSymbol, direction, {
-      symbol: null,
-      status: 'SEARCHING',
-      lastSwitchAt: currentSeat.lastSwitchAt ?? null,
-      lastSearchAt: nowMs,
-    });
-
-    const ctx = await quoteContextPromise;
-    const tradingMinutes = getTradingMinutesSinceOpen(currentTime);
-    const best = await findBestWarrant({
-      ctx,
-      monitorSymbol,
-      isBull: direction === 'LONG',
-      tradingMinutes,
-      minPrice,
-      minTurnoverPerMinute,
-      expiryMinMonths: autoSearchConfig.autoSearchExpiryMinMonths,
-    });
-
-    if (!best) {
-      symbolRegistry.updateSeatState(monitorSymbol, direction, {
-        symbol: null,
-        status: 'EMPTY',
-        lastSwitchAt: currentSeat.lastSwitchAt ?? null,
-        lastSearchAt: nowMs,
-      });
-      return null;
-    }
-
-    symbolRegistry.updateSeatState(monitorSymbol, direction, {
-      symbol: best.symbol,
-      status: 'READY',
-      lastSwitchAt: nowMs,
-      lastSearchAt: nowMs,
-    });
-    return best.symbol;
-  }
-
-  async function waitForSeatsReady(): Promise<void> {
-    let loggedWaiting = false;
-    while (true) {
-      const pendingSeats: Array<{
-        monitorSymbol: string;
-        direction: 'LONG' | 'SHORT';
-        autoSearchConfig: {
-          readonly autoSearchOpenDelayMinutes: number | null;
-          readonly autoSearchExpiryMinMonths: number;
-          readonly autoSearchMinPriceBull: number | null;
-          readonly autoSearchMinPriceBear: number | null;
-          readonly autoSearchMinTurnoverPerMinuteBull: number | null;
-          readonly autoSearchMinTurnoverPerMinuteBear: number | null;
-        };
-      }> = [];
-
-      for (const monitorConfig of tradingConfig.monitors) {
-        if (!monitorConfig.autoSearchConfig.autoSearchEnabled) {
-          continue;
-        }
-        const longSeat = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
-        if (!isSeatReady(longSeat)) {
-          pendingSeats.push({
-            monitorSymbol: monitorConfig.monitorSymbol,
-            direction: 'LONG',
-            autoSearchConfig: monitorConfig.autoSearchConfig,
-          });
-        }
-        const shortSeat = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'SHORT');
-        if (!isSeatReady(shortSeat)) {
-          pendingSeats.push({
-            monitorSymbol: monitorConfig.monitorSymbol,
-            direction: 'SHORT',
-            autoSearchConfig: monitorConfig.autoSearchConfig,
-          });
-        }
-      }
-
-      if (pendingSeats.length === 0) {
-        if (loggedWaiting) {
-          logger.info('[启动席位] 所有席位已就绪');
-        }
-        return;
-      }
-
-      if (!loggedWaiting) {
-        logger.info(`[启动席位] ${pendingSeats.length} 个席位待寻标，阻塞等待`);
-        loggedWaiting = true;
-      }
-
-      const currentTime = new Date();
-      for (const seat of pendingSeats) {
-        const openDelayMinutes = seat.autoSearchConfig.autoSearchOpenDelayMinutes ?? 0;
-        if (
-          openDelayMinutes > 0 &&
-          isWithinMorningOpenProtection(currentTime, openDelayMinutes)
-        ) {
-          continue;
-        }
-        const symbol = await searchSeatSymbol({
-          monitorSymbol: seat.monitorSymbol,
-          direction: seat.direction,
-          autoSearchConfig: seat.autoSearchConfig,
-          currentTime,
-        });
-        if (symbol) {
-          logger.info(`[启动席位] ${seat.monitorSymbol} ${seat.direction} 已就绪: ${symbol}`);
-        }
-      }
-
-      await sleep(TRADING.INTERVAL_MS);
-    }
-  }
-
-  for (const monitorConfig of tradingConfig.monitors) {
-    const autoSearchEnabled = monitorConfig.autoSearchConfig.autoSearchEnabled;
-    const candidateLongSymbol = getLatestTradedSymbol(allOrders, monitorConfig.monitorSymbol, 'LONG');
-    const candidateShortSymbol = getLatestTradedSymbol(allOrders, monitorConfig.monitorSymbol, 'SHORT');
-
-    const resolvedLongSymbol = resolveSeatOnStartup({
-      autoSearchEnabled,
-      candidateSymbol: candidateLongSymbol ?? null,
-      configuredSymbol: monitorConfig.longSymbol,
-      positions: positionsSnapshot,
-    });
-    const resolvedShortSymbol = resolveSeatOnStartup({
-      autoSearchEnabled,
-      candidateSymbol: candidateShortSymbol ?? null,
-      configuredSymbol: monitorConfig.shortSymbol,
-      positions: positionsSnapshot,
-    });
-
-    updateSeatOnStartup(monitorConfig.monitorSymbol, 'LONG', resolvedLongSymbol);
-    updateSeatOnStartup(monitorConfig.monitorSymbol, 'SHORT', resolvedShortSymbol);
-  }
-
-  await waitForSeatsReady();
-
-  const allTradingSymbols = collectAllQuoteSymbols(tradingConfig.monitors, symbolRegistry);
+  const allTradingSymbols = collectRuntimeQuoteSymbols(
+    tradingConfig.monitors,
+    symbolRegistry,
+    lastState.cachedPositions,
+  );
   lastState.allTradingSymbols = allTradingSymbols;
   if (allTradingSymbols.size > 0) {
     await marketDataClient.subscribeSymbols([...allTradingSymbols]);
@@ -491,6 +267,89 @@ async function main(): Promise<void> {
   // 初始化监控标的上下文
   // 首先批量获取所有标的行情（用于获取标的名称，减少 API 调用次数）
   const initQuotesMap = await marketDataClient.getQuotes(allTradingSymbols);
+
+  const runtimeValidationInputs: Array<{
+    symbol: string;
+    label: string;
+    requireLotSize: boolean;
+    required: boolean;
+  }> = [];
+  const requiredSymbols = new Set<string>();
+
+  function pushRequiredSymbol(
+    symbol: string | null,
+    label: string,
+    requireLotSize: boolean,
+  ): void {
+    if (!symbol || requiredSymbols.has(symbol)) {
+      return;
+    }
+    requiredSymbols.add(symbol);
+    runtimeValidationInputs.push({
+      symbol,
+      label,
+      requireLotSize,
+      required: true,
+    });
+  }
+
+  function pushOptionalSymbol(symbol: string | null, label: string): void {
+    if (!symbol || requiredSymbols.has(symbol)) {
+      return;
+    }
+    runtimeValidationInputs.push({
+      symbol,
+      label,
+      requireLotSize: false,
+      required: false,
+    });
+  }
+
+  for (const monitorConfig of tradingConfig.monitors) {
+    const index = monitorConfig.originalIndex;
+    pushRequiredSymbol(monitorConfig.monitorSymbol, `监控标的 ${index}`, false);
+
+    const longSeatSymbol = resolveReadySeatSymbol(
+      symbolRegistry,
+      monitorConfig.monitorSymbol,
+      'LONG',
+    );
+    const shortSeatSymbol = resolveReadySeatSymbol(
+      symbolRegistry,
+      monitorConfig.monitorSymbol,
+      'SHORT',
+    );
+    pushRequiredSymbol(longSeatSymbol, `做多席位标的 ${index}`, true);
+    pushRequiredSymbol(shortSeatSymbol, `做空席位标的 ${index}`, true);
+  }
+
+  for (const position of lastState.cachedPositions) {
+    pushOptionalSymbol(position.symbol, '持仓标的');
+  }
+
+  const runtimeValidationResult = validateRuntimeSymbolsFromQuotesMap({
+    inputs: runtimeValidationInputs,
+    quotesMap: initQuotesMap,
+  });
+
+  if (runtimeValidationResult.warnings.length > 0) {
+    logger.warn('标的验证出现警告：');
+    runtimeValidationResult.warnings.forEach((warning, index) => {
+      logger.warn(`${index + 1}. ${warning}`);
+    });
+  }
+
+  if (!runtimeValidationResult.valid) {
+    logger.error('标的验证失败！');
+    logger.error('='.repeat(60));
+    runtimeValidationResult.errors.forEach((error, index) => {
+      logger.error(`${index + 1}. ${error}`);
+    });
+    logger.error('='.repeat(60));
+    process.exit(1);
+  }
+
+  await displayAccountAndPositions({ lastState, quotesMap: initQuotesMap });
 
   const monitorContexts: Map<string, MonitorContext> = new Map();
   for (const monitorConfig of tradingConfig.monitors) {
@@ -573,8 +432,16 @@ async function main(): Promise<void> {
       }
     }
 
-    const longSeatSymbol = resolveReadySeatSymbol(monitorConfig.monitorSymbol, 'LONG');
-    const shortSeatSymbol = resolveReadySeatSymbol(monitorConfig.monitorSymbol, 'SHORT');
+    const longSeatSymbol = resolveReadySeatSymbol(
+      symbolRegistry,
+      monitorConfig.monitorSymbol,
+      'LONG',
+    );
+    const shortSeatSymbol = resolveReadySeatSymbol(
+      symbolRegistry,
+      monitorConfig.monitorSymbol,
+      'SHORT',
+    );
 
     await refreshSeatWarrantInfo(longSeatSymbol, true);
     await refreshSeatWarrantInfo(shortSeatSymbol, false);
@@ -583,8 +450,16 @@ async function main(): Promise<void> {
   // 程序启动时刷新订单记录（为所有监控标的初始化订单记录）
   for (const monitorContext of monitorContexts.values()) {
     const { config: ctxConfig, orderRecorder } = monitorContext;
-    const longSeatSymbol = resolveReadySeatSymbol(ctxConfig.monitorSymbol, 'LONG');
-    const shortSeatSymbol = resolveReadySeatSymbol(ctxConfig.monitorSymbol, 'SHORT');
+    const longSeatSymbol = resolveReadySeatSymbol(
+      symbolRegistry,
+      ctxConfig.monitorSymbol,
+      'LONG',
+    );
+    const shortSeatSymbol = resolveReadySeatSymbol(
+      symbolRegistry,
+      ctxConfig.monitorSymbol,
+      'SHORT',
+    );
 
     if (longSeatSymbol) {
       const quote = initQuotesMap.get(longSeatSymbol) ?? null;
@@ -615,8 +490,16 @@ async function main(): Promise<void> {
   for (const monitorContext of monitorContexts.values()) {
     const { config: ctxConfig, riskChecker, orderRecorder } = monitorContext;
     if ((ctxConfig.maxUnrealizedLossPerSymbol ?? 0) > 0) {
-      const longSeatSymbol = resolveReadySeatSymbol(ctxConfig.monitorSymbol, 'LONG');
-      const shortSeatSymbol = resolveReadySeatSymbol(ctxConfig.monitorSymbol, 'SHORT');
+      const longSeatSymbol = resolveReadySeatSymbol(
+        symbolRegistry,
+        ctxConfig.monitorSymbol,
+        'LONG',
+      );
+      const shortSeatSymbol = resolveReadySeatSymbol(
+        symbolRegistry,
+        ctxConfig.monitorSymbol,
+        'SHORT',
+      );
 
       if (longSeatSymbol) {
         const quote = initQuotesMap.get(longSeatSymbol) ?? null;
@@ -758,6 +641,7 @@ async function main(): Promise<void> {
         indicatorCache,
         buyTaskQueue,
         sellTaskQueue,
+        runtimeGateMode: gatePolicies.runtimeGate,
       });
     } catch (err) {
       logger.error('本次执行失败', formatError(err));

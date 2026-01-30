@@ -39,14 +39,6 @@ export type TradingValidationResult = ValidationResult & {
   readonly missingFields: ReadonlyArray<string>;
 };
 
-/** 标的验证结果（含名称和每手股数） */
-export type SymbolValidationResult = {
-  readonly valid: boolean;
-  readonly name: string | null;
-  readonly lotSize: number | null;
-  readonly error?: string;
-};
-
 export type SymbolValidationContext = {
   readonly prefix: string;
   readonly symbol: string;
@@ -61,18 +53,17 @@ export type DuplicateSymbol = {
   readonly previousIndex: number;
 };
 
-export type SymbolRole = 'monitor' | 'long' | 'short';
-
-export type SymbolIndexEntry = {
-  readonly monitorIndex: number;
-  readonly longIndex: number | null;
-  readonly shortIndex: number | null;
-};
-
-export type SymbolValidationInput = {
+export type RuntimeSymbolValidationInput = {
   readonly symbol: string;
   readonly label: string;
   readonly requireLotSize: boolean;
+  readonly required: boolean;
+};
+
+export type RuntimeSymbolValidationResult = {
+  readonly valid: boolean;
+  readonly errors: ReadonlyArray<string>;
+  readonly warnings: ReadonlyArray<string>;
 };
 
 export type SignalConfigKey = keyof MonitorConfig['signalConfig'];

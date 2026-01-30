@@ -10,7 +10,7 @@
  * - batchGetQuotes()：批量获取行情数据
  */
 
-import type { MarketDataClient, Quote, SymbolRegistry } from '../../types/index.js';
+import type { MarketDataClient, Position, Quote, SymbolRegistry } from '../../types/index.js';
 
 /**
  * 收集所有需要获取行情的标的代码
@@ -44,6 +44,24 @@ export function collectAllQuoteSymbols(
     }
   }
 
+  return symbols;
+}
+
+export function collectRuntimeQuoteSymbols(
+  monitorConfigs: ReadonlyArray<{
+    readonly monitorSymbol: string;
+    readonly longSymbol: string;
+    readonly shortSymbol: string;
+  }>,
+  symbolRegistry: SymbolRegistry,
+  positions: ReadonlyArray<Position>,
+): Set<string> {
+  const symbols = collectAllQuoteSymbols(monitorConfigs, symbolRegistry);
+  for (const position of positions) {
+    if (position.symbol) {
+      symbols.add(position.symbol);
+    }
+  }
   return symbols;
 }
 
