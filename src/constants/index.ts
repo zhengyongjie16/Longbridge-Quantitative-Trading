@@ -11,7 +11,10 @@
  * - 信号相关：交易信号类型定义
  */
 
+import { OrderStatus } from 'longport';
 import type { OrderTypeConfig, SignalType } from '../types/index.js';
+
+type OrderStatusValue = typeof OrderStatus[keyof typeof OrderStatus];
 
 /** 时间相关常量 */
 export const TIME = {
@@ -87,6 +90,18 @@ export const MONITOR = {
   CHANGE_PERCENT_THRESHOLD: 0.01,
 } as const;
 
+/** 订单相关常量 */
+export const ORDER_PRICE_DIFF_THRESHOLD = 0.001;
+
+/** 未成交订单状态集合（New/PartialFilled/WaitToNew/WaitToReplace/PendingReplace） */
+export const PENDING_ORDER_STATUSES = new Set<OrderStatusValue>([
+  OrderStatus.New,
+  OrderStatus.PartialFilled,
+  OrderStatus.WaitToNew,
+  OrderStatus.WaitToReplace,
+  OrderStatus.PendingReplace,
+]) as ReadonlySet<OrderStatusValue>;
+
 /** 风险检查相关常量（牛熊证） */
 /** 牛证最低距离回收价百分比（低于此值拒绝买入） */
 export const BULL_WARRANT_MIN_DISTANCE_PERCENT = 0.5;
@@ -106,6 +121,20 @@ export const DEFAULT_PRICE_DECIMALS = 3;
 export const DEFAULT_PERCENT_DECIMALS = 2;
 /** 牛熊证距离回收价清仓订单类型 */
 export const WARRANT_LIQUIDATION_ORDER_TYPE: OrderTypeConfig = 'ELO';
+
+/** 标的代码格式正则（ticker.region） */
+export const SYMBOL_WITH_REGION_REGEX = /^[A-Z0-9]+\.[A-Z]{2,5}$/;
+
+/** 账户渠道映射表 */
+export const ACCOUNT_CHANNEL_MAP: Record<string, string> = {
+  lb_papertrading: '模拟交易',
+  paper_trading: '模拟交易',
+  papertrading: '模拟交易',
+  real_trading: '实盘交易',
+  realtrading: '实盘交易',
+  live: '实盘交易',
+  demo: '模拟交易',
+};
 
 /** 信号类型常量（内部使用） */
 const SIGNAL_ACTIONS = {

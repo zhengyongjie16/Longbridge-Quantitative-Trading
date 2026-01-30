@@ -22,7 +22,6 @@ export type WarrantListItem = {
 
 export type SelectBestWarrantInput = {
   readonly warrants: ReadonlyArray<WarrantListItem>;
-  readonly isBull: boolean;
   readonly tradingMinutes: number;
   readonly minPrice: number;
   readonly minTurnoverPerMinute: number;

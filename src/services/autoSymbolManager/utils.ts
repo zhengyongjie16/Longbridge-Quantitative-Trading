@@ -1,15 +1,12 @@
-import type { MonitorConfig, SeatState, SeatStatus, SeatVersion, SymbolRegistry } from '../../types/index.js';
-import type { SeatDirection } from './types.js';
-
-type SeatEntry = {
-  state: SeatState;
-  version: SeatVersion;
-};
-
-type SymbolSeatEntry = {
-  long: SeatEntry;
-  short: SeatEntry;
-};
+import type {
+  MonitorConfig,
+  Position,
+  SeatState,
+  SeatStatus,
+  SeatVersion,
+  SymbolRegistry,
+} from '../../types/index.js';
+import type { SeatDirection, SeatEntry, SymbolSeatEntry } from './types.js';
 
 export function isSeatReady(
   seatState: SeatState | null | undefined,
@@ -28,6 +25,29 @@ export function isSeatVersionMatch(
   currentVersion: SeatVersion,
 ): boolean {
   return Number.isFinite(signalVersion) && signalVersion === currentVersion;
+}
+
+export function resolveSeatOnStartup({
+  autoSearchEnabled,
+  candidateSymbol,
+  configuredSymbol,
+  positions,
+}: {
+  readonly autoSearchEnabled: boolean;
+  readonly candidateSymbol: string | null;
+  readonly configuredSymbol: string | null;
+  readonly positions: ReadonlyArray<Position>;
+}): string | null {
+  if (!autoSearchEnabled) {
+    return configuredSymbol ?? null;
+  }
+  if (!candidateSymbol) {
+    return null;
+  }
+  const hasPosition = positions.some((position) => {
+    return position.symbol === candidateSymbol && (position.quantity ?? 0) > 0;
+  });
+  return hasPosition ? candidateSymbol : null;
 }
 
 function createSeatState(symbol: string | null, status: SeatStatus): SeatState {

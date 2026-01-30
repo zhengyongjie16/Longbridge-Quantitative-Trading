@@ -27,28 +27,10 @@ import type {
 } from '../../types/index.js';
 import { inspect } from 'node:util';
 import { Decimal } from 'longport';
-import { TIME } from '../../constants/index.js';
-import type { DecimalLike } from './types.js';
+import { TIME, SYMBOL_WITH_REGION_REGEX, ACCOUNT_CHANNEL_MAP } from '../../constants/index.js';
+import type { DecimalLike, QuoteDisplayResult, TimeFormatOptions } from './types.js';
 import { logger } from '../logger/index.js';
 import { kdjObjectPool, macdObjectPool } from '../objectPool/index.js';
-
-/**
- * 时间格式化选项（内部使用）
- */
-type TimeFormatOptions = {
-  readonly format?: 'iso' | 'log';
-};
-
-/**
- * 行情显示格式化结果
- */
-type QuoteDisplayResult = {
-  readonly nameText: string;
-  readonly codeText: string;
-  readonly priceText: string;
-  readonly changeAmountText: string;
-  readonly changePercentText: string;
-};
 
 /**
  * 检查值是否已定义（不是 null 或 undefined）
@@ -90,8 +72,6 @@ function isErrorLike(value: unknown): value is Record<string, unknown> {
  * @param symbol 标的代码，例如 "68547.HK"
  * @returns 是否符合 ticker.region 格式
  */
-const SYMBOL_WITH_REGION_REGEX = /^[A-Z0-9]+\.[A-Z]{2,5}$/;
-
 export function isSymbolWithRegion(symbol: string | null | undefined): symbol is string {
   if (!symbol || typeof symbol !== 'string') {
     return false;
@@ -156,16 +136,6 @@ export function formatNumber(num: number | null | undefined, digits: number = 2)
 /**
  * 账户渠道映射表
  */
-const channelMap: Record<string, string> = {
-  lb_papertrading: '模拟交易',
-  paper_trading: '模拟交易',
-  papertrading: '模拟交易',
-  real_trading: '实盘交易',
-  realtrading: '实盘交易',
-  live: '实盘交易',
-  demo: '模拟交易',
-};
-
 /**
  * 格式化账户渠道显示名称
  * @param accountChannel 账户渠道代码
@@ -180,8 +150,8 @@ export function formatAccountChannel(accountChannel: string | null | undefined):
   const lowerChannel = accountChannel.toLowerCase();
 
   // 如果找到映射，返回中文名称
-  if (channelMap[lowerChannel]) {
-    return channelMap[lowerChannel];
+  if (ACCOUNT_CHANNEL_MAP[lowerChannel]) {
+    return ACCOUNT_CHANNEL_MAP[lowerChannel];
   }
 
   // 否则返回原始值
@@ -204,8 +174,6 @@ export function formatSymbolDisplay(symbol: string | null | undefined, symbolNam
   }
   return symbol;
 }
-
-// 常量定义（已从统一常量文件导入）
 
 function toBeijingTime(date: Date | null = null, options: TimeFormatOptions = {}): string {
   const { format = 'iso' } = options;
@@ -420,8 +388,6 @@ export function initMonitorState(config: MonitorConfig): MonitorState {
   return {
     monitorSymbol: config.monitorSymbol,
     monitorPrice: null,
-    longSymbol: config.longSymbol,
-    shortSymbol: config.shortSymbol,
     longPrice: null,
     shortPrice: null,
     signal: null,

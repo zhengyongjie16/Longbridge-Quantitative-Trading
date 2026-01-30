@@ -591,13 +591,13 @@ export interface SymbolRegistry {
  */
 export type MonitorState = {
   /** 监控标的代码 */
-  monitorSymbol: string;
+  readonly monitorSymbol: string;
+  /**
+   * 运行中持续更新的状态字段（性能考虑保持可变）
+   * - monitorPrice/longPrice/shortPrice/signal/pendingDelayedSignals/monitorValues/lastMonitorSnapshot
+   */
   /** 监控标的当前价格 */
   monitorPrice: number | null;
-  /** 做多标的代码 */
-  longSymbol: string;
-  /** 做空标的代码 */
-  shortSymbol: string;
   /** 做多标的当前价格 */
   longPrice: number | null;
   /** 做空标的当前价格 */
@@ -605,7 +605,7 @@ export type MonitorState = {
   /** 当前信号 */
   signal: SignalType | null;
   /** 待处理的延迟验证信号 */
-  pendingDelayedSignals: Signal[];
+  pendingDelayedSignals: ReadonlyArray<Signal>;
   /** 监控指标值 */
   monitorValues: MonitorValues | null;
   /** 最新指标快照 */
@@ -617,6 +617,10 @@ export type MonitorState = {
  * 主循环中的共享状态，被多个模块使用
  */
 export type LastState = {
+  /**
+   * 运行中持续更新的状态字段（性能考虑保持可变）
+   * - canTrade/isHalfDay/openProtectionActive/cachedAccount/cachedPositions/cachedTradingDayInfo/allTradingSymbols
+   */
   /** 当前是否可交易 */
   canTrade: boolean | null;
   /** 是否为半日市 */
@@ -626,13 +630,13 @@ export type LastState = {
   /** 账户快照缓存 */
   cachedAccount: AccountSnapshot | null;
   /** 持仓列表缓存 */
-  cachedPositions: Position[];
+  cachedPositions: ReadonlyArray<Position>;
   /** 持仓缓存（O(1) 查找） */
-  positionCache: PositionCache;
+  readonly positionCache: PositionCache;
   /** 交易日信息缓存 */
   cachedTradingDayInfo: TradingDayInfo | null;
   /** 各监控标的状态（monitorSymbol -> MonitorState） */
-  monitorStates: Map<string, MonitorState>;
+  readonly monitorStates: ReadonlyMap<string, MonitorState>;
   /** 所有交易标的集合（静态，初始化时计算） */
   allTradingSymbols: ReadonlySet<string>;
 };
@@ -648,15 +652,18 @@ export type MonitorContext = {
   readonly state: MonitorState;
   /** 标的注册表 */
   readonly symbolRegistry: SymbolRegistry;
+  /**
+   * 运行中会更新的席位缓存（保持可变，避免频繁重建上下文）
+   */
   /** 席位状态缓存 */
   seatState: {
-    long: SeatState;
-    short: SeatState;
+    readonly long: SeatState;
+    readonly short: SeatState;
   };
   /** 席位版本缓存 */
   seatVersion: {
-    long: SeatVersion;
-    short: SeatVersion;
+    readonly long: SeatVersion;
+    readonly short: SeatVersion;
   };
   /** 自动换标管理器 */
   readonly autoSymbolManager: import('../services/autoSymbolManager/types.js').AutoSymbolManager;
@@ -676,18 +683,14 @@ export type MonitorContext = {
   shortSymbolName: string;
   /** 监控标的名称缓存 */
   monitorSymbolName: string;
-  /** 已校验的做多标的代码 */
-  normalizedLongSymbol: string;
-  /** 已校验的做空标的代码 */
-  normalizedShortSymbol: string;
   /** 已校验的监控标的代码 */
-  normalizedMonitorSymbol: string;
+  readonly normalizedMonitorSymbol: string;
   /** RSI 指标周期配置 */
-  rsiPeriods: number[];
+  rsiPeriods: ReadonlyArray<number>;
   /** EMA 指标周期配置 */
-  emaPeriods: number[];
+  emaPeriods: ReadonlyArray<number>;
   /** PSY 指标周期配置 */
-  psyPeriods: number[];
+  psyPeriods: ReadonlyArray<number>;
   /** 做多标的行情缓存 */
   longQuote: Quote | null;
   /** 做空标的行情缓存 */
@@ -828,19 +831,6 @@ export type OrderRecord = {
 };
 
 /**
- * 订单获取结果
- * fetchOrdersFromAPI 的返回类型
- */
-export type FetchOrdersResult = {
-  /** 是否成功 */
-  readonly success?: boolean;
-  /** 买入订单列表 */
-  readonly buyOrders: ReadonlyArray<OrderRecord>;
-  /** 卖出订单列表 */
-  readonly sellOrders: ReadonlyArray<OrderRecord>;
-};
-
-/**
  * 交易检查结果
  * 检查当前是否可以执行交易
  */
@@ -886,12 +876,8 @@ export interface OrderRecorder {
   getBuyOrdersBelowPrice(currentPrice: number, direction: 'LONG' | 'SHORT', symbol: string): OrderRecord[];
   /** 计算订单列表的总数量 */
   calculateTotalQuantity(orders: OrderRecord[]): number;
-  /** 从 API 获取订单 */
-  fetchOrdersFromAPI(symbol: string): Promise<FetchOrdersResult>;
   /** 从 API 获取全量订单 */
   fetchAllOrdersFromAPI(forceRefresh?: boolean): Promise<ReadonlyArray<RawOrderFromAPI>>;
-  /** 刷新订单数据 */
-  refreshOrders(symbol: string, isLongSymbol: boolean, quote?: Quote | null): Promise<OrderRecord[]>;
   /** 使用全量订单刷新指定标的记录 */
   refreshOrdersFromAllOrders(
     symbol: string,
@@ -1005,7 +991,7 @@ export type RiskCheckContext = {
   /** 全局状态引用 */
   readonly lastState: {
     cachedAccount?: AccountSnapshot | null;
-    cachedPositions?: Position[];
+    cachedPositions?: ReadonlyArray<Position>;
     positionCache: PositionCache;
   };
   /** 当前时间 */

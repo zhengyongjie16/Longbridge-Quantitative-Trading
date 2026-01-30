@@ -22,6 +22,7 @@ import {
 import type { PushOrderChanged } from 'longport';
 import { logger } from '../../utils/logger/index.js';
 import { decimalToNumber, toDecimal, formatError, toBeijingTimeIso } from '../../utils/helpers/index.js';
+import { ORDER_PRICE_DIFF_THRESHOLD } from '../../constants/index.js';
 import type { Quote, PendingRefreshSymbol, GlobalConfig } from '../../types/index.js';
 import type {
   OrderMonitor,
@@ -30,8 +31,6 @@ import type {
   OrderMonitorConfig,
 } from './types.js';
 import { recordTrade } from './tradeLogger.js';
-
-const PRICE_DIFF_THRESHOLD = 0.001;
 
 /** 构建监控配置（将秒转换为毫秒） */
 function buildOrderMonitorConfig(globalConfig: GlobalConfig): OrderMonitorConfig {
@@ -45,7 +44,7 @@ function buildOrderMonitorConfig(globalConfig: GlobalConfig): OrderMonitorConfig
       timeoutMs: globalConfig.sellOrderTimeout.timeoutSeconds * 1000,
     },
     priceUpdateIntervalMs: globalConfig.orderMonitorPriceUpdateInterval * 1000,
-    priceDiffThreshold: PRICE_DIFF_THRESHOLD, // 固定值，不需要配置
+    priceDiffThreshold: ORDER_PRICE_DIFF_THRESHOLD, // 固定值，不需要配置
   };
 }
 
@@ -97,16 +96,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
         monitorSymbol: resolved.monitorSymbol,
       };
     }
-
-    for (const monitor of tradingConfig.monitors) {
-      if (monitor.longSymbol === symbol) {
-        return { isLongSymbol: true, monitorSymbol: monitor.monitorSymbol };
-      }
-      if (monitor.shortSymbol === symbol) {
-        return { isLongSymbol: false, monitorSymbol: monitor.monitorSymbol };
-      }
-    }
-
+    logger.warn(`[订单监控] 未找到席位归属，使用默认方向: ${symbol}`);
     return { isLongSymbol: true, monitorSymbol: null };
   }
 

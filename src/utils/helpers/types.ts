@@ -3,6 +3,8 @@
  *
  * 定义辅助函数相关的类型：
  * - DecimalLike：LongPort Decimal 兼容接口
+ * - TimeFormatOptions：时间格式化选项
+ * - QuoteDisplayResult：行情显示格式化结果
  * - IndicatorState：指标状态接口（KDJ、MACD、EMA、RSI、PSY、MFI）
  * - ParsedCondition / ParsedConditionGroup：信号配置解析结果
  * - EvaluationResult / ConditionGroupResult：条件评估结果
@@ -12,6 +14,24 @@
 /** LongPort Decimal 类型兼容接口 */
 export type DecimalLike = {
   toNumber(): number;
+};
+
+/**
+ * 时间格式化选项（内部使用）
+ */
+export type TimeFormatOptions = {
+  readonly format?: 'iso' | 'log';
+};
+
+/**
+ * 行情显示格式化结果
+ */
+export type QuoteDisplayResult = {
+  readonly nameText: string;
+  readonly codeText: string;
+  readonly priceText: string;
+  readonly changeAmountText: string;
+  readonly changePercentText: string;
 };
 
 /**

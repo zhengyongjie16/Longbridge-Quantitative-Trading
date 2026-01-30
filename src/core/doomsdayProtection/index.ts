@@ -20,17 +20,9 @@ import { formatError } from '../../utils/helpers/index.js';
 import { batchGetQuotes } from '../../utils/helpers/quoteHelpers.js';
 import { isBeforeClose15Minutes, isBeforeClose5Minutes } from '../../utils/helpers/tradingTime.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
+import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
 import type { MonitorContext, Position, Quote, Signal, SignalType } from '../../types/index.js';
 import type { DoomsdayProtection, DoomsdayClearanceContext, DoomsdayClearanceResult, CancelPendingBuyOrdersContext, CancelPendingBuyOrdersResult, ClearanceSignalParams } from './types.js';
-
-function getConfiguredSymbols(
-  monitorConfig: DoomsdayClearanceContext['monitorConfigs'][number],
-): { longSymbol: string | null; shortSymbol: string | null } {
-  return {
-    longSymbol: monitorConfig.longSymbol || null,
-    shortSymbol: monitorConfig.shortSymbol || null,
-  };
-}
 
 /** 创建单个清仓信号，从对象池获取 Signal 对象 */
 function createClearanceSignal(params: ClearanceSignalParams): Signal | null {
@@ -56,34 +48,26 @@ function resolveSeatSymbol(
   direction: 'LONG' | 'SHORT',
 ): string | null {
   if (!context) {
+    logger.warn(`[末日保护程序] 未找到监控上下文，跳过席位: ${monitorSymbol} ${direction}`);
     return null;
   }
   const seatState = context.symbolRegistry.getSeatState(monitorSymbol, direction);
-  if (seatState.status !== 'READY') {
+  if (!isSeatReady(seatState)) {
+    logger.info(`[末日保护程序] 席位未就绪，跳过: ${monitorSymbol} ${direction}`);
     return null;
   }
-  return seatState.symbol ?? null;
+  return seatState.symbol;
 }
 
 function resolveMonitorSymbols(
-  monitorConfig: DoomsdayClearanceContext['monitorConfigs'][number],
+  monitorSymbol: string,
   monitorContexts: DoomsdayClearanceContext['monitorContexts'],
 ): { longSymbol: string | null; shortSymbol: string | null } {
-  if (!monitorConfig.autoSearchConfig.autoSearchEnabled) {
-    return getConfiguredSymbols(monitorConfig);
-  }
-
-  const context = monitorContexts.get(monitorConfig.monitorSymbol);
-  if (!context) {
-    logger.warn(
-      `[末日保护程序] 未找到监控上下文，使用配置标的清仓: ${monitorConfig.monitorSymbol}`,
-    );
-    return getConfiguredSymbols(monitorConfig);
-  }
+  const context = monitorContexts.get(monitorSymbol);
 
   return {
-    longSymbol: resolveSeatSymbol(context, monitorConfig.monitorSymbol, 'LONG'),
-    shortSymbol: resolveSeatSymbol(context, monitorConfig.monitorSymbol, 'SHORT'),
+    longSymbol: resolveSeatSymbol(context, monitorSymbol, 'LONG'),
+    shortSymbol: resolveSeatSymbol(context, monitorSymbol, 'SHORT'),
   };
 }
 
@@ -195,7 +179,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
       const allTradingSymbols = new Set<string>();
       for (const monitorConfig of monitorConfigs) {
         const { longSymbol, shortSymbol } = resolveMonitorSymbols(
-          monitorConfig,
+          monitorConfig.monitorSymbol,
           monitorContexts,
         );
         if (longSymbol) {
@@ -213,7 +197,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
       const allClearanceSignals: Signal[] = [];
       for (const monitorConfig of monitorConfigs) {
         const { longSymbol, shortSymbol } = resolveMonitorSymbols(
-          monitorConfig,
+          monitorConfig.monitorSymbol,
           monitorContexts,
         );
         const longQuote = longSymbol ? quoteMap.get(longSymbol) ?? null : null;
@@ -264,13 +248,17 @@ export function createDoomsdayProtection(): DoomsdayProtection {
       // 清空所有监控标的的订单记录
       for (const monitorContext of monitorContexts.values()) {
         const { config, orderRecorder } = monitorContext;
-        if (config.longSymbol) {
-          const quote = quoteMap.get(config.longSymbol) ?? null;
-          orderRecorder.clearBuyOrders(config.longSymbol, true, quote);
+        const { longSymbol, shortSymbol } = resolveMonitorSymbols(
+          config.monitorSymbol,
+          monitorContexts,
+        );
+        if (longSymbol) {
+          const quote = quoteMap.get(longSymbol) ?? null;
+          orderRecorder.clearBuyOrders(longSymbol, true, quote);
         }
-        if (config.shortSymbol) {
-          const quote = quoteMap.get(config.shortSymbol) ?? null;
-          orderRecorder.clearBuyOrders(config.shortSymbol, false, quote);
+        if (shortSymbol) {
+          const quote = quoteMap.get(shortSymbol) ?? null;
+          orderRecorder.clearBuyOrders(shortSymbol, false, quote);
         }
       }
 
@@ -284,6 +272,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
         currentTime,
         isHalfDay,
         monitorConfigs,
+        monitorContexts,
         trader,
       } = context;
 
@@ -307,11 +296,15 @@ export function createDoomsdayProtection(): DoomsdayProtection {
       // 收集所有唯一的交易标的
       const allTradingSymbols = new Set<string>();
       for (const monitorConfig of monitorConfigs) {
-        if (monitorConfig.longSymbol) {
-          allTradingSymbols.add(monitorConfig.longSymbol);
+        const { longSymbol, shortSymbol } = resolveMonitorSymbols(
+          monitorConfig.monitorSymbol,
+          monitorContexts,
+        );
+        if (longSymbol) {
+          allTradingSymbols.add(longSymbol);
         }
-        if (monitorConfig.shortSymbol) {
-          allTradingSymbols.add(monitorConfig.shortSymbol);
+        if (shortSymbol) {
+          allTradingSymbols.add(shortSymbol);
         }
       }
 

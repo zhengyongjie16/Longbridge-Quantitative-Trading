@@ -25,7 +25,6 @@ import { logger } from '../../utils/logger/index.js';
 import { getDirectionName, formatSymbolDisplayFromQuote } from '../../utils/helpers/index.js';
 import type {
   OrderRecord,
-  FetchOrdersResult,
   OrderRecorder,
   PendingOrder,
   Quote,
@@ -35,19 +34,11 @@ import type {
   OrderStatistics,
   OrderRecorderDeps,
 } from './types.js';
-import { createOrderStorage } from './orderStorage.js';
-import { createOrderAPIManager } from './orderAPIManager.js';
-import { createOrderFilteringEngine } from './orderFilteringEngine.js';
 import { classifyAndConvertOrders } from './utils.js';
 
 /** 创建订单记录器（门面模式），协调存储、API和过滤引擎 */
 export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
-  const { ctxPromise, rateLimiter } = deps;
-
-  // 按依赖顺序初始化子模块
-  const storage = createOrderStorage();
-  const apiManager = createOrderAPIManager({ ctxPromise, rateLimiter });
-  const filteringEngine = createOrderFilteringEngine();
+  const { storage, apiManager, filteringEngine } = deps;
 
   // ============================================
   // 私有方法 - 验证和工具
@@ -327,38 +318,11 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
   // 公有方法 - 订单获取和刷新
   // ============================================
 
-  /** 从 API 获取订单数据（启动时或强制刷新时调用） */
-  async function fetchOrdersFromAPI(symbol: string): Promise<FetchOrdersResult> {
-    return apiManager.fetchOrdersFromAPI(symbol);
-  }
-
   /** 从 API 获取全量订单数据（启动时调用一次） */
   async function fetchAllOrdersFromAPI(
     forceRefresh = false,
   ): Promise<ReadonlyArray<RawOrderFromAPI>> {
     return apiManager.fetchAllOrdersFromAPI(forceRefresh);
-  }
-
-  /**
-   * 刷新订单记录（用于智能清仓决策）
-   * 从 API 获取订单后应用过滤算法，更新本地存储
-   */
-  async function refreshOrders(
-    symbol: string,
-    isLongSymbol: boolean,
-    quote?: Quote | null,
-  ): Promise<OrderRecord[]> {
-    try {
-      const { buyOrders: allBuyOrders, sellOrders: filledSellOrders } =
-        await apiManager.fetchOrdersFromAPI(symbol);
-      return applyOrdersRefresh(symbol, isLongSymbol, allBuyOrders, filledSellOrders, quote);
-    } catch (error) {
-      logger.error(
-        `[订单记录失败] 标的 ${symbol}`,
-        (error as Error)?.message ?? String(error),
-      );
-      return [];
-    }
   }
 
   /**
@@ -433,9 +397,7 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     getLatestBuyOrderPrice,
     getBuyOrdersBelowPrice,
     calculateTotalQuantity,
-    fetchOrdersFromAPI,
     fetchAllOrdersFromAPI,
-    refreshOrders,
     refreshOrdersFromAllOrders,
     hasCacheForSymbols,
     getPendingOrdersFromCache,

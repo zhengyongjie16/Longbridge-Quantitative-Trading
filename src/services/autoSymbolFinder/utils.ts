@@ -1,17 +1,9 @@
-import { FilterWarrantExpiryDate, WarrantStatus, WarrantType } from 'longport';
+import { FilterWarrantExpiryDate, WarrantStatus } from 'longport';
 import { decimalToNumber } from '../../utils/helpers/index.js';
 import type { SelectBestWarrantInput, WarrantCandidate, WarrantListItem } from './types.js';
 
 function isNormalStatus(status: WarrantListItem['status']): boolean {
   return status === WarrantStatus.Normal || status === 'Normal' || status === 2;
-}
-
-function matchesWarrantType(
-  warrantType: WarrantListItem['warrantType'],
-  isBull: boolean,
-): boolean {
-  const expected = isBull ? WarrantType.Bull : WarrantType.Bear;
-  return warrantType === expected || warrantType === (isBull ? 'Bull' : 'Bear') || warrantType === (isBull ? 3 : 4);
 }
 
 export function buildExpiryDateFilters(
@@ -35,7 +27,6 @@ export function buildExpiryDateFilters(
 
 export function selectBestWarrant({
   warrants,
-  isBull,
   tradingMinutes,
   minPrice,
   minTurnoverPerMinute,
@@ -49,10 +40,6 @@ export function selectBestWarrant({
     if (!isNormalStatus(warrant.status)) {
       continue;
     }
-    if (!matchesWarrantType(warrant.warrantType, isBull)) {
-      continue;
-    }
-
     const turnover = decimalToNumber(warrant.turnover);
     if (!Number.isFinite(turnover) || turnover <= 0) {
       continue;

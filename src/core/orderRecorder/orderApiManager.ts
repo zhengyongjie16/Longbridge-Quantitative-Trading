@@ -7,12 +7,10 @@
  * - 订单数据转换和验证
  */
 
-import { OrderStatus } from 'longport';
 import { decimalToNumber } from '../../utils/helpers/index.js';
-import { classifyAndConvertOrders } from './utils.js';
+import { PENDING_ORDER_STATUSES } from '../../constants/index.js';
 import type {
   OrderRecord,
-  FetchOrdersResult,
   PendingOrder,
   RawOrderFromAPI,
 } from '../../types/index.js';
@@ -21,15 +19,6 @@ import type {
   OrderAPIManager,
   OrderAPIManagerDeps,
 } from './types.js';
-
-/** 未成交订单状态集合（模块级常量，避免函数内重复创建） */
-const PENDING_ORDER_STATUSES = new Set([
-  OrderStatus.New,
-  OrderStatus.PartialFilled,
-  OrderStatus.WaitToNew,
-  OrderStatus.WaitToReplace,
-  OrderStatus.PendingReplace,
-]) as ReadonlySet<typeof OrderStatus[keyof typeof OrderStatus]>;
 
 /**
  * 创建订单API管理器
@@ -42,26 +31,6 @@ export function createOrderAPIManager(deps: OrderAPIManagerDeps): OrderAPIManage
   // 闭包捕获的私有状态
   const ordersCache = new Map<string, OrderCache>();
   let allOrdersCache: RawOrderFromAPI[] | null = null;
-
-  /** 检查指定标的的缓存是否存在 */
-  function hasCache(symbol: string): boolean {
-    return ordersCache.has(symbol);
-  }
-
-  /** 从缓存获取订单数据，返回买入和卖出订单的副本 */
-  function getCachedOrders(symbol: string): {
-    buyOrders: OrderRecord[];
-    sellOrders: OrderRecord[];
-  } | null {
-    const cached = ordersCache.get(symbol);
-    if (!cached) {
-      return null;
-    }
-    return {
-      buyOrders: [...cached.buyOrders],
-      sellOrders: [...cached.sellOrders],
-    };
-  }
 
   /** 更新指定标的的订单缓存 */
   function updateCache(
@@ -144,49 +113,6 @@ export function createOrderAPIManager(deps: OrderAPIManagerDeps): OrderAPIManage
     return [...allOrders];
   }
 
-  /**
-   * 从 API 获取并转换订单数据
-   * 优先使用缓存，若无缓存则调用 historyOrders 和 todayOrders API
-   */
-  async function fetchOrdersFromAPI(symbol: string): Promise<FetchOrdersResult> {
-    // 优先使用缓存
-    if (hasCache(symbol)) {
-      const cached = getCachedOrders(symbol);
-      if (cached) {
-        return cached;
-      }
-    }
-
-    // 从 API 获取订单（使用 rateLimiter 控制频率）
-    const ctx = await ctxPromise;
-    // 此处 API 调用由外部进行错误捕获，这里不需要try-catch
-    // 注意：必须串行调用并在每次调用前 throttle，以符合 API 限制
-    // - 30秒内不超过30次调用
-    // - 两次调用间隔不少于0.02秒
-    await rateLimiter.throttle();
-    const historyOrdersRaw = await ctx.historyOrders({
-      symbol,
-      endAt: new Date(),
-    });
-    await rateLimiter.throttle();
-    const todayOrdersRaw = await ctx.todayOrders({ symbol });
-
-    // 转换为 RawOrderFromAPI 类型（通过 unknown 进行安全转换）
-    const historyOrders = historyOrdersRaw as unknown as RawOrderFromAPI[];
-    const todayOrders = todayOrdersRaw as unknown as RawOrderFromAPI[];
-
-    // 合并并去重
-    const allOrders = mergeAndDeduplicateOrders(historyOrders, todayOrders);
-
-    // 分类和转换订单
-    const { buyOrders, sellOrders } = classifyAndConvertOrders(allOrders);
-
-    // 更新缓存
-    updateCache(symbol, buyOrders, sellOrders, allOrders);
-
-    return { buyOrders, sellOrders };
-  }
-
   /** 检查指定标的列表是否都有缓存（包含原始订单数据） */
   function hasCacheForSymbols(symbols: string[]): boolean {
     if (symbols.length === 0) {
@@ -235,7 +161,6 @@ export function createOrderAPIManager(deps: OrderAPIManagerDeps): OrderAPIManage
 
   return {
     fetchAllOrdersFromAPI,
-    fetchOrdersFromAPI,
     cacheOrdersForSymbol,
     clearCacheForSymbol,
     hasCacheForSymbols,

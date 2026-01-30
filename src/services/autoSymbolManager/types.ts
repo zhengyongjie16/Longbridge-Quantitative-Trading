@@ -14,6 +14,23 @@ import type {
 
 export type SeatDirection = 'LONG' | 'SHORT';
 
+/**
+ * 席位注册表内部条目（可变状态，SymbolRegistry 内部使用）
+ * 注意：状态与版本号需要在运行中更新，因此不使用 readonly。
+ */
+export type SeatEntry = {
+  state: SeatState;
+  version: SeatVersion;
+};
+
+/**
+ * 单个监控标的的席位条目（可变状态，SymbolRegistry 内部使用）
+ */
+export type SymbolSeatEntry = {
+  long: SeatEntry;
+  short: SeatEntry;
+};
+
 export type AutoSymbolManagerDeps = {
   readonly monitorConfig: MonitorConfig;
   readonly symbolRegistry: SymbolRegistry;

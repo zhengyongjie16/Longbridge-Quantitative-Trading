@@ -11,7 +11,6 @@ import type { TradeContext } from 'longport';
 import type {
   PendingOrder,
   OrderRecord,
-  FetchOrdersResult,
   Quote,
   RateLimiter,
   RawOrderFromAPI,
@@ -96,7 +95,6 @@ export interface OrderFilteringEngine {
  * 负责从 LongPort API 获取订单并管理缓存
  */
 export interface OrderAPIManager {
-  fetchOrdersFromAPI(symbol: string): Promise<FetchOrdersResult>;
   fetchAllOrdersFromAPI(forceRefresh?: boolean): Promise<ReadonlyArray<RawOrderFromAPI>>;
   cacheOrdersForSymbol(
     symbol: string,
@@ -129,11 +127,13 @@ export type OrderAPIManagerDeps = {
 
 /**
  * 订单记录器依赖类型
- * @property ctxPromise - LongPort 交易上下文
- * @property rateLimiter - API 限流器（控制 Trade API 调用频率）
+ * @property storage - 订单存储器
+ * @property apiManager - 订单API管理器
+ * @property filteringEngine - 订单过滤引擎
  */
 export type OrderRecorderDeps = {
-  readonly ctxPromise: Promise<TradeContext>;
-  readonly rateLimiter: RateLimiter;
+  readonly storage: OrderStorage;
+  readonly apiManager: OrderAPIManager;
+  readonly filteringEngine: OrderFilteringEngine;
 };
 

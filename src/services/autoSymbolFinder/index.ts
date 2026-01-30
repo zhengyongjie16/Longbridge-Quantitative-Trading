@@ -30,7 +30,6 @@ export async function findBestWarrant({
 
     const best = selectBestWarrant({
       warrants,
-      isBull,
       tradingMinutes,
       minPrice,
       minTurnoverPerMinute,

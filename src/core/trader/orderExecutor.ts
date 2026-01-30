@@ -92,28 +92,21 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
     signalSymbol: string,
   ): { monitorConfig: MonitorConfig; isShortSymbol: boolean } | null {
     const resolvedSeat = symbolRegistry.resolveSeatBySymbol(signalSymbol);
-    if (resolvedSeat) {
-      const monitorConfig = monitors.find(
-        (config) => config.monitorSymbol === resolvedSeat.monitorSymbol,
-      );
-      if (monitorConfig) {
-        return {
-          monitorConfig,
-          isShortSymbol: resolvedSeat.direction === 'SHORT',
-        };
-      }
+    if (!resolvedSeat) {
+      logger.warn(`[订单执行] 未找到席位标的，跳过信号: ${signalSymbol}`);
+      return null;
     }
-
-    for (const config of monitors) {
-      if (signalSymbol === config.longSymbol || signalSymbol === config.shortSymbol) {
-        return {
-          monitorConfig: config,
-          isShortSymbol: signalSymbol === config.shortSymbol,
-        };
-      }
+    const monitorConfig = monitors.find(
+      (config) => config.monitorSymbol === resolvedSeat.monitorSymbol,
+    );
+    if (!monitorConfig) {
+      logger.warn(`[订单执行] 未找到监控配置，跳过信号: ${signalSymbol}`);
+      return null;
     }
-    // 未找到匹配的配置
-    return null;
+    return {
+      monitorConfig,
+      isShortSymbol: resolvedSeat.direction === 'SHORT',
+    };
   }
 
   // 闭包捕获的私有状态
@@ -185,11 +178,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
   }
 
   /** 获取操作描述（用于日志） */
-  function getActionDescription(
-    signalAction: string,
-    isShortSymbol: boolean,
-    side: typeof OrderSide[keyof typeof OrderSide],
-  ): string {
+  function getActionDescription(signalAction: Signal['action']): string {
     switch (signalAction) {
       case 'BUYCALL':
         return '买入做多标的（做多）';
@@ -199,19 +188,11 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
         return '买入做空标的（做空）';
       case 'SELLPUT':
         return '卖出做空标的（平仓）';
+      case 'HOLD':
+        return '持有';
       default:
-        break;
+        return `未知操作(${signalAction})`;
     }
-
-    // 兼容旧代码
-    if (isShortSymbol) {
-      return side === OrderSide.Buy
-        ? '买入做空标的（做空）'
-        : '卖出做空标的（平空仓）';
-    }
-    return side === OrderSide.Buy
-      ? '买入做多标的（做多）'
-      : '卖出做多标的（清仓）';
   }
 
   /** 解析订单类型（覆盖优先，其次保护性清仓） */
@@ -329,14 +310,8 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
     err: unknown,
     signal: Signal,
     orderPayload: OrderPayload,
-    side: typeof OrderSide[keyof typeof OrderSide],
-    isShortSymbol: boolean,
   ): void {
-    const actionDesc = getActionDescription(
-      signal.action,
-      isShortSymbol,
-      side,
-    );
+    const actionDesc = getActionDescription(signal.action);
 
     const errorMessage = formatError(err);
     const errorType = identifyErrorType(errorMessage);
@@ -453,11 +428,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       const orderId =
         (resp as { orderId?: string })?.orderId ?? resp?.toString?.() ?? resp ?? 'UNKNOWN_ORDER_ID';
 
-      const actionDesc = getActionDescription(
-        signal.action,
-        isShortSymbol,
-        side,
-      );
+      const actionDesc = getActionDescription(signal.action);
 
       logger.info(
         `[订单提交成功] ${actionDesc} ${
@@ -486,7 +457,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       updateLastBuyTime(signal.action, monitorConfig);
 
     } catch (err) {
-      handleSubmitError(err, signal, orderPayload, side, isShortSymbol);
+      handleSubmitError(err, signal, orderPayload);
     }
   }
 
@@ -616,7 +587,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       const targetSymbol = s.symbol;
 
       // 根据信号类型显示操作描述
-      const actualAction = getActionDescription(s.action, isShortSymbol, side);
+      const actualAction = getActionDescription(s.action);
 
       // 使用绿色显示交易计划（格式化标的显示：中文名称(代码)）
       const symbolDisplay = formatSymbolDisplay(targetSymbol, s.symbolName);

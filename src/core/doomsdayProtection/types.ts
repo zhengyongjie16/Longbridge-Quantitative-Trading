@@ -56,6 +56,7 @@ export type CancelPendingBuyOrdersContext = {
   readonly currentTime: Date;
   readonly isHalfDay: boolean;
   readonly monitorConfigs: ReadonlyArray<MonitorConfig>;
+  readonly monitorContexts: ReadonlyMap<string, MonitorContext>;
   readonly trader: Trader;
 };
 

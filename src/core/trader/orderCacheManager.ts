@@ -14,20 +14,12 @@
 import { OrderStatus, OrderSide } from 'longport';
 import { logger } from '../../utils/logger/index.js';
 import { decimalToNumber, formatError } from '../../utils/helpers/index.js';
+import { PENDING_ORDER_STATUSES } from '../../constants/index.js';
 import type { PendingOrder, DecimalLikeValue, OrderRecorder } from '../../types/index.js';
 import type { OrderCacheManager, OrderCacheManagerDeps } from './types.js';
 
 /** 缓存有效期 30 秒 */
 const PENDING_ORDERS_CACHE_TTL = 30000;
-
-/** 未成交订单状态集合（New/PartialFilled/WaitToNew/WaitToReplace/PendingReplace） */
-const PENDING_ORDER_STATUSES = new Set([
-  OrderStatus.New,
-  OrderStatus.PartialFilled,
-  OrderStatus.WaitToNew,
-  OrderStatus.WaitToReplace,
-  OrderStatus.PendingReplace,
-]) as ReadonlySet<typeof OrderStatus[keyof typeof OrderStatus]>;
 
 /**
  * 创建订单缓存管理器

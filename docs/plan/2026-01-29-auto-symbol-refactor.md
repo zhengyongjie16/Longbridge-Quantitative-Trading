@@ -101,7 +101,7 @@
 - **开盘 5 分钟逻辑**：仅对上午开盘有效；下午开盘不等待。
 - **stockName 解析规则**：使用 `monitorSymbol` 去掉 `.HK` 与 `stockName` 匹配归属（例如 `HSI.HK` → `HSI`）。
 - **末日保护遗漏**：若旧标的仍有持仓，末日保护需能覆盖旧标的（动态集合）。
-- **缓存污染**：`orderAPIManager` 与 `orderStorage` 必须支持按 symbol 清理缓存，避免旧标的污染新席位。
+- **缓存污染**：`orderApiManager` 与 `orderStorage` 必须支持按 symbol 清理缓存，避免旧标的污染新席位。
 
 **Tech Stack:** TypeScript, Node.js, LongPort OpenAPI
 
@@ -226,7 +226,7 @@ assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30);  // 10:00 HK
 
 **Files:**
 - Modify: `src/index.ts`
-- Modify: `src/core/orderRecorder/orderAPIManager.ts`
+- Modify: `src/core/orderRecorder/orderApiManager.ts`
 - Create: `src/core/orderRecorder/orderOwnershipParser.ts`
 - Modify: `src/core/orderRecorder/index.ts`
 
@@ -238,8 +238,8 @@ assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30);  // 10:00 HK
 
 **Step 3: 订单记录初始化**
 - 从全量订单中过滤归属订单 → `refreshOrdersFromAllOrders()`  
-- 未启用自动寻标的标的，按配置的 `longSymbol/shortSymbol` 过滤  
-- 启用自动寻标的标的，按“最近一次交易标的”或持仓标的过滤  
+- 按席位标的过滤（自动寻标关闭时席位=配置标的）  
+- 自动寻标开启时：席位来自“最新成交候选 + 持仓验证 + warrantList 寻标”，不使用配置兜底  
 
 **Step 4: 订单监控动态映射**
 - `orderMonitor` 通过 `SymbolRegistry` 判断方向与所属监控标的
@@ -386,16 +386,16 @@ assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30);  // 10:00 HK
 
 **`src/index.ts`**
 - 启动时全量订单一次获取
-- 初始化 `SymbolRegistry` 与 `seatState`
-- 替换静态 `allTradingSymbols` → 动态集合
-- 启动时调用 `autoSymbolManager.ensureSeatOnStartup()`
+- 候选标的 + 持仓验证写入 `SymbolRegistry`
+- 席位为空时阻塞寻标直到全部 READY
+- `allTradingSymbols` 动态由席位构建
 
 **`src/main/mainProgram/index.ts`**
 - 行情收集：使用动态席位标的集合
 - 在每个监控标的处理前允许 `autoSymbolManager` 进行换标检查
 
 **`src/main/processMonitor/index.ts`**
-- 使用动态 `seatState.longSymbol/shortSymbol`
+- 使用动态 `seatState.symbol`/`SymbolRegistry`
 - 席位为空时直接跳过该方向信号生成
 - 在生成/派发延迟信号前校验 `seatVersion`
 
@@ -433,7 +433,7 @@ assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30);  // 10:00 HK
 
 ### 5) 订单记录、缓存与聚合
 
-**`src/core/orderRecorder/orderAPIManager.ts`**
+**`src/core/orderRecorder/orderApiManager.ts`**
 - 新增 `fetchAllOrdersFromAPI()`（不传 symbol 获取全量）
 - 新增 `clearCacheForSymbol(symbol)`
 - 新增 `getAllOrdersFromCache()`

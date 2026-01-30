@@ -31,22 +31,16 @@ export function collectAllQuoteSymbols(
 
   for (const config of monitorConfigs) {
     symbols.add(config.monitorSymbol);
-    if (symbolRegistry) {
-      const longSeat = symbolRegistry.getSeatState(config.monitorSymbol, 'LONG');
-      const shortSeat = symbolRegistry.getSeatState(config.monitorSymbol, 'SHORT');
-      if (longSeat.symbol) {
-        symbols.add(longSeat.symbol);
-      }
-      if (shortSeat.symbol) {
-        symbols.add(shortSeat.symbol);
-      }
+    if (!symbolRegistry) {
       continue;
     }
-    if (config.longSymbol) {
-      symbols.add(config.longSymbol);
+    const longSeat = symbolRegistry.getSeatState(config.monitorSymbol, 'LONG');
+    const shortSeat = symbolRegistry.getSeatState(config.monitorSymbol, 'SHORT');
+    if (longSeat.symbol) {
+      symbols.add(longSeat.symbol);
     }
-    if (config.shortSymbol) {
-      symbols.add(config.shortSymbol);
+    if (shortSeat.symbol) {
+      symbols.add(shortSeat.symbol);
     }
   }
 

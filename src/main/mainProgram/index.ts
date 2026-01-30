@@ -21,6 +21,7 @@ import {
 } from '../../utils/helpers/tradingTime.js';
 import { displayAccountAndPositions } from '../../utils/helpers/accountDisplay.js';
 import { collectAllQuoteSymbols, diffQuoteSymbols } from '../../utils/helpers/quoteHelpers.js';
+import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
 import { processMonitor } from '../processMonitor/index.js';
 
 import type { MainProgramContext } from './types.js';
@@ -167,6 +168,7 @@ export async function mainProgram({
       currentTime,
       isHalfDay: isHalfDayToday,
       monitorConfigs: tradingConfig.monitors,
+      monitorContexts,
       trader,
     });
 
@@ -309,12 +311,14 @@ export async function mainProgram({
       // 刷新浮亏数据（预先构建 symbol -> MonitorContext 索引）
       const monitorContextBySymbol = new Map<string, MonitorContext>();
       for (const ctx of monitorContexts.values()) {
-        const { longSymbol, shortSymbol } = ctx.config;
-        if (longSymbol && !monitorContextBySymbol.has(longSymbol)) {
-          monitorContextBySymbol.set(longSymbol, ctx);
+        const monitorSymbol = ctx.config.monitorSymbol;
+        const longSeat = ctx.symbolRegistry.getSeatState(monitorSymbol, 'LONG');
+        const shortSeat = ctx.symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
+        if (isSeatReady(longSeat) && !monitorContextBySymbol.has(longSeat.symbol)) {
+          monitorContextBySymbol.set(longSeat.symbol, ctx);
         }
-        if (shortSymbol && !monitorContextBySymbol.has(shortSymbol)) {
-          monitorContextBySymbol.set(shortSymbol, ctx);
+        if (isSeatReady(shortSeat) && !monitorContextBySymbol.has(shortSeat.symbol)) {
+          monitorContextBySymbol.set(shortSeat.symbol, ctx);
         }
       }
       for (const { symbol, isLongSymbol } of pendingRefreshSymbols) {
