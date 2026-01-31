@@ -63,6 +63,7 @@ export type SwitchOnDistanceParams = {
 export type SwitchState = {
   direction: SeatDirection;
   oldSymbol: string;
+  nextSymbol: string | null;
   startedAt: number;
   sellSubmitted: boolean;
   sellNotional: number | null;
@@ -70,9 +71,15 @@ export type SwitchState = {
   awaitingQuote: boolean;
 };
 
+export type SwitchSuppression = {
+  readonly symbol: string;
+  readonly dateKey: string;
+};
+
 export type AutoSymbolManager = {
   ensureSeatOnStartup(params: EnsureSeatOnStartupParams): SeatState;
   maybeSearchOnTick(params: SearchOnTickParams): Promise<void>;
   maybeSwitchOnDistance(params: SwitchOnDistanceParams): Promise<void>;
   clearSeat(params: { direction: SeatDirection; reason: string }): SeatVersion;
+  resetDailySwitchSuppression(): void;
 };

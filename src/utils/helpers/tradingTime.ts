@@ -37,6 +37,20 @@ export function getHKTime(date: Date | null | undefined): HKTime | null {
 }
 
 /**
+ * 获取港股日期键（UTC+8）
+ * @param date 时间对象
+ * @returns YYYY-MM-DD 格式日期键，若无效则返回 null
+ */
+export function getHKDateKey(date: Date | null | undefined): string | null {
+  if (!date) return null;
+  const hkDate = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+  const year = hkDate.getUTCFullYear();
+  const month = String(hkDate.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(hkDate.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * 计算已开盘分钟数（不区分半日交易日）
  * @param date 时间对象（UTC）
  * @returns 已开盘分钟数

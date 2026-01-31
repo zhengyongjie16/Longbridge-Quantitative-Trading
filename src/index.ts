@@ -44,6 +44,7 @@ import {
 import { collectRuntimeQuoteSymbols } from './utils/helpers/quoteHelpers.js';
 import { TRADING } from './constants/index.js';
 import {
+  getHKDateKey,
   getTradingMinutesSinceOpen,
   isInContinuousHKSession,
   isWithinMorningOpenProtection,
@@ -186,6 +187,7 @@ async function main(): Promise<void> {
     canTrade: null,
     isHalfDay: null,
     openProtectionActive: null,
+    currentDayKey: getHKDateKey(new Date()),
     cachedAccount: null,
     cachedPositions: [],
     positionCache: createPositionCache(), // 初始化持仓缓存（O(1) 查找）

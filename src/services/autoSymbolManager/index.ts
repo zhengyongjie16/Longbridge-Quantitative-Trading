@@ -1,6 +1,10 @@
 import { OrderSide } from 'longport';
 import { findBestWarrant } from '../autoSymbolFinder/index.js';
-import { getTradingMinutesSinceOpen, isWithinMorningOpenProtection } from '../../utils/helpers/tradingTime.js';
+import {
+  getHKDateKey,
+  getTradingMinutesSinceOpen,
+  isWithinMorningOpenProtection,
+} from '../../utils/helpers/tradingTime.js';
 import { logger } from '../../utils/logger/index.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import { AUTO_SYMBOL_SEARCH_COOLDOWN_MS, PENDING_ORDER_STATUSES } from '../../constants/index.js';
@@ -20,6 +24,7 @@ import type {
   SeatDirection,
   SwitchOnDistanceParams,
   SwitchState,
+  SwitchSuppression,
 } from './types.js';
 
 function resolveDirectionSymbols(direction: SeatDirection): {
@@ -155,6 +160,52 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
   const autoSearchConfig = monitorConfig.autoSearchConfig;
 
   const switchStates = new Map<SeatDirection, SwitchState>();
+  const switchSuppressions = new Map<SeatDirection, SwitchSuppression>();
+
+  function resolveSuppression(
+    direction: SeatDirection,
+    seatSymbol: string,
+  ): SwitchSuppression | null {
+    const record = switchSuppressions.get(direction);
+    if (!record) {
+      return null;
+    }
+    const currentKey = getHKDateKey(now());
+    if (!currentKey || record.dateKey !== currentKey || record.symbol !== seatSymbol) {
+      switchSuppressions.delete(direction);
+      return null;
+    }
+    return record;
+  }
+
+  function markSuppression(direction: SeatDirection, seatSymbol: string): void {
+    const dateKey = getHKDateKey(now());
+    if (!dateKey) {
+      return;
+    }
+    switchSuppressions.set(direction, { symbol: seatSymbol, dateKey });
+  }
+
+  async function findSwitchCandidate(direction: SeatDirection): Promise<string | null> {
+    const { minPrice, minTurnoverPerMinute } = resolveAutoSearchThresholds(direction, autoSearchConfig);
+    if (minPrice == null || minTurnoverPerMinute == null) {
+      logger.error(`[自动换标] 缺少阈值配置，无法预寻标: ${monitorSymbol} ${direction}`);
+      return null;
+    }
+    const ctx = await marketDataClient._getContext();
+    const tradingMinutes = getTradingMinutesSinceOpen(now());
+    const best = await findBestWarrant({
+      ctx,
+      monitorSymbol,
+      isBull: direction === 'LONG',
+      tradingMinutes,
+      minPrice,
+      minTurnoverPerMinute,
+      expiryMinMonths: autoSearchConfig.autoSearchExpiryMinMonths,
+      logger,
+    });
+    return best ? best.symbol : null;
+  }
 
   function updateSeatState(
     direction: SeatDirection,
@@ -198,6 +249,10 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     const nextVersion = symbolRegistry.bumpSeatVersion(monitorSymbol, direction);
     logger.warn(`[自动换标] ${monitorSymbol} ${direction} 清空席位: ${reason}`);
     return nextVersion;
+  }
+
+  function resetDailySwitchSuppression(): void {
+    switchSuppressions.clear();
   }
 
   async function maybeSearchOnTick({
@@ -329,28 +384,8 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
       }
     }
 
-    const { minPrice, minTurnoverPerMinute } = resolveAutoSearchThresholds(direction, autoSearchConfig);
-    if (minPrice == null || minTurnoverPerMinute == null) {
-      updateSeatState(direction, buildSeatState(null, 'EMPTY', null, null), false);
-      switchStates.delete(direction);
-      logger.error(`[自动换标] 缺少阈值配置，换标终止: ${monitorSymbol} ${direction}`);
-      return;
-    }
-
-    const ctx = await marketDataClient._getContext();
-    const tradingMinutes = getTradingMinutesSinceOpen(now());
-    const best = await findBestWarrant({
-      ctx,
-      monitorSymbol,
-      isBull: direction === 'LONG',
-      tradingMinutes,
-      minPrice,
-      minTurnoverPerMinute,
-      expiryMinMonths: autoSearchConfig.autoSearchExpiryMinMonths,
-      logger,
-    });
-
-    if (!best) {
+    const nextSymbol = state.nextSymbol;
+    if (!nextSymbol) {
       updateSeatState(direction, buildSeatState(null, 'EMPTY', null, null), false);
       switchStates.delete(direction);
       return;
@@ -358,7 +393,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
 
     updateSeatState(
       direction,
-      buildSeatState(best.symbol, 'READY', now().getTime(), now().getTime()),
+      buildSeatState(nextSymbol, 'READY', now().getTime(), now().getTime()),
       false,
     );
 
@@ -367,7 +402,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
       return;
     }
 
-    const quote = quotesMap.get(best.symbol) ?? null;
+    const quote = quotesMap.get(nextSymbol) ?? null;
     if (!quote || quote.price == null || quote.lotSize == null) {
       state.awaitingQuote = true;
       return;
@@ -387,7 +422,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
 
     const signal = buildOrderSignal({
       action: resolveDirectionSymbols(direction).buyAction,
-      symbol: best.symbol,
+      symbol: nextSymbol,
       quote,
       reason: '自动换标-移仓买入',
       orderTypeOverride: 'ELO',
@@ -444,6 +479,16 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     }
 
     if (distancePercent <= range.min || distancePercent >= range.max) {
+      if (resolveSuppression(direction, seatState.symbol)) {
+        return;
+      }
+
+      const nextSymbol = await findSwitchCandidate(direction);
+      if (nextSymbol && nextSymbol === seatState.symbol) {
+        markSuppression(direction, seatState.symbol);
+        return;
+      }
+
       clearSeat({ direction, reason: '距回收价阈值越界' });
 
       const position = extractPosition(positions, seatState.symbol);
@@ -452,6 +497,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
       switchStates.set(direction, {
         direction,
         oldSymbol: seatState.symbol,
+        nextSymbol: nextSymbol ?? null,
         startedAt: now().getTime(),
         sellSubmitted: false,
         sellNotional: null,
@@ -471,5 +517,6 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     maybeSearchOnTick,
     maybeSwitchOnDistance,
     clearSeat,
+    resetDailySwitchSuppression,
   };
 }

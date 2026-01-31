@@ -640,6 +640,8 @@ export type LastState = {
   isHalfDay: boolean | null;
   /** 开盘保护是否生效中 */
   openProtectionActive: boolean | null;
+  /** 当前港股日期键（用于跨日检测） */
+  currentDayKey: string | null;
   /** 账户快照缓存 */
   cachedAccount: AccountSnapshot | null;
   /** 持仓列表缓存 */

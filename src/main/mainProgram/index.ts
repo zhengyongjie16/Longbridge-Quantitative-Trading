@@ -16,6 +16,7 @@
 import { logger } from '../../utils/logger/index.js';
 import { formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
 import {
+  getHKDateKey,
   isInContinuousHKSession,
   isWithinMorningOpenProtection,
 } from '../../utils/helpers/tradingTime.js';
@@ -61,6 +62,34 @@ export async function mainProgram({
   // 判断是否在交易时段（使用当前系统时间）
   const currentTime = new Date();
   dailyLossTracker.resetIfNewDay(currentTime);
+
+  const currentDayKey = getHKDateKey(currentTime);
+  if (currentDayKey && currentDayKey !== lastState.currentDayKey) {
+    lastState.currentDayKey = currentDayKey;
+    logger.info(`[跨日] 进入新日期: ${currentDayKey}`);
+
+    if (runtimeGateMode === 'strict') {
+      try {
+        const tradingDayInfo = await marketDataClient.isTradingDay(currentTime);
+        lastState.cachedTradingDayInfo = tradingDayInfo;
+        logger.info(
+          tradingDayInfo.isTradingDay
+            ? `跨日后交易日信息：${tradingDayInfo.isHalfDay ? '半日交易日' : '交易日'}`
+            : '跨日后交易日信息：非交易日',
+        );
+      } catch (err) {
+        logger.warn('跨日后交易日信息获取失败，将仅按交易时段判断', formatError(err));
+      }
+    }
+
+    lastState.canTrade = null;
+    lastState.isHalfDay = null;
+    lastState.openProtectionActive = null;
+
+    for (const monitorContext of monitorContexts.values()) {
+      monitorContext.autoSymbolManager.resetDailySwitchSuppression();
+    }
+  }
 
   let isTradingDayToday = lastState.cachedTradingDayInfo?.isTradingDay ?? true;
   let isHalfDayToday = lastState.cachedTradingDayInfo?.isHalfDay ?? false;
