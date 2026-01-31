@@ -208,6 +208,7 @@ async function main(): Promise<void> {
   } catch (err) {
     logger.warn('[全量订单获取失败] 将按空订单继续初始化', formatError(err));
   }
+  trader.seedOrderHoldSymbols(allOrders);
 
   const positionsSnapshot = lastState.cachedPositions ?? [];
   const seatResult = await prepareSeatsOnStartup({
@@ -254,10 +255,12 @@ async function main(): Promise<void> {
   const buyTaskQueue = createBuyTaskQueue();
   const sellTaskQueue = createSellTaskQueue();
 
+  const orderHoldSymbols = trader.getOrderHoldSymbols();
   const allTradingSymbols = collectRuntimeQuoteSymbols(
     tradingConfig.monitors,
     symbolRegistry,
     lastState.cachedPositions,
+    orderHoldSymbols,
   );
   lastState.allTradingSymbols = allTradingSymbols;
   if (allTradingSymbols.size > 0) {

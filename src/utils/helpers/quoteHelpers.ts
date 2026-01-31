@@ -55,11 +55,17 @@ export function collectRuntimeQuoteSymbols(
   }>,
   symbolRegistry: SymbolRegistry,
   positions: ReadonlyArray<Position>,
+  orderHoldSymbols: ReadonlySet<string>,
 ): Set<string> {
   const symbols = collectAllQuoteSymbols(monitorConfigs, symbolRegistry);
   for (const position of positions) {
     if (position.symbol) {
       symbols.add(position.symbol);
+    }
+  }
+  for (const symbol of orderHoldSymbols) {
+    if (symbol) {
+      symbols.add(symbol);
     }
   }
   return symbols;

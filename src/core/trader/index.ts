@@ -29,6 +29,7 @@ import { createAccountService } from './accountService.js';
 import { createOrderCacheManager } from './orderCacheManager.js';
 import { createOrderMonitor } from './orderMonitor.js';
 import { createOrderExecutor } from './orderExecutor.js';
+import { createOrderHoldRegistry } from './orderHoldRegistry.js';
 import { createOrderStorage } from '../orderRecorder/orderStorage.js';
 import { createOrderAPIManager } from '../orderRecorder/orderApiManager.js';
 import { createOrderFilteringEngine } from '../orderRecorder/orderFilteringEngine.js';
@@ -62,18 +63,22 @@ export async function createTrader(deps: TraderDeps): Promise<Trader> {
     filteringEngine: orderFilteringEngine,
   });
 
-  // ========== 4. 创建 orderMonitor（依赖 orderRecorder） ==========
+  // ========== 4. 创建 orderHoldRegistry ==========
+  const orderHoldRegistry = createOrderHoldRegistry();
+
+  // ========== 5. 创建 orderMonitor（依赖 orderRecorder） ==========
   const orderMonitor = createOrderMonitor({
     ctxPromise,
     rateLimiter,
     cacheManager,
     orderRecorder,
+    orderHoldRegistry,
     liquidationCooldownTracker,
     tradingConfig,
     symbolRegistry,
   });
 
-  // ========== 5. 创建 orderExecutor ==========
+  // ========== 6. 创建 orderExecutor ==========
   const orderExecutor = createOrderExecutor({
     ctxPromise,
     rateLimiter,
@@ -83,10 +88,10 @@ export async function createTrader(deps: TraderDeps): Promise<Trader> {
     symbolRegistry,
   });
 
-  // ========== 6. 初始化 WebSocket 订阅 ==========
+  // ========== 7. 初始化 WebSocket 订阅 ==========
   await orderMonitor.initialize();
 
-  // ========== 7. 恢复未完成订单的追踪 ==========
+  // ========== 8. 恢复未完成订单的追踪 ==========
   await orderMonitor.recoverTrackedOrders();
 
   // 创建 Trader 实例
@@ -111,6 +116,16 @@ export async function createTrader(deps: TraderDeps): Promise<Trader> {
       forceRefresh: boolean = false,
     ): Promise<PendingOrder[]> {
       return cacheManager.getPendingOrders(symbols, forceRefresh);
+    },
+
+    seedOrderHoldSymbols(
+      orders: ReadonlyArray<import('../../types/index.js').RawOrderFromAPI>,
+    ): void {
+      orderHoldRegistry.seedFromOrders(orders);
+    },
+
+    getOrderHoldSymbols(): ReadonlySet<string> {
+      return orderHoldRegistry.getHoldSymbols();
     },
 
     clearPendingOrdersCache(): void {

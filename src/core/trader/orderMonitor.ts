@@ -73,6 +73,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     rateLimiter,
     cacheManager,
     orderRecorder,
+    orderHoldRegistry,
     liquidationCooldownTracker,
     testHooks,
     tradingConfig,
@@ -132,6 +133,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
 
     // ========== 订单完全成交：使用成交价更新本地记录 ==========
     if (event.status === OrderStatus.Filled) {
+      orderHoldRegistry.markOrderFilled(String(orderId));
       const executedPrice = decimalToNumber(event.executedPrice);
       const filledQuantity = decimalToNumber(event.executedQuantity);
 
@@ -288,6 +290,8 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     isProtectiveLiquidation: boolean,
   ): void {
     const now = Date.now();
+
+    orderHoldRegistry.trackOrder(String(orderId), symbol);
 
     const order: TrackedOrder = {
       orderId,

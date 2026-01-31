@@ -650,7 +650,7 @@ export type LastState = {
   cachedTradingDayInfo: TradingDayInfo | null;
   /** 各监控标的状态（monitorSymbol -> MonitorState） */
   readonly monitorStates: ReadonlyMap<string, MonitorState>;
-  /** 所有交易标的集合（静态，初始化时计算） */
+  /** 订阅标的集合（运行时动态维护） */
   allTradingSymbols: ReadonlySet<string>;
 };
 
@@ -942,6 +942,10 @@ export interface Trader {
 
   /** 获取待处理订单 */
   getPendingOrders(symbols?: string[] | null, forceRefresh?: boolean): Promise<PendingOrder[]>;
+  /** 启动阶段种子化订单订阅保留集 */
+  seedOrderHoldSymbols(orders: ReadonlyArray<RawOrderFromAPI>): void;
+  /** 获取订单订阅保留标的集合 */
+  getOrderHoldSymbols(): ReadonlySet<string>;
   /** 清空待处理订单缓存 */
   clearPendingOrdersCache(): void;
   /** 检查是否有待处理的买入订单 */

@@ -193,10 +193,12 @@ export async function mainProgram({
 
   // 收集所有需要获取行情的标的，一次性批量获取（减少 API 调用次数）
   // getQuotes 接口已支持 Iterable，无需 Array.from() 转换
+  const orderHoldSymbols = trader.getOrderHoldSymbols();
   const desiredSymbols = collectRuntimeQuoteSymbols(
     tradingConfig.monitors,
     symbolRegistry,
     positions,
+    orderHoldSymbols,
   );
   const { added, removed } = diffQuoteSymbols(lastState.allTradingSymbols, desiredSymbols);
 
@@ -204,17 +206,9 @@ export async function mainProgram({
     await marketDataClient.subscribeSymbols(added);
   }
 
-  let removableSymbols = removed;
-  if (removed.length > 0) {
-    const pendingOrders = await trader.getPendingOrders(removed);
-    const pendingSymbols = new Set(pendingOrders.map((order) => order.symbol));
-    removableSymbols = removed.filter((symbol) => {
-      if (pendingSymbols.has(symbol)) {
-        return false;
-      }
-      return lastState.positionCache.get(symbol) == null;
-    });
-  }
+  const removableSymbols = removed.filter(
+    (symbol) => lastState.positionCache.get(symbol) == null,
+  );
 
   if (removableSymbols.length > 0) {
     await marketDataClient.unsubscribeSymbols(removableSymbols);
@@ -270,7 +264,7 @@ export async function mainProgram({
   await Promise.allSettled(monitorTasks);
 
   // 全局操作：订单监控（在所有监控标的处理完成后）
-  // 使用预先缓存的 allTradingSymbols（静态配置，启动时计算一次）
+  // 使用已维护的 allTradingSymbols
   if (canTradeNow && lastState.allTradingSymbols.size > 0) {
     // 复用前面批量获取的行情数据进行订单监控（quotesMap 已包含所有交易标的的行情）
     await trader.monitorAndManageOrders(quotesMap).catch((err: unknown) => {

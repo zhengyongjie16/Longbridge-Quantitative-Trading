@@ -20,6 +20,7 @@ import type {
   PendingRefreshSymbol,
   MultiMonitorTradingConfig,
   SymbolRegistry,
+  RawOrderFromAPI,
 } from '../../types/index.js';
 import type { LiquidationCooldownTracker } from '../../services/liquidationCooldown/types.js';
 
@@ -257,6 +258,16 @@ export interface OrderMonitorConfig {
 }
 
 /**
+ * 订单订阅保留集管理器
+ */
+export type OrderHoldRegistry = {
+  trackOrder(orderId: string, symbol: string): void;
+  markOrderFilled(orderId: string): void;
+  seedFromOrders(orders: ReadonlyArray<RawOrderFromAPI>): void;
+  getHoldSymbols(): ReadonlySet<string>;
+};
+
+/**
  * 订单监控器依赖类型
  */
 export type OrderMonitorDeps = {
@@ -265,6 +276,8 @@ export type OrderMonitorDeps = {
   readonly cacheManager: OrderCacheManager;
   /** 订单记录器（用于成交后更新本地记录） */
   readonly orderRecorder: import('../../types/index.js').OrderRecorder;
+  /** 订单订阅保留集 */
+  readonly orderHoldRegistry: OrderHoldRegistry;
   /** 清仓冷却追踪器（用于记录保护性清仓） */
   readonly liquidationCooldownTracker: LiquidationCooldownTracker;
   /** 标的注册表（用于解析动态标的归属） */
