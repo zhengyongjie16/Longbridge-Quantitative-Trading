@@ -539,10 +539,31 @@ export function createWarrantRiskChecker(
 
   function getWarrantDistanceInfo(
     isLongSymbol: boolean,
+    seatSymbol: string,
     monitorCurrentPrice: number | null,
   ): WarrantDistanceInfo | null {
+    if (!seatSymbol) {
+      return null;
+    }
     const warrantInfo = isLongSymbol ? longWarrantInfo : shortWarrantInfo;
+    if (!warrantInfo?.isWarrant) {
+      return null;
+    }
+    if (warrantInfo.symbol !== seatSymbol) {
+      logger.debug(
+        `[风险检查调试] 距回收价信息标的校验失败: 席位=${seatSymbol}, 缓存=${warrantInfo.symbol}`,
+      );
+      return null;
+    }
     return buildWarrantDistanceInfo(warrantInfo, monitorCurrentPrice);
+  }
+
+  function clearWarrantInfo(isLongSymbol: boolean): void {
+    if (isLongSymbol) {
+      longWarrantInfo = null;
+    } else {
+      shortWarrantInfo = null;
+    }
   }
 
   async function refreshWarrantInfoForSymbol(
@@ -572,5 +593,6 @@ export function createWarrantRiskChecker(
     checkRisk,
     checkWarrantDistanceLiquidation,
     getWarrantDistanceInfo,
+    clearWarrantInfo,
   };
 }

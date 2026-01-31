@@ -432,6 +432,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
 
     const distanceInfo = riskChecker.getWarrantDistanceInfo(
       direction === 'LONG',
+      seatState.symbol,
       monitorPrice,
     );
 

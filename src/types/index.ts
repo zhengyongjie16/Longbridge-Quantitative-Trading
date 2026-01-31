@@ -1194,8 +1194,11 @@ export interface RiskChecker {
   /** 获取牛熊证距离回收价信息（实时展示用） */
   getWarrantDistanceInfo(
     isLongSymbol: boolean,
+    seatSymbol: string,
     monitorCurrentPrice: number | null,
   ): WarrantDistanceInfo | null;
+  /** 清空牛熊证信息缓存（换标时调用） */
+  clearWarrantInfo(isLongSymbol: boolean): void;
 
   /** 刷新浮亏数据 */
   refreshUnrealizedLossData(

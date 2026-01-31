@@ -221,10 +221,16 @@ export async function processMonitor(
 
   }
 
+  function clearWarrantInfoForDirection(direction: 'LONG' | 'SHORT'): void {
+    riskChecker.clearWarrantInfo(direction === 'LONG');
+  }
+
   if (previousLongSeatState.status === 'READY' && longSeatState.status !== 'READY') {
+    clearWarrantInfoForDirection('LONG');
     clearQueuesForDirection('LONG');
   }
   if (previousShortSeatState.status === 'READY' && shortSeatState.status !== 'READY') {
+    clearWarrantInfoForDirection('SHORT');
     clearQueuesForDirection('SHORT');
   }
 
@@ -255,6 +261,7 @@ export async function processMonitor(
   }
 
   function markSeatAsEmpty(direction: 'LONG' | 'SHORT', reason: string): void {
+    clearWarrantInfoForDirection(direction);
     const nextState = {
       symbol: null,
       status: 'EMPTY',
@@ -303,6 +310,8 @@ export async function processMonitor(
     if (!nextSymbol || nextSymbol === previousSymbol) {
       return;
     }
+
+    clearWarrantInfoForDirection(direction);
 
     const allOrders = await ensureAllOrders();
     await orderRecorder.refreshOrdersFromAllOrders(
@@ -363,10 +372,10 @@ export async function processMonitor(
   );
 
   const longWarrantDistanceInfo = longSeatReady
-    ? riskChecker.getWarrantDistanceInfo(true, monitorCurrentPrice)
+    ? riskChecker.getWarrantDistanceInfo(true, LONG_SYMBOL, monitorCurrentPrice)
     : null;
   const shortWarrantDistanceInfo = shortSeatReady
-    ? riskChecker.getWarrantDistanceInfo(false, monitorCurrentPrice)
+    ? riskChecker.getWarrantDistanceInfo(false, SHORT_SYMBOL, monitorCurrentPrice)
     : null;
 
   // 监控价格变化并显示

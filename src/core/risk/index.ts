@@ -314,12 +314,17 @@ export function createRiskChecker(deps: RiskCheckerDeps = {}): RiskChecker {
 
     getWarrantDistanceInfo(
       isLongSymbol: boolean,
+      seatSymbol: string,
       monitorCurrentPrice: number | null,
     ) {
       return warrantRiskChecker.getWarrantDistanceInfo(
         isLongSymbol,
+        seatSymbol,
         monitorCurrentPrice,
       );
+    },
+    clearWarrantInfo(isLongSymbol: boolean): void {
+      warrantRiskChecker.clearWarrantInfo(isLongSymbol);
     },
 
     async refreshUnrealizedLossData(
