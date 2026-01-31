@@ -95,22 +95,13 @@ function extractPosition(
   if (!symbol) {
     return null;
   }
-  for (const pos of positions) {
-    if (pos.symbol === symbol) {
-      return pos;
-    }
-  }
-  return null;
+  return positions.find((pos) => pos.symbol === symbol) ?? null;
 }
 
 function isCancelableBuyOrder(order: PendingOrder, symbol: string): boolean {
-  if (order.symbol !== symbol) {
-    return false;
-  }
-  if (order.side !== OrderSide.Buy) {
-    return false;
-  }
-  return PENDING_ORDER_STATUSES.has(order.status);
+  return order.symbol === symbol
+    && order.side === OrderSide.Buy
+    && PENDING_ORDER_STATUSES.has(order.status);
 }
 
 /**

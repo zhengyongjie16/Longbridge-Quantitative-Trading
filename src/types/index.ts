@@ -899,9 +899,13 @@ export interface OrderRecorder {
   /** 获取最新卖出订单记录 */
   getLatestSellRecord(symbol: string, isLongSymbol: boolean): OrderRecord | null;
   /** 获取低于指定价格的买入订单（用于智能平仓） */
-  getBuyOrdersBelowPrice(currentPrice: number, direction: 'LONG' | 'SHORT', symbol: string): OrderRecord[];
+  getBuyOrdersBelowPrice(
+    currentPrice: number,
+    direction: 'LONG' | 'SHORT',
+    symbol: string,
+  ): ReadonlyArray<OrderRecord>;
   /** 计算订单列表的总数量 */
-  calculateTotalQuantity(orders: OrderRecord[]): number;
+  calculateTotalQuantity(orders: ReadonlyArray<OrderRecord>): number;
   /** 从 API 获取全量订单 */
   fetchAllOrdersFromAPI(forceRefresh?: boolean): Promise<ReadonlyArray<RawOrderFromAPI>>;
   /** 使用全量订单刷新指定标的记录 */
@@ -918,11 +922,11 @@ export interface OrderRecorder {
   /** 从缓存获取待处理订单 */
   getPendingOrdersFromCache(symbols: string[]): PendingOrder[];
   /** 获取所有做多买入订单 */
-  getLongBuyOrders(): OrderRecord[];
+  getLongBuyOrders(): ReadonlyArray<OrderRecord>;
   /** 获取所有做空买入订单 */
-  getShortBuyOrders(): OrderRecord[];
+  getShortBuyOrders(): ReadonlyArray<OrderRecord>;
   /** 获取指定标的的买入订单 */
-  getBuyOrdersForSymbol(symbol: string, isLongSymbol: boolean): OrderRecord[];
+  getBuyOrdersForSymbol(symbol: string, isLongSymbol: boolean): ReadonlyArray<OrderRecord>;
 }
 
 /**

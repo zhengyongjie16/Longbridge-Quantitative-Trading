@@ -136,8 +136,7 @@ type Close = string | number | null
 
 /**
  * 格式化时间为 HH:mm:ss 格式（香港时间）
- * 使用与代码库其他地方相同的 toLocaleString 方法，确保时区转换的一致性
- * 参考：index.js:235-237 使用相同的时区转换方法
+ * 使用与项目其他时间格式化一致的 toLocaleString 方法，确保时区转换一致
  * @param timestamp 时间戳或日期对象
  * @returns 格式化的时间字符串 HH:mm:ss
  */
@@ -148,7 +147,7 @@ function formatTimeHHMMSS(timestamp: number | Date): string {
       : timestamp?.getTime?.() || Date.now();
   const date = new Date(ts);
 
-  // 使用与代码库其他地方相同的时区转换方法（index.js:235-237）
+  // 使用与项目其他位置一致的时区转换方法
   // 使用 toLocaleString 和 timeZone: "Asia/Hong_Kong" 确保准确的时区转换
   // 直接指定只返回时间部分，避免手动解析
   const formatted = date.toLocaleTimeString('zh-CN', {

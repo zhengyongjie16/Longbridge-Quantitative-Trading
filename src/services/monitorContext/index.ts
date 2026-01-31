@@ -45,6 +45,8 @@ export function createMonitorContext(deps: MonitorContextFactoryDeps): MonitorCo
 
   const longSeatState = symbolRegistry.getSeatState(config.monitorSymbol, 'LONG');
   const shortSeatState = symbolRegistry.getSeatState(config.monitorSymbol, 'SHORT');
+  const longSeatVersion = symbolRegistry.getSeatVersion(config.monitorSymbol, 'LONG');
+  const shortSeatVersion = symbolRegistry.getSeatVersion(config.monitorSymbol, 'SHORT');
   const longSymbol = isSeatReady(longSeatState) ? longSeatState.symbol : null;
   const shortSymbol = isSeatReady(shortSeatState) ? shortSeatState.symbol : null;
 
@@ -58,12 +60,12 @@ export function createMonitorContext(deps: MonitorContextFactoryDeps): MonitorCo
     state,
     symbolRegistry,
     seatState: {
-      long: symbolRegistry.getSeatState(config.monitorSymbol, 'LONG'),
-      short: symbolRegistry.getSeatState(config.monitorSymbol, 'SHORT'),
+      long: longSeatState,
+      short: shortSeatState,
     },
     seatVersion: {
-      long: symbolRegistry.getSeatVersion(config.monitorSymbol, 'LONG'),
-      short: symbolRegistry.getSeatVersion(config.monitorSymbol, 'SHORT'),
+      long: longSeatVersion,
+      short: shortSeatVersion,
     },
     autoSymbolManager,
     strategy,

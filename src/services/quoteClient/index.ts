@@ -245,8 +245,18 @@ export async function createMarketDataClient(
   /**
    * 动态订阅新增标的
    */
+  function normalizeSymbols(symbols: ReadonlyArray<string>): ReadonlyArray<string> {
+    const uniqueSymbols = new Set<string>();
+    for (const symbol of symbols) {
+      if (symbol) {
+        uniqueSymbols.add(symbol);
+      }
+    }
+    return Array.from(uniqueSymbols);
+  }
+
   async function subscribeSymbols(symbols: ReadonlyArray<string>): Promise<void> {
-    const uniqueSymbols = Array.from(new Set(symbols)).filter(Boolean);
+    const uniqueSymbols = normalizeSymbols(symbols);
     const newSymbols = uniqueSymbols.filter((symbol) => !subscribedSymbols.has(symbol));
     if (newSymbols.length === 0) {
       return;
@@ -285,7 +295,7 @@ export async function createMarketDataClient(
    * 动态取消订阅标的
    */
   async function unsubscribeSymbols(symbols: ReadonlyArray<string>): Promise<void> {
-    const uniqueSymbols = Array.from(new Set(symbols)).filter(Boolean);
+    const uniqueSymbols = normalizeSymbols(symbols);
     const removeSymbols = uniqueSymbols.filter((symbol) => subscribedSymbols.has(symbol));
     if (removeSymbols.length === 0) {
       return;

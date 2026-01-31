@@ -41,7 +41,7 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
 
   /** 从订单列表计算 R1（开仓成本）和 N1（持仓数量） */
   const calculateCostAndQuantity = (
-    buyOrders: Array<{ executedPrice: number | string; executedQuantity: number | string }>,
+    buyOrders: ReadonlyArray<{ executedPrice: number | string; executedQuantity: number | string }>,
   ): { r1: number; n1: number } => {
     let r1 = 0;
     let n1 = 0;

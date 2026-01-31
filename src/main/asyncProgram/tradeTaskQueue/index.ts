@@ -18,8 +18,8 @@ import type { BuyTaskQueue, SellTaskQueue } from '../types.js';
  *
  * 内部使用数组实现 FIFO 队列，支持回调通知机制。
  *
- * @template TTask 具体任务类型
- * @returns TaskQueue<TTask> 任务队列实例
+ * @template TType 具体任务类型
+ * @returns TaskQueue<TType> 任务队列实例
  */
 function createTaskQueue<TType extends string>(): TaskQueue<TType> {
   const queue: Array<Task<TType>> = [];

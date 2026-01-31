@@ -63,9 +63,9 @@ export type FilteringState = {
  * 提供订单的本地存储管理功能
  */
 export interface OrderStorage {
-  getBuyOrdersList(symbol: string, isLongSymbol: boolean): OrderRecord[];
-  setBuyOrdersListForLong(symbol: string, newList: OrderRecord[]): void;
-  setBuyOrdersListForShort(symbol: string, newList: OrderRecord[]): void;
+  getBuyOrdersList(symbol: string, isLongSymbol: boolean): ReadonlyArray<OrderRecord>;
+  setBuyOrdersListForLong(symbol: string, newList: ReadonlyArray<OrderRecord>): void;
+  setBuyOrdersListForShort(symbol: string, newList: ReadonlyArray<OrderRecord>): void;
   addBuyOrder(
     symbol: string,
     executedPrice: number,
@@ -84,10 +84,14 @@ export interface OrderStorage {
   clearBuyOrders(symbol: string, isLongSymbol: boolean, quote?: Quote | null): void;
   getLatestBuyOrderPrice(symbol: string, isLongSymbol: boolean): number | null;
   getLatestSellRecord(symbol: string, isLongSymbol: boolean): OrderRecord | null;
-  getBuyOrdersBelowPrice(currentPrice: number, direction: 'LONG' | 'SHORT', symbol: string): OrderRecord[];
-  calculateTotalQuantity(orders: OrderRecord[]): number;
-  getLongBuyOrders(): OrderRecord[];
-  getShortBuyOrders(): OrderRecord[];
+  getBuyOrdersBelowPrice(
+    currentPrice: number,
+    direction: 'LONG' | 'SHORT',
+    symbol: string,
+  ): ReadonlyArray<OrderRecord>;
+  calculateTotalQuantity(orders: ReadonlyArray<OrderRecord>): number;
+  getLongBuyOrders(): ReadonlyArray<OrderRecord>;
+  getShortBuyOrders(): ReadonlyArray<OrderRecord>;
 }
 
 /**

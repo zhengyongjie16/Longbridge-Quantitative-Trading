@@ -92,7 +92,7 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
   }
 
   /** 计算订单统计信息（用于调试输出） */
-  function calculateOrderStatistics(orders: OrderRecord[]): OrderStatistics {
+  function calculateOrderStatistics(orders: ReadonlyArray<OrderRecord>): OrderStatistics {
     let totalQuantity = 0;
     let totalValue = 0;
 
@@ -311,12 +311,12 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     currentPrice: number,
     direction: 'LONG' | 'SHORT',
     symbol: string,
-  ): OrderRecord[] {
+  ): ReadonlyArray<OrderRecord> {
     return storage.getBuyOrdersBelowPrice(currentPrice, direction, symbol);
   }
 
   /** 计算订单列表的总成交数量 */
-  function calculateTotalQuantity(orders: OrderRecord[]): number {
+  function calculateTotalQuantity(orders: ReadonlyArray<OrderRecord>): number {
     return storage.calculateTotalQuantity(orders);
   }
 
@@ -382,17 +382,20 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
   // ============================================
 
   /** 获取所有做多标的的买入订单 */
-  function getLongBuyOrders(): OrderRecord[] {
+  function getLongBuyOrders(): ReadonlyArray<OrderRecord> {
     return storage.getLongBuyOrders();
   }
 
   /** 获取所有做空标的的买入订单 */
-  function getShortBuyOrders(): OrderRecord[] {
+  function getShortBuyOrders(): ReadonlyArray<OrderRecord> {
     return storage.getShortBuyOrders();
   }
 
   /** 获取指定标的的买入订单列表 */
-  function getBuyOrdersForSymbol(symbol: string, isLongSymbol: boolean): OrderRecord[] {
+  function getBuyOrdersForSymbol(
+    symbol: string,
+    isLongSymbol: boolean,
+  ): ReadonlyArray<OrderRecord> {
     return storage.getBuyOrdersList(symbol, isLongSymbol);
   }
 

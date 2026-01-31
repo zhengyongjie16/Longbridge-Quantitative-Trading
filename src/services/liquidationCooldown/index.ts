@@ -35,6 +35,10 @@ export function createLiquidationCooldownTracker(
       return null;
     }
 
+    // mode 说明：
+    // - minutes：按分钟数直接叠加
+    // - one-day：冷却到下一自然日 00:00（香港时间）
+    // - half-day：上午清仓冷却到当日 13:00，下午清仓冷却到次日 00:00（香港时间）
     if (cooldownConfig.mode === 'minutes') {
       const cooldownMs = convertMinutesToMs(cooldownConfig.minutes);
       if (cooldownMs <= 0) {

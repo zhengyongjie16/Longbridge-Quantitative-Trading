@@ -10,6 +10,12 @@ function isNormalStatus(status: WarrantListItem['status']): boolean {
   return status === WarrantStatus.Normal || status === 'Normal' || status === 2;
 }
 
+const EXPIRY_DATE_FILTERS: ReadonlyArray<FilterWarrantExpiryDate> = [
+  FilterWarrantExpiryDate.Between_3_6,
+  FilterWarrantExpiryDate.Between_6_12,
+  FilterWarrantExpiryDate.GT_12,
+];
+
 /**
  * 根据最小到期月数生成筛选条件，避免临近到期标的。
  */
@@ -17,19 +23,12 @@ export function buildExpiryDateFilters(
   expiryMinMonths: number,
 ): ReadonlyArray<FilterWarrantExpiryDate> {
   if (!Number.isFinite(expiryMinMonths) || expiryMinMonths <= 3) {
-    return [
-      FilterWarrantExpiryDate.Between_3_6,
-      FilterWarrantExpiryDate.Between_6_12,
-      FilterWarrantExpiryDate.GT_12,
-    ];
+    return EXPIRY_DATE_FILTERS;
   }
   if (expiryMinMonths <= 6) {
-    return [
-      FilterWarrantExpiryDate.Between_6_12,
-      FilterWarrantExpiryDate.GT_12,
-    ];
+    return EXPIRY_DATE_FILTERS.slice(1);
   }
-  return [FilterWarrantExpiryDate.GT_12];
+  return EXPIRY_DATE_FILTERS.slice(2);
 }
 
 /**

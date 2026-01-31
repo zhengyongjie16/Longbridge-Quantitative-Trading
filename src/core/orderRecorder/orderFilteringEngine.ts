@@ -134,7 +134,7 @@ export const createOrderFilteringEngine = (_deps: OrderFilteringEngineDeps = {})
       : latestSellTime + 1;
 
     // 步骤1：获取成交时间 < 当前卖出订单时间的买入订单
-    // 注意：使用 < 而不是 <=，与用户描述一致
+    // 使用 < 以保持开区间边界
     const buyOrdersBeforeSell = currentBuyOrders.filter(
       (buyOrder) => buyOrder.executedTime < sellTime,
     );
@@ -142,9 +142,8 @@ export const createOrderFilteringEngine = (_deps: OrderFilteringEngineDeps = {})
     // 计算这些买入订单的总数量
     const totalBuyQuantity = calculateTotalQuantity(buyOrdersBeforeSell);
 
-    // 步骤2：从原始候选订单获取时间间隔内的买入订单
-    // 关键修复：必须从原始候选订单获取，而非上一轮结果（因为上一轮结果不包含这些订单）
-    // 使用 > sellTime 而非 >=，与用户描述"成交时间大于D且小于D+1"一致
+    // 步骤2：从原始候选订单获取时间间隔内的买入订单（开区间）
+    // 时间间隔订单需从候选订单中获取，避免遗漏
     const buyOrdersBetweenSells = candidateOrders.filter(
       (buyOrder) =>
         buyOrder.executedTime > sellTime &&
@@ -172,7 +171,7 @@ export const createOrderFilteringEngine = (_deps: OrderFilteringEngineDeps = {})
       (buyOrder) => buyOrder.executedPrice >= sellPrice,
     );
 
-    // 步骤6（关键修复）：确保保留数量不超过应保留数量
+    // 步骤6：确保保留数量不超过应保留数量
     // 当卖出价格很低时，按价格过滤可能会保留过多订单
     // 需要进一步按价格从低到高移除多余订单
     filteredBuyOrders = adjustOrdersByQuantityLimit(

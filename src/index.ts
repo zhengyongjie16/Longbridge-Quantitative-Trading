@@ -300,43 +300,31 @@ async function main(): Promise<void> {
   const requiredSymbols = new Set<string>();
 
   /**
-   * 记录必须校验的标的（去重），用于运行时行情验证。
+   * 记录运行时行情验证所需标的（必选/可选）。
    */
-  function pushRequiredSymbol(
+  function pushSymbol(
     symbol: string | null,
     label: string,
     requireLotSize: boolean,
+    required: boolean,
   ): void {
     if (!symbol || requiredSymbols.has(symbol)) {
       return;
     }
-    requiredSymbols.add(symbol);
-    runtimeValidationInputs.push({
-      symbol,
-      label,
-      requireLotSize,
-      required: true,
-    });
-  }
-
-  /**
-   * 记录可选标的（去重），用于附加行情验证与提示。
-   */
-  function pushOptionalSymbol(symbol: string | null, label: string): void {
-    if (!symbol || requiredSymbols.has(symbol)) {
-      return;
+    if (required) {
+      requiredSymbols.add(symbol);
     }
     runtimeValidationInputs.push({
       symbol,
       label,
-      requireLotSize: false,
-      required: false,
+      requireLotSize,
+      required,
     });
   }
 
   for (const monitorConfig of tradingConfig.monitors) {
     const index = monitorConfig.originalIndex;
-    pushRequiredSymbol(monitorConfig.monitorSymbol, `监控标的 ${index}`, false);
+    pushSymbol(monitorConfig.monitorSymbol, `监控标的 ${index}`, false, true);
 
     const longSeatSymbol = resolveReadySeatSymbol(
       symbolRegistry,
@@ -348,12 +336,12 @@ async function main(): Promise<void> {
       monitorConfig.monitorSymbol,
       'SHORT',
     );
-    pushRequiredSymbol(longSeatSymbol, `做多席位标的 ${index}`, true);
-    pushRequiredSymbol(shortSeatSymbol, `做空席位标的 ${index}`, true);
+    pushSymbol(longSeatSymbol, `做多席位标的 ${index}`, true, true);
+    pushSymbol(shortSeatSymbol, `做空席位标的 ${index}`, true, true);
   }
 
   for (const position of lastState.cachedPositions) {
-    pushOptionalSymbol(position.symbol, '持仓标的');
+    pushSymbol(position.symbol, '持仓标的', false, false);
   }
 
   const runtimeValidationResult = validateRuntimeSymbolsFromQuotesMap({

@@ -32,23 +32,27 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
   };
 
   /** 替换指定标的的买入订单列表（内部辅助函数） */
-  const setBuyOrdersList = (symbol: string, newList: OrderRecord[], isLongSymbol: boolean): void => {
+  const setBuyOrdersList = (
+    symbol: string,
+    newList: ReadonlyArray<OrderRecord>,
+    isLongSymbol: boolean,
+  ): void => {
     const targetMap = isLongSymbol ? longBuyOrdersMap : shortBuyOrdersMap;
 
     if (newList.length === 0) {
       targetMap.delete(symbol);
     } else {
-      targetMap.set(symbol, newList);
+      targetMap.set(symbol, newList as OrderRecord[]);
     }
   };
 
   /** 替换做多标的的买入订单列表 */
-  const setBuyOrdersListForLong = (symbol: string, newList: OrderRecord[]): void => {
+  const setBuyOrdersListForLong = (symbol: string, newList: ReadonlyArray<OrderRecord>): void => {
     setBuyOrdersList(symbol, newList, true);
   };
 
   /** 替换做空标的的买入订单列表 */
-  const setBuyOrdersListForShort = (symbol: string, newList: OrderRecord[]): void => {
+  const setBuyOrdersListForShort = (symbol: string, newList: ReadonlyArray<OrderRecord>): void => {
     setBuyOrdersList(symbol, newList, false);
   };
 
