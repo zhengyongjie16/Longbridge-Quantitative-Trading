@@ -1,3 +1,8 @@
+/**
+ * 启动席位准备流程：
+ * - 从历史订单与持仓推断席位标的
+ * - 自动寻标填充空席位
+ */
 import type {
   MonitorConfig,
   SeatSymbolSnapshotEntry,
@@ -8,6 +13,9 @@ import { findBestWarrant } from '../../services/autoSymbolFinder/index.js';
 import { isSeatReady, resolveSeatOnStartup } from '../../services/autoSymbolManager/utils.js';
 import { getLatestTradedSymbol } from '../../core/orderRecorder/orderOwnershipParser.js';
 
+/**
+ * 基于订单与持仓生成席位快照，用于启动时恢复席位标的。
+ */
 export function resolveSeatSnapshot(input: SeatSnapshotInput): SeatSnapshot {
   const { monitors, positions, orders } = input;
   const entries: SeatSymbolSnapshotEntry[] = [];
@@ -94,6 +102,11 @@ export function collectSeatSymbols({
   return entries;
 }
 
+/**
+ * 启动时准备所有席位：
+ * - 先恢复历史标的
+ * - 对启用自动寻标的席位执行寻标
+ */
 export async function prepareSeatsOnStartup(
   deps: PrepareSeatsOnStartupDeps,
 ): Promise<PreparedSeats> {
@@ -122,6 +135,9 @@ export async function prepareSeatsOnStartup(
     snapshotMap.set(`${entry.monitorSymbol}:${entry.direction}`, entry.symbol);
   }
 
+  /**
+   * 启动阶段更新席位状态：READY/EMPTY。
+   */
   function updateSeatOnStartup(
     monitorSymbol: string,
     direction: 'LONG' | 'SHORT',
@@ -152,6 +168,9 @@ export async function prepareSeatsOnStartup(
 
   const quoteContextPromise = marketDataClient._getContext();
 
+  /**
+   * 根据方向解析启动寻标阈值。
+   */
   function resolveAutoSearchThresholds(
     direction: 'LONG' | 'SHORT',
     autoSearchConfig: {
@@ -173,6 +192,9 @@ export async function prepareSeatsOnStartup(
     };
   }
 
+  /**
+   * 执行自动寻标并更新席位状态。
+   */
   async function searchSeatSymbol({
     monitorSymbol,
     direction,
@@ -240,6 +262,9 @@ export async function prepareSeatsOnStartup(
     return best.symbol;
   }
 
+  /**
+   * 循环等待所有自动寻标席位就绪（包含开盘保护与间隔等待）。
+   */
   async function waitForSeatsReady(): Promise<void> {
     let loggedWaiting = false;
     while (true) {

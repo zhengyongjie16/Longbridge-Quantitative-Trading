@@ -43,6 +43,9 @@ function parseSignalConfigFromEnv(
   return config;
 }
 
+/**
+ * 解析带上下限的数值配置，超出范围会回退并提示。
+ */
 function parseBoundedNumberConfig({
   env,
   envKey,
@@ -65,6 +68,9 @@ function parseBoundedNumberConfig({
   return value;
 }
 
+/**
+ * 将 OpenAPI 订单类型映射为配置值。
+ */
 function mapOrderTypeConfig(orderType: OrderType): OrderTypeConfig {
   switch (orderType) {
     case OrderType.LO:
@@ -121,6 +127,7 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
   const switchDistanceRangeBull = parseNumberRangeConfig(env, `SWITCH_DISTANCE_RANGE_BULL${suffix}`);
   const switchDistanceRangeBear = parseNumberRangeConfig(env, `SWITCH_DISTANCE_RANGE_BEAR${suffix}`);
 
+  // 使用 ?? 保留 0 的合法配置，仅在 null/undefined 时回退默认值
   const targetNotional = getNumberConfig(env, `TARGET_NOTIONAL${suffix}`, 1) ?? 10000;
   const maxPositionNotional = getNumberConfig(env, `MAX_POSITION_NOTIONAL${suffix}`, 1) ?? 100000;
   const maxDailyLoss = getNumberConfig(env, `MAX_DAILY_LOSS${suffix}`, 0) ?? 0;

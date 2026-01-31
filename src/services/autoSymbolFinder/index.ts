@@ -1,8 +1,14 @@
+/**
+ * 自动寻标入口：从行情服务筛选合适的牛熊证。
+ */
 import { SortOrderType, WarrantSortBy, WarrantStatus, WarrantType } from 'longport';
 import { formatError } from '../../utils/helpers/index.js';
 import { buildExpiryDateFilters, selectBestWarrant } from './utils.js';
 import type { FindBestWarrantInput, WarrantCandidate } from './types.js';
 
+/**
+ * 获取并筛选最佳牛熊证标的。
+ */
 export async function findBestWarrant({
   ctx,
   monitorSymbol,

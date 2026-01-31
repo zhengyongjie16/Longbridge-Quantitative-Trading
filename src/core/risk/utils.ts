@@ -1,7 +1,13 @@
+/**
+ * 风险模块通用工具：计算当日亏损偏移。
+ */
 import { OrderStatus } from 'longport';
 import type { OrderRecord, RawOrderFromAPI } from '../../types/index.js';
 import type { DailyLossCalculatorParams, DailyLossOffsetMap } from './types.js';
 
+/**
+ * 生成北京时间日键（YYYY/MM/DD），用于筛选当日订单。
+ */
 function resolveBeijingDayKey(
   toBeijingTimeIso: (date: Date | null) => string,
   date: Date,
@@ -17,6 +23,9 @@ function resolveBeijingDayKey(
   return `${parts[0]}/${parts[1]}/${parts[2]}`;
 }
 
+/**
+ * 汇总订单成本：成交价 * 成交量。
+ */
 function sumOrderCost(orders: ReadonlyArray<OrderRecord>): number {
   let total = 0;
   for (const order of orders) {
@@ -34,6 +43,9 @@ function sumOrderCost(orders: ReadonlyArray<OrderRecord>): number {
   return total;
 }
 
+/**
+ * 计算订单列表的当日亏损偏移（totalBuy - totalSell - openBuyCost）。
+ */
 function calculateLossOffsetForOrders(
   orders: ReadonlyArray<RawOrderFromAPI>,
   deps: Pick<DailyLossCalculatorParams, 'filteringEngine' | 'classifyAndConvertOrders'>,
@@ -55,6 +67,9 @@ function calculateLossOffsetForOrders(
   return totalBuy - totalSell - openBuyCost;
 }
 
+/**
+ * 批量计算所有监控标的的当日亏损偏移。
+ */
 export function calculateDailyLossOffsetForOrders({
   orders,
   monitors,

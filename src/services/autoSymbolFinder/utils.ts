@@ -1,11 +1,18 @@
+/**
+ * 自动寻标工具：过滤候选与筛选最佳牛熊证。
+ */
 import { FilterWarrantExpiryDate, WarrantStatus } from 'longport';
 import { decimalToNumber } from '../../utils/helpers/index.js';
 import type { SelectBestWarrantInput, WarrantCandidate, WarrantListItem } from './types.js';
 
+// 统一兼容不同枚举值的「正常」状态
 function isNormalStatus(status: WarrantListItem['status']): boolean {
   return status === WarrantStatus.Normal || status === 'Normal' || status === 2;
 }
 
+/**
+ * 根据最小到期月数生成筛选条件，避免临近到期标的。
+ */
 export function buildExpiryDateFilters(
   expiryMinMonths: number,
 ): ReadonlyArray<FilterWarrantExpiryDate> {
@@ -25,6 +32,11 @@ export function buildExpiryDateFilters(
   return [FilterWarrantExpiryDate.GT_12];
 }
 
+/**
+ * 选取最佳标的：
+ * - 价格优先（更低价格更易成交）
+ * - 价格相同则按单位时间成交额更高优先
+ */
 export function selectBestWarrant({
   warrants,
   tradingMinutes,

@@ -1,3 +1,8 @@
+/**
+ * 自动换标管理器：
+ * - 负责席位初始化、自动寻标与换标流程
+ * - 通过阈值与风险距离判断触发换标，并处理撤单/卖出/买入的完整链路
+ */
 import { OrderSide } from 'longport';
 import { findBestWarrant } from '../autoSymbolFinder/index.js';
 import {
@@ -27,6 +32,9 @@ import type {
   SwitchSuppression,
 } from './types.js';
 
+/**
+ * 将方向映射到对应的买卖动作与牛熊方向。
+ */
 function resolveDirectionSymbols(direction: SeatDirection): {
   readonly isBull: boolean;
   readonly buyAction: 'BUYCALL' | 'BUYPUT';
@@ -39,6 +47,9 @@ function resolveDirectionSymbols(direction: SeatDirection): {
   } as const;
 }
 
+/**
+ * 根据席位方向提取自动寻标阈值配置，避免错误混用多/空阈值。
+ */
 function resolveAutoSearchThresholds(
   direction: SeatDirection,
   config: AutoSymbolManagerDeps['monitorConfig']['autoSearchConfig'],
@@ -102,6 +113,10 @@ function isCancelableBuyOrder(order: PendingOrder, symbol: string): boolean {
   return PENDING_ORDER_STATUSES.has(order.status);
 }
 
+/**
+ * 根据名义金额计算买入数量，并按 lotSize 向下取整。
+ * 无法满足最小手数时返回 null。
+ */
 function calculateBuyQuantityByNotional(
   notional: number,
   price: number,
@@ -121,6 +136,9 @@ function calculateBuyQuantityByNotional(
   return rawQty >= lotSize ? rawQty : null;
 }
 
+/**
+ * 使用对象池构造订单信号，避免频繁分配对象。
+ */
 function buildOrderSignal({
   action,
   symbol,
@@ -219,6 +237,11 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     symbolRegistry.updateSeatState(monitorSymbol, direction, nextState);
   }
 
+  /**
+   * 启动时初始化席位状态：
+   * - 未启用自动寻标：直接绑定配置标的
+   * - 已启用自动寻标：优先使用历史标的，否则置为空席位
+   */
   function ensureSeatOnStartup({
     direction,
     initialSymbol,
@@ -241,6 +264,9 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     return nextState;
   }
 
+  /**
+   * 清空席位并进入换标流程，同时提升席位版本用于信号隔离。
+   */
   function clearSeat({ direction, reason }: { direction: SeatDirection; reason: string }): SeatVersion {
     const timestamp = now().getTime();
     const currentState = symbolRegistry.getSeatState(monitorSymbol, direction);
@@ -255,6 +281,9 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     switchSuppressions.clear();
   }
 
+  /**
+   * 在席位为空时执行自动寻标，受开盘保护与冷却时间限制。
+   */
   async function maybeSearchOnTick({
     direction,
     currentTime,
@@ -318,6 +347,12 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     updateSeatState(direction, nextState, true);
   }
 
+  /**
+   * 换标状态机：
+   * 1) 先撤销旧标的未成交买单
+   * 2) 若有持仓则提交卖出并等待成交
+   * 3) 卖出完成后更新席位并按需回补买入
+   */
   async function processSwitchState(
     params: SwitchOnDistanceParams,
     state: SwitchState,
@@ -326,6 +361,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     const { sellAction } = resolveDirectionSymbols(direction);
     const seatVersion = symbolRegistry.getSeatVersion(monitorSymbol, direction);
 
+    // 先撤销旧标的未成交买单，避免换标期间重复持仓
     const cancelTargets = pendingOrders.filter((order) =>
       isCancelableBuyOrder(order, state.oldSymbol),
     );
@@ -346,10 +382,12 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     const totalQuantity = position?.quantity ?? 0;
     const availableQuantity = position?.availableQuantity ?? 0;
 
+    // 有持仓但不可用时等待解冻，避免卖出数量不准确
     if (Number.isFinite(totalQuantity) && totalQuantity > 0 && availableQuantity === 0) {
       return;
     }
 
+    // 还有可用持仓时先提交卖出
     if (Number.isFinite(availableQuantity) && availableQuantity > 0) {
       if (!state.sellSubmitted) {
         const quote = quotesMap.get(state.oldSymbol) ?? null;
@@ -376,6 +414,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
       return;
     }
 
+    // 卖出完成后尝试记录真实成交金额，用于回补买入
     const latestSellRecord = orderRecorder.getLatestSellRecord(state.oldSymbol, direction === 'LONG');
     if (latestSellRecord && latestSellRecord.executedTime >= state.startedAt) {
       const actualNotional = latestSellRecord.executedPrice * latestSellRecord.executedQuantity;
@@ -385,6 +424,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     }
 
     const nextSymbol = state.nextSymbol;
+    // 未找到候选标的则直接清空席位
     if (!nextSymbol) {
       updateSeatState(direction, buildSeatState(null, 'EMPTY', null, null), false);
       switchStates.delete(direction);
@@ -397,12 +437,14 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
       false,
     );
 
+    // 若没有持仓则不需要回补买入
     if (!state.shouldRebuy) {
       switchStates.delete(direction);
       return;
     }
 
     const quote = quotesMap.get(nextSymbol) ?? null;
+    // 等待下一次行情数据补全价格与手数
     if (!quote || quote.price == null || quote.lotSize == null) {
       state.awaitingQuote = true;
       return;
@@ -435,6 +477,9 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     switchStates.delete(direction);
   }
 
+  /**
+   * 根据距回收价阈值决定是否触发换标，含日内抑制与候选标的检测。
+   */
   async function maybeSwitchOnDistance({
     direction,
     monitorPrice,
@@ -478,6 +523,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
       return;
     }
 
+    // 阈值越界触发换标流程
     if (distancePercent <= range.min || distancePercent >= range.max) {
       if (resolveSuppression(direction, seatState.symbol)) {
         return;

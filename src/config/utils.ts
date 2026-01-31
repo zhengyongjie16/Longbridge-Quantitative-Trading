@@ -163,6 +163,7 @@ export function parseVerificationDelay(
   return delay;
 }
 
+// 固定指标无需周期参数
 const FIXED_INDICATORS = new Set(['K', 'D', 'J', 'MACD', 'DIF', 'DEA']);
 
 /** 解析延迟验证指标列表（支持 K/D/J/MACD/DIF/DEA/EMA:N/PSY:N） */
@@ -187,6 +188,9 @@ export function parseVerificationIndicators(
   const validItems: string[] = [];
   const invalidItems: string[] = [];
 
+  /**
+   * 解析带周期的指标并加入有效列表，返回 true 表示已处理。
+   */
   function tryParseIndicatorWithPeriod(
     item: string,
     prefix: 'PSY:' | 'EMA:',

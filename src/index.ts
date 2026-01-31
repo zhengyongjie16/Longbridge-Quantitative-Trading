@@ -132,6 +132,9 @@ async function main(): Promise<void> {
   let cachedTradingDayInfo: { dateStr: string; info: { isTradingDay: boolean; isHalfDay: boolean } } | null =
     null;
 
+  /**
+   * 获取交易日信息并按日期缓存，避免频繁调用 API。
+   */
   async function resolveTradingDayInfo(currentTime: Date): Promise<{ isTradingDay: boolean; isHalfDay: boolean }> {
     const dateStr = currentTime.toISOString().slice(0, 10);
     if (cachedTradingDayInfo?.dateStr === dateStr) {
@@ -296,6 +299,9 @@ async function main(): Promise<void> {
   }> = [];
   const requiredSymbols = new Set<string>();
 
+  /**
+   * 记录必须校验的标的（去重），用于运行时行情验证。
+   */
   function pushRequiredSymbol(
     symbol: string | null,
     label: string,
@@ -313,6 +319,9 @@ async function main(): Promise<void> {
     });
   }
 
+  /**
+   * 记录可选标的（去重），用于附加行情验证与提示。
+   */
   function pushOptionalSymbol(symbol: string | null, label: string): void {
     if (!symbol || requiredSymbols.has(symbol)) {
       return;
@@ -429,6 +438,9 @@ async function main(): Promise<void> {
     });
     monitorContexts.set(monitorConfig.monitorSymbol, context);
 
+    /**
+     * 初始化席位牛熊证信息，供风险检查器使用。
+     */
     async function refreshSeatWarrantInfo(
       symbol: string | null,
       isLongSymbol: boolean,

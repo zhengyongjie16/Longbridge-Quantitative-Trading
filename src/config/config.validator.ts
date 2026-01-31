@@ -68,6 +68,9 @@ function validateRequiredSymbol({
   }
 }
 
+/**
+ * 记录交易标的使用情况并检测重复配置。
+ */
 function recordTradingSymbolUsage(
   symbol: string,
   index: number,
@@ -379,6 +382,7 @@ export function validateTradingConfig(
   // 验证开盘保护配置（仅在启用时要求完整且范围合法）
   const openProtectionConfig = tradingConfig.global.openProtection;
   if (openProtectionConfig.enabled) {
+    // 使用 == null 同时检查 null 与 undefined
     if (openProtectionConfig.minutes == null) {
       errors.push('OPENING_PROTECTION_MINUTES 未配置（启用开盘保护时为必填，范围 1-60）');
       missingFields.push('OPENING_PROTECTION_MINUTES');

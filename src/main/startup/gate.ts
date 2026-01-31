@@ -1,3 +1,6 @@
+/**
+ * 启动门禁：在交易日、交易时段与开盘保护条件满足后才允许继续。
+ */
 import type { StartupGate, StartupGateDeps } from './types.js';
 
 type StartupGateState = 'notTradingDay' | 'outOfSession' | 'openProtection' | 'ready' | null;
@@ -16,6 +19,7 @@ export function createStartupGate(deps: StartupGateDeps): StartupGate {
 
   let startupGateState: StartupGateState = null;
 
+  // 避免重复输出相同状态日志
   function logState(state: StartupGateState, message: string): void {
     if (startupGateState !== state) {
       startupGateState = state;
@@ -23,6 +27,9 @@ export function createStartupGate(deps: StartupGateDeps): StartupGate {
     }
   }
 
+  /**
+   * 等待满足交易时段与开盘保护条件。
+   */
   async function wait({ mode }: { readonly mode: 'strict' | 'skip' }): Promise<{
     isTradingDay: boolean;
     isHalfDay: boolean;

@@ -1,3 +1,6 @@
+/**
+ * 自动换标席位工具：初始化席位、版本号与状态查询。
+ */
 import type {
   MonitorConfig,
   Position,
@@ -27,6 +30,9 @@ export function isSeatVersionMatch(
   return Number.isFinite(signalVersion) && signalVersion === currentVersion;
 }
 
+/**
+ * 启动时优先使用已有持仓的标的，避免自动寻标覆盖现有仓位。
+ */
 export function resolveSeatOnStartup({
   autoSearchEnabled,
   candidateSymbol,
@@ -66,6 +72,9 @@ function createSeatEntry(symbol: string | null, status: SeatStatus): SeatEntry {
   };
 }
 
+/**
+ * 从注册表中解析指定监控标的与方向的席位条目。
+ */
 function resolveSeatEntry(
   registry: Map<string, SymbolSeatEntry>,
   monitorSymbol: string,
@@ -78,6 +87,9 @@ function resolveSeatEntry(
   return direction === 'LONG' ? entry.long : entry.short;
 }
 
+/**
+ * 创建席位注册表并初始化多/空席位状态。
+ */
 export function createSymbolRegistry(
   monitors: ReadonlyArray<MonitorConfig>,
 ): SymbolRegistry {

@@ -1,3 +1,8 @@
+/**
+ * 当日亏损追踪器：
+ * - 按监控标的与方向累计已实现亏损偏移
+ * - 基于当日成交订单与过滤算法计算未平仓买入成本
+ */
 import { OrderSide, OrderStatus } from 'longport';
 import type { MonitorConfig, OrderRecord, RawOrderFromAPI } from '../../types/index.js';
 import type {
@@ -7,6 +12,9 @@ import type {
   DailyLossTrackerDeps,
 } from './types.js';
 
+/**
+ * 使用北京时间 ISO 字符串生成日键（YYYY/MM/DD），用于跨日重置。
+ */
 function resolveBeijingDayKey(
   toBeijingTimeIso: (date: Date | null) => string,
   date: Date,
@@ -22,6 +30,9 @@ function resolveBeijingDayKey(
   return `${parts[0]}/${parts[1]}/${parts[2]}`;
 }
 
+/**
+ * 构建空状态，避免分支重复初始化。
+ */
 function createEmptyState(): DailyLossState {
   return {
     buyOrders: [],
@@ -30,6 +41,9 @@ function createEmptyState(): DailyLossState {
   };
 }
 
+/**
+ * 汇总订单成本：已成交价格 * 数量。
+ */
 function sumOrderCost(orders: ReadonlyArray<OrderRecord>): number {
   let total = 0;
   for (const order of orders) {
@@ -47,6 +61,11 @@ function sumOrderCost(orders: ReadonlyArray<OrderRecord>): number {
   return total;
 }
 
+/**
+ * 计算当日亏损偏移：
+ * totalBuy - totalSell - openBuyCost
+ * 其中 openBuyCost 为过滤算法识别的未平仓买入成本。
+ */
 function calculateLossOffsetFromRecords(
   buyOrders: ReadonlyArray<OrderRecord>,
   sellOrders: ReadonlyArray<OrderRecord>,
@@ -65,6 +84,9 @@ function calculateLossOffsetFromRecords(
   return totalBuy - totalSell - openBuyCost;
 }
 
+/**
+ * 将订单列表转换为当日状态并计算亏损偏移。
+ */
 function buildStateFromOrders(
   orders: ReadonlyArray<RawOrderFromAPI>,
   deps: Pick<DailyLossTrackerDeps, 'filteringEngine' | 'classifyAndConvertOrders'>,
@@ -82,6 +104,9 @@ function buildStateFromOrders(
   };
 }
 
+/**
+ * 将成交回报转换为订单记录，若数据不完整则返回 null。
+ */
 function createOrderRecordFromFill(input: DailyLossFilledOrderInput): OrderRecord | null {
   const executedPrice = Number(input.executedPrice);
   const executedQuantity = Number(input.executedQuantity);
@@ -107,10 +132,16 @@ function createOrderRecordFromFill(input: DailyLossFilledOrderInput): OrderRecor
   };
 }
 
+/**
+ * 创建当日亏损追踪器实例，按监控标的与方向维护状态。
+ */
 export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTracker {
   let dayKey: string | null = null;
   const statesByMonitor = new Map<string, { long: DailyLossState; short: DailyLossState }>();
 
+  /**
+   * 跨天时清空所有状态，确保只追踪当日订单。
+   */
   function resetIfNewDay(now: Date): void {
     const nextKey = resolveBeijingDayKey(deps.toBeijingTimeIso, now);
     if (!nextKey) {
@@ -122,6 +153,9 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
     }
   }
 
+  /**
+   * 启动时根据历史成交订单初始化当日状态。
+   */
   function initializeFromOrders(
     allOrders: ReadonlyArray<RawOrderFromAPI>,
     monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol'>>,
@@ -177,6 +211,9 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
     }
   }
 
+  /**
+   * 使用完整订单重新计算状态，作为纠偏手段。
+   */
   function recalculateFromAllOrders(
     allOrders: ReadonlyArray<RawOrderFromAPI>,
     monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol'>>,
@@ -185,6 +222,9 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
     initializeFromOrders(allOrders, monitors, now);
   }
 
+  /**
+   * 增量记录成交订单并更新亏损偏移。
+   */
   function recordFilledOrder(input: DailyLossFilledOrderInput): void {
     resetIfNewDay(new Date(input.executedTimeMs));
     if (!dayKey) {
@@ -233,6 +273,9 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
     }
   }
 
+  /**
+   * 获取指定标的与方向的当日亏损偏移。
+   */
   function getLossOffset(monitorSymbol: string, isLongSymbol: boolean): number {
     const state = statesByMonitor.get(monitorSymbol);
     if (!state) {

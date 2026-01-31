@@ -149,6 +149,9 @@ export async function processMonitor(
   let longSeatVersion = symbolRegistry.getSeatVersion(MONITOR_SYMBOL, 'LONG');
   let shortSeatVersion = symbolRegistry.getSeatVersion(MONITOR_SYMBOL, 'SHORT');
 
+  /**
+   * 同步当前席位状态与版本到 MonitorContext，供异步处理器读取。
+   */
   function syncSeatContext(): void {
     monitorContext.seatState = {
       long: longSeatState,
@@ -192,6 +195,9 @@ export async function processMonitor(
     monitorContext.shortSymbolName = shortQuote?.name ?? SHORT_SYMBOL;
   }
 
+  /**
+   * 判断动作是否与指定方向匹配（BUYCALL/SELLCALL 为 LONG）。
+   */
   function isDirectionAction(
     action: string | null | undefined,
     direction: 'LONG' | 'SHORT',
@@ -203,6 +209,9 @@ export async function processMonitor(
     return direction === 'LONG' ? isLongAction : !isLongAction;
   }
 
+  /**
+   * 清空指定方向的待执行信号（延迟验证、买入、卖出）。
+   */
   function clearQueuesForDirection(direction: 'LONG' | 'SHORT'): void {
     const removedDelayed = delayedSignalVerifier.cancelAllForDirection(MONITOR_SYMBOL, direction);
     const removedBuy = buyTaskQueue.removeTasks(
@@ -297,6 +306,9 @@ export async function processMonitor(
     logger.error(`[自动换标] ${MONITOR_SYMBOL} ${direction} 换标失败：${reason}`);
   }
 
+  /**
+   * 换标后刷新缓存与风险数据，并清理旧标的订单记录。
+   */
   async function refreshSeatAfterSwitch(
     direction: 'LONG' | 'SHORT',
     previousState: typeof longSeatState,
@@ -476,6 +488,9 @@ export async function processMonitor(
   );
 
   try {
+    /**
+     * 当距回收价达到阈值时创建清仓信号。
+     */
     function tryCreateLiquidationSignal(
       symbol: string,
       symbolName: string | null,
@@ -600,6 +615,9 @@ export async function processMonitor(
     );
 
     // 6. 为信号设置标的中文名称和价格信息（用于日志显示和后续处理）
+    /**
+     * 补充信号的名称/价格/手数信息，便于日志与后续处理。
+     */
     function enrichSignal(signal: Signal): void {
       const sigSymbol = signal.symbol;
       if (sigSymbol === LONG_SYMBOL && longQuote) {
@@ -613,6 +631,9 @@ export async function processMonitor(
       }
     }
 
+    /**
+     * 根据信号动作解析席位信息（标的、版本、行情）。
+     */
     function resolveSeatForSignal(signal: Signal): {
       seatSymbol: string;
       seatVersion: number;
