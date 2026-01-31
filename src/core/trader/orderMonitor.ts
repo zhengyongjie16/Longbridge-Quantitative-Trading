@@ -73,6 +73,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     rateLimiter,
     cacheManager,
     orderRecorder,
+    dailyLossTracker,
     orderHoldRegistry,
     liquidationCooldownTracker,
     testHooks,
@@ -168,6 +169,19 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
             executedTimeMs,
             String(orderId),
           );
+        }
+
+        if (trackedOrder.monitorSymbol) {
+          dailyLossTracker.recordFilledOrder({
+            monitorSymbol: trackedOrder.monitorSymbol,
+            symbol: trackedOrder.symbol,
+            isLongSymbol: trackedOrder.isLongSymbol,
+            side: trackedOrder.side,
+            executedPrice,
+            executedQuantity: filledQuantity,
+            executedTimeMs,
+            orderId: String(orderId),
+          });
         }
 
         if (trackedOrder.isProtectiveLiquidation) {

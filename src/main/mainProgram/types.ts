@@ -18,6 +18,7 @@ import type {
 import type { MarketMonitor } from '../../services/marketMonitor/types.js';
 import type { DoomsdayProtection } from '../../core/doomsdayProtection/types.js';
 import type { SignalProcessor } from '../../core/signalProcessor/types.js';
+import type { DailyLossTracker } from '../../core/risk/types.js';
 
 /**
  * 主程序上下文
@@ -36,6 +37,7 @@ export type MainProgramContext = {
   readonly doomsdayProtection: DoomsdayProtection;
   readonly signalProcessor: SignalProcessor;
   readonly tradingConfig: MultiMonitorTradingConfig;
+  readonly dailyLossTracker: DailyLossTracker;
   readonly monitorContexts: Map<string, MonitorContext>;
   readonly symbolRegistry: SymbolRegistry;
   readonly indicatorCache: IndicatorCache;

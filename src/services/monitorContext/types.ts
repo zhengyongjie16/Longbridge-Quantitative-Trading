@@ -11,6 +11,7 @@ import type { HangSengMultiIndicatorStrategy } from '../../core/strategy/types.j
 import type { UnrealizedLossMonitor } from '../../core/unrealizedLossMonitor/types.js';
 import type { DelayedSignalVerifier } from '../../main/asyncProgram/delayedSignalVerifier/types.js';
 import type { AutoSymbolManager } from '../autoSymbolManager/types.js';
+import type { DailyLossTracker } from '../../core/risk/types.js';
 
 export type MonitorContextFactoryDeps = {
   readonly config: MonitorConfig;
@@ -19,6 +20,7 @@ export type MonitorContextFactoryDeps = {
   readonly quotesMap: ReadonlyMap<string, Quote | null>;
   readonly strategy: HangSengMultiIndicatorStrategy;
   readonly orderRecorder: OrderRecorder;
+  readonly dailyLossTracker: DailyLossTracker;
   readonly riskChecker: RiskChecker;
   readonly unrealizedLossMonitor: UnrealizedLossMonitor;
   readonly delayedSignalVerifier: DelayedSignalVerifier;

@@ -22,6 +22,7 @@ import { logger } from '../../utils/logger/index.js';
 import { isValidPositiveNumber, formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import type { Quote, Signal, RiskChecker, Trader, OrderRecorder } from '../../types/index.js';
+import type { DailyLossTracker } from '../risk/types.js';
 import type { UnrealizedLossMonitor, UnrealizedLossMonitorContext, UnrealizedLossMonitorDeps } from './types.js';
 
 /** 创建浮亏监控器（通过依赖注入配置最大浮亏阈值） */
@@ -33,9 +34,11 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
     symbol: string,
     currentPrice: number,
     isLong: boolean,
+    monitorSymbol: string,
     riskChecker: RiskChecker,
     trader: Trader,
     orderRecorder: OrderRecorder,
+    dailyLossTracker: DailyLossTracker,
     quote?: Quote | null,
   ): Promise<boolean> => {
     // 如果未启用浮亏监控，直接返回
@@ -91,6 +94,7 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
         symbol,
         isLong,
         quote,
+        dailyLossTracker.getLossOffset(monitorSymbol, isLong),
       );
 
       return true; // 清仓成功
@@ -117,9 +121,11 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
       shortQuote,
       longSymbol,
       shortSymbol,
+      monitorSymbol,
       riskChecker,
       trader,
       orderRecorder,
+      dailyLossTracker,
     } = context;
     // 如果未启用浮亏监控，直接返回
     if (maxUnrealizedLossPerSymbol <= 0) {
@@ -141,9 +147,11 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
           symbol,
           price,
           isLong,
+          monitorSymbol,
           riskChecker,
           trader,
           orderRecorder,
+          dailyLossTracker,
           quote,
         );
       }

@@ -14,6 +14,9 @@ import type {
   SignalType,
   MarketDataClient,
   OrderRecorder,
+  MonitorConfig,
+  OrderRecord,
+  RawOrderFromAPI,
   WarrantType,
   RiskCheckResult,
   WarrantDistanceInfo,
@@ -22,6 +25,7 @@ import type {
   UnrealizedLossData,
   UnrealizedLossCheckResult,
 } from '../../types/index.js';
+import type { OrderFilteringEngine, OrderOwnership } from '../orderRecorder/types.js';
 
 /** 牛熊证报价接口（LongPort API 原始数据） */
 export type WarrantQuote = {
@@ -106,6 +110,7 @@ export interface UnrealizedLossChecker {
     symbol: string,
     isLongSymbol: boolean,
     quote?: import('../../types/index.js').Quote | null,
+    dailyLossOffset?: number,
   ): Promise<{ r1: number; n1: number } | null>;
   check(
     symbol: string,
@@ -132,4 +137,73 @@ export type UnrealizedLossCheckerDeps = {
 /** 风险检查器依赖（门面模式） */
 export type RiskCheckerDeps = {
   readonly options?: RiskCheckerOptions;
+};
+
+// ==================== 当日亏损追踪 ====================
+
+export type DailyLossOffset = {
+  readonly long: number;
+  readonly short: number;
+};
+
+export type DailyLossOffsetMap = ReadonlyMap<string, DailyLossOffset>;
+
+export type DailyLossCalculatorParams = {
+  readonly orders: ReadonlyArray<RawOrderFromAPI>;
+  readonly monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol'>>;
+  readonly now: Date;
+  readonly filteringEngine: OrderFilteringEngine;
+  readonly resolveOrderOwnership: (
+    order: RawOrderFromAPI,
+    monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol'>>,
+  ) => OrderOwnership | null;
+  readonly classifyAndConvertOrders: (
+    orders: ReadonlyArray<RawOrderFromAPI>,
+  ) => { buyOrders: OrderRecord[]; sellOrders: OrderRecord[] };
+  readonly toBeijingTimeIso: (date: Date | null) => string;
+};
+
+export type DailyLossState = {
+  readonly buyOrders: ReadonlyArray<OrderRecord>;
+  readonly sellOrders: ReadonlyArray<OrderRecord>;
+  readonly dailyLossOffset: number;
+};
+
+export type DailyLossFilledOrderInput = {
+  readonly monitorSymbol: string;
+  readonly symbol: string;
+  readonly isLongSymbol: boolean;
+  readonly side: (typeof import('longport').OrderSide)[keyof typeof import('longport').OrderSide];
+  readonly executedPrice: number;
+  readonly executedQuantity: number;
+  readonly executedTimeMs: number;
+  readonly orderId?: string | null;
+};
+
+export type DailyLossTracker = {
+  initializeFromOrders(
+    allOrders: ReadonlyArray<RawOrderFromAPI>,
+    monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol'>>,
+    now: Date,
+  ): void;
+  recalculateFromAllOrders(
+    allOrders: ReadonlyArray<RawOrderFromAPI>,
+    monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol'>>,
+    now: Date,
+  ): void;
+  recordFilledOrder(input: DailyLossFilledOrderInput): void;
+  getLossOffset(monitorSymbol: string, isLongSymbol: boolean): number;
+  resetIfNewDay(now: Date): void;
+};
+
+export type DailyLossTrackerDeps = {
+  readonly filteringEngine: OrderFilteringEngine;
+  readonly resolveOrderOwnership: (
+    order: RawOrderFromAPI,
+    monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol'>>,
+  ) => OrderOwnership | null;
+  readonly classifyAndConvertOrders: (
+    orders: ReadonlyArray<RawOrderFromAPI>,
+  ) => { buyOrders: OrderRecord[]; sellOrders: OrderRecord[] };
+  readonly toBeijingTimeIso: (date: Date | null) => string;
 };

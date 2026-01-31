@@ -40,7 +40,13 @@ import { createOrderFilteringEngine } from '../orderRecorder/orderFilteringEngin
  * @returns Promise<Trader> 接口实例
  */
 export async function createTrader(deps: TraderDeps): Promise<Trader> {
-  const { config, tradingConfig, liquidationCooldownTracker, symbolRegistry } = deps;
+  const {
+    config,
+    tradingConfig,
+    liquidationCooldownTracker,
+    symbolRegistry,
+    dailyLossTracker,
+  } = deps;
 
   // ========== 1. 创建基础依赖 ==========
   const ctxPromise = TradeContext.new(config);
@@ -72,6 +78,7 @@ export async function createTrader(deps: TraderDeps): Promise<Trader> {
     rateLimiter,
     cacheManager,
     orderRecorder,
+    dailyLossTracker,
     orderHoldRegistry,
     liquidationCooldownTracker,
     tradingConfig,

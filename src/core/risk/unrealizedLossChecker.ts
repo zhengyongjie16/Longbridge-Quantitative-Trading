@@ -70,6 +70,7 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
     symbol: string,
     isLongSymbol: boolean,
     quote?: Quote | null,
+    dailyLossOffset?: number,
   ): Promise<{ r1: number; n1: number } | null> => {
     // 如果未启用浮亏保护，跳过
     if (!isEnabled()) {
@@ -92,12 +93,19 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
       );
 
       // 计算R1（开仓成本）和N1（持仓数量）
-      const { r1, n1 } = calculateCostAndQuantity(buyOrders);
+      const { r1: baseR1, n1 } = calculateCostAndQuantity(buyOrders);
+      const normalizedOffset =
+        dailyLossOffset != null && Number.isFinite(dailyLossOffset)
+          ? dailyLossOffset
+          : 0;
+      const adjustedR1 = baseR1 + normalizedOffset;
 
       // 更新缓存
       unrealizedLossData.set(symbol, {
-        r1,
+        r1: adjustedR1,
         n1,
+        baseR1,
+        dailyLossOffset: normalizedOffset,
         lastUpdateTime: Date.now(),
       });
 
@@ -106,13 +114,23 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
       // 使用 formatSymbolDisplayFromQuote 格式化标的显示
       const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
 
-      logger.info(
-        `[浮亏监控] ${positionType} ${symbolDisplay}: R1(开仓成本)=${r1.toFixed(
-          2,
-        )} HKD, N1(持仓数量)=${n1}, 未平仓订单数=${buyOrders.length}`,
-      );
+      if (normalizedOffset !== 0) {
+        logger.info(
+          `[浮亏监控] ${positionType} ${symbolDisplay}: ` +
+            `R1(开仓成本)=${baseR1.toFixed(2)} HKD, ` +
+            `当日偏移=${normalizedOffset.toFixed(2)} HKD, ` +
+            `调整后R1=${adjustedR1.toFixed(2)} HKD, ` +
+            `N1(持仓数量)=${n1}, 未平仓订单数=${buyOrders.length}`,
+        );
+      } else {
+        logger.info(
+          `[浮亏监控] ${positionType} ${symbolDisplay}: R1(开仓成本)=${baseR1.toFixed(
+            2,
+          )} HKD, N1(持仓数量)=${n1}, 未平仓订单数=${buyOrders.length}`,
+        );
+      }
 
-      return { r1, n1 };
+      return { r1: adjustedR1, n1 };
     } catch (error) {
       const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
       logger.error(

@@ -29,12 +29,17 @@ import { logger } from './utils/logger/index.js';
 import { validateAllConfig, validateRuntimeSymbolsFromQuotesMap } from './config/config.validator.js';
 import { createHangSengMultiIndicatorStrategy } from './core/strategy/index.js';
 import { createRiskChecker } from './core/risk/index.js';
+import { createDailyLossTracker } from './core/risk/dailyLossTracker.js';
 import { createUnrealizedLossMonitor } from './core/unrealizedLossMonitor/index.js';
+import { createOrderFilteringEngine } from './core/orderRecorder/orderFilteringEngine.js';
+import { classifyAndConvertOrders } from './core/orderRecorder/utils.js';
+import { resolveOrderOwnership } from './core/orderRecorder/orderOwnershipParser.js';
 import {
   formatError,
   formatSymbolDisplay,
   initMonitorState,
   sleep,
+  toBeijingTimeIso,
 } from './utils/helpers/index.js';
 import { collectRuntimeQuoteSymbols } from './utils/helpers/quoteHelpers.js';
 import { TRADING } from './constants/index.js';
@@ -158,11 +163,20 @@ async function main(): Promise<void> {
 
   const liquidationCooldownTracker = createLiquidationCooldownTracker({ nowMs: () => Date.now() });
 
+  const dailyLossFilteringEngine = createOrderFilteringEngine();
+  const dailyLossTracker = createDailyLossTracker({
+    filteringEngine: dailyLossFilteringEngine,
+    resolveOrderOwnership,
+    classifyAndConvertOrders,
+    toBeijingTimeIso,
+  });
+
   const trader = await createTrader({
     config,
     tradingConfig,
     liquidationCooldownTracker,
     symbolRegistry,
+    dailyLossTracker,
   });
 
   logger.info('程序开始运行，在交易时段将进行实时监控和交易（按 Ctrl+C 退出）');
@@ -209,6 +223,7 @@ async function main(): Promise<void> {
     logger.warn('[全量订单获取失败] 将按空订单继续初始化', formatError(err));
   }
   trader.seedOrderHoldSymbols(allOrders);
+  dailyLossTracker.initializeFromOrders(allOrders, tradingConfig.monitors, new Date());
 
   const positionsSnapshot = lastState.cachedPositions ?? [];
   const seatResult = await prepareSeatsOnStartup({
@@ -404,6 +419,7 @@ async function main(): Promise<void> {
       quotesMap: initQuotesMap,
       strategy,
       orderRecorder: trader._orderRecorder,
+      dailyLossTracker,
       riskChecker,
       unrealizedLossMonitor,
       delayedSignalVerifier,
@@ -506,8 +522,18 @@ async function main(): Promise<void> {
 
       if (longSeatSymbol) {
         const quote = initQuotesMap.get(longSeatSymbol) ?? null;
+        const dailyLossOffset = dailyLossTracker.getLossOffset(
+          ctxConfig.monitorSymbol,
+          true,
+        );
         await riskChecker
-          .refreshUnrealizedLossData(orderRecorder, longSeatSymbol, true, quote)
+          .refreshUnrealizedLossData(
+            orderRecorder,
+            longSeatSymbol,
+            true,
+            quote,
+            dailyLossOffset,
+          )
           .catch((err: unknown) => {
             logger.warn(
               `[浮亏监控初始化失败] 监控标的 ${formatSymbolDisplay(ctxConfig.monitorSymbol, monitorContext.monitorSymbolName)} 做多标的 ${formatSymbolDisplay(longSeatSymbol, monitorContext.longSymbolName)}`,
@@ -517,8 +543,18 @@ async function main(): Promise<void> {
       }
       if (shortSeatSymbol) {
         const quote = initQuotesMap.get(shortSeatSymbol) ?? null;
+        const dailyLossOffset = dailyLossTracker.getLossOffset(
+          ctxConfig.monitorSymbol,
+          false,
+        );
         await riskChecker
-          .refreshUnrealizedLossData(orderRecorder, shortSeatSymbol, false, quote)
+          .refreshUnrealizedLossData(
+            orderRecorder,
+            shortSeatSymbol,
+            false,
+            quote,
+            dailyLossOffset,
+          )
           .catch((err: unknown) => {
             logger.warn(
               `[浮亏监控初始化失败] 监控标的 ${formatSymbolDisplay(ctxConfig.monitorSymbol, monitorContext.monitorSymbolName)} 做空标的 ${formatSymbolDisplay(shortSeatSymbol, monitorContext.shortSymbolName)}`,
@@ -638,6 +674,7 @@ async function main(): Promise<void> {
         doomsdayProtection,
         signalProcessor,
         tradingConfig,
+        dailyLossTracker,
         monitorContexts,
         symbolRegistry,
         // 异步程序架构模块

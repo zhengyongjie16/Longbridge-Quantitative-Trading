@@ -286,7 +286,7 @@ export async function prepareSeatsOnStartup(
       }
 
       if (!loggedWaiting) {
-        logger.info(`[启动席位] ${pendingSeats.length} 个席位待寻标，阻塞等待`);
+        logger.info(`[启动席位] ${pendingSeats.length} 个席位待寻标，等待寻标完成`);
         loggedWaiting = true;
       }
 

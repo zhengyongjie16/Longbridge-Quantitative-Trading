@@ -36,6 +36,7 @@ export function createMonitorContext(deps: MonitorContextFactoryDeps): MonitorCo
     quotesMap,
     strategy,
     orderRecorder,
+    dailyLossTracker,
     riskChecker,
     unrealizedLossMonitor,
     delayedSignalVerifier,
@@ -68,6 +69,7 @@ export function createMonitorContext(deps: MonitorContextFactoryDeps): MonitorCo
     strategy,
     // 使用共享 orderRecorder 实例（订单成交后由 orderMonitor 更新）
     orderRecorder,
+    dailyLossTracker,
     riskChecker,
     // 每个监控标的独立的浮亏监控器（使用各自的 maxUnrealizedLossPerSymbol 配置）
     unrealizedLossMonitor,

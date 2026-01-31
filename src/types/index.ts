@@ -684,6 +684,8 @@ export type MonitorContext = {
   readonly strategy: import('../core/strategy/types.js').HangSengMultiIndicatorStrategy;
   /** 订单记录器 */
   readonly orderRecorder: OrderRecorder;
+  /** 当日亏损跟踪器 */
+  readonly dailyLossTracker: import('../core/risk/types.js').DailyLossTracker;
   /** 风险检查器 */
   readonly riskChecker: RiskChecker;
   /** 浮亏监控器 */
@@ -1113,6 +1115,10 @@ export type UnrealizedLossData = {
   readonly r1: number;
   /** n1: 累计买入数量 */
   readonly n1: number;
+  /** baseR1: 未调整的开仓成本 */
+  readonly baseR1?: number;
+  /** dailyLossOffset: 当日亏损偏移 */
+  readonly dailyLossOffset?: number;
   /** 最后更新时间戳 */
   readonly lastUpdateTime: number;
 };
@@ -1210,6 +1216,7 @@ export interface RiskChecker {
     symbol: string,
     isLongSymbol: boolean,
     quote?: Quote | null,
+    dailyLossOffset?: number,
   ): Promise<{ r1: number; n1: number } | null>;
 
   /** 浮亏检查（是否触发强平） */

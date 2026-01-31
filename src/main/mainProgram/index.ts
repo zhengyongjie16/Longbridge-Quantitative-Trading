@@ -47,6 +47,7 @@ export async function mainProgram({
   doomsdayProtection,
   signalProcessor,
   tradingConfig,
+  dailyLossTracker,
   monitorContexts,
   symbolRegistry,
   indicatorCache,
@@ -59,6 +60,7 @@ export async function mainProgram({
 
   // 判断是否在交易时段（使用当前系统时间）
   const currentTime = new Date();
+  dailyLossTracker.resetIfNewDay(currentTime);
 
   let isTradingDayToday = lastState.cachedTradingDayInfo?.isTradingDay ?? true;
   let isHalfDayToday = lastState.cachedTradingDayInfo?.isHalfDay ?? false;
@@ -233,6 +235,7 @@ export async function mainProgram({
     doomsdayProtection,
     signalProcessor,
     tradingConfig,
+    dailyLossTracker,
     monitorContexts,
     symbolRegistry,
     indicatorCache,
@@ -322,8 +325,18 @@ export async function mainProgram({
         if (monitorContext && (monitorContext.config.maxUnrealizedLossPerSymbol ?? 0) > 0) {
           const quote = quotesMap.get(symbol) ?? null;
           const symbolName = isLongSymbol ? monitorContext.longSymbolName : monitorContext.shortSymbolName;
+          const dailyLossOffset = monitorContext.dailyLossTracker.getLossOffset(
+            monitorContext.config.monitorSymbol,
+            isLongSymbol,
+          );
           await monitorContext.riskChecker
-            .refreshUnrealizedLossData(monitorContext.orderRecorder, symbol, isLongSymbol, quote)
+            .refreshUnrealizedLossData(
+              monitorContext.orderRecorder,
+              symbol,
+              isLongSymbol,
+              quote,
+              dailyLossOffset,
+            )
             .catch((err: unknown) => {
               logger.warn(`[浮亏监控] 订单成交后刷新浮亏数据失败: ${formatSymbolDisplay(symbol, symbolName)}`, formatError(err));
             });

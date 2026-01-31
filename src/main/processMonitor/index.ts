@@ -60,6 +60,7 @@ export async function processMonitor(
     indicatorCache,
     buyTaskQueue,
     sellTaskQueue,
+    tradingConfig,
   } = mainContext;
   const { canTradeNow, openProtectionActive } = runtimeFlags;
   // 使用各自监控标的独立的延迟信号验证器（每个监控标的使用各自的验证配置）
@@ -68,6 +69,7 @@ export async function processMonitor(
     state,
     strategy,
     orderRecorder,
+    dailyLossTracker,
     riskChecker,
     unrealizedLossMonitor,
     delayedSignalVerifier,
@@ -314,6 +316,7 @@ export async function processMonitor(
     clearWarrantInfoForDirection(direction);
 
     const allOrders = await ensureAllOrders();
+    dailyLossTracker.recalculateFromAllOrders(allOrders, tradingConfig.monitors, new Date());
     await orderRecorder.refreshOrdersFromAllOrders(
       nextSymbol,
       direction === 'LONG',
@@ -321,7 +324,17 @@ export async function processMonitor(
       quote,
     );
     await refreshAccountCaches();
-    await riskChecker.refreshUnrealizedLossData(orderRecorder, nextSymbol, direction === 'LONG', quote);
+    const dailyLossOffset = dailyLossTracker.getLossOffset(
+      MONITOR_SYMBOL,
+      direction === 'LONG',
+    );
+    await riskChecker.refreshUnrealizedLossData(
+      orderRecorder,
+      nextSymbol,
+      direction === 'LONG',
+      quote,
+      dailyLossOffset,
+    );
 
     const warrantRefreshResult = await riskChecker.refreshWarrantInfoForSymbol(
       marketDataClient,
@@ -396,9 +409,11 @@ export async function processMonitor(
       shortQuote,
       longSymbol: LONG_SYMBOL,
       shortSymbol: SHORT_SYMBOL,
+      monitorSymbol: MONITOR_SYMBOL,
       riskChecker,
       trader,
       orderRecorder,
+      dailyLossTracker,
     });
   }
 
@@ -547,11 +562,16 @@ export async function processMonitor(
 
           for (const task of liquidationTasks) {
             orderRecorder.clearBuyOrders(task.signal.symbol, task.isLongSymbol, task.quote);
+            const dailyLossOffset = dailyLossTracker.getLossOffset(
+              MONITOR_SYMBOL,
+              task.isLongSymbol,
+            );
             await riskChecker.refreshUnrealizedLossData(
               orderRecorder,
               task.signal.symbol,
               task.isLongSymbol,
               task.quote,
+              dailyLossOffset,
             );
           }
         } catch (err) {
