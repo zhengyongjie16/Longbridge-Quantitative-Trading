@@ -268,9 +268,24 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
   function clearSeat({ direction, reason }: { direction: SeatDirection; reason: string }): SeatVersion {
     const timestamp = now().getTime();
     const currentState = symbolRegistry.getSeatState(monitorSymbol, direction);
+    const currentSymbol = currentState.symbol;
     const nextVersion = symbolRegistry.bumpSeatVersion(monitorSymbol, direction);
     const nextState = buildSeatState(currentState.symbol ?? null, 'SWITCHING', timestamp, null);
     symbolRegistry.updateSeatState(monitorSymbol, direction, nextState);
+    if (currentSymbol) {
+      switchStates.set(direction, {
+        direction,
+        oldSymbol: currentSymbol,
+        nextSymbol: null,
+        startedAt: timestamp,
+        sellSubmitted: false,
+        sellNotional: null,
+        shouldRebuy: false,
+        awaitingQuote: false,
+      });
+    } else {
+      switchStates.delete(direction);
+    }
     logger.warn(`[自动换标] ${monitorSymbol} ${direction} 清空席位: ${reason}`);
     return nextVersion;
   }
@@ -356,8 +371,9 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
   async function processSwitchState(
     params: SwitchOnDistanceParams,
     state: SwitchState,
+    pendingOrders: ReadonlyArray<PendingOrder>,
   ): Promise<void> {
-    const { direction, quotesMap, positions, pendingOrders } = params;
+    const { direction, quotesMap, positions } = params;
     const { sellAction, buyAction } = resolveDirectionSymbols(direction);
     const seatVersion = symbolRegistry.getSeatVersion(monitorSymbol, direction);
 
@@ -477,6 +493,19 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     switchStates.delete(direction);
   }
 
+  function hasPendingSwitch(direction: SeatDirection): boolean {
+    const seatState = symbolRegistry.getSeatState(monitorSymbol, direction);
+    const switchState = switchStates.get(direction);
+    if (!switchState) {
+      return false;
+    }
+    if (seatState.status !== 'SWITCHING' || seatState.symbol !== switchState.oldSymbol) {
+      switchStates.delete(direction);
+      return false;
+    }
+    return true;
+  }
+
   /**
    * 根据距回收价阈值决定是否触发换标，含日内抑制与候选标的检测。
    */
@@ -485,7 +514,6 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     monitorPrice,
     quotesMap,
     positions,
-    pendingOrders,
   }: SwitchOnDistanceParams): Promise<void> {
     if (!autoSearchConfig.autoSearchEnabled) {
       return;
@@ -494,14 +522,22 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     const pendingSwitch = switchStates.get(direction);
     if (pendingSwitch) {
       const currentSeatState = symbolRegistry.getSeatState(monitorSymbol, direction);
-      if (!currentSeatState.symbol || currentSeatState.status === 'EMPTY') {
+      if (currentSeatState.status !== 'SWITCHING'
+          || currentSeatState.symbol !== pendingSwitch.oldSymbol) {
         switchStates.delete(direction);
-        logger.warn(
-          `[自动换标] 席位已清空，终止待处理换标: ${monitorSymbol} ${direction}`,
-        );
+        logger.warn(`[auto-symbol] pending switch cleared: ${monitorSymbol} ${direction}`);
         return;
       }
-      await processSwitchState({ direction, monitorPrice, quotesMap, positions, pendingOrders }, pendingSwitch);
+      const pendingOrdersForOldSymbol = await trader.getPendingOrders([pendingSwitch.oldSymbol]);
+      await processSwitchState(
+        { direction, monitorPrice, quotesMap, positions },
+        pendingSwitch,
+        pendingOrdersForOldSymbol,
+      );
+      return;
+    }
+
+    if (monitorPrice == null) {
       return;
     }
 
@@ -551,9 +587,11 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
         awaitingQuote: false,
       });
 
+      const pendingOrdersForOldSymbol = await trader.getPendingOrders([seatState.symbol]);
       await processSwitchState(
-        { direction, monitorPrice, quotesMap, positions, pendingOrders },
+        { direction, monitorPrice, quotesMap, positions },
         switchStates.get(direction)!,
+        pendingOrdersForOldSymbol,
       );
     }
   }
@@ -562,6 +600,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     ensureSeatOnStartup,
     maybeSearchOnTick,
     maybeSwitchOnDistance,
+    hasPendingSwitch,
     clearSeat,
     resetDailySwitchSuppression,
   };

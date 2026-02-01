@@ -3,7 +3,6 @@ import type {
   MarketDataClient,
   MonitorConfig,
   OrderRecorder,
-  PendingOrder,
   Position,
   RiskChecker,
   SeatState,
@@ -59,7 +58,6 @@ export type SwitchOnDistanceParams = {
   readonly monitorPrice: number | null;
   readonly quotesMap: ReadonlyMap<string, Quote | null>;
   readonly positions: ReadonlyArray<Position>;
-  readonly pendingOrders: ReadonlyArray<PendingOrder>;
 };
 
 export type SwitchState = {
@@ -82,6 +80,7 @@ export type AutoSymbolManager = {
   ensureSeatOnStartup(params: EnsureSeatOnStartupParams): SeatState;
   maybeSearchOnTick(params: SearchOnTickParams): Promise<void>;
   maybeSwitchOnDistance(params: SwitchOnDistanceParams): Promise<void>;
+  hasPendingSwitch(direction: SeatDirection): boolean;
   clearSeat(params: { direction: SeatDirection; reason: string }): SeatVersion;
   resetDailySwitchSuppression(): void;
 };

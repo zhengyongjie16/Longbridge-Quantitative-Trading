@@ -69,6 +69,7 @@ export async function processMonitor(
     orderRecorder,
     riskChecker,
     delayedSignalVerifier,
+    autoSymbolManager,
     symbolRegistry,
   } = monitorContext;
 
@@ -128,7 +129,9 @@ export async function processMonitor(
       },
     });
 
-    if (monitorPriceChanged && resolvedMonitorPrice != null) {
+    const hasPendingSwitch =
+      autoSymbolManager.hasPendingSwitch('LONG') || autoSymbolManager.hasPendingSwitch('SHORT');
+    if (monitorPriceChanged || hasPendingSwitch) {
       monitorTaskQueue.scheduleLatest({
         type: 'AUTO_SYMBOL_SWITCH_DISTANCE',
         dedupeKey: `${MONITOR_SYMBOL}:AUTO_SYMBOL_SWITCH_DISTANCE`,

@@ -209,36 +209,25 @@ export function createMonitorTaskProcessor(
 
     const longSeat = context.symbolRegistry.getSeatState(data.monitorSymbol, 'LONG');
     const shortSeat = context.symbolRegistry.getSeatState(data.monitorSymbol, 'SHORT');
-    const isLongReady = snapshotValidity.longValid && isSeatReady(longSeat);
-    const isShortReady = snapshotValidity.shortValid && isSeatReady(shortSeat);
-    const pendingSymbols: string[] = [];
-    if (isLongReady) {
-      pendingSymbols.push(longSeat.symbol);
-    }
-    if (isShortReady && shortSeat.symbol !== longSeat.symbol) {
-      pendingSymbols.push(shortSeat.symbol);
-    }
+    const shouldHandleLong =
+      snapshotValidity.longValid && typeof longSeat.symbol === 'string' && longSeat.symbol.length > 0;
+    const shouldHandleShort =
+      snapshotValidity.shortValid && typeof shortSeat.symbol === 'string' && shortSeat.symbol.length > 0;
 
-    const pendingOrders = pendingSymbols.length > 0
-      ? await trader.getPendingOrders(pendingSymbols)
-      : [];
-
-    if (isLongReady) {
+    if (shouldHandleLong) {
       await context.autoSymbolManager.maybeSwitchOnDistance({
         direction: 'LONG',
         monitorPrice: data.monitorPrice,
         quotesMap: data.quotesMap,
         positions: lastState.cachedPositions,
-        pendingOrders,
       });
     }
-    if (isShortReady) {
+    if (shouldHandleShort) {
       await context.autoSymbolManager.maybeSwitchOnDistance({
         direction: 'SHORT',
         monitorPrice: data.monitorPrice,
         quotesMap: data.quotesMap,
         positions: lastState.cachedPositions,
-        pendingOrders,
       });
     }
 

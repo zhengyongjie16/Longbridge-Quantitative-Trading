@@ -21,7 +21,8 @@
     "sonarqube:report": "node scripts/get-report.js",
     "perf:test": "tsc && cross-env PERF_TEST_DURATION_MS=60000 clinic doctor --dest ./clinic-report -- node dist/src/index.js",
     "perf:test:custom": "tsc && clinic doctor --dest ./clinic-report -- node dist/src/index.js",
-    "perf:bubbleprof": "tsc && npx clinic bubbleprof --dest ./clinic-report -- node dist/src/index.js"
+    "perf:bubbleprof": "tsc && npx clinic bubbleprof --dest ./clinic-report -- node dist/src/index.js",
+    "test": "tsc -p tsconfig.test.json && node --test dist-test/tests/*.test.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",

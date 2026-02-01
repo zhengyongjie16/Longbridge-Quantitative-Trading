@@ -29,7 +29,7 @@ export type AutoSymbolTickTaskData = Readonly<{
 
 export type AutoSymbolSwitchDistanceTaskData = Readonly<{
   monitorSymbol: string;
-  monitorPrice: number;
+  monitorPrice: number | null;
   quotesMap: ReadonlyMap<string, Quote | null>;
   seatSnapshots: Readonly<{
     long: SeatSnapshot;
