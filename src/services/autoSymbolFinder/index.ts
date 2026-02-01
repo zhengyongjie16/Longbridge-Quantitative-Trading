@@ -1,7 +1,13 @@
 /**
  * 自动寻标入口：从行情服务筛选合适的牛熊证。
  */
-import { SortOrderType, WarrantSortBy, WarrantStatus, WarrantType } from 'longport';
+import {
+  FilterWarrantInOutBoundsType,
+  SortOrderType,
+  WarrantSortBy,
+  WarrantStatus,
+  WarrantType,
+} from 'longport';
 import { formatError } from '../../utils/helpers/index.js';
 import { buildExpiryDateFilters, selectBestWarrant } from './utils.js';
 import type { FindBestWarrantInput, WarrantCandidate } from './types.js';
@@ -30,7 +36,7 @@ export async function findBestWarrant({
       [warrantType],
       null,
       expiryFilters,
-      null,
+      [FilterWarrantInOutBoundsType.In],
       [WarrantStatus.Normal],
     );
 
