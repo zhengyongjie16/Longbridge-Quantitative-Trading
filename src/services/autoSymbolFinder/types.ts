@@ -11,6 +11,7 @@ export type FindBestWarrantInput = {
   readonly minTurnoverPerMinute: number;
   readonly expiryMinMonths: number;
   readonly logger: Logger;
+  readonly cacheConfig?: WarrantListCacheConfig;
 };
 
 export type WarrantListItem = {
@@ -20,6 +21,22 @@ export type WarrantListItem = {
   readonly turnover: DecimalLike | number | string | null | undefined;
   readonly warrantType: WarrantType | number | string | null | undefined;
   readonly status: WarrantStatus | number | string | null | undefined;
+};
+
+export type WarrantListCacheEntry = {
+  readonly fetchedAt: number;
+  readonly warrants: ReadonlyArray<WarrantListItem>;
+};
+
+export type WarrantListCache = {
+  readonly entries: Map<string, WarrantListCacheEntry>;
+  readonly inFlight: Map<string, Promise<ReadonlyArray<WarrantListItem>>>;
+};
+
+export type WarrantListCacheConfig = {
+  readonly cache: WarrantListCache;
+  readonly ttlMs: number;
+  readonly nowMs: () => number;
 };
 
 export type SelectBestWarrantInput = {

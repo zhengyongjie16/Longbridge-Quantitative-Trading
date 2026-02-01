@@ -162,7 +162,15 @@ function buildOrderSignal({
 }
 
 export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbolManager {
-  const { monitorConfig, symbolRegistry, marketDataClient, trader, riskChecker, orderRecorder } = deps;
+  const {
+    monitorConfig,
+    symbolRegistry,
+    marketDataClient,
+    trader,
+    riskChecker,
+    orderRecorder,
+    warrantListCacheConfig,
+  } = deps;
   const now = deps.now ?? (() => new Date());
 
   const monitorSymbol = monitorConfig.monitorSymbol;
@@ -212,6 +220,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
       minTurnoverPerMinute,
       expiryMinMonths: autoSearchConfig.autoSearchExpiryMinMonths,
       logger,
+      ...(warrantListCacheConfig ? { cacheConfig: warrantListCacheConfig } : {}),
     });
     return best ? best.symbol : null;
   }
@@ -323,6 +332,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
       minTurnoverPerMinute,
       expiryMinMonths: autoSearchConfig.autoSearchExpiryMinMonths,
       logger,
+      ...(warrantListCacheConfig ? { cacheConfig: warrantListCacheConfig } : {}),
     });
 
     if (!best) {

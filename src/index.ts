@@ -42,7 +42,7 @@ import {
   toBeijingTimeIso,
 } from './utils/helpers/index.js';
 import { collectRuntimeQuoteSymbols } from './utils/helpers/quoteHelpers.js';
-import { TRADING } from './constants/index.js';
+import { AUTO_SYMBOL_WARRANT_LIST_CACHE_TTL_MS, TRADING } from './constants/index.js';
 import {
   getHKDateKey,
   getTradingMinutesSinceOpen,
@@ -73,6 +73,7 @@ import { createSellProcessor } from './main/asyncProgram/sellProcessor/index.js'
 // 服务模块（monitorContext 用于初始化监控上下文，cleanup 用于退出清理）
 import { createMonitorContext } from './services/monitorContext/index.js';
 import { createAutoSymbolManager } from './services/autoSymbolManager/index.js';
+import { createWarrantListCache } from './services/autoSymbolFinder/utils.js';
 import {
   createSymbolRegistry,
   isSeatReady,
@@ -111,6 +112,12 @@ async function main(): Promise<void> {
   const env = process.env;
   const tradingConfig = createMultiMonitorTradingConfig({ env });
   const symbolRegistry = createSymbolRegistry(tradingConfig.monitors);
+  const warrantListCache = createWarrantListCache();
+  const warrantListCacheConfig = {
+    cache: warrantListCache,
+    ttlMs: AUTO_SYMBOL_WARRANT_LIST_CACHE_TTL_MS,
+    nowMs: () => Date.now(),
+  };
 
   try {
     await validateAllConfig({ env, tradingConfig });
@@ -243,6 +250,7 @@ async function main(): Promise<void> {
     logger,
     getTradingMinutesSinceOpen,
     isWithinMorningOpenProtection,
+    warrantListCacheConfig,
   });
 
   const tradeLogHydrator = createTradeLogHydrator({
@@ -395,6 +403,7 @@ async function main(): Promise<void> {
       trader,
       orderRecorder: trader._orderRecorder,
       riskChecker,
+      warrantListCacheConfig,
     });
 
     const strategy = createHangSengMultiIndicatorStrategy({

@@ -38,6 +38,7 @@ export const TRADING = {
 
 /** 自动寻标相关常量 */
 export const AUTO_SYMBOL_SEARCH_COOLDOWN_MS = 30_000;
+export const AUTO_SYMBOL_WARRANT_LIST_CACHE_TTL_MS = 3_000;
 
 /** 指标默认周期常量 */
 export const DEFAULT_EMA_PERIOD = 7;

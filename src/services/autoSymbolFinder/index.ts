@@ -3,6 +3,7 @@
  */
 import {
   FilterWarrantInOutBoundsType,
+  FilterWarrantExpiryDate,
   SortOrderType,
   WarrantSortBy,
   WarrantStatus,
@@ -10,7 +11,103 @@ import {
 } from 'longport';
 import { formatError } from '../../utils/helpers/index.js';
 import { buildExpiryDateFilters, selectBestWarrant } from './utils.js';
-import type { FindBestWarrantInput, WarrantCandidate } from './types.js';
+import type {
+  FindBestWarrantInput,
+  WarrantCandidate,
+  WarrantListCacheConfig,
+  WarrantListItem,
+} from './types.js';
+
+type WarrantListFetchParams = {
+  readonly ctx: FindBestWarrantInput['ctx'];
+  readonly monitorSymbol: string;
+  readonly warrantType: WarrantType;
+  readonly expiryFilters: ReadonlyArray<FilterWarrantExpiryDate>;
+  readonly cacheConfig: WarrantListCacheConfig;
+};
+
+type WarrantListRequestParams = {
+  readonly ctx: FindBestWarrantInput['ctx'];
+  readonly monitorSymbol: string;
+  readonly warrantType: WarrantType;
+  readonly expiryFilters: ReadonlyArray<FilterWarrantExpiryDate>;
+};
+
+function buildCacheKey(
+  monitorSymbol: string,
+  warrantType: WarrantType,
+  expiryFilters: ReadonlyArray<FilterWarrantExpiryDate>,
+): string {
+  return `${monitorSymbol}:${String(warrantType)}:${expiryFilters.join(',')}`;
+}
+
+function requestWarrantList({
+  ctx,
+  monitorSymbol,
+  warrantType,
+  expiryFilters,
+}: WarrantListRequestParams): Promise<ReadonlyArray<WarrantListItem>> {
+  return ctx.warrantList(
+    monitorSymbol,
+    WarrantSortBy.Turnover,
+    SortOrderType.Descending,
+    [warrantType],
+    null,
+    [...expiryFilters],
+    [FilterWarrantInOutBoundsType.In],
+    [WarrantStatus.Normal],
+  );
+}
+
+async function fetchWarrantsWithCache({
+  ctx,
+  monitorSymbol,
+  warrantType,
+  expiryFilters,
+  cacheConfig,
+}: WarrantListFetchParams): Promise<ReadonlyArray<WarrantListItem>> {
+  const ttlMs = cacheConfig.ttlMs;
+  if (!Number.isFinite(ttlMs) || ttlMs <= 0) {
+    return requestWarrantList({
+      ctx,
+      monitorSymbol,
+      warrantType,
+      expiryFilters,
+    });
+  }
+
+  const cacheKey = buildCacheKey(monitorSymbol, warrantType, expiryFilters);
+  const nowMs = cacheConfig.nowMs();
+  const cached = cacheConfig.cache.entries.get(cacheKey);
+  if (cached && nowMs - cached.fetchedAt <= ttlMs) {
+    return cached.warrants;
+  }
+
+  const inFlight = cacheConfig.cache.inFlight.get(cacheKey);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const request = requestWarrantList({
+    ctx,
+    monitorSymbol,
+    warrantType,
+    expiryFilters,
+  });
+
+  cacheConfig.cache.inFlight.set(cacheKey, request);
+
+  try {
+    const warrants = await request;
+    cacheConfig.cache.entries.set(cacheKey, {
+      fetchedAt: cacheConfig.nowMs(),
+      warrants,
+    });
+    return warrants;
+  } finally {
+    cacheConfig.cache.inFlight.delete(cacheKey);
+  }
+}
 
 /**
  * 获取并筛选最佳牛熊证标的。
@@ -24,21 +121,25 @@ export async function findBestWarrant({
   minTurnoverPerMinute,
   expiryMinMonths,
   logger,
+  cacheConfig,
 }: FindBestWarrantInput): Promise<WarrantCandidate | null> {
   try {
     const warrantType = isBull ? WarrantType.Bull : WarrantType.Bear;
-    const expiryFilters = [...buildExpiryDateFilters(expiryMinMonths)];
-
-    const warrants = await ctx.warrantList(
-      monitorSymbol,
-      WarrantSortBy.Turnover,
-      SortOrderType.Descending,
-      [warrantType],
-      null,
-      expiryFilters,
-      [FilterWarrantInOutBoundsType.In],
-      [WarrantStatus.Normal],
-    );
+    const expiryFilters = buildExpiryDateFilters(expiryMinMonths);
+    const warrants = cacheConfig
+      ? await fetchWarrantsWithCache({
+        ctx,
+        monitorSymbol,
+        warrantType,
+        expiryFilters,
+        cacheConfig,
+      })
+      : await requestWarrantList({
+        ctx,
+        monitorSymbol,
+        warrantType,
+        expiryFilters,
+      });
 
     const best = selectBestWarrant({
       warrants,

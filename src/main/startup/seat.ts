@@ -122,6 +122,7 @@ export async function prepareSeatsOnStartup(
     logger,
     getTradingMinutesSinceOpen,
     isWithinMorningOpenProtection,
+    warrantListCacheConfig,
   } = deps;
 
   const snapshot = resolveSeatSnapshot({
@@ -241,6 +242,7 @@ export async function prepareSeatsOnStartup(
       minTurnoverPerMinute,
       expiryMinMonths: autoSearchConfig.autoSearchExpiryMinMonths,
       logger,
+      ...(warrantListCacheConfig ? { cacheConfig: warrantListCacheConfig } : {}),
     });
 
     if (!best) {

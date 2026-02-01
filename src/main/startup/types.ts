@@ -10,6 +10,7 @@ import type {
   SymbolRegistry,
   TradingDayInfo,
 } from '../../types/index.js';
+import type { WarrantListCacheConfig } from '../../services/autoSymbolFinder/types.js';
 
 export type StartupGateDeps = {
   readonly now: () => Date;
@@ -53,6 +54,7 @@ export type PrepareSeatsOnStartupDeps = {
   readonly logger: Logger;
   readonly getTradingMinutesSinceOpen: (currentTime: Date) => number;
   readonly isWithinMorningOpenProtection: (currentTime: Date, minutes: number) => boolean;
+  readonly warrantListCacheConfig?: WarrantListCacheConfig;
 };
 
 export type PreparedSeats = {

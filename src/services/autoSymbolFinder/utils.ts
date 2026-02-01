@@ -3,7 +3,13 @@
  */
 import { FilterWarrantExpiryDate, WarrantStatus } from 'longport';
 import { decimalToNumber } from '../../utils/helpers/index.js';
-import type { SelectBestWarrantInput, WarrantCandidate, WarrantListItem } from './types.js';
+import type {
+  SelectBestWarrantInput,
+  WarrantCandidate,
+  WarrantListCache,
+  WarrantListCacheEntry,
+  WarrantListItem,
+} from './types.js';
 
 // 统一兼容不同枚举值的「正常」状态
 function isNormalStatus(status: WarrantListItem['status']): boolean {
@@ -15,6 +21,13 @@ const EXPIRY_DATE_FILTERS: ReadonlyArray<FilterWarrantExpiryDate> = [
   FilterWarrantExpiryDate.Between_6_12,
   FilterWarrantExpiryDate.GT_12,
 ];
+
+export function createWarrantListCache(): WarrantListCache {
+  return {
+    entries: new Map<string, WarrantListCacheEntry>(),
+    inFlight: new Map<string, Promise<ReadonlyArray<WarrantListItem>>>(),
+  };
+}
 
 /**
  * 根据最小到期月数生成筛选条件，避免临近到期标的。
@@ -42,7 +55,15 @@ export function selectBestWarrant({
   minPrice,
   minTurnoverPerMinute,
 }: SelectBestWarrantInput): WarrantCandidate | null {
-  let best: WarrantCandidate | null = null;
+  const hasTradingMinutes = tradingMinutes > 0;
+  const minTurnover = hasTradingMinutes ? minTurnoverPerMinute * tradingMinutes : 0;
+  const shouldFilterTurnover = hasTradingMinutes || minTurnoverPerMinute > 0;
+
+  let bestSymbol: string | null = null;
+  let bestName: string | null = null;
+  let bestPrice = 0;
+  let bestTurnover = 0;
+  let bestTurnoverPerMinute = 0;
 
   for (const warrant of warrants) {
     if (!warrant?.symbol) {
@@ -51,37 +72,53 @@ export function selectBestWarrant({
     if (!isNormalStatus(warrant.status)) {
       continue;
     }
-    const turnover = decimalToNumber(warrant.turnover);
-    if (!Number.isFinite(turnover) || turnover <= 0) {
-      continue;
-    }
 
     const price = decimalToNumber(warrant.lastDone);
     if (!Number.isFinite(price) || price < minPrice) {
       continue;
     }
 
-    const turnoverPerMinute = tradingMinutes > 0 ? turnover / tradingMinutes : 0;
+    const turnover = decimalToNumber(warrant.turnover);
+    if (!Number.isFinite(turnover) || turnover <= 0) {
+      continue;
+    }
+
+    if (shouldFilterTurnover) {
+      if (!hasTradingMinutes) {
+        continue;
+      }
+      if (turnover < minTurnover) {
+        continue;
+      }
+    }
+
+    const turnoverPerMinute = hasTradingMinutes ? turnover / tradingMinutes : 0;
     if (turnoverPerMinute < minTurnoverPerMinute) {
       continue;
     }
 
-    const candidate: WarrantCandidate = {
-      symbol: warrant.symbol,
-      name: warrant.name ?? null,
-      price,
-      turnover,
-      turnoverPerMinute,
-    };
-
     if (
-      !best ||
-      candidate.price < best.price ||
-      (candidate.price === best.price && candidate.turnoverPerMinute > best.turnoverPerMinute)
+      bestSymbol === null ||
+      price < bestPrice ||
+      (price === bestPrice && turnoverPerMinute > bestTurnoverPerMinute)
     ) {
-      best = candidate;
+      bestSymbol = warrant.symbol;
+      bestName = warrant.name ?? null;
+      bestPrice = price;
+      bestTurnover = turnover;
+      bestTurnoverPerMinute = turnoverPerMinute;
     }
   }
 
-  return best;
+  if (!bestSymbol) {
+    return null;
+  }
+
+  return {
+    symbol: bestSymbol,
+    name: bestName,
+    price: bestPrice,
+    turnover: bestTurnover,
+    turnoverPerMinute: bestTurnoverPerMinute,
+  };
 }

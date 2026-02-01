@@ -11,6 +11,7 @@ import type {
   SymbolRegistry,
   Trader,
 } from '../../types/index.js';
+import type { WarrantListCacheConfig } from '../autoSymbolFinder/types.js';
 
 export type SeatDirection = 'LONG' | 'SHORT';
 
@@ -38,6 +39,7 @@ export type AutoSymbolManagerDeps = {
   readonly trader: Trader;
   readonly orderRecorder: OrderRecorder;
   readonly riskChecker: RiskChecker;
+  readonly warrantListCacheConfig?: WarrantListCacheConfig;
   readonly now?: () => Date;
 };
 
