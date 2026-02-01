@@ -37,7 +37,7 @@
 
 ### 模块划分
 - `MonitorTaskQueue`：监控级任务队列，支持去重合并。
-- `MonitorTaskProcessor`：处理 autoSymbol/席位刷新/浮亏检查任务（异步）。
+- `MonitorTaskProcessor`：处理 autoSymbol/席位刷新/距回收价清仓/浮亏检查任务（异步）。
 - `OrderMonitorWorker`：订单监控后台单飞（异步）。
 - `PostTradeRefresher`：成交后刷新合并器（异步）。
 - `RefreshGate`：刷新门禁/版本号，缓存过期时阻塞依赖缓存的异步任务。
@@ -54,6 +54,56 @@
 - **单飞**：订单监控、刷新任务不并发执行，确保顺序一致。
 - **版本校验**：席位版本不匹配时任务直接跳过。
 - **刷新门禁**：依赖缓存的任务在 `RefreshGate` 就绪后执行，避免读旧缓存。
+
+### 必须满足的不变量（强约束）
+
+> 这些是不允许“靠运气正确”的约束；若违反，将直接导致异步换标后出现“用旧标的/旧缓存做决策”的竞态风险。
+
+1. **席位版本隔离（SeatVersion Isolation）**
+   - **触发条件**：只要某方向席位发生以下任一变化：
+     - `status` 从 `READY` 变为非 `READY`（如 `SWITCHING/EMPTY/SEARCHING` 等），或
+     - `symbol` 发生变化（`READY: oldSymbol -> READY: newSymbol`）
+   - **必须动作**：**先**提升（bump）该方向 `seatVersion`，**再**更新席位状态与清理队列；从而保证并发产生/消费中的旧信号必然被版本校验拦截。
+   - **消费约束**：所有入队的交易信号（立即/延迟验证通过）必须携带 `seatVersion`，执行前必须校验 `seatVersion` 与 `symbol` 均匹配当前席位，否则直接丢弃。
+
+2. **进入非 READY 必须清空该方向待执行信号**
+   - **覆盖范围**：至少包含
+     - 延迟验证器中该 `monitorSymbol + direction` 的待验证信号
+     - 买入队列中该 `monitorSymbol + direction` 的待执行信号
+     - 卖出队列中该 `monitorSymbol + direction` 的待执行信号
+   - **资源安全**：被移除的任务必须释放信号对象（对象池），避免泄漏。
+   - **说明**：即使有 `seatVersion` 兜底，清理仍然是强约束（降低堆积与避免“旧信号反复被拉起但最终丢弃”的噪音）。
+
+3. **异步任务必须“携带快照 + 执行前复核”**
+   - **携带快照**：异步任务数据中必须包含能定位与复核的关键字段（例如 `monitorSymbol`、方向、期望 `nextSymbol/previousSymbol`、必要时带 `seatVersion` 或 `dedupeKey`）。
+   - **执行前复核**：任务执行前必须重新读取当前 `SymbolRegistry` 状态；若与任务快照不一致（例如 `nextSymbol !== currentSeat.symbol`），任务必须跳过（no-op），不得写入任何与标的相关的缓存/订单记录。
+
+4. **同步订阅与异步换标的时序边界（必须可推理）**
+   - **订阅/退订保持同步**：订阅集合的计算与 `subscribe/unsubscribe` 必须仍在 `mainProgram` 同步执行（本计划的约束已声明）。
+   - **允许的延迟**：异步换标导致的订阅集合变化，允许最迟在下一次主循环 tick 反映到订阅集合与 `quotesMap`。
+   - **禁止的行为**：在 `quote/lotSize/price` 未就绪时，不得提交任何需要行情的订单；应当通过“跳过/延后到下一 tick（由下一轮 `quotesMap` 补齐）”处理，而不是用 `null` 或旧 quote 继续交易。
+
+5. **RefreshGate 覆盖所有读缓存做决策的异步路径**
+   - **必须等待**：所有依赖 `lastState.cachedPositions` / `positionCache` / 浮亏缓存的异步处理路径，在读取前必须 `await RefreshGate.waitForFresh()`。
+   - **至少覆盖**：`SellProcessor`、`MonitorTaskProcessor` 中所有可能读取持仓/浮亏相关缓存的任务类型（含 `AUTO_SYMBOL_TICK / LIQUIDATION_DISTANCE_CHECK / SEAT_REFRESH / UNREALIZED_LOSS_CHECK`）。
+
+> **最小验证建议（不改变业务，仅验证不变量）**：增加测试覆盖“席位切换导致 `seatVersion` 变化时，旧信号在（1）延迟验证通过回调与（2）Buy/SellProcessor 出队执行处都会被丢弃”；并增加日志字段统一输出 `monitorSymbol/direction/symbol/seatVersion/status` 以便定位竞态窗口。
+
+#### 运行时一致性验证清单（建议写入发布/回归流程）
+
+> 目标：在不增加新功能的前提下，用日志与行为边界证明“不变量真的成立”，避免只靠代码审查。
+
+- **验证 seatVersion 隔离**
+  - **操作**：让某监控标的触发一次换标（或手动将席位置为 `SWITCHING/EMPTY` 再恢复），同时确保队列里存在该方向的待执行信号（延迟验证/立即信号均可）。
+  - **期望**：日志中出现“席位版本不匹配/标的已切换 → 丢弃信号”的路径；不应出现该旧信号进入 `executeSignals` 的情况。
+
+- **验证“非 READY 清队列”覆盖**
+  - **操作**：触发席位从 `READY` 进入非 `READY`（换标开始或失败均可）。
+  - **期望**：日志出现“清理待执行信号：延迟=... 买入=... 卖出=...”且计数与现场一致；被移除信号无泄漏（观察对象池统计或长期运行内存稳定）。
+
+- **验证 RefreshGate 生效**
+  - **操作**：制造一次成交（触发 `markStale()`），并在刷新完成前让 `SellProcessor` 或 `MonitorTaskProcessor` 有任务可执行。
+  - **期望**：相关处理器在读取 `positionCache` 前会等待（可通过测试桩或日志点确认），刷新完成后继续执行；期间不会用旧持仓计算卖量/浮亏。
 
 ---
 
@@ -77,7 +127,7 @@
 - **触发过期**：订单成交回调（orderMonitor）最早触发 `markStale`，缩短“旧缓存窗口”。
 - **等待点**：
   - `SellProcessor.processTask`：使用 `positionCache` 前等待。
-  - `MonitorTaskProcessor`：处理 `AUTO_SYMBOL_TICK`、`LIQUIDATION_DISTANCE_CHECK`、`SEAT_REFRESH` 前等待。
+  - `MonitorTaskProcessor`：处理 `AUTO_SYMBOL_TICK`、`LIQUIDATION_DISTANCE_CHECK`、`SEAT_REFRESH`、`UNREALIZED_LOSS_CHECK` 前等待。
 - **主循环保持非阻塞**：`processMonitor` 仅调度任务，不直接等待刷新。
 
 ### 刷新执行与重入处理
@@ -401,7 +451,7 @@ git commit -m "feat: add monitor task queue with dedupe"
 
 ---
 
-### Task 3: 新增 MonitorTaskProcessor（异步处理 autoSymbol/浮亏）
+### Task 3: 新增 MonitorTaskProcessor（异步处理 autoSymbol/距回收价清仓/浮亏）
 
 **Files:**
 - Create: `src/main/asyncProgram/monitorTaskProcessor/types.ts`
@@ -503,7 +553,7 @@ export type MonitorTaskProcessor = Processor & {
 };
 ```
 
-`src/main/asyncProgram/monitorTaskProcessor/index.ts`（核心逻辑，含自动换标、席位刷新、浮亏检查）：
+`src/main/asyncProgram/monitorTaskProcessor/index.ts`（核心逻辑，含自动换标、距回收价清仓、席位刷新、浮亏检查）：
 ```ts
 import { logger } from '../../../utils/logger/index.js';
 import { formatError } from '../../../utils/helpers/index.js';
@@ -846,20 +896,26 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
           if (shortTask) liquidationTasks.push(shortTask);
 
           if (liquidationTasks.length > 0) {
-            await deps.trader.executeSignals(liquidationTasks.map((taskItem) => taskItem.signal));
-            for (const taskItem of liquidationTasks) {
-              ctx.orderRecorder.clearBuyOrders(taskItem.signal.symbol, taskItem.isLongSymbol, taskItem.quote);
-              const dailyLossOffset = deps.dailyLossTracker.getLossOffset(
-                ctx.config.monitorSymbol,
-                taskItem.isLongSymbol,
-              );
-              await ctx.riskChecker.refreshUnrealizedLossData(
-                ctx.orderRecorder,
-                taskItem.signal.symbol,
-                taskItem.isLongSymbol,
-                taskItem.quote,
-                dailyLossOffset,
-              );
+            try {
+              await deps.trader.executeSignals(liquidationTasks.map((taskItem) => taskItem.signal));
+              for (const taskItem of liquidationTasks) {
+                ctx.orderRecorder.clearBuyOrders(taskItem.signal.symbol, taskItem.isLongSymbol, taskItem.quote);
+                const dailyLossOffset = deps.dailyLossTracker.getLossOffset(
+                  ctx.config.monitorSymbol,
+                  taskItem.isLongSymbol,
+                );
+                await ctx.riskChecker.refreshUnrealizedLossData(
+                  ctx.orderRecorder,
+                  taskItem.signal.symbol,
+                  taskItem.isLongSymbol,
+                  taskItem.quote,
+                  dailyLossOffset,
+                );
+              }
+            } finally {
+              for (const taskItem of liquidationTasks) {
+                signalObjectPool.release(taskItem.signal);
+              }
             }
           }
         } finally {
@@ -1138,6 +1194,9 @@ git commit -m "feat: add refresh gate for cache freshness"
 - Create: `src/main/asyncProgram/orderMonitorWorker/index.ts`
 - Create: `src/main/asyncProgram/postTradeRefresher/types.ts`
 - Create: `src/main/asyncProgram/postTradeRefresher/index.ts`
+- Modify: `src/core/trader/types.ts`
+- Modify: `src/core/trader/orderMonitor.ts`
+- Modify: `src/core/trader/index.ts`
 - Modify: `src/main/asyncProgram/types.ts`
 - Test: `tests/asyncProgram/orderMonitorWorker.test.ts`
 
@@ -1240,16 +1299,56 @@ export function createOrderMonitorWorker(deps: OrderMonitorWorkerDeps): OrderMon
 }
 ```
 
+`src/core/trader/types.ts` 增加 RefreshGate 注入：
+```ts
+import type { RefreshGate } from '../../utils/refreshGate/types.js';
+
+export type TraderDeps = {
+  // ...existing fields
+  readonly refreshGate?: RefreshGate;
+};
+
+export type OrderMonitorDeps = {
+  // ...existing fields
+  readonly refreshGate?: RefreshGate;
+};
+```
+
+`src/core/trader/orderMonitor.ts` 在成交回调中标记过期：
+```ts
+export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
+  const { /* ... */ refreshGate } = deps;
+
+  function handleOrderChanged(event: PushOrderChanged): void {
+    // ...原有逻辑
+    if (event.status === OrderStatus.Filled) {
+      refreshGate?.markStale();
+      // 继续原有 pendingRefreshSymbols.push(...)
+    }
+  }
+}
+```
+
+`src/core/trader/index.ts` 传递 RefreshGate：
+```ts
+const orderMonitor = createOrderMonitor({
+  // ...existing fields
+  refreshGate: deps.refreshGate,
+});
+```
+
 `src/main/asyncProgram/postTradeRefresher/types.ts`：
 ```ts
 import type { MarketDataClient, MonitorContext, PendingRefreshSymbol } from '../../../types/index.js';
 import type { LastState, Quote, Trader } from '../../../types/index.js';
+import type { RefreshGate } from '../../../utils/refreshGate/types.js';
 
 export type PostTradeRefresherDeps = {
   readonly trader: Trader;
   readonly marketDataClient: MarketDataClient;
   readonly lastState: LastState;
   readonly monitorContexts: Map<string, MonitorContext>;
+  readonly refreshGate: RefreshGate;
 };
 
 export type PostTradeRefresher = {
@@ -1281,6 +1380,8 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
     if (pending.length === 0 || !latestQuotes) return;
     const batch = pending.splice(0);
     const quotesMap = latestQuotes;
+    const targetVersion = deps.refreshGate.getStatus().staleVersion;
+    let refreshSucceeded = true;
 
     const needRefreshAccount = batch.some((r) => r.refreshAccount);
     const needRefreshPositions = batch.some((r) => r.refreshPositions);
@@ -1298,6 +1399,7 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
         deps.lastState.positionCache.update(freshPositions);
       }
     } catch (err) {
+      refreshSucceeded = false;
       logger.warn('[PostTradeRefresher] 刷新账户/持仓失败', formatError(err));
     }
 
@@ -1342,6 +1444,10 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
     }
 
     await displayAccountAndPositions({ lastState: deps.lastState, quotesMap });
+
+    if (refreshSucceeded) {
+      deps.refreshGate.markFresh(targetVersion);
+    }
   }
 
   function enqueue(params: { readonly pending: ReadonlyArray<PendingRefreshSymbol>; readonly quotesMap: ReadonlyMap<string, Quote | null> }): void {
@@ -1357,6 +1463,9 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
         })
         .finally(() => {
           inFlight = false;
+          if (pending.length > 0 && latestQuotes) {
+            enqueue({ pending: [], quotesMap: latestQuotes });
+          }
         });
     });
   }
@@ -1389,7 +1498,7 @@ Expected: PASS
 
 **Step 5: Commit**
 ```bash
-git add src/main/asyncProgram/orderMonitorWorker src/main/asyncProgram/postTradeRefresher tests/asyncProgram/orderMonitorWorker.test.ts src/main/asyncProgram/types.ts
+git add src/main/asyncProgram/orderMonitorWorker src/main/asyncProgram/postTradeRefresher src/core/trader/orderMonitor.ts src/core/trader/types.ts src/core/trader/index.ts tests/asyncProgram/orderMonitorWorker.test.ts src/main/asyncProgram/types.ts
 git commit -m "feat: add order monitor worker and post-trade refresher"
 ```
 
@@ -1475,6 +1584,26 @@ export type CleanupContext = {
 
 在 `src/index.ts` 中创建并启动：
 ```ts
+const refreshGate = createRefreshGate();
+
+const trader = await createTrader({
+  config,
+  tradingConfig,
+  liquidationCooldownTracker,
+  symbolRegistry,
+  dailyLossTracker,
+  refreshGate,
+});
+
+const sellProcessor = createSellProcessor({
+  taskQueue: sellTaskQueue,
+  getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol),
+  signalProcessor,
+  trader,
+  getLastState: () => lastState,
+  refreshGate,
+});
+
 const monitorTaskQueue = createMonitorTaskQueue();
 const monitorTaskProcessor = createMonitorTaskProcessor({
   taskQueue: monitorTaskQueue,
@@ -1486,6 +1615,7 @@ const monitorTaskProcessor = createMonitorTaskProcessor({
   tradingConfig,
   dailyLossTracker,
   lastState,
+  refreshGate,
 });
 
 const orderMonitorWorker = createOrderMonitorWorker({ trader });
@@ -1494,6 +1624,7 @@ const postTradeRefresher = createPostTradeRefresher({
   marketDataClient,
   lastState,
   monitorContexts,
+  refreshGate,
 });
 
 monitorTaskProcessor.start();
@@ -1515,7 +1646,92 @@ git commit -m "refactor: wire async monitor processors"
 
 ---
 
-### Task 7: processMonitor 改为异步调度
+### Task 7: SellProcessor 等待 RefreshGate
+
+**Files:**
+- Modify: `src/main/asyncProgram/sellProcessor/types.ts`
+- Modify: `src/main/asyncProgram/sellProcessor/index.ts`
+- Test: `tests/asyncProgram/sellProcessorRefreshGate.test.ts`
+
+**Step 1: Write the failing test**
+```ts
+// tests/asyncProgram/sellProcessorRefreshGate.test.ts
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createSellProcessor } from '../../src/main/asyncProgram/sellProcessor/index.js';
+import { createSellTaskQueue } from '../../src/main/asyncProgram/tradeTaskQueue/index.js';
+
+test('sell processor waits for refresh gate', async () => {
+  const taskQueue = createSellTaskQueue();
+  let waited = false;
+  const refreshGate = {
+    markStale: () => 0,
+    markFresh: () => {},
+    waitForFresh: async () => { waited = true; },
+    getStatus: () => ({ currentVersion: 0, staleVersion: 0 }),
+  };
+
+  taskQueue.push({
+    type: 'IMMEDIATE_SELL',
+    data: { symbol: 'HKG.12345', action: 'SELLCALL' } as never,
+    monitorSymbol: 'HSI',
+  });
+
+  const processor = createSellProcessor({
+    taskQueue,
+    refreshGate: refreshGate as never,
+    getMonitorContext: () => null,
+    signalProcessor: { processSellSignals: () => [] } as never,
+    trader: { executeSignals: async () => {} } as never,
+    getLastState: () => ({ positionCache: { get: () => null } }) as never,
+  });
+
+  await processor.processNow();
+  assert.equal(waited, true);
+});
+```
+
+**Step 2: Run test to verify it fails**
+
+Run: `npm run test`
+
+Expected: FAIL with type errors / missing fields
+
+**Step 3: Write minimal implementation**
+
+`src/main/asyncProgram/sellProcessor/types.ts` 增加依赖：
+```ts
+import type { RefreshGate } from '../../../utils/refreshGate/types.js';
+
+export type SellProcessorDeps = {
+  // ...existing fields
+  readonly refreshGate: RefreshGate;
+};
+```
+
+`src/main/asyncProgram/sellProcessor/index.ts` 等待刷新：
+```ts
+async function processTask(task: SellTask): Promise<boolean> {
+  await deps.refreshGate.waitForFresh();
+  // ...原有逻辑
+}
+```
+
+**Step 4: Run test to verify it passes**
+
+Run: `npm run test`
+
+Expected: PASS
+
+**Step 5: Commit**
+```bash
+git add src/main/asyncProgram/sellProcessor tests/asyncProgram/sellProcessorRefreshGate.test.ts
+git commit -m "refactor: gate sell processor on refresh"
+```
+
+---
+
+### Task 8: processMonitor 改为异步调度
 
 **Files:**
 - Modify: `src/main/processMonitor/index.ts`
@@ -1554,7 +1770,7 @@ export type MainProgramContext = {
 };
 ```
 
-在 `src/main/processMonitor/index.ts` 替换 autoSymbol 与浮亏调用为调度：
+在 `src/main/processMonitor/index.ts` 替换 autoSymbol / 距回收价清仓 / 浮亏调用为调度：
 ```ts
 import { buildMonitorTaskKey } from '../asyncProgram/monitorTaskQueue/utils.js';
 
@@ -1570,7 +1786,18 @@ if (autoSearchEnabled) {
       monitorPrice: resolvedMonitorPrice,
       monitorPriceChanged,
       quotesMap,
-      positions: lastState.cachedPositions ?? [],
+    },
+  });
+}
+
+if (!autoSearchEnabled && monitorPriceChanged) {
+  monitorTaskQueue.scheduleLatest({
+    type: 'LIQUIDATION_DISTANCE_CHECK',
+    monitorSymbol: MONITOR_SYMBOL,
+    dedupeKey: buildMonitorTaskKey({ monitorSymbol: MONITOR_SYMBOL, type: 'LIQUIDATION_DISTANCE_CHECK' }),
+    data: {
+      monitorPrice: resolvedMonitorPrice,
+      monitorPriceChanged,
     },
   });
 }
@@ -1584,6 +1811,8 @@ if (priceChanged) {
   });
 }
 ```
+
+同时移除 `processMonitor` 内“距回收价清仓”的同步执行块与对应 `getPositions/positionObjectPool` 释放逻辑，交由 `MonitorTaskProcessor` 的 `LIQUIDATION_DISTANCE_CHECK` 任务处理（并受 RefreshGate 约束）。
 
 **Step 4: Run test to verify it passes**
 
@@ -1599,7 +1828,7 @@ git commit -m "refactor: enqueue monitor tasks in processMonitor"
 
 ---
 
-### Task 8: mainProgram 改为后台单飞与刷新合并
+### Task 9: mainProgram 改为后台单飞与刷新合并
 
 **Files:**
 - Modify: `src/main/mainProgram/index.ts`
@@ -1651,7 +1880,7 @@ git commit -m "refactor: move order monitor and refresh off main loop"
 
 ---
 
-### Task 9: 更新流程文档
+### Task 10: 更新流程文档
 
 **Files:**
 - Modify: `docs/flow/main-loop-flow.md`
@@ -1684,7 +1913,7 @@ git commit -m "docs: update main loop async flow"
 
 ---
 
-### Task 10: 验证
+### Task 11: 验证
 
 **Files:**
 - None
