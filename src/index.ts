@@ -59,6 +59,7 @@ import { createSignalProcessor } from './core/signalProcessor/index.js';
 import { createLiquidationCooldownTracker } from './services/liquidationCooldown/index.js';
 import { createTradeLogHydrator } from './services/liquidationCooldown/tradeLogHydrator.js';
 import { createMarketDataClient } from './services/quoteClient/index.js';
+import { createRefreshGate } from './utils/refreshGate/index.js';
 import { createStartupGate } from './main/startup/gate.js';
 import { prepareSeatsOnStartup, resolveReadySeatSymbol } from './main/startup/seat.js';
 import { resolveGatePolicies, resolveRunMode } from './main/startup/utils.js';
@@ -69,6 +70,11 @@ import { createDelayedSignalVerifier } from './main/asyncProgram/delayedSignalVe
 import { createBuyTaskQueue, createSellTaskQueue } from './main/asyncProgram/tradeTaskQueue/index.js';
 import { createBuyProcessor } from './main/asyncProgram/buyProcessor/index.js';
 import { createSellProcessor } from './main/asyncProgram/sellProcessor/index.js';
+import { createMonitorTaskQueue } from './main/asyncProgram/monitorTaskQueue/index.js';
+import { createMonitorTaskProcessor } from './main/asyncProgram/monitorTaskProcessor/index.js';
+import { createOrderMonitorWorker } from './main/asyncProgram/orderMonitorWorker/index.js';
+import { createPostTradeRefresher } from './main/asyncProgram/postTradeRefresher/index.js';
+import { clearQueuesForDirection as clearQueuesForDirectionUtil } from './main/processMonitor/utils.js';
 
 // 服务模块（monitorContext 用于初始化监控上下文，cleanup 用于退出清理）
 import { createMonitorContext } from './services/monitorContext/index.js';
@@ -90,6 +96,7 @@ import type {
   MonitorContext,
   RawOrderFromAPI,
 } from './types/index.js';
+import type { MonitorTaskData, MonitorTaskType } from './main/asyncProgram/monitorTaskProcessor/types.js';
 import { getSprintSacreMooacreMoo } from './utils/asciiArt/sacreMooacre.js';
 import { signalObjectPool } from './utils/objectPool/index.js';
 
@@ -135,6 +142,15 @@ async function main(): Promise<void> {
   const marketDataClient = await createMarketDataClient({ config });
   const runMode = resolveRunMode(env);
   const gatePolicies = resolveGatePolicies(runMode);
+
+  function resolveSeatSymbols(
+    monitorSymbol: string,
+  ): { longSeatSymbol: string | null; shortSeatSymbol: string | null } {
+    return {
+      longSeatSymbol: resolveReadySeatSymbol(symbolRegistry, monitorSymbol, 'LONG'),
+      shortSeatSymbol: resolveReadySeatSymbol(symbolRegistry, monitorSymbol, 'SHORT'),
+    };
+  }
 
   let cachedTradingDayInfo: { dateStr: string; info: { isTradingDay: boolean; isHalfDay: boolean } } | null =
     null;
@@ -182,12 +198,15 @@ async function main(): Promise<void> {
     toBeijingTimeIso,
   });
 
+  const refreshGate = createRefreshGate();
+
   const trader = await createTrader({
     config,
     tradingConfig,
     liquidationCooldownTracker,
     symbolRegistry,
     dailyLossTracker,
+    refreshGate,
   });
 
   logger.info('程序开始运行，在交易时段将进行实时监控和交易（按 Ctrl+C 退出）');
@@ -282,6 +301,7 @@ async function main(): Promise<void> {
   const indicatorCache = createIndicatorCache({ maxEntries: indicatorCacheMaxEntries });
   const buyTaskQueue = createBuyTaskQueue();
   const sellTaskQueue = createSellTaskQueue();
+  const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
 
   const orderHoldSymbols = trader.getOrderHoldSymbols();
   const allTradingSymbols = collectRuntimeQuoteSymbols(
@@ -334,16 +354,7 @@ async function main(): Promise<void> {
     const index = monitorConfig.originalIndex;
     pushSymbol(monitorConfig.monitorSymbol, `监控标的 ${index}`, false, true);
 
-    const longSeatSymbol = resolveReadySeatSymbol(
-      symbolRegistry,
-      monitorConfig.monitorSymbol,
-      'LONG',
-    );
-    const shortSeatSymbol = resolveReadySeatSymbol(
-      symbolRegistry,
-      monitorConfig.monitorSymbol,
-      'SHORT',
-    );
+    const { longSeatSymbol, shortSeatSymbol } = resolveSeatSymbols(monitorConfig.monitorSymbol);
     pushSymbol(longSeatSymbol, `做多席位标的 ${index}`, true, true);
     pushSymbol(shortSeatSymbol, `做空席位标的 ${index}`, true, true);
   }
@@ -462,16 +473,7 @@ async function main(): Promise<void> {
       }
     }
 
-    const longSeatSymbol = resolveReadySeatSymbol(
-      symbolRegistry,
-      monitorConfig.monitorSymbol,
-      'LONG',
-    );
-    const shortSeatSymbol = resolveReadySeatSymbol(
-      symbolRegistry,
-      monitorConfig.monitorSymbol,
-      'SHORT',
-    );
+    const { longSeatSymbol, shortSeatSymbol } = resolveSeatSymbols(monitorConfig.monitorSymbol);
 
     await refreshSeatWarrantInfo(longSeatSymbol, true);
     await refreshSeatWarrantInfo(shortSeatSymbol, false);
@@ -480,16 +482,7 @@ async function main(): Promise<void> {
   // 程序启动时刷新订单记录（为所有监控标的初始化订单记录）
   for (const monitorContext of monitorContexts.values()) {
     const { config: ctxConfig, orderRecorder } = monitorContext;
-    const longSeatSymbol = resolveReadySeatSymbol(
-      symbolRegistry,
-      ctxConfig.monitorSymbol,
-      'LONG',
-    );
-    const shortSeatSymbol = resolveReadySeatSymbol(
-      symbolRegistry,
-      ctxConfig.monitorSymbol,
-      'SHORT',
-    );
+    const { longSeatSymbol, shortSeatSymbol } = resolveSeatSymbols(ctxConfig.monitorSymbol);
 
     if (longSeatSymbol) {
       const quote = initQuotesMap.get(longSeatSymbol) ?? null;
@@ -520,16 +513,7 @@ async function main(): Promise<void> {
   for (const monitorContext of monitorContexts.values()) {
     const { config: ctxConfig, riskChecker, orderRecorder } = monitorContext;
     if ((ctxConfig.maxUnrealizedLossPerSymbol ?? 0) > 0) {
-      const longSeatSymbol = resolveReadySeatSymbol(
-        symbolRegistry,
-        ctxConfig.monitorSymbol,
-        'LONG',
-      );
-      const shortSeatSymbol = resolveReadySeatSymbol(
-        symbolRegistry,
-        ctxConfig.monitorSymbol,
-        'SHORT',
-      );
+      const { longSeatSymbol, shortSeatSymbol } = resolveSeatSymbols(ctxConfig.monitorSymbol);
 
       if (longSeatSymbol) {
         const quote = initQuotesMap.get(longSeatSymbol) ?? null;
@@ -588,30 +572,35 @@ async function main(): Promise<void> {
         return;
       }
 
+      const signalDisplay = formatSymbolDisplay(signal.symbol, signal.symbolName ?? null);
+      const signalLabel = `${signalDisplay} ${signal.action}`;
+
+      function discardSignal(prefix: string): void {
+        logger.info(`${prefix}: ${signalLabel}`);
+        signalObjectPool.release(signal);
+      }
+
       const isLongSignal = signal.action === 'BUYCALL' || signal.action === 'SELLCALL';
       const direction = isLongSignal ? 'LONG' : 'SHORT';
       const seatState = ctx.symbolRegistry.getSeatState(signalMonitorSymbol, direction);
       const seatVersion = ctx.symbolRegistry.getSeatVersion(signalMonitorSymbol, direction);
 
       if (!isSeatReady(seatState)) {
-        logger.info(`[延迟验证通过] 席位不可用，丢弃信号: ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${signal.action}`);
-        signalObjectPool.release(signal);
+        discardSignal('[延迟验证通过] 席位不可用，丢弃信号');
         return;
       }
 
       if (!isSeatVersionMatch(signal.seatVersion, seatVersion)) {
-        logger.info(`[延迟验证通过] 席位版本不匹配，丢弃信号: ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${signal.action}`);
-        signalObjectPool.release(signal);
+        discardSignal('[延迟验证通过] 席位版本不匹配，丢弃信号');
         return;
       }
 
       if (signal.symbol !== seatState.symbol) {
-        logger.info(`[延迟验证通过] 标的已切换，丢弃信号: ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${signal.action}`);
-        signalObjectPool.release(signal);
+        discardSignal('[延迟验证通过] 标的已切换，丢弃信号');
         return;
       }
 
-      logger.info(`[延迟验证通过] 信号推入任务队列: ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${signal.action}`);
+      logger.info(`[延迟验证通过] 信号推入任务队列: ${signalLabel}`);
 
       // 根据信号类型分流到不同队列
       const isSellSignal = signal.action === 'SELLCALL' || signal.action === 'SELLPUT';
@@ -641,6 +630,56 @@ async function main(): Promise<void> {
     logger.debug(`[DelayedSignalVerifier] 监控标的 ${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)} 的验证器已初始化`);
   }
 
+  function clearQueuesForDirection(monitorSymbol: string, direction: 'LONG' | 'SHORT'): void {
+    const monitorContext = monitorContexts.get(monitorSymbol);
+    if (!monitorContext) {
+      return;
+    }
+    const result = clearQueuesForDirectionUtil({
+      monitorSymbol,
+      direction,
+      delayedSignalVerifier: monitorContext.delayedSignalVerifier,
+      buyTaskQueue,
+      sellTaskQueue,
+      monitorTaskQueue,
+      releaseSignal: signalObjectPool.release,
+    });
+    const totalRemoved =
+      result.removedDelayed +
+      result.removedBuy +
+      result.removedSell +
+      result.removedMonitorTasks;
+    if (totalRemoved > 0) {
+      logger.info(
+        `[自动换标] ${monitorSymbol} ${direction} 清理待执行信号：延迟=${result.removedDelayed} 买入=${result.removedBuy} 卖出=${result.removedSell} 监控任务=${result.removedMonitorTasks}`,
+      );
+    }
+  }
+
+  const orderMonitorWorker = createOrderMonitorWorker({
+    monitorAndManageOrders: (quotesMap) => trader.monitorAndManageOrders(quotesMap),
+  });
+
+  const postTradeRefresher = createPostTradeRefresher({
+    refreshGate,
+    trader,
+    lastState,
+    monitorContexts,
+    displayAccountAndPositions,
+  });
+
+  const monitorTaskProcessor = createMonitorTaskProcessor({
+    monitorTaskQueue,
+    refreshGate,
+    getMonitorContext: (monitorSymbol: string) => monitorContexts.get(monitorSymbol) ?? null,
+    clearQueuesForDirection,
+    marketDataClient,
+    trader,
+    lastState,
+    tradingConfig,
+  });
+  monitorTaskProcessor.start();
+
   // 创建买卖处理器，分别消费各自队列中的交易任务
   const buyProcessor = createBuyProcessor({
     taskQueue: buyTaskQueue,
@@ -658,6 +697,7 @@ async function main(): Promise<void> {
     signalProcessor,
     trader,
     getLastState: () => lastState,
+    refreshGate,
   });
 
   // 启动 BuyProcessor 和 SellProcessor
@@ -668,6 +708,9 @@ async function main(): Promise<void> {
   const cleanup = createCleanup({
     buyProcessor,
     sellProcessor,
+    monitorTaskProcessor,
+    orderMonitorWorker,
+    postTradeRefresher,
     monitorContexts,
     indicatorCache,
     lastState,
@@ -692,6 +735,9 @@ async function main(): Promise<void> {
         indicatorCache,
         buyTaskQueue,
         sellTaskQueue,
+        monitorTaskQueue,
+        orderMonitorWorker,
+        postTradeRefresher,
         runtimeGateMode: gatePolicies.runtimeGate,
       });
     } catch (err) {

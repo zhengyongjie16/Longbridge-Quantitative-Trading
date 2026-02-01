@@ -79,6 +79,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     testHooks,
     tradingConfig,
     symbolRegistry,
+    refreshGate,
   } = deps;
   const config = buildOrderMonitorConfig(tradingConfig.global);
 
@@ -233,6 +234,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
 
         // 记录需要刷新的数据（订单成交后资金和持仓都会变化）
         // 主循环中会统一刷新账户、持仓和浮亏数据
+        refreshGate?.markStale();
         pendingRefreshSymbols.push({
           symbol: trackedOrder.symbol,
           isLongSymbol: trackedOrder.isLongSymbol,

@@ -25,6 +25,7 @@ coverage/
 
 # Build output
 dist/
+dist-test/
 build/
 
 # Git worktrees

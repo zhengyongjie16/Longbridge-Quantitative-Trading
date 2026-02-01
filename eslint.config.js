@@ -44,6 +44,7 @@ export default tseslint.config(
   {
     ignores: [
       'dist/**',
+      'dist-test/**',
       'node_modules/**',
       'logs/**',
       '*.config.js',

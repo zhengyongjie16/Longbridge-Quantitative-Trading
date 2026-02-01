@@ -5,6 +5,7 @@
  */
 
 import type { MonitorContext, Trader, LastState } from '../../../types/index.js';
+import type { RefreshGate } from '../../../utils/refreshGate/types.js';
 import type { Processor, SellTaskQueue } from '../types.js';
 import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
 
@@ -31,4 +32,6 @@ export type SellProcessorDeps = {
   readonly trader: Trader;
   /** 获取全局状态的函数 */
   readonly getLastState: () => LastState;
+  /** 刷新门禁（等待缓存刷新） */
+  readonly refreshGate: RefreshGate;
 };

@@ -34,7 +34,7 @@ import type { SellTask } from '../tradeTaskQueue/types.js';
  * @returns SellProcessor 接口实例
  */
 export function createSellProcessor(deps: SellProcessorDeps): SellProcessor {
-  const { taskQueue, getMonitorContext, signalProcessor, trader, getLastState } = deps;
+  const { taskQueue, getMonitorContext, signalProcessor, trader, getLastState, refreshGate } = deps;
 
   // 内部状态
   let running = false;
@@ -48,12 +48,11 @@ export function createSellProcessor(deps: SellProcessorDeps): SellProcessor {
    * 处理单个卖出任务
    */
   async function processTask(task: SellTask): Promise<boolean> {
-    const signal = task.data;
-    const monitorSymbol = task.monitorSymbol;
-    // 缓存格式化后的标的显示（用于日志）
+    const { data: signal, monitorSymbol } = task;
     const symbolDisplay = formatSymbolDisplay(signal.symbol, signal.symbolName ?? null);
 
     try {
+      await refreshGate.waitForFresh();
       // 获取监控上下文
       const ctx = getMonitorContext(monitorSymbol);
       if (!ctx) {
@@ -61,20 +60,14 @@ export function createSellProcessor(deps: SellProcessorDeps): SellProcessor {
         return false;
       }
 
-      const { config, orderRecorder } = ctx;
-
-      // 获取行情数据（从 MonitorContext 缓存中获取，主循环每秒更新）
-      // 注意：必须使用 ctx.longQuote/shortQuote，这些字段每秒更新
-      const longQuote = ctx.longQuote;
-      const shortQuote = ctx.shortQuote;
-
-      // 获取全局状态
+      // 注意：longQuote/shortQuote 必须来自 ctx（每秒更新）
+      const { config, orderRecorder, longQuote, shortQuote, symbolRegistry } = ctx;
       const lastState = getLastState();
 
       const isLongSignal = signal.action === 'SELLCALL';
       const direction = isLongSignal ? 'LONG' : 'SHORT';
-      const seatState = ctx.symbolRegistry.getSeatState(monitorSymbol, direction);
-      const seatVersion = ctx.symbolRegistry.getSeatVersion(monitorSymbol, direction);
+      const seatState = symbolRegistry.getSeatState(monitorSymbol, direction);
+      const seatVersion = symbolRegistry.getSeatVersion(monitorSymbol, direction);
 
       if (!isSeatReady(seatState)) {
         logger.info(`[SellProcessor] 席位不可用，跳过信号: ${symbolDisplay} ${signal.action}`);
@@ -90,8 +83,8 @@ export function createSellProcessor(deps: SellProcessorDeps): SellProcessor {
       }
 
       // 获取持仓数据（从 positionCache 获取）
-      const longSeatState = ctx.symbolRegistry.getSeatState(monitorSymbol, 'LONG');
-      const shortSeatState = ctx.symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
+      const longSeatState = symbolRegistry.getSeatState(monitorSymbol, 'LONG');
+      const shortSeatState = symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
       const longPosition = isSeatReady(longSeatState)
         ? lastState.positionCache.get(longSeatState.symbol)
         : null;
@@ -116,7 +109,7 @@ export function createSellProcessor(deps: SellProcessorDeps): SellProcessor {
 
       // 如果信号被转为 HOLD，跳过执行
       const firstSignal = processedSignals[0];
-      if (processedSignals.length === 0 || !firstSignal || firstSignal.action === 'HOLD') {
+      if (!firstSignal || firstSignal.action === 'HOLD') {
         logger.info(`[SellProcessor] 卖出信号被跳过: ${symbolDisplay} ${signal.action}`);
         return true; // 处理成功（虽然跳过了）
       }
@@ -140,13 +133,11 @@ export function createSellProcessor(deps: SellProcessorDeps): SellProcessor {
       const task = taskQueue.pop();
       if (!task) break;
 
-      const signal = task.data;
+      const { data: signal } = task;
 
       try {
         processedCount++;
-        const success = await processTask(task);
-
-        if (success) {
+        if (await processTask(task)) {
           successCount++;
         } else {
           failedCount++;

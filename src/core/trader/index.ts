@@ -46,6 +46,7 @@ export async function createTrader(deps: TraderDeps): Promise<Trader> {
     liquidationCooldownTracker,
     symbolRegistry,
     dailyLossTracker,
+    refreshGate,
   } = deps;
 
   // ========== 1. 创建基础依赖 ==========
@@ -83,6 +84,7 @@ export async function createTrader(deps: TraderDeps): Promise<Trader> {
     liquidationCooldownTracker,
     tradingConfig,
     symbolRegistry,
+    ...(refreshGate ? { refreshGate } : {}),
   });
 
   // ========== 6. 创建 orderExecutor ==========

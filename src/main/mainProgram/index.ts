@@ -20,13 +20,10 @@ import {
   isInContinuousHKSession,
   isWithinMorningOpenProtection,
 } from '../../utils/helpers/tradingTime.js';
-import { displayAccountAndPositions } from '../../utils/helpers/accountDisplay.js';
 import { collectRuntimeQuoteSymbols, diffQuoteSymbols } from '../../utils/helpers/quoteHelpers.js';
-import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
 import { processMonitor } from '../processMonitor/index.js';
 
 import type { MainProgramContext } from './types.js';
-import type { MonitorContext } from '../../types/index.js';
 
 /**
  * 主程序 - 每秒执行一次的核心循环
@@ -54,6 +51,9 @@ export async function mainProgram({
   indicatorCache,
   buyTaskQueue,
   sellTaskQueue,
+  monitorTaskQueue,
+  orderMonitorWorker,
+  postTradeRefresher,
   runtimeGateMode,
 }: MainProgramContext): Promise<void> {
   // 使用缓存的账户和持仓信息（仅在交易后更新）
@@ -61,6 +61,7 @@ export async function mainProgram({
 
   // 判断是否在交易时段（使用当前系统时间）
   const currentTime = new Date();
+  const isStrictMode = runtimeGateMode === 'strict';
   dailyLossTracker.resetIfNewDay(currentTime);
 
   const currentDayKey = getHKDateKey(currentTime);
@@ -68,7 +69,7 @@ export async function mainProgram({
     lastState.currentDayKey = currentDayKey;
     logger.info(`[跨日] 进入新日期: ${currentDayKey}`);
 
-    if (runtimeGateMode === 'strict') {
+    if (isStrictMode) {
       try {
         const tradingDayInfo = await marketDataClient.isTradingDay(currentTime);
         lastState.cachedTradingDayInfo = tradingDayInfo;
@@ -94,7 +95,7 @@ export async function mainProgram({
   let isTradingDayToday = lastState.cachedTradingDayInfo?.isTradingDay ?? true;
   let isHalfDayToday = lastState.cachedTradingDayInfo?.isHalfDay ?? false;
 
-  if (!lastState.cachedTradingDayInfo && runtimeGateMode === 'strict') {
+  if (!lastState.cachedTradingDayInfo && isStrictMode) {
     try {
       const tradingDayInfo = await marketDataClient.isTradingDay(currentTime);
       isTradingDayToday = tradingDayInfo.isTradingDay;
@@ -122,7 +123,7 @@ export async function mainProgram({
   let canTradeNow = true;
   let openProtectionActive = false;
 
-  if (runtimeGateMode === 'strict') {
+  if (isStrictMode) {
     if (!isTradingDayToday) {
       if (lastState.canTrade !== false) {
         logger.info('今天不是交易日，暂停实时监控。');
@@ -161,16 +162,13 @@ export async function mainProgram({
     }
 
     const openProtectionConfig = tradingConfig.global.openProtection;
+    const openProtectionEnabled =
+      openProtectionConfig.enabled && openProtectionConfig.minutes != null;
     openProtectionActive =
-      openProtectionConfig.enabled &&
-      openProtectionConfig.minutes != null &&
+      openProtectionEnabled &&
       isWithinMorningOpenProtection(currentTime, openProtectionConfig.minutes);
 
-    if (
-      openProtectionConfig.enabled &&
-      openProtectionConfig.minutes != null &&
-      lastState.openProtectionActive !== openProtectionActive
-    ) {
+    if (openProtectionEnabled && lastState.openProtectionActive !== openProtectionActive) {
       if (openProtectionActive) {
         logger.info(
           `[开盘保护] 早盘开盘后 ${openProtectionConfig.minutes} 分钟内暂停信号生成`,
@@ -270,6 +268,9 @@ export async function mainProgram({
     indicatorCache,
     buyTaskQueue,
     sellTaskQueue,
+    monitorTaskQueue,
+    orderMonitorWorker,
+    postTradeRefresher,
     runtimeGateMode,
   };
 
@@ -298,82 +299,10 @@ export async function mainProgram({
   // 全局操作：订单监控（在所有监控标的处理完成后）
   // 使用已维护的 allTradingSymbols
   if (canTradeNow && lastState.allTradingSymbols.size > 0) {
-    // 复用前面批量获取的行情数据进行订单监控（quotesMap 已包含所有交易标的的行情）
-    await trader.monitorAndManageOrders(quotesMap).catch((err: unknown) => {
-      logger.warn('订单监控失败', formatError(err));
+    orderMonitorWorker.schedule(quotesMap);
+    postTradeRefresher.enqueue({
+      pending: trader.getAndClearPendingRefreshSymbols(),
+      quotesMap,
     });
-
-    // 订单成交后刷新缓存数据（由 WebSocket 推送触发，在此处统一处理）
-    // 相比订单提交后立即刷新，此时本地订单记录已经更新，数据更准确
-    // 注意：刷新后的缓存仅用于日志显示，不用于风险检查
-    // 买入检查时会从API获取最新数据，确保风险检查使用最新账户和持仓信息
-    const pendingRefreshSymbols = trader.getAndClearPendingRefreshSymbols();
-    if (pendingRefreshSymbols.length > 0) {
-      // 检查是否需要刷新账户和持仓
-      const needRefreshAccount = pendingRefreshSymbols.some((r) => r.refreshAccount);
-      const needRefreshPositions = pendingRefreshSymbols.some((r) => r.refreshPositions);
-
-      // 刷新账户和持仓缓存（仅用于日志显示）
-      if (needRefreshAccount || needRefreshPositions) {
-        try {
-          const [freshAccount, freshPositions] = await Promise.all([
-            needRefreshAccount ? trader.getAccountSnapshot() : Promise.resolve(null),
-            needRefreshPositions ? trader.getStockPositions() : Promise.resolve(null),
-          ]);
-
-          if (freshAccount !== null) {
-            lastState.cachedAccount = freshAccount;
-            logger.debug('[缓存刷新] 订单成交后刷新账户缓存');
-          }
-
-          if (Array.isArray(freshPositions)) {
-            lastState.cachedPositions = freshPositions;
-            lastState.positionCache.update(freshPositions);
-            logger.debug('[缓存刷新] 订单成交后刷新持仓缓存');
-          }
-        } catch (err) {
-          logger.warn('[缓存刷新] 订单成交后刷新缓存失败', formatError(err));
-        }
-      }
-
-      // 刷新浮亏数据（预先构建 symbol -> MonitorContext 索引）
-      const monitorContextBySymbol = new Map<string, MonitorContext>();
-      for (const ctx of monitorContexts.values()) {
-        const monitorSymbol = ctx.config.monitorSymbol;
-        const longSeat = ctx.symbolRegistry.getSeatState(monitorSymbol, 'LONG');
-        const shortSeat = ctx.symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
-        if (isSeatReady(longSeat) && !monitorContextBySymbol.has(longSeat.symbol)) {
-          monitorContextBySymbol.set(longSeat.symbol, ctx);
-        }
-        if (isSeatReady(shortSeat) && !monitorContextBySymbol.has(shortSeat.symbol)) {
-          monitorContextBySymbol.set(shortSeat.symbol, ctx);
-        }
-      }
-      for (const { symbol, isLongSymbol } of pendingRefreshSymbols) {
-        const monitorContext = monitorContextBySymbol.get(symbol);
-        if (monitorContext && (monitorContext.config.maxUnrealizedLossPerSymbol ?? 0) > 0) {
-          const quote = quotesMap.get(symbol) ?? null;
-          const symbolName = isLongSymbol ? monitorContext.longSymbolName : monitorContext.shortSymbolName;
-          const dailyLossOffset = monitorContext.dailyLossTracker.getLossOffset(
-            monitorContext.config.monitorSymbol,
-            isLongSymbol,
-          );
-          await monitorContext.riskChecker
-            .refreshUnrealizedLossData(
-              monitorContext.orderRecorder,
-              symbol,
-              isLongSymbol,
-              quote,
-              dailyLossOffset,
-            )
-            .catch((err: unknown) => {
-              logger.warn(`[浮亏监控] 订单成交后刷新浮亏数据失败: ${formatSymbolDisplay(symbol, symbolName)}`, formatError(err));
-            });
-        }
-      }
-
-      // 订单成交后显示账户和持仓信息（此时缓存已刷新，直接使用缓存）
-      await displayAccountAndPositions({ lastState, quotesMap });
-    }
   }
 }

@@ -24,6 +24,7 @@ import type {
 } from '../../types/index.js';
 import type { LiquidationCooldownTracker } from '../../services/liquidationCooldown/types.js';
 import type { DailyLossTracker } from '../risk/types.js';
+import type { RefreshGate } from '../../utils/refreshGate/types.js';
 
 /**
  * 订单提交载荷
@@ -291,6 +292,8 @@ export type OrderMonitorDeps = {
   };
   /** 全局交易配置 */
   readonly tradingConfig: MultiMonitorTradingConfig;
+  /** 刷新门禁（成交后标记 stale） */
+  readonly refreshGate?: RefreshGate;
 };
 
 /**
@@ -318,4 +321,6 @@ export type TraderDeps = {
   /** 标的注册表（用于动态标的映射） */
   readonly symbolRegistry: SymbolRegistry;
   readonly dailyLossTracker: DailyLossTracker;
+  /** 刷新门禁（成交后标记 stale） */
+  readonly refreshGate?: RefreshGate;
 };

@@ -40,10 +40,11 @@ function resolveDirectionSymbols(direction: SeatDirection): {
   readonly buyAction: 'BUYCALL' | 'BUYPUT';
   readonly sellAction: 'SELLCALL' | 'SELLPUT';
 } {
+  const isBull = direction === 'LONG';
   return {
-    isBull: direction === 'LONG',
-    buyAction: direction === 'LONG' ? 'BUYCALL' : 'BUYPUT',
-    sellAction: direction === 'LONG' ? 'SELLCALL' : 'SELLPUT',
+    isBull,
+    buyAction: isBull ? 'BUYCALL' : 'BUYPUT',
+    sellAction: isBull ? 'SELLCALL' : 'SELLPUT',
   } as const;
 }
 
@@ -60,17 +61,13 @@ function resolveAutoSearchThresholds(
     | AutoSymbolManagerDeps['monitorConfig']['autoSearchConfig']['switchDistanceRangeBull']
     | AutoSymbolManagerDeps['monitorConfig']['autoSearchConfig']['switchDistanceRangeBear'];
 } {
-  if (direction === 'LONG') {
-    return {
-      minPrice: config.autoSearchMinPriceBull,
-      minTurnoverPerMinute: config.autoSearchMinTurnoverPerMinuteBull,
-      switchDistanceRange: config.switchDistanceRangeBull,
-    };
-  }
+  const isBull = direction === 'LONG';
   return {
-    minPrice: config.autoSearchMinPriceBear,
-    minTurnoverPerMinute: config.autoSearchMinTurnoverPerMinuteBear,
-    switchDistanceRange: config.switchDistanceRangeBear,
+    minPrice: isBull ? config.autoSearchMinPriceBull : config.autoSearchMinPriceBear,
+    minTurnoverPerMinute: isBull
+      ? config.autoSearchMinTurnoverPerMinuteBull
+      : config.autoSearchMinTurnoverPerMinuteBear,
+    switchDistanceRange: isBull ? config.switchDistanceRangeBull : config.switchDistanceRangeBear,
   };
 }
 
@@ -122,9 +119,9 @@ function calculateBuyQuantityByNotional(
   if (!Number.isFinite(lotSize) || lotSize <= 0) {
     return null;
   }
-  let rawQty = Math.floor(notional / price);
-  rawQty = Math.floor(rawQty / lotSize) * lotSize;
-  return rawQty >= lotSize ? rawQty : null;
+  let rawQuantity = Math.floor(notional / price);
+  rawQuantity = Math.floor(rawQuantity / lotSize) * lotSize;
+  return rawQuantity >= lotSize ? rawQuantity : null;
 }
 
 /**
@@ -209,12 +206,13 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
       logger.error(`[自动换标] 缺少阈值配置，无法预寻标: ${monitorSymbol} ${direction}`);
       return null;
     }
+    const isBull = direction === 'LONG';
     const ctx = await marketDataClient._getContext();
     const tradingMinutes = getTradingMinutesSinceOpen(now());
     const best = await findBestWarrant({
       ctx,
       monitorSymbol,
-      isBull: direction === 'LONG',
+      isBull,
       tradingMinutes,
       minPrice,
       minTurnoverPerMinute,
@@ -270,9 +268,9 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
   function clearSeat({ direction, reason }: { direction: SeatDirection; reason: string }): SeatVersion {
     const timestamp = now().getTime();
     const currentState = symbolRegistry.getSeatState(monitorSymbol, direction);
+    const nextVersion = symbolRegistry.bumpSeatVersion(monitorSymbol, direction);
     const nextState = buildSeatState(currentState.symbol ?? null, 'SWITCHING', timestamp, null);
     symbolRegistry.updateSeatState(monitorSymbol, direction, nextState);
-    const nextVersion = symbolRegistry.bumpSeatVersion(monitorSymbol, direction);
     logger.warn(`[自动换标] ${monitorSymbol} ${direction} 清空席位: ${reason}`);
     return nextVersion;
   }
@@ -323,10 +321,11 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
 
     const ctx = await marketDataClient._getContext();
     const tradingMinutes = getTradingMinutesSinceOpen(currentTime);
+    const isBull = direction === 'LONG';
     const best = await findBestWarrant({
       ctx,
       monitorSymbol,
-      isBull: direction === 'LONG',
+      isBull,
       tradingMinutes,
       minPrice,
       minTurnoverPerMinute,
@@ -359,7 +358,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     state: SwitchState,
   ): Promise<void> {
     const { direction, quotesMap, positions, pendingOrders } = params;
-    const { sellAction } = resolveDirectionSymbols(direction);
+    const { sellAction, buyAction } = resolveDirectionSymbols(direction);
     const seatVersion = symbolRegistry.getSeatVersion(monitorSymbol, direction);
 
     // 先撤销旧标的未成交买单，避免换标期间重复持仓
@@ -390,28 +389,28 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
 
     // 还有可用持仓时先提交卖出
     if (Number.isFinite(availableQuantity) && availableQuantity > 0) {
-      if (!state.sellSubmitted) {
-        const quote = quotesMap.get(state.oldSymbol) ?? null;
-        if (!quote || quote.price == null || quote.lotSize == null) {
-          return;
-        }
-
-        const signal = buildOrderSignal({
-          action: sellAction,
-          symbol: state.oldSymbol,
-          quote,
-          reason: '自动换标-移仓卖出',
-          orderTypeOverride: 'ELO',
-          quantity: availableQuantity,
-          seatVersion,
-        });
-
-        await trader.executeSignals([signal]);
-        signalObjectPool.release(signal);
-
-        state.sellSubmitted = true;
+      if (state.sellSubmitted) {
         return;
       }
+      const quote = quotesMap.get(state.oldSymbol) ?? null;
+      if (!quote || quote.price == null || quote.lotSize == null) {
+        return;
+      }
+
+      const signal = buildOrderSignal({
+        action: sellAction,
+        symbol: state.oldSymbol,
+        quote,
+        reason: '自动换标-移仓卖出',
+        orderTypeOverride: 'ELO',
+        quantity: availableQuantity,
+        seatVersion,
+      });
+
+      await trader.executeSignals([signal]);
+      signalObjectPool.release(signal);
+
+      state.sellSubmitted = true;
       return;
     }
 
@@ -464,7 +463,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     }
 
     const signal = buildOrderSignal({
-      action: resolveDirectionSymbols(direction).buyAction,
+      action: buyAction,
       symbol: nextSymbol,
       quote,
       reason: '自动换标-移仓买入',
