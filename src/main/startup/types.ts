@@ -45,7 +45,10 @@ export type StartupGate = {
 
 export type SeatSnapshotInput = {
   readonly monitors: ReadonlyArray<
-    Pick<MonitorConfig, 'monitorSymbol' | 'autoSearchConfig' | 'longSymbol' | 'shortSymbol'>
+    Pick<
+      MonitorConfig,
+      'monitorSymbol' | 'autoSearchConfig' | 'longSymbol' | 'shortSymbol' | 'orderOwnershipMapping'
+    >
   >;
   readonly positions: ReadonlyArray<Position>;
   readonly orders: ReadonlyArray<RawOrderFromAPI>;

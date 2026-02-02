@@ -23,12 +23,12 @@ export function resolveSeatSnapshot(input: SeatSnapshotInput): SeatSnapshot {
   for (const monitor of monitors) {
     const candidateLongSymbol = getLatestTradedSymbol(
       orders,
-      monitor.monitorSymbol,
+      monitor.orderOwnershipMapping,
       'LONG',
     );
     const candidateShortSymbol = getLatestTradedSymbol(
       orders,
-      monitor.monitorSymbol,
+      monitor.orderOwnershipMapping,
       'SHORT',
     );
 

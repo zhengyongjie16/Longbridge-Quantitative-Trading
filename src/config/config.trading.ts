@@ -20,6 +20,7 @@ import {
   getStringConfig,
   parseLiquidationCooldownConfig,
   parseNumberRangeConfig,
+  parseOrderOwnershipMapping,
   parseOrderTypeConfig,
   parseVerificationDelay,
   parseVerificationIndicators,
@@ -126,6 +127,10 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
   });
   const switchDistanceRangeBull = parseNumberRangeConfig(env, `SWITCH_DISTANCE_RANGE_BULL${suffix}`);
   const switchDistanceRangeBear = parseNumberRangeConfig(env, `SWITCH_DISTANCE_RANGE_BEAR${suffix}`);
+  const orderOwnershipMapping = parseOrderOwnershipMapping(
+    env,
+    `ORDER_OWNERSHIP_MAPPING${suffix}`,
+  );
 
   // 使用 ?? 保留 0 的合法配置，仅在 null/undefined 时回退默认值
   const targetNotional = getNumberConfig(env, `TARGET_NOTIONAL${suffix}`, 1) ?? 10000;
@@ -184,6 +189,7 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
       switchDistanceRangeBull,
       switchDistanceRangeBear,
     },
+    orderOwnershipMapping,
     targetNotional,
     maxPositionNotional,
     maxDailyLoss,

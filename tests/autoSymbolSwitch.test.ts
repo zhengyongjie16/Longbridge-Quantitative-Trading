@@ -241,6 +241,7 @@ function createMinimalMonitorConfig(monitorSymbol: string): MonitorConfig {
       switchDistanceRangeBull: { min: 0, max: 100 },
       switchDistanceRangeBear: { min: 0, max: 100 },
     },
+    orderOwnershipMapping: ['TEST'],
     targetNotional: 1000,
     maxPositionNotional: 0,
     maxDailyLoss: 0,

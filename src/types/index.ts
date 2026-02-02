@@ -435,6 +435,8 @@ export type MonitorConfig = {
   readonly shortSymbol: string;
   /** 自动寻标配置 */
   readonly autoSearchConfig: AutoSearchConfig;
+  /** 订单归属映射（stockName 缩写列表） */
+  readonly orderOwnershipMapping: ReadonlyArray<string>;
   /** 单次目标交易金额 */
   readonly targetNotional: number;
   /** 单标的最大持仓市值 */

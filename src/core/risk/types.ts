@@ -150,12 +150,12 @@ export type DailyLossOffsetMap = ReadonlyMap<string, DailyLossOffset>;
 
 export type DailyLossCalculatorParams = {
   readonly orders: ReadonlyArray<RawOrderFromAPI>;
-  readonly monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol'>>;
+  readonly monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>;
   readonly now: Date;
   readonly filteringEngine: OrderFilteringEngine;
   readonly resolveOrderOwnership: (
     order: RawOrderFromAPI,
-    monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol'>>,
+    monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
   ) => OrderOwnership | null;
   readonly classifyAndConvertOrders: (
     orders: ReadonlyArray<RawOrderFromAPI>,
@@ -183,12 +183,12 @@ export type DailyLossFilledOrderInput = {
 export type DailyLossTracker = {
   initializeFromOrders(
     allOrders: ReadonlyArray<RawOrderFromAPI>,
-    monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol'>>,
+    monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
     now: Date,
   ): void;
   recalculateFromAllOrders(
     allOrders: ReadonlyArray<RawOrderFromAPI>,
-    monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol'>>,
+    monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
     now: Date,
   ): void;
   recordFilledOrder(input: DailyLossFilledOrderInput): void;
@@ -200,7 +200,7 @@ export type DailyLossTrackerDeps = {
   readonly filteringEngine: OrderFilteringEngine;
   readonly resolveOrderOwnership: (
     order: RawOrderFromAPI,
-    monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol'>>,
+    monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
   ) => OrderOwnership | null;
   readonly classifyAndConvertOrders: (
     orders: ReadonlyArray<RawOrderFromAPI>,

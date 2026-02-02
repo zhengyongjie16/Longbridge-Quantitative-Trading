@@ -170,6 +170,13 @@ function validateMonitorConfig(
 
   const autoSearchEnabled = config.autoSearchConfig.autoSearchEnabled;
 
+  // 验证订单归属映射
+  if (!config.orderOwnershipMapping || config.orderOwnershipMapping.length === 0) {
+    const mappingKey = `ORDER_OWNERSHIP_MAPPING_${index}`;
+    errors.push(`${prefix}: ${mappingKey} 未配置或为空（用于 stockName 归属解析）`);
+    missingFields.push(mappingKey);
+  }
+
   // 自动寻标关闭时，做多/做空标的必须配置
   if (!autoSearchEnabled) {
     // 验证做多标的
@@ -339,6 +346,38 @@ export function validateTradingConfig(
     missingFields.push(...result.missingFields);
   }
 
+  // 检测订单归属映射冲突（同一缩写不能归属多个监控标的）
+  const ownershipAliases = new Map<string, string>();
+  const ownershipConflicts: Array<{ alias: string; current: string; existing: string }> = [];
+  for (const config of tradingConfig.monitors) {
+    if (!config) {
+      continue;
+    }
+    for (const alias of config.orderOwnershipMapping) {
+      const normalizedAlias = alias.trim().toUpperCase();
+      if (!normalizedAlias) {
+        continue;
+      }
+      const existing = ownershipAliases.get(normalizedAlias);
+      if (existing && existing !== config.monitorSymbol) {
+        ownershipConflicts.push({
+          alias: normalizedAlias,
+          current: config.monitorSymbol,
+          existing,
+        });
+        continue;
+      }
+      ownershipAliases.set(normalizedAlias, config.monitorSymbol);
+    }
+  }
+  if (ownershipConflicts.length > 0) {
+    for (const conflict of ownershipConflicts) {
+      errors.push(
+        `订单归属映射冲突：缩写 ${conflict.alias} 同时映射到 ${conflict.existing} 与 ${conflict.current}`,
+      );
+    }
+  }
+
   // 检测重复的交易标的（不允许多个监控标的使用相同的交易标的）
   const tradingSymbols = new Map<string, number>(); // symbol -> originalIndex
   const duplicateSymbols: DuplicateSymbol[] = [];
@@ -449,6 +488,7 @@ export async function validateAllConfig({
 
     logger.info(`\n监控标的 ${index}:`);
     logger.info(`监控标的: ${monitorConfig.monitorSymbol}`);
+    logger.info(`订单归属映射: ${monitorConfig.orderOwnershipMapping.join(', ')}`);
     if (autoSearchEnabled) {
       logger.info('自动寻标: 已启用（交易标的由席位动态决定）');
       logger.info('做多标的: 自动寻标');

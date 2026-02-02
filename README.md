@@ -240,6 +240,7 @@ npm start
 | `LIQUIDATION_COOLDOWN_MINUTES_N`    | `无`     | 保护性清仓后买入冷却（可选，不设置则不冷却：1-120 / half-day / one-day） |
 | `SMART_CLOSE_ENABLED_N`             | `true`   | 智能平仓开关（启用时仅卖出盈利订单，禁用时全仓卖出）     |
 | `AUTO_SEARCH_ENABLED_N`             | `false`  | 自动寻标开关（启用后忽略 LONG/SHORT 标的配置）          |
+| `ORDER_OWNERSHIP_MAPPING_N`         | `无`     | stockName 归属缩写映射（逗号分隔）                      |
 | `AUTO_SEARCH_MIN_PRICE_BULL_N`      | `无`     | 牛证最低价格阈值                                     |
 | `AUTO_SEARCH_MIN_PRICE_BEAR_N`      | `无`     | 熊证最低价格阈值                                     |
 | `AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_BULL_N` | `无` | 牛证分均成交额阈值（HKD/分钟）                     |

@@ -111,7 +111,7 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
    */
   function initializeFromOrders(
     allOrders: ReadonlyArray<RawOrderFromAPI>,
-    monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol'>>,
+    monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
     now: Date,
   ): void {
     const nextKey = resolveBeijingDayKey(deps.toBeijingTimeIso, now);
@@ -169,7 +169,7 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
    */
   function recalculateFromAllOrders(
     allOrders: ReadonlyArray<RawOrderFromAPI>,
-    monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol'>>,
+    monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
     now: Date,
   ): void {
     initializeFromOrders(allOrders, monitors, now);

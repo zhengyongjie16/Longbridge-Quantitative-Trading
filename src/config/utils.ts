@@ -142,6 +142,37 @@ export function parseNumberRangeConfig(
   return { min, max };
 }
 
+/** 解析订单归属映射（逗号分隔缩写列表） */
+export function parseOrderOwnershipMapping(
+  env: NodeJS.ProcessEnv,
+  envKey: string,
+): ReadonlyArray<string> {
+  const value = getStringConfig(env, envKey);
+  if (!value) {
+    return [];
+  }
+
+  const items = value
+    .split(',')
+    .map((item) => item.trim().toUpperCase())
+    .filter((item) => item !== '');
+
+  if (items.length === 0) {
+    logger.warn(`[配置警告] ${envKey} 未包含有效缩写`);
+    return [];
+  }
+
+  const uniqueItems = Array.from(new Set(items));
+  uniqueItems.sort((a, b) => {
+    if (a.length !== b.length) {
+      return b.length - a.length;
+    }
+    return a.localeCompare(b);
+  });
+
+  return uniqueItems;
+}
+
 /** 解析延迟验证时间（秒），范围 0-120 */
 export function parseVerificationDelay(
   env: NodeJS.ProcessEnv,
