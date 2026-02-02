@@ -143,6 +143,10 @@ async function main(): Promise<void> {
   const runMode = resolveRunMode(env);
   const gatePolicies = resolveGatePolicies(runMode);
 
+  /**
+   * 解析监控标的对应的做多/做空席位标的代码。
+   * 仅返回已就绪（Ready）状态的席位标的，未就绪时返回 null。
+   */
   function resolveSeatSymbols(
     monitorSymbol: string,
   ): { longSeatSymbol: string | null; shortSeatSymbol: string | null } {
@@ -630,6 +634,10 @@ async function main(): Promise<void> {
     logger.debug(`[DelayedSignalVerifier] 监控标的 ${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)} 的验证器已初始化`);
   }
 
+  /**
+   * 清理指定监控标的和方向的所有待执行任务队列。
+   * 用于自动换标时清理旧标的的延迟信号、买卖任务和监控任务。
+   */
   function clearQueuesForDirection(monitorSymbol: string, direction: 'LONG' | 'SHORT'): void {
     const monitorContext = monitorContexts.get(monitorSymbol);
     if (!monitorContext) {

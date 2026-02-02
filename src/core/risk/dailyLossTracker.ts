@@ -25,26 +25,20 @@ function createEmptyState(): DailyLossState {
 }
 
 /**
- * 计算当日亏损偏移：
- * totalBuy - totalSell - openBuyCost
- * 其中 openBuyCost 为过滤算法识别的未平仓买入成本。
+ * 计算当日盈亏偏移：
+ * totalSell - totalBuy
+ * 正值表示当日盈利（卖出收入 > 买入成本），负值表示当日亏损。
  */
 function calculateLossOffsetFromRecords(
   buyOrders: ReadonlyArray<OrderRecord>,
   sellOrders: ReadonlyArray<OrderRecord>,
-  deps: Pick<DailyLossTrackerDeps, 'filteringEngine'>,
 ): number {
   if (buyOrders.length === 0 && sellOrders.length === 0) {
     return 0;
   }
   const totalBuy = sumOrderCost(buyOrders);
   const totalSell = sumOrderCost(sellOrders);
-  const openBuyOrders = deps.filteringEngine.applyFilteringAlgorithm(
-    [...buyOrders],
-    [...sellOrders],
-  );
-  const openBuyCost = sumOrderCost(openBuyOrders);
-  return totalBuy - totalSell - openBuyCost;
+  return totalSell - totalBuy;
 }
 
 /**
@@ -55,11 +49,7 @@ function buildStateFromOrders(
   deps: Pick<DailyLossTrackerDeps, 'filteringEngine' | 'classifyAndConvertOrders'>,
 ): DailyLossState {
   const { buyOrders, sellOrders } = deps.classifyAndConvertOrders(orders);
-  const dailyLossOffset = calculateLossOffsetFromRecords(
-    buyOrders,
-    sellOrders,
-    deps,
-  );
+  const dailyLossOffset = calculateLossOffsetFromRecords(buyOrders, sellOrders);
   return {
     buyOrders,
     sellOrders,
@@ -216,11 +206,7 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
     const nextState: DailyLossState = {
       buyOrders: nextBuyOrders,
       sellOrders: nextSellOrders,
-      dailyLossOffset: calculateLossOffsetFromRecords(
-        nextBuyOrders,
-        nextSellOrders,
-        deps,
-      ),
+      dailyLossOffset: calculateLossOffsetFromRecords(nextBuyOrders, nextSellOrders),
     };
 
     if (input.isLongSymbol) {

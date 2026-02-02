@@ -98,7 +98,10 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
         dailyLossOffset != null && Number.isFinite(dailyLossOffset)
           ? dailyLossOffset
           : 0;
-      const adjustedR1 = baseR1 + normalizedOffset;
+      // 调整后R1 = 基础R1 - 当日偏移
+      // 当日偏移为负数时（已亏损），减去负数使R1增大，从而更容易触发浮亏保护
+      // 调整后R1 不能为负数，最小值为 0
+      const adjustedR1 = Math.max(0, baseR1 - normalizedOffset);
 
       // 更新缓存
       unrealizedLossData.set(symbol, {
@@ -119,7 +122,7 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
           `[浮亏监控] ${positionType} ${symbolDisplay}: ` +
             `R1(开仓成本)=${baseR1.toFixed(2)} HKD, ` +
             `当日偏移=${normalizedOffset.toFixed(2)} HKD, ` +
-            `调整后R1=${adjustedR1.toFixed(2)} HKD, ` +
+            `调整后R1(开仓成本)=${adjustedR1.toFixed(2)} HKD, ` +
             `N1(持仓数量)=${n1}, 未平仓订单数=${buyOrders.length}`,
         );
       } else {
