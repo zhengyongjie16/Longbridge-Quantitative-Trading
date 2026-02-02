@@ -13,7 +13,7 @@ import type { MonitorTaskQueue } from '../asyncProgram/monitorTaskQueue/types.js
 import type { MonitorTaskData, MonitorTaskType } from '../asyncProgram/monitorTaskProcessor/types.js';
 import type { QueueClearResult } from './types.js';
 
-export function isDirectionAction(
+function isDirectionAction(
   action: string | null | undefined,
   direction: 'LONG' | 'SHORT',
 ): boolean {
@@ -24,7 +24,7 @@ export function isDirectionAction(
   return direction === 'LONG' ? isLongAction : !isLongAction;
 }
 
-export function isMonitorTaskForDirection(
+function isMonitorTaskForDirection(
   task: { readonly data: unknown },
   direction: 'LONG' | 'SHORT',
 ): boolean {

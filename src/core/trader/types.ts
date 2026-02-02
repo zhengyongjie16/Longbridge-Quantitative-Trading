@@ -240,19 +240,17 @@ export type TrackedOrder = {
 };
 
 /**
- * 订单超时配置（买入/卖出分开配置）
- */
-export type OrderSideTimeoutConfig = {
-  readonly enabled: boolean;
-  readonly timeoutMs: number;
-};
-
-/**
  * 订单监控配置
  */
 export interface OrderMonitorConfig {
-  readonly buyTimeout: OrderSideTimeoutConfig;
-  readonly sellTimeout: OrderSideTimeoutConfig;
+  readonly buyTimeout: {
+    readonly enabled: boolean;
+    readonly timeoutMs: number;
+  };
+  readonly sellTimeout: {
+    readonly enabled: boolean;
+    readonly timeoutMs: number;
+  };
   /** 价格修改最小间隔（毫秒） */
   readonly priceUpdateIntervalMs: number;
   /** 价格差异阈值（低于此值不触发修改） */

@@ -40,7 +40,7 @@ import type {
  * @param maxSize 池的最大容量
  * @returns ObjectPool 接口实例
  */
-export function createObjectPool<T>(
+function createObjectPool<T>(
   factory: Factory<T>,
   reset: Reset<T>,
   maxSize: number = 100,
@@ -90,7 +90,7 @@ export function createObjectPool<T>(
  * 验证历史条目对象池
  * 用于 verificationHistory 数组中的条目对象
  */
-export const verificationEntryPool = createObjectPool<PoolableVerificationEntry>(
+const verificationEntryPool = createObjectPool<PoolableVerificationEntry>(
   // 工厂函数：创建空对象（支持动态配置的验证指标）
   () => ({ timestamp: null, indicators: null }),
   // 重置函数：清空所有属性

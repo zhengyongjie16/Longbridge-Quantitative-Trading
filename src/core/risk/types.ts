@@ -47,13 +47,6 @@ export type WarrantInfo =
       readonly symbol: string;
     };
 
-/** 风险检查器配置选项 */
-export type RiskCheckerOptions = {
-  readonly maxDailyLoss?: number | null;
-  readonly maxPositionNotional?: number | null;
-  readonly maxUnrealizedLossPerSymbol?: number | null;
-};
-
 // ==================== 服务接口定义 ====================
 
 /** 牛熊证风险检查器接口 */
@@ -136,32 +129,14 @@ export type UnrealizedLossCheckerDeps = {
 
 /** 风险检查器依赖（门面模式） */
 export type RiskCheckerDeps = {
-  readonly options?: RiskCheckerOptions;
+  readonly options?: {
+    readonly maxDailyLoss?: number | null;
+    readonly maxPositionNotional?: number | null;
+    readonly maxUnrealizedLossPerSymbol?: number | null;
+  };
 };
 
 // ==================== 当日亏损追踪 ====================
-
-export type DailyLossOffset = {
-  readonly long: number;
-  readonly short: number;
-};
-
-export type DailyLossOffsetMap = ReadonlyMap<string, DailyLossOffset>;
-
-export type DailyLossCalculatorParams = {
-  readonly orders: ReadonlyArray<RawOrderFromAPI>;
-  readonly monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>;
-  readonly now: Date;
-  readonly filteringEngine: OrderFilteringEngine;
-  readonly resolveOrderOwnership: (
-    order: RawOrderFromAPI,
-    monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
-  ) => OrderOwnership | null;
-  readonly classifyAndConvertOrders: (
-    orders: ReadonlyArray<RawOrderFromAPI>,
-  ) => { buyOrders: OrderRecord[]; sellOrders: OrderRecord[] };
-  readonly toBeijingTimeIso: (date: Date | null) => string;
-};
 
 export type DailyLossState = {
   readonly buyOrders: ReadonlyArray<OrderRecord>;

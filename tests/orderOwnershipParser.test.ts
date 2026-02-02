@@ -36,6 +36,16 @@ test('parseOrderOwnership resolves direction using ownership mapping', () => {
   assert.equal(result, 'SHORT');
 });
 
+test('parseOrderOwnership resolves direction with separator between alias and RP', () => {
+  const parseWithMapping = parseOrderOwnership as unknown as (
+    stockName: string | null | undefined,
+    mapping: ReadonlyArray<string>,
+  ) => 'LONG' | 'SHORT' | null;
+
+  const result = parseWithMapping('DS#HSI RP2804Y', ['HSI']);
+  assert.equal(result, 'SHORT');
+});
+
 test('resolveOrderOwnership matches monitor by mapping', () => {
   const monitors = [
     { monitorSymbol: '9988.HK', orderOwnershipMapping: ['ALIBA'] },

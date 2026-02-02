@@ -108,9 +108,9 @@ export const PENDING_ORDER_STATUSES = new Set<OrderStatusValue>([
 
 /** 风险检查相关常量（牛熊证） */
 /** 牛证最低距离回收价百分比（低于此值拒绝买入） */
-export const BULL_WARRANT_MIN_DISTANCE_PERCENT = 0.5;
+export const BULL_WARRANT_MIN_DISTANCE_PERCENT = 0.35;
 /** 熊证最高距离回收价百分比（高于此值拒绝买入） */
-export const BEAR_WARRANT_MAX_DISTANCE_PERCENT = -0.5;
+export const BEAR_WARRANT_MAX_DISTANCE_PERCENT = -0.35;
 /** 牛证触发清仓的距离回收价百分比（低于此值触发保护清仓） */
 export const BULL_WARRANT_LIQUIDATION_DISTANCE_PERCENT = 0.3;
 /** 熊证触发清仓的距离回收价百分比（高于此值触发保护清仓） */

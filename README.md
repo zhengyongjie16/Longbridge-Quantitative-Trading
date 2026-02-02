@@ -354,7 +354,6 @@ DelayedSignalVerifier 延迟验证流程（独立于主循环）：
 ## 工具脚本
 
 - 代码质量：`npm run sonarqube` / `npm run sonarqube:report`（需要 `.env.sonar`，可配合 `docker-compose.yml` 启动）
-- 性能分析：`npm run perf:test` / `npm run perf:test:custom` / `npm run perf:bubbleprof`
 - 其他：`npm run lint` / `npm run lint:fix` / `npm run clean`
 
 ---

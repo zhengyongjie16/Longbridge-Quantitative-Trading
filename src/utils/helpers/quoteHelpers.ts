@@ -19,7 +19,7 @@ import type { MarketDataClient, Position, Quote, SymbolRegistry } from '../../ty
  * @param monitorConfigs 监控配置数组
  * @returns 所有需要获取行情的标的代码集合
  */
-export function collectAllQuoteSymbols(
+function collectAllQuoteSymbols(
   monitorConfigs: ReadonlyArray<{
     readonly monitorSymbol: string;
     readonly longSymbol: string;

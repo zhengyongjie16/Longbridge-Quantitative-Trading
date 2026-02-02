@@ -40,10 +40,6 @@ sonar-*.json
 settings.local.json
 ralph-loop.local.md
 
-# Clinic.js performance reports
-clinic-*/
-clinic-report/
-
 # Windows reserved device names (should never be tracked)
 nul
 con

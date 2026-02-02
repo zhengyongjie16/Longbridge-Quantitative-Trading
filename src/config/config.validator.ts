@@ -26,7 +26,7 @@ import type {
 } from './types.js';
 
 /** 创建配置验证错误对象 */
-export function createConfigValidationError(
+function createConfigValidationError(
   message: string,
   missingFields: ReadonlyArray<string> = [],
 ): ConfigValidationError {
@@ -316,7 +316,7 @@ function validateMonitorConfig(
 }
 
 /** 验证所有监控标的的交易配置（含重复标的检测） */
-export function validateTradingConfig(
+function validateTradingConfig(
   tradingConfig: MultiMonitorTradingConfig,
   env: NodeJS.ProcessEnv,
 ): TradingValidationResult {

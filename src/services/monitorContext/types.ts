@@ -14,7 +14,6 @@
  */
 import type {
   MonitorConfig,
-  MonitorContext,
   MonitorState,
   OrderRecorder,
   Quote,
@@ -40,5 +39,3 @@ export type MonitorContextFactoryDeps = {
   readonly delayedSignalVerifier: DelayedSignalVerifier;
   readonly autoSymbolManager: AutoSymbolManager;
 };
-
-export type MonitorContextFactory = (deps: MonitorContextFactoryDeps) => MonitorContext;

@@ -7,14 +7,14 @@ import { OrderStatus } from 'longport';
 import type { MonitorConfig, RawOrderFromAPI } from '../../types/index.js';
 import type { OrderOwnership } from './types.js';
 
-// 订单名称统一转大写，避免大小写导致误判
+// 订单名称统一转大写并去除非字母字符，避免大小写与分隔符导致误判
 function normalizeStockName(stockName: string): string {
-  return stockName.trim().toUpperCase();
+  return stockName.trim().toUpperCase().replace(/[^A-Z]/g, '');
 }
 
-// 归属缩写统一转大写，避免大小写导致误判
+// 归属缩写统一转大写并去除非字母字符，避免大小写与分隔符导致误判
 function normalizeOwnershipAlias(alias: string): string {
-  return alias.trim().toUpperCase();
+  return alias.trim().toUpperCase().replace(/[^A-Z]/g, '');
 }
 
 /**

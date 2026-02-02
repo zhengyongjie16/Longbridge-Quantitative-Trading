@@ -32,19 +32,6 @@ export type SignalType =
   | 'HOLD';     // 持有（不操作）
 
 /**
- * 延迟验证历史条目
- * 记录延迟验证过程中每个时间点的指标快照
- *
- * @remarks 此类型不使用 readonly，因为需要在对象池中修改
- */
-export type VerificationEntry = {
-  /** 验证时间点 */
-  timestamp: Date;
-  /** 该时间点的指标值映射 */
-  indicators: Record<string, number>;
-};
-
-/**
  * 交易信号
  * 表示一次交易操作的完整信息
  *
@@ -81,7 +68,7 @@ export type Signal = {
   /** 延迟验证：T0 时刻的指标快照 */
   indicators1?: Record<string, number> | null;
   /** 延迟验证：历史验证记录 */
-  verificationHistory?: VerificationEntry[] | null;
+  verificationHistory?: Array<{ timestamp: Date; indicators: Record<string, number> }> | null;
 };
 
 /**
@@ -458,39 +445,6 @@ export type MonitorConfig = {
 };
 
 /**
- * 买入订单超时配置
- * 控制买入订单未成交时的超时处理
- */
-export type BuyOrderTimeoutConfig = {
-  /** 是否启用超时检测 */
-  readonly enabled: boolean;
-  /** 超时时间（秒） */
-  readonly timeoutSeconds: number;
-};
-
-/**
- * 卖出订单超时配置
- * 控制卖出订单未成交时的超时处理
- */
-export type SellOrderTimeoutConfig = {
-  /** 是否启用超时检测 */
-  readonly enabled: boolean;
-  /** 超时时间（秒） */
-  readonly timeoutSeconds: number;
-};
-
-/**
- * 开盘保护配置
- * 早盘开盘后暂停交易，避免开盘波动
- */
-export type OpenProtectionConfig = {
-  /** 是否启用开盘保护 */
-  readonly enabled: boolean;
-  /** 保护时长（分钟） */
-  readonly minutes: number | null;
-};
-
-/**
  * 全局配置
  * 非监控标的特定的系统级配置
  */
@@ -500,7 +454,12 @@ export type GlobalConfig = {
   /** 调试模式 */
   readonly debug: boolean;
   /** 开盘保护配置 */
-  readonly openProtection: OpenProtectionConfig;
+  readonly openProtection: {
+    /** 是否启用开盘保护 */
+    readonly enabled: boolean;
+    /** 保护时长（分钟） */
+    readonly minutes: number | null;
+  };
   /** 订单价格修改最小间隔（秒） */
   readonly orderMonitorPriceUpdateInterval: number;
   /** 正常交易订单类型 */
@@ -508,9 +467,19 @@ export type GlobalConfig = {
   /** 清仓订单类型 */
   readonly liquidationOrderType: OrderTypeConfig;
   /** 买入订单超时配置 */
-  readonly buyOrderTimeout: BuyOrderTimeoutConfig;
+  readonly buyOrderTimeout: {
+    /** 是否启用超时检测 */
+    readonly enabled: boolean;
+    /** 超时时间（秒） */
+    readonly timeoutSeconds: number;
+  };
   /** 卖出订单超时配置 */
-  readonly sellOrderTimeout: SellOrderTimeoutConfig;
+  readonly sellOrderTimeout: {
+    /** 是否启用超时检测 */
+    readonly enabled: boolean;
+    /** 超时时间（秒） */
+    readonly timeoutSeconds: number;
+  };
 };
 
 /**
@@ -584,10 +553,8 @@ export type RunMode = 'prod' | 'dev';
 /**
  * 门禁模式
  */
-export type GateMode = 'strict' | 'skip';
-
-export type StartupGateMode = GateMode;
-export type RuntimeGateMode = GateMode;
+export type StartupGateMode = 'strict' | 'skip';
+export type RuntimeGateMode = 'strict' | 'skip';
 
 /**
  * 启动阶段的席位标的快照条目

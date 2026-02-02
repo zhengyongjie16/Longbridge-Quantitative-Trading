@@ -37,12 +37,10 @@ export type QuoteDisplayResult = {
 /**
  * 指标状态接口（用于获取指标值）
  */
-export type IndicatorSeries = Record<number, number> | null;
-
 export type IndicatorState = {
-  readonly ema?: IndicatorSeries;
-  readonly rsi?: IndicatorSeries;
-  readonly psy?: IndicatorSeries;
+  readonly ema?: Record<number, number> | null;
+  readonly rsi?: Record<number, number> | null;
+  readonly psy?: Record<number, number> | null;
   readonly mfi?: number | null;
   readonly kdj?: { readonly k?: number; readonly d?: number; readonly j?: number } | null;
   readonly macd?: { readonly macd?: number; readonly dif?: number; readonly dea?: number } | null;

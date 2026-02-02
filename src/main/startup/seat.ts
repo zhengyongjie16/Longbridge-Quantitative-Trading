@@ -16,7 +16,7 @@ import { getLatestTradedSymbol } from '../../core/orderRecorder/orderOwnershipPa
 /**
  * 基于订单与持仓生成席位快照，用于启动时恢复席位标的。
  */
-export function resolveSeatSnapshot(input: SeatSnapshotInput): SeatSnapshot {
+function resolveSeatSnapshot(input: SeatSnapshotInput): SeatSnapshot {
   const { monitors, positions, orders } = input;
   const entries: SeatSymbolSnapshotEntry[] = [];
 
@@ -73,7 +73,7 @@ export function resolveReadySeatSymbol(
   return isSeatReady(seatState) ? seatState.symbol : null;
 }
 
-export function collectSeatSymbols({
+function collectSeatSymbols({
   monitors,
   symbolRegistry,
 }: {
