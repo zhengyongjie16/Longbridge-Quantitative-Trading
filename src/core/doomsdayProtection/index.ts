@@ -145,6 +145,15 @@ export function createDoomsdayProtection(): DoomsdayProtection {
   // 状态：记录当天是否已执行过收盘前15分钟的撤单检查
   // 格式为日期字符串（YYYY-MM-DD），用于跨天自动重置
   let cancelCheckExecutedDate: string | null = null;
+  let lastClearanceNoticeKey: string | null = null;
+
+  const logClearanceNotice = (key: string, message: string): void => {
+    if (lastClearanceNoticeKey === key) {
+      return;
+    }
+    lastClearanceNoticeKey = key;
+    logger.info(message);
+  };
 
   return {
     shouldRejectBuy(currentTime: Date, isHalfDay: boolean): boolean {
@@ -165,13 +174,23 @@ export function createDoomsdayProtection(): DoomsdayProtection {
         lastState,
       } = context;
 
+      const todayKey = currentTime.toISOString().slice(0, 10);
+
       // 检查是否应该清仓
       if (!isBeforeClose5Minutes(currentTime, isHalfDay)) {
+        logClearanceNotice(
+          `outside-window:${todayKey}`,
+          '[末日保护程序] 清仓跳过：当前不在收盘前5分钟窗口',
+        );
         return { executed: false, signalCount: 0 };
       }
 
       // 检查是否有持仓
       if (!Array.isArray(positions) || positions.length === 0) {
+        logClearanceNotice(
+          `no-positions:${todayKey}`,
+          '[末日保护程序] 清仓跳过：无持仓',
+        );
         return { executed: false, signalCount: 0 };
       }
 
@@ -229,6 +248,20 @@ export function createDoomsdayProtection(): DoomsdayProtection {
       const uniqueClearanceSignals = Array.from(uniqueSignalsMap.values());
 
       if (uniqueClearanceSignals.length === 0) {
+        const availablePositions = positions.filter((pos) => {
+          const availableQty = Number(pos?.availableQuantity) || 0;
+          return typeof pos?.symbol === 'string' &&
+            Number.isFinite(availableQty) &&
+            availableQty > 0;
+        });
+        const seatSymbolSet = new Set(allTradingSymbols);
+        const unmatchedPositions = availablePositions.filter(
+          (pos) => !seatSymbolSet.has(pos.symbol),
+        );
+        logClearanceNotice(
+          `no-signals:${todayKey}:${positions.length}:${availablePositions.length}:${unmatchedPositions.length}`,
+          `[末日保护程序] 清仓跳过：未生成清仓信号（持仓=${positions.length}, 可用持仓=${availablePositions.length}, 非席位持仓=${unmatchedPositions.length}）`,
+        );
         return { executed: false, signalCount: 0 };
       }
 
