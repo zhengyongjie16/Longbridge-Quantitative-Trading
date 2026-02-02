@@ -1,3 +1,23 @@
+/**
+ * 监控任务处理器模块
+ *
+ * 功能：
+ * - 消费 MonitorTaskQueue 中的监控任务
+ * - 使用 setImmediate 异步执行，不阻塞主循环
+ * - 处理多种监控任务类型（自动换标、席位刷新、清仓检查等）
+ *
+ * 支持的任务类型：
+ * - AUTO_SYMBOL_TICK：自动寻标（席位为空时触发）
+ * - AUTO_SYMBOL_SWITCH_DISTANCE：距离触发换标检查
+ * - SEAT_REFRESH：席位刷新（换标后刷新订单记录、浮亏数据）
+ * - LIQUIDATION_DISTANCE_CHECK：牛熊证距回收价清仓检查
+ * - UNREALIZED_LOSS_CHECK：浮亏清仓检查
+ *
+ * 席位快照验证：
+ * - 任务携带创建时的席位快照（版本号+标的）
+ * - 处理前验证快照是否与当前席位一致
+ * - 防止换标后执行旧席位的任务
+ */
 import { logger } from '../../../utils/logger/index.js';
 import { formatError } from '../../../utils/helpers/index.js';
 import { positionObjectPool, signalObjectPool } from '../../../utils/objectPool/index.js';
@@ -5,7 +25,7 @@ import { isSeatReady, isSeatVersionMatch } from '../../../services/autoSymbolMan
 import { WARRANT_LIQUIDATION_ORDER_TYPE } from '../../../constants/index.js';
 import { getPositions } from '../../processMonitor/utils.js';
 
-import type { Quote, RawOrderFromAPI, Signal, Position } from '../../../types/index.js';
+import type { Quote, RawOrderFromAPI, Signal, Position, SeatState } from '../../../types/index.js';
 import type { MonitorTask } from '../monitorTaskQueue/types.js';
 import type {
   AutoSymbolSwitchDistanceTaskData,
@@ -30,6 +50,57 @@ type RefreshHelpers = Readonly<{
   refreshAccountCaches: () => Promise<void>;
 }>;
 
+const isSeatSymbolActive = (seatState: SeatState): boolean => {
+  return typeof seatState.symbol === 'string' && seatState.symbol.length > 0;
+};
+
+function resolveSeatSnapshotReadiness({
+  monitorSymbol,
+  context,
+  snapshotValidity,
+  isSeatUsable,
+}: {
+  readonly monitorSymbol: string;
+  readonly context: MonitorTaskContext;
+  readonly snapshotValidity: Readonly<{ longValid: boolean; shortValid: boolean }>;
+  readonly isSeatUsable: (seatState: SeatState) => boolean;
+}): Readonly<{
+  longSeat: SeatState;
+  shortSeat: SeatState;
+  isLongReady: boolean;
+  isShortReady: boolean;
+  longSymbol: string;
+  shortSymbol: string;
+}> {
+  const longSeat = context.symbolRegistry.getSeatState(monitorSymbol, 'LONG');
+  const shortSeat = context.symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
+
+  const isLongReady = snapshotValidity.longValid && isSeatUsable(longSeat);
+  const isShortReady = snapshotValidity.shortValid && isSeatUsable(shortSeat);
+
+  const longSymbol =
+    isLongReady && typeof longSeat.symbol === 'string' ? longSeat.symbol : '';
+  const shortSymbol =
+    isShortReady && typeof shortSeat.symbol === 'string' ? shortSeat.symbol : '';
+
+  return {
+    longSeat,
+    shortSeat,
+    isLongReady,
+    isShortReady,
+    longSymbol,
+    shortSymbol,
+  } as const;
+}
+
+export const __test__ = {
+  resolveSeatSnapshotReadiness,
+};
+
+/**
+ * 创建监控任务处理器
+ * 消费 MonitorTaskQueue 中的任务，使用 setImmediate 异步执行
+ */
 export function createMonitorTaskProcessor(
   deps: MonitorTaskProcessorDeps,
 ): MonitorTaskProcessor {
@@ -207,14 +278,14 @@ export function createMonitorTaskProcessor(
       return 'skipped';
     }
 
-    const longSeat = context.symbolRegistry.getSeatState(data.monitorSymbol, 'LONG');
-    const shortSeat = context.symbolRegistry.getSeatState(data.monitorSymbol, 'SHORT');
-    const shouldHandleLong =
-      snapshotValidity.longValid && typeof longSeat.symbol === 'string' && longSeat.symbol.length > 0;
-    const shouldHandleShort =
-      snapshotValidity.shortValid && typeof shortSeat.symbol === 'string' && shortSeat.symbol.length > 0;
+    const seatReadiness = resolveSeatSnapshotReadiness({
+      monitorSymbol: data.monitorSymbol,
+      context,
+      snapshotValidity,
+      isSeatUsable: isSeatSymbolActive,
+    });
 
-    if (shouldHandleLong) {
+    if (seatReadiness.isLongReady) {
       await context.autoSymbolManager.maybeSwitchOnDistance({
         direction: 'LONG',
         monitorPrice: data.monitorPrice,
@@ -222,7 +293,7 @@ export function createMonitorTaskProcessor(
         positions: lastState.cachedPositions,
       });
     }
-    if (shouldHandleShort) {
+    if (seatReadiness.isShortReady) {
       await context.autoSymbolManager.maybeSwitchOnDistance({
         direction: 'SHORT',
         monitorPrice: data.monitorPrice,
@@ -334,12 +405,13 @@ export function createMonitorTaskProcessor(
       return 'skipped';
     }
 
-    const longSeat = context.symbolRegistry.getSeatState(data.monitorSymbol, 'LONG');
-    const shortSeat = context.symbolRegistry.getSeatState(data.monitorSymbol, 'SHORT');
-    const isLongReady = snapshotValidity.longValid && isSeatReady(longSeat);
-    const isShortReady = snapshotValidity.shortValid && isSeatReady(shortSeat);
-    const longSymbol = isLongReady ? longSeat.symbol : '';
-    const shortSymbol = isShortReady ? shortSeat.symbol : '';
+    const seatReadiness = resolveSeatSnapshotReadiness({
+      monitorSymbol: data.monitorSymbol,
+      context,
+      snapshotValidity,
+      isSeatUsable: isSeatReady,
+    });
+    const { isLongReady, isShortReady, longSymbol, shortSymbol } = seatReadiness;
     const { riskChecker } = context;
 
     const { longPosition, shortPosition } = getPositions(
@@ -488,13 +560,14 @@ export function createMonitorTaskProcessor(
       return 'skipped';
     }
 
-    const longSeat = context.symbolRegistry.getSeatState(data.monitorSymbol, 'LONG');
-    const shortSeat = context.symbolRegistry.getSeatState(data.monitorSymbol, 'SHORT');
+    const seatReadiness = resolveSeatSnapshotReadiness({
+      monitorSymbol: data.monitorSymbol,
+      context,
+      snapshotValidity,
+      isSeatUsable: isSeatReady,
+    });
 
-    const isLongReady = snapshotValidity.longValid && isSeatReady(longSeat);
-    const isShortReady = snapshotValidity.shortValid && isSeatReady(shortSeat);
-    const longSymbol = isLongReady ? longSeat.symbol : '';
-    const shortSymbol = isShortReady ? shortSeat.symbol : '';
+    const { isLongReady, isShortReady, longSymbol, shortSymbol } = seatReadiness;
     const longQuote = isLongReady ? data.long.quote : null;
     const shortQuote = isShortReady ? data.short.quote : null;
 

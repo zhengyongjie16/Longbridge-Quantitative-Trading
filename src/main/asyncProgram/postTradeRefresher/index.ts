@@ -1,3 +1,20 @@
+/**
+ * 交易后刷新器模块
+ *
+ * 功能：
+ * - 订单成交后异步刷新账户和持仓缓存
+ * - 刷新浮亏监控数据（R1/N1）
+ * - 展示最新的账户和持仓信息
+ *
+ * 与 RefreshGate 的协作：
+ * - 订单成交时 markStale() 标记缓存过期
+ * - 本模块完成刷新后调用 markFresh(version)
+ * - 其他异步处理器通过 waitForFresh() 等待刷新完成
+ *
+ * 重试机制：
+ * - 刷新失败时自动重试（延迟 API.DEFAULT_RETRY_DELAY_MS）
+ * - 重试时合并所有待刷新标的，避免重复刷新
+ */
 import { logger } from '../../../utils/logger/index.js';
 import { API } from '../../../constants/index.js';
 import { formatError, formatSymbolDisplay } from '../../../utils/helpers/index.js';
@@ -6,6 +23,10 @@ import { isSeatReady } from '../../../services/autoSymbolManager/utils.js';
 import type { MonitorContext, PendingRefreshSymbol, Quote } from '../../../types/index.js';
 import type { PostTradeRefresher, PostTradeRefresherDeps, PostTradeRefresherEnqueueParams } from './types.js';
 
+/**
+ * 创建交易后刷新器
+ * 订单成交后异步刷新账户、持仓和浮亏数据
+ */
 export function createPostTradeRefresher(
   deps: PostTradeRefresherDeps,
 ): PostTradeRefresher {

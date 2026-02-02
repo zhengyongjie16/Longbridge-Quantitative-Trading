@@ -8,7 +8,7 @@ import type { DailyLossCalculatorParams, DailyLossOffsetMap } from './types.js';
 /**
  * 生成北京时间日键（YYYY/MM/DD），用于筛选当日订单。
  */
-function resolveBeijingDayKey(
+export function resolveBeijingDayKey(
   toBeijingTimeIso: (date: Date | null) => string,
   date: Date,
 ): string | null {
@@ -26,7 +26,7 @@ function resolveBeijingDayKey(
 /**
  * 汇总订单成本：成交价 * 成交量。
  */
-function sumOrderCost(orders: ReadonlyArray<OrderRecord>): number {
+export function sumOrderCost(orders: ReadonlyArray<OrderRecord>): number {
   let total = 0;
   for (const order of orders) {
     const price = Number(order.executedPrice);

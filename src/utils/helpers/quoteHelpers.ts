@@ -47,6 +47,16 @@ export function collectAllQuoteSymbols(
   return symbols;
 }
 
+/**
+ * 收集运行时需要获取行情的标的代码集合
+ * 包括监控配置中的标的、当前持仓标的、订单持有标的
+ *
+ * @param monitorConfigs 监控配置数组
+ * @param symbolRegistry 标的注册表
+ * @param positions 当前持仓数组
+ * @param orderHoldSymbols 订单持有标的集合
+ * @returns 所有需要获取行情的标的代码集合
+ */
 export function collectRuntimeQuoteSymbols(
   monitorConfigs: ReadonlyArray<{
     readonly monitorSymbol: string;

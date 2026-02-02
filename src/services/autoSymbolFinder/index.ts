@@ -33,6 +33,7 @@ type WarrantListRequestParams = {
   readonly expiryFilters: ReadonlyArray<FilterWarrantExpiryDate>;
 };
 
+/** 构建缓存键：监控标的+牛熊类型+到期日筛选条件 */
 function buildCacheKey(
   monitorSymbol: string,
   warrantType: WarrantType,
@@ -41,6 +42,7 @@ function buildCacheKey(
   return `${monitorSymbol}:${String(warrantType)}:${expiryFilters.join(',')}`;
 }
 
+/** 调用 API 请求牛熊证列表 */
 function requestWarrantList({
   ctx,
   monitorSymbol,
@@ -59,6 +61,7 @@ function requestWarrantList({
   );
 }
 
+/** 带缓存的牛熊证列表获取，支持 TTL 和请求去重 */
 async function fetchWarrantsWithCache({
   ctx,
   monitorSymbol,

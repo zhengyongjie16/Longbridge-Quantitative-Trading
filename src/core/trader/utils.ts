@@ -1,5 +1,15 @@
 /**
- * 交易相关工具函数：订单类型展示与日志路径生成。
+ * 交易相关工具函数模块
+ *
+ * 功能：
+ * - 订单类型展示：将 OrderType 枚举转换为中文标签
+ * - 交易日志路径生成：构造按日期分文件的日志路径
+ * - 订单类型解析：根据信号和配置解析订单类型
+ *
+ * 订单类型解析优先级：
+ * 1. 信号级覆盖（signal.orderTypeOverride）
+ * 2. 保护性清仓（signal.isProtectiveLiquidation === true）
+ * 3. 全局交易类型（globalConfig.tradingOrderType）
  */
 import path from 'node:path';
 import { OrderType } from 'longport';

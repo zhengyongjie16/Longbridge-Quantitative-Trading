@@ -14,6 +14,7 @@ import { logger } from '../../utils/logger/index.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import { AUTO_SYMBOL_SEARCH_COOLDOWN_MS, PENDING_ORDER_STATUSES } from '../../constants/index.js';
 import type {
+  AutoSearchConfig,
   Signal,
   Position,
   Quote,
@@ -31,6 +32,7 @@ import type {
   SwitchState,
   SwitchSuppression,
 } from './types.js';
+import type { FindBestWarrantInput } from '../autoSymbolFinder/types.js';
 
 /**
  * 将方向映射到对应的买卖动作与牛熊方向。
@@ -70,6 +72,71 @@ function resolveAutoSearchThresholds(
     switchDistanceRange: isBull ? config.switchDistanceRangeBull : config.switchDistanceRangeBear,
   };
 }
+
+function resolveAutoSearchThresholdInput({
+  direction,
+  autoSearchConfig,
+  monitorSymbol,
+  logPrefix,
+}: {
+  readonly direction: SeatDirection;
+  readonly autoSearchConfig: AutoSearchConfig;
+  readonly monitorSymbol: string;
+  readonly logPrefix: string;
+}): Readonly<{
+  minPrice: number;
+  minTurnoverPerMinute: number;
+}> | null {
+  const { minPrice, minTurnoverPerMinute } = resolveAutoSearchThresholds(
+    direction,
+    autoSearchConfig,
+  );
+  if (minPrice == null || minTurnoverPerMinute == null) {
+    logger.error(`${logPrefix}: ${monitorSymbol} ${direction}`);
+    return null;
+  }
+  return { minPrice, minTurnoverPerMinute } as const;
+}
+
+async function buildFindBestWarrantInput({
+  direction,
+  monitorSymbol,
+  autoSearchConfig,
+  currentTime,
+  marketDataClient,
+  warrantListCacheConfig,
+  minPrice,
+  minTurnoverPerMinute,
+}: {
+  readonly direction: SeatDirection;
+  readonly monitorSymbol: string;
+  readonly autoSearchConfig: AutoSearchConfig;
+  readonly currentTime: Date;
+  readonly marketDataClient: AutoSymbolManagerDeps['marketDataClient'];
+  readonly warrantListCacheConfig?: AutoSymbolManagerDeps['warrantListCacheConfig'];
+  readonly minPrice: number;
+  readonly minTurnoverPerMinute: number;
+}): Promise<FindBestWarrantInput> {
+  const ctx = await marketDataClient._getContext();
+  const tradingMinutes = getTradingMinutesSinceOpen(currentTime);
+  const isBull = direction === 'LONG';
+  return {
+    ctx,
+    monitorSymbol,
+    isBull,
+    tradingMinutes,
+    minPrice,
+    minTurnoverPerMinute,
+    expiryMinMonths: autoSearchConfig.autoSearchExpiryMinMonths,
+    logger,
+    ...(warrantListCacheConfig ? { cacheConfig: warrantListCacheConfig } : {}),
+  };
+}
+
+export const __test__ = {
+  resolveAutoSearchThresholdInput,
+  buildFindBestWarrantInput,
+};
 
 function buildSeatState(
   symbol: string | null,
@@ -158,6 +225,12 @@ function buildOrderSignal({
   return signal;
 }
 
+/**
+ * 创建自动换标管理器
+ *
+ * 负责席位初始化、自动寻标与换标流程的完整管理。
+ * 通过距离阈值判断触发换标，执行撤单/卖出/买入的完整链路。
+ */
 export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbolManager {
   const {
     monitorConfig,
@@ -201,25 +274,26 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
   }
 
   async function findSwitchCandidate(direction: SeatDirection): Promise<string | null> {
-    const { minPrice, minTurnoverPerMinute } = resolveAutoSearchThresholds(direction, autoSearchConfig);
-    if (minPrice == null || minTurnoverPerMinute == null) {
-      logger.error(`[自动换标] 缺少阈值配置，无法预寻标: ${monitorSymbol} ${direction}`);
+    const thresholds = resolveAutoSearchThresholdInput({
+      direction,
+      autoSearchConfig,
+      monitorSymbol,
+      logPrefix: '[自动换标] 缺少阈值配置，无法预寻标',
+    });
+    if (!thresholds) {
       return null;
     }
-    const isBull = direction === 'LONG';
-    const ctx = await marketDataClient._getContext();
-    const tradingMinutes = getTradingMinutesSinceOpen(now());
-    const best = await findBestWarrant({
-      ctx,
+    const input = await buildFindBestWarrantInput({
+      direction,
       monitorSymbol,
-      isBull,
-      tradingMinutes,
-      minPrice,
-      minTurnoverPerMinute,
-      expiryMinMonths: autoSearchConfig.autoSearchExpiryMinMonths,
-      logger,
-      ...(warrantListCacheConfig ? { cacheConfig: warrantListCacheConfig } : {}),
+      autoSearchConfig,
+      currentTime: now(),
+      marketDataClient,
+      warrantListCacheConfig,
+      minPrice: thresholds.minPrice,
+      minTurnoverPerMinute: thresholds.minTurnoverPerMinute,
     });
+    const best = await findBestWarrant(input);
     return best ? best.symbol : null;
   }
 
@@ -322,9 +396,13 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
       return;
     }
 
-    const { minPrice, minTurnoverPerMinute } = resolveAutoSearchThresholds(direction, autoSearchConfig);
-    if (minPrice == null || minTurnoverPerMinute == null) {
-      logger.error(`[自动寻标] 缺少阈值配置，跳过寻标: ${monitorSymbol} ${direction}`);
+    const thresholds = resolveAutoSearchThresholdInput({
+      direction,
+      autoSearchConfig,
+      monitorSymbol,
+      logPrefix: '[自动寻标] 缺少阈值配置，跳过寻标',
+    });
+    if (!thresholds) {
       return;
     }
 
@@ -334,20 +412,17 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
       false,
     );
 
-    const ctx = await marketDataClient._getContext();
-    const tradingMinutes = getTradingMinutesSinceOpen(currentTime);
-    const isBull = direction === 'LONG';
-    const best = await findBestWarrant({
-      ctx,
+    const input = await buildFindBestWarrantInput({
+      direction,
       monitorSymbol,
-      isBull,
-      tradingMinutes,
-      minPrice,
-      minTurnoverPerMinute,
-      expiryMinMonths: autoSearchConfig.autoSearchExpiryMinMonths,
-      logger,
-      ...(warrantListCacheConfig ? { cacheConfig: warrantListCacheConfig } : {}),
+      autoSearchConfig,
+      currentTime,
+      marketDataClient,
+      warrantListCacheConfig,
+      minPrice: thresholds.minPrice,
+      minTurnoverPerMinute: thresholds.minTurnoverPerMinute,
     });
+    const best = await findBestWarrant(input);
 
     if (!best) {
       updateSeatState(

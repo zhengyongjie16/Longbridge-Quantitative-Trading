@@ -17,6 +17,7 @@
     "dist",
     "dist-test",
     "logs",
+    "src/utils/**",
     ".claude"
   ]
 }

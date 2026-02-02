@@ -787,23 +787,14 @@ export interface MarketDataClient {
  * 表示尚未完全成交的订单
  */
 export type PendingOrder = {
-  /** 订单 ID */
   readonly orderId: string;
-  /** 标的代码 */
   readonly symbol: string;
-  /** 买卖方向 */
   readonly side: (typeof import('longport').OrderSide)[keyof typeof import('longport').OrderSide];
-  /** 委托价格 */
   readonly submittedPrice: number;
-  /** 委托数量 */
   readonly quantity: number;
-  /** 已成交数量 */
   readonly executedQuantity: number;
-  /** 订单状态 */
   readonly status: (typeof import('longport').OrderStatus)[keyof typeof import('longport').OrderStatus];
-  /** 订单类型 */
   readonly orderType: RawOrderFromAPI['orderType'];
-  /** 原始订单数据 */
   readonly _rawOrder?: unknown;
 };
 

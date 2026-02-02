@@ -161,17 +161,7 @@ export function isBeforeClose15Minutes(
   date: Date | null | undefined,
   isHalfDay: boolean = false,
 ): boolean {
-  if (!date) return false;
-  const hkTime = getHKTime(date);
-  if (!hkTime) return false;
-  const { hkHour, hkMinute } = hkTime;
-
-  if (isHalfDay) {
-    // 半日交易：收盘前15分钟为 11:45 - 11:59:59（12:00收盘）
-    return hkHour === 11 && hkMinute >= 45;
-  }
-  // 正常交易日：收盘前15分钟为 15:45 - 15:59:59（16:00收盘）
-  return hkHour === 15 && hkMinute >= 45;
+  return isBeforeCloseMinutes(date, 15, isHalfDay);
 }
 
 /**
@@ -186,15 +176,28 @@ export function isBeforeClose5Minutes(
   date: Date | null | undefined,
   isHalfDay: boolean = false,
 ): boolean {
-  if (!date) return false;
+  return isBeforeCloseMinutes(date, 5, isHalfDay);
+}
+
+/**
+ * 判断是否在当日收盘前指定分钟数内
+ * @param date 时间对象（应该是UTC时间）
+ * @param minutes 距离收盘的分钟数
+ * @param isHalfDay 是否是半日交易日
+ * @returns true表示在收盘前窗口内
+ */
+export function isBeforeCloseMinutes(
+  date: Date | null | undefined,
+  minutes: number,
+  isHalfDay: boolean = false,
+): boolean {
+  if (!date || !Number.isFinite(minutes) || minutes <= 0) return false;
   const hkTime = getHKTime(date);
   if (!hkTime) return false;
-  const { hkHour, hkMinute } = hkTime;
 
-  if (isHalfDay) {
-    // 半日交易：收盘前5分钟为 11:55 - 11:59:59（12:00收盘）
-    return hkHour === 11 && hkMinute >= 55;
-  }
-  // 正常交易日：收盘前5分钟为 15:55 - 15:59:59（16:00收盘）
-  return hkHour === 15 && hkMinute >= 55;
+  const closeHour = isHalfDay ? 12 : 16;
+  const closeMinutes = closeHour * 60;
+  const currentMinutes = hkTime.hkHour * 60 + hkTime.hkMinute;
+
+  return currentMinutes >= closeMinutes - minutes && currentMinutes < closeMinutes;
 }

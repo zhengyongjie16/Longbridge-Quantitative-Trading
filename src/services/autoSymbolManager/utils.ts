@@ -11,6 +11,9 @@ import type {
 } from '../../types/index.js';
 import type { SeatDirection, SeatEntry, SymbolSeatEntry } from './types.js';
 
+/**
+ * 检查席位是否就绪（有有效标的且状态为 READY）
+ */
 export function isSeatReady(
   seatState: SeatState | null | undefined,
 ): seatState is SeatState & { symbol: string } {
@@ -23,6 +26,10 @@ export function isSeatReady(
   return typeof seatState.symbol === 'string' && seatState.symbol.length > 0;
 }
 
+/**
+ * 检查信号版本是否匹配当前席位版本
+ * 用于过滤过期信号，避免换标后执行旧席位的订单
+ */
 export function isSeatVersionMatch(
   signalVersion: number | null | undefined,
   currentVersion: SeatVersion,
@@ -56,6 +63,7 @@ export function resolveSeatOnStartup({
   return hasPosition ? candidateSymbol : null;
 }
 
+/** 创建席位状态对象 */
 function createSeatState(symbol: string | null, status: SeatStatus): SeatState {
   return {
     symbol,
@@ -65,6 +73,7 @@ function createSeatState(symbol: string | null, status: SeatStatus): SeatState {
   };
 }
 
+/** 创建席位条目（包含状态和版本号） */
 function createSeatEntry(symbol: string | null, status: SeatStatus): SeatEntry {
   return {
     state: createSeatState(symbol, status),

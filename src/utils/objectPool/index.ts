@@ -99,15 +99,15 @@ export const verificationEntryPool = createObjectPool<PoolableVerificationEntry>
     obj.indicators = null; // 清空引用，避免内存泄漏
     return obj;
   },
-  50, // 最大保存50个对象（每个信号最多120个条目，通常不会同时存在这么多待验证信号）
+  50, // 最大保存50个对象（延迟验证仅使用3个时间点，容量按并发信号预估）
 );
 
 /**
  * 指标记录对象池（字符串键）
- * 用于 indicators1、currentIndicators 等 Record<string, number> 对象的复用
+ * 用于延迟验证的指标快照对象复用
  * 主要用于：
- * - strategy/index.ts 中的 indicators1
- * - signalVerification/index.ts 中的 currentIndicators
+ * - core/strategy/index.ts 中的 indicators1
+ * - verificationHistory entry.indicators
  *
  * 注意：此对象池需要在 signalObjectPool 之前定义，因为 signalObjectPool 的重置函数需要使用它
  */

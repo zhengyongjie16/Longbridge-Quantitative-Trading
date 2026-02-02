@@ -22,6 +22,10 @@ const EXPIRY_DATE_FILTERS: ReadonlyArray<FilterWarrantExpiryDate> = [
   FilterWarrantExpiryDate.GT_12,
 ];
 
+/**
+ * 创建牛熊证列表缓存实例
+ * 用于避免频繁调用 API，支持 TTL 缓存和请求去重
+ */
 export function createWarrantListCache(): WarrantListCache {
   return {
     entries: new Map<string, WarrantListCacheEntry>(),

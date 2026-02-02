@@ -1,3 +1,11 @@
+/**
+ * 交易后刷新器类型定义
+ *
+ * 定义交易后刷新器相关的类型：
+ * - PostTradeRefresherEnqueueParams：入队参数（待刷新标的列表和行情）
+ * - PostTradeRefresherDeps：依赖注入
+ * - PostTradeRefresher：刷新器接口
+ */
 import type { LastState, MonitorContext, PendingRefreshSymbol, Quote, Trader } from '../../../types/index.js';
 import type { RefreshGate } from '../../../utils/refreshGate/types.js';
 

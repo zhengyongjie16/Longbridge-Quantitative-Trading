@@ -1,3 +1,16 @@
+/**
+ * 监控任务处理器类型定义
+ *
+ * 定义监控任务相关的类型：
+ * - MonitorTaskType：任务类型枚举
+ * - MonitorTaskData：各类型任务的数据结构
+ * - MonitorTaskContext：任务处理所需的监控上下文
+ * - MonitorTaskProcessor：处理器接口
+ *
+ * 席位快照（SeatSnapshot）：
+ * - 用于任务创建时记录当前席位状态
+ * - 处理时验证席位是否已变更，防止执行过期任务
+ */
 import type { AutoSymbolManager, SeatDirection } from '../../../services/autoSymbolManager/types.js';
 import type { RefreshGate } from '../../../utils/refreshGate/types.js';
 import type { MonitorTaskQueue, MonitorTask } from '../monitorTaskQueue/types.js';

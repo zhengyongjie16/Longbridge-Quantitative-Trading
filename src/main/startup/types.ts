@@ -1,3 +1,16 @@
+/**
+ * 启动流程类型定义模块
+ *
+ * 定义启动门禁和席位准备流程相关的类型：
+ * - StartupGateDeps：启动门禁依赖项
+ * - StartupGate：启动门禁接口（等待交易时段）
+ * - SeatSnapshotInput / SeatSnapshot：席位快照输入和结果
+ * - PrepareSeatsOnStartupDeps / PreparedSeats：启动席位准备依赖和结果
+ *
+ * 启动门禁模式：
+ * - strict：严格模式，等待交易时段开始
+ * - skip：跳过模式，用于开发测试
+ */
 import type { Logger } from '../../utils/logger/types.js';
 import type {
   MarketDataClient,

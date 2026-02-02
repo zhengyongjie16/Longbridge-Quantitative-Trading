@@ -1,3 +1,12 @@
+/**
+ * 监控任务队列类型定义
+ *
+ * 定义监控任务队列相关的类型：
+ * - MonitorTask：完整的任务结构（含 ID 和时间戳）
+ * - MonitorTaskInput：任务入队时的输入结构
+ * - MonitorTaskQueue：队列接口
+ */
+
 export type TaskAddedCallback = () => void;
 
 export type MonitorTask<TType extends string, TData> = Readonly<{

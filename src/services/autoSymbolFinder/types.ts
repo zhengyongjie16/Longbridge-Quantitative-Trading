@@ -1,3 +1,16 @@
+/**
+ * 自动寻标模块类型定义
+ *
+ * 包含牛熊证筛选相关的类型定义：
+ * - FindBestWarrantInput：寻找最佳牛熊证的输入参数
+ * - WarrantListItem：牛熊证列表项
+ * - WarrantListCache：牛熊证列表缓存结构
+ * - WarrantCandidate：候选牛熊证（筛选结果）
+ *
+ * 缓存机制：
+ * - 支持 TTL 缓存，避免频繁调用 API
+ * - 支持请求去重（inFlight），防止并发请求
+ */
 import type { QuoteContext, WarrantStatus, WarrantType } from 'longport';
 import type { DecimalLike } from '../../utils/helpers/types.js';
 import type { Logger } from '../../utils/logger/types.js';

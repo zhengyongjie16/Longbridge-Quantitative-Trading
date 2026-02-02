@@ -1,3 +1,18 @@
+/**
+ * 自动换标管理器类型定义
+ *
+ * 包含席位管理与换标流程相关的类型：
+ * - SeatDirection：席位方向（做多/做空）
+ * - SeatEntry：席位注册表内部条目
+ * - SwitchState：换标状态机状态
+ * - AutoSymbolManager：管理器接口
+ *
+ * 换标流程状态：
+ * - READY：席位就绪，可正常交易
+ * - SEARCHING：正在自动寻标
+ * - SWITCHING：正在执行换标（撤单/卖出/买入）
+ * - EMPTY：席位为空，等待自动寻标
+ */
 import type {
   Quote,
   MarketDataClient,
