@@ -11,13 +11,7 @@ import type { DelayedSignalVerifier } from '../asyncProgram/delayedSignalVerifie
 import type { BuyTaskQueue, SellTaskQueue } from '../asyncProgram/types.js';
 import type { MonitorTaskQueue } from '../asyncProgram/monitorTaskQueue/types.js';
 import type { MonitorTaskData, MonitorTaskType } from '../asyncProgram/monitorTaskProcessor/types.js';
-
-export type QueueClearResult = Readonly<{
-  removedDelayed: number;
-  removedBuy: number;
-  removedSell: number;
-  removedMonitorTasks: number;
-}>;
+import type { QueueClearResult } from './types.js';
 
 export function isDirectionAction(
   action: string | null | undefined,

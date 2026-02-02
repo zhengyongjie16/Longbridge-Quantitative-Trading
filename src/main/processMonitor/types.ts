@@ -27,3 +27,13 @@ export type ProcessMonitorParams = {
     readonly openProtectionActive: boolean;
   };
 };
+
+/**
+ * 队列清理结果
+ */
+export type QueueClearResult = Readonly<{
+  removedDelayed: number;
+  removedBuy: number;
+  removedSell: number;
+  removedMonitorTasks: number;
+}>;
