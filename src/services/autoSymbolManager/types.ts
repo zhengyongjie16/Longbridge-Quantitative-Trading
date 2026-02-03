@@ -77,6 +77,8 @@ export type SwitchOnDistanceParams = {
 
 export type SwitchState = {
   direction: SeatDirection;
+  seatVersion: SeatVersion;
+  stage: SwitchStage;
   oldSymbol: string;
   nextSymbol: string | null;
   startedAt: number;
@@ -85,6 +87,15 @@ export type SwitchState = {
   shouldRebuy: boolean;
   awaitingQuote: boolean;
 };
+
+export type SwitchStage =
+  | 'CANCEL_PENDING'
+  | 'SELL_OUT'
+  | 'BIND_NEW'
+  | 'WAIT_QUOTE'
+  | 'REBUY'
+  | 'COMPLETE'
+  | 'FAILED';
 
 export type SwitchSuppression = {
   readonly symbol: string;

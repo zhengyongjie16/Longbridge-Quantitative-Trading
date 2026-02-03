@@ -236,7 +236,11 @@ export async function processMonitor(
     clearQueuesForDirection('SHORT');
   }
 
-  if (longSeatReady && longSeatState.symbol !== previousLongSeatState.symbol) {
+  if (
+    longSeatReady
+    && (longSeatState.symbol !== previousLongSeatState.symbol
+      || previousLongSeatState.status !== 'READY')
+  ) {
     monitorTaskQueue.scheduleLatest({
       type: 'SEAT_REFRESH',
       dedupeKey: `${MONITOR_SYMBOL}:SEAT_REFRESH:LONG`,
@@ -253,7 +257,11 @@ export async function processMonitor(
       },
     });
   }
-  if (shortSeatReady && shortSeatState.symbol !== previousShortSeatState.symbol) {
+  if (
+    shortSeatReady
+    && (shortSeatState.symbol !== previousShortSeatState.symbol
+      || previousShortSeatState.status !== 'READY')
+  ) {
     monitorTaskQueue.scheduleLatest({
       type: 'SEAT_REFRESH',
       dedupeKey: `${MONITOR_SYMBOL}:SEAT_REFRESH:SHORT`,

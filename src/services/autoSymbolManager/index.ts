@@ -349,6 +349,8 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     if (currentSymbol) {
       switchStates.set(direction, {
         direction,
+        seatVersion: nextVersion,
+        stage: 'CANCEL_PENDING',
         oldSymbol: currentSymbol,
         nextSymbol: null,
         startedAt: timestamp,
@@ -451,130 +453,186 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     const { direction, quotesMap, positions } = params;
     const { sellAction, buyAction } = resolveDirectionSymbols(direction);
     const seatVersion = symbolRegistry.getSeatVersion(monitorSymbol, direction);
-
-    // 先撤销旧标的未成交买单，避免换标期间重复持仓
-    const cancelTargets = pendingOrders.filter((order) =>
-      isCancelableBuyOrder(order, state.oldSymbol),
-    );
-
-    if (cancelTargets.length > 0) {
-      const results = await Promise.all(
-        cancelTargets.map((order) => trader.cancelOrder(order.orderId)),
+    if (state.stage === 'CANCEL_PENDING') {
+      const cancelTargets = pendingOrders.filter((order) =>
+        isCancelableBuyOrder(order, state.oldSymbol),
       );
-      if (results.some((ok) => !ok)) {
+
+      if (cancelTargets.length > 0) {
+        const results = await Promise.all(
+          cancelTargets.map((order) => trader.cancelOrder(order.orderId)),
+        );
+        if (results.some((ok) => !ok)) {
+          state.stage = 'FAILED';
+          updateSeatState(direction, buildSeatState(null, 'EMPTY', null, null), false);
+          switchStates.delete(direction);
+          logger.error(`[自动换标] 撤销买入订单失败，换标中止: ${state.oldSymbol}`);
+          return;
+        }
+      }
+      state.stage = 'SELL_OUT';
+    }
+
+    if (state.stage === 'SELL_OUT') {
+      const position = extractPosition(positions, state.oldSymbol);
+      const totalQuantity = position?.quantity ?? 0;
+      const availableQuantity = position?.availableQuantity ?? 0;
+
+      if (Number.isFinite(totalQuantity) && totalQuantity > 0 && availableQuantity === 0) {
+        return;
+      }
+
+      if (Number.isFinite(availableQuantity) && availableQuantity > 0) {
+        if (state.sellSubmitted) {
+          return;
+        }
+        const quote = quotesMap.get(state.oldSymbol) ?? null;
+        if (!quote || quote.price == null || quote.lotSize == null) {
+          return;
+        }
+
+        const signal = buildOrderSignal({
+          action: sellAction,
+          symbol: state.oldSymbol,
+          quote,
+          reason: '自动换标-移仓卖出',
+          orderTypeOverride: 'ELO',
+          quantity: availableQuantity,
+          seatVersion,
+        });
+
+        await trader.executeSignals([signal]);
+        signalObjectPool.release(signal);
+        state.sellSubmitted = true;
+        return;
+      }
+
+      const latestSellRecord = orderRecorder.getLatestSellRecord(
+        state.oldSymbol,
+        direction === 'LONG',
+      );
+      if (latestSellRecord && latestSellRecord.executedTime >= state.startedAt) {
+        const actualNotional = latestSellRecord.executedPrice * latestSellRecord.executedQuantity;
+        if (Number.isFinite(actualNotional) && actualNotional > 0) {
+          state.sellNotional = actualNotional;
+        }
+      }
+
+      state.stage = 'BIND_NEW';
+    }
+
+    if (state.stage === 'BIND_NEW') {
+      const nextSymbol = state.nextSymbol;
+      if (!nextSymbol) {
+        state.stage = 'FAILED';
         updateSeatState(direction, buildSeatState(null, 'EMPTY', null, null), false);
         switchStates.delete(direction);
-        logger.error(`[自动换标] 撤销买入订单失败，换标中止: ${state.oldSymbol}`);
         return;
+      }
+
+      updateSeatState(
+        direction,
+        buildSeatState(nextSymbol, 'SWITCHING', now().getTime(), now().getTime()),
+        false,
+      );
+
+      if (!state.shouldRebuy) {
+        state.stage = 'COMPLETE';
+      } else {
+        state.stage = 'WAIT_QUOTE';
       }
     }
 
-    const position = extractPosition(positions, state.oldSymbol);
-    const totalQuantity = position?.quantity ?? 0;
-    const availableQuantity = position?.availableQuantity ?? 0;
-
-    // 有持仓但不可用时等待解冻，避免卖出数量不准确
-    if (Number.isFinite(totalQuantity) && totalQuantity > 0 && availableQuantity === 0) {
-      return;
-    }
-
-    // 还有可用持仓时先提交卖出
-    if (Number.isFinite(availableQuantity) && availableQuantity > 0) {
-      if (state.sellSubmitted) {
+    if (state.stage === 'WAIT_QUOTE') {
+      const nextSymbol = state.nextSymbol;
+      if (!nextSymbol) {
+        state.stage = 'FAILED';
+        updateSeatState(direction, buildSeatState(null, 'EMPTY', null, null), false);
+        switchStates.delete(direction);
         return;
       }
-      const quote = quotesMap.get(state.oldSymbol) ?? null;
+      const quote = quotesMap.get(nextSymbol) ?? null;
       if (!quote || quote.price == null || quote.lotSize == null) {
+        state.awaitingQuote = true;
+        return;
+      }
+      state.awaitingQuote = false;
+      state.stage = 'REBUY';
+    }
+
+    if (state.stage === 'REBUY') {
+      const nextSymbol = state.nextSymbol;
+      if (!nextSymbol) {
+        state.stage = 'FAILED';
+        updateSeatState(direction, buildSeatState(null, 'EMPTY', null, null), false);
+        switchStates.delete(direction);
+        return;
+      }
+      const quote = quotesMap.get(nextSymbol) ?? null;
+      if (!quote || quote.price == null || quote.lotSize == null) {
+        state.awaitingQuote = true;
+        state.stage = 'WAIT_QUOTE';
         return;
       }
 
-      const signal = buildOrderSignal({
-        action: sellAction,
-        symbol: state.oldSymbol,
-        quote,
-        reason: '自动换标-移仓卖出',
-        orderTypeOverride: 'ELO',
-        quantity: availableQuantity,
-        seatVersion,
-      });
+      const buyNotional = state.sellNotional ?? monitorConfig.targetNotional;
+      const buyQuantity = calculateBuyQuantityByNotional(
+        buyNotional,
+        quote.price,
+        quote.lotSize,
+      );
 
-      await trader.executeSignals([signal]);
-      signalObjectPool.release(signal);
+      if (!buyQuantity) {
+        state.stage = 'COMPLETE';
+      } else {
+        const signal = buildOrderSignal({
+          action: buyAction,
+          symbol: nextSymbol,
+          quote,
+          reason: '自动换标-移仓买入',
+          orderTypeOverride: 'ELO',
+          quantity: buyQuantity,
+          seatVersion,
+        });
 
-      state.sellSubmitted = true;
-      return;
-    }
-
-    // 卖出完成后尝试记录真实成交金额，用于回补买入
-    const latestSellRecord = orderRecorder.getLatestSellRecord(state.oldSymbol, direction === 'LONG');
-    if (latestSellRecord && latestSellRecord.executedTime >= state.startedAt) {
-      const actualNotional = latestSellRecord.executedPrice * latestSellRecord.executedQuantity;
-      if (Number.isFinite(actualNotional) && actualNotional > 0) {
-        state.sellNotional = actualNotional;
+        await trader.executeSignals([signal]);
+        signalObjectPool.release(signal);
+        state.stage = 'COMPLETE';
       }
     }
 
-    const nextSymbol = state.nextSymbol;
-    // 未找到候选标的则直接清空席位
-    if (!nextSymbol) {
-      updateSeatState(direction, buildSeatState(null, 'EMPTY', null, null), false);
+    if (state.stage === 'COMPLETE') {
+      const nextSymbol = state.nextSymbol;
+      if (nextSymbol) {
+        updateSeatState(
+          direction,
+          buildSeatState(nextSymbol, 'READY', now().getTime(), now().getTime()),
+          false,
+        );
+      }
       switchStates.delete(direction);
-      return;
     }
-
-    updateSeatState(
-      direction,
-      buildSeatState(nextSymbol, 'READY', now().getTime(), now().getTime()),
-      false,
-    );
-
-    // 若没有持仓则不需要回补买入
-    if (!state.shouldRebuy) {
-      switchStates.delete(direction);
-      return;
-    }
-
-    const quote = quotesMap.get(nextSymbol) ?? null;
-    // 等待下一次行情数据补全价格与手数
-    if (!quote || quote.price == null || quote.lotSize == null) {
-      state.awaitingQuote = true;
-      return;
-    }
-
-    const buyNotional = state.sellNotional ?? monitorConfig.targetNotional;
-    const buyQuantity = calculateBuyQuantityByNotional(
-      buyNotional,
-      quote.price,
-      quote.lotSize,
-    );
-
-    if (!buyQuantity) {
-      switchStates.delete(direction);
-      return;
-    }
-
-    const signal = buildOrderSignal({
-      action: buyAction,
-      symbol: nextSymbol,
-      quote,
-      reason: '自动换标-移仓买入',
-      orderTypeOverride: 'ELO',
-      quantity: buyQuantity,
-      seatVersion,
-    });
-
-    await trader.executeSignals([signal]);
-    signalObjectPool.release(signal);
-    switchStates.delete(direction);
   }
 
   function hasPendingSwitch(direction: SeatDirection): boolean {
-    const seatState = symbolRegistry.getSeatState(monitorSymbol, direction);
     const switchState = switchStates.get(direction);
     if (!switchState) {
       return false;
     }
-    if (seatState.status !== 'SWITCHING' || seatState.symbol !== switchState.oldSymbol) {
+    const currentVersion = symbolRegistry.getSeatVersion(monitorSymbol, direction);
+    if (currentVersion !== switchState.seatVersion) {
+      switchStates.delete(direction);
+      return false;
+    }
+    const seatState = symbolRegistry.getSeatState(monitorSymbol, direction);
+    const symbolMatches =
+      seatState.symbol === switchState.oldSymbol ||
+      seatState.symbol === switchState.nextSymbol;
+    if (seatState.status !== 'SWITCHING' || !symbolMatches) {
+      switchStates.delete(direction);
+      return false;
+    }
+    if (switchState.stage === 'COMPLETE' || switchState.stage === 'FAILED') {
       switchStates.delete(direction);
       return false;
     }
@@ -596,9 +654,21 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
 
     const pendingSwitch = switchStates.get(direction);
     if (pendingSwitch) {
+      const currentVersion = symbolRegistry.getSeatVersion(monitorSymbol, direction);
+      if (currentVersion !== pendingSwitch.seatVersion) {
+        switchStates.delete(direction);
+        return;
+      }
       const currentSeatState = symbolRegistry.getSeatState(monitorSymbol, direction);
-      if (currentSeatState.status !== 'SWITCHING'
-          || currentSeatState.symbol !== pendingSwitch.oldSymbol) {
+      if (currentSeatState.status !== 'SWITCHING') {
+        switchStates.delete(direction);
+        logger.warn(`[auto-symbol] pending switch cleared: ${monitorSymbol} ${direction}`);
+        return;
+      }
+      const symbolMatches =
+        currentSeatState.symbol === pendingSwitch.oldSymbol ||
+        currentSeatState.symbol === pendingSwitch.nextSymbol;
+      if (!symbolMatches) {
         switchStates.delete(direction);
         logger.warn(`[auto-symbol] pending switch cleared: ${monitorSymbol} ${direction}`);
         return;
@@ -646,13 +716,15 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
         return;
       }
 
-      clearSeat({ direction, reason: '距回收价阈值越界' });
+      const seatVersion = clearSeat({ direction, reason: '距回收价阈值越界' });
 
       const position = extractPosition(positions, seatState.symbol);
       const hasPosition = (position?.quantity ?? 0) > 0;
 
       switchStates.set(direction, {
         direction,
+        seatVersion,
+        stage: 'CANCEL_PENDING',
         oldSymbol: seatState.symbol,
         nextSymbol: nextSymbol ?? null,
         startedAt: now().getTime(),
