@@ -16,13 +16,11 @@ export const LOG_LEVELS = {
   ERROR: 50,
 } as const;
 
-export type LogLevel = (typeof LOG_LEVELS)[keyof typeof LOG_LEVELS];
-
 /**
  * 日志对象接口
  */
 export type LogObject = {
-  readonly level: LogLevel;
+  readonly level: (typeof LOG_LEVELS)[keyof typeof LOG_LEVELS];
   readonly time: number;
   readonly msg: string;
   readonly extra?: unknown;

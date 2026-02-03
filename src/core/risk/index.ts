@@ -9,7 +9,8 @@
  * 风险阈值（均为配置项）：
  * - 牛证距离回收价 > 0.5%，熊证 < -0.5%，牛熊证当前价 > 0.015
  * - 单标的市值 ≤ maxPositionNotional
- * - 单标的浮亏 > -maxUnrealizedLossPerSymbol
+ * - 买入风控阈值：maxDailyLoss（浮亏超过阈值则拒绝买入）
+ * - 保护性清仓阈值：maxUnrealizedLossPerSymbol
  */
 
 import { isBuyAction, isValidPositiveNumber } from '../../utils/helpers/index.js';
@@ -23,6 +24,7 @@ import type {
   Quote,
   RiskCheckResult,
   UnrealizedLossCheckResult,
+  WarrantRefreshResult,
   RiskChecker,
   SignalType,
 } from '../../types/index.js';
@@ -34,7 +36,7 @@ import { createPositionLimitChecker } from './positionLimitChecker.js';
 import { createUnrealizedLossChecker } from './unrealizedLossChecker.js';
 
 /** 创建风险检查器（门面模式） */
-export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
+export function createRiskChecker(deps: RiskCheckerDeps = {}): RiskChecker {
   const options = deps.options ?? {};
   let maxDailyLoss = options.maxDailyLoss ?? 0;
 
@@ -56,29 +58,35 @@ export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
   });
 
   /** 检查单个标的的浮亏，返回 null 表示通过 */
-  const checkUnrealizedLossForSymbol = (
+  function checkUnrealizedLossForSymbol(
     symbol: string | null,
     currentPrice: number | null,
     directionName: string,
-  ): RiskCheckResult | null => {
+  ): RiskCheckResult | null {
     if (!symbol) {
       return null;
     }
 
     const lossData = unrealizedLossChecker.getUnrealizedLossData(symbol);
-    if (!lossData || lossData.n1 <= 0) {
+    if (!lossData) {
       return null;
     }
 
     const { r1, n1 } = lossData;
-
-    // 验证当前价格有效性
-    if (currentPrice === null || !isValidPositiveNumber(currentPrice)) {
+    if (n1 <= 0 && r1 === 0) {
       return null;
     }
 
+    // 仅在有持仓数量时要求有效价格；n1<=0 时允许 R2=0
+    let r2 = 0;
+    if (n1 > 0) {
+      if (currentPrice === null || !isValidPositiveNumber(currentPrice)) {
+        return null;
+      }
+      r2 = currentPrice * n1;
+    }
+
     // 计算当前持仓市值R2和浮亏X
-    const r2 = currentPrice * n1;
     const unrealizedPnL = r2 - r1;
 
     // 记录浮亏计算详情（仅在DEBUG模式下）
@@ -120,14 +128,14 @@ export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
     }
 
     return null; // 检查通过
-  };
+  }
 
   /** 检查买入前的浮亏（仅检查信号对应方向的标的） */
-  const checkUnrealizedLossBeforeBuy = (
+  function checkUnrealizedLossBeforeBuy(
     signal: Signal,
     longCurrentPrice: number | null,
     shortCurrentPrice: number | null,
-  ): RiskCheckResult => {
+  ): RiskCheckResult {
     // 判断当前信号是做多还是做空，并确定对应的符号和价格
     const isBuyCall = signal.action === 'BUYCALL';
     const isBuyPut = signal.action === 'BUYPUT';
@@ -141,10 +149,6 @@ export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
     const directionName = isBuyCall ? '做多标的' : '做空标的';
     const currentPrice = isBuyCall ? longCurrentPrice : shortCurrentPrice;
 
-    if (currentPrice === null) {
-      return { allowed: true };
-    }
-
     const result = checkUnrealizedLossForSymbol(
       signalSymbol,
       currentPrice,
@@ -155,10 +159,10 @@ export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
     }
 
     return { allowed: true };
-  };
+  }
 
   /** 订单前综合风险检查：账户、浮亏、持仓限制 */
-  const checkBeforeOrder = (
+  function checkBeforeOrder(
     account: AccountSnapshot | null,
     positions: ReadonlyArray<Position> | null,
     signal: Signal | null,
@@ -166,7 +170,7 @@ export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
     currentPrice: number | null = null,
     longCurrentPrice: number | null = null,
     shortCurrentPrice: number | null = null,
-  ): RiskCheckResult => {
+  ): RiskCheckResult {
     // HOLD 信号不需要检查
     if (!signal || signal.action === 'HOLD') {
       return { allowed: true };
@@ -247,7 +251,7 @@ export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
     }
 
     return { allowed: true };
-  };
+  }
 
   return {
     unrealizedLossData: unrealizedLossChecker.getAllData(),
@@ -265,6 +269,20 @@ export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
         shortSymbol,
         longSymbolName,
         shortSymbolName,
+      );
+    },
+
+    async refreshWarrantInfoForSymbol(
+      marketDataClient: MarketDataClient,
+      symbol: string,
+      isLongSymbol: boolean,
+      symbolName: string | null = null,
+    ): Promise<WarrantRefreshResult> {
+      return warrantRiskChecker.refreshWarrantInfoForSymbol(
+        marketDataClient,
+        symbol,
+        isLongSymbol,
+        symbolName,
       );
     },
 
@@ -298,12 +316,17 @@ export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
 
     getWarrantDistanceInfo(
       isLongSymbol: boolean,
+      seatSymbol: string,
       monitorCurrentPrice: number | null,
     ) {
       return warrantRiskChecker.getWarrantDistanceInfo(
         isLongSymbol,
+        seatSymbol,
         monitorCurrentPrice,
       );
+    },
+    clearWarrantInfo(isLongSymbol: boolean): void {
+      warrantRiskChecker.clearWarrantInfo(isLongSymbol);
     },
 
     async refreshUnrealizedLossData(
@@ -311,12 +334,14 @@ export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
       symbol: string,
       isLongSymbol: boolean,
       quote?: Quote | null,
+      dailyLossOffset?: number,
     ): Promise<{ r1: number; n1: number } | null> {
-      return await unrealizedLossChecker.refresh(
+      return unrealizedLossChecker.refresh(
         orderRecorder,
         symbol,
         isLongSymbol,
         quote,
+        dailyLossOffset,
       );
     },
 
@@ -328,5 +353,5 @@ export const createRiskChecker = (deps: RiskCheckerDeps = {}): RiskChecker => {
       return unrealizedLossChecker.check(symbol, currentPrice, isLongSymbol);
     },
   };
-};
+}
 

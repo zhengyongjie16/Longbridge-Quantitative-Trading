@@ -16,7 +16,7 @@ import type { SellContextValidationResult, SellQuantityResult } from './types.js
  * 验证持仓和行情数据是否满足卖出条件
  * 条件：持仓存在且可用数量 > 0，行情存在且价格 > 0
  */
-export function isValidPositionAndQuote(
+function isValidPositionAndQuote(
   position: Position | null,
   quote: Quote | null,
 ): position is Position & { availableQuantity: number } {

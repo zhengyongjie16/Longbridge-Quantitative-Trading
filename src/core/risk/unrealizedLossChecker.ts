@@ -41,7 +41,7 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
 
   /** 从订单列表计算 R1（开仓成本）和 N1（持仓数量） */
   const calculateCostAndQuantity = (
-    buyOrders: Array<{ executedPrice: number | string; executedQuantity: number | string }>,
+    buyOrders: ReadonlyArray<{ executedPrice: number | string; executedQuantity: number | string }>,
   ): { r1: number; n1: number } => {
     let r1 = 0;
     let n1 = 0;
@@ -70,6 +70,7 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
     symbol: string,
     isLongSymbol: boolean,
     quote?: Quote | null,
+    dailyLossOffset?: number,
   ): Promise<{ r1: number; n1: number } | null> => {
     // 如果未启用浮亏保护，跳过
     if (!isEnabled()) {
@@ -92,12 +93,22 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
       );
 
       // 计算R1（开仓成本）和N1（持仓数量）
-      const { r1, n1 } = calculateCostAndQuantity(buyOrders);
+      const { r1: baseR1, n1 } = calculateCostAndQuantity(buyOrders);
+      const normalizedOffset =
+        dailyLossOffset != null && Number.isFinite(dailyLossOffset)
+          ? dailyLossOffset
+          : 0;
+      // 调整后R1 = 基础R1 - 当日偏移
+      // 当日偏移为负数时（已亏损），减去负数使R1增大，从而更容易触发浮亏保护
+      // 调整后R1 不能为负数，最小值为 0
+      const adjustedR1 = Math.max(0, baseR1 - normalizedOffset);
 
       // 更新缓存
       unrealizedLossData.set(symbol, {
-        r1,
+        r1: adjustedR1,
         n1,
+        baseR1,
+        dailyLossOffset: normalizedOffset,
         lastUpdateTime: Date.now(),
       });
 
@@ -107,12 +118,14 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
       const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
 
       logger.info(
-        `[浮亏监控] ${positionType} ${symbolDisplay}: R1(开仓成本)=${r1.toFixed(
-          2,
-        )} HKD, N1(持仓数量)=${n1}, 未平仓订单数=${buyOrders.length}`,
+        `[浮亏监控] ${positionType} ${symbolDisplay}: ` +
+          `R1(开仓成本)=${baseR1.toFixed(2)} HKD, ` +
+          `当日偏移=${normalizedOffset.toFixed(2)} HKD, ` +
+          `调整后R1(开仓成本)=${adjustedR1.toFixed(2)} HKD, ` +
+          `N1(持仓数量)=${n1}, 未平仓订单数=${buyOrders.length}`,
       );
 
-      return { r1, n1 };
+      return { r1: adjustedR1, n1 };
     } catch (error) {
       const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
       logger.error(

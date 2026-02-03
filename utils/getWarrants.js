@@ -1,11 +1,11 @@
 /**
  * 获取符合条件的最优牛熊证
  *
- * 筛选条件：正常交易，到期日 >= 3个月，分均成交额 >= 10万，现价 > 0.05
+ * 筛选条件：正常交易，到期日 >= 3个月，现价 > 0.05（开盘后才应用分均成交额 >= 10万）
  * 优先选择：价格最接近 MIN_PRICE 且成交额最高
  *
- * 使用: node test/getWarrants.js [标的代码] [bull|bear]
- * 示例: node test/getWarrants.js HSI.HK bear
+ * 使用: node tests/getWarrants.js [标的代码] [bull|bear]
+ * 示例: node tests/getWarrants.js HSI.HK bear
  */
 
 import dotenv from 'dotenv';
@@ -22,9 +22,11 @@ const SORT_DESCENDING = 1;
 /** 牛熊证类型 */
 const WARRANT_TYPE = { Bull: 3, Bear: 4 };
 /** 到期日筛选 - 3个月以上 */
-const EXPIRY_FILTERS = [1, 2, 3]; // Between_3_6, Between_6_12, GT_12
+const EXPIRY_FILTERS = [3]; // Between_3_6, Between_6_12, GT_12
 /** 状态 - 正常交易 */
 const STATUS_NORMAL = [2];
+/** 价内筛选 */
+const PRICE_TYPE_IN_BOUNDS = [0];
 
 /** 分均成交额阈值（港币） */
 const MIN_TURNOVER_PER_MINUTE = 100000;
@@ -119,7 +121,7 @@ async function main() {
     [isBull ? WARRANT_TYPE.Bull : WARRANT_TYPE.Bear],
     null,
     EXPIRY_FILTERS,
-    null,
+    PRICE_TYPE_IN_BOUNDS,
     STATUS_NORMAL,
   );
 

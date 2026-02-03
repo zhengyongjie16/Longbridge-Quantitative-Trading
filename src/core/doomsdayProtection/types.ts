@@ -13,8 +13,6 @@ import type { Position, MonitorConfig, MonitorContext, Trader, MarketDataClient,
 /**
  * 持仓方向类型
  */
-export type PositionType = 'long' | 'short';
-
 /**
  * 清仓信号创建参数
  */
@@ -24,7 +22,7 @@ export type ClearanceSignalParams = {
   readonly action: SignalType;
   readonly price: number | null;
   readonly lotSize: number | null;
-  readonly positionType: PositionType;
+  readonly positionType: 'long' | 'short';
 };
 
 /**
@@ -56,6 +54,7 @@ export type CancelPendingBuyOrdersContext = {
   readonly currentTime: Date;
   readonly isHalfDay: boolean;
   readonly monitorConfigs: ReadonlyArray<MonitorConfig>;
+  readonly monitorContexts: ReadonlyMap<string, MonitorContext>;
   readonly trader: Trader;
 };
 

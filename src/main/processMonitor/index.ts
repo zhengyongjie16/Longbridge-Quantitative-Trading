@@ -9,8 +9,9 @@
  * - 生成交易信号并分发到对应队列
  *
  * 执行流程：
- * 1. 提取行情数据 → 2. 监控价格/浮亏变化 → 3. 获取K线/计算指标
- * → 4. 缓存指标快照 → 5. 获取持仓 → 6. 生成信号 → 7. 分流信号到队列/验证器
+ * - 提取行情数据 → 自动换标/席位同步 → 监控价格/浮亏变化
+ * - 获取K线/计算指标 → 缓存指标快照 → 获取持仓
+ * - 生成信号 → 分流信号到队列/验证器
  *
  * 信号处理规则：
  * - 开盘保护期间：跳过信号生成，仅保留行情/指标展示
@@ -30,13 +31,13 @@ import {
 import {
   formatSignalLog,
   formatSymbolDisplay,
-  formatError,
   releaseSnapshotObjects,
 } from '../../utils/helpers/index.js';
-import { MONITOR, VALID_SIGNAL_ACTIONS, TRADING, WARRANT_LIQUIDATION_ORDER_TYPE } from '../../constants/index.js';
-import { getPositions } from './utils.js';
+import { MONITOR, VALID_SIGNAL_ACTIONS, TRADING } from '../../constants/index.js';
+import { clearQueuesForDirection as clearQueuesForDirectionUtil, getPositions } from './utils.js';
+import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
 
-import type { CandleData, Signal, Quote, Position } from '../../types/index.js';
+import type { CandleData, Signal, Quote } from '../../types/index.js';
 import type { ProcessMonitorParams } from './types.js';
 
 /**
@@ -52,12 +53,12 @@ export async function processMonitor(
   const { monitorContext, context: mainContext, runtimeFlags } = context;
   const {
     marketDataClient,
-    trader,
     lastState,
     marketMonitor,
     indicatorCache,
     buyTaskQueue,
     sellTaskQueue,
+    monitorTaskQueue,
   } = mainContext;
   const { canTradeNow, openProtectionActive } = runtimeFlags;
   // 使用各自监控标的独立的延迟信号验证器（每个监控标的使用各自的验证配置）
@@ -67,44 +68,239 @@ export async function processMonitor(
     strategy,
     orderRecorder,
     riskChecker,
-    unrealizedLossMonitor,
     delayedSignalVerifier,
+    autoSymbolManager,
+    symbolRegistry,
   } = monitorContext;
 
-  const LONG_SYMBOL = config.longSymbol;
-  const SHORT_SYMBOL = config.shortSymbol;
   const MONITOR_SYMBOL = config.monitorSymbol;
+  const autoSearchEnabled = config.autoSearchConfig.autoSearchEnabled;
 
-  // 1. 从预先获取的行情 Map 中提取当前监控标的需要的行情（无需单独 API 调用）
-  const longQuote = quotesMap.get(LONG_SYMBOL) ?? null;
-  const shortQuote = quotesMap.get(SHORT_SYMBOL) ?? null;
+  // 1. 从预先获取的行情 Map 中提取监控标的行情（无需单独 API 调用）
   const monitorQuote = quotesMap.get(MONITOR_SYMBOL) ?? null;
-
-  // 更新 MonitorContext 中的行情缓存（供 TradeProcessor 使用）
-  monitorContext.longQuote = longQuote;
-  monitorContext.shortQuote = shortQuote;
-  monitorContext.monitorQuote = monitorQuote;
 
   const monitorCurrentPrice = monitorQuote?.price ?? null;
   const resolvedMonitorPrice = Number.isFinite(monitorCurrentPrice) ? monitorCurrentPrice : null;
   const lastMonitorPrice = Number.isFinite(state.monitorPrice) ? state.monitorPrice : null;
   const monitorPriceChanged =
-    resolvedMonitorPrice != null && lastMonitorPrice == null
-      ? true
-      : resolvedMonitorPrice != null &&
-        lastMonitorPrice != null &&
-        Math.abs(resolvedMonitorPrice - lastMonitorPrice) > MONITOR.PRICE_CHANGE_THRESHOLD;
-  if (monitorPriceChanged && resolvedMonitorPrice != null) {
+    resolvedMonitorPrice != null &&
+    (lastMonitorPrice == null ||
+      Math.abs(resolvedMonitorPrice - lastMonitorPrice) > MONITOR.PRICE_CHANGE_THRESHOLD);
+  if (monitorPriceChanged) {
     state.monitorPrice = resolvedMonitorPrice;
   }
-  const longWarrantDistanceInfo = riskChecker.getWarrantDistanceInfo(
-    true,
-    monitorCurrentPrice,
-  );
-  const shortWarrantDistanceInfo = riskChecker.getWarrantDistanceInfo(
-    false,
-    monitorCurrentPrice,
-  );
+
+  const currentTimeMs = runtimeFlags.currentTime.getTime();
+
+  const autoSearchSeatSnapshots = autoSearchEnabled
+    ? {
+      long: symbolRegistry.getSeatState(MONITOR_SYMBOL, 'LONG'),
+      short: symbolRegistry.getSeatState(MONITOR_SYMBOL, 'SHORT'),
+    }
+    : null;
+
+  if (autoSearchSeatSnapshots) {
+    const { long: longSeatSnapshot, short: shortSeatSnapshot } = autoSearchSeatSnapshots;
+
+    monitorTaskQueue.scheduleLatest({
+      type: 'AUTO_SYMBOL_TICK',
+      dedupeKey: `${MONITOR_SYMBOL}:AUTO_SYMBOL_TICK:LONG`,
+      monitorSymbol: MONITOR_SYMBOL,
+      data: {
+        monitorSymbol: MONITOR_SYMBOL,
+        direction: 'LONG',
+        seatVersion: symbolRegistry.getSeatVersion(MONITOR_SYMBOL, 'LONG'),
+        symbol: longSeatSnapshot.symbol ?? null,
+        currentTimeMs,
+        canTradeNow,
+      },
+    });
+    monitorTaskQueue.scheduleLatest({
+      type: 'AUTO_SYMBOL_TICK',
+      dedupeKey: `${MONITOR_SYMBOL}:AUTO_SYMBOL_TICK:SHORT`,
+      monitorSymbol: MONITOR_SYMBOL,
+      data: {
+        monitorSymbol: MONITOR_SYMBOL,
+        direction: 'SHORT',
+        seatVersion: symbolRegistry.getSeatVersion(MONITOR_SYMBOL, 'SHORT'),
+        symbol: shortSeatSnapshot.symbol ?? null,
+        currentTimeMs,
+        canTradeNow,
+      },
+    });
+
+    const hasPendingSwitch =
+      autoSymbolManager.hasPendingSwitch('LONG') || autoSymbolManager.hasPendingSwitch('SHORT');
+    if (monitorPriceChanged || hasPendingSwitch) {
+      monitorTaskQueue.scheduleLatest({
+        type: 'AUTO_SYMBOL_SWITCH_DISTANCE',
+        dedupeKey: `${MONITOR_SYMBOL}:AUTO_SYMBOL_SWITCH_DISTANCE`,
+        monitorSymbol: MONITOR_SYMBOL,
+        data: {
+          monitorSymbol: MONITOR_SYMBOL,
+          monitorPrice: resolvedMonitorPrice,
+          quotesMap,
+          seatSnapshots: {
+            long: {
+              seatVersion: symbolRegistry.getSeatVersion(MONITOR_SYMBOL, 'LONG'),
+              symbol: longSeatSnapshot.symbol ?? null,
+            },
+            short: {
+              seatVersion: symbolRegistry.getSeatVersion(MONITOR_SYMBOL, 'SHORT'),
+              symbol: shortSeatSnapshot.symbol ?? null,
+            },
+          },
+        },
+      });
+    }
+  }
+
+  const previousSeatState = monitorContext.seatState;
+  const previousLongSeatState = previousSeatState.long;
+  const previousShortSeatState = previousSeatState.short;
+
+  const longSeatState = symbolRegistry.getSeatState(MONITOR_SYMBOL, 'LONG');
+  const shortSeatState = symbolRegistry.getSeatState(MONITOR_SYMBOL, 'SHORT');
+  const longSeatVersion = symbolRegistry.getSeatVersion(MONITOR_SYMBOL, 'LONG');
+  const shortSeatVersion = symbolRegistry.getSeatVersion(MONITOR_SYMBOL, 'SHORT');
+
+  /**
+   * 同步当前席位状态与版本到 MonitorContext，供异步处理器读取。
+   */
+  monitorContext.seatState = {
+    long: longSeatState,
+    short: shortSeatState,
+  };
+  monitorContext.seatVersion = {
+    long: longSeatVersion,
+    short: shortSeatVersion,
+  };
+
+  const longSeatReady = isSeatReady(longSeatState);
+  const shortSeatReady = isSeatReady(shortSeatState);
+  const LONG_SYMBOL = longSeatReady ? longSeatState.symbol : '';
+  const SHORT_SYMBOL = shortSeatReady ? shortSeatState.symbol : '';
+
+  // 2. 提取做多/做空标的行情
+  const longQuote = longSeatReady ? (quotesMap.get(LONG_SYMBOL) ?? null) : null;
+  const shortQuote = shortSeatReady ? (quotesMap.get(SHORT_SYMBOL) ?? null) : null;
+
+  // 更新 MonitorContext 中的行情缓存（供买入/卖出处理器使用）
+  monitorContext.longQuote = longQuote;
+  monitorContext.shortQuote = shortQuote;
+  monitorContext.monitorQuote = monitorQuote;
+
+  if (longSeatReady) {
+    monitorContext.longSymbolName = longQuote?.name ?? LONG_SYMBOL;
+  }
+  if (shortSeatReady) {
+    monitorContext.shortSymbolName = shortQuote?.name ?? SHORT_SYMBOL;
+  }
+
+  /**
+   * 清空指定方向的待执行信号（延迟验证、买入、卖出）。
+   */
+  function clearQueuesForDirection(direction: 'LONG' | 'SHORT'): void {
+    const result = clearQueuesForDirectionUtil({
+      monitorSymbol: MONITOR_SYMBOL,
+      direction,
+      delayedSignalVerifier,
+      buyTaskQueue,
+      sellTaskQueue,
+      monitorTaskQueue,
+      releaseSignal: signalObjectPool.release,
+    });
+    const totalRemoved =
+      result.removedDelayed +
+      result.removedBuy +
+      result.removedSell +
+      result.removedMonitorTasks;
+    if (totalRemoved > 0) {
+      logger.info(
+        `[自动换标] ${MONITOR_SYMBOL} ${direction} 清理待执行信号：延迟=${result.removedDelayed} 买入=${result.removedBuy} 卖出=${result.removedSell} 监控任务=${result.removedMonitorTasks}`,
+      );
+    }
+
+  }
+
+  function clearWarrantInfoForDirection(direction: 'LONG' | 'SHORT'): void {
+    riskChecker.clearWarrantInfo(direction === 'LONG');
+  }
+
+  if (previousLongSeatState.status === 'READY' && longSeatState.status !== 'READY') {
+    clearWarrantInfoForDirection('LONG');
+    clearQueuesForDirection('LONG');
+  }
+  if (previousShortSeatState.status === 'READY' && shortSeatState.status !== 'READY') {
+    clearWarrantInfoForDirection('SHORT');
+    clearQueuesForDirection('SHORT');
+  }
+
+  if (longSeatReady && longSeatState.symbol !== previousLongSeatState.symbol) {
+    monitorTaskQueue.scheduleLatest({
+      type: 'SEAT_REFRESH',
+      dedupeKey: `${MONITOR_SYMBOL}:SEAT_REFRESH:LONG`,
+      monitorSymbol: MONITOR_SYMBOL,
+      data: {
+        monitorSymbol: MONITOR_SYMBOL,
+        direction: 'LONG',
+        seatVersion: longSeatVersion,
+        previousSymbol: previousLongSeatState.symbol ?? null,
+        nextSymbol: longSeatState.symbol,
+        quote: longQuote,
+        symbolName: monitorContext.longSymbolName ?? null,
+        quotesMap,
+      },
+    });
+  }
+  if (shortSeatReady && shortSeatState.symbol !== previousShortSeatState.symbol) {
+    monitorTaskQueue.scheduleLatest({
+      type: 'SEAT_REFRESH',
+      dedupeKey: `${MONITOR_SYMBOL}:SEAT_REFRESH:SHORT`,
+      monitorSymbol: MONITOR_SYMBOL,
+      data: {
+        monitorSymbol: MONITOR_SYMBOL,
+        direction: 'SHORT',
+        seatVersion: shortSeatVersion,
+        previousSymbol: previousShortSeatState.symbol ?? null,
+        nextSymbol: shortSeatState.symbol,
+        quote: shortQuote,
+        symbolName: monitorContext.shortSymbolName ?? null,
+        quotesMap,
+      },
+    });
+  }
+
+  if (monitorPriceChanged && !autoSearchEnabled && resolvedMonitorPrice != null) {
+    monitorTaskQueue.scheduleLatest({
+      type: 'LIQUIDATION_DISTANCE_CHECK',
+      dedupeKey: `${MONITOR_SYMBOL}:LIQUIDATION_DISTANCE_CHECK`,
+      monitorSymbol: MONITOR_SYMBOL,
+      data: {
+        monitorSymbol: MONITOR_SYMBOL,
+        monitorPrice: resolvedMonitorPrice,
+        long: {
+          seatVersion: longSeatVersion,
+          symbol: longSeatState.symbol ?? null,
+          quote: longQuote,
+          symbolName: longQuote?.name ?? monitorContext.longSymbolName ?? null,
+        },
+        short: {
+          seatVersion: shortSeatVersion,
+          symbol: shortSeatState.symbol ?? null,
+          quote: shortQuote,
+          symbolName: shortQuote?.name ?? monitorContext.shortSymbolName ?? null,
+        },
+      },
+    });
+  }
+
+  const longWarrantDistanceInfo = longSeatReady
+    ? riskChecker.getWarrantDistanceInfo(true, LONG_SYMBOL, monitorCurrentPrice)
+    : null;
+  const shortWarrantDistanceInfo = shortSeatReady
+    ? riskChecker.getWarrantDistanceInfo(false, SHORT_SYMBOL, monitorCurrentPrice)
+    : null;
 
   // 监控价格变化并显示
   const priceChanged = marketMonitor.monitorPriceChanges(
@@ -119,18 +315,27 @@ export async function processMonitor(
 
   // 实时检查浮亏（仅在价格变化时检查）
   if (priceChanged) {
-    await unrealizedLossMonitor.monitorUnrealizedLoss({
-      longQuote,
-      shortQuote,
-      longSymbol: LONG_SYMBOL,
-      shortSymbol: SHORT_SYMBOL,
-      riskChecker,
-      trader,
-      orderRecorder,
+    monitorTaskQueue.scheduleLatest({
+      type: 'UNREALIZED_LOSS_CHECK',
+      dedupeKey: `${MONITOR_SYMBOL}:UNREALIZED_LOSS_CHECK`,
+      monitorSymbol: MONITOR_SYMBOL,
+      data: {
+        monitorSymbol: MONITOR_SYMBOL,
+        long: {
+          seatVersion: longSeatVersion,
+          symbol: longSeatState.symbol ?? null,
+          quote: longQuote,
+        },
+        short: {
+          seatVersion: shortSeatVersion,
+          symbol: shortSeatState.symbol ?? null,
+          quote: shortQuote,
+        },
+      },
     });
   }
 
-  // 2. 获取K线和计算指标
+  // 获取K线并计算指标
   const monitorCandles = await marketDataClient
     .getCandlesticks(MONITOR_SYMBOL, TRADING.CANDLE_PERIOD, TRADING.CANDLE_COUNT)
     .catch(() => null);
@@ -157,7 +362,7 @@ export async function processMonitor(
     return;
   }
 
-  // 3. 监控指标变化
+  // 监控指标变化
   marketMonitor.monitorIndicatorChanges(
     monitorSnapshot,
     monitorQuote,
@@ -168,7 +373,7 @@ export async function processMonitor(
     state,
   );
 
-  // 4. 将指标快照存入 IndicatorCache（供延迟验证器查询）
+  // 将指标快照存入 IndicatorCache（供延迟验证器查询）
   indicatorCache.push(MONITOR_SYMBOL, monitorSnapshot);
 
   // 释放上一次快照中的 kdj 和 macd 对象（如果它们没有被 monitorValues 引用）
@@ -180,7 +385,7 @@ export async function processMonitor(
   // 保存当前快照供下次循环使用
   state.lastMonitorSnapshot = monitorSnapshot;
 
-  // 5. 获取持仓（使用 try-finally 确保释放）
+  // 获取持仓（使用 try-finally 确保释放）
   // 使用 PositionCache 进行 O(1) 查找
   const { longPosition, shortPosition } = getPositions(
     lastState.positionCache,
@@ -189,112 +394,12 @@ export async function processMonitor(
   );
 
   try {
-    const tryCreateLiquidationSignal = (
-      symbol: string,
-      symbolName: string | null,
-      isLongSymbol: boolean,
-      position: Position | null,
-      quote: Quote | null,
-    ): {
-      signal: Signal;
-      isLongSymbol: boolean;
-      quote: Quote | null;
-    } | null => {
-      const availableQuantity = position?.availableQuantity ?? 0;
-      if (!Number.isFinite(availableQuantity) || availableQuantity <= 0) {
-        return null;
-      }
-
-      if (resolvedMonitorPrice == null) {
-        return null;
-      }
-
-      const liquidationResult = riskChecker.checkWarrantDistanceLiquidation(
-        symbol,
-        isLongSymbol,
-        resolvedMonitorPrice,
-      );
-      if (!liquidationResult.shouldLiquidate) {
-        return null;
-      }
-
-      const signal = signalObjectPool.acquire() as Signal;
-      signal.symbol = symbol;
-      signal.symbolName = symbolName;
-      signal.action = isLongSymbol ? 'SELLCALL' : 'SELLPUT';
-      signal.reason = liquidationResult.reason ?? '牛熊证距回收价触发清仓';
-      signal.price = quote?.price ?? null;
-      signal.lotSize = quote?.lotSize ?? null;
-      signal.quantity = availableQuantity;
-      signal.triggerTime = new Date();
-      signal.orderTypeOverride = WARRANT_LIQUIDATION_ORDER_TYPE;
-      signal.isProtectiveLiquidation = false;
-
-      return { signal, isLongSymbol, quote };
-    };
-
-    if (monitorPriceChanged) {
-      const liquidationTasks: Array<{
-        signal: Signal;
-        isLongSymbol: boolean;
-        quote: Quote | null;
-      }> = [];
-      const longSymbolName = longQuote?.name ?? monitorContext.longSymbolName ?? null;
-      const shortSymbolName = shortQuote?.name ?? monitorContext.shortSymbolName ?? null;
-
-      const longTask = tryCreateLiquidationSignal(
-        LONG_SYMBOL,
-        longSymbolName,
-        true,
-        longPosition,
-        longQuote,
-      );
-      if (longTask) {
-        liquidationTasks.push(longTask);
-      }
-
-      const shortTask = tryCreateLiquidationSignal(
-        SHORT_SYMBOL,
-        shortSymbolName,
-        false,
-        shortPosition,
-        shortQuote,
-      );
-      if (shortTask) {
-        liquidationTasks.push(shortTask);
-      }
-
-      if (liquidationTasks.length > 0) {
-        try {
-          await trader.executeSignals(liquidationTasks.map((task) => task.signal));
-
-          for (const task of liquidationTasks) {
-            orderRecorder.clearBuyOrders(task.signal.symbol, task.isLongSymbol, task.quote);
-            await riskChecker.refreshUnrealizedLossData(
-              orderRecorder,
-              task.signal.symbol,
-              task.isLongSymbol,
-              task.quote,
-            );
-          }
-        } catch (err) {
-          logger.error(
-            `[牛熊证距回收价清仓失败] ${formatError(err)}`,
-          );
-        } finally {
-          for (const task of liquidationTasks) {
-            signalObjectPool.release(task.signal);
-          }
-        }
-      }
-    }
-
     if (openProtectionActive) {
-      // 开盘保护期间仅保留行情/指标展示，跳过信号生成
+      // 开盘保护期间跳过信号生成与入队
       return;
     }
 
-    // 5. 生成信号
+    // 生成信号
     const { immediateSignals, delayedSignals } = strategy.generateCloseSignals(
       monitorSnapshot,
       LONG_SYMBOL,
@@ -303,7 +408,10 @@ export async function processMonitor(
     );
 
     // 6. 为信号设置标的中文名称和价格信息（用于日志显示和后续处理）
-    const enrichSignal = (signal: Signal): void => {
+    /**
+     * 补充信号的名称/价格/手数信息，便于日志与后续处理。
+     */
+    function enrichSignal(signal: Signal): void {
       const sigSymbol = signal.symbol;
       if (sigSymbol === LONG_SYMBOL && longQuote) {
         if (signal.symbolName == null && longQuote.name != null) signal.symbolName = longQuote.name;
@@ -314,25 +422,71 @@ export async function processMonitor(
         signal.price ??= shortQuote.price;
         if (signal.lotSize == null && shortQuote.lotSize != null) signal.lotSize = shortQuote.lotSize;
       }
-    };
+    }
 
-    // 7. 信号分流：立即信号 → TaskQueue/SellTaskQueue，延迟信号 → DelayedSignalVerifier
-    // 处理立即信号
-    for (const signal of immediateSignals) {
-      // 验证信号有效性
+    /**
+     * 根据信号动作解析席位信息（标的、版本、行情）。
+     */
+    function resolveSeatForSignal(signal: Signal): {
+      seatSymbol: string;
+      seatVersion: number;
+      quote: Quote | null;
+      isBuySignal: boolean;
+    } | null {
+      const isBuySignal = signal.action === 'BUYCALL' || signal.action === 'BUYPUT';
+      const isLongSignal = signal.action === 'BUYCALL' || signal.action === 'SELLCALL';
+      const seatState = isLongSignal ? longSeatState : shortSeatState;
+      if (!isSeatReady(seatState)) {
+        return null;
+      }
+      const seatSymbol = seatState.symbol;
+      const seatVersion = isLongSignal ? longSeatVersion : shortSeatVersion;
+      const quote = isLongSignal ? longQuote : shortQuote;
+      return { seatSymbol, seatVersion, quote, isBuySignal };
+    }
+
+    function prepareSignal(signal: Signal): boolean {
       if (!signal?.symbol || !signal?.action) {
         logger.warn(`[跳过信号] 无效的信号对象: ${JSON.stringify(signal)}`);
         signalObjectPool.release(signal);
-        continue;
+        return false;
       }
       if (!VALID_SIGNAL_ACTIONS.has(signal.action)) {
-        logger.warn(`[跳过信号] 未知的信号类型: ${signal.action}, 标的: ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)}`);
+        logger.warn(
+          `[跳过信号] 未知的信号类型: ${signal.action}, 标的: ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)}`,
+        );
         signalObjectPool.release(signal);
-        continue;
+        return false;
       }
 
-      // 补充信号信息
+      const seatInfo = resolveSeatForSignal(signal);
+      if (!seatInfo) {
+        logger.info(`[跳过信号] 席位不可用: ${formatSignalLog(signal)}`);
+        signalObjectPool.release(signal);
+        return false;
+      }
+      if (signal.symbol !== seatInfo.seatSymbol) {
+        logger.info(`[跳过信号] 席位已切换: ${formatSignalLog(signal)}`);
+        signalObjectPool.release(signal);
+        return false;
+      }
+      if (seatInfo.isBuySignal && !seatInfo.quote) {
+        logger.info(`[跳过信号] 行情未就绪: ${formatSignalLog(signal)}`);
+        signalObjectPool.release(signal);
+        return false;
+      }
+
+      signal.seatVersion = seatInfo.seatVersion;
       enrichSignal(signal);
+      return true;
+    }
+
+    // 信号分流：立即信号 → TaskQueue/SellTaskQueue，延迟信号 → DelayedSignalVerifier
+    // 处理立即信号
+    for (const signal of immediateSignals) {
+      if (!prepareSignal(signal)) {
+        continue;
+      }
 
       // 只在交易时段才推入任务队列
       if (canTradeNow) {
@@ -364,20 +518,9 @@ export async function processMonitor(
 
     // 处理延迟信号
     for (const signal of delayedSignals) {
-      // 验证信号有效性
-      if (!signal?.symbol || !signal?.action) {
-        logger.warn(`[跳过信号] 无效的信号对象: ${JSON.stringify(signal)}`);
-        signalObjectPool.release(signal);
+      if (!prepareSignal(signal)) {
         continue;
       }
-      if (!VALID_SIGNAL_ACTIONS.has(signal.action)) {
-        logger.warn(`[跳过信号] 未知的信号类型: ${signal.action}, 标的: ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)}`);
-        signalObjectPool.release(signal);
-        continue;
-      }
-
-      // 补充信号信息
-      enrichSignal(signal);
 
       // 只在交易时段才添加到延迟验证器
       if (canTradeNow) {
@@ -389,10 +532,10 @@ export async function processMonitor(
       }
     }
 
-    // 注意：旧的信号验证、风险检查和订单执行逻辑已移至 TradeProcessor
-    // TradeProcessor 通过 lastState.positionCache 获取持仓数据
-    // DelayedSignalVerifier 验证通过后会将信号推入 TradeTaskQueue
-    // TradeProcessor 会消费 TradeTaskQueue 中的任务并执行完整的交易流程
+    // 注意：旧的信号验证、风险检查和订单执行逻辑已移至买入/卖出处理器
+    // 买入/卖出处理器通过 lastState.positionCache 获取持仓数据
+    // DelayedSignalVerifier 验证通过后会将信号推入 BuyTaskQueue / SellTaskQueue
+    // 买入/卖出处理器会消费对应队列的任务并执行完整的交易流程
 
   } finally {
     // 释放持仓对象回池（确保在所有退出路径上都释放）

@@ -23,10 +23,10 @@ import {
   isValidPositiveNumber,
 } from './index.js';
 
-import type { Trader, MarketDataClient, LastState } from '../../types/index.js';
+import type { Trader, LastState, Quote } from '../../types/index.js';
 
 /**
- * 显示账户和持仓信息
+ * 刷新账户与持仓缓存（仅数据拉取，不做行情订阅）
  *
  * 调用场景：
  * - 程序启动时：缓存为空，调用 API 获取账户和持仓信息
@@ -37,12 +37,10 @@ import type { Trader, MarketDataClient, LastState } from '../../types/index.js';
  * - 行情 API（getQuotes）：从本地 WebSocket 缓存读取，不发起 HTTP 请求
  *
  * @param trader Trader实例
- * @param marketDataClient MarketDataClient实例
  * @param lastState 状态对象，用于读取/更新缓存
  */
-export async function displayAccountAndPositions(
+export async function refreshAccountAndPositions(
   trader: Trader,
-  marketDataClient: MarketDataClient,
   lastState: LastState,
 ): Promise<void> {
   try {
@@ -81,8 +79,31 @@ export async function displayAccountAndPositions(
       // 同步更新持仓缓存（O(1) 查找优化）
       lastState.positionCache.update(positions);
     }
+  } catch (err) {
+    logger.warn(
+      '获取账户和持仓信息失败',
+      formatError(err),
+    );
+  }
+}
 
-    // 显示账户和持仓信息
+/**
+ * 显示账户和持仓信息（依赖外部行情订阅）
+ *
+ * @param lastState 状态对象，用于读取缓存
+ * @param quotesMap 行情数据 Map（可选）
+ */
+export async function displayAccountAndPositions({
+  lastState,
+  quotesMap,
+}: {
+  readonly lastState: LastState;
+  readonly quotesMap?: ReadonlyMap<string, Quote | null> | null;
+}): Promise<void> {
+  try {
+    const account = lastState.cachedAccount;
+    const positions = lastState.cachedPositions;
+
     if (account) {
       logger.info(
         `账户概览 [${account.currency}] 余额=${account.totalCash.toFixed(
@@ -92,63 +113,47 @@ export async function displayAccountAndPositions(
         )} 持仓市值≈${account.positionValue.toFixed(2)}`,
       );
     }
+
     if (Array.isArray(positions) && positions.length > 0) {
       logger.info('股票持仓：');
 
-      // 批量获取所有持仓标的的完整信息（包含中文名称和价格）
-      const positionSymbols = positions.map((p) => p.symbol).filter(Boolean);
-      const symbolInfoMap = new Map<string, { name: string | null; price: number | null }>(); // key: symbol, value: {name, price}
-      if (positionSymbols.length > 0) {
-        // 使用 getQuotes 批量获取所有标的的完整信息
-        // 单独 catch：持仓中可能存在未订阅的标的（如用户手动交易的）
-        try {
-          const quotesMap = await marketDataClient.getQuotes(positionSymbols);
-
-          for (const [symbol, quote] of quotesMap) {
-            if (quote) {
-              symbolInfoMap.set(symbol, {
-                name: quote.name ?? null,
-                price: quote.price ?? null,
-              });
-            }
+      const symbolInfoMap = new Map<string, { name: string | null; price: number | null }>();
+      if (quotesMap) {
+        for (const pos of positions) {
+          const quote = quotesMap.get(pos.symbol) ?? null;
+          if (quote) {
+            symbolInfoMap.set(pos.symbol, {
+              name: quote.name ?? null,
+              price: quote.price ?? null,
+            });
           }
-        } catch (error) {
-          logger.warn(`[账户显示] 获取持仓行情失败: ${formatError(error)}`);
         }
       }
 
-      // 计算总资产用于计算仓位百分比
       const totalAssets = account?.netAssets ?? 0;
 
       positions.forEach((pos) => {
         const symbolInfo = symbolInfoMap.get(pos.symbol);
-
-        // 优先使用从行情 API 获取的中文名称，否则使用持仓数据中的名称，最后使用 "-"
         const nameText = symbolInfo?.name ?? pos.symbolName ?? '-';
         const codeText = pos.symbol;
-
-        // 获取当前价格（仅使用实时价格）
         const currentPrice = symbolInfo?.price ?? null;
 
-        // 计算持仓市值（无实时价格时显示 0）
         const posQuantity = Number(pos.quantity) || 0;
         const marketValue =
-          currentPrice !== null && isValidPositiveNumber(currentPrice) && isValidPositiveNumber(posQuantity)
+          currentPrice !== null &&
+          isValidPositiveNumber(currentPrice) &&
+          isValidPositiveNumber(posQuantity)
             ? posQuantity * currentPrice
             : 0;
 
-        // 计算仓位百分比
         const positionPercent =
           isValidPositiveNumber(totalAssets) && isValidPositiveNumber(marketValue)
             ? (marketValue / totalAssets) * 100
             : 0;
 
-        // 构建价格显示文本（无实时价格时显示 N/A）
-        const priceText = currentPrice === null
-          ? '现价=N/A'
-          : `现价=${formatNumber(currentPrice, 3)}`;
+        const priceText =
+          currentPrice === null ? '现价=N/A' : `现价=${formatNumber(currentPrice, 3)}`;
 
-        // 格式化账户渠道显示名称
         const channelDisplay = formatAccountChannel(pos.accountChannel);
 
         logger.info(

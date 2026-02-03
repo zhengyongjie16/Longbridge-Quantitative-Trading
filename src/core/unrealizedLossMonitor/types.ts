@@ -7,6 +7,7 @@
  */
 
 import type { Quote, RiskChecker, Trader, OrderRecorder } from '../../types/index.js';
+import type { DailyLossTracker } from '../risk/types.js';
 
 /**
  * 浮亏监控上下文
@@ -16,9 +17,11 @@ export type UnrealizedLossMonitorContext = {
   readonly shortQuote: Quote | null;
   readonly longSymbol: string;
   readonly shortSymbol: string;
+  readonly monitorSymbol: string;
   readonly riskChecker: RiskChecker;
   readonly trader: Trader;
   readonly orderRecorder: OrderRecorder;
+  readonly dailyLossTracker: DailyLossTracker;
 };
 
 /**

@@ -19,8 +19,12 @@ import type {
   RateLimiter,
   PendingRefreshSymbol,
   MultiMonitorTradingConfig,
+  SymbolRegistry,
+  RawOrderFromAPI,
 } from '../../types/index.js';
 import type { LiquidationCooldownTracker } from '../../services/liquidationCooldown/types.js';
+import type { DailyLossTracker } from '../risk/types.js';
+import type { RefreshGate } from '../../utils/refreshGate/types.js';
 
 /**
  * 订单提交载荷
@@ -236,24 +240,32 @@ export type TrackedOrder = {
 };
 
 /**
- * 订单超时配置（买入/卖出分开配置）
- */
-export type OrderSideTimeoutConfig = {
-  readonly enabled: boolean;
-  readonly timeoutMs: number;
-};
-
-/**
  * 订单监控配置
  */
 export interface OrderMonitorConfig {
-  readonly buyTimeout: OrderSideTimeoutConfig;
-  readonly sellTimeout: OrderSideTimeoutConfig;
+  readonly buyTimeout: {
+    readonly enabled: boolean;
+    readonly timeoutMs: number;
+  };
+  readonly sellTimeout: {
+    readonly enabled: boolean;
+    readonly timeoutMs: number;
+  };
   /** 价格修改最小间隔（毫秒） */
   readonly priceUpdateIntervalMs: number;
   /** 价格差异阈值（低于此值不触发修改） */
   readonly priceDiffThreshold: number;
 }
+
+/**
+ * 订单订阅保留集管理器
+ */
+export type OrderHoldRegistry = {
+  trackOrder(orderId: string, symbol: string): void;
+  markOrderFilled(orderId: string): void;
+  seedFromOrders(orders: ReadonlyArray<RawOrderFromAPI>): void;
+  getHoldSymbols(): ReadonlySet<string>;
+};
 
 /**
  * 订单监控器依赖类型
@@ -264,14 +276,22 @@ export type OrderMonitorDeps = {
   readonly cacheManager: OrderCacheManager;
   /** 订单记录器（用于成交后更新本地记录） */
   readonly orderRecorder: import('../../types/index.js').OrderRecorder;
+  /** 当日亏损跟踪器（成交后增量记录） */
+  readonly dailyLossTracker: DailyLossTracker;
+  /** 订单订阅保留集 */
+  readonly orderHoldRegistry: OrderHoldRegistry;
   /** 清仓冷却追踪器（用于记录保护性清仓） */
   readonly liquidationCooldownTracker: LiquidationCooldownTracker;
+  /** 标的注册表（用于解析动态标的归属） */
+  readonly symbolRegistry: SymbolRegistry;
   /** 可选测试钩子（仅用于单元测试） */
   readonly testHooks?: {
     readonly setHandleOrderChanged?: (handler: (event: PushOrderChanged) => void) => void;
   };
   /** 全局交易配置 */
   readonly tradingConfig: MultiMonitorTradingConfig;
+  /** 刷新门禁（成交后标记 stale） */
+  readonly refreshGate?: RefreshGate;
 };
 
 /**
@@ -284,6 +304,8 @@ export type OrderExecutorDeps = {
   readonly orderMonitor: OrderMonitor;
   /** 全局交易配置 */
   readonly tradingConfig: MultiMonitorTradingConfig;
+  /** 标的注册表（用于解析动态标的归属） */
+  readonly symbolRegistry: SymbolRegistry;
 };
 
 /**
@@ -294,4 +316,9 @@ export type TraderDeps = {
   readonly tradingConfig: MultiMonitorTradingConfig;
   readonly liquidationCooldownTracker: LiquidationCooldownTracker;
   readonly rateLimiterConfig?: RateLimiterConfig;
+  /** 标的注册表（用于动态标的映射） */
+  readonly symbolRegistry: SymbolRegistry;
+  readonly dailyLossTracker: DailyLossTracker;
+  /** 刷新门禁（成交后标记 stale） */
+  readonly refreshGate?: RefreshGate;
 };

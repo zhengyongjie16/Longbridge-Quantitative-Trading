@@ -9,12 +9,13 @@
 
 import type { TradeLogHydrator, TradeLogHydratorDeps, NormalizedTradeRecord } from './types.js';
 import type { TradeRecord } from '../../core/trader/types.js';
+import type { SeatSymbolSnapshotEntry } from '../../types/index.js';
 import { buildTradeLogPath } from '../../core/trader/utils.js';
 import {
-  resolveDirectionFromAction,
   toStringOrNull,
   toNumberOrNull,
   toBooleanOrNull,
+  resolveCooldownCandidatesBySeat,
 } from './utils.js';
 
 type RawRecord = Record<string, unknown>;
@@ -44,11 +45,7 @@ const normalizeTradeRecord = (raw: unknown): NormalizedTradeRecord | null => {
     isProtectiveClearance: toBooleanOrNull(obj['isProtectiveClearance']),
   };
 
-  const direction = resolveDirectionFromAction(record.action);
-  if (!direction) {
-    return null;
-  }
-  return { record, direction };
+  return { record };
 };
 
 export const createTradeLogHydrator = (deps: TradeLogHydratorDeps): TradeLogHydrator => {
@@ -66,7 +63,11 @@ export const createTradeLogHydrator = (deps: TradeLogHydratorDeps): TradeLogHydr
     tradingConfig.monitors.map((config) => [config.monitorSymbol, config]),
   );
 
-  const hydrate = (): void => {
+  const hydrate = ({
+    seatSymbols,
+  }: {
+    readonly seatSymbols: ReadonlyArray<SeatSymbolSnapshotEntry>;
+  }): void => {
     const logFile = buildTradeLogPath(cwd(), new Date(nowMs()));
     if (!existsSync(logFile)) {
       logger.info(`[清仓冷却] 当日成交日志不存在，跳过冷却恢复: ${logFile}`);
@@ -87,57 +88,37 @@ export const createTradeLogHydrator = (deps: TradeLogHydratorDeps): TradeLogHydr
       return;
     }
 
-    const lastByKey = new Map<string, NormalizedTradeRecord>();
-
+    const records: TradeRecord[] = [];
     for (const item of parsed) {
       const normalized = normalizeTradeRecord(item);
       if (!normalized) {
         continue;
       }
-
-      const { record, direction } = normalized;
-      if (record.isProtectiveClearance !== true) {
-        continue;
-      }
-      if (!record.monitorSymbol || record.executedAtMs == null) {
-        continue;
-      }
-      if (!monitorConfigMap.has(record.monitorSymbol)) {
-        continue;
-      }
-
-      const key = `${record.monitorSymbol}:${direction}`;
-      const existing = lastByKey.get(key);
-      if (!existing || record.executedAtMs > (existing.record.executedAtMs ?? 0)) {
-        lastByKey.set(key, normalized);
-      }
+      records.push(normalized.record);
     }
 
     let restoredCount = 0;
-    for (const entry of lastByKey.values()) {
-      const record = entry.record;
-      const direction = entry.direction;
-      const monitorSymbol = record.monitorSymbol;
-      const executedAtMs = record.executedAtMs;
-      if (!monitorSymbol || executedAtMs == null) {
-        continue;
-      }
+    const candidates = resolveCooldownCandidatesBySeat({
+      seatSymbols,
+      tradeRecords: records,
+    });
 
-      const monitorConfig = monitorConfigMap.get(monitorSymbol) ?? null;
+    for (const candidate of candidates) {
+      const monitorConfig = monitorConfigMap.get(candidate.monitorSymbol) ?? null;
       const cooldownConfig = monitorConfig?.liquidationCooldown ?? null;
       if (!cooldownConfig) {
         continue;
       }
 
       liquidationCooldownTracker.recordCooldown({
-        symbol: monitorSymbol,
-        direction,
-        executedTimeMs: executedAtMs,
+        symbol: candidate.monitorSymbol,
+        direction: candidate.direction,
+        executedTimeMs: candidate.executedAtMs,
       });
 
       const remainingMs = liquidationCooldownTracker.getRemainingMs({
-        symbol: monitorSymbol,
-        direction,
+        symbol: candidate.monitorSymbol,
+        direction: candidate.direction,
         cooldownConfig,
       });
 

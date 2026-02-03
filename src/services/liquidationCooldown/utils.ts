@@ -3,7 +3,9 @@
  */
 
 import { TIME } from '../../constants/index.js';
-import type { LiquidationDirection } from './types.js';
+import type { TradeRecord } from '../../core/trader/types.js';
+import type { SeatSymbolSnapshotEntry } from '../../types/index.js';
+import type { CooldownCandidate, LiquidationDirection } from './types.js';
 
 /**
  * 构建冷却记录的 key
@@ -51,18 +53,6 @@ export function resolveHongKongTimeMs({
   return targetHkMs - offsetMs;
 }
 
-export const resolveDirectionFromAction = (
-  action: string | null,
-): LiquidationDirection | null => {
-  if (action === 'BUYCALL' || action === 'SELLCALL') {
-    return 'LONG';
-  }
-  if (action === 'BUYPUT' || action === 'SELLPUT') {
-    return 'SHORT';
-  }
-  return null;
-};
-
 export const toStringOrNull = (value: unknown): string | null => {
   return typeof value === 'string' && value.trim() ? value : null;
 };
@@ -74,3 +64,57 @@ export const toNumberOrNull = (value: unknown): number | null => {
 export const toBooleanOrNull = (value: unknown): boolean | null => {
   return value === true || value === false ? value : null;
 };
+
+export function resolveCooldownCandidatesBySeat({
+  seatSymbols,
+  tradeRecords,
+}: {
+  readonly seatSymbols: ReadonlyArray<SeatSymbolSnapshotEntry>;
+  readonly tradeRecords: ReadonlyArray<TradeRecord>;
+}): ReadonlyArray<CooldownCandidate> {
+  if (seatSymbols.length === 0 || tradeRecords.length === 0) {
+    return [];
+  }
+
+  const seatSymbolSet = new Set(seatSymbols.map((seat) => seat.symbol));
+  const lastBySymbol = new Map<string, TradeRecord>();
+
+  for (const record of tradeRecords) {
+    const symbol = record.symbol;
+    const executedAtMs = record.executedAtMs;
+    if (!symbol || typeof executedAtMs !== 'number' || !Number.isFinite(executedAtMs)) {
+      continue;
+    }
+    if (!seatSymbolSet.has(symbol)) {
+      continue;
+    }
+    const existing = lastBySymbol.get(symbol);
+    const existingTime =
+      existing && typeof existing.executedAtMs === 'number' ? existing.executedAtMs : 0;
+    if (!existing || existingTime < executedAtMs) {
+      lastBySymbol.set(symbol, record);
+    }
+  }
+
+  const candidates: CooldownCandidate[] = [];
+  for (const seat of seatSymbols) {
+    const record = lastBySymbol.get(seat.symbol);
+    if (!record) {
+      continue;
+    }
+    const executedAtMs = record.executedAtMs;
+    if (typeof executedAtMs !== 'number' || !Number.isFinite(executedAtMs)) {
+      continue;
+    }
+    if (record.isProtectiveClearance !== true) {
+      continue;
+    }
+    candidates.push({
+      monitorSymbol: seat.monitorSymbol,
+      direction: seat.direction,
+      executedAtMs,
+    });
+  }
+
+  return candidates;
+}

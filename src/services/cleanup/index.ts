@@ -14,6 +14,9 @@ export const createCleanup = (context: CleanupContext) => {
   const {
     buyProcessor,
     sellProcessor,
+    monitorTaskProcessor,
+    orderMonitorWorker,
+    postTradeRefresher,
     monitorContexts,
     indicatorCache,
     lastState,
@@ -27,6 +30,9 @@ export const createCleanup = (context: CleanupContext) => {
     // 停止 BuyProcessor 和 SellProcessor
     buyProcessor.stop();
     sellProcessor.stop();
+    monitorTaskProcessor.stop();
+    orderMonitorWorker.stop();
+    postTradeRefresher.stop();
     // 销毁所有监控标的的 DelayedSignalVerifier
     for (const monitorContext of monitorContexts.values()) {
       monitorContext.delayedSignalVerifier.destroy();

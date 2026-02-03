@@ -1,7 +1,7 @@
 /**
  * DelayedSignalVerifier 实现
  *
- * 使用 setTimeout 自行计时进行延迟验证，替代现有 signalVerification 模块
+ * 使用 setTimeout 自行计时进行延迟验证
  *
  * 验证逻辑：
  * - BUYCALL/SELLPUT：T0、T0+5s、T0+10s 的值都 > 初始值（上涨趋势）
@@ -10,7 +10,7 @@
  *
  * 时间计算：
  * - triggerTime = signal.triggerTime（由 strategy 设置）
- * - verifyTime = triggerTime + 15秒（READY_DELAY_SECONDS）
+ * - verifyTime = triggerTime + READY_DELAY_SECONDS
  * - 验证时查询 IndicatorCache 获取 T0、T0+5s、T0+10s 的数据
  * - 时间容忍度为 ±5秒
  */
@@ -32,7 +32,9 @@ import { generateSignalId, extractInitialIndicators, performVerification } from 
 /**
  * 创建延迟信号验证器
  */
-export const createDelayedSignalVerifier = (deps: DelayedSignalVerifierDeps): DelayedSignalVerifier => {
+export function createDelayedSignalVerifier(
+  deps: DelayedSignalVerifierDeps,
+): DelayedSignalVerifier {
   const { indicatorCache, verificationConfig } = deps;
 
   // 待验证信号 Map（signalId -> entry）
@@ -45,7 +47,7 @@ export const createDelayedSignalVerifier = (deps: DelayedSignalVerifierDeps): De
   /**
    * 执行验证的内部函数
    */
-  const executeVerification = (signalId: string): void => {
+  function executeVerification(signalId: string): void {
     const entry = pendingSignals.get(signalId);
     if (!entry) {
       return;
@@ -68,7 +70,7 @@ export const createDelayedSignalVerifier = (deps: DelayedSignalVerifierDeps): De
       logger.info(`[延迟验证通过] ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${actionDesc} | ${result.reason}`);
 
       // 通知所有验证通过的回调
-      // 注意：验证通过的信号由 TradeProcessor 负责释放（通过 tradeTaskQueue）
+      // 注意：验证通过的信号由买入/卖出处理器在消费任务后释放
       for (const callback of verifiedCallbacks) {
         try {
           callback(signal, monitorSymbol);
@@ -91,7 +93,7 @@ export const createDelayedSignalVerifier = (deps: DelayedSignalVerifierDeps): De
       // 验证失败的信号在此处释放回对象池
       signalObjectPool.release(signal);
     }
-  };
+  }
 
   return {
     addSignal(signal: Signal, monitorSymbol: string): void {
@@ -191,6 +193,37 @@ export const createDelayedSignalVerifier = (deps: DelayedSignalVerifierDeps): De
       }
     },
 
+    cancelAllForDirection(monitorSymbol: string, direction: 'LONG' | 'SHORT'): number {
+      const entriesToRemove: Array<{ signalId: string; signal: Signal }> = [];
+
+      for (const [signalId, entry] of pendingSignals) {
+        if (entry.monitorSymbol !== monitorSymbol) {
+          continue;
+        }
+        const action = entry.signal.action;
+        const isLongSignal = action === 'BUYCALL' || action === 'SELLCALL';
+        const signalDirection = isLongSignal ? 'LONG' : 'SHORT';
+        if (signalDirection !== direction) {
+          continue;
+        }
+        clearTimeout(entry.timerId);
+        entriesToRemove.push({ signalId, signal: entry.signal });
+      }
+
+      for (const { signalId, signal } of entriesToRemove) {
+        pendingSignals.delete(signalId);
+        signalObjectPool.release(signal);
+      }
+
+      if (entriesToRemove.length > 0) {
+        logger.debug(
+          `[延迟验证] 已取消 ${monitorSymbol} ${direction} 的 ${entriesToRemove.length} 个待验证信号`,
+        );
+      }
+
+      return entriesToRemove.length;
+    },
+
     getPendingCount(): number {
       return pendingSignals.size;
     },
@@ -218,4 +251,4 @@ export const createDelayedSignalVerifier = (deps: DelayedSignalVerifierDeps): De
       logger.debug('[延迟验证] 验证器已销毁');
     },
   };
-};
+}

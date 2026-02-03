@@ -20,7 +20,7 @@ import {
 
 /**
  * 默认最大缓存条目数
- * 计算公式：max(buyDelay, sellDelay) + 15 + 10，默认 100
+ * 默认值 100，可由 options.maxEntries 覆盖
  */
 const DEFAULT_MAX_ENTRIES = 100;
 

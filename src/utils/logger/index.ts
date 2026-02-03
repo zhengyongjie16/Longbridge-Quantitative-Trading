@@ -12,7 +12,7 @@
  * - logs/debug/：调试日志副本（DEBUG 级别日志的额外副本，需设置 DEBUG=true）
  *
  * 特性：
- * - 异步队列批量处理，避免阻塞主循环
+ * - 异步写入 + drain 保护，轮转操作串行化
  * - 控制台输出带颜色高亮
  * - 文件输出纯文本格式
  * - 进程信号处理和异常捕获
@@ -40,6 +40,7 @@ export const colors = {
   cyan: '\x1b[96m', // 天蓝色
 } as const;
 
+/** 格式化额外数据为字符串（内部使用） */
 const formatExtra = (extra: unknown): string => {
   return inspect(extra, { depth: 5, maxArrayLength: 100 });
 };
@@ -253,7 +254,8 @@ const ANSI_CODE_REGEX = new RegExp(
 );
 
 /**
- * 移除 ANSI 颜色代码
+ * 移除 ANSI 颜色代码（内部使用）
+ * 用于文件日志输出时清除终端颜色代码
  */
 function stripAnsiCodes(str: string): string {
   if (typeof str !== 'string') return str;
@@ -372,7 +374,8 @@ function createDrainHandler(
 }
 
 /**
- * 带超时保护的写入辅助函数
+ * 带超时保护的写入辅助函数（内部使用）
+ * 防止 drain 事件永远不触发导致阻塞
  */
 function writeWithDrainTimeout(
   stream: NodeJS.WriteStream,

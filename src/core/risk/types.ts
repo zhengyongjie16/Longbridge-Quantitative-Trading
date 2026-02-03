@@ -14,13 +14,18 @@ import type {
   SignalType,
   MarketDataClient,
   OrderRecorder,
+  MonitorConfig,
+  OrderRecord,
+  RawOrderFromAPI,
   WarrantType,
   RiskCheckResult,
   WarrantDistanceInfo,
   WarrantDistanceLiquidationResult,
+  WarrantRefreshResult,
   UnrealizedLossData,
   UnrealizedLossCheckResult,
 } from '../../types/index.js';
+import type { OrderFilteringEngine, OrderOwnership } from '../orderRecorder/types.js';
 
 /** 牛熊证报价接口（LongPort API 原始数据） */
 export type WarrantQuote = {
@@ -42,13 +47,6 @@ export type WarrantInfo =
       readonly symbol: string;
     };
 
-/** 风险检查器配置选项 */
-export type RiskCheckerOptions = {
-  readonly maxDailyLoss?: number | null;
-  readonly maxPositionNotional?: number | null;
-  readonly maxUnrealizedLossPerSymbol?: number | null;
-};
-
 // ==================== 服务接口定义 ====================
 
 /** 牛熊证风险检查器接口 */
@@ -60,6 +58,12 @@ export interface WarrantRiskChecker {
     longSymbolName?: string | null,
     shortSymbolName?: string | null,
   ): Promise<void>;
+  refreshWarrantInfoForSymbol(
+    marketDataClient: MarketDataClient,
+    symbol: string,
+    isLongSymbol: boolean,
+    symbolName?: string | null,
+  ): Promise<WarrantRefreshResult>;
   checkRisk(
     symbol: string,
     signalType: SignalType,
@@ -73,8 +77,10 @@ export interface WarrantRiskChecker {
   ): WarrantDistanceLiquidationResult;
   getWarrantDistanceInfo(
     isLongSymbol: boolean,
+    seatSymbol: string,
     monitorCurrentPrice: number | null,
   ): WarrantDistanceInfo | null;
+  clearWarrantInfo(isLongSymbol: boolean): void;
 }
 
 /** 持仓限制检查器接口 */
@@ -97,6 +103,7 @@ export interface UnrealizedLossChecker {
     symbol: string,
     isLongSymbol: boolean,
     quote?: import('../../types/index.js').Quote | null,
+    dailyLossOffset?: number,
   ): Promise<{ r1: number; n1: number } | null>;
   check(
     symbol: string,
@@ -122,5 +129,70 @@ export type UnrealizedLossCheckerDeps = {
 
 /** 风险检查器依赖（门面模式） */
 export type RiskCheckerDeps = {
-  readonly options?: RiskCheckerOptions;
+  readonly options?: {
+    readonly maxDailyLoss?: number | null;
+    readonly maxPositionNotional?: number | null;
+    readonly maxUnrealizedLossPerSymbol?: number | null;
+  };
+};
+
+// ==================== 当日亏损追踪 ====================
+
+export type DailyLossState = {
+  readonly buyOrders: ReadonlyArray<OrderRecord>;
+  readonly sellOrders: ReadonlyArray<OrderRecord>;
+  readonly dailyLossOffset: number;
+};
+
+export type OrderOwnershipDiagnosticSample = {
+  readonly orderId: string;
+  readonly symbol: string;
+  readonly stockName: string;
+};
+
+export type OrderOwnershipDiagnostics = {
+  readonly dayKey: string;
+  readonly totalFilled: number;
+  readonly inDayFilled: number;
+  readonly unmatchedFilled: number;
+  readonly unmatchedSamples: ReadonlyArray<OrderOwnershipDiagnosticSample>;
+};
+
+export type DailyLossFilledOrderInput = {
+  readonly monitorSymbol: string;
+  readonly symbol: string;
+  readonly isLongSymbol: boolean;
+  readonly side: (typeof import('longport').OrderSide)[keyof typeof import('longport').OrderSide];
+  readonly executedPrice: number;
+  readonly executedQuantity: number;
+  readonly executedTimeMs: number;
+  readonly orderId?: string | null;
+};
+
+export type DailyLossTracker = {
+  initializeFromOrders(
+    allOrders: ReadonlyArray<RawOrderFromAPI>,
+    monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
+    now: Date,
+  ): void;
+  recalculateFromAllOrders(
+    allOrders: ReadonlyArray<RawOrderFromAPI>,
+    monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
+    now: Date,
+  ): void;
+  recordFilledOrder(input: DailyLossFilledOrderInput): void;
+  getLossOffset(monitorSymbol: string, isLongSymbol: boolean): number;
+  resetIfNewDay(now: Date): void;
+};
+
+export type DailyLossTrackerDeps = {
+  readonly filteringEngine: OrderFilteringEngine;
+  readonly resolveOrderOwnership: (
+    order: RawOrderFromAPI,
+    monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
+  ) => OrderOwnership | null;
+  readonly classifyAndConvertOrders: (
+    orders: ReadonlyArray<RawOrderFromAPI>,
+  ) => { buyOrders: OrderRecord[]; sellOrders: OrderRecord[] };
+  readonly toBeijingTimeIso: (date: Date | null) => string;
 };

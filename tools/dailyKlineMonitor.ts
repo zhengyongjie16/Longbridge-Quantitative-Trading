@@ -416,9 +416,6 @@ async function createMonitorContext(monitorSymbol: string): Promise<MonitorConte
   };
 }
 
-/**
- * 主函数
- */
 async function main(): Promise<void> {
   const monitorSymbol = process.argv[2] || process.env['DAILY_MONITOR_SYMBOL'] || DEFAULT_SYMBOL;
 
@@ -454,7 +451,6 @@ async function main(): Promise<void> {
   }
 }
 
-// 运行主函数
 try {
   await main();
 } catch (error: unknown) {

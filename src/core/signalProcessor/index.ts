@@ -8,10 +8,11 @@
  *
  * 买入检查顺序：
  * 1. 交易频率限制（同方向买入时间间隔）
- * 2. 买入价格限制（防止追高）
- * 3. 末日保护程序（收盘前 15 分钟拒绝买入）
- * 4. 牛熊证风险检查
- * 5. 基础风险检查（浮亏和持仓限制）
+ * 2. 清仓冷却（保护性清仓后的冷却期）
+ * 3. 买入价格限制（防止追高）
+ * 4. 末日保护程序（收盘前 15 分钟拒绝买入）
+ * 5. 牛熊证风险检查
+ * 6. 基础风险检查（浮亏和持仓限制）
  *
  * 卖出策略：
  * - 智能平仓开启：仅卖出盈利订单
@@ -338,10 +339,11 @@ export const createSignalProcessor = ({
 
         // 买入操作检查顺序：
         // 1. 交易频率限制
-        // 2. 买入价格限制
-        // 3. 末日保护程序
-        // 4. 牛熊证风险
-        // 5. 基础风险检查
+        // 2. 清仓冷却
+        // 3. 买入价格限制
+        // 4. 末日保护程序
+        // 5. 牛熊证风险
+        // 6. 基础风险检查
 
         // 1. 检查交易频率限制
         const tradeCheck = trader._canTradeNow(sig.action, context.config);
@@ -376,7 +378,7 @@ export const createSignalProcessor = ({
         // 防止同一批次中的多个延迟验证信号同时通过频率检查
         trader._markBuyAttempt(sig.action, context.config);
 
-        // 2. 买入价格限制
+        // 3. 买入价格限制
         const latestBuyPrice = orderRecorder.getLatestBuyOrderPrice(sigSymbol, isLongBuyAction);
 
         if (latestBuyPrice !== null && currentPrice !== null) {
@@ -396,7 +398,7 @@ export const createSignalProcessor = ({
           );
         }
 
-        // 3. 末日保护程序：收盘前15分钟拒绝买入
+        // 4. 末日保护程序：收盘前15分钟拒绝买入
         if (
           tradingConfig.global.doomsdayProtection &&
           doomsdayProtection.shouldRejectBuy(currentTime, isHalfDay)
@@ -410,7 +412,7 @@ export const createSignalProcessor = ({
           continue;
         }
 
-        // 4. 检查牛熊证风险
+        // 5. 检查牛熊证风险
         const monitorCurrentPrice =
           monitorQuote?.price ?? monitorSnapshot?.price ?? null;
 
@@ -455,7 +457,7 @@ export const createSignalProcessor = ({
         }
       }
 
-      // 5. 基础风险检查
+      // 6. 基础风险检查
       // 买入信号使用实时数据，卖出信号使用缓存数据
       const accountForRiskCheck = isBuyActionCheck ? freshAccount : context.account;
       const positionsForRiskCheck = isBuyActionCheck ? freshPositions : (context.positions ?? []);

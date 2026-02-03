@@ -9,7 +9,7 @@
  *
  * 设计原因：
  * - 卖出操作的优先级高于买入，应优先允许执行
- * - 卖出信号不需要 API 调用的风险检查，处理速度 <10ms
+ * - 卖出信号不需要 API 调用的风险检查，执行路径更短
  * - 独立队列避免被买入任务阻塞
  *
  * 执行顺序：
@@ -23,6 +23,7 @@
 import { signalObjectPool } from '../../../utils/objectPool/index.js';
 import { logger } from '../../../utils/logger/index.js';
 import { formatError, formatSymbolDisplay } from '../../../utils/helpers/index.js';
+import { isSeatReady, isSeatVersionMatch } from '../../../services/autoSymbolManager/utils.js';
 import type { SellProcessor, SellProcessorDeps } from './types.js';
 import type { ProcessorStats } from '../types.js';
 import type { SellTask } from '../tradeTaskQueue/types.js';
@@ -32,8 +33,8 @@ import type { SellTask } from '../tradeTaskQueue/types.js';
  * @param deps 依赖注入
  * @returns SellProcessor 接口实例
  */
-export const createSellProcessor = (deps: SellProcessorDeps): SellProcessor => {
-  const { taskQueue, getMonitorContext, signalProcessor, trader, getLastState } = deps;
+export function createSellProcessor(deps: SellProcessorDeps): SellProcessor {
+  const { taskQueue, getMonitorContext, signalProcessor, trader, getLastState, refreshGate } = deps;
 
   // 内部状态
   let running = false;
@@ -46,13 +47,12 @@ export const createSellProcessor = (deps: SellProcessorDeps): SellProcessor => {
   /**
    * 处理单个卖出任务
    */
-  const processTask = async (task: SellTask): Promise<boolean> => {
-    const signal = task.data;
-    const monitorSymbol = task.monitorSymbol;
-    // 缓存格式化后的标的显示（用于日志）
+  async function processTask(task: SellTask): Promise<boolean> {
+    const { data: signal, monitorSymbol } = task;
     const symbolDisplay = formatSymbolDisplay(signal.symbol, signal.symbolName ?? null);
 
     try {
+      await refreshGate.waitForFresh();
       // 获取监控上下文
       const ctx = getMonitorContext(monitorSymbol);
       if (!ctx) {
@@ -60,19 +60,37 @@ export const createSellProcessor = (deps: SellProcessorDeps): SellProcessor => {
         return false;
       }
 
-      const { config, orderRecorder } = ctx;
-
-      // 获取行情数据（从 MonitorContext 缓存中获取，主循环每秒更新）
-      // 注意：必须使用 ctx.longQuote/shortQuote，这些字段每秒更新
-      const longQuote = ctx.longQuote;
-      const shortQuote = ctx.shortQuote;
-
-      // 获取全局状态
+      // 注意：longQuote/shortQuote 必须来自 ctx（每秒更新）
+      const { config, orderRecorder, longQuote, shortQuote, symbolRegistry } = ctx;
       const lastState = getLastState();
 
+      const isLongSignal = signal.action === 'SELLCALL';
+      const direction = isLongSignal ? 'LONG' : 'SHORT';
+      const seatState = symbolRegistry.getSeatState(monitorSymbol, direction);
+      const seatVersion = symbolRegistry.getSeatVersion(monitorSymbol, direction);
+
+      if (!isSeatReady(seatState)) {
+        logger.info(`[SellProcessor] 席位不可用，跳过信号: ${symbolDisplay} ${signal.action}`);
+        return true;
+      }
+      if (!isSeatVersionMatch(signal.seatVersion, seatVersion)) {
+        logger.info(`[SellProcessor] 席位版本不匹配，跳过信号: ${symbolDisplay} ${signal.action}`);
+        return true;
+      }
+      if (signal.symbol !== seatState.symbol) {
+        logger.info(`[SellProcessor] 标的已切换，跳过信号: ${symbolDisplay} ${signal.action}`);
+        return true;
+      }
+
       // 获取持仓数据（从 positionCache 获取）
-      const longPosition = lastState.positionCache.get(ctx.normalizedLongSymbol);
-      const shortPosition = lastState.positionCache.get(ctx.normalizedShortSymbol);
+      const longSeatState = symbolRegistry.getSeatState(monitorSymbol, 'LONG');
+      const shortSeatState = symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
+      const longPosition = isSeatReady(longSeatState)
+        ? lastState.positionCache.get(longSeatState.symbol)
+        : null;
+      const shortPosition = isSeatReady(shortSeatState)
+        ? lastState.positionCache.get(shortSeatState.symbol)
+        : null;
 
       // 卖出信号处理：计算卖出数量（不经过风险检查）
       // 原因：
@@ -91,7 +109,7 @@ export const createSellProcessor = (deps: SellProcessorDeps): SellProcessor => {
 
       // 如果信号被转为 HOLD，跳过执行
       const firstSignal = processedSignals[0];
-      if (processedSignals.length === 0 || !firstSignal || firstSignal.action === 'HOLD') {
+      if (!firstSignal || firstSignal.action === 'HOLD') {
         logger.info(`[SellProcessor] 卖出信号被跳过: ${symbolDisplay} ${signal.action}`);
         return true; // 处理成功（虽然跳过了）
       }
@@ -105,23 +123,21 @@ export const createSellProcessor = (deps: SellProcessorDeps): SellProcessor => {
       logger.error(`[SellProcessor] 处理任务失败: ${symbolDisplay} ${signal.action}`, formatError(err));
       return false;
     }
-  };
+  }
 
   /**
    * 处理队列中的所有任务
    */
-  const processQueue = async (): Promise<void> => {
+  async function processQueue(): Promise<void> {
     while (!taskQueue.isEmpty()) {
       const task = taskQueue.pop();
       if (!task) break;
 
-      const signal = task.data;
+      const { data: signal } = task;
 
       try {
         processedCount++;
-        const success = await processTask(task);
-
-        if (success) {
+        if (await processTask(task)) {
           successCount++;
         } else {
           failedCount++;
@@ -133,7 +149,7 @@ export const createSellProcessor = (deps: SellProcessorDeps): SellProcessor => {
         signalObjectPool.release(signal);
       }
     }
-  };
+  }
 
   /**
    * 调度下一次处理（使用 setImmediate）
@@ -143,7 +159,7 @@ export const createSellProcessor = (deps: SellProcessorDeps): SellProcessor => {
    * - 队列为空时：停止调度，等待 onTaskAdded 回调触发重新调度
    * - 避免忙等待（busy-waiting），防止 CPU 高占用
    */
-  const scheduleNextProcess = (): void => {
+  function scheduleNextProcess(): void {
     if (!running) return;
 
     // 如果队列为空，停止调度（等待新任务触发）
@@ -168,12 +184,12 @@ export const createSellProcessor = (deps: SellProcessorDeps): SellProcessor => {
           });
       }
     });
-  };
+  }
 
   /**
    * 启动处理器
    */
-  const start = (): void => {
+  function start(): void {
     if (running) {
       logger.warn('[SellProcessor] 处理器已在运行中');
       return;
@@ -190,12 +206,12 @@ export const createSellProcessor = (deps: SellProcessorDeps): SellProcessor => {
 
     // 启动调度循环
     scheduleNextProcess();
-  };
+  }
 
   /**
    * 停止处理器
    */
-  const stop = (): void => {
+  function stop(): void {
     if (!running) {
       logger.warn('[SellProcessor] 处理器未在运行');
       return;
@@ -207,29 +223,33 @@ export const createSellProcessor = (deps: SellProcessorDeps): SellProcessor => {
       clearImmediate(immediateHandle);
       immediateHandle = null;
     }
-  };
+  }
 
   /**
    * 立即处理队列中的所有任务（同步等待完成）
    */
-  const processNow = async (): Promise<void> => {
+  async function processNow(): Promise<void> {
     await processQueue();
-  };
+  }
 
   /**
    * 检查处理器是否正在运行
    */
-  const isRunning = (): boolean => running;
+  function isRunning(): boolean {
+    return running;
+  }
 
   /**
    * 获取处理器统计信息
    */
-  const getStats = (): ProcessorStats => ({
-    processedCount,
-    successCount,
-    failedCount,
-    lastProcessTime,
-  });
+  function getStats(): ProcessorStats {
+    return {
+      processedCount,
+      successCount,
+      failedCount,
+      lastProcessTime,
+    };
+  }
 
   return {
     start,
@@ -238,4 +258,4 @@ export const createSellProcessor = (deps: SellProcessorDeps): SellProcessor => {
     isRunning,
     getStats,
   };
-};
+}

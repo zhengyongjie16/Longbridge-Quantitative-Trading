@@ -3,6 +3,8 @@
  *
  * 定义辅助函数相关的类型：
  * - DecimalLike：LongPort Decimal 兼容接口
+ * - TimeFormatOptions：时间格式化选项
+ * - QuoteDisplayResult：行情显示格式化结果
  * - IndicatorState：指标状态接口（KDJ、MACD、EMA、RSI、PSY、MFI）
  * - ParsedCondition / ParsedConditionGroup：信号配置解析结果
  * - EvaluationResult / ConditionGroupResult：条件评估结果
@@ -15,14 +17,30 @@ export type DecimalLike = {
 };
 
 /**
+ * 时间格式化选项（内部使用）
+ */
+export type TimeFormatOptions = {
+  readonly format?: 'iso' | 'log';
+};
+
+/**
+ * 行情显示格式化结果
+ */
+export type QuoteDisplayResult = {
+  readonly nameText: string;
+  readonly codeText: string;
+  readonly priceText: string;
+  readonly changeAmountText: string;
+  readonly changePercentText: string;
+};
+
+/**
  * 指标状态接口（用于获取指标值）
  */
-export type IndicatorSeries = Record<number, number> | null;
-
 export type IndicatorState = {
-  readonly ema?: IndicatorSeries;
-  readonly rsi?: IndicatorSeries;
-  readonly psy?: IndicatorSeries;
+  readonly ema?: Record<number, number> | null;
+  readonly rsi?: Record<number, number> | null;
+  readonly psy?: Record<number, number> | null;
   readonly mfi?: number | null;
   readonly kdj?: { readonly k?: number; readonly d?: number; readonly j?: number } | null;
   readonly macd?: { readonly macd?: number; readonly dif?: number; readonly dea?: number } | null;

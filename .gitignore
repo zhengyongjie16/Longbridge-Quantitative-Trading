@@ -25,6 +25,7 @@ coverage/
 
 # Build output
 dist/
+dist-test/
 build/
 
 # Git worktrees
@@ -38,10 +39,6 @@ sonar-*.json
 # Local settings
 settings.local.json
 ralph-loop.local.md
-
-# Clinic.js performance reports
-clinic-*/
-clinic-report/
 
 # Windows reserved device names (should never be tracked)
 nul

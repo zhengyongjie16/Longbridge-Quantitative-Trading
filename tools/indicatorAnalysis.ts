@@ -2,14 +2,12 @@
  * 指标分析工具
  *
  * 功能：
- * - 分析历史 K 线数据的技术指标表现
- * - 回测指标策略效果
- * - 生成指标统计报告
+ * - 获取指定日期范围的分时 K 线
+ * - 计算并输出指标序列与基础统计
  *
  * 分析内容：
  * - RSI、MACD、KDJ、MFI 等指标的历史值
- * - 指标超买超卖区域的统计数据
- * - 指标交叉信号的历史表现
+ * - 指标与区间的基础统计（非策略回测）
  *
  * 运行方式：
  * npm run analyze-indicators
@@ -37,6 +35,7 @@ import { validatePercentage } from '../src/utils/helpers/indicatorHelpers.js';
 import { RSI, MACD, EMA, MFI } from 'technicalindicators';
 import { createMultiMonitorTradingConfig } from '../src/config/config.trading.js';
 import { createConfig } from '../src/config/config.index.js';
+import type { CandleData as BaseCandleData, CandleValue } from '../src/types/index.js';
 
 dotenv.config({ path: '.env.local' });
 
@@ -70,15 +69,10 @@ const DEFAULT_DATE = '2025-12-24'; // 例如：可以设置为 "2024-12-11" 或 
 /**
  * K线数据接口
  */
-interface CandleData {
-  timestamp: Date | number;
-  open?: unknown;
-  high?: unknown;
-  low?: unknown;
-  close?: unknown;
-  volume?: unknown;
-  turnover?: unknown;
-}
+type IndicatorCandleData = BaseCandleData & {
+  readonly timestamp: Date | number;
+  readonly turnover?: CandleValue;
+};
 
 /**
  * 日期对象接口
@@ -136,8 +130,7 @@ type Close = string | number | null
 
 /**
  * 格式化时间为 HH:mm:ss 格式（香港时间）
- * 使用与代码库其他地方相同的 toLocaleString 方法，确保时区转换的一致性
- * 参考：index.js:235-237 使用相同的时区转换方法
+ * 使用与项目其他时间格式化一致的 toLocaleString 方法，确保时区转换一致
  * @param timestamp 时间戳或日期对象
  * @returns 格式化的时间字符串 HH:mm:ss
  */
@@ -148,7 +141,7 @@ function formatTimeHHMMSS(timestamp: number | Date): string {
       : timestamp?.getTime?.() || Date.now();
   const date = new Date(ts);
 
-  // 使用与代码库其他地方相同的时区转换方法（index.js:235-237）
+  // 使用与项目其他位置一致的时区转换方法
   // 使用 toLocaleString 和 timeZone: "Asia/Hong_Kong" 确保准确的时区转换
   // 直接指定只返回时间部分，避免手动解析
   const formatted = date.toLocaleTimeString('zh-CN', {
@@ -335,7 +328,7 @@ function calculateKDJIndicator(
 /**
  * 计算 MACD 指标
  * @param closes 收盘价数组
- * @returns MACD 指标值（仅返回 MACD 柱状图值）
+ * @returns MACD 指标值（返回 2 × histogram）
  */
 function calculateMACDIndicator(closes: number[]): MACDResult | null {
   try {
@@ -640,8 +633,8 @@ async function fetchCandlesticksByRanges(
   symbol: string,
   dateRanges: DateRangeBatch[],
   symbolName: string,
-): Promise<CandleData[]> {
-  const allCandlesticks: CandleData[] = [];
+): Promise<IndicatorCandleData[]> {
+  const allCandlesticks: IndicatorCandleData[] = [];
   for (let i = 0; i < dateRanges.length; i++) {
     const { start, end } = dateRanges[i]!;
     const batchCandlesticks = await ctx.historyCandlesticksByDate(
@@ -654,7 +647,7 @@ async function fetchCandlesticksByRanges(
     );
 
     if (batchCandlesticks && batchCandlesticks.length > 0) {
-      allCandlesticks.push(...(batchCandlesticks as CandleData[]));
+      allCandlesticks.push(...(batchCandlesticks as IndicatorCandleData[]));
 
       // 如果返回的数据达到1000条，说明可能还有更多数据，需要进一步分割
       if (batchCandlesticks.length >= 1000) {
@@ -758,7 +751,7 @@ function splitDateRange(
 }
 
 /**
- * 获取标的的分时线数据（自动跳过非交易日，仅获取交易日的K线数据）
+ * 获取标的的分时线数据（优先按交易日拉取，交易日列表不可用时回退到自然日范围）
  * @param ctx QuoteContext 实例
  * @param symbol 标的代码
  * @param startDate 开始日期
@@ -772,7 +765,7 @@ async function fetchSymbolCandlesticks(
   startDate: NaiveDate,
   endDate: NaiveDate,
   symbolName: string,
-): Promise<CandleData[]> {
+): Promise<IndicatorCandleData[]> {
   try {
     console.log(`正在获取${symbolName} ${symbol} 的分时线数据...`);
 
@@ -873,7 +866,7 @@ async function getIntradayCandlesticks(
       30,
     );
 
-    let previousCandlesticks: CandleData[] = [];
+    let previousCandlesticks: IndicatorCandleData[] = [];
     if (previousTradingDay) {
       const prevDateStr = formatDateYYYYMMDD(previousTradingDay);
       console.log(
@@ -890,7 +883,7 @@ async function getIntradayCandlesticks(
           previousTradingDay,
           TradeSessions.All,
         );
-        previousCandlesticks = (rawCandlesticks || []) as CandleData[];
+        previousCandlesticks = (rawCandlesticks || []) as IndicatorCandleData[];
         if (previousCandlesticks.length > 0) {
           console.log(
             `成功获取上一个交易日 ${previousCandlesticks.length} 条分时线数据`,
@@ -914,7 +907,7 @@ async function getIntradayCandlesticks(
     );
 
     // 合并数据：前一天的数据在前，日期范围内的数据在后
-    const candlesticks: CandleData[] = [
+    const candlesticks: IndicatorCandleData[] = [
       ...(previousCandlesticks || []),
       ...(rangeCandlesticks || []),
     ];
@@ -1204,7 +1197,6 @@ async function getIntradayCandlesticks(
   }
 }
 
-// 主函数
 async function main(): Promise<void> {
   // 配置优先级（从高到低）：
   // 1. 命令行参数（process.argv[2], process.argv[3]）- 最高优先级，最灵活
@@ -1257,7 +1249,6 @@ async function main(): Promise<void> {
   await getIntradayCandlesticks(symbol, dateRangeStr);
 }
 
-// 运行主函数
 try {
   await main();
 } catch (error:unknown) {

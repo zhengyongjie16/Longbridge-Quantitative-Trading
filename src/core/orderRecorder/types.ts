@@ -7,26 +7,14 @@
  * - 依赖类型：各服务的依赖注入类型
  */
 
-import type { OrderSide, OrderStatus, OrderType, TradeContext } from 'longport';
-import type { DecimalLikeValue, PendingOrder, OrderRecord, FetchOrdersResult, Quote, RateLimiter } from '../../types/index.js';
-
-/**
- * API 返回的原始订单类型
- * 用于从 LongPort API 接收订单数据时的类型安全转换
- */
-export type RawOrderFromAPI = {
-  readonly orderId: string;
-  readonly symbol: string;
-  readonly side: OrderSide;
-  readonly status: OrderStatus;
-  readonly orderType: OrderType;
-  readonly price: DecimalLikeValue;
-  readonly quantity: DecimalLikeValue;
-  readonly executedPrice: DecimalLikeValue;
-  readonly executedQuantity: DecimalLikeValue;
-  readonly submittedAt?: Date;
-  readonly updatedAt?: Date;
-};
+import type { TradeContext } from 'longport';
+import type {
+  PendingOrder,
+  OrderRecord,
+  Quote,
+  RateLimiter,
+  RawOrderFromAPI,
+} from '../../types/index.js';
 
 /**
  * 订单缓存类型
@@ -37,6 +25,15 @@ export type OrderCache = {
   readonly sellOrders: ReadonlyArray<OrderRecord>;
   readonly allOrders: ReadonlyArray<RawOrderFromAPI> | null;
   readonly fetchTime: number;
+};
+
+/**
+ * 订单归属解析结果
+ * 用于标记订单对应的监控标的与方向
+ */
+export type OrderOwnership = {
+  readonly monitorSymbol: string;
+  readonly direction: 'LONG' | 'SHORT';
 };
 
 /**
@@ -66,9 +63,9 @@ export type FilteringState = {
  * 提供订单的本地存储管理功能
  */
 export interface OrderStorage {
-  getBuyOrdersList(symbol: string, isLongSymbol: boolean): OrderRecord[];
-  setBuyOrdersListForLong(symbol: string, newList: OrderRecord[]): void;
-  setBuyOrdersListForShort(symbol: string, newList: OrderRecord[]): void;
+  getBuyOrdersList(symbol: string, isLongSymbol: boolean): ReadonlyArray<OrderRecord>;
+  setBuyOrdersListForLong(symbol: string, newList: ReadonlyArray<OrderRecord>): void;
+  setBuyOrdersListForShort(symbol: string, newList: ReadonlyArray<OrderRecord>): void;
   addBuyOrder(
     symbol: string,
     executedPrice: number,
@@ -76,13 +73,25 @@ export interface OrderStorage {
     isLongSymbol: boolean,
     executedTimeMs: number,
   ): void;
-  updateAfterSell(symbol: string, executedPrice: number, executedQuantity: number, isLongSymbol: boolean): void;
+  updateAfterSell(
+    symbol: string,
+    executedPrice: number,
+    executedQuantity: number,
+    isLongSymbol: boolean,
+    executedTimeMs: number,
+    orderId?: string | null,
+  ): void;
   clearBuyOrders(symbol: string, isLongSymbol: boolean, quote?: Quote | null): void;
   getLatestBuyOrderPrice(symbol: string, isLongSymbol: boolean): number | null;
-  getBuyOrdersBelowPrice(currentPrice: number, direction: 'LONG' | 'SHORT', symbol: string): OrderRecord[];
-  calculateTotalQuantity(orders: OrderRecord[]): number;
-  getLongBuyOrders(): OrderRecord[];
-  getShortBuyOrders(): OrderRecord[];
+  getLatestSellRecord(symbol: string, isLongSymbol: boolean): OrderRecord | null;
+  getBuyOrdersBelowPrice(
+    currentPrice: number,
+    direction: 'LONG' | 'SHORT',
+    symbol: string,
+  ): ReadonlyArray<OrderRecord>;
+  calculateTotalQuantity(orders: ReadonlyArray<OrderRecord>): number;
+  getLongBuyOrders(): ReadonlyArray<OrderRecord>;
+  getShortBuyOrders(): ReadonlyArray<OrderRecord>;
 }
 
 /**
@@ -98,7 +107,14 @@ export interface OrderFilteringEngine {
  * 负责从 LongPort API 获取订单并管理缓存
  */
 export interface OrderAPIManager {
-  fetchOrdersFromAPI(symbol: string): Promise<FetchOrdersResult>;
+  fetchAllOrdersFromAPI(forceRefresh?: boolean): Promise<ReadonlyArray<RawOrderFromAPI>>;
+  cacheOrdersForSymbol(
+    symbol: string,
+    buyOrders: ReadonlyArray<OrderRecord>,
+    sellOrders: ReadonlyArray<OrderRecord>,
+    allOrders: ReadonlyArray<RawOrderFromAPI>,
+  ): void;
+  clearCacheForSymbol(symbol: string): void;
   hasCacheForSymbols(symbols: string[]): boolean;
   getPendingOrdersFromCache(symbols: string[]): PendingOrder[];
 }
@@ -123,11 +139,13 @@ export type OrderAPIManagerDeps = {
 
 /**
  * 订单记录器依赖类型
- * @property ctxPromise - LongPort 交易上下文
- * @property rateLimiter - API 限流器（控制 Trade API 调用频率）
+ * @property storage - 订单存储器
+ * @property apiManager - 订单API管理器
+ * @property filteringEngine - 订单过滤引擎
  */
 export type OrderRecorderDeps = {
-  readonly ctxPromise: Promise<TradeContext>;
-  readonly rateLimiter: RateLimiter;
+  readonly storage: OrderStorage;
+  readonly apiManager: OrderAPIManager;
+  readonly filteringEngine: OrderFilteringEngine;
 };
 
