@@ -285,7 +285,7 @@ export async function createMarketDataClient(
       subscribedSymbols.add(quoteSymbol);
     }
 
-    await withRetry(() => ctx.subscribe(newSymbols, [SubType.Quote], true));
+    await withRetry(() => ctx.subscribe(newSymbols, [SubType.Quote]));
     state.isConnected = true;
     state.lastUpdateTime = Date.now();
     logger.info(`[行情订阅] 新增订阅 ${newSymbols.length} 个标的`);
