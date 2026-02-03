@@ -46,6 +46,16 @@ test('parseOrderOwnership resolves direction with separator between alias and RP
   assert.equal(result, 'SHORT');
 });
 
+test('parseOrderOwnership resolves direction using bull/bear markers', () => {
+  const parseWithMapping = parseOrderOwnership as unknown as (
+    stockName: string | null | undefined,
+    mapping: ReadonlyArray<string>,
+  ) => 'LONG' | 'SHORT' | null;
+
+  const result = parseWithMapping(`HSI\u725b\u8bc1`, ['HSI']);
+  assert.equal(result, 'LONG');
+});
+
 test('resolveOrderOwnership matches monitor by mapping', () => {
   const monitors = [
     { monitorSymbol: '9988.HK', orderOwnershipMapping: ['ALIBA'] },
@@ -55,6 +65,25 @@ test('resolveOrderOwnership matches monitor by mapping', () => {
   const result = resolveOrderOwnership(order, monitors);
   assert.equal(result?.monitorSymbol, '9988.HK');
   assert.equal(result?.direction, 'SHORT');
+});
+
+test('resolveOrderOwnership returns null when mapping missing (single monitor)', () => {
+  const monitors = [
+    { monitorSymbol: 'HSI.HK', orderOwnershipMapping: ['HSI'] },
+  ];
+  const order = createRawOrder({ stockName: `\u6052\u6307\u718a\u8bc1` });
+  const result = resolveOrderOwnership(order, monitors);
+  assert.equal(result, null);
+});
+
+test('resolveOrderOwnership skips fallback for multiple monitors', () => {
+  const monitors = [
+    { monitorSymbol: 'HSI.HK', orderOwnershipMapping: ['HSI'] },
+    { monitorSymbol: '9988.HK', orderOwnershipMapping: ['ALIBA'] },
+  ];
+  const order = createRawOrder({ stockName: `\u6052\u6307\u718a\u8bc1` });
+  const result = resolveOrderOwnership(order, monitors);
+  assert.equal(result, null);
 });
 
 test('getLatestTradedSymbol uses mapping to pick latest fill', () => {

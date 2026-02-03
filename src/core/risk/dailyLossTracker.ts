@@ -4,6 +4,7 @@
  * - 基于当日成交订单与过滤算法计算未平仓买入成本
  */
 import { OrderSide, OrderStatus } from 'longport';
+import { logger } from '../../utils/logger/index.js';
 import type { MonitorConfig, OrderRecord, RawOrderFromAPI } from '../../types/index.js';
 import type {
   DailyLossFilledOrderInput,
@@ -11,7 +12,7 @@ import type {
   DailyLossTracker,
   DailyLossTrackerDeps,
 } from './types.js';
-import { resolveBeijingDayKey, sumOrderCost } from './utils.js';
+import { collectOrderOwnershipDiagnostics, resolveBeijingDayKey, sumOrderCost } from './utils.js';
 
 /**
  * 构建空状态，避免分支重复初始化。
@@ -26,19 +27,27 @@ function createEmptyState(): DailyLossState {
 
 /**
  * 计算当日盈亏偏移：
- * totalSell - totalBuy
- * 正值表示当日盈利（卖出收入 > 买入成本），负值表示当日亏损。
+ * realizedPnL = totalSell - (totalBuy - openBuyCost)
+ * 正值表示当日盈利，负值表示当日亏损。
  */
 function calculateLossOffsetFromRecords(
   buyOrders: ReadonlyArray<OrderRecord>,
   sellOrders: ReadonlyArray<OrderRecord>,
+  filteringEngine: DailyLossTrackerDeps['filteringEngine'],
 ): number {
   if (buyOrders.length === 0 && sellOrders.length === 0) {
     return 0;
   }
   const totalBuy = sumOrderCost(buyOrders);
   const totalSell = sumOrderCost(sellOrders);
-  return totalSell - totalBuy;
+  if (totalBuy === 0 && totalSell === 0) {
+    return 0;
+  }
+  const openBuyOrders = buyOrders.length > 0
+    ? filteringEngine.applyFilteringAlgorithm([...buyOrders], [...sellOrders])
+    : [];
+  const openBuyCost = sumOrderCost(openBuyOrders);
+  return totalSell - totalBuy + openBuyCost;
 }
 
 /**
@@ -49,7 +58,11 @@ function buildStateFromOrders(
   deps: Pick<DailyLossTrackerDeps, 'filteringEngine' | 'classifyAndConvertOrders'>,
 ): DailyLossState {
   const { buyOrders, sellOrders } = deps.classifyAndConvertOrders(orders);
-  const dailyLossOffset = calculateLossOffsetFromRecords(buyOrders, sellOrders);
+  const dailyLossOffset = calculateLossOffsetFromRecords(
+    buyOrders,
+    sellOrders,
+    deps.filteringEngine,
+  );
   return {
     buyOrders,
     sellOrders,
@@ -149,6 +162,24 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
       grouped.set(ownership.monitorSymbol, existing);
     }
 
+    const diagnostics = collectOrderOwnershipDiagnostics({
+      orders: allOrders,
+      monitors,
+      now,
+      resolveOrderOwnership: deps.resolveOrderOwnership,
+      toBeijingTimeIso: deps.toBeijingTimeIso,
+      maxSamples: 3,
+    });
+    if (diagnostics && diagnostics.unmatchedFilled > 0) {
+      const sampleText = diagnostics.unmatchedSamples
+        .map((sample) => `${sample.symbol}:${sample.stockName}`)
+        .join(' | ');
+      logger.warn(
+        `[日内亏损追踪] 未归属订单: 当日成交${diagnostics.inDayFilled}笔, ` +
+          `未归属${diagnostics.unmatchedFilled}笔, 样例=${sampleText}`,
+      );
+    }
+
     for (const monitor of monitors) {
       const group = grouped.get(monitor.monitorSymbol);
       const longState = group
@@ -206,7 +237,11 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
     const nextState: DailyLossState = {
       buyOrders: nextBuyOrders,
       sellOrders: nextSellOrders,
-      dailyLossOffset: calculateLossOffsetFromRecords(nextBuyOrders, nextSellOrders),
+      dailyLossOffset: calculateLossOffsetFromRecords(
+        nextBuyOrders,
+        nextSellOrders,
+        deps.filteringEngine,
+      ),
     };
 
     if (input.isLongSymbol) {

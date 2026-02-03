@@ -117,21 +117,13 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
       // 使用 formatSymbolDisplayFromQuote 格式化标的显示
       const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
 
-      if (normalizedOffset !== 0) {
-        logger.info(
-          `[浮亏监控] ${positionType} ${symbolDisplay}: ` +
-            `R1(开仓成本)=${baseR1.toFixed(2)} HKD, ` +
-            `当日偏移=${normalizedOffset.toFixed(2)} HKD, ` +
-            `调整后R1(开仓成本)=${adjustedR1.toFixed(2)} HKD, ` +
-            `N1(持仓数量)=${n1}, 未平仓订单数=${buyOrders.length}`,
-        );
-      } else {
-        logger.info(
-          `[浮亏监控] ${positionType} ${symbolDisplay}: R1(开仓成本)=${baseR1.toFixed(
-            2,
-          )} HKD, N1(持仓数量)=${n1}, 未平仓订单数=${buyOrders.length}`,
-        );
-      }
+      logger.info(
+        `[浮亏监控] ${positionType} ${symbolDisplay}: ` +
+          `R1(开仓成本)=${baseR1.toFixed(2)} HKD, ` +
+          `当日偏移=${normalizedOffset.toFixed(2)} HKD, ` +
+          `调整后R1(开仓成本)=${adjustedR1.toFixed(2)} HKD, ` +
+          `N1(持仓数量)=${n1}, 未平仓订单数=${buyOrders.length}`,
+      );
 
       return { r1: adjustedR1, n1 };
     } catch (error) {

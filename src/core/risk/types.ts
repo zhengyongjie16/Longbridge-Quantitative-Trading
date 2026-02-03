@@ -144,6 +144,20 @@ export type DailyLossState = {
   readonly dailyLossOffset: number;
 };
 
+export type OrderOwnershipDiagnosticSample = {
+  readonly orderId: string;
+  readonly symbol: string;
+  readonly stockName: string;
+};
+
+export type OrderOwnershipDiagnostics = {
+  readonly dayKey: string;
+  readonly totalFilled: number;
+  readonly inDayFilled: number;
+  readonly unmatchedFilled: number;
+  readonly unmatchedSamples: ReadonlyArray<OrderOwnershipDiagnosticSample>;
+};
+
 export type DailyLossFilledOrderInput = {
   readonly monitorSymbol: string;
   readonly symbol: string;

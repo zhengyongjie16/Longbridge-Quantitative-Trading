@@ -7,14 +7,32 @@ import { OrderStatus } from 'longport';
 import type { MonitorConfig, RawOrderFromAPI } from '../../types/index.js';
 import type { OrderOwnership } from './types.js';
 
+const NORMALIZE_PATTERN = /[^\p{L}\p{N}]/gu;
+const LONG_MARKERS = ['RC', 'BULL', 'CALL', '\u725b'];
+const SHORT_MARKERS = ['RP', 'BEAR', 'PUT', '\u718a'];
+
 // 订单名称统一转大写并去除非字母字符，避免大小写与分隔符导致误判
 function normalizeStockName(stockName: string): string {
-  return stockName.trim().toUpperCase().replace(/[^A-Z]/g, '');
+  return stockName.trim().toUpperCase().replace(NORMALIZE_PATTERN, '');
 }
 
 // 归属缩写统一转大写并去除非字母字符，避免大小写与分隔符导致误判
 function normalizeOwnershipAlias(alias: string): string {
-  return alias.trim().toUpperCase().replace(/[^A-Z]/g, '');
+  return alias.trim().toUpperCase().replace(NORMALIZE_PATTERN, '');
+}
+
+function resolveDirectionFromNormalizedName(
+  normalizedStockName: string,
+): 'LONG' | 'SHORT' | null {
+  const hasLongMarker = LONG_MARKERS.some((marker) => normalizedStockName.includes(marker));
+  const hasShortMarker = SHORT_MARKERS.some((marker) => normalizedStockName.includes(marker));
+  if (hasLongMarker && !hasShortMarker) {
+    return 'LONG';
+  }
+  if (hasShortMarker && !hasLongMarker) {
+    return 'SHORT';
+  }
+  return null;
 }
 
 /**
@@ -35,18 +53,18 @@ export function parseOrderOwnership(
   }
 
   const normalizedStockName = normalizeStockName(stockName);
+  const direction = resolveDirectionFromNormalizedName(normalizedStockName);
+  if (!direction) {
+    return null;
+  }
+
   for (const alias of orderOwnershipMapping) {
     const normalizedAlias = normalizeOwnershipAlias(alias);
     if (!normalizedAlias) {
       continue;
     }
-    const hasRC = normalizedStockName.includes(`${normalizedAlias}RC`);
-    const hasRP = normalizedStockName.includes(`${normalizedAlias}RP`);
-    if (hasRC && !hasRP) {
-      return 'LONG';
-    }
-    if (hasRP && !hasRC) {
-      return 'SHORT';
+    if (normalizedStockName.includes(normalizedAlias)) {
+      return direction;
     }
   }
 

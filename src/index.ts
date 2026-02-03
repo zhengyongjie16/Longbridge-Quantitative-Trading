@@ -115,7 +115,7 @@ dotenv.config({ path: '.env.local' });
 async function main(): Promise<void> {
   // 启动画面
   getSprintSacreMooacreMoo();
-  // 首先验证配置，并获取标的的中文名称
+  // 解析配置并创建席位注册表
   const env = process.env;
   const tradingConfig = createMultiMonitorTradingConfig({ env });
   const symbolRegistry = createSymbolRegistry(tradingConfig.monitors);
@@ -143,10 +143,8 @@ async function main(): Promise<void> {
   const runMode = resolveRunMode(env);
   const gatePolicies = resolveGatePolicies(runMode);
 
-  /**
-   * 解析监控标的对应的做多/做空席位标的代码。
-   * 仅返回已就绪（Ready）状态的席位标的，未就绪时返回 null。
-   */
+  // 解析监控标的对应的做多/做空席位标的代码。
+  // 仅返回已就绪（Ready）状态的席位标的，未就绪时返回 null。
   function resolveSeatSymbols(
     monitorSymbol: string,
   ): { longSeatSymbol: string | null; shortSeatSymbol: string | null } {
@@ -159,9 +157,7 @@ async function main(): Promise<void> {
   let cachedTradingDayInfo: { dateStr: string; info: { isTradingDay: boolean; isHalfDay: boolean } } | null =
     null;
 
-  /**
-   * 获取交易日信息并按日期缓存，避免频繁调用 API。
-   */
+  // 获取交易日信息并按日期缓存，避免频繁调用 API。
   async function resolveTradingDayInfo(currentTime: Date): Promise<{ isTradingDay: boolean; isHalfDay: boolean }> {
     const dateStr = currentTime.toISOString().slice(0, 10);
     if (cachedTradingDayInfo?.dateStr === dateStr) {
@@ -179,6 +175,7 @@ async function main(): Promise<void> {
     }
   }
 
+  // 启动门控：按交易日/时段/开盘保护决定是否等待启动
   const startupGate = createStartupGate({
     now: () => new Date(),
     sleep,
@@ -190,10 +187,13 @@ async function main(): Promise<void> {
     logger,
   });
 
+  // 等待门控完成并拿到交易日信息
   const startupTradingDayInfo = await startupGate.wait({ mode: gatePolicies.startupGate });
 
+  // 清仓冷却追踪器：用于买入冷却判断
   const liquidationCooldownTracker = createLiquidationCooldownTracker({ nowMs: () => Date.now() });
 
+  // 日内亏损跟踪器：基于订单记录计算与过滤
   const dailyLossFilteringEngine = createOrderFilteringEngine();
   const dailyLossTracker = createDailyLossTracker({
     filteringEngine: dailyLossFilteringEngine,
@@ -202,8 +202,10 @@ async function main(): Promise<void> {
     toBeijingTimeIso,
   });
 
+  // 刷新门控：控制刷新节奏，避免频繁重算
   const refreshGate = createRefreshGate();
 
+  // 交易器实例（注入核心依赖）
   const trader = await createTrader({
     config,
     tradingConfig,
@@ -223,15 +225,18 @@ async function main(): Promise<void> {
     currentDayKey: getHKDateKey(new Date()),
     cachedAccount: null,
     cachedPositions: [],
-    positionCache: createPositionCache(), // 初始化持仓缓存（O(1) 查找）
-    cachedTradingDayInfo: startupTradingDayInfo, // 缓存的交易日信息 { isTradingDay, isHalfDay }
+    // 初始化持仓缓存（O(1) 查找）
+    positionCache: createPositionCache(),
+    // 缓存的交易日信息 { isTradingDay, isHalfDay }
+    cachedTradingDayInfo: startupTradingDayInfo,
     monitorStates: new Map(
       tradingConfig.monitors.map((monitorConfig) => [
         monitorConfig.monitorSymbol,
         initMonitorState(monitorConfig),
       ]),
     ),
-    allTradingSymbols: new Set(), // 启动完成后再填充
+    // 启动完成后再填充
+    allTradingSymbols: new Set(),
   };
 
   // 程序启动时立即获取一次账户和持仓信息
@@ -251,16 +256,20 @@ async function main(): Promise<void> {
 
   logger.info('账户和持仓信息获取成功，开始解析席位');
 
+  // 拉取全量订单用于初始化订单记录与日内亏损追踪
   let allOrders: ReadonlyArray<RawOrderFromAPI> = [];
   try {
     allOrders = await trader._orderRecorder.fetchAllOrdersFromAPI();
   } catch (err) {
     logger.warn('[全量订单获取失败] 将按空订单继续初始化', formatError(err));
   }
+  // 记录挂单标的，供后续订阅行情使用
   trader.seedOrderHoldSymbols(allOrders);
+  // 基于全量订单初始化日内亏损追踪
   dailyLossTracker.initializeFromOrders(allOrders, tradingConfig.monitors, new Date());
 
   const positionsSnapshot = lastState.cachedPositions ?? [];
+  // 结合持仓与订单初始化席位（含自动寻标预处理）
   const seatResult = await prepareSeatsOnStartup({
     tradingConfig,
     symbolRegistry,
@@ -276,6 +285,7 @@ async function main(): Promise<void> {
     warrantListCacheConfig,
   });
 
+  // 交易日志回放器：用于恢复清仓冷却相关状态
   const tradeLogHydrator = createTradeLogHydrator({
     readFileSync: fs.readFileSync,
     existsSync: fs.existsSync,
@@ -286,6 +296,7 @@ async function main(): Promise<void> {
     liquidationCooldownTracker,
   });
 
+  // 回放交易日志，恢复清仓冷却状态
   tradeLogHydrator.hydrate({ seatSymbols: seatResult.seatSymbols });
 
   // 初始化核心模块实例
@@ -331,9 +342,7 @@ async function main(): Promise<void> {
   }> = [];
   const requiredSymbols = new Set<string>();
 
-  /**
-   * 记录运行时行情验证所需标的（必选/可选）。
-   */
+  // 记录运行时行情验证所需标的（必选/可选）。
   function pushSymbol(
     symbol: string | null,
     label: string,
@@ -354,6 +363,7 @@ async function main(): Promise<void> {
     });
   }
 
+  // 收集监控标的与席位标的，作为运行时行情校验输入
   for (const monitorConfig of tradingConfig.monitors) {
     const index = monitorConfig.originalIndex;
     pushSymbol(monitorConfig.monitorSymbol, `监控标的 ${index}`, false, true);
@@ -363,10 +373,12 @@ async function main(): Promise<void> {
     pushSymbol(shortSeatSymbol, `做空席位标的 ${index}`, true, true);
   }
 
+  // 持仓标的只做可选校验（失败仅警告）
   for (const position of lastState.cachedPositions) {
     pushSymbol(position.symbol, '持仓标的', false, false);
   }
 
+  // 根据行情缓存验证标的有效性与交易所需信息
   const runtimeValidationResult = validateRuntimeSymbolsFromQuotesMap({
     inputs: runtimeValidationInputs,
     quotesMap: initQuotesMap,
@@ -389,8 +401,10 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // 启动后输出账户与持仓概览
   await displayAccountAndPositions({ lastState, quotesMap: initQuotesMap });
 
+  // 构建每个监控标的的运行上下文与依赖模块
   const monitorContexts: Map<string, MonitorContext> = new Map();
   for (const monitorConfig of tradingConfig.monitors) {
     const monitorState = lastState.monitorStates.get(monitorConfig.monitorSymbol);
@@ -403,6 +417,7 @@ async function main(): Promise<void> {
       continue;
     }
 
+    // 初始化风控、自动寻标、策略、浮亏与延迟验证组件
     const riskChecker = createRiskChecker({
       options: {
         maxDailyLoss: monitorConfig.maxDailyLoss,
@@ -411,6 +426,7 @@ async function main(): Promise<void> {
       },
     });
 
+    // 自动寻标管理器：负责席位寻标/换标流程
     const autoSymbolManager = createAutoSymbolManager({
       monitorConfig,
       symbolRegistry,
@@ -421,20 +437,24 @@ async function main(): Promise<void> {
       warrantListCacheConfig,
     });
 
+    // 策略模块：生成交易信号
     const strategy = createHangSengMultiIndicatorStrategy({
       signalConfig: monitorConfig.signalConfig,
       verificationConfig: monitorConfig.verificationConfig,
     });
 
+    // 浮亏监控器：监控单标的浮亏
     const unrealizedLossMonitor = createUnrealizedLossMonitor({
       maxUnrealizedLossPerSymbol: monitorConfig.maxUnrealizedLossPerSymbol ?? 0,
     });
 
+    // 延迟验证器：用于延迟信号验证
     const delayedSignalVerifier = createDelayedSignalVerifier({
       indicatorCache,
       verificationConfig: monitorConfig.verificationConfig,
     });
 
+    // 构建监控上下文，聚合配置、状态与依赖
     const context = createMonitorContext({
       config: monitorConfig,
       state: monitorState,
@@ -450,9 +470,8 @@ async function main(): Promise<void> {
     });
     monitorContexts.set(monitorConfig.monitorSymbol, context);
 
-    /**
-     * 初始化席位牛熊证信息，供风险检查器使用。
-     */
+
+    // 初始化席位牛熊证信息，供风险检查器使用。
     async function refreshSeatWarrantInfo(
       symbol: string | null,
       isLongSymbol: boolean,
@@ -634,10 +653,9 @@ async function main(): Promise<void> {
     logger.debug(`[DelayedSignalVerifier] 监控标的 ${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)} 的验证器已初始化`);
   }
 
-  /**
-   * 清理指定监控标的和方向的所有待执行任务队列。
-   * 用于自动换标时清理旧标的的延迟信号、买卖任务和监控任务。
-   */
+
+  // 清理指定监控标的和方向的所有待执行任务队列。
+  // 用于自动换标时清理旧标的的延迟信号、买卖任务和监控任务。
   function clearQueuesForDirection(monitorSymbol: string, direction: 'LONG' | 'SHORT'): void {
     const monitorContext = monitorContexts.get(monitorSymbol);
     if (!monitorContext) {
@@ -664,10 +682,12 @@ async function main(): Promise<void> {
     }
   }
 
+  // 订单监控工作器：负责盯单与自动调整订单
   const orderMonitorWorker = createOrderMonitorWorker({
     monitorAndManageOrders: (quotesMap) => trader.monitorAndManageOrders(quotesMap),
   });
 
+  // 交易后刷新器：统一刷新账户/持仓/浮亏并展示
   const postTradeRefresher = createPostTradeRefresher({
     refreshGate,
     trader,
@@ -676,6 +696,7 @@ async function main(): Promise<void> {
     displayAccountAndPositions,
   });
 
+  // 监控任务处理器：处理寻标/换标等监控任务
   const monitorTaskProcessor = createMonitorTaskProcessor({
     monitorTaskQueue,
     refreshGate,
