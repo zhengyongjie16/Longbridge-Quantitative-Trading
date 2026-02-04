@@ -54,9 +54,6 @@
     "dist",
     "logs",
     "src/utils/**",
-    "tests",
-    "**/*.test.ts",
-    "**/*.spec.ts",
     ".claude"
   ]
 }

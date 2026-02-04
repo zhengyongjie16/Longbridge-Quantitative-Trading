@@ -19,13 +19,8 @@ logs/
 .DS_Store
 Thumbs.db
 
-# Test files
-coverage/
-.nyc_output/
-
 # Build output
 dist/
-dist-test/
 build/
 
 # Git worktrees
