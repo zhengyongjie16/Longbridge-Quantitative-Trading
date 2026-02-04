@@ -40,7 +40,7 @@ function resolveDirectionFromNormalizedName(
  * - stockName 需包含归属缩写（来自配置映射）
  * - RC 表示牛证(做多)，RP 表示熊证(做空)
  */
-export function parseOrderOwnership(
+function parseOrderOwnership(
   stockName: string | null | undefined,
   orderOwnershipMapping: ReadonlyArray<string>,
 ): 'LONG' | 'SHORT' | null {

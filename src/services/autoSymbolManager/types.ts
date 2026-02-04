@@ -98,7 +98,7 @@ export type SwitchState = {
   awaitingQuote: boolean;
 };
 
-export type SwitchStage =
+type SwitchStage =
   | 'CANCEL_PENDING'
   | 'SELL_OUT'
   | 'BIND_NEW'
@@ -121,17 +121,17 @@ export type AutoSymbolManager = {
   resetDailySwitchSuppression(): void;
 };
 
-export type SignalObjectPool = Pick<ObjectPool<PoolableSignal>, 'acquire' | 'release'>;
+type SignalObjectPool = Pick<ObjectPool<PoolableSignal>, 'acquire' | 'release'>;
 
-export type SwitchStateMap = Map<SeatDirection, SwitchState>;
+type SwitchStateMap = Map<SeatDirection, SwitchState>;
 
-export type SwitchSuppressionMap = Map<SeatDirection, SwitchSuppression>;
+type SwitchSuppressionMap = Map<SeatDirection, SwitchSuppression>;
 
-export type TradingMinutesResolver = (date: Date | null | undefined) => number;
+type TradingMinutesResolver = (date: Date | null | undefined) => number;
 
-export type HKDateKeyResolver = (date: Date | null | undefined) => string | null;
+type HKDateKeyResolver = (date: Date | null | undefined) => string | null;
 
-export type MorningOpenProtectionChecker = (
+type MorningOpenProtectionChecker = (
   date: Date | null | undefined,
   minutes: number,
 ) => boolean;
@@ -231,7 +231,7 @@ export type SeatStateManager = {
   resetDailySwitchSuppression(): void;
 };
 
-export type FindBestWarrant = (input: FindBestWarrantInput) => Promise<WarrantCandidate | null>;
+type FindBestWarrant = (input: FindBestWarrantInput) => Promise<WarrantCandidate | null>;
 
 export type AutoSearchDeps = {
   readonly autoSearchConfig: AutoSearchConfig;

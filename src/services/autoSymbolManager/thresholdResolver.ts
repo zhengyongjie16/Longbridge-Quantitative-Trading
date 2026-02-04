@@ -39,7 +39,7 @@ export function resolveAutoSearchThresholds(
   };
 }
 
-export function resolveAutoSearchThresholdInput(
+function resolveAutoSearchThresholdInput(
   params: ResolveAutoSearchThresholdInputParams,
 ): Readonly<{
   minPrice: number;
@@ -57,7 +57,7 @@ export function resolveAutoSearchThresholdInput(
   return { minPrice, minTurnoverPerMinute } as const;
 }
 
-export async function buildFindBestWarrantInput(
+async function buildFindBestWarrantInput(
   params: BuildFindBestWarrantInputParams,
 ): Promise<FindBestWarrantInput> {
   const {
