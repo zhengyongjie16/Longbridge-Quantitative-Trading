@@ -5,7 +5,6 @@
  * - 从静态信息中提取交易单位（extractLotSize）
  * - 从静态信息中提取标的名称（extractName）
  */
-
 import type { StaticInfo } from './types.js';
 
 /**

@@ -1,7 +1,6 @@
 /**
  * 测试4: JSON 解析性能测试
  */
-
 import { getRuntime, getVersion, measure, printResult, printHeader } from './utils.js';
 
 printHeader(`JSON 解析性能测试 - ${getRuntime()} ${getVersion()}`);

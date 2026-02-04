@@ -7,7 +7,6 @@
  * - 各子检查器服务接口
  * - 依赖注入类型
  */
-
 import type {
   Position,
   Signal,

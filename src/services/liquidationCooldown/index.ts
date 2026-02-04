@@ -3,7 +3,6 @@
  *
  * 记录保护性清仓成交时间，并计算剩余冷却时间。
  */
-
 import type {
   GetRemainingMsParams,
   LiquidationCooldownTracker,

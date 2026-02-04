@@ -4,7 +4,6 @@
  * 延迟信号验证器使用 setTimeout 自行计时，在信号触发后延迟一段时间
  * 验证指标趋势是否持续，确保信号的有效性。
  */
-
 import type { Signal, VerificationConfig } from '../../../types/index.js';
 import type { IndicatorCache } from '../indicatorCache/types.js';
 

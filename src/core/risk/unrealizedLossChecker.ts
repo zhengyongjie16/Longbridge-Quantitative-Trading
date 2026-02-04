@@ -7,7 +7,6 @@
  * - R2 = 当前市值（当前价格 × N1）
  * - 浮亏 = R2 - R1（负值表示亏损）
  */
-
 import { logger } from '../../utils/logger/index.js';
 import { isValidPositiveNumber, getDirectionName, formatSymbolDisplayFromQuote } from '../../utils/helpers/index.js';
 import type { OrderRecorder, UnrealizedLossData, UnrealizedLossCheckResult, Quote } from '../../types/index.js';

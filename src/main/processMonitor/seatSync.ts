@@ -2,7 +2,6 @@
  * @module processMonitor/seatSync
  * @description 席位同步/队列清理/SEAT_REFRESH 调度
  */
-
 import { logger } from '../../utils/logger/index.js';
 import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
 import { clearQueuesForDirection as clearQueuesForDirectionUtil } from './utils.js';

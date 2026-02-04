@@ -15,7 +15,6 @@
  * - delayedSignalVerifier：延迟信号验证器
  * - 缓存的标的名称和指标周期
  */
-
 import { isSeatReady } from '../autoSymbolManager/utils.js';
 import type {
   MonitorContext,

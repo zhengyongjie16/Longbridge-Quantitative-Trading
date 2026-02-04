@@ -3,7 +3,6 @@
  * - 按监控标的与方向累计已实现亏损偏移
  * - 基于当日成交订单与过滤算法计算未平仓买入成本
  */
-
 import { OrderSide, OrderStatus } from 'longport';
 import { logger } from '../../utils/logger/index.js';
 import type { MonitorConfig, OrderRecord, RawOrderFromAPI } from '../../types/index.js';

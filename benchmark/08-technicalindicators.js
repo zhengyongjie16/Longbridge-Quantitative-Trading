@@ -1,7 +1,6 @@
 /**
  * 测试8: 使用项目实际依赖的 technicalindicators 库测试
  */
-
 import { getRuntime, getVersion, measure, printResult, printHeader } from './utils.js';
 
 // 动态导入 technicalindicators

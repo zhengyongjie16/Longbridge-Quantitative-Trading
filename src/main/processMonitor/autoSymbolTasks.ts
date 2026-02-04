@@ -2,7 +2,6 @@
  * @module processMonitor/autoSymbolTasks
  * @description AUTO_SYMBOL 任务调度
  */
-
 import type { AutoSymbolTasksParams } from './types.js';
 
 export function scheduleAutoSymbolTasks(params: AutoSymbolTasksParams): void {

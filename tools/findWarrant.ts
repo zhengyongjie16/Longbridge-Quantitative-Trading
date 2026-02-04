@@ -23,7 +23,6 @@
  * - MONITOR_SYMBOL：监控标的代码
  * - 可在文件中修改筛选参数
  */
-
 import {
   QuoteContext,
   Period,

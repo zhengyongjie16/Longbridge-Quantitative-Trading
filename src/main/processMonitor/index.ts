@@ -21,7 +21,6 @@
  * - 立即买入信号 → BuyTaskQueue
  * - 延迟验证信号 → DelayedSignalVerifier
  */
-
 import { MONITOR } from '../../constants/index.js';
 import { positionObjectPool, signalObjectPool } from '../../utils/objectPool/index.js';
 import { scheduleAutoSymbolTasks } from './autoSymbolTasks.js';

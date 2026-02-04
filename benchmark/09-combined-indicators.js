@@ -2,7 +2,6 @@
  * 测试9: 组合指标计算性能测试（使用 technicalindicators 库）
  * 模拟实际交易场景：一次计算多个指标
  */
-
 import { getRuntime, getVersion, measure, printResult, printHeader } from './utils.js';
 
 let RSI, MACD, EMA, Stochastic, MFI;

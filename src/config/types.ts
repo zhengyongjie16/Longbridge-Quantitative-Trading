@@ -3,7 +3,6 @@
  *
  * 仅 config 模块内部使用的类型，跨模块共用类型定义在 src/types/index.ts
  */
-
 import type { MonitorConfig } from '../types/index.js';
 
 /** LongPort API 区域端点 URL */

@@ -20,7 +20,6 @@
  * - release(obj)：将对象归还到池中
  * - releaseAll(objects)：批量释放对象数组
  */
-
 import type {
   Factory,
   Reset,

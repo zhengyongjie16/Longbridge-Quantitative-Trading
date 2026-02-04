@@ -14,7 +14,6 @@
  * - 做多/做空标的的现价和涨跌幅
  * - 监控标的的所有技术指标值
  */
-
 import { colors, logger } from '../../utils/logger/index.js';
 import {
   formatQuoteDisplay,

@@ -1,7 +1,6 @@
 /**
  * 测试6: 并发与异步性能测试
  */
-
 import { getRuntime, getVersion, measureAsync, printResult, printHeader } from './utils.js';
 
 printHeader(`并发与异步性能测试 - ${getRuntime()} ${getVersion()}`);

@@ -2,7 +2,6 @@
  * @module processMonitor/indicatorPipeline
  * @description 行情→K线→指标快照→缓存
  */
-
 import { buildIndicatorSnapshot } from '../../services/indicators/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { formatSymbolDisplay, releaseSnapshotObjects } from '../../utils/helpers/index.js';

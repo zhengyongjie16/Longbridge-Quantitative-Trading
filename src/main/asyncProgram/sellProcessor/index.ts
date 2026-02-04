@@ -19,7 +19,6 @@
  * 4. 如果信号未被转为 HOLD，执行 trader.executeSignals()
  * 5. 释放信号对象到对象池
  */
-
 import { signalObjectPool } from '../../../utils/objectPool/index.js';
 import { logger } from '../../../utils/logger/index.js';
 import { formatError, formatSymbolDisplay } from '../../../utils/helpers/index.js';

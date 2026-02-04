@@ -10,7 +10,6 @@
  * - 监控相关：价格/指标变化检测阈值
  * - 信号相关：交易信号类型定义
  */
-
 import { OrderStatus } from 'longport';
 import type { OrderTypeConfig, SignalType } from '../types/index.js';
 

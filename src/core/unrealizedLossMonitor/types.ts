@@ -5,7 +5,6 @@
  * - UnrealizedLossMonitor：浮亏监控器接口
  * - UnrealizedLossMonitorDeps：浮亏监控器依赖（最大浮亏阈值）
  */
-
 import type { Quote, RiskChecker, Trader, OrderRecorder } from '../../types/index.js';
 import type { DailyLossTracker } from '../risk/types.js';
 

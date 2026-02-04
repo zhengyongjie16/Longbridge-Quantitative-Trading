@@ -5,7 +5,6 @@
  * - ProcessorStats: 处理器统计信息（买入/卖出处理器共用）
  * - BuyTaskQueue / SellTaskQueue: 任务队列类型别名
  */
-
 import type { BuyTaskType, SellTaskType, TaskQueue } from './tradeTaskQueue/types.js';
 
 /** 处理器统计信息（买入/卖出处理器共用） */

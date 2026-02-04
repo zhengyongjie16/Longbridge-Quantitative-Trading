@@ -22,7 +22,6 @@
  * - MACD：快线 EMA12、慢线 EMA26、信号线 EMA9
  * - EMA：支持多周期配置，范围 1-250
  */
-
 import { validateRsiPeriod, validateEmaPeriod, validatePsyPeriod } from '../../utils/helpers/indicatorHelpers.js';
 import { periodRecordPool } from '../../utils/objectPool/index.js';
 import { toNumber } from './utils.js';

@@ -4,7 +4,6 @@
  *
  * 提供持仓查询等辅助功能，与对象池配合使用
  */
-
 import { positionObjectPool } from '../../utils/objectPool/index.js';
 import type { Position, PositionCache, Signal } from '../../types/index.js';
 import type { DelayedSignalVerifier } from '../asyncProgram/delayedSignalVerifier/types.js';

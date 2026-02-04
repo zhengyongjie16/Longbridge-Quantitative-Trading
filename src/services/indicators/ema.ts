@@ -5,7 +5,6 @@
  * - 赋予近期数据更高权重，对价格变化更敏感
  * - 周期范围：1-250
  */
-
 import { EMA } from 'technicalindicators';
 import { logDebug } from './utils.js';
 

@@ -1,7 +1,6 @@
 /**
  * 清仓冷却模块工具函数
  */
-
 import { TIME } from '../../constants/index.js';
 import type { TradeRecord } from '../../core/trader/types.js';
 import type { SeatSymbolSnapshotEntry } from '../../types/index.js';

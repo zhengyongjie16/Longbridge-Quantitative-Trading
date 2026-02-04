@@ -19,7 +19,6 @@
  * - 智能平仓关闭：清空所有持仓
  * - 无符合条件订单：信号设为 HOLD
  */
-
 import { createRiskCheckPipeline } from './riskCheckPipeline.js';
 import { processSellSignals } from './sellQuantityCalculator.js';
 import type { SignalProcessor, SignalProcessorDeps } from './types.js';

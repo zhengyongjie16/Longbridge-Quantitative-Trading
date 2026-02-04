@@ -1,7 +1,6 @@
 /**
  * 行情监控模块独享的工具函数
  */
-
 import { isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
 import { DEFAULT_PERCENT_DECIMALS } from '../../constants/index.js';
 import type { ObjectPool } from '../../utils/objectPool/types.js';

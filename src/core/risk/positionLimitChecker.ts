@@ -6,7 +6,6 @@
  * - 现有持仓市值 + 下单金额不能超过限制
  * - 已有持仓时使用成本价计算市值
  */
-
 import type { Position, Signal, RiskCheckResult } from '../../types/index.js';
 import type { PositionLimitChecker, PositionLimitCheckerDeps } from './types.js';
 

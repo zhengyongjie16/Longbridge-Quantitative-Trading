@@ -8,7 +8,6 @@
  * - getLatestFromBuffer: 获取最新条目
  * - cloneIndicatorSnapshot: 深拷贝指标快照
  */
-
 import type { IndicatorSnapshot } from '../../../types/index.js';
 import type { IndicatorCacheEntry, _RingBuffer } from './types.js';
 

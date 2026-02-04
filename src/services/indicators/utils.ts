@@ -6,7 +6,6 @@
  * - 调试日志输出（logDebug）
  * - 对象池类型验证（isValidKDJ、isValidMACD）
  */
-
 import { logger } from '../../utils/logger/index.js';
 import type { CandleValue } from '../../types/index.js';
 import type { PoolableKDJ, PoolableMACD } from '../../utils/objectPool/types.js';

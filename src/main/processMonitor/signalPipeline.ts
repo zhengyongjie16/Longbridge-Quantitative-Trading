@@ -2,7 +2,6 @@
  * @module processMonitor/signalPipeline
  * @description 信号生成→席位校验→分流
  */
-
 import { logger } from '../../utils/logger/index.js';
 import { formatSignalLog, formatSymbolDisplay } from '../../utils/helpers/index.js';
 import { VALID_SIGNAL_ACTIONS } from '../../constants/index.js';

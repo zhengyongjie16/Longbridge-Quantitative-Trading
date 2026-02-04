@@ -18,7 +18,6 @@
  * - isBeforeClose15Minutes()：判断是否在收盘前15分钟（拒绝买入）
  * - isBeforeClose5Minutes()：判断是否在收盘前5分钟（自动清仓）
  */
-
 import type { HKTime } from './types.js';
 
 /**

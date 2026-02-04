@@ -7,7 +7,6 @@
  * 使用: node tests/getWarrants.js [标的代码] [bull|bear]
  * 示例: node tests/getWarrants.js HSI.HK bear
  */
-
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';

@@ -6,7 +6,6 @@
  * - EMA 平滑周期：5（用于平滑 RSV 得到 K，平滑 K 得到 D）
  * - J = 3K - 2D
  */
-
 import { EMA } from 'technicalindicators';
 import { kdjObjectPool } from '../../utils/objectPool/index.js';
 import { toNumber, logDebug, isValidKDJ } from './utils.js';

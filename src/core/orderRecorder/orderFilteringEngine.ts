@@ -22,7 +22,6 @@
  * - 时间间隔订单必须从原始候选订单获取，而非上一轮结果
  * - 当按价格过滤后保留数量仍超过应保留数量时，按价格从高到低贪心保留（订单不可拆分）
  */
-
 import type { OrderRecord } from '../../types/index.js';
 import type { FilteringState, OrderFilteringEngine, OrderFilteringEngineDeps } from './types.js';
 import { calculateTotalQuantity } from './utils.js';

@@ -14,7 +14,6 @@
  * - 验证时查询 IndicatorCache 获取 T0、T0+5s、T0+10s 的数据
  * - 时间容忍度为 ±5秒
  */
-
 import { logger } from '../../../utils/logger/index.js';
 import { signalObjectPool } from '../../../utils/objectPool/index.js';
 import { formatSymbolDisplay } from '../../../utils/helpers/index.js';

@@ -1,7 +1,6 @@
 /**
  * 测试7: 内存使用与GC性能测试
  */
-
 import { getRuntime, getVersion, measure, printResult, printHeader, formatBytes } from './utils.js';
 
 printHeader(`内存使用与GC性能测试 - ${getRuntime()} ${getVersion()}`);

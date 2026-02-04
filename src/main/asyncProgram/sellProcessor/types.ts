@@ -3,7 +3,6 @@
  *
  * 定义卖出处理器的接口契约和依赖注入类型
  */
-
 import type { MonitorContext, Trader, LastState } from '../../../types/index.js';
 import type { RefreshGate } from '../../../utils/refreshGate/types.js';
 import type { Processor, SellTaskQueue } from '../types.js';

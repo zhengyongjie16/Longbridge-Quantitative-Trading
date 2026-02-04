@@ -3,7 +3,6 @@
  *
  * 定义冷却追踪器所需的方向、入参和依赖类型。
  */
-
 import type {
   LiquidationCooldownConfig,
   MultiMonitorTradingConfig,

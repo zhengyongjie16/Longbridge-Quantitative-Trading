@@ -7,7 +7,6 @@
  * - 这样主循环可以安全地释放 kdj/macd 等对象池对象，不影响缓存数据
  * - 延迟验证器查询历史数据时，数据保持完整有效
  */
-
 import type { IndicatorSnapshot } from '../../../types/index.js';
 import type { IndicatorCache, IndicatorCacheEntry, IndicatorCacheOptions, _RingBuffer } from './types.js';
 import {

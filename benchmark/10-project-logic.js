@@ -8,7 +8,6 @@
  * 5. 对象池操作 (Object Pool)
  * 6. 主循环模拟 (Main Loop Simulation)
  */
-
 import { getRuntime, getVersion, measure, measureAsync, printResult, printHeader } from './utils.js';
 
 let RSI, MACD, EMA, Stochastic, MFI;

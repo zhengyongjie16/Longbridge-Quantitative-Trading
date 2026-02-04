@@ -7,7 +7,6 @@
  * - 牛证低于 0.5% 或熊证高于 -0.5% 时拒绝买入
  * - 牛熊证当前价格过低时拒绝买入
  */
-
 import { logger } from '../../utils/logger/index.js';
 import { decimalToNumber, isDefined, formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
 import type {

@@ -12,7 +12,6 @@
  * - 买入风控阈值：maxDailyLoss（浮亏超过阈值则拒绝买入）
  * - 保护性清仓阈值：maxUnrealizedLossPerSymbol
  */
-
 import { isBuyAction, isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { logger } from '../../utils/logger/index.js';
 import type {

@@ -19,7 +19,6 @@
  * - core/signalProcessor/index.ts：信号过滤和风险检查
  * - core/trader/index.ts：订单执行（门面模式）
  */
-
 import dotenv from 'dotenv';
 import fs from 'node:fs';
 import { createConfig } from './config/config.index.js';

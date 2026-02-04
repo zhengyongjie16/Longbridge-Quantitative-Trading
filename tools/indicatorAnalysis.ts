@@ -16,7 +16,6 @@
  * - DEFAULT_SYMBOL：分析标的
  * - DEFAULT_DATE：分析日期范围
  */
-
 import {
   QuoteContext,
   Period,

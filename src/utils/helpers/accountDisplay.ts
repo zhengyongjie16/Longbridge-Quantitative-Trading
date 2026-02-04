@@ -14,7 +14,6 @@
  * - 程序启动时显示初始账户状态
  * - 每次交易后显示更新后的账户和持仓
  */
-
 import { logger } from '../logger/index.js';
 import {
   formatError,

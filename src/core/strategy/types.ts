@@ -6,7 +6,6 @@
  * - 信号生成结果（立即信号、延迟信号）
  * - 策略接口
  */
-
 import type { SignalConfigSet, VerificationConfig, Signal, IndicatorSnapshot, OrderRecorder } from '../../types/index.js';
 
 /**

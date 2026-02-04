@@ -6,7 +6,6 @@
  * - 使用 technicalindicators 库计算
  * - 返回值范围 0-100
  */
-
 import { RSI } from 'technicalindicators';
 import { logDebug } from './utils.js';
 import { validatePercentage } from '../../utils/helpers/indicatorHelpers.js';

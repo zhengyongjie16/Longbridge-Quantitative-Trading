@@ -6,7 +6,6 @@
  * - TaskQueue: 通用任务队列接口
  * - BuyTask / SellTask: 具体任务类型
  */
-
 import type { Signal } from '../../../types/index.js';
 
 /** 任务添加回调函数类型 */

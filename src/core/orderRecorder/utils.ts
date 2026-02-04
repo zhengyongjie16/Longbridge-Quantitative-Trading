@@ -3,7 +3,6 @@
  *
  * 提供订单相关的纯函数工具，用于订单数量计算等操作。
  */
-
 import { OrderSide, OrderStatus } from 'longport';
 import { decimalToNumber } from '../../utils/helpers/index.js';
 import type { OrderRecord, RawOrderFromAPI } from '../../types/index.js';

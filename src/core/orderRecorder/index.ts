@@ -20,7 +20,6 @@
  * - 首次调用时从 API 获取并缓存，之后使用缓存
  * - 避免频繁调用 historyOrders API
  */
-
 import { logger } from '../../utils/logger/index.js';
 import { getDirectionName, formatSymbolDisplayFromQuote } from '../../utils/helpers/index.js';
 import type {

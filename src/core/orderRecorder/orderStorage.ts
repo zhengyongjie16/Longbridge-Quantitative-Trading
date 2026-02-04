@@ -10,7 +10,6 @@
  * - 使用 Map<symbol, OrderRecord[]> 提供 O(1) 查找性能
  * - 避免每次查询都遍历整个数组
  */
-
 import { logger } from '../../utils/logger/index.js';
 import { getDirectionName, formatSymbolDisplayFromQuote } from '../../utils/helpers/index.js';
 import type { OrderRecord, Quote } from '../../types/index.js';

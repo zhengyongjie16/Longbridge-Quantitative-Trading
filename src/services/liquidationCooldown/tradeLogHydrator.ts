@@ -6,7 +6,6 @@
  * - 按监控标的方向取最后一条保护性清仓记录
  * - 写入清仓冷却缓存
  */
-
 import type { TradeLogHydrator, TradeLogHydratorDeps, NormalizedTradeRecord } from './types.js';
 import type { TradeRecord } from '../../core/trader/types.js';
 import type { SeatSymbolSnapshotEntry } from '../../types/index.js';

@@ -13,7 +13,6 @@
  * - 查找时间复杂度从 O(n) 降至 O(1)
  * - 标的格式校验仅在配置验证阶段执行
  */
-
 import type { Position, PositionCache } from '../../types/index.js';
 
 /**

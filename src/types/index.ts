@@ -14,7 +14,6 @@
  * - 不可变数据使用 readonly，对象池类型例外
  * - 公共类型集中定义，避免重复和循环引用
  */
-
 import { Market } from 'longport';
 import type { DoomsdayProtection } from '../core/doomsdayProtection/types.js';
 

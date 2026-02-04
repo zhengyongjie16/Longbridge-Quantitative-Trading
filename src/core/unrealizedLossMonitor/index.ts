@@ -17,7 +17,6 @@
  * 3. 执行清仓订单
  * 4. 清空订单记录后刷新浮亏数据
  */
-
 import { logger } from '../../utils/logger/index.js';
 import { isValidPositiveNumber, formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';

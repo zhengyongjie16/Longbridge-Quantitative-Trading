@@ -4,7 +4,6 @@
  * 指标参数：
  * - MACD：EMA12-EMA26-DIF 的 EMA9
  */
-
 import { MACD } from 'technicalindicators';
 import { macdObjectPool } from '../../utils/objectPool/index.js';
 import { logDebug, isValidMACD } from './utils.js';

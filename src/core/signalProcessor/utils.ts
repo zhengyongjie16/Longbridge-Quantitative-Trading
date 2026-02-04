@@ -8,7 +8,6 @@
  * - 全仓平仓数量计算
  * - 标的名称解析
  */
-
 import type { OrderRecorder, Quote, Position } from '../../types/index.js';
 import type { SellContextValidationResult, SellQuantityResult } from './types.js';
 

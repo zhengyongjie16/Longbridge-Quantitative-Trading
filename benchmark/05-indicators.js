@@ -2,7 +2,6 @@
  * 测试5: 技术指标计算性能测试
  * 模拟项目中的实际计算逻辑
  */
-
 import { getRuntime, getVersion, measure, printResult, printHeader } from './utils.js';
 
 printHeader(`技术指标计算性能测试 - ${getRuntime()} ${getVersion()}`);

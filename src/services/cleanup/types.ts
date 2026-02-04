@@ -1,7 +1,6 @@
 /**
  * 清理模块类型定义
  */
-
 import type { IndicatorCache } from '../../main/asyncProgram/indicatorCache/types.js';
 import type { BuyProcessor } from '../../main/asyncProgram/buyProcessor/types.js';
 import type { SellProcessor } from '../../main/asyncProgram/sellProcessor/types.js';

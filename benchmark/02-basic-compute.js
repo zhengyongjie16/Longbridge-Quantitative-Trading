@@ -2,7 +2,6 @@
  * 测试2: 基础计算性能测试
  * 包含循环、数学运算、递归等
  */
-
 import { getRuntime, getVersion, measure, printResult, printHeader } from './utils.js';
 
 printHeader(`基础计算性能测试 - ${getRuntime()} ${getVersion()}`);

@@ -14,7 +14,6 @@
  * - RSI_PERIODS：RSI周期数组
  * - EMA_PERIODS：EMA周期数组
  */
-
 import dotenv from 'dotenv';
 import { QuoteContext, Period, AdjustType, TradeSessions } from 'longport';
 import { buildIndicatorSnapshot } from '../src/services/indicators/index.js';

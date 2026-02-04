@@ -1,7 +1,6 @@
 /**
  * 测试3: 文件 I/O 性能测试
  */
-
 import { getRuntime, getVersion, measureAsync, printResult, printHeader, formatBytes } from './utils.js';
 import { writeFileSync, readFileSync, unlinkSync, mkdirSync, existsSync } from 'fs';
 import { writeFile, readFile } from 'fs/promises';
