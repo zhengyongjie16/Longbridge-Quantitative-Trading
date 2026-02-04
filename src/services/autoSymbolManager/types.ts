@@ -14,18 +14,28 @@
  * - EMPTY：席位为空，等待自动寻标
  */
 import type {
-  Quote,
+  AutoSearchConfig,
   MarketDataClient,
   MonitorConfig,
   OrderRecorder,
+  PendingOrder,
   Position,
+  Quote,
   RiskChecker,
   SeatState,
+  SeatStatus,
   SeatVersion,
+  Signal,
   SymbolRegistry,
   Trader,
 } from '../../types/index.js';
-import type { WarrantListCacheConfig } from '../autoSymbolFinder/types.js';
+import type { Logger } from '../../utils/logger/types.js';
+import type { ObjectPool, PoolableSignal } from '../../utils/objectPool/types.js';
+import type {
+  FindBestWarrantInput,
+  WarrantCandidate,
+  WarrantListCacheConfig,
+} from '../autoSymbolFinder/types.js';
 
 export type SeatDirection = 'LONG' | 'SHORT';
 
@@ -109,4 +119,183 @@ export type AutoSymbolManager = {
   hasPendingSwitch(direction: SeatDirection): boolean;
   clearSeat(params: { direction: SeatDirection; reason: string }): SeatVersion;
   resetDailySwitchSuppression(): void;
+};
+
+export type SignalObjectPool = Pick<ObjectPool<PoolableSignal>, 'acquire' | 'release'>;
+
+export type SwitchStateMap = Map<SeatDirection, SwitchState>;
+
+export type SwitchSuppressionMap = Map<SeatDirection, SwitchSuppression>;
+
+export type TradingMinutesResolver = (date: Date | null | undefined) => number;
+
+export type HKDateKeyResolver = (date: Date | null | undefined) => string | null;
+
+export type MorningOpenProtectionChecker = (
+  date: Date | null | undefined,
+  minutes: number,
+) => boolean;
+
+export type ResolveAutoSearchThresholdInputParams = {
+  readonly direction: SeatDirection;
+  readonly autoSearchConfig: AutoSearchConfig;
+  readonly monitorSymbol: string;
+  readonly logPrefix: string;
+  readonly logger: Logger;
+};
+
+export type BuildFindBestWarrantInputParams = {
+  readonly direction: SeatDirection;
+  readonly monitorSymbol: string;
+  readonly autoSearchConfig: AutoSearchConfig;
+  readonly currentTime: Date;
+  readonly marketDataClient: MarketDataClient;
+  readonly warrantListCacheConfig?: WarrantListCacheConfig;
+  readonly minPrice: number;
+  readonly minTurnoverPerMinute: number;
+  readonly getTradingMinutesSinceOpen: TradingMinutesResolver;
+  readonly logger: Logger;
+};
+
+export type ResolveAutoSearchThresholdInput = (
+  params: Pick<ResolveAutoSearchThresholdInputParams, 'direction' | 'logPrefix'>,
+) => Readonly<{
+  minPrice: number;
+  minTurnoverPerMinute: number;
+}> | null;
+
+export type BuildFindBestWarrantInput = (
+  params: Pick<
+    BuildFindBestWarrantInputParams,
+    'direction' | 'currentTime' | 'minPrice' | 'minTurnoverPerMinute'
+  >,
+) => Promise<FindBestWarrantInput>;
+
+export type ThresholdResolverDeps = {
+  readonly autoSearchConfig: AutoSearchConfig;
+  readonly monitorSymbol: string;
+  readonly marketDataClient: MarketDataClient;
+  readonly warrantListCacheConfig?: WarrantListCacheConfig;
+  readonly logger: Logger;
+  readonly getTradingMinutesSinceOpen: TradingMinutesResolver;
+};
+
+export type BuildOrderSignalParams = {
+  readonly action: Signal['action'];
+  readonly symbol: string;
+  readonly quote: Quote | null;
+  readonly reason: string;
+  readonly orderTypeOverride: Signal['orderTypeOverride'];
+  readonly quantity: number | null;
+  readonly seatVersion: SeatVersion;
+};
+
+export type OrderSignalBuilder = (params: BuildOrderSignalParams) => Signal;
+
+export type SignalBuilderDeps = {
+  readonly signalObjectPool: SignalObjectPool;
+};
+
+export type SeatStateBuilder = (
+  symbol: string | null,
+  status: SeatStatus,
+  lastSwitchAt: number | null,
+  lastSearchAt: number | null,
+) => SeatState;
+
+export type SeatStateUpdater = (
+  direction: SeatDirection,
+  nextState: SeatState,
+  bumpOnSymbolChange: boolean,
+) => void;
+
+export type SeatStateManagerDeps = {
+  readonly monitorSymbol: string;
+  readonly monitorConfig: MonitorConfig;
+  readonly autoSearchConfig: AutoSearchConfig;
+  readonly symbolRegistry: SymbolRegistry;
+  readonly switchStates: SwitchStateMap;
+  readonly switchSuppressions: SwitchSuppressionMap;
+  readonly now: () => Date;
+  readonly logger: Logger;
+  readonly getHKDateKey: HKDateKeyResolver;
+};
+
+export type SeatStateManager = {
+  buildSeatState: SeatStateBuilder;
+  updateSeatState: SeatStateUpdater;
+  resolveSuppression(direction: SeatDirection, seatSymbol: string): SwitchSuppression | null;
+  markSuppression(direction: SeatDirection, seatSymbol: string): void;
+  ensureSeatOnStartup(params: EnsureSeatOnStartupParams): SeatState;
+  clearSeat(params: { direction: SeatDirection; reason: string }): SeatVersion;
+  resetDailySwitchSuppression(): void;
+};
+
+export type FindBestWarrant = (input: FindBestWarrantInput) => Promise<WarrantCandidate | null>;
+
+export type AutoSearchDeps = {
+  readonly autoSearchConfig: AutoSearchConfig;
+  readonly monitorSymbol: string;
+  readonly symbolRegistry: SymbolRegistry;
+  readonly buildSeatState: SeatStateBuilder;
+  readonly updateSeatState: SeatStateUpdater;
+  readonly resolveAutoSearchThresholdInput: ResolveAutoSearchThresholdInput;
+  readonly buildFindBestWarrantInput: BuildFindBestWarrantInput;
+  readonly findBestWarrant: FindBestWarrant;
+  readonly isWithinMorningOpenProtection: MorningOpenProtectionChecker;
+  readonly searchCooldownMs: number;
+};
+
+export type AutoSearchManager = {
+  maybeSearchOnTick(params: SearchOnTickParams): Promise<void>;
+};
+
+export type SwitchStateMachineDeps = {
+  readonly autoSearchConfig: AutoSearchConfig;
+  readonly monitorConfig: MonitorConfig;
+  readonly monitorSymbol: string;
+  readonly symbolRegistry: SymbolRegistry;
+  readonly trader: Trader;
+  readonly orderRecorder: OrderRecorder;
+  readonly riskChecker: RiskChecker;
+  readonly now: () => Date;
+  readonly switchStates: SwitchStateMap;
+  readonly resolveSuppression: (direction: SeatDirection, seatSymbol: string) => SwitchSuppression | null;
+  readonly markSuppression: (direction: SeatDirection, seatSymbol: string) => void;
+  readonly clearSeat: (params: { direction: SeatDirection; reason: string }) => SeatVersion;
+  readonly buildSeatState: SeatStateBuilder;
+  readonly updateSeatState: SeatStateUpdater;
+  readonly resolveAutoSearchThresholds: (
+    direction: SeatDirection,
+    config: AutoSearchConfig,
+  ) => {
+    readonly minPrice: number | null;
+    readonly minTurnoverPerMinute: number | null;
+    readonly switchDistanceRange:
+      | AutoSearchConfig['switchDistanceRangeBull']
+      | AutoSearchConfig['switchDistanceRangeBear'];
+  };
+  readonly resolveAutoSearchThresholdInput: ResolveAutoSearchThresholdInput;
+  readonly buildFindBestWarrantInput: BuildFindBestWarrantInput;
+  readonly findBestWarrant: FindBestWarrant;
+  readonly resolveDirectionSymbols: (direction: SeatDirection) => {
+    readonly isBull: boolean;
+    readonly buyAction: 'BUYCALL' | 'BUYPUT';
+    readonly sellAction: 'SELLCALL' | 'SELLPUT';
+  };
+  readonly calculateBuyQuantityByNotional: (
+    notional: number,
+    price: number,
+    lotSize: number,
+  ) => number | null;
+  readonly buildOrderSignal: OrderSignalBuilder;
+  readonly signalObjectPool: SignalObjectPool;
+  readonly pendingOrderStatuses: ReadonlySet<PendingOrder['status']>;
+  readonly buySide: PendingOrder['side'];
+  readonly logger: Logger;
+};
+
+export type SwitchStateMachine = {
+  maybeSwitchOnDistance(params: SwitchOnDistanceParams): Promise<void>;
+  hasPendingSwitch(direction: SeatDirection): boolean;
 };

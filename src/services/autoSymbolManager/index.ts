@@ -14,216 +14,20 @@ import { logger } from '../../utils/logger/index.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import { AUTO_SYMBOL_SEARCH_COOLDOWN_MS, PENDING_ORDER_STATUSES } from '../../constants/index.js';
 import type {
-  AutoSearchConfig,
-  Signal,
-  Position,
-  Quote,
-  PendingOrder,
-  SeatState,
-  SeatVersion,
-} from '../../types/index.js';
-import type {
   AutoSymbolManager,
   AutoSymbolManagerDeps,
-  EnsureSeatOnStartupParams,
-  SearchOnTickParams,
   SeatDirection,
-  SwitchOnDistanceParams,
   SwitchState,
   SwitchSuppression,
 } from './types.js';
-import type { FindBestWarrantInput } from '../autoSymbolFinder/types.js';
-
-/**
- * 将方向映射到对应的买卖动作与牛熊方向。
- */
-function resolveDirectionSymbols(direction: SeatDirection): {
-  readonly isBull: boolean;
-  readonly buyAction: 'BUYCALL' | 'BUYPUT';
-  readonly sellAction: 'SELLCALL' | 'SELLPUT';
-} {
-  const isBull = direction === 'LONG';
-  return {
-    isBull,
-    buyAction: isBull ? 'BUYCALL' : 'BUYPUT',
-    sellAction: isBull ? 'SELLCALL' : 'SELLPUT',
-  } as const;
-}
-
-/**
- * 根据席位方向提取自动寻标阈值配置，避免错误混用多/空阈值。
- */
-function resolveAutoSearchThresholds(
-  direction: SeatDirection,
-  config: AutoSymbolManagerDeps['monitorConfig']['autoSearchConfig'],
-): {
-  readonly minPrice: number | null;
-  readonly minTurnoverPerMinute: number | null;
-  readonly switchDistanceRange:
-    | AutoSymbolManagerDeps['monitorConfig']['autoSearchConfig']['switchDistanceRangeBull']
-    | AutoSymbolManagerDeps['monitorConfig']['autoSearchConfig']['switchDistanceRangeBear'];
-} {
-  const isBull = direction === 'LONG';
-  return {
-    minPrice: isBull ? config.autoSearchMinPriceBull : config.autoSearchMinPriceBear,
-    minTurnoverPerMinute: isBull
-      ? config.autoSearchMinTurnoverPerMinuteBull
-      : config.autoSearchMinTurnoverPerMinuteBear,
-    switchDistanceRange: isBull ? config.switchDistanceRangeBull : config.switchDistanceRangeBear,
-  };
-}
-
-function resolveAutoSearchThresholdInput({
-  direction,
-  autoSearchConfig,
-  monitorSymbol,
-  logPrefix,
-}: {
-  readonly direction: SeatDirection;
-  readonly autoSearchConfig: AutoSearchConfig;
-  readonly monitorSymbol: string;
-  readonly logPrefix: string;
-}): Readonly<{
-  minPrice: number;
-  minTurnoverPerMinute: number;
-}> | null {
-  const { minPrice, minTurnoverPerMinute } = resolveAutoSearchThresholds(
-    direction,
-    autoSearchConfig,
-  );
-  if (minPrice == null || minTurnoverPerMinute == null) {
-    logger.error(`${logPrefix}: ${monitorSymbol} ${direction}`);
-    return null;
-  }
-  return { minPrice, minTurnoverPerMinute } as const;
-}
-
-async function buildFindBestWarrantInput({
-  direction,
-  monitorSymbol,
-  autoSearchConfig,
-  currentTime,
-  marketDataClient,
-  warrantListCacheConfig,
-  minPrice,
-  minTurnoverPerMinute,
-}: {
-  readonly direction: SeatDirection;
-  readonly monitorSymbol: string;
-  readonly autoSearchConfig: AutoSearchConfig;
-  readonly currentTime: Date;
-  readonly marketDataClient: AutoSymbolManagerDeps['marketDataClient'];
-  readonly warrantListCacheConfig?: AutoSymbolManagerDeps['warrantListCacheConfig'];
-  readonly minPrice: number;
-  readonly minTurnoverPerMinute: number;
-}): Promise<FindBestWarrantInput> {
-  const ctx = await marketDataClient._getContext();
-  const tradingMinutes = getTradingMinutesSinceOpen(currentTime);
-  const isBull = direction === 'LONG';
-  return {
-    ctx,
-    monitorSymbol,
-    isBull,
-    tradingMinutes,
-    minPrice,
-    minTurnoverPerMinute,
-    expiryMinMonths: autoSearchConfig.autoSearchExpiryMinMonths,
-    logger,
-    ...(warrantListCacheConfig ? { cacheConfig: warrantListCacheConfig } : {}),
-  };
-}
-
-export const __test__ = {
-  resolveAutoSearchThresholdInput,
-  buildFindBestWarrantInput,
-};
-
-function buildSeatState(
-  symbol: string | null,
-  status: 'READY' | 'SEARCHING' | 'SWITCHING' | 'EMPTY',
-  lastSwitchAt: number | null,
-  lastSearchAt: number | null,
-): SeatState {
-  return {
-    symbol,
-    status,
-    lastSwitchAt,
-    lastSearchAt,
-  } as const;
-}
-
-function extractPosition(
-  positions: ReadonlyArray<Position>,
-  symbol: string,
-): Position | null {
-  if (!symbol) {
-    return null;
-  }
-  return positions.find((pos) => pos.symbol === symbol) ?? null;
-}
-
-function isCancelableBuyOrder(order: PendingOrder, symbol: string): boolean {
-  return order.symbol === symbol
-    && order.side === OrderSide.Buy
-    && PENDING_ORDER_STATUSES.has(order.status);
-}
-
-/**
- * 根据名义金额计算买入数量，并按 lotSize 向下取整。
- * 无法满足最小手数时返回 null。
- */
-function calculateBuyQuantityByNotional(
-  notional: number,
-  price: number,
-  lotSize: number,
-): number | null {
-  if (!Number.isFinite(notional) || notional <= 0) {
-    return null;
-  }
-  if (!Number.isFinite(price) || price <= 0) {
-    return null;
-  }
-  if (!Number.isFinite(lotSize) || lotSize <= 0) {
-    return null;
-  }
-  let rawQuantity = Math.floor(notional / price);
-  rawQuantity = Math.floor(rawQuantity / lotSize) * lotSize;
-  return rawQuantity >= lotSize ? rawQuantity : null;
-}
-
-/**
- * 使用对象池构造订单信号，避免频繁分配对象。
- */
-function buildOrderSignal({
-  action,
-  symbol,
-  quote,
-  reason,
-  orderTypeOverride,
-  quantity,
-  seatVersion,
-}: {
-  action: Signal['action'];
-  symbol: string;
-  quote: Quote | null;
-  reason: string;
-  orderTypeOverride: Signal['orderTypeOverride'];
-  quantity: number | null;
-  seatVersion: number;
-}): Signal {
-  const signal = signalObjectPool.acquire() as Signal;
-  signal.symbol = symbol;
-  signal.symbolName = quote?.name ?? symbol;
-  signal.action = action;
-  signal.reason = reason;
-  signal.orderTypeOverride = orderTypeOverride ?? null;
-  signal.price = quote?.price ?? null;
-  signal.lotSize = quote?.lotSize ?? null;
-  signal.quantity = quantity ?? null;
-  signal.triggerTime = new Date();
-  signal.seatVersion = seatVersion;
-  return signal;
-}
+import {
+  createThresholdResolver,
+  resolveAutoSearchThresholds,
+} from './thresholdResolver.js';
+import { calculateBuyQuantityByNotional, createSignalBuilder, resolveDirectionSymbols } from './signalBuilder.js';
+import { createSeatStateManager } from './seatStateManager.js';
+import { createAutoSearch } from './autoSearch.js';
+import { createSwitchStateMachine } from './switchStateMachine.js';
 
 /**
  * 创建自动换标管理器
@@ -249,506 +53,76 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
   const switchStates = new Map<SeatDirection, SwitchState>();
   const switchSuppressions = new Map<SeatDirection, SwitchSuppression>();
 
-  function resolveSuppression(
-    direction: SeatDirection,
-    seatSymbol: string,
-  ): SwitchSuppression | null {
-    const record = switchSuppressions.get(direction);
-    if (!record) {
-      return null;
-    }
-    const currentKey = getHKDateKey(now());
-    if (!currentKey || record.dateKey !== currentKey || record.symbol !== seatSymbol) {
-      switchSuppressions.delete(direction);
-      return null;
-    }
-    return record;
-  }
+  const thresholdResolver = createThresholdResolver({
+    autoSearchConfig,
+    monitorSymbol,
+    marketDataClient,
+    logger,
+    getTradingMinutesSinceOpen,
+    ...(warrantListCacheConfig ? { warrantListCacheConfig } : {}),
+  });
 
-  function markSuppression(direction: SeatDirection, seatSymbol: string): void {
-    const dateKey = getHKDateKey(now());
-    if (!dateKey) {
-      return;
-    }
-    switchSuppressions.set(direction, { symbol: seatSymbol, dateKey });
-  }
+  const signalBuilder = createSignalBuilder({ signalObjectPool });
 
-  async function findSwitchCandidate(direction: SeatDirection): Promise<string | null> {
-    const thresholds = resolveAutoSearchThresholdInput({
-      direction,
-      autoSearchConfig,
-      monitorSymbol,
-      logPrefix: '[自动换标] 缺少阈值配置，无法预寻标',
-    });
-    if (!thresholds) {
-      return null;
-    }
-    const input = await buildFindBestWarrantInput({
-      direction,
-      monitorSymbol,
-      autoSearchConfig,
-      currentTime: now(),
-      marketDataClient,
-      warrantListCacheConfig,
-      minPrice: thresholds.minPrice,
-      minTurnoverPerMinute: thresholds.minTurnoverPerMinute,
-    });
-    const best = await findBestWarrant(input);
-    return best ? best.symbol : null;
-  }
+  const seatStateManager = createSeatStateManager({
+    monitorSymbol,
+    monitorConfig,
+    autoSearchConfig,
+    symbolRegistry,
+    switchStates,
+    switchSuppressions,
+    now,
+    logger,
+    getHKDateKey,
+  });
 
-  function updateSeatState(
-    direction: SeatDirection,
-    nextState: ReturnType<typeof buildSeatState>,
-    bumpOnSymbolChange: boolean,
-  ): void {
-    const current = symbolRegistry.getSeatState(monitorSymbol, direction);
-    if (bumpOnSymbolChange && current.symbol !== nextState.symbol) {
-      symbolRegistry.bumpSeatVersion(monitorSymbol, direction);
-    }
-    symbolRegistry.updateSeatState(monitorSymbol, direction, nextState);
-  }
+  const autoSearch = createAutoSearch({
+    autoSearchConfig,
+    monitorSymbol,
+    symbolRegistry,
+    buildSeatState: seatStateManager.buildSeatState,
+    updateSeatState: seatStateManager.updateSeatState,
+    resolveAutoSearchThresholdInput: thresholdResolver.resolveAutoSearchThresholdInput,
+    buildFindBestWarrantInput: thresholdResolver.buildFindBestWarrantInput,
+    findBestWarrant,
+    isWithinMorningOpenProtection,
+    searchCooldownMs: AUTO_SYMBOL_SEARCH_COOLDOWN_MS,
+  });
 
-  /**
-   * 启动时初始化席位状态：
-   * - 未启用自动寻标：直接绑定配置标的
-   * - 已启用自动寻标：优先使用历史标的，否则置为空席位
-   */
-  function ensureSeatOnStartup({
-    direction,
-    initialSymbol,
-  }: EnsureSeatOnStartupParams): SeatState {
-    if (!autoSearchConfig.autoSearchEnabled) {
-      const symbol = direction === 'LONG' ? monitorConfig.longSymbol : monitorConfig.shortSymbol;
-      const nextState = buildSeatState(symbol, 'READY', null, null);
-      updateSeatState(direction, nextState, false);
-      return nextState;
-    }
-
-    if (initialSymbol) {
-      const nextState = buildSeatState(initialSymbol, 'READY', null, null);
-      updateSeatState(direction, nextState, false);
-      return nextState;
-    }
-
-    const nextState = buildSeatState(null, 'EMPTY', null, null);
-    updateSeatState(direction, nextState, false);
-    return nextState;
-  }
-
-  /**
-   * 清空席位并进入换标流程，同时提升席位版本用于信号隔离。
-   */
-  function clearSeat({ direction, reason }: { direction: SeatDirection; reason: string }): SeatVersion {
-    const timestamp = now().getTime();
-    const currentState = symbolRegistry.getSeatState(monitorSymbol, direction);
-    const currentSymbol = currentState.symbol;
-    const nextVersion = symbolRegistry.bumpSeatVersion(monitorSymbol, direction);
-    const nextState = buildSeatState(currentState.symbol ?? null, 'SWITCHING', timestamp, null);
-    symbolRegistry.updateSeatState(monitorSymbol, direction, nextState);
-    if (currentSymbol) {
-      switchStates.set(direction, {
-        direction,
-        seatVersion: nextVersion,
-        stage: 'CANCEL_PENDING',
-        oldSymbol: currentSymbol,
-        nextSymbol: null,
-        startedAt: timestamp,
-        sellSubmitted: false,
-        sellNotional: null,
-        shouldRebuy: false,
-        awaitingQuote: false,
-      });
-    } else {
-      switchStates.delete(direction);
-    }
-    logger.warn(`[自动换标] ${monitorSymbol} ${direction} 清空席位: ${reason}`);
-    return nextVersion;
-  }
-
-  function resetDailySwitchSuppression(): void {
-    switchSuppressions.clear();
-  }
-
-  /**
-   * 在席位为空时执行自动寻标，受开盘保护与冷却时间限制。
-   */
-  async function maybeSearchOnTick({
-    direction,
-    currentTime,
-    canTradeNow,
-  }: SearchOnTickParams): Promise<void> {
-    if (!autoSearchConfig.autoSearchEnabled || !canTradeNow) {
-      return;
-    }
-
-    const seatState = symbolRegistry.getSeatState(monitorSymbol, direction);
-    if (seatState.status !== 'EMPTY') {
-      return;
-    }
-
-    const lastSearchAt = seatState.lastSearchAt ?? 0;
-    const nowMs = currentTime.getTime();
-    if (nowMs - lastSearchAt < AUTO_SYMBOL_SEARCH_COOLDOWN_MS) {
-      return;
-    }
-
-    if (autoSearchConfig.autoSearchOpenDelayMinutes > 0 &&
-        isWithinMorningOpenProtection(currentTime, autoSearchConfig.autoSearchOpenDelayMinutes)) {
-      return;
-    }
-
-    const thresholds = resolveAutoSearchThresholdInput({
-      direction,
-      autoSearchConfig,
-      monitorSymbol,
-      logPrefix: '[自动寻标] 缺少阈值配置，跳过寻标',
-    });
-    if (!thresholds) {
-      return;
-    }
-
-    updateSeatState(
-      direction,
-      buildSeatState(null, 'SEARCHING', seatState.lastSwitchAt ?? null, nowMs),
-      false,
-    );
-
-    const input = await buildFindBestWarrantInput({
-      direction,
-      monitorSymbol,
-      autoSearchConfig,
-      currentTime,
-      marketDataClient,
-      warrantListCacheConfig,
-      minPrice: thresholds.minPrice,
-      minTurnoverPerMinute: thresholds.minTurnoverPerMinute,
-    });
-    const best = await findBestWarrant(input);
-
-    if (!best) {
-      updateSeatState(
-        direction,
-        buildSeatState(null, 'EMPTY', seatState.lastSwitchAt ?? null, nowMs),
-        false,
-      );
-      return;
-    }
-
-    const nextState = buildSeatState(best.symbol, 'READY', nowMs, nowMs);
-    updateSeatState(direction, nextState, true);
-  }
-
-  /**
-   * 换标状态机：
-   * 1) 先撤销旧标的未成交买单
-   * 2) 若有持仓则提交卖出并等待成交
-   * 3) 卖出完成后更新席位并按需回补买入
-   */
-  async function processSwitchState(
-    params: SwitchOnDistanceParams,
-    state: SwitchState,
-    pendingOrders: ReadonlyArray<PendingOrder>,
-  ): Promise<void> {
-    const { direction, quotesMap, positions } = params;
-    const { sellAction, buyAction } = resolveDirectionSymbols(direction);
-    const seatVersion = symbolRegistry.getSeatVersion(monitorSymbol, direction);
-    if (state.stage === 'CANCEL_PENDING') {
-      const cancelTargets = pendingOrders.filter((order) =>
-        isCancelableBuyOrder(order, state.oldSymbol),
-      );
-
-      if (cancelTargets.length > 0) {
-        const results = await Promise.all(
-          cancelTargets.map((order) => trader.cancelOrder(order.orderId)),
-        );
-        if (results.some((ok) => !ok)) {
-          state.stage = 'FAILED';
-          updateSeatState(direction, buildSeatState(null, 'EMPTY', null, null), false);
-          switchStates.delete(direction);
-          logger.error(`[自动换标] 撤销买入订单失败，换标中止: ${state.oldSymbol}`);
-          return;
-        }
-      }
-      state.stage = 'SELL_OUT';
-    }
-
-    if (state.stage === 'SELL_OUT') {
-      const position = extractPosition(positions, state.oldSymbol);
-      const totalQuantity = position?.quantity ?? 0;
-      const availableQuantity = position?.availableQuantity ?? 0;
-
-      if (Number.isFinite(totalQuantity) && totalQuantity > 0 && availableQuantity === 0) {
-        return;
-      }
-
-      if (Number.isFinite(availableQuantity) && availableQuantity > 0) {
-        if (state.sellSubmitted) {
-          return;
-        }
-        const quote = quotesMap.get(state.oldSymbol) ?? null;
-        if (!quote || quote.price == null || quote.lotSize == null) {
-          return;
-        }
-
-        const signal = buildOrderSignal({
-          action: sellAction,
-          symbol: state.oldSymbol,
-          quote,
-          reason: '自动换标-移仓卖出',
-          orderTypeOverride: 'ELO',
-          quantity: availableQuantity,
-          seatVersion,
-        });
-
-        await trader.executeSignals([signal]);
-        signalObjectPool.release(signal);
-        state.sellSubmitted = true;
-        return;
-      }
-
-      const latestSellRecord = orderRecorder.getLatestSellRecord(
-        state.oldSymbol,
-        direction === 'LONG',
-      );
-      if (latestSellRecord && latestSellRecord.executedTime >= state.startedAt) {
-        const actualNotional = latestSellRecord.executedPrice * latestSellRecord.executedQuantity;
-        if (Number.isFinite(actualNotional) && actualNotional > 0) {
-          state.sellNotional = actualNotional;
-        }
-      }
-
-      state.stage = 'BIND_NEW';
-    }
-
-    if (state.stage === 'BIND_NEW') {
-      const nextSymbol = state.nextSymbol;
-      if (!nextSymbol) {
-        state.stage = 'FAILED';
-        updateSeatState(direction, buildSeatState(null, 'EMPTY', null, null), false);
-        switchStates.delete(direction);
-        return;
-      }
-
-      updateSeatState(
-        direction,
-        buildSeatState(nextSymbol, 'SWITCHING', now().getTime(), now().getTime()),
-        false,
-      );
-
-      if (!state.shouldRebuy) {
-        state.stage = 'COMPLETE';
-      } else {
-        state.stage = 'WAIT_QUOTE';
-      }
-    }
-
-    if (state.stage === 'WAIT_QUOTE') {
-      const nextSymbol = state.nextSymbol;
-      if (!nextSymbol) {
-        state.stage = 'FAILED';
-        updateSeatState(direction, buildSeatState(null, 'EMPTY', null, null), false);
-        switchStates.delete(direction);
-        return;
-      }
-      const quote = quotesMap.get(nextSymbol) ?? null;
-      if (!quote || quote.price == null || quote.lotSize == null) {
-        state.awaitingQuote = true;
-        return;
-      }
-      state.awaitingQuote = false;
-      state.stage = 'REBUY';
-    }
-
-    if (state.stage === 'REBUY') {
-      const nextSymbol = state.nextSymbol;
-      if (!nextSymbol) {
-        state.stage = 'FAILED';
-        updateSeatState(direction, buildSeatState(null, 'EMPTY', null, null), false);
-        switchStates.delete(direction);
-        return;
-      }
-      const quote = quotesMap.get(nextSymbol) ?? null;
-      if (!quote || quote.price == null || quote.lotSize == null) {
-        state.awaitingQuote = true;
-        state.stage = 'WAIT_QUOTE';
-        return;
-      }
-
-      const buyNotional = state.sellNotional ?? monitorConfig.targetNotional;
-      const buyQuantity = calculateBuyQuantityByNotional(
-        buyNotional,
-        quote.price,
-        quote.lotSize,
-      );
-
-      if (!buyQuantity) {
-        state.stage = 'COMPLETE';
-      } else {
-        const signal = buildOrderSignal({
-          action: buyAction,
-          symbol: nextSymbol,
-          quote,
-          reason: '自动换标-移仓买入',
-          orderTypeOverride: 'ELO',
-          quantity: buyQuantity,
-          seatVersion,
-        });
-
-        await trader.executeSignals([signal]);
-        signalObjectPool.release(signal);
-        state.stage = 'COMPLETE';
-      }
-    }
-
-    if (state.stage === 'COMPLETE') {
-      const nextSymbol = state.nextSymbol;
-      if (nextSymbol) {
-        updateSeatState(
-          direction,
-          buildSeatState(nextSymbol, 'READY', now().getTime(), now().getTime()),
-          false,
-        );
-      }
-      switchStates.delete(direction);
-    }
-  }
-
-  function hasPendingSwitch(direction: SeatDirection): boolean {
-    const switchState = switchStates.get(direction);
-    if (!switchState) {
-      return false;
-    }
-    const currentVersion = symbolRegistry.getSeatVersion(monitorSymbol, direction);
-    if (currentVersion !== switchState.seatVersion) {
-      switchStates.delete(direction);
-      return false;
-    }
-    const seatState = symbolRegistry.getSeatState(monitorSymbol, direction);
-    const symbolMatches =
-      seatState.symbol === switchState.oldSymbol ||
-      seatState.symbol === switchState.nextSymbol;
-    if (seatState.status !== 'SWITCHING' || !symbolMatches) {
-      switchStates.delete(direction);
-      return false;
-    }
-    if (switchState.stage === 'COMPLETE' || switchState.stage === 'FAILED') {
-      switchStates.delete(direction);
-      return false;
-    }
-    return true;
-  }
-
-  /**
-   * 根据距回收价阈值决定是否触发换标，含日内抑制与候选标的检测。
-   */
-  async function maybeSwitchOnDistance({
-    direction,
-    monitorPrice,
-    quotesMap,
-    positions,
-  }: SwitchOnDistanceParams): Promise<void> {
-    if (!autoSearchConfig.autoSearchEnabled) {
-      return;
-    }
-
-    const pendingSwitch = switchStates.get(direction);
-    if (pendingSwitch) {
-      const currentVersion = symbolRegistry.getSeatVersion(monitorSymbol, direction);
-      if (currentVersion !== pendingSwitch.seatVersion) {
-        switchStates.delete(direction);
-        return;
-      }
-      const currentSeatState = symbolRegistry.getSeatState(monitorSymbol, direction);
-      if (currentSeatState.status !== 'SWITCHING') {
-        switchStates.delete(direction);
-        logger.warn(`[auto-symbol] pending switch cleared: ${monitorSymbol} ${direction}`);
-        return;
-      }
-      const symbolMatches =
-        currentSeatState.symbol === pendingSwitch.oldSymbol ||
-        currentSeatState.symbol === pendingSwitch.nextSymbol;
-      if (!symbolMatches) {
-        switchStates.delete(direction);
-        logger.warn(`[auto-symbol] pending switch cleared: ${monitorSymbol} ${direction}`);
-        return;
-      }
-      const pendingOrdersForOldSymbol = await trader.getPendingOrders([pendingSwitch.oldSymbol]);
-      await processSwitchState(
-        { direction, monitorPrice, quotesMap, positions },
-        pendingSwitch,
-        pendingOrdersForOldSymbol,
-      );
-      return;
-    }
-
-    if (monitorPrice == null) {
-      return;
-    }
-
-    const seatState = symbolRegistry.getSeatState(monitorSymbol, direction);
-    if (!seatState.symbol || seatState.status !== 'READY') {
-      return;
-    }
-
-    const distanceInfo = riskChecker.getWarrantDistanceInfo(
-      direction === 'LONG',
-      seatState.symbol,
-      monitorPrice,
-    );
-
-    const distancePercent = distanceInfo?.distanceToStrikePercent ?? null;
-    const range = resolveAutoSearchThresholds(direction, autoSearchConfig).switchDistanceRange;
-
-    if (distancePercent == null || !range) {
-      return;
-    }
-
-    // 阈值越界触发换标流程
-    if (distancePercent <= range.min || distancePercent >= range.max) {
-      if (resolveSuppression(direction, seatState.symbol)) {
-        return;
-      }
-
-      const nextSymbol = await findSwitchCandidate(direction);
-      if (nextSymbol && nextSymbol === seatState.symbol) {
-        markSuppression(direction, seatState.symbol);
-        return;
-      }
-
-      const seatVersion = clearSeat({ direction, reason: '距回收价阈值越界' });
-
-      const position = extractPosition(positions, seatState.symbol);
-      const hasPosition = (position?.quantity ?? 0) > 0;
-
-      switchStates.set(direction, {
-        direction,
-        seatVersion,
-        stage: 'CANCEL_PENDING',
-        oldSymbol: seatState.symbol,
-        nextSymbol: nextSymbol ?? null,
-        startedAt: now().getTime(),
-        sellSubmitted: false,
-        sellNotional: null,
-        shouldRebuy: hasPosition,
-        awaitingQuote: false,
-      });
-
-      const pendingOrdersForOldSymbol = await trader.getPendingOrders([seatState.symbol]);
-      await processSwitchState(
-        { direction, monitorPrice, quotesMap, positions },
-        switchStates.get(direction)!,
-        pendingOrdersForOldSymbol,
-      );
-    }
-  }
+  const switchStateMachine = createSwitchStateMachine({
+    autoSearchConfig,
+    monitorConfig,
+    monitorSymbol,
+    symbolRegistry,
+    trader,
+    orderRecorder,
+    riskChecker,
+    now,
+    switchStates,
+    resolveSuppression: seatStateManager.resolveSuppression,
+    markSuppression: seatStateManager.markSuppression,
+    clearSeat: seatStateManager.clearSeat,
+    buildSeatState: seatStateManager.buildSeatState,
+    updateSeatState: seatStateManager.updateSeatState,
+    resolveAutoSearchThresholds,
+    resolveAutoSearchThresholdInput: thresholdResolver.resolveAutoSearchThresholdInput,
+    buildFindBestWarrantInput: thresholdResolver.buildFindBestWarrantInput,
+    findBestWarrant,
+    resolveDirectionSymbols,
+    calculateBuyQuantityByNotional,
+    buildOrderSignal: signalBuilder.buildOrderSignal,
+    signalObjectPool,
+    pendingOrderStatuses: PENDING_ORDER_STATUSES,
+    buySide: OrderSide.Buy,
+    logger,
+  });
 
   return {
-    ensureSeatOnStartup,
-    maybeSearchOnTick,
-    maybeSwitchOnDistance,
-    hasPendingSwitch,
-    clearSeat,
-    resetDailySwitchSuppression,
+    ensureSeatOnStartup: seatStateManager.ensureSeatOnStartup,
+    maybeSearchOnTick: autoSearch.maybeSearchOnTick,
+    maybeSwitchOnDistance: switchStateMachine.maybeSwitchOnDistance,
+    hasPendingSwitch: switchStateMachine.hasPendingSwitch,
+    clearSeat: seatStateManager.clearSeat,
+    resetDailySwitchSuppression: seatStateManager.resetDailySwitchSuppression,
   };
 }

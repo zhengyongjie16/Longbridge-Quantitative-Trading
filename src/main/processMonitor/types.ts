@@ -5,7 +5,15 @@
  * 定义单个监控标的处理所需的参数类型
  */
 
-import type { MonitorContext } from '../../types/index.js';
+import type {
+  IndicatorSnapshot,
+  MonitorContext,
+  Position,
+  Quote,
+  SeatState,
+  SeatVersion,
+  Signal,
+} from '../../types/index.js';
 import type { MainProgramContext } from '../mainProgram/types.js';
 
 /**
@@ -36,4 +44,85 @@ export type QueueClearResult = Readonly<{
   removedBuy: number;
   removedSell: number;
   removedMonitorTasks: number;
+}>;
+
+/**
+ * AUTO_SYMBOL 任务调度参数
+ */
+export type AutoSymbolTasksParams = Readonly<{
+  monitorSymbol: string;
+  monitorContext: MonitorContext;
+  mainContext: MainProgramContext;
+  autoSearchEnabled: boolean;
+  currentTimeMs: number;
+  canTradeNow: boolean;
+  monitorPriceChanged: boolean;
+  resolvedMonitorPrice: number | null;
+  quotesMap: ReadonlyMap<string, Quote | null>;
+}>;
+
+/**
+ * 席位同步参数
+ */
+export type SeatSyncParams = Readonly<{
+  monitorSymbol: string;
+  monitorQuote: Quote | null;
+  monitorContext: MonitorContext;
+  mainContext: MainProgramContext;
+  quotesMap: ReadonlyMap<string, Quote | null>;
+  releaseSignal: (signal: Signal) => void;
+}>;
+
+/**
+ * 席位同步结果
+ */
+export type SeatSyncResult = Readonly<{
+  longSeatState: SeatState;
+  shortSeatState: SeatState;
+  longSeatVersion: SeatVersion;
+  shortSeatVersion: SeatVersion;
+  longSeatReady: boolean;
+  shortSeatReady: boolean;
+  longSymbol: string;
+  shortSymbol: string;
+  longQuote: Quote | null;
+  shortQuote: Quote | null;
+}>;
+
+/**
+ * 风险任务调度参数
+ */
+export type RiskTasksParams = Readonly<{
+  monitorSymbol: string;
+  monitorContext: MonitorContext;
+  mainContext: MainProgramContext;
+  seatInfo: SeatSyncResult;
+  autoSearchEnabled: boolean;
+  monitorPriceChanged: boolean;
+  resolvedMonitorPrice: number | null;
+  monitorCurrentPrice: number | null;
+}>;
+
+/**
+ * 指标流水线参数
+ */
+export type IndicatorPipelineParams = Readonly<{
+  monitorSymbol: string;
+  monitorContext: MonitorContext;
+  mainContext: MainProgramContext;
+  monitorQuote: Quote | null;
+}>;
+
+/**
+ * 信号流水线参数
+ */
+export type SignalPipelineParams = Readonly<{
+  monitorSymbol: string;
+  monitorContext: MonitorContext;
+  mainContext: MainProgramContext;
+  runtimeFlags: ProcessMonitorParams['runtimeFlags'];
+  seatInfo: SeatSyncResult;
+  monitorSnapshot: IndicatorSnapshot;
+  releaseSignal: (signal: Signal) => void;
+  releasePosition: (position: Position) => void;
 }>;

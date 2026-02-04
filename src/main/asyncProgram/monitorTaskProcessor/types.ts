@@ -18,6 +18,7 @@ import type {
   LastState,
   MarketDataClient,
   Quote,
+  RawOrderFromAPI,
   SeatVersion,
   SymbolRegistry,
 } from '../../../types/index.js';
@@ -121,6 +122,14 @@ export type MonitorTaskContext = Readonly<{
   readonly longQuote: Quote | null;
   readonly shortQuote: Quote | null;
   readonly monitorQuote: Quote | null;
+}>;
+
+export type RefreshHelpers = Readonly<{
+  ensureAllOrders: (
+    monitorSymbol: string,
+    orderRecorder: MonitorTaskContext['orderRecorder'],
+  ) => Promise<ReadonlyArray<RawOrderFromAPI>>;
+  refreshAccountCaches: () => Promise<void>;
 }>;
 
 export type MonitorTaskProcessorDeps = Readonly<{

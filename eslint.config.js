@@ -45,6 +45,7 @@ export default tseslint.config(
     ignores: [
       'dist/**',
       'dist-test/**',
+      'benchmark/**',
       'node_modules/**',
       'logs/**',
       'src/utils/**',
