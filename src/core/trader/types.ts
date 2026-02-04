@@ -135,6 +135,7 @@ export interface OrderMonitor {
     isLongSymbol: boolean,
     monitorSymbol: string | null,
     isProtectiveLiquidation: boolean,
+    orderType: typeof OrderType[keyof typeof OrderType],
   ): void;
 
   /** 撤销订单 */
@@ -151,6 +152,9 @@ export interface OrderMonitor {
 
   /** 恢复订单追踪（程序启动时调用） */
   recoverTrackedOrders(): Promise<void>;
+
+  /** 获取指定标的的未成交卖单快照 */
+  getPendingSellOrders(symbol: string): ReadonlyArray<PendingSellOrderSnapshot>;
 
   /**
    * 获取并清空待刷新浮亏数据的标的列表
@@ -224,9 +228,11 @@ export type TrackedOrder = {
   readonly monitorSymbol: string | null;
   /** 是否为保护性清仓订单（用于触发买入冷却） */
   readonly isProtectiveLiquidation: boolean;
+  /** 订单类型（用于合并和改单判断） */
+  readonly orderType: typeof OrderType[keyof typeof OrderType];
   /** 当前委托价（会随市价更新） */
   submittedPrice: number;
-  readonly submittedQuantity: number;
+  submittedQuantity: number;
   /** 已成交数量（部分成交时累加） */
   executedQuantity: number;
   status: OrderStatus;
@@ -236,6 +242,21 @@ export type TrackedOrder = {
   lastPriceUpdateAt: number;
   /** 是否已转为市价单（防止重复转换） */
   convertedToMarket: boolean;
+};
+
+/**
+ * 未成交卖单快照（用于卖单合并决策）
+ */
+export type PendingSellOrderSnapshot = {
+  readonly orderId: string;
+  readonly symbol: string;
+  readonly side: OrderSide;
+  readonly status: OrderStatus;
+  readonly orderType: typeof OrderType[keyof typeof OrderType];
+  readonly submittedPrice: number;
+  readonly submittedQuantity: number;
+  readonly executedQuantity: number;
+  readonly submittedAt: number;
 };
 
 /**

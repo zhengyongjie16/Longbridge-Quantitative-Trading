@@ -930,6 +930,7 @@ export interface Trader {
     isLongSymbol: boolean,
     monitorSymbol: string | null,
     isProtectiveLiquidation: boolean,
+    orderType: (typeof import('longport').OrderType)[keyof typeof import('longport').OrderType],
   ): void;
   /** 撤销订单 */
   cancelOrder(orderId: string): Promise<boolean>;

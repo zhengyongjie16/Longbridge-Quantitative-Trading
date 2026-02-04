@@ -21,13 +21,14 @@ import {
 import type { PushOrderChanged } from 'longport';
 import { logger } from '../../utils/logger/index.js';
 import { decimalToNumber, toDecimal, formatError, toBeijingTimeIso } from '../../utils/helpers/index.js';
-import { ORDER_PRICE_DIFF_THRESHOLD } from '../../constants/index.js';
+import { ORDER_PRICE_DIFF_THRESHOLD, PENDING_ORDER_STATUSES } from '../../constants/index.js';
 import type { Quote, PendingRefreshSymbol, GlobalConfig } from '../../types/index.js';
 import type {
   OrderMonitor,
   OrderMonitorDeps,
   TrackedOrder,
   OrderMonitorConfig,
+  PendingSellOrderSnapshot,
 } from './types.js';
 import { recordTrade } from './tradeLogger.js';
 
@@ -303,6 +304,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     isLongSymbol: boolean,
     monitorSymbol: string | null,
     isProtectiveLiquidation: boolean,
+    orderType: typeof OrderType[keyof typeof OrderType],
   ): void {
     const now = Date.now();
 
@@ -315,6 +317,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       isLongSymbol,
       monitorSymbol,
       isProtectiveLiquidation,
+      orderType,
       submittedPrice: price,
       submittedQuantity: quantity,
       executedQuantity: 0,
@@ -368,6 +371,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
         isLongSymbol,
         monitorSymbol,
         false,
+        order.orderType,
       );
 
       // 修复：恢复部分成交订单的已成交数量
@@ -444,6 +448,9 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       await ctx.replaceOrder(replacePayload);
 
       cacheManager.clearCache();
+      trackedOrder.submittedPrice = newPrice;
+      trackedOrder.submittedQuantity = trackedOrder.executedQuantity + targetQuantity;
+      trackedOrder.lastPriceUpdateAt = Date.now();
 
       logger.info(
         `[订单修改成功] 订单ID=${orderId} 新价格=${newPrice.toFixed(3)}`,
@@ -548,6 +555,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
         order.isLongSymbol,   // 继承原订单的做多/做空标识
         order.monitorSymbol,
         order.isProtectiveLiquidation,
+        OrderType.MO,
       );
 
       // 标记新订单已转换为市价单（避免再次转换）
@@ -622,12 +630,42 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
 
       try {
         await replaceOrderPrice(orderId, currentPrice);
-        order.submittedPrice = currentPrice;
-        order.lastPriceUpdateAt = now;
       } catch (err) {
         logger.error(`[订单监控] 修改订单 ${orderId} 价格失败:`, err);
       }
     }
+  }
+
+  /** 获取指定标的的未成交卖单快照 */
+  function getPendingSellOrders(symbol: string): ReadonlyArray<PendingSellOrderSnapshot> {
+    const pendingOrders: PendingSellOrderSnapshot[] = [];
+    for (const order of trackedOrders.values()) {
+      if (order.symbol !== symbol) {
+        continue;
+      }
+      if (order.side !== OrderSide.Sell) {
+        continue;
+      }
+      if (!PENDING_ORDER_STATUSES.has(order.status)) {
+        continue;
+      }
+      const remaining = order.submittedQuantity - order.executedQuantity;
+      if (!Number.isFinite(remaining) || remaining <= 0) {
+        continue;
+      }
+      pendingOrders.push({
+        orderId: order.orderId,
+        symbol: order.symbol,
+        side: order.side,
+        status: order.status,
+        orderType: order.orderType,
+        submittedPrice: order.submittedPrice,
+        submittedQuantity: order.submittedQuantity,
+        executedQuantity: order.executedQuantity,
+        submittedAt: order.submittedAt,
+      });
+    }
+    return pendingOrders.sort((a, b) => a.submittedAt - b.submittedAt);
   }
 
   /** 获取并清空待刷新标的列表（订单成交后需刷新持仓和浮亏） */
@@ -653,6 +691,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     replaceOrderPrice,
     processWithLatestQuotes,
     recoverTrackedOrders,
+    getPendingSellOrders,
     getAndClearPendingRefreshSymbols,
     destroy,
   };

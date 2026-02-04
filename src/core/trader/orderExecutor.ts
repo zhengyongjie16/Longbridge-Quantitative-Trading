@@ -32,6 +32,7 @@ import type { Signal, TradeCheckResult, MonitorConfig } from '../../types/index.
 import type { OrderPayload, OrderExecutor, OrderExecutorDeps } from './types.js';
 import { identifyErrorType } from './tradeLogger.js';
 import { formatOrderTypeLabel, resolveOrderTypeConfig } from './utils.js';
+import { resolveSellMergeDecision } from './sellOrderMerge/utils.js';
 
 /** 配置字符串转 OrderType 枚举 */
 function getOrderTypeFromConfig(
@@ -448,6 +449,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
         isLongSymbol,
         monitorConfig?.monitorSymbol ?? null,
         isProtectiveLiquidation,
+        orderTypeParam,
       );
 
       // 注意：不再立即更新本地记录
@@ -513,16 +515,92 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       if (submittedQtyDecimal.isZero()) {
         return;
       }
-    } else {
-      submittedQtyDecimal = calculateBuyQuantity(
-        signal,
-        isShortSymbol,
-        undefined,
-        targetNotional,
-      );
-      if (submittedQtyDecimal.isZero()) {
+      const submittedQtyNumber = decimalToNumber(submittedQtyDecimal);
+      if (!isValidPositiveNumber(submittedQtyNumber)) {
+        logger.warn(
+          `[跳过订单] 卖出数量无效，无法合并卖单: ${submittedQtyNumber}, symbol=${targetSymbol}`,
+        );
         return;
       }
+
+      const resolvedPrice = isValidPositiveNumber(signal.price)
+        ? Number(signal.price)
+        : null;
+      const pendingSellOrders = orderMonitor.getPendingSellOrders(targetSymbol);
+      const decision = resolveSellMergeDecision({
+        symbol: targetSymbol,
+        pendingOrders: pendingSellOrders,
+        newOrderQuantity: submittedQtyNumber,
+        newOrderPrice: resolvedPrice,
+        newOrderType: orderType,
+        isProtectiveLiquidation: isLiquidationSignal(signal),
+      });
+
+      if (decision.action === 'REPLACE' && decision.targetOrderId) {
+        const price = decision.price ?? resolvedPrice ?? 0;
+        if (!isValidPositiveNumber(price)) {
+          logger.warn(
+            `[订单合并] 无法获取有效改单价格，跳过: ${targetSymbol}`,
+          );
+          return;
+        }
+        await orderMonitor.replaceOrderPrice(
+          decision.targetOrderId,
+          price,
+          decision.mergedQuantity,
+        );
+        return;
+      }
+
+      if (decision.action === 'CANCEL_AND_SUBMIT') {
+        const cancelResults = await Promise.all(
+          decision.pendingOrderIds.map((orderId) => orderMonitor.cancelOrder(orderId)),
+        );
+        if (cancelResults.some((ok) => !ok)) {
+          const remaining = orderMonitor.getPendingSellOrders(targetSymbol);
+          if (remaining.length > 0) {
+            logger.warn(
+              `[订单合并] 撤单失败且仍有未成交卖单，跳过合并提交: ${targetSymbol}`,
+            );
+            return;
+          }
+        }
+      }
+
+      if (decision.action === 'SKIP') {
+        logger.info(
+          `[订单合并] 无需新增卖单: ${targetSymbol}, reason=${decision.reason}`,
+        );
+        return;
+      }
+
+      if (decision.action === 'SUBMIT' || decision.action === 'CANCEL_AND_SUBMIT') {
+        const mergedQtyDecimal = toDecimal(decision.mergedQuantity);
+        await submitOrder(
+          ctx,
+          signal,
+          targetSymbol,
+          side,
+          mergedQtyDecimal,
+          orderType,
+          timeInForce,
+          remark,
+          decision.price ?? undefined,
+          isShortSymbol,
+          monitorConfig,
+        );
+      }
+      return;
+    }
+
+    submittedQtyDecimal = calculateBuyQuantity(
+      signal,
+      isShortSymbol,
+      undefined,
+      targetNotional,
+    );
+    if (submittedQtyDecimal.isZero()) {
+      return;
     }
 
     await submitOrder(
