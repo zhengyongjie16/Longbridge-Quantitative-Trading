@@ -17,7 +17,6 @@
  * - 文件输出纯文本格式
  * - 进程信号处理和异常捕获
  */
-
 import pino from 'pino';
 import { toBeijingTimeLog } from '../helpers/index.js';
 import { LOGGING } from '../../constants/index.js';

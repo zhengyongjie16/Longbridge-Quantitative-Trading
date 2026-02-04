@@ -1,7 +1,6 @@
 /**
  * MarketMonitor 模块类型定义
  */
-
 import type {
   IndicatorSnapshot,
   MonitorState,

@@ -17,7 +17,6 @@
  * - /N：括号内条件需满足 N 项
  * - |：分隔不同条件组，满足任一组即可
  */
-
 import { evaluateSignalConfig } from '../../utils/helpers/signalConfigParser.js';
 import { signalObjectPool, indicatorRecordPool } from '../../utils/objectPool/index.js';
 import { getIndicatorValue, isValidNumber } from '../../utils/helpers/indicatorHelpers.js';

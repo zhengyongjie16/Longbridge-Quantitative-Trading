@@ -3,7 +3,6 @@
  *
  * 从环境变量读取 API 凭证，根据区域配置端点 URL，创建 LongPort Config 对象
  */
-
 import { Config } from 'longport';
 import { getRegionUrls } from './utils.js';
 

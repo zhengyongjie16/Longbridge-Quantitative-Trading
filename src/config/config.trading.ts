@@ -4,7 +4,6 @@
  * 从环境变量读取交易相关配置，支持多标的配置（通过 _N 后缀区分）
  * 配置包括：标的代码、交易金额、风险限制、信号规则、延迟验证等
  */
-
 import { OrderType } from 'longport';
 import type {
   MonitorConfig,

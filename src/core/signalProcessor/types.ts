@@ -7,7 +7,6 @@
  * - 信号处理器接口
  * - 依赖注入类型
  */
-
 import type {
   Quote,
   Position,

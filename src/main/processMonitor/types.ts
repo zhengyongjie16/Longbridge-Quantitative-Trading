@@ -4,7 +4,6 @@
  *
  * 定义单个监控标的处理所需的参数类型
  */
-
 import type {
   IndicatorSnapshot,
   MonitorContext,
