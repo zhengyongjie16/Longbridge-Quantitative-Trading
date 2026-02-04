@@ -18,8 +18,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "sonarqube": "node scripts/run-sonar.js",
-    "sonarqube:report": "node scripts/get-report.js",
-    "test": "tsc -p tsconfig.test.json && node --test dist-test/tests/*.test.js"
+    "sonarqube:report": "node scripts/get-report.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
