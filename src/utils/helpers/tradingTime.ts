@@ -185,7 +185,7 @@ export function isBeforeClose5Minutes(
  * @param isHalfDay 是否是半日交易日
  * @returns true表示在收盘前窗口内
  */
-function isBeforeCloseMinutes(
+export function isBeforeCloseMinutes(
   date: Date | null | undefined,
   minutes: number,
   isHalfDay: boolean = false,
