@@ -15,10 +15,8 @@ import path from 'node:path';
 import { OrderType } from 'longport';
 import type { OrderTypeConfig, Signal } from '../../types/index.js';
 
-type OrderTypeValue = typeof OrderType[keyof typeof OrderType];
-
 // 订单类型到中文标签的映射
-const orderTypeLabelMap: ReadonlyMap<OrderTypeValue, string> = new Map([
+const orderTypeLabelMap: ReadonlyMap<OrderType, string> = new Map([
   [OrderType.LO, '限价单'],
   [OrderType.ELO, '增强限价单'],
   [OrderType.MO, '市价单'],
@@ -29,7 +27,7 @@ const orderTypeLabelMap: ReadonlyMap<OrderTypeValue, string> = new Map([
 /**
  * 获取订单类型显示文本，未匹配时默认限价单。
  */
-export const formatOrderTypeLabel = (orderType: OrderTypeValue): string => {
+export const formatOrderTypeLabel = (orderType: OrderType): string => {
   return orderTypeLabelMap.get(orderType) ?? '限价单';
 };
 

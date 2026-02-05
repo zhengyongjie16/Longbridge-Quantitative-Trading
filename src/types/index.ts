@@ -14,7 +14,15 @@
  * - 不可变数据使用 readonly，对象池类型例外
  * - 公共类型集中定义，避免重复和循环引用
  */
-import { Market } from 'longport';
+import type { Market, OrderSide, OrderStatus, OrderType } from 'longport';
+import type {
+  QuoteContext,
+  TradeContext,
+  Candlestick,
+  Period,
+  AdjustType,
+  TradeSessions,
+} from 'longport';
 import type { DoomsdayProtection } from '../core/doomsdayProtection/types.js';
 import type { PendingSellInfo } from '../core/orderRecorder/types.js';
 
@@ -72,6 +80,36 @@ export type Signal = {
   /** 关联的买入订单ID列表（仅卖出订单使用，用于智能平仓防重） */
   relatedBuyOrderIds?: readonly string[] | null;
 };
+
+/**
+ * 买入信号类型
+ * @remarks 用于类型收窄，区分买入和卖出信号
+ */
+export type BuySignal = Signal & { action: 'BUYCALL' | 'BUYPUT' };
+
+/**
+ * 卖出信号类型
+ * @remarks 用于类型收窄，区分买入和卖出信号
+ */
+export type SellSignal = Signal & { action: 'SELLCALL' | 'SELLPUT' };
+
+/**
+ * 判断是否为买入信号（类型守卫）
+ * @param signal 交易信号
+ * @returns 如果是买入信号返回 true
+ */
+export function isBuySignal(signal: Signal): signal is BuySignal {
+  return signal.action === 'BUYCALL' || signal.action === 'BUYPUT';
+}
+
+/**
+ * 判断是否为卖出信号（类型守卫）
+ * @param signal 交易信号
+ * @returns 如果是卖出信号返回 true
+ */
+export function isSellSignal(signal: Signal): signal is SellSignal {
+  return signal.action === 'SELLCALL' || signal.action === 'SELLPUT';
+}
 
 /**
  * 订单类型配置
@@ -711,7 +749,7 @@ export type TradingDaysResult = {
  */
 export interface MarketDataClient {
   /** 获取底层 QuoteContext（内部使用） */
-  _getContext(): Promise<import('longport').QuoteContext>;
+  _getContext(): Promise<QuoteContext>;
 
   /**
    * 批量获取多个标的的最新行情
@@ -734,17 +772,17 @@ export interface MarketDataClient {
    */
   getCandlesticks(
     symbol: string,
-    period?: PeriodString | import('longport').Period,
+    period?: PeriodString | Period,
     count?: number,
-    adjustType?: import('longport').AdjustType,
-    tradeSessions?: import('longport').TradeSessions,
-  ): Promise<import('longport').Candlestick[]>;
+    adjustType?: AdjustType,
+    tradeSessions?: TradeSessions,
+  ): Promise<Candlestick[]>;
 
   /** 获取交易日列表 */
-  getTradingDays(startDate: Date, endDate: Date, market?: import('longport').Market): Promise<TradingDaysResult>;
+  getTradingDays(startDate: Date, endDate: Date, market?: Market): Promise<TradingDaysResult>;
 
   /** 判断指定日期是否为交易日 */
-  isTradingDay(date: Date, market?: import('longport').Market): Promise<TradingDayInfo>;
+  isTradingDay(date: Date, market?: Market): Promise<TradingDayInfo>;
 
   /**
    * 批量缓存静态信息
@@ -760,11 +798,11 @@ export interface MarketDataClient {
 export type PendingOrder = {
   readonly orderId: string;
   readonly symbol: string;
-  readonly side: (typeof import('longport').OrderSide)[keyof typeof import('longport').OrderSide];
+  readonly side: OrderSide;
   readonly submittedPrice: number;
   readonly quantity: number;
   readonly executedQuantity: number;
-  readonly status: (typeof import('longport').OrderStatus)[keyof typeof import('longport').OrderStatus];
+  readonly status: OrderStatus;
   readonly orderType: RawOrderFromAPI['orderType'];
   readonly _rawOrder?: unknown;
 };
@@ -777,9 +815,9 @@ export type RawOrderFromAPI = {
   readonly orderId: string;
   readonly symbol: string;
   readonly stockName: string;
-  readonly side: (typeof import('longport').OrderSide)[keyof typeof import('longport').OrderSide];
-  readonly status: (typeof import('longport').OrderStatus)[keyof typeof import('longport').OrderStatus];
-  readonly orderType: (typeof import('longport').OrderType)[keyof typeof import('longport').OrderType];
+  readonly side: OrderSide;
+  readonly status: OrderStatus;
+  readonly orderType: OrderType;
   readonly price: DecimalLikeValue;
   readonly quantity: DecimalLikeValue;
   readonly executedPrice: DecimalLikeValue;
@@ -928,7 +966,7 @@ export interface OrderRecorder {
  */
 export interface Trader {
   /** 底层 TradeContext Promise */
-  readonly _ctxPromise: Promise<import('longport').TradeContext>;
+  readonly _ctxPromise: Promise<TradeContext>;
   /** 订单记录器实例 */
   readonly _orderRecorder: OrderRecorder;
 
@@ -958,13 +996,13 @@ export interface Trader {
   trackOrder(
     orderId: string,
     symbol: string,
-    side: (typeof import('longport').OrderSide)[keyof typeof import('longport').OrderSide],
+    side: OrderSide,
     price: number,
     quantity: number,
     isLongSymbol: boolean,
     monitorSymbol: string | null,
     isProtectiveLiquidation: boolean,
-    orderType: (typeof import('longport').OrderType)[keyof typeof import('longport').OrderType],
+    orderType: OrderType,
   ): void;
   /** 撤销订单 */
   cancelOrder(orderId: string): Promise<boolean>;

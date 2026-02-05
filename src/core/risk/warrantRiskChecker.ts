@@ -62,19 +62,16 @@ export function createWarrantRiskChecker(
     return null;
   }
 
-  /** 从 API 响应中提取回收价（支持 Decimal 对象） */
+  /** 从 SDK 响应中提取回收价 */
   function extractCallPrice(warrantQuote: WarrantQuote): number | null {
-    const callPriceRaw = warrantQuote.call_price ?? warrantQuote.callPrice ?? null;
+    const callPriceDecimal = warrantQuote.callPrice;
 
-    if (!isDefined(callPriceRaw)) {
+    if (!isDefined(callPriceDecimal)) {
       return null;
     }
 
-    // 如果是 Decimal 对象，使用 decimalToNumber 转换；否则直接使用 Number 转换
-    if (typeof callPriceRaw === 'object' && callPriceRaw !== null && 'toString' in callPriceRaw) {
-      return decimalToNumber((callPriceRaw as { toString: () => string }).toString());
-    }
-    return Number(callPriceRaw);
+    // SDK 返回 Decimal 类型，使用 decimalToNumber 转换
+    return decimalToNumber(callPriceDecimal);
   }
 
   /** 验证牛熊证类型：做多应为牛证，做空应为熊证 */
@@ -114,7 +111,7 @@ export function createWarrantRiskChecker(
       return { isWarrant: false };
     }
 
-    // 从 warrantQuote 中获取 category 字段判断牛熊证类型
+    // 从 SDK 获取 category（已经是 WarrantType 枚举）
     const category = warrantQuote.category;
     const warrantType = parseWarrantType(category);
 
@@ -122,7 +119,7 @@ export function createWarrantRiskChecker(
       return { isWarrant: false };
     }
 
-    // 获取回收价
+    // 从 SDK 获取回收价
     const callPrice = extractCallPrice(warrantQuote);
 
     // 验证：做多标的应该是牛证，做空标的应该是熊证

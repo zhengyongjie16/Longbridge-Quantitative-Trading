@@ -1,6 +1,15 @@
 /**
- * @module processMonitor/autoSymbolTasks
- * @description AUTO_SYMBOL 任务调度
+ * 自动换标任务调度模块
+ *
+ * 功能：
+ * - 调度自动换标心跳任务（AUTO_SYMBOL_TICK）：定时检查席位状态，执行自动寻标
+ * - 调度换标距离检查任务（AUTO_SYMBOL_SWITCH_DISTANCE）：根据距回收价触发换标
+ *
+ * 调度规则：
+ * - AUTO_SYMBOL_TICK：每个心跳周期都为 LONG 和 SHORT 方向调度
+ * - AUTO_SYMBOL_SWITCH_DISTANCE：当价格发生变化或有待处理换标时调度
+ *
+ * @param params 调度参数，包含监控标的、上下文、当前时间、交易状态等
  */
 import type { AutoSymbolTasksParams } from './types.js';
 

@@ -17,7 +17,8 @@
  * 1. ctxPromise → 2. rateLimiter/cacheManager/accountService
  * 3. orderRecorder → 4. orderMonitor → 5. orderExecutor
  */
-import { TradeContext, OrderSide, OrderType } from 'longport';
+import { TradeContext } from 'longport';
+import type { OrderSide, OrderType } from 'longport';
 import { createOrderRecorder } from '../orderRecorder/index.js';
 import type { Signal, Quote, AccountSnapshot, Position, OrderRecorder, PendingOrder, Trader, TradeCheckResult, PendingRefreshSymbol } from '../../types/index.js';
 import type { TraderDeps } from './types.js';
@@ -153,13 +154,13 @@ export async function createTrader(deps: TraderDeps): Promise<Trader> {
     trackOrder(
       orderId: string,
       symbol: string,
-      side: typeof OrderSide[keyof typeof OrderSide],
+      side: OrderSide,
       price: number,
       quantity: number,
       isLongSymbol: boolean,
       monitorSymbol: string | null,
       isProtectiveLiquidation: boolean,
-      orderType: typeof OrderType[keyof typeof OrderType],
+      orderType: OrderType,
     ): void {
       orderMonitor.trackOrder(
         orderId,

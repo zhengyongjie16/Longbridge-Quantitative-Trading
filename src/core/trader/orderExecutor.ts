@@ -37,7 +37,7 @@ import { resolveSellMergeDecision } from './sellOrderMerge/utils.js';
 /** 配置字符串转 OrderType 枚举 */
 function getOrderTypeFromConfig(
   typeConfig: 'LO' | 'ELO' | 'MO',
-): typeof OrderType[keyof typeof OrderType] {
+): OrderType {
   if (typeConfig === 'LO') {
     return OrderType.LO;
   }
@@ -55,7 +55,7 @@ function isLiquidationSignal(signal: Signal): boolean {
 /** 根据信号动作解析订单方向 */
 function resolveOrderSide(
   action: Signal['action'],
-): typeof OrderSide[keyof typeof OrderSide] | null {
+): OrderSide | null {
   switch (action) {
     case 'BUYCALL':
     case 'BUYPUT':
@@ -196,7 +196,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
   }
 
   /** 解析订单类型（覆盖优先，其次保护性清仓） */
-  function resolveOrderType(signal: Signal): typeof OrderType[keyof typeof OrderType] {
+  function resolveOrderType(signal: Signal): OrderType {
     const orderTypeConfig = resolveOrderTypeConfig(signal, global);
     return getOrderTypeFromConfig(orderTypeConfig);
   }
@@ -361,10 +361,10 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
     ctx: TradeContext,
     signal: Signal,
     symbol: string,
-    side: typeof OrderSide[keyof typeof OrderSide],
+    side: OrderSide,
     submittedQtyDecimal: Decimal,
-    orderTypeParam: typeof OrderType[keyof typeof OrderType],
-    timeInForce: typeof TimeInForceType[keyof typeof TimeInForceType],
+    orderTypeParam: OrderType,
+    timeInForce: TimeInForceType,
     remark: string | undefined,
     overridePrice: number | undefined,
     isShortSymbol: boolean,

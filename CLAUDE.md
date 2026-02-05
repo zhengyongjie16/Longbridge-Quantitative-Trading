@@ -40,4 +40,4 @@ src/
 
 ## 核心代码规范
 
-请使用typescript-project-specifications skill
+当你需要编写任何TypeScript代码，强制使用typescript-project-specifications skill

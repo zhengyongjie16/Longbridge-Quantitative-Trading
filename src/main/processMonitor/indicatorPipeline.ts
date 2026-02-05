@@ -1,6 +1,22 @@
 /**
- * @module processMonitor/indicatorPipeline
- * @description 行情→K线→指标快照→缓存
+ * 指标处理流水线模块
+ *
+ * 功能：
+ * - 从行情服务获取监控标的的 K 线数据
+ * - 根据 K 线数据计算技术指标（RSI、KDJ、MACD、MFI、EMA、PSY）
+ * - 构建指标快照并缓存到 indicatorCache
+ * - 释放旧的快照对象以支持对象池复用
+ *
+ * 指标参数：
+ * - RSI：默认周期 [6, 12, 24]
+ * - EMA：默认周期 [5, 10, 20]
+ * - PSY：默认周期 [5, 10, 20]
+ * - KDJ：默认周期 9
+ * - MACD：快线 12、慢线 26、信号线 9
+ * - MFI：默认周期 14
+ *
+ * @param params 流水线参数，包含监控标的、上下文等信息
+ * @returns 构建的指标快照，失败时返回 null
  */
 import { buildIndicatorSnapshot } from '../../services/indicators/index.js';
 import { logger } from '../../utils/logger/index.js';

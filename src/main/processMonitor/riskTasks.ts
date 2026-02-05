@@ -1,6 +1,17 @@
 /**
- * @module processMonitor/riskTasks
- * @description 距回收价/浮亏检查调度
+ * 风险检查任务调度模块
+ *
+ * 功能：
+ * - 根据价格变化和监控标的配置调度风险检查任务
+ * - 调度距回收价检查（LIQUIDATION_DISTANCE_CHECK）：用于触发自动换标
+ * - 调度浮亏检查（UNREALIZED_LOSS_CHECK）：用于触发保护性清仓
+ * - 监控价格变化并更新牛熊证距离信息显示
+ *
+ * 调度条件：
+ * - 距回收价检查：自动寻标启用、价格发生变化时调度
+ * - 浮亏检查：价格发生变化时调度
+ *
+ * @param params 调度参数，包含监控标的、上下文、席位信息、价格变化标志等
  */
 import type { RiskTasksParams } from './types.js';
 

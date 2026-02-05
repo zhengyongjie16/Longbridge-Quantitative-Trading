@@ -314,7 +314,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     isLongSymbol: boolean,
     monitorSymbol: string | null,
     isProtectiveLiquidation: boolean,
-    orderType: typeof OrderType[keyof typeof OrderType],
+    orderType: OrderType,
   ): void {
     const now = Date.now();
 

@@ -13,8 +13,6 @@
 import { OrderStatus } from 'longport';
 import type { OrderTypeConfig, SignalType } from '../types/index.js';
 
-type OrderStatusValue = typeof OrderStatus[keyof typeof OrderStatus];
-
 /** 时间相关常量 */
 export const TIME = {
   /** 每秒的毫秒数 */
@@ -97,13 +95,13 @@ export const MONITOR = {
 export const ORDER_PRICE_DIFF_THRESHOLD = 0.001;
 
 /** 未成交订单状态集合（New/PartialFilled/WaitToNew/WaitToReplace/PendingReplace） */
-export const PENDING_ORDER_STATUSES = new Set<OrderStatusValue>([
+export const PENDING_ORDER_STATUSES = new Set<OrderStatus>([
   OrderStatus.New,
   OrderStatus.PartialFilled,
   OrderStatus.WaitToNew,
   OrderStatus.WaitToReplace,
   OrderStatus.PendingReplace,
-]) as ReadonlySet<OrderStatusValue>;
+]) as ReadonlySet<OrderStatus>;
 
 /** 风险检查相关常量（牛熊证） */
 /** 牛证最低距离回收价百分比（低于此值拒绝买入） */

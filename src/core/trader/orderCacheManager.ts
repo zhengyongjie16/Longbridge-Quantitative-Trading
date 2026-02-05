@@ -74,11 +74,11 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
       let allOrders: Array<{
         orderId: string;
         symbol: string;
-        side: typeof OrderSide[keyof typeof OrderSide];
+        side: OrderSide;
         price: unknown;
         quantity: unknown;
         executedQuantity: unknown;
-        status: typeof OrderStatus[keyof typeof OrderStatus];
+        status: OrderStatus;
         orderType: PendingOrder['orderType'];
       }> = [];
 

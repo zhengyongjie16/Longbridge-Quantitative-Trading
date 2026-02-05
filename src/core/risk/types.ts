@@ -25,17 +25,60 @@ import type {
   UnrealizedLossCheckResult,
 } from '../../types/index.js';
 import type { OrderFilteringEngine, OrderOwnership } from '../orderRecorder/types.js';
+import type { Decimal, NaiveDate, OrderSide, WarrantType as SDKWarrantType } from 'longport';
 
-/** 牛熊证报价接口（LongPort API 原始数据） */
+/**
+ * 牛熊证报价
+ * @see LongPort SDK QuoteContext.warrantQuote() 返回类型
+ */
 export type WarrantQuote = {
-  readonly symbol?: string;
-  readonly category?: number | string;
-  readonly call_price?: unknown;
-  readonly callPrice?: unknown;
-  readonly [key: string]: unknown;
+  /** 证券代码 */
+  readonly symbol: string | null;
+  /** 最新价 */
+  readonly lastDone: Decimal | null;
+  /** 昨收价 */
+  readonly prevClose: Decimal | null;
+  /** 开盘价 */
+  readonly open: Decimal | null;
+  /** 最高价 */
+  readonly high: Decimal | null;
+  /** 最低价 */
+  readonly low: Decimal | null;
+  /** 最新价时间戳 */
+  readonly timestamp: Date | null;
+  /** 成交量 */
+  readonly volume: number | null;
+  /** 成交额 */
+  readonly turnover: Decimal | null;
+  /** 交易状态 (TradeStatus 枚举值) */
+  readonly tradeStatus: number | null;
+  /** 引伸波幅 */
+  readonly impliedVolatility: Decimal | null;
+  /** 到期日 */
+  readonly expiryDate: NaiveDate | null;
+  /** 最后交易日 */
+  readonly lastTradeDate: NaiveDate | null;
+  /** 街货比 */
+  readonly outstandingRatio: Decimal | null;
+  /** 街货量 */
+  readonly outstandingQuantity: number | null;
+  /** 换股比率 */
+  readonly conversionRatio: Decimal | null;
+  /** 轮证类型 (WarrantType: Call/Put/Bull/Bear/Inline) */
+  readonly category: SDKWarrantType | null;
+  /** 行权价 */
+  readonly strikePrice: Decimal | null;
+  /** 上限价 */
+  readonly upperStrikePrice: Decimal | null;
+  /** 下限价 */
+  readonly lowerStrikePrice: Decimal | null;
+  /** 回收价 */
+  readonly callPrice: Decimal | null;
+  /** 标的证券代码 */
+  readonly underlyingSymbol: string | null;
 };
 
-/** 牛熊证信息（解析后的结构化数据） */
+/** 牛熊证信息 */
 export type WarrantInfo =
   | { readonly isWarrant: false }
   | {
@@ -161,7 +204,7 @@ export type DailyLossFilledOrderInput = {
   readonly monitorSymbol: string;
   readonly symbol: string;
   readonly isLongSymbol: boolean;
-  readonly side: (typeof import('longport').OrderSide)[keyof typeof import('longport').OrderSide];
+  readonly side: OrderSide;
   readonly executedPrice: number;
   readonly executedQuantity: number;
   readonly executedTimeMs: number;

@@ -1,5 +1,16 @@
 /**
  * 程序退出清理模块
+ *
+ * 功能：
+ * - 创建程序退出时的资源清理函数
+ * - 注册 SIGINT 和 SIGTERM 信号处理器
+ * - 确保程序退出时正确释放所有资源
+ *
+ * 清理内容：
+ * - 停止所有处理器（BuyProcessor、SellProcessor、MonitorTaskProcessor 等）
+ * - 销毁所有 DelayedSignalVerifier
+ * - 清空 IndicatorCache
+ * - 释放所有监控快照对象
  */
 import { logger } from '../../utils/logger/index.js';
 import { CleanupContext } from './types.js';

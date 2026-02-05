@@ -1,6 +1,23 @@
 /**
- * @module processMonitor/signalPipeline
- * @description 信号生成→席位校验→分流
+ * 信号处理流水线模块
+ *
+ * 功能：
+ * - 接收策略生成的交易信号（立即信号和延迟验证信号）
+ * - 进行席位状态校验（席位就绪、版本匹配、标的匹配）
+ * - 丰富信号数据（添加标的名称、价格、最小买卖单位）
+ * - 根据信号类型分流到对应的任务队列
+ *
+ * 信号分流规则：
+ * - 立即买入信号 → buyTaskQueue (IMMEDIATE_BUY)
+ * - 立即卖出信号 → sellTaskQueue (IMMEDIATE_SELL)
+ * - 延迟验证信号 → delayedSignalVerifier
+ *
+ * 席位校验条件：
+ * 1. 席位状态必须为 READY
+ * 2. 信号中的席位版本必须与当前席位版本匹配
+ * 3. 信号标的必须与席位当前标的匹配
+ *
+ * @param params 流水线参数，包含信号、席位信息、上下文等
  */
 import { logger } from '../../utils/logger/index.js';
 import { formatSignalLog, formatSymbolDisplay } from '../../utils/helpers/index.js';

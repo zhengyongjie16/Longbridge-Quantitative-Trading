@@ -7,7 +7,7 @@
  * - 依赖注入类型：各服务的 Deps 类型
  * - 配置类型：RateLimiterConfig、OrderMonitorConfig
  */
-import type { OrderSide, OrderType, OrderStatus, TimeInForceType, TradeContext, PushOrderChanged } from 'longport';
+import type { Config, Decimal, OrderSide, OrderType, OrderStatus, TimeInForceType, TradeContext, PushOrderChanged } from 'longport';
 import type {
   Signal,
   Quote,
@@ -31,11 +31,11 @@ import type { RefreshGate } from '../../utils/refreshGate/types.js';
  */
 export type OrderPayload = {
   readonly symbol: string;
-  readonly orderType: typeof OrderType[keyof typeof OrderType];
-  readonly side: typeof OrderSide[keyof typeof OrderSide];
-  readonly timeInForce: typeof TimeInForceType[keyof typeof TimeInForceType];
-  readonly submittedQuantity: import('longport').Decimal;
-  readonly submittedPrice?: import('longport').Decimal;
+  readonly orderType: OrderType;
+  readonly side: OrderSide;
+  readonly timeInForce: TimeInForceType;
+  readonly submittedQuantity: Decimal;
+  readonly submittedPrice?: Decimal;
   readonly remark?: string;
 };
 
@@ -135,7 +135,7 @@ export interface OrderMonitor {
     isLongSymbol: boolean,
     monitorSymbol: string | null,
     isProtectiveLiquidation: boolean,
-    orderType: typeof OrderType[keyof typeof OrderType],
+    orderType: OrderType,
   ): void;
 
   /** 撤销订单 */
@@ -229,7 +229,7 @@ export type TrackedOrder = {
   /** 是否为保护性清仓订单（用于触发买入冷却） */
   readonly isProtectiveLiquidation: boolean;
   /** 订单类型（用于合并和改单判断） */
-  readonly orderType: typeof OrderType[keyof typeof OrderType];
+  readonly orderType: OrderType;
   /** 当前委托价（会随市价更新） */
   submittedPrice: number;
   submittedQuantity: number;
@@ -252,7 +252,7 @@ export type PendingSellOrderSnapshot = {
   readonly symbol: string;
   readonly side: OrderSide;
   readonly status: OrderStatus;
-  readonly orderType: typeof OrderType[keyof typeof OrderType];
+  readonly orderType: OrderType;
   readonly submittedPrice: number;
   readonly submittedQuantity: number;
   readonly executedQuantity: number;
@@ -334,7 +334,7 @@ export type OrderExecutorDeps = {
  * 交易器依赖类型
  */
 export type TraderDeps = {
-  readonly config: import('longport').Config;
+  readonly config: Config;
   readonly tradingConfig: MultiMonitorTradingConfig;
   readonly liquidationCooldownTracker: LiquidationCooldownTracker;
   readonly rateLimiterConfig?: RateLimiterConfig;

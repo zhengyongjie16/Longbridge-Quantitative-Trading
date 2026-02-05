@@ -8,7 +8,7 @@ export type SellMergeDecisionInput = {
   readonly pendingOrders: ReadonlyArray<PendingSellOrderSnapshot>;
   readonly newOrderQuantity: number;
   readonly newOrderPrice: number | null;
-  readonly newOrderType: typeof OrderType[keyof typeof OrderType];
+  readonly newOrderType: OrderType;
   readonly isProtectiveLiquidation: boolean;
 };
 

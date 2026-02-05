@@ -294,7 +294,7 @@ export const isBuyAction = (action: SignalType): boolean => {
  * @returns 方向名称字符串
  */
 export function getDirectionName(isLongSymbol: boolean): string {
-  return (isLongSymbol && '做多标的') || '做空标的';
+  return isLongSymbol ? '做多标的' : '做空标的';
 }
 
 /**

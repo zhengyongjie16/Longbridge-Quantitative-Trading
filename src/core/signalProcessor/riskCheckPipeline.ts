@@ -7,7 +7,7 @@
  * - 处理风控数据源切换（买入实时/卖出缓存）
  */
 import { logger } from '../../utils/logger/index.js';
-import { formatSymbolDisplayFromQuote, formatError } from '../../utils/helpers/index.js';
+import { formatSymbolDisplayFromQuote, formatError, isBuyAction } from '../../utils/helpers/index.js';
 import { VERIFICATION } from '../../constants/index.js';
 import { getSymbolName } from './utils.js';
 import type {
@@ -19,10 +19,6 @@ import type {
   MultiMonitorTradingConfig,
 } from '../../types/index.js';
 import type { LiquidationCooldownTracker } from '../../services/liquidationCooldown/types.js';
-
-function isBuyAction(action: Signal['action']): boolean {
-  return action === 'BUYCALL' || action === 'BUYPUT';
-}
 
 function getRiskCheckCooldownKey(symbol: string, action: Signal['action']): string {
   if (isBuyAction(action)) {

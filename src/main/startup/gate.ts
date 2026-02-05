@@ -1,5 +1,19 @@
 /**
- * 启动门禁：在交易日、交易时段与开盘保护条件满足后才允许继续。
+ * 启动门禁模块
+ *
+ * 功能：
+ * - 控制程序启动流程，确保在满足交易日、交易时段与开盘保护条件后才继续执行
+ * - 提供阻塞式等待方法 wait()，在条件不满足时自动休眠并重试
+ * - 支持开发模式（skip）跳过检查快速启动
+ *
+ * 状态流转：
+ * - 'notTradingDay': 今天不是交易日，等待开市
+ * - 'outOfSession': 当前不在交易时段，等待开市
+ * - 'openProtection': 处于开盘保护期内，等待保护期结束
+ * - 'ready': 所有条件满足，可以继续执行
+ *
+ * @param deps 依赖注入，包含时间解析、会话判断、开盘保护配置等
+ * @returns StartupGate 接口，包含 wait() 方法用于等待条件满足
  */
 import type { StartupGate, StartupGateDeps } from './types.js';
 

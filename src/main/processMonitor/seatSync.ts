@@ -1,6 +1,21 @@
 /**
- * @module processMonitor/seatSync
- * @description 席位同步/队列清理/SEAT_REFRESH 调度
+ * 席位同步与队列清理模块
+ *
+ * 功能：
+ * - 同步席位状态到监控上下文（席位状态、版本、标的代码、行情数据）
+ * - 当席位状态从 READY 变为非 READY 时，清理相关队列和延迟验证信号
+ * - 当席位标的发生变化时，调度 SEAT_REFRESH 任务刷新浮亏数据
+ *
+ * 清理触发条件：
+ * - 席位状态从 READY 变为其他状态（EMPTY、SEARCHING、SWITCHING）
+ * - 清理内容包括：延迟验证信号、待执行买入/卖出任务、监控任务、牛熊证信息
+ *
+ * 调度触发条件：
+ * - 席位就绪且标的发生变化
+ * - 席位从不就绪变为就绪
+ *
+ * @param params 同步参数，包含监控标的、上下文、行情映射等
+ * @returns 同步结果，包含席位状态、版本、就绪状态等
  */
 import { logger } from '../../utils/logger/index.js';
 import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
