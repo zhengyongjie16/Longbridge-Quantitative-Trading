@@ -1,11 +1,39 @@
 /**
- * 获取符合条件的最优牛熊证
+ * 获取符合条件的所有牛熊证（全部符合阈值的结果）
  *
- * 筛选条件：正常交易，到期日 >= 3个月，现价 > 0.05（开盘后才应用分均成交额 >= 10万）
- * 优先选择：价格最接近 MIN_PRICE 且成交额最高
+ * 筛选条件：正常交易，到期日 >= 3个月，现价 > MIN_PRICE，分均成交额 >= MIN_TURNOVER_PER_MINUTE（开盘后）
+ * 输出：所有符合条件的结果，以 JSON 形式展示
  *
- * 使用: node tests/getWarrants.js [标的代码] [bull|bear]
- * 示例: node tests/getWarrants.js HSI.HK bear
+ * 使用: node utils/getWarrants.js [标的代码] [bull|bear]
+ * 示例: node utils/getWarrants.js HSI.HK bear
+ *
+ * --- warrantList / Warrant Filter API 返回字段说明（list 中每项）---
+ * 参考: Longbridge OpenAPI - Warrant Filter (quote/pull/warrant-filter)
+ *
+ * symbol             string   - 证券代码（如 12345.HK）
+ * name               string   - 证券名称
+ * last_done          string   - 最新价
+ * change_rate        string   - 涨跌幅（小数形式，如 -0.0216 表示 -2.16%）
+ * change_val         string   - 涨跌额
+ * volume             int64    - 成交量
+ * turnover           string   - 成交额（港币）
+ * expiry_date        string   - 到期日，格式 YYMMDD（如 20220705）
+ * strike_price       string   - 行权价（窝轮用；牛熊证多为 0）
+ * upper_strike_price string   - 上限价（牛熊证为收回价上限；窝轮可能为 0）
+ * lower_strike_price string   - 下限价（牛熊证为收回价下限；窝轮可能为 0）
+ * outstanding_qty   string   - 流通量
+ * outstanding_ratio  string   - 流通比率
+ * premium            string   - 溢价（小数，如 0.016 表示约 1.6%）
+ * itm_otm            string   - 价内/价外程度（窝轮用；牛熊证可能为 null/0）
+ * implied_volatility string   - 隐含波动率（窝轮用；牛熊证可能无）
+ * delta              string   - 希腊值 Delta（窝轮用；牛熊证可能无）
+ * call_price         string   - 回收价/收回价（牛熊证触及即强制收回，单位与标的一致）
+ * to_call_price      string   - 距回收价（与回收价的价格/比例间隔，用于风险判断）
+ * effective_leverage string   - 有效杠杆
+ * leverage_ratio     string   - 杠杆比率
+ * conversion_ratio   string   - 换股比率（牛熊证每份对应正股数量）
+ * balance_point      string   - 打和点/盈亏平衡点（正股需到该价位才回本）
+ * status             int32    - 状态：2=停牌 3=待上市 4=正常
  */
 import dotenv from 'dotenv';
 import path from 'path';
@@ -126,9 +154,8 @@ async function main() {
 
   console.log(`获取 ${warrants.length} 只${typeLabel}\n`);
 
-  // 单次遍历找最优：价格最低（> MIN_PRICE）且分均成交额最高
-  let best = null;
-  let validCount = 0;
+  // 收集所有符合阈值的结果（保留 API 原始结构）：现价 > MIN_PRICE 且分均成交额 >= MIN_TURNOVER_PER_MINUTE（开盘后）
+  const rawList = [];
   let skippedCount = 0;
 
   for (const w of warrants) {
@@ -148,44 +175,33 @@ async function main() {
       continue;
     }
 
-    validCount++;
-
-    // 比较找最优：价格低优先，成交额高优先
-    if (!best ||
-        price < best.price ||
-        (price === best.price && turnoverPerMin > best.turnoverPerMin)) {
-      best = {
-        symbol: w.symbol,
-        name: w.name,
-        price,
-        changeRate: (Number(w.changeRate || 0) * 100).toFixed(2) + '%',
-        turnover,
-        turnoverPerMin,
-        expiryDate: w.expiryDate,
-        callPrice: w.callPrice ? Number(w.callPrice) : null,
-        toCallPrice: w.toCallPrice ? Number(w.toCallPrice) : null,
-      };
-    }
+    // 使用 SDK 提供的 toJSON() 获取可序列化的原生结构（WarrantInfo 为原生类，仅 getter 无枚举属性）
+    rawList.push(typeof w.toJSON === 'function' ? w.toJSON() : { ...w });
   }
 
-  // 输出结果
-  console.log('====== 结果 ======\n');
+  // 输出：仅包装一层元信息，list 为 API 原生结构
+  console.log('====== 结果（API 原生 JSON） ======\n');
 
-  if (best) {
-    console.log(`选中: ${best.symbol} ${best.name}`);
-    console.log(`现价: ${best.price.toFixed(3)} | 涨跌: ${best.changeRate}`);
-    console.log(`成交额: ${formatTurnover(best.turnover)} | 分均: ${formatTurnover(best.turnoverPerMin)}`);
-    console.log(`到期日: ${formatDate(best.expiryDate)}`);
-    if (best.callPrice !== null) {
-      console.log(`回收价: ${best.callPrice.toFixed(0)} | 距回收: ${best.toCallPrice !== null ? (best.toCallPrice * 100).toFixed(2) + '%' : 'N/A'}`);
-    }
+  const result = {
+    symbol,
+    typeLabel,
+    tradingMinutes,
+    totalFetched: warrants.length,
+    validCount: rawList.length,
+    skippedCount,
+    threshold: { minPrice: MIN_PRICE, minTurnoverPerMinute: MIN_TURNOVER_PER_MINUTE },
+    list: rawList,
+  };
+
+  console.log(JSON.stringify(result, null, 2));
+
+  if (rawList.length === 0) {
+    console.log(`\n没有符合条件的${typeLabel}`);
   } else {
-    console.log(`没有符合条件的${typeLabel}`);
+    console.log(`\n统计: 总${warrants.length}, 符合条件${rawList.length}, 跳过${skippedCount}`);
   }
 
-  console.log(`\n统计: 总${warrants.length}, 有效${validCount}, 跳过${skippedCount}\n`);
-
-  return { symbol, tradingMinutes, totalCount: warrants.length, best };
+  return result;
 }
 
 main().then(() => process.exit(0)).catch(e => {
