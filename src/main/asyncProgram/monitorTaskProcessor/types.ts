@@ -19,23 +19,24 @@ import type {
   MarketDataClient,
   Quote,
   RawOrderFromAPI,
-  SeatVersion,
   SymbolRegistry,
+  OrderRecorder,
+  RiskChecker,
+  Trader,
+  MultiMonitorTradingConfig,
 } from '../../../types/index.js';
 import type { DailyLossTracker } from '../../../core/risk/types.js';
-import type { OrderRecorder, RiskChecker, Trader } from '../../../types/index.js';
 import type { UnrealizedLossMonitor } from '../../../core/unrealizedLossMonitor/types.js';
-import type { MultiMonitorTradingConfig } from '../../../types/index.js';
 
 export type SeatSnapshot = Readonly<{
-  seatVersion: SeatVersion;
+  seatVersion: number;
   symbol: string | null;
 }>;
 
 export type AutoSymbolTickTaskData = Readonly<{
   monitorSymbol: string;
   direction: SeatDirection;
-  seatVersion: SeatVersion;
+  seatVersion: number;
   symbol: string | null;
   currentTimeMs: number;
   canTradeNow: boolean;
@@ -54,7 +55,7 @@ export type AutoSymbolSwitchDistanceTaskData = Readonly<{
 export type SeatRefreshTaskData = Readonly<{
   monitorSymbol: string;
   direction: SeatDirection;
-  seatVersion: SeatVersion;
+  seatVersion: number;
   previousSymbol: string | null;
   nextSymbol: string;
   quote: Quote | null;
@@ -66,13 +67,13 @@ export type LiquidationDistanceCheckTaskData = Readonly<{
   monitorSymbol: string;
   monitorPrice: number;
   long: Readonly<{
-    seatVersion: SeatVersion;
+    seatVersion: number;
     symbol: string | null;
     quote: Quote | null;
     symbolName: string | null;
   }>;
   short: Readonly<{
-    seatVersion: SeatVersion;
+    seatVersion: number;
     symbol: string | null;
     quote: Quote | null;
     symbolName: string | null;
@@ -82,12 +83,12 @@ export type LiquidationDistanceCheckTaskData = Readonly<{
 export type UnrealizedLossCheckTaskData = Readonly<{
   monitorSymbol: string;
   long: Readonly<{
-    seatVersion: SeatVersion;
+    seatVersion: number;
     symbol: string | null;
     quote: Quote | null;
   }>;
   short: Readonly<{
-    seatVersion: SeatVersion;
+    seatVersion: number;
     symbol: string | null;
     quote: Quote | null;
   }>;

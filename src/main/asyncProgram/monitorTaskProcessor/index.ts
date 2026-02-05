@@ -116,15 +116,11 @@ export function createMonitorTaskProcessor(
       if (!task) {
         break;
       }
-      let status: MonitorTaskStatus = 'processed';
-      try {
-        status = await processTask(task, helpers);
-      } catch (err) {
-        status = 'failed';
+      const status = await processTask(task, helpers).catch((err) => {
         logger.error('[MonitorTaskProcessor] 处理任务失败', formatError(err));
-      } finally {
-        onProcessed?.(task, status);
-      }
+        return 'failed' as const;
+      });
+      onProcessed?.(task, status);
     }
   }
   const queueRunner = createQueueRunner({

@@ -51,6 +51,21 @@ const DEFAULT_RETRY: RetryConfig = {
   delayMs: API.DEFAULT_RETRY_DELAY_MS,
 };
 
+/** 规范化周期参数 */
+export function normalizePeriod(period: PeriodString | Period): Period {
+  if (typeof period === 'number') {
+    return period;
+  }
+  const map: Record<PeriodString, Period> = {
+    '1m': Period.Min_1,
+    '5m': Period.Min_5,
+    '15m': Period.Min_15,
+    '1h': Period.Min_60,
+    '1d': Period.Day,
+  };
+  return map[period] ?? Period.Min_1;
+}
+
 /**
  * 创建交易日缓存
  * @param _deps 依赖注入（当前为空）
@@ -325,23 +340,6 @@ export async function createMarketDataClient(
       }
     }
     logger.debug(`[静态信息缓存] 新增缓存 ${infoList.length} 个标的的静态信息`);
-  }
-
-  /**
-   * 规范化周期参数
-   */
-  function normalizePeriod(period: PeriodString | Period): Period {
-    if (typeof period === 'number') {
-      return period;
-    }
-    const map: Record<PeriodString, Period> = {
-      '1m': Period.Min_1,
-      '5m': Period.Min_5,
-      '15m': Period.Min_15,
-      '1h': Period.Min_60,
-      '1d': Period.Day,
-    };
-    return map[period] ?? Period.Min_1;
   }
 
   /**

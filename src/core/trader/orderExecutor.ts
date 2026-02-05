@@ -34,6 +34,24 @@ import { identifyErrorType } from './tradeLogger.js';
 import { formatOrderTypeLabel, resolveOrderTypeConfig } from './utils.js';
 import { resolveSellMergeDecision } from './sellOrderMerge/utils.js';
 
+/** 获取操作描述（用于日志） */
+export function getActionDescription(signalAction: Signal['action']): string {
+  switch (signalAction) {
+    case 'BUYCALL':
+      return '买入做多标的（做多）';
+    case 'SELLCALL':
+      return '卖出做多标的（平仓）';
+    case 'BUYPUT':
+      return '买入做空标的（做空）';
+    case 'SELLPUT':
+      return '卖出做空标的（平仓）';
+    case 'HOLD':
+      return '持有';
+    default:
+      return `未知操作(${signalAction})`;
+  }
+}
+
 /** 配置字符串转 OrderType 枚举 */
 function getOrderTypeFromConfig(
   typeConfig: 'LO' | 'ELO' | 'MO',
@@ -45,6 +63,63 @@ function getOrderTypeFromConfig(
     return OrderType.MO;
   }
   return OrderType.ELO;
+}
+
+/** 计算买入数量（按目标金额和每手股数） */
+export function calculateBuyQuantity(
+  signal: Signal,
+  isShortSymbol: boolean,
+  overridePrice: number | undefined,
+  targetNotional: number,
+): Decimal {
+  const pricingSource = overridePrice ?? signal?.price ?? null;
+  if (!Number.isFinite(Number(pricingSource)) || Number(pricingSource) <= 0) {
+    logger.warn(
+      `[跳过订单] 无法获取有效价格，无法按金额计算买入数量，price=${pricingSource}`,
+    );
+    return Decimal.ZERO();
+  }
+
+  const notional = isValidPositiveNumber(targetNotional)
+    ? targetNotional
+    : TRADING.DEFAULT_TARGET_NOTIONAL;
+  const priceNum = Number(pricingSource);
+
+  if (!Number.isFinite(priceNum) || priceNum <= 0) {
+    logger.warn(
+      `[跳过订单] 价格无效，无法计算买入数量，price=${priceNum}`,
+    );
+    return Decimal.ZERO();
+  }
+
+  let rawQty = Math.floor(notional / priceNum);
+
+  // 获取最小买卖单位（已在配置验证阶段确保 lotSize 有效）
+  const lotSize: number = signal?.lotSize ?? 0;
+  if (!Number.isFinite(lotSize) || lotSize <= 0) {
+    logger.error(
+      `[跳过订单] lotSize 无效(${lotSize})，这不应该发生，请检查配置验证逻辑`,
+    );
+    return Decimal.ZERO();
+  }
+
+  // 此时 lotSize 一定是有效的正数
+  rawQty = Math.floor(rawQty / lotSize) * lotSize;
+  if (!Number.isFinite(rawQty) || rawQty < lotSize) {
+    logger.warn(
+      `[跳过订单] 目标金额(${notional}) 相对于价格(${priceNum}) 太小，按每手 ${lotSize} 股计算得到数量=${rawQty}，跳过提交订单`,
+    );
+    return Decimal.ZERO();
+  }
+
+  const actionType = isShortSymbol
+    ? '买入做空标的（做空）'
+    : '买入做多标的（做多）';
+  logger.info(
+    `[仓位计算] 按目标金额 ${notional} 计算得到${actionType}数量=${rawQty} 股（${lotSize} 股一手），单价≈${priceNum}`,
+  );
+
+  return toDecimal(rawQty);
 }
 
 /** 判断是否为保护性清仓信号（末日保护、强制止损等） */
@@ -177,24 +252,6 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
     updateLastBuyTime(signalAction, monitorConfig);
   }
 
-  /** 获取操作描述（用于日志） */
-  function getActionDescription(signalAction: Signal['action']): string {
-    switch (signalAction) {
-      case 'BUYCALL':
-        return '买入做多标的（做多）';
-      case 'SELLCALL':
-        return '卖出做多标的（平仓）';
-      case 'BUYPUT':
-        return '买入做空标的（做空）';
-      case 'SELLPUT':
-        return '卖出做空标的（平仓）';
-      case 'HOLD':
-        return '持有';
-      default:
-        return `未知操作(${signalAction})`;
-    }
-  }
-
   /** 解析订单类型（覆盖优先，其次保护性清仓） */
   function resolveOrderType(signal: Signal): OrderType {
     const orderTypeConfig = resolveOrderTypeConfig(signal, global);
@@ -246,63 +303,6 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       `[部分卖出] 信号指定卖出数量=${targetQuantity}，可用数量=${totalAvailable}，实际卖出=${actualQty}`,
     );
     return toDecimal(actualQty);
-  }
-
-  /** 计算买入数量（按目标金额和每手股数） */
-  function calculateBuyQuantity(
-    signal: Signal,
-    isShortSymbol: boolean,
-    overridePrice: number | undefined,
-    targetNotional: number,
-  ): Decimal {
-    const pricingSource = overridePrice ?? signal?.price ?? null;
-    if (!Number.isFinite(Number(pricingSource)) || Number(pricingSource) <= 0) {
-      logger.warn(
-        `[跳过订单] 无法获取有效价格，无法按金额计算买入数量，price=${pricingSource}`,
-      );
-      return Decimal.ZERO();
-    }
-
-    const notional = isValidPositiveNumber(targetNotional)
-      ? targetNotional
-      : TRADING.DEFAULT_TARGET_NOTIONAL;
-    const priceNum = Number(pricingSource);
-
-    if (!Number.isFinite(priceNum) || priceNum <= 0) {
-      logger.warn(
-        `[跳过订单] 价格无效，无法计算买入数量，price=${priceNum}`,
-      );
-      return Decimal.ZERO();
-    }
-
-    let rawQty = Math.floor(notional / priceNum);
-
-    // 获取最小买卖单位（已在配置验证阶段确保 lotSize 有效）
-    const lotSize: number = signal?.lotSize ?? 0;
-    if (!Number.isFinite(lotSize) || lotSize <= 0) {
-      logger.error(
-        `[跳过订单] lotSize 无效(${lotSize})，这不应该发生，请检查配置验证逻辑`,
-      );
-      return Decimal.ZERO();
-    }
-
-    // 此时 lotSize 一定是有效的正数
-    rawQty = Math.floor(rawQty / lotSize) * lotSize;
-    if (!Number.isFinite(rawQty) || rawQty < lotSize) {
-      logger.warn(
-        `[跳过订单] 目标金额(${notional}) 相对于价格(${priceNum}) 太小，按每手 ${lotSize} 股计算得到数量=${rawQty}，跳过提交订单`,
-      );
-      return Decimal.ZERO();
-    }
-
-    const actionType = isShortSymbol
-      ? '买入做空标的（做空）'
-      : '买入做多标的（做多）';
-    logger.info(
-      `[仓位计算] 按目标金额 ${notional} 计算得到${actionType}数量=${rawQty} 股（${lotSize} 股一手），单价≈${priceNum}`,
-    );
-
-    return toDecimal(rawQty);
   }
 
   /** 处理订单提交错误（分类记录日志） */

@@ -10,7 +10,6 @@ import type {
   Position,
   Quote,
   SeatState,
-  SeatVersion,
   Signal,
 } from '../../types/index.js';
 import type { MainProgramContext } from '../mainProgram/types.js';
@@ -78,8 +77,8 @@ export type SeatSyncParams = Readonly<{
 export type SeatSyncResult = Readonly<{
   longSeatState: SeatState;
   shortSeatState: SeatState;
-  longSeatVersion: SeatVersion;
-  shortSeatVersion: SeatVersion;
+  longSeatVersion: number;
+  shortSeatVersion: number;
   longSeatReady: boolean;
   shortSeatReady: boolean;
   longSymbol: string;

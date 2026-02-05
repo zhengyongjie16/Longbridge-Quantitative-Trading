@@ -28,6 +28,20 @@ export function createQueueRunner({
   let running = false;
   let immediateHandle: ReturnType<typeof setImmediate> | null = null;
 
+  /**
+   * 处理队列错误
+   */
+  function handleProcessError(err: unknown): void {
+    onQueueError(err);
+  }
+
+  /**
+   * 处理队列任务完成
+   */
+  function handleProcessFinished(): void {
+    scheduleNextProcess();
+  }
+
   function scheduleNextProcess(): void {
     if (!running) {
       return;
@@ -35,14 +49,6 @@ export function createQueueRunner({
     if (monitorTaskQueue.isEmpty()) {
       immediateHandle = null;
       return;
-    }
-
-    function handleProcessError(err: unknown): void {
-      onQueueError(err);
-    }
-
-    function handleProcessFinished(): void {
-      scheduleNextProcess();
     }
 
     function handleImmediate(): void {

@@ -6,13 +6,7 @@
 import { Config } from 'longport';
 import { getRegionUrls } from './utils.js';
 
-/**
- * 创建 LongPort Config 对象
- * 文档参考：https://open.longbridge.com/zh-CN/docs/getting-started
- */
 export function createConfig({ env }: { env: NodeJS.ProcessEnv }): Config {
-  // 配置验证已在 config.validator.ts 的 validateAllConfig() 中统一处理
-  // 此处使用非空断言，因为调用前已完成验证
   const appKey = env['LONGPORT_APP_KEY'] ?? '';
   const appSecret = env['LONGPORT_APP_SECRET'] ?? '';
   const accessToken = env['LONGPORT_ACCESS_TOKEN'] ?? '';

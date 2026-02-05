@@ -6,7 +6,6 @@ import type {
   Position,
   SeatState,
   SeatStatus,
-  SeatVersion,
   SymbolRegistry,
 } from '../../types/index.js';
 import type { SeatDirection, SeatEntry, SymbolSeatEntry } from './types.js';
@@ -32,7 +31,7 @@ export function isSeatReady(
  */
 export function isSeatVersionMatch(
   signalVersion: number | null | undefined,
-  currentVersion: SeatVersion,
+  currentVersion: number,
 ): boolean {
   return Number.isFinite(signalVersion) && signalVersion === currentVersion;
 }
@@ -120,14 +119,14 @@ export function createSymbolRegistry(
     getSeatState(monitorSymbol: string, direction: SeatDirection): SeatState {
       return resolveSeatEntry(registry, monitorSymbol, direction).state;
     },
-    getSeatVersion(monitorSymbol: string, direction: SeatDirection): SeatVersion {
+    getSeatVersion(monitorSymbol: string, direction: SeatDirection): number {
       return resolveSeatEntry(registry, monitorSymbol, direction).version;
     },
     resolveSeatBySymbol(symbol: string): {
       monitorSymbol: string;
       direction: 'LONG' | 'SHORT';
       seatState: SeatState;
-      seatVersion: SeatVersion;
+      seatVersion: number;
     } | null {
       if (!symbol) {
         return null;
@@ -166,7 +165,7 @@ export function createSymbolRegistry(
       };
       return seatEntry.state;
     },
-    bumpSeatVersion(monitorSymbol: string, direction: SeatDirection): SeatVersion {
+    bumpSeatVersion(monitorSymbol: string, direction: SeatDirection): number {
       const seatEntry = resolveSeatEntry(registry, monitorSymbol, direction);
       seatEntry.version += 1;
       return seatEntry.version;

@@ -14,6 +14,17 @@ import type {
   SwitchStateMachineDeps,
 } from './types.js';
 
+/** 从持仓列表中提取指定标的的持仓信息 */
+function extractPosition(
+  positions: ReadonlyArray<Position>,
+  symbol: string,
+): Position | null {
+  if (!symbol) {
+    return null;
+  }
+  return positions.find((pos) => pos.symbol === symbol) ?? null;
+}
+
 export function createSwitchStateMachine(
   deps: SwitchStateMachineDeps,
 ): SwitchStateMachine {
@@ -44,16 +55,6 @@ export function createSwitchStateMachine(
     buySide,
     logger,
   } = deps;
-
-  function extractPosition(
-    positions: ReadonlyArray<Position>,
-    symbol: string,
-  ): Position | null {
-    if (!symbol) {
-      return null;
-    }
-    return positions.find((pos) => pos.symbol === symbol) ?? null;
-  }
 
   function isCancelableBuyOrder(order: PendingOrder, symbol: string): boolean {
     return order.symbol === symbol
@@ -126,8 +127,8 @@ export function createSwitchStateMachine(
         if (state.sellSubmitted) {
           return;
         }
-        const quote = quotesMap.get(state.oldSymbol) ?? null;
-        if (!quote || quote.price == null || quote.lotSize == null) {
+        const quote = quotesMap.get(state.oldSymbol);
+        if (!quote?.price || !quote?.lotSize) {
           return;
         }
 
@@ -191,8 +192,8 @@ export function createSwitchStateMachine(
         switchStates.delete(direction);
         return;
       }
-      const quote = quotesMap.get(nextSymbol) ?? null;
-      if (!quote || quote.price == null || quote.lotSize == null) {
+      const quote = quotesMap.get(nextSymbol);
+      if (!quote?.price || !quote?.lotSize) {
         state.awaitingQuote = true;
         return;
       }
@@ -208,8 +209,8 @@ export function createSwitchStateMachine(
         switchStates.delete(direction);
         return;
       }
-      const quote = quotesMap.get(nextSymbol) ?? null;
-      if (!quote || quote.price == null || quote.lotSize == null) {
+      const quote = quotesMap.get(nextSymbol);
+      if (!quote?.price || !quote?.lotSize) {
         state.awaitingQuote = true;
         state.stage = 'WAIT_QUOTE';
         return;
@@ -222,7 +223,7 @@ export function createSwitchStateMachine(
         quote.lotSize,
       );
 
-      if (!buyQuantity) {
+      if (buyQuantity) {
         state.stage = 'COMPLETE';
       } else {
         const signal = buildOrderSignal({

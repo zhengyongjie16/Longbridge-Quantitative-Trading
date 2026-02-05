@@ -72,11 +72,12 @@ export async function mainProgram({
       try {
         const tradingDayInfo = await marketDataClient.isTradingDay(currentTime);
         lastState.cachedTradingDayInfo = tradingDayInfo;
-        logger.info(
-          tradingDayInfo.isTradingDay
-            ? `跨日后交易日信息：${tradingDayInfo.isHalfDay ? '半日交易日' : '交易日'}`
-            : '跨日后交易日信息：非交易日',
-        );
+        if (tradingDayInfo.isTradingDay) {
+          const dayType = tradingDayInfo.isHalfDay ? '半日交易日' : '交易日';
+          logger.info(`跨日后交易日信息：${dayType}`);
+        } else {
+          logger.info('跨日后交易日信息：非交易日');
+        }
       } catch (err) {
         logger.warn('跨日后交易日信息获取失败，将仅按交易时段判断', formatError(err));
       }

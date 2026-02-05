@@ -32,6 +32,17 @@ import type {
 } from './types.js';
 import { recordTrade } from './tradeLogger.js';
 
+/** 根据订单方向和席位方向解析信号动作 */
+export function resolveSignalAction(
+  side: OrderSide,
+  isLongSymbol: boolean,
+): 'BUYCALL' | 'BUYPUT' | 'SELLCALL' | 'SELLPUT' {
+  if (side === OrderSide.Buy) {
+    return isLongSymbol ? 'BUYCALL' : 'BUYPUT';
+  }
+  return isLongSymbol ? 'SELLCALL' : 'SELLPUT';
+}
+
 /** 构建监控配置（将秒转换为毫秒） */
 function buildOrderMonitorConfig(globalConfig: GlobalConfig): OrderMonitorConfig {
   return {
@@ -50,16 +61,17 @@ function buildOrderMonitorConfig(globalConfig: GlobalConfig): OrderMonitorConfig
 
 /** 解析订单更新时间为毫秒时间戳 */
 function resolveUpdatedAtMs(updatedAt: unknown): number | null {
-  const ms =
-    updatedAt instanceof Date
-      ? updatedAt.getTime()
-      : typeof updatedAt === 'number'
-        ? updatedAt
-        : typeof updatedAt === 'string' && updatedAt.trim()
-          ? Date.parse(updatedAt)
-          : Number.NaN;
-
-  return Number.isFinite(ms) && ms > 0 ? ms : null;
+  if (updatedAt instanceof Date) {
+    return updatedAt.getTime();
+  }
+  if (typeof updatedAt === 'number') {
+    return updatedAt;
+  }
+  if (typeof updatedAt === 'string' && updatedAt.trim()) {
+    const parsed = Date.parse(updatedAt);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+  return null;
 }
 
 /**
@@ -101,16 +113,6 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     }
     logger.warn(`[订单监控] 未找到席位归属，使用默认方向: ${symbol}`);
     return { isLongSymbol: true, monitorSymbol: null };
-  }
-
-  function resolveSignalAction(
-    side: OrderSide,
-    isLongSymbol: boolean,
-  ): 'BUYCALL' | 'BUYPUT' | 'SELLCALL' | 'SELLPUT' {
-    if (side === OrderSide.Buy) {
-      return isLongSymbol ? 'BUYCALL' : 'BUYPUT';
-    }
-    return isLongSymbol ? 'SELLCALL' : 'SELLPUT';
   }
 
   /**

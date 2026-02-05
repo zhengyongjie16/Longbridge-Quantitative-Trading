@@ -14,8 +14,11 @@
  * - 不可变数据使用 readonly，对象池类型例外
  * - 公共类型集中定义，避免重复和循环引用
  */
-import type { Market, OrderSide, OrderStatus, OrderType } from 'longport';
 import type {
+  Market,
+  OrderSide,
+  OrderStatus,
+  OrderType,
   QuoteContext,
   TradeContext,
   Candlestick,
@@ -555,11 +558,6 @@ export type SeatState = {
 };
 
 /**
- * 席位版本号
- */
-export type SeatVersion = number;
-
-/**
  * 标的注册表接口
  * 统一维护席位状态与版本号
  */
@@ -567,13 +565,13 @@ export interface SymbolRegistry {
   /** 获取席位状态 */
   getSeatState(monitorSymbol: string, direction: 'LONG' | 'SHORT'): SeatState;
   /** 获取席位版本号 */
-  getSeatVersion(monitorSymbol: string, direction: 'LONG' | 'SHORT'): SeatVersion;
+  getSeatVersion(monitorSymbol: string, direction: 'LONG' | 'SHORT'): number;
   /** 根据标的代码解析所属席位 */
   resolveSeatBySymbol(symbol: string): {
     monitorSymbol: string;
     direction: 'LONG' | 'SHORT';
     seatState: SeatState;
-    seatVersion: SeatVersion;
+    seatVersion: number;
   } | null;
   /** 更新席位状态 */
   updateSeatState(
@@ -582,7 +580,7 @@ export interface SymbolRegistry {
     nextState: SeatState,
   ): SeatState;
   /** 递增席位版本号 */
-  bumpSeatVersion(monitorSymbol: string, direction: 'LONG' | 'SHORT'): SeatVersion;
+  bumpSeatVersion(monitorSymbol: string, direction: 'LONG' | 'SHORT'): number;
 }
 
 /**
@@ -686,8 +684,8 @@ export type MonitorContext = {
   };
   /** 席位版本缓存 */
   seatVersion: {
-    readonly long: SeatVersion;
-    readonly short: SeatVersion;
+    readonly long: number;
+    readonly short: number;
   };
   /** 自动换标管理器 */
   readonly autoSymbolManager: import('../services/autoSymbolManager/types.js').AutoSymbolManager;

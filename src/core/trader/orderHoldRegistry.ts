@@ -71,7 +71,7 @@ export function createOrderHoldRegistry(): OrderHoldRegistry {
    */
   function seedFromOrders(orders: ReadonlyArray<RawOrderFromAPI>): void {
     for (const order of orders) {
-      if (!order || !order.symbol) {
+      if (!order?.symbol) {
         continue;
       }
       if (!PENDING_ORDER_STATUSES.has(order.status)) {

@@ -13,6 +13,28 @@ import { findBestWarrant } from '../../services/autoSymbolFinder/index.js';
 import { isSeatReady, resolveSeatOnStartup } from '../../services/autoSymbolManager/utils.js';
 import { getLatestTradedSymbol } from '../../core/orderRecorder/orderOwnershipParser.js';
 
+/** 根据方向解析启动寻标阈值 */
+export function resolveAutoSearchThresholds(
+  direction: 'LONG' | 'SHORT',
+  autoSearchConfig: {
+    readonly autoSearchMinPriceBull: number | null;
+    readonly autoSearchMinPriceBear: number | null;
+    readonly autoSearchMinTurnoverPerMinuteBull: number | null;
+    readonly autoSearchMinTurnoverPerMinuteBear: number | null;
+  },
+): { minPrice: number | null; minTurnoverPerMinute: number | null } {
+  if (direction === 'LONG') {
+    return {
+      minPrice: autoSearchConfig.autoSearchMinPriceBull,
+      minTurnoverPerMinute: autoSearchConfig.autoSearchMinTurnoverPerMinuteBull,
+    };
+  }
+  return {
+    minPrice: autoSearchConfig.autoSearchMinPriceBear,
+    minTurnoverPerMinute: autoSearchConfig.autoSearchMinTurnoverPerMinuteBear,
+  };
+}
+
 /**
  * 基于订单与持仓生成席位快照，用于启动时恢复席位标的。
  */
@@ -168,30 +190,6 @@ export async function prepareSeatsOnStartup(
   }
 
   const quoteContextPromise = marketDataClient._getContext();
-
-  /**
-   * 根据方向解析启动寻标阈值。
-   */
-  function resolveAutoSearchThresholds(
-    direction: 'LONG' | 'SHORT',
-    autoSearchConfig: {
-      readonly autoSearchMinPriceBull: number | null;
-      readonly autoSearchMinPriceBear: number | null;
-      readonly autoSearchMinTurnoverPerMinuteBull: number | null;
-      readonly autoSearchMinTurnoverPerMinuteBear: number | null;
-    },
-  ): { minPrice: number | null; minTurnoverPerMinute: number | null } {
-    if (direction === 'LONG') {
-      return {
-        minPrice: autoSearchConfig.autoSearchMinPriceBull,
-        minTurnoverPerMinute: autoSearchConfig.autoSearchMinTurnoverPerMinuteBull,
-      };
-    }
-    return {
-      minPrice: autoSearchConfig.autoSearchMinPriceBear,
-      minTurnoverPerMinute: autoSearchConfig.autoSearchMinTurnoverPerMinuteBear,
-    };
-  }
 
   /**
    * 执行自动寻标并更新席位状态。

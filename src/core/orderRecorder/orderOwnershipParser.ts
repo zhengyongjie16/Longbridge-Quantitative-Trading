@@ -13,12 +13,12 @@ const SHORT_MARKERS = ['RP', 'BEAR', 'PUT', '\u718a'];
 
 // 订单名称统一转大写并去除非字母字符，避免大小写与分隔符导致误判
 function normalizeStockName(stockName: string): string {
-  return stockName.trim().toUpperCase().replace(NORMALIZE_PATTERN, '');
+  return stockName.trim().toUpperCase().replaceAll(NORMALIZE_PATTERN, '');
 }
 
 // 归属缩写统一转大写并去除非字母字符，避免大小写与分隔符导致误判
 function normalizeOwnershipAlias(alias: string): string {
-  return alias.trim().toUpperCase().replace(NORMALIZE_PATTERN, '');
+  return alias.trim().toUpperCase().replaceAll(NORMALIZE_PATTERN, '');
 }
 
 function resolveDirectionFromNormalizedName(

@@ -24,7 +24,6 @@ import type {
   RiskChecker,
   SeatState,
   SeatStatus,
-  SeatVersion,
   Signal,
   SymbolRegistry,
   Trader,
@@ -45,7 +44,7 @@ export type SeatDirection = 'LONG' | 'SHORT';
  */
 export type SeatEntry = {
   state: SeatState;
-  version: SeatVersion;
+  version: number;
 };
 
 /**
@@ -87,7 +86,7 @@ export type SwitchOnDistanceParams = {
 
 export type SwitchState = {
   direction: SeatDirection;
-  seatVersion: SeatVersion;
+  seatVersion: number;
   stage: SwitchStage;
   oldSymbol: string;
   nextSymbol: string | null;
@@ -117,7 +116,7 @@ export type AutoSymbolManager = {
   maybeSearchOnTick(params: SearchOnTickParams): Promise<void>;
   maybeSwitchOnDistance(params: SwitchOnDistanceParams): Promise<void>;
   hasPendingSwitch(direction: SeatDirection): boolean;
-  clearSeat(params: { direction: SeatDirection; reason: string }): SeatVersion;
+  clearSeat(params: { direction: SeatDirection; reason: string }): number;
   resetDailySwitchSuppression(): void;
 };
 
@@ -187,7 +186,7 @@ export type BuildOrderSignalParams = {
   readonly reason: string;
   readonly orderTypeOverride: Signal['orderTypeOverride'];
   readonly quantity: number | null;
-  readonly seatVersion: SeatVersion;
+  readonly seatVersion: number;
 };
 
 export type OrderSignalBuilder = (params: BuildOrderSignalParams) => Signal;
@@ -227,7 +226,7 @@ export type SeatStateManager = {
   resolveSuppression(direction: SeatDirection, seatSymbol: string): SwitchSuppression | null;
   markSuppression(direction: SeatDirection, seatSymbol: string): void;
   ensureSeatOnStartup(params: EnsureSeatOnStartupParams): SeatState;
-  clearSeat(params: { direction: SeatDirection; reason: string }): SeatVersion;
+  clearSeat(params: { direction: SeatDirection; reason: string }): number;
   resetDailySwitchSuppression(): void;
 };
 
@@ -262,7 +261,7 @@ export type SwitchStateMachineDeps = {
   readonly switchStates: SwitchStateMap;
   readonly resolveSuppression: (direction: SeatDirection, seatSymbol: string) => SwitchSuppression | null;
   readonly markSuppression: (direction: SeatDirection, seatSymbol: string) => void;
-  readonly clearSeat: (params: { direction: SeatDirection; reason: string }) => SeatVersion;
+  readonly clearSeat: (params: { direction: SeatDirection; reason: string }) => number;
   readonly buildSeatState: SeatStateBuilder;
   readonly updateSeatState: SeatStateUpdater;
   readonly resolveAutoSearchThresholds: (
