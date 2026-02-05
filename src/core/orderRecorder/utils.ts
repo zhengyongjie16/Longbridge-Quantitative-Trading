@@ -6,6 +6,31 @@
 import { OrderSide, OrderStatus } from 'longport';
 import { decimalToNumber } from '../../utils/helpers/index.js';
 import type { OrderRecord, RawOrderFromAPI } from '../../types/index.js';
+import type { OrderStatistics } from './types.js';
+
+/**
+ * 计算订单统计信息（用于调试输出）
+ */
+export function calculateOrderStatistics(
+  orders: ReadonlyArray<OrderRecord>,
+): OrderStatistics {
+  let totalQuantity = 0;
+  let totalValue = 0;
+
+  for (const order of orders) {
+    const quantity = Number.isFinite(order.executedQuantity)
+      ? order.executedQuantity
+      : 0;
+    const price = Number.isFinite(order.executedPrice)
+      ? order.executedPrice
+      : 0;
+    totalQuantity += quantity;
+    totalValue += price * quantity;
+  }
+
+  const averagePrice = totalQuantity > 0 ? totalValue / totalQuantity : 0;
+  return { totalQuantity, totalValue, averagePrice };
+}
 
 /**
  * 计算订单列表的总成交数量

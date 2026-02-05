@@ -31,142 +31,94 @@ import type {
   RawOrderFromAPI,
 } from '../../types/index.js';
 import type {
-  OrderStatistics,
   OrderRecorderDeps,
+  OrderStatistics,
   PendingSellInfo,
   ProfitableOrderResult,
 } from './types.js';
-import { classifyAndConvertOrders } from './utils.js';
+import { calculateOrderStatistics, classifyAndConvertOrders } from './utils.js';
+
+function validateOrderParams(price: number, quantity: number, symbol: string): boolean {
+  if (
+    !Number.isFinite(price) ||
+    price <= 0 ||
+    !Number.isFinite(quantity) ||
+    quantity <= 0
+  ) {
+    logger.warn(
+      `[现存订单记录] 订单参数无效，跳过记录：symbol=${symbol}, price=${price}, quantity=${quantity}`,
+    );
+    return false;
+  }
+  return true;
+}
+
+function logRefreshResult(
+  symbol: string,
+  isLongSymbol: boolean,
+  originalBuyCount: number,
+  sellCount: number,
+  recordedCount: number,
+  extraInfo?: string,
+  quote?: Quote | null,
+): void {
+  const positionType = getDirectionName(isLongSymbol);
+  const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
+  if (extraInfo) {
+    logger.info(`[现存订单记录] ${positionType} ${symbolDisplay}: ${extraInfo}`);
+  } else {
+    logger.info(
+      `[现存订单记录] ${positionType} ${symbolDisplay}: ` +
+        `历史买入${originalBuyCount}笔, ` +
+        `历史卖出${sellCount}笔, ` +
+        `最终记录${recordedCount}笔`,
+    );
+  }
+}
+
+function formatOrderExecutedTime(executedTime: number): string {
+  if (!executedTime) return '未知时间';
+  const date = new Date(executedTime);
+  return Number.isNaN(date.getTime())
+    ? '无效时间'
+    : date.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+}
+
+function formatOrderLine(order: OrderRecord, index: number): string {
+  const timeStr = formatOrderExecutedTime(order.executedTime ?? 0);
+  const priceStr = Number.isFinite(order.executedPrice)
+    ? order.executedPrice.toFixed(3)
+    : 'N/A';
+  return `  [${index + 1}] 订单ID: ${order.orderId || 'N/A'}, 价格: ${priceStr}, 数量: ${order.executedQuantity}, 成交时间: ${timeStr}`;
+}
+
+function formatOrderStatsLine(stats: OrderStatistics): string {
+  const avgPriceStr = Number.isFinite(stats.averagePrice)
+    ? stats.averagePrice.toFixed(3)
+    : 'N/A';
+  return `  统计: 总数量=${stats.totalQuantity}, 平均价格=${avgPriceStr}`;
+}
 
 /** 创建订单记录器（门面模式），协调存储、API和过滤引擎 */
 export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
   const { storage, apiManager, filteringEngine } = deps;
 
-  // ============================================
-  // 私有方法 - 验证和工具
-  // ============================================
-
-  /** 验证订单参数有效性 */
-  function validateOrderParams(price: number, quantity: number, symbol: string): boolean {
-    if (
-      !Number.isFinite(price) ||
-      price <= 0 ||
-      !Number.isFinite(quantity) ||
-      quantity <= 0
-    ) {
-      logger.warn(
-        `[现存订单记录] 订单参数无效，跳过记录：symbol=${symbol}, price=${price}, quantity=${quantity}`,
-      );
-      return false;
-    }
-    return true;
-  }
-
-  // ============================================
-  // 私有方法 - 日志和调试
-  // ============================================
-
-  /** 输出订单刷新结果日志 */
-  function logRefreshResult(
-    symbol: string,
-    isLongSymbol: boolean,
-    originalBuyCount: number,
-    sellCount: number,
-    recordedCount: number,
-    extraInfo?: string,
-    quote?: Quote | null,
-  ): void {
-    const positionType = getDirectionName(isLongSymbol);
-
-    // 使用 formatSymbolDisplayFromQuote 格式化标的显示
-    const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
-
-    if (extraInfo) {
-      logger.info(`[现存订单记录] ${positionType} ${symbolDisplay}: ${extraInfo}`);
-    } else {
-      logger.info(
-        `[现存订单记录] ${positionType} ${symbolDisplay}: ` +
-          `历史买入${originalBuyCount}笔, ` +
-          `历史卖出${sellCount}笔, ` +
-          `最终记录${recordedCount}笔`,
-      );
-    }
-  }
-
-  /** 计算订单统计信息（用于调试输出） */
-  function calculateOrderStatistics(orders: ReadonlyArray<OrderRecord>): OrderStatistics {
-    let totalQuantity = 0;
-    let totalValue = 0;
-
-    for (const order of orders) {
-      const quantity = Number.isFinite(order.executedQuantity)
-        ? order.executedQuantity
-        : 0;
-      const price = Number.isFinite(order.executedPrice)
-        ? order.executedPrice
-        : 0;
-
-      totalQuantity += quantity;
-      totalValue += price * quantity;
-    }
-
-    const averagePrice = totalQuantity > 0 ? totalValue / totalQuantity : 0;
-
-    return { totalQuantity, totalValue, averagePrice };
-  }
-
-  /** 输出订单列表的 debug 信息（仅 DEBUG 模式） */
   function debugOutputOrders(symbol: string, isLongSymbol: boolean): void {
-    if (process.env['DEBUG'] !== 'true') {
-      return;
-    }
+    if (process.env['DEBUG'] !== 'true') return;
 
     const positionType = getDirectionName(isLongSymbol);
     const currentOrders = storage.getBuyOrdersList(symbol, isLongSymbol);
+    const header = `[订单记录变化] ${positionType} ${symbol}: 当前订单列表 (共${currentOrders.length}笔)`;
 
-    const logLines = [
-      `[订单记录变化] ${positionType} ${symbol}: 当前订单列表 (共${currentOrders.length}笔)`,
-    ];
-
-    if (currentOrders.length > 0) {
-      const stats = calculateOrderStatistics(currentOrders);
-
-      for (let index = 0; index < currentOrders.length; index++) {
-        const order = currentOrders[index];
-        if (!order) continue;
-
-        // Inline time formatting (DEBUG only)
-        let timeStr = '未知时间';
-        if (order.executedTime) {
-          const date = new Date(order.executedTime);
-          timeStr = Number.isNaN(date.getTime())
-            ? '无效时间'
-            : date.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-        }
-
-        // Inline price formatting
-        const priceStr = Number.isFinite(order.executedPrice)
-          ? order.executedPrice.toFixed(3)
-          : 'N/A';
-
-        logLines.push(
-          `  [${index + 1}] 订单ID: ${order.orderId || 'N/A'}, ` +
-            `价格: ${priceStr}, ` +
-            `数量: ${order.executedQuantity}, ` +
-            `成交时间: ${timeStr}`,
-        );
-      }
-
-      const avgPriceStr = Number.isFinite(stats.averagePrice)
-        ? stats.averagePrice.toFixed(3)
-        : 'N/A';
-      logLines.push(
-        `  统计: 总数量=${stats.totalQuantity}, 平均价格=${avgPriceStr}`,
-      );
-    } else {
+    const logLines: string[] = [header];
+    if (currentOrders.length === 0) {
       logLines.push('  当前无订单记录');
+    } else {
+      currentOrders.forEach((order, index) => {
+        if (order) logLines.push(formatOrderLine(order, index));
+      });
+      logLines.push(formatOrderStatsLine(calculateOrderStatistics(currentOrders)));
     }
-
     logger.debug(logLines.join('\n'));
   }
 
