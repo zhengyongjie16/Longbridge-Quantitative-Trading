@@ -15,7 +15,6 @@ import {
   resolveSellQuantityBySmartClose,
 } from './utils.js';
 import type { Quote, Position, Signal, OrderRecorder } from '../../types/index.js';
-import type { SellQuantityResult } from './types.js';
 
 /**
  * 计算卖出信号的数量和原因
@@ -29,7 +28,12 @@ function calculateSellQuantity(
   originalReason: string,
   smartCloseEnabled: boolean,
   symbol: string,
-): SellQuantityResult {
+): {
+  quantity: number | null;
+  shouldHold: boolean;
+  reason: string;
+  relatedBuyOrderIds: readonly string[];
+} {
   const reason = originalReason || '';
   const directionName = getDirectionName(direction === 'LONG');
 
@@ -40,6 +44,7 @@ function calculateSellQuantity(
       quantity: null,
       shouldHold: true,
       reason: buildSellReason(reason, validationResult.reason),
+      relatedBuyOrderIds: [],
     };
   }
 
@@ -57,7 +62,7 @@ function calculateSellQuantity(
     };
   }
 
-  // 智能平仓开启：仅卖出盈利订单
+  // 智能平仓开启：仅卖出盈利订单（防重版本）
   const smartCloseResult = resolveSellQuantityBySmartClose({
     orderRecorder,
     currentPrice,
@@ -155,12 +160,15 @@ export const processSellSignals = (
         logger.info(`[卖出信号处理] ${signalName}被跳过: ${result.reason}`);
         sig.action = 'HOLD';
         sig.reason = result.reason;
+        sig.relatedBuyOrderIds = null;
       } else {
         logger.info(
           `[卖出信号处理] ${signalName}通过: 卖出数量=${result.quantity}, 原因=${result.reason}`,
         );
         sig.quantity = result.quantity;
         sig.reason = result.reason;
+        // 设置关联的买入订单ID列表（用于防重追踪）
+        sig.relatedBuyOrderIds = result.relatedBuyOrderIds;
         // 设置价格和最小买卖单位（从行情数据获取，仅在缺失时设置）
         if (quote?.price != null) {
           sig.price ??= quote.price;

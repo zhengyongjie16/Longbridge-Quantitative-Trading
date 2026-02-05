@@ -92,6 +92,7 @@ export async function createTrader(deps: TraderDeps): Promise<Trader> {
     rateLimiter,
     cacheManager,
     orderMonitor,
+    orderRecorder,
     tradingConfig,
     symbolRegistry,
   });

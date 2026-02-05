@@ -84,7 +84,7 @@ function buildBuyTimeKey(
  * @returns OrderExecutor 接口实例
  */
 export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
-  const { ctxPromise, rateLimiter, cacheManager, orderMonitor, tradingConfig, symbolRegistry } = deps;
+  const { ctxPromise, rateLimiter, cacheManager, orderMonitor, orderRecorder, tradingConfig, symbolRegistry } = deps;
   const { global, monitors } = tradingConfig;
 
   /** 通过信号标的解析监控配置与方向 */
@@ -452,8 +452,18 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
         orderTypeParam,
       );
 
-      // 注意：不再立即更新本地记录
-      // 本地记录更新改为在订单完全成交后由 orderMonitor.handleOrderChanged 触发
+      // 卖出订单注册防重追踪
+      const isSellOrder = side === OrderSide.Sell;
+      if (isSellOrder && signal.relatedBuyOrderIds) {
+        const direction: 'LONG' | 'SHORT' = isLongSymbol ? 'LONG' : 'SHORT';
+        orderRecorder.submitSellOrder(
+          String(orderId),
+          symbol,
+          direction,
+          submittedQuantityNum,
+          signal.relatedBuyOrderIds,
+        );
+      }
 
       updateLastBuyTime(signal.action, monitorConfig);
 

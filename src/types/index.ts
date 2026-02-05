@@ -16,6 +16,7 @@
  */
 import { Market } from 'longport';
 import type { DoomsdayProtection } from '../core/doomsdayProtection/types.js';
+import type { PendingSellInfo } from '../core/orderRecorder/types.js';
 
 // ==================== 信号类型 ====================
 
@@ -68,6 +69,8 @@ export type Signal = {
   indicators1?: Record<string, number> | null;
   /** 延迟验证：历史验证记录 */
   verificationHistory?: Array<{ timestamp: Date; indicators: Record<string, number> }> | null;
+  /** 关联的买入订单ID列表（仅卖出订单使用，用于智能平仓防重） */
+  relatedBuyOrderIds?: readonly string[] | null;
 };
 
 /**
@@ -886,6 +889,37 @@ export interface OrderRecorder {
   getShortBuyOrders(): ReadonlyArray<OrderRecord>;
   /** 获取指定标的的买入订单 */
   getBuyOrdersForSymbol(symbol: string, isLongSymbol: boolean): ReadonlyArray<OrderRecord>;
+
+  // 待成交卖出订单追踪
+
+  /** 提交卖出订单时调用（添加待成交追踪） */
+  submitSellOrder(
+    orderId: string,
+    symbol: string,
+    direction: 'LONG' | 'SHORT',
+    quantity: number,
+    relatedBuyOrderIds: readonly string[],
+  ): void;
+  /** 标记卖出订单完全成交 */
+  markSellFilled(orderId: string): PendingSellInfo | null;
+  /** 标记卖出订单部分成交 */
+  markSellPartialFilled(orderId: string, filledQuantity: number): PendingSellInfo | null;
+  /** 标记卖出订单取消 */
+  markSellCancelled(orderId: string): PendingSellInfo | null;
+  /** 获取待成交卖出订单列表 */
+  getPendingSellOrders(
+    symbol: string,
+    direction: 'LONG' | 'SHORT',
+  ): ReadonlyArray<PendingSellInfo>;
+  /** 获取可卖出的盈利订单（核心防重逻辑） */
+  getProfitableSellOrders(
+    symbol: string,
+    direction: 'LONG' | 'SHORT',
+    currentPrice: number,
+    maxSellQuantity?: number,
+  ): { orders: ReadonlyArray<OrderRecord>; totalQuantity: number };
+  /** 获取被指定订单占用的买入订单ID列表 */
+  getBuyOrderIdsOccupiedBySell(orderId: string): ReadonlyArray<string> | null;
 }
 
 /**

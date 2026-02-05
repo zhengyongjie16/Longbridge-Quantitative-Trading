@@ -322,6 +322,8 @@ export type OrderExecutorDeps = {
   readonly rateLimiter: RateLimiter;
   readonly cacheManager: OrderCacheManager;
   readonly orderMonitor: OrderMonitor;
+  /** 订单记录器（用于卖出订单防重追踪） */
+  readonly orderRecorder: import('../../types/index.js').OrderRecorder;
   /** 全局交易配置 */
   readonly tradingConfig: MultiMonitorTradingConfig;
   /** 标的注册表（用于解析动态标的归属） */

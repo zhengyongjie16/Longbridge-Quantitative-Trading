@@ -46,7 +46,40 @@ export type OrderStatistics = {
 };
 
 /**
- * 过滤算法的中间状态类型
+ * 待成交卖出订单信息
+ * 用于智能平仓防重追踪，记录已提交但未成交的卖出订单
+ */
+export interface PendingSellInfo {
+  /** 卖出订单ID */
+  readonly orderId: string;
+  /** 标的代码 */
+  readonly symbol: string;
+  /** 方向 */
+  readonly direction: 'LONG' | 'SHORT';
+  /** 提交数量 */
+  readonly submittedQuantity: number;
+  /** 已成交数量 */
+  readonly filledQuantity: number;
+  /** 关联的买入订单ID列表（精确标记哪些订单被占用） */
+  readonly relatedBuyOrderIds: readonly string[];
+  /** 状态 */
+  readonly status: 'pending' | 'partial' | 'filled' | 'cancelled';
+  /** 提交时间 */
+  readonly submittedAt: number;
+}
+
+/**
+ * 盈利订单查询结果
+ */
+export interface ProfitableOrderResult {
+  /** 可卖出的订单记录列表 */
+  readonly orders: ReadonlyArray<OrderRecord>;
+  /** 这些订单的总数量 */
+  readonly totalQuantity: number;
+}
+
+/**
+ * 订单过滤算法的中间状态类型
  * - m0Orders: 最新卖出后的买入订单（无条件保留）
  * - candidateOrders: 需要过滤的候选订单
  */
@@ -91,6 +124,34 @@ export interface OrderStorage {
   calculateTotalQuantity(orders: ReadonlyArray<OrderRecord>): number;
   getLongBuyOrders(): ReadonlyArray<OrderRecord>;
   getShortBuyOrders(): ReadonlyArray<OrderRecord>;
+
+  // 待成交卖出订单追踪
+
+  /** 添加待成交卖出订单（提交时调用） */
+  addPendingSell(info: Omit<PendingSellInfo, 'filledQuantity' | 'status'>): void;
+
+  /** 标记卖出订单完全成交 */
+  markSellFilled(orderId: string): PendingSellInfo | null;
+
+  /** 标记卖出订单部分成交 */
+  markSellPartialFilled(orderId: string, filledQuantity: number): PendingSellInfo | null;
+
+  /** 标记卖出订单取消 */
+  markSellCancelled(orderId: string): PendingSellInfo | null;
+
+  /** 获取待成交卖出订单列表 */
+  getPendingSellOrders(symbol: string, direction: 'LONG' | 'SHORT'): ReadonlyArray<PendingSellInfo>;
+
+  /** 获取可卖出的盈利订单（核心防重逻辑） */
+  getProfitableSellOrders(
+    symbol: string,
+    direction: 'LONG' | 'SHORT',
+    currentPrice: number,
+    maxSellQuantity?: number,
+  ): ProfitableOrderResult;
+
+  /** 获取被指定订单占用的买入订单ID列表 */
+  getBuyOrderIdsOccupiedBySell(orderId: string): ReadonlyArray<string> | null;
 }
 
 /**
@@ -147,4 +208,3 @@ export type OrderRecorderDeps = {
   readonly apiManager: OrderAPIManager;
   readonly filteringEngine: OrderFilteringEngine;
 };
-

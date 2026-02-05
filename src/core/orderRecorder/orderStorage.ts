@@ -4,6 +4,8 @@
  * 职责：
  * - 管理本地订单列表的增删改查
  * - 提供订单查询功能
+ * - 追踪待成交卖出订单
+ * - 提供可卖出盈利订单计算
  * - 纯内存操作，无异步方法
  *
  * 优化：
@@ -13,7 +15,7 @@
 import { logger } from '../../utils/logger/index.js';
 import { getDirectionName, formatSymbolDisplayFromQuote } from '../../utils/helpers/index.js';
 import type { OrderRecord, Quote } from '../../types/index.js';
-import type { OrderStorage, OrderStorageDeps } from './types.js';
+import type { OrderStorage, OrderStorageDeps, PendingSellInfo, ProfitableOrderResult } from './types.js';
 import { calculateTotalQuantity } from './utils.js';
 
 /** 创建订单存储管理器 */
@@ -23,6 +25,9 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
   const shortBuyOrdersMap: Map<string, OrderRecord[]> = new Map();
   const longSellRecordMap: Map<string, OrderRecord> = new Map();
   const shortSellRecordMap: Map<string, OrderRecord> = new Map();
+
+  // 待成交卖出订单追踪
+  const pendingSells = new Map<string, PendingSellInfo>();
 
   /** 获取指定标的的买入订单列表 */
   const getBuyOrdersList = (symbol: string, isLongSymbol: boolean): OrderRecord[] => {
@@ -260,6 +265,180 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     return allOrders;
   };
 
+  // 待成交卖出订单追踪实现
+
+  function addPendingSell(info: Omit<PendingSellInfo, 'filledQuantity' | 'status'>): void {
+    const record: PendingSellInfo = {
+      ...info,
+      filledQuantity: 0,
+      status: 'pending',
+    };
+    pendingSells.set(info.orderId, record);
+
+    logger.info(
+      `[订单存储] 添加待成交卖出: ${info.orderId} ${info.symbol} ${info.submittedQuantity}股 ` +
+      `关联订单=${info.relatedBuyOrderIds.length}个`,
+    );
+  }
+
+  function markSellFilled(orderId: string): PendingSellInfo | null {
+    const record = pendingSells.get(orderId);
+    if (!record) {
+      logger.warn(`[订单存储] 找不到待成交卖出订单: ${orderId}`);
+      return null;
+    }
+
+    const filled: PendingSellInfo = {
+      ...record,
+      filledQuantity: record.submittedQuantity,
+      status: 'filled',
+    };
+
+    pendingSells.delete(orderId);
+
+    logger.info(
+      `[订单存储] 卖出订单成交: ${orderId} ${filled.submittedQuantity}股`,
+    );
+
+    return filled;
+  }
+
+  function markSellPartialFilled(orderId: string, filledQuantity: number): PendingSellInfo | null {
+    const record = pendingSells.get(orderId);
+    if (!record) {
+      logger.warn(`[订单存储] 找不到待成交卖出订单: ${orderId}`);
+      return null;
+    }
+
+    const updated: PendingSellInfo = {
+      ...record,
+      filledQuantity,
+      status: filledQuantity >= record.submittedQuantity ? 'filled' : 'partial',
+    };
+
+    if (updated.status === 'filled') {
+      pendingSells.delete(orderId);
+    } else {
+      pendingSells.set(orderId, updated);
+    }
+
+    logger.info(
+      `[订单存储] 卖出订单部分成交: ${orderId} ${filledQuantity}/${record.submittedQuantity}`,
+    );
+
+    return updated;
+  }
+
+  function markSellCancelled(orderId: string): PendingSellInfo | null {
+    const record = pendingSells.get(orderId);
+    if (!record) {
+      logger.warn(`[订单存储] 找不到待成交卖出订单: ${orderId}`);
+      return null;
+    }
+
+    pendingSells.delete(orderId);
+
+    logger.info(`[订单存储] 卖出订单取消: ${orderId}`);
+
+    return record;
+  }
+
+  function getPendingSellOrders(
+    symbol: string,
+    direction: 'LONG' | 'SHORT',
+  ): ReadonlyArray<PendingSellInfo> {
+    const orders: PendingSellInfo[] = [];
+    for (const order of pendingSells.values()) {
+      if (order.symbol === symbol && order.direction === direction) {
+        orders.push(order);
+      }
+    }
+    return orders;
+  }
+
+  function getBuyOrderIdsOccupiedBySell(orderId: string): ReadonlyArray<string> | null {
+    const record = pendingSells.get(orderId);
+    return record?.relatedBuyOrderIds ?? null;
+  }
+
+  // ========== 核心：可卖出盈利订单计算（防重逻辑） ==========
+
+  function getProfitableSellOrders(
+    symbol: string,
+    direction: 'LONG' | 'SHORT',
+    currentPrice: number,
+    maxSellQuantity?: number,
+  ): ProfitableOrderResult {
+    // 1. 获取所有盈利订单（买入价 < 当前价）
+    const profitableOrders = getBuyOrdersBelowPrice(currentPrice, direction, symbol);
+
+    if (profitableOrders.length === 0) {
+      return { orders: [], totalQuantity: 0 };
+    }
+
+    // 2. 获取已被待成交卖出订单占用的订单ID
+    const pendingSellsList = getPendingSellOrders(symbol, direction);
+    const occupiedOrderIds = new Set<string>();
+
+    for (const sellOrder of pendingSellsList) {
+      for (const buyOrderId of sellOrder.relatedBuyOrderIds) {
+        occupiedOrderIds.add(buyOrderId);
+      }
+    }
+
+    // 3. 过滤掉被占用的订单
+    const availableOrders = profitableOrders.filter(
+      (order) => !occupiedOrderIds.has(order.orderId),
+    );
+
+    // 4. 计算可用数量
+    let totalQuantity = calculateTotalQuantity(availableOrders);
+
+    // 5. 数量截断（如果超过最大可卖数量）
+    if (maxSellQuantity !== undefined && totalQuantity > maxSellQuantity) {
+      // 按价格从低到高排序（便宜的先卖）
+      availableOrders.sort((a, b) => a.executedPrice - b.executedPrice);
+
+      let remaining = maxSellQuantity;
+      const finalOrders: OrderRecord[] = [];
+
+      for (const order of availableOrders) {
+        if (remaining <= 0) break;
+        if (order.executedQuantity <= remaining) {
+          finalOrders.push(order);
+          remaining -= order.executedQuantity;
+        } else {
+          // 部分数量
+          finalOrders.push({
+            ...order,
+            executedQuantity: remaining,
+          });
+          remaining = 0;
+        }
+      }
+
+      totalQuantity = maxSellQuantity;
+
+      logger.info(
+        `[订单存储] 数量超出限制截断: ${symbol} ${direction} ` +
+        `原数量=${calculateTotalQuantity(availableOrders)} ` +
+        `限制=${maxSellQuantity} 最终=${totalQuantity}`,
+      );
+
+      return { orders: finalOrders, totalQuantity };
+    }
+
+    logger.debug(
+      `[订单存储] 可卖出盈利订单: ${symbol} ${direction} ` +
+      `订单数=${availableOrders.length} 总数=${totalQuantity}`,
+    );
+
+    return {
+      orders: availableOrders,
+      totalQuantity,
+    };
+  }
+
   return {
     getBuyOrdersList,
     setBuyOrdersListForLong,
@@ -273,5 +452,14 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     calculateTotalQuantity,
     getLongBuyOrders,
     getShortBuyOrders,
+
+    // 待成交卖出订单追踪
+    addPendingSell,
+    markSellFilled,
+    markSellPartialFilled,
+    markSellCancelled,
+    getPendingSellOrders,
+    getProfitableSellOrders,
+    getBuyOrderIdsOccupiedBySell,
   };
 };

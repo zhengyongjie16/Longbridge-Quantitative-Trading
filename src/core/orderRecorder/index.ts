@@ -5,6 +5,7 @@
  * - 跟踪已成交的买入/卖出订单
  * - 提供智能清仓决策的历史订单数据
  * - 为浮亏监控提供原始订单数据（R1/N1）
+ * - 追踪待成交卖出订单（新增）
  *
  * 过滤算法（从旧到新累积过滤）：
  * 1. M0：最新卖出时间之后成交的买入订单
@@ -32,6 +33,8 @@ import type {
 import type {
   OrderStatistics,
   OrderRecorderDeps,
+  PendingSellInfo,
+  ProfitableOrderResult,
 } from './types.js';
 import { classifyAndConvertOrders } from './utils.js';
 
@@ -377,7 +380,7 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
   }
 
   // ============================================
-  // 暴露内部状态（用于 RiskChecker）
+  // 公有方法 - 暴露内部状态（用于 RiskChecker）
   // ============================================
 
   /** 获取所有做多标的的买入订单 */
@@ -398,6 +401,71 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     return storage.getBuyOrdersList(symbol, isLongSymbol);
   }
 
+  // ============================================
+  // 新增方法：待成交卖出订单追踪
+  // ============================================
+
+  /** 提交卖出订单时调用（添加待成交追踪） */
+  function submitSellOrder(
+    orderId: string,
+    symbol: string,
+    direction: 'LONG' | 'SHORT',
+    quantity: number,
+    relatedBuyOrderIds: readonly string[],
+  ): void {
+    storage.addPendingSell({
+      orderId,
+      symbol,
+      direction,
+      submittedQuantity: quantity,
+      relatedBuyOrderIds,
+      submittedAt: Date.now(),
+    });
+
+    logger.info(
+      `[订单记录器] 卖出订单提交追踪: ${orderId} ${symbol} ${direction} ${quantity}股 ` +
+      `关联订单=${relatedBuyOrderIds.length}个`,
+    );
+  }
+
+  /** 标记卖出订单完全成交 */
+  function markSellFilled(orderId: string): PendingSellInfo | null {
+    return storage.markSellFilled(orderId);
+  }
+
+  /** 标记卖出订单部分成交 */
+  function markSellPartialFilled(orderId: string, filledQuantity: number): PendingSellInfo | null {
+    return storage.markSellPartialFilled(orderId, filledQuantity);
+  }
+
+  /** 标记卖出订单取消 */
+  function markSellCancelled(orderId: string): PendingSellInfo | null {
+    return storage.markSellCancelled(orderId);
+  }
+
+  /** 获取待成交卖出订单列表 */
+  function getPendingSellOrders(
+    symbol: string,
+    direction: 'LONG' | 'SHORT',
+  ): ReadonlyArray<PendingSellInfo> {
+    return storage.getPendingSellOrders(symbol, direction);
+  }
+
+  /** 获取可卖出的盈利订单（核心防重逻辑） */
+  function getProfitableSellOrders(
+    symbol: string,
+    direction: 'LONG' | 'SHORT',
+    currentPrice: number,
+    maxSellQuantity?: number,
+  ): ProfitableOrderResult {
+    return storage.getProfitableSellOrders(symbol, direction, currentPrice, maxSellQuantity);
+  }
+
+  /** 获取被指定订单占用的买入订单ID列表 */
+  function getBuyOrderIdsOccupiedBySell(orderId: string): ReadonlyArray<string> | null {
+    return storage.getBuyOrderIdsOccupiedBySell(orderId);
+  }
+
   return {
     recordLocalBuy,
     recordLocalSell,
@@ -414,5 +482,14 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     getLongBuyOrders,
     getShortBuyOrders,
     getBuyOrdersForSymbol,
+
+    // 待成交卖出订单追踪
+    submitSellOrder,
+    markSellFilled,
+    markSellPartialFilled,
+    markSellCancelled,
+    getPendingSellOrders,
+    getProfitableSellOrders,
+    getBuyOrderIdsOccupiedBySell,
   };
 }

@@ -170,6 +170,8 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
             executedTimeMs,
             String(orderId),
           );
+          // 更新待成交追踪
+          orderRecorder.markSellFilled(String(orderId));
         }
 
         if (trackedOrder.monitorSymbol) {
@@ -253,18 +255,26 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       return;
     }
 
-    // ========== 订单撤销或拒绝 ==========
+    // 订单撤销或拒绝
     if (
       event.status === OrderStatus.Canceled ||
       event.status === OrderStatus.Rejected
     ) {
+      // 订单取消时释放追踪
+      if (trackedOrder.side === OrderSide.Sell) {
+        orderRecorder.markSellCancelled(String(orderId));
+      }
       trackedOrders.delete(orderId);
       logger.info(`[订单监控] 订单 ${orderId} 状态变为 ${event.status}，停止追踪`);
       return;
     }
 
-    // ========== 部分成交：继续追踪，不更新本地记录 ==========
+    // 部分成交：继续追踪，不更新本地记录
     if (event.status === OrderStatus.PartialFilled) {
+      // 更新待成交追踪
+      if (trackedOrder.side === OrderSide.Sell) {
+        orderRecorder.markSellPartialFilled(String(orderId), executedQuantity);
+      }
       logger.info(
         `[订单监控] 订单 ${orderId} 部分成交，` +
         `已成交=${trackedOrder.executedQuantity}/${trackedOrder.submittedQuantity}，` +

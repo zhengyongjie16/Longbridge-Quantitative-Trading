@@ -9,7 +9,7 @@
  * - 标的名称解析
  */
 import type { OrderRecorder, Quote, Position } from '../../types/index.js';
-import type { SellContextValidationResult, SellQuantityResult } from './types.js';
+import type { SellContextValidationResult } from './types.js';
 
 /**
  * 验证持仓和行情数据是否满足卖出条件
@@ -63,9 +63,14 @@ export function validateSellContext(
 }
 
 /**
- * 智能平仓：计算盈利订单的卖出数量
- * 仅卖出买入价低于当前价格的订单，实现盈利部分平仓
- * 若无盈利订单或订单记录器不可用，返回 shouldHold=true
+ * 智能平仓：计算盈利订单的卖出数量（防重版本）
+ *
+ * 算法：
+ * 1. 从订单存储获取盈利订单（买入价 < 当前价）
+ * 2. 排除已被待成交卖出的订单
+ * 3. 返回可卖出的订单列表和数量
+ *
+ * @returns 包含可卖出数量、是否持有、以及关联订单ID列表的结果
  */
 export function resolveSellQuantityBySmartClose({
   orderRecorder,
@@ -79,46 +84,46 @@ export function resolveSellQuantityBySmartClose({
   availableQuantity: number;
   direction: 'LONG' | 'SHORT';
   symbol: string;
-}): SellQuantityResult {
+}): {
+  quantity: number | null;
+  shouldHold: boolean;
+  reason: string;
+  relatedBuyOrderIds: readonly string[];
+} {
   if (!orderRecorder) {
     return {
       quantity: null,
       shouldHold: true,
       reason: '智能平仓：订单记录不可用，保持持仓',
+      relatedBuyOrderIds: [],
     };
   }
 
-  const buyOrdersBelowPrice = orderRecorder.getBuyOrdersBelowPrice(
-    currentPrice,
-    direction,
+  // 使用新增的防重查询接口
+  const result = orderRecorder.getProfitableSellOrders(
     symbol,
-  );
-
-  if (!buyOrdersBelowPrice || buyOrdersBelowPrice.length === 0) {
-    return {
-      quantity: null,
-      shouldHold: true,
-      reason: '智能平仓：无盈利订单，保持持仓',
-    };
-  }
-
-  const totalQuantity = Math.min(
-    orderRecorder.calculateTotalQuantity(buyOrdersBelowPrice),
+    direction,
+    currentPrice,
     availableQuantity,
   );
 
-  if (!Number.isFinite(totalQuantity) || totalQuantity <= 0) {
+  if (result.orders.length === 0 || result.totalQuantity <= 0) {
     return {
       quantity: null,
       shouldHold: true,
-      reason: '智能平仓：无盈利订单，保持持仓',
+      reason: '智能平仓：无盈利订单或已被占用',
+      relatedBuyOrderIds: [],
     };
   }
 
+  // 提取关联的订单ID列表
+  const relatedBuyOrderIds = result.orders.map((order) => order.orderId);
+
   return {
-    quantity: totalQuantity,
+    quantity: result.totalQuantity,
     shouldHold: false,
-    reason: `智能平仓：当前价=${currentPrice.toFixed(3)}，卖出盈利订单数量=${totalQuantity}`,
+    reason: `智能平仓：当前价=${currentPrice.toFixed(3)}，可卖出=${result.totalQuantity}股，关联订单=${relatedBuyOrderIds.length}个`,
+    relatedBuyOrderIds,
   };
 }
 
@@ -132,11 +137,17 @@ export function resolveSellQuantityByFullClose({
 }: {
   availableQuantity: number;
   directionName: string;
-}): SellQuantityResult {
+}): {
+  quantity: number;
+  shouldHold: boolean;
+  reason: string;
+  relatedBuyOrderIds: readonly string[];
+} {
   return {
     quantity: availableQuantity,
     shouldHold: false,
     reason: `智能平仓已关闭，直接清空所有${directionName}持仓`,
+    relatedBuyOrderIds: [],
   };
 }
 
