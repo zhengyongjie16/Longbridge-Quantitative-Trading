@@ -7,6 +7,7 @@
  * - 这样主循环可以安全地释放 kdj/macd 等对象池对象，不影响缓存数据
  * - 延迟验证器查询历史数据时，数据保持完整有效
  */
+import { INDICATOR_CACHE } from '../../../constants/index.js';
 import type { IndicatorSnapshot } from '../../../types/index.js';
 import type { IndicatorCache, IndicatorCacheEntry, IndicatorCacheOptions, _RingBuffer } from './types.js';
 import {
@@ -18,18 +19,12 @@ import {
 } from './utils.js';
 
 /**
- * 默认最大缓存条目数
- * 默认值 100，可由 options.maxEntries 覆盖
- */
-const DEFAULT_MAX_ENTRIES = 100;
-
-/**
  * 创建指标缓存
  * @param options 配置选项
  * @returns 指标缓存实例
  */
 export const createIndicatorCache = (options: IndicatorCacheOptions = {}): IndicatorCache => {
-  const maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES;
+  const maxEntries = options.maxEntries ?? INDICATOR_CACHE.TIMESERIES_DEFAULT_MAX_ENTRIES;
   const buffers = new Map<string, _RingBuffer>();
 
   /**

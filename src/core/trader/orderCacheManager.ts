@@ -12,12 +12,9 @@
 import { OrderStatus, OrderSide } from 'longport';
 import { logger } from '../../utils/logger/index.js';
 import { decimalToNumber, formatError } from '../../utils/helpers/index.js';
-import { PENDING_ORDER_STATUSES } from '../../constants/index.js';
+import { PENDING_ORDER_STATUSES, API } from '../../constants/index.js';
 import type { PendingOrder, DecimalLikeValue } from '../../types/index.js';
 import type { OrderCacheManager, OrderCacheManagerDeps } from './types.js';
-
-/** 缓存有效期 30 秒 */
-const PENDING_ORDERS_CACHE_TTL = 30000;
 
 /**
  * 创建订单缓存管理器
@@ -53,7 +50,7 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
     const isCacheValid =
       pendingOrdersCache !== null &&
       pendingOrdersCacheSymbols === symbolsKey &&
-      now - pendingOrdersCacheTime < PENDING_ORDERS_CACHE_TTL;
+      now - pendingOrdersCacheTime < API.PENDING_ORDERS_CACHE_TTL_MS;
 
     // 如果缓存有效且不强制刷新，直接返回缓存
     // 注意：虽然 isCacheValid 已经检查了 pendingOrdersCache !== null，

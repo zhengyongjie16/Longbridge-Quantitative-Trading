@@ -1,15 +1,6 @@
-import { OrderStatus, OrderType } from 'longport';
+import { NON_REPLACEABLE_ORDER_STATUSES, NON_REPLACEABLE_ORDER_TYPES } from '../../../constants/index.js';
 import type { PendingSellOrderSnapshot } from '../types.js';
 import type { SellMergeDecision, SellMergeDecisionInput } from './types.js';
-
-const NON_REPLACEABLE_STATUSES = new Set([
-  OrderStatus.WaitToReplace,
-  OrderStatus.PendingReplace,
-]);
-
-const NON_REPLACEABLE_ORDER_TYPES = new Set([
-  OrderType.MO,
-]);
 
 function resolveRemainingQuantity(order: PendingSellOrderSnapshot): number {
   const remaining = order.submittedQuantity - order.executedQuantity;
@@ -62,7 +53,7 @@ export function resolveSellMergeDecision(
     (item) => item.order.orderType !== input.newOrderType,
   );
   const hasNonReplaceableStatus = normalized.some((item) =>
-    NON_REPLACEABLE_STATUSES.has(item.order.status),
+    NON_REPLACEABLE_ORDER_STATUSES.has(item.order.status),
   );
   const hasNonReplaceableType = normalized.some((item) =>
     NON_REPLACEABLE_ORDER_TYPES.has(item.order.orderType),

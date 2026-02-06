@@ -6,11 +6,12 @@
  * - 交易相关：目标金额、K线配置、主循环间隔
  * - 验证相关：延迟信号验证的时间窗口配置
  * - 日志相关：流超时配置
- * - API相关：重试策略、缓存TTL
+ * - API相关：重试策略、缓存TTL、频率限制
  * - 监控相关：价格/指标变化检测阈值
+ * - 指标缓存相关：计算缓存、时序缓存配置
  * - 信号相关：交易信号类型定义
  */
-import { OrderStatus } from 'longport';
+import { OrderStatus, OrderType } from 'longport';
 import type { OrderTypeConfig, SignalType } from '../types/index.js';
 
 /** 时间相关常量 */
@@ -31,6 +32,8 @@ export const TRADING = {
   CANDLE_COUNT: 200,
   /** 主循环执行间隔（毫秒），mainProgram 的执行频率 */
   INTERVAL_MS: 1000,
+  /** 监控标的最大扫描范围（从 _1 扫描到 _100） */
+  MAX_MONITOR_SCAN_RANGE: 100,
 } as const;
 
 /** 自动寻标相关常量 */
@@ -75,6 +78,22 @@ export const API = {
   DEFAULT_RETRY_DELAY_MS: 300,
   /** 交易日缓存 TTL（毫秒），避免频繁查询交易日历 */
   TRADING_DAY_CACHE_TTL_MS: 24 * 60 * 60 * 1000,
+  /** 未成交订单缓存 TTL（毫秒） */
+  PENDING_ORDERS_CACHE_TTL_MS: 30_000,
+  /** 频率限制缓冲时间（毫秒），用于时间窗口边界的安全余量 */
+  RATE_LIMIT_BUFFER_MS: 100,
+  /** 两次 API 调用最小间隔（毫秒），API 要求 20ms，加 10ms 缓冲 */
+  MIN_CALL_INTERVAL_MS: 30,
+} as const;
+
+/** 指标缓存相关常量 */
+export const INDICATOR_CACHE = {
+  /** 指标计算缓存 TTL（毫秒） */
+  CALCULATION_TTL_MS: 5_000,
+  /** 指标计算最大缓存条目数（防止内存泄漏） */
+  CALCULATION_MAX_SIZE: 50,
+  /** 指标时序缓存默认最大条目数（环形缓冲区） */
+  TIMESERIES_DEFAULT_MAX_ENTRIES: 100,
 } as const;
 
 /** 行情监控相关常量，用于 MarketMonitor 检测价格/指标变化 */
@@ -98,6 +117,17 @@ export const PENDING_ORDER_STATUSES = new Set<OrderStatus>([
   OrderStatus.WaitToReplace,
   OrderStatus.PendingReplace,
 ]) as ReadonlySet<OrderStatus>;
+
+/** 不可改单的订单状态集合（WaitToReplace/PendingReplace） */
+export const NON_REPLACEABLE_ORDER_STATUSES = new Set<OrderStatus>([
+  OrderStatus.WaitToReplace,
+  OrderStatus.PendingReplace,
+]) as ReadonlySet<OrderStatus>;
+
+/** 不可改单的订单类型集合（MO 市价单不支持改单） */
+export const NON_REPLACEABLE_ORDER_TYPES = new Set<OrderType>([
+  OrderType.MO,
+]) as ReadonlySet<OrderType>;
 
 /** 风险检查相关常量（牛熊证） */
 /** 牛证最低距离回收价百分比（低于此值拒绝买入） */

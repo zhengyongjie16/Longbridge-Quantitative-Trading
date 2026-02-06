@@ -31,15 +31,8 @@ import { calculateKDJ } from './kdj.js';
 import { calculateMACD } from './macd.js';
 import { calculateEMA } from './ema.js';
 import { calculatePSY } from './psy.js';
+import { INDICATOR_CACHE } from '../../constants/index.js';
 import type { CandleData, IndicatorSnapshot } from '../../types/index.js';
-
-// ==================== 指标缓存 ====================
-
-/** 缓存 TTL（毫秒） */
-const CACHE_TTL_MS = 5000;
-
-/** 最大缓存条目数（防止内存泄漏） */
-const MAX_CACHE_SIZE = 50;
 
 /** 缓存条目类型 */
 type IndicatorCalculationCacheEntry = {
@@ -109,7 +102,7 @@ function deleteCacheEntry(key: string, entry: IndicatorCalculationCacheEntry): v
  * 当缓存条目超过最大数量时，删除最旧的条目
  */
 function cleanupCache(): void {
-  if (indicatorCache.size <= MAX_CACHE_SIZE) {
+  if (indicatorCache.size <= INDICATOR_CACHE.CALCULATION_MAX_SIZE) {
     return;
   }
 
@@ -118,7 +111,7 @@ function cleanupCache(): void {
 
   // 首先删除过期条目
   for (const [key, entry] of indicatorCache) {
-    if (now - entry.timestamp > CACHE_TTL_MS) {
+    if (now - entry.timestamp > INDICATOR_CACHE.CALCULATION_TTL_MS) {
       expiredEntries.push([key, entry]);
     }
   }
@@ -128,11 +121,11 @@ function cleanupCache(): void {
   }
 
   // 如果仍然超过限制，删除最旧的条目
-  if (indicatorCache.size > MAX_CACHE_SIZE) {
+  if (indicatorCache.size > INDICATOR_CACHE.CALCULATION_MAX_SIZE) {
     const sortedEntries = [...indicatorCache.entries()].sort(
       (a, b) => a[1].timestamp - b[1].timestamp,
     );
-    const deleteCount = indicatorCache.size - MAX_CACHE_SIZE;
+    const deleteCount = indicatorCache.size - INDICATOR_CACHE.CALCULATION_MAX_SIZE;
     for (let i = 0; i < deleteCount; i++) {
       const sortedEntry = sortedEntries[i];
       if (sortedEntry) {
@@ -187,7 +180,7 @@ export function buildIndicatorSnapshot(
     // 3. K 线数据未变化（指纹相同）
     if (
       cached &&
-      now - cached.timestamp < CACHE_TTL_MS &&
+      now - cached.timestamp < INDICATOR_CACHE.CALCULATION_TTL_MS &&
       cached.dataFingerprint === dataFingerprint
     ) {
       return cached.snapshot;

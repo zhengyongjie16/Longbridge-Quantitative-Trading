@@ -13,6 +13,7 @@ import type {
 } from '../types/index.js';
 import { parseSignalConfig } from '../utils/helpers/signalConfigParser.js';
 import { logger } from '../utils/logger/index.js';
+import { TRADING } from '../constants/index.js';
 import {
   getBooleanConfig,
   getNumberConfig,
@@ -201,9 +202,6 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
   };
 }
 
-/** 监控标的最大扫描范围（从 _1 扫描到 _100） */
-const MAX_MONITOR_SCAN_RANGE = 100;
-
 /** 解析所有监控标的配置，自动扫描 MONITOR_SYMBOL_1, _2, ... */
 export function createMultiMonitorTradingConfig({
   env,
@@ -214,7 +212,7 @@ export function createMultiMonitorTradingConfig({
 
   // 连续扫描监控标的配置：从 _1 开始，遇到第一个未配置的索引即停止
   // 注意：索引必须连续，如配置了 _1 和 _3 但跳过 _2，则 _3 不会被读取
-  for (let i = 1; i <= MAX_MONITOR_SCAN_RANGE; i++) {
+  for (let i = 1; i <= TRADING.MAX_MONITOR_SCAN_RANGE; i++) {
     const monitorSymbol = getStringConfig(env, `MONITOR_SYMBOL_${i}`);
     if (!monitorSymbol) {
       // 未找到 MONITOR_SYMBOL_N，停止扫描
