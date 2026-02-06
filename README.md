@@ -28,7 +28,7 @@
 | Skill | 说明 | 使用场景 |
 |-------|------|---------|
 | `core-program-business-logic` | 港股量化交易系统业务逻辑知识库 | 理解交易逻辑、验证代码实现、修改功能、解答业务规则；重构代码时应一并更新此文档 |
-| `longbridge-openapi-documentation` | LongPort OpenAPI 文档（行情/交易/资产） | 查询 API 接口、根据 API 编写代码、了解 WebSocket 协议 |
+| `longport-nodejs-sdk` | LongPort OpenAPI SDK for Node.js 完整知识库 | 调用 LongPort API、查询 SDK 文档、处理行情/订单/资产 |
 | `typescript-project-specifications` | TypeScript 严格代码规范 | 编写/修改/重构 .ts 文件时自动使用，包含工厂函数、依赖注入、对象池等模式示例 |
 
 ### 内置 Agents

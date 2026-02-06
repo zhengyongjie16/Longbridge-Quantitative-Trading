@@ -35,7 +35,7 @@ src/
 |------|---------|
 | `/core-program-business-logic` skill | 理解/修改业务逻辑、交易策略、风险控制 |
 | `/typescript-project-specifications` skill | 编写/修改任何 TypeScript 代码 |
-| `/longbridge-openapi-documentation` skill | 调用 LongPort API、处理行情/订单 |
+| `/longport-nodejs-sdk` skill | 调用 LongPort API、查询 SDK 文档、处理行情/订单/资产 |
 | `README.md` | 了解完整配置、信号格式、运行流程 |
 
 ## 核心代码规范
