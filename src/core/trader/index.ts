@@ -18,9 +18,8 @@
  * 3. orderRecorder → 4. orderMonitor → 5. orderExecutor
  */
 import { TradeContext } from 'longport';
-import type { OrderSide, OrderType } from 'longport';
 import { createOrderRecorder } from '../orderRecorder/index.js';
-import type { Signal, Quote, AccountSnapshot, Position, OrderRecorder, PendingOrder, Trader, TradeCheckResult, PendingRefreshSymbol } from '../../types/index.js';
+import type { Signal, Quote, AccountSnapshot, Position, PendingOrder, Trader, TradeCheckResult, PendingRefreshSymbol } from '../../types/index.js';
 import type { TraderDeps } from './types.js';
 
 // 导入子模块工厂函数
@@ -106,7 +105,6 @@ export async function createTrader(deps: TraderDeps): Promise<Trader> {
 
   // 创建 Trader 实例
   return {
-    _ctxPromise: ctxPromise,
     _orderRecorder: orderRecorder,
 
     // ==================== 账户相关方法 ====================
@@ -138,53 +136,10 @@ export async function createTrader(deps: TraderDeps): Promise<Trader> {
       return orderHoldRegistry.getHoldSymbols();
     },
 
-    clearPendingOrdersCache(): void {
-      cacheManager.clearCache();
-    },
-
-    hasPendingBuyOrders(
-      symbols: string[],
-      recorder: OrderRecorder | null = null,
-    ): Promise<boolean> {
-      return cacheManager.hasPendingBuyOrders(symbols, recorder);
-    },
-
     // ==================== 订单监控相关方法 ====================
-
-    trackOrder(
-      orderId: string,
-      symbol: string,
-      side: OrderSide,
-      price: number,
-      quantity: number,
-      isLongSymbol: boolean,
-      monitorSymbol: string | null,
-      isProtectiveLiquidation: boolean,
-      orderType: OrderType,
-    ): void {
-      orderMonitor.trackOrder(
-        orderId,
-        symbol,
-        side,
-        price,
-        quantity,
-        isLongSymbol,
-        monitorSymbol,
-        isProtectiveLiquidation,
-        orderType,
-      );
-    },
 
     cancelOrder(orderId: string): Promise<boolean> {
       return orderMonitor.cancelOrder(orderId);
-    },
-
-    replaceOrderPrice(
-      orderId: string,
-      newPrice: number,
-      quantity: number | null = null,
-    ): Promise<void> {
-      return orderMonitor.replaceOrderPrice(orderId, newPrice, quantity);
     },
 
     monitorAndManageOrders(

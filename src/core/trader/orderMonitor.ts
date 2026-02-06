@@ -689,13 +689,6 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     return pendingRefreshSymbols.splice(0);
   }
 
-  /** 销毁监控器（清理追踪列表） */
-  async function destroy(): Promise<void> {
-    trackedOrders.clear();
-    pendingRefreshSymbols.length = 0;
-    logger.info('[订单监控] 监控器已销毁');
-  }
-
   return {
     initialize,
     trackOrder,
@@ -705,6 +698,5 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     recoverTrackedOrders,
     getPendingSellOrders,
     getAndClearPendingRefreshSymbols,
-    destroy,
   };
 }

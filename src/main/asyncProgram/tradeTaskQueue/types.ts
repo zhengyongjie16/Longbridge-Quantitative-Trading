@@ -37,14 +37,8 @@ export interface TaskQueue<TType extends string> {
   push(task: Omit<Task<TType>, 'id' | 'createdAt'>): void;
   /** 出队任务（返回并移除队首） */
   pop(): Task<TType> | null;
-  /** 查看队首任务（不移除） */
-  peek(): Task<TType> | null;
-  /** 获取队列长度 */
-  size(): number;
   /** 检查队列是否为空 */
   isEmpty(): boolean;
-  /** 清空队列 */
-  clear(): void;
   /** 按条件移除任务，返回移除数量 */
   removeTasks(
     predicate: (task: Task<TType>) => boolean,

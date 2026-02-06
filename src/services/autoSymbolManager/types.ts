@@ -66,11 +66,6 @@ export type AutoSymbolManagerDeps = {
   readonly now?: () => Date;
 };
 
-export type EnsureSeatOnStartupParams = {
-  readonly direction: SeatDirection;
-  readonly initialSymbol: string | null;
-};
-
 export type SearchOnTickParams = {
   readonly direction: SeatDirection;
   readonly currentTime: Date;
@@ -112,11 +107,9 @@ export type SwitchSuppression = {
 };
 
 export type AutoSymbolManager = {
-  ensureSeatOnStartup(params: EnsureSeatOnStartupParams): SeatState;
   maybeSearchOnTick(params: SearchOnTickParams): Promise<void>;
   maybeSwitchOnDistance(params: SwitchOnDistanceParams): Promise<void>;
   hasPendingSwitch(direction: SeatDirection): boolean;
-  clearSeat(params: { direction: SeatDirection; reason: string }): number;
   resetDailySwitchSuppression(): void;
 };
 
@@ -210,8 +203,6 @@ export type SeatStateUpdater = (
 
 export type SeatStateManagerDeps = {
   readonly monitorSymbol: string;
-  readonly monitorConfig: MonitorConfig;
-  readonly autoSearchConfig: AutoSearchConfig;
   readonly symbolRegistry: SymbolRegistry;
   readonly switchStates: SwitchStateMap;
   readonly switchSuppressions: SwitchSuppressionMap;
@@ -225,7 +216,6 @@ export type SeatStateManager = {
   updateSeatState: SeatStateUpdater;
   resolveSuppression(direction: SeatDirection, seatSymbol: string): SwitchSuppression | null;
   markSuppression(direction: SeatDirection, seatSymbol: string): void;
-  ensureSeatOnStartup(params: EnsureSeatOnStartupParams): SeatState;
   clearSeat(params: { direction: SeatDirection; reason: string }): number;
   resetDailySwitchSuppression(): void;
 };

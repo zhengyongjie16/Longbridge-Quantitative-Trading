@@ -47,20 +47,8 @@ function createTaskQueue<TType extends string>(): TaskQueue<TType> {
       return queue.shift() ?? null;
     },
 
-    peek(): Task<TType> | null {
-      return queue[0] ?? null;
-    },
-
-    size(): number {
-      return queue.length;
-    },
-
     isEmpty(): boolean {
       return queue.length === 0;
-    },
-
-    clear(): void {
-      queue.length = 0;
     },
 
     removeTasks(

@@ -4,10 +4,9 @@
  * 职责：
  * - 席位状态创建与更新
  * - 日内抑制记录与清理
- * - 启动初始化与清席位
+ * - 清空席位并重置换标流程
  */
 import type {
-  EnsureSeatOnStartupParams,
   SeatStateBuilder,
   SeatStateManager,
   SeatStateManagerDeps,
@@ -18,8 +17,6 @@ import type {
 export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateManager {
   const {
     monitorSymbol,
-    monitorConfig,
-    autoSearchConfig,
     symbolRegistry,
     switchStates,
     switchSuppressions,
@@ -79,33 +76,6 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
   }
 
   /**
-   * 启动时初始化席位状态：
-   * - 未启用自动寻标：直接绑定配置标的
-   * - 已启用自动寻标：优先使用历史标的，否则置为空席位
-   */
-  function ensureSeatOnStartup({
-    direction,
-    initialSymbol,
-  }: EnsureSeatOnStartupParams) {
-    if (!autoSearchConfig.autoSearchEnabled) {
-      const symbol = direction === 'LONG' ? monitorConfig.longSymbol : monitorConfig.shortSymbol;
-      const nextState = buildSeatState(symbol, 'READY', null, null);
-      updateSeatState(direction, nextState, false);
-      return nextState;
-    }
-
-    if (initialSymbol) {
-      const nextState = buildSeatState(initialSymbol, 'READY', null, null);
-      updateSeatState(direction, nextState, false);
-      return nextState;
-    }
-
-    const nextState = buildSeatState(null, 'EMPTY', null, null);
-    updateSeatState(direction, nextState, false);
-    return nextState;
-  }
-
-  /**
    * 清空席位并进入换标流程，同时提升席位版本用于信号隔离。
    */
   function clearSeat({ direction, reason }: { direction: SeatDirection; reason: string }) {
@@ -144,7 +114,6 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
     updateSeatState,
     resolveSuppression,
     markSuppression,
-    ensureSeatOnStartup,
     clearSeat,
     resetDailySwitchSuppression,
   };

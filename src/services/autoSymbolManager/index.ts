@@ -66,8 +66,6 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
 
   const seatStateManager = createSeatStateManager({
     monitorSymbol,
-    monitorConfig,
-    autoSearchConfig,
     symbolRegistry,
     switchStates,
     switchSuppressions,
@@ -118,11 +116,9 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
   });
 
   return {
-    ensureSeatOnStartup: seatStateManager.ensureSeatOnStartup,
     maybeSearchOnTick: autoSearch.maybeSearchOnTick,
     maybeSwitchOnDistance: switchStateMachine.maybeSwitchOnDistance,
     hasPendingSwitch: switchStateMachine.hasPendingSwitch,
-    clearSeat: seatStateManager.clearSeat,
     resetDailySwitchSuppression: seatStateManager.resetDailySwitchSuppression,
   };
 }

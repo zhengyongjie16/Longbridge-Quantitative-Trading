@@ -71,15 +71,6 @@ export interface IndicatorCache {
   getLatest(monitorSymbol: string): IndicatorCacheEntry | null;
 
   /**
-   * 获取时间范围内的所有缓存条目
-   * @param monitorSymbol 监控标的代码
-   * @param startTime 开始时间戳（毫秒）
-   * @param endTime 结束时间戳（毫秒）
-   * @returns 时间范围内的缓存条目数组（按时间升序）
-   */
-  getRange(monitorSymbol: string, startTime: number, endTime: number): IndicatorCacheEntry[];
-
-  /**
    * 清除指定标的的缓存
    * @param monitorSymbol 监控标的代码
    */

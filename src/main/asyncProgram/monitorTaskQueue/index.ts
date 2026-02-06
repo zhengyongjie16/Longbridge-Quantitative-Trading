@@ -62,14 +62,6 @@ export function createMonitorTaskQueue<
     return queue.shift() ?? null;
   }
 
-  function peek(): MonitorTask<TType, TData> | null {
-    return queue[0] ?? null;
-  }
-
-  function size(): number {
-    return queue.length;
-  }
-
   function isEmpty(): boolean {
     return queue.length === 0;
   }
@@ -88,8 +80,6 @@ export function createMonitorTaskQueue<
   return {
     scheduleLatest,
     pop,
-    peek,
-    size,
     isEmpty,
     removeTasks,
     onTaskAdded,

@@ -20,18 +20,6 @@ import type { LiquidationCooldownTracker } from '../../services/liquidationCoold
 // ==================== 结果类型定义 ====================
 
 /**
- * 卖出数量计算结果
- * - quantity: 计算出的卖出数量，null 表示无法计算
- * - shouldHold: 是否应保持持仓（不执行卖出）
- * - reason: 计算结果的原因说明
- */
-export type SellQuantityResult = {
-  readonly quantity: number | null;
-  readonly shouldHold: boolean;
-  readonly reason: string;
-};
-
-/**
  * 卖出上下文校验结果（联合类型）
  * - valid=true: 校验通过，包含可用数量和当前价格
  * - valid=false: 校验失败，包含失败原因

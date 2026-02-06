@@ -4,7 +4,6 @@
  * 职责：
  * - 缓存未成交订单列表（30秒 TTL）
  * - 提供按标的查询和强制刷新功能
- * - 检查是否存在买入挂单（用于开仓前检查）
  *
  * 缓存策略：
  * - 按 symbols 组合作为缓存键
@@ -14,7 +13,7 @@ import { OrderStatus, OrderSide } from 'longport';
 import { logger } from '../../utils/logger/index.js';
 import { decimalToNumber, formatError } from '../../utils/helpers/index.js';
 import { PENDING_ORDER_STATUSES } from '../../constants/index.js';
-import type { PendingOrder, DecimalLikeValue, OrderRecorder } from '../../types/index.js';
+import type { PendingOrder, DecimalLikeValue } from '../../types/index.js';
 import type { OrderCacheManager, OrderCacheManagerDeps } from './types.js';
 
 /** 缓存有效期 30 秒 */
@@ -143,47 +142,8 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
     logger.debug('[订单缓存] 已清除缓存');
   };
 
-  /**
-   * 检查是否有买入挂单
-   * 提供 orderRecorder 时从本地缓存查询（启动时），否则调用 API
-   */
-  const hasPendingBuyOrders = async (
-    symbols: string[],
-    orderRecorder: OrderRecorder | null = null,
-  ): Promise<boolean> => {
-    try {
-      // 如果提供了 orderRecorder，强制从缓存获取（启动时使用，避免重复调用 todayOrders）
-      if (orderRecorder) {
-        try {
-          // 先检查缓存是否存在
-          if (orderRecorder.hasCacheForSymbols(symbols)) {
-            // 如果所有标的都有缓存，从缓存获取未成交订单（即使没有未成交订单也使用缓存结果）
-            const pendingOrders =
-              orderRecorder.getPendingOrdersFromCache(symbols);
-            return pendingOrders.some((order) => order.side === OrderSide.Buy);
-          }
-          // 如果缓存不存在或不完整，说明 refreshOrders 还未执行或失败，返回 false（不调用 API）
-          return false;
-        } catch {
-          // 缓存读取失败，返回 false（不调用 API）
-          return false;
-        }
-      }
-      // 从 API 获取（运行时使用，没有提供 orderRecorder 时使用）
-      const pendingOrders = await getPendingOrders(symbols);
-      return pendingOrders.some((order) => order.side === OrderSide.Buy);
-    } catch (err) {
-      logger.warn(
-        '检查买入订单失败',
-        formatError(err),
-      );
-      return false;
-    }
-  };
-
   return {
     getPendingOrders,
     clearCache,
-    hasPendingBuyOrders,
   };
 };

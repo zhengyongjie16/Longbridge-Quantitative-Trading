@@ -255,22 +255,6 @@ export function createRiskChecker(deps: RiskCheckerDeps = {}): RiskChecker {
   return {
     unrealizedLossData: unrealizedLossChecker.getAllData(),
 
-    async initializeWarrantInfo(
-      marketDataClient: MarketDataClient,
-      longSymbol: string,
-      shortSymbol: string,
-      longSymbolName: string | null = null,
-      shortSymbolName: string | null = null,
-    ): Promise<void> {
-      await warrantRiskChecker.initialize(
-        marketDataClient,
-        longSymbol,
-        shortSymbol,
-        longSymbolName,
-        shortSymbolName,
-      );
-    },
-
     async refreshWarrantInfoForSymbol(
       marketDataClient: MarketDataClient,
       symbol: string,

@@ -465,8 +465,6 @@ export async function createMarketDataClient(
     subscribeSymbols,
     unsubscribeSymbols,
     getCandlesticks,
-    getTradingDays,
     isTradingDay,
-    cacheStaticInfo,
   };
 }

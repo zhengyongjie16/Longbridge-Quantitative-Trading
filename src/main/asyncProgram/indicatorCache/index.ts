@@ -81,14 +81,6 @@ export const createIndicatorCache = (options: IndicatorCacheOptions = {}): Indic
       return getLatestFromBuffer(buffer);
     },
 
-    getRange(monitorSymbol: string, startTime: number, endTime: number): IndicatorCacheEntry[] {
-      const buffer = buffers.get(monitorSymbol);
-      if (!buffer || buffer.size === 0) return [];
-
-      const entries = getBufferEntries(buffer);
-      return entries.filter((entry) => entry.timestamp >= startTime && entry.timestamp <= endTime);
-    },
-
     clear(monitorSymbol: string): void {
       buffers.delete(monitorSymbol);
     },

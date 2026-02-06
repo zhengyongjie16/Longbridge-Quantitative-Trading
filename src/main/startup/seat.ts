@@ -13,8 +13,8 @@ import { findBestWarrant } from '../../services/autoSymbolFinder/index.js';
 import { isSeatReady, resolveSeatOnStartup } from '../../services/autoSymbolManager/utils.js';
 import { getLatestTradedSymbol } from '../../core/orderRecorder/orderOwnershipParser.js';
 
-/** 根据方向解析启动寻标阈值 */
-export function resolveAutoSearchThresholds(
+/** 根据方向解析启动寻标阈值（仅本模块使用） */
+function resolveAutoSearchThresholds(
   direction: 'LONG' | 'SHORT',
   autoSearchConfig: {
     readonly autoSearchMinPriceBull: number | null;

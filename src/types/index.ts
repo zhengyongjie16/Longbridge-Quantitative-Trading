@@ -20,7 +20,6 @@ import type {
   OrderStatus,
   OrderType,
   QuoteContext,
-  TradeContext,
   Candlestick,
   Period,
   AdjustType,
@@ -83,36 +82,6 @@ export type Signal = {
   /** 关联的买入订单ID列表（仅卖出订单使用，用于智能平仓防重） */
   relatedBuyOrderIds?: readonly string[] | null;
 };
-
-/**
- * 买入信号类型
- * @remarks 用于类型收窄，区分买入和卖出信号
- */
-export type BuySignal = Signal & { action: 'BUYCALL' | 'BUYPUT' };
-
-/**
- * 卖出信号类型
- * @remarks 用于类型收窄，区分买入和卖出信号
- */
-export type SellSignal = Signal & { action: 'SELLCALL' | 'SELLPUT' };
-
-/**
- * 判断是否为买入信号（类型守卫）
- * @param signal 交易信号
- * @returns 如果是买入信号返回 true
- */
-export function isBuySignal(signal: Signal): signal is BuySignal {
-  return signal.action === 'BUYCALL' || signal.action === 'BUYPUT';
-}
-
-/**
- * 判断是否为卖出信号（类型守卫）
- * @param signal 交易信号
- * @returns 如果是卖出信号返回 true
- */
-export function isSellSignal(signal: Signal): signal is SellSignal {
-  return signal.action === 'SELLCALL' || signal.action === 'SELLPUT';
-}
 
 /**
  * 订单类型配置
@@ -776,17 +745,9 @@ export interface MarketDataClient {
     tradeSessions?: TradeSessions,
   ): Promise<Candlestick[]>;
 
-  /** 获取交易日列表 */
-  getTradingDays(startDate: Date, endDate: Date, market?: Market): Promise<TradingDaysResult>;
-
   /** 判断指定日期是否为交易日 */
   isTradingDay(date: Date, market?: Market): Promise<TradingDayInfo>;
 
-  /**
-   * 批量缓存静态信息
-   * 启动时调用，缓存标的的回收价等信息
-   */
-  cacheStaticInfo(symbols: ReadonlyArray<string>): Promise<void>;
 }
 
 /**
@@ -896,14 +857,6 @@ export interface OrderRecorder {
   getLatestBuyOrderPrice(symbol: string, isLongSymbol: boolean): number | null;
   /** 获取最新卖出订单记录 */
   getLatestSellRecord(symbol: string, isLongSymbol: boolean): OrderRecord | null;
-  /** 获取低于指定价格的买入订单（用于智能平仓） */
-  getBuyOrdersBelowPrice(
-    currentPrice: number,
-    direction: 'LONG' | 'SHORT',
-    symbol: string,
-  ): ReadonlyArray<OrderRecord>;
-  /** 计算订单列表的总数量 */
-  calculateTotalQuantity(orders: ReadonlyArray<OrderRecord>): number;
   /** 从 API 获取全量订单 */
   fetchAllOrdersFromAPI(forceRefresh?: boolean): Promise<ReadonlyArray<RawOrderFromAPI>>;
   /** 使用全量订单刷新指定标的记录 */
@@ -915,14 +868,6 @@ export interface OrderRecorder {
   ): Promise<OrderRecord[]>;
   /** 清理指定标的的 API 订单缓存（不影响本地订单记录） */
   clearOrdersCacheForSymbol(symbol: string): void;
-  /** 检查是否有指定标的的缓存 */
-  hasCacheForSymbols(symbols: string[]): boolean;
-  /** 从缓存获取待处理订单 */
-  getPendingOrdersFromCache(symbols: string[]): PendingOrder[];
-  /** 获取所有做多买入订单 */
-  getLongBuyOrders(): ReadonlyArray<OrderRecord>;
-  /** 获取所有做空买入订单 */
-  getShortBuyOrders(): ReadonlyArray<OrderRecord>;
   /** 获取指定标的的买入订单 */
   getBuyOrdersForSymbol(symbol: string, isLongSymbol: boolean): ReadonlyArray<OrderRecord>;
 
@@ -942,11 +887,6 @@ export interface OrderRecorder {
   markSellPartialFilled(orderId: string, filledQuantity: number): PendingSellInfo | null;
   /** 标记卖出订单取消 */
   markSellCancelled(orderId: string): PendingSellInfo | null;
-  /** 获取待成交卖出订单列表 */
-  getPendingSellOrders(
-    symbol: string,
-    direction: 'LONG' | 'SHORT',
-  ): ReadonlyArray<PendingSellInfo>;
   /** 获取可卖出的盈利订单（核心防重逻辑） */
   getProfitableSellOrders(
     symbol: string,
@@ -954,8 +894,6 @@ export interface OrderRecorder {
     currentPrice: number,
     maxSellQuantity?: number,
   ): { orders: ReadonlyArray<OrderRecord>; totalQuantity: number };
-  /** 获取被指定订单占用的买入订单ID列表 */
-  getBuyOrderIdsOccupiedBySell(orderId: string): ReadonlyArray<string> | null;
 }
 
 /**
@@ -963,8 +901,6 @@ export interface OrderRecorder {
  * 封装 LongPort 交易 API，提供订单执行和管理功能
  */
 export interface Trader {
-  /** 底层 TradeContext Promise */
-  readonly _ctxPromise: Promise<TradeContext>;
   /** 订单记录器实例 */
   readonly _orderRecorder: OrderRecorder;
 
@@ -983,29 +919,10 @@ export interface Trader {
   seedOrderHoldSymbols(orders: ReadonlyArray<RawOrderFromAPI>): void;
   /** 获取订单订阅保留标的集合 */
   getOrderHoldSymbols(): ReadonlySet<string>;
-  /** 清空待处理订单缓存 */
-  clearPendingOrdersCache(): void;
-  /** 检查是否有待处理的买入订单 */
-  hasPendingBuyOrders(symbols: string[], orderRecorder?: OrderRecorder | null): Promise<boolean>;
-
   // ========== 订单监控 ==========
 
-  /** 开始追踪订单状态 */
-  trackOrder(
-    orderId: string,
-    symbol: string,
-    side: OrderSide,
-    price: number,
-    quantity: number,
-    isLongSymbol: boolean,
-    monitorSymbol: string | null,
-    isProtectiveLiquidation: boolean,
-    orderType: OrderType,
-  ): void;
   /** 撤销订单 */
   cancelOrder(orderId: string): Promise<boolean>;
-  /** 修改订单价格 */
-  replaceOrderPrice(orderId: string, newPrice: number, quantity?: number | null): Promise<void>;
   /** 监控和管理待处理订单 */
   monitorAndManageOrders(quotesMap: ReadonlyMap<string, Quote | null>): Promise<void>;
   /** 获取并清空待刷新标的列表 */
@@ -1180,10 +1097,6 @@ export interface PositionCache {
   update(positions: ReadonlyArray<Position>): void;
   /** 获取指定标的的持仓 */
   get(symbol: string): Position | null;
-  /** 获取缓存版本号（检测更新） */
-  getVersion(): number;
-  /** 获取所有持仓 */
-  getAll(): Position[];
 }
 
 /**
@@ -1193,15 +1106,6 @@ export interface PositionCache {
 export interface RiskChecker {
   /** 浮亏数据缓存（symbol -> UnrealizedLossData） */
   readonly unrealizedLossData: ReadonlyMap<string, UnrealizedLossData>;
-
-  /** 初始化牛熊证信息（回收价等） */
-  initializeWarrantInfo(
-    marketDataClient: MarketDataClient,
-    longSymbol: string,
-    shortSymbol: string,
-    longSymbolName?: string | null,
-    shortSymbolName?: string | null,
-  ): Promise<void>;
 
   /** 刷新单个标的的牛熊证信息 */
   refreshWarrantInfoForSymbol(

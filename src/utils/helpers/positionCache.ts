@@ -21,7 +21,6 @@ import type { Position, PositionCache } from '../../types/index.js';
  */
 export const createPositionCache = (): PositionCache => {
   const positionMap = new Map<string, Position>();
-  let version = 0;
 
   /**
    * 更新持仓缓存
@@ -42,8 +41,6 @@ export const createPositionCache = (): PositionCache => {
         positionMap.set(pos.symbol, pos);
       }
     }
-
-    version++;
   };
 
   /**
@@ -54,24 +51,8 @@ export const createPositionCache = (): PositionCache => {
     return positionMap.get(symbol) ?? null;
   };
 
-  /**
-   * 获取缓存版本号（用于检测持仓是否更新）
-   */
-  const getVersion = (): number => {
-    return version;
-  };
-
-  /**
-   * 获取所有持仓
-   */
-  const getAll = (): Position[] => {
-    return Array.from(positionMap.values());
-  };
-
   return {
     update,
     get,
-    getVersion,
-    getAll,
   };
 };

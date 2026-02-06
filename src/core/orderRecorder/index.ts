@@ -26,7 +26,6 @@ import { getDirectionName, formatSymbolDisplayFromQuote } from '../../utils/help
 import type {
   OrderRecord,
   OrderRecorder,
-  PendingOrder,
   Quote,
   RawOrderFromAPI,
 } from '../../types/index.js';
@@ -260,20 +259,6 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     return storage.getLatestSellRecord(symbol, isLongSymbol);
   }
 
-  /** 获取买入价低于当前价的订单（用于智能清仓决策） */
-  function getBuyOrdersBelowPrice(
-    currentPrice: number,
-    direction: 'LONG' | 'SHORT',
-    symbol: string,
-  ): ReadonlyArray<OrderRecord> {
-    return storage.getBuyOrdersBelowPrice(currentPrice, direction, symbol);
-  }
-
-  /** 计算订单列表的总成交数量 */
-  function calculateTotalQuantity(orders: ReadonlyArray<OrderRecord>): number {
-    return storage.calculateTotalQuantity(orders);
-  }
-
   // ============================================
   // 公有方法 - 订单获取和刷新
   // ============================================
@@ -316,33 +301,9 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
   // 公有方法 - 缓存管理
   // ============================================
 
-  /** 检查指定标的列表是否都有缓存 */
-  function hasCacheForSymbols(symbols: string[]): boolean {
-    return apiManager.hasCacheForSymbols(symbols);
-  }
-
-  /** 从缓存中提取未成交订单（避免重复调用 todayOrders API） */
-  function getPendingOrdersFromCache(symbols: string[]): PendingOrder[] {
-    return apiManager.getPendingOrdersFromCache(symbols);
-  }
-
   /** 清理指定标的的订单缓存 */
   function clearOrdersCacheForSymbol(symbol: string): void {
     apiManager.clearCacheForSymbol(symbol);
-  }
-
-  // ============================================
-  // 公有方法 - 暴露内部状态（用于 RiskChecker）
-  // ============================================
-
-  /** 获取所有做多标的的买入订单 */
-  function getLongBuyOrders(): ReadonlyArray<OrderRecord> {
-    return storage.getLongBuyOrders();
-  }
-
-  /** 获取所有做空标的的买入订单 */
-  function getShortBuyOrders(): ReadonlyArray<OrderRecord> {
-    return storage.getShortBuyOrders();
   }
 
   /** 获取指定标的的买入订单列表 */
@@ -395,14 +356,6 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     return storage.markSellCancelled(orderId);
   }
 
-  /** 获取待成交卖出订单列表 */
-  function getPendingSellOrders(
-    symbol: string,
-    direction: 'LONG' | 'SHORT',
-  ): ReadonlyArray<PendingSellInfo> {
-    return storage.getPendingSellOrders(symbol, direction);
-  }
-
   /** 获取可卖出的盈利订单（核心防重逻辑） */
   function getProfitableSellOrders(
     symbol: string,
@@ -413,26 +366,15 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     return storage.getProfitableSellOrders(symbol, direction, currentPrice, maxSellQuantity);
   }
 
-  /** 获取被指定订单占用的买入订单ID列表 */
-  function getBuyOrderIdsOccupiedBySell(orderId: string): ReadonlyArray<string> | null {
-    return storage.getBuyOrderIdsOccupiedBySell(orderId);
-  }
-
   return {
     recordLocalBuy,
     recordLocalSell,
     clearBuyOrders,
     getLatestBuyOrderPrice,
     getLatestSellRecord,
-    getBuyOrdersBelowPrice,
-    calculateTotalQuantity,
     fetchAllOrdersFromAPI,
     refreshOrdersFromAllOrders,
-    hasCacheForSymbols,
-    getPendingOrdersFromCache,
     clearOrdersCacheForSymbol,
-    getLongBuyOrders,
-    getShortBuyOrders,
     getBuyOrdersForSymbol,
 
     // 待成交卖出订单追踪
@@ -440,8 +382,6 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     markSellFilled,
     markSellPartialFilled,
     markSellCancelled,
-    getPendingSellOrders,
     getProfitableSellOrders,
-    getBuyOrderIdsOccupiedBySell,
   };
 }

@@ -64,13 +64,6 @@ export interface DelayedSignalVerifier {
   addSignal(signal: Signal, monitorSymbol: string): void;
 
   /**
-   * 取消指定信号的验证
-   * @param signalId 信号ID（格式：symbol:action:triggerTime）
-   * @returns 是否成功取消
-   */
-  cancelSignal(signalId: string): boolean;
-
-  /**
    * 取消指定标的的所有待验证信号
    * @param monitorSymbol 监控标的代码
    */

@@ -157,20 +157,6 @@ export function createDelayedSignalVerifier(
       pendingSignals.set(signalId, entry);
     },
 
-    cancelSignal(signalId: string): boolean {
-      const entry = pendingSignals.get(signalId);
-      if (!entry) {
-        return false;
-      }
-
-      clearTimeout(entry.timerId);
-      pendingSignals.delete(signalId);
-      // 取消时释放信号对象回对象池
-      signalObjectPool.release(entry.signal);
-      logger.debug(`[延迟验证] 已取消信号验证: ${signalId}`);
-      return true;
-    },
-
     cancelAllForSymbol(monitorSymbol: string): void {
       const entriesToRemove: Array<{ signalId: string; signal: Signal }> = [];
 

@@ -53,10 +53,6 @@ export const VERIFICATION = {
   TIME_OFFSET_2_SECONDS: 10,
   /** 验证时间点误差容忍度（毫秒） */
   TIME_TOLERANCE_MS: 5 * 1000,
-  /** 验证窗口开始偏移量（秒），相对于信号触发时间 */
-  WINDOW_START_OFFSET_SECONDS: -5,
-  /** 验证窗口结束偏移量（秒），相对于信号触发时间 */
-  WINDOW_END_OFFSET_SECONDS: 10,
   /** 验证就绪延迟时间（秒），信号注册后等待验证的时间 */
   READY_DELAY_SECONDS: 10,
   /** 验证通过信号冷却时间（秒），同标的同方向在此时间内只允许一个信号进入风险检查 */

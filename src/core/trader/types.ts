@@ -107,7 +107,6 @@ export interface AccountService {
 export interface OrderCacheManager {
   getPendingOrders(symbols?: string[] | null, forceRefresh?: boolean): Promise<PendingOrder[]>;
   clearCache(): void;
-  hasPendingBuyOrders(symbols: string[], orderRecorder?: import('../../types/index.js').OrderRecorder | null): Promise<boolean>;
 }
 
 /**
@@ -164,8 +163,6 @@ export interface OrderMonitor {
    */
   getAndClearPendingRefreshSymbols(): PendingRefreshSymbol[];
 
-  /** 销毁监控器 */
-  destroy(): Promise<void>;
 }
 
 /**

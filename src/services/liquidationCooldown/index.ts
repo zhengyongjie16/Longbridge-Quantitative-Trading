@@ -18,7 +18,7 @@ import type { LiquidationCooldownConfig } from '../../types/index.js';
 import { getHKTime } from '../../utils/helpers/tradingTime.js';
 
 /** 计算冷却结束时间 */
-export function resolveCooldownEndMs(
+function resolveCooldownEndMs(
   executedTimeMs: number,
   cooldownConfig: LiquidationCooldownConfig | null,
 ): number | null {
