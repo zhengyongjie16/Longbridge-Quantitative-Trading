@@ -1,8 +1,10 @@
 /**
  * 获取符合条件的所有牛熊证（全部符合阈值的结果）
  *
- * 筛选条件：正常交易，到期日 >= 3个月，现价 > MIN_PRICE，分均成交额 >= MIN_TURNOVER_PER_MINUTE（开盘后）
- * 输出：所有符合条件的结果，以 JSON 形式展示
+ * 筛选条件：正常交易，到期日 >= 3个月，距回收价百分比超过阈值，分均成交额 >= MIN_TURNOVER_PER_MINUTE（开盘后）
+ * - 牛证：距回收价百分比 > 2%（API 小数形式 > 0.02）
+ * - 熊证：距回收价百分比 < -2%（API 小数形式 < -0.02）
+ * 输出：所有符合条件的结果（标注最接近阈值的一个），以 JSON 形式展示
  *
  * 使用: node utils/getWarrants.js [标的代码] [bull|bear]
  * 示例: node utils/getWarrants.js HSI.HK bear
@@ -28,7 +30,7 @@
  * implied_volatility string   - 隐含波动率（窝轮用；牛熊证可能无）
  * delta              string   - 希腊值 Delta（窝轮用；牛熊证可能无）
  * call_price         string   - 回收价/收回价（牛熊证触及即强制收回，单位与标的一致）
- * to_call_price      string   - 距回收价（与回收价的价格/比例间隔，用于风险判断）
+ * to_call_price      string   - 距回收价百分比（小数形式，如 0.02 表示 2%；牛证正值，熊证负值）
  * effective_leverage string   - 有效杠杆
  * leverage_ratio     string   - 杠杆比率
  * conversion_ratio   string   - 换股比率（牛熊证每份对应正股数量）
@@ -36,8 +38,8 @@
  * status             int32    - 状态：2=停牌 3=待上市 4=正常
  */
 import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Config, QuoteContext } from 'longport';
 
 // ==================== 常量 ====================
@@ -57,8 +59,8 @@ const PRICE_TYPE_IN_BOUNDS = [0];
 
 /** 分均成交额阈值（港币） */
 const MIN_TURNOVER_PER_MINUTE = 100000;
-/** 最低价格阈值（港币） */
-const MIN_PRICE = 0.05;
+/** 距回收价百分比阈值（小数形式，0.02 = 2%） */
+const MIN_DISTANCE_PCT = 0.02;
 /** 默认标的 */
 const DEFAULT_SYMBOL = 'HSI.HK';
 
@@ -135,8 +137,12 @@ async function main() {
   const typeLabel = isBull ? '牛证' : '熊证';
   const tradingMinutes = getTradingMinutes();
 
+  const distanceLabel = isBull
+    ? `>${(MIN_DISTANCE_PCT * 100).toFixed(0)}%`
+    : `<-${(MIN_DISTANCE_PCT * 100).toFixed(0)}%`;
+
   console.log(`\n====== ${typeLabel}筛选 | ${symbol} ======`);
-  console.log(`条件: 到期≥3月, 现价>${MIN_PRICE}, 分均成交≥${formatTurnover(MIN_TURNOVER_PER_MINUTE)}`);
+  console.log(`条件: 到期≥3月, 距回收价${distanceLabel}, 分均成交≥${formatTurnover(MIN_TURNOVER_PER_MINUTE)}`);
   console.log(`已开盘: ${tradingMinutes} 分钟\n`);
 
   // 初始化 API 并获取数据
@@ -154,16 +160,23 @@ async function main() {
 
   console.log(`获取 ${warrants.length} 只${typeLabel}\n`);
 
-  // 收集所有符合阈值的结果（保留 API 原始结构）：现价 > MIN_PRICE 且分均成交额 >= MIN_TURNOVER_PER_MINUTE（开盘后）
+  // 收集所有符合阈值的结果（保留 API 原始结构）：距回收价百分比超过阈值 且分均成交额 >= MIN_TURNOVER_PER_MINUTE（开盘后）
   const rawList = [];
+  const distanceValues = [];
   let skippedCount = 0;
+  const distanceThreshold = isBull ? MIN_DISTANCE_PCT : -MIN_DISTANCE_PCT;
+  let closestIdx = -1;
+  let closestDiff = Infinity;
 
   for (const w of warrants) {
-    const price = Number(w.lastDone || 0);
     const turnover = Number(w.turnover || 0);
+    const distancePct = Number(w.toCallPrice || 0);
 
-    // 价格过滤
-    if (price <= MIN_PRICE) {
+    // 距回收价百分比过滤：牛证 > 阈值，熊证 < -阈值
+    const distanceOk = isBull
+      ? distancePct > MIN_DISTANCE_PCT
+      : distancePct < -MIN_DISTANCE_PCT;
+    if (!distanceOk) {
       skippedCount++;
       continue;
     }
@@ -177,9 +190,32 @@ async function main() {
 
     // 使用 SDK 提供的 toJSON() 获取可序列化的原生结构（WarrantInfo 为原生类，仅 getter 无枚举属性）
     rawList.push(typeof w.toJSON === 'function' ? w.toJSON() : { ...w });
+    distanceValues.push(distancePct);
+
+    // 追踪最接近距回收价百分比阈值的项
+    const diff = Math.abs(distancePct - distanceThreshold);
+    if (diff < closestDiff) {
+      closestDiff = diff;
+      closestIdx = rawList.length - 1;
+    }
   }
 
-  // 输出：仅包装一层元信息，list 为 API 原生结构
+  // 标注最接近阈值的牛熊证
+  if (closestIdx >= 0) {
+    rawList[closestIdx]._isClosestToThreshold = true;
+  }
+
+  // 构建最接近阈值的摘要信息
+  const closestToThreshold = closestIdx >= 0
+    ? {
+        index: closestIdx,
+        symbol: rawList[closestIdx].symbol,
+        distancePct: distanceValues[closestIdx],
+        distancePctDisplay: (distanceValues[closestIdx] * 100).toFixed(2) + '%',
+      }
+    : null;
+
+  // 输出：仅包装一层元信息，list 为 API 原生结构（最接近阈值项带 _isClosestToThreshold 标记）
   console.log('====== 结果（API 原生 JSON） ======\n');
 
   const result = {
@@ -189,7 +225,11 @@ async function main() {
     totalFetched: warrants.length,
     validCount: rawList.length,
     skippedCount,
-    threshold: { minPrice: MIN_PRICE, minTurnoverPerMinute: MIN_TURNOVER_PER_MINUTE },
+    threshold: {
+      distancePct: `${isBull ? '>' : '<'}${(distanceThreshold * 100).toFixed(0)}%`,
+      minTurnoverPerMinute: MIN_TURNOVER_PER_MINUTE,
+    },
+    closestToThreshold,
     list: rawList,
   };
 
@@ -199,6 +239,9 @@ async function main() {
     console.log(`\n没有符合条件的${typeLabel}`);
   } else {
     console.log(`\n统计: 总${warrants.length}, 符合条件${rawList.length}, 跳过${skippedCount}`);
+    if (closestToThreshold) {
+      console.log(`★ 最接近阈值: ${closestToThreshold.symbol} (距回收价 ${closestToThreshold.distancePctDisplay})`);
+    }
   }
 
   return result;

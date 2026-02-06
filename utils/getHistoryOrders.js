@@ -10,8 +10,8 @@
  * 使用: node tests/getHistoryOrders.js
  */
 import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Config, TradeContext, OrderStatus, OrderSide } from 'longport';
 
 // 加载环境变量
