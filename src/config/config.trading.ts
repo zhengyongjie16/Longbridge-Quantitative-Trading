@@ -256,9 +256,13 @@ export function createMultiMonitorTradingConfig({
     max: 60,
   });
 
-  // 开盘波动较大，指标可靠性下降，可在早盘启用保护避免误触发
-  const openProtectionEnabled = getBooleanConfig(env, 'OPENING_PROTECTION_ENABLED', false);
-  const openProtectionMinutes = getNumberConfig(env, 'OPENING_PROTECTION_MINUTES', 0);
+  // 早盘开盘保护
+  const morningOpenProtectionEnabled = getBooleanConfig(env, 'MORNING_OPENING_PROTECTION_ENABLED', false);
+  const morningOpenProtectionMinutes = getNumberConfig(env, 'MORNING_OPENING_PROTECTION_MINUTES', 0);
+
+  // 午盘开盘保护
+  const afternoonOpenProtectionEnabled = getBooleanConfig(env, 'AFTERNOON_OPENING_PROTECTION_ENABLED', false);
+  const afternoonOpenProtectionMinutes = getNumberConfig(env, 'AFTERNOON_OPENING_PROTECTION_MINUTES', 0);
 
   // 解析交易订单类型配置
   const tradingOrderType = mapOrderTypeConfig(
@@ -276,8 +280,14 @@ export function createMultiMonitorTradingConfig({
       doomsdayProtection: getBooleanConfig(env, 'DOOMSDAY_PROTECTION', true),
       debug: getBooleanConfig(env, 'DEBUG', false),
       openProtection: {
-        enabled: openProtectionEnabled,
-        minutes: openProtectionMinutes,
+        morning: {
+          enabled: morningOpenProtectionEnabled,
+          minutes: morningOpenProtectionMinutes,
+        },
+        afternoon: {
+          enabled: afternoonOpenProtectionEnabled,
+          minutes: afternoonOpenProtectionMinutes,
+        },
       },
       orderMonitorPriceUpdateInterval,
       tradingOrderType,

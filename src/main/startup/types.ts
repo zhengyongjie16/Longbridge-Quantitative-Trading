@@ -30,10 +30,17 @@ export type StartupGateDeps = {
   readonly sleep: (ms: number) => Promise<void>;
   readonly resolveTradingDayInfo: (currentTime: Date) => Promise<TradingDayInfo>;
   readonly isInSession: (currentTime: Date, isHalfDay: boolean) => boolean;
-  readonly isInOpenProtection: (currentTime: Date, minutes: number) => boolean;
+  readonly isInMorningOpenProtection: (currentTime: Date, minutes: number) => boolean;
+  readonly isInAfternoonOpenProtection: (currentTime: Date, minutes: number) => boolean;
   readonly openProtection: {
-    readonly enabled: boolean;
-    readonly minutes: number | null;
+    readonly morning: {
+      readonly enabled: boolean;
+      readonly minutes: number | null;
+    };
+    readonly afternoon: {
+      readonly enabled: boolean;
+      readonly minutes: number | null;
+    };
   };
   readonly intervalMs: number;
   readonly logger: Logger;

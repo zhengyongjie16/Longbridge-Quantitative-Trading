@@ -15,6 +15,7 @@
  * - getHKTime()：获取香港时区时间
  * - isInContinuousHKSession()：判断是否在连续交易时段
  * - isWithinMorningOpenProtection()：判断是否在早盘保护时段
+ * - isWithinAfternoonOpenProtection()：判断是否在午盘保护时段
  * - isBeforeClose15Minutes()：判断是否在收盘前15分钟（拒绝买入）
  * - isBeforeClose5Minutes()：判断是否在收盘前5分钟（自动清仓）
  */
@@ -143,6 +144,34 @@ export function isWithinMorningOpenProtection(
 
   const currentMinutes = hkHour * 60 + hkMinute;
   const startMinutes = 9 * 60 + 30;
+  const endMinutes = startMinutes + minutes;
+
+  return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+}
+
+/**
+ * 判断是否在午盘开盘保护时段（仅午盘有效）
+ * 午盘开盘波动较大，可在此窗口暂缓信号生成
+ * @param date 时间对象（应该是UTC时间）
+ * @param minutes 保护时长（分钟）
+ * @returns true表示在保护时段，false表示不在
+ */
+export function isWithinAfternoonOpenProtection(
+  date: Date | null | undefined,
+  minutes: number,
+): boolean {
+  if (!date || !Number.isFinite(minutes) || minutes <= 0) return false;
+  const hkTime = getHKTime(date);
+  if (!hkTime) return false;
+  const { hkHour, hkMinute } = hkTime;
+
+  // 上午时段和午休时段不生效
+  if (hkHour < 13) {
+    return false;
+  }
+
+  const currentMinutes = hkHour * 60 + hkMinute;
+  const startMinutes = 13 * 60; // 13:00
   const endMinutes = startMinutes + minutes;
 
   return currentMinutes >= startMinutes && currentMinutes < endMinutes;

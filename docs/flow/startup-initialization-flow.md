@@ -17,8 +17,8 @@ graph TD
   B --> C["createMultiMonitorTradingConfig<br/>-> tradingConfig"]
   C --> D["createSymbolRegistry<br/>-> symbolRegistry"]
   D --> E{"validateAllConfig 通过?"}
-  E --|否|--> E1["记录错误并 exit(1)"]
-  E --|是|--> F["createConfig<br/>+ createMarketDataClient"]
+  E -->|否| E1["记录错误并 exit(1)"]
+  E -->|是| F["createConfig<br/>+ createMarketDataClient"]
   F --> G["resolveRunMode<br/>-> gatePolicies"]
   G --> H["createStartupGate.wait"]
   H --> I["createLiquidationCooldownTracker"]
@@ -27,8 +27,8 @@ graph TD
   K --> L["构建 lastState"]
   L --> M["refreshAccountAndPositions"]
   M --> N{"账户/持仓有效?"}
-  N --|否|--> N1["记录错误并 exit(1)"]
-  N --|是|--> O["fetchAllOrdersFromAPI<br/>(失败->空数组)"]
+  N -->|否| N1["记录错误并 exit(1)"]
+  N -->|是| O["fetchAllOrdersFromAPI<br/>(失败->空数组)"]
   O --> P["seedOrderHoldSymbols<br/>+ dailyLossTracker.initializeFromOrders"]
   P --> Q["prepareSeatsOnStartup<br/>-> seatSymbols"]
   Q --> R["tradeLogHydrator.hydrate"]
@@ -37,8 +37,8 @@ graph TD
   T --> U["collectRuntimeQuoteSymbols<br/>-> subscribeSymbols"]
   U --> V["getQuotes<br/>-> initQuotesMap"]
   V --> W["validateRuntimeSymbolsFromQuotesMap"]
-  W --|失败|--> W1["输出错误并 exit(1)"]
-  W --|通过|--> X["displayAccountAndPositions"]
+  W -->|失败| W1["输出错误并 exit(1)"]
+  W -->|通过| X["displayAccountAndPositions"]
   X --> Y["构建 monitorContexts<br/>+ refreshSeatWarrantInfo"]
   Y --> Z["refreshOrdersFromAllOrders<br/>（每个监控标的）"]
   Z --> AA["refreshUnrealizedLossData<br/>（按配置）"]
@@ -57,7 +57,7 @@ graph TD
 ### 2. 行情客户端与启动门禁
 - `createConfig` 生成 LongPort 配置，`createMarketDataClient` 创建行情客户端（仅创建上下文，未订阅）。
 - `resolveRunMode` 与 `resolveGatePolicies` 决定门禁模式：dev 跳过、prod 严格。
-- `createStartupGate.wait` 在严格模式下循环等待：交易日 + 连续交易时段 + 开盘保护期结束；通过后返回 `startupTradingDayInfo`。
+- `createStartupGate.wait` 在严格模式下循环等待：交易日 + 连续交易时段 + 开盘保护期（早盘或午盘）结束；通过后返回 `startupTradingDayInfo`。
 
 ### 3. 交易门面与基础状态
 - `createLiquidationCooldownTracker` 初始化保护性清仓冷却追踪。

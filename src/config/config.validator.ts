@@ -417,15 +417,24 @@ function validateTradingConfig(
     );
   }
 
-  // 验证开盘保护配置（仅在启用时要求完整且范围合法）
-  const openProtectionConfig = tradingConfig.global.openProtection;
-  if (openProtectionConfig.enabled) {
-    // 使用 == null 同时检查 null 与 undefined
-    if (openProtectionConfig.minutes == null) {
-      errors.push('OPENING_PROTECTION_MINUTES 未配置（启用开盘保护时为必填，范围 1-60）');
-      missingFields.push('OPENING_PROTECTION_MINUTES');
-    } else if (openProtectionConfig.minutes < 1 || openProtectionConfig.minutes > 60) {
-      errors.push('OPENING_PROTECTION_MINUTES 无效（范围 1-60）');
+  // 验证开盘保护配置（分别校验早盘和午盘）
+  const { morning, afternoon } = tradingConfig.global.openProtection;
+
+  if (morning.enabled) {
+    if (morning.minutes == null) {
+      errors.push('MORNING_OPENING_PROTECTION_MINUTES 未配置（启用早盘保护时为必填，范围 1-60）');
+      missingFields.push('MORNING_OPENING_PROTECTION_MINUTES');
+    } else if (morning.minutes < 1 || morning.minutes > 60) {
+      errors.push('MORNING_OPENING_PROTECTION_MINUTES 无效（范围 1-60）');
+    }
+  }
+
+  if (afternoon.enabled) {
+    if (afternoon.minutes == null) {
+      errors.push('AFTERNOON_OPENING_PROTECTION_MINUTES 未配置（启用午盘保护时为必填，范围 1-60）');
+      missingFields.push('AFTERNOON_OPENING_PROTECTION_MINUTES');
+    } else if (afternoon.minutes < 1 || afternoon.minutes > 60) {
+      errors.push('AFTERNOON_OPENING_PROTECTION_MINUTES 无效（范围 1-60）');
     }
   }
 

@@ -25,7 +25,8 @@ export function createStartupGate(deps: StartupGateDeps): StartupGate {
     sleep,
     resolveTradingDayInfo,
     isInSession,
-    isInOpenProtection,
+    isInMorningOpenProtection,
+    isInAfternoonOpenProtection,
     openProtection,
     intervalMs,
     logger,
@@ -70,14 +71,32 @@ export function createStartupGate(deps: StartupGateDeps): StartupGate {
         continue;
       }
 
-      const openProtectionActive =
-        openProtection.enabled &&
-        openProtection.minutes != null &&
-        isInOpenProtection(currentTime, openProtection.minutes);
-      if (openProtectionActive) {
+      const { morning, afternoon } = openProtection;
+
+      const morningProtectionActive =
+        morning.enabled &&
+        morning.minutes != null &&
+        isInMorningOpenProtection(currentTime, morning.minutes);
+
+      const afternoonProtectionActive =
+        !tradingDayInfo.isHalfDay &&
+        afternoon.enabled &&
+        afternoon.minutes != null &&
+        isInAfternoonOpenProtection(currentTime, afternoon.minutes);
+
+      if (morningProtectionActive) {
         logState(
           'openProtection',
-          `[开盘保护] 早盘开盘后 ${openProtection.minutes} 分钟内等待启动`,
+          `[开盘保护] 早盘开盘后 ${morning.minutes} 分钟内等待启动`,
+        );
+        await sleep(intervalMs);
+        continue;
+      }
+
+      if (afternoonProtectionActive) {
+        logState(
+          'openProtection',
+          `[开盘保护] 午盘开盘后 ${afternoon.minutes} 分钟内等待启动`,
         );
         await sleep(intervalMs);
         continue;

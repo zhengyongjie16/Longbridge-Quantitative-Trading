@@ -465,12 +465,22 @@ export type GlobalConfig = {
   readonly doomsdayProtection: boolean;
   /** 调试模式 */
   readonly debug: boolean;
-  /** 开盘保护配置 */
+  /** 开盘保护配置（早盘 + 午盘） */
   readonly openProtection: {
-    /** 是否启用开盘保护 */
-    readonly enabled: boolean;
-    /** 保护时长（分钟） */
-    readonly minutes: number | null;
+    /** 早盘开盘保护 */
+    readonly morning: {
+      /** 是否启用早盘开盘保护 */
+      readonly enabled: boolean;
+      /** 保护时长（分钟） */
+      readonly minutes: number | null;
+    };
+    /** 午盘开盘保护 */
+    readonly afternoon: {
+      /** 是否启用午盘开盘保护 */
+      readonly enabled: boolean;
+      /** 保护时长（分钟） */
+      readonly minutes: number | null;
+    };
   };
   /** 订单价格修改最小间隔（秒） */
   readonly orderMonitorPriceUpdateInterval: number;

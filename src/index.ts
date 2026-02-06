@@ -47,6 +47,7 @@ import {
   getTradingMinutesSinceOpen,
   isInContinuousHKSession,
   isWithinMorningOpenProtection,
+  isWithinAfternoonOpenProtection,
 } from './utils/helpers/tradingTime.js';
 
 // 账户显示、持仓缓存和核心服务模块
@@ -180,7 +181,8 @@ async function main(): Promise<void> {
     sleep,
     resolveTradingDayInfo,
     isInSession: isInContinuousHKSession,
-    isInOpenProtection: isWithinMorningOpenProtection,
+    isInMorningOpenProtection: isWithinMorningOpenProtection,
+    isInAfternoonOpenProtection: isWithinAfternoonOpenProtection,
     openProtection: tradingConfig.global.openProtection,
     intervalMs: TRADING.INTERVAL_MS,
     logger,

@@ -4,7 +4,7 @@
 
 ### 项目介绍
 
-基于 LongPort OpenAPI / Node.js / TypeScript 的港股自动化量化交易系统，通过监控目标资产（如HSI）的技术指标，在轮证/ETF上自动执行双向（做多/做空）交易。支持多指标组合策略、延迟验证、风险控制和订单管理。
+基于 LongPort OpenAPI SDK / Node.js 的港股自动化量化交易系统，通过监控目标资产（如HSI）的技术指标，在轮证/ETF上自动执行双向（做多/做空）交易。支持多指标组合策略、延迟验证、风险控制和订单管理。
 
 ### 重要提示（必读）
 
@@ -221,8 +221,10 @@ npm start
 | ----------------------------------- | ----- | ---------------------------------------- |
 | `LONGPORT_REGION`                   | `hk`   | API 区域配置（`cn`=中国大陆，`hk`=香港及其他） |
 | `DOOMSDAY_PROTECTION`               | `true`  | 启用末日保护                                 |
-| `OPENING_PROTECTION_ENABLED`        | `false` | 早盘开盘后 N 分钟内暂停信号生成（仅早盘）              |
-| `OPENING_PROTECTION_MINUTES`        | `15`   | 开盘保护时长（分钟，范围1-60，启用时必填）            |
+| `MORNING_OPENING_PROTECTION_ENABLED`  | `false` | 早盘 09:30 起 N 分钟内暂停信号生成                |
+| `MORNING_OPENING_PROTECTION_MINUTES`  | `15`   | 早盘开盘保护时长（分钟，范围1-60，启用时必填）          |
+| `AFTERNOON_OPENING_PROTECTION_ENABLED`| `false` | 午盘 13:00 起 N 分钟内暂停信号生成（半日市不生效）     |
+| `AFTERNOON_OPENING_PROTECTION_MINUTES`| `15`   | 午盘开盘保护时长（分钟，范围1-60，启用时必填）          |
 | `DEBUG`                             | `false` | 启用调试日志                                 |
 | `TRADING_ORDER_TYPE`                | `ELO`   | 交易订单类型（LO 限价单 / ELO 增强限价单 / MO 市价单） |
 | `LIQUIDATION_ORDER_TYPE`            | `MO`    | 清仓订单类型（LO / ELO / MO）                 |
@@ -342,12 +344,12 @@ src/
 
 ---
 
-## 运行流程（简化）
+## 运行流程
 
 ```mermaid
-flowchart TD
+graph TD
   A["每秒循环<br/>mainProgram"] --> B["检查交易日<br/>和交易时段"]
-  B --> C["末日保护检查<br/>撤单(收盘前15分钟)/清仓(收盘前5分钟)"]
+  B --> C["末日保护检查<br/>撤单（收盘前15分钟）/清仓（收盘前5分钟）"]
   C --> D["批量获取行情<br/>所有标的"]
   D --> E["并发处理监控标的"]
   E --> E1["调度监控任务<br/>自动寻标/换标、席位刷新<br/>距回收价清仓、浮亏检查<br/>MonitorTaskQueue（异步）"]
@@ -365,12 +367,12 @@ flowchart TD
   J --> K["PostTradeRefresher<br/>刷新账户/持仓/浮亏"]
   I -.-> J
 
-  subgraph DS["延迟/趋势验证"]
+  subgraph DS ["延迟/趋势验证"]
     D1["记录 triggerTime<br/>与初始指标值"] --> D2["setTimeout 在验证时间<br/>triggerTime + 10秒 执行"]
     D2 --> D3["读取 IndicatorCache<br/>T0 / T0+5s / T0+10s"]
     D3 --> D4{"趋势满足？<br/>BUYCALL/SELLPUT 上涨<br/>BUYPUT/SELLCALL 下跌"}
-    D4 -- 通过 --> D5["推入 BuyTaskQueue / SellTaskQueue"]
-    D4 -- 失败 --> D6["释放信号对象"]
+    D4 -->|通过| D5["推入 BuyTaskQueue / SellTaskQueue"]
+    D4 -->|失败| D6["释放信号对象"]
   end
 
   F2 -.-> D1

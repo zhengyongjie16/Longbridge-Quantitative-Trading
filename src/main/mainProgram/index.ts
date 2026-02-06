@@ -18,6 +18,7 @@ import {
   getHKDateKey,
   isInContinuousHKSession,
   isWithinMorningOpenProtection,
+  isWithinAfternoonOpenProtection,
 } from '../../utils/helpers/tradingTime.js';
 import { collectRuntimeQuoteSymbols, diffQuoteSymbols } from '../../utils/helpers/quoteHelpers.js';
 import { processMonitor } from '../processMonitor/index.js';
@@ -161,18 +162,32 @@ export async function mainProgram({
       return;
     }
 
-    const openProtectionConfig = tradingConfig.global.openProtection;
-    const openProtectionEnabled =
-      openProtectionConfig.enabled && openProtectionConfig.minutes != null;
-    openProtectionActive =
-      openProtectionEnabled &&
-      isWithinMorningOpenProtection(currentTime, openProtectionConfig.minutes);
+    const { morning, afternoon } = tradingConfig.global.openProtection;
 
-    if (openProtectionEnabled && lastState.openProtectionActive !== openProtectionActive) {
+    const morningActive =
+      morning.enabled &&
+      morning.minutes != null &&
+      isWithinMorningOpenProtection(currentTime, morning.minutes);
+
+    const afternoonActive =
+      !isHalfDayToday &&
+      afternoon.enabled &&
+      afternoon.minutes != null &&
+      isWithinAfternoonOpenProtection(currentTime, afternoon.minutes);
+
+    openProtectionActive = morningActive || afternoonActive;
+
+    const anyProtectionEnabled =
+      (morning.enabled && morning.minutes != null) ||
+      (!isHalfDayToday && afternoon.enabled && afternoon.minutes != null);
+
+    if (anyProtectionEnabled && lastState.openProtectionActive !== openProtectionActive) {
       if (openProtectionActive) {
-        logger.info(
-          `[开盘保护] 早盘开盘后 ${openProtectionConfig.minutes} 分钟内暂停信号生成`,
-        );
+        if (morningActive) {
+          logger.info(`[开盘保护] 早盘开盘后 ${morning.minutes} 分钟内暂停信号生成`);
+        } else {
+          logger.info(`[开盘保护] 午盘开盘后 ${afternoon.minutes} 分钟内暂停信号生成`);
+        }
       } else if (lastState.openProtectionActive !== null) {
         logger.info('[开盘保护] 保护期结束，恢复信号生成');
       }

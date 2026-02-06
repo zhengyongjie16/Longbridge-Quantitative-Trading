@@ -13,7 +13,7 @@
 ## 关键配置/常量
 - `TRADING.INTERVAL_MS`：每次主循环的休眠时间（毫秒）。
 - `runtimeGateMode`：运行期门禁模式；`strict` 时严格按交易日/交易时段运行，`skip` 时跳过门禁。
-- `tradingConfig.global.openProtection`：开盘保护配置，开启时在开盘后的指定分钟内暂停信号生成。
+- `tradingConfig.global.openProtection`：开盘保护配置（早盘 + 午盘），开启时在对应开盘后的指定分钟内暂停信号生成。午盘保护在半日市不生效。
 - `tradingConfig.global.doomsdayProtection`：末日保护开关；收盘前撤单/清仓。
 - `MONITOR.PRICE_CHANGE_THRESHOLD`：监控标的价格变化阈值，小于阈值不触发换标检查与部分监控刷新。
 - `TRADING.CANDLE_PERIOD` / `TRADING.CANDLE_COUNT`：K线周期与数量，用于指标计算。
@@ -24,25 +24,25 @@
 graph TD
   A["while(true) 主循环（固定节拍）"] --> B["调用<br/>mainProgram<br/>主循环核心逻辑"]
   B --> C{"运行期门禁是否严格？<br/>runtimeGateMode = strict"}
-  C --|否|--> C1["跳过门禁（开发/跳过模式）<br/>canTradeNow=true"]
-  C --|是|--> D["跨日处理与交易日缓存刷新<br/>cachedTradingDayInfo 更新"]
+  C -->|否| C1["跳过门禁（开发/跳过模式）<br/>canTradeNow=true"]
+  C -->|是| D["跨日处理与交易日缓存刷新<br/>cachedTradingDayInfo 更新"]
   D --> E{"今天是交易日？<br/>isTradingDay"}
-  E --|否|--> Z1["return 本轮结束（非交易日）"]
-  E --|是|--> F{"连续交易时段？<br/>isInContinuousHKSession"}
-  F --|否|--> F1["清理待验证信号<br/>并 return（闭市）"]
-  F --|是|--> G["计算开盘保护标志<br/>openProtectionActive"]
+  E -->|否| Z1["return 本轮结束（非交易日）"]
+  E -->|是| F{"连续交易时段？<br/>isInContinuousHKSession"}
+  F -->|否| F1["清理待验证信号<br/>并 return（闭市）"]
+  F -->|是| G["计算开盘保护标志<br/>morningActive OR afternoonActive"]
   C1 --> H["末日保护检查（撤单/清仓）"]
   G --> H
   H --> I{"是否触发清仓？<br/>收盘前5分钟"}
-  I --|是|--> Z2["return 本轮结束（清仓优先）"]
-  I --|否|--> J["收集运行期行情标的集合<br/>collectRuntimeQuoteSymbols"]
+  I -->|是| Z2["return 本轮结束（清仓优先）"]
+  I -->|否| J["收集运行期行情标的集合<br/>collectRuntimeQuoteSymbols"]
   J --> K["计算订阅增量并订阅/退订行情<br/>diffQuoteSymbols + subscribe/unsubscribe"]
   K --> L["批量获取行情 quotesMap（一次性行情）"]
   L --> M["并发处理监控标的<br/>processMonitor：监控/指标/信号"]
   M --> N["订单监控与追价/超时处理<br/>trader.monitorAndManageOrders"]
   N --> O{"是否有成交触发刷新标记？<br/>getAndClearPendingRefreshSymbols"}
-  O --|否|--> P["mainProgram 结束（本轮返回）"]
-  O --|是|--> O1["刷新账户/持仓缓存（仅展示）<br/>更新 positionCache"]
+  O -->|否| P["mainProgram 结束（本轮返回）"]
+  O -->|是| O1["刷新账户/持仓缓存（仅展示）<br/>更新 positionCache"]
   O1 --> O2["刷新浮亏数据（R1/N1）"]
   O2 --> O3["展示账户与持仓快照<br/>displayAccountAndPositions"]
   O3 --> P
@@ -53,25 +53,25 @@ graph TD
 ```mermaid
 graph TD
   P1["取 monitorQuote 并计算价格变化<br/>monitorPriceChanged"] --> P2{"自动寻标是否开启？<br/>autoSearchEnabled"}
-  P2 --|是|--> P3["尝试自动寻标机会（空席位）<br/>maybeSearchOnTick"]
+  P2 -->|是| P3["尝试自动寻标机会（空席位）<br/>maybeSearchOnTick"]
   P3 --> P4{"监控价变化触发？<br/>monitorPriceChanged"}
-  P4 --|是|--> P5["距回收价触发换标检查<br/>maybeSwitchOnDistance"]
-  P4 --|否|--> P6
+  P4 -->|是| P5["距回收价触发换标检查<br/>maybeSwitchOnDistance"]
+  P4 -->|否| P6
   P5 --> P6["同步席位状态/行情缓存<br/>并清理旧队列/席位变化"]
   P6 --> P7["监控价格变化与日志<br/>monitorPriceChanges"]
   P7 --> P8{"价格变化有效？"}
-  P8 --|是|--> P9["浮亏检查/保护性清仓<br/>monitorUnrealizedLoss"]
-  P8 --|否|--> P10
+  P8 -->|是| P9["浮亏检查/保护性清仓<br/>monitorUnrealizedLoss"]
+  P8 -->|否| P10
   P9 --> P10["获取K线并构建指标快照<br/>buildIndicatorSnapshot"]
   P10 --> P11{"快照有效？"}
-  P11 --|否|--> PEnd["return（结束本标的本轮）"]
-  P11 --|是|--> P12["监控指标变化并写入缓存<br/>monitorIndicatorChanges + indicatorCache.push"]
+  P11 -->|否| PEnd["return（结束本标的本轮）"]
+  P11 -->|是| P12["监控指标变化并写入缓存<br/>monitorIndicatorChanges + indicatorCache.push"]
   P12 --> P13{"自动寻标关闭且价格变化？"}
-  P13 --|是|--> P14["距回收价清仓（直接下单）"]
-  P13 --|否|--> P15
+  P13 -->|是| P14["距回收价清仓（直接下单）"]
+  P13 -->|否| P15
   P14 --> P15{"开盘保护期？<br/>openProtectionActive"}
-  P15 --|是|--> PEnd
-  P15 --|否|--> P16["策略生成买卖信号<br/>generateCloseSignals"]
+  P15 -->|是| PEnd
+  P15 -->|否| P16["策略生成买卖信号<br/>generateCloseSignals"]
   P16 --> P17["立即信号入队（异步处理）<br/>buyTaskQueue/sellTaskQueue"]
   P16 --> P18["延迟信号加入验证队列<br/>delayedSignalVerifier"]
 ```
@@ -80,8 +80,8 @@ graph TD
 ```mermaid
 graph TD
   A1["延迟验证定时器触发验证<br/>delayedSignalVerifier"] --> A2{"验证通过？"}
-  A2 --|是|--> A3["推入买/卖队列（等待处理器）<br/>BuyTaskQueue / SellTaskQueue"]
-  A2 --|否|--> A4["释放信号对象（对象池）"]
+  A2 -->|是| A3["推入买/卖队列（等待处理器）<br/>BuyTaskQueue / SellTaskQueue"]
+  A2 -->|否| A4["释放信号对象（对象池）"]
   A3 --> A5["BuyProcessor：<br/>风险检查+下单<br/>（API拉取）"]
   A3 --> A6["SellProcessor：<br/>计算卖量+下单<br/>（无风险检查）"]
 ```
@@ -91,7 +91,7 @@ graph TD
 - 主循环通过 `while(true) + sleep` 以固定节拍运行；每轮调用一次 `mainProgram`。
 - `runtimeGateMode=strict` 时，先做跨日处理并刷新交易日信息缓存，然后判断交易日与连续交易时段。
 - 当从“连续交易时段”切换到“非连续交易时段”时，会清理所有监控标的的延迟验证队列，避免闭市后继续验证。
-- 开盘保护开启时计算 `openProtectionActive`，其结果传递给 `processMonitor` 决定是否跳过信号生成。
+- 开盘保护开启时分别计算早盘 `morningActive` 和午盘 `afternoonActive`（午盘在半日市不生效），合并为 `openProtectionActive`，传递给 `processMonitor` 决定是否跳过信号生成。
 
 ### 2. 末日保护（全局优先级最高）
 - 末日保护打开时，先尝试在收盘前 15 分钟撤销所有未成交买入单。
@@ -109,7 +109,7 @@ graph TD
 - 仅在价格变化时触发浮亏监控；K线拉取失败会直接结束该监控标的本轮处理。
 - 指标快照构建成功后入缓存，用于后续延迟验证；旧快照按对象池规则释放。
 - 当自动寻标关闭且价格变化触发距回收价阈值时，直接生成清仓信号并立即下单。
-- 开盘保护期间跳过信号生成；否则按策略生成即时/延迟信号并分流到对应队列或验证器。
+- 开盘保护期间（早盘或午盘）跳过信号生成；否则按策略生成即时/延迟信号并分流到对应队列或验证器。
 
 ### 5. 订单监控与成交后缓存刷新
 - 监控标的处理完成后，统一执行订单监控（价格跟踪、超时处理等）。
@@ -125,7 +125,7 @@ graph TD
 - **`processMonitor`**：单监控标的处理函数，完成行情监控、指标计算、信号生成与分流。
 - **`runtimeGateMode`**：运行期门禁模式；`strict` 严格按交易日与交易时段运行，`skip` 直接放行。
 - **`canTradeNow`**：当前是否允许交易的运行期标志，在 `processMonitor` 中决定是否入队/验证。
-- **`openProtectionActive`**：开盘保护期标志，开启时仅允许行情/指标刷新，禁止信号生成。
+- **`openProtectionActive`**：开盘保护期标志（早盘或午盘保护合并结果），开启时仅允许行情/指标刷新，禁止信号生成。
 - **`TRADING.INTERVAL_MS`**：主循环间隔毫秒数。
 - **`MONITOR.PRICE_CHANGE_THRESHOLD`**：监控标的价格变化阈值，用于判断是否触发换标与部分检查。
 - **`TRADING.CANDLE_PERIOD` / `TRADING.CANDLE_COUNT`**：K线获取参数，影响指标计算窗口。
