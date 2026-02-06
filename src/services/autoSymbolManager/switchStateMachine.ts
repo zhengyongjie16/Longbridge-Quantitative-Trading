@@ -177,10 +177,10 @@ export function createSwitchStateMachine(
         false,
       );
 
-      if (!state.shouldRebuy) {
-        state.stage = 'COMPLETE';
-      } else {
+      if (state.shouldRebuy) {
         state.stage = 'WAIT_QUOTE';
+      } else {
+        state.stage = 'COMPLETE';
       }
     }
 
