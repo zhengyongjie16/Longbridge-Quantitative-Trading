@@ -2,30 +2,30 @@
  * 行情数据客户端模块（WebSocket 订阅模式）
  *
  * 功能：
- * - 通过 WebSocket 订阅实时行情推送
- * - 获取 K 线数据
+ * - 通过 WebSocket 订阅实时行情推送（报价 + K 线）
  * - 检查交易日信息
  *
  * 订阅机制：
- * - 创建客户端时不自动订阅，需显式调用 subscribeSymbols
- * - 行情数据由推送实时更新到本地缓存
- * - getQuotes() 从本地缓存读取，无 HTTP 请求
- * - 支持动态订阅；未订阅标的调用 getQuotes 会抛错，需要先订阅
+ * - 创建客户端时不自动订阅，需显式调用 subscribeSymbols / subscribeCandlesticks
+ * - 报价数据由推送实时更新到应用层 quoteCache
+ * - K 线数据由 SDK 内部维护缓存，通过 realtimeCandlesticks 读取
+ * - getQuotes() 从应用层 quoteCache 读取，无 HTTP 请求
+ * - getRealtimeCandlesticks() 从 SDK 内部缓存读取，无 HTTP 请求
  *
  * 缓存机制：
  * - 行情数据：随订阅实时更新（退订会清理缓存）
  * - 昨收价：订阅后缓存（退订会清理缓存）
+ * - K 线数据：SDK 内部自动维护（订阅后实时更新，退订后自动清理）
  * - 交易日信息：24 小时 TTL 缓存
  * - 静态信息（name、lotSize）：缓存直到退订或显式清理
  *
  * 核心方法：
- * - getQuotes()：批量获取多个标的实时行情（从本地缓存读取）
- * - getCandlesticks()：获取 K 线数据
+ * - getQuotes()：批量获取多个标的实时行情（从应用层 quoteCache 读取）
+ * - subscribeCandlesticks()：订阅 K 线推送
+ * - getRealtimeCandlesticks()：获取实时 K 线数据（从 SDK 内部缓存读取）
  * - isTradingDay()：检查是否为交易日
- * - cacheStaticInfo()：批量缓存静态信息（内部已自动调用）
  */
 import {
-  AdjustType,
   Period,
   QuoteContext,
   TradeSessions,
@@ -33,11 +33,11 @@ import {
   NaiveDate,
   SubType,
 } from 'longport';
-import type { Candlestick, PushQuoteEvent } from 'longport';
+import type { Candlestick, PushQuoteEvent, PushCandlestickEvent } from 'longport';
 import { decimalToNumber, formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { API } from '../../constants/index.js';
-import type { Quote, TradingDayInfo, MarketDataClient, TradingDaysResult, PeriodString } from '../../types/index.js';
+import type { Quote, TradingDayInfo, MarketDataClient, TradingDaysResult } from '../../types/index.js';
 import type {
   RetryConfig,
   TradingDayCacheDeps,
@@ -50,21 +50,6 @@ const DEFAULT_RETRY: RetryConfig = {
   retries: API.DEFAULT_RETRY_COUNT,
   delayMs: API.DEFAULT_RETRY_DELAY_MS,
 };
-
-/** 规范化周期参数 */
-export function normalizePeriod(period: PeriodString | Period): Period {
-  if (typeof period === 'number') {
-    return period;
-  }
-  const map: Record<PeriodString, Period> = {
-    '1m': Period.Min_1,
-    '5m': Period.Min_5,
-    '15m': Period.Min_15,
-    '1h': Period.Min_60,
-    '1d': Period.Day,
-  };
-  return map[period] ?? Period.Min_1;
-}
 
 /**
  * 创建交易日缓存
@@ -156,8 +141,10 @@ export async function createMarketDataClient(
   const prevCloseCache = new Map<string, number>();
   // 静态信息缓存
   const staticInfoCache = new Map<string, unknown>();
-  // 已订阅标的
+  // 已订阅标的（报价推送）
   const subscribedSymbols = new Set<string>();
+  // 已订阅 K 线跟踪（key: "symbol:period"）
+  const subscribedCandlesticks = new Set<string>();
 
   // 连接状态
   const state = {
@@ -221,6 +208,13 @@ export async function createMarketDataClient(
       return;
     }
     handleQuotePush(event);
+  });
+
+  // K 线推送回调（错误监控）
+  ctx.setOnCandlestick((err: Error | null, _event: PushCandlestickEvent) => {
+    if (err) {
+      logger.warn(`[K线推送] 接收推送时发生错误: ${formatError(err)}`);
+    }
   });
 
   // ==================== 公共方法实现 ====================
@@ -350,23 +344,53 @@ export async function createMarketDataClient(
   }
 
   /**
-   * 获取指定标的的 K 线数据，用于计算 RSI/KDJ/均价。
+   * 订阅指定标的的 K 线推送
    */
-  async function getCandlesticks(
+  async function subscribeCandlesticks(
     symbol: string,
-    period: PeriodString | Period = '1m',
-    count: number = 200,
-    adjustType: AdjustType = AdjustType.NoAdjust,
+    period: Period,
     tradeSessions: TradeSessions = TradeSessions.All,
   ): Promise<Candlestick[]> {
-    const periodEnum = normalizePeriod(period);
-    return ctx.candlesticks(
-      symbol,
-      periodEnum,
-      count,
-      adjustType,
-      tradeSessions,
+    const key = `${symbol}:${period}`;
+    if (subscribedCandlesticks.has(key)) {
+      logger.debug(`[K线订阅] ${symbol} 周期 ${period} 已订阅，跳过重复订阅`);
+      return [];
+    }
+
+    const initialCandles = await withRetry(
+      () => ctx.subscribeCandlesticks(symbol, period, tradeSessions),
     );
+    subscribedCandlesticks.add(key);
+    logger.info(`[K线订阅] 已订阅 ${symbol} 周期 ${period} K线，初始数据 ${initialCandles.length} 根`);
+    return initialCandles;
+  }
+
+  /**
+   * 取消订阅指定标的的 K 线推送
+   */
+  async function unsubscribeCandlesticks(
+    symbol: string,
+    period: Period,
+  ): Promise<void> {
+    const key = `${symbol}:${period}`;
+    if (!subscribedCandlesticks.has(key)) {
+      return;
+    }
+
+    await withRetry(() => ctx.unsubscribeCandlesticks(symbol, period));
+    subscribedCandlesticks.delete(key);
+    logger.info(`[K线订阅] 已退订 ${symbol} 周期 ${period} K线`);
+  }
+
+  /**
+   * 获取实时 K 线数据（从 SDK 内部缓存读取，无 HTTP 请求）
+   */
+  async function getRealtimeCandlesticks(
+    symbol: string,
+    period: Period,
+    count: number,
+  ): Promise<Candlestick[]> {
+    return ctx.realtimeCandlesticks(symbol, period, count);
   }
 
   /**
@@ -464,7 +488,9 @@ export async function createMarketDataClient(
     getQuotes,
     subscribeSymbols,
     unsubscribeSymbols,
-    getCandlesticks,
+    subscribeCandlesticks,
+    unsubscribeCandlesticks,
+    getRealtimeCandlesticks,
     isTradingDay,
   };
 }

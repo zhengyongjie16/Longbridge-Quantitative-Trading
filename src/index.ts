@@ -331,6 +331,14 @@ async function main(): Promise<void> {
     await marketDataClient.subscribeSymbols([...allTradingSymbols]);
   }
 
+  // 订阅所有监控标的的 K 线推送（SDK 内部自动维护缓存，主循环通过 getRealtimeCandlesticks 读取）
+  for (const monitorConfig of tradingConfig.monitors) {
+    await marketDataClient.subscribeCandlesticks(
+      monitorConfig.monitorSymbol,
+      TRADING.CANDLE_PERIOD,
+    );
+  }
+
   // 初始化监控标的上下文
   // 首先批量获取所有标的行情（用于获取标的名称，减少 API 调用次数）
   const initQuotesMap = await marketDataClient.getQuotes(allTradingSymbols);

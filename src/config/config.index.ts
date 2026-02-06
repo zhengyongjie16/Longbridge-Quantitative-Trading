@@ -3,7 +3,7 @@
  *
  * 从环境变量读取 API 凭证，根据区域配置端点 URL，创建 LongPort Config 对象
  */
-import { Config } from 'longport';
+import { Config, PushCandlestickMode } from 'longport';
 import { getRegionUrls } from './utils.js';
 
 export function createConfig({ env }: { env: NodeJS.ProcessEnv }): Config {
@@ -19,6 +19,7 @@ export function createConfig({ env }: { env: NodeJS.ProcessEnv }): Config {
     appSecret,
     accessToken,
     enablePrintQuotePackages: true,
+    pushCandlestickMode: PushCandlestickMode.Realtime,
     httpUrl: urls.httpUrl,
     quoteWsUrl: urls.quoteWsUrl,
     tradeWsUrl: urls.tradeWsUrl,

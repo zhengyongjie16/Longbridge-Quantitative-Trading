@@ -22,7 +22,6 @@ import type {
   QuoteContext,
   Candlestick,
   Period,
-  AdjustType,
   TradeSessions,
 } from 'longport';
 import type { DoomsdayProtection } from '../core/doomsdayProtection/types.js';
@@ -705,12 +704,6 @@ export type MonitorContext = {
 // ==================== 核心服务接口 ====================
 
 /**
- * K线周期
- * 支持 1分钟、5分钟、15分钟、1小时、1日
- */
-export type PeriodString = '1m' | '5m' | '15m' | '1h' | '1d';
-
-/**
  * 交易日查询结果
  */
 export type TradingDaysResult = {
@@ -735,24 +728,52 @@ export interface MarketDataClient {
    */
   getQuotes(symbols: Iterable<string>): Promise<Map<string, Quote | null>>;
 
-  /** 动态订阅行情标的 */
+  /** 动态订阅行情标的（报价推送） */
   subscribeSymbols(symbols: ReadonlyArray<string>): Promise<void>;
 
-  /** 取消订阅行情标的 */
+  /** 取消订阅行情标的（报价推送） */
   unsubscribeSymbols(symbols: ReadonlyArray<string>): Promise<void>;
 
   /**
-   * 获取 K 线数据
+   * 订阅指定标的的 K 线推送
+   *
+   * 订阅后 SDK 通过 WebSocket 实时推送 K 线更新到 SDK 内部缓存，
+   * 后续通过 getRealtimeCandlesticks 从 SDK 内部缓存读取。
+   *
+   * @param symbol 标的代码
+   * @param period K 线周期
+   * @param tradeSessions 交易时段（默认 All）
+   * @returns 初始 K 线数据
+   */
+  subscribeCandlesticks(
+    symbol: string,
+    period: Period,
+    tradeSessions?: TradeSessions,
+  ): Promise<Candlestick[]>;
+
+  /**
+   * 取消订阅指定标的的 K 线推送
+   * @param symbol 标的代码
+   * @param period K 线周期
+   */
+  unsubscribeCandlesticks(
+    symbol: string,
+    period: Period,
+  ): Promise<void>;
+
+  /**
+   * 获取实时 K 线数据（从 SDK 内部缓存读取，无 HTTP 请求）
+   *
+   * 需先调用 subscribeCandlesticks 订阅，否则返回空数据。
+   *
    * @param symbol 标的代码
    * @param period K 线周期
    * @param count 获取数量
    */
-  getCandlesticks(
+  getRealtimeCandlesticks(
     symbol: string,
-    period?: PeriodString | Period,
-    count?: number,
-    adjustType?: AdjustType,
-    tradeSessions?: TradeSessions,
+    period: Period,
+    count: number,
   ): Promise<Candlestick[]>;
 
   /** 判断指定日期是否为交易日 */

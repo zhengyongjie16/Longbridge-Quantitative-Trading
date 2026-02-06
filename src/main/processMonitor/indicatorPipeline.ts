@@ -33,7 +33,7 @@ export async function runIndicatorPipeline(
   const { state, rsiPeriods, emaPeriods, psyPeriods } = monitorContext;
 
   const monitorCandles = await marketDataClient
-    .getCandlesticks(monitorSymbol, TRADING.CANDLE_PERIOD, TRADING.CANDLE_COUNT)
+    .getRealtimeCandlesticks(monitorSymbol, TRADING.CANDLE_PERIOD, TRADING.CANDLE_COUNT)
     .catch(() => null);
 
   if (!monitorCandles || monitorCandles.length === 0) {

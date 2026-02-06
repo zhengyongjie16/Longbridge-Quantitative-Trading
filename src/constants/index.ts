@@ -11,7 +11,7 @@
  * - 指标缓存相关：计算缓存、时序缓存配置
  * - 信号相关：交易信号类型定义
  */
-import { OrderStatus, OrderType } from 'longport';
+import { OrderStatus, OrderType, Period } from 'longport';
 import type { OrderTypeConfig, SignalType } from '../types/index.js';
 
 /** 时间相关常量 */
@@ -26,9 +26,9 @@ export const TIME = {
 export const TRADING = {
   /** 默认目标金额（港币），单次开仓的目标市值 */
   DEFAULT_TARGET_NOTIONAL: 5000,
-  /** K线周期，用于获取行情数据 */
-  CANDLE_PERIOD: '1m' as const,
-  /** K线数量，获取的历史K线条数 */
+  /** K线周期，用于订阅和获取实时K线数据 */
+  CANDLE_PERIOD: Period.Min_1,
+  /** K线数量，获取的实时K线条数 */
   CANDLE_COUNT: 200,
   /** 主循环执行间隔（毫秒），mainProgram 的执行频率 */
   INTERVAL_MS: 1000,
