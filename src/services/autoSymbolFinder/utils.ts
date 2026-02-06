@@ -50,13 +50,17 @@ export function buildExpiryDateFilters(
 
 /**
  * 选取最佳标的：
- * - 价格优先（更低价格更易成交）
- * - 价格相同则按单位时间成交额更高优先
+ * - 基于 toCallPrice 距回收价百分比筛选
+ *   - 牛证：distancePct > minDistancePct（正值，距回收价足够远）
+ *   - 熊证：distancePct < minDistancePct（负值，距回收价足够远）
+ * - 选优：|distancePct| 更小优先（距回收价更近，杠杆更大）
+ * - |distancePct| 相同则按分均成交额更高优先
  */
 export function selectBestWarrant({
   warrants,
   tradingMinutes,
-  minPrice,
+  isBull,
+  minDistancePct,
   minTurnoverPerMinute,
 }: SelectBestWarrantInput): WarrantCandidate | null {
   const hasTradingMinutes = tradingMinutes > 0;
@@ -65,7 +69,7 @@ export function selectBestWarrant({
 
   let bestSymbol: string | null = null;
   let bestName: string | null = null;
-  let bestPrice = 0;
+  let bestDistancePct = 0;
   let bestTurnover = 0;
   let bestTurnoverPerMinute = 0;
 
@@ -77,8 +81,15 @@ export function selectBestWarrant({
       continue;
     }
 
-    const price = decimalToNumber(warrant.lastDone);
-    if (!Number.isFinite(price) || price < minPrice) {
+    const distancePct = decimalToNumber(warrant.toCallPrice);
+    if (!Number.isFinite(distancePct)) {
+      continue;
+    }
+
+    const passesDistanceFilter = isBull
+      ? distancePct > minDistancePct
+      : distancePct < minDistancePct;
+    if (!passesDistanceFilter) {
       continue;
     }
 
@@ -101,14 +112,16 @@ export function selectBestWarrant({
       continue;
     }
 
+    const absDistance = Math.abs(distancePct);
+    const bestAbsDistance = Math.abs(bestDistancePct);
     if (
       bestSymbol === null ||
-      price < bestPrice ||
-      (price === bestPrice && turnoverPerMinute > bestTurnoverPerMinute)
+      absDistance < bestAbsDistance ||
+      (absDistance === bestAbsDistance && turnoverPerMinute > bestTurnoverPerMinute)
     ) {
       bestSymbol = warrant.symbol;
       bestName = warrant.name ?? null;
-      bestPrice = price;
+      bestDistancePct = distancePct;
       bestTurnover = turnover;
       bestTurnoverPerMinute = turnoverPerMinute;
     }
@@ -121,7 +134,7 @@ export function selectBestWarrant({
   return {
     symbol: bestSymbol,
     name: bestName,
-    price: bestPrice,
+    distancePct: bestDistancePct,
     turnover: bestTurnover,
     turnoverPerMinute: bestTurnoverPerMinute,
   };

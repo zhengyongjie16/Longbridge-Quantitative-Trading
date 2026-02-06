@@ -143,7 +143,7 @@ export type BuildFindBestWarrantInputParams = {
   readonly currentTime: Date;
   readonly marketDataClient: MarketDataClient;
   readonly warrantListCacheConfig?: WarrantListCacheConfig;
-  readonly minPrice: number;
+  readonly minDistancePct: number;
   readonly minTurnoverPerMinute: number;
   readonly getTradingMinutesSinceOpen: TradingMinutesResolver;
   readonly logger: Logger;
@@ -152,14 +152,14 @@ export type BuildFindBestWarrantInputParams = {
 export type ResolveAutoSearchThresholdInput = (
   params: Pick<ResolveAutoSearchThresholdInputParams, 'direction' | 'logPrefix'>,
 ) => Readonly<{
-  minPrice: number;
+  minDistancePct: number;
   minTurnoverPerMinute: number;
 }> | null;
 
 export type BuildFindBestWarrantInput = (
   params: Pick<
     BuildFindBestWarrantInputParams,
-    'direction' | 'currentTime' | 'minPrice' | 'minTurnoverPerMinute'
+    'direction' | 'currentTime' | 'minDistancePct' | 'minTurnoverPerMinute'
   >,
 ) => Promise<FindBestWarrantInput>;
 
@@ -258,7 +258,7 @@ export type SwitchStateMachineDeps = {
     direction: SeatDirection,
     config: AutoSearchConfig,
   ) => {
-    readonly minPrice: number | null;
+    readonly minDistancePct: number | null;
     readonly minTurnoverPerMinute: number | null;
     readonly switchDistanceRange:
       | AutoSearchConfig['switchDistanceRangeBull']

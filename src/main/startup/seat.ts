@@ -17,20 +17,20 @@ import { getLatestTradedSymbol } from '../../core/orderRecorder/orderOwnershipPa
 function resolveAutoSearchThresholds(
   direction: 'LONG' | 'SHORT',
   autoSearchConfig: {
-    readonly autoSearchMinPriceBull: number | null;
-    readonly autoSearchMinPriceBear: number | null;
+    readonly autoSearchMinDistancePctBull: number | null;
+    readonly autoSearchMinDistancePctBear: number | null;
     readonly autoSearchMinTurnoverPerMinuteBull: number | null;
     readonly autoSearchMinTurnoverPerMinuteBear: number | null;
   },
-): { minPrice: number | null; minTurnoverPerMinute: number | null } {
+): { minDistancePct: number | null; minTurnoverPerMinute: number | null } {
   if (direction === 'LONG') {
     return {
-      minPrice: autoSearchConfig.autoSearchMinPriceBull,
+      minDistancePct: autoSearchConfig.autoSearchMinDistancePctBull,
       minTurnoverPerMinute: autoSearchConfig.autoSearchMinTurnoverPerMinuteBull,
     };
   }
   return {
-    minPrice: autoSearchConfig.autoSearchMinPriceBear,
+    minDistancePct: autoSearchConfig.autoSearchMinDistancePctBear,
     minTurnoverPerMinute: autoSearchConfig.autoSearchMinTurnoverPerMinuteBear,
   };
 }
@@ -204,18 +204,18 @@ export async function prepareSeatsOnStartup(
     readonly direction: 'LONG' | 'SHORT';
     readonly autoSearchConfig: {
       readonly autoSearchExpiryMinMonths: number;
-      readonly autoSearchMinPriceBull: number | null;
-      readonly autoSearchMinPriceBear: number | null;
+      readonly autoSearchMinDistancePctBull: number | null;
+      readonly autoSearchMinDistancePctBear: number | null;
       readonly autoSearchMinTurnoverPerMinuteBull: number | null;
       readonly autoSearchMinTurnoverPerMinuteBear: number | null;
     };
     readonly currentTime: Date;
   }): Promise<string | null> {
-    const { minPrice, minTurnoverPerMinute } = resolveAutoSearchThresholds(
+    const { minDistancePct, minTurnoverPerMinute } = resolveAutoSearchThresholds(
       direction,
       autoSearchConfig,
     );
-    if (minPrice == null || minTurnoverPerMinute == null) {
+    if (minDistancePct == null || minTurnoverPerMinute == null) {
       logger.error(`[启动席位] 缺少自动寻标阈值配置: ${monitorSymbol} ${direction}`);
       return null;
     }
@@ -236,7 +236,7 @@ export async function prepareSeatsOnStartup(
       monitorSymbol,
       isBull: direction === 'LONG',
       tradingMinutes,
-      minPrice,
+      minDistancePct,
       minTurnoverPerMinute,
       expiryMinMonths: autoSearchConfig.autoSearchExpiryMinMonths,
       logger,
@@ -274,8 +274,8 @@ export async function prepareSeatsOnStartup(
         autoSearchConfig: {
           readonly autoSearchOpenDelayMinutes: number;
           readonly autoSearchExpiryMinMonths: number;
-          readonly autoSearchMinPriceBull: number | null;
-          readonly autoSearchMinPriceBear: number | null;
+          readonly autoSearchMinDistancePctBull: number | null;
+          readonly autoSearchMinDistancePctBear: number | null;
           readonly autoSearchMinTurnoverPerMinuteBull: number | null;
           readonly autoSearchMinTurnoverPerMinuteBear: number | null;
         };

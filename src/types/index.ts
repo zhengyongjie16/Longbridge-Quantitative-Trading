@@ -370,10 +370,10 @@ export type NumberRange = {
 export type AutoSearchConfig = {
   /** 自动寻标开关 */
   readonly autoSearchEnabled: boolean;
-  /** 牛证最低价格阈值 */
-  readonly autoSearchMinPriceBull: number | null;
-  /** 熊证最低价格阈值 */
-  readonly autoSearchMinPriceBear: number | null;
+  /** 牛证最低距回收价百分比阈值（小数，正值，配置层百分比数值经 /100 转换而来） */
+  readonly autoSearchMinDistancePctBull: number | null;
+  /** 熊证最低距回收价百分比阈值（小数，负值，配置层百分比数值经 /100 转换而来） */
+  readonly autoSearchMinDistancePctBear: number | null;
   /** 牛证分均成交额阈值 */
   readonly autoSearchMinTurnoverPerMinuteBull: number | null;
   /** 熊证分均成交额阈值 */

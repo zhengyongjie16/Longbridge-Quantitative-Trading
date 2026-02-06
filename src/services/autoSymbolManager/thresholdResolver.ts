@@ -23,7 +23,7 @@ export function resolveAutoSearchThresholds(
   direction: SeatDirection,
   config: AutoSearchConfig,
 ): {
-  readonly minPrice: number | null;
+  readonly minDistancePct: number | null;
   readonly minTurnoverPerMinute: number | null;
   readonly switchDistanceRange:
     | AutoSearchConfig['switchDistanceRangeBull']
@@ -31,7 +31,7 @@ export function resolveAutoSearchThresholds(
 } {
   const isBull = direction === 'LONG';
   return {
-    minPrice: isBull ? config.autoSearchMinPriceBull : config.autoSearchMinPriceBear,
+    minDistancePct: isBull ? config.autoSearchMinDistancePctBull : config.autoSearchMinDistancePctBear,
     minTurnoverPerMinute: isBull
       ? config.autoSearchMinTurnoverPerMinuteBull
       : config.autoSearchMinTurnoverPerMinuteBear,
@@ -42,19 +42,19 @@ export function resolveAutoSearchThresholds(
 function resolveAutoSearchThresholdInput(
   params: ResolveAutoSearchThresholdInputParams,
 ): Readonly<{
-  minPrice: number;
+  minDistancePct: number;
   minTurnoverPerMinute: number;
 }> | null {
   const { direction, autoSearchConfig, monitorSymbol, logPrefix, logger } = params;
-  const { minPrice, minTurnoverPerMinute } = resolveAutoSearchThresholds(
+  const { minDistancePct, minTurnoverPerMinute } = resolveAutoSearchThresholds(
     direction,
     autoSearchConfig,
   );
-  if (minPrice == null || minTurnoverPerMinute == null) {
+  if (minDistancePct == null || minTurnoverPerMinute == null) {
     logger.error(`${logPrefix}: ${monitorSymbol} ${direction}`);
     return null;
   }
-  return { minPrice, minTurnoverPerMinute } as const;
+  return { minDistancePct, minTurnoverPerMinute } as const;
 }
 
 async function buildFindBestWarrantInput(
@@ -67,7 +67,7 @@ async function buildFindBestWarrantInput(
     currentTime,
     marketDataClient,
     warrantListCacheConfig,
-    minPrice,
+    minDistancePct,
     minTurnoverPerMinute,
     getTradingMinutesSinceOpen,
     logger,
@@ -80,7 +80,7 @@ async function buildFindBestWarrantInput(
     monitorSymbol,
     isBull,
     tradingMinutes,
-    minPrice,
+    minDistancePct,
     minTurnoverPerMinute,
     expiryMinMonths: autoSearchConfig.autoSearchExpiryMinMonths,
     logger,

@@ -260,12 +260,12 @@ function validateMonitorConfig(
     const autoSearchConfig = config.autoSearchConfig;
     const requiredNumberFields = [
       {
-        value: autoSearchConfig.autoSearchMinPriceBull,
-        envKey: `AUTO_SEARCH_MIN_PRICE_BULL_${index}`,
+        value: autoSearchConfig.autoSearchMinDistancePctBull,
+        envKey: `AUTO_SEARCH_MIN_DISTANCE_PCT_BULL_${index}`,
       },
       {
-        value: autoSearchConfig.autoSearchMinPriceBear,
-        envKey: `AUTO_SEARCH_MIN_PRICE_BEAR_${index}`,
+        value: autoSearchConfig.autoSearchMinDistancePctBear,
+        envKey: `AUTO_SEARCH_MIN_DISTANCE_PCT_BEAR_${index}`,
       },
       {
         value: autoSearchConfig.autoSearchMinTurnoverPerMinuteBull,

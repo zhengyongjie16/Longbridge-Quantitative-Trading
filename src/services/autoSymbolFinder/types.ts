@@ -20,7 +20,7 @@ export type FindBestWarrantInput = {
   readonly monitorSymbol: string;
   readonly isBull: boolean;
   readonly tradingMinutes: number;
-  readonly minPrice: number;
+  readonly minDistancePct: number;
   readonly minTurnoverPerMinute: number;
   readonly expiryMinMonths: number;
   readonly logger: Logger;
@@ -31,6 +31,7 @@ export type WarrantListItem = {
   readonly symbol: string;
   readonly name?: string | null;
   readonly lastDone: DecimalLike | number | string | null | undefined;
+  readonly toCallPrice: DecimalLike | number | string | null | undefined;
   readonly turnover: DecimalLike | number | string | null | undefined;
   readonly warrantType: WarrantType | number | string | null | undefined;
   readonly status: WarrantStatus | number | string | null | undefined;
@@ -55,14 +56,15 @@ export type WarrantListCacheConfig = {
 export type SelectBestWarrantInput = {
   readonly warrants: ReadonlyArray<WarrantListItem>;
   readonly tradingMinutes: number;
-  readonly minPrice: number;
+  readonly isBull: boolean;
+  readonly minDistancePct: number;
   readonly minTurnoverPerMinute: number;
 };
 
 export type WarrantCandidate = {
   readonly symbol: string;
   readonly name: string | null;
-  readonly price: number;
+  readonly distancePct: number;
   readonly turnover: number;
   readonly turnoverPerMinute: number;
 };

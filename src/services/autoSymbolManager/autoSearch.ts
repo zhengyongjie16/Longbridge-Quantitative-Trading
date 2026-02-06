@@ -66,7 +66,7 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
     const input = await buildFindBestWarrantInput({
       direction,
       currentTime,
-      minPrice: thresholds.minPrice,
+      minDistancePct: thresholds.minDistancePct,
       minTurnoverPerMinute: thresholds.minTurnoverPerMinute,
     });
     const best = await findBestWarrant(input);

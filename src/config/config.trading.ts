@@ -70,6 +70,18 @@ function parseBoundedNumberConfig({
 }
 
 /**
+ * 读取百分比配置并转为小数（如配置 2 → 内部 0.02），未配置或无效时返回 null。
+ */
+function getPercentAsDecimalConfig(
+  env: NodeJS.ProcessEnv,
+  envKey: string,
+  minValue: number = 0,
+): number | null {
+  const raw = getNumberConfig(env, envKey, minValue);
+  return raw != null ? raw / 100 : null;
+}
+
+/**
  * 将 OpenAPI 订单类型映射为配置值。
  */
 function mapOrderTypeConfig(orderType: OrderType): OrderTypeConfig {
@@ -99,8 +111,9 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
   const shortSymbol = getStringConfig(env, `SHORT_SYMBOL${suffix}`) || '';
 
   const autoSearchEnabled = getBooleanConfig(env, `AUTO_SEARCH_ENABLED${suffix}`, false);
-  const autoSearchMinPriceBull = getNumberConfig(env, `AUTO_SEARCH_MIN_PRICE_BULL${suffix}`, 0);
-  const autoSearchMinPriceBear = getNumberConfig(env, `AUTO_SEARCH_MIN_PRICE_BEAR${suffix}`, 0);
+  // 百分比数值转为小数：配置值 2 → 内部 0.02（牛证 >= 0，熊证 <= 0）
+  const autoSearchMinDistancePctBull = getPercentAsDecimalConfig(env, `AUTO_SEARCH_MIN_DISTANCE_PCT_BULL${suffix}`, 0);
+  const autoSearchMinDistancePctBear = getPercentAsDecimalConfig(env, `AUTO_SEARCH_MIN_DISTANCE_PCT_BEAR${suffix}`, -100);
   const autoSearchMinTurnoverPerMinuteBull = getNumberConfig(
     env,
     `AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_BULL${suffix}`,
@@ -180,8 +193,8 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
     shortSymbol,
     autoSearchConfig: {
       autoSearchEnabled,
-      autoSearchMinPriceBull,
-      autoSearchMinPriceBear,
+      autoSearchMinDistancePctBull,
+      autoSearchMinDistancePctBear,
       autoSearchMinTurnoverPerMinuteBull,
       autoSearchMinTurnoverPerMinuteBear,
       autoSearchExpiryMinMonths,

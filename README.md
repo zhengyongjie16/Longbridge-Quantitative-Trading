@@ -250,8 +250,8 @@ npm start
 | `SMART_CLOSE_ENABLED_N`             | `true`   | 智能平仓开关（启用时仅卖出盈利订单，禁用时全仓卖出）     |
 | `AUTO_SEARCH_ENABLED_N`             | `false`  | 自动寻标开关（启用后忽略 LONG/SHORT 标的配置）          |
 | `ORDER_OWNERSHIP_MAPPING_N`         | `无`     | **必需**：stockName 归属缩写映射（逗号分隔），用于订单归属解析与启动席位恢复；不同监控标的别名不可冲突 |
-| `AUTO_SEARCH_MIN_PRICE_BULL_N`      | `无`     | 牛证最低价格阈值                                     |
-| `AUTO_SEARCH_MIN_PRICE_BEAR_N`      | `无`     | 熊证最低价格阈值                                     |
+| `AUTO_SEARCH_MIN_DISTANCE_PCT_BULL_N` | `无`     | 牛证最低距回收价百分比阈值（正值）                    |
+| `AUTO_SEARCH_MIN_DISTANCE_PCT_BEAR_N` | `无`     | 熊证最低距回收价百分比阈值（负值）                    |
 | `AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_BULL_N` | `无` | 牛证分均成交额阈值（HKD/分钟）                     |
 | `AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_BEAR_N` | `无` | 熊证分均成交额阈值（HKD/分钟）                     |
 | `AUTO_SEARCH_EXPIRY_MIN_MONTHS_N`   | `3`      | 到期日最小月份                                       |
@@ -267,7 +267,7 @@ npm start
   - `READY`：可交易；`SEARCHING/SWITCHING`：处理中；`EMPTY`：无标的，该方向信号会被丢弃/不入队（直到寻标成功）
 - **启动恢复**：启动时按“历史订单（`ORDER_OWNERSHIP_MAPPING_N`）+ 持仓”恢复席位；无法确认则置 `EMPTY`，由后续寻标补齐。
 - **自动寻标触发**：仅在“席位 `EMPTY` + 交易时段”时尝试，并受 **30 秒冷却** 与 **早盘延迟**（`AUTO_SEARCH_OPEN_DELAY_MINUTES_N`，仅早盘生效）约束；阈值缺失会跳过寻标。
-- **自动寻标筛选**：基于 LongPort `warrantList` 筛选牛/熊证：到期（`AUTO_SEARCH_EXPIRY_MIN_MONTHS_N`）、价格（`AUTO_SEARCH_MIN_PRICE_*`）、分均成交额（`AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_*`）；选优：**低价优先**，同价取 **分均成交额更高**。
+- **自动寻标筛选**：基于 LongPort `warrantList` 筛选牛/熊证：到期（`AUTO_SEARCH_EXPIRY_MIN_MONTHS_N`）、距回收价百分比（`AUTO_SEARCH_MIN_DISTANCE_PCT_*`）、分均成交额（`AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_*`）；选优：**|距回收价百分比|更小优先**，相同取 **分均成交额更高**。
 - **自动换标触发**：监控价变化触发检查，若“距回收价百分比”满足 `<=min` 或 `>=max`（`SWITCH_DISTANCE_RANGE_*`，含边界）则进入换标。
 - **换标流程（状态机）**：先 **预寻标**，候选与旧标一致则记录“同标的日内抑制”并停止；否则撤销旧标未完成买入挂单 → 有持仓则移仓卖出（ELO）→ 占位新标；若换标前有持仓可按“真实卖出成交额（优先）或 `TARGET_NOTIONAL_N`”回补买入（ELO）。
 - **版本号隔离（关键）**：换标会递增席位版本号；延迟验证/队列/订单跟踪处理前校验版本，不匹配直接丢弃，防止误用旧标的。

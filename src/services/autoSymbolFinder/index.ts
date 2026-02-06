@@ -120,7 +120,7 @@ export async function findBestWarrant({
   monitorSymbol,
   isBull,
   tradingMinutes,
-  minPrice,
+  minDistancePct,
   minTurnoverPerMinute,
   expiryMinMonths,
   logger,
@@ -147,7 +147,8 @@ export async function findBestWarrant({
     const best = selectBestWarrant({
       warrants,
       tradingMinutes,
-      minPrice,
+      isBull,
+      minDistancePct,
       minTurnoverPerMinute,
     });
 

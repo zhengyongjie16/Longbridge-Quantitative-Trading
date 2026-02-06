@@ -73,7 +73,7 @@ export function createSwitchStateMachine(
     const input = await buildFindBestWarrantInput({
       direction,
       currentTime: now(),
-      minPrice: thresholds.minPrice,
+      minDistancePct: thresholds.minDistancePct,
       minTurnoverPerMinute: thresholds.minTurnoverPerMinute,
     });
     const best = await findBestWarrant(input);
