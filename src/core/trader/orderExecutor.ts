@@ -33,8 +33,13 @@ import {
 import type { Signal, SignalType, TradeCheckResult, MonitorConfig } from '../../types/index.js';
 import type { OrderPayload, OrderExecutor, OrderExecutorDeps } from './types.js';
 import { identifyErrorType } from './tradeLogger.js';
-import { extractOrderId, formatOrderTypeLabel, getOrderTypeCode, resolveOrderTypeConfig } from './utils.js';
-import { resolveSellMergeDecision } from './sellOrderMerge/utils.js';
+import {
+  extractOrderId,
+  formatOrderTypeLabel,
+  getOrderTypeCode,
+  resolveOrderTypeConfig,
+  resolveSellMergeDecision,
+} from './utils.js';
 
 /** 获取操作描述（用于日志） */
 function getActionDescription(signalAction: Signal['action']): string {

@@ -264,6 +264,34 @@ export type PendingSellOrderSnapshot = {
   readonly submittedAt: number;
 };
 
+/** 卖单合并决策动作 */
+export type SellMergeDecisionAction = 'SUBMIT' | 'REPLACE' | 'CANCEL_AND_SUBMIT' | 'SKIP';
+
+/** 卖单合并决策输入 */
+export type SellMergeDecisionInput = {
+  readonly symbol: string;
+  readonly pendingOrders: ReadonlyArray<PendingSellOrderSnapshot>;
+  readonly newOrderQuantity: number;
+  readonly newOrderPrice: number | null;
+  readonly newOrderType: OrderType;
+  readonly isProtectiveLiquidation: boolean;
+};
+
+/** 卖单合并决策结果 */
+export type SellMergeDecision = {
+  readonly action: SellMergeDecisionAction;
+  readonly mergedQuantity: number;
+  readonly targetOrderId: string | null;
+  readonly price: number | null;
+  readonly pendingOrderIds: ReadonlyArray<string>;
+  readonly pendingRemainingQuantity: number;
+  readonly reason:
+    | 'no-additional-quantity'
+    | 'no-pending-sell'
+    | 'cancel-and-merge'
+    | 'replace-and-merge';
+};
+
 /**
  * 订单监控配置
  */
