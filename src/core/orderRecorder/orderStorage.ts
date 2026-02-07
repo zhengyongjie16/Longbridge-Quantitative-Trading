@@ -356,11 +356,6 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     return orders;
   }
 
-  function getBuyOrderIdsOccupiedBySell(orderId: string): ReadonlyArray<string> | null {
-    const record = pendingSells.get(orderId);
-    return record?.relatedBuyOrderIds ?? null;
-  }
-
   // ========== 核心：可卖出盈利订单计算（防重逻辑） ==========
 
   function getProfitableSellOrders(
@@ -460,6 +455,5 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     markSellCancelled,
     getPendingSellOrders,
     getProfitableSellOrders,
-    getBuyOrderIdsOccupiedBySell,
   };
 };

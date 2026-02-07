@@ -11,7 +11,7 @@ import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
 /**
  * 卖出处理器接口
  *
- * 提供启动/停止、立即处理、状态查询等能力
+ * 与 Processor 接口一致，提供启动/停止能力
  */
 export type SellProcessor = Processor;
 

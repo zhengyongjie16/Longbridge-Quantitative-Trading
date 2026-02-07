@@ -24,11 +24,6 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
     return unrealizedLossData.get(symbol);
   };
 
-  /** 获取所有标的的浮亏数据（返回副本） */
-  const getAllData = (): ReadonlyMap<string, UnrealizedLossData> => {
-    return new Map(unrealizedLossData.entries());
-  };
-
   /** 检查浮亏保护是否启用 */
   const isEnabled = (): boolean => {
     return (
@@ -199,7 +194,6 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
 
   return {
     getUnrealizedLossData,
-    getAllData,
     isEnabled,
     refresh,
     check,

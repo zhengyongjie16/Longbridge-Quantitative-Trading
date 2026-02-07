@@ -17,7 +17,7 @@ export type IndicatorCacheEntry = {
 };
 
 /**
- * 环形缓冲区内部结构（内部类型）
+ * 环形缓冲区内部结构（仅模块内使用）
  *
  * 使用环形缓冲区实现固定容量的 FIFO 缓存，
  * 超出容量时自动覆盖最旧的数据。
@@ -62,19 +62,6 @@ export interface IndicatorCache {
    * @returns 最接近的缓存条目，若无匹配则返回 null
    */
   getAt(monitorSymbol: string, targetTime: number, toleranceMs: number): IndicatorCacheEntry | null;
-
-  /**
-   * 获取最新的缓存条目
-   * @param monitorSymbol 监控标的代码
-   * @returns 最新的缓存条目，若无数据则返回 null
-   */
-  getLatest(monitorSymbol: string): IndicatorCacheEntry | null;
-
-  /**
-   * 清除指定标的的缓存
-   * @param monitorSymbol 监控标的代码
-   */
-  clear(monitorSymbol: string): void;
 
   /**
    * 清除所有缓存

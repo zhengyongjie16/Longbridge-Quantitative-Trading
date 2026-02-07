@@ -14,7 +14,6 @@ import {
   createRingBuffer,
   pushToBuffer,
   getBufferEntries,
-  getLatestFromBuffer,
   cloneIndicatorSnapshot,
 } from './utils.js';
 
@@ -68,16 +67,6 @@ export const createIndicatorCache = (options: IndicatorCacheOptions = {}): Indic
       }
 
       return closestEntry;
-    },
-
-    getLatest(monitorSymbol: string): IndicatorCacheEntry | null {
-      const buffer = buffers.get(monitorSymbol);
-      if (!buffer) return null;
-      return getLatestFromBuffer(buffer);
-    },
-
-    clear(monitorSymbol: string): void {
-      buffers.delete(monitorSymbol);
     },
 
     clearAll(): void {

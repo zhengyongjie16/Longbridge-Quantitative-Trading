@@ -24,7 +24,6 @@ import { logger } from '../../../utils/logger/index.js';
 import { formatError, formatSymbolDisplay } from '../../../utils/helpers/index.js';
 import { isSeatReady, isSeatVersionMatch } from '../../../services/autoSymbolManager/utils.js';
 import type { SellProcessor, SellProcessorDeps } from './types.js';
-import type { ProcessorStats } from '../types.js';
 import type { SellTask } from '../tradeTaskQueue/types.js';
 
 /**
@@ -37,10 +36,6 @@ export function createSellProcessor(deps: SellProcessorDeps): SellProcessor {
 
   // 内部状态
   let running = false;
-  let processedCount = 0;
-  let successCount = 0;
-  let failedCount = 0;
-  let lastProcessTime: number | null = null;
   let immediateHandle: ReturnType<typeof setImmediate> | null = null;
 
   /**
@@ -135,14 +130,7 @@ export function createSellProcessor(deps: SellProcessorDeps): SellProcessor {
       const { data: signal } = task;
 
       try {
-        processedCount++;
-        if (await processTask(task)) {
-          successCount++;
-        } else {
-          failedCount++;
-        }
-
-        lastProcessTime = Date.now();
+        await processTask(task);
       } finally {
         // 统一在 finally 块释放信号对象到对象池
         signalObjectPool.release(signal);
@@ -224,37 +212,8 @@ export function createSellProcessor(deps: SellProcessorDeps): SellProcessor {
     }
   }
 
-  /**
-   * 立即处理队列中的所有任务（同步等待完成）
-   */
-  async function processNow(): Promise<void> {
-    await processQueue();
-  }
-
-  /**
-   * 检查处理器是否正在运行
-   */
-  function isRunning(): boolean {
-    return running;
-  }
-
-  /**
-   * 获取处理器统计信息
-   */
-  function getStats(): ProcessorStats {
-    return {
-      processedCount,
-      successCount,
-      failedCount,
-      lastProcessTime,
-    };
-  }
-
   return {
     start,
     stop,
-    processNow,
-    isRunning,
-    getStats,
   };
 }

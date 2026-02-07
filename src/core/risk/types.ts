@@ -144,7 +144,6 @@ export interface PositionLimitChecker {
 /** 浮亏检查器接口 */
 export interface UnrealizedLossChecker {
   getUnrealizedLossData(symbol: string): UnrealizedLossData | undefined;
-  getAllData(): ReadonlyMap<string, UnrealizedLossData>;
   isEnabled(): boolean;
   refresh(
     orderRecorder: OrderRecorder,

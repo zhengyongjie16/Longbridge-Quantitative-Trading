@@ -149,9 +149,6 @@ export interface OrderStorage {
     currentPrice: number,
     maxSellQuantity?: number,
   ): ProfitableOrderResult;
-
-  /** 获取被指定订单占用的买入订单ID列表 */
-  getBuyOrderIdsOccupiedBySell(orderId: string): ReadonlyArray<string> | null;
 }
 
 /**

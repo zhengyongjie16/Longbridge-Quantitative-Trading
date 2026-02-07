@@ -253,8 +253,6 @@ export function createRiskChecker(deps: RiskCheckerDeps = {}): RiskChecker {
   }
 
   return {
-    unrealizedLossData: unrealizedLossChecker.getAllData(),
-
     setWarrantInfoFromCallPrice(
       symbol: string,
       callPrice: number,

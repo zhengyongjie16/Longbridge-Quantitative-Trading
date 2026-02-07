@@ -1137,9 +1137,6 @@ export interface PositionCache {
  * 门面模式，协调牛熊证风险、持仓限制和浮亏检查
  */
 export interface RiskChecker {
-  /** 浮亏数据缓存（symbol -> UnrealizedLossData） */
-  readonly unrealizedLossData: ReadonlyMap<string, UnrealizedLossData>;
-
   /** 从透传的回收价设置牛熊证信息（不调用 API） */
   setWarrantInfoFromCallPrice(
     symbol: string,
