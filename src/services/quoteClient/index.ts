@@ -17,7 +17,7 @@
  * - 昨收价：订阅后缓存（退订会清理缓存）
  * - K 线数据：SDK 内部自动维护（订阅后实时更新，退订后自动清理）
  * - 交易日信息：24 小时 TTL 缓存
- * - 静态信息（name、lotSize）：缓存直到退订或显式清理
+ * - 静态信息（name、lotSize）：订阅时拉取并缓存，退订时在 unsubscribeSymbols 内清除
  *
  * 核心方法：
  * - getQuotes()：批量获取多个标的实时行情（从应用层 quoteCache 读取）
@@ -314,6 +314,7 @@ export async function createMarketDataClient(
       subscribedSymbols.delete(symbol);
       quoteCache.delete(symbol);
       prevCloseCache.delete(symbol);
+      staticInfoCache.delete(symbol);
     }
     logger.info(`[行情订阅] 已退订 ${removeSymbols.length} 个标的`);
   }
