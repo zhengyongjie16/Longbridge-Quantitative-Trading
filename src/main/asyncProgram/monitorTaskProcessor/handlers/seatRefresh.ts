@@ -25,7 +25,7 @@ import type {
 export function createSeatRefreshHandler({
   getContextOrSkip,
   clearQueuesForDirection,
-  marketDataClient,
+  marketDataClient: _marketDataClient,
   tradingConfig,
 }: {
   readonly getContextOrSkip: (monitorSymbol: string) => MonitorTaskContext | null;
@@ -53,6 +53,7 @@ export function createSeatRefreshHandler({
       status: 'EMPTY',
       lastSwitchAt: Date.now(),
       lastSearchAt: null,
+      callPrice: null,
     } as const;
     context.symbolRegistry.updateSeatState(monitorSymbol, direction, nextState);
     clearQueuesForDirection(monitorSymbol, direction);
@@ -81,6 +82,21 @@ export function createSeatRefreshHandler({
     const isLong = data.direction === 'LONG';
     context.riskChecker.clearWarrantInfo(isLong);
 
+    const callPriceValid =
+      data.callPrice != null &&
+      Number.isFinite(data.callPrice) &&
+      data.callPrice > 0;
+
+    if (!callPriceValid) {
+      markSeatAsEmpty(
+        data.monitorSymbol,
+        data.direction,
+        '未提供有效回收价(callPrice)，无法刷新牛熊证信息',
+        context,
+      );
+      return 'processed';
+    }
+
     const allOrders = await helpers.ensureAllOrders(data.monitorSymbol, context.orderRecorder);
     context.dailyLossTracker.recalculateFromAllOrders(allOrders, tradingConfig.monitors, new Date());
     await context.orderRecorder.refreshOrdersFromAllOrders(
@@ -101,9 +117,9 @@ export function createSeatRefreshHandler({
       dailyLossOffset,
     );
 
-    const warrantRefreshResult = await context.riskChecker.refreshWarrantInfoForSymbol(
-      marketDataClient,
+    const warrantRefreshResult = context.riskChecker.setWarrantInfoFromCallPrice(
       data.nextSymbol,
+      data.callPrice,
       isLong,
       data.symbolName,
     );
@@ -111,24 +127,10 @@ export function createSeatRefreshHandler({
       markSeatAsEmpty(
         data.monitorSymbol,
         data.direction,
-        `获取牛熊证信息失败：${warrantRefreshResult.reason}`,
+        `设置牛熊证信息失败：${warrantRefreshResult.reason}`,
         context,
       );
       return 'processed';
-    }
-    if (warrantRefreshResult.status === 'skipped') {
-      markSeatAsEmpty(
-        data.monitorSymbol,
-        data.direction,
-        '未提供行情客户端，无法刷新牛熊证信息',
-        context,
-      );
-      return 'processed';
-    }
-    if (warrantRefreshResult.status === 'notWarrant') {
-      logger.warn(
-        `[自动换标] ${data.monitorSymbol} ${data.direction} 标的 ${data.nextSymbol} 不是牛熊证`,
-      );
     }
 
     if (data.previousSymbol && data.previousSymbol !== data.nextSymbol) {

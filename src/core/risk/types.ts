@@ -100,6 +100,12 @@ export interface WarrantRiskChecker {
     longSymbolName?: string | null,
     shortSymbolName?: string | null,
   ): Promise<void>;
+  setWarrantInfoFromCallPrice(
+    symbol: string,
+    callPrice: number,
+    isLongSymbol: boolean,
+    symbolName?: string | null,
+  ): WarrantRefreshResult;
   refreshWarrantInfoForSymbol(
     marketDataClient: MarketDataClient,
     symbol: string,

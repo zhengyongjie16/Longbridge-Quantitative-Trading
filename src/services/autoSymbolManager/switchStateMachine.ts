@@ -62,7 +62,9 @@ export function createSwitchStateMachine(
       && pendingOrderStatuses.has(order.status);
   }
 
-  async function findSwitchCandidate(direction: SeatDirection): Promise<string | null> {
+  async function findSwitchCandidate(
+    direction: SeatDirection,
+  ): Promise<{ symbol: string; callPrice: number } | null> {
     const thresholds = resolveAutoSearchThresholdInput({
       direction,
       logPrefix: '[自动换标] 缺少阈值配置，无法预寻标',
@@ -77,7 +79,10 @@ export function createSwitchStateMachine(
       minTurnoverPerMinute: thresholds.minTurnoverPerMinute,
     });
     const best = await findBestWarrant(input);
-    return best ? best.symbol : null;
+    if (!best) {
+      return null;
+    }
+    return { symbol: best.symbol, callPrice: best.callPrice };
   }
 
   /**
@@ -105,7 +110,7 @@ export function createSwitchStateMachine(
         );
         if (results.some((ok) => !ok)) {
           state.stage = 'FAILED';
-          updateSeatState(direction, buildSeatState(null, 'EMPTY', null, null), false);
+          updateSeatState(direction, buildSeatState(null, 'EMPTY', null, null, null), false);
           switchStates.delete(direction);
           logger.error(`[自动换标] 撤销买入订单失败，换标中止: ${state.oldSymbol}`);
           return;
@@ -166,14 +171,14 @@ export function createSwitchStateMachine(
       const nextSymbol = state.nextSymbol;
       if (!nextSymbol) {
         state.stage = 'FAILED';
-        updateSeatState(direction, buildSeatState(null, 'EMPTY', null, null), false);
+        updateSeatState(direction, buildSeatState(null, 'EMPTY', null, null, null), false);
         switchStates.delete(direction);
         return;
       }
 
       updateSeatState(
         direction,
-        buildSeatState(nextSymbol, 'SWITCHING', now().getTime(), now().getTime()),
+        buildSeatState(nextSymbol, 'SWITCHING', now().getTime(), now().getTime(), null),
         false,
       );
 
@@ -188,7 +193,7 @@ export function createSwitchStateMachine(
       const nextSymbol = state.nextSymbol;
       if (!nextSymbol) {
         state.stage = 'FAILED';
-        updateSeatState(direction, buildSeatState(null, 'EMPTY', null, null), false);
+        updateSeatState(direction, buildSeatState(null, 'EMPTY', null, null, null), false);
         switchStates.delete(direction);
         return;
       }
@@ -205,7 +210,7 @@ export function createSwitchStateMachine(
       const nextSymbol = state.nextSymbol;
       if (!nextSymbol) {
         state.stage = 'FAILED';
-        updateSeatState(direction, buildSeatState(null, 'EMPTY', null, null), false);
+        updateSeatState(direction, buildSeatState(null, 'EMPTY', null, null, null), false);
         switchStates.delete(direction);
         return;
       }
@@ -247,7 +252,13 @@ export function createSwitchStateMachine(
       if (nextSymbol) {
         updateSeatState(
           direction,
-          buildSeatState(nextSymbol, 'READY', now().getTime(), now().getTime()),
+          buildSeatState(
+            nextSymbol,
+            'READY',
+            now().getTime(),
+            now().getTime(),
+            state.nextCallPrice ?? null,
+          ),
           false,
         );
       }
@@ -351,8 +362,8 @@ export function createSwitchStateMachine(
         return;
       }
 
-      const nextSymbol = await findSwitchCandidate(direction);
-      if (nextSymbol && nextSymbol === seatState.symbol) {
+      const next = await findSwitchCandidate(direction);
+      if (next && next.symbol === seatState.symbol) {
         markSuppression(direction, seatState.symbol);
         return;
       }
@@ -367,7 +378,8 @@ export function createSwitchStateMachine(
         seatVersion,
         stage: 'CANCEL_PENDING',
         oldSymbol: seatState.symbol,
-        nextSymbol: nextSymbol ?? null,
+        nextSymbol: next?.symbol ?? null,
+        nextCallPrice: next?.callPrice ?? null,
         startedAt: now().getTime(),
         sellSubmitted: false,
         sellNotional: null,

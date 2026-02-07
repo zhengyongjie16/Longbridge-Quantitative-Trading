@@ -85,6 +85,7 @@ export type SwitchState = {
   stage: SwitchStage;
   oldSymbol: string;
   nextSymbol: string | null;
+  nextCallPrice: number | null;
   startedAt: number;
   sellSubmitted: boolean;
   sellNotional: number | null;
@@ -193,6 +194,7 @@ export type SeatStateBuilder = (
   status: SeatStatus,
   lastSwitchAt: number | null,
   lastSearchAt: number | null,
+  callPrice?: number | null,
 ) => SeatState;
 
 export type SeatStateUpdater = (

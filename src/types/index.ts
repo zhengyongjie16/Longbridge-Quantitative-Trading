@@ -533,6 +533,8 @@ export type SeatState = {
   readonly lastSwitchAt: number | null;
   /** 上次寻标时间戳（毫秒） */
   readonly lastSearchAt: number | null;
+  /** 回收价（从 warrantList 透传，做多/做空标的换标后用于 setWarrantInfoFromCallPrice） */
+  readonly callPrice?: number | null;
 };
 
 /**
@@ -1137,6 +1139,14 @@ export interface PositionCache {
 export interface RiskChecker {
   /** 浮亏数据缓存（symbol -> UnrealizedLossData） */
   readonly unrealizedLossData: ReadonlyMap<string, UnrealizedLossData>;
+
+  /** 从透传的回收价设置牛熊证信息（不调用 API） */
+  setWarrantInfoFromCallPrice(
+    symbol: string,
+    callPrice: number,
+    isLongSymbol: boolean,
+    symbolName?: string | null,
+  ): WarrantRefreshResult;
 
   /** 刷新单个标的的牛熊证信息 */
   refreshWarrantInfoForSymbol(

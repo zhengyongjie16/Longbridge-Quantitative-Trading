@@ -58,6 +58,7 @@ export type SeatRefreshTaskData = Readonly<{
   seatVersion: number;
   previousSymbol: string | null;
   nextSymbol: string;
+  callPrice?: number | null;
   quote: Quote | null;
   symbolName: string | null;
   quotesMap: ReadonlyMap<string, Quote | null>;

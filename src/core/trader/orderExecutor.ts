@@ -35,7 +35,7 @@ import { formatOrderTypeLabel, resolveOrderTypeConfig } from './utils.js';
 import { resolveSellMergeDecision } from './sellOrderMerge/utils.js';
 
 /** 获取操作描述（用于日志） */
-export function getActionDescription(signalAction: Signal['action']): string {
+function getActionDescription(signalAction: Signal['action']): string {
   switch (signalAction) {
     case 'BUYCALL':
       return '买入做多标的（做多）';
@@ -66,7 +66,7 @@ function getOrderTypeFromConfig(
 }
 
 /** 计算买入数量（按目标金额和每手股数） */
-export function calculateBuyQuantity(
+function calculateBuyQuantity(
   signal: Signal,
   isShortSymbol: boolean,
   overridePrice: number | undefined,

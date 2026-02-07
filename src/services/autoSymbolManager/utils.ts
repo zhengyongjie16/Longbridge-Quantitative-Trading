@@ -69,6 +69,7 @@ function createSeatState(symbol: string | null, status: SeatStatus): SeatState {
     status,
     lastSwitchAt: null,
     lastSearchAt: null,
+    callPrice: null,
   };
 }
 
@@ -162,6 +163,7 @@ export function createSymbolRegistry(
         status: nextState.status,
         lastSwitchAt: nextState.lastSwitchAt ?? null,
         lastSearchAt: nextState.lastSearchAt ?? null,
+        callPrice: nextState.callPrice ?? null,
       };
       return seatEntry.state;
     },

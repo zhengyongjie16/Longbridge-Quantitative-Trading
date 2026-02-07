@@ -255,6 +255,20 @@ export function createRiskChecker(deps: RiskCheckerDeps = {}): RiskChecker {
   return {
     unrealizedLossData: unrealizedLossChecker.getAllData(),
 
+    setWarrantInfoFromCallPrice(
+      symbol: string,
+      callPrice: number,
+      isLongSymbol: boolean,
+      symbolName: string | null = null,
+    ) {
+      return warrantRiskChecker.setWarrantInfoFromCallPrice(
+        symbol,
+        callPrice,
+        isLongSymbol,
+        symbolName,
+      );
+    },
+
     async refreshWarrantInfoForSymbol(
       marketDataClient: MarketDataClient,
       symbol: string,

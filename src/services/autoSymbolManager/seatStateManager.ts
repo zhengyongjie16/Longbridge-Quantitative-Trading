@@ -30,12 +30,14 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
     status,
     lastSwitchAt,
     lastSearchAt,
+    callPrice,
   ) => {
     return {
       symbol,
       status,
       lastSwitchAt,
       lastSearchAt,
+      callPrice: callPrice ?? null,
     } as const;
   };
 
@@ -83,7 +85,13 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
     const currentState = symbolRegistry.getSeatState(monitorSymbol, direction);
     const currentSymbol = currentState.symbol;
     const nextVersion = symbolRegistry.bumpSeatVersion(monitorSymbol, direction);
-    const nextState = buildSeatState(currentState.symbol ?? null, 'SWITCHING', timestamp, null);
+    const nextState = buildSeatState(
+      currentState.symbol ?? null,
+      'SWITCHING',
+      timestamp,
+      null,
+      null,
+    );
     symbolRegistry.updateSeatState(monitorSymbol, direction, nextState);
     if (currentSymbol) {
       switchStates.set(direction, {
@@ -92,6 +100,7 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
         stage: 'CANCEL_PENDING',
         oldSymbol: currentSymbol,
         nextSymbol: null,
+        nextCallPrice: null,
         startedAt: timestamp,
         sellSubmitted: false,
         sellNotional: null,

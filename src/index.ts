@@ -484,12 +484,33 @@ async function main(): Promise<void> {
     async function refreshSeatWarrantInfo(
       symbol: string | null,
       isLongSymbol: boolean,
+      callPriceFromSeat: number | null,
     ): Promise<void> {
       if (!symbol) {
         return;
       }
       const quote = initQuotesMap.get(symbol) ?? null;
       const symbolName = quote?.name ?? null;
+      if (
+        callPriceFromSeat != null &&
+        Number.isFinite(callPriceFromSeat) &&
+        callPriceFromSeat > 0
+      ) {
+        const result = context.riskChecker.setWarrantInfoFromCallPrice(
+          symbol,
+          callPriceFromSeat,
+          isLongSymbol,
+          symbolName,
+        );
+        if (result.status === 'error') {
+          const directionLabel = isLongSymbol ? '做多' : '做空';
+          logger.warn(
+            `[牛熊证初始化失败] 监控标的 ${formatSymbolDisplay(monitorConfig.monitorSymbol, monitorSymbolName)} ${directionLabel}标的 ${formatSymbolDisplay(symbol, symbolName)}`,
+            result.reason,
+          );
+        }
+        return;
+      }
       const result = await context.riskChecker.refreshWarrantInfoForSymbol(
         marketDataClient,
         symbol,
@@ -505,10 +526,21 @@ async function main(): Promise<void> {
       }
     }
 
-    const { longSeatSymbol, shortSeatSymbol } = resolveSeatSymbols(monitorConfig.monitorSymbol);
+    const longSeatState = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
+    const shortSeatState = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'SHORT');
+    const longSeatSymbol = isSeatReady(longSeatState) ? longSeatState.symbol : null;
+    const shortSeatSymbol = isSeatReady(shortSeatState) ? shortSeatState.symbol : null;
 
-    await refreshSeatWarrantInfo(longSeatSymbol, true);
-    await refreshSeatWarrantInfo(shortSeatSymbol, false);
+    await refreshSeatWarrantInfo(
+      longSeatSymbol,
+      true,
+      longSeatState.callPrice ?? null,
+    );
+    await refreshSeatWarrantInfo(
+      shortSeatSymbol,
+      false,
+      shortSeatState.callPrice ?? null,
+    );
   }
 
   // 程序启动时刷新订单记录（为所有监控标的初始化订单记录）

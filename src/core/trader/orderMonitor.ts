@@ -33,7 +33,7 @@ import type {
 import { recordTrade } from './tradeLogger.js';
 
 /** 根据订单方向和席位方向解析信号动作 */
-export function resolveSignalAction(
+function resolveSignalAction(
   side: OrderSide,
   isLongSymbol: boolean,
 ): 'BUYCALL' | 'BUYPUT' | 'SELLCALL' | 'SELLPUT' {

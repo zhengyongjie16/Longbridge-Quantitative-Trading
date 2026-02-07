@@ -171,6 +171,7 @@ export async function prepareSeatsOnStartup(
       status: symbol ? 'READY' : 'EMPTY',
       lastSwitchAt: null,
       lastSearchAt: null,
+      callPrice: null,
     });
   }
 
@@ -227,6 +228,7 @@ export async function prepareSeatsOnStartup(
       status: 'SEARCHING',
       lastSwitchAt: currentSeat.lastSwitchAt ?? null,
       lastSearchAt: nowMs,
+      callPrice: null,
     });
 
     const ctx = await quoteContextPromise;
@@ -249,6 +251,7 @@ export async function prepareSeatsOnStartup(
         status: 'EMPTY',
         lastSwitchAt: currentSeat.lastSwitchAt ?? null,
         lastSearchAt: nowMs,
+        callPrice: null,
       });
       return null;
     }
@@ -258,6 +261,7 @@ export async function prepareSeatsOnStartup(
       status: 'READY',
       lastSwitchAt: nowMs,
       lastSearchAt: nowMs,
+      callPrice: best.callPrice,
     });
     return best.symbol;
   }

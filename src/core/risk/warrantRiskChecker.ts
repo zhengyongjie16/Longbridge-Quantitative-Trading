@@ -31,7 +31,7 @@ import {
 } from '../../constants/index.js';
 
 /** 获取牛熊证类型的中文名称 */
-export function getWarrantTypeName(warrantType: WarrantType): string {
+function getWarrantTypeName(warrantType: WarrantType): string {
   if (warrantType === 'BULL') {
     return '牛证';
   }
@@ -42,7 +42,7 @@ export function getWarrantTypeName(warrantType: WarrantType): string {
 }
 
 /** 解析 API 返回的 category 字段为牛熊证类型 */
-export function parseWarrantType(category: unknown): WarrantType | null {
+function parseWarrantType(category: unknown): WarrantType | null {
   // 判断牛证：category 可能是数字 3（枚举值）或字符串 "Bull"
   if (category === 3 || category === 'Bull' || category === 'BULL') {
     return 'BULL';
@@ -55,7 +55,7 @@ export function parseWarrantType(category: unknown): WarrantType | null {
 }
 
 /** 从 SDK 响应中提取回收价 */
-export function extractCallPrice(warrantQuote: WarrantQuote): number | null {
+function extractCallPrice(warrantQuote: WarrantQuote): number | null {
   const callPriceDecimal = warrantQuote.callPrice;
 
   if (!isDefined(callPriceDecimal)) {
@@ -67,7 +67,7 @@ export function extractCallPrice(warrantQuote: WarrantQuote): number | null {
 }
 
 /** 验证牛熊证类型：做多应为牛证，做空应为熊证 */
-export function validateWarrantType(
+function validateWarrantType(
   symbol: string,
   warrantType: WarrantType,
   expectedType: 'CALL' | 'PUT',
@@ -86,7 +86,7 @@ export function validateWarrantType(
 }
 
 /** 验证回收价有效性，无效时拒绝买入 */
-export function validateCallPrice(
+function validateCallPrice(
   symbol: string,
   callPrice: number | null | undefined,
 ): RiskCheckResult | null {
@@ -103,7 +103,7 @@ export function validateCallPrice(
 }
 
 /** 验证监控标的价格有效性，防止使用错误的价格 */
-export function validateMonitorPrice(monitorCurrentPrice: number): RiskCheckResult | null {
+function validateMonitorPrice(monitorCurrentPrice: number): RiskCheckResult | null {
   if (!Number.isFinite(monitorCurrentPrice) || monitorCurrentPrice <= 0) {
     logger.warn(
       `[风险检查] 监控标的的当前价格无效（${monitorCurrentPrice}），无法检查牛熊证风险`,
@@ -129,7 +129,7 @@ export function validateMonitorPrice(monitorCurrentPrice: number): RiskCheckResu
 }
 
 /** 验证牛熊证当前价格有效性并检查最低价阈值 */
-export function validateWarrantCurrentPrice(
+function validateWarrantCurrentPrice(
   symbol: string,
   warrantCurrentPrice: number | null,
 ): RiskCheckResult | null {
@@ -158,7 +158,7 @@ export function validateWarrantCurrentPrice(
 }
 
 /** 计算距离回收价的百分比：(当前价 - 回收价) / 回收价 * 100 */
-export function calculateDistancePercent(
+function calculateDistancePercent(
   monitorCurrentPrice: number,
   callPrice: number,
 ): number {
@@ -166,7 +166,7 @@ export function calculateDistancePercent(
 }
 
 /** 检查距离回收价是否在安全范围内 */
-export function checkDistanceThreshold(
+function checkDistanceThreshold(
   warrantType: WarrantType,
   distancePercent: number,
   callPrice: number,
@@ -225,7 +225,7 @@ export function checkDistanceThreshold(
 }
 
 /** 构建距回收价清仓判定结果 */
-export function buildDistanceLiquidationResult(
+function buildDistanceLiquidationResult(
   warrantType: WarrantType,
   distancePercent: number,
   callPrice: number,
@@ -256,7 +256,7 @@ export function buildDistanceLiquidationResult(
 }
 
 /** 构建距回收价信息（用于实时展示） */
-export function buildWarrantDistanceInfo(
+function buildWarrantDistanceInfo(
   warrantInfo: WarrantInfo | null,
   monitorCurrentPrice: number | null,
 ): WarrantDistanceInfo | null {
@@ -562,6 +562,50 @@ export function createWarrantRiskChecker(
     }
   }
 
+  function setWarrantInfoFromCallPrice(
+    symbol: string,
+    callPrice: number,
+    isLongSymbol: boolean,
+    symbolName: string | null = null,
+  ): WarrantRefreshResult {
+    if (
+      callPrice == null ||
+      !Number.isFinite(callPrice) ||
+      callPrice <= 0
+    ) {
+      return {
+        status: 'error',
+        isWarrant: false,
+        reason: `回收价无效（${callPrice}），无法设置牛熊证信息`,
+      };
+    }
+
+    const warrantType = isLongSymbol ? 'BULL' : 'BEAR';
+    const category = isLongSymbol ? 3 : 4;
+
+    const warrantInfo: WarrantInfo = {
+      isWarrant: true,
+      warrantType,
+      callPrice,
+      category,
+      symbol,
+    };
+
+    if (isLongSymbol) {
+      longWarrantInfo = warrantInfo;
+    } else {
+      shortWarrantInfo = warrantInfo;
+    }
+
+    const warrantTypeName = getWarrantTypeName(warrantType);
+    const symbolDisplay = formatSymbolDisplay(symbol, symbolName);
+    logger.info(
+      `[风险检查] ${isLongSymbol ? '做多' : '做空'}标的 ${symbolDisplay} 从透传回收价设置${warrantTypeName}信息，回收价=${callPrice.toFixed(3)}`,
+    );
+
+    return { status: 'ok', isWarrant: true };
+  }
+
   async function refreshWarrantInfoForSymbol(
     marketDataClient: MarketDataClient,
     symbol: string,
@@ -585,6 +629,7 @@ export function createWarrantRiskChecker(
 
   return {
     initialize,
+    setWarrantInfoFromCallPrice,
     refreshWarrantInfoForSymbol,
     checkRisk,
     checkWarrantDistanceLiquidation,

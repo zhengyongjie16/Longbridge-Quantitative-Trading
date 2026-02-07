@@ -59,7 +59,7 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
 
     updateSeatState(
       direction,
-      buildSeatState(null, 'SEARCHING', seatState.lastSwitchAt ?? null, nowMs),
+      buildSeatState(null, 'SEARCHING', seatState.lastSwitchAt ?? null, nowMs, null),
       false,
     );
 
@@ -74,13 +74,13 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
     if (!best) {
       updateSeatState(
         direction,
-        buildSeatState(null, 'EMPTY', seatState.lastSwitchAt ?? null, nowMs),
+        buildSeatState(null, 'EMPTY', seatState.lastSwitchAt ?? null, nowMs, null),
         false,
       );
       return;
     }
 
-    const nextState = buildSeatState(best.symbol, 'READY', nowMs, nowMs);
+    const nextState = buildSeatState(best.symbol, 'READY', nowMs, nowMs, best.callPrice);
     updateSeatState(direction, nextState, true);
   }
 

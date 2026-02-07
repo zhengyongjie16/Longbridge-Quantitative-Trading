@@ -69,6 +69,7 @@ export function selectBestWarrant({
 
   let bestSymbol: string | null = null;
   let bestName: string | null = null;
+  let bestCallPrice = 0;
   let bestDistancePct = 0;
   let bestTurnover = 0;
   let bestTurnoverPerMinute = 0;
@@ -78,6 +79,15 @@ export function selectBestWarrant({
       continue;
     }
     if (!isNormalStatus(warrant.status)) {
+      continue;
+    }
+
+    const callPriceNum = decimalToNumber(warrant.callPrice);
+    if (
+      callPriceNum == null ||
+      !Number.isFinite(callPriceNum) ||
+      callPriceNum <= 0
+    ) {
       continue;
     }
 
@@ -121,6 +131,7 @@ export function selectBestWarrant({
     ) {
       bestSymbol = warrant.symbol;
       bestName = warrant.name ?? null;
+      bestCallPrice = callPriceNum;
       bestDistancePct = distancePct;
       bestTurnover = turnover;
       bestTurnoverPerMinute = turnoverPerMinute;
@@ -133,7 +144,8 @@ export function selectBestWarrant({
 
   return {
     symbol: bestSymbol,
-    name: bestName,
+    name: bestName ?? null,
+    callPrice: bestCallPrice,
     distancePct: bestDistancePct,
     turnover: bestTurnover,
     turnoverPerMinute: bestTurnoverPerMinute,

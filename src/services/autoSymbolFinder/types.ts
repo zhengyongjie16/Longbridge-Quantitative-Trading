@@ -32,6 +32,7 @@ export type WarrantListItem = {
   readonly name?: string | null;
   readonly lastDone: DecimalLike | number | string | null | undefined;
   readonly toCallPrice: DecimalLike | number | string | null | undefined;
+  readonly callPrice?: DecimalLike | number | string | null | undefined;
   readonly turnover: DecimalLike | number | string | null | undefined;
   readonly warrantType: WarrantType | number | string | null | undefined;
   readonly status: WarrantStatus | number | string | null | undefined;
@@ -64,6 +65,7 @@ export type SelectBestWarrantInput = {
 export type WarrantCandidate = {
   readonly symbol: string;
   readonly name: string | null;
+  readonly callPrice: number;
   readonly distancePct: number;
   readonly turnover: number;
   readonly turnoverPerMinute: number;

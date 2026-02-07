@@ -7,18 +7,18 @@
   "scripts": {
     "build": "tsc",
     "build:watch": "tsc --watch",
-    "start": "tsc && node dist/src/index.js",
-    "dev": "cross-env RUN_MODE=dev npm run start",
-    "dev:watch": "concurrently -k -r \"tsc --watch\" \"node --watch dist/src/index.js\"",
+    "start": "tsc && bun dist/src/index.js",
+    "dev": "cross-env RUN_MODE=dev bun run start",
+    "dev:watch": "concurrently -k -r \"tsc --watch\" \"bun --watch dist/src/index.js\"",
     "type-check": "tsc --noEmit",
     "clean": "rimraf dist",
-    "find-warrant": "tsc && node dist/tools/findWarrant.js",
-    "analyze-indicators": "tsc && node dist/tools/indicatorAnalysis.js",
-    "monitor-daily": "tsc && node dist/tools/dailyKlineMonitor.js",
+    "find-warrant": "tsc && bun dist/tools/findWarrant.js",
+    "analyze-indicators": "tsc && bun dist/tools/indicatorAnalysis.js",
+    "monitor-daily": "tsc && bun dist/tools/dailyKlineMonitor.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "sonarqube": "node scripts/run-sonar.js",
-    "sonarqube:report": "node scripts/get-report.js"
+    "sonarqube": "bun scripts/run-sonar.js",
+    "sonarqube:report": "bun scripts/get-report.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
