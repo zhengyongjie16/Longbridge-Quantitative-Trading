@@ -23,15 +23,16 @@ import { signalObjectPool } from '../../../utils/objectPool/index.js';
 import { logger } from '../../../utils/logger/index.js';
 import { formatError, formatSymbolDisplay } from '../../../utils/helpers/index.js';
 import { isSeatReady, isSeatVersionMatch } from '../../../services/autoSymbolManager/utils.js';
-import type { SellProcessor, SellProcessorDeps } from './types.js';
+import type { Processor } from '../types.js';
+import type { SellProcessorDeps } from './types.js';
 import type { SellTask } from '../tradeTaskQueue/types.js';
 
 /**
  * 创建卖出处理器
  * @param deps 依赖注入
- * @returns SellProcessor 接口实例
+ * @returns 实现 Processor 接口的卖出处理器实例
  */
-export function createSellProcessor(deps: SellProcessorDeps): SellProcessor {
+export function createSellProcessor(deps: SellProcessorDeps): Processor {
   const { taskQueue, getMonitorContext, signalProcessor, trader, getLastState, refreshGate } = deps;
 
   // 内部状态

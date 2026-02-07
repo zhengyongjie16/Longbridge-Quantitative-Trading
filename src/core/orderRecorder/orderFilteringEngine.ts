@@ -26,232 +26,193 @@ import type { OrderRecord } from '../../types/index.js';
 import type { FilteringState, OrderFilteringEngine, OrderFilteringEngineDeps } from './types.js';
 import { calculateTotalQuantity } from './utils.js';
 
-/** 创建订单过滤引擎 */
-export const createOrderFilteringEngine = (_deps: OrderFilteringEngineDeps = {}): OrderFilteringEngine => {
-  /**
-   * 初始化过滤状态
-   * - M0: 最新卖出后的买入订单（无条件保留）
-   * - candidateOrders: 需要过滤的候选订单
-   */
-  const initializeFilteringState = (
-    allBuyOrders: OrderRecord[],
-    sortedSellOrders: OrderRecord[],
-  ): FilteringState | null => {
-    const lastSellOrder = sortedSellOrders.at(-1);
-    if (!lastSellOrder) {
-      return null;
+/**
+ * 初始化过滤状态
+ * - M0: 最新卖出后的买入订单（无条件保留）
+ * - candidateOrders: 需要过滤的候选订单
+ */
+function initializeFilteringState(
+  allBuyOrders: OrderRecord[],
+  sortedSellOrders: OrderRecord[],
+): FilteringState | null {
+  const lastSellOrder = sortedSellOrders.at(-1);
+  if (!lastSellOrder) {
+    return null;
+  }
+
+  const latestSellTime = lastSellOrder.executedTime;
+
+  const m0Orders: OrderRecord[] = [];
+  const candidateOrders: OrderRecord[] = [];
+
+  for (const buyOrder of allBuyOrders) {
+    if (buyOrder.executedTime > latestSellTime) {
+      m0Orders.push(buyOrder);
+      continue;
     }
 
-    const latestSellTime = lastSellOrder.executedTime;
+    candidateOrders.push(buyOrder);
+  }
 
-    // M0: 成交时间 > 最新卖出订单时间的买入订单
-    const m0Orders: OrderRecord[] = [];
+  return { m0Orders, candidateOrders };
+}
 
-    // 候选订单：成交时间 <= 最新卖出订单时间的买入订单
-    const candidateOrders: OrderRecord[] = [];
+/**
+ * 按数量限制调整订单列表
+ * 当按价格过滤后保留数量超过限制时，按成交价从高到低贪心保留（订单不可拆分）
+ */
+function adjustOrdersByQuantityLimit(
+  orders: OrderRecord[],
+  maxQuantity: number,
+): OrderRecord[] {
+  if (maxQuantity <= 0) {
+    return [];
+  }
 
-    for (const buyOrder of allBuyOrders) {
-      if (buyOrder.executedTime > latestSellTime) {
-        m0Orders.push(buyOrder);
-        continue;
-      }
+  const currentQuantity = calculateTotalQuantity(orders);
 
-      candidateOrders.push(buyOrder);
+  if (currentQuantity <= maxQuantity) {
+    return orders;
+  }
+
+  const sortedByPriceDesc = [...orders].sort(
+    (a, b) => b.executedPrice - a.executedPrice,
+  );
+
+  const result: OrderRecord[] = [];
+  let accumulatedQuantity = 0;
+
+  for (const order of sortedByPriceDesc) {
+    if (accumulatedQuantity >= maxQuantity) {
+      break;
     }
 
-    return { m0Orders, candidateOrders };
-  };
-
-  /**
-   * 按数量限制调整订单列表
-   * 当按价格过滤后保留数量超过限制时，优先保留高价订单（亏损订单）
-   */
-  const adjustOrdersByQuantityLimit = (
-    orders: OrderRecord[],
-    maxQuantity: number,
-  ): OrderRecord[] => {
-    // 如果应保留数量 <= 0，全部移除
-    if (maxQuantity <= 0) {
-      return [];
+    if (accumulatedQuantity + order.executedQuantity > maxQuantity) {
+      continue;
     }
 
-    const currentQuantity = calculateTotalQuantity(orders);
+    result.push(order);
+    accumulatedQuantity += order.executedQuantity;
+  }
 
-    // 如果当前数量已经 <= 应保留数量，无需调整
-    if (currentQuantity <= maxQuantity) {
-      return orders;
-    }
+  return result;
+}
 
-    // 按价格从高到低排序（保留高价订单，因为它们是亏损的，应该最后被卖出）
-    const sortedByPriceDesc = [...orders].sort(
-      (a, b) => b.executedPrice - a.executedPrice,
-    );
+/**
+ * 应用单个卖出订单的过滤
+ * 1. 获取成交时间 < 卖出时间的买入订单
+ * 2. 卖出数量 >= 买入总量：视为全部卖出
+ * 3. 否则按价格过滤：保留成交价 >= 卖出价的订单
+ * 4. 合并时间间隔内的订单作为下一轮输入
+ */
+function applySingleSellOrderFilter(
+  currentBuyOrders: OrderRecord[],
+  candidateOrders: ReadonlyArray<OrderRecord>,
+  sellOrder: OrderRecord,
+  nextSellOrder: OrderRecord | null,
+  latestSellTime: number,
+): OrderRecord[] {
+  const sellTime = sellOrder.executedTime;
+  const sellPrice = sellOrder.executedPrice;
+  const sellQuantity = sellOrder.executedQuantity;
 
-    // 从高价开始累积，直到达到 maxQuantity
-    const result: OrderRecord[] = [];
-    let accumulatedQuantity = 0;
+  const nextSellTime = nextSellOrder
+    ? nextSellOrder.executedTime
+    : latestSellTime + 1;
 
-    for (const order of sortedByPriceDesc) {
-      // 已达到最大数量，停止添加
-      if (accumulatedQuantity >= maxQuantity) {
-        break;
-      }
+  const buyOrdersBeforeSell = currentBuyOrders.filter(
+    (buyOrder) => buyOrder.executedTime < sellTime,
+  );
 
-      // 如果加入这个订单后超过限制，跳过（订单不可拆分）
-      if (accumulatedQuantity + order.executedQuantity > maxQuantity) {
-        continue;
-      }
+  const totalBuyQuantity = calculateTotalQuantity(buyOrdersBeforeSell);
 
-      result.push(order);
-      accumulatedQuantity += order.executedQuantity;
-    }
+  const buyOrdersBetweenSells = candidateOrders.filter(
+    (buyOrder) =>
+      buyOrder.executedTime > sellTime &&
+      buyOrder.executedTime < nextSellTime,
+  );
 
-    return result;
-  };
+  if (sellQuantity >= totalBuyQuantity || buyOrdersBeforeSell.length === 0) {
+    return [...buyOrdersBetweenSells];
+  }
 
-  /**
-   * 应用单个卖出订单的过滤
-   * 1. 获取成交时间 < 卖出时间的买入订单
-   * 2. 卖出数量 >= 买入总量：视为全部卖出
-   * 3. 否则按价格过滤：保留成交价 >= 卖出价的订单
-   * 4. 合并时间间隔内的订单作为下一轮输入
-   */
-  const applySingleSellOrderFilter = (
-    currentBuyOrders: OrderRecord[],
-    candidateOrders: ReadonlyArray<OrderRecord>,
-    sellOrder: OrderRecord,
-    nextSellOrder: OrderRecord | null,
-    latestSellTime: number,
-  ): OrderRecord[] => {
-    const sellTime = sellOrder.executedTime;
-    const sellPrice = sellOrder.executedPrice;
-    const sellQuantity = sellOrder.executedQuantity;
+  const maxRetainQuantity = totalBuyQuantity - sellQuantity;
 
-    // 下一个卖出订单的时间（用于确定时间间隔）
-    const nextSellTime = nextSellOrder
-      ? nextSellOrder.executedTime
-      : latestSellTime + 1;
+  let filteredBuyOrders = buyOrdersBeforeSell.filter(
+    (buyOrder) => buyOrder.executedPrice >= sellPrice,
+  );
 
-    // 步骤1：获取成交时间 < 当前卖出订单时间的买入订单
-    // 使用 < 以保持开区间边界
-    const buyOrdersBeforeSell = currentBuyOrders.filter(
-      (buyOrder) => buyOrder.executedTime < sellTime,
-    );
+  filteredBuyOrders = adjustOrdersByQuantityLimit(
+    filteredBuyOrders,
+    maxRetainQuantity,
+  );
 
-    // 计算这些买入订单的总数量
-    const totalBuyQuantity = calculateTotalQuantity(buyOrdersBeforeSell);
+  return [...filteredBuyOrders, ...buyOrdersBetweenSells];
+}
 
-    // 步骤2：从原始候选订单获取时间间隔内的买入订单（开区间）
-    // 时间间隔订单需从候选订单中获取，避免遗漏
-    const buyOrdersBetweenSells = candidateOrders.filter(
-      (buyOrder) =>
-        buyOrder.executedTime > sellTime &&
-        buyOrder.executedTime < nextSellTime,
-    );
+/**
+ * 依次应用每个卖出订单的过滤（从旧到新累积）
+ * 每轮基于上一轮结果过滤，时间间隔订单从原始候选获取
+ */
+function applySequentialFiltering(
+  state: FilteringState,
+  sortedSellOrders: OrderRecord[],
+): OrderRecord[] {
+  const firstSellTime = sortedSellOrders[0]?.executedTime ?? 0;
+  const latestSellTime = sortedSellOrders.at(-1)?.executedTime ?? 0;
 
-    // 步骤3：判断是否全部卖出
-    if (sellQuantity >= totalBuyQuantity) {
-      // 全部卖出，移除所有 < sellTime 的订单
-      // 只保留时间间隔内的订单
-      return [...buyOrdersBetweenSells];
-    }
+  let currentBuyOrders = state.candidateOrders.filter(
+    (buyOrder) => buyOrder.executedTime < firstSellTime,
+  );
 
-    // 如果没有需要过滤的订单
-    if (buyOrdersBeforeSell.length === 0) {
-      // 只保留时间间隔内的订单
-      return [...buyOrdersBetweenSells];
-    }
-
-    // 步骤4：计算应该保留的最大数量
-    const maxRetainQuantity = totalBuyQuantity - sellQuantity;
-
-    // 步骤5：按价格过滤 - 保留成交价 >= 卖出价的订单（亏损订单优先保留）
-    let filteredBuyOrders = buyOrdersBeforeSell.filter(
-      (buyOrder) => buyOrder.executedPrice >= sellPrice,
-    );
-
-    // 步骤6：确保保留数量不超过应保留数量
-    // 当卖出价格很低时，按价格过滤可能会保留过多订单
-    // 需要进一步按价格从低到高移除多余订单
-    filteredBuyOrders = adjustOrdersByQuantityLimit(
-      filteredBuyOrders,
-      maxRetainQuantity,
-    );
-
-    // 合并结果：过滤后的订单 + 时间间隔内的订单
-    return [...filteredBuyOrders, ...buyOrdersBetweenSells];
-  };
-
-  /**
-   * 依次应用每个卖出订单的过滤（从旧到新累积）
-   * 每轮基于上一轮结果过滤，时间间隔订单从原始候选获取
-   */
-  const applySequentialFiltering = (
-    state: FilteringState,
-    sortedSellOrders: OrderRecord[],
-  ): OrderRecord[] => {
-    // 获取第一个卖出订单的时间
-    const firstSellTime = sortedSellOrders[0]?.executedTime ?? 0;
-
-    // 初始订单：成交时间 < 第一个卖出订单时间的买入订单
-    let currentBuyOrders = state.candidateOrders.filter(
-      (buyOrder) => buyOrder.executedTime < firstSellTime,
-    );
-
-    // 按时间顺序处理每个卖出订单
-    for (let i = 0; i < sortedSellOrders.length; i++) {
-      const sellOrder = sortedSellOrders[i];
-      if (!sellOrder) {
-        continue;
-      }
-
-      // 应用当前卖出订单的过滤
-      // 关键：传入原始候选订单，用于获取时间间隔内的订单
+  for (let i = 0; i < sortedSellOrders.length; i++) {
+    const sellOrder = sortedSellOrders[i];
+    if (sellOrder) {
       currentBuyOrders = applySingleSellOrderFilter(
         currentBuyOrders,
         state.candidateOrders,
         sellOrder,
         sortedSellOrders[i + 1] ?? null,
-        sortedSellOrders.at(-1)!.executedTime,
+        latestSellTime,
       );
     }
+  }
 
-    return currentBuyOrders;
-  };
+  return currentBuyOrders;
+}
 
-  /**
-   * 应用订单过滤算法（主入口）
-   * 按时间顺序处理卖出订单，返回当前仍持有的买入订单
-   */
-  const applyFilteringAlgorithm = (
-    allBuyOrders: OrderRecord[],
-    filledSellOrders: OrderRecord[],
-  ): OrderRecord[] => {
-    // 将卖出订单按成交时间从旧到新排序（D1 → D2 → D3 → ...）
-    const sortedSellOrders = [...filledSellOrders].sort(
-      (a, b) => a.executedTime - b.executedTime,
-    );
+/**
+ * 应用订单过滤算法（主入口）
+ * 按时间顺序处理卖出订单，返回当前仍持有的买入订单
+ */
+function applyFilteringAlgorithm(
+  allBuyOrders: OrderRecord[],
+  filledSellOrders: OrderRecord[],
+): OrderRecord[] {
+  const sortedSellOrders = [...filledSellOrders].sort(
+    (a, b) => a.executedTime - b.executedTime,
+  );
 
-    // 如果没有卖出订单，保留所有买入订单
-    if (sortedSellOrders.length === 0) {
-      return allBuyOrders;
-    }
+  if (sortedSellOrders.length === 0) {
+    return allBuyOrders;
+  }
 
-    // 获取初始状态（M0 和候选订单）
-    const state = initializeFilteringState(allBuyOrders, sortedSellOrders);
+  const state = initializeFilteringState(allBuyOrders, sortedSellOrders);
 
-    if (!state) {
-      return allBuyOrders;
-    }
+  if (!state) {
+    return allBuyOrders;
+  }
 
-    // 依次应用每个卖出订单的过滤
-    const filteredOrders = applySequentialFiltering(state, sortedSellOrders);
+  const filteredOrders = applySequentialFiltering(state, sortedSellOrders);
 
-    // 合并 M0 和过滤后的订单
-    return [...state.m0Orders, ...filteredOrders];
-  };
+  return [...state.m0Orders, ...filteredOrders];
+}
 
+/** 创建订单过滤引擎 */
+export function createOrderFilteringEngine(
+  _deps: OrderFilteringEngineDeps = {},
+): OrderFilteringEngine {
   return {
     applyFilteringAlgorithm,
   };
-};
+}

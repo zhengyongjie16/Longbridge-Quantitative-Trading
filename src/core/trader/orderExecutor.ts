@@ -31,7 +31,7 @@ import {
 import type { Signal, TradeCheckResult, MonitorConfig } from '../../types/index.js';
 import type { OrderPayload, OrderExecutor, OrderExecutorDeps } from './types.js';
 import { identifyErrorType } from './tradeLogger.js';
-import { formatOrderTypeLabel, resolveOrderTypeConfig } from './utils.js';
+import { formatOrderTypeLabel, getOrderTypeCode, resolveOrderTypeConfig } from './utils.js';
 import { resolveSellMergeDecision } from './sellOrderMerge/utils.js';
 
 /** 获取操作描述（用于日志） */
@@ -391,18 +391,9 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
         );
         return;
       }
-      let orderTypeName: string;
-      if (orderTypeParam === OrderType.LO) {
-        orderTypeName = 'LO';
-      } else if (orderTypeParam === OrderType.ELO) {
-        orderTypeName = 'ELO';
-      } else if (orderTypeParam === OrderType.ALO) {
-        orderTypeName = 'ALO';
-      } else {
-        orderTypeName = 'SLO';
-      }
+      const orderTypeCode = getOrderTypeCode(orderTypeParam);
       logger.info(
-        `[订单类型] 使用${orderTypeLabel}(${orderTypeName})，标的=${symbolDisplayForLog}，价格=${resolvedPrice}`,
+        `[订单类型] 使用${orderTypeLabel}(${orderTypeCode})，标的=${symbolDisplayForLog}，价格=${resolvedPrice}`,
       );
     }
 

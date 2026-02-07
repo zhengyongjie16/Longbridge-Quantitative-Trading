@@ -20,16 +20,17 @@ import { signalObjectPool } from '../../../utils/objectPool/index.js';
 import { logger } from '../../../utils/logger/index.js';
 import { formatError, formatSymbolDisplay } from '../../../utils/helpers/index.js';
 import { isSeatReady, isSeatVersionMatch } from '../../../services/autoSymbolManager/utils.js';
-import type { BuyProcessor, BuyProcessorDeps } from './types.js';
+import type { Processor } from '../types.js';
+import type { BuyProcessorDeps } from './types.js';
 import type { BuyTask } from '../tradeTaskQueue/types.js';
 import type { RiskCheckContext } from '../../../types/index.js';
 
 /**
  * 创建买入处理器
  * @param deps 依赖注入
- * @returns BuyProcessor 接口实例
+ * @returns 实现 Processor 接口的买入处理器实例
  */
-export function createBuyProcessor(deps: BuyProcessorDeps): BuyProcessor {
+export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
   const { taskQueue, getMonitorContext, signalProcessor, trader, doomsdayProtection, getLastState, getIsHalfDay } = deps;
 
   // 内部状态

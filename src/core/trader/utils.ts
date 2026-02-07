@@ -15,7 +15,6 @@ import path from 'node:path';
 import { OrderType } from 'longport';
 import type { OrderTypeConfig, Signal } from '../../types/index.js';
 
-// 订单类型到中文标签的映射
 const orderTypeLabelMap: ReadonlyMap<OrderType, string> = new Map([
   [OrderType.LO, '限价单'],
   [OrderType.ELO, '增强限价单'],
@@ -24,12 +23,27 @@ const orderTypeLabelMap: ReadonlyMap<OrderType, string> = new Map([
   [OrderType.SLO, '特别限价单'],
 ]);
 
+const orderTypeCodeMap: ReadonlyMap<OrderType, string> = new Map([
+  [OrderType.LO, 'LO'],
+  [OrderType.ELO, 'ELO'],
+  [OrderType.MO, 'MO'],
+  [OrderType.ALO, 'ALO'],
+  [OrderType.SLO, 'SLO'],
+]);
+
 /**
  * 获取订单类型显示文本，未匹配时默认限价单。
  */
 export const formatOrderTypeLabel = (orderType: OrderType): string => {
   return orderTypeLabelMap.get(orderType) ?? '限价单';
 };
+
+/**
+ * 获取订单类型代码（用于日志），未匹配时默认 SLO。
+ */
+export function getOrderTypeCode(orderType: OrderType): string {
+  return orderTypeCodeMap.get(orderType) ?? 'SLO';
+}
 
 /**
  * 构造交易日志文件路径：logs/trades/YYYY-MM-DD.json
