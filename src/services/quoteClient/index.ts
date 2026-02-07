@@ -43,7 +43,7 @@ import type {
   TradingDayCacheDeps,
   MarketDataClientDeps,
 } from './types.js';
-import { extractLotSize, extractName } from './utils.js';
+import { extractLotSize, extractName, formatPeriodForLog } from './utils.js';
 
 // 默认重试配置（使用统一常量）
 const DEFAULT_RETRY: RetryConfig = {
@@ -354,7 +354,7 @@ export async function createMarketDataClient(
   ): Promise<Candlestick[]> {
     const key = `${symbol}:${period}`;
     if (subscribedCandlesticks.has(key)) {
-      logger.debug(`[K线订阅] ${symbol} 周期 ${period} 已订阅，跳过重复订阅`);
+      logger.debug(`[K线订阅] ${symbol} 周期 ${formatPeriodForLog(period)} 已订阅，跳过重复订阅`);
       return [];
     }
 
@@ -362,7 +362,7 @@ export async function createMarketDataClient(
       () => ctx.subscribeCandlesticks(symbol, period, tradeSessions),
     );
     subscribedCandlesticks.add(key);
-    logger.info(`[K线订阅] 已订阅 ${symbol} 周期 ${period} K线，初始数据 ${initialCandles.length} 根`);
+    logger.info(`[K线订阅] 已订阅 ${symbol} 周期 ${formatPeriodForLog(period)} K线，初始数据 ${initialCandles.length} 根`);
     return initialCandles;
   }
 
@@ -380,7 +380,7 @@ export async function createMarketDataClient(
 
     await withRetry(() => ctx.unsubscribeCandlesticks(symbol, period));
     subscribedCandlesticks.delete(key);
-    logger.info(`[K线订阅] 已退订 ${symbol} 周期 ${period} K线`);
+    logger.info(`[K线订阅] 已退订 ${symbol} 周期 ${formatPeriodForLog(period)} K线`);
   }
 
   /**
