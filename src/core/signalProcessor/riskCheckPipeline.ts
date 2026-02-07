@@ -156,14 +156,18 @@ export const createRiskCheckPipeline = ({
         const isLongBuyAction = sig.action === 'BUYCALL';
         const directionDesc = isLongBuyAction ? '做多标的' : '做空标的';
 
-        // 买入操作检查顺序：
-        // 1. 交易频率限制
-        // 2. 清仓冷却
-        // 3. 买入价格限制
-        // 4. 末日保护程序
-        // 5. 牛熊证风险
-        // 6. 基础风险检查
-
+        /**
+         * 买入风险检查流水线执行顺序及原因：
+         *
+         * 1. 交易频率限制（轻量）：仅检查内存中的时间戳，无 API 调用
+         * 2. 清仓冷却（中量）：检查冷却追踪器
+         * 3. 买入价格限制（轻量）：比较当前价与最近买入价
+         * 4. 末日保护程序（轻量）：检查时间是否在保护期内
+         * 5. 牛熊证风险（中量）：计算距回收价百分比
+         * 6. 基础风险检查（重量）：调用 API 获取账户和持仓数据
+         *
+         * 排序原则：先轻量后重量，减少不必要的 API 调用
+         */
         // 1. 检查交易频率限制
         const tradeCheck = trader._canTradeNow(sig.action, context.config);
         if (!tradeCheck.canTrade) {

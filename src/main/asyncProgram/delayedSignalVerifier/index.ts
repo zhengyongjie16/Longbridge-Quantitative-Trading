@@ -16,7 +16,7 @@
  */
 import { logger } from '../../../utils/logger/index.js';
 import { signalObjectPool } from '../../../utils/objectPool/index.js';
-import { formatSymbolDisplay } from '../../../utils/helpers/index.js';
+import { formatSymbolDisplay, isBuyAction } from '../../../utils/helpers/index.js';
 import { TIME, VERIFICATION, ACTION_DESCRIPTIONS } from '../../../constants/index.js';
 import type { Signal } from '../../../types/index.js';
 import type {
@@ -58,7 +58,7 @@ export function createDelayedSignalVerifier(
     const { signal, monitorSymbol } = entry;
 
     // 判断是买入还是卖出信号
-    const isBuySignal = signal.action === 'BUYCALL' || signal.action === 'BUYPUT';
+    const isBuySignal = isBuyAction(signal.action);
     const currentConfig = isBuySignal ? verificationConfig.buy : verificationConfig.sell;
 
     // 执行验证
@@ -116,7 +116,7 @@ export function createDelayedSignalVerifier(
       }
 
       // 判断是买入还是卖出信号
-      const isBuySignal = signal.action === 'BUYCALL' || signal.action === 'BUYPUT';
+      const isBuySignal = isBuyAction(signal.action);
       const currentConfig = isBuySignal ? verificationConfig.buy : verificationConfig.sell;
 
       // 安全检查：指标配置

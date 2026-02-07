@@ -13,6 +13,7 @@
  * - 查找时间复杂度从 O(n) 降至 O(1)
  * - 标的格式校验仅在配置验证阶段执行
  */
+import { isValidPositiveNumber } from './index.js';
 import type { Position, PositionCache } from '../../types/index.js';
 
 /**
@@ -37,7 +38,7 @@ export const createPositionCache = (): PositionCache => {
       const availableQty = Number(pos.availableQuantity) || 0;
 
       // 只缓存可用数量大于 0 的持仓
-      if (Number.isFinite(availableQty) && availableQty > 0) {
+      if (isValidPositiveNumber(availableQty)) {
         positionMap.set(pos.symbol, pos);
       }
     }

@@ -15,6 +15,7 @@
  * - formatSymbolDisplay() / formatQuoteDisplay()：格式化显示
  * - formatError()：安全格式化错误对象
  * - isDefined() / isValidPositiveNumber()：类型检查辅助函数
+ * - isBuyAction() / isSellAction()：信号动作判断
  * - sleep()：异步延迟函数
  * - initMonitorState() / releaseSnapshotObjects()：监控状态管理
  */
@@ -282,10 +283,17 @@ export function formatSymbolDisplayFromQuote(quote: import('../../types/index.js
 
 
 /**
-* 辅助函数：判断是否为买入操作
-*/
+ * 辅助函数：判断是否为买入操作
+ */
 export const isBuyAction = (action: SignalType): boolean => {
   return action === 'BUYCALL' || action === 'BUYPUT';
+};
+
+/**
+ * 辅助函数：判断是否为卖出操作
+ */
+export const isSellAction = (action: SignalType): boolean => {
+  return action === 'SELLCALL' || action === 'SELLPUT';
 };
 
 /** 获取做多标的方向名称 */

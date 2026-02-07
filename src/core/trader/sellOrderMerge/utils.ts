@@ -1,10 +1,11 @@
+import { isValidPositiveNumber } from '../../../utils/helpers/index.js';
 import { NON_REPLACEABLE_ORDER_STATUSES, NON_REPLACEABLE_ORDER_TYPES } from '../../../constants/index.js';
 import type { PendingSellOrderSnapshot } from '../types.js';
 import type { SellMergeDecision, SellMergeDecisionInput } from './types.js';
 
 function resolveRemainingQuantity(order: PendingSellOrderSnapshot): number {
   const remaining = order.submittedQuantity - order.executedQuantity;
-  return Number.isFinite(remaining) && remaining > 0 ? remaining : 0;
+  return isValidPositiveNumber(remaining) ? remaining : 0;
 }
 
 export function resolveSellMergeDecision(

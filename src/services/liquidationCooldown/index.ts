@@ -79,6 +79,7 @@ export function createLiquidationCooldownTracker(
   const { nowMs } = deps;
 
   function recordCooldown({ symbol, direction, executedTimeMs }: RecordCooldownParams): void {
+    // 无效时间戳不记录
     if (!Number.isFinite(executedTimeMs) || executedTimeMs <= 0) {
       return;
     }

@@ -22,7 +22,7 @@
  * - 避免频繁调用 historyOrders API
  */
 import { logger } from '../../utils/logger/index.js';
-import { getLongDirectionName, getShortDirectionName, formatSymbolDisplayFromQuote } from '../../utils/helpers/index.js';
+import { getLongDirectionName, getShortDirectionName, formatSymbolDisplayFromQuote, isValidPositiveNumber } from '../../utils/helpers/index.js';
 import type {
   OrderRecord,
   OrderRecorder,
@@ -209,9 +209,7 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
       return;
     }
 
-    const validExecutedTime = Number.isFinite(executedTime) && executedTime > 0
-      ? executedTime
-      : Date.now();
+    const validExecutedTime = isValidPositiveNumber(executedTime) ? executedTime : Date.now();
 
     storage.addBuyOrder(symbol, price, quantity, isLongSymbol, validExecutedTime);
     debugOutputOrders(symbol, isLongSymbol);

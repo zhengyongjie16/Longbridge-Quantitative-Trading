@@ -7,6 +7,7 @@
  * - K 线周期枚举转可读标签（formatPeriodForLog）
  */
 import { Period } from 'longport';
+import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import type { StaticInfo } from './types.js';
 
 const PERIOD_LABEL_MAP: Readonly<Record<number, string>> = {
@@ -44,7 +45,7 @@ export const extractLotSize = (staticInfo: unknown): number | undefined => {
   }
 
   const parsed = Number(lotSizeValue);
-  if (Number.isFinite(parsed) && parsed > 0) {
+  if (isValidPositiveNumber(parsed)) {
     return parsed;
   }
 

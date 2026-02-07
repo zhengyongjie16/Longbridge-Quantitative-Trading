@@ -7,7 +7,7 @@
  * - 处理末日保护无条件清仓
  */
 import { logger } from '../../utils/logger/index.js';
-import { getLongDirectionName, getShortDirectionName } from '../../utils/helpers/index.js';
+import { getLongDirectionName, getShortDirectionName, isSellAction } from '../../utils/helpers/index.js';
 import {
   buildSellReason,
   validateSellContext,
@@ -89,7 +89,7 @@ export const processSellSignals = (
 ): Signal[] => {
   for (const sig of signals) {
     // 只处理卖出信号（SELLCALL 和 SELLPUT），跳过买入信号
-    if (sig.action !== 'SELLCALL' && sig.action !== 'SELLPUT') {
+    if (!isSellAction(sig.action)) {
       continue;
     }
 

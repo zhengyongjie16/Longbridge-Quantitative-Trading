@@ -37,6 +37,7 @@ import {
   formatError,
   formatSymbolDisplay,
   initMonitorState,
+  isSellAction,
   sleep,
   toBeijingTimeIso,
 } from './utils/helpers/index.js';
@@ -667,7 +668,7 @@ async function main(): Promise<void> {
       logger.info(`[延迟验证通过] 信号推入任务队列: ${signalLabel}`);
 
       // 根据信号类型分流到不同队列
-      const isSellSignal = signal.action === 'SELLCALL' || signal.action === 'SELLPUT';
+      const isSellSignal = isSellAction(signal.action);
 
       if (isSellSignal) {
         // 卖出信号 → SellTaskQueue（独立队列，不被买入阻塞）

@@ -27,8 +27,10 @@ import {
   isDefined,
   isValidPositiveNumber,
   formatSymbolDisplay,
+  isBuyAction,
+  isSellAction,
 } from '../../utils/helpers/index.js';
-import type { Signal, TradeCheckResult, MonitorConfig } from '../../types/index.js';
+import type { Signal, SignalType, TradeCheckResult, MonitorConfig } from '../../types/index.js';
 import type { OrderPayload, OrderExecutor, OrderExecutorDeps } from './types.js';
 import { identifyErrorType } from './tradeLogger.js';
 import { extractOrderId, formatOrderTypeLabel, getOrderTypeCode, resolveOrderTypeConfig } from './utils.js';
@@ -248,7 +250,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
     monitorConfig?: MonitorConfig | null,
   ): TradeCheckResult {
     // 卖出操作不触发频率限制
-    if (signalAction === 'SELLCALL' || signalAction === 'SELLPUT') {
+    if (isSellAction(signalAction as SignalType)) {
       return { canTrade: true };
     }
 
@@ -289,7 +291,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
     signalAction: string,
     monitorConfig?: MonitorConfig | null,
   ): void {
-    if (signalAction === 'BUYCALL' || signalAction === 'BUYPUT') {
+    if (isBuyAction(signalAction as SignalType)) {
       lastBuyTime.set(buildBuyTimeKey(signalAction, monitorConfig), Date.now());
     }
   }
@@ -493,7 +495,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
 
     // 使用配置中的值，如果没有配置则使用默认值
     const targetNotional = monitorConfig?.targetNotional ?? TRADING.DEFAULT_TARGET_NOTIONAL;
-    // 注意：lotSize 现在从 API 获取（signal.lotSize），不需要从配置读取
+    // lotSize 从信号对象获取（由配置解析或外部传入）
     // 订单类型解析：覆盖优先，其次保护性清仓
     const orderType = resolveOrderType(signal);
     const timeInForce = TimeInForceType.Day;
@@ -502,8 +504,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
     let submittedQtyDecimal: Decimal;
 
     // 判断是否需要清仓
-    const needClosePosition =
-      signal.action === 'SELLCALL' || signal.action === 'SELLPUT';
+    const needClosePosition = isSellAction(signal.action);
 
     if (needClosePosition) {
       submittedQtyDecimal = await calculateSellQuantity(

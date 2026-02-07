@@ -2,6 +2,7 @@
  * 风险模块通用工具：计算当日亏损偏移。
  */
 import { OrderStatus } from 'longport';
+import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import type { MonitorConfig, OrderRecord, RawOrderFromAPI } from '../../types/index.js';
 import type { OrderOwnership } from '../orderRecorder/types.js';
 import type { OrderOwnershipDiagnostics, OrderOwnershipDiagnosticSample } from './types.js';
@@ -32,12 +33,7 @@ export function sumOrderCost(orders: ReadonlyArray<OrderRecord>): number {
   for (const order of orders) {
     const price = Number(order.executedPrice);
     const quantity = Number(order.executedQuantity);
-    if (
-      Number.isFinite(price) &&
-      price > 0 &&
-      Number.isFinite(quantity) &&
-      quantity > 0
-    ) {
+    if (isValidPositiveNumber(price) && isValidPositiveNumber(quantity)) {
       total += price * quantity;
     }
   }
@@ -67,9 +63,7 @@ export function collectOrderOwnershipDiagnostics({
     return null;
   }
 
-  const sampleLimit = Number.isFinite(maxSamples) && maxSamples > 0
-    ? Math.floor(maxSamples)
-    : 0;
+  const sampleLimit = isValidPositiveNumber(maxSamples) ? Math.floor(maxSamples) : 0;
 
   let totalFilled = 0;
   let inDayFilled = 0;

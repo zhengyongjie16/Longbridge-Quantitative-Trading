@@ -20,7 +20,7 @@
  * @param params 流水线参数，包含信号、席位信息、上下文等
  */
 import { logger } from '../../utils/logger/index.js';
-import { formatSignalLog, formatSymbolDisplay } from '../../utils/helpers/index.js';
+import { formatSignalLog, formatSymbolDisplay, isBuyAction, isSellAction } from '../../utils/helpers/index.js';
 import { VALID_SIGNAL_ACTIONS } from '../../constants/index.js';
 import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
 import { getPositions } from './utils.js';
@@ -89,7 +89,7 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
       quote: Quote | null;
       isBuySignal: boolean;
     } | null {
-      const isBuySignal = signal.action === 'BUYCALL' || signal.action === 'BUYPUT';
+      const isBuySignal = isBuyAction(signal.action);
       const isLongSignal = signal.action === 'BUYCALL' || signal.action === 'SELLCALL';
       const seatState = isLongSignal ? longSeatState : shortSeatState;
       if (!isSeatReady(seatState)) {
@@ -145,7 +145,7 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
       if (canTradeNow) {
         logger.info(`[立即信号] ${formatSignalLog(signal)}`);
 
-        const isSellSignal = signal.action === 'SELLCALL' || signal.action === 'SELLPUT';
+        const isSellSignal = isSellAction(signal.action);
 
         if (isSellSignal) {
           sellTaskQueue.push({

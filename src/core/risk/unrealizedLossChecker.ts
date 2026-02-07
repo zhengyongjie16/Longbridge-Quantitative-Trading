@@ -44,12 +44,7 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
       const price = Number(order.executedPrice) || 0;
       const quantity = Number(order.executedQuantity) || 0;
 
-      if (
-        Number.isFinite(price) &&
-        price > 0 &&
-        Number.isFinite(quantity) &&
-        quantity > 0
-      ) {
+      if (isValidPositiveNumber(price) && isValidPositiveNumber(quantity)) {
         r1 += price * quantity;
         n1 += quantity;
       }

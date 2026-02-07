@@ -5,6 +5,7 @@
  * - 撤单/卖出/绑定/等待行情/回补/完成
  * - 距离阈值触发与日内抑制
  */
+import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import type { PendingOrder, Position } from '../../types/index.js';
 import type {
   SeatDirection,
@@ -124,11 +125,11 @@ export function createSwitchStateMachine(
       const totalQuantity = position?.quantity ?? 0;
       const availableQuantity = position?.availableQuantity ?? 0;
 
-      if (Number.isFinite(totalQuantity) && totalQuantity > 0 && availableQuantity === 0) {
+      if (isValidPositiveNumber(totalQuantity) && availableQuantity === 0) {
         return;
       }
 
-      if (Number.isFinite(availableQuantity) && availableQuantity > 0) {
+      if (isValidPositiveNumber(availableQuantity)) {
         if (state.sellSubmitted) {
           return;
         }
@@ -159,7 +160,7 @@ export function createSwitchStateMachine(
       );
       if (latestSellRecord && latestSellRecord.executedTime >= state.startedAt) {
         const actualNotional = latestSellRecord.executedPrice * latestSellRecord.executedQuantity;
-        if (Number.isFinite(actualNotional) && actualNotional > 0) {
+        if (isValidPositiveNumber(actualNotional)) {
           state.sellNotional = actualNotional;
         }
       }

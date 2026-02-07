@@ -114,9 +114,7 @@ function processPositionForClearance(
     }
   }
 
-  // 收盘前清仓逻辑：
-  // - 做多标的持仓：使用 SELLCALL 信号 → OrderSide.Sell（卖出做多标的，清仓）
-  // - 做空标的持仓：使用 SELLPUT 信号 → OrderSide.Sell（卖出做空标的，平空仓）
+  // 收盘前清仓
   const action: SignalType = isShortPos ? 'SELLPUT' : 'SELLCALL';
   const positionType = isShortPos ? 'short' : 'long';
   const positionLabel = positionType === 'short' ? '做空标的' : '做多标的';

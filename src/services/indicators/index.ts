@@ -23,6 +23,7 @@
  * - EMA：支持多周期配置，范围 1-250
  */
 import { validateRsiPeriod, validateEmaPeriod, validatePsyPeriod } from '../../utils/helpers/indicatorHelpers.js';
+import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { periodRecordPool } from '../../utils/objectPool/index.js';
 import { toNumber } from './utils.js';
 import { calculateRSI } from './rsi.js';
@@ -169,7 +170,7 @@ export function buildIndicatorSnapshot(
   const lastCandleClose = lastCandle ? toNumber(lastCandle.close) : 0;
 
   // 只有当最后收盘价有效时才检查缓存
-  if (Number.isFinite(lastCandleClose) && lastCandleClose > 0) {
+  if (isValidPositiveNumber(lastCandleClose)) {
     const dataFingerprint = buildDataFingerprint(candles, lastCandleClose);
     const cached = indicatorCache.get(cacheKey);
     const now = Date.now();
@@ -191,7 +192,7 @@ export function buildIndicatorSnapshot(
   const validCloses: number[] = [];
   for (const element of candles) {
     const close = toNumber(element.close);
-    if (Number.isFinite(close) && close > 0) {
+    if (isValidPositiveNumber(close)) {
       validCloses.push(close);
     }
   }
@@ -208,7 +209,7 @@ export function buildIndicatorSnapshot(
   let changePercent: number | null = null;
   if (validCloses.length >= 2) {
     const prevClose = validCloses.at(-2)!;
-    if (Number.isFinite(prevClose) && prevClose > 0) {
+    if (isValidPositiveNumber(prevClose)) {
       changePercent = ((lastPrice - prevClose) / prevClose) * 100;
     }
   }

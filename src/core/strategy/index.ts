@@ -18,6 +18,7 @@
  * - |：分隔不同条件组，满足任一组即可
  */
 import { evaluateSignalConfig } from '../../utils/helpers/signalConfigParser.js';
+import { isBuyAction, isSellAction } from '../../utils/helpers/index.js';
 import { signalObjectPool, indicatorRecordPool } from '../../utils/objectPool/index.js';
 import { getIndicatorValue, isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
 import { TIME } from '../../constants/index.js';
@@ -246,7 +247,7 @@ export const createHangSengMultiIndicatorStrategy = ({
 
     // 对于卖出信号，先检查订单记录中是否有买入订单记录
     // 如果有买入订单记录，进入验证阶段；如果没有，不生成卖出信号
-    if (action === 'SELLCALL' || action === 'SELLPUT') {
+    if (isSellAction(action as SignalType)) {
       if (!orderRecorder) {
         // 无法获取订单记录，不生成卖出信号
         return null;
@@ -274,7 +275,7 @@ export const createHangSengMultiIndicatorStrategy = ({
     }
 
     // 判断是买入还是卖出信号
-    const isBuySignal = action === 'BUYCALL' || action === 'BUYPUT';
+    const isBuySignal = isBuyAction(action as SignalType);
     const currentVerificationConfig = isBuySignal ? finalVerificationConfig.buy : finalVerificationConfig.sell;
 
     // 根据预计算的信号类型映射判断是立即信号还是延迟信号

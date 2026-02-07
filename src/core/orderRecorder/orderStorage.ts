@@ -13,7 +13,7 @@
  * - 避免每次查询都遍历整个数组
  */
 import { logger } from '../../utils/logger/index.js';
-import { getLongDirectionName, getShortDirectionName, formatSymbolDisplayFromQuote } from '../../utils/helpers/index.js';
+import { getLongDirectionName, getShortDirectionName, formatSymbolDisplayFromQuote, isValidPositiveNumber } from '../../utils/helpers/index.js';
 import type { OrderRecord, Quote } from '../../types/index.js';
 import type { OrderStorage, OrderStorageDeps, PendingSellInfo, ProfitableOrderResult } from './types.js';
 import { calculateTotalQuantity } from './utils.js';
@@ -98,9 +98,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     isLongSymbol: boolean,
     executedTimeMs: number,
   ): void => {
-    const executedTime = Number.isFinite(executedTimeMs) && executedTimeMs > 0
-      ? executedTimeMs
-      : Date.now();
+    const executedTime = isValidPositiveNumber(executedTimeMs) ? executedTimeMs : Date.now();
     const list = getBuyOrdersList(symbol, isLongSymbol);
 
     list.push({
@@ -144,9 +142,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     orderId?: string | null,
   ): void => {
     const list = getBuyOrdersList(symbol, isLongSymbol);
-    const executedTime = Number.isFinite(executedTimeMs) && executedTimeMs > 0
-      ? executedTimeMs
-      : Date.now();
+    const executedTime = isValidPositiveNumber(executedTimeMs) ? executedTimeMs : Date.now();
 
     setLatestSellRecord(symbol, isLongSymbol, {
       orderId: orderId ?? `LOCAL_SELL_${executedTime}`,
@@ -300,7 +296,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     return allOrders;
   };
 
-  // 待成交卖出订单追踪实现
+  // ========== 待成交卖出订单追踪实现 ==========
 
   function addPendingSell(info: Omit<PendingSellInfo, 'filledQuantity' | 'status'>): void {
     const record: PendingSellInfo = {
@@ -391,8 +387,20 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     return orders;
   }
 
-  // ========== 核心：可卖出盈利订单计算（防重逻辑） ==========
-
+  /**
+   * 获取可卖出的盈利订单（核心防重逻辑）
+   *
+   * 算法说明：
+   * 1. 首先筛选所有买入价 < 当前价的盈利订单
+   * 2. 排除已被待成交卖出订单占用的订单（防止重复卖出）
+   * 3. 如超出最大可卖数量，按价格从低到高排序截断（便宜先卖）
+   *
+   * @param symbol 标的代码
+   * @param direction 交易方向（LONG/SHORT）
+   * @param currentPrice 当前价格
+   * @param maxSellQuantity 最大可卖数量（可选）
+   * @returns 盈利订单列表及总数量
+   */
   function getProfitableSellOrders(
     symbol: string,
     direction: 'LONG' | 'SHORT',

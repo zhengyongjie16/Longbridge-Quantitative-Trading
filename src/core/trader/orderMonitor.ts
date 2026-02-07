@@ -20,7 +20,7 @@ import {
 } from 'longport';
 import type { PushOrderChanged } from 'longport';
 import { logger } from '../../utils/logger/index.js';
-import { decimalToNumber, toDecimal, formatError, toBeijingTimeIso } from '../../utils/helpers/index.js';
+import { decimalToNumber, toDecimal, formatError, toBeijingTimeIso, isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { ORDER_PRICE_DIFF_THRESHOLD, PENDING_ORDER_STATUSES } from '../../constants/index.js';
 import type { Quote, PendingRefreshSymbol, GlobalConfig } from '../../types/index.js';
 import type {
@@ -141,10 +141,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       const executedPrice = decimalToNumber(event.executedPrice);
       const filledQuantity = decimalToNumber(event.executedQuantity);
 
-      if (
-        Number.isFinite(executedPrice) && executedPrice > 0 &&
-        Number.isFinite(filledQuantity) && filledQuantity > 0
-      ) {
+      if (isValidPositiveNumber(executedPrice) && isValidPositiveNumber(filledQuantity)) {
         const executedTimeMs = resolveUpdatedAtMs(event.updatedAt);
         if (executedTimeMs == null) {
           logger.error(
@@ -386,7 +383,6 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
         order.orderType,
       );
 
-      // 修复：恢复部分成交订单的已成交数量
       // trackOrder 内部会将 executedQuantity 设为 0，这里需要更新为实际已成交数量
       const trackedOrder = trackedOrders.get(order.orderId);
       if (trackedOrder && executedQuantity > 0) {

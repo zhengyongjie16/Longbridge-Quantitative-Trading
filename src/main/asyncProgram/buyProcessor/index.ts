@@ -19,7 +19,7 @@
 import { signalObjectPool } from '../../../utils/objectPool/index.js';
 import { createBaseProcessor } from '../utils.js';
 import { logger } from '../../../utils/logger/index.js';
-import { formatError, formatSymbolDisplay } from '../../../utils/helpers/index.js';
+import { formatError, formatSymbolDisplay, isBuyAction } from '../../../utils/helpers/index.js';
 import { isSeatReady, isSeatVersionMatch } from '../../../services/autoSymbolManager/utils.js';
 import type { Processor } from '../types.js';
 import type { BuyProcessorDeps } from './types.js';
@@ -46,7 +46,7 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
 
     try {
       // 验证信号类型：此处理器只处理买入信号
-      const isBuySignal = signal.action === 'BUYCALL' || signal.action === 'BUYPUT';
+      const isBuySignal = isBuyAction(signal.action);
       if (!isBuySignal) {
         logger.warn(`[BuyProcessor] 收到非买入信号，跳过: ${symbolDisplay} ${signal.action}`);
         return true; // 非预期信号，但不算失败
