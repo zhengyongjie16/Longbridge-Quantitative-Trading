@@ -7,7 +7,7 @@
  * - 处理末日保护无条件清仓
  */
 import { logger } from '../../utils/logger/index.js';
-import { getDirectionName } from '../../utils/helpers/index.js';
+import { getLongDirectionName, getShortDirectionName } from '../../utils/helpers/index.js';
 import {
   buildSellReason,
   validateSellContext,
@@ -35,7 +35,7 @@ function calculateSellQuantity(
   relatedBuyOrderIds: readonly string[];
 } {
   const reason = originalReason || '';
-  const directionName = getDirectionName(direction === 'LONG');
+  const directionName = direction === 'LONG' ? getLongDirectionName() : getShortDirectionName();
 
   // 验证输入参数
   const validationResult = validateSellContext(position, quote);

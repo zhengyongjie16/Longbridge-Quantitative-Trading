@@ -554,12 +554,12 @@ export function createWarrantRiskChecker(
     return buildWarrantDistanceInfo(warrantInfo, monitorCurrentPrice);
   }
 
-  function clearWarrantInfo(isLongSymbol: boolean): void {
-    if (isLongSymbol) {
-      longWarrantInfo = null;
-    } else {
-      shortWarrantInfo = null;
-    }
+  function clearLongWarrantInfo(): void {
+    longWarrantInfo = null;
+  }
+
+  function clearShortWarrantInfo(): void {
+    shortWarrantInfo = null;
   }
 
   function setWarrantInfoFromCallPrice(
@@ -634,6 +634,7 @@ export function createWarrantRiskChecker(
     checkRisk,
     checkWarrantDistanceLiquidation,
     getWarrantDistanceInfo,
-    clearWarrantInfo,
+    clearLongWarrantInfo,
+    clearShortWarrantInfo,
   };
 }

@@ -94,7 +94,11 @@ export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
   }
 
   function clearWarrantInfoForDirection(direction: 'LONG' | 'SHORT'): void {
-    riskChecker.clearWarrantInfo(direction === 'LONG');
+    if (direction === 'LONG') {
+      riskChecker.clearLongWarrantInfo();
+    } else {
+      riskChecker.clearShortWarrantInfo();
+    }
   }
 
   if (previousLongSeatState.status === 'READY' && longSeatState.status !== 'READY') {

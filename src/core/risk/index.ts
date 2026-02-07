@@ -320,8 +320,11 @@ export function createRiskChecker(deps: RiskCheckerDeps = {}): RiskChecker {
         monitorCurrentPrice,
       );
     },
-    clearWarrantInfo(isLongSymbol: boolean): void {
-      warrantRiskChecker.clearWarrantInfo(isLongSymbol);
+    clearLongWarrantInfo(): void {
+      warrantRiskChecker.clearLongWarrantInfo();
+    },
+    clearShortWarrantInfo(): void {
+      warrantRiskChecker.clearShortWarrantInfo();
     },
 
     async refreshUnrealizedLossData(

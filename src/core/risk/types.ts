@@ -128,7 +128,8 @@ export interface WarrantRiskChecker {
     seatSymbol: string,
     monitorCurrentPrice: number | null,
   ): WarrantDistanceInfo | null;
-  clearWarrantInfo(isLongSymbol: boolean): void;
+  clearLongWarrantInfo(): void;
+  clearShortWarrantInfo(): void;
 }
 
 /** 持仓限制检查器接口 */

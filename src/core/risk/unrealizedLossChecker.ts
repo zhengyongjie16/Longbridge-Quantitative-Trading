@@ -8,7 +8,7 @@
  * - 浮亏 = R2 - R1（负值表示亏损）
  */
 import { logger } from '../../utils/logger/index.js';
-import { isValidPositiveNumber, getDirectionName, formatSymbolDisplayFromQuote } from '../../utils/helpers/index.js';
+import { isValidPositiveNumber, getLongDirectionName, getShortDirectionName, formatSymbolDisplayFromQuote } from '../../utils/helpers/index.js';
 import type { OrderRecorder, UnrealizedLossData, UnrealizedLossCheckResult, Quote } from '../../types/index.js';
 import type { UnrealizedLossChecker, UnrealizedLossCheckerDeps } from './types.js';
 
@@ -106,7 +106,7 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
         lastUpdateTime: Date.now(),
       });
 
-      const positionType = getDirectionName(isLongSymbol);
+      const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
 
       // 使用 formatSymbolDisplayFromQuote 格式化标的显示
       const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
@@ -173,7 +173,7 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
     }
 
     if (unrealizedLoss < -maxUnrealizedLossPerSymbol) {
-      const positionType = getDirectionName(isLongSymbol);
+      const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
       const reason = `[保护性清仓] ${positionType} ${symbol} 浮亏=${unrealizedLoss.toFixed(
         2,
       )} HKD 超过阈值 ${maxUnrealizedLossPerSymbol} HKD (R1=${r1.toFixed(

@@ -22,7 +22,7 @@
  * - 避免频繁调用 historyOrders API
  */
 import { logger } from '../../utils/logger/index.js';
-import { getDirectionName, formatSymbolDisplayFromQuote } from '../../utils/helpers/index.js';
+import { getLongDirectionName, getShortDirectionName, formatSymbolDisplayFromQuote } from '../../utils/helpers/index.js';
 import type {
   OrderRecord,
   OrderRecorder,
@@ -61,7 +61,7 @@ function logRefreshResult(
   extraInfo?: string,
   quote?: Quote | null,
 ): void {
-  const positionType = getDirectionName(isLongSymbol);
+  const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
   const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
   if (extraInfo) {
     logger.info(`[现存订单记录] ${positionType} ${symbolDisplay}: ${extraInfo}`);
@@ -105,7 +105,7 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
   function debugOutputOrders(symbol: string, isLongSymbol: boolean): void {
     if (process.env['DEBUG'] !== 'true') return;
 
-    const positionType = getDirectionName(isLongSymbol);
+    const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
     const currentOrders = storage.getBuyOrdersList(symbol, isLongSymbol);
     const header = `[订单记录变化] ${positionType} ${symbol}: 当前订单列表 (共${currentOrders.length}笔)`;
 

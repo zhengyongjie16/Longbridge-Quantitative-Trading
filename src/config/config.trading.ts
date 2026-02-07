@@ -78,7 +78,7 @@ function getPercentAsDecimalConfig(
   minValue: number = 0,
 ): number | null {
   const raw = getNumberConfig(env, envKey, minValue);
-  return raw != null ? raw / 100 : null;
+  return raw == null ? null : raw / 100;
 }
 
 /**

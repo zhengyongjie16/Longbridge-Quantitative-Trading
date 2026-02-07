@@ -153,6 +153,56 @@ function buildBuyTimeKey(
   return monitorSymbol ? `${monitorSymbol}:${direction}` : direction;
 }
 
+/** 处理订单提交错误（分类记录日志） */
+function handleSubmitError(
+  err: unknown,
+  signal: Signal,
+  orderPayload: OrderPayload,
+): void {
+  const actionDesc = getActionDescription(signal.action);
+
+  const errorMessage = formatError(err);
+  const errorType = identifyErrorType(errorMessage);
+
+  // 格式化标的显示（用于错误日志）
+  const symbolDisplayForError = formatSymbolDisplay(orderPayload.symbol, signal.symbolName ?? null);
+
+  // 根据错误类型进行针对性处理
+  if (errorType.isShortSellingNotSupported) {
+    logger.error(
+      `[订单提交失败] ${actionDesc} ${symbolDisplayForError} 失败：该标的不支持做空交易`,
+      errorMessage,
+    );
+    logger.warn(
+      `[做空错误提示] 标的 ${symbolDisplayForError} 不支持做空交易。可能的原因：\n` +
+        '  1. 该标的在港股市场不支持做空\n' +
+        '  2. 账户没有做空权限\n' +
+        '  3. 需要更换其他支持做空的标的\n' +
+        '  建议：检查配置中的 SHORT_SYMBOL 环境变量，或联系券商确认账户做空权限',
+    );
+  } else if (errorType.isInsufficientFunds) {
+    logger.error(
+      `[订单提交失败] ${actionDesc} ${symbolDisplayForError} 失败：账户资金不足`,
+      errorMessage,
+    );
+  } else if (errorType.isNetworkError) {
+    logger.error(
+      `[订单提交失败] ${actionDesc} ${symbolDisplayForError} 失败：网络异常，请检查连接`,
+      errorMessage,
+    );
+  } else if (errorType.isRateLimited) {
+    logger.error(
+      `[订单提交失败] ${actionDesc} ${symbolDisplayForError} 失败：API 调用频率超限`,
+      errorMessage,
+    );
+  } else {
+    logger.error(
+      `[订单提交失败] ${actionDesc} ${symbolDisplayForError} 失败：`,
+      errorMessage,
+    );
+  }
+}
+
 /**
  * 创建订单执行器
  * @param deps 依赖注入
@@ -303,57 +353,6 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       `[部分卖出] 信号指定卖出数量=${targetQuantity}，可用数量=${totalAvailable}，实际卖出=${actualQty}`,
     );
     return toDecimal(actualQty);
-  }
-
-  /** 处理订单提交错误（分类记录日志） */
-  function handleSubmitError(
-    err: unknown,
-    signal: Signal,
-    orderPayload: OrderPayload,
-  ): void {
-    const actionDesc = getActionDescription(signal.action);
-
-    const errorMessage = formatError(err);
-    const errorType = identifyErrorType(errorMessage);
-
-    // 格式化标的显示（用于错误日志）
-    const symbolDisplayForError = formatSymbolDisplay(orderPayload.symbol, signal.symbolName ?? null);
-
-    // 根据错误类型进行针对性处理
-    if (errorType.isShortSellingNotSupported) {
-      logger.error(
-        `[订单提交失败] ${actionDesc} ${symbolDisplayForError} 失败：该标的不支持做空交易`,
-        errorMessage,
-      );
-      logger.warn(
-        `[做空错误提示] 标的 ${symbolDisplayForError} 不支持做空交易。可能的原因：\n` +
-          '  1. 该标的在港股市场不支持做空\n' +
-          '  2. 账户没有做空权限\n' +
-          '  3. 需要更换其他支持做空的标的\n' +
-          '  建议：检查配置中的 SHORT_SYMBOL 环境变量，或联系券商确认账户做空权限',
-      );
-    } else if (errorType.isInsufficientFunds) {
-      logger.error(
-        `[订单提交失败] ${actionDesc} ${symbolDisplayForError} 失败：账户资金不足`,
-        errorMessage,
-      );
-    } else if (errorType.isNetworkError) {
-      logger.error(
-        `[订单提交失败] ${actionDesc} ${symbolDisplayForError} 失败：网络异常，请检查连接`,
-        errorMessage,
-      );
-    } else if (errorType.isRateLimited) {
-      logger.error(
-        `[订单提交失败] ${actionDesc} ${symbolDisplayForError} 失败：API 调用频率超限`,
-        errorMessage,
-      );
-    } else {
-      logger.error(
-        `[订单提交失败] ${actionDesc} ${symbolDisplayForError} 失败：`,
-        errorMessage,
-      );
-    }
-
   }
 
   /** 提交订单到 API */

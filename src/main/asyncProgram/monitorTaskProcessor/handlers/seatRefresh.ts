@@ -46,7 +46,11 @@ export function createSeatRefreshHandler({
       return;
     }
 
-    context.riskChecker.clearWarrantInfo(direction === 'LONG');
+    if (direction === 'LONG') {
+      context.riskChecker.clearLongWarrantInfo();
+    } else {
+      context.riskChecker.clearShortWarrantInfo();
+    }
     const nextVersion = context.symbolRegistry.bumpSeatVersion(monitorSymbol, direction);
     const nextState = {
       symbol: null,
@@ -80,7 +84,11 @@ export function createSeatRefreshHandler({
     }
 
     const isLong = data.direction === 'LONG';
-    context.riskChecker.clearWarrantInfo(isLong);
+    if (isLong) {
+      context.riskChecker.clearLongWarrantInfo();
+    } else {
+      context.riskChecker.clearShortWarrantInfo();
+    }
 
     const callPriceValid =
       data.callPrice != null &&

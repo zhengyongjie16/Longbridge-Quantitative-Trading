@@ -288,13 +288,14 @@ export const isBuyAction = (action: SignalType): boolean => {
   return action === 'BUYCALL' || action === 'BUYPUT';
 };
 
-/**
- * 获取方向名称（做多标的或做空标的）
- * @param isLongSymbol 是否为做多标的
- * @returns 方向名称字符串
- */
-export function getDirectionName(isLongSymbol: boolean): string {
-  return isLongSymbol ? '做多标的' : '做空标的';
+/** 获取做多标的方向名称 */
+export function getLongDirectionName(): string {
+  return '做多标的';
+}
+
+/** 获取做空标的方向名称 */
+export function getShortDirectionName(): string {
+  return '做空标的';
 }
 
 /**

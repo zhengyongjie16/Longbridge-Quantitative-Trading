@@ -1185,8 +1185,10 @@ export interface RiskChecker {
     seatSymbol: string,
     monitorCurrentPrice: number | null,
   ): WarrantDistanceInfo | null;
-  /** 清空牛熊证信息缓存（换标时调用） */
-  clearWarrantInfo(isLongSymbol: boolean): void;
+  /** 清空做多标的牛熊证信息缓存（换标时调用） */
+  clearLongWarrantInfo(): void;
+  /** 清空做空标的牛熊证信息缓存（换标时调用） */
+  clearShortWarrantInfo(): void;
 
   /** 刷新浮亏数据 */
   refreshUnrealizedLossData(
