@@ -17,6 +17,7 @@
  * 5. 释放信号对象到对象池
  */
 import { signalObjectPool } from '../../../utils/objectPool/index.js';
+import { createBaseProcessor } from '../utils.js';
 import { logger } from '../../../utils/logger/index.js';
 import { formatError, formatSymbolDisplay } from '../../../utils/helpers/index.js';
 import { isSeatReady, isSeatVersionMatch } from '../../../services/autoSymbolManager/utils.js';
@@ -32,10 +33,6 @@ import type { RiskCheckContext } from '../../../types/index.js';
  */
 export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
   const { taskQueue, getMonitorContext, signalProcessor, trader, doomsdayProtection, getLastState, getIsHalfDay } = deps;
-
-  // 内部状态
-  let running = false;
-  let immediateHandle: ReturnType<typeof setImmediate> | null = null;
 
   /**
    * 处理单个买入任务
@@ -148,101 +145,10 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
     }
   }
 
-  /**
-   * 处理队列中的所有任务
-   */
-  async function processQueue(): Promise<void> {
-    while (!taskQueue.isEmpty()) {
-      const task = taskQueue.pop();
-      if (!task) break;
-
-      const signal = task.data;
-
-      try {
-        await processTask(task);
-      } finally {
-        // 统一在 finally 块释放信号对象到对象池
-        signalObjectPool.release(signal);
-      }
-    }
-  }
-
-  /**
-   * 调度下一次处理（使用 setImmediate）
-   *
-   * 设计说明：
-   * - 队列有任务时：立即处理并在完成后继续调度
-   * - 队列为空时：停止调度，等待 onTaskAdded 回调触发重新调度
-   * - 避免忙等待（busy-waiting），防止 CPU 高占用
-   */
-  function scheduleNextProcess(): void {
-    if (!running) return;
-
-    // 如果队列为空，停止调度（等待新任务触发）
-    if (taskQueue.isEmpty()) {
-      immediateHandle = null;
-      return;
-    }
-
-    immediateHandle = setImmediate(() => {
-      if (!running) return;
-
-      if (taskQueue.isEmpty()) {
-        // 队列已空，停止调度（等待 onTaskAdded 回调触发重新调度）
-        immediateHandle = null;
-      } else {
-        processQueue()
-          .catch((err) => {
-            logger.error('[BuyProcessor] 处理队列时发生错误', formatError(err));
-          })
-          .finally(() => {
-            scheduleNextProcess();
-          });
-      }
-    });
-  }
-
-  /**
-   * 启动处理器
-   */
-  function start(): void {
-    if (running) {
-      logger.warn('[BuyProcessor] 处理器已在运行中');
-      return;
-    }
-
-    running = true;
-
-    // 注册任务添加回调，有新任务时触发处理
-    taskQueue.onTaskAdded(() => {
-      if (running && immediateHandle === null) {
-        scheduleNextProcess();
-      }
-    });
-
-    // 启动调度循环
-    scheduleNextProcess();
-  }
-
-  /**
-   * 停止处理器
-   */
-  function stop(): void {
-    if (!running) {
-      logger.warn('[BuyProcessor] 处理器未在运行');
-      return;
-    }
-
-    running = false;
-
-    if (immediateHandle !== null) {
-      clearImmediate(immediateHandle);
-      immediateHandle = null;
-    }
-  }
-
-  return {
-    start,
-    stop,
-  };
+  return createBaseProcessor({
+    loggerPrefix: 'BuyProcessor',
+    taskQueue,
+    processTask,
+    releaseAfterProcess: (signal) => signalObjectPool.release(signal),
+  });
 }

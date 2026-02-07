@@ -37,7 +37,13 @@ import type { Candlestick, PushQuoteEvent, PushCandlestickEvent } from 'longport
 import { decimalToNumber, formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { API } from '../../constants/index.js';
-import type { Quote, TradingDayInfo, MarketDataClient, TradingDaysResult } from '../../types/index.js';
+import type {
+  Quote,
+  QuoteStaticInfo,
+  TradingDayInfo,
+  MarketDataClient,
+  TradingDaysResult,
+} from '../../types/index.js';
 import type {
   RetryConfig,
   TradingDayCacheDeps,
@@ -194,7 +200,8 @@ export async function createMarketDataClient(
       timestamp: pushData.timestamp.getTime(),
       ...(lotSize === undefined ? {} : { lotSize }),
       raw: pushData,
-      staticInfo,
+      // LongPort API 返回 unknown，信任边界断言为 QuoteStaticInfo
+      staticInfo: (staticInfo ?? null) as QuoteStaticInfo | null,
     };
 
     quoteCache.set(symbol, quote);
@@ -287,7 +294,7 @@ export async function createMarketDataClient(
         timestamp: quote.timestamp.getTime(),
         ...(lotSize === undefined ? {} : { lotSize }),
         raw: quote,
-        staticInfo,
+        staticInfo: (staticInfo ?? null) as QuoteStaticInfo | null, // LongPort API 返回 unknown，信任边界断言为 QuoteStaticInfo
       };
       quoteCache.set(quoteSymbol, quoteResult);
       subscribedSymbols.add(quoteSymbol);

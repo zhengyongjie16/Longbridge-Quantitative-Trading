@@ -14,6 +14,7 @@
 import path from 'node:path';
 import { OrderType } from 'longport';
 import type { OrderTypeConfig, Signal } from '../../types/index.js';
+import type { OrderSubmitResponse } from './types.js';
 
 const orderTypeLabelMap: ReadonlyMap<OrderType, string> = new Map([
   [OrderType.LO, '限价单'],
@@ -57,6 +58,36 @@ type OrderTypeResolutionConfig = {
   readonly tradingOrderType: OrderTypeConfig;
   readonly liquidationOrderType: OrderTypeConfig;
 };
+
+function isOrderSubmitResponse(value: unknown): value is OrderSubmitResponse {
+  return typeof value === 'object' && value !== null && 'orderId' in value;
+}
+
+/**
+ * 从订单提交 API 响应中安全提取订单 ID
+ *
+ * 优先顺序：orderId 字段 > toString() > 字符串值 > 兜底常量
+ *
+ * @param resp API 返回的任意值
+ * @returns 订单 ID 字符串
+ */
+export function extractOrderId(resp: unknown): string {
+  if (isOrderSubmitResponse(resp) && resp.orderId != null) {
+    return String(resp.orderId);
+  }
+  // 信任边界：unknown 的 resp 可能具有 toString，需在运行时安全检查后访问
+  const obj = resp as { toString?: () => unknown };
+  if (typeof obj?.toString === 'function') {
+    const str = obj.toString();
+    if (typeof str === 'string') {
+      return str;
+    }
+  }
+  if (typeof resp === 'string') {
+    return resp;
+  }
+  return 'UNKNOWN_ORDER_ID';
+}
 
 /**
  * 订单类型解析优先级：

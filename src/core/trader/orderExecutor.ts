@@ -31,7 +31,7 @@ import {
 import type { Signal, TradeCheckResult, MonitorConfig } from '../../types/index.js';
 import type { OrderPayload, OrderExecutor, OrderExecutorDeps } from './types.js';
 import { identifyErrorType } from './tradeLogger.js';
-import { formatOrderTypeLabel, getOrderTypeCode, resolveOrderTypeConfig } from './utils.js';
+import { extractOrderId, formatOrderTypeLabel, getOrderTypeCode, resolveOrderTypeConfig } from './utils.js';
 import { resolveSellMergeDecision } from './sellOrderMerge/utils.js';
 
 /** 获取操作描述（用于日志） */
@@ -415,8 +415,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
 
       cacheManager.clearCache();
 
-      const orderId =
-        (resp as { orderId?: string })?.orderId ?? resp?.toString?.() ?? resp ?? 'UNKNOWN_ORDER_ID';
+      const orderId = extractOrderId(resp);
 
       const actionDesc = getActionDescription(signal.action);
 

@@ -26,6 +26,14 @@ import type { DailyLossTracker } from '../risk/types.js';
 import type { RefreshGate } from '../../utils/refreshGate/types.js';
 
 /**
+ * 订单提交 API 可能返回的响应形状
+ * 用于 extractOrderId 安全提取订单 ID
+ */
+export type OrderSubmitResponse = {
+  readonly orderId?: string;
+};
+
+/**
  * 订单提交载荷
  * 用于调用 ctx.submitOrder() 时的参数
  */
@@ -276,11 +284,24 @@ export interface OrderMonitorConfig {
 
 /**
  * 订单订阅保留集管理器
+ *
+ * 职责：
+ * - 跟踪需要持续订阅的订单标的
+ * - 程序重启时恢复订阅状态
+ * - 订单成交后移除订阅标记
+ *
+ * 设计原因：
+ * - 避免频繁订阅/取消订阅造成的 API 调用开销
+ * - 订单成交后需要继续订阅以获取最新行情
  */
 export type OrderHoldRegistry = {
+  /** 跟踪订单（添加标的到订阅保留集） */
   trackOrder(orderId: string, symbol: string): void;
+  /** 标记订单已成交（从订阅保留集中移除） */
   markOrderFilled(orderId: string): void;
+  /** 从历史订单初始化订阅保留集（程序重启时调用） */
   seedFromOrders(orders: ReadonlyArray<RawOrderFromAPI>): void;
+  /** 获取当前需要持续订阅的标的集合 */
   getHoldSymbols(): ReadonlySet<string>;
 };
 

@@ -156,6 +156,25 @@ export type AccountSnapshot = {
 // ==================== 行情和指标 ====================
 
 /**
+ * 行情静态信息
+ * 来自 LongPort API，包含标的的基本信息和牛熊证相关字段
+ */
+export type QuoteStaticInfo = {
+  readonly nameHk?: string | null;
+  readonly nameCn?: string | null;
+  readonly nameEn?: string | null;
+  readonly lotSize?: number | null;
+  readonly lot_size?: number | null;
+  readonly lot?: number | null;
+  readonly callPrice?: number | null;
+  readonly expiryDate?: string | null;
+  readonly issuePrice?: number | null;
+  readonly conversionRatio?: number | null;
+  readonly warrantType?: 'BULL' | 'BEAR' | null;
+  readonly underlyingSymbol?: string | null;
+};
+
+/**
  * 行情数据
  * 表示标的的实时行情信息
  */
@@ -174,8 +193,8 @@ export type Quote = {
   readonly lotSize?: number;
   /** 原始行情数据 */
   readonly raw?: unknown;
-  /** 静态信息（如回收价等） */
-  readonly staticInfo?: unknown;
+  /** 静态信息（如回收价、每手股数等） */
+  readonly staticInfo?: QuoteStaticInfo | null;
 };
 
 /**

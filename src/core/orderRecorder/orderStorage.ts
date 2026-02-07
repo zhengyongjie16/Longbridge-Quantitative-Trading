@@ -29,13 +29,23 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
   // 待成交卖出订单追踪
   const pendingSells = new Map<string, PendingSellInfo>();
 
-  /** 获取指定标的的买入订单列表 */
+  /**
+   * 获取指定标的的买入订单列表
+   * @param symbol 标的代码
+   * @param isLongSymbol 是否为做多标的
+   * @returns 买入订单数组（如果不存在则返回空数组）
+   */
   const getBuyOrdersList = (symbol: string, isLongSymbol: boolean): OrderRecord[] => {
     const targetMap = isLongSymbol ? longBuyOrdersMap : shortBuyOrdersMap;
     return targetMap.get(symbol) ?? [];
   };
 
-  /** 替换指定标的的买入订单列表（内部辅助函数） */
+  /**
+   * 替换指定标的的买入订单列表（内部辅助函数）
+   * @param symbol 标的代码
+   * @param newList 新的订单列表
+   * @param isLongSymbol 是否为做多标的
+   */
   const setBuyOrdersList = (
     symbol: string,
     newList: ReadonlyArray<OrderRecord>,
@@ -46,7 +56,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     if (newList.length === 0) {
       targetMap.delete(symbol);
     } else {
-      targetMap.set(symbol, newList as OrderRecord[]);
+      targetMap.set(symbol, [...newList]);
     }
   };
 
@@ -73,7 +83,14 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     return targetMap.get(symbol) ?? null;
   };
 
-  /** 添加单笔买入订单到本地存储 */
+  /**
+   * 添加单笔买入订单到本地存储
+   * @param symbol 标的代码
+   * @param executedPrice 成交价格
+   * @param executedQuantity 成交数量
+   * @param isLongSymbol 是否为做多标的
+   * @param executedTimeMs 成交时间戳（毫秒）
+   */
   const addBuyOrder = (
     symbol: string,
     executedPrice: number,
@@ -110,6 +127,13 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
    * 卖出后更新订单列表
    * - 卖出数量 >= 总数量：清空记录
    * - 否则保留成交价 >= 卖出价的订单
+   *
+   * @param symbol 标的代码
+   * @param executedPrice 成交价格
+   * @param executedQuantity 成交数量
+   * @param isLongSymbol 是否为做多标的
+   * @param executedTimeMs 成交时间戳（毫秒）
+   * @param orderId 订单 ID（可选）
    */
   const updateAfterSell = (
     symbol: string,
@@ -175,7 +199,12 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     );
   };
 
-  /** 获取最新买入订单的成交价（用于买入价格限制检查） */
+  /**
+   * 获取最新买入订单的成交价（用于买入价格限制检查）
+   * @param symbol 标的代码
+   * @param isLongSymbol 是否为做多标的
+   * @returns 最新成交价，无记录时返回 null
+   */
   const getLatestBuyOrderPrice = (symbol: string, isLongSymbol: boolean): number | null => {
     const list = getBuyOrdersList(symbol, isLongSymbol);
     if (!list.length) {
@@ -192,7 +221,13 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     return latestOrder ? latestOrder.executedPrice : null;
   };
 
-  /** 获取买入价低于当前价的订单（用于智能清仓决策） */
+  /**
+   * 获取买入价低于当前价的订单（用于智能清仓决策）
+   * @param currentPrice 当前价格
+   * @param direction 交易方向（LONG/SHORT）
+   * @param symbol 标的代码
+   * @returns 盈利订单列表
+   */
   const getBuyOrdersBelowPrice = (
     currentPrice: number,
     direction: 'LONG' | 'SHORT',
