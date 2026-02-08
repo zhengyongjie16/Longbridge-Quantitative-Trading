@@ -36,7 +36,7 @@ export const createCleanup = (context: CleanupContext) => {
    * 执行清理
    */
   const execute = (): void => {
-    logger.info('程序退出，正在清理资源...');
+    logger.info('Program exiting, cleaning up resources...');
     // 停止 BuyProcessor 和 SellProcessor
     buyProcessor.stop();
     sellProcessor.stop();

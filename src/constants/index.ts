@@ -68,6 +68,8 @@ export const LOGGING = {
   DRAIN_TIMEOUT_MS: 5000,
   /** 控制台流 drain 超时时间（毫秒） */
   CONSOLE_DRAIN_TIMEOUT_MS: 3000,
+  /** 按日期分文件的日志最多保留文件数（system/debug/trades 共用） */
+  MAX_RETAINED_LOG_FILES: 7,
 } as const;
 
 /** API 相关常量，用于 LongPort API 调用 */

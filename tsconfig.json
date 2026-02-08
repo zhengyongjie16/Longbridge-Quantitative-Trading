@@ -47,7 +47,8 @@
   },
   "include": [
     "src/**/*",
-    "tools/**/*"
+    "tools/**/*",
+    "tests/**/*"
   ],
   "exclude": [
     "node_modules",
