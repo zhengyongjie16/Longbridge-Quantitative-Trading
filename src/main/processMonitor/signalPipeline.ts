@@ -70,16 +70,26 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
       orderRecorder,
     );
 
+    /**
+     * 丰富信号：名称、价格、lotSize。
+     * 买卖信号的 price/lotSize 均不在此处写入，由买卖处理器在执行时按「执行时行情」写入，保证委托价与当前价一致。
+     */
     function enrichSignal(signal: Signal): void {
       const sigSymbol = signal.symbol;
+      const isSell = isSellAction(signal.action);
+      const isBuy = isBuyAction(signal.action);
       if (sigSymbol === longSymbol && longQuote) {
         if (signal.symbolName == null && longQuote.name != null) signal.symbolName = longQuote.name;
-        signal.price ??= longQuote.price;
-        if (signal.lotSize == null && longQuote.lotSize != null) signal.lotSize = longQuote.lotSize;
+        if (!isSell && !isBuy) {
+          signal.price ??= longQuote.price;
+          if (signal.lotSize == null && longQuote.lotSize != null) signal.lotSize = longQuote.lotSize;
+        }
       } else if (sigSymbol === shortSymbol && shortQuote) {
         if (signal.symbolName == null && shortQuote.name != null) signal.symbolName = shortQuote.name;
-        signal.price ??= shortQuote.price;
-        if (signal.lotSize == null && shortQuote.lotSize != null) signal.lotSize = shortQuote.lotSize;
+        if (!isSell && !isBuy) {
+          signal.price ??= shortQuote.price;
+          if (signal.lotSize == null && shortQuote.lotSize != null) signal.lotSize = shortQuote.lotSize;
+        }
       }
     }
 

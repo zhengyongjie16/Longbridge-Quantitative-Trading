@@ -134,6 +134,25 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
         return true; // 处理成功（虽然被拦截了）
       }
 
+      // 买入委托价必须以执行时行情为准，与卖出逻辑一致；lotSize 为按金额计算数量所必需
+      const quote = isLongSignal ? longQuote : shortQuote;
+      if (quote?.price == null || !Number.isFinite(quote.price) || quote.price <= 0) {
+        logger.warn(
+          `[BuyProcessor] 买入标的行情缺失或价格无效，跳过: ${symbolDisplay}，quote.price=${quote?.price}`,
+        );
+        return true;
+      }
+      const lotSizeValid =
+        quote.lotSize != null && Number.isFinite(quote.lotSize) && quote.lotSize > 0;
+      if (!lotSizeValid) {
+        logger.warn(
+          `[BuyProcessor] 买入标的 lotSize 缺失或无效，无法按手数计算数量，跳过: ${symbolDisplay}，quote.lotSize=${quote?.lotSize}`,
+        );
+        return true;
+      }
+      signal.price = quote.price;
+      signal.lotSize = quote.lotSize;
+
       // 执行买入订单
       await trader.executeSignals([signal]);
       logger.info(`[BuyProcessor] 买入订单执行完成: ${symbolDisplay} ${signal.action}`);

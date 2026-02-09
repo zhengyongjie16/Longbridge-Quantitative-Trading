@@ -5,6 +5,10 @@
  * - 计算卖出信号数量并生成原因说明
  * - 支持智能平仓与全仓清仓
  * - 处理末日保护无条件清仓
+ *
+ * 卖出委托价规则（业务约束）：
+ * - 限价/增强限价卖单的委托价必须以「执行时行情」为准，不能使用信号生成时的快照价。
+ * - 本模块在决定卖出时使用当前 quote，并写回 signal.price，确保 orderExecutor 提交时用的是执行时价格。
  */
 import { logger } from '../../utils/logger/index.js';
 import { getLongDirectionName, getShortDirectionName, isSellAction } from '../../utils/helpers/index.js';
@@ -127,12 +131,12 @@ export const processSellSignals = (
       // 末日保护程序：无条件清仓，使用全部可用数量
       if (position && position.availableQuantity !== null && position.availableQuantity > 0) {
         sig.quantity = position.availableQuantity;
-        // 设置价格和最小买卖单位（从行情数据获取，仅在缺失时设置）
+        // 委托价必须以执行时行情为准，覆盖流水线可能写入的旧价
         if (quote?.price != null) {
-          sig.price ??= quote.price;
+          sig.price = quote.price;
         }
         if (quote?.lotSize != null) {
-          sig.lotSize ??= quote.lotSize;
+          sig.lotSize = quote.lotSize;
         }
         logger.info(
           `[卖出信号处理] ${signalName}(末日保护): 无条件清仓，卖出数量=${sig.quantity}`,
@@ -169,12 +173,12 @@ export const processSellSignals = (
         sig.reason = result.reason;
         // 设置关联的买入订单ID列表（用于防重追踪）
         sig.relatedBuyOrderIds = result.relatedBuyOrderIds;
-        // 设置价格和最小买卖单位（从行情数据获取，仅在缺失时设置）
+        // 委托价必须以执行时行情为准，覆盖流水线可能写入的旧价
         if (quote?.price != null) {
-          sig.price ??= quote.price;
+          sig.price = quote.price;
         }
         if (quote?.lotSize != null) {
-          sig.lotSize ??= quote.lotSize;
+          sig.lotSize = quote.lotSize;
         }
       }
     }
