@@ -19,7 +19,7 @@ import type {
   Position,
   RawOrderFromAPI,
   SeatSymbolSnapshotEntry,
-  StartupGateMode,
+  GateMode,
   SymbolRegistry,
   TradingDayInfo,
 } from '../../types/index.js';
@@ -47,7 +47,7 @@ export type StartupGateDeps = {
 };
 
 export type StartupGate = {
-  wait(params: { readonly mode: StartupGateMode }): Promise<TradingDayInfo>;
+  wait(params: { readonly mode: GateMode }): Promise<TradingDayInfo>;
 };
 
 /** 启动门禁内部状态（用于日志与循环判断） */

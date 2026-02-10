@@ -588,10 +588,9 @@ export interface SymbolRegistry {
 export type RunMode = 'prod' | 'dev';
 
 /**
- * 门禁模式
+ * 门禁模式（启动门禁与运行时门禁共用）
  */
-export type StartupGateMode = 'strict' | 'skip';
-export type RuntimeGateMode = 'strict' | 'skip';
+export type GateMode = 'strict' | 'skip';
 
 /**
  * 启动阶段的席位标的快照条目

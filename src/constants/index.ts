@@ -72,6 +72,14 @@ export const LOGGING = {
   MAX_RETAINED_LOG_FILES: 7,
 } as const;
 
+/** 日志级别常量（pino 自定义级别：DEBUG=20, INFO=30, WARN=40, ERROR=50） */
+export const LOG_LEVELS = {
+  DEBUG: 20,
+  INFO: 30,
+  WARN: 40,
+  ERROR: 50,
+} as const;
+
 /** 是否为调试模式（环境变量 DEBUG=true 时启用） */
 export const IS_DEBUG = process.env['DEBUG'] === 'true';
 

@@ -19,12 +19,12 @@
  */
 import pino from 'pino';
 import { toBeijingTimeLog } from '../helpers/index.js';
-import { IS_DEBUG, LOGGING } from '../../constants/index.js';
+import { IS_DEBUG, LOGGING, LOG_LEVELS } from '../../constants/index.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Writable } from 'node:stream';
 import { inspect } from 'node:util';
-import { LOG_LEVELS, type LogObject, type Logger } from './types.js';
+import type { LogObject, Logger } from './types.js';
 
 /**
  * 保留目录下仅扩展名匹配且为文件的最新若干条，删除更早的。
