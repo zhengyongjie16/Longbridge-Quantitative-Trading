@@ -10,7 +10,7 @@ description: 编写简洁、易于维护且遵循严格规范的 TypeScript 代�
 ### 基础规范
 
 1. **严格的ts编写**：必须完全遵守[typescript-strict文档](./reference/typescript-strict.md)
-2. **文件命名**：使用小写驼峰命名（camelCase）
+2. **文件命名**：使用小写驼峰命名（camelCase），config/下文件除外
 3. **不可变数据**：所有类型属性使用 `readonly`，数组使用 `ReadonlyArray`，可以视情况宽容（若存在必须要修改的属性可宽容，过多的只读性会影响性能）
 
 ### 架构模式

@@ -93,6 +93,7 @@ const formatExtra = (extra: unknown): string => {
 
 /**
  * 按日期分割的文件流（用于 pino 传输）
+ * 例外：继承 Node.js Writable，与 Stream API 集成，无法改为工厂函数。
  */
 class DateRotatingStream extends Writable {
   private readonly _logSubDir: string;
