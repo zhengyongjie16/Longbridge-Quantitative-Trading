@@ -15,9 +15,7 @@
  * @param deps 依赖注入，包含时间解析、会话判断、开盘保护配置等
  * @returns StartupGate 接口，包含 wait() 方法用于等待条件满足
  */
-import type { StartupGate, StartupGateDeps } from './types.js';
-
-type StartupGateState = 'notTradingDay' | 'outOfSession' | 'openProtection' | 'ready' | null;
+import type { StartupGate, StartupGateDeps, StartupGateState } from './types.js';
 
 export function createStartupGate(deps: StartupGateDeps): StartupGate {
   const {

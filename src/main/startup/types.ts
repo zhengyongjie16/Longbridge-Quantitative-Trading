@@ -50,6 +50,14 @@ export type StartupGate = {
   wait(params: { readonly mode: StartupGateMode }): Promise<TradingDayInfo>;
 };
 
+/** 启动门禁内部状态（用于日志与循环判断） */
+export type StartupGateState =
+  | 'notTradingDay'
+  | 'outOfSession'
+  | 'openProtection'
+  | 'ready'
+  | null;
+
 export type SeatSnapshotInput = {
   readonly monitors: ReadonlyArray<
     Pick<

@@ -6,7 +6,12 @@
  * - 按监控标的方向取最后一条保护性清仓记录
  * - 写入清仓冷却缓存
  */
-import type { TradeLogHydrator, TradeLogHydratorDeps, NormalizedTradeRecord } from './types.js';
+import type {
+  TradeLogHydrator,
+  TradeLogHydratorDeps,
+  NormalizedTradeRecord,
+  RawRecord,
+} from './types.js';
 import type { TradeRecord } from '../../core/trader/types.js';
 import type { SeatSymbolSnapshotEntry } from '../../types/index.js';
 import { buildTradeLogPath } from '../../core/trader/utils.js';
@@ -16,8 +21,6 @@ import {
   toBooleanOrNull,
   resolveCooldownCandidatesBySeat,
 } from './utils.js';
-
-type RawRecord = Record<string, unknown>;
 
 const normalizeTradeRecord = (raw: unknown): NormalizedTradeRecord | null => {
   if (!raw || typeof raw !== 'object') {

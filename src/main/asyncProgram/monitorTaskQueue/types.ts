@@ -6,8 +6,7 @@
  * - MonitorTaskInput：任务入队时的输入结构
  * - MonitorTaskQueue：队列接口
  */
-
-export type TaskAddedCallback = () => void;
+import type { TaskAddedCallback } from '../tradeTaskQueue/types.js';
 
 export type MonitorTask<TType extends string, TData> = Readonly<{
   id: string;

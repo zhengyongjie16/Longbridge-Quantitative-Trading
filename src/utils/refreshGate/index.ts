@@ -16,9 +16,7 @@
  * - 刷新完成后：调用 markFresh(version) 标记为最新
  * - 异步处理器：在读取持仓/账户前调用 waitForFresh() 等待刷新
  */
-import type { RefreshGate, RefreshGateStatus } from './types.js';
-
-type Waiter = () => void;
+import type { RefreshGate, RefreshGateStatus, Waiter } from './types.js';
 
 export function createRefreshGate(): RefreshGate {
   let currentVersion = 0;

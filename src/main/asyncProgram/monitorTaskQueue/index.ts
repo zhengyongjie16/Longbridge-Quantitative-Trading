@@ -17,12 +17,8 @@
  */
 import { randomUUID } from 'node:crypto';
 
-import type {
-  MonitorTask,
-  MonitorTaskInput,
-  MonitorTaskQueue,
-  TaskAddedCallback,
-} from './types.js';
+import type { TaskAddedCallback } from '../tradeTaskQueue/types.js';
+import type { MonitorTask, MonitorTaskInput, MonitorTaskQueue } from './types.js';
 import { removeTasksFromQueue } from './utils.js';
 
 /**
