@@ -241,6 +241,6 @@ export type DailyLossTrackerDeps = {
   ) => OrderOwnership | null;
   readonly classifyAndConvertOrders: (
     orders: ReadonlyArray<RawOrderFromAPI>,
-  ) => { buyOrders: OrderRecord[]; sellOrders: OrderRecord[] };
+  ) => { buyOrders: ReadonlyArray<OrderRecord>; sellOrders: ReadonlyArray<OrderRecord> };
   readonly toBeijingTimeIso: (date: Date | null) => string;
 };

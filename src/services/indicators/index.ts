@@ -34,13 +34,7 @@ import { calculateEMA } from './ema.js';
 import { calculatePSY } from './psy.js';
 import { INDICATOR_CACHE } from '../../constants/index.js';
 import type { CandleData, IndicatorSnapshot } from '../../types/index.js';
-
-/** 缓存条目类型 */
-type IndicatorCalculationCacheEntry = {
-  readonly snapshot: IndicatorSnapshot;
-  readonly timestamp: number;
-  readonly dataFingerprint: string;
-};
+import type { IndicatorCalculationCacheEntry } from './types.js';
 
 /** 指标计算结果缓存 */
 const indicatorCache = new Map<string, IndicatorCalculationCacheEntry>();

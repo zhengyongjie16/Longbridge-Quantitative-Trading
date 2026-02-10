@@ -14,24 +14,10 @@ import { buildExpiryDateFilters, selectBestWarrant } from './utils.js';
 import type {
   FindBestWarrantInput,
   WarrantCandidate,
-  WarrantListCacheConfig,
   WarrantListItem,
+  WarrantListFetchParams,
+  WarrantListRequestParams,
 } from './types.js';
-
-type WarrantListFetchParams = {
-  readonly ctx: FindBestWarrantInput['ctx'];
-  readonly monitorSymbol: string;
-  readonly warrantType: WarrantType;
-  readonly expiryFilters: ReadonlyArray<FilterWarrantExpiryDate>;
-  readonly cacheConfig: WarrantListCacheConfig;
-};
-
-type WarrantListRequestParams = {
-  readonly ctx: FindBestWarrantInput['ctx'];
-  readonly monitorSymbol: string;
-  readonly warrantType: WarrantType;
-  readonly expiryFilters: ReadonlyArray<FilterWarrantExpiryDate>;
-};
 
 /** 构建缓存键：监控标的+牛熊类型+到期日筛选条件 */
 function buildCacheKey(

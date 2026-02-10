@@ -20,6 +20,7 @@ import type {
   MultiMonitorTradingConfig,
   SymbolRegistry,
   RawOrderFromAPI,
+  OrderTypeConfig,
 } from '../../types/index.js';
 import type { LiquidationCooldownTracker } from '../../services/liquidationCooldown/types.js';
 import type { DailyLossTracker } from '../risk/types.js';
@@ -45,6 +46,14 @@ export type OrderPayload = {
   readonly submittedQuantity: Decimal;
   readonly submittedPrice?: Decimal;
   readonly remark?: string;
+};
+
+/**
+ * 订单类型解析配置（信号级覆盖 / 保护性清仓 / 全局类型）
+ */
+export type OrderTypeResolutionConfig = {
+  readonly tradingOrderType: OrderTypeConfig;
+  readonly liquidationOrderType: OrderTypeConfig;
 };
 
 /**

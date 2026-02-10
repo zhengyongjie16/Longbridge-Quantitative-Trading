@@ -11,7 +11,12 @@
  * - 支持 TTL 缓存，避免频繁调用 API
  * - 支持请求去重（inFlight），防止并发请求
  */
-import type { QuoteContext, WarrantStatus, WarrantType } from 'longport';
+import type {
+  FilterWarrantExpiryDate,
+  QuoteContext,
+  WarrantStatus,
+  WarrantType,
+} from 'longport';
 import type { DecimalLike } from '../../utils/helpers/types.js';
 import type { Logger } from '../../utils/logger/types.js';
 
@@ -69,4 +74,21 @@ export type WarrantCandidate = {
   readonly distancePct: number;
   readonly turnover: number;
   readonly turnoverPerMinute: number;
+};
+
+/** 请求牛熊证列表的入参（带缓存配置） */
+export type WarrantListFetchParams = {
+  readonly ctx: FindBestWarrantInput['ctx'];
+  readonly monitorSymbol: string;
+  readonly warrantType: WarrantType;
+  readonly expiryFilters: ReadonlyArray<FilterWarrantExpiryDate>;
+  readonly cacheConfig: WarrantListCacheConfig;
+};
+
+/** 请求牛熊证列表的入参（无缓存） */
+export type WarrantListRequestParams = {
+  readonly ctx: FindBestWarrantInput['ctx'];
+  readonly monitorSymbol: string;
+  readonly warrantType: WarrantType;
+  readonly expiryFilters: ReadonlyArray<FilterWarrantExpiryDate>;
 };

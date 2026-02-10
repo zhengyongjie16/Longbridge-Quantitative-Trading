@@ -73,8 +73,8 @@ function convertOrderToRecord(
 export function classifyAndConvertOrders(
   orders: ReadonlyArray<RawOrderFromAPI>,
 ): {
-  buyOrders: OrderRecord[];
-  sellOrders: OrderRecord[];
+  buyOrders: ReadonlyArray<OrderRecord>;
+  sellOrders: ReadonlyArray<OrderRecord>;
 } {
   const buyOrders: OrderRecord[] = [];
   const sellOrders: OrderRecord[] = [];

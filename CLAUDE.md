@@ -1,11 +1,7 @@
-# 港股量化交易系统
-
-基于 LongPort OpenAPI / Node.js / TypeScript 的港股自动化量化交易系统。
-
 ## 项目概述
 
+**系统简介**：基于 LongPort OpenAPI / Node.js / TypeScript 的港股自动化量化交易系统。
 **核心功能**：监控目标资产的技术指标 → 生成交易信号 → 在轮证/ETF上执行双向交易
-
 **技术栈**：TypeScript (ES2022) + Node.js + LongPort OpenAPI + pino 日志
 
 ## 项目结构

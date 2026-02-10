@@ -19,6 +19,7 @@ import { NON_REPLACEABLE_ORDER_STATUSES, NON_REPLACEABLE_ORDER_TYPES } from '../
 import type { OrderTypeConfig, Signal } from '../../types/index.js';
 import type {
   OrderSubmitResponse,
+  OrderTypeResolutionConfig,
   PendingSellOrderSnapshot,
   SellMergeDecision,
   SellMergeDecisionInput,
@@ -60,11 +61,6 @@ export function getOrderTypeCode(orderType: OrderType): string {
 export const buildTradeLogPath = (cwd: string, date: Date): string => {
   const dayKey = date.toISOString().split('T')[0];
   return path.join(cwd, 'logs', 'trades', `${dayKey}.json`);
-};
-
-type OrderTypeResolutionConfig = {
-  readonly tradingOrderType: OrderTypeConfig;
-  readonly liquidationOrderType: OrderTypeConfig;
 };
 
 function isOrderSubmitResponse(value: unknown): value is OrderSubmitResponse {

@@ -20,7 +20,7 @@
 import { evaluateSignalConfig } from '../../utils/helpers/signalConfigParser.js';
 import { isBuyAction, isSellAction } from '../../utils/helpers/index.js';
 import { signalObjectPool, indicatorRecordPool } from '../../utils/objectPool/index.js';
-import { getIndicatorValue, isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
+import { getIndicatorValue } from '../../utils/helpers/indicatorHelpers.js';
 import { TIME } from '../../constants/index.js';
 import type {
   Signal,
@@ -29,27 +29,21 @@ import type {
   SignalConfig,
   SignalConfigSet,
   SignalType,
-  SingleVerificationConfig,
 } from '../../types/index.js';
-import type { StrategyConfig, SignalGenerationResult, HangSengMultiIndicatorStrategy } from './types.js';
-
-/**
- * 判断是否需要延迟验证
- * @param config 验证配置
- * @returns true 需要延迟验证，false 立即执行
- */
-const needsDelayedVerification = (config: SingleVerificationConfig): boolean => {
-  return config.delaySeconds > 0 && config.indicators != null && config.indicators.length > 0;
-};
-
-/** 信号类型分类：立即执行或延迟验证 */
-type SignalTypeCategory = 'immediate' | 'delayed';
-
-/** 带分类标记的信号（内部使用） */
-type SignalWithCategory = {
-  readonly signal: Signal;
-  readonly isImmediate: boolean;
-};
+import type {
+  StrategyConfig,
+  SignalGenerationResult,
+  HangSengMultiIndicatorStrategy,
+  SignalTypeCategory,
+  SignalWithCategory,
+} from './types.js';
+import {
+  needsDelayedVerification,
+  validateBasicIndicators,
+  validateAllIndicators,
+  buildIndicatorDisplayString,
+  pushSignalToCorrectArray,
+} from './utils.js';
 
 /**
  * 创建恒生多指标策略
@@ -63,7 +57,6 @@ export const createHangSengMultiIndicatorStrategy = ({
     sell: { delaySeconds: 60, indicators: ['K', 'MACD'] },
   },
 }: Partial<StrategyConfig> = {}): HangSengMultiIndicatorStrategy => {
-  // 配置通过闭包捕获（不可变）
   const finalSignalConfig: SignalConfigSet = signalConfig || {
     buycall: null,
     sellcall: null,
@@ -76,53 +69,11 @@ export const createHangSengMultiIndicatorStrategy = ({
     sell: { delaySeconds: 60, indicators: ['K', 'MACD'] },
   };
 
-  // 预计算信号类型映射（策略创建时计算一次）
   const signalTypeMap: Record<string, SignalTypeCategory> = {
     BUYCALL: needsDelayedVerification(finalVerificationConfig.buy) ? 'delayed' : 'immediate',
     SELLCALL: needsDelayedVerification(finalVerificationConfig.sell) ? 'delayed' : 'immediate',
     BUYPUT: needsDelayedVerification(finalVerificationConfig.buy) ? 'delayed' : 'immediate',
     SELLPUT: needsDelayedVerification(finalVerificationConfig.sell) ? 'delayed' : 'immediate',
-  };
-
-  /**
-   * 验证基本指标有效性（RSI、MFI、KDJ）
-   * @returns true 所有基本指标有效
-   */
-  const validateBasicIndicators = (state: IndicatorSnapshot): boolean => {
-    const { rsi, mfi, kdj } = state;
-
-    // 检查 rsi 对象是否存在且至少有一个有效的周期值
-    let hasValidRsi = false;
-    if (rsi && typeof rsi === 'object') {
-      for (const period in rsi) {
-        if (isValidNumber(rsi[period as unknown as number])) {
-          hasValidRsi = true;
-          break;
-        }
-      }
-    }
-
-    return (
-      hasValidRsi &&
-      isValidNumber(mfi) &&
-      kdj !== null &&
-      isValidNumber(kdj.d) &&
-      isValidNumber(kdj.j)
-    );
-  };
-
-  /**
-   * 验证所有指标有效性（基本指标 + MACD + 价格）
-   * @returns true 所有指标有效
-   */
-  const validateAllIndicators = (state: IndicatorSnapshot): boolean => {
-    const { macd, price } = state;
-    return (
-      validateBasicIndicators(state) &&
-      macd !== null &&
-      isValidNumber(macd.macd) &&
-      isValidNumber(price)
-    );
   };
 
   /**
@@ -173,50 +124,6 @@ export const createHangSengMultiIndicatorStrategy = ({
       default:
         return null;
     }
-  };
-
-  /**
-   * 构建指标状态显示字符串
-   * @returns 格式化的指标值字符串，用于日志记录
-   */
-  const buildIndicatorDisplayString = (state: IndicatorSnapshot): string => {
-    const { rsi, mfi, kdj } = state;
-    const parts: string[] = [];
-
-    // 遍历所有 RSI 周期值
-    if (rsi && typeof rsi === 'object') {
-      // 按周期从小到大排序
-      const periods = Object.keys(rsi)
-        .map((p) => Number.parseInt(p, 10))
-        .filter((p) => Number.isFinite(p))
-        .sort((a, b) => a - b);
-      for (const period of periods) {
-        const rsiValue = rsi[period];
-        if (isValidNumber(rsiValue)) {
-          parts.push(`RSI${period}(${rsiValue.toFixed(3)})`);
-        }
-      }
-    }
-    if (isValidNumber(mfi)) {
-      parts.push(`MFI(${mfi.toFixed(3)})`);
-    }
-    if (kdj) {
-      const kdjParts: string[] = [];
-      if (isValidNumber(kdj.k)) {
-        kdjParts.push(`K=${kdj.k.toFixed(3)}`);
-      }
-      if (isValidNumber(kdj.d)) {
-        kdjParts.push(`D=${kdj.d.toFixed(3)}`);
-      }
-      if (isValidNumber(kdj.j)) {
-        kdjParts.push(`J=${kdj.j.toFixed(3)}`);
-      }
-      if (kdjParts.length > 0) {
-        parts.push(`KDJ(${kdjParts.join(',')})`);
-      }
-    }
-
-    return parts.join('、');
   };
 
   /**
@@ -349,21 +256,6 @@ export const createHangSengMultiIndicatorStrategy = ({
     )} 进行验证`;
 
     return { signal, isImmediate: false };
-  };
-
-  /** 将信号按类型分流到对应数组 */
-  const pushSignalToCorrectArray = (
-    result: SignalWithCategory | null,
-    immediateSignals: Signal[],
-    delayedSignals: Signal[],
-  ): void => {
-    if (!result) return;
-
-    if (result.isImmediate) {
-      immediateSignals.push(result.signal);
-    } else {
-      delayedSignals.push(result.signal);
-    }
   };
 
   return {

@@ -8,6 +8,15 @@
  */
 import type { SignalConfigSet, VerificationConfig, Signal, IndicatorSnapshot, OrderRecorder } from '../../types/index.js';
 
+/** 信号类型分类：立即执行或延迟验证 */
+export type SignalTypeCategory = 'immediate' | 'delayed';
+
+/** 带分类标记的信号（策略内部使用） */
+export type SignalWithCategory = {
+  readonly signal: Signal;
+  readonly isImmediate: boolean;
+};
+
 /**
  * 策略配置
  * @property signalConfig - 信号触发条件配置（BUYCALL/SELLCALL/BUYPUT/SELLPUT）

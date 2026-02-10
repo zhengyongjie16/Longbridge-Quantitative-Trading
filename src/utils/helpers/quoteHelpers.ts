@@ -89,7 +89,7 @@ export function collectRuntimeQuoteSymbols(
 export function diffQuoteSymbols(
   prevSymbols: ReadonlySet<string>,
   nextSymbols: ReadonlySet<string>,
-): { added: string[]; removed: string[] } {
+): { added: ReadonlyArray<string>; removed: ReadonlyArray<string> } {
   const added: string[] = [];
   const removed: string[] = [];
 
