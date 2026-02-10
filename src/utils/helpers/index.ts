@@ -23,6 +23,7 @@ import type {
   IndicatorSnapshot,
   MonitorConfig,
   MonitorState,
+  Quote,
   SignalType,
 } from '../../types/index.js';
 import { inspect } from 'node:util';
@@ -225,7 +226,7 @@ export function toBeijingTimeLog(date: Date | null = null): string {
  * @param symbol 标的代码
  * @returns 格式化后的行情显示对象，如果quote无效则返回null
  */
-export function formatQuoteDisplay(quote: import('../../types/index.js').Quote | null, symbol: string): QuoteDisplayResult | null {
+export function formatQuoteDisplay(quote: Quote | null, symbol: string): QuoteDisplayResult | null {
   if (!quote) {
     return null;
   }
@@ -272,7 +273,7 @@ export function formatQuoteDisplay(quote: import('../../types/index.js').Quote |
  * @param symbol 标的代码
  * @returns 格式化后的标的显示字符串
  */
-export function formatSymbolDisplayFromQuote(quote: import('../../types/index.js').Quote | null | undefined, symbol: string): string {
+export function formatSymbolDisplayFromQuote(quote: Quote | null | undefined, symbol: string): string {
   if (quote) {
     const display = formatQuoteDisplay(quote, symbol);
     return display ? `${display.nameText}(${display.codeText})` : symbol;

@@ -119,7 +119,8 @@ class DateRotatingStream extends Writable {
   private _getCurrentDate(): string {
     const timestamp = toBeijingTimeLog(new Date());
     // 从 "YYYY-MM-DD HH:mm:ss.sss" 提取日期部分
-    return timestamp.split(' ')[0]!;
+    const datePart = timestamp.split(' ').at(0);
+    return datePart ?? '';
   }
 
   /**
