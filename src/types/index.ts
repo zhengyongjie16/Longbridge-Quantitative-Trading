@@ -697,7 +697,7 @@ export type MonitorContext = {
   /** 风险检查器 */
   readonly riskChecker: RiskChecker;
   /** 浮亏监控器 */
-  readonly unrealizedLossMonitor: import('../core/unrealizedLossMonitor/types.js').UnrealizedLossMonitor;
+  readonly unrealizedLossMonitor: import('../core/riskController/types.js').UnrealizedLossMonitor;
   /** 延迟信号验证器 */
   readonly delayedSignalVerifier: import('../main/asyncProgram/delayedSignalVerifier/types.js').DelayedSignalVerifier;
   /** 做多标的名称缓存 */
