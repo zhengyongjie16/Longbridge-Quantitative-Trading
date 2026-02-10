@@ -21,7 +21,7 @@ import { logger } from '../../utils/logger/index.js';
 import { isValidPositiveNumber, formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import type { Quote, Signal, RiskChecker, Trader, OrderRecorder } from '../../types/index.js';
-import type { DailyLossTracker } from '../risk/types.js';
+import type { DailyLossTracker } from '../riskController/types.js';
 import type { UnrealizedLossMonitor, UnrealizedLossMonitorContext, UnrealizedLossMonitorDeps } from './types.js';
 
 /** 创建浮亏监控器（通过依赖注入配置最大浮亏阈值） */

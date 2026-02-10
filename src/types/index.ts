@@ -693,7 +693,7 @@ export type MonitorContext = {
   /** 订单记录器 */
   readonly orderRecorder: OrderRecorder;
   /** 当日亏损跟踪器 */
-  readonly dailyLossTracker: import('../core/risk/types.js').DailyLossTracker;
+  readonly dailyLossTracker: import('../core/riskController/types.js').DailyLossTracker;
   /** 风险检查器 */
   readonly riskChecker: RiskChecker;
   /** 浮亏监控器 */

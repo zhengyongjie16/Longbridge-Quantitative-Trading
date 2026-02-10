@@ -25,7 +25,7 @@ import type {
   Trader,
   MultiMonitorTradingConfig,
 } from '../../../types/index.js';
-import type { DailyLossTracker } from '../../../core/risk/types.js';
+import type { DailyLossTracker } from '../../../core/riskController/types.js';
 import type { UnrealizedLossMonitor } from '../../../core/unrealizedLossMonitor/types.js';
 
 export type SeatSnapshot = Readonly<{

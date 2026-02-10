@@ -23,7 +23,7 @@ import type {
   OrderTypeConfig,
 } from '../../types/index.js';
 import type { LiquidationCooldownTracker } from '../../services/liquidationCooldown/types.js';
-import type { DailyLossTracker } from '../risk/types.js';
+import type { DailyLossTracker } from '../riskController/types.js';
 import type { RefreshGate } from '../../utils/refreshGate/types.js';
 
 /**
