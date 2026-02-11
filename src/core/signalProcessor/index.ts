@@ -36,9 +36,14 @@ export const createSignalProcessor = ({
     lastRiskCheckTime,
   });
 
+  const resetRiskCheckCooldown = (): void => {
+    lastRiskCheckTime.clear();
+  };
+
   return {
     processSellSignals,
     applyRiskChecks,
+    resetRiskCheckCooldown,
   };
 };
 

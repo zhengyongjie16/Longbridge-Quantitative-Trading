@@ -5,7 +5,7 @@
  */
 import type { MonitorContext, Trader, LastState } from '../../../types/index.js';
 import type { RefreshGate } from '../../../utils/refreshGate/types.js';
-import type { SellTaskQueue } from '../types.js';
+import type { TaskQueue, SellTaskType } from '../tradeTaskQueue/types.js';
 import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
 
 /**
@@ -15,7 +15,7 @@ import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
  */
 export type SellProcessorDeps = {
   /** 卖出任务队列 */
-  readonly taskQueue: SellTaskQueue;
+  readonly taskQueue: TaskQueue<SellTaskType>;
   /** 获取监控上下文的函数 */
   readonly getMonitorContext: (monitorSymbol: string) => MonitorContext | undefined;
   /** 信号处理器（计算卖出数量） */
@@ -26,4 +26,6 @@ export type SellProcessorDeps = {
   readonly getLastState: () => LastState;
   /** 刷新门禁（等待缓存刷新） */
   readonly refreshGate: RefreshGate;
+  /** 生命周期门禁：false 时跳过任务执行 */
+  readonly getCanProcessTask?: () => boolean;
 };

@@ -4,7 +4,7 @@
  * 定义买入处理器的接口契约和依赖注入类型
  */
 import type { MonitorContext, Trader, LastState } from '../../../types/index.js';
-import type { BuyTaskQueue } from '../types.js';
+import type { TaskQueue, BuyTaskType } from '../tradeTaskQueue/types.js';
 import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
 import type { DoomsdayProtection } from '../../../core/doomsdayProtection/types.js';
 
@@ -15,7 +15,7 @@ import type { DoomsdayProtection } from '../../../core/doomsdayProtection/types.
  */
 export type BuyProcessorDeps = {
   /** 买入任务队列 */
-  readonly taskQueue: BuyTaskQueue;
+  readonly taskQueue: TaskQueue<BuyTaskType>;
   /** 获取监控上下文的函数 */
   readonly getMonitorContext: (monitorSymbol: string) => MonitorContext | undefined;
   /** 信号处理器（风险检查） */
@@ -28,4 +28,6 @@ export type BuyProcessorDeps = {
   readonly getLastState: () => LastState;
   /** 获取是否半日市的函数 */
   readonly getIsHalfDay: () => boolean;
+  /** 生命周期门禁：false 时跳过任务执行 */
+  readonly getCanProcessTask?: () => boolean;
 };

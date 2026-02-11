@@ -40,6 +40,14 @@ export const TRADING = {
 export const AUTO_SYMBOL_SEARCH_COOLDOWN_MS = 30_000;
 export const AUTO_SYMBOL_WARRANT_LIST_CACHE_TTL_MS = 3_000;
 
+/** 生命周期重建相关常量 */
+export const LIFECYCLE = {
+  /** 开盘重建失败后首次重试间隔（毫秒） */
+  DEFAULT_REBUILD_RETRY_DELAY_MS: 30_000,
+  /** 指数退避最大倍数，避免重试间隔无限增大 */
+  MAX_RETRY_BACKOFF_FACTOR: 16,
+} as const;
+
 /** 指标默认周期常量 */
 export const DEFAULT_EMA_PERIOD = 7;
 export const DEFAULT_RSI_PERIOD = 6;

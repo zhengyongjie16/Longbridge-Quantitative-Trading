@@ -112,6 +112,7 @@ export type AutoSymbolManager = {
   maybeSwitchOnDistance(params: SwitchOnDistanceParams): Promise<void>;
   hasPendingSwitch(direction: SeatDirection): boolean;
   resetDailySwitchSuppression(): void;
+  resetAllState(): void;
 };
 
 type SignalObjectPool = Pick<ObjectPool<PoolableSignal>, 'acquire' | 'release'>;

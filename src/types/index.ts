@@ -593,6 +593,16 @@ export type RunMode = 'prod' | 'dev';
 export type GateMode = 'strict' | 'skip';
 
 /**
+ * 生命周期状态（7x24 跨日缓存治理）
+ */
+export type LifecycleState =
+  | 'ACTIVE'
+  | 'MIDNIGHT_CLEANING'
+  | 'MIDNIGHT_CLEANED'
+  | 'OPEN_REBUILDING'
+  | 'OPEN_REBUILD_FAILED';
+
+/**
  * 启动阶段的席位标的快照条目
  */
 export type SeatSymbolSnapshotEntry = {
@@ -649,6 +659,14 @@ export type LastState = {
   openProtectionActive: boolean | null;
   /** 当前港股日期键（用于跨日检测） */
   currentDayKey: string | null;
+  /** 生命周期状态 */
+  lifecycleState: LifecycleState;
+  /** 是否待开盘重建 */
+  pendingOpenRebuild: boolean;
+  /** 目标交易日键（待重建） */
+  targetTradingDayKey: string | null;
+  /** 生命周期交易门禁（仅 ACTIVE 为 true） */
+  isTradingEnabled: boolean;
   /** 账户快照缓存 */
   cachedAccount: AccountSnapshot | null;
   /** 持仓列表缓存 */
@@ -801,6 +819,9 @@ export interface MarketDataClient {
   /** 判断指定日期是否为交易日 */
   isTradingDay(date: Date, market?: Market): Promise<TradingDayInfo>;
 
+  /** 重置运行期订阅与缓存（跨日午夜清理） */
+  resetRuntimeSubscriptionsAndCaches(): Promise<void>;
+
 }
 
 /**
@@ -940,6 +961,12 @@ export interface OrderRecorder {
   markSellPartialFilled(orderId: string, filledQuantity: number): PendingSellInfo | null;
   /** 标记卖出订单取消 */
   markSellCancelled(orderId: string): PendingSellInfo | null;
+  /** 恢复期：为待恢复的卖单分配关联买单 ID */
+  allocateRelatedBuyOrderIdsForRecovery(
+    symbol: string,
+    direction: 'LONG' | 'SHORT',
+    quantity: number,
+  ): readonly string[];
   /** 获取可卖出的盈利订单（核心防重逻辑） */
   getProfitableSellOrders(
     symbol: string,
@@ -947,6 +974,8 @@ export interface OrderRecorder {
     currentPrice: number,
     maxSellQuantity?: number,
   ): { orders: ReadonlyArray<OrderRecord>; totalQuantity: number };
+  /** 重置全部订单记录与 API 缓存 */
+  resetAll(): void;
 }
 
 /**
@@ -987,6 +1016,10 @@ export interface Trader {
   _canTradeNow(signalAction: string, monitorConfig?: MonitorConfig | null): TradeCheckResult;
   /** 标记买入意图（预占时间槽，防止并发） */
   _markBuyAttempt(signalAction: string, monitorConfig?: MonitorConfig | null): void;
+  /** 生命周期午夜清理：重置订单运行态缓存 */
+  _resetRuntimeState(): void;
+  /** 生命周期开盘重建：恢复订单追踪 */
+  _recoverOrderTracking(): Promise<void>;
   /** 执行交易信号 */
   executeSignals(signals: Signal[]): Promise<void>;
 }
@@ -1225,6 +1258,8 @@ export interface RiskChecker {
     currentPrice: number,
     isLongSymbol: boolean,
   ): UnrealizedLossCheckResult;
+  /** 清空浮亏缓存（symbol 为空时清空全部） */
+  clearUnrealizedLossData(symbol?: string | null): void;
 }
 
 

@@ -36,7 +36,9 @@ export type StaticInfo = {
 /**
  * 交易日缓存依赖类型
  */
-export type TradingDayCacheDeps = Record<string, never>;
+export type TradingDayCacheDeps = {
+  readonly [key: string]: never;
+};
 
 /**
  * 行情数据客户端依赖类型
@@ -45,3 +47,6 @@ export type MarketDataClientDeps = {
   readonly config: Config;
 };
 
+/**
+ * 行情客户端扩展：包含运行期重置方法
+ */

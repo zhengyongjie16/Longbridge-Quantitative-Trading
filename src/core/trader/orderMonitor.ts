@@ -34,6 +34,7 @@ import type {
   TrackedOrder,
   OrderMonitorConfig,
   PendingSellOrderSnapshot,
+  TrackOrderParams,
 } from './types.js';
 import { recordTrade } from './tradeLogger.js';
 
@@ -97,6 +98,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     tradingConfig,
     symbolRegistry,
     refreshGate,
+    isExecutionAllowed,
   } = deps;
   const config = buildOrderMonitorConfig(tradingConfig.global);
 
@@ -309,17 +311,18 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
   }
 
   /** 开始追踪订单（订单提交后调用） */
-  function trackOrder(
-    orderId: string,
-    symbol: string,
-    side: OrderSide,
-    price: number,
-    quantity: number,
-    isLongSymbol: boolean,
-    monitorSymbol: string | null,
-    isProtectiveLiquidation: boolean,
-    orderType: OrderType,
-  ): void {
+  function trackOrder(params: TrackOrderParams): void {
+    const {
+      orderId,
+      symbol,
+      side,
+      price,
+      quantity,
+      isLongSymbol,
+      monitorSymbol,
+      isProtectiveLiquidation,
+      orderType,
+    } = params;
     const now = Date.now();
 
     orderHoldRegistry.trackOrder(String(orderId), symbol);
@@ -374,19 +377,20 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
 
       // 获取已成交数量（用于部分成交订单的正确恢复）
       const executedQuantity = decimalToNumber(order.executedQuantity);
+      const submittedQuantity = decimalToNumber(order.quantity);
 
       // 重新追踪未完成的订单
-      trackOrder(
-        order.orderId,
+      trackOrder({
+        orderId: order.orderId,
         symbol,
-        order.side,
-        decimalToNumber(order.price),
-        decimalToNumber(order.quantity),
+        side: order.side,
+        price: decimalToNumber(order.price),
+        quantity: submittedQuantity,
         isLongSymbol,
         monitorSymbol,
-        false,
-        order.orderType,
-      );
+        isProtectiveLiquidation: false,
+        orderType: order.orderType,
+      });
 
       // trackOrder 内部会将 executedQuantity 设为 0，这里需要更新为实际已成交数量
       const trackedOrder = trackedOrders.get(order.orderId);
@@ -395,6 +399,26 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
         logger.debug(
           `[订单监控] 恢复部分成交订单 ${order.orderId}，已成交数量=${executedQuantity}`,
         );
+      }
+
+      // 恢复期：未完成卖单同步恢复 pendingSells，避免跨日后 getProfitableSellOrders 重复分配
+      if (order.side === OrderSide.Sell && submittedQuantity > 0) {
+        const direction = isLongSymbol ? 'LONG' : 'SHORT';
+        const relatedBuyOrderIds = orderRecorder.allocateRelatedBuyOrderIdsForRecovery(
+          symbol,
+          direction,
+          submittedQuantity,
+        );
+        orderRecorder.submitSellOrder(
+          order.orderId,
+          symbol,
+          direction,
+          submittedQuantity,
+          relatedBuyOrderIds,
+        );
+        if (executedQuantity > 0) {
+          orderRecorder.markSellPartialFilled(order.orderId, executedQuantity);
+        }
       }
 
       recoveredCount++;
@@ -536,9 +560,27 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
         );
         return;
       }
+      const cancelledPending = orderRecorder.markSellCancelled(orderId);
+
+      // 门禁检查：禁止在门禁关闭时发起新开单（撤销已执行，仅阻止市价单提交）
+      if (!isExecutionAllowed()) {
+        logger.info(
+          `[执行门禁] 门禁关闭，卖出订单 ${orderId} 超时转市价单被阻止，原订单已撤销`,
+        );
+        return;
+      }
 
       // 2. 撤销成功后，使用市价单重新提交
       const ctx = await ctxPromise;
+
+      // 二次门禁检查（await 后状态可能变化）
+      if (!isExecutionAllowed()) {
+        logger.info(
+          `[执行门禁] 门禁已关闭，卖出订单 ${orderId} 转市价单被阻止，原订单已撤销`,
+        );
+        return;
+      }
+
       const marketOrderPayload = {
         symbol: order.symbol,
         side: order.side,
@@ -549,9 +591,29 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       };
 
       await rateLimiter.throttle();
+      if (!isExecutionAllowed()) {
+        logger.info(
+          `[执行门禁] 门禁已关闭，卖出订单 ${orderId} 转市价单在提交前被阻止，原订单已撤销`,
+        );
+        return;
+      }
       const resp = await ctx.submitOrder(marketOrderPayload);
 
       const newOrderId = (resp as { orderId?: string })?.orderId ?? 'UNKNOWN';
+      const direction: 'LONG' | 'SHORT' = order.isLongSymbol ? 'LONG' : 'SHORT';
+      const relatedBuyOrderIds = cancelledPending?.relatedBuyOrderIds ??
+        orderRecorder.allocateRelatedBuyOrderIdsForRecovery(
+          order.symbol,
+          direction,
+          remainingQuantity,
+        );
+      orderRecorder.submitSellOrder(
+        String(newOrderId),
+        order.symbol,
+        direction,
+        remainingQuantity,
+        relatedBuyOrderIds,
+      );
 
       logger.info(
         `[订单监控] 卖出订单 ${orderId} 已转为市价单，新订单ID=${newOrderId}，数量=${remainingQuantity}`,
@@ -559,17 +621,17 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
 
       // 追踪新的市价单（市价单通常很快成交，但仍需追踪）
       // 继承原订单的 isLongSymbol，确保成交后能正确更新本地记录
-      trackOrder(
-        String(newOrderId),
-        order.symbol,
-        order.side,
-        0,                    // 市价单无价格
-        remainingQuantity,
-        order.isLongSymbol,   // 继承原订单的做多/做空标识
-        order.monitorSymbol,
-        order.isProtectiveLiquidation,
-        OrderType.MO,
-      );
+      trackOrder({
+        orderId: String(newOrderId),
+        symbol: order.symbol,
+        side: order.side,
+        price: 0, // 市价单无价格
+        quantity: remainingQuantity,
+        isLongSymbol: order.isLongSymbol, // 继承原订单的做多/做空标识
+        monitorSymbol: order.monitorSymbol,
+        isProtectiveLiquidation: order.isProtectiveLiquidation,
+        orderType: OrderType.MO,
+      });
 
       // 标记新订单已转换为市价单（避免再次转换）
       const newTrackedOrder = trackedOrders.get(String(newOrderId));
@@ -697,6 +759,12 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     return pendingRefreshSymbols.splice(0);
   }
 
+  /** 清空 trackedOrders 与 pendingRefreshSymbols */
+  function clearTrackedOrders(): void {
+    trackedOrders.clear();
+    pendingRefreshSymbols.length = 0;
+  }
+
   return {
     initialize,
     trackOrder,
@@ -706,5 +774,6 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     recoverTrackedOrders,
     getPendingSellOrders,
     getAndClearPendingRefreshSymbols,
+    clearTrackedOrders,
   };
 }

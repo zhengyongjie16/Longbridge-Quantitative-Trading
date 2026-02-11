@@ -143,10 +143,14 @@ export type MonitorTaskProcessorDeps = Readonly<{
   readonly trader: Trader;
   readonly lastState: LastState;
   readonly tradingConfig: MultiMonitorTradingConfig;
+  /** 生命周期门禁：false 时任务直接跳过 */
+  readonly getCanProcessTask?: () => boolean;
   readonly onProcessed?: (task: MonitorTask<MonitorTaskType, MonitorTaskData>, status: MonitorTaskStatus) => void;
 }>;
 
 export type MonitorTaskProcessor = Readonly<{
   start: () => void;
   stop: () => void;
+  stopAndDrain: () => Promise<void>;
+  restart: () => void;
 }>;

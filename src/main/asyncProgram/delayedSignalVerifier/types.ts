@@ -78,6 +78,12 @@ export interface DelayedSignalVerifier {
   cancelAllForDirection(monitorSymbol: string, direction: 'LONG' | 'SHORT'): number;
 
   /**
+   * 取消所有待验证信号（清理定时器并释放信号）
+   * @returns 已取消的信号数量
+   */
+  cancelAll(): number;
+
+  /**
    * 获取待验证信号数量
    */
   getPendingCount(): number;

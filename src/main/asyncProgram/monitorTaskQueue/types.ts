@@ -32,5 +32,7 @@ export type MonitorTaskQueue<TType extends string, TData> = Readonly<{
     predicate: (task: MonitorTask<TType, TData>) => boolean,
     onRemove?: (task: MonitorTask<TType, TData>) => void,
   ) => number;
-  onTaskAdded: (callback: TaskAddedCallback) => void;
+  clearAll: (onRemove?: (task: MonitorTask<TType, TData>) => void) => number;
+  onTaskAdded: (callback: TaskAddedCallback) => () => void;
+  offTaskAdded: (callback: TaskAddedCallback) => void;
 }>;

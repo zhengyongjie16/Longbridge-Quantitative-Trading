@@ -38,7 +38,8 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
     releaseSignal,
     releasePosition,
   } = params;
-  const { canTradeNow, openProtectionActive } = runtimeFlags;
+  const { canTradeNow, openProtectionActive, isTradingEnabled } = runtimeFlags;
+  const canEnqueue = isTradingEnabled && canTradeNow;
   const { strategy, orderRecorder, delayedSignalVerifier } = monitorContext;
   const { lastState, buyTaskQueue, sellTaskQueue } = mainContext;
   const {
@@ -148,7 +149,7 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
         continue;
       }
 
-      if (canTradeNow) {
+      if (canEnqueue) {
         logger.info(`[立即信号] ${formatSignalLog(signal)}`);
 
         const isSellSignal = isSellAction(signal.action);
@@ -167,7 +168,10 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
           });
         }
       } else {
-        logger.info(`[立即信号] ${formatSignalLog(signal)}（非交易时段，暂不执行）`);
+        const reason = !isTradingEnabled
+          ? '交易门禁关闭，暂不执行'
+          : '非交易时段，暂不执行';
+        logger.info(`[立即信号] ${formatSignalLog(signal)}（${reason}）`);
         releaseSignal(signal);
       }
     }
@@ -177,11 +181,14 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
         continue;
       }
 
-      if (canTradeNow) {
+      if (canEnqueue) {
         logger.info(`[延迟验证信号] ${formatSignalLog(signal)}`);
         delayedSignalVerifier.addSignal(signal, monitorSymbol);
       } else {
-        logger.info(`[延迟验证信号] ${formatSignalLog(signal)}（非交易时段，暂不添加验证）`);
+        const reason = !isTradingEnabled
+          ? '交易门禁关闭，暂不添加验证'
+          : '非交易时段，暂不添加验证';
+        logger.info(`[延迟验证信号] ${formatSignalLog(signal)}（${reason}）`);
         releaseSignal(signal);
       }
     }

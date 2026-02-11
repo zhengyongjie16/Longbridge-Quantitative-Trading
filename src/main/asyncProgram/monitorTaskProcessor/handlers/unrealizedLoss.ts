@@ -29,10 +29,12 @@ export function createUnrealizedLossHandler({
   getContextOrSkip,
   refreshGate,
   trader,
+  getCanProcessTask,
 }: {
   readonly getContextOrSkip: (monitorSymbol: string) => MonitorTaskContext | null;
   readonly refreshGate: RefreshGate;
   readonly trader: Trader;
+  readonly getCanProcessTask?: () => boolean;
 }): (
   task: MonitorTask<MonitorTaskType, MonitorTaskData>,
 ) => Promise<MonitorTaskStatus> {
@@ -68,6 +70,10 @@ export function createUnrealizedLossHandler({
     const shortQuote = isShortReady ? data.short.quote : null;
 
     if (!longSymbol && !shortSymbol) {
+      return 'skipped';
+    }
+
+    if (getCanProcessTask && !getCanProcessTask()) {
       return 'skipped';
     }
 

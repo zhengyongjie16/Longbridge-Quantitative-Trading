@@ -23,7 +23,7 @@ import { formatError, formatSymbolDisplay, isBuyAction } from '../../../utils/he
 import { isSeatReady, isSeatVersionMatch } from '../../../services/autoSymbolManager/utils.js';
 import type { Processor } from '../types.js';
 import type { BuyProcessorDeps } from './types.js';
-import type { BuyTask } from '../tradeTaskQueue/types.js';
+import type { Task, BuyTaskType } from '../tradeTaskQueue/types.js';
 import type { RiskCheckContext } from '../../../types/index.js';
 
 /**
@@ -32,13 +32,22 @@ import type { RiskCheckContext } from '../../../types/index.js';
  * @returns 实现 Processor 接口的买入处理器实例
  */
 export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
-  const { taskQueue, getMonitorContext, signalProcessor, trader, doomsdayProtection, getLastState, getIsHalfDay } = deps;
+  const {
+    taskQueue,
+    getMonitorContext,
+    signalProcessor,
+    trader,
+    doomsdayProtection,
+    getLastState,
+    getIsHalfDay,
+    getCanProcessTask,
+  } = deps;
 
   /**
    * 处理单个买入任务
    * 注意：卖出信号由 SellProcessor 处理，此处只处理买入信号
    */
-  async function processTask(task: BuyTask): Promise<boolean> {
+  async function processTask(task: Task<BuyTaskType>): Promise<boolean> {
     const signal = task.data;
     const monitorSymbol = task.monitorSymbol;
     // 缓存格式化后的标的显示（用于日志）
@@ -153,6 +162,12 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
       signal.price = quote.price;
       signal.lotSize = quote.lotSize;
 
+      // 二次门禁：避免跨日门禁切换期间在途任务继续下单
+      if (getCanProcessTask && !getCanProcessTask()) {
+        logger.info(`[BuyProcessor] 生命周期门禁关闭，放弃执行: ${symbolDisplay} ${signal.action}`);
+        return true;
+      }
+
       // 执行买入订单
       await trader.executeSignals([signal]);
       logger.info(`[BuyProcessor] 买入订单执行完成: ${symbolDisplay} ${signal.action}`);
@@ -169,5 +184,6 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
     taskQueue,
     processTask,
     releaseAfterProcess: (signal) => signalObjectPool.release(signal),
+    ...(getCanProcessTask ? { getCanProcessTask } : {}),
   });
 }

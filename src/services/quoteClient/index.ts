@@ -37,10 +37,10 @@ import { decimalToNumber, formatError, formatSymbolDisplay } from '../../utils/h
 import { logger } from '../../utils/logger/index.js';
 import { API } from '../../constants/index.js';
 import type {
+  MarketDataClient,
   Quote,
   QuoteStaticInfo,
   TradingDayInfo,
-  MarketDataClient,
   TradingDaysResult,
 } from '../../types/index.js';
 import type {
@@ -62,6 +62,34 @@ const DEFAULT_RETRY: RetryConfig = {
   delayMs: API.DEFAULT_RETRY_DELAY_MS,
 };
 
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  { retries, delayMs }: RetryConfig = DEFAULT_RETRY,
+): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i <= retries; i += 1) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (i < retries && delayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+  throw lastErr;
+}
+
+function normalizeSymbols(symbols: ReadonlyArray<string>): ReadonlyArray<string> {
+  const uniqueSymbols = new Set<string>();
+  for (const symbol of symbols) {
+    if (symbol) {
+      uniqueSymbols.add(symbol);
+    }
+  }
+  return Array.from(uniqueSymbols);
+}
+
 /**
  * 创建交易日缓存
  * @param _deps 依赖注入（当前为空）
@@ -73,6 +101,7 @@ function createTradingDayCache(
   get: (dateStr: string) => TradingDayInfo | null;
   set: (dateStr: string, isTradingDay: boolean, isHalfDay?: boolean) => void;
   setBatch: (tradingDays: string[], halfTradingDays?: string[]) => void;
+  clear: () => void;
 } {
   // 闭包捕获的私有状态
   const cache = new Map<string, { isTradingDay: boolean; isHalfDay: boolean; timestamp: number }>();
@@ -122,17 +151,21 @@ function createTradingDayCache(
     }
   }
 
+  function clear(): void {
+    cache.clear();
+  }
+
   return {
     get,
     set,
     setBatch,
+    clear,
   };
 }
 
 /**
  * 创建行情数据客户端（WebSocket 订阅模式）
  *
- * 重构说明：
  * - 创建时自动初始化 WebSocket 订阅
  * - getQuotes() 从本地缓存读取，无 HTTP 请求
  * - 订阅模式是默认且唯一的行情获取方式
@@ -162,30 +195,6 @@ export async function createMarketDataClient(
     isConnected: false,
     lastUpdateTime: null as number | null,
   };
-
-  /**
-   * 带重试的异步操作包装器
-   */
-  async function withRetry<T>(
-    fn: () => Promise<T>,
-    { retries, delayMs }: RetryConfig = DEFAULT_RETRY,
-  ): Promise<T> {
-    let lastErr: unknown;
-    for (let i = 0; i <= retries; i += 1) {
-      try {
-        return await fn();
-      } catch (err) {
-        lastErr = err;
-        if (i < retries) {
-          // 重试中，静默处理
-          if (delayMs > 0) {
-            await new Promise((r) => setTimeout(r, delayMs));
-          }
-        }
-      }
-    }
-    throw lastErr;
-  }
 
   /**
    * 处理行情推送（WebSocket 回调）
@@ -265,16 +274,6 @@ export async function createMarketDataClient(
   /**
    * 动态订阅新增标的
    */
-  function normalizeSymbols(symbols: ReadonlyArray<string>): ReadonlyArray<string> {
-    const uniqueSymbols = new Set<string>();
-    for (const symbol of symbols) {
-      if (symbol) {
-        uniqueSymbols.add(symbol);
-      }
-    }
-    return Array.from(uniqueSymbols);
-  }
-
   async function subscribeSymbols(symbols: ReadonlyArray<string>): Promise<void> {
     const uniqueSymbols = normalizeSymbols(symbols);
     const newSymbols = uniqueSymbols.filter((symbol) => !subscribedSymbols.has(symbol));
@@ -331,9 +330,7 @@ export async function createMarketDataClient(
     logger.info(`[行情订阅] 已退订 ${removeSymbols.length} 个标的`);
   }
 
-  /**
-   * 缓存静态信息（保持接口兼容，内部已在初始化时完成）
-   */
+  /** 补充缓存静态信息，确保新增标的具备名称和 lotSize。 */
   async function cacheStaticInfo(newSymbols: ReadonlyArray<string>): Promise<void> {
     const uncachedSymbols = newSymbols.filter((s) => !staticInfoCache.has(s));
 
@@ -440,6 +437,68 @@ export async function createMarketDataClient(
   }
 
   /**
+   * 重置运行期订阅与缓存：退订所有 quote/kline 订阅，清空本地缓存。
+   * Fail-safe 语义：任何退订失败均被汇总并最终抛出，不吞错。
+   * 单个失败不提前返回，尽量完成全部清理尝试，再统一抛错。
+   * 订阅集合状态：成功退订的移除，失败的保留，保证可重试。
+   */
+  async function resetRuntimeSubscriptionsAndCaches(): Promise<void> {
+    const symbolsToUnsub = Array.from(subscribedSymbols);
+    const candlestickKeysToUnsub = Array.from(subscribedCandlesticks);
+
+    const errors: unknown[] = [];
+
+    // 1. 退订 quote（批量）
+    if (symbolsToUnsub.length > 0) {
+      try {
+        await withRetry(() => ctx.unsubscribe(symbolsToUnsub, [SubType.Quote]));
+        for (const symbol of symbolsToUnsub) {
+          subscribedSymbols.delete(symbol);
+          quoteCache.delete(symbol);
+          prevCloseCache.delete(symbol);
+          staticInfoCache.delete(symbol);
+        }
+      } catch (err) {
+        errors.push(err);
+      }
+    }
+
+    // 2. 退订 candlestick（逐个，失败不中断）
+    for (const key of candlestickKeysToUnsub) {
+      const colonIdx = key.lastIndexOf(':');
+      if (colonIdx <= 0) {
+        errors.push(new Error(`[行情重置] K线 key 格式无效: ${key}`));
+        continue;
+      }
+      const symbol = key.slice(0, colonIdx);
+      const periodNum = Number.parseInt(key.slice(colonIdx + 1), 10);
+      if (!Number.isFinite(periodNum)) {
+        errors.push(new Error(`[行情重置] K线 key 周期无效: ${key}`));
+        continue;
+      }
+      try {
+        await withRetry(() => ctx.unsubscribeCandlesticks(symbol, periodNum as Period));
+        subscribedCandlesticks.delete(key);
+      } catch (err) {
+        errors.push(err);
+      }
+    }
+
+    // 3. 运行期缓存统一清空（与订阅退订结果解耦，确保跨日不读旧缓存）
+    quoteCache.clear();
+    prevCloseCache.clear();
+    staticInfoCache.clear();
+    tradingDayCache.clear();
+
+    if (errors.length > 0) {
+      throw new AggregateError(
+        errors,
+        `[行情重置] 退订失败 ${errors.length} 项，失败项已保留于订阅集合，可重试`,
+      );
+    }
+  }
+
+  /**
    * 判断指定日期是否是交易日
    */
   async function isTradingDay(
@@ -456,33 +515,22 @@ export async function createMarketDataClient(
     }
 
     // 如果缓存未命中，查询 API（查询当天）
-    try {
-      const tradingDaysResult = await getTradingDays(date, date, market);
+    const tradingDaysResult = await getTradingDays(date, date, market);
 
-      // 检查返回的交易日列表中是否包含当天
-      const isInTradingDays = tradingDaysResult.tradingDays.includes(dateStr);
-      const isInHalfTradingDays = tradingDaysResult.halfTradingDays.includes(dateStr);
+    // 检查返回的交易日列表中是否包含当天
+    const isInTradingDays = tradingDaysResult.tradingDays.includes(dateStr);
+    const isInHalfTradingDays = tradingDaysResult.halfTradingDays.includes(dateStr);
 
-      // 半日交易日也算交易日
-      const isTradingDayResult = isInTradingDays || isInHalfTradingDays;
+    // 半日交易日也算交易日
+    const isTradingDayResult = isInTradingDays || isInHalfTradingDays;
 
-      // 缓存结果（无论是否是交易日都缓存）
-      tradingDayCache.set(dateStr, isTradingDayResult, isInHalfTradingDays);
+    // 缓存结果（无论是否是交易日都缓存）
+    tradingDayCache.set(dateStr, isTradingDayResult, isInHalfTradingDays);
 
-      return {
-        isTradingDay: isTradingDayResult,
-        isHalfDay: isInHalfTradingDays,
-      };
-    } catch (err) {
-      // 如果 API 调用失败，返回保守结果（假设是交易日，避免漏掉交易机会）
-      logger.warn(
-        `[交易日判断] API 调用失败: ${formatError(err)}，假设为交易日继续运行`,
-      );
-      return {
-        isTradingDay: true,
-        isHalfDay: false,
-      };
-    }
+    return {
+      isTradingDay: isTradingDayResult,
+      isHalfDay: isInHalfTradingDays,
+    };
   }
 
   return {
@@ -494,5 +542,6 @@ export async function createMarketDataClient(
     unsubscribeCandlesticks,
     getRealtimeCandlesticks,
     isTradingDay,
+    resetRuntimeSubscriptionsAndCaches,
   };
 }

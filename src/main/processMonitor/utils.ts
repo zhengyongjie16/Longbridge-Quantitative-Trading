@@ -7,7 +7,7 @@
 import { positionObjectPool } from '../../utils/objectPool/index.js';
 import type { Position, PositionCache, Signal } from '../../types/index.js';
 import type { DelayedSignalVerifier } from '../asyncProgram/delayedSignalVerifier/types.js';
-import type { BuyTaskQueue, SellTaskQueue } from '../asyncProgram/types.js';
+import type { TaskQueue, BuyTaskType, SellTaskType } from '../asyncProgram/tradeTaskQueue/types.js';
 import type { MonitorTaskQueue } from '../asyncProgram/monitorTaskQueue/types.js';
 import type { MonitorTaskData, MonitorTaskType } from '../asyncProgram/monitorTaskProcessor/types.js';
 import type { QueueClearResult } from './types.js';
@@ -37,7 +37,7 @@ function isMonitorTaskForDirection(
 }
 
 function removeSignalTasks(
-  queue: BuyTaskQueue | SellTaskQueue,
+  queue: TaskQueue<BuyTaskType> | TaskQueue<SellTaskType>,
   monitorSymbol: string,
   direction: 'LONG' | 'SHORT',
   releaseSignal: (signal: Signal) => void,
@@ -52,8 +52,8 @@ export function clearQueuesForDirection(params: {
   readonly monitorSymbol: string;
   readonly direction: 'LONG' | 'SHORT';
   readonly delayedSignalVerifier: DelayedSignalVerifier;
-  readonly buyTaskQueue: BuyTaskQueue;
-  readonly sellTaskQueue: SellTaskQueue;
+  readonly buyTaskQueue: TaskQueue<BuyTaskType>;
+  readonly sellTaskQueue: TaskQueue<SellTaskType>;
   readonly monitorTaskQueue: MonitorTaskQueue<MonitorTaskType, MonitorTaskData>;
   readonly releaseSignal: (signal: Signal) => void;
 }): QueueClearResult {

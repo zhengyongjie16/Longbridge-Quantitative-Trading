@@ -350,6 +350,10 @@ export function createRiskChecker(deps: RiskCheckerDeps = {}): RiskChecker {
     ): UnrealizedLossCheckResult {
       return unrealizedLossChecker.check(symbol, currentPrice, isLongSymbol);
     },
+
+    clearUnrealizedLossData(symbol?: string | null): void {
+      unrealizedLossChecker.clearUnrealizedLossData(symbol);
+    },
   };
 }
 

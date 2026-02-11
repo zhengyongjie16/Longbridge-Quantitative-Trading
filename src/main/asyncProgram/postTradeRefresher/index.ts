@@ -45,6 +45,7 @@ export function createPostTradeRefresher(
   let pendingVersion: number | null = null;
   let immediateHandle: ReturnType<typeof setImmediate> | null = null;
   let retryHandle: ReturnType<typeof setTimeout> | null = null;
+  let drainResolve: (() => void) | null = null;
 
   async function refreshAfterTrades(
     pending: ReadonlyArray<PendingRefreshSymbol>,
@@ -167,6 +168,8 @@ export function createPostTradeRefresher(
           : Math.max(pendingVersion, targetVersion);
       }
       inFlight = false;
+      drainResolve?.();
+      drainResolve = null;
       if (running && pendingSymbols.length > 0) {
         if (refreshOk) {
           scheduleRun();
@@ -219,6 +222,7 @@ export function createPostTradeRefresher(
     running = false;
     pendingSymbols = [];
     latestQuotesMap = null;
+    pendingVersion = null;
     if (immediateHandle) {
       clearImmediate(immediateHandle);
       immediateHandle = null;
@@ -229,8 +233,40 @@ export function createPostTradeRefresher(
     }
   }
 
+  async function stopAndDrain(): Promise<void> {
+    running = false;
+    pendingSymbols = [];
+    latestQuotesMap = null;
+    pendingVersion = null;
+    if (immediateHandle) {
+      clearImmediate(immediateHandle);
+      immediateHandle = null;
+    }
+    if (retryHandle) {
+      clearTimeout(retryHandle);
+      retryHandle = null;
+    }
+    if (!inFlight) return;
+    await new Promise<void>((resolve) => {
+      drainResolve = resolve;
+    });
+  }
+
+  function start(): void {
+    running = true;
+  }
+
+  function clearPending(): void {
+    pendingSymbols = [];
+    latestQuotesMap = null;
+    pendingVersion = null;
+  }
+
   return {
+    start,
     enqueue,
     stop,
+    stopAndDrain,
+    clearPending,
   };
 }

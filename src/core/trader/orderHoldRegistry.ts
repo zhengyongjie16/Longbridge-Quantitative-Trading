@@ -88,10 +88,20 @@ export function createOrderHoldRegistry(): OrderHoldRegistry {
     return holdSymbols;
   }
 
+  /**
+   * 清空内部 map/set。
+   */
+  function clear(): void {
+    orderIdToSymbol.clear();
+    orderIdsBySymbol.clear();
+    holdSymbols.clear();
+  }
+
   return {
     trackOrder,
     markOrderFilled,
     seedFromOrders,
     getHoldSymbols,
+    clear,
   };
 }

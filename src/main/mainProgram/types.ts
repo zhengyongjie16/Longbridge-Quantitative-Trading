@@ -5,7 +5,7 @@
  * 定义主程序运行所需的上下文类型，包含所有外部依赖的引用
  */
 import type { IndicatorCache } from '../asyncProgram/indicatorCache/types.js';
-import type { BuyTaskQueue, SellTaskQueue } from '../asyncProgram/types.js';
+import type { TaskQueue, BuyTaskType, SellTaskType } from '../asyncProgram/tradeTaskQueue/types.js';
 import type { MonitorTaskQueue } from '../asyncProgram/monitorTaskQueue/types.js';
 import type { MonitorTaskData, MonitorTaskType } from '../asyncProgram/monitorTaskProcessor/types.js';
 import type { OrderMonitorWorker } from '../asyncProgram/orderMonitorWorker/types.js';
@@ -23,6 +23,7 @@ import type { MarketMonitor } from '../../services/marketMonitor/types.js';
 import type { DoomsdayProtection } from '../../core/doomsdayProtection/types.js';
 import type { SignalProcessor } from '../../core/signalProcessor/types.js';
 import type { DailyLossTracker } from '../../core/riskController/types.js';
+import type { DayLifecycleManager } from '../lifecycle/types.js';
 
 /**
  * 主程序上下文
@@ -45,10 +46,11 @@ export type MainProgramContext = {
   readonly monitorContexts: Map<string, MonitorContext>;
   readonly symbolRegistry: SymbolRegistry;
   readonly indicatorCache: IndicatorCache;
-  readonly buyTaskQueue: BuyTaskQueue;
-  readonly sellTaskQueue: SellTaskQueue;
+  readonly buyTaskQueue: TaskQueue<BuyTaskType>;
+  readonly sellTaskQueue: TaskQueue<SellTaskType>;
   readonly monitorTaskQueue: MonitorTaskQueue<MonitorTaskType, MonitorTaskData>;
   readonly orderMonitorWorker: OrderMonitorWorker;
   readonly postTradeRefresher: PostTradeRefresher;
   readonly runtimeGateMode: GateMode;
+  readonly dayLifecycleManager: DayLifecycleManager;
 };

@@ -20,6 +20,7 @@ import {
 } from 'longport';
 import { logger, colors } from '../../utils/logger/index.js';
 import { TIME, TRADING } from '../../constants/index.js';
+import { getHKDateKey } from '../../utils/helpers/tradingTime.js';
 import {
   decimalToNumber,
   toDecimal,
@@ -31,7 +32,7 @@ import {
   isSellAction,
 } from '../../utils/helpers/index.js';
 import type { Signal, SignalType, TradeCheckResult, MonitorConfig } from '../../types/index.js';
-import type { OrderPayload, OrderExecutor, OrderExecutorDeps } from './types.js';
+import type { OrderPayload, OrderExecutor, OrderExecutorDeps, SubmitOrderParams } from './types.js';
 import { identifyErrorType } from './tradeLogger.js';
 import {
   extractOrderId,
@@ -70,6 +71,13 @@ function getOrderTypeFromConfig(
     return OrderType.MO;
   }
   return OrderType.ELO;
+}
+
+function isStaleCrossDaySignal(signal: Signal, now: Date): boolean {
+  if (!(signal.triggerTime instanceof Date) || Number.isNaN(signal.triggerTime.getTime())) {
+    return true;
+  }
+  return getHKDateKey(signal.triggerTime) !== getHKDateKey(now);
 }
 
 /** 计算买入数量（按目标金额和每手股数） */
@@ -216,7 +224,16 @@ function handleSubmitError(
  * @returns OrderExecutor 接口实例
  */
 export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
-  const { ctxPromise, rateLimiter, cacheManager, orderMonitor, orderRecorder, tradingConfig, symbolRegistry } = deps;
+  const {
+    ctxPromise,
+    rateLimiter,
+    cacheManager,
+    orderMonitor,
+    orderRecorder,
+    tradingConfig,
+    symbolRegistry,
+    isExecutionAllowed,
+  } = deps;
   const { global, monitors } = tradingConfig;
 
   /** 通过信号标的解析监控配置与方向 */
@@ -239,6 +256,16 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       monitorConfig,
       isShortSymbol: resolvedSeat.direction === 'SHORT',
     };
+  }
+
+  function canExecuteSignal(signal: Signal, stage: string): boolean {
+    if (isExecutionAllowed()) {
+      return true;
+    }
+    logger.info(
+      `[执行门禁] ${stage} 门禁关闭，跳过信号: ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${signal.action}`,
+    );
+    return false;
   }
 
   // 闭包捕获的私有状态
@@ -299,6 +326,11 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
     if (isBuyAction(signalAction as SignalType)) {
       lastBuyTime.set(buildBuyTimeKey(signalAction, monitorConfig), Date.now());
     }
+  }
+
+  /** 清空 lastBuyTime（买入节流状态） */
+  function resetBuyThrottle(): void {
+    lastBuyTime.clear();
   }
 
   /**
@@ -363,19 +395,25 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
   }
 
   /** 提交订单到 API */
-  async function submitOrder(
-    ctx: TradeContext,
-    signal: Signal,
-    symbol: string,
-    side: OrderSide,
-    submittedQtyDecimal: Decimal,
-    orderTypeParam: OrderType,
-    timeInForce: TimeInForceType,
-    remark: string | undefined,
-    overridePrice: number | undefined,
-    isShortSymbol: boolean,
-    monitorConfig: MonitorConfig | null = null,
-  ): Promise<void> {
+  async function submitOrder(params: SubmitOrderParams): Promise<void> {
+    const {
+      ctx,
+      signal,
+      symbol,
+      side,
+      submittedQtyDecimal,
+      orderTypeParam,
+      timeInForce,
+      remark,
+      overridePrice,
+      isShortSymbol,
+      monitorConfig = null,
+    } = params;
+
+    if (!canExecuteSignal(signal, 'submitOrder')) {
+      return;
+    }
+
     const resolvedPrice = overridePrice ?? signal?.price ?? null;
 
     // 格式化标的显示（用于日志）
@@ -418,6 +456,9 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
 
     try {
       await rateLimiter.throttle();
+      if (!canExecuteSignal(signal, 'submitOrder.beforeApi')) {
+        return;
+      }
       const resp = await ctx.submitOrder(orderPayload);
 
       cacheManager.clearCache();
@@ -436,17 +477,17 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       const submittedQuantityNum = decimalToNumber(orderPayload.submittedQuantity);
       const isLongSymbol = !isShortSymbol;
       const isProtectiveLiquidation = isLiquidationSignal(signal);
-      orderMonitor.trackOrder(
-        String(orderId),
+      orderMonitor.trackOrder({
+        orderId: String(orderId),
         symbol,
         side,
-        resolvedPrice ?? 0,
-        submittedQuantityNum,
+        price: resolvedPrice ?? 0,
+        quantity: submittedQuantityNum,
         isLongSymbol,
-        monitorConfig?.monitorSymbol ?? null,
+        monitorSymbol: monitorConfig?.monitorSymbol ?? null,
         isProtectiveLiquidation,
-        orderTypeParam,
-      );
+        orderType: orderTypeParam,
+      });
 
       // 卖出订单注册防重追踪
       const isSellOrder = side === OrderSide.Sell;
@@ -498,6 +539,10 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       return;
     }
 
+    if (!canExecuteSignal(signal, 'submitTargetOrder')) {
+      return;
+    }
+
     // 使用配置中的值，如果没有配置则使用默认值
     const targetNotional = monitorConfig?.targetNotional ?? TRADING.DEFAULT_TARGET_NOTIONAL;
     // lotSize 从信号对象获取（由配置解析或外部传入）
@@ -542,6 +587,9 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       });
 
       if (decision.action === 'REPLACE' && decision.targetOrderId) {
+        if (!canExecuteSignal(signal, 'replaceOrderPrice')) {
+          return;
+        }
         const price = decision.price ?? resolvedPrice ?? 0;
         if (!isValidPositiveNumber(price)) {
           logger.warn(
@@ -558,6 +606,9 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       }
 
       if (decision.action === 'CANCEL_AND_SUBMIT') {
+        if (!canExecuteSignal(signal, 'cancelAndSubmit')) {
+          return;
+        }
         const cancelResults = await Promise.all(
           decision.pendingOrderIds.map((orderId) => orderMonitor.cancelOrder(orderId)),
         );
@@ -581,19 +632,19 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
 
       if (decision.action === 'SUBMIT' || decision.action === 'CANCEL_AND_SUBMIT') {
         const mergedQtyDecimal = toDecimal(decision.mergedQuantity);
-        await submitOrder(
+        await submitOrder({
           ctx,
           signal,
-          targetSymbol,
+          symbol: targetSymbol,
           side,
-          mergedQtyDecimal,
-          orderType,
+          submittedQtyDecimal: mergedQtyDecimal,
+          orderTypeParam: orderType,
           timeInForce,
           remark,
-          decision.price ?? undefined,
+          overridePrice: decision.price ?? undefined,
           isShortSymbol,
           monitorConfig,
-        );
+        });
       }
       return;
     }
@@ -608,23 +659,28 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       return;
     }
 
-    await submitOrder(
+    await submitOrder({
       ctx,
       signal,
-      targetSymbol,
+      symbol: targetSymbol,
       side,
       submittedQtyDecimal,
-      orderType,
+      orderTypeParam: orderType,
       timeInForce,
       remark,
-      undefined,
+      overridePrice: undefined,
       isShortSymbol,
       monitorConfig,
-    );
+    });
   }
 
   /** 执行交易信号（遍历信号数组，逐个提交订单） */
   async function executeSignals(signals: Signal[]): Promise<void> {
+    if (!isExecutionAllowed()) {
+      logger.info('[执行门禁] 门禁关闭，跳过本次下单，不提交任何订单');
+      return;
+    }
+
     const ctx = await ctxPromise;
 
     for (const s of signals) {
@@ -644,6 +700,16 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
 
       if (s.action === 'HOLD') {
         logger.info(`[HOLD] ${signalSymbolDisplay} - ${s.reason || '持有'}`);
+        continue;
+      }
+
+      if (isStaleCrossDaySignal(s, new Date())) {
+        logger.info(`[执行门禁] 跨日或触发时间无效信号，跳过执行: ${signalSymbolDisplay} ${s.action}`);
+        continue;
+      }
+
+      if (!isExecutionAllowed()) {
+        logger.info(`[执行门禁] 门禁已关闭，跳过信号: ${signalSymbolDisplay} ${s.action}`);
         continue;
       }
 
@@ -690,5 +756,6 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
     canTradeNow,
     markBuyAttempt,
     executeSignals,
+    resetBuyThrottle,
   };
 }

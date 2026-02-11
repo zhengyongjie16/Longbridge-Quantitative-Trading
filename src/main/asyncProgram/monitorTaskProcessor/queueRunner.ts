@@ -24,9 +24,13 @@ export function createQueueRunner({
 }): Readonly<{
   start: () => void;
   stop: () => void;
+  stopAndDrain: () => Promise<void>;
+  restart: () => void;
 }> {
   let running = false;
   let immediateHandle: ReturnType<typeof setImmediate> | null = null;
+  let inFlightPromise: Promise<void> | null = null;
+  let taskAddedUnregister: (() => void) | null = null;
 
   /**
    * 处理队列错误
@@ -59,10 +63,21 @@ export function createQueueRunner({
         immediateHandle = null;
         return;
       }
-      processQueue().catch(handleProcessError).finally(handleProcessFinished);
+      inFlightPromise = processQueue()
+        .catch(handleProcessError)
+        .finally(() => {
+          inFlightPromise = null;
+          handleProcessFinished();
+        });
     }
 
     immediateHandle = setImmediate(handleImmediate);
+  }
+
+  function handleTaskAdded(): void {
+    if (running && immediateHandle === null) {
+      scheduleNextProcess();
+    }
   }
 
   function start(): void {
@@ -71,28 +86,43 @@ export function createQueueRunner({
       return;
     }
     running = true;
-
-    function handleTaskAdded(): void {
-      if (running && immediateHandle === null) {
-        scheduleNextProcess();
-      }
-    }
-
-    monitorTaskQueue.onTaskAdded(handleTaskAdded);
+    taskAddedUnregister = monitorTaskQueue.onTaskAdded(handleTaskAdded);
 
     scheduleNextProcess();
   }
 
   function stop(): void {
     running = false;
+    taskAddedUnregister?.();
+    taskAddedUnregister = null;
     if (immediateHandle) {
       clearImmediate(immediateHandle);
       immediateHandle = null;
     }
   }
 
+  async function stopAndDrain(): Promise<void> {
+    running = false;
+    taskAddedUnregister?.();
+    taskAddedUnregister = null;
+    if (immediateHandle) {
+      clearImmediate(immediateHandle);
+      immediateHandle = null;
+    }
+    if (inFlightPromise !== null) {
+      await inFlightPromise;
+    }
+  }
+
+  function restart(): void {
+    stop();
+    start();
+  }
+
   return {
     start,
     stop,
+    stopAndDrain,
+    restart,
   };
 }

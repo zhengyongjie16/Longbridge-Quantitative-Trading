@@ -4,6 +4,7 @@
  * 记录保护性清仓成交时间，并计算剩余冷却时间。
  */
 import type {
+  ClearMidnightEligibleParams,
   GetRemainingMsParams,
   LiquidationCooldownTracker,
   LiquidationCooldownTrackerDeps,
@@ -111,8 +112,20 @@ export function createLiquidationCooldownTracker(
     return remainingMs;
   }
 
+  function clear(): void {
+    cooldownMap.clear();
+  }
+
+  function clearMidnightEligible({ keysToClear }: ClearMidnightEligibleParams): void {
+    for (const key of keysToClear) {
+      cooldownMap.delete(key);
+    }
+  }
+
   return {
     recordCooldown,
     getRemainingMs,
+    clear,
+    clearMidnightEligible,
   };
 }

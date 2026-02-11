@@ -61,6 +61,9 @@ export interface SignalProcessor {
    * 检查顺序：验证冷却 → 交易频率 → 清仓冷却 → 买入价格限制 → 末日保护 → 牛熊证风险 → 基础风险
    */
   applyRiskChecks(signals: Signal[], context: RiskCheckContext): Promise<Signal[]>;
+
+  /** 清空 lastRiskCheckTime */
+  resetRiskCheckCooldown(): void;
 }
 
 // ==================== 依赖类型定义 ====================

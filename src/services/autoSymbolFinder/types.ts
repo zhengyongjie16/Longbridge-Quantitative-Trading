@@ -51,6 +51,7 @@ export type WarrantListCacheEntry = {
 export type WarrantListCache = {
   readonly entries: Map<string, WarrantListCacheEntry>;
   readonly inFlight: Map<string, Promise<ReadonlyArray<WarrantListItem>>>;
+  clear(): void;
 };
 
 export type WarrantListCacheConfig = {

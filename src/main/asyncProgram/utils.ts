@@ -20,17 +20,25 @@ import type { BaseProcessorConfig, Processor } from './types.js';
 export function createBaseProcessor<TType extends string>(
   config: BaseProcessorConfig<TType>,
 ): Processor {
-  const { loggerPrefix, taskQueue, processTask, releaseAfterProcess } = config;
+  const { loggerPrefix, taskQueue, processTask, releaseAfterProcess, getCanProcessTask } = config;
 
   let running = false;
   let immediateHandle: ReturnType<typeof setImmediate> | null = null;
+  let inFlightPromise: Promise<void> | null = null;
+  let taskAddedUnregister: (() => void) | null = null;
 
   async function processQueue(): Promise<void> {
-    while (!taskQueue.isEmpty()) {
+    while (running && !taskQueue.isEmpty()) {
       const task = taskQueue.pop();
       if (!task) break;
 
       const signal = task.data;
+
+      const canProcess = running && (getCanProcessTask ? getCanProcessTask() : true);
+      if (!canProcess) {
+        releaseAfterProcess(signal);
+        continue;
+      }
 
       try {
         await processTask(task);
@@ -54,15 +62,22 @@ export function createBaseProcessor<TType extends string>(
       if (taskQueue.isEmpty()) {
         immediateHandle = null;
       } else {
-        processQueue()
+        inFlightPromise = processQueue()
           .catch((err) => {
             logger.error(`[${loggerPrefix}] 处理队列时发生错误`, formatError(err));
           })
           .finally(() => {
+            inFlightPromise = null;
             scheduleNextProcess();
           });
       }
     });
+  }
+
+  function handleTaskAdded(): void {
+    if (running && immediateHandle === null) {
+      scheduleNextProcess();
+    }
   }
 
   function start(): void {
@@ -72,12 +87,7 @@ export function createBaseProcessor<TType extends string>(
     }
 
     running = true;
-
-    taskQueue.onTaskAdded(() => {
-      if (running && immediateHandle === null) {
-        scheduleNextProcess();
-      }
-    });
+    taskAddedUnregister = taskQueue.onTaskAdded(handleTaskAdded);
 
     scheduleNextProcess();
   }
@@ -89,6 +99,8 @@ export function createBaseProcessor<TType extends string>(
     }
 
     running = false;
+    taskAddedUnregister?.();
+    taskAddedUnregister = null;
 
     if (immediateHandle !== null) {
       clearImmediate(immediateHandle);
@@ -96,8 +108,32 @@ export function createBaseProcessor<TType extends string>(
     }
   }
 
+  async function stopAndDrain(): Promise<void> {
+    running = false;
+    taskAddedUnregister?.();
+    taskAddedUnregister = null;
+
+    if (immediateHandle !== null) {
+      clearImmediate(immediateHandle);
+      immediateHandle = null;
+    }
+
+    if (inFlightPromise !== null) {
+      await inFlightPromise;
+    }
+  }
+
+  function restart(): void {
+    if (running) {
+      stop();
+    }
+    start();
+  }
+
   return {
     start,
     stop,
+    stopAndDrain,
+    restart,
   };
 }

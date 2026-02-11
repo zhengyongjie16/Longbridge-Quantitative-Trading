@@ -55,6 +55,7 @@ export function createMonitorTaskProcessor(
     trader,
     lastState,
     tradingConfig,
+    getCanProcessTask,
     onProcessed,
   } = deps;
 
@@ -70,6 +71,7 @@ export function createMonitorTaskProcessor(
     getContextOrSkip,
     refreshGate,
     lastState,
+    ...(getCanProcessTask ? { getCanProcessTask } : {}),
   });
   const handleSeatRefresh = createSeatRefreshHandler({
     getContextOrSkip,
@@ -82,11 +84,13 @@ export function createMonitorTaskProcessor(
     refreshGate,
     lastState,
     trader,
+    ...(getCanProcessTask ? { getCanProcessTask } : {}),
   });
   const handleUnrealizedLossCheck = createUnrealizedLossHandler({
     getContextOrSkip,
     refreshGate,
     trader,
+    ...(getCanProcessTask ? { getCanProcessTask } : {}),
   });
 
   async function processTask(
@@ -116,6 +120,10 @@ export function createMonitorTaskProcessor(
       if (!task) {
         break;
       }
+      if (getCanProcessTask && !getCanProcessTask()) {
+        onProcessed?.(task, 'skipped');
+        continue;
+      }
       const status = await processTask(task, helpers).catch((err) => {
         logger.error('[MonitorTaskProcessor] 处理任务失败', formatError(err));
         return 'failed' as const;
@@ -137,5 +145,7 @@ export function createMonitorTaskProcessor(
   return {
     start: queueRunner.start,
     stop: queueRunner.stop,
+    stopAndDrain: queueRunner.stopAndDrain,
+    restart: queueRunner.restart,
   };
 }

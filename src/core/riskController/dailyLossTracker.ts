@@ -106,17 +106,12 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
   const statesByMonitor = new Map<string, { long: DailyLossState; short: DailyLossState }>();
 
   /**
-   * 跨天时清空所有状态，确保只追踪当日订单。
+   * 显式重置 dayKey 与 states。
    */
-  function resetIfNewDay(now: Date): void {
+  function resetAll(now: Date): void {
     const nextKey = resolveHongKongDayKey(deps.toHongKongTimeIso, now);
-    if (!nextKey) {
-      return;
-    }
-    if (dayKey !== nextKey) {
-      dayKey = nextKey;
-      statesByMonitor.clear();
-    }
+    dayKey = nextKey;
+    statesByMonitor.clear();
   }
 
   /**
@@ -208,10 +203,14 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
 
   /**
    * 增量记录成交订单并更新亏损偏移。
+   * dayKey 由 lifecycle riskDomain.midnightClear 通过 resetAll 统一驱动，此处仅记录当日成交。
    */
   function recordFilledOrder(input: DailyLossFilledOrderInput): void {
-    resetIfNewDay(new Date(input.executedTimeMs));
     if (!dayKey) {
+      return;
+    }
+    const fillDayKey = resolveHongKongDayKey(deps.toHongKongTimeIso, new Date(input.executedTimeMs));
+    if (fillDayKey !== dayKey) {
       return;
     }
     const record = createOrderRecordFromFill(input);
@@ -269,10 +268,10 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
   }
 
   return {
+    resetAll,
     initializeFromOrders,
     recalculateFromAllOrders,
     recordFilledOrder,
     getLossOffset,
-    resetIfNewDay,
   };
 }

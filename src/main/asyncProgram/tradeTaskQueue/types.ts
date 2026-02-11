@@ -4,7 +4,7 @@
  * 定义统一的买入/卖出任务队列类型，包括：
  * - Task: 通用任务类型
  * - TaskQueue: 通用任务队列接口
- * - BuyTask / SellTask: 具体任务类型
+ * - BuyTaskType / SellTaskType: 任务类型字符串字面量
  */
 import type { Signal } from '../../../types/index.js';
 
@@ -44,8 +44,12 @@ export interface TaskQueue<TType extends string> {
     predicate: (task: Task<TType>) => boolean,
     onRemove?: (task: Task<TType>) => void,
   ): number;
-  /** 注册任务添加回调 */
-  onTaskAdded(callback: TaskAddedCallback): void;
+  /** 清空全部任务，返回移除数量 */
+  clearAll(onRemove?: (task: Task<TType>) => void): number;
+  /** 注册任务添加回调，返回注销函数 */
+  onTaskAdded(callback: TaskAddedCallback): () => void;
+  /** 注销任务添加回调（传入与 onTaskAdded 相同的引用） */
+  offTaskAdded(callback: TaskAddedCallback): void;
 }
 
 // ============================================================================
@@ -59,9 +63,6 @@ export interface TaskQueue<TType extends string> {
  */
 export type BuyTaskType = 'IMMEDIATE_BUY' | 'VERIFIED_BUY';
 
-/** 买入任务 */
-export type BuyTask = Task<BuyTaskType>;
-
 // ============================================================================
 // 卖出任务类型
 // ============================================================================
@@ -72,7 +73,4 @@ export type BuyTask = Task<BuyTaskType>;
  * - VERIFIED_SELL: 验证后卖出（经过延迟验证）
  */
 export type SellTaskType = 'IMMEDIATE_SELL' | 'VERIFIED_SELL';
-
-/** 卖出任务 */
-export type SellTask = Task<SellTaskType>;
 

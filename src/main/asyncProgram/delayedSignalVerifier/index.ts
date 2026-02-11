@@ -209,6 +209,19 @@ export function createDelayedSignalVerifier(
       return entriesToRemove.length;
     },
 
+    cancelAll(): number {
+      const count = pendingSignals.size;
+      for (const entry of pendingSignals.values()) {
+        clearTimeout(entry.timerId);
+        signalObjectPool.release(entry.signal);
+      }
+      pendingSignals.clear();
+      if (count > 0) {
+        logger.debug(`[延迟验证] 已取消全部 ${count} 个待验证信号`);
+      }
+      return count;
+    },
+
     getPendingCount(): number {
       return pendingSignals.size;
     },

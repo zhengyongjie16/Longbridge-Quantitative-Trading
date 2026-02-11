@@ -46,6 +46,7 @@ export async function createTrader(deps: TraderDeps): Promise<Trader> {
     symbolRegistry,
     dailyLossTracker,
     refreshGate,
+    isExecutionAllowed,
   } = deps;
 
   // ========== 1. 创建基础依赖 ==========
@@ -83,6 +84,7 @@ export async function createTrader(deps: TraderDeps): Promise<Trader> {
     liquidationCooldownTracker,
     tradingConfig,
     symbolRegistry,
+    isExecutionAllowed,
     ...(refreshGate ? { refreshGate } : {}),
   });
 
@@ -95,6 +97,7 @@ export async function createTrader(deps: TraderDeps): Promise<Trader> {
     orderRecorder,
     tradingConfig,
     symbolRegistry,
+    isExecutionAllowed,
   });
 
   // ========== 7. 初始化 WebSocket 订阅 ==========
@@ -160,6 +163,18 @@ export async function createTrader(deps: TraderDeps): Promise<Trader> {
 
     _markBuyAttempt(signalAction: string, monitorConfig?: import('../../types/index.js').MonitorConfig | null): void {
       orderExecutor.markBuyAttempt(signalAction, monitorConfig);
+    },
+
+    _resetRuntimeState(): void {
+      orderRecorder.resetAll();
+      cacheManager.clearCache();
+      orderHoldRegistry.clear();
+      orderMonitor.clearTrackedOrders();
+      orderExecutor.resetBuyThrottle();
+    },
+
+    _recoverOrderTracking(): Promise<void> {
+      return orderMonitor.recoverTrackedOrders();
     },
 
     executeSignals(signals: Signal[]): Promise<void> {

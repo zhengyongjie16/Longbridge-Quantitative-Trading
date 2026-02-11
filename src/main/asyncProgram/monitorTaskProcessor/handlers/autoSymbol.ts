@@ -30,10 +30,12 @@ export function createAutoSymbolHandlers({
   getContextOrSkip,
   refreshGate,
   lastState,
+  getCanProcessTask,
 }: {
   readonly getContextOrSkip: (monitorSymbol: string) => MonitorTaskContext | null;
   readonly refreshGate: RefreshGate;
   readonly lastState: LastState;
+  readonly getCanProcessTask?: () => boolean;
 }): Readonly<{
   handleAutoSymbolTick: (
     task: MonitorTask<MonitorTaskType, MonitorTaskData>,
@@ -58,6 +60,10 @@ export function createAutoSymbolHandlers({
       context,
     );
     if (!isSnapshotValid) {
+      return 'skipped';
+    }
+
+    if (getCanProcessTask && !getCanProcessTask()) {
       return 'skipped';
     }
 
@@ -90,6 +96,10 @@ export function createAutoSymbolHandlers({
       return 'skipped';
     }
 
+    if (getCanProcessTask && !getCanProcessTask()) {
+      return 'skipped';
+    }
+
     const seatReadiness = resolveSeatSnapshotReadiness({
       monitorSymbol: data.monitorSymbol,
       context,
@@ -98,6 +108,9 @@ export function createAutoSymbolHandlers({
     });
 
     if (seatReadiness.isLongReady) {
+      if (getCanProcessTask && !getCanProcessTask()) {
+        return 'skipped';
+      }
       await context.autoSymbolManager.maybeSwitchOnDistance({
         direction: 'LONG',
         monitorPrice: data.monitorPrice,
@@ -106,6 +119,9 @@ export function createAutoSymbolHandlers({
       });
     }
     if (seatReadiness.isShortReady) {
+      if (getCanProcessTask && !getCanProcessTask()) {
+        return 'skipped';
+      }
       await context.autoSymbolManager.maybeSwitchOnDistance({
         direction: 'SHORT',
         monitorPrice: data.monitorPrice,

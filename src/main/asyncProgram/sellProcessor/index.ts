@@ -26,7 +26,7 @@ import { formatError, formatSymbolDisplay } from '../../../utils/helpers/index.j
 import { isSeatReady, isSeatVersionMatch } from '../../../services/autoSymbolManager/utils.js';
 import type { Processor } from '../types.js';
 import type { SellProcessorDeps } from './types.js';
-import type { SellTask } from '../tradeTaskQueue/types.js';
+import type { Task, SellTaskType } from '../tradeTaskQueue/types.js';
 
 /**
  * 创建卖出处理器
@@ -34,12 +34,20 @@ import type { SellTask } from '../tradeTaskQueue/types.js';
  * @returns 实现 Processor 接口的卖出处理器实例
  */
 export function createSellProcessor(deps: SellProcessorDeps): Processor {
-  const { taskQueue, getMonitorContext, signalProcessor, trader, getLastState, refreshGate } = deps;
+  const {
+    taskQueue,
+    getMonitorContext,
+    signalProcessor,
+    trader,
+    getLastState,
+    refreshGate,
+    getCanProcessTask,
+  } = deps;
 
   /**
    * 处理单个卖出任务
    */
-  async function processTask(task: SellTask): Promise<boolean> {
+  async function processTask(task: Task<SellTaskType>): Promise<boolean> {
     const { data: signal, monitorSymbol } = task;
     const symbolDisplay = formatSymbolDisplay(signal.symbol, signal.symbolName ?? null);
 
@@ -106,6 +114,12 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
         return true; // 处理成功（虽然跳过了）
       }
 
+      // 二次门禁：避免跨日门禁切换期间在途任务继续下单
+      if (getCanProcessTask && !getCanProcessTask()) {
+        logger.info(`[SellProcessor] 生命周期门禁关闭，放弃执行: ${symbolDisplay} ${signal.action}`);
+        return true;
+      }
+
       // 执行卖出订单
       await trader.executeSignals([signal]);
       logger.info(`[SellProcessor] 卖出订单执行完成: ${symbolDisplay} ${signal.action}`);
@@ -122,5 +136,6 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
     taskQueue,
     processTask,
     releaseAfterProcess: (signal) => signalObjectPool.release(signal),
+    ...(getCanProcessTask ? { getCanProcessTask } : {}),
   });
 }

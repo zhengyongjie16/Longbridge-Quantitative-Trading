@@ -69,8 +69,30 @@ export function createMonitorTaskQueue<
     return removeTasksFromQueue(queue, predicate, onRemove);
   }
 
-  function onTaskAdded(callback: TaskAddedCallback): void {
+  function clearAll(onRemove?: (task: MonitorTask<TType, TData>) => void): number {
+    const count = queue.length;
+    for (const task of queue) {
+      onRemove?.(task);
+    }
+    queue.length = 0;
+    return count;
+  }
+
+  function onTaskAdded(callback: TaskAddedCallback): () => void {
     callbacks.push(callback);
+    return () => {
+      const idx = callbacks.indexOf(callback);
+      if (idx >= 0) {
+        callbacks.splice(idx, 1);
+      }
+    };
+  }
+
+  function offTaskAdded(callback: TaskAddedCallback): void {
+    const idx = callbacks.indexOf(callback);
+    if (idx >= 0) {
+      callbacks.splice(idx, 1);
+    }
   }
 
   return {
@@ -78,6 +100,8 @@ export function createMonitorTaskQueue<
     pop,
     isEmpty,
     removeTasks,
+    clearAll,
     onTaskAdded,
+    offTaskAdded,
   };
 }

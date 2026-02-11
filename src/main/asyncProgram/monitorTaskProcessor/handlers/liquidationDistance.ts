@@ -35,11 +35,13 @@ export function createLiquidationDistanceHandler({
   refreshGate,
   lastState,
   trader,
+  getCanProcessTask,
 }: {
   readonly getContextOrSkip: (monitorSymbol: string) => MonitorTaskContext | null;
   readonly refreshGate: RefreshGate;
   readonly lastState: LastState;
   readonly trader: Trader;
+  readonly getCanProcessTask?: () => boolean;
 }): (
   task: MonitorTask<MonitorTaskType, MonitorTaskData>,
 ) => Promise<MonitorTaskStatus> {
@@ -159,6 +161,12 @@ export function createLiquidationDistanceHandler({
       }
 
       if (liquidationTasks.length > 0) {
+        if (getCanProcessTask && !getCanProcessTask()) {
+          for (const taskItem of liquidationTasks) {
+            signalObjectPool.release(taskItem.signal);
+          }
+          return 'skipped';
+        }
         try {
           await trader.executeSignals(liquidationTasks.map(({ signal }) => signal));
           for (const taskItem of liquidationTasks) {

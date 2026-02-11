@@ -24,6 +24,15 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
     return unrealizedLossData.get(symbol);
   };
 
+  /** 清空浮亏数据，symbol 为空时清空全部 */
+  const clearUnrealizedLossData = (symbol?: string | null): void => {
+    if (symbol == null || symbol === '') {
+      unrealizedLossData.clear();
+    } else {
+      unrealizedLossData.delete(symbol);
+    }
+  };
+
   /** 检查浮亏保护是否启用 */
   const isEnabled = (): boolean => {
     return (
@@ -189,6 +198,7 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
 
   return {
     getUnrealizedLossData,
+    clearUnrealizedLossData,
     isEnabled,
     refresh,
     check,

@@ -31,6 +31,8 @@ export type ProcessMonitorParams = {
     readonly isHalfDay: boolean;
     readonly canTradeNow: boolean;
     readonly openProtectionActive: boolean;
+    /** 交易门禁透传：false 时不入队，直接释放信号 */
+    readonly isTradingEnabled: boolean;
   };
 };
 

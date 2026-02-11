@@ -27,9 +27,16 @@ const EXPIRY_DATE_FILTERS: ReadonlyArray<FilterWarrantExpiryDate> = [
  * 用于避免频繁调用 API，支持 TTL 缓存和请求去重
  */
 export function createWarrantListCache(): WarrantListCache {
+  const entries = new Map<string, WarrantListCacheEntry>();
+  const inFlight = new Map<string, Promise<ReadonlyArray<WarrantListItem>>>();
+
   return {
-    entries: new Map<string, WarrantListCacheEntry>(),
-    inFlight: new Map<string, Promise<ReadonlyArray<WarrantListItem>>>(),
+    entries,
+    inFlight,
+    clear(): void {
+      entries.clear();
+      inFlight.clear();
+    },
   };
 }
 

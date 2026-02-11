@@ -229,9 +229,7 @@ export function createSwitchStateMachine(
         quote.lotSize,
       );
 
-      if (buyQuantity) {
-        state.stage = 'COMPLETE';
-      } else {
+      if (buyQuantity != null && isValidPositiveNumber(buyQuantity)) {
         const signal = buildOrderSignal({
           action: buyAction,
           symbol: nextSymbol,
@@ -244,8 +242,12 @@ export function createSwitchStateMachine(
 
         await trader.executeSignals([signal]);
         signalObjectPool.release(signal);
-        state.stage = 'COMPLETE';
+      } else {
+        logger.info(
+          `[自动换标] 回补买入数量无效或过小，跳过回补: ${nextSymbol}, buyQuantity=${String(buyQuantity)}`,
+        );
       }
+      state.stage = 'COMPLETE';
     }
 
     if (state.stage === 'COMPLETE') {
@@ -364,7 +366,7 @@ export function createSwitchStateMachine(
       }
 
       const next = await findSwitchCandidate(direction);
-      if (next && next.symbol === seatState.symbol) {
+      if (next?.symbol === seatState.symbol) {
         markSuppression(direction, seatState.symbol);
         return;
       }

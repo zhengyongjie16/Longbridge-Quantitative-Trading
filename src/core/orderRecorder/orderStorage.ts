@@ -388,6 +388,59 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
   }
 
   /**
+   * 恢复期：为待恢复的卖单分配关联买单 ID
+   * 从当前买单记录中按价格从低到高分配，排除已被 pendingSells 占用的订单
+   */
+  function allocateRelatedBuyOrderIdsForRecovery(
+    symbol: string,
+    direction: 'LONG' | 'SHORT',
+    quantity: number,
+  ): readonly string[] {
+    const isLongSymbol = direction === 'LONG';
+    const buyOrders = getBuyOrdersList(symbol, isLongSymbol);
+
+    if (buyOrders.length === 0 || !Number.isFinite(quantity) || quantity <= 0) {
+      return [];
+    }
+
+    const pendingList = getPendingSellOrders(symbol, direction);
+    const occupiedIds = new Set<string>();
+    for (const ps of pendingList) {
+      for (const id of ps.relatedBuyOrderIds) {
+        occupiedIds.add(id);
+      }
+    }
+
+    const available = buyOrders
+      .filter((o) => !occupiedIds.has(o.orderId))
+      .slice()
+      .sort((a, b) => a.executedPrice - b.executedPrice);
+
+    const result: string[] = [];
+    let remaining = quantity;
+
+    for (const order of available) {
+      if (remaining <= 0) break;
+      const qty = order.executedQuantity ?? 0;
+      if (qty <= 0) continue;
+
+      result.push(order.orderId);
+      remaining -= qty;
+    }
+
+    return result;
+  }
+
+  /** 清空买卖记录与 pendingSells */
+  function clearAll(): void {
+    longBuyOrdersMap.clear();
+    shortBuyOrdersMap.clear();
+    longSellRecordMap.clear();
+    shortSellRecordMap.clear();
+    pendingSells.clear();
+  }
+
+  /**
    * 获取可卖出的盈利订单（核心防重逻辑）
    *
    * 算法说明：
@@ -497,6 +550,8 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     markSellPartialFilled,
     markSellCancelled,
     getPendingSellOrders,
+    allocateRelatedBuyOrderIdsForRecovery,
     getProfitableSellOrders,
+    clearAll,
   };
 };

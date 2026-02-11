@@ -10,7 +10,6 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { Task, TaskQueue, TaskAddedCallback, BuyTaskType, SellTaskType } from './types.js';
-import type { BuyTaskQueue, SellTaskQueue } from '../types.js';
 
 /**
  * 创建通用任务队列
@@ -69,18 +68,40 @@ function createTaskQueue<TType extends string>(): TaskQueue<TType> {
       return originalLength - queue.length;
     },
 
-    onTaskAdded(callback: TaskAddedCallback): void {
+    clearAll(onRemove?: (task: Task<TType>) => void): number {
+      const count = queue.length;
+      for (const task of queue) {
+        onRemove?.(task);
+      }
+      queue.length = 0;
+      return count;
+    },
+
+    onTaskAdded(callback: TaskAddedCallback): () => void {
       callbacks.push(callback);
+      return () => {
+        const idx = callbacks.indexOf(callback);
+        if (idx >= 0) {
+          callbacks.splice(idx, 1);
+        }
+      };
+    },
+
+    offTaskAdded(callback: TaskAddedCallback): void {
+      const idx = callbacks.indexOf(callback);
+      if (idx >= 0) {
+        callbacks.splice(idx, 1);
+      }
     },
   };
 }
 
 /** 创建买入任务队列 */
-export function createBuyTaskQueue(): BuyTaskQueue {
+export function createBuyTaskQueue(): TaskQueue<BuyTaskType> {
   return createTaskQueue<BuyTaskType>();
 }
 
 /** 创建卖出任务队列 */
-export function createSellTaskQueue(): SellTaskQueue {
+export function createSellTaskQueue(): TaskQueue<SellTaskType> {
   return createTaskQueue<SellTaskType>();
 }

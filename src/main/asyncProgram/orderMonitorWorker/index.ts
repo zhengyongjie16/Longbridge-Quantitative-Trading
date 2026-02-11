@@ -28,6 +28,7 @@ export function createOrderMonitorWorker(deps: OrderMonitorWorkerDeps): OrderMon
   let running = true;
   let inFlight = false;
   let latestQuotes: ReadonlyMap<string, Quote | null> | null = null;
+  let drainResolve: (() => void) | null = null;
 
   async function run(): Promise<void> {
     if (!running || inFlight || !latestQuotes) {
@@ -44,6 +45,8 @@ export function createOrderMonitorWorker(deps: OrderMonitorWorkerDeps): OrderMon
       logger.warn('[OrderMonitorWorker] 订单监控失败', formatError(err));
     } finally {
       inFlight = false;
+      drainResolve?.();
+      drainResolve = null;
       if (running && latestQuotes) {
         void run();
       }
@@ -65,8 +68,28 @@ export function createOrderMonitorWorker(deps: OrderMonitorWorkerDeps): OrderMon
     latestQuotes = null;
   }
 
+  async function stopAndDrain(): Promise<void> {
+    running = false;
+    latestQuotes = null;
+    if (!inFlight) return;
+    await new Promise<void>((resolve) => {
+      drainResolve = resolve;
+    });
+  }
+
+  function start(): void {
+    running = true;
+  }
+
+  function clearLatestQuotes(): void {
+    latestQuotes = null;
+  }
+
   return {
+    start,
     schedule,
     stop,
+    stopAndDrain,
+    clearLatestQuotes,
   };
 }

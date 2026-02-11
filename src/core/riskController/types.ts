@@ -148,6 +148,8 @@ export interface PositionLimitChecker {
 /** 浮亏检查器接口 */
 export interface UnrealizedLossChecker {
   getUnrealizedLossData(symbol: string): UnrealizedLossData | undefined;
+  /** 清空浮亏数据，symbol 为空时清空全部 */
+  clearUnrealizedLossData(symbol?: string | null): void;
   isEnabled(): boolean;
   refresh(
     orderRecorder: OrderRecorder,
@@ -166,7 +168,9 @@ export interface UnrealizedLossChecker {
 // ==================== 依赖类型定义 ====================
 
 /** 牛熊证风险检查器依赖（当前无外部依赖） */
-export type WarrantRiskCheckerDeps = Record<string, never>;
+export type WarrantRiskCheckerDeps = {
+  readonly [key: string]: never;
+};
 
 /** 持仓限制检查器依赖 */
 export type PositionLimitCheckerDeps = {
@@ -221,6 +225,8 @@ export type DailyLossFilledOrderInput = {
 };
 
 export type DailyLossTracker = {
+  /** 显式重置 dayKey 与 states */
+  resetAll(now: Date): void;
   initializeFromOrders(
     allOrders: ReadonlyArray<RawOrderFromAPI>,
     monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
@@ -233,7 +239,6 @@ export type DailyLossTracker = {
   ): void;
   recordFilledOrder(input: DailyLossFilledOrderInput): void;
   getLossOffset(monitorSymbol: string, isLongSymbol: boolean): number;
-  resetIfNewDay(now: Date): void;
 };
 
 export type DailyLossTrackerDeps = {

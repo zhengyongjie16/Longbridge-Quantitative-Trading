@@ -33,16 +33,15 @@ export const createCleanup = (context: CleanupContext) => {
   } = context;
 
   /**
-   * 执行清理
+   * 执行清理（stopAndDrain 确保 in-flight 任务排空）
    */
-  const execute = (): void => {
+  const execute = async (): Promise<void> => {
     logger.info('Program exiting, cleaning up resources...');
-    // 停止 BuyProcessor 和 SellProcessor
-    buyProcessor.stop();
-    sellProcessor.stop();
-    monitorTaskProcessor.stop();
-    orderMonitorWorker.stop();
-    postTradeRefresher.stop();
+    await buyProcessor.stopAndDrain();
+    await sellProcessor.stopAndDrain();
+    await monitorTaskProcessor.stopAndDrain();
+    await orderMonitorWorker.stopAndDrain();
+    await postTradeRefresher.stopAndDrain();
     // 销毁所有监控标的的 DelayedSignalVerifier
     for (const monitorContext of monitorContexts.values()) {
       monitorContext.delayedSignalVerifier.destroy();
@@ -58,12 +57,10 @@ export const createCleanup = (context: CleanupContext) => {
    */
   const registerExitHandlers = (): void => {
     process.once('SIGINT', () => {
-      execute();
-      process.exit(0);
+      void execute().finally(() => process.exit(0));
     });
     process.once('SIGTERM', () => {
-      execute();
-      process.exit(0);
+      void execute().finally(() => process.exit(0));
     });
   };
 

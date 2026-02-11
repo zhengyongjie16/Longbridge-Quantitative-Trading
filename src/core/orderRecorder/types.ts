@@ -142,6 +142,16 @@ export interface OrderStorage {
   /** 获取待成交卖出订单列表 */
   getPendingSellOrders(symbol: string, direction: 'LONG' | 'SHORT'): ReadonlyArray<PendingSellInfo>;
 
+  /**
+   * 恢复期：为待恢复的卖单分配关联买单 ID
+   * 从当前买单记录中按价格从低到高分配，排除已被 pendingSells 占用的订单
+   */
+  allocateRelatedBuyOrderIdsForRecovery(
+    symbol: string,
+    direction: 'LONG' | 'SHORT',
+    quantity: number,
+  ): readonly string[];
+
   /** 获取可卖出的盈利订单（核心防重逻辑） */
   getProfitableSellOrders(
     symbol: string,
@@ -149,6 +159,9 @@ export interface OrderStorage {
     currentPrice: number,
     maxSellQuantity?: number,
   ): ProfitableOrderResult;
+
+  /** 清空买卖记录与 pendingSells */
+  clearAll(): void;
 }
 
 /**
@@ -172,6 +185,8 @@ export interface OrderAPIManager {
     allOrders: ReadonlyArray<RawOrderFromAPI>,
   ): void;
   clearCacheForSymbol(symbol: string): void;
+  /** 清空 symbol cache 与 allOrdersCache */
+  clearCache(): void;
   hasCacheForSymbols(symbols: string[]): boolean;
   getPendingOrdersFromCache(symbols: string[]): PendingOrder[];
 }
@@ -179,10 +194,14 @@ export interface OrderAPIManager {
 // ==================== 依赖类型定义 ====================
 
 /** 订单存储依赖类型（无依赖） */
-export type OrderStorageDeps = Record<string, never>;
+export type OrderStorageDeps = {
+  readonly [key: string]: never;
+};
 
 /** 订单过滤引擎依赖类型（无依赖，纯函数式设计） */
-export type OrderFilteringEngineDeps = Record<string, never>;
+export type OrderFilteringEngineDeps = {
+  readonly [key: string]: never;
+};
 
 /**
  * 订单API管理器依赖类型

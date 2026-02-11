@@ -12,7 +12,9 @@ import type { TradeRecord } from '../../core/trader/types.js';
 import type { Logger } from '../../utils/logger/types.js';
 
 /** 未解析的日志记录（键值对） */
-export type RawRecord = Record<string, unknown>;
+export interface RawRecord {
+  readonly [key: string]: unknown;
+}
 
 /**
  * 冷却方向（做多/做空）
@@ -45,11 +47,22 @@ export type LiquidationCooldownTrackerDeps = {
 };
 
 /**
+ * 午夜按策略清理的参数
+ * 仅清理属于 half-day / one-day 模式的条目，minutes 模式保留由其自然过期
+ */
+export type ClearMidnightEligibleParams = {
+  readonly keysToClear: ReadonlySet<string>;
+};
+
+/**
  * 冷却追踪器接口
  */
 export interface LiquidationCooldownTracker {
   recordCooldown(params: RecordCooldownParams): void;
   getRemainingMs(params: GetRemainingMsParams): number;
+  clear(): void;
+  /** 跨日午夜按策略清理：仅清除指定 keys，minutes 模式条目不受影响 */
+  clearMidnightEligible(params: ClearMidnightEligibleParams): void;
 }
 
 export type TradeLogHydratorDeps = {

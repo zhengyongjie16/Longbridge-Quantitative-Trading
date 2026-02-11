@@ -21,6 +21,7 @@ import type {
   SymbolRegistry,
   RawOrderFromAPI,
   OrderTypeConfig,
+  MonitorConfig,
 } from '../../types/index.js';
 import type { LiquidationCooldownTracker } from '../../services/liquidationCooldown/types.js';
 import type { DailyLossTracker } from '../riskController/types.js';
@@ -46,6 +47,38 @@ export type OrderPayload = {
   readonly submittedQuantity: Decimal;
   readonly submittedPrice?: Decimal;
   readonly remark?: string;
+};
+
+/**
+ * 订单追踪入参
+ */
+export type TrackOrderParams = {
+  readonly orderId: string;
+  readonly symbol: string;
+  readonly side: OrderSide;
+  readonly price: number;
+  readonly quantity: number;
+  readonly isLongSymbol: boolean;
+  readonly monitorSymbol: string | null;
+  readonly isProtectiveLiquidation: boolean;
+  readonly orderType: OrderType;
+};
+
+/**
+ * 提交订单入参
+ */
+export type SubmitOrderParams = {
+  readonly ctx: TradeContext;
+  readonly signal: Signal;
+  readonly symbol: string;
+  readonly side: OrderSide;
+  readonly submittedQtyDecimal: Decimal;
+  readonly orderTypeParam: OrderType;
+  readonly timeInForce: TimeInForceType;
+  readonly remark: string | undefined;
+  readonly overridePrice: number | undefined;
+  readonly isShortSymbol: boolean;
+  readonly monitorConfig?: MonitorConfig | null;
 };
 
 /**
@@ -133,26 +166,8 @@ export interface OrderMonitor {
   /** 初始化 WebSocket 订阅 */
   initialize(): Promise<void>;
 
-  /**
-   * 开始追踪订单
-   * @param orderId 订单ID
-   * @param symbol 标的代码
-   * @param side 订单方向
-   * @param price 委托价格
-   * @param quantity 委托数量
-   * @param isLongSymbol 是否为做多标的
-   */
-  trackOrder(
-    orderId: string,
-    symbol: string,
-    side: OrderSide,
-    price: number,
-    quantity: number,
-    isLongSymbol: boolean,
-    monitorSymbol: string | null,
-    isProtectiveLiquidation: boolean,
-    orderType: OrderType,
-  ): void;
+  /** 开始追踪订单 */
+  trackOrder(params: TrackOrderParams): void;
 
   /** 撤销订单 */
   cancelOrder(orderId: string): Promise<boolean>;
@@ -180,6 +195,8 @@ export interface OrderMonitor {
    */
   getAndClearPendingRefreshSymbols(): PendingRefreshSymbol[];
 
+  /** 清空 trackedOrders 与 pendingRefreshSymbols */
+  clearTrackedOrders(): void;
 }
 
 /**
@@ -195,6 +212,8 @@ export interface OrderExecutor {
    */
   markBuyAttempt(signalAction: string, monitorConfig?: import('../../types/index.js').MonitorConfig | null): void;
   executeSignals(signals: Signal[]): Promise<void>;
+  /** 清空 lastBuyTime（买入节流状态） */
+  resetBuyThrottle(): void;
 }
 
 /**
@@ -340,6 +359,8 @@ export type OrderHoldRegistry = {
   seedFromOrders(orders: ReadonlyArray<RawOrderFromAPI>): void;
   /** 获取当前需要持续订阅的标的集合 */
   getHoldSymbols(): ReadonlySet<string>;
+  /** 清空内部 map/set */
+  clear(): void;
 };
 
 /**
@@ -367,7 +388,15 @@ export type OrderMonitorDeps = {
   readonly tradingConfig: MultiMonitorTradingConfig;
   /** 刷新门禁（成交后标记 stale） */
   readonly refreshGate?: RefreshGate;
+  /** 运行时执行门禁（卖单超时转市价单时校验，禁止门禁关闭时新开单） */
+  readonly isExecutionAllowed: IsExecutionAllowed;
 };
+
+/**
+ * 运行时执行门禁：返回当前是否允许下单
+ * 门禁关闭时 orderExecutor 仅记录日志并跳过，不下单
+ */
+export type IsExecutionAllowed = () => boolean;
 
 /**
  * 订单执行器依赖类型
@@ -383,6 +412,8 @@ export type OrderExecutorDeps = {
   readonly tradingConfig: MultiMonitorTradingConfig;
   /** 标的注册表（用于解析动态标的归属） */
   readonly symbolRegistry: SymbolRegistry;
+  /** 运行时执行门禁（单一状态源注入，执行层统一判定） */
+  readonly isExecutionAllowed: IsExecutionAllowed;
 };
 
 /**
@@ -398,4 +429,6 @@ export type TraderDeps = {
   readonly dailyLossTracker: DailyLossTracker;
   /** 刷新门禁（成交后标记 stale） */
   readonly refreshGate?: RefreshGate;
+  /** 运行时执行门禁（单一状态源注入，执行层统一判定） */
+  readonly isExecutionAllowed: IsExecutionAllowed;
 };

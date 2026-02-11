@@ -115,10 +115,16 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     logger,
   });
 
+  function resetAllState(): void {
+    switchStates.clear();
+    switchSuppressions.clear();
+  }
+
   return {
     maybeSearchOnTick: autoSearch.maybeSearchOnTick,
     maybeSwitchOnDistance: switchStateMachine.maybeSwitchOnDistance,
     hasPendingSwitch: switchStateMachine.hasPendingSwitch,
     resetDailySwitchSuppression: seatStateManager.resetDailySwitchSuppression,
+    resetAllState,
   };
 }

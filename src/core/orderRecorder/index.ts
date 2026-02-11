@@ -99,7 +99,9 @@ function formatOrderStatsLine(stats: OrderStatistics): string {
 }
 
 /** 创建订单记录器（门面模式），协调存储、API和过滤引擎 */
-export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
+export function createOrderRecorder(
+  deps: OrderRecorderDeps,
+): OrderRecorder {
   const { storage, apiManager, filteringEngine } = deps;
 
   function debugOutputOrders(symbol: string, isLongSymbol: boolean): void {
@@ -354,6 +356,15 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     return storage.markSellCancelled(orderId);
   }
 
+  /** 恢复期：为待恢复的卖单分配关联买单 ID */
+  function allocateRelatedBuyOrderIdsForRecovery(
+    symbol: string,
+    direction: 'LONG' | 'SHORT',
+    quantity: number,
+  ): readonly string[] {
+    return storage.allocateRelatedBuyOrderIdsForRecovery(symbol, direction, quantity);
+  }
+
   /** 获取可卖出的盈利订单（核心防重逻辑） */
   function getProfitableSellOrders(
     symbol: string,
@@ -362,6 +373,12 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     maxSellQuantity?: number,
   ): ProfitableOrderResult {
     return storage.getProfitableSellOrders(symbol, direction, currentPrice, maxSellQuantity);
+  }
+
+  /** 重置所有订单记录（storage.clearAll + apiManager.clearCache） */
+  function resetAll(): void {
+    storage.clearAll();
+    apiManager.clearCache();
   }
 
   return {
@@ -380,6 +397,9 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     markSellFilled,
     markSellPartialFilled,
     markSellCancelled,
+    allocateRelatedBuyOrderIdsForRecovery,
     getProfitableSellOrders,
+
+    resetAll,
   };
 }

@@ -88,6 +88,12 @@ export function createOrderAPIManager(deps: OrderAPIManagerDeps): OrderAPIManage
     ordersCache.delete(symbol);
   }
 
+  /** 清空 symbol cache 与 allOrdersCache */
+  function clearCache(): void {
+    ordersCache.clear();
+    allOrdersCache = null;
+  }
+
   /** 从 API 获取全量订单数据（history + today） */
   async function fetchAllOrdersFromAPI(
     forceRefresh = false,
@@ -162,6 +168,7 @@ export function createOrderAPIManager(deps: OrderAPIManagerDeps): OrderAPIManage
     fetchAllOrdersFromAPI,
     cacheOrdersForSymbol,
     clearCacheForSymbol,
+    clearCache,
     hasCacheForSymbols,
     getPendingOrdersFromCache,
   };

@@ -26,6 +26,9 @@ export type PostTradeRefresherDeps = Readonly<{
 }>;
 
 export type PostTradeRefresher = Readonly<{
+  start: () => void;
   enqueue: (params: PostTradeRefresherEnqueueParams) => void;
   stop: () => void;
+  stopAndDrain: () => Promise<void>;
+  clearPending: () => void;
 }>;
