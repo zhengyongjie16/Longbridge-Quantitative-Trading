@@ -4,21 +4,21 @@
 
 ### 项目介绍
 
-基于 LongPort OpenAPI SDK / Node.js 的港股自动化量化交易系统，通过监控目标资产（如HSI）的技术指标，在轮证/ETF上自动执行双向（做多/做空）交易。支持多指标组合策略、延迟验证、风险控制和订单管理。
+基于 LongPort OpenAPI SDK / TypeScript 的港股自动化量化交易系统，通过监控目标资产（如HSI）的技术指标，在轮证/ETF上自动执行双向（做多/做空）交易。支持多指标组合策略、延迟验证、风险控制和订单管理。
 
 ### 重要提示（必读）
 
 1. 该项目开源仅用作技术和交易策略上的交流，不保证程序完全严谨且正确，不保证策略的盈利性和普遍适用性。
 2. 请先务必掌握港股、轮证以及技术指标的相关知识，轮证自带杠杆属性且存在到期时间和回收等机制，这些因素都存在较大风险。
 3. 该程序一般不会交易正股（正股仅用作实时分析，即配置中的监控标的），而是在轮证/ETF等衍生品上进行多空交易，主要为交易做多或做空方向的权证或牛熊证，这存在较高风险。
-4. 目前的交易策略仅针对日内交易，在交易时段内每秒获取分钟级k线进行技术指标的计算用于生成交易信号（虽然是获取分钟k线但最新的k线是是实时变动的），由于通过交易轮证这样的高杠杆衍生品，所以不需要监控大周期的k线，但这也存在更高的风险。
+4. 目前的交易策略仅针对日内交易，在交易时段内每秒获取分钟级k线进行技术指标的计算用于生成交易信号（虽然是获取分钟k线但最新的k线是实时变动的），由于通过交易轮证这样的高杠杆衍生品，所以不需要监控大周期的k线，但这也存在更高的风险。
 5. 请务必掌握相关代码知识（主要为typescript），不建议非开发者使用。
-6. 该程序代码几乎全部由vibe/spec coding（关键部分主要使用Claude Opus 4.5和GPT-5.2 Codex Extra High模型）编写，请使用顶级模型进行优化和再开发，这是保证代码质量的关键。注意：AI仅用作代码实现，所有架构和业务逻辑应自行设计。
+6. 该程序代码几乎全部由vibe/spec coding（关键部分主要使用Claude Opus 4.x和GPT-5.x Codex Extra High模型）编写，请使用顶级模型进行优化和再开发，这是保证代码质量的关键。注意：AI仅用作代码实现，所有架构和业务逻辑应自行设计。
 7. 请务必先使用模拟账户进行调试。
 
 ## 开发者提示
 
-使用 Claude Code / Cursor Agent 开发时，请参阅 **[CLAUDE.md](./CLAUDE.md)** 获取专门指导。
+使用 Claude Code / Cursor Agent 开发时，可以使用 **[CLAUDE.md](./CLAUDE.md)** 进行宽约束。具体参考下方「帮助」中的 Claude Code Docs。
 
 ### 内置 Skills
 
@@ -165,9 +165,9 @@ npm start
 
 **延迟验证机制**：
 
-1. 信号触发后记录触发时间与初始指标值
+1. 信号生成时记录初始指标值，并设定 T0（延迟期结束时刻）
 2. 主循环每秒保存指标快照，供后续验证使用
-3. 延迟期结束后验证 T0/T0+5s/T0+10s 三点趋势（允许 ±5 秒误差）
+3. 在 T0+10s 执行验证，检查 T0 / T0+5s / T0+10s 三点趋势（允许 ±5 秒误差）
 4. 验证通过进入交易执行流程，失败则丢弃该信号
 
 #### 买入策略
@@ -192,24 +192,27 @@ npm start
 
 ### 买入检查顺序
 
+先经**风险检查冷却**（同标的同方向 10 秒内仅允许一信号进入下列检查），再依次：
+
 1. **交易频率限制**：同方向买入间隔（默认 60 秒）
 2. **清仓冷却**：保护性清仓后冷却期内拒绝买入
-3. **买入价格限制**：当前价 > 最新成交价时拒绝（防止追高）
+3. **买入价格限制**：当前价 > 最新买入订单成交价时拒绝（防止追高）
 4. **末日保护**：收盘前 15 分钟拒绝买入
-5. **牛熊证风险**：牛证距回收价 > 0.5%，熊证 < -0.5%，且监控标的价格需 > 1
+5. **牛熊证风险**：牛证距回收价 ≥ 0.35%，熊证 ≤ -0.35%，监控标的价格 ≥ 1，牛熊证当前价 > 0.015
 6. **基础风险检查**：浮亏限制、持仓市值限制、港币可用现金
 
 
 | 检查    | 说明                           | 买入          | 卖出  |
 | ----- | ---------------------------- | ----------- | --- |
+| 风险检查冷却 | 同标的同方向 10 秒内仅允许一信号进入后续检查   | ✅ 限制        | ❌   |
 | 交易频率  | 同方向买入间隔（默认60秒）               | ✅ 限制        | ❌   |
 | 清仓冷却  | 保护性清仓后冷却期内拒绝买入               | ✅ 限制        | ❌   |
-| 买入价格  | 当前价 > 最新成交价时拒绝（防追高）          | ✅ 检查        | ❌   |
+| 买入价格  | 当前价 > 最新买入订单成交价时拒绝（防追高）   | ✅ 检查        | ❌   |
 | 末日保护  | 收盘前 15 分钟拒绝买入                | ✅ 限制        | ❌   |
-| 牛熊证风险 | 使用监控标的价格计算距回收价               | ✅ 检查        | ❌   |
-| 单日亏损  | 浮亏 ≤ -MAX_DAILY_LOSS_N       | ✅ 限制        | ❌   |
-| 持仓市值  | 单标持仓 > MAX_POSITION_NOTIONAL_N | ✅ 限制        | ❌   |
-| 浮亏保护  | 单标浮亏 < -MAX_UNREALIZED_LOSS_PER_SYMBOL_N | 实时监控（按 `LIQUIDATION_ORDER_TYPE` 清仓） | ❌   |
+| 牛熊证风险 | 牛证距回收价≥0.35%/熊证≤-0.35%，监控价≥1、牛熊证现价>0.015 | ✅ 检查        | ❌   |
+| 单日亏损  | 浮亏 ≤ -MAX_DAILY_LOSS_N 时拒绝买入 | ✅ 限制        | ❌   |
+| 持仓市值  | 单标持仓 > MAX_POSITION_NOTIONAL_N 时拒绝买入 | ✅ 限制        | ❌   |
+| 浮亏保护  | 单标浮亏 < -MAX_UNREALIZED_LOSS_PER_SYMBOL_N 时触发保护性清仓（按 `LIQUIDATION_ORDER_TYPE`） | 实时监控        | ❌   |
 
 ### 可选配置
 
@@ -307,16 +310,16 @@ src/
 ├── core/                       # 核心业务逻辑
 │   ├── strategy/               # 信号生成
 │   ├── signalProcessor/        # 风险检查与卖出计算
-│   ├── risk/                   # 风险检查（持仓/亏损/牛熊证风险等）
+│   ├── riskController/         # 风险检查（持仓/亏损/牛熊证/浮亏监控等）
 │   ├── trader/                 # 订单执行与监控
 │   │   ├── orderExecutor.ts    # 订单执行
 │   │   ├── orderMonitor.ts     # 订单状态监控（WebSocket）
 │   │   ├── orderCacheManager.ts # 订单缓存管理
+│   │   ├── orderHoldRegistry.ts # 待成交卖出防重登记
 │   │   ├── accountService.ts   # 账户服务
 │   │   ├── rateLimiter.ts      # API 限流
 │   │   └── tradeLogger.ts      # 交易日志
 │   ├── orderRecorder/          # 订单记录与查询
-│   ├── unrealizedLossMonitor/  # 浮亏监控
 │   └── doomsdayProtection/     # 末日保护（收盘前清仓）
 ├── services/                   # 外部服务
 │   ├── quoteClient/            # 行情数据客户端
@@ -367,7 +370,7 @@ graph TD
   I -.-> J
 
   subgraph DS ["延迟/趋势验证"]
-    D1["记录 triggerTime<br/>与初始指标值"] --> D2["setTimeout 在验证时间<br/>triggerTime + 10秒 执行"]
+    D1["记录 T0 与初始指标值<br/>（T0=延迟期结束时刻）"] --> D2["setTimeout 在 T0+10s 执行验证"]
     D2 --> D3["读取 IndicatorCache<br/>T0 / T0+5s / T0+10s"]
     D3 --> D4{"趋势满足？<br/>BUYCALL/SELLPUT 上涨<br/>BUYPUT/SELLCALL 下跌"}
     D4 -->|通过| D5["推入 BuyTaskQueue / SellTaskQueue"]
@@ -391,16 +394,16 @@ graph TD
 
 ## 工具脚本
 
-- 代码质量：`npm run sonarqube` / `npm run sonarqube:report`（需要 `.env.sonar`，可配合 `docker-compose.yml` 启动）
-- 其他：`npm run lint` / `npm run lint:fix` / `npm run clean`
+- 代码质量：`bun run sonarqube` / `bun run sonarqube:report`（需要 `.env.sonar`，可配合 `docker-compose.yml` 启动）
+- 其他：`bun run lint` / `bun run lint:fix` / `bun run clean`
 
 ---
 
 ## 帮助
 
-- [LongPort 官方文档](https://open.longbridge.com/zh-CN/docs)
-- [LongPort/Node.js SDK 文档](https://longportapp.github.io/openapi/nodejs/)
-- [Claude Code 官方文档](https://code.claude.com/docs)
+- [Longbridge OpenAPI Docs](https://open.longbridge.com/zh-CN/docs)
+- [LongPort OpenAPI SDK for Node.js Docs](https://longportapp.github.io/openapi/nodejs/)
+- [Claude Code Docs](https://code.claude.com/docs)
 
 ---
 
