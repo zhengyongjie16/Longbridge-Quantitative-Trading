@@ -17,7 +17,7 @@ import { OrderSide } from 'longport';
 import { logger } from '../../utils/logger/index.js';
 import { formatError } from '../../utils/helpers/index.js';
 import { batchGetQuotes } from '../../utils/helpers/quoteHelpers.js';
-import { isBeforeClose15Minutes, isBeforeClose5Minutes } from '../../utils/helpers/tradingTime.js';
+import { getHKDateKey, isBeforeClose15Minutes, isBeforeClose5Minutes } from '../../utils/helpers/tradingTime.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
 import type { MonitorContext, Position, Quote, Signal, SignalType } from '../../types/index.js';
@@ -171,7 +171,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
         lastState,
       } = context;
 
-      const todayKey = currentTime.toISOString().slice(0, 10);
+      const todayKey = getHKDateKey(currentTime) ?? currentTime.toISOString().slice(0, 10);
 
       // 检查是否应该清仓
       if (!isBeforeClose5Minutes(currentTime, isHalfDay)) {
@@ -317,7 +317,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
       // 逻辑：首次进入 15 分钟范围时执行一次，之后不再重复
       // 原因：末日保护期间已拒绝新买入，不会有新的买入订单产生
       //       已撤销的订单会进入 WebSocket 监控，无需重复查询
-      const todayDateString = currentTime.toISOString().slice(0, 10);
+      const todayDateString = getHKDateKey(currentTime) ?? currentTime.toISOString().slice(0, 10);
       if (cancelCheckExecutedDate === todayDateString) {
         // 当天已执行过，直接返回
         return { executed: false, cancelledCount: 0 };

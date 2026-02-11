@@ -21,7 +21,12 @@ import {
 import type { PushOrderChanged } from 'longport';
 import { logger } from '../../utils/logger/index.js';
 import { decimalToNumber, toDecimal, formatError, toBeijingTimeIso, isValidPositiveNumber } from '../../utils/helpers/index.js';
-import { ORDER_PRICE_DIFF_THRESHOLD, PENDING_ORDER_STATUSES } from '../../constants/index.js';
+import {
+  NON_REPLACEABLE_ORDER_STATUSES,
+  NON_REPLACEABLE_ORDER_TYPES,
+  ORDER_PRICE_DIFF_THRESHOLD,
+  PENDING_ORDER_STATUSES,
+} from '../../constants/index.js';
 import type { Quote, PendingRefreshSymbol, GlobalConfig } from '../../types/index.js';
 import type {
   OrderMonitor,
@@ -606,6 +611,13 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
           }
           continue;
         }
+      }
+
+      if (
+        NON_REPLACEABLE_ORDER_TYPES.has(order.orderType) ||
+        NON_REPLACEABLE_ORDER_STATUSES.has(order.status)
+      ) {
+        continue;
       }
 
       // 检查是否在修改间隔内

@@ -30,7 +30,6 @@ import {
   QuoteContext,
   TradeSessions,
   Market,
-  NaiveDate,
   SubType,
 } from 'longport';
 import type { Candlestick, PushQuoteEvent, PushCandlestickEvent } from 'longport';
@@ -49,7 +48,13 @@ import type {
   TradingDayCacheDeps,
   MarketDataClientDeps,
 } from './types.js';
-import { extractLotSize, extractName, formatPeriodForLog } from './utils.js';
+import {
+  extractLotSize,
+  extractName,
+  formatPeriodForLog,
+  resolveHKDateKey,
+  resolveHKNaiveDate,
+} from './utils.js';
 
 // 默认重试配置（使用统一常量）
 const DEFAULT_RETRY: RetryConfig = {
@@ -409,17 +414,9 @@ export async function createMarketDataClient(
     endDate: Date,
     market: Market = Market.HK,
   ): Promise<TradingDaysResult> {
-    // 转换为 NaiveDate 格式
-    const startNaive = new NaiveDate(
-      startDate.getFullYear(),
-      startDate.getMonth() + 1,
-      startDate.getDate(),
-    );
-    const endNaive = new NaiveDate(
-      endDate.getFullYear(),
-      endDate.getMonth() + 1,
-      endDate.getDate(),
-    );
+    // 使用港股日期键转换为 NaiveDate，避免本地时区偏移
+    const startNaive = resolveHKNaiveDate(startDate);
+    const endNaive = resolveHKNaiveDate(endDate);
 
     const resp = await withRetry(() =>
       ctx.tradingDays(market, startNaive, endNaive),
@@ -449,11 +446,8 @@ export async function createMarketDataClient(
     date: Date,
     market: Market = Market.HK,
   ): Promise<TradingDayInfo> {
-    // 格式化日期为 YYYY-MM-DD
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const dateStr = `${year}-${month}-${day}`;
+    // 格式化为港股日期键 YYYY-MM-DD
+    const dateStr = resolveHKDateKey(date);
 
     // 先检查缓存
     const cached = tradingDayCache.get(dateStr);
