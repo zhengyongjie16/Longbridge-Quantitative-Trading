@@ -34,10 +34,10 @@ import type { PendingSellInfo } from '../core/orderRecorder/types.js';
  * 表示交易操作的方向和动作
  */
 export type SignalType =
-  | 'BUYCALL'   // 买入做多（认购）
-  | 'SELLCALL'  // 卖出做多（平多仓）
-  | 'BUYPUT'    // 买入做空（认沽）
-  | 'SELLPUT'   // 卖出做空（平空仓）
+  | 'BUYCALL'   // 买入做多
+  | 'SELLCALL'  // 卖出做多
+  | 'BUYPUT'    // 买入做空
+  | 'SELLPUT'   // 卖出做空
   | 'HOLD';     // 持有（不操作）
 
 /**

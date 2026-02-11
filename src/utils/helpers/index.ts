@@ -313,9 +313,9 @@ export function getShortDirectionName(): string {
 function getSignalActionDescription(action: SignalType): string {
   const descriptions: Record<SignalType, string> = {
     'BUYCALL': '买入做多标的（做多）',
-    'SELLCALL': '卖出做多标的（清仓）',
+    'SELLCALL': '卖出做多标的（平仓）',
     'BUYPUT': '买入做空标的（做空）',
-    'SELLPUT': '卖出做空标的（平空仓）',
+    'SELLPUT': '卖出做空标的（平仓）',
     'HOLD': '持有',
   };
 
