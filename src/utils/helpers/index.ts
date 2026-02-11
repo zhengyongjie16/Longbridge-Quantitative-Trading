@@ -278,21 +278,19 @@ export function formatSymbolDisplayFromQuote(quote: Quote | null | undefined, sy
   return symbol;
 }
 
-
-
 /**
  * 辅助函数：判断是否为买入操作
  */
-export const isBuyAction = (action: SignalType): boolean => {
+export function isBuyAction(action: SignalType): boolean {
   return action === 'BUYCALL' || action === 'BUYPUT';
-};
+}
 
 /**
  * 辅助函数：判断是否为卖出操作
  */
-export const isSellAction = (action: SignalType): boolean => {
+export function isSellAction(action: SignalType): boolean {
   return action === 'SELLCALL' || action === 'SELLPUT';
-};
+}
 
 /** 获取做多标的方向名称 */
 export function getLongDirectionName(): string {
@@ -304,19 +302,20 @@ export function getShortDirectionName(): string {
   return '做空标的';
 }
 
+/** 信号操作描述映射 */
+const SIGNAL_ACTION_DESCRIPTIONS: Record<SignalType, string> = {
+  'BUYCALL': '买入做多标的（做多）',
+  'SELLCALL': '卖出做多标的（平仓）',
+  'BUYPUT': '买入做空标的（做空）',
+  'SELLPUT': '卖出做空标的（平仓）',
+  'HOLD': '持有',
+};
+
 /**
  * 格式化信号操作描述（内部使用）
  */
 function getSignalActionDescription(action: SignalType): string {
-  const descriptions: Record<SignalType, string> = {
-    'BUYCALL': '买入做多标的（做多）',
-    'SELLCALL': '卖出做多标的（平仓）',
-    'BUYPUT': '买入做空标的（做空）',
-    'SELLPUT': '卖出做空标的（平仓）',
-    'HOLD': '持有',
-  };
-
-  return descriptions[action] || `未知操作(${action})`;
+  return SIGNAL_ACTION_DESCRIPTIONS[action] || `未知操作(${action})`;
 }
 
 /**

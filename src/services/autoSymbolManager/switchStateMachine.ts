@@ -8,7 +8,6 @@
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import type { PendingOrder, Position } from '../../types/index.js';
 import type {
-  SeatDirection,
   SwitchOnDistanceParams,
   SwitchState,
   SwitchStateMachine,
@@ -64,7 +63,7 @@ export function createSwitchStateMachine(
   }
 
   async function findSwitchCandidate(
-    direction: SeatDirection,
+    direction: 'LONG' | 'SHORT',
   ): Promise<{ symbol: string; callPrice: number } | null> {
     const thresholds = resolveAutoSearchThresholdInput({
       direction,
@@ -269,7 +268,7 @@ export function createSwitchStateMachine(
     }
   }
 
-  function hasPendingSwitch(direction: SeatDirection): boolean {
+  function hasPendingSwitch(direction: 'LONG' | 'SHORT'): boolean {
     const switchState = switchStates.get(direction);
     if (!switchState) {
       return false;

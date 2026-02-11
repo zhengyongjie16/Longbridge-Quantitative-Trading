@@ -87,9 +87,9 @@ export const colors = {
 } as const;
 
 /** 格式化额外数据为字符串（内部使用） */
-const formatExtra = (extra: unknown): string => {
+function formatExtra(extra: unknown): string {
   return inspect(extra, { depth: 5, maxArrayLength: 100 });
-};
+}
 
 /**
  * 按日期分割的文件流（用于 pino 传输）

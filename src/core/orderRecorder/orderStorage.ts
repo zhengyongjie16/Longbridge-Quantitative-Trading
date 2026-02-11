@@ -254,47 +254,31 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     return filteredOrders;
   };
 
-  /** 获取所有做多标的的买入订单（用于 RiskChecker） */
-  const getLongBuyOrders = (): OrderRecord[] => {
+  /** 获取指定方向 Map 中所有买入订单 */
+  function collectAllOrders(map: Map<string, OrderRecord[]>): OrderRecord[] {
     let totalLength = 0;
-    for (const orders of longBuyOrdersMap.values()) {
+    for (const orders of map.values()) {
       totalLength += orders.length;
     }
     if (totalLength === 0) {
       return [];
     }
-
     const allOrders = new Array<OrderRecord>(totalLength);
     let offset = 0;
-    for (const orders of longBuyOrdersMap.values()) {
+    for (const orders of map.values()) {
       for (const order of orders) {
         allOrders[offset] = order;
         offset += 1;
       }
     }
     return allOrders;
-  };
+  }
+
+  /** 获取所有做多标的的买入订单（用于 RiskChecker） */
+  const getLongBuyOrders = (): OrderRecord[] => collectAllOrders(longBuyOrdersMap);
 
   /** 获取所有做空标的的买入订单（用于 RiskChecker） */
-  const getShortBuyOrders = (): OrderRecord[] => {
-    let totalLength = 0;
-    for (const orders of shortBuyOrdersMap.values()) {
-      totalLength += orders.length;
-    }
-    if (totalLength === 0) {
-      return [];
-    }
-
-    const allOrders = new Array<OrderRecord>(totalLength);
-    let offset = 0;
-    for (const orders of shortBuyOrdersMap.values()) {
-      for (const order of orders) {
-        allOrders[offset] = order;
-        offset += 1;
-      }
-    }
-    return allOrders;
-  };
+  const getShortBuyOrders = (): OrderRecord[] => collectAllOrders(shortBuyOrdersMap);
 
   // ========== 待成交卖出订单追踪实现 ==========
 

@@ -9,7 +9,6 @@
 import type {
   TradeLogHydrator,
   TradeLogHydratorDeps,
-  NormalizedTradeRecord,
   RawRecord,
 } from './types.js';
 import type { TradeRecord } from '../../core/trader/types.js';
@@ -22,7 +21,7 @@ import {
   resolveCooldownCandidatesBySeat,
 } from './utils.js';
 
-const normalizeTradeRecord = (raw: unknown): NormalizedTradeRecord | null => {
+function normalizeTradeRecord(raw: unknown): TradeRecord | null {
   if (!raw || typeof raw !== 'object') {
     return null;
   }
@@ -47,10 +46,10 @@ const normalizeTradeRecord = (raw: unknown): NormalizedTradeRecord | null => {
     isProtectiveClearance: toBooleanOrNull(obj['isProtectiveClearance']),
   };
 
-  return { record };
-};
+  return record;
+}
 
-export const createTradeLogHydrator = (deps: TradeLogHydratorDeps): TradeLogHydrator => {
+export function createTradeLogHydrator(deps: TradeLogHydratorDeps): TradeLogHydrator {
   const {
     readFileSync,
     existsSync,
@@ -65,11 +64,11 @@ export const createTradeLogHydrator = (deps: TradeLogHydratorDeps): TradeLogHydr
     tradingConfig.monitors.map((config) => [config.monitorSymbol, config]),
   );
 
-  const hydrate = ({
+  function hydrate({
     seatSymbols,
   }: {
     readonly seatSymbols: ReadonlyArray<SeatSymbolSnapshotEntry>;
-  }): void => {
+  }): void {
     const logFile = buildTradeLogPath(cwd(), new Date(nowMs()));
     if (!existsSync(logFile)) {
       logger.info(`[清仓冷却] 当日成交日志不存在，跳过冷却恢复: ${logFile}`);
@@ -96,7 +95,7 @@ export const createTradeLogHydrator = (deps: TradeLogHydratorDeps): TradeLogHydr
       if (!normalized) {
         continue;
       }
-      records.push(normalized.record);
+      records.push(normalized);
     }
 
     let restoredCount = 0;
@@ -130,9 +129,9 @@ export const createTradeLogHydrator = (deps: TradeLogHydratorDeps): TradeLogHydr
     }
 
     logger.info(`[清仓冷却] 启动恢复完成，恢复冷却条数=${restoredCount}`);
-  };
+  }
 
   return {
     hydrate,
   };
-};
+}

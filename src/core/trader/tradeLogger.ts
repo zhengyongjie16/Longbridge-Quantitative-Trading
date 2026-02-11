@@ -74,7 +74,7 @@ export function recordTrade(tradeRecord: TradeRecord): void {
       }
     }
 
-    const executedAtMs = Number.isFinite(tradeRecord.executedAtMs ?? Number.NaN)
+    const executedAtMs = Number.isFinite(tradeRecord.executedAtMs)
       ? tradeRecord.executedAtMs
       : null;
     const signalTriggerTime = tradeRecord.signalTriggerTime ?? null;

@@ -518,7 +518,6 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       return;
     }
 
-    // 撤销订单
     const cancelled = await cancelOrder(orderId);
 
     if (cancelled) {

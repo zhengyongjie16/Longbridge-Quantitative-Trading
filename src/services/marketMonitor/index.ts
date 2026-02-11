@@ -207,7 +207,7 @@ function displayIndicators(params: {
  * 创建行情监控器
  * 监控做多/做空标的价格变化、监控标的指标变化，并格式化显示
  */
-export const createMarketMonitor = (): MarketMonitor => {
+export function createMarketMonitor(): MarketMonitor {
   return {
     monitorPriceChanges: (
       longQuote: Quote | null,
@@ -445,4 +445,4 @@ export const createMarketMonitor = (): MarketMonitor => {
       return false; // 指标未变化
     },
   };
-};
+}

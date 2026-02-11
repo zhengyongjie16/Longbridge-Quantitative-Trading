@@ -26,9 +26,9 @@ import type {
 } from '../../types/index.js';
 
 export type LifecycleRuntimeFlags = Readonly<{
-  readonly dayKey: string | null;
-  readonly canTradeNow: boolean;
-  readonly isTradingDay: boolean;
+  dayKey: string | null;
+  canTradeNow: boolean;
+  isTradingDay: boolean;
 }>;
 
 export type LifecycleMutableState = {
@@ -40,12 +40,12 @@ export type LifecycleMutableState = {
 };
 
 export type LifecycleContext = Readonly<{
-  readonly now: Date;
-  readonly runtime: LifecycleRuntimeFlags;
+  now: Date;
+  runtime: LifecycleRuntimeFlags;
 }>;
 
 export type CacheDomain = Readonly<{
-  readonly name: string;
+  name: string;
   midnightClear: (ctx: LifecycleContext) => Promise<void> | void;
   openRebuild: (ctx: LifecycleContext) => Promise<void> | void;
 }>;
@@ -57,51 +57,51 @@ export type DayLifecycleManager = Readonly<{
 }>;
 
 export type DayLifecycleManagerDeps = Readonly<{
-  readonly mutableState: LifecycleMutableState;
-  readonly cacheDomains: ReadonlyArray<CacheDomain>;
-  readonly logger: Pick<Logger, 'info' | 'warn' | 'error'>;
-  readonly rebuildRetryDelayMs?: number;
+  mutableState: LifecycleMutableState;
+  cacheDomains: ReadonlyArray<CacheDomain>;
+  logger: Pick<Logger, 'info' | 'warn' | 'error'>;
+  rebuildRetryDelayMs?: number;
 }>;
 
 export type RebuildTradingDayStateDeps = Readonly<{
-  readonly marketDataClient: MarketDataClient;
-  readonly trader: Trader;
-  readonly lastState: LastState;
-  readonly symbolRegistry: SymbolRegistry;
-  readonly monitorContexts: ReadonlyMap<string, MonitorContext>;
-  readonly dailyLossTracker: DailyLossTracker;
-  readonly displayAccountAndPositions: (params: {
+  marketDataClient: MarketDataClient;
+  trader: Trader;
+  lastState: LastState;
+  symbolRegistry: SymbolRegistry;
+  monitorContexts: ReadonlyMap<string, MonitorContext>;
+  dailyLossTracker: DailyLossTracker;
+  displayAccountAndPositions: (params: {
     readonly lastState: LastState;
     readonly quotesMap: ReadonlyMap<string, Quote | null>;
   }) => Promise<void>;
 }>;
 
 export type RebuildTradingDayStateParams = Readonly<{
-  readonly allOrders: ReadonlyArray<RawOrderFromAPI>;
-  readonly quotesMap: ReadonlyMap<string, Quote | null>;
+  allOrders: ReadonlyArray<RawOrderFromAPI>;
+  quotesMap: ReadonlyMap<string, Quote | null>;
 }>;
 
 export type LoadTradingDayRuntimeSnapshotParams = Readonly<{
-  readonly now: Date;
-  readonly requireTradingDay: boolean;
-  readonly failOnOrderFetchError: boolean;
-  readonly resetRuntimeSubscriptions: boolean;
-  readonly hydrateCooldownFromTradeLog: boolean;
-  readonly forceOrderRefresh: boolean;
+  now: Date;
+  requireTradingDay: boolean;
+  failOnOrderFetchError: boolean;
+  resetRuntimeSubscriptions: boolean;
+  hydrateCooldownFromTradeLog: boolean;
+  forceOrderRefresh: boolean;
 }>;
 
 export type LoadTradingDayRuntimeSnapshotResult = Readonly<{
-  readonly allOrders: ReadonlyArray<RawOrderFromAPI>;
-  readonly quotesMap: ReadonlyMap<string, Quote | null>;
+  allOrders: ReadonlyArray<RawOrderFromAPI>;
+  quotesMap: ReadonlyMap<string, Quote | null>;
 }>;
 
 export type LoadTradingDayRuntimeSnapshotDeps = Readonly<{
-  readonly marketDataClient: MarketDataClient;
-  readonly trader: Trader;
-  readonly lastState: LastState;
-  readonly tradingConfig: MultiMonitorTradingConfig;
-  readonly symbolRegistry: SymbolRegistry;
-  readonly dailyLossTracker: DailyLossTracker;
-  readonly tradeLogHydrator: TradeLogHydrator;
-  readonly warrantListCacheConfig: WarrantListCacheConfig;
+  marketDataClient: MarketDataClient;
+  trader: Trader;
+  lastState: LastState;
+  tradingConfig: MultiMonitorTradingConfig;
+  symbolRegistry: SymbolRegistry;
+  dailyLossTracker: DailyLossTracker;
+  tradeLogHydrator: TradeLogHydrator;
+  warrantListCacheConfig: WarrantListCacheConfig;
 }>;

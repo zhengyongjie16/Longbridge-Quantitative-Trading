@@ -20,14 +20,14 @@ import type { Position, PositionCache } from '../../types/index.js';
  * 创建持仓缓存管理器
  * 使用工厂函数模式，符合项目规范
  */
-export const createPositionCache = (): PositionCache => {
+export function createPositionCache(): PositionCache {
   const positionMap = new Map<string, Position>();
 
   /**
    * 更新持仓缓存
    * @param positions 持仓数组
    */
-  const update = (positions: ReadonlyArray<Position>): void => {
+  function update(positions: ReadonlyArray<Position>): void {
     positionMap.clear();
 
     for (const pos of positions) {
@@ -42,18 +42,18 @@ export const createPositionCache = (): PositionCache => {
         positionMap.set(pos.symbol, pos);
       }
     }
-  };
+  }
 
   /**
    * 获取指定标的的持仓（O(1) 查找）
    * @param symbol 标的代码（已验证 ticker.region）
    */
-  const get = (symbol: string): Position | null => {
+  function get(symbol: string): Position | null {
     return positionMap.get(symbol) ?? null;
-  };
+  }
 
   return {
     update,
     get,
   };
-};
+}

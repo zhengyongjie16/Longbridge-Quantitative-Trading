@@ -178,13 +178,10 @@ export function parseVerificationDelay(
   envKey: string,
   defaultValue: number,
 ): number {
+  // getNumberConfig(env, envKey, 0) 已拒绝负值（minValue=0），此处仅需检查上限
   const delay = getNumberConfig(env, envKey, 0);
   if (delay === null) {
     return defaultValue;
-  }
-  if (delay < 0) {
-    logger.warn(`[配置警告] ${envKey} 不能小于 0，已设置为 0`);
-    return 0;
   }
   if (delay > 120) {
     logger.warn(`[配置警告] ${envKey} 不能大于 120，已设置为 120`);
@@ -260,33 +257,29 @@ export function parseVerificationIndicators(
   return validItems.length > 0 ? validItems : null;
 }
 
+/** 订单类型字符串到枚举的映射 */
+const ORDER_TYPE_MAPPING: Readonly<Record<string, OrderType>> = {
+  LO: OrderType.LO,
+  ELO: OrderType.ELO,
+  MO: OrderType.MO,
+};
+
 /** 解析订单类型配置（LO/ELO/MO），必须大写 */
 export function parseOrderTypeConfig(
   env: NodeJS.ProcessEnv,
   envKey: string,
   defaultType: 'LO' | 'ELO' | 'MO' = 'ELO',
 ): OrderType {
+  // getStringConfig 已处理 trim 和占位符
   const value = getStringConfig(env, envKey);
-  const trimmedValue = value ? value.trim() : null;
-  const mapping: Record<string, OrderType> = {
-    LO: OrderType.LO,
-    ELO: OrderType.ELO,
-    MO: OrderType.MO,
-  };
-  const parsed = trimmedValue ? mapping[trimmedValue] : undefined;
-  if (parsed) {
-    return parsed;
-  }
-  if (value && trimmedValue !== 'LO' && trimmedValue !== 'ELO' && trimmedValue !== 'MO') {
+  if (value) {
+    const parsed = ORDER_TYPE_MAPPING[value];
+    if (parsed) {
+      return parsed;
+    }
     logger.warn(
       `[配置警告] ${envKey} 值无效: ${value}，必须使用全大写: LO, ELO, MO。已使用默认值: ${defaultType}`,
     );
   }
-  if (defaultType === 'LO') {
-    return OrderType.LO;
-  }
-  if (defaultType === 'MO') {
-    return OrderType.MO;
-  }
-  return OrderType.ELO;
+  return ORDER_TYPE_MAPPING[defaultType] ?? OrderType.ELO;
 }

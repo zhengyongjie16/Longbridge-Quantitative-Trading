@@ -12,7 +12,6 @@ import type {
   BuildFindBestWarrantInputParams,
   ResolveAutoSearchThresholdInput,
   ResolveAutoSearchThresholdInputParams,
-  SeatDirection,
   ThresholdResolverDeps,
 } from './types.js';
 
@@ -20,7 +19,7 @@ import type {
  * 根据席位方向提取自动寻标阈值配置，避免错误混用多/空阈值。
  */
 export function resolveAutoSearchThresholds(
-  direction: SeatDirection,
+  direction: 'LONG' | 'SHORT',
   config: AutoSearchConfig,
 ): {
   readonly minDistancePct: number | null;

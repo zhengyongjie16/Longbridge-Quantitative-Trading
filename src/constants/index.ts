@@ -184,21 +184,12 @@ export const ACCOUNT_CHANNEL_MAP: Record<string, string> = {
   demo: '模拟交易',
 };
 
-/** 信号类型常量（内部使用） */
-const SIGNAL_ACTIONS = {
-  BUYCALL: 'BUYCALL',
-  SELLCALL: 'SELLCALL',
-  BUYPUT: 'BUYPUT',
-  SELLPUT: 'SELLPUT',
-  HOLD: 'HOLD',
-} as const;
-
 /** 有效的交易信号集合，不包含 HOLD（仅用于判断是否需要执行交易） */
 export const VALID_SIGNAL_ACTIONS = new Set<SignalType>([
-  SIGNAL_ACTIONS.BUYCALL,
-  SIGNAL_ACTIONS.SELLCALL,
-  SIGNAL_ACTIONS.BUYPUT,
-  SIGNAL_ACTIONS.SELLPUT,
+  'BUYCALL',
+  'SELLCALL',
+  'BUYPUT',
+  'SELLPUT',
 ]);
 
 /** 信号操作描述映射，用于日志输出 */

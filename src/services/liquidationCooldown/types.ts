@@ -8,7 +8,6 @@ import type {
   MultiMonitorTradingConfig,
   SeatSymbolSnapshotEntry,
 } from '../../types/index.js';
-import type { TradeRecord } from '../../core/trader/types.js';
 import type { Logger } from '../../utils/logger/types.js';
 
 /** 未解析的日志记录（键值对） */
@@ -17,16 +16,11 @@ export type RawRecord = {
 };
 
 /**
- * 冷却方向（做多/做空）
- */
-export type LiquidationDirection = 'LONG' | 'SHORT';
-
-/**
  * 记录清仓冷却的参数
  */
 export type RecordCooldownParams = {
   readonly symbol: string;
-  readonly direction: LiquidationDirection;
+  readonly direction: 'LONG' | 'SHORT';
   readonly executedTimeMs: number;
 };
 
@@ -35,7 +29,7 @@ export type RecordCooldownParams = {
  */
 export type GetRemainingMsParams = {
   readonly symbol: string;
-  readonly direction: LiquidationDirection;
+  readonly direction: 'LONG' | 'SHORT';
   readonly cooldownConfig: LiquidationCooldownConfig | null;
 };
 
@@ -79,12 +73,8 @@ export interface TradeLogHydrator {
   hydrate(params: { readonly seatSymbols: ReadonlyArray<SeatSymbolSnapshotEntry> }): void;
 }
 
-export type NormalizedTradeRecord = {
-  readonly record: TradeRecord;
-};
-
 export type CooldownCandidate = {
   readonly monitorSymbol: string;
-  readonly direction: LiquidationDirection;
+  readonly direction: 'LONG' | 'SHORT';
   readonly executedAtMs: number;
 };

@@ -10,14 +10,13 @@ import type { Signal } from '../../types/index.js';
 import type {
   BuildOrderSignalParams,
   OrderSignalBuilder,
-  SeatDirection,
   SignalBuilderDeps,
 } from './types.js';
 
 /**
  * 将方向映射到对应的买卖动作与牛熊方向。
  */
-export function resolveDirectionSymbols(direction: SeatDirection): {
+export function resolveDirectionSymbols(direction: 'LONG' | 'SHORT'): {
   readonly isBull: boolean;
   readonly buyAction: 'BUYCALL' | 'BUYPUT';
   readonly sellAction: 'SELLCALL' | 'SELLPUT';

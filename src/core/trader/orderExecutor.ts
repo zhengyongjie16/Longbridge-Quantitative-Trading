@@ -87,10 +87,10 @@ function calculateBuyQuantity(
   overridePrice: number | undefined,
   targetNotional: number,
 ): Decimal {
-  const pricingSource = overridePrice ?? signal?.price ?? null;
-  if (!Number.isFinite(Number(pricingSource)) || Number(pricingSource) <= 0) {
+  const priceNum = Number(overridePrice ?? signal?.price ?? null);
+  if (!Number.isFinite(priceNum) || priceNum <= 0) {
     logger.warn(
-      `[跳过订单] 无法获取有效价格，无法按金额计算买入数量，price=${pricingSource}`,
+      `[跳过订单] 无法获取有效价格，无法按金额计算买入数量，price=${priceNum}`,
     );
     return Decimal.ZERO();
   }
@@ -98,14 +98,6 @@ function calculateBuyQuantity(
   const notional = isValidPositiveNumber(targetNotional)
     ? targetNotional
     : TRADING.DEFAULT_TARGET_NOTIONAL;
-  const priceNum = Number(pricingSource);
-
-  if (!Number.isFinite(priceNum) || priceNum <= 0) {
-    logger.warn(
-      `[跳过订单] 价格无效，无法计算买入数量，price=${priceNum}`,
-    );
-    return Decimal.ZERO();
-  }
 
   let rawQty = Math.floor(notional / priceNum);
 
@@ -746,9 +738,6 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       );
 
       await submitTargetOrder(ctx, s, targetSymbol, isShortSymbol, monitorConfig);
-
-      // 注意：订单追踪已在 submitOrder 中通过 trackOrder 自动启用
-      // 不再需要单独调用 enableMonitoring
     }
   }
 

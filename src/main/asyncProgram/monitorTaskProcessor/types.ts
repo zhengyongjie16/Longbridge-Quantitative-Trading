@@ -11,7 +11,7 @@
  * - 用于任务创建时记录当前席位状态
  * - 处理时验证席位是否已变更，防止执行过期任务
  */
-import type { AutoSymbolManager, SeatDirection } from '../../../services/autoSymbolManager/types.js';
+import type { AutoSymbolManager } from '../../../services/autoSymbolManager/types.js';
 import type { RefreshGate } from '../../../utils/refreshGate/types.js';
 import type { MonitorTaskQueue, MonitorTask } from '../monitorTaskQueue/types.js';
 import type {
@@ -34,7 +34,7 @@ export type SeatSnapshot = Readonly<{
 
 export type AutoSymbolTickTaskData = Readonly<{
   monitorSymbol: string;
-  direction: SeatDirection;
+  direction: 'LONG' | 'SHORT';
   seatVersion: number;
   symbol: string | null;
   currentTimeMs: number;
@@ -53,7 +53,7 @@ export type AutoSymbolSwitchDistanceTaskData = Readonly<{
 
 export type SeatRefreshTaskData = Readonly<{
   monitorSymbol: string;
-  direction: SeatDirection;
+  direction: 'LONG' | 'SHORT';
   seatVersion: number;
   previousSymbol: string | null;
   nextSymbol: string;
@@ -111,18 +111,18 @@ export type MonitorTaskData =
 export type MonitorTaskStatus = 'processed' | 'skipped' | 'failed';
 
 export type MonitorTaskContext = Readonly<{
-  readonly symbolRegistry: SymbolRegistry;
-  readonly autoSymbolManager: AutoSymbolManager;
-  readonly orderRecorder: OrderRecorder;
-  readonly dailyLossTracker: DailyLossTracker;
-  readonly riskChecker: RiskChecker;
-  readonly unrealizedLossMonitor: UnrealizedLossMonitor;
-  readonly longSymbolName: string;
-  readonly shortSymbolName: string;
-  readonly monitorSymbolName: string;
-  readonly longQuote: Quote | null;
-  readonly shortQuote: Quote | null;
-  readonly monitorQuote: Quote | null;
+  symbolRegistry: SymbolRegistry;
+  autoSymbolManager: AutoSymbolManager;
+  orderRecorder: OrderRecorder;
+  dailyLossTracker: DailyLossTracker;
+  riskChecker: RiskChecker;
+  unrealizedLossMonitor: UnrealizedLossMonitor;
+  longSymbolName: string;
+  shortSymbolName: string;
+  monitorSymbolName: string;
+  longQuote: Quote | null;
+  shortQuote: Quote | null;
+  monitorQuote: Quote | null;
 }>;
 
 export type RefreshHelpers = Readonly<{
@@ -134,16 +134,16 @@ export type RefreshHelpers = Readonly<{
 }>;
 
 export type MonitorTaskProcessorDeps = Readonly<{
-  readonly monitorTaskQueue: MonitorTaskQueue<MonitorTaskType, MonitorTaskData>;
-  readonly refreshGate: RefreshGate;
-  readonly getMonitorContext: (monitorSymbol: string) => MonitorTaskContext | null;
-  readonly clearQueuesForDirection: (monitorSymbol: string, direction: SeatDirection) => void;
-  readonly trader: Trader;
-  readonly lastState: LastState;
-  readonly tradingConfig: MultiMonitorTradingConfig;
+  monitorTaskQueue: MonitorTaskQueue<MonitorTaskType, MonitorTaskData>;
+  refreshGate: RefreshGate;
+  getMonitorContext: (monitorSymbol: string) => MonitorTaskContext | null;
+  clearQueuesForDirection: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => void;
+  trader: Trader;
+  lastState: LastState;
+  tradingConfig: MultiMonitorTradingConfig;
   /** 生命周期门禁：false 时任务直接跳过 */
-  readonly getCanProcessTask?: () => boolean;
-  readonly onProcessed?: (task: MonitorTask<MonitorTaskType, MonitorTaskData>, status: MonitorTaskStatus) => void;
+  getCanProcessTask?: () => boolean;
+  onProcessed?: (task: MonitorTask<MonitorTaskType, MonitorTaskData>, status: MonitorTaskStatus) => void;
 }>;
 
 export type MonitorTaskProcessor = Readonly<{

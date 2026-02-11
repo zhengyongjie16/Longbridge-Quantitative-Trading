@@ -20,7 +20,10 @@ import { releaseAllMonitorSnapshots } from './utils.js';
  * 创建清理函数
  * @param context 清理上下文，包含需要清理的资源
  */
-export const createCleanup = (context: CleanupContext) => {
+export function createCleanup(context: CleanupContext): {
+  execute: () => Promise<void>;
+  registerExitHandlers: () => void;
+} {
   const {
     buyProcessor,
     sellProcessor,
@@ -35,7 +38,7 @@ export const createCleanup = (context: CleanupContext) => {
   /**
    * 执行清理（stopAndDrain 确保 in-flight 任务排空）
    */
-  const execute = async (): Promise<void> => {
+  async function execute(): Promise<void> {
     logger.info('Program exiting, cleaning up resources...');
     await buyProcessor.stopAndDrain();
     await sellProcessor.stopAndDrain();
@@ -50,22 +53,22 @@ export const createCleanup = (context: CleanupContext) => {
     indicatorCache.clearAll();
     // 释放快照对象
     releaseAllMonitorSnapshots(lastState.monitorStates);
-  };
+  }
 
   /**
    * 注册退出处理函数
    */
-  const registerExitHandlers = (): void => {
+  function registerExitHandlers(): void {
     process.once('SIGINT', () => {
       void execute().finally(() => process.exit(0));
     });
     process.once('SIGTERM', () => {
       void execute().finally(() => process.exit(0));
     });
-  };
+  }
 
   return {
     execute,
     registerExitHandlers,
   };
-};
+}

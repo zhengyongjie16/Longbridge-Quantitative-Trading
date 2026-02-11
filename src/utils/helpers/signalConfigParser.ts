@@ -289,7 +289,6 @@ function evaluateCondition(state: IndicatorState, condition: Condition): boolean
     }
   }
 
-  // 获取指标值
   let value: number | undefined;
   switch (indicatorName) {
     case 'RSI':
@@ -458,7 +457,6 @@ export function extractRSIPeriods(signalConfig: SignalConfigSet | null): number[
 
   const periods = new Set<number>();
 
-  // 遍历所有信号类型的配置
   const configs = [
     signalConfig.buycall,
     signalConfig.sellcall,
@@ -471,15 +469,12 @@ export function extractRSIPeriods(signalConfig: SignalConfigSet | null): number[
       continue;
     }
 
-    // 遍历所有条件组
     for (const group of config.conditionGroups) {
       if (!group.conditions) {
         continue;
       }
 
-      // 遍历所有条件
       for (const condition of group.conditions) {
-        // 如果是 RSI 指标且有周期，添加到集合中
         if (condition.indicator.startsWith('RSI:')) {
           const parts = condition.indicator.split(':');
           const periodStr = parts[1];
@@ -494,7 +489,6 @@ export function extractRSIPeriods(signalConfig: SignalConfigSet | null): number[
     }
   }
 
-  // 转为数组并排序
   return Array.from(periods).sort((a, b) => a - b);
 }
 
@@ -510,7 +504,6 @@ export function extractPsyPeriods(signalConfig: SignalConfigSet | null): number[
 
   const periods = new Set<number>();
 
-  // 遍历所有信号类型的配置
   const configs = [
     signalConfig.buycall,
     signalConfig.sellcall,
@@ -523,15 +516,12 @@ export function extractPsyPeriods(signalConfig: SignalConfigSet | null): number[
       continue;
     }
 
-    // 遍历所有条件组
     for (const group of config.conditionGroups) {
       if (!group.conditions) {
         continue;
       }
 
-      // 遍历所有条件
       for (const condition of group.conditions) {
-        // 如果是 PSY 指标且有周期，添加到集合中
         if (condition.indicator.startsWith('PSY:')) {
           const parts = condition.indicator.split(':');
           const periodStr = parts[1];
@@ -546,6 +536,5 @@ export function extractPsyPeriods(signalConfig: SignalConfigSet | null): number[
     }
   }
 
-  // 转为数组并排序
   return Array.from(periods).sort((a, b) => a - b);
 }

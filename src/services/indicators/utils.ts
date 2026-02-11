@@ -42,7 +42,7 @@ export function getCandleFingerprint(candles: ReadonlyArray<CandleData>): string
  * @param value K 线数据值（支持 Decimal、number、string）
  * @returns 数字值，无效值返回 0
  */
-export const toNumber = (value: CandleValue): number => {
+export function toNumber(value: CandleValue): number {
   if (value === null || value === undefined) {
     return 0;
   }
@@ -54,7 +54,7 @@ export const toNumber = (value: CandleValue): number => {
   }
   // Decimal 类型：使用 toString() 转换
   return Number(value.toString());
-};
+}
 
 /**
  * 记录调试日志
@@ -70,9 +70,9 @@ export function logDebug(message: string, error?: unknown): void {
  * @param obj 对象池中的 KDJ 对象
  * @returns 如果所有字段都是有效数字则返回 true
  */
-export const isValidKDJ = (
+export function isValidKDJ(
   obj: PoolableKDJ,
-): obj is PoolableKDJ & { k: number; d: number; j: number } => {
+): obj is PoolableKDJ & { k: number; d: number; j: number } {
   return (
     typeof obj.k === 'number' &&
     typeof obj.d === 'number' &&
@@ -81,16 +81,16 @@ export const isValidKDJ = (
     Number.isFinite(obj.d) &&
     Number.isFinite(obj.j)
   );
-};
+}
 
 /**
  * 检查 PoolableMACD 是否可以安全转换为 MACDIndicator
  * @param obj 对象池中的 MACD 对象
  * @returns 如果所有字段都是有效数字则返回 true
  */
-export const isValidMACD = (
+export function isValidMACD(
   obj: PoolableMACD,
-): obj is PoolableMACD & { macd: number; dif: number; dea: number } => {
+): obj is PoolableMACD & { macd: number; dif: number; dea: number } {
   return (
     typeof obj.macd === 'number' &&
     typeof obj.dif === 'number' &&
@@ -99,4 +99,4 @@ export const isValidMACD = (
     Number.isFinite(obj.dif) &&
     Number.isFinite(obj.dea)
   );
-};
+}

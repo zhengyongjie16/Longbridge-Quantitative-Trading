@@ -535,7 +535,6 @@ async function main(): Promise<void> {
     logger.debug(`[DelayedSignalVerifier] 监控标的 ${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)} 的验证器已初始化`);
   }
 
-
   // 清理指定监控标的和方向的所有待执行任务队列。
   // 用于自动换标时清理旧标的的延迟信号、买卖任务和监控任务。
   function clearQueuesForDirection(monitorSymbol: string, direction: 'LONG' | 'SHORT'): void {

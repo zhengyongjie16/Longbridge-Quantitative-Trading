@@ -33,7 +33,7 @@ export function formatPeriodForLog(period: Period): string {
  * @param staticInfo 静态信息对象
  * @returns lotSize 值，如果无效则返回 undefined
  */
-export const extractLotSize = (staticInfo: unknown): number | undefined => {
+export function extractLotSize(staticInfo: unknown): number | undefined {
   if (!staticInfo || typeof staticInfo !== 'object') {
     return undefined;
   }
@@ -51,21 +51,21 @@ export const extractLotSize = (staticInfo: unknown): number | undefined => {
   }
 
   return undefined;
-};
+}
 
 /**
  * 从静态信息中安全提取名称
  * @param staticInfo 静态信息对象
  * @returns 名称，优先返回香港名称，其次中文名称，最后英文名称
  */
-export const extractName = (staticInfo: unknown): string | null => {
+export function extractName(staticInfo: unknown): string | null {
   if (!staticInfo || typeof staticInfo !== 'object') {
     return null;
   }
 
   const info = staticInfo as StaticInfo;
   return info.nameHk ?? info.nameCn ?? info.nameEn ?? null;
-};
+}
 
 /**
  * 获取港股日期键（UTC+8），确保返回非空值

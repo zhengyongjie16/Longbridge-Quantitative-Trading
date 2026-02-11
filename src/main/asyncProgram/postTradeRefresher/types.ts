@@ -15,11 +15,11 @@ export type PostTradeRefresherEnqueueParams = Readonly<{
 }>;
 
 export type PostTradeRefresherDeps = Readonly<{
-  readonly refreshGate: RefreshGate;
-  readonly trader: Trader;
-  readonly lastState: LastState;
-  readonly monitorContexts: ReadonlyMap<string, MonitorContext>;
-  readonly displayAccountAndPositions: (params: {
+  refreshGate: RefreshGate;
+  trader: Trader;
+  lastState: LastState;
+  monitorContexts: ReadonlyMap<string, MonitorContext>;
+  displayAccountAndPositions: (params: {
     lastState: LastState;
     quotesMap: ReadonlyMap<string, Quote | null>;
   }) => Promise<void>;

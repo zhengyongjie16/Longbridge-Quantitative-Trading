@@ -50,7 +50,7 @@ export function validateAllIndicators(state: IndicatorSnapshot): boolean {
 }
 
 function formatKdjSegment(kdj: IndicatorSnapshot['kdj']): string {
-  if (kdj === null || kdj === undefined) return '';
+  if (kdj == null) return '';
   const kdjParts: string[] = [];
   if (isValidNumber(kdj.k)) kdjParts.push(`K=${kdj.k.toFixed(3)}`);
   if (isValidNumber(kdj.d)) kdjParts.push(`D=${kdj.d.toFixed(3)}`);

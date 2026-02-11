@@ -4,12 +4,12 @@
 import { TIME } from '../../constants/index.js';
 import type { TradeRecord } from '../../core/trader/types.js';
 import type { SeatSymbolSnapshotEntry } from '../../types/index.js';
-import type { CooldownCandidate, LiquidationDirection } from './types.js';
+import type { CooldownCandidate } from './types.js';
 
 /**
  * 构建冷却记录的 key
  */
-export function buildCooldownKey(symbol: string, direction: LiquidationDirection): string {
+export function buildCooldownKey(symbol: string, direction: 'LONG' | 'SHORT'): string {
   return `${symbol}:${direction}`;
 }
 
@@ -49,17 +49,17 @@ export function resolveHongKongTimeMs({
   return targetHkMs - offsetMs;
 }
 
-export const toStringOrNull = (value: unknown): string | null => {
+export function toStringOrNull(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null;
-};
+}
 
-export const toNumberOrNull = (value: unknown): number | null => {
+export function toNumberOrNull(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
-};
+}
 
-export const toBooleanOrNull = (value: unknown): boolean | null => {
+export function toBooleanOrNull(value: unknown): boolean | null {
   return value === true || value === false ? value : null;
-};
+}
 
 export function resolveCooldownCandidatesBySeat({
   seatSymbols,

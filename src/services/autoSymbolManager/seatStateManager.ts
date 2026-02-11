@@ -11,7 +11,6 @@ import type {
   SeatStateManager,
   SeatStateManagerDeps,
   SeatStateUpdater,
-  SeatDirection,
 } from './types.js';
 
 export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateManager {
@@ -42,7 +41,7 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
   };
 
   const updateSeatState: SeatStateUpdater = (
-    direction: SeatDirection,
+    direction: 'LONG' | 'SHORT',
     nextState,
     bumpOnSymbolChange,
   ): void => {
@@ -54,7 +53,7 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
   };
 
   function resolveSuppression(
-    direction: SeatDirection,
+    direction: 'LONG' | 'SHORT',
     seatSymbol: string,
   ): ReturnType<SeatStateManager['resolveSuppression']> {
     const record = switchSuppressions.get(direction);
@@ -69,7 +68,7 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
     return record;
   }
 
-  function markSuppression(direction: SeatDirection, seatSymbol: string): void {
+  function markSuppression(direction: 'LONG' | 'SHORT', seatSymbol: string): void {
     const dateKey = getHKDateKey(now());
     if (!dateKey) {
       return;
@@ -80,7 +79,7 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
   /**
    * 清空席位并进入换标流程，同时提升席位版本用于信号隔离。
    */
-  function clearSeat({ direction, reason }: { direction: SeatDirection; reason: string }) {
+  function clearSeat({ direction, reason }: { direction: 'LONG' | 'SHORT'; reason: string }) {
     const timestamp = now().getTime();
     const currentState = symbolRegistry.getSeatState(monitorSymbol, direction);
     const currentSymbol = currentState.symbol;

@@ -16,7 +16,6 @@ import { AUTO_SYMBOL_SEARCH_COOLDOWN_MS, PENDING_ORDER_STATUSES } from '../../co
 import type {
   AutoSymbolManager,
   AutoSymbolManagerDeps,
-  SeatDirection,
   SwitchState,
   SwitchSuppression,
 } from './types.js';
@@ -50,8 +49,8 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
   const monitorSymbol = monitorConfig.monitorSymbol;
   const autoSearchConfig = monitorConfig.autoSearchConfig;
 
-  const switchStates = new Map<SeatDirection, SwitchState>();
-  const switchSuppressions = new Map<SeatDirection, SwitchSuppression>();
+  const switchStates = new Map<'LONG' | 'SHORT', SwitchState>();
+  const switchSuppressions = new Map<'LONG' | 'SHORT', SwitchSuppression>();
 
   const thresholdResolver = createThresholdResolver({
     autoSearchConfig,

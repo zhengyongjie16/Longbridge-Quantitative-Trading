@@ -8,7 +8,7 @@ import type {
   SeatStatus,
   SymbolRegistry,
 } from '../../types/index.js';
-import type { SeatDirection, SeatEntry, SymbolSeatEntry } from './types.js';
+import type { SeatEntry, SymbolSeatEntry } from './types.js';
 
 /**
  * 检查席位是否就绪（有有效标的且状态为 READY）
@@ -87,7 +87,7 @@ function createSeatEntry(symbol: string | null, status: SeatStatus): SeatEntry {
 function resolveSeatEntry(
   registry: Map<string, SymbolSeatEntry>,
   monitorSymbol: string,
-  direction: SeatDirection,
+  direction: 'LONG' | 'SHORT',
 ): SeatEntry {
   const entry = registry.get(monitorSymbol);
   if (!entry) {
@@ -117,10 +117,10 @@ export function createSymbolRegistry(
   }
 
   return {
-    getSeatState(monitorSymbol: string, direction: SeatDirection): SeatState {
+    getSeatState(monitorSymbol: string, direction: 'LONG' | 'SHORT'): SeatState {
       return resolveSeatEntry(registry, monitorSymbol, direction).state;
     },
-    getSeatVersion(monitorSymbol: string, direction: SeatDirection): number {
+    getSeatVersion(monitorSymbol: string, direction: 'LONG' | 'SHORT'): number {
       return resolveSeatEntry(registry, monitorSymbol, direction).version;
     },
     resolveSeatBySymbol(symbol: string): {
@@ -154,7 +154,7 @@ export function createSymbolRegistry(
     },
     updateSeatState(
       monitorSymbol: string,
-      direction: SeatDirection,
+      direction: 'LONG' | 'SHORT',
       nextState: SeatState,
     ): SeatState {
       const seatEntry = resolveSeatEntry(registry, monitorSymbol, direction);
@@ -167,7 +167,7 @@ export function createSymbolRegistry(
       };
       return seatEntry.state;
     },
-    bumpSeatVersion(monitorSymbol: string, direction: SeatDirection): number {
+    bumpSeatVersion(monitorSymbol: string, direction: 'LONG' | 'SHORT'): number {
       const seatEntry = resolveSeatEntry(registry, monitorSymbol, direction);
       seatEntry.version += 1;
       return seatEntry.version;

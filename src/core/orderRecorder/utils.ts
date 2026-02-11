@@ -62,9 +62,9 @@ function convertOrderToRecord(
   return {
     orderId: order.orderId,
     symbol: order.symbol,
-    executedPrice: executedPrice,
-    executedQuantity: executedQuantity,
-    executedTime: executedTime,
+    executedPrice,
+    executedQuantity,
+    executedTime,
     submittedAt: isBuyOrder ? order.submittedAt ?? undefined : undefined,
     updatedAt: isBuyOrder ? order.updatedAt ?? undefined : undefined,
   };

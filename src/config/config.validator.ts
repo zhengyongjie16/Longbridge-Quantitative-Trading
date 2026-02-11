@@ -468,9 +468,9 @@ export async function validateAllConfig({
     logger.error('配置验证失败！');
     logger.error('='.repeat(60));
     logger.error('发现以下配置问题：');
-    allErrors.forEach((error, index) => {
-      logger.error(`${index + 1}. ${error}`);
-    });
+    for (let i = 0; i < allErrors.length; i++) {
+      logger.error(`${i + 1}. ${allErrors[i]}`);
+    }
     logger.error('='.repeat(60));
     logger.error('');
     logger.error('请检查 .env.local 文件，确保所有必需的配置项都已正确设置。');

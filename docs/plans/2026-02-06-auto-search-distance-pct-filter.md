@@ -394,7 +394,7 @@ export function selectBestWarrant({
 
 ```diff
   export function resolveAutoSearchThresholds(
-    direction: SeatDirection,
+    direction: 'LONG' | 'SHORT',
     config: AutoSearchConfig,
   ): {
 -   readonly minPrice: number | null;

@@ -58,13 +58,10 @@ function calculateOrderFees(quantity: number, price: number): {
 } {
   const tradeAmount = quantity * price;
   
-  // 平台费（固定）
   const platformFee = HK_FEE_RATES.platformFee;
-  
-  // 印花税（牛熊证不收）
   const stampDuty = 0;
   
-  // 交收费
+  // 交收费（有最低和最高限额）
   const clearingFeeRaw = tradeAmount * HK_FEE_RATES.clearingFee.rate;
   const clearingFee = Math.max(
     HK_FEE_RATES.clearingFee.min,

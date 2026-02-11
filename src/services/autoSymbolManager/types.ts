@@ -2,7 +2,6 @@
  * 自动换标管理器类型定义
  *
  * 包含席位管理与换标流程相关的类型：
- * - SeatDirection：席位方向（做多/做空）
  * - SeatEntry：席位注册表内部条目
  * - SwitchState：换标状态机状态
  * - AutoSymbolManager：管理器接口
@@ -36,8 +35,6 @@ import type {
   WarrantListCacheConfig,
 } from '../autoSymbolFinder/types.js';
 
-export type SeatDirection = 'LONG' | 'SHORT';
-
 /**
  * 席位注册表内部条目（可变状态，SymbolRegistry 内部使用）
  * 注意：状态与版本号需要在运行中更新，因此不使用 readonly。
@@ -67,20 +64,20 @@ export type AutoSymbolManagerDeps = {
 };
 
 export type SearchOnTickParams = {
-  readonly direction: SeatDirection;
+  readonly direction: 'LONG' | 'SHORT';
   readonly currentTime: Date;
   readonly canTradeNow: boolean;
 };
 
 export type SwitchOnDistanceParams = {
-  readonly direction: SeatDirection;
+  readonly direction: 'LONG' | 'SHORT';
   readonly monitorPrice: number | null;
   readonly quotesMap: ReadonlyMap<string, Quote | null>;
   readonly positions: ReadonlyArray<Position>;
 };
 
 export type SwitchState = {
-  direction: SeatDirection;
+  direction: 'LONG' | 'SHORT';
   seatVersion: number;
   stage: SwitchStage;
   oldSymbol: string;
@@ -110,16 +107,16 @@ export type SwitchSuppression = {
 export type AutoSymbolManager = {
   maybeSearchOnTick(params: SearchOnTickParams): Promise<void>;
   maybeSwitchOnDistance(params: SwitchOnDistanceParams): Promise<void>;
-  hasPendingSwitch(direction: SeatDirection): boolean;
+  hasPendingSwitch(direction: 'LONG' | 'SHORT'): boolean;
   resetDailySwitchSuppression(): void;
   resetAllState(): void;
 };
 
 type SignalObjectPool = Pick<ObjectPool<PoolableSignal>, 'acquire' | 'release'>;
 
-type SwitchStateMap = Map<SeatDirection, SwitchState>;
+type SwitchStateMap = Map<'LONG' | 'SHORT', SwitchState>;
 
-type SwitchSuppressionMap = Map<SeatDirection, SwitchSuppression>;
+type SwitchSuppressionMap = Map<'LONG' | 'SHORT', SwitchSuppression>;
 
 type TradingMinutesResolver = (date: Date | null | undefined) => number;
 
@@ -131,7 +128,7 @@ type MorningOpenProtectionChecker = (
 ) => boolean;
 
 export type ResolveAutoSearchThresholdInputParams = {
-  readonly direction: SeatDirection;
+  readonly direction: 'LONG' | 'SHORT';
   readonly autoSearchConfig: AutoSearchConfig;
   readonly monitorSymbol: string;
   readonly logPrefix: string;
@@ -139,7 +136,7 @@ export type ResolveAutoSearchThresholdInputParams = {
 };
 
 export type BuildFindBestWarrantInputParams = {
-  readonly direction: SeatDirection;
+  readonly direction: 'LONG' | 'SHORT';
   readonly monitorSymbol: string;
   readonly autoSearchConfig: AutoSearchConfig;
   readonly currentTime: Date;
@@ -199,7 +196,7 @@ export type SeatStateBuilder = (
 ) => SeatState;
 
 export type SeatStateUpdater = (
-  direction: SeatDirection,
+  direction: 'LONG' | 'SHORT',
   nextState: SeatState,
   bumpOnSymbolChange: boolean,
 ) => void;
@@ -217,9 +214,9 @@ export type SeatStateManagerDeps = {
 export type SeatStateManager = {
   buildSeatState: SeatStateBuilder;
   updateSeatState: SeatStateUpdater;
-  resolveSuppression(direction: SeatDirection, seatSymbol: string): SwitchSuppression | null;
-  markSuppression(direction: SeatDirection, seatSymbol: string): void;
-  clearSeat(params: { direction: SeatDirection; reason: string }): number;
+  resolveSuppression(direction: 'LONG' | 'SHORT', seatSymbol: string): SwitchSuppression | null;
+  markSuppression(direction: 'LONG' | 'SHORT', seatSymbol: string): void;
+  clearSeat(params: { direction: 'LONG' | 'SHORT'; reason: string }): number;
   resetDailySwitchSuppression(): void;
 };
 
@@ -252,13 +249,13 @@ export type SwitchStateMachineDeps = {
   readonly riskChecker: RiskChecker;
   readonly now: () => Date;
   readonly switchStates: SwitchStateMap;
-  readonly resolveSuppression: (direction: SeatDirection, seatSymbol: string) => SwitchSuppression | null;
-  readonly markSuppression: (direction: SeatDirection, seatSymbol: string) => void;
-  readonly clearSeat: (params: { direction: SeatDirection; reason: string }) => number;
+  readonly resolveSuppression: (direction: 'LONG' | 'SHORT', seatSymbol: string) => SwitchSuppression | null;
+  readonly markSuppression: (direction: 'LONG' | 'SHORT', seatSymbol: string) => void;
+  readonly clearSeat: (params: { direction: 'LONG' | 'SHORT'; reason: string }) => number;
   readonly buildSeatState: SeatStateBuilder;
   readonly updateSeatState: SeatStateUpdater;
   readonly resolveAutoSearchThresholds: (
-    direction: SeatDirection,
+    direction: 'LONG' | 'SHORT',
     config: AutoSearchConfig,
   ) => {
     readonly minDistancePct: number | null;
@@ -270,7 +267,7 @@ export type SwitchStateMachineDeps = {
   readonly resolveAutoSearchThresholdInput: ResolveAutoSearchThresholdInput;
   readonly buildFindBestWarrantInput: BuildFindBestWarrantInput;
   readonly findBestWarrant: FindBestWarrant;
-  readonly resolveDirectionSymbols: (direction: SeatDirection) => {
+  readonly resolveDirectionSymbols: (direction: 'LONG' | 'SHORT') => {
     readonly isBull: boolean;
     readonly buyAction: 'BUYCALL' | 'BUYPUT';
     readonly sellAction: 'SELLCALL' | 'SELLPUT';
@@ -289,5 +286,5 @@ export type SwitchStateMachineDeps = {
 
 export type SwitchStateMachine = {
   maybeSwitchOnDistance(params: SwitchOnDistanceParams): Promise<void>;
-  hasPendingSwitch(direction: SeatDirection): boolean;
+  hasPendingSwitch(direction: 'LONG' | 'SHORT'): boolean;
 };

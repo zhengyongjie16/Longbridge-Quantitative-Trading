@@ -24,43 +24,43 @@ import type { DailyLossTracker } from '../../../core/riskController/types.js';
 import type { LiquidationCooldownTracker } from '../../../services/liquidationCooldown/types.js';
 
 export type SignalRuntimeDomainDeps = Readonly<{
-  readonly monitorContexts: ReadonlyMap<string, MonitorContext>;
-  readonly buyProcessor: Processor;
-  readonly sellProcessor: Processor;
-  readonly monitorTaskProcessor: MonitorTaskProcessor;
-  readonly orderMonitorWorker: OrderMonitorWorker;
-  readonly postTradeRefresher: PostTradeRefresher;
-  readonly indicatorCache: IndicatorCache;
-  readonly buyTaskQueue: TaskQueue<BuyTaskType>;
-  readonly sellTaskQueue: TaskQueue<SellTaskType>;
-  readonly monitorTaskQueue: MonitorTaskQueue<MonitorTaskType, MonitorTaskData>;
-  readonly refreshGate: RefreshGate;
-  readonly releaseSignal: (signal: Signal) => void;
+  monitorContexts: ReadonlyMap<string, MonitorContext>;
+  buyProcessor: Processor;
+  sellProcessor: Processor;
+  monitorTaskProcessor: MonitorTaskProcessor;
+  orderMonitorWorker: OrderMonitorWorker;
+  postTradeRefresher: PostTradeRefresher;
+  indicatorCache: IndicatorCache;
+  buyTaskQueue: TaskQueue<BuyTaskType>;
+  sellTaskQueue: TaskQueue<SellTaskType>;
+  monitorTaskQueue: MonitorTaskQueue<MonitorTaskType, MonitorTaskData>;
+  refreshGate: RefreshGate;
+  releaseSignal: (signal: Signal) => void;
 }>;
 
 export type SeatDomainDeps = Readonly<{
-  readonly tradingConfig: MultiMonitorTradingConfig;
-  readonly symbolRegistry: SymbolRegistry;
-  readonly monitorContexts: ReadonlyMap<string, MonitorContext>;
-  readonly warrantListCache: WarrantListCache;
+  tradingConfig: MultiMonitorTradingConfig;
+  symbolRegistry: SymbolRegistry;
+  monitorContexts: ReadonlyMap<string, MonitorContext>;
+  warrantListCache: WarrantListCache;
 }>;
 
 export type OrderDomainDeps = Readonly<{
-  readonly trader: Trader;
+  trader: Trader;
 }>;
 
 export type RiskDomainDeps = Readonly<{
-  readonly signalProcessor: SignalProcessor;
-  readonly dailyLossTracker: DailyLossTracker;
-  readonly monitorContexts: ReadonlyMap<string, MonitorContext>;
-  readonly liquidationCooldownTracker: LiquidationCooldownTracker;
+  signalProcessor: SignalProcessor;
+  dailyLossTracker: DailyLossTracker;
+  monitorContexts: ReadonlyMap<string, MonitorContext>;
+  liquidationCooldownTracker: LiquidationCooldownTracker;
 }>;
 
 export type MarketDataDomainDeps = Readonly<{
-  readonly marketDataClient: MarketDataClient;
+  marketDataClient: MarketDataClient;
 }>;
 
 export type GlobalStateDomainDeps = Readonly<{
-  readonly lastState: LastState;
-  readonly runOpenRebuild: (now: Date) => Promise<void>;
+  lastState: LastState;
+  runOpenRebuild: (now: Date) => Promise<void>;
 }>;

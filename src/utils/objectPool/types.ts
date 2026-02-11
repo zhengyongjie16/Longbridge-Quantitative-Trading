@@ -38,6 +38,7 @@ export type PoolableSignal = {
   triggerTime?: Date | null;
   indicators1?: Record<string, number> | null;
   verificationHistory?: PoolableVerificationEntry[] | null;
+  relatedBuyOrderIds?: readonly string[] | null;
 };
 
 /**

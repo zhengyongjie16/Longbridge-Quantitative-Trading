@@ -51,7 +51,6 @@ const env = process.env;
 const tradingConfig = createMultiMonitorTradingConfig({ env });
 
 // ==================== 配置参数 ====================
-// 注意：修改以下配置后，需要重新运行程序才能生效
 
 // ========== 监控标的配置 ==========
 // 需要查找窝轮的监控标的代码（例如 "HSI.HK" 表示恒生指数）
@@ -110,9 +109,11 @@ interface FindWarrantsResult {
   bearWarrants: QualifiedWarrant[];
 }
 
-const isQualifiedWarrant = (
+function isQualifiedWarrant(
   value: QualifiedWarrant | null,
-): value is QualifiedWarrant => value !== null;
+): value is QualifiedWarrant {
+  return value !== null;
+}
 
 /**
  * 计算回收价距离监控标的当前价的百分比
@@ -172,12 +173,10 @@ function checkDailyTurnover(
       }
     }
 
-    // TypeScript类型守卫：此时 turnover 必定是有效数字
     if (!Number.isFinite(turnover)) {
       continue;
     }
 
-    // 此时 turnover 已被类型守卫确认为 number
     // 检查当天成交额是否低于阈值
     if (turnover < minTurnover) {
       return null; // 任何一天低于阈值，直接返回 null

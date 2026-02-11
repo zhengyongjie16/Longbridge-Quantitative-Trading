@@ -247,7 +247,7 @@ export function getHKDateKey(date: Date | null | undefined): string | null {
 **步骤 2：扩展换标状态类型**
 ```typescript
 export type SwitchState = {
-  direction: SeatDirection;
+  direction: 'LONG' | 'SHORT';
   oldSymbol: string;
   nextSymbol: string | null;
   startedAt: number;
@@ -271,10 +271,10 @@ import {
 } from '../../utils/helpers/tradingTime.js';
 import type { SwitchSuppression } from './types.js';
 
-const switchSuppressions = new Map<SeatDirection, SwitchSuppression>();
+const switchSuppressions = new Map<'LONG' | 'SHORT', SwitchSuppression>();
 
 function resolveSuppression(
-  direction: SeatDirection,
+  direction: 'LONG' | 'SHORT',
   seatSymbol: string,
 ): SwitchSuppression | null {
   const record = switchSuppressions.get(direction);
@@ -289,7 +289,7 @@ function resolveSuppression(
   return record;
 }
 
-function markSuppression(direction: SeatDirection, seatSymbol: string): void {
+function markSuppression(direction: 'LONG' | 'SHORT', seatSymbol: string): void {
   const dateKey = getHKDateKey(now());
   if (!dateKey) {
     return;
@@ -297,7 +297,7 @@ function markSuppression(direction: SeatDirection, seatSymbol: string): void {
   switchSuppressions.set(direction, { symbol: seatSymbol, dateKey });
 }
 
-async function findSwitchCandidate(direction: SeatDirection): Promise<string | null> {
+async function findSwitchCandidate(direction: 'LONG' | 'SHORT'): Promise<string | null> {
   const { minPrice, minTurnoverPerMinute } = resolveAutoSearchThresholds(direction, autoSearchConfig);
   if (minPrice == null || minTurnoverPerMinute == null) {
     logger.error(`[自动换标] 缺少阈值配置，无法预寻标: ${monitorSymbol} ${direction}`);

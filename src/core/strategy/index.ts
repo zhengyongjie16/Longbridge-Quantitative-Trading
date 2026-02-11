@@ -228,11 +228,7 @@ export const createHangSengMultiIndicatorStrategy = ({
 
     // 构建指标值的显示字符串（用于日志）
     const indicators1Str = Object.entries(indicators1)
-      .map(([name, value]) => {
-        // 统一使用 3 位小数
-        const decimals = 3;
-        return `${name}1=${value.toFixed(decimals)}`;
-      })
+      .map(([name, value]) => `${name}1=${value.toFixed(3)}`)
       .join(' ');
 
     // 构建指标状态显示字符串
@@ -319,8 +315,6 @@ export const createHangSengMultiIndicatorStrategy = ({
       }
 
       // 4. 卖出做空标的
-      // 注意：卖出信号生成时不做智能平仓判断，卖出数量由 signalProcessor 统一计算
-      // 注意：买入订单记录就是持仓记录，只需检查订单记录即可（在 generateSignal 中检查）
       if (shortSymbol) {
         const sellShortResult = generateSignal(
           state,
