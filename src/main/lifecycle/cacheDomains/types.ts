@@ -1,3 +1,14 @@
+/**
+ * 缓存域模块类型定义
+ *
+ * 定义各 CacheDomain 的依赖注入类型：
+ * - SignalRuntimeDomainDeps：信号运行时域（处理器、队列、指标缓存等）
+ * - SeatDomainDeps：席位域（交易配置、标的注册表、轮证列表缓存）
+ * - OrderDomainDeps：订单域（交易执行器）
+ * - RiskDomainDeps：风控域（信号处理器、日内亏损追踪、清仓冷却追踪）
+ * - MarketDataDomainDeps：行情域（行情客户端）
+ * - GlobalStateDomainDeps：全局状态域（全局状态、开盘重建回调）
+ */
 import type { LastState, MarketDataClient, MonitorContext, MultiMonitorTradingConfig, Signal, SymbolRegistry, Trader } from '../../../types/index.js';
 import type { Processor } from '../../asyncProgram/types.js';
 import type { TaskQueue, BuyTaskType, SellTaskType } from '../../asyncProgram/tradeTaskQueue/types.js';

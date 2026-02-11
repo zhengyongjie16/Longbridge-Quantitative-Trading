@@ -1,3 +1,12 @@
+/**
+ * 订单缓存域（CacheDomain: order）
+ *
+ * 午夜清理：
+ * - 重置交易执行器的运行时状态（订单追踪、持有标的集合等）
+ *
+ * 开盘重建：
+ * - 订单数据在统一 rebuildTradingDayState 中从 API 重新加载和重建，此处为空操作
+ */
 import { logger } from '../../../utils/logger/index.js';
 import type { CacheDomain } from '../types.js';
 import type { OrderDomainDeps } from './types.js';

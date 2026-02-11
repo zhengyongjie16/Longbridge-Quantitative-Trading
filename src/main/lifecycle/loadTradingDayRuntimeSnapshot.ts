@@ -1,3 +1,23 @@
+/**
+ * 交易日运行时快照加载模块
+ *
+ * 核心职责：
+ * - 加载交易日所需的完整运行时快照，为开盘重建提供数据基础
+ *
+ * 加载流程（按顺序执行）：
+ * 1. 验证交易日信息（可选）
+ * 2. 刷新账户和持仓数据
+ * 3. 获取全量订单并初始化日内亏损追踪
+ * 4. 解析席位绑定（prepareSeatsOnStartup）
+ * 5. 从交易日志水合冷却状态（可选）
+ * 6. 重置行情订阅（可选）
+ * 7. 收集并订阅所有交易标的的行情和 K 线
+ * 8. 返回全量订单和行情快照，供后续重建使用
+ *
+ * 使用场景：
+ * - 程序启动时的首次初始化
+ * - 开盘重建流程中由 globalStateDomain 调用
+ */
 import { TRADING } from '../../constants/index.js';
 import { formatError, sleep } from '../../utils/helpers/index.js';
 import { refreshAccountAndPositions } from '../../utils/helpers/accountDisplay.js';

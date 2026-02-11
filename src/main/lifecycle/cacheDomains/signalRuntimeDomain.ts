@@ -1,3 +1,17 @@
+/**
+ * 信号运行时缓存域（CacheDomain: signalRuntime）
+ *
+ * 午夜清理：
+ * - 停止并排空所有异步处理器（买入、卖出、监控任务、订单监控、交易后刷新）
+ * - 清空交易任务队列（买入/卖出/监控），释放队列中的信号对象
+ * - 取消所有延迟验证信号
+ * - 清空订单监控的最新行情缓存和交易后刷新的待处理项
+ * - 清空指标计算缓存
+ *
+ * 开盘重建：
+ * - 重启所有异步处理器（买入、卖出、监控任务、订单监控、交易后刷新）
+ * - 刷新 refreshGate 版本，标记数据为最新
+ */
 import { logger } from '../../../utils/logger/index.js';
 import type { MonitorContext } from '../../../types/index.js';
 import type { CacheDomain, LifecycleContext } from '../types.js';

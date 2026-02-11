@@ -1,3 +1,20 @@
+/**
+ * 交易日状态重建模块
+ *
+ * 核心职责：
+ * - 在开盘重建阶段，基于最新的行情和订单数据重建所有运行时状态
+ *
+ * 重建流程（按顺序执行）：
+ * 1. 同步所有监控标的的席位快照和行情数据到 MonitorContext
+ * 2. 重建订单记录（从全量订单 API 数据中恢复）
+ * 3. 重建牛熊证风险缓存（收回价等关键风控数据）
+ * 4. 重建浮亏缓存（结合当日已实现亏损偏移量）
+ * 5. 恢复订单追踪状态
+ * 6. 展示账户和持仓信息
+ *
+ * 错误处理：
+ * - 任一步骤失败即整体抛出，由生命周期管理器负责重试
+ */
 import { formatError } from '../../utils/helpers/index.js';
 import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
 import type {

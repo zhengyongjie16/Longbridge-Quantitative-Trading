@@ -1,3 +1,17 @@
+/**
+ * 全局状态缓存域（CacheDomain: globalState）
+ *
+ * 午夜清理：
+ * - 禁止交易（canTrade = false）
+ * - 重置半日标记、开盘保护、交易日信息缓存
+ * - 清空交易标的集合（allTradingSymbols 的权威清理位置）
+ * - 重置各监控标的的运行状态（行情、信号、指标快照等）
+ * - 释放对象池中的快照对象，防止内存泄漏
+ *
+ * 开盘重建：
+ * - 调用 runOpenRebuild 执行完整的开盘重建流水线
+ *   （加载运行时快照 → 重建交易日状态）
+ */
 import { logger } from '../../../utils/logger/index.js';
 import { releaseSnapshotObjects } from '../../../utils/helpers/index.js';
 import type { LastState, MonitorState } from '../../../types/index.js';

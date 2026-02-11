@@ -1,3 +1,15 @@
+/**
+ * 风控缓存域（CacheDomain: risk）
+ *
+ * 午夜清理：
+ * - 重置风控检查冷却（signalProcessor.resetRiskCheckCooldown）
+ * - 重置日内亏损追踪器（dailyLossTracker.resetAll）
+ * - 清除跨日模式的清仓冷却键（保留分钟模式的冷却）
+ * - 清空各监控标的的浮亏数据和牛熊证风险信息缓存
+ *
+ * 开盘重建：
+ * - 风控数据在统一 rebuildTradingDayState 中按当日数据重建，此处为空操作
+ */
 import { logger } from '../../../utils/logger/index.js';
 import type { MonitorContext } from '../../../types/index.js';
 import { buildCooldownKey } from '../../../services/liquidationCooldown/utils.js';

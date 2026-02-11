@@ -1,3 +1,14 @@
+/**
+ * 生命周期模块类型定义
+ *
+ * 包含：
+ * - LifecycleRuntimeFlags：每次 tick 传入的运行时标志（dayKey、交易日、交易时段）
+ * - LifecycleMutableState：生命周期管理器持有的可变状态
+ * - LifecycleContext：传递给各 CacheDomain 的上下文
+ * - CacheDomain：缓存域接口（午夜清理 + 开盘重建）
+ * - DayLifecycleManager：生命周期管理器接口
+ * - RebuildTradingDayState / LoadTradingDayRuntimeSnapshot：重建和加载的依赖与参数类型
+ */
 import type { Logger } from '../../utils/logger/types.js';
 import type { DailyLossTracker } from '../../core/riskController/types.js';
 import type { TradeLogHydrator } from '../../services/liquidationCooldown/types.js';

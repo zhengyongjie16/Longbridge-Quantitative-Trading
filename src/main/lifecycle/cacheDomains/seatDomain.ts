@@ -1,3 +1,15 @@
+/**
+ * 席位缓存域（CacheDomain: seat）
+ *
+ * 午夜清理：
+ * - 重置所有监控标的的自动换仓状态（autoSymbolManager）
+ * - 清空轮证列表缓存
+ * - 清空所有席位绑定（保留 lastSwitchAt / lastSearchAt 时间戳）
+ * - 同步席位快照到各 MonitorContext
+ *
+ * 开盘重建：
+ * - 席位在统一开盘重建流水线（loadTradingDayRuntimeSnapshot）中重建，此处为空操作
+ */
 import { logger } from '../../../utils/logger/index.js';
 import type { MultiMonitorTradingConfig, SeatState, SymbolRegistry, MonitorContext } from '../../../types/index.js';
 import type { CacheDomain, LifecycleContext } from '../types.js';

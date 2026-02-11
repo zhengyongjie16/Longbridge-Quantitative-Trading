@@ -1,3 +1,22 @@
+/**
+ * 交易日生命周期管理器
+ *
+ * 核心职责：
+ * - 检测跨日（dayKey 变化），触发午夜清理流程
+ * - 在交易日开盘时，触发开盘重建流程
+ * - 管理交易门禁（isTradingEnabled），在生命周期切换期间禁止交易
+ *
+ * 生命周期状态流转：
+ * ACTIVE → MIDNIGHT_CLEANING → MIDNIGHT_CLEANED → OPEN_REBUILDING → ACTIVE
+ *                ↓ 失败重试                              ↓ 失败重试
+ *          MIDNIGHT_CLEANING                     OPEN_REBUILD_FAILED
+ *
+ * 执行机制：
+ * - 由外部每秒调用 tick()，传入当前时间和运行时标志
+ * - 午夜清理：按注册顺序依次执行各 CacheDomain 的 midnightClear
+ * - 开盘重建：按注册逆序依次执行各 CacheDomain 的 openRebuild
+ * - 失败自动重试：指数退避策略，不吞错
+ */
 import { formatError } from '../../utils/helpers/index.js';
 import { LIFECYCLE } from '../../constants/index.js';
 import type { LifecycleState } from '../../types/index.js';
