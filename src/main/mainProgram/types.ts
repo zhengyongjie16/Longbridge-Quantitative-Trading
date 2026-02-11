@@ -6,16 +6,23 @@
  */
 import type { IndicatorCache } from '../asyncProgram/indicatorCache/types.js';
 import type { BuyTaskQueue, SellTaskQueue } from '../asyncProgram/types.js';
+import type { MonitorTaskQueue } from '../asyncProgram/monitorTaskQueue/types.js';
+import type { MonitorTaskData, MonitorTaskType } from '../asyncProgram/monitorTaskProcessor/types.js';
+import type { OrderMonitorWorker } from '../asyncProgram/orderMonitorWorker/types.js';
+import type { PostTradeRefresher } from '../asyncProgram/postTradeRefresher/types.js';
 import type {
   LastState,
   MonitorContext,
   MarketDataClient,
   Trader,
   MultiMonitorTradingConfig,
+  SymbolRegistry,
+  GateMode,
 } from '../../types/index.js';
 import type { MarketMonitor } from '../../services/marketMonitor/types.js';
 import type { DoomsdayProtection } from '../../core/doomsdayProtection/types.js';
 import type { SignalProcessor } from '../../core/signalProcessor/types.js';
+import type { DailyLossTracker } from '../../core/riskController/types.js';
 
 /**
  * 主程序上下文
@@ -34,8 +41,14 @@ export type MainProgramContext = {
   readonly doomsdayProtection: DoomsdayProtection;
   readonly signalProcessor: SignalProcessor;
   readonly tradingConfig: MultiMonitorTradingConfig;
+  readonly dailyLossTracker: DailyLossTracker;
   readonly monitorContexts: Map<string, MonitorContext>;
+  readonly symbolRegistry: SymbolRegistry;
   readonly indicatorCache: IndicatorCache;
   readonly buyTaskQueue: BuyTaskQueue;
   readonly sellTaskQueue: SellTaskQueue;
+  readonly monitorTaskQueue: MonitorTaskQueue<MonitorTaskType, MonitorTaskData>;
+  readonly orderMonitorWorker: OrderMonitorWorker;
+  readonly postTradeRefresher: PostTradeRefresher;
+  readonly runtimeGateMode: GateMode;
 };

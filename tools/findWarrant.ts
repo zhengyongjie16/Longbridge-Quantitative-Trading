@@ -7,10 +7,10 @@
  * - 格式化输出搜索结果
  *
  * 筛选条件：
- * - 距离回收价百分比（牛证 > 2%，熊证 < -2%）
- * - 成交额阈值（三日内每日成交额都需 > 1000万）
+ * - 距离回收价百分比（牛证 > BULL_DISTANCE_PERCENT_THRESHOLD，熊证 < BEAR_DISTANCE_PERCENT_THRESHOLD）
+ * - 成交额阈值（三日内每日成交额都需 >= MIN_AVG_TURNOVER）
  * - 上市天数（至少上市三日，过滤新上市品种）
- * - 到期日要求（剩余 > 3个月）
+ * - 到期日要求（API 固定筛选 >= 3个月）
  *
  * 排序规则：
  * - 牛证：按距离回收价从小到大排序（离回收价越近越靠前）
@@ -23,7 +23,6 @@
  * - MONITOR_SYMBOL：监控标的代码
  * - 可在文件中修改筛选参数
  */
-
 import {
   QuoteContext,
   Period,
@@ -79,8 +78,8 @@ const MIN_DAILY_TURNOVER = 8000000;
 const MIN_AVG_TURNOVER = 8000000; 
 
 // 过期日要求
-// 只筛选过期日在指定月数以上的窝轮（API使用枚举值：Between_3_6, Between_6_12, GT_12）
-// 单位：月，例如 3 表示 >= 3个月
+// API 使用固定枚举筛选 >= 3个月（Between_3_6, Between_6_12, GT_12）
+// MIN_EXPIRY_MONTHS 仅用于展示提示
 const MIN_EXPIRY_MONTHS = 3; 
 
 // ========== 性能配置 ==========
@@ -117,7 +116,6 @@ const isQualifiedWarrant = (
 
 /**
  * 计算回收价距离监控标的当前价的百分比
- * 参考 risk.js 中的计算公式
  * @param callPrice 回收价
  * @param monitorPrice 监控标的当前价
  * @returns 百分比
@@ -429,9 +427,6 @@ async function findQualifiedWarrants(
   }
 }
 
-/**
- * 主函数
- */
 async function main(): Promise<void> {
   try {
     // 从配置获取监控标的，优先级：命令行参数 > 环境变量 > 文件配置 > 交易配置
@@ -501,13 +496,10 @@ async function main(): Promise<void> {
   }
 }
 
-// 运行主函数
 try {
   await main();
 } catch (error: unknown) {
   console.error('程序执行失败：', error);
   process.exit(1);
 }
-
-export { findQualifiedWarrants };
 

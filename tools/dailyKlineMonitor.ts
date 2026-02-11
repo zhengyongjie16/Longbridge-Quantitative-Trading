@@ -14,7 +14,6 @@
  * - RSI_PERIODS：RSI周期数组
  * - EMA_PERIODS：EMA周期数组
  */
-
 import dotenv from 'dotenv';
 import { QuoteContext, Period, AdjustType, TradeSessions } from 'longport';
 import { buildIndicatorSnapshot } from '../src/services/indicators/index.js';
@@ -416,9 +415,6 @@ async function createMonitorContext(monitorSymbol: string): Promise<MonitorConte
   };
 }
 
-/**
- * 主函数
- */
 async function main(): Promise<void> {
   const monitorSymbol = process.argv[2] || process.env['DAILY_MONITOR_SYMBOL'] || DEFAULT_SYMBOL;
 
@@ -454,7 +450,6 @@ async function main(): Promise<void> {
   }
 }
 
-// 运行主函数
 try {
   await main();
 } catch (error: unknown) {

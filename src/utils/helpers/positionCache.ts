@@ -13,7 +13,7 @@
  * - 查找时间复杂度从 O(n) 降至 O(1)
  * - 标的格式校验仅在配置验证阶段执行
  */
-
+import { isValidPositiveNumber } from './index.js';
 import type { Position, PositionCache } from '../../types/index.js';
 
 /**
@@ -22,7 +22,6 @@ import type { Position, PositionCache } from '../../types/index.js';
  */
 export const createPositionCache = (): PositionCache => {
   const positionMap = new Map<string, Position>();
-  let version = 0;
 
   /**
    * 更新持仓缓存
@@ -39,12 +38,10 @@ export const createPositionCache = (): PositionCache => {
       const availableQty = Number(pos.availableQuantity) || 0;
 
       // 只缓存可用数量大于 0 的持仓
-      if (Number.isFinite(availableQty) && availableQty > 0) {
+      if (isValidPositiveNumber(availableQty)) {
         positionMap.set(pos.symbol, pos);
       }
     }
-
-    version++;
   };
 
   /**
@@ -55,24 +52,8 @@ export const createPositionCache = (): PositionCache => {
     return positionMap.get(symbol) ?? null;
   };
 
-  /**
-   * 获取缓存版本号（用于检测持仓是否更新）
-   */
-  const getVersion = (): number => {
-    return version;
-  };
-
-  /**
-   * 获取所有持仓
-   */
-  const getAll = (): Position[] => {
-    return Array.from(positionMap.values());
-  };
-
   return {
     update,
     get,
-    getVersion,
-    getAll,
   };
 };

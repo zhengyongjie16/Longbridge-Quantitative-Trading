@@ -47,15 +47,14 @@
   },
   "include": [
     "src/**/*",
-    "tools/**/*"
+    "tools/**/*",
+    "tests/**/*"
   ],
   "exclude": [
     "node_modules",
     "dist",
     "logs",
-    "tests",
-    "**/*.test.ts",
-    "**/*.spec.ts",
+    "src/utils/**",
     ".claude"
   ]
 }

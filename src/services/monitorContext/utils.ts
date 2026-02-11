@@ -6,7 +6,6 @@
  * - 从配置中提取 RSI 周期（extractRsiPeriodsWithDefault）
  * - 从配置中提取 PSY 周期（extractPsyPeriods）
  */
-
 import {
   extractRSIPeriods,
   extractPsyPeriods as extractPsyPeriodsFromSignalConfig,

@@ -1,9 +1,9 @@
 /**
  * 行情监控模块独享的工具函数
  */
-
 import { isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
 import { DEFAULT_PERCENT_DECIMALS } from '../../constants/index.js';
+import type { ObjectPool } from '../../utils/objectPool/types.js';
 import type { WarrantDistanceInfo } from '../../types/index.js';
 
 /**
@@ -39,4 +39,26 @@ export function formatWarrantDistanceDisplay(
 
   const sign = distance >= 0 ? '+' : '';
   return `${warrantLabel}距离回收价=${sign}${distance.toFixed(decimals)}%`;
+}
+
+/**
+ * 从指标快照拷贝周期值到对象池记录
+ */
+export function copyPeriodRecord(
+  pool: ObjectPool<Record<number, number>>,
+  snapshot: Readonly<Record<number, number>> | null,
+): Record<number, number> | null {
+  if (!snapshot) {
+    return null;
+  }
+
+  const record = pool.acquire();
+  for (const key in snapshot) {
+    const numKey = Number(key);
+    const value = snapshot[numKey];
+    if (value !== undefined) {
+      record[numKey] = value;
+    }
+  }
+  return record;
 }

@@ -3,17 +3,10 @@
  *
  * 定义卖出处理器的接口契约和依赖注入类型
  */
-
 import type { MonitorContext, Trader, LastState } from '../../../types/index.js';
-import type { Processor, SellTaskQueue } from '../types.js';
+import type { RefreshGate } from '../../../utils/refreshGate/types.js';
+import type { SellTaskQueue } from '../types.js';
 import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
-
-/**
- * 卖出处理器接口
- *
- * 提供启动/停止、立即处理、状态查询等能力
- */
-export type SellProcessor = Processor;
 
 /**
  * 卖出处理器依赖类型
@@ -31,4 +24,6 @@ export type SellProcessorDeps = {
   readonly trader: Trader;
   /** 获取全局状态的函数 */
   readonly getLastState: () => LastState;
+  /** 刷新门禁（等待缓存刷新） */
+  readonly refreshGate: RefreshGate;
 };

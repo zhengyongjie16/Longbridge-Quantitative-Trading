@@ -4,17 +4,18 @@
  * 职责：
  * - 管理本地订单列表的增删改查
  * - 提供订单查询功能
+ * - 追踪待成交卖出订单
+ * - 提供可卖出盈利订单计算
  * - 纯内存操作，无异步方法
  *
  * 优化：
  * - 使用 Map<symbol, OrderRecord[]> 提供 O(1) 查找性能
  * - 避免每次查询都遍历整个数组
  */
-
 import { logger } from '../../utils/logger/index.js';
-import { getDirectionName, formatSymbolDisplayFromQuote } from '../../utils/helpers/index.js';
+import { getLongDirectionName, getShortDirectionName, formatSymbolDisplayFromQuote, isValidPositiveNumber } from '../../utils/helpers/index.js';
 import type { OrderRecord, Quote } from '../../types/index.js';
-import type { OrderStorage, OrderStorageDeps } from './types.js';
+import type { OrderStorage, OrderStorageDeps, PendingSellInfo, ProfitableOrderResult } from './types.js';
 import { calculateTotalQuantity } from './utils.js';
 
 /** 创建订单存储管理器 */
@@ -22,35 +23,74 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
   // 使用 Map 存储订单，key 为 symbol，提供 O(1) 查找性能
   const longBuyOrdersMap: Map<string, OrderRecord[]> = new Map();
   const shortBuyOrdersMap: Map<string, OrderRecord[]> = new Map();
+  const longSellRecordMap: Map<string, OrderRecord> = new Map();
+  const shortSellRecordMap: Map<string, OrderRecord> = new Map();
 
-  /** 获取指定标的的买入订单列表 */
+  // 待成交卖出订单追踪
+  const pendingSells = new Map<string, PendingSellInfo>();
+
+  /**
+   * 获取指定标的的买入订单列表
+   * @param symbol 标的代码
+   * @param isLongSymbol 是否为做多标的
+   * @returns 买入订单数组（如果不存在则返回空数组）
+   */
   const getBuyOrdersList = (symbol: string, isLongSymbol: boolean): OrderRecord[] => {
     const targetMap = isLongSymbol ? longBuyOrdersMap : shortBuyOrdersMap;
     return targetMap.get(symbol) ?? [];
   };
 
-  /** 替换指定标的的买入订单列表（内部辅助函数） */
-  const setBuyOrdersList = (symbol: string, newList: OrderRecord[], isLongSymbol: boolean): void => {
+  /**
+   * 替换指定标的的买入订单列表（内部辅助函数）
+   * @param symbol 标的代码
+   * @param newList 新的订单列表
+   * @param isLongSymbol 是否为做多标的
+   */
+  const setBuyOrdersList = (
+    symbol: string,
+    newList: ReadonlyArray<OrderRecord>,
+    isLongSymbol: boolean,
+  ): void => {
     const targetMap = isLongSymbol ? longBuyOrdersMap : shortBuyOrdersMap;
 
     if (newList.length === 0) {
       targetMap.delete(symbol);
     } else {
-      targetMap.set(symbol, newList);
+      targetMap.set(symbol, [...newList]);
     }
   };
 
   /** 替换做多标的的买入订单列表 */
-  const setBuyOrdersListForLong = (symbol: string, newList: OrderRecord[]): void => {
+  const setBuyOrdersListForLong = (symbol: string, newList: ReadonlyArray<OrderRecord>): void => {
     setBuyOrdersList(symbol, newList, true);
   };
 
   /** 替换做空标的的买入订单列表 */
-  const setBuyOrdersListForShort = (symbol: string, newList: OrderRecord[]): void => {
+  const setBuyOrdersListForShort = (symbol: string, newList: ReadonlyArray<OrderRecord>): void => {
     setBuyOrdersList(symbol, newList, false);
   };
 
-  /** 添加单笔买入订单到本地存储 */
+  const setLatestSellRecord = (symbol: string, isLongSymbol: boolean, record: OrderRecord): void => {
+    const targetMap = isLongSymbol ? longSellRecordMap : shortSellRecordMap;
+    const existing = targetMap.get(symbol);
+    if (!existing || record.executedTime >= existing.executedTime) {
+      targetMap.set(symbol, record);
+    }
+  };
+
+  const getLatestSellRecord = (symbol: string, isLongSymbol: boolean): OrderRecord | null => {
+    const targetMap = isLongSymbol ? longSellRecordMap : shortSellRecordMap;
+    return targetMap.get(symbol) ?? null;
+  };
+
+  /**
+   * 添加单笔买入订单到本地存储
+   * @param symbol 标的代码
+   * @param executedPrice 成交价格
+   * @param executedQuantity 成交数量
+   * @param isLongSymbol 是否为做多标的
+   * @param executedTimeMs 成交时间戳（毫秒）
+   */
   const addBuyOrder = (
     symbol: string,
     executedPrice: number,
@@ -58,9 +98,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     isLongSymbol: boolean,
     executedTimeMs: number,
   ): void => {
-    const executedTime = Number.isFinite(executedTimeMs) && executedTimeMs > 0
-      ? executedTimeMs
-      : Date.now();
+    const executedTime = isValidPositiveNumber(executedTimeMs) ? executedTimeMs : Date.now();
     const list = getBuyOrdersList(symbol, isLongSymbol);
 
     list.push({
@@ -75,7 +113,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
     setBuyOrdersList(symbol, list, isLongSymbol);
 
-    const positionType = getDirectionName(isLongSymbol);
+    const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
     logger.info(
       `[现存订单记录] 本地新增买入记录：${positionType} ${symbol} 价格=${executedPrice.toFixed(
         3,
@@ -87,21 +125,41 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
    * 卖出后更新订单列表
    * - 卖出数量 >= 总数量：清空记录
    * - 否则保留成交价 >= 卖出价的订单
+   *
+   * @param symbol 标的代码
+   * @param executedPrice 成交价格
+   * @param executedQuantity 成交数量
+   * @param isLongSymbol 是否为做多标的
+   * @param executedTimeMs 成交时间戳（毫秒）
+   * @param orderId 订单 ID（可选）
    */
   const updateAfterSell = (
     symbol: string,
     executedPrice: number,
     executedQuantity: number,
     isLongSymbol: boolean,
+    executedTimeMs: number,
+    orderId?: string | null,
   ): void => {
     const list = getBuyOrdersList(symbol, isLongSymbol);
+    const executedTime = isValidPositiveNumber(executedTimeMs) ? executedTimeMs : Date.now();
+
+    setLatestSellRecord(symbol, isLongSymbol, {
+      orderId: orderId ?? `LOCAL_SELL_${executedTime}`,
+      symbol,
+      executedPrice,
+      executedQuantity,
+      executedTime,
+      submittedAt: undefined,
+      updatedAt: undefined,
+    });
 
     if (!list.length) {
       return;
     }
 
     const totalQuantity = calculateTotalQuantity(list);
-    const positionType = getDirectionName(isLongSymbol);
+    const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
 
     // 如果卖出数量大于等于当前记录的总数量，视为全部卖出，清空记录
     if (executedQuantity >= totalQuantity) {
@@ -126,7 +184,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
   /** 清空指定标的的买入订单记录（用于保护性清仓） */
   const clearBuyOrders = (symbol: string, isLongSymbol: boolean, quote?: Quote | null): void => {
-    const positionType = getDirectionName(isLongSymbol);
+    const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
     setBuyOrdersList(symbol, [], isLongSymbol);
 
     // 使用 formatSymbolDisplayFromQuote 格式化标的显示
@@ -137,7 +195,12 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     );
   };
 
-  /** 获取最新买入订单的成交价（用于买入价格限制检查） */
+  /**
+   * 获取最新买入订单的成交价（用于买入价格限制检查）
+   * @param symbol 标的代码
+   * @param isLongSymbol 是否为做多标的
+   * @returns 最新成交价，无记录时返回 null
+   */
   const getLatestBuyOrderPrice = (symbol: string, isLongSymbol: boolean): number | null => {
     const list = getBuyOrdersList(symbol, isLongSymbol);
     if (!list.length) {
@@ -154,7 +217,13 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     return latestOrder ? latestOrder.executedPrice : null;
   };
 
-  /** 获取买入价低于当前价的订单（用于智能清仓决策） */
+  /**
+   * 获取买入价低于当前价的订单（用于智能清仓决策）
+   * @param currentPrice 当前价格
+   * @param direction 交易方向（LONG/SHORT）
+   * @param symbol 标的代码
+   * @returns 盈利订单列表
+   */
   const getBuyOrdersBelowPrice = (
     currentPrice: number,
     direction: 'LONG' | 'SHORT',
@@ -227,6 +296,187 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     return allOrders;
   };
 
+  // ========== 待成交卖出订单追踪实现 ==========
+
+  function addPendingSell(info: Omit<PendingSellInfo, 'filledQuantity' | 'status'>): void {
+    const record: PendingSellInfo = {
+      ...info,
+      filledQuantity: 0,
+      status: 'pending',
+    };
+    pendingSells.set(info.orderId, record);
+
+    logger.info(
+      `[订单存储] 添加待成交卖出: ${info.orderId} ${info.symbol} ${info.submittedQuantity}股 ` +
+      `关联订单=${info.relatedBuyOrderIds.length}个`,
+    );
+  }
+
+  function markSellFilled(orderId: string): PendingSellInfo | null {
+    const record = pendingSells.get(orderId);
+    if (!record) {
+      logger.warn(`[订单存储] 找不到待成交卖出订单: ${orderId}`);
+      return null;
+    }
+
+    const filled: PendingSellInfo = {
+      ...record,
+      filledQuantity: record.submittedQuantity,
+      status: 'filled',
+    };
+
+    pendingSells.delete(orderId);
+
+    logger.info(
+      `[订单存储] 卖出订单成交: ${orderId} ${filled.submittedQuantity}股`,
+    );
+
+    return filled;
+  }
+
+  function markSellPartialFilled(orderId: string, filledQuantity: number): PendingSellInfo | null {
+    const record = pendingSells.get(orderId);
+    if (!record) {
+      logger.warn(`[订单存储] 找不到待成交卖出订单: ${orderId}`);
+      return null;
+    }
+
+    const updated: PendingSellInfo = {
+      ...record,
+      filledQuantity,
+      status: filledQuantity >= record.submittedQuantity ? 'filled' : 'partial',
+    };
+
+    if (updated.status === 'filled') {
+      pendingSells.delete(orderId);
+    } else {
+      pendingSells.set(orderId, updated);
+    }
+
+    logger.info(
+      `[订单存储] 卖出订单部分成交: ${orderId} ${filledQuantity}/${record.submittedQuantity}`,
+    );
+
+    return updated;
+  }
+
+  function markSellCancelled(orderId: string): PendingSellInfo | null {
+    const record = pendingSells.get(orderId);
+    if (!record) {
+      logger.warn(`[订单存储] 找不到待成交卖出订单: ${orderId}`);
+      return null;
+    }
+
+    pendingSells.delete(orderId);
+
+    logger.info(`[订单存储] 卖出订单取消: ${orderId}`);
+
+    return record;
+  }
+
+  function getPendingSellOrders(
+    symbol: string,
+    direction: 'LONG' | 'SHORT',
+  ): ReadonlyArray<PendingSellInfo> {
+    const orders: PendingSellInfo[] = [];
+    for (const order of pendingSells.values()) {
+      if (order.symbol === symbol && order.direction === direction) {
+        orders.push(order);
+      }
+    }
+    return orders;
+  }
+
+  /**
+   * 获取可卖出的盈利订单（核心防重逻辑）
+   *
+   * 算法说明：
+   * 1. 首先筛选所有买入价 < 当前价的盈利订单
+   * 2. 排除已被待成交卖出订单占用的订单（防止重复卖出）
+   * 3. 如超出最大可卖数量，按价格从低到高排序截断（便宜先卖）
+   *
+   * @param symbol 标的代码
+   * @param direction 交易方向（LONG/SHORT）
+   * @param currentPrice 当前价格
+   * @param maxSellQuantity 最大可卖数量（可选）
+   * @returns 盈利订单列表及总数量
+   */
+  function getProfitableSellOrders(
+    symbol: string,
+    direction: 'LONG' | 'SHORT',
+    currentPrice: number,
+    maxSellQuantity?: number,
+  ): ProfitableOrderResult {
+    // 1. 获取所有盈利订单（买入价 < 当前价）
+    const profitableOrders = getBuyOrdersBelowPrice(currentPrice, direction, symbol);
+
+    if (profitableOrders.length === 0) {
+      return { orders: [], totalQuantity: 0 };
+    }
+
+    // 2. 获取已被待成交卖出订单占用的订单ID
+    const pendingSellsList = getPendingSellOrders(symbol, direction);
+    const occupiedOrderIds = new Set<string>();
+
+    for (const sellOrder of pendingSellsList) {
+      for (const buyOrderId of sellOrder.relatedBuyOrderIds) {
+        occupiedOrderIds.add(buyOrderId);
+      }
+    }
+
+    // 3. 过滤掉被占用的订单
+    const availableOrders = profitableOrders.filter(
+      (order) => !occupiedOrderIds.has(order.orderId),
+    );
+
+    // 4. 计算可用数量
+    let totalQuantity = calculateTotalQuantity(availableOrders);
+
+    // 5. 数量截断（如果超过最大可卖数量）
+    if (maxSellQuantity !== undefined && totalQuantity > maxSellQuantity) {
+      // 按价格从低到高排序（便宜的先卖）
+      availableOrders.sort((a, b) => a.executedPrice - b.executedPrice);
+
+      let remaining = maxSellQuantity;
+      const finalOrders: OrderRecord[] = [];
+
+      for (const order of availableOrders) {
+        if (remaining <= 0) break;
+        if (order.executedQuantity <= remaining) {
+          finalOrders.push(order);
+          remaining -= order.executedQuantity;
+        } else {
+          // 部分数量
+          finalOrders.push({
+            ...order,
+            executedQuantity: remaining,
+          });
+          remaining = 0;
+        }
+      }
+
+      totalQuantity = maxSellQuantity;
+
+      logger.info(
+        `[订单存储] 数量超出限制截断: ${symbol} ${direction} ` +
+        `原数量=${calculateTotalQuantity(availableOrders)} ` +
+        `限制=${maxSellQuantity} 最终=${totalQuantity}`,
+      );
+
+      return { orders: finalOrders, totalQuantity };
+    }
+
+    logger.debug(
+      `[订单存储] 可卖出盈利订单: ${symbol} ${direction} ` +
+      `订单数=${availableOrders.length} 总数=${totalQuantity}`,
+    );
+
+    return {
+      orders: availableOrders,
+      totalQuantity,
+    };
+  }
+
   return {
     getBuyOrdersList,
     setBuyOrdersListForLong,
@@ -235,9 +485,18 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     updateAfterSell,
     clearBuyOrders,
     getLatestBuyOrderPrice,
+    getLatestSellRecord,
     getBuyOrdersBelowPrice,
     calculateTotalQuantity,
     getLongBuyOrders,
     getShortBuyOrders,
+
+    // 待成交卖出订单追踪
+    addPendingSell,
+    markSellFilled,
+    markSellPartialFilled,
+    markSellCancelled,
+    getPendingSellOrders,
+    getProfitableSellOrders,
   };
 };

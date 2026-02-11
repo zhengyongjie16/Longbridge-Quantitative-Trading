@@ -20,7 +20,6 @@
  * - release(obj)：将对象归还到池中
  * - releaseAll(objects)：批量释放对象数组
  */
-
 import type {
   Factory,
   Reset,
@@ -40,7 +39,7 @@ import type {
  * @param maxSize 池的最大容量
  * @returns ObjectPool 接口实例
  */
-export function createObjectPool<T>(
+function createObjectPool<T>(
   factory: Factory<T>,
   reset: Reset<T>,
   maxSize: number = 100,
@@ -90,7 +89,7 @@ export function createObjectPool<T>(
  * 验证历史条目对象池
  * 用于 verificationHistory 数组中的条目对象
  */
-export const verificationEntryPool = createObjectPool<PoolableVerificationEntry>(
+const verificationEntryPool = createObjectPool<PoolableVerificationEntry>(
   // 工厂函数：创建空对象（支持动态配置的验证指标）
   () => ({ timestamp: null, indicators: null }),
   // 重置函数：清空所有属性
@@ -99,15 +98,15 @@ export const verificationEntryPool = createObjectPool<PoolableVerificationEntry>
     obj.indicators = null; // 清空引用，避免内存泄漏
     return obj;
   },
-  50, // 最大保存50个对象（每个信号最多120个条目，通常不会同时存在这么多待验证信号）
+  50, // 最大保存50个对象（延迟验证仅使用3个时间点，容量按并发信号预估）
 );
 
 /**
  * 指标记录对象池（字符串键）
- * 用于 indicators1、currentIndicators 等 Record<string, number> 对象的复用
+ * 用于延迟验证的指标快照对象复用
  * 主要用于：
- * - strategy/index.ts 中的 indicators1
- * - signalVerification/index.ts 中的 currentIndicators
+ * - core/strategy/index.ts 中的 indicators1
+ * - verificationHistory entry.indicators
  *
  * 注意：此对象池需要在 signalObjectPool 之前定义，因为 signalObjectPool 的重置函数需要使用它
  */
@@ -143,6 +142,7 @@ export const signalObjectPool = createObjectPool<PoolableSignal>(
     price: null,
     lotSize: null,
     quantity: null,
+    seatVersion: null,
     triggerTime: null,
     indicators1: null,
     verificationHistory: null,
@@ -176,6 +176,7 @@ export const signalObjectPool = createObjectPool<PoolableSignal>(
     obj.price = null;
     obj.lotSize = null;
     obj.quantity = null;
+    obj.seatVersion = null;
     obj.triggerTime = null;
     obj.indicators1 = null;
     obj.verificationHistory = null;

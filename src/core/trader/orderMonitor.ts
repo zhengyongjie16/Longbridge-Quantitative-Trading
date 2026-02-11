@@ -11,7 +11,6 @@
  * - 买入超时：仅撤销订单（避免追高）
  * - 卖出超时：撤销后转市价单（确保平仓）
  */
-
 import {
   OrderStatus,
   OrderSide,
@@ -21,20 +20,31 @@ import {
 } from 'longport';
 import type { PushOrderChanged } from 'longport';
 import { logger } from '../../utils/logger/index.js';
-import { decimalToNumber, toDecimal, formatError, toBeijingTimeIso } from '../../utils/helpers/index.js';
+import { decimalToNumber, toDecimal, formatError, toBeijingTimeIso, isValidPositiveNumber } from '../../utils/helpers/index.js';
+import { ORDER_PRICE_DIFF_THRESHOLD, PENDING_ORDER_STATUSES } from '../../constants/index.js';
 import type { Quote, PendingRefreshSymbol, GlobalConfig } from '../../types/index.js';
 import type {
   OrderMonitor,
   OrderMonitorDeps,
   TrackedOrder,
   OrderMonitorConfig,
+  PendingSellOrderSnapshot,
 } from './types.js';
 import { recordTrade } from './tradeLogger.js';
 
-const PRICE_DIFF_THRESHOLD = 0.001;
+/** 根据订单方向和席位方向解析信号动作 */
+function resolveSignalAction(
+  side: OrderSide,
+  isLongSymbol: boolean,
+): 'BUYCALL' | 'BUYPUT' | 'SELLCALL' | 'SELLPUT' {
+  if (side === OrderSide.Buy) {
+    return isLongSymbol ? 'BUYCALL' : 'BUYPUT';
+  }
+  return isLongSymbol ? 'SELLCALL' : 'SELLPUT';
+}
 
 /** 构建监控配置（将秒转换为毫秒） */
-const buildOrderMonitorConfig = (globalConfig: GlobalConfig): OrderMonitorConfig => {
+function buildOrderMonitorConfig(globalConfig: GlobalConfig): OrderMonitorConfig {
   return {
     buyTimeout: {
       enabled: globalConfig.buyOrderTimeout.enabled,
@@ -45,38 +55,43 @@ const buildOrderMonitorConfig = (globalConfig: GlobalConfig): OrderMonitorConfig
       timeoutMs: globalConfig.sellOrderTimeout.timeoutSeconds * 1000,
     },
     priceUpdateIntervalMs: globalConfig.orderMonitorPriceUpdateInterval * 1000,
-    priceDiffThreshold: PRICE_DIFF_THRESHOLD,  // 固定值，不需要配置
+    priceDiffThreshold: ORDER_PRICE_DIFF_THRESHOLD, // 固定值，不需要配置
   };
-};
+}
 
 /** 解析订单更新时间为毫秒时间戳 */
-const resolveUpdatedAtMs = (updatedAt: unknown): number | null => {
-  const ms =
-    updatedAt instanceof Date
-      ? updatedAt.getTime()
-      : typeof updatedAt === 'number'
-        ? updatedAt
-        : typeof updatedAt === 'string' && updatedAt.trim()
-          ? Date.parse(updatedAt)
-          : Number.NaN;
-
-  return Number.isFinite(ms) && ms > 0 ? ms : null;
-};
+function resolveUpdatedAtMs(updatedAt: unknown): number | null {
+  if (updatedAt instanceof Date) {
+    return updatedAt.getTime();
+  }
+  if (typeof updatedAt === 'number') {
+    return updatedAt;
+  }
+  if (typeof updatedAt === 'string' && updatedAt.trim()) {
+    const parsed = Date.parse(updatedAt);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+  return null;
+}
 
 /**
  * 创建订单监控器（依赖注入 OrderRecorder）
  * @param deps 依赖注入
  * @returns OrderMonitor 接口实例
  */
-export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
+export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
   const {
     ctxPromise,
     rateLimiter,
     cacheManager,
     orderRecorder,
+    dailyLossTracker,
+    orderHoldRegistry,
     liquidationCooldownTracker,
     testHooks,
     tradingConfig,
+    symbolRegistry,
+    refreshGate,
   } = deps;
   const config = buildOrderMonitorConfig(tradingConfig.global);
 
@@ -86,43 +101,25 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
   // 待刷新浮亏数据的标的列表（订单成交后添加，主循环中处理后清空）
   const pendingRefreshSymbols: PendingRefreshSymbol[] = [];
 
-  /** 根据配置判断标的是做多还是做空 */
-  const isLongSymbolByConfig = (symbol: string): boolean => {
-    for (const monitor of tradingConfig.monitors) {
-      if (monitor.longSymbol === symbol) {
-        return true;
-      }
-      if (monitor.shortSymbol === symbol) {
-        return false;
-      }
+  function resolveSeatOwnership(
+    symbol: string,
+  ): { isLongSymbol: boolean; monitorSymbol: string | null } {
+    const resolved = symbolRegistry.resolveSeatBySymbol(symbol);
+    if (resolved) {
+      return {
+        isLongSymbol: resolved.direction === 'LONG',
+        monitorSymbol: resolved.monitorSymbol,
+      };
     }
-    return true; // 默认视为做多
-  };
-
-  const resolveMonitorSymbolByConfig = (symbol: string): string | null => {
-    for (const monitor of tradingConfig.monitors) {
-      if (monitor.longSymbol === symbol || monitor.shortSymbol === symbol) {
-        return monitor.monitorSymbol;
-      }
-    }
-    return null;
-  };
-
-  const resolveSignalAction = (
-    side: OrderSide,
-    isLongSymbol: boolean,
-  ): 'BUYCALL' | 'BUYPUT' | 'SELLCALL' | 'SELLPUT' => {
-    if (side === OrderSide.Buy) {
-      return isLongSymbol ? 'BUYCALL' : 'BUYPUT';
-    }
-    return isLongSymbol ? 'SELLCALL' : 'SELLPUT';
-  };
+    logger.warn(`[订单监控] 未找到席位归属，使用默认方向: ${symbol}`);
+    return { isLongSymbol: true, monitorSymbol: null };
+  }
 
   /**
    * 处理 WebSocket 订单状态变化
    * 完全成交时用成交价更新本地记录，部分成交时继续追踪
    */
-  const handleOrderChanged = (event: PushOrderChanged): void => {
+  function handleOrderChanged(event: PushOrderChanged): void {
     const orderId = event.orderId;
     const trackedOrder = trackedOrders.get(orderId);
 
@@ -140,13 +137,11 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
 
     // ========== 订单完全成交：使用成交价更新本地记录 ==========
     if (event.status === OrderStatus.Filled) {
+      orderHoldRegistry.markOrderFilled(String(orderId));
       const executedPrice = decimalToNumber(event.executedPrice);
       const filledQuantity = decimalToNumber(event.executedQuantity);
 
-      if (
-        Number.isFinite(executedPrice) && executedPrice > 0 &&
-        Number.isFinite(filledQuantity) && filledQuantity > 0
-      ) {
+      if (isValidPositiveNumber(executedPrice) && isValidPositiveNumber(filledQuantity)) {
         const executedTimeMs = resolveUpdatedAtMs(event.updatedAt);
         if (executedTimeMs == null) {
           logger.error(
@@ -171,7 +166,24 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
             executedPrice,
             filledQuantity,
             trackedOrder.isLongSymbol,
+            executedTimeMs,
+            String(orderId),
           );
+          // 更新待成交追踪
+          orderRecorder.markSellFilled(String(orderId));
+        }
+
+        if (trackedOrder.monitorSymbol) {
+          dailyLossTracker.recordFilledOrder({
+            monitorSymbol: trackedOrder.monitorSymbol,
+            symbol: trackedOrder.symbol,
+            isLongSymbol: trackedOrder.isLongSymbol,
+            side: trackedOrder.side,
+            executedPrice,
+            executedQuantity: filledQuantity,
+            executedTimeMs,
+            orderId: String(orderId),
+          });
         }
 
         if (trackedOrder.isProtectiveLiquidation) {
@@ -223,6 +235,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
 
         // 记录需要刷新的数据（订单成交后资金和持仓都会变化）
         // 主循环中会统一刷新账户、持仓和浮亏数据
+        refreshGate?.markStale();
         pendingRefreshSymbols.push({
           symbol: trackedOrder.symbol,
           isLongSymbol: trackedOrder.isLongSymbol,
@@ -241,30 +254,38 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
       return;
     }
 
-    // ========== 订单撤销或拒绝 ==========
+    // 订单撤销或拒绝
     if (
       event.status === OrderStatus.Canceled ||
       event.status === OrderStatus.Rejected
     ) {
+      // 订单取消时释放追踪
+      if (trackedOrder.side === OrderSide.Sell) {
+        orderRecorder.markSellCancelled(String(orderId));
+      }
       trackedOrders.delete(orderId);
       logger.info(`[订单监控] 订单 ${orderId} 状态变为 ${event.status}，停止追踪`);
       return;
     }
 
-    // ========== 部分成交：继续追踪，不更新本地记录 ==========
+    // 部分成交：继续追踪，不更新本地记录
     if (event.status === OrderStatus.PartialFilled) {
+      // 更新待成交追踪
+      if (trackedOrder.side === OrderSide.Sell) {
+        orderRecorder.markSellPartialFilled(String(orderId), executedQuantity);
+      }
       logger.info(
         `[订单监控] 订单 ${orderId} 部分成交，` +
         `已成交=${trackedOrder.executedQuantity}/${trackedOrder.submittedQuantity}，` +
         '等待完全成交后更新本地记录',
       );
     }
-  };
+  }
 
   testHooks?.setHandleOrderChanged?.(handleOrderChanged);
 
   /** 初始化 WebSocket 订阅（订阅 Private 主题） */
-  const initialize = async (): Promise<void> => {
+  async function initialize(): Promise<void> {
     const ctx = await ctxPromise;
 
     // 设置订单变化回调（回调签名包含 err 和 event 两个参数）
@@ -280,10 +301,10 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
     await ctx.subscribe([TopicType.Private]);
 
     logger.info('[订单监控] WebSocket 订阅初始化成功');
-  };
+  }
 
   /** 开始追踪订单（订单提交后调用） */
-  const trackOrder = (
+  function trackOrder(
     orderId: string,
     symbol: string,
     side: OrderSide,
@@ -292,8 +313,11 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
     isLongSymbol: boolean,
     monitorSymbol: string | null,
     isProtectiveLiquidation: boolean,
-  ): void => {
+    orderType: OrderType,
+  ): void {
     const now = Date.now();
+
+    orderHoldRegistry.trackOrder(String(orderId), symbol);
 
     const order: TrackedOrder = {
       orderId,
@@ -302,6 +326,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
       isLongSymbol,
       monitorSymbol,
       isProtectiveLiquidation,
+      orderType,
       submittedPrice: price,
       submittedQuantity: quantity,
       executedQuantity: 0,
@@ -318,10 +343,10 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
       `标的=${symbol}，方向=${side === OrderSide.Buy ? '买入' : '卖出'}，` +
       `${isLongSymbol ? '做多' : '做空'}标的`,
     );
-  };
+  }
 
   /** 程序重启时恢复未完成订单的追踪 */
-  const recoverTrackedOrders = async (): Promise<void> => {
+  async function recoverTrackedOrders(): Promise<void> {
     const ctx = await ctxPromise;
 
     await rateLimiter.throttle();
@@ -340,13 +365,12 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
       }
 
       const symbol = order.symbol;
-      const isLongSymbol = isLongSymbolByConfig(symbol);
+      const { isLongSymbol, monitorSymbol } = resolveSeatOwnership(symbol);
 
       // 获取已成交数量（用于部分成交订单的正确恢复）
       const executedQuantity = decimalToNumber(order.executedQuantity);
 
       // 重新追踪未完成的订单
-      const monitorSymbol = resolveMonitorSymbolByConfig(symbol);
       trackOrder(
         order.orderId,
         symbol,
@@ -356,9 +380,9 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
         isLongSymbol,
         monitorSymbol,
         false,
+        order.orderType,
       );
 
-      // 修复：恢复部分成交订单的已成交数量
       // trackOrder 内部会将 executedQuantity 设为 0，这里需要更新为实际已成交数量
       const trackedOrder = trackedOrders.get(order.orderId);
       if (trackedOrder && executedQuantity > 0) {
@@ -374,10 +398,10 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
     if (recoveredCount > 0) {
       logger.info(`[订单监控] 程序启动恢复追踪 ${recoveredCount} 个未完成订单`);
     }
-  };
+  }
 
   /** 撤销订单 */
-  const cancelOrder = async (orderId: string): Promise<boolean> => {
+  async function cancelOrder(orderId: string): Promise<boolean> {
     const ctx = await ctxPromise;
 
     try {
@@ -396,14 +420,14 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
       );
       return false;
     }
-  };
+  }
 
   /** 修改订单委托价格 */
-  const replaceOrderPrice = async (
+  async function replaceOrderPrice(
     orderId: string,
     newPrice: number,
     quantity: number | null = null,
-  ): Promise<void> => {
+  ): Promise<void> {
     const ctx = await ctxPromise;
     const trackedOrder = trackedOrders.get(orderId);
 
@@ -432,6 +456,9 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
       await ctx.replaceOrder(replacePayload);
 
       cacheManager.clearCache();
+      trackedOrder.submittedPrice = newPrice;
+      trackedOrder.submittedQuantity = trackedOrder.executedQuantity + targetQuantity;
+      trackedOrder.lastPriceUpdateAt = Date.now();
 
       logger.info(
         `[订单修改成功] 订单ID=${orderId} 新价格=${newPrice.toFixed(3)}`,
@@ -444,10 +471,10 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
       );
       throw new Error(`订单修改失败: ${errorMessage}`);
     }
-  };
+  }
 
   /** 处理买入订单超时：仅撤销（避免追高） */
-  const handleBuyOrderTimeout = async (orderId: string, order: TrackedOrder): Promise<void> => {
+  async function handleBuyOrderTimeout(orderId: string, order: TrackedOrder): Promise<void> {
     const elapsed = Date.now() - order.submittedAt;
 
     logger.warn(
@@ -474,10 +501,10 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
         `[订单监控] 买入订单 ${orderId} 撤销失败（可能已成交或已撤销）`,
       );
     }
-  };
+  }
 
   /** 处理卖出订单超时：撤销后转市价单（确保平仓） */
-  const handleSellOrderTimeout = async (orderId: string, order: TrackedOrder): Promise<void> => {
+  async function handleSellOrderTimeout(orderId: string, order: TrackedOrder): Promise<void> {
     const elapsed = Date.now() - order.submittedAt;
 
     logger.warn(
@@ -536,6 +563,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
         order.isLongSymbol,   // 继承原订单的做多/做空标识
         order.monitorSymbol,
         order.isProtectiveLiquidation,
+        OrderType.MO,
       );
 
       // 标记新订单已转换为市价单（避免再次转换）
@@ -547,15 +575,15 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
     } catch (err) {
       logger.error(`[订单监控] 卖出订单 ${orderId} 转市价单失败:`, err);
     }
-  };
+  }
 
   /**
    * 根据最新行情更新委托价（主循环每秒调用）
    * 委托价跟随市价变化，确保订单能够成交
    */
-  const processWithLatestQuotes = async (
+  async function processWithLatestQuotes(
     quotesMap: ReadonlyMap<string, Quote | null>,
-  ): Promise<void> => {
+  ): Promise<void> {
     const now = Date.now();
 
     for (const [orderId, order] of trackedOrders) {
@@ -610,29 +638,52 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
 
       try {
         await replaceOrderPrice(orderId, currentPrice);
-        order.submittedPrice = currentPrice;
-        order.lastPriceUpdateAt = now;
       } catch (err) {
         logger.error(`[订单监控] 修改订单 ${orderId} 价格失败:`, err);
       }
     }
-  };
+  }
+
+  /** 获取指定标的的未成交卖单快照 */
+  function getPendingSellOrders(symbol: string): ReadonlyArray<PendingSellOrderSnapshot> {
+    const pendingOrders: PendingSellOrderSnapshot[] = [];
+    for (const order of trackedOrders.values()) {
+      if (order.symbol !== symbol) {
+        continue;
+      }
+      if (order.side !== OrderSide.Sell) {
+        continue;
+      }
+      if (!PENDING_ORDER_STATUSES.has(order.status)) {
+        continue;
+      }
+      const remaining = order.submittedQuantity - order.executedQuantity;
+      if (!Number.isFinite(remaining) || remaining <= 0) {
+        continue;
+      }
+      pendingOrders.push({
+        orderId: order.orderId,
+        symbol: order.symbol,
+        side: order.side,
+        status: order.status,
+        orderType: order.orderType,
+        submittedPrice: order.submittedPrice,
+        submittedQuantity: order.submittedQuantity,
+        executedQuantity: order.executedQuantity,
+        submittedAt: order.submittedAt,
+      });
+    }
+    return pendingOrders.sort((a, b) => a.submittedAt - b.submittedAt);
+  }
 
   /** 获取并清空待刷新标的列表（订单成交后需刷新持仓和浮亏） */
-  const getAndClearPendingRefreshSymbols = (): PendingRefreshSymbol[] => {
+  function getAndClearPendingRefreshSymbols(): PendingRefreshSymbol[] {
     if (pendingRefreshSymbols.length === 0) {
       return [];
     }
 
     return pendingRefreshSymbols.splice(0);
-  };
-
-  /** 销毁监控器（清理追踪列表） */
-  const destroy = async (): Promise<void> => {
-    trackedOrders.clear();
-    pendingRefreshSymbols.length = 0;
-    logger.info('[订单监控] 监控器已销毁');
-  };
+  }
 
   return {
     initialize,
@@ -641,7 +692,7 @@ export const createOrderMonitor = (deps: OrderMonitorDeps): OrderMonitor => {
     replaceOrderPrice,
     processWithLatestQuotes,
     recoverTrackedOrders,
+    getPendingSellOrders,
     getAndClearPendingRefreshSymbols,
-    destroy,
   };
-};
+}

@@ -15,81 +15,77 @@
  * - delayedSignalVerifier：延迟信号验证器
  * - 缓存的标的名称和指标周期
  */
-
-import { createHangSengMultiIndicatorStrategy } from '../../core/strategy/index.js';
-import { createRiskChecker } from '../../core/risk/index.js';
-import { createUnrealizedLossMonitor } from '../../core/unrealizedLossMonitor/index.js';
-import { createDelayedSignalVerifier } from '../../main/asyncProgram/delayedSignalVerifier/index.js';
-import type { IndicatorCache } from '../../main/asyncProgram/indicatorCache/types.js';
+import { isSeatReady } from '../autoSymbolManager/utils.js';
 import type {
-  MonitorConfig,
-  MonitorState,
   MonitorContext,
-  Quote,
-  Trader,
 } from '../../types/index.js';
+import type { MonitorContextFactoryDeps } from './types.js';
 import { extractRsiPeriodsWithDefault, extractEmaPeriods, extractPsyPeriods } from './utils.js';
 
 /**
  * 创建监控标的上下文
  *
- * @param config 监控配置
- * @param state 监控状态
- * @param trader 交易器
- * @param quotesMap 预先批量获取的行情数据 Map（用于获取标的名称，减少 API 调用）
- * @param indicatorCache 指标缓存（全局共享，供延迟验证器查询）
+ * @param deps 依赖注入
  */
-export function createMonitorContext(
-  config: MonitorConfig,
-  state: MonitorState,
-  trader: Trader,
-  quotesMap: ReadonlyMap<string, Quote | null>,
-  indicatorCache: IndicatorCache,
-): MonitorContext {
+export function createMonitorContext(deps: MonitorContextFactoryDeps): MonitorContext {
+  const {
+    config,
+    state,
+    symbolRegistry,
+    quotesMap,
+    strategy,
+    orderRecorder,
+    dailyLossTracker,
+    riskChecker,
+    unrealizedLossMonitor,
+    delayedSignalVerifier,
+    autoSymbolManager,
+  } = deps;
+
+  const longSeatState = symbolRegistry.getSeatState(config.monitorSymbol, 'LONG');
+  const shortSeatState = symbolRegistry.getSeatState(config.monitorSymbol, 'SHORT');
+  const longSeatVersion = symbolRegistry.getSeatVersion(config.monitorSymbol, 'LONG');
+  const shortSeatVersion = symbolRegistry.getSeatVersion(config.monitorSymbol, 'SHORT');
+  const longSymbol = isSeatReady(longSeatState) ? longSeatState.symbol : null;
+  const shortSymbol = isSeatReady(shortSeatState) ? shortSeatState.symbol : null;
+
   // 从预先获取的行情 Map 中提取标的名称（无需单独 API 调用）
-  const longQuote = quotesMap.get(config.longSymbol) ?? null;
-  const shortQuote = quotesMap.get(config.shortSymbol) ?? null;
+  const longQuote = longSymbol ? (quotesMap.get(longSymbol) ?? null) : null;
+  const shortQuote = shortSymbol ? (quotesMap.get(shortSymbol) ?? null) : null;
   const monitorQuote = quotesMap.get(config.monitorSymbol) ?? null;
 
   return {
     config,
     state,
-    strategy: createHangSengMultiIndicatorStrategy({
-      signalConfig: config.signalConfig,
-      verificationConfig: config.verificationConfig,
-    }),
-    // 使用 trader 内部创建的共享 orderRecorder 实例
-    // 订单记录更新已移至 orderMonitor，成交时自动更新
-    orderRecorder: trader._orderRecorder,
-    riskChecker: createRiskChecker({
-      options: {
-        maxDailyLoss: config.maxDailyLoss,
-        maxPositionNotional: config.maxPositionNotional,
-        maxUnrealizedLossPerSymbol: config.maxUnrealizedLossPerSymbol,
-      },
-    }),
+    symbolRegistry,
+    seatState: {
+      long: longSeatState,
+      short: shortSeatState,
+    },
+    seatVersion: {
+      long: longSeatVersion,
+      short: shortSeatVersion,
+    },
+    autoSymbolManager,
+    strategy,
+    // 使用共享 orderRecorder 实例（订单成交后由 orderMonitor 更新）
+    orderRecorder,
+    dailyLossTracker,
+    riskChecker,
     // 每个监控标的独立的浮亏监控器（使用各自的 maxUnrealizedLossPerSymbol 配置）
-    unrealizedLossMonitor: createUnrealizedLossMonitor({
-      maxUnrealizedLossPerSymbol: config.maxUnrealizedLossPerSymbol ?? 0,
-    }),
+    unrealizedLossMonitor,
     // 每个监控标的独立的延迟信号验证器（使用各自的验证配置）
-    delayedSignalVerifier: createDelayedSignalVerifier({
-      indicatorCache,
-      verificationConfig: config.verificationConfig,
-    }),
+    delayedSignalVerifier,
     // 缓存标的名称（避免每次循环重复获取）
-    longSymbolName: longQuote?.name ?? config.longSymbol,
-    shortSymbolName: shortQuote?.name ?? config.shortSymbol,
+    longSymbolName: longSymbol ? (longQuote?.name ?? longSymbol) : '',
+    shortSymbolName: shortSymbol ? (shortQuote?.name ?? shortSymbol) : '',
     monitorSymbolName: monitorQuote?.name ?? config.monitorSymbol,
-    // 缓存已校验的标的代码（配置要求 ticker.region，直接使用）
-    normalizedLongSymbol: config.longSymbol,
-    normalizedShortSymbol: config.shortSymbol,
     normalizedMonitorSymbol: config.monitorSymbol,
     // 缓存指标周期配置（避免每次循环重复提取）
     rsiPeriods: extractRsiPeriodsWithDefault(config.signalConfig),
     emaPeriods: extractEmaPeriods(config.verificationConfig),
     psyPeriods: extractPsyPeriods(config.signalConfig, config.verificationConfig),
-    // 缓存的行情数据（主循环每秒更新，供 TradeProcessor 使用）
+    // 缓存的行情数据（主循环每秒更新，供买入/卖出处理器使用）
     longQuote,
     shortQuote,
     monitorQuote,

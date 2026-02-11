@@ -14,9 +14,18 @@
  * - 不可变数据使用 readonly，对象池类型例外
  * - 公共类型集中定义，避免重复和循环引用
  */
-
-import { Market } from 'longport';
+import type {
+  Market,
+  OrderSide,
+  OrderStatus,
+  OrderType,
+  QuoteContext,
+  Candlestick,
+  Period,
+  TradeSessions,
+} from 'longport';
 import type { DoomsdayProtection } from '../core/doomsdayProtection/types.js';
+import type { PendingSellInfo } from '../core/orderRecorder/types.js';
 
 // ==================== 信号类型 ====================
 
@@ -32,19 +41,6 @@ export type SignalType =
   | 'HOLD';     // 持有（不操作）
 
 /**
- * 延迟验证历史条目
- * 记录延迟验证过程中每个时间点的指标快照
- *
- * @remarks 此类型不使用 readonly，因为需要在对象池中修改
- */
-export type VerificationEntry = {
-  /** 验证时间点 */
-  timestamp: Date;
-  /** 该时间点的指标值映射 */
-  indicators: Record<string, number>;
-};
-
-/**
  * 交易信号
  * 表示一次交易操作的完整信息
  *
@@ -58,11 +54,11 @@ export type Signal = {
   /** 信号动作类型 */
   action: SignalType;
   /** 信号触发原因 */
-  reason?: string;
+  reason?: string | null;
   /** 订单类型覆盖（优先级高于全局配置） */
   orderTypeOverride?: OrderTypeConfig | null;
   /** 是否为保护性清仓（触发买入冷却） */
-  isProtectiveLiquidation?: boolean;
+  isProtectiveLiquidation?: boolean | null;
   /** 交易价格 */
   price?: number | null;
   /** 每手股数 */
@@ -76,10 +72,14 @@ export type Signal = {
    * - 末日保护信号：信号生成时间
    */
   triggerTime?: Date | null;
+  /** 信号对应的席位版本号（换标后用于丢弃旧信号） */
+  seatVersion?: number | null;
   /** 延迟验证：T0 时刻的指标快照 */
   indicators1?: Record<string, number> | null;
   /** 延迟验证：历史验证记录 */
-  verificationHistory?: VerificationEntry[] | null;
+  verificationHistory?: Array<{ timestamp: Date; indicators: Record<string, number> }> | null;
+  /** 关联的买入订单ID列表（仅卖出订单使用，用于智能平仓防重） */
+  relatedBuyOrderIds?: readonly string[] | null;
 };
 
 /**
@@ -156,6 +156,25 @@ export type AccountSnapshot = {
 // ==================== 行情和指标 ====================
 
 /**
+ * 行情静态信息
+ * 来自 LongPort API，包含标的的基本信息和牛熊证相关字段
+ */
+export type QuoteStaticInfo = {
+  readonly nameHk?: string | null;
+  readonly nameCn?: string | null;
+  readonly nameEn?: string | null;
+  readonly lotSize?: number | null;
+  readonly lot_size?: number | null;
+  readonly lot?: number | null;
+  readonly callPrice?: number | null;
+  readonly expiryDate?: string | null;
+  readonly issuePrice?: number | null;
+  readonly conversionRatio?: number | null;
+  readonly warrantType?: 'BULL' | 'BEAR' | null;
+  readonly underlyingSymbol?: string | null;
+};
+
+/**
  * 行情数据
  * 表示标的的实时行情信息
  */
@@ -174,8 +193,8 @@ export type Quote = {
   readonly lotSize?: number;
   /** 原始行情数据 */
   readonly raw?: unknown;
-  /** 静态信息（如回收价等） */
-  readonly staticInfo?: unknown;
+  /** 静态信息（如回收价、每手股数等） */
+  readonly staticInfo?: QuoteStaticInfo | null;
 };
 
 /**
@@ -356,6 +375,39 @@ export type VerificationConfig = {
 };
 
 /**
+ * 数值范围配置
+ * 用于解析 min/max 形式的范围参数
+ */
+export type NumberRange = {
+  readonly min: number;
+  readonly max: number;
+};
+
+/**
+ * 自动寻标配置（单监控标的）
+ */
+export type AutoSearchConfig = {
+  /** 自动寻标开关 */
+  readonly autoSearchEnabled: boolean;
+  /** 牛证最低距回收价百分比阈值（小数，正值，配置层百分比数值经 /100 转换而来） */
+  readonly autoSearchMinDistancePctBull: number | null;
+  /** 熊证最低距回收价百分比阈值（小数，负值，配置层百分比数值经 /100 转换而来） */
+  readonly autoSearchMinDistancePctBear: number | null;
+  /** 牛证分均成交额阈值 */
+  readonly autoSearchMinTurnoverPerMinuteBull: number | null;
+  /** 熊证分均成交额阈值 */
+  readonly autoSearchMinTurnoverPerMinuteBear: number | null;
+  /** 到期日最小月份 */
+  readonly autoSearchExpiryMinMonths: number;
+  /** 开盘延迟分钟数（仅早盘生效） */
+  readonly autoSearchOpenDelayMinutes: number;
+  /** 牛证距回收价换标阈值范围 */
+  readonly switchDistanceRangeBull: NumberRange | null;
+  /** 熊证距回收价换标阈值范围 */
+  readonly switchDistanceRangeBear: NumberRange | null;
+};
+
+/**
  * 信号配置集
  * 包含四种交易信号的配置
  */
@@ -398,6 +450,10 @@ export type MonitorConfig = {
   readonly longSymbol: string;
   /** 做空标的代码（熊证） */
   readonly shortSymbol: string;
+  /** 自动寻标配置 */
+  readonly autoSearchConfig: AutoSearchConfig;
+  /** 订单归属映射（stockName 缩写列表） */
+  readonly orderOwnershipMapping: ReadonlyArray<string>;
   /** 单次目标交易金额 */
   readonly targetNotional: number;
   /** 单标的最大持仓市值 */
@@ -419,39 +475,6 @@ export type MonitorConfig = {
 };
 
 /**
- * 买入订单超时配置
- * 控制买入订单未成交时的超时处理
- */
-export type BuyOrderTimeoutConfig = {
-  /** 是否启用超时检测 */
-  readonly enabled: boolean;
-  /** 超时时间（秒） */
-  readonly timeoutSeconds: number;
-};
-
-/**
- * 卖出订单超时配置
- * 控制卖出订单未成交时的超时处理
- */
-export type SellOrderTimeoutConfig = {
-  /** 是否启用超时检测 */
-  readonly enabled: boolean;
-  /** 超时时间（秒） */
-  readonly timeoutSeconds: number;
-};
-
-/**
- * 开盘保护配置
- * 早盘开盘后暂停交易，避免开盘波动
- */
-export type OpenProtectionConfig = {
-  /** 是否启用开盘保护 */
-  readonly enabled: boolean;
-  /** 保护时长（分钟） */
-  readonly minutes: number | null;
-};
-
-/**
  * 全局配置
  * 非监控标的特定的系统级配置
  */
@@ -460,8 +483,23 @@ export type GlobalConfig = {
   readonly doomsdayProtection: boolean;
   /** 调试模式 */
   readonly debug: boolean;
-  /** 开盘保护配置 */
-  readonly openProtection: OpenProtectionConfig;
+  /** 开盘保护配置（早盘 + 午盘） */
+  readonly openProtection: {
+    /** 早盘开盘保护 */
+    readonly morning: {
+      /** 是否启用早盘开盘保护 */
+      readonly enabled: boolean;
+      /** 保护时长（分钟） */
+      readonly minutes: number | null;
+    };
+    /** 午盘开盘保护 */
+    readonly afternoon: {
+      /** 是否启用午盘开盘保护 */
+      readonly enabled: boolean;
+      /** 保护时长（分钟） */
+      readonly minutes: number | null;
+    };
+  };
   /** 订单价格修改最小间隔（秒） */
   readonly orderMonitorPriceUpdateInterval: number;
   /** 正常交易订单类型 */
@@ -469,9 +507,19 @@ export type GlobalConfig = {
   /** 清仓订单类型 */
   readonly liquidationOrderType: OrderTypeConfig;
   /** 买入订单超时配置 */
-  readonly buyOrderTimeout: BuyOrderTimeoutConfig;
+  readonly buyOrderTimeout: {
+    /** 是否启用超时检测 */
+    readonly enabled: boolean;
+    /** 超时时间（秒） */
+    readonly timeoutSeconds: number;
+  };
   /** 卖出订单超时配置 */
-  readonly sellOrderTimeout: SellOrderTimeoutConfig;
+  readonly sellOrderTimeout: {
+    /** 是否启用超时检测 */
+    readonly enabled: boolean;
+    /** 超时时间（秒） */
+    readonly timeoutSeconds: number;
+  };
 };
 
 /**
@@ -485,13 +533,72 @@ export type MultiMonitorTradingConfig = {
   readonly global: GlobalConfig;
 };
 
+// ==================== 席位与标的注册表 ====================
+
 /**
- * 配置验证结果
- * validateAllConfig 函数的返回类型
+ * 席位状态
  */
-export type ValidateAllConfigResult = {
-  /** 验证通过后创建的行情客户端 */
-  marketDataClient: MarketDataClient;
+export type SeatStatus = 'READY' | 'SEARCHING' | 'SWITCHING' | 'EMPTY';
+
+/**
+ * 席位状态信息
+ */
+export type SeatState = {
+  /** 当前占用标的 */
+  readonly symbol: string | null;
+  /** 席位状态 */
+  readonly status: SeatStatus;
+  /** 上次换标时间戳（毫秒） */
+  readonly lastSwitchAt: number | null;
+  /** 上次寻标时间戳（毫秒） */
+  readonly lastSearchAt: number | null;
+  /** 回收价（从 warrantList 透传，做多/做空标的换标后用于 setWarrantInfoFromCallPrice） */
+  readonly callPrice?: number | null;
+};
+
+/**
+ * 标的注册表接口
+ * 统一维护席位状态与版本号
+ */
+export interface SymbolRegistry {
+  /** 获取席位状态 */
+  getSeatState(monitorSymbol: string, direction: 'LONG' | 'SHORT'): SeatState;
+  /** 获取席位版本号 */
+  getSeatVersion(monitorSymbol: string, direction: 'LONG' | 'SHORT'): number;
+  /** 根据标的代码解析所属席位 */
+  resolveSeatBySymbol(symbol: string): {
+    monitorSymbol: string;
+    direction: 'LONG' | 'SHORT';
+    seatState: SeatState;
+    seatVersion: number;
+  } | null;
+  /** 更新席位状态 */
+  updateSeatState(
+    monitorSymbol: string,
+    direction: 'LONG' | 'SHORT',
+    nextState: SeatState,
+  ): SeatState;
+  /** 递增席位版本号 */
+  bumpSeatVersion(monitorSymbol: string, direction: 'LONG' | 'SHORT'): number;
+}
+
+/**
+ * 运行模式
+ */
+export type RunMode = 'prod' | 'dev';
+
+/**
+ * 门禁模式（启动门禁与运行时门禁共用）
+ */
+export type GateMode = 'strict' | 'skip';
+
+/**
+ * 启动阶段的席位标的快照条目
+ */
+export type SeatSymbolSnapshotEntry = {
+  readonly monitorSymbol: string;
+  readonly direction: 'LONG' | 'SHORT';
+  readonly symbol: string;
 };
 
 // ==================== 主入口模块类型 ====================
@@ -502,13 +609,13 @@ export type ValidateAllConfigResult = {
  */
 export type MonitorState = {
   /** 监控标的代码 */
-  monitorSymbol: string;
+  readonly monitorSymbol: string;
+  /**
+   * 运行中持续更新的状态字段（性能考虑保持可变）
+   * - monitorPrice/longPrice/shortPrice/signal/pendingDelayedSignals/monitorValues/lastMonitorSnapshot
+   */
   /** 监控标的当前价格 */
   monitorPrice: number | null;
-  /** 做多标的代码 */
-  longSymbol: string;
-  /** 做空标的代码 */
-  shortSymbol: string;
   /** 做多标的当前价格 */
   longPrice: number | null;
   /** 做空标的当前价格 */
@@ -516,7 +623,7 @@ export type MonitorState = {
   /** 当前信号 */
   signal: SignalType | null;
   /** 待处理的延迟验证信号 */
-  pendingDelayedSignals: Signal[];
+  pendingDelayedSignals: ReadonlyArray<Signal>;
   /** 监控指标值 */
   monitorValues: MonitorValues | null;
   /** 最新指标快照 */
@@ -528,23 +635,29 @@ export type MonitorState = {
  * 主循环中的共享状态，被多个模块使用
  */
 export type LastState = {
+  /**
+   * 运行中持续更新的状态字段（性能考虑保持可变）
+   * - canTrade/isHalfDay/openProtectionActive/cachedAccount/cachedPositions/cachedTradingDayInfo/allTradingSymbols
+   */
   /** 当前是否可交易 */
   canTrade: boolean | null;
   /** 是否为半日市 */
   isHalfDay: boolean | null;
   /** 开盘保护是否生效中 */
   openProtectionActive: boolean | null;
+  /** 当前港股日期键（用于跨日检测） */
+  currentDayKey: string | null;
   /** 账户快照缓存 */
   cachedAccount: AccountSnapshot | null;
   /** 持仓列表缓存 */
-  cachedPositions: Position[];
+  cachedPositions: ReadonlyArray<Position>;
   /** 持仓缓存（O(1) 查找） */
-  positionCache: PositionCache;
+  readonly positionCache: PositionCache;
   /** 交易日信息缓存 */
   cachedTradingDayInfo: TradingDayInfo | null;
   /** 各监控标的状态（monitorSymbol -> MonitorState） */
-  monitorStates: Map<string, MonitorState>;
-  /** 所有交易标的集合（静态，初始化时计算） */
+  readonly monitorStates: ReadonlyMap<string, MonitorState>;
+  /** 订阅标的集合（运行时动态维护） */
   allTradingSymbols: ReadonlySet<string>;
 };
 
@@ -557,14 +670,33 @@ export type MonitorContext = {
   readonly config: MonitorConfig;
   /** 运行时状态 */
   readonly state: MonitorState;
+  /** 标的注册表 */
+  readonly symbolRegistry: SymbolRegistry;
+  /**
+   * 运行中会更新的席位缓存（保持可变，避免频繁重建上下文）
+   */
+  /** 席位状态缓存 */
+  seatState: {
+    readonly long: SeatState;
+    readonly short: SeatState;
+  };
+  /** 席位版本缓存 */
+  seatVersion: {
+    readonly long: number;
+    readonly short: number;
+  };
+  /** 自动换标管理器 */
+  readonly autoSymbolManager: import('../services/autoSymbolManager/types.js').AutoSymbolManager;
   /** 策略实例 */
   readonly strategy: import('../core/strategy/types.js').HangSengMultiIndicatorStrategy;
   /** 订单记录器 */
   readonly orderRecorder: OrderRecorder;
+  /** 当日亏损跟踪器 */
+  readonly dailyLossTracker: import('../core/riskController/types.js').DailyLossTracker;
   /** 风险检查器 */
   readonly riskChecker: RiskChecker;
   /** 浮亏监控器 */
-  readonly unrealizedLossMonitor: import('../core/unrealizedLossMonitor/types.js').UnrealizedLossMonitor;
+  readonly unrealizedLossMonitor: import('../core/riskController/types.js').UnrealizedLossMonitor;
   /** 延迟信号验证器 */
   readonly delayedSignalVerifier: import('../main/asyncProgram/delayedSignalVerifier/types.js').DelayedSignalVerifier;
   /** 做多标的名称缓存 */
@@ -573,18 +705,14 @@ export type MonitorContext = {
   shortSymbolName: string;
   /** 监控标的名称缓存 */
   monitorSymbolName: string;
-  /** 已校验的做多标的代码 */
-  normalizedLongSymbol: string;
-  /** 已校验的做空标的代码 */
-  normalizedShortSymbol: string;
   /** 已校验的监控标的代码 */
-  normalizedMonitorSymbol: string;
+  readonly normalizedMonitorSymbol: string;
   /** RSI 指标周期配置 */
-  rsiPeriods: number[];
+  rsiPeriods: ReadonlyArray<number>;
   /** EMA 指标周期配置 */
-  emaPeriods: number[];
+  emaPeriods: ReadonlyArray<number>;
   /** PSY 指标周期配置 */
-  psyPeriods: number[];
+  psyPeriods: ReadonlyArray<number>;
   /** 做多标的行情缓存 */
   longQuote: Quote | null;
   /** 做空标的行情缓存 */
@@ -594,12 +722,6 @@ export type MonitorContext = {
 };
 
 // ==================== 核心服务接口 ====================
-
-/**
- * K线周期
- * 支持 1分钟、5分钟、15分钟、1小时、1日
- */
-export type PeriodString = '1m' | '5m' | '15m' | '1h' | '1d';
 
 /**
  * 交易日查询结果
@@ -617,7 +739,7 @@ export type TradingDaysResult = {
  */
 export interface MarketDataClient {
   /** 获取底层 QuoteContext（内部使用） */
-  _getContext(): Promise<import('longport').QuoteContext>;
+  _getContext(): Promise<QuoteContext>;
 
   /**
    * 批量获取多个标的的最新行情
@@ -626,58 +748,92 @@ export interface MarketDataClient {
    */
   getQuotes(symbols: Iterable<string>): Promise<Map<string, Quote | null>>;
 
+  /** 动态订阅行情标的（报价推送） */
+  subscribeSymbols(symbols: ReadonlyArray<string>): Promise<void>;
+
+  /** 取消订阅行情标的（报价推送） */
+  unsubscribeSymbols(symbols: ReadonlyArray<string>): Promise<void>;
+
   /**
-   * 获取 K 线数据
+   * 订阅指定标的的 K 线推送
+   *
+   * 订阅后 SDK 通过 WebSocket 实时推送 K 线更新到 SDK 内部缓存，
+   * 后续通过 getRealtimeCandlesticks 从 SDK 内部缓存读取。
+   *
+   * @param symbol 标的代码
+   * @param period K 线周期
+   * @param tradeSessions 交易时段（默认 All）
+   * @returns 初始 K 线数据
+   */
+  subscribeCandlesticks(
+    symbol: string,
+    period: Period,
+    tradeSessions?: TradeSessions,
+  ): Promise<Candlestick[]>;
+
+  /**
+   * 取消订阅指定标的的 K 线推送
+   * @param symbol 标的代码
+   * @param period K 线周期
+   */
+  unsubscribeCandlesticks(
+    symbol: string,
+    period: Period,
+  ): Promise<void>;
+
+  /**
+   * 获取实时 K 线数据（从 SDK 内部缓存读取，无 HTTP 请求）
+   *
+   * 需先调用 subscribeCandlesticks 订阅，否则返回空数据。
+   *
    * @param symbol 标的代码
    * @param period K 线周期
    * @param count 获取数量
    */
-  getCandlesticks(
+  getRealtimeCandlesticks(
     symbol: string,
-    period?: PeriodString | import('longport').Period,
-    count?: number,
-    adjustType?: import('longport').AdjustType,
-    tradeSessions?: import('longport').TradeSessions,
-  ): Promise<import('longport').Candlestick[]>;
-
-  /** 获取交易日列表 */
-  getTradingDays(startDate: Date, endDate: Date, market?: import('longport').Market): Promise<TradingDaysResult>;
+    period: Period,
+    count: number,
+  ): Promise<Candlestick[]>;
 
   /** 判断指定日期是否为交易日 */
-  isTradingDay(date: Date, market?: import('longport').Market): Promise<TradingDayInfo>;
+  isTradingDay(date: Date, market?: Market): Promise<TradingDayInfo>;
 
-  /**
-   * 批量缓存静态信息
-   * 启动时调用，缓存标的的回收价等信息
-   */
-  cacheStaticInfo(symbols: ReadonlyArray<string>): Promise<void>;
 }
 
 /**
  * 待处理订单
  * 表示尚未完全成交的订单
- *
- * @remarks 此类型不使用 readonly，因为需要在运行时修改
  */
 export type PendingOrder = {
-  /** 订单 ID */
-  orderId: string;
-  /** 标的代码 */
-  symbol: string;
-  /** 买卖方向 */
-  side: (typeof import('longport').OrderSide)[keyof typeof import('longport').OrderSide];
-  /** 委托价格 */
-  submittedPrice: number;
-  /** 委托数量 */
-  quantity: number;
-  /** 已成交数量 */
-  executedQuantity: number;
-  /** 订单状态 */
-  status: (typeof import('longport').OrderStatus)[keyof typeof import('longport').OrderStatus];
-  /** 订单类型 */
-  orderType: unknown;
-  /** 原始订单数据 */
-  _rawOrder?: unknown;
+  readonly orderId: string;
+  readonly symbol: string;
+  readonly side: OrderSide;
+  readonly submittedPrice: number;
+  readonly quantity: number;
+  readonly executedQuantity: number;
+  readonly status: OrderStatus;
+  readonly orderType: RawOrderFromAPI['orderType'];
+  readonly _rawOrder?: unknown;
+};
+
+/**
+ * API 返回的原始订单类型
+ * 用于从 LongPort API 接收订单数据时的类型安全转换
+ */
+export type RawOrderFromAPI = {
+  readonly orderId: string;
+  readonly symbol: string;
+  readonly stockName: string;
+  readonly side: OrderSide;
+  readonly status: OrderStatus;
+  readonly orderType: OrderType;
+  readonly price: DecimalLikeValue;
+  readonly quantity: DecimalLikeValue;
+  readonly executedPrice: DecimalLikeValue;
+  readonly executedQuantity: DecimalLikeValue;
+  readonly submittedAt?: Date | null;
+  readonly updatedAt?: Date | null;
 };
 
 /**
@@ -699,19 +855,6 @@ export type OrderRecord = {
   readonly submittedAt: Date | undefined;
   /** 更新时间 */
   readonly updatedAt: Date | undefined;
-};
-
-/**
- * 订单获取结果
- * fetchOrdersFromAPI 的返回类型
- */
-export type FetchOrdersResult = {
-  /** 是否成功 */
-  readonly success?: boolean;
-  /** 买入订单列表 */
-  readonly buyOrders: ReadonlyArray<OrderRecord>;
-  /** 卖出订单列表 */
-  readonly sellOrders: ReadonlyArray<OrderRecord>;
 };
 
 /**
@@ -751,29 +894,57 @@ export interface OrderRecorder {
     executedTimeMs: number,
   ): void;
   /** 记录本地卖出订单 */
-  recordLocalSell(symbol: string, executedPrice: number, executedQuantity: number, isLongSymbol: boolean): void;
+  recordLocalSell(
+    symbol: string,
+    executedPrice: number,
+    executedQuantity: number,
+    isLongSymbol: boolean,
+    executedTimeMs: number,
+    orderId?: string | null,
+  ): void;
   /** 清空指定标的的买入订单记录 */
   clearBuyOrders(symbol: string, isLongSymbol: boolean, quote?: Quote | null): void;
   /** 获取最新买入订单价格 */
   getLatestBuyOrderPrice(symbol: string, isLongSymbol: boolean): number | null;
-  /** 获取低于指定价格的买入订单（用于智能平仓） */
-  getBuyOrdersBelowPrice(currentPrice: number, direction: 'LONG' | 'SHORT', symbol: string): OrderRecord[];
-  /** 计算订单列表的总数量 */
-  calculateTotalQuantity(orders: OrderRecord[]): number;
-  /** 从 API 获取订单 */
-  fetchOrdersFromAPI(symbol: string): Promise<FetchOrdersResult>;
-  /** 刷新订单数据 */
-  refreshOrders(symbol: string, isLongSymbol: boolean, quote?: Quote | null): Promise<OrderRecord[]>;
-  /** 检查是否有指定标的的缓存 */
-  hasCacheForSymbols(symbols: string[]): boolean;
-  /** 从缓存获取待处理订单 */
-  getPendingOrdersFromCache(symbols: string[]): PendingOrder[];
-  /** 获取所有做多买入订单 */
-  getLongBuyOrders(): OrderRecord[];
-  /** 获取所有做空买入订单 */
-  getShortBuyOrders(): OrderRecord[];
+  /** 获取最新卖出订单记录 */
+  getLatestSellRecord(symbol: string, isLongSymbol: boolean): OrderRecord | null;
+  /** 从 API 获取全量订单 */
+  fetchAllOrdersFromAPI(forceRefresh?: boolean): Promise<ReadonlyArray<RawOrderFromAPI>>;
+  /** 使用全量订单刷新指定标的记录 */
+  refreshOrdersFromAllOrders(
+    symbol: string,
+    isLongSymbol: boolean,
+    allOrders: ReadonlyArray<RawOrderFromAPI>,
+    quote?: Quote | null,
+  ): Promise<OrderRecord[]>;
+  /** 清理指定标的的 API 订单缓存（不影响本地订单记录） */
+  clearOrdersCacheForSymbol(symbol: string): void;
   /** 获取指定标的的买入订单 */
-  getBuyOrdersForSymbol(symbol: string, isLongSymbol: boolean): OrderRecord[];
+  getBuyOrdersForSymbol(symbol: string, isLongSymbol: boolean): ReadonlyArray<OrderRecord>;
+
+  // 待成交卖出订单追踪
+
+  /** 提交卖出订单时调用（添加待成交追踪） */
+  submitSellOrder(
+    orderId: string,
+    symbol: string,
+    direction: 'LONG' | 'SHORT',
+    quantity: number,
+    relatedBuyOrderIds: readonly string[],
+  ): void;
+  /** 标记卖出订单完全成交 */
+  markSellFilled(orderId: string): PendingSellInfo | null;
+  /** 标记卖出订单部分成交 */
+  markSellPartialFilled(orderId: string, filledQuantity: number): PendingSellInfo | null;
+  /** 标记卖出订单取消 */
+  markSellCancelled(orderId: string): PendingSellInfo | null;
+  /** 获取可卖出的盈利订单（核心防重逻辑） */
+  getProfitableSellOrders(
+    symbol: string,
+    direction: 'LONG' | 'SHORT',
+    currentPrice: number,
+    maxSellQuantity?: number,
+  ): { orders: ReadonlyArray<OrderRecord>; totalQuantity: number };
 }
 
 /**
@@ -781,8 +952,6 @@ export interface OrderRecorder {
  * 封装 LongPort 交易 API，提供订单执行和管理功能
  */
 export interface Trader {
-  /** 底层 TradeContext Promise */
-  readonly _ctxPromise: Promise<import('longport').TradeContext>;
   /** 订单记录器实例 */
   readonly _orderRecorder: OrderRecorder;
 
@@ -797,28 +966,14 @@ export interface Trader {
 
   /** 获取待处理订单 */
   getPendingOrders(symbols?: string[] | null, forceRefresh?: boolean): Promise<PendingOrder[]>;
-  /** 清空待处理订单缓存 */
-  clearPendingOrdersCache(): void;
-  /** 检查是否有待处理的买入订单 */
-  hasPendingBuyOrders(symbols: string[], orderRecorder?: OrderRecorder | null): Promise<boolean>;
-
+  /** 启动阶段种子化订单订阅保留集 */
+  seedOrderHoldSymbols(orders: ReadonlyArray<RawOrderFromAPI>): void;
+  /** 获取订单订阅保留标的集合 */
+  getOrderHoldSymbols(): ReadonlySet<string>;
   // ========== 订单监控 ==========
 
-  /** 开始追踪订单状态 */
-  trackOrder(
-    orderId: string,
-    symbol: string,
-    side: (typeof import('longport').OrderSide)[keyof typeof import('longport').OrderSide],
-    price: number,
-    quantity: number,
-    isLongSymbol: boolean,
-    monitorSymbol: string | null,
-    isProtectiveLiquidation: boolean,
-  ): void;
   /** 撤销订单 */
   cancelOrder(orderId: string): Promise<boolean>;
-  /** 修改订单价格 */
-  replaceOrderPrice(orderId: string, newPrice: number, quantity?: number | null): Promise<void>;
   /** 监控和管理待处理订单 */
   monitorAndManageOrders(quotesMap: ReadonlyMap<string, Quote | null>): Promise<void>;
   /** 获取并清空待刷新标的列表 */
@@ -868,7 +1023,7 @@ export type RiskCheckContext = {
   /** 全局状态引用 */
   readonly lastState: {
     cachedAccount?: AccountSnapshot | null;
-    cachedPositions?: Position[];
+    cachedPositions?: ReadonlyArray<Position>;
     positionCache: PositionCache;
   };
   /** 当前时间 */
@@ -914,6 +1069,15 @@ export type WarrantDistanceInfo = {
 };
 
 /**
+ * 牛熊证信息刷新结果
+ */
+export type WarrantRefreshResult =
+  | { readonly status: 'ok'; readonly isWarrant: true }
+  | { readonly status: 'notWarrant'; readonly isWarrant: false }
+  | { readonly status: 'error'; readonly isWarrant: false; readonly reason: string }
+  | { readonly status: 'skipped'; readonly isWarrant: false };
+
+/**
  * 牛熊证距回收价清仓判定结果
  */
 export type WarrantDistanceLiquidationResult = {
@@ -955,6 +1119,10 @@ export type UnrealizedLossData = {
   readonly r1: number;
   /** n1: 累计买入数量 */
   readonly n1: number;
+  /** baseR1: 未调整的开仓成本 */
+  readonly baseR1?: number;
+  /** dailyLossOffset: 当日亏损偏移 */
+  readonly dailyLossOffset?: number;
   /** 最后更新时间戳 */
   readonly lastUpdateTime: number;
 };
@@ -980,10 +1148,6 @@ export interface PositionCache {
   update(positions: ReadonlyArray<Position>): void;
   /** 获取指定标的的持仓 */
   get(symbol: string): Position | null;
-  /** 获取缓存版本号（检测更新） */
-  getVersion(): number;
-  /** 获取所有持仓 */
-  getAll(): Position[];
 }
 
 /**
@@ -991,17 +1155,21 @@ export interface PositionCache {
  * 门面模式，协调牛熊证风险、持仓限制和浮亏检查
  */
 export interface RiskChecker {
-  /** 浮亏数据缓存（symbol -> UnrealizedLossData） */
-  readonly unrealizedLossData: ReadonlyMap<string, UnrealizedLossData>;
+  /** 从透传的回收价设置牛熊证信息（不调用 API） */
+  setWarrantInfoFromCallPrice(
+    symbol: string,
+    callPrice: number,
+    isLongSymbol: boolean,
+    symbolName?: string | null,
+  ): WarrantRefreshResult;
 
-  /** 初始化牛熊证信息（回收价等） */
-  initializeWarrantInfo(
+  /** 刷新单个标的的牛熊证信息 */
+  refreshWarrantInfoForSymbol(
     marketDataClient: MarketDataClient,
-    longSymbol: string,
-    shortSymbol: string,
-    longSymbolName?: string | null,
-    shortSymbolName?: string | null,
-  ): Promise<void>;
+    symbol: string,
+    isLongSymbol: boolean,
+    symbolName?: string | null,
+  ): Promise<WarrantRefreshResult>;
 
   /** 订单前风险检查（持仓限制） */
   checkBeforeOrder(
@@ -1032,8 +1200,13 @@ export interface RiskChecker {
   /** 获取牛熊证距离回收价信息（实时展示用） */
   getWarrantDistanceInfo(
     isLongSymbol: boolean,
+    seatSymbol: string,
     monitorCurrentPrice: number | null,
   ): WarrantDistanceInfo | null;
+  /** 清空做多标的牛熊证信息缓存（换标时调用） */
+  clearLongWarrantInfo(): void;
+  /** 清空做空标的牛熊证信息缓存（换标时调用） */
+  clearShortWarrantInfo(): void;
 
   /** 刷新浮亏数据 */
   refreshUnrealizedLossData(
@@ -1041,6 +1214,7 @@ export interface RiskChecker {
     symbol: string,
     isLongSymbol: boolean,
     quote?: Quote | null,
+    dailyLossOffset?: number,
   ): Promise<{ r1: number; n1: number } | null>;
 
   /** 浮亏检查（是否触发强平） */

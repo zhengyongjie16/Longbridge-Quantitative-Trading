@@ -17,10 +17,9 @@
  * 1. ctxPromise → 2. rateLimiter/cacheManager/accountService
  * 3. orderRecorder → 4. orderMonitor → 5. orderExecutor
  */
-
-import { TradeContext, OrderSide } from 'longport';
+import { TradeContext } from 'longport';
 import { createOrderRecorder } from '../orderRecorder/index.js';
-import type { Signal, Quote, AccountSnapshot, Position, OrderRecorder, PendingOrder, Trader, TradeCheckResult, PendingRefreshSymbol } from '../../types/index.js';
+import type { Signal, Quote, AccountSnapshot, Position, PendingOrder, Trader, TradeCheckResult, PendingRefreshSymbol } from '../../types/index.js';
 import type { TraderDeps } from './types.js';
 
 // 导入子模块工厂函数
@@ -29,14 +28,25 @@ import { createAccountService } from './accountService.js';
 import { createOrderCacheManager } from './orderCacheManager.js';
 import { createOrderMonitor } from './orderMonitor.js';
 import { createOrderExecutor } from './orderExecutor.js';
+import { createOrderHoldRegistry } from './orderHoldRegistry.js';
+import { createOrderStorage } from '../orderRecorder/orderStorage.js';
+import { createOrderAPIManager } from '../orderRecorder/orderApiManager.js';
+import { createOrderFilteringEngine } from '../orderRecorder/orderFilteringEngine.js';
 
 /**
  * 创建交易执行模块（门面模式）
  * @param deps 依赖配置
  * @returns Promise<Trader> 接口实例
  */
-export const createTrader = async (deps: TraderDeps): Promise<Trader> => {
-  const { config, tradingConfig, liquidationCooldownTracker } = deps;
+export async function createTrader(deps: TraderDeps): Promise<Trader> {
+  const {
+    config,
+    tradingConfig,
+    liquidationCooldownTracker,
+    symbolRegistry,
+    dailyLossTracker,
+    refreshGate,
+  } = deps;
 
   // ========== 1. 创建基础依赖 ==========
   const ctxPromise = TradeContext.new(config);
@@ -49,37 +59,52 @@ export const createTrader = async (deps: TraderDeps): Promise<Trader> => {
 
   const accountService = createAccountService({ ctxPromise, rateLimiter });
 
-  // ========== 3. 创建 orderRecorder（依赖 ctxPromise 和 rateLimiter） ==========
-  const orderRecorder = createOrderRecorder({ ctxPromise, rateLimiter });
+  // ========== 3. 创建 orderRecorder（依赖注入子模块） ==========
+  const orderStorage = createOrderStorage();
+  const orderApiManager = createOrderAPIManager({ ctxPromise, rateLimiter });
+  const orderFilteringEngine = createOrderFilteringEngine();
+  const orderRecorder = createOrderRecorder({
+    storage: orderStorage,
+    apiManager: orderApiManager,
+    filteringEngine: orderFilteringEngine,
+  });
 
-  // ========== 4. 创建 orderMonitor（依赖 orderRecorder） ==========
+  // ========== 4. 创建 orderHoldRegistry ==========
+  const orderHoldRegistry = createOrderHoldRegistry();
+
+  // ========== 5. 创建 orderMonitor（依赖 orderRecorder） ==========
   const orderMonitor = createOrderMonitor({
     ctxPromise,
     rateLimiter,
     cacheManager,
     orderRecorder,
+    dailyLossTracker,
+    orderHoldRegistry,
     liquidationCooldownTracker,
     tradingConfig,
+    symbolRegistry,
+    ...(refreshGate ? { refreshGate } : {}),
   });
 
-  // ========== 5. 创建 orderExecutor ==========
+  // ========== 6. 创建 orderExecutor ==========
   const orderExecutor = createOrderExecutor({
     ctxPromise,
     rateLimiter,
     cacheManager,
     orderMonitor,
+    orderRecorder,
     tradingConfig,
+    symbolRegistry,
   });
 
-  // ========== 6. 初始化 WebSocket 订阅 ==========
+  // ========== 7. 初始化 WebSocket 订阅 ==========
   await orderMonitor.initialize();
 
-  // ========== 7. 恢复未完成订单的追踪 ==========
+  // ========== 8. 恢复未完成订单的追踪 ==========
   await orderMonitor.recoverTrackedOrders();
 
   // 创建 Trader 实例
   return {
-    _ctxPromise: ctxPromise,
     _orderRecorder: orderRecorder,
 
     // ==================== 账户相关方法 ====================
@@ -101,51 +126,20 @@ export const createTrader = async (deps: TraderDeps): Promise<Trader> => {
       return cacheManager.getPendingOrders(symbols, forceRefresh);
     },
 
-    clearPendingOrdersCache(): void {
-      cacheManager.clearCache();
+    seedOrderHoldSymbols(
+      orders: ReadonlyArray<import('../../types/index.js').RawOrderFromAPI>,
+    ): void {
+      orderHoldRegistry.seedFromOrders(orders);
     },
 
-    hasPendingBuyOrders(
-      symbols: string[],
-      recorder: OrderRecorder | null = null,
-    ): Promise<boolean> {
-      return cacheManager.hasPendingBuyOrders(symbols, recorder);
+    getOrderHoldSymbols(): ReadonlySet<string> {
+      return orderHoldRegistry.getHoldSymbols();
     },
 
     // ==================== 订单监控相关方法 ====================
 
-    trackOrder(
-      orderId: string,
-      symbol: string,
-      side: typeof OrderSide[keyof typeof OrderSide],
-      price: number,
-      quantity: number,
-      isLongSymbol: boolean,
-      monitorSymbol: string | null,
-      isProtectiveLiquidation: boolean,
-    ): void {
-      orderMonitor.trackOrder(
-        orderId,
-        symbol,
-        side,
-        price,
-        quantity,
-        isLongSymbol,
-        monitorSymbol,
-        isProtectiveLiquidation,
-      );
-    },
-
     cancelOrder(orderId: string): Promise<boolean> {
       return orderMonitor.cancelOrder(orderId);
-    },
-
-    replaceOrderPrice(
-      orderId: string,
-      newPrice: number,
-      quantity: number | null = null,
-    ): Promise<void> {
-      return orderMonitor.replaceOrderPrice(orderId, newPrice, quantity);
     },
 
     monitorAndManageOrders(
@@ -172,4 +166,4 @@ export const createTrader = async (deps: TraderDeps): Promise<Trader> => {
       return orderExecutor.executeSignals(signals);
     },
   };
-};
+}

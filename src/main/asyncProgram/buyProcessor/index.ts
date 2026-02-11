@@ -16,36 +16,29 @@
  * 4. 提交订单执行
  * 5. 释放信号对象到对象池
  */
-
 import { signalObjectPool } from '../../../utils/objectPool/index.js';
+import { createBaseProcessor } from '../utils.js';
 import { logger } from '../../../utils/logger/index.js';
-import { formatError, formatSymbolDisplay } from '../../../utils/helpers/index.js';
-import type { BuyProcessor, BuyProcessorDeps } from './types.js';
-import type { ProcessorStats } from '../types.js';
+import { formatError, formatSymbolDisplay, isBuyAction } from '../../../utils/helpers/index.js';
+import { isSeatReady, isSeatVersionMatch } from '../../../services/autoSymbolManager/utils.js';
+import type { Processor } from '../types.js';
+import type { BuyProcessorDeps } from './types.js';
 import type { BuyTask } from '../tradeTaskQueue/types.js';
 import type { RiskCheckContext } from '../../../types/index.js';
 
 /**
  * 创建买入处理器
  * @param deps 依赖注入
- * @returns BuyProcessor 接口实例
+ * @returns 实现 Processor 接口的买入处理器实例
  */
-export const createBuyProcessor = (deps: BuyProcessorDeps): BuyProcessor => {
+export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
   const { taskQueue, getMonitorContext, signalProcessor, trader, doomsdayProtection, getLastState, getIsHalfDay } = deps;
-
-  // 内部状态
-  let running = false;
-  let processedCount = 0;
-  let successCount = 0;
-  let failedCount = 0;
-  let lastProcessTime: number | null = null;
-  let immediateHandle: ReturnType<typeof setImmediate> | null = null;
 
   /**
    * 处理单个买入任务
    * 注意：卖出信号由 SellProcessor 处理，此处只处理买入信号
    */
-  const processTask = async (task: BuyTask): Promise<boolean> => {
+  async function processTask(task: BuyTask): Promise<boolean> {
     const signal = task.data;
     const monitorSymbol = task.monitorSymbol;
     // 缓存格式化后的标的显示（用于日志）
@@ -53,7 +46,7 @@ export const createBuyProcessor = (deps: BuyProcessorDeps): BuyProcessor => {
 
     try {
       // 验证信号类型：此处理器只处理买入信号
-      const isBuySignal = signal.action === 'BUYCALL' || signal.action === 'BUYPUT';
+      const isBuySignal = isBuyAction(signal.action);
       if (!isBuySignal) {
         logger.warn(`[BuyProcessor] 收到非买入信号，跳过: ${symbolDisplay} ${signal.action}`);
         return true; // 非预期信号，但不算失败
@@ -75,12 +68,35 @@ export const createBuyProcessor = (deps: BuyProcessorDeps): BuyProcessor => {
       const shortQuote = ctx.shortQuote;
       const monitorQuote = ctx.monitorQuote;
 
+      const isLongSignal = signal.action === 'BUYCALL';
+      const direction = isLongSignal ? 'LONG' : 'SHORT';
+      const seatState = ctx.symbolRegistry.getSeatState(monitorSymbol, direction);
+      const seatVersion = ctx.symbolRegistry.getSeatVersion(monitorSymbol, direction);
+
+      if (!isSeatReady(seatState)) {
+        logger.info(`[BuyProcessor] 席位不可用，跳过信号: ${symbolDisplay} ${signal.action}`);
+        return true;
+      }
+      if (!isSeatVersionMatch(signal.seatVersion, seatVersion)) {
+        logger.info(`[BuyProcessor] 席位版本不匹配，跳过信号: ${symbolDisplay} ${signal.action}`);
+        return true;
+      }
+      if (signal.symbol !== seatState.symbol) {
+        logger.info(`[BuyProcessor] 标的已切换，跳过信号: ${symbolDisplay} ${signal.action}`);
+        return true;
+      }
+
       // 获取全局状态
       const lastState = getLastState();
       const isHalfDay = getIsHalfDay();
 
       // 买入信号：执行风险检查（需要 API 调用获取最新账户和持仓）
       // 构建风险检查上下文
+      const longSeatState = ctx.symbolRegistry.getSeatState(monitorSymbol, 'LONG');
+      const shortSeatState = ctx.symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
+      const longSymbol = isSeatReady(longSeatState) ? longSeatState.symbol : '';
+      const shortSymbol = isSeatReady(shortSeatState) ? shortSeatState.symbol : '';
+
       const riskCheckContext: RiskCheckContext = {
         trader,
         riskChecker,
@@ -89,8 +105,8 @@ export const createBuyProcessor = (deps: BuyProcessorDeps): BuyProcessor => {
         shortQuote,
         monitorQuote,
         monitorSnapshot: state.lastMonitorSnapshot,
-        longSymbol: config.longSymbol,
-        shortSymbol: config.shortSymbol,
+        longSymbol,
+        shortSymbol,
         longSymbolName: ctx.longSymbolName,
         shortSymbolName: ctx.shortSymbolName,
         account: lastState.cachedAccount,
@@ -118,6 +134,25 @@ export const createBuyProcessor = (deps: BuyProcessorDeps): BuyProcessor => {
         return true; // 处理成功（虽然被拦截了）
       }
 
+      // 买入委托价必须以执行时行情为准，与卖出逻辑一致；lotSize 为按金额计算数量所必需
+      const quote = isLongSignal ? longQuote : shortQuote;
+      if (quote?.price == null || !Number.isFinite(quote.price) || quote.price <= 0) {
+        logger.warn(
+          `[BuyProcessor] 买入标的行情缺失或价格无效，跳过: ${symbolDisplay}，quote.price=${quote?.price}`,
+        );
+        return true;
+      }
+      const lotSizeValid =
+        quote.lotSize != null && Number.isFinite(quote.lotSize) && quote.lotSize > 0;
+      if (!lotSizeValid) {
+        logger.warn(
+          `[BuyProcessor] 买入标的 lotSize 缺失或无效，无法按手数计算数量，跳过: ${symbolDisplay}，quote.lotSize=${quote?.lotSize}`,
+        );
+        return true;
+      }
+      signal.price = quote.price;
+      signal.lotSize = quote.lotSize;
+
       // 执行买入订单
       await trader.executeSignals([signal]);
       logger.info(`[BuyProcessor] 买入订单执行完成: ${symbolDisplay} ${signal.action}`);
@@ -127,137 +162,12 @@ export const createBuyProcessor = (deps: BuyProcessorDeps): BuyProcessor => {
       logger.error(`[BuyProcessor] 处理任务失败: ${symbolDisplay} ${signal.action}`, formatError(err));
       return false;
     }
-  };
+  }
 
-  /**
-   * 处理队列中的所有任务
-   */
-  const processQueue = async (): Promise<void> => {
-    while (!taskQueue.isEmpty()) {
-      const task = taskQueue.pop();
-      if (!task) break;
-
-      const signal = task.data;
-
-      try {
-        processedCount++;
-        const success = await processTask(task);
-
-        if (success) {
-          successCount++;
-        } else {
-          failedCount++;
-        }
-
-        lastProcessTime = Date.now();
-      } finally {
-        // 统一在 finally 块释放信号对象到对象池
-        signalObjectPool.release(signal);
-      }
-    }
-  };
-
-  /**
-   * 调度下一次处理（使用 setImmediate）
-   *
-   * 设计说明：
-   * - 队列有任务时：立即处理并在完成后继续调度
-   * - 队列为空时：停止调度，等待 onTaskAdded 回调触发重新调度
-   * - 避免忙等待（busy-waiting），防止 CPU 高占用
-   */
-  const scheduleNextProcess = (): void => {
-    if (!running) return;
-
-    // 如果队列为空，停止调度（等待新任务触发）
-    if (taskQueue.isEmpty()) {
-      immediateHandle = null;
-      return;
-    }
-
-    immediateHandle = setImmediate(() => {
-      if (!running) return;
-
-      if (taskQueue.isEmpty()) {
-        // 队列已空，停止调度（等待 onTaskAdded 回调触发重新调度）
-        immediateHandle = null;
-      } else {
-        processQueue()
-          .catch((err) => {
-            logger.error('[BuyProcessor] 处理队列时发生错误', formatError(err));
-          })
-          .finally(() => {
-            scheduleNextProcess();
-          });
-      }
-    });
-  };
-
-  /**
-   * 启动处理器
-   */
-  const start = (): void => {
-    if (running) {
-      logger.warn('[BuyProcessor] 处理器已在运行中');
-      return;
-    }
-
-    running = true;
-
-    // 注册任务添加回调，有新任务时触发处理
-    taskQueue.onTaskAdded(() => {
-      if (running && immediateHandle === null) {
-        scheduleNextProcess();
-      }
-    });
-
-    // 启动调度循环
-    scheduleNextProcess();
-  };
-
-  /**
-   * 停止处理器
-   */
-  const stop = (): void => {
-    if (!running) {
-      logger.warn('[BuyProcessor] 处理器未在运行');
-      return;
-    }
-
-    running = false;
-
-    if (immediateHandle !== null) {
-      clearImmediate(immediateHandle);
-      immediateHandle = null;
-    }
-  };
-
-  /**
-   * 立即处理队列中的所有任务（同步等待完成）
-   */
-  const processNow = async (): Promise<void> => {
-    await processQueue();
-  };
-
-  /**
-   * 检查处理器是否正在运行
-   */
-  const isRunning = (): boolean => running;
-
-  /**
-   * 获取处理器统计信息
-   */
-  const getStats = (): ProcessorStats => ({
-    processedCount,
-    successCount,
-    failedCount,
-    lastProcessTime,
+  return createBaseProcessor({
+    loggerPrefix: 'BuyProcessor',
+    taskQueue,
+    processTask,
+    releaseAfterProcess: (signal) => signalObjectPool.release(signal),
   });
-
-  return {
-    start,
-    stop,
-    processNow,
-    isRunning,
-    getStats,
-  };
-};
+}

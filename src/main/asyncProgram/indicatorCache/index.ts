@@ -7,22 +7,15 @@
  * - 这样主循环可以安全地释放 kdj/macd 等对象池对象，不影响缓存数据
  * - 延迟验证器查询历史数据时，数据保持完整有效
  */
-
+import { INDICATOR_CACHE } from '../../../constants/index.js';
 import type { IndicatorSnapshot } from '../../../types/index.js';
 import type { IndicatorCache, IndicatorCacheEntry, IndicatorCacheOptions, _RingBuffer } from './types.js';
 import {
   createRingBuffer,
   pushToBuffer,
   getBufferEntries,
-  getLatestFromBuffer,
   cloneIndicatorSnapshot,
 } from './utils.js';
-
-/**
- * 默认最大缓存条目数
- * 计算公式：max(buyDelay, sellDelay) + 15 + 10，默认 100
- */
-const DEFAULT_MAX_ENTRIES = 100;
 
 /**
  * 创建指标缓存
@@ -30,7 +23,7 @@ const DEFAULT_MAX_ENTRIES = 100;
  * @returns 指标缓存实例
  */
 export const createIndicatorCache = (options: IndicatorCacheOptions = {}): IndicatorCache => {
-  const maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES;
+  const maxEntries = options.maxEntries ?? INDICATOR_CACHE.TIMESERIES_DEFAULT_MAX_ENTRIES;
   const buffers = new Map<string, _RingBuffer>();
 
   /**
@@ -74,24 +67,6 @@ export const createIndicatorCache = (options: IndicatorCacheOptions = {}): Indic
       }
 
       return closestEntry;
-    },
-
-    getLatest(monitorSymbol: string): IndicatorCacheEntry | null {
-      const buffer = buffers.get(monitorSymbol);
-      if (!buffer) return null;
-      return getLatestFromBuffer(buffer);
-    },
-
-    getRange(monitorSymbol: string, startTime: number, endTime: number): IndicatorCacheEntry[] {
-      const buffer = buffers.get(monitorSymbol);
-      if (!buffer || buffer.size === 0) return [];
-
-      const entries = getBufferEntries(buffer);
-      return entries.filter((entry) => entry.timestamp >= startTime && entry.timestamp <= endTime);
-    },
-
-    clear(monitorSymbol: string): void {
-      buffers.delete(monitorSymbol);
     },
 
     clearAll(): void {

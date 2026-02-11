@@ -9,16 +9,10 @@
  * - 30秒内最多 30 次调用
  * - 两次调用间隔不少于 20ms（实际使用 30ms 确保安全）
  */
-
 import { logger } from '../../utils/logger/index.js';
+import { API } from '../../constants/index.js';
 import type { RateLimiter } from '../../types/index.js';
 import type { RateLimiterDeps, RateLimiterConfig } from './types.js';
-
-/** 频率限制缓冲时间（毫秒），用于时间窗口边界的安全余量 */
-const RATE_LIMIT_BUFFER_MS = 100;
-
-/** 两次调用最小间隔（API 要求 20ms，加 10ms 缓冲） */
-const MIN_CALL_INTERVAL_MS = 30;
 
 const DEFAULT_CONFIG: RateLimiterConfig = {
   maxCalls: 30,
@@ -62,8 +56,8 @@ export const createRateLimiter = (deps: RateLimiterDeps = {}): RateLimiter => {
       const lastCallTime = callTimestamps.at(-1);
       if (lastCallTime) {
         const timeSinceLastCall = now - lastCallTime;
-        if (timeSinceLastCall < MIN_CALL_INTERVAL_MS) {
-          const waitTime = MIN_CALL_INTERVAL_MS - timeSinceLastCall;
+        if (timeSinceLastCall < API.MIN_CALL_INTERVAL_MS) {
+          const waitTime = API.MIN_CALL_INTERVAL_MS - timeSinceLastCall;
           await new Promise((resolve) => setTimeout(resolve, waitTime));
           now = Date.now(); // 更新当前时间
         }
@@ -81,7 +75,7 @@ export const createRateLimiter = (deps: RateLimiterDeps = {}): RateLimiter => {
           // 这种情况不应该发生，但为了类型安全还是检查一下
           throw new Error('[频率限制] 调用时间戳数组异常');
         }
-        const waitTime = windowMs - (now - oldestCall) + RATE_LIMIT_BUFFER_MS;
+        const waitTime = windowMs - (now - oldestCall) + API.RATE_LIMIT_BUFFER_MS;
         logger.warn(
           `[频率限制] Trade API 调用频率达到上限 (${maxCalls}次/${windowMs}ms)，等待 ${waitTime}ms`,
         );

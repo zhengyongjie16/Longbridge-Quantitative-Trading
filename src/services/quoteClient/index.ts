@@ -2,31 +2,30 @@
  * 行情数据客户端模块（WebSocket 订阅模式）
  *
  * 功能：
- * - 通过 WebSocket 订阅实时行情推送
- * - 获取 K 线数据
+ * - 通过 WebSocket 订阅实时行情推送（报价 + K 线）
  * - 检查交易日信息
  *
  * 订阅机制：
- * - 创建客户端时自动初始化 WebSocket 订阅
- * - 行情数据由推送实时更新到本地缓存
- * - getQuotes() 从本地缓存读取，无 HTTP 请求
- * - 不支持动态订阅：请求未订阅的标的会抛出错误，确保配置正确
+ * - 创建客户端时不自动订阅，需显式调用 subscribeSymbols / subscribeCandlesticks
+ * - 报价数据由推送实时更新到应用层 quoteCache
+ * - K 线数据由 SDK 内部维护缓存，通过 realtimeCandlesticks 读取
+ * - getQuotes() 从应用层 quoteCache 读取，无 HTTP 请求
+ * - getRealtimeCandlesticks() 从 SDK 内部缓存读取，无 HTTP 请求
  *
  * 缓存机制：
- * - 行情数据：持久缓存（由 WebSocket 推送实时更新）
- * - 昨收价：持久缓存（初始化时获取）
+ * - 行情数据：随订阅实时更新（退订会清理缓存）
+ * - 昨收价：订阅后缓存（退订会清理缓存）
+ * - K 线数据：SDK 内部自动维护（订阅后实时更新，退订后自动清理）
  * - 交易日信息：24 小时 TTL 缓存
- * - 静态信息（name、lotSize）：永久缓存
+ * - 静态信息（name、lotSize）：订阅时拉取并缓存，退订时在 unsubscribeSymbols 内清除
  *
  * 核心方法：
- * - getQuotes()：批量获取多个标的实时行情（从本地缓存读取）
- * - getCandlesticks()：获取 K 线数据
+ * - getQuotes()：批量获取多个标的实时行情（从应用层 quoteCache 读取）
+ * - subscribeCandlesticks()：订阅 K 线推送
+ * - getRealtimeCandlesticks()：获取实时 K 线数据（从 SDK 内部缓存读取）
  * - isTradingDay()：检查是否为交易日
- * - cacheStaticInfo()：批量缓存静态信息（内部已自动调用）
  */
-
 import {
-  AdjustType,
   Period,
   QuoteContext,
   TradeSessions,
@@ -34,17 +33,23 @@ import {
   NaiveDate,
   SubType,
 } from 'longport';
-import type { Candlestick, PushQuoteEvent } from 'longport';
+import type { Candlestick, PushQuoteEvent, PushCandlestickEvent } from 'longport';
 import { decimalToNumber, formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { API } from '../../constants/index.js';
-import type { Quote, TradingDayInfo, MarketDataClient, TradingDaysResult, PeriodString } from '../../types/index.js';
+import type {
+  Quote,
+  QuoteStaticInfo,
+  TradingDayInfo,
+  MarketDataClient,
+  TradingDaysResult,
+} from '../../types/index.js';
 import type {
   RetryConfig,
   TradingDayCacheDeps,
   MarketDataClientDeps,
 } from './types.js';
-import { extractLotSize, extractName } from './utils.js';
+import { extractLotSize, extractName, formatPeriodForLog } from './utils.js';
 
 // 默认重试配置（使用统一常量）
 const DEFAULT_RETRY: RetryConfig = {
@@ -57,7 +62,13 @@ const DEFAULT_RETRY: RetryConfig = {
  * @param _deps 依赖注入（当前为空）
  * @returns TradingDayCache 接口实例
  */
-const createTradingDayCache = (_deps: TradingDayCacheDeps = {}) => {
+function createTradingDayCache(
+  _deps: TradingDayCacheDeps = {},
+): {
+  get: (dateStr: string) => TradingDayInfo | null;
+  set: (dateStr: string, isTradingDay: boolean, isHalfDay?: boolean) => void;
+  setBatch: (tradingDays: string[], halfTradingDays?: string[]) => void;
+} {
   // 闭包捕获的私有状态
   const cache = new Map<string, { isTradingDay: boolean; isHalfDay: boolean; timestamp: number }>();
   const ttl = API.TRADING_DAY_CACHE_TTL_MS; // 缓存有效期：一天（单位：毫秒）
@@ -65,7 +76,7 @@ const createTradingDayCache = (_deps: TradingDayCacheDeps = {}) => {
   /**
    * 获取指定日期的交易日信息
    */
-  const get = (dateStr: string): TradingDayInfo | null => {
+  function get(dateStr: string): TradingDayInfo | null {
     const entry = cache.get(dateStr);
     if (!entry) return null;
 
@@ -79,23 +90,23 @@ const createTradingDayCache = (_deps: TradingDayCacheDeps = {}) => {
       isTradingDay: entry.isTradingDay,
       isHalfDay: entry.isHalfDay,
     };
-  };
+  }
 
   /**
    * 设置指定日期的交易日信息
    */
-  const set = (dateStr: string, isTradingDay: boolean, isHalfDay: boolean = false): void => {
+  function set(dateStr: string, isTradingDay: boolean, isHalfDay: boolean = false): void {
     cache.set(dateStr, {
       isTradingDay,
       isHalfDay,
       timestamp: Date.now(),
     });
-  };
+  }
 
   /**
    * 批量设置交易日信息
    */
-  const setBatch = (tradingDays: string[], halfTradingDays: string[] = []): void => {
+  function setBatch(tradingDays: string[], halfTradingDays: string[] = []): void {
     const halfDaySet = new Set(halfTradingDays);
     const allTradingDays = new Set([...tradingDays, ...halfTradingDays]);
 
@@ -104,14 +115,14 @@ const createTradingDayCache = (_deps: TradingDayCacheDeps = {}) => {
       const isHalfDay = halfDaySet.has(dateStr);
       set(dateStr, true, isHalfDay);
     }
-  };
+  }
 
   return {
     get,
     set,
     setBatch,
   };
-};
+}
 
 /**
  * 创建行情数据客户端（WebSocket 订阅模式）
@@ -121,10 +132,12 @@ const createTradingDayCache = (_deps: TradingDayCacheDeps = {}) => {
  * - getQuotes() 从本地缓存读取，无 HTTP 请求
  * - 订阅模式是默认且唯一的行情获取方式
  *
- * @param deps 依赖注入，必须提供 symbols（需要订阅的标的列表）
+ * @param deps 依赖注入
  */
-export const createMarketDataClient = async (deps: MarketDataClientDeps): Promise<MarketDataClient> => {
-  const { symbols, config } = deps;
+export async function createMarketDataClient(
+  deps: MarketDataClientDeps,
+): Promise<MarketDataClient> {
+  const { config } = deps;
   const ctx = await QuoteContext.new(config);
   const tradingDayCache = createTradingDayCache();
 
@@ -134,8 +147,10 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps): Promis
   const prevCloseCache = new Map<string, number>();
   // 静态信息缓存
   const staticInfoCache = new Map<string, unknown>();
-  // 已订阅标的
+  // 已订阅标的（报价推送）
   const subscribedSymbols = new Set<string>();
+  // 已订阅 K 线跟踪（key: "symbol:period"）
+  const subscribedCandlesticks = new Set<string>();
 
   // 连接状态
   const state = {
@@ -146,10 +161,10 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps): Promis
   /**
    * 带重试的异步操作包装器
    */
-  const withRetry = async <T>(
+  async function withRetry<T>(
     fn: () => Promise<T>,
     { retries, delayMs }: RetryConfig = DEFAULT_RETRY,
-  ): Promise<T> => {
+  ): Promise<T> {
     let lastErr: unknown;
     for (let i = 0; i <= retries; i += 1) {
       try {
@@ -165,12 +180,12 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps): Promis
       }
     }
     throw lastErr;
-  };
+  }
 
   /**
    * 处理行情推送（WebSocket 回调）
    */
-  const handleQuotePush = (event: PushQuoteEvent): void => {
+  function handleQuotePush(event: PushQuoteEvent): void {
     const symbol = event.symbol;
     const staticInfo = staticInfoCache.get(symbol);
     const prevClose = prevCloseCache.get(symbol) ?? 0;
@@ -185,56 +200,15 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps): Promis
       timestamp: pushData.timestamp.getTime(),
       ...(lotSize === undefined ? {} : { lotSize }),
       raw: pushData,
-      staticInfo,
+      // LongPort API 返回 unknown，信任边界断言为 QuoteStaticInfo
+      staticInfo: (staticInfo ?? null) as QuoteStaticInfo | null,
     };
 
     quoteCache.set(symbol, quote);
     state.lastUpdateTime = Date.now();
-  };
-
-  // ==================== 初始化订阅（自动执行） ====================
-
-  const subscriptionSymbols = [...symbols];
-  logger.info(`[行情订阅] 正在初始化 ${subscriptionSymbols.length} 个标的...`);
-
-  // 1. 缓存静态信息
-  const staticInfoList = await withRetry(() => ctx.staticInfo(subscriptionSymbols));
-  for (const info of staticInfoList) {
-    if (info && typeof info === 'object' && 'symbol' in info) {
-      const infoSymbol = (info as { symbol: string }).symbol;
-      staticInfoCache.set(infoSymbol, info);
-    }
-  }
-  logger.debug(`[行情订阅] 已缓存 ${staticInfoList.length} 个标的的静态信息`);
-
-  // 2. 拉取初始行情数据（获取 prevClose，保证有初始数据）
-  const initialQuotes = await withRetry(() => ctx.quote(subscriptionSymbols));
-  for (const quote of initialQuotes) {
-    if (!quote) continue;
-
-    const quoteSymbol = quote.symbol;
-    const staticInfo = staticInfoCache.get(quoteSymbol);
-
-    // 缓存 prevClose
-    prevCloseCache.set(quoteSymbol, decimalToNumber(quote.prevClose));
-
-    // 初始化行情缓存
-    const lotSize = extractLotSize(staticInfo);
-    const quoteResult: Quote = {
-      symbol: quoteSymbol,
-      name: extractName(staticInfo),
-      price: decimalToNumber(quote.lastDone),
-      prevClose: decimalToNumber(quote.prevClose),
-      timestamp: quote.timestamp.getTime(),
-      ...(lotSize === undefined ? {} : { lotSize }),
-      raw: quote,
-      staticInfo,
-    };
-    quoteCache.set(quoteSymbol, quoteResult);
-    subscribedSymbols.add(quoteSymbol);
   }
 
-  // 3. 设置推送回调
+  // 设置推送回调
   ctx.setOnQuote((err: Error | null, event: PushQuoteEvent) => {
     if (err) {
       logger.warn(`[行情推送] 接收推送时发生错误: ${formatError(err)}`);
@@ -243,12 +217,12 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps): Promis
     handleQuotePush(event);
   });
 
-  // 4. 订阅行情（is_first_push = true：订阅后立即推送一次当前数据）
-  await ctx.subscribe(subscriptionSymbols, [SubType.Quote], true);
-
-  state.isConnected = true;
-  state.lastUpdateTime = Date.now();
-  logger.info(`[行情订阅] 成功订阅 ${subscriptionSymbols.length} 个标的`);
+  // K 线推送回调（错误监控）
+  ctx.setOnCandlestick((err: Error | null, _event: PushCandlestickEvent) => {
+    if (err) {
+      logger.warn(`[K线推送] 接收推送时发生错误: ${formatError(err)}`);
+    }
+  });
 
   // ==================== 公共方法实现 ====================
 
@@ -256,9 +230,9 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps): Promis
    * 获取行情数据（从本地缓存读取）
    * 支持任意可迭代对象（Array、Set 等），调用方无需转换
    */
-  const getQuotes = async (
+  async function getQuotes(
     requestSymbols: Iterable<string>,
-  ): Promise<Map<string, Quote | null>> => {
+  ): Promise<Map<string, Quote | null>> {
     const result = new Map<string, Quote | null>();
 
     for (const reqSymbol of requestSymbols) {
@@ -275,18 +249,87 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps): Promis
       } else {
         // 请求的标的不在订阅列表中，抛出错误以尽早发现配置问题
         throw new Error(
-          `[行情获取] 标的 ${reqSymbol} 未在初始化时订阅，请检查 symbols 配置`,
+          `[行情获取] 标的 ${reqSymbol} 未订阅，请先订阅`,
         );
       }
     }
 
     return result;
-  };
+  }
+
+  /**
+   * 动态订阅新增标的
+   */
+  function normalizeSymbols(symbols: ReadonlyArray<string>): ReadonlyArray<string> {
+    const uniqueSymbols = new Set<string>();
+    for (const symbol of symbols) {
+      if (symbol) {
+        uniqueSymbols.add(symbol);
+      }
+    }
+    return Array.from(uniqueSymbols);
+  }
+
+  async function subscribeSymbols(symbols: ReadonlyArray<string>): Promise<void> {
+    const uniqueSymbols = normalizeSymbols(symbols);
+    const newSymbols = uniqueSymbols.filter((symbol) => !subscribedSymbols.has(symbol));
+    if (newSymbols.length === 0) {
+      return;
+    }
+
+    await cacheStaticInfo(newSymbols);
+
+    const initialQuotes = await withRetry(() => ctx.quote(newSymbols));
+    for (const quote of initialQuotes) {
+      if (!quote) continue;
+      const quoteSymbol = quote.symbol;
+      const staticInfo = staticInfoCache.get(quoteSymbol);
+      prevCloseCache.set(quoteSymbol, decimalToNumber(quote.prevClose));
+      const lotSize = extractLotSize(staticInfo);
+      const quoteResult: Quote = {
+        symbol: quoteSymbol,
+        name: extractName(staticInfo),
+        price: decimalToNumber(quote.lastDone),
+        prevClose: decimalToNumber(quote.prevClose),
+        timestamp: quote.timestamp.getTime(),
+        ...(lotSize === undefined ? {} : { lotSize }),
+        raw: quote,
+        staticInfo: (staticInfo ?? null) as QuoteStaticInfo | null, // LongPort API 返回 unknown，信任边界断言为 QuoteStaticInfo
+      };
+      quoteCache.set(quoteSymbol, quoteResult);
+      subscribedSymbols.add(quoteSymbol);
+    }
+
+    await withRetry(() => ctx.subscribe(newSymbols, [SubType.Quote]));
+    state.isConnected = true;
+    state.lastUpdateTime = Date.now();
+    logger.info(`[行情订阅] 新增订阅 ${newSymbols.length} 个标的`);
+  }
+
+  /**
+   * 动态取消订阅标的
+   */
+  async function unsubscribeSymbols(symbols: ReadonlyArray<string>): Promise<void> {
+    const uniqueSymbols = normalizeSymbols(symbols);
+    const removeSymbols = uniqueSymbols.filter((symbol) => subscribedSymbols.has(symbol));
+    if (removeSymbols.length === 0) {
+      return;
+    }
+
+    await withRetry(() => ctx.unsubscribe(removeSymbols, [SubType.Quote]));
+    for (const symbol of removeSymbols) {
+      subscribedSymbols.delete(symbol);
+      quoteCache.delete(symbol);
+      prevCloseCache.delete(symbol);
+      staticInfoCache.delete(symbol);
+    }
+    logger.info(`[行情订阅] 已退订 ${removeSymbols.length} 个标的`);
+  }
 
   /**
    * 缓存静态信息（保持接口兼容，内部已在初始化时完成）
    */
-  const cacheStaticInfo = async (newSymbols: ReadonlyArray<string>): Promise<void> => {
+  async function cacheStaticInfo(newSymbols: ReadonlyArray<string>): Promise<void> {
     const uncachedSymbols = newSymbols.filter((s) => !staticInfoCache.has(s));
 
     if (uncachedSymbols.length === 0) return;
@@ -299,60 +342,73 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps): Promis
       }
     }
     logger.debug(`[静态信息缓存] 新增缓存 ${infoList.length} 个标的的静态信息`);
-  };
-
-  /**
-   * 规范化周期参数
-   */
-  const normalizePeriod = (period: PeriodString | Period): Period => {
-    if (typeof period === 'number') {
-      return period;
-    }
-    const map: Record<PeriodString, Period> = {
-      '1m': Period.Min_1,
-      '5m': Period.Min_5,
-      '15m': Period.Min_15,
-      '1h': Period.Min_60,
-      '1d': Period.Day,
-    };
-    return map[period] ?? Period.Min_1;
-  };
+  }
 
   /**
    * 获取 QuoteContext 实例（供内部使用）
    */
-  const _getContext = async (): Promise<QuoteContext> => {
+  async function _getContext(): Promise<QuoteContext> {
     return ctx;
-  };
+  }
 
   /**
-   * 获取指定标的的 K 线数据，用于计算 RSI/KDJ/均价。
+   * 订阅指定标的的 K 线推送
    */
-  const getCandlesticks = async (
+  async function subscribeCandlesticks(
     symbol: string,
-    period: PeriodString | Period = '1m',
-    count: number = 200,
-    adjustType: AdjustType = AdjustType.NoAdjust,
+    period: Period,
     tradeSessions: TradeSessions = TradeSessions.All,
-  ): Promise<Candlestick[]> => {
-    const periodEnum = normalizePeriod(period);
-    return ctx.candlesticks(
-      symbol,
-      periodEnum,
-      count,
-      adjustType,
-      tradeSessions,
+  ): Promise<Candlestick[]> {
+    const key = `${symbol}:${period}`;
+    if (subscribedCandlesticks.has(key)) {
+      logger.debug(`[K线订阅] ${symbol} 周期 ${formatPeriodForLog(period)} 已订阅，跳过重复订阅`);
+      return [];
+    }
+
+    const initialCandles = await withRetry(
+      () => ctx.subscribeCandlesticks(symbol, period, tradeSessions),
     );
-  };
+    subscribedCandlesticks.add(key);
+    logger.info(`[K线订阅] 已订阅 ${symbol} 周期 ${formatPeriodForLog(period)} K线，初始数据 ${initialCandles.length} 根`);
+    return initialCandles;
+  }
+
+  /**
+   * 取消订阅指定标的的 K 线推送
+   */
+  async function unsubscribeCandlesticks(
+    symbol: string,
+    period: Period,
+  ): Promise<void> {
+    const key = `${symbol}:${period}`;
+    if (!subscribedCandlesticks.has(key)) {
+      return;
+    }
+
+    await withRetry(() => ctx.unsubscribeCandlesticks(symbol, period));
+    subscribedCandlesticks.delete(key);
+    logger.info(`[K线订阅] 已退订 ${symbol} 周期 ${formatPeriodForLog(period)} K线`);
+  }
+
+  /**
+   * 获取实时 K 线数据（从 SDK 内部缓存读取，无 HTTP 请求）
+   */
+  async function getRealtimeCandlesticks(
+    symbol: string,
+    period: Period,
+    count: number,
+  ): Promise<Candlestick[]> {
+    return ctx.realtimeCandlesticks(symbol, period, count);
+  }
 
   /**
    * 获取指定日期范围的交易日信息
    */
-  const getTradingDays = async (
+  async function getTradingDays(
     startDate: Date,
     endDate: Date,
     market: Market = Market.HK,
-  ): Promise<TradingDaysResult> => {
+  ): Promise<TradingDaysResult> {
     // 转换为 NaiveDate 格式
     const startNaive = new NaiveDate(
       startDate.getFullYear(),
@@ -384,15 +440,15 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps): Promis
       tradingDays,
       halfTradingDays,
     };
-  };
+  }
 
   /**
    * 判断指定日期是否是交易日
    */
-  const isTradingDay = async (
+  async function isTradingDay(
     date: Date,
     market: Market = Market.HK,
-  ): Promise<TradingDayInfo> => {
+  ): Promise<TradingDayInfo> {
     // 格式化日期为 YYYY-MM-DD
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -433,14 +489,16 @@ export const createMarketDataClient = async (deps: MarketDataClientDeps): Promis
         isHalfDay: false,
       };
     }
-  };
+  }
 
   return {
     _getContext,
     getQuotes,
-    getCandlesticks,
-    getTradingDays,
+    subscribeSymbols,
+    unsubscribeSymbols,
+    subscribeCandlesticks,
+    unsubscribeCandlesticks,
+    getRealtimeCandlesticks,
     isTradingDay,
-    cacheStaticInfo,
   };
-};
+}

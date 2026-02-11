@@ -4,23 +4,23 @@
  * 功能：
  * - 基于 RSI、KDJ、MACD、MFI 等技术指标生成交易信号
  * - 支持可配置的信号条件格式
- * - 生成延迟验证信号（买入和卖出）
+ * - 根据信号验证配置决定是否延迟验证（买入和卖出）
  *
  * 信号类型：
- * - BUYCALL：买入做多标的（延迟验证）
- * - SELLCALL：卖出做多标的（延迟验证）
- * - BUYPUT：买入做空标的（延迟验证）
- * - SELLPUT：卖出做空标的（延迟验证）
+ * - BUYCALL：买入做多标的（是否延迟验证取决于配置）
+ * - SELLCALL：卖出做多标的（是否延迟验证取决于配置）
+ * - BUYPUT：买入做空标的（是否延迟验证取决于配置）
+ * - SELLPUT：卖出做空标的（是否延迟验证取决于配置）
  *
  * 配置格式：(条件1,条件2,...)/N|(条件A)|(条件B,条件C)/M
  * - 括号内是条件列表，逗号分隔
  * - /N：括号内条件需满足 N 项
  * - |：分隔不同条件组，满足任一组即可
  */
-
 import { evaluateSignalConfig } from '../../utils/helpers/signalConfigParser.js';
+import { isBuyAction, isSellAction } from '../../utils/helpers/index.js';
 import { signalObjectPool, indicatorRecordPool } from '../../utils/objectPool/index.js';
-import { getIndicatorValue, isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
+import { getIndicatorValue } from '../../utils/helpers/indicatorHelpers.js';
 import { TIME } from '../../constants/index.js';
 import type {
   Signal,
@@ -29,27 +29,21 @@ import type {
   SignalConfig,
   SignalConfigSet,
   SignalType,
-  SingleVerificationConfig,
 } from '../../types/index.js';
-import type { StrategyConfig, SignalGenerationResult, HangSengMultiIndicatorStrategy } from './types.js';
-
-/**
- * 判断是否需要延迟验证
- * @param config 验证配置
- * @returns true 需要延迟验证，false 立即执行
- */
-const needsDelayedVerification = (config: SingleVerificationConfig): boolean => {
-  return config.delaySeconds > 0 && config.indicators != null && config.indicators.length > 0;
-};
-
-/** 信号类型分类：立即执行或延迟验证 */
-type SignalTypeCategory = 'immediate' | 'delayed';
-
-/** 带分类标记的信号（内部使用） */
-type SignalWithCategory = {
-  readonly signal: Signal;
-  readonly isImmediate: boolean;
-};
+import type {
+  StrategyConfig,
+  SignalGenerationResult,
+  HangSengMultiIndicatorStrategy,
+  SignalTypeCategory,
+  SignalWithCategory,
+} from './types.js';
+import {
+  needsDelayedVerification,
+  validateBasicIndicators,
+  validateAllIndicators,
+  buildIndicatorDisplayString,
+  pushSignalToCorrectArray,
+} from './utils.js';
 
 /**
  * 创建恒生多指标策略
@@ -63,7 +57,6 @@ export const createHangSengMultiIndicatorStrategy = ({
     sell: { delaySeconds: 60, indicators: ['K', 'MACD'] },
   },
 }: Partial<StrategyConfig> = {}): HangSengMultiIndicatorStrategy => {
-  // 配置通过闭包捕获（不可变）
   const finalSignalConfig: SignalConfigSet = signalConfig || {
     buycall: null,
     sellcall: null,
@@ -76,53 +69,11 @@ export const createHangSengMultiIndicatorStrategy = ({
     sell: { delaySeconds: 60, indicators: ['K', 'MACD'] },
   };
 
-  // 预计算信号类型映射（策略创建时计算一次）
   const signalTypeMap: Record<string, SignalTypeCategory> = {
     BUYCALL: needsDelayedVerification(finalVerificationConfig.buy) ? 'delayed' : 'immediate',
     SELLCALL: needsDelayedVerification(finalVerificationConfig.sell) ? 'delayed' : 'immediate',
     BUYPUT: needsDelayedVerification(finalVerificationConfig.buy) ? 'delayed' : 'immediate',
     SELLPUT: needsDelayedVerification(finalVerificationConfig.sell) ? 'delayed' : 'immediate',
-  };
-
-  /**
-   * 验证基本指标有效性（RSI、MFI、KDJ）
-   * @returns true 所有基本指标有效
-   */
-  const validateBasicIndicators = (state: IndicatorSnapshot): boolean => {
-    const { rsi, mfi, kdj } = state;
-
-    // 检查 rsi 对象是否存在且至少有一个有效的周期值
-    let hasValidRsi = false;
-    if (rsi && typeof rsi === 'object') {
-      for (const period in rsi) {
-        if (isValidNumber(rsi[period as unknown as number])) {
-          hasValidRsi = true;
-          break;
-        }
-      }
-    }
-
-    return (
-      hasValidRsi &&
-      isValidNumber(mfi) &&
-      kdj !== null &&
-      isValidNumber(kdj.d) &&
-      isValidNumber(kdj.j)
-    );
-  };
-
-  /**
-   * 验证所有指标有效性（基本指标 + MACD + 价格）
-   * @returns true 所有指标有效
-   */
-  const validateAllIndicators = (state: IndicatorSnapshot): boolean => {
-    const { macd, price } = state;
-    return (
-      validateBasicIndicators(state) &&
-      macd !== null &&
-      isValidNumber(macd.macd) &&
-      isValidNumber(price)
-    );
   };
 
   /**
@@ -176,50 +127,6 @@ export const createHangSengMultiIndicatorStrategy = ({
   };
 
   /**
-   * 构建指标状态显示字符串
-   * @returns 格式化的指标值字符串，用于日志记录
-   */
-  const buildIndicatorDisplayString = (state: IndicatorSnapshot): string => {
-    const { rsi, mfi, kdj } = state;
-    const parts: string[] = [];
-
-    // 遍历所有 RSI 周期值
-    if (rsi && typeof rsi === 'object') {
-      // 按周期从小到大排序
-      const periods = Object.keys(rsi)
-        .map((p) => Number.parseInt(p, 10))
-        .filter((p) => Number.isFinite(p))
-        .sort((a, b) => a - b);
-      for (const period of periods) {
-        const rsiValue = rsi[period];
-        if (isValidNumber(rsiValue)) {
-          parts.push(`RSI${period}(${rsiValue.toFixed(3)})`);
-        }
-      }
-    }
-    if (isValidNumber(mfi)) {
-      parts.push(`MFI(${mfi.toFixed(3)})`);
-    }
-    if (kdj) {
-      const kdjParts: string[] = [];
-      if (isValidNumber(kdj.k)) {
-        kdjParts.push(`K=${kdj.k.toFixed(3)}`);
-      }
-      if (isValidNumber(kdj.d)) {
-        kdjParts.push(`D=${kdj.d.toFixed(3)}`);
-      }
-      if (isValidNumber(kdj.j)) {
-        kdjParts.push(`J=${kdj.j.toFixed(3)}`);
-      }
-      if (kdjParts.length > 0) {
-        parts.push(`KDJ(${kdjParts.join(',')})`);
-      }
-    }
-
-    return parts.join('、');
-  };
-
-  /**
    * 生成交易信号
    *
    * 流程：验证指标 → 检查卖出条件 → 评估信号配置 → 创建信号对象
@@ -247,7 +154,7 @@ export const createHangSengMultiIndicatorStrategy = ({
 
     // 对于卖出信号，先检查订单记录中是否有买入订单记录
     // 如果有买入订单记录，进入验证阶段；如果没有，不生成卖出信号
-    if (action === 'SELLCALL' || action === 'SELLPUT') {
+    if (isSellAction(action as SignalType)) {
       if (!orderRecorder) {
         // 无法获取订单记录，不生成卖出信号
         return null;
@@ -275,7 +182,7 @@ export const createHangSengMultiIndicatorStrategy = ({
     }
 
     // 判断是买入还是卖出信号
-    const isBuySignal = action === 'BUYCALL' || action === 'BUYPUT';
+    const isBuySignal = isBuyAction(action as SignalType);
     const currentVerificationConfig = isBuySignal ? finalVerificationConfig.buy : finalVerificationConfig.sell;
 
     // 根据预计算的信号类型映射判断是立即信号还是延迟信号
@@ -349,21 +256,6 @@ export const createHangSengMultiIndicatorStrategy = ({
     )} 进行验证`;
 
     return { signal, isImmediate: false };
-  };
-
-  /** 将信号按类型分流到对应数组 */
-  const pushSignalToCorrectArray = (
-    result: SignalWithCategory | null,
-    immediateSignals: Signal[],
-    delayedSignals: Signal[],
-  ): void => {
-    if (!result) return;
-
-    if (result.isImmediate) {
-      immediateSignals.push(result.signal);
-    } else {
-      delayedSignals.push(result.signal);
-    }
   };
 
   return {

@@ -6,7 +6,6 @@
  * - TaskQueue: 通用任务队列接口
  * - BuyTask / SellTask: 具体任务类型
  */
-
 import type { Signal } from '../../../types/index.js';
 
 /** 任务添加回调函数类型 */
@@ -33,19 +32,18 @@ export type Task<TType extends string> = {
  * 通用任务队列接口
  * @template TTask 具体任务类型
  */
-export interface TaskQueue<TTask extends Task<string>> {
+export interface TaskQueue<TType extends string> {
   /** 入队任务（自动生成 id 和 createdAt） */
-  push(task: Omit<TTask, 'id' | 'createdAt'>): void;
+  push(task: Omit<Task<TType>, 'id' | 'createdAt'>): void;
   /** 出队任务（返回并移除队首） */
-  pop(): TTask | null;
-  /** 查看队首任务（不移除） */
-  peek(): TTask | null;
-  /** 获取队列长度 */
-  size(): number;
+  pop(): Task<TType> | null;
   /** 检查队列是否为空 */
   isEmpty(): boolean;
-  /** 清空队列 */
-  clear(): void;
+  /** 按条件移除任务，返回移除数量 */
+  removeTasks(
+    predicate: (task: Task<TType>) => boolean,
+    onRemove?: (task: Task<TType>) => void,
+  ): number;
   /** 注册任务添加回调 */
   onTaskAdded(callback: TaskAddedCallback): void;
 }

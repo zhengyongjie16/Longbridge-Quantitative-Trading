@@ -4,7 +4,6 @@
  * 延迟信号验证器使用 setTimeout 自行计时，在信号触发后延迟一段时间
  * 验证指标趋势是否持续，确保信号的有效性。
  */
-
 import type { Signal, VerificationConfig } from '../../../types/index.js';
 import type { IndicatorCache } from '../indicatorCache/types.js';
 
@@ -65,17 +64,18 @@ export interface DelayedSignalVerifier {
   addSignal(signal: Signal, monitorSymbol: string): void;
 
   /**
-   * 取消指定信号的验证
-   * @param signalId 信号ID（格式：symbol:action:triggerTime）
-   * @returns 是否成功取消
-   */
-  cancelSignal(signalId: string): boolean;
-
-  /**
    * 取消指定标的的所有待验证信号
    * @param monitorSymbol 监控标的代码
    */
   cancelAllForSymbol(monitorSymbol: string): void;
+
+  /**
+   * 取消指定方向的待验证信号
+   * @param monitorSymbol 监控标的代码
+   * @param direction 多空方向（由信号动作判定）
+   * @returns 已取消的信号数量
+   */
+  cancelAllForDirection(monitorSymbol: string, direction: 'LONG' | 'SHORT'): number;
 
   /**
    * 获取待验证信号数量

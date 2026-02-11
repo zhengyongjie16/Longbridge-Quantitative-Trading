@@ -20,7 +20,6 @@
  * - extractRSIPeriods()：提取 RSI 周期列表
  * - extractPsyPeriods()：提取 PSY 周期列表
  */
-
 import { validateRsiPeriod, validatePsyPeriod } from './indicatorHelpers.js';
 import type {
   Condition,

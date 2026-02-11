@@ -22,8 +22,8 @@
  * - MACD：快线 EMA12、慢线 EMA26、信号线 EMA9
  * - EMA：支持多周期配置，范围 1-250
  */
-
 import { validateRsiPeriod, validateEmaPeriod, validatePsyPeriod } from '../../utils/helpers/indicatorHelpers.js';
+import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { periodRecordPool } from '../../utils/objectPool/index.js';
 import { toNumber } from './utils.js';
 import { calculateRSI } from './rsi.js';
@@ -32,22 +32,9 @@ import { calculateKDJ } from './kdj.js';
 import { calculateMACD } from './macd.js';
 import { calculateEMA } from './ema.js';
 import { calculatePSY } from './psy.js';
+import { INDICATOR_CACHE } from '../../constants/index.js';
 import type { CandleData, IndicatorSnapshot } from '../../types/index.js';
-
-// ==================== 指标缓存 ====================
-
-/** 缓存 TTL（毫秒） */
-const CACHE_TTL_MS = 5000;
-
-/** 最大缓存条目数（防止内存泄漏） */
-const MAX_CACHE_SIZE = 50;
-
-/** 缓存条目类型 */
-type IndicatorCalculationCacheEntry = {
-  readonly snapshot: IndicatorSnapshot;
-  readonly timestamp: number;
-  readonly dataFingerprint: string;
-};
+import type { IndicatorCalculationCacheEntry } from './types.js';
 
 /** 指标计算结果缓存 */
 const indicatorCache = new Map<string, IndicatorCalculationCacheEntry>();
@@ -110,7 +97,7 @@ function deleteCacheEntry(key: string, entry: IndicatorCalculationCacheEntry): v
  * 当缓存条目超过最大数量时，删除最旧的条目
  */
 function cleanupCache(): void {
-  if (indicatorCache.size <= MAX_CACHE_SIZE) {
+  if (indicatorCache.size <= INDICATOR_CACHE.CALCULATION_MAX_SIZE) {
     return;
   }
 
@@ -119,7 +106,7 @@ function cleanupCache(): void {
 
   // 首先删除过期条目
   for (const [key, entry] of indicatorCache) {
-    if (now - entry.timestamp > CACHE_TTL_MS) {
+    if (now - entry.timestamp > INDICATOR_CACHE.CALCULATION_TTL_MS) {
       expiredEntries.push([key, entry]);
     }
   }
@@ -129,11 +116,11 @@ function cleanupCache(): void {
   }
 
   // 如果仍然超过限制，删除最旧的条目
-  if (indicatorCache.size > MAX_CACHE_SIZE) {
+  if (indicatorCache.size > INDICATOR_CACHE.CALCULATION_MAX_SIZE) {
     const sortedEntries = [...indicatorCache.entries()].sort(
       (a, b) => a[1].timestamp - b[1].timestamp,
     );
-    const deleteCount = indicatorCache.size - MAX_CACHE_SIZE;
+    const deleteCount = indicatorCache.size - INDICATOR_CACHE.CALCULATION_MAX_SIZE;
     for (let i = 0; i < deleteCount; i++) {
       const sortedEntry = sortedEntries[i];
       if (sortedEntry) {
@@ -177,7 +164,7 @@ export function buildIndicatorSnapshot(
   const lastCandleClose = lastCandle ? toNumber(lastCandle.close) : 0;
 
   // 只有当最后收盘价有效时才检查缓存
-  if (Number.isFinite(lastCandleClose) && lastCandleClose > 0) {
+  if (isValidPositiveNumber(lastCandleClose)) {
     const dataFingerprint = buildDataFingerprint(candles, lastCandleClose);
     const cached = indicatorCache.get(cacheKey);
     const now = Date.now();
@@ -188,7 +175,7 @@ export function buildIndicatorSnapshot(
     // 3. K 线数据未变化（指纹相同）
     if (
       cached &&
-      now - cached.timestamp < CACHE_TTL_MS &&
+      now - cached.timestamp < INDICATOR_CACHE.CALCULATION_TTL_MS &&
       cached.dataFingerprint === dataFingerprint
     ) {
       return cached.snapshot;
@@ -199,7 +186,7 @@ export function buildIndicatorSnapshot(
   const validCloses: number[] = [];
   for (const element of candles) {
     const close = toNumber(element.close);
-    if (Number.isFinite(close) && close > 0) {
+    if (isValidPositiveNumber(close)) {
       validCloses.push(close);
     }
   }
@@ -216,7 +203,7 @@ export function buildIndicatorSnapshot(
   let changePercent: number | null = null;
   if (validCloses.length >= 2) {
     const prevClose = validCloses.at(-2)!;
-    if (Number.isFinite(prevClose) && prevClose > 0) {
+    if (isValidPositiveNumber(prevClose)) {
       changePercent = ((lastPrice - prevClose) / prevClose) * 100;
     }
   }

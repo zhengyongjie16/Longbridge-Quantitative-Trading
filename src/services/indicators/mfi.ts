@@ -4,8 +4,8 @@
  * 指标参数：
  * - MFI：周期 14，结合价格和成交量
  */
-
 import { MFI } from 'technicalindicators';
+import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { toNumber, logDebug } from './utils.js';
 import { validatePercentage } from '../../utils/helpers/indicatorHelpers.js';
 import type { CandleData } from '../../types/index.js';
@@ -36,9 +36,9 @@ export function calculateMFI(candles: ReadonlyArray<CandleData>, period: number 
 
       // 边提取边验证
       if (
-        Number.isFinite(high) && high > 0 &&
-        Number.isFinite(low) && low > 0 &&
-        Number.isFinite(close) && close > 0 &&
+        isValidPositiveNumber(high) &&
+        isValidPositiveNumber(low) &&
+        isValidPositiveNumber(close) &&
         Number.isFinite(volume) && volume >= 0
       ) {
         validHighs.push(high);

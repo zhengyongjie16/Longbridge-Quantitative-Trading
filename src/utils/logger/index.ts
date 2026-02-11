@@ -12,23 +12,69 @@
  * - logs/debug/：调试日志副本（DEBUG 级别日志的额外副本，需设置 DEBUG=true）
  *
  * 特性：
- * - 异步队列批量处理，避免阻塞主循环
+ * - 异步写入 + drain 保护，轮转操作串行化
  * - 控制台输出带颜色高亮
  * - 文件输出纯文本格式
  * - 进程信号处理和异常捕获
  */
-
 import pino from 'pino';
 import { toBeijingTimeLog } from '../helpers/index.js';
-import { LOGGING } from '../../constants/index.js';
+import { IS_DEBUG, LOGGING, LOG_LEVELS } from '../../constants/index.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Writable } from 'node:stream';
 import { inspect } from 'node:util';
-import { LOG_LEVELS, type LogObject, type Logger } from './types.js';
+import type { LogObject, Logger } from './types.js';
 
-// 缓存 DEBUG 环境变量，避免重复读取
-const IS_DEBUG = process.env['DEBUG'] === 'true';
+/**
+ * 保留目录下仅扩展名匹配且为文件的最新若干条，删除更早的。
+ * 在写入当日文件前调用，使保留后文件数 ≤ maxFiles - 1，写入后总数 ≤ maxFiles。
+ * 仅依赖 fs/path，不依赖 logger，避免循环依赖。
+ *
+ * @param logDir 日志目录
+ * @param maxFiles 最多保留文件数（含即将写入的当日文件）
+ * @param extension 扩展名（不含点），如 'log'、'json'
+ */
+export function retainLatestLogFiles(logDir: string, maxFiles: number, extension: string): void {
+  if (maxFiles < 1) {
+    return;
+  }
+  if (!fs.existsSync(logDir)) {
+    return;
+  }
+
+  const extSuffix = '.' + extension;
+  const names = fs.readdirSync(logDir);
+  const files: string[] = [];
+
+  for (const name of names) {
+    if (!name.endsWith(extSuffix)) {
+      continue;
+    }
+    const fullPath = path.join(logDir, name);
+    try {
+      if (fs.statSync(fullPath).isFile()) {
+        files.push(name);
+      }
+    } catch {
+      // 无法 stat 的项跳过
+    }
+  }
+
+  files.sort((a, b) => a.localeCompare(b, 'en'));
+  const n = files.length;
+  const toDelete = Math.max(0, n - (maxFiles - 1));
+
+  for (let i = 0; i < toDelete; i++) {
+    const file = files[i]!;
+    const fullPath = path.join(logDir, file);
+    try {
+      fs.unlinkSync(fullPath);
+    } catch (err) {
+      console.error(`[logRetention] 删除旧日志失败: ${fullPath}`, err);
+    }
+  }
+}
 
 // ANSI 颜色代码（保持兼容性）
 export const colors = {
@@ -40,12 +86,14 @@ export const colors = {
   cyan: '\x1b[96m', // 天蓝色
 } as const;
 
+/** 格式化额外数据为字符串（内部使用） */
 const formatExtra = (extra: unknown): string => {
   return inspect(extra, { depth: 5, maxArrayLength: 100 });
 };
 
 /**
  * 按日期分割的文件流（用于 pino 传输）
+ * 例外：继承 Node.js Writable，与 Stream API 集成，无法改为工厂函数。
  */
 class DateRotatingStream extends Writable {
   private readonly _logSubDir: string;
@@ -71,7 +119,8 @@ class DateRotatingStream extends Writable {
   private _getCurrentDate(): string {
     const timestamp = toBeijingTimeLog(new Date());
     // 从 "YYYY-MM-DD HH:mm:ss.sss" 提取日期部分
-    return timestamp.split(' ')[0]!;
+    const datePart = timestamp.split(' ').at(0);
+    return datePart ?? '';
   }
 
   /**
@@ -130,6 +179,7 @@ class DateRotatingStream extends Writable {
 
       // 更新日期并打开新文件流
       this._currentDate = newDate;
+      retainLatestLogFiles(this._logDir, LOGGING.MAX_RETAINED_LOG_FILES, 'log');
       const logFile = path.join(this._logDir, `${this._currentDate}.log`);
       this._fileStream = fs.createWriteStream(logFile, {
         flags: 'a',
@@ -253,7 +303,8 @@ const ANSI_CODE_REGEX = new RegExp(
 );
 
 /**
- * 移除 ANSI 颜色代码
+ * 移除 ANSI 颜色代码（内部使用）
+ * 用于文件日志输出时清除终端颜色代码
  */
 function stripAnsiCodes(str: string): string {
   if (typeof str !== 'string') return str;
@@ -372,7 +423,8 @@ function createDrainHandler(
 }
 
 /**
- * 带超时保护的写入辅助函数
+ * 带超时保护的写入辅助函数（内部使用）
+ * 防止 drain 事件永远不触发导致阻塞
  */
 function writeWithDrainTimeout(
   stream: NodeJS.WriteStream,

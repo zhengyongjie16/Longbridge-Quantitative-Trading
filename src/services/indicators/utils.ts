@@ -6,13 +6,10 @@
  * - 调试日志输出（logDebug）
  * - 对象池类型验证（isValidKDJ、isValidMACD）
  */
-
+import { IS_DEBUG } from '../../constants/index.js';
 import { logger } from '../../utils/logger/index.js';
 import type { CandleValue } from '../../types/index.js';
 import type { PoolableKDJ, PoolableMACD } from '../../utils/objectPool/types.js';
-
-// 读取DEBUG环境变量
-const IS_DEBUG = process.env['DEBUG'] === 'true';
 
 /**
  * 将 K 线数据值转换为数字

@@ -4,7 +4,6 @@
  * 从环境变量读取交易相关配置，支持多标的配置（通过 _N 后缀区分）
  * 配置包括：标的代码、交易金额、风险限制、信号规则、延迟验证等
  */
-
 import { OrderType } from 'longport';
 import type {
   MonitorConfig,
@@ -14,15 +13,19 @@ import type {
 } from '../types/index.js';
 import { parseSignalConfig } from '../utils/helpers/signalConfigParser.js';
 import { logger } from '../utils/logger/index.js';
+import { TRADING } from '../constants/index.js';
 import {
   getBooleanConfig,
   getNumberConfig,
   getStringConfig,
   parseLiquidationCooldownConfig,
+  parseNumberRangeConfig,
+  parseOrderOwnershipMapping,
   parseOrderTypeConfig,
   parseVerificationDelay,
   parseVerificationIndicators,
 } from './utils.js';
+import type { BoundedNumberConfig } from './types.js';
 
 /** 从环境变量解析信号配置 */
 function parseSignalConfigFromEnv(
@@ -41,14 +44,9 @@ function parseSignalConfigFromEnv(
   return config;
 }
 
-type BoundedNumberConfig = {
-  readonly env: NodeJS.ProcessEnv;
-  readonly envKey: string;
-  readonly defaultValue: number;
-  readonly min: number;
-  readonly max: number;
-};
-
+/**
+ * 解析带上下限的数值配置，超出范围会回退并提示。
+ */
 function parseBoundedNumberConfig({
   env,
   envKey,
@@ -71,14 +69,30 @@ function parseBoundedNumberConfig({
   return value;
 }
 
+/**
+ * 读取百分比配置并转为小数（如配置 2 → 内部 0.02），未配置或无效时返回 null。
+ */
+function getPercentAsDecimalConfig(
+  env: NodeJS.ProcessEnv,
+  envKey: string,
+  minValue: number = 0,
+): number | null {
+  const raw = getNumberConfig(env, envKey, minValue);
+  return raw == null ? null : raw / 100;
+}
+
+/**
+ * 将 OpenAPI 订单类型映射为配置值。
+ */
 function mapOrderTypeConfig(orderType: OrderType): OrderTypeConfig {
-  if (orderType === OrderType.LO) {
-    return 'LO';
+  switch (orderType) {
+    case OrderType.LO:
+      return 'LO';
+    case OrderType.MO:
+      return 'MO';
+    default:
+      return 'ELO';
   }
-  if (orderType === OrderType.MO) {
-    return 'MO';
-  }
-  return 'ELO';
 }
 
 /** 解析单个监控标的配置（索引 >= 1），未找到返回 null */
@@ -96,6 +110,42 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
   const longSymbol = getStringConfig(env, `LONG_SYMBOL${suffix}`) || '';
   const shortSymbol = getStringConfig(env, `SHORT_SYMBOL${suffix}`) || '';
 
+  const autoSearchEnabled = getBooleanConfig(env, `AUTO_SEARCH_ENABLED${suffix}`, false);
+  // 百分比数值转为小数：配置值 2 → 内部 0.02（牛证 >= 0，熊证 <= 0）
+  const autoSearchMinDistancePctBull = getPercentAsDecimalConfig(env, `AUTO_SEARCH_MIN_DISTANCE_PCT_BULL${suffix}`, 0);
+  const autoSearchMinDistancePctBear = getPercentAsDecimalConfig(env, `AUTO_SEARCH_MIN_DISTANCE_PCT_BEAR${suffix}`, -100);
+  const autoSearchMinTurnoverPerMinuteBull = getNumberConfig(
+    env,
+    `AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_BULL${suffix}`,
+    0,
+  );
+  const autoSearchMinTurnoverPerMinuteBear = getNumberConfig(
+    env,
+    `AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_BEAR${suffix}`,
+    0,
+  );
+  const autoSearchExpiryMinMonths = parseBoundedNumberConfig({
+    env,
+    envKey: `AUTO_SEARCH_EXPIRY_MIN_MONTHS${suffix}`,
+    defaultValue: 3,
+    min: 1,
+    max: 120,
+  });
+  const autoSearchOpenDelayMinutes = parseBoundedNumberConfig({
+    env,
+    envKey: `AUTO_SEARCH_OPEN_DELAY_MINUTES${suffix}`,
+    defaultValue: 5,
+    min: 0,
+    max: 60,
+  });
+  const switchDistanceRangeBull = parseNumberRangeConfig(env, `SWITCH_DISTANCE_RANGE_BULL${suffix}`);
+  const switchDistanceRangeBear = parseNumberRangeConfig(env, `SWITCH_DISTANCE_RANGE_BEAR${suffix}`);
+  const orderOwnershipMapping = parseOrderOwnershipMapping(
+    env,
+    `ORDER_OWNERSHIP_MAPPING${suffix}`,
+  );
+
+  // 使用 ?? 保留 0 的合法配置，仅在 null/undefined 时回退默认值
   const targetNotional = getNumberConfig(env, `TARGET_NOTIONAL${suffix}`, 1) ?? 10000;
   const maxPositionNotional = getNumberConfig(env, `MAX_POSITION_NOTIONAL${suffix}`, 1) ?? 100000;
   const maxDailyLoss = getNumberConfig(env, `MAX_DAILY_LOSS${suffix}`, 0) ?? 0;
@@ -141,6 +191,18 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
     monitorSymbol,
     longSymbol,
     shortSymbol,
+    autoSearchConfig: {
+      autoSearchEnabled,
+      autoSearchMinDistancePctBull,
+      autoSearchMinDistancePctBear,
+      autoSearchMinTurnoverPerMinuteBull,
+      autoSearchMinTurnoverPerMinuteBear,
+      autoSearchExpiryMinMonths,
+      autoSearchOpenDelayMinutes,
+      switchDistanceRangeBull,
+      switchDistanceRangeBear,
+    },
+    orderOwnershipMapping,
     targetNotional,
     maxPositionNotional,
     maxDailyLoss,
@@ -153,9 +215,6 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
   };
 }
 
-/** 监控标的最大扫描范围（从 _1 扫描到 _100） */
-const MAX_MONITOR_SCAN_RANGE = 100;
-
 /** 解析所有监控标的配置，自动扫描 MONITOR_SYMBOL_1, _2, ... */
 export function createMultiMonitorTradingConfig({
   env,
@@ -166,7 +225,7 @@ export function createMultiMonitorTradingConfig({
 
   // 连续扫描监控标的配置：从 _1 开始，遇到第一个未配置的索引即停止
   // 注意：索引必须连续，如配置了 _1 和 _3 但跳过 _2，则 _3 不会被读取
-  for (let i = 1; i <= MAX_MONITOR_SCAN_RANGE; i++) {
+  for (let i = 1; i <= TRADING.MAX_MONITOR_SCAN_RANGE; i++) {
     const monitorSymbol = getStringConfig(env, `MONITOR_SYMBOL_${i}`);
     if (!monitorSymbol) {
       // 未找到 MONITOR_SYMBOL_N，停止扫描
@@ -210,9 +269,13 @@ export function createMultiMonitorTradingConfig({
     max: 60,
   });
 
-  // 开盘波动较大，指标可靠性下降，可在早盘启用保护避免误触发
-  const openProtectionEnabled = getBooleanConfig(env, 'OPENING_PROTECTION_ENABLED', false);
-  const openProtectionMinutes = getNumberConfig(env, 'OPENING_PROTECTION_MINUTES', 0);
+  // 早盘开盘保护
+  const morningOpenProtectionEnabled = getBooleanConfig(env, 'MORNING_OPENING_PROTECTION_ENABLED', false);
+  const morningOpenProtectionMinutes = getNumberConfig(env, 'MORNING_OPENING_PROTECTION_MINUTES', 0);
+
+  // 午盘开盘保护
+  const afternoonOpenProtectionEnabled = getBooleanConfig(env, 'AFTERNOON_OPENING_PROTECTION_ENABLED', false);
+  const afternoonOpenProtectionMinutes = getNumberConfig(env, 'AFTERNOON_OPENING_PROTECTION_MINUTES', 0);
 
   // 解析交易订单类型配置
   const tradingOrderType = mapOrderTypeConfig(
@@ -230,8 +293,14 @@ export function createMultiMonitorTradingConfig({
       doomsdayProtection: getBooleanConfig(env, 'DOOMSDAY_PROTECTION', true),
       debug: getBooleanConfig(env, 'DEBUG', false),
       openProtection: {
-        enabled: openProtectionEnabled,
-        minutes: openProtectionMinutes,
+        morning: {
+          enabled: morningOpenProtectionEnabled,
+          minutes: morningOpenProtectionMinutes,
+        },
+        afternoon: {
+          enabled: afternoonOpenProtectionEnabled,
+          minutes: afternoonOpenProtectionMinutes,
+        },
       },
       orderMonitorPriceUpdateInterval,
       tradingOrderType,

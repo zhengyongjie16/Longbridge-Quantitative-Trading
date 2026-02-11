@@ -7,8 +7,7 @@
  * - 依赖注入类型：各服务的 Deps 类型
  * - 配置类型：RateLimiterConfig、OrderMonitorConfig
  */
-
-import type { OrderSide, OrderType, OrderStatus, TimeInForceType, TradeContext, PushOrderChanged } from 'longport';
+import type { Config, Decimal, OrderSide, OrderType, OrderStatus, TimeInForceType, TradeContext, PushOrderChanged } from 'longport';
 import type {
   Signal,
   Quote,
@@ -19,8 +18,21 @@ import type {
   RateLimiter,
   PendingRefreshSymbol,
   MultiMonitorTradingConfig,
+  SymbolRegistry,
+  RawOrderFromAPI,
+  OrderTypeConfig,
 } from '../../types/index.js';
 import type { LiquidationCooldownTracker } from '../../services/liquidationCooldown/types.js';
+import type { DailyLossTracker } from '../riskController/types.js';
+import type { RefreshGate } from '../../utils/refreshGate/types.js';
+
+/**
+ * 订单提交 API 可能返回的响应形状
+ * 用于 extractOrderId 安全提取订单 ID
+ */
+export type OrderSubmitResponse = {
+  readonly orderId?: string;
+};
 
 /**
  * 订单提交载荷
@@ -28,12 +40,20 @@ import type { LiquidationCooldownTracker } from '../../services/liquidationCoold
  */
 export type OrderPayload = {
   readonly symbol: string;
-  readonly orderType: typeof OrderType[keyof typeof OrderType];
-  readonly side: typeof OrderSide[keyof typeof OrderSide];
-  readonly timeInForce: typeof TimeInForceType[keyof typeof TimeInForceType];
-  readonly submittedQuantity: import('longport').Decimal;
-  readonly submittedPrice?: import('longport').Decimal;
+  readonly orderType: OrderType;
+  readonly side: OrderSide;
+  readonly timeInForce: TimeInForceType;
+  readonly submittedQuantity: Decimal;
+  readonly submittedPrice?: Decimal;
   readonly remark?: string;
+};
+
+/**
+ * 订单类型解析配置（信号级覆盖 / 保护性清仓 / 全局类型）
+ */
+export type OrderTypeResolutionConfig = {
+  readonly tradingOrderType: OrderTypeConfig;
+  readonly liquidationOrderType: OrderTypeConfig;
 };
 
 /**
@@ -104,7 +124,6 @@ export interface AccountService {
 export interface OrderCacheManager {
   getPendingOrders(symbols?: string[] | null, forceRefresh?: boolean): Promise<PendingOrder[]>;
   clearCache(): void;
-  hasPendingBuyOrders(symbols: string[], orderRecorder?: import('../../types/index.js').OrderRecorder | null): Promise<boolean>;
 }
 
 /**
@@ -132,6 +151,7 @@ export interface OrderMonitor {
     isLongSymbol: boolean,
     monitorSymbol: string | null,
     isProtectiveLiquidation: boolean,
+    orderType: OrderType,
   ): void;
 
   /** 撤销订单 */
@@ -149,6 +169,9 @@ export interface OrderMonitor {
   /** 恢复订单追踪（程序启动时调用） */
   recoverTrackedOrders(): Promise<void>;
 
+  /** 获取指定标的的未成交卖单快照 */
+  getPendingSellOrders(symbol: string): ReadonlyArray<PendingSellOrderSnapshot>;
+
   /**
    * 获取并清空待刷新浮亏数据的标的列表
    * 订单成交后会将标的添加到此列表，主循环中应调用此方法获取并刷新
@@ -157,8 +180,6 @@ export interface OrderMonitor {
    */
   getAndClearPendingRefreshSymbols(): PendingRefreshSymbol[];
 
-  /** 销毁监控器 */
-  destroy(): Promise<void>;
 }
 
 /**
@@ -221,9 +242,11 @@ export type TrackedOrder = {
   readonly monitorSymbol: string | null;
   /** 是否为保护性清仓订单（用于触发买入冷却） */
   readonly isProtectiveLiquidation: boolean;
+  /** 订单类型（用于合并和改单判断） */
+  readonly orderType: OrderType;
   /** 当前委托价（会随市价更新） */
   submittedPrice: number;
-  readonly submittedQuantity: number;
+  submittedQuantity: number;
   /** 已成交数量（部分成交时累加） */
   executedQuantity: number;
   status: OrderStatus;
@@ -236,24 +259,88 @@ export type TrackedOrder = {
 };
 
 /**
- * 订单超时配置（买入/卖出分开配置）
+ * 未成交卖单快照（用于卖单合并决策）
  */
-export type OrderSideTimeoutConfig = {
-  readonly enabled: boolean;
-  readonly timeoutMs: number;
+export type PendingSellOrderSnapshot = {
+  readonly orderId: string;
+  readonly symbol: string;
+  readonly side: OrderSide;
+  readonly status: OrderStatus;
+  readonly orderType: OrderType;
+  readonly submittedPrice: number;
+  readonly submittedQuantity: number;
+  readonly executedQuantity: number;
+  readonly submittedAt: number;
+};
+
+/** 卖单合并决策动作 */
+export type SellMergeDecisionAction = 'SUBMIT' | 'REPLACE' | 'CANCEL_AND_SUBMIT' | 'SKIP';
+
+/** 卖单合并决策输入 */
+export type SellMergeDecisionInput = {
+  readonly symbol: string;
+  readonly pendingOrders: ReadonlyArray<PendingSellOrderSnapshot>;
+  readonly newOrderQuantity: number;
+  readonly newOrderPrice: number | null;
+  readonly newOrderType: OrderType;
+  readonly isProtectiveLiquidation: boolean;
+};
+
+/** 卖单合并决策结果 */
+export type SellMergeDecision = {
+  readonly action: SellMergeDecisionAction;
+  readonly mergedQuantity: number;
+  readonly targetOrderId: string | null;
+  readonly price: number | null;
+  readonly pendingOrderIds: ReadonlyArray<string>;
+  readonly pendingRemainingQuantity: number;
+  readonly reason:
+    | 'no-additional-quantity'
+    | 'no-pending-sell'
+    | 'cancel-and-merge'
+    | 'replace-and-merge';
 };
 
 /**
  * 订单监控配置
  */
 export interface OrderMonitorConfig {
-  readonly buyTimeout: OrderSideTimeoutConfig;
-  readonly sellTimeout: OrderSideTimeoutConfig;
+  readonly buyTimeout: {
+    readonly enabled: boolean;
+    readonly timeoutMs: number;
+  };
+  readonly sellTimeout: {
+    readonly enabled: boolean;
+    readonly timeoutMs: number;
+  };
   /** 价格修改最小间隔（毫秒） */
   readonly priceUpdateIntervalMs: number;
   /** 价格差异阈值（低于此值不触发修改） */
   readonly priceDiffThreshold: number;
 }
+
+/**
+ * 订单订阅保留集管理器
+ *
+ * 职责：
+ * - 跟踪需要持续订阅的订单标的
+ * - 程序重启时恢复订阅状态
+ * - 订单成交后移除订阅标记
+ *
+ * 设计原因：
+ * - 避免频繁订阅/取消订阅造成的 API 调用开销
+ * - 订单成交后需要继续订阅以获取最新行情
+ */
+export type OrderHoldRegistry = {
+  /** 跟踪订单（添加标的到订阅保留集） */
+  trackOrder(orderId: string, symbol: string): void;
+  /** 标记订单已成交（从订阅保留集中移除） */
+  markOrderFilled(orderId: string): void;
+  /** 从历史订单初始化订阅保留集（程序重启时调用） */
+  seedFromOrders(orders: ReadonlyArray<RawOrderFromAPI>): void;
+  /** 获取当前需要持续订阅的标的集合 */
+  getHoldSymbols(): ReadonlySet<string>;
+};
 
 /**
  * 订单监控器依赖类型
@@ -264,14 +351,22 @@ export type OrderMonitorDeps = {
   readonly cacheManager: OrderCacheManager;
   /** 订单记录器（用于成交后更新本地记录） */
   readonly orderRecorder: import('../../types/index.js').OrderRecorder;
+  /** 当日亏损跟踪器（成交后增量记录） */
+  readonly dailyLossTracker: DailyLossTracker;
+  /** 订单订阅保留集 */
+  readonly orderHoldRegistry: OrderHoldRegistry;
   /** 清仓冷却追踪器（用于记录保护性清仓） */
   readonly liquidationCooldownTracker: LiquidationCooldownTracker;
+  /** 标的注册表（用于解析动态标的归属） */
+  readonly symbolRegistry: SymbolRegistry;
   /** 可选测试钩子（仅用于单元测试） */
   readonly testHooks?: {
     readonly setHandleOrderChanged?: (handler: (event: PushOrderChanged) => void) => void;
   };
   /** 全局交易配置 */
   readonly tradingConfig: MultiMonitorTradingConfig;
+  /** 刷新门禁（成交后标记 stale） */
+  readonly refreshGate?: RefreshGate;
 };
 
 /**
@@ -282,16 +377,25 @@ export type OrderExecutorDeps = {
   readonly rateLimiter: RateLimiter;
   readonly cacheManager: OrderCacheManager;
   readonly orderMonitor: OrderMonitor;
+  /** 订单记录器（用于卖出订单防重追踪） */
+  readonly orderRecorder: import('../../types/index.js').OrderRecorder;
   /** 全局交易配置 */
   readonly tradingConfig: MultiMonitorTradingConfig;
+  /** 标的注册表（用于解析动态标的归属） */
+  readonly symbolRegistry: SymbolRegistry;
 };
 
 /**
  * 交易器依赖类型
  */
 export type TraderDeps = {
-  readonly config: import('longport').Config;
+  readonly config: Config;
   readonly tradingConfig: MultiMonitorTradingConfig;
   readonly liquidationCooldownTracker: LiquidationCooldownTracker;
   readonly rateLimiterConfig?: RateLimiterConfig;
+  /** 标的注册表（用于动态标的映射） */
+  readonly symbolRegistry: SymbolRegistry;
+  readonly dailyLossTracker: DailyLossTracker;
+  /** 刷新门禁（成交后标记 stale） */
+  readonly refreshGate?: RefreshGate;
 };

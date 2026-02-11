@@ -6,7 +6,6 @@
  * - extractInitialIndicators: 提取信号初始指标值
  * - performVerification: 执行完整验证流程
  */
-
 import { getIndicatorValue } from '../../../utils/helpers/indicatorHelpers.js';
 import { TIME, VERIFICATION } from '../../../constants/index.js';
 import type { Signal, SingleVerificationConfig } from '../../../types/index.js';

@@ -15,7 +15,6 @@
  * - getIndicatorValue()：提取指标值
  * - isValidNumber()：检查数值有效性
  */
-
 import type { IndicatorState } from './types.js';
 
 /**

@@ -15,10 +15,10 @@
  * - getHKTime()：获取香港时区时间
  * - isInContinuousHKSession()：判断是否在连续交易时段
  * - isWithinMorningOpenProtection()：判断是否在早盘保护时段
+ * - isWithinAfternoonOpenProtection()：判断是否在午盘保护时段
  * - isBeforeClose15Minutes()：判断是否在收盘前15分钟（拒绝买入）
  * - isBeforeClose5Minutes()：判断是否在收盘前5分钟（自动清仓）
  */
-
 import type { HKTime } from './types.js';
 
 /**
@@ -34,6 +34,55 @@ export function getHKTime(date: Date | null | undefined): HKTime | null {
     hkHour: (utcHour + 8) % 24,
     hkMinute: utcMinute,
   };
+}
+
+/**
+ * 获取港股日期键（UTC+8）
+ * @param date 时间对象
+ * @returns YYYY-MM-DD 格式日期键，若无效则返回 null
+ */
+export function getHKDateKey(date: Date | null | undefined): string | null {
+  if (!date) return null;
+  const hkDate = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+  const year = hkDate.getUTCFullYear();
+  const month = String(hkDate.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(hkDate.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * 计算已开盘分钟数（不区分半日交易日）
+ * @param date 时间对象（UTC）
+ * @returns 已开盘分钟数
+ */
+export function getTradingMinutesSinceOpen(date: Date | null | undefined): number {
+  if (!date) return 0;
+  const hkTime = getHKTime(date);
+  if (!hkTime) return 0;
+
+  const { hkHour, hkMinute } = hkTime;
+  const currentMinutes = hkHour * 60 + hkMinute;
+
+  const morningOpen = 9 * 60 + 30;
+  const morningClose = 12 * 60;
+  const afternoonOpen = 13 * 60;
+  const afternoonClose = 16 * 60;
+  const morningMinutes = morningClose - morningOpen;
+  const afternoonMinutes = afternoonClose - afternoonOpen;
+
+  if (currentMinutes < morningOpen) {
+    return 0;
+  }
+  if (currentMinutes < morningClose) {
+    return currentMinutes - morningOpen;
+  }
+  if (currentMinutes < afternoonOpen) {
+    return morningMinutes;
+  }
+  if (currentMinutes < afternoonClose) {
+    return morningMinutes + (currentMinutes - afternoonOpen);
+  }
+  return morningMinutes + afternoonMinutes;
 }
 
 /**
@@ -101,6 +150,34 @@ export function isWithinMorningOpenProtection(
 }
 
 /**
+ * 判断是否在午盘开盘保护时段（仅午盘有效）
+ * 午盘开盘波动较大，可在此窗口暂缓信号生成
+ * @param date 时间对象（应该是UTC时间）
+ * @param minutes 保护时长（分钟）
+ * @returns true表示在保护时段，false表示不在
+ */
+export function isWithinAfternoonOpenProtection(
+  date: Date | null | undefined,
+  minutes: number,
+): boolean {
+  if (!date || !Number.isFinite(minutes) || minutes <= 0) return false;
+  const hkTime = getHKTime(date);
+  if (!hkTime) return false;
+  const { hkHour, hkMinute } = hkTime;
+
+  // 上午时段和午休时段不生效
+  if (hkHour < 13) {
+    return false;
+  }
+
+  const currentMinutes = hkHour * 60 + hkMinute;
+  const startMinutes = 13 * 60; // 13:00
+  const endMinutes = startMinutes + minutes;
+
+  return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+}
+
+/**
  * 判断是否在当日收盘前15分钟内（末日保护程序：拒绝买入）
  * 港股正常交易日收盘时间：下午 16:00，收盘前15分钟：15:45 - 15:59
  * 港股半日交易日收盘时间：中午 12:00，收盘前15分钟：11:45 - 11:59
@@ -112,17 +189,7 @@ export function isBeforeClose15Minutes(
   date: Date | null | undefined,
   isHalfDay: boolean = false,
 ): boolean {
-  if (!date) return false;
-  const hkTime = getHKTime(date);
-  if (!hkTime) return false;
-  const { hkHour, hkMinute } = hkTime;
-
-  if (isHalfDay) {
-    // 半日交易：收盘前15分钟为 11:45 - 11:59:59（12:00收盘）
-    return hkHour === 11 && hkMinute >= 45;
-  }
-  // 正常交易日：收盘前15分钟为 15:45 - 15:59:59（16:00收盘）
-  return hkHour === 15 && hkMinute >= 45;
+  return isBeforeCloseMinutes(date, 15, isHalfDay);
 }
 
 /**
@@ -137,15 +204,28 @@ export function isBeforeClose5Minutes(
   date: Date | null | undefined,
   isHalfDay: boolean = false,
 ): boolean {
-  if (!date) return false;
+  return isBeforeCloseMinutes(date, 5, isHalfDay);
+}
+
+/**
+ * 判断是否在当日收盘前指定分钟数内
+ * @param date 时间对象（应该是UTC时间）
+ * @param minutes 距离收盘的分钟数
+ * @param isHalfDay 是否是半日交易日
+ * @returns true表示在收盘前窗口内
+ */
+function isBeforeCloseMinutes(
+  date: Date | null | undefined,
+  minutes: number,
+  isHalfDay: boolean = false,
+): boolean {
+  if (!date || !Number.isFinite(minutes) || minutes <= 0) return false;
   const hkTime = getHKTime(date);
   if (!hkTime) return false;
-  const { hkHour, hkMinute } = hkTime;
 
-  if (isHalfDay) {
-    // 半日交易：收盘前5分钟为 11:55 - 11:59:59（12:00收盘）
-    return hkHour === 11 && hkMinute >= 55;
-  }
-  // 正常交易日：收盘前5分钟为 15:55 - 15:59:59（16:00收盘）
-  return hkHour === 15 && hkMinute >= 55;
+  const closeHour = isHalfDay ? 12 : 16;
+  const closeMinutes = closeHour * 60;
+  const currentMinutes = hkTime.hkHour * 60 + hkTime.hkMinute;
+
+  return currentMinutes >= closeMinutes - minutes && currentMinutes < closeMinutes;
 }

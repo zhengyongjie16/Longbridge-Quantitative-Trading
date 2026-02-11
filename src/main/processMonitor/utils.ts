@@ -4,9 +4,83 @@
  *
  * 提供持仓查询等辅助功能，与对象池配合使用
  */
-
 import { positionObjectPool } from '../../utils/objectPool/index.js';
-import type { Position, PositionCache } from '../../types/index.js';
+import type { Position, PositionCache, Signal } from '../../types/index.js';
+import type { DelayedSignalVerifier } from '../asyncProgram/delayedSignalVerifier/types.js';
+import type { BuyTaskQueue, SellTaskQueue } from '../asyncProgram/types.js';
+import type { MonitorTaskQueue } from '../asyncProgram/monitorTaskQueue/types.js';
+import type { MonitorTaskData, MonitorTaskType } from '../asyncProgram/monitorTaskProcessor/types.js';
+import type { QueueClearResult } from './types.js';
+
+function isDirectionAction(
+  action: string | null | undefined,
+  direction: 'LONG' | 'SHORT',
+): boolean {
+  if (!action) {
+    return false;
+  }
+  const isLongAction = action === 'BUYCALL' || action === 'SELLCALL';
+  return direction === 'LONG' ? isLongAction : !isLongAction;
+}
+
+function isMonitorTaskForDirection(
+  task: { readonly data: unknown },
+  direction: 'LONG' | 'SHORT',
+): boolean {
+  if (!task.data || typeof task.data !== 'object') {
+    return false;
+  }
+  const data = task.data as Record<string, unknown>;
+  const isDirectionMatch = data['direction'] === direction;
+  const isSharedTask = 'seatSnapshots' in data || ('long' in data && 'short' in data);
+  return isDirectionMatch || isSharedTask;
+}
+
+function removeSignalTasks(
+  queue: BuyTaskQueue | SellTaskQueue,
+  monitorSymbol: string,
+  direction: 'LONG' | 'SHORT',
+  releaseSignal: (signal: Signal) => void,
+): number {
+  return queue.removeTasks(
+    (task) => task.monitorSymbol === monitorSymbol && isDirectionAction(task.data?.action, direction),
+    (task) => releaseSignal(task.data),
+  );
+}
+
+export function clearQueuesForDirection(params: {
+  readonly monitorSymbol: string;
+  readonly direction: 'LONG' | 'SHORT';
+  readonly delayedSignalVerifier: DelayedSignalVerifier;
+  readonly buyTaskQueue: BuyTaskQueue;
+  readonly sellTaskQueue: SellTaskQueue;
+  readonly monitorTaskQueue: MonitorTaskQueue<MonitorTaskType, MonitorTaskData>;
+  readonly releaseSignal: (signal: Signal) => void;
+}): QueueClearResult {
+  const {
+    monitorSymbol,
+    direction,
+    delayedSignalVerifier,
+    buyTaskQueue,
+    sellTaskQueue,
+    monitorTaskQueue,
+    releaseSignal,
+  } = params;
+
+  const removedDelayed = delayedSignalVerifier.cancelAllForDirection(monitorSymbol, direction);
+  const removedBuy = removeSignalTasks(buyTaskQueue, monitorSymbol, direction, releaseSignal);
+  const removedSell = removeSignalTasks(sellTaskQueue, monitorSymbol, direction, releaseSignal);
+  const removedMonitorTasks = monitorTaskQueue.removeTasks(
+    (task) => task.monitorSymbol === monitorSymbol && isMonitorTaskForDirection(task, direction),
+  );
+
+  return {
+    removedDelayed,
+    removedBuy,
+    removedSell,
+    removedMonitorTasks,
+  };
+}
 
 /**
  * 从持仓缓存中获取指定标的的持仓
@@ -28,33 +102,21 @@ export function getPositions(
   const longPos = positionCache.get(longSymbol);
   const shortPos = positionCache.get(shortSymbol);
 
-  let longPosition: Position | null = null;
-  let shortPosition: Position | null = null;
-
-  // 创建持仓对象（复用对象池）
-  if (longPos) {
-    longPosition = positionObjectPool.acquire() as Position;
-    longPosition.symbol = longSymbol;
-    longPosition.costPrice = Number(longPos.costPrice) || 0;
-    longPosition.quantity = Number(longPos.quantity) || 0;
-    longPosition.availableQuantity = Number(longPos.availableQuantity) || 0;
-    longPosition.accountChannel = longPos.accountChannel;
-    longPosition.symbolName = longPos.symbolName;
-    longPosition.currency = longPos.currency;
-    longPosition.market = longPos.market;
-  }
-
-  if (shortPos) {
-    shortPosition = positionObjectPool.acquire() as Position;
-    shortPosition.symbol = shortSymbol;
-    shortPosition.costPrice = Number(shortPos.costPrice) || 0;
-    shortPosition.quantity = Number(shortPos.quantity) || 0;
-    shortPosition.availableQuantity = Number(shortPos.availableQuantity) || 0;
-    shortPosition.accountChannel = shortPos.accountChannel;
-    shortPosition.symbolName = shortPos.symbolName;
-    shortPosition.currency = shortPos.currency;
-    shortPosition.market = shortPos.market;
-  }
+  const longPosition = longPos ? createPositionFromCache(longSymbol, longPos) : null;
+  const shortPosition = shortPos ? createPositionFromCache(shortSymbol, shortPos) : null;
 
   return { longPosition, shortPosition };
+}
+
+function createPositionFromCache(symbol: string, source: Position): Position {
+  const position = positionObjectPool.acquire() as Position;
+  position.symbol = symbol;
+  position.costPrice = Number(source.costPrice) || 0;
+  position.quantity = Number(source.quantity) || 0;
+  position.availableQuantity = Number(source.availableQuantity) || 0;
+  position.accountChannel = source.accountChannel;
+  position.symbolName = source.symbolName;
+  position.currency = source.currency;
+  position.market = source.market;
+  return position;
 }

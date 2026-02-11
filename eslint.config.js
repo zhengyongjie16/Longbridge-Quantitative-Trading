@@ -44,12 +44,13 @@ export default tseslint.config(
   {
     ignores: [
       'dist/**',
+      'benchmark/**',
       'node_modules/**',
       'logs/**',
+      'src/utils/**',
+      'utils/**',
       '*.config.js',
       'tools/**',
-      'test/**',
-      'tests/**',
       'scripts/**',
       '.worktrees/**',
       '.claude/**',

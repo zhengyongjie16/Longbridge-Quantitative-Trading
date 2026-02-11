@@ -11,8 +11,7 @@
  * - 对象池类型使用可变属性和 | null 标记，这是性能优化的必要例外
  * - 使用对象池对象后必须及时释放，嵌套对象也需递归释放
  */
-
-import type { OrderTypeConfig, SignalType, VerificationEntry } from '../../types/index.js';
+import type { OrderTypeConfig, SignalType } from '../../types/index.js';
 
 /**
  * 对象池 - Signal
@@ -29,6 +28,7 @@ export type PoolableSignal = {
   price?: number | null;
   lotSize?: number | null;
   quantity?: number | null;
+  seatVersion?: number | null;
   /**
    * 信号触发时间（统一使用此字段）
    * - 立即信号：信号生成时间
@@ -37,7 +37,7 @@ export type PoolableSignal = {
    */
   triggerTime?: Date | null;
   indicators1?: Record<string, number> | null;
-  verificationHistory?: VerificationEntry[] | null;
+  verificationHistory?: PoolableVerificationEntry[] | null;
 };
 
 /**

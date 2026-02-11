@@ -15,40 +15,23 @@
  * - formatSymbolDisplay() / formatQuoteDisplay()：格式化显示
  * - formatError()：安全格式化错误对象
  * - isDefined() / isValidPositiveNumber()：类型检查辅助函数
+ * - isBuyAction() / isSellAction()：信号动作判断
  * - sleep()：异步延迟函数
  * - initMonitorState() / releaseSnapshotObjects()：监控状态管理
  */
-
 import type {
   IndicatorSnapshot,
   MonitorConfig,
   MonitorState,
+  Quote,
   SignalType,
 } from '../../types/index.js';
 import { inspect } from 'node:util';
 import { Decimal } from 'longport';
-import { TIME } from '../../constants/index.js';
-import type { DecimalLike } from './types.js';
+import { TIME, SYMBOL_WITH_REGION_REGEX, ACCOUNT_CHANNEL_MAP } from '../../constants/index.js';
+import type { DecimalLike, QuoteDisplayResult, TimeFormatOptions } from './types.js';
 import { logger } from '../logger/index.js';
 import { kdjObjectPool, macdObjectPool } from '../objectPool/index.js';
-
-/**
- * 时间格式化选项（内部使用）
- */
-type TimeFormatOptions = {
-  readonly format?: 'iso' | 'log';
-};
-
-/**
- * 行情显示格式化结果
- */
-type QuoteDisplayResult = {
-  readonly nameText: string;
-  readonly codeText: string;
-  readonly priceText: string;
-  readonly changeAmountText: string;
-  readonly changePercentText: string;
-};
 
 /**
  * 检查值是否已定义（不是 null 或 undefined）
@@ -90,8 +73,6 @@ function isErrorLike(value: unknown): value is Record<string, unknown> {
  * @param symbol 标的代码，例如 "68547.HK"
  * @returns 是否符合 ticker.region 格式
  */
-const SYMBOL_WITH_REGION_REGEX = /^[A-Z0-9]+\.[A-Z]{2,5}$/;
-
 export function isSymbolWithRegion(symbol: string | null | undefined): symbol is string {
   if (!symbol || typeof symbol !== 'string') {
     return false;
@@ -156,16 +137,6 @@ export function formatNumber(num: number | null | undefined, digits: number = 2)
 /**
  * 账户渠道映射表
  */
-const channelMap: Record<string, string> = {
-  lb_papertrading: '模拟交易',
-  paper_trading: '模拟交易',
-  papertrading: '模拟交易',
-  real_trading: '实盘交易',
-  realtrading: '实盘交易',
-  live: '实盘交易',
-  demo: '模拟交易',
-};
-
 /**
  * 格式化账户渠道显示名称
  * @param accountChannel 账户渠道代码
@@ -180,8 +151,8 @@ export function formatAccountChannel(accountChannel: string | null | undefined):
   const lowerChannel = accountChannel.toLowerCase();
 
   // 如果找到映射，返回中文名称
-  if (channelMap[lowerChannel]) {
-    return channelMap[lowerChannel];
+  if (ACCOUNT_CHANNEL_MAP[lowerChannel]) {
+    return ACCOUNT_CHANNEL_MAP[lowerChannel];
   }
 
   // 否则返回原始值
@@ -204,8 +175,6 @@ export function formatSymbolDisplay(symbol: string | null | undefined, symbolNam
   }
   return symbol;
 }
-
-// 常量定义（已从统一常量文件导入）
 
 function toBeijingTime(date: Date | null = null, options: TimeFormatOptions = {}): string {
   const { format = 'iso' } = options;
@@ -257,7 +226,7 @@ export function toBeijingTimeLog(date: Date | null = null): string {
  * @param symbol 标的代码
  * @returns 格式化后的行情显示对象，如果quote无效则返回null
  */
-export function formatQuoteDisplay(quote: import('../../types/index.js').Quote | null, symbol: string): QuoteDisplayResult | null {
+export function formatQuoteDisplay(quote: Quote | null, symbol: string): QuoteDisplayResult | null {
   if (!quote) {
     return null;
   }
@@ -304,7 +273,7 @@ export function formatQuoteDisplay(quote: import('../../types/index.js').Quote |
  * @param symbol 标的代码
  * @returns 格式化后的标的显示字符串
  */
-export function formatSymbolDisplayFromQuote(quote: import('../../types/index.js').Quote | null | undefined, symbol: string): string {
+export function formatSymbolDisplayFromQuote(quote: Quote | null | undefined, symbol: string): string {
   if (quote) {
     const display = formatQuoteDisplay(quote, symbol);
     return display ? `${display.nameText}(${display.codeText})` : symbol;
@@ -315,19 +284,27 @@ export function formatSymbolDisplayFromQuote(quote: import('../../types/index.js
 
 
 /**
-* 辅助函数：判断是否为买入操作
-*/
+ * 辅助函数：判断是否为买入操作
+ */
 export const isBuyAction = (action: SignalType): boolean => {
   return action === 'BUYCALL' || action === 'BUYPUT';
 };
 
 /**
- * 获取方向名称（做多标的或做空标的）
- * @param isLongSymbol 是否为做多标的
- * @returns 方向名称字符串
+ * 辅助函数：判断是否为卖出操作
  */
-export function getDirectionName(isLongSymbol: boolean): string {
-  return (isLongSymbol && '做多标的') || '做空标的';
+export const isSellAction = (action: SignalType): boolean => {
+  return action === 'SELLCALL' || action === 'SELLPUT';
+};
+
+/** 获取做多标的方向名称 */
+export function getLongDirectionName(): string {
+  return '做多标的';
+}
+
+/** 获取做空标的方向名称 */
+export function getShortDirectionName(): string {
+  return '做空标的';
 }
 
 /**
@@ -348,7 +325,7 @@ function getSignalActionDescription(action: SignalType): string {
 /**
  * 格式化信号日志（标的显示为：中文名称(代码)）
  */
-export function formatSignalLog(signal: { action: SignalType; symbol: string; symbolName?: string | null; reason?: string }): string {
+export function formatSignalLog(signal: { action: SignalType; symbol: string; symbolName?: string | null; reason?: string | null }): string {
   const actionDesc = getSignalActionDescription(signal.action);
   const symbolDisplay = formatSymbolDisplay(signal.symbol, signal.symbolName ?? null);
   return `${actionDesc} ${symbolDisplay} - ${signal.reason || '策略信号'}`;
@@ -420,8 +397,6 @@ export function initMonitorState(config: MonitorConfig): MonitorState {
   return {
     monitorSymbol: config.monitorSymbol,
     monitorPrice: null,
-    longSymbol: config.longSymbol,
-    shortSymbol: config.shortSymbol,
     longPrice: null,
     shortPrice: null,
     signal: null,

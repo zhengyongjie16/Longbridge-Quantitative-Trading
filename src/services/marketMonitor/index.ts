@@ -14,7 +14,6 @@
  * - 做多/做空标的的现价和涨跌幅
  * - 监控标的的所有技术指标值
  */
-
 import { colors, logger } from '../../utils/logger/index.js';
 import {
   formatQuoteDisplay,
@@ -22,7 +21,7 @@ import {
   toBeijingTimeLog,
 } from '../../utils/helpers/index.js';
 import { isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
-import { formatWarrantDistanceDisplay, hasChanged } from './utils.js';
+import { copyPeriodRecord, formatWarrantDistanceDisplay, hasChanged } from './utils.js';
 import {
   kdjObjectPool,
   macdObjectPool,
@@ -427,50 +426,10 @@ export const createMarketMonitor = (): MarketMonitor => {
         newMonitorValues.price = currentPrice;
         newMonitorValues.changePercent = changePercent;
 
-        // 从对象池获取 ema 对象，复制值
-        if (monitorSnapshot.ema) {
-          const emaRecord = periodRecordPool.acquire();
-          for (const key in monitorSnapshot.ema) {
-            const numKey = Number(key);
-            const value = monitorSnapshot.ema[numKey];
-            if (value !== undefined) {
-              emaRecord[numKey] = value;
-            }
-          }
-          newMonitorValues.ema = emaRecord;
-        } else {
-          newMonitorValues.ema = null;
-        }
-
-        // 从对象池获取 rsi 对象，复制值
-        if (monitorSnapshot.rsi) {
-          const rsiRecord = periodRecordPool.acquire();
-          for (const key in monitorSnapshot.rsi) {
-            const numKey = Number(key);
-            const value = monitorSnapshot.rsi[numKey];
-            if (value !== undefined) {
-              rsiRecord[numKey] = value;
-            }
-          }
-          newMonitorValues.rsi = rsiRecord;
-        } else {
-          newMonitorValues.rsi = null;
-        }
-
-        // 从对象池获取 psy 对象，复制值
-        if (monitorSnapshot.psy) {
-          const psyRecord = periodRecordPool.acquire();
-          for (const key in monitorSnapshot.psy) {
-            const numKey = Number(key);
-            const value = monitorSnapshot.psy[numKey];
-            if (value !== undefined) {
-              psyRecord[numKey] = value;
-            }
-          }
-          newMonitorValues.psy = psyRecord;
-        } else {
-          newMonitorValues.psy = null;
-        }
+        // 从对象池获取 ema/rsi/psy 对象，复制值
+        newMonitorValues.ema = copyPeriodRecord(periodRecordPool, monitorSnapshot.ema);
+        newMonitorValues.rsi = copyPeriodRecord(periodRecordPool, monitorSnapshot.rsi);
+        newMonitorValues.psy = copyPeriodRecord(periodRecordPool, monitorSnapshot.psy);
 
         newMonitorValues.mfi = monitorSnapshot.mfi;
 

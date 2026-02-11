@@ -6,8 +6,16 @@
  * - 信号生成结果（立即信号、延迟信号）
  * - 策略接口
  */
-
 import type { SignalConfigSet, VerificationConfig, Signal, IndicatorSnapshot, OrderRecorder } from '../../types/index.js';
+
+/** 信号类型分类：立即执行或延迟验证 */
+export type SignalTypeCategory = 'immediate' | 'delayed';
+
+/** 带分类标记的信号（策略内部使用） */
+export type SignalWithCategory = {
+  readonly signal: Signal;
+  readonly isImmediate: boolean;
+};
 
 /**
  * 策略配置

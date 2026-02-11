@@ -7,10 +7,10 @@
  *
  * 记录内容：订单ID、标的、方向、数量、价格、状态、原因、时间戳
  */
-
 import fs from 'node:fs';
 import path from 'node:path';
-import { logger } from '../../utils/logger/index.js';
+import { LOGGING } from '../../constants/index.js';
+import { logger, retainLatestLogFiles } from '../../utils/logger/index.js';
 import { toBeijingTimeIso } from '../../utils/helpers/index.js';
 import { buildTradeLogPath } from './utils.js';
 import type { TradeRecord, ErrorTypeIdentifier } from './types.js';
@@ -52,6 +52,7 @@ export function recordTrade(tradeRecord: TradeRecord): void {
     if (!fs.existsSync(logDir)) {
       fs.mkdirSync(logDir, { recursive: true });
     }
+    retainLatestLogFiles(logDir, LOGGING.MAX_RETAINED_LOG_FILES, 'json');
     const logFile = buildTradeLogPath(process.cwd(), new Date());
 
     let trades: TradeRecord[] = [];
