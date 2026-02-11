@@ -22,7 +22,7 @@ import {
   decimalToNumber,
   formatNumber,
   sleep,
-  toBeijingTimeLog,
+  toHongKongTimeLog,
 } from '../src/utils/helpers/index.js';
 import { isValidNumber } from '../src/utils/helpers/indicatorHelpers.js';
 import type { CandleData, IndicatorSnapshot, Quote } from '../src/types/index.js';
@@ -93,7 +93,7 @@ type MonitorContext = {
  */
 function formatKlineTimePrefix(timestamp: number | null | undefined): string {
   if (timestamp && Number.isFinite(timestamp)) {
-    const timeStr = toBeijingTimeLog(new Date(timestamp));
+    const timeStr = toHongKongTimeLog(new Date(timestamp));
     return `[K线时间: ${timeStr.split(' ')[1]}] `;
   }
   return '';

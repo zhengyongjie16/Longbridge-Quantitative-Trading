@@ -4,14 +4,14 @@
  * 功能：
  * - 标的代码格式校验（ticker.region）
  * - Decimal 类型转换
- * - 时间格式化（北京时区）
+ * - 时间格式化（香港时区）
  * - 数值格式化
  * - 监控状态管理
  *
  * 核心函数：
  * - isSymbolWithRegion()：校验标的代码格式
  * - decimalToNumber() / toDecimal()：LongPort Decimal 类型转换
- * - toBeijingTimeIso() / toBeijingTimeLog()：UTC 到北京时间转换
+ * - toHongKongTimeIso() / toHongKongTimeLog()：UTC 到香港时间转换
  * - formatSymbolDisplay() / formatQuoteDisplay()：格式化显示
  * - formatError()：安全格式化错误对象
  * - isDefined() / isValidPositiveNumber()：类型检查辅助函数
@@ -176,48 +176,48 @@ export function formatSymbolDisplay(symbol: string | null | undefined, symbolNam
   return symbol;
 }
 
-function toBeijingTime(date: Date | null = null, options: TimeFormatOptions = {}): string {
+function toHongKongTime(date: Date | null = null, options: TimeFormatOptions = {}): string {
   const { format = 'iso' } = options;
   const targetDate = date || new Date();
-  // 转换为北京时间（UTC+8）
-  const beijingOffset = TIME.BEIJING_TIMEZONE_OFFSET_MS;
-  const beijingTime = new Date(targetDate.getTime() + beijingOffset);
+  // 转换为香港时间（UTC+8）
+  const hkOffset = TIME.HONG_KONG_TIMEZONE_OFFSET_MS;
+  const hkTime = new Date(targetDate.getTime() + hkOffset);
 
-  // 使用UTC方法获取年月日时分秒，这样得到的就是北京时间
-  const year = beijingTime.getUTCFullYear();
-  const month = String(beijingTime.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(beijingTime.getUTCDate()).padStart(2, '0');
-  const hours = String(beijingTime.getUTCHours()).padStart(2, '0');
-  const minutes = String(beijingTime.getUTCMinutes()).padStart(2, '0');
-  const seconds = String(beijingTime.getUTCSeconds()).padStart(2, '0');
+  // 使用UTC方法获取年月日时分秒，这样得到的就是香港时间
+  const year = hkTime.getUTCFullYear();
+  const month = String(hkTime.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(hkTime.getUTCDate()).padStart(2, '0');
+  const hours = String(hkTime.getUTCHours()).padStart(2, '0');
+  const minutes = String(hkTime.getUTCMinutes()).padStart(2, '0');
+  const seconds = String(hkTime.getUTCSeconds()).padStart(2, '0');
 
   return format === 'log'
     ? // 日志格式：YYYY-MM-DD HH:mm:ss.sss（包含毫秒）
     `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${String(
-      beijingTime.getUTCMilliseconds(),
+      hkTime.getUTCMilliseconds(),
     ).padStart(3, '0')}`
     : // ISO 格式：YYYY/MM/DD/HH:mm:ss（不包含毫秒）
     `${year}/${month}/${day}/${hours}:${minutes}:${seconds}`;
 }
 
 /**
- * 将时间转换为北京时间（UTC+8）的 ISO 格式字符串
+ * 将时间转换为香港时间（UTC+8）的 ISO 格式字符串
  * 格式：YYYY/MM/DD/HH:mm:ss
  * @param date 时间对象，如果为 null 则使用当前时间
- * @returns 北京时间的字符串格式 YYYY/MM/DD/HH:mm:ss
+ * @returns 香港时间的字符串格式 YYYY/MM/DD/HH:mm:ss
  */
-export function toBeijingTimeIso(date: Date | null = null): string {
-  return toBeijingTime(date, { format: 'iso' });
+export function toHongKongTimeIso(date: Date | null = null): string {
+  return toHongKongTime(date, { format: 'iso' });
 }
 
 /**
- * 将时间转换为北京时间（UTC+8）的日志格式字符串
+ * 将时间转换为香港时间（UTC+8）的日志格式字符串
  * 格式：YYYY-MM-DD HH:mm:ss.sss（包含毫秒）
  * @param date 时间对象，如果为 null 则使用当前时间
- * @returns 北京时间的字符串格式 YYYY-MM-DD HH:mm:ss.sss
+ * @returns 香港时间的字符串格式 YYYY-MM-DD HH:mm:ss.sss
  */
-export function toBeijingTimeLog(date: Date | null = null): string {
-  return toBeijingTime(date, { format: 'log' });
+export function toHongKongTimeLog(date: Date | null = null): string {
+  return toHongKongTime(date, { format: 'log' });
 }
 
 /**

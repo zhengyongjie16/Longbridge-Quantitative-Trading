@@ -20,7 +20,7 @@ import {
 } from 'longport';
 import type { PushOrderChanged } from 'longport';
 import { logger } from '../../utils/logger/index.js';
-import { decimalToNumber, toDecimal, formatError, toBeijingTimeIso, isValidPositiveNumber } from '../../utils/helpers/index.js';
+import { decimalToNumber, toDecimal, formatError, toHongKongTimeIso, isValidPositiveNumber } from '../../utils/helpers/index.js';
 import {
   NON_REPLACEABLE_ORDER_STATUSES,
   NON_REPLACEABLE_ORDER_TYPES,
@@ -210,7 +210,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
           trackedOrder.side,
           trackedOrder.isLongSymbol,
         );
-        const executedAt = toBeijingTimeIso(new Date(executedTimeMs));
+        const executedAt = toHongKongTimeIso(new Date(executedTimeMs));
 
         recordTrade({
           orderId: String(orderId),

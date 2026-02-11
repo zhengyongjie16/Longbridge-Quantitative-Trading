@@ -12,7 +12,7 @@ import type {
   DailyLossTracker,
   DailyLossTrackerDeps,
 } from './types.js';
-import { collectOrderOwnershipDiagnostics, resolveBeijingDayKey, sumOrderCost } from './utils.js';
+import { collectOrderOwnershipDiagnostics, resolveHongKongDayKey, sumOrderCost } from './utils.js';
 
 /**
  * 构建空状态，避免分支重复初始化。
@@ -109,7 +109,7 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
    * 跨天时清空所有状态，确保只追踪当日订单。
    */
   function resetIfNewDay(now: Date): void {
-    const nextKey = resolveBeijingDayKey(deps.toBeijingTimeIso, now);
+    const nextKey = resolveHongKongDayKey(deps.toHongKongTimeIso, now);
     if (!nextKey) {
       return;
     }
@@ -127,7 +127,7 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
     monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
     now: Date,
   ): void {
-    const nextKey = resolveBeijingDayKey(deps.toBeijingTimeIso, now);
+    const nextKey = resolveHongKongDayKey(deps.toHongKongTimeIso, now);
     dayKey = nextKey;
     statesByMonitor.clear();
     if (!nextKey) {
@@ -142,7 +142,7 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
       if (!(order.updatedAt instanceof Date)) {
         continue;
       }
-      const orderDayKey = resolveBeijingDayKey(deps.toBeijingTimeIso, order.updatedAt);
+      const orderDayKey = resolveHongKongDayKey(deps.toHongKongTimeIso, order.updatedAt);
       if (!orderDayKey || orderDayKey !== nextKey) {
         continue;
       }
@@ -167,7 +167,7 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
       monitors,
       now,
       resolveOrderOwnership: deps.resolveOrderOwnership,
-      toBeijingTimeIso: deps.toBeijingTimeIso,
+      toHongKongTimeIso: deps.toHongKongTimeIso,
       maxSamples: 3,
     });
     if (diagnostics && diagnostics.unmatchedFilled > 0) {

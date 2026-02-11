@@ -245,7 +245,7 @@ export type DailyLossTrackerDeps = {
   readonly classifyAndConvertOrders: (
     orders: ReadonlyArray<RawOrderFromAPI>,
   ) => { buyOrders: ReadonlyArray<OrderRecord>; sellOrders: ReadonlyArray<OrderRecord> };
-  readonly toBeijingTimeIso: (date: Date | null) => string;
+  readonly toHongKongTimeIso: (date: Date | null) => string;
 };
 
 // ==================== 浮亏监控器 ====================

@@ -8,16 +8,16 @@ import type { OrderOwnership } from '../orderRecorder/types.js';
 import type { OrderOwnershipDiagnostics, OrderOwnershipDiagnosticSample } from './types.js';
 
 /**
- * 生成北京时间日键（YYYY/MM/DD），用于筛选当日订单。
+ * 生成香港时间日键（YYYY/MM/DD），用于筛选当日订单。
  */
-export function resolveBeijingDayKey(
-  toBeijingTimeIso: (date: Date | null) => string,
+export function resolveHongKongDayKey(
+  toHongKongTimeIso: (date: Date | null) => string,
   date: Date,
 ): string | null {
   if (!Number.isFinite(date.getTime())) {
     return null;
   }
-  const iso = toBeijingTimeIso(date);
+  const iso = toHongKongTimeIso(date);
   const parts = iso.split('/');
   if (parts.length < 3) {
     return null;
@@ -45,7 +45,7 @@ export function collectOrderOwnershipDiagnostics({
   monitors,
   now,
   resolveOrderOwnership,
-  toBeijingTimeIso,
+  toHongKongTimeIso,
   maxSamples = 3,
 }: {
   readonly orders: ReadonlyArray<RawOrderFromAPI>;
@@ -55,10 +55,10 @@ export function collectOrderOwnershipDiagnostics({
     order: RawOrderFromAPI,
     monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
   ) => OrderOwnership | null;
-  readonly toBeijingTimeIso: (date: Date | null) => string;
+  readonly toHongKongTimeIso: (date: Date | null) => string;
   readonly maxSamples?: number;
 }): OrderOwnershipDiagnostics | null {
-  const dayKey = resolveBeijingDayKey(toBeijingTimeIso, now);
+  const dayKey = resolveHongKongDayKey(toHongKongTimeIso, now);
   if (!dayKey) {
     return null;
   }
@@ -79,7 +79,7 @@ export function collectOrderOwnershipDiagnostics({
     if (!(order.updatedAt instanceof Date)) {
       continue;
     }
-    const orderDayKey = resolveBeijingDayKey(toBeijingTimeIso, order.updatedAt);
+    const orderDayKey = resolveHongKongDayKey(toHongKongTimeIso, order.updatedAt);
     if (!orderDayKey || orderDayKey !== dayKey) {
       continue;
     }

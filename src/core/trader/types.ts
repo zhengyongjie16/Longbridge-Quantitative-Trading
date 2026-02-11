@@ -84,13 +84,13 @@ export type TradeRecord = {
   readonly error: string | null;
   /** 信号原因 */
   readonly reason: string | null;
-  /** 信号触发时间（北京时间字符串） */
+  /** 信号触发时间（香港时间字符串） */
   readonly signalTriggerTime: string | null;
-  /** 成交时间（北京时间字符串） */
+  /** 成交时间（香港时间字符串） */
   readonly executedAt: string | null;
   /** 成交时间（毫秒时间戳） */
   readonly executedAtMs: number | null;
-  /** 日志记录时间（北京时间字符串） */
+  /** 日志记录时间（香港时间字符串） */
   readonly timestamp: string | null;
   /** 是否为保护性清仓（浮亏超阈值触发） */
   readonly isProtectiveClearance: boolean | null;

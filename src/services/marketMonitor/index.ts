@@ -18,7 +18,7 @@ import { colors, logger } from '../../utils/logger/index.js';
 import {
   formatQuoteDisplay,
   isValidPositiveNumber,
-  toBeijingTimeLog,
+  toHongKongTimeLog,
 } from '../../utils/helpers/index.js';
 import { isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
 import { copyPeriodRecord, formatWarrantDistanceDisplay, hasChanged } from './utils.js';
@@ -51,7 +51,7 @@ export const createMarketMonitor = (): MarketMonitor => {
   const formatKlineTimePrefix = (timestamp: number | null | undefined): string => {
     // 保持与原实现一致：timestamp 为 0 时不显示
     if (timestamp && Number.isFinite(timestamp)) {
-      const timeStr = toBeijingTimeLog(new Date(timestamp));
+      const timeStr = toHongKongTimeLog(new Date(timestamp));
       return `[K线时间: ${timeStr.split(' ')[1]}] `;
     }
     return '';

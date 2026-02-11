@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { LOGGING } from '../../constants/index.js';
 import { logger, retainLatestLogFiles } from '../../utils/logger/index.js';
-import { toBeijingTimeIso } from '../../utils/helpers/index.js';
+import { toHongKongTimeIso } from '../../utils/helpers/index.js';
 import { buildTradeLogPath } from './utils.js';
 import type { TradeRecord, ErrorTypeIdentifier } from './types.js';
 
@@ -97,7 +97,7 @@ export function recordTrade(tradeRecord: TradeRecord): void {
       signalTriggerTime,
       executedAt,
       executedAtMs,
-      timestamp: toBeijingTimeIso(),
+      timestamp: toHongKongTimeIso(),
       isProtectiveClearance: tradeRecord.isProtectiveClearance ?? null,
     };
 

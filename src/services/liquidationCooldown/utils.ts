@@ -43,7 +43,7 @@ export function resolveHongKongTimeMs({
   if (!Number.isFinite(baseTimestampMs)) {
     return null;
   }
-  const offsetMs = TIME.BEIJING_TIMEZONE_OFFSET_MS;
+  const offsetMs = TIME.HONG_KONG_TIMEZONE_OFFSET_MS;
   const hkDate = new Date(baseTimestampMs + offsetMs);
   const year = hkDate.getUTCFullYear();
   const month = hkDate.getUTCMonth();

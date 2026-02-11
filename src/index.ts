@@ -39,7 +39,7 @@ import {
   initMonitorState,
   isSellAction,
   sleep,
-  toBeijingTimeIso,
+  toHongKongTimeIso,
 } from './utils/helpers/index.js';
 import { collectRuntimeQuoteSymbols } from './utils/helpers/quoteHelpers.js';
 import { AUTO_SYMBOL_WARRANT_LIST_CACHE_TTL_MS, TRADING } from './constants/index.js';
@@ -201,7 +201,7 @@ async function main(): Promise<void> {
     filteringEngine: dailyLossFilteringEngine,
     resolveOrderOwnership,
     classifyAndConvertOrders,
-    toBeijingTimeIso,
+    toHongKongTimeIso,
   });
 
   // 刷新门控：控制刷新节奏，避免频繁重算

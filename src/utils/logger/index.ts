@@ -18,7 +18,7 @@
  * - 进程信号处理和异常捕获
  */
 import pino from 'pino';
-import { toBeijingTimeLog } from '../helpers/index.js';
+import { toHongKongTimeLog } from '../helpers/index.js';
 import { IS_DEBUG, LOGGING, LOG_LEVELS } from '../../constants/index.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -114,10 +114,10 @@ class DateRotatingStream extends Writable {
   }
 
   /**
-   * 获取当前北京时间日期字符串 (YYYY-MM-DD)
+   * 获取当前香港时间日期字符串 (YYYY-MM-DD)
    */
   private _getCurrentDate(): string {
-    const timestamp = toBeijingTimeLog(new Date());
+    const timestamp = toHongKongTimeLog(new Date());
     // 从 "YYYY-MM-DD HH:mm:ss.sss" 提取日期部分
     const datePart = timestamp.split(' ').at(0);
     return datePart ?? '';
@@ -316,7 +316,7 @@ function stripAnsiCodes(str: string): string {
  */
 function formatForFile(obj: LogObject): string {
   const level = obj.level;
-  const timestamp = toBeijingTimeLog(new Date(obj.time));
+  const timestamp = toHongKongTimeLog(new Date(obj.time));
 
   // 将数字 level 转换为文本
   const levelMap: Record<number, string> = {
@@ -350,7 +350,7 @@ function formatForFile(obj: LogObject): string {
  */
 function formatForConsole(obj: LogObject): string {
   const level = obj.level;
-  const timestamp = toBeijingTimeLog(new Date(obj.time));
+  const timestamp = toHongKongTimeLog(new Date(obj.time));
 
   // 将数字 level 转换为文本和颜色
   const levelConfig: Record<number, { name: string; color: string }> = {

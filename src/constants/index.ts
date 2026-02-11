@@ -18,8 +18,8 @@ import type { OrderTypeConfig, SignalType } from '../types/index.js';
 export const TIME = {
   /** 每秒的毫秒数 */
   MILLISECONDS_PER_SECOND: 1000,
-  /** 北京时区偏移量（毫秒），用于 UTC 转北京时间 */
-  BEIJING_TIMEZONE_OFFSET_MS: 8 * 60 * 60 * 1000,
+  /** 香港时区偏移量（毫秒），用于 UTC 转香港时间 */
+  HONG_KONG_TIMEZONE_OFFSET_MS: 8 * 60 * 60 * 1000,
 } as const;
 
 /** 交易相关常量 */
