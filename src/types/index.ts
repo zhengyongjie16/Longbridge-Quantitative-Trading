@@ -612,7 +612,7 @@ export type MonitorState = {
   readonly monitorSymbol: string;
   /**
    * 运行中持续更新的状态字段（性能考虑保持可变）
-   * - monitorPrice/longPrice/shortPrice/signal/pendingDelayedSignals/monitorValues/lastMonitorSnapshot
+   * - monitorPrice/longPrice/shortPrice/signal/pendingDelayedSignals/monitorValues/lastMonitorSnapshot/lastCandleFingerprint
    */
   /** 监控标的当前价格 */
   monitorPrice: number | null;
@@ -628,6 +628,8 @@ export type MonitorState = {
   monitorValues: MonitorValues | null;
   /** 最新指标快照 */
   lastMonitorSnapshot: IndicatorSnapshot | null;
+  /** K 线指纹（length_lastClose），用于 pipeline 层 K 线未变时复用快照 */
+  lastCandleFingerprint: string | null;
 };
 
 /**

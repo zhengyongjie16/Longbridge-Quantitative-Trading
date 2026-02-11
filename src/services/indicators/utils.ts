@@ -3,13 +3,39 @@
  *
  * 功能：
  * - K 线数据类型转换（toNumber）
+ * - K 线指纹（getCandleFingerprint）供 pipeline 判断是否复用快照
  * - 调试日志输出（logDebug）
  * - 对象池类型验证（isValidKDJ、isValidMACD）
  */
 import { IS_DEBUG } from '../../constants/index.js';
+import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { logger } from '../../utils/logger/index.js';
-import type { CandleValue } from '../../types/index.js';
+import type { CandleData, CandleValue } from '../../types/index.js';
 import type { PoolableKDJ, PoolableMACD } from '../../utils/objectPool/types.js';
+
+/** K 线数据指纹：length_lastClose，用于检测数据是否变化 */
+function buildDataFingerprint(
+  candles: ReadonlyArray<CandleData>,
+  lastClose: number,
+): string {
+  return `${candles.length}_${lastClose}`;
+}
+
+/**
+ * 从 K 线计算指纹，供 pipeline 判断是否可复用上一拍快照。
+ * 仅当最后一根收盘价有效时返回非 null。
+ */
+export function getCandleFingerprint(candles: ReadonlyArray<CandleData>): string | null {
+  if (!candles || candles.length === 0) {
+    return null;
+  }
+  const lastCandle = candles.at(-1);
+  const lastClose = lastCandle ? toNumber(lastCandle.close) : 0;
+  if (!isValidPositiveNumber(lastClose)) {
+    return null;
+  }
+  return buildDataFingerprint(candles, lastClose);
+}
 
 /**
  * 将 K 线数据值转换为数字

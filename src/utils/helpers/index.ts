@@ -403,6 +403,7 @@ export function initMonitorState(config: MonitorConfig): MonitorState {
     pendingDelayedSignals: [],
     monitorValues: null,
     lastMonitorSnapshot: null,
+    lastCandleFingerprint: null,
   };
 }
 

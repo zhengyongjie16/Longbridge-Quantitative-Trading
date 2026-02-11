@@ -19,6 +19,7 @@
  * @returns 构建的指标快照，失败时返回 null
  */
 import { buildIndicatorSnapshot } from '../../services/indicators/index.js';
+import { getCandleFingerprint } from '../../services/indicators/utils.js';
 import { logger } from '../../utils/logger/index.js';
 import { formatSymbolDisplay, releaseSnapshotObjects } from '../../utils/helpers/index.js';
 import { TRADING } from '../../constants/index.js';
@@ -43,9 +44,30 @@ export async function runIndicatorPipeline(
     return null;
   }
 
+  const candles = monitorCandles as CandleData[];
+  const fingerprint = getCandleFingerprint(candles);
+
+  if (
+    fingerprint !== null &&
+    fingerprint === state.lastCandleFingerprint &&
+    state.lastMonitorSnapshot !== null
+  ) {
+    indicatorCache.push(monitorSymbol, state.lastMonitorSnapshot);
+    marketMonitor.monitorIndicatorChanges(
+      state.lastMonitorSnapshot,
+      monitorQuote,
+      monitorSymbol,
+      emaPeriods,
+      rsiPeriods,
+      psyPeriods,
+      state,
+    );
+    return state.lastMonitorSnapshot;
+  }
+
   const monitorSnapshot = buildIndicatorSnapshot(
     monitorSymbol,
-    monitorCandles as CandleData[],
+    candles,
     rsiPeriods,
     emaPeriods,
     psyPeriods,
@@ -74,6 +96,9 @@ export async function runIndicatorPipeline(
     releaseSnapshotObjects(state.lastMonitorSnapshot, state.monitorValues);
   }
   state.lastMonitorSnapshot = monitorSnapshot;
+  if (fingerprint !== null) {
+    state.lastCandleFingerprint = fingerprint;
+  }
 
   return monitorSnapshot;
 }
