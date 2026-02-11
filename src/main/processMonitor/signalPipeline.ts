@@ -90,12 +90,12 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
       }
     }
 
-    function resolveSeatForSignal(signal: Signal): {
+    function resolveSeatForSignal(signal: Signal): Readonly<{
       seatSymbol: string;
       seatVersion: number;
       quote: Quote | null;
       isBuySignal: boolean;
-    } | null {
+    }> | null {
       const isBuySignal = isBuyAction(signal.action);
       const isLongSignal = signal.action === 'BUYCALL' || signal.action === 'SELLCALL';
       const seatState = isLongSignal ? longSeatState : shortSeatState;

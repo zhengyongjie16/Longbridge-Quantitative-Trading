@@ -323,7 +323,7 @@ export type SellMergeDecision = {
 /**
  * 订单监控配置
  */
-export interface OrderMonitorConfig {
+export type OrderMonitorConfig = {
   readonly buyTimeout: {
     readonly enabled: boolean;
     readonly timeoutMs: number;
@@ -336,7 +336,7 @@ export interface OrderMonitorConfig {
   readonly priceUpdateIntervalMs: number;
   /** 价格差异阈值（低于此值不触发修改） */
   readonly priceDiffThreshold: number;
-}
+};
 
 /**
  * 订单订阅保留集管理器

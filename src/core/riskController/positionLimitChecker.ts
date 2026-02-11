@@ -9,17 +9,17 @@
 import type { Position, Signal, RiskCheckResult } from '../../types/index.js';
 import type { PositionLimitChecker, PositionLimitCheckerDeps } from './types.js';
 
+/** 根据标的代码查找持仓 */
+function findPosition(
+  positions: ReadonlyArray<Position> | null,
+  symbol: string,
+): Position | undefined {
+  return positions?.find((p) => p.symbol === symbol);
+}
+
 /** 创建持仓市值限制检查器 */
 export const createPositionLimitChecker = (deps: PositionLimitCheckerDeps): PositionLimitChecker => {
   const maxPositionNotional = deps.maxPositionNotional;
-
-  /** 根据标的代码查找持仓 */
-  const findPosition = (
-    positions: ReadonlyArray<Position> | null,
-    symbol: string,
-  ): Position | undefined => {
-    return positions?.find((p) => p.symbol === symbol);
-  };
 
   /** 仅检查下单金额是否超限（无持仓时使用） */
   const checkOrderNotionalOnly = (orderNotional: number): RiskCheckResult => {
@@ -85,7 +85,7 @@ export const createPositionLimitChecker = (deps: PositionLimitCheckerDeps): Posi
   /** 检查单标的最大持仓市值限制 */
   const checkLimit = (
     signal: Signal,
-    positions: Position[] | null,
+    positions: ReadonlyArray<Position> | null,
     orderNotional: number,
     currentPrice: number | null,
   ): RiskCheckResult => {

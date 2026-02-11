@@ -19,11 +19,33 @@ import type {
   OrderAPIManagerDeps,
 } from './types.js';
 
-/**
- * 创建订单API管理器
- * @param deps 依赖注入
- * @returns OrderAPIManager 接口实例
- */
+/** 合并历史订单和今日订单，按 orderId 去重 */
+function mergeAndDeduplicateOrders(
+  historyOrders: ReadonlyArray<RawOrderFromAPI>,
+  todayOrders: ReadonlyArray<RawOrderFromAPI>,
+): RawOrderFromAPI[] {
+  const orderIdSet = new Set<string>();
+  const allOrders: RawOrderFromAPI[] = [];
+
+  // 先添加历史订单
+  for (const order of historyOrders) {
+    if (!orderIdSet.has(order.orderId)) {
+      orderIdSet.add(order.orderId);
+      allOrders.push(order);
+    }
+  }
+
+  // 再添加今日订单（去重）
+  for (const order of todayOrders) {
+    if (!orderIdSet.has(order.orderId)) {
+      orderIdSet.add(order.orderId);
+      allOrders.push(order);
+    }
+  }
+
+  return allOrders;
+}
+
 export function createOrderAPIManager(deps: OrderAPIManagerDeps): OrderAPIManager {
   const { ctxPromise, rateLimiter } = deps;
 
@@ -44,33 +66,6 @@ export function createOrderAPIManager(deps: OrderAPIManagerDeps): OrderAPIManage
       allOrders,
       fetchTime: Date.now(),
     });
-  }
-
-  /** 合并历史订单和今日订单，按 orderId 去重 */
-  function mergeAndDeduplicateOrders(
-    historyOrders: RawOrderFromAPI[],
-    todayOrders: RawOrderFromAPI[],
-  ): RawOrderFromAPI[] {
-    const orderIdSet = new Set<string>();
-    const allOrders: RawOrderFromAPI[] = [];
-
-    // 先添加历史订单
-    for (const order of historyOrders) {
-      if (!orderIdSet.has(order.orderId)) {
-        orderIdSet.add(order.orderId);
-        allOrders.push(order);
-      }
-    }
-
-    // 再添加今日订单（去重）
-    for (const order of todayOrders) {
-      if (!orderIdSet.has(order.orderId)) {
-        orderIdSet.add(order.orderId);
-        allOrders.push(order);
-      }
-    }
-
-    return allOrders;
   }
 
   /** 使用外部订单列表刷新指定标的缓存 */
@@ -119,7 +114,7 @@ export function createOrderAPIManager(deps: OrderAPIManagerDeps): OrderAPIManage
   }
 
   /** 检查指定标的列表是否都有缓存（包含原始订单数据） */
-  function hasCacheForSymbols(symbols: string[]): boolean {
+  function hasCacheForSymbols(symbols: ReadonlyArray<string>): boolean {
     if (symbols.length === 0) {
       return false;
     }
@@ -131,7 +126,7 @@ export function createOrderAPIManager(deps: OrderAPIManagerDeps): OrderAPIManage
   }
 
   /** 从缓存中提取未成交订单，用于启动时避免重复调用 todayOrders API */
-  function getPendingOrdersFromCache(symbols: string[]): PendingOrder[] {
+  function getPendingOrdersFromCache(symbols: ReadonlyArray<string>): PendingOrder[] {
     // 使用模块级常量 PENDING_ORDER_STATUSES，避免每次调用创建新 Set
     const result: PendingOrder[] = [];
 

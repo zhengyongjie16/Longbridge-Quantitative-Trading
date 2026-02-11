@@ -224,7 +224,6 @@ export async function mainProgram({
   }
 
   // 收集所有需要获取行情的标的，一次性批量获取（减少 API 调用次数）
-  // getQuotes 接口已支持 Iterable，无需 Array.from() 转换
   const orderHoldSymbols = trader.getOrderHoldSymbols();
   const desiredSymbols = collectRuntimeQuoteSymbols(
     tradingConfig.monitors,
@@ -279,7 +278,6 @@ export async function mainProgram({
   };
 
   // 并发处理所有监控标的（使用预先获取的行情数据）
-  // 使用 for...of 直接迭代 Map，避免 Array.from() 创建中间数组
   const monitorTasks: Promise<void>[] = [];
   for (const [monitorSymbol, monitorContext] of monitorContexts) {
     monitorTasks.push(

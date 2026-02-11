@@ -22,7 +22,7 @@ function resolveAutoSearchThresholds(
     readonly autoSearchMinTurnoverPerMinuteBull: number | null;
     readonly autoSearchMinTurnoverPerMinuteBear: number | null;
   },
-): { minDistancePct: number | null; minTurnoverPerMinute: number | null } {
+): Readonly<{ minDistancePct: number | null; minTurnoverPerMinute: number | null }> {
   if (direction === 'LONG') {
     return {
       minDistancePct: autoSearchConfig.autoSearchMinDistancePctBull,

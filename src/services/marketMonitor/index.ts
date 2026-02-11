@@ -39,197 +39,175 @@ import type {
 import { MarketMonitor } from './types.js';
 
 /**
+ * 格式化K线时间戳为日志前缀（仅显示时分秒）
+ * @param timestamp 时间戳（毫秒），为 0 或 falsy 时不显示
+ * @returns 格式化的时间前缀字符串，如 "[K线时间: 10:30:15] " 或空字符串
+ */
+function formatKlineTimePrefix(timestamp: number | null | undefined): string {
+  if (timestamp && Number.isFinite(timestamp)) {
+    const timeStr = toHongKongTimeLog(new Date(timestamp));
+    return `[K线时间: ${timeStr.split(' ')[1]}] `;
+  }
+  return '';
+}
+
+/** 添加周期指标到显示列表 */
+function addPeriodIndicators(
+  indicators: string[],
+  indicatorData: Record<number, number> | null | undefined,
+  periods: ReadonlyArray<number>,
+  indicatorName: string,
+  decimals: number = 3,
+): void {
+  if (!indicatorData) return;
+
+  for (const period of periods) {
+    const value = indicatorData[period];
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      indicators.push(`${indicatorName}${period}=${value.toFixed(decimals)}`);
+    }
+  }
+}
+
+/** 显示标的行情信息 */
+function displayQuoteInfo(
+  quote: Quote | null,
+  symbol: string,
+  label: string,
+  warrantDistanceInfo: WarrantDistanceInfo | null,
+): void {
+  const display = formatQuoteDisplay(quote, symbol);
+  if (display) {
+    const timePrefix = formatKlineTimePrefix(quote?.timestamp);
+    const distanceText = formatWarrantDistanceDisplay(warrantDistanceInfo);
+    const distanceSuffix = distanceText ? ` ${distanceText}` : '';
+    logger.info(
+      `${timePrefix}[${label}] ${display.nameText}(${display.codeText}) 最新价格=${display.priceText} 涨跌额=${display.changeAmountText} 涨跌幅度=${display.changePercentText}${distanceSuffix}`,
+    );
+  } else {
+    logger.warn(`未获取到${label}行情。`);
+  }
+}
+
+/** 释放旧的监控值对象及其嵌套对象 */
+function releaseMonitorValuesObjects(monitorValues: MonitorValues | null): void {
+  if (!monitorValues) return;
+
+  if (monitorValues.ema) {
+    periodRecordPool.release(monitorValues.ema);
+  }
+  if (monitorValues.rsi) {
+    periodRecordPool.release(monitorValues.rsi);
+  }
+  if (monitorValues.psy) {
+    periodRecordPool.release(monitorValues.psy);
+  }
+  if (monitorValues.kdj) {
+    kdjObjectPool.release(monitorValues.kdj);
+  }
+  if (monitorValues.macd) {
+    macdObjectPool.release(monitorValues.macd);
+  }
+  monitorValuesObjectPool.release(monitorValues);
+}
+
+/** 格式化指标值 */
+function formatIndicator(value: number | null | undefined, decimals: number = 2): string {
+  if (isValidNumber(value)) {
+    return value.toFixed(decimals);
+  }
+  return '-';
+}
+
+/** 显示监控标的的所有指标 */
+function displayIndicators(params: {
+  readonly monitorSnapshot: IndicatorSnapshot;
+  readonly monitorQuote: Quote | null;
+  readonly monitorSymbol: string;
+  readonly currentPrice: number;
+  readonly changePercent: number | null;
+  readonly emaPeriods: ReadonlyArray<number>;
+  readonly rsiPeriods: ReadonlyArray<number>;
+  readonly psyPeriods: ReadonlyArray<number>;
+  readonly klineTimestamp: number | null;
+}): void {
+  const { monitorSnapshot, monitorQuote, monitorSymbol, currentPrice, changePercent, emaPeriods, rsiPeriods, psyPeriods, klineTimestamp } = params;
+
+  // 构建指标显示字符串（按照指定顺序：最新价、涨跌幅、EMAn、RSIn、MFI、PSY、K、D、J、MACD、DIF、DEA）
+  const indicators: string[] = [];
+
+  // 1. 最新价
+  if (Number.isFinite(currentPrice)) {
+    indicators.push(`价格=${currentPrice.toFixed(3)}`);
+  }
+
+  // 2. 涨跌幅（基于上日收盘价）
+  if (changePercent !== null) {
+    const sign = changePercent >= 0 ? '+' : '';
+    indicators.push(`涨跌幅=${sign}${changePercent.toFixed(2)}%`);
+  }
+
+  // 3. EMAn（所有配置的EMA周期）
+  addPeriodIndicators(indicators, monitorSnapshot.ema, emaPeriods, 'EMA', 3);
+
+  // 4. RSIn（所有配置的RSI周期）
+  addPeriodIndicators(indicators, monitorSnapshot.rsi, rsiPeriods, 'RSI', 3);
+
+  // 5. MFI
+  if (Number.isFinite(monitorSnapshot.mfi)) {
+    indicators.push(`MFI=${formatIndicator(monitorSnapshot.mfi, 3)}`);
+  }
+
+  // 6. PSY（所有配置的PSY周期）
+  addPeriodIndicators(indicators, monitorSnapshot.psy, psyPeriods, 'PSY', 3);
+
+  // 7. KDJ（K、D、J三个值）
+  if (monitorSnapshot.kdj) {
+    const kdj = monitorSnapshot.kdj;
+    if (Number.isFinite(kdj.k)) {
+      indicators.push(`K=${formatIndicator(kdj.k, 3)}`);
+    }
+    if (Number.isFinite(kdj.d)) {
+      indicators.push(`D=${formatIndicator(kdj.d, 3)}`);
+    }
+    if (Number.isFinite(kdj.j)) {
+      indicators.push(`J=${formatIndicator(kdj.j, 3)}`);
+    }
+  }
+
+  // 8. MACD（MACD、DIF、DEA三个值）
+  if (monitorSnapshot.macd) {
+    const macd = monitorSnapshot.macd;
+    if (Number.isFinite(macd.macd)) {
+      indicators.push(
+        `MACD=${formatIndicator(macd.macd, 3)}`,
+      );
+    }
+    if (Number.isFinite(macd.dif)) {
+      indicators.push(`DIF=${formatIndicator(macd.dif, 3)}`);
+    }
+    if (Number.isFinite(macd.dea)) {
+      indicators.push(`DEA=${formatIndicator(macd.dea, 3)}`);
+    }
+  }
+
+  const monitorSymbolName = monitorQuote?.name ?? monitorSymbol;
+
+  // 格式化K线时间戳（仅显示时分秒）
+  const timePrefix = formatKlineTimePrefix(klineTimestamp);
+
+  logger.info(
+    `${colors.cyan}${timePrefix}[监控标的] ${monitorSymbolName}(${monitorSymbol}) ${indicators.join(
+      ' ',
+    )}${colors.reset}`,
+  );
+}
+
+/**
  * 创建行情监控器
  * 监控做多/做空标的价格变化、监控标的指标变化，并格式化显示
  */
 export const createMarketMonitor = (): MarketMonitor => {
-  /**
-   * 格式化K线时间戳为日志前缀（仅显示时分秒）
-   * @param timestamp 时间戳（毫秒）
-   * @returns 格式化的时间前缀字符串，如 "[K线时间: 10:30:15] " 或空字符串
-   */
-  const formatKlineTimePrefix = (timestamp: number | null | undefined): string => {
-    // 保持与原实现一致：timestamp 为 0 时不显示
-    if (timestamp && Number.isFinite(timestamp)) {
-      const timeStr = toHongKongTimeLog(new Date(timestamp));
-      return `[K线时间: ${timeStr.split(' ')[1]}] `;
-    }
-    return '';
-  };
-
-  /**
-   * 显示标的行情信息
-   * @param quote 行情数据
-   * @param symbol 标的代码
-   * @param label 标的类型标签（如 "做多标的"、"做空标的"）
-   */
-  const displayQuoteInfo = (
-    quote: Quote | null,
-    symbol: string,
-    label: string,
-    warrantDistanceInfo: WarrantDistanceInfo | null,
-  ): void => {
-    const display = formatQuoteDisplay(quote, symbol);
-    if (display) {
-      const timePrefix = formatKlineTimePrefix(quote?.timestamp);
-      const distanceText = formatWarrantDistanceDisplay(warrantDistanceInfo);
-      const distanceSuffix = distanceText ? ` ${distanceText}` : '';
-      logger.info(
-        `${timePrefix}[${label}] ${display.nameText}(${display.codeText}) 最新价格=${display.priceText} 涨跌额=${display.changeAmountText} 涨跌幅度=${display.changePercentText}${distanceSuffix}`,
-      );
-    } else {
-      logger.warn(`未获取到${label}行情。`);
-    }
-  };
-
-  /**
-   * 添加周期指标到显示列表
-   * @param indicators 显示列表
-   * @param indicatorData 指标数据（如 ema 或 rsi）
-   * @param periods 周期数组
-   * @param indicatorName 指标名称（如 "EMA"、"RSI"）
-   * @param decimals 小数位数
-   */
-  const addPeriodIndicators = (
-    indicators: string[],
-    indicatorData: Record<number, number> | null | undefined,
-    periods: ReadonlyArray<number>,
-    indicatorName: string,
-    decimals: number = 3,
-  ): void => {
-    if (!indicatorData) return;
-
-    for (const period of periods) {
-      const value = indicatorData[period];
-      if (typeof value === 'number' && Number.isFinite(value)) {
-        indicators.push(`${indicatorName}${period}=${value.toFixed(decimals)}`);
-      }
-    }
-  };
-
-  /**
-   * 释放旧的监控值对象及其嵌套对象
-   * @param monitorValues 旧的监控值对象
-   */
-  const releaseMonitorValuesObjects = (monitorValues: MonitorValues | null): void => {
-    if (!monitorValues) return;
-
-    // 释放嵌套的 ema 对象到对象池
-    if (monitorValues.ema) {
-      periodRecordPool.release(monitorValues.ema);
-    }
-    // 释放嵌套的 rsi 对象到对象池
-    if (monitorValues.rsi) {
-      periodRecordPool.release(monitorValues.rsi);
-    }
-    // 释放嵌套的 psy 对象到对象池
-    if (monitorValues.psy) {
-      periodRecordPool.release(monitorValues.psy);
-    }
-    // 释放嵌套的 kdj 对象到对象池
-    if (monitorValues.kdj) {
-      kdjObjectPool.release(monitorValues.kdj);
-    }
-    // 释放嵌套的 macd 对象到对象池
-    if (monitorValues.macd) {
-      macdObjectPool.release(monitorValues.macd);
-    }
-    // 释放 monitorValues 对象本身
-    monitorValuesObjectPool.release(monitorValues);
-  };
-
-  /**
-   * 显示监控标的的所有指标（内部辅助函数）
-   */
-  const displayIndicators = (
-    monitorSnapshot: IndicatorSnapshot,
-    monitorQuote: Quote | null,
-    monitorSymbol: string,
-    currentPrice: number,
-    changePercent: number | null,
-    emaPeriods: ReadonlyArray<number>,
-    rsiPeriods: ReadonlyArray<number>,
-    psyPeriods: ReadonlyArray<number>,
-    klineTimestamp: number | null,
-  ): void => {
-    // 格式化指标值
-    const formatIndicator = (value: number | null | undefined, decimals: number = 2): string => {
-      if (isValidNumber(value)) {
-        return value.toFixed(decimals);
-      }
-      return '-';
-    };
-
-    // 构建指标显示字符串（按照指定顺序：最新价、涨跌幅、EMAn、RSIn、MFI、PSY、K、D、J、MACD、DIF、DEA）
-    const indicators: string[] = [];
-
-    // 1. 最新价
-    if (Number.isFinite(currentPrice)) {
-      indicators.push(`价格=${currentPrice.toFixed(3)}`);
-    }
-
-    // 2. 涨跌幅（基于上日收盘价）
-    if (changePercent !== null) {
-      const sign = changePercent >= 0 ? '+' : '';
-      indicators.push(`涨跌幅=${sign}${changePercent.toFixed(2)}%`);
-    }
-
-    // 3. EMAn（所有配置的EMA周期）
-    addPeriodIndicators(indicators, monitorSnapshot.ema, emaPeriods, 'EMA', 3);
-
-    // 4. RSIn（所有配置的RSI周期）
-    addPeriodIndicators(indicators, monitorSnapshot.rsi, rsiPeriods, 'RSI', 3);
-
-    // 5. MFI
-    if (Number.isFinite(monitorSnapshot.mfi)) {
-      indicators.push(`MFI=${formatIndicator(monitorSnapshot.mfi, 3)}`);
-    }
-
-    // 6. PSY（所有配置的PSY周期）
-    addPeriodIndicators(indicators, monitorSnapshot.psy, psyPeriods, 'PSY', 3);
-
-    // 7. KDJ（K、D、J三个值）
-    if (monitorSnapshot.kdj) {
-      const kdj = monitorSnapshot.kdj;
-      if (Number.isFinite(kdj.k)) {
-        indicators.push(`K=${formatIndicator(kdj.k, 3)}`);
-      }
-      if (Number.isFinite(kdj.d)) {
-        indicators.push(`D=${formatIndicator(kdj.d, 3)}`);
-      }
-      if (Number.isFinite(kdj.j)) {
-        indicators.push(`J=${formatIndicator(kdj.j, 3)}`);
-      }
-    }
-
-    // 8. MACD（MACD、DIF、DEA三个值）
-    if (monitorSnapshot.macd) {
-      const macd = monitorSnapshot.macd;
-      if (Number.isFinite(macd.macd)) {
-        indicators.push(
-          `MACD=${formatIndicator(macd.macd, 3)}`,
-        );
-      }
-      if (Number.isFinite(macd.dif)) {
-        indicators.push(`DIF=${formatIndicator(macd.dif, 3)}`);
-      }
-      if (Number.isFinite(macd.dea)) {
-        indicators.push(`DEA=${formatIndicator(macd.dea, 3)}`);
-      }
-    }
-
-    const monitorSymbolName = monitorQuote?.name ?? monitorSymbol;
-
-    // 格式化K线时间戳（仅显示时分秒）
-    const timePrefix = formatKlineTimePrefix(klineTimestamp);
-
-    logger.info(
-      `${colors.cyan}${timePrefix}[监控标的] ${monitorSymbolName}(${monitorSymbol}) ${indicators.join(
-        ' ',
-      )}${colors.reset}`,
-    );
-  };
-
   return {
     monitorPriceChanges: (
       longQuote: Quote | null,
@@ -407,7 +385,7 @@ export const createMarketMonitor = (): MarketMonitor => {
 
       // 如果任何指标发生变化，则显示所有指标
       if (hasIndicatorChanged) {
-        displayIndicators(
+        displayIndicators({
           monitorSnapshot,
           monitorQuote,
           monitorSymbol,
@@ -416,8 +394,8 @@ export const createMarketMonitor = (): MarketMonitor => {
           emaPeriods,
           rsiPeriods,
           psyPeriods,
-          monitorQuote?.timestamp ?? null,
-        );
+          klineTimestamp: monitorQuote?.timestamp ?? null,
+        });
 
         releaseMonitorValuesObjects(monitorState.monitorValues);
 

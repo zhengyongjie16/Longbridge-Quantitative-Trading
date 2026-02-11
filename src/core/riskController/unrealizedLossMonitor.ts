@@ -33,17 +33,18 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
   const maxUnrealizedLossPerSymbol = deps.maxUnrealizedLossPerSymbol;
 
   /** 检查浮亏并执行保护性清仓 */
-  const checkAndLiquidate = async (
-    symbol: string,
-    currentPrice: number,
-    isLong: boolean,
-    monitorSymbol: string,
-    riskChecker: RiskChecker,
-    trader: Trader,
-    orderRecorder: OrderRecorder,
-    dailyLossTracker: DailyLossTracker,
-    quote?: Quote | null,
-  ): Promise<boolean> => {
+  const checkAndLiquidate = async (params: {
+    readonly symbol: string;
+    readonly currentPrice: number;
+    readonly isLong: boolean;
+    readonly monitorSymbol: string;
+    readonly riskChecker: RiskChecker;
+    readonly trader: Trader;
+    readonly orderRecorder: OrderRecorder;
+    readonly dailyLossTracker: DailyLossTracker;
+    readonly quote?: Quote | null;
+  }): Promise<boolean> => {
+    const { symbol, currentPrice, isLong, monitorSymbol, riskChecker, trader, orderRecorder, dailyLossTracker, quote } = params;
     // 如果未启用浮亏监控，直接返回
     if (maxUnrealizedLossPerSymbol <= 0) {
       return false;
@@ -146,9 +147,9 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
       }
       const price = quote.price;
       if (isValidPositiveNumber(price)) {
-        await checkAndLiquidate(
+        await checkAndLiquidate({
           symbol,
-          price,
+          currentPrice: price,
           isLong,
           monitorSymbol,
           riskChecker,
@@ -156,7 +157,7 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
           orderRecorder,
           dailyLossTracker,
           quote,
-        );
+        });
       }
     };
 

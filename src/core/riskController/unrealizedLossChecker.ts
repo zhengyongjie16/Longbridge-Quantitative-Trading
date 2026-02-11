@@ -12,6 +12,26 @@ import { isValidPositiveNumber, getLongDirectionName, getShortDirectionName, for
 import type { OrderRecorder, UnrealizedLossData, UnrealizedLossCheckResult, Quote } from '../../types/index.js';
 import type { UnrealizedLossChecker, UnrealizedLossCheckerDeps } from './types.js';
 
+/** 从订单列表计算 R1（开仓成本）和 N1（持仓数量） */
+function calculateCostAndQuantity(
+  buyOrders: ReadonlyArray<{ executedPrice: number | string; executedQuantity: number | string }>,
+): Readonly<{ r1: number; n1: number }> {
+  let r1 = 0;
+  let n1 = 0;
+
+  for (const order of buyOrders) {
+    const price = Number(order.executedPrice) || 0;
+    const quantity = Number(order.executedQuantity) || 0;
+
+    if (isValidPositiveNumber(price) && isValidPositiveNumber(quantity)) {
+      r1 += price * quantity;
+      n1 += quantity;
+    }
+  }
+
+  return { r1, n1 };
+}
+
 /** 创建浮亏检查器 */
 export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): UnrealizedLossChecker => {
   const maxUnrealizedLossPerSymbol = deps.maxUnrealizedLossPerSymbol;
@@ -40,26 +60,6 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
       Number.isFinite(maxUnrealizedLossPerSymbol) &&
       maxUnrealizedLossPerSymbol > 0
     );
-  };
-
-  /** 从订单列表计算 R1（开仓成本）和 N1（持仓数量） */
-  const calculateCostAndQuantity = (
-    buyOrders: ReadonlyArray<{ executedPrice: number | string; executedQuantity: number | string }>,
-  ): { r1: number; n1: number } => {
-    let r1 = 0;
-    let n1 = 0;
-
-    for (const order of buyOrders) {
-      const price = Number(order.executedPrice) || 0;
-      const quantity = Number(order.executedQuantity) || 0;
-
-      if (isValidPositiveNumber(price) && isValidPositiveNumber(quantity)) {
-        r1 += price * quantity;
-        n1 += quantity;
-      }
-    }
-
-    return { r1, n1 };
   };
 
   /** 刷新标的的浮亏数据（启动时或交易后调用） */

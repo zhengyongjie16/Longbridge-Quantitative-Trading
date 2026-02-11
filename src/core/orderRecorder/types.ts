@@ -49,7 +49,7 @@ export type OrderStatistics = {
  * 待成交卖出订单信息
  * 用于智能平仓防重追踪，记录已提交但未成交的卖出订单
  */
-export interface PendingSellInfo {
+export type PendingSellInfo = {
   /** 卖出订单ID */
   readonly orderId: string;
   /** 标的代码 */
@@ -66,17 +66,17 @@ export interface PendingSellInfo {
   readonly status: 'pending' | 'partial' | 'filled' | 'cancelled';
   /** 提交时间 */
   readonly submittedAt: number;
-}
+};
 
 /**
  * 盈利订单查询结果
  */
-export interface ProfitableOrderResult {
+export type ProfitableOrderResult = {
   /** 可卖出的订单记录列表 */
   readonly orders: ReadonlyArray<OrderRecord>;
   /** 这些订单的总数量 */
   readonly totalQuantity: number;
-}
+};
 
 /**
  * 订单过滤算法的中间状态类型
@@ -169,7 +169,7 @@ export interface OrderStorage {
  * 实现智能清仓决策的订单过滤算法
  */
 export interface OrderFilteringEngine {
-  applyFilteringAlgorithm(allBuyOrders: OrderRecord[], filledSellOrders: OrderRecord[]): OrderRecord[];
+  applyFilteringAlgorithm(allBuyOrders: ReadonlyArray<OrderRecord>, filledSellOrders: ReadonlyArray<OrderRecord>): ReadonlyArray<OrderRecord>;
 }
 
 /**
@@ -187,8 +187,8 @@ export interface OrderAPIManager {
   clearCacheForSymbol(symbol: string): void;
   /** 清空 symbol cache 与 allOrdersCache */
   clearCache(): void;
-  hasCacheForSymbols(symbols: string[]): boolean;
-  getPendingOrdersFromCache(symbols: string[]): PendingOrder[];
+  hasCacheForSymbols(symbols: ReadonlyArray<string>): boolean;
+  getPendingOrdersFromCache(symbols: ReadonlyArray<string>): ReadonlyArray<PendingOrder>;
 }
 
 // ==================== 依赖类型定义 ====================

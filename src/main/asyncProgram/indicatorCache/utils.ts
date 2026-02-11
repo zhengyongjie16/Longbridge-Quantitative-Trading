@@ -5,7 +5,6 @@
  * - createRingBuffer: 创建指定容量的环形缓冲区
  * - pushToBuffer: 向缓冲区推送数据
  * - getBufferEntries: 获取所有有效条目（按时间升序）
- * - getLatestFromBuffer: 获取最新条目
  * - cloneIndicatorSnapshot: 深拷贝指标快照
  */
 import type { IndicatorSnapshot } from '../../../types/index.js';
@@ -43,7 +42,7 @@ export function pushToBuffer(buffer: _RingBuffer, entry: IndicatorCacheEntry): v
  *
  * 返回按写入顺序排列的条目数组（即按时间升序）
  */
-export function getBufferEntries(buffer: _RingBuffer): IndicatorCacheEntry[] {
+export function getBufferEntries(buffer: _RingBuffer): ReadonlyArray<IndicatorCacheEntry> {
   if (buffer.size === 0) return [];
 
   const result: IndicatorCacheEntry[] = [];
@@ -58,18 +57,6 @@ export function getBufferEntries(buffer: _RingBuffer): IndicatorCacheEntry[] {
   }
 
   return result;
-}
-
-/**
- * 获取环形缓冲区最新条目
- *
- * 返回最后写入的条目（head - 1 位置）
- */
-export function getLatestFromBuffer(buffer: _RingBuffer): IndicatorCacheEntry | null {
-  if (buffer.size === 0) return null;
-
-  const latestIndex = (buffer.head - 1 + buffer.capacity) % buffer.capacity;
-  return buffer.entries[latestIndex] ?? null;
 }
 
 /**

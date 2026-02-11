@@ -45,7 +45,6 @@ import type {
 } from '../../types/index.js';
 import type {
   RetryConfig,
-  TradingDayCacheDeps,
   MarketDataClientDeps,
 } from './types.js';
 import {
@@ -90,19 +89,13 @@ function normalizeSymbols(symbols: ReadonlyArray<string>): ReadonlyArray<string>
   return Array.from(uniqueSymbols);
 }
 
-/**
- * 创建交易日缓存
- * @param _deps 依赖注入（当前为空）
- * @returns TradingDayCache 接口实例
- */
-function createTradingDayCache(
-  _deps: TradingDayCacheDeps = {},
-): {
+/** 创建交易日缓存 */
+function createTradingDayCache(): {
   get: (dateStr: string) => TradingDayInfo | null;
   set: (dateStr: string, isTradingDay: boolean, isHalfDay?: boolean) => void;
   setBatch: (tradingDays: string[], halfTradingDays?: string[]) => void;
   clear: () => void;
-} {
+  } {
   // 闭包捕获的私有状态
   const cache = new Map<string, { isTradingDay: boolean; isHalfDay: boolean; timestamp: number }>();
   const ttl = API.TRADING_DAY_CACHE_TTL_MS; // 缓存有效期：一天（单位：毫秒）

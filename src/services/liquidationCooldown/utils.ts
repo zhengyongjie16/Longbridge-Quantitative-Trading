@@ -24,9 +24,6 @@ export function convertMinutesToMs(minutes: number): number {
 }
 
 /**
- * 获取香港时区的小时与分钟
- */
-/**
  * 基于香港时区日期计算目标时间的 UTC 毫秒
  */
 export function resolveHongKongTimeMs({

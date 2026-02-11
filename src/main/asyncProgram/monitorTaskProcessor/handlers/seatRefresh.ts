@@ -11,7 +11,7 @@
 import { logger } from '../../../../utils/logger/index.js';
 import { isSeatReady, isSeatVersionMatch } from '../../../../services/autoSymbolManager/utils.js';
 
-import type { MarketDataClient, MultiMonitorTradingConfig } from '../../../../types/index.js';
+import type { MultiMonitorTradingConfig } from '../../../../types/index.js';
 import type { MonitorTask } from '../../monitorTaskQueue/types.js';
 import type {
   MonitorTaskContext,
@@ -25,12 +25,10 @@ import type {
 export function createSeatRefreshHandler({
   getContextOrSkip,
   clearQueuesForDirection,
-  marketDataClient: _marketDataClient,
   tradingConfig,
 }: {
   readonly getContextOrSkip: (monitorSymbol: string) => MonitorTaskContext | null;
   readonly clearQueuesForDirection: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => void;
-  readonly marketDataClient: MarketDataClient;
   readonly tradingConfig: MultiMonitorTradingConfig;
 }): (
   task: MonitorTask<MonitorTaskType, MonitorTaskData>,

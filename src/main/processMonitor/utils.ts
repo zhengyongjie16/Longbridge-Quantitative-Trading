@@ -97,8 +97,7 @@ export function getPositions(
   positionCache: PositionCache,
   longSymbol: string,
   shortSymbol: string,
-): { longPosition: Position | null; shortPosition: Position | null } {
-  // O(1) 查找
+): Readonly<{ longPosition: Position | null; shortPosition: Position | null }> {
   const longPos = positionCache.get(longSymbol);
   const shortPos = positionCache.get(shortSymbol);
 

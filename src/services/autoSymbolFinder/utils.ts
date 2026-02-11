@@ -11,9 +11,9 @@ import type {
   WarrantListItem,
 } from './types.js';
 
-// 统一兼容不同枚举值的「正常」状态
+/** 检查牛熊证状态是否为正常 */
 function isNormalStatus(status: WarrantListItem['status']): boolean {
-  return status === WarrantStatus.Normal || status === 'Normal' || status === 2;
+  return status === WarrantStatus.Normal;
 }
 
 const EXPIRY_DATE_FILTERS: ReadonlyArray<FilterWarrantExpiryDate> = [

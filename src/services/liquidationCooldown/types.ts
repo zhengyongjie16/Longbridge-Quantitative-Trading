@@ -12,9 +12,9 @@ import type { TradeRecord } from '../../core/trader/types.js';
 import type { Logger } from '../../utils/logger/types.js';
 
 /** 未解析的日志记录（键值对） */
-export interface RawRecord {
+export type RawRecord = {
   readonly [key: string]: unknown;
-}
+};
 
 /**
  * 冷却方向（做多/做空）

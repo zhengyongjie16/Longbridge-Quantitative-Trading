@@ -10,9 +10,6 @@
 import type { Position, MonitorConfig, MonitorContext, Trader, MarketDataClient, LastState, SignalType } from '../../types/index.js';
 
 /**
- * 持仓方向类型
- */
-/**
  * 清仓信号创建参数
  */
 export type ClearanceSignalParams = {

@@ -168,10 +168,10 @@ export function createOrderRecorder(
       return buyOrdersArray;
     }
 
-    const finalBuyOrders = filteringEngine.applyFilteringAlgorithm(
-      [...allBuyOrders],
-      [...filledSellOrders],
-    );
+    const finalBuyOrders = [...filteringEngine.applyFilteringAlgorithm(
+      allBuyOrders,
+      filledSellOrders,
+    )];
 
     if (isLongSymbol) {
       storage.setBuyOrdersListForLong(symbol, finalBuyOrders);

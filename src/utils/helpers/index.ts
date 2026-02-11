@@ -135,9 +135,6 @@ export function formatNumber(num: number | null | undefined, digits: number = 2)
 }
 
 /**
- * 账户渠道映射表
- */
-/**
  * 格式化账户渠道显示名称
  * @param accountChannel 账户渠道代码
  * @returns 格式化的账户渠道名称

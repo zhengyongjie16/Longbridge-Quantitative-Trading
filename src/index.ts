@@ -138,7 +138,7 @@ async function main(): Promise<void> {
   try {
     await validateAllConfig({ env, tradingConfig });
   } catch (err) {
-    if ((err as { name?: string }).name === 'ConfigValidationError') {
+    if (err instanceof Error && err.name === 'ConfigValidationError') {
       logger.error('程序启动失败：配置验证未通过');
       process.exit(1);
     } else {
@@ -584,7 +584,6 @@ async function main(): Promise<void> {
     refreshGate,
     getMonitorContext: (monitorSymbol: string) => monitorContexts.get(monitorSymbol) ?? null,
     clearQueuesForDirection,
-    marketDataClient,
     trader,
     lastState,
     tradingConfig,

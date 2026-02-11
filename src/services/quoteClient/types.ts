@@ -34,13 +34,6 @@ export type StaticInfo = {
 // ==================== 依赖类型定义 ====================
 
 /**
- * 交易日缓存依赖类型
- */
-export type TradingDayCacheDeps = {
-  readonly [key: string]: never;
-};
-
-/**
  * 行情数据客户端依赖类型
  */
 export type MarketDataClientDeps = {

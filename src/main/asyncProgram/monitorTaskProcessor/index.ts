@@ -51,7 +51,6 @@ export function createMonitorTaskProcessor(
     refreshGate,
     getMonitorContext,
     clearQueuesForDirection,
-    marketDataClient,
     trader,
     lastState,
     tradingConfig,
@@ -76,7 +75,6 @@ export function createMonitorTaskProcessor(
   const handleSeatRefresh = createSeatRefreshHandler({
     getContextOrSkip,
     clearQueuesForDirection,
-    marketDataClient,
     tradingConfig,
   });
   const handleLiquidationDistanceCheck = createLiquidationDistanceHandler({

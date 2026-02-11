@@ -16,7 +16,6 @@ import type { RefreshGate } from '../../../utils/refreshGate/types.js';
 import type { MonitorTaskQueue, MonitorTask } from '../monitorTaskQueue/types.js';
 import type {
   LastState,
-  MarketDataClient,
   Quote,
   RawOrderFromAPI,
   SymbolRegistry,
@@ -139,7 +138,6 @@ export type MonitorTaskProcessorDeps = Readonly<{
   readonly refreshGate: RefreshGate;
   readonly getMonitorContext: (monitorSymbol: string) => MonitorTaskContext | null;
   readonly clearQueuesForDirection: (monitorSymbol: string, direction: SeatDirection) => void;
-  readonly marketDataClient: MarketDataClient;
   readonly trader: Trader;
   readonly lastState: LastState;
   readonly tradingConfig: MultiMonitorTradingConfig;
