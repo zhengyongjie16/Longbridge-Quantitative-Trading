@@ -98,7 +98,7 @@ import { createCleanup } from './services/cleanup/index.js';
 // 导入主程序循环
 import { mainProgram } from './main/mainProgram/index.js';
 
-// 类型直接从 types.ts 导入，避免 re-export 模式
+// 类型从 types 直接导入
 import type {
   LastState,
   MonitorContext,

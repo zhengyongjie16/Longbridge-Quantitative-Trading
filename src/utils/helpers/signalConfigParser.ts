@@ -150,7 +150,7 @@ function parseCondition(conditionStr: string): ParsedCondition | null {
 
 /**
  * 解析条件组
- * @param groupStr 条件组字符串，如 "(RSI6<20,MFI<15,D<20,J<-1)/3" 或 "(J<-20)"
+ * @param groupStr 条件组字符串，如 "(RSI:6<20,MFI<15,D<20,J<-1)/3" 或 "(J<-20)"
  * @returns 解析结果
  */
 function parseConditionGroup(groupStr: string): ParsedConditionGroup | null {
@@ -215,7 +215,7 @@ function parseConditionGroup(groupStr: string): ParsedConditionGroup | null {
 
 /**
  * 解析完整的信号配置
- * @param configStr 配置字符串，如 "(RSI6<20,MFI<15,D<20,J<-1)/3|(J<-20)"
+ * @param configStr 配置字符串，如 "(RSI:6<20,MFI<15,D<20,J<-1)/3|(J<-20)"
  * @returns 解析结果
  */
 export function parseSignalConfig(configStr: string | null | undefined): SignalConfig | null {
@@ -445,96 +445,37 @@ export function formatSignalConfig(signalConfig: SignalConfig | null): string {
   return groups.join('|');
 }
 
-/**
- * 从信号配置中提取所有 RSI 周期
- * @param signalConfig 信号配置对象 {buycall, sellcall, buyput, sellput}
- * @returns RSI 周期数组（去重后排序）
- */
-export function extractRSIPeriods(signalConfig: SignalConfigSet | null): number[] {
-  if (!signalConfig) {
-    return [];
-  }
-
+function extractIndicatorPeriods(
+  signalConfig: SignalConfigSet | null,
+  prefix: 'RSI:' | 'PSY:',
+  isValidPeriod: (period: number) => boolean,
+): number[] {
+  if (!signalConfig) return [];
   const periods = new Set<number>();
-
-  const configs = [
-    signalConfig.buycall,
-    signalConfig.sellcall,
-    signalConfig.buyput,
-    signalConfig.sellput,
-  ];
+  const configs = [signalConfig.buycall, signalConfig.sellcall, signalConfig.buyput, signalConfig.sellput];
 
   for (const config of configs) {
-    if (!config?.conditionGroups) {
-      continue;
-    }
-
+    if (!config?.conditionGroups) continue;
     for (const group of config.conditionGroups) {
-      if (!group.conditions) {
-        continue;
-      }
-
+      if (!group.conditions) continue;
       for (const condition of group.conditions) {
-        if (condition.indicator.startsWith('RSI:')) {
-          const parts = condition.indicator.split(':');
-          const periodStr = parts[1];
-          if (periodStr) {
-            const period = Number.parseInt(periodStr, 10);
-            if (Number.isFinite(period)) {
-              periods.add(period);
-            }
-          }
-        }
+        if (!condition.indicator.startsWith(prefix)) continue;
+        const periodStr = condition.indicator.split(':')[1];
+        if (!periodStr) continue;
+        const period = Number.parseInt(periodStr, 10);
+        if (isValidPeriod(period)) periods.add(period);
       }
     }
   }
-
   return Array.from(periods).sort((a, b) => a - b);
 }
 
-/**
- * 从信号配置中提取所有 PSY 周期
- * @param signalConfig 信号配置对象 {buycall, sellcall, buyput, sellput}
- * @returns PSY 周期数组（去重后排序）
- */
+/** 从信号配置中提取所有 RSI 周期（去重后排序） */
+export function extractRSIPeriods(signalConfig: SignalConfigSet | null): number[] {
+  return extractIndicatorPeriods(signalConfig, 'RSI:', (p) => Number.isFinite(p));
+}
+
+/** 从信号配置中提取所有 PSY 周期（去重后排序） */
 export function extractPsyPeriods(signalConfig: SignalConfigSet | null): number[] {
-  if (!signalConfig) {
-    return [];
-  }
-
-  const periods = new Set<number>();
-
-  const configs = [
-    signalConfig.buycall,
-    signalConfig.sellcall,
-    signalConfig.buyput,
-    signalConfig.sellput,
-  ];
-
-  for (const config of configs) {
-    if (!config?.conditionGroups) {
-      continue;
-    }
-
-    for (const group of config.conditionGroups) {
-      if (!group.conditions) {
-        continue;
-      }
-
-      for (const condition of group.conditions) {
-        if (condition.indicator.startsWith('PSY:')) {
-          const parts = condition.indicator.split(':');
-          const periodStr = parts[1];
-          if (periodStr) {
-            const period = Number.parseInt(periodStr, 10);
-            if (validatePsyPeriod(period)) {
-              periods.add(period);
-            }
-          }
-        }
-      }
-    }
-  }
-
-  return Array.from(periods).sort((a, b) => a - b);
+  return extractIndicatorPeriods(signalConfig, 'PSY:', validatePsyPeriod);
 }

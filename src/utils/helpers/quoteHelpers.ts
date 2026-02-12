@@ -110,11 +110,10 @@ export function diffQuoteSymbols(
 
 /**
  * 批量获取行情数据
- * 从行情客户端缓存批量读取（未订阅标的会抛错）
  *
  * @param marketDataClient 行情客户端
  * @param symbols 标的代码列表
- * @returns 标的代码到行情数据的映射（使用原始标的代码作为 key）
+ * @returns 标的代码到行情数据的 Map
  */
 export async function batchGetQuotes(
   marketDataClient: MarketDataClient,
@@ -125,7 +124,5 @@ export async function batchGetQuotes(
   if (symbolArray.length === 0) {
     return new Map();
   }
-
-  // 使用单次 API 调用批量获取所有行情
   return marketDataClient.getQuotes(symbolArray);
 }

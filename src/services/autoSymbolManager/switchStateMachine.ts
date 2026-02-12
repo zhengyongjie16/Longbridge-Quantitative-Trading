@@ -99,6 +99,13 @@ export function createSwitchStateMachine(
     const { direction, quotesMap, positions } = params;
     const { sellAction, buyAction } = resolveDirectionSymbols(direction);
     const seatVersion = symbolRegistry.getSeatVersion(monitorSymbol, direction);
+
+    function failAndClear(): void {
+      state.stage = 'FAILED';
+      updateSeatState(direction, buildSeatState(null, 'EMPTY', null, null, null), false);
+      switchStates.delete(direction);
+    }
+
     if (state.stage === 'CANCEL_PENDING') {
       const cancelTargets = pendingOrders.filter((order) =>
         isCancelableBuyOrder(order, state.oldSymbol),
@@ -109,9 +116,7 @@ export function createSwitchStateMachine(
           cancelTargets.map((order) => trader.cancelOrder(order.orderId)),
         );
         if (results.some((ok) => !ok)) {
-          state.stage = 'FAILED';
-          updateSeatState(direction, buildSeatState(null, 'EMPTY', null, null, null), false);
-          switchStates.delete(direction);
+          failAndClear();
           logger.error(`[自动换标] 撤销买入订单失败，换标中止: ${state.oldSymbol}`);
           return;
         }
@@ -170,9 +175,7 @@ export function createSwitchStateMachine(
     if (state.stage === 'BIND_NEW') {
       const nextSymbol = state.nextSymbol;
       if (!nextSymbol) {
-        state.stage = 'FAILED';
-        updateSeatState(direction, buildSeatState(null, 'EMPTY', null, null, null), false);
-        switchStates.delete(direction);
+        failAndClear();
         return;
       }
 
@@ -192,9 +195,7 @@ export function createSwitchStateMachine(
     if (state.stage === 'WAIT_QUOTE') {
       const nextSymbol = state.nextSymbol;
       if (!nextSymbol) {
-        state.stage = 'FAILED';
-        updateSeatState(direction, buildSeatState(null, 'EMPTY', null, null, null), false);
-        switchStates.delete(direction);
+        failAndClear();
         return;
       }
       const quote = quotesMap.get(nextSymbol);
@@ -209,9 +210,7 @@ export function createSwitchStateMachine(
     if (state.stage === 'REBUY') {
       const nextSymbol = state.nextSymbol;
       if (!nextSymbol) {
-        state.stage = 'FAILED';
-        updateSeatState(direction, buildSeatState(null, 'EMPTY', null, null, null), false);
-        switchStates.delete(direction);
+        failAndClear();
         return;
       }
       const quote = quotesMap.get(nextSymbol);

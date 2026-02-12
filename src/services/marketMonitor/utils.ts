@@ -21,6 +21,17 @@ export function hasChanged(current: number | null | undefined, last: number | nu
 }
 
 /**
+ * 检查单个指标值是否变化（当前有效且上次为空或超过阈值）
+ */
+export function indicatorChanged(
+  current: number | null | undefined,
+  last: number | null | undefined,
+  threshold: number,
+): boolean {
+  return Number.isFinite(current) && (last == null || hasChanged(current, last, threshold));
+}
+
+/**
  * 格式化牛熊证距离回收价的显示文本
  */
 export function formatWarrantDistanceDisplay(

@@ -389,12 +389,7 @@ const debugFileStream = IS_DEBUG ? new DateRotatingStream('debug') : null;
 
 
 /**
- * 创建带超时保护的 drain 事件处理器
- * @param stream 要监听的流
- * @param timeout 超时时间（毫秒）
- * @param callback 回调函数
- * @param onTimeout 超时时的额外处理（可选）
- * @returns 返回 onDrain 处理函数和 timeoutId
+ * 创建带超时保护的 drain 事件处理器（超时后仍调用 callback 避免阻塞）
  */
 function createDrainHandler(
   stream: NodeJS.WriteStream | fs.WriteStream,

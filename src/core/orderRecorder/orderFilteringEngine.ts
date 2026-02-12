@@ -28,7 +28,7 @@ import { calculateTotalQuantity } from './utils.js';
 
 /**
  * 初始化过滤状态
- * - M0: 最新卖出后的买入订单（无条件保留）
+ * - M0: 最新卖出时间之后成交的买入订单（无条件保留）
  * - candidateOrders: 需要过滤的候选订单
  */
 function initializeFilteringState(

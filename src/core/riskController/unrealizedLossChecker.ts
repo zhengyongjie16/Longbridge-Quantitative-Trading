@@ -2,7 +2,7 @@
  * 浮亏检查模块
  *
  * 监控单标的浮亏，超过阈值时触发保护性清仓：
- * - R1 = 开仓成本（未平仓买入订单的市值总和）
+ * - R1 = 开仓成本（未平仓买入订单的成本总和）
  * - N1 = 持仓数量（未平仓买入订单的成交数量总和）
  * - R2 = 当前市值（当前价格 × N1）
  * - 浮亏 = R2 - R1（负值表示亏损）
@@ -171,7 +171,6 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
     const unrealizedLoss = r2 - r1;
 
     // 检查浮亏是否超过阈值（浮亏为负数表示亏损）
-    // 此处已通过 isEnabled() 验证，maxUnrealizedLossPerSymbol 不为 null
     if (maxUnrealizedLossPerSymbol === null || !Number.isFinite(maxUnrealizedLossPerSymbol)) {
       return { shouldLiquidate: false };
     }

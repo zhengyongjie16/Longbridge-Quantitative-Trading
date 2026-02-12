@@ -45,13 +45,10 @@ export function createCleanup(context: CleanupContext): {
     await monitorTaskProcessor.stopAndDrain();
     await orderMonitorWorker.stopAndDrain();
     await postTradeRefresher.stopAndDrain();
-    // 销毁所有监控标的的 DelayedSignalVerifier
     for (const monitorContext of monitorContexts.values()) {
       monitorContext.delayedSignalVerifier.destroy();
     }
-    // 清理 IndicatorCache
     indicatorCache.clearAll();
-    // 释放快照对象
     releaseAllMonitorSnapshots(lastState.monitorStates);
   }
 
@@ -59,12 +56,11 @@ export function createCleanup(context: CleanupContext): {
    * 注册退出处理函数
    */
   function registerExitHandlers(): void {
-    process.once('SIGINT', () => {
+    const handler = (): void => {
       void execute().finally(() => process.exit(0));
-    });
-    process.once('SIGTERM', () => {
-      void execute().finally(() => process.exit(0));
-    });
+    };
+    process.once('SIGINT', handler);
+    process.once('SIGTERM', handler);
   }
 
   return {

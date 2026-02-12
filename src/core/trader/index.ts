@@ -9,7 +9,7 @@
  * - rateLimiter: API 频率限制（30次/30秒）
  * - accountService: 账户余额和持仓查询
  * - orderCacheManager: 未成交订单缓存
- * - orderRecorder: 订单记录持久化
+ * - orderRecorder: 订单记录管理
  * - orderMonitor: WebSocket 订单状态监控
  * - orderExecutor: 信号执行和订单提交
  *

@@ -14,9 +14,9 @@ export type RefreshGateStatus = Readonly<{
   staleVersion: number;
 }>;
 
-export type RefreshGate = Readonly<{
-  markStale: () => number;
-  markFresh: (version: number) => void;
-  waitForFresh: () => Promise<void>;
-  getStatus: () => RefreshGateStatus;
-}>;
+export interface RefreshGate {
+  readonly markStale: () => number;
+  readonly markFresh: (version: number) => void;
+  readonly waitForFresh: () => Promise<void>;
+  readonly getStatus: () => RefreshGateStatus;
+}

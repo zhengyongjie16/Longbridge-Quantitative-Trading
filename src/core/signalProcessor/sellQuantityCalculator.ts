@@ -108,7 +108,7 @@ export const processSellSignals = (
     const isDoomsdaySignal =
       sig.reason?.includes('末日保护程序');
 
-    // 添加调试日志
+    // 持仓或行情缺失时记录日志
     if (!position) {
       logger.warn(
         `[卖出信号处理] ${signalName}: ${direction === 'LONG' ? '做多' : '做空'}标的持仓对象为null，无法计算卖出数量`,

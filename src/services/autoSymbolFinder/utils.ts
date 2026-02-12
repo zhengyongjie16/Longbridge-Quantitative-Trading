@@ -31,8 +31,21 @@ export function createWarrantListCache(): WarrantListCache {
   const inFlight = new Map<string, Promise<ReadonlyArray<WarrantListItem>>>();
 
   return {
-    entries,
-    inFlight,
+    getEntry(key: string): WarrantListCacheEntry | undefined {
+      return entries.get(key);
+    },
+    setEntry(key: string, entry: WarrantListCacheEntry): void {
+      entries.set(key, entry);
+    },
+    getInFlight(key: string): Promise<ReadonlyArray<WarrantListItem>> | undefined {
+      return inFlight.get(key);
+    },
+    setInFlight(key: string, request: Promise<ReadonlyArray<WarrantListItem>>): void {
+      inFlight.set(key, request);
+    },
+    deleteInFlight(key: string): void {
+      inFlight.delete(key);
+    },
     clear(): void {
       entries.clear();
       inFlight.clear();
@@ -115,13 +128,8 @@ export function selectBestWarrant({
       continue;
     }
 
-    if (shouldFilterTurnover) {
-      if (!hasTradingMinutes) {
-        continue;
-      }
-      if (turnover < minTurnover) {
-        continue;
-      }
+    if (shouldFilterTurnover && (!hasTradingMinutes || turnover < minTurnover)) {
+      continue;
     }
 
     const turnoverPerMinute = hasTradingMinutes ? turnover / tradingMinutes : 0;

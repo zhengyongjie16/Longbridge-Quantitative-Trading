@@ -21,7 +21,7 @@ const PERIOD_LABEL_MAP: Readonly<Record<number, string>> = {
 /**
  * 将 Period 枚举转为可读标签，用于日志等展示
  * @param period K 线周期枚举值
- * @returns 可读标签，如 "1分钟"、"日K"；未知值返回 "未知(n)"
+ * @returns 可读标签，如 "1分钟"、"15分钟"；未知值返回 "未知(n)"
  */
 export function formatPeriodForLog(period: Period): string {
   const label = PERIOD_LABEL_MAP[period as number];

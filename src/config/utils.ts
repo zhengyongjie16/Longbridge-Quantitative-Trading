@@ -29,7 +29,7 @@ export function getRegionUrls(region: string | undefined): RegionUrls {
   };
 }
 
-/** 读取字符串配置，未设置或为占位符时返回 null */
+/** 读取字符串配置，未设置、空串或占位符（形如 your_xxx_here）时返回 null */
 export function getStringConfig(
   env: NodeJS.ProcessEnv,
   envKey: string,
@@ -162,12 +162,7 @@ export function parseOrderOwnershipMapping(
   }
 
   const uniqueItems = Array.from(new Set(items));
-  uniqueItems.sort((a, b) => {
-    if (a.length !== b.length) {
-      return b.length - a.length;
-    }
-    return a.localeCompare(b);
-  });
+  uniqueItems.sort((a, b) => b.length - a.length || a.localeCompare(b));
 
   return uniqueItems;
 }

@@ -8,7 +8,7 @@
  * - 追踪待成交卖出订单
  *
  * 过滤算法（从旧到新累积过滤）：
- * 1. M0：最新卖出时间之后成交的买入订单
+ * 1. M0：最新卖出时间之后成交的买入订单（无条件保留）
  * 2. 过滤历史高价买入且未被完全卖出的订单
  * 3. 最终记录 = M0 + 过滤后的买入订单
  *
@@ -131,12 +131,16 @@ export function createOrderRecorder(
     filledSellOrders: ReadonlyArray<OrderRecord>,
     quote?: Quote | null,
   ): OrderRecord[] {
-    if (allBuyOrders.length === 0) {
+    const setBuyList = (list: ReadonlyArray<OrderRecord>): void => {
       if (isLongSymbol) {
-        storage.setBuyOrdersListForLong(symbol, []);
+        storage.setBuyOrdersListForLong(symbol, list);
       } else {
-        storage.setBuyOrdersListForShort(symbol, []);
+        storage.setBuyOrdersListForShort(symbol, list);
       }
+    };
+
+    if (allBuyOrders.length === 0) {
+      setBuyList([]);
       logRefreshResult(
         symbol,
         isLongSymbol,
@@ -151,11 +155,7 @@ export function createOrderRecorder(
 
     if (filledSellOrders.length === 0) {
       const buyOrdersArray = [...allBuyOrders];
-      if (isLongSymbol) {
-        storage.setBuyOrdersListForLong(symbol, buyOrdersArray);
-      } else {
-        storage.setBuyOrdersListForShort(symbol, buyOrdersArray);
-      }
+      setBuyList(buyOrdersArray);
       logRefreshResult(
         symbol,
         isLongSymbol,
@@ -172,12 +172,7 @@ export function createOrderRecorder(
       allBuyOrders,
       filledSellOrders,
     )];
-
-    if (isLongSymbol) {
-      storage.setBuyOrdersListForLong(symbol, finalBuyOrders);
-    } else {
-      storage.setBuyOrdersListForShort(symbol, finalBuyOrders);
-    }
+    setBuyList(finalBuyOrders);
     logRefreshResult(
       symbol,
       isLongSymbol,

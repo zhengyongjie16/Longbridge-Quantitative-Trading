@@ -8,7 +8,7 @@
  *
  * 状态流转：
  * - 'notTradingDay': 今天不是交易日，等待开市
- * - 'outOfSession': 当前不在交易时段，等待开市
+ * - 'outOfSession': 当前不在连续交易时段，等待开市
  * - 'openProtection': 处于开盘保护期内，等待保护期结束
  * - 'ready': 所有条件满足，可以继续执行
  *
@@ -82,20 +82,11 @@ export function createStartupGate(deps: StartupGateDeps): StartupGate {
         afternoon.minutes != null &&
         isInAfternoonOpenProtection(currentTime, afternoon.minutes);
 
-      if (morningProtectionActive) {
-        logState(
-          'openProtection',
-          `[开盘保护] 早盘开盘后 ${morning.minutes} 分钟内等待启动`,
-        );
-        await sleep(intervalMs);
-        continue;
-      }
-
-      if (afternoonProtectionActive) {
-        logState(
-          'openProtection',
-          `[开盘保护] 午盘开盘后 ${afternoon.minutes} 分钟内等待启动`,
-        );
+      if (morningProtectionActive || afternoonProtectionActive) {
+        const message = morningProtectionActive
+          ? `[开盘保护] 早盘开盘后 ${morning.minutes} 分钟内等待启动`
+          : `[开盘保护] 午盘开盘后 ${afternoon.minutes} 分钟内等待启动`;
+        logState('openProtection', message);
         await sleep(intervalMs);
         continue;
       }

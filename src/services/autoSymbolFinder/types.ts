@@ -48,11 +48,14 @@ export type WarrantListCacheEntry = {
   readonly warrants: ReadonlyArray<WarrantListItem>;
 };
 
-export type WarrantListCache = {
-  readonly entries: Map<string, WarrantListCacheEntry>;
-  readonly inFlight: Map<string, Promise<ReadonlyArray<WarrantListItem>>>;
+export interface WarrantListCache {
+  getEntry(key: string): WarrantListCacheEntry | undefined;
+  setEntry(key: string, entry: WarrantListCacheEntry): void;
+  getInFlight(key: string): Promise<ReadonlyArray<WarrantListItem>> | undefined;
+  setInFlight(key: string, request: Promise<ReadonlyArray<WarrantListItem>>): void;
+  deleteInFlight(key: string): void;
   clear(): void;
-};
+}
 
 export type WarrantListCacheConfig = {
   readonly cache: WarrantListCache;

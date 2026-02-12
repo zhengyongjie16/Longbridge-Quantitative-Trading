@@ -11,10 +11,10 @@ export type OrderMonitorWorkerDeps = Readonly<{
   monitorAndManageOrders: (quotesMap: ReadonlyMap<string, Quote | null>) => Promise<void>;
 }>;
 
-export type OrderMonitorWorker = Readonly<{
-  start: () => void;
-  schedule: (quotesMap: ReadonlyMap<string, Quote | null>) => void;
-  stop: () => void;
-  stopAndDrain: () => Promise<void>;
-  clearLatestQuotes: () => void;
-}>;
+export interface OrderMonitorWorker {
+  readonly start: () => void;
+  readonly schedule: (quotesMap: ReadonlyMap<string, Quote | null>) => void;
+  readonly stop: () => void;
+  readonly stopAndDrain: () => Promise<void>;
+  readonly clearLatestQuotes: () => void;
+}

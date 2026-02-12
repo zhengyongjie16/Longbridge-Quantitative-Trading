@@ -71,8 +71,6 @@ export function buildIndicatorSnapshot(
 
   const lastPrice = validCloses.at(-1)!;
 
-  // ========== 计算指标 ==========
-
   // 计算涨跌幅（如果有前一根K线的收盘价）
   let changePercent: number | null = null;
   if (validCloses.length >= 2) {
@@ -83,7 +81,6 @@ export function buildIndicatorSnapshot(
   }
 
   // 计算所有需要的 RSI 周期
-  // 从对象池获取 rsi 对象，减少内存分配
   const rsi = periodRecordPool.acquire();
   if (Array.isArray(rsiPeriods) && rsiPeriods.length > 0) {
     for (const period of rsiPeriods) {
@@ -97,7 +94,6 @@ export function buildIndicatorSnapshot(
   }
 
   // 计算所有需要的 EMA 周期
-  // 从对象池获取 ema 对象，减少内存分配
   const ema = periodRecordPool.acquire();
   if (Array.isArray(emaPeriods) && emaPeriods.length > 0) {
     for (const period of emaPeriods) {
@@ -111,7 +107,6 @@ export function buildIndicatorSnapshot(
   }
 
   // 计算所有需要的 PSY 周期
-  // 从对象池获取 psy 对象，减少内存分配
   let psy: Record<number, number> | null = null;
   if (Array.isArray(psyPeriods) && psyPeriods.length > 0) {
     const psyRecord = periodRecordPool.acquire();

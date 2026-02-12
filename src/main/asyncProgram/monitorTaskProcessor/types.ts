@@ -24,8 +24,7 @@ import type {
   Trader,
   MultiMonitorTradingConfig,
 } from '../../../types/index.js';
-import type { DailyLossTracker } from '../../../core/riskController/types.js';
-import type { UnrealizedLossMonitor } from '../../../core/riskController/types.js';
+import type { DailyLossTracker, UnrealizedLossMonitor } from '../../../core/riskController/types.js';
 
 export type SeatSnapshot = Readonly<{
   seatVersion: number;
@@ -146,9 +145,9 @@ export type MonitorTaskProcessorDeps = Readonly<{
   onProcessed?: (task: MonitorTask<MonitorTaskType, MonitorTaskData>, status: MonitorTaskStatus) => void;
 }>;
 
-export type MonitorTaskProcessor = Readonly<{
-  start: () => void;
-  stop: () => void;
-  stopAndDrain: () => Promise<void>;
-  restart: () => void;
-}>;
+export interface MonitorTaskProcessor {
+  readonly start: () => void;
+  readonly stop: () => void;
+  readonly stopAndDrain: () => Promise<void>;
+  readonly restart: () => void;
+}

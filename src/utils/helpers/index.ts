@@ -140,20 +140,9 @@ export function formatNumber(num: number | null | undefined, digits: number = 2)
  * @returns 格式化的账户渠道名称
  */
 export function formatAccountChannel(accountChannel: string | null | undefined): string {
-  if (!accountChannel || typeof accountChannel !== 'string') {
-    return '未知账户';
-  }
-
-  // 转换为小写进行匹配
-  const lowerChannel = accountChannel.toLowerCase();
-
-  // 如果找到映射，返回中文名称
-  if (ACCOUNT_CHANNEL_MAP[lowerChannel]) {
-    return ACCOUNT_CHANNEL_MAP[lowerChannel];
-  }
-
-  // 否则返回原始值
-  return accountChannel;
+  if (!accountChannel || typeof accountChannel !== 'string') return '未知账户';
+  const key = accountChannel.toLowerCase();
+  return ACCOUNT_CHANNEL_MAP[key] ?? accountChannel;
 }
 
 
@@ -372,9 +361,7 @@ export function formatError(err: unknown): string {
   }
 }
 
-/**
- * 主程序循环间隔
- */
+/** 异步延迟指定毫秒数，无效值时使用 1000ms */
 export async function sleep(ms: number): Promise<void> {
   const delay = Number(ms);
   if (!Number.isFinite(delay) || delay < 0) {

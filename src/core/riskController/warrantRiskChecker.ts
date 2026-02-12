@@ -30,15 +30,13 @@ import {
   DEFAULT_PERCENT_DECIMALS,
 } from '../../constants/index.js';
 
-/** 获取牛熊证类型的中文名称 */
+const WARRANT_TYPE_NAMES: Record<string, string> = {
+  BULL: '牛证',
+  BEAR: '熊证',
+};
+
 function getWarrantTypeName(warrantType: WarrantType): string {
-  if (warrantType === 'BULL') {
-    return '牛证';
-  }
-  if (warrantType === 'BEAR') {
-    return '熊证';
-  }
-  return '轮证';
+  return WARRANT_TYPE_NAMES[String(warrantType)] ?? '轮证';
 }
 
 /** 解析 API 返回的 category 字段为牛熊证类型 */
@@ -290,6 +288,47 @@ function buildWarrantDistanceInfo(
   };
 }
 
+/** 调用 API 检查标的是否为牛熊证并获取回收价 */
+async function checkWarrantType(
+  marketDataClient: MarketDataClient,
+  symbol: string,
+  expectedType: 'CALL' | 'PUT',
+): Promise<WarrantInfo> {
+  const ctx = await marketDataClient._getContext();
+
+  // 使用 warrantQuote API 获取牛熊证信息
+  const warrantQuotesRaw = await ctx.warrantQuote([symbol]);
+  const warrantQuote = (Array.isArray(warrantQuotesRaw)
+    ? warrantQuotesRaw[0] ?? null
+    : null) as WarrantQuote | null;
+
+  if (!warrantQuote) {
+    return { isWarrant: false };
+  }
+
+  // 从 SDK 获取 category（已经是 WarrantType 枚举）
+  const category = warrantQuote.category;
+  const warrantType = parseWarrantType(category);
+
+  if (!warrantType) {
+    return { isWarrant: false };
+  }
+
+  // 从 SDK 获取回收价
+  const callPrice = extractCallPrice(warrantQuote);
+
+  // 验证：做多标的应该是牛证，做空标的应该是熊证
+  validateWarrantType(symbol, warrantType, expectedType);
+
+  return {
+    isWarrant: true,
+    warrantType,
+    callPrice,
+    category: category as number | string,
+    symbol,
+  };
+}
+
 /** 创建牛熊证风险检查器 */
 export function createWarrantRiskChecker(
   _deps: WarrantRiskCheckerDeps = {},
@@ -297,47 +336,6 @@ export function createWarrantRiskChecker(
   // 闭包捕获的私有状态
   let longWarrantInfo: WarrantInfo | null = null;
   let shortWarrantInfo: WarrantInfo | null = null;
-
-  /** 调用 API 检查标的是否为牛熊证并获取回收价 */
-  async function checkWarrantType(
-    marketDataClient: MarketDataClient,
-    symbol: string,
-    expectedType: 'CALL' | 'PUT',
-  ): Promise<WarrantInfo> {
-    const ctx = await marketDataClient._getContext();
-
-    // 使用 warrantQuote API 获取牛熊证信息
-    const warrantQuotesRaw = await ctx.warrantQuote([symbol]);
-    const warrantQuote = (Array.isArray(warrantQuotesRaw)
-      ? warrantQuotesRaw[0] ?? null
-      : null) as WarrantQuote | null;
-
-    if (!warrantQuote) {
-      return { isWarrant: false };
-    }
-
-    // 从 SDK 获取 category（已经是 WarrantType 枚举）
-    const category = warrantQuote.category;
-    const warrantType = parseWarrantType(category);
-
-    if (!warrantType) {
-      return { isWarrant: false };
-    }
-
-    // 从 SDK 获取回收价
-    const callPrice = extractCallPrice(warrantQuote);
-
-    // 验证：做多标的应该是牛证，做空标的应该是熊证
-    validateWarrantType(symbol, warrantType, expectedType);
-
-    return {
-      isWarrant: true,
-      warrantType,
-      callPrice,
-      category: category as number | string,
-      symbol,
-    };
-  }
 
   /** 初始化单个标的的牛熊证信息并缓存 */
   async function initializeSymbolWarrantInfo(

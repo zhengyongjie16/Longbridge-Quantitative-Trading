@@ -44,17 +44,17 @@ export type LifecycleContext = Readonly<{
   runtime: LifecycleRuntimeFlags;
 }>;
 
-export type CacheDomain = Readonly<{
-  name: string;
-  midnightClear: (ctx: LifecycleContext) => Promise<void> | void;
-  openRebuild: (ctx: LifecycleContext) => Promise<void> | void;
-}>;
+export interface CacheDomain {
+  readonly name: string;
+  readonly midnightClear: (ctx: LifecycleContext) => Promise<void> | void;
+  readonly openRebuild: (ctx: LifecycleContext) => Promise<void> | void;
+}
 
-export type DayLifecycleManager = Readonly<{
-  tick: (now: Date, runtime: LifecycleRuntimeFlags) => Promise<void>;
-  getState: () => LifecycleState;
-  isTradingEnabled: () => boolean;
-}>;
+export interface DayLifecycleManager {
+  readonly tick: (now: Date, runtime: LifecycleRuntimeFlags) => Promise<void>;
+  readonly getState: () => LifecycleState;
+  readonly isTradingEnabled: () => boolean;
+}
 
 export type DayLifecycleManagerDeps = Readonly<{
   mutableState: LifecycleMutableState;

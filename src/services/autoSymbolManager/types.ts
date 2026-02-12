@@ -104,13 +104,13 @@ export type SwitchSuppression = {
   readonly dateKey: string;
 };
 
-export type AutoSymbolManager = {
+export interface AutoSymbolManager {
   maybeSearchOnTick(params: SearchOnTickParams): Promise<void>;
   maybeSwitchOnDistance(params: SwitchOnDistanceParams): Promise<void>;
   hasPendingSwitch(direction: 'LONG' | 'SHORT'): boolean;
   resetDailySwitchSuppression(): void;
   resetAllState(): void;
-};
+}
 
 type SignalObjectPool = Pick<ObjectPool<PoolableSignal>, 'acquire' | 'release'>;
 
@@ -211,14 +211,14 @@ export type SeatStateManagerDeps = {
   readonly getHKDateKey: HKDateKeyResolver;
 };
 
-export type SeatStateManager = {
+export interface SeatStateManager {
   buildSeatState: SeatStateBuilder;
   updateSeatState: SeatStateUpdater;
   resolveSuppression(direction: 'LONG' | 'SHORT', seatSymbol: string): SwitchSuppression | null;
   markSuppression(direction: 'LONG' | 'SHORT', seatSymbol: string): void;
   clearSeat(params: { direction: 'LONG' | 'SHORT'; reason: string }): number;
   resetDailySwitchSuppression(): void;
-};
+}
 
 type FindBestWarrant = (input: FindBestWarrantInput) => Promise<WarrantCandidate | null>;
 
@@ -235,9 +235,9 @@ export type AutoSearchDeps = {
   readonly searchCooldownMs: number;
 };
 
-export type AutoSearchManager = {
+export interface AutoSearchManager {
   maybeSearchOnTick(params: SearchOnTickParams): Promise<void>;
-};
+}
 
 export type SwitchStateMachineDeps = {
   readonly autoSearchConfig: AutoSearchConfig;
@@ -284,7 +284,7 @@ export type SwitchStateMachineDeps = {
   readonly logger: Logger;
 };
 
-export type SwitchStateMachine = {
+export interface SwitchStateMachine {
   maybeSwitchOnDistance(params: SwitchOnDistanceParams): Promise<void>;
   hasPendingSwitch(direction: 'LONG' | 'SHORT'): boolean;
-};
+}

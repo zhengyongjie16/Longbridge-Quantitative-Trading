@@ -18,7 +18,7 @@ export type CleanupContext = {
   readonly monitorTaskProcessor: MonitorTaskProcessor;
   readonly orderMonitorWorker: OrderMonitorWorker;
   readonly postTradeRefresher: PostTradeRefresher;
-  readonly monitorContexts: Map<string, MonitorContext>;
+  readonly monitorContexts: ReadonlyMap<string, MonitorContext>;
   readonly indicatorCache: IndicatorCache;
   readonly lastState: LastState;
 };

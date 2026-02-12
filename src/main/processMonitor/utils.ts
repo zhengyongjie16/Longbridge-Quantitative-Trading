@@ -2,7 +2,7 @@
  * @module processMonitor/utils
  * @description processMonitor 模块的工具函数
  *
- * 提供持仓查询等辅助功能，与对象池配合使用
+ * 提供持仓查询、队列清理等辅助功能，与对象池配合使用
  */
 import { positionObjectPool } from '../../utils/objectPool/index.js';
 import type { Position, PositionCache, Signal } from '../../types/index.js';

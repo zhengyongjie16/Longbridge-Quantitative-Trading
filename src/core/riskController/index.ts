@@ -4,7 +4,7 @@
  * 协调三个子检查器，提供统一的风险检查接口：
  * - warrantRiskChecker: 牛熊证距离回收价检查
  * - positionLimitChecker: 单标的持仓市值限制
- * - unrealizedLossChecker: 单标的浮亏监控
+ * - unrealizedLossChecker: 单标的浮亏检查
  *
  * 风险阈值（均为配置项）：
  * - 牛证距离回收价 > 0.5%，熊证 < -0.5%，牛熊证当前价 > 0.015

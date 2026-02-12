@@ -25,10 +25,10 @@ export type PostTradeRefresherDeps = Readonly<{
   }) => Promise<void>;
 }>;
 
-export type PostTradeRefresher = Readonly<{
-  start: () => void;
-  enqueue: (params: PostTradeRefresherEnqueueParams) => void;
-  stop: () => void;
-  stopAndDrain: () => Promise<void>;
-  clearPending: () => void;
-}>;
+export interface PostTradeRefresher {
+  readonly start: () => void;
+  readonly enqueue: (params: PostTradeRefresherEnqueueParams) => void;
+  readonly stop: () => void;
+  readonly stopAndDrain: () => Promise<void>;
+  readonly clearPending: () => void;
+}

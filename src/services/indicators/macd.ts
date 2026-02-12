@@ -1,8 +1,7 @@
 /**
  * MACD（指数平滑异同移动平均线）计算模块
  *
- * 指标参数：
- * - MACD：EMA12-EMA26-DIF 的 EMA9
+ * 指标参数：DIF=EMA12-EMA26，DEA=EMA9(DIF)，MACD柱=2*(DIF-DEA)
  */
 import { MACD } from 'technicalindicators';
 import { macdObjectPool } from '../../utils/objectPool/index.js';

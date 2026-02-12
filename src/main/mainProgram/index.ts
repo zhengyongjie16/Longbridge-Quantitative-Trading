@@ -151,11 +151,10 @@ export async function mainProgram({
 
       if (anyProtectionEnabled && lastState.openProtectionActive !== openProtectionActive) {
         if (openProtectionActive) {
-          if (morningActive) {
-            logger.info(`[开盘保护] 早盘开盘后 ${morning.minutes} 分钟内暂停信号生成`);
-          } else {
-            logger.info(`[开盘保护] 午盘开盘后 ${afternoon.minutes} 分钟内暂停信号生成`);
-          }
+          const message = morningActive
+            ? `[开盘保护] 早盘开盘后 ${morning.minutes} 分钟内暂停信号生成`
+            : `[开盘保护] 午盘开盘后 ${afternoon.minutes ?? ''} 分钟内暂停信号生成`;
+          logger.info(message);
         } else if (lastState.openProtectionActive !== null) {
           logger.info('[开盘保护] 保护期结束，恢复信号生成');
         }

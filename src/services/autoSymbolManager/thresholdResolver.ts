@@ -116,18 +116,15 @@ export function createThresholdResolver(
   const buildFindBestWarrantInputWithDeps: BuildFindBestWarrantInput = async (
     params,
   ): Promise<FindBestWarrantInput> => {
-    const baseParams = {
+    return buildFindBestWarrantInput({
       ...params,
       autoSearchConfig,
       monitorSymbol,
       marketDataClient,
       getTradingMinutesSinceOpen,
       logger,
-    };
-    const input = warrantListCacheConfig
-      ? { ...baseParams, warrantListCacheConfig }
-      : baseParams;
-    return buildFindBestWarrantInput(input);
+      ...(warrantListCacheConfig ? { warrantListCacheConfig } : {}),
+    });
   };
 
   return {

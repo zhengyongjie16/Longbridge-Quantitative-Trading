@@ -36,9 +36,10 @@ export function calculateOrderStatistics(
  * 计算订单列表的总成交数量
  */
 export function calculateTotalQuantity(orders: ReadonlyArray<OrderRecord>): number {
-  return orders.reduce((sum, order) => {
-    return sum + (order.executedQuantity || 0);
-  }, 0);
+  return orders.reduce(
+    (sum, order) => sum + (Number(order.executedQuantity) || 0),
+    0,
+  );
 }
 
 function convertOrderToRecord(

@@ -7,7 +7,7 @@
  *
  * 限流规则：
  * - 30秒内最多 30 次调用
- * - 两次调用间隔不少于 20ms（实际使用 30ms 确保安全）
+ * - 两次调用间隔不少于 30ms
  */
 import { logger } from '../../utils/logger/index.js';
 import { API } from '../../constants/index.js';

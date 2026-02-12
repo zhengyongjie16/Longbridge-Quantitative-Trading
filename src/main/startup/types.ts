@@ -46,9 +46,9 @@ export type StartupGateDeps = {
   readonly logger: Logger;
 };
 
-export type StartupGate = {
+export interface StartupGate {
   wait(params: { readonly mode: GateMode }): Promise<TradingDayInfo>;
-};
+}
 
 /** 启动门禁内部状态（用于日志与循环判断） */
 export type StartupGateState =

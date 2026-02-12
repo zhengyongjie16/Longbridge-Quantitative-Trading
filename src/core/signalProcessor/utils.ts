@@ -99,7 +99,6 @@ export function resolveSellQuantityBySmartClose({
     };
   }
 
-  // 使用新增的防重查询接口
   const result = orderRecorder.getProfitableSellOrders(
     symbol,
     direction,

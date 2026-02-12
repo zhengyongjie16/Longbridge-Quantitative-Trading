@@ -160,7 +160,7 @@ export interface OrderCacheManager {
 }
 
 /**
- * 订单监控器接口（重构后）
+ * 订单监控器接口
  */
 export interface OrderMonitor {
   /** 初始化 WebSocket 订阅 */
@@ -350,7 +350,7 @@ export type OrderMonitorConfig = {
  * - 避免频繁订阅/取消订阅造成的 API 调用开销
  * - 订单成交后需要继续订阅以获取最新行情
  */
-export type OrderHoldRegistry = {
+export interface OrderHoldRegistry {
   /** 跟踪订单（添加标的到订阅保留集） */
   trackOrder(orderId: string, symbol: string): void;
   /** 标记订单已成交（从订阅保留集中移除） */
@@ -361,7 +361,7 @@ export type OrderHoldRegistry = {
   getHoldSymbols(): ReadonlySet<string>;
   /** 清空内部 map/set */
   clear(): void;
-};
+}
 
 /**
  * 订单监控器依赖类型

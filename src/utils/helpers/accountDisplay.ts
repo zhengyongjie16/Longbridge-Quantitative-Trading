@@ -31,11 +31,9 @@ import type { Trader, LastState, Quote } from '../../types/index.js';
  * - 程序启动时：缓存为空，调用 API 获取账户和持仓信息
  * - 订单成交后：缓存已由主循环刷新，直接使用缓存显示
  *
- * API 调用说明：
- * - 账户/持仓 API：仅在程序启动时调用（缓存为空时）
- * - 行情 API（getQuotes）：从本地 WebSocket 缓存读取，不发起 HTTP 请求
+ * 仅当 lastState.cachedAccount 为空时调用 trader.getAccountSnapshot / getStockPositions。
  *
- * @param trader Trader实例
+ * @param trader Trader 实例
  * @param lastState 状态对象，用于读取/更新缓存
  */
 export async function refreshAccountAndPositions(
@@ -87,10 +85,12 @@ export async function refreshAccountAndPositions(
 }
 
 /**
- * 显示账户和持仓信息（依赖外部行情订阅）
+ * 显示账户和持仓信息
+ *
+ * 依赖 lastState 中的缓存数据。quotesMap 用于显示持仓的现价和名称（来自主循环的行情订阅缓存）。
  *
  * @param lastState 状态对象，用于读取缓存
- * @param quotesMap 行情数据 Map（可选）
+ * @param quotesMap 行情数据 Map（可选，来自行情客户端缓存）
  */
 export async function displayAccountAndPositions({
   lastState,

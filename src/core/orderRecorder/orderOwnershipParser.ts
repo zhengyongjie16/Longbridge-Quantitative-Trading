@@ -11,21 +11,16 @@ const NORMALIZE_PATTERN = /[^\p{L}\p{N}]/gu;
 const LONG_MARKERS = ['RC', 'BULL', 'CALL', '\u725b'];
 const SHORT_MARKERS = ['RP', 'BEAR', 'PUT', '\u718a'];
 
-// 订单名称统一转大写并去除非字母字符，避免大小写与分隔符导致误判
-function normalizeStockName(stockName: string): string {
-  return stockName.trim().toUpperCase().replaceAll(NORMALIZE_PATTERN, '');
-}
-
-// 归属缩写统一转大写并去除非字母字符，避免大小写与分隔符导致误判
-function normalizeOwnershipAlias(alias: string): string {
-  return alias.trim().toUpperCase().replaceAll(NORMALIZE_PATTERN, '');
+/** 统一转大写并去除非字母数字字符，避免大小写与分隔符导致误判 */
+function normalizeForMatching(str: string): string {
+  return str.trim().toUpperCase().replaceAll(NORMALIZE_PATTERN, '');
 }
 
 function resolveDirectionFromNormalizedName(
   normalizedStockName: string,
 ): 'LONG' | 'SHORT' | null {
-  const hasLongMarker = LONG_MARKERS.some((marker) => normalizedStockName.includes(marker));
-  const hasShortMarker = SHORT_MARKERS.some((marker) => normalizedStockName.includes(marker));
+  const hasLongMarker = LONG_MARKERS.some((m) => normalizedStockName.includes(m));
+  const hasShortMarker = SHORT_MARKERS.some((m) => normalizedStockName.includes(m));
   if (hasLongMarker && !hasShortMarker) {
     return 'LONG';
   }
@@ -36,9 +31,8 @@ function resolveDirectionFromNormalizedName(
 }
 
 /**
- * 解析订单归属方向：
- * - stockName 需包含归属缩写（来自配置映射）
- * - RC 表示牛证(做多)，RP 表示熊证(做空)
+ * 解析订单归属方向
+ * stockName 需同时满足：1) 包含 RC(牛证/做多) 或 RP(熊证/做空)；2) 包含配置映射中的归属缩写
  */
 function parseOrderOwnership(
   stockName: string | null | undefined,
@@ -52,14 +46,14 @@ function parseOrderOwnership(
     return null;
   }
 
-  const normalizedStockName = normalizeStockName(stockName);
+  const normalizedStockName = normalizeForMatching(stockName);
   const direction = resolveDirectionFromNormalizedName(normalizedStockName);
   if (!direction) {
     return null;
   }
 
   for (const alias of orderOwnershipMapping) {
-    const normalizedAlias = normalizeOwnershipAlias(alias);
+    const normalizedAlias = normalizeForMatching(alias);
     if (!normalizedAlias) {
       continue;
     }

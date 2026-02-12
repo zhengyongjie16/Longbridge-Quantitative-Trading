@@ -224,7 +224,7 @@ export type DailyLossFilledOrderInput = {
   readonly orderId?: string | null;
 };
 
-export type DailyLossTracker = {
+export interface DailyLossTracker {
   /** 显式重置 dayKey 与 states */
   resetAll(now: Date): void;
   initializeFromOrders(
@@ -239,7 +239,7 @@ export type DailyLossTracker = {
   ): void;
   recordFilledOrder(input: DailyLossFilledOrderInput): void;
   getLossOffset(monitorSymbol: string, isLongSymbol: boolean): number;
-};
+}
 
 export type DailyLossTrackerDeps = {
   readonly filteringEngine: OrderFilteringEngine;

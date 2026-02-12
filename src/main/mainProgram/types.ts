@@ -43,7 +43,7 @@ export type MainProgramContext = {
   readonly signalProcessor: SignalProcessor;
   readonly tradingConfig: MultiMonitorTradingConfig;
   readonly dailyLossTracker: DailyLossTracker;
-  readonly monitorContexts: Map<string, MonitorContext>;
+  readonly monitorContexts: ReadonlyMap<string, MonitorContext>;
   readonly symbolRegistry: SymbolRegistry;
   readonly indicatorCache: IndicatorCache;
   readonly buyTaskQueue: TaskQueue<BuyTaskType>;

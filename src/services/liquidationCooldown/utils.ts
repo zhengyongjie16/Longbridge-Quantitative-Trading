@@ -58,9 +58,10 @@ export function toNumberOrNull(value: unknown): number | null {
 }
 
 export function toBooleanOrNull(value: unknown): boolean | null {
-  return value === true || value === false ? value : null;
+  return typeof value === 'boolean' ? value : null;
 }
 
+/** 按席位从成交记录中筛选最后一条保护性清仓记录，用于冷却恢复。 */
 export function resolveCooldownCandidatesBySeat({
   seatSymbols,
   tradeRecords,

@@ -125,7 +125,7 @@ export function createOrderAPIManager(deps: OrderAPIManagerDeps): OrderAPIManage
     });
   }
 
-  /** 从缓存中提取未成交订单，用于启动时避免重复调用 todayOrders API */
+  /** 从缓存中提取未成交订单，避免重复调用 todayOrders API */
   function getPendingOrdersFromCache(symbols: ReadonlyArray<string>): PendingOrder[] {
     // 使用模块级常量 PENDING_ORDER_STATUSES，避免每次调用创建新 Set
     const result: PendingOrder[] = [];

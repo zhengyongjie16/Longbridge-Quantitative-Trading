@@ -98,11 +98,9 @@ async function validateLongPortConfig(env: NodeJS.ProcessEnv): Promise<Validatio
     { key: 'LONGPORT_ACCESS_TOKEN', placeholder: 'your_access_token_here' },
   ];
 
-  for (const config of requiredConfigs) {
-    const value = env[config.key];
-    if (!value || value.trim() === '' || value === config.placeholder) {
-      errors.push(`${config.key} 未配置`);
-    }
+  for (const { key, placeholder } of requiredConfigs) {
+    const value = env[key];
+    if (!value?.trim() || value === placeholder) errors.push(`${key} 未配置`);
   }
 
   return {

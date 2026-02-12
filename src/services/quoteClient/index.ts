@@ -183,12 +183,6 @@ export async function createMarketDataClient(
   // 已订阅 K 线跟踪（key: "symbol:period"）
   const subscribedCandlesticks = new Set<string>();
 
-  // 连接状态
-  const state = {
-    isConnected: false,
-    lastUpdateTime: null as number | null,
-  };
-
   /**
    * 处理行情推送（WebSocket 回调）
    */
@@ -212,7 +206,6 @@ export async function createMarketDataClient(
     };
 
     quoteCache.set(symbol, quote);
-    state.lastUpdateTime = Date.now();
   }
 
   // 设置推送回调
@@ -230,8 +223,6 @@ export async function createMarketDataClient(
       logger.warn(`[K线推送] 接收推送时发生错误: ${formatError(err)}`);
     }
   });
-
-  // ==================== 公共方法实现 ====================
 
   /**
    * 获取行情数据（从本地缓存读取）
@@ -298,8 +289,6 @@ export async function createMarketDataClient(
     }
 
     await withRetry(() => ctx.subscribe(newSymbols, [SubType.Quote]));
-    state.isConnected = true;
-    state.lastUpdateTime = Date.now();
     logger.info(`[行情订阅] 新增订阅 ${newSymbols.length} 个标的`);
   }
 

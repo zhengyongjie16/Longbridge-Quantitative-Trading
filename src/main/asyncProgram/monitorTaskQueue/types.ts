@@ -24,15 +24,15 @@ export type MonitorTaskInput<TType extends string, TData> = Readonly<{
   data: TData;
 }>;
 
-export type MonitorTaskQueue<TType extends string, TData> = Readonly<{
-  scheduleLatest: (task: MonitorTaskInput<TType, TData>) => void;
-  pop: () => MonitorTask<TType, TData> | null;
-  isEmpty: () => boolean;
-  removeTasks: (
+export interface MonitorTaskQueue<TType extends string, TData> {
+  readonly scheduleLatest: (task: MonitorTaskInput<TType, TData>) => void;
+  readonly pop: () => MonitorTask<TType, TData> | null;
+  readonly isEmpty: () => boolean;
+  readonly removeTasks: (
     predicate: (task: MonitorTask<TType, TData>) => boolean,
     onRemove?: (task: MonitorTask<TType, TData>) => void,
   ) => number;
-  clearAll: (onRemove?: (task: MonitorTask<TType, TData>) => void) => number;
-  onTaskAdded: (callback: TaskAddedCallback) => () => void;
-  offTaskAdded: (callback: TaskAddedCallback) => void;
-}>;
+  readonly clearAll: (onRemove?: (task: MonitorTask<TType, TData>) => void) => number;
+  readonly onTaskAdded: (callback: TaskAddedCallback) => () => void;
+  readonly offTaskAdded: (callback: TaskAddedCallback) => void;
+}

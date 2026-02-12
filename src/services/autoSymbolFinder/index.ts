@@ -67,12 +67,12 @@ async function fetchWarrantsWithCache({
 
   const cacheKey = buildCacheKey(monitorSymbol, warrantType, expiryFilters);
   const nowMs = cacheConfig.nowMs();
-  const cached = cacheConfig.cache.entries.get(cacheKey);
+  const cached = cacheConfig.cache.getEntry(cacheKey);
   if (cached && nowMs - cached.fetchedAt <= ttlMs) {
     return cached.warrants;
   }
 
-  const inFlight = cacheConfig.cache.inFlight.get(cacheKey);
+  const inFlight = cacheConfig.cache.getInFlight(cacheKey);
   if (inFlight) {
     return inFlight;
   }
@@ -84,17 +84,17 @@ async function fetchWarrantsWithCache({
     expiryFilters,
   });
 
-  cacheConfig.cache.inFlight.set(cacheKey, request);
+  cacheConfig.cache.setInFlight(cacheKey, request);
 
   try {
     const warrants = await request;
-    cacheConfig.cache.entries.set(cacheKey, {
+    cacheConfig.cache.setEntry(cacheKey, {
       fetchedAt: cacheConfig.nowMs(),
       warrants,
     });
     return warrants;
   } finally {
-    cacheConfig.cache.inFlight.delete(cacheKey);
+    cacheConfig.cache.deleteInFlight(cacheKey);
   }
 }
 

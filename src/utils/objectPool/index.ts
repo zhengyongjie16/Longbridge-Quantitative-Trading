@@ -1,24 +1,12 @@
 /**
  * 对象池模块
  *
- * 功能：
- * - 复用高频创建的临时对象
- * - 减少频繁的对象创建和垃圾回收
- * - 提升内存效率和系统性能
+ * 复用高频创建的临时对象，减少 GC 压力。
  *
- * 导出的对象池：
- * - verificationEntryPool：验证历史条目对象池（最大 50 个）
- * - positionObjectPool：持仓数据对象池（最大 10 个）
- * - signalObjectPool：信号对象池
- * - kdjObjectPool / macdObjectPool：指标对象池
- * - indicatorRecordPool：指标记录对象池 Record<string, number>（最大 100 个）
- * - periodRecordPool：周期指标记录对象池 Record<number, number>（最大 100 个）
- * - monitorValuesObjectPool：监控值对象池（最大 20 个）
+ * 导出的对象池：signalObjectPool、indicatorRecordPool、periodRecordPool、
+ * kdjObjectPool、macdObjectPool、monitorValuesObjectPool、positionObjectPool。
  *
- * 核心方法：
- * - acquire()：从池中获取对象
- * - release(obj)：将对象归还到池中
- * - releaseAll(objects)：批量释放对象数组
+ * 核心方法：acquire()、release(obj)、releaseAll(objects)
  */
 import type {
   Factory,

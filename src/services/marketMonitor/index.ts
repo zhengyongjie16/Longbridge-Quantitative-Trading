@@ -21,7 +21,7 @@ import {
   toHongKongTimeLog,
 } from '../../utils/helpers/index.js';
 import { isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
-import { copyPeriodRecord, formatWarrantDistanceDisplay, hasChanged } from './utils.js';
+import { copyPeriodRecord, formatWarrantDistanceDisplay, hasChanged, indicatorChanged } from './utils.js';
 import {
   kdjObjectPool,
   macdObjectPool,
@@ -361,10 +361,11 @@ export function createMarketMonitor(): MarketMonitor {
       if (!hasIndicatorChanged && monitorSnapshot.kdj) {
         const lastKdj = monitorState.monitorValues?.kdj;
         const kdj = monitorSnapshot.kdj;
+        const threshold = MONITOR.INDICATOR_CHANGE_THRESHOLD;
         if (
-          (Number.isFinite(kdj.k) && (lastKdj?.k == null || hasChanged(kdj.k, lastKdj.k, MONITOR.INDICATOR_CHANGE_THRESHOLD))) ||
-          (Number.isFinite(kdj.d) && (lastKdj?.d == null || hasChanged(kdj.d, lastKdj.d, MONITOR.INDICATOR_CHANGE_THRESHOLD))) ||
-          (Number.isFinite(kdj.j) && (lastKdj?.j == null || hasChanged(kdj.j, lastKdj.j, MONITOR.INDICATOR_CHANGE_THRESHOLD)))
+          indicatorChanged(kdj.k, lastKdj?.k, threshold) ||
+          indicatorChanged(kdj.d, lastKdj?.d, threshold) ||
+          indicatorChanged(kdj.j, lastKdj?.j, threshold)
         ) {
           hasIndicatorChanged = true;
         }
@@ -374,10 +375,11 @@ export function createMarketMonitor(): MarketMonitor {
       if (!hasIndicatorChanged && monitorSnapshot.macd) {
         const lastMacd = monitorState.monitorValues?.macd;
         const macd = monitorSnapshot.macd;
+        const threshold = MONITOR.INDICATOR_CHANGE_THRESHOLD;
         if (
-          (Number.isFinite(macd.macd) && (lastMacd?.macd == null || hasChanged(macd.macd, lastMacd.macd, MONITOR.INDICATOR_CHANGE_THRESHOLD))) ||
-          (Number.isFinite(macd.dif) && (lastMacd?.dif == null || hasChanged(macd.dif, lastMacd.dif, MONITOR.INDICATOR_CHANGE_THRESHOLD))) ||
-          (Number.isFinite(macd.dea) && (lastMacd?.dea == null || hasChanged(macd.dea, lastMacd.dea, MONITOR.INDICATOR_CHANGE_THRESHOLD)))
+          indicatorChanged(macd.macd, lastMacd?.macd, threshold) ||
+          indicatorChanged(macd.dif, lastMacd?.dif, threshold) ||
+          indicatorChanged(macd.dea, lastMacd?.dea, threshold)
         ) {
           hasIndicatorChanged = true;
         }

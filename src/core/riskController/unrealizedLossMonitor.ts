@@ -4,12 +4,12 @@
  * 功能：
  * - 实时监控单标的的浮亏
  * - 浮亏超过阈值时触发保护性清仓
- * - 订单类型由 LIQUIDATION_ORDER_TYPE 配置决定
+ * - 保护性清仓订单类型由全局配置 liquidationOrderType 决定
  *
  * 浮亏计算（由 riskChecker.checkUnrealizedLoss 执行）：
  * - unrealizedLoss = currentPrice * N1 - R1（负数表示亏损）
- * - R1：所有未平仓买入订单的市值总和
- * - N1：所有未平仓买入订单的成交数量总和
+ * - R1：未平仓买入订单的成本总和
+ * - N1：未平仓买入订单的成交数量总和
  *
  * 清仓流程：
  * 1. 检查浮亏是否超过阈值

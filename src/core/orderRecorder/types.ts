@@ -80,7 +80,7 @@ export type ProfitableOrderResult = {
 
 /**
  * 订单过滤算法的中间状态类型
- * - m0Orders: 最新卖出后的买入订单（无条件保留）
+ * - m0Orders: 最新卖出时间之后成交的买入订单（无条件保留）
  * - candidateOrders: 需要过滤的候选订单
  */
 export type FilteringState = {

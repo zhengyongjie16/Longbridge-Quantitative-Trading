@@ -18,6 +18,26 @@ import type { OrderRecord, Quote } from '../../types/index.js';
 import type { OrderStorage, OrderStorageDeps, PendingSellInfo, ProfitableOrderResult } from './types.js';
 import { calculateTotalQuantity } from './utils.js';
 
+/** 获取指定方向 Map 中所有买入订单 */
+function collectAllOrders(map: Map<string, OrderRecord[]>): OrderRecord[] {
+  let totalLength = 0;
+  for (const orders of map.values()) {
+    totalLength += orders.length;
+  }
+  if (totalLength === 0) {
+    return [];
+  }
+  const allOrders = new Array<OrderRecord>(totalLength);
+  let offset = 0;
+  for (const orders of map.values()) {
+    for (const order of orders) {
+      allOrders[offset] = order;
+      offset += 1;
+    }
+  }
+  return allOrders;
+}
+
 /** 创建订单存储管理器 */
 export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage => {
   // 使用 Map 存储订单，key 为 symbol，提供 O(1) 查找性能
@@ -35,9 +55,10 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
    * @param isLongSymbol 是否为做多标的
    * @returns 买入订单数组（如果不存在则返回空数组）
    */
-  const getBuyOrdersList = (symbol: string, isLongSymbol: boolean): OrderRecord[] => {
+  const getBuyOrdersList = (symbol: string, isLongSymbol: boolean): ReadonlyArray<OrderRecord> => {
     const targetMap = isLongSymbol ? longBuyOrdersMap : shortBuyOrdersMap;
-    return targetMap.get(symbol) ?? [];
+    const list = targetMap.get(symbol);
+    return list ? [...list] : [];
   };
 
   /**
@@ -99,7 +120,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     executedTimeMs: number,
   ): void => {
     const executedTime = isValidPositiveNumber(executedTimeMs) ? executedTimeMs : Date.now();
-    const list = getBuyOrdersList(symbol, isLongSymbol);
+    const list = [...getBuyOrdersList(symbol, isLongSymbol)];
 
     list.push({
       orderId: `LOCAL_${executedTime}`,
@@ -253,26 +274,6 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
     return filteredOrders;
   };
-
-  /** 获取指定方向 Map 中所有买入订单 */
-  function collectAllOrders(map: Map<string, OrderRecord[]>): OrderRecord[] {
-    let totalLength = 0;
-    for (const orders of map.values()) {
-      totalLength += orders.length;
-    }
-    if (totalLength === 0) {
-      return [];
-    }
-    const allOrders = new Array<OrderRecord>(totalLength);
-    let offset = 0;
-    for (const orders of map.values()) {
-      for (const order of orders) {
-        allOrders[offset] = order;
-        offset += 1;
-      }
-    }
-    return allOrders;
-  }
 
   /** 获取所有做多标的的买入订单（用于 RiskChecker） */
   const getLongBuyOrders = (): OrderRecord[] => collectAllOrders(longBuyOrdersMap);

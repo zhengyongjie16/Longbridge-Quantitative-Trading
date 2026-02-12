@@ -9,6 +9,10 @@
 import type { Position, Signal, RiskCheckResult } from '../../types/index.js';
 import type { PositionLimitChecker, PositionLimitCheckerDeps } from './types.js';
 
+function buildOrderNotionalExceededReason(orderNotional: number, max: number): string {
+  return `本次计划下单金额 ${orderNotional.toFixed(2)} HKD 超过单标的最大持仓市值限制 ${max} HKD`;
+}
+
 /** 根据标的代码查找持仓 */
 function findPosition(
   positions: ReadonlyArray<Position> | null,
@@ -26,9 +30,7 @@ export const createPositionLimitChecker = (deps: PositionLimitCheckerDeps): Posi
     if (maxPositionNotional !== null && orderNotional > maxPositionNotional) {
       return {
         allowed: false,
-        reason: `本次计划下单金额 ${orderNotional.toFixed(
-          2,
-        )} HKD 超过单标的最大持仓市值限制 ${maxPositionNotional} HKD`,
+        reason: buildOrderNotionalExceededReason(orderNotional, maxPositionNotional),
       };
     }
     return { allowed: true };
@@ -101,9 +103,7 @@ export const createPositionLimitChecker = (deps: PositionLimitCheckerDeps): Posi
     if (maxPositionNotional !== null && orderNotional > maxPositionNotional) {
       return {
         allowed: false,
-        reason: `本次计划下单金额 ${orderNotional.toFixed(
-          2,
-        )} HKD 超过单标的最大持仓市值限制 ${maxPositionNotional} HKD`,
+        reason: buildOrderNotionalExceededReason(orderNotional, maxPositionNotional),
       };
     }
 
