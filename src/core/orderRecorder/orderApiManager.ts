@@ -89,6 +89,31 @@ export function createOrderAPIManager(deps: OrderAPIManagerDeps): OrderAPIManage
     allOrdersCache = null;
   }
 
+  /** 类型守卫：校验 API 返回的订单数据是否符合 RawOrderFromAPI 结构 */
+  function isValidRawOrder(order: unknown): order is RawOrderFromAPI {
+    if (typeof order !== 'object' || order === null) {
+      return false;
+    }
+    const obj = order as Record<string, unknown>;
+    return (
+      typeof obj['orderId'] === 'string' &&
+      typeof obj['symbol'] === 'string' &&
+      typeof obj['stockName'] === 'string' &&
+      typeof obj['side'] === 'string' &&
+      typeof obj['status'] === 'string' &&
+      typeof obj['orderType'] === 'string' &&
+      obj['price'] != null &&
+      obj['quantity'] != null &&
+      obj['executedPrice'] != null &&
+      obj['executedQuantity'] != null
+    );
+  }
+
+  /** 类型守卫：校验订单数组 */
+  function isValidRawOrderArray(orders: unknown): orders is RawOrderFromAPI[] {
+    return Array.isArray(orders) && orders.every(isValidRawOrder);
+  }
+
   /** 从 API 获取全量订单数据（history + today） */
   async function fetchAllOrdersFromAPI(
     forceRefresh = false,
@@ -105,9 +130,19 @@ export function createOrderAPIManager(deps: OrderAPIManagerDeps): OrderAPIManage
     await rateLimiter.throttle();
     const todayOrdersRaw = await ctx.todayOrders();
 
-    const historyOrders = historyOrdersRaw as unknown as RawOrderFromAPI[];
-    const todayOrders = todayOrdersRaw as unknown as RawOrderFromAPI[];
-    const allOrders = mergeAndDeduplicateOrders(historyOrders, todayOrders);
+    // 信任边界：校验 API 返回的数据结构
+    if (!isValidRawOrderArray(historyOrdersRaw)) {
+      throw new Error(
+        '[订单API] historyOrders 返回数据格式不符合预期，无法解析为 RawOrderFromAPI[]',
+      );
+    }
+    if (!isValidRawOrderArray(todayOrdersRaw)) {
+      throw new Error(
+        '[订单API] todayOrders 返回数据格式不符合预期，无法解析为 RawOrderFromAPI[]',
+      );
+    }
+
+    const allOrders = mergeAndDeduplicateOrders(historyOrdersRaw, todayOrdersRaw);
 
     allOrdersCache = allOrders;
     return [...allOrders];

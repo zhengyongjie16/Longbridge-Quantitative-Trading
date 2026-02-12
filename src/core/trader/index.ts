@@ -19,7 +19,7 @@
  */
 import { TradeContext } from 'longport';
 import { createOrderRecorder } from '../orderRecorder/index.js';
-import type { Signal, Quote, AccountSnapshot, Position, PendingOrder, Trader, TradeCheckResult, PendingRefreshSymbol } from '../../types/index.js';
+import type { Signal, Quote, AccountSnapshot, Position, PendingOrder, Trader, TradeCheckResult, PendingRefreshSymbol, SignalType } from '../../types/index.js';
 import type { TraderDeps } from './types.js';
 
 // 导入子模块工厂函数
@@ -157,11 +157,11 @@ export async function createTrader(deps: TraderDeps): Promise<Trader> {
 
     // ==================== 订单执行相关方法 ====================
 
-    _canTradeNow(signalAction: string, monitorConfig?: import('../../types/index.js').MonitorConfig | null): TradeCheckResult {
+    _canTradeNow(signalAction: SignalType, monitorConfig?: import('../../types/index.js').MonitorConfig | null): TradeCheckResult {
       return orderExecutor.canTradeNow(signalAction, monitorConfig);
     },
 
-    _markBuyAttempt(signalAction: string, monitorConfig?: import('../../types/index.js').MonitorConfig | null): void {
+    _markBuyAttempt(signalAction: SignalType, monitorConfig?: import('../../types/index.js').MonitorConfig | null): void {
       orderExecutor.markBuyAttempt(signalAction, monitorConfig);
     },
 

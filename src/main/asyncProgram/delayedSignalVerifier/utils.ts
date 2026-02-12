@@ -40,10 +40,10 @@ export const extractInitialIndicators = (
   const result: Record<string, number> = {};
   for (const name of indicatorNames) {
     const value = indicators1[name];
-    if (!Number.isFinite(value)) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
       return null;
     }
-    result[name] = value as number;
+    result[name] = value;
   }
   return result;
 };
@@ -71,16 +71,21 @@ const verifyTimePoint = (
 
   for (const name of indicatorNames) {
     const initialValue = initialIndicators[name];
-    const currentValue = getIndicatorValue(entry.snapshot, name);
+    const currentValueRaw = getIndicatorValue(entry.snapshot, name);
 
-    if (initialValue === undefined || !Number.isFinite(currentValue)) {
+    if (
+      initialValue === undefined ||
+      currentValueRaw === null ||
+      !Number.isFinite(currentValueRaw)
+    ) {
       details.push(`${name}: 无效值`);
       failedIndicators.push(name);
       allPassed = false;
       continue;
     }
 
-    const passed = isUptrend ? currentValue! > initialValue : currentValue! < initialValue;
+    const currentValue = currentValueRaw;
+    const passed = isUptrend ? currentValue > initialValue : currentValue < initialValue;
 
     // 根据趋势方向和验证结果确定比较符号
     let symbol: string;
@@ -90,7 +95,7 @@ const verifyTimePoint = (
       symbol = isUptrend ? '<=' : '>=';
     }
 
-    details.push(`${name}=${currentValue!.toFixed(3)}${symbol}${initialValue.toFixed(3)}`);
+    details.push(`${name}=${currentValue.toFixed(3)}${symbol}${initialValue.toFixed(3)}`);
 
     if (!passed) {
       failedIndicators.push(name);

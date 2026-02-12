@@ -78,11 +78,34 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
         orderType: PendingOrder['orderType'];
       }> = [];
 
-      // 优化：始终一次性获取所有今日订单，然后在客户端按标的过滤
+      function isValidTodayOrder(
+        order: unknown,
+      ): order is (typeof allOrders)[number] {
+        if (typeof order !== 'object' || order === null) {
+          return false;
+        }
+        const obj = order as Record<string, unknown>;
+        return (
+          typeof obj['orderId'] === 'string' &&
+          typeof obj['symbol'] === 'string' &&
+          typeof obj['side'] === 'string' &&
+          typeof obj['status'] === 'string'
+        );
+      }
+
+      // 始终一次性获取所有今日订单，然后在客户端按标的过滤
       // 这样无论查询多少个标的，都只需要 1 次 API 调用
       // 避免了之前为每个标的单独调用导致的 API 限流问题
       await rateLimiter.throttle();
-      allOrders = (await ctx.todayOrders()) as typeof allOrders;
+      const todayOrdersRaw = await ctx.todayOrders();
+      if (!Array.isArray(todayOrdersRaw)) {
+        logger.error(
+          '[订单缓存] todayOrders 返回结果不是数组，无法解析未成交订单',
+        );
+        return [];
+      }
+      // 信任边界：仅保留结构符合预期的订单
+      allOrders = todayOrdersRaw.filter(isValidTodayOrder);
 
       // 如果指定了标的，还需要在客户端再次过滤（因为可能获取了所有订单）
       const targetSymbols =

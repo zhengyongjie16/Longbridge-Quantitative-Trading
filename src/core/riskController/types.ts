@@ -184,6 +184,9 @@ export type UnrealizedLossCheckerDeps = {
 
 /** 风险检查器依赖（门面模式） */
 export type RiskCheckerDeps = {
+  readonly warrantRiskChecker: WarrantRiskChecker;
+  readonly positionLimitChecker: PositionLimitChecker;
+  readonly unrealizedLossChecker: UnrealizedLossChecker;
   readonly options?: {
     readonly maxDailyLoss?: number | null;
     readonly maxPositionNotional?: number | null;

@@ -1017,9 +1017,9 @@ export interface Trader {
   // ========== 订单执行 ==========
 
   /** 检查当前是否可交易 */
-  _canTradeNow(signalAction: string, monitorConfig?: MonitorConfig | null): TradeCheckResult;
+  _canTradeNow(signalAction: SignalType, monitorConfig?: MonitorConfig | null): TradeCheckResult;
   /** 标记买入意图（预占时间槽，防止并发） */
-  _markBuyAttempt(signalAction: string, monitorConfig?: MonitorConfig | null): void;
+  _markBuyAttempt(signalAction: SignalType, monitorConfig?: MonitorConfig | null): void;
   /** 生命周期午夜清理：重置订单运行态缓存 */
   _resetRuntimeState(): void;
   /** 生命周期开盘重建：恢复订单追踪 */
@@ -1211,15 +1211,15 @@ export interface RiskChecker {
   ): Promise<WarrantRefreshResult>;
 
   /** 订单前风险检查（持仓限制） */
-  checkBeforeOrder(
-    account: AccountSnapshot | null,
-    positions: ReadonlyArray<Position> | null,
-    signal: Signal | null,
-    orderNotional: number,
-    currentPrice?: number | null,
-    longCurrentPrice?: number | null,
-    shortCurrentPrice?: number | null,
-  ): RiskCheckResult;
+  checkBeforeOrder(params: {
+    readonly account: AccountSnapshot | null;
+    readonly positions: ReadonlyArray<Position> | null;
+    readonly signal: Signal | null;
+    readonly orderNotional: number;
+    readonly currentPrice?: number | null;
+    readonly longCurrentPrice?: number | null;
+    readonly shortCurrentPrice?: number | null;
+  }): RiskCheckResult;
 
   /** 牛熊证风险检查（距离回收价 + 当前价阈值） */
   checkWarrantRisk(

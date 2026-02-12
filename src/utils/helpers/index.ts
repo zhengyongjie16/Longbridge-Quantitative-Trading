@@ -60,6 +60,7 @@ function isErrorLike(value: unknown): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
+  // 类型收窄：已确认 value 是 object 且非 null，使用类型断言转换为 Record
   const obj = value as Record<string, unknown>;
   return typeof obj['message'] === 'string' ||
          typeof obj['error'] === 'string' ||

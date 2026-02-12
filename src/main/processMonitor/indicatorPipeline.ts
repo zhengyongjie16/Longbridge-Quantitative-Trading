@@ -44,6 +44,7 @@ export async function runIndicatorPipeline(
     return null;
   }
 
+  // LongPort SDK 返回 Candlestick[]，与内部 CandleData 结构兼容，此处作为桥接类型使用
   const candles = monitorCandles as CandleData[];
   const fingerprint = getCandleFingerprint(candles);
 

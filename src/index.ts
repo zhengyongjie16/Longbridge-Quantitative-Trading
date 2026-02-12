@@ -29,6 +29,9 @@ import { validateAllConfig, validateRuntimeSymbolsFromQuotesMap } from './config
 import { createHangSengMultiIndicatorStrategy } from './core/strategy/index.js';
 import { createDailyLossTracker } from './core/riskController/dailyLossTracker.js';
 import { createRiskChecker } from './core/riskController/index.js';
+import { createWarrantRiskChecker } from './core/riskController/warrantRiskChecker.js';
+import { createPositionLimitChecker } from './core/riskController/positionLimitChecker.js';
+import { createUnrealizedLossChecker } from './core/riskController/unrealizedLossChecker.js';
 import { createUnrealizedLossMonitor } from './core/riskController/unrealizedLossMonitor.js';
 import { createOrderFilteringEngine } from './core/orderRecorder/orderFilteringEngine.js';
 import { classifyAndConvertOrders } from './core/orderRecorder/utils.js';
@@ -394,7 +397,17 @@ async function main(): Promise<void> {
     }
 
     // 初始化风控、自动寻标、策略、浮亏与延迟验证组件
+    const warrantRiskChecker = createWarrantRiskChecker();
+    const positionLimitChecker = createPositionLimitChecker({
+      maxPositionNotional: monitorConfig.maxPositionNotional ?? null,
+    });
+    const unrealizedLossChecker = createUnrealizedLossChecker({
+      maxUnrealizedLossPerSymbol: monitorConfig.maxUnrealizedLossPerSymbol ?? null,
+    });
     const riskChecker = createRiskChecker({
+      warrantRiskChecker,
+      positionLimitChecker,
+      unrealizedLossChecker,
       options: {
         maxDailyLoss: monitorConfig.maxDailyLoss,
         maxPositionNotional: monitorConfig.maxPositionNotional,

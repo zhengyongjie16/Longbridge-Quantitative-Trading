@@ -25,6 +25,7 @@ function normalizeTradeRecord(raw: unknown): TradeRecord | null {
   if (!raw || typeof raw !== 'object') {
     return null;
   }
+  // 清仓冷却仅依赖 TradeRecord 的键值，这里在局部信任 JSON 解析结果结构并做结构性断言
   const obj = raw as RawRecord;
   const record: TradeRecord = {
     orderId: toStringOrNull(obj['orderId']),

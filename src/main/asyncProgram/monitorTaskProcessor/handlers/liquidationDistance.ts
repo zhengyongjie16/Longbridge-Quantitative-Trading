@@ -48,6 +48,7 @@ export function createLiquidationDistanceHandler({
   return async function handleLiquidationDistanceCheck(
     task: MonitorTask<MonitorTaskType, MonitorTaskData>,
   ): Promise<MonitorTaskStatus> {
+    // handler 由 LIQUIDATION_DISTANCE_CHECK 类型分派，data 语义上必为 LiquidationDistanceCheckTaskData
     const data = task.data as LiquidationDistanceCheckTaskData;
     const context = getContextOrSkip(data.monitorSymbol);
     if (!context) {
@@ -116,6 +117,7 @@ export function createLiquidationDistanceHandler({
           return null;
         }
 
+        // 对象池返回 PoolableSignal，这里通过字段赋值构造出完整的 Signal 对象
         const signal = signalObjectPool.acquire() as Signal;
         signal.symbol = symbol;
         signal.symbolName = symbolName;

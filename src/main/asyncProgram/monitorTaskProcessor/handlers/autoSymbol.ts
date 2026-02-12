@@ -47,6 +47,7 @@ export function createAutoSymbolHandlers({
   async function handleAutoSymbolTick(
     task: MonitorTask<MonitorTaskType, MonitorTaskData>,
   ): Promise<MonitorTaskStatus> {
+    // 由队列按 type 分派，此处断言为 AutoSymbolTickTaskData
     const data = task.data as AutoSymbolTickTaskData;
     const context = getContextOrSkip(data.monitorSymbol);
     if (!context) {
@@ -79,6 +80,7 @@ export function createAutoSymbolHandlers({
   async function handleAutoSymbolSwitchDistance(
     task: MonitorTask<MonitorTaskType, MonitorTaskData>,
   ): Promise<MonitorTaskStatus> {
+    // 由队列按 type 分派，此处断言为 AutoSymbolSwitchDistanceTaskData
     const data = task.data as AutoSymbolSwitchDistanceTaskData;
     const context = getContextOrSkip(data.monitorSymbol);
     if (!context) {

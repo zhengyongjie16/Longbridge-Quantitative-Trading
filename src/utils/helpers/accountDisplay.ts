@@ -51,14 +51,14 @@ export async function refreshAccountAndPositions(
     if (!hasCache) {
       // 并行获取账户信息和持仓信息，减少等待时间
       const [freshAccount, freshPositions] = await Promise.all([
-        trader.getAccountSnapshot().catch((err: Error) => {
+        trader.getAccountSnapshot().catch((err: unknown) => {
           logger.warn(
             '获取账户信息失败',
             formatError(err),
           );
           return null;
         }),
-        trader.getStockPositions().catch((err: Error) => {
+        trader.getStockPositions().catch((err: unknown) => {
           logger.warn(
             '获取股票仓位失败',
             formatError(err),

@@ -19,6 +19,7 @@
  * - isBeforeClose15Minutes()：判断是否在收盘前15分钟（拒绝买入）
  * - isBeforeClose5Minutes()：判断是否在收盘前5分钟（自动清仓）
  */
+import { TIME } from '../../constants/index.js';
 import type { HKTime } from './types.js';
 
 /**
@@ -30,8 +31,9 @@ export function getHKTime(date: Date | null | undefined): HKTime | null {
   if (!date) return null;
   const utcHour = date.getUTCHours();
   const utcMinute = date.getUTCMinutes();
+  const offsetHours = TIME.HONG_KONG_TIMEZONE_OFFSET_MS / (60 * 60 * 1000);
   return {
-    hkHour: (utcHour + 8) % 24,
+    hkHour: (utcHour + offsetHours) % 24,
     hkMinute: utcMinute,
   };
 }
@@ -43,7 +45,7 @@ export function getHKTime(date: Date | null | undefined): HKTime | null {
  */
 export function getHKDateKey(date: Date | null | undefined): string | null {
   if (!date) return null;
-  const hkDate = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+  const hkDate = new Date(date.getTime() + TIME.HONG_KONG_TIMEZONE_OFFSET_MS);
   const year = hkDate.getUTCFullYear();
   const month = String(hkDate.getUTCMonth() + 1).padStart(2, '0');
   const day = String(hkDate.getUTCDate()).padStart(2, '0');

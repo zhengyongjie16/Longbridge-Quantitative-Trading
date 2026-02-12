@@ -22,6 +22,7 @@ import type {
   RawOrderFromAPI,
   OrderTypeConfig,
   MonitorConfig,
+  SignalType,
 } from '../../types/index.js';
 import type { LiquidationCooldownTracker } from '../../services/liquidationCooldown/types.js';
 import type { DailyLossTracker } from '../riskController/types.js';
@@ -203,14 +204,14 @@ export interface OrderMonitor {
  * 订单执行器接口
  */
 export interface OrderExecutor {
-  canTradeNow(signalAction: string, monitorConfig?: import('../../types/index.js').MonitorConfig | null): TradeCheckResult;
+  canTradeNow(signalAction: SignalType, monitorConfig?: import('../../types/index.js').MonitorConfig | null): TradeCheckResult;
   /**
    * 标记买入意图（预占买入时间槽）
    * 在 signalProcessor 检查通过后立即调用，防止同一批次中的多个信号同时通过频率检查
    * @param signalAction 信号类型（BUYCALL 或 BUYPUT）
    * @param monitorConfig 监控配置
    */
-  markBuyAttempt(signalAction: string, monitorConfig?: import('../../types/index.js').MonitorConfig | null): void;
+  markBuyAttempt(signalAction: SignalType, monitorConfig?: import('../../types/index.js').MonitorConfig | null): void;
   executeSignals(signals: Signal[]): Promise<void>;
   /** 清空 lastBuyTime（买入节流状态） */
   resetBuyThrottle(): void;

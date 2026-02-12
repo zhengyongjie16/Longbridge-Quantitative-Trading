@@ -29,13 +29,13 @@ import type {
 } from '../../types/index.js';
 import type {
   RiskCheckerDeps,
+  WarrantRiskChecker,
+  PositionLimitChecker,
+  UnrealizedLossChecker,
 } from './types.js';
-import { createWarrantRiskChecker } from './warrantRiskChecker.js';
-import { createPositionLimitChecker } from './positionLimitChecker.js';
-import { createUnrealizedLossChecker } from './unrealizedLossChecker.js';
 
 /** 创建风险检查器（门面模式） */
-export function createRiskChecker(deps: RiskCheckerDeps = {}): RiskChecker {
+export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
   const options = deps.options ?? {};
   let maxDailyLoss = options.maxDailyLoss ?? 0;
 
@@ -47,14 +47,10 @@ export function createRiskChecker(deps: RiskCheckerDeps = {}): RiskChecker {
     maxDailyLoss = 0;
   }
 
-  // 初始化各个子模块
-  const warrantRiskChecker = createWarrantRiskChecker();
-  const positionLimitChecker = createPositionLimitChecker({
-    maxPositionNotional: options.maxPositionNotional ?? null,
-  });
-  const unrealizedLossChecker = createUnrealizedLossChecker({
-    maxUnrealizedLossPerSymbol: options.maxUnrealizedLossPerSymbol ?? null,
-  });
+  // 依赖注入：子检查器通过参数注入，不在内部创建
+  const warrantRiskChecker: WarrantRiskChecker = deps.warrantRiskChecker;
+  const positionLimitChecker: PositionLimitChecker = deps.positionLimitChecker;
+  const unrealizedLossChecker: UnrealizedLossChecker = deps.unrealizedLossChecker;
 
   /** 检查单个标的的浮亏，返回 null 表示通过 */
   function checkUnrealizedLossForSymbol(
@@ -161,15 +157,24 @@ export function createRiskChecker(deps: RiskCheckerDeps = {}): RiskChecker {
   }
 
   /** 订单前综合风险检查：账户、浮亏、持仓限制 */
-  function checkBeforeOrder(
-    account: AccountSnapshot | null,
-    positions: ReadonlyArray<Position> | null,
-    signal: Signal | null,
-    orderNotional: number,
-    currentPrice: number | null = null,
-    longCurrentPrice: number | null = null,
-    shortCurrentPrice: number | null = null,
-  ): RiskCheckResult {
+  function checkBeforeOrder(params: {
+    readonly account: AccountSnapshot | null;
+    readonly positions: ReadonlyArray<Position> | null;
+    readonly signal: Signal | null;
+    readonly orderNotional: number;
+    readonly currentPrice?: number | null;
+    readonly longCurrentPrice?: number | null;
+    readonly shortCurrentPrice?: number | null;
+  }): RiskCheckResult {
+    const {
+      account,
+      positions,
+      signal,
+      orderNotional,
+      currentPrice = null,
+      longCurrentPrice = null,
+      shortCurrentPrice = null,
+    } = params;
     // HOLD 信号不需要检查
     if (!signal || signal.action === 'HOLD') {
       return { allowed: true };

@@ -472,13 +472,13 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
     // 5. 数量截断（如果超过最大可卖数量）
     if (maxSellQuantity !== undefined && totalQuantity > maxSellQuantity) {
-      // 按价格从低到高排序（便宜的先卖）
-      availableOrders.sort((a, b) => a.executedPrice - b.executedPrice);
+      // 按价格从低到高排序（便宜的先卖）- 使用不可变更新避免修改原数组
+      const sortedOrders = [...availableOrders].sort((a, b) => a.executedPrice - b.executedPrice);
 
       let remaining = maxSellQuantity;
       const finalOrders: OrderRecord[] = [];
 
-      for (const order of availableOrders) {
+      for (const order of sortedOrders) {
         if (remaining <= 0) break;
         if (order.executedQuantity <= remaining) {
           finalOrders.push(order);
@@ -497,7 +497,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
       logger.info(
         `[订单存储] 数量超出限制截断: ${symbol} ${direction} ` +
-        `原数量=${calculateTotalQuantity(availableOrders)} ` +
+        `原数量=${calculateTotalQuantity(sortedOrders)} ` +
         `限制=${maxSellQuantity} 最终=${totalQuantity}`,
       );
 

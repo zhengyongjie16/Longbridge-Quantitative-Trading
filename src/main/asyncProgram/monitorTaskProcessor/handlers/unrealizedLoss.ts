@@ -41,6 +41,7 @@ export function createUnrealizedLossHandler({
   return async function handleUnrealizedLossCheck(
     task: MonitorTask<MonitorTaskType, MonitorTaskData>,
   ): Promise<MonitorTaskStatus> {
+    // handler 由 UNREALIZED_LOSS_CHECK 类型分派，data 语义上必为 UnrealizedLossCheckTaskData
     const data = task.data as UnrealizedLossCheckTaskData;
     const context = getContextOrSkip(data.monitorSymbol);
     if (!context) {

@@ -193,10 +193,19 @@ export async function createMarketDataClient(
     const lotSize = extractLotSize(staticInfo);
     const pushData = event.data;
 
+    const lastDone = decimalToNumber(pushData.lastDone);
+    if (!Number.isFinite(lastDone)) {
+      const symbolName = extractName(staticInfo);
+      logger.warn(
+        `[行情推送] 标的 ${formatSymbolDisplay(symbol, symbolName)} lastDone 无效，忽略本次推送`,
+      );
+      return;
+    }
+
     const quote: Quote = {
       symbol,
       name: extractName(staticInfo),
-      price: Number(pushData.lastDone),
+      price: lastDone,
       prevClose,
       timestamp: pushData.timestamp.getTime(),
       ...(lotSize === undefined ? {} : { lotSize }),
@@ -458,8 +467,9 @@ export async function createMarketDataClient(
         errors.push(new Error(`[行情重置] K线 key 周期无效: ${key}`));
         continue;
       }
+      const periodValue = Number(periodNum) as Period;
       try {
-        await withRetry(() => ctx.unsubscribeCandlesticks(symbol, periodNum as Period));
+        await withRetry(() => ctx.unsubscribeCandlesticks(symbol, periodValue));
         subscribedCandlesticks.delete(key);
       } catch (err) {
         errors.push(err);

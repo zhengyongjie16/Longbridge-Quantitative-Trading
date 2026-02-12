@@ -298,6 +298,7 @@ async function checkWarrantType(
 
   // 使用 warrantQuote API 获取牛熊证信息
   const warrantQuotesRaw = await ctx.warrantQuote([symbol]);
+  // warrantQuote API 返回 SDK 定义的结构，这里只取第一个元素并在信任边界处做结构性断言
   const warrantQuote = (Array.isArray(warrantQuotesRaw)
     ? warrantQuotesRaw[0] ?? null
     : null) as WarrantQuote | null;
@@ -324,6 +325,7 @@ async function checkWarrantType(
     isWarrant: true,
     warrantType,
     callPrice,
+    // SDK 的 category 可能是数字枚举或字符串枚举，这里统一视为 number|string 以便日志与调试使用
     category: category as number | string,
     symbol,
   };

@@ -68,7 +68,7 @@ export function createSeatRefreshHandler({
     task: MonitorTask<MonitorTaskType, MonitorTaskData>,
     helpers: RefreshHelpers,
   ): Promise<MonitorTaskStatus> {
-    // handler 由 SEAT_REFRESH 类型分派，data 必为 SeatRefreshTaskData
+    // handler 由 SEAT_REFRESH 类型分派，data 语义上必为 SeatRefreshTaskData
     const data = task.data as SeatRefreshTaskData;
     const context = getContextOrSkip(data.monitorSymbol);
     if (!context) {

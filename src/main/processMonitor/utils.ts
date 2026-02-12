@@ -30,6 +30,7 @@ function isMonitorTaskForDirection(
   if (!task.data || typeof task.data !== 'object') {
     return false;
   }
+  // 这里只做通用方向过滤，调用点已保证 task.data 为对象结构
   const data = task.data as Record<string, unknown>;
   const isDirectionMatch = data['direction'] === direction;
   const isSharedTask = 'seatSnapshots' in data || ('long' in data && 'short' in data);
@@ -108,6 +109,7 @@ export function getPositions(
 }
 
 function createPositionFromCache(symbol: string, source: Position): Position {
+  // 对象池返回 PoolablePosition，这里通过字段覆盖构造出完整的 Position
   const position = positionObjectPool.acquire() as Position;
   position.symbol = symbol;
   position.costPrice = Number(source.costPrice) || 0;

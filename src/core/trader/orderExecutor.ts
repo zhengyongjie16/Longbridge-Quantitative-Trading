@@ -270,11 +270,11 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
    * 卖出无限制，买入需满足 buyIntervalSeconds 间隔
    */
   function canTradeNow(
-    signalAction: string,
+    signalAction: SignalType,
     monitorConfig?: MonitorConfig | null,
   ): TradeCheckResult {
     // 卖出操作不触发频率限制
-    if (isSellAction(signalAction as SignalType)) {
+    if (isSellAction(signalAction)) {
       return { canTrade: true };
     }
 
@@ -312,10 +312,10 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
 
   /** 记录买入时间（用于频率限制） */
   function updateLastBuyTime(
-    signalAction: string,
+    signalAction: SignalType,
     monitorConfig?: MonitorConfig | null,
   ): void {
-    if (isBuyAction(signalAction as SignalType)) {
+    if (isBuyAction(signalAction)) {
       lastBuyTime.set(buildBuyTimeKey(signalAction, monitorConfig), Date.now());
     }
   }
@@ -329,7 +329,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
    * 预占买入时间槽
    * 在频率检查通过后立即调用，防止同批次信号重复通过检查
    */
-  function markBuyAttempt(signalAction: string, monitorConfig?: MonitorConfig | null): void {
+  function markBuyAttempt(signalAction: SignalType, monitorConfig?: MonitorConfig | null): void {
     updateLastBuyTime(signalAction, monitorConfig);
   }
 

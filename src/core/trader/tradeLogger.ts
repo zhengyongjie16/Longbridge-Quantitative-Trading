@@ -15,6 +15,39 @@ import { toHongKongTimeIso } from '../../utils/helpers/index.js';
 import { buildTradeLogPath } from './utils.js';
 import type { TradeRecord, ErrorTypeIdentifier } from './types.js';
 
+/** 类型守卫：校验 TradeRecord 结构 */
+function isValidTradeRecord(record: unknown): record is TradeRecord {
+  if (typeof record !== 'object' || record === null) {
+    return false;
+  }
+  const obj = record as Record<string, unknown>;
+  // 校验必需字段的类型（允许 null）
+  return (
+    (obj['orderId'] === null || typeof obj['orderId'] === 'string') &&
+    (obj['symbol'] === null || typeof obj['symbol'] === 'string') &&
+    (obj['symbolName'] === null || typeof obj['symbolName'] === 'string') &&
+    (obj['monitorSymbol'] === null || typeof obj['monitorSymbol'] === 'string') &&
+    (obj['action'] === null || typeof obj['action'] === 'string') &&
+    (obj['side'] === null || typeof obj['side'] === 'string') &&
+    (obj['quantity'] === null || typeof obj['quantity'] === 'string') &&
+    (obj['price'] === null || typeof obj['price'] === 'string') &&
+    (obj['orderType'] === null || typeof obj['orderType'] === 'string') &&
+    (obj['status'] === null || typeof obj['status'] === 'string') &&
+    (obj['error'] === null || typeof obj['error'] === 'string') &&
+    (obj['reason'] === null || typeof obj['reason'] === 'string') &&
+    (obj['signalTriggerTime'] === null || typeof obj['signalTriggerTime'] === 'string') &&
+    (obj['executedAt'] === null || typeof obj['executedAt'] === 'string') &&
+    (obj['executedAtMs'] === null || typeof obj['executedAtMs'] === 'number') &&
+    (obj['timestamp'] === null || typeof obj['timestamp'] === 'string') &&
+    (obj['isProtectiveClearance'] === null || typeof obj['isProtectiveClearance'] === 'boolean')
+  );
+}
+
+/** 类型守卫：校验 TradeRecord 数组 */
+function isValidTradeRecordArray(records: unknown): records is TradeRecord[] {
+  return Array.isArray(records) && records.every(isValidTradeRecord);
+}
+
 /** 识别错误类型（通过错误消息关键词匹配） */
 export function identifyErrorType(errorMessage: string): ErrorTypeIdentifier {
   const lowerMsg = errorMessage.toLowerCase();
@@ -59,11 +92,13 @@ export function recordTrade(tradeRecord: TradeRecord): void {
     if (fs.existsSync(logFile)) {
       const content = fs.readFileSync(logFile, 'utf-8');
       try {
-        trades = JSON.parse(content) as TradeRecord[];
-        // 确保解析结果是数组
-        if (!Array.isArray(trades)) {
+        const parsed = JSON.parse(content);
+        // 信任边界：校验 JSON 解析结果
+        if (!isValidTradeRecordArray(parsed)) {
           logger.warn(`交易记录文件格式错误，重置为空数组: ${logFile}`);
           trades = [];
+        } else {
+          trades = parsed;
         }
       } catch (e) {
         logger.warn(
