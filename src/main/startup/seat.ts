@@ -140,7 +140,7 @@ export async function prepareSeatsOnStartup(
     marketDataClient,
     sleep,
     now,
-    intervalMs,
+    searchCooldownMs,
     logger,
     getTradingMinutesSinceOpen,
     isWithinMorningOpenProtection,
@@ -339,7 +339,7 @@ export async function prepareSeatsOnStartup(
         }
       }
 
-      await sleep(intervalMs);
+      await sleep(searchCooldownMs);
     }
   }
 

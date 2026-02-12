@@ -18,7 +18,7 @@
  * - 程序启动时的首次初始化
  * - 开盘重建流程中由 globalStateDomain 调用
  */
-import { TRADING } from '../../constants/index.js';
+import { AUTO_SYMBOL_SEARCH_COOLDOWN_MS, TRADING } from '../../constants/index.js';
 import { formatError, sleep } from '../../utils/helpers/index.js';
 import { refreshAccountAndPositions } from '../../utils/helpers/accountDisplay.js';
 import { getTradingMinutesSinceOpen, isWithinMorningOpenProtection } from '../../utils/helpers/tradingTime.js';
@@ -100,7 +100,7 @@ export function createLoadTradingDayRuntimeSnapshot(
       marketDataClient,
       sleep,
       now: () => new Date(),
-      intervalMs: TRADING.INTERVAL_MS,
+      searchCooldownMs: AUTO_SYMBOL_SEARCH_COOLDOWN_MS,
       logger,
       getTradingMinutesSinceOpen,
       isWithinMorningOpenProtection,

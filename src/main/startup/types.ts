@@ -81,7 +81,7 @@ export type PrepareSeatsOnStartupDeps = {
   readonly marketDataClient: MarketDataClient;
   readonly sleep: (ms: number) => Promise<void>;
   readonly now: () => Date;
-  readonly intervalMs: number;
+  readonly searchCooldownMs: number;
   readonly logger: Logger;
   readonly getTradingMinutesSinceOpen: (currentTime: Date) => number;
   readonly isWithinMorningOpenProtection: (currentTime: Date, minutes: number) => boolean;
