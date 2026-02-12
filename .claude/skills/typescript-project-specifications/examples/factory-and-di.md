@@ -4,60 +4,68 @@
 - 使用工厂函数而非类
 - 所有依赖通过参数注入
 - 非闭包函数提升到模块顶层
-- 返回对象封装公共接口
 
 ---
 
-## 1. 工厂函数基本结构
+## 1. 工厂函数 vs 类
+
+### ❌ 错误：基于 class 的创建
 
 ```typescript
-// 依赖接口定义（契约）
-interface ProductRepository {
-  findById(id: string): Promise<Product | null>;
-  updateStock(id: string, quantity: number): Promise<void>;
-}
+export class OrderService {
+  constructor(
+    private orderRepository: OrderRepository,
+    private paymentGateway: PaymentGateway,
+  ) {}
 
-interface OrderRepository {
-  save(order: Order): Promise<void>;
-  findById(id: string): Promise<Order | null>;
-}
+  async createOrder(order: Order) {
+    const validation = validateOrder(order);
+    if (!validation.success) return validation;
+    await this.orderRepository.save(order);
+    return { success: true, data: order };
+  }
 
-interface IdGenerator {
-  generate(): string;
+  async processPayment(orderId: string, paymentInfo: PaymentInfo) {
+    const order = await this.orderRepository.findById(orderId);
+    if (!order) return { success: false, error: new Error('Order not found') };
+    return this.paymentGateway.charge(order.total, paymentInfo);
+  }
 }
+```
 
-// 工厂函数：通过参数注入所有依赖
-const createOrderService = ({
-  productRepository,
+### ✅ 正确：工厂函数
+
+```typescript
+export const createOrderService = ({
   orderRepository,
-  idGenerator,
+  paymentGateway,
 }: {
-  productRepository: ProductRepository;
   orderRepository: OrderRepository;
-  idGenerator: IdGenerator;
-}) => {
-  // 闭包内的私有函数（使用了外层依赖 productRepository）
-  const validateStock = async (productId: string, quantity: number): Promise<boolean> => {
-    const product = await productRepository.findById(productId);
-    return product !== null && product.stock >= quantity;
-  };
-
-  // 返回公共接口
+  paymentGateway: PaymentGateway;
+}): OrderService => {
   return {
-    async createOrder(items: ReadonlyArray<{ productId: string; quantity: number }>): Promise<Order> {
-      for (const item of items) {
-        const hasStock = await validateStock(item.productId, item.quantity);
-        if (!hasStock) throw new Error(`Product ${item.productId} out of stock`);
-      }
-      // ... 创建订单逻辑
+    async createOrder(order) {
+      const validation = validateOrder(order);
+      if (!validation.success) return validation;
+      await orderRepository.save(order);
+      return { success: true, data: order };
     },
-
-    async getOrder(orderId: string): Promise<Order | null> {
-      return orderRepository.findById(orderId);
+    async processPayment(orderId, paymentInfo) {
+      const order = await orderRepository.findById(orderId);
+      if (!order) return { success: false, error: new Error('Order not found') };
+      return paymentGateway.charge(order.total, paymentInfo);
     },
   };
 };
 ```
+
+### 为何用工厂函数
+
+- 与函数式风格一致
+- 无 `this` 上下文问题
+- 更容易组合
+- 依赖注入更自然
+- 测试更简单（无需 `new`）
 
 ---
 
@@ -183,4 +191,3 @@ const authService = createAuthService({
   logger: { info: () => {}, error: () => {} },
 });
 ```
-
