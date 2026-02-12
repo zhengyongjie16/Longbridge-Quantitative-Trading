@@ -143,7 +143,7 @@ function calculateStats(issues) {
 function formatAnalysisTime(analysisTime) {
   if (!analysisTime) {
     console.log(`获取时间: ${new Date().toLocaleString('zh-CN')}`);
-    console.log(`💡 提示: 如需获取最新分析结果，请先运行: npm run sonarqube\n`);
+    console.log(`💡 提示: 如需获取最新分析结果，请先运行: bun run sonarqube\n`);
     return;
   }
 
@@ -158,7 +158,7 @@ function formatAnalysisTime(analysisTime) {
     console.log(`✅ 数据较新（${diffMinutes} 分钟前）\n`);
   } else {
     console.log(`⚠️  数据较旧（${diffHours} 小时前）`);
-    console.log(`💡 如需获取最新报告，请先运行: npm run sonarqube\n`);
+    console.log(`💡 如需获取最新报告，请先运行: bun run sonarqube\n`);
   }
 }
 
@@ -254,7 +254,7 @@ try {
   console.error('  1. SonarQube 服务是否运行 (http://localhost:9000)');
   console.error('  2. .env.sonar 配置是否正确');
   console.error('  3. 项目是否已扫描');
-  console.error('  4. 如果数据较旧，请运行: npm run sonarqube');
+  console.error('  4. 如果数据较旧，请运行: bun run sonarqube');
   console.error('  5. 扫描完成后请等待几秒钟再查看报告\n');
   process.exit(1);
 }
