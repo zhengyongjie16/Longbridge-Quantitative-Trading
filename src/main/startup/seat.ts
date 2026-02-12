@@ -8,32 +8,21 @@ import type {
   SeatSymbolSnapshotEntry,
   SymbolRegistry,
 } from '../../types/index.js';
-import type { PreparedSeats, PrepareSeatsOnStartupDeps, SeatSnapshot, SeatSnapshotInput } from './types.js';
+import type {
+  PreparedSeats,
+  PrepareSeatsOnStartupDeps,
+  SeatSnapshot,
+  SeatSnapshotInput,
+} from './types.js';
 import { findBestWarrant } from '../../services/autoSymbolFinder/index.js';
-import { isSeatReady, resolveSeatOnStartup } from '../../services/autoSymbolManager/utils.js';
+import {
+  isSeatReady,
+  resolveNextSearchFailureState,
+  resolveSeatOnStartup,
+} from '../../services/autoSymbolManager/utils.js';
 import { getLatestTradedSymbol } from '../../core/orderRecorder/orderOwnershipParser.js';
-
-/** 根据方向解析启动寻标阈值（仅本模块使用） */
-function resolveAutoSearchThresholds(
-  direction: 'LONG' | 'SHORT',
-  autoSearchConfig: {
-    readonly autoSearchMinDistancePctBull: number | null;
-    readonly autoSearchMinDistancePctBear: number | null;
-    readonly autoSearchMinTurnoverPerMinuteBull: number | null;
-    readonly autoSearchMinTurnoverPerMinuteBear: number | null;
-  },
-): Readonly<{ minDistancePct: number | null; minTurnoverPerMinute: number | null }> {
-  if (direction === 'LONG') {
-    return {
-      minDistancePct: autoSearchConfig.autoSearchMinDistancePctBull,
-      minTurnoverPerMinute: autoSearchConfig.autoSearchMinTurnoverPerMinuteBull,
-    };
-  }
-  return {
-    minDistancePct: autoSearchConfig.autoSearchMinDistancePctBear,
-    minTurnoverPerMinute: autoSearchConfig.autoSearchMinTurnoverPerMinuteBear,
-  };
-}
+import { AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY } from '../../constants/index.js';
+import { getHKDateKey } from '../../utils/helpers/tradingTime.js';
 
 /**
  * 基于订单与持仓生成席位快照，用于启动时恢复席位标的。
@@ -138,9 +127,7 @@ export async function prepareSeatsOnStartup(
     positions,
     orders,
     marketDataClient,
-    sleep,
     now,
-    searchCooldownMs,
     logger,
     getTradingMinutesSinceOpen,
     isWithinMorningOpenProtection,
@@ -172,6 +159,8 @@ export async function prepareSeatsOnStartup(
       lastSwitchAt: null,
       lastSearchAt: null,
       callPrice: null,
+      searchFailCountToday: 0,
+      frozenTradingDayKey: null,
     });
   }
 
@@ -212,23 +201,28 @@ export async function prepareSeatsOnStartup(
     };
     readonly currentTime: Date;
   }): Promise<string | null> {
-    const { minDistancePct, minTurnoverPerMinute } = resolveAutoSearchThresholds(
-      direction,
-      autoSearchConfig,
-    );
+    const isBull = direction === 'LONG';
+    const minDistancePct = isBull
+      ? autoSearchConfig.autoSearchMinDistancePctBull
+      : autoSearchConfig.autoSearchMinDistancePctBear;
+    const minTurnoverPerMinute = isBull
+      ? autoSearchConfig.autoSearchMinTurnoverPerMinuteBull
+      : autoSearchConfig.autoSearchMinTurnoverPerMinuteBear;
     if (minDistancePct == null || minTurnoverPerMinute == null) {
       logger.error(`[启动席位] 缺少自动寻标阈值配置: ${monitorSymbol} ${direction}`);
       return null;
     }
 
-    const nowMs = currentTime.getTime();
     const currentSeat = symbolRegistry.getSeatState(monitorSymbol, direction);
+    const nowMs = currentTime.getTime();
     symbolRegistry.updateSeatState(monitorSymbol, direction, {
       symbol: null,
       status: 'SEARCHING',
       lastSwitchAt: currentSeat.lastSwitchAt ?? null,
       lastSearchAt: nowMs,
       callPrice: null,
+      searchFailCountToday: currentSeat.searchFailCountToday,
+      frozenTradingDayKey: currentSeat.frozenTradingDayKey,
     });
 
     const ctx = await quoteContextPromise;
@@ -236,7 +230,7 @@ export async function prepareSeatsOnStartup(
     const best = await findBestWarrant({
       ctx,
       monitorSymbol,
-      isBull: direction === 'LONG',
+      isBull,
       tradingMinutes,
       minDistancePct,
       minTurnoverPerMinute,
@@ -246,12 +240,26 @@ export async function prepareSeatsOnStartup(
     });
 
     if (!best) {
+      const updatedSeat = symbolRegistry.getSeatState(monitorSymbol, direction);
+      const hkDateKey = getHKDateKey(currentTime);
+      const { nextFailCount, frozenTradingDayKey, shouldFreeze } = resolveNextSearchFailureState({
+        currentSeat: updatedSeat,
+        hkDateKey,
+        maxSearchFailuresPerDay: AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY,
+      });
+      if (shouldFreeze) {
+        logger.warn(
+          `[启动席位] ${monitorSymbol} ${direction} 当日寻标失败达 ${nextFailCount} 次，席位冻结`,
+        );
+      }
       symbolRegistry.updateSeatState(monitorSymbol, direction, {
         symbol: null,
         status: 'EMPTY',
-        lastSwitchAt: currentSeat.lastSwitchAt ?? null,
+        lastSwitchAt: updatedSeat.lastSwitchAt ?? null,
         lastSearchAt: nowMs,
         callPrice: null,
+        searchFailCountToday: nextFailCount,
+        frozenTradingDayKey,
       });
       return null;
     }
@@ -262,88 +270,103 @@ export async function prepareSeatsOnStartup(
       lastSwitchAt: nowMs,
       lastSearchAt: nowMs,
       callPrice: best.callPrice,
+      searchFailCountToday: 0,
+      frozenTradingDayKey: null,
     });
     return best.symbol;
   }
 
   /**
-   * 循环等待所有自动寻标席位就绪（包含开盘保护与间隔等待）。
+   * 处理启动寻标异常：如果席位状态为SEARCHING，更新失败计数和冻结状态。
    */
-  async function waitForSeatsReady(): Promise<void> {
-    let loggedWaiting = false;
-    while (true) {
-      const pendingSeats: Array<{
-        monitorSymbol: string;
-        direction: 'LONG' | 'SHORT';
-        autoSearchConfig: {
-          readonly autoSearchOpenDelayMinutes: number;
-          readonly autoSearchExpiryMinMonths: number;
-          readonly autoSearchMinDistancePctBull: number | null;
-          readonly autoSearchMinDistancePctBear: number | null;
-          readonly autoSearchMinTurnoverPerMinuteBull: number | null;
-          readonly autoSearchMinTurnoverPerMinuteBear: number | null;
-        };
-      }> = [];
+  function handleSearchException(
+    monitorSymbol: string,
+    direction: 'LONG' | 'SHORT',
+    currentTime: Date,
+  ): void {
+    const stuckSeat = symbolRegistry.getSeatState(monitorSymbol, direction);
+    if (stuckSeat.status !== 'SEARCHING') {
+      return;
+    }
+    const hkDateKey = getHKDateKey(currentTime);
+    const {
+      nextFailCount,
+      frozenTradingDayKey,
+      shouldFreeze,
+    } = resolveNextSearchFailureState({
+      currentSeat: stuckSeat,
+      hkDateKey,
+      maxSearchFailuresPerDay: AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY,
+    });
+    if (shouldFreeze) {
+      logger.warn(
+        `[启动席位] ${monitorSymbol} ${direction} 当日寻标失败达 ${nextFailCount} 次，席位冻结`,
+      );
+    }
+    symbolRegistry.updateSeatState(monitorSymbol, direction, {
+      symbol: null,
+      status: 'EMPTY',
+      lastSwitchAt: stuckSeat.lastSwitchAt ?? null,
+      lastSearchAt: currentTime.getTime(),
+      callPrice: null,
+      searchFailCountToday: nextFailCount,
+      frozenTradingDayKey,
+    });
+  }
 
-      for (const monitorConfig of tradingConfig.monitors) {
-        if (!monitorConfig.autoSearchConfig.autoSearchEnabled) {
+  /**
+   * 检查是否应该跳过该席位的启动寻标。
+   */
+  function shouldSkipStartupSearch(
+    seatState: ReturnType<SymbolRegistry['getSeatState']>,
+    openDelayMinutes: number,
+    currentTime: Date,
+  ): boolean {
+    if (isSeatReady(seatState)) {
+      return true;
+    }
+    if (openDelayMinutes > 0 && isWithinMorningOpenProtection(currentTime, openDelayMinutes)) {
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * 启动时单次非阻塞寻标：遍历所有启用自动寻标的空席位，逐个尝试一次寻标。
+   */
+  async function trySearchEmptySeats(): Promise<void> {
+    const currentTime = now();
+    for (const monitorConfig of tradingConfig.monitors) {
+      if (!monitorConfig.autoSearchConfig.autoSearchEnabled) {
+        continue;
+      }
+      for (const direction of ['LONG', 'SHORT'] as const) {
+        const seatState = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, direction);
+        const openDelayMinutes = monitorConfig.autoSearchConfig.autoSearchOpenDelayMinutes ?? 0;
+        if (shouldSkipStartupSearch(seatState, openDelayMinutes, currentTime)) {
           continue;
         }
-        const longSeat = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
-        if (!isSeatReady(longSeat)) {
-          pendingSeats.push({
+        try {
+          const symbol = await searchSeatSymbol({
             monitorSymbol: monitorConfig.monitorSymbol,
-            direction: 'LONG',
+            direction,
             autoSearchConfig: monitorConfig.autoSearchConfig,
+            currentTime,
           });
-        }
-        const shortSeat = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'SHORT');
-        if (!isSeatReady(shortSeat)) {
-          pendingSeats.push({
-            monitorSymbol: monitorConfig.monitorSymbol,
-            direction: 'SHORT',
-            autoSearchConfig: monitorConfig.autoSearchConfig,
-          });
-        }
-      }
-
-      if (pendingSeats.length === 0) {
-        if (loggedWaiting) {
-          logger.info('[启动席位] 所有席位已就绪');
-        }
-        return;
-      }
-
-      if (!loggedWaiting) {
-        logger.info(`[启动席位] ${pendingSeats.length} 个席位待寻标，等待寻标完成`);
-        loggedWaiting = true;
-      }
-
-      const currentTime = now();
-      for (const seat of pendingSeats) {
-        const openDelayMinutes = seat.autoSearchConfig.autoSearchOpenDelayMinutes ?? 0;
-        if (
-          openDelayMinutes > 0 &&
-          isWithinMorningOpenProtection(currentTime, openDelayMinutes)
-        ) {
-          continue;
-        }
-        const symbol = await searchSeatSymbol({
-          monitorSymbol: seat.monitorSymbol,
-          direction: seat.direction,
-          autoSearchConfig: seat.autoSearchConfig,
-          currentTime,
-        });
-        if (symbol) {
-          logger.info(`[启动席位] ${seat.monitorSymbol} ${seat.direction} 已就绪: ${symbol}`);
+          if (symbol) {
+            logger.info(`[启动席位] ${monitorConfig.monitorSymbol} ${direction} 已就绪: ${symbol}`);
+          }
+        } catch (err) {
+          handleSearchException(monitorConfig.monitorSymbol, direction, currentTime);
+          logger.error(
+            `[启动席位] ${monitorConfig.monitorSymbol} ${direction} 寻标异常: ${String(err)}`,
+          );
         }
       }
-
-      await sleep(searchCooldownMs);
     }
   }
 
-  await waitForSeatsReady();
+  await trySearchEmptySeats();
 
   return {
     seatSymbols: collectSeatSymbols({

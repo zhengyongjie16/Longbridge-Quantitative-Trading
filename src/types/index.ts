@@ -554,6 +554,10 @@ export type SeatState = {
   readonly lastSearchAt: number | null;
   /** 回收价（从 warrantList 透传，做多/做空标的换标后用于 setWarrantInfoFromCallPrice） */
   readonly callPrice?: number | null;
+  /** 当日连续寻标失败次数 */
+  readonly searchFailCountToday: number;
+  /** 当日冻结标记（值为 HK 日期 key，非 null 时表示冻结，midnight clear 重置） */
+  readonly frozenTradingDayKey: string | null;
 };
 
 /**

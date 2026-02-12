@@ -12,7 +12,11 @@ import {
 } from '../../utils/helpers/tradingTime.js';
 import { logger } from '../../utils/logger/index.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
-import { AUTO_SYMBOL_SEARCH_COOLDOWN_MS, PENDING_ORDER_STATUSES } from '../../constants/index.js';
+import {
+  AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY,
+  AUTO_SYMBOL_SEARCH_COOLDOWN_MS,
+  PENDING_ORDER_STATUSES,
+} from '../../constants/index.js';
 import type {
   AutoSymbolManager,
   AutoSymbolManagerDeps,
@@ -84,6 +88,9 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     findBestWarrant,
     isWithinMorningOpenProtection,
     searchCooldownMs: AUTO_SYMBOL_SEARCH_COOLDOWN_MS,
+    getHKDateKey,
+    maxSearchFailuresPerDay: AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY,
+    logger,
   });
 
   const switchStateMachine = createSwitchStateMachine({
@@ -112,6 +119,8 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     pendingOrderStatuses: PENDING_ORDER_STATUSES,
     buySide: OrderSide.Buy,
     logger,
+    maxSearchFailuresPerDay: AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY,
+    getHKDateKey,
   });
 
   function resetAllState(): void {

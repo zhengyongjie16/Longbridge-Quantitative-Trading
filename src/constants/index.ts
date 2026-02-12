@@ -37,8 +37,10 @@ export const TRADING = {
 } as const;
 
 /** 自动寻标相关常量 */
-export const AUTO_SYMBOL_SEARCH_COOLDOWN_MS = 30_000;
+export const AUTO_SYMBOL_SEARCH_COOLDOWN_MS = 600_000;
 export const AUTO_SYMBOL_WARRANT_LIST_CACHE_TTL_MS = 3_000;
+/** 自动寻标当日最大失败次数（达到后冻结席位至次日） */
+export const AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY = 3;
 
 /** 生命周期重建相关常量 */
 export const LIFECYCLE = {

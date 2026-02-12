@@ -56,6 +56,8 @@ export function createSeatRefreshHandler({
       lastSwitchAt: Date.now(),
       lastSearchAt: null,
       callPrice: null,
+      searchFailCountToday: 0,
+      frozenTradingDayKey: null,
     } as const;
     context.symbolRegistry.updateSeatState(monitorSymbol, direction, nextState);
     clearQueuesForDirection(monitorSymbol, direction);
@@ -66,6 +68,7 @@ export function createSeatRefreshHandler({
     task: MonitorTask<MonitorTaskType, MonitorTaskData>,
     helpers: RefreshHelpers,
   ): Promise<MonitorTaskStatus> {
+    // handler 由 SEAT_REFRESH 类型分派，data 必为 SeatRefreshTaskData
     const data = task.data as SeatRefreshTaskData;
     const context = getContextOrSkip(data.monitorSymbol);
     if (!context) {

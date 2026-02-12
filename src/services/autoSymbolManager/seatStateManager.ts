@@ -7,6 +7,7 @@
  * - 清空席位并重置换标流程
  */
 import type {
+  BuildSeatStateParams,
   SeatStateBuilder,
   SeatStateManager,
   SeatStateManagerDeps,
@@ -24,19 +25,23 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
     getHKDateKey,
   } = deps;
 
-  const buildSeatState: SeatStateBuilder = (
+  const buildSeatState: SeatStateBuilder = ({
     symbol,
     status,
     lastSwitchAt,
     lastSearchAt,
     callPrice,
-  ) => {
+    searchFailCountToday,
+    frozenTradingDayKey,
+  }: BuildSeatStateParams) => {
     return {
       symbol,
       status,
       lastSwitchAt,
       lastSearchAt,
       callPrice: callPrice ?? null,
+      searchFailCountToday,
+      frozenTradingDayKey,
     } as const;
   };
 
@@ -84,13 +89,15 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
     const currentState = symbolRegistry.getSeatState(monitorSymbol, direction);
     const currentSymbol = currentState.symbol;
     const nextVersion = symbolRegistry.bumpSeatVersion(monitorSymbol, direction);
-    const nextState = buildSeatState(
-      currentState.symbol ?? null,
-      'SWITCHING',
-      timestamp,
-      null,
-      null,
-    );
+    const nextState = buildSeatState({
+      symbol: currentState.symbol ?? null,
+      status: 'SWITCHING',
+      lastSwitchAt: timestamp,
+      lastSearchAt: null,
+      callPrice: null,
+      searchFailCountToday: currentState.searchFailCountToday,
+      frozenTradingDayKey: currentState.frozenTradingDayKey,
+    });
     symbolRegistry.updateSeatState(monitorSymbol, direction, nextState);
     if (currentSymbol) {
       switchStates.set(direction, {

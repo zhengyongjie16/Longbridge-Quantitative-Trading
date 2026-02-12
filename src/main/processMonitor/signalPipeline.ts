@@ -22,7 +22,7 @@
 import { logger } from '../../utils/logger/index.js';
 import { formatSignalLog, formatSymbolDisplay, isBuyAction, isSellAction } from '../../utils/helpers/index.js';
 import { VALID_SIGNAL_ACTIONS } from '../../constants/index.js';
-import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
+import { isSeatReady, describeSeatUnavailable } from '../../services/autoSymbolManager/utils.js';
 import { getPositions } from './utils.js';
 import type { Quote, Signal } from '../../types/index.js';
 import type { SignalPipelineParams } from './types.js';
@@ -124,7 +124,9 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
 
       const seatInfoForSignal = resolveSeatForSignal(signal);
       if (!seatInfoForSignal) {
-        logger.info(`[跳过信号] 席位不可用: ${formatSignalLog(signal)}`);
+        const isLongSignal = signal.action === 'BUYCALL' || signal.action === 'SELLCALL';
+        const seatState = isLongSignal ? longSeatState : shortSeatState;
+        logger.info(`[跳过信号] ${describeSeatUnavailable(seatState)}: ${formatSignalLog(signal)}`);
         releaseSignal(signal);
         return false;
       }

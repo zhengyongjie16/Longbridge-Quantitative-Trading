@@ -8,7 +8,7 @@ import type {
   SeatStatus,
   SymbolRegistry,
 } from '../../types/index.js';
-import type { SeatEntry, SymbolSeatEntry } from './types.js';
+import type { SeatEntry, SeatUnavailableReason, SymbolSeatEntry } from './types.js';
 
 /**
  * 检查席位是否就绪（有有效标的且状态为 READY）
@@ -23,6 +23,87 @@ export function isSeatReady(
     return false;
   }
   return typeof seatState.symbol === 'string' && seatState.symbol.length > 0;
+}
+
+/**
+ * 检查席位是否当日冻结（frozenTradingDayKey 非 null 即冻结，midnight clear 重置）
+ */
+export function isSeatFrozenToday(seatState: SeatState): boolean {
+  return seatState.frozenTradingDayKey != null;
+}
+
+/**
+ * 计算下一次寻标失败后的失败计数与冻结状态。
+ *
+ * 统一的失败计数与冻结规则：
+ * - 每次失败将 searchFailCountToday + 1
+ * - 当失败次数达到 maxSearchFailuresPerDay 时，当日冻结席位
+ * - 冻结后保留已存在的 frozenTradingDayKey（若未能获取当日 key，则不覆盖）
+ */
+export function resolveNextSearchFailureState(params: {
+  readonly currentSeat: SeatState;
+  readonly hkDateKey: string | null;
+  readonly maxSearchFailuresPerDay: number;
+}): {
+  readonly nextFailCount: number;
+  readonly frozenTradingDayKey: string | null;
+  readonly shouldFreeze: boolean;
+} {
+  const nextFailCount = params.currentSeat.searchFailCountToday + 1;
+  const shouldFreeze = nextFailCount >= params.maxSearchFailuresPerDay;
+  const frozenTradingDayKey = shouldFreeze
+    ? params.hkDateKey ?? params.currentSeat.frozenTradingDayKey
+    : params.currentSeat.frozenTradingDayKey;
+
+  return {
+    nextFailCount,
+    frozenTradingDayKey,
+    shouldFreeze,
+  };
+}
+
+/**
+ * 解析席位不可用原因（席位就绪时返回 null）
+ */
+export function resolveSeatUnavailableReason(
+  seatState: SeatState,
+): SeatUnavailableReason | null {
+  if (seatState.status === 'READY' && typeof seatState.symbol === 'string' && seatState.symbol.length > 0) {
+    return null;
+  }
+  if (seatState.status === 'SEARCHING') {
+    return 'SEAT_SEARCHING';
+  }
+  if (seatState.status === 'SWITCHING') {
+    return 'SEAT_SWITCHING';
+  }
+  if (isSeatFrozenToday(seatState)) {
+    return 'SEAT_FROZEN_TODAY';
+  }
+  return 'SEAT_EMPTY';
+}
+
+const SEAT_UNAVAILABLE_REASON_MAP: Readonly<Record<SeatUnavailableReason, string>> = {
+  SEAT_EMPTY: '席位为空',
+  SEAT_FROZEN_TODAY: '席位已冻结（当日）',
+  SEAT_SEARCHING: '席位正在寻标',
+  SEAT_SWITCHING: '席位正在换标',
+};
+
+/**
+ * 将席位不可用原因格式化为日志文案
+ */
+export function formatSeatUnavailableReason(reason: SeatUnavailableReason): string {
+  return SEAT_UNAVAILABLE_REASON_MAP[reason];
+}
+
+/**
+ * 从非就绪席位状态获取格式化的不可用原因文案。
+ * 前提：调用方已确认 isSeatReady(seatState) === false。
+ */
+export function describeSeatUnavailable(seatState: SeatState): string {
+  const reason = resolveSeatUnavailableReason(seatState);
+  return reason == null ? '席位不可用' : SEAT_UNAVAILABLE_REASON_MAP[reason];
 }
 
 /**
@@ -70,6 +151,8 @@ function createSeatState(symbol: string | null, status: SeatStatus): SeatState {
     lastSwitchAt: null,
     lastSearchAt: null,
     callPrice: null,
+    searchFailCountToday: 0,
+    frozenTradingDayKey: null,
   };
 }
 
@@ -164,6 +247,8 @@ export function createSymbolRegistry(
         lastSwitchAt: nextState.lastSwitchAt ?? null,
         lastSearchAt: nextState.lastSearchAt ?? null,
         callPrice: nextState.callPrice ?? null,
+        searchFailCountToday: nextState.searchFailCountToday,
+        frozenTradingDayKey: nextState.frozenTradingDayKey,
       };
       return seatEntry.state;
     },

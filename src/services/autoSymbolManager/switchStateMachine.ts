@@ -13,6 +13,7 @@ import type {
   SwitchStateMachine,
   SwitchStateMachineDeps,
 } from './types.js';
+import { resolveNextSearchFailureState } from './utils.js';
 
 /** 从持仓列表中提取指定标的的持仓信息 */
 function extractPosition(
@@ -54,6 +55,8 @@ export function createSwitchStateMachine(
     pendingOrderStatuses,
     buySide,
     logger,
+    maxSearchFailuresPerDay,
+    getHKDateKey,
   } = deps;
 
   function isCancelableBuyOrder(order: PendingOrder, symbol: string): boolean {
@@ -102,7 +105,49 @@ export function createSwitchStateMachine(
 
     function failAndClear(): void {
       state.stage = 'FAILED';
-      updateSeatState(direction, buildSeatState(null, 'EMPTY', null, null, null), false);
+      const currentSeat = symbolRegistry.getSeatState(monitorSymbol, direction);
+      const nowDate = now();
+      const nowMs = nowDate.getTime();
+      if (state.nextSymbol == null) {
+        const hkDateKey = getHKDateKey(nowDate);
+        const { nextFailCount, frozenTradingDayKey, shouldFreeze } = resolveNextSearchFailureState({
+          currentSeat,
+          hkDateKey,
+          maxSearchFailuresPerDay,
+        });
+        if (shouldFreeze) {
+          logger.warn(
+            `[自动换标] ${monitorSymbol} ${direction} 当日寻标失败达 ${nextFailCount} 次，席位冻结`,
+          );
+        }
+        updateSeatState(
+          direction,
+          buildSeatState({
+            symbol: null,
+            status: 'EMPTY',
+            lastSwitchAt: currentSeat.lastSwitchAt,
+            lastSearchAt: nowMs,
+            callPrice: null,
+            searchFailCountToday: nextFailCount,
+            frozenTradingDayKey,
+          }),
+          false,
+        );
+      } else {
+        updateSeatState(
+          direction,
+          buildSeatState({
+            symbol: null,
+            status: 'EMPTY',
+            lastSwitchAt: currentSeat.lastSwitchAt,
+            lastSearchAt: nowMs,
+            callPrice: null,
+            searchFailCountToday: 0,
+            frozenTradingDayKey: null,
+          }),
+          false,
+        );
+      }
       switchStates.delete(direction);
     }
 
@@ -179,9 +224,18 @@ export function createSwitchStateMachine(
         return;
       }
 
+      const bindNowMs = now().getTime();
       updateSeatState(
         direction,
-        buildSeatState(nextSymbol, 'SWITCHING', now().getTime(), now().getTime(), null),
+        buildSeatState({
+          symbol: nextSymbol,
+          status: 'SWITCHING',
+          lastSwitchAt: bindNowMs,
+          lastSearchAt: bindNowMs,
+          callPrice: null,
+          searchFailCountToday: 0,
+          frozenTradingDayKey: null,
+        }),
         false,
       );
 
@@ -251,15 +305,18 @@ export function createSwitchStateMachine(
     if (state.stage === 'COMPLETE') {
       const nextSymbol = state.nextSymbol;
       if (nextSymbol) {
+        const completeNowMs = now().getTime();
         updateSeatState(
           direction,
-          buildSeatState(
-            nextSymbol,
-            'READY',
-            now().getTime(),
-            now().getTime(),
-            state.nextCallPrice ?? null,
-          ),
+          buildSeatState({
+            symbol: nextSymbol,
+            status: 'READY',
+            lastSwitchAt: completeNowMs,
+            lastSearchAt: completeNowMs,
+            callPrice: state.nextCallPrice ?? null,
+            searchFailCountToday: 0,
+            frozenTradingDayKey: null,
+          }),
           false,
         );
       }
@@ -389,9 +446,13 @@ export function createSwitchStateMachine(
       });
 
       const pendingOrdersForOldSymbol = await trader.getPendingOrders([seatState.symbol]);
+      const nextState = switchStates.get(direction);
+      if (!nextState) {
+        return;
+      }
       await processSwitchState(
         { direction, monitorPrice, quotesMap, positions },
-        switchStates.get(direction)!,
+        nextState,
         pendingOrdersForOldSymbol,
       );
     }

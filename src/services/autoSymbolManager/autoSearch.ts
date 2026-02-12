@@ -6,6 +6,7 @@
  * - 开盘保护与席位更新
  */
 import type { AutoSearchDeps, AutoSearchManager, SearchOnTickParams } from './types.js';
+import { isSeatFrozenToday, resolveNextSearchFailureState } from './utils.js';
 
 export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
   const {
@@ -19,6 +20,9 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
     findBestWarrant,
     isWithinMorningOpenProtection,
     searchCooldownMs,
+    getHKDateKey,
+    maxSearchFailuresPerDay,
+    logger,
   } = deps;
 
   /**
@@ -35,6 +39,10 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
 
     const seatState = symbolRegistry.getSeatState(monitorSymbol, direction);
     if (seatState.status !== 'EMPTY') {
+      return;
+    }
+
+    if (isSeatFrozenToday(seatState)) {
       return;
     }
 
@@ -59,28 +67,69 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
 
     updateSeatState(
       direction,
-      buildSeatState(null, 'SEARCHING', seatState.lastSwitchAt ?? null, nowMs, null),
+      buildSeatState({
+        symbol: null,
+        status: 'SEARCHING',
+        lastSwitchAt: seatState.lastSwitchAt ?? null,
+        lastSearchAt: nowMs,
+        callPrice: null,
+        searchFailCountToday: seatState.searchFailCountToday,
+        frozenTradingDayKey: seatState.frozenTradingDayKey,
+      }),
       false,
     );
 
-    const input = await buildFindBestWarrantInput({
-      direction,
-      currentTime,
-      minDistancePct: thresholds.minDistancePct,
-      minTurnoverPerMinute: thresholds.minTurnoverPerMinute,
-    });
-    const best = await findBestWarrant(input);
+    let best: { readonly symbol: string; readonly callPrice: number } | null = null;
+    try {
+      const input = await buildFindBestWarrantInput({
+        direction,
+        currentTime,
+        minDistancePct: thresholds.minDistancePct,
+        minTurnoverPerMinute: thresholds.minTurnoverPerMinute,
+      });
+      best = await findBestWarrant(input);
+    } catch (err) {
+      logger.error(`[自动寻标] ${monitorSymbol} ${direction} 寻标异常: ${String(err)}`);
+    }
 
     if (!best) {
+      const currentSeat = symbolRegistry.getSeatState(monitorSymbol, direction);
+      const hkDateKey = getHKDateKey(currentTime);
+      const { nextFailCount, frozenTradingDayKey, shouldFreeze } = resolveNextSearchFailureState({
+        currentSeat,
+        hkDateKey,
+        maxSearchFailuresPerDay,
+      });
+      if (shouldFreeze) {
+        logger.warn(
+          `[自动寻标] ${monitorSymbol} ${direction} 当日寻标失败达 ${nextFailCount} 次，席位冻结`,
+        );
+      }
       updateSeatState(
         direction,
-        buildSeatState(null, 'EMPTY', seatState.lastSwitchAt ?? null, nowMs, null),
+        buildSeatState({
+          symbol: null,
+          status: 'EMPTY',
+          lastSwitchAt: currentSeat.lastSwitchAt ?? null,
+          lastSearchAt: nowMs,
+          callPrice: null,
+          searchFailCountToday: nextFailCount,
+          frozenTradingDayKey,
+        }),
         false,
       );
       return;
     }
 
-    const nextState = buildSeatState(best.symbol, 'READY', nowMs, nowMs, best.callPrice);
+    const nextState = buildSeatState({
+      symbol: best.symbol,
+      status: 'READY',
+      lastSwitchAt: nowMs,
+      lastSearchAt: nowMs,
+      callPrice: best.callPrice,
+      searchFailCountToday: 0,
+      frozenTradingDayKey: null,
+    });
     updateSeatState(direction, nextState, true);
   }
 

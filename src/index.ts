@@ -92,6 +92,7 @@ import {
   createSymbolRegistry,
   isSeatReady,
   isSeatVersionMatch,
+  describeSeatUnavailable,
 } from './services/autoSymbolManager/utils.js';
 import { createCleanup } from './services/cleanup/index.js';
 
@@ -346,8 +347,9 @@ async function main(): Promise<void> {
     pushSymbol(monitorConfig.monitorSymbol, `监控标的 ${index}`, false, true);
 
     const { longSeatSymbol, shortSeatSymbol } = resolveSeatSymbols(monitorConfig.monitorSymbol);
-    pushSymbol(longSeatSymbol, `做多席位标的 ${index}`, true, true);
-    pushSymbol(shortSeatSymbol, `做空席位标的 ${index}`, true, true);
+    const autoSearchEnabled = monitorConfig.autoSearchConfig.autoSearchEnabled;
+    pushSymbol(longSeatSymbol, `做多席位标的 ${index}`, true, !autoSearchEnabled);
+    pushSymbol(shortSeatSymbol, `做空席位标的 ${index}`, true, !autoSearchEnabled);
   }
 
   // 持仓标的只做可选校验（失败仅警告）
@@ -491,7 +493,7 @@ async function main(): Promise<void> {
       const seatVersion = ctx.symbolRegistry.getSeatVersion(signalMonitorSymbol, direction);
 
       if (!isSeatReady(seatState)) {
-        discardSignal('[延迟验证通过] 席位不可用，丢弃信号');
+        discardSignal(`[延迟验证通过] ${describeSeatUnavailable(seatState)}，丢弃信号`);
         return;
       }
 

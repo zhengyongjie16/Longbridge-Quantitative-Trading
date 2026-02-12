@@ -22,6 +22,8 @@ function buildEmptySeatState(previous: SeatState): SeatState {
     lastSwitchAt: previous.lastSwitchAt ?? null,
     lastSearchAt: previous.lastSearchAt ?? null,
     callPrice: null,
+    searchFailCountToday: 0,
+    frozenTradingDayKey: null,
   };
 }
 

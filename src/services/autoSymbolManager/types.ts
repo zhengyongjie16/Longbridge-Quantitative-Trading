@@ -187,13 +187,29 @@ export type SignalBuilderDeps = {
   readonly signalObjectPool: SignalObjectPool;
 };
 
-export type SeatStateBuilder = (
-  symbol: string | null,
-  status: SeatStatus,
-  lastSwitchAt: number | null,
-  lastSearchAt: number | null,
-  callPrice?: number | null,
-) => SeatState;
+/**
+ * 席位不可用原因
+ */
+export type SeatUnavailableReason =
+  | 'SEAT_EMPTY'
+  | 'SEAT_FROZEN_TODAY'
+  | 'SEAT_SEARCHING'
+  | 'SEAT_SWITCHING';
+
+/**
+ * 构建席位状态的参数（对象参数模式）
+ */
+export type BuildSeatStateParams = {
+  readonly symbol: string | null;
+  readonly status: SeatStatus;
+  readonly lastSwitchAt: number | null;
+  readonly lastSearchAt: number | null;
+  readonly callPrice?: number | null;
+  readonly searchFailCountToday: number;
+  readonly frozenTradingDayKey: string | null;
+};
+
+export type SeatStateBuilder = (params: BuildSeatStateParams) => SeatState;
 
 export type SeatStateUpdater = (
   direction: 'LONG' | 'SHORT',
@@ -233,6 +249,9 @@ export type AutoSearchDeps = {
   readonly findBestWarrant: FindBestWarrant;
   readonly isWithinMorningOpenProtection: MorningOpenProtectionChecker;
   readonly searchCooldownMs: number;
+  readonly getHKDateKey: HKDateKeyResolver;
+  readonly maxSearchFailuresPerDay: number;
+  readonly logger: Logger;
 };
 
 export interface AutoSearchManager {
@@ -282,6 +301,8 @@ export type SwitchStateMachineDeps = {
   readonly pendingOrderStatuses: ReadonlySet<PendingOrder['status']>;
   readonly buySide: PendingOrder['side'];
   readonly logger: Logger;
+  readonly maxSearchFailuresPerDay: number;
+  readonly getHKDateKey: HKDateKeyResolver;
 };
 
 export interface SwitchStateMachine {
