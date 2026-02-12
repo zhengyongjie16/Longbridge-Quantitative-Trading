@@ -108,12 +108,19 @@ export function createSeatRefreshHandler({
 
     const allOrders = await helpers.ensureAllOrders(data.monitorSymbol, context.orderRecorder);
     context.dailyLossTracker.recalculateFromAllOrders(allOrders, tradingConfig.monitors, new Date());
-    await context.orderRecorder.refreshOrdersFromAllOrders(
-      data.nextSymbol,
-      isLong,
-      allOrders,
-      data.quote,
-    );
+    if (isLong) {
+      await context.orderRecorder.refreshOrdersFromAllOrdersForLong(
+        data.nextSymbol,
+        allOrders,
+        data.quote,
+      );
+    } else {
+      await context.orderRecorder.refreshOrdersFromAllOrdersForShort(
+        data.nextSymbol,
+        allOrders,
+        data.quote,
+      );
+    }
 
     await helpers.refreshAccountCaches();
 

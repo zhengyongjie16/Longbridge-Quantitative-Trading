@@ -937,10 +937,15 @@ export interface OrderRecorder {
   getLatestSellRecord(symbol: string, isLongSymbol: boolean): OrderRecord | null;
   /** 从 API 获取全量订单 */
   fetchAllOrdersFromAPI(forceRefresh?: boolean): Promise<ReadonlyArray<RawOrderFromAPI>>;
-  /** 使用全量订单刷新指定标的记录 */
-  refreshOrdersFromAllOrders(
+  /** 使用全量订单刷新指定标的记录（做多标的） */
+  refreshOrdersFromAllOrdersForLong(
     symbol: string,
-    isLongSymbol: boolean,
+    allOrders: ReadonlyArray<RawOrderFromAPI>,
+    quote?: Quote | null,
+  ): Promise<OrderRecord[]>;
+  /** 使用全量订单刷新指定标的记录（做空标的） */
+  refreshOrdersFromAllOrdersForShort(
+    symbol: string,
     allOrders: ReadonlyArray<RawOrderFromAPI>,
     quote?: Quote | null,
   ): Promise<OrderRecord[]>;

@@ -94,11 +94,11 @@ export function recordTrade(tradeRecord: TradeRecord): void {
       try {
         const parsed = JSON.parse(content);
         // 信任边界：校验 JSON 解析结果
-        if (!isValidTradeRecordArray(parsed)) {
+        if (isValidTradeRecordArray(parsed)) {
+          trades = parsed;
+        } else {
           logger.warn(`交易记录文件格式错误，重置为空数组: ${logFile}`);
           trades = [];
-        } else {
-          trades = parsed;
         }
       } catch (e) {
         logger.warn(

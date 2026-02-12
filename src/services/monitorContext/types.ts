@@ -21,10 +21,9 @@ import type {
   SymbolRegistry,
 } from '../../types/index.js';
 import type { HangSengMultiIndicatorStrategy } from '../../core/strategy/types.js';
-import type { UnrealizedLossMonitor } from '../../core/riskController/types.js';
+import type { DailyLossTracker, UnrealizedLossMonitor } from '../../core/riskController/types.js';
 import type { DelayedSignalVerifier } from '../../main/asyncProgram/delayedSignalVerifier/types.js';
 import type { AutoSymbolManager } from '../autoSymbolManager/types.js';
-import type { DailyLossTracker } from '../../core/riskController/types.js';
 
 export type MonitorContextFactoryDeps = {
   readonly config: MonitorConfig;

@@ -123,27 +123,18 @@ export function createOrderRecorder(
     logger.debug(logLines.join('\n'));
   }
 
-  /** 使用已获取的订单列表刷新本地记录 */
-  function applyOrdersRefresh(
+  /** 使用已获取的订单列表刷新本地记录（做多标的） */
+  function applyOrdersRefreshForLong(
     symbol: string,
-    isLongSymbol: boolean,
     allBuyOrders: ReadonlyArray<OrderRecord>,
     filledSellOrders: ReadonlyArray<OrderRecord>,
     quote?: Quote | null,
   ): OrderRecord[] {
-    const setBuyList = (list: ReadonlyArray<OrderRecord>): void => {
-      if (isLongSymbol) {
-        storage.setBuyOrdersListForLong(symbol, list);
-      } else {
-        storage.setBuyOrdersListForShort(symbol, list);
-      }
-    };
-
     if (allBuyOrders.length === 0) {
-      setBuyList([]);
+      storage.setBuyOrdersListForLong(symbol, []);
       logRefreshResult(
         symbol,
-        isLongSymbol,
+        true,
         0,
         0,
         0,
@@ -155,10 +146,10 @@ export function createOrderRecorder(
 
     if (filledSellOrders.length === 0) {
       const buyOrdersArray = [...allBuyOrders];
-      setBuyList(buyOrdersArray);
+      storage.setBuyOrdersListForLong(symbol, buyOrdersArray);
       logRefreshResult(
         symbol,
-        isLongSymbol,
+        true,
         allBuyOrders.length,
         0,
         allBuyOrders.length,
@@ -172,10 +163,64 @@ export function createOrderRecorder(
       allBuyOrders,
       filledSellOrders,
     )];
-    setBuyList(finalBuyOrders);
+    storage.setBuyOrdersListForLong(symbol, finalBuyOrders);
     logRefreshResult(
       symbol,
-      isLongSymbol,
+      true,
+      allBuyOrders.length,
+      filledSellOrders.length,
+      finalBuyOrders.length,
+      undefined,
+      quote,
+    );
+
+    return finalBuyOrders;
+  }
+
+  /** 使用已获取的订单列表刷新本地记录（做空标的） */
+  function applyOrdersRefreshForShort(
+    symbol: string,
+    allBuyOrders: ReadonlyArray<OrderRecord>,
+    filledSellOrders: ReadonlyArray<OrderRecord>,
+    quote?: Quote | null,
+  ): OrderRecord[] {
+    if (allBuyOrders.length === 0) {
+      storage.setBuyOrdersListForShort(symbol, []);
+      logRefreshResult(
+        symbol,
+        false,
+        0,
+        0,
+        0,
+        '历史买入0笔, 无需记录',
+        quote,
+      );
+      return [];
+    }
+
+    if (filledSellOrders.length === 0) {
+      const buyOrdersArray = [...allBuyOrders];
+      storage.setBuyOrdersListForShort(symbol, buyOrdersArray);
+      logRefreshResult(
+        symbol,
+        false,
+        allBuyOrders.length,
+        0,
+        allBuyOrders.length,
+        '无卖出记录, 记录全部买入订单',
+        quote,
+      );
+      return buyOrdersArray;
+    }
+
+    const finalBuyOrders = [...filteringEngine.applyFilteringAlgorithm(
+      allBuyOrders,
+      filledSellOrders,
+    )];
+    storage.setBuyOrdersListForShort(symbol, finalBuyOrders);
+    logRefreshResult(
+      symbol,
+      false,
       allBuyOrders.length,
       filledSellOrders.length,
       finalBuyOrders.length,
@@ -266,12 +311,11 @@ export function createOrderRecorder(
   }
 
   /**
-   * 使用全量订单刷新指定标的订单记录
+   * 使用全量订单刷新指定标的订单记录（做多标的）
    * 仅过滤 symbol 对应订单，不触发 API 调用
    */
-  async function refreshOrdersFromAllOrders(
+  async function refreshOrdersFromAllOrdersForLong(
     symbol: string,
-    isLongSymbol: boolean,
     allOrders: ReadonlyArray<RawOrderFromAPI>,
     quote?: Quote | null,
   ): Promise<OrderRecord[]> {
@@ -282,7 +326,33 @@ export function createOrderRecorder(
 
       apiManager.cacheOrdersForSymbol(symbol, allBuyOrders, filledSellOrders, filteredOrders);
 
-      return applyOrdersRefresh(symbol, isLongSymbol, allBuyOrders, filledSellOrders, quote);
+      return applyOrdersRefreshForLong(symbol, allBuyOrders, filledSellOrders, quote);
+    } catch (error) {
+      logger.error(
+        `[订单记录失败] 标的 ${symbol}`,
+        (error as Error)?.message ?? String(error),
+      );
+      return [];
+    }
+  }
+
+  /**
+   * 使用全量订单刷新指定标的订单记录（做空标的）
+   * 仅过滤 symbol 对应订单，不触发 API 调用
+   */
+  async function refreshOrdersFromAllOrdersForShort(
+    symbol: string,
+    allOrders: ReadonlyArray<RawOrderFromAPI>,
+    quote?: Quote | null,
+  ): Promise<OrderRecord[]> {
+    try {
+      const filteredOrders = allOrders.filter((order) => order.symbol === symbol);
+      const { buyOrders: allBuyOrders, sellOrders: filledSellOrders } =
+        classifyAndConvertOrders(filteredOrders);
+
+      apiManager.cacheOrdersForSymbol(symbol, allBuyOrders, filledSellOrders, filteredOrders);
+
+      return applyOrdersRefreshForShort(symbol, allBuyOrders, filledSellOrders, quote);
     } catch (error) {
       logger.error(
         `[订单记录失败] 标的 ${symbol}`,
@@ -383,7 +453,8 @@ export function createOrderRecorder(
     getLatestBuyOrderPrice,
     getLatestSellRecord,
     fetchAllOrdersFromAPI,
-    refreshOrdersFromAllOrders,
+    refreshOrdersFromAllOrdersForLong,
+    refreshOrdersFromAllOrdersForShort,
     clearOrdersCacheForSymbol,
     getBuyOrdersForSymbol,
 

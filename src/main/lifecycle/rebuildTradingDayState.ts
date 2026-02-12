@@ -90,17 +90,15 @@ async function rebuildOrderRecords(
     const shortSeatState = monitorContext.symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
 
     if (isSeatReady(longSeatState)) {
-      await monitorContext.orderRecorder.refreshOrdersFromAllOrders(
+      await monitorContext.orderRecorder.refreshOrdersFromAllOrdersForLong(
         longSeatState.symbol,
-        true,
         allOrders,
         monitorContext.longQuote,
       );
     }
     if (isSeatReady(shortSeatState)) {
-      await monitorContext.orderRecorder.refreshOrdersFromAllOrders(
+      await monitorContext.orderRecorder.refreshOrdersFromAllOrdersForShort(
         shortSeatState.symbol,
-        false,
         allOrders,
         monitorContext.shortQuote,
       );

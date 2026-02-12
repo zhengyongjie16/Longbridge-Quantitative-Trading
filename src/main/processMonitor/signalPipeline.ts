@@ -170,9 +170,9 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
           });
         }
       } else {
-        const reason = !isTradingEnabled
-          ? '交易门禁关闭，暂不执行'
-          : '非交易时段，暂不执行';
+        const reason = isTradingEnabled
+          ? '非交易时段，暂不执行'
+          : '交易门禁关闭，暂不执行';
         logger.info(`[立即信号] ${formatSignalLog(signal)}（${reason}）`);
         releaseSignal(signal);
       }
@@ -187,9 +187,9 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
         logger.info(`[延迟验证信号] ${formatSignalLog(signal)}`);
         delayedSignalVerifier.addSignal(signal, monitorSymbol);
       } else {
-        const reason = !isTradingEnabled
-          ? '交易门禁关闭，暂不添加验证'
-          : '非交易时段，暂不添加验证';
+        const reason = isTradingEnabled
+          ? '非交易时段，暂不添加验证'
+          : '交易门禁关闭，暂不添加验证';
         logger.info(`[延迟验证信号] ${formatSignalLog(signal)}（${reason}）`);
         releaseSignal(signal);
       }
