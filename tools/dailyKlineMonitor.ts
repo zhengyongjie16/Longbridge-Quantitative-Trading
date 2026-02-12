@@ -7,7 +7,7 @@
  * - 参考主程序显示逻辑，实时显示监控结果
  *
  * 运行方式：
- * npm run monitor-daily
+ * bun run monitor-daily
  *
  * 配置参数：
  * - DEFAULT_SYMBOL：监控标的（默认 HSI.HK）
