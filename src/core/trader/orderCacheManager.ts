@@ -13,7 +13,8 @@ import { OrderStatus, OrderSide } from 'longport';
 import { logger } from '../../utils/logger/index.js';
 import { decimalToNumber, formatError } from '../../utils/helpers/index.js';
 import { PENDING_ORDER_STATUSES, API } from '../../constants/index.js';
-import type { PendingOrder, DecimalLikeValue } from '../../types/index.js';
+import type { PendingOrder } from '../../types/services.js';
+import type { DecimalLikeValue } from '../../types/common.js';
 import type { OrderCacheManager, OrderCacheManagerDeps } from './types.js';
 
 /**

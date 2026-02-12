@@ -9,7 +9,7 @@
  * - prod（默认）：生产模式，启用所有门禁检查
  * - dev：开发模式，跳过门禁检查便于调试
  */
-import type { RunMode, GateMode } from '../../types/index.js';
+import type { RunMode, GateMode } from '../../types/seat.js';
 
 /**
  * 解析运行模式

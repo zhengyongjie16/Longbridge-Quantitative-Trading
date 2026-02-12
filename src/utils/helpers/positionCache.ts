@@ -5,7 +5,8 @@
  * 主循环中根据标的代码快速查找持仓。
  */
 import { isValidPositiveNumber } from './index.js';
-import type { Position, PositionCache } from '../../types/index.js';
+import type { Position } from '../../types/account.js';
+import type { PositionCache } from '../../types/services.js';
 
 /** 创建持仓缓存管理器 */
 export function createPositionCache(): PositionCache {

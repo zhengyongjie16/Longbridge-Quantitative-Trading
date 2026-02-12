@@ -5,7 +5,7 @@
  * - OrderMonitorWorkerDeps：依赖注入（订单监控函数）
  * - OrderMonitorWorker：工作器接口
  */
-import type { Quote } from '../../../types/index.js';
+import type { Quote } from '../../../types/quote.js';
 
 export type OrderMonitorWorkerDeps = Readonly<{
   monitorAndManageOrders: (quotesMap: ReadonlyMap<string, Quote | null>) => Promise<void>;

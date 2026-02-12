@@ -5,7 +5,7 @@
  * - Processor: 处理器通用接口（start/stop）
  * - BaseProcessorConfig: 基础任务处理器配置
  */
-import type { Signal } from '../../types/index.js';
+import type { Signal } from '../../types/signal.js';
 import type { Task, TaskQueue } from './tradeTaskQueue/types.js';
 
 /**

@@ -5,7 +5,7 @@
  * - 解析多空阈值配置
  * - 构造自动寻标输入参数
  */
-import type { AutoSearchConfig } from '../../types/index.js';
+import type { AutoSearchConfig } from '../../types/config.js';
 import type { FindBestWarrantInput } from '../autoSymbolFinder/types.js';
 import type {
   BuildFindBestWarrantInput,

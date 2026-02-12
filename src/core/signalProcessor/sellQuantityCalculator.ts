@@ -18,7 +18,10 @@ import {
   resolveSellQuantityByFullClose,
   resolveSellQuantityBySmartClose,
 } from './utils.js';
-import type { Quote, Position, Signal, OrderRecorder } from '../../types/index.js';
+import type { Position } from '../../types/account.js';
+import type { Quote } from '../../types/quote.js';
+import type { Signal } from '../../types/signal.js';
+import type { OrderRecorder } from '../../types/services.js';
 
 /**
  * 计算卖出信号的数量和原因

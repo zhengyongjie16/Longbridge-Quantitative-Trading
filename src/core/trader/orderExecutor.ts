@@ -31,7 +31,9 @@ import {
   isBuyAction,
   isSellAction,
 } from '../../utils/helpers/index.js';
-import type { Signal, SignalType, TradeCheckResult, MonitorConfig } from '../../types/index.js';
+import type { Signal, SignalType } from '../../types/signal.js';
+import type { MonitorConfig } from '../../types/config.js';
+import type { TradeCheckResult } from '../../types/services.js';
 import type { OrderPayload, OrderExecutor, OrderExecutorDeps, SubmitOrderParams } from './types.js';
 import { identifyErrorType } from './tradeLogger.js';
 import {

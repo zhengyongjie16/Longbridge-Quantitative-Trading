@@ -15,7 +15,11 @@ import { isSeatReady } from '../../../../services/autoSymbolManager/utils.js';
 import { WARRANT_LIQUIDATION_ORDER_TYPE } from '../../../../constants/index.js';
 import { getPositions } from '../../../processMonitor/utils.js';
 
-import type { LastState, Position, Quote, Signal, Trader } from '../../../../types/index.js';
+import type { LastState } from '../../../../types/state.js';
+import type { Position } from '../../../../types/account.js';
+import type { Quote } from '../../../../types/quote.js';
+import type { Signal } from '../../../../types/signal.js';
+import type { Trader } from '../../../../types/services.js';
 import type { RefreshGate } from '../../../../utils/refreshGate/types.js';
 import type { MonitorTask } from '../../monitorTaskQueue/types.js';
 import type {

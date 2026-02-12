@@ -20,7 +20,10 @@ import { batchGetQuotes } from '../../utils/helpers/quoteHelpers.js';
 import { getHKDateKey, isBeforeClose15Minutes, isBeforeClose5Minutes } from '../../utils/helpers/tradingTime.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
-import type { MonitorContext, Position, Quote, Signal, SignalType } from '../../types/index.js';
+import type { MonitorContext } from '../../types/state.js';
+import type { Position } from '../../types/account.js';
+import type { Quote } from '../../types/quote.js';
+import type { Signal, SignalType } from '../../types/signal.js';
 import type { DoomsdayProtection, DoomsdayClearanceContext, DoomsdayClearanceResult, CancelPendingBuyOrdersContext, CancelPendingBuyOrdersResult, ClearanceSignalParams } from './types.js';
 
 /** 创建单个清仓信号，从对象池获取 Signal 对象 */

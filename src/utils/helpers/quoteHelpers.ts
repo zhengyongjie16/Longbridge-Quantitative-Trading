@@ -9,7 +9,10 @@
  * - collectAllQuoteSymbols()：收集所有标的代码
  * - batchGetQuotes()：批量获取行情数据
  */
-import type { MarketDataClient, Position, Quote, SymbolRegistry } from '../../types/index.js';
+import type { Position } from '../../types/account.js';
+import type { Quote } from '../../types/quote.js';
+import type { SymbolRegistry } from '../../types/seat.js';
+import type { MarketDataClient } from '../../types/services.js';
 
 /**
  * 收集所有需要获取行情的标的代码

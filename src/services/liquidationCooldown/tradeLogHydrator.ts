@@ -12,7 +12,7 @@ import type {
   RawRecord,
 } from './types.js';
 import type { TradeRecord } from '../../core/trader/types.js';
-import type { SeatSymbolSnapshotEntry } from '../../types/index.js';
+import type { SeatSymbolSnapshotEntry } from '../../types/seat.js';
 import { buildTradeLogPath } from '../../core/trader/utils.js';
 import {
   toStringOrNull,

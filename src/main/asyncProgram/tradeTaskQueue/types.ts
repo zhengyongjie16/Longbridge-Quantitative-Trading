@@ -6,7 +6,7 @@
  * - TaskQueue: 通用任务队列接口
  * - BuyTaskType / SellTaskType: 任务类型字符串字面量
  */
-import type { Signal } from '../../../types/index.js';
+import type { Signal } from '../../../types/signal.js';
 
 /** 任务添加回调函数类型 */
 export type TaskAddedCallback = () => void;

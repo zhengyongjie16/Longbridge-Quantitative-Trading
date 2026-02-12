@@ -17,13 +17,10 @@
  */
 import { formatError } from '../../utils/helpers/index.js';
 import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
-import type {
-  MarketDataClient,
-  MonitorContext,
-  Quote,
-  RawOrderFromAPI,
-  SymbolRegistry,
-} from '../../types/index.js';
+import type { MonitorContext } from '../../types/state.js';
+import type { Quote } from '../../types/quote.js';
+import type { SymbolRegistry } from '../../types/seat.js';
+import type { MarketDataClient, RawOrderFromAPI } from '../../types/services.js';
 import type { DailyLossTracker } from '../../core/riskController/types.js';
 import type { RebuildTradingDayStateDeps, RebuildTradingDayStateParams } from './types.js';
 

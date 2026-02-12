@@ -9,15 +9,15 @@
  */
 import { logger } from '../../utils/logger/index.js';
 import { decimalToNumber, isDefined, formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
+import type { SignalType } from '../../types/signal.js';
 import type {
   MarketDataClient,
   WarrantType,
   RiskCheckResult,
-  SignalType,
   WarrantDistanceInfo,
   WarrantDistanceLiquidationResult,
   WarrantRefreshResult,
-} from '../../types/index.js';
+} from '../../types/services.js';
 import type { WarrantInfo, WarrantQuote, WarrantRiskChecker, WarrantRiskCheckerDeps } from './types.js';
 import {
   BULL_WARRANT_MIN_DISTANCE_PERCENT,

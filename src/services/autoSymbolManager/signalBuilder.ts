@@ -6,7 +6,7 @@
  * - 名义金额换算下单数量
  * - 对象池构造信号
  */
-import type { Signal } from '../../types/index.js';
+import type { Signal } from '../../types/signal.js';
 import type {
   BuildOrderSignalParams,
   OrderSignalBuilder,

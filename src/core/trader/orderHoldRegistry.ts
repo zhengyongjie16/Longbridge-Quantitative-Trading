@@ -16,7 +16,7 @@
  * - 订单成交后清理索引，若标的无剩余未成交订单则移除（markOrderFilled）
  */
 import { PENDING_ORDER_STATUSES } from '../../constants/index.js';
-import type { RawOrderFromAPI } from '../../types/index.js';
+import type { RawOrderFromAPI } from '../../types/services.js';
 import type { OrderHoldRegistry } from './types.js';
 
 export function createOrderHoldRegistry(): OrderHoldRegistry {

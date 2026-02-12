@@ -4,7 +4,7 @@
  * 提供环境变量读取、解析和转换的工具函数
  */
 import { OrderType } from 'longport';
-import type { LiquidationCooldownConfig, NumberRange } from '../types/index.js';
+import type { LiquidationCooldownConfig, NumberRange } from '../types/config.js';
 import { validateEmaPeriod, validatePsyPeriod } from '../utils/helpers/indicatorHelpers.js';
 import { logger } from '../utils/logger/index.js';
 import type { RegionUrls } from './types.js';

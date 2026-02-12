@@ -8,7 +8,7 @@
  * 依赖：ctxPromise（Trade API 上下文）、rateLimiter（频率限制）
  */
 import { decimalToNumber } from '../../utils/helpers/index.js';
-import type { AccountSnapshot, Position, CashInfo } from '../../types/index.js';
+import type { AccountSnapshot, Position, CashInfo } from '../../types/account.js';
 import type { AccountService, AccountServiceDeps } from './types.js';
 
 /**

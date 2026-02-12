@@ -11,7 +11,7 @@
  */
 import { logger } from '../../utils/logger/index.js';
 import { API } from '../../constants/index.js';
-import type { RateLimiter } from '../../types/index.js';
+import type { RateLimiter } from '../../types/services.js';
 import type { RateLimiterDeps, RateLimiterConfig } from './types.js';
 
 const DEFAULT_CONFIG: RateLimiterConfig = {

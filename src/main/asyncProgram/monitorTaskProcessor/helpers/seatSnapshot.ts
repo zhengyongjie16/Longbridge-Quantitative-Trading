@@ -10,7 +10,7 @@
  */
 import { isSeatVersionMatch } from '../../../../services/autoSymbolManager/utils.js';
 
-import type { SeatState } from '../../../../types/index.js';
+import type { SeatState } from '../../../../types/seat.js';
 import type { RefreshGate } from '../../../../utils/refreshGate/types.js';
 import type { MonitorTaskContext, SeatSnapshot } from '../types.js';
 

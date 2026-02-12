@@ -10,14 +10,11 @@ import { logger } from '../../utils/logger/index.js';
 import { formatSymbolDisplayFromQuote, formatError, isBuyAction } from '../../utils/helpers/index.js';
 import { VERIFICATION } from '../../constants/index.js';
 import { getSymbolName } from './utils.js';
-import type {
-  AccountSnapshot,
-  Position,
-  Quote,
-  Signal,
-  RiskCheckContext,
-  MultiMonitorTradingConfig,
-} from '../../types/index.js';
+import type { AccountSnapshot, Position } from '../../types/account.js';
+import type { Quote } from '../../types/quote.js';
+import type { Signal } from '../../types/signal.js';
+import type { MultiMonitorTradingConfig } from '../../types/config.js';
+import type { RiskCheckContext } from '../../types/services.js';
 import type { LiquidationCooldownTracker } from '../../services/liquidationCooldown/types.js';
 
 function getRiskCheckCooldownKey(symbol: string, action: Signal['action']): string {

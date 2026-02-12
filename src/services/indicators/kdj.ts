@@ -9,7 +9,8 @@
 import { EMA } from 'technicalindicators';
 import { kdjObjectPool } from '../../utils/objectPool/index.js';
 import { toNumber, logDebug, isValidKDJ } from './utils.js';
-import type { KDJIndicator, CandleData } from '../../types/index.js';
+import type { KDJIndicator } from '../../types/quote.js';
+import type { CandleData } from '../../types/data.js';
 
 /**
  * 计算 KDJ（随机指标）

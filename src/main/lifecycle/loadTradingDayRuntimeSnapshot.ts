@@ -25,7 +25,7 @@ import { getTradingMinutesSinceOpen, isWithinMorningOpenProtection } from '../..
 import { collectRuntimeQuoteSymbols } from '../../utils/helpers/quoteHelpers.js';
 import { logger } from '../../utils/logger/index.js';
 import { prepareSeatsOnStartup } from '../startup/seat.js';
-import type { RawOrderFromAPI } from '../../types/index.js';
+import type { RawOrderFromAPI } from '../../types/services.js';
 import type {
   LoadTradingDayRuntimeSnapshotDeps,
   LoadTradingDayRuntimeSnapshotParams,

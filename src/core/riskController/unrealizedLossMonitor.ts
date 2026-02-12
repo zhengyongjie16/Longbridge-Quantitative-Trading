@@ -20,7 +20,9 @@
 import { logger } from '../../utils/logger/index.js';
 import { isValidPositiveNumber, formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
-import type { Quote, Signal, RiskChecker, Trader, OrderRecorder } from '../../types/index.js';
+import type { Quote } from '../../types/quote.js';
+import type { Signal } from '../../types/signal.js';
+import type { RiskChecker, Trader, OrderRecorder } from '../../types/services.js';
 import type {
   DailyLossTracker,
   UnrealizedLossMonitor,

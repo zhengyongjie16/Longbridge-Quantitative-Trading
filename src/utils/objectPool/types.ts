@@ -11,7 +11,7 @@
  * - 对象池类型使用可变属性和 | null 标记，这是性能优化的必要例外
  * - 使用对象池对象后必须及时释放，嵌套对象也需递归释放
  */
-import type { OrderTypeConfig, SignalType } from '../../types/index.js';
+import type { OrderTypeConfig, SignalType } from '../../types/signal.js';
 
 /**
  * 对象池 - Signal

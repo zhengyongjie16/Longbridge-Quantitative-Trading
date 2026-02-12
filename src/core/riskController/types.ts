@@ -7,15 +7,14 @@
  * - 各子检查器服务接口
  * - 依赖注入类型
  */
+import type { Position } from '../../types/account.js';
+import type { Signal, SignalType } from '../../types/signal.js';
+import type { Quote } from '../../types/quote.js';
+import type { MonitorConfig } from '../../types/config.js';
 import type {
-  Position,
-  Signal,
-  SignalType,
   MarketDataClient,
   OrderRecorder,
-  MonitorConfig,
   OrderRecord,
-  Quote,
   RawOrderFromAPI,
   RiskChecker,
   Trader,
@@ -26,7 +25,7 @@ import type {
   WarrantRefreshResult,
   UnrealizedLossData,
   UnrealizedLossCheckResult,
-} from '../../types/index.js';
+} from '../../types/services.js';
 import type { OrderFilteringEngine, OrderOwnership } from '../orderRecorder/types.js';
 import type { Decimal, NaiveDate, OrderSide, WarrantType as SDKWarrantType } from 'longport';
 
@@ -155,7 +154,7 @@ export interface UnrealizedLossChecker {
     orderRecorder: OrderRecorder,
     symbol: string,
     isLongSymbol: boolean,
-    quote?: import('../../types/index.js').Quote | null,
+    quote?: import('../../types/quote.js').Quote | null,
     dailyLossOffset?: number,
   ): Promise<{ r1: number; n1: number } | null>;
   check(

@@ -10,15 +10,10 @@ import type { MonitorTaskQueue } from '../asyncProgram/monitorTaskQueue/types.js
 import type { MonitorTaskData, MonitorTaskType } from '../asyncProgram/monitorTaskProcessor/types.js';
 import type { OrderMonitorWorker } from '../asyncProgram/orderMonitorWorker/types.js';
 import type { PostTradeRefresher } from '../asyncProgram/postTradeRefresher/types.js';
-import type {
-  LastState,
-  MonitorContext,
-  MarketDataClient,
-  Trader,
-  MultiMonitorTradingConfig,
-  SymbolRegistry,
-  GateMode,
-} from '../../types/index.js';
+import type { LastState, MonitorContext } from '../../types/state.js';
+import type { MultiMonitorTradingConfig } from '../../types/config.js';
+import type { SymbolRegistry, GateMode } from '../../types/seat.js';
+import type { MarketDataClient, Trader } from '../../types/services.js';
 import type { MarketMonitor } from '../../services/marketMonitor/types.js';
 import type { DoomsdayProtection } from '../../core/doomsdayProtection/types.js';
 import type { SignalProcessor } from '../../core/signalProcessor/types.js';

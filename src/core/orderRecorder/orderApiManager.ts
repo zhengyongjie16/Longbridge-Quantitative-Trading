@@ -8,11 +8,7 @@
  */
 import { decimalToNumber } from '../../utils/helpers/index.js';
 import { PENDING_ORDER_STATUSES } from '../../constants/index.js';
-import type {
-  OrderRecord,
-  PendingOrder,
-  RawOrderFromAPI,
-} from '../../types/index.js';
+import type { OrderRecord, PendingOrder, RawOrderFromAPI } from '../../types/services.js';
 import type {
   OrderCache,
   OrderAPIManager,

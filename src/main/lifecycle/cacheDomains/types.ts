@@ -9,7 +9,11 @@
  * - MarketDataDomainDeps：行情域（行情客户端）
  * - GlobalStateDomainDeps：全局状态域（全局状态、开盘重建回调）
  */
-import type { LastState, MarketDataClient, MonitorContext, MultiMonitorTradingConfig, Signal, SymbolRegistry, Trader } from '../../../types/index.js';
+import type { LastState, MonitorContext } from '../../../types/state.js';
+import type { Signal } from '../../../types/signal.js';
+import type { MultiMonitorTradingConfig } from '../../../types/config.js';
+import type { SymbolRegistry } from '../../../types/seat.js';
+import type { MarketDataClient, Trader } from '../../../types/services.js';
 import type { Processor } from '../../asyncProgram/types.js';
 import type { TaskQueue, BuyTaskType, SellTaskType } from '../../asyncProgram/tradeTaskQueue/types.js';
 import type { MonitorTaskData, MonitorTaskProcessor, MonitorTaskType } from '../../asyncProgram/monitorTaskProcessor/types.js';

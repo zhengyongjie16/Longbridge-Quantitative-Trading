@@ -7,7 +7,11 @@
  * - CancelPendingBuyOrdersContext/Result：撤单上下文和结果
  * - DoomsdayProtection：末日保护程序接口
  */
-import type { Position, MonitorConfig, MonitorContext, Trader, MarketDataClient, LastState, SignalType } from '../../types/index.js';
+import type { Position } from '../../types/account.js';
+import type { MonitorConfig } from '../../types/config.js';
+import type { MonitorContext, LastState } from '../../types/state.js';
+import type { SignalType } from '../../types/signal.js';
+import type { Trader, MarketDataClient } from '../../types/services.js';
 
 /**
  * 清仓信号创建参数

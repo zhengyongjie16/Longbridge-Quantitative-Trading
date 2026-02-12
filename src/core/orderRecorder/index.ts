@@ -23,12 +23,8 @@
  */
 import { logger } from '../../utils/logger/index.js';
 import { getLongDirectionName, getShortDirectionName, formatSymbolDisplayFromQuote, isValidPositiveNumber } from '../../utils/helpers/index.js';
-import type {
-  OrderRecord,
-  OrderRecorder,
-  Quote,
-  RawOrderFromAPI,
-} from '../../types/index.js';
+import type { Quote } from '../../types/quote.js';
+import type { OrderRecord, OrderRecorder, RawOrderFromAPI } from '../../types/services.js';
 import type {
   OrderRecorderDeps,
   OrderStatistics,

@@ -4,7 +4,7 @@
  * 指标缓存使用环形缓冲区存储每秒的指标快照，
  * 供延迟信号验证器查询历史数据。
  */
-import type { IndicatorSnapshot } from '../../../types/index.js';
+import type { IndicatorSnapshot } from '../../../types/quote.js';
 
 /**
  * 指标缓存条目

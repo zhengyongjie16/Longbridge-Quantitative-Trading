@@ -4,14 +4,12 @@
  *
  * 定义单个监控标的处理所需的参数类型
  */
-import type {
-  IndicatorSnapshot,
-  MonitorContext,
-  Position,
-  Quote,
-  SeatState,
-  Signal,
-} from '../../types/index.js';
+import type { MonitorContext } from '../../types/state.js';
+import type { IndicatorSnapshot } from '../../types/quote.js';
+import type { Position } from '../../types/account.js';
+import type { Quote } from '../../types/quote.js';
+import type { SeatState } from '../../types/seat.js';
+import type { Signal } from '../../types/signal.js';
 import type { MainProgramContext } from '../mainProgram/types.js';
 
 /**

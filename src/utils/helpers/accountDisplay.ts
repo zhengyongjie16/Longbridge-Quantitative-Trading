@@ -22,7 +22,9 @@ import {
   isValidPositiveNumber,
 } from './index.js';
 
-import type { Trader, LastState, Quote } from '../../types/index.js';
+import type { LastState } from '../../types/state.js';
+import type { Quote } from '../../types/quote.js';
+import type { Trader } from '../../types/services.js';
 
 /**
  * 刷新账户与持仓缓存（仅数据拉取，不做行情订阅）

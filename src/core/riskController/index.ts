@@ -14,19 +14,17 @@
  */
 import { isBuyAction, isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { logger } from '../../utils/logger/index.js';
+import type { Position, AccountSnapshot, CashInfo } from '../../types/account.js';
+import type { Signal, SignalType } from '../../types/signal.js';
+import type { Quote } from '../../types/quote.js';
 import type {
-  Position,
-  Signal,
-  AccountSnapshot,
   MarketDataClient,
   OrderRecorder,
-  Quote,
   RiskCheckResult,
   UnrealizedLossCheckResult,
   WarrantRefreshResult,
   RiskChecker,
-  SignalType,
-} from '../../types/index.js';
+} from '../../types/services.js';
 import type {
   RiskCheckerDeps,
   WarrantRiskChecker,
@@ -213,7 +211,7 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
 
     // 对于买入操作，检查港币可用现金是否足够
     if (isBuy) {
-      const hkdCashInfo = account.cashInfos?.find((c) => c.currency === 'HKD');
+      const hkdCashInfo = account.cashInfos?.find((c: CashInfo) => c.currency === 'HKD');
       const availableCash = hkdCashInfo?.availableCash ?? 0;
 
       if (availableCash < orderNotional) {

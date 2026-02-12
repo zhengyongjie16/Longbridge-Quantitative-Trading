@@ -103,12 +103,9 @@ import { createCleanup } from './services/cleanup/index.js';
 import { mainProgram } from './main/mainProgram/index.js';
 
 // 类型从 types 直接导入
-import type {
-  LastState,
-  MonitorContext,
-  Quote,
-  RawOrderFromAPI,
-} from './types/index.js';
+import type { LastState, MonitorContext } from './types/state.js';
+import type { Quote } from './types/quote.js';
+import type { RawOrderFromAPI } from './types/services.js';
 import type { MonitorTaskData, MonitorTaskType } from './main/asyncProgram/monitorTaskProcessor/types.js';
 import { getSprintSacreMooacreMoo } from './utils/asciiArt/sacreMooacre.js';
 import { signalObjectPool } from './utils/objectPool/index.js';

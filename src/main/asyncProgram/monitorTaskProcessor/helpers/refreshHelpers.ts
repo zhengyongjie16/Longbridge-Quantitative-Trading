@@ -8,7 +8,9 @@
  * 说明：
  * - 缓存生命周期仅限单次队列批处理
  */
-import type { LastState, Position, RawOrderFromAPI, Trader } from '../../../../types/index.js';
+import type { LastState } from '../../../../types/state.js';
+import type { Position } from '../../../../types/account.js';
+import type { RawOrderFromAPI, Trader } from '../../../../types/services.js';
 import type { MonitorTaskContext, RefreshHelpers } from '../types.js';
 
 export function createRefreshHelpers({

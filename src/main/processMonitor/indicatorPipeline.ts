@@ -23,7 +23,8 @@ import { getCandleFingerprint } from '../../services/indicators/utils.js';
 import { logger } from '../../utils/logger/index.js';
 import { formatSymbolDisplay, releaseSnapshotObjects } from '../../utils/helpers/index.js';
 import { TRADING } from '../../constants/index.js';
-import type { CandleData, IndicatorSnapshot } from '../../types/index.js';
+import type { CandleData } from '../../types/data.js';
+import type { IndicatorSnapshot } from '../../types/quote.js';
 import type { IndicatorPipelineParams } from './types.js';
 
 export async function runIndicatorPipeline(

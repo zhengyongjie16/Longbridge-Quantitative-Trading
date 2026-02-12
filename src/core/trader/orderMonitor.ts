@@ -27,7 +27,9 @@ import {
   ORDER_PRICE_DIFF_THRESHOLD,
   PENDING_ORDER_STATUSES,
 } from '../../constants/index.js';
-import type { Quote, PendingRefreshSymbol, GlobalConfig } from '../../types/index.js';
+import type { Quote } from '../../types/quote.js';
+import type { GlobalConfig } from '../../types/config.js';
+import type { PendingRefreshSymbol } from '../../types/services.js';
 import type {
   OrderMonitor,
   OrderMonitorDeps,

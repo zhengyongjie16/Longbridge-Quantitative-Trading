@@ -3,7 +3,8 @@
  *
  * 定义买入处理器的接口契约和依赖注入类型
  */
-import type { MonitorContext, Trader, LastState } from '../../../types/index.js';
+import type { MonitorContext, LastState } from '../../../types/state.js';
+import type { Trader } from '../../../types/services.js';
 import type { TaskQueue, BuyTaskType } from '../tradeTaskQueue/types.js';
 import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
 import type { DoomsdayProtection } from '../../../core/doomsdayProtection/types.js';

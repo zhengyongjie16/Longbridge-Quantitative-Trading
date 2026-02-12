@@ -16,9 +16,7 @@
  * - 缓存的标的名称和指标周期
  */
 import { isSeatReady } from '../autoSymbolManager/utils.js';
-import type {
-  MonitorContext,
-} from '../../types/index.js';
+import type { MonitorContext } from '../../types/state.js';
 import type { MonitorContextFactoryDeps } from './types.js';
 import { extractRsiPeriodsWithDefault, extractEmaPeriods, extractPsyPeriods } from './utils.js';
 

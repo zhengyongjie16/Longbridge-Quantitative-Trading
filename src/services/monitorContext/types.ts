@@ -12,14 +12,11 @@
  * - riskChecker：风险检查器
  * - unrealizedLossMonitor：浮亏监控器
  */
-import type {
-  MonitorConfig,
-  MonitorState,
-  OrderRecorder,
-  Quote,
-  RiskChecker,
-  SymbolRegistry,
-} from '../../types/index.js';
+import type { MonitorConfig } from '../../types/config.js';
+import type { MonitorState } from '../../types/state.js';
+import type { Quote } from '../../types/quote.js';
+import type { SymbolRegistry } from '../../types/seat.js';
+import type { OrderRecorder, RiskChecker } from '../../types/services.js';
 import type { HangSengMultiIndicatorStrategy } from '../../core/strategy/types.js';
 import type { DailyLossTracker, UnrealizedLossMonitor } from '../../core/riskController/types.js';
 import type { DelayedSignalVerifier } from '../../main/asyncProgram/delayedSignalVerifier/types.js';

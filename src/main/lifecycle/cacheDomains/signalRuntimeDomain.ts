@@ -13,7 +13,7 @@
  * - 刷新 refreshGate 版本，标记数据为最新
  */
 import { logger } from '../../../utils/logger/index.js';
-import type { MonitorContext } from '../../../types/index.js';
+import type { MonitorContext } from '../../../types/state.js';
 import type { CacheDomain, LifecycleContext } from '../types.js';
 import type { SignalRuntimeDomainDeps } from './types.js';
 

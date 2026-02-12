@@ -14,16 +14,11 @@
 import type { AutoSymbolManager } from '../../../services/autoSymbolManager/types.js';
 import type { RefreshGate } from '../../../utils/refreshGate/types.js';
 import type { MonitorTaskQueue, MonitorTask } from '../monitorTaskQueue/types.js';
-import type {
-  LastState,
-  Quote,
-  RawOrderFromAPI,
-  SymbolRegistry,
-  OrderRecorder,
-  RiskChecker,
-  Trader,
-  MultiMonitorTradingConfig,
-} from '../../../types/index.js';
+import type { LastState } from '../../../types/state.js';
+import type { Quote } from '../../../types/quote.js';
+import type { MultiMonitorTradingConfig } from '../../../types/config.js';
+import type { SymbolRegistry } from '../../../types/seat.js';
+import type { RawOrderFromAPI, OrderRecorder, RiskChecker, Trader } from '../../../types/services.js';
 import type { DailyLossTracker, UnrealizedLossMonitor } from '../../../core/riskController/types.js';
 
 export type SeatSnapshot = Readonly<{

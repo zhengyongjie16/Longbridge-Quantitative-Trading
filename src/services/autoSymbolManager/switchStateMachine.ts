@@ -6,7 +6,8 @@
  * - 距离阈值触发与日内抑制
  */
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
-import type { PendingOrder, Position } from '../../types/index.js';
+import type { Position } from '../../types/account.js';
+import type { PendingOrder } from '../../types/services.js';
 import type {
   SwitchOnDistanceParams,
   SwitchState,

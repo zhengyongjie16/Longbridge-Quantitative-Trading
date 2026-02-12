@@ -4,7 +4,7 @@
 import { isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
 import { DEFAULT_PERCENT_DECIMALS } from '../../constants/index.js';
 import type { ObjectPool } from '../../utils/objectPool/types.js';
-import type { WarrantDistanceInfo } from '../../types/index.js';
+import type { WarrantDistanceInfo } from '../../types/services.js';
 
 /**
  * 检查数值是否发生变化（超过阈值）

@@ -2,7 +2,7 @@
  * 清理模块独享的工具函数
  */
 import { releaseSnapshotObjects } from '../../utils/helpers/index.js';
-import type { MonitorState } from '../../types/index.js';
+import type { MonitorState } from '../../types/state.js';
 
 /**
  * 释放所有监控标的的最后一个快照对象

@@ -12,7 +12,7 @@ import {
 } from '../../utils/helpers/signalConfigParser.js';
 import { validateEmaPeriod, validatePsyPeriod } from '../../utils/helpers/indicatorHelpers.js';
 import { DEFAULT_EMA_PERIOD, DEFAULT_PSY_PERIOD, DEFAULT_RSI_PERIOD } from '../../constants/index.js';
-import type { VerificationConfig, SignalConfigSet } from '../../types/index.js';
+import type { VerificationConfig, SignalConfigSet } from '../../types/config.js';
 
 /**
  * 从验证配置中提取 EMA 周期

@@ -5,7 +5,8 @@
  */
 import { OrderSide, OrderStatus } from 'longport';
 import { logger } from '../../utils/logger/index.js';
-import type { MonitorConfig, OrderRecord, RawOrderFromAPI } from '../../types/index.js';
+import type { MonitorConfig } from '../../types/config.js';
+import type { OrderRecord, RawOrderFromAPI } from '../../types/services.js';
 import type {
   DailyLossFilledOrderInput,
   DailyLossState,

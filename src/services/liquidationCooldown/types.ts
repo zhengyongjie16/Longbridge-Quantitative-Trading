@@ -3,11 +3,9 @@
  *
  * 定义冷却追踪器所需的方向、入参和依赖类型。
  */
-import type {
-  LiquidationCooldownConfig,
-  MultiMonitorTradingConfig,
-  SeatSymbolSnapshotEntry,
-} from '../../types/index.js';
+import type { MultiMonitorTradingConfig } from '../../types/config.js';
+import type { SeatSymbolSnapshotEntry } from '../../types/seat.js';
+import type { LiquidationCooldownConfig } from '../../types/config.js';
 import type { Logger } from '../../utils/logger/types.js';
 
 /** 未解析的日志记录（键值对） */

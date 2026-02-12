@@ -5,7 +5,9 @@
  * 提供持仓查询、队列清理等辅助功能，与对象池配合使用
  */
 import { positionObjectPool } from '../../utils/objectPool/index.js';
-import type { Position, PositionCache, Signal } from '../../types/index.js';
+import type { Position } from '../../types/account.js';
+import type { Signal } from '../../types/signal.js';
+import type { PositionCache } from '../../types/services.js';
 import type { DelayedSignalVerifier } from '../asyncProgram/delayedSignalVerifier/types.js';
 import type { TaskQueue, BuyTaskType, SellTaskType } from '../asyncProgram/tradeTaskQueue/types.js';
 import type { MonitorTaskQueue } from '../asyncProgram/monitorTaskQueue/types.js';

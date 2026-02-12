@@ -8,22 +8,18 @@
  * - 配置类型：RateLimiterConfig、OrderMonitorConfig
  */
 import type { Config, Decimal, OrderSide, OrderType, OrderStatus, TimeInForceType, TradeContext, PushOrderChanged } from 'longport';
+import type { Signal, SignalType, OrderTypeConfig } from '../../types/signal.js';
+import type { Quote } from '../../types/quote.js';
+import type { AccountSnapshot, Position } from '../../types/account.js';
+import type { MonitorConfig, MultiMonitorTradingConfig } from '../../types/config.js';
+import type { SymbolRegistry } from '../../types/seat.js';
 import type {
-  Signal,
-  Quote,
-  AccountSnapshot,
-  Position,
   PendingOrder,
   TradeCheckResult,
   RateLimiter,
   PendingRefreshSymbol,
-  MultiMonitorTradingConfig,
-  SymbolRegistry,
   RawOrderFromAPI,
-  OrderTypeConfig,
-  MonitorConfig,
-  SignalType,
-} from '../../types/index.js';
+} from '../../types/services.js';
 import type { LiquidationCooldownTracker } from '../../services/liquidationCooldown/types.js';
 import type { DailyLossTracker } from '../riskController/types.js';
 import type { RefreshGate } from '../../utils/refreshGate/types.js';
@@ -204,14 +200,14 @@ export interface OrderMonitor {
  * 订单执行器接口
  */
 export interface OrderExecutor {
-  canTradeNow(signalAction: SignalType, monitorConfig?: import('../../types/index.js').MonitorConfig | null): TradeCheckResult;
+  canTradeNow(signalAction: SignalType, monitorConfig?: import('../../types/config.js').MonitorConfig | null): TradeCheckResult;
   /**
    * 标记买入意图（预占买入时间槽）
    * 在 signalProcessor 检查通过后立即调用，防止同一批次中的多个信号同时通过频率检查
    * @param signalAction 信号类型（BUYCALL 或 BUYPUT）
    * @param monitorConfig 监控配置
    */
-  markBuyAttempt(signalAction: SignalType, monitorConfig?: import('../../types/index.js').MonitorConfig | null): void;
+  markBuyAttempt(signalAction: SignalType, monitorConfig?: import('../../types/config.js').MonitorConfig | null): void;
   executeSignals(signals: Signal[]): Promise<void>;
   /** 清空 lastBuyTime（买入节流状态） */
   resetBuyThrottle(): void;
@@ -372,7 +368,7 @@ export type OrderMonitorDeps = {
   readonly rateLimiter: RateLimiter;
   readonly cacheManager: OrderCacheManager;
   /** 订单记录器（用于成交后更新本地记录） */
-  readonly orderRecorder: import('../../types/index.js').OrderRecorder;
+  readonly orderRecorder: import('../../types/services.js').OrderRecorder;
   /** 当日亏损跟踪器（成交后增量记录） */
   readonly dailyLossTracker: DailyLossTracker;
   /** 订单订阅保留集 */
@@ -408,7 +404,7 @@ export type OrderExecutorDeps = {
   readonly cacheManager: OrderCacheManager;
   readonly orderMonitor: OrderMonitor;
   /** 订单记录器（用于卖出订单防重追踪） */
-  readonly orderRecorder: import('../../types/index.js').OrderRecorder;
+  readonly orderRecorder: import('../../types/services.js').OrderRecorder;
   /** 全局交易配置 */
   readonly tradingConfig: MultiMonitorTradingConfig;
   /** 标的注册表（用于解析动态标的归属） */

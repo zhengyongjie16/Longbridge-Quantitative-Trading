@@ -3,11 +3,8 @@
  * - 从历史订单与持仓推断席位标的
  * - 自动寻标填充空席位
  */
-import type {
-  MonitorConfig,
-  SeatSymbolSnapshotEntry,
-  SymbolRegistry,
-} from '../../types/index.js';
+import type { MonitorConfig } from '../../types/config.js';
+import type { SeatSymbolSnapshotEntry, SymbolRegistry } from '../../types/seat.js';
 import type {
   PreparedSeats,
   PrepareSeatsOnStartupDeps,

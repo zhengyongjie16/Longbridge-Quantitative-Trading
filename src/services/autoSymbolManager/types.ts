@@ -12,21 +12,12 @@
  * - SWITCHING：正在执行换标（撤单/卖出/买入）
  * - EMPTY：席位为空，等待自动寻标
  */
-import type {
-  AutoSearchConfig,
-  MarketDataClient,
-  MonitorConfig,
-  OrderRecorder,
-  PendingOrder,
-  Position,
-  Quote,
-  RiskChecker,
-  SeatState,
-  SeatStatus,
-  Signal,
-  SymbolRegistry,
-  Trader,
-} from '../../types/index.js';
+import type { AutoSearchConfig, MonitorConfig } from '../../types/config.js';
+import type { Position } from '../../types/account.js';
+import type { Quote } from '../../types/quote.js';
+import type { Signal } from '../../types/signal.js';
+import type { SeatState, SeatStatus, SymbolRegistry } from '../../types/seat.js';
+import type { MarketDataClient, OrderRecorder, PendingOrder, RiskChecker, Trader } from '../../types/services.js';
 import type { Logger } from '../../utils/logger/types.js';
 import type { ObjectPool, PoolableSignal } from '../../utils/objectPool/types.js';
 import type {

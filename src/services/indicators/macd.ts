@@ -6,7 +6,7 @@
 import { MACD } from 'technicalindicators';
 import { macdObjectPool } from '../../utils/objectPool/index.js';
 import { logDebug, isValidMACD } from './utils.js';
-import type { MACDIndicator } from '../../types/index.js';
+import type { MACDIndicator } from '../../types/quote.js';
 
 /**
  * 计算 MACD（移动平均收敛散度指标）

@@ -8,7 +8,8 @@
  */
 import { getIndicatorValue } from '../../../utils/helpers/indicatorHelpers.js';
 import { TIME, VERIFICATION } from '../../../constants/index.js';
-import type { Signal, SingleVerificationConfig } from '../../../types/index.js';
+import type { Signal } from '../../../types/signal.js';
+import type { SingleVerificationConfig } from '../../../types/config.js';
 import type { IndicatorCache, IndicatorCacheEntry } from '../indicatorCache/types.js';
 import type { PendingSignalEntry, VerificationResult } from './types.js';
 

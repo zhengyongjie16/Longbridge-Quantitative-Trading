@@ -12,7 +12,7 @@
  * - 信号相关：交易信号类型定义
  */
 import { OrderStatus, OrderType, Period } from 'longport';
-import type { OrderTypeConfig, SignalType } from '../types/index.js';
+import type { OrderTypeConfig, SignalType } from '../types/signal.js';
 
 /** 时间相关常量 */
 export const TIME = {

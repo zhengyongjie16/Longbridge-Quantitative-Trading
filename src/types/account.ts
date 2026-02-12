@@ -1,0 +1,68 @@
+/**
+ * @module types/account
+ * @description 持仓和账户类型定义
+ *
+ * 定义账户和持仓相关的类型
+ */
+import type { Market } from 'longport';
+
+/**
+ * 持仓信息
+ * 表示某个标的的持仓状态
+ *
+ * @remarks 此类型不使用 readonly，因为需要在运行时修改
+ */
+export type Position = {
+  /** 账户渠道 */
+  accountChannel: string;
+  /** 标的代码 */
+  symbol: string;
+  /** 标的名称 */
+  symbolName: string;
+  /** 持仓数量 */
+  quantity: number;
+  /** 可用数量（可卖出） */
+  availableQuantity: number;
+  /** 币种 */
+  currency: string;
+  /** 成本价 */
+  costPrice: number;
+  /** 市场 */
+  market: Market | string;
+};
+
+/**
+ * 现金详情
+ * 对应 LongPort API accountBalance 返回的 cash_infos 数组元素
+ */
+export type CashInfo = {
+  /** 币种（如 HKD、USD） */
+  readonly currency: string;
+  /** 可用现金 */
+  readonly availableCash: number;
+  /** 可提现金额 */
+  readonly withdrawCash: number;
+  /** 冻结资金 */
+  readonly frozenCash: number;
+  /** 待交收资金 */
+  readonly settlingCash: number;
+};
+
+/**
+ * 账户快照
+ * 表示某一时刻的账户资产状态
+ */
+export type AccountSnapshot = {
+  /** 结算币种 */
+  readonly currency: string;
+  /** 总现金 */
+  readonly totalCash: number;
+  /** 净资产 */
+  readonly netAssets: number;
+  /** 持仓市值 */
+  readonly positionValue: number;
+  /** 各币种现金详情 */
+  readonly cashInfos: ReadonlyArray<CashInfo>;
+  /** 购买力 */
+  readonly buyPower: number;
+};

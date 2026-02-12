@@ -11,7 +11,7 @@
 import { logger } from '../../../../utils/logger/index.js';
 import { isSeatReady, isSeatVersionMatch } from '../../../../services/autoSymbolManager/utils.js';
 
-import type { MultiMonitorTradingConfig } from '../../../../types/index.js';
+import type { MultiMonitorTradingConfig } from '../../../../types/config.js';
 import type { MonitorTask } from '../../monitorTaskQueue/types.js';
 import type {
   MonitorTaskContext,

@@ -24,7 +24,8 @@ import { formatSignalLog, formatSymbolDisplay, isBuyAction, isSellAction } from 
 import { VALID_SIGNAL_ACTIONS } from '../../constants/index.js';
 import { isSeatReady, describeSeatUnavailable } from '../../services/autoSymbolManager/utils.js';
 import { getPositions } from './utils.js';
-import type { Quote, Signal } from '../../types/index.js';
+import type { Quote } from '../../types/quote.js';
+import type { Signal } from '../../types/signal.js';
 import type { SignalPipelineParams } from './types.js';
 
 export function runSignalPipeline(params: SignalPipelineParams): void {

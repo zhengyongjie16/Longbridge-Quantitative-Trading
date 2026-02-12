@@ -10,7 +10,7 @@
 import { IS_DEBUG } from '../../constants/index.js';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { logger } from '../../utils/logger/index.js';
-import type { CandleData, CandleValue } from '../../types/index.js';
+import type { CandleData, CandleValue } from '../../types/data.js';
 import type { PoolableKDJ, PoolableMACD } from '../../utils/objectPool/types.js';
 
 /** K 线数据指纹：length_lastClose，用于检测数据是否变化 */

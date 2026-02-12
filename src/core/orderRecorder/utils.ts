@@ -5,7 +5,7 @@
  */
 import { OrderSide, OrderStatus } from 'longport';
 import { decimalToNumber } from '../../utils/helpers/index.js';
-import type { OrderRecord, RawOrderFromAPI } from '../../types/index.js';
+import type { OrderRecord, RawOrderFromAPI } from '../../types/services.js';
 import type { OrderStatistics } from './types.js';
 
 /**

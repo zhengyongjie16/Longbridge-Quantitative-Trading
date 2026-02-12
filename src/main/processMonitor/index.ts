@@ -29,7 +29,7 @@ import { scheduleRiskTasks } from './riskTasks.js';
 import { syncSeatState } from './seatSync.js';
 import { runSignalPipeline } from './signalPipeline.js';
 
-import type { Quote } from '../../types/index.js';
+import type { Quote } from '../../types/quote.js';
 import type { ProcessMonitorParams } from './types.js';
 
 /**

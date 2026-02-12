@@ -15,7 +15,7 @@
 import { logger } from '../../../utils/logger/index.js';
 import { formatError } from '../../../utils/helpers/index.js';
 
-import type { Quote } from '../../../types/index.js';
+import type { Quote } from '../../../types/quote.js';
 import type { OrderMonitorWorker, OrderMonitorWorkerDeps } from './types.js';
 
 /**

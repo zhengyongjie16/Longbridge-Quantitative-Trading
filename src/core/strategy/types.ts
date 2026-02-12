@@ -6,7 +6,10 @@
  * - 信号生成结果（立即信号、延迟信号）
  * - 策略接口
  */
-import type { SignalConfigSet, VerificationConfig, Signal, IndicatorSnapshot, OrderRecorder } from '../../types/index.js';
+import type { Signal } from '../../types/signal.js';
+import type { IndicatorSnapshot } from '../../types/quote.js';
+import type { SignalConfigSet, VerificationConfig } from '../../types/config.js';
+import type { OrderRecorder } from '../../types/services.js';
 
 /** 信号类型分类：立即执行或延迟验证 */
 export type SignalTypeCategory = 'immediate' | 'delayed';

@@ -12,17 +12,10 @@
  * - skip：跳过模式，用于开发测试
  */
 import type { Logger } from '../../utils/logger/types.js';
-import type {
-  MarketDataClient,
-  MonitorConfig,
-  MultiMonitorTradingConfig,
-  Position,
-  RawOrderFromAPI,
-  SeatSymbolSnapshotEntry,
-  GateMode,
-  SymbolRegistry,
-  TradingDayInfo,
-} from '../../types/index.js';
+import type { MonitorConfig, MultiMonitorTradingConfig } from '../../types/config.js';
+import type { Position } from '../../types/account.js';
+import type { GateMode, SeatSymbolSnapshotEntry, SymbolRegistry } from '../../types/seat.js';
+import type { MarketDataClient, RawOrderFromAPI, TradingDayInfo } from '../../types/services.js';
 import type { WarrantListCacheConfig } from '../../services/autoSymbolFinder/types.js';
 
 export type StartupGateDeps = {

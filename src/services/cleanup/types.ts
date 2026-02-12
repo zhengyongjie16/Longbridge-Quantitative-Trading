@@ -6,7 +6,7 @@ import type { Processor } from '../../main/asyncProgram/types.js';
 import type { MonitorTaskProcessor } from '../../main/asyncProgram/monitorTaskProcessor/types.js';
 import type { OrderMonitorWorker } from '../../main/asyncProgram/orderMonitorWorker/types.js';
 import type { PostTradeRefresher } from '../../main/asyncProgram/postTradeRefresher/types.js';
-import type { LastState, MonitorContext } from '../../types/index.js';
+import type { LastState, MonitorContext } from '../../types/state.js';
 
 /**
  * 清理上下文接口

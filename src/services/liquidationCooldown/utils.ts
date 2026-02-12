@@ -3,7 +3,7 @@
  */
 import { TIME } from '../../constants/index.js';
 import type { TradeRecord } from '../../core/trader/types.js';
-import type { SeatSymbolSnapshotEntry } from '../../types/index.js';
+import type { SeatSymbolSnapshotEntry } from '../../types/seat.js';
 import type { CooldownCandidate } from './types.js';
 
 /**

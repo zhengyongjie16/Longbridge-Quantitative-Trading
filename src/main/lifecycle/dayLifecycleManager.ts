@@ -19,7 +19,7 @@
  */
 import { formatError } from '../../utils/helpers/index.js';
 import { LIFECYCLE } from '../../constants/index.js';
-import type { LifecycleState } from '../../types/index.js';
+import type { LifecycleState } from '../../types/seat.js';
 import type {
   CacheDomain,
   DayLifecycleManager,

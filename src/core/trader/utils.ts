@@ -16,7 +16,7 @@ import path from 'node:path';
 import { OrderType } from 'longport';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { NON_REPLACEABLE_ORDER_STATUSES, NON_REPLACEABLE_ORDER_TYPES } from '../../constants/index.js';
-import type { OrderTypeConfig, Signal } from '../../types/index.js';
+import type { OrderTypeConfig, Signal } from '../../types/signal.js';
 import type {
   OrderSubmitResponse,
   OrderTypeResolutionConfig,

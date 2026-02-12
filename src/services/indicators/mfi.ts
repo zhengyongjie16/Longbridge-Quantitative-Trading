@@ -8,7 +8,7 @@ import { MFI } from 'technicalindicators';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { toNumber, logDebug } from './utils.js';
 import { validatePercentage } from '../../utils/helpers/indicatorHelpers.js';
-import type { CandleData } from '../../types/index.js';
+import type { CandleData } from '../../types/data.js';
 
 /**
  * 计算 MFI（资金流量指标）

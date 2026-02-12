@@ -7,7 +7,7 @@
  * - getBufferEntries: 获取所有有效条目（按时间升序）
  * - cloneIndicatorSnapshot: 深拷贝指标快照
  */
-import type { IndicatorSnapshot } from '../../../types/index.js';
+import type { IndicatorSnapshot } from '../../../types/quote.js';
 import type { IndicatorCacheEntry, _RingBuffer } from './types.js';
 
 /**

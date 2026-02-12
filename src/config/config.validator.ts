@@ -7,12 +7,8 @@ import { logger } from '../utils/logger/index.js';
 import { getStringConfig } from './utils.js';
 import { isSymbolWithRegion } from '../utils/helpers/index.js';
 import { formatSignalConfig } from '../utils/helpers/signalConfigParser.js';
-import type {
-  LiquidationCooldownConfig,
-  MonitorConfig,
-  MultiMonitorTradingConfig,
-  Quote,
-} from '../types/index.js';
+import type { LiquidationCooldownConfig, MonitorConfig, MultiMonitorTradingConfig } from '../types/config.js';
+import type { Quote } from '../types/quote.js';
 import type {
   ConfigValidationError,
   DuplicateSymbol,

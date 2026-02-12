@@ -8,7 +8,7 @@
  * 说明：
  * - 执行前校验席位快照，避免旧任务
  */
-import type { LastState } from '../../../../types/index.js';
+import type { LastState } from '../../../../types/state.js';
 import type { RefreshGate } from '../../../../utils/refreshGate/types.js';
 import type { MonitorTask } from '../../monitorTaskQueue/types.js';
 import type {

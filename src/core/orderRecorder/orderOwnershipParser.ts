@@ -4,7 +4,8 @@
  * - 提供订单归属解析与最近成交标的查询
  */
 import { OrderStatus } from 'longport';
-import type { MonitorConfig, RawOrderFromAPI } from '../../types/index.js';
+import type { MonitorConfig } from '../../types/config.js';
+import type { RawOrderFromAPI } from '../../types/services.js';
 import type { OrderOwnership } from './types.js';
 
 const NORMALIZE_PATTERN = /[^\p{L}\p{N}]/gu;

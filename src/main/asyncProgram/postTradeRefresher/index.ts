@@ -20,7 +20,9 @@ import { API } from '../../../constants/index.js';
 import { formatError, formatSymbolDisplay } from '../../../utils/helpers/index.js';
 import { isSeatReady } from '../../../services/autoSymbolManager/utils.js';
 
-import type { MonitorContext, PendingRefreshSymbol, Quote } from '../../../types/index.js';
+import type { MonitorContext } from '../../../types/state.js';
+import type { Quote } from '../../../types/quote.js';
+import type { PendingRefreshSymbol } from '../../../types/services.js';
 import type { PostTradeRefresher, PostTradeRefresherDeps, PostTradeRefresherEnqueueParams } from './types.js';
 
 /**

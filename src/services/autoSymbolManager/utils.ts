@@ -1,13 +1,9 @@
 /**
  * 自动换标席位工具：初始化席位、版本号与状态查询。
  */
-import type {
-  MonitorConfig,
-  Position,
-  SeatState,
-  SeatStatus,
-  SymbolRegistry,
-} from '../../types/index.js';
+import type { MonitorConfig } from '../../types/config.js';
+import type { Position } from '../../types/account.js';
+import type { SeatState, SeatStatus, SymbolRegistry } from '../../types/seat.js';
 import type { SeatEntry, SeatUnavailableReason, SymbolSeatEntry } from './types.js';
 
 /**

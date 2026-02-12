@@ -7,14 +7,11 @@
  * - 信号处理器接口
  * - 依赖注入类型
  */
-import type {
-  Quote,
-  Position,
-  Signal,
-  OrderRecorder,
-  RiskCheckContext,
-  MultiMonitorTradingConfig,
-} from '../../types/index.js';
+import type { Position } from '../../types/account.js';
+import type { Quote } from '../../types/quote.js';
+import type { Signal } from '../../types/signal.js';
+import type { MultiMonitorTradingConfig } from '../../types/config.js';
+import type { OrderRecorder, RiskCheckContext } from '../../types/services.js';
 import type { LiquidationCooldownTracker } from '../../services/liquidationCooldown/types.js';
 
 // ==================== 结果类型定义 ====================

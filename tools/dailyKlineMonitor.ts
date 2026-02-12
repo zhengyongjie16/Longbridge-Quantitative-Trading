@@ -25,7 +25,8 @@ import {
   toHongKongTimeLog,
 } from '../src/utils/helpers/index.js';
 import { isValidNumber } from '../src/utils/helpers/indicatorHelpers.js';
-import type { CandleData, IndicatorSnapshot, Quote } from '../src/types/index.js';
+import type { CandleData } from '../src/types/data.js';
+import type { IndicatorSnapshot, Quote } from '../src/types/quote.js';
 
 dotenv.config({ path: '.env.local' });
 

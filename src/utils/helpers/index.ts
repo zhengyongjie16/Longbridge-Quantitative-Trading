@@ -19,13 +19,11 @@
  * - sleep()：异步延迟函数
  * - initMonitorState() / releaseSnapshotObjects()：监控状态管理
  */
-import type {
-  IndicatorSnapshot,
-  MonitorConfig,
-  MonitorState,
-  Quote,
-  SignalType,
-} from '../../types/index.js';
+import type { MonitorState } from '../../types/state.js';
+import type { IndicatorSnapshot } from '../../types/quote.js';
+import type { MonitorConfig } from '../../types/config.js';
+import type { Quote } from '../../types/quote.js';
+import type { SignalType } from '../../types/signal.js';
 import { inspect } from 'node:util';
 import { Decimal } from 'longport';
 import { TIME, SYMBOL_WITH_REGION_REGEX, ACCOUNT_CHANNEL_MAP } from '../../constants/index.js';

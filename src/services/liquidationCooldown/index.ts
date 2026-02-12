@@ -15,7 +15,7 @@ import {
   convertMinutesToMs,
   resolveHongKongTimeMs,
 } from './utils.js';
-import type { LiquidationCooldownConfig } from '../../types/index.js';
+import type { LiquidationCooldownConfig } from '../../types/config.js';
 import { getHKTime } from '../../utils/helpers/tradingTime.js';
 
 /** 计算冷却结束时间 */

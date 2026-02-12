@@ -14,7 +14,8 @@
  */
 import { logger } from '../../utils/logger/index.js';
 import { getLongDirectionName, getShortDirectionName, formatSymbolDisplayFromQuote, isValidPositiveNumber } from '../../utils/helpers/index.js';
-import type { OrderRecord, Quote } from '../../types/index.js';
+import type { Quote } from '../../types/quote.js';
+import type { OrderRecord } from '../../types/services.js';
 import type { OrderStorage, OrderStorageDeps, PendingSellInfo, ProfitableOrderResult } from './types.js';
 import { calculateTotalQuantity } from './utils.js';
 

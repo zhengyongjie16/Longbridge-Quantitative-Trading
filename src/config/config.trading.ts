@@ -5,12 +5,9 @@
  * 配置包括：标的代码、交易金额、风险限制、信号规则、延迟验证等
  */
 import { OrderType } from 'longport';
-import type {
-  MonitorConfig,
-  MultiMonitorTradingConfig,
-  OrderTypeConfig,
-  SignalConfig,
-} from '../types/index.js';
+import type { MonitorConfig, MultiMonitorTradingConfig } from '../types/config.js';
+import type { OrderTypeConfig } from '../types/signal.js';
+import type { SignalConfig } from '../types/signalConfig.js';
 import { parseSignalConfig } from '../utils/helpers/signalConfigParser.js';
 import { logger } from '../utils/logger/index.js';
 import { TRADING } from '../constants/index.js';

@@ -7,13 +7,8 @@
  * - 依赖类型：各服务的依赖注入类型
  */
 import type { TradeContext } from 'longport';
-import type {
-  PendingOrder,
-  OrderRecord,
-  Quote,
-  RateLimiter,
-  RawOrderFromAPI,
-} from '../../types/index.js';
+import type { Quote } from '../../types/quote.js';
+import type { PendingOrder, OrderRecord, RateLimiter, RawOrderFromAPI } from '../../types/services.js';
 
 /**
  * 订单缓存类型

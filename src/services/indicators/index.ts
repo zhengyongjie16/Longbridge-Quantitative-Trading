@@ -32,7 +32,8 @@ import { calculateKDJ } from './kdj.js';
 import { calculateMACD } from './macd.js';
 import { calculateEMA } from './ema.js';
 import { calculatePSY } from './psy.js';
-import type { CandleData, IndicatorSnapshot } from '../../types/index.js';
+import type { CandleData } from '../../types/data.js';
+import type { IndicatorSnapshot } from '../../types/quote.js';
 
 /**
  * 构建指标快照（统一计算所有技术指标）

@@ -11,7 +11,7 @@
  * - 风控数据在统一 rebuildTradingDayState 中按当日数据重建，此处为空操作
  */
 import { logger } from '../../../utils/logger/index.js';
-import type { MonitorContext } from '../../../types/index.js';
+import type { MonitorContext } from '../../../types/state.js';
 import { buildCooldownKey } from '../../../services/liquidationCooldown/utils.js';
 import type { CacheDomain, LifecycleContext } from '../types.js';
 import type { RiskDomainDeps } from './types.js';

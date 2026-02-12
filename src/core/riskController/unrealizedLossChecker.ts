@@ -9,7 +9,8 @@
  */
 import { logger } from '../../utils/logger/index.js';
 import { isValidPositiveNumber, getLongDirectionName, getShortDirectionName, formatSymbolDisplayFromQuote } from '../../utils/helpers/index.js';
-import type { OrderRecorder, UnrealizedLossData, UnrealizedLossCheckResult, Quote } from '../../types/index.js';
+import type { Quote } from '../../types/quote.js';
+import type { OrderRecorder, UnrealizedLossData, UnrealizedLossCheckResult } from '../../types/services.js';
 import type { UnrealizedLossChecker, UnrealizedLossCheckerDeps } from './types.js';
 
 /** 从订单列表计算 R1（开仓成本）和 N1（持仓数量） */

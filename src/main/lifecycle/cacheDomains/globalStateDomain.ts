@@ -14,7 +14,7 @@
  */
 import { logger } from '../../../utils/logger/index.js';
 import { releaseSnapshotObjects } from '../../../utils/helpers/index.js';
-import type { LastState, MonitorState } from '../../../types/index.js';
+import type { LastState, MonitorState } from '../../../types/state.js';
 import type { CacheDomain } from '../types.js';
 import type { GlobalStateDomainDeps } from './types.js';
 

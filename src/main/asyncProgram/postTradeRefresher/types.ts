@@ -6,7 +6,9 @@
  * - PostTradeRefresherDeps：依赖注入
  * - PostTradeRefresher：刷新器接口
  */
-import type { LastState, MonitorContext, PendingRefreshSymbol, Quote, Trader } from '../../../types/index.js';
+import type { LastState, MonitorContext } from '../../../types/state.js';
+import type { Quote } from '../../../types/quote.js';
+import type { PendingRefreshSymbol, Trader } from '../../../types/services.js';
 import type { RefreshGate } from '../../../utils/refreshGate/types.js';
 
 export type PostTradeRefresherEnqueueParams = Readonly<{

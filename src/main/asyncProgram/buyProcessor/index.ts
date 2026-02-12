@@ -24,7 +24,7 @@ import { isSeatReady, isSeatVersionMatch, describeSeatUnavailable } from '../../
 import type { Processor } from '../types.js';
 import type { BuyProcessorDeps } from './types.js';
 import type { Task, BuyTaskType } from '../tradeTaskQueue/types.js';
-import type { RiskCheckContext } from '../../../types/index.js';
+import type { RiskCheckContext } from '../../../types/services.js';
 
 /**
  * 创建买入处理器

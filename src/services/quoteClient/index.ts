@@ -36,13 +36,9 @@ import type { Candlestick, PushQuoteEvent, PushCandlestickEvent } from 'longport
 import { decimalToNumber, formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { API } from '../../constants/index.js';
-import type {
-  MarketDataClient,
-  Quote,
-  QuoteStaticInfo,
-  TradingDayInfo,
-  TradingDaysResult,
-} from '../../types/index.js';
+import type { Quote, QuoteStaticInfo } from '../../types/quote.js';
+import type { TradingDayInfo , MarketDataClient, TradingDaysResult } from '../../types/services.js';
+
 import type {
   RetryConfig,
   MarketDataClientDeps,

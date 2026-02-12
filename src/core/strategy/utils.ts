@@ -4,7 +4,9 @@
  * 纯工具：指标校验、延迟验证判断、指标显示字符串、信号分流。
  */
 import { isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
-import type { IndicatorSnapshot, Signal, SingleVerificationConfig } from '../../types/index.js';
+import type { IndicatorSnapshot } from '../../types/quote.js';
+import type { Signal } from '../../types/signal.js';
+import type { SingleVerificationConfig } from '../../types/config.js';
 import type { SignalWithCategory } from './types.js';
 
 /**

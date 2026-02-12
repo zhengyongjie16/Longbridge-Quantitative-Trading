@@ -22,14 +22,10 @@ import { isBuyAction, isSellAction } from '../../utils/helpers/index.js';
 import { signalObjectPool, indicatorRecordPool } from '../../utils/objectPool/index.js';
 import { getIndicatorValue } from '../../utils/helpers/indicatorHelpers.js';
 import { TIME } from '../../constants/index.js';
-import type {
-  Signal,
-  IndicatorSnapshot,
-  VerificationConfig,
-  SignalConfig,
-  SignalConfigSet,
-  SignalType,
-} from '../../types/index.js';
+import type { Signal, SignalType } from '../../types/signal.js';
+import type { IndicatorSnapshot } from '../../types/quote.js';
+import type { VerificationConfig, SignalConfigSet } from '../../types/config.js';
+import type { SignalConfig } from '../../types/signalConfig.js';
 import type {
   StrategyConfig,
   SignalGenerationResult,
@@ -144,7 +140,7 @@ export const createHangSengMultiIndicatorStrategy = ({
     symbol: string,
     action: string,
     reasonPrefix: string,
-    orderRecorder: import('../../types/index.js').OrderRecorder | null,
+    orderRecorder: import('../../types/services.js').OrderRecorder | null,
     isLongSymbol: boolean,
   ): SignalWithCategory | null => {
     // 验证所有必要的指标值是否有效
@@ -259,7 +255,7 @@ export const createHangSengMultiIndicatorStrategy = ({
       state: IndicatorSnapshot | null,
       longSymbol: string,
       shortSymbol: string,
-      orderRecorder: import('../../types/index.js').OrderRecorder,
+      orderRecorder: import('../../types/services.js').OrderRecorder,
     ): SignalGenerationResult => {
       const immediateSignals: Signal[] = [];
       const delayedSignals: Signal[] = [];

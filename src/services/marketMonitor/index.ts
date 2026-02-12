@@ -29,13 +29,11 @@ import {
   periodRecordPool,
 } from '../../utils/objectPool/index.js';
 import { MONITOR } from '../../constants/index.js';
-import type {
-  IndicatorSnapshot,
-  MonitorState,
-  MonitorValues,
-  Quote,
-  WarrantDistanceInfo,
-} from '../../types/index.js';
+import type { MonitorState } from '../../types/state.js';
+import type { IndicatorSnapshot } from '../../types/quote.js';
+import type { MonitorValues } from '../../types/data.js';
+import type { Quote } from '../../types/quote.js';
+import type { WarrantDistanceInfo } from '../../types/services.js';
 import { MarketMonitor } from './types.js';
 
 /**
