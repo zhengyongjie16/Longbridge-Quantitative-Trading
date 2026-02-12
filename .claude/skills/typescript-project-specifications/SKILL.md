@@ -67,7 +67,7 @@ description: 编写简洁、易于维护且遵循严格规范的 TypeScript 代�
 
 ### 流程要求
 
-32. **完成检查**：编写完成后**必须**运行 `npm run lint` 和 `npm run type-check` 并修复所有问题
+32. **完成检查**：编写完成后**必须**运行 `bun run lint` 和 `bun run type-check` 并修复所有问题
 
 ## 类型和工具函数定义位置（示例）
 
@@ -111,4 +111,4 @@ src/
 - [ ] 无嵌套三元、函数参数 ≤ 7 个、`if-else` 中 `if` 非否定条件
 - [ ] 纯函数优先、不修改数据、预期错误用 Result 类型
 - [ ] 无兼容/临时代码、无多余注释、无无用代码
-- [ ] 已运行 `npm run lint` 和 `npm run type-check` 并修复所有问题
+- [ ] 已运行 `bun run lint` 和 `bun run type-check` 并修复所有问题

@@ -8,7 +8,7 @@ description: LongPort OpenAPI SDK for Node.js 完整知识库。当用户需要�
 NPM 包名：`longport`
 
 ```
-npm install longport
+bun install longport
 ```
 
 LongPort OpenAPI 为具有研发能力的投资者提供程序化行情交易接口，帮助基于自身投资策略构建交易或行情策略分析工具。

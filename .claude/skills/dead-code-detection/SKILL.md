@@ -139,13 +139,13 @@ Trader.trackOrder()  → orderMonitor.trackOrder()  → orderHoldRegistry.trackO
 2. **实现层**：从工厂函数移除函数定义体 + 从 return 对象移除引用
 3. **级联清理**：移除无用导入、类型、变量、deps 字段、调用参数、过时注释
 
-**每完成一个模块后立即运行** `npm run type-check`。TypeScript 严格模式会通过 TS6133（变量未使用）和 TS6196（声明未使用）精确指出残留的级联问题，按报错逐一修复即可。
+**每完成一个模块后立即运行** `bun run type-check`。TypeScript 严格模式会通过 TS6133（变量未使用）和 TS6196（声明未使用）精确指出残留的级联问题，按报错逐一修复即可。
 
 ### Phase 4: 最终验证
 
 ```bash
-npm run type-check   # 必须通过
-npm run lint         # 必须通过
+bun run type-check   # 必须通过
+bun run lint         # 必须通过
 ```
 
 > Windows PowerShell 不支持 `&&`，需分开执行两条命令。
