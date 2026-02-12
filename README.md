@@ -55,6 +55,7 @@
 | 末日保护  | 收盘前15分钟拒绝买入并撤销未成交订单，收盘前5分钟自动清仓 |
 | 订单调整  | 自动监控和调整未成交订单价格（买入超时撤单，卖出超时转市价单） |
 | 自动寻标/换标 | 启用后以“席位”动态决定牛/熊证交易标的；距回收价百分比越界触发自动换标（含预寻标与同标的日内抑制，可选移仓回补） |
+| 交易日生命周期管理 | 自动检测跨日并执行午夜清理（清空运行时状态），交易日开盘时自动重建（恢复账户/持仓/订单/席位等），支持失败重试 |
 | 内存优化  | 对象池复用减少 GC 压力，IndicatorCache 使用环形缓冲区 |
 | 卖出策略  | 智能平仓仅卖出盈利订单，无盈利则跳过（禁用时全仓卖出） |
 
@@ -66,7 +67,7 @@
 ### 安装
 
 ```bash
-npm install
+bun install
 cp .env.example .env.local
 # 编辑 .env.local 填写配置
 ```
@@ -115,13 +116,15 @@ SIGNAL_SELLPUT_1=(RSI:6<20,MFI<15,D<22,J<0)/3|(J<-15)
 ### 启动
 
 ```bash
-npm start
+bun start
 ```
 
 常用命令：
-- 开发：`npm run dev:watch`
-- 构建：`npm run build`
-- 类型检查：`npm run type-check`
+- 开发：`bun run dev:watch`
+- 构建：`bun run build`
+- 类型检查：`bun run type-check`
+- 代码质量：`bun run sonarqube` / `bun run sonarqube:report`（需要 `.env.sonar`，可配合 `docker-compose.yml` 在本地启动）
+- 其他：`bun run lint` / `bun run lint:fix` / `bun run clean`
 
 ---
 
@@ -297,6 +300,23 @@ src/
 │   ├── startup/                # 启动流程（运行门禁/席位恢复与初始寻标）
 │   ├── mainProgram/            # 主循环逻辑
 │   ├── processMonitor/         # 单标的处理
+│   │   ├── index.ts            # 主处理入口
+│   │   ├── autoSymbolTasks.ts  # 自动寻标/换标任务调度
+│   │   ├── indicatorPipeline.ts # 指标计算流水线
+│   │   ├── riskTasks.ts        # 风险检查任务调度
+│   │   ├── seatSync.ts         # 席位状态同步
+│   │   └── signalPipeline.ts   # 信号生成与分发流水线
+│   ├── lifecycle/              # 交易日生命周期管理
+│   │   ├── dayLifecycleManager.ts # 生命周期管理器（午夜清理/开盘重建）
+│   │   ├── loadTradingDayRuntimeSnapshot.ts # 加载交易日运行态快照
+│   │   ├── rebuildTradingDayState.ts # 重建交易日状态
+│   │   └── cacheDomains/       # 缓存域（按域清理/重建）
+│   │       ├── signalRuntimeDomain.ts # 信号运行时域
+│   │       ├── marketDataDomain.ts # 市场数据域
+│   │       ├── seatDomain.ts   # 席位域
+│   │       ├── orderDomain.ts   # 订单域
+│   │       ├── riskDomain.ts    # 风险域
+│   │       └── globalStateDomain.ts # 全局状态域
 │   └── asyncProgram/           # 异步任务处理
 │       ├── indicatorCache/     # 指标缓存（环形缓冲区存储历史快照）
 │       ├── delayedSignalVerifier/ # 延迟信号验证器（setTimeout 计时验证）
@@ -320,6 +340,12 @@ src/
 │   │   ├── rateLimiter.ts      # API 限流
 │   │   └── tradeLogger.ts      # 交易日志
 │   ├── orderRecorder/          # 订单记录与查询
+│   │   ├── index.ts            # 订单记录器（门面模式）
+│   │   ├── orderStorage.ts      # 订单存储（本地记录管理）
+│   │   ├── orderApiManager.ts  # 订单 API 管理（历史订单获取与缓存）
+│   │   ├── orderFilteringEngine.ts # 订单过滤引擎（M0 过滤算法）
+│   │   ├── orderOwnershipParser.ts # 订单归属解析（stockName 映射）
+│   │   └── utils.ts            # 订单工具函数
 │   └── doomsdayProtection/     # 末日保护（收盘前清仓）
 ├── services/                   # 外部服务
 │   ├── quoteClient/            # 行情数据客户端
@@ -350,7 +376,13 @@ src/
 
 ```mermaid
 graph TD
-  A["每秒循环<br/>mainProgram"] --> B["检查交易日<br/>和交易时段"]
+  A["每秒循环<br/>mainProgram"] --> A1["DayLifecycleManager.tick<br/>检测跨日/交易日开盘"]
+  A1 --> A2{"生命周期状态"}
+  A2 -->|ACTIVE| B["检查交易日<br/>和交易时段"]
+  A2 -->|MIDNIGHT_CLEANING| A3["午夜清理<br/>各 CacheDomain.midnightClear"]
+  A2 -->|OPEN_REBUILDING| A4["开盘重建<br/>各 CacheDomain.openRebuild"]
+  A3 --> A1
+  A4 --> A1
   B --> C["末日保护检查<br/>撤单（收盘前15分钟）/清仓（收盘前5分钟）"]
   C --> D["批量获取行情<br/>所有标的"]
   D --> E["并发处理监控标的"]
@@ -387,15 +419,8 @@ graph TD
 ## 日志
 
 - **控制台**：实时运行状态
-- **文件**：`logs/system/`、`logs/debug/`（需 `DEBUG=true`）和 `logs/trades/`
+- **文件**：`logs/system/`、`logs/debug/`（需 `DEBUG=true`）
 - **交易记录**：`logs/trades/YYYY-MM-DD.json`（JSON 交易明细）
-
----
-
-## 工具脚本
-
-- 代码质量：`bun run sonarqube` / `bun run sonarqube:report`（需要 `.env.sonar`，可配合 `docker-compose.yml` 启动）
-- 其他：`bun run lint` / `bun run lint:fix` / `bun run clean`
 
 ---
 
