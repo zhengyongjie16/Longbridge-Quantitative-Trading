@@ -12,7 +12,6 @@
     "dev:watch": "concurrently -k -r \"tsc --watch\" \"bun --watch dist/src/index.js\"",
     "type-check": "tsc --noEmit",
     "clean": "rimraf dist",
-    "find-warrant": "bun tools/findWarrant.ts",
     "analyze-indicators": "bun tools/indicatorAnalysis.ts",
     "monitor-daily": "bun tools/dailyKlineMonitor.ts",
     "lint": "eslint .",
