@@ -18,6 +18,7 @@
  * - /N：括号内条件需满足 N 项
  * - |：分隔不同条件组，满足任一组即可
  */
+import { logger } from '../../utils/logger/index.js';
 import { evaluateSignalConfig } from '../../utils/helpers/signalConfigParser.js';
 import { isBuyAction, isSellAction } from '../../utils/helpers/index.js';
 import { signalObjectPool, indicatorRecordPool } from '../../utils/objectPool/index.js';
@@ -142,6 +143,7 @@ export const createHangSengMultiIndicatorStrategy = ({
   ): SignalWithCategory | null => {
     // 验证所有必要的指标值是否有效
     if (!validateAllIndicators(state)) {
+      logger.debug(`[策略] ${symbol} ${action} 指标未通过校验，不生成信号`);
       return null;
     }
 
@@ -149,12 +151,12 @@ export const createHangSengMultiIndicatorStrategy = ({
     // 如果有买入订单记录，进入验证阶段；如果没有，不生成卖出信号
     if (isSellAction(action as SignalType)) {
       if (!orderRecorder) {
-        // 无法获取订单记录，不生成卖出信号
+        logger.debug(`[策略] ${symbol} ${action} 订单记录不可用，不生成卖出信号`);
         return null;
       }
       const buyOrders = orderRecorder.getBuyOrdersForSymbol(symbol, isLongSymbol);
       if (!buyOrders || buyOrders.length === 0) {
-        // 没有买入订单记录，不生成卖出信号
+        logger.debug(`[策略] ${symbol} ${action} 该方向无买入订单记录，不生成卖出信号`);
         return null;
       }
       // 有买入订单记录，继续后续流程
@@ -163,6 +165,7 @@ export const createHangSengMultiIndicatorStrategy = ({
     // 获取该信号类型的配置
     const signalConfigForAction = getSignalConfigForType(action);
     if (!signalConfigForAction) {
+      logger.debug(`[策略] ${symbol} ${action} 无该信号类型配置，不生成信号`);
       return null;
     }
 
@@ -171,6 +174,7 @@ export const createHangSengMultiIndicatorStrategy = ({
 
     // 如果没有触发任何条件组，返回 null
     if (!evalResult.triggered) {
+      logger.debug(`[策略] ${symbol} ${action} 条件组未触发，不生成信号`);
       return null;
     }
 
@@ -211,8 +215,9 @@ export const createHangSengMultiIndicatorStrategy = ({
     for (const indicatorName of indicatorsList) {
       const value = getIndicatorValue(state, indicatorName);
       if (value === null) {
-        // 如果任何配置的指标值无效，则无法生成延迟验证信号
-        // 释放已获取的对象回对象池
+        logger.debug(
+          `[策略] ${symbol} ${action} 延迟验证指标 ${indicatorName} 值无效，不生成延迟信号`,
+        );
         indicatorRecordPool.release(indicators1);
         return null;
       }
@@ -258,11 +263,13 @@ export const createHangSengMultiIndicatorStrategy = ({
       const delayedSignals: Signal[] = [];
 
       if (!state) {
+        logger.debug('[策略] 无指标快照，不生成任何信号');
         return { immediateSignals, delayedSignals };
       }
 
       // 验证所有必要的指标值是否有效
       if (!validateBasicIndicators(state)) {
+        logger.debug('[策略] 基础指标未通过，不生成信号');
         return { immediateSignals, delayedSignals };
       }
 
