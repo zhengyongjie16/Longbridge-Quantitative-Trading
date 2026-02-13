@@ -85,8 +85,8 @@ export function recordTrade(tradeRecord: TradeRecord): void {
     if (!fs.existsSync(logDir)) {
       fs.mkdirSync(logDir, { recursive: true });
     }
-    retainLatestLogFiles(logDir, LOGGING.MAX_RETAINED_LOG_FILES, 'json');
     const logFile = buildTradeLogPath(process.cwd(), new Date());
+    retainLatestLogFiles(logDir, LOGGING.MAX_RETAINED_LOG_FILES, 'json', path.basename(logFile));
 
     let trades: TradeRecord[] = [];
     if (fs.existsSync(logFile)) {

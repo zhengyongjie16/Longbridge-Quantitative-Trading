@@ -28,14 +28,21 @@ import type { LogObject, Logger } from './types.js';
 
 /**
  * 保留目录下仅扩展名匹配且为文件的最新若干条，删除更早的。
- * 在写入当日文件前调用，使保留后文件数 ≤ maxFiles - 1，写入后总数 ≤ maxFiles。
+ * 在写入当日文件前调用：若即将写入的文件已存在（覆盖/追加），保留数 = maxFiles；
+ * 若即将新建文件，保留数 = max(0, maxFiles - 1)，写入后总数 ≤ maxFiles。
  * 仅依赖 fs/path，不依赖 logger，避免循环依赖。
  *
  * @param logDir 日志目录
  * @param maxFiles 最多保留文件数（含即将写入的当日文件）
  * @param extension 扩展名（不含点），如 'log'、'json'
+ * @param currentFileName 即将写入的文件名（如 '2026-02-13.log'）。若传入且在目录中已存在，则按“覆盖”语义保留 maxFiles 个；否则按“新建”语义保留 maxFiles - 1 个
  */
-export function retainLatestLogFiles(logDir: string, maxFiles: number, extension: string): void {
+export function retainLatestLogFiles(
+  logDir: string,
+  maxFiles: number,
+  extension: string,
+  currentFileName?: string,
+): void {
   if (maxFiles < 1) {
     return;
   }
@@ -63,7 +70,9 @@ export function retainLatestLogFiles(logDir: string, maxFiles: number, extension
 
   files.sort((a, b) => a.localeCompare(b, 'en'));
   const n = files.length;
-  const toDelete = Math.max(0, n - (maxFiles - 1));
+  const isOverwriting = typeof currentFileName === 'string' && files.includes(currentFileName);
+  const toRetain = isOverwriting ? maxFiles : Math.max(0, maxFiles - 1);
+  const toDelete = Math.max(0, n - toRetain);
 
   for (let i = 0; i < toDelete; i++) {
     const file = files[i]!;
@@ -179,8 +188,9 @@ class DateRotatingStream extends Writable {
 
       // 更新日期并打开新文件流
       this._currentDate = newDate;
-      retainLatestLogFiles(this._logDir, LOGGING.MAX_RETAINED_LOG_FILES, 'log');
-      const logFile = path.join(this._logDir, `${this._currentDate}.log`);
+      const currentLogFileName = `${this._currentDate}.log`;
+      retainLatestLogFiles(this._logDir, LOGGING.MAX_RETAINED_LOG_FILES, 'log', currentLogFileName);
+      const logFile = path.join(this._logDir, currentLogFileName);
       this._fileStream = fs.createWriteStream(logFile, {
         flags: 'a',
         encoding: 'utf8',
