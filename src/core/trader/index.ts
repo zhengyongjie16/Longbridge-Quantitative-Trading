@@ -39,7 +39,7 @@ import { createOrderFilteringEngine } from '../orderRecorder/orderFilteringEngin
 
 /**
  * 创建交易执行模块（门面模式）
- * @param deps 依赖配置
+ * @param deps - 依赖配置，包含 config、tradingConfig、liquidationCooldownTracker、symbolRegistry、dailyLossTracker、refreshGate、isExecutionAllowed
  * @returns Promise<Trader> 接口实例
  */
 export async function createTrader(deps: TraderDeps): Promise<Trader> {

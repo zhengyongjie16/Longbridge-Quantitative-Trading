@@ -23,7 +23,12 @@ import { createRiskCheckPipeline } from './riskCheckPipeline.js';
 import { processSellSignals } from './sellQuantityCalculator.js';
 import type { SignalProcessor, SignalProcessorDeps } from './types.js';
 
-/** 创建信号处理器（工厂函数） */
+/**
+ * 创建信号处理器（工厂函数）
+ * @param tradingConfig - 交易配置，包含监控标的配置和风控参数
+ * @param liquidationCooldownTracker - 清仓冷却追踪器，用于判断是否在冷却期内
+ * @returns SignalProcessor 实例
+ */
 export const createSignalProcessor = ({
   tradingConfig,
   liquidationCooldownTracker,

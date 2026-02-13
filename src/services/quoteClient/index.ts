@@ -57,6 +57,14 @@ const DEFAULT_RETRY: RetryConfig = {
   delayMs: API.DEFAULT_RETRY_DELAY_MS,
 };
 
+/**
+ * 带重试的异步函数执行包装器
+ * @param fn - 需要执行的异步函数
+ * @param retries - 重试次数
+ * @param delayMs - 重试间隔（毫秒）
+ * @returns 函数执行结果
+ * @throws 最后一次执行的错误
+ */
 async function withRetry<T>(
   fn: () => Promise<T>,
   { retries, delayMs }: RetryConfig = DEFAULT_RETRY,
@@ -75,6 +83,11 @@ async function withRetry<T>(
   throw lastErr;
 }
 
+/**
+ * 规范化标的代码数组，去重并过滤空值
+ * @param symbols - 原始标的代码数组
+ * @returns 去重后的标的代码数组
+ */
 function normalizeSymbols(symbols: ReadonlyArray<string>): ReadonlyArray<string> {
   const uniqueSymbols = new Set<string>();
   for (const symbol of symbols) {

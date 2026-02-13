@@ -128,7 +128,7 @@ function validateSymbolFromQuote(
   }
 
   // 验证 lotSize（交易标的必须有）
-  if (requireLotSize && (quote.lotSize === undefined || quote.lotSize === null || quote.lotSize <= 0)) {
+  if (requireLotSize && (quote.lotSize == null || quote.lotSize <= 0)) {
     errors.push(`${symbolLabel} ${symbol} 缺少每手股数(lotSize)信息，无法进行交易计算`);
   }
 

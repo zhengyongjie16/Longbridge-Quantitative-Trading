@@ -46,8 +46,8 @@ import {
 
 /**
  * 创建恒生多指标策略
- * @param config 策略配置
- * @returns 策略实例
+ * @param config - 包含 signalConfig 和 verificationConfig 的策略配置对象
+ * @returns HangSengMultiIndicatorStrategy 实例
  */
 export const createHangSengMultiIndicatorStrategy = ({
   signalConfig = null,

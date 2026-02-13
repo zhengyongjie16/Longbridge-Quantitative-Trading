@@ -33,6 +33,13 @@ import type {
 } from './types.js';
 import { calculateOrderStatistics, classifyAndConvertOrders } from './utils.js';
 
+/**
+ * 验证订单参数有效性
+ * @param price - 订单价格
+ * @param quantity - 订单数量
+ * @param symbol - 标的代码
+ * @returns 参数有效返回 true，否则返回 false
+ */
 function validateOrderParams(price: number, quantity: number, symbol: string): boolean {
   if (
     !Number.isFinite(price) ||
@@ -48,6 +55,16 @@ function validateOrderParams(price: number, quantity: number, symbol: string): b
   return true;
 }
 
+/**
+ * 记录订单刷新结果日志
+ * @param symbol - 标的代码
+ * @param isLongSymbol - 是否为做多标的
+ * @param originalBuyCount - 历史买入订单数量
+ * @param sellCount - 历史卖出订单数量
+ * @param recordedCount - 最终记录数量
+ * @param extraInfo - 额外信息（可选）
+ * @param quote - 行情数据（可选）
+ */
 function logRefreshResult(
   symbol: string,
   isLongSymbol: boolean,
@@ -71,6 +88,11 @@ function logRefreshResult(
   }
 }
 
+/**
+ * 格式化订单成交时间为可读字符串
+ * @param executedTime - 成交时间戳（毫秒）
+ * @returns 格式化的时间字符串
+ */
 function formatOrderExecutedTime(executedTime: number): string {
   if (!executedTime) return '未知时间';
   const date = new Date(executedTime);
@@ -79,6 +101,12 @@ function formatOrderExecutedTime(executedTime: number): string {
     : date.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
 }
 
+/**
+ * 格式化订单信息为日志行
+ * @param order - 订单记录
+ * @param index - 订单索引
+ * @returns 格式化的订单信息字符串
+ */
 function formatOrderLine(order: OrderRecord, index: number): string {
   const timeStr = formatOrderExecutedTime(order.executedTime ?? 0);
   const priceStr = Number.isFinite(order.executedPrice)

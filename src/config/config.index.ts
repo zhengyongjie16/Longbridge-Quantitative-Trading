@@ -6,6 +6,11 @@
 import { Config, PushCandlestickMode } from 'longport';
 import { getRegionUrls } from './utils.js';
 
+/**
+ * 创建 LongPort API 配置对象
+ * @param env - 进程环境变量对象
+ * @returns Config 配置对象
+ */
 export function createConfig({ env }: { env: NodeJS.ProcessEnv }): Config {
   const appKey = env['LONGPORT_APP_KEY'] ?? '';
   const appSecret = env['LONGPORT_APP_SECRET'] ?? '';
