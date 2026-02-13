@@ -27,6 +27,7 @@ import type { Signal, SignalType } from '../../types/signal.js';
 import type { IndicatorSnapshot } from '../../types/quote.js';
 import type { VerificationConfig, SignalConfigSet } from '../../types/config.js';
 import type { SignalConfig } from '../../types/signalConfig.js';
+import type { OrderRecorder } from '../../types/services.js';
 import type {
   StrategyConfig,
   SignalGenerationResult,
@@ -136,7 +137,7 @@ export const createHangSengMultiIndicatorStrategy = ({
     symbol: string,
     action: string,
     reasonPrefix: string,
-    orderRecorder: import('../../types/services.js').OrderRecorder | null,
+    orderRecorder: OrderRecorder | null,
     isLongSymbol: boolean,
   ): SignalWithCategory | null => {
     // 验证所有必要的指标值是否有效
@@ -251,7 +252,7 @@ export const createHangSengMultiIndicatorStrategy = ({
       state: IndicatorSnapshot | null,
       longSymbol: string,
       shortSymbol: string,
-      orderRecorder: import('../../types/services.js').OrderRecorder,
+      orderRecorder: OrderRecorder,
     ): SignalGenerationResult => {
       const immediateSignals: Signal[] = [];
       const delayedSignals: Signal[] = [];

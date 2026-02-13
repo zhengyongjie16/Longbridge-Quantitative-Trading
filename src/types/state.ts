@@ -11,6 +11,10 @@ import type { AccountSnapshot, Position } from './account.js';
 import type { MonitorConfig } from './config.js';
 import type { SeatState, SymbolRegistry, LifecycleState } from './seat.js';
 import type { PositionCache, OrderRecorder, RiskChecker, TradingDayInfo } from './services.js';
+import type { AutoSymbolManager } from '../services/autoSymbolManager/types.js';
+import type { HangSengMultiIndicatorStrategy } from '../core/strategy/types.js';
+import type { DailyLossTracker, UnrealizedLossMonitor } from '../core/riskController/types.js';
+import type { DelayedSignalVerifier } from '../main/asyncProgram/delayedSignalVerifier/types.js';
 
 /**
  * 单个监控标的的运行时状态
@@ -105,19 +109,19 @@ export type MonitorContext = {
     readonly short: number;
   };
   /** 自动换标管理器 */
-  readonly autoSymbolManager: import('../services/autoSymbolManager/types.js').AutoSymbolManager;
+  readonly autoSymbolManager: AutoSymbolManager;
   /** 策略实例 */
-  readonly strategy: import('../core/strategy/types.js').HangSengMultiIndicatorStrategy;
+  readonly strategy: HangSengMultiIndicatorStrategy;
   /** 订单记录器 */
   readonly orderRecorder: OrderRecorder;
   /** 当日亏损跟踪器 */
-  readonly dailyLossTracker: import('../core/riskController/types.js').DailyLossTracker;
+  readonly dailyLossTracker: DailyLossTracker;
   /** 风险检查器 */
   readonly riskChecker: RiskChecker;
   /** 浮亏监控器 */
-  readonly unrealizedLossMonitor: import('../core/riskController/types.js').UnrealizedLossMonitor;
+  readonly unrealizedLossMonitor: UnrealizedLossMonitor;
   /** 延迟信号验证器 */
-  readonly delayedSignalVerifier: import('../main/asyncProgram/delayedSignalVerifier/types.js').DelayedSignalVerifier;
+  readonly delayedSignalVerifier: DelayedSignalVerifier;
   /** 做多标的名称缓存 */
   longSymbolName: string;
   /** 做空标的名称缓存 */

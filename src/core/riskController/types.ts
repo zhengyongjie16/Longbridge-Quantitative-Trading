@@ -154,7 +154,7 @@ export interface UnrealizedLossChecker {
     orderRecorder: OrderRecorder,
     symbol: string,
     isLongSymbol: boolean,
-    quote?: import('../../types/quote.js').Quote | null,
+    quote?: Quote | null,
     dailyLossOffset?: number,
   ): Promise<{ r1: number; n1: number } | null>;
   check(
