@@ -23,7 +23,11 @@ function findPosition(
   return positions?.find((p) => p.symbol === symbol);
 }
 
-/** 创建持仓市值限制检查器 */
+/**
+ * 创建持仓市值限制检查器
+ * @param deps 依赖配置，包含 maxPositionNotional 最大持仓市值限制
+ * @returns 持仓市值限制检查器实例
+ */
 export const createPositionLimitChecker = (deps: PositionLimitCheckerDeps): PositionLimitChecker => {
   const maxPositionNotional = deps.maxPositionNotional;
 

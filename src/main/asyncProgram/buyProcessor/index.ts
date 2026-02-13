@@ -50,7 +50,6 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
   async function processTask(task: Task<BuyTaskType>): Promise<boolean> {
     const signal = task.data;
     const monitorSymbol = task.monitorSymbol;
-    // 缓存格式化后的标的显示（用于日志）
     const symbolDisplay = formatSymbolDisplay(signal.symbol, signal.symbolName ?? null);
 
     try {

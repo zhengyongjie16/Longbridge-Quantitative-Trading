@@ -92,7 +92,7 @@ function processPositionForClearance(
   }
 
   // 只处理属于当前监控配置的持仓
-  if (pos.symbol !== longSymbol && pos.symbol !== shortSymbol) {
+  if (![longSymbol, shortSymbol].includes(pos.symbol)) {
     return null;
   }
 

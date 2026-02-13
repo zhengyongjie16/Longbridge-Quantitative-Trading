@@ -11,6 +11,7 @@
  * - SELLCALL：卖出做多标的（是否延迟验证取决于配置）
  * - BUYPUT：买入做空标的（是否延迟验证取决于配置）
  * - SELLPUT：卖出做空标的（是否延迟验证取决于配置）
+ * - HOLD：持有（不执行交易）
  *
  * 配置格式：(条件1,条件2,...)/N|(条件A)|(条件B,条件C)/M
  * - 括号内是条件列表，逗号分隔
@@ -81,12 +82,7 @@ export const createHangSengMultiIndicatorStrategy = ({
     const config = isBuySignal ? finalVerificationConfig.buy : finalVerificationConfig.sell;
 
     // 如果延迟时间为 0 或指标列表为空，则不进行延迟验证
-    if (
-      !config.delaySeconds ||
-      config.delaySeconds === 0 ||
-      !config.indicators ||
-      config.indicators.length === 0
-    ) {
+    if (!config.delaySeconds || !config.indicators?.length) {
       return null;
     }
 

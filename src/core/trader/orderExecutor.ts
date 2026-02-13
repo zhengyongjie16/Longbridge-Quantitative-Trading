@@ -44,22 +44,18 @@ import {
   resolveSellMergeDecision,
 } from './utils.js';
 
+/** 操作描述映射 */
+const ACTION_DESCRIPTION_MAP: Record<string, string> = {
+  'BUYCALL': '买入做多标的（做多）',
+  'SELLCALL': '卖出做多标的（平仓）',
+  'BUYPUT': '买入做空标的（做空）',
+  'SELLPUT': '卖出做空标的（平仓）',
+  'HOLD': '持有',
+};
+
 /** 获取操作描述（用于日志） */
 function getActionDescription(signalAction: Signal['action']): string {
-  switch (signalAction) {
-    case 'BUYCALL':
-      return '买入做多标的（做多）';
-    case 'SELLCALL':
-      return '卖出做多标的（平仓）';
-    case 'BUYPUT':
-      return '买入做空标的（做空）';
-    case 'SELLPUT':
-      return '卖出做空标的（平仓）';
-    case 'HOLD':
-      return '持有';
-    default:
-      return `未知操作(${signalAction})`;
-  }
+  return ACTION_DESCRIPTION_MAP[signalAction] ?? `未知操作(${signalAction})`;
 }
 
 /** 配置字符串转 OrderType 枚举 */
@@ -435,16 +431,13 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       );
     }
 
-    // 构建订单载荷（不可变方式，一次性创建包含所有字段的对象）
     const orderPayload: OrderPayload = {
       symbol,
       orderType: orderTypeParam,
       side,
       timeInForce,
       submittedQuantity: submittedQtyDecimal,
-      // 仅在需要时添加价格字段
       ...(resolvedPrice && orderTypeParam !== OrderType.MO && { submittedPrice: toDecimal(resolvedPrice) }),
-      // 仅在有备注时添加备注字段
       ...(remark && { remark: `${remark}`.slice(0, 60) }),
     };
 

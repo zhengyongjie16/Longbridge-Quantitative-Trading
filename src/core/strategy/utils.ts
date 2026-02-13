@@ -15,7 +15,7 @@ import type { SignalWithCategory } from './types.js';
  * @returns true 需要延迟验证，false 立即执行
  */
 export function needsDelayedVerification(config: SingleVerificationConfig): boolean {
-  return config.delaySeconds > 0 && config.indicators != null && config.indicators.length > 0;
+  return config.delaySeconds > 0 && (config.indicators?.length ?? 0) > 0;
 }
 
 function hasValidRsiValue(rsi: IndicatorSnapshot['rsi']): boolean {

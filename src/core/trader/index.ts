@@ -6,7 +6,7 @@
  * - 提供统一的 Trader 接口供外部调用
  *
  * 子模块：
- * - rateLimiter: API 频率限制（30次/30秒）
+ * - rateLimiter: API 频率限制（可通过 rateLimiterConfig 配置，默认 30次/30秒）
  * - accountService: 账户余额和持仓查询
  * - orderCacheManager: 未成交订单缓存
  * - orderRecorder: 订单记录管理

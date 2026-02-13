@@ -218,9 +218,7 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
     if (!record) {
       return;
     }
-    const isBuy = input.side === OrderSide.Buy;
-    const isSell = input.side === OrderSide.Sell;
-    if (!isBuy && !isSell) {
+    if (input.side !== OrderSide.Buy && input.side !== OrderSide.Sell) {
       return;
     }
     const existing = statesByMonitor.get(input.monitorSymbol) ?? {
@@ -228,12 +226,13 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
       short: createEmptyState(),
     };
     const currentState = input.isLongSymbol ? existing.long : existing.short;
+    const isBuy = input.side === OrderSide.Buy;
     const nextBuyOrders = isBuy
       ? [...currentState.buyOrders, record]
       : currentState.buyOrders;
-    const nextSellOrders = isSell
-      ? [...currentState.sellOrders, record]
-      : currentState.sellOrders;
+    const nextSellOrders = isBuy
+      ? currentState.sellOrders
+      : [...currentState.sellOrders, record];
     const nextState: DailyLossState = {
       buyOrders: nextBuyOrders,
       sellOrders: nextSellOrders,

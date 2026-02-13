@@ -102,7 +102,7 @@ export function toDecimal(value: unknown): Decimal {
 export function decimalToNumber(decimalLike: DecimalLike | number | string | null | undefined): number {
   // 如果输入为 null 或 undefined，返回 NaN 而非 0
   // 这样 Number.isFinite() 检查会返回 false，避免错误地使用 0 作为有效值
-  if (decimalLike === null || decimalLike === undefined) {
+  if (decimalLike == null) {
     return Number.NaN;
   }
   if (typeof decimalLike === 'object' && 'toNumber' in decimalLike) {
