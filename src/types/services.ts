@@ -315,8 +315,8 @@ export interface Trader {
   _resetRuntimeState(): void;
   /** 生命周期开盘重建：恢复订单追踪 */
   _recoverOrderTracking(): Promise<void>;
-  /** 执行交易信号 */
-  executeSignals(signals: Signal[]): Promise<void>;
+  /** 执行交易信号；返回实际提交的订单数量（保护性清仓等仅在真正提交后才更新缓存） */
+  executeSignals(signals: Signal[]): Promise<{ submittedCount: number }>;
 }
 
 /**

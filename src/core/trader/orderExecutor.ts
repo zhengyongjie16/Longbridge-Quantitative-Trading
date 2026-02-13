@@ -496,25 +496,25 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
     }
   }
 
-  /** 根据信号类型构建并提交订单 */
+  /** 根据信号类型构建并提交订单；返回是否实际提交了订单（用于调用方判断是否更新缓存） */
   async function submitTargetOrder(
     ctx: TradeContext,
     signal: Signal,
     targetSymbol: string,
     isShortSymbol: boolean,
     monitorConfig: MonitorConfig | null = null,
-  ): Promise<void> {
+  ): Promise<boolean> {
     // 验证信号对象
     if (!signal || typeof signal !== 'object') {
       logger.error(`[订单提交] 无效的信号对象: ${JSON.stringify(signal)}`);
-      return;
+      return false;
     }
 
     if (!signal.symbol || typeof signal.symbol !== 'string') {
       logger.error(
         `[订单提交] 信号缺少有效的标的代码: ${JSON.stringify(signal)}`,
       );
-      return;
+      return false;
     }
 
     // 根据信号类型转换为订单方向
@@ -523,11 +523,11 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       logger.error(
         `[订单提交] 未知的信号类型: ${signal.action}, 标的: ${signal.symbol}`,
       );
-      return;
+      return false;
     }
 
     if (!canExecuteSignal(signal, 'submitTargetOrder')) {
-      return;
+      return false;
     }
 
     // 使用配置中的值，如果没有配置则使用默认值
@@ -550,14 +550,14 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
         signal,
       );
       if (submittedQtyDecimal.isZero()) {
-        return;
+        return false;
       }
       const submittedQtyNumber = decimalToNumber(submittedQtyDecimal);
       if (!isValidPositiveNumber(submittedQtyNumber)) {
         logger.warn(
           `[跳过订单] 卖出数量无效，无法合并卖单: ${submittedQtyNumber}, symbol=${targetSymbol}`,
         );
-        return;
+        return false;
       }
 
       const resolvedPrice = isValidPositiveNumber(signal.price)
@@ -575,26 +575,26 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
 
       if (decision.action === 'REPLACE' && decision.targetOrderId) {
         if (!canExecuteSignal(signal, 'replaceOrderPrice')) {
-          return;
+          return false;
         }
         const price = decision.price ?? resolvedPrice ?? 0;
         if (!isValidPositiveNumber(price)) {
           logger.warn(
             `[订单合并] 无法获取有效改单价格，跳过: ${targetSymbol}`,
           );
-          return;
+          return false;
         }
         await orderMonitor.replaceOrderPrice(
           decision.targetOrderId,
           price,
           decision.mergedQuantity,
         );
-        return;
+        return false;
       }
 
       if (decision.action === 'CANCEL_AND_SUBMIT') {
         if (!canExecuteSignal(signal, 'cancelAndSubmit')) {
-          return;
+          return false;
         }
         const cancelResults = await Promise.all(
           decision.pendingOrderIds.map((orderId) => orderMonitor.cancelOrder(orderId)),
@@ -605,7 +605,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
             logger.warn(
               `[订单合并] 撤单失败且仍有未成交卖单，跳过合并提交: ${targetSymbol}`,
             );
-            return;
+            return false;
           }
         }
       }
@@ -614,7 +614,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
         logger.info(
           `[订单合并] 无需新增卖单: ${targetSymbol}, reason=${decision.reason}`,
         );
-        return;
+        return false;
       }
 
       if (decision.action === 'SUBMIT' || decision.action === 'CANCEL_AND_SUBMIT') {
@@ -632,8 +632,9 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
           isShortSymbol,
           monitorConfig,
         });
+        return true;
       }
-      return;
+      return false;
     }
 
     submittedQtyDecimal = calculateBuyQuantity(
@@ -643,7 +644,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       targetNotional,
     );
     if (submittedQtyDecimal.isZero()) {
-      return;
+      return false;
     }
 
     await submitOrder({
@@ -659,16 +660,18 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       isShortSymbol,
       monitorConfig,
     });
+    return true;
   }
 
-  /** 执行交易信号（遍历信号数组，逐个提交订单） */
-  async function executeSignals(signals: Signal[]): Promise<void> {
+  /** 执行交易信号（遍历信号数组，逐个提交订单）；返回实际提交的订单数量（用于保护性清仓等仅在真正提交后才更新缓存） */
+  async function executeSignals(signals: Signal[]): Promise<{ submittedCount: number }> {
     if (!isExecutionAllowed()) {
       logger.info('[执行门禁] 门禁关闭，跳过本次下单，不提交任何订单');
-      return;
+      return { submittedCount: 0 };
     }
 
     const ctx = await ctxPromise;
+    let submittedCount = 0;
 
     for (const s of signals) {
       // 验证信号对象
@@ -690,7 +693,8 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
         continue;
       }
 
-      if (isStaleCrossDaySignal(s, new Date())) {
+      // 保护性清仓不参与跨日/触发时间校验（实时风控，始终视为有效）
+      if (!isLiquidationSignal(s) && isStaleCrossDaySignal(s, new Date())) {
         logger.info(`[执行门禁] 跨日或触发时间无效信号，跳过执行: ${signalSymbolDisplay} ${s.action}`);
         continue;
       }
@@ -732,8 +736,13 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
         }${colors.reset}`,
       );
 
-      await submitTargetOrder(ctx, s, targetSymbol, isShortSymbol, monitorConfig);
+      const submitted = await submitTargetOrder(ctx, s, targetSymbol, isShortSymbol, monitorConfig);
+      if (submitted) {
+        submittedCount += 1;
+      }
     }
+
+    return { submittedCount };
   }
 
   return {

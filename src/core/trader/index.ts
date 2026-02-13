@@ -180,7 +180,7 @@ export async function createTrader(deps: TraderDeps): Promise<Trader> {
       return orderMonitor.recoverTrackedOrders();
     },
 
-    executeSignals(signals: Signal[]): Promise<void> {
+    executeSignals(signals: Signal[]): Promise<{ submittedCount: number }> {
       return orderExecutor.executeSignals(signals);
     },
   };

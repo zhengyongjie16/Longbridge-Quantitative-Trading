@@ -208,7 +208,7 @@ export interface OrderExecutor {
    * @param monitorConfig 监控配置
    */
   markBuyAttempt(signalAction: SignalType, monitorConfig?: import('../../types/config.js').MonitorConfig | null): void;
-  executeSignals(signals: Signal[]): Promise<void>;
+  executeSignals(signals: Signal[]): Promise<{ submittedCount: number }>;
   /** 清空 lastBuyTime（买入节流状态） */
   resetBuyThrottle(): void;
 }

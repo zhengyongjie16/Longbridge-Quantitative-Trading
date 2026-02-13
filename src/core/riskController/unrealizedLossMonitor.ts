@@ -88,9 +88,14 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
     }
 
     try {
-      await trader.executeSignals([liquidationSignal]);
+      const { submittedCount } = await trader.executeSignals([liquidationSignal]);
 
-      // 保护性清仓后，无条件清空订单记录（不管价格如何，都要清空所有持仓）
+      // 仅在实际提交订单后才清空订单记录并刷新浮亏数据（门禁拦截或未提交时不得更新缓存）
+      if (submittedCount === 0) {
+        return false; // 未提交，不视为清仓成功，不更新缓存
+      }
+
+      // 保护性清仓订单已提交：清空订单记录（完全成交后由 orderMonitor 的 recordLocalSell 再次确认；此处先清避免重复开仓判断）
       // 使用专门的 clearBuyOrders 方法，而不是 recordLocalSell（避免价格过滤逻辑）
       orderRecorder.clearBuyOrders(symbol, isLong, quote);
 
