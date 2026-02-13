@@ -14,11 +14,10 @@ import type { DailyLossTracker } from '../../core/riskController/types.js';
 import type { TradeLogHydrator } from '../../services/liquidationCooldown/types.js';
 import type { WarrantListCacheConfig } from '../../services/autoSymbolFinder/types.js';
 import type { LastState, MonitorContext } from '../../types/state.js';
-import type { LifecycleState } from '../../types/seat.js';
+import type { LifecycleState, SymbolRegistry } from '../../types/seat.js';
 import type { MultiMonitorTradingConfig } from '../../types/config.js';
 import type { Quote } from '../../types/quote.js';
 import type { MarketDataClient, RawOrderFromAPI, Trader } from '../../types/services.js';
-import type { SymbolRegistry } from '../../types/seat.js';
 
 export type LifecycleRuntimeFlags = Readonly<{
   dayKey: string | null;

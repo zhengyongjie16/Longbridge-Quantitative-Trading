@@ -20,9 +20,8 @@
  * - initMonitorState() / releaseSnapshotObjects()：监控状态管理
  */
 import type { MonitorState } from '../../types/state.js';
-import type { IndicatorSnapshot } from '../../types/quote.js';
+import type { IndicatorSnapshot, Quote } from '../../types/quote.js';
 import type { MonitorConfig } from '../../types/config.js';
-import type { Quote } from '../../types/quote.js';
 import type { SignalType } from '../../types/signal.js';
 import { inspect } from 'node:util';
 import { Decimal } from 'longport';
