@@ -434,5 +434,5 @@ graph TD
 
 ## 许可证
 
-* Apache License, Version 2.0, ([LICENSE-APACHE](./LICENSE-APACHE))
+* Apache License, Version 2.0, [2026] [Ulysses Zheng], ([LICENSE-APACHE](./LICENSE-APACHE))
 * MIT License (c) 2026 Ulysses Zheng, ([LICENSE-MIT](./LICENSE-MIT))
