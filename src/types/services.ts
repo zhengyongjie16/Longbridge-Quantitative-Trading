@@ -82,16 +82,6 @@ export interface MarketDataClient {
   ): Promise<Candlestick[]>;
 
   /**
-   * 取消订阅指定标的的 K 线推送
-   * @param symbol 标的代码
-   * @param period K 线周期
-   */
-  unsubscribeCandlesticks(
-    symbol: string,
-    period: Period,
-  ): Promise<void>;
-
-  /**
    * 获取实时 K 线数据（从 SDK 内部缓存读取，无 HTTP 请求）
    *
    * 需先调用 subscribeCandlesticks 订阅，否则返回空数据。

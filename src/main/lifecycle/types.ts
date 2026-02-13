@@ -46,8 +46,6 @@ export interface CacheDomain {
 
 export interface DayLifecycleManager {
   readonly tick: (now: Date, runtime: LifecycleRuntimeFlags) => Promise<void>;
-  readonly getState: () => LifecycleState;
-  readonly isTradingEnabled: () => boolean;
 }
 
 export type DayLifecycleManagerDeps = Readonly<{

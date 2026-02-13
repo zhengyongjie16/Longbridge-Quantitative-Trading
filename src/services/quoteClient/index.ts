@@ -376,23 +376,6 @@ export async function createMarketDataClient(
   }
 
   /**
-   * 取消订阅指定标的的 K 线推送
-   */
-  async function unsubscribeCandlesticks(
-    symbol: string,
-    period: Period,
-  ): Promise<void> {
-    const key = `${symbol}:${period}`;
-    if (!subscribedCandlesticks.has(key)) {
-      return;
-    }
-
-    await withRetry(() => ctx.unsubscribeCandlesticks(symbol, period));
-    subscribedCandlesticks.delete(key);
-    logger.info(`[K线订阅] 已退订 ${symbol} 周期 ${formatPeriodForLog(period)} K线`);
-  }
-
-  /**
    * 获取实时 K 线数据（从 SDK 内部缓存读取，无 HTTP 请求）
    */
   async function getRealtimeCandlesticks(
@@ -540,7 +523,6 @@ export async function createMarketDataClient(
     subscribeSymbols,
     unsubscribeSymbols,
     subscribeCandlesticks,
-    unsubscribeCandlesticks,
     getRealtimeCandlesticks,
     isTradingDay,
     resetRuntimeSubscriptionsAndCaches,

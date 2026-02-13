@@ -19,7 +19,6 @@
  */
 import { formatError } from '../../utils/helpers/index.js';
 import { LIFECYCLE } from '../../constants/index.js';
-import type { LifecycleState } from '../../types/seat.js';
 import type {
   CacheDomain,
   DayLifecycleManager,
@@ -176,17 +175,7 @@ export function createDayLifecycleManager(deps: DayLifecycleManagerDeps): DayLif
     }
   }
 
-  function getState(): LifecycleState {
-    return mutableState.lifecycleState;
-  }
-
-  function isTradingEnabled(): boolean {
-    return mutableState.isTradingEnabled;
-  }
-
   return {
     tick,
-    getState,
-    isTradingEnabled,
   };
 }

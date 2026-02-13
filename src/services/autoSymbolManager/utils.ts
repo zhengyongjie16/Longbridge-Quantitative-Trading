@@ -87,13 +87,6 @@ const SEAT_UNAVAILABLE_REASON_MAP: Readonly<Record<SeatUnavailableReason, string
 };
 
 /**
- * 将席位不可用原因格式化为日志文案
- */
-export function formatSeatUnavailableReason(reason: SeatUnavailableReason): string {
-  return SEAT_UNAVAILABLE_REASON_MAP[reason];
-}
-
-/**
  * 从非就绪席位状态获取格式化的不可用原因文案。
  * 前提：调用方已确认 isSeatReady(seatState) === false。
  */
