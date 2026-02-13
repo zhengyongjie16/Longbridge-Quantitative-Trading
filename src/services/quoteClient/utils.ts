@@ -14,8 +14,23 @@ import type { StaticInfo } from './types.js';
 const PERIOD_LABEL_MAP: Readonly<Record<number, string>> = {
   [Period.Unknown]: '未知',
   [Period.Min_1]: '1分钟',
+  [Period.Min_2]: '2分钟',
+  [Period.Min_3]: '3分钟',
+  [Period.Min_5]: '5分钟',
+  [Period.Min_10]: '10分钟',
   [Period.Min_15]: '15分钟',
+  [Period.Min_20]: '20分钟',
+  [Period.Min_30]: '30分钟',
+  [Period.Min_45]: '45分钟',
   [Period.Min_60]: '1小时',
+  [Period.Min_120]: '2小时',
+  [Period.Min_180]: '3小时',
+  [Period.Min_240]: '4小时',
+  [Period.Day]: '日K',
+  [Period.Week]: '周K',
+  [Period.Month]: '月K',
+  [Period.Quarter]: '季K',
+  [Period.Year]: '年K',
 } as const;
 
 /**

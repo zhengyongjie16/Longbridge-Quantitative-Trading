@@ -4,8 +4,9 @@
  * 职责：
  * - 从 LongPort API 获取订单
  * - 管理订单缓存（缓存到显式清理/刷新为止）
- * - 订单数据转换和验证
+ * - 在信任边界将 SDK Order 转换为 RawOrderFromAPI
  */
+import type { Order } from 'longport';
 import { decimalToNumber } from '../../utils/helpers/index.js';
 import { PENDING_ORDER_STATUSES } from '../../constants/index.js';
 import type { OrderRecord, PendingOrder, RawOrderFromAPI } from '../../types/services.js';
@@ -14,6 +15,26 @@ import type {
   OrderAPIManager,
   OrderAPIManagerDeps,
 } from './types.js';
+
+/** 将 LongPort SDK Order 实例转换为内部 RawOrderFromAPI（信任边界唯一转换处） */
+function orderToRawOrderFromAPI(order: Order): RawOrderFromAPI {
+  const price = order.price;
+  const executedPrice = order.executedPrice;
+  return {
+    orderId: order.orderId,
+    symbol: order.symbol,
+    stockName: order.stockName,
+    side: order.side,
+    status: order.status,
+    orderType: order.orderType,
+    price: price === null ? null : decimalToNumber(price),
+    quantity: decimalToNumber(order.quantity),
+    executedPrice: executedPrice === null ? null : decimalToNumber(executedPrice),
+    executedQuantity: decimalToNumber(order.executedQuantity),
+    submittedAt: order.submittedAt,
+    updatedAt: order.updatedAt ?? null,
+  };
+}
 
 /** 合并历史订单和今日订单，按 orderId 去重 */
 function mergeAndDeduplicateOrders(
@@ -85,31 +106,6 @@ export function createOrderAPIManager(deps: OrderAPIManagerDeps): OrderAPIManage
     allOrdersCache = null;
   }
 
-  /** 类型守卫：校验 API 返回的订单数据是否符合 RawOrderFromAPI 结构 */
-  function isValidRawOrder(order: unknown): order is RawOrderFromAPI {
-    if (typeof order !== 'object' || order === null) {
-      return false;
-    }
-    const obj = order as Record<string, unknown>;
-    return (
-      typeof obj['orderId'] === 'string' &&
-      typeof obj['symbol'] === 'string' &&
-      typeof obj['stockName'] === 'string' &&
-      typeof obj['side'] === 'string' &&
-      typeof obj['status'] === 'string' &&
-      typeof obj['orderType'] === 'string' &&
-      obj['price'] != null &&
-      obj['quantity'] != null &&
-      obj['executedPrice'] != null &&
-      obj['executedQuantity'] != null
-    );
-  }
-
-  /** 类型守卫：校验订单数组 */
-  function isValidRawOrderArray(orders: unknown): orders is RawOrderFromAPI[] {
-    return Array.isArray(orders) && orders.every(isValidRawOrder);
-  }
-
   /** 从 API 获取全量订单数据（history + today） */
   async function fetchAllOrdersFromAPI(
     forceRefresh = false,
@@ -120,25 +116,15 @@ export function createOrderAPIManager(deps: OrderAPIManagerDeps): OrderAPIManage
 
     const ctx = await ctxPromise;
     await rateLimiter.throttle();
-    const historyOrdersRaw = await ctx.historyOrders({
+    const historyOrdersRaw: ReadonlyArray<Order> = await ctx.historyOrders({
       endAt: new Date(),
     });
     await rateLimiter.throttle();
-    const todayOrdersRaw = await ctx.todayOrders();
+    const todayOrdersRaw: ReadonlyArray<Order> = await ctx.todayOrders();
 
-    // 信任边界：校验 API 返回的数据结构
-    if (!isValidRawOrderArray(historyOrdersRaw)) {
-      throw new Error(
-        '[订单API] historyOrders 返回数据格式不符合预期，无法解析为 RawOrderFromAPI[]',
-      );
-    }
-    if (!isValidRawOrderArray(todayOrdersRaw)) {
-      throw new Error(
-        '[订单API] todayOrders 返回数据格式不符合预期，无法解析为 RawOrderFromAPI[]',
-      );
-    }
-
-    const allOrders = mergeAndDeduplicateOrders(historyOrdersRaw, todayOrdersRaw);
+    const historyOrders = Array.from(historyOrdersRaw, orderToRawOrderFromAPI);
+    const todayOrders = Array.from(todayOrdersRaw, orderToRawOrderFromAPI);
+    const allOrders = mergeAndDeduplicateOrders(historyOrders, todayOrders);
 
     allOrdersCache = allOrders;
     return [...allOrders];
@@ -176,7 +162,8 @@ export function createOrderAPIManager(deps: OrderAPIManagerDeps): OrderAPIManage
           orderId: order.orderId,
           symbol: order.symbol,
           side: order.side,
-          submittedPrice: decimalToNumber(order.price),
+          submittedPrice:
+            order.price === null ? 0 : decimalToNumber(order.price),
           quantity: decimalToNumber(order.quantity),
           executedQuantity: decimalToNumber(order.executedQuantity),
           status: order.status,
