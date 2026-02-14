@@ -18,6 +18,7 @@ import type { Quote } from '../../types/quote.js';
 import type { OrderRecord } from '../../types/services.js';
 import type { OrderStorage, OrderStorageDeps, PendingSellInfo, ProfitableOrderResult } from './types.js';
 import { calculateTotalQuantity } from './utils.js';
+import { deductSellQuantityFromBuyOrders } from './sellDeductionPolicy.js';
 
 /** 获取指定方向 Map 中所有买入订单 */
 function collectAllOrders(map: Map<string, OrderRecord[]>): OrderRecord[] {
@@ -192,15 +193,14 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
       return;
     }
 
-    // 否则，仅保留成交价 >= 本次卖出价的买入订单
-    const filtered = list.filter(
-      (order) =>
-        Number.isFinite(order.executedPrice) &&
-        order.executedPrice >= executedPrice,
-    );
+    // 否则,使用低价优先整笔消除策略扣减卖出数量
+    const filtered = deductSellQuantityFromBuyOrders(list, executedQuantity);
     setBuyOrdersList(symbol, filtered, isLongSymbol);
+
+    const deductedQuantity = calculateTotalQuantity(list) - calculateTotalQuantity(filtered);
     logger.info(
-      `[现存订单记录] 本地卖出更新：${positionType} ${symbol} 卖出数量=${executedQuantity}，按价格过滤后剩余买入记录 ${filtered.length} 笔`,
+      `[现存订单记录] 本地卖出更新:${positionType} ${symbol} 卖出数量=${executedQuantity},` +
+      `低价优先整笔消除后剩余买入记录 ${filtered.length} 笔(消除数量=${deductedQuantity})`,
     );
   };
 
@@ -353,11 +353,17 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
       return null;
     }
 
+    // 创建cancelled状态的记录
+    const cancelledRecord: PendingSellInfo = {
+      ...record,
+      status: 'cancelled',
+    };
+
     pendingSells.delete(orderId);
 
     logger.info(`[订单存储] 卖出订单取消: ${orderId}`);
 
-    return record;
+    return cancelledRecord;
   }
 
   function getPendingSellOrders(
@@ -432,13 +438,15 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
    * 算法说明：
    * 1. 首先筛选所有买入价 < 当前价的盈利订单
    * 2. 排除已被待成交卖出订单占用的订单（防止重复卖出）
-   * 3. 如超出最大可卖数量，按价格从低到高排序截断（便宜先卖）
+   * 3. 如超出最大可卖数量,按低价优先整笔选单(不拆分订单)
+   *
+   * 注意:返回的 totalQuantity 可能小于 maxSellQuantity(整笔语义)
    *
    * @param symbol 标的代码
    * @param direction 交易方向（LONG/SHORT）
    * @param currentPrice 当前价格
    * @param maxSellQuantity 最大可卖数量（可选）
-   * @returns 盈利订单列表及总数量
+   * @returns 盈利订单列表及总数量(totalQuantity 可能 < maxSellQuantity)
    */
   function getProfitableSellOrders(
     symbol: string,
@@ -473,33 +481,38 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
     // 5. 数量截断（如果超过最大可卖数量）
     if (maxSellQuantity !== undefined && totalQuantity > maxSellQuantity) {
-      // 按价格从低到高排序（便宜的先卖）- 使用不可变更新避免修改原数组
-      const sortedOrders = [...availableOrders].sort((a, b) => a.executedPrice - b.executedPrice);
+      // 按价格从低到高排序,与扣减策略一致(三级排序)
+      const sortedOrders = [...availableOrders].sort((a, b) => {
+        if (a.executedPrice !== b.executedPrice) {
+          return a.executedPrice - b.executedPrice;
+        }
+        if (a.executedTime !== b.executedTime) {
+          return a.executedTime - b.executedTime;
+        }
+        return a.orderId.localeCompare(b.orderId);
+      });
 
       let remaining = maxSellQuantity;
       const finalOrders: OrderRecord[] = [];
 
       for (const order of sortedOrders) {
         if (remaining <= 0) break;
+
+        // 整笔语义:只选择完整订单
         if (order.executedQuantity <= remaining) {
           finalOrders.push(order);
           remaining -= order.executedQuantity;
-        } else {
-          // 部分数量
-          finalOrders.push({
-            ...order,
-            executedQuantity: remaining,
-          });
-          remaining = 0;
         }
+        // 如果订单数量大于剩余量,跳过该订单(不拆分)
       }
 
-      totalQuantity = maxSellQuantity;
+      // 计算实际总量
+      totalQuantity = calculateTotalQuantity(finalOrders);
 
       logger.info(
-        `[订单存储] 数量超出限制截断: ${symbol} ${direction} ` +
+        `[订单存储] 整笔截断: ${symbol} ${direction} ` +
         `原数量=${calculateTotalQuantity(sortedOrders)} ` +
-        `限制=${maxSellQuantity} 最终=${totalQuantity}`,
+        `限制=${maxSellQuantity} 实际=${totalQuantity}`,
       );
 
       return { orders: finalOrders, totalQuantity };

@@ -11,8 +11,8 @@
  * 2. 从最旧的卖出订单 D1 开始依次处理：
  *    - 获取成交时间 < D1 的买入订单
  *    - 若 D1 数量 >= 这些买入订单总量，视为全部卖出
- *    - 否则按价格过滤：保留成交价 >= D1 价格的订单
- *    - M1 = 过滤结果 + 成交时间在 (D1, D2) 之间的买入订单（从原始候选订单获取）
+ *    - 否则使用'低价优先整笔消除'策略扣减 D1 数量
+ *    - M1 = 扣减结果 + 成交时间在 (D1, D2) 之间的买入订单（从原始候选订单获取）
  * 3. 对 D2 使用 M1 重复上述过程，得到 M2，以此类推
  * 4. 最终记录 = M0 + MN
  *
@@ -20,11 +20,12 @@
  * - 必须按时间顺序从旧到新处理卖出订单
  * - 每轮过滤基于上一轮的结果（累积过滤）
  * - 时间间隔订单必须从原始候选订单获取，而非上一轮结果
- * - 当按价格过滤后保留数量仍超过应保留数量时，按价格从高到低贪心保留（订单不可拆分）
+ * - 使用'低价优先整笔消除'策略,不拆分订单
  */
 import type { OrderRecord } from '../../types/services.js';
 import type { FilteringState, OrderFilteringEngine, OrderFilteringEngineDeps } from './types.js';
 import { calculateTotalQuantity } from './utils.js';
+import { deductSellQuantityFromBuyOrders } from './sellDeductionPolicy.js';
 
 /**
  * 初始化过滤状态
@@ -58,51 +59,10 @@ function initializeFilteringState(
 }
 
 /**
- * 按数量限制调整订单列表
- * 当按价格过滤后保留数量超过限制时，按成交价从高到低贪心保留（订单不可拆分）
- */
-function adjustOrdersByQuantityLimit(
-  orders: OrderRecord[],
-  maxQuantity: number,
-): OrderRecord[] {
-  if (maxQuantity <= 0) {
-    return [];
-  }
-
-  const currentQuantity = calculateTotalQuantity(orders);
-
-  if (currentQuantity <= maxQuantity) {
-    return orders;
-  }
-
-  const sortedByPriceDesc = [...orders].sort(
-    (a, b) => b.executedPrice - a.executedPrice,
-  );
-
-  const result: OrderRecord[] = [];
-  let accumulatedQuantity = 0;
-
-  for (const order of sortedByPriceDesc) {
-    if (accumulatedQuantity >= maxQuantity) {
-      break;
-    }
-
-    if (accumulatedQuantity + order.executedQuantity > maxQuantity) {
-      continue;
-    }
-
-    result.push(order);
-    accumulatedQuantity += order.executedQuantity;
-  }
-
-  return result;
-}
-
-/**
  * 应用单个卖出订单的过滤
  * 1. 获取成交时间 < 卖出时间的买入订单
  * 2. 卖出数量 >= 买入总量：视为全部卖出
- * 3. 否则按价格过滤：保留成交价 >= 卖出价的订单
+ * 3. 否则使用'低价优先整笔消除'策略扣减卖出数量
  * 4. 合并时间间隔内的订单作为下一轮输入
  */
 function applySingleSellOrderFilter(
@@ -113,7 +73,6 @@ function applySingleSellOrderFilter(
   latestSellTime: number,
 ): OrderRecord[] {
   const sellTime = sellOrder.executedTime;
-  const sellPrice = sellOrder.executedPrice;
   const sellQuantity = sellOrder.executedQuantity;
 
   const nextSellTime = nextSellOrder
@@ -136,15 +95,9 @@ function applySingleSellOrderFilter(
     return [...buyOrdersBetweenSells];
   }
 
-  const maxRetainQuantity = totalBuyQuantity - sellQuantity;
-
-  let filteredBuyOrders = buyOrdersBeforeSell.filter(
-    (buyOrder) => buyOrder.executedPrice >= sellPrice,
-  );
-
-  filteredBuyOrders = adjustOrdersByQuantityLimit(
-    filteredBuyOrders,
-    maxRetainQuantity,
+  const filteredBuyOrders = deductSellQuantityFromBuyOrders(
+    buyOrdersBeforeSell,
+    sellQuantity,
   );
 
   return [...filteredBuyOrders, ...buyOrdersBetweenSells];
