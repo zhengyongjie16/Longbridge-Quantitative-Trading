@@ -156,7 +156,6 @@ export const createHangSengMultiIndicatorStrategy = ({
       }
       const buyOrders = orderRecorder.getBuyOrdersForSymbol(symbol, isLongSymbol);
       if (!buyOrders || buyOrders.length === 0) {
-        logger.debug(`[策略] ${symbol} ${action} 该方向无买入订单记录，不生成卖出信号`);
         return null;
       }
       // 有买入订单记录，继续后续流程
@@ -174,7 +173,6 @@ export const createHangSengMultiIndicatorStrategy = ({
 
     // 如果没有触发任何条件组，返回 null
     if (!evalResult.triggered) {
-      logger.debug(`[策略] ${symbol} ${action} 条件组未触发，不生成信号`);
       return null;
     }
 
