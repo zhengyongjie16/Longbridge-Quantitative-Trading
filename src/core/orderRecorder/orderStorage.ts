@@ -17,7 +17,7 @@ import { getLongDirectionName, getShortDirectionName, formatSymbolDisplayFromQuo
 import type { Quote } from '../../types/quote.js';
 import type { OrderRecord } from '../../types/services.js';
 import type { OrderStorage, OrderStorageDeps, PendingSellInfo, ProfitableOrderResult } from './types.js';
-import { calculateTotalQuantity } from './utils.js';
+import { calculateTotalQuantity, calculateOrderStatistics } from './utils.js';
 import { deductSellQuantityFromBuyOrders } from './sellDeductionPolicy.js';
 
 /** 获取指定方向 Map 中所有买入订单 */
@@ -276,6 +276,16 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     return filteredOrders;
   };
 
+  /** 获取指定标的的成本均价（实时计算，无缓存） */
+  const getCostAveragePrice = (symbol: string, isLongSymbol: boolean): number | null => {
+    const orders = getBuyOrdersList(symbol, isLongSymbol);
+    if (orders.length === 0) {
+      return null;
+    }
+    const stats = calculateOrderStatistics(orders);
+    return stats.totalQuantity > 0 ? stats.averagePrice : null;
+  };
+
   /** 获取所有做多标的的买入订单（用于 RiskChecker） */
   const getLongBuyOrders = (): OrderRecord[] => collectAllOrders(longBuyOrdersMap);
 
@@ -433,31 +443,31 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
   }
 
   /**
-   * 获取可卖出的盈利订单（核心防重逻辑）
+   * 获取可卖出的订单（核心防重逻辑）
    *
    * 算法说明：
-   * 1. 首先筛选所有买入价 < 当前价的盈利订单
+   * 1. 按 includeAll 选择目标订单：全部订单或仅买入价 < 当前价的盈利订单
    * 2. 排除已被待成交卖出订单占用的订单（防止重复卖出）
    * 3. 如超出最大可卖数量,按低价优先整笔选单(不拆分订单)
    *
    * 注意:返回的 totalQuantity 可能小于 maxSellQuantity(整笔语义)
-   *
-   * @param symbol 标的代码
-   * @param direction 交易方向（LONG/SHORT）
-   * @param currentPrice 当前价格
-   * @param maxSellQuantity 最大可卖数量（可选）
-   * @returns 盈利订单列表及总数量(totalQuantity 可能 < maxSellQuantity)
    */
-  function getProfitableSellOrders(
+  function getSellableOrders(
     symbol: string,
     direction: 'LONG' | 'SHORT',
     currentPrice: number,
     maxSellQuantity?: number,
+    options?: { readonly includeAll?: boolean },
   ): ProfitableOrderResult {
-    // 1. 获取所有盈利订单（买入价 < 当前价）
-    const profitableOrders = getBuyOrdersBelowPrice(currentPrice, direction, symbol);
+    const isLongSymbol = direction === 'LONG';
 
-    if (profitableOrders.length === 0) {
+    // 1. 按 includeAll 选择目标订单
+    const targetOrders =
+      options?.includeAll === true
+        ? getBuyOrdersList(symbol, isLongSymbol)
+        : getBuyOrdersBelowPrice(currentPrice, direction, symbol);
+
+    if (targetOrders.length === 0) {
       return { orders: [], totalQuantity: 0 };
     }
 
@@ -472,7 +482,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     }
 
     // 3. 过滤掉被占用的订单
-    const availableOrders = profitableOrders.filter(
+    const availableOrders = targetOrders.filter(
       (order) => !occupiedOrderIds.has(order.orderId),
     );
 
@@ -519,7 +529,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     }
 
     logger.debug(
-      `[订单存储] 可卖出盈利订单: ${symbol} ${direction} ` +
+      `[订单存储] 可卖出订单: ${symbol} ${direction} ` +
       `订单数=${availableOrders.length} 总数=${totalQuantity}`,
     );
 
@@ -527,6 +537,19 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
       orders: availableOrders,
       totalQuantity,
     };
+  }
+
+  /** 获取可卖出的盈利订单（委托 getSellableOrders） */
+  function getProfitableSellOrders(
+    symbol: string,
+    direction: 'LONG' | 'SHORT',
+    currentPrice: number,
+    maxSellQuantity?: number,
+    sellAll?: boolean,
+  ): ProfitableOrderResult {
+    return getSellableOrders(symbol, direction, currentPrice, maxSellQuantity,
+      sellAll !== undefined ? { includeAll: sellAll } : undefined,
+    );
   }
 
   return {
@@ -550,6 +573,8 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     markSellCancelled,
     getPendingSellOrders,
     allocateRelatedBuyOrderIdsForRecovery,
+    getCostAveragePrice,
+    getSellableOrders,
     getProfitableSellOrders,
     clearAll,
   };

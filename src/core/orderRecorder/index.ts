@@ -454,14 +454,31 @@ export function createOrderRecorder(
     return storage.allocateRelatedBuyOrderIdsForRecovery(symbol, direction, quantity);
   }
 
-  /** 获取可卖出的盈利订单（核心防重逻辑） */
+  /** 获取指定标的的成本均价（实时计算，无缓存） */
+  function getCostAveragePrice(symbol: string, isLongSymbol: boolean): number | null {
+    return storage.getCostAveragePrice(symbol, isLongSymbol);
+  }
+
+  /** 获取可卖出的订单（核心防重逻辑） */
+  function getSellableOrders(
+    symbol: string,
+    direction: 'LONG' | 'SHORT',
+    currentPrice: number,
+    maxSellQuantity?: number,
+    options?: { readonly includeAll?: boolean },
+  ): ProfitableOrderResult {
+    return storage.getSellableOrders(symbol, direction, currentPrice, maxSellQuantity, options);
+  }
+
+  /** 获取可卖出的盈利订单（委托 getSellableOrders） */
   function getProfitableSellOrders(
     symbol: string,
     direction: 'LONG' | 'SHORT',
     currentPrice: number,
     maxSellQuantity?: number,
+    sellAll?: boolean,
   ): ProfitableOrderResult {
-    return storage.getProfitableSellOrders(symbol, direction, currentPrice, maxSellQuantity);
+    return storage.getProfitableSellOrders(symbol, direction, currentPrice, maxSellQuantity, sellAll);
   }
 
   /** 重置所有订单记录（storage.clearAll + apiManager.clearCache） */
@@ -488,6 +505,8 @@ export function createOrderRecorder(
     markSellPartialFilled,
     markSellCancelled,
     allocateRelatedBuyOrderIdsForRecovery,
+    getCostAveragePrice,
+    getSellableOrders,
     getProfitableSellOrders,
 
     resetAll,

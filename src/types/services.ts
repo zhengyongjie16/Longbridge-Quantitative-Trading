@@ -252,12 +252,26 @@ export interface OrderRecorder {
     direction: 'LONG' | 'SHORT',
     quantity: number,
   ): readonly string[];
-  /** 获取可卖出的盈利订单（核心防重逻辑） */
+  /** 获取指定标的的成本均价（实时计算，无缓存） */
+  getCostAveragePrice(symbol: string, isLongSymbol: boolean): number | null;
+  /**
+   * 获取可卖出的订单（核心防重逻辑）
+   * includeAll=true 时返回该标的该方向全部订单，否则仅返回买入价 < 当前价的订单
+   */
+  getSellableOrders(
+    symbol: string,
+    direction: 'LONG' | 'SHORT',
+    currentPrice: number,
+    maxSellQuantity?: number,
+    options?: { readonly includeAll?: boolean },
+  ): { orders: ReadonlyArray<OrderRecord>; totalQuantity: number };
+  /** 获取可卖出的盈利订单（委托 getSellableOrders） */
   getProfitableSellOrders(
     symbol: string,
     direction: 'LONG' | 'SHORT',
     currentPrice: number,
     maxSellQuantity?: number,
+    sellAll?: boolean,
   ): { orders: ReadonlyArray<OrderRecord>; totalQuantity: number };
   /** 重置全部订单记录与 API 缓存 */
   resetAll(): void;

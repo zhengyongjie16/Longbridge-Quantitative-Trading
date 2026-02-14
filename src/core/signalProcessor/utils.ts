@@ -65,12 +65,13 @@ export function validateSellContext(
 }
 
 /**
- * 智能平仓：计算盈利订单的卖出数量（防重版本）
+ * 智能平仓：基于成本均价判断整体盈亏，决定卖出策略（防重版本）
  *
  * 算法：
- * 1. 从订单存储获取盈利订单（买入价 < 当前价）
- * 2. 排除已被待成交卖出的订单
- * 3. 返回可卖出的订单列表和数量
+ * 1. 获取成本均价，判断整体是否盈利
+ * 2. 整体盈利：通过 getSellableOrders(includeAll=true) 获取全部可卖订单
+ * 3. 整体未盈利：通过 getSellableOrders(includeAll=false) 仅获取盈利订单
+ * 4. 所有路径均经过防重与整笔截断逻辑
  *
  * @returns 包含可卖出数量、是否持有、以及关联订单ID列表的结果
  */
@@ -101,30 +102,43 @@ export function resolveSellQuantityBySmartClose({
     };
   }
 
-  const result = orderRecorder.getProfitableSellOrders(
+  const isLongSymbol = direction === 'LONG';
+  const costAveragePrice = orderRecorder.getCostAveragePrice(symbol, isLongSymbol);
+
+  const isOverallProfitable =
+    costAveragePrice !== null &&
+    Number.isFinite(costAveragePrice) &&
+    costAveragePrice > 0 &&
+    currentPrice > costAveragePrice;
+
+  const result = orderRecorder.getSellableOrders(
     symbol,
     direction,
     currentPrice,
     availableQuantity,
+    { includeAll: isOverallProfitable },
   );
 
-  if (result.orders.length === 0 || result.totalQuantity <= 0) {
+  if (result.orders.length > 0 && result.totalQuantity > 0) {
+    const relatedBuyOrderIds = result.orders.map((order) => order.orderId);
+
     return {
-      quantity: null,
-      shouldHold: true,
-      reason: '智能平仓：无盈利订单或已被占用',
-      relatedBuyOrderIds: [],
+      quantity: result.totalQuantity,
+      shouldHold: false,
+      reason: `智能平仓：当前价=${currentPrice.toFixed(3)}，成本均价=${costAveragePrice?.toFixed(3) ?? 'N/A'}，可卖出=${result.totalQuantity}股，关联订单=${relatedBuyOrderIds.length}个`,
+      relatedBuyOrderIds,
     };
   }
 
-  // 提取关联的订单ID列表
-  const relatedBuyOrderIds = result.orders.map((order) => order.orderId);
+  const holdReason = isOverallProfitable
+    ? '智能平仓：整体盈利但无可用订单或已被占用，保持持仓'
+    : '智能平仓：无盈利订单或已被占用';
 
   return {
-    quantity: result.totalQuantity,
-    shouldHold: false,
-    reason: `智能平仓：当前价=${currentPrice.toFixed(3)}，可卖出=${result.totalQuantity}股，关联订单=${relatedBuyOrderIds.length}个`,
-    relatedBuyOrderIds,
+    quantity: null,
+    shouldHold: true,
+    reason: holdReason,
+    relatedBuyOrderIds: [],
   };
 }
 
