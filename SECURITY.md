@@ -9,7 +9,7 @@
 
 - **GitHub**: [https://github.com/zhengyongjie16](https://github.com/zhengyongjie16)
 - **E-Mail**: zhenghuaiteng@gmail.com
-- **WeChat 微信号**: Salem_1796
+- **WeChat**: Salem_1796
 
 如果您发现关于LongPort OpenAPI SDK的漏洞，请执行以下操作：
 
