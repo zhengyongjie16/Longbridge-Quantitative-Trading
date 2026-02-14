@@ -419,7 +419,7 @@ graph TD
 ## 日志
 
 - **控制台**：实时运行状态
-- **文件**：`logs/system/`、`logs/debug/`（需 `DEBUG=true`）
+- **文件**：`logs/system/`、`logs/debug/`（需配置 `DEBUG=true`）
 - **交易记录**：`logs/trades/YYYY-MM-DD.json`（JSON 交易明细）
 
 ---
@@ -429,6 +429,7 @@ graph TD
 - [Longbridge OpenAPI Docs](https://open.longbridge.com/zh-CN/docs)
 - [LongPort OpenAPI SDK for Node.js Docs](https://longportapp.github.io/openapi/nodejs/)
 - [Claude Code Docs](https://code.claude.com/docs)
+- [Vibe Coding Guide CN](https://github.com/2025Emma/vibe-coding-cn)
 
 ---
 
