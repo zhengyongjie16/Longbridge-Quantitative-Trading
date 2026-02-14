@@ -175,13 +175,14 @@ function toHongKongTime(date: Date | null = null, options: TimeFormatOptions = {
   const minutes = String(hkTime.getUTCMinutes()).padStart(2, '0');
   const seconds = String(hkTime.getUTCSeconds()).padStart(2, '0');
 
-  return format === 'log'
-    ? // 日志格式：YYYY-MM-DD HH:mm:ss.sss（包含毫秒）
-    `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${String(
-      hkTime.getUTCMilliseconds(),
-    ).padStart(3, '0')}`
-    : // ISO 格式：YYYY/MM/DD/HH:mm:ss（不包含毫秒）
-    `${year}/${month}/${day}/${hours}:${minutes}:${seconds}`;
+  if (format === 'log') {
+    // 日志格式：YYYY-MM-DD HH:mm:ss.sss（包含毫秒）
+    const milliseconds = String(hkTime.getUTCMilliseconds()).padStart(3, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${milliseconds}`;
+  }
+
+  // ISO 格式：YYYY/MM/DD/HH:mm:ss（不包含毫秒）
+  return `${year}/${month}/${day}/${hours}:${minutes}:${seconds}`;
 }
 
 /**

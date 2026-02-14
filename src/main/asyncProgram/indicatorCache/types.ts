@@ -22,7 +22,7 @@ export type IndicatorCacheEntry = {
  * 使用环形缓冲区实现固定容量的 FIFO 缓存，
  * 超出容量时自动覆盖最旧的数据。
  *
- * 注意：此类型不使用 readonly，因为需要在运行时修改
+ * @remarks capacity 使用 readonly 保证容量不变，其他字段需要在运行时修改
  */
 export type _RingBuffer = {
   /** 缓冲区数组 */
@@ -32,7 +32,7 @@ export type _RingBuffer = {
   /** 当前有效条目数 */
   size: number;
   /** 缓冲区最大容量 */
-  capacity: number;
+  readonly capacity: number;
 };
 
 /**

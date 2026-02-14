@@ -52,15 +52,20 @@ function validateRequiredSymbol({
   envKey,
   errors,
   missingFields,
-}: SymbolValidationContext): void {
+}: SymbolValidationContext): Readonly<{ errors: ReadonlyArray<string>; missingFields: ReadonlyArray<string> }> {
   if (!symbol || symbol.trim() === '') {
-    errors.push(`${prefix}: ${envKey} 未配置`);
-    missingFields.push(envKey);
-    return;
+    return {
+      errors: [...errors, `${prefix}: ${envKey} 未配置`],
+      missingFields: [...missingFields, envKey],
+    };
   }
   if (!isSymbolWithRegion(symbol)) {
-    errors.push(formatSymbolFormatError(prefix, envKey, symbol));
+    return {
+      errors: [...errors, formatSymbolFormatError(prefix, envKey, symbol)],
+      missingFields,
+    };
   }
+  return { errors, missingFields };
 }
 
 /**
@@ -148,81 +153,89 @@ function validateMonitorConfig(
   index: number,
   env: NodeJS.ProcessEnv,
 ): TradingValidationResult {
-  const errors: string[] = [];
-  const missingFields: string[] = [];
+  let errors: ReadonlyArray<string> = [];
+  let missingFields: ReadonlyArray<string> = [];
   const prefix = `监控标的 ${index}`;
 
   // 验证监控标的
-  validateRequiredSymbol({
+  const result1 = validateRequiredSymbol({
     prefix,
     symbol: config.monitorSymbol,
     envKey: `MONITOR_SYMBOL_${index}`,
     errors,
     missingFields,
   });
+  errors = result1.errors;
+  missingFields = result1.missingFields;
 
   const autoSearchEnabled = config.autoSearchConfig.autoSearchEnabled;
 
   // 验证订单归属映射
   if (!config.orderOwnershipMapping || config.orderOwnershipMapping.length === 0) {
     const mappingKey = `ORDER_OWNERSHIP_MAPPING_${index}`;
-    errors.push(`${prefix}: ${mappingKey} 未配置或为空（用于 stockName 归属解析）`);
-    missingFields.push(mappingKey);
+    errors = [...errors, `${prefix}: ${mappingKey} 未配置或为空（用于 stockName 归属解析）`];
+    missingFields = [...missingFields, mappingKey];
   }
 
   // 自动寻标关闭时，做多/做空标的必须配置
   if (!autoSearchEnabled) {
     // 验证做多标的
-    validateRequiredSymbol({
+    const result2 = validateRequiredSymbol({
       prefix,
       symbol: config.longSymbol,
       envKey: `LONG_SYMBOL_${index}`,
       errors,
       missingFields,
     });
+    errors = result2.errors;
+    missingFields = result2.missingFields;
 
     // 验证做空标的
-    validateRequiredSymbol({
+    const result3 = validateRequiredSymbol({
       prefix,
       symbol: config.shortSymbol,
       envKey: `SHORT_SYMBOL_${index}`,
       errors,
       missingFields,
     });
+    errors = result3.errors;
+    missingFields = result3.missingFields;
   }
 
   // 验证目标买入金额
   if (!Number.isFinite(config.targetNotional) || config.targetNotional <= 0) {
-    errors.push(`${prefix}: TARGET_NOTIONAL_${index} 未配置或无效（必须为正数）`);
-    missingFields.push(`TARGET_NOTIONAL_${index}`);
+    errors = [...errors, `${prefix}: TARGET_NOTIONAL_${index} 未配置或无效（必须为正数）`];
+    missingFields = [...missingFields, `TARGET_NOTIONAL_${index}`];
   }
 
   // 验证风险管理配置
   if (!Number.isFinite(config.maxPositionNotional) || config.maxPositionNotional <= 0) {
-    errors.push(`${prefix}: MAX_POSITION_NOTIONAL_${index} 未配置或无效（必须为正数）`);
-    missingFields.push(`MAX_POSITION_NOTIONAL_${index}`);
+    errors = [...errors, `${prefix}: MAX_POSITION_NOTIONAL_${index} 未配置或无效（必须为正数）`];
+    missingFields = [...missingFields, `MAX_POSITION_NOTIONAL_${index}`];
   }
 
   if (!Number.isFinite(config.maxDailyLoss) || config.maxDailyLoss < 0) {
-    errors.push(`${prefix}: MAX_DAILY_LOSS_${index} 未配置或无效（必须为非负数）`);
-    missingFields.push(`MAX_DAILY_LOSS_${index}`);
+    errors = [...errors, `${prefix}: MAX_DAILY_LOSS_${index} 未配置或无效（必须为非负数）`];
+    missingFields = [...missingFields, `MAX_DAILY_LOSS_${index}`];
   }
 
   const liquidationCooldownEnvKey = `LIQUIDATION_COOLDOWN_MINUTES_${index}`;
   const configuredCooldown = getStringConfig(env, liquidationCooldownEnvKey);
   if (configuredCooldown && !config.liquidationCooldown) {
-    errors.push(
+    errors = [
+      ...errors,
       `${prefix}: ${liquidationCooldownEnvKey} 无效（范围 1-120 或 half-day / one-day）`,
-    );
+    ];
   } else if (config.liquidationCooldown?.mode === 'minutes') {
     if (
       !Number.isFinite(config.liquidationCooldown.minutes) ||
       config.liquidationCooldown.minutes < 1 ||
       config.liquidationCooldown.minutes > 120
     ) {
-      errors.push(
+      errors = [
+        ...errors,
         `${prefix}: ${liquidationCooldownEnvKey} 无效（范围 1-120 或 half-day / one-day）`,
-      );
+      ];
     }
   }
 
@@ -245,8 +258,8 @@ function validateMonitorConfig(
     const signalConfig = config.signalConfig[key];
 
     if (!signalConfig?.conditionGroups || signalConfig.conditionGroups.length === 0) {
-      errors.push(`${prefix}: ${envName} 未配置或解析失败（信号配置为必需项）`);
-      missingFields.push(envName);
+      errors = [...errors, `${prefix}: ${envName} 未配置或解析失败（信号配置为必需项）`];
+      missingFields = [...missingFields, envName];
     }
   }
 
@@ -273,31 +286,31 @@ function validateMonitorConfig(
 
     for (const field of requiredNumberFields) {
       if (field.value === null || !Number.isFinite(field.value)) {
-        errors.push(`${prefix}: ${field.envKey} 未配置或无效`);
-        missingFields.push(field.envKey);
+        errors = [...errors, `${prefix}: ${field.envKey} 未配置或无效`];
+        missingFields = [...missingFields, field.envKey];
       }
     }
 
     if (!Number.isFinite(autoSearchConfig.autoSearchExpiryMinMonths) || autoSearchConfig.autoSearchExpiryMinMonths < 1) {
-      errors.push(`${prefix}: AUTO_SEARCH_EXPIRY_MIN_MONTHS_${index} 无效（必须 >= 1）`);
-      missingFields.push(`AUTO_SEARCH_EXPIRY_MIN_MONTHS_${index}`);
+      errors = [...errors, `${prefix}: AUTO_SEARCH_EXPIRY_MIN_MONTHS_${index} 无效（必须 >= 1）`];
+      missingFields = [...missingFields, `AUTO_SEARCH_EXPIRY_MIN_MONTHS_${index}`];
     }
 
     if (!Number.isFinite(autoSearchConfig.autoSearchOpenDelayMinutes) || autoSearchConfig.autoSearchOpenDelayMinutes < 0) {
-      errors.push(`${prefix}: AUTO_SEARCH_OPEN_DELAY_MINUTES_${index} 无效（必须 >= 0）`);
-      missingFields.push(`AUTO_SEARCH_OPEN_DELAY_MINUTES_${index}`);
+      errors = [...errors, `${prefix}: AUTO_SEARCH_OPEN_DELAY_MINUTES_${index} 无效（必须 >= 0）`];
+      missingFields = [...missingFields, `AUTO_SEARCH_OPEN_DELAY_MINUTES_${index}`];
     }
 
     const bullRange = autoSearchConfig.switchDistanceRangeBull;
     if (!bullRange || !Number.isFinite(bullRange.min) || !Number.isFinite(bullRange.max) || bullRange.min > bullRange.max) {
-      errors.push(`${prefix}: SWITCH_DISTANCE_RANGE_BULL_${index} 未配置或无效（格式 min,max 且 min<=max）`);
-      missingFields.push(`SWITCH_DISTANCE_RANGE_BULL_${index}`);
+      errors = [...errors, `${prefix}: SWITCH_DISTANCE_RANGE_BULL_${index} 未配置或无效（格式 min,max 且 min<=max）`];
+      missingFields = [...missingFields, `SWITCH_DISTANCE_RANGE_BULL_${index}`];
     }
 
     const bearRange = autoSearchConfig.switchDistanceRangeBear;
     if (!bearRange || !Number.isFinite(bearRange.min) || !Number.isFinite(bearRange.max) || bearRange.min > bearRange.max) {
-      errors.push(`${prefix}: SWITCH_DISTANCE_RANGE_BEAR_${index} 未配置或无效（格式 min,max 且 min<=max）`);
-      missingFields.push(`SWITCH_DISTANCE_RANGE_BEAR_${index}`);
+      errors = [...errors, `${prefix}: SWITCH_DISTANCE_RANGE_BEAR_${index} 未配置或无效（格式 min,max 且 min<=max）`];
+      missingFields = [...missingFields, `SWITCH_DISTANCE_RANGE_BEAR_${index}`];
     }
   }
 
@@ -313,14 +326,14 @@ function validateTradingConfig(
   tradingConfig: MultiMonitorTradingConfig,
   env: NodeJS.ProcessEnv,
 ): TradingValidationResult {
-  const errors: string[] = [];
-  const missingFields: string[] = [];
+  let errors: ReadonlyArray<string> = [];
+  let missingFields: ReadonlyArray<string> = [];
 
   // 验证是否存在监控标的配置
   const monitorCount = tradingConfig.monitors.length;
   if (monitorCount === 0) {
-    errors.push('未找到任何监控标的配置，请配置 MONITOR_SYMBOL_1 及相应的交易参数');
-    missingFields.push('MONITOR_SYMBOL_1');
+    errors = [...errors, '未找到任何监控标的配置，请配置 MONITOR_SYMBOL_1 及相应的交易参数'];
+    missingFields = [...missingFields, 'MONITOR_SYMBOL_1'];
     return {
       valid: false,
       errors,
@@ -335,8 +348,8 @@ function validateTradingConfig(
     }
     // 使用配置中保存的原始索引（对应环境变量的 _1, _2 等后缀）
     const result = validateMonitorConfig(config, config.originalIndex, env);
-    errors.push(...result.errors);
-    missingFields.push(...result.missingFields);
+    errors = [...errors, ...result.errors];
+    missingFields = [...missingFields, ...result.missingFields];
   }
 
   // 检测订单归属映射冲突（同一缩写不能归属多个监控标的）
@@ -365,9 +378,10 @@ function validateTradingConfig(
   }
   if (ownershipConflicts.length > 0) {
     for (const conflict of ownershipConflicts) {
-      errors.push(
+      errors = [
+        ...errors,
         `订单归属映射冲突：缩写 ${conflict.alias} 同时映射到 ${conflict.existing} 与 ${conflict.current}`,
-      );
+      ];
     }
   }
 
@@ -402,13 +416,15 @@ function validateTradingConfig(
   // 如果有重复标的，添加错误信息
   if (duplicateSymbols.length > 0) {
     for (const dup of duplicateSymbols) {
-      errors.push(
+      errors = [
+        ...errors,
         `交易标的重复：标的 ${dup.symbol} 被监控标的 ${dup.previousIndex} 和监控标的 ${dup.index} 重复使用。每个交易标的只能被一个监控标的使用。`,
-      );
+      ];
     }
-    errors.push(
+    errors = [
+      ...errors,
       '请检查配置，确保每个 LONG_SYMBOL 和 SHORT_SYMBOL 在所有监控标的中是唯一的。',
-    );
+    ];
   }
 
   // 验证开盘保护配置（分别校验早盘和午盘）
@@ -416,19 +432,19 @@ function validateTradingConfig(
 
   if (morning.enabled) {
     if (morning.minutes == null) {
-      errors.push('MORNING_OPENING_PROTECTION_MINUTES 未配置（启用早盘保护时为必填，范围 1-60）');
-      missingFields.push('MORNING_OPENING_PROTECTION_MINUTES');
+      errors = [...errors, 'MORNING_OPENING_PROTECTION_MINUTES 未配置（启用早盘保护时为必填，范围 1-60）'];
+      missingFields = [...missingFields, 'MORNING_OPENING_PROTECTION_MINUTES'];
     } else if (morning.minutes < 1 || morning.minutes > 60) {
-      errors.push('MORNING_OPENING_PROTECTION_MINUTES 无效（范围 1-60）');
+      errors = [...errors, 'MORNING_OPENING_PROTECTION_MINUTES 无效（范围 1-60）'];
     }
   }
 
   if (afternoon.enabled) {
     if (afternoon.minutes == null) {
-      errors.push('AFTERNOON_OPENING_PROTECTION_MINUTES 未配置（启用午盘保护时为必填，范围 1-60）');
-      missingFields.push('AFTERNOON_OPENING_PROTECTION_MINUTES');
+      errors = [...errors, 'AFTERNOON_OPENING_PROTECTION_MINUTES 未配置（启用午盘保护时为必填，范围 1-60）'];
+      missingFields = [...missingFields, 'AFTERNOON_OPENING_PROTECTION_MINUTES'];
     } else if (afternoon.minutes < 1 || afternoon.minutes > 60) {
-      errors.push('AFTERNOON_OPENING_PROTECTION_MINUTES 无效（范围 1-60）');
+      errors = [...errors, 'AFTERNOON_OPENING_PROTECTION_MINUTES 无效（范围 1-60）'];
     }
   }
 

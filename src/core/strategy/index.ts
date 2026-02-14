@@ -92,8 +92,7 @@ export const createHangSengMultiIndicatorStrategy = ({
     const nowTimestamp = Date.now();
     const triggerTimestamp = nowTimestamp + config.delaySeconds * TIME.MILLISECONDS_PER_SECOND;
 
-    // 如果目标时间已经过去，说明计算有误，返回null
-    // 注意：delaySeconds > 0 时不可能发生，但保留此检查作为防御性编程
+    // 防御性检查：如果目标时间已经过去（配置错误或负数延迟），返回null
     if (triggerTimestamp <= nowTimestamp) {
       return null;
     }
@@ -286,7 +285,7 @@ export const createHangSengMultiIndicatorStrategy = ({
 
       // 2. 卖出做多标的
       // 注意：卖出信号生成时不做智能平仓判断，卖出数量由 signalProcessor 统一计算
-      // 注意：买入订单记录就是持仓记录，只需检查订单记录即可（在 generateSignal 中检查）
+      // 注意：检查订单记录以确定是否有持仓（在 generateSignal 中检查）
       if (longSymbol) {
         const sellLongResult = generateSignal(
           state,

@@ -32,6 +32,9 @@ export type CandleData = {
 /**
  * 监控值
  * 用于市场监控的技术指标集合
+ *
+ * @remarks 此类型需要可变以支持对象池的对象重用。对象池使用 PoolableMonitorValues 类型。
+ * 嵌套的 Record 对象使用 Readonly 保证其内部不被修改。
  */
 export type MonitorValues = {
   /** 当前价格 */
@@ -39,11 +42,11 @@ export type MonitorValues = {
   /** 涨跌幅 */
   changePercent: number | null;
   /** EMA 指数移动平均 */
-  ema: Record<number, number> | null;
+  ema: Readonly<Record<number, number>> | null;
   /** RSI 相对强弱指标 */
-  rsi: Record<number, number> | null;
+  rsi: Readonly<Record<number, number>> | null;
   /** PSY 心理线指标 */
-  psy: Record<number, number> | null;
+  psy: Readonly<Record<number, number>> | null;
   /** MFI 资金流量指标 */
   mfi: number | null;
   /** KDJ 随机指标 */

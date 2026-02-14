@@ -42,8 +42,8 @@ export type SymbolValidationContext = {
   readonly prefix: string;
   readonly symbol: string;
   readonly envKey: string;
-  readonly errors: string[];
-  readonly missingFields: string[];
+  readonly errors: ReadonlyArray<string>;
+  readonly missingFields: ReadonlyArray<string>;
 };
 
 export type DuplicateSymbol = {

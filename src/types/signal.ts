@@ -59,9 +59,9 @@ export type Signal = {
   /** 信号对应的席位版本号（换标后用于丢弃旧信号） */
   seatVersion?: number | null;
   /** 延迟验证：T0 时刻的指标快照 */
-  indicators1?: Record<string, number> | null;
+  indicators1?: Readonly<Record<string, number>> | null;
   /** 延迟验证：历史验证记录 */
-  verificationHistory?: Array<{ timestamp: Date; indicators: Record<string, number> }> | null;
+  verificationHistory?: Array<{ timestamp: Date; indicators: Readonly<Record<string, number>> }> | null;
   /** 关联的买入订单ID列表（仅卖出订单使用，用于智能平仓防重） */
   relatedBuyOrderIds?: readonly string[] | null;
 };

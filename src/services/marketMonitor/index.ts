@@ -399,7 +399,7 @@ export function createMarketMonitor(): MarketMonitor {
         releaseMonitorValuesObjects(monitorState.monitorValues);
 
         // 从对象池获取新的监控值对象
-        const newMonitorValues = monitorValuesObjectPool.acquire() as MonitorValues;
+        const newMonitorValues = monitorValuesObjectPool.acquire();
         newMonitorValues.price = currentPrice;
         newMonitorValues.changePercent = changePercent;
 
@@ -418,8 +418,7 @@ export function createMarketMonitor(): MarketMonitor {
           kdjRecord.k = kdjData.k;
           kdjRecord.d = kdjData.d;
           kdjRecord.j = kdjData.j;
-          // 类型断言：kdjData 已验证非空，kdj 字段值已赋值
-          newMonitorValues.kdj = kdjRecord as MonitorValues['kdj'];
+          newMonitorValues.kdj = kdjRecord;
         } else {
           newMonitorValues.kdj = null;
         }
@@ -430,13 +429,12 @@ export function createMarketMonitor(): MarketMonitor {
           macdRecord.dif = macdData.dif;
           macdRecord.dea = macdData.dea;
           macdRecord.macd = macdData.macd;
-          // 类型断言：macdData 已验证非空，macd 字段值已赋值
-          newMonitorValues.macd = macdRecord as MonitorValues['macd'];
+          newMonitorValues.macd = macdRecord;
         } else {
           newMonitorValues.macd = null;
         }
 
-        monitorState.monitorValues = newMonitorValues;
+        monitorState.monitorValues = newMonitorValues as MonitorValues;
 
         return true; // 指标发生变化
       }

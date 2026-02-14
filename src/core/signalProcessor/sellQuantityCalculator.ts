@@ -105,6 +105,7 @@ export const processSellSignals = (
     const position = isLongSignal ? longPosition : shortPosition;
     const quote = isLongSignal ? longQuote : shortQuote;
     const direction: 'LONG' | 'SHORT' = isLongSignal ? 'LONG' : 'SHORT';
+    const directionName = isLongSignal ? '做多' : '做空';
     const signalName = isLongSignal ? 'SELLCALL' : 'SELLPUT';
 
     // 检查是否是末日保护程序的清仓信号（无条件清仓，不受智能平仓影响）
@@ -114,12 +115,12 @@ export const processSellSignals = (
     // 持仓或行情缺失时记录日志
     if (!position) {
       logger.warn(
-        `[卖出信号处理] ${signalName}: ${direction === 'LONG' ? '做多' : '做空'}标的持仓对象为null，无法计算卖出数量`,
+        `[卖出信号处理] ${signalName}: ${directionName}标的持仓对象为null，无法计算卖出数量`,
       );
     }
     if (!quote) {
       logger.warn(
-        `[卖出信号处理] ${signalName}: ${direction === 'LONG' ? '做多' : '做空'}标的行情数据为null，无法计算卖出数量`,
+        `[卖出信号处理] ${signalName}: ${directionName}标的行情数据为null，无法计算卖出数量`,
       );
     }
     if (position && quote && Number.isFinite(position.availableQuantity) && Number.isFinite(quote.price)) {

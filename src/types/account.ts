@@ -10,7 +10,7 @@ import type { Market } from 'longport';
  * 持仓信息
  * 表示某个标的的持仓状态
  *
- * @remarks 此类型不使用 readonly，因为需要在运行时修改
+ * @remarks 此类型需要可变以支持对象池的对象重用。对象池使用 PoolablePosition 类型。
  */
 export type Position = {
   /** 账户渠道 */

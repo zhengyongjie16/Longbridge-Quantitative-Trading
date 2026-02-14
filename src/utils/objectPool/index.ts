@@ -261,17 +261,25 @@ export const monitorValuesObjectPool = createObjectPool<PoolableMonitorValues>(
 export const positionObjectPool = createObjectPool<PoolablePosition>(
   // 工厂函数：创建空对象
   () => ({
+    accountChannel: null,
     symbol: null,
-    costPrice: 0,
+    symbolName: null,
     quantity: 0,
     availableQuantity: 0,
+    currency: null,
+    costPrice: 0,
+    market: null,
   }),
   // 重置函数：清空所有属性
   (obj) => {
+    obj.accountChannel = null;
     obj.symbol = null;
-    obj.costPrice = 0;
+    obj.symbolName = null;
     obj.quantity = 0;
     obj.availableQuantity = 0;
+    obj.currency = null;
+    obj.costPrice = 0;
+    obj.market = null;
     return obj;
   },
   10, // 通常不会有超过10个持仓

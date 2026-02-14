@@ -102,20 +102,20 @@ export function createThresholdResolver(
     getTradingMinutesSinceOpen,
   } = deps;
 
-  const resolveAutoSearchThresholdInputWithDeps: ResolveAutoSearchThresholdInput = (
-    params,
-  ): ReturnType<ResolveAutoSearchThresholdInput> => {
+  function resolveAutoSearchThresholdInputWithDeps(
+    params: Parameters<ResolveAutoSearchThresholdInput>[0],
+  ): ReturnType<ResolveAutoSearchThresholdInput> {
     return resolveAutoSearchThresholdInput({
       ...params,
       autoSearchConfig,
       monitorSymbol,
       logger,
     });
-  };
+  }
 
-  const buildFindBestWarrantInputWithDeps: BuildFindBestWarrantInput = async (
-    params,
-  ): Promise<FindBestWarrantInput> => {
+  async function buildFindBestWarrantInputWithDeps(
+    params: Parameters<BuildFindBestWarrantInput>[0],
+  ): Promise<FindBestWarrantInput> {
     return buildFindBestWarrantInput({
       ...params,
       autoSearchConfig,
@@ -125,7 +125,7 @@ export function createThresholdResolver(
       logger,
       ...(warrantListCacheConfig ? { warrantListCacheConfig } : {}),
     });
-  };
+  }
 
   return {
     resolveAutoSearchThresholdInput: resolveAutoSearchThresholdInputWithDeps,

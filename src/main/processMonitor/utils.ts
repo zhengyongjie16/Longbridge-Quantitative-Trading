@@ -112,7 +112,7 @@ export function getPositions(
 
 function createPositionFromCache(symbol: string, source: Position): Position {
   // 对象池返回 PoolablePosition，这里通过字段覆盖构造出完整的 Position
-  const position = positionObjectPool.acquire() as Position;
+  const position = positionObjectPool.acquire();
   position.symbol = symbol;
   position.costPrice = Number(source.costPrice) || 0;
   position.quantity = Number(source.quantity) || 0;
@@ -121,5 +121,5 @@ function createPositionFromCache(symbol: string, source: Position): Position {
   position.symbolName = source.symbolName;
   position.currency = source.currency;
   position.market = source.market;
-  return position;
+  return position as Position;
 }

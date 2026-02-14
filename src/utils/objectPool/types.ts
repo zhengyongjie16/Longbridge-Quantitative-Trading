@@ -11,6 +11,7 @@
  * - 对象池类型使用可变属性和 | null 标记，这是性能优化的必要例外
  * - 使用对象池对象后必须及时释放，嵌套对象也需递归释放
  */
+import type { Market } from 'longport';
 import type { OrderTypeConfig, SignalType } from '../../types/signal.js';
 
 /**
@@ -75,12 +76,17 @@ export type PoolableMonitorValues = {
 
 /**
  * 对象池 - Position
+ * 注意：对象池类型是可变的，用于对象重用
  */
 export type PoolablePosition = {
+  accountChannel: string | null;
   symbol: string | null;
-  costPrice: number;
+  symbolName: string | null;
   quantity: number;
   availableQuantity: number;
+  currency: string | null;
+  costPrice: number;
+  market: Market | string | null;
 };
 
 /**

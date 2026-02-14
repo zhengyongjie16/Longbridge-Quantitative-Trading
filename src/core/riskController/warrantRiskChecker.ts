@@ -209,11 +209,10 @@ function checkDistanceThreshold(
   }
 
   // 风险检查通过
+  const warrantTypeName = warrantType === 'BULL' ? '牛证' : '熊证';
   return {
     allowed: true,
-    reason: `${
-      warrantType === 'BULL' ? '牛证' : '熊证'
-    }距离回收价百分比为 ${distancePercent.toFixed(DEFAULT_PERCENT_DECIMALS)}%，在安全范围内`,
+    reason: `${warrantTypeName}距离回收价百分比为 ${distancePercent.toFixed(DEFAULT_PERCENT_DECIMALS)}%，在安全范围内`,
     warrantInfo: {
       isWarrant: true,
       warrantType,
@@ -236,11 +235,13 @@ function buildDistanceLiquidationResult(
   const shouldLiquidate = isBull
     ? distancePercent <= threshold
     : distancePercent >= threshold;
+
   const compareText = isBull ? '低于或等于' : '高于或等于';
   const prefix = isBull ? '牛证' : '熊证';
   const distanceText = distancePercent.toFixed(DEFAULT_PERCENT_DECIMALS);
   const callPriceText = callPrice.toFixed(DEFAULT_PRICE_DECIMALS);
   const monitorPriceText = monitorCurrentPrice.toFixed(DEFAULT_PRICE_DECIMALS);
+
   const reason = shouldLiquidate
     ? `${prefix}距离回收价百分比为 ${distanceText}%，${compareText}${threshold}%阈值，触发清仓（回收价=${callPriceText}，监控标的当前价=${monitorPriceText}）`
     : `${prefix}距离回收价百分比为 ${distanceText}%，未触发清仓阈值（回收价=${callPriceText}，监控标的当前价=${monitorPriceText}）`;

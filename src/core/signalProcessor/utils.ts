@@ -24,11 +24,9 @@ function isValidPositionAndQuote(
   return (
     position !== null &&
     Number.isFinite(position.availableQuantity) &&
-    position.availableQuantity !== null &&
     position.availableQuantity > 0 &&
     quote !== null &&
     Number.isFinite(quote.price) &&
-    quote.price !== null &&
     quote.price > 0
   );
 }
@@ -179,7 +177,8 @@ export function getSymbolName(
 ): string | null {
   if (longSymbol && signalSymbol === longSymbol) {
     return longSymbolName;
-  } else if (shortSymbol && signalSymbol === shortSymbol) {
+  }
+  if (shortSymbol && signalSymbol === shortSymbol) {
     return shortSymbolName;
   }
   return signalSymbol;
