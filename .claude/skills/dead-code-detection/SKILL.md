@@ -5,7 +5,7 @@ description: 系统性搜索和删除 TypeScript 项目中的无用代码。适�
 
 # Dead Code Detection & Removal
 
-TypeScript 工厂函数 + 依赖注入架构下的系统性死代码检测与删除流程。
+TypeScript 工厂函数 + 依赖注入架构下的系统性死代码检测与删除流程，重要前提及核心原则：删除的所有代码必须确保不能影响原有逻辑，不能改变原有逻辑
 
 ## 无用代码定义
 
