@@ -430,6 +430,7 @@ graph TD
 - [Longbridge OpenAPI Docs](https://open.longbridge.com/zh-CN/docs)
 - [LongPort OpenAPI SDK for Node.js Docs](https://longportapp.github.io/openapi/nodejs/)
 - [Claude Code Docs](https://code.claude.com/docs)
+- [Bun Apps Docs](https://bun.com/docs)
 - [Vibe Coding Guide CN](https://github.com/2025Emma/vibe-coding-cn)
 
 ---
