@@ -112,10 +112,6 @@ export function createLiquidationCooldownTracker(
     return remainingMs;
   }
 
-  function clear(): void {
-    cooldownMap.clear();
-  }
-
   function clearMidnightEligible({ keysToClear }: ClearMidnightEligibleParams): void {
     for (const key of keysToClear) {
       cooldownMap.delete(key);
@@ -125,7 +121,6 @@ export function createLiquidationCooldownTracker(
   return {
     recordCooldown,
     getRemainingMs,
-    clear,
     clearMidnightEligible,
   };
 }

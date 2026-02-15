@@ -387,42 +387,6 @@ export function createWarrantRiskChecker(
     }
   }
 
-  /** 初始化做多/做空标的的牛熊证信息 */
-  async function initialize(
-    marketDataClient: MarketDataClient,
-    longSymbol: string,
-    shortSymbol: string,
-    longSymbolName: string | null = null,
-    shortSymbolName: string | null = null,
-  ): Promise<void> {
-    if (!marketDataClient) {
-      logger.warn('[风险检查] 未提供 marketDataClient，跳过牛熊证信息初始化');
-      return;
-    }
-
-    // 初始化做多标的
-    if (longSymbol) {
-      await initializeSymbolWarrantInfo(
-        marketDataClient,
-        longSymbol,
-        'CALL',
-        true,
-        longSymbolName,
-      );
-    }
-
-    // 初始化做空标的
-    if (shortSymbol) {
-      await initializeSymbolWarrantInfo(
-        marketDataClient,
-        shortSymbol,
-        'PUT',
-        false,
-        shortSymbolName,
-      );
-    }
-  }
-
   /** 检查牛熊证距离回收价的风险 */
   function checkRisk(
     symbol: string,
@@ -629,7 +593,6 @@ export function createWarrantRiskChecker(
   }
 
   return {
-    initialize,
     setWarrantInfoFromCallPrice,
     refreshWarrantInfoForSymbol,
     checkRisk,

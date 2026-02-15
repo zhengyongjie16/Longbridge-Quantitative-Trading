@@ -20,26 +20,6 @@ import type { OrderStorage, OrderStorageDeps, PendingSellInfo, ProfitableOrderRe
 import { calculateTotalQuantity, calculateOrderStatistics } from './utils.js';
 import { deductSellQuantityFromBuyOrders } from './sellDeductionPolicy.js';
 
-/** 获取指定方向 Map 中所有买入订单 */
-function collectAllOrders(map: Map<string, OrderRecord[]>): OrderRecord[] {
-  let totalLength = 0;
-  for (const orders of map.values()) {
-    totalLength += orders.length;
-  }
-  if (totalLength === 0) {
-    return [];
-  }
-  const allOrders = new Array<OrderRecord>(totalLength);
-  let offset = 0;
-  for (const orders of map.values()) {
-    for (const order of orders) {
-      allOrders[offset] = order;
-      offset += 1;
-    }
-  }
-  return allOrders;
-}
-
 /** 创建订单存储管理器 */
 export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage => {
   // 使用 Map 存储订单，key 为 symbol，提供 O(1) 查找性能
@@ -285,12 +265,6 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     const stats = calculateOrderStatistics(orders);
     return stats.totalQuantity > 0 ? stats.averagePrice : null;
   };
-
-  /** 获取所有做多标的的买入订单（用于 RiskChecker） */
-  const getLongBuyOrders = (): OrderRecord[] => collectAllOrders(longBuyOrdersMap);
-
-  /** 获取所有做空标的的买入订单（用于 RiskChecker） */
-  const getShortBuyOrders = (): OrderRecord[] => collectAllOrders(shortBuyOrdersMap);
 
   // ========== 待成交卖出订单追踪实现 ==========
 
@@ -539,19 +513,6 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     };
   }
 
-  /** 获取可卖出的盈利订单（委托 getSellableOrders） */
-  function getProfitableSellOrders(
-    symbol: string,
-    direction: 'LONG' | 'SHORT',
-    currentPrice: number,
-    maxSellQuantity?: number,
-    sellAll?: boolean,
-  ): ProfitableOrderResult {
-    return getSellableOrders(symbol, direction, currentPrice, maxSellQuantity,
-      sellAll !== undefined ? { includeAll: sellAll } : undefined,
-    );
-  }
-
   return {
     getBuyOrdersList,
     setBuyOrdersListForLong,
@@ -561,21 +522,15 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     clearBuyOrders,
     getLatestBuyOrderPrice,
     getLatestSellRecord,
-    getBuyOrdersBelowPrice,
-    calculateTotalQuantity,
-    getLongBuyOrders,
-    getShortBuyOrders,
 
     // 待成交卖出订单追踪
     addPendingSell,
     markSellFilled,
     markSellPartialFilled,
     markSellCancelled,
-    getPendingSellOrders,
     allocateRelatedBuyOrderIdsForRecovery,
     getCostAveragePrice,
     getSellableOrders,
-    getProfitableSellOrders,
     clearAll,
   };
 };

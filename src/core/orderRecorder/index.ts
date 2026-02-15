@@ -470,17 +470,6 @@ export function createOrderRecorder(
     return storage.getSellableOrders(symbol, direction, currentPrice, maxSellQuantity, options);
   }
 
-  /** 获取可卖出的盈利订单（委托 getSellableOrders） */
-  function getProfitableSellOrders(
-    symbol: string,
-    direction: 'LONG' | 'SHORT',
-    currentPrice: number,
-    maxSellQuantity?: number,
-    sellAll?: boolean,
-  ): ProfitableOrderResult {
-    return storage.getProfitableSellOrders(symbol, direction, currentPrice, maxSellQuantity, sellAll);
-  }
-
   /** 重置所有订单记录（storage.clearAll + apiManager.clearCache） */
   function resetAll(): void {
     storage.clearAll();
@@ -507,7 +496,6 @@ export function createOrderRecorder(
     allocateRelatedBuyOrderIdsForRecovery,
     getCostAveragePrice,
     getSellableOrders,
-    getProfitableSellOrders,
 
     resetAll,
   };

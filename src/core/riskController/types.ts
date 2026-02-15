@@ -95,13 +95,6 @@ export type WarrantInfo =
 
 /** 牛熊证风险检查器接口 */
 export interface WarrantRiskChecker {
-  initialize(
-    marketDataClient: MarketDataClient,
-    longSymbol: string,
-    shortSymbol: string,
-    longSymbolName?: string | null,
-    shortSymbolName?: string | null,
-  ): Promise<void>;
   setWarrantInfoFromCallPrice(
     symbol: string,
     callPrice: number,
@@ -149,7 +142,6 @@ export interface UnrealizedLossChecker {
   getUnrealizedLossData(symbol: string): UnrealizedLossData | undefined;
   /** 清空浮亏数据，symbol 为空时清空全部 */
   clearUnrealizedLossData(symbol?: string | null): void;
-  isEnabled(): boolean;
   refresh(
     orderRecorder: OrderRecorder,
     symbol: string,
@@ -229,11 +221,6 @@ export type DailyLossFilledOrderInput = {
 export interface DailyLossTracker {
   /** 显式重置 dayKey 与 states */
   resetAll(now: Date): void;
-  initializeFromOrders(
-    allOrders: ReadonlyArray<RawOrderFromAPI>,
-    monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
-    now: Date,
-  ): void;
   recalculateFromAllOrders(
     allOrders: ReadonlyArray<RawOrderFromAPI>,
     monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,

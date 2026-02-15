@@ -220,21 +220,6 @@ export function createPostTradeRefresher(
     scheduleRun();
   }
 
-  function stop(): void {
-    running = false;
-    pendingSymbols = [];
-    latestQuotesMap = null;
-    pendingVersion = null;
-    if (immediateHandle) {
-      clearImmediate(immediateHandle);
-      immediateHandle = null;
-    }
-    if (retryHandle) {
-      clearTimeout(retryHandle);
-      retryHandle = null;
-    }
-  }
-
   async function stopAndDrain(): Promise<void> {
     running = false;
     pendingSymbols = [];
@@ -267,7 +252,6 @@ export function createPostTradeRefresher(
   return {
     start,
     enqueue,
-    stop,
     stopAndDrain,
     clearPending,
   };

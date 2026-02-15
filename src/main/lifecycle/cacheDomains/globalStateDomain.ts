@@ -50,7 +50,6 @@ function runGlobalMidnightClear(lastState: LastState): void {
 export function createGlobalStateDomain(deps: GlobalStateDomainDeps): CacheDomain {
   const { lastState, runOpenRebuild } = deps;
   return {
-    name: 'globalState',
     midnightClear(): void {
       runGlobalMidnightClear(lastState);
       logger.info('[Lifecycle][globalState] 午夜状态清理完成');

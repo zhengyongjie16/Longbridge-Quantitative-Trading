@@ -48,8 +48,6 @@ export interface TaskQueue<TType extends string> {
   clearAll(onRemove?: (task: Task<TType>) => void): number;
   /** 注册任务添加回调，返回注销函数 */
   onTaskAdded(callback: TaskAddedCallback): () => void;
-  /** 注销任务添加回调（传入与 onTaskAdded 相同的引用） */
-  offTaskAdded(callback: TaskAddedCallback): void;
 }
 
 // ============================================================================

@@ -39,7 +39,6 @@ export type LifecycleContext = Readonly<{
 }>;
 
 export interface CacheDomain {
-  readonly name: string;
   readonly midnightClear: (ctx: LifecycleContext) => Promise<void> | void;
   readonly openRebuild: (ctx: LifecycleContext) => Promise<void> | void;
 }

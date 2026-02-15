@@ -34,5 +34,4 @@ export interface MonitorTaskQueue<TType extends string, TData> {
   ) => number;
   readonly clearAll: (onRemove?: (task: MonitorTask<TType, TData>) => void) => number;
   readonly onTaskAdded: (callback: TaskAddedCallback) => () => void;
-  readonly offTaskAdded: (callback: TaskAddedCallback) => void;
 }

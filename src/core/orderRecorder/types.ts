@@ -8,7 +8,7 @@
  */
 import type { TradeContext } from 'longport';
 import type { Quote } from '../../types/quote.js';
-import type { PendingOrder, OrderRecord, RateLimiter, RawOrderFromAPI } from '../../types/services.js';
+import type { OrderRecord, RateLimiter, RawOrderFromAPI } from '../../types/services.js';
 
 /**
  * 订单缓存类型
@@ -111,14 +111,6 @@ export interface OrderStorage {
   clearBuyOrders(symbol: string, isLongSymbol: boolean, quote?: Quote | null): void;
   getLatestBuyOrderPrice(symbol: string, isLongSymbol: boolean): number | null;
   getLatestSellRecord(symbol: string, isLongSymbol: boolean): OrderRecord | null;
-  getBuyOrdersBelowPrice(
-    currentPrice: number,
-    direction: 'LONG' | 'SHORT',
-    symbol: string,
-  ): ReadonlyArray<OrderRecord>;
-  calculateTotalQuantity(orders: ReadonlyArray<OrderRecord>): number;
-  getLongBuyOrders(): ReadonlyArray<OrderRecord>;
-  getShortBuyOrders(): ReadonlyArray<OrderRecord>;
 
   // 待成交卖出订单追踪
 
@@ -133,9 +125,6 @@ export interface OrderStorage {
 
   /** 标记卖出订单取消 */
   markSellCancelled(orderId: string): PendingSellInfo | null;
-
-  /** 获取待成交卖出订单列表 */
-  getPendingSellOrders(symbol: string, direction: 'LONG' | 'SHORT'): ReadonlyArray<PendingSellInfo>;
 
   /**
    * 恢复期：为待恢复的卖单分配关联买单 ID
@@ -160,15 +149,6 @@ export interface OrderStorage {
     currentPrice: number,
     maxSellQuantity?: number,
     options?: { readonly includeAll?: boolean },
-  ): ProfitableOrderResult;
-
-  /** 获取可卖出的盈利订单（委托 getSellableOrders） */
-  getProfitableSellOrders(
-    symbol: string,
-    direction: 'LONG' | 'SHORT',
-    currentPrice: number,
-    maxSellQuantity?: number,
-    sellAll?: boolean,
   ): ProfitableOrderResult;
 
   /** 清空买卖记录与 pendingSells */
@@ -198,8 +178,6 @@ export interface OrderAPIManager {
   clearCacheForSymbol(symbol: string): void;
   /** 清空 symbol cache 与 allOrdersCache */
   clearCache(): void;
-  hasCacheForSymbols(symbols: ReadonlyArray<string>): boolean;
-  getPendingOrdersFromCache(symbols: ReadonlyArray<string>): ReadonlyArray<PendingOrder>;
 }
 
 // ==================== 依赖类型定义 ====================

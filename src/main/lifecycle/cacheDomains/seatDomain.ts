@@ -69,7 +69,6 @@ function syncMonitorSeatSnapshots(
 export function createSeatDomain(deps: SeatDomainDeps): CacheDomain {
   const { tradingConfig, symbolRegistry, monitorContexts, warrantListCache } = deps;
   return {
-    name: 'seat',
     midnightClear(_ctx: LifecycleContext): void {
       for (const monitorContext of monitorContexts.values()) {
         monitorContext.autoSymbolManager.resetAllState();

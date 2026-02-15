@@ -269,7 +269,6 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
 
   return {
     resetAll,
-    initializeFromOrders,
     recalculateFromAllOrders,
     recordFilledOrder,
     getLossOffset,

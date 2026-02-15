@@ -16,7 +16,6 @@ import type { MarketDataDomainDeps } from './types.js';
 export function createMarketDataDomain(deps: MarketDataDomainDeps): CacheDomain {
   const { marketDataClient } = deps;
   return {
-    name: 'marketData',
     async midnightClear(_ctx: LifecycleContext): Promise<void> {
       await marketDataClient.resetRuntimeSubscriptionsAndCaches();
       logger.info('[Lifecycle][marketData] 午夜清理完成');

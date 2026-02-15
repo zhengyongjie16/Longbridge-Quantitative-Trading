@@ -99,7 +99,6 @@ export interface AutoSymbolManager {
   maybeSearchOnTick(params: SearchOnTickParams): Promise<void>;
   maybeSwitchOnDistance(params: SwitchOnDistanceParams): Promise<void>;
   hasPendingSwitch(direction: 'LONG' | 'SHORT'): boolean;
-  resetDailySwitchSuppression(): void;
   resetAllState(): void;
 }
 
@@ -224,7 +223,6 @@ export interface SeatStateManager {
   resolveSuppression(direction: 'LONG' | 'SHORT', seatSymbol: string): SwitchSuppression | null;
   markSuppression(direction: 'LONG' | 'SHORT', seatSymbol: string): void;
   clearSeat(params: { direction: 'LONG' | 'SHORT'; reason: string }): number;
-  resetDailySwitchSuppression(): void;
 }
 
 type FindBestWarrant = (input: FindBestWarrantInput) => Promise<WarrantCandidate | null>;

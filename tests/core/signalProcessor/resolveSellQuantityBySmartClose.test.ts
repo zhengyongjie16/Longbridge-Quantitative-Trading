@@ -59,7 +59,6 @@ function createMockOrderRecorder(overrides: {
     markSellPartialFilled: () => null,
     markSellCancelled: () => null,
     allocateRelatedBuyOrderIdsForRecovery: () => [],
-    getProfitableSellOrders: () => ({ orders: [], totalQuantity: 0 }),
     resetAll: () => {},
   };
 }

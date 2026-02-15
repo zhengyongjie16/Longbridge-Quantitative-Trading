@@ -86,13 +86,6 @@ function createTaskQueue<TType extends string>(): TaskQueue<TType> {
         }
       };
     },
-
-    offTaskAdded(callback: TaskAddedCallback): void {
-      const idx = callbacks.indexOf(callback);
-      if (idx >= 0) {
-        callbacks.splice(idx, 1);
-      }
-    },
   };
 }
 

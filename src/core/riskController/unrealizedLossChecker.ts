@@ -199,7 +199,6 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
   return {
     getUnrealizedLossData,
     clearUnrealizedLossData,
-    isEnabled,
     refresh,
     check,
   };

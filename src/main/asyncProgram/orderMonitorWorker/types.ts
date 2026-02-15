@@ -14,7 +14,6 @@ export type OrderMonitorWorkerDeps = Readonly<{
 export interface OrderMonitorWorker {
   readonly start: () => void;
   readonly schedule: (quotesMap: ReadonlyMap<string, Quote | null>) => void;
-  readonly stop: () => void;
   readonly stopAndDrain: () => Promise<void>;
   readonly clearLatestQuotes: () => void;
 }

@@ -64,7 +64,6 @@ function runMidnightRiskClear(
 
 export function createRiskDomain(deps: RiskDomainDeps): CacheDomain {
   return {
-    name: 'risk',
     midnightClear(ctx): void {
       runMidnightRiskClear(deps, ctx);
     },

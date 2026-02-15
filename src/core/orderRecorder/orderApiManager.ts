@@ -8,8 +8,7 @@
  */
 import type { Order } from 'longport';
 import { decimalToNumber } from '../../utils/helpers/index.js';
-import { PENDING_ORDER_STATUSES } from '../../constants/index.js';
-import type { OrderRecord, PendingOrder, RawOrderFromAPI } from '../../types/services.js';
+import type { OrderRecord, RawOrderFromAPI } from '../../types/services.js';
 import type {
   OrderCache,
   OrderAPIManager,
@@ -130,59 +129,10 @@ export function createOrderAPIManager(deps: OrderAPIManagerDeps): OrderAPIManage
     return [...allOrders];
   }
 
-  /** 检查指定标的列表是否都有缓存（包含原始订单数据） */
-  function hasCacheForSymbols(symbols: ReadonlyArray<string>): boolean {
-    if (symbols.length === 0) {
-      return false;
-    }
-
-    return symbols.every((symbol) => {
-      const cached = ordersCache.get(symbol);
-      return cached?.allOrders != null;
-    });
-  }
-
-  /** 从缓存中提取未成交订单，避免重复调用 todayOrders API */
-  function getPendingOrdersFromCache(symbols: ReadonlyArray<string>): PendingOrder[] {
-    // 使用模块级常量 PENDING_ORDER_STATUSES，避免每次调用创建新 Set
-    const result: PendingOrder[] = [];
-
-    for (const symbol of symbols) {
-      const cached = ordersCache.get(symbol);
-
-      if (!cached?.allOrders) {
-        continue;
-      }
-
-      const pendingOrders = cached.allOrders
-        .filter((order) =>
-          PENDING_ORDER_STATUSES.has(order.status) && order.symbol === symbol,
-        )
-        .map((order) => ({
-          orderId: order.orderId,
-          symbol: order.symbol,
-          side: order.side,
-          submittedPrice:
-            order.price === null ? 0 : decimalToNumber(order.price),
-          quantity: decimalToNumber(order.quantity),
-          executedQuantity: decimalToNumber(order.executedQuantity),
-          status: order.status,
-          orderType: order.orderType,
-          _rawOrder: order,
-        }));
-
-      result.push(...pendingOrders);
-    }
-
-    return result;
-  }
-
   return {
     fetchAllOrdersFromAPI,
     cacheOrdersForSymbol,
     clearCacheForSymbol,
     clearCache,
-    hasCacheForSymbols,
-    getPendingOrdersFromCache,
   };
 }

@@ -88,13 +88,6 @@ export function createMonitorTaskQueue<
     };
   }
 
-  function offTaskAdded(callback: TaskAddedCallback): void {
-    const idx = callbacks.indexOf(callback);
-    if (idx >= 0) {
-      callbacks.splice(idx, 1);
-    }
-  }
-
   return {
     scheduleLatest,
     pop,
@@ -102,6 +95,5 @@ export function createMonitorTaskQueue<
     removeTasks,
     clearAll,
     onTaskAdded,
-    offTaskAdded,
   };
 }

@@ -132,7 +132,6 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     maybeSearchOnTick: autoSearch.maybeSearchOnTick,
     maybeSwitchOnDistance: switchStateMachine.maybeSwitchOnDistance,
     hasPendingSwitch: switchStateMachine.hasPendingSwitch,
-    resetDailySwitchSuppression: seatStateManager.resetDailySwitchSuppression,
     resetAllState,
   };
 }

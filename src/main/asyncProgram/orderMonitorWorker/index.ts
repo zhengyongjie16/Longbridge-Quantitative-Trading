@@ -63,11 +63,6 @@ export function createOrderMonitorWorker(deps: OrderMonitorWorkerDeps): OrderMon
     }
   }
 
-  function stop(): void {
-    running = false;
-    latestQuotes = null;
-  }
-
   async function stopAndDrain(): Promise<void> {
     running = false;
     latestQuotes = null;
@@ -88,7 +83,6 @@ export function createOrderMonitorWorker(deps: OrderMonitorWorkerDeps): OrderMon
   return {
     start,
     schedule,
-    stop,
     stopAndDrain,
     clearLatestQuotes,
   };

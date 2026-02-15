@@ -265,14 +265,6 @@ export interface OrderRecorder {
     maxSellQuantity?: number,
     options?: { readonly includeAll?: boolean },
   ): { orders: ReadonlyArray<OrderRecord>; totalQuantity: number };
-  /** 获取可卖出的盈利订单（委托 getSellableOrders） */
-  getProfitableSellOrders(
-    symbol: string,
-    direction: 'LONG' | 'SHORT',
-    currentPrice: number,
-    maxSellQuantity?: number,
-    sellAll?: boolean,
-  ): { orders: ReadonlyArray<OrderRecord>; totalQuantity: number };
   /** 重置全部订单记录与 API 缓存 */
   resetAll(): void;
 }

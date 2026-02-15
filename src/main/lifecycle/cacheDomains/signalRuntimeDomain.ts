@@ -69,7 +69,6 @@ export function createSignalRuntimeDomain(deps: SignalRuntimeDomainDeps): CacheD
   } = deps;
 
   return {
-    name: 'signalRuntime',
     async midnightClear(_ctx: LifecycleContext): Promise<void> {
       await Promise.all([
         buyProcessor.stopAndDrain(),

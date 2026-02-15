@@ -120,16 +120,11 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
     return nextVersion;
   }
 
-  function resetDailySwitchSuppression(): void {
-    switchSuppressions.clear();
-  }
-
   return {
     buildSeatState,
     updateSeatState,
     resolveSuppression,
     markSuppression,
     clearSeat,
-    resetDailySwitchSuppression,
   };
 }
