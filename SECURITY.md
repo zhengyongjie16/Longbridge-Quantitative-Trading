@@ -4,12 +4,13 @@
 
 如果您发现程序中漏洞，请执行以下操作：
 
-1. 可直接在公共 Issue 中对问题进行披露
-2. 通过以下联系方式进行报告：
+- 可直接在公共 Issue 中对问题进行披露
+- 通过以下联系方式进行报告：
 
-- **GitHub**: [https://github.com/zhengyongjie16](https://github.com/zhengyongjie16)
-- **E-Mail**: zhenghuaiteng@gmail.com
-- **WeChat**: Salem_1796
+  - **GitHub**: [https://github.com/zhengyongjie16](https://github.com/zhengyongjie16)
+  - **Telegram**: [https://t.me/ulysses_zheng](https://t.me/ulysses_zheng)
+  - **E-Mail**: zhenghuaiteng@gmail.com
+  - **WeChat**: Salem_1796
 
 如果您发现关于LongPort OpenAPI SDK的漏洞，请执行以下操作：
 
