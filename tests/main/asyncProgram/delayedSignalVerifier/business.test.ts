@@ -76,6 +76,147 @@ describe('delayedSignalVerifier business flow', () => {
     expect(verifier.getPendingCount()).toBe(0);
   });
 
+  it('passes SELLCALL when T0/T+5/T+10 are all below initial value', async () => {
+    const baseTime = 150_000;
+    const indicatorCache = createIndicatorCache();
+    const verifier = createDelayedSignalVerifier({
+      indicatorCache,
+      verificationConfig: {
+        buy: {
+          delaySeconds: 10,
+          indicators: ['K'],
+        },
+        sell: {
+          delaySeconds: 10,
+          indicators: ['K'],
+        },
+      },
+    });
+
+    withMockedNowSync(baseTime, () => {
+      indicatorCache.push('HSI.HK', createSnapshotK(9));
+    });
+    withMockedNowSync(baseTime + 5_000, () => {
+      indicatorCache.push('HSI.HK', createSnapshotK(8));
+    });
+    withMockedNowSync(baseTime + 10_000, () => {
+      indicatorCache.push('HSI.HK', createSnapshotK(7));
+    });
+
+    let verified = 0;
+    verifier.onVerified(() => {
+      verified += 1;
+    });
+
+    const signal = createSignal({
+      symbol: 'BULL.HK',
+      action: 'SELLCALL',
+      triggerTimeMs: baseTime,
+      indicators1: { K: 10 },
+    });
+
+    withMockedNowSync(baseTime + 10_000, () => {
+      verifier.addSignal(signal, 'HSI.HK');
+    });
+
+    await Bun.sleep(20);
+    expect(verified).toBe(1);
+  });
+
+  it('passes BUYPUT when T0/T+5/T+10 are all below initial value', async () => {
+    const baseTime = 250_000;
+    const indicatorCache = createIndicatorCache();
+    const verifier = createDelayedSignalVerifier({
+      indicatorCache,
+      verificationConfig: {
+        buy: {
+          delaySeconds: 10,
+          indicators: ['K'],
+        },
+        sell: {
+          delaySeconds: 10,
+          indicators: ['K'],
+        },
+      },
+    });
+
+    withMockedNowSync(baseTime, () => {
+      indicatorCache.push('HSI.HK', createSnapshotK(19));
+    });
+    withMockedNowSync(baseTime + 5_000, () => {
+      indicatorCache.push('HSI.HK', createSnapshotK(18));
+    });
+    withMockedNowSync(baseTime + 10_000, () => {
+      indicatorCache.push('HSI.HK', createSnapshotK(17));
+    });
+
+    let verified = 0;
+    verifier.onVerified(() => {
+      verified += 1;
+    });
+
+    const signal = createSignal({
+      symbol: 'BEAR.HK',
+      action: 'BUYPUT',
+      triggerTimeMs: baseTime,
+      indicators1: { K: 20 },
+    });
+
+    withMockedNowSync(baseTime + 10_000, () => {
+      verifier.addSignal(signal, 'HSI.HK');
+    });
+
+    await Bun.sleep(20);
+    expect(verified).toBe(1);
+  });
+
+  it('passes SELLPUT when T0/T+5/T+10 are all above initial value', async () => {
+    const baseTime = 350_000;
+    const indicatorCache = createIndicatorCache();
+    const verifier = createDelayedSignalVerifier({
+      indicatorCache,
+      verificationConfig: {
+        buy: {
+          delaySeconds: 10,
+          indicators: ['K'],
+        },
+        sell: {
+          delaySeconds: 10,
+          indicators: ['K'],
+        },
+      },
+    });
+
+    withMockedNowSync(baseTime, () => {
+      indicatorCache.push('HSI.HK', createSnapshotK(41));
+    });
+    withMockedNowSync(baseTime + 5_000, () => {
+      indicatorCache.push('HSI.HK', createSnapshotK(42));
+    });
+    withMockedNowSync(baseTime + 10_000, () => {
+      indicatorCache.push('HSI.HK', createSnapshotK(43));
+    });
+
+    let verified = 0;
+    verifier.onVerified(() => {
+      verified += 1;
+    });
+
+    const signal = createSignal({
+      symbol: 'BEAR.HK',
+      action: 'SELLPUT',
+      triggerTimeMs: baseTime,
+      indicators1: { K: 40 },
+    });
+
+    withMockedNowSync(baseTime + 10_000, () => {
+      verifier.addSignal(signal, 'HSI.HK');
+    });
+
+    await Bun.sleep(20);
+    expect(verified).toBe(1);
+  });
+
   it('rejects signal when one required time point is missing', async () => {
     const baseTime = 200_000;
     const indicatorCache = createIndicatorCache();

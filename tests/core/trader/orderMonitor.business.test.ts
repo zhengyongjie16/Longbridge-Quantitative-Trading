@@ -154,6 +154,35 @@ describe('orderMonitor business flow', () => {
     expect(monitor.getPendingSellOrders('BULL.HK').length).toBeGreaterThan(0);
   });
 
+  it('cancels timed-out buy order without market conversion', async () => {
+    const { deps, tradeCtx } = createDeps({
+      buyTimeoutSeconds: 0,
+      sellTimeoutSeconds: 999,
+    });
+    const monitor = createOrderMonitor(deps);
+
+    await monitor.initialize();
+
+    monitor.trackOrder({
+      orderId: 'BUY-001',
+      symbol: 'BULL.HK',
+      side: OrderSide.Buy,
+      price: 1,
+      quantity: 100,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+
+    await monitor.processWithLatestQuotes(new Map([
+      ['BULL.HK', createQuoteDouble('BULL.HK', 1.02)],
+    ]));
+
+    expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
+    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
+  });
+
   it('blocks timeout->market conversion when execution gate is closed', async () => {
     let gateOpen = false;
     const { deps, tradeCtx } = createDeps({
