@@ -100,8 +100,8 @@ function calculateOrderFees(quantity: number, price: number): {
 }
 
 // 读取交易记录
-import { readFileSync } from 'fs';
-import { join } from 'path';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 const tradesFile = join(process.cwd(), 'logs', 'trades', '2026-01-21.json');
 const trades: Trade[] = JSON.parse(readFileSync(tradesFile, 'utf-8'));
@@ -122,8 +122,8 @@ console.log('订单ID | 标的 | 数量 | 价格 | 交易金额 | 平台费 | �
 console.log('-------|------|------|------|----------|--------|--------|--------|--------|----------|------------|--------');
 
 trades.forEach((trade) => {
-  const quantity = parseInt(trade.quantity);
-  const price = parseFloat(trade.price);
+  const quantity = Number.parseInt(trade.quantity);
+  const price = Number.parseFloat(trade.price);
   const tradeAmount = quantity * price;
   
   const fees = calculateOrderFees(quantity, price);

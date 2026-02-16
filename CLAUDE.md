@@ -49,4 +49,5 @@ src/
 
 ## 代码规范
 
+- 新增的模块必须添加模块注释，关键函数必须添加注释
 - 当你需要编写任何TypeScript代码，强制使用typescript-project-specifications skill
