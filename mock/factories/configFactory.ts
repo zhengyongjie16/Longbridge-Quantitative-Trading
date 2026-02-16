@@ -1,3 +1,7 @@
+/**
+ * @module mock/factories/configFactory.ts
+ * @description Mock 配置工厂模块，提供可覆盖默认值的监控配置与全局交易配置构建能力。
+ */
 import type { MonitorConfig, MultiMonitorTradingConfig } from '../../src/types/config.js';
 
 export function createMonitorConfig(overrides: Partial<MonitorConfig> = {}): MonitorConfig {

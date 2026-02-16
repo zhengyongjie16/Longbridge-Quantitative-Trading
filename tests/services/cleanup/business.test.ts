@@ -1,3 +1,7 @@
+/**
+ * @module tests/services/cleanup/business.test.ts
+ * @description 测试模块，围绕 business.test.ts 场景验证 tests/services/cleanup 相关业务行为与边界条件。
+ */
 import { describe, expect, it } from 'bun:test';
 
 import { createCleanup } from '../../../src/services/cleanup/index.js';

@@ -1,3 +1,7 @@
+/**
+ * @module tests/core/signalProcessor/riskCheckPipeline.business.test.ts
+ * @description 测试模块，围绕 riskCheckPipeline.business.test.ts 场景验证 tests/core/signalProcessor 相关业务行为与边界条件。
+ */
 import { beforeEach, describe, expect, it } from 'bun:test';
 import type { RiskCheckContext } from '../../../src/types/services.js';
 import { createRiskCheckPipeline } from '../../../src/core/signalProcessor/riskCheckPipeline.js';

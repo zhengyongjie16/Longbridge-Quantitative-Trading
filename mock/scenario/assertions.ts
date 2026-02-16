@@ -1,3 +1,7 @@
+/**
+ * @module mock/scenario/assertions.ts
+ * @description 场景断言工具模块，封装测试中常用的不变量与序列性质断言。
+ */
 import { expect } from 'bun:test';
 
 export function expectNoDuplicateIds(ids: ReadonlyArray<string>): void {

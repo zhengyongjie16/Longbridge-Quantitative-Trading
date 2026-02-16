@@ -1,3 +1,7 @@
+/**
+ * @module mock/longport/quoteContextMock.ts
+ * @description 行情上下文 Mock 模块，模拟 QuoteContext 的订阅、查询、失败注入与事件回放行为。
+ */
 import {
   type Candlestick,
   type Market,
@@ -129,6 +133,12 @@ function getTradingDaysKey(market: Market, begin: unknown, end: unknown): string
   return `${String(market)}:${String(begin)}:${String(end)}`;
 }
 
+/**
+ * 创建 QuoteContext 的测试替身。
+ *
+ * 通过内存存储、失败注入和事件总线回放，模拟真实行情上下文在查询、订阅和推送上的行为，
+ * 以支撑流程测试与异常恢复测试。
+ */
 export function createQuoteContextMock(options: QuoteContextMockOptions = {}): QuoteContextMock {
   const now = options.now ?? (() => Date.now());
   const bus = options.eventBus ?? createLongportEventBus(now);
@@ -172,6 +182,7 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
     args: ReadonlyArray<unknown>,
     action: () => Promise<T> | T,
   ): Promise<T> {
+    // 所有对外能力统一走这里，确保失败注入与调用日志语义一致。
     const callIndex = nextCallIndex(failureState, method);
     const injectedError = shouldFail(failureState, method, callIndex, args);
     if (injectedError) {

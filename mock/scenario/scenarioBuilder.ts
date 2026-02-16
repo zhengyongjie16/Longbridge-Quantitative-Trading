@@ -1,3 +1,7 @@
+/**
+ * @module mock/scenario/scenarioBuilder.ts
+ * @description 场景构建器模块，按 given/when/then 组织测试步骤并驱动调度执行。
+ */
 import type { ScenarioClock } from './clock.js';
 import type { ScenarioScheduler } from './scheduler.js';
 
@@ -13,6 +17,12 @@ export interface ScenarioBuilder {
   run(): void;
 }
 
+/**
+ * 创建 Given/When/Then 风格的场景构建器。
+ *
+ * 通过将 setup、调度动作与断言拆分存储，保证测试步骤书写清晰，
+ * 同时复用统一调度器推进事件时序。
+ */
 export function createScenarioBuilder(
   clock: ScenarioClock,
   scheduler: ScenarioScheduler,
@@ -41,6 +51,7 @@ export function createScenarioBuilder(
   }
 
   function run(): void {
+    // 按 Given -> When(runAll) -> Then 固定顺序执行，避免断言时序不确定。
     for (const setup of givenSteps) {
       setup();
     }

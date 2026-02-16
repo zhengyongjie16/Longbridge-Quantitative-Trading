@@ -1,3 +1,7 @@
+/**
+ * @module tests/main/asyncProgram/delayedSignalVerifier/business.test.ts
+ * @description 测试模块，围绕 business.test.ts 场景验证 tests/main/asyncProgram/delayedSignalVerifier 相关业务行为与边界条件。
+ */
 import { describe, expect, it } from 'bun:test';
 import { createIndicatorCache } from '../../../../src/main/asyncProgram/indicatorCache/index.js';
 import { createDelayedSignalVerifier } from '../../../../src/main/asyncProgram/delayedSignalVerifier/index.js';

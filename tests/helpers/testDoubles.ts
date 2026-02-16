@@ -1,3 +1,7 @@
+/**
+ * @module tests/helpers/testDoubles.ts
+ * @description 测试模块，围绕 testDoubles.ts 场景验证 tests/helpers 相关业务行为与边界条件。
+ */
 import type { Position, AccountSnapshot } from '../../src/types/account.js';
 import type { MonitorConfig, LiquidationCooldownConfig } from '../../src/types/config.js';
 import type { Quote } from '../../src/types/quote.js';

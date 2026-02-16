@@ -1,3 +1,7 @@
+/**
+ * @module mock/factories/quoteFactory.ts
+ * @description 行情数据 Mock 工厂模块，构造推送事件、K 线、轮证信息与交易日结果。
+ */
 import { Decimal } from 'longport';
 import type {
   Candlestick,

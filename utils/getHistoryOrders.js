@@ -26,7 +26,7 @@ dotenv.config({ path: path.join(__dirname, '..', '.env.local') });
  */
 function decimalToNumber(decimalLike) {
   if (decimalLike === null || decimalLike === undefined) {
-    return NaN;
+    return Number.NaN;
   }
   if (typeof decimalLike === 'object' && typeof decimalLike.toNumber === 'function') {
     return decimalLike.toNumber();
@@ -383,7 +383,7 @@ function printFilteredOrderList(orders, title) {
   let index = 0;
 
   // 按标的输出
-  for (const [symbol, symbolOrders] of ordersBySymbol) {
+  for (const [, symbolOrders] of ordersBySymbol) {
     for (const order of symbolOrders) {
       index++;
       const amount = order.executedPrice * order.executedQuantity;
@@ -636,7 +636,7 @@ async function main() {
 }
 
 main()
-  .then((result) => {
+  .then(() => {
     console.log('\n====== 完成 ======\n');
     process.exit(0);
   })

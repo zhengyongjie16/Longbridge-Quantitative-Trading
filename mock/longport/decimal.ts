@@ -1,3 +1,7 @@
+/**
+ * @module mock/longport/decimal.ts
+ * @description Decimal 辅助模块，统一处理 Mock 场景下的数值到 Decimal 转换与比较。
+ */
 import { Decimal } from 'longport';
 
 export type MockDecimalInput = string | number | Decimal;

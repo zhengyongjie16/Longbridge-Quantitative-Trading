@@ -1,3 +1,7 @@
+/**
+ * @module tests/mock-contract/quoteContext.contract.test.ts
+ * @description 测试模块，围绕 quoteContext.contract.test.ts 场景验证 tests/mock-contract 相关业务行为与边界条件。
+ */
 import { describe, expect, it } from 'bun:test';
 import { Market, Period, SortOrderType, SubType, TradeSessions, WarrantSortBy, WarrantType } from 'longport';
 import { createQuoteContextMock } from '../../mock/longport/quoteContextMock.js';

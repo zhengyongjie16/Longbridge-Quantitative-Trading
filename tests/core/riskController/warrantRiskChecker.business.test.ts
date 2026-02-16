@@ -1,3 +1,7 @@
+/**
+ * @module tests/core/riskController/warrantRiskChecker.business.test.ts
+ * @description 测试模块，围绕 warrantRiskChecker.business.test.ts 场景验证 tests/core/riskController 相关业务行为与边界条件。
+ */
 import { describe, expect, it } from 'bun:test';
 import {
   BEAR_WARRANT_LIQUIDATION_DISTANCE_PERCENT,

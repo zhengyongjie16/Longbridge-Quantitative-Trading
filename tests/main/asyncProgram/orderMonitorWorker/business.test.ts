@@ -1,3 +1,7 @@
+/**
+ * @module tests/main/asyncProgram/orderMonitorWorker/business.test.ts
+ * @description 测试模块，围绕 business.test.ts 场景验证 tests/main/asyncProgram/orderMonitorWorker 相关业务行为与边界条件。
+ */
 import { describe, expect, it } from 'bun:test';
 
 import { createOrderMonitorWorker } from '../../../../src/main/asyncProgram/orderMonitorWorker/index.js';

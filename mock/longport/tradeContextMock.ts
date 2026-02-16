@@ -1,3 +1,7 @@
+/**
+ * @module mock/longport/tradeContextMock.ts
+ * @description 交易上下文 Mock 模块，模拟 TradeContext 的下单链路、查询接口、失败注入与事件推送。
+ */
 import {
   Decimal,
   OrderStatus,
@@ -190,6 +194,12 @@ export interface TradeContextMock extends TradeContextContract {
   getSubscribedTopics(): ReadonlySet<TopicType>;
 }
 
+/**
+ * 创建 TradeContext 的测试替身。
+ *
+ * 用于在不依赖真实交易网关的情况下，模拟下单、改单、撤单、查询与推送链路，
+ * 并支持失败注入以验证重试与容错逻辑。
+ */
 export function createTradeContextMock(options: TradeContextMockOptions = {}): TradeContextMock {
   const now = options.now ?? (() => Date.now());
   const bus = options.eventBus ?? createLongportEventBus(now);
@@ -229,6 +239,7 @@ export function createTradeContextMock(options: TradeContextMockOptions = {}): T
     args: ReadonlyArray<unknown>,
     action: () => Promise<T> | T,
   ): Promise<T> {
+    // 统一封装调用计数、失败注入与调用记录，避免各方法行为漂移。
     const callIndex = nextCallIndex(failureState, method);
     const injectedError = shouldFail(failureState, method, callIndex, args);
     if (injectedError) {

@@ -1,3 +1,7 @@
+/**
+ * @module tests/regression/risk-pipeline-regression.test.ts
+ * @description 测试模块，围绕 risk-pipeline-regression.test.ts 场景验证 tests/regression 相关业务行为与边界条件。
+ */
 import { describe, expect, it } from 'bun:test';
 
 import type { RiskCheckContext } from '../../src/types/services.js';
