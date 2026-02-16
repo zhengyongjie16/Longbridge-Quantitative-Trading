@@ -8,6 +8,7 @@
       "Bash(npx *)",
       "Bash(tsc *)",
       "Bash(node *)",
+      "Bash(bun *)",
       "Bash(findstr:*)",
       "Bash(grep:*)"
     ]
