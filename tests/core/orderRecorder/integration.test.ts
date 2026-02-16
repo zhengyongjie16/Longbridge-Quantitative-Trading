@@ -69,10 +69,10 @@ describe('成本均价与智能平仓全链路集成测试', () => {
 
   it('场景1: 整体盈利全部卖出', () => {
     // 买入 100 股 @ 1.00，买入 100 股 @ 1.20
-    storage.addBuyOrder('TEST.HK', 1.0, 100, true, 1000);
+    storage.addBuyOrder('TEST.HK', 1, 100, true, 1000);
     storage.addBuyOrder('TEST.HK', 1.2, 100, true, 2000);
 
-    // 成本均价 = (100*1.0 + 100*1.2) / 200 = 1.10
+    // 成本均价 = (100*1 + 100*1.2) / 200 = 1.10
     const avg = storage.getCostAveragePrice('TEST.HK', true);
     expect(avg).toBeCloseTo(1.1, 6);
 
@@ -93,7 +93,7 @@ describe('成本均价与智能平仓全链路集成测试', () => {
 
   it('场景2: 整体未盈利仅卖盈利部分', () => {
     // 买入 100 股 @ 1.00，买入 100 股 @ 1.20
-    storage.addBuyOrder('TEST.HK', 1.0, 100, true, 1000);
+    storage.addBuyOrder('TEST.HK', 1, 100, true, 1000);
     storage.addBuyOrder('TEST.HK', 1.2, 100, true, 2000);
 
     // 成本均价 = 1.10
@@ -116,7 +116,7 @@ describe('成本均价与智能平仓全链路集成测试', () => {
 
   it('场景3: 卖出后成本均价更新', () => {
     // 初始：买入 100 股 @ 1.00，买入 100 股 @ 1.20
-    storage.addBuyOrder('TEST.HK', 1.0, 100, true, 1000);
+    storage.addBuyOrder('TEST.HK', 1, 100, true, 1000);
     storage.addBuyOrder('TEST.HK', 1.2, 100, true, 2000);
 
     // 成本均价 = 1.10
@@ -143,7 +143,7 @@ describe('成本均价与智能平仓全链路集成测试', () => {
   });
 
   it('场景4: 保护性清仓后成本均价归零', () => {
-    storage.addBuyOrder('TEST.HK', 1.0, 100, true, 1000);
+    storage.addBuyOrder('TEST.HK', 1, 100, true, 1000);
     storage.addBuyOrder('TEST.HK', 1.2, 100, true, 2000);
 
     expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(1.1, 6);
@@ -169,11 +169,11 @@ describe('成本均价与智能平仓全链路集成测试', () => {
   it('场景5: 防重端到端验证', () => {
     // 买入 3 笔
     storage.addBuyOrder('TEST.HK', 0.8, 100, true, 1000);
-    storage.addBuyOrder('TEST.HK', 1.0, 100, true, 2000);
+    storage.addBuyOrder('TEST.HK', 1, 100, true, 2000);
     storage.addBuyOrder('TEST.HK', 1.2, 100, true, 3000);
 
-    // 成本均价 = (80+100+120)/300 = 1.0
-    expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(1.0, 6);
+    // 成本均价 = (80+100+120)/300 = 1
+    expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(1, 6);
 
     // 模拟第一笔卖出已提交但未成交（占用 0.8 的订单）
     const orders = storage.getBuyOrdersList('TEST.HK', true);
@@ -187,7 +187,7 @@ describe('成本均价与智能平仓全链路集成测试', () => {
       submittedAt: Date.now(),
     });
 
-    // 当前价 1.5 > 成本均价 1.0 → 整体盈利，includeAll=true
+    // 当前价 1.5 > 成本均价 1 → 整体盈利，includeAll=true
     // 但 0.8 的订单被占用，只能卖 200
     const recorder = wrapStorageAsRecorder(storage);
     const result = resolveSellQuantityBySmartClose({
@@ -206,7 +206,7 @@ describe('成本均价与智能平仓全链路集成测试', () => {
 
   it('场景6: 文档附录示例 - 三笔订单的完整计算', () => {
     // 买入 100 股 @ 1.00, 150 股 @ 1.20, 50 股 @ 0.90
-    storage.addBuyOrder('TEST.HK', 1.0, 100, true, 1000);
+    storage.addBuyOrder('TEST.HK', 1, 100, true, 1000);
     storage.addBuyOrder('TEST.HK', 1.2, 150, true, 2000);
     storage.addBuyOrder('TEST.HK', 0.9, 50, true, 3000);
 
@@ -242,20 +242,20 @@ describe('成本均价与智能平仓全链路集成测试', () => {
 
   it('场景7: 连续买入卖出后成本均价持续正确', () => {
     // 第一笔买入
-    storage.addBuyOrder('TEST.HK', 1.0, 100, true, 1000);
-    expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(1.0, 6);
+    storage.addBuyOrder('TEST.HK', 1, 100, true, 1000);
+    expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(1, 6);
 
     // 第二笔买入
     storage.addBuyOrder('TEST.HK', 1.4, 100, true, 2000);
     expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(1.2, 6);
 
-    // 卖出 100 股（消除 1.0 的订单）
+    // 卖出 100 股（消除 1 的订单）
     storage.updateAfterSell('TEST.HK', 1.3, 100, true, 3000);
     expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(1.4, 6);
 
     // 再买入
-    storage.addBuyOrder('TEST.HK', 1.0, 100, true, 4000);
-    // (1.4*100 + 1.0*100) / 200 = 240/200 = 1.2
+    storage.addBuyOrder('TEST.HK', 1, 100, true, 4000);
+    // (1.4*100 + 1*100) / 200 = 240/200 = 1.2
     expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(1.2, 6);
 
     // 全部卖出
@@ -264,13 +264,13 @@ describe('成本均价与智能平仓全链路集成测试', () => {
   });
 
   it('场景8: 待成交卖出成交后释放占用', () => {
-    storage.addBuyOrder('TEST.HK', 1.0, 100, true, 1000);
+    storage.addBuyOrder('TEST.HK', 1, 100, true, 1000);
     storage.addBuyOrder('TEST.HK', 0.9, 100, true, 2000);
 
     const orders = storage.getBuyOrdersList('TEST.HK', true);
-    const order1 = orders.find((o) => o.executedPrice === 1.0);
+    const order1 = orders.find((o) => o.executedPrice === 1);
 
-    // 占用 1.0 的订单
+    // 占用 1 的订单
     storage.addPendingSell({
       orderId: 'SELL_001',
       symbol: 'TEST.HK',
@@ -293,8 +293,8 @@ describe('成本均价与智能平仓全链路集成测试', () => {
   });
 
   it('场景9: clearAll 后所有状态重置', () => {
-    storage.addBuyOrder('A.HK', 1.0, 100, true, 1000);
-    storage.addBuyOrder('B.HK', 2.0, 100, false, 1000);
+    storage.addBuyOrder('A.HK', 1, 100, true, 1000);
+    storage.addBuyOrder('B.HK', 2, 100, false, 1000);
 
     storage.addPendingSell({
       orderId: 'SELL_001',
@@ -314,7 +314,7 @@ describe('成本均价与智能平仓全链路集成测试', () => {
   });
 
   it('场景10: 成本均价不受待成交卖出影响（按全部订单计算）', () => {
-    storage.addBuyOrder('TEST.HK', 1.0, 100, true, 1000);
+    storage.addBuyOrder('TEST.HK', 1, 100, true, 1000);
     storage.addBuyOrder('TEST.HK', 1.2, 100, true, 2000);
 
     // 成本均价 = 1.1

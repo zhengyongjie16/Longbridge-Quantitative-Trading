@@ -1,0 +1,12 @@
+{
+  "name": "half-day",
+  "session": {
+    "open": "09:30:00",
+    "close": "12:00:00",
+    "halfDay": true
+  },
+  "expected": {
+    "rejectBuyWindow": "11:45:00-12:00:00",
+    "clearanceWindow": "11:55:00-11:59:59"
+  }
+}

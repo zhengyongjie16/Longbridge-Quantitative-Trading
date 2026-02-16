@@ -1,0 +1,8 @@
+{
+  "name": "doomsday-window",
+  "events": [
+    { "at": "15:44:59", "expectRejectBuy": false, "expectClearance": false },
+    { "at": "15:45:00", "expectRejectBuy": true, "expectClearance": false },
+    { "at": "15:55:00", "expectRejectBuy": true, "expectClearance": true }
+  ]
+}

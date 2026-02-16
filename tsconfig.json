@@ -48,7 +48,8 @@
   "include": [
     "src/**/*",
     "tools/**/*",
-    "tests/**/*"
+    "tests/**/*",
+    "mock/**/*"
   ],
   "exclude": [
     "node_modules",

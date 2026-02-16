@@ -15,19 +15,19 @@ function createMockProcessor() {
   return {
     calls: calls as ReadonlyArray<string>,
     stopAndDrain: async () => {
-      (calls as string[]).push('stopAndDrain');
+      (calls).push('stopAndDrain');
     },
     restart: () => {
-      (calls as string[]).push('restart');
+      (calls).push('restart');
     },
     start: () => {
-      (calls as string[]).push('start');
+      (calls).push('start');
     },
     clearLatestQuotes: () => {
-      (calls as string[]).push('clearLatestQuotes');
+      (calls).push('clearLatestQuotes');
     },
     clearPending: () => {
-      (calls as string[]).push('clearPending');
+      (calls).push('clearPending');
     },
   };
 }
@@ -169,6 +169,6 @@ describe('createSignalRuntimeDomain', () => {
     expect(monitorTaskProcessor.calls).toContain('restart');
     expect(orderMonitorWorker.calls).toContain('start');
     expect(postTradeRefresher.calls).toContain('start');
-    expect(markFreshCalledWith !== null ? markFreshCalledWith : null).toBe(42);
+    expect(markFreshCalledWith ?? null).toBe(42);
   });
 });

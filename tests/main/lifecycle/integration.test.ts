@@ -155,7 +155,6 @@ describe('跨日清理与开盘重建全链路', () => {
         midnightClear: () => {},
         openRebuild: () => {
           openRebuildCount += 1;
-          return;
         },
       },
     ];

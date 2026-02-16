@@ -122,7 +122,7 @@ describe('createRiskDomain', () => {
       runtime: { dayKey: '2025-02-15', canTradeNow: true, isTradingDay: true },
     });
 
-    expect(clearMidnightEligibleKeys !== null ? clearMidnightEligibleKeys.size : 0).toBe(0);
+    expect(clearMidnightEligibleKeys === null ? 0 : clearMidnightEligibleKeys.size).toBe(0);
   });
 
   it('openRebuild 为空操作，不抛错', () => {

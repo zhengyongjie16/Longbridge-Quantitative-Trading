@@ -48,7 +48,7 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
 
     const load = createLoadTradingDayRuntimeSnapshot(deps as unknown as LoadTradingDayRuntimeSnapshotDeps);
 
-    await expect(
+    expect(
       load({
         now: new Date(),
         requireTradingDay: true,
@@ -81,7 +81,7 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
 
     const load = createLoadTradingDayRuntimeSnapshot(deps as unknown as LoadTradingDayRuntimeSnapshotDeps);
 
-    await expect(
+    expect(
       load({
         now: new Date(),
         requireTradingDay: false,
@@ -121,7 +121,7 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
 
     const load = createLoadTradingDayRuntimeSnapshot(deps as unknown as LoadTradingDayRuntimeSnapshotDeps);
 
-    await expect(
+    expect(
       load({
         now: new Date(),
         requireTradingDay: false,

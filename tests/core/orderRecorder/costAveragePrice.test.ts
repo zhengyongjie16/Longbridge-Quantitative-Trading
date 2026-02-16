@@ -60,34 +60,34 @@ describe('getCostAveragePrice', () => {
   });
 
   it('单笔订单返回该订单价格', () => {
-    const orders = [makeOrder('O1', 1.0, 100)];
+    const orders = [makeOrder('O1', 1, 100)];
     storage.setBuyOrdersListForLong('TEST.HK', orders);
 
     const avg = storage.getCostAveragePrice('TEST.HK', true);
-    expect(avg).toBeCloseTo(1.0, 6);
+    expect(avg).toBeCloseTo(1, 6);
   });
 
   it('两笔等量订单返回算术平均', () => {
     const orders = [
-      makeOrder('O1', 1.0, 100),
+      makeOrder('O1', 1, 100),
       makeOrder('O2', 1.2, 100),
     ];
     storage.setBuyOrdersListForLong('TEST.HK', orders);
 
-    // (1.0*100 + 1.2*100) / 200 = 1.1
+    // (1*100 + 1.2*100) / 200 = 1.1
     const avg = storage.getCostAveragePrice('TEST.HK', true);
     expect(avg).toBeCloseTo(1.1, 6);
   });
 
   it('多笔不等量订单返回加权平均', () => {
     const orders = [
-      makeOrder('O1', 1.0, 100),
+      makeOrder('O1', 1, 100),
       makeOrder('O2', 1.2, 150),
       makeOrder('O3', 0.9, 50),
     ];
     storage.setBuyOrdersListForLong('TEST.HK', orders);
 
-    // (100*1.0 + 150*1.2 + 50*0.9) / 300 = 325/300 = 1.08333...
+    // (100*1 + 150*1.2 + 50*0.9) / 300 = 325/300 = 1.08333...
     const avg = storage.getCostAveragePrice('TEST.HK', true);
     expect(avg).toBeCloseTo(325 / 300, 6);
   });
@@ -95,21 +95,21 @@ describe('getCostAveragePrice', () => {
   // ========== 做多/做空方向隔离 ==========
 
   it('做多和做空方向的成本均价互不影响', () => {
-    storage.setBuyOrdersListForLong('TEST.HK', [makeOrder('O1', 1.0, 100)]);
-    storage.setBuyOrdersListForShort('TEST.HK', [makeOrder('O2', 2.0, 100)]);
+    storage.setBuyOrdersListForLong('TEST.HK', [makeOrder('O1', 1, 100)]);
+    storage.setBuyOrdersListForShort('TEST.HK', [makeOrder('O2', 2, 100)]);
 
-    expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(1.0, 6);
-    expect(storage.getCostAveragePrice('TEST.HK', false)).toBeCloseTo(2.0, 6);
+    expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(1, 6);
+    expect(storage.getCostAveragePrice('TEST.HK', false)).toBeCloseTo(2, 6);
   });
 
   // ========== 不同标的隔离 ==========
 
   it('不同标的的成本均价互不影响', () => {
-    storage.setBuyOrdersListForLong('A.HK', [makeOrder('O1', 1.0, 100)]);
-    storage.setBuyOrdersListForLong('B.HK', [makeOrder('O2', 3.0, 100)]);
+    storage.setBuyOrdersListForLong('A.HK', [makeOrder('O1', 1, 100)]);
+    storage.setBuyOrdersListForLong('B.HK', [makeOrder('O2', 3, 100)]);
 
-    expect(storage.getCostAveragePrice('A.HK', true)).toBeCloseTo(1.0, 6);
-    expect(storage.getCostAveragePrice('B.HK', true)).toBeCloseTo(3.0, 6);
+    expect(storage.getCostAveragePrice('A.HK', true)).toBeCloseTo(1, 6);
+    expect(storage.getCostAveragePrice('B.HK', true)).toBeCloseTo(3, 6);
     expect(storage.getCostAveragePrice('C.HK', true)).toBeNull();
   });
 
@@ -119,11 +119,11 @@ describe('getCostAveragePrice', () => {
   it('价格为 0 的订单计入数量但不计入价值（拉低均价）', () => {
     const orders = [
       makeOrder('O1', 0, 100),
-      makeOrder('O2', 1.0, 100),
+      makeOrder('O2', 1, 100),
     ];
     storage.setBuyOrdersListForLong('TEST.HK', orders);
 
-    // (0*100 + 1.0*100) / 200 = 0.5
+    // (0*100 + 1*100) / 200 = 0.5
     const avg = storage.getCostAveragePrice('TEST.HK', true);
     expect(avg).toBeCloseTo(0.5, 6);
   });
@@ -131,18 +131,18 @@ describe('getCostAveragePrice', () => {
   it('数量为 0 的订单不影响均价', () => {
     const orders = [
       makeOrder('O1', 1.5, 0),
-      makeOrder('O2', 1.0, 200),
+      makeOrder('O2', 1, 200),
     ];
     storage.setBuyOrdersListForLong('TEST.HK', orders);
 
     const avg = storage.getCostAveragePrice('TEST.HK', true);
-    expect(avg).toBeCloseTo(1.0, 6);
+    expect(avg).toBeCloseTo(1, 6);
   });
 
   it('所有订单价格无效但数量有效时均价为 0', () => {
     const orders = [
       makeOrder('O1', 0, 100),
-      makeOrder('O2', NaN, 100),
+      makeOrder('O2', Number.NaN, 100),
     ];
     storage.setBuyOrdersListForLong('TEST.HK', orders);
 
@@ -153,8 +153,8 @@ describe('getCostAveragePrice', () => {
 
   it('所有订单数量为 0 时返回 null', () => {
     const orders = [
-      makeOrder('O1', 1.0, 0),
-      makeOrder('O2', 2.0, 0),
+      makeOrder('O1', 1, 0),
+      makeOrder('O2', 2, 0),
     ];
     storage.setBuyOrdersListForLong('TEST.HK', orders);
 
@@ -164,13 +164,13 @@ describe('getCostAveragePrice', () => {
 
   it('NaN 价格的订单被视为价格 0（计入数量）', () => {
     const orders = [
-      makeOrder('O1', NaN, 100),
-      makeOrder('O2', 2.0, 100),
+      makeOrder('O1', Number.NaN, 100),
+      makeOrder('O2', 2, 100),
     ];
     storage.setBuyOrdersListForLong('TEST.HK', orders);
 
-    // (0*100 + 2.0*100) / 200 = 1.0
-    expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(1.0, 6);
+    // (0*100 + 2*100) / 200 = 1
+    expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(1, 6);
   });
 
   it('Infinity 价格的订单被视为价格 0（计入数量）', () => {
@@ -180,30 +180,30 @@ describe('getCostAveragePrice', () => {
     ];
     storage.setBuyOrdersListForLong('TEST.HK', orders);
 
-    // (0*100 + 1.5*200) / 300 = 1.0
-    expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(1.0, 6);
+    // (0*100 + 1.5*200) / 300 = 1
+    expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(1, 6);
   });
 
   // ========== 动态更新场景 ==========
 
   it('addBuyOrder 后成本均价正确更新', () => {
-    storage.addBuyOrder('TEST.HK', 1.0, 100, true, Date.now());
-    expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(1.0, 6);
+    storage.addBuyOrder('TEST.HK', 1, 100, true, Date.now());
+    expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(1, 6);
 
     storage.addBuyOrder('TEST.HK', 1.2, 100, true, Date.now());
-    // (1.0*100 + 1.2*100) / 200 = 1.1
+    // (1*100 + 1.2*100) / 200 = 1.1
     expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(1.1, 6);
   });
 
   it('卖出部分后成本均价正确更新', () => {
-    // 买入 100@1.0 + 100@1.2
-    storage.addBuyOrder('TEST.HK', 1.0, 100, true, 1000);
+    // 买入 100@1 + 100@1.2
+    storage.addBuyOrder('TEST.HK', 1, 100, true, 1000);
     storage.addBuyOrder('TEST.HK', 1.2, 100, true, 2000);
 
     // 成本均价 = 1.1
     expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(1.1, 6);
 
-    // 卖出 100 股（低价优先整笔消除，消除 1.0 的订单）
+    // 卖出 100 股（低价优先整笔消除，消除 1 的订单）
     storage.updateAfterSell('TEST.HK', 1.05, 100, true, 3000);
 
     // 剩余 100@1.2，成本均价 = 1.2
@@ -211,7 +211,7 @@ describe('getCostAveragePrice', () => {
   });
 
   it('卖出全部后成本均价为 null', () => {
-    storage.addBuyOrder('TEST.HK', 1.0, 100, true, 1000);
+    storage.addBuyOrder('TEST.HK', 1, 100, true, 1000);
     storage.addBuyOrder('TEST.HK', 1.2, 100, true, 2000);
 
     // 卖出 200 股（>= 总量，清空）
@@ -221,16 +221,16 @@ describe('getCostAveragePrice', () => {
   });
 
   it('clearBuyOrders 后成本均价为 null', () => {
-    storage.addBuyOrder('TEST.HK', 1.0, 100, true, 1000);
-    expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(1.0, 6);
+    storage.addBuyOrder('TEST.HK', 1, 100, true, 1000);
+    expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(1, 6);
 
     storage.clearBuyOrders('TEST.HK', true);
     expect(storage.getCostAveragePrice('TEST.HK', true)).toBeNull();
   });
 
   it('clearAll 后所有成本均价为 null', () => {
-    storage.addBuyOrder('A.HK', 1.0, 100, true, 1000);
-    storage.addBuyOrder('B.HK', 2.0, 100, false, 1000);
+    storage.addBuyOrder('A.HK', 1, 100, true, 1000);
+    storage.addBuyOrder('B.HK', 2, 100, false, 1000);
 
     storage.clearAll();
 
@@ -241,14 +241,14 @@ describe('getCostAveragePrice', () => {
   // ========== 边界场景 ==========
 
   it('成本均价恰好等于某个订单价格', () => {
-    // 100@1.0 + 100@1.0 → 均价 = 1.0
+    // 100@1 + 100@1 → 均价 = 1
     const orders = [
-      makeOrder('O1', 1.0, 100),
-      makeOrder('O2', 1.0, 100),
+      makeOrder('O1', 1, 100),
+      makeOrder('O2', 1, 100),
     ];
     storage.setBuyOrdersListForLong('TEST.HK', orders);
 
-    expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(1.0, 6);
+    expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(1, 6);
   });
 
   it('极小价格的订单正确计算', () => {
@@ -265,12 +265,12 @@ describe('getCostAveragePrice', () => {
   it('大量订单的成本均价计算正确', () => {
     const orders: OrderRecord[] = [];
     for (let i = 0; i < 1000; i++) {
-      orders.push(makeOrder(`O${i}`, 1.0 + i * 0.001, 100));
+      orders.push(makeOrder(`O${i}`, 1 + i * 0.001, 100));
     }
     storage.setBuyOrdersListForLong('TEST.HK', orders);
 
-    // 总成本 = Σ(1.0 + i*0.001) * 100 for i=0..999
-    // = 100 * Σ(1.0 + i*0.001) = 100 * (1000*1.0 + 0.001*999*1000/2)
+    // 总成本 = Σ(1 + i*0.001) * 100 for i=0..999
+    // = 100 * Σ(1 + i*0.001) = 100 * (1000*1 + 0.001*999*1000/2)
     // = 100 * (1000 + 499.5) = 100 * 1499.5 = 149950
     // 总数量 = 1000 * 100 = 100000
     // 均价 = 149950 / 100000 = 1.4995
@@ -280,7 +280,7 @@ describe('getCostAveragePrice', () => {
 
   it('与 calculateOrderStatistics 的 averagePrice 一致', () => {
     const orders = [
-      makeOrder('O1', 1.0, 100),
+      makeOrder('O1', 1, 100),
       makeOrder('O2', 1.2, 150),
       makeOrder('O3', 0.9, 50),
     ];

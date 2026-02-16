@@ -133,7 +133,7 @@ describe('createRebuildTradingDayState', () => {
     });
     const rebuild = createRebuildTradingDayState(deps);
 
-    await expect(
+    expect(
       rebuild({ allOrders: emptyOrders, quotesMap: emptyQuotesMap }),
     ).rejects.toThrow(/\[Lifecycle\] 重建交易日状态失败/);
   });
@@ -148,7 +148,7 @@ describe('createRebuildTradingDayState', () => {
     });
     const rebuild = createRebuildTradingDayState(deps);
 
-    await expect(
+    expect(
       rebuild({ allOrders: emptyOrders, quotesMap: emptyQuotesMap }),
     ).rejects.toThrow(/\[Lifecycle\] 重建交易日状态失败/);
   });

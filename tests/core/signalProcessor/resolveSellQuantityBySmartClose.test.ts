@@ -105,7 +105,7 @@ describe('resolveSellQuantityBySmartClose', () => {
   });
 
   it('成本均价为 null 但有盈利订单时卖出盈利部分', () => {
-    const orders = [makeOrder('O1', 1.0, 100)];
+    const orders = [makeOrder('O1', 1, 100)];
     const recorder = createMockOrderRecorder({
       costAveragePrice: null,
       sellableOrders: orders,
@@ -126,7 +126,7 @@ describe('resolveSellQuantityBySmartClose', () => {
 
   it('当前价 > 成本均价时整体盈利，返回全部可卖订单', () => {
     const orders = [
-      makeOrder('O1', 1.0, 100),
+      makeOrder('O1', 1, 100),
       makeOrder('O2', 1.2, 100),
     ];
     const recorder = createMockOrderRecorder({
@@ -149,7 +149,7 @@ describe('resolveSellQuantityBySmartClose', () => {
 
   it('整体盈利但所有订单被占用时保持持仓', () => {
     const recorder = createMockOrderRecorder({
-      costAveragePrice: 1.0,
+      costAveragePrice: 1,
       sellableOrders: [],
       sellableTotalQuantity: 0,
     });
@@ -168,7 +168,7 @@ describe('resolveSellQuantityBySmartClose', () => {
   // ========== 整体未盈利（当前价 ≤ 成本均价）==========
 
   it('当前价 < 成本均价时仅卖出盈利订单', () => {
-    const orders = [makeOrder('O1', 1.0, 100)];
+    const orders = [makeOrder('O1', 1, 100)];
     const recorder = createMockOrderRecorder({
       costAveragePrice: 1.1,
       sellableOrders: orders,
@@ -189,14 +189,14 @@ describe('resolveSellQuantityBySmartClose', () => {
   it('当前价 = 成本均价时走非盈利路径', () => {
     const orders = [makeOrder('O1', 0.9, 100)];
     const recorder = createMockOrderRecorder({
-      costAveragePrice: 1.0,
+      costAveragePrice: 1,
       sellableOrders: orders,
       sellableTotalQuantity: 100,
     });
 
     const result = resolveSellQuantityBySmartClose({
       ...baseParams,
-      currentPrice: 1.0,
+      currentPrice: 1,
       orderRecorder: recorder,
     });
 
@@ -214,7 +214,7 @@ describe('resolveSellQuantityBySmartClose', () => {
 
     const result = resolveSellQuantityBySmartClose({
       ...baseParams,
-      currentPrice: 1.0,
+      currentPrice: 1,
       orderRecorder: recorder,
     });
 
@@ -243,7 +243,7 @@ describe('resolveSellQuantityBySmartClose', () => {
 
   it('成本均价为 NaN 时走非盈利路径', () => {
     const recorder = createMockOrderRecorder({
-      costAveragePrice: NaN,
+      costAveragePrice: Number.NaN,
       sellableOrders: [],
       sellableTotalQuantity: 0,
     });
@@ -275,7 +275,7 @@ describe('resolveSellQuantityBySmartClose', () => {
 
   it('成本均价为负数时走非盈利路径', () => {
     const recorder = createMockOrderRecorder({
-      costAveragePrice: -1.0,
+      costAveragePrice: -1,
       sellableOrders: [],
       sellableTotalQuantity: 0,
     });
@@ -294,7 +294,7 @@ describe('resolveSellQuantityBySmartClose', () => {
   it('做空方向正确传递 isLongSymbol=false', () => {
     let capturedOptions: { readonly includeAll?: boolean } | undefined;
     const recorder = createMockOrderRecorder({
-      costAveragePrice: 1.0,
+      costAveragePrice: 1,
       sellableOrders: [makeOrder('O1', 0.9, 100)],
       sellableTotalQuantity: 100,
     });
@@ -317,7 +317,7 @@ describe('resolveSellQuantityBySmartClose', () => {
       orderRecorder: recorder,
     });
 
-    // 当前价 1.5 > 成本均价 1.0 → isOverallProfitable=true → includeAll=true
+    // 当前价 1.5 > 成本均价 1 → isOverallProfitable=true → includeAll=true
     expect(capturedOptions?.includeAll).toBe(true);
   });
 
@@ -325,12 +325,12 @@ describe('resolveSellQuantityBySmartClose', () => {
 
   it('返回的 relatedBuyOrderIds 与可卖订单的 orderId 一致', () => {
     const orders = [
-      makeOrder('BUY_001', 1.0, 100),
+      makeOrder('BUY_001', 1, 100),
       makeOrder('BUY_002', 0.9, 50),
       makeOrder('BUY_003', 1.1, 150),
     ];
     const recorder = createMockOrderRecorder({
-      costAveragePrice: 1.0,
+      costAveragePrice: 1,
       sellableOrders: orders,
       sellableTotalQuantity: 300,
     });
@@ -347,7 +347,7 @@ describe('resolveSellQuantityBySmartClose', () => {
   // ========== reason 文本验证 ==========
 
   it('卖出结果的 reason 包含关键信息', () => {
-    const orders = [makeOrder('O1', 1.0, 100)];
+    const orders = [makeOrder('O1', 1, 100)];
     const recorder = createMockOrderRecorder({
       costAveragePrice: 1.05,
       sellableOrders: orders,
