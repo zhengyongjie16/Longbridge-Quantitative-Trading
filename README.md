@@ -277,47 +277,47 @@ bun start
 
 ```
 src/
-├── index.ts                    # 主入口（每秒循环）
-├── config/                     # 配置模块
-├── constants/                  # 全局常量定义
-├── types/                      # TypeScript 类型定义
-├── main/                       # 主程序架构模块
-│   ├── startup/                # 启动流程（运行门禁/席位恢复与初始寻标）
-│   ├── mainProgram/            # 主循环逻辑
-│   ├── processMonitor/         # 单标的处理
-│   ├── lifecycle/              # 交易日生命周期管理
-│   └── asyncProgram/           # 异步任务处理
-│       ├── indicatorCache/     # 指标缓存（环形缓冲区存储历史快照）
-│       ├── delayedSignalVerifier/ # 延迟信号验证器（setTimeout 计时验证）
-│       ├── monitorTaskQueue/   # 监控任务队列（autoSymbol/席位刷新/距回收价清仓/浮亏检查）
-│       ├── monitorTaskProcessor/ # 监控任务处理器（异步消费 monitorTaskQueue）
-│       ├── tradeTaskQueue/     # 买入/卖出任务队列
-│       ├── buyProcessor/       # 买入处理器
-│       ├── sellProcessor/      # 卖出处理器
-│       ├── orderMonitorWorker/ # 订单监控工作线程（WebSocket 推送 + 价格调整/超时处理）
-│       └── postTradeRefresher/ # 成交后刷新（账户/持仓/浮亏缓存）
-├── core/                       # 核心业务逻辑
-│   ├── strategy/               # 信号生成
-│   ├── signalProcessor/        # 风险检查与卖出计算
-│   ├── riskController/         # 风险检查（持仓/亏损/牛熊证/浮亏监控等）
-│   ├── trader/                 # 订单执行与监控
-│   ├── orderRecorder/          # 订单记录与查询
-│   └── doomsdayProtection/     # 末日保护（收盘前清仓）
-├── services/                   # 外部服务
-│   ├── quoteClient/            # 行情数据客户端
-│   ├── marketMonitor/          # 市场监控（价格/指标变化）
-│   ├── monitorContext/         # 监控上下文工厂
-│   ├── autoSymbolFinder/       # 自动寻标（筛选牛/熊证候选）
-│   ├── autoSymbolManager/      # 席位管理（寻标/换标状态机）
-│   ├── liquidationCooldown/    # 保护性清仓后的买入冷却
-│   ├── cleanup/                # 退出清理
-│   └── indicators/             # 技术指标计算（RSI/KDJ/MACD/MFI/EMA/PSY）
-└── utils/                      # 工具模块
-    ├── refreshGate/            # 刷新门禁（等待账户/持仓等缓存“足够新”）
-    ├── objectPool/             # 对象池（减少 GC）
-    ├── logger/                 # 日志系统（pino）
-    ├── asciiArt/               # 启动 ASCII 艺术字
-    └── helpers/                # 辅助工具
+├── index.ts                        # 主入口（每秒循环）
+├── config/                         # 配置模块
+├── constants/                      # 全局常量定义
+├── types/                          # TypeScript 类型定义
+├── main/                           # 主程序架构模块
+│   ├── startup/                    # 启动流程（运行门禁/席位恢复与初始寻标）
+│   ├── mainProgram/                # 主循环逻辑
+│   ├── processMonitor/             # 单标的处理
+│   ├── lifecycle/                  # 交易日生命周期管理
+│   └── asyncProgram/               # 异步任务处理
+│       ├── indicatorCache/         # 指标缓存（环形缓冲区存储历史快照）
+│       ├── delayedSignalVerifier/  # 延迟信号验证器（setTimeout 计时验证）
+│       ├── monitorTaskQueue/       # 监控任务队列（autoSymbol/席位刷新/距回收价清仓/浮亏检查）
+│       ├── monitorTaskProcessor/   # 监控任务处理器（异步消费 monitorTaskQueue）
+│       ├── tradeTaskQueue/         # 买入/卖出任务队列
+│       ├── buyProcessor/           # 买入处理器
+│       ├── sellProcessor/          # 卖出处理器
+│       ├── orderMonitorWorker/     # 订单监控工作线程（WebSocket 推送 + 价格调整/超时处理）
+│       └── postTradeRefresher/     # 成交后刷新（账户/持仓/浮亏缓存）
+├── core/                           # 核心业务逻辑
+│   ├── strategy/                   # 信号生成
+│   ├── signalProcessor/            # 风险检查与卖出计算
+│   ├── riskController/             # 风险检查（持仓/亏损/牛熊证/浮亏监控等）
+│   ├── trader/                     # 订单执行与监控
+│   ├── orderRecorder/              # 订单记录与查询
+│   └── doomsdayProtection/         # 末日保护（收盘前清仓）
+├── services/                       # 外部服务
+│   ├── quoteClient/                # 行情数据客户端
+│   ├── marketMonitor/              # 市场监控（价格/指标变化）
+│   ├── monitorContext/             # 监控上下文工厂
+│   ├── autoSymbolFinder/           # 自动寻标（筛选牛/熊证候选）
+│   ├── autoSymbolManager/          # 席位管理（寻标/换标状态机）
+│   ├── liquidationCooldown/        # 保护性清仓后的买入冷却
+│   ├── cleanup/                    # 退出清理
+│   └── indicators/                 # 技术指标计算（RSI/KDJ/MACD/MFI/EMA/PSY）
+└── utils/                          # 工具模块
+    ├── refreshGate/                # 刷新门禁（等待账户/持仓等缓存“足够新”）
+    ├── objectPool/                 # 对象池（减少 GC）
+    ├── logger/                     # 日志系统（pino）
+    ├── asciiArt/                   # 启动 ASCII 艺术字
+    └── helpers/                    # 辅助工具
 ```
 
 ---
