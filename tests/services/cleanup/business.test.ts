@@ -235,4 +235,182 @@ describe('cleanup business flow', () => {
       (process as unknown as { exit: typeof process.exit }).exit = originalExit;
     }
   });
+
+  it('continues remaining cleanup steps and throws aggregate error when one step fails', async () => {
+    const steps: string[] = [];
+    const monitorState = createMonitorState('HSI.HK');
+    const monitorContexts = new Map<string, MonitorContext>([
+      ['HSI.HK', {
+        delayedSignalVerifier: {
+          destroy: () => {
+            steps.push('destroyVerifier');
+          },
+        },
+      } as unknown as MonitorContext],
+    ]);
+
+    const cleanup = createCleanup({
+      buyProcessor: {
+        start: () => {},
+        stop: () => {},
+        stopAndDrain: async () => {
+          steps.push('buy');
+          throw new Error('buy failed');
+        },
+        restart: () => {},
+      },
+      sellProcessor: {
+        start: () => {},
+        stop: () => {},
+        stopAndDrain: async () => {
+          steps.push('sell');
+        },
+        restart: () => {},
+      },
+      monitorTaskProcessor: {
+        start: () => {},
+        stopAndDrain: async () => {
+          steps.push('monitorTask');
+        },
+      } as never,
+      orderMonitorWorker: {
+        start: () => {},
+        schedule: () => {},
+        stopAndDrain: async () => {
+          steps.push('orderMonitorWorker');
+        },
+        clearLatestQuotes: () => {},
+      },
+      postTradeRefresher: {
+        start: () => {},
+        enqueue: () => {},
+        stopAndDrain: async () => {
+          steps.push('postTradeRefresher');
+        },
+        clearPending: () => {},
+      },
+      monitorContexts,
+      indicatorCache: {
+        push: () => {},
+        getAt: () => null,
+        clearAll: () => {
+          steps.push('clearIndicatorCache');
+        },
+      },
+      lastState: createLastState(new Map([['HSI.HK', monitorState]])),
+    });
+
+    let caught: unknown = null;
+    try {
+      await cleanup.execute();
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(AggregateError);
+    expect(steps).toEqual([
+      'buy',
+      'sell',
+      'monitorTask',
+      'orderMonitorWorker',
+      'postTradeRefresher',
+      'destroyVerifier',
+      'clearIndicatorCache',
+    ]);
+    expect(monitorState.lastMonitorSnapshot).toBeNull();
+  });
+
+  it('exits with code 1 when cleanup fails during signal handling', async () => {
+    const handlers = new Map<string, () => void>();
+    const exitCodes: number[] = [];
+    const steps: string[] = [];
+
+    const originalOnce = process.once;
+    const originalExit = process.exit;
+
+    (process as unknown as { once: typeof process.once }).once = ((
+      event: string,
+      handler: () => void,
+    ) => {
+      handlers.set(event, handler);
+      return process;
+    }) as typeof process.once;
+
+    (process as unknown as { exit: typeof process.exit }).exit = ((
+      code?: number,
+    ) => {
+      exitCodes.push(code ?? 0);
+      return undefined as never;
+    }) as typeof process.exit;
+
+    try {
+      const cleanup = createCleanup({
+        buyProcessor: {
+          start: () => {},
+          stop: () => {},
+          stopAndDrain: async () => {
+            steps.push('buy');
+            throw new Error('buy failed');
+          },
+          restart: () => {},
+        },
+        sellProcessor: {
+          start: () => {},
+          stop: () => {},
+          stopAndDrain: async () => {
+            steps.push('sell');
+          },
+          restart: () => {},
+        },
+        monitorTaskProcessor: {
+          start: () => {},
+          stopAndDrain: async () => {
+            steps.push('monitorTask');
+          },
+        } as never,
+        orderMonitorWorker: {
+          start: () => {},
+          schedule: () => {},
+          stopAndDrain: async () => {
+            steps.push('orderMonitorWorker');
+          },
+          clearLatestQuotes: () => {},
+        },
+        postTradeRefresher: {
+          start: () => {},
+          enqueue: () => {},
+          stopAndDrain: async () => {
+            steps.push('postTradeRefresher');
+          },
+          clearPending: () => {},
+        },
+        monitorContexts: new Map(),
+        indicatorCache: {
+          push: () => {},
+          getAt: () => null,
+          clearAll: () => {
+            steps.push('clearIndicatorCache');
+          },
+        },
+        lastState: createLastState(new Map()),
+      });
+
+      cleanup.registerExitHandlers();
+      handlers.get('SIGTERM')?.();
+      await Bun.sleep(20);
+
+      expect(exitCodes).toEqual([1]);
+      expect(steps).toEqual([
+        'buy',
+        'sell',
+        'monitorTask',
+        'orderMonitorWorker',
+        'postTradeRefresher',
+        'clearIndicatorCache',
+      ]);
+    } finally {
+      (process as unknown as { once: typeof process.once }).once = originalOnce;
+      (process as unknown as { exit: typeof process.exit }).exit = originalExit;
+    }
+  });
 });

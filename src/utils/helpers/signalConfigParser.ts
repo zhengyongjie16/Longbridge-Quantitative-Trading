@@ -24,7 +24,7 @@ import { validateRsiPeriod, validatePsyPeriod } from './indicatorHelpers.js';
 import type {
   Condition,
   ConditionGroup,
-  SignalConfig
+  SignalConfig,
 } from '../../types/signalConfig.js';
 import type { SignalConfigSet } from '../../types/config.js';
 import type {

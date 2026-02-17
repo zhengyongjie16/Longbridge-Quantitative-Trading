@@ -13,6 +13,7 @@
  * - 释放所有监控快照对象
  */
 import { logger } from '../../utils/logger/index.js';
+import { formatError } from '../../utils/helpers/index.js';
 import { CleanupContext } from './types.js';
 import { releaseAllMonitorSnapshots } from './utils.js';
 
@@ -34,22 +35,60 @@ export function createCleanup(context: CleanupContext): {
     indicatorCache,
     lastState,
   } = context;
+  let isExiting = false;
 
   /**
    * 执行清理（stopAndDrain 确保 in-flight 任务排空）
    */
   async function execute(): Promise<void> {
     logger.info('Program exiting, cleaning up resources...');
-    await buyProcessor.stopAndDrain();
-    await sellProcessor.stopAndDrain();
-    await monitorTaskProcessor.stopAndDrain();
-    await orderMonitorWorker.stopAndDrain();
-    await postTradeRefresher.stopAndDrain();
-    for (const monitorContext of monitorContexts.values()) {
-      monitorContext.delayedSignalVerifier.destroy();
+    const failures: Array<{ readonly step: string; readonly error: unknown }> = [];
+
+    const runStep = async (
+      step: string,
+      handler: () => Promise<void> | void,
+    ): Promise<void> => {
+      try {
+        await handler();
+      } catch (err) {
+        failures.push({ step, error: err });
+        logger.error(`[Cleanup] ${step} 失败: ${formatError(err)}`);
+      }
+    };
+
+    await runStep('停止 BuyProcessor', async () => {
+      await buyProcessor.stopAndDrain();
+    });
+    await runStep('停止 SellProcessor', async () => {
+      await sellProcessor.stopAndDrain();
+    });
+    await runStep('停止 MonitorTaskProcessor', async () => {
+      await monitorTaskProcessor.stopAndDrain();
+    });
+    await runStep('停止 OrderMonitorWorker', async () => {
+      await orderMonitorWorker.stopAndDrain();
+    });
+    await runStep('停止 PostTradeRefresher', async () => {
+      await postTradeRefresher.stopAndDrain();
+    });
+    for (const [monitorSymbol, monitorContext] of monitorContexts) {
+      await runStep(`销毁延迟验证器 ${monitorSymbol}`, () => {
+        monitorContext.delayedSignalVerifier.destroy();
+      });
     }
-    indicatorCache.clearAll();
-    releaseAllMonitorSnapshots(lastState.monitorStates);
+    await runStep('清空指标缓存', () => {
+      indicatorCache.clearAll();
+    });
+    await runStep('释放监控快照对象', () => {
+      releaseAllMonitorSnapshots(lastState.monitorStates);
+    });
+
+    if (failures.length > 0) {
+      throw new AggregateError(
+        failures.map((item) => item.error),
+        `[Cleanup] 资源清理失败，共 ${failures.length} 处`,
+      );
+    }
   }
 
   /**
@@ -57,7 +96,18 @@ export function createCleanup(context: CleanupContext): {
    */
   function registerExitHandlers(): void {
     const handler = (): void => {
-      void execute().finally(() => process.exit(0));
+      if (isExiting) {
+        return;
+      }
+      isExiting = true;
+      void execute()
+        .then(() => {
+          process.exit(0);
+        })
+        .catch((err) => {
+          logger.error('[Cleanup] 程序退出清理失败', formatError(err));
+          process.exit(1);
+        });
     };
     process.once('SIGINT', handler);
     process.once('SIGTERM', handler);
