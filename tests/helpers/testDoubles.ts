@@ -88,7 +88,7 @@ export function createTraderDouble(overrides: Partial<Trader> = {}): Trader {
   const baseOrderRecorder = createOrderRecorderDouble();
 
   const base: Trader = {
-    _orderRecorder: baseOrderRecorder,
+    orderRecorder: baseOrderRecorder,
     getAccountSnapshot: async () => null,
     getStockPositions: async () => [],
     getPendingOrders: async (): Promise<PendingOrder[]> => [],
@@ -97,17 +97,18 @@ export function createTraderDouble(overrides: Partial<Trader> = {}): Trader {
     cancelOrder: async () => true,
     monitorAndManageOrders: async () => {},
     getAndClearPendingRefreshSymbols: (): ReadonlyArray<PendingRefreshSymbol> => [],
-    _canTradeNow: (): { readonly canTrade: boolean } => ({ canTrade: true }),
-    _markBuyAttempt: () => {},
-    _resetRuntimeState: () => {},
-    _recoverOrderTracking: async () => {},
+    canTradeNow: (): { readonly canTrade: boolean } => ({ canTrade: true }),
+    recordBuyAttempt: () => {},
+    fetchAllOrdersFromAPI: async () => [],
+    resetRuntimeState: () => {},
+    recoverOrderTracking: async () => {},
     executeSignals: async () => ({ submittedCount: 0 }),
   };
 
   return {
     ...base,
     ...overrides,
-    _orderRecorder: overrides._orderRecorder ?? base._orderRecorder,
+    orderRecorder: overrides.orderRecorder ?? base.orderRecorder,
   };
 }
 

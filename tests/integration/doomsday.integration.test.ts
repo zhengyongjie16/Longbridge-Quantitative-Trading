@@ -236,7 +236,7 @@ describe('doomsday integration', () => {
       monitorContexts: new Map([[monitorConfig.monitorSymbol, monitorContext]]),
       trader,
       marketDataClient: {
-        _getContext: async () => ({}) as never,
+        getQuoteContext: async () => ({}) as never,
         getQuotes: async () => new Map([
           ['BULL.HK', createQuoteDouble('BULL.HK', 1.1, 100)],
           ['BEAR.HK', createQuoteDouble('BEAR.HK', 0.9, 100)],

@@ -292,7 +292,7 @@ describe('full business simulation integration', () => {
     try {
       await mainProgram({
         marketDataClient: {
-          _getContext: async () => ({}) as never,
+          getQuoteContext: async () => ({}) as never,
           getQuotes: async (symbols: Iterable<string>) => {
             const quotes = new Map<string, ReturnType<typeof createQuoteDouble> | null>();
             for (const symbol of symbols) {
@@ -467,7 +467,7 @@ describe('full business simulation integration', () => {
       monitorConfig,
       symbolRegistry,
       marketDataClient: {
-        _getContext: async () => ({}) as never,
+        getQuoteContext: async () => ({}) as never,
         getQuotes: async () => new Map(),
         subscribeSymbols: async () => {},
         unsubscribeSymbols: async () => {},
@@ -529,7 +529,7 @@ describe('full business simulation integration', () => {
 
     const sharedMainContext = {
       marketDataClient: {
-        _getContext: async () => ({}) as never,
+        getQuoteContext: async () => ({}) as never,
         getQuotes: async () => new Map(),
         subscribeSymbols: async () => {},
         unsubscribeSymbols: async () => {},
@@ -883,7 +883,7 @@ describe('full business simulation integration', () => {
 
     try {
       const marketDataClient = {
-        _getContext: async () => ({}) as never,
+        getQuoteContext: async () => ({}) as never,
         getQuotes: async (symbols: Iterable<string>) => {
           const quotes = new Map<string, ReturnType<typeof createQuoteDouble> | null>();
           for (const symbol of symbols) {

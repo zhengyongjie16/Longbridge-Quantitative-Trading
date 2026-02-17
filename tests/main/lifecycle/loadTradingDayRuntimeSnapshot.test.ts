@@ -67,7 +67,7 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
       trader: {
         getAccountSnapshot: async () => null,
         getStockPositions: async () => [],
-        _orderRecorder: {},
+        orderRecorder: {},
         seedOrderHoldSymbols: () => {},
         getOrderHoldSymbols: () => new Set<string>(),
       },
@@ -103,7 +103,7 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
       trader: {
         getAccountSnapshot: async () => ({}),
         getStockPositions: async () => [],
-        _orderRecorder: {
+        orderRecorder: {
           fetchAllOrdersFromAPI: async () => {
             throw new Error('API 超时');
           },

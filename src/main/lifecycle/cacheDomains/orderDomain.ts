@@ -15,7 +15,7 @@ export function createOrderDomain(deps: OrderDomainDeps): CacheDomain {
   const { trader } = deps;
   return {
     midnightClear(): void {
-      trader._resetRuntimeState();
+      trader.resetRuntimeState();
       logger.info('[Lifecycle][order] 午夜清理完成');
     },
     openRebuild(): void {

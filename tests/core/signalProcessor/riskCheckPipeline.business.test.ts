@@ -118,12 +118,12 @@ describe('riskCheckPipeline business flow', () => {
         steps.push('getStockPositions');
         return [];
       },
-      _canTradeNow: () => {
-        steps.push('_canTradeNow');
+      canTradeNow: () => {
+        steps.push('canTradeNow');
         return { canTrade: true };
       },
-      _markBuyAttempt: () => {
-        steps.push('_markBuyAttempt');
+      recordBuyAttempt: () => {
+        steps.push('recordBuyAttempt');
       },
     });
     const riskChecker = createRiskCheckerDouble({
@@ -159,7 +159,7 @@ describe('riskCheckPipeline business flow', () => {
     );
 
     expect(result).toHaveLength(1);
-    const markIndex = steps.indexOf('_markBuyAttempt');
+    const markIndex = steps.indexOf('recordBuyAttempt');
     const warrantIndex = steps.indexOf('checkWarrantRisk');
     const baseRiskIndex = steps.indexOf('checkBeforeOrder');
     expect(markIndex).toBeGreaterThan(-1);
@@ -175,7 +175,7 @@ describe('riskCheckPipeline business flow', () => {
         return createAccountSnapshotDouble(100000);
       },
       getStockPositions: async () => [],
-      _canTradeNow: () => ({ canTrade: true }),
+      canTradeNow: () => ({ canTrade: true }),
     });
 
     const pipeline = createRiskCheckPipeline({

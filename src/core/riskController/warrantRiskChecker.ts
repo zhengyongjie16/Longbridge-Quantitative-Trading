@@ -295,7 +295,7 @@ async function checkWarrantType(
   symbol: string,
   expectedType: 'CALL' | 'PUT',
 ): Promise<WarrantInfo> {
-  const ctx = await marketDataClient._getContext();
+  const ctx = await marketDataClient.getQuoteContext();
 
   // 使用 warrantQuote API 获取牛熊证信息
   const warrantQuotesRaw = await ctx.warrantQuote([symbol]);

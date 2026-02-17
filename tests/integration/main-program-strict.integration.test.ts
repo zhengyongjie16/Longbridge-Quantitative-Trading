@@ -205,7 +205,7 @@ describe('mainProgram strict-mode integration', () => {
 
     await mainProgram({
       marketDataClient: {
-        _getContext: async () => ({}) as never,
+        getQuoteContext: async () => ({}) as never,
         getQuotes: async () => {
           getQuotesCalls += 1;
           return new Map<string, Quote | null>();
@@ -293,7 +293,7 @@ describe('mainProgram strict-mode integration', () => {
 
     await mainProgram({
       marketDataClient: {
-        _getContext: async () => ({}) as never,
+        getQuoteContext: async () => ({}) as never,
         getQuotes: async () => {
           getQuotesCalls += 1;
           return new Map<string, Quote | null>();
@@ -406,7 +406,7 @@ describe('mainProgram strict-mode integration', () => {
 
     await mainProgram({
       marketDataClient: {
-        _getContext: async () => ({}) as never,
+        getQuoteContext: async () => ({}) as never,
         getQuotes: async (symbols) => {
           getQuotesSymbols = Array.from(symbols);
           const quotes = new Map<string, Quote | null>();

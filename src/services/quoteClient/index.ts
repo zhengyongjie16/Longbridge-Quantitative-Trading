@@ -37,7 +37,7 @@ import { decimalToNumber, formatError, formatSymbolDisplay } from '../../utils/h
 import { logger } from '../../utils/logger/index.js';
 import { API } from '../../constants/index.js';
 import type { Quote, QuoteStaticInfo } from '../../types/quote.js';
-import type { TradingDayInfo , MarketDataClient, TradingDaysResult } from '../../types/services.js';
+import type { TradingDayInfo, MarketDataClient, TradingDaysResult } from '../../types/services.js';
 
 import type {
   RetryConfig,
@@ -303,10 +303,12 @@ export async function createMarketDataClient(
         staticInfo: (staticInfo ?? null) as QuoteStaticInfo | null, // LongPort API 返回 unknown，信任边界断言为 QuoteStaticInfo
       };
       quoteCache.set(quoteSymbol, quoteResult);
-      subscribedSymbols.add(quoteSymbol);
     }
 
     await withRetry(() => ctx.subscribe(newSymbols, [SubType.Quote]));
+    for (const symbol of newSymbols) {
+      subscribedSymbols.add(symbol);
+    }
     logger.info(`[行情订阅] 新增订阅 ${newSymbols.length} 个标的`);
   }
 
@@ -349,7 +351,7 @@ export async function createMarketDataClient(
   /**
    * 获取 QuoteContext 实例（供内部使用）
    */
-  async function _getContext(): Promise<QuoteContext> {
+  async function getQuoteContext(): Promise<QuoteContext> {
     return ctx;
   }
 
@@ -518,7 +520,7 @@ export async function createMarketDataClient(
   }
 
   return {
-    _getContext,
+    getQuoteContext,
     getQuotes,
     subscribeSymbols,
     unsubscribeSymbols,

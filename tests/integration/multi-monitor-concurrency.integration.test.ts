@@ -129,7 +129,7 @@ describe('multi-monitor-concurrency integration', () => {
 
     await mainProgram({
       marketDataClient: {
-        _getContext: async () => ({}) as never,
+        getQuoteContext: async () => ({}) as never,
         getQuotes: async (symbols: Iterable<string>) => {
           const map = new Map<string, Quote | null>();
           for (const symbol of symbols) {
@@ -152,7 +152,7 @@ describe('multi-monitor-concurrency integration', () => {
         resetRuntimeSubscriptionsAndCaches: async () => {},
       },
       trader: {
-        _orderRecorder: {} as never,
+        orderRecorder: {} as never,
         getAccountSnapshot: async () => null,
         getStockPositions: async () => [],
         getPendingOrders: async () => [],
@@ -161,10 +161,11 @@ describe('multi-monitor-concurrency integration', () => {
         cancelOrder: async () => true,
         monitorAndManageOrders: async () => {},
         getAndClearPendingRefreshSymbols: () => [],
-        _canTradeNow: () => ({ canTrade: true }),
-        _markBuyAttempt: () => {},
-        _resetRuntimeState: () => {},
-        _recoverOrderTracking: async () => {},
+        canTradeNow: () => ({ canTrade: true }),
+        recordBuyAttempt: () => {},
+        fetchAllOrdersFromAPI: async () => [],
+        resetRuntimeState: () => {},
+        recoverOrderTracking: async () => {},
         executeSignals: async () => ({ submittedCount: 0 }),
       },
       lastState: createLastState(),

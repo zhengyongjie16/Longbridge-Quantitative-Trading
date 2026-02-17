@@ -71,7 +71,7 @@ async function buildFindBestWarrantInput(
     getTradingMinutesSinceOpen,
     logger,
   } = params;
-  const ctx = await marketDataClient._getContext();
+  const ctx = await marketDataClient.getQuoteContext();
   const tradingMinutes = getTradingMinutesSinceOpen(currentTime);
   const isBull = direction === 'LONG';
   return {

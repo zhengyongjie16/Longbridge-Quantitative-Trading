@@ -111,8 +111,8 @@ describe('buy-flow integration', () => {
     const trader = createTraderDouble({
       getAccountSnapshot: async () => createAccountSnapshotDouble(100000),
       getStockPositions: async () => [],
-      _canTradeNow: orderExecutor.canTradeNow,
-      _markBuyAttempt: orderExecutor.markBuyAttempt,
+      canTradeNow: orderExecutor.canTradeNow,
+      recordBuyAttempt: orderExecutor.markBuyAttempt,
     });
     const riskChecker = createRiskCheckerDouble();
     const orderRecorder = createOrderRecorderDouble();

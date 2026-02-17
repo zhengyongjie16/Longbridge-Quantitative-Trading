@@ -226,7 +226,7 @@ export function createRebuildTradingDayState(deps: RebuildTradingDayStateDeps): 
       await rebuildOrderRecords(monitorContexts, allOrders);
       await rebuildWarrantRiskCache(marketDataClient, monitorContexts);
       await rebuildUnrealizedLossCache(monitorContexts, dailyLossTracker);
-      await trader._recoverOrderTracking();
+      await trader.recoverOrderTracking();
       await displayAccountAndPositions({ lastState, quotesMap });
     } catch (err) {
       throw new Error(`[Lifecycle] 重建交易日状态失败: ${formatError(err)}`, { cause: err });

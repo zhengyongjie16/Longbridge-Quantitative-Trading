@@ -81,7 +81,7 @@ export function createLoadTradingDayRuntimeSnapshot(
 
     let allOrders: ReadonlyArray<RawOrderFromAPI> = [];
     try {
-      allOrders = await trader._orderRecorder.fetchAllOrdersFromAPI(forceOrderRefresh);
+      allOrders = await trader.fetchAllOrdersFromAPI(forceOrderRefresh);
     } catch (err) {
       if (failOnOrderFetchError) {
         throw new Error(`[全量订单获取失败] ${formatError(err)}`);

@@ -83,13 +83,13 @@ describe('risk pipeline regression', () => {
         return createAccountSnapshotDouble(100_000);
       },
       getStockPositions: async () => [],
-      _canTradeNow: () => {
+      canTradeNow: () => {
         if (buySlotOccupied) {
           return { canTrade: false, waitSeconds: 59 };
         }
         return { canTrade: true };
       },
-      _markBuyAttempt: () => {
+      recordBuyAttempt: () => {
         markBuyAttemptCount += 1;
         buySlotOccupied = true;
       },

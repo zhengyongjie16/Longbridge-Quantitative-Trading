@@ -112,7 +112,7 @@ export async function createTrader(deps: TraderDeps): Promise<Trader> {
 
   // 创建 Trader 实例
   return {
-    _orderRecorder: orderRecorder,
+    orderRecorder,
 
     // ==================== 账户相关方法 ====================
 
@@ -161,15 +161,19 @@ export async function createTrader(deps: TraderDeps): Promise<Trader> {
 
     // ==================== 订单执行相关方法 ====================
 
-    _canTradeNow(signalAction: SignalType, monitorConfig?: MonitorConfig | null): TradeCheckResult {
+    canTradeNow(signalAction: SignalType, monitorConfig?: MonitorConfig | null): TradeCheckResult {
       return orderExecutor.canTradeNow(signalAction, monitorConfig);
     },
 
-    _markBuyAttempt(signalAction: SignalType, monitorConfig?: MonitorConfig | null): void {
+    recordBuyAttempt(signalAction: SignalType, monitorConfig?: MonitorConfig | null): void {
       orderExecutor.markBuyAttempt(signalAction, monitorConfig);
     },
 
-    _resetRuntimeState(): void {
+    fetchAllOrdersFromAPI(forceRefresh: boolean = false): Promise<ReadonlyArray<RawOrderFromAPI>> {
+      return orderRecorder.fetchAllOrdersFromAPI(forceRefresh);
+    },
+
+    resetRuntimeState(): void {
       orderRecorder.resetAll();
       cacheManager.clearCache();
       orderHoldRegistry.clear();
@@ -177,7 +181,7 @@ export async function createTrader(deps: TraderDeps): Promise<Trader> {
       orderExecutor.resetBuyThrottle();
     },
 
-    _recoverOrderTracking(): Promise<void> {
+    recoverOrderTracking(): Promise<void> {
       return orderMonitor.recoverTrackedOrders();
     },
 

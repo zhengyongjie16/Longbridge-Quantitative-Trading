@@ -176,7 +176,7 @@ export async function prepareSeatsOnStartup(
     );
   }
 
-  const quoteContextPromise = marketDataClient._getContext();
+  const quoteContextPromise = marketDataClient.getQuoteContext();
 
   /**
    * 执行自动寻标并更新席位状态。

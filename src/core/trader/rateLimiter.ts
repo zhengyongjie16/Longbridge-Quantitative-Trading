@@ -52,7 +52,7 @@ export const createRateLimiter = (deps: RateLimiterDeps = {}): RateLimiter => {
     try {
       let now = Date.now();
 
-      // 1. 检查最小调用间隔（两次调用间隔不少于0.02秒）
+      // 1. 检查最小调用间隔（两次调用间隔不少于 API.MIN_CALL_INTERVAL_MS 毫秒）
       const lastCallTime = callTimestamps.at(-1);
       if (lastCallTime) {
         const timeSinceLastCall = now - lastCallTime;

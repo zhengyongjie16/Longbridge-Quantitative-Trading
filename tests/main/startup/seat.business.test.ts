@@ -115,7 +115,7 @@ describe('startup seat preparation business flow', () => {
       positions: [],
       orders: [],
       marketDataClient: {
-        _getContext: async () => quoteCtx as never,
+        getQuoteContext: async () => quoteCtx as never,
       } as never,
       now: () => new Date('2026-02-16T01:00:00.000Z'),
       logger: createLoggerStub(),
@@ -175,7 +175,7 @@ describe('startup seat preparation business flow', () => {
       positions: [],
       orders: [],
       marketDataClient: {
-        _getContext: async () => quoteCtx as never,
+        getQuoteContext: async () => quoteCtx as never,
       } as never,
       now: () => new Date('2026-02-16T01:00:00.000Z'),
       logger: createLoggerStub(),
@@ -253,7 +253,7 @@ describe('startup seat preparation business flow', () => {
       positions: [],
       orders: [],
       marketDataClient: {
-        _getContext: async () => quoteCtx as never,
+        getQuoteContext: async () => quoteCtx as never,
       } as never,
       now: () => new Date('2026-02-16T01:01:00.000Z'),
       logger: createLoggerStub(),

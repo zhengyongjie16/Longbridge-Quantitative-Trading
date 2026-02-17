@@ -169,7 +169,7 @@ async function main(): Promise<void> {
 
   // 获取交易日信息并按日期缓存，避免频繁调用 API。
   async function resolveTradingDayInfo(currentTime: Date): Promise<{ isTradingDay: boolean; isHalfDay: boolean }> {
-    const dateStr = currentTime.toISOString().slice(0, 10);
+    const dateStr = getHKDateKey(currentTime) ?? currentTime.toISOString().slice(0, 10);
     if (cachedTradingDayInfo?.dateStr === dateStr) {
       return cachedTradingDayInfo.info;
     }
@@ -418,7 +418,7 @@ async function main(): Promise<void> {
       symbolRegistry,
       marketDataClient,
       trader,
-      orderRecorder: trader._orderRecorder,
+      orderRecorder: trader.orderRecorder,
       riskChecker,
       warrantListCacheConfig,
     });
@@ -447,7 +447,7 @@ async function main(): Promise<void> {
       symbolRegistry,
       quotesMap: initQuotesMap,
       strategy,
-      orderRecorder: trader._orderRecorder,
+      orderRecorder: trader.orderRecorder,
       dailyLossTracker,
       riskChecker,
       unrealizedLossMonitor,

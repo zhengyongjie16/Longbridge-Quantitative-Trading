@@ -166,7 +166,7 @@ export const createRiskCheckPipeline = ({
          * 排序原则：先轻量后重量，减少不必要的 API 调用
          */
         // 1. 检查交易频率限制
-        const tradeCheck = trader._canTradeNow(sig.action, context.config);
+        const tradeCheck = trader.canTradeNow(sig.action, context.config);
         if (!tradeCheck.canTrade) {
           const waitSeconds = tradeCheck.waitSeconds ?? 0;
           const reason = `交易频率限制：${directionDesc} 在${context.config.buyIntervalSeconds}秒内已买入过，需等待 ${waitSeconds} 秒后才能再次买入`;
@@ -196,7 +196,7 @@ export const createRiskCheckPipeline = ({
 
         // 频率检查通过后立即标记买入意图（预占时间槽）
         // 防止同一批次中的多个延迟验证信号同时通过频率检查
-        trader._markBuyAttempt(sig.action, context.config);
+        trader.recordBuyAttempt(sig.action, context.config);
 
         // 3. 买入价格限制
         const latestBuyPrice = orderRecorder.getLatestBuyOrderPrice(sigSymbol, isLongBuyAction);

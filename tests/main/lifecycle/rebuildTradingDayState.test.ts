@@ -2,7 +2,7 @@
  * 交易日状态重建单元测试
  *
  * 覆盖：成功时依次执行 syncAllMonitorContexts、rebuildOrderRecords、rebuildWarrantRiskCache、
- * rebuildUnrealizedLossCache、_recoverOrderTracking、displayAccountAndPositions；
+ * rebuildUnrealizedLossCache、recoverOrderTracking、displayAccountAndPositions；
  * 任一步失败时抛出带 [Lifecycle] 重建交易日状态失败 前缀的错误
  */
 import { describe, it, expect } from 'bun:test';
@@ -35,7 +35,7 @@ const mockSymbolRegistry: SymbolRegistry = {
 
 function createRebuildDeps(overrides?: Partial<RebuildTradingDayStateDeps>): RebuildTradingDayStateDeps {
   const trader: Trader = {
-    _recoverOrderTracking: async () => {},
+    recoverOrderTracking: async () => {},
   } as unknown as Trader;
 
   return {
@@ -51,7 +51,7 @@ function createRebuildDeps(overrides?: Partial<RebuildTradingDayStateDeps>): Reb
 }
 
 describe('createRebuildTradingDayState', () => {
-  it('无 READY 席位时仍调用 _recoverOrderTracking 与 displayAccountAndPositions', async () => {
+  it('无 READY 席位时仍调用 recoverOrderTracking 与 displayAccountAndPositions', async () => {
     let recoverCalled = false;
     let displayCalled = false;
     const monitorContexts = new Map<string, MonitorContext>([
@@ -77,7 +77,7 @@ describe('createRebuildTradingDayState', () => {
     const deps = createRebuildDeps({
       symbolRegistry: mockSymbolRegistry,
       trader: {
-        _recoverOrderTracking: async () => {
+        recoverOrderTracking: async () => {
           recoverCalled = true;
         },
       } as unknown as Trader,

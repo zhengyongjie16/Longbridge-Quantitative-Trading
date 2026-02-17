@@ -109,7 +109,7 @@ describe('auto-symbol-switch integration', () => {
       monitorConfig,
       symbolRegistry,
       marketDataClient: {
-        _getContext: async () => ({}) as never,
+        getQuoteContext: async () => ({}) as never,
         getQuotes: async () => new Map(),
         subscribeSymbols: async () => {},
         unsubscribeSymbols: async () => {},

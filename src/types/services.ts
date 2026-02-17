@@ -49,7 +49,7 @@ export type TradingDayInfo = {
  */
 export interface MarketDataClient {
   /** 获取底层 QuoteContext（内部使用） */
-  _getContext(): Promise<QuoteContext>;
+  getQuoteContext(): Promise<QuoteContext>;
 
   /**
    * 批量获取多个标的的最新行情
@@ -275,7 +275,7 @@ export interface OrderRecorder {
  */
 export interface Trader {
   /** 订单记录器实例 */
-  readonly _orderRecorder: OrderRecorder;
+  readonly orderRecorder: OrderRecorder;
 
   // ========== 账户相关 ==========
 
@@ -304,13 +304,15 @@ export interface Trader {
   // ========== 订单执行 ==========
 
   /** 检查当前是否可交易 */
-  _canTradeNow(signalAction: SignalType, monitorConfig?: MonitorConfig | null): TradeCheckResult;
+  canTradeNow(signalAction: SignalType, monitorConfig?: MonitorConfig | null): TradeCheckResult;
   /** 标记买入意图（预占时间槽，防止并发） */
-  _markBuyAttempt(signalAction: SignalType, monitorConfig?: MonitorConfig | null): void;
+  recordBuyAttempt(signalAction: SignalType, monitorConfig?: MonitorConfig | null): void;
+  /** 从 API 获取全量订单 */
+  fetchAllOrdersFromAPI(forceRefresh?: boolean): Promise<ReadonlyArray<RawOrderFromAPI>>;
   /** 生命周期午夜清理：重置订单运行态缓存 */
-  _resetRuntimeState(): void;
+  resetRuntimeState(): void;
   /** 生命周期开盘重建：恢复订单追踪 */
-  _recoverOrderTracking(): Promise<void>;
+  recoverOrderTracking(): Promise<void>;
   /** 执行交易信号；返回实际提交的订单数量（保护性清仓等仅在真正提交后才更新缓存） */
   executeSignals(signals: Signal[]): Promise<{ submittedCount: number }>;
 }
