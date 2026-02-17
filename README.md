@@ -27,7 +27,7 @@
 
 ## 开发者提示
 
-使用 Claude Code / Cursor Agent 开发时，可以使用 **[CLAUDE.md](./CLAUDE.md)** 对Agent进行宽约束和初步指导。内置Skills和Agents均在.claude/下。具体参考下方「帮助」中的 Claude Code Docs。
+使用 Claude Code / Codex / Cursor Agent 开发时，可以使用 **[CLAUDE.md](./CLAUDE.md)** 对Agent进行宽约束和初步指导。具体参考下方「帮助」中的 Claude Code Docs。
 
 ### 内置 Skills
 
