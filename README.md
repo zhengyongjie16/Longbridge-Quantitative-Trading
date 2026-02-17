@@ -419,6 +419,7 @@ graph TD
 ## 帮助
 
 - [Longbridge OpenAPI Docs](https://open.longbridge.com/zh-CN/docs)
+- [Longbridge OpenAPI LLM Components Docs](https://open.longbridge.com/docs/llm)
 - [LongPort OpenAPI SDK for Node.js Docs](https://longportapp.github.io/openapi/nodejs/)
 - [Claude Code Docs](https://code.claude.com/docs)
 - [Bun Apps Docs](https://bun.com/docs)

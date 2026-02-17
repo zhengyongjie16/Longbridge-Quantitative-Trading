@@ -5,4 +5,4 @@ description: LongPort OpenAPI SDK for Node.js 完整知识库。当用户需要�
 
 # LongPort OpenAPI SDK for Node.js
 
-[longport-nodejs-sdk](/skills/longport-nodejs-sdk/SKILL.md)
+[longport-nodejs-sdk](/agent/skills/longport-nodejs-sdk/SKILL.md)

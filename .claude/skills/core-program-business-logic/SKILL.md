@@ -5,4 +5,4 @@ description: 港股量化交易系统业务逻辑知识库。包含信号生成�
 
 # Core Program Business Logic
 
-[core-program-business-logic](/skills/core-program-business-logic/SKILL.md)
+[core-program-business-logic](/agent/skills/core-program-business-logic/SKILL.md)

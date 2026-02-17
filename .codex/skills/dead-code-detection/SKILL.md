@@ -5,4 +5,4 @@ description: 系统性搜索和删除 TypeScript 项目中的无用代码。适�
 
 # Dead Code Detection & Removal
 
-[dead-code-detection](/skills/dead-code-detection/SKILL.md)
+[dead-code-detection](/agent/skills/dead-code-detection/SKILL.md)

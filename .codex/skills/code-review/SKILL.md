@@ -5,4 +5,4 @@ description: 资深代码审查与代码简化综合技能。用于代码检查�
 
 # Code Review
 
-[code-review](/skills/code-review/SKILL.md)
+[code-review](/agent/skills/code-review/SKILL.md)

@@ -5,4 +5,4 @@ description: 编写简洁、易于维护且遵循严格规范的 TypeScript 代�
 
 # TypeScript Project Specifications
 
-[typescript-project-specifications](/skills/typescript-project-specifications/SKILL.md)
+[typescript-project-specifications](/agent/skills/typescript-project-specifications/SKILL.md)
