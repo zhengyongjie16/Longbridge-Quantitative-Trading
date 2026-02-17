@@ -14,7 +14,7 @@
 4. 该程序一般不会交易正股（正股仅用作实时分析，即配置中的监控标的），而是在轮证/ETF等衍生品上进行多空交易，主要为交易做多或做空方向的权证或牛熊证，这存在较高风险。
 5. 目前的交易策略仅针对日内交易，在交易时段内每秒获取分钟级k线进行技术指标的计算用于生成交易信号（虽然是获取分钟k线但最新的k线是实时变动的），由于通过交易轮证这样的高杠杆衍生品，所以不需要监控大周期的k线，但这也存在更高的风险。
 6. 请务必掌握相关代码知识（主要为typescript），不建议非开发者使用。
-7. 该程序代码几乎全部由vibe/spec coding（关键部分主要使用Claude Opus 4.x和GPT-5.x Codex Extra High模型）编写，请使用顶级模型进行重构和再开发，这是保证代码质量的关键。（注意：AI仅用作代码实现，所有架构和业务逻辑应自行设计）。
+7. 该程序代码几乎全部由vibe/spec coding（关键部分主要使用Claude Opus 4.x和GPT-5.x Codex Extra High模型）编写，请使用顶级模型进行重构和再开发，这是保证代码质量的关键。（注意：Agent仅用作代码实现，所有架构和业务逻辑应自行设计）。
 8. 请务必使用模拟账户进行调试。
 
 ## 编码模型分级（由社区反馈，仅作参考）
@@ -27,28 +27,19 @@
 
 ## 开发者提示
 
-使用 Claude Code / Codex / Cursor Agent 开发时，可以使用 **[CLAUDE.md](./CLAUDE.md)** 对Agent进行宽约束和初步指导。具体参考下方「帮助」中的 Claude Code Docs。
+使用 Claude Code / Codex / Cursor Agent 开发时，可以使用 **[CLAUDE.md](./CLAUDE.md)** 对 Agent 进行宽约束和初步指导。具体参考下方「帮助」中的 Claude Code Docs。
 
 ### 内置 Skills
 
-项目内置以下 skills，AI 可根据任务自动调用：
+项目内置以下 skills，Agent 可根据任务自动调用：
 
 | Skill | 说明 | 使用场景 |
 |-------|------|---------|
+| `code-review` | 资深代码审查与代码简化综合技能 | 代码审查、实现与计划一致性检查、TypeScript 代码质量/架构/注释/类型设计评估、代码简化 |
 | `core-program-business-logic` | 港股量化交易系统业务逻辑知识库 | 理解交易逻辑、验证代码实现、修改功能、解答业务规则；重构代码时应一并更新此文档 |
+| `dead-code-detection` | TypeScript 项目死代码检测与清理技能 | 删除无用代码、清理死代码、识别工厂函数/依赖注入架构中的接口方法级死代码与透传包装器 |
 | `longport-nodejs-sdk` | LongPort OpenAPI SDK for Node.js 完整知识库 | 调用 LongPort API、查询 SDK 文档、处理行情/订单/资产 |
 | `typescript-project-specifications` | TypeScript 严格代码规范 | 编写/修改/重构 .ts 文件时自动使用，包含工厂函数、依赖注入、对象池等模式示例 |
-
-### 内置 Agents
-
-项目内置以下专用 agents，可在特定场景下调用：
-
-| Agent | 说明 | 使用场景 |
-|-------|------|---------|
-| `code-reviewer` | 高级代码审查员 | 完成重大项目步骤后，对照原计划和编码标准进行审查，识别偏差和质量问题 |
-| `code-simplifier` | 代码简化专家 | 编写或修改代码后自动触发，在保留功能的前提下简化代码、提升可读性和可维护性 |
-| `comment-analyzer` | 注释分析员 | 生成大型文档注释后、创建 PR 前，验证注释的准确性、完整性，防止注释腐化 |
-| `type-design-analyzer` | 类型设计分析师 | 引入新类型、创建 PR、重构类型时，分析封装性、不变量表达、有用性和强制性 |
 
 ### 核心功能
 
