@@ -53,9 +53,8 @@ export function extractLotSize(staticInfo: unknown): number | undefined {
     return undefined;
   }
 
-  // LongPort 静态信息 API 返回的对象结构与 StaticInfo 对应，这里作为信任边界桥接做结构性断言
   const info = staticInfo as StaticInfo;
-  const lotSizeValue = info.lotSize ?? info.lot_size ?? info.lot ?? null;
+  const lotSizeValue = info.lotSize ?? null;
 
   if (lotSizeValue === null || lotSizeValue === undefined) {
     return undefined;

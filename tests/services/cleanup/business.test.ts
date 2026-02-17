@@ -115,6 +115,11 @@ describe('cleanup business flow', () => {
         },
         clearPending: () => {},
       },
+      marketDataClient: {
+        resetRuntimeSubscriptionsAndCaches: async () => {
+          steps.push('resetMarketData');
+        },
+      } as never,
       monitorContexts,
       indicatorCache: {
         push: () => {},
@@ -136,8 +141,80 @@ describe('cleanup business flow', () => {
       'postTradeRefresher',
       'destroyVerifier',
       'clearIndicatorCache',
+      'resetMarketData',
     ]);
     expect(monitorState.lastMonitorSnapshot).toBeNull();
+  });
+
+  it('resets market data runtime at the end of cleanup', async () => {
+    const steps: string[] = [];
+
+    const cleanup = createCleanup({
+      buyProcessor: {
+        start: () => {},
+        stop: () => {},
+        stopAndDrain: async () => {
+          steps.push('buy');
+        },
+        restart: () => {},
+      },
+      sellProcessor: {
+        start: () => {},
+        stop: () => {},
+        stopAndDrain: async () => {
+          steps.push('sell');
+        },
+        restart: () => {},
+      },
+      monitorTaskProcessor: {
+        start: () => {},
+        stopAndDrain: async () => {
+          steps.push('monitorTask');
+        },
+      } as never,
+      orderMonitorWorker: {
+        start: () => {},
+        schedule: () => {},
+        stopAndDrain: async () => {
+          steps.push('orderMonitorWorker');
+        },
+        clearLatestQuotes: () => {},
+      },
+      postTradeRefresher: {
+        start: () => {},
+        enqueue: () => {},
+        stopAndDrain: async () => {
+          steps.push('postTradeRefresher');
+        },
+        clearPending: () => {},
+      },
+      marketDataClient: {
+        resetRuntimeSubscriptionsAndCaches: async () => {
+          steps.push('resetMarketData');
+        },
+      } as never,
+      monitorContexts: new Map(),
+      indicatorCache: {
+        push: () => {},
+        getAt: () => null,
+        clearAll: () => {
+          steps.push('clearIndicatorCache');
+        },
+      },
+      lastState: createLastState(new Map()),
+    });
+
+    await cleanup.execute();
+
+    expect(steps).toEqual([
+      'buy',
+      'sell',
+      'monitorTask',
+      'orderMonitorWorker',
+      'postTradeRefresher',
+      'clearIndicatorCache',
+      'resetMarketData',
+    ]);
   });
 
   it('registers SIGINT/SIGTERM handlers and exits after cleanup', async () => {
@@ -203,6 +280,11 @@ describe('cleanup business flow', () => {
           },
           clearPending: () => {},
         },
+        marketDataClient: {
+          resetRuntimeSubscriptionsAndCaches: async () => {
+            steps.push('resetMarketData');
+          },
+        } as never,
         monitorContexts: new Map(),
         indicatorCache: {
           push: () => {},
@@ -229,6 +311,7 @@ describe('cleanup business flow', () => {
         'orderMonitorWorker',
         'postTradeRefresher',
         'clearIndicatorCache',
+        'resetMarketData',
       ]);
     } finally {
       (process as unknown as { once: typeof process.once }).once = originalOnce;
@@ -289,6 +372,11 @@ describe('cleanup business flow', () => {
         },
         clearPending: () => {},
       },
+      marketDataClient: {
+        resetRuntimeSubscriptionsAndCaches: async () => {
+          steps.push('resetMarketData');
+        },
+      } as never,
       monitorContexts,
       indicatorCache: {
         push: () => {},
@@ -316,6 +404,7 @@ describe('cleanup business flow', () => {
       'postTradeRefresher',
       'destroyVerifier',
       'clearIndicatorCache',
+      'resetMarketData',
     ]);
     expect(monitorState.lastMonitorSnapshot).toBeNull();
   });
@@ -384,6 +473,11 @@ describe('cleanup business flow', () => {
           },
           clearPending: () => {},
         },
+        marketDataClient: {
+          resetRuntimeSubscriptionsAndCaches: async () => {
+            steps.push('resetMarketData');
+          },
+        } as never,
         monitorContexts: new Map(),
         indicatorCache: {
           push: () => {},
@@ -407,6 +501,7 @@ describe('cleanup business flow', () => {
         'orderMonitorWorker',
         'postTradeRefresher',
         'clearIndicatorCache',
+        'resetMarketData',
       ]);
     } finally {
       (process as unknown as { once: typeof process.once }).once = originalOnce;

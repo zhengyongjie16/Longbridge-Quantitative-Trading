@@ -31,6 +31,7 @@ export function createCleanup(context: CleanupContext): {
     monitorTaskProcessor,
     orderMonitorWorker,
     postTradeRefresher,
+    marketDataClient,
     monitorContexts,
     indicatorCache,
     lastState,
@@ -81,6 +82,9 @@ export function createCleanup(context: CleanupContext): {
     });
     await runStep('释放监控快照对象', () => {
       releaseAllMonitorSnapshots(lastState.monitorStates);
+    });
+    await runStep('重置行情运行态订阅与缓存', async () => {
+      await marketDataClient.resetRuntimeSubscriptionsAndCaches();
     });
 
     if (failures.length > 0) {

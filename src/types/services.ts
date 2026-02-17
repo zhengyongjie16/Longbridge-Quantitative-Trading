@@ -117,6 +117,7 @@ export type PendingOrder = {
   readonly executedQuantity: number;
   readonly status: OrderStatus;
   readonly orderType: RawOrderFromAPI['orderType'];
+  /** 订单原始响应（仅用于问题排查与调试日志） */
   readonly _rawOrder?: unknown;
 };
 

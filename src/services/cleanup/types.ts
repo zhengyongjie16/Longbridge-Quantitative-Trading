@@ -7,6 +7,7 @@ import type { MonitorTaskProcessor } from '../../main/asyncProgram/monitorTaskPr
 import type { OrderMonitorWorker } from '../../main/asyncProgram/orderMonitorWorker/types.js';
 import type { PostTradeRefresher } from '../../main/asyncProgram/postTradeRefresher/types.js';
 import type { LastState, MonitorContext } from '../../types/state.js';
+import type { MarketDataClient } from '../../types/services.js';
 
 /**
  * 清理上下文接口
@@ -18,6 +19,7 @@ export type CleanupContext = {
   readonly monitorTaskProcessor: MonitorTaskProcessor;
   readonly orderMonitorWorker: OrderMonitorWorker;
   readonly postTradeRefresher: PostTradeRefresher;
+  readonly marketDataClient: MarketDataClient;
   readonly monitorContexts: ReadonlyMap<string, MonitorContext>;
   readonly indicatorCache: IndicatorCache;
   readonly lastState: LastState;

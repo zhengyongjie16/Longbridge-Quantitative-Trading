@@ -14,8 +14,6 @@ export type QuoteStaticInfo = {
   readonly nameCn?: string | null;
   readonly nameEn?: string | null;
   readonly lotSize?: number | null;
-  readonly lot_size?: number | null;
-  readonly lot?: number | null;
   readonly callPrice?: number | null;
   readonly expiryDate?: string | null;
   readonly issuePrice?: number | null;

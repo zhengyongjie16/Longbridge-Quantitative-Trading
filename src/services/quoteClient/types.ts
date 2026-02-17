@@ -23,8 +23,6 @@ export type StaticInfo = {
   readonly nameCn?: string | null;
   readonly nameEn?: string | null;
   readonly lotSize?: number | null;
-  readonly lot_size?: number | null;
-  readonly lot?: number | null;
 };
 
 // ==================== 依赖类型定义 ====================

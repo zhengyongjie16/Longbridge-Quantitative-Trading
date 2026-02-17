@@ -27,7 +27,7 @@ export type Position = {
   currency: string;
   /** 成本价 */
   costPrice: number;
-  /** 市场 */
+  /** 市场（LongPort 返回值） */
   market: Market | string;
 };
 

@@ -695,6 +695,7 @@ async function main(): Promise<void> {
     monitorTaskProcessor,
     orderMonitorWorker,
     postTradeRefresher,
+    marketDataClient,
     monitorContexts,
     indicatorCache,
     lastState,

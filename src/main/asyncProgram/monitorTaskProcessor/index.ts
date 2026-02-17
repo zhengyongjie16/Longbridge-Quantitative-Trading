@@ -39,6 +39,10 @@ import type {
   RefreshHelpers,
 } from './types.js';
 
+function assertNeverTaskType(taskType: never): never {
+  throw new Error(`[MonitorTaskProcessor] 未处理的任务类型: ${String(taskType)}`);
+}
+
 /**
  * 创建监控任务处理器
  * 消费 MonitorTaskQueue 中的任务，使用 setImmediate 异步执行
@@ -107,7 +111,7 @@ export function createMonitorTaskProcessor(
       case 'UNREALIZED_LOSS_CHECK':
         return handleUnrealizedLossCheck(task);
       default:
-        return 'skipped';
+        return assertNeverTaskType(task.type);
     }
   }
 
