@@ -5,12 +5,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { createTradingConfig } from '../../mock/factories/configFactory.js';
 import {
-  getHKDateKey as realGetHKDateKey,
-  isInContinuousHKSession as realIsInContinuousHKSession,
-  isWithinAfternoonOpenProtection as realIsWithinAfternoonOpenProtection,
-  isWithinMorningOpenProtection as realIsWithinMorningOpenProtection,
-} from '../../src/utils/helpers/tradingTime.js';
-import {
   createDoomsdayProtectionDouble,
   createMonitorConfigDouble,
   createPositionCacheDouble,
@@ -36,6 +30,47 @@ const tradingTimeOverrides = {
   afternoonOpenProtection: null as boolean | null,
 };
 
+function getHKDateKeyFallback(now: Date): string {
+  const hkDate = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  const year = hkDate.getUTCFullYear();
+  const month = String(hkDate.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(hkDate.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function resolveHKMinuteOfDay(now: Date): number {
+  const hkTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  return hkTime.getUTCHours() * 60 + hkTime.getUTCMinutes();
+}
+
+function isInContinuousHKSessionFallback(now: Date, isHalfDay: boolean): boolean {
+  const minuteOfDay = resolveHKMinuteOfDay(now);
+  const inMorning = minuteOfDay >= (9 * 60 + 30) && minuteOfDay < 12 * 60;
+  if (isHalfDay) {
+    return inMorning;
+  }
+  const inAfternoon = minuteOfDay >= 13 * 60 && minuteOfDay < 16 * 60;
+  return inMorning || inAfternoon;
+}
+
+function isWithinMorningOpenProtectionFallback(now: Date, minutes: number): boolean {
+  if (!Number.isFinite(minutes) || minutes <= 0) {
+    return false;
+  }
+  const minuteOfDay = resolveHKMinuteOfDay(now);
+  const start = 9 * 60 + 30;
+  return minuteOfDay >= start && minuteOfDay < start + minutes;
+}
+
+function isWithinAfternoonOpenProtectionFallback(now: Date, minutes: number): boolean {
+  if (!Number.isFinite(minutes) || minutes <= 0) {
+    return false;
+  }
+  const minuteOfDay = resolveHKMinuteOfDay(now);
+  const start = 13 * 60;
+  return minuteOfDay >= start && minuteOfDay < start + minutes;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 在导入 mainProgram 前同步注册
 mock.module('../../src/main/processMonitor/index.js', () => ({
   processMonitor: async ({ monitorContext, runtimeFlags }: {
@@ -55,13 +90,13 @@ mock.module('../../src/main/processMonitor/index.js', () => ({
 
 // eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 在导入 mainProgram 前同步注册
 mock.module('../../src/utils/helpers/tradingTime.js', () => ({
-  getHKDateKey: (now: Date) => tradingTimeOverrides.dayKey ?? realGetHKDateKey(now),
+  getHKDateKey: (now: Date) => tradingTimeOverrides.dayKey ?? getHKDateKeyFallback(now),
   isInContinuousHKSession: (now: Date, isHalfDay: boolean) =>
-    tradingTimeOverrides.isInContinuousSession ?? realIsInContinuousHKSession(now, isHalfDay),
+    tradingTimeOverrides.isInContinuousSession ?? isInContinuousHKSessionFallback(now, isHalfDay),
   isWithinMorningOpenProtection: (now: Date, minutes: number) =>
-    tradingTimeOverrides.morningOpenProtection ?? realIsWithinMorningOpenProtection(now, minutes),
+    tradingTimeOverrides.morningOpenProtection ?? isWithinMorningOpenProtectionFallback(now, minutes),
   isWithinAfternoonOpenProtection: (now: Date, minutes: number) =>
-    tradingTimeOverrides.afternoonOpenProtection ?? realIsWithinAfternoonOpenProtection(now, minutes),
+    tradingTimeOverrides.afternoonOpenProtection ?? isWithinAfternoonOpenProtectionFallback(now, minutes),
 }));
 
 import { mainProgram } from '../../src/main/mainProgram/index.js';
