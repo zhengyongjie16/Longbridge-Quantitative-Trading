@@ -3,12 +3,91 @@
  *
  * 指标特点：
  * - 周期可配置（通过参数传入）
- * - 使用 technicalindicators 库计算
+ * - 使用本地算法并对齐旧输出语义
  * - 返回值范围 0-100
  */
-import { RSI } from 'technicalindicators';
 import { logDebug } from './utils.js';
 import { validatePercentage } from '../../utils/helpers/indicatorHelpers.js';
+
+function roundToFixed2(value: number): number {
+  return Number.parseFloat(value.toFixed(2));
+}
+
+function calculateRsiSeries(
+  source: ReadonlyArray<number>,
+  period: number,
+  size: number = source.length,
+): number[] {
+  if (size <= period) {
+    return [];
+  }
+
+  const output: number[] = [];
+  const per = 1 / period;
+
+  let smoothUp = 0;
+  let smoothDown = 0;
+
+  for (let i = 1; i <= period; i += 1) {
+    const current = source[i];
+    const previous = source[i - 1];
+    if (
+      current === undefined ||
+      previous === undefined ||
+      !Number.isFinite(current) ||
+      !Number.isFinite(previous)
+    ) {
+      return [];
+    }
+
+    const upward = current > previous ? current - previous : 0;
+    const downward = current < previous ? previous - current : 0;
+    smoothUp += upward;
+    smoothDown += downward;
+  }
+
+  smoothUp /= period;
+  smoothDown /= period;
+  output.push(100 * (smoothUp / (smoothUp + smoothDown)));
+
+  for (let i = period + 1; i < size; i += 1) {
+    const current = source[i];
+    const previous = source[i - 1];
+    if (
+      current === undefined ||
+      previous === undefined ||
+      !Number.isFinite(current) ||
+      !Number.isFinite(previous)
+    ) {
+      break;
+    }
+    const upward = current > previous ? current - previous : 0;
+    const downward = current < previous ? previous - current : 0;
+
+    smoothUp = (upward - smoothUp) * per + smoothUp;
+    smoothDown = (downward - smoothDown) * per + smoothDown;
+    output.push(100 * (smoothUp / (smoothUp + smoothDown)));
+  }
+
+  return output;
+}
+
+function calculateRsiSeriesWithTechnicalPrecision(
+  values: ReadonlyArray<number>,
+  period: number,
+): number[] {
+  if (values.length <= period) {
+    return [];
+  }
+
+  const result = calculateRsiSeries(values, period);
+  return result.map((value) => {
+    if (!Number.isFinite(value)) {
+      return 100;
+    }
+    return roundToFixed2(value);
+  });
+}
 
 /**
  * 计算 RSI（相对强弱指标）
@@ -28,7 +107,7 @@ export function calculateRSI(validCloses: ReadonlyArray<number>, period: number)
 
   try {
     // validCloses 已由 buildIndicatorSnapshot 预处理，无需再次过滤
-    const rsiResult = RSI.calculate({ values: Array.from(validCloses), period });
+    const rsiResult = calculateRsiSeriesWithTechnicalPrecision(validCloses, period);
 
     if (!rsiResult || rsiResult.length === 0) {
       return null;

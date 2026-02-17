@@ -3,10 +3,134 @@
  *
  * 指标参数：DIF=EMA12-EMA26，DEA=EMA9(DIF)，MACD柱=2*(DIF-DEA)
  */
-import { MACD } from 'technicalindicators';
 import { macdObjectPool } from '../../utils/objectPool/index.js';
 import { logDebug, isValidMACD } from './utils.js';
 import type { MACDIndicator } from '../../types/quote.js';
+
+type MacdPoint = {
+  readonly MACD: number;
+  readonly signal: number | undefined;
+  readonly histogram: number | undefined;
+};
+
+function computeSma(values: ReadonlyArray<number>): number {
+  if (values.length === 0) {
+    return 0;
+  }
+  let sum = 0;
+  for (const value of values) {
+    sum += value;
+  }
+  return sum / values.length;
+}
+
+function calculateEmaSeries(
+  source: ReadonlyArray<number>,
+  period: number,
+  size: number = source.length,
+): number[] {
+  if (size <= 0) {
+    return [];
+  }
+
+  const first = source[0];
+  if (first === undefined || !Number.isFinite(first)) {
+    return [];
+  }
+
+  const output: number[] = [];
+  const per = 2 / (period + 1);
+  let value = first;
+  output.push(value);
+
+  for (let i = 1; i < size; i += 1) {
+    const current = source[i];
+    if (current === undefined || !Number.isFinite(current)) {
+      break;
+    }
+    value = (current - value) * per + value;
+    output.push(value);
+  }
+
+  return output;
+}
+
+function calculateEmaSeriesWithSmaSeed(
+  values: ReadonlyArray<number>,
+  period: number,
+): number[] {
+  if (values.length < period) {
+    return [];
+  }
+
+  const seedWindow = values.slice(0, period);
+  const seed = computeSma(seedWindow);
+  const emaInput = [seed, ...values.slice(period)];
+  return calculateEmaSeries(emaInput, period);
+}
+
+function calculateMacdSeriesWithTechnicalSemantics(
+  values: ReadonlyArray<number>,
+  fastPeriod: number,
+  slowPeriod: number,
+  signalPeriod: number,
+): ReadonlyArray<MacdPoint> {
+  if (values.length < slowPeriod) {
+    return [];
+  }
+
+  const fastEma = calculateEmaSeriesWithSmaSeed(values, fastPeriod);
+  const slowEma = calculateEmaSeriesWithSmaSeed(values, slowPeriod);
+  if (fastEma.length === 0 || slowEma.length === 0) {
+    return [];
+  }
+
+  const difSeries: number[] = [];
+  for (let index = slowPeriod - 1; index < values.length; index += 1) {
+    const fastIndex = index - (fastPeriod - 1);
+    const slowIndex = index - (slowPeriod - 1);
+    const fastValue = fastEma[fastIndex];
+    const slowValue = slowEma[slowIndex];
+    if (fastValue === undefined || slowValue === undefined) {
+      continue;
+    }
+    difSeries.push(fastValue - slowValue);
+  }
+
+  const signalSeries = calculateEmaSeriesWithSmaSeed(difSeries, signalPeriod);
+  const output: MacdPoint[] = [];
+
+  for (let i = 0; i < difSeries.length; i += 1) {
+    const dif = difSeries[i];
+    if (dif === undefined) {
+      continue;
+    }
+    if (i < signalPeriod - 1) {
+      output.push({
+        MACD: dif,
+        signal: undefined,
+        histogram: undefined,
+      });
+      continue;
+    }
+    const signalValue = signalSeries[i - (signalPeriod - 1)];
+    if (signalValue === undefined) {
+      output.push({
+        MACD: dif,
+        signal: undefined,
+        histogram: undefined,
+      });
+      continue;
+    }
+    output.push({
+      MACD: dif,
+      signal: signalValue,
+      histogram: dif - signalValue,
+    });
+  }
+
+  return output;
+}
 
 /**
  * 计算 MACD（移动平均收敛散度指标）
@@ -28,14 +152,12 @@ export function calculateMACD(
 
   try {
     // validCloses 已由 buildIndicatorSnapshot 预处理，无需再次过滤
-    const macdResult = MACD.calculate({
-      values: Array.from(validCloses),
+    const macdResult = calculateMacdSeriesWithTechnicalSemantics(
+      validCloses,
       fastPeriod,
       slowPeriod,
       signalPeriod,
-      SimpleMAOscillator: false,
-      SimpleMASignal: false,
-    });
+    );
 
     if (!macdResult || macdResult.length === 0) {
       return null;

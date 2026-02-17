@@ -4,11 +4,137 @@
  * 指标参数：
  * - MFI：周期 14，结合价格和成交量
  */
-import { MFI } from 'technicalindicators';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { toNumber, logDebug } from './utils.js';
 import { validatePercentage } from '../../utils/helpers/indicatorHelpers.js';
 import type { CandleData } from '../../types/data.js';
+
+type BufferNewPush = {
+  readonly size: number;
+  index: number;
+  pushes: number;
+  sum: number;
+  readonly vals: number[];
+};
+
+function roundToFixed2(value: number): number {
+  return Number.parseFloat(value.toFixed(2));
+}
+
+function pushBuffer(buffer: BufferNewPush, value: number): void {
+  if (buffer.pushes >= buffer.size) {
+    const old = buffer.vals[buffer.index];
+    if (old !== undefined) {
+      buffer.sum -= old;
+    }
+  }
+
+  buffer.sum += value;
+  buffer.vals[buffer.index] = value;
+  buffer.pushes += 1;
+  buffer.index += 1;
+  if (buffer.index >= buffer.size) {
+    buffer.index = 0;
+  }
+}
+
+function calculateMfiSeries(
+  high: ReadonlyArray<number>,
+  low: ReadonlyArray<number>,
+  close: ReadonlyArray<number>,
+  volume: ReadonlyArray<number>,
+  period: number,
+  size: number = high.length,
+): number[] {
+  if (size <= period) {
+    return [];
+  }
+
+  const firstHigh = high[0];
+  const firstLow = low[0];
+  const firstClose = close[0];
+  if (
+    firstHigh === undefined ||
+    firstLow === undefined ||
+    firstClose === undefined ||
+    !Number.isFinite(firstHigh) ||
+    !Number.isFinite(firstLow) ||
+    !Number.isFinite(firstClose)
+  ) {
+    return [];
+  }
+
+  const output: number[] = [];
+  let previousTypicalPrice = (firstHigh + firstLow + firstClose) / 3;
+
+  const up: BufferNewPush = {
+    size: period,
+    index: 0,
+    pushes: 0,
+    sum: 0,
+    vals: [],
+  };
+
+  const down: BufferNewPush = {
+    size: period,
+    index: 0,
+    pushes: 0,
+    sum: 0,
+    vals: [],
+  };
+
+  for (let i = 1; i < size; i += 1) {
+    const currentHigh = high[i];
+    const currentLow = low[i];
+    const currentClose = close[i];
+    const currentVolume = volume[i];
+    if (
+      currentHigh === undefined ||
+      currentLow === undefined ||
+      currentClose === undefined ||
+      currentVolume === undefined ||
+      !Number.isFinite(currentHigh) ||
+      !Number.isFinite(currentLow) ||
+      !Number.isFinite(currentClose) ||
+      !Number.isFinite(currentVolume)
+    ) {
+      break;
+    }
+
+    const typicalPrice = (currentHigh + currentLow + currentClose) / 3;
+    const bar = typicalPrice * currentVolume;
+
+    if (typicalPrice > previousTypicalPrice) {
+      pushBuffer(up, bar);
+      pushBuffer(down, 0);
+    } else if (typicalPrice < previousTypicalPrice) {
+      pushBuffer(down, bar);
+      pushBuffer(up, 0);
+    } else {
+      pushBuffer(up, 0);
+      pushBuffer(down, 0);
+    }
+
+    previousTypicalPrice = typicalPrice;
+
+    if (i >= period) {
+      output.push((up.sum / (up.sum + down.sum)) * 100);
+    }
+  }
+
+  return output;
+}
+
+function calculateMfiSeriesWithTechnicalPrecision(
+  high: ReadonlyArray<number>,
+  low: ReadonlyArray<number>,
+  close: ReadonlyArray<number>,
+  volume: ReadonlyArray<number>,
+  period: number,
+): number[] {
+  const result = calculateMfiSeries(high, low, close, volume, period);
+  return result.map((value) => roundToFixed2(value));
+}
 
 /**
  * 计算 MFI（资金流量指标）
@@ -53,13 +179,13 @@ export function calculateMFI(candles: ReadonlyArray<CandleData>, period: number 
       return null;
     }
 
-    const mfiResult = MFI.calculate({
-      high: validHighs,
-      low: validLows,
-      close: mfiCloses,
-      volume: validVolumes,
+    const mfiResult = calculateMfiSeriesWithTechnicalPrecision(
+      validHighs,
+      validLows,
+      mfiCloses,
+      validVolumes,
       period,
-    });
+    );
 
     if (!mfiResult || mfiResult.length === 0) {
       return null;

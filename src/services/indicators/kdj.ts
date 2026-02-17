@@ -6,11 +6,51 @@
  * - EMA 平滑周期：5（用于平滑 RSV 得到 K，平滑 K 得到 D）
  * - J = 3K - 2D
  */
-import { EMA } from 'technicalindicators';
 import { kdjObjectPool } from '../../utils/objectPool/index.js';
 import { toNumber, logDebug, isValidKDJ } from './utils.js';
 import type { KDJIndicator } from '../../types/quote.js';
 import type { CandleData } from '../../types/data.js';
+
+type EmaStream = {
+  nextValue: (value: number) => number | undefined;
+};
+
+function computeSma(values: ReadonlyArray<number>): number {
+  if (values.length === 0) {
+    return 0;
+  }
+  let sum = 0;
+  for (const value of values) {
+    sum += value;
+  }
+  return sum / values.length;
+}
+
+function createTechnicalEmaStream(period: number): EmaStream {
+  const buffer: number[] = [];
+  const per = 2 / (period + 1);
+  let emaValue: number | undefined;
+
+  return {
+    nextValue(value: number): number | undefined {
+      if (!Number.isFinite(value)) {
+        return undefined;
+      }
+
+      if (emaValue === undefined) {
+        buffer.push(value);
+        if (buffer.length < period) {
+          return undefined;
+        }
+        emaValue = computeSma(buffer);
+        return emaValue;
+      }
+
+      emaValue = (value - emaValue) * per + emaValue;
+      return emaValue;
+    },
+  };
+}
 
 /**
  * 计算 KDJ（随机指标）
@@ -85,7 +125,7 @@ export function calculateKDJ(candles: ReadonlyArray<CandleData>, period: number 
     }
 
     // 步骤2：使用 EMA(period=5) 平滑 RSV 得到 K 值
-    const emaK = new EMA({ period: emaPeriod, values: [] });
+    const emaK = createTechnicalEmaStream(emaPeriod);
     const kValues: number[] = [];
     emaK.nextValue(50);
     for (const rsv of rsvValues) {
@@ -98,7 +138,7 @@ export function calculateKDJ(candles: ReadonlyArray<CandleData>, period: number 
     }
 
     // 步骤3：使用 EMA(period=5) 平滑 K 值得到 D 值
-    const emaD = new EMA({ period: emaPeriod, values: [] });
+    const emaD = createTechnicalEmaStream(emaPeriod);
     const dValues: number[] = [];
     emaD.nextValue(50);
     for (const kv of kValues) {

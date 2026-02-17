@@ -17,7 +17,7 @@
   - [技术指标计算](#5-技术指标计算)
   - [异步并发性能](#6-异步并发性能)
   - [内存使用](#7-内存使用)
-  - [technicalindicators 库](#8-technicalindicators-库实际依赖)
+  - [technicalindicators 库（历史基线）](#8-technicalindicators-库历史基线)
   - [项目业务逻辑测试](#9-项目业务逻辑测试)
 - [综合分析](#综合分析)
 - [迁移建议](#迁移建议)
@@ -35,7 +35,7 @@
 - 技术指标计算（RSI、MACD、KDJ、EMA）
 - 异步并发性能（Promise、事件循环）
 - 内存使用与 GC 性能
-- 项目实际依赖库 `technicalindicators` 性能
+- 历史基线库 `technicalindicators` 性能（用于迁移前后对照）
 
 ---
 
@@ -51,7 +51,7 @@
 | 文件 I/O (异步) | **Bun** | **快 2-3x** |
 | JSON 序列化 | Node.js | 快 2.3x |
 | JSON 解析 | 持平 | - |
-| technicalindicators 库 | **Bun** | **快 1.2-2x** |
+| technicalindicators 库（历史基线） | **Bun** | **快 1.2-2x** |
 | 异步并发 (带计算) | **Bun** | **快 2.3x** |
 | 内存占用 | Node.js | 低 2.5x |
 
@@ -135,7 +135,7 @@
 | EMA (10000条) x500 | 6.48ms | 6.70ms | 1.0x | 持平 |
 | 组合指标 x500 | 41.52ms | 52.97ms | 1.3x | Node.js |
 
-**注意**: 手写实现时 Node.js 更快，但项目实际使用 `technicalindicators` 库，见第 8 节
+**注意**: 该节为历史数据；当前项目已迁移到本地 ixjb 指标内核（源码内置）。
 
 ---
 
@@ -179,9 +179,9 @@
 
 ---
 
-### 8. technicalindicators 库（实际依赖）
+### 8. technicalindicators 库（历史基线）
 
-使用项目实际依赖的 `technicalindicators` 库进行测试：
+使用迁移前依赖 `technicalindicators` 的历史数据进行测试：
 
 | 测试项 | Node.js | Bun | 倍数 | 胜出 |
 |--------|---------|-----|------|------|
@@ -191,7 +191,7 @@
 | MACD (2000条) x500 | 125.05ms | 66.04ms | **1.89x** | **Bun** |
 | EMA (5000条) x1000 | 132.49ms | 84.55ms | **1.57x** | **Bun** |
 
-**结论**: 使用项目实际依赖库时，Bun 比 Node.js 快 1.2-2 倍
+**结论**: 历史基线显示，在 `technicalindicators` 上 Bun 比 Node.js 快 1.2-2 倍。
 
 ---
 
@@ -242,7 +242,7 @@
 | 领域 | 性能提升 |
 |------|----------|
 | **项目主循环模拟** | **1.4-1.55x** |
-| technicalindicators 库 | 1.2-2.0x |
+| technicalindicators 库（历史基线） | 1.2-2.0x |
 | 基础数学运算 | 7.6x |
 | 数组操作 | 6.6x |
 | 异步文件 I/O | 2-3x |
@@ -270,7 +270,7 @@
 基于测试结果，**建议迁移到 Bun**，主要理由：
 
 1. **项目主循环性能提升**: 模拟实际业务逻辑时，Bun 比 Node.js 快 **1.4-1.55x**
-2. **核心业务性能提升**: 使用 `technicalindicators` 库时，Bun 比 Node.js 快 1.2-2 倍
+2. **核心业务性能提升（历史基线）**: 使用 `technicalindicators` 库时，Bun 比 Node.js 快 1.2-2 倍
 3. **整体计算性能优势**: Bun 在数学运算、数组操作方面有显著优势
 4. **文件 I/O 更快**: 日志写入等操作会更快
 

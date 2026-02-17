@@ -145,8 +145,6 @@ bun start
 
 > **说明**：`EMA:n`、`MACD`、`DIF`、`DEA` 仅用于延迟验证指标，不支持用于信号配置。
 
-> **技术指标详解**：详见 [docs/TECHNICAL_INDICATORS.md](./docs/TECHNICAL_INDICATORS.md)
-
 ### 交易策略
 
 #### 信号生成与验证流程
@@ -281,34 +279,13 @@ bun start
 src/
 ├── index.ts                    # 主入口（每秒循环）
 ├── config/                     # 配置模块
-│   ├── config.index.ts         # LongPort API 配置
-│   ├── config.trading.ts       # 多标的交易配置
-│   ├── config.validator.ts     # 配置验证
-│   ├── types.ts                # 配置类型定义
-│   └── utils.ts                # 配置解析工具
 ├── constants/                  # 全局常量定义
 ├── types/                      # TypeScript 类型定义
 ├── main/                       # 主程序架构模块
 │   ├── startup/                # 启动流程（运行门禁/席位恢复与初始寻标）
 │   ├── mainProgram/            # 主循环逻辑
 │   ├── processMonitor/         # 单标的处理
-│   │   ├── index.ts            # 主处理入口
-│   │   ├── autoSymbolTasks.ts  # 自动寻标/换标任务调度
-│   │   ├── indicatorPipeline.ts # 指标计算流水线
-│   │   ├── riskTasks.ts        # 风险检查任务调度
-│   │   ├── seatSync.ts         # 席位状态同步
-│   │   └── signalPipeline.ts   # 信号生成与分发流水线
 │   ├── lifecycle/              # 交易日生命周期管理
-│   │   ├── dayLifecycleManager.ts # 生命周期管理器（午夜清理/开盘重建）
-│   │   ├── loadTradingDayRuntimeSnapshot.ts # 加载交易日运行态快照
-│   │   ├── rebuildTradingDayState.ts # 重建交易日状态
-│   │   └── cacheDomains/       # 缓存域（按域清理/重建）
-│   │       ├── signalRuntimeDomain.ts # 信号运行时域
-│   │       ├── marketDataDomain.ts # 市场数据域
-│   │       ├── seatDomain.ts   # 席位域
-│   │       ├── orderDomain.ts   # 订单域
-│   │       ├── riskDomain.ts    # 风险域
-│   │       └── globalStateDomain.ts # 全局状态域
 │   └── asyncProgram/           # 异步任务处理
 │       ├── indicatorCache/     # 指标缓存（环形缓冲区存储历史快照）
 │       ├── delayedSignalVerifier/ # 延迟信号验证器（setTimeout 计时验证）
@@ -324,20 +301,7 @@ src/
 │   ├── signalProcessor/        # 风险检查与卖出计算
 │   ├── riskController/         # 风险检查（持仓/亏损/牛熊证/浮亏监控等）
 │   ├── trader/                 # 订单执行与监控
-│   │   ├── orderExecutor.ts    # 订单执行
-│   │   ├── orderMonitor.ts     # 订单状态监控（WebSocket）
-│   │   ├── orderCacheManager.ts # 订单缓存管理
-│   │   ├── orderHoldRegistry.ts # 待成交卖出防重登记
-│   │   ├── accountService.ts   # 账户服务
-│   │   ├── rateLimiter.ts      # API 限流
-│   │   └── tradeLogger.ts      # 交易日志
 │   ├── orderRecorder/          # 订单记录与查询
-│   │   ├── index.ts            # 订单记录器（门面模式）
-│   │   ├── orderStorage.ts      # 订单存储（本地记录管理）
-│   │   ├── orderApiManager.ts  # 订单 API 管理（历史订单获取与缓存）
-│   │   ├── orderFilteringEngine.ts # 订单过滤引擎（M0 过滤算法）
-│   │   ├── orderOwnershipParser.ts # 订单归属解析（stockName 映射）
-│   │   └── utils.ts            # 订单工具函数
 │   └── doomsdayProtection/     # 末日保护（收盘前清仓）
 ├── services/                   # 外部服务
 │   ├── quoteClient/            # 行情数据客户端
@@ -354,12 +318,6 @@ src/
     ├── logger/                 # 日志系统（pino）
     ├── asciiArt/               # 启动 ASCII 艺术字
     └── helpers/                # 辅助工具
-        ├── tradingTime.ts      # 交易时间判断
-        ├── positionCache.ts    # 持仓缓存（O(1) 查找）
-        ├── signalConfigParser.ts # 信号配置解析
-        ├── indicatorHelpers.ts # 指标辅助函数
-        ├── accountDisplay.ts   # 账户显示
-        └── quoteHelpers.ts     # 行情辅助函数
 ```
 
 ---
