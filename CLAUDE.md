@@ -1,26 +1,40 @@
 ## 项目概述
 
-- **系统简介**：基于 LongPort OpenAPI / Node.js / TypeScript 的港股自动化量化交易系统。
+- **系统简介**：基于 LongPort OpenAPI / bun / TypeScript 的港股自动化量化交易系统。
 - **核心功能**：监控目标资产的技术指标 → 生成交易信号 → 在轮证/ETF上执行双向交易
-- **技术栈**：TypeScript (ES2022) + Node.js + LongPort OpenAPI + pino 日志
+- **技术栈**：TypeScript (ES2022) + bun + LongPort OpenAPI + pino 日志
 
 ## 项目结构示例
 
 ```
 src/
-├── index.ts              # 主入口（每秒循环）
-├── config/               # 配置模块（API/交易配置）
-├── core/                 # 核心业务逻辑
-│   ├── strategy/         # 信号生成
-│   ├── trader/           # 订单执行与监控
-│   ├── risk/             # 风险检查器
-│   ├── orderRecorder/    # 订单记录
-│   └── doomsdayProtection/ # 末日保护
-├── main/                 # 主程序模块
-│   ├── processMonitor/   # 单标的处理
-│   └── asyncProgram/     # 异步任务（延迟验证、买卖队列）
-├── services/             # 外部服务（行情/市场监控）
-└── utils/                # 工具模块（日志/对象池/辅助函数）
+├── index.ts                        # 主入口（每秒循环）
+├── config/                         # 配置模块
+├── constants/                      # 全局常量定义
+├── types/                          # TypeScript 类型定义
+├── main/                           # 主程序架构模块
+│   ├── startup/                    # 启动流程（运行门禁/席位恢复与初始寻标）
+│   ├── mainProgram/                # 主循环逻辑
+│   ├── processMonitor/             # 单标的处理
+│   ├── lifecycle/                  # 交易日生命周期管理
+│   └── asyncProgram/               # 异步任务处理
+├── core/                           # 核心业务逻辑
+│   ├── strategy/                   # 信号生成
+│   ├── signalProcessor/            # 风险检查与卖出计算
+│   ├── riskController/             # 风险检查（持仓/亏损/牛熊证/浮亏监控等）
+│   ├── trader/                     # 订单执行与监控
+│   ├── orderRecorder/              # 订单记录与查询
+│   └── doomsdayProtection/         # 末日保护（收盘前清仓）
+├── services/                       # 外部服务
+│   ├── quoteClient/                # 行情数据客户端
+│   ├── marketMonitor/              # 市场监控（价格/指标变化）
+│   ├── monitorContext/             # 监控上下文工厂
+│   ├── autoSymbolFinder/           # 自动寻标（筛选牛/熊证候选）
+│   ├── autoSymbolManager/          # 席位管理（寻标/换标状态机）
+│   ├── liquidationCooldown/        # 保护性清仓后的买入冷却
+│   ├── cleanup/                    # 退出清理
+│   └── indicators/                 # 技术指标计算（RSI/KDJ/MACD/MFI/EMA/PSY）
+└── utils/                          # 工具模块
 ```
 
 ## 项目内置文档及skills
