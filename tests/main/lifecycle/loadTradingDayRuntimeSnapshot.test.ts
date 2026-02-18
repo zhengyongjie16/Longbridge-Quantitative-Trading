@@ -31,7 +31,7 @@ function createMinimalLastState(): LastState {
 }
 
 describe('createLoadTradingDayRuntimeSnapshot', () => {
-  it('requireTradingDay 为 true 且 isTradingDay 为 false 时抛出“重建触发时交易日信息无效”', async () => {
+  it('requireTradingDay 为 true 且 isTradingDay 为 false 时抛出"重建触发时交易日信息无效"', async () => {
     const lastState = createMinimalLastState();
     const deps = {
       marketDataClient: {
