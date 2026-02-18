@@ -3,7 +3,7 @@
  *
  * 指标特点：
  * - 周期可配置（通过参数传入）
- * - 使用本地算法并对齐旧输出语义
+ * - 使用本地算法计算并输出稳定数值
  * - 返回值范围 0-100
  */
 import { logDebug } from './utils.js';
@@ -72,7 +72,7 @@ function calculateRsiSeries(
   return output;
 }
 
-function calculateRsiSeriesWithTechnicalPrecision(
+function normalizeRsiSeries(
   values: ReadonlyArray<number>,
   period: number,
 ): number[] {
@@ -83,6 +83,7 @@ function calculateRsiSeriesWithTechnicalPrecision(
   const result = calculateRsiSeries(values, period);
   return result.map((value) => {
     if (!Number.isFinite(value)) {
+      // 在无下跌动量等边界场景下，统一返回上边界值，避免 NaN 传递
       return 100;
     }
     return roundToFixed2(value);
@@ -107,7 +108,7 @@ export function calculateRSI(validCloses: ReadonlyArray<number>, period: number)
 
   try {
     // validCloses 已由 buildIndicatorSnapshot 预处理，无需再次过滤
-    const rsiResult = calculateRsiSeriesWithTechnicalPrecision(validCloses, period);
+    const rsiResult = normalizeRsiSeries(validCloses, period);
 
     if (!rsiResult || rsiResult.length === 0) {
       return null;

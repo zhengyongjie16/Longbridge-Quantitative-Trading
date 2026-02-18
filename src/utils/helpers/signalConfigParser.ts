@@ -176,7 +176,7 @@ function parseConditionGroup(groupStr: string): ParsedConditionGroup | null {
     const minSatisfiedStr = bracketMatch[2];
     minSatisfied = minSatisfiedStr ? Number.parseInt(minSatisfiedStr, 10) : null;
   } else {
-    // 不带括号的单个条件（兼容简单格式）
+    // 不带括号的单个条件格式
     conditionsStr = trimmed;
   }
 

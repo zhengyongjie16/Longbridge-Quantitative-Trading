@@ -28,7 +28,7 @@ import { Decimal } from 'longport';
 import { TIME, SYMBOL_WITH_REGION_REGEX, ACCOUNT_CHANNEL_MAP } from '../../constants/index.js';
 import type { DecimalLike, QuoteDisplayResult, TimeFormatOptions } from './types.js';
 import { logger } from '../logger/index.js';
-import { kdjObjectPool, macdObjectPool } from '../objectPool/index.js';
+import { kdjObjectPool, macdObjectPool, periodRecordPool } from '../objectPool/index.js';
 
 /**
  * 检查值是否已定义（不是 null 或 undefined）
@@ -390,7 +390,7 @@ export function initMonitorState(config: MonitorConfig): MonitorState {
 }
 
 /**
- * 释放快照中的 KDJ 和 MACD 对象（如果它们没有被 monitorValues 引用）
+ * 释放快照中的池化对象（如果它们没有被 monitorValues 引用）
  * @param snapshot 要释放的快照
  * @param monitorValues 监控值对象，用于检查引用
  */
@@ -401,6 +401,22 @@ export function releaseSnapshotObjects(
   if (!snapshot) {
     return;
   }
+
+  const releasePeriodRecord = (
+    snapshotRecord: Readonly<Record<number, number>> | null,
+    monitorRecord: Readonly<Record<number, number>> | null | undefined,
+  ): void => {
+    if (!snapshotRecord || monitorRecord === snapshotRecord) {
+      return;
+    }
+    // snapshot 中的周期记录来自 periodRecordPool，可安全回收到池中复用
+    periodRecordPool.release(snapshotRecord as Record<number, number>);
+  };
+
+  // 释放周期指标对象（如果它们没有被 monitorValues 引用）
+  releasePeriodRecord(snapshot.ema, monitorValues?.ema);
+  releasePeriodRecord(snapshot.rsi, monitorValues?.rsi);
+  releasePeriodRecord(snapshot.psy, monitorValues?.psy);
 
   // 释放 KDJ 对象（如果它没有被 monitorValues 引用）
   if (snapshot.kdj && monitorValues?.kdj !== snapshot.kdj) {

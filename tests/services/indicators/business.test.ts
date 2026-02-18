@@ -103,4 +103,14 @@ describe('indicators business flow', () => {
     expect(calculateMACD([1, 2, 3, 4], 12, 26, 9)).toBeNull();
     expect(calculateMFI([{ high: 1, low: 1, close: 1, volume: 1 }], 14)).toBeNull();
   });
+
+  it('keeps zero-value MACD as valid output on flat closes', () => {
+    const closes = Array.from({ length: 60 }, () => 100);
+    const macd = calculateMACD(closes);
+
+    expect(macd).not.toBeNull();
+    expect(macd?.dif).toBeCloseTo(0, 10);
+    expect(macd?.dea).toBeCloseTo(0, 10);
+    expect(macd?.macd).toBeCloseTo(0, 10);
+  });
 });

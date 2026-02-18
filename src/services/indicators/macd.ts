@@ -64,7 +64,7 @@ function calculateEmaSeriesWithSmaSeed(
   return calculateEmaSeries(emaInput, period);
 }
 
-function calculateMacdSeriesWithTechnicalSemantics(
+function buildMacdSeries(
   values: ReadonlyArray<number>,
   fastPeriod: number,
   slowPeriod: number,
@@ -147,7 +147,7 @@ export function calculateMACD(
 
   try {
     // validCloses 已由 buildIndicatorSnapshot 预处理，无需再次过滤
-    const macdResult = calculateMacdSeriesWithTechnicalSemantics(
+    const macdResult = buildMacdSeries(
       validCloses,
       fastPeriod,
       slowPeriod,
@@ -160,7 +160,11 @@ export function calculateMACD(
 
     const lastMacd = macdResult.at(-1);
 
-    if (!lastMacd?.MACD || lastMacd.signal === undefined || lastMacd.histogram === undefined) {
+    if (
+      lastMacd?.MACD === undefined ||
+      lastMacd.signal === undefined ||
+      lastMacd.histogram === undefined
+    ) {
       return null;
     }
 

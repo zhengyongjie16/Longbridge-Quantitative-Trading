@@ -23,7 +23,7 @@ function computeSma(values: ReadonlyArray<number>): number {
   return sum / values.length;
 }
 
-function createTechnicalEmaStream(period: number): EmaStream {
+function createEmaStream(period: number): EmaStream {
   const buffer: number[] = [];
   const per = 2 / (period + 1);
   let emaValue: number | undefined;
@@ -122,7 +122,7 @@ export function calculateKDJ(candles: ReadonlyArray<CandleData>, period: number 
     }
 
     // 步骤2：使用 EMA(period=5) 平滑 RSV 得到 K 值
-    const emaK = createTechnicalEmaStream(emaPeriod);
+    const emaK = createEmaStream(emaPeriod);
     const kValues: number[] = [];
     emaK.nextValue(50);
     for (const rsv of rsvValues) {
@@ -135,7 +135,7 @@ export function calculateKDJ(candles: ReadonlyArray<CandleData>, period: number 
     }
 
     // 步骤3：使用 EMA(period=5) 平滑 K 值得到 D 值
-    const emaD = createTechnicalEmaStream(emaPeriod);
+    const emaD = createEmaStream(emaPeriod);
     const dValues: number[] = [];
     emaD.nextValue(50);
     for (const kv of kValues) {

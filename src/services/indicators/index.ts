@@ -11,7 +11,7 @@
  * - 构建包含所有指标的统一快照
  *
  * 实现方式：
- * - 使用本地指标算法与适配层计算
+ * - 使用本地指标算法计算
  * - K 线未变时的复用由 pipeline 层负责（见 indicatorPipeline + getCandleFingerprint）
  *
  * 指标参数（默认值，可配置）：
