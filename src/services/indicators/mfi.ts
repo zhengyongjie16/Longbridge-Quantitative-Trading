@@ -8,14 +8,7 @@ import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { toNumber, logDebug } from './utils.js';
 import { validatePercentage } from '../../utils/helpers/indicatorHelpers.js';
 import type { CandleData } from '../../types/data.js';
-
-type BufferNewPush = {
-  readonly size: number;
-  index: number;
-  pushes: number;
-  sum: number;
-  readonly vals: number[];
-};
+import type { BufferNewPush } from './types.js';
 
 function roundToFixed2(value: number): number {
   return Number.parseFloat(value.toFixed(2));

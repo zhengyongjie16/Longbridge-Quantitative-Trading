@@ -53,7 +53,7 @@ function resolveAutoSearchThresholdInput(
     logger.error(`${logPrefix}: ${monitorSymbol} ${direction}`);
     return null;
   }
-  return { minDistancePct, minTurnoverPerMinute } as const;
+  return { minDistancePct, minTurnoverPerMinute };
 }
 
 async function buildFindBestWarrantInput(

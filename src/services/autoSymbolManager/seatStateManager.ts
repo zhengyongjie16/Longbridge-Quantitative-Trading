@@ -42,7 +42,7 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
       callPrice: callPrice ?? null,
       searchFailCountToday,
       frozenTradingDayKey,
-    } as const;
+    };
   };
 
   const updateSeatState: SeatStateUpdater = (

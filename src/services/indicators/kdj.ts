@@ -10,10 +10,7 @@ import { kdjObjectPool } from '../../utils/objectPool/index.js';
 import { toNumber, logDebug, isValidKDJ } from './utils.js';
 import type { KDJIndicator } from '../../types/quote.js';
 import type { CandleData } from '../../types/data.js';
-
-type EmaStream = {
-  nextValue: (value: number) => number | undefined;
-};
+import type { EmaStream } from './types.js';
 
 function computeSma(values: ReadonlyArray<number>): number {
   if (values.length === 0) {

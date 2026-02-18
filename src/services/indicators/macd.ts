@@ -6,12 +6,7 @@
 import { macdObjectPool } from '../../utils/objectPool/index.js';
 import { logDebug, isValidMACD } from './utils.js';
 import type { MACDIndicator } from '../../types/quote.js';
-
-type MacdPoint = {
-  readonly MACD: number;
-  readonly signal: number | undefined;
-  readonly histogram: number | undefined;
-};
+import type { MacdPoint } from './types.js';
 
 function computeSma(values: ReadonlyArray<number>): number {
   if (values.length === 0) {
