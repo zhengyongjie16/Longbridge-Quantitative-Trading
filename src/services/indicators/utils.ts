@@ -6,12 +6,14 @@
  * - K 线指纹（getCandleFingerprint）供 pipeline 判断是否复用快照
  * - 调试日志输出（logDebug）
  * - 对象池类型验证（isValidKDJ、isValidMACD）
+ * - EMA 流式计算状态管理（initEmaStreamState、feedEmaStreamState）
  */
 import { IS_DEBUG } from '../../constants/index.js';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { logger } from '../../utils/logger/index.js';
 import type { CandleData, CandleValue } from '../../types/data.js';
 import type { PoolableKDJ, PoolableMACD } from '../../utils/objectPool/types.js';
+import type { EmaStreamState } from './types.js';
 
 /** K 线数据指纹：length_lastClose，用于检测数据是否变化 */
 function buildDataFingerprint(
@@ -99,4 +101,39 @@ export function isValidMACD(
     Number.isFinite(obj.dif) &&
     Number.isFinite(obj.dea)
   );
+}
+
+/**
+ * 初始化 EMA 流式计算状态
+ *
+ * 前 period 个值累加作为 SMA seed，之后切换为 EMA 递推。
+ * 供 RSI/EMA/MACD 等指标的流式计算共用。
+ */
+export function initEmaStreamState(period: number): EmaStreamState {
+  return {
+    period,
+    per: 2 / (period + 1),
+    seedCount: 0,
+    seedSum: 0,
+    emaValue: null,
+  };
+}
+
+/**
+ * 向 EMA 流式状态喂入一个新值
+ * @returns 当前 EMA 值，seed 阶段未就绪时返回 null
+ */
+export function feedEmaStreamState(state: EmaStreamState, value: number): number | null {
+  if (state.emaValue === null) {
+    state.seedSum += value;
+    state.seedCount += 1;
+    if (state.seedCount === state.period) {
+      state.emaValue = state.seedSum / state.period;
+      return state.emaValue;
+    }
+    return null;
+  }
+
+  state.emaValue = (value - state.emaValue) * state.per + state.emaValue;
+  return state.emaValue;
 }

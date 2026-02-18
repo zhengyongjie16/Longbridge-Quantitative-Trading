@@ -58,27 +58,24 @@ export function buildIndicatorSnapshot(
     return null;
   }
 
-  const validCloses: number[] = [];
+  let lastPrice: number | null = null;
+  let prevClose: number | null = null;
   for (const element of candles) {
     const close = toNumber(element.close);
     if (isValidPositiveNumber(close)) {
-      validCloses.push(close);
+      prevClose = lastPrice;
+      lastPrice = close;
     }
   }
 
-  if (validCloses.length === 0) {
+  if (lastPrice === null) {
     return null;
   }
 
-  const lastPrice = validCloses.at(-1)!;
-
   // 计算涨跌幅（如果有前一根K线的收盘价）
   let changePercent: number | null = null;
-  if (validCloses.length >= 2) {
-    const prevClose = validCloses.at(-2)!;
-    if (isValidPositiveNumber(prevClose)) {
-      changePercent = ((lastPrice - prevClose) / prevClose) * 100;
-    }
+  if (prevClose !== null) {
+    changePercent = ((lastPrice - prevClose) / prevClose) * 100;
   }
 
   // 计算所有需要的 RSI 周期
@@ -86,7 +83,7 @@ export function buildIndicatorSnapshot(
   if (Array.isArray(rsiPeriods) && rsiPeriods.length > 0) {
     for (const period of rsiPeriods) {
       if (validateRsiPeriod(period) && Number.isInteger(period)) {
-        const rsiValue = calculateRSI(validCloses, period);
+        const rsiValue = calculateRSI(candles, period);
         if (rsiValue !== null) {
           rsi[period] = rsiValue;
         }
@@ -99,7 +96,7 @@ export function buildIndicatorSnapshot(
   if (Array.isArray(emaPeriods) && emaPeriods.length > 0) {
     for (const period of emaPeriods) {
       if (validateEmaPeriod(period) && Number.isInteger(period)) {
-        const emaValue = calculateEMA(validCloses, period);
+        const emaValue = calculateEMA(candles, period);
         if (emaValue !== null) {
           ema[period] = emaValue;
         }
@@ -114,7 +111,7 @@ export function buildIndicatorSnapshot(
     let hasPsyValue = false;
     for (const period of psyPeriods) {
       if (validatePsyPeriod(period) && Number.isInteger(period)) {
-        const psyValue = calculatePSY(validCloses, period);
+        const psyValue = calculatePSY(candles, period);
         if (psyValue !== null) {
           psyRecord[period] = psyValue;
           hasPsyValue = true;
@@ -135,7 +132,7 @@ export function buildIndicatorSnapshot(
     rsi,
     psy,
     kdj: calculateKDJ(candles, 9),
-    macd: calculateMACD(validCloses),
+    macd: calculateMACD(candles),
     mfi: calculateMFI(candles, 14),
     ema,
   };

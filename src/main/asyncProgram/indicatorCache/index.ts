@@ -13,7 +13,7 @@ import type { IndicatorCache, IndicatorCacheEntry, IndicatorCacheOptions, _RingB
 import {
   createRingBuffer,
   pushToBuffer,
-  getBufferEntries,
+  findClosestEntry,
   cloneIndicatorSnapshot,
 } from './utils.js';
 
@@ -53,20 +53,7 @@ export const createIndicatorCache = (options: IndicatorCacheOptions = {}): Indic
     getAt(monitorSymbol: string, targetTime: number, toleranceMs: number): IndicatorCacheEntry | null {
       const buffer = buffers.get(monitorSymbol);
       if (!buffer || buffer.size === 0) return null;
-
-      const entries = getBufferEntries(buffer);
-      let closestEntry: IndicatorCacheEntry | null = null;
-      let minDiff = Infinity;
-
-      for (const entry of entries) {
-        const diff = Math.abs(entry.timestamp - targetTime);
-        if (diff <= toleranceMs && diff < minDiff) {
-          minDiff = diff;
-          closestEntry = entry;
-        }
-      }
-
-      return closestEntry;
+      return findClosestEntry(buffer, targetTime, toleranceMs);
     },
 
     clearAll(): void {

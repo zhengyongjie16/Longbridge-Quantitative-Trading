@@ -96,17 +96,18 @@ describe('indicators business flow', () => {
   });
 
   it('enforces guard rails for individual indicators on invalid inputs', () => {
-    expect(calculateRSI([1, 2, 3], 6)).toBeNull();
-    expect(calculateEMA([1, 2, 3], 251)).toBeNull();
-    expect(calculatePSY([1, 2, 3], 0)).toBeNull();
+    const shortCandles = createTrendCandles(3, 1, 1);
+    expect(calculateRSI(shortCandles, 6)).toBeNull();
+    expect(calculateEMA(shortCandles, 251)).toBeNull();
+    expect(calculatePSY(shortCandles, 0)).toBeNull();
     expect(calculateKDJ(createTrendCandles(3, 10, 1), 9)).toBeNull();
-    expect(calculateMACD([1, 2, 3, 4], 12, 26, 9)).toBeNull();
+    expect(calculateMACD(createTrendCandles(4, 1, 1), 12, 26, 9)).toBeNull();
     expect(calculateMFI([{ high: 1, low: 1, close: 1, volume: 1 }], 14)).toBeNull();
   });
 
   it('keeps zero-value MACD as valid output on flat closes', () => {
-    const closes = Array.from({ length: 60 }, () => 100);
-    const macd = calculateMACD(closes);
+    const candles = createTrendCandles(60, 100, 0);
+    const macd = calculateMACD(candles);
 
     expect(macd).not.toBeNull();
     expect(macd?.dif).toBeCloseTo(0, 10);

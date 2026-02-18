@@ -60,6 +60,41 @@ export function getBufferEntries(buffer: _RingBuffer): ReadonlyArray<IndicatorCa
 }
 
 /**
+ * 在环形缓冲区中查找容忍度内最接近目标时间的条目
+ *
+ * 直接遍历缓冲区避免先物化完整数组，减少临时分配。
+ */
+export function findClosestEntry(
+  buffer: _RingBuffer,
+  targetTime: number,
+  toleranceMs: number,
+): IndicatorCacheEntry | null {
+  if (buffer.size === 0) {
+    return null;
+  }
+
+  const startIndex = buffer.size < buffer.capacity ? 0 : buffer.head;
+  let closestEntry: IndicatorCacheEntry | null = null;
+  let minDiff = Infinity;
+
+  for (let i = 0; i < buffer.size; i += 1) {
+    const index = (startIndex + i) % buffer.capacity;
+    const entry = buffer.entries[index];
+    if (entry == null) {
+      continue;
+    }
+
+    const diff = Math.abs(entry.timestamp - targetTime);
+    if (diff <= toleranceMs && diff < minDiff) {
+      minDiff = diff;
+      closestEntry = entry;
+    }
+  }
+
+  return closestEntry;
+}
+
+/**
  * 克隆指标快照
  *
  * 创建 IndicatorSnapshot 的深拷贝，确保所有嵌套对象（kdj、macd、rsi、ema、psy）

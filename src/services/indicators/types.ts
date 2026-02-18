@@ -18,8 +18,32 @@ export type BufferNewPush = {
   readonly vals: number[];
 };
 
-export type MacdPoint = {
-  readonly MACD: number;
-  readonly signal: number | undefined;
-  readonly histogram: number | undefined;
+export type EmaStreamState = {
+  readonly period: number;
+  readonly per: number;
+  seedCount: number;
+  seedSum: number;
+  emaValue: number | null;
+};
+
+export type RsiStreamState = {
+  readonly period: number;
+  readonly per: number;
+  previousClose: number | null;
+  seedDiffCount: number;
+  seedUpSum: number;
+  seedDownSum: number;
+  smoothUp: number;
+  smoothDown: number;
+  lastRawValue: number | null;
+};
+
+export type PsyStreamState = {
+  readonly period: number;
+  readonly upFlags: number[];
+  previousClose: number | null;
+  validCloseCount: number;
+  windowCount: number;
+  windowIndex: number;
+  upCount: number;
 };
