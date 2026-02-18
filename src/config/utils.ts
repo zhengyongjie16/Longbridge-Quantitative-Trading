@@ -1,15 +1,14 @@
-/**
- * 配置模块工具函数
- *
- * 提供环境变量读取、解析和转换的工具函数
- */
 import { OrderType } from 'longport';
 import type { LiquidationCooldownConfig, NumberRange } from '../types/config.js';
 import { validateEmaPeriod, validatePsyPeriod } from '../utils/helpers/indicatorHelpers.js';
 import { logger } from '../utils/logger/index.js';
 import type { RegionUrls } from './types.js';
 
-/** 根据区域获取 API 端点 URL（cn 使用 .cn 域名，其他使用 .com） */
+/**
+ * 根据区域返回对应的 LongPort API 端点 URL，cn 使用 .cn 域名，其他区域使用 .com 域名。
+ * @param region - 区域标识字符串（如 'cn'、'hk'），未传入时默认为 'hk'
+ * @returns 包含 httpUrl、quoteWsUrl、tradeWsUrl 的端点对象
+ */
 export function getRegionUrls(region: string | undefined): RegionUrls {
   const normalizedRegion = (region || 'hk').toLowerCase();
 
@@ -29,7 +28,12 @@ export function getRegionUrls(region: string | undefined): RegionUrls {
   };
 }
 
-/** 读取字符串配置，未设置、空串或占位符（形如 your_xxx_here）时返回 null */
+/**
+ * 读取字符串配置，未设置、空串或占位符（形如 your_xxx_here）时返回 null。
+ * @param env - 进程环境变量对象
+ * @param envKey - 环境变量键名
+ * @returns 去除首尾空白后的字符串，或 null
+ */
 export function getStringConfig(
   env: NodeJS.ProcessEnv,
   envKey: string,
@@ -45,7 +49,13 @@ export function getStringConfig(
   return value.trim();
 }
 
-/** 读取数字配置，未设置或小于最小值时返回 null */
+/**
+ * 读取数字配置，未设置、非有限数或小于最小值时返回 null。
+ * @param env - 进程环境变量对象
+ * @param envKey - 环境变量键名
+ * @param minValue - 允许的最小值，默认为 0
+ * @returns 解析后的数字，或 null
+ */
 export function getNumberConfig(
   env: NodeJS.ProcessEnv,
   envKey: string,
@@ -62,7 +72,13 @@ export function getNumberConfig(
   return num;
 }
 
-/** 读取布尔配置，仅识别 'true'/'false'，其他返回默认值 */
+/**
+ * 读取布尔配置，仅识别 'true'/'false'，其他值返回默认值。
+ * @param env - 进程环境变量对象
+ * @param envKey - 环境变量键名
+ * @param defaultValue - 未设置或无法识别时的默认值，默认为 false
+ * @returns 解析后的布尔值
+ */
 export function getBooleanConfig(
   env: NodeJS.ProcessEnv,
   envKey: string,
@@ -82,7 +98,12 @@ export function getBooleanConfig(
   return defaultValue;
 }
 
-/** 解析保护性清仓冷却配置（支持 minutes / half-day / one-day） */
+/**
+ * 解析保护性清仓冷却配置，支持 minutes / half-day / one-day 三种模式。
+ * @param env - 进程环境变量对象
+ * @param envKey - 环境变量键名
+ * @returns 解析后的冷却配置对象，无效或未设置时返回 null
+ */
 export function parseLiquidationCooldownConfig(
   env: NodeJS.ProcessEnv,
   envKey: string,
@@ -106,7 +127,12 @@ export function parseLiquidationCooldownConfig(
   return { mode: 'minutes', minutes };
 }
 
-/** 解析数值范围配置（格式：min,max） */
+/**
+ * 解析数值范围配置，格式为 "min,max"。
+ * @param env - 进程环境变量对象
+ * @param envKey - 环境变量键名
+ * @returns 解析后的 NumberRange 对象，格式无效或未设置时返回 null
+ */
 export function parseNumberRangeConfig(
   env: NodeJS.ProcessEnv,
   envKey: string,
@@ -141,7 +167,12 @@ export function parseNumberRangeConfig(
   return { min, max };
 }
 
-/** 解析订单归属映射（逗号分隔缩写列表） */
+/**
+ * 解析订单归属映射，从逗号分隔的缩写列表中提取唯一缩写，按长度降序排列。
+ * @param env - 进程环境变量对象
+ * @param envKey - 环境变量键名
+ * @returns 去重并排序后的缩写数组，未设置或为空时返回空数组
+ */
 export function parseOrderOwnershipMapping(
   env: NodeJS.ProcessEnv,
   envKey: string,
@@ -167,7 +198,13 @@ export function parseOrderOwnershipMapping(
   return uniqueItems;
 }
 
-/** 解析延迟验证时间（秒），范围 0-120 */
+/**
+ * 解析延迟验证时间（秒），范围 0-120，超出上限时截断为 120。
+ * @param env - 进程环境变量对象
+ * @param envKey - 环境变量键名
+ * @param defaultValue - 未设置或无效时的默认值
+ * @returns 解析后的延迟秒数
+ */
 export function parseVerificationDelay(
   env: NodeJS.ProcessEnv,
   envKey: string,
@@ -188,7 +225,12 @@ export function parseVerificationDelay(
 // 固定指标无需周期参数
 const FIXED_INDICATORS = new Set(['K', 'D', 'J', 'MACD', 'DIF', 'DEA']);
 
-/** 解析延迟验证指标列表（支持 K/D/J/MACD/DIF/DEA/EMA:N/PSY:N） */
+/**
+ * 解析延迟验证指标列表，支持 K/D/J/MACD/DIF/DEA/EMA:N/PSY:N，无效项记录警告后跳过。
+ * @param env - 进程环境变量对象
+ * @param envKey - 环境变量键名
+ * @returns 有效指标字符串数组，未设置或全部无效时返回 null
+ */
 export function parseVerificationIndicators(
   env: NodeJS.ProcessEnv,
   envKey: string,
@@ -259,7 +301,13 @@ const ORDER_TYPE_MAPPING: Readonly<Record<string, OrderType>> = {
   MO: OrderType.MO,
 };
 
-/** 解析订单类型配置（LO/ELO/MO），必须大写 */
+/**
+ * 解析订单类型配置（LO/ELO/MO），必须大写，无效时回退默认值。
+ * @param env - 进程环境变量对象
+ * @param envKey - 环境变量键名
+ * @param defaultType - 无效或未设置时的默认订单类型，默认为 'ELO'
+ * @returns 对应的 OrderType 枚举值
+ */
 export function parseOrderTypeConfig(
   env: NodeJS.ProcessEnv,
   envKey: string,

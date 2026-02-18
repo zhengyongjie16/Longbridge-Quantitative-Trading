@@ -34,7 +34,11 @@ import type {
 export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): UnrealizedLossMonitor => {
   const maxUnrealizedLossPerSymbol = deps.maxUnrealizedLossPerSymbol;
 
-  /** 检查浮亏并执行保护性清仓 */
+  /**
+   * 检查指定标的的浮亏是否超过阈值，超过时执行保护性清仓。
+   * 清仓订单提交成功后立即清空订单记录并刷新浮亏数据，以防止重复开仓判断。
+   * 门禁拦截或订单未提交时不更新缓存，返回 false。
+   */
   const checkAndLiquidate = async (params: {
     readonly symbol: string;
     readonly currentPrice: number;
@@ -123,7 +127,10 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
     }
   };
 
-  /** 监控做多和做空标的的浮亏（价格变化时调用） */
+  /**
+   * 监控做多和做空标的的浮亏，价格变化时由主循环调用。
+   * 依次对做多、做空标的调用 checkAndLiquidate，任一方向超阈值即触发保护性清仓。
+   */
   const monitorUnrealizedLoss = async (
     context: UnrealizedLossMonitorContext,
   ): Promise<void> => {

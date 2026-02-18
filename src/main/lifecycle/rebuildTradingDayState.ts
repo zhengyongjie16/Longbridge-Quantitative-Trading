@@ -24,6 +24,10 @@ import type { MarketDataClient, RawOrderFromAPI } from '../../types/services.js'
 import type { DailyLossTracker } from '../../core/riskController/types.js';
 import type { RebuildTradingDayStateDeps, RebuildTradingDayStateParams } from './types.js';
 
+/**
+ * 将席位状态和行情数据同步到单个 MonitorContext。
+ * 重建阶段必须在订单重建前执行，确保后续步骤能读取到最新的席位和行情。
+ */
 function syncMonitorContextQuotes(
   monitorContext: MonitorContext,
   symbolRegistry: SymbolRegistry,
@@ -67,6 +71,9 @@ function syncMonitorContextQuotes(
   monitorContext.monitorSymbolName = monitorQuote?.name ?? monitorSymbol;
 }
 
+/**
+ * 遍历所有监控标的，将席位状态和行情数据同步到各自的 MonitorContext。
+ */
 function syncAllMonitorContexts(
   monitorContexts: ReadonlyMap<string, MonitorContext>,
   symbolRegistry: SymbolRegistry,
@@ -77,6 +84,9 @@ function syncAllMonitorContexts(
   }
 }
 
+/**
+ * 从全量订单数据中重建所有就绪席位的订单记录。
+ */
 async function rebuildOrderRecords(
   monitorContexts: ReadonlyMap<string, MonitorContext>,
   allOrders: ReadonlyArray<RawOrderFromAPI>,
@@ -103,6 +113,10 @@ async function rebuildOrderRecords(
   }
 }
 
+/**
+ * 刷新单个席位的牛熊证风险信息（收回价等）。
+ * 优先使用席位缓存的 callPrice，否则从 API 重新拉取。
+ */
 async function refreshSeatWarrantInfo(
   marketDataClient: MarketDataClient,
   monitorContext: MonitorContext,
@@ -141,6 +155,9 @@ async function refreshSeatWarrantInfo(
   }
 }
 
+/**
+ * 重建所有就绪席位的牛熊证风险缓存（收回价等关键风控数据）。
+ */
 async function rebuildWarrantRiskCache(
   marketDataClient: MarketDataClient,
   monitorContexts: ReadonlyMap<string, MonitorContext>,
@@ -167,6 +184,9 @@ async function rebuildWarrantRiskCache(
   }
 }
 
+/**
+ * 重建所有就绪席位的浮亏缓存，结合当日已实现亏损偏移量计算。
+ */
 async function rebuildUnrealizedLossCache(
   monitorContexts: ReadonlyMap<string, MonitorContext>,
   dailyLossTracker: DailyLossTracker,
@@ -204,6 +224,9 @@ async function rebuildUnrealizedLossCache(
   }
 }
 
+/**
+ * 工厂函数：创建交易日状态重建函数，注入所有依赖。
+ */
 export function createRebuildTradingDayState(deps: RebuildTradingDayStateDeps): (
   params: RebuildTradingDayStateParams,
 ) => Promise<void> {
@@ -217,6 +240,11 @@ export function createRebuildTradingDayState(deps: RebuildTradingDayStateDeps): 
     displayAccountAndPositions,
   } = deps;
 
+  /**
+   * 重建交易日运行时状态：同步席位/行情 → 重建订单记录 → 重建风险缓存
+   * → 重建浮亏缓存 → 恢复订单追踪 → 展示账户持仓。
+   * 任一步骤失败即整体抛出，由生命周期管理器负责重试。
+   */
   return async function rebuildTradingDayState(params: RebuildTradingDayStateParams): Promise<void> {
     const { allOrders, quotesMap } = params;
 

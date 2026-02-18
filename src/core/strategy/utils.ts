@@ -1,8 +1,3 @@
-/**
- * 策略模块工具函数
- *
- * 纯工具：指标校验、延迟验证判断、指标显示字符串、信号分流。
- */
 import { isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
 import type { IndicatorSnapshot } from '../../types/quote.js';
 import type { Signal } from '../../types/signal.js';
@@ -18,12 +13,18 @@ export function needsDelayedVerification(config: SingleVerificationConfig): bool
   return config.delaySeconds > 0 && (config.indicators?.length ?? 0) > 0;
 }
 
+/**
+ * 判断 RSI 对象是否包含至少一个有效数值
+ * @param rsi 指标快照中的 rsi 字段
+ * @returns true 表示存在至少一个有效 RSI 值
+ */
 function hasValidRsiValue(rsi: IndicatorSnapshot['rsi']): boolean {
   return rsi != null && typeof rsi === 'object' && Object.values(rsi).some((v) => isValidNumber(v));
 }
 
 /**
  * 验证基本指标有效性（RSI、MFI、KDJ）
+ * @param state 当前指标快照
  * @returns true 所有基本指标有效
  */
 export function validateBasicIndicators(state: IndicatorSnapshot): boolean {
@@ -39,6 +40,7 @@ export function validateBasicIndicators(state: IndicatorSnapshot): boolean {
 
 /**
  * 验证所有指标有效性（基本指标 + MACD + 价格）
+ * @param state 当前指标快照
  * @returns true 所有指标有效
  */
 export function validateAllIndicators(state: IndicatorSnapshot): boolean {
@@ -51,6 +53,11 @@ export function validateAllIndicators(state: IndicatorSnapshot): boolean {
   );
 }
 
+/**
+ * 格式化 KDJ 指标为显示字符串
+ * @param kdj 指标快照中的 kdj 字段
+ * @returns 格式化字符串，如 "KDJ(K=0.123,D=0.456,J=0.789)"；无有效值时返回空字符串
+ */
 function formatKdjSegment(kdj: IndicatorSnapshot['kdj']): string {
   if (kdj == null) return '';
   const kdjParts: string[] = [];
@@ -62,6 +69,7 @@ function formatKdjSegment(kdj: IndicatorSnapshot['kdj']): string {
 
 /**
  * 构建指标状态显示字符串
+ * @param state 当前指标快照
  * @returns 格式化的指标值字符串，用于日志记录
  */
 export function buildIndicatorDisplayString(state: IndicatorSnapshot): string {
@@ -89,7 +97,12 @@ export function buildIndicatorDisplayString(state: IndicatorSnapshot): string {
   return parts.join('、');
 }
 
-/** 将信号按类型分流到对应数组 */
+/**
+ * 将信号按类型分流到对应数组
+ * @param result 带分类标记的信号，为 null 时不做任何操作
+ * @param immediateSignals 立即执行信号数组
+ * @param delayedSignals 延迟验证信号数组
+ */
 export function pushSignalToCorrectArray(
   result: SignalWithCategory | null,
   immediateSignals: Signal[],

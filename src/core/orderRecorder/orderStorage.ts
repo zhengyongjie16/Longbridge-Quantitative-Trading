@@ -73,6 +73,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     setBuyOrdersList(symbol, newList, false);
   };
 
+  /** 更新指定标的的最新卖出记录（仅保留时间最新的一条） */
   const setLatestSellRecord = (symbol: string, isLongSymbol: boolean, record: OrderRecord): void => {
     const targetMap = isLongSymbol ? longSellRecordMap : shortSellRecordMap;
     const existing = targetMap.get(symbol);
@@ -81,6 +82,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     }
   };
 
+  /** 获取指定标的的最新卖出记录 */
   const getLatestSellRecord = (symbol: string, isLongSymbol: boolean): OrderRecord | null => {
     const targetMap = isLongSymbol ? longSellRecordMap : shortSellRecordMap;
     return targetMap.get(symbol) ?? null;
@@ -268,6 +270,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
   // ========== 待成交卖出订单追踪实现 ==========
 
+  /** 添加待成交卖出订单，初始状态为 pending，filledQuantity 为 0 */
   function addPendingSell(info: Omit<PendingSellInfo, 'filledQuantity' | 'status'>): void {
     const record: PendingSellInfo = {
       ...info,
@@ -282,6 +285,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     );
   }
 
+  /** 标记卖出订单完全成交，从 pendingSells 中移除并返回成交记录 */
   function markSellFilled(orderId: string): PendingSellInfo | null {
     const record = pendingSells.get(orderId);
     if (!record) {
@@ -304,6 +308,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     return filled;
   }
 
+  /** 标记卖出订单部分成交，更新 filledQuantity；若已全部成交则从 pendingSells 中移除 */
   function markSellPartialFilled(orderId: string, filledQuantity: number): PendingSellInfo | null {
     const record = pendingSells.get(orderId);
     if (!record) {
@@ -330,6 +335,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     return updated;
   }
 
+  /** 标记卖出订单取消，从 pendingSells 中移除并返回取消记录 */
   function markSellCancelled(orderId: string): PendingSellInfo | null {
     const record = pendingSells.get(orderId);
     if (!record) {
@@ -350,6 +356,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     return cancelledRecord;
   }
 
+  /** 获取指定标的与方向下所有待成交卖出订单 */
   function getPendingSellOrders(
     symbol: string,
     direction: 'LONG' | 'SHORT',

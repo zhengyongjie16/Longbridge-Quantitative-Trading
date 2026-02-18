@@ -32,10 +32,12 @@ function createConfigValidationError(
   });
 }
 
+/** 生成标的代码格式错误提示信息 */
 function formatSymbolFormatError(prefix: string, envKey: string, symbol: string): string {
   return `${prefix}: ${envKey} 必须使用 ticker.region 格式（如 68711.HK），当前值: ${symbol}`;
 }
 
+/** 将清仓冷却配置格式化为可读字符串，用于日志输出 */
 function formatLiquidationCooldownConfig(config: LiquidationCooldownConfig | null): string {
   if (!config) {
     return '未配置（不冷却）';
@@ -46,6 +48,7 @@ function formatLiquidationCooldownConfig(config: LiquidationCooldownConfig | nul
   return config.mode;
 }
 
+/** 验证必填标的代码是否已配置且格式正确，返回更新后的 errors/missingFields */
 function validateRequiredSymbol({
   prefix,
   symbol,
@@ -583,6 +586,7 @@ export async function validateAllConfig({
   logger.info('');
 }
 
+/** 根据行情快照批量验证运行时标的有效性，必填标的验证失败计入 errors，非必填计入 warnings */
 export function validateRuntimeSymbolsFromQuotesMap({
   inputs,
   quotesMap,

@@ -26,6 +26,7 @@ export function createOrderHoldRegistry(): OrderHoldRegistry {
 
   /**
    * 追踪订单与标的的关联，建立双向索引。
+   * 同一订单重复调用时幂等处理，避免索引污染。
    */
   function trackOrder(orderId: string, symbol: string): void {
     if (!orderId || !symbol) {
@@ -46,7 +47,8 @@ export function createOrderHoldRegistry(): OrderHoldRegistry {
   }
 
   /**
-   * 订单成交后清理索引，若标的无剩余未成交订单则移除。
+   * 订单成交后清理双向索引。
+   * 若该标的已无其他未成交订单，同步从 holdSymbols 中移除，避免误判持仓状态。
    */
   function markOrderFilled(orderId: string): void {
     const symbol = orderIdToSymbol.get(orderId);
@@ -67,7 +69,8 @@ export function createOrderHoldRegistry(): OrderHoldRegistry {
   }
 
   /**
-   * 启动时从已有订单列表初始化保留集。
+   * 程序启动时从已有订单列表初始化保留集。
+   * 仅处理状态为未成交的订单，确保重启后能正确恢复持仓追踪状态。
    */
   function seedFromOrders(orders: ReadonlyArray<RawOrderFromAPI>): void {
     for (const order of orders) {
@@ -83,13 +86,14 @@ export function createOrderHoldRegistry(): OrderHoldRegistry {
 
   /**
    * 返回当前存在未成交订单的标的集合。
+   * 供外部快速判断某标的是否有挂单，避免重复查询 API。
    */
   function getHoldSymbols(): ReadonlySet<string> {
     return holdSymbols;
   }
 
   /**
-   * 清空内部 map/set。
+   * 清空内部所有索引（测试或跨日重置时使用）。
    */
   function clear(): void {
     orderIdToSymbol.clear();

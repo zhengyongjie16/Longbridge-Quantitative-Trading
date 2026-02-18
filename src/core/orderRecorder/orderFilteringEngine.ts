@@ -161,7 +161,10 @@ function applyFilteringAlgorithm(
   return [...state.m0Orders, ...filteredOrders];
 }
 
-/** 创建订单过滤引擎 */
+/**
+ * 创建订单过滤引擎
+ * 封装智能清仓决策算法，返回无状态的 OrderFilteringEngine 接口实例
+ */
 export function createOrderFilteringEngine(
   _deps: OrderFilteringEngineDeps = {},
 ): OrderFilteringEngine {

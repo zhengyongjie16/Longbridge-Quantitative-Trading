@@ -1,11 +1,3 @@
-/**
- * DelayedSignalVerifier 工具函数
- *
- * 提供信号验证相关的工具函数：
- * - generateSignalId: 生成信号唯一标识
- * - extractInitialIndicators: 提取信号初始指标值
- * - performVerification: 执行完整验证流程
- */
 import { getIndicatorValue } from '../../../utils/helpers/indicatorHelpers.js';
 import { TIME, VERIFICATION } from '../../../constants/index.js';
 import type { Signal } from '../../../types/signal.js';

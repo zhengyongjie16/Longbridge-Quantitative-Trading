@@ -22,6 +22,12 @@ import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
 import { clearQueuesForDirection as clearQueuesForDirectionUtil } from './utils.js';
 import type { SeatSyncParams, SeatSyncResult } from './types.js';
 
+/**
+ * 同步席位状态到监控上下文。
+ * 从 symbolRegistry 读取最新席位状态并写入 monitorContext；
+ * 当席位从 READY 变为非 READY 时清理对应方向的队列和牛熊证信息，防止过期信号被执行；
+ * 当席位就绪且标的发生变化时调度 SEAT_REFRESH 任务刷新订单记录和缓存。
+ */
 export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
   const {
     monitorSymbol,

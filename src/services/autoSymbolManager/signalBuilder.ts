@@ -52,6 +52,9 @@ export function calculateBuyQuantityByNotional(
   return rawQuantity >= lotSize ? rawQuantity : null;
 }
 
+/**
+ * 创建信号构造器，绑定对象池依赖，对外暴露 buildOrderSignal 方法。
+ */
 export function createSignalBuilder(
   deps: SignalBuilderDeps,
 ): {

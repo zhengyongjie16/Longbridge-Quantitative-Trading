@@ -27,6 +27,11 @@ import type { CandleData } from '../../types/data.js';
 import type { IndicatorSnapshot } from '../../types/quote.js';
 import type { IndicatorPipelineParams } from './types.js';
 
+/**
+ * 执行指标处理流水线。
+ * 获取 K 线数据后计算技术指标并缓存快照；若 K 线指纹未变化则直接复用上次快照，
+ * 避免重复计算。处理完成后释放旧快照对象以支持对象池复用。
+ */
 export async function runIndicatorPipeline(
   params: IndicatorPipelineParams,
 ): Promise<IndicatorSnapshot | null> {

@@ -17,6 +17,7 @@ import type { SeatState, SymbolRegistry } from '../../../types/seat.js';
 import type { CacheDomain, LifecycleContext } from '../types.js';
 import type { SeatDomainDeps } from './types.js';
 
+/** 基于旧席位状态构造空席位，保留 lastSwitchAt / lastSearchAt 时间戳以供下次搜索参考 */
 function buildEmptySeatState(previous: SeatState): SeatState {
   return {
     symbol: null,
@@ -29,6 +30,7 @@ function buildEmptySeatState(previous: SeatState): SeatState {
   };
 }
 
+/** 清空所有监控标的的多空席位绑定，并刷新席位版本号，返回变更的席位数量 */
 function clearAllSeatBindings(
   tradingConfig: MultiMonitorTradingConfig,
   symbolRegistry: SymbolRegistry,
@@ -49,6 +51,7 @@ function clearAllSeatBindings(
   return changed;
 }
 
+/** 将 symbolRegistry 中的最新席位状态和版本号同步到各 MonitorContext 快照 */
 function syncMonitorSeatSnapshots(
   monitorContexts: ReadonlyMap<string, MonitorContext>,
   symbolRegistry: SymbolRegistry,

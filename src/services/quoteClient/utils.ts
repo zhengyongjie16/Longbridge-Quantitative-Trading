@@ -1,11 +1,3 @@
-/**
- * 行情数据客户端模块的工具函数
- *
- * 功能：
- * - 从静态信息中提取交易单位（extractLotSize）
- * - 从静态信息中提取标的名称（extractName）
- * - K 线周期枚举转可读标签（formatPeriodForLog）
- */
 import { NaiveDate, Period } from 'longport';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { getHKDateKey } from '../../utils/helpers/tradingTime.js';

@@ -17,6 +17,7 @@ import type { MonitorContext } from '../../../types/state.js';
 import type { CacheDomain, LifecycleContext } from '../types.js';
 import type { SignalRuntimeDomainDeps } from './types.js';
 
+/** 清空买入、卖出、监控三条任务队列，释放队列中的信号对象回对象池，返回各队列移除数量 */
 function clearTradeQueues(
   deps: Pick<
     SignalRuntimeDomainDeps,
@@ -42,6 +43,7 @@ function clearTradeQueues(
   };
 }
 
+/** 取消所有监控标的的延迟验证信号，返回取消的信号总数 */
 function cancelAllDelayedSignals(
   monitorContexts: ReadonlyMap<string, MonitorContext>,
 ): number {

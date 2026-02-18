@@ -1,11 +1,4 @@
 /**
- * 席位与标的注册表类型
- *
- * 功能：
- * - 定义席位状态、标的注册表和生命周期相关的类型
- */
-
-/**
  * 席位状态
  */
 export type SeatStatus = 'READY' | 'SEARCHING' | 'SWITCHING' | 'EMPTY';

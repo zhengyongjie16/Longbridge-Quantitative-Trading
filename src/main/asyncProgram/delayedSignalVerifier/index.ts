@@ -44,7 +44,9 @@ export function createDelayedSignalVerifier(
   const rejectedCallbacks: RejectedCallback[] = [];
 
   /**
-   * 执行验证的内部函数
+   * 执行延迟验证
+   * 从待验证列表取出信号，调用 performVerification 判断趋势是否持续，
+   * 通过则触发 onVerified 回调，失败则触发 onRejected 并释放信号到对象池
    */
   function executeVerification(signalId: string): void {
     const entry = pendingSignals.get(signalId);
@@ -95,6 +97,10 @@ export function createDelayedSignalVerifier(
   }
 
   return {
+    /**
+     * 添加信号到待验证队列，计算延迟时间并设置 setTimeout 定时器
+     * 重复信号、缺少 triggerTime 或指标配置为空时直接释放信号并返回
+     */
     addSignal(signal: Signal, monitorSymbol: string): void {
       // 验证 triggerTime
       const symbolDisplay = formatSymbolDisplay(signal.symbol, signal.symbolName ?? null);
@@ -157,6 +163,9 @@ export function createDelayedSignalVerifier(
       pendingSignals.set(signalId, entry);
     },
 
+    /**
+     * 取消指定标的的所有待验证信号，清除定时器并释放信号到对象池
+     */
     cancelAllForSymbol(monitorSymbol: string): void {
       const entriesToRemove: Array<{ signalId: string; signal: Signal }> = [];
 
@@ -178,6 +187,10 @@ export function createDelayedSignalVerifier(
       }
     },
 
+    /**
+     * 取消指定标的指定方向的所有待验证信号
+     * LONG 方向对应 BUYCALL/SELLCALL，SHORT 方向对应 BUYPUT/SELLPUT
+     */
     cancelAllForDirection(monitorSymbol: string, direction: 'LONG' | 'SHORT'): number {
       const entriesToRemove: Array<{ signalId: string; signal: Signal }> = [];
 
@@ -209,6 +222,9 @@ export function createDelayedSignalVerifier(
       return entriesToRemove.length;
     },
 
+    /**
+     * 取消所有待验证信号，清除全部定时器并释放所有信号到对象池
+     */
     cancelAll(): number {
       const count = pendingSignals.size;
       for (const entry of pendingSignals.values()) {
@@ -234,6 +250,9 @@ export function createDelayedSignalVerifier(
       rejectedCallbacks.push(callback);
     },
 
+    /**
+     * 销毁验证器，清除所有定时器、释放所有信号对象并清空回调列表
+     */
     destroy(): void {
       // 清除所有定时器并释放所有待验证的信号对象
       for (const entry of pendingSignals.values()) {

@@ -1,12 +1,3 @@
-/**
- * 末日保护模块类型定义
- *
- * 定义末日保护程序相关的类型：
- * - ClearanceSignalParams：清仓信号创建参数
- * - DoomsdayClearanceContext/Result：清仓执行上下文和结果
- * - CancelPendingBuyOrdersContext/Result：撤单上下文和结果
- * - DoomsdayProtection：末日保护程序接口
- */
 import type { Position } from '../../types/account.js';
 import type { MonitorConfig } from '../../types/config.js';
 import type { MonitorContext, LastState } from '../../types/state.js';

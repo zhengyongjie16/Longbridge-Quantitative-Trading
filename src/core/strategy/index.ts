@@ -103,6 +103,7 @@ export const createHangSengMultiIndicatorStrategy = ({
   /**
    * 获取信号类型对应的配置
    * @param signalType 信号类型（BUYCALL/SELLCALL/BUYPUT/SELLPUT）
+   * @returns 对应的 SignalConfig，无配置时返回 null
    */
   const getSignalConfigForType = (signalType: string): SignalConfig | null => {
     switch (signalType) {
@@ -250,6 +251,18 @@ export const createHangSengMultiIndicatorStrategy = ({
   };
 
   return {
+    /**
+     * 生成交易信号
+     *
+     * 依次评估做多/做空标的的买入和卖出条件，生成立即或延迟验证信号。
+     * 卖出信号需要订单记录中存在对应买入订单才会生成。
+     *
+     * @param state 当前指标快照，为 null 时不生成任何信号
+     * @param longSymbol 做多标的代码
+     * @param shortSymbol 做空标的代码
+     * @param orderRecorder 订单记录器
+     * @returns 立即信号列表和延迟信号列表
+     */
     generateCloseSignals: (
       state: IndicatorSnapshot | null,
       longSymbol: string,

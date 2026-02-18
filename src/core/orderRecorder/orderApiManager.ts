@@ -62,6 +62,10 @@ function mergeAndDeduplicateOrders(
   return allOrders;
 }
 
+/**
+ * 创建订单 API 管理器
+ * 管理全量订单缓存（history + today 合并去重），提供按标的缓存读写和强制刷新能力
+ */
 export function createOrderAPIManager(deps: OrderAPIManagerDeps): OrderAPIManager {
   const { ctxPromise, rateLimiter } = deps;
 

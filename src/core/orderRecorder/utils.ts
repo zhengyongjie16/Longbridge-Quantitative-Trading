@@ -1,15 +1,12 @@
-/**
- * 订单记录模块工具函数
- *
- * 提供订单相关的纯函数工具，用于订单数量计算等操作。
- */
 import { OrderSide, OrderStatus } from 'longport';
 import { decimalToNumber } from '../../utils/helpers/index.js';
 import type { OrderRecord, RawOrderFromAPI } from '../../types/services.js';
 import type { OrderStatistics } from './types.js';
 
 /**
- * 计算订单统计信息（用于调试输出）
+ * 计算订单列表的统计信息（用于调试输出与成本均价计算）
+ * @param orders 订单记录列表
+ * @returns 包含总数量、总价值、均价的统计对象
  */
 export function calculateOrderStatistics(
   orders: ReadonlyArray<OrderRecord>,
@@ -34,6 +31,8 @@ export function calculateOrderStatistics(
 
 /**
  * 计算订单列表的总成交数量
+ * @param orders 订单记录列表
+ * @returns 所有订单的成交数量之和，无效数量视为 0
  */
 export function calculateTotalQuantity(orders: ReadonlyArray<OrderRecord>): number {
   return orders.reduce(
@@ -42,6 +41,19 @@ export function calculateTotalQuantity(orders: ReadonlyArray<OrderRecord>): numb
   );
 }
 
+/**
+ * 将原始 API 订单转换为内部 OrderRecord 格式（内部辅助函数）
+ *
+ * 转换逻辑：
+ * - 提取成交价格、成交数量和成交时间
+ * - 买入订单保留 submittedAt 和 updatedAt 字段（用于成本计算）
+ * - 卖出订单不保留时间字段（仅需成交信息）
+ * - 价格/数量/时间任一无效时返回 null
+ *
+ * @param order 原始 API 订单数据
+ * @param isBuyOrder 是否为买入订单（影响 submittedAt/updatedAt 是否保留）
+ * @returns 转换后的订单记录，价格/数量/时间无效时返回 null
+ */
 function convertOrderToRecord(
   order: RawOrderFromAPI,
   isBuyOrder: boolean,
@@ -71,6 +83,11 @@ function convertOrderToRecord(
   };
 }
 
+/**
+ * 将原始 API 订单列表按买卖方向分类并转换为内部格式
+ * @param orders 原始 API 订单列表
+ * @returns 分类后的买入订单列表与卖出订单列表（仅包含已成交订单）
+ */
 export function classifyAndConvertOrders(
   orders: ReadonlyArray<RawOrderFromAPI>,
 ): {

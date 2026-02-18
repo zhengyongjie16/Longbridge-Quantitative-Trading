@@ -21,9 +21,8 @@ import type { MonitorContextFactoryDeps } from './types.js';
 import { extractRsiPeriodsWithDefault, extractEmaPeriods, extractPsyPeriods } from './utils.js';
 
 /**
- * 创建监控标的上下文
- *
- * @param deps 依赖注入
+ * 创建监控标的运行时上下文，从注册表读取席位状态与版本号，从行情 Map 提取标的名称，
+ * 并预计算指标周期配置，避免主循环每 tick 重复解析。
  */
 export function createMonitorContext(deps: MonitorContextFactoryDeps): MonitorContext {
   const {

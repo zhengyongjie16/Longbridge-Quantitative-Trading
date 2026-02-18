@@ -1,9 +1,3 @@
-/**
- * 单标的处理模块工具函数
- *
- * 功能：
- * - 提供持仓查询、队列清理等辅助功能，与对象池配合使用
- */
 import { positionObjectPool } from '../../utils/objectPool/index.js';
 import type { Position } from '../../types/account.js';
 import type { Signal } from '../../types/signal.js';
@@ -14,6 +8,13 @@ import type { MonitorTaskQueue } from '../asyncProgram/monitorTaskQueue/types.js
 import type { MonitorTaskData, MonitorTaskType } from '../asyncProgram/monitorTaskProcessor/types.js';
 import type { QueueClearResult } from './types.js';
 
+/**
+ * 判断订单动作是否属于指定方向。
+ *
+ * @param action 订单动作字符串（如 BUYCALL / SELLPUT）
+ * @param direction 方向（LONG 或 SHORT）
+ * @returns 匹配返回 true，否则返回 false
+ */
 function isDirectionAction(
   action: string | null | undefined,
   direction: 'LONG' | 'SHORT',
@@ -25,6 +26,13 @@ function isDirectionAction(
   return direction === 'LONG' ? isLongAction : !isLongAction;
 }
 
+/**
+ * 判断监控任务是否属于指定方向（含共享任务）。
+ *
+ * @param task 监控任务对象
+ * @param direction 方向（LONG 或 SHORT）
+ * @returns 方向匹配或为共享任务时返回 true
+ */
 function isMonitorTaskForDirection(
   task: { readonly data: unknown },
   direction: 'LONG' | 'SHORT',
@@ -39,6 +47,15 @@ function isMonitorTaskForDirection(
   return isDirectionMatch || isSharedTask;
 }
 
+/**
+ * 从买入或卖出队列中移除指定监控标的和方向的信号任务，并释放信号对象到对象池。
+ *
+ * @param queue 买入或卖出任务队列
+ * @param monitorSymbol 监控标的代码
+ * @param direction 方向（LONG 或 SHORT）
+ * @param releaseSignal 信号对象释放回调（归还对象池）
+ * @returns 移除的任务数量
+ */
 function removeSignalTasks(
   queue: TaskQueue<BuyTaskType> | TaskQueue<SellTaskType>,
   monitorSymbol: string,
@@ -51,6 +68,18 @@ function removeSignalTasks(
   );
 }
 
+/**
+ * 清理指定监控标的和方向的所有队列任务（延迟验证、买入、卖出、监控任务队列）。
+ *
+ * @param params.monitorSymbol 监控标的代码
+ * @param params.direction 方向（LONG 或 SHORT）
+ * @param params.delayedSignalVerifier 延迟信号验证器
+ * @param params.buyTaskQueue 买入任务队列
+ * @param params.sellTaskQueue 卖出任务队列
+ * @param params.monitorTaskQueue 监控任务队列
+ * @param params.releaseSignal 信号对象释放回调（归还对象池）
+ * @returns 各队列移除的任务数量汇总
+ */
 export function clearQueuesForDirection(params: {
   readonly monitorSymbol: string;
   readonly direction: 'LONG' | 'SHORT';
@@ -110,6 +139,13 @@ export function getPositions(
   return { longPosition, shortPosition };
 }
 
+/**
+ * 从持仓缓存数据构造对象池 Position 实例。
+ *
+ * @param symbol 标的代码
+ * @param source 持仓缓存中的原始数据
+ * @returns 从对象池获取并填充字段后的 Position 对象（调用方负责释放）
+ */
 function createPositionFromCache(symbol: string, source: Position): Position {
   // 对象池返回 PoolablePosition，这里通过字段覆盖构造出完整的 Position
   const position = positionObjectPool.acquire();

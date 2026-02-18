@@ -1,12 +1,3 @@
-/**
- * 信号处理模块类型定义
- *
- * 定义信号处理器相关的类型，包括：
- * - 卖出数量计算结果
- * - 卖出上下文校验结果
- * - 信号处理器接口
- * - 依赖注入类型
- */
 import type { Position } from '../../types/account.js';
 import type { Quote } from '../../types/quote.js';
 import type { Signal } from '../../types/signal.js';
@@ -59,7 +50,10 @@ export interface SignalProcessor {
    */
   applyRiskChecks(signals: Signal[], context: RiskCheckContext): Promise<Signal[]>;
 
-  /** 清空 lastRiskCheckTime */
+  /**
+   * 清空风险检查冷却时间记录
+   * 跨日或重置场景下调用，确保新的一天不受前一天冷却状态影响
+   */
   resetRiskCheckCooldown(): void;
 }
 

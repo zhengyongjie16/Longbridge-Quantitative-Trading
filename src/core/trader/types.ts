@@ -1,12 +1,3 @@
-/**
- * 交易执行模块类型定义
- *
- * 包含：
- * - 订单相关类型：OrderPayload、TradeRecord、TrackedOrder
- * - 服务接口：AccountService、OrderCacheManager、OrderMonitor、OrderExecutor
- * - 依赖注入类型：各服务的 Deps 类型
- * - 配置类型：RateLimiterConfig、OrderMonitorConfig
- */
 import type { Config, Decimal, OrderSide, OrderType, OrderStatus, TimeInForceType, TradeContext, PushOrderChanged } from 'longport';
 import type { Signal, SignalType, OrderTypeConfig } from '../../types/signal.js';
 import type { Quote } from '../../types/quote.js';
@@ -27,7 +18,9 @@ import type { RefreshGate } from '../../utils/refreshGate/types.js';
 
 /**
  * 订单提交 API 可能返回的响应形状
- * 用于 extractOrderId 安全提取订单 ID
+ * 用途：用于 extractOrderId 安全提取订单 ID
+ * 数据来源：由 LongPort API 的 submitOrder 响应返回
+ * 使用范围：仅在 trader 模块内部使用
  */
 export type OrderSubmitResponse = {
   readonly orderId?: string;
@@ -35,7 +28,8 @@ export type OrderSubmitResponse = {
 
 /**
  * 订单提交载荷
- * 用于调用 ctx.submitOrder() 时的参数
+ * 用途：封装调用 ctx.submitOrder() 时的参数
+ * 使用范围：仅在 trader 模块内部使用
  */
 export type OrderPayload = {
   readonly symbol: string;
@@ -49,6 +43,8 @@ export type OrderPayload = {
 
 /**
  * 订单追踪入参
+ * 用途：传递给 OrderMonitor.trackOrder() 的参数，用于追踪订单状态变化
+ * 使用范围：仅在 trader 模块内部使用
  */
 export type TrackOrderParams = {
   readonly orderId: string;
@@ -64,6 +60,8 @@ export type TrackOrderParams = {
 
 /**
  * 提交订单入参
+ * 用途：传递给内部 submitOrder 函数的参数，封装订单提交所需的完整上下文
+ * 使用范围：仅在 trader 模块内部使用
  */
 export type SubmitOrderParams = {
   readonly ctx: TradeContext;
@@ -81,6 +79,8 @@ export type SubmitOrderParams = {
 
 /**
  * 订单类型解析配置（信号级覆盖 / 保护性清仓 / 全局类型）
+ * 用途：封装订单类型解析所需的全局配置
+ * 使用范围：仅在 trader 模块内部使用
  */
 export type OrderTypeResolutionConfig = {
   readonly tradingOrderType: OrderTypeConfig;
@@ -129,7 +129,8 @@ export type TradeRecord = {
 
 /**
  * 错误类型标识
- * 用于识别 API 错误的具体类型，便于针对性处理
+ * 用途：识别 API 错误的具体类型，便于针对性处理（如重试、跳过、记录日志）
+ * 使用范围：仅在 trader 模块内部使用
  */
 export type ErrorTypeIdentifier = {
   readonly isShortSellingNotSupported: boolean;
@@ -263,9 +264,11 @@ export type TrackedOrder = {
   readonly orderType: OrderType;
   /** 当前委托价（会随市价更新） */
   submittedPrice: number;
+  /** 委托数量（含部分成交后的剩余总量） */
   submittedQuantity: number;
   /** 已成交数量（部分成交时累加） */
   executedQuantity: number;
+  /** 当前订单状态（由 WebSocket 推送更新） */
   status: OrderStatus;
   /** 提交时间戳（用于超时检测） */
   readonly submittedAt: number;
@@ -277,6 +280,8 @@ export type TrackedOrder = {
 
 /**
  * 未成交卖单快照（用于卖单合并决策）
+ * 用途：提供卖单合并决策所需的订单状态信息
+ * 使用范围：仅在 trader 模块内部使用
  */
 export type PendingSellOrderSnapshot = {
   readonly orderId: string;
@@ -290,10 +295,18 @@ export type PendingSellOrderSnapshot = {
   readonly submittedAt: number;
 };
 
-/** 卖单合并决策动作 */
+/**
+ * 卖单合并决策动作
+ * SUBMIT：直接提交新卖单；REPLACE：修改现有卖单价格/数量；CANCEL_AND_SUBMIT：撤销现有卖单后重新提交；SKIP：跳过本次卖出
+ * 仅在 trader 模块内部使用
+ */
 export type SellMergeDecisionAction = 'SUBMIT' | 'REPLACE' | 'CANCEL_AND_SUBMIT' | 'SKIP';
 
-/** 卖单合并决策输入 */
+/**
+ * 卖单合并决策输入
+ * 由 OrderExecutor 在提交卖单前构造，传入 decideSellMerge 函数以决定合并策略
+ * 仅在 trader 模块内部使用
+ */
 export type SellMergeDecisionInput = {
   readonly symbol: string;
   readonly pendingOrders: ReadonlyArray<PendingSellOrderSnapshot>;
@@ -303,7 +316,11 @@ export type SellMergeDecisionInput = {
   readonly isProtectiveLiquidation: boolean;
 };
 
-/** 卖单合并决策结果 */
+/**
+ * 卖单合并决策结果
+ * 由 decideSellMerge 函数返回，OrderExecutor 根据 action 字段执行对应的下单/改单/撤单操作
+ * 仅在 trader 模块内部使用
+ */
 export type SellMergeDecision = {
   readonly action: SellMergeDecisionAction;
   readonly mergedQuantity: number;
@@ -320,6 +337,8 @@ export type SellMergeDecision = {
 
 /**
  * 订单监控配置
+ * 用途：控制订单超时转换和价格修改行为
+ * 使用范围：仅在 trader 模块内部使用
  */
 export type OrderMonitorConfig = {
   readonly buyTimeout: {
@@ -416,6 +435,7 @@ export type OrderExecutorDeps = {
 
 /**
  * 交易器依赖类型
+ * 用于创建顶层 Trader 实例时的依赖注入，包含 API 配置、交易配置及各子服务依赖
  */
 export type TraderDeps = {
   readonly config: Config;

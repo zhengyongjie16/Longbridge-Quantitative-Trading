@@ -1,14 +1,11 @@
-/**
- * TradeTaskQueue 模块类型定义
- *
- * 定义统一的买入/卖出任务队列类型，包括：
- * - Task: 通用任务类型
- * - TaskQueue: 通用任务队列接口
- * - BuyTaskType / SellTaskType: 任务类型字符串字面量
- */
 import type { Signal } from '../../../types/signal.js';
 
-/** 任务添加回调函数类型 */
+/**
+ * 任务添加回调函数类型
+ * 用途：在任务入队时触发通知，用于唤醒等待中的任务处理器
+ * 数据来源：由 TaskQueue.onTaskAdded() 注册，在 push() 时调用
+ * 使用范围：仅在 tradeTaskQueue 模块内部使用
+ */
 export type TaskAddedCallback = () => void;
 
 /**

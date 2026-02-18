@@ -1,11 +1,3 @@
-/**
- * 订单记录模块类型定义
- *
- * 本文件定义了订单记录模块所需的所有类型：
- * - 数据类型：RawOrderFromAPI, OrderCache, OrderStatistics, FilteringState
- * - 服务接口：OrderStorage, OrderFilteringEngine, OrderAPIManager
- * - 依赖类型：各服务的依赖注入类型
- */
 import type { TradeContext } from 'longport';
 import type { Quote } from '../../types/quote.js';
 import type { OrderRecord, RateLimiter, RawOrderFromAPI } from '../../types/services.js';

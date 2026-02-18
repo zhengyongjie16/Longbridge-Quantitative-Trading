@@ -1,16 +1,3 @@
-/**
- * 自动寻标模块类型定义
- *
- * 包含牛熊证筛选相关的类型定义：
- * - FindBestWarrantInput：寻找最佳牛熊证的输入参数
- * - WarrantListItem：牛熊证列表项
- * - WarrantListCache：牛熊证列表缓存结构
- * - WarrantCandidate：候选牛熊证（筛选结果）
- *
- * 缓存机制：
- * - 支持 TTL 缓存，避免频繁调用 API
- * - 支持请求去重（inFlight），防止并发请求
- */
 import type {
   FilterWarrantExpiryDate,
   QuoteContext,
@@ -20,6 +7,10 @@ import type {
 import type { DecimalLike } from '../../utils/helpers/types.js';
 import type { Logger } from '../../utils/logger/types.js';
 
+/**
+ * 寻找最佳牛熊证的入参，包含行情上下文、筛选阈值与缓存配置。
+ * 由 autoSymbolFinder/index.ts 的 findBestWarrant 消费。
+ */
 export type FindBestWarrantInput = {
   readonly ctx: QuoteContext;
   readonly monitorSymbol: string;
@@ -32,6 +23,10 @@ export type FindBestWarrantInput = {
   readonly cacheConfig?: WarrantListCacheConfig;
 };
 
+/**
+ * 牛熊证列表单项数据，来源于 LongPort warrantList API 返回值。
+ * 仅在 autoSymbolFinder 模块内部使用。
+ */
 export type WarrantListItem = {
   readonly symbol: string;
   readonly name?: string | null;
@@ -43,11 +38,19 @@ export type WarrantListItem = {
   readonly status: WarrantStatus | number | string | null | undefined;
 };
 
+/**
+ * 牛熊证列表缓存条目，记录获取时间与数据，用于 TTL 过期判断。
+ * 仅在 autoSymbolFinder 模块内部使用。
+ */
 export type WarrantListCacheEntry = {
   readonly fetchedAt: number;
   readonly warrants: ReadonlyArray<WarrantListItem>;
 };
 
+/**
+ * 牛熊证列表缓存接口，支持 TTL 缓存与请求去重（inFlight）。
+ * 由 createWarrantListCache 工厂函数实现，仅在 autoSymbolFinder 模块内部使用。
+ */
 export interface WarrantListCache {
   getEntry(key: string): WarrantListCacheEntry | undefined;
   setEntry(key: string, entry: WarrantListCacheEntry): void;
@@ -57,12 +60,20 @@ export interface WarrantListCache {
   clear(): void;
 }
 
+/**
+ * 牛熊证列表缓存配置，包含缓存实例、TTL 时长与当前时间获取函数。
+ * 由调用方传入 findBestWarrant，可选；不传则跳过缓存直接请求。
+ */
 export type WarrantListCacheConfig = {
   readonly cache: WarrantListCache;
   readonly ttlMs: number;
   readonly nowMs: () => number;
 };
 
+/**
+ * selectBestWarrant 的入参，包含候选列表与筛选条件。
+ * 仅在 autoSymbolFinder 模块内部使用。
+ */
 export type SelectBestWarrantInput = {
   readonly warrants: ReadonlyArray<WarrantListItem>;
   readonly tradingMinutes: number;
@@ -71,6 +82,10 @@ export type SelectBestWarrantInput = {
   readonly minTurnoverPerMinute: number;
 };
 
+/**
+ * 自动寻标筛选结果，包含最佳候选标的的代码、回收价与距离信息。
+ * 由 findBestWarrant 返回，供 autoSymbolManager 消费。
+ */
 export type WarrantCandidate = {
   readonly symbol: string;
   readonly name: string | null;
@@ -80,7 +95,10 @@ export type WarrantCandidate = {
   readonly turnoverPerMinute: number;
 };
 
-/** 请求牛熊证列表的入参（带缓存配置） */
+/**
+ * 请求牛熊证列表的入参（带缓存配置），在 fetchWarrantsWithCache 中使用。
+ * 仅在 autoSymbolFinder 模块内部使用。
+ */
 export type WarrantListFetchParams = {
   readonly ctx: FindBestWarrantInput['ctx'];
   readonly monitorSymbol: string;
@@ -89,7 +107,10 @@ export type WarrantListFetchParams = {
   readonly cacheConfig: WarrantListCacheConfig;
 };
 
-/** 请求牛熊证列表的入参（无缓存） */
+/**
+ * 请求牛熊证列表的入参（无缓存），直接调用 LongPort warrantList API。
+ * 仅在 autoSymbolFinder 模块内部使用。
+ */
 export type WarrantListRequestParams = {
   readonly ctx: FindBestWarrantInput['ctx'];
   readonly monitorSymbol: string;

@@ -1,9 +1,3 @@
-/**
- * DelayedSignalVerifier 模块类型定义
- *
- * 延迟信号验证器使用 setTimeout 自行计时，在信号触发后延迟一段时间
- * 验证指标趋势是否持续，确保信号的有效性。
- */
 import type { Signal } from '../../../types/signal.js';
 import type { VerificationConfig } from '../../../types/config.js';
 import type { IndicatorCache } from '../indicatorCache/types.js';
@@ -30,6 +24,9 @@ export type PendingSignalEntry = {
 
 /**
  * 验证结果
+ * 用途：描述延迟信号验证的通过/拒绝状态及原因
+ * 数据来源：由 DelayedSignalVerifier 内部验证逻辑返回
+ * 使用范围：仅在 delayedSignalVerifier 模块内部使用
  */
 export type VerificationResult = {
   /** 验证是否通过 */
@@ -40,9 +37,20 @@ export type VerificationResult = {
   readonly failedIndicators?: ReadonlyArray<string>;
 };
 
-/** 验证通过回调函数类型 */
+/**
+ * 验证通过回调函数类型
+ *
+ * 延迟验证通过后由 DelayedSignalVerifier 调用，
+ * 供调用方将信号推入买卖任务队列。
+ */
 export type VerifiedCallback = (signal: Signal, monitorSymbol: string) => void;
-/** 验证拒绝回调函数类型 */
+
+/**
+ * 验证拒绝回调函数类型
+ *
+ * 延迟验证未通过时由 DelayedSignalVerifier 调用，
+ * 供调用方释放信号并记录拒绝原因。
+ */
 export type RejectedCallback = (signal: Signal, monitorSymbol: string, reason: string) => void;
 
 /**

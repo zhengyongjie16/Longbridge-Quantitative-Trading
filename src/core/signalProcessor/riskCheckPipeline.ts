@@ -17,6 +17,7 @@ import type { MultiMonitorTradingConfig } from '../../types/config.js';
 import type { RiskCheckContext } from '../../types/services.js';
 import type { LiquidationCooldownTracker } from '../../services/liquidationCooldown/types.js';
 
+/** 生成风险检查冷却 Map 的键，按标的和买卖方向区分 */
 function getRiskCheckCooldownKey(symbol: string, action: Signal['action']): string {
   if (isBuyAction(action)) {
     return `${symbol}_BUY`;
@@ -25,6 +26,11 @@ function getRiskCheckCooldownKey(symbol: string, action: Signal['action']): stri
   return `${symbol}_SELL`;
 }
 
+/**
+ * 创建买入风险检查流水线
+ * 返回一个异步函数，对信号列表依次执行冷却过滤、API 数据获取、买入专项检查（频率/冷却/价格/末日保护/牛熊证）
+ * 和基础风险检查，过滤掉不符合条件的信号后返回通过的信号列表
+ */
 export const createRiskCheckPipeline = ({
   tradingConfig,
   liquidationCooldownTracker,

@@ -1,13 +1,19 @@
 /**
- * 自动换标模块：自动寻标
+ * 自动换标模块：自动寻标（AutoSearch）
  *
  * 职责：
- * - 空席位寻标与冷却
- * - 开盘保护与席位更新
+ * - 在席位为空时按冷却间隔触发自动寻标
+ * - 开盘保护：在开盘延迟窗口内跳过寻标
+ * - 寻标失败时累计失败计数，达上限后冻结席位
+ * - 寻标成功后更新席位状态为 READY
  */
 import type { AutoSearchDeps, AutoSearchManager, SearchOnTickParams } from './types.js';
 import { isSeatFrozenToday, resolveNextSearchFailureState } from './utils.js';
 
+/**
+ * 创建自动寻标子模块，管理空席位的寻标触发、冷却控制与失败冻结逻辑。
+ * 每 tick 检查席位状态，满足条件时调用 findBestWarrant 并更新席位。
+ */
 export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
   const {
     autoSearchConfig,

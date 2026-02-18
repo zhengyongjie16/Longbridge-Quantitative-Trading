@@ -1,8 +1,3 @@
-/**
- * SellProcessor 模块类型定义
- *
- * 定义卖出处理器的接口契约和依赖注入类型
- */
 import type { MonitorContext, LastState } from '../../../types/state.js';
 import type { Trader } from '../../../types/services.js';
 import type { RefreshGate } from '../../../utils/refreshGate/types.js';

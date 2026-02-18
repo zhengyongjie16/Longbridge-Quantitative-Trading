@@ -498,6 +498,7 @@ export function createWarrantRiskChecker(
     );
   }
 
+  /** 获取指定席位标的的距回收价信息，用于实时展示；标的不匹配或非牛熊证时返回 null */
   function getWarrantDistanceInfo(
     isLongSymbol: boolean,
     seatSymbol: string,
@@ -519,14 +520,20 @@ export function createWarrantRiskChecker(
     return buildWarrantDistanceInfo(warrantInfo, monitorCurrentPrice);
   }
 
+  /** 清除做多标的的牛熊证缓存信息，换标时调用以避免使用旧标的数据 */
   function clearLongWarrantInfo(): void {
     longWarrantInfo = null;
   }
 
+  /** 清除做空标的的牛熊证缓存信息，换标时调用以避免使用旧标的数据 */
   function clearShortWarrantInfo(): void {
     shortWarrantInfo = null;
   }
 
+  /**
+   * 通过外部透传的回收价直接设置牛熊证信息，跳过 API 查询
+   * 用于配置中已知回收价的场景，避免额外的 warrantQuote API 调用
+   */
   function setWarrantInfoFromCallPrice(
     symbol: string,
     callPrice: number,
@@ -571,6 +578,10 @@ export function createWarrantRiskChecker(
     return { status: 'ok', isWarrant: true };
   }
 
+  /**
+   * 通过 API 刷新指定标的的牛熊证信息并更新缓存
+   * 换标后调用，确保风险检查使用最新的回收价数据
+   */
   async function refreshWarrantInfoForSymbol(
     marketDataClient: MarketDataClient,
     symbol: string,

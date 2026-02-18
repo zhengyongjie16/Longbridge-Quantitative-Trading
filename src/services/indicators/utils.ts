@@ -1,13 +1,3 @@
-/**
- * 指标计算模块的工具函数
- *
- * 功能：
- * - K 线数据类型转换（toNumber）
- * - K 线指纹（getCandleFingerprint）供 pipeline 判断是否复用快照
- * - 调试日志输出（logDebug）
- * - 对象池类型验证（isValidKDJ、isValidMACD）
- * - EMA 流式计算状态管理（initEmaStreamState、feedEmaStreamState）
- */
 import { IS_DEBUG } from '../../constants/index.js';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { logger } from '../../utils/logger/index.js';
@@ -26,6 +16,8 @@ function buildDataFingerprint(
 /**
  * 从 K 线计算指纹，供 pipeline 判断是否可复用上一拍快照。
  * 仅当最后一根收盘价有效时返回非 null。
+ * @param candles K 线数据数组
+ * @returns 指纹字符串（格式：length_lastClose），无效时返回 null
  */
 export function getCandleFingerprint(candles: ReadonlyArray<CandleData>): string | null {
   if (!candles || candles.length === 0) {
@@ -59,7 +51,9 @@ export function toNumber(value: CandleValue): number {
 }
 
 /**
- * 记录调试日志
+ * 记录调试日志（仅在 IS_DEBUG 模式下输出）
+ * @param message 日志消息
+ * @param error 可选的错误对象
  */
 export function logDebug(message: string, error?: unknown): void {
   if (IS_DEBUG) {
@@ -108,6 +102,8 @@ export function isValidMACD(
  *
  * 前 period 个值累加作为 SMA seed，之后切换为 EMA 递推。
  * 供 RSI/EMA/MACD 等指标的流式计算共用。
+ * @param period EMA 周期
+ * @returns 初始化后的 EmaStreamState
  */
 export function initEmaStreamState(period: number): EmaStreamState {
   return {
@@ -121,6 +117,8 @@ export function initEmaStreamState(period: number): EmaStreamState {
 
 /**
  * 向 EMA 流式状态喂入一个新值
+ * @param state EMA 流式计算状态
+ * @param value 新的输入值
  * @returns 当前 EMA 值，seed 阶段未就绪时返回 null
  */
 export function feedEmaStreamState(state: EmaStreamState, value: number): number | null {

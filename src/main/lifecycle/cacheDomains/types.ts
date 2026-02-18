@@ -1,14 +1,3 @@
-/**
- * 缓存域模块类型定义
- *
- * 定义各 CacheDomain 的依赖注入类型：
- * - SignalRuntimeDomainDeps：信号运行时域（处理器、队列、指标缓存等）
- * - SeatDomainDeps：席位域（交易配置、标的注册表、轮证列表缓存）
- * - OrderDomainDeps：订单域（交易执行器）
- * - RiskDomainDeps：风控域（信号处理器、日内亏损追踪、清仓冷却追踪）
- * - MarketDataDomainDeps：行情域（行情客户端）
- * - GlobalStateDomainDeps：全局状态域（全局状态、开盘重建回调）
- */
 import type { LastState, MonitorContext } from '../../../types/state.js';
 import type { Signal } from '../../../types/signal.js';
 import type { MultiMonitorTradingConfig } from '../../../types/config.js';
@@ -27,6 +16,10 @@ import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
 import type { DailyLossTracker } from '../../../core/riskController/types.js';
 import type { LiquidationCooldownTracker } from '../../../services/liquidationCooldown/types.js';
 
+/**
+ * createSignalRuntimeDomain 的依赖注入参数。
+ * 包含所有异步处理器、任务队列、指标缓存及信号释放回调。
+ */
 export type SignalRuntimeDomainDeps = Readonly<{
   monitorContexts: ReadonlyMap<string, MonitorContext>;
   buyProcessor: Processor;
@@ -42,6 +35,10 @@ export type SignalRuntimeDomainDeps = Readonly<{
   releaseSignal: (signal: Signal) => void;
 }>;
 
+/**
+ * createSeatDomain 的依赖注入参数。
+ * 包含交易配置、标的注册表、监控上下文及轮证列表缓存。
+ */
 export type SeatDomainDeps = Readonly<{
   tradingConfig: MultiMonitorTradingConfig;
   symbolRegistry: SymbolRegistry;
@@ -49,10 +46,18 @@ export type SeatDomainDeps = Readonly<{
   warrantListCache: WarrantListCache;
 }>;
 
+/**
+ * createOrderDomain 的依赖注入参数。
+ * 仅包含交易执行器。
+ */
 export type OrderDomainDeps = Readonly<{
   trader: Trader;
 }>;
 
+/**
+ * createRiskDomain 的依赖注入参数。
+ * 包含信号处理器、日内亏损追踪、监控上下文及清仓冷却追踪器。
+ */
 export type RiskDomainDeps = Readonly<{
   signalProcessor: SignalProcessor;
   dailyLossTracker: DailyLossTracker;
@@ -60,10 +65,18 @@ export type RiskDomainDeps = Readonly<{
   liquidationCooldownTracker: LiquidationCooldownTracker;
 }>;
 
+/**
+ * createMarketDataDomain 的依赖注入参数。
+ * 仅包含行情客户端。
+ */
 export type MarketDataDomainDeps = Readonly<{
   marketDataClient: MarketDataClient;
 }>;
 
+/**
+ * createGlobalStateDomain 的依赖注入参数。
+ * 包含全局状态对象和开盘重建回调。
+ */
 export type GlobalStateDomainDeps = Readonly<{
   lastState: LastState;
   runOpenRebuild: (now: Date) => Promise<void>;

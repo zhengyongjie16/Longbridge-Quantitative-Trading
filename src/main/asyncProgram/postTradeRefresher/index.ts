@@ -49,6 +49,10 @@ export function createPostTradeRefresher(
   let retryHandle: ReturnType<typeof setTimeout> | null = null;
   let drainResolve: (() => void) | null = null;
 
+  /**
+   * 执行交易后刷新：刷新账户/持仓缓存、浮亏数据，并展示最新账户持仓信息
+   * 任一步骤失败时返回 false，由调用方决定是否重试
+   */
   async function refreshAfterTrades(
     pending: ReadonlyArray<PendingRefreshSymbol>,
     quotesMap: ReadonlyMap<string, Quote | null>,
@@ -144,6 +148,10 @@ export function createPostTradeRefresher(
     return refreshOk;
   }
 
+  /**
+   * 执行一次刷新任务
+   * 消费当前 pendingSymbols，刷新失败时将任务归还并触发重试
+   */
   async function run(): Promise<void> {
     if (!running || inFlight || pendingSymbols.length === 0 || !latestQuotesMap) {
       return;
@@ -182,6 +190,10 @@ export function createPostTradeRefresher(
     }
   }
 
+  /**
+   * 通过 setImmediate 调度下一次 run，避免重复调度
+   * 若存在重试定时器则先取消，优先立即执行
+   */
   function scheduleRun(): void {
     if (!running || inFlight || immediateHandle) {
       return;
@@ -196,6 +208,9 @@ export function createPostTradeRefresher(
     });
   }
 
+  /**
+   * 刷新失败后延迟重试，使用 API.DEFAULT_RETRY_DELAY_MS 间隔
+   */
   function scheduleRetry(): void {
     if (!running || inFlight || retryHandle) {
       return;
@@ -206,6 +221,10 @@ export function createPostTradeRefresher(
     }, API.DEFAULT_RETRY_DELAY_MS);
   }
 
+  /**
+   * 将待刷新标的加入队列并触发调度
+   * 多次入队时合并 pendingSymbols，取最新行情和最大 staleVersion
+   */
   function enqueue(params: PostTradeRefresherEnqueueParams): void {
     if (!running || params.pending.length === 0) {
       return;
@@ -220,6 +239,10 @@ export function createPostTradeRefresher(
     scheduleRun();
   }
 
+  /**
+   * 停止刷新器并等待当前在途任务完成
+   * 清空所有待刷新队列和定时器，确保优雅退出
+   */
   async function stopAndDrain(): Promise<void> {
     running = false;
     pendingSymbols = [];

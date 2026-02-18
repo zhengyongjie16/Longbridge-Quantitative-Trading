@@ -28,6 +28,12 @@ import type { Quote } from '../../types/quote.js';
 import type { Signal } from '../../types/signal.js';
 import type { SignalPipelineParams } from './types.js';
 
+/**
+ * 执行信号处理流水线。
+ * 调用策略生成平仓信号后，对每个信号进行席位校验（状态、版本、标的匹配）和数据丰富，
+ * 再按信号类型分流：立即信号入买卖队列，延迟信号交由 delayedSignalVerifier 管理。
+ * 非交易时段或门禁关闭时记录日志并释放信号对象。
+ */
 export function runSignalPipeline(params: SignalPipelineParams): void {
   const {
     monitorSymbol,
@@ -109,6 +115,11 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
       return { seatSymbol, seatVersion, quote, isBuySignal };
     }
 
+    /**
+     * 校验信号合法性并完成数据丰富。
+     * 依次检查信号字段完整性、action 合法性、席位就绪状态、标的匹配及行情就绪，
+     * 任一校验失败则释放信号对象并返回 false。通过后写入席位版本和标的名称。
+     */
     function prepareSignal(signal: Signal): boolean {
       if (!signal?.symbol || !signal?.action) {
         logger.warn(`[跳过信号] 无效的信号对象: ${JSON.stringify(signal)}`);

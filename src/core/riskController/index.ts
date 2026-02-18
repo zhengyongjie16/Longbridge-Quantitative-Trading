@@ -50,7 +50,10 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
   const positionLimitChecker: PositionLimitChecker = deps.positionLimitChecker;
   const unrealizedLossChecker: UnrealizedLossChecker = deps.unrealizedLossChecker;
 
-  /** 检查单个标的的浮亏，返回 null 表示通过 */
+  /**
+   * 检查单个标的的浮亏是否超过 maxDailyLoss，超过则返回拒绝结果，通过则返回 null。
+   * 仅在有持仓数量（n1>0）时要求有效价格；n1<=0 时允许 R2=0 以处理已清仓但仍有成本记录的情况。
+   */
   function checkUnrealizedLossForSymbol(
     symbol: string | null,
     currentPrice: number | null,
@@ -123,7 +126,11 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
     return null; // 检查通过
   }
 
-  /** 检查买入前的浮亏（仅检查信号对应方向的标的） */
+  /**
+   * 买入前浮亏检查：根据信号方向（BUYCALL/BUYPUT）确定对应标的，
+   * 调用 checkUnrealizedLossForSymbol 检查该方向浮亏是否超过 maxDailyLoss。
+   * 非买入信号直接放行，避免对卖出操作施加不必要的限制。
+   */
   function checkUnrealizedLossBeforeBuy(
     signal: Signal,
     longCurrentPrice: number | null,
@@ -154,7 +161,10 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
     return { allowed: true };
   }
 
-  /** 订单前综合风险检查：账户、浮亏、持仓限制 */
+  /**
+   * 订单前综合风险检查，按顺序执行：账户数据有效性 → 港币可用现金 → 浮亏限制 → 持仓市值限制。
+   * 卖出操作跳过浮亏与现金检查；账户数据缺失时买入拒绝、卖出放行。
+   */
   function checkBeforeOrder(params: {
     readonly account: AccountSnapshot | null;
     readonly positions: ReadonlyArray<Position> | null;

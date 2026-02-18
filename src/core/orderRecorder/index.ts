@@ -115,6 +115,11 @@ function formatOrderLine(order: OrderRecord, index: number): string {
   return `  [${index + 1}] 订单ID: ${order.orderId || 'N/A'}, 价格: ${priceStr}, 数量: ${order.executedQuantity}, 成交时间: ${timeStr}`;
 }
 
+/**
+ * 格式化订单统计信息为日志行
+ * @param stats - 订单统计数据
+ * @returns 格式化的统计信息字符串
+ */
 function formatOrderStatsLine(stats: OrderStatistics): string {
   const avgPriceStr = Number.isFinite(stats.averagePrice)
     ? stats.averagePrice.toFixed(3)
@@ -128,6 +133,7 @@ export function createOrderRecorder(
 ): OrderRecorder {
   const { storage, apiManager, filteringEngine } = deps;
 
+  /** DEBUG 模式下输出指定标的当前订单列表及统计信息 */
   function debugOutputOrders(symbol: string, isLongSymbol: boolean): void {
     if (process.env['DEBUG'] !== 'true') return;
 
@@ -319,6 +325,7 @@ export function createOrderRecorder(
     return storage.getLatestBuyOrderPrice(symbol, isLongSymbol);
   }
 
+  /** 获取指定标的的最新卖出记录 */
   function getLatestSellRecord(symbol: string, isLongSymbol: boolean): OrderRecord | null {
     return storage.getLatestSellRecord(symbol, isLongSymbol);
   }

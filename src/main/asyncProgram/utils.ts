@@ -1,9 +1,3 @@
-/**
- * asyncProgram 模块工具函数
- *
- * 职责：
- * - 提供买入/卖出处理器的公共生命周期逻辑（createBaseProcessor）
- */
 import { logger } from '../../utils/logger/index.js';
 import { formatError } from '../../utils/helpers/index.js';
 import type { BaseProcessorConfig, Processor } from './types.js';
@@ -27,6 +21,10 @@ export function createBaseProcessor<TType extends string>(
   let inFlightPromise: Promise<void> | null = null;
   let taskAddedUnregister: (() => void) | null = null;
 
+  /**
+   * 循环消费队列中的任务，直到队列为空或处理器停止
+   * 门禁关闭时仅释放信号，不执行业务逻辑
+   */
   async function processQueue(): Promise<void> {
     while (running && !taskQueue.isEmpty()) {
       const task = taskQueue.pop();
@@ -48,6 +46,10 @@ export function createBaseProcessor<TType extends string>(
     }
   }
 
+  /**
+   * 通过 setImmediate 调度下一次队列处理，避免阻塞事件循环
+   * 队列为空时不调度，等待 onTaskAdded 回调触发
+   */
   function scheduleNextProcess(): void {
     if (!running) return;
 
@@ -74,12 +76,18 @@ export function createBaseProcessor<TType extends string>(
     });
   }
 
+  /**
+   * 任务入队回调：仅在处理器运行且无待执行调度时触发调度
+   */
   function handleTaskAdded(): void {
     if (running && immediateHandle === null) {
       scheduleNextProcess();
     }
   }
 
+  /**
+   * 启动处理器，注册任务入队回调并立即调度一次队列处理
+   */
   function start(): void {
     if (running) {
       logger.warn(`[${loggerPrefix}] 处理器已在运行中`);
@@ -92,6 +100,10 @@ export function createBaseProcessor<TType extends string>(
     scheduleNextProcess();
   }
 
+  /**
+   * 停止处理器，注销任务入队回调并取消待执行的 setImmediate
+   * 不等待在途任务完成，如需等待请使用 stopAndDrain
+   */
   function stop(): void {
     if (!running) {
       logger.warn(`[${loggerPrefix}] 处理器未在运行`);
@@ -108,6 +120,9 @@ export function createBaseProcessor<TType extends string>(
     }
   }
 
+  /**
+   * 停止处理器并等待当前在途任务完成，确保优雅退出
+   */
   async function stopAndDrain(): Promise<void> {
     running = false;
     taskAddedUnregister?.();
@@ -123,6 +138,9 @@ export function createBaseProcessor<TType extends string>(
     }
   }
 
+  /**
+   * 重启处理器：先 stop 再 start，用于跨日重置等生命周期场景
+   */
   function restart(): void {
     if (running) {
       stop();

@@ -30,6 +30,10 @@ export function createOrderMonitorWorker(deps: OrderMonitorWorkerDeps): OrderMon
   let latestQuotes: ReadonlyMap<string, Quote | null> | null = null;
   let drainResolve: (() => void) | null = null;
 
+  /**
+   * 执行一次订单监控，消费 latestQuotes 并调用 monitorAndManageOrders
+   * 完成后若有新行情则自动触发下一次执行，保证最新行情不被丢弃
+   */
   async function run(): Promise<void> {
     if (!running || inFlight || !latestQuotes) {
       return;
@@ -53,6 +57,10 @@ export function createOrderMonitorWorker(deps: OrderMonitorWorkerDeps): OrderMon
     }
   }
 
+  /**
+   * 记录最新行情并触发执行
+   * 若当前有任务在执行，仅更新 latestQuotes，等待当前任务完成后自动消费
+   */
   function schedule(quotesMap: ReadonlyMap<string, Quote | null>): void {
     if (!running) {
       return;
@@ -63,6 +71,10 @@ export function createOrderMonitorWorker(deps: OrderMonitorWorkerDeps): OrderMon
     }
   }
 
+  /**
+   * 停止工作器并等待当前在途任务完成
+   * 清空待执行行情，确保停止后不再触发新的监控执行
+   */
   async function stopAndDrain(): Promise<void> {
     running = false;
     latestQuotes = null;
@@ -72,10 +84,16 @@ export function createOrderMonitorWorker(deps: OrderMonitorWorkerDeps): OrderMon
     });
   }
 
+  /**
+   * 启动工作器，允许后续 schedule 调用触发执行
+   */
   function start(): void {
     running = true;
   }
 
+  /**
+   * 清空待执行行情，用于生命周期重置时丢弃未消费的行情数据
+   */
   function clearLatestQuotes(): void {
     latestQuotes = null;
   }

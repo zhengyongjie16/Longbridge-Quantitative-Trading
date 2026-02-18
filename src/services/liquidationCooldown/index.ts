@@ -18,7 +18,12 @@ import {
 import type { LiquidationCooldownConfig } from '../../types/config.js';
 import { getHKTime } from '../../utils/helpers/tradingTime.js';
 
-/** 计算冷却结束时间 */
+/**
+ * 根据清仓成交时间与冷却模式计算冷却结束时间戳。
+ * - minutes：按分钟数直接叠加
+ * - one-day：冷却到下一自然日 00:00（香港时间）
+ * - half-day：上午清仓冷却到当日 13:00，下午清仓冷却到次日 00:00（香港时间）
+ */
 function resolveCooldownEndMs(
   executedTimeMs: number,
   cooldownConfig: LiquidationCooldownConfig | null,
@@ -27,10 +32,6 @@ function resolveCooldownEndMs(
     return null;
   }
 
-  // mode 说明：
-  // - minutes：按分钟数直接叠加
-  // - one-day：冷却到下一自然日 00:00（香港时间）
-  // - half-day：上午清仓冷却到当日 13:00，下午清仓冷却到次日 00:00（香港时间）
   if (cooldownConfig.mode === 'minutes') {
     const cooldownMs = convertMinutesToMs(cooldownConfig.minutes);
     if (cooldownMs <= 0) {
@@ -71,7 +72,8 @@ function resolveCooldownEndMs(
 }
 
 /**
- * 创建清仓冷却追踪器
+ * 创建清仓冷却追踪器，记录保护性清仓成交时间并计算剩余冷却时长。
+ * 内部以 symbol:direction 为键存储成交时间戳，查询时按冷却模式动态计算结束时间。
  */
 export function createLiquidationCooldownTracker(
   deps: LiquidationCooldownTrackerDeps,
@@ -79,6 +81,7 @@ export function createLiquidationCooldownTracker(
   const cooldownMap = new Map<string, number>();
   const { nowMs } = deps;
 
+  /** 记录保护性清仓成交时间，无效时间戳不写入，避免脏数据影响冷却判断 */
   function recordCooldown({ symbol, direction, executedTimeMs }: RecordCooldownParams): void {
     // 无效时间戳不记录
     if (!Number.isFinite(executedTimeMs) || executedTimeMs <= 0) {
@@ -87,6 +90,10 @@ export function createLiquidationCooldownTracker(
     cooldownMap.set(buildCooldownKey(symbol, direction), executedTimeMs);
   }
 
+  /**
+   * 查询指定标的方向的剩余冷却毫秒数。
+   * 冷却已过期或无记录时返回 0，并顺带清除过期条目。
+   */
   function getRemainingMs({
     symbol,
     direction,
@@ -112,6 +119,7 @@ export function createLiquidationCooldownTracker(
     return remainingMs;
   }
 
+  /** 跨日午夜清理：删除指定键集合中的冷却记录，minutes 模式条目不在此处清理 */
   function clearMidnightEligible({ keysToClear }: ClearMidnightEligibleParams): void {
     for (const key of keysToClear) {
       cooldownMap.delete(key);

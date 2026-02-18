@@ -1,6 +1,3 @@
-/**
- * MarketMonitor 模块类型定义
- */
 import type { MonitorState } from '../../types/state.js';
 import type { IndicatorSnapshot, Quote } from '../../types/quote.js';
 import type { WarrantDistanceInfo } from '../../types/services.js';

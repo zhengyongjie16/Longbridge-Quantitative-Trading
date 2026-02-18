@@ -41,6 +41,10 @@ export const createSignalProcessor = ({
     lastRiskCheckTime,
   });
 
+  /**
+   * 清空风险检查冷却时间记录
+   * 跨日或重置场景下调用，确保新的一天不受前一天冷却状态影响
+   */
   const resetRiskCheckCooldown = (): void => {
     lastRiskCheckTime.clear();
   };

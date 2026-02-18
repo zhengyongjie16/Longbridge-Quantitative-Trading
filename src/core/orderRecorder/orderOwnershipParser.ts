@@ -17,6 +17,7 @@ function normalizeForMatching(str: string): string {
   return str.trim().toUpperCase().replaceAll(NORMALIZE_PATTERN, '');
 }
 
+/** 根据标准化后的股票名称判断多空方向，同时包含多空标记时返回 null */
 function resolveDirectionFromNormalizedName(
   normalizedStockName: string,
 ): 'LONG' | 'SHORT' | null {

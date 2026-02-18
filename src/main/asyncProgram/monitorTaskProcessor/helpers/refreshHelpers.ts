@@ -22,6 +22,9 @@ export function createRefreshHelpers({
   let cachedAccountSnapshot: typeof lastState.cachedAccount | null | undefined;
   let cachedPositionsSnapshot: ReadonlyArray<Position> | null | undefined;
 
+  /**
+   * 获取指定监控标的的全量订单，批次内命中缓存则直接返回，避免重复请求 API
+   */
   async function ensureAllOrders(
     monitorSymbol: string,
     orderRecorder: MonitorTaskContext['orderRecorder'],
@@ -35,6 +38,9 @@ export function createRefreshHelpers({
     return allOrders;
   }
 
+  /**
+   * 刷新账户快照与持仓缓存，批次内已刷新则跳过，避免重复请求
+   */
   async function refreshAccountCaches(): Promise<void> {
     if (cachedAccountSnapshot === undefined) {
       cachedAccountSnapshot = await trader.getAccountSnapshot();

@@ -153,8 +153,10 @@ async function main(): Promise<void> {
   const runMode = resolveRunMode(env);
   const gatePolicies = resolveGatePolicies(runMode);
 
-  // 解析监控标的对应的做多/做空席位标的代码。
-  // 仅返回已就绪（Ready）状态的席位标的，未就绪时返回 null。
+  /**
+   * 解析监控标的对应的做多/做空席位标的代码
+   * 仅返回已就绪（Ready）状态的席位标的，未就绪时返回 null
+   */
   function resolveSeatSymbols(
     monitorSymbol: string,
   ): { longSeatSymbol: string | null; shortSeatSymbol: string | null } {
@@ -167,7 +169,10 @@ async function main(): Promise<void> {
   let cachedTradingDayInfo: { dateStr: string; info: { isTradingDay: boolean; isHalfDay: boolean } } | null =
     null;
 
-  // 获取交易日信息并按日期缓存，避免频繁调用 API。
+  /**
+   * 获取交易日信息并按日期缓存，避免频繁调用 API
+   * 同一日期内直接返回缓存结果，跨日或首次调用时重新请求
+   */
   async function resolveTradingDayInfo(currentTime: Date): Promise<{ isTradingDay: boolean; isHalfDay: boolean }> {
     const dateStr = getHKDateKey(currentTime) ?? currentTime.toISOString().slice(0, 10);
     if (cachedTradingDayInfo?.dateStr === dateStr) {
@@ -320,7 +325,10 @@ async function main(): Promise<void> {
   }> = [];
   const requiredSymbols = new Set<string>();
 
-  // 记录运行时行情验证所需标的（必选/可选）。
+  /**
+   * 记录运行时行情验证所需标的（必选/可选）
+   * 已收录的标的跳过重复添加，required 为 true 时加入必选集合
+   */
   function pushSymbol(
     symbol: string | null,
     label: string,
@@ -547,8 +555,10 @@ async function main(): Promise<void> {
     logger.debug(`[DelayedSignalVerifier] 监控标的 ${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)} 的验证器已初始化`);
   }
 
-  // 清理指定监控标的和方向的所有待执行任务队列。
-  // 用于自动换标时清理旧标的的延迟信号、买卖任务和监控任务。
+  /**
+   * 清理指定监控标的和方向的所有待执行任务队列
+   * 用于自动换标时清理旧标的的延迟信号、买卖任务和监控任务，防止旧信号在换标后被错误执行
+   */
   function clearQueuesForDirection(monitorSymbol: string, direction: 'LONG' | 'SHORT'): void {
     const monitorContext = monitorContexts.get(monitorSymbol);
     if (!monitorContext) {
@@ -623,6 +633,10 @@ async function main(): Promise<void> {
     getCanProcessTask: () => lastState.isTradingEnabled,
   });
 
+  /**
+   * 执行开盘重建：重新拉取订单和行情快照，重建当日运行态
+   * 在跨日或开盘保护结束后调用，确保状态与最新市场数据一致
+   */
   async function runOpenRebuild(now: Date): Promise<void> {
     const openRebuildSnapshot = await loadTradingDayRuntimeSnapshot({
       now,

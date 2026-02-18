@@ -38,6 +38,9 @@ export function resolveAutoSearchThresholds(
   };
 }
 
+/**
+ * 解析自动寻标阈值配置，校验多/空方向的必填阈值是否存在，缺失时记录错误并返回 null。
+ */
 function resolveAutoSearchThresholdInput(
   params: ResolveAutoSearchThresholdInputParams,
 ): Readonly<{
@@ -56,6 +59,9 @@ function resolveAutoSearchThresholdInput(
   return { minDistancePct, minTurnoverPerMinute };
 }
 
+/**
+ * 构造 FindBestWarrantInput，获取行情上下文并计算当前交易分钟数，组装寻标所需的完整输入参数。
+ */
 async function buildFindBestWarrantInput(
   params: BuildFindBestWarrantInputParams,
 ): Promise<FindBestWarrantInput> {
@@ -87,6 +93,9 @@ async function buildFindBestWarrantInput(
   };
 }
 
+/**
+ * 创建阈值解析器，将依赖注入绑定到内部函数，对外暴露统一的阈值解析与寻标输入构造接口。
+ */
 export function createThresholdResolver(
   deps: ThresholdResolverDeps,
 ): {
@@ -102,6 +111,7 @@ export function createThresholdResolver(
     getTradingMinutesSinceOpen,
   } = deps;
 
+  /** 绑定模块级依赖后转发至 resolveAutoSearchThresholdInput。 */
   function resolveAutoSearchThresholdInputWithDeps(
     params: Parameters<ResolveAutoSearchThresholdInput>[0],
   ): ReturnType<ResolveAutoSearchThresholdInput> {
@@ -113,6 +123,7 @@ export function createThresholdResolver(
     });
   }
 
+  /** 绑定模块级依赖后转发至 buildFindBestWarrantInput。 */
   async function buildFindBestWarrantInputWithDeps(
     params: Parameters<BuildFindBestWarrantInput>[0],
   ): Promise<FindBestWarrantInput> {

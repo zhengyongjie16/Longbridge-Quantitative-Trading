@@ -42,7 +42,8 @@ function parseSignalConfigFromEnv(
 }
 
 /**
- * 解析带上下限的数值配置，超出范围会回退并提示。
+ * 解析带上下限的数值配置，超出范围时截断至边界值并输出警告。
+ * 用于需要强制约束范围的配置项（如超时秒数、间隔时间等）。
  */
 function parseBoundedNumberConfig({
   env,
@@ -68,6 +69,7 @@ function parseBoundedNumberConfig({
 
 /**
  * 读取百分比配置并转为小数（如配置 2 → 内部 0.02），未配置或无效时返回 null。
+ * 用于需要以百分比形式配置、但内部以小数运算的字段（如距离回收价百分比）。
  */
 function getPercentAsDecimalConfig(
   env: NodeJS.ProcessEnv,
@@ -79,7 +81,7 @@ function getPercentAsDecimalConfig(
 }
 
 /**
- * 将 OpenAPI 订单类型映射为配置值。
+ * 将 OpenAPI 订单类型枚举映射为配置值字符串，用于统一内部订单类型表示。
  */
 function mapOrderTypeConfig(orderType: OrderType): OrderTypeConfig {
   switch (orderType) {

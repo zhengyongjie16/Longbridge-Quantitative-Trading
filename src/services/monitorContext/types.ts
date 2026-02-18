@@ -1,17 +1,3 @@
-/**
- * 监控上下文工厂类型定义
- *
- * MonitorContext 是每个监控标的的运行时上下文，
- * 包含该标的的配置、状态、策略和各种服务引用。
- *
- * 依赖项说明：
- * - config：监控配置（标的代码、信号配置等）
- * - state：监控状态（最后信号、最后价格等）
- * - strategy：技术指标策略实例
- * - orderRecorder：订单记录器（持仓追踪）
- * - riskChecker：风险检查器
- * - unrealizedLossMonitor：浮亏监控器
- */
 import type { MonitorConfig } from '../../types/config.js';
 import type { MonitorState } from '../../types/state.js';
 import type { Quote } from '../../types/quote.js';
@@ -22,6 +8,10 @@ import type { DailyLossTracker, UnrealizedLossMonitor } from '../../core/riskCon
 import type { DelayedSignalVerifier } from '../../main/asyncProgram/delayedSignalVerifier/types.js';
 import type { AutoSymbolManager } from '../autoSymbolManager/types.js';
 
+/**
+ * createMonitorContext 工厂函数的依赖注入参数，包含监控配置、状态、策略与各服务实例。
+ * 由 createMonitorContext 消费，仅在 monitorContext 模块内部使用。
+ */
 export type MonitorContextFactoryDeps = {
   readonly config: MonitorConfig;
   readonly state: MonitorState;

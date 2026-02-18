@@ -445,6 +445,13 @@ export function formatSignalConfig(signalConfig: SignalConfig | null): string {
   return groups.join('|');
 }
 
+/**
+ * 从信号配置集中提取指定指标的所有周期（去重后排序）
+ * @param signalConfig 信号配置集
+ * @param prefix 指标前缀（如 'RSI:' 或 'PSY:'）
+ * @param isValidPeriod 周期有效性校验函数
+ * @returns 去重排序后的周期数组
+ */
 function extractIndicatorPeriods(
   signalConfig: SignalConfigSet | null,
   prefix: 'RSI:' | 'PSY:',
@@ -470,12 +477,20 @@ function extractIndicatorPeriods(
   return Array.from(periods).sort((a, b) => a - b);
 }
 
-/** 从信号配置中提取所有 RSI 周期（去重后排序） */
+/**
+ * 从信号配置中提取所有 RSI 周期（去重后排序）
+ * @param signalConfig 信号配置集，为 null 时返回空数组
+ * @returns 去重排序后的 RSI 周期数组
+ */
 export function extractRSIPeriods(signalConfig: SignalConfigSet | null): number[] {
   return extractIndicatorPeriods(signalConfig, 'RSI:', (p) => Number.isFinite(p));
 }
 
-/** 从信号配置中提取所有 PSY 周期（去重后排序） */
+/**
+ * 从信号配置中提取所有 PSY 周期（去重后排序）
+ * @param signalConfig 信号配置集，为 null 时返回空数组
+ * @returns 去重排序后的 PSY 周期数组
+ */
 export function extractPsyPeriods(signalConfig: SignalConfigSet | null): number[] {
   return extractIndicatorPeriods(signalConfig, 'PSY:', validatePsyPeriod);
 }

@@ -21,6 +21,10 @@ import {
   resolveCooldownCandidatesBySeat,
 } from './utils.js';
 
+/**
+ * 将 JSON 解析结果规范化为 TradeRecord，对每个字段做类型安全转换。
+ * 清仓冷却仅依赖结构键值，局部信任 JSON 解析结果并做结构性断言。
+ */
 function normalizeTradeRecord(raw: unknown): TradeRecord | null {
   if (!raw || typeof raw !== 'object') {
     return null;
@@ -50,6 +54,9 @@ function normalizeTradeRecord(raw: unknown): TradeRecord | null {
   return record;
 }
 
+/**
+ * 创建交易日志冷却恢复器，绑定文件读取、冷却追踪器等依赖，对外暴露 hydrate 方法。
+ */
 export function createTradeLogHydrator(deps: TradeLogHydratorDeps): TradeLogHydrator {
   const {
     readFileSync,
@@ -65,6 +72,10 @@ export function createTradeLogHydrator(deps: TradeLogHydratorDeps): TradeLogHydr
     tradingConfig.monitors.map((config) => [config.monitorSymbol, config]),
   );
 
+  /**
+   * 读取当日成交日志，按席位方向筛选最后一条保护性清仓记录并写入冷却缓存。
+   * 启动时调用一次，用于跨进程重启后恢复未到期的清仓冷却状态。
+   */
   function hydrate({
     seatSymbols,
   }: {

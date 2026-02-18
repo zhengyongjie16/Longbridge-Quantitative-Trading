@@ -27,6 +27,10 @@ function extractPosition(
   return positions.find((pos) => pos.symbol === symbol) ?? null;
 }
 
+/**
+ * 创建换标状态机，管理从撤单到回补买入的完整换标流程。
+ * 通过距回收价阈值判断触发换标，含日内抑制与候选标的预寻标。
+ */
 export function createSwitchStateMachine(
   deps: SwitchStateMachineDeps,
 ): SwitchStateMachine {
@@ -60,12 +64,14 @@ export function createSwitchStateMachine(
     getHKDateKey,
   } = deps;
 
+  /** 判断订单是否为指定标的的可撤销买入挂单 */
   function isCancelableBuyOrder(order: PendingOrder, symbol: string): boolean {
     return order.symbol === symbol
       && order.side === buySide
       && pendingOrderStatuses.has(order.status);
   }
 
+  /** 预寻标：在触发换标前查找候选标的，无合适标的时返回 null */
   async function findSwitchCandidate(
     direction: 'LONG' | 'SHORT',
   ): Promise<{ symbol: string; callPrice: number } | null> {
@@ -90,10 +96,9 @@ export function createSwitchStateMachine(
   }
 
   /**
-   * 换标状态机：
-   * 1) 先撤销旧标的未成交买单
-   * 2) 若有持仓则提交卖出并等待成交
-   * 3) 卖出完成后更新席位并按需回补买入
+   * 推进换标状态机，按阶段顺序执行撤单→卖出→绑定新标→等待行情→回补买入→完成。
+   * 每次调用只推进到当前阶段的终点，需要等待外部条件（如持仓清零、行情到达）时提前返回，
+   * 下一个 tick 再次调用时从当前阶段继续，直至 COMPLETE 或 FAILED。
    */
   async function processSwitchState(
     params: SwitchOnDistanceParams,
@@ -325,6 +330,7 @@ export function createSwitchStateMachine(
     }
   }
 
+  /** 检查指定方向是否存在有效的进行中换标流程 */
   function hasPendingSwitch(direction: 'LONG' | 'SHORT'): boolean {
     const switchState = switchStates.get(direction);
     if (!switchState) {
@@ -351,7 +357,9 @@ export function createSwitchStateMachine(
   }
 
   /**
-   * 根据距回收价阈值决定是否触发换标，含日内抑制与候选标的检测。
+   * 每 tick 检查当前席位距回收价是否越界，越界时触发换标流程。
+   * 若已有进行中的换标则继续推进状态机；日内抑制防止同一标的重复触发；
+   * 预寻标结果与旧标的相同时记录抑制并跳过，避免无效换标。
    */
   async function maybeSwitchOnDistance({
     direction,

@@ -1,9 +1,3 @@
-/**
- * 核心服务接口类型
- *
- * 功能：
- * - 定义核心服务的接口和相关的类型
- */
 import type {
   Market,
   OrderSide,

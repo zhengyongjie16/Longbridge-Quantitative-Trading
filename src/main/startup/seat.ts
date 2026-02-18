@@ -1,7 +1,10 @@
 /**
- * 启动席位准备流程：
- * - 从历史订单与持仓推断席位标的
- * - 自动寻标填充空席位
+ * 启动席位准备模块
+ *
+ * 核心职责：
+ * - 基于历史订单与持仓推断席位标的，恢复上次运行状态
+ * - 对启用自动寻标的空席位执行启动时寻标
+ * - 提供席位就绪状态查询与席位标的代码收集工具
  */
 import type { MonitorConfig } from '../../types/config.js';
 import type { SeatSymbolSnapshotEntry, SymbolRegistry } from '../../types/seat.js';
@@ -72,6 +75,14 @@ function resolveSeatSnapshot(input: SeatSnapshotInput): SeatSnapshot {
   return { entries };
 }
 
+/**
+ * 获取指定监控标的和方向的就绪席位标的代码。
+ *
+ * @param symbolRegistry 席位注册表
+ * @param monitorSymbol 监控标的代码
+ * @param direction 方向（LONG 或 SHORT）
+ * @returns 席位就绪时返回标的代码，否则返回 null
+ */
 export function resolveReadySeatSymbol(
   symbolRegistry: SymbolRegistry,
   monitorSymbol: string,
@@ -81,6 +92,9 @@ export function resolveReadySeatSymbol(
   return isSeatReady(seatState) ? seatState.symbol : null;
 }
 
+/**
+ * 收集所有监控标的当前就绪席位的标的代码列表，用于启动后订阅行情。
+ */
 function collectSeatSymbols({
   monitors,
   symbolRegistry,

@@ -11,6 +11,7 @@ import type { Signal } from '../../types/signal.js';
 import type { RiskCheckResult } from '../../types/services.js';
 import type { PositionLimitChecker, PositionLimitCheckerDeps } from './types.js';
 
+/** 构建下单金额超限的拒绝原因文本，供多处复用以保持消息格式一致。 */
 function buildOrderNotionalExceededReason(orderNotional: number, max: number): string {
   return `本次计划下单金额 ${orderNotional.toFixed(2)} HKD 超过单标的最大持仓市值限制 ${max} HKD`;
 }
@@ -90,7 +91,10 @@ export const createPositionLimitChecker = (deps: PositionLimitCheckerDeps): Posi
     return { allowed: true };
   };
 
-  /** 检查单标的最大持仓市值限制 */
+  /**
+   * 检查单标的最大持仓市值限制：先验证下单金额，再叠加现有持仓市值判断是否超限。
+   * 有持仓时优先使用成本价估算市值，成本价缺失则回退到当前市价，价格仍无效时仅检查下单金额。
+   */
   const checkLimit = (
     signal: Signal,
     positions: ReadonlyArray<Position> | null,

@@ -17,6 +17,11 @@
  */
 import type { StartupGate, StartupGateDeps, StartupGateState } from './types.js';
 
+/**
+ * 创建启动门禁实例。
+ * 返回的 wait() 方法会阻塞直到满足交易日、交易时段和开盘保护三个条件，
+ * 开发模式（skip）下跳过所有检查直接返回。
+ */
 export function createStartupGate(deps: StartupGateDeps): StartupGate {
   const {
     now,

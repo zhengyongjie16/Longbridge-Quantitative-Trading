@@ -1,16 +1,3 @@
-/**
- * 启动流程类型定义模块
- *
- * 定义启动门禁和席位准备流程相关的类型：
- * - StartupGateDeps：启动门禁依赖项
- * - StartupGate：启动门禁接口（等待交易时段）
- * - SeatSnapshotInput / SeatSnapshot：席位快照输入和结果
- * - PrepareSeatsOnStartupDeps / PreparedSeats：启动席位准备依赖和结果
- *
- * 启动门禁模式：
- * - strict：严格模式，等待交易时段开始
- * - skip：跳过模式，用于开发测试
- */
 import type { Logger } from '../../utils/logger/types.js';
 import type { MonitorConfig, MultiMonitorTradingConfig } from '../../types/config.js';
 import type { Position } from '../../types/account.js';
@@ -18,6 +5,10 @@ import type { GateMode, SeatSymbolSnapshotEntry, SymbolRegistry } from '../../ty
 import type { MarketDataClient, RawOrderFromAPI, TradingDayInfo } from '../../types/services.js';
 import type { WarrantListCacheConfig } from '../../services/autoSymbolFinder/types.js';
 
+/**
+ * 启动门禁的依赖注入对象。
+ * 由 createStartupGate() 消费，仅在启动流程内部使用。
+ */
 export type StartupGateDeps = {
   readonly now: () => Date;
   readonly sleep: (ms: number) => Promise<void>;
@@ -39,6 +30,10 @@ export type StartupGateDeps = {
   readonly logger: Logger;
 };
 
+/**
+ * 启动门禁接口。
+ * 由 createStartupGate() 返回，供启动流程调用 wait() 阻塞等待交易条件满足。
+ */
 export interface StartupGate {
   wait(params: { readonly mode: GateMode }): Promise<TradingDayInfo>;
 }
@@ -51,6 +46,10 @@ export type StartupGateState =
   | 'ready'
   | null;
 
+/**
+ * buildSeatSnapshot() 的输入参数。
+ * 来源于启动时从 API 获取的持仓、订单及监控配置，仅在启动席位准备流程中使用。
+ */
 export type SeatSnapshotInput = {
   readonly monitors: ReadonlyArray<
     Pick<
@@ -62,10 +61,18 @@ export type SeatSnapshotInput = {
   readonly orders: ReadonlyArray<RawOrderFromAPI>;
 };
 
+/**
+ * buildSeatSnapshot() 的返回结果。
+ * 包含所有监控标的的席位快照条目，供启动席位准备流程消费。
+ */
 export type SeatSnapshot = {
   readonly entries: ReadonlyArray<SeatSymbolSnapshotEntry>;
 };
 
+/**
+ * prepareSeatsOnStartup() 的依赖注入对象。
+ * 由启动流程构造并传入，仅在启动席位准备阶段使用。
+ */
 export type PrepareSeatsOnStartupDeps = {
   readonly tradingConfig: MultiMonitorTradingConfig;
   readonly symbolRegistry: SymbolRegistry;
@@ -79,6 +86,10 @@ export type PrepareSeatsOnStartupDeps = {
   readonly warrantListCacheConfig?: WarrantListCacheConfig;
 };
 
+/**
+ * prepareSeatsOnStartup() 的返回结果。
+ * 包含启动时已准备好的席位标的列表，供主程序初始化 symbolRegistry 使用。
+ */
 export type PreparedSeats = {
   readonly seatSymbols: ReadonlyArray<SeatSymbolSnapshotEntry>;
 };

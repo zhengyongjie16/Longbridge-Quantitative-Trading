@@ -1,9 +1,3 @@
-/**
- * 配置相关类型
- *
- * 功能：
- * - 定义监控标的配置、全局配置和验证配置相关的类型
- */
 import type { OrderTypeConfig } from './signal.js';
 import type { SignalConfig } from './signalConfig.js';
 

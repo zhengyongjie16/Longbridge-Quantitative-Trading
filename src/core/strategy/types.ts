@@ -1,20 +1,20 @@
-/**
- * 策略模块类型定义
- *
- * 定义交易策略相关的类型接口，包括：
- * - 策略配置（信号条件、验证配置）
- * - 信号生成结果（立即信号、延迟信号）
- * - 策略接口
- */
 import type { Signal } from '../../types/signal.js';
 import type { IndicatorSnapshot } from '../../types/quote.js';
 import type { SignalConfigSet, VerificationConfig } from '../../types/config.js';
 import type { OrderRecorder } from '../../types/services.js';
 
-/** 信号类型分类：立即执行或延迟验证 */
+/**
+ * 信号类型分类
+ * 区分信号是否需要延迟验证：immediate 立即执行，delayed 需等待验证窗口确认
+ * 仅在策略模块内部使用
+ */
 export type SignalTypeCategory = 'immediate' | 'delayed';
 
-/** 带分类标记的信号（策略内部使用） */
+/**
+ * 带分类标记的信号
+ * 策略生成信号后附加分类标记，供 asyncProgram 分发到立即队列或延迟验证队列
+ * 仅在策略模块内部使用
+ */
 export type SignalWithCategory = {
   readonly signal: Signal;
   readonly isImmediate: boolean;

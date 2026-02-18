@@ -32,6 +32,9 @@ import type {
   LoadTradingDayRuntimeSnapshotResult,
 } from './types.js';
 
+/**
+ * 工厂函数：创建交易日运行时快照加载函数，注入所有依赖。
+ */
 export function createLoadTradingDayRuntimeSnapshot(
   deps: LoadTradingDayRuntimeSnapshotDeps,
 ): (
@@ -48,6 +51,10 @@ export function createLoadTradingDayRuntimeSnapshot(
     warrantListCacheConfig,
   } = deps;
 
+  /**
+   * 加载交易日完整运行时快照：验证交易日 → 刷新账户持仓 → 获取全量订单
+   * → 解析席位 → 水合冷却状态 → 重置行情订阅 → 订阅标的行情和 K 线 → 返回快照。
+   */
   return async function loadTradingDayRuntimeSnapshot(
     params: LoadTradingDayRuntimeSnapshotParams,
   ): Promise<LoadTradingDayRuntimeSnapshotResult> {

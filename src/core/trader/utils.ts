@@ -1,17 +1,3 @@
-/**
- * 交易相关工具函数模块
- *
- * 功能：
- * - 订单类型展示：将 OrderType 枚举转换为中文标签
- * - 交易日志路径生成：构造按日期分文件的日志路径
- * - 订单类型解析：根据信号和配置解析订单类型
- * - 卖单合并决策：根据未成交卖单与新股数量决定 SUBMIT/REPLACE/CANCEL_AND_SUBMIT/SKIP
- *
- * 订单类型解析优先级：
- * 1. 信号级覆盖（signal.orderTypeOverride）
- * 2. 保护性清仓（signal.isProtectiveLiquidation === true）
- * 3. 全局交易类型（globalConfig.tradingOrderType）
- */
 import path from 'node:path';
 import { OrderType } from 'longport';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
@@ -43,6 +29,8 @@ const orderTypeCodeMap: ReadonlyMap<OrderType, string> = new Map([
 
 /**
  * 获取订单类型显示文本，未匹配时默认限价单。
+ * @param orderType 订单类型枚举值
+ * @returns 对应的中文标签字符串
  */
 export function formatOrderTypeLabel(orderType: OrderType): string {
   return orderTypeLabelMap.get(orderType) ?? '限价单';
@@ -50,6 +38,8 @@ export function formatOrderTypeLabel(orderType: OrderType): string {
 
 /**
  * 获取订单类型代码（用于日志），未匹配时默认 SLO。
+ * @param orderType 订单类型枚举值
+ * @returns 对应的订单类型代码字符串（如 "LO"、"ELO"）
  */
 export function getOrderTypeCode(orderType: OrderType): string {
   return orderTypeCodeMap.get(orderType) ?? 'SLO';
@@ -57,23 +47,31 @@ export function getOrderTypeCode(orderType: OrderType): string {
 
 /**
  * 构造交易日志文件路径：logs/trades/YYYY-MM-DD.json
+ * @param cwd 项目根目录（通常为 process.cwd()）
+ * @param date 日志对应的日期
+ * @returns 完整的日志文件绝对路径
  */
 export function buildTradeLogPath(cwd: string, date: Date): string {
   const dayKey = date.toISOString().split('T')[0];
   return path.join(cwd, 'logs', 'trades', `${dayKey}.json`);
 }
 
+/**
+ * 类型保护：检查值是否为 OrderSubmitResponse 类型
+ * @param value 待检查的任意值
+ * @returns true 表示值符合 OrderSubmitResponse 形状，同时收窄类型
+ */
 function isOrderSubmitResponse(value: unknown): value is OrderSubmitResponse {
   return typeof value === 'object' && value !== null && 'orderId' in value;
 }
 
 /**
- * 从订单提交 API 响应中安全提取订单 ID
+ * 从订单提交 API 响应中安全提取订单 ID。
  *
  * 优先顺序：orderId 字段 > toString() > 字符串值 > 兜底常量
  *
  * @param resp API 返回的任意值
- * @returns 订单 ID 字符串
+ * @returns 订单 ID 字符串，无法提取时返回 "UNKNOWN_ORDER_ID"
  */
 export function extractOrderId(resp: unknown): string {
   if (isOrderSubmitResponse(resp) && resp.orderId != null) {
@@ -96,6 +94,9 @@ export function extractOrderId(resp: unknown): string {
 /**
  * 订单类型解析优先级：
  * 1) 信号级覆盖 2) 保护性清仓 3) 全局交易类型
+ * @param signal 信号对象（取 orderTypeOverride 和 isProtectiveLiquidation 字段）
+ * @param globalConfig 全局订单类型配置（含 tradingOrderType 和 liquidationOrderType）
+ * @returns 解析后的订单类型配置
  */
 export function resolveOrderTypeConfig(
   signal: Pick<Signal, 'orderTypeOverride' | 'isProtectiveLiquidation'>,
@@ -110,13 +111,20 @@ export function resolveOrderTypeConfig(
   return globalConfig.tradingOrderType;
 }
 
+/**
+ * 计算未成交卖单的剩余数量。
+ * @param order 未成交卖单快照
+ * @returns 剩余数量，无效时返回 0
+ */
 function resolveRemainingQuantity(order: PendingSellOrderSnapshot): number {
   const remaining = order.submittedQuantity - order.executedQuantity;
   return isValidPositiveNumber(remaining) ? remaining : 0;
 }
 
 /**
- * 根据未成交卖单与新股数量计算卖单合并决策（SUBMIT/REPLACE/CANCEL_AND_SUBMIT/SKIP）
+ * 根据未成交卖单与新股数量计算卖单合并决策（SUBMIT/REPLACE/CANCEL_AND_SUBMIT/SKIP）。
+ * @param input 合并决策输入，包含标的、未成交卖单列表、新订单数量/价格/类型及是否保护性清仓
+ * @returns 合并决策结果，包含动作类型、合并数量、目标订单 ID 及决策原因
  */
 export function resolveSellMergeDecision(
   input: SellMergeDecisionInput,

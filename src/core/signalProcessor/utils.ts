@@ -1,21 +1,18 @@
-/**
- * 信号处理模块工具函数
- *
- * 提供卖出信号处理相关的工具函数：
- * - 持仓/行情数据校验
- * - 卖出原因文本构建
- * - 智能平仓数量计算
- * - 全仓平仓数量计算
- * - 标的名称解析
- */
 import type { Position } from '../../types/account.js';
 import type { Quote } from '../../types/quote.js';
 import type { OrderRecorder } from '../../types/services.js';
 import type { SellContextValidationResult } from './types.js';
 
 /**
- * 验证持仓和行情数据是否满足卖出条件
- * 条件：持仓存在且可用数量 > 0，行情存在且价格 > 0
+ * 类型保护：验证持仓和行情数据是否满足卖出条件（内部辅助函数）
+ *
+ * 验证条件：
+ * - 持仓存在且可用数量 > 0
+ * - 行情存在且价格 > 0
+ *
+ * @param position 持仓对象，可为 null
+ * @param quote 行情对象，可为 null
+ * @returns true 表示持仓和行情均有效，同时收窄 position 类型为 Position & { availableQuantity: number }
  */
 function isValidPositionAndQuote(
   position: Position | null,
@@ -34,6 +31,9 @@ function isValidPositionAndQuote(
 /**
  * 构建卖出原因文本
  * 将原始原因与详细说明用中文逗号拼接
+ * @param originalReason 原始原因字符串，可为空
+ * @param detail 详细说明
+ * @returns 拼接后的原因字符串；若原始原因为空则直接返回 detail
  */
 export function buildSellReason(originalReason: string, detail: string): string {
   const trimmedReason = originalReason.trim();
@@ -46,6 +46,9 @@ export function buildSellReason(originalReason: string, detail: string): string 
 /**
  * 校验卖出上下文数据有效性
  * 返回联合类型：校验通过则包含可用数量和当前价格，否则包含失败原因
+ * @param position 持仓对象，可为 null
+ * @param quote 行情对象，可为 null
+ * @returns 校验结果联合类型，valid=true 时包含 availableQuantity 和 currentPrice
  */
 export function validateSellContext(
   position: Position | null,
@@ -71,7 +74,12 @@ export function validateSellContext(
  * 3. 整体未盈利：通过 getSellableOrders(includeAll=false) 仅获取盈利订单
  * 4. 所有路径均经过防重与整笔截断逻辑
  *
- * @returns 包含可卖出数量、是否持有、以及关联订单ID列表的结果
+ * @param orderRecorder 订单记录器，为 null 时直接返回持仓
+ * @param currentPrice 当前行情价格
+ * @param availableQuantity 当前可用持仓数量
+ * @param direction 方向，LONG 或 SHORT
+ * @param symbol 标的代码，用于精确筛选订单记录
+ * @returns 包含可卖出数量、是否持有、原因说明以及关联买入订单ID列表的结果
  */
 export function resolveSellQuantityBySmartClose({
   orderRecorder,
@@ -143,6 +151,9 @@ export function resolveSellQuantityBySmartClose({
 /**
  * 全仓平仓：返回全部可用数量
  * 智能平仓关闭时使用，直接清空所有持仓
+ * @param availableQuantity 当前可用持仓数量
+ * @param directionName 方向中文名称，用于构建原因说明
+ * @returns 包含全部可用数量、shouldHold=false、原因说明及空关联订单列表的结果
  */
 export function resolveSellQuantityByFullClose({
   availableQuantity,
@@ -167,6 +178,12 @@ export function resolveSellQuantityByFullClose({
 /**
  * 根据标的代码获取对应的中文名称
  * 匹配做多/做空标的代码，返回对应名称，未匹配则返回原始代码
+ * @param signalSymbol 信号中的标的代码
+ * @param longSymbol 做多标的代码，可为 null
+ * @param shortSymbol 做空标的代码，可为 null
+ * @param longSymbolName 做多标的中文名称，可为 null
+ * @param shortSymbolName 做空标的中文名称，可为 null
+ * @returns 匹配到的中文名称；未匹配时返回 signalSymbol 本身
  */
 export function getSymbolName(
   signalSymbol: string,

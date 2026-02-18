@@ -1,18 +1,10 @@
-/**
- * IndicatorCache 工具函数
- *
- * 提供环形缓冲区相关操作和快照克隆功能：
- * - createRingBuffer: 创建指定容量的环形缓冲区
- * - pushToBuffer: 向缓冲区推送数据
- * - getBufferEntries: 获取所有有效条目（按时间升序）
- * - cloneIndicatorSnapshot: 深拷贝指标快照
- */
 import type { IndicatorSnapshot } from '../../../types/quote.js';
 import type { IndicatorCacheEntry, _RingBuffer } from './types.js';
 
 /**
  * 创建环形缓冲区
- * @param capacity 缓冲区容量
+ * @param capacity 缓冲区容量（最大条目数）
+ * @returns 初始化后的空环形缓冲区
  */
 export function createRingBuffer(capacity: number): _RingBuffer {
   return {
@@ -28,6 +20,9 @@ export function createRingBuffer(capacity: number): _RingBuffer {
  *
  * 在 head 位置写入新条目，然后移动 head 指针。
  * 若缓冲区已满，会覆盖最旧的数据。
+ *
+ * @param buffer 目标环形缓冲区
+ * @param entry 待写入的缓存条目
  */
 export function pushToBuffer(buffer: _RingBuffer, entry: IndicatorCacheEntry): void {
   buffer.entries[buffer.head] = entry;
@@ -41,6 +36,9 @@ export function pushToBuffer(buffer: _RingBuffer, entry: IndicatorCacheEntry): v
  * 获取环形缓冲区中所有有效条目
  *
  * 返回按写入顺序排列的条目数组（即按时间升序）
+ *
+ * @param buffer 目标环形缓冲区
+ * @returns 按时间升序排列的有效条目数组，缓冲区为空时返回空数组
  */
 export function getBufferEntries(buffer: _RingBuffer): ReadonlyArray<IndicatorCacheEntry> {
   if (buffer.size === 0) return [];
@@ -63,6 +61,11 @@ export function getBufferEntries(buffer: _RingBuffer): ReadonlyArray<IndicatorCa
  * 在环形缓冲区中查找容忍度内最接近目标时间的条目
  *
  * 直接遍历缓冲区避免先物化完整数组，减少临时分配。
+ *
+ * @param buffer 目标环形缓冲区
+ * @param targetTime 目标时间戳（毫秒）
+ * @param toleranceMs 允许的最大时间偏差（毫秒）
+ * @returns 容忍度内最接近目标时间的条目，无匹配时返回 null
  */
 export function findClosestEntry(
   buffer: _RingBuffer,

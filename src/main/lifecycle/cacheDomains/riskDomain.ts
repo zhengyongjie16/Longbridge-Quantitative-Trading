@@ -16,6 +16,7 @@ import { buildCooldownKey } from '../../../services/liquidationCooldown/utils.js
 import type { CacheDomain, LifecycleContext } from '../types.js';
 import type { RiskDomainDeps } from './types.js';
 
+/** 清空所有监控标的的浮亏数据和牛熊证风险信息缓存，返回处理的监控标的数量 */
 function clearRiskCaches(monitorContexts: ReadonlyMap<string, MonitorContext>): number {
   let count = 0;
   for (const monitorContext of monitorContexts.values()) {
@@ -27,6 +28,7 @@ function clearRiskCaches(monitorContexts: ReadonlyMap<string, MonitorContext>): 
   return count;
 }
 
+/** 收集需要在午夜清除的清仓冷却键，仅包含跨日模式（非 minutes 模式）的监控标的 */
 function collectMidnightEligibleCooldownKeys(
   monitorContexts: ReadonlyMap<string, MonitorContext>,
 ): Set<string> {
@@ -43,6 +45,7 @@ function collectMidnightEligibleCooldownKeys(
   return keysToClear;
 }
 
+/** 执行风控域午夜清理：重置风控冷却、日内亏损追踪、清仓冷却键及各监控标的风险缓存 */
 function runMidnightRiskClear(
   deps: RiskDomainDeps,
   ctx: LifecycleContext,

@@ -1,6 +1,3 @@
-/**
- * 风险模块通用工具：计算当日亏损偏移。
- */
 import { OrderStatus } from 'longport';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import type { MonitorConfig } from '../../types/config.js';
@@ -41,6 +38,16 @@ export function sumOrderCost(orders: ReadonlyArray<OrderRecord>): number {
   return total;
 }
 
+/**
+ * 收集订单归属诊断信息，用于启动时检测当日成交订单中未能归属到任何监控标的的订单数量与样例。
+ * @param orders 全量原始订单列表
+ * @param monitors 监控配置列表，用于归属匹配
+ * @param now 当前时间，用于确定当日日键
+ * @param resolveOrderOwnership 订单归属解析函数
+ * @param toHongKongTimeIso 日期转香港时间 ISO 字符串的函数
+ * @param maxSamples 未归属订单最大样例数，默认 3
+ * @returns 诊断结果，日键无效时返回 null
+ */
 export function collectOrderOwnershipDiagnostics({
   orders,
   monitors,

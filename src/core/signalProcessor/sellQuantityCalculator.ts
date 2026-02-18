@@ -26,6 +26,14 @@ import type { OrderRecorder } from '../../types/services.js';
 /**
  * 计算卖出信号的数量和原因
  * 智能平仓开启：仅卖出盈利订单；关闭：清仓所有持仓
+ * @param position 持仓对象，可为 null
+ * @param quote 行情对象，可为 null
+ * @param orderRecorder 订单记录器，可为 null
+ * @param direction 方向，LONG 或 SHORT
+ * @param originalReason 信号原始原因字符串
+ * @param smartCloseEnabled 是否启用智能平仓
+ * @param symbol 标的代码，用于精确筛选订单记录
+ * @returns 包含卖出数量、是否持有、原因说明及关联买入订单ID列表的结果
  */
 function calculateSellQuantity(
   position: Position | null,
@@ -84,7 +92,22 @@ function calculateSellQuantity(
   };
 }
 
-/** 处理卖出信号，计算智能平仓数量 */
+/**
+ * 处理卖出信号，计算实际卖出数量并写回信号对象
+ *
+ * 遍历信号列表，对每个卖出信号（SELLCALL/SELLPUT）根据智能平仓配置计算数量。
+ * 末日保护信号无条件清仓，不受智能平仓影响。
+ * 委托价以执行时行情为准，覆盖信号生成时的快照价，确保提交时价格准确。
+ *
+ * @param signals 待处理的信号列表，函数直接修改其中的卖出信号
+ * @param longPosition 做多标的持仓，可为 null
+ * @param shortPosition 做空标的持仓，可为 null
+ * @param longQuote 做多标的行情，可为 null
+ * @param shortQuote 做空标的行情，可为 null
+ * @param orderRecorder 订单记录器
+ * @param smartCloseEnabled 是否启用智能平仓
+ * @returns 处理后的信号列表（与入参为同一引用）
+ */
 export const processSellSignals = (
   signals: Signal[],
   longPosition: Position | null,

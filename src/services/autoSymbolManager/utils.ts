@@ -1,6 +1,3 @@
-/**
- * 自动换标席位工具：初始化席位、版本号与状态查询。
- */
 import type { MonitorConfig } from '../../types/config.js';
 import type { Position } from '../../types/account.js';
 import type { SeatState, SeatStatus, SymbolRegistry } from '../../types/seat.js';
@@ -8,6 +5,8 @@ import type { SeatEntry, SeatUnavailableReason, SymbolSeatEntry } from './types.
 
 /**
  * 检查席位是否就绪（有有效标的且状态为 READY）
+ * @param seatState 席位状态，可为 null 或 undefined
+ * @returns 席位就绪时返回 true，并收窄类型为含 symbol 字符串的 SeatState
  */
 export function isSeatReady(
   seatState: SeatState | null | undefined,
@@ -23,6 +22,8 @@ export function isSeatReady(
 
 /**
  * 检查席位是否当日冻结（frozenTradingDayKey 非 null 即冻结，midnight clear 重置）
+ * @param seatState 席位状态
+ * @returns 当日冻结时返回 true
  */
 export function isSeatFrozenToday(seatState: SeatState): boolean {
   return seatState.frozenTradingDayKey != null;
@@ -35,6 +36,10 @@ export function isSeatFrozenToday(seatState: SeatState): boolean {
  * - 每次失败将 searchFailCountToday + 1
  * - 当失败次数达到 maxSearchFailuresPerDay 时，当日冻结席位
  * - 冻结后保留已存在的 frozenTradingDayKey（若未能获取当日 key，则不覆盖）
+ * @param params.currentSeat 当前席位状态
+ * @param params.hkDateKey 当前香港日期键，用于写入冻结标记
+ * @param params.maxSearchFailuresPerDay 当日最大允许失败次数
+ * @returns 下次失败计数、冻结日期键与是否触发冻结
  */
 export function resolveNextSearchFailureState(params: {
   readonly currentSeat: SeatState;
@@ -60,6 +65,8 @@ export function resolveNextSearchFailureState(params: {
 
 /**
  * 解析席位不可用原因（席位就绪时返回 null）
+ * @param seatState 席位状态
+ * @returns 不可用原因枚举值，席位就绪时返回 null
  */
 export function resolveSeatUnavailableReason(
   seatState: SeatState,
@@ -89,6 +96,8 @@ const SEAT_UNAVAILABLE_REASON_MAP: Readonly<Record<SeatUnavailableReason, string
 /**
  * 从非就绪席位状态获取格式化的不可用原因文案。
  * 前提：调用方已确认 isSeatReady(seatState) === false。
+ * @param seatState 席位状态
+ * @returns 不可用原因的中文描述字符串
  */
 export function describeSeatUnavailable(seatState: SeatState): string {
   const reason = resolveSeatUnavailableReason(seatState);
@@ -98,6 +107,9 @@ export function describeSeatUnavailable(seatState: SeatState): string {
 /**
  * 检查信号版本是否匹配当前席位版本
  * 用于过滤过期信号，避免换标后执行旧席位的订单
+ * @param signalVersion 信号携带的席位版本号
+ * @param currentVersion 当前席位版本号
+ * @returns 版本匹配时返回 true
  */
 export function isSeatVersionMatch(
   signalVersion: number | null | undefined,
@@ -108,6 +120,11 @@ export function isSeatVersionMatch(
 
 /**
  * 启动时优先使用已有持仓的标的，避免自动寻标覆盖现有仓位。
+ * @param params.autoSearchEnabled 是否启用自动寻标
+ * @param params.candidateSymbol 候选标的代码
+ * @param params.configuredSymbol 配置文件中指定的标的代码
+ * @param params.positions 当前持仓列表
+ * @returns 启动时应使用的标的代码，无合适标的时返回 null
  */
 export function resolveSeatOnStartup({
   autoSearchEnabled,
@@ -132,7 +149,12 @@ export function resolveSeatOnStartup({
   return hasPosition ? candidateSymbol : null;
 }
 
-/** 创建席位状态对象 */
+/**
+ * 创建席位状态对象（内部工厂函数）
+ * @param symbol 交易标的代码，null 表示未绑定
+ * @param status 席位状态（IDLE/SEARCHING/ACTIVE/SWITCHING/FROZEN）
+ * @returns 初始化的席位状态对象
+ */
 function createSeatState(symbol: string | null, status: SeatStatus): SeatState {
   return {
     symbol,
@@ -145,7 +167,12 @@ function createSeatState(symbol: string | null, status: SeatStatus): SeatState {
   };
 }
 
-/** 创建席位条目（包含状态和版本号） */
+/**
+ * 创建席位条目（内部工厂函数）
+ * @param symbol 交易标的代码，null 表示未绑定
+ * @param status 席位状态（IDLE/SEARCHING/ACTIVE/SWITCHING/FROZEN）
+ * @returns 包含状态和版本号的席位条目，初始版本号为 1
+ */
 function createSeatEntry(symbol: string | null, status: SeatStatus): SeatEntry {
   return {
     state: createSeatState(symbol, status),
@@ -154,7 +181,12 @@ function createSeatEntry(symbol: string | null, status: SeatStatus): SeatEntry {
 }
 
 /**
- * 从注册表中解析指定监控标的与方向的席位条目。
+ * 从注册表中解析指定监控标的与方向的席位条目（内部辅助函数）
+ * @param registry 席位注册表
+ * @param monitorSymbol 监控标的代码
+ * @param direction 方向（LONG 或 SHORT）
+ * @returns 对应方向的席位条目
+ * @throws 当监控标的不存在于注册表时抛出错误
  */
 function resolveSeatEntry(
   registry: Map<string, SymbolSeatEntry>,
@@ -170,6 +202,8 @@ function resolveSeatEntry(
 
 /**
  * 创建席位注册表并初始化多/空席位状态。
+ * @param monitors 所有监控标的配置列表
+ * @returns 实现了 SymbolRegistry 接口的注册表对象
  */
 export function createSymbolRegistry(
   monitors: ReadonlyArray<MonitorConfig>,

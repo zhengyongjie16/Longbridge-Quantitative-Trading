@@ -42,7 +42,7 @@ export function isDefined<T>(value: T | null | undefined): value is T {
 /**
  * 类型保护：检查是否为 Error 实例（内部使用）
  * @param value 待检查的值
- * @returns 如果是 Error 实例返回 true
+ * @returns 如果是 Error 实例返回 true，同时收窄类型为 Error
  */
 function isError(value: unknown): value is Error {
   return value instanceof Error;
@@ -51,7 +51,7 @@ function isError(value: unknown): value is Error {
 /**
  * 类型保护：检查是否为类似错误的对象（内部使用）
  * @param value 待检查的值
- * @returns 如果对象包含常见错误属性返回 true
+ * @returns 如果对象包含常见错误属性（message/error/msg）返回 true，同时收窄类型为 Record<string, unknown>
  */
 function isErrorLike(value: unknown): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null) {
@@ -267,25 +267,35 @@ export function formatSymbolDisplayFromQuote(quote: Quote | null | undefined, sy
 }
 
 /**
- * 辅助函数：判断是否为买入操作
+ * 判断是否为买入操作
+ * @param action 信号类型
+ * @returns 是否为买入操作（BUYCALL 或 BUYPUT）
  */
 export function isBuyAction(action: SignalType): boolean {
   return action === 'BUYCALL' || action === 'BUYPUT';
 }
 
 /**
- * 辅助函数：判断是否为卖出操作
+ * 判断是否为卖出操作
+ * @param action 信号类型
+ * @returns 是否为卖出操作（SELLCALL 或 SELLPUT）
  */
 export function isSellAction(action: SignalType): boolean {
   return action === 'SELLCALL' || action === 'SELLPUT';
 }
 
-/** 获取做多标的方向名称 */
+/**
+ * 获取做多标的方向名称
+ * @returns 做多标的方向名称字符串
+ */
 export function getLongDirectionName(): string {
   return '做多标的';
 }
 
-/** 获取做空标的方向名称 */
+/**
+ * 获取做空标的方向名称
+ * @returns 做空标的方向名称字符串
+ */
 export function getShortDirectionName(): string {
   return '做空标的';
 }
@@ -308,6 +318,8 @@ function getSignalActionDescription(action: SignalType): string {
 
 /**
  * 格式化信号日志（标的显示为：中文名称(代码)）
+ * @param signal 包含信号动作、标的代码、标的名称和原因的对象
+ * @returns 格式化后的信号日志字符串
  */
 export function formatSignalLog(signal: { action: SignalType; symbol: string; symbolName?: string | null; reason?: string | null }): string {
   const actionDesc = getSignalActionDescription(signal.action);
@@ -360,7 +372,11 @@ export function formatError(err: unknown): string {
   }
 }
 
-/** 异步延迟指定毫秒数，无效值时使用 1000ms */
+/**
+ * 异步延迟指定毫秒数，无效值时使用 1000ms
+ * @param ms 延迟毫秒数
+ * @returns Promise，延迟结束后 resolve
+ */
 export async function sleep(ms: number): Promise<void> {
   const delay = Number(ms);
   if (!Number.isFinite(delay) || delay < 0) {

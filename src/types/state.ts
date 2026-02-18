@@ -1,9 +1,3 @@
-/**
- * 主入口模块类型
- *
- * 功能：
- * - 定义主程序运行时的状态类型
- */
 import type { SignalType, Signal } from './signal.js';
 import type { MonitorValues } from './data.js';
 import type { IndicatorSnapshot, Quote } from './quote.js';

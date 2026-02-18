@@ -18,6 +18,7 @@ import type { LastState, MonitorState } from '../../../types/state.js';
 import type { CacheDomain } from '../types.js';
 import type { GlobalStateDomainDeps } from './types.js';
 
+/** 重置单个监控标的的运行状态，释放快照对象回对象池，防止跨日数据污染 */
 function resetMonitorStateForNewDay(monitorState: MonitorState): void {
   releaseSnapshotObjects(monitorState.lastMonitorSnapshot, monitorState.monitorValues);
   monitorState.monitorPrice = null;

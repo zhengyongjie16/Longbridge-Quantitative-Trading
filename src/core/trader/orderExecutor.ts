@@ -71,6 +71,7 @@ function getOrderTypeFromConfig(
   return OrderType.ELO;
 }
 
+/** 检查信号是否为跨日或触发时间无效的过期信号（保护性清仓信号不参与此校验） */
 function isStaleCrossDaySignal(signal: Signal, now: Date): boolean {
   if (!(signal.triggerTime instanceof Date) || Number.isNaN(signal.triggerTime.getTime())) {
     return true;
@@ -226,7 +227,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
   } = deps;
   const { global, monitors } = tradingConfig;
 
-  /** 通过信号标的解析监控配置与方向 */
+  /** 通过信号标的解析监控配置与方向，未找到席位或配置时返回 null 并记录警告 */
   function resolveMonitorConfigBySymbol(
     signalSymbol: string,
   ): { monitorConfig: MonitorConfig; isShortSymbol: boolean } | null {
@@ -248,6 +249,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
     };
   }
 
+  /** 检查执行门禁是否开放；门禁关闭时记录日志并返回 false，阻止后续下单 */
   function canExecuteSignal(signal: Signal, stage: string): boolean {
     if (isExecutionAllowed()) {
       return true;
@@ -496,7 +498,12 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
     }
   }
 
-  /** 根据信号类型构建并提交订单；返回是否实际提交了订单（用于调用方判断是否更新缓存） */
+  /**
+   * 根据信号类型构建并提交订单。
+   * 卖出时先查询可用持仓并执行卖单合并决策（REPLACE/CANCEL_AND_SUBMIT/SUBMIT/SKIP），
+   * 买入时按目标金额计算数量后直接提交。
+   * 返回是否实际提交了订单，供调用方判断是否需要更新缓存。
+   */
   async function submitTargetOrder(
     ctx: TradeContext,
     signal: Signal,

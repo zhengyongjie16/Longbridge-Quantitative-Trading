@@ -1,9 +1,3 @@
-/**
- * 数据接口类型
- *
- * 功能：
- * - 定义 K 线数据和监控值相关的类型
- */
 import type { KDJIndicator, MACDIndicator } from './quote.js';
 
 /**

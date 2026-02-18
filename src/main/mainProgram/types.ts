@@ -1,9 +1,3 @@
-/**
- * 主程序模块类型
- *
- * 功能：
- * - 定义主程序运行所需的上下文类型，包含所有外部依赖的引用
- */
 import type { IndicatorCache } from '../asyncProgram/indicatorCache/types.js';
 import type { TaskQueue, BuyTaskType, SellTaskType } from '../asyncProgram/tradeTaskQueue/types.js';
 import type { MonitorTaskQueue } from '../asyncProgram/monitorTaskQueue/types.js';
@@ -28,6 +22,9 @@ import type { DayLifecycleManager } from '../lifecycle/types.js';
  * - 状态管理：lastState（全局状态）、monitorContexts（监控上下文）
  * - 业务模块：marketMonitor、doomsdayProtection、signalProcessor
  * - 异步架构：indicatorCache、buyTaskQueue、sellTaskQueue
+ *
+ * 数据来源：由 src/index.ts main() 函数初始化并注入
+ * 使用范围：仅在 mainProgram 及其调用链内部使用
  */
 export type MainProgramContext = {
   readonly marketDataClient: MarketDataClient;

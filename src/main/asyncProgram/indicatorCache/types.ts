@@ -1,13 +1,10 @@
-/**
- * IndicatorCache 模块类型定义
- *
- * 指标缓存使用环形缓冲区存储每秒的指标快照，
- * 供延迟信号验证器查询历史数据。
- */
 import type { IndicatorSnapshot } from '../../../types/quote.js';
 
 /**
  * 指标缓存条目
+ * 用途：存储单个时间点的指标快照，用于延迟验证时回溯历史指标值
+ * 数据来源：由 IndicatorCache.push() 创建并存入环形缓冲区
+ * 使用范围：仅在 indicatorCache 模块内部使用
  */
 export type IndicatorCacheEntry = {
   /** 记录时间戳（毫秒） */
@@ -37,6 +34,8 @@ export type _RingBuffer = {
 
 /**
  * 指标缓存配置选项
+ * 用途：控制环形缓冲区的最大容量
+ * 使用范围：仅在 indicatorCache 模块内部使用
  */
 export type IndicatorCacheOptions = {
   /** 最大缓存条目数，默认 100 */

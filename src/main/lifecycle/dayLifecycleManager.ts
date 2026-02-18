@@ -28,6 +28,7 @@ import type {
   LifecycleRuntimeFlags,
 } from './types.js';
 
+/** 判断是否需要触发午夜清理：dayKey 存在且与当前记录的日期不同 */
 function shouldRunMidnightClear(
   runtime: LifecycleRuntimeFlags,
   mutableState: LifecycleMutableState,
@@ -38,6 +39,7 @@ function shouldRunMidnightClear(
   return runtime.dayKey !== mutableState.currentDayKey;
 }
 
+/** 构造传递给各 CacheDomain 的生命周期上下文 */
 function buildLifecycleContext(
   now: Date,
   runtime: LifecycleRuntimeFlags,
@@ -58,6 +60,7 @@ async function runMidnightClearForDomains(
   }
 }
 
+/** 按逆序依次执行各 CacheDomain 的开盘重建，任一失败即抛出 */
 async function runOpenRebuildForDomains(
   domains: ReadonlyArray<CacheDomain>,
   ctx: LifecycleContext,
@@ -71,6 +74,7 @@ async function runOpenRebuildForDomains(
   }
 }
 
+/** 计算指数退避重试延迟，失败次数越多延迟越长，上限由 MAX_RETRY_BACKOFF_FACTOR 控制 */
 function resolveRetryDelayMs(
   baseDelayMs: number,
   rebuildFailureCount: number,
@@ -95,6 +99,11 @@ export function createDayLifecycleManager(deps: DayLifecycleManagerDeps): DayLif
   let midnightClearFailureCount = 0;
   let nextMidnightRetryAtMs: number | null = null;
 
+  /**
+   * 每秒由外部驱动的生命周期主循环。
+   * 按优先级依次处理：跨日午夜清理 → 等待开盘重建 → 恢复交易门禁。
+   * 任一阶段失败均记录错误并进入指数退避重试，不吞错。
+   */
   async function tick(now: Date, runtime: LifecycleRuntimeFlags): Promise<void> {
     if (shouldRunMidnightClear(runtime, mutableState)) {
       mutableState.isTradingEnabled = false;

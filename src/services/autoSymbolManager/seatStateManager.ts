@@ -14,6 +14,9 @@ import type {
   SeatStateUpdater,
 } from './types.js';
 
+/**
+ * 创建席位状态管理器，封装席位状态构建、更新、日内抑制记录与清空换标流程。
+ */
 export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateManager {
   const {
     monitorSymbol,
@@ -25,6 +28,9 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
     getHKDateKey,
   } = deps;
 
+  /**
+   * 构造席位状态对象，统一初始化各字段默认值（如 callPrice 默认为 null）。
+   */
   const buildSeatState: SeatStateBuilder = ({
     symbol,
     status,
@@ -45,6 +51,9 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
     };
   };
 
+  /**
+   * 更新席位状态，若标的发生变更且 bumpOnSymbolChange 为 true，则同步提升席位版本以隔离旧信号。
+   */
   const updateSeatState: SeatStateUpdater = (
     direction: 'LONG' | 'SHORT',
     nextState,
@@ -57,6 +66,9 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
     symbolRegistry.updateSeatState(monitorSymbol, direction, nextState);
   };
 
+  /**
+   * 查询当前方向的日内抑制记录。若日期键已过期或标的不匹配则自动清除并返回 null。
+   */
   function resolveSuppression(
     direction: 'LONG' | 'SHORT',
     seatSymbol: string,
@@ -73,6 +85,9 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
     return record;
   }
 
+  /**
+   * 记录当日日内抑制，防止同一标的在同一交易日内重复触发换标。
+   */
   function markSuppression(direction: 'LONG' | 'SHORT', seatSymbol: string): void {
     const dateKey = getHKDateKey(now());
     if (!dateKey) {

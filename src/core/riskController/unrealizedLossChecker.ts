@@ -13,7 +13,10 @@ import type { Quote } from '../../types/quote.js';
 import type { OrderRecorder, UnrealizedLossData, UnrealizedLossCheckResult } from '../../types/services.js';
 import type { UnrealizedLossChecker, UnrealizedLossCheckerDeps } from './types.js';
 
-/** 从订单列表计算 R1（开仓成本）和 N1（持仓数量） */
+/**
+ * 从未平仓买入订单列表计算 R1（开仓成本总和）和 N1（持仓数量总和）。
+ * 价格或数量无效的订单将被跳过，不计入结果。
+ */
 function calculateCostAndQuantity(
   buyOrders: ReadonlyArray<{ executedPrice: number | string; executedQuantity: number | string }>,
 ): Readonly<{ r1: number; n1: number }> {
@@ -63,7 +66,11 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
     );
   };
 
-  /** 刷新标的的浮亏数据（启动时或交易后调用） */
+  /**
+   * 刷新指定标的的浮亏数据并写入缓存。
+   * 启动初始化或保护性清仓后调用，以确保后续 check 使用最新的 R1/N1。
+   * dailyLossOffset 为负时（已亏损）会增大调整后 R1，使浮亏保护更容易触发。
+   */
   const refresh = async (
     orderRecorder: OrderRecorder,
     symbol: string,
@@ -135,7 +142,11 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
     }
   };
 
-  /** 检查浮亏是否超过阈值，超过则返回清仓信号 */
+  /**
+   * 检查指定标的的浮亏是否超过 maxUnrealizedLossPerSymbol 阈值。
+   * 超过时返回清仓信号（shouldLiquidate=true），由 UnrealizedLossMonitor 触发保护性清仓。
+   * 依赖 refresh 写入的缓存数据，缓存未初始化时跳过检查并告警。
+   */
   const check = (
     symbol: string,
     currentPrice: number,

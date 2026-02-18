@@ -69,6 +69,12 @@ function nextCallIndex(state: FailureState, method: MockMethodName): number {
   return next;
 }
 
+/**
+ * 根据失败注入规则判断当前调用是否应抛出错误。
+ *
+ * 支持按调用序号列表、固定间隔和自定义谓词三种匹配方式，
+ * 并通过 `maxFailures` 限制最大失败次数，防止测试无限失败。
+ */
 function shouldFail(
   state: FailureState,
   method: MockMethodName,
@@ -179,12 +185,16 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
     });
   }
 
+  /**
+   * 统一封装调用计数、失败注入与调用记录。
+   *
+   * 所有对外能力均经此路径，确保失败注入与调用日志语义一致，避免各方法行为漂移。
+   */
   async function withCall<T>(
     method: MockMethodName,
     args: ReadonlyArray<unknown>,
     action: () => Promise<T> | T,
   ): Promise<T> {
-    // 所有对外能力统一走这里，确保失败注入与调用日志语义一致。
     const callIndex = nextCallIndex(failureState, method);
     const injectedError = shouldFail(failureState, method, callIndex, args);
     if (injectedError) {

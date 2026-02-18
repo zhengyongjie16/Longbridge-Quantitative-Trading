@@ -39,6 +39,10 @@ export const createIndicatorCache = (options: IndicatorCacheOptions = {}): Indic
   };
 
   return {
+    /**
+     * 推送指标快照到指定标的的缓冲区
+     * 对 snapshot 进行深拷贝后存储，确保数据独立于外部对象池
+     */
     push(monitorSymbol: string, snapshot: IndicatorSnapshot): void {
       const buffer = getOrCreateBuffer(monitorSymbol);
       // 克隆快照，确保存储的数据独立于外部对象池管理
@@ -50,12 +54,19 @@ export const createIndicatorCache = (options: IndicatorCacheOptions = {}): Indic
       pushToBuffer(buffer, entry);
     },
 
+    /**
+     * 查询指定标的在目标时间附近的指标快照
+     * 返回容忍度内最接近 targetTime 的条目，无匹配时返回 null
+     */
     getAt(monitorSymbol: string, targetTime: number, toleranceMs: number): IndicatorCacheEntry | null {
       const buffer = buffers.get(monitorSymbol);
       if (!buffer || buffer.size === 0) return null;
       return findClosestEntry(buffer, targetTime, toleranceMs);
     },
 
+    /**
+     * 清空所有标的的缓冲区，用于跨日重置
+     */
     clearAll(): void {
       buffers.clear();
     },

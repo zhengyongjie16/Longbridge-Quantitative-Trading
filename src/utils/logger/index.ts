@@ -85,7 +85,10 @@ export function retainLatestLogFiles(
   }
 }
 
-// ANSI 颜色代码（保持兼容性）
+/**
+ * ANSI 颜色代码映射表
+ * 用于控制台日志输出的颜色高亮
+ */
 export const colors = {
   reset: '\x1b[0m',
   yellow: '\x1b[33m',
@@ -95,7 +98,11 @@ export const colors = {
   cyan: '\x1b[96m', // 天蓝色
 } as const;
 
-/** 格式化额外数据为字符串（内部使用） */
+/**
+ * 格式化额外数据为字符串
+ * @param extra 待格式化的数据
+ * @returns 格式化后的字符串表示
+ */
 function formatExtra(extra: unknown): string {
   return inspect(extra, { depth: 5, maxArrayLength: 100 });
 }
@@ -322,7 +329,10 @@ function stripAnsiCodes(str: string): string {
 }
 
 /**
- * 自定义格式化函数（用于文件输出）
+ * 自定义格式化函数，将日志对象转换为文件输出格式
+ * 移除 ANSI 颜色代码，输出纯文本格式
+ * @param obj 日志对象
+ * @returns 格式化后的日志行字符串
  */
 function formatForFile(obj: LogObject): string {
   const level = obj.level;
@@ -356,7 +366,10 @@ function formatForFile(obj: LogObject): string {
 }
 
 /**
- * 自定义格式化函数（用于控制台输出，带颜色）
+ * 自定义格式化函数，将日志对象转换为控制台输出格式
+ * 带颜色高亮，根据日志级别选择不同颜色
+ * @param obj 日志对象
+ * @returns 格式化后的日志行字符串
  */
 function formatForConsole(obj: LogObject): string {
   const level = obj.level;
@@ -399,7 +412,13 @@ const debugFileStream = IS_DEBUG ? new DateRotatingStream('debug') : null;
 
 
 /**
- * 创建带超时保护的 drain 事件处理器（超时后仍调用 callback 避免阻塞）
+ * 创建带超时保护的 drain 事件处理器
+ * 防止 drain 事件永远不触发导致日志系统阻塞，超时后仍调用 callback 继续处理
+ * @param stream 文件流或进程流
+ * @param timeout 超时时间（毫秒）
+ * @param callback 完成回调函数
+ * @param onTimeout 超时时的回调函数
+ * @returns 包含 drain 事件处理器和超时 ID 的对象
  */
 function createDrainHandler(
   stream: NodeJS.WriteStream | fs.WriteStream,
@@ -428,8 +447,12 @@ function createDrainHandler(
 }
 
 /**
- * 带超时保护的写入辅助函数（内部使用）
- * 防止 drain 事件永远不触发导致阻塞
+ * 带超时保护的写入辅助函数
+ * 防止 drain 事件永久不触发导致日志系统阻塞
+ * @param stream 进程流（stdout/stderr）
+ * @param data 待写入数据
+ * @param timeout 超时时间（毫秒）
+ * @param callback 完成回调函数
  */
 function writeWithDrainTimeout(
   stream: NodeJS.WriteStream,
@@ -628,8 +651,9 @@ export const logger: Logger = {
 let isSyncCleaningUp = false;
 
 /**
- * 同步清理函数（用于进程退出）
- * 注意：此函数会在信号处理和异常处理中被调用
+ * 同步清理函数，用于进程退出时刷新日志缓冲并关闭文件流
+ * 防止日志丢失，在信号处理和异常处理中被调用
+ * 使用状态标志避免重复清理
  */
 function cleanupSync(): void {
   if (isSyncCleaningUp) {

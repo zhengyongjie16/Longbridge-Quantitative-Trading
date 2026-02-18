@@ -1,11 +1,3 @@
-/**
- * 监控上下文模块的工具函数
- *
- * 功能：
- * - 从配置中提取 EMA 周期（extractEmaPeriods）
- * - 从配置中提取 RSI 周期（extractRsiPeriodsWithDefault）
- * - 从配置中提取 PSY 周期（extractPsyPeriods）
- */
 import {
   extractRSIPeriods,
   extractPsyPeriods as extractPsyPeriodsFromSignalConfig,

@@ -110,6 +110,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
   // 待刷新浮亏数据的标的列表（订单成交后添加，主循环中处理后清空）
   const pendingRefreshSymbols: PendingRefreshSymbol[] = [];
 
+  /** 通过标的代码解析席位归属（做多/做空方向及监控标的），未找到时使用默认值并记录警告 */
   function resolveSeatOwnership(
     symbol: string,
   ): { isLongSymbol: boolean; monitorSymbol: string | null } {

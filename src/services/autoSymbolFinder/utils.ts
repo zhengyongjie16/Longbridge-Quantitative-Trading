@@ -1,6 +1,3 @@
-/**
- * 自动寻标工具：过滤候选与筛选最佳牛熊证。
- */
 import { FilterWarrantExpiryDate, WarrantStatus } from 'longport';
 import { decimalToNumber } from '../../utils/helpers/index.js';
 import type {
@@ -11,7 +8,11 @@ import type {
   WarrantListItem,
 } from './types.js';
 
-/** 检查牛熊证状态是否为正常 */
+/**
+ * 检查牛熊证状态是否为正常（内部辅助函数）
+ * @param status 牛熊证状态枚举值
+ * @returns true 表示状态为 Normal，可以交易
+ */
 function isNormalStatus(status: WarrantListItem['status']): boolean {
   return status === WarrantStatus.Normal;
 }
@@ -23,8 +24,8 @@ const EXPIRY_DATE_FILTERS: ReadonlyArray<FilterWarrantExpiryDate> = [
 ];
 
 /**
- * 创建牛熊证列表缓存实例
- * 用于避免频繁调用 API，支持 TTL 缓存和请求去重
+ * 创建牛熊证列表缓存实例，用于避免频繁调用 API，支持 TTL 缓存和请求去重。
+ * @returns 实现了 WarrantListCache 接口的缓存对象
  */
 export function createWarrantListCache(): WarrantListCache {
   const entries = new Map<string, WarrantListCacheEntry>();
@@ -54,7 +55,9 @@ export function createWarrantListCache(): WarrantListCache {
 }
 
 /**
- * 根据最小到期月数生成筛选条件，避免临近到期标的。
+ * 根据最小到期月数生成到期日筛选条件，避免选入临近到期标的。
+ * @param expiryMinMonths 最小到期月数
+ * @returns 对应的到期日筛选条件数组
  */
 export function buildExpiryDateFilters(
   expiryMinMonths: number,
@@ -69,12 +72,16 @@ export function buildExpiryDateFilters(
 }
 
 /**
- * 选取最佳标的：
- * - 基于 toCallPrice 距回收价百分比筛选
- *   - 牛证：distancePct > minDistancePct（正值，距回收价足够远）
- *   - 熊证：distancePct < minDistancePct（负值，距回收价足够远）
- * - 选优：|distancePct| 更小优先（距回收价更近，杠杆更大）
- * - |distancePct| 相同则按分均成交额更高优先
+ * 从候选列表中选取最佳牛熊证标的。
+ * - 牛证：distancePct > minDistancePct（正值，距回收价足够远）
+ * - 熊证：distancePct < minDistancePct（负值，距回收价足够远）
+ * - 选优：|distancePct| 更小优先（距回收价更近，杠杆更大）；相同时按分均成交额更高优先
+ * @param warrants 候选牛熊证列表
+ * @param tradingMinutes 当日已交易分钟数，用于计算分均成交额
+ * @param isBull 是否为牛证
+ * @param minDistancePct 距回收价最小百分比阈值
+ * @param minTurnoverPerMinute 最低分均成交额要求
+ * @returns 最佳候选标的，无符合条件时返回 null
  */
 export function selectBestWarrant({
   warrants,

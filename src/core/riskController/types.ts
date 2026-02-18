@@ -1,12 +1,3 @@
-/**
- * 风险控制模块类型定义
- *
- * 定义风险检查相关的接口和类型：
- * - 牛熊证报价和信息类型
- * - 风险检查器配置选项
- * - 各子检查器服务接口
- * - 依赖注入类型
- */
 import type { Position } from '../../types/account.js';
 import type { Signal, SignalType } from '../../types/signal.js';
 import type { Quote } from '../../types/quote.js';
@@ -80,7 +71,11 @@ export type WarrantQuote = {
   readonly underlyingSymbol: string | null;
 };
 
-/** 牛熊证信息 */
+/**
+ * 牛熊证信息
+ * 来源：WarrantRiskChecker 通过 LongPort API 查询后解析填充
+ * 区分非轮证（isWarrant=false）与轮证（isWarrant=true）两种形态，仅在 riskController 模块内部使用
+ */
 export type WarrantInfo =
   | { readonly isWarrant: false }
   | {
@@ -187,18 +182,30 @@ export type RiskCheckerDeps = {
 
 // ==================== 当日亏损追踪 ====================
 
+/**
+ * 单监控标的单方向的当日亏损状态。
+ * 由 DailyLossTracker 内部维护，按 monitorSymbol + 方向（long/short）分组存储。
+ */
 export type DailyLossState = {
   readonly buyOrders: ReadonlyArray<OrderRecord>;
   readonly sellOrders: ReadonlyArray<OrderRecord>;
   readonly dailyLossOffset: number;
 };
 
+/**
+ * 未归属订单诊断样例，用于日志输出。
+ * 仅在 collectOrderOwnershipDiagnostics 内部构造，不对外暴露。
+ */
 export type OrderOwnershipDiagnosticSample = {
   readonly orderId: string;
   readonly symbol: string;
   readonly stockName: string;
 };
 
+/**
+ * 订单归属诊断结果，记录当日成交订单中未能归属到任何监控标的的统计信息。
+ * 由 collectOrderOwnershipDiagnostics 返回，供 DailyLossTracker 启动时日志告警使用。
+ */
 export type OrderOwnershipDiagnostics = {
   readonly dayKey: string;
   readonly totalFilled: number;
@@ -207,6 +214,10 @@ export type OrderOwnershipDiagnostics = {
   readonly unmatchedSamples: ReadonlyArray<OrderOwnershipDiagnosticSample>;
 };
 
+/**
+ * 成交回报输入，用于 DailyLossTracker.recordFilledOrder 增量记录单笔成交。
+ * 数据来源：OrderMonitor 成交回调，仅在当日日键匹配时写入。
+ */
 export type DailyLossFilledOrderInput = {
   readonly monitorSymbol: string;
   readonly symbol: string;
@@ -218,18 +229,29 @@ export type DailyLossFilledOrderInput = {
   readonly orderId?: string | null;
 };
 
+/**
+ * 当日亏损追踪器接口，按监控标的与方向维护已实现盈亏偏移。
+ * 由 riskDomain 持有，生命周期与主程序一致；跨日时由 midnightClear 调用 resetAll 重置。
+ */
 export interface DailyLossTracker {
   /** 显式重置 dayKey 与 states */
   resetAll(now: Date): void;
+  /** 使用完整订单列表重新计算当日状态，作为启动初始化或纠偏手段 */
   recalculateFromAllOrders(
     allOrders: ReadonlyArray<RawOrderFromAPI>,
     monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
     now: Date,
   ): void;
+  /** 增量记录单笔成交，仅接受当日日键匹配的订单 */
   recordFilledOrder(input: DailyLossFilledOrderInput): void;
+  /** 获取指定标的与方向的当日亏损偏移，未初始化时返回 0 */
   getLossOffset(monitorSymbol: string, isLongSymbol: boolean): number;
 }
 
+/**
+ * DailyLossTracker 依赖注入类型。
+ * filteringEngine 用于计算未平仓买入成本；其余函数由外部注入以解耦订单归属逻辑。
+ */
 export type DailyLossTrackerDeps = {
   readonly filteringEngine: OrderFilteringEngine;
   readonly resolveOrderOwnership: (

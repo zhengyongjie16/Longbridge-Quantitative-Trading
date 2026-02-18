@@ -10,6 +10,12 @@ export interface ScenarioClock {
   tick(deltaMs: number): number;
 }
 
+/**
+ * 创建可控场景时钟。
+ *
+ * 以 `initialMs` 为起点维护一个可手动推进的时间状态，
+ * 供调度器与事件总线共享，确保测试中所有时间相关逻辑使用同一时间源。
+ */
 export function createScenarioClock(initialMs: number = 0): ScenarioClock {
   let current = initialMs;
 

@@ -1,14 +1,3 @@
-/**
- * 启动流程工具函数模块
- *
- * 功能：
- * - resolveRunMode()：解析运行模式（dev/prod）
- * - resolveGatePolicies()：根据运行模式解析门禁策略
- *
- * 运行模式说明：
- * - prod（默认）：生产模式，启用所有门禁检查
- * - dev：开发模式，跳过门禁检查便于调试
- */
 import type { RunMode, GateMode } from '../../types/seat.js';
 
 /**

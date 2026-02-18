@@ -206,6 +206,10 @@ function displayIndicators(params: {
  */
 export function createMarketMonitor(): MarketMonitor {
   return {
+    /**
+     * 检测做多/做空标的价格变化，变化时打印行情并更新状态。
+     * 首次出现有效价格也视为变化，确保启动后立即输出一次行情。
+     */
     monitorPriceChanges: (
       longQuote: Quote | null,
       shortQuote: Quote | null,
@@ -248,6 +252,10 @@ export function createMarketMonitor(): MarketMonitor {
       return false; // 价格未变化
     },
 
+    /**
+     * 检测监控标的技术指标变化，变化时打印全量指标并通过对象池更新状态缓存。
+     * 任意指标（价格、涨跌幅、EMA/RSI/PSY/MFI/KDJ/MACD）超过阈值即触发显示与状态更新。
+     */
     monitorIndicatorChanges: (
       monitorSnapshot: IndicatorSnapshot | null,
       monitorQuote: Quote | null,

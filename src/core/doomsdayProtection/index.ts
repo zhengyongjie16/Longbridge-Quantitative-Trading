@@ -44,6 +44,7 @@ function createClearanceSignal(params: ClearanceSignalParams): Signal | null {
   return signal;
 }
 
+/** 从监控上下文中解析席位对应的交易标的，席位未就绪或上下文缺失时返回 null */
 function resolveSeatSymbol(
   context: MonitorContext | undefined,
   monitorSymbol: string,
@@ -61,6 +62,7 @@ function resolveSeatSymbol(
   return seatState.symbol;
 }
 
+/** 解析指定监控标的的多空席位交易标的，返回 longSymbol 和 shortSymbol */
 function resolveMonitorSymbols(
   monitorSymbol: string,
   monitorContexts: DoomsdayClearanceContext['monitorContexts'],

@@ -1,6 +1,3 @@
-/**
- * 行情监控模块独享的工具函数
- */
 import { isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
 import { DEFAULT_PERCENT_DECIMALS } from '../../constants/index.js';
 import type { ObjectPool } from '../../utils/objectPool/types.js';
@@ -22,6 +19,10 @@ export function hasChanged(current: number | null | undefined, last: number | nu
 
 /**
  * 检查单个指标值是否变化（当前有效且上次为空或超过阈值）
+ * @param current 当前指标值
+ * @param last 上次指标值，为 null/undefined 时视为首次出现
+ * @param threshold 变化阈值
+ * @returns 当前值有效且与上次相比超过阈值时返回 true
  */
 export function indicatorChanged(
   current: number | null | undefined,
@@ -33,6 +34,9 @@ export function indicatorChanged(
 
 /**
  * 格式化牛熊证距离回收价的显示文本
+ * @param warrantDistanceInfo 牛熊证距离信息，为 null 时返回 null
+ * @param decimals 小数位数，默认使用 DEFAULT_PERCENT_DECIMALS
+ * @returns 格式化后的距离文本，距离无效时返回"未知"文本，warrantDistanceInfo 为 null 时返回 null
  */
 export function formatWarrantDistanceDisplay(
   warrantDistanceInfo: WarrantDistanceInfo | null,
@@ -54,6 +58,9 @@ export function formatWarrantDistanceDisplay(
 
 /**
  * 从指标快照拷贝周期值到对象池记录
+ * @param pool 对象池，用于复用 Record 对象避免频繁分配
+ * @param snapshot 指标快照，为 null 时返回 null
+ * @returns 从对象池获取并填充的周期值记录，snapshot 为 null 时返回 null
  */
 export function copyPeriodRecord(
   pool: ObjectPool<Record<number, number>>,

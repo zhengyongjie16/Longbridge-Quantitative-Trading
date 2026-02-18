@@ -1,10 +1,10 @@
 /**
- * 自动寻标任务处理
+ * 自动寻标任务处理器
  *
- * 功能：
- * - 处理寻标 tick 任务
- * - 处理距回收价触发的换标检查任务
- * - 执行前校验席位快照，避免旧任务
+ * 核心职责：
+ * - 处理 AUTO_SYMBOL_TICK 寻标 tick 任务
+ * - 处理 AUTO_SYMBOL_SWITCH_DISTANCE 距回收价触发的换标检查任务
+ * - 执行前校验席位快照，防止旧任务在换标后被错误执行
  */
 import type { LastState } from '../../../../types/state.js';
 import type { RefreshGate } from '../../../../utils/refreshGate/types.js';
