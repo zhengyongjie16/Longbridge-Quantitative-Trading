@@ -67,9 +67,15 @@
 ### 安装
 
 ```bash
+git clone https://github.com/zhengyongjie16/Longbridge-Quantitative-Trading.git
+cd Longbridge-Quantitative-Trading
 bun install
+```
+
+### 创建配置文件
+
+```bash
 cp .env.example .env.local
-# 编辑 .env.local 填写配置
 ```
 
 ### 配置必需参数 (.env.local)
@@ -120,6 +126,7 @@ bun start
 ```
 
 常用命令：
+- 开发：`bun run dev`（跳过门禁检查）
 - 开发：`bun run dev:watch`
 - 构建：`bun run build`
 - 类型检查：`bun run type-check`
