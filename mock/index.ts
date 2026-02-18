@@ -1,6 +1,8 @@
 /**
- * @module mock/index.ts
- * @description Mock 运行时入口模块，统一组装事件总线、行情/交易上下文、场景时钟与任务调度器。
+ * Mock 运行时入口
+ *
+ * 功能：
+ * - 统一组装事件总线、行情/交易上下文、场景时钟与任务调度器
  */
 import { createQuoteContextMock, type QuoteContextMock } from './longport/quoteContextMock.js';
 import { createTradeContextMock, type TradeContextMock } from './longport/tradeContextMock.js';

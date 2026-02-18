@@ -1,11 +1,9 @@
 /**
- * 模块名称：席位快照校验助手
+ * 席位快照校验助手
  *
  * 功能：
  * - 校验席位快照一致性与版本
  * - 计算席位就绪状态与可用标的
- *
- * 说明：
  * - 刷新后再校验快照，避免旧席位任务执行
  */
 import { isSeatVersionMatch } from '../../../../services/autoSymbolManager/utils.js';

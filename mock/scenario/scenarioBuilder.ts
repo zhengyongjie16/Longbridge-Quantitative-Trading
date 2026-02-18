@@ -1,6 +1,8 @@
 /**
- * @module mock/scenario/scenarioBuilder.ts
- * @description 场景构建器模块，按 given/when/then 组织测试步骤并驱动调度执行。
+ * 场景构建器
+ *
+ * 功能：
+ * - 按 given/when/then 组织测试步骤并驱动调度执行
  */
 import type { ScenarioClock } from './clock.js';
 import type { ScenarioScheduler } from './scheduler.js';

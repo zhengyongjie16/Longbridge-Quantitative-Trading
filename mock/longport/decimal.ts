@@ -1,6 +1,8 @@
 /**
- * @module mock/longport/decimal.ts
- * @description Decimal 辅助模块，统一处理 Mock 场景下的数值到 Decimal 转换与比较。
+ * Decimal 辅助（Mock）
+ *
+ * 功能：
+ * - 统一处理 Mock 场景下的数值到 Decimal 转换与比较
  */
 import { Decimal } from 'longport';
 

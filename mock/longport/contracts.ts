@@ -1,6 +1,8 @@
 /**
- * @module mock/longport/contracts.ts
- * @description LongPort Mock 契约模块，定义行情/交易上下文的调用协议、失败注入规则与调用日志结构。
+ * LongPort Mock 契约
+ *
+ * 功能：
+ * - 定义行情/交易上下文的调用协议、失败注入规则与调用日志结构
  */
 import type {
   Candlestick,

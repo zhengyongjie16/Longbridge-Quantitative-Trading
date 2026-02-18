@@ -1,6 +1,8 @@
 /**
- * @module tests/helpers/testDoubles.ts
- * @description 测试模块，围绕 testDoubles.ts 场景验证 tests/helpers 相关业务行为与边界条件。
+ * 测试替身与工厂（testDoubles）
+ *
+ * 功能：
+ * - 提供测试替身与工厂方法，供其他测试模块使用
  */
 import type { Position, AccountSnapshot } from '../../src/types/account.js';
 import type { MonitorConfig, LiquidationCooldownConfig } from '../../src/types/config.js';

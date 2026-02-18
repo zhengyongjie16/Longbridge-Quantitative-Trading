@@ -1,6 +1,8 @@
 /**
- * @module mock/longport/eventBus.ts
- * @description LongPort 事件总线模块，提供延迟投递、顺序控制与批量刷新能力。
+ * LongPort 事件总线
+ *
+ * 功能：
+ * - 提供延迟投递、顺序控制与批量刷新能力
  */
 import type { PushCandlestickEvent, PushOrderChanged, PushQuoteEvent } from 'longport';
 

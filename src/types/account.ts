@@ -1,8 +1,8 @@
 /**
- * @module types/account
- * @description 持仓和账户类型定义
+ * 持仓和账户类型
  *
- * 定义账户和持仓相关的类型
+ * 功能：
+ * - 定义账户和持仓相关的类型
  */
 import type { Market } from 'longport';
 

@@ -1,6 +1,8 @@
 /**
- * @module tests/regression/order-monitor-regression.test.ts
- * @description 测试模块，围绕 order-monitor-regression.test.ts 场景验证 tests/regression 相关业务行为与边界条件。
+ * order-monitor 回归测试
+ *
+ * 功能：
+ * - 围绕 order-monitor-regression.test.ts 场景验证 tests/regression 相关业务行为与边界条件。
  */
 import { describe, expect, it } from 'bun:test';
 import {

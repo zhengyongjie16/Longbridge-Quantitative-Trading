@@ -1,6 +1,8 @@
 /**
- * @module mock/factories/tradeFactory.ts
- * @description 交易数据 Mock 工厂模块，构造订单、成交、资产与持仓等交易侧测试数据。
+ * 交易数据 Mock 工厂
+ *
+ * 功能：
+ * - 构造订单、成交、资产与持仓等交易侧测试数据
  */
 import {
   Decimal,

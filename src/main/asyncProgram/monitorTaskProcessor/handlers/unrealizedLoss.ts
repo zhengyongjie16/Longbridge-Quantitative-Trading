@@ -1,11 +1,9 @@
 /**
- * 模块名称：浮亏清仓检查任务处理
+ * 浮亏清仓检查任务处理
  *
  * 功能：
  * - 校验席位快照并触发浮亏监控
  * - 根据监控结果执行保护性清仓
- *
- * 说明：
  * - 无有效席位时跳过处理
  */
 import { isSeatReady } from '../../../../services/autoSymbolManager/utils.js';

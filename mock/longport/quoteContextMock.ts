@@ -1,6 +1,8 @@
 /**
- * @module mock/longport/quoteContextMock.ts
- * @description 行情上下文 Mock 模块，模拟 QuoteContext 的订阅、查询、失败注入与事件回放行为。
+ * 行情上下文 Mock
+ *
+ * 功能：
+ * - 模拟 QuoteContext 的订阅、查询、失败注入与事件回放行为
  */
 import {
   type Candlestick,

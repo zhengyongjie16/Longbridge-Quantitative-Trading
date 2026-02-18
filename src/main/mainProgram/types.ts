@@ -1,8 +1,8 @@
 /**
- * @module mainProgram/types
- * @description mainProgram 模块的类型定义
+ * 主程序模块类型
  *
- * 定义主程序运行所需的上下文类型，包含所有外部依赖的引用
+ * 功能：
+ * - 定义主程序运行所需的上下文类型，包含所有外部依赖的引用
  */
 import type { IndicatorCache } from '../asyncProgram/indicatorCache/types.js';
 import type { TaskQueue, BuyTaskType, SellTaskType } from '../asyncProgram/tradeTaskQueue/types.js';

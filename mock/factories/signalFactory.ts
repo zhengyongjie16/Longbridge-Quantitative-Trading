@@ -1,6 +1,8 @@
 /**
- * @module mock/factories/signalFactory.ts
- * @description 信号 Mock 工厂模块，按测试需求生成可定制字段的交易信号对象。
+ * 信号 Mock 工厂
+ *
+ * 功能：
+ * - 按测试需求生成可定制字段的交易信号对象
  */
 import type { Signal, SignalType } from '../../src/types/signal.js';
 

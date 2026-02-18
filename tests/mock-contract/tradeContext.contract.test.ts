@@ -1,6 +1,8 @@
 /**
- * @module tests/mock-contract/tradeContext.contract.test.ts
- * @description 测试模块，围绕 tradeContext.contract.test.ts 场景验证 tests/mock-contract 相关业务行为与边界条件。
+ * tradeContext 契约测试
+ *
+ * 功能：
+ * - 围绕 tradeContext.contract.test.ts 场景验证 tests/mock-contract 相关业务行为与边界条件。
  */
 import { describe, expect, it } from 'bun:test';
 import { OrderSide, OrderStatus, OrderType, TimeInForceType, TopicType } from 'longport';

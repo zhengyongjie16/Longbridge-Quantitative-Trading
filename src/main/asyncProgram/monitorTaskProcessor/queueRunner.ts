@@ -1,11 +1,9 @@
 /**
- * 模块名称：监控任务队列调度器
+ * 监控任务队列调度器
  *
  * 功能：
  * - 负责队列调度与 setImmediate 驱动
  * - 提供 start/stop/scheduleNextProcess 控制
- *
- * 说明：
  * - 队列为空时停止调度，等待新任务触发
  */
 import type { MonitorTaskQueue } from '../monitorTaskQueue/types.js';

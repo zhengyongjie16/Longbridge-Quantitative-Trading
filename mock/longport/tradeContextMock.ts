@@ -1,6 +1,8 @@
 /**
- * @module mock/longport/tradeContextMock.ts
- * @description 交易上下文 Mock 模块，模拟 TradeContext 的下单链路、查询接口、失败注入与事件推送。
+ * 交易上下文 Mock
+ *
+ * 功能：
+ * - 模拟 TradeContext 的下单链路、查询接口、失败注入与事件推送
  */
 import {
   Decimal,

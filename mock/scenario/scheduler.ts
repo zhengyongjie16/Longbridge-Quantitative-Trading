@@ -1,6 +1,8 @@
 /**
- * @module mock/scenario/scheduler.ts
- * @description 场景调度器模块，按时间与序号稳定执行任务并支持批量推进。
+ * 场景调度器
+ *
+ * 功能：
+ * - 按时间与序号稳定执行任务并支持批量推进
  */
 import type { ScenarioClock } from './clock.js';
 

@@ -1,8 +1,8 @@
 /**
- * @module processMonitor/types
- * @description processMonitor 模块的类型定义
+ * 单标的处理模块类型
  *
- * 定义单个监控标的处理所需的参数类型
+ * 功能：
+ * - 定义单个监控标的处理所需的参数类型
  */
 import type { MonitorContext } from '../../types/state.js';
 import type { IndicatorSnapshot, Quote } from '../../types/quote.js';

@@ -1,6 +1,8 @@
 /**
- * @module tests/integration/full-business-simulation.integration.test.ts
- * @description 测试模块，围绕 full-business-simulation.integration.test.ts 场景验证 tests/integration 相关业务行为与边界条件。
+ * full-business-simulation 集成测试
+ *
+ * 功能：
+ * - 围绕 full-business-simulation.integration.test.ts 场景验证 tests/integration 相关业务行为与边界条件。
  */
 import { describe, expect, it, mock } from 'bun:test';
 import { createSignalProcessor } from '../../src/core/signalProcessor/index.js';

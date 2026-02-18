@@ -1,8 +1,8 @@
 /**
- * @module types/data
- * @description 数据接口类型定义
+ * 数据接口类型
  *
- * 定义K线数据和监控值相关的类型
+ * 功能：
+ * - 定义 K 线数据和监控值相关的类型
  */
 import type { KDJIndicator, MACDIndicator } from './quote.js';
 

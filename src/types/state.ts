@@ -1,8 +1,8 @@
 /**
- * @module types/state
- * @description 主入口模块类型定义
+ * 主入口模块类型
  *
- * 定义主程序运行时的状态类型
+ * 功能：
+ * - 定义主程序运行时的状态类型
  */
 import type { SignalType, Signal } from './signal.js';
 import type { MonitorValues } from './data.js';
