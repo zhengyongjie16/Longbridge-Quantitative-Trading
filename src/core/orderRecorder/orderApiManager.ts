@@ -96,7 +96,9 @@ export function createOrderAPIManager(deps: OrderAPIManagerDeps): OrderAPIManage
 
   /** 清理指定标的的订单缓存 */
   function clearCacheForSymbol(symbol: string): void {
-    ordersCache.delete(symbol);
+    if (ordersCache.has(symbol)) {
+      ordersCache.delete(symbol);
+    }
   }
 
   /** 清空 symbol cache 与 allOrdersCache */
