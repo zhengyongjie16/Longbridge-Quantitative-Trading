@@ -68,7 +68,13 @@
 
 ```bash
 git clone https://github.com/zhengyongjie16/Longbridge-Quantitative-Trading.git
+```
+
+```bash
 cd Longbridge-Quantitative-Trading
+```
+
+```bash
 bun install
 ```
 
