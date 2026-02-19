@@ -14,7 +14,6 @@
     "test": "bun test",
     "test:watch": "bun test --watch",
     "clean": "rimraf dist",
-    "monitor-daily": "bun tools/dailyKlineMonitor.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "sonarqube": "bun scripts/run-sonar.js",
