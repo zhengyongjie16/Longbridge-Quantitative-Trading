@@ -16,7 +16,12 @@ import { buildCooldownKey } from '../../../services/liquidationCooldown/utils.js
 import type { CacheDomain, LifecycleContext } from '../types.js';
 import type { RiskDomainDeps } from './types.js';
 
-/** 清空所有监控标的的浮亏数据和牛熊证风险信息缓存，返回处理的监控标的数量 */
+/**
+ * 清空所有监控标的的浮亏数据和牛熊证风险信息缓存。
+ *
+ * @param monitorContexts 所有监控上下文
+ * @returns 处理的监控标的数量
+ */
 function clearRiskCaches(monitorContexts: ReadonlyMap<string, MonitorContext>): number {
   let count = 0;
   for (const monitorContext of monitorContexts.values()) {
@@ -28,7 +33,12 @@ function clearRiskCaches(monitorContexts: ReadonlyMap<string, MonitorContext>): 
   return count;
 }
 
-/** 收集需要在午夜清除的清仓冷却键，仅包含跨日模式（非 minutes 模式）的监控标的 */
+/**
+ * 收集需要在午夜清除的清仓冷却键，仅包含跨日模式（非 minutes 模式）的监控标的。
+ *
+ * @param monitorContexts 所有监控上下文
+ * @returns 待清除的冷却键集合
+ */
 function collectMidnightEligibleCooldownKeys(
   monitorContexts: ReadonlyMap<string, MonitorContext>,
 ): Set<string> {
@@ -45,7 +55,12 @@ function collectMidnightEligibleCooldownKeys(
   return keysToClear;
 }
 
-/** 执行风控域午夜清理：重置风控冷却、日内亏损追踪、清仓冷却键及各监控标的风险缓存 */
+/**
+ * 执行风控域午夜清理：重置风控冷却、日内亏损追踪、清仓冷却键及各监控标的风险缓存。
+ *
+ * @param deps 风控域依赖
+ * @param ctx 生命周期上下文
+ */
 function runMidnightRiskClear(
   deps: RiskDomainDeps,
   ctx: LifecycleContext,
@@ -65,6 +80,13 @@ function runMidnightRiskClear(
   logger.info(`[Lifecycle][risk] 午夜清理完成: monitors=${monitorCount}`);
 }
 
+/**
+ * 创建风控缓存域。
+ * 午夜清理时重置风控冷却、日内亏损追踪、清仓冷却键及各监控标的风险缓存；开盘重建由统一 rebuildTradingDayState 负责，本域为空操作。
+ *
+ * @param deps 依赖注入，包含 signalProcessor、dailyLossTracker、monitorContexts、liquidationCooldownTracker
+ * @returns 实现 CacheDomain 的风控域实例
+ */
 export function createRiskDomain(deps: RiskDomainDeps): CacheDomain {
   return {
     midnightClear(ctx): void {

@@ -40,7 +40,7 @@ export function createCleanup(context: CleanupContext): {
   let isExiting = false;
 
   /**
-   * 执行清理（stopAndDrain 确保 in-flight 任务排空）
+   * 执行清理：按顺序停止各处理器（stopAndDrain 确保 in-flight 任务排空）、销毁验证器、清空缓存并重置行情订阅，确保程序退出时无残留任务或句柄。
    */
   async function execute(): Promise<void> {
     logger.info('Program exiting, cleaning up resources...');
@@ -97,7 +97,7 @@ export function createCleanup(context: CleanupContext): {
   }
 
   /**
-   * 注册退出处理函数
+   * 注册 SIGINT/SIGTERM 信号处理，确保进程收到退出信号时执行清理并退出；通过 isExiting 防止重复执行。
    */
   function registerExitHandlers(): void {
     const handler = (): void => {

@@ -29,9 +29,11 @@ import type { SellProcessorDeps } from './types.js';
 import type { Task, SellTaskType } from '../tradeTaskQueue/types.js';
 
 /**
- * 创建卖出处理器
- * @param deps 依赖注入
- * @returns 实现 Processor 接口的卖出处理器实例
+ * 创建卖出处理器。
+ * 消费 SellTaskQueue 中的卖出任务，经 RefreshGate 等待缓存刷新后计算卖出数量并执行；独立于买入处理器，保证卖出优先、不被风险检查阻塞。
+ *
+ * @param deps 依赖注入（任务队列、getMonitorContext、signalProcessor、trader、getLastState、refreshGate、可选 getCanProcessTask）
+ * @returns 实现 Processor 接口的卖出处理器实例（start/stop/stopAndDrain/restart）
  */
 export function createSellProcessor(deps: SellProcessorDeps): Processor {
   const {

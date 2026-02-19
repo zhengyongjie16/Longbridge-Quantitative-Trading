@@ -59,45 +59,50 @@ export function getIndicatorValue(state: IndicatorState | null, indicatorName: s
 }
 
 /**
- * 检查值是否为有效的有限数字
+ * 检查值是否为有效的有限数字。默认行为：非 number 或 NaN/Infinity 返回 false。
+ *
  * @param value 待检查的值
- * @returns 如果值为有效的有限数字返回 true，否则返回 false
+ * @returns 为有限数字时返回 true，否则返回 false
  */
 export function isValidNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
 /**
- * 验证 EMA 周期是否有效（1-250）
- * @param period EMA 周期
- * @returns 如果周期有效返回 true，否则返回 false
+ * 验证 EMA 周期是否在有效范围（1-250）。默认行为：非 number 或超出范围返回 false。
+ *
+ * @param period 待验证的 EMA 周期
+ * @returns 在 1-250 范围内返回 true，否则返回 false
  */
 export function validateEmaPeriod(period: unknown): period is number {
   return typeof period === 'number' && Number.isFinite(period) && period >= 1 && period <= 250;
 }
 
 /**
- * 验证 RSI 周期是否有效（1-100）
- * @param period RSI 周期
- * @returns 如果周期有效返回 true，否则返回 false
+ * 验证 RSI 周期是否在有效范围（1-100）。默认行为：非 number 或超出范围返回 false。
+ *
+ * @param period 待验证的 RSI 周期
+ * @returns 在 1-100 范围内返回 true，否则返回 false
  */
 export function validateRsiPeriod(period: unknown): period is number {
   return typeof period === 'number' && Number.isFinite(period) && period >= 1 && period <= 100;
 }
 
 /**
- * 验证 PSY 周期是否有效（1-100）
- * @param period PSY 周期
- * @returns 如果周期有效返回 true，否则返回 false
+ * 验证 PSY 周期是否在有效范围（1-100）。默认行为：非 number 或超出范围返回 false。
+ *
+ * @param period 待验证的 PSY 周期
+ * @returns 在 1-100 范围内返回 true，否则返回 false
  */
 export function validatePsyPeriod(period: unknown): period is number {
   return typeof period === 'number' && Number.isFinite(period) && period >= 1 && period <= 100;
 }
 
 /**
- * 验证百分比值是否有效（0-100）
- * @param value 百分比值
- * @returns 如果值在 0-100 范围内返回 true，否则返回 false
+ * 验证百分比值是否在 0-100 范围内。默认行为：非 number 或超出范围返回 false。
+ *
+ * @param value 待验证的百分比值
+ * @returns 在 0-100 范围内返回 true，否则返回 false
  */
 export function validatePercentage(value: unknown): boolean {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100;

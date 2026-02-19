@@ -36,6 +36,11 @@ import type {
   ClearMidnightEligibleParams,
 } from '../../src/services/liquidationCooldown/types.js';
 
+/**
+ * 创建 PositionCache 测试替身。
+ *
+ * 用于在测试中可控地读写持仓快照，避免依赖真实缓存实现。
+ */
 export function createPositionCacheDouble(initial: ReadonlyArray<Position> = []): PositionCache {
   const map = new Map<string, Position>();
   for (const position of initial) {
@@ -55,6 +60,11 @@ export function createPositionCacheDouble(initial: ReadonlyArray<Position> = [])
   };
 }
 
+/**
+ * 创建 OrderRecorder 测试替身。
+ *
+ * 默认提供空实现，并允许按用例覆盖关键行为。
+ */
 export function createOrderRecorderDouble(overrides: Partial<OrderRecorder> = {}): OrderRecorder {
   const base: OrderRecorder = {
     recordLocalBuy: () => {},
@@ -86,6 +96,11 @@ export function createOrderRecorderDouble(overrides: Partial<OrderRecorder> = {}
   };
 }
 
+/**
+ * 创建 Trader 测试替身。
+ *
+ * 用于隔离下单与查询副作用，聚焦流程编排断言。
+ */
 export function createTraderDouble(overrides: Partial<Trader> = {}): Trader {
   const baseOrderRecorder = createOrderRecorderDouble();
 
@@ -114,6 +129,11 @@ export function createTraderDouble(overrides: Partial<Trader> = {}): Trader {
   };
 }
 
+/**
+ * 创建 RiskChecker 测试替身。
+ *
+ * 默认放行风控，按需覆盖指定风险分支返回值。
+ */
 export function createRiskCheckerDouble(overrides: Partial<RiskChecker> = {}): RiskChecker {
   const allowedResult: RiskCheckResult = { allowed: true };
   const base: RiskChecker = {
@@ -136,6 +156,11 @@ export function createRiskCheckerDouble(overrides: Partial<RiskChecker> = {}): R
   };
 }
 
+/**
+ * 创建 DoomsdayProtection 测试替身。
+ *
+ * 默认不触发清算，便于按场景精确注入极端保护行为。
+ */
 export function createDoomsdayProtectionDouble(
   overrides: Partial<DoomsdayProtection> = {},
 ): DoomsdayProtection {
@@ -157,6 +182,11 @@ export function createDoomsdayProtectionDouble(
   };
 }
 
+/**
+ * 创建 LiquidationCooldownTracker 测试替身。
+ *
+ * 用于在测试中模拟冷却窗口读写而不依赖真实时间状态。
+ */
 export function createLiquidationCooldownTrackerDouble(
   overrides: Partial<LiquidationCooldownTracker> = {},
 ): LiquidationCooldownTracker {
@@ -172,6 +202,11 @@ export function createLiquidationCooldownTrackerDouble(
   };
 }
 
+/**
+ * 创建 SymbolRegistry 测试替身。
+ *
+ * 提供可变席位与版本号，支持换标流程与并发校验测试。
+ */
 export function createSymbolRegistryDouble(params?: {
   readonly monitorSymbol?: string;
   readonly longSeat?: SeatState;
@@ -244,6 +279,11 @@ export function createSymbolRegistryDouble(params?: {
   };
 }
 
+/**
+ * 构造账户快照测试数据。
+ *
+ * 使用单币种最小结构覆盖买力与现金相关逻辑。
+ */
 export function createAccountSnapshotDouble(availableCash: number): AccountSnapshot {
   return {
     currency: 'HKD',
@@ -263,6 +303,11 @@ export function createAccountSnapshotDouble(availableCash: number): AccountSnaps
   };
 }
 
+/**
+ * 构造持仓测试数据。
+ *
+ * 统一最小字段，便于验证仓位数量与可卖数量逻辑。
+ */
 export function createPositionDouble(params: {
   readonly symbol: string;
   readonly quantity: number;
@@ -280,6 +325,11 @@ export function createPositionDouble(params: {
   };
 }
 
+/**
+ * 构造行情快照测试数据。
+ *
+ * 默认前收与现价一致，减少无关价格波动影响。
+ */
 export function createQuoteDouble(symbol: string, price: number, lotSize: number = 100): Quote {
   return {
     symbol,
@@ -291,6 +341,11 @@ export function createQuoteDouble(symbol: string, price: number, lotSize: number
   };
 }
 
+/**
+ * 构造监控配置测试数据。
+ *
+ * 内置稳定默认值并支持覆写，方便不同业务分支复用。
+ */
 export function createMonitorConfigDouble(overrides: Partial<MonitorConfig> = {}): MonitorConfig {
   return {
     originalIndex: 1,
@@ -336,6 +391,11 @@ export function createMonitorConfigDouble(overrides: Partial<MonitorConfig> = {}
   };
 }
 
+/**
+ * 构造交易信号测试数据。
+ *
+ * 默认给定席位版本与触发时间，便于流水线直接消费。
+ */
 export function createSignalDouble(action: SignalType, symbol: string): Signal {
   return {
     action,
@@ -346,6 +406,11 @@ export function createSignalDouble(action: SignalType, symbol: string): Signal {
   };
 }
 
+/**
+ * 构造按分钟配置的清仓冷却参数。
+ *
+ * 用于覆盖冷却模式解析与剩余时间计算分支。
+ */
 export function createCooldownConfigMinutes(minutes: number): LiquidationCooldownConfig {
   return {
     mode: 'minutes',
@@ -353,6 +418,11 @@ export function createCooldownConfigMinutes(minutes: number): LiquidationCooldow
   };
 }
 
+/**
+ * 构造原始订单测试数据。
+ *
+ * 统一最小字段用于订单同步与映射逻辑测试。
+ */
 export function createRawOrderDouble(symbol: string): RawOrderFromAPI {
   return {
     orderId: `RAW-${symbol}`,

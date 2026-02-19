@@ -253,7 +253,11 @@ export function parseVerificationIndicators(
   const invalidItems: string[] = [];
 
   /**
-   * 解析带周期的指标并加入有效列表，返回 true 表示已处理。
+   * 解析带周期的指标并加入有效列表，无效时加入 invalidItems。
+   * @param item - 原始指标字符串（如 'EMA:12'、'PSY:12'）
+   * @param prefix - 指标前缀（'PSY:' 或 'EMA:'）
+   * @param validator - 周期校验函数，通过则视为有效
+   * @returns 是否已处理该 item（true 表示匹配前缀并已加入 validItems 或 invalidItems）
    */
   function tryParseIndicatorWithPeriod(
     item: string,

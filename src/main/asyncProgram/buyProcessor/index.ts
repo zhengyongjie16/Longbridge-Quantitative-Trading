@@ -27,9 +27,11 @@ import type { Task, BuyTaskType } from '../tradeTaskQueue/types.js';
 import type { RiskCheckContext } from '../../../types/services.js';
 
 /**
- * 创建买入处理器
- * @param deps 依赖注入
- * @returns 实现 Processor 接口的买入处理器实例
+ * 创建买入处理器。
+ * 消费 BuyTaskQueue 中的买入任务，执行风险检查后提交订单；与卖出处理器分离，避免买入侧 API 风险检查阻塞卖出执行。
+ *
+ * @param deps 依赖注入（任务队列、getMonitorContext、signalProcessor、trader、doomsdayProtection、getLastState、getIsHalfDay、可选 getCanProcessTask）
+ * @returns 实现 Processor 接口的买入处理器实例（start/stop/stopAndDrain/restart）
  */
 export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
   const {

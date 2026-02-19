@@ -3,13 +3,12 @@ import { formatError } from '../../utils/helpers/index.js';
 import type { BaseProcessorConfig, Processor } from './types.js';
 
 /**
- * 创建基础任务处理器
+ * 创建基础任务处理器。
+ * 封装 processQueue、scheduleNextProcess、start、stop、stopAndDrain、restart 的公共逻辑，
+ * 供买入处理器和卖出处理器复用；门禁关闭时仅释放信号不执行业务逻辑。
  *
- * 封装 processQueue、scheduleNextProcess、start、stop 的公共逻辑，
- * 供买入处理器和卖出处理器复用。
- *
- * @param config 处理器配置
- * @returns 实现 Processor 接口的处理器实例
+ * @param config 处理器配置（loggerPrefix、taskQueue、processTask、releaseAfterProcess、可选 getCanProcessTask）
+ * @returns 实现 Processor 接口的处理器实例（start、stop、stopAndDrain、restart）
  */
 export function createBaseProcessor<TType extends string>(
   config: BaseProcessorConfig<TType>,

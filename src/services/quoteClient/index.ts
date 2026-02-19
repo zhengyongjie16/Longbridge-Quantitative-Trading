@@ -109,18 +109,18 @@ function createTradingDayCache(): {
   setBatch: (tradingDays: string[], halfTradingDays?: string[]) => void;
   clear: () => void;
   } {
-  // 闭包捕获的私有状态
   const cache = new Map<string, { isTradingDay: boolean; isHalfDay: boolean; timestamp: number }>();
-  const ttl = API.TRADING_DAY_CACHE_TTL_MS; // 缓存有效期：一天（单位：毫秒）
+  const ttl = API.TRADING_DAY_CACHE_TTL_MS;
 
   /**
-   * 获取指定日期的交易日信息
+   * 获取指定日期的交易日信息，过期条目返回 null 并删除。
+   * @param dateStr 日期键（YYYY-MM-DD）
+   * @returns 交易日信息，未命中或过期时返回 null
    */
   function get(dateStr: string): TradingDayInfo | null {
     const entry = cache.get(dateStr);
     if (!entry) return null;
 
-    // 检查缓存是否过期
     if (Date.now() - entry.timestamp > ttl) {
       cache.delete(dateStr);
       return null;
@@ -133,7 +133,11 @@ function createTradingDayCache(): {
   }
 
   /**
-   * 设置指定日期的交易日信息
+   * 设置指定日期的交易日信息并写入时间戳用于 TTL 判断。
+   * @param dateStr 日期键（YYYY-MM-DD）
+   * @param isTradingDay 是否为交易日
+   * @param isHalfDay 是否为半日市，默认 false
+   * @returns void
    */
   function set(dateStr: string, isTradingDay: boolean, isHalfDay: boolean = false): void {
     cache.set(dateStr, {
@@ -144,13 +148,15 @@ function createTradingDayCache(): {
   }
 
   /**
-   * 批量设置交易日信息
+   * 批量设置交易日信息，将全日与半日列表合并后逐条写入缓存。
+   * @param tradingDays 全日交易日日期键数组
+   * @param halfTradingDays 半日交易日日期键数组，默认空数组
+   * @returns void
    */
   function setBatch(tradingDays: string[], halfTradingDays: string[] = []): void {
     const halfDaySet = new Set(halfTradingDays);
     const allTradingDays = new Set([...tradingDays, ...halfTradingDays]);
 
-    // 缓存所有交易日（包括全日和半日）
     for (const dateStr of allTradingDays) {
       const isHalfDay = halfDaySet.has(dateStr);
       set(dateStr, true, isHalfDay);

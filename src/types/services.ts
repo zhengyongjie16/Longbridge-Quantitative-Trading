@@ -43,8 +43,10 @@ export type TradingDayInfo = {
 };
 
 /**
- * 行情数据客户端接口
- * 封装 LongPort 行情 API，提供行情获取和缓存功能
+ * 行情数据客户端接口。
+ * 类型用途：依赖注入用接口，封装 LongPort 行情 API，提供行情获取、订阅、K 线、交易日查询及运行期缓存重置。
+ * 数据来源：由 quoteClient 等实现，对接 LongPort QuoteContext。
+ * 使用范围：主程序、生命周期、processMonitor、行情订阅与 K 线消费方等；全项目可引用。
  */
 export interface MarketDataClient {
   /** 获取底层 QuoteContext（内部使用） */

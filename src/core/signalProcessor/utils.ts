@@ -4,11 +4,8 @@ import type { OrderRecorder } from '../../types/services.js';
 import type { SellContextValidationResult } from './types.js';
 
 /**
- * 类型保护：验证持仓和行情数据是否满足卖出条件（内部辅助函数）
- *
- * 验证条件：
- * - 持仓存在且可用数量 > 0
- * - 行情存在且价格 > 0
+ * 类型保护：验证持仓和行情数据是否满足卖出条件（内部辅助函数）。
+ * 默认行为：持仓或行情缺失、可用数量≤0、价格≤0 时返回 false。
  *
  * @param position 持仓对象，可为 null
  * @param quote 行情对象，可为 null
@@ -29,8 +26,9 @@ function isValidPositionAndQuote(
 }
 
 /**
- * 构建卖出原因文本
- * 将原始原因与详细说明用中文逗号拼接
+ * 构建卖出原因文本（将原始原因与详细说明用中文逗号拼接）。
+ * 默认行为：原始原因为空或仅空白时直接返回 detail。
+ *
  * @param originalReason 原始原因字符串，可为空
  * @param detail 详细说明
  * @returns 拼接后的原因字符串；若原始原因为空则直接返回 detail
@@ -44,8 +42,9 @@ export function buildSellReason(originalReason: string, detail: string): string 
 }
 
 /**
- * 校验卖出上下文数据有效性
- * 返回联合类型：校验通过则包含可用数量和当前价格，否则包含失败原因
+ * 校验卖出上下文数据有效性。
+ * 默认行为：持仓或行情无效时返回 { valid: false, reason: '持仓或行情数据无效' }。
+ *
  * @param position 持仓对象，可为 null
  * @param quote 行情对象，可为 null
  * @returns 校验结果联合类型，valid=true 时包含 availableQuantity 和 currentPrice
@@ -149,8 +148,9 @@ export function resolveSellQuantityBySmartClose({
 }
 
 /**
- * 全仓平仓：返回全部可用数量
- * 智能平仓关闭时使用，直接清空所有持仓
+ * 全仓平仓：返回全部可用数量（智能平仓关闭时使用）。
+ * 默认行为：直接返回 availableQuantity 作为卖出数量，不依赖订单记录。
+ *
  * @param availableQuantity 当前可用持仓数量
  * @param directionName 方向中文名称，用于构建原因说明
  * @returns 包含全部可用数量、shouldHold=false、原因说明及空关联订单列表的结果
@@ -176,8 +176,9 @@ export function resolveSellQuantityByFullClose({
 }
 
 /**
- * 根据标的代码获取对应的中文名称
- * 匹配做多/做空标的代码，返回对应名称，未匹配则返回原始代码
+ * 根据标的代码获取对应的中文名称。
+ * 默认行为：匹配做多/做空标的代码返回对应名称，未匹配时返回 signalSymbol 本身。
+ *
  * @param signalSymbol 信号中的标的代码
  * @param longSymbol 做多标的代码，可为 null
  * @param shortSymbol 做空标的代码，可为 null

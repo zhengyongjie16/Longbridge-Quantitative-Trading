@@ -81,6 +81,7 @@ function addPeriodIndicators(
  * @param symbol - 标的代码
  * @param label - 显示标签（如「做多标的」）
  * @param warrantDistanceInfo - 距回收价信息，可选
+ * @returns void
  */
 function displayQuoteInfo(
   quote: Quote | null,
@@ -104,6 +105,7 @@ function displayQuoteInfo(
 /**
  * 将监控值对象及其嵌套的 ema/rsi/psy/kdj/macd 归还对象池，避免泄漏。
  * @param monitorValues - 当前缓存的 MonitorValues，可为 null
+ * @returns void
  */
 function releaseMonitorValuesObjects(monitorValues: MonitorValues | null): void {
   if (!monitorValues) return;
@@ -227,8 +229,8 @@ function displayIndicators(params: {
 }
 
 /**
- * 创建行情监控器
- * 监控做多/做空标的价格变化、监控标的指标变化，并格式化显示
+ * 创建行情监控器，供主循环每 tick 调用以检测价格与指标变化并输出到控制台。
+ * 职责：监控做多/做空标的价格变化、监控标的指标变化，并格式化显示；变化超过阈值时更新状态并打日志。
  */
 export function createMarketMonitor(): MarketMonitor {
   return {

@@ -4,7 +4,9 @@ import type { OrderRecord, RawOrderFromAPI } from '../../types/services.js';
 import type { OrderStatistics } from './types.js';
 
 /**
- * 计算订单列表的统计信息（用于调试输出与成本均价计算）
+ * 计算订单列表的统计信息（用于调试输出与成本均价计算）。
+ * 默认行为：价格或数量无效的订单按 0 参与累加；无订单时均价为 0。
+ *
  * @param orders 订单记录列表
  * @returns 包含总数量、总价值、均价的统计对象
  */
@@ -30,7 +32,9 @@ export function calculateOrderStatistics(
 }
 
 /**
- * 计算订单列表的总成交数量
+ * 计算订单列表的总成交数量。
+ * 默认行为：单笔订单的 executedQuantity 非有限数时视为 0 参与累加。
+ *
  * @param orders 订单记录列表
  * @returns 所有订单的成交数量之和，无效数量视为 0
  */
@@ -84,9 +88,11 @@ function convertOrderToRecord(
 }
 
 /**
- * 将原始 API 订单列表按买卖方向分类并转换为内部格式
+ * 将原始 API 订单列表按买卖方向分类并转换为内部 OrderRecord 格式。
+ * 默认行为：仅处理 status 为 Filled 的订单，价格/数量/时间无效的订单被跳过。
+ *
  * @param orders 原始 API 订单列表
- * @returns 分类后的买入订单列表与卖出订单列表（仅包含已成交订单）
+ * @returns 分类后的买入订单列表与卖出订单列表（仅包含已成交且转换成功的订单）
  */
 export function classifyAndConvertOrders(
   orders: ReadonlyArray<RawOrderFromAPI>,

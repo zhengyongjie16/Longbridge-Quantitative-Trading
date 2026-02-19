@@ -19,8 +19,12 @@ import type { Quote } from '../../../types/quote.js';
 import type { OrderMonitorWorker, OrderMonitorWorkerDeps } from './types.js';
 
 /**
- * 创建订单监控工作器
- * 使用"最新覆盖"策略异步执行订单监控
+ * 创建订单监控工作器。
+ * 使用「最新覆盖」策略异步执行订单监控：同一时刻仅有一个 monitorAndManageOrders 在运行，
+ * 新行情到达时若当前有任务在执行则覆盖待执行行情，避免排队积压。
+ *
+ * @param deps 依赖注入，含 monitorAndManageOrders（订单监控与管理的异步函数）
+ * @returns OrderMonitorWorker 实例（start、schedule、stopAndDrain、clearLatestQuotes）
  */
 export function createOrderMonitorWorker(deps: OrderMonitorWorkerDeps): OrderMonitorWorker {
   const { monitorAndManageOrders } = deps;

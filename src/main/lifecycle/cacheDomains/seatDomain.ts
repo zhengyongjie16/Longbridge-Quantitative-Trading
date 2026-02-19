@@ -69,6 +69,13 @@ function syncMonitorSeatSnapshots(
   }
 }
 
+/**
+ * 创建席位缓存域。
+ * 午夜清理时重置自动换标状态、清空轮证缓存与席位绑定并同步到各 MonitorContext；开盘重建由统一流水线负责，本域为空操作。
+ *
+ * @param deps 依赖注入，包含 tradingConfig、symbolRegistry、monitorContexts、warrantListCache
+ * @returns 实现 CacheDomain 的席位域实例
+ */
 export function createSeatDomain(deps: SeatDomainDeps): CacheDomain {
   const { tradingConfig, symbolRegistry, monitorContexts, warrantListCache } = deps;
   return {

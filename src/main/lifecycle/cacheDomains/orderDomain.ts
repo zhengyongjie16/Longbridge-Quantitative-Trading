@@ -12,7 +12,11 @@ import type { CacheDomain } from '../types.js';
 import type { OrderDomainDeps } from './types.js';
 
 /**
- * 创建订单缓存域，注入 trader 依赖。
+ * 创建订单缓存域。
+ * 午夜清理时重置交易执行器运行时状态；开盘重建由统一 rebuildTradingDayState 负责，本域为空操作。
+ *
+ * @param deps 依赖注入，包含 trader
+ * @returns 实现 CacheDomain 的订单域实例
  */
 export function createOrderDomain(deps: OrderDomainDeps): CacheDomain {
   const { trader } = deps;

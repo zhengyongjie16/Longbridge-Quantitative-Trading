@@ -38,9 +38,11 @@ import { createOrderAPIManager } from '../orderRecorder/orderApiManager.js';
 import { createOrderFilteringEngine } from '../orderRecorder/orderFilteringEngine.js';
 
 /**
- * 创建交易执行模块（门面模式）
- * @param deps - 依赖配置，包含 config、tradingConfig、liquidationCooldownTracker、symbolRegistry、dailyLossTracker、refreshGate、isExecutionAllowed
- * @returns Promise<Trader> 接口实例
+ * 创建交易执行模块（门面模式）。
+ * 按固定顺序创建 rateLimiter、accountService、orderCacheManager、orderRecorder、orderMonitor、orderExecutor 等子模块并组装为 Trader 接口。
+ * 交易能力由多子模块协同完成，门面统一初始化顺序与依赖注入，保证 orderMonitor 依赖 orderRecorder、orderExecutor 依赖 orderMonitor 等约束。
+ * @param deps 依赖（config、tradingConfig、liquidationCooldownTracker、symbolRegistry、dailyLossTracker、refreshGate、isExecutionAllowed 等）
+ * @returns 实现 Trader 接口的实例（含 canTradeNow、executeSignals、getPendingOrders 等）
  */
 export async function createTrader(deps: TraderDeps): Promise<Trader> {
   const {

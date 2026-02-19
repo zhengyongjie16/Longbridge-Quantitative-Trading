@@ -80,9 +80,10 @@ export type SubmitOrderParams = {
 };
 
 /**
- * 订单类型解析配置（信号级覆盖 / 保护性清仓 / 全局类型）
- * 用途：封装订单类型解析所需的全局配置
- * 使用范围：仅在 trader 模块内部使用
+ * 订单类型解析配置（信号级覆盖 / 保护性清仓 / 全局类型）。
+ * 类型用途：封装订单类型解析所需的全局配置。
+ * 数据来源：来自交易配置（tradingOrderType、liquidationOrderType）。
+ * 使用范围：仅在 trader 模块内部使用。
  */
 export type OrderTypeResolutionConfig = {
   readonly tradingOrderType: OrderTypeConfig;

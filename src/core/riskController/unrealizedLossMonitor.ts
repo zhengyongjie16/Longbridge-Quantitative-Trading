@@ -30,7 +30,13 @@ import type {
   UnrealizedLossMonitorDeps,
 } from './types.js';
 
-/** 创建浮亏监控器（通过依赖注入配置最大浮亏阈值） */
+/**
+ * 创建浮亏监控器。
+ * 封装「检查浮亏 → 超阈值则生成保护性清仓信号并提交」的流程，供主循环按标的调用。
+ * 浮亏超 maxUnrealizedLossPerSymbol 时需统一走清仓、清空订单记录、刷新浮亏数据，避免重复开仓。
+ * @param deps 依赖，含 maxUnrealizedLossPerSymbol（≤0 表示禁用）
+ * @returns 实现 UnrealizedLossMonitor 接口的实例，主循环调用 monitorUnrealizedLoss(context)
+ */
 export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): UnrealizedLossMonitor => {
   const maxUnrealizedLossPerSymbol = deps.maxUnrealizedLossPerSymbol;
 

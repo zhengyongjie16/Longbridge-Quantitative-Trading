@@ -28,7 +28,9 @@ const orderTypeCodeMap: ReadonlyMap<OrderType, string> = new Map([
 ]);
 
 /**
- * 获取订单类型显示文本，未匹配时默认限价单。
+ * 获取订单类型显示文本。
+ * 默认行为：未匹配时返回「限价单」。
+ *
  * @param orderType 订单类型枚举值
  * @returns 对应的中文标签字符串
  */
@@ -37,7 +39,9 @@ export function formatOrderTypeLabel(orderType: OrderType): string {
 }
 
 /**
- * 获取订单类型代码（用于日志），未匹配时默认 SLO。
+ * 获取订单类型代码（用于日志）。
+ * 默认行为：未匹配时返回 "SLO"。
+ *
  * @param orderType 订单类型枚举值
  * @returns 对应的订单类型代码字符串（如 "LO"、"ELO"）
  */
@@ -92,8 +96,9 @@ export function extractOrderId(resp: unknown): string {
 }
 
 /**
- * 订单类型解析优先级：
- * 1) 信号级覆盖 2) 保护性清仓 3) 全局交易类型
+ * 按优先级解析订单类型：信号级覆盖 → 保护性清仓类型 → 全局交易类型。
+ * 默认行为：无覆盖且非保护性清仓时使用 globalConfig.tradingOrderType。
+ *
  * @param signal 信号对象（取 orderTypeOverride 和 isProtectiveLiquidation 字段）
  * @param globalConfig 全局订单类型配置（含 tradingOrderType 和 liquidationOrderType）
  * @returns 解析后的订单类型配置
@@ -112,9 +117,11 @@ export function resolveOrderTypeConfig(
 }
 
 /**
- * 计算未成交卖单的剩余数量。
+ * 计算未成交卖单的剩余数量（内部辅助）。
+ * 默认行为：submittedQuantity 或 executedQuantity 无效时返回 0。
+ *
  * @param order 未成交卖单快照
- * @returns 剩余数量，无效时返回 0
+ * @returns 剩余数量（submittedQuantity - executedQuantity），无效时返回 0
  */
 function resolveRemainingQuantity(order: PendingSellOrderSnapshot): number {
   const remaining = order.submittedQuantity - order.executedQuantity;

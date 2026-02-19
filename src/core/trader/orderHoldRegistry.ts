@@ -19,6 +19,12 @@ import { PENDING_ORDER_STATUSES } from '../../constants/index.js';
 import type { RawOrderFromAPI } from '../../types/services.js';
 import type { OrderHoldRegistry } from './types.js';
 
+/**
+ * 创建订单订阅保留集管理器。
+ * 维护 orderId↔symbol 双向索引与 holdSymbols 集合，提供 trackOrder、markOrderFilled、seedFromOrders、getHoldSymbols、clear。
+ * OrderMonitor 需知道哪些标的有未成交订单以持续订阅行情，成交后移除；启动时从历史订单恢复保留集。
+ * @returns 实现 OrderHoldRegistry 接口的实例（无外部依赖）
+ */
 export function createOrderHoldRegistry(): OrderHoldRegistry {
   const orderIdToSymbol = new Map<string, string>();
   const orderIdsBySymbol = new Map<string, Set<string>>();

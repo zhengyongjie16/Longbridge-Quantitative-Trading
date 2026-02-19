@@ -32,7 +32,13 @@ import type {
   UnrealizedLossChecker,
 } from './types.js';
 
-/** 创建风险检查器（门面模式） */
+/**
+ * 创建风险检查器（门面模式）。
+ * 聚合牛熊证、持仓限制、浮亏三个子检查器，对外提供统一 checkBeforeOrder / checkWarrantRisk / refreshUnrealizedLossData 等接口。
+ * 订单前风控、牛熊证距离、浮亏刷新与清仓判定需在同一入口按固定顺序执行，门面统一依赖注入与调用顺序。
+ * @param deps 依赖（warrantRiskChecker、positionLimitChecker、unrealizedLossChecker 及可选 maxDailyLoss 等）
+ * @returns 实现 RiskChecker 接口的门面实例
+ */
 export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
   const options = deps.options ?? {};
   let maxDailyLoss = options.maxDailyLoss ?? 0;

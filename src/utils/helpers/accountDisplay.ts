@@ -68,13 +68,11 @@ export async function refreshAccountAndPositions(
 }
 
 /**
- * 显示账户和持仓信息
+ * 将 lastState 中的账户与持仓缓存输出到日志。默认行为：依赖 lastState 缓存，不主动拉取；quotesMap 可选，用于持仓现价与名称展示。
  *
- * 依赖 lastState 中的缓存数据。quotesMap 用于显示持仓的现价和名称（来自主循环的行情订阅缓存）。
- *
- * @param options.lastState - 状态对象，用于读取缓存
- * @param options.quotesMap - 行情数据 Map（可选，来自行情客户端缓存）
- * @returns Promise，无返回值
+ * @param options.lastState 状态对象，用于读取 cachedAccount、cachedPositions
+ * @param options.quotesMap 行情 Map（可选），用于持仓现价与名称
+ * @returns Promise<void>，无返回值；异常时仅打日志不抛错
  */
 export async function displayAccountAndPositions({
   lastState,

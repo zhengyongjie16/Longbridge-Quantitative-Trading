@@ -5,8 +5,10 @@ import type { SingleVerificationConfig } from '../../types/config.js';
 import type { SignalWithCategory } from './types.js';
 
 /**
- * 判断是否需要延迟验证
- * @param config 验证配置
+ * 判断是否需要延迟验证。
+ * 默认行为：delaySeconds > 0 且 indicators 非空时视为需要延迟验证，否则立即执行。
+ *
+ * @param config 验证配置（含 delaySeconds、indicators）
  * @returns true 需要延迟验证，false 立即执行
  */
 export function needsDelayedVerification(config: SingleVerificationConfig): boolean {
@@ -14,7 +16,9 @@ export function needsDelayedVerification(config: SingleVerificationConfig): bool
 }
 
 /**
- * 判断 RSI 对象是否包含至少一个有效数值
+ * 判断 RSI 对象是否包含至少一个有效数值（内部辅助）。
+ * 默认行为：rsi 为 null、非对象或所有周期值均无效时返回 false。
+ *
  * @param rsi 指标快照中的 rsi 字段（可为 null 或各周期 RSI 对象）
  * @returns true 表示存在至少一个有效 RSI 值，否则为 false
  */
@@ -23,9 +27,11 @@ function hasValidRsiValue(rsi: IndicatorSnapshot['rsi']): boolean {
 }
 
 /**
- * 验证基本指标有效性（RSI、MFI、KDJ）
+ * 验证基本指标有效性（RSI、MFI、KDJ）。
+ * 默认行为：任一指标缺失或非有限数则返回 false。
+ *
  * @param state 当前指标快照
- * @returns true 所有基本指标有效
+ * @returns true 所有基本指标有效，否则为 false
  */
 export function validateBasicIndicators(state: IndicatorSnapshot): boolean {
   const { rsi, mfi, kdj } = state;
@@ -39,9 +45,11 @@ export function validateBasicIndicators(state: IndicatorSnapshot): boolean {
 }
 
 /**
- * 验证所有指标有效性（基本指标 + MACD + 价格）
+ * 验证所有指标有效性（基本指标 + MACD + 价格）。
+ * 默认行为：在 validateBasicIndicators 通过前提下，MACD 或 price 无效则返回 false。
+ *
  * @param state 当前指标快照
- * @returns true 所有指标有效
+ * @returns true 所有指标有效，否则为 false
  */
 export function validateAllIndicators(state: IndicatorSnapshot): boolean {
   const { macd, price } = state;
@@ -54,7 +62,9 @@ export function validateAllIndicators(state: IndicatorSnapshot): boolean {
 }
 
 /**
- * 格式化 KDJ 指标为显示字符串（内部辅助，用于日志与诊断）
+ * 格式化 KDJ 指标为显示字符串（内部辅助，用于日志与诊断）。
+ * 默认行为：kdj 为 null 或 K/D/J 均无有效值时返回空字符串。
+ *
  * @param kdj 指标快照中的 kdj 字段，可为 null
  * @returns 格式化字符串，如 "KDJ(K=0.123,D=0.456,J=0.789)"；无有效值时返回空字符串
  */
@@ -68,9 +78,11 @@ function formatKdjSegment(kdj: IndicatorSnapshot['kdj']): string {
 }
 
 /**
- * 构建指标状态显示字符串
+ * 构建指标状态显示字符串（用于日志记录）。
+ * 默认行为：按 RSI、MFI、KDJ 顺序拼接有效值，无有效值时返回空字符串。
+ *
  * @param state 当前指标快照
- * @returns 格式化的指标值字符串，用于日志记录
+ * @returns 格式化的指标值字符串（如 "RSI14(0.123)、MFI(0.456)、KDJ(...)"）
  */
 export function buildIndicatorDisplayString(state: IndicatorSnapshot): string {
   const { rsi, mfi, kdj } = state;

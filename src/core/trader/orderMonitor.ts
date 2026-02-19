@@ -96,9 +96,11 @@ function resolveUpdatedAtMs(updatedAt: unknown): number | null {
 }
 
 /**
- * 创建订单监控器（依赖注入 OrderRecorder）
- * @param deps 依赖注入
- * @returns OrderMonitor 接口实例
+ * 创建订单监控器。
+ * 订阅 WebSocket 订单推送、维护追踪订单列表、委托价跟随市价更新、超时转市价/撤单，成交后更新本地订单记录与浮亏刷新列表。
+ * 订单状态与价格需实时响应，与 orderRecorder、dailyLossTracker、liquidationCooldownTracker 联动，统一在此处处理推送与副作用。
+ * @param deps 依赖（ctxPromise、rateLimiter、cacheManager、orderRecorder、dailyLossTracker、orderHoldRegistry、tradingConfig 等）
+ * @returns 实现 OrderMonitor 接口的实例（trackOrder、processWithLatestQuotes、cancelOrder、replaceOrderPrice 等）
  */
 export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
   const {

@@ -47,6 +47,10 @@ export function createStartupGate(deps: StartupGateDeps): StartupGate {
 
   /**
    * 等待满足交易时段与开盘保护条件。
+   * 轮询直至为交易日、处于连续交易时段且不在开盘保护期内；skip 模式直接返回。
+   *
+   * @param params.mode 门禁模式：strict 严格检查交易日与时段，skip 跳过检查直接返回
+   * @returns 满足条件时返回当日交易日信息（isTradingDay、isHalfDay）
    */
   async function wait({ mode }: { readonly mode: 'strict' | 'skip' }): Promise<{
     isTradingDay: boolean;

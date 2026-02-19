@@ -4,11 +4,11 @@ import type { SymbolRegistry } from '../../types/seat.js';
 import type { MarketDataClient } from '../../types/services.js';
 
 /**
- * 收集所有需要获取行情的标的代码
- * 用于在主循环中一次性批量获取所有监控标的的行情
+ * 收集所有需要获取行情的标的代码（监控标的 + 席位占用标的），用于主循环一次性批量拉取行情。
  *
- * @param monitorConfigs 监控配置数组
- * @returns 所有需要获取行情的标的代码集合
+ * @param monitorConfigs 监控配置数组（monitorSymbol、longSymbol、shortSymbol）
+ * @param symbolRegistry 标的注册表，可选；传入时从席位状态解析做多/做空占用标的并加入集合
+ * @returns 需要拉取行情的标的代码集合
  */
 function collectAllQuoteSymbols(
   monitorConfigs: ReadonlyArray<{

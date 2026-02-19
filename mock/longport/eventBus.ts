@@ -30,6 +30,11 @@ type QueueEventUnion = {
   [K in LongportEventTopic]: QueueEvent<K>;
 }[LongportEventTopic];
 
+/**
+ * 构造统一队列事件结构，封装投递时间与排序字段。
+ *
+ * 通过显式 sequence/insertedAt 字段保证 flush 时顺序可预测。
+ */
 function createQueueEvent<TTopic extends LongportEventTopic>(
   topic: TTopic,
   payload: LongportEventPayloadMap[TTopic],

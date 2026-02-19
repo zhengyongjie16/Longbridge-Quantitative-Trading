@@ -104,11 +104,11 @@ export function isInContinuousHKSession(
 }
 
 /**
- * 判断是否在早盘开盘保护时段（仅早盘有效）
- * 开盘波动较大，指标可靠性下降，可在此窗口暂缓信号生成
- * @param date 时间对象（应该是UTC时间）
+ * 判断是否在早盘开盘保护时段（仅早盘有效）。默认行为：date 无效或 minutes 非正返回 false；下午时段不生效。
+ *
+ * @param date 时间对象（UTC）
  * @param minutes 保护时长（分钟）
- * @returns true表示在保护时段，false表示不在
+ * @returns 在早盘开盘保护窗口内为 true，否则为 false
  */
 export function isWithinMorningOpenProtection(
   date: Date | null | undefined,
@@ -132,11 +132,11 @@ export function isWithinMorningOpenProtection(
 }
 
 /**
- * 判断是否在午盘开盘保护时段（仅午盘有效）
- * 午盘开盘波动较大，可在此窗口暂缓信号生成
- * @param date 时间对象（应该是UTC时间）
+ * 判断是否在午盘开盘保护时段（仅午盘有效）。默认行为：date 无效或 minutes 非正返回 false；上午及午休不生效。
+ *
+ * @param date 时间对象（UTC）
  * @param minutes 保护时长（分钟）
- * @returns true表示在保护时段，false表示不在
+ * @returns 在午盘开盘保护窗口内为 true，否则为 false
  */
 export function isWithinAfternoonOpenProtection(
   date: Date | null | undefined,
@@ -160,12 +160,11 @@ export function isWithinAfternoonOpenProtection(
 }
 
 /**
- * 判断是否在当日收盘前15分钟内（末日保护程序：拒绝买入）
- * 港股正常交易日收盘时间：下午 16:00，收盘前15分钟：15:45 - 15:59
- * 港股半日交易日收盘时间：中午 12:00，收盘前15分钟：11:45 - 11:59
- * @param date 时间对象（应该是UTC时间）
- * @param isHalfDay 是否是半日交易日
- * @returns true表示在收盘前15分钟，false表示不在
+ * 判断是否在当日收盘前 15 分钟内（末日保护：拒绝买入）。默认行为：date 无效返回 false；半日市按 12:00 收盘计算。
+ *
+ * @param date 时间对象（UTC）
+ * @param isHalfDay 是否为半日交易日，默认 false
+ * @returns 在收盘前 15 分钟窗口内为 true，否则为 false
  */
 export function isBeforeClose15Minutes(
   date: Date | null | undefined,
@@ -175,12 +174,11 @@ export function isBeforeClose15Minutes(
 }
 
 /**
- * 判断是否在当日收盘前5分钟内（末日保护程序：自动清仓）
- * 港股正常交易日收盘时间：下午 16:00，收盘前5分钟：15:55 - 15:59
- * 港股半日交易日收盘时间：中午 12:00，收盘前5分钟：11:55 - 11:59
- * @param date 时间对象（应该是UTC时间）
- * @param isHalfDay 是否是半日交易日
- * @returns true表示在收盘前5分钟，false表示不在
+ * 判断是否在当日收盘前 5 分钟内（末日保护：自动清仓）。默认行为：date 无效返回 false；半日市按 12:00 收盘计算。
+ *
+ * @param date 时间对象（UTC）
+ * @param isHalfDay 是否为半日交易日，默认 false
+ * @returns 在收盘前 5 分钟窗口内为 true，否则为 false
  */
 export function isBeforeClose5Minutes(
   date: Date | null | undefined,
@@ -190,11 +188,12 @@ export function isBeforeClose5Minutes(
 }
 
 /**
- * 判断是否在当日收盘前指定分钟数内
- * @param date 时间对象（应该是UTC时间）
- * @param minutes 距离收盘的分钟数
- * @param isHalfDay 是否是半日交易日
- * @returns true表示在收盘前窗口内
+ * 判断是否在当日收盘前指定分钟数内（用于末日保护等）。半日市按 12:00 收盘，正常日按 16:00。
+ *
+ * @param date 时间对象（UTC）
+ * @param minutes 距离收盘的分钟数（正数）
+ * @param isHalfDay 是否为半日交易日，默认 false
+ * @returns 在收盘前该分钟数窗口内返回 true，否则返回 false
  */
 function isBeforeCloseMinutes(
   date: Date | null | undefined,

@@ -35,6 +35,11 @@ const WARRANT_TYPE_NAMES: Record<string, string> = {
   BEAR: '熊证',
 };
 
+/**
+ * 将内部牛熊证类型映射为用于日志和提示的中文名称。
+ *
+ * 统一文案来源，避免不同风险分支出现术语不一致。
+ */
 function getWarrantTypeName(warrantType: WarrantType): string {
   return WARRANT_TYPE_NAMES[String(warrantType)] ?? '轮证';
 }

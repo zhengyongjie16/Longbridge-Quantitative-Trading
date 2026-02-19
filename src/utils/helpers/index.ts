@@ -10,9 +10,10 @@ import { logger } from '../logger/index.js';
 import { kdjObjectPool, macdObjectPool, periodRecordPool } from '../objectPool/index.js';
 
 /**
- * 检查值是否已定义（不是 null 或 undefined）
+ * 检查值是否已定义（不是 null 或 undefined）。默认行为：无。
+ *
  * @param value 待检查的值
- * @returns 如果值不是 null 或 undefined 返回 true，否则返回 false
+ * @returns 值非 null 且非 undefined 时返回 true，否则返回 false
  */
 export function isDefined<T>(value: T | null | undefined): value is T {
   return value != null; // != null 会同时检查 null 和 undefined
@@ -46,9 +47,10 @@ function isErrorLike(value: unknown): value is Record<string, unknown> {
 
 
 /**
- * 校验标的代码格式（ticker.region）
+ * 校验标的代码格式（ticker.region）。默认行为：null/undefined 或非字符串返回 false。
+ *
  * @param symbol 标的代码，例如 "68547.HK"
- * @returns 是否符合 ticker.region 格式
+ * @returns 符合 ticker.region 格式时返回 true，否则返回 false
  */
 export function isSymbolWithRegion(symbol: string | null | undefined): symbol is string {
   if (!symbol || typeof symbol !== 'string') {
@@ -58,9 +60,10 @@ export function isSymbolWithRegion(symbol: string | null | undefined): symbol is
 }
 
 /**
- * 将值转换为 LongPort Decimal 类型
+ * 将值转换为 LongPort Decimal 类型。默认行为：非 number/string/Decimal 时返回 Decimal.ZERO()。
+ *
  * @param value 要转换的值（number、string 或已存在的 Decimal）
- * @returns Decimal 对象，如果值无效则返回 Decimal.ZERO()
+ * @returns Decimal 对象，无效输入时返回 Decimal.ZERO()
  */
 export function toDecimal(value: unknown): Decimal {
   if (value instanceof Decimal) {
@@ -73,9 +76,10 @@ export function toDecimal(value: unknown): Decimal {
 }
 
 /**
- * 将 Decimal 类型转换为数字
- * @param decimalLike Decimal 对象或数字
- * @returns 转换后的数字，如果输入为 null/undefined 返回 NaN（便于后续 Number.isFinite() 检查）
+ * 将 Decimal 类型转换为数字。默认行为：null/undefined 返回 NaN，便于调用方用 Number.isFinite() 判断。
+ *
+ * @param decimalLike Decimal 对象、数字、字符串或 null/undefined
+ * @returns 转换后的数字，null/undefined 时返回 NaN
  */
 export function decimalToNumber(decimalLike: DecimalLike | number | string | null | undefined): number {
   // 如果输入为 null 或 undefined，返回 NaN 而非 0
@@ -90,19 +94,21 @@ export function decimalToNumber(decimalLike: DecimalLike | number | string | nul
 }
 
 /**
- * 检查值是否为有效的正数（有限且大于0）
+ * 检查值是否为有效的正数（有限且大于 0）。默认行为：非 number 或非正数返回 false。
+ *
  * @param value 待检查的值
- * @returns 如果值为有效的正数返回 true，否则返回 false
+ * @returns 为有限正数时返回 true，否则返回 false
  */
 export function isValidPositiveNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0;
 }
 
 /**
- * 格式化数字，保留指定小数位数
+ * 格式化数字，保留指定小数位数。默认行为：num 为 null/undefined 或非有限数时返回 "-"；digits 默认为 2。
+ *
  * @param num 要格式化的数字
- * @param digits 保留的小数位数，默认为 2
- * @returns 格式化后的字符串，如果数字无效则返回 "-"
+ * @param digits 保留的小数位数，默认 2
+ * @returns 格式化后的字符串，无效时返回 "-"
  */
 export function formatNumber(num: number | null | undefined, digits: number = 2): string {
   if (num === null || num === undefined) {
@@ -112,9 +118,10 @@ export function formatNumber(num: number | null | undefined, digits: number = 2)
 }
 
 /**
- * 格式化账户渠道显示名称
+ * 格式化账户渠道显示名称。默认行为：accountChannel 为空或非字符串时返回「未知账户」。
+ *
  * @param accountChannel 账户渠道代码
- * @returns 格式化的账户渠道名称
+ * @returns 映射后的显示名称，无效时返回「未知账户」
  */
 export function formatAccountChannel(accountChannel: string | null | undefined): string {
   if (!accountChannel || typeof accountChannel !== 'string') return '未知账户';
@@ -124,10 +131,11 @@ export function formatAccountChannel(accountChannel: string | null | undefined):
 
 
 /**
- * 格式化标的显示：中文名称(代码)
+ * 格式化标的显示为「中文名称(代码)」。默认行为：symbol 为空返回空串；symbolName 为空时仅返回代码。
+ *
  * @param symbol 标的代码
- * @param symbolName 标的中文名称（可选）
- * @returns 格式化后的标的显示
+ * @param symbolName 标的中文名称，默认 null
+ * @returns 格式化后的显示字符串
  */
 export function formatSymbolDisplay(symbol: string | null | undefined, symbolName: string | null = null): string {
   if (!symbol) {
@@ -171,30 +179,31 @@ function toHongKongTime(date: Date | null = null, options: TimeFormatOptions = {
 }
 
 /**
- * 将时间转换为香港时间（UTC+8）的 ISO 格式字符串
- * 格式：YYYY/MM/DD/HH:mm:ss
- * @param date 时间对象，如果为 null 则使用当前时间
- * @returns 香港时间的字符串格式 YYYY/MM/DD/HH:mm:ss
+ * 将时间转换为香港时间（UTC+8）的 ISO 格式字符串。默认行为：date 为 null 时使用当前时间；格式 YYYY/MM/DD/HH:mm:ss。
+ *
+ * @param date 时间对象，默认 null（当前时间）
+ * @returns 香港时间字符串 YYYY/MM/DD/HH:mm:ss
  */
 export function toHongKongTimeIso(date: Date | null = null): string {
   return toHongKongTime(date, { format: 'iso' });
 }
 
 /**
- * 将时间转换为香港时间（UTC+8）的日志格式字符串
- * 格式：YYYY-MM-DD HH:mm:ss.sss（包含毫秒）
- * @param date 时间对象，如果为 null 则使用当前时间
- * @returns 香港时间的字符串格式 YYYY-MM-DD HH:mm:ss.sss
+ * 将时间转换为香港时间（UTC+8）的日志格式字符串。默认行为：date 为 null 时使用当前时间；格式含毫秒 YYYY-MM-DD HH:mm:ss.sss。
+ *
+ * @param date 时间对象，默认 null（当前时间）
+ * @returns 香港时间字符串 YYYY-MM-DD HH:mm:ss.sss
  */
 export function toHongKongTimeLog(date: Date | null = null): string {
   return toHongKongTime(date, { format: 'log' });
 }
 
 /**
- * 格式化行情数据显示
+ * 格式化行情数据显示为可读字段。默认行为：quote 为 null 时返回 null。
+ *
  * @param quote 行情对象
  * @param symbol 标的代码
- * @returns 格式化后的行情显示对象，如果quote无效则返回null
+ * @returns 格式化后的行情显示对象，quote 无效时返回 null
  */
 export function formatQuoteDisplay(quote: Quote | null, symbol: string): QuoteDisplayResult | null {
   if (!quote) {
@@ -237,8 +246,8 @@ export function formatQuoteDisplay(quote: Quote | null, symbol: string): QuoteDi
 }
 
 /**
- * 格式化标的显示字符串（从行情对象生成）
- * 如果 quote 存在，返回 "中文名称(代码)" 格式；否则返回原始代码
+ * 从行情对象生成标的显示字符串。默认行为：quote 存在时返回「中文名称(代码)」，否则返回 symbol。
+ *
  * @param quote 行情对象（可选）
  * @param symbol 标的代码
  * @returns 格式化后的标的显示字符串
@@ -252,25 +261,28 @@ export function formatSymbolDisplayFromQuote(quote: Quote | null | undefined, sy
 }
 
 /**
- * 判断是否为买入操作
+ * 判断是否为买入操作。默认行为：无。
+ *
  * @param action 信号类型
- * @returns 是否为买入操作（BUYCALL 或 BUYPUT）
+ * @returns 为 BUYCALL 或 BUYPUT 时返回 true
  */
 export function isBuyAction(action: SignalType): boolean {
   return action === 'BUYCALL' || action === 'BUYPUT';
 }
 
 /**
- * 判断是否为卖出操作
+ * 判断是否为卖出操作。默认行为：无。
+ *
  * @param action 信号类型
- * @returns 是否为卖出操作（SELLCALL 或 SELLPUT）
+ * @returns 为 SELLCALL 或 SELLPUT 时返回 true
  */
 export function isSellAction(action: SignalType): boolean {
   return action === 'SELLCALL' || action === 'SELLPUT';
 }
 
 /**
- * 获取做多标的方向名称
+ * 获取做多标的方向名称。默认行为：无参数，固定返回「做多标的」。
+ *
  * @returns 做多标的方向名称字符串
  */
 export function getLongDirectionName(): string {
@@ -278,7 +290,8 @@ export function getLongDirectionName(): string {
 }
 
 /**
- * 获取做空标的方向名称
+ * 获取做空标的方向名称。默认行为：无参数，固定返回「做空标的」。
+ *
  * @returns 做空标的方向名称字符串
  */
 export function getShortDirectionName(): string {
@@ -295,15 +308,19 @@ const SIGNAL_ACTION_DESCRIPTIONS: Record<SignalType, string> = {
 };
 
 /**
- * 格式化信号操作描述（内部使用）
+ * 将信号类型格式化为可读操作描述，用于日志与展示。
+ *
+ * @param action 信号类型（BUYCALL/SELLCALL/BUYPUT/SELLPUT/HOLD）
+ * @returns 对应的中文描述字符串
  */
 function getSignalActionDescription(action: SignalType): string {
   return SIGNAL_ACTION_DESCRIPTIONS[action] || `未知操作(${action})`;
 }
 
 /**
- * 格式化信号日志（标的显示为：中文名称(代码)）
- * @param signal 包含信号动作、标的代码、标的名称和原因的对象
+ * 格式化信号日志（标的显示为「中文名称(代码）」）。默认行为：reason 为空时使用「策略信号」。
+ *
+ * @param signal 包含 action、symbol、symbolName、reason 的对象
  * @returns 格式化后的信号日志字符串
  */
 export function formatSignalLog(signal: { action: SignalType; symbol: string; symbolName?: string | null; reason?: string | null }): string {
@@ -314,10 +331,10 @@ export function formatSignalLog(signal: { action: SignalType; symbol: string; sy
 
 
 /**
- * 格式化错误对象为可读字符串
- * 避免使用 String(err) 导致普通对象返回 '[object Object]'
- * @param err 错误对象
- * @returns 格式化后的错误消息
+ * 将错误对象格式化为可读字符串。默认行为：null/undefined 返回「未知错误」；Error 取 message；类错误对象取 message/error/msg/code；否则 JSON 或 inspect。
+ *
+ * @param err 任意错误或未知值
+ * @returns 可读错误消息字符串
  */
 export function formatError(err: unknown): string {
   // null/undefined
@@ -372,9 +389,10 @@ export async function sleep(ms: number): Promise<void> {
 }
 
 /**
- * 初始化监控标的状态
- * @param config 监控配置
- * @returns 初始化的监控状态
+ * 根据监控配置初始化单标的监控状态。默认行为：无；所有可更新字段初始为 null 或空。
+ *
+ * @param config 监控配置（monitorSymbol 等）
+ * @returns 初始化的 MonitorState
  */
 export function initMonitorState(config: MonitorConfig): MonitorState {
   return {

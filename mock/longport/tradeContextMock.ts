@@ -69,10 +69,20 @@ type MinimalOrder = {
   updatedAt: Date;
 };
 
+/**
+ * 校验方法名是否属于 TradeContext Mock 支持的能力集合。
+ *
+ * 用于失败注入入口防御，避免无效方法写入状态。
+ */
 function isMethodSupported(method: MockMethodName): boolean {
   return TRADE_METHODS.has(method);
 }
 
+/**
+ * 初始化失败注入运行态。
+ *
+ * 将调用计数、失败计数与规则拆分维护，方便测试按需重置。
+ */
 function createFailureState(): FailureState {
   return {
     callsByMethod: new Map(),
@@ -81,6 +91,11 @@ function createFailureState(): FailureState {
   };
 }
 
+/**
+ * 递增并返回指定方法的调用序号。
+ *
+ * 失败规则按调用次数命中时依赖该序号保证可重复性。
+ */
 function nextCallIndex(state: FailureState, method: MockMethodName): number {
   const next = (state.callsByMethod.get(method) ?? 0) + 1;
   state.callsByMethod.set(method, next);
@@ -126,6 +141,11 @@ function shouldFail(
   return new Error(rule.errorMessage ?? `[MockFailure] ${method} call#${callIndex} failed`);
 }
 
+/**
+ * 将 submitOrder 入参转换为内部最小订单结构。
+ *
+ * 统一初始状态字段，确保后续改单/撤单流程操作同一数据模型。
+ */
 function createOrderFromSubmit(
   orderId: string,
   options: SubmitOrderOptions,
@@ -150,6 +170,11 @@ function createOrderFromSubmit(
   };
 }
 
+/**
+ * 深拷贝内部订单对象。
+ *
+ * 避免 Decimal 与 Date 引用被共享，防止测试间状态串扰。
+ */
 function cloneOrder(order: MinimalOrder): MinimalOrder {
   return {
     ...order,
@@ -162,11 +187,21 @@ function cloneOrder(order: MinimalOrder): MinimalOrder {
   };
 }
 
+/**
+ * 在信任边界将内部订单转为 SDK Order 类型。
+ *
+ * mock 仅维护测试依赖字段，类型断言用于缩小样板代码。
+ */
 function asOrder(order: MinimalOrder): Order {
   // 信任边界：mock 按 Order 的核心字段构建，测试用例只依赖这些字段
   return order as unknown as Order;
 }
 
+/**
+ * 将内部订单或外部推送统一转换为 PushOrderChanged 事件。
+ *
+ * 复用同一推送路径，确保手动 emit 与真实回放行为一致。
+ */
 function asPushEvent(event: PushOrderChanged | MinimalOrder): PushOrderChanged {
   if ('submittedQuantity' in event) {
     return event;

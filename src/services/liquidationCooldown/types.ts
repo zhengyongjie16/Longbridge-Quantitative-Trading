@@ -13,6 +13,7 @@ export type RawRecord = {
 /**
  * 记录清仓冷却的参数。
  * 类型用途：包含标的代码、方向与保护性清仓成交时间戳，由 recordCooldown 消费。
+ * 数据来源：由风控模块或 tradeLogHydrator 在清仓成交后传入。
  * 使用范围：仅 liquidationCooldown 模块使用。
  */
 export type RecordCooldownParams = {
@@ -22,8 +23,10 @@ export type RecordCooldownParams = {
 };
 
 /**
- * 查询剩余冷却时间的参数，包含标的代码、方向与冷却配置。
- * 由 LiquidationCooldownTracker.getRemainingMs 消费。
+ * 查询剩余冷却时间的参数。
+ * 类型用途：包含标的代码、方向与冷却配置，由 getRemainingMs 消费。
+ * 数据来源：由风控模块在判断是否允许买入前传入。
+ * 使用范围：仅 liquidationCooldown 模块使用。
  */
 export type GetRemainingMsParams = {
   readonly symbol: string;

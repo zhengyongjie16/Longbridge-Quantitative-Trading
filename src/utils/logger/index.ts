@@ -1,22 +1,3 @@
-/**
- * 日志系统模块
- *
- * 功能：
- * - 基于 pino 的高性能日志系统
- * - 双流输出：同时输出到控制台和文件
- * - 按日期自动分割日志文件
- * - 支持 DEBUG/INFO/WARN/ERROR 级别
- *
- * 日志目录：
- * - logs/system/：系统日志（所有级别，包括 DEBUG）
- * - logs/debug/：调试日志副本（DEBUG 级别日志的额外副本，需设置 DEBUG=true）
- *
- * 特性：
- * - 异步写入 + drain 保护，轮转操作串行化
- * - 控制台输出带颜色高亮
- * - 文件输出纯文本格式
- * - 进程信号处理和异常捕获
- */
 import pino from 'pino';
 import { toHongKongTimeLog } from '../helpers/index.js';
 import { IS_DEBUG, LOGGING, LOG_LEVELS } from '../../constants/index.js';
@@ -321,8 +302,10 @@ const ANSI_CODE_REGEX = new RegExp(
 );
 
 /**
- * 移除 ANSI 颜色代码（内部使用）
- * 用于文件日志输出时清除终端颜色代码
+ * 移除字符串中的 ANSI 颜色/转义代码，用于文件日志输出时得到纯文本。
+ *
+ * @param str 可能包含 ANSI 代码的字符串
+ * @returns 移除转义序列后的字符串
  */
 function stripAnsiCodes(str: string): string {
   if (typeof str !== 'string') return str;
@@ -678,9 +661,9 @@ export const logger: Logger = {
 let isSyncCleaningUp = false;
 
 /**
- * 同步清理函数，用于进程退出时刷新日志缓冲并关闭文件流
- * 防止日志丢失，在信号处理和异常处理中被调用
- * 使用状态标志避免重复清理
+ * 同步清理函数：进程退出时刷新日志缓冲并关闭文件流，防止日志丢失；在 beforeExit/exit/uncaughtException/unhandledRejection 中调用。使用状态标志避免重复执行。
+ *
+ * @returns 无返回值
  */
 function cleanupSync(): void {
   if (isSyncCleaningUp) {

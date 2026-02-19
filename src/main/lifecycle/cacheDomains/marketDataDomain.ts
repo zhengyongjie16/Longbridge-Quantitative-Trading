@@ -13,6 +13,13 @@ import { logger } from '../../../utils/logger/index.js';
 import type { CacheDomain, LifecycleContext } from '../types.js';
 import type { MarketDataDomainDeps } from './types.js';
 
+/**
+ * 创建行情缓存域。
+ * 午夜清理时重置运行时行情订阅与内部缓存；开盘重建由统一流水线负责，本域为空操作。
+ *
+ * @param deps 依赖注入，包含 marketDataClient
+ * @returns 实现 CacheDomain 的行情域实例
+ */
 export function createMarketDataDomain(deps: MarketDataDomainDeps): CacheDomain {
   const { marketDataClient } = deps;
   return {

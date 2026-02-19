@@ -14,7 +14,11 @@ import { logDebug, toNumber } from './utils.js';
 import type { CandleData } from '../../types/data.js';
 import type { PsyStreamState } from './types.js';
 
-/** 初始化 PSY 流式状态：环形窗口记录涨跌标志，用于统计周期内上涨天数占比 */
+/**
+ * 初始化 PSY 流式状态：环形窗口记录涨跌标志，用于统计周期内上涨天数占比。
+ * @param period - PSY 周期
+ * @returns 初始化后的 PsyStreamState
+ */
 function initPsyStreamState(period: number): PsyStreamState {
   return {
     period,

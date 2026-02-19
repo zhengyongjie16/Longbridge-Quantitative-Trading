@@ -39,6 +39,11 @@ import type {
   RefreshHelpers,
 } from './types.js';
 
+/**
+ * 兜底的穷尽性断言，防止新增任务类型后遗漏分派逻辑。
+ *
+ * 一旦出现未覆盖类型，立即抛错并暴露实现缺口。
+ */
 function assertNeverTaskType(taskType: never): never {
   throw new Error(`[MonitorTaskProcessor] 未处理的任务类型: ${String(taskType)}`);
 }

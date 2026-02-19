@@ -32,7 +32,12 @@ function initRsiStreamState(period: number): RsiStreamState {
   };
 }
 
-/** 喂入一根 K 线收盘价，更新平滑涨跌与原始 RSI 值（流式递推） */
+/**
+ * 喂入一根 K 线收盘价，更新平滑涨跌与原始 RSI 值（流式递推）。
+ * @param state - RSI 流式状态
+ * @param currentClose - 当前 K 线收盘价
+ * @returns void
+ */
 function updateRsiStreamState(state: RsiStreamState, currentClose: number): void {
   if (state.previousClose === null) {
     state.previousClose = currentClose;
@@ -64,7 +69,11 @@ function updateRsiStreamState(state: RsiStreamState, currentClose: number): void
   state.previousClose = currentClose;
 }
 
-/** 从状态中取出最终 RSI 值并四舍五入；无下跌动量等边界时返回 100 避免 NaN */
+/**
+ * 从状态中取出最终 RSI 值并四舍五入；无下跌动量等边界时返回 100 避免 NaN。
+ * @param state - RSI 流式状态
+ * @returns 最终 RSI 值（0–100），未就绪时返回 null
+ */
 function finalizeRsiValue(state: RsiStreamState): number | null {
   if (state.lastRawValue === null) {
     return null;

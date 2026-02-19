@@ -20,9 +20,12 @@ const DEFAULT_CONFIG: RateLimiterConfig = {
 };
 
 /**
- * 创建频率限制器
- * @param deps 依赖配置
- * @returns RateLimiter 接口实例
+ * 创建频率限制器。
+ * 在时间窗口内限制 Trade API 调用次数，throttle() 超限时自动等待。
+ * Longbridge API 有频率限制，由单一实例保证全链路调用不超限。
+ *
+ * @param deps 依赖配置（config 可选，缺省为 30 次/30 秒）
+ * @returns RateLimiter 接口实例（throttle）
  */
 export const createRateLimiter = (deps: RateLimiterDeps = {}): RateLimiter => {
   const config = deps.config ?? DEFAULT_CONFIG;

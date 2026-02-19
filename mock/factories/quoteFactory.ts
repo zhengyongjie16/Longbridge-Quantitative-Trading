@@ -181,6 +181,11 @@ export function createTradingDaysResult(days: {
   return result as unknown as MarketTradingDays;
 }
 
+/**
+ * 构造证券实时行情最小结构，供 quote 查询链路测试使用。
+ *
+ * 仅填充策略流程会读取的关键字段，避免测试被无关字段噪音干扰。
+ */
 export function createSecurityQuote(symbol: string, price: number): unknown {
   return {
     symbol,
@@ -190,6 +195,11 @@ export function createSecurityQuote(symbol: string, price: number): unknown {
   };
 }
 
+/**
+ * 构造证券静态信息最小结构，供 staticInfo 查询链路测试使用。
+ *
+ * 统一返回名称与手数信息，保证订阅初始化逻辑在测试中稳定复现。
+ */
 export function createSecurityStaticInfo(symbol: string, name: string, lotSize: number): unknown {
   return {
     symbol,

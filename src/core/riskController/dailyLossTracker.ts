@@ -101,7 +101,11 @@ function createOrderRecordFromFill(input: DailyLossFilledOrderInput): OrderRecor
 }
 
 /**
- * 创建当日亏损追踪器实例，按监控标的与方向维护状态。
+ * 创建当日亏损追踪器实例。
+ * 按 (monitorSymbol, direction) 维护当日买入/卖出订单与亏损偏移，支持 resetAll、recalculateFromAllOrders、recordFilledOrder、getLossOffset。
+ * 风控与浮亏计算依赖当日已实现盈亏偏移，需在跨日时重置、启动时从全量订单初始化、成交时增量更新。
+ * @param deps 依赖（filteringEngine、resolveOrderOwnership、classifyAndConvertOrders、toHongKongTimeIso）
+ * @returns 实现 DailyLossTracker 接口的实例
  */
 export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTracker {
   let dayKey: string | null = null;

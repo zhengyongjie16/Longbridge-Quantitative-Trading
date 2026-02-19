@@ -67,6 +67,12 @@ export function createQueueRunner({
       return;
     }
 
+    /**
+     * setImmediate 回调入口：在运行态下触发一轮队列消费，并在完成后继续调度下一轮。
+     * 将调度与消费解耦可避免递归调用堆叠，同时确保同一时刻仅有一个消费流程在飞行中。
+     *
+     * @returns 无返回值
+     */
     function handleImmediate(): void {
       if (!running) {
         return;

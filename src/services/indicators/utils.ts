@@ -6,11 +6,10 @@ import type { PoolableKDJ, PoolableMACD } from '../../utils/objectPool/types.js'
 import type { EmaStreamState } from './types.js';
 
 /**
- * 从 K 线长度与最后一根收盘价构造指纹字符串（格式 length_lastClose），供 getCandleFingerprint 等复用。
- *
+ * 从 K 线长度与最后一根收盘价构造指纹字符串（格式 length_lastClose），供 getCandleFingerprint 复用，用于检测数据是否变化。
  * @param candles - K 线数据数组（仅用 length）
  * @param lastClose - 最后一根 K 线的收盘价
- * @returns 指纹字符串，用于检测数据是否变化
+ * @returns 指纹字符串
  */
 function buildDataFingerprint(
   candles: ReadonlyArray<CandleData>,

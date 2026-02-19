@@ -225,7 +225,11 @@ async function rebuildUnrealizedLossCache(
 }
 
 /**
- * 工厂函数：创建交易日状态重建函数，注入所有依赖。
+ * 创建交易日状态重建函数（工厂）。
+ * 注入依赖后返回 rebuildTradingDayState，在开盘重建阶段基于全量订单与行情快照同步席位、重建订单与风控缓存并展示账户持仓。
+ *
+ * @param deps 依赖注入（marketDataClient、trader、lastState、symbolRegistry、monitorContexts、dailyLossTracker、displayAccountAndPositions）
+ * @returns 接收 RebuildTradingDayStateParams 的异步函数，无返回值；任一步骤失败即抛出，由生命周期管理器重试
  */
 export function createRebuildTradingDayState(deps: RebuildTradingDayStateDeps): (
   params: RebuildTradingDayStateParams,

@@ -18,7 +18,11 @@ import type { LastState, MonitorState } from '../../../types/state.js';
 import type { CacheDomain } from '../types.js';
 import type { GlobalStateDomainDeps } from './types.js';
 
-/** 重置单个监控标的的运行状态，释放快照对象回对象池，防止跨日数据污染 */
+/**
+ * 重置单个监控标的的运行状态，释放快照对象回对象池，防止跨日数据污染。
+ *
+ * @param monitorState 单个监控标的的运行时状态（lastMonitorSnapshot、monitorPrice 等）
+ */
 function resetMonitorStateForNewDay(monitorState: MonitorState): void {
   releaseSnapshotObjects(monitorState.lastMonitorSnapshot, monitorState.monitorValues);
   monitorState.monitorPrice = null;
@@ -33,8 +37,10 @@ function resetMonitorStateForNewDay(monitorState: MonitorState): void {
 
 /**
  * 全局域午夜清理。
- * - allTradingSymbols 清理的权威位置（与 marketDataDomain 去重）。
- * - currentDayKey 仅由 dayLifecycleManager 在全部 clear 成功后提交，此处不写入。
+ * 清理 allTradingSymbols（权威位置）、交易日与门禁相关状态，并重置各监控标的运行状态。
+ * currentDayKey 仅由 dayLifecycleManager 在全部 clear 成功后提交，此处不写入。
+ *
+ * @param lastState 主程序持有的全局可变状态
  */
 function runGlobalMidnightClear(lastState: LastState): void {
   lastState.canTrade = false;
@@ -48,6 +54,13 @@ function runGlobalMidnightClear(lastState: LastState): void {
   }
 }
 
+/**
+ * 创建全局状态缓存域。
+ * 午夜清理时重置交易门禁、交易日信息、allTradingSymbols 及各监控标的状态；开盘重建时调用 runOpenRebuild 执行完整流水线。
+ *
+ * @param deps 依赖注入，包含 lastState、runOpenRebuild
+ * @returns 实现 CacheDomain 的全局状态域实例
+ */
 export function createGlobalStateDomain(deps: GlobalStateDomainDeps): CacheDomain {
   const { lastState, runOpenRebuild } = deps;
   return {

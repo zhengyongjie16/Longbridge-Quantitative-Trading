@@ -203,6 +203,13 @@ export async function prepareSeatsOnStartup(
 
   /**
    * 执行自动寻标并更新席位状态。
+   * 将席位置为 SEARCHING 后调用 findBestWarrant 寻标，成功则更新为 READY 并写入 callPrice，失败则更新失败计数与冻结状态。
+   *
+   * @param params.monitorSymbol 监控标的代码
+   * @param params.direction 方向（LONG 或 SHORT）
+   * @param params.autoSearchConfig 自动寻标配置（到期月数、距离/成交额阈值等）
+   * @param params.currentTime 当前时间
+   * @returns 寻标成功时返回标的代码，否则返回 null
    */
   async function searchSeatSymbol({
     monitorSymbol,

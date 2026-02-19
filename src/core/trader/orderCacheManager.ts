@@ -18,8 +18,11 @@ import type { DecimalLikeValue } from '../../types/common.js';
 import type { OrderCacheManager, OrderCacheManagerDeps } from './types.js';
 
 /**
- * 创建订单缓存管理器
- * @param deps 依赖注入
+ * 创建订单缓存管理器。
+ * 缓存未成交订单列表（按 symbols 组合 + TTL），提供 getPendingOrders、clearCache。
+ * 避免频繁调用 todayOrders API，订单状态变化后由调用方 clearCache 失效。
+ *
+ * @param deps 依赖注入（ctxPromise、rateLimiter）
  * @returns OrderCacheManager 接口实例
  */
 export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCacheManager => {
@@ -31,8 +34,13 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
   let pendingOrdersCacheTime: number = 0;
 
   /**
-   * 获取今日未成交订单
-   * 优先使用缓存，超过 TTL 或 forceRefresh 时调用 API 刷新
+   * 获取今日未成交订单（带缓存）。
+   * 优先返回缓存；超过 TTL 或 forceRefresh 时调用 API 刷新并更新缓存。
+   * 主循环与末日保护等需未成交订单列表，缓存减少 API 调用。
+   *
+   * @param symbols 标的列表，null 或空表示全部
+   * @param forceRefresh 是否强制刷新，默认 false
+   * @returns 未成交订单列表（仅包含 PENDING 等未完成状态）
    */
   const getPendingOrders = async (
     symbols: string[] | null = null,

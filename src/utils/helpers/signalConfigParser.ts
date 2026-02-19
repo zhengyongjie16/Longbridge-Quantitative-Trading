@@ -17,9 +17,10 @@ import type {
 const SUPPORTED_INDICATORS = ['MFI', 'K', 'D', 'J'] as const;
 
 /**
- * 解析单个条件
- * @param conditionStr 条件字符串，如 "RSI:6<20" 或 "J<-1"
- * @returns 解析结果
+ * 解析单个信号条件字符串，支持 RSI:n、PSY:n 及固定指标（K、D、J、MFI 等）格式。
+ *
+ * @param conditionStr 条件字符串，如 "RSI:6<20"、"PSY:12<25"、"J<-1"
+ * @returns 解析后的 ParsedCondition，格式无效时返回 null
  */
 function parseCondition(conditionStr: string): ParsedCondition | null {
   // 去除空白
@@ -127,9 +128,10 @@ function parseCondition(conditionStr: string): ParsedCondition | null {
 }
 
 /**
- * 解析条件组
+ * 解析条件组字符串，支持 "(条件列表)/N" 或 "(条件列表)" 格式，逗号分隔多条件。
+ *
  * @param groupStr 条件组字符串，如 "(RSI:6<20,MFI<15,D<20,J<-1)/3" 或 "(J<-20)"
- * @returns 解析结果
+ * @returns 解析后的 ParsedConditionGroup（conditions + minSatisfied），格式无效时返回 null
  */
 function parseConditionGroup(groupStr: string): ParsedConditionGroup | null {
   // 去除空白

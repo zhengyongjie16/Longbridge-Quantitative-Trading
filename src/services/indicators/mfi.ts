@@ -131,7 +131,15 @@ function calculateMfiSeries(
   return output;
 }
 
-/** 在 calculateMfiSeries 结果上对每个值保留两位小数，满足技术指标展示精度 */
+/**
+ * 在 calculateMfiSeries 结果上对每个值保留两位小数，满足技术指标展示精度。
+ * @param high - 最高价数组
+ * @param low - 最低价数组
+ * @param close - 收盘价数组
+ * @param volume - 成交量数组
+ * @param period - MFI 周期
+ * @returns 保留两位小数的 MFI 值序列（0–100）
+ */
 function calculateMfiSeriesWithTechnicalPrecision(
   high: ReadonlyArray<number>,
   low: ReadonlyArray<number>,

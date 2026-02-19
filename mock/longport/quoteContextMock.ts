@@ -51,10 +51,20 @@ type FailureState = {
   readonly rules: Map<MockMethodName, MockFailureRule>;
 };
 
+/**
+ * 校验方法名是否属于 QuoteContext Mock 支持的能力集合。
+ *
+ * 用于失败注入入口防御，避免无效方法污染状态。
+ */
 function isMethodSupported(method: MockMethodName): boolean {
   return QUOTE_METHODS.has(method);
 }
 
+/**
+ * 初始化失败注入运行态。
+ *
+ * 将调用计数、失败计数与规则分离存储，便于独立重置和断言。
+ */
 function createFailureState(): FailureState {
   return {
     callsByMethod: new Map(),
@@ -63,6 +73,11 @@ function createFailureState(): FailureState {
   };
 }
 
+/**
+ * 递增并返回指定方法的调用序号。
+ *
+ * 失败规则按调用序号匹配时依赖该计数保证行为稳定。
+ */
 function nextCallIndex(state: FailureState, method: MockMethodName): number {
   const next = (state.callsByMethod.get(method) ?? 0) + 1;
   state.callsByMethod.set(method, next);
@@ -108,10 +123,20 @@ function shouldFail(
   return new Error(rule.errorMessage ?? `[MockFailure] ${method} call#${callIndex} failed`);
 }
 
+/**
+ * 生成 K 线订阅缓存键。
+ *
+ * 使用 `symbol + period` 组合，确保不同周期数据不会相互覆盖。
+ */
 function createCandleKey(symbol: string, period: Period): string {
   return `${symbol}:${String(period)}`;
 }
 
+/**
+ * 将 SDK 轮证类型统一为内部 BULL/BEAR 表示。
+ *
+ * 兼容枚举值与字符串输入，降低不同测试数据来源的格式耦合。
+ */
 function normalizeWarrantType(value: unknown): 'BULL' | 'BEAR' | null {
   if (value === WarrantType.Bull || value === 3 || value === 'Bull' || value === 'BULL') {
     return 'BULL';
@@ -137,6 +162,11 @@ export interface QuoteContextMock extends QuoteContextContract {
   getSubscribedCandlestickKeys(): ReadonlySet<string>;
 }
 
+/**
+ * 生成交易日查询缓存键。
+ *
+ * 将 market/begin/end 归一化拼接，保证同参查询可命中同一条测试数据。
+ */
 function getTradingDaysKey(market: Market, begin: unknown, end: unknown): string {
   return `${String(market)}:${String(begin)}:${String(end)}`;
 }

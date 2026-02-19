@@ -74,6 +74,13 @@ export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
     monitorContext.shortSymbolName = shortQuote?.name ?? shortSymbol;
   }
 
+  /**
+   * 清理指定方向的延迟验证与各类任务队列，并同步清空牛熊证距离缓存。
+   * 这样可确保席位从 READY 退化后不会继续执行过期信号，避免状态漂移。
+   *
+   * @param direction 席位方向（LONG/SHORT）
+   * @returns 无返回值
+   */
   function clearQueuesForDirection(direction: 'LONG' | 'SHORT'): void {
     const result = clearQueuesForDirectionUtil({
       monitorSymbol,

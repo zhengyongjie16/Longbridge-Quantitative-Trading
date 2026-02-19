@@ -267,7 +267,7 @@ export function createDelayedSignalVerifier(
       verifiedCallbacks.length = 0;
       rejectedCallbacks.length = 0;
 
-      logger.debug('[DelayedVerification] Verifier destroyed');
+      logger.debug('[延迟验证] 验证器已销毁');
     },
   };
 }

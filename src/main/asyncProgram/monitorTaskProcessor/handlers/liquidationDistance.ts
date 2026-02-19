@@ -97,6 +97,18 @@ export function createLiquidationDistanceHandler({
         quote: Quote | null;
       }> = [];
 
+      /**
+       * 在席位版本、持仓与行情均有效时构造保护性清仓信号，否则返回 null。
+       * 先做前置校验可避免将无效任务推入后续执行链路，降低误清仓风险。
+       *
+       * @param symbol 交易标的代码
+       * @param symbolName 标的名称，可为空
+       * @param isLongSymbol 是否为做多方向标的
+       * @param position 当前持仓快照
+       * @param quote 当前行情快照
+       * @param seatVersion 席位版本号，用于并发一致性校验
+       * @returns 成功时返回清仓信号与数量，否则返回 null
+       */
       function tryCreateLiquidationSignal(
         symbol: string,
         symbolName: string | null,

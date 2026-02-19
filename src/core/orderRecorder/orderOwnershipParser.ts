@@ -97,7 +97,11 @@ export function resolveOrderOwnership(
 }
 
 /**
- * 获取指定监控标的与方向下最新成交的交易标的。
+ * 获取指定监控标的与方向下最新成交的交易标的（按 updatedAt 取最大）。
+ * @param orders 原始 API 订单列表（通常为当日或历史成交）
+ * @param orderOwnershipMapping 该监控标的的订单归属映射缩写
+ * @param direction 方向（LONG 或 SHORT）
+ * @returns 该方向下最近一笔成交的标的代码，无匹配时返回 null
  */
 export function getLatestTradedSymbol(
   orders: ReadonlyArray<RawOrderFromAPI>,

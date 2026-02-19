@@ -17,7 +17,12 @@ import type { MonitorContext } from '../../../types/state.js';
 import type { CacheDomain, LifecycleContext } from '../types.js';
 import type { SignalRuntimeDomainDeps } from './types.js';
 
-/** 清空买入、卖出、监控三条任务队列，释放队列中的信号对象回对象池，返回各队列移除数量 */
+/**
+ * 清空买入、卖出、监控三条任务队列，释放队列中的信号对象回对象池。
+ *
+ * @param deps 包含 buyTaskQueue、sellTaskQueue、monitorTaskQueue、releaseSignal
+ * @returns 各队列移除的任务数量
+ */
 function clearTradeQueues(
   deps: Pick<
     SignalRuntimeDomainDeps,
@@ -43,7 +48,12 @@ function clearTradeQueues(
   };
 }
 
-/** 取消所有监控标的的延迟验证信号，返回取消的信号总数 */
+/**
+ * 取消所有监控标的的延迟验证信号。
+ *
+ * @param monitorContexts 所有监控上下文
+ * @returns 取消的信号总数
+ */
 function cancelAllDelayedSignals(
   monitorContexts: ReadonlyMap<string, MonitorContext>,
 ): number {
@@ -54,6 +64,13 @@ function cancelAllDelayedSignals(
   return total;
 }
 
+/**
+ * 创建信号运行时缓存域。
+ * 午夜清理时停止并排空所有异步处理器与任务队列、取消延迟验证、清空订单监控与交易后刷新缓存；开盘重建时重启处理器并刷新 refreshGate。
+ *
+ * @param deps 依赖注入，包含各处理器、队列、refreshGate、releaseSignal 等
+ * @returns 实现 CacheDomain 的信号运行时域实例
+ */
 export function createSignalRuntimeDomain(deps: SignalRuntimeDomainDeps): CacheDomain {
   const {
     monitorContexts,
