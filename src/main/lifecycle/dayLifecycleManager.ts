@@ -86,6 +86,14 @@ function resolveRetryDelayMs(
   return baseDelayMs * factor;
 }
 
+/**
+ * 创建交易日生命周期管理器。对外暴露 tick(now, runtime)，由主循环每秒调用；
+ * 内部根据 dayKey 变化执行午夜清理（各 CacheDomain.midnightClear），再在开盘后执行开盘重建（各 CacheDomain.openRebuild），
+ * 失败时指数退避重试，不吞错。用于跨日状态重置与开盘状态恢复。
+ *
+ * @param deps 依赖注入，包含 mutableState、cacheDomains、logger、rebuildRetryDelayMs
+ * @returns DayLifecycleManager，仅含 tick 方法
+ */
 export function createDayLifecycleManager(deps: DayLifecycleManagerDeps): DayLifecycleManager {
   const {
     mutableState,

@@ -1,19 +1,3 @@
-/**
- * 账户显示模块
- *
- * 功能：
- * - 格式化显示账户快照信息
- * - 格式化显示持仓详情
- * - 记录交易后的账户状态变化
- *
- * 显示内容：
- * - 账户：余额、市值、持仓市值
- * - 持仓：标的名称、数量、现价/成本价、市值、仓位百分比
- *
- * 使用场景：
- * - 程序启动时显示初始账户状态
- * - 每次交易后显示更新后的账户和持仓
- */
 import { logger } from '../logger/index.js';
 import {
   formatError,
@@ -27,16 +11,13 @@ import type { Quote } from '../../types/quote.js';
 import type { Trader } from '../../types/services.js';
 
 /**
- * 刷新账户与持仓缓存（仅数据拉取，不做行情订阅）
+ * 刷新账户与持仓缓存（仅数据拉取，不做行情订阅）。默认行为：仅当 lastState.cachedAccount 为空时调用
+ * trader.getAccountSnapshot 与 getStockPositions，否则直接使用已有缓存；成功后更新 lastState 的
+ * cachedAccount、cachedPositions 与 positionCache，失败时仅打日志不抛错。
  *
- * 调用场景：
- * - 程序启动时：缓存为空，调用 API 获取账户和持仓信息
- * - 订单成交后：缓存已由主循环刷新，直接使用缓存显示
- *
- * 仅当 lastState.cachedAccount 为空时调用 trader.getAccountSnapshot / getStockPositions。
- *
- * @param trader Trader 实例
- * @param lastState 状态对象，用于读取/更新缓存
+ * @param trader Trader 实例，用于拉取账户与持仓
+ * @param lastState 状态对象，用于读取/更新缓存（cachedAccount、cachedPositions、positionCache）
+ * @returns Promise<void>，无返回值；拉取失败时不抛错
  */
 export async function refreshAccountAndPositions(
   trader: Trader,

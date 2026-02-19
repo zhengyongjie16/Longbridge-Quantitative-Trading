@@ -2,7 +2,7 @@
  * delayedSignalVerifier 业务测试
  *
  * 功能：
- * - 围绕 business.test.ts 场景验证 tests/main/asyncProgram/delayedSignalVerifier 相关业务行为与边界条件。
+ * - 验证延迟验证通过/拒绝场景与指标边界及业务期望。
  */
 import { describe, expect, it } from 'bun:test';
 import { createIndicatorCache } from '../../../../src/main/asyncProgram/indicatorCache/index.js';

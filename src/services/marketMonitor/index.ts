@@ -66,7 +66,13 @@ function addPeriodIndicators(
   }
 }
 
-/** 显示标的行情信息 */
+/**
+ * 将标的行情与距回收价信息格式化并输出到日志。
+ * @param quote - 行情数据，可为 null
+ * @param symbol - 标的代码
+ * @param label - 显示标签（如「做多标的」）
+ * @param warrantDistanceInfo - 距回收价信息，可选
+ */
 function displayQuoteInfo(
   quote: Quote | null,
   symbol: string,
@@ -86,7 +92,10 @@ function displayQuoteInfo(
   }
 }
 
-/** 释放旧的监控值对象及其嵌套对象 */
+/**
+ * 将监控值对象及其嵌套的 ema/rsi/psy/kdj/macd 归还对象池，避免泄漏。
+ * @param monitorValues - 当前缓存的 MonitorValues，可为 null
+ */
 function releaseMonitorValuesObjects(monitorValues: MonitorValues | null): void {
   if (!monitorValues) return;
 
@@ -108,7 +117,12 @@ function releaseMonitorValuesObjects(monitorValues: MonitorValues | null): void 
   monitorValuesObjectPool.release(monitorValues);
 }
 
-/** 格式化指标值 */
+/**
+ * 将指标数值格式化为固定小数位字符串，无效值返回 '-'。
+ * @param value - 指标值
+ * @param decimals - 小数位数，默认 2
+ * @returns 格式化字符串或 '-'
+ */
 function formatIndicator(value: number | null | undefined, decimals: number = 2): string {
   if (isValidNumber(value)) {
     return value.toFixed(decimals);
@@ -116,7 +130,10 @@ function formatIndicator(value: number | null | undefined, decimals: number = 2)
   return '-';
 }
 
-/** 显示监控标的的所有指标 */
+/**
+ * 按固定顺序组装并输出监控标的的指标行（价格、涨跌幅、EMA/RSI/MFI/PSY/KDJ/MACD）。
+ * @param params - 含 monitorSnapshot、monitorQuote、周期数组、klineTimestamp 等
+ */
 function displayIndicators(params: {
   readonly monitorSnapshot: IndicatorSnapshot;
   readonly monitorQuote: Quote | null;

@@ -1,11 +1,12 @@
 /**
- * IndicatorCache 实现
- * 使用环形缓冲区管理内存，存储每秒的指标快照
+ * 指标缓存模块
  *
- * 数据独立性设计：
- * - push 时对 snapshot 进行深拷贝，确保存储的数据独立于外部对象池
- * - 这样主循环可以安全地释放 kdj/macd 等对象池对象，不影响缓存数据
- * - 延迟验证器查询历史数据时，数据保持完整有效
+ * 功能/职责：
+ * - 按监控标的维护环形缓冲区，存储每秒推送的指标快照，供延迟验证器按时间点查询
+ * - push 时对 snapshot 深拷贝后入库，使缓存与主循环对象池解耦，主循环释放 kdj/macd 不影响缓存
+ *
+ * 执行流程：
+ * - 主循环每秒 push(monitorSymbol, snapshot)；延迟验证器在验证时 getAt(monitorSymbol, targetTime, toleranceMs)
  */
 import { INDICATOR_CACHE } from '../../../constants/index.js';
 import type { IndicatorSnapshot } from '../../../types/quote.js';
@@ -18,9 +19,10 @@ import {
 } from './utils.js';
 
 /**
- * 创建指标缓存
- * @param options 配置选项
- * @returns 指标缓存实例
+ * 创建指标缓存。未传 options 或 maxEntries 时使用默认容量（INDICATOR_CACHE.TIMESERIES_DEFAULT_MAX_ENTRIES）。
+ *
+ * @param options 可选配置，maxEntries 为单标的环形缓冲区最大条目数
+ * @returns 指标缓存实例（push、getAt、clearAll）
  */
 export const createIndicatorCache = (options: IndicatorCacheOptions = {}): IndicatorCache => {
   const maxEntries = options.maxEntries ?? INDICATOR_CACHE.TIMESERIES_DEFAULT_MAX_ENTRIES;

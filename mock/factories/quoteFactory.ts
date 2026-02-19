@@ -15,6 +15,9 @@ import type {
 } from 'longport';
 import { toMockDecimal } from '../longport/decimal.js';
 
+/**
+ * 构造行情推送事件，用于模拟 QuoteContext 的 quote 推送。
+ */
 export function createPushQuoteEvent(params: {
   readonly symbol: string;
   readonly price: number;
@@ -41,6 +44,9 @@ export function createPushQuoteEvent(params: {
   return event as unknown as PushQuoteEvent;
 }
 
+/**
+ * 构造单根 K 线数据，供 K 线订阅或历史数据 Mock 使用。
+ */
 export function createCandlestick(params: {
   readonly close: number;
   readonly timestampMs?: number;
@@ -60,6 +66,9 @@ export function createCandlestick(params: {
   return candle as unknown as Candlestick;
 }
 
+/**
+ * 构造 K 线推送事件，用于模拟 candlestick 订阅推送。
+ */
 export function createPushCandlestickEvent(params: {
   readonly symbol: string;
   readonly close: number;
@@ -83,6 +92,9 @@ export function createPushCandlestickEvent(params: {
   return event as unknown as PushCandlestickEvent;
 }
 
+/**
+ * 构造轮证实时报价，供 warrantQuote Mock 使用；可指定 callPrice、category。
+ */
 export function createWarrantQuote(params: {
   readonly symbol: string;
   readonly callPrice: number;
@@ -116,6 +128,9 @@ export function createWarrantQuote(params: {
   return quote as unknown as WarrantQuote;
 }
 
+/**
+ * 构造轮证列表项，供 warrantList Mock 使用。
+ */
 export function createWarrantInfo(params: {
   readonly symbol: string;
   readonly warrantType: string;
@@ -152,6 +167,9 @@ export function createWarrantInfo(params: {
   return info as unknown as WarrantInfo;
 }
 
+/**
+ * 构造交易日查询结果，供 tradingDays Mock 使用。
+ */
 export function createTradingDaysResult(days: {
   readonly tradingDays: ReadonlyArray<string>;
   readonly halfTradingDays?: ReadonlyArray<string>;

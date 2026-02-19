@@ -1,24 +1,3 @@
-/**
- * 工具函数模块
- *
- * 功能：
- * - 标的代码格式校验（ticker.region）
- * - Decimal 类型转换
- * - 时间格式化（香港时区）
- * - 数值格式化
- * - 监控状态管理
- *
- * 核心函数：
- * - isSymbolWithRegion()：校验标的代码格式
- * - decimalToNumber() / toDecimal()：LongPort Decimal 类型转换
- * - toHongKongTimeIso() / toHongKongTimeLog()：UTC 到香港时间转换
- * - formatSymbolDisplay() / formatQuoteDisplay()：格式化显示
- * - formatError()：安全格式化错误对象
- * - isDefined() / isValidPositiveNumber()：类型检查辅助函数
- * - isBuyAction() / isSellAction()：信号动作判断
- * - sleep()：异步延迟函数
- * - initMonitorState() / releaseSnapshotObjects()：监控状态管理
- */
 import type { MonitorState } from '../../types/state.js';
 import type { IndicatorSnapshot, Quote } from '../../types/quote.js';
 import type { MonitorConfig } from '../../types/config.js';

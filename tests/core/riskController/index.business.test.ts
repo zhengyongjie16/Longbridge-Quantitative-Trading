@@ -2,7 +2,7 @@
  * riskController/index 业务测试
  *
  * 功能：
- * - 围绕 index.business.test.ts 场景验证 tests/core/riskController 相关业务行为与边界条件。
+ * - 验证风控组合（日内亏损/持仓/浮亏）场景意图与业务期望。
  */
 import { describe, expect, it } from 'bun:test';
 import { createRiskChecker } from '../../../src/core/riskController/index.js';

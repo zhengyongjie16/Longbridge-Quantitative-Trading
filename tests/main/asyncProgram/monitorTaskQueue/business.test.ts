@@ -2,7 +2,7 @@
  * monitorTaskQueue 业务测试
  *
  * 功能：
- * - 围绕 business.test.ts 场景验证 tests/main/asyncProgram/monitorTaskQueue 相关业务行为与边界条件。
+ * - 验证监控任务队列相关场景意图、边界条件与业务期望。
  */
 import { describe, expect, it } from 'bun:test';
 

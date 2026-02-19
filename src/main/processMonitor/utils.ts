@@ -134,10 +134,10 @@ export function getPositions(
 }
 
 /**
- * 从持仓缓存数据构造对象池 Position 实例。
+ * 从持仓缓存数据构造对象池 Position 实例，用于信号流水线等处的持仓查找。调用方需负责将返回对象释放回对象池。
  *
  * @param symbol 标的代码
- * @param source 持仓缓存中的原始数据
+ * @param source 持仓缓存中的原始持仓数据
  * @returns 从对象池获取并填充字段后的 Position 对象（调用方负责释放）
  */
 function createPositionFromCache(symbol: string, source: Position): Position {

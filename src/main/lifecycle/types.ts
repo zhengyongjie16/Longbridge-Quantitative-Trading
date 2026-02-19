@@ -47,7 +47,9 @@ export type LifecycleContext = Readonly<{
 
 /**
  * 缓存域接口，每个域负责自身数据的午夜清理与开盘重建。
- * 由 DayLifecycleManager 按注册顺序（清理）或逆序（重建）依次调用。
+ * 类型用途：依赖注入给 DayLifecycleManager，在跨日与开盘时被调用；midnightClear 按注册顺序、openRebuild 按逆序执行。
+ * 数据来源：由主程序注册各 CacheDomain 实现（如 globalStateDomain、orderDomain 等）。
+ * 使用范围：仅 lifecycle 模块及 cacheDomains 实现使用。
  */
 export interface CacheDomain {
   readonly midnightClear: (ctx: LifecycleContext) => Promise<void> | void;
@@ -55,7 +57,10 @@ export interface CacheDomain {
 }
 
 /**
- * 交易日生命周期管理器接口，对外暴露 tick 方法供主循环每秒驱动。
+ * 交易日生命周期管理器接口。
+ * 类型用途：对外暴露 tick 方法，供主循环每秒驱动；内部根据 dayKey 与状态执行午夜清理与开盘重建。
+ * 数据来源：由 createDayLifecycleManager(DayLifecycleManagerDeps) 返回。
+ * 使用范围：仅主程序 mainProgram 调用。
  */
 export interface DayLifecycleManager {
   readonly tick: (now: Date, runtime: LifecycleRuntimeFlags) => Promise<void>;
@@ -131,7 +136,10 @@ export type LoadTradingDayRuntimeSnapshotResult = Readonly<{
 }>;
 
 /**
- * loadTradingDayRuntimeSnapshot 的外部依赖，包含行情、交易、配置及辅助服务。
+ * loadTradingDayRuntimeSnapshot 的外部依赖。
+ * 类型用途：封装行情客户端、交易、配置及辅助服务，作为 loadTradingDayRuntimeSnapshot 的入参。
+ * 数据来源：由启动流程或开盘重建调用方组装传入。
+ * 使用范围：仅 lifecycle 内部使用。
  */
 export type LoadTradingDayRuntimeSnapshotDeps = Readonly<{
   marketDataClient: MarketDataClient;

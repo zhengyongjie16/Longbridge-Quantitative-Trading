@@ -17,6 +17,9 @@ import type {
 
 /**
  * 根据席位方向提取自动寻标阈值配置，避免错误混用多/空阈值。
+ * @param direction - 'LONG' | 'SHORT'
+ * @param config - 自动寻标配置
+ * @returns minDistancePct、minTurnoverPerMinute、switchDistanceRange（牛/熊对应配置）
  */
 export function resolveAutoSearchThresholds(
   direction: 'LONG' | 'SHORT',
@@ -39,7 +42,9 @@ export function resolveAutoSearchThresholds(
 }
 
 /**
- * 解析自动寻标阈值配置，校验多/空方向的必填阈值是否存在，缺失时记录错误并返回 null。
+ * 解析自动寻标阈值配置，校验多/空方向的必填阈值是否存在，缺失时打日志并返回 null。
+ * @param params - 含 direction、autoSearchConfig、monitorSymbol、logPrefix、logger
+ * @returns minDistancePct 与 minTurnoverPerMinute，缺失时 null
  */
 function resolveAutoSearchThresholdInput(
   params: ResolveAutoSearchThresholdInputParams,
@@ -60,7 +65,9 @@ function resolveAutoSearchThresholdInput(
 }
 
 /**
- * 构造 FindBestWarrantInput，获取行情上下文并计算当前交易分钟数，组装寻标所需的完整输入参数。
+ * 构造 FindBestWarrantInput：获取行情上下文、计算当日交易分钟数，组装寻标所需的完整入参。
+ * @param params - 含 direction、monitorSymbol、autoSearchConfig、currentTime、marketDataClient、阈值等
+ * @returns FindBestWarrantInput
  */
 async function buildFindBestWarrantInput(
   params: BuildFindBestWarrantInputParams,
@@ -95,6 +102,8 @@ async function buildFindBestWarrantInput(
 
 /**
  * 创建阈值解析器，将依赖注入绑定到内部函数，对外暴露统一的阈值解析与寻标输入构造接口。
+ * @param deps - 依赖（autoSearchConfig、monitorSymbol、marketDataClient、logger、getTradingMinutesSinceOpen 等）
+ * @returns 含 resolveAutoSearchThresholdInput、buildFindBestWarrantInput 的对象
  */
 export function createThresholdResolver(
   deps: ThresholdResolverDeps,

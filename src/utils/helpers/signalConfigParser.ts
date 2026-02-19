@@ -1,25 +1,3 @@
-/**
- * 信号配置解析模块
- *
- * 功能：
- * - 解析信号配置字符串
- * - 评估条件是否满足
- * - 提取配置中的 RSI/PSY 周期
- *
- * 配置格式：(RSI:6<20,MFI<15,D<20,J<-1)/3|(J<-20)
- * - 括号内是条件列表，逗号分隔
- * - /N：括号内条件需满足 N 项，不设则全部满足
- * - |：分隔不同条件组（最多3个），满足任一组即可
- * - 支持指标：RSI:n (n为1-100), PSY:n (n为1-100), MFI, K, D, J
- * - 支持运算符：< 和 >
- *
- * 核心函数：
- * - parseSignalConfig()：解析配置字符串
- * - evaluateCondition()：评估单个条件
- * - evaluateSignalConfig()：评估完整配置
- * - extractRSIPeriods()：提取 RSI 周期列表
- * - extractPsyPeriods()：提取 PSY 周期列表
- */
 import { validateRsiPeriod, validatePsyPeriod } from './indicatorHelpers.js';
 import type {
   Condition,
@@ -214,9 +192,10 @@ function parseConditionGroup(groupStr: string): ParsedConditionGroup | null {
 }
 
 /**
- * 解析完整的信号配置
+ * 将配置字符串解析为 SignalConfig。默认行为：空字符串或非字符串返回 null；最多解析 3 个条件组（| 分隔）；任一条件组解析失败则整体返回 null。
+ *
  * @param configStr 配置字符串，如 "(RSI:6<20,MFI<15,D<20,J<-1)/3|(J<-20)"
- * @returns 解析结果
+ * @returns 解析后的 SignalConfig，无效时返回 null
  */
 export function parseSignalConfig(configStr: string | null | undefined): SignalConfig | null {
   if (!configStr || typeof configStr !== 'string') {
@@ -361,10 +340,11 @@ function evaluateConditionGroup(state: IndicatorState, conditionGroup: Condition
 }
 
 /**
- * 根据指标状态评估完整的信号配置
- * @param state 指标状态
- * @param signalConfig 信号配置 {conditionGroups}
- * @returns 评估结果
+ * 根据指标状态评估完整信号配置，满足任一组即触发。默认行为：signalConfig 为空或无效时返回 triggered=false、reason 为「无效的信号配置」。
+ *
+ * @param state 指标状态（ema、rsi、psy、mfi、kdj 等）
+ * @param signalConfig 信号配置（conditionGroups）
+ * @returns 评估结果（triggered、satisfiedGroupIndex、satisfiedCount、reason）
  */
 export function evaluateSignalConfig(state: IndicatorState, signalConfig: SignalConfig | null): EvaluationResult {
   if (!signalConfig?.conditionGroups) {
@@ -416,9 +396,10 @@ export function evaluateSignalConfig(state: IndicatorState, signalConfig: Signal
 }
 
 /**
- * 格式化信号配置为可读字符串
+ * 将信号配置格式化为可读字符串（与配置格式一致）。默认行为：无效配置返回 "(无效配置)"。
+ *
  * @param signalConfig 信号配置
- * @returns 格式化字符串
+ * @returns 可读字符串，如 "(RSI:6<20,MFI<15)/3|(J<-20)"
  */
 export function formatSignalConfig(signalConfig: SignalConfig | null): string {
   if (!signalConfig?.conditionGroups) {
@@ -478,18 +459,20 @@ function extractIndicatorPeriods(
 }
 
 /**
- * 从信号配置中提取所有 RSI 周期（去重后排序）
- * @param signalConfig 信号配置集，为 null 时返回空数组
- * @returns 去重排序后的 RSI 周期数组
+ * 从信号配置集中提取所有 RSI 周期（去重后升序）。默认行为：signalConfig 为 null 时返回空数组。
+ *
+ * @param signalConfig 信号配置集（buycall/sellcall/buyput/sellput）
+ * @returns 去重并排序后的 RSI 周期数组
  */
 export function extractRSIPeriods(signalConfig: SignalConfigSet | null): number[] {
   return extractIndicatorPeriods(signalConfig, 'RSI:', (p) => Number.isFinite(p));
 }
 
 /**
- * 从信号配置中提取所有 PSY 周期（去重后排序）
- * @param signalConfig 信号配置集，为 null 时返回空数组
- * @returns 去重排序后的 PSY 周期数组
+ * 从信号配置集中提取所有 PSY 周期（去重后升序，仅有效周期）。默认行为：signalConfig 为 null 时返回空数组。
+ *
+ * @param signalConfig 信号配置集（buycall/sellcall/buyput/sellput）
+ * @returns 去重并排序后的 PSY 周期数组
  */
 export function extractPsyPeriods(signalConfig: SignalConfigSet | null): number[] {
   return extractIndicatorPeriods(signalConfig, 'PSY:', validatePsyPeriod);

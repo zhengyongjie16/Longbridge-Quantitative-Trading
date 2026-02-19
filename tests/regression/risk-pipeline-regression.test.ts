@@ -2,7 +2,7 @@
  * risk-pipeline 回归测试
  *
  * 功能：
- * - 围绕 risk-pipeline-regression.test.ts 场景验证 tests/regression 相关业务行为与边界条件。
+ * - 验证风险管道回归场景与业务期望。
  */
 import { describe, expect, it } from 'bun:test';
 

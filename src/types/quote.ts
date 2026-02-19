@@ -1,6 +1,8 @@
 /**
- * 行情静态信息
- * 来自 LongPort API，包含标的的基本信息和牛熊证相关字段
+ * 行情静态信息。
+ * 类型用途：标的静态元数据（名称、每手股数、回收价、到期日、牛熊证类型等），作为 Quote.staticInfo 的类型。
+ * 数据来源：LongPort 行情 API（如 getQuotes 返回的静态字段）。
+ * 使用范围：Quote、风控与牛熊证距离计算等；全项目可引用。
  */
 export type QuoteStaticInfo = {
   readonly nameHk?: string | null;
@@ -17,7 +19,9 @@ export type QuoteStaticInfo = {
 
 /**
  * 行情数据。
- * 数据来源为 LongPort 行情推送或 getQuotes。
+ * 类型用途：单标的实时行情快照，作为 getQuotes 返回值、策略与风控的行情入参。
+ * 数据来源：LongPort 行情推送或 getQuotes。
+ * 使用范围：行情客户端、策略、风控、订单监控等；全项目可引用。
  */
 export type Quote = {
   /** 标的代码 */
@@ -40,7 +44,9 @@ export type Quote = {
 
 /**
  * KDJ 随机指标。
- * 用于判断超买超卖；数据来源为指标计算（如 quote 层或 indicators 服务）。
+ * 类型用途：超买超卖判断的指标值（K/D/J），作为 IndicatorSnapshot.kdj、MonitorValues.kdj 及策略输入的字段类型。
+ * 数据来源：指标计算（indicators 服务或 quote 层）。
+ * 使用范围：IndicatorSnapshot、策略、data.MonitorValues 等；全项目可引用。
  */
 export type KDJIndicator = {
   /** K 值（快速随机值） */
@@ -68,7 +74,9 @@ export type MACDIndicator = {
 
 /**
  * 指标快照。
- * 用于信号判断与延迟验证。
+ * 类型用途：单次主循环的指标聚合结果，用于信号判断与延迟验证，作为策略与延迟验证器的入参。
+ * 数据来源：由 K 线与指标计算得到（如 indicatorCache、marketMonitor）。
+ * 使用范围：策略、DelayedSignalVerifier、RiskCheckContext 等；全项目可引用。
  */
 export type IndicatorSnapshot = {
   /** 标的代码（可选，因为 Quote 已包含） */

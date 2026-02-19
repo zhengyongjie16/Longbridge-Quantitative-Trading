@@ -2,7 +2,7 @@
  * tradeLogHydrator 业务测试
  *
  * 功能：
- * - 围绕 tradeLogHydrator.business.test.ts 场景验证 tests/services/liquidationCooldown 相关业务行为与边界条件。
+ * - 验证交易日志回放与清仓冷却恢复的场景与边界。
  */
 import { describe, expect, it } from 'bun:test';
 

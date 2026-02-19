@@ -1,31 +1,11 @@
-/**
- * 港股交易时间辅助函数模块
- *
- * 功能：
- * - UTC 时间转换为香港时区（UTC+8）
- * - 判断是否在港股连续交易时段
- * - 判断是否在开盘保护时段（暂缓信号）
- * - 判断是否在收盘前保护时段（拒绝买入/自动清仓）
- *
- * 港股交易时段：
- * - 正常交易日：09:30-12:00（上午），13:00-16:00（下午）
- * - 半日交易日：09:30-12:00（仅上午）
- *
- * 核心函数：
- * - getHKTime()：获取香港时区时间
- * - isInContinuousHKSession()：判断是否在连续交易时段
- * - isWithinMorningOpenProtection()：判断是否在早盘保护时段
- * - isWithinAfternoonOpenProtection()：判断是否在午盘保护时段
- * - isBeforeClose15Minutes()：判断是否在收盘前15分钟（拒绝买入）
- * - isBeforeClose5Minutes()：判断是否在收盘前5分钟（自动清仓）
- */
 import { TIME } from '../../constants/index.js';
 import type { HKTime } from './types.js';
 
 /**
- * 将UTC时间转换为香港时区（UTC+8）
- * @param date 时间对象（UTC时间）
- * @returns 香港时区的小时和分钟，如果date无效则返回null
+ * 将 UTC 时间转换为香港时区（UTC+8）的小时与分钟。默认行为：date 为 null/undefined 时返回 null。
+ *
+ * @param date 时间对象（UTC）
+ * @returns 香港时区的小时与分钟（hkHour、hkMinute），无效时返回 null
  */
 export function getHKTime(date: Date | null | undefined): HKTime | null {
   if (!date) return null;
@@ -39,9 +19,10 @@ export function getHKTime(date: Date | null | undefined): HKTime | null {
 }
 
 /**
- * 获取港股日期键（UTC+8）
+ * 获取港股日期键（UTC+8，YYYY-MM-DD）。默认行为：date 为 null/undefined 时返回 null。
+ *
  * @param date 时间对象
- * @returns YYYY-MM-DD 格式日期键，若无效则返回 null
+ * @returns YYYY-MM-DD 格式日期键，无效时返回 null
  */
 export function getHKDateKey(date: Date | null | undefined): string | null {
   if (!date) return null;
@@ -53,7 +34,8 @@ export function getHKDateKey(date: Date | null | undefined): string | null {
 }
 
 /**
- * 计算已开盘分钟数（不区分半日交易日）
+ * 计算当日已开盘分钟数（按正常交易日 09:30–12:00、13:00–16:00 累计，不区分半日市）。默认行为：date 无效或未开盘返回 0。
+ *
  * @param date 时间对象（UTC）
  * @returns 已开盘分钟数
  */
@@ -88,13 +70,11 @@ export function getTradingMinutesSinceOpen(date: Date | null | undefined): numbe
 }
 
 /**
- * 判断是否在港股连续交易时段（仅检查时间，不检查是否是交易日）
- * 港股连续交易时段：
- * - 正常交易日：上午 09:30 - 12:00，下午 13:00 - 16:00
- * - 半日交易日：仅上午 09:30 - 12:00（无下午时段）
- * @param date 时间对象（应该是UTC时间）
- * @param isHalfDay 是否是半日交易日
- * @returns true表示在连续交易时段，false表示不在
+ * 判断是否在港股连续交易时段（仅检查时间，不检查是否交易日）。默认行为：date 无效返回 false；半日市仅看上午 09:30–12:00，正常日含下午 13:00–16:00。
+ *
+ * @param date 时间对象（UTC）
+ * @param isHalfDay 是否为半日交易日
+ * @returns 在连续交易时段为 true，否则 false
  */
 export function isInContinuousHKSession(
   date: Date | null | undefined,

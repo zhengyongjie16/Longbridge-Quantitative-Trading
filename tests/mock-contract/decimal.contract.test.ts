@@ -2,7 +2,7 @@
  * decimal 契约测试
  *
  * 功能：
- * - 围绕 decimal.contract.test.ts 场景验证 tests/mock-contract 相关业务行为与边界条件。
+ * - 验证 Decimal Mock 契约与转换/比较行为。
  */
 import { describe, expect, it } from 'bun:test';
 import { Decimal } from 'longport';

@@ -18,7 +18,9 @@ import type { LiquidationCooldownTracker } from '../../../services/liquidationCo
 
 /**
  * 信号运行时域依赖。
- * 用于 createSignalRuntimeDomain 的依赖注入，仅 lifecycle 模块使用。
+ * 类型用途：createSignalRuntimeDomain 的入参，提供监控上下文、买卖/监控处理器、队列、refreshGate、releaseSignal 等。
+ * 数据来源：由 lifecycle 或主程序在注册 cacheDomains 时组装传入。
+ * 使用范围：仅 lifecycle 模块使用。
  */
 export type SignalRuntimeDomainDeps = Readonly<{
   monitorContexts: ReadonlyMap<string, MonitorContext>;
@@ -37,7 +39,9 @@ export type SignalRuntimeDomainDeps = Readonly<{
 
 /**
  * 席位域依赖。
- * 用于 createSeatDomain 的依赖注入，仅 lifecycle 模块使用。
+ * 类型用途：createSeatDomain 的入参，提供 tradingConfig、symbolRegistry、monitorContexts、warrantListCache。
+ * 数据来源：由 lifecycle 在注册 cacheDomains 时组装传入。
+ * 使用范围：仅 lifecycle 模块使用。
  */
 export type SeatDomainDeps = Readonly<{
   tradingConfig: MultiMonitorTradingConfig;
@@ -48,7 +52,9 @@ export type SeatDomainDeps = Readonly<{
 
 /**
  * 订单域依赖。
- * 用于 createOrderDomain 的依赖注入，仅 lifecycle 模块使用。
+ * 类型用途：createOrderDomain 的入参，提供 trader 用于午夜清理时重置运行时状态。
+ * 数据来源：由 lifecycle 在注册 cacheDomains 时传入。
+ * 使用范围：仅 lifecycle 模块使用。
  */
 export type OrderDomainDeps = Readonly<{
   trader: Trader;
@@ -56,7 +62,9 @@ export type OrderDomainDeps = Readonly<{
 
 /**
  * 风险域依赖。
- * 用于 createRiskDomain 的依赖注入，仅 lifecycle 模块使用。
+ * 类型用途：createRiskDomain 的入参，提供 signalProcessor、dailyLossTracker、monitorContexts、liquidationCooldownTracker。
+ * 数据来源：由 lifecycle 在注册 cacheDomains 时组装传入。
+ * 使用范围：仅 lifecycle 模块使用。
  */
 export type RiskDomainDeps = Readonly<{
   signalProcessor: SignalProcessor;
@@ -67,7 +75,9 @@ export type RiskDomainDeps = Readonly<{
 
 /**
  * 行情数据域依赖。
- * 用于 createMarketDataDomain 的依赖注入，仅 lifecycle 模块使用。
+ * 类型用途：createMarketDataDomain 的入参，提供 marketDataClient 用于午夜清理时重置订阅与缓存。
+ * 数据来源：由 lifecycle 在注册 cacheDomains 时传入。
+ * 使用范围：仅 lifecycle 模块使用。
  */
 export type MarketDataDomainDeps = Readonly<{
   marketDataClient: MarketDataClient;
@@ -75,7 +85,9 @@ export type MarketDataDomainDeps = Readonly<{
 
 /**
  * 全局状态域依赖。
- * 用于 createGlobalStateDomain 的依赖注入，仅 lifecycle 模块使用。
+ * 类型用途：createGlobalStateDomain 的入参，提供 lastState 与 runOpenRebuild 用于午夜清理与开盘重建。
+ * 数据来源：由 lifecycle 在注册 cacheDomains 时传入。
+ * 使用范围：仅 lifecycle 模块使用。
  */
 export type GlobalStateDomainDeps = Readonly<{
   lastState: LastState;

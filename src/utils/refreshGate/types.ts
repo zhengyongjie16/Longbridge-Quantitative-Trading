@@ -1,8 +1,8 @@
 /**
- * 等待者回调函数类型
- * 用途：表示在 RefreshGate 中排队等待缓存刷新完成的回调函数签名
- * 数据来源：由 waitForFresh() 内部创建并推入等待队列
- * 使用范围：仅限 refreshGate 模块内部使用
+ * 等待者回调函数类型。
+ * 类型用途：表示在 RefreshGate 中排队等待缓存刷新完成时的回调函数签名。
+ * 数据来源：由 waitForFresh() 内部创建并推入等待队列。
+ * 使用范围：仅 refreshGate 模块内部使用。
  */
 export type Waiter = () => void;
 
@@ -19,7 +19,9 @@ export type RefreshGateStatus = Readonly<{
 
 /**
  * 刷新门禁接口。
- * 通过版本号协调缓存刷新与异步处理器时序：markStale 标记过期、markFresh 标记刷新完成并唤醒等待者、waitForFresh 阻塞直至刷新、getStatus 返回状态；供主程序与 PostTradeRefresher 等使用。
+ * 类型用途：依赖注入用接口，通过版本号协调缓存刷新与异步处理器时序（markStale/markFresh/waitForFresh/getStatus），供主程序与 PostTradeRefresher 等使用。
+ * 数据来源：由 createRefreshGate 等工厂实现并注入。
+ * 使用范围：主程序、PostTradeRefresher、门禁逻辑等；全项目可引用。
  */
 export interface RefreshGate {
   readonly markStale: () => number;

@@ -2,7 +2,9 @@ import type { MonitorConfig } from '../types/config.js';
 
 /**
  * LongPort API 区域端点 URL。
- * HTTP、行情 WebSocket、交易 WebSocket 的 base URL；数据来源为 getRegionUrls 根据区域返回；仅 config 模块内部使用。
+ * 类型用途：封装 HTTP、行情 WebSocket、交易 WebSocket 的 base URL，作为 getRegionUrls 返回类型及 LongPort 初始化入参。
+ * 数据来源：getRegionUrls 根据区域返回。
+ * 使用范围：仅 config 模块内部使用。
  */
 export type RegionUrls = {
   readonly httpUrl: string;
@@ -24,6 +26,7 @@ export type ConfigValidationError = Error & {
 /**
  * 带上下限的数值配置读取参数。
  * 类型用途：作为 parseBoundedNumberConfig 的入参，从环境变量读取并校验范围内的数值。
+ * 数据来源：调用方从 process.env 及配置键传入。
  * 使用范围：仅 config 模块内部使用。
  */
 export type BoundedNumberConfig = {

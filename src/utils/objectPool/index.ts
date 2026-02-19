@@ -1,13 +1,3 @@
-/**
- * 对象池模块
- *
- * 复用高频创建的临时对象，减少 GC 压力。
- *
- * 导出的对象池：signalObjectPool、indicatorRecordPool、periodRecordPool、
- * kdjObjectPool、macdObjectPool、monitorValuesObjectPool、positionObjectPool。
- *
- * 核心方法：acquire()、release(obj)、releaseAll(objects)
- */
 import type {
   Factory,
   Reset,
@@ -21,11 +11,12 @@ import type {
 } from './types.js';
 
 /**
- * 创建通用对象池
+ * 创建通用对象池，池空时用 factory 创建新对象，release 时用 reset 重置后放回池中。默认行为：maxSize 未传时为 100。
+ *
  * @param factory 工厂函数，用于创建新对象
- * @param reset 重置函数，用于重置对象状态
- * @param maxSize 池的最大容量
- * @returns ObjectPool 接口实例
+ * @param reset 重置函数，用于归还时重置对象状态
+ * @param maxSize 池的最大容量，默认 100
+ * @returns ObjectPool 接口实例（acquire、release、releaseAll）
  */
 function createObjectPool<T>(
   factory: Factory<T>,

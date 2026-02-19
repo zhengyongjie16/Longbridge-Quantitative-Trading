@@ -6,6 +6,9 @@
  */
 import type { MonitorConfig, MultiMonitorTradingConfig } from '../../src/types/config.js';
 
+/**
+ * 构造单监控配置，供测试或 Mock 使用；未传字段使用默认监控/风控参数。
+ */
 export function createMonitorConfig(overrides: Partial<MonitorConfig> = {}): MonitorConfig {
   return {
     originalIndex: 1,
@@ -51,6 +54,9 @@ export function createMonitorConfig(overrides: Partial<MonitorConfig> = {}): Mon
   };
 }
 
+/**
+ * 构造多监控交易配置（含 global 与 monitors），供集成测试使用；支持部分覆盖。
+ */
 export function createTradingConfig(overrides: Partial<MultiMonitorTradingConfig> = {}): MultiMonitorTradingConfig {
   return {
     monitors: [createMonitorConfig()],

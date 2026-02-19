@@ -2,7 +2,7 @@
  * api-flaky-recovery 混沌测试
  *
  * 功能：
- * - 围绕 api-flaky-recovery.test.ts 场景验证 tests/chaos 相关业务行为与边界条件。
+ * - 验证 API 不稳定时的重试与恢复行为期望。
  */
 import { describe, expect, it } from 'bun:test';
 import { OrderSide, OrderType, type TradeContext } from 'longport';

@@ -2,7 +2,7 @@
  * riskCheckPipeline 业务测试
  *
  * 功能：
- * - 围绕 riskCheckPipeline.business.test.ts 场景验证 tests/core/signalProcessor 相关业务行为与边界条件。
+ * - 验证风险检查管道相关场景意图、边界条件与业务期望。
  */
 import { beforeEach, describe, expect, it } from 'bun:test';
 import type { RiskCheckContext } from '../../../src/types/services.js';

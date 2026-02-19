@@ -5,7 +5,13 @@ import type { CandleData, CandleValue } from '../../types/data.js';
 import type { PoolableKDJ, PoolableMACD } from '../../utils/objectPool/types.js';
 import type { EmaStreamState } from './types.js';
 
-/** K 线数据指纹：length_lastClose，用于检测数据是否变化 */
+/**
+ * 从 K 线长度与最后一根收盘价构造指纹字符串（格式 length_lastClose），供 getCandleFingerprint 等复用。
+ *
+ * @param candles - K 线数据数组（仅用 length）
+ * @param lastClose - 最后一根 K 线的收盘价
+ * @returns 指纹字符串，用于检测数据是否变化
+ */
 function buildDataFingerprint(
   candles: ReadonlyArray<CandleData>,
   lastClose: number,
@@ -54,6 +60,7 @@ export function toNumber(value: CandleValue): number {
  * 记录调试日志（仅在 IS_DEBUG 模式下输出）
  * @param message 日志消息
  * @param error 可选的错误对象
+ * @returns void
  */
 export function logDebug(message: string, error?: unknown): void {
   if (IS_DEBUG) {

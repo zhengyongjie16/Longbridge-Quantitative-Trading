@@ -2,7 +2,7 @@
  * autoSymbolTasks 业务测试
  *
  * 功能：
- * - 围绕 autoSymbolTasks.business.test.ts 场景验证 tests/main/processMonitor 相关业务行为与边界条件。
+ * - 验证自动寻标任务相关场景意图、边界条件与业务期望。
  */
 import { describe, expect, it } from 'bun:test';
 

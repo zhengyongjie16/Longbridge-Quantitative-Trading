@@ -16,6 +16,8 @@ import type {
 
 /**
  * 创建席位状态管理器，封装席位状态构建、更新、日内抑制记录与清空换标流程。
+ * @param deps - 依赖（monitorSymbol、symbolRegistry、switchStates、switchSuppressions、now、logger、getHKDateKey）
+ * @returns SeatStateManager 实例（buildSeatState、updateSeatState、resolveSuppression、markSuppression、clearSeat）
  */
 export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateManager {
   const {

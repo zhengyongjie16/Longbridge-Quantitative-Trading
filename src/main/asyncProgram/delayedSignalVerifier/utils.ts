@@ -6,8 +6,9 @@ import type { IndicatorCache, IndicatorCacheEntry } from '../indicatorCache/type
 import type { PendingSignalEntry, VerificationResult } from './types.js';
 
 /**
- * 生成信号的唯一 ID
- * @param signal 信号对象
+ * 生成延迟验证信号的唯一 ID。triggerTime 缺失时用 0，保证同一标的、动作、触发时刻仅对应一个 ID。
+ *
+ * @param signal 信号对象（需含 symbol、action、triggerTime）
  * @returns 格式为 "symbol:action:triggerTime" 的唯一标识
  */
 export const generateSignalId = (signal: Signal): string => {
@@ -16,8 +17,9 @@ export const generateSignalId = (signal: Signal): string => {
 };
 
 /**
- * 提取信号的初始指标值
- * @param signal 信号对象
+ * 从信号中提取指定指标的初始值（用于延迟验证对比）。任一指标缺失或非有限数则返回 null，默认不补默认值。
+ *
+ * @param signal 信号对象（需含 indicators1）
  * @param indicatorNames 需要提取的指标名称列表
  * @returns 指标名称到值的映射，若任一指标无效则返回 null
  */

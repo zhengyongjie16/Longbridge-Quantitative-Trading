@@ -20,7 +20,12 @@ import type {
   ValidationResult,
 } from './types.js';
 
-/** 创建配置验证错误对象 */
+/**
+ * 创建配置验证错误对象，供 validateAllConfig 在验证失败时抛出。
+ * @param message - 错误描述信息
+ * @param missingFields - 缺失的配置项键名列表，默认空数组
+ * @returns 带有 name 与 missingFields 的 ConfigValidationError
+ */
 function createConfigValidationError(
   message: string,
   missingFields: ReadonlyArray<string> = [],
@@ -32,12 +37,22 @@ function createConfigValidationError(
   });
 }
 
-/** 生成标的代码格式错误提示信息 */
+/**
+ * 生成标的代码格式错误提示信息，用于 validateRequiredSymbol 的日志与错误列表。
+ * @param prefix - 配置项前缀（如「监控标的 1」）
+ * @param envKey - 环境变量键名
+ * @param symbol - 当前配置的标的代码
+ * @returns 格式化的错误提示字符串
+ */
 function formatSymbolFormatError(prefix: string, envKey: string, symbol: string): string {
   return `${prefix}: ${envKey} 必须使用 ticker.region 格式（如 68711.HK），当前值: ${symbol}`;
 }
 
-/** 将清仓冷却配置格式化为可读字符串，用于日志输出 */
+/**
+ * 将清仓冷却配置格式化为可读字符串，用于 validateAllConfig 日志输出。
+ * @param config - 清仓冷却配置，未配置时为 null
+ * @returns 可读描述（如「30 分钟」「half-day」「未配置（不冷却）」）
+ */
 function formatLiquidationCooldownConfig(config: LiquidationCooldownConfig | null): string {
   if (!config) {
     return '未配置（不冷却）';
@@ -48,7 +63,11 @@ function formatLiquidationCooldownConfig(config: LiquidationCooldownConfig | nul
   return config.mode;
 }
 
-/** 验证必填标的代码是否已配置且格式正确，返回更新后的 errors/missingFields */
+/**
+ * 验证必填标的代码是否已配置且格式正确（ticker.region），返回更新后的 errors 与 missingFields。
+ * @param context - 标的校验上下文（prefix、symbol、envKey、errors、missingFields）
+ * @returns 更新后的 errors 与 missingFields
+ */
 function validateRequiredSymbol({
   prefix,
   symbol,
@@ -72,7 +91,11 @@ function validateRequiredSymbol({
 }
 
 /**
- * 记录交易标的使用情况并检测重复配置。
+ * 记录交易标的使用情况并检测重复配置，用于 validateTradingConfig 中不允许多监控共用同一交易标的。
+ * @param symbol - 交易标的代码
+ * @param index - 当前监控标的索引
+ * @param tradingSymbols - 已出现过的标的 -> 索引 Map
+ * @param duplicateSymbols - 重复记录输出数组，发现重复时 push 一条记录
  */
 function recordTradingSymbolUsage(
   symbol: string,
@@ -92,7 +115,11 @@ function recordTradingSymbolUsage(
   tradingSymbols.set(symbol, index);
 }
 
-/** 验证 LongPort API 凭证是否已配置 */
+/**
+ * 验证 LongPort API 凭证是否已配置（APP_KEY、APP_SECRET、ACCESS_TOKEN），占位符视为未配置。
+ * @param env - 进程环境变量
+ * @returns 验证结果（valid、errors）
+ */
 async function validateLongPortConfig(env: NodeJS.ProcessEnv): Promise<ValidationResult> {
   const errors: string[] = [];
 
@@ -113,7 +140,14 @@ async function validateLongPortConfig(env: NodeJS.ProcessEnv): Promise<Validatio
   };
 }
 
-/** 从行情数据验证标的有效性（交易标的需要 lotSize，监控标的不需要） */
+/**
+ * 从行情数据验证标的有效性：存在性、名称（仅警告）、交易标的要求 lotSize。
+ * @param quote - 标的行情数据，不存在时为 null
+ * @param symbol - 标的代码
+ * @param symbolLabel - 用于错误信息的标签（如「做多标的」）
+ * @param requireLotSize - 是否要求 lotSize（交易标的为 true）
+ * @returns 验证结果（valid、error）
+ */
 function validateSymbolFromQuote(
   quote: Quote | null,
   symbol: string,
@@ -150,7 +184,13 @@ function validateSymbolFromQuote(
   return { valid: true };
 }
 
-/** 验证单个监控标的的配置完整性 */
+/**
+ * 验证单个监控标的的配置完整性（标的、归属映射、金额、风控、信号配置、自动寻标参数等）。
+ * @param config - 监控标的配置
+ * @param index - 监控标的索引（用于错误前缀）
+ * @param env - 进程环境变量
+ * @returns 该监控标的的验证结果（valid、errors、missingFields）
+ */
 function validateMonitorConfig(
   config: MonitorConfig,
   index: number,
@@ -324,7 +364,12 @@ function validateMonitorConfig(
   };
 }
 
-/** 验证所有监控标的的交易配置（含重复标的检测） */
+/**
+ * 验证所有监控标的的交易配置，含重复标的检测与订单归属映射冲突检测。
+ * @param tradingConfig - 多监控标的交易配置
+ * @param env - 进程环境变量
+ * @returns 整体验证结果（valid、errors、missingFields）
+ */
 function validateTradingConfig(
   tradingConfig: MultiMonitorTradingConfig,
   env: NodeJS.ProcessEnv,

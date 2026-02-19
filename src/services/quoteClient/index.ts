@@ -166,13 +166,9 @@ function createTradingDayCache(): {
 }
 
 /**
- * 创建行情数据客户端（WebSocket 订阅模式）
- *
- * - 创建时自动初始化 WebSocket 订阅
- * - getQuotes() 从本地缓存读取，无 HTTP 请求
- * - 订阅模式是默认且唯一的行情获取方式
- *
- * @param deps 依赖注入
+ * 创建行情数据客户端（WebSocket 订阅模式）。创建时初始化 QuoteContext，getQuotes 从本地缓存读取。
+ * @param deps - 依赖注入，包含 LongPort Config
+ * @returns Promise<MarketDataClient>，提供 getQuotes、subscribeSymbols、subscribeCandlesticks、isTradingDay 等
  */
 export async function createMarketDataClient(
   deps: MarketDataClientDeps,

@@ -22,8 +22,9 @@ import {
 } from './utils.js';
 
 /**
- * 将 JSON 解析结果规范化为 TradeRecord，对每个字段做类型安全转换。
- * 清仓冷却仅依赖结构键值，局部信任 JSON 解析结果并做结构性断言。
+ * 将 JSON 解析结果规范化为 TradeRecord，对每个字段做类型安全转换；清仓冷却仅依赖结构键值，局部信任 JSON 解析结果。
+ * @param raw - 单条日志解析后的未知类型
+ * @returns 规范化后的 TradeRecord，无效时 null
  */
 function normalizeTradeRecord(raw: unknown): TradeRecord | null {
   if (!raw || typeof raw !== 'object') {

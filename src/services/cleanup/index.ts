@@ -18,8 +18,9 @@ import { CleanupContext } from './types.js';
 import { releaseAllMonitorSnapshots } from './utils.js';
 
 /**
- * 创建清理函数
- * @param context 清理上下文，包含需要清理的资源
+ * 创建程序退出时的清理函数，负责按顺序停止处理器、销毁验证器、清空缓存并注册 SIGINT/SIGTERM。
+ * @param context - 清理上下文，包含需要停止与释放的处理器、行情客户端、监控上下文等
+ * @returns 包含 execute（执行清理）与 registerExitHandlers（注册退出信号）的对象
  */
 export function createCleanup(context: CleanupContext): {
   execute: () => Promise<void>;

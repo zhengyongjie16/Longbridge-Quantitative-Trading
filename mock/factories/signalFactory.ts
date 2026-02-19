@@ -6,6 +6,9 @@
  */
 import type { Signal, SignalType } from '../../src/types/signal.js';
 
+/**
+ * 按测试需求构造可定制字段的交易信号，未传字段使用默认值（如 reason、seatVersion、triggerTime）。
+ */
 export function createSignal(params: {
   readonly symbol: string;
   readonly action: SignalType;

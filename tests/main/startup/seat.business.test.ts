@@ -2,7 +2,7 @@
  * startup/seat 业务测试
  *
  * 功能：
- * - 围绕 seat.business.test.ts 场景验证 tests/main/startup 相关业务行为与边界条件。
+ * - 验证席位解析与就绪状态的场景与边界。
  */
 import { describe, expect, it } from 'bun:test';
 import { WarrantStatus, WarrantType, type WarrantInfo } from 'longport';

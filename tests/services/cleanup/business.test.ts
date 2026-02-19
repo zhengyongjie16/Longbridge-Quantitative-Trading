@@ -2,7 +2,7 @@
  * cleanup 业务测试
  *
  * 功能：
- * - 围绕 business.test.ts 场景验证 tests/services/cleanup 相关业务行为与边界条件。
+ * - 验证退出时排空处理器、销毁延迟验证器与释放资源的流程与边界。
  */
 import { describe, expect, it } from 'bun:test';
 

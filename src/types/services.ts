@@ -30,8 +30,10 @@ export type TradingDaysResult = {
 };
 
 /**
- * 交易日信息
- * 用于判断当前是否为交易日及是否为半日市
+ * 交易日信息。
+ * 类型用途：表示某日是否为交易日及是否为半日市，作为 isTradingDay 返回值、门禁与跨日逻辑的入参。
+ * 数据来源：LongPort 交易日 API（如 trading_days）或行情客户端 isTradingDay。
+ * 使用范围：行情客户端、生命周期、门禁等；全项目可引用。
  */
 export type TradingDayInfo = {
   /** 是否为交易日 */
@@ -454,8 +456,10 @@ export type UnrealizedLossCheckResult = {
 };
 
 /**
- * 持仓缓存接口
- * 使用 Map 提供 O(1) 查找性能
+ * 持仓缓存接口。
+ * 类型用途：依赖注入用接口，提供基于标的代码的 O(1) 持仓查找，作为 LastState.positionCache、RiskCheckContext 等类型。
+ * 数据来源：由主循环/刷新流程根据 getStockPositions 结果调用 update 维护。
+ * 使用范围：LastState、RiskChecker、主循环等；全项目可引用。
  */
 export interface PositionCache {
   /** 更新持仓缓存 */
@@ -465,8 +469,10 @@ export interface PositionCache {
 }
 
 /**
- * 风险检查上下文
- * 执行信号处理时的完整上下文信息
+ * 风险检查上下文。
+ * 类型用途：执行信号处理与风控时的完整上下文（交易器、风控器、行情、账户、配置等），作为 processSignal、风控检查的入参。
+ * 数据来源：由主循环/processMonitor 根据 MonitorContext 与 LastState 组装传入。
+ * 使用范围：信号处理、风控检查等；全项目可引用。
  */
 export type RiskCheckContext = {
   /** 交易器 */
@@ -512,8 +518,10 @@ export type RiskCheckContext = {
 };
 
 /**
- * 风险检查器接口
- * 门面模式，协调牛熊证风险、持仓限制和浮亏检查
+ * 风险检查器接口。
+ * 类型用途：依赖注入用接口，门面模式协调牛熊证风险、持仓限制与浮亏检查，供信号处理与买卖流程调用。
+ * 数据来源：实现层对接行情与订单记录；牛熊证/浮亏数据由内部缓存与 API 维护。
+ * 使用范围：MonitorContext、信号处理、主循环等；全项目可引用。
  */
 export interface RiskChecker {
   /** 从透传的回收价设置牛熊证信息（不调用 API） */

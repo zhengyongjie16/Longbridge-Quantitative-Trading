@@ -6,7 +6,12 @@ import type { OrderOwnership } from '../orderRecorder/types.js';
 import type { OrderOwnershipDiagnostics, OrderOwnershipDiagnosticSample } from './types.js';
 
 /**
- * 生成香港时间日键（YYYY/MM/DD），用于筛选当日订单。
+ * 生成香港时间日键（YYYY/MM/DD），用于筛选当日订单与诊断。
+ * 日期无效或 toHongKongTimeIso 返回格式不含至少三段时返回 null。
+ *
+ * @param toHongKongTimeIso 将日期转为香港时间 ISO 字符串的函数（如 "YYYY/MM/DD HH:mm:ss"）
+ * @param date 待转换的日期
+ * @returns 日键字符串 "YYYY/MM/DD"，无效时返回 null
  */
 export function resolveHongKongDayKey(
   toHongKongTimeIso: (date: Date | null) => string,
@@ -24,7 +29,11 @@ export function resolveHongKongDayKey(
 }
 
 /**
- * 汇总订单成本：成交价 * 成交量。
+ * 汇总订单成本：各订单成交价 × 成交数量之和，用于当日亏损偏移计算。
+ * 价格或数量无效的订单不计入。
+ *
+ * @param orders 订单记录列表
+ * @returns 总成本金额（港币）
  */
 export function sumOrderCost(orders: ReadonlyArray<OrderRecord>): number {
   let total = 0;

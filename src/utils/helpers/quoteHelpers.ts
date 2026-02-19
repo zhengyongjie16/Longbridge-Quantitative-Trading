@@ -1,14 +1,3 @@
-/**
- * 行情数据辅助函数模块
- *
- * 功能：
- * - 收集监控配置中所有需要获取行情的标的代码
- * - 批量获取行情数据，减少 API 调用次数
- *
- * 核心函数：
- * - collectAllQuoteSymbols()：收集所有标的代码
- * - batchGetQuotes()：批量获取行情数据
- */
 import type { Position } from '../../types/account.js';
 import type { Quote } from '../../types/quote.js';
 import type { SymbolRegistry } from '../../types/seat.js';
@@ -50,14 +39,13 @@ function collectAllQuoteSymbols(
 }
 
 /**
- * 收集运行时需要获取行情的标的代码集合
- * 包括监控配置中的标的、当前持仓标的、订单持有标的
+ * 收集运行时需要获取行情的标的代码集合（监控标的 + 席位占用标的 + 持仓标的 + 订单持有标的）。默认行为：合并去重后返回 Set。
  *
- * @param monitorConfigs 监控配置数组
- * @param symbolRegistry 标的注册表
+ * @param monitorConfigs 监控配置数组（monitorSymbol、longSymbol、shortSymbol）
+ * @param symbolRegistry 标的注册表，用于解析席位当前占用标的
  * @param positions 当前持仓数组
  * @param orderHoldSymbols 订单持有标的集合
- * @returns 所有需要获取行情的标的代码集合
+ * @returns 需要拉取行情的标的代码集合
  */
 export function collectRuntimeQuoteSymbols(
   monitorConfigs: ReadonlyArray<{
@@ -84,10 +72,11 @@ export function collectRuntimeQuoteSymbols(
 }
 
 /**
- * 计算行情标的集合的增量变化
- * @param prevSymbols 上一次订阅的标的集合
- * @param nextSymbols 最新需要订阅的标的集合
- * @returns 新增与移除的标的列表
+ * 计算两个行情标的集合的增量（新增与移除）。默认行为：遍历比较后返回 added/removed 数组。
+ *
+ * @param prevSymbols 上一次的标的集合
+ * @param nextSymbols 当前需要的标的集合
+ * @returns 新增标的数组（added）与移除标的数组（removed）
  */
 export function diffQuoteSymbols(
   prevSymbols: ReadonlySet<string>,
@@ -112,11 +101,11 @@ export function diffQuoteSymbols(
 }
 
 /**
- * 批量获取行情数据
+ * 批量获取行情数据。默认行为：symbols 为空时返回空 Map，否则调用 marketDataClient.getQuotes。
  *
  * @param marketDataClient 行情客户端
- * @param symbols 标的代码列表
- * @returns 标的代码到行情数据的 Map
+ * @param symbols 标的代码可迭代对象
+ * @returns 标的代码到行情数据的 Map（无行情时为 null）
  */
 export async function batchGetQuotes(
   marketDataClient: MarketDataClient,

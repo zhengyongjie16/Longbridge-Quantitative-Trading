@@ -16,7 +16,12 @@ import type {
 } from './types.js';
 import { resolveNextSearchFailureState } from './utils.js';
 
-/** 从持仓列表中提取指定标的的持仓信息 */
+/**
+ * 从持仓列表中提取指定标的的持仓信息。
+ * @param positions - 持仓列表
+ * @param symbol - 标的代码
+ * @returns 匹配的持仓，无则 null
+ */
 function extractPosition(
   positions: ReadonlyArray<Position>,
   symbol: string,
@@ -28,8 +33,9 @@ function extractPosition(
 }
 
 /**
- * 创建换标状态机，管理从撤单到回补买入的完整换标流程。
- * 通过距回收价阈值判断触发换标，含日内抑制与候选标的预寻标。
+ * 创建换标状态机，管理从撤单到回补买入的完整换标流程；通过距回收价阈值触发，含日内抑制与预寻标。
+ * @param deps - 依赖（trader、orderRecorder、riskChecker、switchStates、buildOrderSignal、signalObjectPool 等）
+ * @returns SwitchStateMachine 实例（maybeSwitchOnDistance、hasPendingSwitch）
  */
 export function createSwitchStateMachine(
   deps: SwitchStateMachineDeps,

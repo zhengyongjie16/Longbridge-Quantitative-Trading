@@ -26,7 +26,9 @@ export type ProcessMonitorParams = {
 
 /**
  * 队列清理结果。
- * 由 clearQueuesForMonitor 等返回，供主程序统计。
+ * 类型用途：clearQueuesForDirection 等队列清理函数的返回结果，供主程序或调用方统计移除数量。
+ * 数据来源：由 clearQueuesForDirection(params) 计算并返回。
+ * 使用范围：仅 processMonitor 内部及 seatSync 等调用方使用。
  */
 export type QueueClearResult = Readonly<{
   removedDelayed: number;
@@ -37,7 +39,9 @@ export type QueueClearResult = Readonly<{
 
 /**
  * AUTO_SYMBOL 任务调度参数。
- * 仅 processMonitor 内部使用。
+ * 类型用途：scheduleAutoSymbolTasks 的入参，封装自动换标任务调度所需的监控标的、上下文、行情与状态。
+ * 数据来源：由 processMonitor 从 ProcessMonitorParams、行情与席位等组装传入。
+ * 使用范围：仅 processMonitor 内部（autoSymbolTasks）使用。
  */
 export type AutoSymbolTasksParams = Readonly<{
   monitorSymbol: string;

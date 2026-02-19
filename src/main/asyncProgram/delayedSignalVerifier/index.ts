@@ -1,18 +1,14 @@
 /**
- * DelayedSignalVerifier 实现
+ * 延迟信号验证器模块
  *
- * 使用 setTimeout 自行计时进行延迟验证
+ * 功能/职责：
+ * - 对延迟验证类信号使用 setTimeout 计时，在约定时间点从 IndicatorCache 取指标进行趋势验证
+ * - 通过则触发 onVerified 入队执行，不通过则触发 onRejected 并释放信号回对象池
  *
- * 验证逻辑：
- * - BUYCALL/SELLPUT：T0、T0+5s、T0+10s 的值都 > 初始值（上涨趋势）
- * - BUYPUT/SELLCALL：T0、T0+5s、T0+10s 的值都 < 初始值（下跌趋势）
- * - 所有配置的验证指标在所有 3 个时间点都必须满足条件
- *
- * 时间计算：
- * - triggerTime = signal.triggerTime（由 strategy 设置）
- * - verifyTime = triggerTime + READY_DELAY_SECONDS
- * - 验证时查询 IndicatorCache 获取 T0、T0+5s、T0+10s 的数据
- * - 时间容忍度为 ±5秒
+ * 执行流程：
+ * - 入队时记录 triggerTime，verifyTime = triggerTime + READY_DELAY_SECONDS
+ * - 验证时查询 IndicatorCache 获取 T0、T0+5s、T0+10s 的数据（时间容忍度 ±5 秒）
+ * - BUYCALL/SELLPUT：三时间点指标均 > 初始值（上涨）；BUYPUT/SELLCALL：均 < 初始值（下跌）
  */
 import { logger } from '../../../utils/logger/index.js';
 import { signalObjectPool } from '../../../utils/objectPool/index.js';
@@ -29,7 +25,10 @@ import type {
 import { generateSignalId, extractInitialIndicators, performVerification } from './utils.js';
 
 /**
- * 创建延迟信号验证器
+ * 创建延迟信号验证器。负责管理待验证信号、定时触发验证、调用 performVerification 并执行通过/拒绝回调。
+ *
+ * @param deps 依赖注入，包含 indicatorCache、verificationConfig
+ * @returns DelayedSignalVerifier 实例（addPending、onVerified、onRejected、cancelAll 等）
  */
 export function createDelayedSignalVerifier(
   deps: DelayedSignalVerifierDeps,

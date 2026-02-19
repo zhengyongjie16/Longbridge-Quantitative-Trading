@@ -14,7 +14,9 @@ import type {
 } from './types.js';
 
 /**
- * 将方向映射到对应的买卖动作与牛熊方向。
+ * 将方向映射到对应的买卖动作与牛熊方向（LONG→BUYCALL/SELLCALL，SHORT→BUYPUT/SELLPUT）。
+ * @param direction - 'LONG' | 'SHORT'
+ * @returns isBull、buyAction、sellAction
  */
 export function resolveDirectionSymbols(direction: 'LONG' | 'SHORT'): {
   readonly isBull: boolean;
@@ -30,8 +32,11 @@ export function resolveDirectionSymbols(direction: 'LONG' | 'SHORT'): {
 }
 
 /**
- * 根据名义金额计算买入数量，并按 lotSize 向下取整。
- * 无法满足最小手数时返回 null。
+ * 根据名义金额计算买入数量，按 lotSize 向下取整；无法满足最小手数时返回 null。
+ * @param notional - 名义金额
+ * @param price - 价格
+ * @param lotSize - 每手股数
+ * @returns 手数（整数），不满足最小手数时 null
  */
 export function calculateBuyQuantityByNotional(
   notional: number,
@@ -54,6 +59,8 @@ export function calculateBuyQuantityByNotional(
 
 /**
  * 创建信号构造器，绑定对象池依赖，对外暴露 buildOrderSignal 方法。
+ * @param deps - 依赖，包含 signalObjectPool
+ * @returns 含 buildOrderSignal 的对象
  */
 export function createSignalBuilder(
   deps: SignalBuilderDeps,

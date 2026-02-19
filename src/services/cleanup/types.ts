@@ -7,8 +7,10 @@ import type { LastState, MonitorContext } from '../../types/state.js';
 import type { MarketDataClient } from '../../types/services.js';
 
 /**
- * 清理上下文接口，包含程序退出时需要清理的所有资源引用。
- * 由主程序构造并传入 createCleanup，仅在 cleanup 模块内部使用。
+ * 清理上下文接口。
+ * 类型用途：作为 createCleanup 的入参，封装程序退出时需要释放的处理器与资源引用。
+ * 数据来源：由主程序构造并传入 createCleanup。
+ * 使用范围：仅 cleanup 模块内部使用。
  */
 export type CleanupContext = {
   readonly buyProcessor: Processor;

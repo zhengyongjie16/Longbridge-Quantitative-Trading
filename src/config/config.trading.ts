@@ -49,6 +49,8 @@ function parseSignalConfigFromEnv(
 /**
  * 解析带上下限的数值配置，超出范围时截断至边界值并输出警告。
  * 用于需要强制约束范围的配置项（如超时秒数、间隔时间等）。
+ * @param options - 包含 env、envKey、defaultValue、min、max 的配置对象
+ * @returns 解析后的数值（未配置时返回 defaultValue，超出范围时截断为 min/max）
  */
 function parseBoundedNumberConfig({
   env,

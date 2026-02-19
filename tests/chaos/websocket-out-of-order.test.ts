@@ -2,7 +2,7 @@
  * websocket-out-of-order 混沌测试
  *
  * 功能：
- * - 围绕 websocket-out-of-order.test.ts 场景验证 tests/chaos 相关业务行为与边界条件。
+ * - 验证 WebSocket 乱序场景下的行为与恢复期望。
  */
 import { describe, expect, it } from 'bun:test';
 import {

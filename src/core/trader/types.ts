@@ -91,7 +91,9 @@ export type OrderTypeResolutionConfig = {
 
 /**
  * 交易记录。
- * 用于日志持久化（JSON 文件）。
+ * 类型用途：用于日志持久化（JSON 文件），单条成交或订单状态变更的日志结构。
+ * 数据来源：由 TradeLogger、OrderMonitor 等根据订单与信号构造并写入文件。
+ * 使用范围：trader 模块内部与日志持久化；外部仅读取日志文件时使用。
  */
 export type TradeRecord = {
   readonly orderId: string | null;

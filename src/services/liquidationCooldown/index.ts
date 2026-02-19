@@ -1,7 +1,8 @@
 /**
  * 清仓冷却追踪器
  *
- * 记录保护性清仓成交时间，并计算剩余冷却时间。
+ * 功能/职责：记录保护性清仓成交时间，并计算剩余冷却时间。
+ * 执行流程：调用方通过 recordCooldown 记录成交时间，通过 getRemainingMs 查询剩余冷却毫秒数，跨日时通过 clearMidnightEligible 清理指定键的冷却记录。
  */
 import type {
   ClearMidnightEligibleParams,
@@ -20,9 +21,12 @@ import { getHKTime } from '../../utils/helpers/tradingTime.js';
 
 /**
  * 根据清仓成交时间与冷却模式计算冷却结束时间戳。
- * - minutes：按分钟数直接叠加
- * - one-day：冷却到下一自然日 00:00（香港时间）
- * - half-day：上午清仓冷却到当日 13:00，下午清仓冷却到次日 00:00（香港时间）
+ * 默认行为：cooldownConfig 为 null 或 executedTimeMs 无效时返回 null。
+ * 按 mode 行为：minutes 按配置分钟数在成交时间上叠加；one-day 为下一自然日 00:00（香港时间）；half-day 为上午清仓冷却到当日 13:00、下午清仓冷却到次日 00:00（香港时间）。
+ *
+ * @param executedTimeMs - 保护性清仓成交时间戳（毫秒）
+ * @param cooldownConfig - 冷却配置，null 时返回 null
+ * @returns 冷却结束时间戳（毫秒），无效时 null
  */
 function resolveCooldownEndMs(
   executedTimeMs: number,
@@ -74,6 +78,8 @@ function resolveCooldownEndMs(
 /**
  * 创建清仓冷却追踪器，记录保护性清仓成交时间并计算剩余冷却时长。
  * 内部以 symbol:direction 为键存储成交时间戳，查询时按冷却模式动态计算结束时间。
+ * @param deps - 依赖，包含 nowMs（当前时间毫秒）
+ * @returns LiquidationCooldownTracker 实例（recordCooldown、getRemainingMs、clearMidnightEligible）
  */
 export function createLiquidationCooldownTracker(
   deps: LiquidationCooldownTrackerDeps,

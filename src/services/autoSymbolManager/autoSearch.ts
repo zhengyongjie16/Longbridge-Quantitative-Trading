@@ -11,8 +11,9 @@ import type { AutoSearchDeps, AutoSearchManager, SearchOnTickParams } from './ty
 import { isSeatFrozenToday, resolveNextSearchFailureState } from './utils.js';
 
 /**
- * 创建自动寻标子模块，管理空席位的寻标触发、冷却控制与失败冻结逻辑。
- * 每 tick 检查席位状态，满足条件时调用 findBestWarrant 并更新席位。
+ * 创建自动寻标子模块，管理空席位的寻标触发、冷却控制与失败冻结逻辑；每 tick 检查席位状态，满足条件时调用 findBestWarrant 并更新席位。
+ * @param deps - 依赖（autoSearchConfig、symbolRegistry、buildSeatState、updateSeatState、resolveAutoSearchThresholdInput、buildFindBestWarrantInput、findBestWarrant 等）
+ * @returns AutoSearchManager 实例（maybeSearchOnTick）
  */
 export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
   const {

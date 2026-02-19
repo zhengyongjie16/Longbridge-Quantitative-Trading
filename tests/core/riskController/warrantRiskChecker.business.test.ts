@@ -2,7 +2,7 @@
  * warrantRiskChecker 业务测试
  *
  * 功能：
- * - 围绕 warrantRiskChecker.business.test.ts 场景验证 tests/core/riskController 相关业务行为与边界条件。
+ * - 验证牛熊证距离阈值、回收价与清算边界的场景意图与业务期望。
  */
 import { describe, expect, it } from 'bun:test';
 import {

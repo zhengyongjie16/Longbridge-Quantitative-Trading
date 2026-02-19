@@ -2,7 +2,7 @@
  * tradeContext 契约测试
  *
  * 功能：
- * - 围绕 tradeContext.contract.test.ts 场景验证 tests/mock-contract 相关业务行为与边界条件。
+ * - 验证 TradeContext Mock 契约与调用行为。
  */
 import { describe, expect, it } from 'bun:test';
 import { OrderSide, OrderStatus, OrderType, TimeInForceType, TopicType } from 'longport';

@@ -17,6 +17,10 @@ import {
 } from 'longport';
 import { toMockDecimal } from '../longport/decimal.js';
 
+/**
+ * 构造符合 LongPort Order 形状的订单对象，供测试或 Mock 使用。
+ * 未传字段使用默认值（如 status=New、quantity=100）。
+ */
 export function createOrder(params: {
   readonly orderId: string;
   readonly symbol: string;
@@ -63,6 +67,9 @@ export function createOrder(params: {
   return order as unknown as Order;
 }
 
+/**
+ * 构造订单变更推送事件，用于模拟 TradeContext 的 orderChanged 推送。
+ */
 export function createPushOrderChanged(params: {
   readonly orderId: string;
   readonly symbol: string;
@@ -107,6 +114,9 @@ export function createPushOrderChanged(params: {
   return event as unknown as PushOrderChanged;
 }
 
+/**
+ * 构造成交记录，供今日成交查询等 Mock 使用。
+ */
 export function createExecution(orderId: string, symbol: string, quantity: number, price: number): Execution {
   const execution = {
     orderId,
@@ -119,6 +129,9 @@ export function createExecution(orderId: string, symbol: string, quantity: numbe
   return execution as unknown as Execution;
 }
 
+/**
+ * 构造账户余额对象，供 accountBalance 等 Mock 使用。
+ */
 export function createAccountBalance(availableCash: number): AccountBalance {
   const balance = {
     totalCash: toMockDecimal(availableCash),
@@ -146,6 +159,9 @@ export function createAccountBalance(availableCash: number): AccountBalance {
   return balance as unknown as AccountBalance;
 }
 
+/**
+ * 构造持仓响应，供 stockPositions Mock 使用；可指定标的、数量与可卖数量。
+ */
 export function createStockPositionsResponse(params: {
   readonly symbol: string;
   readonly quantity: number;

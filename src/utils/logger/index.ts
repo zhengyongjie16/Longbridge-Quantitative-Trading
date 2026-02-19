@@ -36,6 +36,7 @@ import type { LogObject, Logger } from './types.js';
  * @param maxFiles 最多保留文件数（含即将写入的当日文件）
  * @param extension 扩展名（不含点），如 'log'、'json'
  * @param currentFileName 即将写入的文件名（如 '2026-02-13.log'）。若传入且在目录中已存在，则按“覆盖”语义保留 maxFiles 个；否则按“新建”语义保留 maxFiles - 1 个
+ * @returns 无返回值
  */
 export function retainLatestLogFiles(
   logDir: string,

@@ -98,10 +98,13 @@ export function buildIndicatorDisplayString(state: IndicatorSnapshot): string {
 }
 
 /**
- * 将信号按类型分流到对应数组
+ * 将信号按类型分流到对应数组：isImmediate 为 true 时推入立即数组，否则推入延迟数组。
+ * result 为 null 时不修改任何数组。
+ *
  * @param result 带分类标记的信号，为 null 时不做任何操作
- * @param immediateSignals 立即执行信号数组
- * @param delayedSignals 延迟验证信号数组
+ * @param immediateSignals 立即执行信号数组（会被原地修改）
+ * @param delayedSignals 延迟验证信号数组（会被原地修改）
+ * @returns 无返回值
  */
 export function pushSignalToCorrectArray(
   result: SignalWithCategory | null,

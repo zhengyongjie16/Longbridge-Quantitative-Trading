@@ -2,7 +2,7 @@
  * sell-flow 集成测试
  *
  * 功能：
- * - 围绕 sell-flow.integration.test.ts 场景验证 tests/integration 相关业务行为与边界条件。
+ * - 验证卖出流程端到端场景与业务期望。
  */
 import { describe, expect, it } from 'bun:test';
 import { OrderSide, OrderType, type TradeContext } from 'longport';

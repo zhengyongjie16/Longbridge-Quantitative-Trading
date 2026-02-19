@@ -1,7 +1,12 @@
 /**
- * 订单归属解析：
- * - 根据订单名称中的 RC/RP 与归属缩写映射，判断订单属于多/空方向
- * - 提供订单归属解析与最近成交标的查询
+ * 订单归属解析模块
+ *
+ * 职责：
+ * - 根据订单 stockName 中的 RC/RP（牛证/熊证）与配置 orderOwnershipMapping 缩写，判断订单属于哪一监控标的及多/空方向
+ * - 供 DailyLossTracker、OrderRecorder 等做订单归属与当日亏损分组
+ *
+ * 执行流程：
+ * - 标准化 stockName（大写、去除非字母数字）→ 匹配多空标记（RC/BULL/CALL/牛 vs RP/BEAR/PUT/熊）→ 匹配监控缩写 → 返回 monitorSymbol + direction
  */
 import { OrderStatus } from 'longport';
 import type { MonitorConfig } from '../../types/config.js';

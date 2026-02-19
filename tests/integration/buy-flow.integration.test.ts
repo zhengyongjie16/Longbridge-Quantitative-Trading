@@ -2,7 +2,7 @@
  * buy-flow 集成测试
  *
  * 功能：
- * - 围绕 buy-flow.integration.test.ts 场景验证 tests/integration 相关业务行为与边界条件。
+ * - 验证买入流程风险管道与下单执行的端到端场景与业务期望。
  */
 import { describe, expect, it } from 'bun:test';
 import { OrderSide, OrderType, TimeInForceType, type TradeContext } from 'longport';

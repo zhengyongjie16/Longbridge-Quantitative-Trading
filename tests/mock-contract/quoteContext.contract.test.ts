@@ -2,7 +2,7 @@
  * quoteContext 契约测试
  *
  * 功能：
- * - 围绕 quoteContext.contract.test.ts 场景验证 tests/mock-contract 相关业务行为与边界条件。
+ * - 验证 QuoteContext Mock 契约与调用行为。
  */
 import { describe, expect, it } from 'bun:test';
 import { Market, Period, SortOrderType, SubType, TradeSessions, WarrantSortBy, WarrantType } from 'longport';

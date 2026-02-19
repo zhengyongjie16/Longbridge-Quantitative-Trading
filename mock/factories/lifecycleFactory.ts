@@ -6,6 +6,9 @@
  */
 import type { LifecycleMutableState, LifecycleRuntimeFlags } from '../../src/main/lifecycle/types.js';
 
+/**
+ * 构造生命周期可变状态，供跨日/开盘重建等测试使用；支持部分覆盖默认值。
+ */
 export function createLifecycleMutableState(
   overrides: Partial<LifecycleMutableState> = {},
 ): LifecycleMutableState {
@@ -19,6 +22,9 @@ export function createLifecycleMutableState(
   };
 }
 
+/**
+ * 构造生命周期运行时标志，供门控、交易日判断等测试使用；支持部分覆盖。
+ */
 export function createLifecycleRuntimeFlags(
   overrides: Partial<LifecycleRuntimeFlags> = {},
 ): LifecycleRuntimeFlags {

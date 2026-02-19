@@ -1,10 +1,10 @@
 import type { Market } from 'longport';
 
 /**
- * 持仓信息
- * 表示某个标的的持仓状态
- *
- * @remarks 此类型需要可变以支持对象池的对象重用。对象池使用 PoolablePosition 类型。
+ * 持仓信息。
+ * 类型用途：表示某标的的持仓状态，作为 getStockPositions 返回元素、持仓缓存、风控与卖出逻辑的入参/数据源；需可变以支持对象池（PoolablePosition）重用。
+ * 数据来源：LongPort 账户 API（getStockPositions）。
+ * 使用范围：Trader、RiskChecker、持仓缓存、主循环等；全项目可引用。
  */
 export type Position = {
   /** 账户渠道 */
@@ -26,8 +26,10 @@ export type Position = {
 };
 
 /**
- * 现金详情
- * 对应 LongPort API accountBalance 返回的 cash_infos 数组元素
+ * 现金详情。
+ * 类型用途：表示单币种现金状态，作为 AccountSnapshot.cashInfos 数组元素类型。
+ * 数据来源：LongPort 账户 API（accountBalance 返回的 cash_infos 数组元素）。
+ * 使用范围：AccountSnapshot、账户展示等；全项目可引用。
  */
 export type CashInfo = {
   /** 币种（如 HKD、USD） */

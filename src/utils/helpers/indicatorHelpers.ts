@@ -1,27 +1,11 @@
-/**
- * 指标辅助函数模块
- *
- * 功能：
- * - 从指标状态对象中提取指定指标的值
- * - 供策略模块和信号验证模块使用
- *
- * 支持的指标：
- * - K、D、J（KDJ 指标）
- * - MACD、DIF、DEA（MACD 指标）
- * - EMA:n（任意周期的 EMA 指标）
- * - PSY:n（任意周期的 PSY 指标）
- *
- * 核心函数：
- * - getIndicatorValue()：提取指标值
- * - isValidNumber()：检查数值有效性
- */
 import type { IndicatorState } from './types.js';
 
 /**
- * 从指标状态中提取指定指标的值（用于延迟验证指标）
- * @param state 指标状态对象 {kdj, macd, ema, psy}
- * @param indicatorName 指标名称 (K, D, J, MACD, DIF, DEA, EMA:n, PSY:n)
- * @returns 指标值，如果无效则返回 null
+ * 从指标状态中提取指定指标的值（用于延迟验证等）。默认行为：state 为 null 或指标名不支持时返回 null；支持 K/D/J、MACD/DIF/DEA、EMA:n、PSY:n。
+ *
+ * @param state 指标状态对象（kdj、macd、ema、psy）
+ * @param indicatorName 指标名称（K、D、J、MACD、DIF、DEA、EMA:n、PSY:n）
+ * @returns 指标值，无效时返回 null
  */
 export function getIndicatorValue(state: IndicatorState | null, indicatorName: string): number | null {
   if (!state) return null;

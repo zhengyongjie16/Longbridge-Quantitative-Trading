@@ -1,5 +1,9 @@
 /**
- * 自动寻标入口：从行情服务筛选合适的牛熊证。
+ * 自动寻标模块入口
+ *
+ * 功能：根据监控标的与方向从 LongPort 牛熊证列表筛选最佳标的（距回收价、分均成交额等）。
+ * 职责：调用 warrantList API、到期日筛选、带缓存的列表获取、选优并返回 WarrantCandidate。
+ * 执行流程：findBestWarrant 入参校验 → 可选缓存获取列表 → selectBestWarrant 筛选 → 返回最佳或 null。
  */
 import {
   FilterWarrantInOutBoundsType,
@@ -19,7 +23,13 @@ import type {
   WarrantListRequestParams,
 } from './types.js';
 
-/** 构建缓存键：监控标的+牛熊类型+到期日筛选条件 */
+/**
+ * 构建牛熊证列表缓存键，用于 TTL 与请求去重。
+ * @param monitorSymbol - 监控标的代码
+ * @param warrantType - 牛熊证类型
+ * @param expiryFilters - 到期日筛选条件数组
+ * @returns 缓存键字符串
+ */
 function buildCacheKey(
   monitorSymbol: string,
   warrantType: WarrantType,
@@ -28,7 +38,11 @@ function buildCacheKey(
   return `${monitorSymbol}:${String(warrantType)}:${expiryFilters.join(',')}`;
 }
 
-/** 调用 API 请求牛熊证列表 */
+/**
+ * 调用 LongPort warrantList API 请求牛熊证列表（按成交额降序）。
+ * @param params - 请求参数（ctx、monitorSymbol、warrantType、expiryFilters）
+ * @returns 牛熊证列表
+ */
 function requestWarrantList({
   ctx,
   monitorSymbol,
@@ -47,7 +61,11 @@ function requestWarrantList({
   );
 }
 
-/** 带缓存的牛熊证列表获取，支持 TTL 和请求去重 */
+/**
+ * 带缓存的牛熊证列表获取：命中 TTL 内缓存直接返回，否则请求 API 并写入缓存，并发请求去重。
+ * @param params - 含 ctx、monitorSymbol、warrantType、expiryFilters、cacheConfig
+ * @returns 牛熊证列表
+ */
 async function fetchWarrantsWithCache({
   ctx,
   monitorSymbol,
@@ -99,7 +117,10 @@ async function fetchWarrantsWithCache({
 }
 
 /**
- * 获取并筛选最佳牛熊证标的。
+ * 获取并筛选最佳牛熊证标的：按方向请求牛熊证列表，按距回收价与分均成交额选优。
+ * 用于自动寻标与换标预寻标，无符合条件时返回 null 并打日志。
+ * @param input - 寻标入参（ctx、monitorSymbol、isBull、tradingMinutes、阈值、cacheConfig 等）
+ * @returns 最佳候选标的（symbol、name、callPrice、distancePct、turnover 等），无则 null
  */
 export async function findBestWarrant({
   ctx,

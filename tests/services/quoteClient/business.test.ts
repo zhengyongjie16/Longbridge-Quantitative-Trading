@@ -2,7 +2,7 @@
  * quoteClient 业务测试
  *
  * 功能：
- * - 围绕 business.test.ts 场景验证 tests/services/quoteClient 相关业务行为与边界条件。
+ * - 验证行情客户端相关场景意图、边界条件与业务期望。
  */
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 

@@ -1,7 +1,8 @@
 /**
- * 当日亏损追踪器：
- * - 按监控标的与方向累计已实现亏损偏移
- * - 基于当日成交订单与过滤算法计算未平仓买入成本
+ * 当日亏损追踪器模块
+ *
+ * 功能/职责：按监控标的与方向累计已实现亏损偏移；内部基于当日成交订单与过滤算法（filteringEngine）计算未平仓买入成本。
+ * 执行流程：调用方通过 recalculateFromAllOrders 或 recordFilledOrder 传入/增量订单，通过 getLossOffset(monitorSymbol, isLongSymbol) 获取当日亏损偏移；内部按 (monitorSymbol, direction) 分组维护订单与偏移。
  */
 import { OrderSide, OrderStatus } from 'longport';
 import { logger } from '../../utils/logger/index.js';
