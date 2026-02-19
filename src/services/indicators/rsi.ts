@@ -12,10 +12,12 @@ import { validatePercentage } from '../../utils/helpers/indicatorHelpers.js';
 import type { CandleData } from '../../types/data.js';
 import type { RsiStreamState } from './types.js';
 
+/** 保留两位小数，避免浮点误差导致 RSI 显示异常 */
 function roundToFixed2(value: number): number {
   return Number.parseFloat(value.toFixed(2));
 }
 
+/** 初始化 RSI 流式状态：前 period 根 K 线用 SMA 平滑涨跌，之后切换为 Wilder 平滑 */
 function initRsiStreamState(period: number): RsiStreamState {
   return {
     period,
@@ -30,6 +32,7 @@ function initRsiStreamState(period: number): RsiStreamState {
   };
 }
 
+/** 喂入一根 K 线收盘价，更新平滑涨跌与原始 RSI 值（流式递推） */
 function updateRsiStreamState(state: RsiStreamState, currentClose: number): void {
   if (state.previousClose === null) {
     state.previousClose = currentClose;
@@ -61,6 +64,7 @@ function updateRsiStreamState(state: RsiStreamState, currentClose: number): void
   state.previousClose = currentClose;
 }
 
+/** 从状态中取出最终 RSI 值并四舍五入；无下跌动量等边界时返回 100 避免 NaN */
 function finalizeRsiValue(state: RsiStreamState): number | null {
   if (state.lastRawValue === null) {
     return null;

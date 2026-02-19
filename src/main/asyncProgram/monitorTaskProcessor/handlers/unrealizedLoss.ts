@@ -23,6 +23,13 @@ import {
   validateSeatSnapshotsAfterRefresh,
 } from '../helpers/seatSnapshot.js';
 
+/**
+ * 创建浮亏清仓检查任务处理器。
+ * 校验席位快照后执行浮亏检查，超过阈值则触发保护性清仓；保证风控检查在 RefreshGate 刷新后、席位就绪时执行。
+ *
+ * @param deps 依赖注入，包含 getContextOrSkip、refreshGate、trader、getCanProcessTask
+ * @returns 处理 UNREALIZED_LOSS_CHECK 任务的异步函数
+ */
 export function createUnrealizedLossHandler({
   getContextOrSkip,
   refreshGate,

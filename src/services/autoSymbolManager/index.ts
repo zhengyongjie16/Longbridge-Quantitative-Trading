@@ -1,7 +1,8 @@
 /**
- * 自动换标管理器：
- * - 负责席位初始化、自动寻标与换标流程
- * - 通过阈值与风险距离判断触发换标，并处理撤单/卖出/买入的完整链路
+ * 自动换标管理器
+ *
+ * 功能/职责：负责席位初始化、自动寻标与换标流程；通过阈值与风险距离判断触发换标，并处理撤单/卖出/买入的完整链路。
+ * 执行流程：主循环每 tick 调用 maybeSearchOnTick、maybeSwitchOnDistance，内部由 AutoSearch 与换标状态机分别处理空席位寻标与距回收价越界换标。
  */
 import { OrderSide } from 'longport';
 import { findBestWarrant } from '../autoSymbolFinder/index.js';

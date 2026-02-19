@@ -24,10 +24,10 @@ export type PendingSignalEntry = {
 };
 
 /**
- * 验证结果
- * 用途：描述延迟信号验证的通过/拒绝状态及原因
- * 数据来源：由 DelayedSignalVerifier 内部验证逻辑返回
- * 使用范围：仅在 delayedSignalVerifier 模块内部使用
+ * 验证结果。
+ * 类型用途：描述延迟信号验证的通过/拒绝状态及原因，供 performVerification 返回、executeVerification 分支使用。
+ * 数据来源：由 DelayedSignalVerifier 内部 performVerification 返回。
+ * 使用范围：仅 delayedSignalVerifier 模块内部使用。
  */
 export type VerificationResult = {
   /** 验证是否通过 */

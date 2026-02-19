@@ -83,7 +83,9 @@ export function toBooleanOrNull(value: unknown): boolean | null {
   return typeof value === 'boolean' ? value : null;
 }
 
-/** 按席位从成交记录中筛选最后一条保护性清仓记录，用于冷却恢复。
+/**
+ * 按席位从成交记录中筛选最后一条保护性清仓记录，用于冷却恢复。
+ *
  * @param params.seatSymbols 当前席位标的快照列表
  * @param params.tradeRecords 历史成交记录列表
  * @returns 每个席位对应的最后一条保护性清仓候选记录数组

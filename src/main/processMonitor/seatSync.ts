@@ -13,9 +13,6 @@
  * 调度触发条件：
  * - 席位就绪且标的发生变化
  * - 席位从不就绪变为就绪
- *
- * @param params 同步参数，包含监控标的、上下文、行情映射等
- * @returns 同步结果，包含席位状态、版本、就绪状态等
  */
 import { logger } from '../../utils/logger/index.js';
 import { isSeatReady } from '../../services/autoSymbolManager/utils.js';

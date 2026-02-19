@@ -14,9 +14,6 @@
  * - KDJ：默认周期 9
  * - MACD：快线 12、慢线 26、信号线 9
  * - MFI：默认周期 14
- *
- * @param params 流水线参数，包含监控标的、上下文等信息
- * @returns 构建的指标快照，失败时返回 null
  */
 import { buildIndicatorSnapshot } from '../../services/indicators/index.js';
 import { getCandleFingerprint } from '../../services/indicators/utils.js';

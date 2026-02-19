@@ -17,10 +17,10 @@ import type { DailyLossTracker } from '../riskController/types.js';
 import type { RefreshGate } from '../../utils/refreshGate/types.js';
 
 /**
- * 订单提交 API 可能返回的响应形状
- * 用途：用于 extractOrderId 安全提取订单 ID
- * 数据来源：由 LongPort API 的 submitOrder 响应返回
- * 使用范围：仅在 trader 模块内部使用
+ * 订单提交 API 可能返回的响应形状。
+ * 类型用途：用于 extractOrderId 安全提取订单 ID。
+ * 数据来源：由 LongPort API 的 submitOrder 响应返回。
+ * 使用范围：仅在 trader 模块内部使用。
  */
 export type OrderSubmitResponse = {
   readonly orderId?: string;

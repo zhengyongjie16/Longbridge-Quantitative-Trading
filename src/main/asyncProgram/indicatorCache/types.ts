@@ -1,10 +1,10 @@
 import type { IndicatorSnapshot } from '../../../types/quote.js';
 
 /**
- * 指标缓存条目
- * 用途：存储单个时间点的指标快照，用于延迟验证时回溯历史指标值
- * 数据来源：由 IndicatorCache.push() 创建并存入环形缓冲区
- * 使用范围：仅在 indicatorCache 模块内部使用
+ * 指标缓存条目。
+ * 类型用途：存储单个时间点的指标快照，供延迟验证时按时间点回溯历史指标值。
+ * 数据来源：由 IndicatorCache.push() 创建并存入环形缓冲区。
+ * 使用范围：仅 indicatorCache 模块内部使用。
  */
 export type IndicatorCacheEntry = {
   /** 记录时间戳（毫秒） */

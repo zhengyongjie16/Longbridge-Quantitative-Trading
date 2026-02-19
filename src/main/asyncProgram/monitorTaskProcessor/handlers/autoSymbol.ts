@@ -24,6 +24,13 @@ import {
   validateSeatSnapshotsAfterRefresh,
 } from '../helpers/seatSnapshot.js';
 
+/**
+ * 创建自动寻标任务处理器（AUTO_SYMBOL_TICK、AUTO_SYMBOL_SWITCH_DISTANCE）。
+ * 执行前校验席位快照，防止换标后执行旧任务；tick 触发寻标，距离检查触发换标决策。
+ *
+ * @param deps 依赖注入，包含 getContextOrSkip、refreshGate、lastState、getCanProcessTask
+ * @returns handleAutoSymbolTick 与 handleAutoSymbolSwitchDistance 两个处理函数
+ */
 export function createAutoSymbolHandlers({
   getContextOrSkip,
   refreshGate,

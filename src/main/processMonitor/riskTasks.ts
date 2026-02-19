@@ -10,11 +10,16 @@
  * 调度条件：
  * - 距回收价检查：自动寻标未启用、且价格发生变化时调度
  * - 浮亏检查：价格发生变化时调度
- *
- * @param params 调度参数，包含监控标的、上下文、席位信息、价格变化标志等
  */
 import type { RiskTasksParams } from './types.js';
 
+/**
+ * 调度单监控标的的风险检查任务。
+ * 根据价格是否变化、是否启用自动寻标，调度距回收价检查与浮亏检查任务；
+ * 并更新牛熊证距离信息供行情展示。保证风控检查在席位与行情就绪后按序执行。
+ *
+ * @param params 调度参数，包含监控标的、上下文、席位信息、价格变化标志等
+ */
 export function scheduleRiskTasks(params: RiskTasksParams): void {
   const {
     monitorSymbol,

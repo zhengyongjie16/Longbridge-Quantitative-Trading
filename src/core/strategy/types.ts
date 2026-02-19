@@ -35,7 +35,9 @@ export type StrategyConfig = {
 
 /**
  * 信号生成结果。
- * 数据来源为 HangSengMultiIndicatorStrategy.generateCloseSignals。
+ * 类型用途：策略 generateCloseSignals 的返回值，区分立即执行与延迟验证两类信号。
+ * 数据来源：HangSengMultiIndicatorStrategy.generateCloseSignals。
+ * 使用范围：仅策略模块与主循环使用。
  */
 export type SignalGenerationResult = {
   readonly immediateSignals: ReadonlyArray<Signal>;

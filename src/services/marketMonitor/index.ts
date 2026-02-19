@@ -48,7 +48,16 @@ function formatKlineTimePrefix(timestamp: number | null | undefined): string {
   return '';
 }
 
-/** 添加周期指标到显示列表 */
+/**
+ * 将指定周期的指标值追加到显示列表，格式为「指标名周期=值」。
+ *
+ * @param indicators 输出数组，本函数向其中 push 字符串
+ * @param indicatorData 按周期键的指标值对象，为 null/undefined 时不处理
+ * @param periods 要输出的周期数组
+ * @param indicatorName 指标名称前缀（如 EMA、RSI）
+ * @param decimals 数值小数位数，默认 3
+ * @returns 无返回值
+ */
 function addPeriodIndicators(
   indicators: string[],
   indicatorData: Record<number, number> | null | undefined,

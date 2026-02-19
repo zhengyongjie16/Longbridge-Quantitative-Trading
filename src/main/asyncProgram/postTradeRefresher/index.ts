@@ -26,8 +26,11 @@ import type { PendingRefreshSymbol } from '../../../types/services.js';
 import type { PostTradeRefresher, PostTradeRefresherDeps, PostTradeRefresherEnqueueParams } from './types.js';
 
 /**
- * 创建交易后刷新器
- * 订单成交后异步刷新账户、持仓和浮亏数据
+ * 创建交易后刷新器。
+ * 订单成交后异步刷新账户、持仓与浮亏数据，并调用 displayAccountAndPositions 展示；完成刷新后 markFresh，供其他异步处理器 waitForFresh 同步。失败时自动重试并合并待刷新标的。
+ *
+ * @param deps 依赖注入，包含 refreshGate、trader、lastState、monitorContexts、displayAccountAndPositions
+ * @returns PostTradeRefresher 实例（start、enqueue、stopAndDrain、clearPending）
  */
 export function createPostTradeRefresher(
   deps: PostTradeRefresherDeps,

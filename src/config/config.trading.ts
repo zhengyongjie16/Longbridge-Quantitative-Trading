@@ -77,6 +77,10 @@ function parseBoundedNumberConfig({
 /**
  * 读取百分比配置并转为小数（如配置 2 → 内部 0.02），未配置或无效时返回 null。
  * 用于需要以百分比形式配置、但内部以小数运算的字段（如距离回收价百分比）。
+ * @param env - 进程环境变量对象
+ * @param envKey - 环境变量键名
+ * @param minValue - 允许的最小原始数值，默认为 0
+ * @returns 除以 100 后的小数，或 null
  */
 function getPercentAsDecimalConfig(
   env: NodeJS.ProcessEnv,
@@ -89,6 +93,8 @@ function getPercentAsDecimalConfig(
 
 /**
  * 将 OpenAPI 订单类型枚举映射为配置值字符串，用于统一内部订单类型表示。
+ * @param orderType - LongPort OrderType 枚举值
+ * @returns 对应的订单类型配置字符串（'LO' | 'MO' | 'ELO'）
  */
 function mapOrderTypeConfig(orderType: OrderType): OrderTypeConfig {
   switch (orderType) {

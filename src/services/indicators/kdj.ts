@@ -12,6 +12,7 @@ import type { KDJIndicator } from '../../types/quote.js';
 import type { CandleData } from '../../types/data.js';
 import type { EmaStream } from './types.js';
 
+/** 计算数组的简单算术平均，空数组返回 0（用于 EMA 种子期） */
 function computeSma(values: ReadonlyArray<number>): number {
   if (values.length === 0) {
     return 0;
@@ -23,6 +24,7 @@ function computeSma(values: ReadonlyArray<number>): number {
   return sum / values.length;
 }
 
+/** 创建单条 EMA 流：前 period 个值用 SMA 做种子，之后按 EMA 递推，供 K/D 平滑使用 */
 function createEmaStream(period: number): EmaStream {
   const buffer: number[] = [];
   const per = 2 / (period + 1);

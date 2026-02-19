@@ -14,6 +14,7 @@ import { logDebug, toNumber } from './utils.js';
 import type { CandleData } from '../../types/data.js';
 import type { PsyStreamState } from './types.js';
 
+/** 初始化 PSY 流式状态：环形窗口记录涨跌标志，用于统计周期内上涨天数占比 */
 function initPsyStreamState(period: number): PsyStreamState {
   return {
     period,
@@ -26,6 +27,7 @@ function initPsyStreamState(period: number): PsyStreamState {
   };
 }
 
+/** 喂入一根 K 线收盘价，更新环形窗口内的上涨标志与 upCount（流式递推） */
 function updatePsyStreamState(state: PsyStreamState, close: number): void {
   if (state.previousClose === null) {
     state.previousClose = close;

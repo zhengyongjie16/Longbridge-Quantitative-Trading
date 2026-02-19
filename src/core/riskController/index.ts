@@ -1,10 +1,10 @@
 /**
- * 风险控制模块（门面模式）
+ * 风险控制模块入口（门面模式）
  *
- * 协调三个子检查器，提供统一的风险检查接口：
- * - warrantRiskChecker: 牛熊证距离回收价检查
- * - positionLimitChecker: 单标的持仓市值限制
- * - unrealizedLossChecker: 单标的浮亏检查
+ * 功能/职责：协调 warrantRiskChecker、positionLimitChecker、unrealizedLossChecker 三个子检查器，
+ * 对外提供统一的 RiskChecker 接口（订单前检查、牛熊证风险、浮亏刷新与清仓判定等）。
+ * 执行流程：依赖注入子检查器 → createRiskChecker 创建门面实例 → 调用方在订单前调用 checkBeforeOrder，
+ * 买入前可选 checkWarrantRisk，浮亏监控侧调用 refreshUnrealizedLossData / checkUnrealizedLoss / checkWarrantDistanceLiquidation。
  *
  * 风险阈值（均为配置项）：
  * - 牛证距离回收价 > 0.5%，熊证 < -0.5%，牛熊证当前价 > 0.015

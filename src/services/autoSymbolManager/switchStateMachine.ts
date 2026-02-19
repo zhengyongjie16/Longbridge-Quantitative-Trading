@@ -387,7 +387,7 @@ export function createSwitchStateMachine(
       const currentSeatState = symbolRegistry.getSeatState(monitorSymbol, direction);
       if (currentSeatState.status !== 'SWITCHING') {
         switchStates.delete(direction);
-        logger.warn(`[auto-symbol] pending switch cleared: ${monitorSymbol} ${direction}`);
+        logger.warn(`[自动换标] 进行中换标已清除: ${monitorSymbol} ${direction}`);
         return;
       }
       const symbolMatches =
@@ -395,7 +395,7 @@ export function createSwitchStateMachine(
         currentSeatState.symbol === pendingSwitch.nextSymbol;
       if (!symbolMatches) {
         switchStates.delete(direction);
-        logger.warn(`[auto-symbol] pending switch cleared: ${monitorSymbol} ${direction}`);
+        logger.warn(`[自动换标] 进行中换标已清除: ${monitorSymbol} ${direction}`);
         return;
       }
       const pendingOrdersForOldSymbol = await trader.getPendingOrders([pendingSwitch.oldSymbol]);

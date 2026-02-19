@@ -16,8 +16,6 @@
  * 1. 席位状态必须为 READY
  * 2. 信号中的席位版本必须与当前席位版本匹配
  * 3. 信号标的必须与席位当前标的匹配
- *
- * @param params 流水线参数，包含信号、席位信息、上下文等
  */
 import { logger } from '../../utils/logger/index.js';
 import { formatSignalLog, formatSymbolDisplay, isBuyAction, isSellAction } from '../../utils/helpers/index.js';

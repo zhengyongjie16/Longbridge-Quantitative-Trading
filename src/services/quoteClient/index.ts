@@ -98,7 +98,11 @@ function normalizeSymbols(symbols: ReadonlyArray<string>): ReadonlyArray<string>
   return Array.from(uniqueSymbols);
 }
 
-/** 创建交易日缓存 */
+/**
+ * 创建交易日缓存，支持按日期键读写、批量写入与 TTL 过期，供 isTradingDay 等复用以避免重复请求 API。
+ *
+ * @returns 含 get、set、setBatch、clear 的缓存对象
+ */
 function createTradingDayCache(): {
   get: (dateStr: string) => TradingDayInfo | null;
   set: (dateStr: string, isTradingDay: boolean, isHalfDay?: boolean) => void;

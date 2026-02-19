@@ -504,8 +504,11 @@ function validateTradingConfig(
 }
 
 /**
- * 验证所有配置并返回行情客户端
- * @throws {ConfigValidationError} 配置验证失败时抛出
+ * 验证 LongPort 凭证与多监控交易配置完整性，通过则仅打日志，失败则抛出 ConfigValidationError。
+ * @param options.env - 进程环境变量，用于校验 LONGPORT_* 与交易配置键
+ * @param options.tradingConfig - 多监控标的交易配置，用于校验标的、金额、信号、自动寻标等
+ * @returns Promise<void>，无返回值；验证失败时抛出
+ * @throws {ConfigValidationError} 配置验证失败时抛出，含 missingFields
  */
 export async function validateAllConfig({
   env,

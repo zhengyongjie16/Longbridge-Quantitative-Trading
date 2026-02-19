@@ -20,6 +20,13 @@ import type {
   SeatRefreshTaskData,
 } from '../types.js';
 
+/**
+ * 创建席位刷新任务处理器。
+ * 换标后刷新订单记录、日内亏损与浮亏数据，设置牛熊证信息并清理旧标的缓存；保证刷新顺序原子性，避免缓存污染。
+ *
+ * @param deps 依赖注入，包含 getContextOrSkip、clearQueuesForDirection、tradingConfig
+ * @returns 处理 SEAT_REFRESH 任务的异步函数
+ */
 export function createSeatRefreshHandler({
   getContextOrSkip,
   clearQueuesForDirection,

@@ -10,10 +10,12 @@ import { validatePercentage } from '../../utils/helpers/indicatorHelpers.js';
 import type { CandleData } from '../../types/data.js';
 import type { BufferNewPush } from './types.js';
 
+/** 保留两位小数，与 RSI 等指标输出一致 */
 function roundToFixed2(value: number): number {
   return Number.parseFloat(value.toFixed(2));
 }
 
+/** 向环形缓冲区追加一个值，满窗时覆盖最旧项并更新 sum（O(1) 滑动窗口） */
 function pushBuffer(buffer: BufferNewPush, value: number): void {
   if (buffer.pushes >= buffer.size) {
     const old = buffer.vals[buffer.index];
@@ -31,6 +33,17 @@ function pushBuffer(buffer: BufferNewPush, value: number): void {
   }
 }
 
+/**
+ * 根据典型价与成交量计算 MFI 序列：正向/负向资金流用环形窗口累加，窗口满后输出 (up/(up+down))*100。
+ *
+ * @param high 最高价数组
+ * @param low 最低价数组
+ * @param close 收盘价数组
+ * @param volume 成交量数组
+ * @param period MFI 周期
+ * @param size 实际参与计算的长度，默认 full length
+ * @returns MFI 值序列（0–100）
+ */
 function calculateMfiSeries(
   high: ReadonlyArray<number>,
   low: ReadonlyArray<number>,
@@ -118,6 +131,7 @@ function calculateMfiSeries(
   return output;
 }
 
+/** 在 calculateMfiSeries 结果上对每个值保留两位小数，满足技术指标展示精度 */
 function calculateMfiSeriesWithTechnicalPrecision(
   high: ReadonlyArray<number>,
   low: ReadonlyArray<number>,

@@ -8,11 +8,15 @@
  * 调度规则：
  * - AUTO_SYMBOL_TICK：每个心跳周期都为 LONG 和 SHORT 方向调度
  * - AUTO_SYMBOL_SWITCH_DISTANCE：当价格发生变化或有待处理换标时调度
- *
- * @param params 调度参数，包含监控标的、上下文、当前时间、交易状态等
  */
 import type { AutoSymbolTasksParams } from './types.js';
 
+/**
+ * 调度单监控标的的自动换标相关任务。
+ * 为 LONG/SHORT 方向调度心跳任务（AUTO_SYMBOL_TICK），在价格变化或存在待处理换标时调度距离检查任务（AUTO_SYMBOL_SWITCH_DISTANCE），供异步队列执行寻标与换标。
+ *
+ * @param params 调度参数，包含监控标的、上下文、当前时间、交易状态等
+ */
 export function scheduleAutoSymbolTasks(params: AutoSymbolTasksParams): void {
   const {
     monitorSymbol,

@@ -132,7 +132,9 @@ export interface WarrantRiskChecker {
 
 /**
  * 持仓限制检查器接口。
- * 由 RiskChecker 门面聚合。
+ * 类型用途：依赖注入，由 RiskChecker 门面聚合，提供单标的最大持仓市值限制检查。
+ * 数据来源：如适用（配置中的 maxPositionNotional）。
+ * 使用范围：仅 riskController 模块实现；主程序通过 RiskChecker 使用。
  */
 export interface PositionLimitChecker {
   checkLimit(
