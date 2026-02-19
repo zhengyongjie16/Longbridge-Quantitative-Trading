@@ -34,31 +34,6 @@ export function pushToBuffer(buffer: _RingBuffer, entry: IndicatorCacheEntry): v
 }
 
 /**
- * 获取环形缓冲区中所有有效条目
- *
- * 返回按写入顺序排列的条目数组（即按时间升序）
- *
- * @param buffer 目标环形缓冲区
- * @returns 按时间升序排列的有效条目数组，缓冲区为空时返回空数组
- */
-export function getBufferEntries(buffer: _RingBuffer): ReadonlyArray<IndicatorCacheEntry> {
-  if (buffer.size === 0) return [];
-
-  const result: IndicatorCacheEntry[] = [];
-  const startIndex = buffer.size < buffer.capacity ? 0 : buffer.head;
-
-  for (let i = 0; i < buffer.size; i++) {
-    const index = (startIndex + i) % buffer.capacity;
-    const entry = buffer.entries[index];
-    if (entry != null) {
-      result.push(entry);
-    }
-  }
-
-  return result;
-}
-
-/**
  * 在环形缓冲区中查找容忍度内最接近目标时间的条目
  *
  * 直接遍历缓冲区避免先物化完整数组，减少临时分配。
