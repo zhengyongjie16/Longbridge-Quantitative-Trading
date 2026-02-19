@@ -9,8 +9,10 @@ import type { DelayedSignalVerifier } from '../../main/asyncProgram/delayedSigna
 import type { AutoSymbolManager } from '../autoSymbolManager/types.js';
 
 /**
- * createMonitorContext 工厂函数的依赖注入参数，包含监控配置、状态、策略与各服务实例。
- * 由 createMonitorContext 消费，仅在 monitorContext 模块内部使用。
+ * 监控上下文工厂的依赖注入参数。
+ * 类型用途：供 createMonitorContext 工厂函数消费，用于构造 MonitorContext。
+ * 数据来源：由主程序 startup/seat 注入。
+ * 使用范围：仅 monitorContext 模块使用。
  */
 export type MonitorContextFactoryDeps = {
   readonly config: MonitorConfig;

@@ -24,6 +24,8 @@ import { removeTasksFromQueue } from './utils.js';
 /**
  * 创建监控任务队列
  * 支持任务去重（scheduleLatest）和任务添加回调通知
+ *
+ * @returns 监控任务队列实例，含 scheduleLatest、pop、isEmpty、removeTasks、clearAll、onTaskAdded
  */
 export function createMonitorTaskQueue<
   TType extends string,

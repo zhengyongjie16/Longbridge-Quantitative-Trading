@@ -15,16 +15,10 @@ import type { DailyLossTracker } from '../../core/riskController/types.js';
 import type { DayLifecycleManager } from '../lifecycle/types.js';
 
 /**
- * 主程序上下文
- *
- * 包含 mainProgram 运行所需的所有依赖：
- * - 数据服务：marketDataClient（行情）、trader（交易）
- * - 状态管理：lastState（全局状态）、monitorContexts（监控上下文）
- * - 业务模块：marketMonitor、doomsdayProtection、signalProcessor
- * - 异步架构：indicatorCache、buyTaskQueue、sellTaskQueue
- *
- * 数据来源：由 src/index.ts main() 函数初始化并注入
- * 使用范围：仅在 mainProgram 及其调用链内部使用
+ * 主程序上下文（主循环与 processMonitor 的依赖容器）。
+ * 类型用途：承载 mainProgram 运行所需的全部依赖（数据服务、状态管理、业务模块、异步队列与生命周期等），作为 processMonitor 等函数的入参。
+ * 数据来源：由 src/index.ts main() 函数初始化并注入。
+ * 使用范围：仅在 mainProgram 及其调用链内部使用。
  */
 export type MainProgramContext = {
   readonly marketDataClient: MarketDataClient;

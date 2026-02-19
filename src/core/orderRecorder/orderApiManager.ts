@@ -64,7 +64,9 @@ function mergeAndDeduplicateOrders(
 
 /**
  * 创建订单 API 管理器
- * 管理全量订单缓存（history + today 合并去重），提供按标的缓存读写和强制刷新能力
+ * 管理全量订单缓存（history + today 合并去重），提供按标的缓存读写和强制刷新能力；信任边界内将 SDK Order 转为 RawOrderFromAPI。
+ * @param deps 依赖注入（ctxPromise、rateLimiter）
+ * @returns OrderAPIManager 接口实例（fetchAllOrdersFromAPI、cacheOrdersForSymbol、clearCacheForSymbol、clearCache）
  */
 export function createOrderAPIManager(deps: OrderAPIManagerDeps): OrderAPIManager {
   const { ctxPromise, rateLimiter } = deps;

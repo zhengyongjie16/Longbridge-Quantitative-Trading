@@ -8,8 +8,10 @@ import type { DecimalLike } from '../../utils/helpers/types.js';
 import type { Logger } from '../../utils/logger/types.js';
 
 /**
- * 寻找最佳牛熊证的入参，包含行情上下文、筛选阈值与缓存配置。
- * 由 autoSymbolFinder/index.ts 的 findBestWarrant 消费。
+ * 寻找最佳牛熊证的入参。
+ * 类型用途：包含行情上下文、筛选阈值与缓存配置，由 findBestWarrant 消费。
+ * 数据来源：由 autoSymbolManager 的 buildFindBestWarrantInput 等构造传入。
+ * 使用范围：autoSymbolFinder 与 autoSymbolManager 模块使用。
  */
 export type FindBestWarrantInput = {
   readonly ctx: QuoteContext;
@@ -24,8 +26,10 @@ export type FindBestWarrantInput = {
 };
 
 /**
- * 牛熊证列表单项数据，来源于 LongPort warrantList API 返回值。
- * 仅在 autoSymbolFinder 模块内部使用。
+ * 牛熊证列表单项数据。
+ * 类型用途：表示单只牛熊证的行情与属性，供 selectBestWarrant 等筛选使用。
+ * 数据来源：LongPort warrantList API 返回值结构映射。
+ * 使用范围：仅 autoSymbolFinder 模块内部使用。
  */
 export type WarrantListItem = {
   readonly symbol: string;
@@ -48,8 +52,10 @@ export type WarrantListCacheEntry = {
 };
 
 /**
- * 牛熊证列表缓存接口，支持 TTL 缓存与请求去重（inFlight）。
- * 由 createWarrantListCache 工厂函数实现，仅在 autoSymbolFinder 模块内部使用。
+ * 牛熊证列表缓存接口。
+ * 类型用途：支持 TTL 缓存与请求去重（inFlight），供 findBestWarrant 复用列表请求。
+ * 数据来源：由 createWarrantListCache 工厂函数实现并注入。
+ * 使用范围：仅 autoSymbolFinder 模块内部使用。
  */
 export interface WarrantListCache {
   getEntry(key: string): WarrantListCacheEntry | undefined;
@@ -96,8 +102,10 @@ export type WarrantCandidate = {
 };
 
 /**
- * 请求牛熊证列表的入参（带缓存配置），在 fetchWarrantsWithCache 中使用。
- * 仅在 autoSymbolFinder 模块内部使用。
+ * 请求牛熊证列表的入参（带缓存配置）。
+ * 类型用途：由 fetchWarrantsWithCache 消费，用于带缓存的 warrantList 请求。
+ * 数据来源：由 findBestWarrant 内根据 FindBestWarrantInput 组装。
+ * 使用范围：仅 autoSymbolFinder 模块内部使用。
  */
 export type WarrantListFetchParams = {
   readonly ctx: FindBestWarrantInput['ctx'];
@@ -108,8 +116,10 @@ export type WarrantListFetchParams = {
 };
 
 /**
- * 请求牛熊证列表的入参（无缓存），直接调用 LongPort warrantList API。
- * 仅在 autoSymbolFinder 模块内部使用。
+ * 请求牛熊证列表的入参（无缓存）。
+ * 类型用途：直接调用 LongPort warrantList API 时的入参。
+ * 数据来源：由 fetchWarrantsWithCache 或调用方组装。
+ * 使用范围：仅 autoSymbolFinder 模块内部使用。
  */
 export type WarrantListRequestParams = {
   readonly ctx: FindBestWarrantInput['ctx'];

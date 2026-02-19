@@ -13,8 +13,8 @@ import type {
 } from '../autoSymbolFinder/types.js';
 
 /**
- * 席位注册表内部条目（可变状态，SymbolRegistry 内部使用）
- * 注意：状态与版本号需要在运行中更新，因此不使用 readonly。
+ * 席位注册表内部条目。
+ * 仅 SymbolRegistry 内部使用，不使用 readonly 以支持更新。
  */
 export type SeatEntry = {
   state: SeatState;
@@ -22,7 +22,8 @@ export type SeatEntry = {
 };
 
 /**
- * 单个监控标的的席位条目（可变状态，SymbolRegistry 内部使用）
+ * 单个监控标的的席位条目。
+ * 仅 SymbolRegistry 内部使用。
  */
 export type SymbolSeatEntry = {
   long: SeatEntry;
@@ -185,8 +186,10 @@ export type BuildFindBestWarrantInputParams = {
 };
 
 /**
- * 解析自动寻标阈值的函数类型，返回 minDistancePct 与 minTurnoverPerMinute，无配置时返回 null。
- * 由 thresholdResolver 实现，供 autoSearch 与 switchStateMachine 消费。
+ * 解析自动寻标阈值的函数类型。
+ * 类型用途：返回 minDistancePct 与 minTurnoverPerMinute，无配置时返回 null。
+ * 数据来源：由 createThresholdResolver 实现并注入。
+ * 使用范围：供 autoSearch 与 switchStateMachine 消费。
  */
 export type ResolveAutoSearchThresholdInput = (
   params: Pick<ResolveAutoSearchThresholdInputParams, 'direction' | 'logPrefix'>,
@@ -196,7 +199,10 @@ export type ResolveAutoSearchThresholdInput = (
 }> | null;
 
 /**
- * 构建 FindBestWarrantInput 的函数类型，由 thresholdResolver 实现，供寻标与换标流程消费。
+ * 构建 FindBestWarrantInput 的函数类型。
+ * 类型用途：根据方向、时间与阈值等参数构造 FindBestWarrantInput。
+ * 数据来源：由 createThresholdResolver 实现并注入。
+ * 使用范围：供寻标与换标流程消费。
  */
 export type BuildFindBestWarrantInput = (
   params: Pick<
@@ -233,13 +239,17 @@ export type BuildOrderSignalParams = {
 };
 
 /**
- * 订单信号构建函数类型，由 signalBuilder 实现，供换标状态机消费。
+ * 订单信号构建函数类型。
+ * 类型用途：根据 BuildOrderSignalParams 构造订单 Signal。
+ * 数据来源：由 createSignalBuilder 实现并注入。
+ * 使用范围：供换标状态机消费。
  */
 export type OrderSignalBuilder = (params: BuildOrderSignalParams) => Signal;
 
 /**
- * 信号构建器的依赖注入参数，包含信号对象池。
- * 由 createSignalBuilder 工厂函数消费。
+ * 信号构建器工厂的依赖注入参数。
+ * 类型用途：包含信号对象池，供 createSignalBuilder 消费。
+ * 使用范围：仅 autoSymbolManager 模块内部使用。
  */
 export type SignalBuilderDeps = {
   readonly signalObjectPool: SignalObjectPool;
@@ -270,13 +280,17 @@ export type BuildSeatStateParams = {
 };
 
 /**
- * 席位状态构建函数类型，由 seatStateManager 实现，供寻标与换标流程消费。
+ * 席位状态构建函数类型。
+ * 类型用途：根据 BuildSeatStateParams 构造 SeatState。
+ * 数据来源：由 createSeatStateManager 实现并注入。
+ * 使用范围：供寻标与换标流程消费。
  */
 export type SeatStateBuilder = (params: BuildSeatStateParams) => SeatState;
 
 /**
- * 席位状态更新函数类型，负责写入注册表并按需递增版本号。
- * bumpOnSymbolChange 为 true 时，标的变更会触发版本号递增。
+ * 席位状态更新函数类型。
+ * 类型用途：负责写入注册表并按需递增版本号；bumpOnSymbolChange 为 true 时标的变更会触发版本号递增。
+ * 使用范围：由 createSeatStateManager 实现，供寻标与换标流程调用。
  */
 export type SeatStateUpdater = (
   direction: 'LONG' | 'SHORT',

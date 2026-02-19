@@ -453,6 +453,7 @@ function createDrainHandler(
  * @param data 待写入数据
  * @param timeout 超时时间（毫秒）
  * @param callback 完成回调函数
+ * @returns 无返回值
  */
 function writeWithDrainTimeout(
   stream: NodeJS.WriteStream,
@@ -609,9 +610,16 @@ const pinoLogger = pino(
 );
 
 /**
- * 导出的 logger 对象，保持与原有 API 兼容
+ * 导出的 logger 对象，保持与原有 API 兼容。
+ * 输出同时写入控制台与按日期轮转的日志文件；DEBUG 级别仅在 DEBUG=true 时输出。
  */
 export const logger: Logger = {
+  /**
+   * 输出调试级别日志，仅当 DEBUG=true 时生效。
+   * @param msg - 日志消息
+   * @param extra - 可选附加数据（对象或原始值）
+   * @returns 无返回值
+   */
   debug(msg: string, extra?: unknown): void {
     if (IS_DEBUG) {
       if (extra == null) {
@@ -622,6 +630,12 @@ export const logger: Logger = {
     }
   },
 
+  /**
+   * 输出信息级别日志。
+   * @param msg - 日志消息
+   * @param extra - 可选附加数据（对象或原始值）
+   * @returns 无返回值
+   */
   info(msg: string, extra?: unknown): void {
     if (extra == null) {
       pinoLogger.info(msg);
@@ -630,6 +644,12 @@ export const logger: Logger = {
     }
   },
 
+  /**
+   * 输出警告级别日志（同时输出到 stderr）。
+   * @param msg - 日志消息
+   * @param extra - 可选附加数据（对象或原始值）
+   * @returns 无返回值
+   */
   warn(msg: string, extra?: unknown): void {
     if (extra == null) {
       pinoLogger.warn(msg);
@@ -638,6 +658,12 @@ export const logger: Logger = {
     }
   },
 
+  /**
+   * 输出错误级别日志（同时输出到 stderr）。
+   * @param msg - 日志消息
+   * @param extra - 可选附加数据（对象或原始值）
+   * @returns 无返回值
+   */
   error(msg: string, extra?: unknown): void {
     if (extra == null) {
       pinoLogger.error(msg);

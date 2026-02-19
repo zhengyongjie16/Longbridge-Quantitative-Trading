@@ -37,6 +37,7 @@ function createObjectPool<T>(
 
   /**
    * 从池中获取一个对象
+   * @returns 从池中获取的对象，池空时调用工厂函数创建新对象
    */
   function acquire(): T {
     if (pool.length > 0) {
@@ -48,6 +49,7 @@ function createObjectPool<T>(
 
   /**
    * 将对象归还到池中
+   * @param obj - 待归还的对象，为 null/undefined 时忽略
    */
   function release(obj: T | null | undefined): void {
     if (!obj || pool.length >= maxSize) return;
@@ -58,6 +60,7 @@ function createObjectPool<T>(
 
   /**
    * 批量释放对象数组
+   * @param objects - 待释放的对象数组，为 null/undefined 或非数组时忽略
    */
   function releaseAll(objects: ReadonlyArray<T> | null | undefined): void {
     if (!Array.isArray(objects)) return;

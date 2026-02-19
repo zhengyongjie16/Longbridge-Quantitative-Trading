@@ -160,6 +160,12 @@ export function formatSymbolDisplay(symbol: string | null | undefined, symbolNam
   return symbol;
 }
 
+/**
+ * 将时间转换为香港时区（UTC+8）字符串，支持 iso / log 两种格式（内部使用）。
+ * @param date - 时间对象，默认当前时间
+ * @param options - 格式选项，format 为 'log' 时含毫秒
+ * @returns 香港时间字符串
+ */
 function toHongKongTime(date: Date | null = null, options: TimeFormatOptions = {}): string {
   const { format = 'iso' } = options;
   const targetDate = date || new Date();
@@ -406,9 +412,10 @@ export function initMonitorState(config: MonitorConfig): MonitorState {
 }
 
 /**
- * 释放快照中的池化对象（如果它们没有被 monitorValues 引用）
+ * 释放快照中的池化对象（如果它们没有被 monitorValues 引用），避免重复归还同一引用导致池状态异常。
  * @param snapshot 要释放的快照
  * @param monitorValues 监控值对象，用于检查引用
+ * @returns 无返回值
  */
 export function releaseSnapshotObjects(
   snapshot: IndicatorSnapshot | null,

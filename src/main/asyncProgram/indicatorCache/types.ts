@@ -14,12 +14,10 @@ export type IndicatorCacheEntry = {
 };
 
 /**
- * 环形缓冲区内部结构（仅模块内使用）
- *
- * 使用环形缓冲区实现固定容量的 FIFO 缓存，
- * 超出容量时自动覆盖最旧的数据。
- *
- * @remarks capacity 使用 readonly 保证容量不变，其他字段需要在运行时修改
+ * 环形缓冲区内部结构。
+ * 类型用途：IndicatorCache 实现内部使用的数据结构，固定容量 FIFO，超出时覆盖最旧数据。
+ * 数据来源：由 IndicatorCache 实现模块在初始化/运行时维护。
+ * 使用范围：仅 indicatorCache 模块内部使用（以 _ 前缀表示内部类型）。
  */
 export type _RingBuffer = {
   /** 缓冲区数组 */
@@ -33,9 +31,10 @@ export type _RingBuffer = {
 };
 
 /**
- * 指标缓存配置选项
- * 用途：控制环形缓冲区的最大容量
- * 使用范围：仅在 indicatorCache 模块内部使用
+ * 指标缓存配置选项（创建缓存时的参数）。
+ * 类型用途：控制环形缓冲区最大容量（maxEntries）。
+ * 数据来源：由创建 IndicatorCache 的调用方传入，未传则使用默认值。
+ * 使用范围：仅 indicatorCache 模块内部使用。
  */
 export type IndicatorCacheOptions = {
   /** 最大缓存条目数，默认 100 */
@@ -43,7 +42,10 @@ export type IndicatorCacheOptions = {
 };
 
 /**
- * 指标缓存行为契约
+ * 指标缓存行为契约。
+ * 类型用途：供 DelayedSignalVerifier 等回溯历史指标（getAt），由主程序按监控标的创建并注入。
+ * 数据来源：主程序创建，indicatorCache 模块实现；push 数据来自行情/指标流水线。
+ * 使用范围：mainProgram、delayedSignalVerifier、lifecycle 等使用，仅内部使用。
  */
 export interface IndicatorCache {
   /**

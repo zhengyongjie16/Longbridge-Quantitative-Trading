@@ -8,9 +8,10 @@ import type { LiquidationCooldownTracker } from '../../services/liquidationCoold
 // ==================== 结果类型定义 ====================
 
 /**
- * 卖出上下文校验结果（联合类型）
- * - valid=true: 校验通过，包含可用数量和当前价格
- * - valid=false: 校验失败，包含失败原因
+ * 卖出上下文校验结果（联合类型）。
+ * 类型用途：卖出前校验的返回类型，valid=true 时包含可用数量与当前价，valid=false 时包含失败原因。
+ * 数据来源：如适用（由卖出流程中的校验逻辑构造）。
+ * 使用范围：仅 signalProcessor 模块内部使用。
  */
 export type SellContextValidationResult =
   | {
@@ -26,8 +27,10 @@ export type SellContextValidationResult =
 // ==================== 服务接口定义 ====================
 
 /**
- * 信号处理器接口
- * 负责处理卖出信号的数量计算和买入信号的风险检查
+ * 信号处理器接口。
+ * 类型用途：依赖注入，负责卖出信号的数量计算与买入信号的风险检查（含冷却、频率、牛熊证等）。
+ * 数据来源：如适用。
+ * 使用范围：主程序持有并调用；仅 signalProcessor 模块实现。
  */
 export interface SignalProcessor {
   /**
@@ -60,8 +63,10 @@ export interface SignalProcessor {
 // ==================== 依赖类型定义 ====================
 
 /**
- * 信号处理器依赖类型
- * 通过工厂函数注入，包含全局交易配置
+ * 信号处理器依赖类型。
+ * 类型用途：创建 SignalProcessor 时的依赖注入，包含全局交易配置与清仓冷却追踪等。
+ * 数据来源：如适用。
+ * 使用范围：见调用方（如主程序/processMonitor）。
  */
 export type SignalProcessorDeps = {
   readonly tradingConfig: MultiMonitorTradingConfig;

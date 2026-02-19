@@ -7,8 +7,10 @@
 export type Waiter = () => void;
 
 /**
- * 刷新门禁状态快照
- * 由 getStatus() 返回，用于外部观测当前版本号与过期版本号的差值
+ * 刷新门禁状态快照。
+ * 类型用途：表示当前版本与过期版本号，用于协调缓存刷新与等待方。
+ * 数据来源：由 RefreshGate.getStatus() 返回。
+ * 使用范围：供主程序与 PostTradeRefresher 等消费 getStatus 的调用方使用。
  */
 export type RefreshGateStatus = Readonly<{
   currentVersion: number;
@@ -16,12 +18,8 @@ export type RefreshGateStatus = Readonly<{
 }>;
 
 /**
- * 刷新门禁接口
- * 通过版本号机制协调缓存刷新与异步处理器之间的时序：
- * - markStale()：标记缓存过期，返回新版本号
- * - markFresh(version)：标记指定版本已刷新完成，唤醒等待者
- * - waitForFresh()：等待缓存刷新完成后继续执行
- * - getStatus()：获取当前版本号状态快照
+ * 刷新门禁接口。
+ * 通过版本号协调缓存刷新与异步处理器时序：markStale 标记过期、markFresh 标记刷新完成并唤醒等待者、waitForFresh 阻塞直至刷新、getStatus 返回状态；供主程序与 PostTradeRefresher 等使用。
  */
 export interface RefreshGate {
   readonly markStale: () => number;

@@ -44,8 +44,11 @@ function assertNeverTaskType(taskType: never): never {
 }
 
 /**
- * 创建监控任务处理器
- * 消费 MonitorTaskQueue 中的任务，使用 setImmediate 异步执行
+ * 创建监控任务处理器。
+ * 消费 MonitorTaskQueue 中的任务，使用 setImmediate 异步执行；依赖 getMonitorContext、refreshGate 等完成席位校验与刷新。
+ *
+ * @param deps 依赖注入，包含 monitorTaskQueue、refreshGate、getMonitorContext、各 handler 依赖等
+ * @returns 实现 start/stop/stopAndDrain/restart 的处理器实例
  */
 export function createMonitorTaskProcessor(
   deps: MonitorTaskProcessorDeps,
@@ -62,6 +65,7 @@ export function createMonitorTaskProcessor(
     onProcessed,
   } = deps;
 
+  /** 根据 monitorSymbol 获取监控上下文，未找到时打日志并返回 null */
   function getContextOrSkip(monitorSymbol: string): MonitorTaskContext | null {
     const context = getMonitorContext(monitorSymbol);
     if (!context) {
@@ -115,6 +119,7 @@ export function createMonitorTaskProcessor(
     }
   }
 
+  /** 循环消费监控任务队列直至为空，每项经 processTask 分派处理，门禁或上下文缺失时跳过并通知 onProcessed */
   async function processQueue(): Promise<void> {
     const helpers = createRefreshHelpers({ trader, lastState });
     while (!monitorTaskQueue.isEmpty()) {

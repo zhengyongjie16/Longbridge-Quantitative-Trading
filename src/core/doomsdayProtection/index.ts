@@ -142,7 +142,11 @@ function processPositionForClearance(
   return signal;
 }
 
-/** 创建末日保护程序（收盘前15分钟拒绝买入，收盘前5分钟自动清仓） */
+/**
+ * 创建末日保护程序（生命周期/风控：收盘前拒绝买入与自动清仓）
+ * 收盘前15分钟拒绝买入并撤销未成交买入单，收盘前5分钟自动清仓所有持仓。
+ * @returns DoomsdayProtection 接口实例（shouldRejectBuy、executeClearance、cancelPendingBuyOrders）
+ */
 export function createDoomsdayProtection(): DoomsdayProtection {
   // 状态：记录当天是否已执行过收盘前15分钟的撤单检查
   // 格式为日期字符串（YYYY-MM-DD），用于跨天自动重置

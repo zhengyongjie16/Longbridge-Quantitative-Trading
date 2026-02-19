@@ -1,9 +1,9 @@
 import type { Config } from 'longport';
 
 /**
- * withRetry 重试配置
- * 用途：控制 API 调用的重试次数与间隔
- * 仅 quoteClient 内部使用
+ * withRetry 重试配置。
+ * 类型用途：控制 API 调用的重试次数与间隔，作为 withRetry 的参数。
+ * 使用范围：仅 quoteClient 模块内部使用。
  */
 export type RetryConfig = {
   readonly retries: number;
@@ -11,10 +11,10 @@ export type RetryConfig = {
 };
 
 /**
- * LongPort 静态信息结构
- * 数据来源：LongPort staticInfo API 返回值的结构映射
- * 用途：提取标的名称与每手股数，供行情缓存组装使用
- * 仅 quoteClient 内部使用
+ * LongPort 静态信息结构。
+ * 类型用途：提取标的名称与每手股数，供行情缓存组装使用。
+ * 数据来源：LongPort staticInfo API 返回值的结构映射。
+ * 使用范围：仅 quoteClient 模块内部使用。
  */
 export type StaticInfo = {
   readonly nameHk?: string | null;
@@ -24,8 +24,10 @@ export type StaticInfo = {
 };
 
 /**
- * createMarketDataClient 依赖注入参数
- * 用途：传入 LongPort Config 以初始化 QuoteContext
+ * 行情数据客户端工厂的依赖注入参数。
+ * 类型用途：供 createMarketDataClient 初始化 QuoteContext。
+ * 数据来源：由主程序传入 LongPort Config。
+ * 使用范围：仅 quoteClient 模块使用。
  */
 export type MarketDataClientDeps = {
   readonly config: Config;

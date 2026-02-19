@@ -3,8 +3,10 @@ import type { Quote } from '../../types/quote.js';
 import type { OrderRecord, RateLimiter, RawOrderFromAPI } from '../../types/services.js';
 
 /**
- * 订单缓存类型
- * 存储某个标的的已处理订单和原始订单数据
+ * 订单缓存类型。
+ * 类型用途：OrderAPIManager 内部缓存结构，按标的存储买卖单与原始 API 订单。
+ * 数据来源：由 OrderAPIManager 从 API 拉取并分类后填充。
+ * 使用范围：仅 orderRecorder 模块内部使用。
  */
 export type OrderCache = {
   readonly buyOrders: ReadonlyArray<OrderRecord>;
@@ -14,8 +16,10 @@ export type OrderCache = {
 };
 
 /**
- * 订单归属解析结果
- * 用于标记订单对应的监控标的与方向
+ * 订单归属解析结果。
+ * 类型用途：表示单笔 API 订单归属的监控标的与方向，供 DailyLossTracker 等使用。
+ * 数据来源：订单归属逻辑解析 RawOrderFromAPI 得到。
+ * 使用范围：orderRecorder 与 riskController 等模块使用。
  */
 export type OrderOwnership = {
   readonly monitorSymbol: string;
@@ -23,8 +27,10 @@ export type OrderOwnership = {
 };
 
 /**
- * 订单统计信息类型
- * 用于调试输出订单的汇总统计
+ * 订单统计信息类型。
+ * 类型用途：用于调试输出或内部汇总（数量、金额、均价）。
+ * 数据来源：如适用（由模块内部根据订单列表计算）。
+ * 使用范围：仅 orderRecorder 模块使用。
  */
 export type OrderStatistics = {
   readonly totalQuantity: number;
@@ -33,8 +39,10 @@ export type OrderStatistics = {
 };
 
 /**
- * 待成交卖出订单信息
- * 用于智能平仓防重追踪，记录已提交但未成交的卖出订单
+ * 待成交卖出订单信息。
+ * 类型用途：智能平仓防重追踪，记录已提交但未成交的卖出订单及关联买单。
+ * 数据来源：提交卖单时添加，成交/撤单时更新状态。
+ * 使用范围：仅 orderRecorder 模块内部使用。
  */
 export type PendingSellInfo = {
   /** 卖出订单ID */
@@ -56,7 +64,10 @@ export type PendingSellInfo = {
 };
 
 /**
- * 盈利订单查询结果
+ * 盈利订单查询结果。
+ * 类型用途：OrderStorage.getSellableOrders 的返回结果，用于卖出数量计算与防重。
+ * 数据来源：由 OrderStorage.getSellableOrders 返回。
+ * 使用范围：见调用方（如 signalProcessor、trader）。
  */
 export type ProfitableOrderResult = {
   /** 可卖出的订单记录列表 */
@@ -66,9 +77,10 @@ export type ProfitableOrderResult = {
 };
 
 /**
- * 订单过滤算法的中间状态类型
- * - m0Orders: 最新卖出时间之后成交的买入订单（无条件保留）
- * - candidateOrders: 需要过滤的候选订单
+ * 订单过滤算法的中间状态类型。
+ * 类型用途：OrderFilteringEngine 过滤算法中的中间结构（m0Orders 保留，candidateOrders 待过滤）。
+ * 数据来源：模块内部在 applyFilteringAlgorithm 中构造。
+ * 使用范围：仅 orderRecorder 模块内部使用。
  */
 export type FilteringState = {
   readonly m0Orders: ReadonlyArray<OrderRecord>;
@@ -78,8 +90,10 @@ export type FilteringState = {
 // ==================== 服务接口定义 ====================
 
 /**
- * 订单存储接口
- * 提供订单的本地存储管理功能
+ * 订单存储接口。
+ * 类型用途：依赖注入，提供订单的本地存储管理（买卖记录、待成交卖单、可卖订单查询等）。
+ * 数据来源：如适用。
+ * 使用范围：由 OrderRecorder 依赖注入；仅 orderRecorder 模块实现与使用。
  */
 export interface OrderStorage {
   getBuyOrdersList(symbol: string, isLongSymbol: boolean): ReadonlyArray<OrderRecord>;
@@ -148,16 +162,20 @@ export interface OrderStorage {
 }
 
 /**
- * 订单过滤引擎接口
- * 实现智能清仓决策的订单过滤算法
+ * 订单过滤引擎接口。
+ * 类型用途：依赖注入，实现智能清仓决策的订单过滤算法。
+ * 数据来源：如适用。
+ * 使用范围：由 OrderRecorder、DailyLossTracker 等依赖注入；仅 orderRecorder 模块实现。
  */
 export interface OrderFilteringEngine {
   applyFilteringAlgorithm(allBuyOrders: ReadonlyArray<OrderRecord>, filledSellOrders: ReadonlyArray<OrderRecord>): ReadonlyArray<OrderRecord>;
 }
 
 /**
- * 订单API管理器接口
- * 负责从 LongPort API 获取订单并管理缓存
+ * 订单 API 管理器接口。
+ * 类型用途：依赖注入，负责从 LongPort API 获取订单并管理缓存。
+ * 数据来源：如适用。
+ * 使用范围：由 OrderRecorder 依赖注入；仅 orderRecorder 模块实现与使用。
  */
 export interface OrderAPIManager {
   fetchAllOrdersFromAPI(forceRefresh?: boolean): Promise<ReadonlyArray<RawOrderFromAPI>>;
@@ -174,20 +192,31 @@ export interface OrderAPIManager {
 
 // ==================== 依赖类型定义 ====================
 
-/** 订单存储依赖类型（无依赖） */
+/**
+ * 订单存储依赖。
+ * 类型用途：创建 OrderStorage 时的依赖注入（当前无外部依赖，空对象）。
+ * 数据来源：如适用。
+ * 使用范围：仅 orderRecorder 模块内部使用。
+ */
 export type OrderStorageDeps = {
   readonly [key: string]: never;
 };
 
-/** 订单过滤引擎依赖类型（无依赖，纯函数式设计） */
+/**
+ * 订单过滤引擎依赖。
+ * 类型用途：创建 OrderFilteringEngine 时的依赖注入（当前无外部依赖，空对象）。
+ * 数据来源：如适用。
+ * 使用范围：仅 orderRecorder 模块内部使用。
+ */
 export type OrderFilteringEngineDeps = {
   readonly [key: string]: never;
 };
 
 /**
- * 订单API管理器依赖类型
- * @property ctxPromise - LongPort 交易上下文
- * @property rateLimiter - API 限流器
+ * 订单 API 管理器依赖。
+ * 类型用途：用于创建 OrderAPIManager 时的依赖注入。
+ * 数据来源：如适用。
+ * 使用范围：仅 orderRecorder 模块内部使用。
  */
 export type OrderAPIManagerDeps = {
   readonly ctxPromise: Promise<TradeContext>;
@@ -195,10 +224,10 @@ export type OrderAPIManagerDeps = {
 };
 
 /**
- * 订单记录器依赖类型
- * @property storage - 订单存储器
- * @property apiManager - 订单API管理器
- * @property filteringEngine - 订单过滤引擎
+ * 订单记录器依赖。
+ * 类型用途：用于创建 OrderRecorder 时的依赖注入。
+ * 数据来源：如适用。
+ * 使用范围：见调用方（如启动层、riskDomain）。
  */
 export type OrderRecorderDeps = {
   readonly storage: OrderStorage;

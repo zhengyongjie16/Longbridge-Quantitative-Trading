@@ -15,8 +15,8 @@ export function needsDelayedVerification(config: SingleVerificationConfig): bool
 
 /**
  * 判断 RSI 对象是否包含至少一个有效数值
- * @param rsi 指标快照中的 rsi 字段
- * @returns true 表示存在至少一个有效 RSI 值
+ * @param rsi 指标快照中的 rsi 字段（可为 null 或各周期 RSI 对象）
+ * @returns true 表示存在至少一个有效 RSI 值，否则为 false
  */
 function hasValidRsiValue(rsi: IndicatorSnapshot['rsi']): boolean {
   return rsi != null && typeof rsi === 'object' && Object.values(rsi).some((v) => isValidNumber(v));
@@ -54,8 +54,8 @@ export function validateAllIndicators(state: IndicatorSnapshot): boolean {
 }
 
 /**
- * 格式化 KDJ 指标为显示字符串
- * @param kdj 指标快照中的 kdj 字段
+ * 格式化 KDJ 指标为显示字符串（内部辅助，用于日志与诊断）
+ * @param kdj 指标快照中的 kdj 字段，可为 null
  * @returns 格式化字符串，如 "KDJ(K=0.123,D=0.456,J=0.789)"；无有效值时返回空字符串
  */
 function formatKdjSegment(kdj: IndicatorSnapshot['kdj']): string {

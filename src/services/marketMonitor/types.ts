@@ -3,8 +3,10 @@ import type { IndicatorSnapshot, Quote } from '../../types/quote.js';
 import type { WarrantDistanceInfo } from '../../types/services.js';
 
 /**
- * 行情监控器接口
- * 监控做多/做空标的价格变化、监控标的指标变化，并格式化显示
+ * 行情监控器接口。
+ * 类型用途：对外暴露价格与指标监控方法，供主循环驱动控制台输出。
+ * 数据来源：主循环传入行情快照与 MonitorState，由本模块计算是否变化。
+ * 使用范围：主循环调用，仅用于控制台输出。
  */
 export interface MarketMonitor {
   /**

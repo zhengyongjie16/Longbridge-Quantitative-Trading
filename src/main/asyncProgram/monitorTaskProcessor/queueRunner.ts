@@ -9,6 +9,16 @@
 import type { MonitorTaskQueue } from '../monitorTaskQueue/types.js';
 import type { MonitorTaskData, MonitorTaskType } from './types.js';
 
+/**
+ * 创建监控任务队列调度器。
+ * 负责队列调度与 setImmediate 驱动，在任务入队或处理完成后触发下一轮消费；保证同一时刻仅有一个 processQueue 在运行。
+ *
+ * @param monitorTaskQueue 监控任务队列
+ * @param processQueue 单次消费队列的异步函数
+ * @param onQueueError 队列处理出错时的回调
+ * @param onAlreadyRunning 重复 start 时的回调
+ * @returns 提供 start、stop、stopAndDrain、restart 的调度器实例
+ */
 export function createQueueRunner({
   monitorTaskQueue,
   processQueue,

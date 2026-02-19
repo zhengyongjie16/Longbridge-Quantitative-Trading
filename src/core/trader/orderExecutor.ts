@@ -210,9 +210,10 @@ function handleSubmitError(
 }
 
 /**
- * 创建订单执行器
- * @param deps 依赖注入
- * @returns OrderExecutor 接口实例
+ * 创建订单执行器（核心业务流程：信号执行与订单提交）
+ * 负责将交易信号转为买卖订单、计算数量、调用 API 提交，并配合 orderMonitor 追踪与风控。
+ * @param deps 依赖注入（ctxPromise、rateLimiter、cacheManager、orderMonitor、orderRecorder、tradingConfig、symbolRegistry、isExecutionAllowed）
+ * @returns OrderExecutor 接口实例（canTradeNow、markBuyAttempt、executeSignals、resetBuyThrottle）
  */
 export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
   const {

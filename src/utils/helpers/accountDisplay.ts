@@ -91,8 +91,9 @@ export async function refreshAccountAndPositions(
  *
  * 依赖 lastState 中的缓存数据。quotesMap 用于显示持仓的现价和名称（来自主循环的行情订阅缓存）。
  *
- * @param lastState 状态对象，用于读取缓存
- * @param quotesMap 行情数据 Map（可选，来自行情客户端缓存）
+ * @param options.lastState - 状态对象，用于读取缓存
+ * @param options.quotesMap - 行情数据 Map（可选，来自行情客户端缓存）
+ * @returns Promise，无返回值
  */
 export async function displayAccountAndPositions({
   lastState,

@@ -586,7 +586,12 @@ export async function validateAllConfig({
   logger.info('');
 }
 
-/** 根据行情快照批量验证运行时标的有效性，必填标的验证失败计入 errors，非必填计入 warnings */
+/**
+ * 根据行情快照批量验证运行时标的有效性，必填标的验证失败计入 errors，非必填计入 warnings。
+ * @param options.inputs - 待验证的标的列表（含 symbol、label、required、requireLotSize）
+ * @param options.quotesMap - 标的代码到行情数据的 Map
+ * @returns 验证结果（valid、errors、warnings）
+ */
 export function validateRuntimeSymbolsFromQuotesMap({
   inputs,
   quotesMap,

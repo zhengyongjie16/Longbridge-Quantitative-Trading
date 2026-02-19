@@ -9,8 +9,10 @@ import type { Quote } from '../../types/quote.js';
 import type { MarketDataClient, RawOrderFromAPI, Trader } from '../../types/services.js';
 
 /**
- * 每次 tick 传入的运行时标志。
- * 由外部计算后注入，生命周期管理器只读取不修改。
+ * 每次 tick 传入的运行时标志（生命周期 tick 的入参之一）。
+ * 类型用途：供 DayLifecycleManager.tick 使用，表示当日键、是否可交易、是否交易日等；管理器只读不写。
+ * 数据来源：由主循环根据当前时间与交易日历等计算后传入 tick(now, runtime)。
+ * 使用范围：仅 lifecycle 模块及主程序调用 tick 处使用，内部使用。
  */
 export type LifecycleRuntimeFlags = Readonly<{
   dayKey: string | null;
@@ -20,7 +22,9 @@ export type LifecycleRuntimeFlags = Readonly<{
 
 /**
  * 生命周期管理器持有的可变状态。
- * 记录当前日期键、生命周期阶段、开盘重建标志及交易门禁开关。
+ * 类型用途：记录当前日期键、生命周期阶段、待开盘重建标志及交易门禁开关，供 tick 与缓存域回调读写。
+ * 数据来源：由 createDayLifecycleManager 创建并由管理器内部在 tick 与 openRebuild 时更新。
+ * 使用范围：仅 lifecycle 模块内部使用。
  */
 export type LifecycleMutableState = {
   currentDayKey: string | null;
@@ -31,7 +35,10 @@ export type LifecycleMutableState = {
 };
 
 /**
- * 传递给各 CacheDomain 回调的上下文，包含当前时间和运行时标志。
+ * 传递给各 CacheDomain 回调的上下文（midnightClear / openRebuild 的入参）。
+ * 类型用途：供各缓存域在午夜清理与开盘重建时使用，包含当前时间与运行时标志。
+ * 数据来源：由 DayLifecycleManager 在调用 cacheDomain.midnightClear/openRebuild 时组装传入。
+ * 使用范围：仅 lifecycle 与各 cacheDomains 使用，内部使用。
  */
 export type LifecycleContext = Readonly<{
   now: Date;
@@ -55,7 +62,10 @@ export interface DayLifecycleManager {
 }
 
 /**
- * createDayLifecycleManager 的依赖注入参数。
+ * 交易日生命周期管理器依赖（创建 DayLifecycleManager 时的参数）。
+ * 类型用途：createDayLifecycleManager 的依赖注入，包含可变状态、缓存域列表、日志与重试间隔等。
+ * 数据来源：由主程序/启动流程组装并传入工厂。
+ * 使用范围：仅 lifecycle 及启动流程使用，内部使用。
  */
 export type DayLifecycleManagerDeps = Readonly<{
   mutableState: LifecycleMutableState;
@@ -65,7 +75,10 @@ export type DayLifecycleManagerDeps = Readonly<{
 }>;
 
 /**
- * rebuildTradingDayState 的外部依赖，包含行情、交易、状态及账户展示回调。
+ * rebuildTradingDayState 的外部依赖（开盘重建时刷新交易状态所需的注入）。
+ * 类型用途：包含行情客户端、交易、lastState、symbolRegistry、monitorContexts、dailyLossTracker、displayAccountAndPositions 等。
+ * 数据来源：由 lifecycle 或 cacheDomains 在创建/调用 rebuildTradingDayState 时传入。
+ * 使用范围：仅 lifecycle 内部使用。
  */
 export type RebuildTradingDayStateDeps = Readonly<{
   marketDataClient: MarketDataClient;
@@ -81,7 +94,10 @@ export type RebuildTradingDayStateDeps = Readonly<{
 }>;
 
 /**
- * rebuildTradingDayState 的调用参数，包含当日订单列表和行情快照。
+ * rebuildTradingDayState 的调用参数。
+ * 类型用途：传入当日订单列表与行情快照，供开盘重建时刷新状态与展示。
+ * 数据来源：由调用方在 openRebuild 流程中获取订单与行情后传入。
+ * 使用范围：仅 lifecycle 内部使用。
  */
 export type RebuildTradingDayStateParams = Readonly<{
   allOrders: ReadonlyArray<RawOrderFromAPI>;
@@ -89,7 +105,10 @@ export type RebuildTradingDayStateParams = Readonly<{
 }>;
 
 /**
- * loadTradingDayRuntimeSnapshot 的调用参数，控制加载行为的各项开关。
+ * loadTradingDayRuntimeSnapshot 的调用参数。
+ * 类型用途：控制加载行为：是否要求交易日、订单拉取失败是否抛错、是否重置订阅、是否从成交记录恢复冷却等。
+ * 数据来源：由启动流程或开盘重建逻辑根据场景组装传入。
+ * 使用范围：仅 lifecycle 内部使用。
  */
 export type LoadTradingDayRuntimeSnapshotParams = Readonly<{
   now: Date;
@@ -101,7 +120,10 @@ export type LoadTradingDayRuntimeSnapshotParams = Readonly<{
 }>;
 
 /**
- * loadTradingDayRuntimeSnapshot 的返回结果，包含当日订单和行情快照。
+ * loadTradingDayRuntimeSnapshot 的返回结果。
+ * 类型用途：包含当日订单列表与行情快照，供后续重建状态与展示使用。
+ * 数据来源：由 loadTradingDayRuntimeSnapshot 内部拉取订单与行情后返回。
+ * 使用范围：仅 lifecycle 内部使用。
  */
 export type LoadTradingDayRuntimeSnapshotResult = Readonly<{
   allOrders: ReadonlyArray<RawOrderFromAPI>;

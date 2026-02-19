@@ -6,13 +6,10 @@ import type { Signal } from '../../types/signal.js';
 import type { MainProgramContext } from '../mainProgram/types.js';
 
 /**
- * processMonitor 函数参数类型
- *
- * 包含处理单个监控标的所需的所有依赖：
- * - monitorContext: 当前监控标的的上下文（配置、状态、策略等）
- * - 外部服务：marketDataClient、trader、marketMonitor 等
- * - 运行状态：currentTime、isHalfDay、canTradeNow、openProtectionActive
- * - 异步架构：indicatorCache、buyTaskQueue、sellTaskQueue
+ * processMonitor 函数参数类型（单标的处理入口的入参）。
+ * 类型用途：处理单个监控标的所需的主上下文、监控上下文与运行时标志（门禁、半日市、是否可交易等）。
+ * 数据来源：由 mainProgram 主循环按每个 monitorContext 与当前时间等组装传入。
+ * 使用范围：仅 processMonitor 及其调用方（mainProgram）使用，内部使用。
  */
 export type ProcessMonitorParams = {
   readonly context: MainProgramContext;
@@ -28,7 +25,8 @@ export type ProcessMonitorParams = {
 };
 
 /**
- * 队列清理结果
+ * 队列清理结果。
+ * 由 clearQueuesForMonitor 等返回，供主程序统计。
  */
 export type QueueClearResult = Readonly<{
   removedDelayed: number;
@@ -38,7 +36,8 @@ export type QueueClearResult = Readonly<{
 }>;
 
 /**
- * AUTO_SYMBOL 任务调度参数
+ * AUTO_SYMBOL 任务调度参数。
+ * 仅 processMonitor 内部使用。
  */
 export type AutoSymbolTasksParams = Readonly<{
   monitorSymbol: string;
@@ -53,7 +52,10 @@ export type AutoSymbolTasksParams = Readonly<{
 }>;
 
 /**
- * 席位同步参数
+ * 席位同步参数（同步席位信息函数的入参）。
+ * 类型用途：封装 syncSeatInfo 所需的监控标的、行情、主上下文及信号/持仓释放回调。
+ * 数据来源：由 processMonitor 从当前上下文与行情等组装传入。
+ * 使用范围：仅 processMonitor 内部使用。
  */
 export type SeatSyncParams = Readonly<{
   monitorSymbol: string;
@@ -65,7 +67,10 @@ export type SeatSyncParams = Readonly<{
 }>;
 
 /**
- * 席位同步结果
+ * 席位同步结果（syncSeatInfo 的返回值）。
+ * 类型用途：包含双向席位状态、版本、就绪标志、标的与行情，供信号流水线与风险任务等使用。
+ * 数据来源：由 syncSeatInfo(SeatSyncParams) 根据 symbolRegistry 与行情计算返回。
+ * 使用范围：仅 processMonitor 内部及下游流水线使用。
  */
 export type SeatSyncResult = Readonly<{
   longSeatState: SeatState;
@@ -81,7 +86,10 @@ export type SeatSyncResult = Readonly<{
 }>;
 
 /**
- * 风险任务调度参数
+ * 风险任务调度参数（调度强平距离/浮亏检查等监控任务时的入参）。
+ * 类型用途：封装调度 LIQUIDATION_DISTANCE_CHECK、UNREALIZED_LOSS_CHECK 等任务所需的上下文与席位信息。
+ * 数据来源：由 processMonitor 从 ProcessMonitorParams、seatInfo 等组装。
+ * 使用范围：仅 processMonitor 内部使用。
  */
 export type RiskTasksParams = Readonly<{
   monitorSymbol: string;
@@ -95,7 +103,10 @@ export type RiskTasksParams = Readonly<{
 }>;
 
 /**
- * 指标流水线参数
+ * 指标流水线参数（执行指标计算与缓存推送时的入参）。
+ * 类型用途：封装指标流水线所需的监控标的、监控上下文、主上下文与行情。
+ * 数据来源：由 processMonitor 从 ProcessMonitorParams、seatInfo 等组装。
+ * 使用范围：仅 processMonitor 内部使用。
  */
 export type IndicatorPipelineParams = Readonly<{
   monitorSymbol: string;
@@ -105,7 +116,10 @@ export type IndicatorPipelineParams = Readonly<{
 }>;
 
 /**
- * 信号流水线参数
+ * 信号流水线参数（执行信号生成、延迟验证入队等时的入参）。
+ * 类型用途：封装信号流水线所需的监控标的、上下文、席位信息、指标快照与释放回调。
+ * 数据来源：由 processMonitor 从 ProcessMonitorParams、seatInfo、指标流水线输出等组装。
+ * 使用范围：仅 processMonitor 内部使用。
  */
 export type SignalPipelineParams = Readonly<{
   monitorSymbol: string;

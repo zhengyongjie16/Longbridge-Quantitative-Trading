@@ -24,7 +24,12 @@ import {
 } from './utils.js';
 import type { BoundedNumberConfig } from './types.js';
 
-/** 从环境变量解析信号配置 */
+/**
+ * 从环境变量解析信号配置字符串，未配置或解析失败时返回 null。
+ * @param env - 进程环境变量对象
+ * @param envKey - 环境变量键名（如 SIGNAL_BUYCALL_1）
+ * @returns 解析后的信号配置，无效时返回 null
+ */
 function parseSignalConfigFromEnv(
   env: NodeJS.ProcessEnv,
   envKey: string,
@@ -94,7 +99,12 @@ function mapOrderTypeConfig(orderType: OrderType): OrderTypeConfig {
   }
 }
 
-/** 解析单个监控标的配置（索引 >= 1），未找到返回 null */
+/**
+ * 解析单个监控标的配置（索引 >= 1），连续扫描时遇到未配置的 MONITOR_SYMBOL 即表示该索引无配置。
+ * @param env - 进程环境变量对象
+ * @param index - 监控标的索引（从 1 开始，对应环境变量后缀 _1、_2 等）
+ * @returns 解析后的监控配置，该索引未配置或配置不完整时返回 null
+ */
 function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfig | null {
   if (index < 1) {
     return null;
@@ -214,7 +224,12 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
   };
 }
 
-/** 解析所有监控标的配置，自动扫描 MONITOR_SYMBOL_1, _2, ... */
+/**
+ * 解析所有监控标的配置，自动从 MONITOR_SYMBOL_1 起连续扫描，遇第一个未配置索引即停止。
+ * 同时解析全局配置（开盘保护、订单超时、订单类型等）。
+ * @param env - 进程环境变量对象
+ * @returns 多监控标的交易配置（monitors 数组 + global 全局配置）
+ */
 export function createMultiMonitorTradingConfig({
   env,
 }: {

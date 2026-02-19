@@ -17,7 +17,10 @@ import type { DoomsdayProtection } from '../core/doomsdayProtection/types.js';
 import type { PendingSellInfo } from '../core/orderRecorder/types.js';
 
 /**
- * 交易日查询结果
+ * 交易日查询结果。
+ * 类型用途：封装交易日 API 的返回结构，作为 isTradingDay / 交易日查询的返回值或中间数据。
+ * 数据来源：LongPort 交易日 API（如 trading_days）。
+ * 使用范围：行情客户端、生命周期、门禁等；全项目可引用。
  */
 export type TradingDaysResult = {
   /** 完整交易日列表 */
@@ -99,8 +102,10 @@ export interface MarketDataClient {
 }
 
 /**
- * 待处理订单
- * 表示尚未完全成交的订单
+ * 待处理订单。
+ * 类型用途：表示尚未完全成交的订单，用于 getPendingOrders 返回值、订单监控与撤单逻辑。
+ * 数据来源：Trader/订单 API 查询结果转换。
+ * 使用范围：trader、orderMonitor、主循环等；全项目可引用。
  */
 export type PendingOrder = {
   readonly orderId: string;
@@ -116,8 +121,10 @@ export type PendingOrder = {
 };
 
 /**
- * API 返回的原始订单类型
- * 用于从 LongPort API 接收订单数据时的类型安全转换
+ * API 返回的原始订单类型。
+ * 类型用途：从 LongPort 订单 API 接收订单数据时的类型安全结构，作为 fetchAllOrdersFromAPI、refreshOrdersFromAllOrdersForLong/Short 等入参或元素类型。
+ * 数据来源：LongPort 订单 API 返回。
+ * 使用范围：OrderRecorder、Trader、orderApiManager 等；全项目可引用。
  */
 export type RawOrderFromAPI = {
   readonly orderId: string;
@@ -135,8 +142,10 @@ export type RawOrderFromAPI = {
 };
 
 /**
- * 已成交订单记录
- * 用于记录和计算持仓成本
+ * 已成交订单记录。
+ * 类型用途：表示单笔已成交订单，用于订单记录器内部存储、成本均价计算、可卖订单列表等。
+ * 数据来源：本地记录或由 RawOrderFromAPI 转换/同步得到。
+ * 使用范围：OrderRecorder、RiskChecker、卖出计算、智能平仓等；全项目可引用。
  */
 export type OrderRecord = {
   /** 订单 ID */
@@ -156,8 +165,10 @@ export type OrderRecord = {
 };
 
 /**
- * 交易检查结果
- * 检查当前是否可以执行交易
+ * 交易检查结果。
+ * 类型用途：表示当前是否可执行交易及原因，作为 canTradeNow、recordBuyAttempt 等调用的返回值。
+ * 数据来源：Trader 内部根据频率限制、门禁等计算。
+ * 使用范围：主循环、买卖处理器等；全项目可引用。
  */
 export type TradeCheckResult = {
   /** 是否可以交易 */
@@ -171,7 +182,10 @@ export type TradeCheckResult = {
 };
 
 /**
- * API 频率限制器接口
+ * API 频率限制器接口。
+ * 类型用途：依赖注入用接口，在交易/行情等 API 调用前等待限流通过。
+ * 数据来源：如适用；实现由调用方提供。
+ * 使用范围：Trader、行情客户端等限流场景；见调用方。
  */
 export interface RateLimiter {
   /** 等待限流通过 */
@@ -179,8 +193,10 @@ export interface RateLimiter {
 }
 
 /**
- * 订单记录器接口
- * 管理买卖订单的本地记录和 API 同步
+ * 订单记录器接口。
+ * 类型用途：依赖注入用接口，管理买卖订单的本地记录与 API 同步，提供成本价、可卖订单、待成交卖单追踪等。
+ * 数据来源：本地记录 + LongPort 订单 API 同步。
+ * 使用范围：Trader、RiskChecker、信号处理、主循环等；全项目可引用。
  */
 export interface OrderRecorder {
   /** 记录本地买入订单 */
@@ -265,8 +281,10 @@ export interface OrderRecorder {
 }
 
 /**
- * 交易器接口
- * 封装 LongPort 交易 API，提供订单执行和管理功能
+ * 交易器接口。
+ * 类型用途：依赖注入用接口，封装 LongPort 交易 API，提供账户/持仓、订单执行、订单监控与信号执行等。
+ * 数据来源：实现层对接 LongPort TradeContext；账户与订单数据来自 API。
+ * 使用范围：主循环、MonitorContext、信号处理、门禁等；全项目可引用。
  */
 export interface Trader {
   /** 订单记录器实例 */
@@ -313,8 +331,10 @@ export interface Trader {
 }
 
 /**
- * 待刷新数据的标的信息
- * 订单成交后标记需要刷新的数据类型
+ * 待刷新数据的标的信息。
+ * 类型用途：订单成交后标记需要刷新的标的及要刷新的数据类型（账户/持仓），用于 getAndClearPendingRefreshSymbols 等。
+ * 数据来源：Trader/订单监控在成交回调中写入。
+ * 使用范围：postTradeRefresher、主循环等；全项目可引用。
  */
 export type PendingRefreshSymbol = {
   /** 标的代码 */
@@ -328,14 +348,18 @@ export type PendingRefreshSymbol = {
 };
 
 /**
- * 牛熊证类型
- * - BULL: 牛证（做多）
- * - BEAR: 熊证（做空）
+ * 牛熊证类型。
+ * 类型用途：区分牛证（做多）与熊证（做空），用于 RiskCheckResult、WarrantDistanceInfo 等字段。
+ * 数据来源：LongPort 行情静态信息或 RiskChecker 解析。
+ * 使用范围：RiskChecker、UI/监控展示等；全项目可引用。
  */
 export type WarrantType = 'BULL' | 'BEAR';
 
 /**
- * 牛熊证距离回收价信息（用于实时显示）
+ * 牛熊证距离回收价信息。
+ * 类型用途：表示某标的距离回收价的百分比，用于实时展示与风控判断。
+ * 数据来源：RiskChecker 根据行情与回收价计算。
+ * 使用范围：RiskChecker、UI/监控展示；全项目可引用。
  */
 export type WarrantDistanceInfo = {
   /** 牛熊证类型 */
@@ -345,7 +369,10 @@ export type WarrantDistanceInfo = {
 };
 
 /**
- * 牛熊证信息刷新结果
+ * 牛熊证信息刷新结果。
+ * 类型用途：表示刷新牛熊证信息的结果（ok/notWarrant/error/skipped），作为 setWarrantInfoFromCallPrice、refreshWarrantInfoForSymbol 返回值。
+ * 数据来源：RiskChecker 根据 API 或透传回收价得出。
+ * 使用范围：RiskChecker、调用方与 UI；全项目可引用。
  */
 export type WarrantRefreshResult =
   | { readonly status: 'ok'; readonly isWarrant: true }
@@ -354,7 +381,10 @@ export type WarrantRefreshResult =
   | { readonly status: 'skipped'; readonly isWarrant: false };
 
 /**
- * 牛熊证距回收价清仓判定结果
+ * 牛熊证距回收价清仓判定结果。
+ * 类型用途：表示是否应因距回收价过近而清仓及原因，作为 checkWarrantDistanceLiquidation 返回值。
+ * 数据来源：RiskChecker 根据当前价与回收价计算。
+ * 使用范围：RiskChecker、信号处理/卖出逻辑；全项目可引用。
  */
 export type WarrantDistanceLiquidationResult = {
   /** 是否触发清仓 */
@@ -368,7 +398,10 @@ export type WarrantDistanceLiquidationResult = {
 };
 
 /**
- * 风险检查结果
+ * 风险检查结果。
+ * 类型用途：订单前/牛熊证风险检查的返回值，表示是否允许交易、原因及牛熊证风险信息。
+ * 数据来源：RiskChecker.checkBeforeOrder、checkWarrantRisk 等。
+ * 使用范围：信号处理、买卖流程、主循环；全项目可引用。
  */
 export type RiskCheckResult = {
   /** 是否允许交易 */
@@ -387,8 +420,10 @@ export type RiskCheckResult = {
 };
 
 /**
- * 浮亏数据
- * 用于计算单标的浮动亏损
+ * 浮亏数据。
+ * 类型用途：存储单标的累计买入金额/数量等，用于计算浮动亏损与强平判定。
+ * 数据来源：OrderRecorder 订单记录 + RiskChecker 刷新与计算。
+ * 使用范围：RiskChecker、UnrealizedLossMonitor 等；全项目可引用。
  */
 export type UnrealizedLossData = {
   /** r1: 累计买入金额 */
@@ -404,7 +439,10 @@ export type UnrealizedLossData = {
 };
 
 /**
- * 浮亏检查结果
+ * 浮亏检查结果。
+ * 类型用途：单标的浮亏检查返回值，表示是否应强制平仓、原因及建议平仓数量。
+ * 数据来源：RiskChecker.checkUnrealizedLoss。
+ * 使用范围：信号处理、卖出逻辑；全项目可引用。
  */
 export type UnrealizedLossCheckResult = {
   /** 是否应该强制平仓 */

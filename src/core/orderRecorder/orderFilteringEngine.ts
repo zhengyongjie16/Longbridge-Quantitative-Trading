@@ -162,8 +162,9 @@ function applyFilteringAlgorithm(
 }
 
 /**
- * 创建订单过滤引擎
- * 封装智能清仓决策算法，返回无状态的 OrderFilteringEngine 接口实例
+ * 创建订单过滤引擎（无状态，封装智能清仓决策算法）
+ * @param _deps 可选依赖，当前未使用
+ * @returns OrderFilteringEngine 接口实例（applyFilteringAlgorithm）
  */
 export function createOrderFilteringEngine(
   _deps: OrderFilteringEngineDeps = {},

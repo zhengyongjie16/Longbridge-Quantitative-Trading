@@ -2,7 +2,10 @@ import type { Signal } from '../../types/signal.js';
 import type { Task, TaskQueue } from './tradeTaskQueue/types.js';
 
 /**
- * 处理器通用接口
+ * 处理器通用接口（行为契约）。
+ * 类型用途：供主程序/启动流程统一调度买卖处理器与监控任务处理器（start/stop/stopAndDrain/restart）。
+ * 数据来源：由 BuyProcessor、SellProcessor、MonitorTaskProcessor 等实现并注入。
+ * 使用范围：mainProgram、lifecycle 等持有并调用，仅内部使用。
  */
 export interface Processor {
   /** 启动处理器，开始消费任务队列 */
@@ -16,8 +19,10 @@ export interface Processor {
 }
 
 /**
- * 基础任务处理器配置
- * @template TType 任务类型字符串字面量
+ * 基础任务处理器配置（创建处理器时的参数）。
+ * 类型用途：依赖注入用配置，供 createBuyProcessor / createSellProcessor / createMonitorTaskProcessor 等消费。
+ * 数据来源：由主程序/启动流程根据 taskQueue、processTask、releaseAfterProcess 等组装传入。
+ * 使用范围：仅 asyncProgram 子模块内部使用。
  */
 export type BaseProcessorConfig<TType extends string> = {
   /** 日志前缀（如 BuyProcessor、SellProcessor） */

@@ -20,7 +20,12 @@ import type { OrderStorage, OrderStorageDeps, PendingSellInfo, ProfitableOrderRe
 import { calculateTotalQuantity, calculateOrderStatistics } from './utils.js';
 import { deductSellQuantityFromBuyOrders } from './sellDeductionPolicy.js';
 
-/** 创建订单存储管理器 */
+/**
+ * 创建订单存储管理器（纯内存，无异步）
+ * 管理本地订单增删改查、待成交卖单追踪与可卖出盈利订单计算，供 orderRecorder 与风控使用。
+ * @param _deps 可选依赖，当前未使用
+ * @returns OrderStorage 接口实例
+ */
 export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage => {
   // 使用 Map 存储订单，key 为 symbol，提供 O(1) 查找性能
   const longBuyOrdersMap: Map<string, OrderRecord[]> = new Map();

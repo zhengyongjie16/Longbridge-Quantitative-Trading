@@ -47,6 +47,12 @@ export const extractInitialIndicators = (
  * 检查该时间点的所有指标是否满足趋势条件：
  * - 上涨趋势：当前值 > 初始值
  * - 下跌趋势：当前值 < 初始值
+ *
+ * @param entry 指标缓存条目，为 null 时视为不通过
+ * @param initialIndicators 信号触发时的初始指标名到值的映射
+ * @param indicatorNames 待校验的指标名称列表
+ * @param isUptrend 是否为上涨趋势（true 则要求当前值 > 初始值）
+ * @returns 校验结果，含 passed、details、failedIndicators
  */
 const verifyTimePoint = (
   entry: IndicatorCacheEntry | null,

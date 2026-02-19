@@ -43,8 +43,10 @@ export type CashInfo = {
 };
 
 /**
- * 账户快照
- * 表示某一时刻的账户资产状态
+ * 账户快照。
+ * 类型用途：表示某一时刻的账户资产状态（现金、净资产、购买力等），用于 getAccountSnapshot 返回值、RiskCheckContext、门禁等。
+ * 数据来源：LongPort 账户 API。
+ * 使用范围：Trader、RiskChecker、LastState、主循环等；全项目可引用。
  */
 export type AccountSnapshot = {
   /** 结算币种 */

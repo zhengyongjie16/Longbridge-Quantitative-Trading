@@ -48,7 +48,12 @@ function isValidTradeRecordArray(records: unknown): records is TradeRecord[] {
   return Array.isArray(records) && records.every(isValidTradeRecord);
 }
 
-/** 识别错误类型（通过错误消息关键词匹配） */
+/**
+ * 识别错误类型（通过错误消息关键词匹配）
+ * 用于区分资金不足、不支持做空、订单不存在、网络错误、限流等，便于日志与风控处理。
+ * @param errorMessage 错误消息原文（将转为小写后匹配关键词）
+ * @returns 错误类型标识对象，各布尔字段表示是否匹配对应类型
+ */
 export function identifyErrorType(errorMessage: string): ErrorTypeIdentifier {
   const lowerMsg = errorMessage.toLowerCase();
 
@@ -78,7 +83,12 @@ export function identifyErrorType(errorMessage: string): ErrorTypeIdentifier {
   };
 }
 
-/** 记录交易到 JSON 文件（按日期分文件存储） */
+/**
+ * 记录交易到 JSON 文件（按日期分文件存储）
+ * 写入 logs/trades/YYYY-MM-DD.json，缺失字段补 null，并执行日志文件保留策略。
+ * @param tradeRecord 单笔交易记录，字段可为 null
+ * @returns 无返回值；写入失败时仅记录错误日志
+ */
 export function recordTrade(tradeRecord: TradeRecord): void {
   try {
     const logDir = path.join(process.cwd(), 'logs', 'trades');

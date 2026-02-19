@@ -23,6 +23,7 @@ export function createRingBuffer(capacity: number): _RingBuffer {
  *
  * @param buffer 目标环形缓冲区
  * @param entry 待写入的缓存条目
+ * @returns 无返回值
  */
 export function pushToBuffer(buffer: _RingBuffer, entry: IndicatorCacheEntry): void {
   buffer.entries[buffer.head] = entry;

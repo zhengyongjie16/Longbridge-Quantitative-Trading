@@ -27,9 +27,10 @@ export type OrderSubmitResponse = {
 };
 
 /**
- * 订单提交载荷
- * 用途：封装调用 ctx.submitOrder() 时的参数
- * 使用范围：仅在 trader 模块内部使用
+ * 订单提交载荷。
+ * 类型用途：封装调用 ctx.submitOrder() 时的参数。
+ * 数据来源：模块内部根据信号与配置构造。
+ * 使用范围：仅在 trader 模块内部使用。
  */
 export type OrderPayload = {
   readonly symbol: string;
@@ -42,9 +43,10 @@ export type OrderPayload = {
 };
 
 /**
- * 订单追踪入参
- * 用途：传递给 OrderMonitor.trackOrder() 的参数，用于追踪订单状态变化
- * 使用范围：仅在 trader 模块内部使用
+ * 订单追踪入参。
+ * 类型用途：传递给 OrderMonitor.trackOrder() 的参数，用于追踪订单状态变化。
+ * 数据来源：提交订单后由 OrderExecutor 等构造。
+ * 使用范围：仅在 trader 模块内部使用。
  */
 export type TrackOrderParams = {
   readonly orderId: string;
@@ -88,8 +90,8 @@ export type OrderTypeResolutionConfig = {
 };
 
 /**
- * 交易记录（用于日志持久化）
- * 记录每笔交易的完整信息，保存到 JSON 文件
+ * 交易记录。
+ * 用于日志持久化（JSON 文件）。
  */
 export type TradeRecord = {
   readonly orderId: string | null;
@@ -143,7 +145,8 @@ export type ErrorTypeIdentifier = {
 // ==================== 服务接口定义 ====================
 
 /**
- * 账户服务接口
+ * 账户服务接口。
+ * 由 Trader 依赖注入，仅 trader 模块内部实现使用。
  */
 export interface AccountService {
   getAccountSnapshot(): Promise<AccountSnapshot | null>;
@@ -151,7 +154,8 @@ export interface AccountService {
 }
 
 /**
- * 订单缓存管理器接口
+ * 订单缓存管理器接口。
+ * 由 Trader 依赖注入，仅 trader 模块内部实现使用。
  */
 export interface OrderCacheManager {
   getPendingOrders(symbols?: string[] | null, forceRefresh?: boolean): Promise<PendingOrder[]>;
@@ -159,7 +163,8 @@ export interface OrderCacheManager {
 }
 
 /**
- * 订单监控器接口
+ * 订单监控器接口。
+ * 由 Trader 依赖注入。
  */
 export interface OrderMonitor {
   /** 初始化 WebSocket 订阅 */
@@ -199,7 +204,8 @@ export interface OrderMonitor {
 }
 
 /**
- * 订单执行器接口
+ * 订单执行器接口。
+ * 由 Trader 依赖注入。
  */
 export interface OrderExecutor {
   canTradeNow(signalAction: SignalType, monitorConfig?: MonitorConfig | null): TradeCheckResult;
@@ -216,7 +222,8 @@ export interface OrderExecutor {
 }
 
 /**
- * 频率限制器配置类型
+ * 频率限制器配置。
+ * 用于 trader 模块内建限流器。
  */
 export type RateLimiterConfig = {
   readonly maxCalls: number;
@@ -224,14 +231,16 @@ export type RateLimiterConfig = {
 };
 
 /**
- * 频率限制器依赖类型
+ * 频率限制器依赖。
+ * 用于创建 RateLimiter 实例时的依赖注入。
  */
 export type RateLimiterDeps = {
   readonly config?: RateLimiterConfig;
 };
 
 /**
- * 账户服务依赖类型
+ * 账户服务依赖。
+ * 用于创建 AccountService 时的依赖注入。
  */
 export type AccountServiceDeps = {
   readonly ctxPromise: Promise<TradeContext>;
@@ -239,7 +248,10 @@ export type AccountServiceDeps = {
 };
 
 /**
- * 订单缓存管理器依赖类型
+ * 订单缓存管理器依赖。
+ * 类型用途：用于创建 OrderCacheManager 时的依赖注入。
+ * 数据来源：如适用。
+ * 使用范围：仅在 trader 模块内部使用。
  */
 export type OrderCacheManagerDeps = {
   readonly ctxPromise: Promise<TradeContext>;
@@ -247,8 +259,10 @@ export type OrderCacheManagerDeps = {
 };
 
 /**
- * 追踪中的订单信息
- * 用于 WebSocket 监控订单状态变化，跟踪委托价和成交情况
+ * 追踪中的订单信息。
+ * 类型用途：OrderMonitor 内部存储，用于 WebSocket 监控订单状态变化，跟踪委托价和成交情况。
+ * 数据来源：由 trackOrder 入参初始化，状态由 WebSocket 推送更新。
+ * 使用范围：仅在 trader 模块内部使用。
  */
 export type TrackedOrder = {
   readonly orderId: string;
@@ -279,9 +293,10 @@ export type TrackedOrder = {
 };
 
 /**
- * 未成交卖单快照（用于卖单合并决策）
- * 用途：提供卖单合并决策所需的订单状态信息
- * 使用范围：仅在 trader 模块内部使用
+ * 未成交卖单快照（用于卖单合并决策）。
+ * 类型用途：提供卖单合并决策所需的订单状态信息。
+ * 数据来源：OrderMonitor.getPendingSellOrders 返回。
+ * 使用范围：仅在 trader 模块内部使用。
  */
 export type PendingSellOrderSnapshot = {
   readonly orderId: string;
@@ -336,9 +351,10 @@ export type SellMergeDecision = {
 };
 
 /**
- * 订单监控配置
- * 用途：控制订单超时转换和价格修改行为
- * 使用范围：仅在 trader 模块内部使用
+ * 订单监控配置。
+ * 类型用途：控制订单超时转换和价格修改行为。
+ * 数据来源：如适用（来自交易配置等）。
+ * 使用范围：仅在 trader 模块内部使用。
  */
 export type OrderMonitorConfig = {
   readonly buyTimeout: {
@@ -356,16 +372,10 @@ export type OrderMonitorConfig = {
 };
 
 /**
- * 订单订阅保留集管理器
- *
- * 职责：
- * - 跟踪需要持续订阅的订单标的
- * - 程序重启时恢复订阅状态
- * - 订单成交后移除订阅标记
- *
- * 设计原因：
- * - 避免频繁订阅/取消订阅造成的 API 调用开销
- * - 订单成交后需要继续订阅以获取最新行情
+ * 订单订阅保留集管理器。
+ * 类型用途：依赖注入的服务接口，跟踪需持续订阅的订单标的、恢复订阅状态、成交后移除标记。
+ * 数据来源：如适用。
+ * 使用范围：由 Trader/OrderMonitor 依赖注入，仅 trader 模块实现与使用。
  */
 export interface OrderHoldRegistry {
   /** 跟踪订单（添加标的到订阅保留集） */
@@ -381,7 +391,10 @@ export interface OrderHoldRegistry {
 }
 
 /**
- * 订单监控器依赖类型
+ * 订单监控器依赖。
+ * 类型用途：用于创建 OrderMonitor 时的依赖注入。
+ * 数据来源：如适用。
+ * 使用范围：仅在 trader 模块内部使用。
  */
 export type OrderMonitorDeps = {
   readonly ctxPromise: Promise<TradeContext>;
@@ -416,7 +429,10 @@ export type OrderMonitorDeps = {
 export type IsExecutionAllowed = () => boolean;
 
 /**
- * 订单执行器依赖类型
+ * 订单执行器依赖。
+ * 类型用途：用于创建 OrderExecutor 时的依赖注入。
+ * 数据来源：如适用。
+ * 使用范围：仅在 trader 模块内部使用。
  */
 export type OrderExecutorDeps = {
   readonly ctxPromise: Promise<TradeContext>;
@@ -434,8 +450,10 @@ export type OrderExecutorDeps = {
 };
 
 /**
- * 交易器依赖类型
- * 用于创建顶层 Trader 实例时的依赖注入，包含 API 配置、交易配置及各子服务依赖
+ * 交易器依赖。
+ * 类型用途：用于创建顶层 Trader 实例时的依赖注入。
+ * 数据来源：如适用。
+ * 使用范围：见调用方（启动层等）。
  */
 export type TraderDeps = {
   readonly config: Config;

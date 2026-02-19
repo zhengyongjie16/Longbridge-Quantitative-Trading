@@ -17,8 +17,8 @@ import type { DailyLossTracker } from '../../../core/riskController/types.js';
 import type { LiquidationCooldownTracker } from '../../../services/liquidationCooldown/types.js';
 
 /**
- * createSignalRuntimeDomain 的依赖注入参数。
- * 包含所有异步处理器、任务队列、指标缓存及信号释放回调。
+ * 信号运行时域依赖。
+ * 用于 createSignalRuntimeDomain 的依赖注入，仅 lifecycle 模块使用。
  */
 export type SignalRuntimeDomainDeps = Readonly<{
   monitorContexts: ReadonlyMap<string, MonitorContext>;
@@ -36,8 +36,8 @@ export type SignalRuntimeDomainDeps = Readonly<{
 }>;
 
 /**
- * createSeatDomain 的依赖注入参数。
- * 包含交易配置、标的注册表、监控上下文及轮证列表缓存。
+ * 席位域依赖。
+ * 用于 createSeatDomain 的依赖注入，仅 lifecycle 模块使用。
  */
 export type SeatDomainDeps = Readonly<{
   tradingConfig: MultiMonitorTradingConfig;
@@ -47,16 +47,16 @@ export type SeatDomainDeps = Readonly<{
 }>;
 
 /**
- * createOrderDomain 的依赖注入参数。
- * 仅包含交易执行器。
+ * 订单域依赖。
+ * 用于 createOrderDomain 的依赖注入，仅 lifecycle 模块使用。
  */
 export type OrderDomainDeps = Readonly<{
   trader: Trader;
 }>;
 
 /**
- * createRiskDomain 的依赖注入参数。
- * 包含信号处理器、日内亏损追踪、监控上下文及清仓冷却追踪器。
+ * 风险域依赖。
+ * 用于 createRiskDomain 的依赖注入，仅 lifecycle 模块使用。
  */
 export type RiskDomainDeps = Readonly<{
   signalProcessor: SignalProcessor;
@@ -66,16 +66,16 @@ export type RiskDomainDeps = Readonly<{
 }>;
 
 /**
- * createMarketDataDomain 的依赖注入参数。
- * 仅包含行情客户端。
+ * 行情数据域依赖。
+ * 用于 createMarketDataDomain 的依赖注入，仅 lifecycle 模块使用。
  */
 export type MarketDataDomainDeps = Readonly<{
   marketDataClient: MarketDataClient;
 }>;
 
 /**
- * createGlobalStateDomain 的依赖注入参数。
- * 包含全局状态对象和开盘重建回调。
+ * 全局状态域依赖。
+ * 用于 createGlobalStateDomain 的依赖注入，仅 lifecycle 模块使用。
  */
 export type GlobalStateDomainDeps = Readonly<{
   lastState: LastState;

@@ -11,8 +11,10 @@ import type { DailyLossTracker, UnrealizedLossMonitor } from '../core/riskContro
 import type { DelayedSignalVerifier } from '../main/asyncProgram/delayedSignalVerifier/types.js';
 
 /**
- * 单个监控标的的运行时状态
- * 在主循环中持续更新
+ * 单个监控标的的运行时状态。
+ * 类型用途：承载单监控标的的当前价格、信号、待延迟验证信号、指标快照等，在主循环中持续更新，作为 MonitorContext.state、LastState.monitorStates 的值类型。
+ * 数据来源：主循环/processMonitor 根据行情与策略输出更新。
+ * 使用范围：LastState、MonitorContext、主循环、pipeline 等；全项目可引用。
  */
 export type MonitorState = {
   /** 监控标的代码 */
@@ -40,8 +42,10 @@ export type MonitorState = {
 };
 
 /**
- * 系统全局状态
- * 主循环中的共享状态，被多个模块使用
+ * 系统全局状态。
+ * 类型用途：主循环中的共享状态，聚合可交易标志、半日市、账户/持仓缓存、各监控标的状态等，供 processMonitor、门禁、买卖流程等使用。
+ * 数据来源：主循环与各子模块（gate、refresh、策略等）共同维护。
+ * 使用范围：主循环、MonitorContext、RiskCheckContext、买卖处理器等；全项目可引用。
  */
 export type LastState = {
   /**
@@ -79,8 +83,10 @@ export type LastState = {
 };
 
 /**
- * 监控标的上下文
- * 聚合单个监控标的的配置、状态和服务实例
+ * 监控标的上下文。
+ * 类型用途：聚合单监控标的的配置、运行时状态、注册表、策略、风控、行情缓存等，作为单标的处理流程的入参。
+ * 数据来源：主程序/startup 根据配置与 LastState 组装；运行中字段由主循环更新。
+ * 使用范围：processMonitor、主循环、买卖处理器、策略等；全项目可引用。
  */
 export type MonitorContext = {
   /** 监控标的配置 */

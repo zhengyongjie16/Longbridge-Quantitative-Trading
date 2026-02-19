@@ -16,8 +16,8 @@ export type QuoteStaticInfo = {
 };
 
 /**
- * 行情数据
- * 表示标的的实时行情信息
+ * 行情数据。
+ * 数据来源为 LongPort 行情推送或 getQuotes。
  */
 export type Quote = {
   /** 标的代码 */
@@ -39,8 +39,8 @@ export type Quote = {
 };
 
 /**
- * KDJ 随机指标
- * 用于判断超买超卖状态
+ * KDJ 随机指标。
+ * 用于判断超买超卖；数据来源为指标计算（如 quote 层或 indicators 服务）。
  */
 export type KDJIndicator = {
   /** K 值（快速随机值） */
@@ -52,8 +52,10 @@ export type KDJIndicator = {
 };
 
 /**
- * MACD 指标
- * 用于判断趋势方向和强度
+ * MACD 指标。
+ * 类型用途：表示 macd/dif/dea，用于趋势判断，作为 IndicatorSnapshot.macd 及策略输入的字段类型。
+ * 数据来源：指标计算（indicators 服务或 quote 层）。
+ * 使用范围：IndicatorSnapshot、策略、data.MonitorValues 等；全项目可引用。
  */
 export type MACDIndicator = {
   /** MACD 柱状图值 */
@@ -65,8 +67,8 @@ export type MACDIndicator = {
 };
 
 /**
- * 指标快照
- * 包含某一时刻的所有技术指标值
+ * 指标快照。
+ * 用于信号判断与延迟验证。
  */
 export type IndicatorSnapshot = {
   /** 标的代码（可选，因为 Quote 已包含） */

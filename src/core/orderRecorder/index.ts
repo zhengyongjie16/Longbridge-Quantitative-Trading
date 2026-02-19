@@ -127,7 +127,11 @@ function formatOrderStatsLine(stats: OrderStatistics): string {
   return `  统计: 总数量=${stats.totalQuantity}, 平均价格=${avgPriceStr}`;
 }
 
-/** 创建订单记录器（门面模式），协调存储、API和过滤引擎 */
+/**
+ * 创建订单记录器（门面模式），协调存储、API 和过滤引擎，提供本地订单记录与盈利卖单计算。
+ * @param deps 依赖注入（storage、apiManager、filteringEngine）
+ * @returns OrderRecorder 接口实例
+ */
 export function createOrderRecorder(
   deps: OrderRecorderDeps,
 ): OrderRecorder {

@@ -238,14 +238,17 @@ export function createDelayedSignalVerifier(
       return count;
     },
 
+    /** 返回当前待验证信号数量 */
     getPendingCount(): number {
       return pendingSignals.size;
     },
 
+    /** 注册验证通过时的回调，信号通过延迟验证后会被调用 */
     onVerified(callback: VerifiedCallback): void {
       verifiedCallbacks.push(callback);
     },
 
+    /** 注册验证拒绝时的回调，信号未通过延迟验证时会被调用 */
     onRejected(callback: RejectedCallback): void {
       rejectedCallbacks.push(callback);
     },

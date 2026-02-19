@@ -332,7 +332,11 @@ async function checkWarrantType(
   };
 }
 
-/** 创建牛熊证风险检查器 */
+/**
+ * 创建牛熊证风险检查器（风控：距离回收价与最低价检查）
+ * @param _deps 可选依赖，当前未使用
+ * @returns WarrantRiskChecker 接口实例
+ */
 export function createWarrantRiskChecker(
   _deps: WarrantRiskCheckerDeps = {},
 ): WarrantRiskChecker {

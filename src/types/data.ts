@@ -1,14 +1,18 @@
 import type { KDJIndicator, MACDIndicator } from './quote.js';
 
 /**
- * K线数据值类型
- * 兼容 LongPort SDK 的 Decimal 类型和原始数值
+ * K 线数据值类型。
+ * 类型用途：兼容 LongPort SDK 的 Decimal 与原始数值，作为 CandleData 各 OHLCV 字段的类型。
+ * 数据来源：LongPort K 线 API 返回。
+ * 使用范围：CandleData、指标计算等；全项目可引用。
  */
 export type CandleValue = number | string | { toString(): string } | null | undefined;
 
 /**
- * K线数据
- * 表示单根 K 线的 OHLCV 数据
+ * K 线数据。
+ * 类型用途：表示单根 K 线的 OHLCV 数据，用于指标计算、策略输入等。
+ * 数据来源：LongPort K 线 API（如 candlesticks、实时 K 线）。
+ * 使用范围：indicators、策略、indicatorCache 等；全项目可引用。
  */
 export type CandleData = {
   /** 最高价 */
@@ -24,11 +28,10 @@ export type CandleData = {
 };
 
 /**
- * 监控值
- * 用于市场监控的技术指标集合
- *
- * @remarks 此类型需要可变以支持对象池的对象重用。对象池使用 PoolableMonitorValues 类型。
- * 嵌套的 Record 对象使用 Readonly 保证其内部不被修改。
+ * 监控值。
+ * 类型用途：市场监控用的技术指标集合（价格、EMA、RSI、KDJ、MACD 等），作为 MonitorState.monitorValues 类型；需可变以支持对象池（PoolableMonitorValues）。
+ * 数据来源：由 K 线经指标计算得到（如 indicatorCache、marketMonitor）。
+ * 使用范围：MonitorState、策略、主循环等；全项目可引用。
  */
 export type MonitorValues = {
   /** 当前价格 */

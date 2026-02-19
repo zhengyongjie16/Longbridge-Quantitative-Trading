@@ -56,6 +56,8 @@ function normalizeTradeRecord(raw: unknown): TradeRecord | null {
 
 /**
  * 创建交易日志冷却恢复器，绑定文件读取、冷却追踪器等依赖，对外暴露 hydrate 方法。
+ * @param deps - 依赖（tradeLogPath、liquidationCooldownTracker、getSeatSymbolSnapshot 等）
+ * @returns TradeLogHydrator 实例（hydrate 方法用于启动时恢复冷却状态）
  */
 export function createTradeLogHydrator(deps: TradeLogHydratorDeps): TradeLogHydrator {
   const {

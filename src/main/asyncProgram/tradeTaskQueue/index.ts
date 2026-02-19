@@ -89,12 +89,20 @@ function createTaskQueue<TType extends string>(): TaskQueue<TType> {
   };
 }
 
-/** 创建买入任务队列 */
+/**
+ * 创建买入任务队列
+ *
+ * @returns 买入任务队列实例（FIFO，支持 onTaskAdded 回调）
+ */
 export function createBuyTaskQueue(): TaskQueue<BuyTaskType> {
   return createTaskQueue<BuyTaskType>();
 }
 
-/** 创建卖出任务队列 */
+/**
+ * 创建卖出任务队列
+ *
+ * @returns 卖出任务队列实例（FIFO，支持 onTaskAdded 回调）
+ */
 export function createSellTaskQueue(): TaskQueue<SellTaskType> {
   return createTaskQueue<SellTaskType>();
 }

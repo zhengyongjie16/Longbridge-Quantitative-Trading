@@ -12,7 +12,10 @@ import type { PositionCache } from '../../types/services.js';
 export function createPositionCache(): PositionCache {
   const positionMap = new Map<string, Position>();
 
-  /** 用持仓数组替换缓存内容（仅缓存可用数量 > 0 的持仓） */
+  /**
+   * 用持仓数组替换缓存内容（仅缓存可用数量 > 0 的持仓）
+   * @param positions - 新的持仓数组
+   */
   function update(positions: ReadonlyArray<Position>): void {
     positionMap.clear();
 
@@ -28,7 +31,11 @@ export function createPositionCache(): PositionCache {
     }
   }
 
-  /** 获取指定标的的持仓，不存在返回 null */
+  /**
+   * 获取指定标的的持仓
+   * @param symbol - 标的代码
+   * @returns 持仓信息，不存在返回 null
+   */
   function get(symbol: string): Position | null {
     return positionMap.get(symbol) ?? null;
   }

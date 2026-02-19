@@ -68,8 +68,11 @@ function parseOrderOwnership(
 }
 
 /**
- * 在多监控标的场景下解析订单归属。
- * 若无法匹配任意监控标的，返回 null。
+ * 在多监控标的场景下解析订单归属
+ * 根据订单 stockName 与各监控的 orderOwnershipMapping 匹配，判断属于哪一监控标的及多空方向。
+ * @param order 原始 API 订单（含 stockName）
+ * @param monitors 监控配置列表，每项含 monitorSymbol 与 orderOwnershipMapping
+ * @returns 归属结果（monitorSymbol + direction），无法匹配时返回 null
  */
 export function resolveOrderOwnership(
   order: RawOrderFromAPI,

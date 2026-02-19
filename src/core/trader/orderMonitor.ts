@@ -40,7 +40,12 @@ import type {
 } from './types.js';
 import { recordTrade } from './tradeLogger.js';
 
-/** 根据订单方向和席位方向解析信号动作 */
+/**
+ * 根据订单方向和席位方向解析信号动作（用于成交日志与本地记录）
+ * @param side 订单方向 Buy/Sell
+ * @param isLongSymbol 是否为做多标的（牛证/做多）
+ * @returns 对应的信号动作 BUYCALL | BUYPUT | SELLCALL | SELLPUT
+ */
 function resolveSignalAction(
   side: OrderSide,
   isLongSymbol: boolean,
@@ -51,7 +56,11 @@ function resolveSignalAction(
   return isLongSymbol ? 'SELLCALL' : 'SELLPUT';
 }
 
-/** 构建监控配置（将秒转换为毫秒） */
+/**
+ * 构建订单监控配置（将全局配置中的秒转换为毫秒，供超时与价格更新间隔使用）
+ * @param globalConfig 全局配置，含买入/卖出超时秒数及价格更新间隔
+ * @returns 订单监控所需配置（超时与间隔均为毫秒）
+ */
 function buildOrderMonitorConfig(globalConfig: GlobalConfig): OrderMonitorConfig {
   return {
     buyTimeout: {
@@ -67,7 +76,11 @@ function buildOrderMonitorConfig(globalConfig: GlobalConfig): OrderMonitorConfig
   };
 }
 
-/** 解析订单更新时间为毫秒时间戳 */
+/**
+ * 解析订单更新时间为毫秒时间戳（兼容 Date、number、ISO 字符串）
+ * @param updatedAt SDK 推送或 API 返回的 updatedAt 字段
+ * @returns 毫秒时间戳，无法解析时返回 null
+ */
 function resolveUpdatedAtMs(updatedAt: unknown): number | null {
   if (updatedAt instanceof Date) {
     return updatedAt.getTime();

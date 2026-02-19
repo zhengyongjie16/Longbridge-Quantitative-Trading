@@ -21,8 +21,10 @@ import type { OrderFilteringEngine, OrderOwnership } from '../orderRecorder/type
 import type { Decimal, NaiveDate, OrderSide, WarrantType as SDKWarrantType } from 'longport';
 
 /**
- * 牛熊证报价
- * @see LongPort SDK QuoteContext.warrantQuote() 返回类型
+ * 牛熊证报价。
+ * 类型用途：牛熊证风险检查与距离计算所需的行情结构。
+ * 数据来源：LongPort SDK QuoteContext.warrantQuote()。
+ * 使用范围：仅 riskController 模块内部使用。
  */
 export type WarrantQuote = {
   /** 证券代码 */
@@ -72,9 +74,10 @@ export type WarrantQuote = {
 };
 
 /**
- * 牛熊证信息
- * 来源：WarrantRiskChecker 通过 LongPort API 查询后解析填充
- * 区分非轮证（isWarrant=false）与轮证（isWarrant=true）两种形态，仅在 riskController 模块内部使用
+ * 牛熊证信息。
+ * 类型用途：区分非轮证（isWarrant=false）与轮证（isWarrant=true），供风险检查使用。
+ * 数据来源：WarrantRiskChecker 通过 LongPort API 查询后解析填充。
+ * 使用范围：仅在 riskController 模块内部使用。
  */
 export type WarrantInfo =
   | { readonly isWarrant: false }
@@ -88,7 +91,12 @@ export type WarrantInfo =
 
 // ==================== 服务接口定义 ====================
 
-/** 牛熊证风险检查器接口 */
+/**
+ * 牛熊证风险检查器接口。
+ * 类型用途：依赖注入，由 RiskChecker 门面聚合，提供牛熊证风险与距离检查。
+ * 数据来源：如适用。
+ * 使用范围：仅 riskController 模块实现；主程序通过 RiskChecker 使用。
+ */
 export interface WarrantRiskChecker {
   setWarrantInfoFromCallPrice(
     symbol: string,
@@ -122,7 +130,10 @@ export interface WarrantRiskChecker {
   clearShortWarrantInfo(): void;
 }
 
-/** 持仓限制检查器接口 */
+/**
+ * 持仓限制检查器接口。
+ * 由 RiskChecker 门面聚合。
+ */
 export interface PositionLimitChecker {
   checkLimit(
     signal: Signal,
@@ -132,7 +143,12 @@ export interface PositionLimitChecker {
   ): RiskCheckResult;
 }
 
-/** 浮亏检查器接口 */
+/**
+ * 浮亏检查器接口。
+ * 类型用途：依赖注入，由 RiskChecker 门面聚合，提供浮亏计算与阈值检查。
+ * 数据来源：如适用。
+ * 使用范围：仅 riskController 模块实现；主程序通过 RiskChecker 使用。
+ */
 export interface UnrealizedLossChecker {
   getUnrealizedLossData(symbol: string): UnrealizedLossData | undefined;
   /** 清空浮亏数据，symbol 为空时清空全部 */
@@ -153,22 +169,42 @@ export interface UnrealizedLossChecker {
 
 // ==================== 依赖类型定义 ====================
 
-/** 牛熊证风险检查器依赖（当前无外部依赖） */
+/**
+ * 牛熊证风险检查器依赖。
+ * 类型用途：创建 WarrantRiskChecker 时的依赖注入（当前无外部依赖，空对象）。
+ * 数据来源：如适用。
+ * 使用范围：仅 riskController 模块内部使用。
+ */
 export type WarrantRiskCheckerDeps = {
   readonly [key: string]: never;
 };
 
-/** 持仓限制检查器依赖 */
+/**
+ * 持仓限制检查器依赖。
+ * 类型用途：用于创建 PositionLimitChecker 时的依赖注入。
+ * 数据来源：如适用（如配置中的 maxPositionNotional）。
+ * 使用范围：仅 riskController 模块内部使用。
+ */
 export type PositionLimitCheckerDeps = {
   readonly maxPositionNotional: number | null;
 };
 
-/** 浮亏检查器依赖 */
+/**
+ * 浮亏检查器依赖。
+ * 类型用途：用于创建 UnrealizedLossChecker 时的依赖注入。
+ * 数据来源：如适用（如配置中的 maxUnrealizedLossPerSymbol）。
+ * 使用范围：仅 riskController 模块内部使用。
+ */
 export type UnrealizedLossCheckerDeps = {
   readonly maxUnrealizedLossPerSymbol: number | null;
 };
 
-/** 风险检查器依赖（门面模式） */
+/**
+ * 风险检查器依赖。
+ * 类型用途：用于创建 RiskChecker 门面时的依赖注入。
+ * 数据来源：如适用。
+ * 使用范围：见调用方（如 riskDomain/启动层）。
+ */
 export type RiskCheckerDeps = {
   readonly warrantRiskChecker: WarrantRiskChecker;
   readonly positionLimitChecker: PositionLimitChecker;
@@ -184,7 +220,9 @@ export type RiskCheckerDeps = {
 
 /**
  * 单监控标的单方向的当日亏损状态。
- * 由 DailyLossTracker 内部维护，按 monitorSymbol + 方向（long/short）分组存储。
+ * 类型用途：DailyLossTracker 内部状态，按 monitorSymbol + 方向分组存储。
+ * 数据来源：由 DailyLossTracker 内部维护（买入/卖出订单与偏移）。
+ * 使用范围：仅 riskController 模块内部使用。
  */
 export type DailyLossState = {
   readonly buyOrders: ReadonlyArray<OrderRecord>;
@@ -194,7 +232,9 @@ export type DailyLossState = {
 
 /**
  * 未归属订单诊断样例，用于日志输出。
- * 仅在 collectOrderOwnershipDiagnostics 内部构造，不对外暴露。
+ * 类型用途：订单归属诊断结果中的单条样例。
+ * 数据来源：collectOrderOwnershipDiagnostics 内部构造。
+ * 使用范围：仅 riskController 模块内部使用（诊断与日志）。
  */
 export type OrderOwnershipDiagnosticSample = {
   readonly orderId: string;
@@ -204,7 +244,9 @@ export type OrderOwnershipDiagnosticSample = {
 
 /**
  * 订单归属诊断结果，记录当日成交订单中未能归属到任何监控标的的统计信息。
- * 由 collectOrderOwnershipDiagnostics 返回，供 DailyLossTracker 启动时日志告警使用。
+ * 类型用途：DailyLossTracker 启动时日志告警的返回结构。
+ * 数据来源：由 collectOrderOwnershipDiagnostics 返回。
+ * 使用范围：仅 riskController 模块内部使用。
  */
 export type OrderOwnershipDiagnostics = {
   readonly dayKey: string;
@@ -216,7 +258,9 @@ export type OrderOwnershipDiagnostics = {
 
 /**
  * 成交回报输入，用于 DailyLossTracker.recordFilledOrder 增量记录单笔成交。
+ * 类型用途：增量记录单笔成交的入参。
  * 数据来源：OrderMonitor 成交回调，仅在当日日键匹配时写入。
+ * 使用范围：仅 riskController 模块内部使用。
  */
 export type DailyLossFilledOrderInput = {
   readonly monitorSymbol: string;
@@ -231,7 +275,9 @@ export type DailyLossFilledOrderInput = {
 
 /**
  * 当日亏损追踪器接口，按监控标的与方向维护已实现盈亏偏移。
- * 由 riskDomain 持有，生命周期与主程序一致；跨日时由 midnightClear 调用 resetAll 重置。
+ * 类型用途：依赖注入，由 riskDomain 持有，提供当日亏损偏移与成交记录。
+ * 数据来源：如适用。
+ * 使用范围：主程序通过 riskDomain 使用；仅 riskController 模块实现。
  */
 export interface DailyLossTracker {
   /** 显式重置 dayKey 与 states */
@@ -250,7 +296,9 @@ export interface DailyLossTracker {
 
 /**
  * DailyLossTracker 依赖注入类型。
- * filteringEngine 用于计算未平仓买入成本；其余函数由外部注入以解耦订单归属逻辑。
+ * 类型用途：创建 DailyLossTracker 时的依赖注入；filteringEngine 用于计算未平仓买入成本，其余为订单归属/转换等解耦函数。
+ * 数据来源：如适用。
+ * 使用范围：仅 riskController 模块内部使用。
  */
 export type DailyLossTrackerDeps = {
   readonly filteringEngine: OrderFilteringEngine;
@@ -267,7 +315,10 @@ export type DailyLossTrackerDeps = {
 // ==================== 浮亏监控器 ====================
 
 /**
- * 浮亏监控上下文
+ * 浮亏监控上下文。
+ * 类型用途：UnrealizedLossMonitor.monitorUnrealizedLoss 的入参，封装行情、检查器与交易依赖。
+ * 数据来源：主循环/调用方传入。
+ * 使用范围：见调用方。
  */
 export type UnrealizedLossMonitorContext = {
   readonly longQuote: Quote | null;
@@ -282,8 +333,10 @@ export type UnrealizedLossMonitorContext = {
 };
 
 /**
- * 浮亏监控器接口
- * 监控做多/做空标的的浮亏，超过阈值时触发保护性清仓
+ * 浮亏监控器接口。
+ * 类型用途：依赖注入，由 riskDomain 持有，主循环调用以监控做多/做空浮亏并触发保护性清仓。
+ * 数据来源：如适用。
+ * 使用范围：主程序通过 riskDomain 使用；仅 riskController 模块实现。
  */
 export interface UnrealizedLossMonitor {
   /**
@@ -294,7 +347,10 @@ export interface UnrealizedLossMonitor {
 }
 
 /**
- * 浮亏监控器依赖类型
+ * 浮亏监控器依赖。
+ * 类型用途：用于创建 UnrealizedLossMonitor 时的依赖注入。
+ * 数据来源：如适用（如配置中的 maxUnrealizedLossPerSymbol）。
+ * 使用范围：仅 riskController 模块内部使用。
  */
 export type UnrealizedLossMonitorDeps = {
   /** 单标的最大浮亏阈值（港币），<=0 表示禁用浮亏监控 */

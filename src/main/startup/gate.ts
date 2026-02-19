@@ -11,9 +11,6 @@
  * - 'outOfSession': 当前不在连续交易时段，等待开市
  * - 'openProtection': 处于开盘保护期内，等待保护期结束
  * - 'ready': 所有条件满足，可以继续执行
- *
- * @param deps 依赖注入，包含时间解析、会话判断、开盘保护配置等
- * @returns StartupGate 接口，包含 wait() 方法用于等待条件满足
  */
 import type { StartupGate, StartupGateDeps, StartupGateState } from './types.js';
 
@@ -21,6 +18,9 @@ import type { StartupGate, StartupGateDeps, StartupGateState } from './types.js'
  * 创建启动门禁实例。
  * 返回的 wait() 方法会阻塞直到满足交易日、交易时段和开盘保护三个条件，
  * 开发模式（skip）下跳过所有检查直接返回。
+ *
+ * @param deps 依赖注入，包含时间解析、会话判断、开盘保护配置等
+ * @returns StartupGate 接口，包含 wait() 方法用于等待条件满足
  */
 export function createStartupGate(deps: StartupGateDeps): StartupGate {
   const {

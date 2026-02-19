@@ -26,6 +26,9 @@ import { getHKDateKey } from '../../utils/helpers/tradingTime.js';
 
 /**
  * 基于订单与持仓生成席位快照，用于启动时恢复席位标的。
+ *
+ * @param input 包含 monitors、positions、orders 的输入
+ * @returns 席位快照，含各监控标的与方向的解析结果条目
  */
 function resolveSeatSnapshot(input: SeatSnapshotInput): SeatSnapshot {
   const { monitors, positions, orders } = input;
@@ -94,6 +97,9 @@ export function resolveReadySeatSymbol(
 
 /**
  * 收集所有监控标的当前就绪席位的标的代码列表，用于启动后订阅行情。
+ *
+ * @param params 包含 monitors、symbolRegistry
+ * @returns 就绪席位的 monitorSymbol + direction + symbol 条目数组
  */
 function collectSeatSymbols({
   monitors,
@@ -128,6 +134,9 @@ function collectSeatSymbols({
  * 启动时准备所有席位：
  * - 先恢复历史标的
  * - 对启用自动寻标的席位执行寻标
+ *
+ * @param deps 依赖注入，包含 tradingConfig、symbolRegistry、positions、orders、marketDataClient、now、logger 等
+ * @returns 就绪席位的标的列表（seatSymbols），用于后续订阅行情
  */
 export async function prepareSeatsOnStartup(
   deps: PrepareSeatsOnStartupDeps,
