@@ -528,15 +528,15 @@ export interface OrderRecorder {
 |------|------|
 | 已有 `calculateOrderStatistics` 计算 averagePrice，与新增 `calculateCostAveragePrice` 重复 | **复用** `calculateOrderStatistics`，不新增 `calculateCostAveragePrice` |
 | 成本均价用 Map 缓存增加状态与同步复杂度 | **不缓存**，在需要时基于 `getBuyOrdersList` 实时计算 |
-| 整体盈利时直接返回 `quantity: availableQuantity, relatedBuyOrderIds: []` | **严重**：防重失效，必须通过“可卖出订单”获取 `relatedBuyOrderIds` |
-| 整体盈利时未考虑待成交卖出占用 | 通过“可卖出订单”接口（含防重与数量截断）统一处理 |
+| 整体盈利时直接返回 `quantity: availableQuantity, relatedBuyOrderIds: []` | **严重**：防重失效，必须通过"可卖出订单"获取 `relatedBuyOrderIds` |
+| 整体盈利时未考虑待成交卖出占用 | 通过"可卖出订单"接口（含防重与数量截断）统一处理 |
 
 ### 第三次验证发现的问题与结论
 
 | 问题 | 结论 |
 |------|------|
-| `getProfitableSellOrders` 加 `sellAll` 后语义为“有时返回全部订单”，与“盈利订单”命名不完全一致 | 保留 `sellAll` 参数，在接口/实现处用 JSDoc 明确：`sellAll=true` 时表示“可卖出的全部订单（用于整体盈利全部卖出）”，语义为“可卖出订单集合”的两种模式 |
-| `sellAll=true` 时从 Map 直接取引用，与 `getBuyOrdersBelowPrice` 返回新数组形态不一致 | **实现修正**：`sellAll=true` 时统一用 `getBuyOrdersList(symbol, isLongSymbol)` 获取订单，与“盈利订单”路径一致，均为拷贝数组，保证数据形态一致、可维护 |
+| `getProfitableSellOrders` 加 `sellAll` 后语义为"有时返回全部订单"，与"盈利订单"命名不完全一致 | 保留 `sellAll` 参数，在接口/实现处用 JSDoc 明确：`sellAll=true` 时表示"可卖出的全部订单（用于整体盈利全部卖出）"，语义为"可卖出订单集合"的两种模式 |
+| `sellAll=true` 时从 Map 直接取引用，与 `getBuyOrdersBelowPrice` 返回新数组形态不一致 | **实现修正**：`sellAll=true` 时统一用 `getBuyOrdersList(symbol, isLongSymbol)` 获取订单，与"盈利订单"路径一致，均为拷贝数组，保证数据形态一致、可维护 |
 
 ### 设计决策汇总
 
@@ -591,7 +591,7 @@ const getCostAveragePrice = (symbol: string, isLongSymbol: boolean): number | nu
 
 - 保持对外签名：`getProfitableSellOrders(symbol, direction, currentPrice, maxSellQuantity?, sellAll?: boolean): ProfitableOrderResult`。
 - 实现为一层委托：`return getSellableOrders(symbol, direction, currentPrice, maxSellQuantity, { includeAll: sellAll });`。
-- 不再在 getProfitableSellOrders 内重复“目标订单选取 + 防重 + 截断”逻辑，单一实现落在 getSellableOrders。
+- 不再在 getProfitableSellOrders 内重复"目标订单选取 + 防重 + 截断"逻辑，单一实现落在 getSellableOrders。
 
 **2.5 返回对象**
 
@@ -620,7 +620,7 @@ const getCostAveragePrice = (symbol: string, isLongSymbol: boolean): number | nu
 
 ### 5. 智能平仓（signalProcessor/utils.ts）resolveSellQuantityBySmartClose
 
-- 若 `!orderRecorder`，保持现有“订单记录不可用，保持持仓”返回。
+- 若 `!orderRecorder`，保持现有"订单记录不可用，保持持仓"返回。
 - 取 `costAveragePrice = orderRecorder.getCostAveragePrice(symbol, isLongSymbol)`。
 - 定义 `isOverallProfitable = costAveragePrice !== null && Number.isFinite(costAveragePrice) && costAveragePrice > 0 && currentPrice > costAveragePrice`。
 - **调用** `orderRecorder.getSellableOrders(symbol, direction, currentPrice, availableQuantity, { includeAll: isOverallProfitable })`（业务侧使用语义明确的 getSellableOrders，不再使用 getProfitableSellOrders 的第五参）。
@@ -670,22 +670,22 @@ const getCostAveragePrice = (symbol: string, isLongSymbol: boolean): number | nu
 
 ### 全链路调用关系
 
-- **OrderStorage**：实现并导出 `getProfitableSellOrders`（当前唯一承载“可卖出订单 + 防重 + 整笔截断”的实现）。
+- **OrderStorage**：实现并导出 `getProfitableSellOrders`（当前唯一承载"可卖出订单 + 防重 + 整笔截断"的实现）。
 - **OrderRecorder（门面）**：透传 `getProfitableSellOrders`。
-- **唯一业务调用方**：`signalProcessor/utils.ts` 的 `resolveSellQuantityBySmartClose` 调用 `orderRecorder.getProfitableSellOrders(symbol, direction, currentPrice, availableQuantity)`；方案中需在此处传入“是否整体盈利”以决定“仅盈利订单”或“全部可卖订单”。
+- **唯一业务调用方**：`signalProcessor/utils.ts` 的 `resolveSellQuantityBySmartClose` 调用 `orderRecorder.getProfitableSellOrders(symbol, direction, currentPrice, availableQuantity)`；方案中需在此处传入"是否整体盈利"以决定"仅盈利订单"或"全部可卖订单"。
 
 结论：调用链短、调用点单一，引入语义正确的新方法并切换调用方为**系统性修改**，不影响其他模块。
 
 ### 为何必须优化（非补丁）
 
-- **命名与行为一致**：`getProfitableSellOrders` 在“整体盈利”时返回的是**全部可卖出订单**，与“盈利订单”字面不符，长期可读性与维护性差。
-- **规范要求**：typescript-project-specifications 要求「无兼容性代码、无补丁式代码、必须编写完整的系统性代码」。仅通过 JSDoc 说明“有时返回全部订单”属于以注释弥补命名缺陷，属补丁式处理。
-- **单一职责与单一实现**：“可卖出订单”的两种模式（仅盈利 / 全部）应落在**一个语义正确的方法**上，再由旧方法委托，避免同一逻辑两套命名。
+- **命名与行为一致**：`getProfitableSellOrders` 在"整体盈利"时返回的是**全部可卖出订单**，与"盈利订单"字面不符，长期可读性与维护性差。
+- **规范要求**：typescript-project-specifications 要求「无兼容性代码、无补丁式代码、必须编写完整的系统性代码」。仅通过 JSDoc 说明"有时返回全部订单"属于以注释弥补命名缺陷，属补丁式处理。
+- **单一职责与单一实现**："可卖出订单"的两种模式（仅盈利 / 全部）应落在**一个语义正确的方法**上，再由旧方法委托，避免同一逻辑两套命名。
 
 ### 优化结论（已纳入方案）
 
 - **有修改与优化必要性**：采用以 **getSellableOrders** 为核心实现、**getProfitableSellOrders** 委托的系统性设计，已写入上文「最终系统性完整修改方案」。
-- **getSellableOrders**：语义为「可卖出的订单」；通过 `options?.includeAll` 区分“仅买入价 &lt; 当前价”与“该标的该方向全部订单”；防重与整笔截断逻辑仅在此处实现一次。
+- **getSellableOrders**：语义为「可卖出的订单」；通过 `options?.includeAll` 区分"仅买入价 &lt; 当前价"与"该标的该方向全部订单"；防重与整笔截断逻辑仅在此处实现一次。
 - **getProfitableSellOrders**：保留对外签名（含 `sellAll?`），实现为一行委托 `getSellableOrders(..., { includeAll: sellAll })`，兼容既有接口。
 - **业务调用方**：`resolveSellQuantityBySmartClose` 改为调用 `getSellableOrders(symbol, direction, currentPrice, availableQuantity, { includeAll: isOverallProfitable })`，意图清晰、命名与行为一致。
 

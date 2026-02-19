@@ -2,9 +2,9 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** 在满足门禁后立即完成账户/持仓与席位确定；席位完全占用后统一订阅（监控+席位+持仓）；冷却恢复改为“先取席位标的→查该标的最后一笔订单是否为保护性清仓”；新增 `npm run dev` 同时跳过启动与运行期门禁。
+**Goal:** 在满足门禁后立即完成账户/持仓与席位确定；席位完全占用后统一订阅（监控+席位+持仓）；冷却恢复改为"先取席位标的→查该标的最后一笔订单是否为保护性清仓"；新增 `npm run dev` 同时跳过启动与运行期门禁。
 
-**Architecture:** 引入 `startup` 分层（Gate / Account+Position / Seat / Subscription / Cooldown / ContextInit），由统一的启动编排器串联。账户/持仓仅做缓存，行情订阅与展示延后到席位就绪之后统一处理。标的验证拆分为“静态配置校验（无订阅）”与“运行期校验（订阅后）”。冷却恢复不再以监控标的过滤日志，而是以席位标的为入口并回写监控标的方向的冷却。门禁以“策略对象 + 运行模式”控制，`dev` 模式同时跳过启动与运行期交易时段检查。
+**Architecture:** 引入 `startup` 分层（Gate / Account+Position / Seat / Subscription / Cooldown / ContextInit），由统一的启动编排器串联。账户/持仓仅做缓存，行情订阅与展示延后到席位就绪之后统一处理。标的验证拆分为"静态配置校验（无订阅）"与"运行期校验（订阅后）"。冷却恢复不再以监控标的过滤日志，而是以席位标的为入口并回写监控标的方向的冷却。门禁以"策略对象 + 运行模式"控制，`dev` 模式同时跳过启动与运行期交易时段检查。
 
 **Tech Stack:** TypeScript, Node.js, LongPort OpenAPI, pino
 
@@ -120,7 +120,7 @@ git commit -m "refactor: prioritize account/position and seat bootstrap"
 
 ---
 
-### Task 3: 冷却恢复改为“席位标的→最后订单→保护性清仓”
+### Task 3: 冷却恢复改为"席位标的→最后订单→保护性清仓"
 
 **Files:**
 - Modify: `src/services/liquidationCooldown/tradeLogHydrator.ts`

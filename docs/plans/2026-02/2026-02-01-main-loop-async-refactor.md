@@ -4,7 +4,7 @@
 
 **Goal:** 在不改变交易行为的前提下，将主循环中的高耗时 API 调用异步化，保留 K 线获取与指标计算在主循环，避免阻塞主循环节拍。
 
-**Architecture:** 以现有 buy/sell 异步处理器为范式，引入“监控级任务队列 + 处理器”“订单监控后台单飞”“成交后刷新后台合并器”“刷新门禁(RefreshGate)”四块异步基础设施；主循环仅负责门禁、行情/K线与信号分流，异步任务负责 API 调用与刷新逻辑，并通过刷新门禁确保缓存一致性。
+**Architecture:** 以现有 buy/sell 异步处理器为范式，引入"监控级任务队列 + 处理器""订单监控后台单飞""成交后刷新后台合并器""刷新门禁(RefreshGate)"四块异步基础设施；主循环仅负责门禁、行情/K线与信号分流，异步任务负责 API 调用与刷新逻辑，并通过刷新门禁确保缓存一致性。
 
 **Tech Stack:** TypeScript (ES2022), Node.js, LongPort OpenAPI SDK, pino, 现有任务队列与 setImmediate 调度模式。
 
@@ -57,7 +57,7 @@
 
 ### 必须满足的不变量（强约束）
 
-> 这些是不允许“靠运气正确”的约束；若违反，将直接导致异步换标后出现“用旧标的/旧缓存做决策”的竞态风险。
+> 这些是不允许"靠运气正确"的约束；若违反，将直接导致异步换标后出现"用旧标的/旧缓存做决策"的竞态风险。
 
 1. **席位版本隔离（SeatVersion Isolation）**
    - **触发条件**：只要某方向席位发生以下任一变化：
@@ -72,34 +72,34 @@
      - 买入队列中该 `monitorSymbol + direction` 的待执行信号
      - 卖出队列中该 `monitorSymbol + direction` 的待执行信号
    - **资源安全**：被移除的任务必须释放信号对象（对象池），避免泄漏。
-   - **说明**：即使有 `seatVersion` 兜底，清理仍然是强约束（降低堆积与避免“旧信号反复被拉起但最终丢弃”的噪音）。
+   - **说明**：即使有 `seatVersion` 兜底，清理仍然是强约束（降低堆积与避免"旧信号反复被拉起但最终丢弃"的噪音）。
 
-3. **异步任务必须“携带快照 + 执行前复核”**
+3. **异步任务必须"携带快照 + 执行前复核"**
    - **携带快照**：异步任务数据中必须包含能定位与复核的关键字段（例如 `monitorSymbol`、方向、期望 `nextSymbol/previousSymbol`、必要时带 `seatVersion` 或 `dedupeKey`）。
    - **执行前复核**：任务执行前必须重新读取当前 `SymbolRegistry` 状态；若与任务快照不一致（例如 `nextSymbol !== currentSeat.symbol`），任务必须跳过（no-op），不得写入任何与标的相关的缓存/订单记录。
 
 4. **同步订阅与异步换标的时序边界（必须可推理）**
    - **订阅/退订保持同步**：订阅集合的计算与 `subscribe/unsubscribe` 必须仍在 `mainProgram` 同步执行（本计划的约束已声明）。
    - **允许的延迟**：异步换标导致的订阅集合变化，允许最迟在下一次主循环 tick 反映到订阅集合与 `quotesMap`。
-   - **禁止的行为**：在 `quote/lotSize/price` 未就绪时，不得提交任何需要行情的订单；应当通过“跳过/延后到下一 tick（由下一轮 `quotesMap` 补齐）”处理，而不是用 `null` 或旧 quote 继续交易。
+   - **禁止的行为**：在 `quote/lotSize/price` 未就绪时，不得提交任何需要行情的订单；应当通过"跳过/延后到下一 tick（由下一轮 `quotesMap` 补齐）"处理，而不是用 `null` 或旧 quote 继续交易。
 
 5. **RefreshGate 覆盖所有读缓存做决策的异步路径**
    - **必须等待**：所有依赖 `lastState.cachedPositions` / `positionCache` / 浮亏缓存的异步处理路径，在读取前必须 `await RefreshGate.waitForFresh()`。
    - **至少覆盖**：`SellProcessor`、`MonitorTaskProcessor` 中所有可能读取持仓/浮亏相关缓存的任务类型（含 `AUTO_SYMBOL_TICK / LIQUIDATION_DISTANCE_CHECK / SEAT_REFRESH / UNREALIZED_LOSS_CHECK`）。
 
-> **最小验证建议（不改变业务，仅验证不变量）**：增加测试覆盖“席位切换导致 `seatVersion` 变化时，旧信号在（1）延迟验证通过回调与（2）Buy/SellProcessor 出队执行处都会被丢弃”；并增加日志字段统一输出 `monitorSymbol/direction/symbol/seatVersion/status` 以便定位竞态窗口。
+> **最小验证建议（不改变业务，仅验证不变量）**：增加测试覆盖"席位切换导致 `seatVersion` 变化时，旧信号在（1）延迟验证通过回调与（2）Buy/SellProcessor 出队执行处都会被丢弃"；并增加日志字段统一输出 `monitorSymbol/direction/symbol/seatVersion/status` 以便定位竞态窗口。
 
 #### 运行时一致性验证清单（建议写入发布/回归流程）
 
-> 目标：在不增加新功能的前提下，用日志与行为边界证明“不变量真的成立”，避免只靠代码审查。
+> 目标：在不增加新功能的前提下，用日志与行为边界证明"不变量真的成立"，避免只靠代码审查。
 
 - **验证 seatVersion 隔离**
   - **操作**：让某监控标的触发一次换标（或手动将席位置为 `SWITCHING/EMPTY` 再恢复），同时确保队列里存在该方向的待执行信号（延迟验证/立即信号均可）。
-  - **期望**：日志中出现“席位版本不匹配/标的已切换 → 丢弃信号”的路径；不应出现该旧信号进入 `executeSignals` 的情况。
+  - **期望**：日志中出现"席位版本不匹配/标的已切换 → 丢弃信号"的路径；不应出现该旧信号进入 `executeSignals` 的情况。
 
-- **验证“非 READY 清队列”覆盖**
+- **验证"非 READY 清队列"覆盖**
   - **操作**：触发席位从 `READY` 进入非 `READY`（换标开始或失败均可）。
-  - **期望**：日志出现“清理待执行信号：延迟=... 买入=... 卖出=...”且计数与现场一致；被移除信号无泄漏（观察对象池统计或长期运行内存稳定）。
+  - **期望**：日志出现"清理待执行信号：延迟=... 买入=... 卖出=..."且计数与现场一致；被移除信号无泄漏（观察对象池统计或长期运行内存稳定）。
 
 - **验证 RefreshGate 生效**
   - **操作**：制造一次成交（触发 `markStale()`），并在刷新完成前让 `SellProcessor` 或 `MonitorTaskProcessor` 有任务可执行。
@@ -115,7 +115,7 @@
 
 ### 核心机制
 - **版本号模型**：
-  - `staleVersion`：缓存过期版本（被标记“需要刷新”时递增）。
+  - `staleVersion`：缓存过期版本（被标记"需要刷新"时递增）。
   - `currentVersion`：已完成刷新版本（刷新成功后更新）。
 - **关键接口**：
   - `markStale()`：成交后立即标记缓存过期（由订单监控回调触发）。
@@ -124,7 +124,7 @@
   - `getStatus()`：读取当前版本与是否过期，用于 PostTradeRefresher 续刷判断。
 
 ### 触发与等待点
-- **触发过期**：订单成交回调（orderMonitor）最早触发 `markStale`，缩短“旧缓存窗口”。
+- **触发过期**：订单成交回调（orderMonitor）最早触发 `markStale`，缩短"旧缓存窗口"。
 - **等待点**：
   - `SellProcessor.processTask`：使用 `positionCache` 前等待。
   - `MonitorTaskProcessor`：处理 `AUTO_SYMBOL_TICK`、`LIQUIDATION_DISTANCE_CHECK`、`SEAT_REFRESH`、`UNREALIZED_LOSS_CHECK` 前等待。
@@ -133,7 +133,7 @@
 ### 刷新执行与重入处理
 - `PostTradeRefresher` 在刷新开始时读取 `staleVersion` 作为目标版本，成功后调用 `markFresh(targetVersion)`。
 - 如果刷新期间发生新的成交，`staleVersion` 会再次递增；刷新完成后发现 `currentVersion < staleVersion`，则立即补刷一轮。
-- 刷新失败时不调用 `markFresh`，保持“过期”状态并在下一轮重试。
+- 刷新失败时不调用 `markFresh`，保持"过期"状态并在下一轮重试。
 
 ### Task 1: 建立测试运行通道
 
@@ -1812,7 +1812,7 @@ if (priceChanged) {
 }
 ```
 
-同时移除 `processMonitor` 内“距回收价清仓”的同步执行块与对应 `getPositions/positionObjectPool` 释放逻辑，交由 `MonitorTaskProcessor` 的 `LIQUIDATION_DISTANCE_CHECK` 任务处理（并受 RefreshGate 约束）。
+同时移除 `processMonitor` 内"距回收价清仓"的同步执行块与对应 `getPositions/positionObjectPool` 释放逻辑，交由 `MonitorTaskProcessor` 的 `LIQUIDATION_DISTANCE_CHECK` 任务处理（并受 RefreshGate 约束）。
 
 **Step 4: Run test to verify it passes**
 

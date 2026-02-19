@@ -4,7 +4,7 @@
 
 **目标:** 换标触发时先预寻标；若候选标的与旧标的一致则不换并记录当日抑制；若不一致则进入换标流程，使用缓存候选完成占位（旧持仓卖完后才占用）。
 
-**架构:** 将换标流程拆成两个阶段：候选判断与日内抑制、执行阶段（撤单 → 卖出 → 占位 → 可选回补）。候选写入 `SwitchState`，换标期间不二次寻标；日内抑制按“方向 + 标的 + 港股日期”记录，防止同标的循环触发。
+**架构:** 将换标流程拆成两个阶段：候选判断与日内抑制、执行阶段（撤单 → 卖出 → 占位 → 可选回补）。候选写入 `SwitchState`，换标期间不二次寻标；日内抑制按"方向 + 标的 + 港股日期"记录，防止同标的循环触发。
 
 **技术栈:** TypeScript, Node.js, LongPort OpenAPI
 
@@ -221,7 +221,7 @@ console.log('ok');
 
 **步骤 2：运行并确认失败**
 运行: `npm run build && node tests/autoSymbolSwitchSameSymbol.js`  
-预期: FAIL，包含 “seat version should not change”（当前逻辑同标的仍清席位并递增版本号）。
+预期: FAIL，包含 "seat version should not change"（当前逻辑同标的仍清席位并递增版本号）。
 
 ---
 

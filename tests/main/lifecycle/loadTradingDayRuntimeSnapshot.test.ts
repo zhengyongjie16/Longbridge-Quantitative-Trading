@@ -60,7 +60,7 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
     ).rejects.toThrow('重建触发时交易日信息无效');
   });
 
-  it('账户信息缺失（cachedAccount 为 null）时抛出“无法获取账户信息”', async () => {
+  it('账户信息缺失（cachedAccount 为 null）时抛出"无法获取账户信息"', async () => {
     const lastState = createMinimalLastState();
     const deps = {
       marketDataClient: { isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }) },
@@ -93,7 +93,7 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
     ).rejects.toThrow('无法获取账户信息');
   });
 
-  it('failOnOrderFetchError 为 true 且订单拉取失败时抛出带“全量订单获取失败”的错误', async () => {
+  it('failOnOrderFetchError 为 true 且订单拉取失败时抛出带"全量订单获取失败"的错误', async () => {
     const lastState = createMinimalLastState();
     lastState.cachedAccount = {} as LastState['cachedAccount'];
     lastState.cachedPositions = [];

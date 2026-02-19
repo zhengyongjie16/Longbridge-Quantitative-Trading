@@ -38,7 +38,7 @@ TypeScript 工厂函数 + 依赖注入架构下的死代码检测与删除流程
 
 - 默认包含：`src/ tests/ scripts/ tools/ mock/`
 - 默认排除：`node_modules/ dist/ coverage/ logs/`
-- 若目标是“仅生产瘦身”，范围改为：`src/ scripts/ tools/`
+- 若目标是"仅生产瘦身"，范围改为：`src/ scripts/ tools/`
 
 ### 3.2 候选生成
 
@@ -72,7 +72,7 @@ bunx ts-prune
 
 - 多层调用链逐层判定，不可上层结论外推到下层。  
   例：`Trader.trackOrder -> orderMonitor.trackOrder -> orderHoldRegistry.trackOrder`
-- 包装器与内部实现分层判定，禁止“包装器死=实现死”。
+- 包装器与内部实现分层判定，禁止"包装器死=实现死"。
 - 导出消费方必须追到真实调用点，不只看 barrel 文件。
 
 ### 3.5 边界风险检查（必须）
@@ -132,7 +132,7 @@ Windows PowerShell 不支持 `&&`，命令分开执行。
 
 1. 生产符号仅被 `tests/` 引用：标记为 B 级，默认不自动删除，需用户确认。
 2. 测试目录私有 helper：可在测试目录独立清理，不计入生产瘦身收益。
-3. 任务若明确“只做生产清理”，在开始前切换到生产搜索边界。
+3. 任务若明确"只做生产清理"，在开始前切换到生产搜索边界。
 
 ## 7. 判定记录模板（必须留档）
 
