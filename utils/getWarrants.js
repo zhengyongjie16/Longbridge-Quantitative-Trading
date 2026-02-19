@@ -247,7 +247,10 @@ async function main() {
   return result;
 }
 
-main().then(() => process.exit(0)).catch(e => {
+try {
+  await main();
+  process.exit(0);
+} catch (e) {
   console.error('错误:', e.message);
   process.exit(1);
-});
+}

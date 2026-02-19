@@ -5,6 +5,7 @@
  * - 验证自动寻标发现相关场景意图、边界条件与业务期望。
  */
 import { describe, expect, it } from 'bun:test';
+import { inspect } from 'node:util';
 import {
   FilterWarrantExpiryDate,
   WarrantStatus,
@@ -39,7 +40,7 @@ function createLoggerRecorder(): {
       warn: (msg: string, extra?: unknown) => {
         warns.push(msg);
         if (extra !== undefined) {
-          warns.push(String(extra));
+          warns.push(typeof extra === 'string' ? extra : inspect(extra, { depth: 3, breakLength: Infinity }));
         }
       },
       error: () => {},

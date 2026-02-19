@@ -12,7 +12,7 @@ import type { DailyLossTracker } from '../../../../src/core/riskController/types
 import type { LiquidationCooldownTracker } from '../../../../src/services/liquidationCooldown/types.js';
 
 describe('createRiskDomain', () => {
-  it('midnightClear 调用 signalProcessor.resetRiskCheckCooldown、dailyLossTracker.resetAll、clearMidnightEligible、各 riskChecker 清理', () => {
+  it('midnightClear 调用 signalProcessor.resetRiskCheckCooldown、dailyLossTracker.resetAll、clearMidnightEligible、各 riskChecker 清理', async () => {
     let resetRiskCheckCooldownCalled = false;
     let resetAllCalled = false;
     let resetAllNow: Date | null = null as Date | null;
@@ -69,7 +69,7 @@ describe('createRiskDomain', () => {
       liquidationCooldownTracker,
     });
     const now = new Date('2025-02-15T00:00:00Z');
-    void domain.midnightClear({
+    await domain.midnightClear({
       now,
       runtime: { dayKey: '2025-02-15', canTradeNow: true, isTradingDay: true },
     });
@@ -85,7 +85,7 @@ describe('createRiskDomain', () => {
     expect(clearShortCount).toBe(1);
   });
 
-  it('liquidationCooldown 为 minutes 模式时不向 keysToClear 添加该监控标的 key', () => {
+  it('liquidationCooldown 为 minutes 模式时不向 keysToClear 添加该监控标的 key', async () => {
     let clearMidnightEligibleKeys: Set<string> | null = null as Set<string> | null;
     const monitorContexts = new Map<string, MonitorContext>([
       [
@@ -117,7 +117,7 @@ describe('createRiskDomain', () => {
       monitorContexts,
       liquidationCooldownTracker,
     });
-    void domain.midnightClear({
+    await domain.midnightClear({
       now: new Date(),
       runtime: { dayKey: '2025-02-15', canTradeNow: true, isTradingDay: true },
     });
@@ -125,7 +125,7 @@ describe('createRiskDomain', () => {
     expect(clearMidnightEligibleKeys === null ? 0 : clearMidnightEligibleKeys.size).toBe(0);
   });
 
-  it('openRebuild 为空操作，不抛错', () => {
+  it('openRebuild 为空操作，不抛错', async () => {
     const domain = createRiskDomain({
       signalProcessor: { resetRiskCheckCooldown: () => {} } as unknown as SignalProcessor,
       dailyLossTracker: { resetAll: () => {} } as unknown as DailyLossTracker,
@@ -136,11 +136,9 @@ describe('createRiskDomain', () => {
         clearMidnightEligible: () => {},
       },
     });
-    expect(() => {
-      void domain.openRebuild({
-        now: new Date(),
-        runtime: { dayKey: '2025-02-15', canTradeNow: true, isTradingDay: true },
-      });
-    }).not.toThrow();
+    await domain.openRebuild({
+      now: new Date(),
+      runtime: { dayKey: '2025-02-15', canTradeNow: true, isTradingDay: true },
+    });
   });
 });

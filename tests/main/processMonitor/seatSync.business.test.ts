@@ -60,8 +60,10 @@ describe('seatSync business flow', () => {
     const longSellSignal = createSignalDouble('SELLCALL', 'BULL.HK');
     const shortBuySignal = createSignalDouble('BUYPUT', 'BEAR.HK');
 
-    buyTaskQueue.push({ type: 'IMMEDIATE_BUY', monitorSymbol, data: longBuySignal });
-    buyTaskQueue.push({ type: 'IMMEDIATE_BUY', monitorSymbol, data: shortBuySignal });
+    const buySignals = [longBuySignal, shortBuySignal];
+    for (const signal of buySignals) {
+      buyTaskQueue.push({ type: 'IMMEDIATE_BUY', monitorSymbol, data: signal });
+    }
     sellTaskQueue.push({ type: 'IMMEDIATE_SELL', monitorSymbol, data: longSellSignal });
 
     monitorTaskQueue.scheduleLatest({

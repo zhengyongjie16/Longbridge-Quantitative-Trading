@@ -15,7 +15,7 @@ export interface ScenarioBuilder {
   given(setup: ScenarioGiven): ScenarioBuilder;
   whenAt(timeMs: number, action: ScenarioWhen): ScenarioBuilder;
   whenAfter(delayMs: number, action: ScenarioWhen): ScenarioBuilder;
-  then(assertion: ScenarioThen): ScenarioBuilder;
+  assert(assertion: ScenarioThen): ScenarioBuilder;
   run(): void;
 }
 
@@ -47,7 +47,7 @@ export function createScenarioBuilder(
     return api;
   }
 
-  function then(assertion: ScenarioThen): ScenarioBuilder {
+  function assert(assertion: ScenarioThen): ScenarioBuilder {
     thenSteps.push(assertion);
     return api;
   }
@@ -69,7 +69,7 @@ export function createScenarioBuilder(
     given,
     whenAt,
     whenAfter,
-    then,
+    assert,
     run,
   };
 

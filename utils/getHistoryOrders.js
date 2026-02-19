@@ -635,12 +635,11 @@ async function main() {
   };
 }
 
-main()
-  .then(() => {
-    console.log('\n====== 完成 ======\n');
-    process.exit(0);
-  })
-  .catch((e) => {
-    console.error('错误:', e.message);
-    process.exit(1);
-  });
+try {
+  await main();
+  console.log('\n====== 完成 ======\n');
+  process.exit(0);
+} catch (e) {
+  console.error('错误:', e.message);
+  process.exit(1);
+}

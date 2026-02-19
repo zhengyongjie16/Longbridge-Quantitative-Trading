@@ -48,7 +48,7 @@ function isValidPath(filePath) {
  */
 function isValidProjectKey(key) {
   // 只允许字母、数字、下划线、连字符、冒号、点
-  return /^[\w\-.:]+$/.test(key);
+  return /^[\w.:-]+$/.test(key);
 }
 
 /**
@@ -58,7 +58,7 @@ function isValidProjectKey(key) {
  */
 function isValidToken(token) {
   // Token 通常是字母数字字符
-  return /^[\w\-]+$/.test(token);
+  return /^[\w-]+$/.test(token);
 }
 
 const __filename = fileURLToPath(import.meta.url);

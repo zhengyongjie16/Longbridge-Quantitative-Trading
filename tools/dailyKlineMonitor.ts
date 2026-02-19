@@ -67,6 +67,8 @@ type RawCandlestick = {
   readonly turnover?: unknown;
 };
 
+type DecimalInput = string | number | null;
+
 /**
  * 监控状态类型
  */
@@ -124,11 +126,11 @@ function hasChanged(current: number | null | undefined, last: number | null | un
  */
 function convertToCandleData(candles: readonly RawCandlestick[]): CandleData[] {
   return candles.map((c) => ({
-    high: decimalToNumber(c.high as string | number | null),
-    low: decimalToNumber(c.low as string | number | null),
-    close: decimalToNumber(c.close as string | number | null),
-    open: decimalToNumber(c.open as string | number | null),
-    volume: decimalToNumber(c.volume as string | number | null),
+    high: decimalToNumber(c.high as DecimalInput),
+    low: decimalToNumber(c.low as DecimalInput),
+    close: decimalToNumber(c.close as DecimalInput),
+    open: decimalToNumber(c.open as DecimalInput),
+    volume: decimalToNumber(c.volume as DecimalInput),
   }));
 }
 

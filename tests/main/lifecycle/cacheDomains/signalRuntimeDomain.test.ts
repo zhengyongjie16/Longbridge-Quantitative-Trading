@@ -129,7 +129,7 @@ describe('createSignalRuntimeDomain', () => {
     expect(indicatorClearAllCount).toBe(1);
   });
 
-  it('openRebuild 重启各处理器并调用 refreshGate.markFresh', () => {
+  it('openRebuild 重启各处理器并调用 refreshGate.markFresh', async () => {
     const buyProcessor = createMockProcessor();
     const sellProcessor = createMockProcessor();
     const monitorTaskProcessor = createMockProcessor();
@@ -159,7 +159,7 @@ describe('createSignalRuntimeDomain', () => {
     };
 
     const domain = createSignalRuntimeDomain(deps);
-    void domain.openRebuild({
+    await domain.openRebuild({
       now: new Date(),
       runtime: { dayKey: '2025-02-15', canTradeNow: true, isTradingDay: true },
     });

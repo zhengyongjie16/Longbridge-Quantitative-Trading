@@ -10,6 +10,11 @@ import { createOrderMonitorWorker } from '../../../../src/main/asyncProgram/orde
 
 import type { Quote } from '../../../../src/types/quote.js';
 
+type Deferred = {
+  readonly promise: Promise<void>;
+  readonly resolve: () => void;
+};
+
 function createQuotes(symbol: string, price: number): ReadonlyMap<string, Quote | null> {
   return new Map([
     [
@@ -23,6 +28,19 @@ function createQuotes(symbol: string, price: number): ReadonlyMap<string, Quote 
       },
     ],
   ]);
+}
+
+function createDeferred(): Deferred {
+  let resolver: (() => void) | undefined;
+  const promise = new Promise<void>((resolve) => {
+    resolver = resolve;
+  });
+  return {
+    promise,
+    resolve: () => {
+      resolver?.();
+    },
+  };
 }
 
 async function waitUntil(predicate: () => boolean, timeoutMs: number = 800): Promise<void> {
@@ -70,16 +88,13 @@ describe('orderMonitorWorker business flow', () => {
 
   it('stopAndDrain waits for in-flight run and ignores new schedules after stop', async () => {
     let runningCount = 0;
-    let allowFinish: (() => void) | undefined;
+    let finishGate: Deferred | undefined;
 
     const worker = createOrderMonitorWorker({
       monitorAndManageOrders: async () => {
         runningCount += 1;
-        await new Promise<void>((resolve) => {
-          allowFinish = () => {
-            resolve();
-          };
-        });
+        finishGate = createDeferred();
+        await finishGate.promise;
       },
     });
 
@@ -92,7 +107,7 @@ describe('orderMonitorWorker business flow', () => {
     await Bun.sleep(30);
     expect(runningCount).toBe(1);
 
-    allowFinish?.();
+    finishGate?.resolve();
     await drainPromise;
 
     expect(runningCount).toBe(1);
@@ -100,17 +115,14 @@ describe('orderMonitorWorker business flow', () => {
 
   it('clearLatestQuotes drops pending latest task after current run', async () => {
     const executedPrices: number[] = [];
-    let firstDone: (() => void) | undefined;
+    let firstRunGate: Deferred | undefined;
 
     const worker = createOrderMonitorWorker({
       monitorAndManageOrders: async (quotesMap) => {
         executedPrices.push(quotesMap.get('BULL.HK')?.price ?? 0);
         if (executedPrices.length === 1) {
-          await new Promise<void>((resolve) => {
-            firstDone = () => {
-              resolve();
-            };
-          });
+          firstRunGate = createDeferred();
+          await firstRunGate.promise;
         }
       },
     });
@@ -121,7 +133,7 @@ describe('orderMonitorWorker business flow', () => {
     worker.schedule(createQuotes('BULL.HK', 2));
     worker.clearLatestQuotes();
 
-    firstDone?.();
+    firstRunGate?.resolve();
     await Bun.sleep(50);
     await worker.stopAndDrain();
 

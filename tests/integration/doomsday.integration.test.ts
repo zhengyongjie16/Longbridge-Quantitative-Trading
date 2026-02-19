@@ -214,15 +214,11 @@ describe('doomsday integration', () => {
       },
     });
 
-    let clearLongCalls = 0;
-    let clearShortCalls = 0;
+    const clearCallsBySide: [number, number] = [0, 0];
     const orderRecorder = createOrderRecorderDouble({
       clearBuyOrders: (_symbol, isLongSymbol) => {
-        if (isLongSymbol) {
-          clearLongCalls += 1;
-        } else {
-          clearShortCalls += 1;
-        }
+        const sideIndex = Number(isLongSymbol) as 0 | 1;
+        clearCallsBySide[sideIndex] += 1;
       },
     });
 
@@ -257,8 +253,8 @@ describe('doomsday integration', () => {
     expect(result.signalCount).toBe(2);
     expect(executedSignals).toBe(2);
 
-    expect(clearLongCalls).toBe(1);
-    expect(clearShortCalls).toBe(1);
+    expect(clearCallsBySide[1]).toBe(1);
+    expect(clearCallsBySide[0]).toBe(1);
 
     expect(lastState.cachedAccount).toBeNull();
     expect(lastState.cachedPositions).toHaveLength(0);

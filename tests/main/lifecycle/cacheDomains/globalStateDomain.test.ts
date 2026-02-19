@@ -23,7 +23,7 @@ function createMockMonitorState(monitorSymbol: string): MonitorState {
 }
 
 describe('createGlobalStateDomain', () => {
-  it('midnightClear 设置 canTrade 为 false 并清空 allTradingSymbols 与缓存字段', () => {
+  it('midnightClear 设置 canTrade 为 false 并清空 allTradingSymbols 与缓存字段', async () => {
     const monitorStates = new Map<string, MonitorState>([
       ['HSI.HK', createMockMonitorState('HSI.HK')],
     ]);
@@ -52,7 +52,7 @@ describe('createGlobalStateDomain', () => {
       },
     });
 
-    void domain.midnightClear({
+    await domain.midnightClear({
       now: new Date(),
       runtime: { dayKey: '2025-02-15', canTradeNow: true, isTradingDay: true },
     });

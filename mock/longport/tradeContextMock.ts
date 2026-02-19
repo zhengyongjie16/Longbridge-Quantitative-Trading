@@ -225,6 +225,23 @@ function asPushEvent(event: PushOrderChanged | MinimalOrder): PushOrderChanged {
   return converted as unknown as PushOrderChanged;
 }
 
+/**
+ * 根据 symbols 白名单过滤持仓响应。
+ *
+ * 用于 stockPositions 查询分支，避免在调用包装回调中形成深层函数嵌套。
+ */
+function filterStockPositionsBySymbols(
+  stockPositions: StockPositionsResponse,
+  symbols: ReadonlyArray<string>,
+): StockPositionsResponse {
+  const symbolSet = new Set(symbols);
+  const channels = stockPositions.channels.map((channel) => ({
+    ...channel,
+    positions: channel.positions.filter((position) => symbolSet.has(position.symbol)),
+  }));
+  return { channels } as StockPositionsResponse;
+}
+
 export interface TradeContextMock extends TradeContextContract {
   seedTodayOrders(orders: ReadonlyArray<Order>): void;
   seedHistoryOrders(orders: ReadonlyArray<Order>): void;
@@ -378,14 +395,7 @@ export function createTradeContextMock(options: TradeContextMockOptions = {}): T
       if (!symbols || symbols.length === 0) {
         return stockPositionsStore;
       }
-
-      const symbolSet = new Set(symbols);
-      const channels = stockPositionsStore.channels.map((channel) => ({
-        ...channel,
-        positions: channel.positions.filter((position) => symbolSet.has(position.symbol)),
-      }));
-
-      return { channels } as StockPositionsResponse;
+      return filterStockPositionsBySymbols(stockPositionsStore, symbols);
     });
   }
 

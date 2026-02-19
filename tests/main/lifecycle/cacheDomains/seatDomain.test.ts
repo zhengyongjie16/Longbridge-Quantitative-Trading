@@ -21,7 +21,7 @@ const emptySeatState = {
 };
 
 describe('createSeatDomain', () => {
-  it('midnightClear 依次调用 resetAllState、warrantListCache.clear、席位清空与同步', () => {
+  it('midnightClear 依次调用 resetAllState、warrantListCache.clear、席位清空与同步', async () => {
     let resetAllStateCount = 0;
     let clearCount = 0;
     const updateCalls: Array<{ monitorSymbol: string; direction: string }> = [];
@@ -71,7 +71,7 @@ describe('createSeatDomain', () => {
       warrantListCache,
     });
 
-    void domain.midnightClear({
+    await domain.midnightClear({
       now: new Date(),
       runtime: { dayKey: '2025-02-15', canTradeNow: true, isTradingDay: true },
     });
@@ -79,11 +79,15 @@ describe('createSeatDomain', () => {
     expect(resetAllStateCount).toBe(1);
     expect(clearCount).toBe(1);
     expect(updateCalls).toHaveLength(2);
-    expect(updateCalls.map((c) => `${c.monitorSymbol}-${c.direction}`).sort()).toEqual(['HSI.HK-LONG', 'HSI.HK-SHORT']);
+    expect(
+      updateCalls
+        .map((c) => `${c.monitorSymbol}-${c.direction}`)
+        .sort((left, right) => left.localeCompare(right, 'en')),
+    ).toEqual(['HSI.HK-LONG', 'HSI.HK-SHORT']);
     expect(bumpCalls).toHaveLength(2);
   });
 
-  it('openRebuild 为空操作，不抛错', () => {
+  it('openRebuild 为空操作，不抛错', async () => {
     const monitorContexts = new Map<string, MonitorContext>();
     const tradingConfig = { monitors: [], global: {} } as unknown as MultiMonitorTradingConfig;
     const symbolRegistry = {
@@ -100,11 +104,9 @@ describe('createSeatDomain', () => {
       monitorContexts,
       warrantListCache,
     });
-    expect(() => {
-      void domain.openRebuild({
-        now: new Date(),
-        runtime: { dayKey: '2025-02-15', canTradeNow: true, isTradingDay: true },
-      });
-    }).not.toThrow();
+    await domain.openRebuild({
+      now: new Date(),
+      runtime: { dayKey: '2025-02-15', canTradeNow: true, isTradingDay: true },
+    });
   });
 });
