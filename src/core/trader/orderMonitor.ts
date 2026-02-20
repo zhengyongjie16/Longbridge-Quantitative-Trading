@@ -516,7 +516,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
         `[订单修改失败] 订单ID=${orderId} 新价格=${newPrice.toFixed(3)}`,
         errorMessage,
       );
-      throw new Error(`订单修改失败: ${errorMessage}`);
+      throw new Error(`订单修改失败: ${errorMessage}`, { cause: err });
     }
   }
 

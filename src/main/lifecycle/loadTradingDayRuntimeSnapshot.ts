@@ -95,7 +95,7 @@ export function createLoadTradingDayRuntimeSnapshot(
       allOrders = await trader.fetchAllOrdersFromAPI(forceOrderRefresh);
     } catch (err) {
       if (failOnOrderFetchError) {
-        throw new Error(`[全量订单获取失败] ${formatError(err)}`);
+        throw new Error(`[全量订单获取失败] ${formatError(err)}`, { cause: err });
       }
       logger.warn('[全量订单获取失败] 将按空订单继续初始化', formatError(err));
     }
