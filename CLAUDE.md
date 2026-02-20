@@ -37,19 +37,6 @@ src/
 └── utils/                          # 工具模块
 ```
 
-## 项目内置文档及skills
-
-在开始相关任务前，阅读和使用你认为需要的文档及skills：
-
-| skills/文档 | 何时使用 |
-|------|---------|
-| `/code-review` | 代码审查、检查实现与计划一致性、评估注释/类型设计、代码简化 |
-| `/core-program-business-logic` | 理解/修改业务逻辑、交易策略、风险控制 |
-| `/dead-code-detection` | 清理 TypeScript 死代码（接口方法、透传包装器、常量/类型等） |
-| `/typescript-project-specifications` | 编写/修改任何 TypeScript 代码 |
-| `/longport-nodejs-sdk` | 调用 LongPort API、查询 SDK 文档、查询/阅读 API 文档 |
-| `README.md` | 了解完整配置、信号格式、运行流程 |
-
 ## 代码规范
 
 - 当你需要编写任何TypeScript代码，强制使用typescript-project-specifications skill

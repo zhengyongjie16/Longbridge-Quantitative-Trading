@@ -40,6 +40,7 @@ export const createRiskCheckPipeline = ({
   readonly liquidationCooldownTracker: LiquidationCooldownTracker;
   readonly lastRiskCheckTime: Map<string, number>;
 }): ((signals: Signal[], context: RiskCheckContext) => Promise<Signal[]>) => {
+
   /** 对信号列表应用风险检查，过滤不符合条件的信号 */
   const applyRiskChecks = async (signals: Signal[], context: RiskCheckContext): Promise<Signal[]> => {
     const {

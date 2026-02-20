@@ -35,9 +35,8 @@
 
 | Skill | 说明 | 使用场景 |
 |-------|------|---------|
-| `code-review` | 资深代码审查与代码简化综合技能 | 代码审查、实现与计划一致性检查、TypeScript 代码质量/架构/注释/类型设计评估、代码简化 |
+| `code-review` | 资深代码审查与代码简化综合技能 | 代码审查、实现与计划一致性检查、TypeScript 代码质量/架构/注释/类型设计评估、代码简化、代码清理 |
 | `core-program-business-logic` | 港股量化交易系统业务逻辑知识库 | 理解交易逻辑、验证代码实现、修改功能、解答业务规则；重构代码时应一并更新此文档 |
-| `dead-code-detection` | TypeScript 项目死代码检测与清理技能 | 删除无用代码、清理死代码、识别工厂函数/依赖注入架构中的接口方法级死代码与透传包装器 |
 | `longport-nodejs-sdk` | LongPort OpenAPI SDK for Node.js 完整知识库 | 调用 LongPort API、查询 SDK 文档、处理行情/订单/资产 |
 | `typescript-project-specifications` | TypeScript 严格代码规范 | 编写/修改/重构 .ts 文件时自动使用，包含工厂函数、依赖注入、对象池等模式示例 |
 
