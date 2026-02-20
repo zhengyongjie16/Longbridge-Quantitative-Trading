@@ -207,19 +207,19 @@ function applySingleSellOrderFilter(currentBuyOrders, candidateOrders, sellOrder
 
   const nextSellTime = nextSellOrder ? nextSellOrder.executedTime : latestSellTime + 1;
 
-  // 步骤1：获取成交时间 < 当前卖出订单时间的买入订单
+  // 获取成交时间 < 当前卖出订单时间的买入订单
   const buyOrdersBeforeSell = currentBuyOrders.filter(
     (buyOrder) => buyOrder.executedTime < sellTime
   );
 
   const totalBuyQuantity = calculateTotalQuantityFromOrders(buyOrdersBeforeSell);
 
-  // 步骤2：从原始候选订单获取时间间隔内的买入订单
+  // 从原始候选订单获取时间间隔内的买入订单
   const buyOrdersBetweenSells = candidateOrders.filter(
     (buyOrder) => buyOrder.executedTime > sellTime && buyOrder.executedTime < nextSellTime
   );
 
-  // 步骤3：判断是否全部卖出
+  // 判断是否全部卖出
   if (sellQuantity >= totalBuyQuantity) {
     return [...buyOrdersBetweenSells];
   }
@@ -228,15 +228,15 @@ function applySingleSellOrderFilter(currentBuyOrders, candidateOrders, sellOrder
     return [...buyOrdersBetweenSells];
   }
 
-  // 步骤4：计算应该保留的最大数量
+  // 计算应该保留的最大数量
   const maxRetainQuantity = totalBuyQuantity - sellQuantity;
 
-  // 步骤5：按价格过滤 - 保留成交价 >= 卖出价的订单（亏损订单优先保留）
+  // 按价格过滤 - 保留成交价 >= 卖出价的订单（亏损订单优先保留）
   let filteredBuyOrders = buyOrdersBeforeSell.filter(
     (buyOrder) => buyOrder.executedPrice >= sellPrice
   );
 
-  // 步骤6：确保保留数量不超过应保留数量
+  // 确保保留数量不超过应保留数量
   filteredBuyOrders = adjustOrdersByQuantityLimit(filteredBuyOrders, maxRetainQuantity);
 
   return [...filteredBuyOrders, ...buyOrdersBetweenSells];

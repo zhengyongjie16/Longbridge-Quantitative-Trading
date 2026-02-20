@@ -84,7 +84,7 @@ export function calculateKDJ(candles: ReadonlyArray<CandleData>, period: number 
       closes.push(toNumber(candle.close));
     }
 
-    // 步骤1：计算所有 RSV 值
+    // 计算所有 RSV 值
     const rsvValues: number[] = [];
     for (let i = period - 1; i < candles.length; i += 1) {
       const windowStart = i - period + 1;
@@ -131,7 +131,7 @@ export function calculateKDJ(candles: ReadonlyArray<CandleData>, period: number 
       return null;
     }
 
-    // 步骤2：使用 EMA(period=5) 平滑 RSV 得到 K 值
+    // 使用 EMA(period=5) 平滑 RSV 得到 K 值
     const emaK = createEmaStream(emaPeriod);
     const kValues: number[] = [];
     emaK.nextValue(50);
@@ -144,7 +144,7 @@ export function calculateKDJ(candles: ReadonlyArray<CandleData>, period: number 
       }
     }
 
-    // 步骤3：使用 EMA(period=5) 平滑 K 值得到 D 值
+    // 使用 EMA(period=5) 平滑 K 值得到 D 值
     const emaD = createEmaStream(emaPeriod);
     const dValues: number[] = [];
     emaD.nextValue(50);
@@ -165,7 +165,7 @@ export function calculateKDJ(candles: ReadonlyArray<CandleData>, period: number 
       return null;
     }
 
-    // 步骤4：计算J值
+    // 计算J值
     const j = 3 * k - 2 * d;
 
     if (Number.isFinite(k) && Number.isFinite(d) && Number.isFinite(j)) {

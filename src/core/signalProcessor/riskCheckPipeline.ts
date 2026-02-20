@@ -59,7 +59,7 @@ export const createRiskCheckPipeline = ({
       doomsdayProtection,
     } = context;
 
-    // 步骤1：在 API 调用之前先过滤冷却期内的信号
+    // 在 API 调用之前先过滤冷却期内的信号
     // 这样可以避免所有买入信号都在冷却期内时的无效 API 调用
     const now = Date.now();
     const cooldownMs = VERIFICATION.VERIFIED_SIGNAL_COOLDOWN_SECONDS * 1000;
@@ -95,7 +95,7 @@ export const createRiskCheckPipeline = ({
       return [];
     }
 
-    // 步骤2：检查过滤后是否有买入信号，决定是否调用 API
+    // 检查过滤后是否有买入信号，决定是否调用 API
     const hasBuySignals = signalsAfterCooldown.some((signal) => isBuyAction(signal.action));
 
     let freshAccount: AccountSnapshot | null = null;
@@ -119,7 +119,7 @@ export const createRiskCheckPipeline = ({
 
     const finalSignals: Signal[] = [];
 
-    // 步骤3：遍历过滤后的信号进行风险检查
+    // 遍历过滤后的信号进行风险检查
     for (const sig of signalsAfterCooldown) {
       const sigSymbol = sig.symbol;
       const sigName = getSymbolName(
