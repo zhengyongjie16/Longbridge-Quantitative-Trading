@@ -45,7 +45,6 @@ function isErrorLike(value: unknown): value is Record<string, unknown> {
          typeof obj['code'] === 'string';
 }
 
-
 /**
  * 校验标的代码格式（ticker.region）。默认行为：null/undefined 或非字符串返回 false。
  *
@@ -128,7 +127,6 @@ export function formatAccountChannel(accountChannel: string | null | undefined):
   const key = accountChannel.toLowerCase();
   return ACCOUNT_CHANNEL_MAP[key] ?? accountChannel;
 }
-
 
 /**
  * 格式化标的显示为「中文名称(代码)」。默认行为：symbol 为空返回空串；symbolName 为空时仅返回代码。
@@ -329,7 +327,6 @@ export function formatSignalLog(signal: { action: SignalType; symbol: string; sy
   return `${actionDesc} ${symbolDisplay} - ${signal.reason || '策略信号'}`;
 }
 
-
 /**
  * 将错误对象格式化为可读字符串。默认行为：null/undefined 返回「未知错误」；Error 取 message；类错误对象取 message/error/msg/code；否则 JSON 或 inspect。
  *
@@ -448,4 +445,3 @@ export function releaseSnapshotObjects(
     macdObjectPool.release(snapshot.macd);
   }
 }
-

@@ -394,7 +394,6 @@ function formatForConsole(obj: LogObject): string {
 const systemFileStream = new DateRotatingStream('system');
 const debugFileStream = IS_DEBUG ? new DateRotatingStream('debug') : null;
 
-
 /**
  * 创建带超时保护的 drain 事件处理器
  * 防止 drain 事件永远不触发导致日志系统阻塞，超时后仍调用 callback 继续处理

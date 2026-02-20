@@ -124,4 +124,3 @@ export interface ObjectPool<T> {
   release(obj: T | null | undefined): void;
   releaseAll(objects: ReadonlyArray<T> | null | undefined): void;
 }
-

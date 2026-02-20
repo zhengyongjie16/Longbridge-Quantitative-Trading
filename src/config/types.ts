@@ -113,4 +113,3 @@ export type RuntimeSymbolValidationResult = {
  * 使用范围：仅 config 模块内部使用。
  */
 export type SignalConfigKey = keyof MonitorConfig['signalConfig'];
-

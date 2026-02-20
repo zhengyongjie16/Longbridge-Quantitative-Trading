@@ -33,6 +33,7 @@ export default tseslint.config(
       'indent': ['error', 2, { SwitchCase: 1 }],
       'comma-dangle': ['error', 'always-multiline'],
       'eol-last': ['error', 'always'],
+      'no-multiple-empty-lines': ['error', { 'max': 1, 'maxEOF': 0 }],
 
       // 最佳实践
       'no-var': 'error',

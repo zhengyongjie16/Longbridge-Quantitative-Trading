@@ -300,5 +300,3 @@ describe('getSellableOrders', () => {
     expect(result.orders[0]!.orderId).toBe('O2');
   });
 });
-
-

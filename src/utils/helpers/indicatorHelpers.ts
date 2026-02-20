@@ -107,4 +107,3 @@ export function validatePsyPeriod(period: unknown): period is number {
 export function validatePercentage(value: unknown): boolean {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100;
 }
-

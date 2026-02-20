@@ -26,6 +26,7 @@ export function createMonitorConfig(overrides: Partial<MonitorConfig> = {}): Mon
       switchDistanceRangeBull: null,
       switchDistanceRangeBear: null,
     },
+
     orderOwnershipMapping: [],
     targetNotional: 5000,
     maxPositionNotional: 50000,

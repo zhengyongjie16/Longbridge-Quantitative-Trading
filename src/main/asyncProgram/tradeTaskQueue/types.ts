@@ -74,4 +74,3 @@ export type BuyTaskType = 'IMMEDIATE_BUY' | 'VERIFIED_BUY';
  * 使用范围：tradeTaskQueue、sellProcessor、mainProgram 等，仅内部使用。
  */
 export type SellTaskType = 'IMMEDIATE_SELL' | 'VERIFIED_SELL';
-

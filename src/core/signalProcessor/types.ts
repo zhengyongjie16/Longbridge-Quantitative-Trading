@@ -72,4 +72,3 @@ export type SignalProcessorDeps = {
   readonly tradingConfig: MultiMonitorTradingConfig;
   readonly liquidationCooldownTracker: LiquidationCooldownTracker;
 };
-
