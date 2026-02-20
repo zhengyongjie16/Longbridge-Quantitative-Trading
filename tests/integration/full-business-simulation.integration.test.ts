@@ -721,7 +721,6 @@ describe('full business simulation integration', () => {
       },
       getPendingCount: () => 1,
       onVerified: () => {},
-      onRejected: () => {},
       destroy: () => {},
     };
 

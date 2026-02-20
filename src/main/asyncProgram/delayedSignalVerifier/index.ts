@@ -3,7 +3,7 @@
  *
  * 功能/职责：
  * - 对延迟验证类信号使用 setTimeout 计时，在约定时间点从 IndicatorCache 取指标进行趋势验证
- * - 通过则触发 onVerified 入队执行，不通过则触发 onRejected 并释放信号回对象池
+ * - 通过则触发 onVerified 入队执行，不通过则记录日志并释放信号回对象池
  *
  * 执行流程：
  * - 入队时记录 triggerTime，verifyTime = triggerTime + READY_DELAY_SECONDS
@@ -20,7 +20,6 @@ import type {
   DelayedSignalVerifierDeps,
   PendingSignalEntry,
   VerifiedCallback,
-  RejectedCallback,
 } from './types.js';
 import { generateSignalId, extractInitialIndicators, performVerification } from './utils.js';
 
@@ -28,7 +27,7 @@ import { generateSignalId, extractInitialIndicators, performVerification } from 
  * 创建延迟信号验证器。负责管理待验证信号、定时触发验证、调用 performVerification 并执行通过/拒绝回调。
  *
  * @param deps 依赖注入，包含 indicatorCache、verificationConfig
- * @returns DelayedSignalVerifier 实例（addPending、onVerified、onRejected、cancelAll 等）
+ * @returns DelayedSignalVerifier 实例（addSignal、onVerified、cancelAll 等）
  */
 export function createDelayedSignalVerifier(
   deps: DelayedSignalVerifierDeps,
@@ -40,12 +39,11 @@ export function createDelayedSignalVerifier(
 
   // 回调函数列表
   const verifiedCallbacks: VerifiedCallback[] = [];
-  const rejectedCallbacks: RejectedCallback[] = [];
 
   /**
    * 执行延迟验证
    * 从待验证列表取出信号，调用 performVerification 判断趋势是否持续，
-   * 通过则触发 onVerified 回调，失败则触发 onRejected 并释放信号到对象池
+   * 通过则触发 onVerified 回调，失败则记录日志并释放信号到对象池
    */
   function executeVerification(signalId: string): void {
     const entry = pendingSignals.get(signalId);
@@ -80,15 +78,6 @@ export function createDelayedSignalVerifier(
       }
     } else {
       logger.info(`[延迟验证失败] ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${actionDesc} | ${result.reason}`);
-
-      // 通知所有验证拒绝的回调
-      for (const callback of rejectedCallbacks) {
-        try {
-          callback(signal, monitorSymbol, result.reason);
-        } catch (err) {
-          logger.error('[延迟验证] 执行 onRejected 回调时发生错误', err);
-        }
-      }
 
       // 验证失败的信号在此处释放回对象池
       signalObjectPool.release(signal);
@@ -247,11 +236,6 @@ export function createDelayedSignalVerifier(
       verifiedCallbacks.push(callback);
     },
 
-    /** 注册验证拒绝时的回调，信号未通过延迟验证时会被调用 */
-    onRejected(callback: RejectedCallback): void {
-      rejectedCallbacks.push(callback);
-    },
-
     /**
      * 销毁验证器，清除所有定时器、释放所有信号对象并清空回调列表
      */
@@ -265,7 +249,6 @@ export function createDelayedSignalVerifier(
 
       // 清空回调列表
       verifiedCallbacks.length = 0;
-      rejectedCallbacks.length = 0;
 
       logger.debug('[延迟验证] 验证器已销毁');
     },

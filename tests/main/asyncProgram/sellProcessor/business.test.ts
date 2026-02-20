@@ -106,7 +106,6 @@ function createMonitorContext(overrides: Partial<MonitorContext> = {}): MonitorC
       cancelAll: () => 0,
       getPendingCount: () => 0,
       onVerified: () => {},
-      onRejected: () => {},
       destroy: () => {},
     },
     longSymbolName: 'BULL.HK',

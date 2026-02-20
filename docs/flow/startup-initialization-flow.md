@@ -92,8 +92,7 @@ graph TD
 - 若配置了 `maxUnrealizedLossPerSymbol`，调用 `riskChecker.refreshUnrealizedLossData` 初始化浮亏基线（使用 `dailyLossTracker.getLossOffset`）。
 
 ### 9. 延迟验证回调与处理器启动
-- `delayedSignalVerifier.onVerified`：通过后校验席位 READY / 版本一致 / 标的一致，再推入买卖队列；否则释放信号。
-- `delayedSignalVerifier.onRejected`：记录原因，信号由验证器释放。
+- `delayedSignalVerifier.onVerified`：通过后校验席位 READY / 版本一致 / 标的一致，再推入买卖队列；否则释放信号。验证失败时验证器内部记录日志并释放信号。
 - 创建并启动 `createBuyProcessor` / `createSellProcessor`，异步消费队列。
 
 ### 10. 退出清理与进入主循环
@@ -153,7 +152,7 @@ graph TD
 - `orderRecorder.refreshOrdersFromAllOrders`：用全量订单初始化本地订单记录。
 - `riskChecker.refreshUnrealizedLossData`：初始化浮亏监控基线。
 - `dailyLossTracker.getLossOffset`：获取日内亏损偏移，参与浮亏计算。
-- `delayedSignalVerifier.onVerified/onRejected`：延迟验证结果回调入口。
+- `delayedSignalVerifier.onVerified`：延迟验证通过时的回调入口。
 - `createBuyProcessor` / `createSellProcessor`：异步买卖处理器。
 - `createCleanup` / `registerExitHandlers`：退出清理与信号注册。
 - `mainProgram`：主循环核心函数，每秒执行一次。

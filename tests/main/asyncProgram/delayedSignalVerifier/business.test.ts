@@ -247,9 +247,9 @@ describe('delayedSignalVerifier business flow', () => {
       indicatorCache.push('HSI.HK', createSnapshotK(12));
     });
 
-    const rejectedReasons: string[] = [];
-    verifier.onRejected((_signal, _symbol, reason) => {
-      rejectedReasons.push(reason);
+    let verifiedCount = 0;
+    verifier.onVerified(() => {
+      verifiedCount += 1;
     });
 
     const signal = createSignal({
@@ -265,8 +265,7 @@ describe('delayedSignalVerifier business flow', () => {
 
     await Bun.sleep(20);
 
-    expect(rejectedReasons).toHaveLength(1);
-    expect(rejectedReasons[0]).toContain('缺少时间点数据');
+    expect(verifiedCount).toBe(0);
   });
 
   it('accepts data points within +/-5s tolerance window', async () => {

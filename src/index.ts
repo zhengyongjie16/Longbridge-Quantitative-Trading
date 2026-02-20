@@ -547,11 +547,6 @@ async function main(): Promise<void> {
       }
     });
 
-    delayedSignalVerifier.onRejected((signal, _signalMonitorSymbol, reason) => {
-      logger.info(`[延迟验证失败] ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${signal.action}: ${reason}`);
-      // 验证失败的信号由 DelayedSignalVerifier 内部释放，无需在此处理
-    });
-
     logger.debug(`[DelayedSignalVerifier] 监控标的 ${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)} 的验证器已初始化`);
   }
 
