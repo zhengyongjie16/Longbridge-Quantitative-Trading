@@ -1,6 +1,7 @@
 # Schema 组织与校验
 
 本文展示 Schema 的组织原则和信任边界校验规则，涵盖：
+
 - Schema 单一来源（DRY）
 - 信任边界处 Schema 优先
 - 何时需要/不需要 Schema
@@ -34,6 +35,7 @@ const resolvers = {
 ```
 
 **问题：**
+
 - ❌ 重复导致多个"事实来源"
 - ❌ 修改需同步改多处
 - ❌ 在知识层面违反 DRY
@@ -72,6 +74,7 @@ const createUser = (input: unknown) => {
 ```
 
 **好处：**
+
 - ✅ 校验逻辑单一来源
 - ✅ 修改 schema 后自动影响所有使用处
 - ✅ 全库保持类型安全
@@ -84,6 +87,7 @@ const createUser = (input: unknown) => {
 ### 何时必须用 Schema
 
 数据跨越信任边界（外部 → 内部）时：
+
 - API 响应、用户输入、外部数据
 - 类型带有校验规则（格式、约束）
 - 多系统共享的数据契约
@@ -104,6 +108,7 @@ const user = UserSchema.parse(apiResponse);
 ### 何时不必用 Schema
 
 纯内部数据无需 Schema 校验：
+
 - 纯内部类型（工具、状态）
 - Result/Option 等类型（无需校验）
 - TypeScript 工具类型（`Partial<T>`、`Pick<T>` 等）
@@ -127,6 +132,7 @@ interface UserService {
 ## 3. Schema 组织方式
 
 **常见做法：**
+
 - **集中式**：`src/schemas/` 存放共享 schema
 - **就近式**：放在使用它们的模块附近
 - **分层式**：按架构层次拆分（若采用分层/六边形架构）

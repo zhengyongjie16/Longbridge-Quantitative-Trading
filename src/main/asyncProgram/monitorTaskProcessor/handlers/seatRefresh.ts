@@ -97,9 +97,7 @@ export function createSeatRefreshHandler({
     }
 
     const callPriceValid =
-      data.callPrice != null &&
-      Number.isFinite(data.callPrice) &&
-      data.callPrice > 0;
+      data.callPrice != null && Number.isFinite(data.callPrice) && data.callPrice > 0;
 
     if (!callPriceValid) {
       markSeatAsEmpty(
@@ -112,7 +110,11 @@ export function createSeatRefreshHandler({
     }
 
     const allOrders = await helpers.ensureAllOrders(data.monitorSymbol, context.orderRecorder);
-    context.dailyLossTracker.recalculateFromAllOrders(allOrders, tradingConfig.monitors, new Date());
+    context.dailyLossTracker.recalculateFromAllOrders(
+      allOrders,
+      tradingConfig.monitors,
+      new Date(),
+    );
     if (isLong) {
       await context.orderRecorder.refreshOrdersFromAllOrdersForLong(
         data.nextSymbol,

@@ -334,18 +334,24 @@ describe('delayedSignalVerifier business flow', () => {
 
     const now = 500_000;
     withMockedNowSync(now, () => {
-      verifier.addSignal(createSignal({
-        symbol: 'BULL.HK',
-        action: 'BUYCALL',
-        triggerTimeMs: now,
-        indicators1: { K: 10 },
-      }), 'HSI.HK');
-      verifier.addSignal(createSignal({
-        symbol: 'BEAR.HK',
-        action: 'BUYPUT',
-        triggerTimeMs: now,
-        indicators1: { K: 10 },
-      }), 'HSI.HK');
+      verifier.addSignal(
+        createSignal({
+          symbol: 'BULL.HK',
+          action: 'BUYCALL',
+          triggerTimeMs: now,
+          indicators1: { K: 10 },
+        }),
+        'HSI.HK',
+      );
+      verifier.addSignal(
+        createSignal({
+          symbol: 'BEAR.HK',
+          action: 'BUYPUT',
+          triggerTimeMs: now,
+          indicators1: { K: 10 },
+        }),
+        'HSI.HK',
+      );
     });
 
     const cancelledLong = verifier.cancelAllForDirection('HSI.HK', 'LONG');

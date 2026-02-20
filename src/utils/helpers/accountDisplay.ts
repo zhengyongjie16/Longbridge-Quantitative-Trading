@@ -1,10 +1,5 @@
 import { logger } from '../logger/index.js';
-import {
-  formatError,
-  formatAccountChannel,
-  formatNumber,
-  isValidPositiveNumber,
-} from './index.js';
+import { formatError, formatAccountChannel, formatNumber, isValidPositiveNumber } from './index.js';
 
 import type { LastState } from '../../types/state.js';
 import type { Quote } from '../../types/quote.js';
@@ -35,17 +30,11 @@ export async function refreshAccountAndPositions(
       // 并行获取账户信息和持仓信息，减少等待时间
       const [freshAccount, freshPositions] = await Promise.all([
         trader.getAccountSnapshot().catch((err: unknown) => {
-          logger.warn(
-            '获取账户信息失败',
-            formatError(err),
-          );
+          logger.warn('获取账户信息失败', formatError(err));
           return null;
         }),
         trader.getStockPositions().catch((err: unknown) => {
-          logger.warn(
-            '获取股票仓位失败',
-            formatError(err),
-          );
+          logger.warn('获取股票仓位失败', formatError(err));
           return [];
         }),
       ]);
@@ -60,10 +49,7 @@ export async function refreshAccountAndPositions(
       lastState.positionCache.update(positions);
     }
   } catch (err) {
-    logger.warn(
-      '获取账户和持仓信息失败',
-      formatError(err),
-    );
+    logger.warn('获取账户和持仓信息失败', formatError(err));
   }
 }
 
@@ -87,9 +73,7 @@ export async function displayAccountAndPositions({
 
     if (account) {
       logger.info(
-        `账户概览 [${account.currency}] 余额=${account.totalCash.toFixed(
-          2,
-        )} 市值=${account.netAssets.toFixed(
+        `账户概览 [${account.currency}] 余额=${account.totalCash.toFixed(2)} 市值=${account.netAssets.toFixed(
           2,
         )} 持仓市值≈${account.positionValue.toFixed(2)}`,
       );
@@ -138,25 +122,16 @@ export async function displayAccountAndPositions({
         const channelDisplay = formatAccountChannel(pos.accountChannel);
 
         logger.info(
-          `- [${channelDisplay}] ${nameText}(${codeText}) 持仓=${formatNumber(
-            pos.quantity,
-            2,
-          )} 可用=${formatNumber(
+          `- [${channelDisplay}] ${nameText}(${codeText}) 持仓=${formatNumber(pos.quantity, 2)} 可用=${formatNumber(
             pos.availableQuantity,
             2,
-          )} ${priceText} 市值=${formatNumber(
-            marketValue,
-            2,
-          )} 仓位=${formatNumber(positionPercent, 2)}% ${pos.currency ?? ''}`,
+          )} ${priceText} 市值=${formatNumber(marketValue, 2)} 仓位=${formatNumber(positionPercent, 2)}% ${pos.currency ?? ''}`,
         );
       });
     } else {
       logger.info('当前无股票持仓。');
     }
   } catch (err) {
-    logger.warn(
-      '获取账户和持仓信息失败',
-      formatError(err),
-    );
+    logger.warn('获取账户和持仓信息失败', formatError(err));
   }
 }

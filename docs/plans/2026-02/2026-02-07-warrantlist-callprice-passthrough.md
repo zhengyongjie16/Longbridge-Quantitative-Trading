@@ -31,18 +31,18 @@ sequenceDiagram
 
 ## Todos
 
-| id | 内容 | 状态 |
-|----|------|------|
-| types-extend | 扩展类型定义：WarrantListItem/WarrantCandidate 加 callPrice，SeatState 加 callPrice，SeatRefreshTaskData 加 callPrice，WarrantRiskChecker 接口加 setWarrantInfoFromCallPrice | pending |
-| filter-callprice | selectBestWarrant 筛选循环中增加「回收价有效」条件；当选出 best 时携带 callPrice | pending |
-| build-seat-callprice | buildSeatState 支持第五参 callPrice；所有调用点补全 | pending |
-| auto-search-pass | autoSearch.ts 将 callPrice 从 WarrantCandidate 传入 SeatState | pending |
-| switch-machine-pass | switchStateMachine 的 findSwitchCandidate 返回 callPrice，SwitchState 存 nextCallPrice，COMPLETE 时写入 SeatState | pending |
-| set-warrant-info | warrantRiskChecker 新增 setWarrantInfoFromCallPrice（直接缓存，不调 API） | pending |
-| seat-sync-pass | seatSync 创建 SEAT_REFRESH 时从 SeatState 读取 callPrice 写入 task data | pending |
-| seat-refresh-no-fallback | seatRefresh 仅用 data.callPrice 调用 setWarrantInfoFromCallPrice；无/无效时 markSeatAsEmpty，不调用 refreshWarrantInfoForSymbol | pending |
-| startup-optimize | startup/seat.ts 和 index.ts：寻标成功传 callPrice，恢复席位 callPrice: null；有 callPrice 走 setWarrantInfoFromCallPrice，无则保留 warrantQuote 兜底（仅启动） | pending |
-| null-sites-update | 所有 SeatState 创建点补充 callPrice: null（createSeatState、markSeatAsEmpty 等） | pending |
+| id                       | 内容                                                                                                                                                                         | 状态    |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| types-extend             | 扩展类型定义：WarrantListItem/WarrantCandidate 加 callPrice，SeatState 加 callPrice，SeatRefreshTaskData 加 callPrice，WarrantRiskChecker 接口加 setWarrantInfoFromCallPrice | pending |
+| filter-callprice         | selectBestWarrant 筛选循环中增加「回收价有效」条件；当选出 best 时携带 callPrice                                                                                             | pending |
+| build-seat-callprice     | buildSeatState 支持第五参 callPrice；所有调用点补全                                                                                                                          | pending |
+| auto-search-pass         | autoSearch.ts 将 callPrice 从 WarrantCandidate 传入 SeatState                                                                                                                | pending |
+| switch-machine-pass      | switchStateMachine 的 findSwitchCandidate 返回 callPrice，SwitchState 存 nextCallPrice，COMPLETE 时写入 SeatState                                                            | pending |
+| set-warrant-info         | warrantRiskChecker 新增 setWarrantInfoFromCallPrice（直接缓存，不调 API）                                                                                                    | pending |
+| seat-sync-pass           | seatSync 创建 SEAT_REFRESH 时从 SeatState 读取 callPrice 写入 task data                                                                                                      | pending |
+| seat-refresh-no-fallback | seatRefresh 仅用 data.callPrice 调用 setWarrantInfoFromCallPrice；无/无效时 markSeatAsEmpty，不调用 refreshWarrantInfoForSymbol                                              | pending |
+| startup-optimize         | startup/seat.ts 和 index.ts：寻标成功传 callPrice，恢复席位 callPrice: null；有 callPrice 走 setWarrantInfoFromCallPrice，无则保留 warrantQuote 兜底（仅启动）               | pending |
+| null-sites-update        | 所有 SeatState 创建点补充 callPrice: null（createSeatState、markSeatAsEmpty 等）                                                                                             | pending |
 
 ---
 
@@ -134,17 +134,17 @@ sequenceDiagram
 
 ### SeatState / buildSeatState 调用点（第五参 callPrice）
 
-| 文件 | 场景 | 第五参 |
-|------|------|--------|
-| seatStateManager.ts | buildSeatState 实现 | 形参 callPrice?，返回 callPrice: callPrice ?? null |
-| seatStateManager.ts | clearSeat 内 SWITCHING | null |
-| utils.ts | createSeatState 返回对象 | callPrice: null |
-| autoSearch.ts | SEARCHING / EMPTY | null |
-| autoSearch.ts | READY（best） | best.callPrice |
-| switchStateMachine.ts | EMPTY / SWITCHING / 失败 | null |
-| switchStateMachine.ts | COMPLETE READY | state.nextCallPrice ?? null |
-| seatRefresh.ts | markSeatAsEmpty nextState | callPrice: null |
-| seat.ts | 寻标成功/失败、updateSeatOnStartup | best.callPrice / null |
+| 文件                  | 场景                               | 第五参                                             |
+| --------------------- | ---------------------------------- | -------------------------------------------------- |
+| seatStateManager.ts   | buildSeatState 实现                | 形参 callPrice?，返回 callPrice: callPrice ?? null |
+| seatStateManager.ts   | clearSeat 内 SWITCHING             | null                                               |
+| utils.ts              | createSeatState 返回对象           | callPrice: null                                    |
+| autoSearch.ts         | SEARCHING / EMPTY                  | null                                               |
+| autoSearch.ts         | READY（best）                      | best.callPrice                                     |
+| switchStateMachine.ts | EMPTY / SWITCHING / 失败           | null                                               |
+| switchStateMachine.ts | COMPLETE READY                     | state.nextCallPrice ?? null                        |
+| seatRefresh.ts        | markSeatAsEmpty nextState          | callPrice: null                                    |
+| seat.ts               | 寻标成功/失败、updateSeatOnStartup | best.callPrice / null                              |
 
 ---
 

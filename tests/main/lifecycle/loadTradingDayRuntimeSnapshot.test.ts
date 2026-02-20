@@ -46,7 +46,9 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
       warrantListCacheConfig: {} as LoadTradingDayRuntimeSnapshotDeps['warrantListCacheConfig'],
     };
 
-    const load = createLoadTradingDayRuntimeSnapshot(deps as unknown as LoadTradingDayRuntimeSnapshotDeps);
+    const load = createLoadTradingDayRuntimeSnapshot(
+      deps as unknown as LoadTradingDayRuntimeSnapshotDeps,
+    );
 
     expect(
       load({
@@ -79,7 +81,9 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
       warrantListCacheConfig: {},
     } as unknown as LoadTradingDayRuntimeSnapshotDeps;
 
-    const load = createLoadTradingDayRuntimeSnapshot(deps as unknown as LoadTradingDayRuntimeSnapshotDeps);
+    const load = createLoadTradingDayRuntimeSnapshot(
+      deps as unknown as LoadTradingDayRuntimeSnapshotDeps,
+    );
 
     expect(
       load({
@@ -119,7 +123,9 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
       warrantListCacheConfig: {},
     } as unknown as LoadTradingDayRuntimeSnapshotDeps;
 
-    const load = createLoadTradingDayRuntimeSnapshot(deps as unknown as LoadTradingDayRuntimeSnapshotDeps);
+    const load = createLoadTradingDayRuntimeSnapshot(
+      deps as unknown as LoadTradingDayRuntimeSnapshotDeps,
+    );
 
     expect(
       load({
@@ -132,5 +138,4 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
       }),
     ).rejects.toThrow(/全量订单获取失败/);
   });
-
 });

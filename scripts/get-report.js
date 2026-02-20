@@ -13,7 +13,7 @@ function loadConfig() {
 
   try {
     const content = readFileSync(envPath, 'utf-8');
-    content.split('\n').forEach(line => {
+    content.split('\n').forEach((line) => {
       const trimmed = line.trim();
       if (trimmed && !trimmed.startsWith('#')) {
         const [key, ...valueParts] = trimmed.split('=');
@@ -40,12 +40,12 @@ async function apiRequest(path) {
 
   const response = await fetch(url, {
     headers: {
-      'Authorization': `Basic ${auth}`,
-      'Accept': 'application/json',
+      Authorization: `Basic ${auth}`,
+      Accept: 'application/json',
       'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Pragma': 'no-cache',
-      'Expires': '0'
-    }
+      Pragma: 'no-cache',
+      Expires: '0',
+    },
   });
 
   if (!response.ok) {
@@ -58,7 +58,9 @@ async function apiRequest(path) {
 // 获取项目分析时间
 async function getAnalysisTime() {
   try {
-    const data = await apiRequest(`/api/measures/component?component=${SONAR_PROJECT_KEY}&metricKeys=analysis_date`);
+    const data = await apiRequest(
+      `/api/measures/component?component=${SONAR_PROJECT_KEY}&metricKeys=analysis_date`,
+    );
     const value = data.component?.measures?.[0]?.value;
     if (value) {
       return new Date(Number.parseInt(value, 10) * 1000);
@@ -77,12 +79,12 @@ async function getAllIssues() {
 
   while (true) {
     const response = await apiRequest(
-      `/api/issues/search?componentKeys=${SONAR_PROJECT_KEY}&ps=${pageSize}&p=${page}&statuses=OPEN`
+      `/api/issues/search?componentKeys=${SONAR_PROJECT_KEY}&ps=${pageSize}&p=${page}&statuses=OPEN`,
     );
-    
+
     const pageIssues = response.issues || [];
     issues.push(...pageIssues);
-    
+
     if (pageIssues.length < pageSize || issues.length >= (response.total || 0)) {
       break;
     }
@@ -94,25 +96,26 @@ async function getAllIssues() {
 
 // 获取所有数据
 async function fetchAllData() {
-  const metrics = 'bugs,vulnerabilities,code_smells,coverage,duplicated_lines_density,ncloc,security_rating,reliability_rating,sqale_rating';
+  const metrics =
+    'bugs,vulnerabilities,code_smells,coverage,duplicated_lines_density,ncloc,security_rating,reliability_rating,sqale_rating';
 
   const [measuresData, qualityGateData] = await Promise.all([
     apiRequest(`/api/measures/component?component=${SONAR_PROJECT_KEY}&metricKeys=${metrics}`),
-    apiRequest(`/api/qualitygates/project_status?projectKey=${SONAR_PROJECT_KEY}`)
+    apiRequest(`/api/qualitygates/project_status?projectKey=${SONAR_PROJECT_KEY}`),
   ]);
 
   const issues = await getAllIssues();
 
   // 转换指标为对象
   const metricsMap = {};
-  measuresData.component.measures.forEach(measure => {
+  measuresData.component.measures.forEach((measure) => {
     metricsMap[measure.metric] = measure.value;
   });
 
   return {
     metrics: metricsMap,
     issues,
-    qualityGate: qualityGateData.projectStatus.status
+    qualityGate: qualityGateData.projectStatus.status,
   };
 }
 
@@ -120,17 +123,17 @@ async function fetchAllData() {
 function calculateStats(issues) {
   const stats = {
     bySeverity: { CRITICAL: 0, MAJOR: 0, MINOR: 0, INFO: 0 },
-    byType: {}
+    byType: {},
   };
 
-  issues.forEach(issue => {
+  issues.forEach((issue) => {
     stats.bySeverity[issue.severity] = (stats.bySeverity[issue.severity] || 0) + 1;
     stats.byType[issue.type] = (stats.byType[issue.type] || 0) + 1;
   });
 
   // 按文件分组
   const byFile = {};
-  issues.forEach(issue => {
+  issues.forEach((issue) => {
     const file = issue.component.replace(`${SONAR_PROJECT_KEY}:`, '');
     if (!byFile[file]) byFile[file] = [];
     byFile[file].push(issue);
@@ -164,22 +167,22 @@ function formatAnalysisTime(analysisTime) {
 
 // 输出问题详情
 function printIssueDetails(byFile) {
-  const severityOrder = { 'CRITICAL': 1, 'MAJOR': 2, 'MINOR': 3, 'INFO': 4 };
-  
+  const severityOrder = { CRITICAL: 1, MAJOR: 2, MINOR: 3, INFO: 4 };
+
   const sortedFiles = Object.keys(byFile).sort((a, b) => {
-    const maxSevA = Math.min(...byFile[a].map(i => severityOrder[i.severity] || 99));
-    const maxSevB = Math.min(...byFile[b].map(i => severityOrder[i.severity] || 99));
+    const maxSevA = Math.min(...byFile[a].map((i) => severityOrder[i.severity] || 99));
+    const maxSevB = Math.min(...byFile[b].map((i) => severityOrder[i.severity] || 99));
     return maxSevA - maxSevB;
   });
 
-  sortedFiles.forEach(file => {
-    const fileIssues = byFile[file].sort((a, b) =>
-      (severityOrder[a.severity] || 99) - (severityOrder[b.severity] || 99)
+  sortedFiles.forEach((file) => {
+    const fileIssues = byFile[file].sort(
+      (a, b) => (severityOrder[a.severity] || 99) - (severityOrder[b.severity] || 99),
     );
 
     console.log(`### ${file} (${fileIssues.length} 个问题)\n`);
 
-    fileIssues.forEach(issue => {
+    fileIssues.forEach((issue) => {
       const line = issue.line || 'N/A';
       const range = issue.textRange
         ? `${issue.textRange.startLine}-${issue.textRange.endLine}:${issue.textRange.startOffset}-${issue.textRange.endOffset}`
@@ -244,7 +247,7 @@ function formatReport(data, analysisTime) {
 // 主程序
 try {
   console.log('正在获取 SonarQube 报告...');
-  
+
   const analysisTime = await getAnalysisTime();
   const data = await fetchAllData();
   formatReport(data, analysisTime);

@@ -22,7 +22,12 @@
  * - 避免频繁调用 historyOrders API
  */
 import { logger } from '../../utils/logger/index.js';
-import { getLongDirectionName, getShortDirectionName, formatSymbolDisplayFromQuote, isValidPositiveNumber } from '../../utils/helpers/index.js';
+import {
+  getLongDirectionName,
+  getShortDirectionName,
+  formatSymbolDisplayFromQuote,
+  isValidPositiveNumber,
+} from '../../utils/helpers/index.js';
 import type { Quote } from '../../types/quote.js';
 import type { OrderRecord, OrderRecorder, RawOrderFromAPI } from '../../types/services.js';
 import type {
@@ -41,12 +46,7 @@ import { calculateOrderStatistics, classifyAndConvertOrders } from './utils.js';
  * @returns 参数有效返回 true，否则返回 false
  */
 function validateOrderParams(price: number, quantity: number, symbol: string): boolean {
-  if (
-    !Number.isFinite(price) ||
-    price <= 0 ||
-    !Number.isFinite(quantity) ||
-    quantity <= 0
-  ) {
+  if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(quantity) || quantity <= 0) {
     logger.warn(
       `[现存订单记录] 订单参数无效，跳过记录：symbol=${symbol}, price=${price}, quantity=${quantity}`,
     );
@@ -109,9 +109,7 @@ function formatOrderExecutedTime(executedTime: number): string {
  */
 function formatOrderLine(order: OrderRecord, index: number): string {
   const timeStr = formatOrderExecutedTime(order.executedTime ?? 0);
-  const priceStr = Number.isFinite(order.executedPrice)
-    ? order.executedPrice.toFixed(3)
-    : 'N/A';
+  const priceStr = Number.isFinite(order.executedPrice) ? order.executedPrice.toFixed(3) : 'N/A';
   return `  [${index + 1}] 订单ID: ${order.orderId || 'N/A'}, 价格: ${priceStr}, 数量: ${order.executedQuantity}, 成交时间: ${timeStr}`;
 }
 
@@ -121,9 +119,7 @@ function formatOrderLine(order: OrderRecord, index: number): string {
  * @returns 格式化的统计信息字符串
  */
 function formatOrderStatsLine(stats: OrderStatistics): string {
-  const avgPriceStr = Number.isFinite(stats.averagePrice)
-    ? stats.averagePrice.toFixed(3)
-    : 'N/A';
+  const avgPriceStr = Number.isFinite(stats.averagePrice) ? stats.averagePrice.toFixed(3) : 'N/A';
   return `  统计: 总数量=${stats.totalQuantity}, 平均价格=${avgPriceStr}`;
 }
 
@@ -132,9 +128,7 @@ function formatOrderStatsLine(stats: OrderStatistics): string {
  * @param deps 依赖注入（storage、apiManager、filteringEngine）
  * @returns OrderRecorder 接口实例
  */
-export function createOrderRecorder(
-  deps: OrderRecorderDeps,
-): OrderRecorder {
+export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
   const { storage, apiManager, filteringEngine } = deps;
 
   /** DEBUG 模式下输出指定标的当前订单列表及统计信息 */
@@ -166,15 +160,7 @@ export function createOrderRecorder(
   ): OrderRecord[] {
     if (allBuyOrders.length === 0) {
       storage.setBuyOrdersListForLong(symbol, []);
-      logRefreshResult(
-        symbol,
-        true,
-        0,
-        0,
-        0,
-        '历史买入0笔, 无需记录',
-        quote,
-      );
+      logRefreshResult(symbol, true, 0, 0, 0, '历史买入0笔, 无需记录', quote);
       return [];
     }
 
@@ -193,10 +179,9 @@ export function createOrderRecorder(
       return buyOrdersArray;
     }
 
-    const finalBuyOrders = [...filteringEngine.applyFilteringAlgorithm(
-      allBuyOrders,
-      filledSellOrders,
-    )];
+    const finalBuyOrders = [
+      ...filteringEngine.applyFilteringAlgorithm(allBuyOrders, filledSellOrders),
+    ];
     storage.setBuyOrdersListForLong(symbol, finalBuyOrders);
     logRefreshResult(
       symbol,
@@ -220,15 +205,7 @@ export function createOrderRecorder(
   ): OrderRecord[] {
     if (allBuyOrders.length === 0) {
       storage.setBuyOrdersListForShort(symbol, []);
-      logRefreshResult(
-        symbol,
-        false,
-        0,
-        0,
-        0,
-        '历史买入0笔, 无需记录',
-        quote,
-      );
+      logRefreshResult(symbol, false, 0, 0, 0, '历史买入0笔, 无需记录', quote);
       return [];
     }
 
@@ -247,10 +224,9 @@ export function createOrderRecorder(
       return buyOrdersArray;
     }
 
-    const finalBuyOrders = [...filteringEngine.applyFilteringAlgorithm(
-      allBuyOrders,
-      filledSellOrders,
-    )];
+    const finalBuyOrders = [
+      ...filteringEngine.applyFilteringAlgorithm(allBuyOrders, filledSellOrders),
+    ];
     storage.setBuyOrdersListForShort(symbol, finalBuyOrders);
     logRefreshResult(
       symbol,
@@ -316,11 +292,7 @@ export function createOrderRecorder(
   }
 
   /** 清空指定标的的买入订单记录（用于保护性清仓） */
-  function clearBuyOrders(
-    symbol: string,
-    isLongSymbol: boolean,
-    quote?: Quote | null,
-  ): void {
+  function clearBuyOrders(symbol: string, isLongSymbol: boolean, quote?: Quote | null): void {
     storage.clearBuyOrders(symbol, isLongSymbol, quote);
   }
 
@@ -363,10 +335,7 @@ export function createOrderRecorder(
 
       return applyOrdersRefreshForLong(symbol, allBuyOrders, filledSellOrders, quote);
     } catch (error) {
-      logger.error(
-        `[订单记录失败] 标的 ${symbol}`,
-        (error as Error)?.message ?? String(error),
-      );
+      logger.error(`[订单记录失败] 标的 ${symbol}`, (error as Error)?.message ?? String(error));
       return [];
     }
   }
@@ -389,10 +358,7 @@ export function createOrderRecorder(
 
       return applyOrdersRefreshForShort(symbol, allBuyOrders, filledSellOrders, quote);
     } catch (error) {
-      logger.error(
-        `[订单记录失败] 标的 ${symbol}`,
-        (error as Error)?.message ?? String(error),
-      );
+      logger.error(`[订单记录失败] 标的 ${symbol}`, (error as Error)?.message ?? String(error));
       return [];
     }
   }
@@ -437,7 +403,7 @@ export function createOrderRecorder(
 
     logger.info(
       `[订单记录器] 卖出订单提交追踪: ${orderId} ${symbol} ${direction} ${quantity}股 ` +
-      `关联订单=${relatedBuyOrderIds.length}个`,
+        `关联订单=${relatedBuyOrderIds.length}个`,
     );
   }
 

@@ -8,7 +8,12 @@
  * - 牛熊证当前价格过低时拒绝买入
  */
 import { logger } from '../../utils/logger/index.js';
-import { decimalToNumber, isDefined, formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
+import {
+  decimalToNumber,
+  isDefined,
+  formatError,
+  formatSymbolDisplay,
+} from '../../utils/helpers/index.js';
 import type { SignalType } from '../../types/signal.js';
 import type {
   MarketDataClient,
@@ -18,7 +23,12 @@ import type {
   WarrantDistanceLiquidationResult,
   WarrantRefreshResult,
 } from '../../types/services.js';
-import type { WarrantInfo, WarrantQuote, WarrantRiskChecker, WarrantRiskCheckerDeps } from './types.js';
+import type {
+  WarrantInfo,
+  WarrantQuote,
+  WarrantRiskChecker,
+  WarrantRiskCheckerDeps,
+} from './types.js';
 import {
   BULL_WARRANT_MIN_DISTANCE_PERCENT,
   BEAR_WARRANT_MAX_DISTANCE_PERCENT,
@@ -94,9 +104,7 @@ function validateCallPrice(
   callPrice: number | null | undefined,
 ): RiskCheckResult | null {
   if (!Number.isFinite(callPrice) || !callPrice || callPrice <= 0) {
-    logger.warn(
-      `[风险检查] ${symbol} 的回收价无效（${callPrice}），拒绝买入`,
-    );
+    logger.warn(`[风险检查] ${symbol} 的回收价无效（${callPrice}），拒绝买入`);
     return {
       allowed: false,
       reason: `回收价无效（${callPrice}），无法进行牛熊证风险检查，拒绝买入`,
@@ -108,9 +116,7 @@ function validateCallPrice(
 /** 验证监控标的价格有效性，防止使用错误的价格 */
 function validateMonitorPrice(monitorCurrentPrice: number): RiskCheckResult | null {
   if (!Number.isFinite(monitorCurrentPrice) || monitorCurrentPrice <= 0) {
-    logger.warn(
-      `[风险检查] 监控标的的当前价格无效（${monitorCurrentPrice}），无法检查牛熊证风险`,
-    );
+    logger.warn(`[风险检查] 监控标的的当前价格无效（${monitorCurrentPrice}），无法检查牛熊证风险`);
     return {
       allowed: false,
       reason: `监控标的价格无效（${monitorCurrentPrice}），无法进行牛熊证风险检查`,
@@ -149,9 +155,7 @@ function validateWarrantCurrentPrice(
   if (warrantCurrentPrice <= MIN_WARRANT_PRICE_THRESHOLD) {
     return {
       allowed: false,
-      reason: `牛熊证当前价格 ${warrantCurrentPrice.toFixed(
-        DEFAULT_PRICE_DECIMALS,
-      )} 低于或等于 ${MIN_WARRANT_PRICE_THRESHOLD.toFixed(
+      reason: `牛熊证当前价格 ${warrantCurrentPrice.toFixed(DEFAULT_PRICE_DECIMALS)} 低于或等于 ${MIN_WARRANT_PRICE_THRESHOLD.toFixed(
         DEFAULT_PRICE_DECIMALS,
       )}，拒绝买入`,
     };
@@ -161,10 +165,7 @@ function validateWarrantCurrentPrice(
 }
 
 /** 计算距离回收价的百分比：(当前价 - 回收价) / 回收价 * 100 */
-function calculateDistancePercent(
-  monitorCurrentPrice: number,
-  callPrice: number,
-): number {
+function calculateDistancePercent(monitorCurrentPrice: number, callPrice: number): number {
   return ((monitorCurrentPrice - callPrice) / callPrice) * 100;
 }
 
@@ -237,9 +238,7 @@ function buildDistanceLiquidationResult(
   const threshold = isBull
     ? BULL_WARRANT_LIQUIDATION_DISTANCE_PERCENT
     : BEAR_WARRANT_LIQUIDATION_DISTANCE_PERCENT;
-  const shouldLiquidate = isBull
-    ? distancePercent <= threshold
-    : distancePercent >= threshold;
+  const shouldLiquidate = isBull ? distancePercent <= threshold : distancePercent >= threshold;
 
   const compareText = isBull ? '低于或等于' : '高于或等于';
   const prefix = isBull ? '牛证' : '熊证';
@@ -305,9 +304,9 @@ async function checkWarrantType(
   // 使用 warrantQuote API 获取牛熊证信息
   const warrantQuotesRaw = await ctx.warrantQuote([symbol]);
   // warrantQuote API 返回 SDK 定义的结构，这里只取第一个元素并在信任边界处做结构性断言
-  const warrantQuote = (Array.isArray(warrantQuotesRaw)
-    ? warrantQuotesRaw[0] ?? null
-    : null) as WarrantQuote | null;
+  const warrantQuote = (
+    Array.isArray(warrantQuotesRaw) ? (warrantQuotesRaw[0] ?? null) : null
+  ) as WarrantQuote | null;
 
   if (!warrantQuote) {
     return { isWarrant: false };
@@ -342,9 +341,7 @@ async function checkWarrantType(
  * @param _deps 可选依赖，当前未使用
  * @returns WarrantRiskChecker 接口实例
  */
-export function createWarrantRiskChecker(
-  _deps: WarrantRiskCheckerDeps = {},
-): WarrantRiskChecker {
+export function createWarrantRiskChecker(_deps: WarrantRiskCheckerDeps = {}): WarrantRiskChecker {
   // 闭包捕获的私有状态
   let longWarrantInfo: WarrantInfo | null = null;
   let shortWarrantInfo: WarrantInfo | null = null;
@@ -359,11 +356,7 @@ export function createWarrantRiskChecker(
   ): Promise<WarrantRefreshResult> {
     const symbolDisplay = formatSymbolDisplay(symbol, symbolName);
     try {
-      const warrantInfo = await checkWarrantType(
-        marketDataClient,
-        symbol,
-        expectedType,
-      );
+      const warrantInfo = await checkWarrantType(marketDataClient, symbol, expectedType);
 
       if (isLong) {
         longWarrantInfo = warrantInfo;
@@ -424,10 +417,7 @@ export function createWarrantRiskChecker(
       return priceValidation;
     }
 
-    const warrantPriceValidation = validateWarrantCurrentPrice(
-      symbol,
-      warrantCurrentPrice,
-    );
+    const warrantPriceValidation = validateWarrantCurrentPrice(symbol, warrantCurrentPrice);
     if (warrantPriceValidation) {
       return warrantPriceValidation;
     }
@@ -447,12 +437,7 @@ export function createWarrantRiskChecker(
     const distancePercent = calculateDistancePercent(monitorCurrentPrice, callPrice);
 
     // 检查风险阈值
-    return checkDistanceThreshold(
-      warrantType,
-      distancePercent,
-      callPrice,
-      monitorCurrentPrice,
-    );
+    return checkDistanceThreshold(warrantType, distancePercent, callPrice, monitorCurrentPrice);
   }
 
   /** 检查牛熊证距回收价是否触发清仓 */
@@ -549,11 +534,7 @@ export function createWarrantRiskChecker(
     isLongSymbol: boolean,
     symbolName: string | null = null,
   ): WarrantRefreshResult {
-    if (
-      callPrice == null ||
-      !Number.isFinite(callPrice) ||
-      callPrice <= 0
-    ) {
+    if (callPrice == null || !Number.isFinite(callPrice) || callPrice <= 0) {
       return {
         status: 'error',
         isWarrant: false,

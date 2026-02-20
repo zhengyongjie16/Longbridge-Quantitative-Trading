@@ -5,11 +5,11 @@
  * 使用范围：Signal、策略、Trader、信号处理等；全项目可引用。
  */
 export type SignalType =
-  | 'BUYCALL'   // 买入做多
-  | 'SELLCALL'  // 卖出做多
-  | 'BUYPUT'    // 买入做空
-  | 'SELLPUT'   // 卖出做空
-  | 'HOLD';     // 持有（不操作）
+  | 'BUYCALL' // 买入做多
+  | 'SELLCALL' // 卖出做多
+  | 'BUYPUT' // 买入做空
+  | 'SELLPUT' // 卖出做空
+  | 'HOLD'; // 持有（不操作）
 
 /**
  * 订单类型配置。
@@ -56,7 +56,10 @@ export type Signal = {
   /** 延迟验证：T0 时刻的指标快照 */
   indicators1?: Readonly<Record<string, number>> | null;
   /** 延迟验证：历史验证记录 */
-  verificationHistory?: Array<{ timestamp: Date; indicators: Readonly<Record<string, number>> }> | null;
+  verificationHistory?: Array<{
+    timestamp: Date;
+    indicators: Readonly<Record<string, number>>;
+  }> | null;
   /** 关联的买入订单ID列表（仅卖出订单使用，用于智能平仓防重） */
   relatedBuyOrderIds?: readonly string[] | null;
 };

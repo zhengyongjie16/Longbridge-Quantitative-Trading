@@ -41,12 +41,8 @@ describe('TradeContext mock contract', () => {
         executedPrice: 320,
       }),
     ]);
-    tradeCtx.seedTodayExecutions([
-      createExecution('HIST-001', '700.HK', 100, 320),
-    ]);
-    tradeCtx.seedAccountBalances([
-      createAccountBalance(100000),
-    ]);
+    tradeCtx.seedTodayExecutions([createExecution('HIST-001', '700.HK', 100, 320)]);
+    tradeCtx.seedAccountBalances([createAccountBalance(100000)]);
     tradeCtx.seedStockPositions(
       createStockPositionsResponse({
         symbol: '700.HK',

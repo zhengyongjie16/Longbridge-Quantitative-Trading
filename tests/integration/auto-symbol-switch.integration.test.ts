@@ -68,7 +68,11 @@ describe('auto-symbol-switch integration', () => {
       shortVersion: 1,
     });
 
-    const executedActions: Array<{ action: string | null | undefined; symbol: string | null | undefined; quantity: number | null | undefined }> = [];
+    const executedActions: Array<{
+      action: string | null | undefined;
+      symbol: string | null | undefined;
+      quantity: number | null | undefined;
+    }> = [];
     const trader = createTraderDouble({
       executeSignals: async (signals) => {
         const signal = signals[0];

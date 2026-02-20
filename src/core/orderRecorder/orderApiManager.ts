@@ -9,11 +9,7 @@
 import type { Order } from 'longport';
 import { decimalToNumber } from '../../utils/helpers/index.js';
 import type { OrderRecord, RawOrderFromAPI } from '../../types/services.js';
-import type {
-  OrderCache,
-  OrderAPIManager,
-  OrderAPIManagerDeps,
-} from './types.js';
+import type { OrderCache, OrderAPIManager, OrderAPIManagerDeps } from './types.js';
 
 /** 将 LongPort SDK Order 实例转换为内部 RawOrderFromAPI（信任边界唯一转换处） */
 function orderToRawOrderFromAPI(order: Order): RawOrderFromAPI {

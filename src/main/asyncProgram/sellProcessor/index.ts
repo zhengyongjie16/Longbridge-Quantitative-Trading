@@ -23,7 +23,11 @@ import { signalObjectPool } from '../../../utils/objectPool/index.js';
 import { createBaseProcessor } from '../utils.js';
 import { logger } from '../../../utils/logger/index.js';
 import { formatError, formatSymbolDisplay } from '../../../utils/helpers/index.js';
-import { isSeatReady, isSeatVersionMatch, describeSeatUnavailable } from '../../../services/autoSymbolManager/utils.js';
+import {
+  isSeatReady,
+  isSeatVersionMatch,
+  describeSeatUnavailable,
+} from '../../../services/autoSymbolManager/utils.js';
 import type { Processor } from '../types.js';
 import type { SellProcessorDeps } from './types.js';
 import type { Task, SellTaskType } from '../tradeTaskQueue/types.js';
@@ -58,7 +62,9 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
       // 获取监控上下文
       const ctx = getMonitorContext(monitorSymbol);
       if (!ctx) {
-        logger.warn(`[SellProcessor] 无法获取监控上下文: ${formatSymbolDisplay(monitorSymbol, null)}`);
+        logger.warn(
+          `[SellProcessor] 无法获取监控上下文: ${formatSymbolDisplay(monitorSymbol, null)}`,
+        );
         return false;
       }
 
@@ -72,7 +78,9 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
       const seatVersion = symbolRegistry.getSeatVersion(monitorSymbol, direction);
 
       if (!isSeatReady(seatState)) {
-        logger.info(`[SellProcessor] ${describeSeatUnavailable(seatState)}，跳过信号: ${symbolDisplay} ${signal.action}`);
+        logger.info(
+          `[SellProcessor] ${describeSeatUnavailable(seatState)}，跳过信号: ${symbolDisplay} ${signal.action}`,
+        );
         return true;
       }
       if (!isSeatVersionMatch(signal.seatVersion, seatVersion)) {
@@ -118,7 +126,9 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
 
       // 二次门禁：避免跨日门禁切换期间在途任务继续下单
       if (getCanProcessTask && !getCanProcessTask()) {
-        logger.info(`[SellProcessor] 生命周期门禁关闭，放弃执行: ${symbolDisplay} ${signal.action}`);
+        logger.info(
+          `[SellProcessor] 生命周期门禁关闭，放弃执行: ${symbolDisplay} ${signal.action}`,
+        );
         return true;
       }
 
@@ -128,7 +138,10 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
 
       return true;
     } catch (err) {
-      logger.error(`[SellProcessor] 处理任务失败: ${symbolDisplay} ${signal.action}`, formatError(err));
+      logger.error(
+        `[SellProcessor] 处理任务失败: ${symbolDisplay} ${signal.action}`,
+        formatError(err),
+      );
       return false;
     }
   }

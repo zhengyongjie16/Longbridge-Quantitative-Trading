@@ -7,7 +7,11 @@
  * - 处理风控数据源切换（买入实时/卖出缓存）
  */
 import { logger } from '../../utils/logger/index.js';
-import { formatSymbolDisplayFromQuote, formatError, isBuyAction } from '../../utils/helpers/index.js';
+import {
+  formatSymbolDisplayFromQuote,
+  formatError,
+  isBuyAction,
+} from '../../utils/helpers/index.js';
 import { VERIFICATION } from '../../constants/index.js';
 import { getSymbolName } from './utils.js';
 import type { AccountSnapshot, Position } from '../../types/account.js';
@@ -40,9 +44,11 @@ export const createRiskCheckPipeline = ({
   readonly liquidationCooldownTracker: LiquidationCooldownTracker;
   readonly lastRiskCheckTime: Map<string, number>;
 }): ((signals: Signal[], context: RiskCheckContext) => Promise<Signal[]>) => {
-
   /** 对信号列表应用风险检查，过滤不符合条件的信号 */
-  const applyRiskChecks = async (signals: Signal[], context: RiskCheckContext): Promise<Signal[]> => {
+  const applyRiskChecks = async (
+    signals: Signal[],
+    context: RiskCheckContext,
+  ): Promise<Signal[]> => {
     const {
       trader,
       riskChecker,
@@ -110,10 +116,7 @@ export const createRiskCheckPipeline = ({
           trader.getStockPositions(),
         ]);
       } catch (err) {
-        logger.warn(
-          '[风险检查] 批量获取账户和持仓信息失败，买入信号将被拒绝',
-          formatError(err),
-        );
+        logger.warn('[风险检查] 批量获取账户和持仓信息失败，买入信号将被拒绝', formatError(err));
         buyApiFetchFailed = true;
       }
     }
@@ -151,9 +154,7 @@ export const createRiskCheckPipeline = ({
         if (buyApiFetchFailed) {
           const reason = '批量获取账户和持仓信息失败，买入信号被拒绝';
           sig.reason = reason;
-          logger.warn(
-            `[风险检查] ${reason}：${signalLabel}`,
-          );
+          logger.warn(`[风险检查] ${reason}：${signalLabel}`);
           continue;
         }
 
@@ -178,9 +179,7 @@ export const createRiskCheckPipeline = ({
           const waitSeconds = tradeCheck.waitSeconds ?? 0;
           const reason = `交易频率限制：${directionDesc} 在${context.config.buyIntervalSeconds}秒内已买入过，需等待 ${waitSeconds} 秒后才能再次买入`;
           sig.reason = reason;
-          logger.warn(
-            `[交易频率限制] ${reason}：${signalLabel}`,
-          );
+          logger.warn(`[交易频率限制] ${reason}：${signalLabel}`);
           continue;
         }
 
@@ -195,9 +194,7 @@ export const createRiskCheckPipeline = ({
           const remainingSeconds = Math.ceil(remainingMs / 1000);
           const reason = `清仓冷却期内，剩余 ${remainingSeconds} 秒，拒绝买入`;
           sig.reason = reason;
-          logger.warn(
-            `[清仓冷却] ${signalLabel} ${reason}`,
-          );
+          logger.warn(`[清仓冷却] ${signalLabel} ${reason}`);
           continue;
         }
 
@@ -233,15 +230,12 @@ export const createRiskCheckPipeline = ({
           const closeTimeRange = isHalfDay ? '11:45-12:00' : '15:45-16:00';
           const reason = `末日保护程序：收盘前15分钟内拒绝买入（当前时间在${closeTimeRange}范围内）`;
           sig.reason = reason;
-          logger.warn(
-            `[末日保护程序] ${reason}：${signalLabel}`,
-          );
+          logger.warn(`[末日保护程序] ${reason}：${signalLabel}`);
           continue;
         }
 
         // 5. 检查牛熊证风险
-        const monitorCurrentPrice =
-          monitorQuote?.price ?? monitorSnapshot?.price ?? null;
+        const monitorCurrentPrice = monitorQuote?.price ?? monitorSnapshot?.price ?? null;
 
         const warrantRiskResult = riskChecker.checkWarrantRisk(
           sig.symbol,
@@ -253,17 +247,12 @@ export const createRiskCheckPipeline = ({
         if (!warrantRiskResult.allowed) {
           const reason = warrantRiskResult.reason ?? '牛熊证风险检查未通过';
           sig.reason = reason;
-          logger.warn(
-            `[牛熊证风险拦截] 信号被牛熊证风险控制拦截：${signalLabel} - ${reason}`,
-          );
+          logger.warn(`[牛熊证风险拦截] 信号被牛熊证风险控制拦截：${signalLabel} - ${reason}`);
           continue;
         } else if (warrantRiskResult.warrantInfo?.isWarrant) {
           const warrantType =
-            warrantRiskResult.warrantInfo.warrantType === 'BULL'
-              ? '牛证'
-              : '熊证';
-          const distancePercent =
-            warrantRiskResult.warrantInfo.distanceToStrikePercent;
+            warrantRiskResult.warrantInfo.warrantType === 'BULL' ? '牛证' : '熊证';
+          const distancePercent = warrantRiskResult.warrantInfo.distanceToStrikePercent;
 
           // 使用 formatSymbolDisplayFromQuote 格式化标的显示
           let quoteForSymbol: Quote | null = null;
@@ -292,9 +281,7 @@ export const createRiskCheckPipeline = ({
       if (isBuyActionCheck && accountForRiskCheck === null) {
         const reason = '买入操作无法获取账户信息，买入信号被拒绝';
         sig.reason = reason;
-        logger.warn(
-          `[风险检查] ${reason}：${signalLabel}`,
-        );
+        logger.warn(`[风险检查] ${reason}：${signalLabel}`);
         continue;
       }
 
@@ -317,9 +304,7 @@ export const createRiskCheckPipeline = ({
       } else {
         const reason = riskResult.reason ?? '基础风险检查未通过';
         sig.reason = reason;
-        logger.warn(
-          `[风险拦截] 信号被风险控制拦截：${signalLabel} - ${reason}`,
-        );
+        logger.warn(`[风险拦截] 信号被风险控制拦截：${signalLabel} - ${reason}`);
       }
     }
 

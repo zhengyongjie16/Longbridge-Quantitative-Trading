@@ -6,9 +6,7 @@ import type { MonitorState } from '../../types/state.js';
  * @param monitorStates 监控状态 Map，键为监控标的代码
  * @returns void
  */
-export function releaseAllMonitorSnapshots(
-  monitorStates: ReadonlyMap<string, MonitorState>,
-): void {
+export function releaseAllMonitorSnapshots(monitorStates: ReadonlyMap<string, MonitorState>): void {
   for (const monitorState of monitorStates.values()) {
     releaseSnapshotObjects(monitorState.lastMonitorSnapshot, monitorState.monitorValues);
     monitorState.lastMonitorSnapshot = null;

@@ -5,10 +5,12 @@
 ### 1.1 当前逻辑
 
 **智能平仓判断**：
+
 - 直接找出订单记录中 `成交价 < 当前价` 的订单
 - 卖出这些盈利订单
 
 **问题**：
+
 - 未考虑整体成本均价
 - 可能在整体盈利时仍保留部分高价订单
 - 无法实现"整体盈利时全部卖出"的策略
@@ -16,10 +18,12 @@
 ### 1.2 新需求
 
 **订单记录增强**：
+
 - 每个标的（做多/做空）维护一个成本均价
 - 每次更新订单记录时同步更新成本均价
 
 **智能平仓优化**：
+
 1. 若 `当前价 > 成本均价`：整体盈利，全部卖出
 2. 若 `当前价 ≤ 成本均价`：整体未盈利，执行当前逻辑（仅卖出成交价 < 当前价的订单）
 
@@ -30,12 +34,14 @@
 ### 2.1 技术可行性 ✅
 
 **成本均价计算公式**：
+
 ```
 成本均价 = 所有未平仓买入订单的总成本 / 所有未平仓买入订单的总数量
          = Σ(买入价 × 买入量) / Σ(买入量)
 ```
 
 **优势**：
+
 - 公式简单，计算开销低
 - 与现有 R1/N1 计算逻辑一致（可复用）
 - 数据来源明确（订单记录）
@@ -43,11 +49,13 @@
 ### 2.2 业务合理性 ✅
 
 **符合交易逻辑**：
+
 - 成本均价是衡量整体盈亏的标准指标
 - "整体盈利时全部卖出"符合止盈策略
 - "整体未盈利时卖出盈利部分"保留了原有的分批止盈能力
 
 **与现有机制兼容**：
+
 - 不影响浮亏监控（R1/N1 仍用于浮亏计算）
 - 不影响订单过滤算法
 - 不影响防重机制
@@ -63,6 +71,7 @@
 5. **智能平仓判断**：读取成本均价 → 决策卖出策略
 
 **边界情况处理**：
+
 - 无订单记录时：成本均价为 null，智能平仓保持持仓（符合现有逻辑）
 - 订单记录不可用时：成本均价为 null，智能平仓保持持仓（符合现有逻辑）
 - 成本均价为 0 时：视为异常，智能平仓保持持仓
@@ -80,6 +89,7 @@
 **位置**：`src/core/orderRecorder/orderStorage.ts`
 
 **新增私有状态**：
+
 ```typescript
 // 成本均价缓存：Map<symbol, number | null>
 const longCostAveragePriceMap: Map<string, number | null> = new Map();
@@ -91,6 +101,7 @@ const shortCostAveragePriceMap: Map<string, number | null> = new Map();
 **位置**：`src/core/orderRecorder/types.ts`
 
 **新增接口方法**：
+
 ```typescript
 export interface OrderStorage {
   // ... 现有方法 ...
@@ -107,15 +118,14 @@ export interface OrderStorage {
 **位置**：`src/core/orderRecorder/utils.ts`
 
 **新增函数**：
+
 ```typescript
 /**
  * 计算成本均价
  * @param orders 订单记录列表
  * @returns 成本均价，无订单时返回 null
  */
-export function calculateCostAveragePrice(
-  orders: ReadonlyArray<OrderRecord>,
-): number | null {
+export function calculateCostAveragePrice(orders: ReadonlyArray<OrderRecord>): number | null {
   if (orders.length === 0) {
     return null;
   }
@@ -146,6 +156,7 @@ export function calculateCostAveragePrice(
 **位置**：`src/core/orderRecorder/orderStorage.ts`
 
 **修改点 1：添加辅助函数**
+
 ```typescript
 /** 更新成本均价缓存 */
 const updateCostAveragePrice = (symbol: string, isLongSymbol: boolean): void => {
@@ -164,6 +175,7 @@ const updateCostAveragePrice = (symbol: string, isLongSymbol: boolean): void => 
 **修改点 2：在所有订单记录更新处调用**
 
 1. `setBuyOrdersList` 函数末尾：
+
 ```typescript
 const setBuyOrdersList = (
   symbol: string,
@@ -190,6 +202,7 @@ const setBuyOrdersList = (
 4. `clearBuyOrders` 函数末尾（已调用 setBuyOrdersList，无需额外处理）
 
 **修改点 3：新增公有方法**
+
 ```typescript
 /** 获取指定标的的成本均价 */
 const getCostAveragePrice = (symbol: string, isLongSymbol: boolean): number | null => {
@@ -199,6 +212,7 @@ const getCostAveragePrice = (symbol: string, isLongSymbol: boolean): number | nu
 ```
 
 **修改点 4：clearAll 函数**
+
 ```typescript
 function clearAll(): void {
   longBuyOrdersMap.clear();
@@ -214,6 +228,7 @@ function clearAll(): void {
 ```
 
 **修改点 5：返回对象**
+
 ```typescript
 return {
   // ... 现有方法 ...
@@ -226,6 +241,7 @@ return {
 **位置**：`src/core/orderRecorder/index.ts`
 
 **新增公有方法**：
+
 ```typescript
 /** 获取指定标的的成本均价 */
 function getCostAveragePrice(symbol: string, isLongSymbol: boolean): number | null {
@@ -234,6 +250,7 @@ function getCostAveragePrice(symbol: string, isLongSymbol: boolean): number | nu
 ```
 
 **返回对象新增**：
+
 ```typescript
 return {
   // ... 现有方法 ...
@@ -329,6 +346,7 @@ export function resolveSellQuantityBySmartClose({
 **位置**：`src/types/services.ts`
 
 **OrderRecorder 接口新增方法**：
+
 ```typescript
 export interface OrderRecorder {
   // ... 现有方法 ...
@@ -342,14 +360,14 @@ export interface OrderRecorder {
 
 ## 四、修改文件清单
 
-| 文件路径 | 修改类型 | 修改内容 |
-|---------|---------|---------|
-| `src/core/orderRecorder/utils.ts` | 新增 | 新增 `calculateCostAveragePrice` 函数 |
-| `src/core/orderRecorder/types.ts` | 修改 | OrderStorage 接口新增 `getCostAveragePrice` 方法 |
-| `src/core/orderRecorder/orderStorage.ts` | 修改 | 新增成本均价缓存、计算逻辑、公有方法 |
-| `src/core/orderRecorder/index.ts` | 修改 | 新增 `getCostAveragePrice` 透传方法 |
-| `src/core/signalProcessor/utils.ts` | 修改 | 修改 `resolveSellQuantityBySmartClose` 函数逻辑 |
-| `src/types/services.ts` | 修改 | OrderRecorder 接口新增 `getCostAveragePrice` 方法 |
+| 文件路径                                 | 修改类型 | 修改内容                                          |
+| ---------------------------------------- | -------- | ------------------------------------------------- |
+| `src/core/orderRecorder/utils.ts`        | 新增     | 新增 `calculateCostAveragePrice` 函数             |
+| `src/core/orderRecorder/types.ts`        | 修改     | OrderStorage 接口新增 `getCostAveragePrice` 方法  |
+| `src/core/orderRecorder/orderStorage.ts` | 修改     | 新增成本均价缓存、计算逻辑、公有方法              |
+| `src/core/orderRecorder/index.ts`        | 修改     | 新增 `getCostAveragePrice` 透传方法               |
+| `src/core/signalProcessor/utils.ts`      | 修改     | 修改 `resolveSellQuantityBySmartClose` 函数逻辑   |
+| `src/types/services.ts`                  | 修改     | OrderRecorder 接口新增 `getCostAveragePrice` 方法 |
 
 **共计 6 个文件**
 
@@ -360,12 +378,14 @@ export interface OrderRecorder {
 ### 5.1 单元测试场景
 
 **成本均价计算**：
+
 - 空订单列表 → 返回 null
 - 单笔订单 → 返回该订单价格
 - 多笔订单 → 返回加权平均价
 - 包含无效订单（价格或数量为 0） → 正确过滤
 
 **智能平仓决策**：
+
 - 当前价 > 成本均价 → 全部卖出
 - 当前价 ≤ 成本均价 → 仅卖出盈利订单
 - 成本均价为 null → 保持持仓
@@ -374,23 +394,27 @@ export interface OrderRecorder {
 ### 5.2 集成测试场景
 
 **场景 1：整体盈利全部卖出**
+
 - 买入 100 股 @ 1.00，买入 100 股 @ 1.20
 - 成本均价 = (100×1.00 + 100×1.20) / 200 = 1.10
 - 当前价 = 1.15 > 1.10
 - 预期：卖出 200 股（全部）
 
 **场景 2：整体未盈利仅卖盈利部分**
+
 - 买入 100 股 @ 1.00，买入 100 股 @ 1.20
 - 成本均价 = 1.10
 - 当前价 = 1.05 ≤ 1.10
 - 预期：卖出 100 股（仅 1.00 的订单）
 
 **场景 3：卖出后成本均价更新**
+
 - 初始：买入 100 股 @ 1.00，买入 100 股 @ 1.20，成本均价 = 1.10
 - 卖出 100 股 @ 1.05（扣减 1.00 的订单）
 - 预期：剩余 100 股 @ 1.20，成本均价 = 1.20
 
 **场景 4：保护性清仓后成本均价归零**
+
 - 初始：有订单记录，成本均价 = 1.10
 - 触发保护性清仓
 - 预期：订单记录清空，成本均价 = null
@@ -408,16 +432,17 @@ export interface OrderRecorder {
 
 ### 6.1 潜在风险
 
-| 风险 | 影响 | 概率 | 缓解措施 |
-|------|------|------|---------|
-| 成本均价计算错误 | 错误的卖出决策 | 低 | 单元测试覆盖所有场景 |
-| 成本均价未及时更新 | 使用过期数据决策 | 低 | 在所有订单记录更新处统一调用 |
-| 整体盈利时全部卖出导致错失更大收益 | 收益优化不足 | 中 | 业务策略问题，可通过配置调整 |
-| 与浮亏监控 R1 计算混淆 | 逻辑错误 | 低 | 明确区分用途，注释说明 |
+| 风险                               | 影响             | 概率 | 缓解措施                     |
+| ---------------------------------- | ---------------- | ---- | ---------------------------- |
+| 成本均价计算错误                   | 错误的卖出决策   | 低   | 单元测试覆盖所有场景         |
+| 成本均价未及时更新                 | 使用过期数据决策 | 低   | 在所有订单记录更新处统一调用 |
+| 整体盈利时全部卖出导致错失更大收益 | 收益优化不足     | 中   | 业务策略问题，可通过配置调整 |
+| 与浮亏监控 R1 计算混淆             | 逻辑错误         | 低   | 明确区分用途，注释说明       |
 
 ### 6.2 回滚方案
 
 若上线后发现问题，可快速回滚：
+
 1. 恢复 `resolveSellQuantityBySmartClose` 函数为原版本
 2. 移除成本均价相关代码（不影响其他功能）
 
@@ -481,21 +506,23 @@ export interface OrderRecorder {
 
 ### 9.1 成本均价 vs 浮亏监控 R1
 
-| 指标 | 用途 | 计算方式 | 更新时机 |
-|------|------|---------|---------|
-| 成本均价 | 智能平仓决策 | 总成本 / 总数量 | 订单记录更新时 |
-| R1（开仓成本） | 浮亏监控 | Σ(价格 × 数量) | 订单记录更新时 |
+| 指标           | 用途         | 计算方式        | 更新时机       |
+| -------------- | ------------ | --------------- | -------------- |
+| 成本均价       | 智能平仓决策 | 总成本 / 总数量 | 订单记录更新时 |
+| R1（开仓成本） | 浮亏监控     | Σ(价格 × 数量)  | 订单记录更新时 |
 
 **关系**：`成本均价 = R1 / N1`
 
 ### 9.2 示例计算
 
 **订单记录**：
+
 - 买入 100 股 @ 1.00
 - 买入 150 股 @ 1.20
 - 买入 50 股 @ 0.90
 
 **成本均价计算**：
+
 ```
 总成本 = 100×1.00 + 150×1.20 + 50×0.90 = 100 + 180 + 45 = 325
 总数量 = 100 + 150 + 50 = 300
@@ -503,6 +530,7 @@ export interface OrderRecorder {
 ```
 
 **智能平仓决策**：
+
 - 当前价 = 1.10 > 1.0833 → 全部卖出 300 股
 - 当前价 = 1.05 ≤ 1.0833 → 仅卖出 100 股 @ 1.00 + 50 股 @ 0.90 = 150 股
 
@@ -524,29 +552,29 @@ export interface OrderRecorder {
 
 ### 二次审核发现的问题与结论
 
-| 问题 | 结论 |
-|------|------|
+| 问题                                                                                       | 结论                                                                    |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
 | 已有 `calculateOrderStatistics` 计算 averagePrice，与新增 `calculateCostAveragePrice` 重复 | **复用** `calculateOrderStatistics`，不新增 `calculateCostAveragePrice` |
-| 成本均价用 Map 缓存增加状态与同步复杂度 | **不缓存**，在需要时基于 `getBuyOrdersList` 实时计算 |
-| 整体盈利时直接返回 `quantity: availableQuantity, relatedBuyOrderIds: []` | **严重**：防重失效，必须通过"可卖出订单"获取 `relatedBuyOrderIds` |
-| 整体盈利时未考虑待成交卖出占用 | 通过"可卖出订单"接口（含防重与数量截断）统一处理 |
+| 成本均价用 Map 缓存增加状态与同步复杂度                                                    | **不缓存**，在需要时基于 `getBuyOrdersList` 实时计算                    |
+| 整体盈利时直接返回 `quantity: availableQuantity, relatedBuyOrderIds: []`                   | **严重**：防重失效，必须通过"可卖出订单"获取 `relatedBuyOrderIds`       |
+| 整体盈利时未考虑待成交卖出占用                                                             | 通过"可卖出订单"接口（含防重与数量截断）统一处理                        |
 
 ### 第三次验证发现的问题与结论
 
-| 问题 | 结论 |
-|------|------|
-| `getProfitableSellOrders` 加 `sellAll` 后语义为"有时返回全部订单"，与"盈利订单"命名不完全一致 | 保留 `sellAll` 参数，在接口/实现处用 JSDoc 明确：`sellAll=true` 时表示"可卖出的全部订单（用于整体盈利全部卖出）"，语义为"可卖出订单集合"的两种模式 |
-| `sellAll=true` 时从 Map 直接取引用，与 `getBuyOrdersBelowPrice` 返回新数组形态不一致 | **实现修正**：`sellAll=true` 时统一用 `getBuyOrdersList(symbol, isLongSymbol)` 获取订单，与"盈利订单"路径一致，均为拷贝数组，保证数据形态一致、可维护 |
+| 问题                                                                                          | 结论                                                                                                                                                  |
+| --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `getProfitableSellOrders` 加 `sellAll` 后语义为"有时返回全部订单"，与"盈利订单"命名不完全一致 | 保留 `sellAll` 参数，在接口/实现处用 JSDoc 明确：`sellAll=true` 时表示"可卖出的全部订单（用于整体盈利全部卖出）"，语义为"可卖出订单集合"的两种模式    |
+| `sellAll=true` 时从 Map 直接取引用，与 `getBuyOrdersBelowPrice` 返回新数组形态不一致          | **实现修正**：`sellAll=true` 时统一用 `getBuyOrdersList(symbol, isLongSymbol)` 获取订单，与"盈利订单"路径一致，均为拷贝数组，保证数据形态一致、可维护 |
 
 ### 设计决策汇总
 
-| 决策点 | 最终方案 | 理由 |
-|--------|----------|------|
-| 成本均价计算 | 复用 `calculateOrderStatistics`，无订单/总量为 0 时返回 null | 避免重复逻辑，单一数据源 |
-| 缓存策略 | 不缓存，实时计算 | 订单量小、计算简单，避免状态同步与 clearAll 等边界 |
-| 整体盈利时可卖订单与防重 | 通过「可卖出订单」接口获取全部可卖订单并保留防重 | 复用防重与整笔截断逻辑，保证 `relatedBuyOrderIds` 正确 |
-| 目标订单数据来源 | `includeAll` 时用 `getBuyOrdersList`，否则用 `getBuyOrdersBelowPrice` | 两条路径均为新数组，形态一致，易维护 |
-| 方法命名与语义 | 以 `getSellableOrders` 为核心实现，`getProfitableSellOrders` 委托（见下节全链路分析） | 命名与行为一致，符合「无补丁式代码」规范 |
+| 决策点                   | 最终方案                                                                              | 理由                                                   |
+| ------------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| 成本均价计算             | 复用 `calculateOrderStatistics`，无订单/总量为 0 时返回 null                          | 避免重复逻辑，单一数据源                               |
+| 缓存策略                 | 不缓存，实时计算                                                                      | 订单量小、计算简单，避免状态同步与 clearAll 等边界     |
+| 整体盈利时可卖订单与防重 | 通过「可卖出订单」接口获取全部可卖订单并保留防重                                      | 复用防重与整笔截断逻辑，保证 `relatedBuyOrderIds` 正确 |
+| 目标订单数据来源         | `includeAll` 时用 `getBuyOrdersList`，否则用 `getBuyOrdersBelowPrice`                 | 两条路径均为新数组，形态一致，易维护                   |
+| 方法命名与语义           | 以 `getSellableOrders` 为核心实现，`getProfitableSellOrders` 委托（见下节全链路分析） | 命名与行为一致，符合「无补丁式代码」规范               |
 
 ---
 
@@ -629,13 +657,13 @@ const getCostAveragePrice = (symbol: string, isLongSymbol: boolean): number | nu
 
 ### 6. 修改文件清单
 
-| 文件 | 修改类型 | 内容 |
-|------|----------|------|
-| `src/core/orderRecorder/orderStorage.ts` | 修改 | 引入 `calculateOrderStatistics`；新增 `getCostAveragePrice`；**新增 getSellableOrders（核心实现）**；getProfitableSellOrders 改为委托 getSellableOrders |
-| `src/core/orderRecorder/types.ts` | 修改 | OrderStorage 增加 `getCostAveragePrice`、**getSellableOrders**，getProfitableSellOrders 保留并增加 `sellAll?` |
-| `src/types/services.ts` | 修改 | OrderRecorder 增加 `getCostAveragePrice`、**getSellableOrders**，getProfitableSellOrders 保留 `sellAll?` |
-| `src/core/orderRecorder/index.ts` | 修改 | 透传 `getCostAveragePrice`、**getSellableOrders**，getProfitableSellOrders 仍透传 |
-| `src/core/signalProcessor/utils.ts` | 修改 | `resolveSellQuantityBySmartClose` 调用 **getSellableOrders(..., { includeAll: isOverallProfitable })** |
+| 文件                                     | 修改类型 | 内容                                                                                                                                                    |
+| ---------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/core/orderRecorder/orderStorage.ts` | 修改     | 引入 `calculateOrderStatistics`；新增 `getCostAveragePrice`；**新增 getSellableOrders（核心实现）**；getProfitableSellOrders 改为委托 getSellableOrders |
+| `src/core/orderRecorder/types.ts`        | 修改     | OrderStorage 增加 `getCostAveragePrice`、**getSellableOrders**，getProfitableSellOrders 保留并增加 `sellAll?`                                           |
+| `src/types/services.ts`                  | 修改     | OrderRecorder 增加 `getCostAveragePrice`、**getSellableOrders**，getProfitableSellOrders 保留 `sellAll?`                                                |
+| `src/core/orderRecorder/index.ts`        | 修改     | 透传 `getCostAveragePrice`、**getSellableOrders**，getProfitableSellOrders 仍透传                                                                       |
+| `src/core/signalProcessor/utils.ts`      | 修改     | `resolveSellQuantityBySmartClose` 调用 **getSellableOrders(..., { includeAll: isOverallProfitable })**                                                  |
 
 **共计 5 个文件**；不新增文件，不新增 `utils.ts` 中的成本均价函数。
 
@@ -643,14 +671,14 @@ const getCostAveragePrice = (symbol: string, isLongSymbol: boolean): number | nu
 
 ## 全链路验证（简要）
 
-| 场景 | 成本均价 | 智能平仓 | 防重 |
-|------|----------|----------|------|
-| 启动刷新 / 买入成交 / 卖出部分 | 下次查询时实时计算 | 正常 | 正常 |
-| 卖出全部 / 保护性清仓 / clearAll | 无订单则 null | 无订单保持持仓 | 正常 |
-| 整体盈利 | 实时计算 | getSellableOrders(..., { includeAll: true })，全部可卖 | relatedBuyOrderIds 正确 |
-| 整体未盈利 | 实时计算 | getSellableOrders(..., { includeAll: false })，仅盈利部分 | 正常 |
-| 成本均价 null 或无效 | 保持持仓 | 保持持仓 | 正常 |
-| 待成交卖出占用 | 不排除占用（按全部订单算均价） | 排除已占用订单 | 正常 |
+| 场景                             | 成本均价                       | 智能平仓                                                  | 防重                    |
+| -------------------------------- | ------------------------------ | --------------------------------------------------------- | ----------------------- |
+| 启动刷新 / 买入成交 / 卖出部分   | 下次查询时实时计算             | 正常                                                      | 正常                    |
+| 卖出全部 / 保护性清仓 / clearAll | 无订单则 null                  | 无订单保持持仓                                            | 正常                    |
+| 整体盈利                         | 实时计算                       | getSellableOrders(..., { includeAll: true })，全部可卖    | relatedBuyOrderIds 正确 |
+| 整体未盈利                       | 实时计算                       | getSellableOrders(..., { includeAll: false })，仅盈利部分 | 正常                    |
+| 成本均价 null 或无效             | 保持持仓                       | 保持持仓                                                  | 正常                    |
+| 待成交卖出占用                   | 不排除占用（按全部订单算均价） | 排除已占用订单                                            | 正常                    |
 
 ---
 

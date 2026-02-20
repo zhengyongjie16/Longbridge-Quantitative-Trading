@@ -58,7 +58,9 @@ export function createMonitorConfig(overrides: Partial<MonitorConfig> = {}): Mon
 /**
  * 构造多监控交易配置（含 global 与 monitors），供集成测试使用；支持部分覆盖。
  */
-export function createTradingConfig(overrides: Partial<MultiMonitorTradingConfig> = {}): MultiMonitorTradingConfig {
+export function createTradingConfig(
+  overrides: Partial<MultiMonitorTradingConfig> = {},
+): MultiMonitorTradingConfig {
   return {
     monitors: [createMonitorConfig()],
     global: {

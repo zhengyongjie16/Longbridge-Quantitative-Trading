@@ -68,13 +68,16 @@ describe('cleanup business flow', () => {
     const steps: string[] = [];
     const monitorState = createMonitorState('HSI.HK');
     const monitorContexts = new Map<string, MonitorContext>([
-      ['HSI.HK', {
-        delayedSignalVerifier: {
-          destroy: () => {
-            steps.push('destroyVerifier');
+      [
+        'HSI.HK',
+        {
+          delayedSignalVerifier: {
+            destroy: () => {
+              steps.push('destroyVerifier');
+            },
           },
-        },
-      } as unknown as MonitorContext],
+        } as unknown as MonitorContext,
+      ],
     ]);
     const lastState = createLastState(new Map([['HSI.HK', monitorState]]));
 
@@ -235,9 +238,7 @@ describe('cleanup business flow', () => {
       return process;
     }) as typeof process.once;
 
-    (process as unknown as { exit: typeof process.exit }).exit = ((
-      code?: number,
-    ) => {
+    (process as unknown as { exit: typeof process.exit }).exit = ((code?: number) => {
       exitCodes.push(code ?? 0);
       return undefined as never;
     }) as typeof process.exit;
@@ -325,13 +326,16 @@ describe('cleanup business flow', () => {
     const steps: string[] = [];
     const monitorState = createMonitorState('HSI.HK');
     const monitorContexts = new Map<string, MonitorContext>([
-      ['HSI.HK', {
-        delayedSignalVerifier: {
-          destroy: () => {
-            steps.push('destroyVerifier');
+      [
+        'HSI.HK',
+        {
+          delayedSignalVerifier: {
+            destroy: () => {
+              steps.push('destroyVerifier');
+            },
           },
-        },
-      } as unknown as MonitorContext],
+        } as unknown as MonitorContext,
+      ],
     ]);
 
     const cleanup = createCleanup({
@@ -427,9 +431,7 @@ describe('cleanup business flow', () => {
       return process;
     }) as typeof process.once;
 
-    (process as unknown as { exit: typeof process.exit }).exit = ((
-      code?: number,
-    ) => {
+    (process as unknown as { exit: typeof process.exit }).exit = ((code?: number) => {
       exitCodes.push(code ?? 0);
       return undefined as never;
     }) as typeof process.exit;

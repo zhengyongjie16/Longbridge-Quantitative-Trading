@@ -220,26 +220,28 @@ describe('chaos: api flaky recovery', () => {
     });
 
     refresher.enqueue({
-      pending: [{
-        symbol: 'BULL.HK',
-        isLongSymbol: true,
-        refreshAccount: true,
-        refreshPositions: true,
-      }],
-      quotesMap: new Map([
-        ['BULL.HK', createQuoteDouble('BULL.HK', 1.01)],
-      ]),
+      pending: [
+        {
+          symbol: 'BULL.HK',
+          isLongSymbol: true,
+          refreshAccount: true,
+          refreshPositions: true,
+        },
+      ],
+      quotesMap: new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.01)]]),
     });
 
     await Bun.sleep(80);
 
     refresher.enqueue({
-      pending: [{
-        symbol: 'BEAR.HK',
-        isLongSymbol: false,
-        refreshAccount: false,
-        refreshPositions: false,
-      }],
+      pending: [
+        {
+          symbol: 'BEAR.HK',
+          isLongSymbol: false,
+          refreshAccount: false,
+          refreshPositions: false,
+        },
+      ],
       quotesMap: new Map([
         ['BULL.HK', createQuoteDouble('BULL.HK', 1.01)],
         ['BEAR.HK', createQuoteDouble('BEAR.HK', 1.02)],

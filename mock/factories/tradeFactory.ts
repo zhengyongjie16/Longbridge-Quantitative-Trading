@@ -117,7 +117,12 @@ export function createPushOrderChanged(params: {
 /**
  * 构造成交记录，供今日成交查询等 Mock 使用。
  */
-export function createExecution(orderId: string, symbol: string, quantity: number, price: number): Execution {
+export function createExecution(
+  orderId: string,
+  symbol: string,
+  quantity: number,
+  price: number,
+): Execution {
   const execution = {
     orderId,
     tradeId: `${orderId}-E`,

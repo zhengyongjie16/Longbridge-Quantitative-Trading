@@ -10,7 +10,10 @@ import { createAutoSearch } from '../../../src/services/autoSymbolManager/autoSe
 import { createSeatStateManager } from '../../../src/services/autoSymbolManager/seatStateManager.js';
 import { getHKDateKey } from '../../../src/utils/helpers/tradingTime.js';
 
-import { createMonitorConfigDouble, createSymbolRegistryDouble } from '../../helpers/testDoubles.js';
+import {
+  createMonitorConfigDouble,
+  createSymbolRegistryDouble,
+} from '../../helpers/testDoubles.js';
 
 function createLoggerStub() {
   return {

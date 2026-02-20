@@ -91,18 +91,13 @@ export interface MarketDataClient {
    * @param period K 线周期
    * @param count 获取数量
    */
-  getRealtimeCandlesticks(
-    symbol: string,
-    period: Period,
-    count: number,
-  ): Promise<Candlestick[]>;
+  getRealtimeCandlesticks(symbol: string, period: Period, count: number): Promise<Candlestick[]>;
 
   /** 判断指定日期是否为交易日 */
   isTradingDay(date: Date, market?: Market): Promise<TradingDayInfo>;
 
   /** 重置运行期订阅与缓存（跨日午夜清理） */
   resetRuntimeSubscriptionsAndCaches(): Promise<void>;
-
 }
 
 /**

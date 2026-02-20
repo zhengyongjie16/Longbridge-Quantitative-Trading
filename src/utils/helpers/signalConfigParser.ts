@@ -1,9 +1,5 @@
 import { validateRsiPeriod, validatePsyPeriod } from './indicatorHelpers.js';
-import type {
-  Condition,
-  ConditionGroup,
-  SignalConfig,
-} from '../../types/signalConfig.js';
+import type { Condition, ConditionGroup, SignalConfig } from '../../types/signalConfig.js';
 import type { SignalConfigSet } from '../../types/config.js';
 import type {
   IndicatorState,
@@ -323,7 +319,10 @@ function evaluateCondition(state: IndicatorState, condition: Condition): boolean
  * @param conditionGroup 条件组 {conditions, requiredCount}
  * @returns 评估结果
  */
-function evaluateConditionGroup(state: IndicatorState, conditionGroup: ConditionGroup): ConditionGroupResult {
+function evaluateConditionGroup(
+  state: IndicatorState,
+  conditionGroup: ConditionGroup,
+): ConditionGroupResult {
   const { conditions, requiredCount } = conditionGroup;
 
   let count = 0;
@@ -348,7 +347,10 @@ function evaluateConditionGroup(state: IndicatorState, conditionGroup: Condition
  * @param signalConfig 信号配置（conditionGroups）
  * @returns 评估结果（triggered、satisfiedGroupIndex、satisfiedCount、reason）
  */
-export function evaluateSignalConfig(state: IndicatorState, signalConfig: SignalConfig | null): EvaluationResult {
+export function evaluateSignalConfig(
+  state: IndicatorState,
+  signalConfig: SignalConfig | null,
+): EvaluationResult {
   if (!signalConfig?.conditionGroups) {
     return {
       triggered: false,
@@ -376,9 +378,7 @@ export function evaluateSignalConfig(state: IndicatorState, signalConfig: Signal
       const reason =
         group.conditions.length === 1
           ? `满足条件${i + 1}：${conditionDescs}`
-          : `满足条件${i + 1}：(${conditionDescs}) 中${result.count}/${
-            group.conditions.length
-          }项满足`;
+          : `满足条件${i + 1}：(${conditionDescs}) 中${result.count}/${group.conditions.length}项满足`;
 
       return {
         triggered: true,
@@ -442,7 +442,12 @@ function extractIndicatorPeriods(
 ): number[] {
   if (!signalConfig) return [];
   const periods = new Set<number>();
-  const configs = [signalConfig.buycall, signalConfig.sellcall, signalConfig.buyput, signalConfig.sellput];
+  const configs = [
+    signalConfig.buycall,
+    signalConfig.sellcall,
+    signalConfig.buyput,
+    signalConfig.sellput,
+  ];
 
   for (const config of configs) {
     if (!config?.conditionGroups) continue;

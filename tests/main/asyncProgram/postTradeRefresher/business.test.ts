@@ -124,7 +124,10 @@ describe('postTradeRefresher business flow', () => {
         },
       ],
       quotesMap: new Map([
-        ['BULL.HK', { symbol: 'BULL.HK', name: 'BULL', price: 1.1, prevClose: 1, timestamp: Date.now() }],
+        [
+          'BULL.HK',
+          { symbol: 'BULL.HK', name: 'BULL', price: 1.1, prevClose: 1, timestamp: Date.now() },
+        ],
       ]),
     });
 

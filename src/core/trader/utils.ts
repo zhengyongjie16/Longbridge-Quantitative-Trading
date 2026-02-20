@@ -1,7 +1,10 @@
 import path from 'node:path';
 import { OrderType } from 'longport';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
-import { NON_REPLACEABLE_ORDER_STATUSES, NON_REPLACEABLE_ORDER_TYPES } from '../../constants/index.js';
+import {
+  NON_REPLACEABLE_ORDER_STATUSES,
+  NON_REPLACEABLE_ORDER_TYPES,
+} from '../../constants/index.js';
 import type { OrderTypeConfig, Signal } from '../../types/signal.js';
 import type {
   OrderSubmitResponse,
@@ -133,9 +136,7 @@ function resolveRemainingQuantity(order: PendingSellOrderSnapshot): number {
  * @param input 合并决策输入，包含标的、未成交卖单列表、新订单数量/价格/类型及是否保护性清仓
  * @returns 合并决策结果，包含动作类型、合并数量、目标订单 ID 及决策原因
  */
-export function resolveSellMergeDecision(
-  input: SellMergeDecisionInput,
-): SellMergeDecision {
+export function resolveSellMergeDecision(input: SellMergeDecisionInput): SellMergeDecision {
   const normalized = input.pendingOrders
     .map((order) => ({
       order,
@@ -144,10 +145,7 @@ export function resolveSellMergeDecision(
     .filter((item) => item.remaining > 0);
 
   const pendingOrderIds = normalized.map((item) => item.order.orderId);
-  const pendingRemainingQuantity = normalized.reduce(
-    (sum, item) => sum + item.remaining,
-    0,
-  );
+  const pendingRemainingQuantity = normalized.reduce((sum, item) => sum + item.remaining, 0);
 
   if (!Number.isFinite(input.newOrderQuantity) || input.newOrderQuantity <= 0) {
     return {
@@ -175,9 +173,7 @@ export function resolveSellMergeDecision(
 
   const mergedQuantity = pendingRemainingQuantity + input.newOrderQuantity;
   const hasMultiple = normalized.length > 1;
-  const hasTypeMismatch = normalized.some(
-    (item) => item.order.orderType !== input.newOrderType,
-  );
+  const hasTypeMismatch = normalized.some((item) => item.order.orderType !== input.newOrderType);
   const hasNonReplaceableStatus = normalized.some((item) =>
     NON_REPLACEABLE_ORDER_STATUSES.has(item.order.status),
   );

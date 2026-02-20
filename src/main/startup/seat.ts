@@ -187,16 +187,8 @@ export async function prepareSeatsOnStartup(
   for (const monitorConfig of tradingConfig.monitors) {
     const longKey = `${monitorConfig.monitorSymbol}:LONG`;
     const shortKey = `${monitorConfig.monitorSymbol}:SHORT`;
-    updateSeatOnStartup(
-      monitorConfig.monitorSymbol,
-      'LONG',
-      snapshotMap.get(longKey) ?? null,
-    );
-    updateSeatOnStartup(
-      monitorConfig.monitorSymbol,
-      'SHORT',
-      snapshotMap.get(shortKey) ?? null,
-    );
+    updateSeatOnStartup(monitorConfig.monitorSymbol, 'LONG', snapshotMap.get(longKey) ?? null);
+    updateSeatOnStartup(monitorConfig.monitorSymbol, 'SHORT', snapshotMap.get(shortKey) ?? null);
   }
 
   const quoteContextPromise = marketDataClient.getQuoteContext();
@@ -316,11 +308,7 @@ export async function prepareSeatsOnStartup(
       return;
     }
     const hkDateKey = getHKDateKey(currentTime);
-    const {
-      nextFailCount,
-      frozenTradingDayKey,
-      shouldFreeze,
-    } = resolveNextSearchFailureState({
+    const { nextFailCount, frozenTradingDayKey, shouldFreeze } = resolveNextSearchFailureState({
       currentSeat: stuckSeat,
       hkDateKey,
       maxSearchFailuresPerDay: AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY,

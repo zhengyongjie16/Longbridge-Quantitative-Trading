@@ -38,7 +38,8 @@ describe('sell-flow integration', () => {
 
     const sellOrderLinks: Array<{ orderId: string; related: readonly string[] }> = [];
     const recorder = createOrderRecorderDouble({
-      getCostAveragePrice: (symbol, isLongSymbol) => storage.getCostAveragePrice(symbol, isLongSymbol),
+      getCostAveragePrice: (symbol, isLongSymbol) =>
+        storage.getCostAveragePrice(symbol, isLongSymbol),
       getSellableOrders: (symbol, direction, currentPrice, maxSellQuantity, options) =>
         storage.getSellableOrders(symbol, direction, currentPrice, maxSellQuantity, options),
       submitSellOrder: (orderId, _symbol, _direction, _quantity, relatedBuyOrderIds) => {

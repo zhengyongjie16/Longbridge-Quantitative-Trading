@@ -157,7 +157,10 @@ function calculateMfiSeriesWithTechnicalPrecision(
  * @param period MFI周期，默认14
  * @returns MFI值（0-100），如果无法计算则返回null
  */
-export function calculateMFI(candles: ReadonlyArray<CandleData>, period: number = 14): number | null {
+export function calculateMFI(
+  candles: ReadonlyArray<CandleData>,
+  period: number = 14,
+): number | null {
   if (!candles || candles.length < period + 1) {
     return null;
   }
@@ -180,7 +183,8 @@ export function calculateMFI(candles: ReadonlyArray<CandleData>, period: number 
         isValidPositiveNumber(high) &&
         isValidPositiveNumber(low) &&
         isValidPositiveNumber(close) &&
-        Number.isFinite(volume) && volume >= 0
+        Number.isFinite(volume) &&
+        volume >= 0
       ) {
         validHighs.push(high);
         validLows.push(low);

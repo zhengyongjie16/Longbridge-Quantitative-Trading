@@ -54,9 +54,7 @@ function clearTradeQueues(
  * @param monitorContexts 所有监控上下文
  * @returns 取消的信号总数
  */
-function cancelAllDelayedSignals(
-  monitorContexts: ReadonlyMap<string, MonitorContext>,
-): number {
+function cancelAllDelayedSignals(monitorContexts: ReadonlyMap<string, MonitorContext>): number {
   let total = 0;
   for (const monitorContext of monitorContexts.values()) {
     total += monitorContext.delayedSignalVerifier.cancelAll();

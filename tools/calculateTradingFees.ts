@@ -17,37 +17,40 @@ interface Trade {
 const HK_FEE_RATES = {
   // 平台费（固定）
   platformFee: 15, // HKD per order
-  
+
   // 印花税（牛熊证不收）
   stampDuty: 0, // 0% for CBBC
-  
+
   // 交收费
   clearingFee: {
     rate: 0.00002, // 0.002%
     min: 2,
-    max: 100
+    max: 100,
   },
-  
+
   // 交易费
   transactionFee: {
     rate: 0.0000565, // 0.00565%
-    min: 0.01
+    min: 0.01,
   },
-  
+
   // 交易征费
   transactionLevy: {
     rate: 0.000027, // 0.0027%
-    min: 0.01
+    min: 0.01,
   },
-  
+
   // 财务汇报局交易征费
   fstbLevy: {
     rate: 0.0000015, // 0.00015%
-    min: 0.01
-  }
+    min: 0.01,
+  },
 };
 
-function calculateOrderFees(quantity: number, price: number): {
+function calculateOrderFees(
+  quantity: number,
+  price: number,
+): {
   platformFee: number;
   stampDuty: number;
   clearingFee: number;
@@ -57,37 +60,34 @@ function calculateOrderFees(quantity: number, price: number): {
   total: number;
 } {
   const tradeAmount = quantity * price;
-  
+
   const platformFee = HK_FEE_RATES.platformFee;
   const stampDuty = 0;
-  
+
   // 交收费（有最低和最高限额）
   const clearingFeeRaw = tradeAmount * HK_FEE_RATES.clearingFee.rate;
   const clearingFee = Math.max(
     HK_FEE_RATES.clearingFee.min,
-    Math.min(HK_FEE_RATES.clearingFee.max, clearingFeeRaw)
+    Math.min(HK_FEE_RATES.clearingFee.max, clearingFeeRaw),
   );
-  
+
   // 交易费
   const transactionFee = Math.max(
     HK_FEE_RATES.transactionFee.min,
-    tradeAmount * HK_FEE_RATES.transactionFee.rate
+    tradeAmount * HK_FEE_RATES.transactionFee.rate,
   );
-  
+
   // 交易征费
   const transactionLevy = Math.max(
     HK_FEE_RATES.transactionLevy.min,
-    tradeAmount * HK_FEE_RATES.transactionLevy.rate
+    tradeAmount * HK_FEE_RATES.transactionLevy.rate,
   );
-  
+
   // 财务汇报局交易征费
-  const fstbLevy = Math.max(
-    HK_FEE_RATES.fstbLevy.min,
-    tradeAmount * HK_FEE_RATES.fstbLevy.rate
-  );
-  
+  const fstbLevy = Math.max(HK_FEE_RATES.fstbLevy.min, tradeAmount * HK_FEE_RATES.fstbLevy.rate);
+
   const total = platformFee + stampDuty + clearingFee + transactionFee + transactionLevy + fstbLevy;
-  
+
   return {
     platformFee,
     stampDuty,
@@ -95,7 +95,7 @@ function calculateOrderFees(quantity: number, price: number): {
     transactionFee,
     transactionLevy,
     fstbLevy,
-    total
+    total,
   };
 }
 
@@ -118,16 +118,20 @@ let totalFstbLevy = 0;
 let totalFees = 0;
 
 console.log('订单详情：');
-console.log('订单ID | 标的 | 数量 | 价格 | 交易金额 | 平台费 | 印花税 | 交收费 | 交易费 | 交易征费 | 财汇局征费 | 总费用');
-console.log('-------|------|------|------|----------|--------|--------|--------|--------|----------|------------|--------');
+console.log(
+  '订单ID | 标的 | 数量 | 价格 | 交易金额 | 平台费 | 印花税 | 交收费 | 交易费 | 交易征费 | 财汇局征费 | 总费用',
+);
+console.log(
+  '-------|------|------|------|----------|--------|--------|--------|--------|----------|------------|--------',
+);
 
 trades.forEach((trade) => {
   const quantity = Number.parseInt(trade.quantity);
   const price = Number.parseFloat(trade.price);
   const tradeAmount = quantity * price;
-  
+
   const fees = calculateOrderFees(quantity, price);
-  
+
   totalPlatformFee += fees.platformFee;
   totalStampDuty += fees.stampDuty;
   totalClearingFee += fees.clearingFee;
@@ -135,10 +139,11 @@ trades.forEach((trade) => {
   totalTransactionLevy += fees.transactionLevy;
   totalFstbLevy += fees.fstbLevy;
   totalFees += fees.total;
-  
-  const symbolShort = trade.symbol.length > 20 ? trade.symbol.substring(0, 17) + '...' : trade.symbol;
+
+  const symbolShort =
+    trade.symbol.length > 20 ? trade.symbol.substring(0, 17) + '...' : trade.symbol;
   console.log(
-    `${trade.orderId.substring(0, 10)}... | ${symbolShort.padEnd(20)} | ${quantity.toString().padStart(6)} | ${price.toFixed(3).padStart(5)} | ${tradeAmount.toFixed(2).padStart(8)} | ${fees.platformFee.toFixed(2).padStart(6)} | ${fees.stampDuty.toFixed(2).padStart(6)} | ${fees.clearingFee.toFixed(2).padStart(6)} | ${fees.transactionFee.toFixed(2).padStart(6)} | ${fees.transactionLevy.toFixed(2).padStart(8)} | ${fees.fstbLevy.toFixed(2).padStart(10)} | ${fees.total.toFixed(2).padStart(6)}`
+    `${trade.orderId.substring(0, 10)}... | ${symbolShort.padEnd(20)} | ${quantity.toString().padStart(6)} | ${price.toFixed(3).padStart(5)} | ${tradeAmount.toFixed(2).padStart(8)} | ${fees.platformFee.toFixed(2).padStart(6)} | ${fees.stampDuty.toFixed(2).padStart(6)} | ${fees.clearingFee.toFixed(2).padStart(6)} | ${fees.transactionFee.toFixed(2).padStart(6)} | ${fees.transactionLevy.toFixed(2).padStart(8)} | ${fees.fstbLevy.toFixed(2).padStart(10)} | ${fees.total.toFixed(2).padStart(6)}`,
   );
 });
 

@@ -31,7 +31,7 @@ import type { Logger } from '../../../src/utils/logger/types.js';
 function createLoggerRecorder(): {
   readonly logger: Logger;
   readonly warns: string[];
-  } {
+} {
   const warns: string[] = [];
   return {
     logger: {
@@ -40,7 +40,9 @@ function createLoggerRecorder(): {
       warn: (msg: string, extra?: unknown) => {
         warns.push(msg);
         if (extra !== undefined) {
-          warns.push(typeof extra === 'string' ? extra : inspect(extra, { depth: 3, breakLength: Infinity }));
+          warns.push(
+            typeof extra === 'string' ? extra : inspect(extra, { depth: 3, breakLength: Infinity }),
+          );
         }
       },
       error: () => {},
@@ -76,9 +78,7 @@ function toWarrantInfo(item: WarrantListItem): WarrantInfo {
   } as unknown as WarrantInfo;
 }
 
-type FindBestWarrantFn = (
-  input: FindBestWarrantInput,
-) => Promise<WarrantCandidate | null>;
+type FindBestWarrantFn = (input: FindBestWarrantInput) => Promise<WarrantCandidate | null>;
 
 async function loadFindBestWarrant(): Promise<FindBestWarrantFn> {
   const modulePath = '../../../src/services/autoSymbolFinder/index.js?real-auto-symbol-finder';
@@ -129,7 +129,9 @@ describe('autoSymbolFinder business flow', () => {
     const findBestWarrant = await loadFindBestWarrant();
     const quoteCtx = createQuoteContextMock();
     quoteCtx.seedWarrantList('HSI.HK', [
-      toWarrantInfo(createWarrantListItem({ symbol: 'BULL-1.HK', distancePct: 0.55, turnover: 300_000 })),
+      toWarrantInfo(
+        createWarrantListItem({ symbol: 'BULL-1.HK', distancePct: 0.55, turnover: 300_000 }),
+      ),
     ]);
 
     let nowMs = 1_000;
@@ -193,7 +195,9 @@ describe('autoSymbolFinder business flow', () => {
     const findBestWarrant = await loadFindBestWarrant();
     const quoteCtx = createQuoteContextMock();
     quoteCtx.seedWarrantList('HSI.HK', [
-      toWarrantInfo(createWarrantListItem({ symbol: 'LOW-DIST.HK', distancePct: 0.2, turnover: 1_000_000 })),
+      toWarrantInfo(
+        createWarrantListItem({ symbol: 'LOW-DIST.HK', distancePct: 0.2, turnover: 1_000_000 }),
+      ),
     ]);
 
     const { logger, warns } = createLoggerRecorder();

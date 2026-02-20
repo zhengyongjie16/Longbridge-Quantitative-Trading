@@ -29,7 +29,9 @@ function findPosition(
  * @param deps 依赖配置，包含 maxPositionNotional 最大持仓市值限制
  * @returns 持仓市值限制检查器实例
  */
-export const createPositionLimitChecker = (deps: PositionLimitCheckerDeps): PositionLimitChecker => {
+export const createPositionLimitChecker = (
+  deps: PositionLimitCheckerDeps,
+): PositionLimitChecker => {
   const maxPositionNotional = deps.maxPositionNotional;
 
   /** 仅检查下单金额是否超限（无持仓时使用） */
@@ -78,13 +80,9 @@ export const createPositionLimitChecker = (deps: PositionLimitCheckerDeps): Posi
     if (maxPositionNotional !== null && totalNotional > maxPositionNotional) {
       return {
         allowed: false,
-        reason: `该标的当前持仓市值约 ${currentNotional.toFixed(
-          2,
-        )} HKD（数量=${posQuantity} × 价格=${price.toFixed(
+        reason: `该标的当前持仓市值约 ${currentNotional.toFixed(2)} HKD（数量=${posQuantity} × 价格=${price.toFixed(
           3,
-        )}），加上本次计划下单 ${orderNotional.toFixed(
-          2,
-        )} HKD 将超过单标的最大持仓市值限制 ${maxPositionNotional} HKD`,
+        )}），加上本次计划下单 ${orderNotional.toFixed(2)} HKD 将超过单标的最大持仓市值限制 ${maxPositionNotional} HKD`,
       };
     }
 

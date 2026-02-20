@@ -228,9 +228,24 @@ describe('createDayLifecycleManager', () => {
       });
       const order: string[] = [];
       const domains: ReadonlyArray<CacheDomain> = [
-        { midnightClear: () => {}, openRebuild: () => { order.push('A'); } },
-        { midnightClear: () => {}, openRebuild: () => { order.push('B'); } },
-        { midnightClear: () => {}, openRebuild: () => { order.push('C'); } },
+        {
+          midnightClear: () => {},
+          openRebuild: () => {
+            order.push('A');
+          },
+        },
+        {
+          midnightClear: () => {},
+          openRebuild: () => {
+            order.push('B');
+          },
+        },
+        {
+          midnightClear: () => {},
+          openRebuild: () => {
+            order.push('C');
+          },
+        },
       ];
       const manager = createDayLifecycleManager({
         mutableState,
@@ -256,7 +271,12 @@ describe('createDayLifecycleManager', () => {
       });
       const order: string[] = [];
       const domains: ReadonlyArray<CacheDomain> = [
-        { midnightClear: () => {}, openRebuild: () => { order.push('A'); } },
+        {
+          midnightClear: () => {},
+          openRebuild: () => {
+            order.push('A');
+          },
+        },
         {
           midnightClear: () => {},
           openRebuild: () => {

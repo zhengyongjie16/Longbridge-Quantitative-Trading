@@ -168,7 +168,10 @@ export interface OrderStorage {
  * 使用范围：由 OrderRecorder、DailyLossTracker 等依赖注入；仅 orderRecorder 模块实现。
  */
 export interface OrderFilteringEngine {
-  applyFilteringAlgorithm(allBuyOrders: ReadonlyArray<OrderRecord>, filledSellOrders: ReadonlyArray<OrderRecord>): ReadonlyArray<OrderRecord>;
+  applyFilteringAlgorithm(
+    allBuyOrders: ReadonlyArray<OrderRecord>,
+    filledSellOrders: ReadonlyArray<OrderRecord>,
+  ): ReadonlyArray<OrderRecord>;
 }
 
 /**

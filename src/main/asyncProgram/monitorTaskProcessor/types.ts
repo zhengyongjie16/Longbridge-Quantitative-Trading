@@ -5,8 +5,16 @@ import type { LastState } from '../../../types/state.js';
 import type { Quote } from '../../../types/quote.js';
 import type { MultiMonitorTradingConfig } from '../../../types/config.js';
 import type { SymbolRegistry } from '../../../types/seat.js';
-import type { RawOrderFromAPI, OrderRecorder, RiskChecker, Trader } from '../../../types/services.js';
-import type { DailyLossTracker, UnrealizedLossMonitor } from '../../../core/riskController/types.js';
+import type {
+  RawOrderFromAPI,
+  OrderRecorder,
+  RiskChecker,
+  Trader,
+} from '../../../types/services.js';
+import type {
+  DailyLossTracker,
+  UnrealizedLossMonitor,
+} from '../../../core/riskController/types.js';
 
 /**
  * 席位快照（任务创建时点的席位状态）。
@@ -196,7 +204,10 @@ export type MonitorTaskProcessorDeps = Readonly<{
   tradingConfig: MultiMonitorTradingConfig;
   /** 生命周期门禁：false 时任务直接跳过 */
   getCanProcessTask?: () => boolean;
-  onProcessed?: (task: MonitorTask<MonitorTaskType, MonitorTaskData>, status: MonitorTaskStatus) => void;
+  onProcessed?: (
+    task: MonitorTask<MonitorTaskType, MonitorTaskData>,
+    status: MonitorTaskStatus,
+  ) => void;
 }>;
 
 /**

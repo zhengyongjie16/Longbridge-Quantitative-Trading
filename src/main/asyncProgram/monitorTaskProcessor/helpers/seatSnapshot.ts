@@ -123,10 +123,8 @@ export function resolveSeatSnapshotReadiness({
   const isLongReady = snapshotValidity.longValid && isSeatUsable(longSeat);
   const isShortReady = snapshotValidity.shortValid && isSeatUsable(shortSeat);
 
-  const longSymbol =
-    isLongReady && typeof longSeat.symbol === 'string' ? longSeat.symbol : '';
-  const shortSymbol =
-    isShortReady && typeof shortSeat.symbol === 'string' ? shortSeat.symbol : '';
+  const longSymbol = isLongReady && typeof longSeat.symbol === 'string' ? longSeat.symbol : '';
+  const shortSymbol = isShortReady && typeof shortSeat.symbol === 'string' ? shortSeat.symbol : '';
 
   return {
     longSeat,

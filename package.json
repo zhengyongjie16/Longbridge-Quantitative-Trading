@@ -16,6 +16,7 @@
     "clean": "rimraf dist",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
     "sonarqube": "bun scripts/run-sonar.js",
     "sonarqube:report": "bun scripts/get-report.js"
   },
@@ -38,6 +39,7 @@
     "eslint": "^10.0.0",
     "rimraf": "^5.0.10",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.56.0"
+    "typescript-eslint": "^8.56.0",
+    "prettier": "^3.4.2"
   }
 }

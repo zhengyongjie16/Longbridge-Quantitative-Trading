@@ -21,7 +21,10 @@
 import { TRADING } from '../../constants/index.js';
 import { formatError } from '../../utils/helpers/index.js';
 import { refreshAccountAndPositions } from '../../utils/helpers/accountDisplay.js';
-import { getTradingMinutesSinceOpen, isWithinMorningOpenProtection } from '../../utils/helpers/tradingTime.js';
+import {
+  getTradingMinutesSinceOpen,
+  isWithinMorningOpenProtection,
+} from '../../utils/helpers/tradingTime.js';
 import { collectRuntimeQuoteSymbols } from '../../utils/helpers/quoteHelpers.js';
 import { logger } from '../../utils/logger/index.js';
 import { prepareSeatsOnStartup } from '../startup/seat.js';
@@ -41,9 +44,7 @@ import type {
  */
 export function createLoadTradingDayRuntimeSnapshot(
   deps: LoadTradingDayRuntimeSnapshotDeps,
-): (
-  params: LoadTradingDayRuntimeSnapshotParams,
-) => Promise<LoadTradingDayRuntimeSnapshotResult> {
+): (params: LoadTradingDayRuntimeSnapshotParams) => Promise<LoadTradingDayRuntimeSnapshotResult> {
   const {
     marketDataClient,
     trader,

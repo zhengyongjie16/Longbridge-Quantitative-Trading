@@ -7,7 +7,9 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import type { RiskCheckContext } from '../../../src/types/services.js';
 import { createRiskCheckPipeline } from '../../../src/core/signalProcessor/riskCheckPipeline.js';
-import { createLiquidationCooldownTrackerDouble, createMonitorConfigDouble ,
+import {
+  createLiquidationCooldownTrackerDouble,
+  createMonitorConfigDouble,
   createAccountSnapshotDouble,
   createDoomsdayProtectionDouble,
   createOrderRecorderDouble,
@@ -234,11 +236,14 @@ describe('riskCheckPipeline business flow', () => {
     });
 
     const result = await withMockedNow(50_000, async () =>
-      pipeline([buySignal, sellSignal], createContext({
-        trader,
-        riskChecker,
-        orderRecorder: createOrderRecorderDouble(),
-      })),
+      pipeline(
+        [buySignal, sellSignal],
+        createContext({
+          trader,
+          riskChecker,
+          orderRecorder: createOrderRecorderDouble(),
+        }),
+      ),
     );
 
     expect(result).toHaveLength(1);

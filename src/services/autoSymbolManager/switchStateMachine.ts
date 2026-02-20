@@ -22,10 +22,7 @@ import { resolveNextSearchFailureState } from './utils.js';
  * @param symbol - 标的代码
  * @returns 匹配的持仓，无则 null
  */
-function extractPosition(
-  positions: ReadonlyArray<Position>,
-  symbol: string,
-): Position | null {
+function extractPosition(positions: ReadonlyArray<Position>, symbol: string): Position | null {
   if (!symbol) {
     return null;
   }
@@ -37,9 +34,7 @@ function extractPosition(
  * @param deps - 依赖（trader、orderRecorder、riskChecker、switchStates、buildOrderSignal、signalObjectPool 等）
  * @returns SwitchStateMachine 实例（maybeSwitchOnDistance、hasPendingSwitch）
  */
-export function createSwitchStateMachine(
-  deps: SwitchStateMachineDeps,
-): SwitchStateMachine {
+export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchStateMachine {
   const {
     autoSearchConfig,
     monitorConfig,
@@ -72,9 +67,9 @@ export function createSwitchStateMachine(
 
   /** 判断订单是否为指定标的的可撤销买入挂单 */
   function isCancelableBuyOrder(order: PendingOrder, symbol: string): boolean {
-    return order.symbol === symbol
-      && order.side === buySide
-      && pendingOrderStatuses.has(order.status);
+    return (
+      order.symbol === symbol && order.side === buySide && pendingOrderStatuses.has(order.status)
+    );
   }
 
   /** 预寻标：在触发换标前查找候选标的，无合适标的时返回 null */
@@ -287,11 +282,7 @@ export function createSwitchStateMachine(
       }
 
       const buyNotional = state.sellNotional ?? monitorConfig.targetNotional;
-      const buyQuantity = calculateBuyQuantityByNotional(
-        buyNotional,
-        quote.price,
-        quote.lotSize,
-      );
+      const buyQuantity = calculateBuyQuantityByNotional(buyNotional, quote.price, quote.lotSize);
 
       if (buyQuantity != null && isValidPositiveNumber(buyQuantity)) {
         const signal = buildOrderSignal({
@@ -349,8 +340,7 @@ export function createSwitchStateMachine(
     }
     const seatState = symbolRegistry.getSeatState(monitorSymbol, direction);
     const symbolMatches =
-      seatState.symbol === switchState.oldSymbol ||
-      seatState.symbol === switchState.nextSymbol;
+      seatState.symbol === switchState.oldSymbol || seatState.symbol === switchState.nextSymbol;
     if (seatState.status !== 'SWITCHING' || !symbolMatches) {
       switchStates.delete(direction);
       return false;

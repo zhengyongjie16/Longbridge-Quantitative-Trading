@@ -31,12 +31,12 @@
 
 ### 1.2 存在的问题
 
-| 问题 | 影响 |
-|------|------|
-| 高频 HTTP 调用 | 行情 API 限频 10 次/秒，N 个标的占用 N 次额度，挤压其他行情 API 调用空间 |
-| 大量冗余传输 | 200 根 K 线中仅最后 1 根在分钟内变化，前 199 根每秒重复拉取 |
-| 网络延迟叠加 | HTTP 往返延迟（~50-200ms）阻塞主循环，降低节拍稳定性 |
-| 与行情订阅模式不一致 | 实时报价已使用 WebSocket 推送（`SubType.Quote`），K 线仍使用 HTTP 轮询 |
+| 问题                 | 影响                                                                     |
+| -------------------- | ------------------------------------------------------------------------ |
+| 高频 HTTP 调用       | 行情 API 限频 10 次/秒，N 个标的占用 N 次额度，挤压其他行情 API 调用空间 |
+| 大量冗余传输         | 200 根 K 线中仅最后 1 根在分钟内变化，前 199 根每秒重复拉取              |
+| 网络延迟叠加         | HTTP 往返延迟（~50-200ms）阻塞主循环，降低节拍稳定性                     |
+| 与行情订阅模式不一致 | 实时报价已使用 WebSocket 推送（`SubType.Quote`），K 线仍使用 HTTP 轮询   |
 
 ### 1.3 当前行情订阅状态
 
@@ -68,44 +68,44 @@ K 线订阅不需要应用层维护缓存。SDK 内部自行管理 K 线数据�
 
 **与报价订阅的对比**：
 
-| 维度 | 报价订阅（当前已实现） | K 线订阅（本次重构） |
-|------|----------------------|---------------------|
-| 订阅方式 | `ctx.subscribe(symbols, [SubType.Quote])` | `ctx.subscribeCandlesticks(symbol, period, tradeSessions)` |
-| 数据维护 | **应用层**维护 `quoteCache`（由 `setOnQuote` 回调写入） | **SDK 内部**自动维护缓存（应用层无需建立缓存） |
-| 数据读取 | 应用层直接读取 `quoteCache` Map | 调用 `ctx.realtimeCandlesticks()` 读取 SDK 内部缓存 |
-| 退订 | `ctx.unsubscribe(symbols, [SubType.Quote])` | `ctx.unsubscribeCandlesticks(symbol, period)` |
+| 维度     | 报价订阅（当前已实现）                                  | K 线订阅（本次重构）                                       |
+| -------- | ------------------------------------------------------- | ---------------------------------------------------------- |
+| 订阅方式 | `ctx.subscribe(symbols, [SubType.Quote])`               | `ctx.subscribeCandlesticks(symbol, period, tradeSessions)` |
+| 数据维护 | **应用层**维护 `quoteCache`（由 `setOnQuote` 回调写入） | **SDK 内部**自动维护缓存（应用层无需建立缓存）             |
+| 数据读取 | 应用层直接读取 `quoteCache` Map                         | 调用 `ctx.realtimeCandlesticks()` 读取 SDK 内部缓存        |
+| 退订     | `ctx.unsubscribe(symbols, [SubType.Quote])`             | `ctx.unsubscribeCandlesticks(symbol, period)`              |
 
 ### 2.2 API 签名
 
-| API | 签名 | 说明 |
-|-----|------|------|
-| `subscribeCandlesticks` | `(symbol: string, period: Period, tradeSessions: TradeSessions) → Promise<Candlestick[]>` | 订阅并返回初始 K 线 |
-| `unsubscribeCandlesticks` | `(symbol: string, period: Period) → Promise<void>` | 取消订阅 |
-| `realtimeCandlesticks` | `(symbol: string, period: Period, count: number) → Promise<Candlestick[]>` | 从 SDK 内部缓存读取 |
-| `setOnCandlestick` | `(callback: (err: Error, event: PushCandlestickEvent) → void) → void` | K 线推送回调 |
+| API                       | 签名                                                                                      | 说明                |
+| ------------------------- | ----------------------------------------------------------------------------------------- | ------------------- |
+| `subscribeCandlesticks`   | `(symbol: string, period: Period, tradeSessions: TradeSessions) → Promise<Candlestick[]>` | 订阅并返回初始 K 线 |
+| `unsubscribeCandlesticks` | `(symbol: string, period: Period) → Promise<void>`                                        | 取消订阅            |
+| `realtimeCandlesticks`    | `(symbol: string, period: Period, count: number) → Promise<Candlestick[]>`                | 从 SDK 内部缓存读取 |
+| `setOnCandlestick`        | `(callback: (err: Error, event: PushCandlestickEvent) → void) → void`                     | K 线推送回调        |
 
 ### 2.3 推送模式
 
 通过 `Config` 的 `pushCandlestickMode` 属性配置（环境变量 `LONGPORT_PUSH_CANDLESTICK_MODE`）：
 
-| 模式 | 枚举值 | 行为 |
-|------|--------|------|
-| `PushCandlestickMode.Realtime` | 0 | 实时推送：每笔成交更新当前正在形成的 K 线（**默认值**） |
-| `PushCandlestickMode.Confirmed` | 1 | 确认模式：仅在 K 线完成（分钟结束）时推送 |
+| 模式                            | 枚举值 | 行为                                                    |
+| ------------------------------- | ------ | ------------------------------------------------------- |
+| `PushCandlestickMode.Realtime`  | 0      | 实时推送：每笔成交更新当前正在形成的 K 线（**默认值**） |
+| `PushCandlestickMode.Confirmed` | 1      | 确认模式：仅在 K 线完成（分钟结束）时推送               |
 
 ### 2.4 数据类型
 
 `realtimeCandlesticks` 返回 `Candlestick[]`，与 `candlesticks` 返回类型**完全一致**：
 
-| 属性 | 类型 | 说明 |
-|------|------|------|
-| `close` | `Decimal` | 收盘价 |
-| `open` | `Decimal` | 开盘价 |
-| `low` | `Decimal` | 最低价 |
-| `high` | `Decimal` | 最高价 |
-| `volume` | `number` | 成交量 |
-| `turnover` | `Decimal` | 成交额 |
-| `timestamp` | `Date` | 时间戳 |
+| 属性           | 类型           | 说明     |
+| -------------- | -------------- | -------- |
+| `close`        | `Decimal`      | 收盘价   |
+| `open`         | `Decimal`      | 开盘价   |
+| `low`          | `Decimal`      | 最低价   |
+| `high`         | `Decimal`      | 最高价   |
+| `volume`       | `number`       | 成交量   |
+| `turnover`     | `Decimal`      | 成交额   |
+| `timestamp`    | `Date`         | 时间戳   |
 | `tradeSession` | `TradeSession` | 交易时段 |
 
 下游 `buildIndicatorSnapshot()` 使用的字段（close/open/high/low/volume）完全覆盖，无需修改。
@@ -122,22 +122,22 @@ K 线订阅不需要应用层维护缓存。SDK 内部自行管理 K 线数据�
 
 ### 3.1 数据完整性 — 可行
 
-| 维度 | `candlesticks()` (当前) | `realtimeCandlesticks()` (方案) |
-|------|------------------------|--------------------------------|
-| 返回类型 | `Candlestick[]` | `Candlestick[]`（**完全一致**） |
-| OHLCV 字段 | 完整 | 完整 |
-| count 参数 | 支持（200） | 支持（count 参数） |
-| 初始历史数据 | HTTP 拉取 | `subscribeCandlesticks` 返回初始 K 线 |
-| 下游兼容 | — | `buildIndicatorSnapshot` **无需修改** |
+| 维度         | `candlesticks()` (当前) | `realtimeCandlesticks()` (方案)       |
+| ------------ | ----------------------- | ------------------------------------- |
+| 返回类型     | `Candlestick[]`         | `Candlestick[]`（**完全一致**）       |
+| OHLCV 字段   | 完整                    | 完整                                  |
+| count 参数   | 支持（200）             | 支持（count 参数）                    |
+| 初始历史数据 | HTTP 拉取               | `subscribeCandlesticks` 返回初始 K 线 |
+| 下游兼容     | —                       | `buildIndicatorSnapshot` **无需修改** |
 
 ### 3.2 API 调用量 — 显著改善
 
-| 指标 | 当前 | 重构后 |
-|------|------|--------|
-| K 线 HTTP 调用频率 | N 次/秒（N = 监控标的数） | **0 次/秒** |
-| 启动时 K 线调用 | 0 | N 次（一次性订阅） |
-| 数据读取方式 | HTTP 请求 → 网络 I/O | SDK 内部缓存读取 → 无 I/O |
-| 限频影响 | 占用 N/10 的行情 API 额度 | **零占用** |
+| 指标               | 当前                      | 重构后                    |
+| ------------------ | ------------------------- | ------------------------- |
+| K 线 HTTP 调用频率 | N 次/秒（N = 监控标的数） | **0 次/秒**               |
+| 启动时 K 线调用    | 0                         | N 次（一次性订阅）        |
+| 数据读取方式       | HTTP 请求 → 网络 I/O      | SDK 内部缓存读取 → 无 I/O |
+| 限频影响           | 占用 N/10 的行情 API 额度 | **零占用**                |
 
 以 2 个监控标的、5.5 小时交易日计算：每日减少 **~39,600 次** HTTP API 调用。
 
@@ -167,29 +167,29 @@ K 线订阅不需要应用层维护缓存。SDK 内部自行管理 K 线数据�
 
 ### 4.1 收益
 
-| 维度 | 说明 |
-|------|------|
-| **消除限频风险** | K 线不再占用行情 API 的 10 次/秒额度，为其他行情操作（warrantList、warrantQuote 等）腾出空间 |
-| **提升主循环稳定性** | 去除 HTTP 网络 I/O，主循环每秒节拍由网络延迟支配变为纯计算支配 |
-| **架构统一** | 行情数据获取方式统一为 WebSocket 订阅 + 缓存读取 |
-| **降低服务端压力** | 大幅减少 API 请求量，降低被限频或报错的概率 |
-| **代码简化** | 移除 `PeriodString` 类型、`normalizePeriod` 转换函数、`AdjustType` 导入等适配层代码 |
+| 维度                 | 说明                                                                                         |
+| -------------------- | -------------------------------------------------------------------------------------------- |
+| **消除限频风险**     | K 线不再占用行情 API 的 10 次/秒额度，为其他行情操作（warrantList、warrantQuote 等）腾出空间 |
+| **提升主循环稳定性** | 去除 HTTP 网络 I/O，主循环每秒节拍由网络延迟支配变为纯计算支配                               |
+| **架构统一**         | 行情数据获取方式统一为 WebSocket 订阅 + 缓存读取                                             |
+| **降低服务端压力**   | 大幅减少 API 请求量，降低被限频或报错的概率                                                  |
+| **代码简化**         | 移除 `PeriodString` 类型、`normalizePeriod` 转换函数、`AdjustType` 导入等适配层代码          |
 
 ### 4.2 风险与缓解
 
-| 风险 | 影响 | 缓解措施 |
-|------|------|---------|
-| WebSocket 断线 | SDK 内部缓存停止更新 | SDK 内置自动重连；`setOnCandlestick` 回调可通过日志发现推送中断 |
-| `realtimeCandlesticks` 返回数据量不足 | 技术指标计算异常 | `subscribeCandlesticks` 返回初始 K 线填充缓存；`buildIndicatorSnapshot` 已有空数据保护（返回 null） |
+| 风险                                  | 影响                 | 缓解措施                                                                                            |
+| ------------------------------------- | -------------------- | --------------------------------------------------------------------------------------------------- |
+| WebSocket 断线                        | SDK 内部缓存停止更新 | SDK 内置自动重连；`setOnCandlestick` 回调可通过日志发现推送中断                                     |
+| `realtimeCandlesticks` 返回数据量不足 | 技术指标计算异常     | `subscribeCandlesticks` 返回初始 K 线填充缓存；`buildIndicatorSnapshot` 已有空数据保护（返回 null） |
 
 ### 4.3 不采用的备选方案
 
-| 方案 | 理由 |
-|------|------|
-| 保留 `getCandlesticks` 作为降级回退 | 引入兼容性代码和双路径分支，违反无兼容性代码原则 |
-| 仅对部分标的使用订阅 | 增加条件分支和状态管理复杂度，无实际收益 |
-| 使用 `Confirmed` 推送模式 | 最长延迟 60 秒才推送一次，不满足每秒计算指标的需求 |
-| 应用层自建 K 线缓存（类似 quoteCache） | SDK 已内置缓存管理，重复建设无意义且增加维护成本 |
+| 方案                                   | 理由                                               |
+| -------------------------------------- | -------------------------------------------------- |
+| 保留 `getCandlesticks` 作为降级回退    | 引入兼容性代码和双路径分支，违反无兼容性代码原则   |
+| 仅对部分标的使用订阅                   | 增加条件分支和状态管理复杂度，无实际收益           |
+| 使用 `Confirmed` 推送模式              | 最长延迟 60 秒才推送一次，不满足每秒计算指标的需求 |
+| 应用层自建 K 线缓存（类似 quoteCache） | SDK 已内置缓存管理，重复建设无意义且增加维护成本   |
 
 ---
 
@@ -292,10 +292,12 @@ export const TRADING = {
 **文件**: `src/types/index.ts`
 
 **删除**:
+
 - `PeriodString` 类型定义（第 711 行）
 - `getCandlesticks` 方法及其全部参数签名（第 750-756 行）
 
 **新增**:
+
 - `subscribeCandlesticks` 方法
 - `unsubscribeCandlesticks` 方法
 - `getRealtimeCandlesticks` 方法
@@ -344,10 +346,7 @@ export interface MarketDataClient {
    * @param symbol 标的代码
    * @param period K 线周期
    */
-  unsubscribeCandlesticks(
-    symbol: string,
-    period: Period,
-  ): Promise<void>;
+  unsubscribeCandlesticks(symbol: string, period: Period): Promise<void>;
 
   /**
    * 获取实时 K 线数据（从 SDK 内部缓存读取，无 HTTP 请求）
@@ -358,11 +357,7 @@ export interface MarketDataClient {
    * @param period K 线周期
    * @param count 获取数量
    */
-  getRealtimeCandlesticks(
-    symbol: string,
-    period: Period,
-    count: number,
-  ): Promise<Candlestick[]>;
+  getRealtimeCandlesticks(symbol: string, period: Period, count: number): Promise<Candlestick[]>;
 
   /** 判断指定日期是否为交易日 */
   isTradingDay(date: Date, market?: Market): Promise<TradingDayInfo>;
@@ -410,16 +405,18 @@ export interface MarketDataClient {
 ##### 4.2 导入变更
 
 **移除**:
+
 - 值导入: `AdjustType`（仅被已删除的 `getCandlesticks` 使用）
 - 类型导入: `PeriodString`（类型已删除）
 
 **新增**:
+
 - 类型导入: `PushCandlestickEvent`（用于 `setOnCandlestick` 回调类型）
 
 ```typescript
 // 变更前
 import {
-  AdjustType,       // ← 移除
+  AdjustType, // ← 移除
   Period,
   QuoteContext,
   TradeSessions,
@@ -428,142 +425,145 @@ import {
   SubType,
 } from 'longport';
 import type { Candlestick, PushQuoteEvent } from 'longport';
-import type { Quote, TradingDayInfo, MarketDataClient, TradingDaysResult, PeriodString } from '../../types/index.js';
+import type {
+  Quote,
+  TradingDayInfo,
+  MarketDataClient,
+  TradingDaysResult,
+  PeriodString,
+} from '../../types/index.js';
 //                                                                         ↑ 移除
 
 // 变更后
-import {
-  Period,
-  QuoteContext,
-  TradeSessions,
-  Market,
-  NaiveDate,
-  SubType,
-} from 'longport';
+import { Period, QuoteContext, TradeSessions, Market, NaiveDate, SubType } from 'longport';
 import type { Candlestick, PushQuoteEvent, PushCandlestickEvent } from 'longport';
-import type { Quote, TradingDayInfo, MarketDataClient, TradingDaysResult } from '../../types/index.js';
+import type {
+  Quote,
+  TradingDayInfo,
+  MarketDataClient,
+  TradingDaysResult,
+} from '../../types/index.js';
 ```
 
 ##### 4.3 删除代码
 
-| 删除项 | 位置 | 原因 |
-|--------|------|------|
-| `normalizePeriod` 函数 | 第 55-67 行 | 不再需要字符串到枚举的转换 |
-| `getCandlesticks` 函数 | 第 355-370 行 | 被 `getRealtimeCandlesticks` 替代 |
-| 返回对象中的 `getCandlesticks` | 第 462 行附近 | 接口已移除此方法 |
+| 删除项                         | 位置          | 原因                              |
+| ------------------------------ | ------------- | --------------------------------- |
+| `normalizePeriod` 函数         | 第 55-67 行   | 不再需要字符串到枚举的转换        |
+| `getCandlesticks` 函数         | 第 355-370 行 | 被 `getRealtimeCandlesticks` 替代 |
+| 返回对象中的 `getCandlesticks` | 第 462 行附近 | 接口已移除此方法                  |
 
 ##### 4.4 新增代码
 
 **新增闭包状态**（在工厂函数内已有缓存声明处追加）:
 
 ```typescript
-  // 已订阅 K 线跟踪（key: "symbol:period"）
-  const subscribedCandlesticks = new Set<string>();
+// 已订阅 K 线跟踪（key: "symbol:period"）
+const subscribedCandlesticks = new Set<string>();
 ```
 
 **新增 K 线推送回调**（在已有的 `setOnQuote` 注册之后）:
 
 ```typescript
-  // K 线推送回调（错误监控）
-  ctx.setOnCandlestick((err: Error | null, _event: PushCandlestickEvent) => {
-    if (err) {
-      logger.warn(`[K线推送] 接收推送时发生错误: ${formatError(err)}`);
-    }
-  });
+// K 线推送回调（错误监控）
+ctx.setOnCandlestick((err: Error | null, _event: PushCandlestickEvent) => {
+  if (err) {
+    logger.warn(`[K线推送] 接收推送时发生错误: ${formatError(err)}`);
+  }
+});
 ```
 
 **新增三个方法实现**（在 `cacheStaticInfo` 之后、`return` 之前）:
 
 ```typescript
-  /**
-   * 订阅指定标的的 K 线推送
-   */
-  async function subscribeCandlesticks(
-    symbol: string,
-    period: Period,
-    tradeSessions: TradeSessions = TradeSessions.All,
-  ): Promise<Candlestick[]> {
-    const key = `${symbol}:${period}`;
-    if (subscribedCandlesticks.has(key)) {
-      logger.debug(`[K线订阅] ${symbol} 周期 ${period} 已订阅，跳过重复订阅`);
-      return [];
-    }
-
-    const initialCandles = await withRetry(
-      () => ctx.subscribeCandlesticks(symbol, period, tradeSessions),
-    );
-    subscribedCandlesticks.add(key);
-    logger.info(`[K线订阅] 已订阅 ${symbol} 周期 ${period} K线，初始数据 ${initialCandles.length} 根`);
-    return initialCandles;
+/**
+ * 订阅指定标的的 K 线推送
+ */
+async function subscribeCandlesticks(
+  symbol: string,
+  period: Period,
+  tradeSessions: TradeSessions = TradeSessions.All,
+): Promise<Candlestick[]> {
+  const key = `${symbol}:${period}`;
+  if (subscribedCandlesticks.has(key)) {
+    logger.debug(`[K线订阅] ${symbol} 周期 ${period} 已订阅，跳过重复订阅`);
+    return [];
   }
 
-  /**
-   * 取消订阅指定标的的 K 线推送
-   */
-  async function unsubscribeCandlesticks(
-    symbol: string,
-    period: Period,
-  ): Promise<void> {
-    const key = `${symbol}:${period}`;
-    if (!subscribedCandlesticks.has(key)) {
-      return;
-    }
+  const initialCandles = await withRetry(() =>
+    ctx.subscribeCandlesticks(symbol, period, tradeSessions),
+  );
+  subscribedCandlesticks.add(key);
+  logger.info(
+    `[K线订阅] 已订阅 ${symbol} 周期 ${period} K线，初始数据 ${initialCandles.length} 根`,
+  );
+  return initialCandles;
+}
 
-    await withRetry(() => ctx.unsubscribeCandlesticks(symbol, period));
-    subscribedCandlesticks.delete(key);
-    logger.info(`[K线订阅] 已退订 ${symbol} 周期 ${period} K线`);
+/**
+ * 取消订阅指定标的的 K 线推送
+ */
+async function unsubscribeCandlesticks(symbol: string, period: Period): Promise<void> {
+  const key = `${symbol}:${period}`;
+  if (!subscribedCandlesticks.has(key)) {
+    return;
   }
 
-  /**
-   * 获取实时 K 线数据（从 SDK 内部缓存读取，无 HTTP 请求）
-   */
-  async function getRealtimeCandlesticks(
-    symbol: string,
-    period: Period,
-    count: number,
-  ): Promise<Candlestick[]> {
-    return ctx.realtimeCandlesticks(symbol, period, count);
-  }
+  await withRetry(() => ctx.unsubscribeCandlesticks(symbol, period));
+  subscribedCandlesticks.delete(key);
+  logger.info(`[K线订阅] 已退订 ${symbol} 周期 ${period} K线`);
+}
+
+/**
+ * 获取实时 K 线数据（从 SDK 内部缓存读取，无 HTTP 请求）
+ */
+async function getRealtimeCandlesticks(
+  symbol: string,
+  period: Period,
+  count: number,
+): Promise<Candlestick[]> {
+  return ctx.realtimeCandlesticks(symbol, period, count);
+}
 ```
 
 **更新返回对象**:
 
 ```typescript
-  // 变更前
-  return {
-    _getContext,
-    getQuotes,
-    subscribeSymbols,
-    unsubscribeSymbols,
-    getCandlesticks,      // ← 移除
-    isTradingDay,
-  };
+// 变更前
+return {
+  _getContext,
+  getQuotes,
+  subscribeSymbols,
+  unsubscribeSymbols,
+  getCandlesticks, // ← 移除
+  isTradingDay,
+};
 
-  // 变更后
-  return {
-    _getContext,
-    getQuotes,
-    subscribeSymbols,
-    unsubscribeSymbols,
-    subscribeCandlesticks,
-    unsubscribeCandlesticks,
-    getRealtimeCandlesticks,
-    isTradingDay,
-  };
+// 变更后
+return {
+  _getContext,
+  getQuotes,
+  subscribeSymbols,
+  unsubscribeSymbols,
+  subscribeCandlesticks,
+  unsubscribeCandlesticks,
+  getRealtimeCandlesticks,
+  isTradingDay,
+};
 ```
 
 ##### 4.5 规范检查
 
-| 规范要求 | 检查结果 |
-|---------|---------|
-| 工厂函数模式 | `createMarketDataClient` 工厂函数不变 |
-| 非闭包函数提升 | 新增方法均使用闭包变量（`ctx`、`subscribedCandlesticks`、`withRetry`），必须留在工厂函数内部 |
-| 依赖注入 | `MarketDataClientDeps` 不变，`config` 通过参数注入 |
-| readonly / ReadonlyArray | 方法参数为基础类型（string/Period/number），无需 readonly |
-| 函数参数 ≤ 7 | `subscribeCandlesticks` 3 个、`unsubscribeCandlesticks` 2 个、`getRealtimeCandlesticks` 3 个 |
-| 禁止否定条件前置 | `subscribeCandlesticks` 中 `if (subscribedCandlesticks.has(key))` 为肯定条件守卫；`unsubscribeCandlesticks` 中 `if (!subscribedCandlesticks.has(key))` 为无 else 的守卫子句，符合例外规则 |
-| 无兼容/临时代码 | 完全移除旧 API，无降级路径、无临时开关 |
-| 无无用代码 | `AdjustType`、`PeriodString`、`normalizePeriod` 全部移除 |
+| 规范要求                 | 检查结果                                                                                                                                                                                  |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 工厂函数模式             | `createMarketDataClient` 工厂函数不变                                                                                                                                                     |
+| 非闭包函数提升           | 新增方法均使用闭包变量（`ctx`、`subscribedCandlesticks`、`withRetry`），必须留在工厂函数内部                                                                                              |
+| 依赖注入                 | `MarketDataClientDeps` 不变，`config` 通过参数注入                                                                                                                                        |
+| readonly / ReadonlyArray | 方法参数为基础类型（string/Period/number），无需 readonly                                                                                                                                 |
+| 函数参数 ≤ 7             | `subscribeCandlesticks` 3 个、`unsubscribeCandlesticks` 2 个、`getRealtimeCandlesticks` 3 个                                                                                              |
+| 禁止否定条件前置         | `subscribeCandlesticks` 中 `if (subscribedCandlesticks.has(key))` 为肯定条件守卫；`unsubscribeCandlesticks` 中 `if (!subscribedCandlesticks.has(key))` 为无 else 的守卫子句，符合例外规则 |
+| 无兼容/临时代码          | 完全移除旧 API，无降级路径、无临时开关                                                                                                                                                    |
+| 无无用代码               | `AdjustType`、`PeriodString`、`normalizePeriod` 全部移除                                                                                                                                  |
 
 ---
 
@@ -578,15 +578,15 @@ import type { Quote, TradingDayInfo, MarketDataClient, TradingDaysResult } from 
 **变更行**（仅第 35-37 行变化，其余代码完全不变）:
 
 ```typescript
-  // 变更前
-  const monitorCandles = await marketDataClient
-    .getCandlesticks(monitorSymbol, TRADING.CANDLE_PERIOD, TRADING.CANDLE_COUNT)
-    .catch(() => null);
+// 变更前
+const monitorCandles = await marketDataClient
+  .getCandlesticks(monitorSymbol, TRADING.CANDLE_PERIOD, TRADING.CANDLE_COUNT)
+  .catch(() => null);
 
-  // 变更后
-  const monitorCandles = await marketDataClient
-    .getRealtimeCandlesticks(monitorSymbol, TRADING.CANDLE_PERIOD, TRADING.CANDLE_COUNT)
-    .catch(() => null);
+// 变更后
+const monitorCandles = await marketDataClient
+  .getRealtimeCandlesticks(monitorSymbol, TRADING.CANDLE_PERIOD, TRADING.CANDLE_COUNT)
+  .catch(() => null);
 ```
 
 **类型兼容性**: `TRADING.CANDLE_PERIOD` 类型从 `'1m'` 变为 `Period.Min_1`，`getRealtimeCandlesticks` 接受 `Period` 枚举，类型匹配。返回类型 `Candlestick[]` 不变，下游 `buildIndicatorSnapshot` 无需修改。
@@ -604,16 +604,14 @@ import type { Quote, TradingDayInfo, MarketDataClient, TradingDaysResult } from 
 **新增代码位置**: 在 `await marketDataClient.subscribeSymbols([...allTradingSymbols])` 之后（当前第 331 行附近），`const initQuotesMap = ...` 之前。
 
 ```typescript
-  // 订阅所有监控标的的 K 线推送（SDK 内部自动维护缓存，主循环通过 getRealtimeCandlesticks 读取）
-  for (const monitorConfig of tradingConfig.monitors) {
-    await marketDataClient.subscribeCandlesticks(
-      monitorConfig.monitorSymbol,
-      TRADING.CANDLE_PERIOD,
-    );
-  }
+// 订阅所有监控标的的 K 线推送（SDK 内部自动维护缓存，主循环通过 getRealtimeCandlesticks 读取）
+for (const monitorConfig of tradingConfig.monitors) {
+  await marketDataClient.subscribeCandlesticks(monitorConfig.monitorSymbol, TRADING.CANDLE_PERIOD);
+}
 ```
 
 **说明**:
+
 - 监控标的在运行时不会变更（由配置决定），因此只需启动时订阅一次
 - K 线订阅独立于报价订阅，不影响 `subscribeSymbols` / `unsubscribeSymbols` 的运行时动态管理
 - 无需在主循环中动态订阅/退订 K 线
@@ -623,14 +621,14 @@ import type { Quote, TradingDayInfo, MarketDataClient, TradingDaysResult } from 
 
 ### 5.3 移除内容清单
 
-| 移除项 | 文件 | 原因 |
-|--------|------|------|
-| `PeriodString` 类型定义 | `src/types/index.ts` | 不再需要字符串周期类型 |
-| `getCandlesticks` 方法签名 | `src/types/index.ts` MarketDataClient 接口 | 被三个新方法替代 |
-| `AdjustType` 值导入 | `src/services/quoteClient/index.ts` | 仅被已删除的 `getCandlesticks` 使用 |
-| `PeriodString` 类型导入 | `src/services/quoteClient/index.ts` | 类型已删除 |
-| `normalizePeriod` 导出函数 | `src/services/quoteClient/index.ts` | 不再需要字符串到枚举的转换 |
-| `getCandlesticks` 函数实现 | `src/services/quoteClient/index.ts` | 被 `getRealtimeCandlesticks` 替代 |
+| 移除项                     | 文件                                       | 原因                                |
+| -------------------------- | ------------------------------------------ | ----------------------------------- |
+| `PeriodString` 类型定义    | `src/types/index.ts`                       | 不再需要字符串周期类型              |
+| `getCandlesticks` 方法签名 | `src/types/index.ts` MarketDataClient 接口 | 被三个新方法替代                    |
+| `AdjustType` 值导入        | `src/services/quoteClient/index.ts`        | 仅被已删除的 `getCandlesticks` 使用 |
+| `PeriodString` 类型导入    | `src/services/quoteClient/index.ts`        | 类型已删除                          |
+| `normalizePeriod` 导出函数 | `src/services/quoteClient/index.ts`        | 不再需要字符串到枚举的转换          |
+| `getCandlesticks` 函数实现 | `src/services/quoteClient/index.ts`        | 被 `getRealtimeCandlesticks` 替代   |
 
 ---
 
@@ -689,14 +687,14 @@ import type { Quote, TradingDayInfo, MarketDataClient, TradingDaysResult } from 
 
 按依赖关系从底层到上层依次修改：
 
-| 步骤 | 变更 | 文件 | 说明 |
-|------|------|------|------|
-| 1 | Config 添加推送模式 | `src/config/config.index.ts` | 底层配置，无下游依赖 |
-| 2 | 常量类型修正 | `src/constants/index.ts` | 底层常量，供后续步骤使用 |
-| 3 | 接口重构 | `src/types/index.ts` | 移除 `PeriodString`，重新定义 `MarketDataClient` |
-| 4 | 实现重构 | `src/services/quoteClient/index.ts` | 实现新方法、移除旧代码、更新导入和模块文档 |
-| 5 | 指标流水线切换 | `src/main/processMonitor/indicatorPipeline.ts` | 替换数据源调用 |
-| 6 | 启动流程更新 | `src/index.ts` | 添加 K 线订阅 |
+| 步骤 | 变更                | 文件                                           | 说明                                             |
+| ---- | ------------------- | ---------------------------------------------- | ------------------------------------------------ |
+| 1    | Config 添加推送模式 | `src/config/config.index.ts`                   | 底层配置，无下游依赖                             |
+| 2    | 常量类型修正        | `src/constants/index.ts`                       | 底层常量，供后续步骤使用                         |
+| 3    | 接口重构            | `src/types/index.ts`                           | 移除 `PeriodString`，重新定义 `MarketDataClient` |
+| 4    | 实现重构            | `src/services/quoteClient/index.ts`            | 实现新方法、移除旧代码、更新导入和模块文档       |
+| 5    | 指标流水线切换      | `src/main/processMonitor/indicatorPipeline.ts` | 替换数据源调用                                   |
+| 6    | 启动流程更新        | `src/index.ts`                                 | 添加 K 线订阅                                    |
 
 ---
 

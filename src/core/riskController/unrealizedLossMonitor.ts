@@ -18,7 +18,11 @@
  * 4. 清空订单记录后刷新浮亏数据
  */
 import { logger } from '../../utils/logger/index.js';
-import { isValidPositiveNumber, formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
+import {
+  isValidPositiveNumber,
+  formatError,
+  formatSymbolDisplay,
+} from '../../utils/helpers/index.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import type { Quote } from '../../types/quote.js';
 import type { Signal } from '../../types/signal.js';
@@ -37,7 +41,9 @@ import type {
  * @param deps 依赖，含 maxUnrealizedLossPerSymbol（≤0 表示禁用）
  * @returns 实现 UnrealizedLossMonitor 接口的实例，主循环调用 monitorUnrealizedLoss(context)
  */
-export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): UnrealizedLossMonitor => {
+export const createUnrealizedLossMonitor = (
+  deps: UnrealizedLossMonitorDeps,
+): UnrealizedLossMonitor => {
   const maxUnrealizedLossPerSymbol = deps.maxUnrealizedLossPerSymbol;
 
   /**
@@ -56,7 +62,17 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
     readonly dailyLossTracker: DailyLossTracker;
     readonly quote?: Quote | null;
   }): Promise<boolean> => {
-    const { symbol, currentPrice, isLong, monitorSymbol, riskChecker, trader, orderRecorder, dailyLossTracker, quote } = params;
+    const {
+      symbol,
+      currentPrice,
+      isLong,
+      monitorSymbol,
+      riskChecker,
+      trader,
+      orderRecorder,
+      dailyLossTracker,
+      quote,
+    } = params;
     // 如果未启用浮亏监控，直接返回
     if (maxUnrealizedLossPerSymbol <= 0) {
       return false;
@@ -68,11 +84,7 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
     }
 
     // 检查浮亏
-    const lossCheck = riskChecker.checkUnrealizedLoss(
-      symbol,
-      currentPrice,
-      isLong,
-    );
+    const lossCheck = riskChecker.checkUnrealizedLoss(symbol, currentPrice, isLong);
 
     if (!lossCheck.shouldLiquidate) {
       return false;
@@ -84,9 +96,7 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
     // 从对象池获取信号对象
     const liquidationSignal = signalObjectPool.acquire() as Signal;
     liquidationSignal.symbol = symbol;
-    liquidationSignal.action = isLong
-      ? 'SELLCALL'
-      : 'SELLPUT';
+    liquidationSignal.action = isLong ? 'SELLCALL' : 'SELLPUT';
     liquidationSignal.reason = lossCheck.reason || '';
     liquidationSignal.isProtectiveLiquidation = true;
     liquidationSignal.quantity = lossCheck.quantity ?? null;
@@ -122,10 +132,7 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
     } catch (err) {
       const direction = isLong ? '做多标的' : '做空标的';
       const symbolDisplay = formatSymbolDisplay(symbol, quote?.name ?? null);
-      logger.error(
-        `[保护性清仓失败] ${direction} ${symbolDisplay}`,
-        formatError(err),
-      );
+      logger.error(`[保护性清仓失败] ${direction} ${symbolDisplay}`, formatError(err));
       return false;
     } finally {
       // 无论成功或失败，都释放信号对象回对象池
@@ -137,9 +144,7 @@ export const createUnrealizedLossMonitor = (deps: UnrealizedLossMonitorDeps): Un
    * 监控做多和做空标的的浮亏，价格变化时由主循环调用。
    * 依次对做多、做空标的调用 checkAndLiquidate，任一方向超阈值即触发保护性清仓。
    */
-  const monitorUnrealizedLoss = async (
-    context: UnrealizedLossMonitorContext,
-  ): Promise<void> => {
+  const monitorUnrealizedLoss = async (context: UnrealizedLossMonitorContext): Promise<void> => {
     const {
       longQuote,
       shortQuote,

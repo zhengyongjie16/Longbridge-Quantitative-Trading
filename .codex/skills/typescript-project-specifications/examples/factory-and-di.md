@@ -1,6 +1,7 @@
 # 工厂函数与依赖注入模式
 
 本文展示工厂函数模式和依赖注入模式的正确写法，涵盖：
+
 - 使用工厂函数而非类
 - 所有依赖通过参数注入
 - 非闭包函数提升到模块顶层
@@ -91,7 +92,9 @@ const createOrderService = ({ productRepository, orderRepository, idGenerator }:
     return product !== null && product.stock >= quantity;
   };
 
-  return { /* ... */ };
+  return {
+    /* ... */
+  };
 };
 ```
 
@@ -110,7 +113,9 @@ const createOrderService = ({ productRepository, orderRepository, idGenerator }:
   };
 
   return {
-    async createOrder(items: ReadonlyArray<{ productId: string; quantity: number }>): Promise<Order> {
+    async createOrder(
+      items: ReadonlyArray<{ productId: string; quantity: number }>,
+    ): Promise<Order> {
       // 直接调用模块顶层的 calculateTotal
       const total = calculateTotal(orderItems);
       // ...
@@ -133,7 +138,9 @@ const createAuthService = () => {
   const tokenGen = createTokenGenerator();
 
   return {
-    async login(credentials: LoginCredentials) { /* ... */ },
+    async login(credentials: LoginCredentials) {
+      /* ... */
+    },
   };
 };
 ```
@@ -185,7 +192,10 @@ const token = await authService.login({ email: 'test@example.com', password: '12
 
 ```typescript
 const authService = createAuthService({
-  userRepository: { findByEmail: async (email) => ({ id: 'u1', email, passwordHash: 'h' }), save: async () => {} },
+  userRepository: {
+    findByEmail: async (email) => ({ id: 'u1', email, passwordHash: 'h' }),
+    save: async () => {},
+  },
   passwordHasher: { hash: async (p) => p, verify: async () => true },
   tokenGenerator: { generate: async (id) => ({ token: `tok-${id}`, expiresAt: new Date() }) },
   logger: { info: () => {}, error: () => {} },

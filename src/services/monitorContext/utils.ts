@@ -3,7 +3,11 @@ import {
   extractPsyPeriods as extractPsyPeriodsFromSignalConfig,
 } from '../../utils/helpers/signalConfigParser.js';
 import { validateEmaPeriod, validatePsyPeriod } from '../../utils/helpers/indicatorHelpers.js';
-import { DEFAULT_EMA_PERIOD, DEFAULT_PSY_PERIOD, DEFAULT_RSI_PERIOD } from '../../constants/index.js';
+import {
+  DEFAULT_EMA_PERIOD,
+  DEFAULT_PSY_PERIOD,
+  DEFAULT_RSI_PERIOD,
+} from '../../constants/index.js';
 import type { VerificationConfig, SignalConfigSet } from '../../types/config.js';
 
 /**
@@ -11,7 +15,9 @@ import type { VerificationConfig, SignalConfigSet } from '../../types/config.js'
  * @param verificationConfig 验证配置
  * @returns EMA 周期数组（至少包含默认值 7）
  */
-export function extractEmaPeriods(verificationConfig: VerificationConfig | null | undefined): number[] {
+export function extractEmaPeriods(
+  verificationConfig: VerificationConfig | null | undefined,
+): number[] {
   const emaPeriods: number[] = [];
 
   if (verificationConfig) {

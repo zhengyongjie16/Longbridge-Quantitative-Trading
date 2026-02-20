@@ -50,9 +50,9 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
     const symbolsKey =
       symbols && symbols.length > 0
         ? symbols
-          .slice()
-          .sort((a, b) => a.localeCompare(b))
-          .join(',')
+            .slice()
+            .sort((a, b) => a.localeCompare(b))
+            .join(',')
         : 'ALL'; // null 或空数组统一标记为 "ALL"
 
     const now = Date.now();
@@ -66,9 +66,7 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
     // 但 TypeScript 无法推断变量中的条件关系，需要显式检查来缩窄类型
     if (isCacheValid && !forceRefresh && pendingOrdersCache !== null) {
       logger.debug(
-        `[订单缓存] 使用缓存的未成交订单数据 (symbols=${symbolsKey}, 缓存时间: ${
-          now - pendingOrdersCacheTime
-        }ms)`,
+        `[订单缓存] 使用缓存的未成交订单数据 (symbols=${symbolsKey}, 缓存时间: ${now - pendingOrdersCacheTime}ms)`,
       );
       return pendingOrdersCache;
     }
@@ -87,9 +85,7 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
         orderType: PendingOrder['orderType'];
       }> = [];
 
-      function isValidTodayOrder(
-        order: unknown,
-      ): order is (typeof allOrders)[number] {
+      function isValidTodayOrder(order: unknown): order is (typeof allOrders)[number] {
         if (typeof order !== 'object' || order === null) {
           return false;
         }
@@ -108,19 +104,14 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
       await rateLimiter.throttle();
       const todayOrdersRaw = await ctx.todayOrders();
       if (!Array.isArray(todayOrdersRaw)) {
-        logger.error(
-          '[订单缓存] todayOrders 返回结果不是数组，无法解析未成交订单',
-        );
+        logger.error('[订单缓存] todayOrders 返回结果不是数组，无法解析未成交订单');
         return [];
       }
       // 信任边界：仅保留结构符合预期的订单
       allOrders = todayOrdersRaw.filter(isValidTodayOrder);
 
       // 如果指定了标的，还需要在客户端再次过滤（因为可能获取了所有订单）
-      const targetSymbols =
-        symbols && symbols.length > 0
-          ? new Set(symbols)
-          : null;
+      const targetSymbols = symbols && symbols.length > 0 ? new Set(symbols) : null;
 
       const result: PendingOrder[] = [];
       for (const order of allOrders) {
@@ -155,10 +146,7 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
 
       return result;
     } catch (err) {
-      logger.error(
-        '获取未成交订单失败',
-        formatError(err),
-      );
+      logger.error('获取未成交订单失败', formatError(err));
       return [];
     }
   };

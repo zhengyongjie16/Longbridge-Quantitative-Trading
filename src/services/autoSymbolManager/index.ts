@@ -24,11 +24,12 @@ import type {
   SwitchState,
   SwitchSuppression,
 } from './types.js';
+import { createThresholdResolver, resolveAutoSearchThresholds } from './thresholdResolver.js';
 import {
-  createThresholdResolver,
-  resolveAutoSearchThresholds,
-} from './thresholdResolver.js';
-import { calculateBuyQuantityByNotional, createSignalBuilder, resolveDirectionSymbols } from './signalBuilder.js';
+  calculateBuyQuantityByNotional,
+  createSignalBuilder,
+  resolveDirectionSymbols,
+} from './signalBuilder.js';
 import { createSeatStateManager } from './seatStateManager.js';
 import { createAutoSearch } from './autoSearch.js';
 import { createSwitchStateMachine } from './switchStateMachine.js';

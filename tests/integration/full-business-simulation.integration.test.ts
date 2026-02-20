@@ -13,7 +13,10 @@ import { createBuyProcessor } from '../../src/main/asyncProgram/buyProcessor/ind
 import { createSellProcessor } from '../../src/main/asyncProgram/sellProcessor/index.js';
 import { createMonitorTaskQueue } from '../../src/main/asyncProgram/monitorTaskQueue/index.js';
 import { createMonitorTaskProcessor } from '../../src/main/asyncProgram/monitorTaskProcessor/index.js';
-import { createBuyTaskQueue, createSellTaskQueue } from '../../src/main/asyncProgram/tradeTaskQueue/index.js';
+import {
+  createBuyTaskQueue,
+  createSellTaskQueue,
+} from '../../src/main/asyncProgram/tradeTaskQueue/index.js';
 import { createIndicatorCache } from '../../src/main/asyncProgram/indicatorCache/index.js';
 import { createDelayedSignalVerifier } from '../../src/main/asyncProgram/delayedSignalVerifier/index.js';
 import { createAutoSymbolManager } from '../../src/services/autoSymbolManager/index.js';
@@ -28,9 +31,15 @@ import type { Candlestick } from 'longport';
 import type { CandleData } from '../../src/types/data.js';
 import type { LastState, MonitorContext } from '../../src/types/state.js';
 import type { MultiMonitorTradingConfig, MonitorConfig } from '../../src/types/config.js';
-import type { DailyLossTracker, UnrealizedLossMonitor } from '../../src/core/riskController/types.js';
+import type {
+  DailyLossTracker,
+  UnrealizedLossMonitor,
+} from '../../src/core/riskController/types.js';
 import type { DayLifecycleManager } from '../../src/main/lifecycle/types.js';
-import type { MonitorTaskData, MonitorTaskType } from '../../src/main/asyncProgram/monitorTaskProcessor/types.js';
+import type {
+  MonitorTaskData,
+  MonitorTaskType,
+} from '../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 import {
   createAccountSnapshotDouble,
   createDoomsdayProtectionDouble,
@@ -163,7 +172,9 @@ describe('full business simulation integration', () => {
     const sellTaskQueue = createSellTaskQueue();
     const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
     const monitorState = initMonitorState(monitorConfig);
-    const positions = [createPositionDouble({ symbol: 'BULL.HK', quantity: 300, availableQuantity: 300 })];
+    const positions = [
+      createPositionDouble({ symbol: 'BULL.HK', quantity: 300, availableQuantity: 300 }),
+    ];
     const lastState = createSimulationLastState({
       monitorConfig,
       monitorState,
@@ -181,15 +192,17 @@ describe('full business simulation integration', () => {
     const orderRecorder = createOrderRecorderDouble({
       getCostAveragePrice: () => 1.2,
       getSellableOrders: () => ({
-        orders: [{
-          orderId: 'BUY-001',
-          symbol: 'BULL.HK',
-          executedPrice: 1,
-          executedQuantity: 100,
-          executedTime: Date.now(),
-          submittedAt: undefined,
-          updatedAt: undefined,
-        }],
+        orders: [
+          {
+            orderId: 'BUY-001',
+            symbol: 'BULL.HK',
+            executedPrice: 1,
+            executedQuantity: 100,
+            executedTime: Date.now(),
+            submittedAt: undefined,
+            updatedAt: undefined,
+          },
+        ],
         totalQuantity: 100,
       }),
     });
@@ -241,7 +254,9 @@ describe('full business simulation integration', () => {
         resetAllState: () => {},
       },
     });
-    const monitorContexts = new Map<string, MonitorContext>([[monitorConfig.monitorSymbol, monitorContext]]);
+    const monitorContexts = new Map<string, MonitorContext>([
+      [monitorConfig.monitorSymbol, monitorContext],
+    ]);
 
     const submittedActions: string[] = [];
     const trader = createTraderDouble({
@@ -360,10 +375,7 @@ describe('full business simulation integration', () => {
       expect(postTradeEnqueueCount).toBe(1);
     } finally {
       delayedSignalVerifier.destroy();
-      await Promise.all([
-        buyProcessor.stopAndDrain(),
-        sellProcessor.stopAndDrain(),
-      ]);
+      await Promise.all([buyProcessor.stopAndDrain(), sellProcessor.stopAndDrain()]);
     }
   });
 
@@ -506,7 +518,9 @@ describe('full business simulation integration', () => {
       delayedSignalVerifier,
       autoSymbolManager,
     });
-    const monitorContexts = new Map<string, MonitorContext>([[monitorConfig.monitorSymbol, monitorContext]]);
+    const monitorContexts = new Map<string, MonitorContext>([
+      [monitorConfig.monitorSymbol, monitorContext],
+    ]);
 
     const refreshGate = createRefreshGate();
     const monitorTaskProcessor = createMonitorTaskProcessor({
@@ -574,19 +588,20 @@ describe('full business simulation integration', () => {
 
     monitorTaskProcessor.start();
     try {
-      await processMonitor({
-        context: sharedMainContext,
-        monitorContext,
-        runtimeFlags: {
-          currentTime: new Date('2026-02-16T01:00:00.000Z'),
-          isHalfDay: false,
-          canTradeNow: true,
-          openProtectionActive: false,
-          isTradingEnabled: true,
+      await processMonitor(
+        {
+          context: sharedMainContext,
+          monitorContext,
+          runtimeFlags: {
+            currentTime: new Date('2026-02-16T01:00:00.000Z'),
+            isHalfDay: false,
+            canTradeNow: true,
+            openProtectionActive: false,
+            isTradingEnabled: true,
+          },
         },
-      }, new Map([
-        ['HSI.HK', createQuoteDouble('HSI.HK', 20_000, 1)],
-      ]));
+        new Map([['HSI.HK', createQuoteDouble('HSI.HK', 20_000, 1)]]),
+      );
       await Bun.sleep(80);
 
       const searchedSeat = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
@@ -594,25 +609,32 @@ describe('full business simulation integration', () => {
       expect(searchedSeat.symbol).toBe('OLD_BULL.HK');
       expect(symbolRegistry.getSeatVersion(monitorConfig.monitorSymbol, 'LONG')).toBe(2);
 
-      const oldPosition = createPositionDouble({ symbol: 'OLD_BULL.HK', quantity: 100, availableQuantity: 100 });
+      const oldPosition = createPositionDouble({
+        symbol: 'OLD_BULL.HK',
+        quantity: 100,
+        availableQuantity: 100,
+      });
       lastState.cachedPositions = [oldPosition];
       lastState.positionCache.update([oldPosition]);
 
-      await processMonitor({
-        context: sharedMainContext,
-        monitorContext,
-        runtimeFlags: {
-          currentTime: new Date('2026-02-16T01:00:01.000Z'),
-          isHalfDay: false,
-          canTradeNow: true,
-          openProtectionActive: false,
-          isTradingEnabled: true,
+      await processMonitor(
+        {
+          context: sharedMainContext,
+          monitorContext,
+          runtimeFlags: {
+            currentTime: new Date('2026-02-16T01:00:01.000Z'),
+            isHalfDay: false,
+            canTradeNow: true,
+            openProtectionActive: false,
+            isTradingEnabled: true,
+          },
         },
-      }, new Map([
-        ['HSI.HK', createQuoteDouble('HSI.HK', 20_010, 1)],
-        ['OLD_BULL.HK', createQuoteDouble('OLD_BULL.HK', 1, 100)],
-        ['NEW_BULL.HK', createQuoteDouble('NEW_BULL.HK', 1, 100)],
-      ]));
+        new Map([
+          ['HSI.HK', createQuoteDouble('HSI.HK', 20_010, 1)],
+          ['OLD_BULL.HK', createQuoteDouble('OLD_BULL.HK', 1, 100)],
+          ['NEW_BULL.HK', createQuoteDouble('NEW_BULL.HK', 1, 100)],
+        ]),
+      );
       await Bun.sleep(80);
 
       expect(executedActions[0]?.action).toBe('SELLCALL');
@@ -621,21 +643,24 @@ describe('full business simulation integration', () => {
       lastState.cachedPositions = [];
       lastState.positionCache.update([]);
 
-      await processMonitor({
-        context: sharedMainContext,
-        monitorContext,
-        runtimeFlags: {
-          currentTime: new Date('2026-02-16T01:00:02.000Z'),
-          isHalfDay: false,
-          canTradeNow: true,
-          openProtectionActive: false,
-          isTradingEnabled: true,
+      await processMonitor(
+        {
+          context: sharedMainContext,
+          monitorContext,
+          runtimeFlags: {
+            currentTime: new Date('2026-02-16T01:00:02.000Z'),
+            isHalfDay: false,
+            canTradeNow: true,
+            openProtectionActive: false,
+            isTradingEnabled: true,
+          },
         },
-      }, new Map([
-        ['HSI.HK', createQuoteDouble('HSI.HK', 20_020, 1)],
-        ['OLD_BULL.HK', createQuoteDouble('OLD_BULL.HK', 1, 100)],
-        ['NEW_BULL.HK', createQuoteDouble('NEW_BULL.HK', 1, 100)],
-      ]));
+        new Map([
+          ['HSI.HK', createQuoteDouble('HSI.HK', 20_020, 1)],
+          ['OLD_BULL.HK', createQuoteDouble('OLD_BULL.HK', 1, 100)],
+          ['NEW_BULL.HK', createQuoteDouble('NEW_BULL.HK', 1, 100)],
+        ]),
+      );
       await Bun.sleep(80);
 
       expect(executedActions[1]?.action).toBe('BUYCALL');
@@ -687,7 +712,11 @@ describe('full business simulation integration', () => {
     const sellTaskQueue = createSellTaskQueue();
     const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
     const monitorState = initMonitorState(monitorConfig);
-    const longPosition = createPositionDouble({ symbol: 'BULL.HK', quantity: 200, availableQuantity: 200 });
+    const longPosition = createPositionDouble({
+      symbol: 'BULL.HK',
+      quantity: 200,
+      availableQuantity: 200,
+    });
     const lastState = createSimulationLastState({
       monitorConfig,
       monitorState,
@@ -698,15 +727,17 @@ describe('full business simulation integration', () => {
     const orderRecorder = createOrderRecorderDouble({
       getCostAveragePrice: () => 1.2,
       getSellableOrders: () => ({
-        orders: [{
-          orderId: 'BUY-100',
-          symbol: 'BULL.HK',
-          executedPrice: 1,
-          executedQuantity: 100,
-          executedTime: Date.now(),
-          submittedAt: undefined,
-          updatedAt: undefined,
-        }],
+        orders: [
+          {
+            orderId: 'BUY-100',
+            symbol: 'BULL.HK',
+            executedPrice: 1,
+            executedQuantity: 100,
+            executedTime: Date.now(),
+            submittedAt: undefined,
+            updatedAt: undefined,
+          },
+        ],
         totalQuantity: 100,
       }),
     });
@@ -751,7 +782,9 @@ describe('full business simulation integration', () => {
         resetAllState: () => {},
       },
     });
-    const monitorContexts = new Map<string, MonitorContext>([[monitorConfig.monitorSymbol, monitorContext]]);
+    const monitorContexts = new Map<string, MonitorContext>([
+      [monitorConfig.monitorSymbol, monitorContext],
+    ]);
 
     const submittedActions: string[] = [];
     const trader = createTraderDouble({

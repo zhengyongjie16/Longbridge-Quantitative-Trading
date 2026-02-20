@@ -17,14 +17,25 @@ import { OrderSide } from 'longport';
 import { logger } from '../../utils/logger/index.js';
 import { formatError } from '../../utils/helpers/index.js';
 import { batchGetQuotes } from '../../utils/helpers/quoteHelpers.js';
-import { getHKDateKey, isBeforeClose15Minutes, isBeforeClose5Minutes } from '../../utils/helpers/tradingTime.js';
+import {
+  getHKDateKey,
+  isBeforeClose15Minutes,
+  isBeforeClose5Minutes,
+} from '../../utils/helpers/tradingTime.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
 import type { MonitorContext } from '../../types/state.js';
 import type { Position } from '../../types/account.js';
 import type { Quote } from '../../types/quote.js';
 import type { Signal, SignalType } from '../../types/signal.js';
-import type { DoomsdayProtection, DoomsdayClearanceContext, DoomsdayClearanceResult, CancelPendingBuyOrdersContext, CancelPendingBuyOrdersResult, ClearanceSignalParams } from './types.js';
+import type {
+  DoomsdayProtection,
+  DoomsdayClearanceContext,
+  DoomsdayClearanceResult,
+  CancelPendingBuyOrdersContext,
+  CancelPendingBuyOrdersResult,
+  ClearanceSignalParams,
+} from './types.js';
 
 /** 创建单个清仓信号，从对象池获取 Signal 对象 */
 function createClearanceSignal(params: ClearanceSignalParams): Signal | null {
@@ -166,9 +177,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
       return isBeforeClose15Minutes(currentTime, isHalfDay);
     },
 
-    async executeClearance(
-      context: DoomsdayClearanceContext,
-    ): Promise<DoomsdayClearanceResult> {
+    async executeClearance(context: DoomsdayClearanceContext): Promise<DoomsdayClearanceResult> {
       const {
         currentTime,
         isHalfDay,
@@ -193,10 +202,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
 
       // 检查是否有持仓
       if (!Array.isArray(positions) || positions.length === 0) {
-        logClearanceNotice(
-          `no-positions:${todayKey}`,
-          '[末日保护程序] 清仓跳过：无持仓',
-        );
+        logClearanceNotice(`no-positions:${todayKey}`, '[末日保护程序] 清仓跳过：无持仓');
         return { executed: false, signalCount: 0 };
       }
 
@@ -225,8 +231,8 @@ export function createDoomsdayProtection(): DoomsdayProtection {
           monitorConfig.monitorSymbol,
           monitorContexts,
         );
-        const longQuote = longSymbol ? quoteMap.get(longSymbol) ?? null : null;
-        const shortQuote = shortSymbol ? quoteMap.get(shortSymbol) ?? null : null;
+        const longQuote = longSymbol ? (quoteMap.get(longSymbol) ?? null) : null;
+        const shortQuote = shortSymbol ? (quoteMap.get(shortSymbol) ?? null) : null;
         // 复用 processPositionForClearance 处理每个持仓
         for (const pos of positions) {
           const signal = processPositionForClearance(
@@ -256,9 +262,9 @@ export function createDoomsdayProtection(): DoomsdayProtection {
       if (uniqueClearanceSignals.length === 0) {
         const availablePositions = positions.filter((pos) => {
           const availableQty = Number(pos?.availableQuantity) || 0;
-          return typeof pos?.symbol === 'string' &&
-            Number.isFinite(availableQty) &&
-            availableQty > 0;
+          return (
+            typeof pos?.symbol === 'string' && Number.isFinite(availableQty) && availableQty > 0
+          );
         });
         const seatSymbolSet = new Set(allTradingSymbols);
         const unmatchedPositions = availablePositions.filter(
@@ -307,13 +313,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
     async cancelPendingBuyOrders(
       context: CancelPendingBuyOrdersContext,
     ): Promise<CancelPendingBuyOrdersResult> {
-      const {
-        currentTime,
-        isHalfDay,
-        monitorConfigs,
-        monitorContexts,
-        trader,
-      } = context;
+      const { currentTime, isHalfDay, monitorConfigs, monitorContexts, trader } = context;
 
       // 检查是否在收盘前15分钟内
       if (!isBeforeClose15Minutes(currentTime, isHalfDay)) {
@@ -356,9 +356,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
       // 首次进入收盘前 15 分钟，查询未成交订单
       // 注意：这是当天唯一一次查询，之后不再重复调用 Trade API
       const closeTimeRange = isHalfDay ? '11:45-12:00' : '15:45-16:00';
-      logger.info(
-        `[末日保护程序] 首次进入收盘前15分钟（${closeTimeRange}），检查未成交买入订单`,
-      );
+      logger.info(`[末日保护程序] 首次进入收盘前15分钟（${closeTimeRange}），检查未成交买入订单`);
 
       const pendingOrders = await trader.getPendingOrders(symbolsArray, true);
 
@@ -366,18 +364,14 @@ export function createDoomsdayProtection(): DoomsdayProtection {
       cancelCheckExecutedDate = todayDateString;
 
       // 过滤出买入订单
-      const pendingBuyOrders = pendingOrders.filter(
-        (order) => order.side === OrderSide.Buy,
-      );
+      const pendingBuyOrders = pendingOrders.filter((order) => order.side === OrderSide.Buy);
 
       if (pendingBuyOrders.length === 0) {
         logger.info('[末日保护程序] 无未成交买入订单，无需撤单');
         return { executed: false, cancelledCount: 0 };
       }
 
-      logger.info(
-        `[末日保护程序] 发现 ${pendingBuyOrders.length} 个未成交买入订单，准备撤单`,
-      );
+      logger.info(`[末日保护程序] 发现 ${pendingBuyOrders.length} 个未成交买入订单，准备撤单`);
 
       // 撤销所有买入订单
       let cancelledCount = 0;

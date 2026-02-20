@@ -117,18 +117,20 @@ function printOrderList(orders, title) {
 
     console.log(
       `${String(index + 1).padStart(3)} | ` +
-      `${(order.stockName || '').substring(0, 20).padEnd(20)} | ` +
-      `${order.symbol.padEnd(10)} | ` +
-      `${sideLabel} | ` +
-      `${String(executedQty).padStart(6)} | ` +
-      `${executedPrice.toFixed(3).padStart(8)} | ` +
-      `${formatAmount(amount, order.currency).padStart(12)} | ` +
-      `${formatTime(order.updatedAt)}`
+        `${(order.stockName || '').substring(0, 20).padEnd(20)} | ` +
+        `${order.symbol.padEnd(10)} | ` +
+        `${sideLabel} | ` +
+        `${String(executedQty).padStart(6)} | ` +
+        `${executedPrice.toFixed(3).padStart(8)} | ` +
+        `${formatAmount(amount, order.currency).padStart(12)} | ` +
+        `${formatTime(order.updatedAt)}`,
     );
   });
 
   console.log('-'.repeat(100));
-  console.log(`买入总额: ${formatAmount(totalBuy)} | 卖出总额: ${formatAmount(totalSell)} | 净额: ${formatAmount(totalBuy - totalSell)}`);
+  console.log(
+    `买入总额: ${formatAmount(totalBuy)} | 卖出总额: ${formatAmount(totalSell)} | 净额: ${formatAmount(totalBuy - totalSell)}`,
+  );
   console.log('');
 }
 
@@ -138,9 +140,10 @@ function printOrderList(orders, title) {
  * 将 API 返回的订单转换为过滤算法所需的标准格式
  */
 function normalizeOrder(order) {
-  const executedTime = order.updatedAt instanceof Date
-    ? order.updatedAt.getTime()
-    : new Date(order.updatedAt).getTime();
+  const executedTime =
+    order.updatedAt instanceof Date
+      ? order.updatedAt.getTime()
+      : new Date(order.updatedAt).getTime();
 
   return {
     orderId: order.orderId,
@@ -200,7 +203,13 @@ function adjustOrdersByQuantityLimit(orders, maxQuantity) {
 /**
  * 应用单个卖出订单的过滤
  */
-function applySingleSellOrderFilter(currentBuyOrders, candidateOrders, sellOrder, nextSellOrder, latestSellTime) {
+function applySingleSellOrderFilter(
+  currentBuyOrders,
+  candidateOrders,
+  sellOrder,
+  nextSellOrder,
+  latestSellTime,
+) {
   const sellTime = sellOrder.executedTime;
   const sellPrice = sellOrder.executedPrice;
   const sellQuantity = sellOrder.executedQuantity;
@@ -209,14 +218,14 @@ function applySingleSellOrderFilter(currentBuyOrders, candidateOrders, sellOrder
 
   // 获取成交时间 < 当前卖出订单时间的买入订单
   const buyOrdersBeforeSell = currentBuyOrders.filter(
-    (buyOrder) => buyOrder.executedTime < sellTime
+    (buyOrder) => buyOrder.executedTime < sellTime,
   );
 
   const totalBuyQuantity = calculateTotalQuantityFromOrders(buyOrdersBeforeSell);
 
   // 从原始候选订单获取时间间隔内的买入订单
   const buyOrdersBetweenSells = candidateOrders.filter(
-    (buyOrder) => buyOrder.executedTime > sellTime && buyOrder.executedTime < nextSellTime
+    (buyOrder) => buyOrder.executedTime > sellTime && buyOrder.executedTime < nextSellTime,
   );
 
   // 判断是否全部卖出
@@ -233,7 +242,7 @@ function applySingleSellOrderFilter(currentBuyOrders, candidateOrders, sellOrder
 
   // 按价格过滤 - 保留成交价 >= 卖出价的订单（亏损订单优先保留）
   let filteredBuyOrders = buyOrdersBeforeSell.filter(
-    (buyOrder) => buyOrder.executedPrice >= sellPrice
+    (buyOrder) => buyOrder.executedPrice >= sellPrice,
   );
 
   // 确保保留数量不超过应保留数量
@@ -284,7 +293,7 @@ function applyFilteringAlgorithmForSymbol(allBuyOrders, filledSellOrders) {
 
   // 初始订单：成交时间 < 第一个卖出订单时间的买入订单
   let currentBuyOrders = candidateOrders.filter(
-    (buyOrder) => buyOrder.executedTime < firstSellTime
+    (buyOrder) => buyOrder.executedTime < firstSellTime,
   );
 
   // 按时间顺序处理每个卖出订单
@@ -297,7 +306,7 @@ function applyFilteringAlgorithmForSymbol(allBuyOrders, filledSellOrders) {
       candidateOrders,
       sellOrder,
       sortedSellOrders[i + 1] ?? null,
-      latestSellTime
+      latestSellTime,
     );
   }
 
@@ -392,12 +401,12 @@ function printFilteredOrderList(orders, title) {
 
       console.log(
         `${String(index).padStart(3)} | ` +
-        `${(order.stockName || '').substring(0, 20).padEnd(20)} | ` +
-        `${order.symbol.padEnd(10)} | ` +
-        `${String(order.executedQuantity).padStart(6)} | ` +
-        `${order.executedPrice.toFixed(3).padStart(8)} | ` +
-        `${formatAmount(amount, order.currency).padStart(12)} | ` +
-        `${formatTime(order.executedTime)}`
+          `${(order.stockName || '').substring(0, 20).padEnd(20)} | ` +
+          `${order.symbol.padEnd(10)} | ` +
+          `${String(order.executedQuantity).padStart(6)} | ` +
+          `${order.executedPrice.toFixed(3).padStart(8)} | ` +
+          `${formatAmount(amount, order.currency).padStart(12)} | ` +
+          `${formatTime(order.executedTime)}`,
       );
     }
   }
@@ -441,8 +450,10 @@ async function main() {
 
   // 按更新时间排序（最新的在前）
   const orders = Array.from(orderMap.values()).sort((a, b) => {
-    const timeA = a.updatedAt instanceof Date ? a.updatedAt.getTime() : new Date(a.updatedAt).getTime();
-    const timeB = b.updatedAt instanceof Date ? b.updatedAt.getTime() : new Date(b.updatedAt).getTime();
+    const timeA =
+      a.updatedAt instanceof Date ? a.updatedAt.getTime() : new Date(a.updatedAt).getTime();
+    const timeB =
+      b.updatedAt instanceof Date ? b.updatedAt.getTime() : new Date(b.updatedAt).getTime();
     return timeB - timeA;
   });
 
@@ -516,12 +527,12 @@ async function main() {
 
     console.log(
       `${String(index + 1).padStart(3)} | ` +
-      `${order.symbol.padEnd(10)} | ` +
-      `${sideLabel} | ` +
-      `${String(executedQty).padStart(6)} | ` +
-      `${executedPrice.toFixed(3).padStart(8)} | ` +
-      `${formatAmount(amount, order.currency).padStart(12)} | ` +
-      `${formatTime(order.updatedAt)}`
+        `${order.symbol.padEnd(10)} | ` +
+        `${sideLabel} | ` +
+        `${String(executedQty).padStart(6)} | ` +
+        `${executedPrice.toFixed(3).padStart(8)} | ` +
+        `${formatAmount(amount, order.currency).padStart(12)} | ` +
+        `${formatTime(order.updatedAt)}`,
     );
   });
 
@@ -556,10 +567,10 @@ async function main() {
   for (const [symbol, stats] of Object.entries(symbolStats)) {
     console.log(
       `${symbol.padEnd(10)} | ` +
-      `${String(stats.buyQty).padStart(8)} | ` +
-      `${String(stats.sellQty).padStart(8)} | ` +
-      `${formatAmount(stats.buyAmount).padStart(10)} | ` +
-      `${formatAmount(stats.sellAmount).padStart(10)}`
+        `${String(stats.buyQty).padStart(8)} | ` +
+        `${String(stats.sellQty).padStart(8)} | ` +
+        `${formatAmount(stats.buyAmount).padStart(10)} | ` +
+        `${formatAmount(stats.sellAmount).padStart(10)}`,
     );
   }
 
@@ -599,13 +610,13 @@ async function main() {
   for (const stat of filteringStats) {
     console.log(
       `${stat.symbol.padEnd(10)} | ` +
-      `${(stat.stockName || '').substring(0, 18).padEnd(18)} | ` +
-      `${String(stat.originalBuyCount).padStart(8)} | ` +
-      `${String(stat.originalBuyQuantity).padStart(8)} | ` +
-      `${String(stat.sellCount).padStart(8)} | ` +
-      `${String(stat.sellQuantity).padStart(8)} | ` +
-      `${String(stat.filteredCount).padStart(8)} | ` +
-      `${String(stat.filteredQuantity).padStart(8)}`
+        `${(stat.stockName || '').substring(0, 18).padEnd(18)} | ` +
+        `${String(stat.originalBuyCount).padStart(8)} | ` +
+        `${String(stat.originalBuyQuantity).padStart(8)} | ` +
+        `${String(stat.sellCount).padStart(8)} | ` +
+        `${String(stat.sellQuantity).padStart(8)} | ` +
+        `${String(stat.filteredCount).padStart(8)} | ` +
+        `${String(stat.filteredQuantity).padStart(8)}`,
     );
   }
   console.log('');

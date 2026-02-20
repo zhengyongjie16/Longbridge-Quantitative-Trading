@@ -4,7 +4,7 @@
  * @returns 无返回值
  */
 export function getSprintSacreMooacreMoo(): void {
-  console.log( `                        ..---.
+  console.log(`                        ..---.
                        // |\\||\\
 \\   /                 ///;||\\|;\\               \\   /
   o               .__// \\\\____//\\_,.             o

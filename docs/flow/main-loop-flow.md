@@ -1,16 +1,19 @@
 # 主循环流程图（mainProgram 每秒循环）
 
 ## 范围说明
+
 - 起点：`src/index.ts` 中的 `while (true)` 每秒调用 `mainProgram(...)`
 - 终点：`mainProgram` 本轮返回后 `sleep(TRADING.INTERVAL_MS)`，进入下一轮
 - 覆盖：运行期门禁、末日保护、行情订阅与批量行情、并发监控标的处理、订单监控与成交后缓存刷新、与异步买卖处理器的协作
 - 不覆盖：启动初始化流程（见 `docs/flow/startup-initialization-flow.md`）、自动换标详细状态机（见 `docs/flow/auto-symbol-switch-flow.md`）
 
 ## 运行节拍与前置状态
+
 - 主循环间隔由 `TRADING.INTERVAL_MS` 控制，当前代码是"主循环 + sleep"结构，不使用定时器。
 - 进入主循环前，`monitorContexts`、`buy/sell` 处理器、`delayedSignalVerifier` 等已在启动阶段完成初始化并开始运行。
 
 ## 关键配置/常量
+
 - `TRADING.INTERVAL_MS`：每次主循环的休眠时间（毫秒）。
 - `runtimeGateMode`：运行期门禁模式；`strict` 时严格按交易日/交易时段运行，`skip` 时跳过门禁。
 - `tradingConfig.global.openProtection`：开盘保护配置（早盘 + 午盘），开启时在对应开盘后的指定分钟内暂停信号生成。午盘保护在半日市不生效。
@@ -20,6 +23,7 @@
 - `verificationConfig`：延迟验证配置（买入/卖出延迟时间与验证指标）。
 
 ## 主循环总览流程图
+
 ```mermaid
 graph TD
   A["while(true) 主循环（固定节拍）"] --> B["调用<br/>mainProgram<br/>主循环核心逻辑"]
@@ -50,6 +54,7 @@ graph TD
 ```
 
 ## 单监控标的子流程（processMonitor）
+
 ```mermaid
 graph TD
   P1["取 monitorQuote 并计算价格变化<br/>monitorPriceChanged"] --> P2{"自动寻标是否开启？<br/>autoSearchEnabled"}
@@ -77,6 +82,7 @@ graph TD
 ```
 
 ## 异步处理器协作（主循环外）
+
 ```mermaid
 graph TD
   A1["延迟验证定时器触发验证<br/>delayedSignalVerifier"] --> A2{"验证通过？"}
@@ -87,22 +93,27 @@ graph TD
 ```
 
 ## 分阶段说明
+
 ### 1. 循环调度与运行门禁
+
 - 主循环通过 `while(true) + sleep` 以固定节拍运行；每轮调用一次 `mainProgram`。
 - `runtimeGateMode=strict` 时，先做跨日处理并刷新交易日信息缓存，然后判断交易日与连续交易时段。
 - 当从"连续交易时段"切换到"非连续交易时段"时，会清理所有监控标的的延迟验证队列，避免闭市后继续验证。
 - 开盘保护开启时分别计算早盘 `morningActive` 和午盘 `afternoonActive`（午盘在半日市不生效），合并为 `openProtectionActive`，传递给 `processMonitor` 决定是否跳过信号生成。
 
 ### 2. 末日保护（全局优先级最高）
+
 - 末日保护打开时，先尝试在收盘前 15 分钟撤销所有未成交买入单。
 - 进入收盘前 5 分钟后触发自动清仓，清仓成功时直接结束本轮主循环，跳过后续行情与信号处理。
 
 ### 3. 行情标的收集与批量行情
+
 - 主循环基于监控标的、席位标的、持仓标的和挂单标的汇总出"运行期订阅集合"，统一批量订阅与退订。
 - 退订时会保留仍有持仓的标的，避免清掉持仓标的行情。
 - 所有行情一次性批量拉取为 `quotesMap`，供本轮 `processMonitor` 和订单监控复用。
 
 ### 4. 并发处理每个监控标的（processMonitor）
+
 - 先读取监控标的行情并计算价格变化；价格变化是触发自动换标与部分监控逻辑的关键条件。
 - 自动寻标开启时，每轮执行轻量"寻标机会检查"，若价格变化触发换标阈值则进入换标流程，并同步席位与清理旧队列。
 - 统一同步席位状态到 `monitorContext`，并刷新做多/做空标的行情缓存供异步处理器使用。
@@ -112,15 +123,18 @@ graph TD
 - 开盘保护期间（早盘或午盘）跳过信号生成；否则按策略生成即时/延迟信号并分流到对应队列或验证器。
 
 ### 5. 订单监控与成交后缓存刷新
+
 - 监控标的处理完成后，统一执行订单监控（价格跟踪、超时处理等）。
 - 若有成交触发刷新标记，主循环统一刷新账户/持仓缓存，并同步 `positionCache`。
 - 对成交涉及的标的刷新浮亏数据；最后展示最新账户与持仓快照。
 
 ### 6. 异步处理器与延迟验证（与主循环并行）
+
 - `delayedSignalVerifier` 使用定时器在触发时间后进行三点趋势验证，通过则把信号放入买/卖队列。
 - `BuyProcessor` 与 `SellProcessor` 使用 `setImmediate` 驱动队列消费，不阻塞主循环；买入包含风险检查，卖出直接计算卖量并下单。
 
 ## 模块/函数/变量释义
+
 - **`mainProgram`**：主循环的核心执行函数，负责门禁、末日保护、行情批量获取、并发处理监控标的与订单监控。
 - **`processMonitor`**：单监控标的处理函数，完成行情监控、指标计算、信号生成与分流。
 - **`runtimeGateMode`**：运行期门禁模式；`strict` 严格按交易日与交易时段运行，`skip` 直接放行。

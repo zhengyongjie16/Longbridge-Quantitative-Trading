@@ -49,7 +49,13 @@ function parseSignalConfigFromEnv(env: NodeJS.ProcessEnv, envKey: string): Signa
  * @param options - 包含 env、envKey、defaultValue、min、max 的配置对象
  * @returns 解析后的数值（未配置时返回 defaultValue，超出范围时截断为 min/max）
  */
-function parseBoundedNumberConfig({ env, envKey, defaultValue, min, max }: BoundedNumberConfig): number {
+function parseBoundedNumberConfig({
+  env,
+  envKey,
+  defaultValue,
+  min,
+  max,
+}: BoundedNumberConfig): number {
   const value = getNumberConfig(env, envKey, 0);
   if (value === null) {
     return defaultValue;
@@ -73,7 +79,11 @@ function parseBoundedNumberConfig({ env, envKey, defaultValue, min, max }: Bound
  * @param minValue - 允许的最小原始数值，默认为 0
  * @returns 除以 100 后的小数，或 null
  */
-function getPercentAsDecimalConfig(env: NodeJS.ProcessEnv, envKey: string, minValue: number = 0): number | null {
+function getPercentAsDecimalConfig(
+  env: NodeJS.ProcessEnv,
+  envKey: string,
+  minValue: number = 0,
+): number | null {
   const raw = getNumberConfig(env, envKey, minValue);
   return raw == null ? null : raw / 100;
 }
@@ -116,10 +126,26 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
 
   const autoSearchEnabled = getBooleanConfig(env, `AUTO_SEARCH_ENABLED${suffix}`, false);
   // 百分比数值转为小数：配置值 2 → 内部 0.02（牛证 >= 0，熊证 <= 0）
-  const autoSearchMinDistancePctBull = getPercentAsDecimalConfig(env, `AUTO_SEARCH_MIN_DISTANCE_PCT_BULL${suffix}`, 0);
-  const autoSearchMinDistancePctBear = getPercentAsDecimalConfig(env, `AUTO_SEARCH_MIN_DISTANCE_PCT_BEAR${suffix}`, -100);
-  const autoSearchMinTurnoverPerMinuteBull = getNumberConfig(env, `AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_BULL${suffix}`, 0);
-  const autoSearchMinTurnoverPerMinuteBear = getNumberConfig(env, `AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_BEAR${suffix}`, 0);
+  const autoSearchMinDistancePctBull = getPercentAsDecimalConfig(
+    env,
+    `AUTO_SEARCH_MIN_DISTANCE_PCT_BULL${suffix}`,
+    0,
+  );
+  const autoSearchMinDistancePctBear = getPercentAsDecimalConfig(
+    env,
+    `AUTO_SEARCH_MIN_DISTANCE_PCT_BEAR${suffix}`,
+    -100,
+  );
+  const autoSearchMinTurnoverPerMinuteBull = getNumberConfig(
+    env,
+    `AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_BULL${suffix}`,
+    0,
+  );
+  const autoSearchMinTurnoverPerMinuteBear = getNumberConfig(
+    env,
+    `AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_BEAR${suffix}`,
+    0,
+  );
   const autoSearchExpiryMinMonths = parseBoundedNumberConfig({
     env,
     envKey: `AUTO_SEARCH_EXPIRY_MIN_MONTHS${suffix}`,
@@ -134,15 +160,22 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
     min: 0,
     max: 60,
   });
-  const switchDistanceRangeBull = parseNumberRangeConfig(env, `SWITCH_DISTANCE_RANGE_BULL${suffix}`);
-  const switchDistanceRangeBear = parseNumberRangeConfig(env, `SWITCH_DISTANCE_RANGE_BEAR${suffix}`);
+  const switchDistanceRangeBull = parseNumberRangeConfig(
+    env,
+    `SWITCH_DISTANCE_RANGE_BULL${suffix}`,
+  );
+  const switchDistanceRangeBear = parseNumberRangeConfig(
+    env,
+    `SWITCH_DISTANCE_RANGE_BEAR${suffix}`,
+  );
   const orderOwnershipMapping = parseOrderOwnershipMapping(env, `ORDER_OWNERSHIP_MAPPING${suffix}`);
 
   // 使用 ?? 保留 0 的合法配置，仅在 null/undefined 时回退默认值
   const targetNotional = getNumberConfig(env, `TARGET_NOTIONAL${suffix}`, 1) ?? 10000;
   const maxPositionNotional = getNumberConfig(env, `MAX_POSITION_NOTIONAL${suffix}`, 1) ?? 100000;
   const maxDailyLoss = getNumberConfig(env, `MAX_DAILY_LOSS${suffix}`, 0) ?? 0;
-  const maxUnrealizedLossPerSymbol = getNumberConfig(env, `MAX_UNREALIZED_LOSS_PER_SYMBOL${suffix}`, 0) ?? 0;
+  const maxUnrealizedLossPerSymbol =
+    getNumberConfig(env, `MAX_UNREALIZED_LOSS_PER_SYMBOL${suffix}`, 0) ?? 0;
 
   const buyIntervalSeconds = parseBoundedNumberConfig({
     env,
@@ -152,7 +185,10 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
     max: 600,
   });
 
-  const liquidationCooldown = parseLiquidationCooldownConfig(env, `LIQUIDATION_COOLDOWN_MINUTES${suffix}`);
+  const liquidationCooldown = parseLiquidationCooldownConfig(
+    env,
+    `LIQUIDATION_COOLDOWN_MINUTES${suffix}`,
+  );
 
   const verificationConfig = {
     buy: {
@@ -210,7 +246,11 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
  * @param env - 进程环境变量对象
  * @returns 多监控标的交易配置（monitors 数组 + global 全局配置）
  */
-export function createMultiMonitorTradingConfig({ env }: { env: NodeJS.ProcessEnv }): MultiMonitorTradingConfig {
+export function createMultiMonitorTradingConfig({
+  env,
+}: {
+  env: NodeJS.ProcessEnv;
+}): MultiMonitorTradingConfig {
   const monitors: MonitorConfig[] = [];
 
   // 连续扫描监控标的配置：从 _1 开始，遇到第一个未配置的索引即停止
@@ -260,18 +300,38 @@ export function createMultiMonitorTradingConfig({ env }: { env: NodeJS.ProcessEn
   });
 
   // 早盘开盘保护
-  const morningOpenProtectionEnabled = getBooleanConfig(env, 'MORNING_OPENING_PROTECTION_ENABLED', false);
-  const morningOpenProtectionMinutes = getNumberConfig(env, 'MORNING_OPENING_PROTECTION_MINUTES', 0);
+  const morningOpenProtectionEnabled = getBooleanConfig(
+    env,
+    'MORNING_OPENING_PROTECTION_ENABLED',
+    false,
+  );
+  const morningOpenProtectionMinutes = getNumberConfig(
+    env,
+    'MORNING_OPENING_PROTECTION_MINUTES',
+    0,
+  );
 
   // 午盘开盘保护
-  const afternoonOpenProtectionEnabled = getBooleanConfig(env, 'AFTERNOON_OPENING_PROTECTION_ENABLED', false);
-  const afternoonOpenProtectionMinutes = getNumberConfig(env, 'AFTERNOON_OPENING_PROTECTION_MINUTES', 0);
+  const afternoonOpenProtectionEnabled = getBooleanConfig(
+    env,
+    'AFTERNOON_OPENING_PROTECTION_ENABLED',
+    false,
+  );
+  const afternoonOpenProtectionMinutes = getNumberConfig(
+    env,
+    'AFTERNOON_OPENING_PROTECTION_MINUTES',
+    0,
+  );
 
   // 解析交易订单类型配置
-  const tradingOrderType = mapOrderTypeConfig(parseOrderTypeConfig(env, 'TRADING_ORDER_TYPE', 'ELO'));
+  const tradingOrderType = mapOrderTypeConfig(
+    parseOrderTypeConfig(env, 'TRADING_ORDER_TYPE', 'ELO'),
+  );
 
   // 解析清仓订单类型配置
-  const liquidationOrderType = mapOrderTypeConfig(parseOrderTypeConfig(env, 'LIQUIDATION_ORDER_TYPE', 'MO'));
+  const liquidationOrderType = mapOrderTypeConfig(
+    parseOrderTypeConfig(env, 'LIQUIDATION_ORDER_TYPE', 'MO'),
+  );
 
   return {
     monitors,

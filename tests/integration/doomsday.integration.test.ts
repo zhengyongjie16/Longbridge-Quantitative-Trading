@@ -182,7 +182,9 @@ describe('doomsday integration', () => {
       currentTime: new Date('2026-02-16T07:50:00.000Z'),
       isHalfDay: false,
       monitorConfigs: [monitorConfig],
-      monitorContexts: new Map([[monitorConfig.monitorSymbol, createMonitorContext(monitorConfig)]]),
+      monitorContexts: new Map([
+        [monitorConfig.monitorSymbol, createMonitorContext(monitorConfig)],
+      ]),
       trader,
     });
 
@@ -190,7 +192,9 @@ describe('doomsday integration', () => {
       currentTime: new Date('2026-02-16T07:51:00.000Z'),
       isHalfDay: false,
       monitorConfigs: [monitorConfig],
-      monitorContexts: new Map([[monitorConfig.monitorSymbol, createMonitorContext(monitorConfig)]]),
+      monitorContexts: new Map([
+        [monitorConfig.monitorSymbol, createMonitorContext(monitorConfig)],
+      ]),
       trader,
     });
 
@@ -234,10 +238,11 @@ describe('doomsday integration', () => {
       trader,
       marketDataClient: {
         getQuoteContext: async () => ({}) as never,
-        getQuotes: async () => new Map([
-          ['BULL.HK', createQuoteDouble('BULL.HK', 1.1, 100)],
-          ['BEAR.HK', createQuoteDouble('BEAR.HK', 0.9, 100)],
-        ]),
+        getQuotes: async () =>
+          new Map([
+            ['BULL.HK', createQuoteDouble('BULL.HK', 1.1, 100)],
+            ['BEAR.HK', createQuoteDouble('BEAR.HK', 0.9, 100)],
+          ]),
         subscribeSymbols: async () => {},
         unsubscribeSymbols: async () => {},
         subscribeCandlesticks: async () => [],

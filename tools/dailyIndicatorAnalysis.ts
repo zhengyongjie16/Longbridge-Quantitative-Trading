@@ -218,7 +218,10 @@ function toHKDateStr(date: Date): string {
 /**
  * 计算每分钟的指标，仅输出当日 K 线行，前缀历史 K 线用于指标预热
  */
-function computeMinuteRows(allCandles: RawCandlestick[]): { rows: MinuteIndicatorRow[]; todayDate: string } {
+function computeMinuteRows(allCandles: RawCandlestick[]): {
+  rows: MinuteIndicatorRow[];
+  todayDate: string;
+} {
   if (allCandles.length === 0) return { rows: [], todayDate: '' };
 
   // 取最后一根 K 线的港股日期作为"今日"
@@ -307,7 +310,13 @@ async function main(): Promise<void> {
   const config = createConfig({ env: process.env });
   const ctx = await QuoteContext.new(config);
 
-  const raw = await ctx.candlesticks(symbol, Period.Min_1, CANDLE_COUNT, AdjustType.NoAdjust, TradeSessions.Intraday);
+  const raw = await ctx.candlesticks(
+    symbol,
+    Period.Min_1,
+    CANDLE_COUNT,
+    AdjustType.NoAdjust,
+    TradeSessions.Intraday,
+  );
 
   if (raw.length === 0) {
     console.log('未获取到分钟 K 线数据');

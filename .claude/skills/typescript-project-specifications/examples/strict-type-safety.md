@@ -1,6 +1,7 @@
 # 严格类型安全
 
 本文展示 TypeScript 严格类型安全的核心规则，涵盖：
+
 - 禁止 `any`，使用 `unknown`
 - 禁止无理由的类型断言
 - 禁止无说明的 `@ts-ignore`
@@ -118,6 +119,7 @@ const result = someFunction(invalidArg);
 ### 各配置项含义
 
 **核心严格选项：**
+
 - **`strict: true`**：开启所有严格类型检查
 - **`noImplicitAny`**：对隐式 `any` 报错
 - **`strictNullChecks`**：`null` 和 `undefined` 单独成类型（不能赋给任意类型）
@@ -127,6 +129,7 @@ const result = someFunction(invalidArg);
 - **`noFallthroughCasesInSwitch`**：switch 中 fallthrough 报错
 
 **额外安全选项（重要）：**
+
 - **`noUncheckedIndexedAccess`**：数组/对象下标访问类型为 `T | undefined`（避免假定元素一定存在导致的运行时错误）
 - **`exactOptionalPropertyTypes`**：区分 `property?: T` 与 `property: T | undefined`（类型更精确）
 - **`noPropertyAccessFromIndexSignature`**：索引签名属性必须用方括号访问（提醒这是动态访问）

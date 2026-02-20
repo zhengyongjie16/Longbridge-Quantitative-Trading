@@ -40,10 +40,7 @@ function shouldRunMidnightClear(
 }
 
 /** 构造传递给各 CacheDomain 的生命周期上下文 */
-function buildLifecycleContext(
-  now: Date,
-  runtime: LifecycleRuntimeFlags,
-): LifecycleContext {
+function buildLifecycleContext(now: Date, runtime: LifecycleRuntimeFlags): LifecycleContext {
   return {
     now,
     runtime,
@@ -75,10 +72,7 @@ async function runOpenRebuildForDomains(
 }
 
 /** 计算指数退避重试延迟，失败次数越多延迟越长，上限由 MAX_RETRY_BACKOFF_FACTOR 控制 */
-function resolveRetryDelayMs(
-  baseDelayMs: number,
-  rebuildFailureCount: number,
-): number {
+function resolveRetryDelayMs(baseDelayMs: number, rebuildFailureCount: number): number {
   const factor = Math.min(
     2 ** Math.max(rebuildFailureCount - 1, 0),
     LIFECYCLE.MAX_RETRY_BACKOFF_FACTOR,

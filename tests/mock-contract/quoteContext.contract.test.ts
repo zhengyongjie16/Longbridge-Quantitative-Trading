@@ -5,7 +5,15 @@
  * - 验证 QuoteContext Mock 契约与调用行为。
  */
 import { describe, expect, it } from 'bun:test';
-import { Market, Period, SortOrderType, SubType, TradeSessions, WarrantSortBy, WarrantType } from 'longport';
+import {
+  Market,
+  Period,
+  SortOrderType,
+  SubType,
+  TradeSessions,
+  WarrantSortBy,
+  WarrantType,
+} from 'longport';
 import { createQuoteContextMock } from '../../mock/longport/quoteContextMock.js';
 import {
   createCandlestick,
@@ -22,9 +30,7 @@ describe('QuoteContext mock contract', () => {
   it('implements required quote APIs and keeps subscription/cache semantics', async () => {
     const quoteCtx = createQuoteContextMock();
 
-    quoteCtx.seedQuotes([
-      { symbol: '700.HK', quote: createSecurityQuote('700.HK', 320) },
-    ]);
+    quoteCtx.seedQuotes([{ symbol: '700.HK', quote: createSecurityQuote('700.HK', 320) }]);
     quoteCtx.seedStaticInfo([
       { symbol: '700.HK', info: createSecurityStaticInfo('700.HK', 'Tencent', 100) },
     ]);

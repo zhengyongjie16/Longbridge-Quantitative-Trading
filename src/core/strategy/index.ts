@@ -178,7 +178,9 @@ export const createHangSengMultiIndicatorStrategy = ({
 
     // 判断是买入还是卖出信号
     const isBuySignal = isBuyAction(action as SignalType);
-    const currentVerificationConfig = isBuySignal ? finalVerificationConfig.buy : finalVerificationConfig.sell;
+    const currentVerificationConfig = isBuySignal
+      ? finalVerificationConfig.buy
+      : finalVerificationConfig.sell;
 
     // 根据预计算的信号类型映射判断是立即信号还是延迟信号
     const isImmediate = signalTypeMap[action] === 'immediate';
@@ -239,13 +241,10 @@ export const createHangSengMultiIndicatorStrategy = ({
     signal.verificationHistory = [];
     signal.reason = `${reasonPrefix}：${
       evalResult.reason
-    }，${indicatorDisplayStr}，${indicators1Str}，将在 ${triggerTime.toLocaleString(
-      'zh-CN',
-      {
-        timeZone: 'Asia/Hong_Kong',
-        hour12: false,
-      },
-    )} 进行验证`;
+    }，${indicatorDisplayStr}，${indicators1Str}，将在 ${triggerTime.toLocaleString('zh-CN', {
+      timeZone: 'Asia/Hong_Kong',
+      hour12: false,
+    })} 进行验证`;
 
     return { signal, isImmediate: false };
   };

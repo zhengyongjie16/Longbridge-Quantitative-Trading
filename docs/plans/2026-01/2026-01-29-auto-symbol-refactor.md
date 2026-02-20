@@ -110,12 +110,14 @@
 ### Task 1: 新增配置与类型
 
 **Files:**
+
 - Modify: `src/types/index.ts`
 - Modify: `src/config/config.trading.ts`
 - Modify: `src/config/config.validator.ts`（如有配置校验）
 - Modify: `README.md`
 
 **Step 1: 定义配置类型**
+
 - 新增 `AutoSearchConfig`（每个监控标的独立）：
   - `autoSearchEnabled`
   - `autoSearchMinPriceBull` / `autoSearchMinPriceBear`
@@ -125,12 +127,15 @@
   - `switchDistanceRangeBull` / `switchDistanceRangeBear`
 
 **Step 2: 解析环境变量**
+
 - 在 `config.trading.ts` 中解析 `_N` 后缀配置，并给出合理默认值。
 
 **Step 3: 更新文档**
+
 - 在 `README.md` 配置表中追加以上配置说明。
 
 **Step 4: 运行类型检查**
+
 - Run: `npm run type-check`
 - Expected: 无 TypeScript 错误
 
@@ -139,25 +144,29 @@
 ### Task 2: 交易分钟数计算工具
 
 **Files:**
+
 - Modify: `src/utils/helpers/tradingTime.ts`
 - Create: `tests/tradingMinutes.js`
 
 **Step 1: 新增 helper**
+
 - 添加 `getTradingMinutesSinceOpen(date: Date): number`
 - 逻辑参考 `tests/getWarrants.js`，使用 `getHKTime()` 计算分钟数。
 - 不单独处理半日交易日：仅在 `canTradeNow=true` 时调用即可。
 
 **Step 2: 写脚本测试**
+
 ```javascript
 import { strict as assert } from 'node:assert';
 import { getTradingMinutesSinceOpen } from '../src/utils/helpers/tradingTime.js';
 
 const mkUtc = (hh, mm) => new Date(Date.UTC(2026, 0, 2, hh, mm));
-assert.equal(getTradingMinutesSinceOpen(mkUtc(1, 30)), 0);  // 09:30 HK
-assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30);  // 10:00 HK
+assert.equal(getTradingMinutesSinceOpen(mkUtc(1, 30)), 0); // 09:30 HK
+assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30); // 10:00 HK
 ```
 
 **Step 3: 运行测试**
+
 - Run: `node tests/tradingMinutes.js`
 - Expected: 无报错
 
@@ -166,12 +175,15 @@ assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30);  // 10:00 HK
 ### Task 3: 自动寻标服务化（基于 warrantList.turnover）
 
 **Files:**
+
 - Create: `src/services/autoSymbolFinder/index.ts`
 
 **Step 1: 定义入口函数**
+
 - `findBestWarrant({ ctx, monitorSymbol, isBull, tradingMinutes, minPrice, minTurnoverPerMinute, expiryMinMonths })`
 
 **Step 2: 获取 warrantList**
+
 - 使用 `warrantList`：
   - 按成交额排序（降序）
   - `expiryDateFilters` >= 3 个月
@@ -179,6 +191,7 @@ assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30);  // 10:00 HK
   - `warrantType=Bull/Bear`
 
 **Step 3: 逐个筛选并择优**
+
 - 过滤条件：
   - `price > minPrice`
   - `turnoverPerMinute >= minTurnoverPerMinute`
@@ -187,6 +200,7 @@ assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30);  // 10:00 HK
   - 价格相同则 `turnoverPerMinute` 更高优先
 
 **Step 4: 无结果处理**
+
 - 无满足条件时返回 `null`，不抛异常。
 
 ---
@@ -194,29 +208,35 @@ assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30);  // 10:00 HK
 ### Task 4: 自动寻标与席位管理状态机
 
 **Files:**
+
 - Create: `src/services/autoSymbolManager/index.ts`
 - Modify: `src/services/monitorContext/index.ts`
 - Modify: `src/types/index.ts`
 
 **Step 1: 定义席位状态**
+
 - `SeatStatus = 'READY' | 'SEARCHING' | 'SWITCHING' | 'EMPTY'`
 - `SeatState = { symbol: string | null; status: SeatStatus; lastSwitchAt?: number }`
 
 **Step 2: 提供核心接口**
-- `ensureSeatOnStartup()`：根据持仓/订单初始化席位  
-- `maybeSearchOnTick()`：满足开盘延迟后触发寻标  
-- `maybeSwitchOnDistance()`：回收价比值越界触发换标  
-- `clearSeat()`：换标时立即清空席位，防止误买  
+
+- `ensureSeatOnStartup()`：根据持仓/订单初始化席位
+- `maybeSearchOnTick()`：满足开盘延迟后触发寻标
+- `maybeSwitchOnDistance()`：回收价比值越界触发换标
+- `clearSeat()`：换标时立即清空席位，防止误买
 
 **Step 3: 换标后回收价刷新**
+
 - 在席位切换为新标的后调用 `warrantQuote` 更新该方向回收价缓存
 - 同步更新 `monitorContext` 的 `longSymbolName/shortSymbolName`（用于日志显示）
 
 **Step 4: SeatVersion 校验**
+
 - 换标时递增 `seatVersion`
 - 延迟信号与任务队列携带版本号，处理前必须匹配当前席位版本
 
 **Step 5: 单方向单标的约束**
+
 - 换标前必须确保旧标的无持仓/无挂单（强制撤单 + 平仓）
 - 未完成平仓前，禁止为该方向分配新标的
 
@@ -225,23 +245,28 @@ assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30);  // 10:00 HK
 ### Task 5: 启动流程重排（全量订单一次获取）
 
 **Files:**
+
 - Modify: `src/index.ts`
 - Modify: `src/core/orderRecorder/orderApiManager.ts`
 - Create: `src/core/orderRecorder/orderOwnershipParser.ts`
 - Modify: `src/core/orderRecorder/index.ts`
 
 **Step 1: 新增全量订单获取**
+
 - `fetchAllOrdersFromAPI()`：直接调用 `historyOrders`（不传 symbol）+ `todayOrders`，合并去重
 
 **Step 2: stockName 解析归属**
+
 - 解析 `RC/RP + monitorSymbol` 判断所属监控标的与方向
 
 **Step 3: 订单记录初始化**
-- 从全量订单中过滤归属订单 → `refreshOrdersFromAllOrders()`  
-- 按席位标的过滤（自动寻标关闭时席位=配置标的）  
-- 自动寻标开启时：席位来自"最新成交候选 + 持仓验证 + warrantList 寻标"，不使用配置兜底  
+
+- 从全量订单中过滤归属订单 → `refreshOrdersFromAllOrders()`
+- 按席位标的过滤（自动寻标关闭时席位=配置标的）
+- 自动寻标开启时：席位来自"最新成交候选 + 持仓验证 + warrantList 寻标"，不使用配置兜底
 
 **Step 4: 订单监控动态映射**
+
 - `orderMonitor` 通过 `SymbolRegistry` 判断方向与所属监控标的
 - 支持换标后继续监控旧标的挂单直到完成/撤单
 
@@ -250,17 +275,21 @@ assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30);  // 10:00 HK
 ### Task 6: 实时监控接入自动寻标
 
 **Files:**
+
 - Modify: `src/main/processMonitor/index.ts`
 - Modify: `src/core/signalProcessor/index.ts`
 
 **Step 1: 信号前置检查**
+
 - 若席位为空，则该方向信号直接丢弃（记录日志）
 
 **Step 2: 换标触发**
+
 - 每次行情刷新检查回收价比值
 - 若超出阈值 → `clearSeat()` → 触发寻标/移仓
 
 **Step 3: 延迟信号无效化**
+
 - 延迟验证通过时必须校验 `seatVersion`
 - 若不匹配，直接丢弃并记录日志
 
@@ -269,19 +298,23 @@ assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30);  // 10:00 HK
 ### Task 7: 换标后缓存刷新与一致性
 
 **Files:**
+
 - Modify: `src/core/risk/warrantRiskChecker.ts`
 - Modify: `src/utils/helpers/accountDisplay.ts`
 - Modify: `src/core/orderRecorder/index.ts`
 
 **Step 1: 回收价缓存更新入口**
-- 新增 `refreshWarrantInfoForSymbol(symbol, isLong, quoteClient)`  
+
+- 新增 `refreshWarrantInfoForSymbol(symbol, isLong, quoteClient)`
 - 换标成功后必须调用一次以更新回收价缓存
 
 **Step 2: 订单记录刷新**
-- 换标后用新标的从"全量订单缓存"中过滤订单记录  
+
+- 换标后用新标的从"全量订单缓存"中过滤订单记录
 - 若无订单则记录为空并输出日志
 
 **Step 3: 持仓与浮亏缓存更新**
+
 - 换标后刷新持仓缓存与 `positionCache`
 - 若该方向持仓存在，重新计算浮亏监控数据
 
@@ -290,15 +323,18 @@ assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30);  // 10:00 HK
 ### Task 8: 移仓流程
 
 **Files:**
+
 - Modify: `src/core/trader/index.ts`
 - Modify: `src/core/trader/orderMonitor.ts`
 
 **Step 1: 触发移仓**
+
 - 若换标时仍有持仓：
   - 使用 ELO 卖出全部持仓
   - 完全成交后再寻标
 
 **Step 2: 买入新标的**
+
 - 以原持仓市值为上限，"接近但小于"原则下单
 
 ---
@@ -306,19 +342,23 @@ assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30);  // 10:00 HK
 ### Task 9: 动态行情订阅与交易标的列表
 
 **Files:**
+
 - Modify: `src/utils/helpers/quoteHelpers.ts`
 - Modify: `src/index.ts`
 - Modify: `src/main/mainProgram/index.ts`
 
 **Step 1: 动态更新交易标的集合**
-- 将 `lastState.allTradingSymbols` 改为动态维护  
-- 席位变化时更新集合  
+
+- 将 `lastState.allTradingSymbols` 改为动态维护
+- 席位变化时更新集合
 
 **Step 2: 行情获取与订单监控**
-- `collectAllQuoteSymbols()` 同时包含监控标的 + 当前席位标的  
+
+- `collectAllQuoteSymbols()` 同时包含监控标的 + 当前席位标的
 - `monitorAndManageOrders` 使用动态集合
 
 **Step 3: WebSocket 订阅动态更新**
+
 - 换标后调用 `subscribeSymbols([newSymbol])`
 - 若旧标的无挂单/无持仓，可 `unsubscribeSymbols([oldSymbol])`
 
@@ -327,14 +367,17 @@ assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30);  // 10:00 HK
 ### Task 10: 验证与回归
 
 **Step 1: 类型检查**
+
 - Run: `npm run type-check`
 - Expected: 无错误
 
 **Step 2: 运行脚本**
+
 - Run: `node tests/tradingMinutes.js`
 - Expected: 无报错
 
 **Step 3: 本地启动**
+
 - Run: `npm run start`
 - Expected: 日志中可见自动寻标/席位状态变更
 
@@ -345,17 +388,20 @@ assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30);  // 10:00 HK
 ### 1) 类型与配置
 
 **`src/types/index.ts`**
+
 - 新增/调整：`AutoSearchConfig`、`SeatStatus`、`SeatState`、`SeatVersion`、`SymbolRegistry`、`SeatUpdateResult`
 - 扩展：`MonitorConfig` 增加自动寻标配置字段
 - 扩展：`MonitorContext` 新增 `seatState`、`seatVersion`、`symbolRegistry`
 - 扩展：`Signal` 增加 `seatVersion`（用于延迟验证/队列校验）
 
 **`src/config/config.trading.ts`**
+
 - 解析 `_N` 自动寻标配置（价格阈值、分均成交额阈值、开盘延迟等）
 - 若开启自动寻标，允许 `longSymbol/shortSymbol` 为空
 - 保留"单方向单标的"约束：任何时刻只允许一个席位标的
 
 **`src/config/config.validator.ts`**
+
 - 验证规则：自动寻标开启时，配置阈值必须完整有效
 - 新增：`createMarketDataClient` 支持运行时订阅/退订（动态标的）
 - 新增：监控标的别名配置校验（用于 `stockName` 归属解析）
@@ -365,10 +411,12 @@ assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30);  // 10:00 HK
 ### 2) 监控上下文与席位管理
 
 **`src/services/monitorContext/index.ts`**
+
 - 初始化 `seatState/seatVersion`（来自配置或启动订单/持仓推断）
 - 暴露更新接口：`updateSeatState()`、`bumpSeatVersion()`
 
 **`src/services/autoSymbolManager/index.ts`**（新增）
+
 - `ensureSeatOnStartup()`：根据持仓/订单初始化席位
 - `maybeSearchOnTick()`：开盘延迟后触发自动寻标
 - `maybeSwitchOnDistance()`：距回收价阈值越界触发换标
@@ -376,6 +424,7 @@ assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30);  // 10:00 HK
 - 强约束：换标前必须无持仓/无挂单
 
 **`src/services/autoSymbolFinder/index.ts`**（新增）
+
 - `findBestWarrant()`：使用 `warrantList.turnover` 计算分均成交额并择优
 - 过滤：`price > minPrice`、`turnoverPerMinute >= threshold`
 - 选优：价格低优先，价格相同选分均成交额高
@@ -385,37 +434,45 @@ assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30);  // 10:00 HK
 ### 3) 主循环与信号链路
 
 **`src/index.ts`**
+
 - 启动时全量订单一次获取
 - 候选标的 + 持仓验证写入 `SymbolRegistry`
 - 席位为空时阻塞寻标直到全部 READY
 - `allTradingSymbols` 动态由席位构建
 
 **`src/main/mainProgram/index.ts`**
+
 - 行情收集：使用动态席位标的集合
 - 在每个监控标的处理前允许 `autoSymbolManager` 进行换标检查
 
 **`src/main/processMonitor/index.ts`**
+
 - 使用动态 `seatState.symbol`/`SymbolRegistry`
 - 席位为空时直接跳过该方向信号生成
 - 在生成/派发延迟信号前校验 `seatVersion`
 
 **`src/core/strategy/index.ts`**
+
 - 调整 `generateCloseSignals()` 签名，基于动态席位生成信号
 - 席位为空时不生成对应方向信号
 
 **`src/core/signalProcessor/index.ts`**
+
 - `applyRiskChecks()` 使用动态席位标的
 - 任何信号处理前校验 `seatVersion`
 
 **`src/main/asyncProgram/delayedSignalVerifier/index.ts`**
+
 - `addSignal()` 存储 `seatVersion`
 - 触发验证通过时回查 `seatVersion`，不匹配直接丢弃
 
 **`src/main/asyncProgram/buyProcessor/index.ts`**
+
 - 处理前检查席位是否为空或版本是否一致
 - 不一致直接丢弃并记录日志
 
 **`src/main/asyncProgram/sellProcessor/index.ts`**
+
 - 同买入处理器逻辑，必须通过席位版本校验
 
 ---
@@ -423,10 +480,12 @@ assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30);  // 10:00 HK
 ### 4) 行情订阅与动态标的集合
 
 **`src/utils/helpers/quoteHelpers.ts`**
+
 - `collectAllQuoteSymbols()` 改为接收 `monitorContexts` 或 `SymbolRegistry`
 - 返回：监控标的 + 当前席位标的 + 必要的挂单标的
 
 **`src/services/marketMonitor/index.ts`**（如涉及）
+
 - 确保监控仅依赖动态行情数据，不依赖静态 symbol
 
 ---
@@ -434,20 +493,24 @@ assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30);  // 10:00 HK
 ### 5) 订单记录、缓存与聚合
 
 **`src/core/orderRecorder/orderApiManager.ts`**
+
 - 新增 `fetchAllOrdersFromAPI()`（不传 symbol 获取全量）
 - 新增 `clearCacheForSymbol(symbol)`
 - 新增 `getAllOrdersFromCache()`
 
 **`src/core/orderRecorder/orderOwnershipParser.ts`**（新增）
+
 - `parseOwnership(stockName)`：解析 `RC/RP + monitorSymbol`
 - 支持别名映射（如 `HSI.HK` → `HSI`）
 
 **`src/core/orderRecorder/index.ts`**
+
 - 新增 `refreshOrdersFromAllOrders(symbol, isLong, allOrders)`
 - 换标后立即刷新新标的订单记录
 - 旧标的订单记录必须清理
 
 **`src/core/orderRecorder/orderStorage.ts`**
+
 - 新增 `clearOrdersForSymbol(symbol, isLong)`
 - 确保旧标的记录不会与新标的混用
 
@@ -456,14 +519,17 @@ assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30);  // 10:00 HK
 ### 6) 风险、回收价与浮亏
 
 **`src/core/risk/warrantRiskChecker.ts`**
+
 - 新增 `refreshWarrantInfoForSymbol(symbol, isLong, quoteClient)`
 - 换标后更新回收价缓存并更新 `symbolName`
 
 **`src/core/risk/unrealizedLossChecker.ts`**
+
 - 新增 `clearDataForSymbol(symbol)`（换标后清理旧标的）
 - 换标后调用 `refreshUnrealizedLossData()` 重新构建新标的浮亏数据
 
 **`src/core/risk/index.ts`**
+
 - 风险检查使用动态席位标的
 - 买入前风险检查必须校验 `seatVersion`
 
@@ -472,10 +538,12 @@ assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30);  // 10:00 HK
 ### 7) 订单监控与交易执行
 
 **`src/core/trader/orderMonitor.ts`**
+
 - `isLongSymbolByConfig()` 替换为 `SymbolRegistry` 查询
 - 监控动态标的，旧标的挂单未完成时继续监控
 
 **`src/core/trader/index.ts`**
+
 - 提供"换标前撤单/平仓"接口
 - 移仓流程：卖出旧标的 → 成交 → 自动寻标 → 买入新标的
 
@@ -484,10 +552,12 @@ assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30);  // 10:00 HK
 ### 8) 末日保护与冷却
 
 **`src/core/doomsdayProtection/index.ts`**
+
 - 使用动态标的集合（席位标的 + 可能存在的旧标的持仓）
 - 防止换标后遗漏清仓
 
 **`src/services/liquidationCooldown/index.ts`**
+
 - 保留 `monitorSymbol:direction` 作为 key
 - 换标不改变 `monitorSymbol`，冷却逻辑不变
 
@@ -496,9 +566,11 @@ assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30);  // 10:00 HK
 ### 9) 缓存刷新入口
 
 **`src/utils/helpers/accountDisplay.ts`**
+
 - 新增 `refreshAccountAndPositions()`：供换标/移仓后统一刷新
 
 **`src/utils/helpers/positionCache.ts`**
+
 - 保持全量更新逻辑，换标后必须更新一次
 
 ---
@@ -506,8 +578,9 @@ assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30);  // 10:00 HK
 ### 10) 测试与参考脚本
 
 **`tests/getWarrants.js`**
+
 - 仅作参考；核心逻辑由 `AutoSymbolFinder` 实现
 
 **`tests/tradingMinutes.js`**（新增）
-- 测试 `getTradingMinutesSinceOpen()` 的时间计算正确性
 
+- 测试 `getTradingMinutesSinceOpen()` 的时间计算正确性

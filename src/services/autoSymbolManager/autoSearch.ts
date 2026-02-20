@@ -59,8 +59,10 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
       return;
     }
 
-    if (autoSearchConfig.autoSearchOpenDelayMinutes > 0 &&
-        isWithinMorningOpenProtection(currentTime, autoSearchConfig.autoSearchOpenDelayMinutes)) {
+    if (
+      autoSearchConfig.autoSearchOpenDelayMinutes > 0 &&
+      isWithinMorningOpenProtection(currentTime, autoSearchConfig.autoSearchOpenDelayMinutes)
+    ) {
       return;
     }
 

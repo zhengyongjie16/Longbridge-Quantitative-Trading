@@ -65,7 +65,10 @@ function createEmaStream(period: number): EmaStream {
  * @param period KDJ周期，默认9
  * @returns KDJ对象 {k, d, j}，如果无法计算则返回null
  */
-export function calculateKDJ(candles: ReadonlyArray<CandleData>, period: number = 9): KDJIndicator | null {
+export function calculateKDJ(
+  candles: ReadonlyArray<CandleData>,
+  period: number = 9,
+): KDJIndicator | null {
   if (!candles || candles.length < period) {
     return null;
   }

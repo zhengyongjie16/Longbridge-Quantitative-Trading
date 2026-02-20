@@ -65,7 +65,9 @@ export function createDelayedSignalVerifier(
     const actionDesc = ACTION_DESCRIPTIONS[signal.action];
 
     if (result.passed) {
-      logger.info(`[延迟验证通过] ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${actionDesc} | ${result.reason}`);
+      logger.info(
+        `[延迟验证通过] ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${actionDesc} | ${result.reason}`,
+      );
 
       // 通知所有验证通过的回调
       // 注意：验证通过的信号由买入/卖出处理器在消费任务后释放
@@ -77,7 +79,9 @@ export function createDelayedSignalVerifier(
         }
       }
     } else {
-      logger.info(`[延迟验证失败] ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${actionDesc} | ${result.reason}`);
+      logger.info(
+        `[延迟验证失败] ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${actionDesc} | ${result.reason}`,
+      );
 
       // 验证失败的信号在此处释放回对象池
       signalObjectPool.release(signal);
@@ -131,7 +135,8 @@ export function createDelayedSignalVerifier(
       }
 
       const triggerTime = signal.triggerTime.getTime();
-      const verifyTime = triggerTime + VERIFICATION.READY_DELAY_SECONDS * TIME.MILLISECONDS_PER_SECOND;
+      const verifyTime =
+        triggerTime + VERIFICATION.READY_DELAY_SECONDS * TIME.MILLISECONDS_PER_SECOND;
       const delayMs = Math.max(0, verifyTime - Date.now());
 
       // 创建定时器
@@ -171,7 +176,9 @@ export function createDelayedSignalVerifier(
       }
 
       if (entriesToRemove.length > 0) {
-        logger.debug(`[延迟验证] 已取消 ${monitorSymbol} 的 ${entriesToRemove.length} 个待验证信号`);
+        logger.debug(
+          `[延迟验证] 已取消 ${monitorSymbol} 的 ${entriesToRemove.length} 个待验证信号`,
+        );
       }
     },
 

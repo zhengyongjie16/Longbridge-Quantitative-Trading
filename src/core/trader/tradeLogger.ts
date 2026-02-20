@@ -68,18 +68,14 @@ export function identifyErrorType(errorMessage: string): ErrorTypeIdentifier {
       lowerMsg.includes('资金不足') ||
       lowerMsg.includes('余额不足'),
     isOrderNotFound:
-      lowerMsg.includes('not found') ||
-      lowerMsg.includes('不存在') ||
-      lowerMsg.includes('找不到'),
+      lowerMsg.includes('not found') || lowerMsg.includes('不存在') || lowerMsg.includes('找不到'),
     isNetworkError:
       lowerMsg.includes('network') ||
       lowerMsg.includes('网络') ||
       lowerMsg.includes('timeout') ||
       lowerMsg.includes('超时'),
     isRateLimited:
-      lowerMsg.includes('rate limit') ||
-      lowerMsg.includes('频率') ||
-      lowerMsg.includes('too many'),
+      lowerMsg.includes('rate limit') || lowerMsg.includes('频率') || lowerMsg.includes('too many'),
   };
 }
 
@@ -111,10 +107,7 @@ export function recordTrade(tradeRecord: TradeRecord): void {
           trades = [];
         }
       } catch (e) {
-        logger.warn(
-          `解析交易记录文件失败，重置为空数组: ${logFile}`,
-          (e as Error)?.message ?? e,
-        );
+        logger.warn(`解析交易记录文件失败，重置为空数组: ${logFile}`, (e as Error)?.message ?? e);
         trades = [];
       }
     }

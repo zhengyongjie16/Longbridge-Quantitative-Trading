@@ -17,7 +17,7 @@
     "editor.formatOnSave": true
   },
   "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": "explicit",
+    "source.fixAll.eslint": "explicit"
   },
   "prettier.requireConfig": true,
   "css.validate": false,
@@ -38,11 +38,7 @@
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "editor.formatOnSave": true
   },
-  "eslint.validate": [
-    "javascript",
-    "typescript",
-    "javascriptreact"
-  ],
+  "eslint.validate": ["javascript", "typescript", "javascriptreact"],
   "editor.bracketPairColorization.enabled": true,
   "editor.guides.bracketPairs": "active",
   "workbench.colorTheme": "Default Dark Modern",

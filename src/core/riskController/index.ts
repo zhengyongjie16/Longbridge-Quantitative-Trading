@@ -94,21 +94,15 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
     // 记录浮亏计算详情（仅在DEBUG模式下）
     if (process.env['DEBUG'] === 'true') {
       logger.debug(
-        `[风险检查调试] ${directionName}浮亏检查: R1(开仓成本)=${r1.toFixed(
+        `[风险检查调试] ${directionName}浮亏检查: R1(开仓成本)=${r1.toFixed(2)}, R2(当前市值)=${r2.toFixed(
           2,
-        )}, R2(当前市值)=${r2.toFixed(
-          2,
-        )}, 浮亏=${unrealizedPnL.toFixed(2)} HKD，最大允许亏损=${
-          maxDailyLoss
-        } HKD`,
+        )}, 浮亏=${unrealizedPnL.toFixed(2)} HKD，最大允许亏损=${maxDailyLoss} HKD`,
       );
     }
 
     // 如果浮亏计算结果不是有限数字，拒绝买入操作（安全策略）
     if (!Number.isFinite(unrealizedPnL)) {
-      logger.error(
-        `[风险检查错误] ${directionName}持仓浮亏计算结果无效：${unrealizedPnL}`,
-      );
+      logger.error(`[风险检查错误] ${directionName}持仓浮亏计算结果无效：${unrealizedPnL}`);
       return {
         allowed: false,
         reason: `${directionName}持仓浮亏计算结果无效（${unrealizedPnL}），无法进行风险检查，禁止买入${directionName}`,
@@ -119,13 +113,9 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
     if (unrealizedPnL <= -maxDailyLoss) {
       return {
         allowed: false,
-        reason: `${directionName}持仓浮亏约 ${unrealizedPnL.toFixed(
-          2,
-        )} HKD 已超过单日最大亏损限制 ${
+        reason: `${directionName}持仓浮亏约 ${unrealizedPnL.toFixed(2)} HKD 已超过单日最大亏损限制 ${
           maxDailyLoss
-        } HKD，禁止买入${directionName}（R1=${r1.toFixed(2)}, R2=${r2.toFixed(
-          2,
-        )}, N1=${n1}）`,
+        } HKD，禁止买入${directionName}（R1=${r1.toFixed(2)}, R2=${r2.toFixed(2)}, N1=${n1}）`,
       };
     }
 
@@ -155,11 +145,7 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
     const directionName = isBuyCall ? '做多标的' : '做空标的';
     const currentPrice = isBuyCall ? longCurrentPrice : shortCurrentPrice;
 
-    const result = checkUnrealizedLossForSymbol(
-      signalSymbol,
-      currentPrice,
-      directionName,
-    );
+    const result = checkUnrealizedLossForSymbol(signalSymbol, currentPrice, directionName);
     if (result) {
       return result;
     }

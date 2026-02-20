@@ -10,7 +10,12 @@
  */
 import { INDICATOR_CACHE } from '../../../constants/index.js';
 import type { IndicatorSnapshot } from '../../../types/quote.js';
-import type { IndicatorCache, IndicatorCacheEntry, IndicatorCacheOptions, _RingBuffer } from './types.js';
+import type {
+  IndicatorCache,
+  IndicatorCacheEntry,
+  IndicatorCacheOptions,
+  _RingBuffer,
+} from './types.js';
 import {
   createRingBuffer,
   pushToBuffer,
@@ -60,7 +65,11 @@ export const createIndicatorCache = (options: IndicatorCacheOptions = {}): Indic
      * 查询指定标的在目标时间附近的指标快照
      * 返回容忍度内最接近 targetTime 的条目，无匹配时返回 null
      */
-    getAt(monitorSymbol: string, targetTime: number, toleranceMs: number): IndicatorCacheEntry | null {
+    getAt(
+      monitorSymbol: string,
+      targetTime: number,
+      toleranceMs: number,
+    ): IndicatorCacheEntry | null {
       const buffer = buffers.get(monitorSymbol);
       if (!buffer || buffer.size === 0) return null;
       return findClosestEntry(buffer, targetTime, toleranceMs);

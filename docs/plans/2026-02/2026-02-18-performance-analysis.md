@@ -9,16 +9,16 @@
 
 系统已建立完整的 8 个专用对象池，覆盖所有每秒高频路径：
 
-| 对象池 | 复用对象 | 容量 |
-|--------|---------|------|
-| `signalObjectPool` | Signal | 100 |
-| `indicatorRecordPool` | `Record<string, number>` | 100 |
-| `periodRecordPool` | `Record<number, number>` | 100 |
-| `kdjObjectPool` | KDJ | 50 |
-| `macdObjectPool` | MACD | 50 |
-| `monitorValuesObjectPool` | MonitorValues | 20 |
-| `positionObjectPool` | Position | 10 |
-| `verificationEntryPool` | 验证历史条目 | 50 |
+| 对象池                    | 复用对象                 | 容量 |
+| ------------------------- | ------------------------ | ---- |
+| `signalObjectPool`        | Signal                   | 100  |
+| `indicatorRecordPool`     | `Record<string, number>` | 100  |
+| `periodRecordPool`        | `Record<number, number>` | 100  |
+| `kdjObjectPool`           | KDJ                      | 50   |
+| `macdObjectPool`          | MACD                     | 50   |
+| `monitorValuesObjectPool` | MonitorValues            | 20   |
+| `positionObjectPool`      | Position                 | 10   |
+| `verificationEntryPool`   | 验证历史条目             | 50   |
 
 **结论：对象池体系无遗漏，不需要新增对象池。** 剩余未池化对象（TrackedOrder、PendingSignalEntry、Task 等）均在低频路径，池化收益不足以抵消复杂性。
 
@@ -56,14 +56,14 @@ buildIndicatorSnapshot(200根K线)
 
 **量化分析**（200 根 K 线、RSI×2周期、EMA×3周期）：
 
-| 分配来源 | 数组数量 | 元素规模 |
-|---------|---------|---------|
-| `validCloses` | 1 | ~200 |
-| RSI（每周期 2 个数组） | 4 | ~200 each |
-| EMA（每周期 3 个数组） | 9 | ~200 each |
-| MACD 内部 | 5 | ~175-200 each |
-| MFI 内部 | 5 | ~200 each |
-| **合计** | **~24 个数组** | **~4700 个元素** |
+| 分配来源               | 数组数量       | 元素规模         |
+| ---------------------- | -------------- | ---------------- |
+| `validCloses`          | 1              | ~200             |
+| RSI（每周期 2 个数组） | 4              | ~200 each        |
+| EMA（每周期 3 个数组） | 9              | ~200 each        |
+| MACD 内部              | 5              | ~175-200 each    |
+| MFI 内部               | 5              | ~200 each        |
+| **合计**               | **~24 个数组** | **~4700 个元素** |
 
 ### 业务逻辑可行性分析
 
@@ -164,12 +164,12 @@ getAt(monitorSymbol, targetTime, toleranceMs) {
 
 ## 六、优先级汇总
 
-| 问题 | 调用频率 | 分配规模 | 业务逻辑风险 | 实施难度 | 建议 |
-|------|---------|---------|------------|---------|------|
+| 问题                      | 调用频率               | 分配规模               | 业务逻辑风险   | 实施难度         | 建议         |
+| ------------------------- | ---------------------- | ---------------------- | -------------- | ---------------- | ------------ |
 | 二：RSI/EMA/MACD 流式计算 | K线变化时（~1次/分钟） | ~24 个数组，~4700 元素 | 无（数学等价） | 高（需验证算法） | **建议实施** |
-| 三：getAt 直接遍历 | 延迟验证触发时 | 3 个 100 元素数组 | 无（完全等价） | **低** | **建议实施** |
-| 四：cloneSnapshot 对象池 | 每秒 1 次 | 6 个小对象 | 引入脆弱约定 | 中 | 不建议 |
-| 五：validCloses 缓存 | K线变化时 | 1 个 200 元素数组 | 无 | 中 | 随问题二解决 |
+| 三：getAt 直接遍历        | 延迟验证触发时         | 3 个 100 元素数组      | 无（完全等价） | **低**           | **建议实施** |
+| 四：cloneSnapshot 对象池  | 每秒 1 次              | 6 个小对象             | 引入脆弱约定   | 中               | 不建议       |
+| 五：validCloses 缓存      | K线变化时              | 1 个 200 元素数组      | 无             | 中               | 随问题二解决 |
 
 **建议实施顺序**：先实施问题三（改动最小，零风险，可独立验证），再实施问题二（收益最大，需仔细验证算法正确性）。
 

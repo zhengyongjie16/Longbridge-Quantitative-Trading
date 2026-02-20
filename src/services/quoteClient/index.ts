@@ -25,13 +25,7 @@
  * - getRealtimeCandlesticks()：获取实时 K 线数据（从 SDK 内部缓存读取）
  * - isTradingDay()：检查是否为交易日
  */
-import {
-  Period,
-  QuoteContext,
-  TradeSessions,
-  Market,
-  SubType,
-} from 'longport';
+import { Period, QuoteContext, TradeSessions, Market, SubType } from 'longport';
 import type { Candlestick, PushQuoteEvent, PushCandlestickEvent } from 'longport';
 import { decimalToNumber, formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
 import { logger } from '../../utils/logger/index.js';
@@ -39,10 +33,7 @@ import { API } from '../../constants/index.js';
 import type { Quote, QuoteStaticInfo } from '../../types/quote.js';
 import type { TradingDayInfo, MarketDataClient, TradingDaysResult } from '../../types/services.js';
 
-import type {
-  RetryConfig,
-  MarketDataClientDeps,
-} from './types.js';
+import type { RetryConfig, MarketDataClientDeps } from './types.js';
 import {
   extractLotSize,
   extractName,
@@ -108,7 +99,7 @@ function createTradingDayCache(): {
   set: (dateStr: string, isTradingDay: boolean, isHalfDay?: boolean) => void;
   setBatch: (tradingDays: string[], halfTradingDays?: string[]) => void;
   clear: () => void;
-  } {
+} {
   const cache = new Map<string, { isTradingDay: boolean; isHalfDay: boolean; timestamp: number }>();
   const ttl = API.TRADING_DAY_CACHE_TTL_MS;
 
@@ -252,9 +243,7 @@ export async function createMarketDataClient(
    * 获取行情数据（从本地缓存读取）
    * 支持任意可迭代对象（Array、Set 等），调用方无需转换
    */
-  async function getQuotes(
-    requestSymbols: Iterable<string>,
-  ): Promise<Map<string, Quote | null>> {
+  async function getQuotes(requestSymbols: Iterable<string>): Promise<Map<string, Quote | null>> {
     const result = new Map<string, Quote | null>();
 
     for (const reqSymbol of requestSymbols) {
@@ -270,9 +259,7 @@ export async function createMarketDataClient(
         result.set(reqSymbol, null);
       } else {
         // 请求的标的不在订阅列表中，抛出错误以尽早发现配置问题
-        throw new Error(
-          `[行情获取] 标的 ${reqSymbol} 未订阅，请先订阅`,
-        );
+        throw new Error(`[行情获取] 标的 ${reqSymbol} 未订阅，请先订阅`);
       }
     }
 
@@ -375,11 +362,13 @@ export async function createMarketDataClient(
       return [];
     }
 
-    const initialCandles = await withRetry(
-      () => ctx.subscribeCandlesticks(symbol, period, tradeSessions),
+    const initialCandles = await withRetry(() =>
+      ctx.subscribeCandlesticks(symbol, period, tradeSessions),
     );
     subscribedCandlesticks.add(key);
-    logger.info(`[K线订阅] 已订阅 ${symbol} 周期 ${formatPeriodForLog(period)} K线，初始数据 ${initialCandles.length} 根`);
+    logger.info(
+      `[K线订阅] 已订阅 ${symbol} 周期 ${formatPeriodForLog(period)} K线，初始数据 ${initialCandles.length} 根`,
+    );
     return initialCandles;
   }
 
@@ -406,17 +395,11 @@ export async function createMarketDataClient(
     const startNaive = resolveHKNaiveDate(startDate);
     const endNaive = resolveHKNaiveDate(endDate);
 
-    const resp = await withRetry(() =>
-      ctx.tradingDays(market, startNaive, endNaive),
-    );
+    const resp = await withRetry(() => ctx.tradingDays(market, startNaive, endNaive));
 
     // 将 NaiveDate 数组转换为字符串数组
-    const tradingDays = (resp.tradingDays || []).map((date) =>
-      date.toString(),
-    );
-    const halfTradingDays = (resp.halfTradingDays || []).map((date) =>
-      date.toString(),
-    );
+    const tradingDays = (resp.tradingDays || []).map((date) => date.toString());
+    const halfTradingDays = (resp.halfTradingDays || []).map((date) => date.toString());
 
     // 批量缓存交易日信息
     tradingDayCache.setBatch(tradingDays, halfTradingDays);
@@ -493,10 +476,7 @@ export async function createMarketDataClient(
   /**
    * 判断指定日期是否是交易日
    */
-  async function isTradingDay(
-    date: Date,
-    market: Market = Market.HK,
-  ): Promise<TradingDayInfo> {
+  async function isTradingDay(date: Date, market: Market = Market.HK): Promise<TradingDayInfo> {
     // 格式化为港股日期键 YYYY-MM-DD
     const dateStr = resolveHKDateKey(date);
 

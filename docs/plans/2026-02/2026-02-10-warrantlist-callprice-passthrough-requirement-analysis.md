@@ -39,9 +39,9 @@
 
 ### 2.1 当前方案描述（文档第 14 点、关键设计决策 2）
 
-- **seatRefresh**：  
+- **seatRefresh**：
   - 若 `data.callPrice != null && Number.isFinite(data.callPrice) && data.callPrice > 0`，则调用  
-    `setWarrantInfoFromCallPrice(...)`，然后**跳过** `refreshWarrantInfoForSymbol`。  
+    `setWarrantInfoFromCallPrice(...)`，然后**跳过** `refreshWarrantInfoForSymbol`。
   - **否则（无 callPrice 或无效）：保持原有 `refreshWarrantInfoForSymbol` 调用（兜底）**。
 - 关键设计决策第 2 条：**保留 warrantQuote 兜底路径**，确保静态模式和恢复场景不受影响。
 
@@ -59,9 +59,9 @@
 
 ### 2.3 建议修改（满足「不再使用 warrantQuote」）
 
-- **seatRefresh**：  
+- **seatRefresh**：
   - 若 `data.callPrice != null && Number.isFinite(data.callPrice) && data.callPrice > 0`：  
-    调用 `setWarrantInfoFromCallPrice(...)`，按现有逻辑处理返回 status，**不再调用** `refreshWarrantInfoForSymbol`。  
+    调用 `setWarrantInfoFromCallPrice(...)`，按现有逻辑处理返回 status，**不再调用** `refreshWarrantInfoForSymbol`。
   - **否则（无 callPrice 或无效）**：  
     **不调用** `refreshWarrantInfoForSymbol`；  
     视为换标/刷新失败，与当前「获取牛熊证信息失败」一致：  
@@ -75,9 +75,9 @@
 
 用户要求重点在「换标过程」不再使用 warrantQuote。启动路径有两类：
 
-1. **启动时通过 warrantList 寻标**（如 `searchSeatSymbol` 中 `findBestWarrant`）  
+1. **启动时通过 warrantList 寻标**（如 `searchSeatSymbol` 中 `findBestWarrant`）
    - 寻标筛选已含「回收价有效」条件，寻标成功则必有有效 callPrice，`refreshSeatWarrantInfo(symbol, isLong, callPrice)` 可只走 `setWarrantInfoFromCallPrice`，无需 warrantQuote。
-2. **启动时恢复席位 / 静态配置**（无 warrantList，SeatState 无 callPrice）  
+2. **启动时恢复席位 / 静态配置**（无 warrantList，SeatState 无 callPrice）
    - 当前方案：`refreshSeatWarrantInfo(..., null)` 时保留 `refreshWarrantInfoForSymbol` 兜底。
 
 若用户希望「**任何**场景都不再使用 warrantQuote」，则启动恢复/静态也应去掉兜底：  
@@ -88,11 +88,11 @@
 
 ## 四、修改点汇总（使方案符合用户要求）
 
-| 位置 | 当前方案 | 建议修改 |
-|------|----------|----------|
-| **selectBestWarrant**（utils.ts） | 从 best warrant 取 callPrice，无则 null | 在筛选循环中增加「回收价有效」条件：callPrice 无效的 warrant 直接 continue，不参与最优比较；选中者必带有效 callPrice |
+| 位置                                       | 当前方案                                                       | 建议修改                                                                                                                                |
+| ------------------------------------------ | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **selectBestWarrant**（utils.ts）          | 从 best warrant 取 callPrice，无则 null                        | 在筛选循环中增加「回收价有效」条件：callPrice 无效的 warrant 直接 continue，不参与最优比较；选中者必带有效 callPrice                    |
 | **seatRefresh**（handlers/seatRefresh.ts） | 无/无效 callPrice 时调用 `refreshWarrantInfoForSymbol`（兜底） | 换标过程不再使用 warrantQuote：无/无效 callPrice 时不调用 `refreshWarrantInfoForSymbol`，改为 `markSeatAsEmpty`（未提供有效 callPrice） |
-| **方案文档** | 关键设计决策 2：「保留 warrantQuote 兜底路径」 | 改为：换标/刷新链路不再使用 warrantQuote API；启动恢复/静态是否保留兜底单独说明 |
+| **方案文档**                               | 关键设计决策 2：「保留 warrantQuote 兜底路径」                 | 改为：换标/刷新链路不再使用 warrantQuote API；启动恢复/静态是否保留兜底单独说明                                                         |
 
 按上表修改后，方案可同时满足：
 

@@ -7,11 +7,7 @@
  * - 对象池构造信号
  */
 import type { Signal } from '../../types/signal.js';
-import type {
-  BuildOrderSignalParams,
-  OrderSignalBuilder,
-  SignalBuilderDeps,
-} from './types.js';
+import type { BuildOrderSignalParams, OrderSignalBuilder, SignalBuilderDeps } from './types.js';
 
 /**
  * 将方向映射到对应的买卖动作与牛熊方向（LONG→BUYCALL/SELLCALL，SHORT→BUYPUT/SELLPUT）。
@@ -62,9 +58,7 @@ export function calculateBuyQuantityByNotional(
  * @param deps - 依赖，包含 signalObjectPool
  * @returns 含 buildOrderSignal 的对象
  */
-export function createSignalBuilder(
-  deps: SignalBuilderDeps,
-): {
+export function createSignalBuilder(deps: SignalBuilderDeps): {
   buildOrderSignal: OrderSignalBuilder;
 } {
   const { signalObjectPool } = deps;
@@ -73,15 +67,7 @@ export function createSignalBuilder(
    * 使用对象池构造订单信号，避免频繁分配对象。
    */
   const buildOrderSignal: OrderSignalBuilder = (params: BuildOrderSignalParams): Signal => {
-    const {
-      action,
-      symbol,
-      quote,
-      reason,
-      orderTypeOverride,
-      quantity,
-      seatVersion,
-    } = params;
+    const { action, symbol, quote, reason, orderTypeOverride, quantity, seatVersion } = params;
     const signal = signalObjectPool.acquire() as Signal;
     signal.symbol = symbol;
     signal.symbolName = quote?.name ?? symbol;

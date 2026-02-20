@@ -70,7 +70,12 @@ const createObjectPool = <T>(
 ```typescript
 const indicatorPool = createObjectPool<PoolableIndicators>(
   () => ({ rsi: null, macd: null, kdj: null }),
-  (obj) => { obj.rsi = null; obj.macd = null; obj.kdj = null; return obj; },
+  (obj) => {
+    obj.rsi = null;
+    obj.macd = null;
+    obj.kdj = null;
+    return obj;
+  },
 );
 
 const signalPool = createObjectPool<PoolableSignal>(

@@ -126,9 +126,7 @@ describe('risk pipeline regression', () => {
 
   it('uses separated BUY/SELL cooldown keys for the same symbol', async () => {
     const nowMs = 200_000;
-    const lastRiskCheckTime = new Map<string, number>([
-      ['BULL.HK_BUY', nowMs - 1_000],
-    ]);
+    const lastRiskCheckTime = new Map<string, number>([['BULL.HK_BUY', nowMs - 1_000]]);
     let buyApiFetchCount = 0;
 
     const trader = createTraderDouble({

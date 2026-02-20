@@ -6,7 +6,6 @@
 
 - 可直接在公共 Issue 中对问题进行披露
 - 通过以下联系方式进行报告：
-
   - **GitHub**: [https://github.com/zhengyongjie16](https://github.com/zhengyongjie16)
   - **Telegram**: [https://t.me/ulysses_zheng](https://t.me/ulysses_zheng)
   - **E-Mail**: zhenghuaiteng@gmail.com

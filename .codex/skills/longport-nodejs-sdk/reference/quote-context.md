@@ -22,6 +22,7 @@ ctx.setOnCandlestick((err: Error, event: PushCandlestickEvent) => void);
 ## 订阅管理
 
 #### subscribe - 订阅行情
+
 ```typescript
 await ctx.subscribe(
   symbols: string[],        // 证券代码列表，如 ["700.HK", "AAPL.US"]
@@ -30,6 +31,7 @@ await ctx.subscribe(
 ```
 
 #### unsubscribe - 取消订阅
+
 ```typescript
 await ctx.unsubscribe(
   symbols: string[],
@@ -38,6 +40,7 @@ await ctx.unsubscribe(
 ```
 
 #### subscribeCandlesticks - 订阅 K 线
+
 ```typescript
 const candlesticks: Candlestick[] = await ctx.subscribeCandlesticks(
   symbol: string,
@@ -47,6 +50,7 @@ const candlesticks: Candlestick[] = await ctx.subscribeCandlesticks(
 ```
 
 #### unsubscribeCandlesticks - 取消订阅 K 线
+
 ```typescript
 await ctx.unsubscribeCandlesticks(
   symbol: string,
@@ -55,6 +59,7 @@ await ctx.unsubscribeCandlesticks(
 ```
 
 #### subscriptions - 获取订阅信息
+
 ```typescript
 const subs: Subscription[] = await ctx.subscriptions(): Promise<Subscription[]>
 // Subscription: { symbol: string, subTypes: SubType[], candlesticks: Period[] }
@@ -63,6 +68,7 @@ const subs: Subscription[] = await ctx.subscriptions(): Promise<Subscription[]>
 ## 证券基础信息
 
 #### staticInfo - 获取证券基础信息
+
 ```typescript
 const info: SecurityStaticInfo[] = await ctx.staticInfo(
   symbols: string[],
@@ -70,6 +76,7 @@ const info: SecurityStaticInfo[] = await ctx.staticInfo(
 ```
 
 #### quote - 获取证券实时报价
+
 ```typescript
 const quotes: SecurityQuote[] = await ctx.quote(
   symbols: string[],
@@ -77,6 +84,7 @@ const quotes: SecurityQuote[] = await ctx.quote(
 ```
 
 #### optionQuote - 获取期权报价
+
 ```typescript
 const quotes: OptionQuote[] = await ctx.optionQuote(
   symbols: string[],         // 如 ["AAPL230317P160000.US"]
@@ -84,6 +92,7 @@ const quotes: OptionQuote[] = await ctx.optionQuote(
 ```
 
 #### warrantQuote - 获取轮证报价
+
 ```typescript
 const quotes: WarrantQuote[] = await ctx.warrantQuote(
   symbols: string[],         // 如 ["21125.HK"]
@@ -93,6 +102,7 @@ const quotes: WarrantQuote[] = await ctx.warrantQuote(
 ## 盘口与经纪商
 
 #### depth - 获取盘口深度
+
 ```typescript
 const depth: SecurityDepth = await ctx.depth(
   symbol: string,
@@ -102,6 +112,7 @@ const depth: SecurityDepth = await ctx.depth(
 ```
 
 #### brokers - 获取经纪商分布
+
 ```typescript
 const brokers: SecurityBrokers = await ctx.brokers(
   symbol: string,
@@ -110,6 +121,7 @@ const brokers: SecurityBrokers = await ctx.brokers(
 ```
 
 #### participants - 获取券商席位 ID
+
 ```typescript
 const participants: ParticipantInfo[] = await ctx.participants(): Promise<ParticipantInfo[]>
 // ParticipantInfo: { brokerIds: number[], nameCn: string, nameEn: string, nameHk: string }
@@ -118,6 +130,7 @@ const participants: ParticipantInfo[] = await ctx.participants(): Promise<Partic
 ## 成交与分时
 
 #### trades - 获取逐笔成交
+
 ```typescript
 const trades: Trade[] = await ctx.trades(
   symbol: string,
@@ -126,6 +139,7 @@ const trades: Trade[] = await ctx.trades(
 ```
 
 #### intraday - 获取分时数据
+
 ```typescript
 const lines: IntradayLine[] = await ctx.intraday(
   symbol: string,
@@ -136,6 +150,7 @@ const lines: IntradayLine[] = await ctx.intraday(
 ## K 线数据
 
 #### candlesticks - 获取 K 线数据
+
 ```typescript
 const candles: Candlestick[] = await ctx.candlesticks(
   symbol: string,
@@ -147,6 +162,7 @@ const candles: Candlestick[] = await ctx.candlesticks(
 ```
 
 #### historyCandlesticksByOffset - 按偏移获取历史 K 线
+
 ```typescript
 const candles: Candlestick[] = await ctx.historyCandlesticksByOffset(
   symbol: string,
@@ -160,6 +176,7 @@ const candles: Candlestick[] = await ctx.historyCandlesticksByOffset(
 ```
 
 #### historyCandlesticksByDate - 按日期获取历史 K 线
+
 ```typescript
 const candles: Candlestick[] = await ctx.historyCandlesticksByDate(
   symbol: string,
@@ -174,6 +191,7 @@ const candles: Candlestick[] = await ctx.historyCandlesticksByDate(
 ## 期权链
 
 #### optionChainExpiryDateList - 获取期权到期日列表
+
 ```typescript
 const dates: NaiveDate[] = await ctx.optionChainExpiryDateList(
   symbol: string,            // 如 "AAPL.US"
@@ -181,6 +199,7 @@ const dates: NaiveDate[] = await ctx.optionChainExpiryDateList(
 ```
 
 #### optionChainInfoByDate - 按日期获取期权链信息
+
 ```typescript
 const strikes: StrikePriceInfo[] = await ctx.optionChainInfoByDate(
   symbol: string,
@@ -191,12 +210,14 @@ const strikes: StrikePriceInfo[] = await ctx.optionChainInfoByDate(
 ## 轮证筛选
 
 #### warrantIssuers - 获取轮证发行商列表
+
 ```typescript
 const issuers: IssuerInfo[] = await ctx.warrantIssuers(): Promise<IssuerInfo[]>
 // IssuerInfo: { id: number, nameCn: string, nameEn: string, nameHk: string }
 ```
 
 #### warrantList - 筛选轮证列表
+
 ```typescript
 const warrants: WarrantInfo[] = await ctx.warrantList(
   symbol: string,                     // 标的代码，如 "700.HK"
@@ -213,12 +234,14 @@ const warrants: WarrantInfo[] = await ctx.warrantList(
 ## 交易日与时段
 
 #### tradingSession - 获取当日交易时段
+
 ```typescript
 const sessions: MarketTradingSession[] = await ctx.tradingSession(): Promise<MarketTradingSession[]>
 // MarketTradingSession: { market: Market, tradeSessions: TradingSessionInfo[] }
 ```
 
 #### tradingDays - 获取交易日列表
+
 ```typescript
 const days: MarketTradingDays = await ctx.tradingDays(
   market: Market,
@@ -231,6 +254,7 @@ const days: MarketTradingDays = await ctx.tradingDays(
 ## 资金流向
 
 #### capitalFlow - 获取当日资金流入
+
 ```typescript
 const flows: CapitalFlowLine[] = await ctx.capitalFlow(
   symbol: string,
@@ -239,6 +263,7 @@ const flows: CapitalFlowLine[] = await ctx.capitalFlow(
 ```
 
 #### capitalDistribution - 获取资金分布
+
 ```typescript
 const dist: CapitalDistributionResponse = await ctx.capitalDistribution(
   symbol: string,
@@ -249,6 +274,7 @@ const dist: CapitalDistributionResponse = await ctx.capitalDistribution(
 ## 计算指标
 
 #### calcIndexes - 计算证券指标
+
 ```typescript
 const indexes: SecurityCalcIndex[] = await ctx.calcIndexes(
   symbols: string[],
@@ -259,11 +285,13 @@ const indexes: SecurityCalcIndex[] = await ctx.calcIndexes(
 ## 自选股
 
 #### watchlist - 获取自选股分组
+
 ```typescript
 const groups: WatchlistGroup[] = await ctx.watchlist(): Promise<WatchlistGroup[]>
 ```
 
 #### createWatchlistGroup - 创建自选股分组
+
 ```typescript
 const groupId: number = await ctx.createWatchlistGroup(
   req: CreateWatchlistGroup,   // { name: string, securities?: string[] }
@@ -271,6 +299,7 @@ const groupId: number = await ctx.createWatchlistGroup(
 ```
 
 #### deleteWatchlistGroup - 删除自选股分组
+
 ```typescript
 await ctx.deleteWatchlistGroup(
   req: DeleteWatchlistGroup,   // { id: number, purge?: boolean }
@@ -278,6 +307,7 @@ await ctx.deleteWatchlistGroup(
 ```
 
 #### updateWatchlistGroup - 更新自选股分组
+
 ```typescript
 await ctx.updateWatchlistGroup(
   req: UpdateWatchlistGroup,   // { id: number, name?: string, securities?: string[], mode?: SecuritiesUpdateMode }
@@ -287,6 +317,7 @@ await ctx.updateWatchlistGroup(
 ## 证券列表
 
 #### securityList - 获取证券列表
+
 ```typescript
 const securities: Security[] = await ctx.securityList(
   market: Market,
@@ -298,6 +329,7 @@ const securities: Security[] = await ctx.securityList(
 ## 市场温度
 
 #### marketTemperature - 获取当前市场温度
+
 ```typescript
 const temp: MarketTemperature = await ctx.marketTemperature(
   market: Market,
@@ -305,6 +337,7 @@ const temp: MarketTemperature = await ctx.marketTemperature(
 ```
 
 #### historyMarketTemperature - 获取历史市场温度
+
 ```typescript
 const resp: HistoryMarketTemperatureResponse = await ctx.historyMarketTemperature(
   market: Market,
@@ -316,6 +349,7 @@ const resp: HistoryMarketTemperatureResponse = await ctx.historyMarketTemperatur
 ## 实时数据（需先订阅）
 
 #### realtimeQuote - 获取实时报价
+
 ```typescript
 const quotes: RealtimeQuote[] = await ctx.realtimeQuote(
   symbols: string[],
@@ -324,6 +358,7 @@ const quotes: RealtimeQuote[] = await ctx.realtimeQuote(
 ```
 
 #### realtimeDepth - 获取实时盘口
+
 ```typescript
 const depth: SecurityDepth = await ctx.realtimeDepth(
   symbol: string,
@@ -332,6 +367,7 @@ const depth: SecurityDepth = await ctx.realtimeDepth(
 ```
 
 #### realtimeBrokers - 获取实时经纪商
+
 ```typescript
 const brokers: SecurityBrokers = await ctx.realtimeBrokers(
   symbol: string,
@@ -340,6 +376,7 @@ const brokers: SecurityBrokers = await ctx.realtimeBrokers(
 ```
 
 #### realtimeTrades - 获取实时逐笔成交
+
 ```typescript
 const trades: Trade[] = await ctx.realtimeTrades(
   symbol: string,
@@ -349,6 +386,7 @@ const trades: Trade[] = await ctx.realtimeTrades(
 ```
 
 #### realtimeCandlesticks - 获取实时 K 线
+
 ```typescript
 const candles: Candlestick[] = await ctx.realtimeCandlesticks(
   symbol: string,

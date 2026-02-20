@@ -5,7 +5,13 @@
  */
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { macdObjectPool } from '../../utils/objectPool/index.js';
-import { logDebug, isValidMACD, toNumber, initEmaStreamState, feedEmaStreamState } from './utils.js';
+import {
+  logDebug,
+  isValidMACD,
+  toNumber,
+  initEmaStreamState,
+  feedEmaStreamState,
+} from './utils.js';
 import type { MACDIndicator } from '../../types/quote.js';
 import type { CandleData } from '../../types/data.js';
 
@@ -23,10 +29,7 @@ export function calculateMACD(
   slowPeriod: number = 26,
   signalPeriod: number = 9,
 ): MACDIndicator | null {
-  if (
-    !candles ||
-    candles.length < slowPeriod + signalPeriod
-  ) {
+  if (!candles || candles.length < slowPeriod + signalPeriod) {
     return null;
   }
 
@@ -75,11 +78,7 @@ export function calculateMACD(
 
     const macdValue = lastHistogram * 2;
 
-    if (
-      !Number.isFinite(lastDif) ||
-      !Number.isFinite(lastSignal) ||
-      !Number.isFinite(macdValue)
-    ) {
+    if (!Number.isFinite(lastDif) || !Number.isFinite(lastSignal) || !Number.isFinite(macdValue)) {
       return null;
     }
 

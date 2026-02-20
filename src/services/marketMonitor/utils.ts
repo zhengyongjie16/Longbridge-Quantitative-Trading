@@ -10,7 +10,11 @@ import type { WarrantDistanceInfo } from '../../types/services.js';
  * @param threshold 变化阈值
  * @returns true表示值发生变化，false表示未变化
  */
-export function hasChanged(current: number | null | undefined, last: number | null | undefined, threshold: number): boolean {
+export function hasChanged(
+  current: number | null | undefined,
+  last: number | null | undefined,
+  threshold: number,
+): boolean {
   if (!isValidNumber(current) || !isValidNumber(last)) {
     return false;
   }

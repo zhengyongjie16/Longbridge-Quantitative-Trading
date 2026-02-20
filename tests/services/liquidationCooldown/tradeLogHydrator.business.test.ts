@@ -86,28 +86,29 @@ describe('tradeLogHydrator business flow', () => {
     const infoLogs: string[] = [];
 
     const hydrator = createTradeLogHydrator({
-      readFileSync: () => JSON.stringify([
-        {
-          symbol: 'BULL.HK',
-          executedAtMs: 100,
-          isProtectiveClearance: true,
-        },
-        {
-          symbol: 'BULL.HK',
-          executedAtMs: 200,
-          isProtectiveClearance: true,
-        },
-        {
-          symbol: 'BEAR.HK',
-          executedAtMs: 150,
-          isProtectiveClearance: false,
-        },
-        {
-          symbol: 'OTHER.HK',
-          executedAtMs: 300,
-          isProtectiveClearance: true,
-        },
-      ]),
+      readFileSync: () =>
+        JSON.stringify([
+          {
+            symbol: 'BULL.HK',
+            executedAtMs: 100,
+            isProtectiveClearance: true,
+          },
+          {
+            symbol: 'BULL.HK',
+            executedAtMs: 200,
+            isProtectiveClearance: true,
+          },
+          {
+            symbol: 'BEAR.HK',
+            executedAtMs: 150,
+            isProtectiveClearance: false,
+          },
+          {
+            symbol: 'OTHER.HK',
+            executedAtMs: 300,
+            isProtectiveClearance: true,
+          },
+        ]),
       existsSync: () => true,
       cwd: () => 'D:/code/Longbridge-Quantitative-Trading',
       nowMs: () => Date.parse('2026-02-16T10:00:00+08:00'),

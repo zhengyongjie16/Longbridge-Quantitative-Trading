@@ -7,7 +7,11 @@ import { logger } from '../utils/logger/index.js';
 import { getStringConfig } from './utils.js';
 import { isSymbolWithRegion } from '../utils/helpers/index.js';
 import { formatSignalConfig } from '../utils/helpers/signalConfigParser.js';
-import type { LiquidationCooldownConfig, MonitorConfig, MultiMonitorTradingConfig } from '../types/config.js';
+import type {
+  LiquidationCooldownConfig,
+  MonitorConfig,
+  MultiMonitorTradingConfig,
+} from '../types/config.js';
 import type { Quote } from '../types/quote.js';
 import type {
   ConfigValidationError,
@@ -74,7 +78,10 @@ function validateRequiredSymbol({
   envKey,
   errors,
   missingFields,
-}: SymbolValidationContext): Readonly<{ errors: ReadonlyArray<string>; missingFields: ReadonlyArray<string> }> {
+}: SymbolValidationContext): Readonly<{
+  errors: ReadonlyArray<string>;
+  missingFields: ReadonlyArray<string>;
+}> {
   if (!symbol || symbol.trim() === '') {
     return {
       errors: [...errors, `${prefix}: ${envKey} 未配置`],
@@ -334,25 +341,47 @@ function validateMonitorConfig(
       }
     }
 
-    if (!Number.isFinite(autoSearchConfig.autoSearchExpiryMinMonths) || autoSearchConfig.autoSearchExpiryMinMonths < 1) {
+    if (
+      !Number.isFinite(autoSearchConfig.autoSearchExpiryMinMonths) ||
+      autoSearchConfig.autoSearchExpiryMinMonths < 1
+    ) {
       errors = [...errors, `${prefix}: AUTO_SEARCH_EXPIRY_MIN_MONTHS_${index} 无效（必须 >= 1）`];
       missingFields = [...missingFields, `AUTO_SEARCH_EXPIRY_MIN_MONTHS_${index}`];
     }
 
-    if (!Number.isFinite(autoSearchConfig.autoSearchOpenDelayMinutes) || autoSearchConfig.autoSearchOpenDelayMinutes < 0) {
+    if (
+      !Number.isFinite(autoSearchConfig.autoSearchOpenDelayMinutes) ||
+      autoSearchConfig.autoSearchOpenDelayMinutes < 0
+    ) {
       errors = [...errors, `${prefix}: AUTO_SEARCH_OPEN_DELAY_MINUTES_${index} 无效（必须 >= 0）`];
       missingFields = [...missingFields, `AUTO_SEARCH_OPEN_DELAY_MINUTES_${index}`];
     }
 
     const bullRange = autoSearchConfig.switchDistanceRangeBull;
-    if (!bullRange || !Number.isFinite(bullRange.min) || !Number.isFinite(bullRange.max) || bullRange.min > bullRange.max) {
-      errors = [...errors, `${prefix}: SWITCH_DISTANCE_RANGE_BULL_${index} 未配置或无效（格式 min,max 且 min<=max）`];
+    if (
+      !bullRange ||
+      !Number.isFinite(bullRange.min) ||
+      !Number.isFinite(bullRange.max) ||
+      bullRange.min > bullRange.max
+    ) {
+      errors = [
+        ...errors,
+        `${prefix}: SWITCH_DISTANCE_RANGE_BULL_${index} 未配置或无效（格式 min,max 且 min<=max）`,
+      ];
       missingFields = [...missingFields, `SWITCH_DISTANCE_RANGE_BULL_${index}`];
     }
 
     const bearRange = autoSearchConfig.switchDistanceRangeBear;
-    if (!bearRange || !Number.isFinite(bearRange.min) || !Number.isFinite(bearRange.max) || bearRange.min > bearRange.max) {
-      errors = [...errors, `${prefix}: SWITCH_DISTANCE_RANGE_BEAR_${index} 未配置或无效（格式 min,max 且 min<=max）`];
+    if (
+      !bearRange ||
+      !Number.isFinite(bearRange.min) ||
+      !Number.isFinite(bearRange.max) ||
+      bearRange.min > bearRange.max
+    ) {
+      errors = [
+        ...errors,
+        `${prefix}: SWITCH_DISTANCE_RANGE_BEAR_${index} 未配置或无效（格式 min,max 且 min<=max）`,
+      ];
       missingFields = [...missingFields, `SWITCH_DISTANCE_RANGE_BEAR_${index}`];
     }
   }
@@ -480,7 +509,10 @@ function validateTradingConfig(
 
   if (morning.enabled) {
     if (morning.minutes == null) {
-      errors = [...errors, 'MORNING_OPENING_PROTECTION_MINUTES 未配置（启用早盘保护时为必填，范围 1-60）'];
+      errors = [
+        ...errors,
+        'MORNING_OPENING_PROTECTION_MINUTES 未配置（启用早盘保护时为必填，范围 1-60）',
+      ];
       missingFields = [...missingFields, 'MORNING_OPENING_PROTECTION_MINUTES'];
     } else if (morning.minutes < 1 || morning.minutes > 60) {
       errors = [...errors, 'MORNING_OPENING_PROTECTION_MINUTES 无效（范围 1-60）'];
@@ -489,7 +521,10 @@ function validateTradingConfig(
 
   if (afternoon.enabled) {
     if (afternoon.minutes == null) {
-      errors = [...errors, 'AFTERNOON_OPENING_PROTECTION_MINUTES 未配置（启用午盘保护时为必填，范围 1-60）'];
+      errors = [
+        ...errors,
+        'AFTERNOON_OPENING_PROTECTION_MINUTES 未配置（启用午盘保护时为必填，范围 1-60）',
+      ];
       missingFields = [...missingFields, 'AFTERNOON_OPENING_PROTECTION_MINUTES'];
     } else if (afternoon.minutes < 1 || afternoon.minutes > 60) {
       errors = [...errors, 'AFTERNOON_OPENING_PROTECTION_MINUTES 无效（范围 1-60）'];
@@ -571,9 +606,7 @@ export async function validateAllConfig({
     logger.info(`单日最大亏损: ${monitorConfig.maxDailyLoss} HKD`);
 
     if (monitorConfig.maxUnrealizedLossPerSymbol && monitorConfig.maxUnrealizedLossPerSymbol > 0) {
-      logger.info(
-        `单标的浮亏保护阈值: ${monitorConfig.maxUnrealizedLossPerSymbol} HKD`,
-      );
+      logger.info(`单标的浮亏保护阈值: ${monitorConfig.maxUnrealizedLossPerSymbol} HKD`);
     } else {
       logger.info('单标的浮亏保护: 已禁用');
     }
@@ -610,14 +643,10 @@ export async function validateAllConfig({
 
     logger.info('信号配置:');
     if (monitorConfig.signalConfig.buycall) {
-      logger.info(
-        `BUYCALL: ${formatSignalConfig(monitorConfig.signalConfig.buycall)}`,
-      );
+      logger.info(`BUYCALL: ${formatSignalConfig(monitorConfig.signalConfig.buycall)}`);
     }
     if (monitorConfig.signalConfig.sellcall) {
-      logger.info(
-        `SELLCALL: ${formatSignalConfig(monitorConfig.signalConfig.sellcall)}`,
-      );
+      logger.info(`SELLCALL: ${formatSignalConfig(monitorConfig.signalConfig.sellcall)}`);
     }
     if (monitorConfig.signalConfig.buyput) {
       logger.info(`BUYPUT: ${formatSignalConfig(monitorConfig.signalConfig.buyput)}`);
@@ -628,9 +657,7 @@ export async function validateAllConfig({
   }
 
   logger.info('');
-  logger.info(
-    `是否启动末日保护: ${tradingConfig.global.doomsdayProtection ? '是' : '否'}`,
-  );
+  logger.info(`是否启动末日保护: ${tradingConfig.global.doomsdayProtection ? '是' : '否'}`);
   logger.info('');
 }
 
@@ -652,12 +679,7 @@ export function validateRuntimeSymbolsFromQuotesMap({
 
   for (const input of inputs) {
     const quote = quotesMap.get(input.symbol) ?? null;
-    const result = validateSymbolFromQuote(
-      quote,
-      input.symbol,
-      input.label,
-      input.requireLotSize,
-    );
+    const result = validateSymbolFromQuote(quote, input.symbol, input.label, input.requireLotSize);
     if (!result.valid) {
       const message = result.error ?? `${input.label} ${input.symbol} 验证失败`;
       if (input.required) {

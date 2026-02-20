@@ -25,7 +25,10 @@ import { createConfig } from './config/config.index.js';
 import { createTrader } from './core/trader/index.js';
 import { createMultiMonitorTradingConfig } from './config/config.trading.js';
 import { logger } from './utils/logger/index.js';
-import { validateAllConfig, validateRuntimeSymbolsFromQuotesMap } from './config/config.validator.js';
+import {
+  validateAllConfig,
+  validateRuntimeSymbolsFromQuotesMap,
+} from './config/config.validator.js';
 import { createHangSengMultiIndicatorStrategy } from './core/strategy/index.js';
 import { createDailyLossTracker } from './core/riskController/dailyLossTracker.js';
 import { createRiskChecker } from './core/riskController/index.js';
@@ -69,7 +72,10 @@ import { resolveGatePolicies, resolveRunMode } from './main/startup/utils.js';
 // 异步任务处理架构模块
 import { createIndicatorCache } from './main/asyncProgram/indicatorCache/index.js';
 import { createDelayedSignalVerifier } from './main/asyncProgram/delayedSignalVerifier/index.js';
-import { createBuyTaskQueue, createSellTaskQueue } from './main/asyncProgram/tradeTaskQueue/index.js';
+import {
+  createBuyTaskQueue,
+  createSellTaskQueue,
+} from './main/asyncProgram/tradeTaskQueue/index.js';
 import { createBuyProcessor } from './main/asyncProgram/buyProcessor/index.js';
 import { createSellProcessor } from './main/asyncProgram/sellProcessor/index.js';
 import { createMonitorTaskQueue } from './main/asyncProgram/monitorTaskQueue/index.js';
@@ -106,7 +112,10 @@ import { mainProgram } from './main/mainProgram/index.js';
 import type { LastState, MonitorContext } from './types/state.js';
 import type { Quote } from './types/quote.js';
 import type { RawOrderFromAPI } from './types/services.js';
-import type { MonitorTaskData, MonitorTaskType } from './main/asyncProgram/monitorTaskProcessor/types.js';
+import type {
+  MonitorTaskData,
+  MonitorTaskType,
+} from './main/asyncProgram/monitorTaskProcessor/types.js';
 import { getSprintSacreMooacreMoo } from './utils/asciiArt/sacreMooacre.js';
 import { signalObjectPool } from './utils/objectPool/index.js';
 
@@ -157,23 +166,28 @@ async function main(): Promise<void> {
    * 解析监控标的对应的做多/做空席位标的代码
    * 仅返回已就绪（Ready）状态的席位标的，未就绪时返回 null
    */
-  function resolveSeatSymbols(
-    monitorSymbol: string,
-  ): { longSeatSymbol: string | null; shortSeatSymbol: string | null } {
+  function resolveSeatSymbols(monitorSymbol: string): {
+    longSeatSymbol: string | null;
+    shortSeatSymbol: string | null;
+  } {
     return {
       longSeatSymbol: resolveReadySeatSymbol(symbolRegistry, monitorSymbol, 'LONG'),
       shortSeatSymbol: resolveReadySeatSymbol(symbolRegistry, monitorSymbol, 'SHORT'),
     };
   }
 
-  let cachedTradingDayInfo: { dateStr: string; info: { isTradingDay: boolean; isHalfDay: boolean } } | null =
-    null;
+  let cachedTradingDayInfo: {
+    dateStr: string;
+    info: { isTradingDay: boolean; isHalfDay: boolean };
+  } | null = null;
 
   /**
    * 获取交易日信息并按日期缓存，避免频繁调用 API
    * 同一日期内直接返回缓存结果，跨日或首次调用时重新请求
    */
-  async function resolveTradingDayInfo(currentTime: Date): Promise<{ isTradingDay: boolean; isHalfDay: boolean }> {
+  async function resolveTradingDayInfo(
+    currentTime: Date,
+  ): Promise<{ isTradingDay: boolean; isHalfDay: boolean }> {
     const dateStr = getHKDateKey(currentTime) ?? currentTime.toISOString().slice(0, 10);
     if (cachedTradingDayInfo?.dateStr === dateStr) {
       return cachedTradingDayInfo.info;
@@ -487,7 +501,9 @@ async function main(): Promise<void> {
     delayedSignalVerifier.onVerified((signal, signalMonitorSymbol) => {
       const ctx = monitorContexts.get(signalMonitorSymbol);
       if (!ctx) {
-        logger.warn(`[延迟验证通过] 未找到监控上下文，丢弃信号: ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${signal.action}`);
+        logger.warn(
+          `[延迟验证通过] 未找到监控上下文，丢弃信号: ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${signal.action}`,
+        );
         signalObjectPool.release(signal);
         return;
       }
@@ -547,7 +563,9 @@ async function main(): Promise<void> {
       }
     });
 
-    logger.debug(`[DelayedSignalVerifier] 监控标的 ${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)} 的验证器已初始化`);
+    logger.debug(
+      `[DelayedSignalVerifier] 监控标的 ${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)} 的验证器已初始化`,
+    );
   }
 
   /**
@@ -569,10 +587,7 @@ async function main(): Promise<void> {
       releaseSignal: signalObjectPool.release,
     });
     const totalRemoved =
-      result.removedDelayed +
-      result.removedBuy +
-      result.removedSell +
-      result.removedMonitorTasks;
+      result.removedDelayed + result.removedBuy + result.removedSell + result.removedMonitorTasks;
     if (totalRemoved > 0) {
       logger.info(
         `[自动换标] ${monitorSymbol} ${direction} 清理待执行信号：延迟=${result.removedDelayed} 买入=${result.removedBuy} 卖出=${result.removedSell} 监控任务=${result.removedMonitorTasks}`,

@@ -51,9 +51,7 @@ export function createLiquidationDistanceHandler({
   readonly lastState: LastState;
   readonly trader: Trader;
   readonly getCanProcessTask?: () => boolean;
-}): (
-  task: MonitorTask<MonitorTaskType, MonitorTaskData>,
-) => Promise<MonitorTaskStatus> {
+}): (task: MonitorTask<MonitorTaskType, MonitorTaskData>) => Promise<MonitorTaskStatus> {
   return async function handleLiquidationDistanceCheck(
     task: MonitorTask<MonitorTaskType, MonitorTaskData>,
   ): Promise<MonitorTaskStatus> {

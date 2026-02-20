@@ -1,6 +1,7 @@
 # 不可变与函数式编程
 
 本文展示不可变数据模式和函数式编程原则，涵盖：
+
 - readonly 与 ReadonlyArray 模式
 - Result 类型处理预期错误
 - 纯函数与不可变更新、组合、数组方法
@@ -126,18 +127,12 @@ const updateUser = (user: User, updates: Partial<User>): void => {
 
 ```typescript
 // 数组：展开运算创建新数组
-const addItem = (
-  items: ReadonlyArray<Item>,
-  newItem: Item,
-): ReadonlyArray<Item> => {
+const addItem = (items: ReadonlyArray<Item>, newItem: Item): ReadonlyArray<Item> => {
   return [...items, newItem];
 };
 
 // 对象：展开运算创建新对象
-const updateUser = (
-  user: User,
-  updates: Partial<User>,
-): User => {
+const updateUser = (user: User, updates: Partial<User>): User => {
   return { ...user, ...updates };
 };
 ```
@@ -186,7 +181,7 @@ for (const u of users) {
 ### ✅ 正确：函数式数组方法
 
 ```typescript
-const activeUsers = users.filter(u => u.active);
-const userEmails = users.map(u => u.email);
+const activeUsers = users.filter((u) => u.active);
+const userEmails = users.map((u) => u.email);
 const totalPrice = items.reduce((sum, item) => sum + item.price, 0);
 ```

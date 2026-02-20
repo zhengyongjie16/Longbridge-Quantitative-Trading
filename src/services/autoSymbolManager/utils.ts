@@ -53,7 +53,7 @@ export function resolveNextSearchFailureState(params: {
   const nextFailCount = params.currentSeat.searchFailCountToday + 1;
   const shouldFreeze = nextFailCount >= params.maxSearchFailuresPerDay;
   const frozenTradingDayKey = shouldFreeze
-    ? params.hkDateKey ?? params.currentSeat.frozenTradingDayKey
+    ? (params.hkDateKey ?? params.currentSeat.frozenTradingDayKey)
     : params.currentSeat.frozenTradingDayKey;
 
   return {
@@ -68,10 +68,12 @@ export function resolveNextSearchFailureState(params: {
  * @param seatState 席位状态
  * @returns 不可用原因枚举值，席位就绪时返回 null
  */
-export function resolveSeatUnavailableReason(
-  seatState: SeatState,
-): SeatUnavailableReason | null {
-  if (seatState.status === 'READY' && typeof seatState.symbol === 'string' && seatState.symbol.length > 0) {
+export function resolveSeatUnavailableReason(seatState: SeatState): SeatUnavailableReason | null {
+  if (
+    seatState.status === 'READY' &&
+    typeof seatState.symbol === 'string' &&
+    seatState.symbol.length > 0
+  ) {
     return null;
   }
   if (seatState.status === 'SEARCHING') {
@@ -205,9 +207,7 @@ function resolveSeatEntry(
  * @param monitors 所有监控标的配置列表
  * @returns 实现了 SymbolRegistry 接口的注册表对象
  */
-export function createSymbolRegistry(
-  monitors: ReadonlyArray<MonitorConfig>,
-): SymbolRegistry {
+export function createSymbolRegistry(monitors: ReadonlyArray<MonitorConfig>): SymbolRegistry {
   const registry = new Map<string, SymbolSeatEntry>();
 
   for (const monitor of monitors) {

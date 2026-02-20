@@ -46,10 +46,7 @@ export function createCleanup(context: CleanupContext): {
     logger.info('Program exiting, cleaning up resources...');
     const failures: Array<{ readonly step: string; readonly error: unknown }> = [];
 
-    const runStep = async (
-      step: string,
-      handler: () => Promise<void> | void,
-    ): Promise<void> => {
+    const runStep = async (step: string, handler: () => Promise<void> | void): Promise<void> => {
       try {
         await handler();
       } catch (err) {

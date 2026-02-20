@@ -138,18 +138,18 @@ export async function findBestWarrant({
     const expiryFilters = buildExpiryDateFilters(expiryMinMonths);
     const warrants = cacheConfig
       ? await fetchWarrantsWithCache({
-        ctx,
-        monitorSymbol,
-        warrantType,
-        expiryFilters,
-        cacheConfig,
-      })
+          ctx,
+          monitorSymbol,
+          warrantType,
+          expiryFilters,
+          cacheConfig,
+        })
       : await requestWarrantList({
-        ctx,
-        monitorSymbol,
-        warrantType,
-        expiryFilters,
-      });
+          ctx,
+          monitorSymbol,
+          warrantType,
+          expiryFilters,
+        });
 
     const best = selectBestWarrant({
       warrants,
@@ -160,9 +160,7 @@ export async function findBestWarrant({
     });
 
     if (!best) {
-      logger.warn(
-        `[自动寻标] 未找到符合条件的${isBull ? '牛' : '熊'}证：${monitorSymbol}`,
-      );
+      logger.warn(`[自动寻标] 未找到符合条件的${isBull ? '牛' : '熊'}证：${monitorSymbol}`);
     }
 
     return best;

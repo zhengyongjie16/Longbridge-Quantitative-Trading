@@ -15,19 +15,19 @@ function createMockProcessor() {
   return {
     calls: calls as ReadonlyArray<string>,
     stopAndDrain: async () => {
-      (calls).push('stopAndDrain');
+      calls.push('stopAndDrain');
     },
     restart: () => {
-      (calls).push('restart');
+      calls.push('restart');
     },
     start: () => {
-      (calls).push('start');
+      calls.push('start');
     },
     clearLatestQuotes: () => {
-      (calls).push('clearLatestQuotes');
+      calls.push('clearLatestQuotes');
     },
     clearPending: () => {
-      (calls).push('clearPending');
+      calls.push('clearPending');
     },
   };
 }
@@ -98,9 +98,12 @@ describe('createSignalRuntimeDomain', () => {
       monitorContexts,
       buyProcessor: buyProcessor as unknown as SignalRuntimeDomainDeps['buyProcessor'],
       sellProcessor: sellProcessor as unknown as SignalRuntimeDomainDeps['sellProcessor'],
-      monitorTaskProcessor: monitorTaskProcessor as unknown as SignalRuntimeDomainDeps['monitorTaskProcessor'],
-      orderMonitorWorker: orderMonitorWorker as unknown as SignalRuntimeDomainDeps['orderMonitorWorker'],
-      postTradeRefresher: postTradeRefresher as unknown as SignalRuntimeDomainDeps['postTradeRefresher'],
+      monitorTaskProcessor:
+        monitorTaskProcessor as unknown as SignalRuntimeDomainDeps['monitorTaskProcessor'],
+      orderMonitorWorker:
+        orderMonitorWorker as unknown as SignalRuntimeDomainDeps['orderMonitorWorker'],
+      postTradeRefresher:
+        postTradeRefresher as unknown as SignalRuntimeDomainDeps['postTradeRefresher'],
       indicatorCache: indicatorCache as unknown as SignalRuntimeDomainDeps['indicatorCache'],
       buyTaskQueue: buyTaskQueue as unknown as SignalRuntimeDomainDeps['buyTaskQueue'],
       sellTaskQueue: sellTaskQueue as unknown as SignalRuntimeDomainDeps['sellTaskQueue'],
@@ -147,13 +150,20 @@ describe('createSignalRuntimeDomain', () => {
       monitorContexts: new Map(),
       buyProcessor: buyProcessor as unknown as SignalRuntimeDomainDeps['buyProcessor'],
       sellProcessor: sellProcessor as unknown as SignalRuntimeDomainDeps['sellProcessor'],
-      monitorTaskProcessor: monitorTaskProcessor as unknown as SignalRuntimeDomainDeps['monitorTaskProcessor'],
-      orderMonitorWorker: orderMonitorWorker as unknown as SignalRuntimeDomainDeps['orderMonitorWorker'],
-      postTradeRefresher: postTradeRefresher as unknown as SignalRuntimeDomainDeps['postTradeRefresher'],
-      indicatorCache: { clearAll: () => {} } as unknown as SignalRuntimeDomainDeps['indicatorCache'],
+      monitorTaskProcessor:
+        monitorTaskProcessor as unknown as SignalRuntimeDomainDeps['monitorTaskProcessor'],
+      orderMonitorWorker:
+        orderMonitorWorker as unknown as SignalRuntimeDomainDeps['orderMonitorWorker'],
+      postTradeRefresher:
+        postTradeRefresher as unknown as SignalRuntimeDomainDeps['postTradeRefresher'],
+      indicatorCache: {
+        clearAll: () => {},
+      } as unknown as SignalRuntimeDomainDeps['indicatorCache'],
       buyTaskQueue: { clearAll: () => 0 } as unknown as SignalRuntimeDomainDeps['buyTaskQueue'],
       sellTaskQueue: { clearAll: () => 0 } as unknown as SignalRuntimeDomainDeps['sellTaskQueue'],
-      monitorTaskQueue: { clearAll: () => 0 } as unknown as SignalRuntimeDomainDeps['monitorTaskQueue'],
+      monitorTaskQueue: {
+        clearAll: () => 0,
+      } as unknown as SignalRuntimeDomainDeps['monitorTaskQueue'],
       refreshGate: refreshGate as unknown as SignalRuntimeDomainDeps['refreshGate'],
       releaseSignal: () => {},
     };

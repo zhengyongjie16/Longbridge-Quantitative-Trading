@@ -3,7 +3,13 @@ import type { Position } from '../../types/account.js';
 import type { Quote } from '../../types/quote.js';
 import type { Signal } from '../../types/signal.js';
 import type { SeatState, SeatStatus, SymbolRegistry } from '../../types/seat.js';
-import type { MarketDataClient, OrderRecorder, PendingOrder, RiskChecker, Trader } from '../../types/services.js';
+import type {
+  MarketDataClient,
+  OrderRecorder,
+  PendingOrder,
+  RiskChecker,
+  Trader,
+} from '../../types/services.js';
 import type { Logger } from '../../utils/logger/types.js';
 import type { ObjectPool, PoolableSignal } from '../../utils/objectPool/types.js';
 import type {
@@ -155,10 +161,7 @@ type HKDateKeyResolver = (date: Date | null | undefined) => string | null;
  * 内部类型：开盘保护检查函数，判断当前时间是否在开盘延迟保护窗口内。
  * 仅在 autoSymbolManager 模块内部使用。
  */
-type MorningOpenProtectionChecker = (
-  date: Date | null | undefined,
-  minutes: number,
-) => boolean;
+type MorningOpenProtectionChecker = (date: Date | null | undefined, minutes: number) => boolean;
 
 /**
  * 解析自动寻标阈值输入参数的完整依赖，包含配置、标的、日志前缀等。
@@ -376,7 +379,10 @@ export type SwitchStateMachineDeps = {
   readonly riskChecker: RiskChecker;
   readonly now: () => Date;
   readonly switchStates: SwitchStateMap;
-  readonly resolveSuppression: (direction: 'LONG' | 'SHORT', seatSymbol: string) => SwitchSuppression | null;
+  readonly resolveSuppression: (
+    direction: 'LONG' | 'SHORT',
+    seatSymbol: string,
+  ) => SwitchSuppression | null;
   readonly markSuppression: (direction: 'LONG' | 'SHORT', seatSymbol: string) => void;
   readonly clearSeat: (params: { direction: 'LONG' | 'SHORT'; reason: string }) => number;
   readonly buildSeatState: SeatStateBuilder;

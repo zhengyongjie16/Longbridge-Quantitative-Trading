@@ -47,7 +47,7 @@ function resolveHKMinuteOfDay(now: Date): number {
 
 function isInContinuousHKSessionFallback(now: Date, isHalfDay: boolean): boolean {
   const minuteOfDay = resolveHKMinuteOfDay(now);
-  const inMorning = minuteOfDay >= (9 * 60 + 30) && minuteOfDay < 12 * 60;
+  const inMorning = minuteOfDay >= 9 * 60 + 30 && minuteOfDay < 12 * 60;
   if (isHalfDay) {
     return inMorning;
   }
@@ -75,7 +75,10 @@ function isWithinAfternoonOpenProtectionFallback(now: Date, minutes: number): bo
 
 // eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 在导入 mainProgram 前同步注册
 mock.module('../../src/main/processMonitor/index.js', () => ({
-  processMonitor: async ({ monitorContext, runtimeFlags }: {
+  processMonitor: async ({
+    monitorContext,
+    runtimeFlags,
+  }: {
     readonly monitorContext: { readonly config: { readonly monitorSymbol: string } };
     readonly runtimeFlags: {
       readonly openProtectionActive: boolean;
@@ -96,9 +99,11 @@ mock.module('../../src/utils/helpers/tradingTime.js', () => ({
   isInContinuousHKSession: (now: Date, isHalfDay: boolean) =>
     tradingTimeOverrides.isInContinuousSession ?? isInContinuousHKSessionFallback(now, isHalfDay),
   isWithinMorningOpenProtection: (now: Date, minutes: number) =>
-    tradingTimeOverrides.morningOpenProtection ?? isWithinMorningOpenProtectionFallback(now, minutes),
+    tradingTimeOverrides.morningOpenProtection ??
+    isWithinMorningOpenProtectionFallback(now, minutes),
   isWithinAfternoonOpenProtection: (now: Date, minutes: number) =>
-    tradingTimeOverrides.afternoonOpenProtection ?? isWithinAfternoonOpenProtectionFallback(now, minutes),
+    tradingTimeOverrides.afternoonOpenProtection ??
+    isWithinAfternoonOpenProtectionFallback(now, minutes),
 }));
 
 import { mainProgram } from '../../src/main/mainProgram/index.js';
@@ -123,7 +128,11 @@ function createLastState(overrides: Partial<LastState> = {}): LastState {
   };
 }
 
-function createMonitorContext(monitorSymbol: string, pendingCount: number, onCancel: (symbol: string) => void): MonitorContext {
+function createMonitorContext(
+  monitorSymbol: string,
+  pendingCount: number,
+  onCancel: (symbol: string) => void,
+): MonitorContext {
   const config = createMonitorConfigDouble({ monitorSymbol });
   return {
     config,
@@ -138,7 +147,7 @@ function createMonitorContext(monitorSymbol: string, pendingCount: number, onCan
 function createQueues(): Pick<
   MainProgramContext,
   'buyTaskQueue' | 'sellTaskQueue' | 'monitorTaskQueue' | 'indicatorCache'
-  > {
+> {
   return {
     indicatorCache: {
       push: () => {},
@@ -203,7 +212,11 @@ describe('mainProgram strict-mode integration', () => {
     });
 
     let getQuotesCalls = 0;
-    const dayLifecycleTicks: Array<{ canTradeNow: boolean; isTradingDay: boolean; dayKey: string | null }> = [];
+    const dayLifecycleTicks: Array<{
+      canTradeNow: boolean;
+      isTradingDay: boolean;
+      dayKey: string | null;
+    }> = [];
 
     await mainProgram({
       marketDataClient: {

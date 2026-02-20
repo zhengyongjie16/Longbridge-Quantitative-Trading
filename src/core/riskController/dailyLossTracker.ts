@@ -45,9 +45,10 @@ function calculateLossOffsetFromRecords(
   if (totalBuy === 0 && totalSell === 0) {
     return 0;
   }
-  const openBuyOrders = buyOrders.length > 0
-    ? filteringEngine.applyFilteringAlgorithm([...buyOrders], [...sellOrders])
-    : [];
+  const openBuyOrders =
+    buyOrders.length > 0
+      ? filteringEngine.applyFilteringAlgorithm([...buyOrders], [...sellOrders])
+      : [];
   const openBuyCost = sumOrderCost(openBuyOrders);
   return totalSell - totalBuy + openBuyCost;
 }
@@ -183,12 +184,8 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
 
     for (const monitor of monitors) {
       const group = grouped.get(monitor.monitorSymbol);
-      const longState = group
-        ? buildStateFromOrders(group.long, deps)
-        : createEmptyState();
-      const shortState = group
-        ? buildStateFromOrders(group.short, deps)
-        : createEmptyState();
+      const longState = group ? buildStateFromOrders(group.long, deps) : createEmptyState();
+      const shortState = group ? buildStateFromOrders(group.short, deps) : createEmptyState();
       statesByMonitor.set(monitor.monitorSymbol, {
         long: longState,
         short: shortState,
@@ -215,7 +212,10 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
     if (!dayKey) {
       return;
     }
-    const fillDayKey = resolveHongKongDayKey(deps.toHongKongTimeIso, new Date(input.executedTimeMs));
+    const fillDayKey = resolveHongKongDayKey(
+      deps.toHongKongTimeIso,
+      new Date(input.executedTimeMs),
+    );
     if (fillDayKey !== dayKey) {
       return;
     }
@@ -232,12 +232,8 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
     };
     const currentState = input.isLongSymbol ? existing.long : existing.short;
     const isBuy = input.side === OrderSide.Buy;
-    const nextBuyOrders = isBuy
-      ? [...currentState.buyOrders, record]
-      : currentState.buyOrders;
-    const nextSellOrders = isBuy
-      ? currentState.sellOrders
-      : [...currentState.sellOrders, record];
+    const nextBuyOrders = isBuy ? [...currentState.buyOrders, record] : currentState.buyOrders;
+    const nextSellOrders = isBuy ? currentState.sellOrders : [...currentState.sellOrders, record];
     const nextState: DailyLossState = {
       buyOrders: nextBuyOrders,
       sellOrders: nextSellOrders,

@@ -11,11 +11,7 @@ import type {
   LiquidationCooldownTrackerDeps,
   RecordCooldownParams,
 } from './types.js';
-import {
-  buildCooldownKey,
-  convertMinutesToMs,
-  resolveHongKongTimeMs,
-} from './utils.js';
+import { buildCooldownKey, convertMinutesToMs, resolveHongKongTimeMs } from './utils.js';
 import type { LiquidationCooldownConfig } from '../../types/config.js';
 import { getHKTime } from '../../utils/helpers/tradingTime.js';
 
@@ -100,11 +96,7 @@ export function createLiquidationCooldownTracker(
    * 查询指定标的方向的剩余冷却毫秒数。
    * 冷却已过期或无记录时返回 0，并顺带清除过期条目。
    */
-  function getRemainingMs({
-    symbol,
-    direction,
-    cooldownConfig,
-  }: GetRemainingMsParams): number {
+  function getRemainingMs({ symbol, direction, cooldownConfig }: GetRemainingMsParams): number {
     const key = buildCooldownKey(symbol, direction);
     const executedTimeMs = cooldownMap.get(key);
     if (executedTimeMs == null || !Number.isFinite(executedTimeMs)) {

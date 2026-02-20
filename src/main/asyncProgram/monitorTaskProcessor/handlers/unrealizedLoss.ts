@@ -40,9 +40,7 @@ export function createUnrealizedLossHandler({
   readonly refreshGate: RefreshGate;
   readonly trader: Trader;
   readonly getCanProcessTask?: () => boolean;
-}): (
-  task: MonitorTask<MonitorTaskType, MonitorTaskData>,
-) => Promise<MonitorTaskStatus> {
+}): (task: MonitorTask<MonitorTaskType, MonitorTaskData>) => Promise<MonitorTaskStatus> {
   return async function handleUnrealizedLossCheck(
     task: MonitorTask<MonitorTaskType, MonitorTaskData>,
   ): Promise<MonitorTaskStatus> {

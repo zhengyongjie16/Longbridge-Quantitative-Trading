@@ -26,14 +26,8 @@ import type { SeatSyncParams, SeatSyncResult } from './types.js';
  * 当席位就绪且标的发生变化时调度 SEAT_REFRESH 任务刷新订单记录和缓存。
  */
 export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
-  const {
-    monitorSymbol,
-    monitorQuote,
-    monitorContext,
-    mainContext,
-    quotesMap,
-    releaseSignal,
-  } = params;
+  const { monitorSymbol, monitorQuote, monitorContext, mainContext, quotesMap, releaseSignal } =
+    params;
   const { riskChecker, delayedSignalVerifier, symbolRegistry } = monitorContext;
   const { buyTaskQueue, sellTaskQueue, monitorTaskQueue } = mainContext;
 
@@ -92,10 +86,7 @@ export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
       releaseSignal,
     });
     const totalRemoved =
-      result.removedDelayed +
-      result.removedBuy +
-      result.removedSell +
-      result.removedMonitorTasks;
+      result.removedDelayed + result.removedBuy + result.removedSell + result.removedMonitorTasks;
     if (totalRemoved > 0) {
       logger.info(
         `[自动换标] ${monitorSymbol} ${direction} 清理待执行信号：延迟=${result.removedDelayed} 买入=${result.removedBuy} 卖出=${result.removedSell} 监控任务=${result.removedMonitorTasks}`,
@@ -121,9 +112,9 @@ export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
   }
 
   if (
-    longSeatReady
-    && (longSeatState.symbol !== previousLongSeatState.symbol
-      || previousLongSeatState.status !== 'READY')
+    longSeatReady &&
+    (longSeatState.symbol !== previousLongSeatState.symbol ||
+      previousLongSeatState.status !== 'READY')
   ) {
     monitorTaskQueue.scheduleLatest({
       type: 'SEAT_REFRESH',
@@ -143,9 +134,9 @@ export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
     });
   }
   if (
-    shortSeatReady
-    && (shortSeatState.symbol !== previousShortSeatState.symbol
-      || previousShortSeatState.status !== 'READY')
+    shortSeatReady &&
+    (shortSeatState.symbol !== previousShortSeatState.symbol ||
+      previousShortSeatState.status !== 'READY')
   ) {
     monitorTaskQueue.scheduleLatest({
       type: 'SEAT_REFRESH',

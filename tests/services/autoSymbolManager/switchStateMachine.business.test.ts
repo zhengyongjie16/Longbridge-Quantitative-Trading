@@ -9,7 +9,11 @@ import { OrderSide } from 'longport';
 
 import { createSwitchStateMachine } from '../../../src/services/autoSymbolManager/switchStateMachine.js';
 import { createSeatStateManager } from '../../../src/services/autoSymbolManager/seatStateManager.js';
-import { createSignalBuilder, calculateBuyQuantityByNotional, resolveDirectionSymbols } from '../../../src/services/autoSymbolManager/signalBuilder.js';
+import {
+  createSignalBuilder,
+  calculateBuyQuantityByNotional,
+  resolveDirectionSymbols,
+} from '../../../src/services/autoSymbolManager/signalBuilder.js';
 import { resolveAutoSearchThresholds } from '../../../src/services/autoSymbolManager/thresholdResolver.js';
 import { signalObjectPool } from '../../../src/utils/objectPool/index.js';
 import { getHKDateKey } from '../../../src/utils/helpers/tradingTime.js';
@@ -306,7 +310,11 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
 
     const signalBuilder = createSignalBuilder({ signalObjectPool });
 
-    const executedActions: Array<{ action: string | null; symbol: string | null; quantity: number | null }> = [];
+    const executedActions: Array<{
+      action: string | null;
+      symbol: string | null;
+      quantity: number | null;
+    }> = [];
     const trader = createTraderDouble({
       executeSignals: async (signals) => {
         const signal = signals[0];
@@ -394,7 +402,11 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
 
     expect(machine.hasPendingSwitch('LONG')).toBeTrue();
     expect(executedActions).toHaveLength(1);
-    expect(executedActions[0]).toEqual({ action: 'SELLCALL', symbol: 'OLD_BULL.HK', quantity: 100 });
+    expect(executedActions[0]).toEqual({
+      action: 'SELLCALL',
+      symbol: 'OLD_BULL.HK',
+      quantity: 100,
+    });
 
     nowMs += 1_000;
 
@@ -461,16 +473,18 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
 
     let executeCalls = 0;
     const trader = createTraderDouble({
-      getPendingOrders: async () => [{
-        orderId: 'BUY-PENDING-1',
-        symbol: 'OLD_BULL.HK',
-        side: OrderSide.Buy,
-        submittedPrice: 1,
-        quantity: 100,
-        executedQuantity: 0,
-        status: Array.from(PENDING_ORDER_STATUSES)[0] as never,
-        orderType: 'ELO' as never,
-      }],
+      getPendingOrders: async () => [
+        {
+          orderId: 'BUY-PENDING-1',
+          symbol: 'OLD_BULL.HK',
+          side: OrderSide.Buy,
+          submittedPrice: 1,
+          quantity: 100,
+          executedQuantity: 0,
+          status: Array.from(PENDING_ORDER_STATUSES)[0] as never,
+          orderType: 'ELO' as never,
+        },
+      ],
       cancelOrder: async () => false,
       executeSignals: async () => {
         executeCalls += 1;

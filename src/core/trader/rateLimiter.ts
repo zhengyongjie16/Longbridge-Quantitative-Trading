@@ -67,9 +67,7 @@ export const createRateLimiter = (deps: RateLimiterDeps = {}): RateLimiter => {
       }
 
       // 2. 清理超出时间窗口的调用记录
-      callTimestamps = callTimestamps.filter(
-        (timestamp) => now - timestamp < windowMs,
-      );
+      callTimestamps = callTimestamps.filter((timestamp) => now - timestamp < windowMs);
 
       // 3. 如果已达到最大调用次数，等待最早的调用过期
       if (callTimestamps.length >= maxCalls) {
@@ -85,9 +83,7 @@ export const createRateLimiter = (deps: RateLimiterDeps = {}): RateLimiter => {
         await new Promise((resolve) => setTimeout(resolve, waitTime));
 
         const nowAfterWait = Date.now();
-        callTimestamps = callTimestamps.filter(
-          (timestamp) => nowAfterWait - timestamp < windowMs,
-        );
+        callTimestamps = callTimestamps.filter((timestamp) => nowAfterWait - timestamp < windowMs);
       }
 
       // 4. 记录本次调用时间

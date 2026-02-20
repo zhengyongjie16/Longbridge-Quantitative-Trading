@@ -16,10 +16,13 @@ export default tseslint.config(
       // 基础规则
       'no-console': 'off', // 允许 console（日志系统需要）
       'no-unused-vars': 'off', // 关闭 JS 规则，使用 TS 规则
-      '@typescript-eslint/no-unused-vars': ['warn', {
-        argsIgnorePattern: '^_',
-        varsIgnorePattern: '^_',
-      }],
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+        },
+      ],
 
       // TypeScript 规则
       '@typescript-eslint/explicit-function-return-type': 'off',
@@ -28,12 +31,12 @@ export default tseslint.config(
       '@typescript-eslint/no-misused-promises': 'warn',
 
       // 代码风格
-      'semi': ['error', 'always'],
-      'quotes': ['error', 'single', { avoidEscape: true }],
-      'indent': ['error', 2, { SwitchCase: 1 }],
+      semi: ['error', 'always'],
+      quotes: ['error', 'single', { avoidEscape: true }],
+      indent: ['error', 2, { SwitchCase: 1 }],
       'comma-dangle': ['error', 'always-multiline'],
       'eol-last': ['error', 'always'],
-      'no-multiple-empty-lines': ['error', { 'max': 1, 'maxEOF': 0 }],
+      'no-multiple-empty-lines': ['error', { max: 1, maxEOF: 0 }],
 
       // 最佳实践
       'no-var': 'error',
@@ -55,5 +58,5 @@ export default tseslint.config(
       '.worktrees/**',
       '.claude/**',
     ],
-  }
+  },
 );

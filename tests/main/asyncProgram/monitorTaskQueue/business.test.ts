@@ -8,7 +8,10 @@ import { describe, expect, it } from 'bun:test';
 
 import { createMonitorTaskQueue } from '../../../../src/main/asyncProgram/monitorTaskQueue/index.js';
 
-import type { MonitorTaskData, MonitorTaskType } from '../../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
+import type {
+  MonitorTaskData,
+  MonitorTaskType,
+} from '../../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 
 describe('monitorTaskQueue business behavior', () => {
   it('scheduleLatest keeps only the latest task for the same dedupeKey', () => {

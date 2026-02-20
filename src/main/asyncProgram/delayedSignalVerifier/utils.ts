@@ -61,7 +61,11 @@ const verifyTimePoint = (
   initialIndicators: Readonly<Record<string, number>>,
   indicatorNames: ReadonlyArray<string>,
   isUptrend: boolean,
-): Readonly<{ passed: boolean; details: ReadonlyArray<string>; failedIndicators: ReadonlyArray<string> }> => {
+): Readonly<{
+  passed: boolean;
+  details: ReadonlyArray<string>;
+  failedIndicators: ReadonlyArray<string>;
+}> => {
   if (!entry) {
     return { passed: false, details: ['无法获取指标数据'], failedIndicators: [] };
   }

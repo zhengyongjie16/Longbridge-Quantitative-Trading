@@ -29,7 +29,8 @@ import type {
   ReplaceOrderOptions,
   StockPositionsResponse,
   SubmitOrderOptions,
-  SubmitOrderResponse} from 'longport';
+  SubmitOrderResponse,
+} from 'longport';
 
 export type MockMethodName =
   | 'quote'
@@ -91,7 +92,11 @@ export interface QuoteContextContract extends MockInvocationLog, MockFailureCont
     tradeSessions?: TradeSessions,
   ): Promise<ReadonlyArray<Candlestick>>;
   unsubscribeCandlesticks(symbol: string, period: Period): Promise<void>;
-  realtimeCandlesticks(symbol: string, period: Period, count: number): Promise<ReadonlyArray<Candlestick>>;
+  realtimeCandlesticks(
+    symbol: string,
+    period: Period,
+    count: number,
+  ): Promise<ReadonlyArray<Candlestick>>;
   tradingDays(market: Market, begin: unknown, end: unknown): Promise<MarketTradingDays>;
   warrantQuote(symbols: ReadonlyArray<string>): Promise<ReadonlyArray<WarrantQuote>>;
   warrantList(

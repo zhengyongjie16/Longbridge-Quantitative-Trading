@@ -5,12 +5,7 @@
  * - 验证 WebSocket 乱序场景下的行为与恢复期望。
  */
 import { describe, expect, it } from 'bun:test';
-import {
-  OrderSide,
-  OrderStatus,
-  OrderType,
-  type TradeContext,
-} from 'longport';
+import { OrderSide, OrderStatus, OrderType, type TradeContext } from 'longport';
 
 import { createOrderMonitor } from '../../src/core/trader/orderMonitor.js';
 import type { OrderMonitorDeps } from '../../src/core/trader/types.js';
@@ -25,7 +20,10 @@ import {
 
 function createDeps(params?: {
   readonly orderRecorder?: ReturnType<typeof createOrderRecorderDouble>;
-}): { deps: OrderMonitorDeps; tradeCtx: ReturnType<typeof createTradeContextMock> } {
+}): {
+  deps: OrderMonitorDeps;
+  tradeCtx: ReturnType<typeof createTradeContextMock>;
+} {
   const tradeCtx = createTradeContextMock();
   const deps: OrderMonitorDeps = {
     ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
@@ -107,55 +105,67 @@ describe('chaos: websocket out-of-order and duplicate pushes', () => {
       orderType: OrderType.ELO,
     });
 
-    tradeCtx.emitOrderChanged(createPushOrderChanged({
-      orderId: 'WS-CHAOS-001',
-      symbol: 'BULL.HK',
-      side: OrderSide.Sell,
-      status: OrderStatus.Filled,
-      orderType: OrderType.ELO,
-      submittedQuantity: 100,
-      executedQuantity: 100,
-      submittedPrice: 1,
-      executedPrice: 1,
-    }), { sequence: 1 });
+    tradeCtx.emitOrderChanged(
+      createPushOrderChanged({
+        orderId: 'WS-CHAOS-001',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.Filled,
+        orderType: OrderType.ELO,
+        submittedQuantity: 100,
+        executedQuantity: 100,
+        submittedPrice: 1,
+        executedPrice: 1,
+      }),
+      { sequence: 1 },
+    );
 
-    tradeCtx.emitOrderChanged(createPushOrderChanged({
-      orderId: 'WS-CHAOS-002',
-      symbol: 'BEAR.HK',
-      side: OrderSide.Sell,
-      status: OrderStatus.Filled,
-      orderType: OrderType.ELO,
-      submittedQuantity: 100,
-      executedQuantity: 100,
-      submittedPrice: 1,
-      executedPrice: 1,
-    }), { sequence: 2 });
+    tradeCtx.emitOrderChanged(
+      createPushOrderChanged({
+        orderId: 'WS-CHAOS-002',
+        symbol: 'BEAR.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.Filled,
+        orderType: OrderType.ELO,
+        submittedQuantity: 100,
+        executedQuantity: 100,
+        submittedPrice: 1,
+        executedPrice: 1,
+      }),
+      { sequence: 2 },
+    );
 
     // 乱序: 更晚才到达的 PartialFilled，不应回写已完成订单状态。
-    tradeCtx.emitOrderChanged(createPushOrderChanged({
-      orderId: 'WS-CHAOS-002',
-      symbol: 'BEAR.HK',
-      side: OrderSide.Sell,
-      status: OrderStatus.PartialFilled,
-      orderType: OrderType.ELO,
-      submittedQuantity: 100,
-      executedQuantity: 20,
-      submittedPrice: 1,
-      executedPrice: 1,
-    }), { sequence: 3 });
+    tradeCtx.emitOrderChanged(
+      createPushOrderChanged({
+        orderId: 'WS-CHAOS-002',
+        symbol: 'BEAR.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.PartialFilled,
+        orderType: OrderType.ELO,
+        submittedQuantity: 100,
+        executedQuantity: 20,
+        submittedPrice: 1,
+        executedPrice: 1,
+      }),
+      { sequence: 3 },
+    );
 
     // 重复 Filled 推送。
-    tradeCtx.emitOrderChanged(createPushOrderChanged({
-      orderId: 'WS-CHAOS-001',
-      symbol: 'BULL.HK',
-      side: OrderSide.Sell,
-      status: OrderStatus.Filled,
-      orderType: OrderType.ELO,
-      submittedQuantity: 100,
-      executedQuantity: 100,
-      submittedPrice: 1,
-      executedPrice: 1,
-    }), { sequence: 4 });
+    tradeCtx.emitOrderChanged(
+      createPushOrderChanged({
+        orderId: 'WS-CHAOS-001',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.Filled,
+        orderType: OrderType.ELO,
+        submittedQuantity: 100,
+        executedQuantity: 100,
+        submittedPrice: 1,
+        executedPrice: 1,
+      }),
+      { sequence: 4 },
+    );
 
     expect(tradeCtx.flushAllEvents()).toBe(4);
     expect(localSellCount).toBe(2);

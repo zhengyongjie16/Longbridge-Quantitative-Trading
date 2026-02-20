@@ -42,7 +42,9 @@ describe('createSeatDomain', () => {
       ],
     ]);
     const tradingConfig: MultiMonitorTradingConfig = {
-      monitors: [{ monitorSymbol: 'HSI.HK' } as unknown as MultiMonitorTradingConfig['monitors'][0]],
+      monitors: [
+        { monitorSymbol: 'HSI.HK' } as unknown as MultiMonitorTradingConfig['monitors'][0],
+      ],
       global: {} as MultiMonitorTradingConfig['global'],
     };
     const symbolRegistry: SymbolRegistry = {

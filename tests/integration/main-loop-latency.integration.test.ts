@@ -13,7 +13,10 @@ import { TRADING } from '../../src/constants/index.js';
 import { mainProgram } from '../../src/main/mainProgram/index.js';
 import { createMonitorContext } from '../../src/services/monitorContext/index.js';
 import { createHangSengMultiIndicatorStrategy } from '../../src/core/strategy/index.js';
-import { createBuyTaskQueue, createSellTaskQueue } from '../../src/main/asyncProgram/tradeTaskQueue/index.js';
+import {
+  createBuyTaskQueue,
+  createSellTaskQueue,
+} from '../../src/main/asyncProgram/tradeTaskQueue/index.js';
 import { createMonitorTaskQueue } from '../../src/main/asyncProgram/monitorTaskQueue/index.js';
 import { createIndicatorCache } from '../../src/main/asyncProgram/indicatorCache/index.js';
 import { initMonitorState } from '../../src/utils/helpers/index.js';
@@ -36,8 +39,14 @@ import type { MainProgramContext } from '../../src/main/mainProgram/types.js';
 import type { MarketDataClient } from '../../src/types/services.js';
 import type { AutoSymbolManager } from '../../src/services/autoSymbolManager/types.js';
 import type { DelayedSignalVerifier } from '../../src/main/asyncProgram/delayedSignalVerifier/types.js';
-import type { DailyLossTracker, UnrealizedLossMonitor } from '../../src/core/riskController/types.js';
-import type { MonitorTaskData, MonitorTaskType } from '../../src/main/asyncProgram/monitorTaskProcessor/types.js';
+import type {
+  DailyLossTracker,
+  UnrealizedLossMonitor,
+} from '../../src/core/riskController/types.js';
+import type {
+  MonitorTaskData,
+  MonitorTaskType,
+} from '../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 
 type DelayedApiMethod =
   | 'subscribeSymbols'
@@ -165,7 +174,11 @@ function createMultiMonitorSymbolRegistry(
       }
       return null;
     },
-    updateSeatState(monitorSymbol: string, direction: 'LONG' | 'SHORT', nextState: SeatState): SeatState {
+    updateSeatState(
+      monitorSymbol: string,
+      direction: 'LONG' | 'SHORT',
+      nextState: SeatState,
+    ): SeatState {
       const entry = seatMap.get(monitorSymbol);
       if (!entry) {
         throw new Error(`missing seat entry for monitorSymbol=${monitorSymbol}`);
@@ -282,7 +295,9 @@ function mean(values: ReadonlyArray<number>): number {
   return total / values.length;
 }
 
-function buildTradingConfig(monitorConfigs: ReadonlyArray<MonitorConfig>): MultiMonitorTradingConfig {
+function buildTradingConfig(
+  monitorConfigs: ReadonlyArray<MonitorConfig>,
+): MultiMonitorTradingConfig {
   const baseGlobal = createTradingConfig().global;
   return createTradingConfig({
     monitors: [...monitorConfigs],
@@ -380,10 +395,7 @@ describe('main loop latency full-chain integration', () => {
     let currentStage: 'startup' | 'main-loop' = 'startup';
     let currentIteration: number | null = null;
 
-    async function withApiDelay<T>(
-      method: DelayedApiMethod,
-      run: () => Promise<T>,
-    ): Promise<T> {
+    async function withApiDelay<T>(method: DelayedApiMethod, run: () => Promise<T>): Promise<T> {
       const startedAt = performance.now();
       await Bun.sleep(apiDelayMs);
       const result = await run();
@@ -455,11 +467,17 @@ describe('main loop latency full-chain integration', () => {
             quoteCache.delete(symbol);
           }
         }),
-      subscribeCandlesticks: async (symbol: string, period: Period, _tradeSessions?: TradeSessions) =>
+      subscribeCandlesticks: async (
+        symbol: string,
+        period: Period,
+        _tradeSessions?: TradeSessions,
+      ) =>
         withApiDelay('subscribeCandlesticks', async () => {
           const key = makeCandleKey(symbol, period);
           subscribedCandlestickKeys.add(key);
-          const monitorIndex = monitorConfigs.findIndex((config) => config.monitorSymbol === symbol);
+          const monitorIndex = monitorConfigs.findIndex(
+            (config) => config.monitorSymbol === symbol,
+          );
           const base = 100 + Math.max(monitorIndex, 0) * 20;
           const candles = createCandles(TRADING.CANDLE_COUNT, base, 0.15);
           candleCache.set(key, candles);

@@ -21,7 +21,12 @@ import {
   toHongKongTimeLog,
 } from '../../utils/helpers/index.js';
 import { isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
-import { copyPeriodRecord, formatWarrantDistanceDisplay, hasChanged, indicatorChanged } from './utils.js';
+import {
+  copyPeriodRecord,
+  formatWarrantDistanceDisplay,
+  hasChanged,
+  indicatorChanged,
+} from './utils.js';
 import {
   kdjObjectPool,
   macdObjectPool,
@@ -156,7 +161,17 @@ function displayIndicators(params: {
   readonly psyPeriods: ReadonlyArray<number>;
   readonly klineTimestamp: number | null;
 }): void {
-  const { monitorSnapshot, monitorQuote, monitorSymbol, currentPrice, changePercent, emaPeriods, rsiPeriods, psyPeriods, klineTimestamp } = params;
+  const {
+    monitorSnapshot,
+    monitorQuote,
+    monitorSymbol,
+    currentPrice,
+    changePercent,
+    emaPeriods,
+    rsiPeriods,
+    psyPeriods,
+    klineTimestamp,
+  } = params;
 
   // 构建指标显示字符串（按照指定顺序：最新价、涨跌幅、EMAn、RSIn、MFI、PSY、K、D、J、MACD、DIF、DEA）
   const indicators: string[] = [];
@@ -204,9 +219,7 @@ function displayIndicators(params: {
   if (monitorSnapshot.macd) {
     const macd = monitorSnapshot.macd;
     if (Number.isFinite(macd.macd)) {
-      indicators.push(
-        `MACD=${formatIndicator(macd.macd, 3)}`,
-      );
+      indicators.push(`MACD=${formatIndicator(macd.macd, 3)}`);
     }
     if (Number.isFinite(macd.dif)) {
       indicators.push(`DIF=${formatIndicator(macd.dif, 3)}`);
@@ -222,9 +235,7 @@ function displayIndicators(params: {
   const timePrefix = formatKlineTimePrefix(klineTimestamp);
 
   logger.info(
-    `${colors.cyan}${timePrefix}[监控标的] ${monitorSymbolName}(${monitorSymbol}) ${indicators.join(
-      ' ',
-    )}${colors.reset}`,
+    `${colors.cyan}${timePrefix}[监控标的] ${monitorSymbolName}(${monitorSymbol}) ${indicators.join(' ')}${colors.reset}`,
   );
 }
 
@@ -254,13 +265,21 @@ export function createMarketMonitor(): MarketMonitor {
       const longPriceChanged =
         monitorState.longPrice == null && Number.isFinite(longPrice)
           ? true // 首次出现价格
-          : hasChanged(longPrice ?? null, monitorState.longPrice ?? null, MONITOR.PRICE_CHANGE_THRESHOLD);
+          : hasChanged(
+              longPrice ?? null,
+              monitorState.longPrice ?? null,
+              MONITOR.PRICE_CHANGE_THRESHOLD,
+            );
 
       // 检查做空标的价格是否变化
       const shortPriceChanged =
         monitorState.shortPrice == null && Number.isFinite(shortPrice)
           ? true // 首次出现价格
-          : hasChanged(shortPrice ?? null, monitorState.shortPrice ?? null, MONITOR.PRICE_CHANGE_THRESHOLD);
+          : hasChanged(
+              shortPrice ?? null,
+              monitorState.shortPrice ?? null,
+              MONITOR.PRICE_CHANGE_THRESHOLD,
+            );
 
       if (longPriceChanged || shortPriceChanged) {
         displayQuoteInfo(longQuote, longSymbol, '做多标的', longWarrantDistanceInfo);
@@ -329,7 +348,10 @@ export function createMarketMonitor(): MarketMonitor {
       // 检查涨跌幅变化
       const lastChangePercent = monitorState.monitorValues?.changePercent;
       if (!hasIndicatorChanged && changePercent !== null) {
-        if (lastChangePercent == null || hasChanged(changePercent, lastChangePercent, MONITOR.CHANGE_PERCENT_THRESHOLD)) {
+        if (
+          lastChangePercent == null ||
+          hasChanged(changePercent, lastChangePercent, MONITOR.CHANGE_PERCENT_THRESHOLD)
+        ) {
           hasIndicatorChanged = true;
         }
       }
@@ -384,7 +406,8 @@ export function createMarketMonitor(): MarketMonitor {
         const lastMfi = monitorState.monitorValues?.mfi;
         if (
           Number.isFinite(monitorSnapshot.mfi) &&
-          (lastMfi == null || hasChanged(monitorSnapshot.mfi, lastMfi, MONITOR.INDICATOR_CHANGE_THRESHOLD))
+          (lastMfi == null ||
+            hasChanged(monitorSnapshot.mfi, lastMfi, MONITOR.INDICATOR_CHANGE_THRESHOLD))
         ) {
           hasIndicatorChanged = true;
         }

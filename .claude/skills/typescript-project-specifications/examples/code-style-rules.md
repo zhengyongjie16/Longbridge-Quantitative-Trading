@@ -14,17 +14,21 @@
 
 ```typescript
 // 假设 TradeStatus 和 QuoteData 已定义在某个 types.ts 中
-type OrderStatus = TradeStatus;  // 仅是 TradeStatus 的别名
-type MarketData = QuoteData;     // 仅是 QuoteData 的别名
+type OrderStatus = TradeStatus; // 仅是 TradeStatus 的别名
+type MarketData = QuoteData; // 仅是 QuoteData 的别名
 
-const process = (status: OrderStatus, data: MarketData) => { /* ... */ };
+const process = (status: OrderStatus, data: MarketData) => {
+  /* ... */
+};
 ```
 
 ### ✅ 正确
 
 ```typescript
 // 直接使用原始类型
-const process = (status: TradeStatus, data: QuoteData) => { /* ... */ };
+const process = (status: TradeStatus, data: QuoteData) => {
+  /* ... */
+};
 ```
 
 ---
@@ -59,9 +63,9 @@ const calculateProfit = (buyPrice: number, sellPrice: number, quantity: number):
 以下类型别名是**合理的**，因为它们封装了复合类型结构：
 
 ```typescript
-type TradeSide = 'buy' | 'sell';              // 联合类型
-type OrderCallback = (order: Order) => void;   // 函数签名
-type Nullable<T> = T | null;                   // 泛型工具类型
+type TradeSide = 'buy' | 'sell'; // 联合类型
+type OrderCallback = (order: Order) => void; // 函数签名
+type Nullable<T> = T | null; // 泛型工具类型
 ```
 
 ---
@@ -75,8 +79,7 @@ type Nullable<T> = T | null;                   // 泛型工具类型
 ### ❌ 错误
 
 ```typescript
-const getAction = (signal: number): string =>
-  signal > 0 ? 'BUY' : signal < 0 ? 'SELL' : 'HOLD';
+const getAction = (signal: number): string => (signal > 0 ? 'BUY' : signal < 0 ? 'SELL' : 'HOLD');
 
 const getLabel = (code: number): string =>
   code === 1 ? 'active' : code === 2 ? 'paused' : code === 3 ? 'error' : 'unknown';
@@ -109,10 +112,14 @@ const getLabel = (code: number): string => STATUS_LABELS[code] ?? 'unknown';
 ```typescript
 const getRiskLevel = (score: number): string => {
   switch (true) {
-    case score >= 80: return 'high';
-    case score >= 50: return 'medium';
-    case score >= 20: return 'low';
-    default: return 'safe';
+    case score >= 80:
+      return 'high';
+    case score >= 50:
+      return 'medium';
+    case score >= 20:
+      return 'low';
+    default:
+      return 'safe';
   }
 };
 ```
@@ -129,9 +136,17 @@ const getRiskLevel = (score: number): string => {
 
 ```typescript
 const createOrder = (
-  symbol: string, side: OrderSide, price: number, quantity: number,
-  stopLoss: number, takeProfit: number, timeInForce: TimeInForce, trailingStop: number,
-): void => { /* ... */ };
+  symbol: string,
+  side: OrderSide,
+  price: number,
+  quantity: number,
+  stopLoss: number,
+  takeProfit: number,
+  timeInForce: TimeInForce,
+  trailingStop: number,
+): void => {
+  /* ... */
+};
 
 // 调用时完全看不出每个参数的含义
 createOrder('AAPL', 'buy', 150, 100, 145, 160, 'day', 2);
@@ -151,7 +166,16 @@ type CreateOrderParams = {
   readonly trailingStop: number;
 };
 
-const createOrder = ({ symbol, side, price, quantity, stopLoss, takeProfit, timeInForce, trailingStop }: CreateOrderParams): void => {
+const createOrder = ({
+  symbol,
+  side,
+  price,
+  quantity,
+  stopLoss,
+  takeProfit,
+  timeInForce,
+  trailingStop,
+}: CreateOrderParams): void => {
   /* ... */
 };
 

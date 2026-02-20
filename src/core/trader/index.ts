@@ -22,7 +22,13 @@ import { createOrderRecorder } from '../orderRecorder/index.js';
 import type { Signal, SignalType } from '../../types/signal.js';
 import type { Quote } from '../../types/quote.js';
 import type { AccountSnapshot, Position } from '../../types/account.js';
-import type { Trader, TradeCheckResult, PendingOrder, PendingRefreshSymbol, RawOrderFromAPI } from '../../types/services.js';
+import type {
+  Trader,
+  TradeCheckResult,
+  PendingOrder,
+  PendingRefreshSymbol,
+  RawOrderFromAPI,
+} from '../../types/services.js';
 import type { MonitorConfig } from '../../types/config.js';
 import type { TraderDeps } from './types.js';
 
@@ -135,9 +141,7 @@ export async function createTrader(deps: TraderDeps): Promise<Trader> {
       return cacheManager.getPendingOrders(symbols, forceRefresh);
     },
 
-    seedOrderHoldSymbols(
-      orders: ReadonlyArray<RawOrderFromAPI>,
-    ): void {
+    seedOrderHoldSymbols(orders: ReadonlyArray<RawOrderFromAPI>): void {
       orderHoldRegistry.seedFromOrders(orders);
     },
 
@@ -151,9 +155,7 @@ export async function createTrader(deps: TraderDeps): Promise<Trader> {
       return orderMonitor.cancelOrder(orderId);
     },
 
-    monitorAndManageOrders(
-      quotesMap: ReadonlyMap<string, Quote | null>,
-    ): Promise<void> {
+    monitorAndManageOrders(quotesMap: ReadonlyMap<string, Quote | null>): Promise<void> {
       return orderMonitor.processWithLatestQuotes(quotesMap);
     },
 

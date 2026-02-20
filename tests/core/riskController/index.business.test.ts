@@ -11,10 +11,7 @@ import type {
   UnrealizedLossChecker,
   WarrantRiskChecker,
 } from '../../../src/core/riskController/types.js';
-import {
-  createAccountSnapshotDouble,
-  createSignalDouble,
-} from '../../helpers/testDoubles.js';
+import { createAccountSnapshotDouble, createSignalDouble } from '../../helpers/testDoubles.js';
 
 function createWarrantCheckerStub(): WarrantRiskChecker {
   return {
@@ -28,7 +25,9 @@ function createWarrantCheckerStub(): WarrantRiskChecker {
   };
 }
 
-function createUnrealizedLossCheckerStub(overrides: Partial<UnrealizedLossChecker> = {}): UnrealizedLossChecker {
+function createUnrealizedLossCheckerStub(
+  overrides: Partial<UnrealizedLossChecker> = {},
+): UnrealizedLossChecker {
   const base: UnrealizedLossChecker = {
     getUnrealizedLossData: () => undefined,
     clearUnrealizedLossData: () => {},
@@ -38,7 +37,9 @@ function createUnrealizedLossCheckerStub(overrides: Partial<UnrealizedLossChecke
   return { ...base, ...overrides };
 }
 
-function createPositionLimitCheckerStub(overrides: Partial<PositionLimitChecker> = {}): PositionLimitChecker {
+function createPositionLimitCheckerStub(
+  overrides: Partial<PositionLimitChecker> = {},
+): PositionLimitChecker {
   const base: PositionLimitChecker = {
     checkLimit: () => ({ allowed: true }),
   };

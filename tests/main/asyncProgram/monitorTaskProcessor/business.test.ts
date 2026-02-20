@@ -10,7 +10,12 @@ import { createMonitorTaskQueue } from '../../../../src/main/asyncProgram/monito
 import { createMonitorTaskProcessor } from '../../../../src/main/asyncProgram/monitorTaskProcessor/index.js';
 import { createRefreshGate } from '../../../../src/utils/refreshGate/index.js';
 
-import type { MonitorTaskData, MonitorTaskStatus, MonitorTaskType , MonitorTaskContext } from '../../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
+import type {
+  MonitorTaskData,
+  MonitorTaskStatus,
+  MonitorTaskType,
+  MonitorTaskContext,
+} from '../../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 import type { MonitorTask } from '../../../../src/main/asyncProgram/monitorTaskQueue/types.js';
 import type { LastState, MonitorContext } from '../../../../src/types/state.js';
 import type { MultiMonitorTradingConfig } from '../../../../src/types/config.js';
@@ -267,7 +272,10 @@ describe('monitorTaskProcessor business flow', () => {
       },
     });
 
-    const seen: Array<{ task: MonitorTask<MonitorTaskType, MonitorTaskData>; status: MonitorTaskStatus }> = [];
+    const seen: Array<{
+      task: MonitorTask<MonitorTaskType, MonitorTaskData>;
+      status: MonitorTaskStatus;
+    }> = [];
 
     const processor = createMonitorTaskProcessor({
       monitorTaskQueue: queue,
@@ -415,11 +423,13 @@ describe('monitorTaskProcessor business flow', () => {
         },
         getStockPositions: async () => {
           stockPositionCalls += 1;
-          return [createPositionDouble({
-            symbol: 'BULL.HK',
-            quantity: 100,
-            availableQuantity: 100,
-          })];
+          return [
+            createPositionDouble({
+              symbol: 'BULL.HK',
+              quantity: 100,
+              availableQuantity: 100,
+            }),
+          ];
         },
       }),
       lastState,

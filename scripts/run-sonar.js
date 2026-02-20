@@ -71,7 +71,7 @@ const config = {};
 
 try {
   const envContent = readFileSync(envPath, 'utf-8');
-  envContent.split('\n').forEach(line => {
+  envContent.split('\n').forEach((line) => {
     const trimmed = line.trim();
     if (trimmed && !trimmed.startsWith('#')) {
       const [key, ...valueParts] = trimmed.split('=');
@@ -92,7 +92,7 @@ try {
 
 // 验证必需的配置
 const required = ['SONAR_TOKEN', 'SONAR_HOST_URL', 'SONAR_PROJECT_KEY', 'SONAR_SCANNER_PATH'];
-const missingKey = required.find(key => !config[key]);
+const missingKey = required.find((key) => !config[key]);
 if (missingKey) {
   console.error(`❌ 配置文件中缺少 ${missingKey}`);
   process.exit(1);
@@ -100,7 +100,9 @@ if (missingKey) {
 
 // 验证配置值的安全性，防止命令注入
 if (!isValidUrl(config.SONAR_HOST_URL)) {
-  console.error('❌ SONAR_HOST_URL 格式无效，必须是安全的 http/https URL（不含查询参数和 shell 特殊字符）');
+  console.error(
+    '❌ SONAR_HOST_URL 格式无效，必须是安全的 http/https URL（不含查询参数和 shell 特殊字符）',
+  );
   process.exit(1);
 }
 
@@ -128,7 +130,7 @@ async function checkSonarQubeStatus() {
     const timeoutId = setTimeout(() => controller.abort(), 5000);
 
     const response = await fetch(`${config.SONAR_HOST_URL}/api/system/status`, {
-      signal: controller.signal
+      signal: controller.signal,
     });
     clearTimeout(timeoutId);
 
@@ -165,11 +167,11 @@ async function startSonarQube() {
     // docker-compose 是固定命令，安全
     execSync('docker-compose up -d', {
       cwd: projectRoot,
-      stdio: 'inherit'
+      stdio: 'inherit',
     });
     console.log('⏳ 等待 SonarQube 启动（大约 30 秒）...');
     // 使用 Node.js 原生方式等待，避免 shell 命令
-    await new Promise(resolve => setTimeout(resolve, 30000));
+    await new Promise((resolve) => setTimeout(resolve, 30000));
   } catch (dockerError) {
     console.error('❌ 无法启动 SonarQube，请手动运行: docker-compose up -d', dockerError.message);
     process.exit(1);
@@ -188,7 +190,7 @@ console.log(`   服务器: ${config.SONAR_HOST_URL}`);
 const scannerCmd = join(
   config.SONAR_SCANNER_PATH,
   'bin',
-  process.platform === 'win32' ? 'sonar-scanner.bat' : 'sonar-scanner'
+  process.platform === 'win32' ? 'sonar-scanner.bat' : 'sonar-scanner',
 );
 
 // 验证 scanner 可执行文件存在
@@ -200,7 +202,7 @@ if (!existsSync(scannerCmd)) {
 const scannerArgs = [
   `-Dsonar.login=${config.SONAR_TOKEN}`,
   `-Dsonar.host.url=${config.SONAR_HOST_URL}`,
-  `-Dsonar.projectKey=${config.SONAR_PROJECT_KEY}`
+  `-Dsonar.projectKey=${config.SONAR_PROJECT_KEY}`,
 ];
 
 // 运行 sonar-scanner
@@ -209,7 +211,7 @@ try {
   execSync(`"${scannerCmd}" ${scannerArgs.join(' ')}`, {
     cwd: projectRoot,
     stdio: 'inherit',
-    shell: true
+    shell: true,
   });
 
   console.log('\n✅ 扫描完成！');
@@ -222,4 +224,3 @@ try {
   console.error('  3. 网络连接是否正常');
   process.exit(1);
 }
-

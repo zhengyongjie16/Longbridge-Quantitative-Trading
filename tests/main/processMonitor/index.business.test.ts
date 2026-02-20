@@ -6,7 +6,10 @@
  */
 import { describe, expect, it } from 'bun:test';
 
-import { createBuyTaskQueue, createSellTaskQueue } from '../../../src/main/asyncProgram/tradeTaskQueue/index.js';
+import {
+  createBuyTaskQueue,
+  createSellTaskQueue,
+} from '../../../src/main/asyncProgram/tradeTaskQueue/index.js';
 import { createMonitorTaskQueue } from '../../../src/main/asyncProgram/monitorTaskQueue/index.js';
 import { createIndicatorCache } from '../../../src/main/asyncProgram/indicatorCache/index.js';
 import type { CandleData } from '../../../src/types/data.js';
@@ -246,11 +249,14 @@ describe('processMonitor end-to-end orchestration', () => {
       },
     };
 
-    await processMonitor(params, new Map([
-      ['HSI.HK', createQuoteDouble('HSI.HK', 20_050)],
-      ['BULL.HK', createQuoteDouble('BULL.HK', 1.1)],
-      ['BEAR.HK', createQuoteDouble('BEAR.HK', 0.9)],
-    ]));
+    await processMonitor(
+      params,
+      new Map([
+        ['HSI.HK', createQuoteDouble('HSI.HK', 20_050)],
+        ['BULL.HK', createQuoteDouble('BULL.HK', 1.1)],
+        ['BEAR.HK', createQuoteDouble('BEAR.HK', 0.9)],
+      ]),
+    );
 
     expect(strategyCalls).toBe(1);
     expect(monitorContext.state.monitorPrice).toBe(20_050);

@@ -8,9 +8,18 @@
  * - 浮亏 = R2 - R1（负值表示亏损）
  */
 import { logger } from '../../utils/logger/index.js';
-import { isValidPositiveNumber, getLongDirectionName, getShortDirectionName, formatSymbolDisplayFromQuote } from '../../utils/helpers/index.js';
+import {
+  isValidPositiveNumber,
+  getLongDirectionName,
+  getShortDirectionName,
+  formatSymbolDisplayFromQuote,
+} from '../../utils/helpers/index.js';
 import type { Quote } from '../../types/quote.js';
-import type { OrderRecorder, UnrealizedLossData, UnrealizedLossCheckResult } from '../../types/services.js';
+import type {
+  OrderRecorder,
+  UnrealizedLossData,
+  UnrealizedLossCheckResult,
+} from '../../types/services.js';
 import type { UnrealizedLossChecker, UnrealizedLossCheckerDeps } from './types.js';
 
 /**
@@ -43,7 +52,9 @@ function calculateCostAndQuantity(
  * @param deps 依赖，含 maxUnrealizedLossPerSymbol（null 或 ≤0 表示禁用）
  * @returns 实现 UnrealizedLossChecker 接口的实例（含 refresh/check/clearUnrealizedLossData）
  */
-export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): UnrealizedLossChecker => {
+export const createUnrealizedLossChecker = (
+  deps: UnrealizedLossCheckerDeps,
+): UnrealizedLossChecker => {
   const maxUnrealizedLossPerSymbol = deps.maxUnrealizedLossPerSymbol;
 
   // 闭包捕获的私有状态
@@ -91,25 +102,18 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
 
     if (!orderRecorder) {
       const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
-      logger.warn(
-        `[浮亏监控] 未提供 OrderRecorder 实例，无法刷新标的 ${symbolDisplay} 的浮亏数据`,
-      );
+      logger.warn(`[浮亏监控] 未提供 OrderRecorder 实例，无法刷新标的 ${symbolDisplay} 的浮亏数据`);
       return null;
     }
 
     try {
       // 使用公共方法获取订单列表
-      const buyOrders = orderRecorder.getBuyOrdersForSymbol(
-        symbol,
-        isLongSymbol,
-      );
+      const buyOrders = orderRecorder.getBuyOrdersForSymbol(symbol, isLongSymbol);
 
       // 计算R1（开仓成本）和N1（持仓数量）
       const { r1: baseR1, n1 } = calculateCostAndQuantity(buyOrders);
       const normalizedOffset =
-        dailyLossOffset != null && Number.isFinite(dailyLossOffset)
-          ? dailyLossOffset
-          : 0;
+        dailyLossOffset != null && Number.isFinite(dailyLossOffset) ? dailyLossOffset : 0;
       // 调整后R1 = 基础R1 - 当日偏移
       // 当日偏移为负数时（已亏损），减去负数使R1增大，从而更容易触发浮亏保护
       // 调整后R1 不能为负数，最小值为 0
@@ -197,9 +201,7 @@ export const createUnrealizedLossChecker = (deps: UnrealizedLossCheckerDeps): Un
       const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
       const reason = `[保护性清仓] ${positionType} ${symbol} 浮亏=${unrealizedLoss.toFixed(
         2,
-      )} HKD 超过阈值 ${maxUnrealizedLossPerSymbol} HKD (R1=${r1.toFixed(
-        2,
-      )}, R2=${r2.toFixed(2)}, N1=${n1})，执行保护性清仓`;
+      )} HKD 超过阈值 ${maxUnrealizedLossPerSymbol} HKD (R1=${r1.toFixed(2)}, R2=${r2.toFixed(2)}, N1=${n1})，执行保护性清仓`;
 
       logger.warn(reason);
 

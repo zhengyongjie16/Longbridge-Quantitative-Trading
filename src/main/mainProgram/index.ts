@@ -85,10 +85,7 @@ export async function mainProgram({
     } catch (err) {
       isTradingDayToday = false;
       isHalfDayToday = false;
-      logger.warn(
-        '无法获取交易日信息，进入保护性暂停（按非交易日处理）',
-        formatError(err),
-      );
+      logger.warn('无法获取交易日信息，进入保护性暂停（按非交易日处理）', formatError(err));
     }
   }
 
@@ -200,7 +197,9 @@ export async function mainProgram({
     });
 
     if (cancelResult.executed && cancelResult.cancelledCount > 0) {
-      logger.info(`[末日保护程序] 收盘前15分钟撤单完成，共撤销 ${cancelResult.cancelledCount} 个买入订单`);
+      logger.info(
+        `[末日保护程序] 收盘前15分钟撤单完成，共撤销 ${cancelResult.cancelledCount} 个买入订单`,
+      );
     }
 
     // 收盘前5分钟：自动清仓所有持仓
@@ -235,9 +234,7 @@ export async function mainProgram({
     await marketDataClient.subscribeSymbols(added);
   }
 
-  const removableSymbols = removed.filter(
-    (symbol) => lastState.positionCache.get(symbol) == null,
-  );
+  const removableSymbols = removed.filter((symbol) => lastState.positionCache.get(symbol) == null);
 
   if (removableSymbols.length > 0) {
     await marketDataClient.unsubscribeSymbols(removableSymbols);
@@ -279,18 +276,24 @@ export async function mainProgram({
   const monitorTasks: Promise<void>[] = [];
   for (const [monitorSymbol, monitorContext] of monitorContexts) {
     monitorTasks.push(
-      processMonitor({
-        context: mainContext,
-        monitorContext,
-        runtimeFlags: {
-          currentTime,
-          isHalfDay: isHalfDayToday,
-          canTradeNow,
-          openProtectionActive,
-          isTradingEnabled: lastState.isTradingEnabled,
+      processMonitor(
+        {
+          context: mainContext,
+          monitorContext,
+          runtimeFlags: {
+            currentTime,
+            isHalfDay: isHalfDayToday,
+            canTradeNow,
+            openProtectionActive,
+            isTradingEnabled: lastState.isTradingEnabled,
+          },
         },
-      }, quotesMap).catch((err: unknown) => {
-        logger.error(`处理监控标的 ${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)} 失败`, formatError(err));
+        quotesMap,
+      ).catch((err: unknown) => {
+        logger.error(
+          `处理监控标的 ${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)} 失败`,
+          formatError(err),
+        );
       }),
     );
   }

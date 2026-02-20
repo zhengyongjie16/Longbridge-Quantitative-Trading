@@ -7,13 +7,19 @@
 import { describe, expect, it } from 'bun:test';
 
 import { syncSeatState } from '../../../src/main/processMonitor/seatSync.js';
-import { createBuyTaskQueue, createSellTaskQueue } from '../../../src/main/asyncProgram/tradeTaskQueue/index.js';
+import {
+  createBuyTaskQueue,
+  createSellTaskQueue,
+} from '../../../src/main/asyncProgram/tradeTaskQueue/index.js';
 import { createMonitorTaskQueue } from '../../../src/main/asyncProgram/monitorTaskQueue/index.js';
 
 import type { Signal } from '../../../src/types/signal.js';
 import type { MainProgramContext } from '../../../src/main/mainProgram/types.js';
 import type { MonitorContext } from '../../../src/types/state.js';
-import type { MonitorTaskData, MonitorTaskType } from '../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
+import type {
+  MonitorTaskData,
+  MonitorTaskType,
+} from '../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 
 import {
   createQuoteDouble,

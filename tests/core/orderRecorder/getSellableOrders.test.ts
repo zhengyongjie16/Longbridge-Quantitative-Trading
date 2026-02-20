@@ -81,15 +81,15 @@ describe('getSellableOrders', () => {
       makeOrder('O3', 0.8, 100),
     ]);
 
-    const result = storage.getSellableOrders('TEST.HK', 'LONG', 1.1, undefined, { includeAll: true });
+    const result = storage.getSellableOrders('TEST.HK', 'LONG', 1.1, undefined, {
+      includeAll: true,
+    });
     expect(result.orders).toHaveLength(3);
     expect(result.totalQuantity).toBe(300);
   });
 
   it('当前价等于买入价时该订单不被选中（includeAll=false）', () => {
-    storage.setBuyOrdersListForLong('TEST.HK', [
-      makeOrder('O1', 1, 100),
-    ]);
+    storage.setBuyOrdersListForLong('TEST.HK', [makeOrder('O1', 1, 100)]);
 
     // 当前价 = 买入价 = 1，不满足 < 条件
     const result = storage.getSellableOrders('TEST.HK', 'LONG', 1);
@@ -138,7 +138,9 @@ describe('getSellableOrders', () => {
       submittedAt: Date.now(),
     });
 
-    const result = storage.getSellableOrders('TEST.HK', 'LONG', 1.1, undefined, { includeAll: true });
+    const result = storage.getSellableOrders('TEST.HK', 'LONG', 1.1, undefined, {
+      includeAll: true,
+    });
     expect(result.orders).toHaveLength(2);
     expect(result.totalQuantity).toBe(200);
 
@@ -147,9 +149,7 @@ describe('getSellableOrders', () => {
   });
 
   it('所有订单都被占用时返回空结果', () => {
-    storage.setBuyOrdersListForLong('TEST.HK', [
-      makeOrder('O1', 1, 100),
-    ]);
+    storage.setBuyOrdersListForLong('TEST.HK', [makeOrder('O1', 1, 100)]);
 
     storage.addPendingSell({
       orderId: 'SELL1',
@@ -160,15 +160,15 @@ describe('getSellableOrders', () => {
       submittedAt: Date.now(),
     });
 
-    const result = storage.getSellableOrders('TEST.HK', 'LONG', 1.5, undefined, { includeAll: true });
+    const result = storage.getSellableOrders('TEST.HK', 'LONG', 1.5, undefined, {
+      includeAll: true,
+    });
     expect(result.orders).toHaveLength(0);
     expect(result.totalQuantity).toBe(0);
   });
 
   it('待成交卖出取消后订单恢复可用', () => {
-    storage.setBuyOrdersListForLong('TEST.HK', [
-      makeOrder('O1', 1, 100),
-    ]);
+    storage.setBuyOrdersListForLong('TEST.HK', [makeOrder('O1', 1, 100)]);
 
     storage.addPendingSell({
       orderId: 'SELL1',
@@ -233,9 +233,7 @@ describe('getSellableOrders', () => {
   });
 
   it('maxSellQuantity 大于总量时返回全部', () => {
-    storage.setBuyOrdersListForLong('TEST.HK', [
-      makeOrder('O1', 1, 100),
-    ]);
+    storage.setBuyOrdersListForLong('TEST.HK', [makeOrder('O1', 1, 100)]);
 
     const result = storage.getSellableOrders('TEST.HK', 'LONG', 1.5, 500);
     expect(result.totalQuantity).toBe(100);

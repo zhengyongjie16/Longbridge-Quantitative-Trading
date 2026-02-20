@@ -22,7 +22,11 @@ import {
   type SubmitOrderResponse,
   type TopicType,
 } from 'longport';
-import { createLongportEventBus, type EventPublishOptions, type LongportEventBus } from './eventBus.js';
+import {
+  createLongportEventBus,
+  type EventPublishOptions,
+  type LongportEventBus,
+} from './eventBus.js';
 import type {
   MockCallRecord,
   MockFailureRule,
@@ -271,7 +275,9 @@ export function createTradeContextMock(options: TradeContextMockOptions = {}): T
   let historyOrdersStore: MinimalOrder[] = [];
   let executionsStore: ReadonlyArray<Execution> = [];
   let balancesStore: ReadonlyArray<AccountBalance> = [];
-  let stockPositionsStore: StockPositionsResponse = { channels: [] } as unknown as StockPositionsResponse;
+  let stockPositionsStore: StockPositionsResponse = {
+    channels: [],
+  } as unknown as StockPositionsResponse;
 
   const subscribedTopics = new Set<TopicType>();
   let orderChangedDisposer: (() => void) | null = null;
@@ -370,14 +376,20 @@ export function createTradeContextMock(options: TradeContextMockOptions = {}): T
   }
 
   function todayOrders(_options?: GetTodayOrdersOptions): Promise<ReadonlyArray<Order>> {
-    return withCall('todayOrders', [_options], () => todayOrdersStore.map((order) => asOrder(cloneOrder(order))));
+    return withCall('todayOrders', [_options], () =>
+      todayOrdersStore.map((order) => asOrder(cloneOrder(order))),
+    );
   }
 
   function historyOrders(_options?: GetHistoryOrdersOptions): Promise<ReadonlyArray<Order>> {
-    return withCall('historyOrders', [_options], () => historyOrdersStore.map((order) => asOrder(cloneOrder(order))));
+    return withCall('historyOrders', [_options], () =>
+      historyOrdersStore.map((order) => asOrder(cloneOrder(order))),
+    );
   }
 
-  function todayExecutions(_options?: GetTodayExecutionsOptions): Promise<ReadonlyArray<Execution>> {
+  function todayExecutions(
+    _options?: GetTodayExecutionsOptions,
+  ): Promise<ReadonlyArray<Execution>> {
     return withCall('todayExecutions', [_options], () => [...executionsStore]);
   }
 

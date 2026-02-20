@@ -33,7 +33,9 @@ const mockSymbolRegistry: SymbolRegistry = {
   bumpSeatVersion: () => 0,
 };
 
-function createRebuildDeps(overrides?: Partial<RebuildTradingDayStateDeps>): RebuildTradingDayStateDeps {
+function createRebuildDeps(
+  overrides?: Partial<RebuildTradingDayStateDeps>,
+): RebuildTradingDayStateDeps {
   const trader: Trader = {
     recoverOrderTracking: async () => {},
   } as unknown as Trader;
@@ -133,9 +135,9 @@ describe('createRebuildTradingDayState', () => {
     });
     const rebuild = createRebuildTradingDayState(deps);
 
-    expect(
-      rebuild({ allOrders: emptyOrders, quotesMap: emptyQuotesMap }),
-    ).rejects.toThrow(/\[Lifecycle\] 重建交易日状态失败/);
+    expect(rebuild({ allOrders: emptyOrders, quotesMap: emptyQuotesMap })).rejects.toThrow(
+      /\[Lifecycle\] 重建交易日状态失败/,
+    );
   });
 
   it('displayAccountAndPositions 抛错时同样抛出带前缀的错误', async () => {
@@ -148,8 +150,8 @@ describe('createRebuildTradingDayState', () => {
     });
     const rebuild = createRebuildTradingDayState(deps);
 
-    expect(
-      rebuild({ allOrders: emptyOrders, quotesMap: emptyQuotesMap }),
-    ).rejects.toThrow(/\[Lifecycle\] 重建交易日状态失败/);
+    expect(rebuild({ allOrders: emptyOrders, quotesMap: emptyQuotesMap })).rejects.toThrow(
+      /\[Lifecycle\] 重建交易日状态失败/,
+    );
   });
 });

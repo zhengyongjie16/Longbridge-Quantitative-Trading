@@ -35,6 +35,7 @@ warrantList API 返回 → 状态过滤 → 价格过滤 → 成交额过滤 →
 ```
 
 启动流程有独立路径：
+
 ```
 seat.ts 本地 resolveAutoSearchThresholds() → 提取 minPrice → findBestWarrant()
 ```
@@ -51,9 +52,9 @@ seat.ts 本地 resolveAutoSearchThresholds() → 提取 minPrice → findBestWar
 
 ### 2.1 筛选规则
 
-| 方向 | 筛选条件 | 说明 |
-|------|---------|------|
-| 牛证 | `toCallPrice > 阈值`（正数） | 如阈值 = 0.02，则距回收价须 > 2% |
+| 方向 | 筛选条件                      | 说明                              |
+| ---- | ----------------------------- | --------------------------------- |
+| 牛证 | `toCallPrice > 阈值`（正数）  | 如阈值 = 0.02，则距回收价须 > 2%  |
 | 熊证 | `toCallPrice < -阈值`（负数） | 如阈值 = 0.02，则距回收价须 < -2% |
 
 - **阈值配置为正数**（如 `0.02` 表示 2%），代码内部对熊证取反
@@ -63,17 +64,18 @@ seat.ts 本地 resolveAutoSearchThresholds() → 提取 minPrice → findBestWar
 
 替换原「价格更低优先」为「距回收价百分比绝对值更小优先」：
 
-| 方向 | 选优方向 | 含义 |
-|------|---------|------|
-| 牛证 | `toCallPrice` 值更小优先（仍 > 阈值） | 更接近回收价 = 更高杠杆 = 更低溢价 |
-| 熊证 | `toCallPrice` 值更大优先（仍 < -阈值） | 绝对值更小 = 更接近回收价 |
-| 统一 | `\|toCallPrice\|` 更小优先 | 等价时取分均成交额更高者 |
+| 方向 | 选优方向                               | 含义                               |
+| ---- | -------------------------------------- | ---------------------------------- |
+| 牛证 | `toCallPrice` 值更小优先（仍 > 阈值）  | 更接近回收价 = 更高杠杆 = 更低溢价 |
+| 熊证 | `toCallPrice` 值更大优先（仍 < -阈值） | 绝对值更小 = 更接近回收价          |
+| 统一 | `\|toCallPrice\|` 更小优先             | 等价时取分均成交额更高者           |
 
 **选优逻辑与原「价格更低优先」的一致性**：距回收价百分比绝对值越小 → 标的越靠近回收价 → 杠杆越高 → 价格通常越低。两种选优标准在实际候选集中高度一致。
 
 ### 2.3 不变的部分
 
 以下逻辑保持不变：
+
 - 交易状态过滤（`WarrantStatus.Normal`）
 - 到期日过滤（`expiryMinMonths`）
 - 成交额 > 0 检查
@@ -95,26 +97,28 @@ warrantList API 返回 → 状态过滤 → 距回收价百分比过滤 → 成�
 
 共 13 个文件，按依赖层级排列：
 
-| # | 层级 | 文件路径 | 修改类型 |
-|---|------|---------|---------|
-| 1 | 类型定义 | `src/types/index.ts` | 字段重命名 |
-| 2 | 类型定义 | `src/services/autoSymbolFinder/types.ts` | 4 个类型更新 |
-| 3 | 类型定义 | `src/services/autoSymbolManager/types.ts` | 多处字段重命名 |
-| 4 | 核心逻辑 | `src/services/autoSymbolFinder/utils.ts` | 筛选 + 选优逻辑重写 |
-| 5 | 核心逻辑 | `src/services/autoSymbolFinder/index.ts` | 参数传递更新 |
-| 6 | 阈值解析 | `src/services/autoSymbolManager/thresholdResolver.ts` | 字段映射更新 |
-| 7 | 调用方 | `src/services/autoSymbolManager/autoSearch.ts` | 参数传递更新 |
-| 8 | 调用方 | `src/services/autoSymbolManager/switchStateMachine.ts` | 参数传递更新 |
-| 9 | 启动流程 | `src/main/startup/seat.ts` | 阈值解析 + 参数传递 |
-| 10 | 配置解析 | `src/config/config.trading.ts` | 环境变量重命名 |
-| 11 | 配置校验 | `src/config/config.validator.ts` | 校验字段重命名 |
-| 12 | 环境变量 | `.env.example` | 变量名 + 注释更新 |
-| 13 | 项目文档 | `README.md` | 配置表 + 说明更新 |
+| #   | 层级     | 文件路径                                               | 修改类型            |
+| --- | -------- | ------------------------------------------------------ | ------------------- |
+| 1   | 类型定义 | `src/types/index.ts`                                   | 字段重命名          |
+| 2   | 类型定义 | `src/services/autoSymbolFinder/types.ts`               | 4 个类型更新        |
+| 3   | 类型定义 | `src/services/autoSymbolManager/types.ts`              | 多处字段重命名      |
+| 4   | 核心逻辑 | `src/services/autoSymbolFinder/utils.ts`               | 筛选 + 选优逻辑重写 |
+| 5   | 核心逻辑 | `src/services/autoSymbolFinder/index.ts`               | 参数传递更新        |
+| 6   | 阈值解析 | `src/services/autoSymbolManager/thresholdResolver.ts`  | 字段映射更新        |
+| 7   | 调用方   | `src/services/autoSymbolManager/autoSearch.ts`         | 参数传递更新        |
+| 8   | 调用方   | `src/services/autoSymbolManager/switchStateMachine.ts` | 参数传递更新        |
+| 9   | 启动流程 | `src/main/startup/seat.ts`                             | 阈值解析 + 参数传递 |
+| 10  | 配置解析 | `src/config/config.trading.ts`                         | 环境变量重命名      |
+| 11  | 配置校验 | `src/config/config.validator.ts`                       | 校验字段重命名      |
+| 12  | 环境变量 | `.env.example`                                         | 变量名 + 注释更新   |
+| 13  | 项目文档 | `README.md`                                            | 配置表 + 说明更新   |
 
 **附带更新**（非代码）：
+
 - `.claude/skills/core-program-business-logic/SKILL.md`：筛选原则描述
 
 **无需修改**：
+
 - `utils/getWarrants.js`：独立工具脚本，已使用 `toCallPrice` 筛选，逻辑正确
 - 历史计划文档（`docs/plans/2026-01-29-*.md` 等）：为历史记录，不追溯修改
 - 测试文件：经搜索无测试文件引用 `selectBestWarrant`/`findBestWarrant`/`autoSearchMinPrice`
@@ -297,9 +301,7 @@ export function selectBestWarrant({
     if (!Number.isFinite(distancePct)) {
       continue;
     }
-    const distanceOk = isBull
-      ? distancePct > distanceThreshold
-      : distancePct < distanceThreshold;
+    const distanceOk = isBull ? distancePct > distanceThreshold : distancePct < distanceThreshold;
     if (!distanceOk) {
       continue;
     }
@@ -733,17 +735,17 @@ export function selectBestWarrant({
 
 ## 七、验证检查清单
 
-| # | 验证项 | 方法 |
-|---|--------|------|
-| 1 | TypeScript 编译通过 | `npx tsc --noEmit` |
-| 2 | Lint 无新增错误 | ReadLints 检查所有修改文件 |
-| 3 | 环境变量解析正确 | 启动程序确认配置读取无警告/错误 |
-| 4 | 牛证筛选逻辑 | `toCallPrice > threshold` 时被选中 |
-| 5 | 熊证筛选逻辑 | `toCallPrice < -threshold` 时被选中 |
-| 6 | 选优逻辑 | 距回收价绝对值最小者被选中 |
-| 7 | 分均成交额过滤不变 | 低于阈值的候选仍被排除 |
-| 8 | 启动寻标正常 | 启动时能通过新阈值找到合适标的 |
-| 9 | 运行时自动换标后预寻标正常 | 换标状态机使用新阈值寻标 |
+| #   | 验证项                     | 方法                                |
+| --- | -------------------------- | ----------------------------------- |
+| 1   | TypeScript 编译通过        | `npx tsc --noEmit`                  |
+| 2   | Lint 无新增错误            | ReadLints 检查所有修改文件          |
+| 3   | 环境变量解析正确           | 启动程序确认配置读取无警告/错误     |
+| 4   | 牛证筛选逻辑               | `toCallPrice > threshold` 时被选中  |
+| 5   | 熊证筛选逻辑               | `toCallPrice < -threshold` 时被选中 |
+| 6   | 选优逻辑                   | 距回收价绝对值最小者被选中          |
+| 7   | 分均成交额过滤不变         | 低于阈值的候选仍被排除              |
+| 8   | 启动寻标正常               | 启动时能通过新阈值找到合适标的      |
+| 9   | 运行时自动换标后预寻标正常 | 换标状态机使用新阈值寻标            |
 
 ---
 

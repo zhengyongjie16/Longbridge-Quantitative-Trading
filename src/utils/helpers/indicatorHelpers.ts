@@ -7,7 +7,10 @@ import type { IndicatorState } from './types.js';
  * @param indicatorName 指标名称（K、D、J、MACD、DIF、DEA、EMA:n、PSY:n）
  * @returns 指标值，无效时返回 null
  */
-export function getIndicatorValue(state: IndicatorState | null, indicatorName: string): number | null {
+export function getIndicatorValue(
+  state: IndicatorState | null,
+  indicatorName: string,
+): number | null {
   if (!state) return null;
 
   const { kdj, macd, ema, psy } = state;

@@ -19,7 +19,11 @@ import {
   type WarrantSortBy,
   WarrantType,
 } from 'longport';
-import { createLongportEventBus, type EventPublishOptions, type LongportEventBus } from './eventBus.js';
+import {
+  createLongportEventBus,
+  type EventPublishOptions,
+  type LongportEventBus,
+} from './eventBus.js';
 import type {
   MockCallRecord,
   MockFailureRule,
@@ -149,7 +153,9 @@ function normalizeWarrantType(value: unknown): 'BULL' | 'BEAR' | null {
 
 export interface QuoteContextMock extends QuoteContextContract {
   seedQuotes(quotes: ReadonlyArray<{ readonly symbol: string; readonly quote: unknown }>): void;
-  seedStaticInfo(staticInfos: ReadonlyArray<{ readonly symbol: string; readonly info: unknown }>): void;
+  seedStaticInfo(
+    staticInfos: ReadonlyArray<{ readonly symbol: string; readonly info: unknown }>,
+  ): void;
   seedCandlesticks(symbol: string, period: Period, candles: ReadonlyArray<Candlestick>): void;
   seedTradingDays(key: string, value: MarketTradingDays): void;
   seedWarrantQuotes(quotes: ReadonlyArray<WarrantQuote>): void;
@@ -245,9 +251,7 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
 
   function quote(symbols: ReadonlyArray<string>): Promise<ReadonlyArray<unknown>> {
     return withCall('quote', [symbols], () =>
-      symbols
-        .map((symbol) => quoteBySymbol.get(symbol) ?? null)
-        .filter((item) => item !== null),
+      symbols.map((symbol) => quoteBySymbol.get(symbol) ?? null).filter((item) => item !== null),
     );
   }
 
@@ -259,7 +263,10 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
     );
   }
 
-  function subscribe(symbols: ReadonlyArray<string>, subTypes: ReadonlyArray<SubType>): Promise<void> {
+  function subscribe(
+    symbols: ReadonlyArray<string>,
+    subTypes: ReadonlyArray<SubType>,
+  ): Promise<void> {
     return withCall('subscribe', [symbols, subTypes], () => {
       for (const symbol of symbols) {
         subscribedSymbols.add(symbol);
@@ -272,7 +279,10 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
     });
   }
 
-  function unsubscribe(symbols: ReadonlyArray<string>, subTypes: ReadonlyArray<SubType>): Promise<void> {
+  function unsubscribe(
+    symbols: ReadonlyArray<string>,
+    subTypes: ReadonlyArray<SubType>,
+  ): Promise<void> {
     return withCall('unsubscribe', [symbols, subTypes], () => {
       for (const symbol of symbols) {
         const current = subscribedByType.get(symbol);
@@ -421,19 +431,27 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
     callRecords.length = 0;
   }
 
-  function seedQuotes(quotes: ReadonlyArray<{ readonly symbol: string; readonly quote: unknown }>): void {
+  function seedQuotes(
+    quotes: ReadonlyArray<{ readonly symbol: string; readonly quote: unknown }>,
+  ): void {
     for (const item of quotes) {
       quoteBySymbol.set(item.symbol, item.quote);
     }
   }
 
-  function seedStaticInfo(staticInfos: ReadonlyArray<{ readonly symbol: string; readonly info: unknown }>): void {
+  function seedStaticInfo(
+    staticInfos: ReadonlyArray<{ readonly symbol: string; readonly info: unknown }>,
+  ): void {
     for (const item of staticInfos) {
       staticInfoBySymbol.set(item.symbol, item.info);
     }
   }
 
-  function seedCandlesticks(symbol: string, period: Period, candles: ReadonlyArray<Candlestick>): void {
+  function seedCandlesticks(
+    symbol: string,
+    period: Period,
+    candles: ReadonlyArray<Candlestick>,
+  ): void {
     candlesticksByKey.set(createCandleKey(symbol, period), [...candles]);
   }
 

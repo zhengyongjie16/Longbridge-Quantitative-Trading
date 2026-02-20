@@ -23,9 +23,7 @@ function normalizeForMatching(str: string): string {
 }
 
 /** 根据标准化后的股票名称判断多空方向，同时包含多空标记时返回 null */
-function resolveDirectionFromNormalizedName(
-  normalizedStockName: string,
-): 'LONG' | 'SHORT' | null {
+function resolveDirectionFromNormalizedName(normalizedStockName: string): 'LONG' | 'SHORT' | null {
   const hasLongMarker = LONG_MARKERS.some((m) => normalizedStockName.includes(m));
   const hasShortMarker = SHORT_MARKERS.some((m) => normalizedStockName.includes(m));
   if (hasLongMarker && !hasShortMarker) {

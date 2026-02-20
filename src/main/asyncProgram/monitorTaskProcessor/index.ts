@@ -55,9 +55,7 @@ function assertNeverTaskType(taskType: never): never {
  * @param deps 依赖注入，包含 monitorTaskQueue、refreshGate、getMonitorContext、各 handler 依赖等
  * @returns 实现 start/stop/stopAndDrain/restart 的处理器实例
  */
-export function createMonitorTaskProcessor(
-  deps: MonitorTaskProcessorDeps,
-): MonitorTaskProcessor {
+export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): MonitorTaskProcessor {
   const {
     monitorTaskQueue,
     refreshGate,

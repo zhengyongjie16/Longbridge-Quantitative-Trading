@@ -121,7 +121,9 @@ export function resolveSellQuantityBySmartClose({
     direction,
     currentPrice,
     availableQuantity,
-    { includeAll: isOverallProfitable },
+    {
+      includeAll: isOverallProfitable,
+    },
   );
 
   if (result.orders.length > 0 && result.totalQuantity > 0) {

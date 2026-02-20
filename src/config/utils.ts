@@ -34,16 +34,9 @@ export function getRegionUrls(region: string | undefined): RegionUrls {
  * @param envKey - 环境变量键名
  * @returns 去除首尾空白后的字符串，或 null
  */
-export function getStringConfig(
-  env: NodeJS.ProcessEnv,
-  envKey: string,
-): string | null {
+export function getStringConfig(env: NodeJS.ProcessEnv, envKey: string): string | null {
   const value = env[envKey];
-  if (
-    !value ||
-    value.trim() === '' ||
-    value === `your_${envKey.toLowerCase()}_here`
-  ) {
+  if (!value || value.trim() === '' || value === `your_${envKey.toLowerCase()}_here`) {
     return null;
   }
   return value.trim();
@@ -133,10 +126,7 @@ export function parseLiquidationCooldownConfig(
  * @param envKey - 环境变量键名
  * @returns 解析后的 NumberRange 对象，格式无效或未设置时返回 null
  */
-export function parseNumberRangeConfig(
-  env: NodeJS.ProcessEnv,
-  envKey: string,
-): NumberRange | null {
+export function parseNumberRangeConfig(env: NodeJS.ProcessEnv, envKey: string): NumberRange | null {
   const value = getStringConfig(env, envKey);
   if (!value) {
     return null;

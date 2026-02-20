@@ -13,10 +13,20 @@
  * - 避免每次查询都遍历整个数组
  */
 import { logger } from '../../utils/logger/index.js';
-import { getLongDirectionName, getShortDirectionName, formatSymbolDisplayFromQuote, isValidPositiveNumber } from '../../utils/helpers/index.js';
+import {
+  getLongDirectionName,
+  getShortDirectionName,
+  formatSymbolDisplayFromQuote,
+  isValidPositiveNumber,
+} from '../../utils/helpers/index.js';
 import type { Quote } from '../../types/quote.js';
 import type { OrderRecord } from '../../types/services.js';
-import type { OrderStorage, OrderStorageDeps, PendingSellInfo, ProfitableOrderResult } from './types.js';
+import type {
+  OrderStorage,
+  OrderStorageDeps,
+  PendingSellInfo,
+  ProfitableOrderResult,
+} from './types.js';
 import { calculateTotalQuantity, calculateOrderStatistics } from './utils.js';
 import { deductSellQuantityFromBuyOrders } from './sellDeductionPolicy.js';
 
@@ -79,7 +89,11 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
   };
 
   /** 更新指定标的的最新卖出记录（仅保留时间最新的一条） */
-  const setLatestSellRecord = (symbol: string, isLongSymbol: boolean, record: OrderRecord): void => {
+  const setLatestSellRecord = (
+    symbol: string,
+    isLongSymbol: boolean,
+    record: OrderRecord,
+  ): void => {
     const targetMap = isLongSymbol ? longSellRecordMap : shortSellRecordMap;
     const existing = targetMap.get(symbol);
     if (!existing || record.executedTime >= existing.executedTime) {
@@ -125,9 +139,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
     const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
     logger.info(
-      `[现存订单记录] 本地新增买入记录：${positionType} ${symbol} 价格=${executedPrice.toFixed(
-        3,
-      )} 数量=${executedQuantity}`,
+      `[现存订单记录] 本地新增买入记录：${positionType} ${symbol} 价格=${executedPrice.toFixed(3)} 数量=${executedQuantity}`,
     );
   };
 
@@ -187,7 +199,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     const deductedQuantity = calculateTotalQuantity(list) - calculateTotalQuantity(filtered);
     logger.info(
       `[现存订单记录] 本地卖出更新:${positionType} ${symbol} 卖出数量=${executedQuantity},` +
-      `低价优先整笔消除后剩余买入记录 ${filtered.length} 笔(消除数量=${deductedQuantity})`,
+        `低价优先整笔消除后剩余买入记录 ${filtered.length} 笔(消除数量=${deductedQuantity})`,
     );
   };
 
@@ -199,9 +211,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     // 使用 formatSymbolDisplayFromQuote 格式化标的显示
     const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
 
-    logger.info(
-      `[现存订单记录] 清空${positionType} ${symbolDisplay}的所有买入记录（保护性清仓）`,
-    );
+    logger.info(`[现存订单记录] 清空${positionType} ${symbolDisplay}的所有买入记录（保护性清仓）`);
   };
 
   /**
@@ -249,9 +259,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     const allOrders = targetMap.get(symbol) ?? [];
 
     const filteredOrders = allOrders.filter(
-      (order) =>
-        Number.isFinite(order.executedPrice) &&
-        order.executedPrice < currentPrice,
+      (order) => Number.isFinite(order.executedPrice) && order.executedPrice < currentPrice,
     );
 
     logger.debug(
@@ -286,7 +294,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
     logger.info(
       `[订单存储] 添加待成交卖出: ${info.orderId} ${info.symbol} ${info.submittedQuantity}股 ` +
-      `关联订单=${info.relatedBuyOrderIds.length}个`,
+        `关联订单=${info.relatedBuyOrderIds.length}个`,
     );
   }
 
@@ -306,9 +314,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
     pendingSells.delete(orderId);
 
-    logger.info(
-      `[订单存储] 卖出订单成交: ${orderId} ${filled.submittedQuantity}股`,
-    );
+    logger.info(`[订单存储] 卖出订单成交: ${orderId} ${filled.submittedQuantity}股`);
 
     return filled;
   }
@@ -468,9 +474,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     }
 
     // 3. 过滤掉被占用的订单
-    const availableOrders = targetOrders.filter(
-      (order) => !occupiedOrderIds.has(order.orderId),
-    );
+    const availableOrders = targetOrders.filter((order) => !occupiedOrderIds.has(order.orderId));
 
     // 4. 计算可用数量
     let totalQuantity = calculateTotalQuantity(availableOrders);
@@ -507,8 +511,8 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
       logger.info(
         `[订单存储] 整笔截断: ${symbol} ${direction} ` +
-        `原数量=${calculateTotalQuantity(sortedOrders)} ` +
-        `限制=${maxSellQuantity} 实际=${totalQuantity}`,
+          `原数量=${calculateTotalQuantity(sortedOrders)} ` +
+          `限制=${maxSellQuantity} 实际=${totalQuantity}`,
       );
 
       return { orders: finalOrders, totalQuantity };
@@ -516,7 +520,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
     logger.debug(
       `[订单存储] 可卖出订单: ${symbol} ${direction} ` +
-      `订单数=${availableOrders.length} 总数=${totalQuantity}`,
+        `订单数=${availableOrders.length} 总数=${totalQuantity}`,
     );
 
     return {

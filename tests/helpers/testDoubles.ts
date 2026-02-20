@@ -138,10 +138,15 @@ export function createRiskCheckerDouble(overrides: Partial<RiskChecker> = {}): R
   const allowedResult: RiskCheckResult = { allowed: true };
   const base: RiskChecker = {
     setWarrantInfoFromCallPrice: (): WarrantRefreshResult => ({ status: 'ok', isWarrant: true }),
-    refreshWarrantInfoForSymbol: async (): Promise<WarrantRefreshResult> => ({ status: 'notWarrant', isWarrant: false }),
+    refreshWarrantInfoForSymbol: async (): Promise<WarrantRefreshResult> => ({
+      status: 'notWarrant',
+      isWarrant: false,
+    }),
     checkBeforeOrder: () => allowedResult,
     checkWarrantRisk: () => allowedResult,
-    checkWarrantDistanceLiquidation: (): WarrantDistanceLiquidationResult => ({ shouldLiquidate: false }),
+    checkWarrantDistanceLiquidation: (): WarrantDistanceLiquidationResult => ({
+      shouldLiquidate: false,
+    }),
     getWarrantDistanceInfo: (): WarrantDistanceInfo | null => null,
     clearLongWarrantInfo: () => {},
     clearShortWarrantInfo: () => {},
@@ -166,11 +171,15 @@ export function createDoomsdayProtectionDouble(
 ): DoomsdayProtection {
   const base: DoomsdayProtection = {
     shouldRejectBuy: () => false,
-    executeClearance: async (_context: DoomsdayClearanceContext): Promise<DoomsdayClearanceResult> => ({
+    executeClearance: async (
+      _context: DoomsdayClearanceContext,
+    ): Promise<DoomsdayClearanceResult> => ({
       executed: false,
       signalCount: 0,
     }),
-    cancelPendingBuyOrders: async (_context: CancelPendingBuyOrdersContext): Promise<CancelPendingBuyOrdersResult> => ({
+    cancelPendingBuyOrders: async (
+      _context: CancelPendingBuyOrdersContext,
+    ): Promise<CancelPendingBuyOrdersResult> => ({
       executed: false,
       cancelledCount: 0,
     }),
@@ -260,7 +269,11 @@ export function createSymbolRegistryDouble(params?: {
       }
       return null;
     },
-    updateSeatState(_monitorSymbol: string, direction: 'LONG' | 'SHORT', nextState: SeatState): SeatState {
+    updateSeatState(
+      _monitorSymbol: string,
+      direction: 'LONG' | 'SHORT',
+      nextState: SeatState,
+    ): SeatState {
       if (direction === 'LONG') {
         Object.assign(longSeat, nextState);
         return longSeat;

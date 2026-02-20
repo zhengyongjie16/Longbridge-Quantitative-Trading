@@ -109,10 +109,10 @@ function createDeps(params?: {
     symbolRegistry,
     ...(params?.onHandleOrderChanged
       ? {
-        testHooks: {
-          setHandleOrderChanged: params.onHandleOrderChanged,
-        },
-      }
+          testHooks: {
+            setHandleOrderChanged: params.onHandleOrderChanged,
+          },
+        }
       : {}),
     isExecutionAllowed: params?.gateOpen ?? (() => true),
   };
@@ -145,9 +145,9 @@ describe('orderMonitor business flow', () => {
       orderType: OrderType.ELO,
     });
 
-    await monitor.processWithLatestQuotes(new Map([
-      ['BULL.HK', createQuoteDouble('BULL.HK', 1.02)],
-    ]));
+    await monitor.processWithLatestQuotes(
+      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]),
+    );
 
     const cancelCalls = tradeCtx.getCalls('cancelOrder');
     const submitCalls = tradeCtx.getCalls('submitOrder');
@@ -181,9 +181,9 @@ describe('orderMonitor business flow', () => {
       orderType: OrderType.ELO,
     });
 
-    await monitor.processWithLatestQuotes(new Map([
-      ['BULL.HK', createQuoteDouble('BULL.HK', 1.02)],
-    ]));
+    await monitor.processWithLatestQuotes(
+      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]),
+    );
 
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
     expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
@@ -211,9 +211,9 @@ describe('orderMonitor business flow', () => {
       orderType: OrderType.ELO,
     });
 
-    await monitor.processWithLatestQuotes(new Map([
-      ['BULL.HK', createQuoteDouble('BULL.HK', 1.02)],
-    ]));
+    await monitor.processWithLatestQuotes(
+      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]),
+    );
 
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
     expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
@@ -248,21 +248,23 @@ describe('orderMonitor business flow', () => {
       orderType: OrderType.MO,
     });
 
-    handleOrderChanged(createPushOrderChanged({
-      orderId: 'SELL-003',
-      symbol: 'BULL.HK',
-      status: OrderStatus.WaitToReplace,
-      side: OrderSide.Sell,
-      orderType: OrderType.MO,
-      submittedPrice: 1,
-      submittedQuantity: 100,
-      executedQuantity: 0,
-      executedPrice: 0,
-    }));
+    handleOrderChanged(
+      createPushOrderChanged({
+        orderId: 'SELL-003',
+        symbol: 'BULL.HK',
+        status: OrderStatus.WaitToReplace,
+        side: OrderSide.Sell,
+        orderType: OrderType.MO,
+        submittedPrice: 1,
+        submittedQuantity: 100,
+        executedQuantity: 0,
+        executedPrice: 0,
+      }),
+    );
 
-    await monitor.processWithLatestQuotes(new Map([
-      ['BULL.HK', createQuoteDouble('BULL.HK', 1.1)],
-    ]));
+    await monitor.processWithLatestQuotes(
+      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.1)]]),
+    );
 
     expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(0);
   });

@@ -1,9 +1,4 @@
-import type {
-  FilterWarrantExpiryDate,
-  QuoteContext,
-  WarrantStatus,
-  WarrantType,
-} from 'longport';
+import type { FilterWarrantExpiryDate, QuoteContext, WarrantStatus, WarrantType } from 'longport';
 import type { DecimalLike } from '../../utils/helpers/types.js';
 import type { Logger } from '../../utils/logger/types.js';
 

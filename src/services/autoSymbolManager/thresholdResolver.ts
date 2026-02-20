@@ -33,7 +33,9 @@ export function resolveAutoSearchThresholds(
 } {
   const isBull = direction === 'LONG';
   return {
-    minDistancePct: isBull ? config.autoSearchMinDistancePctBull : config.autoSearchMinDistancePctBear,
+    minDistancePct: isBull
+      ? config.autoSearchMinDistancePctBull
+      : config.autoSearchMinDistancePctBear,
     minTurnoverPerMinute: isBull
       ? config.autoSearchMinTurnoverPerMinuteBull
       : config.autoSearchMinTurnoverPerMinuteBear,
@@ -46,9 +48,7 @@ export function resolveAutoSearchThresholds(
  * @param params - 含 direction、autoSearchConfig、monitorSymbol、logPrefix、logger
  * @returns minDistancePct 与 minTurnoverPerMinute，缺失时 null
  */
-function resolveAutoSearchThresholdInput(
-  params: ResolveAutoSearchThresholdInputParams,
-): Readonly<{
+function resolveAutoSearchThresholdInput(params: ResolveAutoSearchThresholdInputParams): Readonly<{
   minDistancePct: number;
   minTurnoverPerMinute: number;
 }> | null {
@@ -105,9 +105,7 @@ async function buildFindBestWarrantInput(
  * @param deps - 依赖（autoSearchConfig、monitorSymbol、marketDataClient、logger、getTradingMinutesSinceOpen 等）
  * @returns 含 resolveAutoSearchThresholdInput、buildFindBestWarrantInput 的对象
  */
-export function createThresholdResolver(
-  deps: ThresholdResolverDeps,
-): {
+export function createThresholdResolver(deps: ThresholdResolverDeps): {
   resolveAutoSearchThresholdInput: ResolveAutoSearchThresholdInput;
   buildFindBestWarrantInput: BuildFindBestWarrantInput;
 } {

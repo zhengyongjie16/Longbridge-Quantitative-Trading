@@ -39,10 +39,12 @@ function isErrorLike(value: unknown): value is Record<string, unknown> {
   }
   // 类型收窄：已确认 value 是 object 且非 null，使用类型断言转换为 Record
   const obj = value as Record<string, unknown>;
-  return typeof obj['message'] === 'string' ||
-         typeof obj['error'] === 'string' ||
-         typeof obj['msg'] === 'string' ||
-         typeof obj['code'] === 'string';
+  return (
+    typeof obj['message'] === 'string' ||
+    typeof obj['error'] === 'string' ||
+    typeof obj['msg'] === 'string' ||
+    typeof obj['code'] === 'string'
+  );
 }
 
 /**
@@ -80,7 +82,9 @@ export function toDecimal(value: unknown): Decimal {
  * @param decimalLike Decimal 对象、数字、字符串或 null/undefined
  * @returns 转换后的数字，null/undefined 时返回 NaN
  */
-export function decimalToNumber(decimalLike: DecimalLike | number | string | null | undefined): number {
+export function decimalToNumber(
+  decimalLike: DecimalLike | number | string | null | undefined,
+): number {
   // 如果输入为 null 或 undefined，返回 NaN 而非 0
   // 这样 Number.isFinite() 检查会返回 false，避免错误地使用 0 作为有效值
   if (decimalLike == null) {
@@ -135,7 +139,10 @@ export function formatAccountChannel(accountChannel: string | null | undefined):
  * @param symbolName 标的中文名称，默认 null
  * @returns 格式化后的显示字符串
  */
-export function formatSymbolDisplay(symbol: string | null | undefined, symbolName: string | null = null): string {
+export function formatSymbolDisplay(
+  symbol: string | null | undefined,
+  symbolName: string | null = null,
+): string {
   if (!symbol) {
     return '';
   }
@@ -220,11 +227,7 @@ export function formatQuoteDisplay(quote: Quote | null, symbol: string): QuoteDi
   let changeAmountText = '-';
   let changePercentText = '-';
 
-  if (
-    Number.isFinite(currentPrice) &&
-    Number.isFinite(quote.prevClose) &&
-    quote.prevClose !== 0
-  ) {
+  if (Number.isFinite(currentPrice) && Number.isFinite(quote.prevClose) && quote.prevClose !== 0) {
     // 涨跌额 = 当前价格 - 前收盘价
     const changeAmount = currentPrice - quote.prevClose;
     changeAmountText = `${changeAmount >= 0 ? '+' : ''}${changeAmount.toFixed(3)}`;
@@ -250,7 +253,10 @@ export function formatQuoteDisplay(quote: Quote | null, symbol: string): QuoteDi
  * @param symbol 标的代码
  * @returns 格式化后的标的显示字符串
  */
-export function formatSymbolDisplayFromQuote(quote: Quote | null | undefined, symbol: string): string {
+export function formatSymbolDisplayFromQuote(
+  quote: Quote | null | undefined,
+  symbol: string,
+): string {
   if (quote) {
     const display = formatQuoteDisplay(quote, symbol);
     return display ? `${display.nameText}(${display.codeText})` : symbol;
@@ -298,11 +304,11 @@ export function getShortDirectionName(): string {
 
 /** 信号操作描述映射 */
 const SIGNAL_ACTION_DESCRIPTIONS: Record<SignalType, string> = {
-  'BUYCALL': '买入做多标的（做多）',
-  'SELLCALL': '卖出做多标的（平仓）',
-  'BUYPUT': '买入做空标的（做空）',
-  'SELLPUT': '卖出做空标的（平仓）',
-  'HOLD': '持有',
+  BUYCALL: '买入做多标的（做多）',
+  SELLCALL: '卖出做多标的（平仓）',
+  BUYPUT: '买入做空标的（做空）',
+  SELLPUT: '卖出做空标的（平仓）',
+  HOLD: '持有',
 };
 
 /**
@@ -321,7 +327,12 @@ function getSignalActionDescription(action: SignalType): string {
  * @param signal 包含 action、symbol、symbolName、reason 的对象
  * @returns 格式化后的信号日志字符串
  */
-export function formatSignalLog(signal: { action: SignalType; symbol: string; symbolName?: string | null; reason?: string | null }): string {
+export function formatSignalLog(signal: {
+  action: SignalType;
+  symbol: string;
+  symbolName?: string | null;
+  reason?: string | null;
+}): string {
   const actionDesc = getSignalActionDescription(signal.action);
   const symbolDisplay = formatSymbolDisplay(signal.symbol, signal.symbolName ?? null);
   return `${actionDesc} ${symbolDisplay} - ${signal.reason || '策略信号'}`;

@@ -11,7 +11,11 @@
  * - 本模块在决定卖出时使用当前 quote，并写回 signal.price，确保 orderExecutor 提交时用的是执行时价格。
  */
 import { logger } from '../../utils/logger/index.js';
-import { getLongDirectionName, getShortDirectionName, isSellAction } from '../../utils/helpers/index.js';
+import {
+  getLongDirectionName,
+  getShortDirectionName,
+  isSellAction,
+} from '../../utils/helpers/index.js';
 import {
   buildSellReason,
   validateSellContext,
@@ -132,8 +136,7 @@ export const processSellSignals = (
     const signalName = isLongSignal ? 'SELLCALL' : 'SELLPUT';
 
     // 检查是否是末日保护程序的清仓信号（无条件清仓，不受智能平仓影响）
-    const isDoomsdaySignal =
-      sig.reason?.includes('末日保护程序');
+    const isDoomsdaySignal = sig.reason?.includes('末日保护程序');
 
     // 持仓或行情缺失时记录日志
     if (!position) {
@@ -146,11 +149,14 @@ export const processSellSignals = (
         `[卖出信号处理] ${signalName}: ${directionName}标的行情数据为null，无法计算卖出数量`,
       );
     }
-    if (position && quote && Number.isFinite(position.availableQuantity) && Number.isFinite(quote.price)) {
+    if (
+      position &&
+      quote &&
+      Number.isFinite(position.availableQuantity) &&
+      Number.isFinite(quote.price)
+    ) {
       logger.info(
-        `[卖出信号处理] ${signalName}: 当前价格=${quote.price.toFixed(3)}, 可用数量=${
-          position.availableQuantity
-        }`,
+        `[卖出信号处理] ${signalName}: 当前价格=${quote.price.toFixed(3)}, 可用数量=${position.availableQuantity}`,
       );
     }
 
@@ -165,13 +171,9 @@ export const processSellSignals = (
         if (quote?.lotSize != null) {
           sig.lotSize = quote.lotSize;
         }
-        logger.info(
-          `[卖出信号处理] ${signalName}(末日保护): 无条件清仓，卖出数量=${sig.quantity}`,
-        );
+        logger.info(`[卖出信号处理] ${signalName}(末日保护): 无条件清仓，卖出数量=${sig.quantity}`);
       } else {
-        logger.warn(
-          `[卖出信号处理] ${signalName}(末日保护): 持仓对象无效，无法清仓`,
-        );
+        logger.warn(`[卖出信号处理] ${signalName}(末日保护): 持仓对象无效，无法清仓`);
         sig.action = 'HOLD';
         sig.reason = `${sig.reason}，但持仓对象无效`;
       }

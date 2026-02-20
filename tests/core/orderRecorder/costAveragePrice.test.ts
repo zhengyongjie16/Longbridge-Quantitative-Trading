@@ -68,10 +68,7 @@ describe('getCostAveragePrice', () => {
   });
 
   it('两笔等量订单返回算术平均', () => {
-    const orders = [
-      makeOrder('O1', 1, 100),
-      makeOrder('O2', 1.2, 100),
-    ];
+    const orders = [makeOrder('O1', 1, 100), makeOrder('O2', 1.2, 100)];
     storage.setBuyOrdersListForLong('TEST.HK', orders);
 
     const avg = storage.getCostAveragePrice('TEST.HK', true);
@@ -79,11 +76,7 @@ describe('getCostAveragePrice', () => {
   });
 
   it('多笔不等量订单返回加权平均', () => {
-    const orders = [
-      makeOrder('O1', 1, 100),
-      makeOrder('O2', 1.2, 150),
-      makeOrder('O3', 0.9, 50),
-    ];
+    const orders = [makeOrder('O1', 1, 100), makeOrder('O2', 1.2, 150), makeOrder('O3', 0.9, 50)];
     storage.setBuyOrdersListForLong('TEST.HK', orders);
 
     const avg = storage.getCostAveragePrice('TEST.HK', true);
@@ -114,10 +107,7 @@ describe('getCostAveragePrice', () => {
   // ========== 无效数据处理（NaN/Infinity 视为 0，仍计入数量）==========
 
   it('价格为 0 的订单计入数量但不计入价值（拉低均价）', () => {
-    const orders = [
-      makeOrder('O1', 0, 100),
-      makeOrder('O2', 1, 100),
-    ];
+    const orders = [makeOrder('O1', 0, 100), makeOrder('O2', 1, 100)];
     storage.setBuyOrdersListForLong('TEST.HK', orders);
 
     const avg = storage.getCostAveragePrice('TEST.HK', true);
@@ -125,10 +115,7 @@ describe('getCostAveragePrice', () => {
   });
 
   it('数量为 0 的订单不影响均价', () => {
-    const orders = [
-      makeOrder('O1', 1.5, 0),
-      makeOrder('O2', 1, 200),
-    ];
+    const orders = [makeOrder('O1', 1.5, 0), makeOrder('O2', 1, 200)];
     storage.setBuyOrdersListForLong('TEST.HK', orders);
 
     const avg = storage.getCostAveragePrice('TEST.HK', true);
@@ -136,40 +123,28 @@ describe('getCostAveragePrice', () => {
   });
 
   it('所有订单价格无效但数量有效时均价为 0', () => {
-    const orders = [
-      makeOrder('O1', 0, 100),
-      makeOrder('O2', Number.NaN, 100),
-    ];
+    const orders = [makeOrder('O1', 0, 100), makeOrder('O2', Number.NaN, 100)];
     storage.setBuyOrdersListForLong('TEST.HK', orders);
 
     expect(storage.getCostAveragePrice('TEST.HK', true)).toBe(0);
   });
 
   it('所有订单数量为 0 时返回 null', () => {
-    const orders = [
-      makeOrder('O1', 1, 0),
-      makeOrder('O2', 2, 0),
-    ];
+    const orders = [makeOrder('O1', 1, 0), makeOrder('O2', 2, 0)];
     storage.setBuyOrdersListForLong('TEST.HK', orders);
 
     expect(storage.getCostAveragePrice('TEST.HK', true)).toBeNull();
   });
 
   it('NaN 价格的订单被视为价格 0（计入数量）', () => {
-    const orders = [
-      makeOrder('O1', Number.NaN, 100),
-      makeOrder('O2', 2, 100),
-    ];
+    const orders = [makeOrder('O1', Number.NaN, 100), makeOrder('O2', 2, 100)];
     storage.setBuyOrdersListForLong('TEST.HK', orders);
 
     expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(1, 6);
   });
 
   it('Infinity 价格的订单被视为价格 0（计入数量）', () => {
-    const orders = [
-      makeOrder('O1', Infinity, 100),
-      makeOrder('O2', 1.5, 200),
-    ];
+    const orders = [makeOrder('O1', Infinity, 100), makeOrder('O2', 1.5, 200)];
     storage.setBuyOrdersListForLong('TEST.HK', orders);
 
     expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(1, 6);
@@ -226,20 +201,14 @@ describe('getCostAveragePrice', () => {
   // ========== 边界场景 ==========
 
   it('成本均价恰好等于某个订单价格', () => {
-    const orders = [
-      makeOrder('O1', 1, 100),
-      makeOrder('O2', 1, 100),
-    ];
+    const orders = [makeOrder('O1', 1, 100), makeOrder('O2', 1, 100)];
     storage.setBuyOrdersListForLong('TEST.HK', orders);
 
     expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(1, 6);
   });
 
   it('极小价格的订单正确计算', () => {
-    const orders = [
-      makeOrder('O1', 0.001, 10000),
-      makeOrder('O2', 0.002, 10000),
-    ];
+    const orders = [makeOrder('O1', 0.001, 10000), makeOrder('O2', 0.002, 10000)];
     storage.setBuyOrdersListForLong('TEST.HK', orders);
 
     expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(0.0015, 6);
@@ -257,11 +226,7 @@ describe('getCostAveragePrice', () => {
   });
 
   it('与 calculateOrderStatistics 的 averagePrice 一致', () => {
-    const orders = [
-      makeOrder('O1', 1, 100),
-      makeOrder('O2', 1.2, 150),
-      makeOrder('O3', 0.9, 50),
-    ];
+    const orders = [makeOrder('O1', 1, 100), makeOrder('O2', 1.2, 150), makeOrder('O3', 0.9, 50)];
     storage.setBuyOrdersListForLong('TEST.HK', orders);
 
     const avg = storage.getCostAveragePrice('TEST.HK', true);

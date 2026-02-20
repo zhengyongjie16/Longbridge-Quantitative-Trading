@@ -100,5 +100,7 @@ export interface DoomsdayProtection {
    * @param context 撤单上下文
    * @returns 撤单结果
    */
-  cancelPendingBuyOrders(context: CancelPendingBuyOrdersContext): Promise<CancelPendingBuyOrdersResult>;
+  cancelPendingBuyOrders(
+    context: CancelPendingBuyOrdersContext,
+  ): Promise<CancelPendingBuyOrdersResult>;
 }

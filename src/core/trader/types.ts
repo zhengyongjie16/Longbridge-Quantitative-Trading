@@ -1,4 +1,13 @@
-import type { Config, Decimal, OrderSide, OrderType, OrderStatus, TimeInForceType, TradeContext, PushOrderChanged } from 'longport';
+import type {
+  Config,
+  Decimal,
+  OrderSide,
+  OrderType,
+  OrderStatus,
+  TimeInForceType,
+  TradeContext,
+  PushOrderChanged,
+} from 'longport';
 import type { Signal, SignalType, OrderTypeConfig } from '../../types/signal.js';
 import type { Quote } from '../../types/quote.js';
 import type { AccountSnapshot, Position } from '../../types/account.js';

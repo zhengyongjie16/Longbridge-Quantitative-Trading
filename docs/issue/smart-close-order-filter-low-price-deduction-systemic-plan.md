@@ -7,6 +7,7 @@
 当前订单记录过滤逻辑依赖"买入价与卖出成交价比较"来识别剩余买入订单。该逻辑在卖出委托实时改价场景下会失真：
 
 **问题场景示例**：
+
 - 假设有 3 笔买入订单：A(100股@1.00)、B(100股@1.10)、C(100股@1.20)
 - 智能平仓时当前价 1.15，选出 A 和 B（共 200 股），提交卖出委托价 1.15
 - 实时监控改价机制下，价格下跌，委托价改为 1.05，最终成交价 1.05
@@ -26,11 +27,13 @@
 ### 2.1 现状规则验证（代码级确认）
 
 **文档规则**（`.claude/skills/core-program-business-logic/SKILL.md`）：
+
 - 卖出数量不足时保留 `买入价 >= 卖出成交价` 的订单
 
 **代码实现验证**：
 
 1. **启动/重建过滤**（`src/core/orderRecorder/orderFilteringEngine.ts:141-142`）：
+
 ```typescript
 let filteredBuyOrders = buyOrdersBeforeSell.filter(
   (buyOrder) => buyOrder.executedPrice >= sellPrice,
@@ -38,21 +41,22 @@ let filteredBuyOrders = buyOrdersBeforeSell.filter(
 ```
 
 2. **运行时成交更新**（`src/core/orderRecorder/orderStorage.ts:196-200`）：
+
 ```typescript
 const filtered = list.filter(
-  (order) =>
-    Number.isFinite(order.executedPrice) &&
-    order.executedPrice >= executedPrice,
+  (order) => Number.isFinite(order.executedPrice) && order.executedPrice >= executedPrice,
 );
 ```
 
 3. **智能平仓选单**（`src/core/orderRecorder/orderStorage.ts:477`）：
+
 ```typescript
 const sortedOrders = [...availableOrders].sort((a, b) => a.executedPrice - b.executedPrice);
 // 低价优先选单
 ```
 
 4. **智能平仓部分数量问题**（`src/core/orderRecorder/orderStorage.ts:488-492`）：
+
 ```typescript
 } else {
   // 部分数量 - 与"整笔消除"原则冲突
@@ -65,10 +69,12 @@ const sortedOrders = [...availableOrders].sort((a, b) => a.executedPrice - b.exe
 ```
 
 5. **日内亏损偏移计算**（`src/core/riskController/dailyLossTracker.ts:47-48`）：
+
 ```typescript
-const openBuyOrders = buyOrders.length > 0
-  ? filteringEngine.applyFilteringAlgorithm([...buyOrders], [...sellOrders])
-  : [];
+const openBuyOrders =
+  buyOrders.length > 0
+    ? filteringEngine.applyFilteringAlgorithm([...buyOrders], [...sellOrders])
+    : [];
 ```
 
 **结论**：代码与文档一致，但业务上在改价场景下不稳定。
@@ -87,6 +93,7 @@ const openBuyOrders = buyOrders.length > 0
 4. **智能平仓链路**：`getProfitableSellOrders` 选单 -> 提交卖出 -> 登记待成交占用
 
 **一致性要求**：四条链路必须使用统一的"低价优先整笔消除"算法，否则会出现：
+
 - 运行中正确、重启后错误
 - 风控口径与持仓口径不一致
 - 智能平仓选单与过滤结果不匹配
@@ -118,12 +125,15 @@ const openBuyOrders = buyOrders.length > 0
 ### 3.4 关键设计决策
 
 **Q1：如果完整订单总量小于 maxSellQuantity，是否允许？**
+
 - **答案**：允许。智能平仓返回的 totalQuantity 可能小于 maxSellQuantity，这是正常的"整笔语义"结果。
 
 **Q2：排序规则如何确保稳定性和可复现性？**
+
 - **答案**：主键为 `executedPrice asc`（低价优先），次键为 `executedTime asc`（时间早优先），三键为 `orderId asc`（ID 小优先），确保同价订单的排序稳定。
 
 **Q3：待成交占用如何与新扣减策略协调？**
+
 - **答案**：待成交占用机制通过 `relatedBuyOrderIds` 标记已占用订单，扣减策略在选单时排除已占用订单，两者独立但协调。
 
 ---
@@ -159,6 +169,7 @@ export function deductSellQuantityFromBuyOrders(
    - 如果 `sellQuantity` 不是有效正数，记录警告并返回候选列表副本
 
 2. **排序规则**（确保稳定且可复现）：
+
    ```typescript
    const sorted = [...candidateBuyOrders].sort((a, b) => {
      // 主键：买入价从低到高（低价优先）
@@ -175,6 +186,7 @@ export function deductSellQuantityFromBuyOrders(
    ```
 
 3. **整笔扣减逻辑**：
+
    ```typescript
    let remainingToDeduct = sellQuantity;
    const remainingOrders: OrderRecord[] = [];
@@ -202,6 +214,7 @@ export function deductSellQuantityFromBuyOrders(
 4. **输出**：剩余买单列表（整笔订单，不拆分）
 
 **关键特性**：
+
 - ✅ 纯函数，无副作用
 - ✅ 稳定排序，可复现
 - ✅ 整笔语义，不拆分订单
@@ -214,24 +227,20 @@ export function deductSellQuantityFromBuyOrders(
 **修改点 1**：删除价格比较过滤逻辑（第 141-148 行）
 
 **修改前**：
+
 ```typescript
 let filteredBuyOrders = buyOrdersBeforeSell.filter(
   (buyOrder) => buyOrder.executedPrice >= sellPrice,
 );
 
-filteredBuyOrders = adjustOrdersByQuantityLimit(
-  filteredBuyOrders,
-  maxRetainQuantity,
-);
+filteredBuyOrders = adjustOrdersByQuantityLimit(filteredBuyOrders, maxRetainQuantity);
 ```
 
 **修改后**：
+
 ```typescript
 // 使用统一扣减策略：低价优先整笔消除
-const filteredBuyOrders = deductSellQuantityFromBuyOrders(
-  buyOrdersBeforeSell,
-  sellQuantity,
-);
+const filteredBuyOrders = deductSellQuantityFromBuyOrders(buyOrdersBeforeSell, sellQuantity);
 ```
 
 **修改点 2**：删除 `adjustOrdersByQuantityLimit` 函数（第 64-99 行）
@@ -241,6 +250,7 @@ const filteredBuyOrders = deductSellQuantityFromBuyOrders(
 **修改点 3**：更新顶部算法说明（第 9-24 行）
 
 **修改后**：
+
 ```typescript
 /**
  * 过滤算法（从旧到新累积过滤）：
@@ -270,12 +280,11 @@ const filteredBuyOrders = deductSellQuantityFromBuyOrders(
 **修改点**：`updateAfterSell` 函数（第 195-204 行）
 
 **修改前**：
+
 ```typescript
 // 否则，仅保留成交价 >= 本次卖出价的买入订单
 const filtered = list.filter(
-  (order) =>
-    Number.isFinite(order.executedPrice) &&
-    order.executedPrice >= executedPrice,
+  (order) => Number.isFinite(order.executedPrice) && order.executedPrice >= executedPrice,
 );
 setBuyOrdersList(symbol, filtered, isLongSymbol);
 logger.info(
@@ -284,6 +293,7 @@ logger.info(
 ```
 
 **修改后**：
+
 ```typescript
 // 使用统一扣减策略：低价优先整笔消除
 const filtered = deductSellQuantityFromBuyOrders(list, executedQuantity);
@@ -292,11 +302,12 @@ setBuyOrdersList(symbol, filtered, isLongSymbol);
 const deductedQuantity = calculateTotalQuantity(list) - calculateTotalQuantity(filtered);
 logger.info(
   `[现存订单记录] 本地卖出更新：${positionType} ${symbol} 卖出数量=${executedQuantity}，` +
-  `低价优先整笔消除后剩余买入记录 ${filtered.length} 笔（消除数量=${deductedQuantity}）`,
+    `低价优先整笔消除后剩余买入记录 ${filtered.length} 笔（消除数量=${deductedQuantity}）`,
 );
 ```
 
 **关键变化**：
+
 - ✅ 不再使用 `executedPrice` 参与过滤判定
 - ✅ `executedPrice` 仅用于记录 `latestSellRecord`（审计/展示）
 - ✅ 运行时更新与重启重建结果同构
@@ -312,6 +323,7 @@ logger.info(
 **问题**：当前实现会创建"部分数量订单对象"（第 488-492 行），与"整笔消除"原则冲突。
 
 **修改前**：
+
 ```typescript
 if (maxSellQuantity !== undefined && totalQuantity > maxSellQuantity) {
   const sortedOrders = [...availableOrders].sort((a, b) => a.executedPrice - b.executedPrice);
@@ -340,6 +352,7 @@ if (maxSellQuantity !== undefined && totalQuantity > maxSellQuantity) {
 ```
 
 **修改后**：
+
 ```typescript
 if (maxSellQuantity !== undefined && totalQuantity > maxSellQuantity) {
   // 按价格从低到高排序（便宜的先卖）- 使用统一排序规则
@@ -372,8 +385,8 @@ if (maxSellQuantity !== undefined && totalQuantity > maxSellQuantity) {
 
   logger.info(
     `[订单存储] 整笔截断: ${symbol} ${direction} ` +
-    `原数量=${calculateTotalQuantity(sortedOrders)} ` +
-    `限制=${maxSellQuantity} 实际=${totalQuantity}`,
+      `原数量=${calculateTotalQuantity(sortedOrders)} ` +
+      `限制=${maxSellQuantity} 实际=${totalQuantity}`,
   );
 
   return { orders: finalOrders, totalQuantity };
@@ -381,6 +394,7 @@ if (maxSellQuantity !== undefined && totalQuantity > maxSellQuantity) {
 ```
 
 **关键变化**：
+
 - ✅ 不再创建"部分数量订单对象"
 - ✅ totalQuantity 可能小于 maxSellQuantity（整笔语义的自然结果）
 - ✅ 排序规则与扣减策略一致
@@ -416,6 +430,7 @@ if (maxSellQuantity !== undefined && totalQuantity > maxSellQuantity) {
 2. **重建路径**：同一批历史订单一次性调用过滤引擎后的剩余买单
 
 **验证方法**：
+
 ```typescript
 // 伪代码
 const runtimeResult = simulateRuntimeUpdates(buyOrders, sellOrders);
@@ -430,35 +445,35 @@ assert.deepEqual(runtimeResult, rebuildResult, '运行时与重建结果必须�
 
 #### 5.2.1 基础场景测试
 
-| 测试场景 | 输入 | 预期输出 | 验证点 |
-|---------|------|---------|--------|
-| 改单导致成交价低于部分买价 | 买入：A(100@1.00)、B(100@1.10)、C(100@1.20)<br>卖出：200股@1.05（改价后） | 剩余：C(100@1.20) | 旧逻辑会误删 A，新逻辑应稳定 |
-| 多笔卖出串行 | 买入：A(100@1.00)、B(100@1.10)、C(100@1.20)<br>卖出1：100股<br>卖出2：50股 | 剩余：B(50@1.10)、C(100@1.20) | 验证逐笔累计结果 |
-| 同价多单 | 买入：A(100@1.00,t1)、B(100@1.00,t2)<br>卖出：100股 | 剩余：B(100@1.00,t2) | 验证稳定排序（时间早优先） |
-| 卖出量等于总量 | 买入：A(100@1.00)、B(100@1.10)<br>卖出：200股 | 剩余：[] | 应清空 |
-| 卖出量大于总量 | 买入：A(100@1.00)、B(100@1.10)<br>卖出：300股 | 剩余：[] | 应清空 |
-| 卖出量为0 | 买入：A(100@1.00)、B(100@1.10)<br>卖出：0股 | 剩余：A、B | 不应修改 |
+| 测试场景                   | 输入                                                                       | 预期输出                      | 验证点                       |
+| -------------------------- | -------------------------------------------------------------------------- | ----------------------------- | ---------------------------- |
+| 改单导致成交价低于部分买价 | 买入：A(100@1.00)、B(100@1.10)、C(100@1.20)<br>卖出：200股@1.05（改价后）  | 剩余：C(100@1.20)             | 旧逻辑会误删 A，新逻辑应稳定 |
+| 多笔卖出串行               | 买入：A(100@1.00)、B(100@1.10)、C(100@1.20)<br>卖出1：100股<br>卖出2：50股 | 剩余：B(50@1.10)、C(100@1.20) | 验证逐笔累计结果             |
+| 同价多单                   | 买入：A(100@1.00,t1)、B(100@1.00,t2)<br>卖出：100股                        | 剩余：B(100@1.00,t2)          | 验证稳定排序（时间早优先）   |
+| 卖出量等于总量             | 买入：A(100@1.00)、B(100@1.10)<br>卖出：200股                              | 剩余：[]                      | 应清空                       |
+| 卖出量大于总量             | 买入：A(100@1.00)、B(100@1.10)<br>卖出：300股                              | 剩余：[]                      | 应清空                       |
+| 卖出量为0                  | 买入：A(100@1.00)、B(100@1.10)<br>卖出：0股                                | 剩余：A、B                    | 不应修改                     |
 
 #### 5.2.2 智能平仓整笔语义测试
 
-| 测试场景 | 输入 | 预期输出 | 验证点 |
-|---------|------|---------|--------|
+| 测试场景             | 输入                                              | 预期输出                      | 验证点                          |
+| -------------------- | ------------------------------------------------- | ----------------------------- | ------------------------------- |
 | 完整订单总量小于限制 | 盈利订单：A(100@1.00)、B(100@1.10)<br>限制：300股 | 返回：A、B，totalQuantity=200 | totalQuantity < maxSellQuantity |
 | 完整订单总量等于限制 | 盈利订单：A(100@1.00)、B(100@1.10)<br>限制：200股 | 返回：A、B，totalQuantity=200 | totalQuantity = maxSellQuantity |
-| 需要截断但不拆分 | 盈利订单：A(100@1.00)、B(150@1.10)<br>限制：200股 | 返回：A，totalQuantity=100 | 不返回 B（不拆分） |
+| 需要截断但不拆分     | 盈利订单：A(100@1.00)、B(150@1.10)<br>限制：200股 | 返回：A，totalQuantity=100    | 不返回 B（不拆分）              |
 
 #### 5.2.3 运行时与重建一致性测试
 
-| 测试场景 | 验证方法 | 判定标准 |
-|---------|---------|---------|
-| 运行中后重启 | 1. 模拟运行时逐笔更新<br>2. 重启后重建<br>3. 比较结果 | 订单列表完全一致 |
-| 日内亏损偏移一致性 | 1. 运行时计算偏移<br>2. dailyLossTracker 计算偏移<br>3. 比较结果 | 偏移值完全一致 |
+| 测试场景           | 验证方法                                                         | 判定标准         |
+| ------------------ | ---------------------------------------------------------------- | ---------------- |
+| 运行中后重启       | 1. 模拟运行时逐笔更新<br>2. 重启后重建<br>3. 比较结果            | 订单列表完全一致 |
+| 日内亏损偏移一致性 | 1. 运行时计算偏移<br>2. dailyLossTracker 计算偏移<br>3. 比较结果 | 偏移值完全一致   |
 
 #### 5.2.4 待成交占用防重测试
 
-| 测试场景 | 输入 | 预期输出 | 验证点 |
-|---------|------|---------|--------|
-| 待成交占用排除 | 盈利订单：A(100@1.00)、B(100@1.10)<br>待成交占用：A | 返回：B，totalQuantity=100 | A 被排除 |
+| 测试场景         | 输入                                                          | 预期输出                   | 验证点     |
+| ---------------- | ------------------------------------------------------------- | -------------------------- | ---------- |
+| 待成交占用排除   | 盈利订单：A(100@1.00)、B(100@1.10)<br>待成交占用：A           | 返回：B，totalQuantity=100 | A 被排除   |
 | 待成交成交后释放 | 盈利订单：A(100@1.00)、B(100@1.10)<br>待成交占用：A（已成交） | 返回：B，totalQuantity=100 | A 已被消除 |
 
 ### 5.3 回归测试要求
@@ -474,40 +489,40 @@ assert.deepEqual(runtimeResult, rebuildResult, '运行时与重建结果必须�
 
 ### 6.1 必改代码文件
 
-| 文件路径 | 变更类型 | 变更内容 |
-|---------|---------|---------|
-| `src/core/orderRecorder/sellDeductionPolicy.ts` | **新增** | 统一扣减策略内核（纯函数） |
+| 文件路径                                         | 变更类型 | 变更内容                                                                                  |
+| ------------------------------------------------ | -------- | ----------------------------------------------------------------------------------------- |
+| `src/core/orderRecorder/sellDeductionPolicy.ts`  | **新增** | 统一扣减策略内核（纯函数）                                                                |
 | `src/core/orderRecorder/orderFilteringEngine.ts` | **重构** | 删除价格比较过滤，改用统一扣减策略；删除 `adjustOrdersByQuantityLimit` 函数；更新算法说明 |
-| `src/core/orderRecorder/orderStorage.ts` | **重构** | `updateAfterSell` 改用统一扣减策略；`getProfitableSellOrders` 改为整笔语义（不拆分订单） |
-| `src/core/orderRecorder/index.ts` | **更新** | 更新注释，说明新的过滤算法 |
-| `src/core/riskController/dailyLossTracker.ts` | **验证** | 确保继续复用同一过滤引擎（无需修改代码，但需验证） |
+| `src/core/orderRecorder/orderStorage.ts`         | **重构** | `updateAfterSell` 改用统一扣减策略；`getProfitableSellOrders` 改为整笔语义（不拆分订单）  |
+| `src/core/orderRecorder/index.ts`                | **更新** | 更新注释，说明新的过滤算法                                                                |
+| `src/core/riskController/dailyLossTracker.ts`    | **验证** | 确保继续复用同一过滤引擎（无需修改代码，但需验证）                                        |
 
 ### 6.2 必改文档文件
 
-| 文件路径 | 变更内容 |
-|---------|---------|
-| `.claude/skills/core-program-business-logic/SKILL.md` | 第 3.2 节"过滤算法"、第 3.3 节"本地记录更新"：删除"保留成交价 >= 卖出成交价"表述，改为"低价优先整笔消除" |
-| `docs/issue/smart-close-order-filter-low-price-deduction-systemic-plan.md` | 本文档（已更新） |
+| 文件路径                                                                   | 变更内容                                                                                                 |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `.claude/skills/core-program-business-logic/SKILL.md`                      | 第 3.2 节"过滤算法"、第 3.3 节"本地记录更新"：删除"保留成交价 >= 卖出成交价"表述，改为"低价优先整笔消除" |
+| `docs/issue/smart-close-order-filter-low-price-deduction-systemic-plan.md` | 本文档（已更新）                                                                                         |
 
 ### 6.3 必改测试文件
 
-| 文件路径 | 变更类型 | 变更内容 |
-|---------|---------|---------|
-| `tests/unit/orderRecorder/sellDeductionPolicy.test.ts` | **新增** | 统一扣减策略的单元测试 |
-| `tests/unit/orderRecorder/orderFilteringEngine.test.ts` | **更新** | 更新测试用例，覆盖新的过滤逻辑 |
-| `tests/unit/orderRecorder/orderStorage.test.ts` | **更新** | 更新 `updateAfterSell` 和 `getProfitableSellOrders` 的测试用例 |
-| `tests/integration/orderRecorder.test.ts` | **新增/更新** | 运行时与重建一致性集成测试 |
+| 文件路径                                                | 变更类型      | 变更内容                                                       |
+| ------------------------------------------------------- | ------------- | -------------------------------------------------------------- |
+| `tests/unit/orderRecorder/sellDeductionPolicy.test.ts`  | **新增**      | 统一扣减策略的单元测试                                         |
+| `tests/unit/orderRecorder/orderFilteringEngine.test.ts` | **更新**      | 更新测试用例，覆盖新的过滤逻辑                                 |
+| `tests/unit/orderRecorder/orderStorage.test.ts`         | **更新**      | 更新 `updateAfterSell` 和 `getProfitableSellOrders` 的测试用例 |
+| `tests/integration/orderRecorder.test.ts`               | **新增/更新** | 运行时与重建一致性集成测试                                     |
 
 ### 6.4 变更影响评估
 
-| 影响域 | 影响程度 | 说明 |
-|-------|---------|------|
-| 订单记录准确性 | **高** | 修复改价场景下的过滤错误 |
-| 运行时与重建一致性 | **高** | 确保重启后订单记录一致 |
-| 风控口径一致性 | **中** | 日内亏损偏移计算与订单记录口径一致 |
-| 智能平仓语义 | **中** | 整笔选单与过滤逻辑一致 |
-| 性能 | **低** | 排序复杂度 O(n log n)，与旧逻辑相当 |
-| 向后兼容性 | **无** | 系统性重构，不保留旧规则 |
+| 影响域             | 影响程度 | 说明                                |
+| ------------------ | -------- | ----------------------------------- |
+| 订单记录准确性     | **高**   | 修复改价场景下的过滤错误            |
+| 运行时与重建一致性 | **高**   | 确保重启后订单记录一致              |
+| 风控口径一致性     | **中**   | 日内亏损偏移计算与订单记录口径一致  |
+| 智能平仓语义       | **中**   | 整笔选单与过滤逻辑一致              |
+| 性能               | **低**   | 排序复杂度 O(n log n)，与旧逻辑相当 |
+| 向后兼容性         | **无**   | 系统性重构，不保留旧规则            |
 
 ---
 
@@ -621,15 +636,15 @@ assert.deepEqual(runtimeResult, rebuildResult, '运行时与重建结果必须�
 
 ### 7.7 预估工作量
 
-| 阶段 | 预估时间 | 关键里程碑 |
-|-----|---------|-----------|
-| 阶段 1：核心策略实现 | 1-2 天 | 统一扣减策略通过单元测试 |
-| 阶段 2：过滤引擎改造 | 1-2 天 | 重放场景测试通过 |
-| 阶段 3：本地更新改造 | 1 天 | 运行时与重建一致性测试通过 |
-| 阶段 4：智能平仓整笔语义 | 1 天 | 智能平仓集成测试通过 |
-| 阶段 5：风控口径验证 | 1 天 | 风控链路测试通过 |
-| 阶段 6：文档更新与回归 | 1 天 | 全链路回归测试通过 |
-| **总计** | **6-8 天** | 所有测试通过，准备上线 |
+| 阶段                     | 预估时间   | 关键里程碑                 |
+| ------------------------ | ---------- | -------------------------- |
+| 阶段 1：核心策略实现     | 1-2 天     | 统一扣减策略通过单元测试   |
+| 阶段 2：过滤引擎改造     | 1-2 天     | 重放场景测试通过           |
+| 阶段 3：本地更新改造     | 1 天       | 运行时与重建一致性测试通过 |
+| 阶段 4：智能平仓整笔语义 | 1 天       | 智能平仓集成测试通过       |
+| 阶段 5：风控口径验证     | 1 天       | 风控链路测试通过           |
+| 阶段 6：文档更新与回归   | 1 天       | 全链路回归测试通过         |
+| **总计**                 | **6-8 天** | 所有测试通过，准备上线     |
 
 ---
 
@@ -637,20 +652,20 @@ assert.deepEqual(runtimeResult, rebuildResult, '运行时与重建结果必须�
 
 ### 8.1 技术风险
 
-| 风险项 | 风险等级 | 影响 | 缓解措施 |
-|-------|---------|------|---------|
-| 算法逻辑错误 | **高** | 订单记录错误，影响交易决策 | 完整单元测试 + 集成测试 + 代码审查 |
-| 运行时与重建不一致 | **高** | 重启后订单记录错误 | 一致性集成测试 + 端到端测试 |
-| 性能下降 | **中** | 影响主循环性能 | 性能测试 + 算法复杂度分析（O(n log n)） |
-| 边界情况遗漏 | **中** | 特殊场景下行为异常 | 完整测试矩阵覆盖 |
+| 风险项             | 风险等级 | 影响                       | 缓解措施                                |
+| ------------------ | -------- | -------------------------- | --------------------------------------- |
+| 算法逻辑错误       | **高**   | 订单记录错误，影响交易决策 | 完整单元测试 + 集成测试 + 代码审查      |
+| 运行时与重建不一致 | **高**   | 重启后订单记录错误         | 一致性集成测试 + 端到端测试             |
+| 性能下降           | **中**   | 影响主循环性能             | 性能测试 + 算法复杂度分析（O(n log n)） |
+| 边界情况遗漏       | **中**   | 特殊场景下行为异常         | 完整测试矩阵覆盖                        |
 
 ### 8.2 业务风险
 
-| 风险项 | 风险等级 | 影响 | 缓解措施 |
-|-------|---------|------|---------|
-| 智能平仓行为变化 | **中** | 卖出数量可能小于预期 | 文档说明 + 日志记录 + 监控告警 |
-| 历史订单回放结果变化 | **低** | 启动时订单记录与旧版本不同 | 预期行为，文档说明 |
-| 系统外人工卖出 | **低** | 无法按低价优先回放 | 业务边界明确，文档说明 |
+| 风险项               | 风险等级 | 影响                       | 缓解措施                       |
+| -------------------- | -------- | -------------------------- | ------------------------------ |
+| 智能平仓行为变化     | **中**   | 卖出数量可能小于预期       | 文档说明 + 日志记录 + 监控告警 |
+| 历史订单回放结果变化 | **低**   | 启动时订单记录与旧版本不同 | 预期行为，文档说明             |
+| 系统外人工卖出       | **低**   | 无法按低价优先回放         | 业务边界明确，文档说明         |
 
 ### 8.3 缓解措施详细说明
 
@@ -700,6 +715,7 @@ assert.deepEqual(runtimeResult, rebuildResult, '运行时与重建结果必须�
 该改造方向**正确且必要**，是对现有业务约束（智能平仓低价优先）的系统性收敛。
 
 **核心优势**：
+
 1. ✅ 修复改价场景下的订单记录过滤错误
 2. ✅ 确保运行时与重建一致性
 3. ✅ 统一风控口径（日内亏损偏移、浮亏监控）
@@ -707,6 +723,7 @@ assert.deepEqual(runtimeResult, rebuildResult, '运行时与重建结果必须�
 5. ✅ 算法简洁清晰，易于理解和维护
 
 **关键成功因素**：
+
 1. 严格执行"统一策略内核 + 启动/运行/重建同口径 + 整笔语义一致"
 2. 完整测试覆盖（单元测试 + 集成测试 + 端到端测试）
 3. 运行时与重建一致性验证通过
@@ -715,12 +732,14 @@ assert.deepEqual(runtimeResult, rebuildResult, '运行时与重建结果必须�
 ### 9.2 预期效果
 
 **修复前**：
+
 - ❌ 改价场景下订单记录过滤错误
 - ❌ 运行时与重建结果可能不一致
 - ❌ 智能平仓选单与过滤逻辑语义不一致
 - ❌ 风控口径可能偏差
 
 **修复后**：
+
 - ✅ 改价场景下订单记录过滤正确
 - ✅ 运行时与重建结果完全一致
 - ✅ 智能平仓选单与过滤逻辑语义一致
@@ -814,16 +833,10 @@ let filteredBuyOrders = buyOrdersBeforeSell.filter(
   (buyOrder) => buyOrder.executedPrice >= sellPrice,
 );
 
-filteredBuyOrders = adjustOrdersByQuantityLimit(
-  filteredBuyOrders,
-  maxRetainQuantity,
-);
+filteredBuyOrders = adjustOrdersByQuantityLimit(filteredBuyOrders, maxRetainQuantity);
 
 // 修改后（新逻辑）
-const filteredBuyOrders = deductSellQuantityFromBuyOrders(
-  buyOrdersBeforeSell,
-  sellQuantity,
-);
+const filteredBuyOrders = deductSellQuantityFromBuyOrders(buyOrdersBeforeSell, sellQuantity);
 ```
 
 ### A.3 本地更新调用示例（orderStorage.ts）
@@ -831,9 +844,7 @@ const filteredBuyOrders = deductSellQuantityFromBuyOrders(
 ```typescript
 // 修改前（旧逻辑）
 const filtered = list.filter(
-  (order) =>
-    Number.isFinite(order.executedPrice) &&
-    order.executedPrice >= executedPrice,
+  (order) => Number.isFinite(order.executedPrice) && order.executedPrice >= executedPrice,
 );
 
 // 修改后（新逻辑）
@@ -850,43 +861,43 @@ const filtered = deductSellQuantityFromBuyOrders(list, executedQuantity);
 describe('deductSellQuantityFromBuyOrders', () => {
   it('应该按低价优先整笔消除', () => {
     const buyOrders = [
-      { orderId: 'A', executedPrice: 1.00, executedQuantity: 100, executedTime: 1000 },
-      { orderId: 'B', executedPrice: 1.10, executedQuantity: 100, executedTime: 2000 },
-      { orderId: 'C', executedPrice: 1.20, executedQuantity: 100, executedTime: 3000 },
+      { orderId: 'A', executedPrice: 1.0, executedQuantity: 100, executedTime: 1000 },
+      { orderId: 'B', executedPrice: 1.1, executedQuantity: 100, executedTime: 2000 },
+      { orderId: 'C', executedPrice: 1.2, executedQuantity: 100, executedTime: 3000 },
     ];
 
     const result = deductSellQuantityFromBuyOrders(buyOrders, 150);
 
     expect(result).toEqual([
-      { orderId: 'B', executedPrice: 1.10, executedQuantity: 100, executedTime: 2000 },
-      { orderId: 'C', executedPrice: 1.20, executedQuantity: 100, executedTime: 3000 },
+      { orderId: 'B', executedPrice: 1.1, executedQuantity: 100, executedTime: 2000 },
+      { orderId: 'C', executedPrice: 1.2, executedQuantity: 100, executedTime: 3000 },
     ]);
   });
 
   it('应该在同价时按时间早优先', () => {
     const buyOrders = [
-      { orderId: 'A', executedPrice: 1.00, executedQuantity: 100, executedTime: 2000 },
-      { orderId: 'B', executedPrice: 1.00, executedQuantity: 100, executedTime: 1000 },
+      { orderId: 'A', executedPrice: 1.0, executedQuantity: 100, executedTime: 2000 },
+      { orderId: 'B', executedPrice: 1.0, executedQuantity: 100, executedTime: 1000 },
     ];
 
     const result = deductSellQuantityFromBuyOrders(buyOrders, 100);
 
     expect(result).toEqual([
-      { orderId: 'A', executedPrice: 1.00, executedQuantity: 100, executedTime: 2000 },
+      { orderId: 'A', executedPrice: 1.0, executedQuantity: 100, executedTime: 2000 },
     ]);
   });
 
   it('应该整笔保留无法完全消除的订单', () => {
     const buyOrders = [
-      { orderId: 'A', executedPrice: 1.00, executedQuantity: 100, executedTime: 1000 },
-      { orderId: 'B', executedPrice: 1.10, executedQuantity: 150, executedTime: 2000 },
+      { orderId: 'A', executedPrice: 1.0, executedQuantity: 100, executedTime: 1000 },
+      { orderId: 'B', executedPrice: 1.1, executedQuantity: 150, executedTime: 2000 },
     ];
 
     const result = deductSellQuantityFromBuyOrders(buyOrders, 120);
 
     // A 被消除（100），B 保留（150 > 20，整笔保留）
     expect(result).toEqual([
-      { orderId: 'B', executedPrice: 1.10, executedQuantity: 150, executedTime: 2000 },
+      { orderId: 'B', executedPrice: 1.1, executedQuantity: 150, executedTime: 2000 },
     ]);
   });
 });
@@ -896,7 +907,7 @@ describe('deductSellQuantityFromBuyOrders', () => {
 
 ## 附录 C：变更历史
 
-| 版本 | 日期 | 变更内容 | 作者 |
-|-----|------|---------|------|
-| 1.0 | 2025-01-XX | 初始版本 | - |
-| 2.0 | 2025-01-XX | 详细设计补充：增加代码示例、测试矩阵、风险评估 | Claude |
+| 版本 | 日期       | 变更内容                                       | 作者   |
+| ---- | ---------- | ---------------------------------------------- | ------ |
+| 1.0  | 2025-01-XX | 初始版本                                       | -      |
+| 2.0  | 2025-01-XX | 详细设计补充：增加代码示例、测试矩阵、风险评估 | Claude |

@@ -162,11 +162,7 @@ export interface UnrealizedLossChecker {
     quote?: Quote | null,
     dailyLossOffset?: number,
   ): Promise<{ r1: number; n1: number } | null>;
-  check(
-    symbol: string,
-    currentPrice: number,
-    isLongSymbol: boolean,
-  ): UnrealizedLossCheckResult;
+  check(symbol: string, currentPrice: number, isLongSymbol: boolean): UnrealizedLossCheckResult;
 }
 
 // ==================== 依赖类型定义 ====================
@@ -308,9 +304,10 @@ export type DailyLossTrackerDeps = {
     order: RawOrderFromAPI,
     monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
   ) => OrderOwnership | null;
-  readonly classifyAndConvertOrders: (
-    orders: ReadonlyArray<RawOrderFromAPI>,
-  ) => { buyOrders: ReadonlyArray<OrderRecord>; sellOrders: ReadonlyArray<OrderRecord> };
+  readonly classifyAndConvertOrders: (orders: ReadonlyArray<RawOrderFromAPI>) => {
+    buyOrders: ReadonlyArray<OrderRecord>;
+    sellOrders: ReadonlyArray<OrderRecord>;
+  };
   readonly toHongKongTimeIso: (date: Date | null) => string;
 };
 

@@ -115,7 +115,11 @@ function formatIndicator(value: number | null | undefined, decimals: number = 3)
 /**
  * 检测值是否发生变化
  */
-function hasChanged(current: number | null | undefined, last: number | null | undefined, threshold: number): boolean {
+function hasChanged(
+  current: number | null | undefined,
+  last: number | null | undefined,
+  threshold: number,
+): boolean {
   if (current == null || last == null) return current !== last;
   if (!Number.isFinite(current) || !Number.isFinite(last)) return false;
   return Math.abs(current - last) > threshold;
@@ -182,7 +186,13 @@ function detectIndicatorChanges(
   // 计算涨跌幅
   const prevClose = quote?.prevClose ?? null;
   let changePercent: number | null = null;
-  if (Number.isFinite(currentPrice) && currentPrice > 0 && Number.isFinite(prevClose) && prevClose !== null && prevClose > 0) {
+  if (
+    Number.isFinite(currentPrice) &&
+    currentPrice > 0 &&
+    Number.isFinite(prevClose) &&
+    prevClose !== null &&
+    prevClose > 0
+  ) {
     changePercent = ((currentPrice - prevClose) / prevClose) * 100;
   }
 
@@ -192,7 +202,10 @@ function detectIndicatorChanges(
   }
 
   // 检查涨跌幅变化
-  if (changePercent !== null && (state.lastChangePercent == null || hasChanged(changePercent, state.lastChangePercent, 0.01))) {
+  if (
+    changePercent !== null &&
+    (state.lastChangePercent == null || hasChanged(changePercent, state.lastChangePercent, 0.01))
+  ) {
     return true;
   }
 
@@ -201,7 +214,10 @@ function detectIndicatorChanges(
     for (const period of EMA_PERIODS) {
       const currentEma = snapshot.ema[period];
       const lastEma = state.lastEma?.[period];
-      if (Number.isFinite(currentEma) && (lastEma == null || hasChanged(currentEma, lastEma, CHANGE_THRESHOLD))) {
+      if (
+        Number.isFinite(currentEma) &&
+        (lastEma == null || hasChanged(currentEma, lastEma, CHANGE_THRESHOLD))
+      ) {
         return true;
       }
     }
@@ -212,14 +228,20 @@ function detectIndicatorChanges(
     for (const period of RSI_PERIODS) {
       const currentRsi = snapshot.rsi[period];
       const lastRsi = state.lastRsi?.[period];
-      if (Number.isFinite(currentRsi) && (lastRsi == null || hasChanged(currentRsi, lastRsi, CHANGE_THRESHOLD))) {
+      if (
+        Number.isFinite(currentRsi) &&
+        (lastRsi == null || hasChanged(currentRsi, lastRsi, CHANGE_THRESHOLD))
+      ) {
         return true;
       }
     }
   }
 
   // 检查 MFI 变化
-  if (Number.isFinite(snapshot.mfi) && (state.lastMfi == null || hasChanged(snapshot.mfi, state.lastMfi, CHANGE_THRESHOLD))) {
+  if (
+    Number.isFinite(snapshot.mfi) &&
+    (state.lastMfi == null || hasChanged(snapshot.mfi, state.lastMfi, CHANGE_THRESHOLD))
+  ) {
     return true;
   }
 
@@ -227,9 +249,12 @@ function detectIndicatorChanges(
   if (snapshot.kdj) {
     const { k, d, j } = snapshot.kdj;
     if (
-      (Number.isFinite(k) && (state.lastKdj?.k == null || hasChanged(k, state.lastKdj.k, CHANGE_THRESHOLD))) ||
-      (Number.isFinite(d) && (state.lastKdj?.d == null || hasChanged(d, state.lastKdj.d, CHANGE_THRESHOLD))) ||
-      (Number.isFinite(j) && (state.lastKdj?.j == null || hasChanged(j, state.lastKdj.j, CHANGE_THRESHOLD)))
+      (Number.isFinite(k) &&
+        (state.lastKdj?.k == null || hasChanged(k, state.lastKdj.k, CHANGE_THRESHOLD))) ||
+      (Number.isFinite(d) &&
+        (state.lastKdj?.d == null || hasChanged(d, state.lastKdj.d, CHANGE_THRESHOLD))) ||
+      (Number.isFinite(j) &&
+        (state.lastKdj?.j == null || hasChanged(j, state.lastKdj.j, CHANGE_THRESHOLD)))
     ) {
       return true;
     }
@@ -239,9 +264,13 @@ function detectIndicatorChanges(
   if (snapshot.macd) {
     const { macd, dif, dea } = snapshot.macd;
     if (
-      (Number.isFinite(macd) && (state.lastMacd?.macd == null || hasChanged(macd, state.lastMacd.macd, CHANGE_THRESHOLD))) ||
-      (Number.isFinite(dif) && (state.lastMacd?.dif == null || hasChanged(dif, state.lastMacd.dif, CHANGE_THRESHOLD))) ||
-      (Number.isFinite(dea) && (state.lastMacd?.dea == null || hasChanged(dea, state.lastMacd.dea, CHANGE_THRESHOLD)))
+      (Number.isFinite(macd) &&
+        (state.lastMacd?.macd == null ||
+          hasChanged(macd, state.lastMacd.macd, CHANGE_THRESHOLD))) ||
+      (Number.isFinite(dif) &&
+        (state.lastMacd?.dif == null || hasChanged(dif, state.lastMacd.dif, CHANGE_THRESHOLD))) ||
+      (Number.isFinite(dea) &&
+        (state.lastMacd?.dea == null || hasChanged(dea, state.lastMacd.dea, CHANGE_THRESHOLD)))
     ) {
       return true;
     }
@@ -258,7 +287,13 @@ function updateState(snapshot: IndicatorSnapshot, quote: Quote | null, state: Mo
 
   // 计算涨跌幅
   const prevClose = quote?.prevClose ?? null;
-  if (Number.isFinite(snapshot.price) && snapshot.price > 0 && Number.isFinite(prevClose) && prevClose !== null && prevClose > 0) {
+  if (
+    Number.isFinite(snapshot.price) &&
+    snapshot.price > 0 &&
+    Number.isFinite(prevClose) &&
+    prevClose !== null &&
+    prevClose > 0
+  ) {
     state.lastChangePercent = ((snapshot.price - prevClose) / prevClose) * 100;
   }
 
@@ -299,7 +334,13 @@ function displayIndicators(
   // 计算涨跌幅
   const prevClose = quote?.prevClose ?? null;
   let changePercent: number | null = null;
-  if (Number.isFinite(currentPrice) && currentPrice > 0 && Number.isFinite(prevClose) && prevClose !== null && prevClose > 0) {
+  if (
+    Number.isFinite(currentPrice) &&
+    currentPrice > 0 &&
+    Number.isFinite(prevClose) &&
+    prevClose !== null &&
+    prevClose > 0
+  ) {
     changePercent = ((currentPrice - prevClose) / prevClose) * 100;
   }
 
@@ -377,9 +418,10 @@ async function runMonitorCycle(context: MonitorContext): Promise<void> {
   ]);
 
   // 计算指标
-  const snapshot = dailyCandles.length > 0
-    ? buildIndicatorSnapshot(monitorSymbol, dailyCandles, RSI_PERIODS, EMA_PERIODS)
-    : null;
+  const snapshot =
+    dailyCandles.length > 0
+      ? buildIndicatorSnapshot(monitorSymbol, dailyCandles, RSI_PERIODS, EMA_PERIODS)
+      : null;
 
   if (!snapshot) {
     return;

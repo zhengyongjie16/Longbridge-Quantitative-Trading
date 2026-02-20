@@ -31,11 +31,7 @@ function createMockOrderRecorder(overrides: {
   sellableOrders?: ReadonlyArray<OrderRecord>;
   sellableTotalQuantity?: number;
 }): OrderRecorder {
-  const {
-    costAveragePrice = null,
-    sellableOrders = [],
-    sellableTotalQuantity = 0,
-  } = overrides;
+  const { costAveragePrice = null, sellableOrders = [], sellableTotalQuantity = 0 } = overrides;
 
   return {
     getCostAveragePrice: () => costAveragePrice,
@@ -125,10 +121,7 @@ describe('resolveSellQuantityBySmartClose', () => {
   // ========== 整体盈利（当前价 > 成本均价）==========
 
   it('当前价 > 成本均价时整体盈利，返回全部可卖订单', () => {
-    const orders = [
-      makeOrder('O1', 1, 100),
-      makeOrder('O2', 1.2, 100),
-    ];
+    const orders = [makeOrder('O1', 1, 100), makeOrder('O2', 1.2, 100)];
     const recorder = createMockOrderRecorder({
       costAveragePrice: 1.1,
       sellableOrders: orders,

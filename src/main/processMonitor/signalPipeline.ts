@@ -18,7 +18,12 @@
  * 3. 信号标的必须与席位当前标的匹配
  */
 import { logger } from '../../utils/logger/index.js';
-import { formatSignalLog, formatSymbolDisplay, isBuyAction, isSellAction } from '../../utils/helpers/index.js';
+import {
+  formatSignalLog,
+  formatSymbolDisplay,
+  isBuyAction,
+  isSellAction,
+} from '../../utils/helpers/index.js';
 import { VALID_SIGNAL_ACTIONS } from '../../constants/index.js';
 import { isSeatReady, describeSeatUnavailable } from '../../services/autoSymbolManager/utils.js';
 import { getPositions } from './utils.js';
@@ -180,9 +185,7 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
           });
         }
       } else {
-        const reason = isTradingEnabled
-          ? '非交易时段，暂不执行'
-          : '交易门禁关闭，暂不执行';
+        const reason = isTradingEnabled ? '非交易时段，暂不执行' : '交易门禁关闭，暂不执行';
         logger.info(`[立即信号] ${formatSignalLog(signal)}（${reason}）`);
         releaseSignal(signal);
       }
@@ -197,9 +200,7 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
         logger.info(`[延迟验证信号] ${formatSignalLog(signal)}`);
         delayedSignalVerifier.addSignal(signal, monitorSymbol);
       } else {
-        const reason = isTradingEnabled
-          ? '非交易时段，暂不添加验证'
-          : '交易门禁关闭，暂不添加验证';
+        const reason = isTradingEnabled ? '非交易时段，暂不添加验证' : '交易门禁关闭，暂不添加验证';
         logger.info(`[延迟验证信号] ${formatSignalLog(signal)}（${reason}）`);
         releaseSignal(signal);
       }

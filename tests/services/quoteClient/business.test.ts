@@ -129,7 +129,11 @@ import { createMarketDataClient } from '../../../src/services/quoteClient/index.
 
 let quoteMock: ReturnType<typeof createQuoteContextMock>;
 
-function makeSeedQuote(symbol: string, lastDone: number, prevClose: number): {
+function makeSeedQuote(
+  symbol: string,
+  lastDone: number,
+  prevClose: number,
+): {
   symbol: string;
   lastDone: TestDecimal;
   prevClose: TestDecimal;

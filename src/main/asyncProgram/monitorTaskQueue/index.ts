@@ -27,10 +27,10 @@ import { removeTasksFromQueue } from './utils.js';
  *
  * @returns 监控任务队列实例，含 scheduleLatest、pop、isEmpty、removeTasks、clearAll、onTaskAdded
  */
-export function createMonitorTaskQueue<
-  TType extends string,
-  TData,
->(): MonitorTaskQueue<TType, TData> {
+export function createMonitorTaskQueue<TType extends string, TData>(): MonitorTaskQueue<
+  TType,
+  TData
+> {
   const queue: Array<MonitorTask<TType, TData>> = [];
   const callbacks: TaskAddedCallback[] = [];
 

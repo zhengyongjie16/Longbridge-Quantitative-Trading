@@ -52,11 +52,13 @@ describe('liquidationCooldown business flow', () => {
     });
 
     now = Date.parse('2026-02-16T23:59:59+08:00');
-    expect(tracker.getRemainingMs({
-      symbol: 'HSI.HK',
-      direction: 'LONG',
-      cooldownConfig: { mode: 'one-day' },
-    })).toBe(1_000);
+    expect(
+      tracker.getRemainingMs({
+        symbol: 'HSI.HK',
+        direction: 'LONG',
+        cooldownConfig: { mode: 'one-day' },
+      }),
+    ).toBe(1_000);
 
     const morningExecutedAt = Date.parse('2026-02-16T11:00:00+08:00');
     tracker.recordCooldown({
@@ -65,11 +67,13 @@ describe('liquidationCooldown business flow', () => {
       executedTimeMs: morningExecutedAt,
     });
     now = Date.parse('2026-02-16T12:30:00+08:00');
-    expect(tracker.getRemainingMs({
-      symbol: 'HSI.HK',
-      direction: 'SHORT',
-      cooldownConfig: { mode: 'half-day' },
-    })).toBe(30 * 60_000);
+    expect(
+      tracker.getRemainingMs({
+        symbol: 'HSI.HK',
+        direction: 'SHORT',
+        cooldownConfig: { mode: 'half-day' },
+      }),
+    ).toBe(30 * 60_000);
 
     const afternoonExecutedAt = Date.parse('2026-02-16T13:30:00+08:00');
     tracker.recordCooldown({
@@ -78,11 +82,13 @@ describe('liquidationCooldown business flow', () => {
       executedTimeMs: afternoonExecutedAt,
     });
     now = Date.parse('2026-02-16T23:00:00+08:00');
-    expect(tracker.getRemainingMs({
-      symbol: 'HSI.HK',
-      direction: 'SHORT',
-      cooldownConfig: { mode: 'half-day' },
-    })).toBe(60 * 60_000);
+    expect(
+      tracker.getRemainingMs({
+        symbol: 'HSI.HK',
+        direction: 'SHORT',
+        cooldownConfig: { mode: 'half-day' },
+      }),
+    ).toBe(60 * 60_000);
   });
 
   it('clears only midnight-eligible keys', () => {
@@ -106,17 +112,21 @@ describe('liquidationCooldown business flow', () => {
       keysToClear: new Set(['HSI.HK:LONG']),
     });
 
-    expect(tracker.getRemainingMs({
-      symbol: 'HSI.HK',
-      direction: 'LONG',
-      cooldownConfig: { mode: 'minutes', minutes: 10 },
-    })).toBe(0);
+    expect(
+      tracker.getRemainingMs({
+        symbol: 'HSI.HK',
+        direction: 'LONG',
+        cooldownConfig: { mode: 'minutes', minutes: 10 },
+      }),
+    ).toBe(0);
 
     now += 1_000;
-    expect(tracker.getRemainingMs({
-      symbol: 'HSI.HK',
-      direction: 'SHORT',
-      cooldownConfig: { mode: 'minutes', minutes: 10 },
-    })).toBe(599_000);
+    expect(
+      tracker.getRemainingMs({
+        symbol: 'HSI.HK',
+        direction: 'SHORT',
+        cooldownConfig: { mode: 'minutes', minutes: 10 },
+      }),
+    ).toBe(599_000);
   });
 });

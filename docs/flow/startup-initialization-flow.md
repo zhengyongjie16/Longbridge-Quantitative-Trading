@@ -1,16 +1,19 @@
 # 启动初始化流程图
 
 ## 范围说明
+
 - 起点：`src/index.ts` 中 `main()` 被调用并完成环境加载。
 - 终点：完成所有初始化后进入 `while (true)` 主循环，并开始按 `TRADING.INTERVAL_MS` 调度 `mainProgram`。
 - 不包含：主循环每秒逻辑（见 `docs/flow/main-loop-flow.md`）、自动换标细节（见 `docs/flow/auto-symbol-switch-flow.md`）。
 
 ## 关键输入与运行模式
+
 - `.env.local`：运行时配置来源。
 - `RUN_MODE`：决定启动/运行期门禁是否跳过（dev -> skip, prod -> strict）。
 - `TRADING.INTERVAL_MS`：启动门禁的轮询间隔，也用于主循环节拍。
 
 ## 初始化流程图
+
 ```mermaid
 graph TD
   A["main() 入口"] --> B["dotenv.config 加载 .env.local"]
@@ -49,57 +52,69 @@ graph TD
 ```
 
 ## 分阶段说明
+
 ### 1. 配置解析与静态校验
+
 - `dotenv.config` 读取 `.env.local` 后，`createMultiMonitorTradingConfig` 解析多监控标的配置，包含监控标的、席位、风控与信号。
 - `createSymbolRegistry` 建立席位注册表，记录每个监控标的的做多/做空席位状态与版本号。
 - `validateAllConfig` 只做静态校验（参数范围、凭证与格式），失败直接退出。
 
 ### 2. 行情客户端与启动门禁
+
 - `createConfig` 生成 LongPort 配置，`createMarketDataClient` 创建行情客户端（仅创建上下文，未订阅）。
 - `resolveRunMode` 与 `resolveGatePolicies` 决定门禁模式：dev 跳过、prod 严格。
 - `createStartupGate.wait` 在严格模式下循环等待：交易日 + 连续交易时段 + 开盘保护期（早盘或午盘）结束；通过后返回 `startupTradingDayInfo`。
 
 ### 3. 交易门面与基础状态
+
 - `createLiquidationCooldownTracker` 初始化保护性清仓冷却追踪。
 - `createDailyLossTracker` 构建日内亏损追踪器，用于浮亏偏移与跨日处理。
 - `createTrader` 创建交易门面，初始化订单监控与追踪恢复。
 - `lastState` 作为运行期缓存容器创建，并初始化 `positionCache`、`monitorStates` 等基础状态。
 
 ### 4. 启动期账户/订单与席位占位
+
 - `refreshAccountAndPositions` 读取账户与持仓并写入 `lastState`，必须成功。
 - `fetchAllOrdersFromAPI` 拉取历史 + 当日订单失败则降级为空；随后 `seedOrderHoldSymbols` 生成挂单/占用标的集合。
 - `dailyLossTracker.initializeFromOrders` 基于订单初始化日内亏损偏移。
 - `prepareSeatsOnStartup` 先 `resolveSeatSnapshot` 以历史订单 + 持仓恢复席位，再对启用自动寻标的席位循环 `findBestWarrant` 直至全部 READY，输出 `seatSymbols`。
 
 ### 5. 冷却恢复与核心模块
+
 - `tradeLogHydrator.hydrate` 根据当日成交日志恢复保护性清仓冷却。
 - 初始化核心模块：`createMarketMonitor`（行情/指标监控）、`createDoomsdayProtection`（收盘前撤单/清仓）、`createSignalProcessor`（信号分流与风险入口）。
 
 ### 6. 异步架构与运行期行情订阅
+
 - `createIndicatorCache` 的容量由最大延迟验证时间推导，供延迟验证读取历史指标。
 - 创建 `buyTaskQueue` / `sellTaskQueue` 用于异步交易任务。
 - `collectRuntimeQuoteSymbols` 汇总监控标的、席位标的、持仓标的与挂单标的。
 - 若集合非空则 `subscribeSymbols` 订阅行情，再 `getQuotes` 获取初始化行情缓存 `initQuotesMap`。
 
 ### 7. 运行期标的验证与监控上下文
+
 - `validateRuntimeSymbolsFromQuotesMap` 对监控标的与席位标的做必需校验，失败即退出；持仓标的校验只给警告。
 - `displayAccountAndPositions` 使用 `initQuotesMap` 输出账户与持仓快照。
 - 遍历每个监控标的创建 `monitorContext`：包含 `riskChecker`、`autoSymbolManager`、`strategy`、`unrealizedLossMonitor`、`delayedSignalVerifier` 等。
 - `refreshSeatWarrantInfo` 为做多/做空席位初始化回收价等牛熊证信息，用于风险检查。
 
 ### 8. 订单记录与浮亏初始化
+
 - 对每个监控标的调用 `orderRecorder.refreshOrdersFromAllOrders`，用全量订单初始化本地订单记录。
 - 若配置了 `maxUnrealizedLossPerSymbol`，调用 `riskChecker.refreshUnrealizedLossData` 初始化浮亏基线（使用 `dailyLossTracker.getLossOffset`）。
 
 ### 9. 延迟验证回调与处理器启动
+
 - `delayedSignalVerifier.onVerified`：通过后校验席位 READY / 版本一致 / 标的一致，再推入买卖队列；否则释放信号。验证失败时验证器内部记录日志并释放信号。
 - 创建并启动 `createBuyProcessor` / `createSellProcessor`，异步消费队列。
 
 ### 10. 退出清理与进入主循环
+
 - `createCleanup.registerExitHandlers` 绑定 SIGINT/SIGTERM，停止处理器、销毁验证器并清理缓存。
 - 进入 `while (true)` 主循环，按 `TRADING.INTERVAL_MS` 反复调用 `mainProgram`。
 
 ## 模块/函数/变量释义（按出现顺序）
+
 - `main`：程序主入口，串行完成所有初始化并进入主循环。
 - `dotenv.config`：加载 `.env.local` 到 `process.env`。
 - `createMultiMonitorTradingConfig`：解析多监控标的交易配置，生成 `tradingConfig`。

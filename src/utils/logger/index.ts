@@ -186,23 +186,21 @@ class DateRotatingStream extends Writable {
       });
 
       this._fileStream.on('error', (err) => {
-        console.error(
-          `[DateRotatingStream] 文件流错误 (${this._logSubDir}):`,
-          err,
-        );
+        console.error(`[DateRotatingStream] 文件流错误 (${this._logSubDir}):`, err);
       });
     } catch (err) {
-      console.error(
-        `[DateRotatingStream] 日志轮转失败 (${this._logSubDir}):`,
-        err,
-      );
+      console.error(`[DateRotatingStream] 日志轮转失败 (${this._logSubDir}):`, err);
     }
   }
 
   /**
    * 实现 Writable._write 方法
    */
-  override _write(chunk: Buffer, encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
+  override _write(
+    chunk: Buffer,
+    encoding: BufferEncoding,
+    callback: (error?: Error | null) => void,
+  ): void {
     // 使用立即执行函数处理异步操作
     void (async () => {
       try {
@@ -224,9 +222,7 @@ class DateRotatingStream extends Writable {
               callback,
               () => {
                 if (IS_DEBUG) {
-                  console.error(
-                    `[DateRotatingStream] drain 超时 (${this._logSubDir})`,
-                  );
+                  console.error(`[DateRotatingStream] drain 超时 (${this._logSubDir})`);
                 }
               },
             );
@@ -236,18 +232,13 @@ class DateRotatingStream extends Writable {
         } else {
           // 如果文件流不可用，记录错误但不阻塞
           if (IS_DEBUG) {
-            console.error(
-              `[DateRotatingStream] 文件流不可用 (${this._logSubDir})`,
-            );
+            console.error(`[DateRotatingStream] 文件流不可用 (${this._logSubDir})`);
           }
           callback();
         }
       } catch (err) {
         // 记录错误但不阻塞日志系统
-        console.error(
-          `[DateRotatingStream] 写入失败 (${this._logSubDir}):`,
-          err,
-        );
+        console.error(`[DateRotatingStream] 写入失败 (${this._logSubDir}):`, err);
         callback();
       }
     })();
@@ -296,10 +287,7 @@ const ANSI_ESC = String.fromCodePoint(27);
  * 匹配格式：ESC[数字;数字;...m
  * 使用 String.raw 避免转义反斜杠，使用字符串拼接避免在正则表达式中直接使用控制字符
  */
-const ANSI_CODE_REGEX = new RegExp(
-  ANSI_ESC + String.raw`\[[0-9;]*m`,
-  'g',
-);
+const ANSI_CODE_REGEX = new RegExp(ANSI_ESC + String.raw`\[[0-9;]*m`, 'g');
 
 /**
  * 移除字符串中的 ANSI 颜色/转义代码，用于文件日志输出时得到纯文本。

@@ -72,11 +72,11 @@
 
 ### 2.3 核心矛盾
 
-| 层面 | 订单记录 | 待成交订单追踪 |
-|------|----------|---------------|
-| 买入 | ✅ 即时更新 | ❌ 不追踪 |
-| 卖出 | ❌ 成交后才更新 | ✅ 实时追踪 |
-| 智能平仓查询 | 查询订单记录 | ❌ 不使用 |
+| 层面         | 订单记录        | 待成交订单追踪 |
+| ------------ | --------------- | -------------- |
+| 买入         | ✅ 即时更新     | ❌ 不追踪      |
+| 卖出         | ❌ 成交后才更新 | ✅ 实时追踪    |
+| 智能平仓查询 | 查询订单记录    | ❌ 不使用      |
 
 ---
 
@@ -262,7 +262,10 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     return record;
   }
 
-  function getPendingSellOrders(symbol: string, direction: 'LONG' | 'SHORT'): ReadonlyArray<PendingSellInfo> {
+  function getPendingSellOrders(
+    symbol: string,
+    direction: 'LONG' | 'SHORT',
+  ): ReadonlyArray<PendingSellInfo> {
     return Array.from(pendingSells.values()).filter(
       (order) => order.symbol === symbol && order.direction === direction,
     );
@@ -334,7 +337,10 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     },
 
     /** 获取待成交卖出订单列表 */
-    getPendingSellOrders(symbol: string, direction: 'LONG' | 'SHORT'): ReadonlyArray<PendingSellInfo> {
+    getPendingSellOrders(
+      symbol: string,
+      direction: 'LONG' | 'SHORT',
+    ): ReadonlyArray<PendingSellInfo> {
       return storage.getPendingSellOrders(symbol, direction);
     },
 
@@ -396,7 +402,12 @@ export function resolveSellQuantityBySmartClose({
   );
 
   if (result.orders.length === 0 || result.totalQuantity <= 0) {
-    return { quantity: null, shouldHold: true, reason: '无盈利订单或已被占用', relatedBuyOrderIds: [] };
+    return {
+      quantity: null,
+      shouldHold: true,
+      reason: '无盈利订单或已被占用',
+      relatedBuyOrderIds: [],
+    };
   }
 
   // 提取关联的订单ID列表
@@ -427,9 +438,8 @@ export const processSellSignals = (
       // 末日保护：无条件清仓
       sig.quantity = position.availableQuantity;
     } else {
-      const result = calculateSellQuantity(
-        // ...
-      );
+      const result = calculateSellQuantity();
+      // ...
 
       if (result.shouldHold) {
         sig.action = 'HOLD';
@@ -633,32 +643,32 @@ if (isDoomsdaySignal) {
 
 ## 八、文件修改清单
 
-| 序号 | 文件 | 修改类型 | 说明 |
-|------|------|----------|------|
-| 1 | `src/core/orderRecorder/types.ts` | 修改 | 新增 `PendingSellInfo`、`ProfitableOrderResult` 类型，扩展 `OrderStorage` 接口 |
-| 2 | `src/core/orderRecorder/orderStorage.ts` | 修改 | 实现待成交追踪与防重计算 |
-| 3 | `src/core/orderRecorder/index.ts` | 修改 | 扩展 `OrderRecorder` 接口 |
-| 4 | `src/types/index.ts` | 修改 | Signal 新增 `relatedBuyOrderIds` 字段，`OrderRecorder` 接口扩展 |
-| 5 | `src/core/signalProcessor/utils.ts` | 修改 | 改用 `getProfitableSellOrders()` |
-| 6 | `src/core/signalProcessor/sellQuantityCalculator.ts` | 修改 | 传递关联订单ID |
-| 7 | `src/core/trader/orderMonitor.ts` | 修改 | 成交/取消/部分成交回调更新追踪 |
-| 8 | `src/core/trader/orderExecutor.ts` | 修改 | 提交时注册追踪 |
-| 9 | `src/core/trader/types.ts` | 修改 | `OrderExecutorDeps` 添加 `orderRecorder` 依赖 |
-| 10 | `src/core/trader/index.ts` | 修改 | 创建 `OrderExecutor` 时传入 `orderRecorder` |
+| 序号 | 文件                                                 | 修改类型 | 说明                                                                           |
+| ---- | ---------------------------------------------------- | -------- | ------------------------------------------------------------------------------ |
+| 1    | `src/core/orderRecorder/types.ts`                    | 修改     | 新增 `PendingSellInfo`、`ProfitableOrderResult` 类型，扩展 `OrderStorage` 接口 |
+| 2    | `src/core/orderRecorder/orderStorage.ts`             | 修改     | 实现待成交追踪与防重计算                                                       |
+| 3    | `src/core/orderRecorder/index.ts`                    | 修改     | 扩展 `OrderRecorder` 接口                                                      |
+| 4    | `src/types/index.ts`                                 | 修改     | Signal 新增 `relatedBuyOrderIds` 字段，`OrderRecorder` 接口扩展                |
+| 5    | `src/core/signalProcessor/utils.ts`                  | 修改     | 改用 `getProfitableSellOrders()`                                               |
+| 6    | `src/core/signalProcessor/sellQuantityCalculator.ts` | 修改     | 传递关联订单ID                                                                 |
+| 7    | `src/core/trader/orderMonitor.ts`                    | 修改     | 成交/取消/部分成交回调更新追踪                                                 |
+| 8    | `src/core/trader/orderExecutor.ts`                   | 修改     | 提交时注册追踪                                                                 |
+| 9    | `src/core/trader/types.ts`                           | 修改     | `OrderExecutorDeps` 添加 `orderRecorder` 依赖                                  |
+| 10   | `src/core/trader/index.ts`                           | 修改     | 创建 `OrderExecutor` 时传入 `orderRecorder`                                    |
 
 ---
 
 ## 九、与现有功能的兼容性
 
-| 现有功能 | 影响 | 处理 |
-|----------|------|------|
-| RiskChecker 浮亏计算 | 无 | 继续使用现有接口 |
-| 日内亏损追踪 | 无 | 继续使用现有接口 |
-| 订单历史记录查询 | 无 | 继续使用现有接口 |
-| 延迟信号验证 | 无 | 不涉及 |
-| 末日保护清仓 | 无 | 独立逻辑 |
-| 程序重启恢复 | 无 | 复用现有恢复逻辑 |
-| 卖出订单合并 | 无 | 可扩展支持 |
+| 现有功能             | 影响 | 处理             |
+| -------------------- | ---- | ---------------- |
+| RiskChecker 浮亏计算 | 无   | 继续使用现有接口 |
+| 日内亏损追踪         | 无   | 继续使用现有接口 |
+| 订单历史记录查询     | 无   | 继续使用现有接口 |
+| 延迟信号验证         | 无   | 不涉及           |
+| 末日保护清仓         | 无   | 独立逻辑         |
+| 程序重启恢复         | 无   | 复用现有恢复逻辑 |
+| 卖出订单合并         | 无   | 可扩展支持       |
 
 ---
 
@@ -666,30 +676,30 @@ if (isDoomsdaySignal) {
 
 ### 单元测试场景
 
-| 测试场景 | 预期结果 |
-|----------|----------|
-| 单个卖出订单 | 后续信号无法选中相同订单 |
-| 两个卖出订单选中不同订单 | 两者都能正常执行 |
-| 订单部分成交 | 按比例释放关联订单 |
-| 订单取消 | 释放所有关联订单 |
-| 无智能平仓（清仓） | 不走防重逻辑 |
+| 测试场景                 | 预期结果                 |
+| ------------------------ | ------------------------ |
+| 单个卖出订单             | 后续信号无法选中相同订单 |
+| 两个卖出订单选中不同订单 | 两者都能正常执行         |
+| 订单部分成交             | 按比例释放关联订单       |
+| 订单取消                 | 释放所有关联订单         |
+| 无智能平仓（清仓）       | 不走防重逻辑             |
 
 ### 集成测试场景
 
-| 测试场景 | 预期结果 |
-|----------|----------|
+| 测试场景                 | 预期结果                |
+| ------------------------ | ----------------------- |
 | 连续快速生成多个卖出信号 | 仅第一个执行，其余 HOLD |
-| 高频信号场景 | 无重复卖出 |
-| 订单成交延迟场景 | 仍能正确防重 |
+| 高频信号场景             | 无重复卖出              |
+| 订单成交延迟场景         | 仍能正确防重            |
 
 ---
 
 ## 十一、更新日志
 
-| 日期 | 版本 | 说明 |
-|------|------|------|
-| 2025-02-05 | 1.0 | 初版文档 |
-| 2025-02-05 | 2.0 | 实现版本，在 orderRecorder 上扩展实现 |
+| 日期       | 版本 | 说明                                  |
+| ---------- | ---- | ------------------------------------- |
+| 2025-02-05 | 1.0  | 初版文档                              |
+| 2025-02-05 | 2.0  | 实现版本，在 orderRecorder 上扩展实现 |
 
 ---
 

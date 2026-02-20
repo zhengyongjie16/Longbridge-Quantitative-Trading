@@ -12,12 +12,12 @@ import { createMonitorTaskQueue } from '../../../src/main/asyncProgram/monitorTa
 import type { MainProgramContext } from '../../../src/main/mainProgram/types.js';
 import type { MonitorContext } from '../../../src/types/state.js';
 import type { SeatSyncResult } from '../../../src/main/processMonitor/types.js';
-import type { MonitorTaskData, MonitorTaskType } from '../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
+import type {
+  MonitorTaskData,
+  MonitorTaskType,
+} from '../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 
-import {
-  createQuoteDouble,
-  createRiskCheckerDouble,
-} from '../../helpers/testDoubles.js';
+import { createQuoteDouble, createRiskCheckerDouble } from '../../helpers/testDoubles.js';
 
 function createSeatInfo(): SeatSyncResult {
   return {

@@ -87,9 +87,24 @@ describe('跨日清理与开盘重建全链路', () => {
     });
     const openOrder: string[] = [];
     const domains: ReadonlyArray<CacheDomain> = [
-      { midnightClear: () => {}, openRebuild: () => { openOrder.push('first'); } },
-      { midnightClear: () => {}, openRebuild: () => { openOrder.push('second'); } },
-      { midnightClear: () => {}, openRebuild: () => { openOrder.push('third'); } },
+      {
+        midnightClear: () => {},
+        openRebuild: () => {
+          openOrder.push('first');
+        },
+      },
+      {
+        midnightClear: () => {},
+        openRebuild: () => {
+          openOrder.push('second');
+        },
+      },
+      {
+        midnightClear: () => {},
+        openRebuild: () => {
+          openOrder.push('third');
+        },
+      },
     ];
     const manager = createDayLifecycleManager({
       mutableState,

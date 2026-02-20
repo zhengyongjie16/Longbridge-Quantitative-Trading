@@ -5,29 +5,29 @@ SDK 使用 `Decimal` 类型处理所有价格和金额，避免浮点精度问�
 ## 创建 Decimal
 
 ```typescript
-const d = new Decimal("50.5");      // 从字符串创建（推荐）
-const d = new Decimal(50.5);        // 从数字创建
+const d = new Decimal('50.5'); // 从字符串创建（推荐）
+const d = new Decimal(50.5); // 从数字创建
 const d = Decimal.newWithScale(505, 1); // 从整数+小数位创建 => 50.5
 ```
 
 ## 静态常量
 
 ```typescript
-Decimal.ZERO()           // 0
-Decimal.ONE()            // 1
-Decimal.TWO()            // 2
-Decimal.TEN()            // 10
-Decimal.ONE_HUNDRED()    // 100
-Decimal.ONE_THOUSAND()   // 1000
-Decimal.NEGATIVE_ONE()   // -1
-Decimal.MAX()            // 最大值
-Decimal.MIN()            // 最小值
-Decimal.PI()             // π
-Decimal.HALF_PI()        // π/2
-Decimal.QUARTER_PI()     // π/4
-Decimal.TWO_PI()         // 2π
-Decimal.E()              // e
-Decimal.E_INVERSE()      // 1/e
+Decimal.ZERO(); // 0
+Decimal.ONE(); // 1
+Decimal.TWO(); // 2
+Decimal.TEN(); // 10
+Decimal.ONE_HUNDRED(); // 100
+Decimal.ONE_THOUSAND(); // 1000
+Decimal.NEGATIVE_ONE(); // -1
+Decimal.MAX(); // 最大值
+Decimal.MIN(); // 最小值
+Decimal.PI(); // π
+Decimal.HALF_PI(); // π/2
+Decimal.QUARTER_PI(); // π/4
+Decimal.TWO_PI(); // 2π
+Decimal.E(); // e
+Decimal.E_INVERSE(); // 1/e
 ```
 
 ## 转换方法

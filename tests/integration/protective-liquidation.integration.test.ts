@@ -107,17 +107,19 @@ describe('protective-liquidation integration', () => {
       orderType: OrderType.MO,
     });
 
-    capturedHandler(createPushOrderChanged({
-      orderId: 'PL-001',
-      symbol: 'BULL.HK',
-      side: OrderSide.Sell,
-      status: OrderStatus.Filled,
-      orderType: OrderType.MO,
-      submittedQuantity: 200,
-      executedQuantity: 200,
-      submittedPrice: 1,
-      executedPrice: 1,
-    }));
+    capturedHandler(
+      createPushOrderChanged({
+        orderId: 'PL-001',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.Filled,
+        orderType: OrderType.MO,
+        submittedQuantity: 200,
+        executedQuantity: 200,
+        submittedPrice: 1,
+        executedPrice: 1,
+      }),
+    );
 
     expect(recordLocalSellCount).toBe(1);
     expect(markSellFilledCount).toBe(1);

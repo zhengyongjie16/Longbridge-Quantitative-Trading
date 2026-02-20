@@ -7,7 +7,10 @@
 import { describe, expect, it } from 'bun:test';
 
 import { runSignalPipeline } from '../../../src/main/processMonitor/signalPipeline.js';
-import { createBuyTaskQueue, createSellTaskQueue } from '../../../src/main/asyncProgram/tradeTaskQueue/index.js';
+import {
+  createBuyTaskQueue,
+  createSellTaskQueue,
+} from '../../../src/main/asyncProgram/tradeTaskQueue/index.js';
 
 import type { Signal } from '../../../src/types/signal.js';
 import type { IndicatorSnapshot } from '../../../src/types/quote.js';

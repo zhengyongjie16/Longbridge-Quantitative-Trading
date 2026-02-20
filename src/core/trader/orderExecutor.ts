@@ -11,13 +11,7 @@
  * - 普通交易使用 tradingOrderType（LO/ELO/MO）
  * - 保护性清仓使用 liquidationOrderType
  */
-import {
-  TradeContext,
-  OrderSide,
-  OrderType,
-  TimeInForceType,
-  Decimal,
-} from 'longport';
+import { TradeContext, OrderSide, OrderType, TimeInForceType, Decimal } from 'longport';
 import { logger, colors } from '../../utils/logger/index.js';
 import { TIME, TRADING } from '../../constants/index.js';
 import { getHKDateKey } from '../../utils/helpers/tradingTime.js';
@@ -46,11 +40,11 @@ import {
 
 /** 操作描述映射 */
 const ACTION_DESCRIPTION_MAP: Record<string, string> = {
-  'BUYCALL': '买入做多标的（做多）',
-  'SELLCALL': '卖出做多标的（平仓）',
-  'BUYPUT': '买入做空标的（做空）',
-  'SELLPUT': '卖出做空标的（平仓）',
-  'HOLD': '持有',
+  BUYCALL: '买入做多标的（做多）',
+  SELLCALL: '卖出做多标的（平仓）',
+  BUYPUT: '买入做空标的（做空）',
+  SELLPUT: '卖出做空标的（平仓）',
+  HOLD: '持有',
 };
 
 /** 获取操作描述（用于日志） */
@@ -59,9 +53,7 @@ function getActionDescription(signalAction: Signal['action']): string {
 }
 
 /** 配置字符串转 OrderType 枚举 */
-function getOrderTypeFromConfig(
-  typeConfig: 'LO' | 'ELO' | 'MO',
-): OrderType {
+function getOrderTypeFromConfig(typeConfig: 'LO' | 'ELO' | 'MO'): OrderType {
   if (typeConfig === 'LO') {
     return OrderType.LO;
   }
@@ -88,9 +80,7 @@ function calculateBuyQuantity(
 ): Decimal {
   const priceNum = Number(overridePrice ?? signal?.price ?? null);
   if (!Number.isFinite(priceNum) || priceNum <= 0) {
-    logger.warn(
-      `[跳过订单] 无法获取有效价格，无法按金额计算买入数量，price=${priceNum}`,
-    );
+    logger.warn(`[跳过订单] 无法获取有效价格，无法按金额计算买入数量，price=${priceNum}`);
     return Decimal.ZERO();
   }
 
@@ -103,9 +93,7 @@ function calculateBuyQuantity(
   // 获取最小买卖单位（已在配置验证阶段确保 lotSize 有效）
   const lotSize: number = signal?.lotSize ?? 0;
   if (!Number.isFinite(lotSize) || lotSize <= 0) {
-    logger.error(
-      `[跳过订单] lotSize 无效(${lotSize})，这不应该发生，请检查配置验证逻辑`,
-    );
+    logger.error(`[跳过订单] lotSize 无效(${lotSize})，这不应该发生，请检查配置验证逻辑`);
     return Decimal.ZERO();
   }
 
@@ -118,9 +106,7 @@ function calculateBuyQuantity(
     return Decimal.ZERO();
   }
 
-  const actionType = isShortSymbol
-    ? '买入做空标的（做空）'
-    : '买入做多标的（做多）';
+  const actionType = isShortSymbol ? '买入做空标的（做空）' : '买入做多标的（做多）';
   logger.info(
     `[仓位计算] 按目标金额 ${notional} 计算得到${actionType}数量=${rawQty} 股（${lotSize} 股一手），单价≈${priceNum}`,
   );
@@ -134,9 +120,7 @@ function isLiquidationSignal(signal: Signal): boolean {
 }
 
 /** 根据信号动作解析订单方向 */
-function resolveOrderSide(
-  action: Signal['action'],
-): OrderSide | null {
+function resolveOrderSide(action: Signal['action']): OrderSide | null {
   switch (action) {
     case 'BUYCALL':
     case 'BUYPUT':
@@ -150,21 +134,14 @@ function resolveOrderSide(
 }
 
 /** 生成买入频率限制的时间键 */
-function buildBuyTimeKey(
-  signalAction: string,
-  monitorConfig?: MonitorConfig | null,
-): string {
+function buildBuyTimeKey(signalAction: string, monitorConfig?: MonitorConfig | null): string {
   const direction: 'LONG' | 'SHORT' = signalAction === 'BUYCALL' ? 'LONG' : 'SHORT';
   const monitorSymbol = monitorConfig?.monitorSymbol ?? '';
   return monitorSymbol ? `${monitorSymbol}:${direction}` : direction;
 }
 
 /** 处理订单提交错误（分类记录日志） */
-function handleSubmitError(
-  err: unknown,
-  signal: Signal,
-  orderPayload: OrderPayload,
-): void {
+function handleSubmitError(err: unknown, signal: Signal, orderPayload: OrderPayload): void {
   const actionDesc = getActionDescription(signal.action);
 
   const errorMessage = formatError(err);
@@ -202,10 +179,7 @@ function handleSubmitError(
       errorMessage,
     );
   } else {
-    logger.error(
-      `[订单提交失败] ${actionDesc} ${symbolDisplayForError} 失败：`,
-      errorMessage,
-    );
+    logger.error(`[订单提交失败] ${actionDesc} ${symbolDisplayForError} 失败：`, errorMessage);
   }
 }
 
@@ -312,10 +286,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
   }
 
   /** 记录买入时间（用于频率限制） */
-  function updateLastBuyTime(
-    signalAction: SignalType,
-    monitorConfig?: MonitorConfig | null,
-  ): void {
+  function updateLastBuyTime(signalAction: SignalType, monitorConfig?: MonitorConfig | null): void {
     if (isBuyAction(signalAction)) {
       lastBuyTime.set(buildBuyTimeKey(signalAction, monitorConfig), Date.now());
     }
@@ -440,7 +411,8 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       side,
       timeInForce,
       submittedQuantity: submittedQtyDecimal,
-      ...(resolvedPrice && orderTypeParam !== OrderType.MO && { submittedPrice: toDecimal(resolvedPrice) }),
+      ...(resolvedPrice &&
+        orderTypeParam !== OrderType.MO && { submittedPrice: toDecimal(resolvedPrice) }),
       ...(remark && { remark: `${remark}`.slice(0, 60) }),
     };
 
@@ -458,9 +430,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       const actionDesc = getActionDescription(signal.action);
 
       logger.info(
-        `[订单提交成功] ${actionDesc} ${
-          orderPayload.symbol
-        } 数量=${orderPayload.submittedQuantity.toString()} 订单ID=${orderId}`,
+        `[订单提交成功] ${actionDesc} ${orderPayload.symbol} 数量=${orderPayload.submittedQuantity.toString()} 订单ID=${orderId}`,
       );
 
       // ========== 开始追踪订单（由 orderMonitor 在成交后更新本地记录） ==========
@@ -493,7 +463,6 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       }
 
       updateLastBuyTime(signal.action, monitorConfig);
-
     } catch (err) {
       handleSubmitError(err, signal, orderPayload);
     }
@@ -519,18 +488,14 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
     }
 
     if (!signal.symbol || typeof signal.symbol !== 'string') {
-      logger.error(
-        `[订单提交] 信号缺少有效的标的代码: ${JSON.stringify(signal)}`,
-      );
+      logger.error(`[订单提交] 信号缺少有效的标的代码: ${JSON.stringify(signal)}`);
       return false;
     }
 
     // 根据信号类型转换为订单方向
     const side = resolveOrderSide(signal.action);
     if (!side) {
-      logger.error(
-        `[订单提交] 未知的信号类型: ${signal.action}, 标的: ${signal.symbol}`,
-      );
+      logger.error(`[订单提交] 未知的信号类型: ${signal.action}, 标的: ${signal.symbol}`);
       return false;
     }
 
@@ -552,11 +517,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
     const needClosePosition = isSellAction(signal.action);
 
     if (needClosePosition) {
-      submittedQtyDecimal = await calculateSellQuantity(
-        ctx,
-        targetSymbol,
-        signal,
-      );
+      submittedQtyDecimal = await calculateSellQuantity(ctx, targetSymbol, signal);
       if (submittedQtyDecimal.isZero()) {
         return false;
       }
@@ -568,9 +529,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
         return false;
       }
 
-      const resolvedPrice = isValidPositiveNumber(signal.price)
-        ? Number(signal.price)
-        : null;
+      const resolvedPrice = isValidPositiveNumber(signal.price) ? Number(signal.price) : null;
       const pendingSellOrders = orderMonitor.getPendingSellOrders(targetSymbol);
       const decision = resolveSellMergeDecision({
         symbol: targetSymbol,
@@ -587,9 +546,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
         }
         const price = decision.price ?? resolvedPrice ?? 0;
         if (!isValidPositiveNumber(price)) {
-          logger.warn(
-            `[订单合并] 无法获取有效改单价格，跳过: ${targetSymbol}`,
-          );
+          logger.warn(`[订单合并] 无法获取有效改单价格，跳过: ${targetSymbol}`);
           return false;
         }
         await orderMonitor.replaceOrderPrice(
@@ -610,18 +567,14 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
         if (cancelResults.some((ok) => !ok)) {
           const remaining = orderMonitor.getPendingSellOrders(targetSymbol);
           if (remaining.length > 0) {
-            logger.warn(
-              `[订单合并] 撤单失败且仍有未成交卖单，跳过合并提交: ${targetSymbol}`,
-            );
+            logger.warn(`[订单合并] 撤单失败且仍有未成交卖单，跳过合并提交: ${targetSymbol}`);
             return false;
           }
         }
       }
 
       if (decision.action === 'SKIP') {
-        logger.info(
-          `[订单合并] 无需新增卖单: ${targetSymbol}, reason=${decision.reason}`,
-        );
+        logger.info(`[订单合并] 无需新增卖单: ${targetSymbol}, reason=${decision.reason}`);
         return false;
       }
 
@@ -645,12 +598,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       return false;
     }
 
-    submittedQtyDecimal = calculateBuyQuantity(
-      signal,
-      isShortSymbol,
-      undefined,
-      targetNotional,
-    );
+    submittedQtyDecimal = calculateBuyQuantity(signal, isShortSymbol, undefined, targetNotional);
     if (submittedQtyDecimal.isZero()) {
       return false;
     }
@@ -703,7 +651,9 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
 
       // 保护性清仓不参与跨日/触发时间校验（实时风控，始终视为有效）
       if (!isLiquidationSignal(s) && isStaleCrossDaySignal(s, new Date())) {
-        logger.info(`[执行门禁] 跨日或触发时间无效信号，跳过执行: ${signalSymbolDisplay} ${s.action}`);
+        logger.info(
+          `[执行门禁] 跨日或触发时间无效信号，跳过执行: ${signalSymbolDisplay} ${s.action}`,
+        );
         continue;
       }
 
@@ -715,18 +665,14 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       // 验证信号类型
       const side = resolveOrderSide(s.action);
       if (!side) {
-        logger.warn(
-          `[跳过信号] 未知的信号类型: ${s.action}, 标的: ${signalSymbolDisplay}`,
-        );
+        logger.warn(`[跳过信号] 未知的信号类型: ${s.action}, 标的: ${signalSymbolDisplay}`);
         continue;
       }
 
       // 通过信号的 symbol 查找对应的监控配置
       const resolved = resolveMonitorConfigBySymbol(s.symbol);
       if (!resolved) {
-        logger.warn(
-          `[跳过信号] 无法找到信号标的 ${signalSymbolDisplay} 对应的监控配置`,
-        );
+        logger.warn(`[跳过信号] 无法找到信号标的 ${signalSymbolDisplay} 对应的监控配置`);
         continue;
       }
 
@@ -739,9 +685,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       // 使用绿色显示交易计划（格式化标的显示：中文名称(代码)）
       const symbolDisplay = formatSymbolDisplay(targetSymbol, s.symbolName);
       logger.info(
-        `${colors.green}[交易计划] ${actualAction} ${symbolDisplay} - ${
-          s.reason || '策略信号'
-        }${colors.reset}`,
+        `${colors.green}[交易计划] ${actualAction} ${symbolDisplay} - ${s.reason || '策略信号'}${colors.reset}`,
       );
 
       const submitted = await submitTargetOrder(ctx, s, targetSymbol, isShortSymbol, monitorConfig);

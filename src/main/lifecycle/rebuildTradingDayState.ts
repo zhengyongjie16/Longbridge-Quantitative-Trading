@@ -231,9 +231,9 @@ async function rebuildUnrealizedLossCache(
  * @param deps 依赖注入（marketDataClient、trader、lastState、symbolRegistry、monitorContexts、dailyLossTracker、displayAccountAndPositions）
  * @returns 接收 RebuildTradingDayStateParams 的异步函数，无返回值；任一步骤失败即抛出，由生命周期管理器重试
  */
-export function createRebuildTradingDayState(deps: RebuildTradingDayStateDeps): (
-  params: RebuildTradingDayStateParams,
-) => Promise<void> {
+export function createRebuildTradingDayState(
+  deps: RebuildTradingDayStateDeps,
+): (params: RebuildTradingDayStateParams) => Promise<void> {
   const {
     marketDataClient,
     trader,
@@ -249,7 +249,9 @@ export function createRebuildTradingDayState(deps: RebuildTradingDayStateDeps): 
    * → 重建浮亏缓存 → 恢复订单追踪 → 展示账户持仓。
    * 任一步骤失败即整体抛出，由生命周期管理器负责重试。
    */
-  return async function rebuildTradingDayState(params: RebuildTradingDayStateParams): Promise<void> {
+  return async function rebuildTradingDayState(
+    params: RebuildTradingDayStateParams,
+  ): Promise<void> {
     const { allOrders, quotesMap } = params;
 
     syncAllMonitorContexts(monitorContexts, symbolRegistry, quotesMap);

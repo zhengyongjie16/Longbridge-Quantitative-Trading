@@ -65,10 +65,10 @@ const MIN_DISTANCE_PCT = 0.02;
 const DEFAULT_SYMBOL = 'HSI.HK';
 
 /** 港股交易时段（分钟） */
-const MORNING_OPEN = 570;   // 09:30
-const MORNING_CLOSE = 720;  // 12:00
+const MORNING_OPEN = 570; // 09:30
+const MORNING_CLOSE = 720; // 12:00
 const AFTERNOON_OPEN = 780; // 13:00
-const AFTERNOON_CLOSE = 960;// 16:00
+const AFTERNOON_CLOSE = 960; // 16:00
 const MORNING_MINUTES = 150;
 const TOTAL_MINUTES = 330;
 
@@ -142,7 +142,9 @@ async function main() {
     : `<-${(MIN_DISTANCE_PCT * 100).toFixed(0)}%`;
 
   console.log(`\n====== ${typeLabel}筛选 | ${symbol} ======`);
-  console.log(`条件: 到期≥3月, 距回收价${distanceLabel}, 分均成交≥${formatTurnover(MIN_TURNOVER_PER_MINUTE)}`);
+  console.log(
+    `条件: 到期≥3月, 距回收价${distanceLabel}, 分均成交≥${formatTurnover(MIN_TURNOVER_PER_MINUTE)}`,
+  );
   console.log(`已开盘: ${tradingMinutes} 分钟\n`);
 
   // 初始化 API 并获取数据
@@ -173,9 +175,7 @@ async function main() {
     const distancePct = Number(w.toCallPrice || 0);
 
     // 距回收价百分比过滤：牛证 > 阈值，熊证 < -阈值
-    const distanceOk = isBull
-      ? distancePct > MIN_DISTANCE_PCT
-      : distancePct < -MIN_DISTANCE_PCT;
+    const distanceOk = isBull ? distancePct > MIN_DISTANCE_PCT : distancePct < -MIN_DISTANCE_PCT;
     if (!distanceOk) {
       skippedCount++;
       continue;
@@ -206,14 +206,15 @@ async function main() {
   }
 
   // 构建最接近阈值的摘要信息
-  const closestToThreshold = closestIdx >= 0
-    ? {
-        index: closestIdx,
-        symbol: rawList[closestIdx].symbol,
-        distancePct: distanceValues[closestIdx],
-        distancePctDisplay: (distanceValues[closestIdx] * 100).toFixed(2) + '%',
-      }
-    : null;
+  const closestToThreshold =
+    closestIdx >= 0
+      ? {
+          index: closestIdx,
+          symbol: rawList[closestIdx].symbol,
+          distancePct: distanceValues[closestIdx],
+          distancePctDisplay: (distanceValues[closestIdx] * 100).toFixed(2) + '%',
+        }
+      : null;
 
   // 输出：仅包装一层元信息，list 为 API 原生结构（最接近阈值项带 _isClosestToThreshold 标记）
   console.log('====== 结果（API 原生 JSON） ======\n');
@@ -240,7 +241,9 @@ async function main() {
   } else {
     console.log(`\n统计: 总${warrants.length}, 符合条件${rawList.length}, 跳过${skippedCount}`);
     if (closestToThreshold) {
-      console.log(`★ 最接近阈值: ${closestToThreshold.symbol} (距回收价 ${closestToThreshold.distancePctDisplay})`);
+      console.log(
+        `★ 最接近阈值: ${closestToThreshold.symbol} (距回收价 ${closestToThreshold.distancePctDisplay})`,
+      );
     }
   }
 

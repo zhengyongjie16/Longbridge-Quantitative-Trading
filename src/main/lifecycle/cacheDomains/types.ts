@@ -4,8 +4,16 @@ import type { MultiMonitorTradingConfig } from '../../../types/config.js';
 import type { SymbolRegistry } from '../../../types/seat.js';
 import type { MarketDataClient, Trader } from '../../../types/services.js';
 import type { Processor } from '../../asyncProgram/types.js';
-import type { TaskQueue, BuyTaskType, SellTaskType } from '../../asyncProgram/tradeTaskQueue/types.js';
-import type { MonitorTaskData, MonitorTaskProcessor, MonitorTaskType } from '../../asyncProgram/monitorTaskProcessor/types.js';
+import type {
+  TaskQueue,
+  BuyTaskType,
+  SellTaskType,
+} from '../../asyncProgram/tradeTaskQueue/types.js';
+import type {
+  MonitorTaskData,
+  MonitorTaskProcessor,
+  MonitorTaskType,
+} from '../../asyncProgram/monitorTaskProcessor/types.js';
 import type { MonitorTaskQueue } from '../../asyncProgram/monitorTaskQueue/types.js';
 import type { OrderMonitorWorker } from '../../asyncProgram/orderMonitorWorker/types.js';
 import type { PostTradeRefresher } from '../../asyncProgram/postTradeRefresher/types.js';

@@ -69,7 +69,8 @@ type RunIndicatorPipelineFn = (
 ) => Promise<IndicatorSnapshot | null>;
 
 async function loadRunIndicatorPipeline(): Promise<RunIndicatorPipelineFn> {
-  const modulePath = '../../../src/main/processMonitor/indicatorPipeline.js?real-indicator-pipeline';
+  const modulePath =
+    '../../../src/main/processMonitor/indicatorPipeline.js?real-indicator-pipeline';
   const module = await import(modulePath);
   return module.runIndicatorPipeline as RunIndicatorPipelineFn;
 }

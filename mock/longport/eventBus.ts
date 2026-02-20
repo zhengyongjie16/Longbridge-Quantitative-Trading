@@ -98,11 +98,7 @@ function takeDueEvents(
   }
 
   const dueSet = new Set(dueEvents);
-  queue.splice(
-    0,
-    queue.length,
-    ...queue.filter((event) => !dueSet.has(event)),
-  );
+  queue.splice(0, queue.length, ...queue.filter((event) => !dueSet.has(event)));
 
   return dueEvents;
 }
@@ -113,7 +109,9 @@ function takeDueEvents(
  * 该实现支持延迟投递和显式 flush，目的是让测试在时间推进与事件分发之间
  * 获得确定性的执行边界。
  */
-export function createLongportEventBus(getNowMs: () => number = () => Date.now()): LongportEventBus {
+export function createLongportEventBus(
+  getNowMs: () => number = () => Date.now(),
+): LongportEventBus {
   const subscribers = {
     quote: new Set(),
     candlestick: new Set(),

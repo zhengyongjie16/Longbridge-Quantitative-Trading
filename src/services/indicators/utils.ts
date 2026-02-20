@@ -11,10 +11,7 @@ import type { EmaStreamState } from './types.js';
  * @param lastClose - 最后一根 K 线的收盘价
  * @returns 指纹字符串
  */
-function buildDataFingerprint(
-  candles: ReadonlyArray<CandleData>,
-  lastClose: number,
-): string {
+function buildDataFingerprint(candles: ReadonlyArray<CandleData>, lastClose: number): string {
   return `${candles.length}_${lastClose}`;
 }
 

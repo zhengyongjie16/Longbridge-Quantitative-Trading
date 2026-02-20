@@ -5,7 +5,7 @@ const envVarPattern = /[%$~]/;
 
 function hasDotSegment(dirPath) {
   const segments = dirPath.split(/[/\\]+/);
-  return segments.some(segment => segment === '.' || segment === '..');
+  return segments.some((segment) => segment === '.' || segment === '..');
 }
 
 function isFixedPath(dirPath) {

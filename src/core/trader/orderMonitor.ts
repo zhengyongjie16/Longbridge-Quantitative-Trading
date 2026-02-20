@@ -11,16 +11,16 @@
  * - 买入超时：仅撤销订单（避免追高）
  * - 卖出超时：撤销后转市价单（确保平仓）
  */
-import {
-  OrderStatus,
-  OrderSide,
-  OrderType,
-  TimeInForceType,
-  TopicType,
-} from 'longport';
+import { OrderStatus, OrderSide, OrderType, TimeInForceType, TopicType } from 'longport';
 import type { PushOrderChanged } from 'longport';
 import { logger } from '../../utils/logger/index.js';
-import { decimalToNumber, toDecimal, formatError, toHongKongTimeIso, isValidPositiveNumber } from '../../utils/helpers/index.js';
+import {
+  decimalToNumber,
+  toDecimal,
+  formatError,
+  toHongKongTimeIso,
+  isValidPositiveNumber,
+} from '../../utils/helpers/index.js';
 import {
   NON_REPLACEABLE_ORDER_STATUSES,
   NON_REPLACEABLE_ORDER_TYPES,
@@ -126,9 +126,10 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
   const pendingRefreshSymbols: PendingRefreshSymbol[] = [];
 
   /** 通过标的代码解析席位归属（做多/做空方向及监控标的），未找到时使用默认值并记录警告 */
-  function resolveSeatOwnership(
-    symbol: string,
-  ): { isLongSymbol: boolean; monitorSymbol: string | null } {
+  function resolveSeatOwnership(symbol: string): {
+    isLongSymbol: boolean;
+    monitorSymbol: string | null;
+  } {
     const resolved = symbolRegistry.resolveSeatBySymbol(symbol);
     if (resolved) {
       return {
@@ -169,9 +170,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       if (isValidPositiveNumber(executedPrice) && isValidPositiveNumber(filledQuantity)) {
         const executedTimeMs = resolveUpdatedAtMs(event.updatedAt);
         if (executedTimeMs == null) {
-          logger.error(
-            `[订单监控] 订单 ${orderId} 成交时间缺失，无法更新订单记录`,
-          );
+          logger.error(`[订单监控] 订单 ${orderId} 成交时间缺失，无法更新订单记录`);
           trackedOrders.delete(orderId);
           return;
         }
@@ -220,16 +219,11 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
               executedTimeMs,
             });
           } else {
-            logger.error(
-              `[订单监控] 订单 ${orderId} 缺少监控标的代码，无法记录清仓冷却`,
-            );
+            logger.error(`[订单监控] 订单 ${orderId} 缺少监控标的代码，无法记录清仓冷却`);
           }
         }
 
-        const signalAction = resolveSignalAction(
-          trackedOrder.side,
-          trackedOrder.isLongSymbol,
-        );
+        const signalAction = resolveSignalAction(trackedOrder.side, trackedOrder.isLongSymbol);
         const executedAt = toHongKongTimeIso(new Date(executedTimeMs));
 
         recordTrade({
@@ -254,8 +248,8 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
 
         logger.info(
           `[订单监控] 订单 ${orderId} 完全成交，` +
-          `成交价=${executedPrice.toFixed(3)}，成交数量=${filledQuantity}，` +
-          '已更新本地订单记录',
+            `成交价=${executedPrice.toFixed(3)}，成交数量=${filledQuantity}，` +
+            '已更新本地订单记录',
         );
 
         // 记录需要刷新的数据（订单成交后资金和持仓都会变化）
@@ -270,7 +264,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       } else {
         logger.warn(
           `[订单监控] 订单 ${orderId} 成交数据无效，` +
-          `executedPrice=${event.executedPrice}，executedQuantity=${event.executedQuantity}`,
+            `executedPrice=${event.executedPrice}，executedQuantity=${event.executedQuantity}`,
         );
       }
 
@@ -280,10 +274,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     }
 
     // 订单撤销或拒绝
-    if (
-      event.status === OrderStatus.Canceled ||
-      event.status === OrderStatus.Rejected
-    ) {
+    if (event.status === OrderStatus.Canceled || event.status === OrderStatus.Rejected) {
       // 订单取消时释放追踪
       if (trackedOrder.side === OrderSide.Sell) {
         orderRecorder.markSellCancelled(String(orderId));
@@ -301,8 +292,8 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       }
       logger.info(
         `[订单监控] 订单 ${orderId} 部分成交，` +
-        `已成交=${trackedOrder.executedQuantity}/${trackedOrder.submittedQuantity}，` +
-        '等待完全成交后更新本地记录',
+          `已成交=${trackedOrder.executedQuantity}/${trackedOrder.submittedQuantity}，` +
+          '等待完全成交后更新本地记录',
       );
     }
   }
@@ -366,8 +357,8 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
 
     logger.info(
       `[订单监控] 开始追踪订单 ${orderId}，` +
-      `标的=${symbol}，方向=${side === OrderSide.Buy ? '买入' : '卖出'}，` +
-      `${isLongSymbol ? '做多' : '做空'}标的`,
+        `标的=${symbol}，方向=${side === OrderSide.Buy ? '买入' : '卖出'}，` +
+        `${isLongSymbol ? '做多' : '做空'}标的`,
     );
   }
 
@@ -461,10 +452,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       logger.info(`[订单撤销成功] 订单ID=${orderId}`);
       return true;
     } catch (err) {
-      logger.error(
-        `[订单撤销失败] 订单ID=${orderId}`,
-        formatError(err),
-      );
+      logger.error(`[订单撤销失败] 订单ID=${orderId}`, formatError(err));
       return false;
     }
   }
@@ -507,15 +495,10 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       trackedOrder.submittedQuantity = trackedOrder.executedQuantity + targetQuantity;
       trackedOrder.lastPriceUpdateAt = Date.now();
 
-      logger.info(
-        `[订单修改成功] 订单ID=${orderId} 新价格=${newPrice.toFixed(3)}`,
-      );
+      logger.info(`[订单修改成功] 订单ID=${orderId} 新价格=${newPrice.toFixed(3)}`);
     } catch (err) {
       const errorMessage = formatError(err);
-      logger.error(
-        `[订单修改失败] 订单ID=${orderId} 新价格=${newPrice.toFixed(3)}`,
-        errorMessage,
-      );
+      logger.error(`[订单修改失败] 订单ID=${orderId} 新价格=${newPrice.toFixed(3)}`, errorMessage);
       throw new Error(`订单修改失败: ${errorMessage}`, { cause: err });
     }
   }
@@ -524,9 +507,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
   async function handleBuyOrderTimeout(orderId: string, order: TrackedOrder): Promise<void> {
     const elapsed = Date.now() - order.submittedAt;
 
-    logger.warn(
-      `[订单监控] 买入订单 ${orderId} 超时(${Math.floor(elapsed / 1000)}秒)，撤销订单`,
-    );
+    logger.warn(`[订单监控] 买入订单 ${orderId} 超时(${Math.floor(elapsed / 1000)}秒)，撤销订单`);
 
     // 计算剩余数量
     const remainingQuantity = order.submittedQuantity - order.executedQuantity;
@@ -539,13 +520,9 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     const cancelled = await cancelOrder(orderId);
 
     if (cancelled) {
-      logger.info(
-        `[订单监控] 买入订单 ${orderId} 已撤销，剩余未成交数量=${remainingQuantity}`,
-      );
+      logger.info(`[订单监控] 买入订单 ${orderId} 已撤销，剩余未成交数量=${remainingQuantity}`);
     } else {
-      logger.warn(
-        `[订单监控] 买入订单 ${orderId} 撤销失败（可能已成交或已撤销）`,
-      );
+      logger.warn(`[订单监控] 买入订单 ${orderId} 撤销失败（可能已成交或已撤销）`);
     }
   }
 
@@ -581,9 +558,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
 
       // 门禁检查：禁止在门禁关闭时发起新开单（撤销已执行，仅阻止市价单提交）
       if (!isExecutionAllowed()) {
-        logger.info(
-          `[执行门禁] 门禁关闭，卖出订单 ${orderId} 超时转市价单被阻止，原订单已撤销`,
-        );
+        logger.info(`[执行门禁] 门禁关闭，卖出订单 ${orderId} 超时转市价单被阻止，原订单已撤销`);
         return;
       }
 
@@ -592,9 +567,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
 
       // 二次门禁检查（await 后状态可能变化）
       if (!isExecutionAllowed()) {
-        logger.info(
-          `[执行门禁] 门禁已关闭，卖出订单 ${orderId} 转市价单被阻止，原订单已撤销`,
-        );
+        logger.info(`[执行门禁] 门禁已关闭，卖出订单 ${orderId} 转市价单被阻止，原订单已撤销`);
         return;
       }
 
@@ -618,7 +591,8 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
 
       const newOrderId = (resp as { orderId?: string })?.orderId ?? 'UNKNOWN';
       const direction: 'LONG' | 'SHORT' = order.isLongSymbol ? 'LONG' : 'SHORT';
-      const relatedBuyOrderIds = cancelledPending?.relatedBuyOrderIds ??
+      const relatedBuyOrderIds =
+        cancelledPending?.relatedBuyOrderIds ??
         orderRecorder.allocateRelatedBuyOrderIdsForRecovery(
           order.symbol,
           direction,
@@ -655,7 +629,6 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       if (newTrackedOrder) {
         newTrackedOrder.convertedToMarket = true;
       }
-
     } catch (err) {
       logger.error(`[订单监控] 卖出订单 ${orderId} 转市价单失败:`, err);
     }
@@ -724,7 +697,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
 
       logger.info(
         `[订单监控] ${sideDesc}订单 ${orderId} 当前价(${currentPrice.toFixed(3)}) ` +
-        `${priceDirection}，更新委托价：${order.submittedPrice.toFixed(3)} → ${currentPrice.toFixed(3)}`,
+          `${priceDirection}，更新委托价：${order.submittedPrice.toFixed(3)} → ${currentPrice.toFixed(3)}`,
       );
 
       try {

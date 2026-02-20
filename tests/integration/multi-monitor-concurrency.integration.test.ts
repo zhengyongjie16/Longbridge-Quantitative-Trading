@@ -10,7 +10,11 @@ const processCalls: string[] = [];
 
 // eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 同步注册
 mock.module('../../src/main/processMonitor/index.js', () => ({
-  processMonitor: async ({ monitorContext }: { monitorContext: { config: { monitorSymbol: string } } }) => {
+  processMonitor: async ({
+    monitorContext,
+  }: {
+    monitorContext: { config: { monitorSymbol: string } };
+  }) => {
     const symbol = monitorContext.config.monitorSymbol;
     processCalls.push(symbol);
     if (symbol === 'HSI-A.HK') {
@@ -27,10 +31,7 @@ import type { SymbolRegistry } from '../../src/types/seat.js';
 import type { Quote } from '../../src/types/quote.js';
 import type { MultiMonitorTradingConfig } from '../../src/types/config.js';
 
-import {
-  createMonitorConfigDouble,
-  createPositionCacheDouble,
-} from '../helpers/testDoubles.js';
+import { createMonitorConfigDouble, createPositionCacheDouble } from '../helpers/testDoubles.js';
 
 function createLastState(): LastState {
   return {
@@ -51,7 +52,9 @@ function createLastState(): LastState {
   };
 }
 
-function createSymbolRegistry(configs: ReadonlyArray<{ monitorSymbol: string; longSymbol: string; shortSymbol: string }>): SymbolRegistry {
+function createSymbolRegistry(
+  configs: ReadonlyArray<{ monitorSymbol: string; longSymbol: string; shortSymbol: string }>,
+): SymbolRegistry {
   const map = new Map<string, { long: string; short: string }>();
   for (const cfg of configs) {
     map.set(cfg.monitorSymbol, { long: cfg.longSymbol, short: cfg.shortSymbol });
@@ -60,7 +63,7 @@ function createSymbolRegistry(configs: ReadonlyArray<{ monitorSymbol: string; lo
   return {
     getSeatState: (monitorSymbol, direction) => {
       const row = map.get(monitorSymbol);
-      const symbol = direction === 'LONG' ? row?.long ?? null : row?.short ?? null;
+      const symbol = direction === 'LONG' ? (row?.long ?? null) : (row?.short ?? null);
       return {
         symbol,
         status: symbol ? 'READY' : 'EMPTY',
@@ -84,7 +87,9 @@ function createSymbolRegistry(configs: ReadonlyArray<{ monitorSymbol: string; lo
   };
 }
 
-function createMonitorContext(config: ReturnType<typeof createMonitorConfigDouble>): MonitorContext {
+function createMonitorContext(
+  config: ReturnType<typeof createMonitorConfigDouble>,
+): MonitorContext {
   return {
     config,
     monitorSymbolName: config.monitorSymbol,

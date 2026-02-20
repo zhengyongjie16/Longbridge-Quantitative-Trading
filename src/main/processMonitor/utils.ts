@@ -5,7 +5,10 @@ import type { PositionCache } from '../../types/services.js';
 import type { DelayedSignalVerifier } from '../asyncProgram/delayedSignalVerifier/types.js';
 import type { TaskQueue, BuyTaskType, SellTaskType } from '../asyncProgram/tradeTaskQueue/types.js';
 import type { MonitorTaskQueue } from '../asyncProgram/monitorTaskQueue/types.js';
-import type { MonitorTaskData, MonitorTaskType } from '../asyncProgram/monitorTaskProcessor/types.js';
+import type {
+  MonitorTaskData,
+  MonitorTaskType,
+} from '../asyncProgram/monitorTaskProcessor/types.js';
 import type { QueueClearResult } from './types.js';
 
 /**
@@ -63,7 +66,8 @@ function removeSignalTasks(
   releaseSignal: (signal: Signal) => void,
 ): number {
   return queue.removeTasks(
-    (task) => task.monitorSymbol === monitorSymbol && isDirectionAction(task.data?.action, direction),
+    (task) =>
+      task.monitorSymbol === monitorSymbol && isDirectionAction(task.data?.action, direction),
     (task) => releaseSignal(task.data),
   );
 }

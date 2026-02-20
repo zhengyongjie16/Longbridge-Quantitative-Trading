@@ -10,19 +10,13 @@ import type { OrderStatistics } from './types.js';
  * @param orders 订单记录列表
  * @returns 包含总数量、总价值、均价的统计对象
  */
-export function calculateOrderStatistics(
-  orders: ReadonlyArray<OrderRecord>,
-): OrderStatistics {
+export function calculateOrderStatistics(orders: ReadonlyArray<OrderRecord>): OrderStatistics {
   let totalQuantity = 0;
   let totalValue = 0;
 
   for (const order of orders) {
-    const quantity = Number.isFinite(order.executedQuantity)
-      ? order.executedQuantity
-      : 0;
-    const price = Number.isFinite(order.executedPrice)
-      ? order.executedPrice
-      : 0;
+    const quantity = Number.isFinite(order.executedQuantity) ? order.executedQuantity : 0;
+    const price = Number.isFinite(order.executedPrice) ? order.executedPrice : 0;
     totalQuantity += quantity;
     totalValue += price * quantity;
   }
@@ -39,10 +33,7 @@ export function calculateOrderStatistics(
  * @returns 所有订单的成交数量之和，无效数量视为 0
  */
 export function calculateTotalQuantity(orders: ReadonlyArray<OrderRecord>): number {
-  return orders.reduce(
-    (sum, order) => sum + (Number(order.executedQuantity) || 0),
-    0,
-  );
+  return orders.reduce((sum, order) => sum + (Number(order.executedQuantity) || 0), 0);
 }
 
 /**
@@ -58,10 +49,7 @@ export function calculateTotalQuantity(orders: ReadonlyArray<OrderRecord>): numb
  * @param isBuyOrder 是否为买入订单（影响 submittedAt/updatedAt 是否保留）
  * @returns 转换后的订单记录，价格/数量/时间无效时返回 null
  */
-function convertOrderToRecord(
-  order: RawOrderFromAPI,
-  isBuyOrder: boolean,
-): OrderRecord | null {
+function convertOrderToRecord(order: RawOrderFromAPI, isBuyOrder: boolean): OrderRecord | null {
   const executedPrice = decimalToNumber(order.executedPrice);
   const executedQuantity = decimalToNumber(order.executedQuantity);
   const executedTime = order.updatedAt ? order.updatedAt.getTime() : 0;
@@ -82,8 +70,8 @@ function convertOrderToRecord(
     executedPrice,
     executedQuantity,
     executedTime,
-    submittedAt: isBuyOrder ? order.submittedAt ?? undefined : undefined,
-    updatedAt: isBuyOrder ? order.updatedAt ?? undefined : undefined,
+    submittedAt: isBuyOrder ? (order.submittedAt ?? undefined) : undefined,
+    updatedAt: isBuyOrder ? (order.updatedAt ?? undefined) : undefined,
   };
 }
 
@@ -94,9 +82,7 @@ function convertOrderToRecord(
  * @param orders 原始 API 订单列表
  * @returns 分类后的买入订单列表与卖出订单列表（仅包含已成交且转换成功的订单）
  */
-export function classifyAndConvertOrders(
-  orders: ReadonlyArray<RawOrderFromAPI>,
-): {
+export function classifyAndConvertOrders(orders: ReadonlyArray<RawOrderFromAPI>): {
   buyOrders: ReadonlyArray<OrderRecord>;
   sellOrders: ReadonlyArray<OrderRecord>;
 } {

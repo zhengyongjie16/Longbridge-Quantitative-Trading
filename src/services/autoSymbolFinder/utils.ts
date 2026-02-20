@@ -110,11 +110,7 @@ export function selectBestWarrant({
     }
 
     const callPriceNum = decimalToNumber(warrant.callPrice);
-    if (
-      callPriceNum == null ||
-      !Number.isFinite(callPriceNum) ||
-      callPriceNum <= 0
-    ) {
+    if (callPriceNum == null || !Number.isFinite(callPriceNum) || callPriceNum <= 0) {
       continue;
     }
 

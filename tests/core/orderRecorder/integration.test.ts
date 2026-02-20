@@ -255,12 +255,16 @@ describe('成本均价与智能平仓全链路集成测试', () => {
       submittedAt: Date.now(),
     });
 
-    const result1 = storage.getSellableOrders('TEST.HK', 'LONG', 1.5, undefined, { includeAll: true });
+    const result1 = storage.getSellableOrders('TEST.HK', 'LONG', 1.5, undefined, {
+      includeAll: true,
+    });
     expect(result1.totalQuantity).toBe(100);
 
     storage.markSellFilled('SELL_001');
 
-    const result2 = storage.getSellableOrders('TEST.HK', 'LONG', 1.5, undefined, { includeAll: true });
+    const result2 = storage.getSellableOrders('TEST.HK', 'LONG', 1.5, undefined, {
+      includeAll: true,
+    });
     expect(result2.totalQuantity).toBe(200);
   });
 

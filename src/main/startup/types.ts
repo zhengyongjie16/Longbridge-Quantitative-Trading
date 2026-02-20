@@ -48,12 +48,7 @@ export interface StartupGate {
  * 数据来源：由 StartupGate 实现根据当前时间与配置计算得出。
  * 使用范围：仅启动门禁模块内部使用。
  */
-export type StartupGateState =
-  | 'notTradingDay'
-  | 'outOfSession'
-  | 'openProtection'
-  | 'ready'
-  | null;
+export type StartupGateState = 'notTradingDay' | 'outOfSession' | 'openProtection' | 'ready' | null;
 
 /**
  * buildSeatSnapshot() 的输入参数。

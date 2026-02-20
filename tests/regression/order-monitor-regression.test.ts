@@ -75,10 +75,10 @@ function createDeps(params?: {
     isExecutionAllowed: () => true,
     ...(params?.onHandleOrderChanged
       ? {
-        testHooks: {
-          setHandleOrderChanged: params.onHandleOrderChanged,
-        },
-      }
+          testHooks: {
+            setHandleOrderChanged: params.onHandleOrderChanged,
+          },
+        }
       : {}),
   };
 
@@ -155,41 +155,47 @@ describe('order monitor regression', () => {
       orderType: OrderType.ELO,
     });
 
-    handleOrderChanged(createPushOrderChanged({
-      orderId: 'SELL-REGR-002',
-      symbol: 'BULL.HK',
-      side: OrderSide.Sell,
-      status: OrderStatus.PartialFilled,
-      orderType: OrderType.ELO,
-      submittedQuantity: 100,
-      executedQuantity: 20,
-      submittedPrice: 1,
-      executedPrice: 1,
-    }));
+    handleOrderChanged(
+      createPushOrderChanged({
+        orderId: 'SELL-REGR-002',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.PartialFilled,
+        orderType: OrderType.ELO,
+        submittedQuantity: 100,
+        executedQuantity: 20,
+        submittedPrice: 1,
+        executedPrice: 1,
+      }),
+    );
 
-    handleOrderChanged(createPushOrderChanged({
-      orderId: 'SELL-REGR-002',
-      symbol: 'BULL.HK',
-      side: OrderSide.Sell,
-      status: OrderStatus.Canceled,
-      orderType: OrderType.ELO,
-      submittedQuantity: 100,
-      executedQuantity: 20,
-      submittedPrice: 1,
-      executedPrice: 1,
-    }));
+    handleOrderChanged(
+      createPushOrderChanged({
+        orderId: 'SELL-REGR-002',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.Canceled,
+        orderType: OrderType.ELO,
+        submittedQuantity: 100,
+        executedQuantity: 20,
+        submittedPrice: 1,
+        executedPrice: 1,
+      }),
+    );
 
-    handleOrderChanged(createPushOrderChanged({
-      orderId: 'SELL-REGR-002',
-      symbol: 'BULL.HK',
-      side: OrderSide.Sell,
-      status: OrderStatus.Canceled,
-      orderType: OrderType.ELO,
-      submittedQuantity: 100,
-      executedQuantity: 20,
-      submittedPrice: 1,
-      executedPrice: 1,
-    }));
+    handleOrderChanged(
+      createPushOrderChanged({
+        orderId: 'SELL-REGR-002',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.Canceled,
+        orderType: OrderType.ELO,
+        submittedQuantity: 100,
+        executedQuantity: 20,
+        submittedPrice: 1,
+        executedPrice: 1,
+      }),
+    );
 
     expect(partialCount).toBe(1);
     expect(cancelCount).toBe(1);

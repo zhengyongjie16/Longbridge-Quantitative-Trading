@@ -11,6 +11,7 @@
 ---
 
 ## 可行性与合理性复核
+
 - **架构一致性**：现有 buy/sell 处理器已采用队列+异步消费，新增异步链路与现有模型一致，改动可控。
 - **数据依赖可拆分**：主循环依赖 K 线/指标与行情缓存即可生成信号；订单/账户/持仓与席位刷新可移出主循环。
 - **一致性可保障**：通过任务去重、单飞处理、seatVersion 校验、状态快照与刷新门禁，保证缓存依赖路径读取最新数据。
@@ -18,12 +19,14 @@
 - **性能收益明确**：移除 autoSymbol、订单监控、成交后刷新等高耗时调用，主循环节拍稳定。
 
 ## 约束与非目标
+
 - **必须保留同步**：K 线获取/指标计算、运行门禁、末日保护、订阅/退订。
 - **不引入兼容/补丁代码**：不添加临时开关、不保留旧同步路径。
 - **不改变业务行为**：信号生成、风控、订单执行规则不改，只改执行时机/调度方式。
 - **遵守 @typescript-project-specifications**：类型/工具/常量组织与严格 TS 规范。
 
 ## 方案选型（复核）
+
 - **A. 任务队列异步化（推荐）**：将 autoSymbol、订单监控、成交后刷新抽到专用队列/处理器，主循环仅调度。  
   优点：结构清晰、可复用现有模式、可测试；缺点：改动面较大但集中。
 - **B. 双循环快/慢拆分**：主循环+慢循环分担 API。  
@@ -36,6 +39,7 @@
 ## 设计摘要
 
 ### 模块划分
+
 - `MonitorTaskQueue`：监控级任务队列，支持去重合并。
 - `MonitorTaskProcessor`：处理 autoSymbol/席位刷新/距回收价清仓/浮亏检查任务（异步）。
 - `OrderMonitorWorker`：订单监控后台单飞（异步）。
@@ -43,6 +47,7 @@
 - `RefreshGate`：刷新门禁/版本号，缓存过期时阻塞依赖缓存的异步任务。
 
 ### 数据流概述
+
 1. `mainProgram` 生成 `quotesMap` → 并发 `processMonitor`
 2. `processMonitor` 调度 `AUTO_SYMBOL_TICK` / `LIQUIDATION_DISTANCE_CHECK` / `UNREALIZED_LOSS_CHECK` 任务
 3. `OrderMonitor` 成交回调触发 `RefreshGate.markStale()`
@@ -50,6 +55,7 @@
 5. `PostTradeRefresher` 合并刷新账户/持仓/浮亏并 `markFresh`，唤醒等待任务
 
 ### 并发与一致性策略
+
 - **去重**：同一监控标的的同类任务只保留最新一条。
 - **单飞**：订单监控、刷新任务不并发执行，确保顺序一致。
 - **版本校验**：席位版本不匹配时任务直接跳过。
@@ -110,10 +116,12 @@
 ## 刷新门禁（RefreshGate）详细设计
 
 ### 目标
+
 - **保证缓存新鲜度**：凡是依赖 `lastState.cachedPositions` / `positionCache` / 浮亏数据的路径，都在读取前等待刷新完成。
 - **不阻塞主循环**：等待只发生在异步处理器（卖出处理器、监控任务处理器、席位刷新任务）中。
 
 ### 核心机制
+
 - **版本号模型**：
   - `staleVersion`：缓存过期版本（被标记"需要刷新"时递增）。
   - `currentVersion`：已完成刷新版本（刷新成功后更新）。
@@ -124,6 +132,7 @@
   - `getStatus()`：读取当前版本与是否过期，用于 PostTradeRefresher 续刷判断。
 
 ### 触发与等待点
+
 - **触发过期**：订单成交回调（orderMonitor）最早触发 `markStale`，缩短"旧缓存窗口"。
 - **等待点**：
   - `SellProcessor.processTask`：使用 `positionCache` 前等待。
@@ -131,6 +140,7 @@
 - **主循环保持非阻塞**：`processMonitor` 仅调度任务，不直接等待刷新。
 
 ### 刷新执行与重入处理
+
 - `PostTradeRefresher` 在刷新开始时读取 `staleVersion` 作为目标版本，成功后调用 `markFresh(targetVersion)`。
 - 如果刷新期间发生新的成交，`staleVersion` 会再次递增；刷新完成后发现 `currentVersion < staleVersion`，则立即补刷一轮。
 - 刷新失败时不调用 `markFresh`，保持"过期"状态并在下一轮重试。
@@ -138,11 +148,13 @@
 ### Task 1: 建立测试运行通道
 
 **Files:**
+
 - Create: `tsconfig.test.json`
 - Modify: `package.json`
 - Test: `tests/smoke.test.ts`
 
 **Step 1: Write the failing test**
+
 ```ts
 // tests/smoke.test.ts
 import test from 'node:test';
@@ -162,6 +174,7 @@ Expected: FAIL with "missing script: test"
 **Step 3: Write minimal implementation**
 
 `tsconfig.test.json`：
+
 ```json
 {
   "extends": "./tsconfig.json",
@@ -169,21 +182,13 @@ Expected: FAIL with "missing script: test"
     "outDir": "./dist-test",
     "rootDir": "./"
   },
-  "include": [
-    "tests/**/*.test.ts",
-    "src/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "dist-test",
-    "logs",
-    ".claude"
-  ]
+  "include": ["tests/**/*.test.ts", "src/**/*"],
+  "exclude": ["node_modules", "dist", "dist-test", "logs", ".claude"]
 }
 ```
 
 `package.json` 增加：
+
 ```json
 {
   "scripts": {
@@ -199,6 +204,7 @@ Run: `npm run test`
 Expected: PASS (1 test)
 
 **Step 5: Commit**
+
 ```bash
 git add tsconfig.test.json package.json tests/smoke.test.ts
 git commit -m "test: add node test harness"
@@ -209,6 +215,7 @@ git commit -m "test: add node test harness"
 ### Task 2: 新增 MonitorTaskQueue（去重队列）
 
 **Files:**
+
 - Create: `src/main/asyncProgram/monitorTaskQueue/types.ts`
 - Create: `src/main/asyncProgram/monitorTaskQueue/utils.ts`
 - Create: `src/main/asyncProgram/monitorTaskQueue/index.ts`
@@ -216,6 +223,7 @@ git commit -m "test: add node test harness"
 - Test: `tests/asyncProgram/monitorTaskQueue.test.ts`
 
 **Step 1: Write the failing test**
+
 ```ts
 // tests/asyncProgram/monitorTaskQueue.test.ts
 import test from 'node:test';
@@ -261,6 +269,7 @@ Expected: FAIL with module not found
 **Step 3: Write minimal implementation**
 
 `src/main/asyncProgram/monitorTaskQueue/types.ts`：
+
 ```ts
 import type { Quote } from '../../../types/index.js';
 
@@ -340,6 +349,7 @@ export type MonitorTaskQueue = {
 ```
 
 `src/main/asyncProgram/monitorTaskQueue/utils.ts`：
+
 ```ts
 import type { MonitorTaskType } from './types.js';
 
@@ -354,6 +364,7 @@ export function buildMonitorTaskKey(params: {
 ```
 
 `src/main/asyncProgram/monitorTaskQueue/index.ts`：
+
 ```ts
 import { randomUUID } from 'node:crypto';
 import type { MonitorTask, MonitorTaskInput, MonitorTaskQueue } from './types.js';
@@ -432,6 +443,7 @@ export function createMonitorTaskQueue(): MonitorTaskQueue {
 ```
 
 `src/main/asyncProgram/types.ts` 增加：
+
 ```ts
 import type { MonitorTaskQueue } from './monitorTaskQueue/types.js';
 export type { MonitorTaskQueue };
@@ -444,6 +456,7 @@ Run: `npm run test`
 Expected: PASS
 
 **Step 5: Commit**
+
 ```bash
 git add src/main/asyncProgram/monitorTaskQueue tests/asyncProgram/monitorTaskQueue.test.ts src/main/asyncProgram/types.ts
 git commit -m "feat: add monitor task queue with dedupe"
@@ -454,19 +467,24 @@ git commit -m "feat: add monitor task queue with dedupe"
 ### Task 3: 新增 MonitorTaskProcessor（异步处理 autoSymbol/距回收价清仓/浮亏）
 
 **Files:**
+
 - Create: `src/main/asyncProgram/monitorTaskProcessor/types.ts`
 - Create: `src/main/asyncProgram/monitorTaskProcessor/index.ts`
 - Modify: `src/main/asyncProgram/types.ts`
 - Test: `tests/asyncProgram/monitorTaskProcessor.test.ts`
 
 **Step 1: Write the failing test**
+
 ```ts
 // tests/asyncProgram/monitorTaskProcessor.test.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createMonitorTaskQueue } from '../../src/main/asyncProgram/monitorTaskQueue/index.js';
 import { createMonitorTaskProcessor } from '../../src/main/asyncProgram/monitorTaskProcessor/index.js';
-import { createBuyTaskQueue, createSellTaskQueue } from '../../src/main/asyncProgram/tradeTaskQueue/index.js';
+import {
+  createBuyTaskQueue,
+  createSellTaskQueue,
+} from '../../src/main/asyncProgram/tradeTaskQueue/index.js';
 
 test('processor drains queue', async () => {
   const queue = createMonitorTaskQueue();
@@ -506,7 +524,9 @@ test('processor drains queue', async () => {
   });
 
   const originalProcessTask = processor._testOnly?.getProcessCount;
-  processor._testOnly?.setOnProcessed(() => { called += 1; });
+  processor._testOnly?.setOnProcessed(() => {
+    called += 1;
+  });
   processor.start();
   await new Promise((r) => setImmediate(r));
   assert.ok(called >= 1);
@@ -524,10 +544,17 @@ Expected: FAIL with module not found
 **Step 3: Write minimal implementation**
 
 `src/main/asyncProgram/monitorTaskProcessor/types.ts`：
+
 ```ts
 import type { MonitorTaskQueue } from '../monitorTaskQueue/types.js';
 import type { BuyTaskQueue, SellTaskQueue } from '../types.js';
-import type { MarketDataClient, Trader, MonitorContext, MultiMonitorTradingConfig, LastState } from '../../../types/index.js';
+import type {
+  MarketDataClient,
+  Trader,
+  MonitorContext,
+  MultiMonitorTradingConfig,
+  LastState,
+} from '../../../types/index.js';
 import type { DailyLossTracker } from '../../../core/risk/types.js';
 import type { Processor, ProcessorStats } from '../types.js';
 import type { RefreshGate } from '../../../utils/refreshGate/types.js';
@@ -554,6 +581,7 @@ export type MonitorTaskProcessor = Processor & {
 ```
 
 `src/main/asyncProgram/monitorTaskProcessor/index.ts`（核心逻辑，含自动换标、距回收价清仓、席位刷新、浮亏检查）：
+
 ```ts
 import { logger } from '../../../utils/logger/index.js';
 import { formatError } from '../../../utils/helpers/index.js';
@@ -565,7 +593,13 @@ import { WARRANT_LIQUIDATION_ORDER_TYPE } from '../../../constants/index.js';
 import type { MonitorTask } from '../monitorTaskQueue/types.js';
 import type { MonitorTaskProcessor, MonitorTaskProcessorDeps } from './types.js';
 import type { ProcessorStats } from '../types.js';
-import type { MonitorContext, Position, Quote, RawOrderFromAPI, SeatState } from '../../../types/index.js';
+import type {
+  MonitorContext,
+  Position,
+  Quote,
+  RawOrderFromAPI,
+  SeatState,
+} from '../../../types/index.js';
 
 export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): MonitorTaskProcessor {
   const { taskQueue, getMonitorContext, buyTaskQueue, sellTaskQueue } = deps;
@@ -586,23 +620,27 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
     return direction === 'LONG' ? isLongAction : !isLongAction;
   }
 
-  function clearQueuesForDirection(
-    ctx: MonitorContext,
-    direction: 'LONG' | 'SHORT',
-  ): void {
+  function clearQueuesForDirection(ctx: MonitorContext, direction: 'LONG' | 'SHORT'): void {
     const monitorSymbol = ctx.config.monitorSymbol;
-    const removedDelayed = ctx.delayedSignalVerifier.cancelAllForDirection(monitorSymbol, direction);
+    const removedDelayed = ctx.delayedSignalVerifier.cancelAllForDirection(
+      monitorSymbol,
+      direction,
+    );
     const removedBuy = buyTaskQueue.removeTasks(
-      (task) => task.monitorSymbol === monitorSymbol && isDirectionAction(task.data?.action, direction),
+      (task) =>
+        task.monitorSymbol === monitorSymbol && isDirectionAction(task.data?.action, direction),
       (task) => signalObjectPool.release(task.data),
     );
     const removedSell = sellTaskQueue.removeTasks(
-      (task) => task.monitorSymbol === monitorSymbol && isDirectionAction(task.data?.action, direction),
+      (task) =>
+        task.monitorSymbol === monitorSymbol && isDirectionAction(task.data?.action, direction),
       (task) => signalObjectPool.release(task.data),
     );
     const total = removedDelayed + removedBuy + removedSell;
     if (total > 0) {
-      logger.info(`[自动换标] ${monitorSymbol} ${direction} 清理待执行信号：延迟=${removedDelayed} 买入=${removedBuy} 卖出=${removedSell}`);
+      logger.info(
+        `[自动换标] ${monitorSymbol} ${direction} 清理待执行信号：延迟=${removedDelayed} 买入=${removedBuy} 卖出=${removedSell}`,
+      );
     }
   }
 
@@ -610,11 +648,7 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
     ctx.riskChecker.clearWarrantInfo(direction === 'LONG');
   }
 
-  function markSeatAsEmpty(
-    ctx: MonitorContext,
-    direction: 'LONG' | 'SHORT',
-    reason: string,
-  ): void {
+  function markSeatAsEmpty(ctx: MonitorContext, direction: 'LONG' | 'SHORT', reason: string): void {
     clearWarrantInfoForDirection(ctx, direction);
     const nextState = {
       symbol: null,
@@ -670,7 +704,11 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
     }
 
     const allOrders = await ensureAllOrders();
-    deps.dailyLossTracker.recalculateFromAllOrders(allOrders, deps.tradingConfig.monitors, new Date());
+    deps.dailyLossTracker.recalculateFromAllOrders(
+      allOrders,
+      deps.tradingConfig.monitors,
+      new Date(),
+    );
     await ctx.orderRecorder.refreshOrdersFromAllOrders(
       nextSymbol,
       direction === 'LONG',
@@ -706,7 +744,9 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
       return;
     }
     if (warrantRefreshResult.status === 'notWarrant') {
-      logger.warn(`[自动换标] ${ctx.config.monitorSymbol} ${direction} 标的 ${nextSymbol} 不是牛熊证`);
+      logger.warn(
+        `[自动换标] ${ctx.config.monitorSymbol} ${direction} 标的 ${nextSymbol} 不是牛熊证`,
+      );
     }
 
     if (previousSymbol && previousSymbol !== nextSymbol) {
@@ -741,18 +781,25 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
         const previousLong = ctx.symbolRegistry.getSeatState(task.monitorSymbol, 'LONG');
         const previousShort = ctx.symbolRegistry.getSeatState(task.monitorSymbol, 'SHORT');
 
-        await ctx.autoSymbolManager.maybeSearchOnTick({ direction: 'LONG', currentTime, canTradeNow: task.data.canTradeNow });
-        await ctx.autoSymbolManager.maybeSearchOnTick({ direction: 'SHORT', currentTime, canTradeNow: task.data.canTradeNow });
+        await ctx.autoSymbolManager.maybeSearchOnTick({
+          direction: 'LONG',
+          currentTime,
+          canTradeNow: task.data.canTradeNow,
+        });
+        await ctx.autoSymbolManager.maybeSearchOnTick({
+          direction: 'SHORT',
+          currentTime,
+          canTradeNow: task.data.canTradeNow,
+        });
         if (monitorPriceChanged && monitorPrice != null) {
           const seatLong = ctx.symbolRegistry.getSeatState(task.monitorSymbol, 'LONG');
           const seatShort = ctx.symbolRegistry.getSeatState(task.monitorSymbol, 'SHORT');
           const pendingSymbols: string[] = [];
           if (seatLong.symbol) pendingSymbols.push(seatLong.symbol);
-          if (seatShort.symbol && seatShort.symbol !== seatLong.symbol) pendingSymbols.push(seatShort.symbol);
+          if (seatShort.symbol && seatShort.symbol !== seatLong.symbol)
+            pendingSymbols.push(seatShort.symbol);
           const pendingOrders =
-            pendingSymbols.length > 0
-              ? await deps.trader.getPendingOrders(pendingSymbols)
-              : [];
+            pendingSymbols.length > 0 ? await deps.trader.getPendingOrders(pendingSymbols) : [];
           await ctx.autoSymbolManager.maybeSwitchOnDistance({
             direction: 'LONG',
             monitorPrice,
@@ -783,12 +830,16 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
           taskQueue.scheduleLatest({
             type: 'SEAT_REFRESH',
             monitorSymbol: task.monitorSymbol,
-            dedupeKey: buildMonitorTaskKey({ monitorSymbol: task.monitorSymbol, type: 'SEAT_REFRESH', extra: 'LONG' }),
+            dedupeKey: buildMonitorTaskKey({
+              monitorSymbol: task.monitorSymbol,
+              type: 'SEAT_REFRESH',
+              extra: 'LONG',
+            }),
             data: {
               direction: 'LONG',
               previousSymbol: previousLong.symbol ?? null,
               nextSymbol: nextLong.symbol ?? null,
-              quote: nextLong.symbol ? quotesMap.get(nextLong.symbol) ?? null : null,
+              quote: nextLong.symbol ? (quotesMap.get(nextLong.symbol) ?? null) : null,
             },
           });
         }
@@ -796,12 +847,16 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
           taskQueue.scheduleLatest({
             type: 'SEAT_REFRESH',
             monitorSymbol: task.monitorSymbol,
-            dedupeKey: buildMonitorTaskKey({ monitorSymbol: task.monitorSymbol, type: 'SEAT_REFRESH', extra: 'SHORT' }),
+            dedupeKey: buildMonitorTaskKey({
+              monitorSymbol: task.monitorSymbol,
+              type: 'SEAT_REFRESH',
+              extra: 'SHORT',
+            }),
             data: {
               direction: 'SHORT',
               previousSymbol: previousShort.symbol ?? null,
               nextSymbol: nextShort.symbol ?? null,
-              quote: nextShort.symbol ? quotesMap.get(nextShort.symbol) ?? null : null,
+              quote: nextShort.symbol ? (quotesMap.get(nextShort.symbol) ?? null) : null,
             },
           });
         }
@@ -899,7 +954,11 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
             try {
               await deps.trader.executeSignals(liquidationTasks.map((taskItem) => taskItem.signal));
               for (const taskItem of liquidationTasks) {
-                ctx.orderRecorder.clearBuyOrders(taskItem.signal.symbol, taskItem.isLongSymbol, taskItem.quote);
+                ctx.orderRecorder.clearBuyOrders(
+                  taskItem.signal.symbol,
+                  taskItem.isLongSymbol,
+                  taskItem.quote,
+                );
                 const dailyLossOffset = deps.dailyLossTracker.getLossOffset(
                   ctx.config.monitorSymbol,
                   taskItem.isLongSymbol,
@@ -1042,7 +1101,9 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
     isRunning,
     getStats,
     _testOnly: {
-      setOnProcessed: (cb) => { onProcessed = cb; },
+      setOnProcessed: (cb) => {
+        onProcessed = cb;
+      },
       getProcessCount: () => processedCount,
     },
   };
@@ -1050,6 +1111,7 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
 ```
 
 `src/main/asyncProgram/types.ts` 增加：
+
 ```ts
 import type { MonitorTaskProcessor } from './monitorTaskProcessor/types.js';
 export type { MonitorTaskProcessor };
@@ -1062,6 +1124,7 @@ Run: `npm run test`
 Expected: PASS
 
 **Step 5: Commit**
+
 ```bash
 git add src/main/asyncProgram/monitorTaskProcessor tests/asyncProgram/monitorTaskProcessor.test.ts src/main/asyncProgram/types.ts
 git commit -m "feat: add monitor task processor"
@@ -1072,11 +1135,13 @@ git commit -m "feat: add monitor task processor"
 ### Task 4: 新增 RefreshGate（缓存刷新门禁）
 
 **Files:**
+
 - Create: `src/utils/refreshGate/types.ts`
 - Create: `src/utils/refreshGate/index.ts`
 - Test: `tests/utils/refreshGate.test.ts`
 
 **Step 1: Write the failing test**
+
 ```ts
 // tests/utils/refreshGate.test.ts
 import test from 'node:test';
@@ -1107,6 +1172,7 @@ Expected: FAIL with module not found
 **Step 3: Write minimal implementation**
 
 `src/utils/refreshGate/types.ts`：
+
 ```ts
 export type RefreshGateStatus = {
   readonly currentVersion: number;
@@ -1122,6 +1188,7 @@ export type RefreshGate = {
 ```
 
 `src/utils/refreshGate/index.ts`：
+
 ```ts
 import type { RefreshGate, RefreshGateStatus } from './types.js';
 
@@ -1180,6 +1247,7 @@ Run: `npm run test`
 Expected: PASS
 
 **Step 5: Commit**
+
 ```bash
 git add src/utils/refreshGate tests/utils/refreshGate.test.ts
 git commit -m "feat: add refresh gate for cache freshness"
@@ -1190,6 +1258,7 @@ git commit -m "feat: add refresh gate for cache freshness"
 ### Task 5: 新增订单监控后台与成交后刷新合并器
 
 **Files:**
+
 - Create: `src/main/asyncProgram/orderMonitorWorker/types.ts`
 - Create: `src/main/asyncProgram/orderMonitorWorker/index.ts`
 - Create: `src/main/asyncProgram/postTradeRefresher/types.ts`
@@ -1201,6 +1270,7 @@ git commit -m "feat: add refresh gate for cache freshness"
 - Test: `tests/asyncProgram/orderMonitorWorker.test.ts`
 
 **Step 1: Write the failing test**
+
 ```ts
 // tests/asyncProgram/orderMonitorWorker.test.ts
 import test from 'node:test';
@@ -1210,7 +1280,11 @@ import { createOrderMonitorWorker } from '../../src/main/asyncProgram/orderMonit
 test('worker coalesces runs', async () => {
   let calls = 0;
   const worker = createOrderMonitorWorker({
-    trader: { monitorAndManageOrders: async () => { calls += 1; } } as never,
+    trader: {
+      monitorAndManageOrders: async () => {
+        calls += 1;
+      },
+    } as never,
   });
   worker.start();
   worker.schedule(new Map());
@@ -1230,6 +1304,7 @@ Expected: FAIL with module not found
 **Step 3: Write minimal implementation**
 
 `src/main/asyncProgram/orderMonitorWorker/types.ts`：
+
 ```ts
 import type { Quote, Trader } from '../../../types/index.js';
 
@@ -1245,6 +1320,7 @@ export type OrderMonitorWorker = {
 ```
 
 `src/main/asyncProgram/orderMonitorWorker/index.ts`：
+
 ```ts
 import { logger } from '../../../utils/logger/index.js';
 import { formatError } from '../../../utils/helpers/index.js';
@@ -1300,6 +1376,7 @@ export function createOrderMonitorWorker(deps: OrderMonitorWorkerDeps): OrderMon
 ```
 
 `src/core/trader/types.ts` 增加 RefreshGate 注入：
+
 ```ts
 import type { RefreshGate } from '../../utils/refreshGate/types.js';
 
@@ -1315,6 +1392,7 @@ export type OrderMonitorDeps = {
 ```
 
 `src/core/trader/orderMonitor.ts` 在成交回调中标记过期：
+
 ```ts
 export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
   const { /* ... */ refreshGate } = deps;
@@ -1330,6 +1408,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
 ```
 
 `src/core/trader/index.ts` 传递 RefreshGate：
+
 ```ts
 const orderMonitor = createOrderMonitor({
   // ...existing fields
@@ -1338,8 +1417,13 @@ const orderMonitor = createOrderMonitor({
 ```
 
 `src/main/asyncProgram/postTradeRefresher/types.ts`：
+
 ```ts
-import type { MarketDataClient, MonitorContext, PendingRefreshSymbol } from '../../../types/index.js';
+import type {
+  MarketDataClient,
+  MonitorContext,
+  PendingRefreshSymbol,
+} from '../../../types/index.js';
 import type { LastState, Quote, Trader } from '../../../types/index.js';
 import type { RefreshGate } from '../../../utils/refreshGate/types.js';
 
@@ -1362,6 +1446,7 @@ export type PostTradeRefresher = {
 ```
 
 `src/main/asyncProgram/postTradeRefresher/index.ts`：
+
 ```ts
 import { logger } from '../../../utils/logger/index.js';
 import { formatError, formatSymbolDisplay } from '../../../utils/helpers/index.js';
@@ -1450,7 +1535,10 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
     }
   }
 
-  function enqueue(params: { readonly pending: ReadonlyArray<PendingRefreshSymbol>; readonly quotesMap: ReadonlyMap<string, Quote | null> }): void {
+  function enqueue(params: {
+    readonly pending: ReadonlyArray<PendingRefreshSymbol>;
+    readonly quotesMap: ReadonlyMap<string, Quote | null>;
+  }): void {
     if (!running) return;
     pending.push(...params.pending);
     latestQuotes = params.quotesMap;
@@ -1485,6 +1573,7 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
 ```
 
 `src/main/asyncProgram/types.ts` 增加：
+
 ```ts
 export type { OrderMonitorWorker } from './orderMonitorWorker/types.js';
 export type { PostTradeRefresher } from './postTradeRefresher/types.js';
@@ -1497,6 +1586,7 @@ Run: `npm run test`
 Expected: PASS
 
 **Step 5: Commit**
+
 ```bash
 git add src/main/asyncProgram/orderMonitorWorker src/main/asyncProgram/postTradeRefresher src/core/trader/orderMonitor.ts src/core/trader/types.ts src/core/trader/index.ts tests/asyncProgram/orderMonitorWorker.test.ts src/main/asyncProgram/types.ts
 git commit -m "feat: add order monitor worker and post-trade refresher"
@@ -1507,11 +1597,13 @@ git commit -m "feat: add order monitor worker and post-trade refresher"
 ### Task 6: 主入口注入新队列/处理器并更新清理
 
 **Files:**
+
 - Modify: `src/index.ts`
 - Modify: `src/services/cleanup/index.ts`
 - Modify: `src/services/cleanup/types.ts`
 
 **Step 1: Write the failing test**
+
 ```ts
 // tests/asyncProgram/wiring.test.ts
 import test from 'node:test';
@@ -1544,6 +1636,7 @@ Expected: FAIL with type errors / missing fields
 **Step 3: Write minimal implementation**
 
 在 `src/services/cleanup/types.ts` 中扩展 `CleanupContext`：
+
 ```ts
 import type { MonitorTaskProcessor } from '../../main/asyncProgram/monitorTaskProcessor/types.js';
 import type { OrderMonitorWorker } from '../../main/asyncProgram/orderMonitorWorker/types.js';
@@ -1562,27 +1655,29 @@ export type CleanupContext = {
 ```
 
 在 `src/services/cleanup/index.ts` 中执行停止：
-```ts
-  const {
-    buyProcessor,
-    sellProcessor,
-    monitorTaskProcessor,
-    orderMonitorWorker,
-    postTradeRefresher,
-    monitorContexts,
-    indicatorCache,
-    lastState,
-  } = context;
 
-  // 停止处理器
-  buyProcessor.stop();
-  sellProcessor.stop();
-  monitorTaskProcessor.stop();
-  orderMonitorWorker.stop();
-  postTradeRefresher.stop();
+```ts
+const {
+  buyProcessor,
+  sellProcessor,
+  monitorTaskProcessor,
+  orderMonitorWorker,
+  postTradeRefresher,
+  monitorContexts,
+  indicatorCache,
+  lastState,
+} = context;
+
+// 停止处理器
+buyProcessor.stop();
+sellProcessor.stop();
+monitorTaskProcessor.stop();
+orderMonitorWorker.stop();
+postTradeRefresher.stop();
 ```
 
 在 `src/index.ts` 中创建并启动：
+
 ```ts
 const refreshGate = createRefreshGate();
 
@@ -1639,6 +1734,7 @@ Run: `npm run test`
 Expected: PASS
 
 **Step 5: Commit**
+
 ```bash
 git add src/index.ts src/services/cleanup
 git commit -m "refactor: wire async monitor processors"
@@ -1649,11 +1745,13 @@ git commit -m "refactor: wire async monitor processors"
 ### Task 7: SellProcessor 等待 RefreshGate
 
 **Files:**
+
 - Modify: `src/main/asyncProgram/sellProcessor/types.ts`
 - Modify: `src/main/asyncProgram/sellProcessor/index.ts`
 - Test: `tests/asyncProgram/sellProcessorRefreshGate.test.ts`
 
 **Step 1: Write the failing test**
+
 ```ts
 // tests/asyncProgram/sellProcessorRefreshGate.test.ts
 import test from 'node:test';
@@ -1667,7 +1765,9 @@ test('sell processor waits for refresh gate', async () => {
   const refreshGate = {
     markStale: () => 0,
     markFresh: () => {},
-    waitForFresh: async () => { waited = true; },
+    waitForFresh: async () => {
+      waited = true;
+    },
     getStatus: () => ({ currentVersion: 0, staleVersion: 0 }),
   };
 
@@ -1700,6 +1800,7 @@ Expected: FAIL with type errors / missing fields
 **Step 3: Write minimal implementation**
 
 `src/main/asyncProgram/sellProcessor/types.ts` 增加依赖：
+
 ```ts
 import type { RefreshGate } from '../../../utils/refreshGate/types.js';
 
@@ -1710,6 +1811,7 @@ export type SellProcessorDeps = {
 ```
 
 `src/main/asyncProgram/sellProcessor/index.ts` 等待刷新：
+
 ```ts
 async function processTask(task: SellTask): Promise<boolean> {
   await deps.refreshGate.waitForFresh();
@@ -1724,6 +1826,7 @@ Run: `npm run test`
 Expected: PASS
 
 **Step 5: Commit**
+
 ```bash
 git add src/main/asyncProgram/sellProcessor tests/asyncProgram/sellProcessorRefreshGate.test.ts
 git commit -m "refactor: gate sell processor on refresh"
@@ -1734,10 +1837,12 @@ git commit -m "refactor: gate sell processor on refresh"
 ### Task 8: processMonitor 改为异步调度
 
 **Files:**
+
 - Modify: `src/main/processMonitor/index.ts`
 - Modify: `src/main/mainProgram/types.ts`
 
 **Step 1: Write the failing test**
+
 ```ts
 // tests/asyncProgram/processMonitorQueueing.test.ts
 import test from 'node:test';
@@ -1745,7 +1850,10 @@ import assert from 'node:assert/strict';
 import { buildMonitorTaskKey } from '../../src/main/asyncProgram/monitorTaskQueue/utils.js';
 
 test('buildMonitorTaskKey', () => {
-  assert.equal(buildMonitorTaskKey({ monitorSymbol: 'HSI', type: 'AUTO_SYMBOL_TICK' }), 'HSI:AUTO_SYMBOL_TICK');
+  assert.equal(
+    buildMonitorTaskKey({ monitorSymbol: 'HSI', type: 'AUTO_SYMBOL_TICK' }),
+    'HSI:AUTO_SYMBOL_TICK',
+  );
 });
 ```
 
@@ -1758,6 +1866,7 @@ Expected: FAIL if util missing or not exported
 **Step 3: Write minimal implementation**
 
 在 `src/main/mainProgram/types.ts` 中增加上下文依赖：
+
 ```ts
 import type { MonitorTaskQueue } from '../asyncProgram/monitorTaskQueue/types.js';
 import type { OrderMonitorWorker, PostTradeRefresher } from '../asyncProgram/types.js';
@@ -1771,6 +1880,7 @@ export type MainProgramContext = {
 ```
 
 在 `src/main/processMonitor/index.ts` 替换 autoSymbol / 距回收价清仓 / 浮亏调用为调度：
+
 ```ts
 import { buildMonitorTaskKey } from '../asyncProgram/monitorTaskQueue/utils.js';
 
@@ -1794,7 +1904,10 @@ if (!autoSearchEnabled && monitorPriceChanged) {
   monitorTaskQueue.scheduleLatest({
     type: 'LIQUIDATION_DISTANCE_CHECK',
     monitorSymbol: MONITOR_SYMBOL,
-    dedupeKey: buildMonitorTaskKey({ monitorSymbol: MONITOR_SYMBOL, type: 'LIQUIDATION_DISTANCE_CHECK' }),
+    dedupeKey: buildMonitorTaskKey({
+      monitorSymbol: MONITOR_SYMBOL,
+      type: 'LIQUIDATION_DISTANCE_CHECK',
+    }),
     data: {
       monitorPrice: resolvedMonitorPrice,
       monitorPriceChanged,
@@ -1806,7 +1919,10 @@ if (priceChanged) {
   monitorTaskQueue.scheduleLatest({
     type: 'UNREALIZED_LOSS_CHECK',
     monitorSymbol: MONITOR_SYMBOL,
-    dedupeKey: buildMonitorTaskKey({ monitorSymbol: MONITOR_SYMBOL, type: 'UNREALIZED_LOSS_CHECK' }),
+    dedupeKey: buildMonitorTaskKey({
+      monitorSymbol: MONITOR_SYMBOL,
+      type: 'UNREALIZED_LOSS_CHECK',
+    }),
     data: { currentTime: runtimeFlags.currentTime },
   });
 }
@@ -1821,6 +1937,7 @@ Run: `npm run test`
 Expected: PASS
 
 **Step 5: Commit**
+
 ```bash
 git add src/main/processMonitor/index.ts src/main/mainProgram/types.ts tests/asyncProgram/processMonitorQueueing.test.ts
 git commit -m "refactor: enqueue monitor tasks in processMonitor"
@@ -1831,9 +1948,11 @@ git commit -m "refactor: enqueue monitor tasks in processMonitor"
 ### Task 9: mainProgram 改为后台单飞与刷新合并
 
 **Files:**
+
 - Modify: `src/main/mainProgram/index.ts`
 
 **Step 1: Write the failing test**
+
 ```ts
 // tests/asyncProgram/mainProgramWorker.test.ts
 import test from 'node:test';
@@ -1853,6 +1972,7 @@ Expected: FAIL if file missing
 **Step 3: Write minimal implementation**
 
 在 `src/main/mainProgram/index.ts` 的订单监控段替换为：
+
 ```ts
 if (canTradeNow && lastState.allTradingSymbols.size > 0) {
   orderMonitorWorker.schedule(quotesMap);
@@ -1873,6 +1993,7 @@ Run: `npm run test`
 Expected: PASS
 
 **Step 5: Commit**
+
 ```bash
 git add src/main/mainProgram/index.ts tests/asyncProgram/mainProgramWorker.test.ts
 git commit -m "refactor: move order monitor and refresh off main loop"
@@ -1883,6 +2004,7 @@ git commit -m "refactor: move order monitor and refresh off main loop"
 ### Task 10: 更新流程文档
 
 **Files:**
+
 - Modify: `docs/flow/main-loop-flow.md`
 
 **Step 1: Write the failing test**
@@ -1896,6 +2018,7 @@ git commit -m "refactor: move order monitor and refresh off main loop"
 **Step 3: Write minimal implementation**
 
 在主循环流程中补充：
+
 - `OrderMonitorWorker` 后台单飞执行
 - `PostTradeRefresher` 合并刷新
 - `MonitorTaskProcessor` 异步处理 autoSymbol/浮亏任务
@@ -1906,6 +2029,7 @@ Run: `npm run lint`
 Expected: PASS
 
 **Step 5: Commit**
+
 ```bash
 git add docs/flow/main-loop-flow.md
 git commit -m "docs: update main loop async flow"
@@ -1916,6 +2040,7 @@ git commit -m "docs: update main loop async flow"
 ### Task 11: 验证
 
 **Files:**
+
 - None
 
 **Step 1: Run lint**
@@ -1934,6 +2059,7 @@ Run: `npm run test`
 Expected: PASS
 
 **Step 4: Commit**
+
 ```bash
 git add .
 git commit -m "chore: finalize async refactor"

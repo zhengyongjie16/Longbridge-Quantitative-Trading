@@ -23,7 +23,11 @@ import { isSeatReady } from '../../../services/autoSymbolManager/utils.js';
 import type { MonitorContext } from '../../../types/state.js';
 import type { Quote } from '../../../types/quote.js';
 import type { PendingRefreshSymbol } from '../../../types/services.js';
-import type { PostTradeRefresher, PostTradeRefresherDeps, PostTradeRefresherEnqueueParams } from './types.js';
+import type {
+  PostTradeRefresher,
+  PostTradeRefresherDeps,
+  PostTradeRefresherEnqueueParams,
+} from './types.js';
 
 /**
  * 创建交易后刷新器。
@@ -32,16 +36,8 @@ import type { PostTradeRefresher, PostTradeRefresherDeps, PostTradeRefresherEnqu
  * @param deps 依赖注入，包含 refreshGate、trader、lastState、monitorContexts、displayAccountAndPositions
  * @returns PostTradeRefresher 实例（start、enqueue、stopAndDrain、clearPending）
  */
-export function createPostTradeRefresher(
-  deps: PostTradeRefresherDeps,
-): PostTradeRefresher {
-  const {
-    refreshGate,
-    trader,
-    lastState,
-    monitorContexts,
-    displayAccountAndPositions,
-  } = deps;
+export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTradeRefresher {
+  const { refreshGate, trader, lastState, monitorContexts, displayAccountAndPositions } = deps;
 
   let running = true;
   let inFlight = false;
@@ -176,9 +172,8 @@ export function createPostTradeRefresher(
         refreshGate.markFresh(targetVersion);
       } else {
         pendingSymbols = pending.concat(pendingSymbols);
-        pendingVersion = pendingVersion == null
-          ? targetVersion
-          : Math.max(pendingVersion, targetVersion);
+        pendingVersion =
+          pendingVersion == null ? targetVersion : Math.max(pendingVersion, targetVersion);
       }
       inFlight = false;
       drainResolve?.();

@@ -4,7 +4,10 @@
  * 功能：
  * - 快速构造生命周期状态与运行时标志
  */
-import type { LifecycleMutableState, LifecycleRuntimeFlags } from '../../src/main/lifecycle/types.js';
+import type {
+  LifecycleMutableState,
+  LifecycleRuntimeFlags,
+} from '../../src/main/lifecycle/types.js';
 
 /**
  * 构造生命周期可变状态，供跨日/开盘重建等测试使用；支持部分覆盖默认值。

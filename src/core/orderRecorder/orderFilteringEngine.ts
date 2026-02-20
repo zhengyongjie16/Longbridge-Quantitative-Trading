@@ -75,9 +75,7 @@ function applySingleSellOrderFilter(
   const sellTime = sellOrder.executedTime;
   const sellQuantity = sellOrder.executedQuantity;
 
-  const nextSellTime = nextSellOrder
-    ? nextSellOrder.executedTime
-    : latestSellTime + 1;
+  const nextSellTime = nextSellOrder ? nextSellOrder.executedTime : latestSellTime + 1;
 
   const buyOrdersBeforeSell = currentBuyOrders.filter(
     (buyOrder) => buyOrder.executedTime < sellTime,
@@ -86,19 +84,14 @@ function applySingleSellOrderFilter(
   const totalBuyQuantity = calculateTotalQuantity(buyOrdersBeforeSell);
 
   const buyOrdersBetweenSells = candidateOrders.filter(
-    (buyOrder) =>
-      buyOrder.executedTime > sellTime &&
-      buyOrder.executedTime < nextSellTime,
+    (buyOrder) => buyOrder.executedTime > sellTime && buyOrder.executedTime < nextSellTime,
   );
 
   if (sellQuantity >= totalBuyQuantity || buyOrdersBeforeSell.length === 0) {
     return [...buyOrdersBetweenSells];
   }
 
-  const filteredBuyOrders = deductSellQuantityFromBuyOrders(
-    buyOrdersBeforeSell,
-    sellQuantity,
-  );
+  const filteredBuyOrders = deductSellQuantityFromBuyOrders(buyOrdersBeforeSell, sellQuantity);
 
   return [...filteredBuyOrders, ...buyOrdersBetweenSells];
 }
@@ -142,9 +135,7 @@ function applyFilteringAlgorithm(
   allBuyOrders: OrderRecord[],
   filledSellOrders: OrderRecord[],
 ): OrderRecord[] {
-  const sortedSellOrders = [...filledSellOrders].sort(
-    (a, b) => a.executedTime - b.executedTime,
-  );
+  const sortedSellOrders = [...filledSellOrders].sort((a, b) => a.executedTime - b.executedTime);
 
   if (sortedSellOrders.length === 0) {
     return allBuyOrders;

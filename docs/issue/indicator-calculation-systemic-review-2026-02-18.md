@@ -132,13 +132,13 @@
 
 说明：本节为本报告的后续修复补充，逐项对应 F1~F5，且以"不改变原有业务逻辑"为原则。
 
-| 问题ID | 修复状态 | 修复说明 | 关键文件 |
-|---|---|---|---|
-| F1 | 已修复 | 修正 MACD 末值判空逻辑，`0` 不再被当作无效值；仅修复错误判定，不改变 MACD 计算公式与参数。 | `src/services/indicators/macd.ts:164` |
-| F2 | 已处理（语义残留清理） | 去除兼容语义命名/注释表达，保留原有计算行为与输出边界（包括非有限值回落 100 的既有行为）。 | `src/services/indicators/rsi.ts:6`, `src/services/indicators/rsi.ts:75`, `src/services/indicators/rsi.ts:87`, `src/services/indicators/index.ts:14`, `src/services/indicators/kdj.ts:26` |
-| F3 | 已修复 | 在快照释放路径补齐 `ema/rsi/psy` 的池对象回收，仅在未被 `monitorValues` 引用时释放，避免影响现有对象引用语义。 | `src/utils/helpers/index.ts:393`, `src/utils/helpers/index.ts:405`, `src/utils/helpers/index.ts:417` |
-| F4 | 已修复 | 删除失效脚本 `analyze-indicators`，保留有效脚本不变。 | `package.json:17` |
-| F5 | 已处理（注释清理） | 将"兼容简单格式"注释改为中性描述，不改变解析逻辑。 | `src/utils/helpers/signalConfigParser.ts:179` |
+| 问题ID | 修复状态               | 修复说明                                                                                                       | 关键文件                                                                                                                                                                                 |
+| ------ | ---------------------- | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1     | 已修复                 | 修正 MACD 末值判空逻辑，`0` 不再被当作无效值；仅修复错误判定，不改变 MACD 计算公式与参数。                     | `src/services/indicators/macd.ts:164`                                                                                                                                                    |
+| F2     | 已处理（语义残留清理） | 去除兼容语义命名/注释表达，保留原有计算行为与输出边界（包括非有限值回落 100 的既有行为）。                     | `src/services/indicators/rsi.ts:6`, `src/services/indicators/rsi.ts:75`, `src/services/indicators/rsi.ts:87`, `src/services/indicators/index.ts:14`, `src/services/indicators/kdj.ts:26` |
+| F3     | 已修复                 | 在快照释放路径补齐 `ema/rsi/psy` 的池对象回收，仅在未被 `monitorValues` 引用时释放，避免影响现有对象引用语义。 | `src/utils/helpers/index.ts:393`, `src/utils/helpers/index.ts:405`, `src/utils/helpers/index.ts:417`                                                                                     |
+| F4     | 已修复                 | 删除失效脚本 `analyze-indicators`，保留有效脚本不变。                                                          | `package.json:17`                                                                                                                                                                        |
+| F5     | 已处理（注释清理）     | 将"兼容简单格式"注释改为中性描述，不改变解析逻辑。                                                             | `src/utils/helpers/signalConfigParser.ts:179`                                                                                                                                            |
 
 ## 9. 修复后验证（补充，2026-02-18）
 
@@ -151,7 +151,7 @@
 ### 9.2 指标边界验证
 
 1. 新增用例：`tests/services/indicators/business.test.ts:107`  
-用例名称：`keeps zero-value MACD as valid output on flat closes`。
+   用例名称：`keeps zero-value MACD as valid output on flat closes`。
 2. 实测：横盘常数序列下 `calculateMACD` 结果为 `{ macd: 0, dif: 0, dea: 0 }`，不再返回 `null`。
 
 ### 9.3 与"原有逻辑不变"原则的符合性说明

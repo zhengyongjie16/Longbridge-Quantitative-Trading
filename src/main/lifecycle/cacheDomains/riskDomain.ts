@@ -61,16 +61,8 @@ function collectMidnightEligibleCooldownKeys(
  * @param deps 风控域依赖
  * @param ctx 生命周期上下文
  */
-function runMidnightRiskClear(
-  deps: RiskDomainDeps,
-  ctx: LifecycleContext,
-): void {
-  const {
-    signalProcessor,
-    dailyLossTracker,
-    monitorContexts,
-    liquidationCooldownTracker,
-  } = deps;
+function runMidnightRiskClear(deps: RiskDomainDeps, ctx: LifecycleContext): void {
+  const { signalProcessor, dailyLossTracker, monitorContexts, liquidationCooldownTracker } = deps;
 
   signalProcessor.resetRiskCheckCooldown();
   dailyLossTracker.resetAll(ctx.now);
