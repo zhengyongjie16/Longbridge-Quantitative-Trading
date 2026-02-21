@@ -5,7 +5,7 @@
  * - 提供测试替身与工厂方法，供其他测试模块使用
  */
 import type { Position, AccountSnapshot } from '../../src/types/account.js';
-import type { MonitorConfig, LiquidationCooldownConfig } from '../../src/types/config.js';
+import type { MonitorConfig } from '../../src/types/config.js';
 import type { Quote } from '../../src/types/quote.js';
 import type { Signal, SignalType } from '../../src/types/signal.js';
 import type {
@@ -13,7 +13,6 @@ import type {
   PendingOrder,
   PendingRefreshSymbol,
   PositionCache,
-  RawOrderFromAPI,
   RiskChecker,
   RiskCheckResult,
   Trader,
@@ -416,39 +415,5 @@ export function createSignalDouble(action: SignalType, symbol: string): Signal {
     symbolName: symbol,
     seatVersion: 1,
     triggerTime: new Date(),
-  };
-}
-
-/**
- * 构造按分钟配置的清仓冷却参数。
- *
- * 用于覆盖冷却模式解析与剩余时间计算分支。
- */
-export function createCooldownConfigMinutes(minutes: number): LiquidationCooldownConfig {
-  return {
-    mode: 'minutes',
-    minutes,
-  };
-}
-
-/**
- * 构造原始订单测试数据。
- *
- * 统一最小字段用于订单同步与映射逻辑测试。
- */
-export function createRawOrderDouble(symbol: string): RawOrderFromAPI {
-  return {
-    orderId: `RAW-${symbol}`,
-    symbol,
-    stockName: symbol,
-    side: 'Buy' as unknown as RawOrderFromAPI['side'],
-    status: 'New' as unknown as RawOrderFromAPI['status'],
-    orderType: 'ELO' as unknown as RawOrderFromAPI['orderType'],
-    price: 1,
-    quantity: 100,
-    executedPrice: 0,
-    executedQuantity: 0,
-    submittedAt: new Date(),
-    updatedAt: new Date(),
   };
 }

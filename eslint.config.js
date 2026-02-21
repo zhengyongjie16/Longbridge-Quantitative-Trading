@@ -1,7 +1,9 @@
+import { defineConfig } from 'eslint/config';
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
+import eslintConfigPrettier from 'eslint-config-prettier/flat';
 
-export default tseslint.config(
+export default defineConfig(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -30,21 +32,13 @@ export default tseslint.config(
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/no-misused-promises': 'warn',
 
-      // 代码风格
-      semi: ['error', 'always'],
-      quotes: ['error', 'single', { avoidEscape: true }],
-      indent: ['error', 2, { SwitchCase: 1 }],
-      'comma-dangle': ['error', 'always-multiline'],
-      'eol-last': ['error', 'always'],
-      'no-multiple-empty-lines': ['error', { max: 1, maxEOF: 0 }],
-
       // 最佳实践
       'no-var': 'error',
       'prefer-const': 'warn',
       'prefer-arrow-callback': 'warn',
-      'no-trailing-spaces': 'error',
     },
   },
+  eslintConfigPrettier,
   {
     ignores: [
       'dist/**',

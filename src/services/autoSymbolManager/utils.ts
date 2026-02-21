@@ -68,7 +68,7 @@ export function resolveNextSearchFailureState(params: {
  * @param seatState 席位状态
  * @returns 不可用原因枚举值，席位就绪时返回 null
  */
-export function resolveSeatUnavailableReason(seatState: SeatState): SeatUnavailableReason | null {
+function resolveSeatUnavailableReason(seatState: SeatState): SeatUnavailableReason | null {
   if (
     seatState.status === 'READY' &&
     typeof seatState.symbol === 'string' &&

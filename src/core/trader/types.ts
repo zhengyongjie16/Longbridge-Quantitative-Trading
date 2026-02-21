@@ -327,7 +327,7 @@ export type PendingSellOrderSnapshot = {
  * SUBMIT：直接提交新卖单；REPLACE：修改现有卖单价格/数量；CANCEL_AND_SUBMIT：撤销现有卖单后重新提交；SKIP：跳过本次卖出
  * 仅在 trader 模块内部使用
  */
-export type SellMergeDecisionAction = 'SUBMIT' | 'REPLACE' | 'CANCEL_AND_SUBMIT' | 'SKIP';
+type SellMergeDecisionAction = 'SUBMIT' | 'REPLACE' | 'CANCEL_AND_SUBMIT' | 'SKIP';
 
 /**
  * 卖单合并决策输入
@@ -438,7 +438,7 @@ export type OrderMonitorDeps = {
  * 运行时执行门禁：返回当前是否允许下单
  * 门禁关闭时 orderExecutor 仅记录日志并跳过，不下单
  */
-export type IsExecutionAllowed = () => boolean;
+type IsExecutionAllowed = () => boolean;
 
 /**
  * 订单执行器依赖。
