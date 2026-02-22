@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'bun:test';
 import { createSeatDomain } from '../../../../src/main/lifecycle/cacheDomains/seatDomain.js';
 import type { MultiMonitorTradingConfig } from '../../../../src/types/config.js';
-import type { SymbolRegistry } from '../../../../src/types/seat.js';
+import type { SeatState, SymbolRegistry } from '../../../../src/types/seat.js';
 import type { MonitorContext } from '../../../../src/types/state.js';
 import type { WarrantListCache } from '../../../../src/services/autoSymbolFinder/types.js';
 
@@ -25,7 +25,31 @@ describe('createSeatDomain', () => {
   it('midnightClear 依次调用 resetAllState、warrantListCache.clear、席位清空与同步', async () => {
     let resetAllStateCount = 0;
     let clearCount = 0;
-    const updateCalls: Array<{ monitorSymbol: string; direction: string }> = [];
+    const longBeforeClear: SeatState = {
+      symbol: 'OLD_BULL.HK',
+      status: 'READY',
+      lastSwitchAt: 100,
+      lastSearchAt: 200,
+      lastSeatReadyAt: 300,
+      callPrice: 20_000,
+      searchFailCountToday: 2,
+      frozenTradingDayKey: '2026-02-15',
+    };
+    const shortBeforeClear: SeatState = {
+      symbol: 'OLD_BEAR.HK',
+      status: 'READY',
+      lastSwitchAt: 110,
+      lastSearchAt: 210,
+      lastSeatReadyAt: 310,
+      callPrice: 19_000,
+      searchFailCountToday: 1,
+      frozenTradingDayKey: null,
+    };
+    const updateCalls: Array<{
+      monitorSymbol: string;
+      direction: string;
+      nextState: SeatState;
+    }> = [];
     const bumpCalls: Array<{ monitorSymbol: string; direction: string }> = [];
     const monitorContexts = new Map<string, MonitorContext>([
       [
@@ -49,12 +73,18 @@ describe('createSeatDomain', () => {
       global: {} as MultiMonitorTradingConfig['global'],
     };
     const symbolRegistry: SymbolRegistry = {
-      getSeatState: () => ({ ...emptySeatState }),
+      getSeatState: (_monitorSymbol: string, direction: 'LONG' | 'SHORT') => {
+        return direction === 'LONG' ? longBeforeClear : shortBeforeClear;
+      },
       getSeatVersion: () => 1,
       resolveSeatBySymbol: () => null,
-      updateSeatState: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => {
-        updateCalls.push({ monitorSymbol, direction });
-        return { ...emptySeatState };
+      updateSeatState: (
+        monitorSymbol: string,
+        direction: 'LONG' | 'SHORT',
+        nextState: SeatState,
+      ) => {
+        updateCalls.push({ monitorSymbol, direction, nextState });
+        return nextState;
       },
       bumpSeatVersion: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => {
         bumpCalls.push({ monitorSymbol, direction });
@@ -87,6 +117,18 @@ describe('createSeatDomain', () => {
         .map((c) => `${c.monitorSymbol}-${c.direction}`)
         .sort((left, right) => left.localeCompare(right, 'en')),
     ).toEqual(['HSI.HK-LONG', 'HSI.HK-SHORT']);
+    const longAfterClear = updateCalls.find((item) => item.direction === 'LONG')?.nextState;
+    const shortAfterClear = updateCalls.find((item) => item.direction === 'SHORT')?.nextState;
+    expect(longAfterClear?.status).toBe('EMPTY');
+    expect(longAfterClear?.symbol).toBeNull();
+    expect(longAfterClear?.lastSwitchAt).toBe(100);
+    expect(longAfterClear?.lastSearchAt).toBe(200);
+    expect(longAfterClear?.lastSeatReadyAt).toBeNull();
+    expect(shortAfterClear?.status).toBe('EMPTY');
+    expect(shortAfterClear?.symbol).toBeNull();
+    expect(shortAfterClear?.lastSwitchAt).toBe(110);
+    expect(shortAfterClear?.lastSearchAt).toBe(210);
+    expect(shortAfterClear?.lastSeatReadyAt).toBeNull();
     expect(bumpCalls).toHaveLength(2);
   });
 

@@ -156,13 +156,21 @@ describe('monitorTaskProcessor business flow', () => {
   it('processes AUTO_SYMBOL_TICK with valid seat snapshot', async () => {
     const queue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
     let maybeSearchCalls = 0;
+    const intervalCallArgs: Array<{
+      direction: 'LONG' | 'SHORT';
+      currentTime: Date;
+      canTradeNow: boolean;
+      openProtectionActive: boolean;
+    }> = [];
 
     const context = createMonitorTaskContext({
       autoSymbolManager: {
         maybeSearchOnTick: async () => {
           maybeSearchCalls += 1;
         },
-        maybeSwitchOnInterval: async () => {},
+        maybeSwitchOnInterval: async (params) => {
+          intervalCallArgs.push(params);
+        },
         maybeSwitchOnDistance: async () => {},
         hasPendingSwitch: () => false,
         resetAllState: () => {},
@@ -207,6 +215,11 @@ describe('monitorTaskProcessor business flow', () => {
     await processor.stopAndDrain();
 
     expect(maybeSearchCalls).toBe(1);
+    expect(intervalCallArgs).toHaveLength(1);
+    expect(intervalCallArgs[0]?.direction).toBe('LONG');
+    expect(intervalCallArgs[0]?.canTradeNow).toBeTrue();
+    expect(intervalCallArgs[0]?.openProtectionActive).toBeFalse();
+    expect(intervalCallArgs[0]?.currentTime.getTime()).toBeGreaterThan(0);
     expect(statuses).toEqual(['processed']);
   });
 

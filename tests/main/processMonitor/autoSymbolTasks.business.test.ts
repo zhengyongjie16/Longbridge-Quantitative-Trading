@@ -57,10 +57,16 @@ describe('autoSymbolTasks business scheduling', () => {
     expect(first?.type).toBe('AUTO_SYMBOL_TICK');
     expect(first?.dedupeKey).toBe('HSI.HK:AUTO_SYMBOL_TICK:LONG');
     expect((first?.data as { seatVersion: number }).seatVersion).toBe(5);
+    expect((first?.data as { currentTimeMs: number }).currentTimeMs).toBe(123_456);
+    expect((first?.data as { openProtectionActive: boolean }).openProtectionActive).toBeFalse();
+    expect((first?.data as { symbol: string | null }).symbol).toBe('BULL.HK');
 
     expect(second?.type).toBe('AUTO_SYMBOL_TICK');
     expect(second?.dedupeKey).toBe('HSI.HK:AUTO_SYMBOL_TICK:SHORT');
     expect((second?.data as { seatVersion: number }).seatVersion).toBe(8);
+    expect((second?.data as { currentTimeMs: number }).currentTimeMs).toBe(123_456);
+    expect((second?.data as { openProtectionActive: boolean }).openProtectionActive).toBeFalse();
+    expect((second?.data as { symbol: string | null }).symbol).toBe('BEAR.HK');
   });
 
   it('schedules AUTO_SYMBOL_SWITCH_DISTANCE when pending switch exists even without price change', () => {

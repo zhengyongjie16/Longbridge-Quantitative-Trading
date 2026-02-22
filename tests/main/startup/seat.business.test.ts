@@ -74,6 +74,7 @@ describe('startup seat preparation business flow', () => {
   });
 
   it('restores configured symbols on startup when auto-search is disabled', async () => {
+    const startupTime = '2026-02-16T01:00:00.000Z';
     const monitor = createMonitorConfigDouble({
       monitorSymbol: 'HSI.HK',
       longSymbol: 'BULL.HK',
@@ -124,7 +125,7 @@ describe('startup seat preparation business flow', () => {
       marketDataClient: {
         getQuoteContext: async () => quoteCtx as never,
       } as never,
-      now: () => new Date('2026-02-16T01:00:00.000Z'),
+      now: () => new Date(startupTime),
       logger: createLoggerStub(),
       getTradingMinutesSinceOpen: () => 5,
       isWithinMorningOpenProtection: () => false,
@@ -135,6 +136,10 @@ describe('startup seat preparation business flow', () => {
       { monitorSymbol: 'HSI.HK', direction: 'LONG', symbol: 'BULL.HK' },
       { monitorSymbol: 'HSI.HK', direction: 'SHORT', symbol: 'BEAR.HK' },
     ]);
+    const longSeat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
+    const shortSeat = symbolRegistry.getSeatState('HSI.HK', 'SHORT');
+    expect(longSeat.lastSeatReadyAt).toBe(Date.parse(startupTime));
+    expect(shortSeat.lastSeatReadyAt).toBe(Date.parse(startupTime));
   });
 
   it('tracks failure counts when auto-search cannot find candidates on startup', async () => {
