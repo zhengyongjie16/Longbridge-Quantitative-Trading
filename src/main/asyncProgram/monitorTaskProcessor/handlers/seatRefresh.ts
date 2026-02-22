@@ -60,6 +60,7 @@ export function createSeatRefreshHandler({
       status: 'EMPTY',
       lastSwitchAt: Date.now(),
       lastSearchAt: null,
+      lastSeatReadyAt: null,
       callPrice: null,
       searchFailCountToday: 0,
       frozenTradingDayKey: null,

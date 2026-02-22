@@ -69,6 +69,7 @@ function createSymbolRegistry(
         status: symbol ? 'READY' : 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
+        lastSeatReadyAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       };
@@ -80,6 +81,7 @@ function createSymbolRegistry(
       status: 'EMPTY',
       lastSwitchAt: null,
       lastSearchAt: null,
+      lastSeatReadyAt: null,
       searchFailCountToday: 0,
       frozenTradingDayKey: null,
     }),

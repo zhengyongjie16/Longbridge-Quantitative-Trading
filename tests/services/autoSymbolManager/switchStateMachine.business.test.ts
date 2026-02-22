@@ -16,7 +16,10 @@ import {
 } from '../../../src/services/autoSymbolManager/signalBuilder.js';
 import { resolveAutoSearchThresholds } from '../../../src/services/autoSymbolManager/thresholdResolver.js';
 import { signalObjectPool } from '../../../src/utils/objectPool/index.js';
-import { getHKDateKey } from '../../../src/utils/helpers/tradingTime.js';
+import {
+  getHKDateKey,
+  getTradingMinutesSinceOpen,
+} from '../../../src/utils/helpers/tradingTime.js';
 import { PENDING_ORDER_STATUSES } from '../../../src/constants/index.js';
 
 import type { Quote } from '../../../src/types/quote.js';
@@ -63,6 +66,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         autoSearchMinTurnoverPerMinuteBear: 100_000,
         autoSearchExpiryMinMonths: 3,
         autoSearchOpenDelayMinutes: 0,
+        switchIntervalMinutes: 0,
         switchDistanceRangeBull: { min: 0.2, max: 1.5 },
         switchDistanceRangeBear: { min: -1.5, max: -0.2 },
       },
@@ -75,6 +79,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         status: 'READY',
         lastSwitchAt: null,
         lastSearchAt: null,
+        lastSeatReadyAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -108,6 +113,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
       now: () => new Date(nowMs),
       switchStates,
+      periodicSwitchPending: new Map(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
       clearSeat: seatStateManager.clearSeat,
@@ -136,6 +142,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       maxSearchFailuresPerDay: 3,
       getHKDateKey,
+      getTradingMinutesSinceOpen,
     });
 
     await machine.maybeSwitchOnDistance({
@@ -164,6 +171,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         autoSearchMinTurnoverPerMinuteBear: 100_000,
         autoSearchExpiryMinMonths: 3,
         autoSearchOpenDelayMinutes: 0,
+        switchIntervalMinutes: 0,
         switchDistanceRangeBull: { min: 0.2, max: 1.5 },
         switchDistanceRangeBear: { min: -1.5, max: -0.2 },
       },
@@ -176,6 +184,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         status: 'READY',
         lastSwitchAt: null,
         lastSearchAt: null,
+        lastSeatReadyAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -219,6 +228,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
       now: () => new Date(nowMs),
       switchStates,
+      periodicSwitchPending: new Map(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
       clearSeat: seatStateManager.clearSeat,
@@ -247,6 +257,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       maxSearchFailuresPerDay: 3,
       getHKDateKey,
+      getTradingMinutesSinceOpen,
     });
 
     await machine.maybeSwitchOnDistance({
@@ -276,6 +287,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         autoSearchMinTurnoverPerMinuteBear: 100_000,
         autoSearchExpiryMinMonths: 3,
         autoSearchOpenDelayMinutes: 0,
+        switchIntervalMinutes: 0,
         switchDistanceRangeBull: { min: 0.2, max: 1.5 },
         switchDistanceRangeBear: { min: -1.5, max: -0.2 },
       },
@@ -288,6 +300,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         status: 'READY',
         lastSwitchAt: null,
         lastSearchAt: null,
+        lastSeatReadyAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -352,6 +365,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
       now: () => new Date(nowMs),
       switchStates,
+      periodicSwitchPending: new Map(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
       clearSeat: seatStateManager.clearSeat,
@@ -380,6 +394,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       maxSearchFailuresPerDay: 3,
       getHKDateKey,
+      getTradingMinutesSinceOpen,
     });
 
     await machine.maybeSwitchOnDistance({
@@ -438,6 +453,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         autoSearchMinTurnoverPerMinuteBear: 100_000,
         autoSearchExpiryMinMonths: 3,
         autoSearchOpenDelayMinutes: 0,
+        switchIntervalMinutes: 0,
         switchDistanceRangeBull: { min: 0.2, max: 1.5 },
         switchDistanceRangeBear: { min: -1.5, max: -0.2 },
       },
@@ -450,6 +466,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         status: 'READY',
         lastSwitchAt: null,
         lastSearchAt: null,
+        lastSeatReadyAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -504,6 +521,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
       now: () => new Date(nowMs),
       switchStates,
+      periodicSwitchPending: new Map(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
       clearSeat: seatStateManager.clearSeat,
@@ -532,6 +550,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       maxSearchFailuresPerDay: 3,
       getHKDateKey,
+      getTradingMinutesSinceOpen,
     });
 
     await machine.maybeSwitchOnDistance({
@@ -559,6 +578,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         autoSearchMinTurnoverPerMinuteBear: 100_000,
         autoSearchExpiryMinMonths: 3,
         autoSearchOpenDelayMinutes: 0,
+        switchIntervalMinutes: 0,
         switchDistanceRangeBull: { min: 0.2, max: 1.5 },
         switchDistanceRangeBear: { min: -1.5, max: -0.2 },
       },
@@ -571,6 +591,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         status: 'READY',
         lastSwitchAt: null,
         lastSearchAt: null,
+        lastSeatReadyAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -624,6 +645,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
       now: () => new Date(nowMs),
       switchStates,
+      periodicSwitchPending: new Map(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
       clearSeat: seatStateManager.clearSeat,
@@ -652,6 +674,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       maxSearchFailuresPerDay: 3,
       getHKDateKey,
+      getTradingMinutesSinceOpen,
     });
 
     await machine.maybeSwitchOnDistance({

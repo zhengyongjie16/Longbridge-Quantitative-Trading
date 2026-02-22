@@ -20,6 +20,7 @@ describe('autoSymbolManager seatStateManager business flow', () => {
         status: 'READY',
         lastSwitchAt: null,
         lastSearchAt: null,
+        lastSeatReadyAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },

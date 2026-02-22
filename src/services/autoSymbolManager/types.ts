@@ -77,11 +77,30 @@ export type SwitchOnDistanceParams = {
 };
 
 /**
+ * 周期换标触发检查入参，包含方向、当前时间、交易时段与开盘保护状态。
+ * 由 switchStateMachine.maybeSwitchOnInterval 消费。
+ */
+export type SwitchOnIntervalParams = {
+  readonly direction: 'LONG' | 'SHORT';
+  readonly currentTime: Date;
+  readonly canTradeNow: boolean;
+  readonly openProtectionActive: boolean;
+};
+
+/**
+ * 换标触发模式。
+ * 类型用途：区分距回收价触发与周期触发，供换标状态机决定阶段流。
+ * 使用范围：仅 autoSymbolManager 模块内部使用。
+ */
+export type SwitchMode = 'DISTANCE' | 'PERIODIC';
+
+/**
  * 换标状态机的运行时状态，记录换标流程各阶段的中间数据。
  * 存储于 switchStates Map，由 switchStateMachine 读写。
  */
 export type SwitchState = {
   direction: 'LONG' | 'SHORT';
+  switchMode: SwitchMode;
   seatVersion: number;
   stage: SwitchStage;
   oldSymbol: string;
@@ -92,6 +111,16 @@ export type SwitchState = {
   sellNotional: number | null;
   shouldRebuy: boolean;
   awaitingQuote: boolean;
+};
+
+/**
+ * 周期换标等待状态。
+ * 类型用途：记录周期到期后等待空仓触发换标的状态。
+ * 使用范围：仅 autoSymbolManager 模块内部使用。
+ */
+export type PeriodicSwitchPendingState = {
+  pending: boolean;
+  pendingSinceMs: number | null;
 };
 
 /**
@@ -122,6 +151,7 @@ export type SwitchSuppression = {
  */
 export interface AutoSymbolManager {
   maybeSearchOnTick(params: SearchOnTickParams): Promise<void>;
+  maybeSwitchOnInterval(params: SwitchOnIntervalParams): Promise<void>;
   maybeSwitchOnDistance(params: SwitchOnDistanceParams): Promise<void>;
   hasPendingSwitch(direction: 'LONG' | 'SHORT'): boolean;
   resetAllState(): void;
@@ -144,6 +174,12 @@ type SwitchStateMap = Map<'LONG' | 'SHORT', SwitchState>;
  * 仅在 autoSymbolManager 模块内部使用。
  */
 type SwitchSuppressionMap = Map<'LONG' | 'SHORT', SwitchSuppression>;
+
+/**
+ * 内部类型：周期换标等待状态 Map，以方向为键存储 pending 状态。
+ * 仅在 autoSymbolManager 模块内部使用。
+ */
+export type PeriodicSwitchPendingMap = Map<'LONG' | 'SHORT', PeriodicSwitchPendingState>;
 
 /**
  * 内部类型：已交易分钟数解析函数，用于计算分均成交额。
@@ -281,6 +317,7 @@ export type BuildSeatStateParams = {
   readonly status: SeatStatus;
   readonly lastSwitchAt: number | null;
   readonly lastSearchAt: number | null;
+  readonly lastSeatReadyAt: number | null;
   readonly callPrice?: number | null;
   readonly searchFailCountToday: number;
   readonly frozenTradingDayKey: string | null;
@@ -379,6 +416,7 @@ export type SwitchStateMachineDeps = {
   readonly riskChecker: RiskChecker;
   readonly now: () => Date;
   readonly switchStates: SwitchStateMap;
+  readonly periodicSwitchPending: PeriodicSwitchPendingMap;
   readonly resolveSuppression: (
     direction: 'LONG' | 'SHORT',
     seatSymbol: string,
@@ -417,6 +455,7 @@ export type SwitchStateMachineDeps = {
   readonly logger: Logger;
   readonly maxSearchFailuresPerDay: number;
   readonly getHKDateKey: HKDateKeyResolver;
+  readonly getTradingMinutesSinceOpen: TradingMinutesResolver;
 };
 
 /**
@@ -424,6 +463,7 @@ export type SwitchStateMachineDeps = {
  * 由 createSwitchStateMachine 实现，供 autoSymbolManager 消费。
  */
 export interface SwitchStateMachine {
+  maybeSwitchOnInterval(params: SwitchOnIntervalParams): Promise<void>;
   maybeSwitchOnDistance(params: SwitchOnDistanceParams): Promise<void>;
   hasPendingSwitch(direction: 'LONG' | 'SHORT'): boolean;
 }

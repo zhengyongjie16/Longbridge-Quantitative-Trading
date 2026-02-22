@@ -50,6 +50,7 @@ export type AutoSymbolTasksParams = Readonly<{
   autoSearchEnabled: boolean;
   currentTimeMs: number;
   canTradeNow: boolean;
+  openProtectionActive: boolean;
   monitorPriceChanged: boolean;
   resolvedMonitorPrice: number | null;
   quotesMap: ReadonlyMap<string, Quote | null>;

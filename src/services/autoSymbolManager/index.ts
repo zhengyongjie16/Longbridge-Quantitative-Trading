@@ -21,6 +21,7 @@ import {
 import type {
   AutoSymbolManager,
   AutoSymbolManagerDeps,
+  PeriodicSwitchPendingState,
   SwitchState,
   SwitchSuppression,
 } from './types.js';
@@ -57,6 +58,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
 
   const switchStates = new Map<'LONG' | 'SHORT', SwitchState>();
   const switchSuppressions = new Map<'LONG' | 'SHORT', SwitchSuppression>();
+  const periodicSwitchPending = new Map<'LONG' | 'SHORT', PeriodicSwitchPendingState>();
 
   const thresholdResolver = createThresholdResolver({
     autoSearchConfig,
@@ -105,6 +107,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     riskChecker,
     now,
     switchStates,
+    periodicSwitchPending,
     resolveSuppression: seatStateManager.resolveSuppression,
     markSuppression: seatStateManager.markSuppression,
     clearSeat: seatStateManager.clearSeat,
@@ -123,16 +126,19 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     logger,
     maxSearchFailuresPerDay: AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY,
     getHKDateKey,
+    getTradingMinutesSinceOpen,
   });
 
   /** 清空换标状态与日内抑制记录，用于交易日切换或重新初始化。 */
   function resetAllState(): void {
     switchStates.clear();
     switchSuppressions.clear();
+    periodicSwitchPending.clear();
   }
 
   return {
     maybeSearchOnTick: autoSearch.maybeSearchOnTick,
+    maybeSwitchOnInterval: switchStateMachine.maybeSwitchOnInterval,
     maybeSwitchOnDistance: switchStateMachine.maybeSwitchOnDistance,
     hasPendingSwitch: switchStateMachine.hasPendingSwitch,
     resetAllState,

@@ -72,6 +72,39 @@ function parseBoundedNumberConfig({
 }
 
 /**
+ * 解析带上下限的数值配置（基于原始字符串），用于需要保留越界截断语义的配置项。
+ * 与 parseBoundedNumberConfig 的区别：会先解析原始字符串，再对越界值进行截断并告警。
+ * @param options - 包含 env、envKey、defaultValue、min、max 的配置对象
+ * @returns 解析后的数值（未配置或非数字时返回 defaultValue，越界时截断）
+ */
+function parseBoundedNumberConfigFromRaw({
+  env,
+  envKey,
+  defaultValue,
+  min,
+  max,
+}: BoundedNumberConfig): number {
+  const raw = env[envKey];
+  if (raw == null || raw.trim() === '') {
+    return defaultValue;
+  }
+
+  const value = Number(raw);
+  if (!Number.isFinite(value)) {
+    return defaultValue;
+  }
+  if (value < min) {
+    logger.warn(`[配置警告] ${envKey} 不能小于 ${min}，已设置为 ${min}`);
+    return min;
+  }
+  if (value > max) {
+    logger.warn(`[配置警告] ${envKey} 不能大于 ${max}，已设置为 ${max}`);
+    return max;
+  }
+  return value;
+}
+
+/**
  * 读取百分比配置并转为小数（如配置 2 → 内部 0.02），未配置或无效时返回 null。
  * 用于需要以百分比形式配置、但内部以小数运算的字段（如距离回收价百分比）。
  * @param env - 进程环境变量对象
@@ -160,6 +193,13 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
     min: 0,
     max: 60,
   });
+  const switchIntervalMinutes = parseBoundedNumberConfigFromRaw({
+    env,
+    envKey: `SWITCH_INTERVAL_MINUTES${suffix}`,
+    defaultValue: 0,
+    min: 0,
+    max: 120,
+  });
   const switchDistanceRangeBull = parseNumberRangeConfig(
     env,
     `SWITCH_DISTANCE_RANGE_BULL${suffix}`,
@@ -224,6 +264,7 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
       autoSearchMinTurnoverPerMinuteBear,
       autoSearchExpiryMinMonths,
       autoSearchOpenDelayMinutes,
+      switchIntervalMinutes,
       switchDistanceRangeBull,
       switchDistanceRangeBear,
     },

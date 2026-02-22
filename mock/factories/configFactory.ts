@@ -23,6 +23,7 @@ export function createMonitorConfig(overrides: Partial<MonitorConfig> = {}): Mon
       autoSearchMinTurnoverPerMinuteBear: null,
       autoSearchExpiryMinMonths: 3,
       autoSearchOpenDelayMinutes: 5,
+      switchIntervalMinutes: 0,
       switchDistanceRangeBull: null,
       switchDistanceRangeBear: null,
     },

@@ -40,6 +40,7 @@ export type AutoSymbolTickTaskData = Readonly<{
   symbol: string | null;
   currentTimeMs: number;
   canTradeNow: boolean;
+  openProtectionActive: boolean;
 }>;
 
 /**

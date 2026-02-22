@@ -58,6 +58,7 @@ function createMonitorContext(
       status: 'READY',
       lastSwitchAt: null,
       lastSearchAt: null,
+      lastSeatReadyAt: null,
       searchFailCountToday: 0,
       frozenTradingDayKey: null,
     },
@@ -66,6 +67,7 @@ function createMonitorContext(
       status: 'READY',
       lastSwitchAt: null,
       lastSearchAt: null,
+      lastSeatReadyAt: null,
       searchFailCountToday: 0,
       frozenTradingDayKey: null,
     },
@@ -95,6 +97,7 @@ function createMonitorContext(
     },
     autoSymbolManager: {
       maybeSearchOnTick: async () => {},
+      maybeSwitchOnInterval: async () => {},
       maybeSwitchOnDistance: async () => {},
       hasPendingSwitch: () => false,
       resetAllState: () => {},

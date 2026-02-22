@@ -59,6 +59,7 @@ function createMonitorTaskContext(overrides: Partial<MonitorContext> = {}): Moni
       status: 'READY',
       lastSwitchAt: null,
       lastSearchAt: null,
+      lastSeatReadyAt: null,
       searchFailCountToday: 0,
       frozenTradingDayKey: null,
     },
@@ -67,6 +68,7 @@ function createMonitorTaskContext(overrides: Partial<MonitorContext> = {}): Moni
       status: 'READY',
       lastSwitchAt: null,
       lastSearchAt: null,
+      lastSeatReadyAt: null,
       searchFailCountToday: 0,
       frozenTradingDayKey: null,
     },
@@ -98,6 +100,7 @@ function createMonitorTaskContext(overrides: Partial<MonitorContext> = {}): Moni
     },
     autoSymbolManager: {
       maybeSearchOnTick: async () => {},
+      maybeSwitchOnInterval: async () => {},
       maybeSwitchOnDistance: async () => {},
       hasPendingSwitch: () => false,
       resetAllState: () => {},
@@ -159,6 +162,7 @@ describe('monitorTaskProcessor business flow', () => {
         maybeSearchOnTick: async () => {
           maybeSearchCalls += 1;
         },
+        maybeSwitchOnInterval: async () => {},
         maybeSwitchOnDistance: async () => {},
         hasPendingSwitch: () => false,
         resetAllState: () => {},
@@ -195,6 +199,7 @@ describe('monitorTaskProcessor business flow', () => {
         symbol: 'BULL.HK',
         currentTimeMs: Date.now(),
         canTradeNow: true,
+        openProtectionActive: false,
       },
     });
 
@@ -214,6 +219,7 @@ describe('monitorTaskProcessor business flow', () => {
         maybeSearchOnTick: async () => {
           maybeSearchCalls += 1;
         },
+        maybeSwitchOnInterval: async () => {},
         maybeSwitchOnDistance: async () => {},
         hasPendingSwitch: () => false,
         resetAllState: () => {},
@@ -250,6 +256,7 @@ describe('monitorTaskProcessor business flow', () => {
         symbol: 'BULL.HK',
         currentTimeMs: Date.now(),
         canTradeNow: true,
+        openProtectionActive: false,
       },
     });
 
@@ -319,6 +326,7 @@ describe('monitorTaskProcessor business flow', () => {
     const context = createMonitorTaskContext({
       autoSymbolManager: {
         maybeSearchOnTick: async () => {},
+        maybeSwitchOnInterval: async () => {},
         maybeSwitchOnDistance: async ({ direction }) => {
           calledDirections.push(direction);
         },

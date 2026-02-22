@@ -80,6 +80,7 @@ type MultiMonitorSeatEntry = {
 function createNoopAutoSymbolManager(): AutoSymbolManager {
   return {
     maybeSearchOnTick: async () => {},
+    maybeSwitchOnInterval: async () => {},
     maybeSwitchOnDistance: async () => {},
     hasPendingSwitch: () => false,
     resetAllState: () => {},
@@ -119,6 +120,7 @@ function createSeatState(symbol: string): SeatState {
     status: 'READY',
     lastSwitchAt: null,
     lastSearchAt: null,
+    lastSeatReadyAt: null,
     searchFailCountToday: 0,
     frozenTradingDayKey: null,
   };

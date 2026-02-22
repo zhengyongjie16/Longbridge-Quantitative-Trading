@@ -4,7 +4,7 @@
  * 午夜清理：
  * - 重置所有监控标的的自动换仓状态（autoSymbolManager）
  * - 清空轮证列表缓存
- * - 清空所有席位绑定（保留 lastSwitchAt / lastSearchAt 时间戳）
+ * - 清空所有席位绑定（保留 lastSwitchAt / lastSearchAt 时间戳，重置 lastSeatReadyAt）
  * - 同步席位快照到各 MonitorContext
  *
  * 开盘重建：
@@ -17,13 +17,14 @@ import type { SeatState, SymbolRegistry } from '../../../types/seat.js';
 import type { CacheDomain, LifecycleContext } from '../types.js';
 import type { SeatDomainDeps } from './types.js';
 
-/** 基于旧席位状态构造空席位，保留 lastSwitchAt / lastSearchAt 时间戳以供下次搜索参考 */
+/** 基于旧席位状态构造空席位，保留 lastSwitchAt / lastSearchAt 时间戳并重置 lastSeatReadyAt */
 function buildEmptySeatState(previous: SeatState): SeatState {
   return {
     symbol: null,
     status: 'EMPTY',
     lastSwitchAt: previous.lastSwitchAt ?? null,
     lastSearchAt: previous.lastSearchAt ?? null,
+    lastSeatReadyAt: null,
     callPrice: null,
     searchFailCountToday: 0,
     frozenTradingDayKey: null,

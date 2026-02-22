@@ -25,6 +25,7 @@ export function scheduleAutoSymbolTasks(params: AutoSymbolTasksParams): void {
     autoSearchEnabled,
     currentTimeMs,
     canTradeNow,
+    openProtectionActive,
     monitorPriceChanged,
     resolvedMonitorPrice,
     quotesMap,
@@ -51,6 +52,7 @@ export function scheduleAutoSymbolTasks(params: AutoSymbolTasksParams): void {
       symbol: longSeatSnapshot.symbol ?? null,
       currentTimeMs,
       canTradeNow,
+      openProtectionActive,
     },
   });
   monitorTaskQueue.scheduleLatest({
@@ -64,6 +66,7 @@ export function scheduleAutoSymbolTasks(params: AutoSymbolTasksParams): void {
       symbol: shortSeatSnapshot.symbol ?? null,
       currentTimeMs,
       canTradeNow,
+      openProtectionActive,
     },
   });
 

@@ -59,6 +59,8 @@ export type AutoSearchConfig = {
   readonly autoSearchExpiryMinMonths: number;
   /** 开盘延迟分钟数（仅早盘生效） */
   readonly autoSearchOpenDelayMinutes: number;
+  /** 周期换标间隔（分钟，0 表示关闭） */
+  readonly switchIntervalMinutes: number;
   /** 牛证距回收价换标阈值范围 */
   readonly switchDistanceRangeBull: NumberRange | null;
   /** 熊证距回收价换标阈值范围 */

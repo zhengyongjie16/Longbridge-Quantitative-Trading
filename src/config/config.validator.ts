@@ -357,6 +357,24 @@ function validateMonitorConfig(
       missingFields = [...missingFields, `AUTO_SEARCH_OPEN_DELAY_MINUTES_${index}`];
     }
 
+    const switchIntervalEnvKey = `SWITCH_INTERVAL_MINUTES_${index}`;
+    const switchIntervalRaw = getStringConfig(env, switchIntervalEnvKey);
+    if (switchIntervalRaw != null) {
+      const parsed = Number(switchIntervalRaw);
+      if (!Number.isFinite(parsed)) {
+        errors = [...errors, `${prefix}: ${switchIntervalEnvKey} 无效（必须为数字，范围 0-120）`];
+        missingFields = [...missingFields, switchIntervalEnvKey];
+      }
+    }
+    if (
+      !Number.isFinite(autoSearchConfig.switchIntervalMinutes) ||
+      autoSearchConfig.switchIntervalMinutes < 0 ||
+      autoSearchConfig.switchIntervalMinutes > 120
+    ) {
+      errors = [...errors, `${prefix}: ${switchIntervalEnvKey} 无效（范围 0-120）`];
+      missingFields = [...missingFields, switchIntervalEnvKey];
+    }
+
     const bullRange = autoSearchConfig.switchDistanceRangeBull;
     if (
       !bullRange ||
@@ -595,6 +613,13 @@ export async function validateAllConfig({
     logger.info(`订单归属映射: ${monitorConfig.orderOwnershipMapping.join(', ')}`);
     if (autoSearchEnabled) {
       logger.info('自动寻标: 已启用（交易标的由席位动态决定）');
+      logger.info(
+        `周期换标间隔: ${
+          monitorConfig.autoSearchConfig.switchIntervalMinutes > 0
+            ? `${monitorConfig.autoSearchConfig.switchIntervalMinutes} 分钟`
+            : '已禁用'
+        }`,
+      );
       logger.info('做多标的: 自动寻标');
       logger.info('做空标的: 自动寻标');
     } else {

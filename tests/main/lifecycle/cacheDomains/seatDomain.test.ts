@@ -16,6 +16,7 @@ const emptySeatState = {
   status: 'EMPTY' as const,
   lastSwitchAt: null,
   lastSearchAt: null,
+  lastSeatReadyAt: null,
   searchFailCountToday: 0,
   frozenTradingDayKey: null,
 };

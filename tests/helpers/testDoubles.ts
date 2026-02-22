@@ -228,6 +228,7 @@ export function createSymbolRegistryDouble(params?: {
     status: 'READY',
     lastSwitchAt: null,
     lastSearchAt: null,
+    lastSeatReadyAt: null,
     searchFailCountToday: 0,
     frozenTradingDayKey: null,
   };
@@ -236,6 +237,7 @@ export function createSymbolRegistryDouble(params?: {
     status: 'READY',
     lastSwitchAt: null,
     lastSearchAt: null,
+    lastSeatReadyAt: null,
     searchFailCountToday: 0,
     frozenTradingDayKey: null,
   };
@@ -372,6 +374,7 @@ export function createMonitorConfigDouble(overrides: Partial<MonitorConfig> = {}
       autoSearchMinTurnoverPerMinuteBear: null,
       autoSearchExpiryMinMonths: 3,
       autoSearchOpenDelayMinutes: 5,
+      switchIntervalMinutes: 0,
       switchDistanceRangeBull: null,
       switchDistanceRangeBear: null,
     },

@@ -257,6 +257,7 @@ bun start
 | `AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_BEAR_N` | `无`     | 熊证分均成交额阈值（HKD/分钟）                                                                         |
 | `AUTO_SEARCH_EXPIRY_MIN_MONTHS_N`            | `3`      | 到期日最小月份                                                                                         |
 | `AUTO_SEARCH_OPEN_DELAY_MINUTES_N`           | `5`      | 早盘开盘延迟分钟数（仅早盘生效）                                                                       |
+| `SWITCH_INTERVAL_MINUTES_N`                  | `0`      | 周期换标间隔（分钟，0 表示关闭；仅在交易时段且非开盘保护期触发，午休/非交易时段不累计）                |
 | `SWITCH_DISTANCE_RANGE_BULL_N`               | `无`     | 牛证距回收价换标范围（格式 min,max，包含等于）                                                         |
 | `SWITCH_DISTANCE_RANGE_BEAR_N`               | `无`     | 熊证距回收价换标范围（格式 min,max，包含等于）                                                         |
 
@@ -271,6 +272,7 @@ bun start
 - **失败冻结机制**：自动寻标/换标预寻标失败会累计当日失败次数，达到 3 次后冻结该方向席位至下一交易日；冻结当日不再尝试寻标。
 - **自动寻标筛选**：基于 LongPort `warrantList` 筛选牛/熊证：到期（`AUTO_SEARCH_EXPIRY_MIN_MONTHS_N`）、距回收价百分比（`AUTO_SEARCH_MIN_DISTANCE_PCT_*`）、分均成交额（`AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_*`）；选优：**|距回收价百分比|更小优先**，相同取 **分均成交额更高**。
 - **自动换标触发**：监控价变化触发检查，若"距回收价百分比"满足 `<=min` 或 `>=max`（`SWITCH_DISTANCE_RANGE_*`，含边界）则进入换标。
+- **周期换标触发**：`SWITCH_INTERVAL_MINUTES_N > 0` 时，席位进入 `READY` 后按"交易分钟"计时；到期若仍有持仓则进入等待空仓，空仓后触发换标（开盘保护期内不触发，保护结束后再判断）。
 - **换标流程（状态机）**：先 **预寻标**，候选与旧标一致则记录"同标的日内抑制"并停止；否则撤销旧标未完成买入挂单 → 有持仓则移仓卖出（ELO）→ 占位新标；若换标前有持仓可按"真实卖出成交额（优先）或 `TARGET_NOTIONAL_N`"回补买入（ELO）。
 - **版本号隔离（关键）**：换标会递增席位版本号；延迟验证/队列/订单跟踪处理前校验版本，不匹配直接丢弃，防止误用旧标的。
 

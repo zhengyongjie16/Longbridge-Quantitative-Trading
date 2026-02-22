@@ -81,6 +81,7 @@ function createMonitorContext(overrides: Partial<MonitorContext> = {}): MonitorC
     },
     autoSymbolManager: {
       maybeSearchOnTick: async () => {},
+      maybeSwitchOnInterval: async () => {},
       maybeSwitchOnDistance: async () => {},
       hasPendingSwitch: () => false,
       resetAllState: () => {},

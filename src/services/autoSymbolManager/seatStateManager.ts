@@ -38,6 +38,7 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
     status,
     lastSwitchAt,
     lastSearchAt,
+    lastSeatReadyAt,
     callPrice,
     searchFailCountToday,
     frozenTradingDayKey,
@@ -47,6 +48,7 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
       status,
       lastSwitchAt,
       lastSearchAt,
+      lastSeatReadyAt,
       callPrice: callPrice ?? null,
       searchFailCountToday,
       frozenTradingDayKey,
@@ -111,6 +113,7 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
       status: 'SWITCHING',
       lastSwitchAt: timestamp,
       lastSearchAt: null,
+      lastSeatReadyAt: currentState.lastSeatReadyAt,
       callPrice: null,
       searchFailCountToday: currentState.searchFailCountToday,
       frozenTradingDayKey: currentState.frozenTradingDayKey,
@@ -119,6 +122,7 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
     if (currentSymbol) {
       switchStates.set(direction, {
         direction,
+        switchMode: 'DISTANCE',
         seatVersion: nextVersion,
         stage: 'CANCEL_PENDING',
         oldSymbol: currentSymbol,

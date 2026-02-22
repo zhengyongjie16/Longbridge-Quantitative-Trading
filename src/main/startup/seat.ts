@@ -164,6 +164,7 @@ export async function prepareSeatsOnStartup(
   for (const entry of snapshot.entries) {
     snapshotMap.set(`${entry.monitorSymbol}:${entry.direction}`, entry.symbol);
   }
+  const startupTimestampMs = now().getTime();
 
   /**
    * 启动阶段更新席位状态：READY/EMPTY。
@@ -178,6 +179,7 @@ export async function prepareSeatsOnStartup(
       status: symbol ? 'READY' : 'EMPTY',
       lastSwitchAt: null,
       lastSearchAt: null,
+      lastSeatReadyAt: symbol ? startupTimestampMs : null,
       callPrice: null,
       searchFailCountToday: 0,
       frozenTradingDayKey: null,
@@ -239,6 +241,7 @@ export async function prepareSeatsOnStartup(
       status: 'SEARCHING',
       lastSwitchAt: currentSeat.lastSwitchAt ?? null,
       lastSearchAt: nowMs,
+      lastSeatReadyAt: currentSeat.lastSeatReadyAt ?? null,
       callPrice: null,
       searchFailCountToday: currentSeat.searchFailCountToday,
       frozenTradingDayKey: currentSeat.frozenTradingDayKey,
@@ -276,6 +279,7 @@ export async function prepareSeatsOnStartup(
         status: 'EMPTY',
         lastSwitchAt: updatedSeat.lastSwitchAt ?? null,
         lastSearchAt: nowMs,
+        lastSeatReadyAt: updatedSeat.lastSeatReadyAt ?? null,
         callPrice: null,
         searchFailCountToday: nextFailCount,
         frozenTradingDayKey,
@@ -288,6 +292,7 @@ export async function prepareSeatsOnStartup(
       status: 'READY',
       lastSwitchAt: nowMs,
       lastSearchAt: nowMs,
+      lastSeatReadyAt: nowMs,
       callPrice: best.callPrice,
       searchFailCountToday: 0,
       frozenTradingDayKey: null,
@@ -323,6 +328,7 @@ export async function prepareSeatsOnStartup(
       status: 'EMPTY',
       lastSwitchAt: stuckSeat.lastSwitchAt ?? null,
       lastSearchAt: currentTime.getTime(),
+      lastSeatReadyAt: stuckSeat.lastSeatReadyAt ?? null,
       callPrice: null,
       searchFailCountToday: nextFailCount,
       frozenTradingDayKey,

@@ -28,6 +28,7 @@ describe('monitorTaskQueue business behavior', () => {
         symbol: 'BULL.HK',
         currentTimeMs: 100,
         canTradeNow: true,
+        openProtectionActive: false,
       },
     });
     queue.scheduleLatest({
@@ -41,6 +42,7 @@ describe('monitorTaskQueue business behavior', () => {
         symbol: 'BULL.HK',
         currentTimeMs: 200,
         canTradeNow: true,
+        openProtectionActive: false,
       },
     });
 
@@ -99,6 +101,7 @@ describe('monitorTaskQueue business behavior', () => {
         symbol: 'BULL.HK',
         currentTimeMs: 1,
         canTradeNow: true,
+        openProtectionActive: false,
       },
     });
     queue.scheduleLatest({
@@ -112,6 +115,7 @@ describe('monitorTaskQueue business behavior', () => {
         symbol: 'BEAR.HK',
         currentTimeMs: 2,
         canTradeNow: true,
+        openProtectionActive: false,
       },
     });
 

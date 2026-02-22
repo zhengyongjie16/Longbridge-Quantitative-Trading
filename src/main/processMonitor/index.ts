@@ -71,6 +71,7 @@ export async function processMonitor(
     autoSearchEnabled,
     currentTimeMs,
     canTradeNow,
+    openProtectionActive: runtimeFlags.openProtectionActive,
     monitorPriceChanged,
     resolvedMonitorPrice,
     quotesMap,

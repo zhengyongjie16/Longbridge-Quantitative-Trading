@@ -21,6 +21,8 @@ export type SeatState = {
   readonly lastSwitchAt: number | null;
   /** 上次寻标时间戳（毫秒） */
   readonly lastSearchAt: number | null;
+  /** 最近一次进入 READY 状态时间戳（毫秒） */
+  readonly lastSeatReadyAt: number | null;
   /** 回收价（从 warrantList 透传，做多/做空标的换标后用于 setWarrantInfoFromCallPrice） */
   readonly callPrice?: number | null;
   /** 当日连续寻标失败次数 */
