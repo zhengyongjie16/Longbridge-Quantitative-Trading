@@ -1,8 +1,9 @@
 /**
  * 自动换标管理器
  *
- * 功能/职责：负责席位初始化、自动寻标与换标流程；通过阈值与风险距离判断触发换标，并处理撤单/卖出/买入的完整链路。
- * 执行流程：主循环每 tick 调用 maybeSearchOnTick、maybeSwitchOnDistance，内部由 AutoSearch 与换标状态机分别处理空席位寻标与距回收价越界换标。
+ * 功能/职责：负责席位初始化、自动寻标与换标流程；支持「距离换标 + 周期换标」统一状态机推进，并处理撤单/卖出/买入完整链路。
+ * 执行流程：AUTO_SYMBOL_TICK 调用 maybeSearchOnTick 与 maybeSwitchOnInterval；
+ * AUTO_SYMBOL_SWITCH_DISTANCE 调用 maybeSwitchOnDistance 并在存在 pending switch 时持续推进状态机。
  */
 import { OrderSide } from 'longport';
 import { findBestWarrant } from '../autoSymbolFinder/index.js';

@@ -154,7 +154,7 @@ export function resolveSeatOnStartup({
 /**
  * 创建席位状态对象（内部工厂函数）
  * @param symbol 交易标的代码，null 表示未绑定
- * @param status 席位状态（IDLE/SEARCHING/ACTIVE/SWITCHING/FROZEN）
+ * @param status 席位状态（READY/SEARCHING/SWITCHING/EMPTY）
  * @returns 初始化的席位状态对象
  */
 function createSeatState(symbol: string | null, status: SeatStatus): SeatState {
@@ -173,7 +173,7 @@ function createSeatState(symbol: string | null, status: SeatStatus): SeatState {
 /**
  * 创建席位条目（内部工厂函数）
  * @param symbol 交易标的代码，null 表示未绑定
- * @param status 席位状态（IDLE/SEARCHING/ACTIVE/SWITCHING/FROZEN）
+ * @param status 席位状态（READY/SEARCHING/SWITCHING/EMPTY）
  * @returns 包含状态和版本号的席位条目，初始版本号为 1
  */
 function createSeatEntry(symbol: string | null, status: SeatStatus): SeatEntry {
