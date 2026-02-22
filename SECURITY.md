@@ -1,18 +1,18 @@
-# 安全策略
+# Security Policy
 
-## 报告漏洞
+## Reporting a Vulnerability
 
-如果您发现程序中漏洞，请执行以下操作：
+If you discover a vulnerability in the program, please do the following:
 
-- 可直接在公共 Issue 中对问题进行披露
-- 通过以下联系方式进行报告：
+- Disclose the issue directly in the public issue.
+- Please submit your report using the following contact information:
   - **GitHub**: [https://github.com/zhengyongjie16](https://github.com/zhengyongjie16)
   - **Telegram**: [https://t.me/ulysses_zheng](https://t.me/ulysses_zheng)
   - **E-Mail**: zhenghuaiteng@gmail.com
   - **RedNote**: 2615258442
   - **WeChat**: Salem_1796
 
-如果您发现关于LongPort OpenAPI SDK的漏洞，请执行以下操作：
+If you discover any vulnerabilities in the LongPort OpenAPI SDK, please do the following:
 
 - E-mail your findings to li.sun [at] longbridge-inc [dot] com.
 - Do not take advantage of the vulnerability or problem you have discovered, for example by downloading more data than necessary to demonstrate the vulnerability or deleting or modifying other people's data.
