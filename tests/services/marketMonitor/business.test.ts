@@ -7,7 +7,10 @@
 import { describe, expect, it } from 'bun:test';
 
 import { createMarketMonitor } from '../../../src/services/marketMonitor/index.js';
-import { formatPositionDisplay } from '../../../src/services/marketMonitor/utils.js';
+import {
+  formatPositionDisplay,
+  formatWarrantDistanceDisplay,
+} from '../../../src/services/marketMonitor/utils.js';
 import type { IndicatorSnapshot } from '../../../src/types/quote.js';
 import type { MonitorState } from '../../../src/types/state.js';
 import { createQuoteDouble } from '../../helpers/testDoubles.js';
@@ -41,6 +44,28 @@ function createSnapshot(overrides: Partial<IndicatorSnapshot> = {}): IndicatorSn
 }
 
 describe('marketMonitor business flow', () => {
+  it('formats warrant distance display with unified label', () => {
+    expect(formatWarrantDistanceDisplay(null)).toBeNull();
+
+    const bullText = formatWarrantDistanceDisplay({
+      warrantType: 'BULL',
+      distanceToStrikePercent: 1.9,
+    });
+    expect(bullText).toBe('距回收价=+1.90%');
+
+    const bearText = formatWarrantDistanceDisplay({
+      warrantType: 'BEAR',
+      distanceToStrikePercent: -2.35,
+    });
+    expect(bearText).toBe('距回收价=-2.35%');
+
+    const unknownText = formatWarrantDistanceDisplay({
+      warrantType: 'BULL',
+      distanceToStrikePercent: null,
+    });
+    expect(unknownText).toBe('距回收价=未知');
+  });
+
   it('formats position display text with required labels and order', () => {
     const display = formatPositionDisplay(
       {

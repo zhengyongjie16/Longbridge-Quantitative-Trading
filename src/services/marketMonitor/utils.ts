@@ -37,10 +37,10 @@ export function indicatorChanged(
 }
 
 /**
- * 格式化牛熊证距离回收价的显示文本
+ * 格式化距离回收价的显示文本
  * @param warrantDistanceInfo 牛熊证距离信息，为 null 时返回 null
  * @param decimals 小数位数，默认使用 DEFAULT_PERCENT_DECIMALS
- * @returns 格式化后的距离文本，距离无效时返回"未知"文本，warrantDistanceInfo 为 null 时返回 null
+ * @returns 格式化后的距离文本，距离无效时返回"距回收价=未知"，warrantDistanceInfo 为 null 时返回 null
  */
 export function formatWarrantDistanceDisplay(
   warrantDistanceInfo: WarrantDistanceInfo | null,
@@ -50,14 +50,13 @@ export function formatWarrantDistanceDisplay(
     return null;
   }
 
-  const warrantLabel = warrantDistanceInfo.warrantType === 'BULL' ? '牛证' : '熊证';
   const distance = warrantDistanceInfo.distanceToStrikePercent;
   if (distance === null || !Number.isFinite(distance)) {
-    return `${warrantLabel}距离回收价=未知`;
+    return '距回收价=未知';
   }
 
   const sign = distance >= 0 ? '+' : '';
-  return `${warrantLabel}距离回收价=${sign}${distance.toFixed(decimals)}%`;
+  return `距回收价=${sign}${distance.toFixed(decimals)}%`;
 }
 
 /**
