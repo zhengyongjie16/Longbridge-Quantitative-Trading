@@ -16,7 +16,7 @@ import { kdjObjectPool, macdObjectPool, periodRecordPool } from '../objectPool/i
  * @returns 值非 null 且非 undefined 时返回 true，否则返回 false
  */
 export function isDefined<T>(value: T | null | undefined): value is T {
-  return value != null; // != null 会同时检查 null 和 undefined
+  return value !== null && value !== undefined;
 }
 
 /**
@@ -87,7 +87,7 @@ export function decimalToNumber(
 ): number {
   // 如果输入为 null 或 undefined，返回 NaN 而非 0
   // 这样 Number.isFinite() 检查会返回 false，避免错误地使用 0 作为有效值
-  if (decimalLike == null) {
+  if (decimalLike === null || decimalLike === undefined) {
     return Number.NaN;
   }
   if (typeof decimalLike === 'object' && 'toNumber' in decimalLike) {
@@ -346,7 +346,7 @@ export function formatSignalLog(signal: {
  */
 export function formatError(err: unknown): string {
   // null/undefined
-  if (err == null) {
+  if (err === null || err === undefined) {
     return '未知错误';
   }
   // 字符串直接返回

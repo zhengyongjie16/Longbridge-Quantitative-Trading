@@ -88,13 +88,21 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
     function enrichSignal(signal: Signal): void {
       const sigSymbol = signal.symbol;
       if (sigSymbol === longSymbol && longQuote) {
-        if (signal.symbolName == null && longQuote.name != null) {
+        if (
+          (signal.symbolName === null || signal.symbolName === undefined) &&
+          longQuote.name !== null &&
+          longQuote.name !== undefined
+        ) {
           signal.symbolName = longQuote.name;
         }
         return;
       }
       if (sigSymbol === shortSymbol && shortQuote) {
-        if (signal.symbolName == null && shortQuote.name != null) {
+        if (
+          (signal.symbolName === null || signal.symbolName === undefined) &&
+          shortQuote.name !== null &&
+          shortQuote.name !== undefined
+        ) {
           signal.symbolName = shortQuote.name;
         }
       }

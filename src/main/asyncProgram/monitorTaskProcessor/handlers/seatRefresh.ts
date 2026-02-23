@@ -98,7 +98,10 @@ export function createSeatRefreshHandler({
     }
 
     const callPriceValid =
-      data.callPrice != null && Number.isFinite(data.callPrice) && data.callPrice > 0;
+      data.callPrice !== null &&
+      data.callPrice !== undefined &&
+      Number.isFinite(data.callPrice) &&
+      data.callPrice > 0;
 
     if (!callPriceValid) {
       markSeatAsEmpty(

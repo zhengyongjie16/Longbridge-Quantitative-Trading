@@ -33,7 +33,10 @@ export function indicatorChanged(
   last: number | null | undefined,
   threshold: number,
 ): boolean {
-  return Number.isFinite(current) && (last == null || hasChanged(current, last, threshold));
+  return (
+    Number.isFinite(current) &&
+    (last === null || last === undefined || hasChanged(current, last, threshold))
+  );
 }
 
 /**
@@ -80,7 +83,10 @@ export function formatPositionDisplay(
   } else {
     pnlText = '-';
   }
-  const orderCountText = orderCount != null && Number.isFinite(orderCount) ? String(orderCount) : '-';
+  const orderCountText =
+    orderCount !== null && orderCount !== undefined && Number.isFinite(orderCount)
+      ? String(orderCount)
+      : '-';
 
   return `持仓市值=${marketValueText} 持仓盈亏=${pnlText} 订单数量=${orderCountText}`;
 }

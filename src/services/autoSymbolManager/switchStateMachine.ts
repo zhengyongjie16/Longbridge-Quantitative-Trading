@@ -257,7 +257,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
       const currentSeat = symbolRegistry.getSeatState(monitorSymbol, direction);
       const nowDate = now();
       const nowMs = nowDate.getTime();
-      if (state.nextSymbol == null) {
+      if (state.nextSymbol === null || state.nextSymbol === undefined) {
         const hkDateKey = getHKDateKey(nowDate);
         const { nextFailCount, frozenTradingDayKey, shouldFreeze } = resolveNextSearchFailureState({
           currentSeat,
@@ -430,7 +430,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
       const buyNotional = state.sellNotional ?? monitorConfig.targetNotional;
       const buyQuantity = calculateBuyQuantityByNotional(buyNotional, quote.price, quote.lotSize);
 
-      if (buyQuantity != null && isValidPositiveNumber(buyQuantity)) {
+      if (buyQuantity !== null && buyQuantity !== undefined && isValidPositiveNumber(buyQuantity)) {
         const signal = buildOrderSignal({
           action: buyAction,
           symbol: nextSymbol,
@@ -503,8 +503,10 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     const periodicPendingState = resolvePeriodicPending(direction);
     if (
       periodicPendingState.pending &&
-      periodicPendingState.pendingSinceMs != null &&
-      seatState.lastSeatReadyAt != null &&
+      periodicPendingState.pendingSinceMs !== null &&
+      periodicPendingState.pendingSinceMs !== undefined &&
+      seatState.lastSeatReadyAt !== null &&
+      seatState.lastSeatReadyAt !== undefined &&
       seatState.lastSeatReadyAt > periodicPendingState.pendingSinceMs
     ) {
       clearPeriodicPending(direction);
@@ -514,7 +516,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
       return;
     }
 
-    if (seatState.lastSeatReadyAt == null) {
+    if (seatState.lastSeatReadyAt === null || seatState.lastSeatReadyAt === undefined) {
       clearPeriodicPending(direction);
       return;
     }
@@ -585,7 +587,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
       return;
     }
 
-    if (monitorPrice == null) {
+    if (monitorPrice === null || monitorPrice === undefined) {
       return;
     }
 
@@ -602,7 +604,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     );
     const distancePercent = distanceInfo?.distanceToStrikePercent ?? null;
     const range = resolveAutoSearchThresholds(direction, autoSearchConfig).switchDistanceRange;
-    if (distancePercent == null || !range) {
+    if (distancePercent === null || distancePercent === undefined || !range) {
       return;
     }
 

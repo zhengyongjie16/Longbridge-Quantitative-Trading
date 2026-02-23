@@ -4,14 +4,14 @@
  * 功能：
  * - 构造推送事件、K 线、轮证信息与交易日结果
  */
-import { Decimal } from 'longport';
-import type {
-  Candlestick,
-  MarketTradingDays,
-  PushCandlestickEvent,
-  PushQuoteEvent,
-  WarrantInfo,
-  WarrantQuote,
+import {
+  Decimal,
+  type Candlestick,
+  type MarketTradingDays,
+  type PushCandlestickEvent,
+  type PushQuoteEvent,
+  type WarrantInfo,
+  type WarrantQuote,
 } from 'longport';
 import { toMockDecimal } from '../longport/decimal.js';
 

@@ -59,7 +59,7 @@ export function findClosestEntry(
   for (let i = 0; i < buffer.size; i += 1) {
     const index = (startIndex + i) % buffer.capacity;
     const entry = buffer.entries[index];
-    if (entry == null) {
+    if (entry === null || entry === undefined) {
       continue;
     }
 

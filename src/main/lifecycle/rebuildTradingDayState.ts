@@ -130,7 +130,12 @@ async function refreshSeatWarrantInfo(
 
   const quote = isLongSymbol ? monitorContext.longQuote : monitorContext.shortQuote;
   const symbolName = quote?.name ?? null;
-  if (callPriceFromSeat != null && Number.isFinite(callPriceFromSeat) && callPriceFromSeat > 0) {
+  if (
+    callPriceFromSeat !== null &&
+    callPriceFromSeat !== undefined &&
+    Number.isFinite(callPriceFromSeat) &&
+    callPriceFromSeat > 0
+  ) {
     const result = monitorContext.riskChecker.setWarrantInfoFromCallPrice(
       symbol,
       callPriceFromSeat,

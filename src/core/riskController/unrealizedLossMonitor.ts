@@ -103,7 +103,7 @@ export const createUnrealizedLossMonitor = (
     liquidationSignal.price = currentPrice;
     // 订单类型将由 orderExecutor 根据全局配置自动选择（LIQUIDATION_ORDER_TYPE）
     // 设置最小买卖单位（从行情数据获取，仅在缺失时设置）
-    if (quote?.lotSize != null) {
+    if (quote?.lotSize !== null && quote?.lotSize !== undefined) {
       liquidationSignal.lotSize ??= quote.lotSize;
     }
 

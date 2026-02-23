@@ -90,7 +90,12 @@ export function scheduleRiskTasks(params: RiskTasksParams): void {
     shortQuote,
   } = seatInfo;
 
-  if (monitorPriceChanged && !autoSearchEnabled && resolvedMonitorPrice != null) {
+  if (
+    monitorPriceChanged &&
+    !autoSearchEnabled &&
+    resolvedMonitorPrice !== null &&
+    resolvedMonitorPrice !== undefined
+  ) {
     monitorTaskQueue.scheduleLatest({
       type: 'LIQUIDATION_DISTANCE_CHECK',
       dedupeKey: `${monitorSymbol}:LIQUIDATION_DISTANCE_CHECK`,

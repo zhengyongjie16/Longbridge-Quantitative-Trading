@@ -165,10 +165,10 @@ export const processSellSignals = (
       if (position && position.availableQuantity !== null && position.availableQuantity > 0) {
         sig.quantity = position.availableQuantity;
         // 委托价必须以执行时行情为准，覆盖流水线可能写入的旧价
-        if (quote?.price != null) {
+        if (quote?.price !== null && quote?.price !== undefined) {
           sig.price = quote.price;
         }
-        if (quote?.lotSize != null) {
+        if (quote?.lotSize !== null && quote?.lotSize !== undefined) {
           sig.lotSize = quote.lotSize;
         }
         logger.info(`[卖出信号处理] ${signalName}(末日保护): 无条件清仓，卖出数量=${sig.quantity}`);
@@ -203,10 +203,10 @@ export const processSellSignals = (
         // 设置关联的买入订单ID列表（用于防重追踪）
         sig.relatedBuyOrderIds = result.relatedBuyOrderIds;
         // 委托价必须以执行时行情为准，覆盖流水线可能写入的旧价
-        if (quote?.price != null) {
+        if (quote?.price !== null && quote?.price !== undefined) {
           sig.price = quote.price;
         }
-        if (quote?.lotSize != null) {
+        if (quote?.lotSize !== null && quote?.lotSize !== undefined) {
           sig.lotSize = quote.lotSize;
         }
       }

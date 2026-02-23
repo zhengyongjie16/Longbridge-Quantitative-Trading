@@ -26,8 +26,10 @@ export function createSignal(params: {
     reason: params.reason ?? 'mock-signal',
     seatVersion: params.seatVersion ?? 1,
     triggerTime: new Date(params.triggerTimeMs ?? Date.now()),
-    ...(params.price == null ? {} : { price: params.price }),
-    ...(params.lotSize == null ? {} : { lotSize: params.lotSize }),
-    ...(params.indicators1 == null ? {} : { indicators1: params.indicators1 }),
+    ...(params.price === null || params.price === undefined ? {} : { price: params.price }),
+    ...(params.lotSize === null || params.lotSize === undefined ? {} : { lotSize: params.lotSize }),
+    ...(params.indicators1 === null || params.indicators1 === undefined
+      ? {}
+      : { indicators1: params.indicators1 }),
   };
 }

@@ -81,7 +81,7 @@ function isOrderSubmitResponse(value: unknown): value is OrderSubmitResponse {
  * @returns 订单 ID 字符串，无法提取时返回 "UNKNOWN_ORDER_ID"
  */
 export function extractOrderId(resp: unknown): string {
-  if (isOrderSubmitResponse(resp) && resp.orderId != null) {
+  if (isOrderSubmitResponse(resp) && resp.orderId !== null && resp.orderId !== undefined) {
     return String(resp.orderId);
   }
   // 信任边界：unknown 的 resp 可能具有 toString，需在运行时安全检查后访问
@@ -110,7 +110,7 @@ export function resolveOrderTypeConfig(
   signal: Pick<Signal, 'orderTypeOverride' | 'isProtectiveLiquidation'>,
   globalConfig: OrderTypeResolutionConfig,
 ): OrderTypeConfig {
-  if (signal.orderTypeOverride != null) {
+  if (signal.orderTypeOverride !== null && signal.orderTypeOverride !== undefined) {
     return signal.orderTypeOverride;
   }
   if (signal.isProtectiveLiquidation === true) {

@@ -580,7 +580,7 @@ export const logger: Logger = {
    */
   debug(msg: string, extra?: unknown): void {
     if (IS_DEBUG) {
-      if (extra == null) {
+      if (extra === null || extra === undefined) {
         pinoLogger.debug(msg);
       } else {
         pinoLogger.debug({ extra }, msg);
@@ -595,7 +595,7 @@ export const logger: Logger = {
    * @returns 无返回值
    */
   info(msg: string, extra?: unknown): void {
-    if (extra == null) {
+    if (extra === null || extra === undefined) {
       pinoLogger.info(msg);
     } else {
       pinoLogger.info({ extra }, msg);
@@ -609,7 +609,7 @@ export const logger: Logger = {
    * @returns 无返回值
    */
   warn(msg: string, extra?: unknown): void {
-    if (extra == null) {
+    if (extra === null || extra === undefined) {
       pinoLogger.warn(msg);
     } else {
       pinoLogger.warn({ extra }, msg);
@@ -623,7 +623,7 @@ export const logger: Logger = {
    * @returns 无返回值
    */
   error(msg: string, extra?: unknown): void {
-    if (extra == null) {
+    if (extra === null || extra === undefined) {
       pinoLogger.error(msg);
     } else {
       pinoLogger.error({ extra }, msg);

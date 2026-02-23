@@ -67,7 +67,7 @@ export const createUnrealizedLossChecker = (
 
   /** 清空浮亏数据，symbol 为空时清空全部 */
   const clearUnrealizedLossData = (symbol?: string | null): void => {
-    if (symbol == null || symbol === '') {
+    if (symbol === null || symbol === undefined || symbol === '') {
       unrealizedLossData.clear();
     } else {
       unrealizedLossData.delete(symbol);
@@ -108,7 +108,11 @@ export const createUnrealizedLossChecker = (
       // 计算R1（开仓成本）和N1（持仓数量）
       const { r1: baseR1, n1 } = calculateCostAndQuantity(buyOrders);
       const normalizedOffset =
-        dailyLossOffset != null && Number.isFinite(dailyLossOffset) ? dailyLossOffset : 0;
+        dailyLossOffset !== null &&
+        dailyLossOffset !== undefined &&
+        Number.isFinite(dailyLossOffset)
+          ? dailyLossOffset
+          : 0;
       // 调整后R1 = 基础R1 - 当日偏移
       // 当日偏移为负数时（已亏损），减去负数使R1增大，从而更容易触发浮亏保护
       // 调整后R1 不能为负数，最小值为 0

@@ -25,8 +25,16 @@
  * - getRealtimeCandlesticks()：获取实时 K 线数据（从 SDK 内部缓存读取）
  * - isTradingDay()：检查是否为交易日
  */
-import { Period, QuoteContext, TradeSessions, Market, SubType } from 'longport';
-import type { Candlestick, PushQuoteEvent, PushCandlestickEvent } from 'longport';
+import {
+  Period,
+  QuoteContext,
+  TradeSessions,
+  Market,
+  SubType,
+  type Candlestick,
+  type PushQuoteEvent,
+  type PushCandlestickEvent,
+} from 'longport';
 import { decimalToNumber, formatError, formatSymbolDisplay } from '../../utils/helpers/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { API } from '../../constants/index.js';

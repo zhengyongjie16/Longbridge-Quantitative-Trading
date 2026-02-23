@@ -168,7 +168,9 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
       } else {
         pendingSymbols = pending.concat(pendingSymbols);
         pendingVersion =
-          pendingVersion == null ? targetVersion : Math.max(pendingVersion, targetVersion);
+          pendingVersion === null || pendingVersion === undefined
+            ? targetVersion
+            : Math.max(pendingVersion, targetVersion);
       }
       inFlight = false;
       drainResolve?.();
@@ -227,7 +229,10 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
     latestQuotesMap = params.quotesMap;
 
     const { staleVersion } = refreshGate.getStatus();
-    pendingVersion = pendingVersion == null ? staleVersion : Math.max(pendingVersion, staleVersion);
+    pendingVersion =
+      pendingVersion === null || pendingVersion === undefined
+        ? staleVersion
+        : Math.max(pendingVersion, staleVersion);
 
     scheduleRun();
   }

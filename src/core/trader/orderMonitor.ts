@@ -11,8 +11,14 @@
  * - 买入超时：仅撤销订单（避免追高）
  * - 卖出超时：撤销后转市价单（确保平仓）
  */
-import { OrderStatus, OrderSide, OrderType, TimeInForceType, TopicType } from 'longport';
-import type { PushOrderChanged } from 'longport';
+import {
+  OrderStatus,
+  OrderSide,
+  OrderType,
+  TimeInForceType,
+  TopicType,
+  type PushOrderChanged,
+} from 'longport';
 import { logger } from '../../utils/logger/index.js';
 import {
   decimalToNumber,
@@ -169,7 +175,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
 
       if (isValidPositiveNumber(executedPrice) && isValidPositiveNumber(filledQuantity)) {
         const executedTimeMs = resolveUpdatedAtMs(event.updatedAt);
-        if (executedTimeMs == null) {
+        if (executedTimeMs === null || executedTimeMs === undefined) {
           logger.error(`[订单监控] 订单 ${orderId} 成交时间缺失，无法更新订单记录`);
           trackedOrders.delete(orderId);
           return;

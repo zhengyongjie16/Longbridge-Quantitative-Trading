@@ -268,7 +268,8 @@ export function createMarketMonitor(): MarketMonitor {
 
       // 检查做多标的价格是否变化
       const longPriceChanged =
-        monitorState.longPrice == null && Number.isFinite(longPrice)
+        (monitorState.longPrice === null || monitorState.longPrice === undefined) &&
+        Number.isFinite(longPrice)
           ? true // 首次出现价格
           : hasChanged(
               longPrice ?? null,
@@ -278,7 +279,8 @@ export function createMarketMonitor(): MarketMonitor {
 
       // 检查做空标的价格是否变化
       const shortPriceChanged =
-        monitorState.shortPrice == null && Number.isFinite(shortPrice)
+        (monitorState.shortPrice === null || monitorState.shortPrice === undefined) &&
+        Number.isFinite(shortPrice)
           ? true // 首次出现价格
           : hasChanged(
               shortPrice ?? null,
@@ -344,7 +346,7 @@ export function createMarketMonitor(): MarketMonitor {
       // 检查价格变化
       const lastPrice = monitorState.monitorValues?.price;
       if (
-        (lastPrice == null && isValidPositiveNumber(currentPrice)) ||
+        ((lastPrice === null || lastPrice === undefined) && isValidPositiveNumber(currentPrice)) ||
         hasChanged(currentPrice, lastPrice ?? null, MONITOR.PRICE_CHANGE_THRESHOLD)
       ) {
         hasIndicatorChanged = true;
@@ -354,7 +356,8 @@ export function createMarketMonitor(): MarketMonitor {
       const lastChangePercent = monitorState.monitorValues?.changePercent;
       if (!hasIndicatorChanged && changePercent !== null) {
         if (
-          lastChangePercent == null ||
+          lastChangePercent === null ||
+          lastChangePercent === undefined ||
           hasChanged(changePercent, lastChangePercent, MONITOR.CHANGE_PERCENT_THRESHOLD)
         ) {
           hasIndicatorChanged = true;
@@ -368,7 +371,9 @@ export function createMarketMonitor(): MarketMonitor {
           const lastEma = monitorState.monitorValues?.ema?.[period];
           if (
             Number.isFinite(currentEma) &&
-            (lastEma == null || hasChanged(currentEma, lastEma, MONITOR.INDICATOR_CHANGE_THRESHOLD))
+            (lastEma === null ||
+              lastEma === undefined ||
+              hasChanged(currentEma, lastEma, MONITOR.INDICATOR_CHANGE_THRESHOLD))
           ) {
             hasIndicatorChanged = true;
             break;
@@ -383,7 +388,9 @@ export function createMarketMonitor(): MarketMonitor {
           const lastRsi = monitorState.monitorValues?.rsi?.[period];
           if (
             Number.isFinite(currentRsi) &&
-            (lastRsi == null || hasChanged(currentRsi, lastRsi, MONITOR.INDICATOR_CHANGE_THRESHOLD))
+            (lastRsi === null ||
+              lastRsi === undefined ||
+              hasChanged(currentRsi, lastRsi, MONITOR.INDICATOR_CHANGE_THRESHOLD))
           ) {
             hasIndicatorChanged = true;
             break;
@@ -398,7 +405,9 @@ export function createMarketMonitor(): MarketMonitor {
           const lastPsy = monitorState.monitorValues?.psy?.[period];
           if (
             Number.isFinite(currentPsy) &&
-            (lastPsy == null || hasChanged(currentPsy, lastPsy, MONITOR.INDICATOR_CHANGE_THRESHOLD))
+            (lastPsy === null ||
+              lastPsy === undefined ||
+              hasChanged(currentPsy, lastPsy, MONITOR.INDICATOR_CHANGE_THRESHOLD))
           ) {
             hasIndicatorChanged = true;
             break;
@@ -411,7 +420,8 @@ export function createMarketMonitor(): MarketMonitor {
         const lastMfi = monitorState.monitorValues?.mfi;
         if (
           Number.isFinite(monitorSnapshot.mfi) &&
-          (lastMfi == null ||
+          (lastMfi === null ||
+            lastMfi === undefined ||
             hasChanged(monitorSnapshot.mfi, lastMfi, MONITOR.INDICATOR_CHANGE_THRESHOLD))
         ) {
           hasIndicatorChanged = true;

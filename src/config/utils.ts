@@ -78,7 +78,7 @@ export function getBooleanConfig(
   defaultValue: boolean = false,
 ): boolean {
   const value = env[envKey];
-  if (value == null || value.trim() === '') {
+  if (value === null || value === undefined || value.trim() === '') {
     return defaultValue;
   }
   const normalizedValue = value.trim().toLowerCase();

@@ -229,7 +229,12 @@ export async function prepareSeatsOnStartup(
     const minTurnoverPerMinute = isBull
       ? autoSearchConfig.autoSearchMinTurnoverPerMinuteBull
       : autoSearchConfig.autoSearchMinTurnoverPerMinuteBear;
-    if (minDistancePct == null || minTurnoverPerMinute == null) {
+    if (
+      minDistancePct === null ||
+      minDistancePct === undefined ||
+      minTurnoverPerMinute === null ||
+      minTurnoverPerMinute === undefined
+    ) {
       logger.error(`[启动席位] 缺少自动寻标阈值配置: ${monitorSymbol} ${direction}`);
       return null;
     }
