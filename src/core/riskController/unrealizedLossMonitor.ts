@@ -91,13 +91,17 @@ export const createUnrealizedLossMonitor = (
     }
 
     // 执行保护性清仓
-    logger.error(lossCheck.reason || '浮亏超过阈值，执行保护性清仓');
+    const liquidationReason =
+      lossCheck.reason === null || lossCheck.reason === undefined || lossCheck.reason === ''
+        ? '浮亏超过阈值，执行保护性清仓'
+        : lossCheck.reason;
+    logger.error(liquidationReason);
 
     // 从对象池获取信号对象
     const liquidationSignal = signalObjectPool.acquire() as Signal;
     liquidationSignal.symbol = symbol;
     liquidationSignal.action = isLong ? 'SELLCALL' : 'SELLPUT';
-    liquidationSignal.reason = lossCheck.reason || '';
+    liquidationSignal.reason = lossCheck.reason ?? '';
     liquidationSignal.isProtectiveLiquidation = true;
     liquidationSignal.quantity = lossCheck.quantity ?? null;
     liquidationSignal.price = currentPrice;

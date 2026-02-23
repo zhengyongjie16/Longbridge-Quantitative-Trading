@@ -16,7 +16,7 @@ export function createConfig({ env }: { env: NodeJS.ProcessEnv }): Config {
   const appSecret = env['LONGPORT_APP_SECRET'] ?? '';
   const accessToken = env['LONGPORT_ACCESS_TOKEN'] ?? '';
 
-  const region = env['LONGPORT_REGION'] || 'hk';
+  const region = env['LONGPORT_REGION'] ?? 'hk';
   const urls = getRegionUrls(region);
 
   return new Config({

@@ -14,7 +14,7 @@
  */
 import { logger } from '../../utils/logger/index.js';
 import { formatError } from '../../utils/helpers/index.js';
-import { CleanupContext } from './types.js';
+import type { CleanupContext } from './types.js';
 import { releaseAllMonitorSnapshots } from './utils.js';
 
 /**

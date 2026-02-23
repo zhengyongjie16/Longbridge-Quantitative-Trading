@@ -176,7 +176,7 @@ export function calculateMFI(
       const high = toNumber(candle.high);
       const low = toNumber(candle.low);
       const close = toNumber(candle.close);
-      const volume = toNumber(candle.volume || 0);
+      const volume = toNumber(candle.volume ?? 0);
 
       // 边提取边验证
       if (

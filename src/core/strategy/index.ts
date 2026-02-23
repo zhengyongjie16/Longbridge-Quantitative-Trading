@@ -56,7 +56,7 @@ export const createHangSengMultiIndicatorStrategy = ({
     sell: { delaySeconds: 60, indicators: ['K', 'MACD'] },
   },
 }: Partial<StrategyConfig> = {}): HangSengMultiIndicatorStrategy => {
-  const finalSignalConfig: SignalConfigSet = signalConfig || {
+  const finalSignalConfig: SignalConfigSet = signalConfig ?? {
     buycall: null,
     sellcall: null,
     buyput: null,

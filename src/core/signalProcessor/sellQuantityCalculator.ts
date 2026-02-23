@@ -185,7 +185,7 @@ export const processSellSignals = (
         quote,
         orderRecorder,
         direction,
-        sig.reason || '',
+        sig.reason ?? '',
         smartCloseEnabled,
         sig.symbol,
       );

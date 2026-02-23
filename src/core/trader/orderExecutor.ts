@@ -11,7 +11,7 @@
  * - 普通交易使用 tradingOrderType（LO/ELO/MO）
  * - 保护性清仓使用 liquidationOrderType
  */
-import { TradeContext, OrderSide, OrderType, TimeInForceType, Decimal } from 'longport';
+import { OrderSide, OrderType, TimeInForceType, Decimal, type TradeContext } from 'longport';
 import { logger } from '../../utils/logger/index.js';
 import { LOG_COLORS, TIME, TRADING } from '../../constants/index.js';
 import { getHKDateKey } from '../../utils/helpers/tradingTime.js';
@@ -645,7 +645,9 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       const signalSymbolDisplay = formatSymbolDisplay(s.symbol, s.symbolName ?? null);
 
       if (s.action === 'HOLD') {
-        logger.info(`[HOLD] ${signalSymbolDisplay} - ${s.reason || '持有'}`);
+        const holdReason =
+          s.reason === null || s.reason === undefined || s.reason === '' ? '持有' : s.reason;
+        logger.info(`[HOLD] ${signalSymbolDisplay} - ${holdReason}`);
         continue;
       }
 
@@ -684,8 +686,10 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
 
       // 使用绿色显示交易计划（格式化标的显示：中文名称(代码)）
       const symbolDisplay = formatSymbolDisplay(targetSymbol, s.symbolName);
+      const planReason =
+        s.reason === null || s.reason === undefined || s.reason === '' ? '策略信号' : s.reason;
       logger.info(
-        `${LOG_COLORS.green}[交易计划] ${actualAction} ${symbolDisplay} - ${s.reason || '策略信号'}${LOG_COLORS.reset}`,
+        `${LOG_COLORS.green}[交易计划] ${actualAction} ${symbolDisplay} - ${planReason}${LOG_COLORS.reset}`,
       );
 
       const submitted = await submitTargetOrder(ctx, s, targetSymbol, isShortSymbol, monitorConfig);

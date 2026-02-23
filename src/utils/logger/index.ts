@@ -304,7 +304,7 @@ function formatForFile(obj: LogObject): string {
     40: 'WARN',
     50: 'ERROR',
   };
-  const levelStr = `[${levelMap[level] || 'INFO'}]`;
+  const levelStr = `[${levelMap[level] ?? 'INFO'}]`;
 
   let line = `${levelStr} ${timestamp} ${stripAnsiCodes(String(obj.msg))}`;
 
@@ -342,7 +342,7 @@ function formatForConsole(obj: LogObject): string {
     50: { name: 'ERROR', color: LOG_COLORS.red },
   };
 
-  const config = levelConfig[level] || { name: 'INFO', color: '' };
+  const config = levelConfig[level] ?? { name: 'INFO', color: '' };
   const levelStr = `[${config.name}]`;
   const color = config.color;
   const reset = color ? LOG_COLORS.reset : '';

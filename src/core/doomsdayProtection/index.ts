@@ -119,15 +119,11 @@ function processPositionForClearance(
   if (pos.symbol === longSymbol && longQuote) {
     currentPrice = longQuote.price;
     lotSize = longQuote.lotSize ?? null;
-    if (!symbolName) {
-      symbolName = longQuote.name;
-    }
+    symbolName = symbolName ?? longQuote.name ?? null;
   } else if (pos.symbol === shortSymbol && shortQuote) {
     currentPrice = shortQuote.price;
     lotSize = shortQuote.lotSize ?? null;
-    if (!symbolName) {
-      symbolName = shortQuote.name;
-    }
+    symbolName = symbolName ?? shortQuote.name ?? null;
   }
 
   // 收盘前清仓

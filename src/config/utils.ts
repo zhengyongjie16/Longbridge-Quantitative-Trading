@@ -10,7 +10,7 @@ import type { RegionUrls } from './types.js';
  * @returns 包含 httpUrl、quoteWsUrl、tradeWsUrl 的端点对象
  */
 export function getRegionUrls(region: string | undefined): RegionUrls {
-  const normalizedRegion = (region || 'hk').toLowerCase();
+  const normalizedRegion = (region === '' ? 'hk' : (region ?? 'hk')).toLowerCase();
 
   if (normalizedRegion === 'cn') {
     // 中国大陆区域

@@ -7,11 +7,11 @@
  */
 import {
   FilterWarrantInOutBoundsType,
-  FilterWarrantExpiryDate,
   SortOrderType,
   WarrantSortBy,
   WarrantStatus,
   WarrantType,
+  type FilterWarrantExpiryDate,
 } from 'longport';
 import { formatError } from '../../utils/helpers/index.js';
 import { buildExpiryDateFilters, selectBestWarrant } from './utils.js';

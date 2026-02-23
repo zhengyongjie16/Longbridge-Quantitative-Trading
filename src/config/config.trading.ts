@@ -154,8 +154,8 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
     return null; // 该索引无配置
   }
 
-  const longSymbol = getStringConfig(env, `LONG_SYMBOL${suffix}`) || '';
-  const shortSymbol = getStringConfig(env, `SHORT_SYMBOL${suffix}`) || '';
+  const longSymbol = getStringConfig(env, `LONG_SYMBOL${suffix}`) ?? '';
+  const shortSymbol = getStringConfig(env, `SHORT_SYMBOL${suffix}`) ?? '';
 
   const autoSearchEnabled = getBooleanConfig(env, `AUTO_SEARCH_ENABLED${suffix}`, false);
   // 百分比数值转为小数：配置值 2 → 内部 0.02（牛证 >= 0，熊证 <= 0）

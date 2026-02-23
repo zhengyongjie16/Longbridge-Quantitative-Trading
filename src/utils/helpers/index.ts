@@ -160,7 +160,7 @@ export function formatSymbolDisplay(
  */
 function toHongKongTime(date: Date | null = null, options: TimeFormatOptions = {}): string {
   const { format = 'iso' } = options;
-  const targetDate = date || new Date();
+  const targetDate = date ?? new Date();
   // 转换为香港时间（UTC+8）
   const hkOffset = TIME.HONG_KONG_TIMEZONE_OFFSET_MS;
   const hkTime = new Date(targetDate.getTime() + hkOffset);
@@ -335,7 +335,11 @@ export function formatSignalLog(signal: {
 }): string {
   const actionDesc = getSignalActionDescription(signal.action);
   const symbolDisplay = formatSymbolDisplay(signal.symbol, signal.symbolName ?? null);
-  return `${actionDesc} ${symbolDisplay} - ${signal.reason || '策略信号'}`;
+  const reason =
+    signal.reason === null || signal.reason === undefined || signal.reason === ''
+      ? '策略信号'
+      : signal.reason;
+  return `${actionDesc} ${symbolDisplay} - ${reason}`;
 }
 
 /**

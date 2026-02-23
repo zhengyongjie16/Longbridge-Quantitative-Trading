@@ -28,9 +28,17 @@ export default defineConfig(
 
       // TypeScript 规则
       '@typescript-eslint/explicit-function-return-type': 'off',
-      '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/no-floating-promises': 'warn',
-      '@typescript-eslint/no-misused-promises': 'warn',
+      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-misused-promises': 'error',
+      '@typescript-eslint/no-unnecessary-type-assertion': 'error',
+      '@typescript-eslint/consistent-type-imports': 'error',
+      '@typescript-eslint/consistent-type-exports': 'error',
+      '@typescript-eslint/await-thenable': 'error',
+      '@typescript-eslint/no-redundant-type-constituents': 'error',
+      '@typescript-eslint/prefer-nullish-coalescing': 'error',
+      '@typescript-eslint/prefer-optional-chain': 'error',
+      '@typescript-eslint/only-throw-error': 'error',
 
       // 变量与赋值
       'no-var': 'error',
@@ -46,7 +54,13 @@ export default defineConfig(
       'no-dupe-else-if': 'error',
       'no-empty': 'error',
       'no-empty-pattern': 'error',
+      'default-case': 'error',
       'default-case-last': 'error',
+      'consistent-return': 'off',
+      // 保持 async 方法的 Promise 契约与调用时序，不强制要求函数体内出现 await
+      'require-await': 'off',
+      'max-params': ['error', 7],
+      'max-depth': ['warn', { max: 5 }],
 
       // 调试与全局
       'no-debugger': 'warn',
@@ -83,7 +97,7 @@ export default defineConfig(
       // 最佳实践
       'no-duplicate-imports': 'error',
       'no-nested-ternary': 'error',
-      'prefer-const': 'warn',
+      'prefer-const': 'error',
       'prefer-arrow-callback': 'warn',
     },
   },

@@ -26,12 +26,12 @@
  * - isTradingDay()：检查是否为交易日
  */
 import {
-  Period,
   QuoteContext,
   TradeSessions,
   Market,
   SubType,
   type Candlestick,
+  type Period,
   type PushQuoteEvent,
   type PushCandlestickEvent,
 } from 'longport';

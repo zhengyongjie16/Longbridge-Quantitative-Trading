@@ -23,8 +23,8 @@ export function extractEmaPeriods(
   if (verificationConfig) {
     // 从买入和卖出配置中提取 EMA 周期
     const allIndicators = [
-      ...(verificationConfig.buy.indicators || []),
-      ...(verificationConfig.sell.indicators || []),
+      ...(verificationConfig.buy.indicators ?? []),
+      ...(verificationConfig.sell.indicators ?? []),
     ];
 
     for (const indicator of allIndicators) {

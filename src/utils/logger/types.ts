@@ -1,4 +1,4 @@
-import { LOG_LEVELS } from '../../constants/index.js';
+import type { LOG_LEVELS } from '../../constants/index.js';
 
 /**
  * 日志对象接口。
