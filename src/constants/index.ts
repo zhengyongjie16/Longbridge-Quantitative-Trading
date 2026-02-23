@@ -90,6 +90,16 @@ export const LOG_LEVELS = {
   ERROR: 50,
 } as const;
 
+/** 日志 ANSI 颜色常量（用于控制台高亮） */
+export const LOG_COLORS = {
+  reset: '\x1b[0m',
+  yellow: '\x1b[33m',
+  red: '\x1b[31m',
+  gray: '\x1b[90m',
+  green: '\x1b[32m',
+  cyan: '\x1b[96m',
+} as const;
+
 /** 是否为调试模式（环境变量 DEBUG=true 时启用） */
 export const IS_DEBUG = process.env['DEBUG'] === 'true';
 

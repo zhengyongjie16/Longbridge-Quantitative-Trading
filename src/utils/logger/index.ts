@@ -1,6 +1,6 @@
 import pino from 'pino';
 import { toHongKongTimeLog } from '../helpers/index.js';
-import { IS_DEBUG, LOGGING, LOG_LEVELS } from '../../constants/index.js';
+import { IS_DEBUG, LOGGING, LOG_LEVELS, LOG_COLORS } from '../../constants/index.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Writable } from 'node:stream';
@@ -66,19 +66,6 @@ export function retainLatestLogFiles(
     }
   }
 }
-
-/**
- * ANSI 颜色代码映射表
- * 用于控制台日志输出的颜色高亮
- */
-export const colors = {
-  reset: '\x1b[0m',
-  yellow: '\x1b[33m',
-  red: '\x1b[31m',
-  gray: '\x1b[90m',
-  green: '\x1b[32m',
-  cyan: '\x1b[96m', // 天蓝色
-} as const;
 
 /**
  * 格式化额外数据为字符串
@@ -349,16 +336,16 @@ function formatForConsole(obj: LogObject): string {
 
   // 将数字 level 转换为文本和颜色
   const levelConfig: Record<number, { name: string; color: string }> = {
-    20: { name: 'DEBUG', color: colors.gray },
+    20: { name: 'DEBUG', color: LOG_COLORS.gray },
     30: { name: 'INFO', color: '' },
-    40: { name: 'WARN', color: colors.yellow },
-    50: { name: 'ERROR', color: colors.red },
+    40: { name: 'WARN', color: LOG_COLORS.yellow },
+    50: { name: 'ERROR', color: LOG_COLORS.red },
   };
 
   const config = levelConfig[level] || { name: 'INFO', color: '' };
   const levelStr = `[${config.name}]`;
   const color = config.color;
-  const reset = color ? colors.reset : '';
+  const reset = color ? LOG_COLORS.reset : '';
 
   let line = `${color}${levelStr} ${timestamp} ${obj.msg}${reset}`;
 

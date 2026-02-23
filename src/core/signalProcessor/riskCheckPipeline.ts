@@ -244,32 +244,34 @@ export const createRiskCheckPipeline = ({
           currentPrice,
         );
 
-        if (!warrantRiskResult.allowed) {
+        if (warrantRiskResult.allowed) {
+          if (warrantRiskResult.warrantInfo?.isWarrant) {
+            const warrantType =
+              warrantRiskResult.warrantInfo.warrantType === 'BULL' ? '牛证' : '熊证';
+            const distancePercent = warrantRiskResult.warrantInfo.distanceToStrikePercent;
+
+            // 使用 formatSymbolDisplayFromQuote 格式化标的显示
+            let quoteForSymbol: Quote | null = null;
+
+            if (sigSymbol === longSymbol) {
+              quoteForSymbol = longQuote;
+            } else if (sigSymbol === shortSymbol) {
+              quoteForSymbol = shortQuote;
+            }
+
+            const symbolDisplay = formatSymbolDisplayFromQuote(quoteForSymbol, sig.symbol);
+
+            logger.info(
+              `[牛熊证风险检查] ${symbolDisplay} 为${warrantType}，距离回收价百分比：${
+                distancePercent?.toFixed(2) ?? '未知'
+              }%，风险检查通过`,
+            );
+          }
+        } else {
           const reason = warrantRiskResult.reason ?? '牛熊证风险检查未通过';
           sig.reason = reason;
           logger.warn(`[牛熊证风险拦截] 信号被牛熊证风险控制拦截：${signalLabel} - ${reason}`);
           continue;
-        } else if (warrantRiskResult.warrantInfo?.isWarrant) {
-          const warrantType =
-            warrantRiskResult.warrantInfo.warrantType === 'BULL' ? '牛证' : '熊证';
-          const distancePercent = warrantRiskResult.warrantInfo.distanceToStrikePercent;
-
-          // 使用 formatSymbolDisplayFromQuote 格式化标的显示
-          let quoteForSymbol: Quote | null = null;
-
-          if (sigSymbol === longSymbol) {
-            quoteForSymbol = longQuote;
-          } else if (sigSymbol === shortSymbol) {
-            quoteForSymbol = shortQuote;
-          }
-
-          const symbolDisplay = formatSymbolDisplayFromQuote(quoteForSymbol, sig.symbol);
-
-          logger.info(
-            `[牛熊证风险检查] ${symbolDisplay} 为${warrantType}，距离回收价百分比：${
-              distancePercent?.toFixed(2) ?? '未知'
-            }%，风险检查通过`,
-          );
         }
       }
 

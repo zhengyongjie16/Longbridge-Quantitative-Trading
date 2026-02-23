@@ -14,7 +14,7 @@
  * - 做多/做空标的的现价和涨跌幅
  * - 监控标的的所有技术指标值
  */
-import { colors, logger } from '../../utils/logger/index.js';
+import { logger } from '../../utils/logger/index.js';
 import {
   formatQuoteDisplay,
   isValidPositiveNumber,
@@ -33,7 +33,7 @@ import {
   monitorValuesObjectPool,
   periodRecordPool,
 } from '../../utils/objectPool/index.js';
-import { MONITOR } from '../../constants/index.js';
+import { LOG_COLORS, MONITOR } from '../../constants/index.js';
 import type { MonitorState } from '../../types/state.js';
 import type { IndicatorSnapshot, Quote } from '../../types/quote.js';
 import type { MonitorValues } from '../../types/data.js';
@@ -235,7 +235,7 @@ function displayIndicators(params: {
   const timePrefix = formatKlineTimePrefix(klineTimestamp);
 
   logger.info(
-    `${colors.cyan}${timePrefix}[监控标的] ${monitorSymbolName}(${monitorSymbol}) ${indicators.join(' ')}${colors.reset}`,
+    `${LOG_COLORS.cyan}${timePrefix}[监控标的] ${monitorSymbolName}(${monitorSymbol}) ${indicators.join(' ')}${LOG_COLORS.reset}`,
   );
 }
 

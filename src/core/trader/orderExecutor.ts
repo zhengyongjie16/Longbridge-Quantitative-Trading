@@ -12,8 +12,8 @@
  * - 保护性清仓使用 liquidationOrderType
  */
 import { TradeContext, OrderSide, OrderType, TimeInForceType, Decimal } from 'longport';
-import { logger, colors } from '../../utils/logger/index.js';
-import { TIME, TRADING } from '../../constants/index.js';
+import { logger } from '../../utils/logger/index.js';
+import { LOG_COLORS, TIME, TRADING } from '../../constants/index.js';
 import { getHKDateKey } from '../../utils/helpers/tradingTime.js';
 import {
   decimalToNumber,
@@ -685,7 +685,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       // 使用绿色显示交易计划（格式化标的显示：中文名称(代码)）
       const symbolDisplay = formatSymbolDisplay(targetSymbol, s.symbolName);
       logger.info(
-        `${colors.green}[交易计划] ${actualAction} ${symbolDisplay} - ${s.reason || '策略信号'}${colors.reset}`,
+        `${LOG_COLORS.green}[交易计划] ${actualAction} ${symbolDisplay} - ${s.reason || '策略信号'}${LOG_COLORS.reset}`,
       );
 
       const submitted = await submitTargetOrder(ctx, s, targetSymbol, isShortSymbol, monitorConfig);

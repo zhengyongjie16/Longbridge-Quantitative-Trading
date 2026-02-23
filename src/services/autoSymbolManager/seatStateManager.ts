@@ -6,6 +6,7 @@
  * - 日内抑制记录与清理
  * - 清空席位并重置换标流程
  */
+import { LOG_COLORS } from '../../constants/index.js';
 import type {
   BuildSeatStateParams,
   SeatStateBuilder,
@@ -137,7 +138,9 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
     } else {
       switchStates.delete(direction);
     }
-    logger.warn(`[自动换标] ${monitorSymbol} ${direction} 清空席位: ${reason}`);
+    logger.info(
+      `${LOG_COLORS.green}[自动换标] ${monitorSymbol} ${direction} 清空席位: ${reason}${LOG_COLORS.reset}`,
+    );
     return nextVersion;
   }
 

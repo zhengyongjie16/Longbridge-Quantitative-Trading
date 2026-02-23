@@ -536,7 +536,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
       const pendingState = resolvePeriodicPending(direction);
       if (!pendingState.pending) {
         markPeriodicPending(direction, currentTime.getTime());
-        logger.info(
+        logger.warn(
           `[自动换标] ${monitorSymbol} ${direction} 周期换标到期但仍有持仓，进入等待空仓状态`,
         );
       }
