@@ -73,10 +73,13 @@ export function formatPositionDisplay(
 ): string {
   const marketValueText =
     metrics && Number.isFinite(metrics.r2) ? metrics.r2.toFixed(decimals) : '-';
-  const pnlText =
-    metrics && Number.isFinite(metrics.unrealizedPnL)
-      ? `${metrics.unrealizedPnL >= 0 ? '+' : ''}${metrics.unrealizedPnL.toFixed(decimals)}`
-      : '-';
+  let pnlText: string;
+  if (metrics && Number.isFinite(metrics.unrealizedPnL)) {
+    const sign = metrics.unrealizedPnL >= 0 ? '+' : '';
+    pnlText = `${sign}${metrics.unrealizedPnL.toFixed(decimals)}`;
+  } else {
+    pnlText = '-';
+  }
   const orderCountText = orderCount != null && Number.isFinite(orderCount) ? String(orderCount) : '-';
 
   return `持仓市值=${marketValueText} 持仓盈亏=${pnlText} 订单数量=${orderCountText}`;
