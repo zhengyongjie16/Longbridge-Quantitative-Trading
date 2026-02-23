@@ -224,7 +224,7 @@ describe('orderMonitor business flow', () => {
   });
 
   it('does not replace orders when status/type is non-replaceable', async () => {
-    let handleOrderChanged: (event: PushOrderChanged) => void = () => {
+    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
       throw new Error('handleOrderChanged hook was not captured');
     };
     const { deps, tradeCtx } = createDeps({

@@ -99,16 +99,12 @@ export function createLiquidationCooldownTracker(
   function getRemainingMs({ symbol, direction, cooldownConfig }: GetRemainingMsParams): number {
     const key = buildCooldownKey(symbol, direction);
     const executedTimeMs = cooldownMap.get(key);
-    if (
-      executedTimeMs === null ||
-      executedTimeMs === undefined ||
-      !Number.isFinite(executedTimeMs)
-    ) {
+    if (executedTimeMs === undefined || !Number.isFinite(executedTimeMs)) {
       return 0;
     }
 
     const cooldownEndMs = resolveCooldownEndMs(executedTimeMs, cooldownConfig);
-    if (cooldownEndMs === null || cooldownEndMs === undefined || !Number.isFinite(cooldownEndMs)) {
+    if (cooldownEndMs === null || !Number.isFinite(cooldownEndMs)) {
       cooldownMap.delete(key);
       return 0;
     }

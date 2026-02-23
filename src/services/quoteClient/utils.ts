@@ -48,7 +48,7 @@ export function extractLotSize(staticInfo: unknown): number | undefined {
   const info = staticInfo as StaticInfo;
   const lotSizeValue = info.lotSize ?? null;
 
-  if (lotSizeValue === null || lotSizeValue === undefined) {
+  if (lotSizeValue === null) {
     return undefined;
   }
 
@@ -82,7 +82,7 @@ export function extractName(staticInfo: unknown): string | null {
  */
 export function resolveHKDateKey(date: Date): string {
   const hkDateKey = getHKDateKey(date);
-  if (hkDateKey !== null && hkDateKey !== undefined) {
+  if (hkDateKey !== null) {
     return hkDateKey;
   }
 

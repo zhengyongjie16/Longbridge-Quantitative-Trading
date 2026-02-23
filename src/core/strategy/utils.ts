@@ -24,10 +24,7 @@ export function needsDelayedVerification(config: SingleVerificationConfig): bool
  */
 function hasValidRsiValue(rsi: IndicatorSnapshot['rsi']): boolean {
   return (
-    rsi !== null &&
-    rsi !== undefined &&
-    typeof rsi === 'object' &&
-    Object.values(rsi).some((v) => isValidNumber(v))
+    rsi !== null && typeof rsi === 'object' && Object.values(rsi).some((v) => isValidNumber(v))
   );
 }
 
@@ -74,7 +71,7 @@ export function validateAllIndicators(state: IndicatorSnapshot): boolean {
  * @returns 格式化字符串，如 "KDJ(K=0.123,D=0.456,J=0.789)"；无有效值时返回空字符串
  */
 function formatKdjSegment(kdj: IndicatorSnapshot['kdj']): string {
-  if (kdj === null || kdj === undefined) return '';
+  if (kdj === null) return '';
   const kdjParts: string[] = [];
   if (isValidNumber(kdj.k)) kdjParts.push(`K=${kdj.k.toFixed(3)}`);
   if (isValidNumber(kdj.d)) kdjParts.push(`D=${kdj.d.toFixed(3)}`);

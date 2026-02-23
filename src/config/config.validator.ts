@@ -177,10 +177,7 @@ function validateSymbolFromQuote(
   }
 
   // 验证 lotSize（交易标的必须有）
-  if (
-    requireLotSize &&
-    (quote.lotSize === null || quote.lotSize === undefined || quote.lotSize <= 0)
-  ) {
+  if (requireLotSize && (quote.lotSize === undefined || quote.lotSize <= 0)) {
     errors.push(`${symbolLabel} ${symbol} 缺少每手股数(lotSize)信息，无法进行交易计算`);
   }
 
@@ -362,7 +359,7 @@ function validateMonitorConfig(
 
     const switchIntervalEnvKey = `SWITCH_INTERVAL_MINUTES_${index}`;
     const switchIntervalRaw = getStringConfig(env, switchIntervalEnvKey);
-    if (switchIntervalRaw !== null && switchIntervalRaw !== undefined) {
+    if (switchIntervalRaw !== null) {
       const parsed = Number(switchIntervalRaw);
       if (!Number.isFinite(parsed)) {
         errors = [...errors, `${prefix}: ${switchIntervalEnvKey} 无效（必须为数字，范围 0-120）`];
@@ -529,7 +526,7 @@ function validateTradingConfig(
   const { morning, afternoon } = tradingConfig.global.openProtection;
 
   if (morning.enabled) {
-    if (morning.minutes === null || morning.minutes === undefined) {
+    if (morning.minutes === null) {
       errors = [
         ...errors,
         'MORNING_OPENING_PROTECTION_MINUTES 未配置（启用早盘保护时为必填，范围 1-60）',
@@ -541,7 +538,7 @@ function validateTradingConfig(
   }
 
   if (afternoon.enabled) {
-    if (afternoon.minutes === null || afternoon.minutes === undefined) {
+    if (afternoon.minutes === null) {
       errors = [
         ...errors,
         'AFTERNOON_OPENING_PROTECTION_MINUTES 未配置（启用午盘保护时为必填，范围 1-60）',

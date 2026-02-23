@@ -26,7 +26,7 @@ export function isSeatReady(
  * @returns 当日冻结时返回 true
  */
 export function isSeatFrozenToday(seatState: SeatState): boolean {
-  return seatState.frozenTradingDayKey !== null && seatState.frozenTradingDayKey !== undefined;
+  return seatState.frozenTradingDayKey !== null;
 }
 
 /**
@@ -103,9 +103,7 @@ const SEAT_UNAVAILABLE_REASON_MAP: Readonly<Record<SeatUnavailableReason, string
  */
 export function describeSeatUnavailable(seatState: SeatState): string {
   const reason = resolveSeatUnavailableReason(seatState);
-  return reason === null || reason === undefined
-    ? '席位不可用'
-    : SEAT_UNAVAILABLE_REASON_MAP[reason];
+  return reason === null ? '席位不可用' : SEAT_UNAVAILABLE_REASON_MAP[reason];
 }
 
 /**

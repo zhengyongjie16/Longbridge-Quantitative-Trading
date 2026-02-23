@@ -83,14 +83,12 @@ export function createStartupGate(deps: StartupGateDeps): StartupGate {
       const morningProtectionActive =
         morning.enabled &&
         morning.minutes !== null &&
-        morning.minutes !== undefined &&
         isInMorningOpenProtection(currentTime, morning.minutes);
 
       const afternoonProtectionActive =
         !tradingDayInfo.isHalfDay &&
         afternoon.enabled &&
         afternoon.minutes !== null &&
-        afternoon.minutes !== undefined &&
         isInAfternoonOpenProtection(currentTime, afternoon.minutes);
 
       if (morningProtectionActive || afternoonProtectionActive) {

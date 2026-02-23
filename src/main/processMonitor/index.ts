@@ -56,9 +56,7 @@ export async function processMonitor(
   const lastMonitorPrice = Number.isFinite(state.monitorPrice) ? state.monitorPrice : null;
   const monitorPriceChanged =
     resolvedMonitorPrice !== null &&
-    resolvedMonitorPrice !== undefined &&
     (lastMonitorPrice === null ||
-      lastMonitorPrice === undefined ||
       Math.abs(resolvedMonitorPrice - lastMonitorPrice) > MONITOR.PRICE_CHANGE_THRESHOLD);
   if (monitorPriceChanged) {
     state.monitorPrice = resolvedMonitorPrice;

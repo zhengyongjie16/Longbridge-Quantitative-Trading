@@ -25,7 +25,7 @@ import {
 
 describe('protective-liquidation integration', () => {
   it('records cooldown + local sell update after protective liquidation fill event', async () => {
-    let capturedHandler: (event: PushOrderChanged) => void = () => {
+    let capturedHandler: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
       throw new Error('order changed handler was not captured');
     };
     let recordLocalSellCount = 0;

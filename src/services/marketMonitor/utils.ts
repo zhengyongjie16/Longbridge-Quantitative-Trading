@@ -84,9 +84,7 @@ export function formatPositionDisplay(
     pnlText = '-';
   }
   const orderCountText =
-    orderCount !== null && orderCount !== undefined && Number.isFinite(orderCount)
-      ? String(orderCount)
-      : '-';
+    orderCount !== null && Number.isFinite(orderCount) ? String(orderCount) : '-';
 
   return `持仓市值=${marketValueText} 持仓盈亏=${pnlText} 订单数量=${orderCountText}`;
 }

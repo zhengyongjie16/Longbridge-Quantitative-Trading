@@ -131,24 +131,19 @@ export async function mainProgram({
       const morningActive =
         morning.enabled &&
         morning.minutes !== null &&
-        morning.minutes !== undefined &&
         isWithinMorningOpenProtection(currentTime, morning.minutes);
 
       const afternoonActive =
         !isHalfDayToday &&
         afternoon.enabled &&
         afternoon.minutes !== null &&
-        afternoon.minutes !== undefined &&
         isWithinAfternoonOpenProtection(currentTime, afternoon.minutes);
 
       openProtectionActive = morningActive || afternoonActive;
 
       const anyProtectionEnabled =
-        (morning.enabled && morning.minutes !== null && morning.minutes !== undefined) ||
-        (!isHalfDayToday &&
-          afternoon.enabled &&
-          afternoon.minutes !== null &&
-          afternoon.minutes !== undefined);
+        (morning.enabled && morning.minutes !== null) ||
+        (!isHalfDayToday && afternoon.enabled && afternoon.minutes !== null);
 
       if (anyProtectionEnabled && lastState.openProtectionActive !== openProtectionActive) {
         if (openProtectionActive) {
@@ -239,11 +234,7 @@ export async function mainProgram({
     await marketDataClient.subscribeSymbols(added);
   }
 
-  const removableSymbols = removed.filter(
-    (symbol) =>
-      lastState.positionCache.get(symbol) === null ||
-      lastState.positionCache.get(symbol) === undefined,
-  );
+  const removableSymbols = removed.filter((symbol) => lastState.positionCache.get(symbol) === null);
 
   if (removableSymbols.length > 0) {
     await marketDataClient.unsubscribeSymbols(removableSymbols);

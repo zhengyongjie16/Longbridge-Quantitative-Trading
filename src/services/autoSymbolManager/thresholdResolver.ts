@@ -57,12 +57,7 @@ function resolveAutoSearchThresholdInput(params: ResolveAutoSearchThresholdInput
     direction,
     autoSearchConfig,
   );
-  if (
-    minDistancePct === null ||
-    minDistancePct === undefined ||
-    minTurnoverPerMinute === null ||
-    minTurnoverPerMinute === undefined
-  ) {
+  if (minDistancePct === null || minTurnoverPerMinute === null) {
     logger.error(`${logPrefix}: ${monitorSymbol} ${direction}`);
     return null;
   }

@@ -112,11 +112,7 @@ export function createDayLifecycleManager(deps: DayLifecycleManagerDeps): DayLif
       mutableState.lifecycleState = 'MIDNIGHT_CLEANING';
 
       const nowMs = now.getTime();
-      if (
-        nextMidnightRetryAtMs !== null &&
-        nextMidnightRetryAtMs !== undefined &&
-        nowMs < nextMidnightRetryAtMs
-      ) {
+      if (nextMidnightRetryAtMs !== null && nowMs < nextMidnightRetryAtMs) {
         return;
       }
 
@@ -159,7 +155,7 @@ export function createDayLifecycleManager(deps: DayLifecycleManagerDeps): DayLif
     }
 
     const nowMs = now.getTime();
-    if (nextRetryAtMs !== null && nextRetryAtMs !== undefined && nowMs < nextRetryAtMs) {
+    if (nextRetryAtMs !== null && nowMs < nextRetryAtMs) {
       return;
     }
 

@@ -85,7 +85,7 @@ function parseBoundedNumberConfigFromRaw({
   max,
 }: BoundedNumberConfig): number {
   const raw = env[envKey];
-  if (raw === null || raw === undefined || raw.trim() === '') {
+  if (raw === undefined || raw.trim() === '') {
     return defaultValue;
   }
 
@@ -118,7 +118,7 @@ function getPercentAsDecimalConfig(
   minValue: number = 0,
 ): number | null {
   const raw = getNumberConfig(env, envKey, minValue);
-  return raw === null || raw === undefined ? null : raw / 100;
+  return raw === null ? null : raw / 100;
 }
 
 /**

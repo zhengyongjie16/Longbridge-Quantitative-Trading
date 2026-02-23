@@ -534,12 +534,7 @@ export function createWarrantRiskChecker(_deps: WarrantRiskCheckerDeps = {}): Wa
     isLongSymbol: boolean,
     symbolName: string | null = null,
   ): WarrantRefreshResult {
-    if (
-      callPrice === null ||
-      callPrice === undefined ||
-      !Number.isFinite(callPrice) ||
-      callPrice <= 0
-    ) {
+    if (!Number.isFinite(callPrice) || callPrice <= 0) {
       return {
         status: 'error',
         isWarrant: false,

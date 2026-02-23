@@ -348,7 +348,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       return Decimal.ZERO();
     }
 
-    if (targetQuantity === null || targetQuantity === undefined) {
+    if (targetQuantity === null) {
       return toDecimal(totalAvailable);
     }
     const actualQty = Math.min(targetQuantity, totalAvailable);

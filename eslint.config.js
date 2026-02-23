@@ -1,11 +1,13 @@
 import { defineConfig } from 'eslint/config';
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
+import sonarjs from 'eslint-plugin-sonarjs';
 import eslintConfigPrettier from 'eslint-config-prettier/flat';
 
 export default defineConfig(
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  sonarjs.configs.recommended,
   {
     languageOptions: {
       parserOptions: {
@@ -95,6 +97,7 @@ export default defineConfig(
       'no-warning-comments': ['warn', { terms: ['todo', 'fixme'], location: 'anywhere' }],
 
       // 最佳实践
+      'sonarjs/cognitive-complexity': 'off',
       'no-duplicate-imports': 'error',
       'no-nested-ternary': 'error',
       'prefer-const': 'error',

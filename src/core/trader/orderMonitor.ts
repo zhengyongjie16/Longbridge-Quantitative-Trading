@@ -175,7 +175,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
 
       if (isValidPositiveNumber(executedPrice) && isValidPositiveNumber(filledQuantity)) {
         const executedTimeMs = resolveUpdatedAtMs(event.updatedAt);
-        if (executedTimeMs === null || executedTimeMs === undefined) {
+        if (executedTimeMs === null) {
           logger.error(`[订单监控] 订单 ${orderId} 成交时间缺失，无法更新订单记录`);
           trackedOrders.delete(orderId);
           return;

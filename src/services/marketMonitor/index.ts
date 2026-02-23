@@ -268,8 +268,7 @@ export function createMarketMonitor(): MarketMonitor {
 
       // 检查做多标的价格是否变化
       const longPriceChanged =
-        (monitorState.longPrice === null || monitorState.longPrice === undefined) &&
-        Number.isFinite(longPrice)
+        monitorState.longPrice === null && Number.isFinite(longPrice)
           ? true // 首次出现价格
           : hasChanged(
               longPrice ?? null,
@@ -279,8 +278,7 @@ export function createMarketMonitor(): MarketMonitor {
 
       // 检查做空标的价格是否变化
       const shortPriceChanged =
-        (monitorState.shortPrice === null || monitorState.shortPrice === undefined) &&
-        Number.isFinite(shortPrice)
+        monitorState.shortPrice === null && Number.isFinite(shortPrice)
           ? true // 首次出现价格
           : hasChanged(
               shortPrice ?? null,
@@ -371,8 +369,7 @@ export function createMarketMonitor(): MarketMonitor {
           const lastEma = monitorState.monitorValues?.ema?.[period];
           if (
             Number.isFinite(currentEma) &&
-            (lastEma === null ||
-              lastEma === undefined ||
+            (lastEma === undefined ||
               hasChanged(currentEma, lastEma, MONITOR.INDICATOR_CHANGE_THRESHOLD))
           ) {
             hasIndicatorChanged = true;
@@ -388,8 +385,7 @@ export function createMarketMonitor(): MarketMonitor {
           const lastRsi = monitorState.monitorValues?.rsi?.[period];
           if (
             Number.isFinite(currentRsi) &&
-            (lastRsi === null ||
-              lastRsi === undefined ||
+            (lastRsi === undefined ||
               hasChanged(currentRsi, lastRsi, MONITOR.INDICATOR_CHANGE_THRESHOLD))
           ) {
             hasIndicatorChanged = true;
@@ -405,8 +401,7 @@ export function createMarketMonitor(): MarketMonitor {
           const lastPsy = monitorState.monitorValues?.psy?.[period];
           if (
             Number.isFinite(currentPsy) &&
-            (lastPsy === null ||
-              lastPsy === undefined ||
+            (lastPsy === undefined ||
               hasChanged(currentPsy, lastPsy, MONITOR.INDICATOR_CHANGE_THRESHOLD))
           ) {
             hasIndicatorChanged = true;
