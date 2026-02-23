@@ -153,4 +153,27 @@ describe('riskController(index) business flow', () => {
     expect(result.allowed).toBeFalse();
     expect(result.reason).toBe('持仓市值超过限制');
   });
+
+  it('builds unrealized-loss metrics from cached R1/N1 and current price', () => {
+    const checker = createRiskChecker({
+      warrantRiskChecker: createWarrantCheckerStub(),
+      unrealizedLossChecker: createUnrealizedLossCheckerStub({
+        getUnrealizedLossData: () => ({
+          r1: 1_000,
+          n1: 100,
+          lastUpdateTime: Date.now(),
+        }),
+      }),
+      positionLimitChecker: createPositionLimitCheckerStub(),
+      options: { maxDailyLoss: 1_000 },
+    });
+
+    const metrics = checker.getUnrealizedLossMetrics('BULL.HK', 12);
+    expect(metrics).toEqual({
+      r1: 1_000,
+      n1: 100,
+      r2: 1_200,
+      unrealizedPnL: 200,
+    });
+  });
 });

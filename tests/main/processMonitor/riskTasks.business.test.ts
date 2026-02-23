@@ -11,13 +11,19 @@ import { createMonitorTaskQueue } from '../../../src/main/asyncProgram/monitorTa
 
 import type { MainProgramContext } from '../../../src/main/mainProgram/types.js';
 import type { MonitorContext } from '../../../src/types/state.js';
+import type { Quote } from '../../../src/types/quote.js';
 import type { SeatSyncResult } from '../../../src/main/processMonitor/types.js';
+import type { PriceDisplayInfo } from '../../../src/services/marketMonitor/types.js';
 import type {
   MonitorTaskData,
   MonitorTaskType,
 } from '../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 
-import { createQuoteDouble, createRiskCheckerDouble } from '../../helpers/testDoubles.js';
+import {
+  createOrderRecorderDouble,
+  createQuoteDouble,
+  createRiskCheckerDouble,
+} from '../../helpers/testDoubles.js';
 
 function createSeatInfo(): SeatSyncResult {
   return {
@@ -53,6 +59,8 @@ function createSeatInfo(): SeatSyncResult {
 describe('riskTasks business scheduling', () => {
   it('schedules liquidation-distance and unrealized-loss checks in one tick when conditions match', () => {
     const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
+    let receivedLongDisplayInfo: unknown = null;
+    let receivedShortDisplayInfo: unknown = null;
 
     const monitorContext = {
       state: {
@@ -65,6 +73,65 @@ describe('riskTasks business scheduling', () => {
             distanceToStrikePercent: isLong ? 0.7 : -0.8,
           };
         },
+        getUnrealizedLossMetrics: (symbol, currentPrice) => {
+          if (symbol === 'BULL.HK' && currentPrice === 1.1) {
+            return {
+              r1: 100,
+              n1: 100,
+              r2: 110,
+              unrealizedPnL: 10,
+            };
+          }
+          if (symbol === 'BEAR.HK' && currentPrice === 0.8) {
+            return {
+              r1: 90,
+              n1: 100,
+              r2: 80,
+              unrealizedPnL: -10,
+            };
+          }
+          return null;
+        },
+      }),
+      orderRecorder: createOrderRecorderDouble({
+        getBuyOrdersForSymbol: (symbol) => {
+          if (symbol === 'BULL.HK') {
+            return [
+              {
+                orderId: '1',
+                symbol,
+                executedPrice: 1,
+                executedQuantity: 100,
+                executedTime: 1,
+                submittedAt: undefined,
+                updatedAt: undefined,
+              },
+              {
+                orderId: '2',
+                symbol,
+                executedPrice: 1,
+                executedQuantity: 100,
+                executedTime: 2,
+                submittedAt: undefined,
+                updatedAt: undefined,
+              },
+            ];
+          }
+          if (symbol === 'BEAR.HK') {
+            return [
+              {
+                orderId: '3',
+                symbol,
+                executedPrice: 1,
+                executedQuantity: 100,
+                executedTime: 3,
+                submittedAt: undefined,
+                updatedAt: undefined,
+              },
+            ];
+          }
+          return [];
+        },
       }),
       longSymbolName: 'BULL',
       shortSymbolName: 'BEAR',
@@ -72,7 +139,19 @@ describe('riskTasks business scheduling', () => {
 
     const mainContext = {
       marketMonitor: {
-        monitorPriceChanges: () => true,
+        monitorPriceChanges: (
+          _longQuote: Quote | null,
+          _shortQuote: Quote | null,
+          _longSymbol: string,
+          _shortSymbol: string,
+          _state: MonitorContext['state'],
+          longDisplayInfo: PriceDisplayInfo | null | undefined,
+          shortDisplayInfo: PriceDisplayInfo | null | undefined,
+        ) => {
+          receivedLongDisplayInfo = longDisplayInfo;
+          receivedShortDisplayInfo = shortDisplayInfo;
+          return true;
+        },
       },
       monitorTaskQueue,
     } as unknown as MainProgramContext;
@@ -97,6 +176,33 @@ describe('riskTasks business scheduling', () => {
 
     expect(second?.type).toBe('UNREALIZED_LOSS_CHECK');
     expect(second?.dedupeKey).toBe('HSI.HK:UNREALIZED_LOSS_CHECK');
+
+    expect(receivedLongDisplayInfo).toEqual({
+      warrantDistanceInfo: {
+        warrantType: 'BULL',
+        distanceToStrikePercent: 0.7,
+      },
+      unrealizedLossMetrics: {
+        r1: 100,
+        n1: 100,
+        r2: 110,
+        unrealizedPnL: 10,
+      },
+      orderCount: 2,
+    });
+    expect(receivedShortDisplayInfo).toEqual({
+      warrantDistanceInfo: {
+        warrantType: 'BEAR',
+        distanceToStrikePercent: -0.8,
+      },
+      unrealizedLossMetrics: {
+        r1: 90,
+        n1: 100,
+        r2: 80,
+        unrealizedPnL: -10,
+      },
+      orderCount: 1,
+    });
   });
 
   it('skips liquidation-distance scheduling when auto-search is enabled', () => {
@@ -107,6 +213,7 @@ describe('riskTasks business scheduling', () => {
         monitorSymbol: 'HSI.HK',
       },
       riskChecker: createRiskCheckerDouble(),
+      orderRecorder: createOrderRecorderDouble(),
       longSymbolName: 'BULL',
       shortSymbolName: 'BEAR',
     } as unknown as MonitorContext;

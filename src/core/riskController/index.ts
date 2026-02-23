@@ -21,6 +21,7 @@ import type {
   MarketDataClient,
   OrderRecorder,
   RiskCheckResult,
+  UnrealizedLossMetrics,
   UnrealizedLossCheckResult,
   WarrantRefreshResult,
   RiskChecker,
@@ -57,14 +58,13 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
   const unrealizedLossChecker: UnrealizedLossChecker = deps.unrealizedLossChecker;
 
   /**
-   * 检查单个标的的浮亏是否超过 maxDailyLoss，超过则返回拒绝结果，通过则返回 null。
-   * 仅在有持仓数量（n1>0）时要求有效价格；n1<=0 时允许 R2=0 以处理已清仓但仍有成本记录的情况。
+   * 读取浮亏缓存并结合当前价格构造实时指标（R1/N1/R2/持仓盈亏）。
+   * 仅在有持仓数量（n1>0）时要求有效当前价；n1<=0 时按 r2=0 处理，兼容清仓后残余成本场景。
    */
-  function checkUnrealizedLossForSymbol(
+  function buildUnrealizedLossMetrics(
     symbol: string | null,
     currentPrice: number | null,
-    directionName: string,
-  ): RiskCheckResult | null {
+  ): UnrealizedLossMetrics | null {
     if (!symbol) {
       return null;
     }
@@ -75,21 +75,49 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
     }
 
     const { r1, n1 } = lossData;
-    if (n1 <= 0 && r1 === 0) {
+    if (!Number.isFinite(r1) || !Number.isFinite(n1)) {
       return null;
     }
 
-    // 仅在有持仓数量时要求有效价格；n1<=0 时允许 R2=0
     let r2 = 0;
     if (n1 > 0) {
-      if (currentPrice === null || !isValidPositiveNumber(currentPrice)) {
+      if (!isValidPositiveNumber(currentPrice)) {
         return null;
       }
       r2 = currentPrice * n1;
     }
 
-    // 计算当前持仓市值R2和浮亏X
     const unrealizedPnL = r2 - r1;
+    if (!Number.isFinite(unrealizedPnL)) {
+      return null;
+    }
+
+    return {
+      r1,
+      n1,
+      r2,
+      unrealizedPnL,
+    };
+  }
+
+  /**
+   * 检查单个标的的浮亏是否超过 maxDailyLoss，超过则返回拒绝结果，通过则返回 null。
+   * 仅在有持仓数量（n1>0）时要求有效价格；n1<=0 时允许 R2=0 以处理已清仓但仍有成本记录的情况。
+   */
+  function checkUnrealizedLossForSymbol(
+    symbol: string | null,
+    currentPrice: number | null,
+    directionName: string,
+  ): RiskCheckResult | null {
+    const metrics = buildUnrealizedLossMetrics(symbol, currentPrice);
+    if (!metrics) {
+      return null;
+    }
+
+    const { r1, n1, r2, unrealizedPnL } = metrics;
+    if (n1 <= 0 && r1 === 0) {
+      return null;
+    }
 
     // 记录浮亏计算详情（仅在DEBUG模式下）
     if (process.env['DEBUG'] === 'true') {
@@ -98,15 +126,6 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
           2,
         )}, 浮亏=${unrealizedPnL.toFixed(2)} HKD，最大允许亏损=${maxDailyLoss} HKD`,
       );
-    }
-
-    // 如果浮亏计算结果不是有限数字，拒绝买入操作（安全策略）
-    if (!Number.isFinite(unrealizedPnL)) {
-      logger.error(`[风险检查错误] ${directionName}持仓浮亏计算结果无效：${unrealizedPnL}`);
-      return {
-        allowed: false,
-        reason: `${directionName}持仓浮亏计算结果无效（${unrealizedPnL}），无法进行风险检查，禁止买入${directionName}`,
-      };
     }
 
     // 检查持仓浮亏是否超过最大允许亏损
@@ -354,6 +373,13 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
       isLongSymbol: boolean,
     ): UnrealizedLossCheckResult {
       return unrealizedLossChecker.check(symbol, currentPrice, isLongSymbol);
+    },
+
+    getUnrealizedLossMetrics(
+      symbol: string,
+      currentPrice: number | null,
+    ): UnrealizedLossMetrics | null {
+      return buildUnrealizedLossMetrics(symbol, currentPrice);
     },
 
     clearUnrealizedLossData(symbol?: string | null): void {

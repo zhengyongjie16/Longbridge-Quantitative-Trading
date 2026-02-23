@@ -108,11 +108,6 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
         continue;
       }
 
-      const maxUnrealizedLoss = monitorContext.config.maxUnrealizedLossPerSymbol ?? 0;
-      if (maxUnrealizedLoss <= 0) {
-        continue;
-      }
-
       const quote = quotesMap.get(symbol) ?? null;
       const symbolName = isLongSymbol
         ? monitorContext.longSymbolName

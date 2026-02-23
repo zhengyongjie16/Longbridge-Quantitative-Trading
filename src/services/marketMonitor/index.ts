@@ -12,6 +12,7 @@
  *
  * 显示内容：
  * - 做多/做空标的的现价和涨跌幅
+ * - 做多/做空标的的距回收价、持仓市值、持仓盈亏、订单数量
  * - 监控标的的所有技术指标值
  */
 import { logger } from '../../utils/logger/index.js';
@@ -23,6 +24,7 @@ import {
 import { isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
 import {
   copyPeriodRecord,
+  formatPositionDisplay,
   formatWarrantDistanceDisplay,
   hasChanged,
   indicatorChanged,
@@ -37,8 +39,7 @@ import { LOG_COLORS, MONITOR } from '../../constants/index.js';
 import type { MonitorState } from '../../types/state.js';
 import type { IndicatorSnapshot, Quote } from '../../types/quote.js';
 import type { MonitorValues } from '../../types/data.js';
-import type { WarrantDistanceInfo } from '../../types/services.js';
-import { MarketMonitor } from './types.js';
+import type { MarketMonitor, PriceDisplayInfo } from './types.js';
 
 /**
  * 格式化K线时间戳为日志前缀（仅显示时分秒）
@@ -85,22 +86,26 @@ function addPeriodIndicators(
  * @param quote - 行情数据，可为 null
  * @param symbol - 标的代码
  * @param label - 显示标签（如「做多标的」）
- * @param warrantDistanceInfo - 距回收价信息，可选
+ * @param displayInfo - 展示附加信息（距回收价、持仓市值/持仓盈亏、订单数量）
  * @returns void
  */
 function displayQuoteInfo(
   quote: Quote | null,
   symbol: string,
   label: string,
-  warrantDistanceInfo: WarrantDistanceInfo | null,
+  displayInfo: PriceDisplayInfo | null,
 ): void {
   const display = formatQuoteDisplay(quote, symbol);
   if (display) {
     const timePrefix = formatKlineTimePrefix(quote?.timestamp);
-    const distanceText = formatWarrantDistanceDisplay(warrantDistanceInfo);
+    const distanceText = formatWarrantDistanceDisplay(displayInfo?.warrantDistanceInfo ?? null);
     const distanceSuffix = distanceText ? ` ${distanceText}` : '';
+    const positionRealtimeText = formatPositionDisplay(
+      displayInfo?.unrealizedLossMetrics ?? null,
+      displayInfo?.orderCount ?? null,
+    );
     logger.info(
-      `${timePrefix}[${label}] ${display.nameText}(${display.codeText}) 最新价格=${display.priceText} 涨跌额=${display.changeAmountText} 涨跌幅度=${display.changePercentText}${distanceSuffix}`,
+      `${timePrefix}[${label}] ${display.nameText}(${display.codeText}) 最新价格=${display.priceText} 涨跌额=${display.changeAmountText} 涨跌幅度=${display.changePercentText}${distanceSuffix} ${positionRealtimeText}`,
     );
   } else {
     logger.warn(`未获取到${label}行情。`);
@@ -255,8 +260,8 @@ export function createMarketMonitor(): MarketMonitor {
       longSymbol: string,
       shortSymbol: string,
       monitorState: MonitorState,
-      longWarrantDistanceInfo: WarrantDistanceInfo | null = null,
-      shortWarrantDistanceInfo: WarrantDistanceInfo | null = null,
+      longDisplayInfo: PriceDisplayInfo | null = null,
+      shortDisplayInfo: PriceDisplayInfo | null = null,
     ): boolean => {
       const longPrice = longQuote?.price;
       const shortPrice = shortQuote?.price;
@@ -282,8 +287,8 @@ export function createMarketMonitor(): MarketMonitor {
             );
 
       if (longPriceChanged || shortPriceChanged) {
-        displayQuoteInfo(longQuote, longSymbol, '做多标的', longWarrantDistanceInfo);
-        displayQuoteInfo(shortQuote, shortSymbol, '做空标的', shortWarrantDistanceInfo);
+        displayQuoteInfo(longQuote, longSymbol, '做多标的', longDisplayInfo);
+        displayQuoteInfo(shortQuote, shortSymbol, '做空标的', shortDisplayInfo);
 
         // 更新价格状态（只更新有效价格，避免将 undefined 写入状态）
         if (Number.isFinite(longPrice)) {

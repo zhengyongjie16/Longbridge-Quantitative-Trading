@@ -438,6 +438,23 @@ export type UnrealizedLossData = {
 };
 
 /**
+ * 浮亏实时指标。
+ * 类型用途：基于浮亏缓存和当前价格计算的实时持仓指标，供行情展示等非清仓场景使用。
+ * 数据来源：RiskChecker 读取 UnrealizedLossData 并结合最新价格计算得到。
+ * 使用范围：marketMonitor、processMonitor 风险任务等；全项目可引用。
+ */
+export type UnrealizedLossMetrics = {
+  /** r1: 调整后的开仓成本 */
+  readonly r1: number;
+  /** n1: 持仓数量 */
+  readonly n1: number;
+  /** r2: 当前持仓市值 */
+  readonly r2: number;
+  /** 持仓盈亏（r2 - r1） */
+  readonly unrealizedPnL: number;
+};
+
+/**
  * 浮亏检查结果。
  * 类型用途：单标的浮亏检查返回值，表示是否应强制平仓、原因及建议平仓数量。
  * 数据来源：RiskChecker.checkUnrealizedLoss。
@@ -589,6 +606,11 @@ export interface RiskChecker {
     currentPrice: number,
     isLongSymbol: boolean,
   ): UnrealizedLossCheckResult;
+  /** 获取实时浮亏指标（用于展示持仓市值与持仓盈亏） */
+  getUnrealizedLossMetrics(
+    symbol: string,
+    currentPrice: number | null,
+  ): UnrealizedLossMetrics | null;
   /** 清空浮亏缓存（symbol 为空时清空全部） */
   clearUnrealizedLossData(symbol?: string | null): void;
 }

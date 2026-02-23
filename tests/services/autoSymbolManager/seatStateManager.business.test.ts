@@ -37,6 +37,7 @@ describe('autoSymbolManager seatStateManager business flow', () => {
       switchSuppressions,
       now: () => new Date(nowMs),
       logger: {
+        info: () => {},
         warn: () => {},
       } as never,
       getHKDateKey,
@@ -80,6 +81,7 @@ describe('autoSymbolManager seatStateManager business flow', () => {
       switchSuppressions,
       now: () => now,
       logger: {
+        info: () => {},
         warn: () => {},
       } as never,
       getHKDateKey,

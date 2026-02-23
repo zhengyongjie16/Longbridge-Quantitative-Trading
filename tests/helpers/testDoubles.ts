@@ -151,6 +151,7 @@ export function createRiskCheckerDouble(overrides: Partial<RiskChecker> = {}): R
     clearShortWarrantInfo: () => {},
     refreshUnrealizedLossData: async () => null,
     checkUnrealizedLoss: () => ({ shouldLiquidate: false }),
+    getUnrealizedLossMetrics: () => null,
     clearUnrealizedLossData: () => {},
   };
 

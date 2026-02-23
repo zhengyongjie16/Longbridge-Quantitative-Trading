@@ -1,7 +1,7 @@
 import { isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
 import { DEFAULT_PERCENT_DECIMALS } from '../../constants/index.js';
 import type { ObjectPool } from '../../utils/objectPool/types.js';
-import type { WarrantDistanceInfo } from '../../types/services.js';
+import type { UnrealizedLossMetrics, WarrantDistanceInfo } from '../../types/services.js';
 
 /**
  * 检查数值是否发生变化（超过阈值）
@@ -58,6 +58,29 @@ export function formatWarrantDistanceDisplay(
 
   const sign = distance >= 0 ? '+' : '';
   return `${warrantLabel}距离回收价=${sign}${distance.toFixed(decimals)}%`;
+}
+
+/**
+ * 格式化浮亏指标展示文本（持仓市值、持仓盈亏、订单数量）。
+ * @param metrics 浮亏实时指标，null 时以 "-" 展示市值与持仓盈亏
+ * @param orderCount 未平仓买入订单数量（笔数），null 时展示 "-"
+ * @param decimals 金额小数位数，默认 2
+ * @returns 统一格式文本
+ */
+export function formatPositionDisplay(
+  metrics: UnrealizedLossMetrics | null,
+  orderCount: number | null,
+  decimals: number = 2,
+): string {
+  const marketValueText =
+    metrics && Number.isFinite(metrics.r2) ? metrics.r2.toFixed(decimals) : '-';
+  const pnlText =
+    metrics && Number.isFinite(metrics.unrealizedPnL)
+      ? `${metrics.unrealizedPnL >= 0 ? '+' : ''}${metrics.unrealizedPnL.toFixed(decimals)}`
+      : '-';
+  const orderCountText = orderCount != null && Number.isFinite(orderCount) ? String(orderCount) : '-';
+
+  return `持仓市值=${marketValueText} 持仓盈亏=${pnlText} 订单数量=${orderCountText}`;
 }
 
 /**

@@ -559,10 +559,9 @@ export function createWarrantRiskChecker(_deps: WarrantRiskCheckerDeps = {}): Wa
       shortWarrantInfo = warrantInfo;
     }
 
-    const warrantTypeName = getWarrantTypeName(warrantType);
     const symbolDisplay = formatSymbolDisplay(symbol, symbolName);
     logger.info(
-      `[风险检查] ${isLongSymbol ? '做多' : '做空'}标的 ${symbolDisplay} 从透传回收价设置${warrantTypeName}信息，回收价=${callPrice.toFixed(3)}`,
+      `[风险检查] ${isLongSymbol ? '做多' : '做空'}标的 ${symbolDisplay}，回收价=${callPrice.toFixed(3)}`,
     );
 
     return { status: 'ok', isWarrant: true };

@@ -6,8 +6,8 @@
  * - 熊证：距回收价百分比 < -2%（API 小数形式 < -0.02）
  * 输出：所有符合条件的结果（标注最接近阈值的一个），以 JSON 形式展示
  *
- * 使用: node utils/getWarrants.js [标的代码] [bull|bear]
- * 示例: node utils/getWarrants.js HSI.HK bear
+ * 使用: bun utils/getWarrants.js [标的代码] [bull|bear]
+ * 示例: bun utils/getWarrants.js HSI.HK bear
  *
  * --- warrantList / Warrant Filter API 返回字段说明（list 中每项）---
  * 参考: Longbridge OpenAPI - Warrant Filter (quote/pull/warrant-filter)

@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'bun:test';
 
 import { createMarketMonitor } from '../../../src/services/marketMonitor/index.js';
+import { formatPositionDisplay } from '../../../src/services/marketMonitor/utils.js';
 import type { IndicatorSnapshot } from '../../../src/types/quote.js';
 import type { MonitorState } from '../../../src/types/state.js';
 import { createQuoteDouble } from '../../helpers/testDoubles.js';
@@ -40,6 +41,22 @@ function createSnapshot(overrides: Partial<IndicatorSnapshot> = {}): IndicatorSn
 }
 
 describe('marketMonitor business flow', () => {
+  it('formats position display text with required labels and order', () => {
+    const display = formatPositionDisplay(
+      {
+        r1: 100,
+        n1: 100,
+        r2: 110,
+        unrealizedPnL: 10,
+      },
+      2,
+    );
+    expect(display).toBe('持仓市值=110.00 持仓盈亏=+10.00 订单数量=2');
+
+    const emptyDisplay = formatPositionDisplay(null, null);
+    expect(emptyDisplay).toBe('持仓市值=- 持仓盈亏=- 订单数量=-');
+  });
+
   it('detects price change with configured threshold and updates state', () => {
     const monitor = createMarketMonitor();
     const state = createMonitorState('HSI.HK');

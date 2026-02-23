@@ -193,11 +193,6 @@ async function rebuildUnrealizedLossCache(
 ): Promise<void> {
   for (const monitorContext of monitorContexts.values()) {
     const monitorSymbol = monitorContext.config.monitorSymbol;
-    const maxUnrealizedLoss = monitorContext.config.maxUnrealizedLossPerSymbol ?? 0;
-    if (maxUnrealizedLoss <= 0) {
-      continue;
-    }
-
     const longSeatState = monitorContext.symbolRegistry.getSeatState(monitorSymbol, 'LONG');
     const shortSeatState = monitorContext.symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
 

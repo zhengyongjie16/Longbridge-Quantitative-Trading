@@ -48,8 +48,8 @@ function calculateCostAndQuantity(
 /**
  * 创建浮亏检查器。
  * 维护标的级浮亏缓存（R1/N1），提供 refresh 与 check；check 时计算 R2 - R1，超过 maxUnrealizedLossPerSymbol 则返回 shouldLiquidate。
- * 买入前与主循环浮亏监控需共用同一套 R1/N1 与阈值逻辑，由单一实例缓存避免重复计算。
- * @param deps 依赖，含 maxUnrealizedLossPerSymbol（null 或 ≤0 表示禁用）
+ * 买入前、行情展示与主循环浮亏监控共用同一套 R1/N1 缓存，避免重复计算。
+ * @param deps 依赖，含 maxUnrealizedLossPerSymbol（null 或 ≤0 表示禁用浮亏清仓阈值检查）
  * @returns 实现 UnrealizedLossChecker 接口的实例（含 refresh/check/clearUnrealizedLossData）
  */
 export const createUnrealizedLossChecker = (
@@ -74,8 +74,8 @@ export const createUnrealizedLossChecker = (
     }
   };
 
-  /** 检查浮亏保护是否启用 */
-  const isEnabled = (): boolean => {
+  /** 检查浮亏清仓阈值是否启用 */
+  const isLiquidationEnabled = (): boolean => {
     return (
       maxUnrealizedLossPerSymbol !== null &&
       Number.isFinite(maxUnrealizedLossPerSymbol) &&
@@ -85,7 +85,7 @@ export const createUnrealizedLossChecker = (
 
   /**
    * 刷新指定标的的浮亏数据并写入缓存。
-   * 启动初始化或保护性清仓后调用，以确保后续 check 使用最新的 R1/N1。
+   * 启动初始化、成交后刷新或保护性清仓后调用，以确保后续检查与展示使用最新的 R1/N1。
    * dailyLossOffset 为负时（已亏损）会增大调整后 R1，使浮亏保护更容易触发。
    */
   const refresh = async (
@@ -95,11 +95,6 @@ export const createUnrealizedLossChecker = (
     quote?: Quote | null,
     dailyLossOffset?: number,
   ): Promise<{ r1: number; n1: number } | null> => {
-    // 如果未启用浮亏保护，跳过
-    if (!isEnabled()) {
-      return null;
-    }
-
     if (!orderRecorder) {
       const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
       logger.warn(`[浮亏监控] 未提供 OrderRecorder 实例，无法刷新标的 ${symbolDisplay} 的浮亏数据`);
@@ -163,7 +158,7 @@ export const createUnrealizedLossChecker = (
     isLongSymbol: boolean,
   ): UnrealizedLossCheckResult => {
     // 如果未启用浮亏保护，跳过
-    if (!isEnabled()) {
+    if (!isLiquidationEnabled()) {
       return { shouldLiquidate: false };
     }
 
@@ -188,20 +183,18 @@ export const createUnrealizedLossChecker = (
       return { shouldLiquidate: false };
     }
 
+    const threshold = Number(maxUnrealizedLossPerSymbol);
+
     // 计算当前持仓市值R2和浮亏
     const r2 = currentPrice * n1;
     const unrealizedLoss = r2 - r1;
 
     // 检查浮亏是否超过阈值（浮亏为负数表示亏损）
-    if (maxUnrealizedLossPerSymbol === null || !Number.isFinite(maxUnrealizedLossPerSymbol)) {
-      return { shouldLiquidate: false };
-    }
-
-    if (unrealizedLoss < -maxUnrealizedLossPerSymbol) {
+    if (unrealizedLoss < -threshold) {
       const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
       const reason = `[保护性清仓] ${positionType} ${symbol} 浮亏=${unrealizedLoss.toFixed(
         2,
-      )} HKD 超过阈值 ${maxUnrealizedLossPerSymbol} HKD (R1=${r1.toFixed(2)}, R2=${r2.toFixed(2)}, N1=${n1})，执行保护性清仓`;
+      )} HKD 超过阈值 ${threshold} HKD (R1=${r1.toFixed(2)}, R2=${r2.toFixed(2)}, N1=${n1})，执行保护性清仓`;
 
       logger.warn(reason);
 

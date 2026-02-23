@@ -1,6 +1,21 @@
 import type { MonitorState } from '../../types/state.js';
 import type { IndicatorSnapshot, Quote } from '../../types/quote.js';
-import type { WarrantDistanceInfo } from '../../types/services.js';
+import type { UnrealizedLossMetrics, WarrantDistanceInfo } from '../../types/services.js';
+
+/**
+ * 价格展示附加信息。
+ * 类型用途：封装做多/做空标的价格日志所需的距回收价、持仓市值/持仓盈亏、订单数量。
+ * 数据来源：processMonitor.riskTasks 从 RiskChecker 与 OrderRecorder 聚合生成。
+ * 使用范围：marketMonitor.monitorPriceChanges 入参。
+ */
+export type PriceDisplayInfo = {
+  /** 距回收价信息 */
+  readonly warrantDistanceInfo: WarrantDistanceInfo | null;
+  /** 浮亏实时指标 */
+  readonly unrealizedLossMetrics: UnrealizedLossMetrics | null;
+  /** 未平仓买入订单数量（笔数） */
+  readonly orderCount: number | null;
+};
 
 /**
  * 行情监控器接口。
@@ -24,8 +39,8 @@ export interface MarketMonitor {
     longSymbol: string,
     shortSymbol: string,
     monitorState: MonitorState,
-    longWarrantDistanceInfo?: WarrantDistanceInfo | null,
-    shortWarrantDistanceInfo?: WarrantDistanceInfo | null,
+    longDisplayInfo?: PriceDisplayInfo | null,
+    shortDisplayInfo?: PriceDisplayInfo | null,
   ): boolean;
 
   /**
