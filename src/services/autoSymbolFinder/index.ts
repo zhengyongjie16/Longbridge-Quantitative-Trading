@@ -160,7 +160,10 @@ export async function findBestWarrant({
     });
 
     if (!best) {
-      logger.warn(`[自动寻标] 未找到符合条件的${isBull ? '牛' : '熊'}证：${monitorSymbol}`);
+      const listLength = Array.isArray(warrants) ? warrants.length : 0;
+      logger.warn(
+        `[自动寻标] 未找到符合条件的${isBull ? '牛' : '熊'}证：${monitorSymbol}（列表条数=${listLength}，交易分钟数=${tradingMinutes}）`,
+      );
     }
 
     return best;
