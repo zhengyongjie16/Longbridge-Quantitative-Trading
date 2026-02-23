@@ -431,9 +431,7 @@ export type SwitchStateMachineDeps = {
   ) => {
     readonly minDistancePct: number | null;
     readonly minTurnoverPerMinute: number | null;
-    readonly switchDistanceRange:
-      | AutoSearchConfig['switchDistanceRangeBull']
-      | AutoSearchConfig['switchDistanceRangeBear'];
+    readonly switchDistanceRange: AutoSearchConfig['switchDistanceRangeBull'];
   };
   readonly resolveAutoSearchThresholdInput: ResolveAutoSearchThresholdInput;
   readonly buildFindBestWarrantInput: BuildFindBestWarrantInput;

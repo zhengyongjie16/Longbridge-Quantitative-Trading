@@ -153,7 +153,7 @@ class DateRotatingStream extends Writable {
         this._fileStream = null;
 
         await new Promise<void>((resolve) => {
-          oldStream.once('finish', () => resolve());
+          oldStream.once('finish', () => { resolve(); });
           oldStream.once('error', (err) => {
             console.error('[DateRotatingStream] 关闭旧流错误:', err);
             resolve(); // 即使出错也继续
@@ -255,8 +255,8 @@ class DateRotatingStream extends Writable {
       this._fileStream = null;
 
       return new Promise((resolve) => {
-        stream.once('finish', () => resolve());
-        stream.once('error', () => resolve()); // 即使出错也继续
+        stream.once('finish', () => { resolve(); });
+        stream.once('error', () => { resolve(); }); // 即使出错也继续
         stream.end();
       });
     }

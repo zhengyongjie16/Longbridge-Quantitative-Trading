@@ -413,7 +413,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       submittedQuantity: submittedQtyDecimal,
       ...(resolvedPrice &&
         orderTypeParam !== OrderType.MO && { submittedPrice: toDecimal(resolvedPrice) }),
-      ...(remark && { remark: `${remark}`.slice(0, 60) }),
+      ...(remark && { remark: remark.slice(0, 60) }),
     };
 
     try {

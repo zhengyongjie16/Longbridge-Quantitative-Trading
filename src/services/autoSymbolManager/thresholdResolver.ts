@@ -27,9 +27,7 @@ export function resolveAutoSearchThresholds(
 ): {
   readonly minDistancePct: number | null;
   readonly minTurnoverPerMinute: number | null;
-  readonly switchDistanceRange:
-    | AutoSearchConfig['switchDistanceRangeBull']
-    | AutoSearchConfig['switchDistanceRangeBear'];
+  readonly switchDistanceRange: AutoSearchConfig['switchDistanceRangeBull'];
 } {
   const isBull = direction === 'LONG';
   return {

@@ -68,7 +68,7 @@ function removeSignalTasks(
   return queue.removeTasks(
     (task) =>
       task.monitorSymbol === monitorSymbol && isDirectionAction(task.data?.action, direction),
-    (task) => releaseSignal(task.data),
+    (task) => { releaseSignal(task.data); },
   );
 }
 
