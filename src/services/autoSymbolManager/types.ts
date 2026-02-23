@@ -179,7 +179,7 @@ type SwitchSuppressionMap = Map<'LONG' | 'SHORT', SwitchSuppression>;
  * 内部类型：周期换标等待状态 Map，以方向为键存储 pending 状态。
  * 仅在 autoSymbolManager 模块内部使用。
  */
-export type PeriodicSwitchPendingMap = Map<'LONG' | 'SHORT', PeriodicSwitchPendingState>;
+type PeriodicSwitchPendingMap = Map<'LONG' | 'SHORT', PeriodicSwitchPendingState>;
 
 /**
  * 内部类型：已交易分钟数解析函数，用于计算分均成交额。
