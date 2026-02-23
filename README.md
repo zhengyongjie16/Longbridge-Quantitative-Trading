@@ -130,12 +130,12 @@ bun start
 
 常用命令：
 
-- 开发：`bun run dev`（跳过门禁检查）
-- 开发：`bun run dev:watch`
-- 构建：`bun run build`
-- 类型检查：`bun run type-check`
-- 代码质量：`bun run sonarqube` / `bun run sonarqube:report`（需要 `.env.sonar`，可配合 `docker-compose.yml` 在本地启动）
-- 其他：`bun run lint` / `bun run lint:fix` / `bun run clean`
+- 开发：`bun dev`（跳过门禁检查）
+- 开发：`bun dev:watch`
+- 构建：`bun build`
+- 类型检查：`bun type-check`
+- 代码质量：`bun sonarqube` / `bun sonarqube:report`（需要 `.env.sonar`，可配合 `docker-compose.yml` 在本地启动）
+- 其他：`bun lint` / `bun lint:fix` / `bun clean`
 
 ---
 
