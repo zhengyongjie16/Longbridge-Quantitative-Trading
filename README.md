@@ -57,8 +57,6 @@
 | 内存优化           | 对象池复用减少 GC 压力，IndicatorCache 使用环形缓冲区                                                                              |
 | 卖出策略           | 智能平仓先按成本均价判断整体盈亏：整体盈利可全卖，整体未盈利仅卖盈利订单；会排除待成交卖单已占用订单并按整笔选单（禁用时全仓卖出） |
 
----
-
 ## 快速开始
 
 ### 安装
@@ -137,8 +135,6 @@ bun start
 - 代码质量：`bun sonarqube` / `bun sonarqube:report`（需要 `.env.sonar`，可配合 `docker-compose.yml` 在本地启动）
 - 其他：`bun lint` / `bun lint:fix` / `bun clean` / `bun format`
 
----
-
 ## 信号配置格式
 
 **格式**：`(条件1,条件2,...)/N|(条件A)|(条件B,条件C)/M`
@@ -195,8 +191,6 @@ bun start
 3. **智能平仓判断**：启用时先判断当前价与成本均价，整体盈利可全卖；整体未盈利仅卖出盈利订单（无可卖订单则跳过）；卖单分配会排除待成交卖单已占用的买单并按整笔订单选取（不拆单），禁用时直接全仓卖出
 4. **特殊规则**：末日保护清仓无条件执行，不受智能平仓影响
 5. **订单执行**：按卖出数量提交订单，清仓订单可与常规订单类型不同
-
----
 
 ## 风险控制
 
@@ -279,8 +273,6 @@ bun start
 **清仓冷却说明（香港时间）**：
 `LIQUIDATION_COOLDOWN_MINUTES_N` 未设置则不启用冷却；`half-day` 为上午触发冷却到 13:00、下午触发则当日不再买入；`one-day` 为当日不再买入。
 
----
-
 ## 系统架构
 
 ```
@@ -328,8 +320,6 @@ src/
     └── helpers/                    # 辅助工具
 ```
 
----
-
 ## 运行流程
 
 ```mermaid
@@ -372,15 +362,11 @@ graph TD
   D5 -.-> G2
 ```
 
----
-
 ## 日志
 
 - **控制台**：实时运行状态
 - **文件**：`logs/system/`、`logs/debug/`（需配置 `DEBUG=true`）
 - **交易记录**：`logs/trades/YYYY-MM-DD.json`（JSON 交易明细）
-
----
 
 ## 帮助
 
@@ -390,8 +376,6 @@ graph TD
 - [Claude Code Docs](https://code.claude.com/docs)
 - [Bun Apps Docs](https://bun.com/docs)
 - [Vibe Coding Guide CN](https://github.com/2025Emma/vibe-coding-cn)
-
----
 
 ## 许可证
 
