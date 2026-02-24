@@ -298,6 +298,12 @@ function stripAnsiCodes(str: string): string {
   return str.replaceAll(ANSI_CODE_REGEX, '');
 }
 
+/**
+ * 判断未知值是否满足文件日志格式对象结构。
+ *
+ * @param value 待判断的未知值
+ * @returns 当值包含 level/time/msg 必要字段且类型正确时返回 true
+ */
 function isLogObject(value: unknown): value is LogObject {
   if (typeof value !== 'object' || value === null) {
     return false;
