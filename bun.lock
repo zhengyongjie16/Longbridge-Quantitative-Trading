@@ -15,8 +15,6 @@
       "devDependencies": {
         "@eslint/js": "^10.0.0",
         "@types/bun": "^1.3.9",
-        "@typescript-eslint/eslint-plugin": "^8.56.0",
-        "@typescript-eslint/parser": "^8.56.0",
         "concurrently": "^9.2.1",
         "cross-env": "^7.0.3",
         "dotenv-cli": "^11.0.0",
@@ -943,10 +941,10 @@
       "sha512-7xgomUX6ADmcYzFik0HzAxh/73YlKR9bmFzf51CZwR+b6YtzU2m0u49hQCqV6SvlqIqsaxovfwdvbnsw3b/zpg=="
     ],
     "ignore": [
-      "ignore@7.0.5",
+      "ignore@5.3.2",
       "",
       {},
-      "sha512-Hs59xBNfUIunMFgWAbGX5cq6893IbWg4KnrjbYwX3tx0ztorVgTDA6B2sxf8ejHJ4wz8BqGUMYlnzNBer5NvGg=="
+      "sha512-hsBTNUqQTDwkWtcdYI2i06Y/nUBEsNEDJKjWdigLvegy8kDuJAS8uRlpkkcQpyEXL0Z/pjDy5HBmMjRCJ2gq+g=="
     ],
     "imurmurhash": [
       "imurmurhash@0.1.4",
@@ -1784,6 +1782,12 @@
       },
       "sha512-si7QWI6zUMq56bESFvagtmzMdGOtoxfR+Sez11Mobfc7tm+VkUckk9bW2UeffTGVUbOksxmSw0AA2gs8g71NCQ=="
     ],
+    "@typescript-eslint/eslint-plugin/ignore": [
+      "ignore@7.0.5",
+      "",
+      {},
+      "sha512-Hs59xBNfUIunMFgWAbGX5cq6893IbWg4KnrjbYwX3tx0ztorVgTDA6B2sxf8ejHJ4wz8BqGUMYlnzNBer5NvGg=="
+    ],
     "@typescript-eslint/typescript-estree/minimatch": [
       "minimatch@9.0.5",
       "",
@@ -1809,12 +1813,6 @@
       "",
       {},
       "sha512-mudtfb4zRB4bVvdj0xRo+e6duH1csJRM8IukBqfTRvHotn9+LBXB8ynAidP9zHqoRC/fsllXgk4kCKlR21fIhw=="
-    ],
-    "eslint/ignore": [
-      "ignore@5.3.2",
-      "",
-      {},
-      "sha512-hsBTNUqQTDwkWtcdYI2i06Y/nUBEsNEDJKjWdigLvegy8kDuJAS8uRlpkkcQpyEXL0Z/pjDy5HBmMjRCJ2gq+g=="
     ],
     "eslint-plugin-sonarjs/minimatch": [
       "minimatch@10.2.1",
