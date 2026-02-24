@@ -8,5 +8,14 @@
   "bracketSpacing": true,
   "arrowParens": "always",
   "quoteProps": "as-needed",
-  "jsxSingleQuote": false
+  "jsxSingleQuote": false,
+  "overrides": [
+    {
+      "files": "*.lock",
+      "options": {
+        "parser": "json-stringify",
+        "trailingComma": "none"
+      }
+    }
+  ]
 }

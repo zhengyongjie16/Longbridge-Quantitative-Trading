@@ -4,9 +4,7 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Node",
-    "lib": [
-      "ES2022"
-    ],
+    "lib": ["ES2022"],
     // ===== 严格模式（核心配置）=====
     "strict": true,
     "strictNullChecks": true,
@@ -45,17 +43,6 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": [
-    "src/**/*",
-    "tools/**/*",
-    "tests/**/*",
-    "mock/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "logs",
-    "utils/**",
-    ".claude"
-  ]
+  "include": ["src/**/*", "tools/**/*", "tests/**/*", "mock/**/*"],
+  "exclude": ["node_modules", "dist", "logs", "utils/**", ".claude"]
 }
