@@ -81,6 +81,7 @@ export default defineConfig(
       'no-empty-pattern': 'error',
       'default-case': 'error',
       'default-case-last': 'error',
+      'default-param-last': 'error',
       'consistent-return': 'off',
       // 保持 async 方法的 Promise 契约与调用时序，不强制要求函数体内出现 await
       'require-await': 'off',
@@ -118,7 +119,7 @@ export default defineConfig(
       'spaced-comment': 'error',
       'no-warning-comments': ['warn', { terms: ['todo', 'fixme'], location: 'anywhere' }],
 
-      // 最佳实践
+      // 明确要求关闭
       'sonarjs/cognitive-complexity': 'off',
       // 避免与 ESLint / @typescript-eslint 同名规则重复报错
       'sonarjs/no-unused-vars': 'off',

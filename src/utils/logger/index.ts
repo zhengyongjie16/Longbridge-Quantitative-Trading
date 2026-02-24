@@ -91,7 +91,7 @@ class DateRotatingStream extends Writable {
   private _fileStream: fs.WriteStream | null = null;
   private _rotatePromise: Promise<void> | null = null; // Promise队列，确保串行执行
 
-  constructor(logSubDir: string = 'system', logRootDir: string) {
+  constructor(logRootDir: string, logSubDir: string = 'system') {
     super();
     this._logSubDir = logSubDir;
     this._logDir = path.join(logRootDir, logSubDir);
@@ -385,8 +385,8 @@ const logRootDir = resolveLogRootDir(process.env);
 const shouldInstallProcessHooks = shouldInstallGlobalProcessHooks(process.env);
 
 // 创建文件流实例
-const systemFileStream = new DateRotatingStream('system', logRootDir);
-const debugFileStream = IS_DEBUG ? new DateRotatingStream('debug', logRootDir) : null;
+const systemFileStream = new DateRotatingStream(logRootDir, 'system');
+const debugFileStream = IS_DEBUG ? new DateRotatingStream(logRootDir, 'debug') : null;
 
 /**
  * 创建带超时保护的 drain 事件处理器
