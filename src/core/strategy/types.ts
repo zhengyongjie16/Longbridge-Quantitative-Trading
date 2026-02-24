@@ -63,10 +63,10 @@ export interface HangSengMultiIndicatorStrategy {
    * @param orderRecorder 订单记录器
    * @returns 立即信号和延迟信号
    */
-  generateCloseSignals(
+  generateCloseSignals: (
     state: IndicatorSnapshot | null,
     longSymbol: string,
     shortSymbol: string,
     orderRecorder: OrderRecorder,
-  ): SignalGenerationResult;
+  ) => SignalGenerationResult;
 }

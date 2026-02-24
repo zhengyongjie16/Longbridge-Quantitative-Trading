@@ -13,11 +13,11 @@ type ScheduledTask = {
 };
 
 export interface ScenarioScheduler {
-  scheduleAt(runAtMs: number, task: () => void): void;
-  scheduleAfter(delayMs: number, task: () => void): void;
-  runDue(): number;
-  runAll(): number;
-  pendingCount(): number;
+  scheduleAt: (runAtMs: number, task: () => void) => void;
+  scheduleAfter: (delayMs: number, task: () => void) => void;
+  runDue: () => number;
+  runAll: () => number;
+  pendingCount: () => number;
 }
 
 /**

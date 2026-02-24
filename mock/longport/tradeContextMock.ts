@@ -240,7 +240,9 @@ function filterStockPositionsBySymbols(
 ): StockPositionsResponse {
   const symbolSet = new Set(symbols);
   const channels = stockPositions.channels.map((channel) => {
-    const filteredPositions = channel.positions.filter((position) => symbolSet.has(position.symbol));
+    const filteredPositions = channel.positions.filter((position) =>
+      symbolSet.has(position.symbol),
+    );
     const channelObject = channel as object;
     const channelPrototype = Object.getPrototypeOf(channelObject) as object | null;
     const channelClone = Object.create(channelPrototype ?? Object.prototype) as object;
@@ -252,15 +254,15 @@ function filterStockPositionsBySymbols(
 }
 
 export interface TradeContextMock extends TradeContextContract {
-  seedTodayOrders(orders: ReadonlyArray<Order>): void;
-  seedHistoryOrders(orders: ReadonlyArray<Order>): void;
-  seedTodayExecutions(executions: ReadonlyArray<Execution>): void;
-  seedAccountBalances(balances: ReadonlyArray<AccountBalance>): void;
-  seedStockPositions(response: StockPositionsResponse): void;
-  emitOrderChanged(event: PushOrderChanged | MinimalOrder, options?: EventPublishOptions): void;
-  flushEvents(nowMs?: number): number;
-  flushAllEvents(): number;
-  getSubscribedTopics(): ReadonlySet<TopicType>;
+  seedTodayOrders: (orders: ReadonlyArray<Order>) => void;
+  seedHistoryOrders: (orders: ReadonlyArray<Order>) => void;
+  seedTodayExecutions: (executions: ReadonlyArray<Execution>) => void;
+  seedAccountBalances: (balances: ReadonlyArray<AccountBalance>) => void;
+  seedStockPositions: (response: StockPositionsResponse) => void;
+  emitOrderChanged: (event: PushOrderChanged | MinimalOrder, options?: EventPublishOptions) => void;
+  flushEvents: (nowMs?: number) => number;
+  flushAllEvents: () => number;
+  getSubscribedTopics: () => ReadonlySet<TopicType>;
 }
 
 /**
@@ -494,9 +496,9 @@ export function createTradeContextMock(options: TradeContextMockOptions = {}): T
 
   function emitOrderChanged(
     event: PushOrderChanged | MinimalOrder,
-    options: EventPublishOptions = {},
+    publishOptions: EventPublishOptions = {},
   ): void {
-    bus.publish('orderChanged', asPushEvent(event), options);
+    bus.publish('orderChanged', asPushEvent(event), publishOptions);
   }
 
   function flushEvents(nowMs?: number): number {

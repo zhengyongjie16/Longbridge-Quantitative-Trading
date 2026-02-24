@@ -98,36 +98,36 @@ export type WarrantInfo =
  * 使用范围：仅 riskController 模块实现；主程序通过 RiskChecker 使用。
  */
 export interface WarrantRiskChecker {
-  setWarrantInfoFromCallPrice(
+  setWarrantInfoFromCallPrice: (
     symbol: string,
     callPrice: number,
     isLongSymbol: boolean,
     symbolName?: string | null,
-  ): WarrantRefreshResult;
-  refreshWarrantInfoForSymbol(
+  ) => WarrantRefreshResult;
+  refreshWarrantInfoForSymbol: (
     marketDataClient: MarketDataClient,
     symbol: string,
     isLongSymbol: boolean,
     symbolName?: string | null,
-  ): Promise<WarrantRefreshResult>;
-  checkRisk(
+  ) => Promise<WarrantRefreshResult>;
+  checkRisk: (
     symbol: string,
     signalType: SignalType,
     monitorCurrentPrice: number,
     warrantCurrentPrice: number | null,
-  ): RiskCheckResult;
-  checkWarrantDistanceLiquidation(
+  ) => RiskCheckResult;
+  checkWarrantDistanceLiquidation: (
     symbol: string,
     isLongSymbol: boolean,
     monitorCurrentPrice: number,
-  ): WarrantDistanceLiquidationResult;
-  getWarrantDistanceInfo(
+  ) => WarrantDistanceLiquidationResult;
+  getWarrantDistanceInfo: (
     isLongSymbol: boolean,
     seatSymbol: string,
     monitorCurrentPrice: number | null,
-  ): WarrantDistanceInfo | null;
-  clearLongWarrantInfo(): void;
-  clearShortWarrantInfo(): void;
+  ) => WarrantDistanceInfo | null;
+  clearLongWarrantInfo: () => void;
+  clearShortWarrantInfo: () => void;
 }
 
 /**
@@ -137,12 +137,12 @@ export interface WarrantRiskChecker {
  * 使用范围：仅 riskController 模块实现；主程序通过 RiskChecker 使用。
  */
 export interface PositionLimitChecker {
-  checkLimit(
+  checkLimit: (
     signal: Signal,
     positions: ReadonlyArray<Position> | null,
     orderNotional: number,
     currentPrice: number | null,
-  ): RiskCheckResult;
+  ) => RiskCheckResult;
 }
 
 /**
@@ -152,17 +152,17 @@ export interface PositionLimitChecker {
  * 使用范围：仅 riskController 模块实现；主程序通过 RiskChecker 使用。
  */
 export interface UnrealizedLossChecker {
-  getUnrealizedLossData(symbol: string): UnrealizedLossData | undefined;
+  getUnrealizedLossData: (symbol: string) => UnrealizedLossData | undefined;
   /** 清空浮亏数据，symbol 为空时清空全部 */
-  clearUnrealizedLossData(symbol?: string | null): void;
-  refresh(
+  clearUnrealizedLossData: (symbol?: string | null) => void;
+  refresh: (
     orderRecorder: OrderRecorder,
     symbol: string,
     isLongSymbol: boolean,
     quote?: Quote | null,
     dailyLossOffset?: number,
-  ): Promise<{ r1: number; n1: number } | null>;
-  check(symbol: string, currentPrice: number, isLongSymbol: boolean): UnrealizedLossCheckResult;
+  ) => Promise<{ r1: number; n1: number } | null>;
+  check: (symbol: string, currentPrice: number, isLongSymbol: boolean) => UnrealizedLossCheckResult;
 }
 
 // ==================== 依赖类型定义 ====================
@@ -279,17 +279,17 @@ export type DailyLossFilledOrderInput = {
  */
 export interface DailyLossTracker {
   /** 显式重置 dayKey 与 states */
-  resetAll(now: Date): void;
+  resetAll: (now: Date) => void;
   /** 使用完整订单列表重新计算当日状态，作为启动初始化或纠偏手段 */
-  recalculateFromAllOrders(
+  recalculateFromAllOrders: (
     allOrders: ReadonlyArray<RawOrderFromAPI>,
     monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
     now: Date,
-  ): void;
+  ) => void;
   /** 增量记录单笔成交，仅接受当日日键匹配的订单 */
-  recordFilledOrder(input: DailyLossFilledOrderInput): void;
+  recordFilledOrder: (input: DailyLossFilledOrderInput) => void;
   /** 获取指定标的与方向的当日亏损偏移，未初始化时返回 0 */
-  getLossOffset(monitorSymbol: string, isLongSymbol: boolean): number;
+  getLossOffset: (monitorSymbol: string, isLongSymbol: boolean) => number;
 }
 
 /**
@@ -342,7 +342,7 @@ export interface UnrealizedLossMonitor {
    * 监控做多和做空标的的浮亏
    * @param context 浮亏监控上下文
    */
-  monitorUnrealizedLoss(context: UnrealizedLossMonitorContext): Promise<void>;
+  monitorUnrealizedLoss: (context: UnrealizedLossMonitorContext) => Promise<void>;
 }
 
 /**

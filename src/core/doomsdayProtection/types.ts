@@ -85,7 +85,7 @@ export interface DoomsdayProtection {
    * @param isHalfDay 是否是半日交易日
    * @returns true表示应该拒绝买入
    */
-  shouldRejectBuy(currentTime: Date, isHalfDay: boolean): boolean;
+  shouldRejectBuy: (currentTime: Date, isHalfDay: boolean) => boolean;
 
   /**
    * 执行末日保护清仓流程
@@ -93,14 +93,14 @@ export interface DoomsdayProtection {
    * @param context 执行上下文
    * @returns 执行结果
    */
-  executeClearance(context: DoomsdayClearanceContext): Promise<DoomsdayClearanceResult>;
+  executeClearance: (context: DoomsdayClearanceContext) => Promise<DoomsdayClearanceResult>;
 
   /**
    * 撤销所有未成交的买入订单（收盘前15分钟）
    * @param context 撤单上下文
    * @returns 撤单结果
    */
-  cancelPendingBuyOrders(
+  cancelPendingBuyOrders: (
     context: CancelPendingBuyOrdersContext,
-  ): Promise<CancelPendingBuyOrdersResult>;
+  ) => Promise<CancelPendingBuyOrdersResult>;
 }

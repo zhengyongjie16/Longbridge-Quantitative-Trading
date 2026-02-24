@@ -33,7 +33,7 @@ export interface MarketMonitor {
    * @param monitorState 监控标的状态（包含 longPrice, shortPrice）
    * @returns 价格是否发生变化
    */
-  monitorPriceChanges(
+  monitorPriceChanges: (
     longQuote: Quote | null,
     shortQuote: Quote | null,
     longSymbol: string,
@@ -41,7 +41,7 @@ export interface MarketMonitor {
     monitorState: MonitorState,
     longDisplayInfo?: PriceDisplayInfo | null,
     shortDisplayInfo?: PriceDisplayInfo | null,
-  ): boolean;
+  ) => boolean;
 
   /**
    * 监控并显示监控标的的指标变化
@@ -54,7 +54,7 @@ export interface MarketMonitor {
    * @param monitorState 监控标的状态（包含 monitorValues）
    * @returns 指标是否发生变化
    */
-  monitorIndicatorChanges(
+  monitorIndicatorChanges: (
     monitorSnapshot: IndicatorSnapshot | null,
     monitorQuote: Quote | null,
     monitorSymbol: string,
@@ -62,5 +62,5 @@ export interface MarketMonitor {
     rsiPeriods: ReadonlyArray<number>,
     psyPeriods: ReadonlyArray<number>,
     monitorState: MonitorState,
-  ): boolean;
+  ) => boolean;
 }

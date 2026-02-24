@@ -152,20 +152,20 @@ function normalizeWarrantType(value: unknown): 'BULL' | 'BEAR' | null {
 }
 
 export interface QuoteContextMock extends QuoteContextContract {
-  seedQuotes(quotes: ReadonlyArray<{ readonly symbol: string; readonly quote: unknown }>): void;
-  seedStaticInfo(
+  seedQuotes: (quotes: ReadonlyArray<{ readonly symbol: string; readonly quote: unknown }>) => void;
+  seedStaticInfo: (
     staticInfos: ReadonlyArray<{ readonly symbol: string; readonly info: unknown }>,
-  ): void;
-  seedCandlesticks(symbol: string, period: Period, candles: ReadonlyArray<Candlestick>): void;
-  seedTradingDays(key: string, value: MarketTradingDays): void;
-  seedWarrantQuotes(quotes: ReadonlyArray<WarrantQuote>): void;
-  seedWarrantList(symbol: string, list: ReadonlyArray<WarrantInfo>): void;
-  emitQuote(event: PushQuoteEvent, options?: EventPublishOptions): void;
-  emitCandlestick(event: PushCandlestickEvent, options?: EventPublishOptions): void;
-  flushEvents(nowMs?: number): number;
-  flushAllEvents(): number;
-  getSubscribedSymbols(): ReadonlySet<string>;
-  getSubscribedCandlestickKeys(): ReadonlySet<string>;
+  ) => void;
+  seedCandlesticks: (symbol: string, period: Period, candles: ReadonlyArray<Candlestick>) => void;
+  seedTradingDays: (key: string, value: MarketTradingDays) => void;
+  seedWarrantQuotes: (quotes: ReadonlyArray<WarrantQuote>) => void;
+  seedWarrantList: (symbol: string, list: ReadonlyArray<WarrantInfo>) => void;
+  emitQuote: (event: PushQuoteEvent, options?: EventPublishOptions) => void;
+  emitCandlestick: (event: PushCandlestickEvent, options?: EventPublishOptions) => void;
+  flushEvents: (nowMs?: number) => number;
+  flushAllEvents: () => number;
+  getSubscribedSymbols: () => ReadonlySet<string>;
+  getSubscribedCandlestickKeys: () => ReadonlySet<string>;
 }
 
 /**
@@ -469,12 +469,15 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
     warrantListBySymbol.set(symbol, [...list]);
   }
 
-  function emitQuote(event: PushQuoteEvent, options: EventPublishOptions = {}): void {
-    bus.publish('quote', event, options);
+  function emitQuote(event: PushQuoteEvent, publishOptions: EventPublishOptions = {}): void {
+    bus.publish('quote', event, publishOptions);
   }
 
-  function emitCandlestick(event: PushCandlestickEvent, options: EventPublishOptions = {}): void {
-    bus.publish('candlestick', event, options);
+  function emitCandlestick(
+    event: PushCandlestickEvent,
+    publishOptions: EventPublishOptions = {},
+  ): void {
+    bus.publish('candlestick', event, publishOptions);
   }
 
   function flushEvents(nowMs?: number): number {

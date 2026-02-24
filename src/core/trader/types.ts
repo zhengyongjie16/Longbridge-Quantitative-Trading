@@ -161,8 +161,8 @@ export type ErrorTypeIdentifier = {
  * 由 Trader 依赖注入，仅 trader 模块内部实现使用。
  */
 export interface AccountService {
-  getAccountSnapshot(): Promise<AccountSnapshot | null>;
-  getStockPositions(symbols?: string[] | null): Promise<Position[]>;
+  getAccountSnapshot: () => Promise<AccountSnapshot | null>;
+  getStockPositions: (symbols?: string[] | null) => Promise<Position[]>;
 }
 
 /**
@@ -170,8 +170,8 @@ export interface AccountService {
  * 由 Trader 依赖注入，仅 trader 模块内部实现使用。
  */
 export interface OrderCacheManager {
-  getPendingOrders(symbols?: string[] | null, forceRefresh?: boolean): Promise<PendingOrder[]>;
-  clearCache(): void;
+  getPendingOrders: (symbols?: string[] | null, forceRefresh?: boolean) => Promise<PendingOrder[]>;
+  clearCache: () => void;
 }
 
 /**
@@ -180,28 +180,28 @@ export interface OrderCacheManager {
  */
 export interface OrderMonitor {
   /** 初始化 WebSocket 订阅 */
-  initialize(): Promise<void>;
+  initialize: () => Promise<void>;
 
   /** 开始追踪订单 */
-  trackOrder(params: TrackOrderParams): void;
+  trackOrder: (params: TrackOrderParams) => void;
 
   /** 撤销订单 */
-  cancelOrder(orderId: string): Promise<boolean>;
+  cancelOrder: (orderId: string) => Promise<boolean>;
 
   /** 修改订单价格 */
-  replaceOrderPrice(orderId: string, newPrice: number, quantity?: number | null): Promise<void>;
+  replaceOrderPrice: (orderId: string, newPrice: number, quantity?: number | null) => Promise<void>;
 
   /**
    * 处理价格更新（主循环调用）
    * 根据最新行情价格，更新未成交订单的委托价
    */
-  processWithLatestQuotes(quotesMap: ReadonlyMap<string, Quote | null>): Promise<void>;
+  processWithLatestQuotes: (quotesMap: ReadonlyMap<string, Quote | null>) => Promise<void>;
 
   /** 恢复订单追踪（程序启动时调用） */
-  recoverTrackedOrders(): Promise<void>;
+  recoverTrackedOrders: () => Promise<void>;
 
   /** 获取指定标的的未成交卖单快照 */
-  getPendingSellOrders(symbol: string): ReadonlyArray<PendingSellOrderSnapshot>;
+  getPendingSellOrders: (symbol: string) => ReadonlyArray<PendingSellOrderSnapshot>;
 
   /**
    * 获取并清空待刷新浮亏数据的标的列表
@@ -209,10 +209,10 @@ export interface OrderMonitor {
    *
    * @returns 待刷新的标的列表（调用后列表会被清空）
    */
-  getAndClearPendingRefreshSymbols(): PendingRefreshSymbol[];
+  getAndClearPendingRefreshSymbols: () => PendingRefreshSymbol[];
 
   /** 清空 trackedOrders 与 pendingRefreshSymbols */
-  clearTrackedOrders(): void;
+  clearTrackedOrders: () => void;
 }
 
 /**
@@ -220,17 +220,17 @@ export interface OrderMonitor {
  * 由 Trader 依赖注入。
  */
 export interface OrderExecutor {
-  canTradeNow(signalAction: SignalType, monitorConfig?: MonitorConfig | null): TradeCheckResult;
+  canTradeNow: (signalAction: SignalType, monitorConfig?: MonitorConfig | null) => TradeCheckResult;
   /**
    * 标记买入意图（预占买入时间槽）
    * 在 signalProcessor 检查通过后立即调用，防止同一批次中的多个信号同时通过频率检查
    * @param signalAction 信号类型（BUYCALL 或 BUYPUT）
    * @param monitorConfig 监控配置
    */
-  markBuyAttempt(signalAction: SignalType, monitorConfig?: MonitorConfig | null): void;
-  executeSignals(signals: Signal[]): Promise<{ submittedCount: number }>;
+  markBuyAttempt: (signalAction: SignalType, monitorConfig?: MonitorConfig | null) => void;
+  executeSignals: (signals: Signal[]) => Promise<{ submittedCount: number }>;
   /** 清空 lastBuyTime（买入节流状态） */
-  resetBuyThrottle(): void;
+  resetBuyThrottle: () => void;
 }
 
 /**
@@ -391,15 +391,15 @@ export type OrderMonitorConfig = {
  */
 export interface OrderHoldRegistry {
   /** 跟踪订单（添加标的到订阅保留集） */
-  trackOrder(orderId: string, symbol: string): void;
+  trackOrder: (orderId: string, symbol: string) => void;
   /** 标记订单已成交（从订阅保留集中移除） */
-  markOrderFilled(orderId: string): void;
+  markOrderFilled: (orderId: string) => void;
   /** 从历史订单初始化订阅保留集（程序重启时调用） */
-  seedFromOrders(orders: ReadonlyArray<RawOrderFromAPI>): void;
+  seedFromOrders: (orders: ReadonlyArray<RawOrderFromAPI>) => void;
   /** 获取当前需要持续订阅的标的集合 */
-  getHoldSymbols(): ReadonlySet<string>;
+  getHoldSymbols: () => ReadonlySet<string>;
   /** 清空内部 map/set */
-  clear(): void;
+  clear: () => void;
 }
 
 /**

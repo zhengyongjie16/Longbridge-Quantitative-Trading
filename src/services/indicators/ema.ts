@@ -16,12 +16,7 @@ import type { CandleData } from '../../types/data.js';
  * @returns EMA值，如果无法计算则返回null
  */
 export function calculateEMA(candles: ReadonlyArray<CandleData>, period: number): number | null {
-  if (
-    candles.length < period ||
-    !Number.isFinite(period) ||
-    period <= 0 ||
-    period > 250
-  ) {
+  if (candles.length < period || !Number.isFinite(period) || period <= 0 || period > 250) {
     return null;
   }
 

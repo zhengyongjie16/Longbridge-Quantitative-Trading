@@ -262,9 +262,9 @@ export const createRiskCheckPipeline = ({
             const symbolDisplay = formatSymbolDisplayFromQuote(quoteForSymbol, sig.symbol);
 
             logger.info(
-              `[牛熊证风险检查] ${symbolDisplay} 为${warrantType}，距离回收价百分比：${
-                distancePercent.toFixed(2)
-              }%，风险检查通过`,
+              `[牛熊证风险检查] ${symbolDisplay} 为${warrantType}，距离回收价百分比：${distancePercent.toFixed(
+                2,
+              )}%，风险检查通过`,
             );
           }
         } else {

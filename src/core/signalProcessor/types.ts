@@ -37,7 +37,7 @@ export interface SignalProcessor {
    * 处理卖出信号，计算实际卖出数量
    * 根据智能平仓配置决定是全仓卖出还是仅卖出盈利订单
    */
-  processSellSignals(
+  processSellSignals: (
     signals: Signal[],
     longPosition: Position | null,
     shortPosition: Position | null,
@@ -45,19 +45,19 @@ export interface SignalProcessor {
     shortQuote: Quote | null,
     orderRecorder: OrderRecorder,
     smartCloseEnabled: boolean,
-  ): Signal[];
+  ) => Signal[];
 
   /**
    * 对信号列表应用风险检查
    * 检查顺序：验证冷却 → 交易频率 → 清仓冷却 → 买入价格限制 → 末日保护 → 牛熊证风险 → 基础风险
    */
-  applyRiskChecks(signals: Signal[], context: RiskCheckContext): Promise<Signal[]>;
+  applyRiskChecks: (signals: Signal[], context: RiskCheckContext) => Promise<Signal[]>;
 
   /**
    * 清空风险检查冷却时间记录
    * 跨日或重置场景下调用，确保新的一天不受前一天冷却状态影响
    */
-  resetRiskCheckCooldown(): void;
+  resetRiskCheckCooldown: () => void;
 }
 
 // ==================== 依赖类型定义 ====================

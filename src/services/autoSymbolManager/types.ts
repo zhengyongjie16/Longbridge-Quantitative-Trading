@@ -150,11 +150,11 @@ export type SwitchSuppression = {
  * 由 createAutoSymbolManager 实现，供主循环消费。
  */
 export interface AutoSymbolManager {
-  maybeSearchOnTick(params: SearchOnTickParams): Promise<void>;
-  maybeSwitchOnInterval(params: SwitchOnIntervalParams): Promise<void>;
-  maybeSwitchOnDistance(params: SwitchOnDistanceParams): Promise<void>;
-  hasPendingSwitch(direction: 'LONG' | 'SHORT'): boolean;
-  resetAllState(): void;
+  maybeSearchOnTick: (params: SearchOnTickParams) => Promise<void>;
+  maybeSwitchOnInterval: (params: SwitchOnIntervalParams) => Promise<void>;
+  maybeSwitchOnDistance: (params: SwitchOnDistanceParams) => Promise<void>;
+  hasPendingSwitch: (direction: 'LONG' | 'SHORT') => boolean;
+  resetAllState: () => void;
 }
 
 /**
@@ -363,9 +363,9 @@ export type SeatStateManagerDeps = {
 export interface SeatStateManager {
   buildSeatState: SeatStateBuilder;
   updateSeatState: SeatStateUpdater;
-  resolveSuppression(direction: 'LONG' | 'SHORT', seatSymbol: string): SwitchSuppression | null;
-  markSuppression(direction: 'LONG' | 'SHORT', seatSymbol: string): void;
-  clearSeat(params: { direction: 'LONG' | 'SHORT'; reason: string }): number;
+  resolveSuppression: (direction: 'LONG' | 'SHORT', seatSymbol: string) => SwitchSuppression | null;
+  markSuppression: (direction: 'LONG' | 'SHORT', seatSymbol: string) => void;
+  clearSeat: (params: { direction: 'LONG' | 'SHORT'; reason: string }) => number;
 }
 
 /**
@@ -399,7 +399,7 @@ export type AutoSearchDeps = {
  * 由 createAutoSearch 实现，供 autoSymbolManager 消费。
  */
 export interface AutoSearchManager {
-  maybeSearchOnTick(params: SearchOnTickParams): Promise<void>;
+  maybeSearchOnTick: (params: SearchOnTickParams) => Promise<void>;
 }
 
 /**
@@ -461,7 +461,7 @@ export type SwitchStateMachineDeps = {
  * 由 createSwitchStateMachine 实现，供 autoSymbolManager 消费。
  */
 export interface SwitchStateMachine {
-  maybeSwitchOnInterval(params: SwitchOnIntervalParams): Promise<void>;
-  maybeSwitchOnDistance(params: SwitchOnDistanceParams): Promise<void>;
-  hasPendingSwitch(direction: 'LONG' | 'SHORT'): boolean;
+  maybeSwitchOnInterval: (params: SwitchOnIntervalParams) => Promise<void>;
+  maybeSwitchOnDistance: (params: SwitchOnDistanceParams) => Promise<void>;
+  hasPendingSwitch: (direction: 'LONG' | 'SHORT') => boolean;
 }

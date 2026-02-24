@@ -12,11 +12,11 @@ export type ScenarioWhen = () => void;
 export type ScenarioThen = () => void;
 
 export interface ScenarioBuilder {
-  given(setup: ScenarioGiven): ScenarioBuilder;
-  whenAt(timeMs: number, action: ScenarioWhen): ScenarioBuilder;
-  whenAfter(delayMs: number, action: ScenarioWhen): ScenarioBuilder;
-  assert(assertion: ScenarioThen): ScenarioBuilder;
-  run(): void;
+  given: (setup: ScenarioGiven) => ScenarioBuilder;
+  whenAt: (timeMs: number, action: ScenarioWhen) => ScenarioBuilder;
+  whenAfter: (delayMs: number, action: ScenarioWhen) => ScenarioBuilder;
+  assert: (assertion: ScenarioThen) => ScenarioBuilder;
+  run: () => void;
 }
 
 /**
@@ -31,6 +31,13 @@ export function createScenarioBuilder(
 ): ScenarioBuilder {
   const givenSteps: ScenarioGiven[] = [];
   const thenSteps: ScenarioThen[] = [];
+  const api: ScenarioBuilder = {
+    given,
+    whenAt,
+    whenAfter,
+    assert,
+    run,
+  };
 
   function given(setup: ScenarioGiven): ScenarioBuilder {
     givenSteps.push(setup);
@@ -64,14 +71,6 @@ export function createScenarioBuilder(
       assertion();
     }
   }
-
-  const api: ScenarioBuilder = {
-    given,
-    whenAt,
-    whenAfter,
-    assert,
-    run,
-  };
 
   // 默认让场景从当前 clock 起点启动，显式保留这一步便于断点调试
   clock.set(clock.now());

@@ -53,7 +53,7 @@ export interface IndicatorCache {
    * @param monitorSymbol 监控标的代码
    * @param snapshot 指标快照
    */
-  push(monitorSymbol: string, snapshot: IndicatorSnapshot): void;
+  push: (monitorSymbol: string, snapshot: IndicatorSnapshot) => void;
 
   /**
    * 获取最接近目标时间的缓存条目
@@ -62,10 +62,14 @@ export interface IndicatorCache {
    * @param toleranceMs 容忍度（毫秒）
    * @returns 最接近的缓存条目，若无匹配则返回 null
    */
-  getAt(monitorSymbol: string, targetTime: number, toleranceMs: number): IndicatorCacheEntry | null;
+  getAt: (
+    monitorSymbol: string,
+    targetTime: number,
+    toleranceMs: number,
+  ) => IndicatorCacheEntry | null;
 
   /**
    * 清除所有缓存
    */
-  clearAll(): void;
+  clearAll: () => void;
 }

@@ -1,5 +1,6 @@
 import { OrderType } from 'longport';
 import type { LiquidationCooldownConfig, NumberRange } from '../types/config.js';
+import type { OrderTypeConfig } from '../types/signal.js';
 import { validateEmaPeriod, validatePsyPeriod } from '../utils/helpers/indicatorHelpers.js';
 import { logger } from '../utils/logger/index.js';
 import type { RegionUrls } from './types.js';
@@ -289,11 +290,20 @@ export function parseVerificationIndicators(
 }
 
 /** 订单类型字符串到枚举的映射 */
-const ORDER_TYPE_MAPPING: Readonly<Record<string, OrderType>> = {
+const ORDER_TYPE_MAPPING: Readonly<Record<OrderTypeConfig, OrderType>> = {
   LO: OrderType.LO,
   ELO: OrderType.ELO,
   MO: OrderType.MO,
 };
+
+/**
+ * 类型保护：判断字符串是否为受支持的订单类型配置代码。
+ * @param value 待判断的字符串
+ * @returns true 表示值属于 OrderTypeConfig
+ */
+function isOrderTypeConfig(value: string): value is OrderTypeConfig {
+  return Object.hasOwn(ORDER_TYPE_MAPPING, value);
+}
 
 /**
  * 解析订单类型配置（LO/ELO/MO），必须大写，无效时回退默认值。
@@ -305,18 +315,17 @@ const ORDER_TYPE_MAPPING: Readonly<Record<string, OrderType>> = {
 export function parseOrderTypeConfig(
   env: NodeJS.ProcessEnv,
   envKey: string,
-  defaultType: 'LO' | 'ELO' | 'MO' = 'ELO',
+  defaultType: OrderTypeConfig = 'ELO',
 ): OrderType {
   // getStringConfig 已处理 trim 和占位符
   const value = getStringConfig(env, envKey);
   if (value) {
-    const parsed = ORDER_TYPE_MAPPING[value];
-    if (parsed) {
-      return parsed;
+    if (isOrderTypeConfig(value)) {
+      return ORDER_TYPE_MAPPING[value];
     }
     logger.warn(
       `[配置警告] ${envKey} 值无效: ${value}，必须使用全大写: LO, ELO, MO。已使用默认值: ${defaultType}`,
     );
   }
-  return ORDER_TYPE_MAPPING[defaultType] ?? OrderType.ELO;
+  return ORDER_TYPE_MAPPING[defaultType];
 }

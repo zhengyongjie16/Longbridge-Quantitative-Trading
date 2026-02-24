@@ -120,7 +120,7 @@ export type Reset<T> = (obj: T) => T;
  * 使用范围：供业务模块通过 acquire/release/releaseAll 管理可复用对象的生命周期。
  */
 export interface ObjectPool<T> {
-  acquire(): T;
-  release(obj: T | null | undefined): void;
-  releaseAll(objects: ReadonlyArray<T> | null | undefined): void;
+  acquire: () => T;
+  release: (obj: T | null | undefined) => void;
+  releaseAll: (objects: ReadonlyArray<T> | null | undefined) => void;
 }

@@ -13,7 +13,7 @@ export type SignalType =
 
 /**
  * 订单类型配置。
- * 类型用途：限价/增强限价/市价单的配置枚举，作为 GlobalConfig.tradingOrderType、liquidationOrderType 及 Signal.orderTypeOverride 的类型。
+ * 类型用途：订单类型配置枚举（限价/增强限价/市价），作为 GlobalConfig.tradingOrderType、liquidationOrderType 及 Signal.orderTypeOverride 的类型。
  * 数据来源：配置解析（环境变量）。
  * 使用范围：配置、Trader 下单、Signal 覆盖等；全项目可引用。
  */

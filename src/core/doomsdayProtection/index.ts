@@ -258,7 +258,9 @@ export function createDoomsdayProtection(): DoomsdayProtection {
       if (uniqueClearanceSignals.length === 0) {
         const availablePositions = positions.filter((pos) => {
           const availableQty = pos.availableQuantity || 0;
-          return typeof pos.symbol === 'string' && Number.isFinite(availableQty) && availableQty > 0;
+          return (
+            typeof pos.symbol === 'string' && Number.isFinite(availableQty) && availableQty > 0
+          );
         });
         const seatSymbolSet = new Set(allTradingSymbols);
         const unmatchedPositions = availablePositions.filter(

@@ -57,18 +57,18 @@ export type EventPublishOptions = {
 };
 
 export interface LongportEventBus {
-  subscribe<TTopic extends LongportEventTopic>(
+  subscribe: <TTopic extends LongportEventTopic>(
     topic: TTopic,
     subscriber: Subscriber<TTopic>,
-  ): () => void;
-  publish<TTopic extends LongportEventTopic>(
+  ) => () => void;
+  publish: <TTopic extends LongportEventTopic>(
     topic: TTopic,
     payload: LongportEventPayloadMap[TTopic],
     options?: EventPublishOptions,
-  ): void;
-  flushDue(nowMs?: number): number;
-  flushAll(): number;
-  getQueueSize(): number;
+  ) => void;
+  flushDue: (nowMs?: number) => number;
+  flushAll: () => number;
+  getQueueSize: () => number;
 }
 
 /**

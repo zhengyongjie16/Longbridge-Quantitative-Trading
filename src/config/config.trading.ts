@@ -124,17 +124,16 @@ function getPercentAsDecimalConfig(
 /**
  * 将 OpenAPI 订单类型枚举映射为配置值字符串，用于统一内部订单类型表示。
  * @param orderType - LongPort OrderType 枚举值
- * @returns 对应的订单类型配置字符串（'LO' | 'MO' | 'ELO'）
+ * @returns 对应的订单类型配置字符串
  */
+const SUPPORTED_ORDER_TYPE_CONFIG_MAP: Readonly<Partial<Record<OrderType, OrderTypeConfig>>> = {
+  [OrderType.LO]: 'LO',
+  [OrderType.ELO]: 'ELO',
+  [OrderType.MO]: 'MO',
+};
+
 function mapOrderTypeConfig(orderType: OrderType): OrderTypeConfig {
-  switch (orderType) {
-    case OrderType.LO:
-      return 'LO';
-    case OrderType.MO:
-      return 'MO';
-    default:
-      return 'ELO';
-  }
+  return SUPPORTED_ORDER_TYPE_CONFIG_MAP[orderType] ?? 'ELO';
 }
 
 /**

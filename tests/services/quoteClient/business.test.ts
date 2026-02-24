@@ -9,23 +9,23 @@ import { beforeEach, describe, expect, it, mock } from 'bun:test';
 class TestDecimal {
   private readonly value: number;
 
-  constructor(value: number | string) {
+  public constructor(value: number | string) {
     this.value = Number(value);
   }
 
-  static ZERO(): TestDecimal {
+  public static ZERO(): TestDecimal {
     return new TestDecimal(0);
   }
 
-  toNumber(): number {
+  public toNumber(): number {
     return this.value;
   }
 
-  toString(): string {
+  public toString(): string {
     return String(this.value);
   }
 
-  equals(other: TestDecimal): boolean {
+  public equals(other: TestDecimal): boolean {
     return this.value === other.toNumber();
   }
 }
@@ -35,13 +35,13 @@ class TestNaiveDate {
   private readonly month: number;
   private readonly day: number;
 
-  constructor(year: number, month: number, day: number) {
+  public constructor(year: number, month: number, day: number) {
     this.year = year;
     this.month = month;
     this.day = day;
   }
 
-  toString(): string {
+  public toString(): string {
     return `${String(this.year)}-${String(this.month).padStart(2, '0')}-${String(this.day).padStart(2, '0')}`;
   }
 }
@@ -100,7 +100,7 @@ const WarrantType = {
 let activeQuoteContext: unknown = null;
 
 class QuoteContext {
-  static async new(): Promise<unknown> {
+  public static async new(): Promise<unknown> {
     if (!activeQuoteContext) {
       throw new Error('QuoteContext mock is not initialized');
     }

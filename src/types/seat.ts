@@ -39,24 +39,24 @@ export type SeatState = {
  */
 export interface SymbolRegistry {
   /** 获取席位状态 */
-  getSeatState(monitorSymbol: string, direction: 'LONG' | 'SHORT'): SeatState;
+  getSeatState: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => SeatState;
   /** 获取席位版本号 */
-  getSeatVersion(monitorSymbol: string, direction: 'LONG' | 'SHORT'): number;
+  getSeatVersion: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => number;
   /** 根据标的代码解析所属席位 */
-  resolveSeatBySymbol(symbol: string): {
+  resolveSeatBySymbol: (symbol: string) => {
     monitorSymbol: string;
     direction: 'LONG' | 'SHORT';
     seatState: SeatState;
     seatVersion: number;
   } | null;
   /** 更新席位状态 */
-  updateSeatState(
+  updateSeatState: (
     monitorSymbol: string,
     direction: 'LONG' | 'SHORT',
     nextState: SeatState,
-  ): SeatState;
+  ) => SeatState;
   /** 递增席位版本号 */
-  bumpSeatVersion(monitorSymbol: string, direction: 'LONG' | 'SHORT'): number;
+  bumpSeatVersion: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => number;
 }
 
 /**

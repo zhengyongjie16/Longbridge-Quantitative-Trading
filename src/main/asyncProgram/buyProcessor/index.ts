@@ -195,7 +195,9 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
     loggerPrefix: 'BuyProcessor',
     taskQueue,
     processTask,
-    releaseAfterProcess: (signal) => { signalObjectPool.release(signal); },
+    releaseAfterProcess: (signal) => {
+      signalObjectPool.release(signal);
+    },
     ...(getCanProcessTask ? { getCanProcessTask } : {}),
   });
 }

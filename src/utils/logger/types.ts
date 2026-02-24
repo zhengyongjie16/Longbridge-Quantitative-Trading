@@ -20,8 +20,8 @@ export type LogObject = {
  * 使用范围：全局使用，业务模块通过依赖注入获取实例。
  */
 export interface Logger {
-  debug(msg: string, extra?: unknown): void;
-  info(msg: string, extra?: unknown): void;
-  warn(msg: string, extra?: unknown): void;
-  error(msg: string, extra?: unknown): void;
+  debug: (msg: string, extra?: unknown) => void;
+  info: (msg: string, extra?: unknown) => void;
+  warn: (msg: string, extra?: unknown) => void;
+  error: (msg: string, extra?: unknown) => void;
 }

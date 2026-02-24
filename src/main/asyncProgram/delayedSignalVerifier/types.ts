@@ -69,13 +69,13 @@ export interface DelayedSignalVerifier {
    * @param signal 信号对象（必须包含 triggerTime）
    * @param monitorSymbol 监控标的代码
    */
-  addSignal(signal: Signal, monitorSymbol: string): void;
+  addSignal: (signal: Signal, monitorSymbol: string) => void;
 
   /**
    * 取消指定标的的所有待验证信号
    * @param monitorSymbol 监控标的代码
    */
-  cancelAllForSymbol(monitorSymbol: string): void;
+  cancelAllForSymbol: (monitorSymbol: string) => void;
 
   /**
    * 取消指定方向的待验证信号
@@ -83,27 +83,27 @@ export interface DelayedSignalVerifier {
    * @param direction 多空方向（由信号动作判定）
    * @returns 已取消的信号数量
    */
-  cancelAllForDirection(monitorSymbol: string, direction: 'LONG' | 'SHORT'): number;
+  cancelAllForDirection: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => number;
 
   /**
    * 取消所有待验证信号（清理定时器并释放信号）
    * @returns 已取消的信号数量
    */
-  cancelAll(): number;
+  cancelAll: () => number;
 
   /**
    * 获取待验证信号数量
    */
-  getPendingCount(): number;
+  getPendingCount: () => number;
 
   /**
    * 注册验证通过回调
    * @param callback 验证通过时调用
    */
-  onVerified(callback: VerifiedCallback): void;
+  onVerified: (callback: VerifiedCallback) => void;
 
   /**
    * 销毁验证器，清理所有定时器和资源
    */
-  destroy(): void;
+  destroy: () => void;
 }

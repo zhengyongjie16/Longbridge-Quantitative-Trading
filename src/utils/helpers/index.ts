@@ -219,9 +219,7 @@ export function formatQuoteDisplay(quote: Quote | null, symbol: string): QuoteDi
   const currentPrice = quote.price;
 
   // 最新价格
-  const priceText = Number.isFinite(currentPrice)
-    ? currentPrice.toFixed(3)
-    : String(currentPrice);
+  const priceText = Number.isFinite(currentPrice) ? currentPrice.toFixed(3) : String(currentPrice);
 
   // 涨跌额和涨跌幅度
   let changeAmountText = '-';
@@ -395,9 +393,13 @@ export async function sleep(ms: number): Promise<void> {
   const delay = ms;
   if (!Number.isFinite(delay) || delay < 0) {
     logger.warn(`[sleep] 无效的延迟时间 ${ms}，使用默认值 ${TIME.MILLISECONDS_PER_SECOND}ms`);
-    return new Promise((resolve) => setTimeout(resolve, TIME.MILLISECONDS_PER_SECOND));
+    return new Promise<void>((resolve) => {
+      setTimeout(resolve, TIME.MILLISECONDS_PER_SECOND);
+    });
   }
-  return new Promise((resolve) => setTimeout(resolve, delay));
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, delay);
+  });
 }
 
 /**

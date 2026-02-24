@@ -57,10 +57,10 @@ export type ClearMidnightEligibleParams = {
  * 由 createLiquidationCooldownTracker 实现，供风控模块消费。
  */
 export interface LiquidationCooldownTracker {
-  recordCooldown(params: RecordCooldownParams): void;
-  getRemainingMs(params: GetRemainingMsParams): number;
+  recordCooldown: (params: RecordCooldownParams) => void;
+  getRemainingMs: (params: GetRemainingMsParams) => number;
   /** 跨日午夜按策略清理：仅清除指定 keys，minutes 模式条目不受影响 */
-  clearMidnightEligible(params: ClearMidnightEligibleParams): void;
+  clearMidnightEligible: (params: ClearMidnightEligibleParams) => void;
 }
 
 /**
@@ -84,7 +84,7 @@ export type TradeLogHydratorDeps = {
  * 使用范围：供主程序 startup 消费。
  */
 export interface TradeLogHydrator {
-  hydrate(params: { readonly seatSymbols: ReadonlyArray<SeatSymbolSnapshotEntry> }): void;
+  hydrate: (params: { readonly seatSymbols: ReadonlyArray<SeatSymbolSnapshotEntry> }) => void;
 }
 
 /**

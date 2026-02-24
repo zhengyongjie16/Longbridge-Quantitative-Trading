@@ -139,7 +139,9 @@ function createMonitorContext(
     monitorSymbolName: monitorSymbol,
     delayedSignalVerifier: {
       getPendingCount: () => pendingCount,
-      cancelAllForSymbol: (symbol: string) => { onCancel(symbol); },
+      cancelAllForSymbol: (symbol: string) => {
+        onCancel(symbol);
+      },
     },
   } as unknown as MonitorContext;
 }

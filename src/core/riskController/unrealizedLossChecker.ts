@@ -88,7 +88,7 @@ export const createUnrealizedLossChecker = (
    * 启动初始化、成交后刷新或保护性清仓后调用，以确保后续检查与展示使用最新的 R1/N1。
    * dailyLossOffset 为负时（已亏损）会增大调整后 R1，使浮亏保护更容易触发。
    */
-  const refresh = async (
+  const refresh = (
     orderRecorder: OrderRecorder | null,
     symbol: string,
     isLongSymbol: boolean,
@@ -98,7 +98,7 @@ export const createUnrealizedLossChecker = (
     if (!orderRecorder) {
       const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
       logger.warn(`[浮亏监控] 未提供 OrderRecorder 实例，无法刷新标的 ${symbolDisplay} 的浮亏数据`);
-      return null;
+      return Promise.resolve(null);
     }
 
     try {
@@ -136,14 +136,14 @@ export const createUnrealizedLossChecker = (
           `N1(持仓数量)=${n1}, 未平仓订单数=${buyOrders.length}`,
       );
 
-      return { r1: adjustedR1, n1 };
+      return Promise.resolve({ r1: adjustedR1, n1 });
     } catch (error) {
       const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
       logger.error(
         `[浮亏监控] 刷新标的 ${symbolDisplay} 的浮亏数据失败`,
         (error as Error).message || String(error),
       );
-      return null;
+      return Promise.resolve(null);
     }
   };
 

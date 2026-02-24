@@ -5,7 +5,7 @@
  * 使用范围：仅 helpers 模块内部使用。
  */
 export type DecimalLike = {
-  toNumber(): number;
+  toNumber: () => number;
 };
 
 /**

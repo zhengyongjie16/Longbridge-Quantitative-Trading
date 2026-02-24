@@ -6,7 +6,7 @@ import type { KDJIndicator, MACDIndicator } from './quote.js';
  * 数据来源：LongPort K 线 API 返回。
  * 使用范围：CandleData、指标计算等；全项目可引用。
  */
-export type CandleValue = number | string | { toString(): string } | null | undefined;
+export type CandleValue = number | string | { toString: () => string } | null | undefined;
 
 /**
  * K 线数据。

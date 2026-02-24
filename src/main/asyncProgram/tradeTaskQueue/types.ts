@@ -35,20 +35,20 @@ export type Task<TType extends string> = {
  */
 export interface TaskQueue<TType extends string> {
   /** 入队任务（自动生成 id 和 createdAt） */
-  push(task: Omit<Task<TType>, 'id' | 'createdAt'>): void;
+  push: (task: Omit<Task<TType>, 'id' | 'createdAt'>) => void;
   /** 出队任务（返回并移除队首） */
-  pop(): Task<TType> | null;
+  pop: () => Task<TType> | null;
   /** 检查队列是否为空 */
-  isEmpty(): boolean;
+  isEmpty: () => boolean;
   /** 按条件移除任务，返回移除数量 */
-  removeTasks(
+  removeTasks: (
     predicate: (task: Task<TType>) => boolean,
     onRemove?: (task: Task<TType>) => void,
-  ): number;
+  ) => number;
   /** 清空全部任务，返回移除数量 */
-  clearAll(onRemove?: (task: Task<TType>) => void): number;
+  clearAll: (onRemove?: (task: Task<TType>) => void) => number;
   /** 注册任务添加回调，返回注销函数 */
-  onTaskAdded(callback: TaskAddedCallback): () => void;
+  onTaskAdded: (callback: TaskAddedCallback) => () => void;
 }
 
 // ============================================================================

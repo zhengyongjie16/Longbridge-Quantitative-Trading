@@ -2,6 +2,7 @@ import { defineConfig } from 'eslint/config';
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import sonarjs from 'eslint-plugin-sonarjs';
+import stylistic from '@stylistic/eslint-plugin';
 import eslintConfigPrettier from 'eslint-config-prettier/flat';
 
 const restrictTemplateExpressionsRule = [
@@ -25,15 +26,20 @@ export default defineConfig(
   {
     languageOptions: {
       parserOptions: {
-        project: './tsconfig.json',
+        projectService: true,
         ecmaVersion: 'latest',
         sourceType: 'module',
       },
+    },
+    plugins: {
+      '@stylistic': stylistic,
     },
     rules: {
       // 基础规则
       'no-console': 'off', // 允许 console（日志系统需要）
       'no-unused-vars': 'off', // 关闭 JS 规则，使用 TS 规则
+      'no-shadow': 'off', // 关闭 JS 规则，使用 TS 规则
+      'no-use-before-define': 'off', // 关闭 JS 规则，使用 TS 规则
       '@typescript-eslint/no-unused-vars': [
         'error',
         {
@@ -41,9 +47,33 @@ export default defineConfig(
           varsIgnorePattern: '^_',
         },
       ],
+      '@typescript-eslint/no-shadow': 'error',
+      '@typescript-eslint/class-methods-use-this': 'error',
+      '@typescript-eslint/member-ordering': 'error',
+      '@typescript-eslint/switch-exhaustiveness-check': 'error',
+      '@typescript-eslint/strict-void-return': 'error',
+      '@typescript-eslint/consistent-return': 'error',
+      '@typescript-eslint/max-params': [
+        'error',
+        {
+          max: 7,
+          countVoidThis: true,
+        },
+      ],
+      '@typescript-eslint/no-use-before-define': [
+        'error',
+        {
+          functions: false,
+          classes: true,
+          variables: true,
+          typedefs: true,
+          enums: true,
+        },
+      ],
 
       // TypeScript 规则
       '@typescript-eslint/explicit-function-return-type': 'off',
+      '@typescript-eslint/explicit-member-accessibility': 'error',
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/no-misused-promises': 'error',
@@ -57,13 +87,28 @@ export default defineConfig(
       '@typescript-eslint/prefer-optional-chain': 'error',
       '@typescript-eslint/only-throw-error': 'error',
       '@typescript-eslint/restrict-template-expressions': restrictTemplateExpressionsRule,
-      // 保持 async 方法的 Promise 契约与调用时序，不强制要求函数体内出现 await
-      '@typescript-eslint/require-await': 'off',
+      '@typescript-eslint/require-await': 'error',
       // 项目规范要求优先使用 ReadonlyArray/type，关闭与之冲突的 stylistic 规则
       '@typescript-eslint/array-type': 'off',
       '@typescript-eslint/no-inferrable-types': 'off',
       '@typescript-eslint/consistent-generic-constructors': 'off',
       '@typescript-eslint/consistent-indexed-object-style': 'off',
+      '@typescript-eslint/default-param-last': 'error',
+      '@typescript-eslint/explicit-module-boundary-types': 'error',
+      '@typescript-eslint/no-dupe-class-members': 'error',
+      '@typescript-eslint/no-import-type-side-effects': 'error',
+      '@typescript-eslint/no-invalid-this': 'error',
+      '@typescript-eslint/no-loop-func': 'error',
+      '@typescript-eslint/no-redeclare': 'error',
+      '@typescript-eslint/no-unnecessary-parameter-property-assignment': 'error',
+      '@typescript-eslint/no-unnecessary-qualifier': 'error',
+      '@typescript-eslint/no-unused-private-class-members': 'error',
+      'no-unused-private-class-members': 'off',
+      '@typescript-eslint/no-useless-empty-export': 'error',
+      '@typescript-eslint/prefer-enum-initializers': 'error',
+      '@typescript-eslint/prefer-readonly': 'error',
+      '@typescript-eslint/require-array-sort-compare': 'error',
+      '@typescript-eslint/method-signature-style': 'error',
 
       // 变量与赋值
       'no-var': 'error',
@@ -81,11 +126,11 @@ export default defineConfig(
       'no-empty-pattern': 'error',
       'default-case': 'error',
       'default-case-last': 'error',
-      'default-param-last': 'error',
+      'default-param-last': 'off',
       'consistent-return': 'off',
       // 保持 async 方法的 Promise 契约与调用时序，不强制要求函数体内出现 await
       'require-await': 'off',
-      'max-params': ['error', 7],
+      'max-params': 'off',
       'max-depth': ['warn', { max: 5 }],
 
       // 调试与全局
@@ -95,7 +140,7 @@ export default defineConfig(
 
       // 对象与数组
       'no-dupe-keys': 'error',
-      'no-new-object': 'error',
+      'no-object-constructor': 'error',
       'array-callback-return': 'error',
       'no-return-assign': ['error', 'always'],
 
@@ -106,7 +151,7 @@ export default defineConfig(
       'no-irregular-whitespace': 'error',
 
       // 作用域与命名
-      'no-invalid-this': 'error',
+      'no-invalid-this': 'off',
       'no-shadow-restricted-names': 'error',
       'no-inner-declarations': ['error', 'both'],
       'no-labels': 'error',
@@ -116,7 +161,7 @@ export default defineConfig(
       'no-new': 'error',
 
       // 注释与格式
-      'spaced-comment': 'error',
+      '@stylistic/spaced-comment': 'error',
       'no-warning-comments': ['warn', { terms: ['todo', 'fixme'], location: 'anywhere' }],
 
       // 明确要求关闭

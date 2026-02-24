@@ -39,7 +39,7 @@ export type StartupGateDeps = {
  * 使用范围：仅启动流程（如 main/index）调用，内部使用。
  */
 export interface StartupGate {
-  wait(params: { readonly mode: GateMode }): Promise<TradingDayInfo>;
+  wait: (params: { readonly mode: GateMode }) => Promise<TradingDayInfo>;
 }
 
 /**

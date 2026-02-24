@@ -81,6 +81,16 @@ function formatExtra(extra: unknown): string {
 }
 
 /**
+ * 获取当前香港时间日期字符串 (YYYY-MM-DD)
+ */
+function getCurrentDate(): string {
+  const timestamp = toHongKongTimeLog(new Date());
+  // 从 "YYYY-MM-DD HH:mm:ss.sss" 提取日期部分
+  const datePart = timestamp.split(' ').at(0);
+  return datePart ?? '';
+}
+
+/**
  * 按日期分割的文件流（用于 pino 传输）
  * 例外：继承 Node.js Writable，与 Stream API 集成，无法改为工厂函数。
  */
@@ -91,7 +101,7 @@ class DateRotatingStream extends Writable {
   private _fileStream: fs.WriteStream | null = null;
   private _rotatePromise: Promise<void> | null = null; // Promise队列，确保串行执行
 
-  constructor(logRootDir: string, logSubDir: string = 'system') {
+  public constructor(logRootDir: string, logSubDir: string = 'system') {
     super();
     this._logSubDir = logSubDir;
     this._logDir = path.join(logRootDir, logSubDir);
@@ -103,91 +113,9 @@ class DateRotatingStream extends Writable {
   }
 
   /**
-   * 获取当前香港时间日期字符串 (YYYY-MM-DD)
-   */
-  private _getCurrentDate(): string {
-    const timestamp = toHongKongTimeLog(new Date());
-    // 从 "YYYY-MM-DD HH:mm:ss.sss" 提取日期部分
-    const datePart = timestamp.split(' ').at(0);
-    return datePart ?? '';
-  }
-
-  /**
-   * 检查并切换日志文件（如果日期变化）
-   * 使用 Promise 队列确保串行执行，避免并发问题
-   * @returns Promise，确保旧流关闭完成后再继续
-   */
-  private async _checkRotate(): Promise<void> {
-    const today = this._getCurrentDate();
-
-    // 如果日期没有变化，直接返回
-    if (this._currentDate === today) {
-      return;
-    }
-
-    // 如果已有 rotate 正在进行，加入队列等待
-    if (this._rotatePromise) {
-      await this._rotatePromise;
-      // 等待完成后重新检查日期（可能已被其他调用处理）
-      if (this._currentDate === today) {
-        return;
-      }
-    }
-
-    // 创建新的 rotate Promise 并加入队列
-    this._rotatePromise = this._doRotate(today);
-
-    try {
-      await this._rotatePromise;
-    } finally {
-      // 清空队列标志
-      this._rotatePromise = null;
-    }
-  }
-
-  /**
-   * 执行实际的日志轮转操作
-   * @param newDate 新日期字符串
-   */
-  private async _doRotate(newDate: string): Promise<void> {
-    try {
-      // 关闭旧文件流
-      if (this._fileStream) {
-        const oldStream = this._fileStream;
-        this._fileStream = null;
-
-        await new Promise<void>((resolve) => {
-          oldStream.once('finish', () => { resolve(); });
-          oldStream.once('error', (err) => {
-            console.error('[DateRotatingStream] 关闭旧流错误:', err);
-            resolve(); // 即使出错也继续
-          });
-          oldStream.end();
-        });
-      }
-
-      // 更新日期并打开新文件流
-      this._currentDate = newDate;
-      const currentLogFileName = `${this._currentDate}.log`;
-      retainLatestLogFiles(this._logDir, LOGGING.MAX_RETAINED_LOG_FILES, 'log', currentLogFileName);
-      const logFile = path.join(this._logDir, currentLogFileName);
-      this._fileStream = fs.createWriteStream(logFile, {
-        flags: 'a',
-        encoding: 'utf8',
-      });
-
-      this._fileStream.on('error', (err) => {
-        console.error(`[DateRotatingStream] 文件流错误 (${this._logSubDir}):`, err);
-      });
-    } catch (err) {
-      console.error(`[DateRotatingStream] 日志轮转失败 (${this._logSubDir}):`, err);
-    }
-  }
-
-  /**
    * 实现 Writable._write 方法
    */
-  override _write(
+  public override _write(
     chunk: Buffer,
     encoding: BufferEncoding,
     callback: (error?: Error | null) => void,
@@ -238,7 +166,7 @@ class DateRotatingStream extends Writable {
   /**
    * 同步关闭文件流
    */
-  closeSync(): void {
+  public closeSync(): void {
     if (this._fileStream) {
       try {
         // 同步结束流（不等待）
@@ -253,16 +181,95 @@ class DateRotatingStream extends Writable {
   /**
    * 异步关闭文件流，返回 Promise
    */
-  async closeAsync(): Promise<void> {
+  public closeAsync(): Promise<void> {
     if (this._fileStream) {
       const stream = this._fileStream;
       this._fileStream = null;
 
       return new Promise((resolve) => {
-        stream.once('finish', () => { resolve(); });
-        stream.once('error', () => { resolve(); }); // 即使出错也继续
+        stream.once('finish', () => {
+          resolve();
+        });
+        stream.once('error', () => {
+          resolve();
+        }); // 即使出错也继续
         stream.end();
       });
+    }
+    return Promise.resolve();
+  }
+
+  /**
+   * 检查并切换日志文件（如果日期变化）
+   * 使用 Promise 队列确保串行执行，避免并发问题
+   * @returns Promise，确保旧流关闭完成后再继续
+   */
+  private async _checkRotate(): Promise<void> {
+    const today = getCurrentDate();
+
+    // 如果日期没有变化，直接返回
+    if (this._currentDate === today) {
+      return;
+    }
+
+    // 如果已有 rotate 正在进行，加入队列等待
+    if (this._rotatePromise) {
+      await this._rotatePromise;
+      // 等待完成后重新检查日期（可能已被其他调用处理）
+      if (this._currentDate === today) {
+        return;
+      }
+    }
+
+    // 创建新的 rotate Promise 并加入队列
+    this._rotatePromise = this._doRotate(today);
+
+    try {
+      await this._rotatePromise;
+    } finally {
+      // 清空队列标志
+      this._rotatePromise = null;
+    }
+  }
+
+  /**
+   * 执行实际的日志轮转操作
+   * @param newDate 新日期字符串
+   */
+  private async _doRotate(newDate: string): Promise<void> {
+    try {
+      // 关闭旧文件流
+      if (this._fileStream) {
+        const oldStream = this._fileStream;
+        this._fileStream = null;
+
+        await new Promise<void>((resolve) => {
+          oldStream.once('finish', () => {
+            resolve();
+          });
+          oldStream.once('error', (err) => {
+            console.error('[DateRotatingStream] 关闭旧流错误:', err);
+            resolve(); // 即使出错也继续
+          });
+          oldStream.end();
+        });
+      }
+
+      // 更新日期并打开新文件流
+      this._currentDate = newDate;
+      const currentLogFileName = `${this._currentDate}.log`;
+      retainLatestLogFiles(this._logDir, LOGGING.MAX_RETAINED_LOG_FILES, 'log', currentLogFileName);
+      const logFile = path.join(this._logDir, currentLogFileName);
+      this._fileStream = fs.createWriteStream(logFile, {
+        flags: 'a',
+        encoding: 'utf8',
+      });
+
+      this._fileStream.on('error', (err) => {
+        console.error(`[DateRotatingStream] 文件流错误 (${this._logSubDir}):`, err);
+      });
+    } catch (err) {
+      console.error(`[DateRotatingStream] 日志轮转失败 (${this._logSubDir}):`, err);
     }
   }
 }
@@ -404,14 +411,6 @@ function createDrainHandler(
   onTimeout?: () => void,
 ): { onDrain: () => void; timeoutId: NodeJS.Timeout } {
   let resolved = false;
-
-  const onDrain = (): void => {
-    if (resolved) return;
-    resolved = true;
-    clearTimeout(timeoutId);
-    callback();
-  };
-
   const timeoutId = setTimeout(() => {
     if (resolved) return;
     resolved = true;
@@ -419,6 +418,13 @@ function createDrainHandler(
     onTimeout?.();
     callback(); // 超时后仍调用 callback 避免阻塞
   }, timeout);
+
+  function onDrain(): void {
+    if (resolved) return;
+    resolved = true;
+    clearTimeout(timeoutId);
+    callback();
+  }
 
   return { onDrain, timeoutId };
 }

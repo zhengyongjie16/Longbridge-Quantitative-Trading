@@ -62,7 +62,9 @@ export const createRateLimiter = (deps: RateLimiterDeps = {}): RateLimiter => {
         const timeSinceLastCall = now - lastCallTime;
         if (timeSinceLastCall < API.MIN_CALL_INTERVAL_MS) {
           const waitTime = API.MIN_CALL_INTERVAL_MS - timeSinceLastCall;
-          await new Promise((resolve) => setTimeout(resolve, waitTime));
+          await new Promise<void>((resolve) => {
+            setTimeout(resolve, waitTime);
+          });
           now = Date.now(); // 更新当前时间
         }
       }
@@ -81,7 +83,9 @@ export const createRateLimiter = (deps: RateLimiterDeps = {}): RateLimiter => {
         logger.warn(
           `[频率限制] Trade API 调用频率达到上限 (${maxCalls}次/${windowMs}ms)，等待 ${waitTime}ms`,
         );
-        await new Promise((resolve) => setTimeout(resolve, waitTime));
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, waitTime);
+        });
 
         const nowAfterWait = Date.now();
         callTimestamps = callTimestamps.filter((timestamp) => nowAfterWait - timestamp < windowMs);

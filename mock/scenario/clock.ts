@@ -5,9 +5,9 @@
  * - 提供可控时间源以驱动测试中的时间推进
  */
 export interface ScenarioClock {
-  now(): number;
-  set(timeMs: number): void;
-  tick(deltaMs: number): number;
+  now: () => number;
+  set: (timeMs: number) => void;
+  tick: (deltaMs: number) => number;
 }
 
 /**

@@ -321,7 +321,7 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
    * 使用全量订单刷新指定标的订单记录（做多标的）
    * 仅过滤 symbol 对应订单，不触发 API 调用
    */
-  async function refreshOrdersFromAllOrdersForLong(
+  function refreshOrdersFromAllOrdersForLong(
     symbol: string,
     allOrders: ReadonlyArray<RawOrderFromAPI>,
     quote?: Quote | null,
@@ -333,11 +333,13 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
 
       apiManager.cacheOrdersForSymbol(symbol, allBuyOrders, filledSellOrders, filteredOrders);
 
-      return applyOrdersRefreshForLong(symbol, allBuyOrders, filledSellOrders, quote);
+      return Promise.resolve(
+        applyOrdersRefreshForLong(symbol, allBuyOrders, filledSellOrders, quote),
+      );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(`[订单记录失败] 标的 ${symbol}`, errorMessage);
-      return [];
+      return Promise.resolve([]);
     }
   }
 
@@ -345,7 +347,7 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
    * 使用全量订单刷新指定标的订单记录（做空标的）
    * 仅过滤 symbol 对应订单，不触发 API 调用
    */
-  async function refreshOrdersFromAllOrdersForShort(
+  function refreshOrdersFromAllOrdersForShort(
     symbol: string,
     allOrders: ReadonlyArray<RawOrderFromAPI>,
     quote?: Quote | null,
@@ -357,11 +359,13 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
 
       apiManager.cacheOrdersForSymbol(symbol, allBuyOrders, filledSellOrders, filteredOrders);
 
-      return applyOrdersRefreshForShort(symbol, allBuyOrders, filledSellOrders, quote);
+      return Promise.resolve(
+        applyOrdersRefreshForShort(symbol, allBuyOrders, filledSellOrders, quote),
+      );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(`[订单记录失败] 标的 ${symbol}`, errorMessage);
-      return [];
+      return Promise.resolve([]);
     }
   }
 

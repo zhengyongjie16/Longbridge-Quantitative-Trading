@@ -150,7 +150,9 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
     loggerPrefix: 'SellProcessor',
     taskQueue,
     processTask,
-    releaseAfterProcess: (signal) => { signalObjectPool.release(signal); },
+    releaseAfterProcess: (signal) => {
+      signalObjectPool.release(signal);
+    },
     ...(getCanProcessTask ? { getCanProcessTask } : {}),
   });
 }

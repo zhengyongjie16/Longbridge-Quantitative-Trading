@@ -25,7 +25,7 @@ import {
   isBuyAction,
   isSellAction,
 } from '../../utils/helpers/index.js';
-import type { Signal, SignalType } from '../../types/signal.js';
+import type { OrderTypeConfig, Signal, SignalType } from '../../types/signal.js';
 import type { MonitorConfig } from '../../types/config.js';
 import type { TradeCheckResult } from '../../types/services.js';
 import type { OrderPayload, OrderExecutor, OrderExecutorDeps, SubmitOrderParams } from './types.js';
@@ -53,14 +53,17 @@ function getActionDescription(signalAction: Signal['action']): string {
 }
 
 /** 配置字符串转 OrderType 枚举 */
-function getOrderTypeFromConfig(typeConfig: 'LO' | 'ELO' | 'MO'): OrderType {
-  if (typeConfig === 'LO') {
-    return OrderType.LO;
+function getOrderTypeFromConfig(typeConfig: OrderTypeConfig): OrderType {
+  switch (typeConfig) {
+    case 'LO':
+      return OrderType.LO;
+    case 'ELO':
+      return OrderType.ELO;
+    case 'MO':
+      return OrderType.MO;
+    default:
+      return OrderType.ELO;
   }
-  if (typeConfig === 'MO') {
-    return OrderType.MO;
-  }
-  return OrderType.ELO;
 }
 
 /** 检查信号是否为跨日或触发时间无效的过期信号（保护性清仓信号不参与此校验） */
@@ -128,6 +131,8 @@ function resolveOrderSide(action: Signal['action']): OrderSide | null {
     case 'SELLCALL':
     case 'SELLPUT':
       return OrderSide.Sell;
+    case 'HOLD':
+      return null;
     default:
       return null;
   }
@@ -387,12 +392,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
     // 市价单不需要价格
     if (orderTypeParam === OrderType.MO) {
       logger.info(`[订单类型] 使用市价单(MO)，标的=${symbolDisplayForLog}`);
-    } else if (
-      orderTypeParam === OrderType.LO ||
-      orderTypeParam === OrderType.ELO ||
-      orderTypeParam === OrderType.ALO ||
-      orderTypeParam === OrderType.SLO
-    ) {
+    } else if (orderTypeParam === OrderType.LO || orderTypeParam === OrderType.ELO) {
       const orderTypeLabel = formatOrderTypeLabel(orderTypeParam);
       if (!resolvedPrice) {
         logger.warn(

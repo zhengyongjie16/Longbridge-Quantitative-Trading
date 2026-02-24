@@ -60,7 +60,7 @@ export async function refreshAccountAndPositions(
  * @param options.quotesMap 行情 Map（可选），用于持仓现价与名称
  * @returns Promise<void>，无返回值；异常时仅打日志不抛错
  */
-export async function displayAccountAndPositions({
+export function displayAccountAndPositions({
   lastState,
   quotesMap,
 }: {
@@ -116,7 +116,8 @@ export async function displayAccountAndPositions({
             ? (marketValue / totalAssets) * 100
             : 0;
 
-        const priceText = currentPrice === null ? '现价=N/A' : `现价=${formatNumber(currentPrice, 3)}`;
+        const priceText =
+          currentPrice === null ? '现价=N/A' : `现价=${formatNumber(currentPrice, 3)}`;
 
         const channelDisplay = formatAccountChannel(pos.accountChannel);
         const displayName = nameText;
@@ -137,4 +138,5 @@ export async function displayAccountAndPositions({
   } catch (err) {
     logger.warn('获取账户和持仓信息失败', formatError(err));
   }
+  return Promise.resolve();
 }

@@ -96,69 +96,69 @@ export type FilteringState = {
  * 使用范围：由 OrderRecorder 依赖注入；仅 orderRecorder 模块实现与使用。
  */
 export interface OrderStorage {
-  getBuyOrdersList(symbol: string, isLongSymbol: boolean): ReadonlyArray<OrderRecord>;
-  setBuyOrdersListForLong(symbol: string, newList: ReadonlyArray<OrderRecord>): void;
-  setBuyOrdersListForShort(symbol: string, newList: ReadonlyArray<OrderRecord>): void;
-  addBuyOrder(
+  getBuyOrdersList: (symbol: string, isLongSymbol: boolean) => ReadonlyArray<OrderRecord>;
+  setBuyOrdersListForLong: (symbol: string, newList: ReadonlyArray<OrderRecord>) => void;
+  setBuyOrdersListForShort: (symbol: string, newList: ReadonlyArray<OrderRecord>) => void;
+  addBuyOrder: (
     symbol: string,
     executedPrice: number,
     executedQuantity: number,
     isLongSymbol: boolean,
     executedTimeMs: number,
-  ): void;
-  updateAfterSell(
+  ) => void;
+  updateAfterSell: (
     symbol: string,
     executedPrice: number,
     executedQuantity: number,
     isLongSymbol: boolean,
     executedTimeMs: number,
     orderId?: string | null,
-  ): void;
-  clearBuyOrders(symbol: string, isLongSymbol: boolean, quote?: Quote | null): void;
-  getLatestBuyOrderPrice(symbol: string, isLongSymbol: boolean): number | null;
-  getLatestSellRecord(symbol: string, isLongSymbol: boolean): OrderRecord | null;
+  ) => void;
+  clearBuyOrders: (symbol: string, isLongSymbol: boolean, quote?: Quote | null) => void;
+  getLatestBuyOrderPrice: (symbol: string, isLongSymbol: boolean) => number | null;
+  getLatestSellRecord: (symbol: string, isLongSymbol: boolean) => OrderRecord | null;
 
   // 待成交卖出订单追踪
 
   /** 添加待成交卖出订单（提交时调用） */
-  addPendingSell(info: Omit<PendingSellInfo, 'filledQuantity' | 'status'>): void;
+  addPendingSell: (info: Omit<PendingSellInfo, 'filledQuantity' | 'status'>) => void;
 
   /** 标记卖出订单完全成交 */
-  markSellFilled(orderId: string): PendingSellInfo | null;
+  markSellFilled: (orderId: string) => PendingSellInfo | null;
 
   /** 标记卖出订单部分成交 */
-  markSellPartialFilled(orderId: string, filledQuantity: number): PendingSellInfo | null;
+  markSellPartialFilled: (orderId: string, filledQuantity: number) => PendingSellInfo | null;
 
   /** 标记卖出订单取消 */
-  markSellCancelled(orderId: string): PendingSellInfo | null;
+  markSellCancelled: (orderId: string) => PendingSellInfo | null;
 
   /**
    * 恢复期：为待恢复的卖单分配关联买单 ID
    * 从当前买单记录中按价格从低到高分配，排除已被 pendingSells 占用的订单
    */
-  allocateRelatedBuyOrderIdsForRecovery(
+  allocateRelatedBuyOrderIdsForRecovery: (
     symbol: string,
     direction: 'LONG' | 'SHORT',
     quantity: number,
-  ): readonly string[];
+  ) => readonly string[];
 
   /** 获取指定标的的成本均价（实时计算，无缓存） */
-  getCostAveragePrice(symbol: string, isLongSymbol: boolean): number | null;
+  getCostAveragePrice: (symbol: string, isLongSymbol: boolean) => number | null;
 
   /**
    * 获取可卖出的订单（核心防重逻辑）
    * includeAll=true 时返回该标的该方向全部订单，否则仅返回买入价 < 当前价的订单
    */
-  getSellableOrders(
+  getSellableOrders: (
     symbol: string,
     direction: 'LONG' | 'SHORT',
     currentPrice: number,
     maxSellQuantity?: number,
     options?: { readonly includeAll?: boolean },
-  ): ProfitableOrderResult;
+  ) => ProfitableOrderResult;
 
   /** 清空买卖记录与 pendingSells */
-  clearAll(): void;
+  clearAll: () => void;
 }
 
 /**
@@ -168,10 +168,10 @@ export interface OrderStorage {
  * 使用范围：由 OrderRecorder、DailyLossTracker 等依赖注入；仅 orderRecorder 模块实现。
  */
 export interface OrderFilteringEngine {
-  applyFilteringAlgorithm(
+  applyFilteringAlgorithm: (
     allBuyOrders: ReadonlyArray<OrderRecord>,
     filledSellOrders: ReadonlyArray<OrderRecord>,
-  ): ReadonlyArray<OrderRecord>;
+  ) => ReadonlyArray<OrderRecord>;
 }
 
 /**
@@ -181,16 +181,16 @@ export interface OrderFilteringEngine {
  * 使用范围：由 OrderRecorder 依赖注入；仅 orderRecorder 模块实现与使用。
  */
 export interface OrderAPIManager {
-  fetchAllOrdersFromAPI(forceRefresh?: boolean): Promise<ReadonlyArray<RawOrderFromAPI>>;
-  cacheOrdersForSymbol(
+  fetchAllOrdersFromAPI: (forceRefresh?: boolean) => Promise<ReadonlyArray<RawOrderFromAPI>>;
+  cacheOrdersForSymbol: (
     symbol: string,
     buyOrders: ReadonlyArray<OrderRecord>,
     sellOrders: ReadonlyArray<OrderRecord>,
     allOrders: ReadonlyArray<RawOrderFromAPI>,
-  ): void;
-  clearCacheForSymbol(symbol: string): void;
+  ) => void;
+  clearCacheForSymbol: (symbol: string) => void;
   /** 清空 symbol cache 与 allOrdersCache */
-  clearCache(): void;
+  clearCache: () => void;
 }
 
 // ==================== 依赖类型定义 ====================

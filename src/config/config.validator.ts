@@ -127,7 +127,7 @@ function recordTradingSymbolUsage(
  * @param env - 进程环境变量
  * @returns 验证结果（valid、errors）
  */
-async function validateLongPortConfig(env: NodeJS.ProcessEnv): Promise<ValidationResult> {
+function validateLongPortConfig(env: NodeJS.ProcessEnv): Promise<ValidationResult> {
   const errors: string[] = [];
 
   const requiredConfigs = [
@@ -141,10 +141,10 @@ async function validateLongPortConfig(env: NodeJS.ProcessEnv): Promise<Validatio
     if (!value?.trim() || value === placeholder) errors.push(`${key} 未配置`);
   }
 
-  return {
+  return Promise.resolve({
     valid: errors.length === 0,
     errors,
-  };
+  });
 }
 
 /**

@@ -33,8 +33,8 @@ import { deductSellQuantityFromBuyOrders } from './sellDeductionPolicy.js';
  * - candidateOrders: 需要过滤的候选订单
  */
 function initializeFilteringState(
-  allBuyOrders: OrderRecord[],
-  sortedSellOrders: OrderRecord[],
+  allBuyOrders: ReadonlyArray<OrderRecord>,
+  sortedSellOrders: ReadonlyArray<OrderRecord>,
 ): FilteringState | null {
   const lastSellOrder = sortedSellOrders.at(-1);
   if (!lastSellOrder) {
@@ -102,7 +102,7 @@ function applySingleSellOrderFilter(
  */
 function applySequentialFiltering(
   state: FilteringState,
-  sortedSellOrders: OrderRecord[],
+  sortedSellOrders: ReadonlyArray<OrderRecord>,
 ): OrderRecord[] {
   const firstSellTime = sortedSellOrders[0]?.executedTime ?? 0;
   const latestSellTime = sortedSellOrders.at(-1)?.executedTime ?? 0;
@@ -132,9 +132,9 @@ function applySequentialFiltering(
  * 按时间顺序处理卖出订单，返回当前仍持有的买入订单
  */
 function applyFilteringAlgorithm(
-  allBuyOrders: OrderRecord[],
-  filledSellOrders: OrderRecord[],
-): OrderRecord[] {
+  allBuyOrders: ReadonlyArray<OrderRecord>,
+  filledSellOrders: ReadonlyArray<OrderRecord>,
+): ReadonlyArray<OrderRecord> {
   const sortedSellOrders = [...filledSellOrders].sort((a, b) => a.executedTime - b.executedTime);
 
   if (sortedSellOrders.length === 0) {

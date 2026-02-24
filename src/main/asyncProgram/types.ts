@@ -9,13 +9,13 @@ import type { Task, TaskQueue } from './tradeTaskQueue/types.js';
  */
 export interface Processor {
   /** 启动处理器，开始消费任务队列 */
-  start(): void;
+  start: () => void;
   /** 停止处理器 */
-  stop(): void;
+  stop: () => void;
   /** 停止并等待在途任务完成 */
-  stopAndDrain(): Promise<void>;
+  stopAndDrain: () => Promise<void>;
   /** 重启处理器（先 stop 后 start） */
-  restart(): void;
+  restart: () => void;
 }
 
 /**

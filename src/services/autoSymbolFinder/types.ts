@@ -55,12 +55,12 @@ export type WarrantListCacheEntry = {
  * 使用范围：仅 autoSymbolFinder 模块内部使用。
  */
 export interface WarrantListCache {
-  getEntry(key: string): WarrantListCacheEntry | undefined;
-  setEntry(key: string, entry: WarrantListCacheEntry): void;
-  getInFlight(key: string): Promise<ReadonlyArray<WarrantListItem>> | undefined;
-  setInFlight(key: string, request: Promise<ReadonlyArray<WarrantListItem>>): void;
-  deleteInFlight(key: string): void;
-  clear(): void;
+  getEntry: (key: string) => WarrantListCacheEntry | undefined;
+  setEntry: (key: string, entry: WarrantListCacheEntry) => void;
+  getInFlight: (key: string) => Promise<ReadonlyArray<WarrantListItem>> | undefined;
+  setInFlight: (key: string, request: Promise<ReadonlyArray<WarrantListItem>>) => void;
+  deleteInFlight: (key: string) => void;
+  clear: () => void;
 }
 
 /**

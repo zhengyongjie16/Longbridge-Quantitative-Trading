@@ -75,7 +75,9 @@ async function withRetry<T>(
     } catch (err) {
       lastErr = err;
       if (i < retries && delayMs > 0) {
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, delayMs);
+        });
       }
     }
   }
@@ -251,27 +253,32 @@ export async function createMarketDataClient(
    * 获取行情数据（从本地缓存读取）
    * 支持任意可迭代对象（Array、Set 等），调用方无需转换
    */
-  async function getQuotes(requestSymbols: Iterable<string>): Promise<Map<string, Quote | null>> {
-    const result = new Map<string, Quote | null>();
+  function getQuotes(requestSymbols: Iterable<string>): Promise<Map<string, Quote | null>> {
+    try {
+      const result = new Map<string, Quote | null>();
 
-    for (const reqSymbol of requestSymbols) {
-      const cached = quoteCache.get(reqSymbol);
+      for (const reqSymbol of requestSymbols) {
+        const cached = quoteCache.get(reqSymbol);
 
-      if (cached) {
-        result.set(reqSymbol, cached);
-      } else if (subscribedSymbols.has(reqSymbol)) {
-        // 已订阅但无数据（可能是刚订阅还未收到推送）
-        const staticInfo = staticInfoCache.get(reqSymbol);
-        const symbolName = extractName(staticInfo);
-        logger.warn(`[行情获取] 标的 ${formatSymbolDisplay(reqSymbol, symbolName)} 无缓存数据`);
-        result.set(reqSymbol, null);
-      } else {
-        // 请求的标的不在订阅列表中，抛出错误以尽早发现配置问题
-        throw new Error(`[行情获取] 标的 ${reqSymbol} 未订阅，请先订阅`);
+        if (cached) {
+          result.set(reqSymbol, cached);
+        } else if (subscribedSymbols.has(reqSymbol)) {
+          // 已订阅但无数据（可能是刚订阅还未收到推送）
+          const staticInfo = staticInfoCache.get(reqSymbol);
+          const symbolName = extractName(staticInfo);
+          logger.warn(`[行情获取] 标的 ${formatSymbolDisplay(reqSymbol, symbolName)} 无缓存数据`);
+          result.set(reqSymbol, null);
+        } else {
+          // 请求的标的不在订阅列表中，抛出错误以尽早发现配置问题
+          throw new Error(`[行情获取] 标的 ${reqSymbol} 未订阅，请先订阅`);
+        }
       }
-    }
 
-    return result;
+      return Promise.resolve(result);
+    } catch (error) {
+      const normalizedError = error instanceof Error ? error : new Error(String(error));
+      return Promise.reject(normalizedError);
+    }
   }
 
   /**

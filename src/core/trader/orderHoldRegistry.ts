@@ -78,11 +78,11 @@ export function createOrderHoldRegistry(): OrderHoldRegistry {
    * 程序启动时从已有订单列表初始化保留集。
    * 仅处理状态为未成交的订单，确保重启后能正确恢复持仓追踪状态。
    */
-    function seedFromOrders(orders: ReadonlyArray<RawOrderFromAPI>): void {
-      for (const order of orders) {
+  function seedFromOrders(orders: ReadonlyArray<RawOrderFromAPI>): void {
+    for (const order of orders) {
       if (!order.symbol) {
-          continue;
-        }
+        continue;
+      }
       if (!PENDING_ORDER_STATUSES.has(order.status)) {
         continue;
       }
