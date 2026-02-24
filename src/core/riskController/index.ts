@@ -32,6 +32,7 @@ import type {
   PositionLimitChecker,
   UnrealizedLossChecker,
 } from './types.js';
+import { IS_DEBUG } from '../../constants/index.js';
 
 /**
  * 创建风险检查器（门面模式）。
@@ -120,7 +121,7 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
     }
 
     // 记录浮亏计算详情（仅在DEBUG模式下）
-    if (process.env['DEBUG'] === 'true') {
+    if (IS_DEBUG) {
       logger.debug(
         `[风险检查调试] ${directionName}浮亏检查: R1(开仓成本)=${r1.toFixed(2)}, R2(当前市值)=${r2.toFixed(
           2,

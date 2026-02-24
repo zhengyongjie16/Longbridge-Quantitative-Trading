@@ -38,7 +38,7 @@ function parseBooleanEnv(value: string | undefined): boolean | null {
  * @param env 环境变量对象
  * @returns 运行时档位（'app' | 'test'）
  */
-export function resolveRuntimeProfile(env: NodeJS.ProcessEnv): RuntimeProfile {
+function resolveRuntimeProfile(env: NodeJS.ProcessEnv): RuntimeProfile {
   const explicitProfile = env[APP_RUNTIME_PROFILE_ENV_KEY]?.trim().toLowerCase();
   if (explicitProfile === TEST_PROFILE) {
     return 'test';
