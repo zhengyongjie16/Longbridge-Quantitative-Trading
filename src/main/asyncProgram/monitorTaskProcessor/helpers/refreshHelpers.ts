@@ -62,10 +62,8 @@ export function createRefreshHelpers({
     }
     if (cachedPositionsSnapshot === undefined) {
       cachedPositionsSnapshot = await trader.getStockPositions();
-      if (cachedPositionsSnapshot) {
-        lastState.cachedPositions = [...cachedPositionsSnapshot];
-        lastState.positionCache.update(cachedPositionsSnapshot);
-      }
+      lastState.cachedPositions = [...cachedPositionsSnapshot];
+      lastState.positionCache.update(cachedPositionsSnapshot);
     }
   }
 

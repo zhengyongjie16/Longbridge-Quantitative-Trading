@@ -22,7 +22,7 @@ function buildDataFingerprint(candles: ReadonlyArray<CandleData>, lastClose: num
  * @returns 指纹字符串（格式：length_lastClose），无效时返回 null
  */
 export function getCandleFingerprint(candles: ReadonlyArray<CandleData>): string | null {
-  if (!candles || candles.length === 0) {
+  if (candles.length === 0) {
     return null;
   }
   const lastCandle = candles.at(-1);

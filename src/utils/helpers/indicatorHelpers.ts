@@ -44,18 +44,17 @@ export function getIndicatorValue(
 
   switch (indicatorName) {
     case 'K':
-      // 非空断言：Number.isFinite 确保值不是 null/undefined，但 TypeScript 无法推断类型缩窄
-      return kdj && Number.isFinite(kdj.k) ? kdj.k! : null;
+      return kdj && Number.isFinite(kdj.k) ? (kdj.k ?? null) : null;
     case 'D':
-      return kdj && Number.isFinite(kdj.d) ? kdj.d! : null;
+      return kdj && Number.isFinite(kdj.d) ? (kdj.d ?? null) : null;
     case 'J':
-      return kdj && Number.isFinite(kdj.j) ? kdj.j! : null;
+      return kdj && Number.isFinite(kdj.j) ? (kdj.j ?? null) : null;
     case 'MACD':
-      return macd && Number.isFinite(macd.macd) ? macd.macd! : null;
+      return macd && Number.isFinite(macd.macd) ? (macd.macd ?? null) : null;
     case 'DIF':
-      return macd && Number.isFinite(macd.dif) ? macd.dif! : null;
+      return macd && Number.isFinite(macd.dif) ? (macd.dif ?? null) : null;
     case 'DEA':
-      return macd && Number.isFinite(macd.dea) ? macd.dea! : null;
+      return macd && Number.isFinite(macd.dea) ? (macd.dea ?? null) : null;
     default:
       return null;
   }

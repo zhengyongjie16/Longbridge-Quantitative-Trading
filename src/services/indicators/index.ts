@@ -58,7 +58,7 @@ export function buildIndicatorSnapshot(
   emaPeriods: ReadonlyArray<number> = [],
   psyPeriods: ReadonlyArray<number> = [],
 ): IndicatorSnapshot | null {
-  if (!candles || candles.length === 0) {
+  if (candles.length === 0) {
     return null;
   }
 
@@ -84,7 +84,7 @@ export function buildIndicatorSnapshot(
 
   // 计算所有需要的 RSI 周期
   const rsi = periodRecordPool.acquire();
-  if (Array.isArray(rsiPeriods) && rsiPeriods.length > 0) {
+  if (rsiPeriods.length > 0) {
     for (const period of rsiPeriods) {
       if (validateRsiPeriod(period) && Number.isInteger(period)) {
         const rsiValue = calculateRSI(candles, period);
@@ -97,7 +97,7 @@ export function buildIndicatorSnapshot(
 
   // 计算所有需要的 EMA 周期
   const ema = periodRecordPool.acquire();
-  if (Array.isArray(emaPeriods) && emaPeriods.length > 0) {
+  if (emaPeriods.length > 0) {
     for (const period of emaPeriods) {
       if (validateEmaPeriod(period) && Number.isInteger(period)) {
         const emaValue = calculateEMA(candles, period);
@@ -110,7 +110,7 @@ export function buildIndicatorSnapshot(
 
   // 计算所有需要的 PSY 周期
   let psy: Record<number, number> | null = null;
-  if (Array.isArray(psyPeriods) && psyPeriods.length > 0) {
+  if (psyPeriods.length > 0) {
     const psyRecord = periodRecordPool.acquire();
     let hasPsyValue = false;
     for (const period of psyPeriods) {

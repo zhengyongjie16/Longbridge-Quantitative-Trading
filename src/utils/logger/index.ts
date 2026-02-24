@@ -57,7 +57,10 @@ export function retainLatestLogFiles(
   const toDelete = Math.max(0, n - toRetain);
 
   for (let i = 0; i < toDelete; i++) {
-    const file = files[i]!;
+    const file = files[i];
+    if (file === undefined) {
+      continue;
+    }
     const fullPath = path.join(logDir, file);
     try {
       fs.unlinkSync(fullPath);
@@ -287,6 +290,18 @@ function stripAnsiCodes(str: string): string {
   return str.replaceAll(ANSI_CODE_REGEX, '');
 }
 
+function isLogObject(value: unknown): value is LogObject {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate['level'] === 'number' &&
+    typeof candidate['time'] === 'number' &&
+    typeof candidate['msg'] === 'string'
+  );
+}
+
 /**
  * 自定义格式化函数，将日志对象转换为文件输出格式
  * 移除 ANSI 颜色代码，输出纯文本格式
@@ -306,7 +321,7 @@ function formatForFile(obj: LogObject): string {
   };
   const levelStr = `[${levelMap[level] ?? 'INFO'}]`;
 
-  let line = `${levelStr} ${timestamp} ${stripAnsiCodes(String(obj.msg))}`;
+  let line = `${levelStr} ${timestamp} ${stripAnsiCodes(obj.msg)}`;
 
   // 处理额外数据
   if (obj.extra !== undefined && obj.extra !== null) {
@@ -432,7 +447,12 @@ function writeWithDrainTimeout(
 const consoleStream = new Writable({
   write(chunk: Buffer, _encoding: BufferEncoding, callback: () => void): void {
     try {
-      const obj: LogObject = JSON.parse(chunk.toString());
+      const parsed: unknown = JSON.parse(chunk.toString());
+      if (!isLogObject(parsed)) {
+        callback();
+        return;
+      }
+      const obj = parsed;
       const formatted = formatForConsole(obj);
 
       // 根据日志级别选择输出流
@@ -472,7 +492,12 @@ const fileStream = new Writable({
     (async () => {
       let obj: LogObject;
       try {
-        obj = JSON.parse(chunk.toString());
+        const parsed: unknown = JSON.parse(chunk.toString());
+        if (!isLogObject(parsed)) {
+          callback();
+          return;
+        }
+        obj = parsed;
       } catch (err) {
         try {
           console.error('[FileStream] JSON解析失败:', err);
@@ -529,7 +554,7 @@ const fileStream = new Writable({
         }
         callback();
       }
-    })().catch((err) => {
+    })().catch((err: unknown) => {
       // 捕获 IIFE 中未处理的异常
       try {
         console.error('[FileStream] 未捕获的异常:', err);

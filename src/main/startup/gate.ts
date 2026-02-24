@@ -61,7 +61,7 @@ export function createStartupGate(deps: StartupGateDeps): StartupGate {
       return { isTradingDay: true, isHalfDay: false };
     }
 
-    while (true) {
+    for (;;) {
       const currentTime = now();
       const tradingDayInfo = await resolveTradingDayInfo(currentTime);
 

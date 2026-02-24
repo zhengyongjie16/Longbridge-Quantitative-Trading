@@ -47,6 +47,7 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
   let immediateHandle: ReturnType<typeof setImmediate> | null = null;
   let retryHandle: ReturnType<typeof setTimeout> | null = null;
   let drainResolve: (() => void) | null = null;
+  const isActive = (): boolean => running;
 
   /**
    * 执行交易后刷新：刷新账户/持仓缓存、浮亏数据，并展示最新账户持仓信息
@@ -167,13 +168,12 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
         refreshGate.markFresh(targetVersion);
       } else {
         pendingSymbols = pending.concat(pendingSymbols);
-        pendingVersion =
-          pendingVersion === null ? targetVersion : Math.max(pendingVersion, targetVersion);
+        pendingVersion = targetVersion;
       }
       inFlight = false;
       drainResolve?.();
       drainResolve = null;
-      if (running && pendingSymbols.length > 0) {
+      if (isActive() && pendingSymbols.length > 0) {
         if (refreshOk) {
           scheduleRun();
         } else {

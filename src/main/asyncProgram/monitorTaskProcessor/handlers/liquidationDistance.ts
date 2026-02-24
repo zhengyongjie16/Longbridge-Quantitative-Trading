@@ -156,7 +156,7 @@ export function createLiquidationDistanceHandler({
       if (isLongReady) {
         const longTask = tryCreateLiquidationSignal(
           longSymbol,
-          data.long.symbolName ?? context.longSymbolName ?? null,
+          data.long.symbolName,
           true,
           longPosition,
           data.long.quote,
@@ -170,7 +170,7 @@ export function createLiquidationDistanceHandler({
       if (isShortReady) {
         const shortTask = tryCreateLiquidationSignal(
           shortSymbol,
-          data.short.symbolName ?? context.shortSymbolName ?? null,
+          data.short.symbolName,
           false,
           shortPosition,
           data.short.quote,

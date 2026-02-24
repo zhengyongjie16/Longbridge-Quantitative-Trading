@@ -102,13 +102,13 @@ export function scheduleRiskTasks(params: RiskTasksParams): void {
           seatVersion: longSeatVersion,
           symbol: longSeatState.symbol ?? null,
           quote: longQuote,
-          symbolName: longQuote?.name ?? monitorContext.longSymbolName ?? null,
+          symbolName: longQuote?.name ?? monitorContext.longSymbolName,
         },
         short: {
           seatVersion: shortSeatVersion,
           symbol: shortSeatState.symbol ?? null,
           quote: shortQuote,
-          symbolName: shortQuote?.name ?? monitorContext.shortSymbolName ?? null,
+          symbolName: shortQuote?.name ?? monitorContext.shortSymbolName,
         },
       },
     });

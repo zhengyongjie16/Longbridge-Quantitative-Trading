@@ -418,10 +418,10 @@ async function main(): Promise<void> {
     // 初始化风控、自动寻标、策略、浮亏与延迟验证组件
     const warrantRiskChecker = createWarrantRiskChecker();
     const positionLimitChecker = createPositionLimitChecker({
-      maxPositionNotional: monitorConfig.maxPositionNotional ?? null,
+      maxPositionNotional: monitorConfig.maxPositionNotional,
     });
     const unrealizedLossChecker = createUnrealizedLossChecker({
-      maxUnrealizedLossPerSymbol: monitorConfig.maxUnrealizedLossPerSymbol ?? null,
+      maxUnrealizedLossPerSymbol: monitorConfig.maxUnrealizedLossPerSymbol,
     });
     const riskChecker = createRiskChecker({
       warrantRiskChecker,
@@ -453,7 +453,7 @@ async function main(): Promise<void> {
 
     // 浮亏监控器：监控单标的浮亏
     const unrealizedLossMonitor = createUnrealizedLossMonitor({
-      maxUnrealizedLossPerSymbol: monitorConfig.maxUnrealizedLossPerSymbol ?? 0,
+      maxUnrealizedLossPerSymbol: monitorConfig.maxUnrealizedLossPerSymbol,
     });
 
     // 延迟验证器：用于延迟信号验证
@@ -584,7 +584,9 @@ async function main(): Promise<void> {
       buyTaskQueue,
       sellTaskQueue,
       monitorTaskQueue,
-      releaseSignal: signalObjectPool.release,
+      releaseSignal: (signal) => {
+        signalObjectPool.release(signal);
+      },
     });
     const totalRemoved =
       result.removedDelayed + result.removedBuy + result.removedSell + result.removedMonitorTasks;
@@ -677,7 +679,9 @@ async function main(): Promise<void> {
         sellTaskQueue,
         monitorTaskQueue,
         refreshGate,
-        releaseSignal: signalObjectPool.release,
+        releaseSignal: (signal) => {
+          signalObjectPool.release(signal);
+        },
       }),
       createMarketDataDomain({
         marketDataClient,
@@ -727,7 +731,7 @@ async function main(): Promise<void> {
   cleanup.registerExitHandlers();
 
   // 主循环监控
-  while (true) {
+  for (;;) {
     try {
       await mainProgram({
         marketDataClient,

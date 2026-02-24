@@ -164,7 +164,7 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
         quote.lotSize !== undefined && Number.isFinite(quote.lotSize) && quote.lotSize > 0;
       if (!lotSizeValid) {
         logger.warn(
-          `[BuyProcessor] 买入标的 lotSize 缺失或无效，无法按手数计算数量，跳过: ${symbolDisplay}，quote.lotSize=${quote?.lotSize}`,
+          `[BuyProcessor] 买入标的 lotSize 缺失或无效，无法按手数计算数量，跳过: ${symbolDisplay}，quote.lotSize=${quote.lotSize}`,
         );
         return true;
       }

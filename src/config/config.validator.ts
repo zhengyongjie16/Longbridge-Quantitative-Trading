@@ -221,7 +221,7 @@ function validateMonitorConfig(
   const autoSearchEnabled = config.autoSearchConfig.autoSearchEnabled;
 
   // 验证订单归属映射
-  if (!config.orderOwnershipMapping || config.orderOwnershipMapping.length === 0) {
+  if (config.orderOwnershipMapping.length === 0) {
     const mappingKey = `ORDER_OWNERSHIP_MAPPING_${index}`;
     errors = [...errors, `${prefix}: ${mappingKey} 未配置或为空（用于 stockName 归属解析）`];
     missingFields = [...missingFields, mappingKey];
@@ -438,9 +438,6 @@ function validateTradingConfig(
 
   // 验证每个监控标的的配置
   for (const config of tradingConfig.monitors) {
-    if (!config) {
-      continue;
-    }
     // 使用配置中保存的原始索引（对应环境变量的 _1, _2 等后缀）
     const result = validateMonitorConfig(config, config.originalIndex, env);
     errors = [...errors, ...result.errors];
@@ -451,9 +448,6 @@ function validateTradingConfig(
   const ownershipAliases = new Map<string, string>();
   const ownershipConflicts: Array<{ alias: string; current: string; existing: string }> = [];
   for (const config of tradingConfig.monitors) {
-    if (!config) {
-      continue;
-    }
     for (const alias of config.orderOwnershipMapping) {
       const normalizedAlias = alias.trim().toUpperCase();
       if (!normalizedAlias) {
@@ -485,9 +479,6 @@ function validateTradingConfig(
   const duplicateSymbols: DuplicateSymbol[] = [];
 
   for (const config of tradingConfig.monitors) {
-    if (!config) {
-      continue;
-    }
     if (config.autoSearchConfig.autoSearchEnabled) {
       continue;
     }
@@ -602,9 +593,6 @@ export async function validateAllConfig({
   logger.info(`监控标的数量: ${tradingConfig.monitors.length}`);
 
   for (const monitorConfig of tradingConfig.monitors) {
-    if (!monitorConfig) {
-      continue;
-    }
     const index = monitorConfig.originalIndex;
     const autoSearchEnabled = monitorConfig.autoSearchConfig.autoSearchEnabled;
 
@@ -642,28 +630,26 @@ export async function validateAllConfig({
     );
 
     const verificationConfig = monitorConfig.verificationConfig;
-    if (verificationConfig) {
-      if (
-        verificationConfig.buy.delaySeconds > 0 &&
-        verificationConfig.buy.indicators &&
-        verificationConfig.buy.indicators.length > 0
-      ) {
-        logger.info(`买入信号延迟验证时间: ${verificationConfig.buy.delaySeconds} 秒`);
-        logger.info(`买入信号延迟验证指标: ${verificationConfig.buy.indicators.join(', ')}`);
-      } else {
-        logger.info('买入信号延迟验证: 已禁用');
-      }
+    if (
+      verificationConfig.buy.delaySeconds > 0 &&
+      verificationConfig.buy.indicators &&
+      verificationConfig.buy.indicators.length > 0
+    ) {
+      logger.info(`买入信号延迟验证时间: ${verificationConfig.buy.delaySeconds} 秒`);
+      logger.info(`买入信号延迟验证指标: ${verificationConfig.buy.indicators.join(', ')}`);
+    } else {
+      logger.info('买入信号延迟验证: 已禁用');
+    }
 
-      if (
-        verificationConfig.sell.delaySeconds > 0 &&
-        verificationConfig.sell.indicators &&
-        verificationConfig.sell.indicators.length > 0
-      ) {
-        logger.info(`卖出信号延迟验证时间: ${verificationConfig.sell.delaySeconds} 秒`);
-        logger.info(`卖出信号延迟验证指标: ${verificationConfig.sell.indicators.join(', ')}`);
-      } else {
-        logger.info('卖出信号延迟验证: 已禁用');
-      }
+    if (
+      verificationConfig.sell.delaySeconds > 0 &&
+      verificationConfig.sell.indicators &&
+      verificationConfig.sell.indicators.length > 0
+    ) {
+      logger.info(`卖出信号延迟验证时间: ${verificationConfig.sell.delaySeconds} 秒`);
+      logger.info(`卖出信号延迟验证指标: ${verificationConfig.sell.indicators.join(', ')}`);
+    } else {
+      logger.info('卖出信号延迟验证: 已禁用');
     }
 
     logger.info('信号配置:');

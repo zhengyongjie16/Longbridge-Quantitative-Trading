@@ -31,7 +31,7 @@ export function createBaseProcessor<TType extends string>(
 
       const signal = task.data;
 
-      const canProcess = running && (getCanProcessTask ? getCanProcessTask() : true);
+      const canProcess = getCanProcessTask ? getCanProcessTask() : true;
       if (!canProcess) {
         releaseAfterProcess(signal);
         continue;
@@ -64,7 +64,7 @@ export function createBaseProcessor<TType extends string>(
         immediateHandle = null;
       } else {
         inFlightPromise = processQueue()
-          .catch((err) => {
+          .catch((err: unknown) => {
             logger.error(`[${loggerPrefix}] 处理队列时发生错误`, formatError(err));
           })
           .finally(() => {

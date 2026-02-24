@@ -304,13 +304,14 @@ function evaluateCondition(state: IndicatorState, condition: Condition): boolean
   }
 
   // 根据运算符比较
-  if (operator === '<') {
-    return value < threshold;
-  } else if (operator === '>') {
-    return value > threshold;
+  switch (operator) {
+    case '<':
+      return value < threshold;
+    case '>':
+      return value > threshold;
+    default:
+      return false;
   }
-
-  return false;
 }
 
 /**
@@ -452,7 +453,6 @@ function extractIndicatorPeriods(
   for (const config of configs) {
     if (!config?.conditionGroups) continue;
     for (const group of config.conditionGroups) {
-      if (!group.conditions) continue;
       for (const condition of group.conditions) {
         if (!condition.indicator.startsWith(prefix)) continue;
         const periodStr = condition.indicator.split(':')[1];

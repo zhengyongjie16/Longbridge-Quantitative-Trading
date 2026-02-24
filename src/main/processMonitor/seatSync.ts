@@ -128,7 +128,7 @@ export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
         nextSymbol: longSeatState.symbol,
         callPrice: longSeatState.callPrice ?? null,
         quote: longQuote,
-        symbolName: monitorContext.longSymbolName ?? null,
+        symbolName: monitorContext.longSymbolName,
         quotesMap,
       },
     });
@@ -150,7 +150,7 @@ export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
         nextSymbol: shortSeatState.symbol,
         callPrice: shortSeatState.callPrice ?? null,
         quote: shortQuote,
-        symbolName: monitorContext.shortSymbolName ?? null,
+        symbolName: monitorContext.shortSymbolName,
         quotesMap,
       },
     });

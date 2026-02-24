@@ -78,7 +78,7 @@ function calculateBuyQuantity(
   overridePrice: number | undefined,
   targetNotional: number,
 ): Decimal {
-  const priceNum = Number(overridePrice ?? signal?.price ?? null);
+  const priceNum = Number(overridePrice ?? signal.price ?? null);
   if (!Number.isFinite(priceNum) || priceNum <= 0) {
     logger.warn(`[跳过订单] 无法获取有效价格，无法按金额计算买入数量，price=${priceNum}`);
     return Decimal.ZERO();
@@ -91,7 +91,7 @@ function calculateBuyQuantity(
   let rawQty = Math.floor(notional / priceNum);
 
   // 获取最小买卖单位（已在配置验证阶段确保 lotSize 有效）
-  const lotSize: number = signal?.lotSize ?? 0;
+  const lotSize: number = signal.lotSize ?? 0;
   if (!Number.isFinite(lotSize) || lotSize <= 0) {
     logger.error(`[跳过订单] lotSize 无效(${lotSize})，这不应该发生，请检查配置验证逻辑`);
     return Decimal.ZERO();
@@ -319,7 +319,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
   ): Promise<Decimal> {
     let targetQuantity: number | null = null;
     if (isDefined(signal.quantity)) {
-      const signalQty = Number(signal.quantity);
+      const signalQty = signal.quantity;
       if (isValidPositiveNumber(signalQty)) {
         targetQuantity = signalQty;
       }
@@ -327,16 +327,17 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
 
     await rateLimiter.throttle();
     const resp = await ctx.stockPositions([symbol]);
-    const channels = resp?.channels ?? [];
+    const channels = resp.channels;
     let totalAvailable = 0;
     for (const ch of channels) {
       const positions = Array.isArray(ch.positions) ? ch.positions : [];
       for (const pos of positions) {
-        if (pos?.symbol === symbol && pos.availableQuantity) {
-          const qty = decimalToNumber(pos.availableQuantity);
-          if (isValidPositiveNumber(qty)) {
-            totalAvailable += qty;
-          }
+        if (pos.symbol !== symbol) {
+          continue;
+        }
+        const qty = decimalToNumber(pos.availableQuantity);
+        if (isValidPositiveNumber(qty)) {
+          totalAvailable += qty;
         }
       }
     }
@@ -378,7 +379,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       return;
     }
 
-    const resolvedPrice = overridePrice ?? signal?.price ?? null;
+    const resolvedPrice = overridePrice ?? signal.price ?? null;
 
     // 格式化标的显示（用于日志）
     const symbolDisplayForLog = formatSymbolDisplay(symbol, signal.symbolName ?? null);
@@ -438,7 +439,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       const isLongSymbol = !isShortSymbol;
       const isProtectiveLiquidation = isLiquidationSignal(signal);
       orderMonitor.trackOrder({
-        orderId: String(orderId),
+        orderId,
         symbol,
         side,
         price: resolvedPrice ?? 0,
@@ -454,7 +455,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       if (isSellOrder && signal.relatedBuyOrderIds) {
         const direction: 'LONG' | 'SHORT' = isLongSymbol ? 'LONG' : 'SHORT';
         orderRecorder.submitSellOrder(
-          String(orderId),
+          orderId,
           symbol,
           direction,
           submittedQuantityNum,
@@ -481,12 +482,6 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
     isShortSymbol: boolean,
     monitorConfig: MonitorConfig | null = null,
   ): Promise<boolean> {
-    // 验证信号对象
-    if (!signal || typeof signal !== 'object') {
-      logger.error(`[订单提交] 无效的信号对象: ${JSON.stringify(signal)}`);
-      return false;
-    }
-
     if (!signal.symbol || typeof signal.symbol !== 'string') {
       logger.error(`[订单提交] 信号缺少有效的标的代码: ${JSON.stringify(signal)}`);
       return false;
@@ -524,12 +519,12 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       const submittedQtyNumber = decimalToNumber(submittedQtyDecimal);
       if (!isValidPositiveNumber(submittedQtyNumber)) {
         logger.warn(
-          `[跳过订单] 卖出数量无效，无法合并卖单: ${submittedQtyNumber}, symbol=${targetSymbol}`,
+          `[跳过订单] 卖出数量无效，无法合并卖单: ${submittedQtyDecimal.toString()}, symbol=${targetSymbol}`,
         );
         return false;
       }
 
-      const resolvedPrice = isValidPositiveNumber(signal.price) ? Number(signal.price) : null;
+      const resolvedPrice = isValidPositiveNumber(signal.price) ? signal.price : null;
       const pendingSellOrders = orderMonitor.getPendingSellOrders(targetSymbol);
       const decision = resolveSellMergeDecision({
         symbol: targetSymbol,
@@ -630,12 +625,6 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
     let submittedCount = 0;
 
     for (const s of signals) {
-      // 验证信号对象
-      if (!s || typeof s !== 'object') {
-        logger.warn(`[跳过信号] 无效的信号对象: ${JSON.stringify(s)}`);
-        continue;
-      }
-
       if (!s.symbol || typeof s.symbol !== 'string') {
         logger.warn(`[跳过信号] 信号缺少有效的标的代码: ${JSON.stringify(s)}`);
         continue;

@@ -77,9 +77,9 @@ function buildStateFromOrders(
  * 将成交回报转换为订单记录，若数据不完整则返回 null。
  */
 function createOrderRecordFromFill(input: DailyLossFilledOrderInput): OrderRecord | null {
-  const executedPrice = Number(input.executedPrice);
-  const executedQuantity = Number(input.executedQuantity);
-  const executedTime = Number(input.executedTimeMs);
+  const executedPrice = input.executedPrice;
+  const executedQuantity = input.executedQuantity;
+  const executedTime = input.executedTimeMs;
   if (
     !Number.isFinite(executedPrice) ||
     executedPrice <= 0 ||

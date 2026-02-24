@@ -51,7 +51,7 @@ const WARRANT_TYPE_NAMES: Record<string, string> = {
  * 统一文案来源，避免不同风险分支出现术语不一致。
  */
 function getWarrantTypeName(warrantType: WarrantType): string {
-  return WARRANT_TYPE_NAMES[String(warrantType)] ?? '轮证';
+  return WARRANT_TYPE_NAMES[warrantType] ?? '轮证';
 }
 
 /** 解析 API 返回的 category 字段为牛熊证类型 */
@@ -572,7 +572,7 @@ export function createWarrantRiskChecker(_deps: WarrantRiskCheckerDeps = {}): Wa
    * 换标后调用，确保风险检查使用最新的回收价数据
    */
   async function refreshWarrantInfoForSymbol(
-    marketDataClient: MarketDataClient,
+    marketDataClient: MarketDataClient | null,
     symbol: string,
     isLongSymbol: boolean,
     symbolName: string | null = null,

@@ -98,7 +98,7 @@ export function recordTrade(tradeRecord: TradeRecord): void {
     if (fs.existsSync(logFile)) {
       const content = fs.readFileSync(logFile, 'utf-8');
       try {
-        const parsed = JSON.parse(content);
+        const parsed: unknown = JSON.parse(content);
         // 信任边界：校验 JSON 解析结果
         if (isValidTradeRecordArray(parsed)) {
           trades = parsed;
@@ -107,7 +107,8 @@ export function recordTrade(tradeRecord: TradeRecord): void {
           trades = [];
         }
       } catch (e) {
-        logger.warn(`解析交易记录文件失败，重置为空数组: ${logFile}`, (e as Error)?.message ?? e);
+        const parseErrorMessage = e instanceof Error ? e.message : String(e);
+        logger.warn(`解析交易记录文件失败，重置为空数组: ${logFile}`, parseErrorMessage);
         trades = [];
       }
     }

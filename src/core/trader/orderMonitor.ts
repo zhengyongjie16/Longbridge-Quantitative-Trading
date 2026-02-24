@@ -169,7 +169,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
 
     // ========== 订单完全成交：使用成交价更新本地记录 ==========
     if (event.status === OrderStatus.Filled) {
-      orderHoldRegistry.markOrderFilled(String(orderId));
+      orderHoldRegistry.markOrderFilled(orderId);
       const executedPrice = decimalToNumber(event.executedPrice);
       const filledQuantity = decimalToNumber(event.executedQuantity);
 
@@ -197,10 +197,10 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
             filledQuantity,
             trackedOrder.isLongSymbol,
             executedTimeMs,
-            String(orderId),
+            orderId,
           );
           // 更新待成交追踪
-          orderRecorder.markSellFilled(String(orderId));
+          orderRecorder.markSellFilled(orderId);
         }
 
         if (trackedOrder.monitorSymbol) {
@@ -212,7 +212,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
             executedPrice,
             executedQuantity: filledQuantity,
             executedTimeMs,
-            orderId: String(orderId),
+            orderId,
           });
         }
 
@@ -233,7 +233,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
         const executedAt = toHongKongTimeIso(new Date(executedTimeMs));
 
         recordTrade({
-          orderId: String(orderId),
+          orderId,
           symbol: trackedOrder.symbol,
           symbolName: null,
           monitorSymbol: trackedOrder.monitorSymbol,
@@ -268,9 +268,11 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
           refreshPositions: true,
         });
       } else {
+        const executedPriceText = event.executedPrice?.toString() ?? 'null';
+        const executedQuantityText = event.executedQuantity.toString();
         logger.warn(
           `[订单监控] 订单 ${orderId} 成交数据无效，` +
-            `executedPrice=${event.executedPrice}，executedQuantity=${event.executedQuantity}`,
+            `executedPrice=${executedPriceText}，executedQuantity=${executedQuantityText}`,
         );
       }
 
@@ -283,7 +285,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     if (event.status === OrderStatus.Canceled || event.status === OrderStatus.Rejected) {
       // 订单取消时释放追踪
       if (trackedOrder.side === OrderSide.Sell) {
-        orderRecorder.markSellCancelled(String(orderId));
+        orderRecorder.markSellCancelled(orderId);
       }
       trackedOrders.delete(orderId);
       logger.info(`[订单监控] 订单 ${orderId} 状态变为 ${event.status}，停止追踪`);
@@ -294,7 +296,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     if (event.status === OrderStatus.PartialFilled) {
       // 更新待成交追踪
       if (trackedOrder.side === OrderSide.Sell) {
-        orderRecorder.markSellPartialFilled(String(orderId), executedQuantity);
+        orderRecorder.markSellPartialFilled(orderId, executedQuantity);
       }
       logger.info(
         `[订单监控] 订单 ${orderId} 部分成交，` +
@@ -340,7 +342,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     } = params;
     const now = Date.now();
 
-    orderHoldRegistry.trackOrder(String(orderId), symbol);
+    orderHoldRegistry.trackOrder(orderId, symbol);
 
     const order: TrackedOrder = {
       orderId,
@@ -595,7 +597,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       }
       const resp = await ctx.submitOrder(marketOrderPayload);
 
-      const newOrderId = (resp as { orderId?: string })?.orderId ?? 'UNKNOWN';
+      const newOrderId = (resp as { orderId?: string } | null | undefined)?.orderId ?? 'UNKNOWN';
       const direction: 'LONG' | 'SHORT' = order.isLongSymbol ? 'LONG' : 'SHORT';
       const relatedBuyOrderIds =
         cancelledPending?.relatedBuyOrderIds ??
@@ -605,7 +607,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
           remainingQuantity,
         );
       orderRecorder.submitSellOrder(
-        String(newOrderId),
+        newOrderId,
         order.symbol,
         direction,
         remainingQuantity,
@@ -619,7 +621,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       // 追踪新的市价单（市价单通常很快成交，但仍需追踪）
       // 继承原订单的 isLongSymbol，确保成交后能正确更新本地记录
       trackOrder({
-        orderId: String(newOrderId),
+        orderId: newOrderId,
         symbol: order.symbol,
         side: order.side,
         price: 0, // 市价单无价格
@@ -631,7 +633,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       });
 
       // 标记新订单已转换为市价单（避免再次转换）
-      const newTrackedOrder = trackedOrders.get(String(newOrderId));
+      const newTrackedOrder = trackedOrders.get(newOrderId);
       if (newTrackedOrder) {
         newTrackedOrder.convertedToMarket = true;
       }

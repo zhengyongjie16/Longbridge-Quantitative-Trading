@@ -106,7 +106,7 @@ export function createCleanup(context: CleanupContext): {
         .then(() => {
           process.exit(0);
         })
-        .catch((err) => {
+        .catch((err: unknown) => {
           logger.error('[Cleanup] 程序退出清理失败', formatError(err));
           process.exit(1);
         });

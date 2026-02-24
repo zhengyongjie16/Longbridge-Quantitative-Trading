@@ -49,17 +49,17 @@ export const createPositionLimitChecker = (
   const checkWithExistingHoldings = (
     pos: Position,
     orderNotional: number,
-    currentPrice: number | null,
+    _currentPrice: number | null,
   ): RiskCheckResult => {
     // 验证持仓数量有效性
-    const posQuantity = Number(pos.quantity) || 0;
+    const posQuantity = pos.quantity || 0;
     if (!Number.isFinite(posQuantity) || posQuantity <= 0) {
       // 持仓数量无效，只检查下单金额
       return checkOrderNotionalOnly(orderNotional);
     }
 
-    // 业务规则：已有持仓按成本价估算市值，缺失则回退到当前市价
-    const price = pos.costPrice ?? currentPrice ?? 0;
+    // 业务规则：已有持仓按成本价估算市值
+    const price = pos.costPrice;
 
     // 验证价格有效性
     if (!Number.isFinite(price) || price <= 0) {

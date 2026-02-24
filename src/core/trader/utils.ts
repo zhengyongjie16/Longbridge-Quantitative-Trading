@@ -82,10 +82,13 @@ function isOrderSubmitResponse(value: unknown): value is OrderSubmitResponse {
  */
 export function extractOrderId(resp: unknown): string {
   if (isOrderSubmitResponse(resp) && resp.orderId !== undefined) {
-    return String(resp.orderId);
+    return resp.orderId;
   }
   // 信任边界：unknown 的 resp 可能具有 toString，需在运行时安全检查后访问
-  const obj = resp as { toString?: () => unknown };
+  const obj: { toString?: () => unknown } | null | undefined = resp as
+    | { toString?: () => unknown }
+    | null
+    | undefined;
   if (typeof obj?.toString === 'function') {
     const str = obj.toString();
     if (typeof str === 'string') {

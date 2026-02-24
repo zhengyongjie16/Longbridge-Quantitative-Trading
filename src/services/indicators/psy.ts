@@ -66,7 +66,7 @@ function updatePsyStreamState(state: PsyStreamState, close: number): void {
  * @returns PSY 值（0-100），如果无法计算则返回 null
  */
 export function calculatePSY(candles: ReadonlyArray<CandleData>, period: number): number | null {
-  if (!Number.isInteger(period) || period <= 0 || !candles || candles.length <= period) {
+  if (!Number.isInteger(period) || period <= 0 || candles.length <= period) {
     return null;
   }
 

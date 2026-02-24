@@ -109,9 +109,12 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     now,
     switchStates,
     periodicSwitchPending,
-    resolveSuppression: seatStateManager.resolveSuppression,
-    markSuppression: seatStateManager.markSuppression,
-    clearSeat: seatStateManager.clearSeat,
+    resolveSuppression: (direction, seatSymbol) =>
+      seatStateManager.resolveSuppression(direction, seatSymbol),
+    markSuppression: (direction, seatSymbol) => {
+      seatStateManager.markSuppression(direction, seatSymbol);
+    },
+    clearSeat: (params) => seatStateManager.clearSeat(params),
     buildSeatState: seatStateManager.buildSeatState,
     updateSeatState: seatStateManager.updateSeatState,
     resolveAutoSearchThresholds,
@@ -138,10 +141,10 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
   }
 
   return {
-    maybeSearchOnTick: autoSearch.maybeSearchOnTick,
-    maybeSwitchOnInterval: switchStateMachine.maybeSwitchOnInterval,
-    maybeSwitchOnDistance: switchStateMachine.maybeSwitchOnDistance,
-    hasPendingSwitch: switchStateMachine.hasPendingSwitch,
+    maybeSearchOnTick: (params) => autoSearch.maybeSearchOnTick(params),
+    maybeSwitchOnInterval: (params) => switchStateMachine.maybeSwitchOnInterval(params),
+    maybeSwitchOnDistance: (params) => switchStateMachine.maybeSwitchOnDistance(params),
+    hasPendingSwitch: (direction) => switchStateMachine.hasPendingSwitch(direction),
     resetAllState,
   };
 }

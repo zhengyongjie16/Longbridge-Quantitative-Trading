@@ -38,8 +38,8 @@ export function resolveHongKongDayKey(
 export function sumOrderCost(orders: ReadonlyArray<OrderRecord>): number {
   let total = 0;
   for (const order of orders) {
-    const price = Number(order.executedPrice);
-    const quantity = Number(order.executedQuantity);
+    const price = order.executedPrice;
+    const quantity = order.executedQuantity;
     if (isValidPositiveNumber(price) && isValidPositiveNumber(quantity)) {
       total += price * quantity;
     }

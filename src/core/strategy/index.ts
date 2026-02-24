@@ -63,10 +63,7 @@ export const createHangSengMultiIndicatorStrategy = ({
     sellput: null,
   };
 
-  const finalVerificationConfig: VerificationConfig = verificationConfig || {
-    buy: { delaySeconds: 60, indicators: ['K', 'MACD'] },
-    sell: { delaySeconds: 60, indicators: ['K', 'MACD'] },
-  };
+  const finalVerificationConfig: VerificationConfig = verificationConfig;
 
   const signalTypeMap: Record<string, SignalTypeCategory> = {
     BUYCALL: needsDelayedVerification(finalVerificationConfig.buy) ? 'delayed' : 'immediate',
@@ -155,7 +152,7 @@ export const createHangSengMultiIndicatorStrategy = ({
         return null;
       }
       const buyOrders = orderRecorder.getBuyOrdersForSymbol(symbol, isLongSymbol);
-      if (!buyOrders || buyOrders.length === 0) {
+      if (buyOrders.length === 0) {
         return null;
       }
       // 有买入订单记录，继续后续流程

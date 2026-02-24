@@ -52,7 +52,7 @@ export function extractLotSize(staticInfo: unknown): number | undefined {
     return undefined;
   }
 
-  const parsed = Number(lotSizeValue);
+  const parsed = lotSizeValue;
   if (isValidPositiveNumber(parsed)) {
     return parsed;
   }

@@ -232,7 +232,7 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
 
     // 对于买入操作，检查港币可用现金是否足够
     if (isBuy) {
-      const hkdCashInfo = account.cashInfos?.find((c: CashInfo) => c.currency === 'HKD');
+      const hkdCashInfo = account.cashInfos.find((c: CashInfo) => c.currency === 'HKD');
       const availableCash = hkdCashInfo?.availableCash ?? 0;
 
       if (availableCash < orderNotional) {
@@ -256,21 +256,14 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
     }
 
     // 检查单标的最大持仓市值限制
-    if (
-      signal.action === 'BUYCALL' ||
-      signal.action === 'SELLCALL' ||
-      signal.action === 'BUYPUT' ||
-      signal.action === 'SELLPUT'
-    ) {
-      const positionCheckResult = positionLimitChecker.checkLimit(
-        signal,
-        positions,
-        orderNotional,
-        currentPrice,
-      );
-      if (!positionCheckResult.allowed) {
-        return positionCheckResult;
-      }
+    const positionCheckResult = positionLimitChecker.checkLimit(
+      signal,
+      positions,
+      orderNotional,
+      currentPrice,
+    );
+    if (!positionCheckResult.allowed) {
+      return positionCheckResult;
     }
 
     return { allowed: true };

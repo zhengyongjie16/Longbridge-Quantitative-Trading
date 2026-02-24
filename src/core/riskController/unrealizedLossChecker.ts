@@ -89,7 +89,7 @@ export const createUnrealizedLossChecker = (
    * dailyLossOffset 为负时（已亏损）会增大调整后 R1，使浮亏保护更容易触发。
    */
   const refresh = async (
-    orderRecorder: OrderRecorder,
+    orderRecorder: OrderRecorder | null,
     symbol: string,
     isLongSymbol: boolean,
     quote?: Quote | null,

@@ -239,10 +239,15 @@ function filterStockPositionsBySymbols(
   symbols: ReadonlyArray<string>,
 ): StockPositionsResponse {
   const symbolSet = new Set(symbols);
-  const channels = stockPositions.channels.map((channel) => ({
-    ...channel,
-    positions: channel.positions.filter((position) => symbolSet.has(position.symbol)),
-  }));
+  const channels = stockPositions.channels.map((channel) => {
+    const filteredPositions = channel.positions.filter((position) => symbolSet.has(position.symbol));
+    const channelObject = channel as object;
+    const channelPrototype = Object.getPrototypeOf(channelObject) as object | null;
+    const channelClone = Object.create(channelPrototype ?? Object.prototype) as object;
+    return Object.assign(channelClone, channelObject, {
+      positions: filteredPositions,
+    }) as StockPositionsResponse['channels'][number];
+  });
   return { channels } as StockPositionsResponse;
 }
 
@@ -361,7 +366,7 @@ export function createTradeContextMock(options: TradeContextMockOptions = {}): T
           return order;
         }
 
-        const nextQuantity = optionsValue.quantity ?? order.quantity;
+        const nextQuantity = optionsValue.quantity;
         const nextPrice = optionsValue.price ?? order.price;
 
         return {

@@ -33,7 +33,7 @@ export function calculateOrderStatistics(orders: ReadonlyArray<OrderRecord>): Or
  * @returns 所有订单的成交数量之和，无效数量视为 0
  */
 export function calculateTotalQuantity(orders: ReadonlyArray<OrderRecord>): number {
-  return orders.reduce((sum, order) => sum + (Number(order.executedQuantity) || 0), 0);
+  return orders.reduce((sum, order) => sum + (order.executedQuantity || 0), 0);
 }
 
 /**

@@ -8,6 +8,7 @@
  */
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import type { Position } from '../../types/account.js';
+import type { Quote } from '../../types/quote.js';
 import type { SeatState } from '../../types/seat.js';
 import type { PendingOrder } from '../../types/services.js';
 import type {
@@ -31,6 +32,20 @@ function extractPosition(positions: ReadonlyArray<Position>, symbol: string): Po
     return null;
   }
   return positions.find((pos) => pos.symbol === symbol) ?? null;
+}
+
+/**
+ * 判断行情是否可用于下单：需同时具备有效 price 与 lotSize。
+ */
+function isQuoteReadyForOrder(
+  quote: Quote | null | undefined,
+): quote is Quote & { lotSize: number } {
+  return (
+    quote !== null &&
+    quote !== undefined &&
+    isValidPositiveNumber(quote.price) &&
+    isValidPositiveNumber(quote.lotSize)
+  );
 }
 
 /**
@@ -334,7 +349,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
           return;
         }
         const quote = quotesMap.get(state.oldSymbol);
-        if (!quote?.price || !quote?.lotSize) {
+        if (!isQuoteReadyForOrder(quote)) {
           return;
         }
 
@@ -406,7 +421,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
         return;
       }
       const quote = quotesMap.get(nextSymbol);
-      if (!quote?.price || !quote?.lotSize) {
+      if (!isQuoteReadyForOrder(quote)) {
         state.awaitingQuote = true;
         return;
       }
@@ -421,7 +436,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
         return;
       }
       const quote = quotesMap.get(nextSymbol);
-      if (!quote?.price || !quote?.lotSize) {
+      if (!isQuoteReadyForOrder(quote)) {
         state.awaitingQuote = true;
         state.stage = 'WAIT_QUOTE';
         return;

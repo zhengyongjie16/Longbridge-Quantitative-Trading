@@ -47,7 +47,7 @@ function parseOrderOwnership(
     return null;
   }
 
-  if (!orderOwnershipMapping || orderOwnershipMapping.length === 0) {
+  if (orderOwnershipMapping.length === 0) {
     return null;
   }
 

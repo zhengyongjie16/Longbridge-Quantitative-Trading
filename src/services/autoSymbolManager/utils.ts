@@ -146,7 +146,7 @@ export function resolveSeatOnStartup({
     return null;
   }
   const hasPosition = positions.some((position) => {
-    return position.symbol === candidateSymbol && (position.quantity ?? 0) > 0;
+    return position.symbol === candidateSymbol && position.quantity > 0;
   });
   return hasPosition ? candidateSymbol : null;
 }

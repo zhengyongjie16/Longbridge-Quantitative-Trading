@@ -33,6 +33,7 @@ export function createOrderMonitorWorker(deps: OrderMonitorWorkerDeps): OrderMon
   let inFlight = false;
   let latestQuotes: ReadonlyMap<string, Quote | null> | null = null;
   let drainResolve: (() => void) | null = null;
+  const hasQueuedQuotes = (): boolean => latestQuotes !== null;
 
   /**
    * 执行一次订单监控，消费 latestQuotes 并调用 monitorAndManageOrders
@@ -55,7 +56,7 @@ export function createOrderMonitorWorker(deps: OrderMonitorWorkerDeps): OrderMon
       inFlight = false;
       drainResolve?.();
       drainResolve = null;
-      if (running && latestQuotes) {
+      if (hasQueuedQuotes()) {
         void run();
       }
     }

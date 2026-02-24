@@ -94,7 +94,7 @@ function finalizeRsiValue(state: RsiStreamState): number | null {
  * @returns RSI值（0-100），如果无法计算则返回null
  */
 export function calculateRSI(candles: ReadonlyArray<CandleData>, period: number): number | null {
-  if (!candles || candles.length <= period || !Number.isFinite(period) || period <= 0) {
+  if (candles.length <= period || !Number.isFinite(period) || period <= 0) {
     return null;
   }
 

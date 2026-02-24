@@ -134,7 +134,7 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
         onProcessed?.(task, 'skipped');
         continue;
       }
-      const status = await processTask(task, helpers).catch((err) => {
+      const status = await processTask(task, helpers).catch((err: unknown) => {
         logger.error('[MonitorTaskProcessor] 处理任务失败', formatError(err));
         return 'failed' as const;
       });

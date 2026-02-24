@@ -415,7 +415,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
     for (const order of available) {
       if (remaining <= 0) break;
-      const qty = order.executedQuantity ?? 0;
+      const qty = order.executedQuantity;
       if (qty <= 0) continue;
 
       result.push(order.orderId);

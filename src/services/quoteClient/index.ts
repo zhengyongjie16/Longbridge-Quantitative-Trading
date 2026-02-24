@@ -288,7 +288,6 @@ export async function createMarketDataClient(
 
     const initialQuotes = await withRetry(() => ctx.quote(newSymbols));
     for (const quote of initialQuotes) {
-      if (!quote) continue;
       const quoteSymbol = quote.symbol;
       const staticInfo = staticInfoCache.get(quoteSymbol);
       prevCloseCache.set(quoteSymbol, decimalToNumber(quote.prevClose));
@@ -341,10 +340,7 @@ export async function createMarketDataClient(
 
     const infoList = await withRetry(() => ctx.staticInfo(uncachedSymbols));
     for (const info of infoList) {
-      if (info && typeof info === 'object' && 'symbol' in info) {
-        const infoSymbol = (info as { symbol: string }).symbol;
-        staticInfoCache.set(infoSymbol, info);
-      }
+      staticInfoCache.set(info.symbol, info);
     }
     logger.debug(`[静态信息缓存] 新增缓存 ${infoList.length} 个标的的静态信息`);
   }
@@ -353,7 +349,7 @@ export async function createMarketDataClient(
    * 获取 QuoteContext 实例（供内部使用）
    */
   async function getQuoteContext(): Promise<QuoteContext> {
-    return ctx;
+    return await Promise.resolve(ctx);
   }
 
   /**
@@ -406,8 +402,8 @@ export async function createMarketDataClient(
     const resp = await withRetry(() => ctx.tradingDays(market, startNaive, endNaive));
 
     // 将 NaiveDate 数组转换为字符串数组
-    const tradingDays = (resp.tradingDays || []).map((date) => date.toString());
-    const halfTradingDays = (resp.halfTradingDays || []).map((date) => date.toString());
+    const tradingDays = resp.tradingDays.map((date) => date.toString());
+    const halfTradingDays = resp.halfTradingDays.map((date) => date.toString());
 
     // 批量缓存交易日信息
     tradingDayCache.setBatch(tradingDays, halfTradingDays);
@@ -458,7 +454,7 @@ export async function createMarketDataClient(
         errors.push(new Error(`[行情重置] K线 key 周期无效: ${key}`));
         continue;
       }
-      const periodValue = Number(periodNum) as Period;
+      const periodValue = periodNum as Period;
       try {
         await withRetry(() => ctx.unsubscribeCandlesticks(symbol, periodValue));
         subscribedCandlesticks.delete(key);

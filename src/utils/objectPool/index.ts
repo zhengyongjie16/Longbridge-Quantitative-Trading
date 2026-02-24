@@ -32,7 +32,10 @@ function createObjectPool<T>(
    */
   function acquire(): T {
     if (pool.length > 0) {
-      return pool.pop()!;
+      const pooled = pool.pop();
+      if (pooled !== undefined) {
+        return pooled;
+      }
     }
     // 池为空，创建新对象
     return factory();
@@ -54,7 +57,7 @@ function createObjectPool<T>(
    * @param objects - 待释放的对象数组，为 null/undefined 或非数组时忽略
    */
   function releaseAll(objects: ReadonlyArray<T> | null | undefined): void {
-    if (!Array.isArray(objects)) return;
+    if (!objects) return;
     for (const obj of objects) {
       release(obj);
     }
@@ -98,7 +101,7 @@ export const indicatorRecordPool = createObjectPool<Record<string, number>>(
   // 重置函数：清空所有属性
   (obj) => {
     for (const key in obj) {
-      delete obj[key];
+      Reflect.deleteProperty(obj, key);
     }
     return obj;
   },
@@ -140,14 +143,12 @@ export const signalObjectPool = createObjectPool<PoolableSignal>(
     // 释放 verificationHistory 中每个 entry 的 indicators 对象和 entry 本身
     if (obj.verificationHistory && Array.isArray(obj.verificationHistory)) {
       for (const entry of obj.verificationHistory) {
-        if (entry) {
-          // 先释放 entry 中的 indicators 对象
-          if (entry.indicators) {
-            indicatorRecordPool.release(entry.indicators);
-          }
-          // 再释放 entry 本身
-          verificationEntryPool.release(entry);
+        // 先释放 entry 中的 indicators 对象
+        if (entry.indicators) {
+          indicatorRecordPool.release(entry.indicators);
         }
+        // 再释放 entry 本身
+        verificationEntryPool.release(entry);
       }
     }
     obj.symbol = null;
@@ -292,7 +293,7 @@ export const periodRecordPool = createObjectPool<Record<number, number>>(
   // 重置函数：清空所有属性
   (obj) => {
     for (const key in obj) {
-      delete obj[key];
+      Reflect.deleteProperty(obj, key);
     }
     return obj;
   },

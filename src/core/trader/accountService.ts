@@ -26,7 +26,7 @@ export const createAccountService = (deps: AccountServiceDeps): AccountService =
     const ctx = await ctxPromise;
     await rateLimiter.throttle();
     const balances = await ctx.accountBalance();
-    const primary = balances?.[0];
+    const primary = balances[0];
     if (!primary) {
       return null;
     }
@@ -36,8 +36,8 @@ export const createAccountService = (deps: AccountServiceDeps): AccountService =
     const positionValue = netAssets - totalCash;
 
     // 解析现金详情（用于获取各币种可用现金）
-    const cashInfos: CashInfo[] = (primary.cashInfos ?? []).map((info) => ({
-      currency: info.currency ?? 'HKD',
+    const cashInfos: CashInfo[] = primary.cashInfos.map((info) => ({
+      currency: info.currency,
       availableCash: decimalToNumber(info.availableCash),
       withdrawCash: decimalToNumber(info.withdrawCash),
       frozenCash: decimalToNumber(info.frozenCash),
@@ -45,7 +45,7 @@ export const createAccountService = (deps: AccountServiceDeps): AccountService =
     }));
 
     return {
-      currency: primary.currency ?? 'HKD',
+      currency: primary.currency,
       totalCash,
       netAssets,
       positionValue,
@@ -63,14 +63,14 @@ export const createAccountService = (deps: AccountServiceDeps): AccountService =
     await rateLimiter.throttle();
     // stockPositions 接受 Array<string> | undefined | null，直接传递即可
     const resp = await ctx.stockPositions(symbols ?? undefined);
-    const channels = resp?.channels ?? [];
+    const channels = resp.channels;
     if (!channels.length) {
       return [];
     }
 
     return channels.flatMap((channel) =>
-      (channel.positions ?? []).map((pos) => ({
-        accountChannel: channel.accountChannel ?? 'N/A',
+      channel.positions.map((pos) => ({
+        accountChannel: channel.accountChannel,
         symbol: pos.symbol,
         symbolName: pos.symbolName,
         quantity: decimalToNumber(pos.quantity),

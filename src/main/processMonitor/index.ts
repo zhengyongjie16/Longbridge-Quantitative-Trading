@@ -83,7 +83,9 @@ export async function processMonitor(
     monitorContext,
     mainContext,
     quotesMap,
-    releaseSignal: signalObjectPool.release,
+    releaseSignal: (signal) => {
+      signalObjectPool.release(signal);
+    },
   });
 
   scheduleRiskTasks({
@@ -115,7 +117,11 @@ export async function processMonitor(
     runtimeFlags,
     seatInfo,
     monitorSnapshot,
-    releaseSignal: signalObjectPool.release,
-    releasePosition: positionObjectPool.release,
+    releaseSignal: (signal) => {
+      signalObjectPool.release(signal);
+    },
+    releasePosition: (position) => {
+      positionObjectPool.release(position);
+    },
   });
 }

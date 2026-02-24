@@ -79,7 +79,7 @@ export async function displayAccountAndPositions({
       );
     }
 
-    if (Array.isArray(positions) && positions.length > 0) {
+    if (positions.length > 0) {
       logger.info('股票持仓：');
 
       const symbolInfoMap = new Map<string, { name: string | null; price: number | null }>();
@@ -89,7 +89,7 @@ export async function displayAccountAndPositions({
           if (quote) {
             symbolInfoMap.set(pos.symbol, {
               name: quote.name ?? null,
-              price: quote.price ?? null,
+              price: quote.price,
             });
           }
         }
@@ -99,11 +99,11 @@ export async function displayAccountAndPositions({
 
       positions.forEach((pos) => {
         const symbolInfo = symbolInfoMap.get(pos.symbol);
-        const nameText = symbolInfo?.name ?? pos.symbolName ?? '-';
+        const nameText = symbolInfo?.name ?? pos.symbolName;
         const codeText = pos.symbol;
         const currentPrice = symbolInfo?.price ?? null;
 
-        const posQuantity = Number(pos.quantity) || 0;
+        const posQuantity = pos.quantity || 0;
         const marketValue =
           currentPrice !== null &&
           isValidPositiveNumber(currentPrice) &&
@@ -116,16 +116,19 @@ export async function displayAccountAndPositions({
             ? (marketValue / totalAssets) * 100
             : 0;
 
-        const priceText =
-          currentPrice === null ? '现价=N/A' : `现价=${formatNumber(currentPrice, 3)}`;
+        const priceText = currentPrice === null ? '现价=N/A' : `现价=${formatNumber(currentPrice, 3)}`;
 
         const channelDisplay = formatAccountChannel(pos.accountChannel);
+        const displayName = nameText;
+        const displayCode = codeText;
+        const quantityText = formatNumber(pos.quantity, 2);
+        const availableText = formatNumber(pos.availableQuantity, 2);
+        const marketValueText = formatNumber(marketValue, 2);
+        const positionPercentText = formatNumber(positionPercent, 2);
+        const currencyText = pos.currency;
 
         logger.info(
-          `- [${channelDisplay}] ${nameText}(${codeText}) 持仓=${formatNumber(pos.quantity, 2)} 可用=${formatNumber(
-            pos.availableQuantity,
-            2,
-          )} ${priceText} 市值=${formatNumber(marketValue, 2)} 仓位=${formatNumber(positionPercent, 2)}% ${pos.currency ?? ''}`,
+          `- [${channelDisplay}] ${displayName}(${displayCode}) 持仓=${quantityText} 可用=${availableText} ${priceText} 市值=${marketValueText} 仓位=${positionPercentText}% ${currencyText}`,
         );
       });
     } else {

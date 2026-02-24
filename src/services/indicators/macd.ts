@@ -29,7 +29,7 @@ export function calculateMACD(
   slowPeriod: number = 26,
   signalPeriod: number = 9,
 ): MACDIndicator | null {
-  if (!candles || candles.length < slowPeriod + signalPeriod) {
+  if (candles.length < slowPeriod + signalPeriod) {
     return null;
   }
 

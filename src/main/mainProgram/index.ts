@@ -183,7 +183,7 @@ export async function mainProgram({
   }
 
   // 使用 lifecycle tick 后的最新持仓缓存
-  const positions = lastState.cachedPositions ?? [];
+  const positions = lastState.cachedPositions;
 
   // 末日保护检查（全局性，在所有监控标的处理之前）
   if (tradingConfig.global.doomsdayProtection) {

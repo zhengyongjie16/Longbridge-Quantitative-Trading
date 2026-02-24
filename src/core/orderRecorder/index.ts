@@ -108,7 +108,7 @@ function formatOrderExecutedTime(executedTime: number): string {
  * @returns 格式化的订单信息字符串
  */
 function formatOrderLine(order: OrderRecord, index: number): string {
-  const timeStr = formatOrderExecutedTime(order.executedTime ?? 0);
+  const timeStr = formatOrderExecutedTime(order.executedTime);
   const priceStr = Number.isFinite(order.executedPrice) ? order.executedPrice.toFixed(3) : 'N/A';
   return `  [${index + 1}] 订单ID: ${order.orderId || 'N/A'}, 价格: ${priceStr}, 数量: ${order.executedQuantity}, 成交时间: ${timeStr}`;
 }
@@ -144,7 +144,7 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
       logLines.push('  当前无订单记录');
     } else {
       currentOrders.forEach((order, index) => {
-        if (order) logLines.push(formatOrderLine(order, index));
+        logLines.push(formatOrderLine(order, index));
       });
       logLines.push(formatOrderStatsLine(calculateOrderStatistics(currentOrders)));
     }
@@ -253,9 +253,9 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     isLongSymbol: boolean,
     executedTimeMs: number,
   ): void {
-    const price = Number(executedPrice);
-    const quantity = Number(executedQuantity);
-    const executedTime = Number(executedTimeMs);
+    const price = executedPrice;
+    const quantity = executedQuantity;
+    const executedTime = executedTimeMs;
 
     if (!validateOrderParams(price, quantity, symbol)) {
       return;
@@ -280,8 +280,8 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     executedTimeMs: number,
     orderId?: string | null,
   ): void {
-    const price = Number(executedPrice);
-    const quantity = Number(executedQuantity);
+    const price = executedPrice;
+    const quantity = executedQuantity;
 
     if (!validateOrderParams(price, quantity, symbol)) {
       return;
@@ -335,7 +335,8 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
 
       return applyOrdersRefreshForLong(symbol, allBuyOrders, filledSellOrders, quote);
     } catch (error) {
-      logger.error(`[订单记录失败] 标的 ${symbol}`, (error as Error)?.message ?? String(error));
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`[订单记录失败] 标的 ${symbol}`, errorMessage);
       return [];
     }
   }
@@ -358,7 +359,8 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
 
       return applyOrdersRefreshForShort(symbol, allBuyOrders, filledSellOrders, quote);
     } catch (error) {
-      logger.error(`[订单记录失败] 标的 ${symbol}`, (error as Error)?.message ?? String(error));
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`[订单记录失败] 标的 ${symbol}`, errorMessage);
       return [];
     }
   }

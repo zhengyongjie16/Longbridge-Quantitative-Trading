@@ -69,7 +69,7 @@ export function calculateKDJ(
   candles: ReadonlyArray<CandleData>,
   period: number = 9,
 ): KDJIndicator | null {
-  if (!candles || candles.length < period) {
+  if (candles.length < period) {
     return null;
   }
 
@@ -97,16 +97,16 @@ export function calculateKDJ(
       let hasLow = false;
 
       for (let j = windowStart; j <= i; j += 1) {
-        const high = highs[j]!;
-        if (Number.isFinite(high)) {
+        const high = highs[j];
+        if (high !== undefined && Number.isFinite(high)) {
           if (high > highestHigh) {
             highestHigh = high;
           }
           hasHigh = true;
         }
 
-        const low = lows[j]!;
-        if (Number.isFinite(low)) {
+        const low = lows[j];
+        if (low !== undefined && Number.isFinite(low)) {
           if (low < lowestLow) {
             lowestLow = low;
           }
@@ -114,9 +114,9 @@ export function calculateKDJ(
         }
       }
 
-      const close = closes[i]!;
+      const close = closes[i];
 
-      if (!hasHigh || !hasLow || !Number.isFinite(close)) {
+      if (!hasHigh || !hasLow || close === undefined || !Number.isFinite(close)) {
         continue;
       }
 
@@ -141,7 +141,7 @@ export function calculateKDJ(
     for (const rsv of rsvValues) {
       const kValue = emaK.nextValue(rsv);
       if (kValue === undefined) {
-        kValues.push(kValues.length > 0 ? kValues.at(-1)! : 50);
+        kValues.push(kValues.at(-1) ?? 50);
       } else {
         kValues.push(kValue);
       }
@@ -154,7 +154,7 @@ export function calculateKDJ(
     for (const kv of kValues) {
       const dValue = emaD.nextValue(kv);
       if (dValue === undefined) {
-        dValues.push(dValues.length > 0 ? dValues.at(-1)! : 50);
+        dValues.push(dValues.at(-1) ?? 50);
       } else {
         dValues.push(dValue);
       }

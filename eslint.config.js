@@ -4,9 +4,23 @@ import tseslint from 'typescript-eslint';
 import sonarjs from 'eslint-plugin-sonarjs';
 import eslintConfigPrettier from 'eslint-config-prettier/flat';
 
+const restrictTemplateExpressionsRule = [
+  'error',
+  {
+    allowAny: false,
+    allowArray: false,
+    allowBoolean: true,
+    allowNullish: true,
+    allowNumber: true,
+    allowRegExp: false,
+  },
+];
+
 export default defineConfig(
   js.configs.recommended,
-  ...tseslint.configs.recommended,
+  ...tseslint.configs.recommendedTypeChecked,
+  ...tseslint.configs.strictTypeChecked,
+  ...tseslint.configs.stylisticTypeChecked,
   sonarjs.configs.recommended,
   {
     languageOptions: {
@@ -36,11 +50,20 @@ export default defineConfig(
       '@typescript-eslint/no-unnecessary-type-assertion': 'error',
       '@typescript-eslint/consistent-type-imports': 'error',
       '@typescript-eslint/consistent-type-exports': 'error',
+      '@typescript-eslint/consistent-type-definitions': 'off',
       '@typescript-eslint/await-thenable': 'error',
       '@typescript-eslint/no-redundant-type-constituents': 'error',
       '@typescript-eslint/prefer-nullish-coalescing': 'error',
       '@typescript-eslint/prefer-optional-chain': 'error',
       '@typescript-eslint/only-throw-error': 'error',
+      '@typescript-eslint/restrict-template-expressions': restrictTemplateExpressionsRule,
+      // 保持 async 方法的 Promise 契约与调用时序，不强制要求函数体内出现 await
+      '@typescript-eslint/require-await': 'off',
+      // 项目规范要求优先使用 ReadonlyArray/type，关闭与之冲突的 stylistic 规则
+      '@typescript-eslint/array-type': 'off',
+      '@typescript-eslint/no-inferrable-types': 'off',
+      '@typescript-eslint/consistent-generic-constructors': 'off',
+      '@typescript-eslint/consistent-indexed-object-style': 'off',
 
       // 变量与赋值
       'no-var': 'error',
@@ -93,15 +116,32 @@ export default defineConfig(
 
       // 注释与格式
       'spaced-comment': 'error',
-      'no-multiple-empty-lines': 'error',
       'no-warning-comments': ['warn', { terms: ['todo', 'fixme'], location: 'anywhere' }],
 
       // 最佳实践
       'sonarjs/cognitive-complexity': 'off',
+      // 避免与 ESLint / @typescript-eslint 同名规则重复报错
+      'sonarjs/no-unused-vars': 'off',
+      'sonarjs/no-labels': 'off',
+      'sonarjs/no-fallthrough': 'off',
       'no-duplicate-imports': 'error',
       'no-nested-ternary': 'error',
       'prefer-const': 'error',
       'prefer-arrow-callback': 'warn',
+    },
+  },
+  {
+    files: ['tests/**/*.ts'],
+    rules: {
+      // 测试桩中允许空函数与 async 透传，避免无效噪音
+      '@typescript-eslint/no-empty-function': 'off',
+      '@typescript-eslint/require-await': 'off',
+      '@typescript-eslint/no-extraneous-class': 'off',
+      '@typescript-eslint/no-non-null-assertion': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/unbound-method': 'off',
     },
   },
   eslintConfigPrettier,

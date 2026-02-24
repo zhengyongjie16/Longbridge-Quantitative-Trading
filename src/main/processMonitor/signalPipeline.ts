@@ -124,7 +124,7 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
      * 任一校验失败则释放信号对象并返回 false。通过后写入席位版本和标的名称。
      */
     function prepareSignal(signal: Signal): boolean {
-      if (!signal?.symbol || !signal?.action) {
+      if (!signal.symbol) {
         logger.warn(`[跳过信号] 无效的信号对象: ${JSON.stringify(signal)}`);
         releaseSignal(signal);
         return false;

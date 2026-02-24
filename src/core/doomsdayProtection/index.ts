@@ -95,11 +95,11 @@ function processPositionForClearance(
   shortQuote: Quote | null,
 ): Signal | null {
   // 验证持仓对象有效性
-  if (!pos?.symbol || typeof pos.symbol !== 'string') {
+  if (pos.symbol.length === 0) {
     return null;
   }
 
-  const availableQty = Number(pos.availableQuantity) || 0;
+  const availableQty = pos.availableQuantity || 0;
   if (!Number.isFinite(availableQty) || availableQty <= 0) {
     return null;
   }
@@ -197,7 +197,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
       }
 
       // 检查是否有持仓
-      if (!Array.isArray(positions) || positions.length === 0) {
+      if (positions.length === 0) {
         logClearanceNotice(`no-positions:${todayKey}`, '[末日保护程序] 清仓跳过：无持仓');
         return { executed: false, signalCount: 0 };
       }
@@ -257,10 +257,8 @@ export function createDoomsdayProtection(): DoomsdayProtection {
 
       if (uniqueClearanceSignals.length === 0) {
         const availablePositions = positions.filter((pos) => {
-          const availableQty = Number(pos?.availableQuantity) || 0;
-          return (
-            typeof pos?.symbol === 'string' && Number.isFinite(availableQty) && availableQty > 0
-          );
+          const availableQty = pos.availableQuantity || 0;
+          return typeof pos.symbol === 'string' && Number.isFinite(availableQty) && availableQty > 0;
         });
         const seatSymbolSet = new Set(allTradingSymbols);
         const unmatchedPositions = availablePositions.filter(

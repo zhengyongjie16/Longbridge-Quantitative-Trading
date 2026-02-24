@@ -161,7 +161,7 @@ export function calculateMFI(
   candles: ReadonlyArray<CandleData>,
   period: number = 14,
 ): number | null {
-  if (!candles || candles.length < period + 1) {
+  if (candles.length < period + 1) {
     return null;
   }
 
@@ -206,7 +206,7 @@ export function calculateMFI(
       period,
     );
 
-    if (!mfiResult || mfiResult.length === 0) {
+    if (mfiResult.length === 0) {
       return null;
     }
 

@@ -363,7 +363,7 @@ export async function prepareSeatsOnStartup(
       }
       for (const direction of ['LONG', 'SHORT'] as const) {
         const seatState = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, direction);
-        const openDelayMinutes = monitorConfig.autoSearchConfig.autoSearchOpenDelayMinutes ?? 0;
+        const openDelayMinutes = monitorConfig.autoSearchConfig.autoSearchOpenDelayMinutes;
         if (shouldSkipStartupSearch(seatState, openDelayMinutes, currentTime)) {
           continue;
         }

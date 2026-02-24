@@ -102,7 +102,7 @@ export function selectBestWarrant({
   let bestTurnoverPerMinute = 0;
 
   for (const warrant of warrants) {
-    if (!warrant?.symbol) {
+    if (!warrant.symbol) {
       continue;
     }
     if (!isNormalStatus(warrant.status)) {

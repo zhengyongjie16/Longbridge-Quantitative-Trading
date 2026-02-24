@@ -41,13 +41,14 @@ export const createRateLimiter = (deps: RateLimiterDeps = {}): RateLimiter => {
    * 超限时自动等待，支持并发调用（内部锁串行化）
    */
   const throttle = async (): Promise<void> => {
+    const noop = (): void => undefined;
     // 如果有正在执行的 throttle，等待它完成
     while (throttlePromise) {
       await throttlePromise;
     }
 
     // 设置并发锁
-    let releaseLock: () => void = () => {};
+    let releaseLock: () => void = noop;
     throttlePromise = new Promise<void>((resolve) => {
       releaseLock = resolve;
     });

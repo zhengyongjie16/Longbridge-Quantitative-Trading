@@ -221,7 +221,7 @@ export function formatQuoteDisplay(quote: Quote | null, symbol: string): QuoteDi
   // 最新价格
   const priceText = Number.isFinite(currentPrice)
     ? currentPrice.toFixed(3)
-    : String(currentPrice ?? '-');
+    : String(currentPrice);
 
   // 涨跌额和涨跌幅度
   let changeAmountText = '-';
@@ -392,7 +392,7 @@ export function formatError(err: unknown): string {
  * @returns Promise，延迟结束后 resolve
  */
 export async function sleep(ms: number): Promise<void> {
-  const delay = Number(ms);
+  const delay = ms;
   if (!Number.isFinite(delay) || delay < 0) {
     logger.warn(`[sleep] 无效的延迟时间 ${ms}，使用默认值 ${TIME.MILLISECONDS_PER_SECOND}ms`);
     return new Promise((resolve) => setTimeout(resolve, TIME.MILLISECONDS_PER_SECOND));

@@ -263,7 +263,7 @@ export const createRiskCheckPipeline = ({
 
             logger.info(
               `[牛熊证风险检查] ${symbolDisplay} 为${warrantType}，距离回收价百分比：${
-                distancePercent?.toFixed(2) ?? '未知'
+                distancePercent.toFixed(2)
               }%，风险检查通过`,
             );
           }
@@ -278,7 +278,7 @@ export const createRiskCheckPipeline = ({
       // 6. 基础风险检查
       // 买入信号使用实时数据，卖出信号使用缓存数据
       const accountForRiskCheck = isBuyActionCheck ? freshAccount : context.account;
-      const positionsForRiskCheck = isBuyActionCheck ? freshPositions : (context.positions ?? []);
+      const positionsForRiskCheck = isBuyActionCheck ? freshPositions : context.positions;
 
       if (isBuyActionCheck && accountForRiskCheck === null) {
         const reason = '买入操作无法获取账户信息，买入信号被拒绝';
@@ -288,7 +288,7 @@ export const createRiskCheckPipeline = ({
       }
 
       // 使用选择的数据进行风险检查
-      const orderNotional = context.config.targetNotional ?? 0;
+      const orderNotional = context.config.targetNotional;
       const longCurrentPrice = longQuote?.price ?? null;
       const shortCurrentPrice = shortQuote?.price ?? null;
       const riskResult = riskChecker.checkBeforeOrder({

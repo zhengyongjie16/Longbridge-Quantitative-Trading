@@ -67,7 +67,7 @@ function removeSignalTasks(
 ): number {
   return queue.removeTasks(
     (task) =>
-      task.monitorSymbol === monitorSymbol && isDirectionAction(task.data?.action, direction),
+      task.monitorSymbol === monitorSymbol && isDirectionAction(task.data.action, direction),
     (task) => { releaseSignal(task.data); },
   );
 }
@@ -148,9 +148,9 @@ function createPositionFromCache(symbol: string, source: Position): Position {
   // 对象池返回 PoolablePosition，这里通过字段覆盖构造出完整的 Position
   const position = positionObjectPool.acquire();
   position.symbol = symbol;
-  position.costPrice = Number(source.costPrice) || 0;
-  position.quantity = Number(source.quantity) || 0;
-  position.availableQuantity = Number(source.availableQuantity) || 0;
+  position.costPrice = source.costPrice || 0;
+  position.quantity = source.quantity || 0;
+  position.availableQuantity = source.availableQuantity || 0;
   position.accountChannel = source.accountChannel;
   position.symbolName = source.symbolName;
   position.currency = source.currency;

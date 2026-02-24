@@ -20,11 +20,11 @@ export function createPositionCache(): PositionCache {
     positionMap.clear();
 
     for (const pos of positions) {
-      if (!pos?.symbol || typeof pos.symbol !== 'string') {
+      if (pos.symbol.length === 0) {
         continue;
       }
 
-      const availableQty = Number(pos.availableQuantity) || 0;
+      const availableQty = pos.availableQuantity || 0;
       if (isValidPositiveNumber(availableQty)) {
         positionMap.set(pos.symbol, pos);
       }
