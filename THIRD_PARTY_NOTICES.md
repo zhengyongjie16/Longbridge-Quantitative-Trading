@@ -20,7 +20,7 @@ Integrated/derived files in this repository:
 
 Local modifications copyright statement:
 
-- `Copyright (c) 2026 Ulysses Zheng`
+- `Copyright (c) 2026 Ulysses Zheng, Daniel Zheng`
 
 Note:
 
