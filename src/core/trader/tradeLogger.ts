@@ -2,7 +2,7 @@
  * 交易记录模块
  *
  * 职责：
- * - 记录交易到 JSON 文件（logs/trades/YYYY-MM-DD.json）
+ * - 记录交易到 JSON 文件（<logRootDir>/trades/YYYY-MM-DD.json）
  * - 识别错误类型（资金不足、不支持做空、网络错误等）
  *
  * 记录内容：订单ID、标的、方向、数量、价格、状态、原因、时间戳
@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { LOGGING } from '../../constants/index.js';
 import { logger, retainLatestLogFiles } from '../../utils/logger/index.js';
+import { resolveLogRootDir } from '../../utils/runtime.js';
 import { toHongKongTimeIso } from '../../utils/helpers/index.js';
 import { buildTradeLogPath } from './utils.js';
 import type { TradeRecord, ErrorTypeIdentifier } from './types.js';
@@ -81,17 +82,18 @@ export function identifyErrorType(errorMessage: string): ErrorTypeIdentifier {
 
 /**
  * 记录交易到 JSON 文件（按日期分文件存储）
- * 写入 logs/trades/YYYY-MM-DD.json，缺失字段补 null，并执行日志文件保留策略。
+ * 写入 <logRootDir>/trades/YYYY-MM-DD.json，缺失字段补 null，并执行日志文件保留策略。
  * @param tradeRecord 单笔交易记录，字段可为 null
  * @returns 无返回值；写入失败时仅记录错误日志
  */
 export function recordTrade(tradeRecord: TradeRecord): void {
   try {
-    const logDir = path.join(process.cwd(), 'logs', 'trades');
+    const logRootDir = resolveLogRootDir(process.env);
+    const logDir = path.join(logRootDir, 'trades');
     if (!fs.existsSync(logDir)) {
       fs.mkdirSync(logDir, { recursive: true });
     }
-    const logFile = buildTradeLogPath(process.cwd(), new Date());
+    const logFile = buildTradeLogPath(logRootDir, new Date());
     retainLatestLogFiles(logDir, LOGGING.MAX_RETAINED_LOG_FILES, 'json', path.basename(logFile));
 
     let trades: TradeRecord[] = [];

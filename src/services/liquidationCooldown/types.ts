@@ -70,7 +70,7 @@ export interface LiquidationCooldownTracker {
 export type TradeLogHydratorDeps = {
   readonly readFileSync: (path: string, encoding: BufferEncoding) => string;
   readonly existsSync: (path: string) => boolean;
-  readonly cwd: () => string;
+  readonly resolveLogRootDir: () => string;
   readonly nowMs: () => number;
   readonly logger: Logger;
   readonly tradingConfig: MultiMonitorTradingConfig;

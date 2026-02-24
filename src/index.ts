@@ -47,6 +47,7 @@ import {
   sleep,
   toHongKongTimeIso,
 } from './utils/helpers/index.js';
+import { resolveLogRootDir } from './utils/runtime.js';
 import { AUTO_SYMBOL_WARRANT_LIST_CACHE_TTL_MS, TRADING } from './constants/index.js';
 import {
   getHKDateKey,
@@ -276,7 +277,7 @@ async function main(): Promise<void> {
   const tradeLogHydrator = createTradeLogHydrator({
     readFileSync: fs.readFileSync,
     existsSync: fs.existsSync,
-    cwd: () => process.cwd(),
+    resolveLogRootDir: () => resolveLogRootDir(env),
     nowMs: () => Date.now(),
     logger,
     tradingConfig,

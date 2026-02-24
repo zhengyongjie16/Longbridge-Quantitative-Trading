@@ -5,9 +5,12 @@
  * - 验证交易日志回放与清仓冷却恢复的场景与边界。
  */
 import { describe, expect, it } from 'bun:test';
+import path from 'node:path';
 
 import { createTradingConfig, createMonitorConfig } from '../../../mock/factories/configFactory.js';
 import { createTradeLogHydrator } from '../../../src/services/liquidationCooldown/tradeLogHydrator.js';
+
+const TEST_LOG_ROOT_DIR = path.join(process.cwd(), 'tests', 'logs');
 
 describe('tradeLogHydrator business flow', () => {
   it('skips hydration when today trade log does not exist', () => {
@@ -17,7 +20,7 @@ describe('tradeLogHydrator business flow', () => {
     const hydrator = createTradeLogHydrator({
       readFileSync: () => '[]',
       existsSync: () => false,
-      cwd: () => 'D:/code/Longbridge-Quantitative-Trading',
+      resolveLogRootDir: () => TEST_LOG_ROOT_DIR,
       nowMs: () => Date.parse('2026-02-16T10:00:00+08:00'),
       logger: {
         info: (message: string) => {
@@ -51,7 +54,7 @@ describe('tradeLogHydrator business flow', () => {
     const hydrator = createTradeLogHydrator({
       readFileSync: () => '{invalid-json',
       existsSync: () => true,
-      cwd: () => 'D:/code/Longbridge-Quantitative-Trading',
+      resolveLogRootDir: () => TEST_LOG_ROOT_DIR,
       nowMs: () => Date.parse('2026-02-16T10:00:00+08:00'),
       logger: {
         info: () => {},
@@ -110,7 +113,7 @@ describe('tradeLogHydrator business flow', () => {
           },
         ]),
       existsSync: () => true,
-      cwd: () => 'D:/code/Longbridge-Quantitative-Trading',
+      resolveLogRootDir: () => TEST_LOG_ROOT_DIR,
       nowMs: () => Date.parse('2026-02-16T10:00:00+08:00'),
       logger: {
         info: (message: string) => {

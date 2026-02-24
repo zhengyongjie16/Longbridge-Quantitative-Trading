@@ -53,14 +53,14 @@ function normalizeTradeRecord(raw: unknown): TradeRecord | null {
 
 /**
  * 创建交易日志冷却恢复器，绑定文件读取、冷却追踪器等依赖，对外暴露 hydrate 方法。
- * @param deps - 依赖（tradeLogPath、liquidationCooldownTracker、getSeatSymbolSnapshot 等）
+ * @param deps - 依赖（日志目录解析、liquidationCooldownTracker、getSeatSymbolSnapshot 等）
  * @returns TradeLogHydrator 实例（hydrate 方法用于启动时恢复冷却状态）
  */
 export function createTradeLogHydrator(deps: TradeLogHydratorDeps): TradeLogHydrator {
   const {
     readFileSync,
     existsSync,
-    cwd,
+    resolveLogRootDir,
     nowMs,
     logger,
     tradingConfig,
@@ -80,7 +80,7 @@ export function createTradeLogHydrator(deps: TradeLogHydratorDeps): TradeLogHydr
   }: {
     readonly seatSymbols: ReadonlyArray<SeatSymbolSnapshotEntry>;
   }): void {
-    const logFile = buildTradeLogPath(cwd(), new Date(nowMs()));
+    const logFile = buildTradeLogPath(resolveLogRootDir(), new Date(nowMs()));
     if (!existsSync(logFile)) {
       logger.info(`[清仓冷却] 当日成交日志不存在，跳过冷却恢复: ${logFile}`);
       return;

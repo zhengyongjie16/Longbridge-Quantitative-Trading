@@ -53,14 +53,14 @@ export function getOrderTypeCode(orderType: OrderType): string {
 }
 
 /**
- * 构造交易日志文件路径：logs/trades/YYYY-MM-DD.json
- * @param cwd 项目根目录（通常为 process.cwd()）
+ * 构造交易日志文件路径：<logRootDir>/trades/YYYY-MM-DD.json
+ * @param logRootDir 日志根目录（由运行时环境解析）
  * @param date 日志对应的日期
  * @returns 完整的日志文件绝对路径
  */
-export function buildTradeLogPath(cwd: string, date: Date): string {
+export function buildTradeLogPath(logRootDir: string, date: Date): string {
   const dayKey = date.toISOString().split('T')[0];
-  return path.join(cwd, 'logs', 'trades', `${dayKey}.json`);
+  return path.join(logRootDir, 'trades', `${dayKey}.json`);
 }
 
 /**

@@ -1,6 +1,7 @@
 import pino from 'pino';
 import { toHongKongTimeLog } from '../helpers/index.js';
 import { IS_DEBUG, LOGGING, LOG_LEVELS, LOG_COLORS } from '../../constants/index.js';
+import { resolveLogRootDir, shouldInstallGlobalProcessHooks } from '../runtime.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Writable } from 'node:stream';
@@ -90,10 +91,10 @@ class DateRotatingStream extends Writable {
   private _fileStream: fs.WriteStream | null = null;
   private _rotatePromise: Promise<void> | null = null; // Promise队列，确保串行执行
 
-  constructor(logSubDir: string = 'system') {
+  constructor(logSubDir: string = 'system', logRootDir: string) {
     super();
     this._logSubDir = logSubDir;
-    this._logDir = path.join(process.cwd(), 'logs', logSubDir);
+    this._logDir = path.join(logRootDir, logSubDir);
 
     // 确保日志目录存在
     if (!fs.existsSync(this._logDir)) {
@@ -380,9 +381,12 @@ function formatForConsole(obj: LogObject): string {
   return line + '\n';
 }
 
+const logRootDir = resolveLogRootDir(process.env);
+const shouldInstallProcessHooks = shouldInstallGlobalProcessHooks(process.env);
+
 // 创建文件流实例
-const systemFileStream = new DateRotatingStream('system');
-const debugFileStream = IS_DEBUG ? new DateRotatingStream('debug') : null;
+const systemFileStream = new DateRotatingStream('system', logRootDir);
+const debugFileStream = IS_DEBUG ? new DateRotatingStream('debug', logRootDir) : null;
 
 /**
  * 创建带超时保护的 drain 事件处理器
@@ -689,41 +693,43 @@ function cleanupSync(): void {
   }
 }
 
-// beforeExit 事件处理（使用同步清理）
-process.on('beforeExit', () => {
-  cleanupSync();
-});
+if (shouldInstallProcessHooks) {
+  // beforeExit 事件处理（使用同步清理）
+  process.on('beforeExit', () => {
+    cleanupSync();
+  });
 
-// exit 事件处理（覆盖 process.exit() 场景）
-// 注意：process.exit() 不会触发 beforeExit，但会触发 exit
-process.on('exit', () => {
-  cleanupSync();
-});
+  // exit 事件处理（覆盖 process.exit() 场景）
+  // 注意：process.exit() 不会触发 beforeExit，但会触发 exit
+  process.on('exit', () => {
+    cleanupSync();
+  });
 
-// 未捕获的异常处理
-process.on('uncaughtException', (err: Error) => {
-  try {
-    logger.error('未捕获的异常', err);
-  } catch {
+  // 未捕获的异常处理
+  process.on('uncaughtException', (err: Error) => {
     try {
-      console.error('未捕获的异常:', err);
+      logger.error('未捕获的异常', err);
     } catch {
-      // 忽略
+      try {
+        console.error('未捕获的异常:', err);
+      } catch {
+        // 忽略
+      }
     }
-  }
-  cleanupSync();
-  process.exit(1);
-});
+    cleanupSync();
+    process.exit(1);
+  });
 
-// 未处理的 Promise 拒绝
-process.on('unhandledRejection', (reason: unknown) => {
-  try {
-    logger.error('未处理的 Promise 拒绝', reason);
-  } catch {
+  // 未处理的 Promise 拒绝
+  process.on('unhandledRejection', (reason: unknown) => {
     try {
-      console.error('未处理的 Promise 拒绝:', reason);
+      logger.error('未处理的 Promise 拒绝', reason);
     } catch {
-      // 忽略
+      try {
+        console.error('未处理的 Promise 拒绝:', reason);
+      } catch {
+        // 忽略
+      }
     }
-  }
-});
+  });
+}
