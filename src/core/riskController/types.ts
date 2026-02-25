@@ -225,6 +225,7 @@ export type RiskCheckerDeps = {
 export type DailyLossState = {
   readonly buyOrders: ReadonlyArray<OrderRecord>;
   readonly sellOrders: ReadonlyArray<OrderRecord>;
+  /** 当日偏移仅记录亏损，盈利按 0 处理，因此该值始终 <= 0 */
   readonly dailyLossOffset: number;
 };
 
@@ -288,7 +289,7 @@ export interface DailyLossTracker {
   ) => void;
   /** 增量记录单笔成交，仅接受当日日键匹配的订单 */
   recordFilledOrder: (input: DailyLossFilledOrderInput) => void;
-  /** 获取指定标的与方向的当日亏损偏移，未初始化时返回 0 */
+  /** 获取指定标的与方向的当日亏损偏移（仅亏损，<=0），未初始化时返回 0 */
   getLossOffset: (monitorSymbol: string, isLongSymbol: boolean) => number;
 }
 

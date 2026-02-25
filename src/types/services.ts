@@ -435,7 +435,7 @@ export type UnrealizedLossData = {
   readonly n1: number;
   /** baseR1: 未调整的开仓成本 */
   readonly baseR1?: number;
-  /** dailyLossOffset: 当日亏损偏移 */
+  /** dailyLossOffset: 当日亏损偏移（仅记录亏损，<=0） */
   readonly dailyLossOffset?: number;
   /** 最后更新时间戳 */
   readonly lastUpdateTime: number;

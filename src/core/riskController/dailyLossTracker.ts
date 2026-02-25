@@ -30,7 +30,8 @@ function createEmptyState(): DailyLossState {
 /**
  * 计算当日盈亏偏移：
  * realizedPnL = totalSell - (totalBuy - openBuyCost)
- * 正值表示当日盈利，负值表示当日亏损。
+ * 仅记录亏损偏移：当 realizedPnL > 0（当日盈利）时按 0 处理；
+ * 负值表示当日亏损偏移。
  */
 function calculateLossOffsetFromRecords(
   buyOrders: ReadonlyArray<OrderRecord>,
@@ -50,7 +51,11 @@ function calculateLossOffsetFromRecords(
       ? filteringEngine.applyFilteringAlgorithm([...buyOrders], [...sellOrders])
       : [];
   const openBuyCost = sumOrderCost(openBuyOrders);
-  return totalSell - totalBuy + openBuyCost;
+  const realizedPnL = totalSell - totalBuy + openBuyCost;
+  if (realizedPnL > 0) {
+    return 0;
+  }
+  return realizedPnL;
 }
 
 /**

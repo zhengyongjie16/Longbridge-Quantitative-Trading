@@ -86,7 +86,7 @@ export const createUnrealizedLossChecker = (
   /**
    * 刷新指定标的的浮亏数据并写入缓存。
    * 启动初始化、成交后刷新或保护性清仓后调用，以确保后续检查与展示使用最新的 R1/N1。
-   * dailyLossOffset 为负时（已亏损）会增大调整后 R1，使浮亏保护更容易触发。
+   * dailyLossOffset 仅记录亏损偏移（<=0）；调整后 R1 按 baseR1 - dailyLossOffset 计算。
    */
   const refresh = (
     orderRecorder: OrderRecorder | null,
@@ -107,12 +107,13 @@ export const createUnrealizedLossChecker = (
 
       // 计算R1（开仓成本）和N1（持仓数量）
       const { r1: baseR1, n1 } = calculateCostAndQuantity(buyOrders);
-      const normalizedOffset =
+      const rawOffset =
         dailyLossOffset !== undefined && Number.isFinite(dailyLossOffset) ? dailyLossOffset : 0;
+      const normalizedOffset = rawOffset > 0 ? 0 : rawOffset;
       // 调整后R1 = 基础R1 - 当日偏移
-      // 当日偏移为负数时（已亏损），减去负数使R1增大，从而更容易触发浮亏保护
-      // 调整后R1 不能为负数，最小值为 0
-      const adjustedR1 = Math.max(0, baseR1 - normalizedOffset);
+      // 当日偏移仅记录亏损（<=0）：盈利偏移统一按 0，不减少 R1
+      // 亏损偏移为负数时，减去负数使 R1 增大，从而更容易触发浮亏保护
+      const adjustedR1 = baseR1 - normalizedOffset;
 
       // 更新缓存
       unrealizedLossData.set(symbol, {
