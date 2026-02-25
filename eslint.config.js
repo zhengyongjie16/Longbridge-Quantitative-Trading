@@ -174,10 +174,9 @@ export default defineConfig(
       // 运行日志
       'logs/**',
 
-      // 脚本与工具目录
+      // 脚本目录
       'utils/**',
       '*.config.js',
-      'tools/**',
       'scripts/**',
 
       // 工作目录
