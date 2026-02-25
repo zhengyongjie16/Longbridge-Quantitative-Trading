@@ -8,7 +8,7 @@ const DEFAULT_APP_PROFILE = 'app';
 const TEST_PROFILE = 'test';
 const APP_PROFILE = 'app';
 
-export type RuntimeProfile = 'app' | 'test';
+type RuntimeProfile = 'app' | 'test';
 
 /**
  * 解析布尔环境变量字符串。

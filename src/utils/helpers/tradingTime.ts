@@ -280,7 +280,7 @@ export function calculateTradingDurationMsBetween(params: TradingDurationBetween
  * @param params - 交易时段累计时长计算参数
  * @returns 持仓交易时段累计毫秒
  */
-export function calculateHeldTradingDurationMs(params: TradingDurationBetweenParams): number {
+function calculateHeldTradingDurationMs(params: TradingDurationBetweenParams): number {
   return calculateTradingDurationMsBetween(params);
 }
 
