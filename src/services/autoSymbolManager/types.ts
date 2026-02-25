@@ -11,6 +11,7 @@ import type {
   Trader,
 } from '../../types/services.js';
 import type { Logger } from '../../utils/logger/types.js';
+import type { TradingCalendarSnapshot } from '../../utils/helpers/types.js';
 import type { ObjectPool, PoolableSignal } from '../../utils/objectPool/types.js';
 import type {
   FindBestWarrantInput,
@@ -52,6 +53,7 @@ export type AutoSymbolManagerDeps = {
   readonly orderRecorder: OrderRecorder;
   readonly riskChecker: RiskChecker;
   readonly warrantListCacheConfig?: WarrantListCacheConfig;
+  readonly getTradingCalendarSnapshot?: () => TradingCalendarSnapshot;
   readonly now?: () => Date;
 };
 
@@ -186,6 +188,22 @@ type PeriodicSwitchPendingMap = Map<'LONG' | 'SHORT', PeriodicSwitchPendingState
  * 仅在 autoSymbolManager 模块内部使用。
  */
 type TradingMinutesResolver = (date: Date | null | undefined) => number;
+
+/**
+ * 内部类型：交易时段累计时长计算函数。
+ * 仅在 autoSymbolManager 模块内部使用。
+ */
+type TradingDurationCalculator = (params: {
+  readonly startMs: number;
+  readonly endMs: number;
+  readonly calendarSnapshot: TradingCalendarSnapshot;
+}) => number;
+
+/**
+ * 内部类型：交易日历快照提供函数。
+ * 仅在 autoSymbolManager 模块内部使用。
+ */
+type TradingCalendarSnapshotProvider = () => TradingCalendarSnapshot;
 
 /**
  * 内部类型：香港日期键解析函数，用于跨日冻结判断。
@@ -453,7 +471,8 @@ export type SwitchStateMachineDeps = {
   readonly logger: Logger;
   readonly maxSearchFailuresPerDay: number;
   readonly getHKDateKey: HKDateKeyResolver;
-  readonly getTradingMinutesSinceOpen: TradingMinutesResolver;
+  readonly calculateTradingDurationMsBetween: TradingDurationCalculator;
+  readonly getTradingCalendarSnapshot: TradingCalendarSnapshotProvider;
 };
 
 /**

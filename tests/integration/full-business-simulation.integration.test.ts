@@ -193,7 +193,7 @@ describe('full business simulation integration', () => {
 
     const orderRecorder = createOrderRecorderDouble({
       getCostAveragePrice: () => 1.2,
-      getSellableOrders: () => ({
+      selectSellableOrders: () => ({
         orders: [
           {
             orderId: 'BUY-001',
@@ -734,7 +734,7 @@ describe('full business simulation integration', () => {
 
     const orderRecorder = createOrderRecorderDouble({
       getCostAveragePrice: () => 1.2,
-      getSellableOrders: () => ({
+      selectSellableOrders: () => ({
         orders: [
           {
             orderId: 'BUY-100',

@@ -14,7 +14,11 @@ import type { AccountSnapshot, Position } from './account.js';
 import type { DecimalLikeValue } from './common.js';
 import type { MonitorConfig } from './config.js';
 import type { DoomsdayProtection } from '../core/doomsdayProtection/types.js';
-import type { PendingSellInfo } from '../core/orderRecorder/types.js';
+import type {
+  PendingSellInfo,
+  SellableOrderResult,
+  SellableOrderSelectParams,
+} from '../core/orderRecorder/types.js';
 
 /**
  * 交易日查询结果。
@@ -99,6 +103,8 @@ export interface MarketDataClient {
 
   /** 判断指定日期是否为交易日 */
   isTradingDay: (date: Date, market?: Market) => Promise<TradingDayInfo>;
+  /** 批量获取交易日历区间（可选实现） */
+  getTradingDays?: (startDate: Date, endDate: Date, market?: Market) => Promise<TradingDaysResult>;
 
   /** 重置运行期订阅与缓存（跨日午夜清理） */
   resetRuntimeSubscriptionsAndCaches: () => Promise<void>;
@@ -268,17 +274,8 @@ export interface OrderRecorder {
   ) => readonly string[];
   /** 获取指定标的的成本均价（实时计算，无缓存） */
   getCostAveragePrice: (symbol: string, isLongSymbol: boolean) => number | null;
-  /**
-   * 获取可卖出的订单（核心防重逻辑）
-   * includeAll=true 时返回该标的该方向全部订单，否则仅返回买入价 < 当前价的订单
-   */
-  getSellableOrders: (
-    symbol: string,
-    direction: 'LONG' | 'SHORT',
-    currentPrice: number,
-    maxSellQuantity?: number,
-    options?: { readonly includeAll?: boolean },
-  ) => { orders: ReadonlyArray<OrderRecord>; totalQuantity: number };
+  /** 按策略筛选可卖订单（统一处理占用过滤、整笔截断与可选额外排除） */
+  selectSellableOrders: (params: SellableOrderSelectParams) => SellableOrderResult;
   /** 重置全部订单记录与 API 缓存 */
   resetAll: () => void;
 }

@@ -522,7 +522,7 @@ describe('main loop latency full-chain integration', () => {
       },
       doomsdayProtection: createDoomsdayProtectionDouble(),
       signalProcessor: {
-        processSellSignals: (signals) => signals,
+        processSellSignals: (params) => params.signals,
         applyRiskChecks: async (signals) => signals,
         resetRiskCheckCooldown: () => {},
       },

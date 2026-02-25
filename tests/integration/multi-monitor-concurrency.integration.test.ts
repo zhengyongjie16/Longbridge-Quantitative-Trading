@@ -188,7 +188,7 @@ describe('multi-monitor-concurrency integration', () => {
         cancelPendingBuyOrders: async () => ({ executed: false, cancelledCount: 0 }),
       },
       signalProcessor: {
-        processSellSignals: (signals) => signals,
+        processSellSignals: (params) => params.signals,
         applyRiskChecks: async (signals) => signals,
         resetRiskCheckCooldown: () => {},
       },

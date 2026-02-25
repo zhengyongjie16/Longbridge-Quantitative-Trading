@@ -8,6 +8,7 @@
 import { OrderSide } from 'longport';
 import { findBestWarrant } from '../autoSymbolFinder/index.js';
 import {
+  calculateTradingDurationMsBetween,
   getHKDateKey,
   getTradingMinutesSinceOpen,
   isWithinMorningOpenProtection,
@@ -53,6 +54,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     warrantListCacheConfig,
   } = deps;
   const now = deps.now ?? (() => new Date());
+  const getTradingCalendarSnapshot = deps.getTradingCalendarSnapshot ?? (() => new Map());
 
   const monitorSymbol = monitorConfig.monitorSymbol;
   const autoSearchConfig = monitorConfig.autoSearchConfig;
@@ -130,7 +132,8 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     logger,
     maxSearchFailuresPerDay: AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY,
     getHKDateKey,
-    getTradingMinutesSinceOpen,
+    calculateTradingDurationMsBetween,
+    getTradingCalendarSnapshot,
   });
 
   /** 清空换标状态与日内抑制记录，用于交易日切换或重新初始化。 */

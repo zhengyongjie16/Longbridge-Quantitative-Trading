@@ -1,18 +1,18 @@
 /**
  * resolveSellQuantityBySmartClose 单元测试
  *
- * 测试智能平仓决策逻辑：
- * - orderRecorder 不可用 → 保持持仓
- * - 成本均价为 null → 走非盈利路径
- * - 当前价 > 成本均价 → 整体盈利，includeAll=true
- * - 当前价 ≤ 成本均价 → 未盈利，includeAll=false
- * - 成本均价无效值（0, NaN, Infinity）→ 走非盈利路径
- * - 有可卖订单 → 返回卖出结果
- * - 无可卖订单 → 保持持仓（区分原因）
+ * 功能：
+ * - 验证智能平仓三阶段逻辑（整体盈利全卖 / 盈利订单 / 超时订单）
+ * - 验证阶段顺序与额度约束（stage3 仅使用 stage2 剩余额度）
  */
 import { describe, it, expect } from 'bun:test';
 import { resolveSellQuantityBySmartClose } from '../../../src/core/signalProcessor/utils.js';
 import type { OrderRecorder, OrderRecord } from '../../../src/types/services.js';
+import type {
+  SellableOrderResult,
+  SellableOrderSelectParams,
+} from '../../../src/core/orderRecorder/types.js';
+import type { TradingCalendarSnapshot } from '../../../src/utils/helpers/types.js';
 
 function makeOrder(orderId: string, price: number, quantity: number): OrderRecord {
   return {
@@ -26,20 +26,13 @@ function makeOrder(orderId: string, price: number, quantity: number): OrderRecor
   };
 }
 
-function createMockOrderRecorder(overrides: {
-  costAveragePrice?: number | null;
-  sellableOrders?: ReadonlyArray<OrderRecord>;
-  sellableTotalQuantity?: number;
+function createMockOrderRecorder(params: {
+  costAveragePrice: number | null;
+  selectSellableOrders: (input: SellableOrderSelectParams) => SellableOrderResult;
 }): OrderRecorder {
-  const { costAveragePrice = null, sellableOrders = [], sellableTotalQuantity = 0 } = overrides;
-
   return {
-    getCostAveragePrice: () => costAveragePrice,
-    getSellableOrders: () => ({
-      orders: sellableOrders,
-      totalQuantity: sellableTotalQuantity,
-    }),
-    // 以下方法在 resolveSellQuantityBySmartClose 中不会被调用
+    getCostAveragePrice: () => params.costAveragePrice,
+    selectSellableOrders: params.selectSellableOrders,
     recordLocalBuy: () => {},
     recordLocalSell: () => {},
     clearBuyOrders: () => {},
@@ -59,303 +52,165 @@ function createMockOrderRecorder(overrides: {
   };
 }
 
+const emptyCalendarSnapshot: TradingCalendarSnapshot = new Map();
+
 describe('resolveSellQuantityBySmartClose', () => {
   const baseParams = {
     currentPrice: 1.1,
-    availableQuantity: 200,
+    availableQuantity: 300,
     direction: 'LONG' as const,
     symbol: 'TEST.HK',
+    nowMs: Date.parse('2026-02-25T03:00:00.000Z'),
+    isHalfDay: false,
+    tradingCalendarSnapshot: emptyCalendarSnapshot,
   };
 
-  // ========== orderRecorder 不可用 ==========
-
-  it('orderRecorder 为 null 时保持持仓', () => {
+  it('orderRecorder 不可用时保持持仓', () => {
     const result = resolveSellQuantityBySmartClose({
       ...baseParams,
       orderRecorder: null,
+      smartCloseTimeoutMinutes: null,
     });
 
     expect(result.shouldHold).toBe(true);
     expect(result.quantity).toBeNull();
     expect(result.reason).toContain('订单记录不可用');
-    expect(result.relatedBuyOrderIds).toHaveLength(0);
   });
 
-  // ========== 成本均价为 null ==========
-
-  it('成本均价为 null 且无盈利订单时保持持仓', () => {
-    const recorder = createMockOrderRecorder({
-      costAveragePrice: null,
-      sellableOrders: [],
-      sellableTotalQuantity: 0,
-    });
-
-    const result = resolveSellQuantityBySmartClose({
-      ...baseParams,
-      orderRecorder: recorder,
-    });
-
-    expect(result.shouldHold).toBe(true);
-    expect(result.quantity).toBeNull();
-    expect(result.reason).toContain('无盈利订单或已被占用');
-  });
-
-  it('成本均价为 null 但有盈利订单时卖出盈利部分', () => {
-    const orders = [makeOrder('O1', 1, 100)];
-    const recorder = createMockOrderRecorder({
-      costAveragePrice: null,
-      sellableOrders: orders,
-      sellableTotalQuantity: 100,
-    });
-
-    const result = resolveSellQuantityBySmartClose({
-      ...baseParams,
-      orderRecorder: recorder,
-    });
-
-    expect(result.shouldHold).toBe(false);
-    expect(result.quantity).toBe(100);
-    expect(result.relatedBuyOrderIds).toEqual(['O1']);
-  });
-
-  // ========== 整体盈利（当前价 > 成本均价）==========
-
-  it('当前价 > 成本均价时整体盈利，返回全部可卖订单', () => {
-    const orders = [makeOrder('O1', 1, 100), makeOrder('O2', 1.2, 100)];
-    const recorder = createMockOrderRecorder({
-      costAveragePrice: 1.1,
-      sellableOrders: orders,
-      sellableTotalQuantity: 200,
-    });
-
-    const result = resolveSellQuantityBySmartClose({
-      ...baseParams,
-      currentPrice: 1.15,
-      orderRecorder: recorder,
-    });
-
-    expect(result.shouldHold).toBe(false);
-    expect(result.quantity).toBe(200);
-    expect(result.relatedBuyOrderIds).toEqual(['O1', 'O2']);
-    expect(result.reason).toContain('成本均价=1.100');
-  });
-
-  it('整体盈利但所有订单被占用时保持持仓', () => {
+  it('阶段1命中（整体盈利）时仅调用 ALL 策略并直接返回', () => {
+    const calls: Array<SellableOrderSelectParams['strategy']> = [];
     const recorder = createMockOrderRecorder({
       costAveragePrice: 1,
-      sellableOrders: [],
-      sellableTotalQuantity: 0,
+      selectSellableOrders: (input) => {
+        calls.push(input.strategy);
+        return {
+          orders: [makeOrder('A1', 0.9, 100), makeOrder('A2', 1.2, 200)],
+          totalQuantity: 300,
+        };
+      },
     });
 
     const result = resolveSellQuantityBySmartClose({
       ...baseParams,
-      currentPrice: 1.5,
+      currentPrice: 1.2,
       orderRecorder: recorder,
+      smartCloseTimeoutMinutes: 30,
     });
 
-    expect(result.shouldHold).toBe(true);
-    expect(result.quantity).toBeNull();
-    expect(result.reason).toContain('整体盈利但无可用订单或已被占用');
-  });
-
-  // ========== 整体未盈利（当前价 ≤ 成本均价）==========
-
-  it('当前价 < 成本均价时仅卖出盈利订单', () => {
-    const orders = [makeOrder('O1', 1, 100)];
-    const recorder = createMockOrderRecorder({
-      costAveragePrice: 1.1,
-      sellableOrders: orders,
-      sellableTotalQuantity: 100,
-    });
-
-    const result = resolveSellQuantityBySmartClose({
-      ...baseParams,
-      currentPrice: 1.05,
-      orderRecorder: recorder,
-    });
-
+    expect(calls).toEqual(['ALL']);
     expect(result.shouldHold).toBe(false);
-    expect(result.quantity).toBe(100);
-    expect(result.relatedBuyOrderIds).toEqual(['O1']);
+    expect(result.quantity).toBe(300);
+    expect(result.relatedBuyOrderIds).toEqual(['A1', 'A2']);
   });
 
-  it('当前价 = 成本均价时走非盈利路径', () => {
-    const orders = [makeOrder('O1', 0.9, 100)];
-    const recorder = createMockOrderRecorder({
-      costAveragePrice: 1,
-      sellableOrders: orders,
-      sellableTotalQuantity: 100,
-    });
-
-    const result = resolveSellQuantityBySmartClose({
-      ...baseParams,
-      currentPrice: 1,
-      orderRecorder: recorder,
-    });
-
-    // 当前价 = 成本均价，不满足 > 条件，走非盈利路径
-    expect(result.shouldHold).toBe(false);
-    expect(result.quantity).toBe(100);
-  });
-
-  it('整体未盈利且无盈利订单时保持持仓', () => {
+  it('阶段2后 timeout=null 时不执行阶段3', () => {
+    const calls: Array<SellableOrderSelectParams['strategy']> = [];
     const recorder = createMockOrderRecorder({
       costAveragePrice: 1.5,
-      sellableOrders: [],
-      sellableTotalQuantity: 0,
-    });
-
-    const result = resolveSellQuantityBySmartClose({
-      ...baseParams,
-      currentPrice: 1,
-      orderRecorder: recorder,
-    });
-
-    expect(result.shouldHold).toBe(true);
-    expect(result.reason).toContain('无盈利订单或已被占用');
-  });
-
-  // ========== 成本均价无效值 ==========
-
-  it('成本均价为 0 时走非盈利路径', () => {
-    const recorder = createMockOrderRecorder({
-      costAveragePrice: 0,
-      sellableOrders: [],
-      sellableTotalQuantity: 0,
-    });
-
-    const result = resolveSellQuantityBySmartClose({
-      ...baseParams,
-      orderRecorder: recorder,
-    });
-
-    // costAveragePrice = 0，不满足 > 0 条件
-    expect(result.shouldHold).toBe(true);
-    expect(result.reason).not.toContain('整体盈利');
-  });
-
-  it('成本均价为 NaN 时走非盈利路径', () => {
-    const recorder = createMockOrderRecorder({
-      costAveragePrice: Number.NaN,
-      sellableOrders: [],
-      sellableTotalQuantity: 0,
-    });
-
-    const result = resolveSellQuantityBySmartClose({
-      ...baseParams,
-      orderRecorder: recorder,
-    });
-
-    expect(result.shouldHold).toBe(true);
-    expect(result.reason).not.toContain('整体盈利');
-  });
-
-  it('成本均价为 Infinity 时走非盈利路径', () => {
-    const recorder = createMockOrderRecorder({
-      costAveragePrice: Infinity,
-      sellableOrders: [],
-      sellableTotalQuantity: 0,
-    });
-
-    const result = resolveSellQuantityBySmartClose({
-      ...baseParams,
-      orderRecorder: recorder,
-    });
-
-    expect(result.shouldHold).toBe(true);
-    expect(result.reason).not.toContain('整体盈利');
-  });
-
-  it('成本均价为负数时走非盈利路径', () => {
-    const recorder = createMockOrderRecorder({
-      costAveragePrice: -1,
-      sellableOrders: [],
-      sellableTotalQuantity: 0,
-    });
-
-    const result = resolveSellQuantityBySmartClose({
-      ...baseParams,
-      orderRecorder: recorder,
-    });
-
-    expect(result.shouldHold).toBe(true);
-    expect(result.reason).not.toContain('整体盈利');
-  });
-
-  // ========== 做空方向 ==========
-
-  it('做空方向正确传递 isLongSymbol=false', () => {
-    let capturedOptions: { readonly includeAll?: boolean } | undefined;
-    const recorder = createMockOrderRecorder({
-      costAveragePrice: 1,
-      sellableOrders: [makeOrder('O1', 0.9, 100)],
-      sellableTotalQuantity: 100,
-    });
-    // 覆盖 getSellableOrders 以捕获参数
-    recorder.getSellableOrders = (
-      _symbol: string,
-      _direction: 'LONG' | 'SHORT',
-      _currentPrice: number,
-      _maxSellQuantity?: number,
-      options?: { readonly includeAll?: boolean },
-    ) => {
-      capturedOptions = options;
-      return { orders: [makeOrder('O1', 0.9, 100)], totalQuantity: 100 };
-    };
-
-    resolveSellQuantityBySmartClose({
-      ...baseParams,
-      direction: 'SHORT',
-      currentPrice: 1.5,
-      orderRecorder: recorder,
-    });
-
-    // 当前价 1.5 > 成本均价 1 → isOverallProfitable=true → includeAll=true
-    expect(capturedOptions?.includeAll).toBe(true);
-  });
-
-  // ========== relatedBuyOrderIds 正确性 ==========
-
-  it('返回的 relatedBuyOrderIds 与可卖订单的 orderId 一致', () => {
-    const orders = [
-      makeOrder('BUY_001', 1, 100),
-      makeOrder('BUY_002', 0.9, 50),
-      makeOrder('BUY_003', 1.1, 150),
-    ];
-    const recorder = createMockOrderRecorder({
-      costAveragePrice: 1,
-      sellableOrders: orders,
-      sellableTotalQuantity: 300,
-    });
-
-    const result = resolveSellQuantityBySmartClose({
-      ...baseParams,
-      currentPrice: 1.5,
-      orderRecorder: recorder,
-    });
-
-    expect(result.relatedBuyOrderIds).toEqual(['BUY_001', 'BUY_002', 'BUY_003']);
-  });
-
-  // ========== reason 文本验证 ==========
-
-  it('卖出结果的 reason 包含关键信息', () => {
-    const orders = [makeOrder('O1', 1, 100)];
-    const recorder = createMockOrderRecorder({
-      costAveragePrice: 1.05,
-      sellableOrders: orders,
-      sellableTotalQuantity: 100,
+      selectSellableOrders: (input) => {
+        calls.push(input.strategy);
+        return {
+          orders: [makeOrder('P1', 0.9, 100)],
+          totalQuantity: 100,
+        };
+      },
     });
 
     const result = resolveSellQuantityBySmartClose({
       ...baseParams,
       currentPrice: 1.1,
       orderRecorder: recorder,
+      smartCloseTimeoutMinutes: null,
     });
 
-    expect(result.reason).toContain('当前价=1.100');
-    expect(result.reason).toContain('成本均价=1.050');
-    expect(result.reason).toContain('可卖出=100股');
-    expect(result.reason).toContain('关联订单=1个');
+    expect(calls).toEqual(['PROFIT_ONLY']);
+    expect(result.shouldHold).toBe(false);
+    expect(result.quantity).toBe(100);
+    expect(result.relatedBuyOrderIds).toEqual(['P1']);
+  });
+
+  it('阶段3仅从阶段2剩余订单选择，并排除阶段2已选订单', () => {
+    const recorder = createMockOrderRecorder({
+      costAveragePrice: 1.5,
+      selectSellableOrders: (input) => {
+        if (input.strategy === 'PROFIT_ONLY') {
+          return {
+            orders: [makeOrder('P1', 0.9, 100)],
+            totalQuantity: 100,
+          };
+        }
+
+        expect(input.strategy).toBe('TIMEOUT_ONLY');
+        expect(input.maxSellQuantity).toBe(200);
+        expect(input.excludeOrderIds?.has('P1')).toBe(true);
+        return {
+          orders: [makeOrder('T1', 1.4, 200)],
+          totalQuantity: 200,
+        };
+      },
+    });
+
+    const result = resolveSellQuantityBySmartClose({
+      ...baseParams,
+      currentPrice: 1.1,
+      orderRecorder: recorder,
+      smartCloseTimeoutMinutes: 30,
+    });
+
+    expect(result.shouldHold).toBe(false);
+    expect(result.quantity).toBe(300);
+    expect(result.relatedBuyOrderIds).toEqual(['P1', 'T1']);
+  });
+
+  it('阶段3数量受 AQ - Q2 约束', () => {
+    const recorder = createMockOrderRecorder({
+      costAveragePrice: 1.5,
+      selectSellableOrders: (input) => {
+        if (input.strategy === 'PROFIT_ONLY') {
+          return {
+            orders: [makeOrder('P1', 0.9, 250)],
+            totalQuantity: 250,
+          };
+        }
+
+        expect(input.maxSellQuantity).toBe(50);
+        return {
+          orders: [makeOrder('T1', 1.4, 50)],
+          totalQuantity: 50,
+        };
+      },
+    });
+
+    const result = resolveSellQuantityBySmartClose({
+      ...baseParams,
+      currentPrice: 1.1,
+      orderRecorder: recorder,
+      smartCloseTimeoutMinutes: 30,
+    });
+
+    expect(result.shouldHold).toBe(false);
+    expect(result.quantity).toBe(300);
+    expect(result.relatedBuyOrderIds).toEqual(['P1', 'T1']);
+  });
+
+  it('阶段2与阶段3都无结果时保持持仓', () => {
+    const recorder = createMockOrderRecorder({
+      costAveragePrice: 1.5,
+      selectSellableOrders: () => ({
+        orders: [],
+        totalQuantity: 0,
+      }),
+    });
+
+    const result = resolveSellQuantityBySmartClose({
+      ...baseParams,
+      currentPrice: 1.1,
+      orderRecorder: recorder,
+      smartCloseTimeoutMinutes: 30,
+    });
+
+    expect(result.shouldHold).toBe(true);
+    expect(result.quantity).toBeNull();
+    expect(result.reason).toContain('无盈利订单，且无超时订单或已被占用');
   });
 });

@@ -122,6 +122,38 @@ export function parseLiquidationCooldownConfig(
 }
 
 /**
+ * 解析智能平仓超时分钟配置，支持空值/null（关闭）或非负整数分钟。
+ * @param env - 进程环境变量对象
+ * @param envKey - 环境变量键名
+ * @returns 合法时返回非负整数或 null；非法值返回 null（由 validator 报错）
+ */
+export function parseSmartCloseTimeoutMinutesConfig(
+  env: NodeJS.ProcessEnv,
+  envKey: string,
+): number | null {
+  const raw = env[envKey];
+  if (raw === undefined) {
+    return null;
+  }
+
+  const trimmed = raw.trim();
+  if (trimmed === '') {
+    return null;
+  }
+
+  if (trimmed.toLowerCase() === 'null') {
+    return null;
+  }
+
+  const value = Number(trimmed);
+  if (!Number.isInteger(value) || value < 0) {
+    return null;
+  }
+
+  return value;
+}
+
+/**
  * 解析数值范围配置，格式为 "min,max"。
  * @param env - 进程环境变量对象
  * @param envKey - 环境变量键名

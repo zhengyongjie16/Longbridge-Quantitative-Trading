@@ -5,7 +5,7 @@
  * - 管理本地订单列表的增删改查
  * - 提供订单查询功能
  * - 追踪待成交卖出订单
- * - 提供可卖出盈利订单计算
+ * - 提供可卖订单策略筛选（全量/盈利/超时）
  * - 纯内存操作，无异步方法
  *
  * 优化：
@@ -19,20 +19,22 @@ import {
   formatSymbolDisplayFromQuote,
   isValidPositiveNumber,
 } from '../../utils/helpers/index.js';
+import { isOrderTimedOut } from '../../utils/helpers/tradingTime.js';
 import type { Quote } from '../../types/quote.js';
 import type { OrderRecord } from '../../types/services.js';
 import type {
   OrderStorage,
   OrderStorageDeps,
   PendingSellInfo,
-  ProfitableOrderResult,
+  SellableOrderResult,
+  SellableOrderSelectParams,
 } from './types.js';
 import { calculateTotalQuantity, calculateOrderStatistics } from './utils.js';
 import { deductSellQuantityFromBuyOrders } from './sellDeductionPolicy.js';
 
 /**
  * 创建订单存储管理器（纯内存，无异步）
- * 管理本地订单增删改查、待成交卖单追踪与可卖出盈利订单计算，供 orderRecorder 与风控使用。
+ * 管理本地订单增删改查、待成交卖单追踪与可卖订单策略筛选，供 orderRecorder 与风控使用。
  * @param _deps 可选依赖，当前未使用
  * @returns OrderStorage 接口实例
  */
@@ -237,39 +239,78 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
   };
 
   /**
-   * 获取买入价低于当前价的订单（用于智能清仓决策）
-   * @param currentPrice 当前价格
-   * @param direction 交易方向（LONG/SHORT）
-   * @param symbol 标的代码
-   * @returns 盈利订单列表
+   * 获取指定方向与标的下的全部买入订单（O(1) 查找）。
    */
-  const getBuyOrdersBelowPrice = (
-    currentPrice: number,
-    direction: 'LONG' | 'SHORT',
+  function getOrdersByDirectionSymbol(
     symbol: string,
-  ): OrderRecord[] => {
+    direction: 'LONG' | 'SHORT',
+  ): ReadonlyArray<OrderRecord> {
+    const targetMap = direction === 'LONG' ? longBuyOrdersMap : shortBuyOrdersMap;
+    return targetMap.get(symbol) ?? [];
+  }
+
+  /**
+   * 按卖出优先级排序（价格从低到高，时间从早到晚，orderId 字典序）。
+   */
+  function sortOrdersBySellPriority(orders: ReadonlyArray<OrderRecord>): ReadonlyArray<OrderRecord> {
+    return [...orders].sort((a, b) => {
+      if (a.executedPrice !== b.executedPrice) {
+        return a.executedPrice - b.executedPrice;
+      }
+      if (a.executedTime !== b.executedTime) {
+        return a.executedTime - b.executedTime;
+      }
+      return a.orderId.localeCompare(b.orderId);
+    });
+  }
+
+  /**
+   * 选择买入价低于当前价的盈利订单。
+   */
+  function selectProfitOrders(
+    allOrders: ReadonlyArray<OrderRecord>,
+    currentPrice: number,
+  ): ReadonlyArray<OrderRecord> {
     if (!Number.isFinite(currentPrice) || currentPrice <= 0) {
       return [];
     }
 
-    const targetMap = direction === 'LONG' ? longBuyOrdersMap : shortBuyOrdersMap;
-    const directionName = direction === 'LONG' ? '做多标的' : '做空标的';
-
-    // 获取指定标的的订单（O(1) 查找）
-    const allOrders = targetMap.get(symbol) ?? [];
-
-    const filteredOrders = allOrders.filter(
+    return allOrders.filter(
       (order) => Number.isFinite(order.executedPrice) && order.executedPrice < currentPrice,
     );
+  }
 
-    logger.debug(
-      `[根据订单记录过滤] ${directionName} ${symbol}，当前价格=${currentPrice}，当前订单=${JSON.stringify(
-        allOrders,
-      )}，过滤后订单=${JSON.stringify(filteredOrders)}`,
+  /**
+   * 选择满足超时阈值的订单。
+   */
+  function selectTimedOutOrders({
+    allOrders,
+    timeoutMinutes,
+    nowMs,
+    calendarSnapshot,
+  }: {
+    allOrders: ReadonlyArray<OrderRecord>;
+    timeoutMinutes: number | null;
+    nowMs: number;
+    calendarSnapshot: SellableOrderSelectParams['calendarSnapshot'];
+  }): ReadonlyArray<OrderRecord> {
+    if (timeoutMinutes === null || timeoutMinutes < 0) {
+      return [];
+    }
+
+    if (!calendarSnapshot || !Number.isFinite(nowMs) || nowMs <= 0) {
+      return [];
+    }
+
+    return allOrders.filter((order) =>
+      isOrderTimedOut({
+        orderExecutedTimeMs: order.executedTime,
+        nowMs,
+        timeoutMinutes,
+        calendarSnapshot,
+      }),
     );
-
-    return filteredOrders;
-  };
+  }
 
   /** 获取指定标的的成本均价（实时计算，无缓存） */
   const getCostAveragePrice = (symbol: string, isLongSymbol: boolean): number | null => {
@@ -435,35 +476,42 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
   }
 
   /**
-   * 获取可卖出的订单（核心防重逻辑）
-   *
-   * 算法说明：
-   * 1. 按 includeAll 选择目标订单：全部订单或仅买入价 < 当前价的盈利订单
-   * 2. 排除已被待成交卖出订单占用的订单（防止重复卖出）
-   * 3. 如超出最大可卖数量,按低价优先整笔选单(不拆分订单)
-   *
-   * 注意:返回的 totalQuantity 可能小于 maxSellQuantity(整笔语义)
+   * 按策略筛选可卖订单（统一处理防重、额外排除和整笔截断）。
    */
-  function getSellableOrders(
-    symbol: string,
-    direction: 'LONG' | 'SHORT',
-    currentPrice: number,
-    maxSellQuantity?: number,
-    options?: { readonly includeAll?: boolean },
-  ): ProfitableOrderResult {
-    const isLongSymbol = direction === 'LONG';
+  function selectSellableOrders(params: SellableOrderSelectParams): SellableOrderResult {
+    const {
+      symbol,
+      direction,
+      strategy,
+      currentPrice,
+      maxSellQuantity,
+      excludeOrderIds,
+      timeoutMinutes,
+      nowMs,
+      calendarSnapshot,
+    } = params;
 
-    // 1. 按 includeAll 选择目标订单
-    const targetOrders =
-      options?.includeAll === true
-        ? getBuyOrdersList(symbol, isLongSymbol)
-        : getBuyOrdersBelowPrice(currentPrice, direction, symbol);
+    const allOrders = getOrdersByDirectionSymbol(symbol, direction);
+
+    const targetOrders = (() => {
+      if (strategy === 'ALL') {
+        return allOrders;
+      }
+      if (strategy === 'PROFIT_ONLY') {
+        return selectProfitOrders(allOrders, currentPrice);
+      }
+      return selectTimedOutOrders({
+        allOrders,
+        timeoutMinutes: timeoutMinutes ?? null,
+        nowMs: typeof nowMs === 'number' && Number.isFinite(nowMs) ? nowMs : 0,
+        calendarSnapshot,
+      });
+    })();
 
     if (targetOrders.length === 0) {
       return { orders: [], totalQuantity: 0 };
     }
 
-    // 2. 获取已被待成交卖出订单占用的订单ID
     const pendingSellsList = getPendingSellOrders(symbol, direction);
     const occupiedOrderIds = new Set<string>();
 
@@ -473,58 +521,51 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
       }
     }
 
-    // 3. 过滤掉被占用的订单
+    if (excludeOrderIds) {
+      for (const orderId of excludeOrderIds) {
+        occupiedOrderIds.add(orderId);
+      }
+    }
+
     const availableOrders = targetOrders.filter((order) => !occupiedOrderIds.has(order.orderId));
+    if (availableOrders.length === 0) {
+      return { orders: [], totalQuantity: 0 };
+    }
 
-    // 4. 计算可用数量
-    let totalQuantity = calculateTotalQuantity(availableOrders);
+    const sortedOrders = sortOrdersBySellPriority(availableOrders);
+    let totalQuantity = calculateTotalQuantity(sortedOrders);
 
-    // 5. 数量截断（如果超过最大可卖数量）
     if (maxSellQuantity !== undefined && totalQuantity > maxSellQuantity) {
-      // 按价格从低到高排序,与扣减策略一致(三级排序)
-      const sortedOrders = [...availableOrders].sort((a, b) => {
-        if (a.executedPrice !== b.executedPrice) {
-          return a.executedPrice - b.executedPrice;
-        }
-        if (a.executedTime !== b.executedTime) {
-          return a.executedTime - b.executedTime;
-        }
-        return a.orderId.localeCompare(b.orderId);
-      });
-
       let remaining = maxSellQuantity;
       const finalOrders: OrderRecord[] = [];
 
       for (const order of sortedOrders) {
-        if (remaining <= 0) break;
+        if (remaining <= 0) {
+          break;
+        }
 
-        // 整笔语义:只选择完整订单
         if (order.executedQuantity <= remaining) {
           finalOrders.push(order);
           remaining -= order.executedQuantity;
         }
-        // 如果订单数量大于剩余量,跳过该订单(不拆分)
       }
 
-      // 计算实际总量
       totalQuantity = calculateTotalQuantity(finalOrders);
-
       logger.info(
-        `[订单存储] 整笔截断: ${symbol} ${direction} ` +
-          `原数量=${calculateTotalQuantity(sortedOrders)} ` +
-          `限制=${maxSellQuantity} 实际=${totalQuantity}`,
+        `[订单存储] 整笔截断: ${symbol} ${direction} 策略=${strategy} ` +
+          `原数量=${calculateTotalQuantity(sortedOrders)} 限制=${maxSellQuantity} 实际=${totalQuantity}`,
       );
 
       return { orders: finalOrders, totalQuantity };
     }
 
     logger.debug(
-      `[订单存储] 可卖出订单: ${symbol} ${direction} ` +
-        `订单数=${availableOrders.length} 总数=${totalQuantity}`,
+      `[订单存储] 可卖出订单: ${symbol} ${direction} 策略=${strategy} ` +
+        `订单数=${sortedOrders.length} 总数=${totalQuantity}`,
     );
 
     return {
-      orders: availableOrders,
+      orders: sortedOrders,
       totalQuantity,
     };
   }
@@ -546,7 +587,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     markSellCancelled,
     allocateRelatedBuyOrderIdsForRecovery,
     getCostAveragePrice,
-    getSellableOrders,
+    selectSellableOrders,
     clearAll,
   };
 };

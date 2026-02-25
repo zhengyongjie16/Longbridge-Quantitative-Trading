@@ -24,35 +24,50 @@ import {
 } from './utils.js';
 import type { Position } from '../../types/account.js';
 import type { Quote } from '../../types/quote.js';
-import type { Signal } from '../../types/signal.js';
 import type { OrderRecorder } from '../../types/services.js';
+import type { ProcessSellSignalsParams } from './types.js';
+import type { TradingCalendarSnapshot } from '../../utils/helpers/types.js';
 
 /**
  * 计算卖出信号的数量和原因
- * 智能平仓开启：仅卖出盈利订单；关闭：清仓所有持仓
- * @param position 持仓对象，可为 null
- * @param quote 行情对象，可为 null
- * @param orderRecorder 订单记录器，可为 null
- * @param direction 方向，LONG 或 SHORT
- * @param originalReason 信号原始原因字符串
- * @param smartCloseEnabled 是否启用智能平仓
- * @param symbol 标的代码，用于精确筛选订单记录
+ * 智能平仓开启：按三阶段规则计算；关闭：清仓所有持仓
+ * @param params 卖出数量计算参数（持仓、行情、方向、配置与时间快照）
  * @returns 包含卖出数量、是否持有、原因说明及关联买入订单ID列表的结果
  */
 function calculateSellQuantity(
-  position: Position | null,
-  quote: Quote | null,
-  orderRecorder: OrderRecorder | null,
-  direction: 'LONG' | 'SHORT',
-  originalReason: string,
-  smartCloseEnabled: boolean,
-  symbol: string,
+  params: {
+    readonly position: Position | null;
+    readonly quote: Quote | null;
+    readonly orderRecorder: OrderRecorder | null;
+    readonly direction: 'LONG' | 'SHORT';
+    readonly originalReason: string;
+    readonly smartCloseEnabled: boolean;
+    readonly symbol: string;
+    readonly smartCloseTimeoutMinutes: number | null;
+    readonly nowMs: number;
+    readonly isHalfDay: boolean;
+    readonly tradingCalendarSnapshot: TradingCalendarSnapshot;
+  },
 ): {
   quantity: number | null;
   shouldHold: boolean;
   reason: string;
   relatedBuyOrderIds: readonly string[];
 } {
+  const {
+    position,
+    quote,
+    orderRecorder,
+    direction,
+    originalReason,
+    smartCloseEnabled,
+    symbol,
+    smartCloseTimeoutMinutes,
+    nowMs,
+    isHalfDay,
+    tradingCalendarSnapshot,
+  } = params;
+
   const reason = originalReason || '';
   const directionName = direction === 'LONG' ? getLongDirectionName() : getShortDirectionName();
 
@@ -81,13 +96,17 @@ function calculateSellQuantity(
     };
   }
 
-  // 智能平仓开启：仅卖出盈利订单（防重版本）
+  // 智能平仓开启：按三阶段规则计算卖出数量（防重版本）
   const smartCloseResult = resolveSellQuantityBySmartClose({
     orderRecorder,
     currentPrice,
     availableQuantity,
     direction,
     symbol,
+    smartCloseTimeoutMinutes,
+    nowMs,
+    isHalfDay,
+    tradingCalendarSnapshot,
   });
 
   return {
@@ -103,24 +122,24 @@ function calculateSellQuantity(
  * 末日保护信号无条件清仓，不受智能平仓影响。
  * 委托价以执行时行情为准，覆盖信号生成时的快照价，确保提交时价格准确。
  *
- * @param signals 待处理的信号列表，函数直接修改其中的卖出信号
- * @param longPosition 做多标的持仓，可为 null
- * @param shortPosition 做空标的持仓，可为 null
- * @param longQuote 做多标的行情，可为 null
- * @param shortQuote 做空标的行情，可为 null
- * @param orderRecorder 订单记录器
- * @param smartCloseEnabled 是否启用智能平仓
+ * @param params 卖出信号处理参数（行情、持仓、配置与时间快照）
  * @returns 处理后的信号列表（与入参为同一引用）
  */
-export const processSellSignals = (
-  signals: Signal[],
-  longPosition: Position | null,
-  shortPosition: Position | null,
-  longQuote: Quote | null,
-  shortQuote: Quote | null,
-  orderRecorder: OrderRecorder,
-  smartCloseEnabled: boolean,
-): Signal[] => {
+export const processSellSignals = (params: ProcessSellSignalsParams): ProcessSellSignalsParams['signals'] => {
+  const {
+    signals,
+    longPosition,
+    shortPosition,
+    longQuote,
+    shortQuote,
+    orderRecorder,
+    smartCloseEnabled,
+    smartCloseTimeoutMinutes,
+    nowMs,
+    isHalfDay,
+    tradingCalendarSnapshot,
+  } = params;
+
   for (const sig of signals) {
     // 只处理卖出信号（SELLCALL 和 SELLPUT），跳过买入信号
     if (!isSellAction(sig.action)) {
@@ -180,15 +199,19 @@ export const processSellSignals = (
     } else {
       // 正常卖出信号：根据智能平仓配置进行数量计算
       // 传入 sig.symbol 以精确筛选订单记录（多标的支持）
-      const result = calculateSellQuantity(
+      const result = calculateSellQuantity({
         position,
         quote,
         orderRecorder,
         direction,
-        sig.reason ?? '',
+        originalReason: sig.reason ?? '',
         smartCloseEnabled,
-        sig.symbol,
-      );
+        symbol: sig.symbol,
+        smartCloseTimeoutMinutes,
+        nowMs,
+        isHalfDay,
+        tradingCalendarSnapshot,
+      });
       if (result.shouldHold) {
         logger.info(`[卖出信号处理] ${signalName}被跳过: ${result.reason}`);
         sig.action = 'HOLD';

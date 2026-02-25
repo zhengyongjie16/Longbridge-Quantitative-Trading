@@ -242,7 +242,7 @@ describe('mainProgram strict-mode integration', () => {
       },
       doomsdayProtection: createDoomsdayProtectionDouble(),
       signalProcessor: {
-        processSellSignals: (signals) => signals,
+        processSellSignals: (params) => params.signals,
         applyRiskChecks: async (signals) => signals,
         resetRiskCheckCooldown: () => {},
       },
@@ -339,7 +339,7 @@ describe('mainProgram strict-mode integration', () => {
         },
       }),
       signalProcessor: {
-        processSellSignals: (signals) => signals,
+        processSellSignals: (params) => params.signals,
         applyRiskChecks: async (signals) => signals,
         resetRiskCheckCooldown: () => {},
       },
@@ -453,7 +453,7 @@ describe('mainProgram strict-mode integration', () => {
       },
       doomsdayProtection: createDoomsdayProtectionDouble(),
       signalProcessor: {
-        processSellSignals: (signals) => signals,
+        processSellSignals: (params) => params.signals,
         applyRiskChecks: async (signals) => signals,
         resetRiskCheckCooldown: () => {},
       },

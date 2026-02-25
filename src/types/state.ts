@@ -76,6 +76,8 @@ export type LastState = {
   readonly positionCache: PositionCache;
   /** 交易日信息缓存 */
   cachedTradingDayInfo: TradingDayInfo | null;
+  /** 交易日历快照（YYYY-MM-DD -> 是否交易日/半日市） */
+  tradingCalendarSnapshot?: ReadonlyMap<string, TradingDayInfo>;
   /** 各监控标的状态（monitorSymbol -> MonitorState） */
   readonly monitorStates: ReadonlyMap<string, MonitorState>;
   /** 订阅标的集合（运行时动态维护） */

@@ -4,6 +4,7 @@ import type { Signal } from '../../types/signal.js';
 import type { MultiMonitorTradingConfig } from '../../types/config.js';
 import type { OrderRecorder, RiskCheckContext } from '../../types/services.js';
 import type { LiquidationCooldownTracker } from '../../services/liquidationCooldown/types.js';
+import type { TradingCalendarSnapshot } from '../../utils/helpers/types.js';
 
 // ==================== 结果类型定义 ====================
 
@@ -24,6 +25,26 @@ export type SellContextValidationResult =
       readonly reason: string;
     };
 
+/**
+ * 卖出信号处理参数。
+ * 类型用途：processSellSignals 的对象入参，统一承载卖出计算所需上下文（行情/持仓/配置/时间快照）。
+ * 数据来源：sellProcessor 组装并传入。
+ * 使用范围：仅 signalProcessor 模块内部与调用方使用。
+ */
+export type ProcessSellSignalsParams = {
+  readonly signals: Signal[];
+  readonly longPosition: Position | null;
+  readonly shortPosition: Position | null;
+  readonly longQuote: Quote | null;
+  readonly shortQuote: Quote | null;
+  readonly orderRecorder: OrderRecorder;
+  readonly smartCloseEnabled: boolean;
+  readonly smartCloseTimeoutMinutes: number | null;
+  readonly nowMs: number;
+  readonly isHalfDay: boolean;
+  readonly tradingCalendarSnapshot: TradingCalendarSnapshot;
+};
+
 // ==================== 服务接口定义 ====================
 
 /**
@@ -35,17 +56,9 @@ export type SellContextValidationResult =
 export interface SignalProcessor {
   /**
    * 处理卖出信号，计算实际卖出数量
-   * 根据智能平仓配置决定是全仓卖出还是仅卖出盈利订单
+   * 根据智能平仓配置决定是全仓卖出还是按三阶段智能平仓卖出
    */
-  processSellSignals: (
-    signals: Signal[],
-    longPosition: Position | null,
-    shortPosition: Position | null,
-    longQuote: Quote | null,
-    shortQuote: Quote | null,
-    orderRecorder: OrderRecorder,
-    smartCloseEnabled: boolean,
-  ) => Signal[];
+  processSellSignals: (params: ProcessSellSignalsParams) => Signal[];
 
   /**
    * 对信号列表应用风险检查

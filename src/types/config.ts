@@ -137,8 +137,10 @@ export type MonitorConfig = {
   readonly verificationConfig: VerificationConfig;
   /** 信号配置集 */
   readonly signalConfig: SignalConfigSet;
-  /** 智能平仓开关（true 时仅卖出盈利订单） */
+  /** 智能平仓开关（true 时启用三阶段智能平仓） */
   readonly smartCloseEnabled: boolean;
+  /** 智能平仓第三阶段超时阈值（分钟，null 表示关闭） */
+  readonly smartCloseTimeoutMinutes: number | null;
 };
 
 /**

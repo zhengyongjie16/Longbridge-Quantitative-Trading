@@ -289,6 +289,23 @@ function validateMonitorConfig(
     }
   }
 
+  const smartCloseTimeoutEnvKey = `SMART_CLOSE_TIMEOUT_MINUTES_${index}`;
+  const smartCloseTimeoutRaw = env[smartCloseTimeoutEnvKey];
+  if (smartCloseTimeoutRaw !== undefined) {
+    const trimmed = smartCloseTimeoutRaw.trim();
+    const isDisabledValue = trimmed === '' || trimmed.toLowerCase() === 'null';
+    if (!isDisabledValue) {
+      const parsed = Number(trimmed);
+      if (!Number.isInteger(parsed) || parsed < 0) {
+        errors = [
+          ...errors,
+          `${prefix}: ${smartCloseTimeoutEnvKey} 无效（必须为非负整数或留空/null）`,
+        ];
+        missingFields = [...missingFields, smartCloseTimeoutEnvKey];
+      }
+    }
+  }
+
   // 验证信号配置（必需）
   const signalConfigKeys: ReadonlyArray<SignalConfigKey> = [
     'buycall',
@@ -627,6 +644,13 @@ export async function validateAllConfig({
     logger.info(`同方向买入时间间隔: ${monitorConfig.buyIntervalSeconds} 秒`);
     logger.info(
       `保护性清仓后买入冷却: ${formatLiquidationCooldownConfig(monitorConfig.liquidationCooldown)}`,
+    );
+    logger.info(
+      `智能平仓超时（第三阶段）: ${
+        monitorConfig.smartCloseTimeoutMinutes === null
+          ? '已关闭'
+          : `${monitorConfig.smartCloseTimeoutMinutes} 分钟`
+      }`,
     );
 
     const verificationConfig = monitorConfig.verificationConfig;

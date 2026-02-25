@@ -47,6 +47,7 @@ function runGlobalMidnightClear(lastState: LastState): void {
   lastState.isHalfDay = null;
   lastState.openProtectionActive = null;
   lastState.cachedTradingDayInfo = null;
+  lastState.tradingCalendarSnapshot = new Map();
   lastState.allTradingSymbols = new Set<string>();
 
   for (const monitorState of lastState.monitorStates.values()) {

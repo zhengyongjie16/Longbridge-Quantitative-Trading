@@ -134,6 +134,76 @@ async function waitUntil(predicate: () => boolean, timeoutMs: number = 800): Pro
 }
 
 describe('sellProcessor business flow', () => {
+  it('passes timeout and trading-calendar context into processSellSignals', async () => {
+    type CapturedSellParams = {
+      readonly signals: Signal[];
+      readonly smartCloseTimeoutMinutes: number | null;
+      readonly isHalfDay: boolean;
+      readonly tradingCalendarSnapshot: ReadonlyMap<
+        string,
+        { readonly isTradingDay: boolean; readonly isHalfDay: boolean }
+      >;
+      readonly nowMs: number;
+    };
+
+    const queue = createSellTaskQueue();
+    const tradingCalendarSnapshot = new Map([
+      ['2026-02-16', { isTradingDay: true, isHalfDay: true }],
+    ]);
+    const lastState = createLastState();
+    lastState.isHalfDay = true;
+    lastState.tradingCalendarSnapshot = tradingCalendarSnapshot;
+
+    let capturedInput: CapturedSellParams | null = null;
+    const signalProcessor = {
+      applyRiskChecks: async () => [],
+      processSellSignals: (input: unknown) => {
+        const typedInput = input as CapturedSellParams;
+        capturedInput = typedInput;
+        return [...typedInput.signals];
+      },
+      resetRiskCheckCooldown: () => {},
+    };
+
+    const trader = createTraderDouble({
+      executeSignals: async () => ({ submittedCount: 1 }),
+    });
+
+    const monitorContext = createMonitorContext({
+      config: createMonitorConfigDouble({
+        smartCloseTimeoutMinutes: 45,
+      }),
+    });
+
+    const processor = createSellProcessor({
+      taskQueue: queue,
+      getMonitorContext: () => monitorContext,
+      signalProcessor: signalProcessor as never,
+      trader,
+      getLastState: () => lastState,
+      refreshGate: createRefreshGate(),
+      getCanProcessTask: () => true,
+    });
+
+    const signal = createSignalDouble('SELLCALL', 'BULL.HK');
+    signal.seatVersion = 2;
+
+    processor.start();
+    queue.push({ type: 'IMMEDIATE_SELL', monitorSymbol: 'HSI.HK', data: signal });
+
+    await waitUntil(() => capturedInput !== null);
+    await processor.stopAndDrain();
+
+    const captured = capturedInput as CapturedSellParams | null;
+    if (captured === null) {
+      throw new Error('processSellSignals input not captured');
+    }
+    expect(captured.smartCloseTimeoutMinutes).toBe(45);
+    expect(captured.isHalfDay).toBe(true);
+    expect(captured.tradingCalendarSnapshot).toBe(tradingCalendarSnapshot);
+    expect(Number.isFinite(captured.nowMs)).toBe(true);
+  });
+
   it('waits for refreshGate freshness before processing sell task', async () => {
     const queue = createSellTaskQueue();
     const refreshGate = createRefreshGate();
@@ -142,7 +212,7 @@ describe('sellProcessor business flow', () => {
     let processSellCalls = 0;
     const signalProcessor = {
       applyRiskChecks: async () => [],
-      processSellSignals: (signals: Signal[]) => {
+      processSellSignals: ({ signals }: { signals: Signal[] }) => {
         processSellCalls += 1;
         return signals;
       },
@@ -234,7 +304,7 @@ describe('sellProcessor business flow', () => {
     let processSellCalls = 0;
     const signalProcessor = {
       applyRiskChecks: async () => [],
-      processSellSignals: (signals: Signal[]) => {
+      processSellSignals: ({ signals }: { signals: Signal[] }) => {
         processSellCalls += 1;
         const first = signals[0];
         if (first) {
@@ -282,7 +352,7 @@ describe('sellProcessor business flow', () => {
     let processSellCalls = 0;
     const signalProcessor = {
       applyRiskChecks: async () => [],
-      processSellSignals: (signals: Signal[]) => {
+      processSellSignals: ({ signals }: { signals: Signal[] }) => {
         processSellCalls += 1;
         return signals;
       },

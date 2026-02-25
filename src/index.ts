@@ -233,13 +233,14 @@ async function main(): Promise<void> {
 
   // 刷新门控：控制刷新节奏，避免频繁重算
   const refreshGate = createRefreshGate();
+  const initialDayKey = getHKDateKey(new Date());
 
   // 记录上一次的数据状态（先创建以便注入执行门禁单一状态源）
   const lastState: LastState = {
     canTrade: null,
     isHalfDay: null,
     openProtectionActive: null,
-    currentDayKey: getHKDateKey(new Date()),
+    currentDayKey: initialDayKey,
     lifecycleState: 'ACTIVE',
     pendingOpenRebuild: false,
     targetTradingDayKey: null,
@@ -250,6 +251,10 @@ async function main(): Promise<void> {
     positionCache: createPositionCache(),
     // 缓存的交易日信息 { isTradingDay, isHalfDay }
     cachedTradingDayInfo: startupTradingDayInfo,
+    // 交易日历快照（生命周期阶段预热与更新）
+    tradingCalendarSnapshot: new Map(
+      initialDayKey === null ? [] : [[initialDayKey, startupTradingDayInfo]],
+    ),
     monitorStates: new Map(
       tradingConfig.monitors.map((monitorConfig) => [
         monitorConfig.monitorSymbol,
@@ -444,6 +449,7 @@ async function main(): Promise<void> {
       orderRecorder: trader.orderRecorder,
       riskChecker,
       warrantListCacheConfig,
+      getTradingCalendarSnapshot: () => lastState.tradingCalendarSnapshot ?? new Map(),
     });
 
     // 策略模块：生成交易信号

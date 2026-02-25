@@ -17,8 +17,8 @@ import {
 import { resolveAutoSearchThresholds } from '../../../src/services/autoSymbolManager/thresholdResolver.js';
 import { signalObjectPool } from '../../../src/utils/objectPool/index.js';
 import {
+  calculateTradingDurationMsBetween,
   getHKDateKey,
-  getTradingMinutesSinceOpen,
 } from '../../../src/utils/helpers/tradingTime.js';
 import { PENDING_ORDER_STATUSES } from '../../../src/constants/index.js';
 
@@ -53,6 +53,13 @@ function createQuotes(prices: Readonly<Record<string, number>>): ReadonlyMap<str
     });
   }
   return map;
+}
+
+function createTradingCalendarSnapshot() {
+  return new Map([
+    ['2026-02-16', { isTradingDay: true, isHalfDay: false }],
+    ['2026-02-17', { isTradingDay: true, isHalfDay: false }],
+  ]);
 }
 
 describe('autoSymbolManager switchStateMachine business flow', () => {
@@ -142,7 +149,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       maxSearchFailuresPerDay: 3,
       getHKDateKey,
-      getTradingMinutesSinceOpen,
+      calculateTradingDurationMsBetween,
+      getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
     });
 
     await machine.maybeSwitchOnDistance({
@@ -257,7 +265,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       maxSearchFailuresPerDay: 3,
       getHKDateKey,
-      getTradingMinutesSinceOpen,
+      calculateTradingDurationMsBetween,
+      getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
     });
 
     await machine.maybeSwitchOnDistance({
@@ -394,7 +403,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       maxSearchFailuresPerDay: 3,
       getHKDateKey,
-      getTradingMinutesSinceOpen,
+      calculateTradingDurationMsBetween,
+      getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
     });
 
     await machine.maybeSwitchOnDistance({
@@ -550,7 +560,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       maxSearchFailuresPerDay: 3,
       getHKDateKey,
-      getTradingMinutesSinceOpen,
+      calculateTradingDurationMsBetween,
+      getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
     });
 
     await machine.maybeSwitchOnDistance({
@@ -674,7 +685,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       maxSearchFailuresPerDay: 3,
       getHKDateKey,
-      getTradingMinutesSinceOpen,
+      calculateTradingDurationMsBetween,
+      getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
     });
 
     await machine.maybeSwitchOnDistance({

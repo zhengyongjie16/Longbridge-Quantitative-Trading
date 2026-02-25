@@ -16,8 +16,8 @@ import {
 } from '../../../src/services/autoSymbolManager/signalBuilder.js';
 import { resolveAutoSearchThresholds } from '../../../src/services/autoSymbolManager/thresholdResolver.js';
 import {
+  calculateTradingDurationMsBetween,
   getHKDateKey,
-  getTradingMinutesSinceOpen,
 } from '../../../src/utils/helpers/tradingTime.js';
 import { signalObjectPool } from '../../../src/utils/objectPool/index.js';
 import { PENDING_ORDER_STATUSES } from '../../../src/constants/index.js';
@@ -56,11 +56,22 @@ function createQuotes(prices: Readonly<Record<string, number>>): ReadonlyMap<str
   return map;
 }
 
+function createTradingCalendarSnapshot() {
+  return new Map([
+    ['2026-02-16', { isTradingDay: true, isHalfDay: false }],
+    ['2026-02-17', { isTradingDay: true, isHalfDay: false }],
+  ]);
+}
+
 type HarnessParams = {
   readonly switchIntervalMinutes: number;
   readonly nowMs: number;
   readonly lastSeatReadyAt: number | null;
   readonly findBestSymbol: string;
+  readonly tradingCalendarSnapshot?: ReadonlyMap<
+    string,
+    { readonly isTradingDay: boolean; readonly isHalfDay: boolean }
+  >;
   readonly getBuyOrdersCount?: () => number;
   readonly executeSignalsHook?: () => void;
 };
@@ -185,7 +196,9 @@ function createPeriodicHarness(params: HarnessParams): {
     logger: createLoggerStub(),
     maxSearchFailuresPerDay: 3,
     getHKDateKey,
-    getTradingMinutesSinceOpen,
+    calculateTradingDurationMsBetween,
+    getTradingCalendarSnapshot: () =>
+      params.tradingCalendarSnapshot ?? createTradingCalendarSnapshot(),
   });
 
   return {
@@ -391,7 +404,37 @@ describe('periodic auto-switch regression', () => {
     expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('SWITCHING');
   });
 
-  it('case8: open protection blocks periodic switch until protection ends', async () => {
+  it('case8: cross-day trigger uses accumulated trading minutes instead of wall-clock', async () => {
+    const readyMs = Date.parse('2026-02-16T07:59:00.000Z'); // Day1 15:59 HK
+    const harness = createPeriodicHarness({
+      switchIntervalMinutes: 2,
+      nowMs: Date.parse('2026-02-17T01:30:00.000Z'), // Day2 09:30 HK
+      lastSeatReadyAt: readyMs,
+      findBestSymbol: 'NEW_BULL.HK',
+      tradingCalendarSnapshot: new Map([
+        ['2026-02-16', { isTradingDay: true, isHalfDay: false }],
+        ['2026-02-17', { isTradingDay: true, isHalfDay: false }],
+      ]),
+    });
+
+    await harness.machine.maybeSwitchOnInterval({
+      direction: 'LONG',
+      currentTime: new Date(Date.parse('2026-02-17T01:30:00.000Z')),
+      canTradeNow: true,
+      openProtectionActive: false,
+    });
+    expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('READY');
+
+    await harness.machine.maybeSwitchOnInterval({
+      direction: 'LONG',
+      currentTime: new Date(Date.parse('2026-02-17T01:31:00.000Z')),
+      canTradeNow: true,
+      openProtectionActive: false,
+    });
+    expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('SWITCHING');
+  });
+
+  it('case9: open protection blocks periodic switch until protection ends', async () => {
     const readyMs = Date.parse('2026-02-16T01:00:00.000Z');
     const nowMs = Date.parse('2026-02-16T01:31:00.000Z');
     const harness = createPeriodicHarness({
@@ -418,7 +461,7 @@ describe('periodic auto-switch regression', () => {
     expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('SWITCHING');
   });
 
-  it('case9: periodic switch never submits sell/rebuy orders', async () => {
+  it('case10: periodic switch never submits sell/rebuy orders', async () => {
     const readyMs = Date.parse('2026-02-16T01:00:00.000Z');
     const nowMs = Date.parse('2026-02-16T01:31:00.000Z');
     let executeCalls = 0;
@@ -464,7 +507,7 @@ describe('periodic auto-switch regression', () => {
     expect(executeCalls).toBe(0);
   });
 
-  it('case10: periodic switch cancel stage only cancels pending buy orders', async () => {
+  it('case11: periodic switch cancel stage only cancels pending buy orders', async () => {
     const readyMs = Date.parse('2026-02-16T01:00:00.000Z');
     const nowMs = Date.parse('2026-02-16T01:31:00.000Z');
     const canceledOrderIds: string[] = [];
@@ -588,7 +631,8 @@ describe('periodic auto-switch regression', () => {
       logger: createLoggerStub(),
       maxSearchFailuresPerDay: 3,
       getHKDateKey,
-      getTradingMinutesSinceOpen,
+      calculateTradingDurationMsBetween,
+      getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
     });
 
     await machine.maybeSwitchOnInterval({

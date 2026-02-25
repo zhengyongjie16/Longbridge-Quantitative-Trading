@@ -10,6 +10,8 @@ import type { LoadTradingDayRuntimeSnapshotDeps } from '../../../src/main/lifecy
 import type { LastState } from '../../../src/types/state.js';
 import type { MultiMonitorTradingConfig } from '../../../src/types/config.js';
 import type { SymbolRegistry } from '../../../src/types/seat.js';
+import { getHKDateKey, listHKDateKeysBetween } from '../../../src/utils/helpers/tradingTime.js';
+import type { RawOrderFromAPI, TradingDaysResult } from '../../../src/types/services.js';
 
 function createMinimalLastState(): LastState {
   return {
@@ -137,5 +139,80 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
         forceOrderRefresh: false,
       }),
     ).rejects.toThrow(/全量订单获取失败/);
+  });
+
+  it('会从最早订单日期开始预热交易日历快照，不截断历史区间', async () => {
+    const now = new Date('2026-02-25T03:00:00.000Z');
+    const earliestOrderTime = new Date('2025-01-01T01:30:00.000Z');
+    const oldestDateKey = getHKDateKey(earliestOrderTime);
+    const tradingDayCalls: Array<{ startDate: Date; endDate: Date }> = [];
+
+    const rawOrder = {
+      orderId: 'ORDER-001',
+      symbol: 'BULL.HK',
+      stockName: 'Bull',
+      side: 'Buy',
+      status: 'Filled',
+      orderType: 'LO',
+      price: 1,
+      quantity: 100,
+      executedPrice: 1,
+      executedQuantity: 100,
+      submittedAt: earliestOrderTime,
+      updatedAt: earliestOrderTime,
+    } as unknown as RawOrderFromAPI;
+
+    const lastState = createMinimalLastState();
+    const deps = {
+      marketDataClient: {
+        getQuoteContext: async () => ({}),
+        getQuotes: async () => new Map<string, null>(),
+        subscribeSymbols: async () => {},
+        subscribeCandlesticks: async () => [],
+        resetRuntimeSubscriptionsAndCaches: async () => {},
+        isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
+        getTradingDays: async (startDate: Date, endDate: Date): Promise<TradingDaysResult> => {
+          tradingDayCalls.push({ startDate, endDate });
+          return {
+            tradingDays: listHKDateKeysBetween(startDate.getTime(), endDate.getTime()),
+            halfTradingDays: [],
+          };
+        },
+      },
+      trader: {
+        getAccountSnapshot: async () => ({}),
+        getStockPositions: async () => [],
+        fetchAllOrdersFromAPI: async () => [rawOrder],
+        seedOrderHoldSymbols: () => {},
+        getOrderHoldSymbols: () => new Set<string>(),
+      },
+      lastState,
+      tradingConfig: { monitors: [], global: {} } as unknown as MultiMonitorTradingConfig,
+      symbolRegistry: {} as SymbolRegistry,
+      dailyLossTracker: { recalculateFromAllOrders: () => {} },
+      tradeLogHydrator: { hydrate: () => {} },
+      warrantListCacheConfig: {},
+    } as unknown as LoadTradingDayRuntimeSnapshotDeps;
+
+    const load = createLoadTradingDayRuntimeSnapshot(deps);
+
+    await load({
+      now,
+      requireTradingDay: true,
+      failOnOrderFetchError: false,
+      resetRuntimeSubscriptions: false,
+      hydrateCooldownFromTradeLog: false,
+      forceOrderRefresh: false,
+    });
+
+    expect(tradingDayCalls.length).toBeGreaterThan(0);
+    const earliestRequestedMs = Math.min(
+      ...tradingDayCalls.map((call) => call.startDate.getTime()),
+    );
+    expect(earliestRequestedMs).toBeLessThanOrEqual(earliestOrderTime.getTime());
+    expect(oldestDateKey).not.toBeNull();
+    if (oldestDateKey) {
+      expect(lastState.tradingCalendarSnapshot?.has(oldestDateKey)).toBe(true);
+    }
   });
 });

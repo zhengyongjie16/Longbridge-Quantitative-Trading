@@ -19,6 +19,7 @@ import {
   parseNumberRangeConfig,
   parseOrderOwnershipMapping,
   parseOrderTypeConfig,
+  parseSmartCloseTimeoutMinutesConfig,
   parseVerificationDelay,
   parseVerificationIndicators,
 } from './utils.js';
@@ -242,6 +243,10 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
 
   // 智能平仓策略开关，默认启用
   const smartCloseEnabled = getBooleanConfig(env, `SMART_CLOSE_ENABLED${suffix}`, true);
+  const smartCloseTimeoutMinutes = parseSmartCloseTimeoutMinutesConfig(
+    env,
+    `SMART_CLOSE_TIMEOUT_MINUTES${suffix}`,
+  );
 
   const signalConfig = {
     buycall: parseSignalConfigFromEnv(env, `SIGNAL_BUYCALL${suffix}`),
@@ -277,6 +282,7 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
     verificationConfig,
     signalConfig,
     smartCloseEnabled,
+    smartCloseTimeoutMinutes,
   };
 }
 

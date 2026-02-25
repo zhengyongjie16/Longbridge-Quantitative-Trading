@@ -82,7 +82,7 @@ export function createOrderRecorderDouble(overrides: Partial<OrderRecorder> = {}
     markSellCancelled: () => null,
     allocateRelatedBuyOrderIdsForRecovery: () => [],
     getCostAveragePrice: () => null,
-    getSellableOrders: () => ({
+    selectSellableOrders: () => ({
       orders: [],
       totalQuantity: 0,
     }),
@@ -403,6 +403,7 @@ export function createMonitorConfigDouble(overrides: Partial<MonitorConfig> = {}
       sellput: null,
     },
     smartCloseEnabled: true,
+    smartCloseTimeoutMinutes: null,
     ...overrides,
   };
 }

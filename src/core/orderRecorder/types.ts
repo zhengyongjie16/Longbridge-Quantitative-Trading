@@ -1,6 +1,7 @@
 import type { TradeContext } from 'longport';
 import type { Quote } from '../../types/quote.js';
 import type { OrderRecord, RateLimiter, RawOrderFromAPI } from '../../types/services.js';
+import type { TradingCalendarSnapshot } from '../../utils/helpers/types.js';
 
 /**
  * 订单缓存类型。
@@ -64,16 +65,42 @@ export type PendingSellInfo = {
 };
 
 /**
- * 盈利订单查询结果。
- * 类型用途：OrderStorage.getSellableOrders 的返回结果，用于卖出数量计算与防重。
- * 数据来源：由 OrderStorage.getSellableOrders 返回。
+ * 可卖订单查询结果。
+ * 类型用途：OrderStorage.selectSellableOrders 的返回结果，用于卖出数量计算与防重。
+ * 数据来源：由 OrderStorage.selectSellableOrders 返回。
  * 使用范围：见调用方（如 signalProcessor、trader）。
  */
-export type ProfitableOrderResult = {
+export type SellableOrderResult = {
   /** 可卖出的订单记录列表 */
   readonly orders: ReadonlyArray<OrderRecord>;
   /** 这些订单的总数量 */
   readonly totalQuantity: number;
+};
+
+/**
+ * 可卖订单筛选策略。
+ * 类型用途：统一描述卖出订单筛选行为（全量/仅盈利/仅超时）。
+ * 数据来源：由卖出决策层传入。
+ * 使用范围：orderRecorder 与 signalProcessor 模块。
+ */
+export type SellableOrderStrategy = 'ALL' | 'PROFIT_ONLY' | 'TIMEOUT_ONLY';
+
+/**
+ * 可卖订单筛选参数。
+ * 类型用途：selectSellableOrders 的对象入参，统一承载策略、价格、超时、截断和额外排除规则。
+ * 数据来源：卖出决策层构建。
+ * 使用范围：orderRecorder 与 signalProcessor 模块。
+ */
+export type SellableOrderSelectParams = {
+  readonly symbol: string;
+  readonly direction: 'LONG' | 'SHORT';
+  readonly strategy: SellableOrderStrategy;
+  readonly currentPrice: number;
+  readonly maxSellQuantity?: number;
+  readonly excludeOrderIds?: ReadonlySet<string>;
+  readonly timeoutMinutes?: number | null;
+  readonly nowMs?: number;
+  readonly calendarSnapshot?: TradingCalendarSnapshot;
 };
 
 /**
@@ -145,17 +172,8 @@ export interface OrderStorage {
   /** 获取指定标的的成本均价（实时计算，无缓存） */
   getCostAveragePrice: (symbol: string, isLongSymbol: boolean) => number | null;
 
-  /**
-   * 获取可卖出的订单（核心防重逻辑）
-   * includeAll=true 时返回该标的该方向全部订单，否则仅返回买入价 < 当前价的订单
-   */
-  getSellableOrders: (
-    symbol: string,
-    direction: 'LONG' | 'SHORT',
-    currentPrice: number,
-    maxSellQuantity?: number,
-    options?: { readonly includeAll?: boolean },
-  ) => ProfitableOrderResult;
+  /** 按策略筛选可卖订单（统一处理占用过滤、整笔截断与可选额外排除） */
+  selectSellableOrders: (params: SellableOrderSelectParams) => SellableOrderResult;
 
   /** 清空买卖记录与 pendingSells */
   clearAll: () => void;

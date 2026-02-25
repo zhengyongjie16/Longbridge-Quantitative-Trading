@@ -13,7 +13,7 @@
  * 3. 最终记录 = M0 + 过滤后的买入订单
  *
  * 智能清仓逻辑：
- * - 智能平仓开启：仅卖出 buyPrice < currentPrice 的盈利订单
+ * - 智能平仓开启：三阶段卖出（整体盈利全卖；未盈利先卖盈利订单；可选卖出超时订单）
  * - 智能平仓关闭：直接清空所有持仓
  *
  * 缓存机制：
@@ -34,7 +34,8 @@ import type {
   OrderRecorderDeps,
   OrderStatistics,
   PendingSellInfo,
-  ProfitableOrderResult,
+  SellableOrderResult,
+  SellableOrderSelectParams,
 } from './types.js';
 import { calculateOrderStatistics, classifyAndConvertOrders } from './utils.js';
 
@@ -442,15 +443,9 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     return storage.getCostAveragePrice(symbol, isLongSymbol);
   }
 
-  /** 获取可卖出的订单（核心防重逻辑） */
-  function getSellableOrders(
-    symbol: string,
-    direction: 'LONG' | 'SHORT',
-    currentPrice: number,
-    maxSellQuantity?: number,
-    options?: { readonly includeAll?: boolean },
-  ): ProfitableOrderResult {
-    return storage.getSellableOrders(symbol, direction, currentPrice, maxSellQuantity, options);
+  /** 按策略筛选可卖订单（统一处理防重与整笔截断） */
+  function selectSellableOrders(params: SellableOrderSelectParams): SellableOrderResult {
+    return storage.selectSellableOrders(params);
   }
 
   /** 重置所有订单记录（storage.clearAll + apiManager.clearCache） */
@@ -478,7 +473,7 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     markSellCancelled,
     allocateRelatedBuyOrderIdsForRecovery,
     getCostAveragePrice,
-    getSellableOrders,
+    selectSellableOrders,
 
     resetAll,
   };

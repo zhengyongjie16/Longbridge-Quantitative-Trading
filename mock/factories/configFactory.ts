@@ -52,6 +52,7 @@ export function createMonitorConfig(overrides: Partial<MonitorConfig> = {}): Mon
       sellput: null,
     },
     smartCloseEnabled: true,
+    smartCloseTimeoutMinutes: null,
     ...overrides,
   };
 }

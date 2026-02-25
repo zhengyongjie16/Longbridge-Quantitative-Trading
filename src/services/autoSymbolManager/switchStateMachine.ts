@@ -92,7 +92,8 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     logger,
     maxSearchFailuresPerDay,
     getHKDateKey,
-    getTradingMinutesSinceOpen,
+    calculateTradingDurationMsBetween,
+    getTradingCalendarSnapshot,
   } = deps;
 
   type StartSwitchFlowParams = {
@@ -534,14 +535,13 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
       return;
     }
 
-    const currentTradingMinutes = getTradingMinutesSinceOpen(currentTime);
-    const readyTradingMinutes = getTradingMinutesSinceOpen(new Date(seatState.lastSeatReadyAt));
-    if (currentTradingMinutes < readyTradingMinutes) {
-      clearPeriodicPending(direction);
-      return;
-    }
-    const elapsedTradingMinutes = currentTradingMinutes - readyTradingMinutes;
-    if (elapsedTradingMinutes < autoSearchConfig.switchIntervalMinutes) {
+    const elapsedTradingMs = calculateTradingDurationMsBetween({
+      startMs: seatState.lastSeatReadyAt,
+      endMs: currentTime.getTime(),
+      calendarSnapshot: getTradingCalendarSnapshot(),
+    });
+    const intervalMs = autoSearchConfig.switchIntervalMinutes * 60_000;
+    if (elapsedTradingMs < intervalMs) {
       clearPeriodicPending(direction);
       return;
     }

@@ -33,13 +33,7 @@ function wrapStorageAsRecorder(storage: OrderStorage): OrderRecorder {
   return {
     getCostAveragePrice: (symbol: string, isLongSymbol: boolean) =>
       storage.getCostAveragePrice(symbol, isLongSymbol),
-    getSellableOrders: (
-      symbol: string,
-      direction: 'LONG' | 'SHORT',
-      currentPrice: number,
-      maxSellQuantity?: number,
-      options?: { readonly includeAll?: boolean },
-    ) => storage.getSellableOrders(symbol, direction, currentPrice, maxSellQuantity, options),
+    selectSellableOrders: (params) => storage.selectSellableOrders(params),
     // 以下方法在智能平仓中不会被调用
     recordLocalBuy: () => {},
     recordLocalSell: () => {},
@@ -59,6 +53,8 @@ function wrapStorageAsRecorder(storage: OrderStorage): OrderRecorder {
     resetAll: () => {},
   };
 }
+
+const emptyCalendarSnapshot = new Map<string, { isTradingDay: boolean; isHalfDay: boolean }>();
 
 describe('成本均价与智能平仓全链路集成测试', () => {
   let storage: OrderStorage;
@@ -82,6 +78,10 @@ describe('成本均价与智能平仓全链路集成测试', () => {
       availableQuantity: 200,
       direction: 'LONG',
       symbol: 'TEST.HK',
+      smartCloseTimeoutMinutes: null,
+      nowMs: Date.parse('2026-02-25T03:00:00.000Z'),
+      isHalfDay: false,
+      tradingCalendarSnapshot: emptyCalendarSnapshot,
     });
 
     expect(result.shouldHold).toBe(false);
@@ -103,6 +103,10 @@ describe('成本均价与智能平仓全链路集成测试', () => {
       availableQuantity: 200,
       direction: 'LONG',
       symbol: 'TEST.HK',
+      smartCloseTimeoutMinutes: null,
+      nowMs: Date.parse('2026-02-25T03:00:00.000Z'),
+      isHalfDay: false,
+      tradingCalendarSnapshot: emptyCalendarSnapshot,
     });
 
     expect(result.shouldHold).toBe(false);
@@ -128,6 +132,10 @@ describe('成本均价与智能平仓全链路集成测试', () => {
       availableQuantity: 100,
       direction: 'LONG',
       symbol: 'TEST.HK',
+      smartCloseTimeoutMinutes: null,
+      nowMs: Date.parse('2026-02-25T03:00:00.000Z'),
+      isHalfDay: false,
+      tradingCalendarSnapshot: emptyCalendarSnapshot,
     });
 
     expect(result.shouldHold).toBe(true);
@@ -151,6 +159,10 @@ describe('成本均价与智能平仓全链路集成测试', () => {
       availableQuantity: 200,
       direction: 'LONG',
       symbol: 'TEST.HK',
+      smartCloseTimeoutMinutes: null,
+      nowMs: Date.parse('2026-02-25T03:00:00.000Z'),
+      isHalfDay: false,
+      tradingCalendarSnapshot: emptyCalendarSnapshot,
     });
 
     expect(result.shouldHold).toBe(true);
@@ -182,6 +194,10 @@ describe('成本均价与智能平仓全链路集成测试', () => {
       availableQuantity: 300,
       direction: 'LONG',
       symbol: 'TEST.HK',
+      smartCloseTimeoutMinutes: null,
+      nowMs: Date.parse('2026-02-25T03:00:00.000Z'),
+      isHalfDay: false,
+      tradingCalendarSnapshot: emptyCalendarSnapshot,
     });
 
     expect(result.shouldHold).toBe(false);
@@ -205,6 +221,10 @@ describe('成本均价与智能平仓全链路集成测试', () => {
       availableQuantity: 300,
       direction: 'LONG',
       symbol: 'TEST.HK',
+      smartCloseTimeoutMinutes: null,
+      nowMs: Date.parse('2026-02-25T03:00:00.000Z'),
+      isHalfDay: false,
+      tradingCalendarSnapshot: emptyCalendarSnapshot,
     });
 
     expect(result1.shouldHold).toBe(false);
@@ -216,6 +236,10 @@ describe('成本均价与智能平仓全链路集成测试', () => {
       availableQuantity: 300,
       direction: 'LONG',
       symbol: 'TEST.HK',
+      smartCloseTimeoutMinutes: null,
+      nowMs: Date.parse('2026-02-25T03:00:00.000Z'),
+      isHalfDay: false,
+      tradingCalendarSnapshot: emptyCalendarSnapshot,
     });
 
     expect(result2.shouldHold).toBe(false);
@@ -255,15 +279,21 @@ describe('成本均价与智能平仓全链路集成测试', () => {
       submittedAt: Date.now(),
     });
 
-    const result1 = storage.getSellableOrders('TEST.HK', 'LONG', 1.5, undefined, {
-      includeAll: true,
+    const result1 = storage.selectSellableOrders({
+      symbol: 'TEST.HK',
+      direction: 'LONG',
+      strategy: 'ALL',
+      currentPrice: 1.5,
     });
     expect(result1.totalQuantity).toBe(100);
 
     storage.markSellFilled('SELL_001');
 
-    const result2 = storage.getSellableOrders('TEST.HK', 'LONG', 1.5, undefined, {
-      includeAll: true,
+    const result2 = storage.selectSellableOrders({
+      symbol: 'TEST.HK',
+      direction: 'LONG',
+      strategy: 'ALL',
+      currentPrice: 1.5,
     });
     expect(result2.totalQuantity).toBe(200);
   });

@@ -524,6 +524,7 @@ export async function createMarketDataClient(
     subscribeCandlesticks,
     getRealtimeCandlesticks,
     isTradingDay,
+    getTradingDays,
     resetRuntimeSubscriptionsAndCaches,
   };
 }

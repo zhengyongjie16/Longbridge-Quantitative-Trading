@@ -1,5 +1,20 @@
 import { TIME } from '../../constants/index.js';
-import type { HKTime } from './types.js';
+import type {
+  HKTime,
+  OrderTimeoutCheckParams,
+  TradingCalendarDayInfo,
+  TradingDurationBetweenParams,
+} from './types.js';
+
+const MINUTES_PER_DAY = 24 * 60;
+const MS_PER_MINUTE = 60_000;
+const MS_PER_DAY = MINUTES_PER_DAY * MS_PER_MINUTE;
+const HK_DATE_KEY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+type SessionRange = Readonly<{
+  startMs: number;
+  endMs: number;
+}>;
 
 /**
  * 将 UTC 时间转换为香港时区（UTC+8）的小时与分钟。默认行为：date 为 null/undefined 时返回 null。
@@ -209,4 +224,181 @@ function isBeforeCloseMinutes(
   const currentMinutes = hkTime.hkHour * 60 + hkTime.hkMinute;
 
   return currentMinutes >= closeMinutes - minutes && currentMinutes < closeMinutes;
+}
+
+/**
+ * 计算两个时间点之间的交易时段累计毫秒（严格按交易日历快照与会话时段累计）。
+ *
+ * 规则：
+ * - 仅累计交易日连续交易时段（正常日：09:30-12:00、13:00-16:00；半日市：09:30-12:00）
+ * - 午休、收盘后、非交易日、节假日不计时
+ * - 快照缺失日期按非交易日处理（返回 0 增量）
+ *
+ * @param params - 起止时间与交易日历快照
+ * @returns 交易时段累计毫秒
+ */
+export function calculateTradingDurationMsBetween(params: TradingDurationBetweenParams): number {
+  const { startMs, endMs, calendarSnapshot } = params;
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+    return 0;
+  }
+
+  let totalMs = 0;
+  let cursorMs = startMs;
+
+  while (cursorMs < endMs) {
+    const cursorDate = new Date(cursorMs);
+    const dayKey = getHKDateKey(cursorDate);
+    if (!dayKey) {
+      break;
+    }
+
+    const dayStartUtcMs = resolveHKDayStartUtcMs(dayKey);
+    if (dayStartUtcMs === null) {
+      break;
+    }
+
+    const nextDayStartUtcMs = dayStartUtcMs + MS_PER_DAY;
+    const segmentEndMs = Math.min(endMs, nextDayStartUtcMs);
+
+    const dayInfo = calendarSnapshot.get(dayKey);
+    if (dayInfo?.isTradingDay) {
+      const sessionRanges = resolveSessionRangesByDay(dayStartUtcMs, dayInfo);
+      for (const session of sessionRanges) {
+        totalMs += calculateOverlapMs(cursorMs, segmentEndMs, session.startMs, session.endMs);
+      }
+    }
+
+    cursorMs = segmentEndMs;
+  }
+
+  return totalMs;
+}
+
+/**
+ * 语义化别名：计算持仓区间内的交易时段累计毫秒。
+ * @param params - 交易时段累计时长计算参数
+ * @returns 持仓交易时段累计毫秒
+ */
+export function calculateHeldTradingDurationMs(params: TradingDurationBetweenParams): number {
+  return calculateTradingDurationMsBetween(params);
+}
+
+/**
+ * 按严格交易时段累计口径判定订单是否超时。
+ * 触发条件：heldTradingMs > timeoutMinutes * 60_000（严格大于）。
+ *
+ * @param params - 订单成交时间、当前时间、超时分钟与交易日历快照
+ * @returns true 表示超时；false 表示未超时或参数无效
+ */
+export function isOrderTimedOut(params: OrderTimeoutCheckParams): boolean {
+  const { orderExecutedTimeMs, nowMs, timeoutMinutes, calendarSnapshot } = params;
+  if (!Number.isInteger(timeoutMinutes) || timeoutMinutes < 0) {
+    return false;
+  }
+
+  const timeoutMs = timeoutMinutes * MS_PER_MINUTE;
+  const heldTradingMs = calculateHeldTradingDurationMs({
+    startMs: orderExecutedTimeMs,
+    endMs: nowMs,
+    calendarSnapshot,
+  });
+
+  return heldTradingMs > timeoutMs;
+}
+
+/**
+ * 枚举起止时间区间覆盖的港股日期键列表（含首尾日期）。
+ * @param startMs - 区间起点毫秒时间戳
+ * @param endMs - 区间终点毫秒时间戳
+ * @returns 升序日期键数组
+ */
+export function listHKDateKeysBetween(startMs: number, endMs: number): ReadonlyArray<string> {
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) {
+    return [];
+  }
+
+  const startKey = getHKDateKey(new Date(startMs));
+  const endKey = getHKDateKey(new Date(endMs));
+  if (!startKey || !endKey) {
+    return [];
+  }
+
+  const startDayStartUtcMs = resolveHKDayStartUtcMs(startKey);
+  const endDayStartUtcMs = resolveHKDayStartUtcMs(endKey);
+  if (startDayStartUtcMs === null || endDayStartUtcMs === null) {
+    return [];
+  }
+
+  const keys: string[] = [];
+  for (
+    let cursorDayStartUtcMs = startDayStartUtcMs;
+    cursorDayStartUtcMs <= endDayStartUtcMs;
+    cursorDayStartUtcMs += MS_PER_DAY
+  ) {
+    const key = getHKDateKey(new Date(cursorDayStartUtcMs));
+    if (key) {
+      keys.push(key);
+    }
+  }
+  return keys;
+}
+
+/**
+ * 解析港股日期键并返回该港股日 00:00 对应的 UTC 毫秒时间戳。
+ */
+function resolveHKDayStartUtcMs(dayKey: string): number | null {
+  const match = HK_DATE_KEY_PATTERN.exec(dayKey);
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return null;
+  }
+
+  const utcMs = Date.UTC(year, month - 1, day) - TIME.HONG_KONG_TIMEZONE_OFFSET_MS;
+  if (!Number.isFinite(utcMs)) {
+    return null;
+  }
+  return utcMs;
+}
+
+/**
+ * 根据交易日类型生成当日交易会话区间（UTC 毫秒）。
+ */
+function resolveSessionRangesByDay(
+  dayStartUtcMs: number,
+  dayInfo: TradingCalendarDayInfo,
+): ReadonlyArray<SessionRange> {
+  const morningSession: SessionRange = {
+    startMs: dayStartUtcMs + (9 * 60 + 30) * MS_PER_MINUTE,
+    endMs: dayStartUtcMs + 12 * 60 * MS_PER_MINUTE,
+  };
+
+  if (dayInfo.isHalfDay) {
+    return [morningSession];
+  }
+
+  const afternoonSession: SessionRange = {
+    startMs: dayStartUtcMs + 13 * 60 * MS_PER_MINUTE,
+    endMs: dayStartUtcMs + 16 * 60 * MS_PER_MINUTE,
+  };
+
+  return [morningSession, afternoonSession];
+}
+
+/**
+ * 计算两个半开区间 [aStart, aEnd) 与 [bStart, bEnd) 的重叠毫秒数。
+ */
+function calculateOverlapMs(aStart: number, aEnd: number, bStart: number, bEnd: number): number {
+  const overlapStart = Math.max(aStart, bStart);
+  const overlapEnd = Math.min(aEnd, bEnd);
+  if (overlapEnd <= overlapStart) {
+    return 0;
+  }
+  return overlapEnd - overlapStart;
 }
