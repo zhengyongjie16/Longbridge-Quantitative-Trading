@@ -132,7 +132,7 @@ bun start
 - 开发：`bun dev:watch`
 - 构建：`bun build`
 - 类型检查：`bun type-check`
-- 代码质量：`bun sonarqube` / `bun sonarqube:report`（需要 `.env.sonar`，可配合 `docker-compose.yml` 在本地启动）
+- 代码质量：`bun sonarqube` / `bun sonarqube:report`（需本地安装 `sonar-scanner`，然后配置 `.env.sonar` 及 `docker-compose.yml` 以本地启动）
 - 其他：`bun lint` / `bun lint:fix` / `bun clean` / `bun format`
 
 ## 信号配置格式

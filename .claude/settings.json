@@ -2,10 +2,11 @@
   "permissions": {
     "allow": [
       "Read(*)",
+      "Write(*)",
       "Skill(*)",
       "Bash(npm run *)",
-      "Bash(bun run *)",
       "Bash(npx *)",
+      "Bash(bunx *)",
       "Bash(tsc *)",
       "Bash(node *)",
       "Bash(bun *)",

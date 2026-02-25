@@ -1,0 +1,2 @@
+prefix_rule(pattern=["npm", "run"], decision="allow")
+prefix_rule(pattern=[["bun", "npx", "bunx", "tsc", "node"]], decision="allow")
