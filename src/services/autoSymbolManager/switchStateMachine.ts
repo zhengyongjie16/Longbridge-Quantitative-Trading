@@ -48,6 +48,15 @@ function isQuoteReadyForOrder(
   );
 }
 
+/** 判断席位是否为可触发换标的 READY 状态。 */
+function isReadySeat(seatState: SeatState): seatState is SeatState & { symbol: string } {
+  return (
+    seatState.status === 'READY' &&
+    typeof seatState.symbol === 'string' &&
+    seatState.symbol.length > 0
+  );
+}
+
 /**
  * 创建换标状态机，管理从撤单到回补买入的完整换标流程，并提供周期换标触发能力。
  * @param deps - 依赖（trader、orderRecorder、riskChecker、switchStates、buildOrderSignal、signalObjectPool 等）
@@ -127,15 +136,6 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
       };
     }
     return state;
-  }
-
-  /** 判断席位是否为可触发换标的 READY 状态。 */
-  function isReadySeat(seatState: SeatState): seatState is SeatState & { symbol: string } {
-    return (
-      seatState.status === 'READY' &&
-      typeof seatState.symbol === 'string' &&
-      seatState.symbol.length > 0
-    );
   }
 
   /** 判断指定方向是否存在有效的进行中换标流程 */

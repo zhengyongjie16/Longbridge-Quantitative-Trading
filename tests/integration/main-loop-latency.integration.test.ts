@@ -477,9 +477,13 @@ describe('main loop latency full-chain integration', () => {
         withApiDelay('subscribeCandlesticks', async () => {
           const key = makeCandleKey(symbol, period);
           subscribedCandlestickKeys.add(key);
-          const monitorIndex = monitorConfigs.findIndex(
-            (config) => config.monitorSymbol === symbol,
-          );
+          let monitorIndex = -1;
+          for (let index = 0; index < monitorConfigs.length; index += 1) {
+            if (monitorConfigs[index]?.monitorSymbol === symbol) {
+              monitorIndex = index;
+              break;
+            }
+          }
           const base = 100 + Math.max(monitorIndex, 0) * 20;
           const candles = createCandles(TRADING.CANDLE_COUNT, base, 0.15);
           candleCache.set(key, candles);
