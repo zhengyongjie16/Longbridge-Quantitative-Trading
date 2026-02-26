@@ -37,6 +37,7 @@
     "eslint": "^10.0.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-sonarjs": "^4.0.0",
+    "eslint-plugin-unicorn": "^61.0.2",
     "prettier": "^3.4.2",
     "rimraf": "^5.0.10",
     "typescript": "^5.9.3",

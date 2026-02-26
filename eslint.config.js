@@ -2,6 +2,7 @@ import { defineConfig } from 'eslint/config';
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import sonarjs from 'eslint-plugin-sonarjs';
+import eslintPluginUnicorn from 'eslint-plugin-unicorn';
 import eslintConfigPrettier from 'eslint-config-prettier/flat';
 
 const restrictTemplateExpressionsRule = [
@@ -22,6 +23,9 @@ export default defineConfig(
   ...tseslint.configs.stylisticTypeChecked,
   sonarjs.configs.recommended,
   {
+    plugins: {
+      unicorn: eslintPluginUnicorn,
+    },
     languageOptions: {
       parserOptions: {
         projectService: true,
@@ -147,6 +151,15 @@ export default defineConfig(
       'no-duplicate-imports': 'error',
       'no-nested-ternary': 'error',
       'prefer-arrow-callback': 'warn',
+
+      // 索引访问表达优化
+      'unicorn/prefer-at': [
+        'error',
+        {
+          checkAllIndexAccess: false,
+        },
+      ],
+      'unicorn/prefer-negative-index': 'error',
     },
   },
   {
