@@ -321,10 +321,7 @@ async function main(): Promise<void> {
   } catch (err) {
     startupRebuildPending = true;
     applyStartupSnapshotFailureState(lastState, new Date());
-    logger.error(
-      '启动快照加载失败：已阻断交易并切换为开盘重建重试模式',
-      formatError(err),
-    );
+    logger.error('启动快照加载失败：已阻断交易并切换为开盘重建重试模式', formatError(err));
   }
 
   // 初始化核心模块实例

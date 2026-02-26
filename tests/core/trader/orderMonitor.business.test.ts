@@ -193,9 +193,7 @@ function createDeps(params?: {
   };
 }
 
-function createPendingRecoveryOrder(
-  params: Partial<RawOrderFromAPI>,
-): RawOrderFromAPI {
+function createPendingRecoveryOrder(params: Partial<RawOrderFromAPI>): RawOrderFromAPI {
   return {
     orderId: params.orderId ?? 'RECOVER-ORDER',
     symbol: params.symbol ?? 'BULL.HK',
@@ -489,9 +487,9 @@ describe('orderMonitor business flow', () => {
       status: OrderStatus.New,
     });
 
-    expect(monitor.recoverOrderTrackingFromSnapshot([pendingSell, mismatchedPendingBuy])).rejects.toThrow(
-      /撤单失败/,
-    );
+    expect(
+      monitor.recoverOrderTrackingFromSnapshot([pendingSell, mismatchedPendingBuy]),
+    ).rejects.toThrow(/撤单失败/);
     expect(monitor.getPendingSellOrders('BULL.HK')).toHaveLength(0);
 
     tradeCtx.clearFailureRules();
@@ -541,7 +539,7 @@ describe('orderMonitor business flow', () => {
     ]);
 
     await monitor.processWithLatestQuotes(
-      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.2)]])
+      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.2)]]),
     );
 
     expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(0);

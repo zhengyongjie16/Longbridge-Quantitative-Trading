@@ -1,9 +1,19 @@
 {
   "permissions": {
+    "ask": [
+      "Edit(//**)",
+      "Edit(../**)",
+      "Edit(~/**)",
+      "Write(//**)",
+      "Write(../**)",
+      "Write(~/**)"
+    ],
     "allow": [
       "Read(*)",
-      "Write(*)",
+      "Edit(/**)",
+      "Write(/**)",
       "Skill(*)",
+      "Bash(git*)",
       "Bash(npm run *)",
       "Bash(npx *)",
       "Bash(bunx *)",
@@ -12,6 +22,30 @@
       "Bash(bun *)",
       "Bash(findstr:*)",
       "Bash(grep:*)"
-    ]
-  }
+    ],
+    "deny": []
+  },
+  "extraKnownMarketplaces": {
+    "claude-plugins-official": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-official"
+      }
+    },
+    "superpowers-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "obra/superpowers-marketplace"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "code-review@claude-plugins-official": true,
+    "plugin-dev@claude-plugins-official": true,
+    "pr-review-toolkit@claude-plugins-official": true,
+    "superpowers@superpowers-marketplace": true,
+    "typescript-lsp@claude-plugins-official": true
+  },
+  "language": "chinese",
+  "autoUpdatesChannel": "latest"
 }

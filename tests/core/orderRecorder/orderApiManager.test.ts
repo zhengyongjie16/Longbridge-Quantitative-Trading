@@ -5,7 +5,14 @@
  * - 验证 history/today 去重时的快照优先级（today 优先、同源按 updatedAt 更晚优先）
  */
 import { describe, expect, it } from 'bun:test';
-import { Decimal, OrderSide, OrderStatus, OrderType, type Order, type TradeContext } from 'longport';
+import {
+  Decimal,
+  OrderSide,
+  OrderStatus,
+  OrderType,
+  type Order,
+  type TradeContext,
+} from 'longport';
 import { createOrderAPIManager } from '../../../src/core/orderRecorder/orderApiManager.js';
 import { createTradeContextMock } from '../../../mock/longport/tradeContextMock.js';
 

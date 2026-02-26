@@ -39,10 +39,7 @@ import type {
   SellableOrderResult,
   SellableOrderSelectParams,
 } from './types.js';
-import {
-  calculateOrderStatistics,
-  classifyOrdersForRebuild,
-} from './utils.js';
+import { calculateOrderStatistics, classifyOrdersForRebuild } from './utils.js';
 
 /**
  * 验证订单参数有效性

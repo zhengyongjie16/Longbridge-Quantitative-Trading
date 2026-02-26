@@ -1,2 +1,5 @@
-prefix_rule(pattern=["npm", "run"], decision="allow")
 prefix_rule(pattern=[["bun", "npx", "bunx", "tsc", "node"]], decision="allow")
+prefix_rule(pattern=[["Get-Content", "Select-String", "rg", "cat", "type", "ls", "dir", "Get-ChildItem", "Test-Path"]], decision="allow")
+prefix_rule(pattern=["git", "config", "--global", "--add", "safe.directory"], decision="allow")
+prefix_rule(pattern=["C:\\Program Files\\PowerShell\\7\\pwsh.exe", "-Command", "bunx ts-prune -p tsconfig.json"], decision="allow")
+prefix_rule(pattern=["New-Item", "-ItemType", "Directory", "-Force", ".codex\\rules"], decision="allow")
