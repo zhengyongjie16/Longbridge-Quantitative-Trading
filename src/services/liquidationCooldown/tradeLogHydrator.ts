@@ -18,34 +18,42 @@ import {
 } from './utils.js';
 
 /**
+ * 类型保护：判断 unknown 是否为交易日志原始记录。
+ *
+ * @param value 待判断值
+ * @returns true 表示可按键读取字段
+ */
+function isRawRecord(value: unknown): value is RawRecord {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
  * 将 JSON 解析结果规范化为 TradeRecord，对每个字段做类型安全转换；清仓冷却仅依赖结构键值，局部信任 JSON 解析结果。
  * @param raw - 单条日志解析后的未知类型
  * @returns 规范化后的 TradeRecord，无效时 null
  */
 function normalizeTradeRecord(raw: unknown): TradeRecord | null {
-  if (!raw || typeof raw !== 'object') {
+  if (!isRawRecord(raw)) {
     return null;
   }
-  // 清仓冷却仅依赖 TradeRecord 的键值，这里在局部信任 JSON 解析结果结构并做结构性断言
-  const obj = raw as RawRecord;
   const record: TradeRecord = {
-    orderId: toStringOrNull(obj['orderId']),
-    symbol: toStringOrNull(obj['symbol']),
-    symbolName: toStringOrNull(obj['symbolName']),
-    monitorSymbol: toStringOrNull(obj['monitorSymbol']),
-    action: toStringOrNull(obj['action']),
-    side: toStringOrNull(obj['side']),
-    quantity: toStringOrNull(obj['quantity']),
-    price: toStringOrNull(obj['price']),
-    orderType: toStringOrNull(obj['orderType']),
-    status: toStringOrNull(obj['status']),
-    error: toStringOrNull(obj['error']),
-    reason: toStringOrNull(obj['reason']),
-    signalTriggerTime: toStringOrNull(obj['signalTriggerTime']),
-    executedAt: toStringOrNull(obj['executedAt']),
-    executedAtMs: toNumberOrNull(obj['executedAtMs']),
-    timestamp: toStringOrNull(obj['timestamp']),
-    isProtectiveClearance: toBooleanOrNull(obj['isProtectiveClearance']),
+    orderId: toStringOrNull(raw['orderId']),
+    symbol: toStringOrNull(raw['symbol']),
+    symbolName: toStringOrNull(raw['symbolName']),
+    monitorSymbol: toStringOrNull(raw['monitorSymbol']),
+    action: toStringOrNull(raw['action']),
+    side: toStringOrNull(raw['side']),
+    quantity: toStringOrNull(raw['quantity']),
+    price: toStringOrNull(raw['price']),
+    orderType: toStringOrNull(raw['orderType']),
+    status: toStringOrNull(raw['status']),
+    error: toStringOrNull(raw['error']),
+    reason: toStringOrNull(raw['reason']),
+    signalTriggerTime: toStringOrNull(raw['signalTriggerTime']),
+    executedAt: toStringOrNull(raw['executedAt']),
+    executedAtMs: toNumberOrNull(raw['executedAtMs']),
+    timestamp: toStringOrNull(raw['timestamp']),
+    isProtectiveClearance: toBooleanOrNull(raw['isProtectiveClearance']),
   };
 
   return record;

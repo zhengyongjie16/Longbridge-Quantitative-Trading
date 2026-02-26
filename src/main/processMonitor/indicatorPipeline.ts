@@ -15,14 +15,72 @@
  * - MACD：快线 12、慢线 26、信号线 9
  * - MFI：默认周期 14
  */
-import { buildIndicatorSnapshot } from '../../services/indicators/index.js';
-import { getCandleFingerprint } from '../../services/indicators/utils.js';
+import { buildIndicatorSnapshot, getCandleFingerprint } from '../../services/indicators/utils.js';
 import { logger } from '../../utils/logger/index.js';
 import { formatSymbolDisplay, releaseSnapshotObjects } from '../../utils/helpers/index.js';
 import { TRADING } from '../../constants/index.js';
 import type { CandleData } from '../../types/data.js';
 import type { IndicatorSnapshot } from '../../types/quote.js';
 import type { IndicatorPipelineParams } from './types.js';
+
+/**
+ * 类型保护：判断 unknown 是否为可索引对象。
+ *
+ * @param value 待判断值
+ * @returns true 表示可按键读取字段
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
+ * 类型保护：判断 unknown 是否可作为 CandleValue 的对象分支（含 toString 方法）。
+ *
+ * @param value 待判断值
+ * @returns true 表示可作为 CandleValue
+ */
+function isCandleObjectValue(value: unknown): value is { toString: () => string } {
+  return isRecord(value) && typeof value.toString === 'function';
+}
+
+/**
+ * 将 unknown 标准化为 CandleValue。
+ *
+ * @param value 原始字段值
+ * @returns 规范后的 CandleValue
+ */
+function normalizeCandleValue(value: unknown): CandleData['close'] {
+  if (value === null || value === undefined || typeof value === 'number' || typeof value === 'string') {
+    return value;
+  }
+  if (isCandleObjectValue(value)) {
+    return value;
+  }
+  return undefined;
+}
+
+/**
+ * 将 SDK K 线数组标准化为内部 CandleData 数组。
+ *
+ * @param candles 原始 K 线数据
+ * @returns 标准化后的 CandleData 数组
+ */
+function normalizeCandles(candles: ReadonlyArray<unknown>): ReadonlyArray<CandleData> {
+  const normalized: CandleData[] = [];
+  for (const candle of candles) {
+    if (!isRecord(candle)) {
+      continue;
+    }
+    normalized.push({
+      open: normalizeCandleValue(candle['open']),
+      high: normalizeCandleValue(candle['high']),
+      low: normalizeCandleValue(candle['low']),
+      close: normalizeCandleValue(candle['close']),
+      volume: normalizeCandleValue(candle['volume']),
+    });
+  }
+  return normalized;
+}
 
 /**
  * 执行指标处理流水线。
@@ -47,8 +105,7 @@ export async function runIndicatorPipeline(
     return null;
   }
 
-  // LongPort SDK 返回 Candlestick[]，与内部 CandleData 结构兼容，此处作为桥接类型使用
-  const candles = monitorCandles as CandleData[];
+  const candles = normalizeCandles(monitorCandles);
   const fingerprint = getCandleFingerprint(candles);
 
   if (

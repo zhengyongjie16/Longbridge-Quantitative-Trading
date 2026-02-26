@@ -9,23 +9,24 @@
  * - 标准化 stockName（大写、去除非字母数字）→ 匹配多空标记（RC/BULL/CALL/牛 vs RP/BEAR/PUT/熊）→ 匹配监控缩写 → 返回 monitorSymbol + direction
  */
 import { OrderStatus } from 'longport';
+import { ORDER_OWNERSHIP } from '../../constants/index.js';
 import type { MonitorConfig } from '../../types/config.js';
 import type { RawOrderFromAPI } from '../../types/services.js';
 import type { OrderOwnership } from './types.js';
 
-const NORMALIZE_PATTERN = /[^\p{L}\p{N}]/gu;
-const LONG_MARKERS = ['RC', 'BULL', 'CALL', '\u725b'];
-const SHORT_MARKERS = ['RP', 'BEAR', 'PUT', '\u718a'];
-
 /** 统一转大写并去除非字母数字字符，避免大小写与分隔符导致误判 */
 function normalizeForMatching(str: string): string {
-  return str.trim().toUpperCase().replaceAll(NORMALIZE_PATTERN, '');
+  return str.trim().toUpperCase().replaceAll(ORDER_OWNERSHIP.NORMALIZE_PATTERN, '');
 }
 
 /** 根据标准化后的股票名称判断多空方向，同时包含多空标记时返回 null */
 function resolveDirectionFromNormalizedName(normalizedStockName: string): 'LONG' | 'SHORT' | null {
-  const hasLongMarker = LONG_MARKERS.some((m) => normalizedStockName.includes(m));
-  const hasShortMarker = SHORT_MARKERS.some((m) => normalizedStockName.includes(m));
+  const hasLongMarker = ORDER_OWNERSHIP.LONG_MARKERS.some((marker) =>
+    normalizedStockName.includes(marker),
+  );
+  const hasShortMarker = ORDER_OWNERSHIP.SHORT_MARKERS.some((marker) =>
+    normalizedStockName.includes(marker),
+  );
   if (hasLongMarker && !hasShortMarker) {
     return 'LONG';
   }

@@ -100,6 +100,97 @@ function normalizeSymbols(symbols: ReadonlyArray<string>): ReadonlyArray<string>
 }
 
 /**
+ * 类型保护：判断 unknown 是否为可索引对象。
+ *
+ * @param value 待判断值
+ * @returns true 表示可按键读取字段
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
+ * 将 unknown 静态信息标准化为 QuoteStaticInfo，字段类型不匹配时返回 null。
+ *
+ * @param staticInfo 原始静态信息
+ * @returns 标准化后的 QuoteStaticInfo 或 null
+ */
+function normalizeQuoteStaticInfo(staticInfo: unknown): QuoteStaticInfo | null {
+  if (!isRecord(staticInfo)) {
+    return null;
+  }
+  const staticInfoRecord = staticInfo;
+
+  function readNullableString(key: string): string | null | undefined {
+    const fieldValue: unknown = staticInfoRecord[key];
+    if (fieldValue === undefined || fieldValue === null || typeof fieldValue === 'string') {
+      return fieldValue;
+    }
+    return undefined;
+  }
+
+  function readNullableNumber(key: string): number | null | undefined {
+    const fieldValue: unknown = staticInfoRecord[key];
+    if (fieldValue === undefined || fieldValue === null || typeof fieldValue === 'number') {
+      return fieldValue;
+    }
+    return undefined;
+  }
+
+  function readWarrantType(): 'BULL' | 'BEAR' | null | undefined {
+    const warrantTypeValue: unknown = staticInfoRecord['warrantType'];
+    if (
+      warrantTypeValue === undefined ||
+      warrantTypeValue === null ||
+      warrantTypeValue === 'BULL' ||
+      warrantTypeValue === 'BEAR'
+    ) {
+      return warrantTypeValue;
+    }
+    return undefined;
+  }
+
+  const nameHk = readNullableString('nameHk');
+  const nameCn = readNullableString('nameCn');
+  const nameEn = readNullableString('nameEn');
+  const lotSize = readNullableNumber('lotSize');
+  const callPrice = readNullableNumber('callPrice');
+  const expiryDate = readNullableString('expiryDate');
+  const issuePrice = readNullableNumber('issuePrice');
+  const conversionRatio = readNullableNumber('conversionRatio');
+  const warrantType = readWarrantType();
+  const underlyingSymbol = readNullableString('underlyingSymbol');
+
+  if (
+    nameHk === undefined ||
+    nameCn === undefined ||
+    nameEn === undefined ||
+    lotSize === undefined ||
+    callPrice === undefined ||
+    expiryDate === undefined ||
+    issuePrice === undefined ||
+    conversionRatio === undefined ||
+    warrantType === undefined ||
+    underlyingSymbol === undefined
+  ) {
+    return null;
+  }
+
+  return {
+    nameHk,
+    nameCn,
+    nameEn,
+    lotSize,
+    callPrice,
+    expiryDate,
+    issuePrice,
+    conversionRatio,
+    warrantType,
+    underlyingSymbol,
+  };
+}
+
+/**
  * 创建交易日缓存，支持按日期键读写、批量写入与 TTL 过期，供 isTradingDay 等复用以避免重复请求 API。
  *
  * @returns 含 get、set、setBatch、clear 的缓存对象
@@ -197,7 +288,7 @@ export async function createMarketDataClient(
   // 已订阅标的（报价推送）
   const subscribedSymbols = new Set<string>();
   // 已订阅 K 线跟踪（key: "symbol:period"）
-  const subscribedCandlesticks = new Set<string>();
+  const subscribedCandlesticks = new Map<string, Period>();
 
   /**
    * 处理行情推送（WebSocket 回调）
@@ -226,8 +317,7 @@ export async function createMarketDataClient(
       timestamp: pushData.timestamp.getTime(),
       ...(lotSize === undefined ? {} : { lotSize }),
       raw: pushData,
-      // LongPort API 返回 unknown，信任边界断言为 QuoteStaticInfo
-      staticInfo: (staticInfo ?? null) as QuoteStaticInfo | null,
+      staticInfo: normalizeQuoteStaticInfo(staticInfo),
     };
 
     quoteCache.set(symbol, quote);
@@ -307,7 +397,7 @@ export async function createMarketDataClient(
         timestamp: quote.timestamp.getTime(),
         ...(lotSize === undefined ? {} : { lotSize }),
         raw: quote,
-        staticInfo: (staticInfo ?? null) as QuoteStaticInfo | null, // LongPort API 返回 unknown，信任边界断言为 QuoteStaticInfo
+        staticInfo: normalizeQuoteStaticInfo(staticInfo),
       };
       quoteCache.set(quoteSymbol, quoteResult);
     }
@@ -376,7 +466,7 @@ export async function createMarketDataClient(
     const initialCandles = await withRetry(() =>
       ctx.subscribeCandlesticks(symbol, period, tradeSessions),
     );
-    subscribedCandlesticks.add(key);
+    subscribedCandlesticks.set(key, period);
     logger.info(
       `[K线订阅] 已订阅 ${symbol} 周期 ${formatPeriodForLog(period)} K线，初始数据 ${initialCandles.length} 根`,
     );
@@ -429,7 +519,7 @@ export async function createMarketDataClient(
    */
   async function resetRuntimeSubscriptionsAndCaches(): Promise<void> {
     const symbolsToUnsub = Array.from(subscribedSymbols);
-    const candlestickKeysToUnsub = Array.from(subscribedCandlesticks);
+    const candlestickEntriesToUnsub = Array.from(subscribedCandlesticks.entries());
 
     const errors: unknown[] = [];
 
@@ -449,19 +539,13 @@ export async function createMarketDataClient(
     }
 
     // 2. 退订 candlestick（逐个，失败不中断）
-    for (const key of candlestickKeysToUnsub) {
+    for (const [key, periodValue] of candlestickEntriesToUnsub) {
       const colonIdx = key.lastIndexOf(':');
       if (colonIdx <= 0) {
         errors.push(new Error(`[行情重置] K线 key 格式无效: ${key}`));
         continue;
       }
       const symbol = key.slice(0, colonIdx);
-      const periodNum = Number.parseInt(key.slice(colonIdx + 1), 10);
-      if (!Number.isFinite(periodNum)) {
-        errors.push(new Error(`[行情重置] K线 key 周期无效: ${key}`));
-        continue;
-      }
-      const periodValue = periodNum as Period;
       try {
         await withRetry(() => ctx.unsubscribeCandlesticks(symbol, periodValue));
         subscribedCandlesticks.delete(key);

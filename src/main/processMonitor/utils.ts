@@ -12,6 +12,16 @@ import type {
 import type { QueueClearResult } from './types.js';
 
 /**
+ * 类型保护：判断 unknown 是否为可索引对象。
+ *
+ * @param value 待判断值
+ * @returns true 表示可按键读取
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
  * 判断订单动作是否属于指定方向。
  *
  * @param action 订单动作字符串（如 BUYCALL / SELLPUT）
@@ -40,13 +50,13 @@ function isMonitorTaskForDirection(
   task: { readonly data: unknown },
   direction: 'LONG' | 'SHORT',
 ): boolean {
-  if (!task.data || typeof task.data !== 'object') {
+  if (!isRecord(task.data)) {
     return false;
   }
-  // 这里只做通用方向过滤，调用点已保证 task.data 为对象结构
-  const data = task.data as Record<string, unknown>;
-  const isDirectionMatch = data['direction'] === direction;
-  const isSharedTask = 'seatSnapshots' in data || ('long' in data && 'short' in data);
+  const isDirectionMatch = task.data['direction'] === direction;
+  const isSharedTask =
+    Object.hasOwn(task.data, 'seatSnapshots') ||
+    (Object.hasOwn(task.data, 'long') && Object.hasOwn(task.data, 'short'));
   return isDirectionMatch || isSharedTask;
 }
 

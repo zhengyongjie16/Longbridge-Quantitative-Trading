@@ -1,3 +1,4 @@
+import { SIGNAL_CONFIG_SUPPORTED_INDICATORS } from '../../constants/index.js';
 import { validateRsiPeriod, validatePsyPeriod } from './indicatorHelpers.js';
 import type { Condition, ConditionGroup, SignalConfig } from '../../types/signalConfig.js';
 import type { SignalConfigSet } from '../../types/config.js';
@@ -9,8 +10,29 @@ import type {
   ConditionGroupResult,
 } from './types.js';
 
-// 支持的固定指标列表（不包括 RSI/PSY，因为它们支持动态周期）
-const SUPPORTED_INDICATORS = ['MFI', 'K', 'D', 'J'] as const;
+type ComparisonOperator = '<' | '>';
+
+/**
+ * 类型保护：判断字符串是否为支持的比较运算符（< 或 >）。
+ *
+ * @param value 待判断字符串
+ * @returns true 表示是合法比较运算符
+ */
+function isComparisonOperator(value: string): value is ComparisonOperator {
+  return value === '<' || value === '>';
+}
+
+/**
+ * 类型保护：判断字符串是否为支持的固定指标（不含 RSI/PSY 动态周期指标）。
+ *
+ * @param value 指标名称
+ * @returns true 表示属于固定指标集合
+ */
+function isSupportedFixedIndicator(
+  value: string,
+): value is (typeof SIGNAL_CONFIG_SUPPORTED_INDICATORS)[number] {
+  return SIGNAL_CONFIG_SUPPORTED_INDICATORS.some((indicator) => indicator === value);
+}
 
 /**
  * 解析单个信号条件字符串，支持 RSI:n、PSY:n 及固定指标（K、D、J、MFI 等）格式。
@@ -52,12 +74,10 @@ function parseCondition(conditionStr: string): ParsedCondition | null {
       return null;
     }
 
-    return {
-      indicator: 'RSI',
-      period,
-      operator: operator as '<' | '>',
-      threshold,
-    };
+    if (!isComparisonOperator(operator)) {
+      return null;
+    }
+    return { indicator: 'RSI', period, operator, threshold };
   }
 
   // 尝试匹配 PSY:n 格式
@@ -81,12 +101,10 @@ function parseCondition(conditionStr: string): ParsedCondition | null {
       return null;
     }
 
-    return {
-      indicator: 'PSY',
-      period,
-      operator: operator as '<' | '>',
-      threshold,
-    };
+    if (!isComparisonOperator(operator)) {
+      return null;
+    }
+    return { indicator: 'PSY', period, operator, threshold };
   }
 
   // 尝试匹配其他固定指标格式
@@ -107,7 +125,7 @@ function parseCondition(conditionStr: string): ParsedCondition | null {
   const threshold = Number.parseFloat(thresholdStr);
 
   // 验证指标是否支持
-  if (!SUPPORTED_INDICATORS.includes(indicator as (typeof SUPPORTED_INDICATORS)[number])) {
+  if (!isSupportedFixedIndicator(indicator)) {
     return null;
   }
 
@@ -116,11 +134,10 @@ function parseCondition(conditionStr: string): ParsedCondition | null {
     return null;
   }
 
-  return {
-    indicator,
-    operator: operator as '<' | '>',
-    threshold,
-  };
+  if (!isComparisonOperator(operator)) {
+    return null;
+  }
+  return { indicator, operator, threshold };
 }
 
 /**

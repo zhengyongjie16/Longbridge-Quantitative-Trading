@@ -25,7 +25,6 @@ import type {
 } from '../../types/services.js';
 import type {
   WarrantInfo,
-  WarrantQuote,
   WarrantRiskChecker,
   WarrantRiskCheckerDeps,
 } from './types.js';
@@ -44,6 +43,26 @@ const WARRANT_TYPE_NAMES: Record<string, string> = {
   BULL: '牛证',
   BEAR: '熊证',
 };
+
+/**
+ * 类型保护：判断 unknown 是否为可索引对象。
+ *
+ * @param value 待判断值
+ * @returns true 表示可按键读取字段
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
+ * 类型保护：判断值是否包含可调用的 toNumber 方法。
+ *
+ * @param value 待判断值
+ * @returns true 表示可以通过 toNumber 获取数字
+ */
+function hasToNumber(value: unknown): value is { toNumber: () => number } {
+  return isRecord(value) && typeof value['toNumber'] === 'function';
+}
 
 /**
  * 将内部牛熊证类型映射为用于日志和提示的中文名称。
@@ -68,15 +87,35 @@ function parseWarrantType(category: unknown): WarrantType | null {
 }
 
 /** 从 SDK 响应中提取回收价 */
-function extractCallPrice(warrantQuote: WarrantQuote): number | null {
-  const callPriceDecimal = warrantQuote.callPrice;
+function extractCallPrice(warrantQuote: unknown): number | null {
+  if (!isRecord(warrantQuote)) {
+    return null;
+  }
+  const callPriceDecimal = warrantQuote['callPrice'];
 
   if (!isDefined(callPriceDecimal)) {
     return null;
   }
 
-  // SDK 返回 Decimal 类型，使用 decimalToNumber 转换
-  return decimalToNumber(callPriceDecimal);
+  if (
+    callPriceDecimal === null ||
+    typeof callPriceDecimal === 'number' ||
+    typeof callPriceDecimal === 'string'
+  ) {
+    return decimalToNumber(callPriceDecimal);
+  }
+  if (hasToNumber(callPriceDecimal)) {
+    return callPriceDecimal.toNumber();
+  }
+  return null;
+}
+
+/** 从原始轮证报价中提取 category 字段 */
+function extractCategory(warrantQuote: unknown): unknown {
+  if (!isRecord(warrantQuote)) {
+    return null;
+  }
+  return warrantQuote['category'];
 }
 
 /** 验证牛熊证类型：做多应为牛证，做空应为熊证 */
@@ -303,17 +342,14 @@ async function checkWarrantType(
 
   // 使用 warrantQuote API 获取牛熊证信息
   const warrantQuotesRaw = await ctx.warrantQuote([symbol]);
-  // warrantQuote API 返回 SDK 定义的结构，这里只取第一个元素并在信任边界处做结构性断言
-  const warrantQuote = (
-    Array.isArray(warrantQuotesRaw) ? (warrantQuotesRaw[0] ?? null) : null
-  ) as WarrantQuote | null;
+  const warrantQuote = Array.isArray(warrantQuotesRaw) ? (warrantQuotesRaw[0] ?? null) : null;
 
   if (!warrantQuote) {
     return { isWarrant: false };
   }
 
   // 从 SDK 获取 category（已经是 WarrantType 枚举）
-  const category = warrantQuote.category;
+  const category = extractCategory(warrantQuote);
   const warrantType = parseWarrantType(category);
 
   if (!warrantType) {
@@ -330,8 +366,8 @@ async function checkWarrantType(
     isWarrant: true,
     warrantType,
     callPrice,
-    // SDK 的 category 可能是数字枚举或字符串枚举，这里统一视为 number|string 以便日志与调试使用
-    category: category as number | string,
+    category:
+      typeof category === 'number' || typeof category === 'string' ? category : 'UNKNOWN',
     symbol,
   };
 }

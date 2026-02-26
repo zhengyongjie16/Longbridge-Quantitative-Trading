@@ -1,4 +1,5 @@
 import { OrderType } from 'longport';
+import { VERIFICATION_FIXED_INDICATORS } from '../constants/index.js';
 import type { LiquidationCooldownConfig, NumberRange } from '../types/config.js';
 import type { OrderTypeConfig } from '../types/signal.js';
 import { validateEmaPeriod, validatePsyPeriod } from '../utils/helpers/indicatorHelpers.js';
@@ -245,9 +246,6 @@ export function parseVerificationDelay(
   return delay;
 }
 
-// 固定指标无需周期参数
-const FIXED_INDICATORS = new Set(['K', 'D', 'J', 'MACD', 'DIF', 'DEA']);
-
 /**
  * 解析延迟验证指标列表，支持 K/D/J/MACD/DIF/DEA/EMA:N/PSY:N，无效项记录警告后跳过。
  * @param env - 进程环境变量对象
@@ -300,7 +298,7 @@ export function parseVerificationIndicators(
   }
 
   for (const item of items) {
-    if (FIXED_INDICATORS.has(item)) {
+    if (VERIFICATION_FIXED_INDICATORS.has(item)) {
       validItems.push(item);
       continue;
     }

@@ -16,31 +16,41 @@ import { toHongKongTimeIso } from '../../utils/helpers/index.js';
 import { buildTradeLogPath } from './utils.js';
 import type { TradeRecord, ErrorTypeIdentifier } from './types.js';
 
+/**
+ * 类型保护：判断 unknown 是否为可索引对象。
+ *
+ * @param value 待判断值
+ * @returns true 表示可按键读取字段
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
 /** 类型守卫：校验 TradeRecord 结构 */
 function isValidTradeRecord(record: unknown): record is TradeRecord {
-  if (typeof record !== 'object' || record === null) {
+  if (!isRecord(record)) {
     return false;
   }
-  const obj = record as Record<string, unknown>;
   // 校验必需字段的类型（允许 null）
   return (
-    (obj['orderId'] === null || typeof obj['orderId'] === 'string') &&
-    (obj['symbol'] === null || typeof obj['symbol'] === 'string') &&
-    (obj['symbolName'] === null || typeof obj['symbolName'] === 'string') &&
-    (obj['monitorSymbol'] === null || typeof obj['monitorSymbol'] === 'string') &&
-    (obj['action'] === null || typeof obj['action'] === 'string') &&
-    (obj['side'] === null || typeof obj['side'] === 'string') &&
-    (obj['quantity'] === null || typeof obj['quantity'] === 'string') &&
-    (obj['price'] === null || typeof obj['price'] === 'string') &&
-    (obj['orderType'] === null || typeof obj['orderType'] === 'string') &&
-    (obj['status'] === null || typeof obj['status'] === 'string') &&
-    (obj['error'] === null || typeof obj['error'] === 'string') &&
-    (obj['reason'] === null || typeof obj['reason'] === 'string') &&
-    (obj['signalTriggerTime'] === null || typeof obj['signalTriggerTime'] === 'string') &&
-    (obj['executedAt'] === null || typeof obj['executedAt'] === 'string') &&
-    (obj['executedAtMs'] === null || typeof obj['executedAtMs'] === 'number') &&
-    (obj['timestamp'] === null || typeof obj['timestamp'] === 'string') &&
-    (obj['isProtectiveClearance'] === null || typeof obj['isProtectiveClearance'] === 'boolean')
+    (record['orderId'] === null || typeof record['orderId'] === 'string') &&
+    (record['symbol'] === null || typeof record['symbol'] === 'string') &&
+    (record['symbolName'] === null || typeof record['symbolName'] === 'string') &&
+    (record['monitorSymbol'] === null || typeof record['monitorSymbol'] === 'string') &&
+    (record['action'] === null || typeof record['action'] === 'string') &&
+    (record['side'] === null || typeof record['side'] === 'string') &&
+    (record['quantity'] === null || typeof record['quantity'] === 'string') &&
+    (record['price'] === null || typeof record['price'] === 'string') &&
+    (record['orderType'] === null || typeof record['orderType'] === 'string') &&
+    (record['status'] === null || typeof record['status'] === 'string') &&
+    (record['error'] === null || typeof record['error'] === 'string') &&
+    (record['reason'] === null || typeof record['reason'] === 'string') &&
+    (record['signalTriggerTime'] === null || typeof record['signalTriggerTime'] === 'string') &&
+    (record['executedAt'] === null || typeof record['executedAt'] === 'string') &&
+    (record['executedAtMs'] === null || typeof record['executedAtMs'] === 'number') &&
+    (record['timestamp'] === null || typeof record['timestamp'] === 'string') &&
+    (record['isProtectiveClearance'] === null ||
+      typeof record['isProtectiveClearance'] === 'boolean')
   );
 }
 

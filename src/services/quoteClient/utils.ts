@@ -26,13 +26,53 @@ const PERIOD_LABEL_MAP: Readonly<Record<number, string>> = {
 } as const;
 
 /**
+ * 类型保护：判断 unknown 是否为可索引对象。
+ *
+ * @param value 待判断值
+ * @returns true 表示可按键读取字段
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
  * 将 Period 枚举转为可读标签，用于日志等展示
  * @param period K 线周期枚举值
  * @returns 可读标签，如 "1分钟"、"15分钟"；未知值返回 "未知(n)"
  */
 export function formatPeriodForLog(period: Period): string {
-  const label = PERIOD_LABEL_MAP[period as number];
+  const label = PERIOD_LABEL_MAP[period];
   return label ?? `未知(${period})`;
+}
+
+/**
+ * 类型保护：判断 unknown 是否可作为 StaticInfo 使用。
+ *
+ * @param value 待判断值
+ * @returns true 表示包含可识别的静态信息字段
+ */
+function isStaticInfo(value: unknown): value is StaticInfo {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const valueRecord = value;
+
+  function isNullableStringProperty(propertyKey: 'nameHk' | 'nameCn' | 'nameEn'): boolean {
+    const propertyValue: unknown = valueRecord[propertyKey];
+    return (
+      propertyValue === undefined ||
+      propertyValue === null ||
+      typeof propertyValue === 'string'
+    );
+  }
+
+  const lotSizeValue: unknown = valueRecord['lotSize'];
+  return (
+    isNullableStringProperty('nameHk') &&
+    isNullableStringProperty('nameCn') &&
+    isNullableStringProperty('nameEn') &&
+    (lotSizeValue === undefined || lotSizeValue === null || typeof lotSizeValue === 'number')
+  );
 }
 
 /**
@@ -41,12 +81,10 @@ export function formatPeriodForLog(period: Period): string {
  * @returns lotSize 值，如果无效则返回 undefined
  */
 export function extractLotSize(staticInfo: unknown): number | undefined {
-  if (!staticInfo || typeof staticInfo !== 'object') {
+  if (!isStaticInfo(staticInfo)) {
     return undefined;
   }
-
-  const info = staticInfo as StaticInfo;
-  const lotSizeValue = info.lotSize ?? null;
+  const lotSizeValue = staticInfo.lotSize ?? null;
 
   if (lotSizeValue === null) {
     return undefined;
@@ -66,13 +104,10 @@ export function extractLotSize(staticInfo: unknown): number | undefined {
  * @returns 名称，优先返回香港名称，其次中文名称，最后英文名称
  */
 export function extractName(staticInfo: unknown): string | null {
-  if (!staticInfo || typeof staticInfo !== 'object') {
+  if (!isStaticInfo(staticInfo)) {
     return null;
   }
-
-  // 同上：staticInfo 源自 LongPort 静态信息 API，结构与 StaticInfo 对应
-  const info = staticInfo as StaticInfo;
-  return info.nameHk ?? info.nameCn ?? info.nameEn ?? null;
+  return staticInfo.nameHk ?? staticInfo.nameCn ?? staticInfo.nameEn ?? null;
 }
 
 /**

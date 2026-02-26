@@ -1,6 +1,12 @@
 import pino from 'pino';
 import { toHongKongTimeLog } from '../helpers/index.js';
-import { IS_DEBUG, LOGGING, LOG_LEVELS, LOG_COLORS } from '../../constants/index.js';
+import {
+  IS_DEBUG,
+  LOG_ANSI_CODE_REGEX,
+  LOGGING,
+  LOG_LEVELS,
+  LOG_COLORS,
+} from '../../constants/index.js';
 import { resolveLogRootDir, shouldInstallGlobalProcessHooks } from '../runtime.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -275,19 +281,6 @@ class DateRotatingStream extends Writable {
 }
 
 /**
- * ANSI 转义字符（ESC，ASCII 27）
- * 使用 String.fromCodePoint 避免在正则表达式中直接使用控制字符
- */
-const ANSI_ESC = String.fromCodePoint(27);
-
-/**
- * ANSI 颜色代码正则表达式
- * 匹配格式：ESC[数字;数字;...m
- * 使用 String.raw 避免转义反斜杠，使用字符串拼接避免在正则表达式中直接使用控制字符
- */
-const ANSI_CODE_REGEX = new RegExp(ANSI_ESC + String.raw`\[[0-9;]*m`, 'g');
-
-/**
  * 移除字符串中的 ANSI 颜色/转义代码，用于文件日志输出时得到纯文本。
  *
  * @param str 可能包含 ANSI 代码的字符串
@@ -295,7 +288,17 @@ const ANSI_CODE_REGEX = new RegExp(ANSI_ESC + String.raw`\[[0-9;]*m`, 'g');
  */
 function stripAnsiCodes(str: string): string {
   if (typeof str !== 'string') return str;
-  return str.replaceAll(ANSI_CODE_REGEX, '');
+  return str.replaceAll(LOG_ANSI_CODE_REGEX, '');
+}
+
+/**
+ * 类型保护：判断 unknown 是否为对象字典。
+ *
+ * @param value 待判断值
+ * @returns true 表示可按键访问
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
 
 /**
@@ -305,14 +308,13 @@ function stripAnsiCodes(str: string): string {
  * @returns 当值包含 level/time/msg 必要字段且类型正确时返回 true
  */
 function isLogObject(value: unknown): value is LogObject {
-  if (typeof value !== 'object' || value === null) {
+  if (!isRecord(value)) {
     return false;
   }
-  const candidate = value as Record<string, unknown>;
   return (
-    typeof candidate['level'] === 'number' &&
-    typeof candidate['time'] === 'number' &&
-    typeof candidate['msg'] === 'string'
+    typeof value['level'] === 'number' &&
+    typeof value['time'] === 'number' &&
+    typeof value['msg'] === 'string'
   );
 }
 

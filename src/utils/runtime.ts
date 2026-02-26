@@ -1,14 +1,6 @@
 import path from 'node:path';
-
-const APP_RUNTIME_PROFILE_ENV_KEY = 'APP_RUNTIME_PROFILE';
-const APP_LOG_ROOT_DIR_ENV_KEY = 'APP_LOG_ROOT_DIR';
-const APP_ENABLE_PROCESS_HOOKS_ENV_KEY = 'APP_ENABLE_PROCESS_HOOKS';
-
-const DEFAULT_APP_PROFILE = 'app';
-const TEST_PROFILE = 'test';
-const APP_PROFILE = 'app';
-
-type RuntimeProfile = 'app' | 'test';
+import { RUNTIME } from '../constants/index.js';
+import type { RuntimeProfile } from '../types/runtime.js';
 
 /**
  * 解析布尔环境变量字符串。
@@ -39,18 +31,18 @@ function parseBooleanEnv(value: string | undefined): boolean | null {
  * @returns 运行时档位（'app' | 'test'）
  */
 export function resolveRuntimeProfile(env: NodeJS.ProcessEnv): RuntimeProfile {
-  const explicitProfile = env[APP_RUNTIME_PROFILE_ENV_KEY]?.trim().toLowerCase();
-  if (explicitProfile === TEST_PROFILE) {
-    return 'test';
+  const explicitProfile = env[RUNTIME.PROFILE_ENV_KEY]?.trim().toLowerCase();
+  if (explicitProfile === RUNTIME.TEST_PROFILE) {
+    return RUNTIME.TEST_PROFILE;
   }
-  if (explicitProfile === APP_PROFILE) {
-    return 'app';
+  if (explicitProfile === RUNTIME.APP_PROFILE) {
+    return RUNTIME.APP_PROFILE;
   }
 
   if (env['BUN_TEST'] === '1') {
-    return 'test';
+    return RUNTIME.TEST_PROFILE;
   }
-  return DEFAULT_APP_PROFILE;
+  return RUNTIME.APP_PROFILE;
 }
 
 /**
@@ -61,12 +53,12 @@ export function resolveRuntimeProfile(env: NodeJS.ProcessEnv): RuntimeProfile {
  * @returns 日志根目录绝对路径
  */
 export function resolveLogRootDir(env: NodeJS.ProcessEnv): string {
-  const configuredRootDir = env[APP_LOG_ROOT_DIR_ENV_KEY];
+  const configuredRootDir = env[RUNTIME.LOG_ROOT_DIR_ENV_KEY];
   if (typeof configuredRootDir === 'string' && configuredRootDir.trim() !== '') {
     return path.resolve(process.cwd(), configuredRootDir.trim());
   }
 
-  if (resolveRuntimeProfile(env) === 'test') {
+  if (resolveRuntimeProfile(env) === RUNTIME.TEST_PROFILE) {
     return path.join(process.cwd(), 'tests', 'logs');
   }
   return path.join(process.cwd(), 'logs');
@@ -80,9 +72,9 @@ export function resolveLogRootDir(env: NodeJS.ProcessEnv): string {
  * @returns true 表示启用进程级钩子
  */
 export function shouldInstallGlobalProcessHooks(env: NodeJS.ProcessEnv): boolean {
-  const explicit = parseBooleanEnv(env[APP_ENABLE_PROCESS_HOOKS_ENV_KEY]);
+  const explicit = parseBooleanEnv(env[RUNTIME.ENABLE_PROCESS_HOOKS_ENV_KEY]);
   if (explicit !== null) {
     return explicit;
   }
-  return resolveRuntimeProfile(env) === 'app';
+  return resolveRuntimeProfile(env) === RUNTIME.APP_PROFILE;
 }

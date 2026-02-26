@@ -102,6 +102,29 @@ function resolveUpdatedAtMs(updatedAt: unknown): number | null {
 }
 
 /**
+ * 类型保护：判断 unknown 是否为可索引对象。
+ *
+ * @param value 待判断值
+ * @returns true 表示可按键读取字段
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
+ * 从提交订单响应中提取订单 ID。
+ * @param response submitOrder 返回值
+ * @returns 订单ID，缺失时返回 null
+ */
+function resolveOrderIdFromSubmitResponse(response: unknown): string | null {
+  if (!isRecord(response)) {
+    return null;
+  }
+  const orderId = response['orderId'];
+  return typeof orderId === 'string' && orderId.length > 0 ? orderId : null;
+}
+
+/**
  * 创建订单监控器。
  * 订阅 WebSocket 订单推送、维护追踪订单列表、委托价跟随市价更新、超时转市价/撤单，成交后更新本地订单记录与浮亏刷新列表。
  * 订单状态与价格需实时响应，与 orderRecorder、dailyLossTracker、liquidationCooldownTracker 联动，统一在此处处理推送与副作用。
@@ -597,7 +620,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       }
       const resp = await ctx.submitOrder(marketOrderPayload);
 
-      const newOrderId = (resp as { orderId?: string } | null | undefined)?.orderId ?? 'UNKNOWN';
+      const newOrderId = resolveOrderIdFromSubmitResponse(resp) ?? 'UNKNOWN';
       const direction: 'LONG' | 'SHORT' = order.isLongSymbol ? 'LONG' : 'SHORT';
       const relatedBuyOrderIds =
         cancelledPending?.relatedBuyOrderIds ??

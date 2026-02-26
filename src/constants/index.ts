@@ -18,10 +18,26 @@ import type { OrderTypeConfig, SignalType } from '../types/signal.js';
 export const TIME = {
   /** 每秒的毫秒数 */
   MILLISECONDS_PER_SECOND: 1000,
+  /** 每分钟的毫秒数 */
+  MILLISECONDS_PER_MINUTE: 60 * 1000,
   /** 每日的毫秒数 */
   MILLISECONDS_PER_DAY: 24 * 60 * 60 * 1000,
   /** 香港时区偏移量（毫秒），用于 UTC 转香港时间 */
   HONG_KONG_TIMEZONE_OFFSET_MS: 8 * 60 * 60 * 1000,
+} as const;
+
+/** 运行时环境变量与档位常量 */
+export const RUNTIME = {
+  /** 环境变量：运行时档位（app/test） */
+  PROFILE_ENV_KEY: 'APP_RUNTIME_PROFILE',
+  /** 环境变量：日志根目录 */
+  LOG_ROOT_DIR_ENV_KEY: 'APP_LOG_ROOT_DIR',
+  /** 环境变量：是否安装进程级钩子 */
+  ENABLE_PROCESS_HOOKS_ENV_KEY: 'APP_ENABLE_PROCESS_HOOKS',
+  /** 正常运行档位 */
+  APP_PROFILE: 'app',
+  /** 测试运行档位 */
+  TEST_PROFILE: 'test',
 } as const;
 
 /** 港股日期键格式正则（YYYY-MM-DD），用于解析与校验 */
@@ -83,6 +99,12 @@ export const VERIFICATION = {
   VERIFIED_SIGNAL_COOLDOWN_SECONDS: 10,
 } as const;
 
+/** 延迟验证中允许无周期的固定指标集合 */
+export const VERIFICATION_FIXED_INDICATORS = new Set(['K', 'D', 'J', 'MACD', 'DIF', 'DEA']);
+
+/** 信号条件解析中允许无周期的固定指标集合（不含 RSI/PSY） */
+export const SIGNAL_CONFIG_SUPPORTED_INDICATORS = ['MFI', 'K', 'D', 'J'] as const;
+
 /** 日志相关常量，用于 pino 日志系统 */
 export const LOGGING = {
   /** 文件流 drain 超时时间（毫秒），程序退出时等待日志写入 */
@@ -110,6 +132,11 @@ export const LOG_COLORS = {
   green: '\x1b[32m',
   cyan: '\x1b[96m',
 } as const;
+
+/** ANSI 转义字符（ESC，ASCII 27） */
+export const LOG_ANSI_ESC = String.fromCodePoint(27);
+/** ANSI 颜色代码正则（ESC[...m） */
+export const LOG_ANSI_CODE_REGEX = new RegExp(LOG_ANSI_ESC + String.raw`\[[0-9;]*m`, 'g');
 
 /** 是否为调试模式（环境变量 DEBUG=true 时启用） */
 export const IS_DEBUG = process.env['DEBUG'] === 'true';
@@ -223,3 +250,10 @@ export const ACTION_DESCRIPTIONS: Record<SignalType, string> = {
   SELLPUT: '卖出做空',
   HOLD: '持有',
 };
+
+/** 订单归属解析常量（标准化规则 + 多空标记） */
+export const ORDER_OWNERSHIP = {
+  NORMALIZE_PATTERN: /[^\p{L}\p{N}]/gu,
+  LONG_MARKERS: ['RC', 'BULL', 'CALL', '\u725b'],
+  SHORT_MARKERS: ['RP', 'BEAR', 'PUT', '\u718a'],
+} as const;

@@ -10,7 +10,7 @@ import {
   calculateTradingDurationMsBetween,
   isOrderTimedOut,
 } from '../../src/utils/helpers/tradingTime.js';
-import type { TradingCalendarSnapshot } from '../../src/utils/helpers/types.js';
+import type { TradingCalendarSnapshot } from '../../src/types/tradingCalendar.js';
 
 function createCalendar(
   entries: ReadonlyArray<[string, { isTradingDay: boolean; isHalfDay: boolean }]>,

@@ -14,8 +14,36 @@ import { logger } from '../../utils/logger/index.js';
 import { decimalToNumber, formatError } from '../../utils/helpers/index.js';
 import { PENDING_ORDER_STATUSES, API } from '../../constants/index.js';
 import type { PendingOrder } from '../../types/services.js';
-import type { DecimalLikeValue } from '../../types/common.js';
 import type { OrderCacheManager, OrderCacheManagerDeps } from './types.js';
+
+/**
+ * 类型保护：判断 unknown 是否为可索引对象。
+ *
+ * @param value 待判断值
+ * @returns true 表示 value 可按键访问
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
+ * 将订单原始数值字段安全转换为 number。
+ *
+ * @param value 原始订单字段值
+ * @returns 数字结果；不支持的类型返回 NaN
+ */
+function toOrderNumber(value: unknown): number {
+  if (value === null || value === undefined || typeof value === 'number' || typeof value === 'string') {
+    return decimalToNumber(value);
+  }
+  if (isRecord(value) && typeof value['toNumber'] === 'function') {
+    const toNumberFn = value['toNumber'];
+    if (typeof toNumberFn === 'function') {
+      return decimalToNumber({ toNumber: () => Number(toNumberFn.call(value)) });
+    }
+  }
+  return Number.NaN;
+}
 
 /**
  * 创建订单缓存管理器。
@@ -86,15 +114,14 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
       }> = [];
 
       function isValidTodayOrder(order: unknown): order is (typeof allOrders)[number] {
-        if (typeof order !== 'object' || order === null) {
+        if (!isRecord(order)) {
           return false;
         }
-        const obj = order as Record<string, unknown>;
         return (
-          typeof obj['orderId'] === 'string' &&
-          typeof obj['symbol'] === 'string' &&
-          typeof obj['side'] === 'string' &&
-          typeof obj['status'] === 'string'
+          typeof order['orderId'] === 'string' &&
+          typeof order['symbol'] === 'string' &&
+          typeof order['side'] === 'string' &&
+          typeof order['status'] === 'string'
         );
       }
 
@@ -127,9 +154,9 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
           orderId: order.orderId,
           symbol: order.symbol,
           side: order.side,
-          submittedPrice: decimalToNumber(order.price as DecimalLikeValue),
-          quantity: decimalToNumber(order.quantity as DecimalLikeValue),
-          executedQuantity: decimalToNumber(order.executedQuantity as DecimalLikeValue),
+          submittedPrice: toOrderNumber(order.price),
+          quantity: toOrderNumber(order.quantity),
+          executedQuantity: toOrderNumber(order.executedQuantity),
           status: order.status,
           orderType: order.orderType,
           _rawOrder: order,

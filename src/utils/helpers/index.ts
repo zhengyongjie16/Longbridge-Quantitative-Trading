@@ -10,6 +10,34 @@ import { logger } from '../logger/index.js';
 import { kdjObjectPool, macdObjectPool, periodRecordPool } from '../objectPool/index.js';
 
 /**
+ * 类型保护：判断 unknown 是否为可索引对象。
+ *
+ * @param value 待判断值
+ * @returns true 表示可按键读取
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
+ * 类型保护：判断 unknown 是否为数值周期字典（Record<number, number>）。
+ *
+ * @param value 待判断值
+ * @returns true 表示可作为 periodRecordPool 的对象
+ */
+function isPeriodRecord(value: unknown): value is Record<number, number> {
+  if (!isRecord(value)) {
+    return false;
+  }
+  for (const propertyValue of Object.values(value)) {
+    if (typeof propertyValue !== 'number') {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
  * 检查值是否已定义（不是 null 或 undefined）。默认行为：无。
  *
  * @param value 待检查的值
@@ -34,16 +62,14 @@ function isError(value: unknown): value is Error {
  * @returns 如果对象包含常见错误属性（message/error/msg）返回 true，同时收窄类型为 Record<string, unknown>
  */
 function isErrorLike(value: unknown): value is Record<string, unknown> {
-  if (typeof value !== 'object' || value === null) {
+  if (!isRecord(value)) {
     return false;
   }
-  // 类型收窄：已确认 value 是 object 且非 null，使用类型断言转换为 Record
-  const obj = value as Record<string, unknown>;
   return (
-    typeof obj['message'] === 'string' ||
-    typeof obj['error'] === 'string' ||
-    typeof obj['msg'] === 'string' ||
-    typeof obj['code'] === 'string'
+    typeof value['message'] === 'string' ||
+    typeof value['error'] === 'string' ||
+    typeof value['msg'] === 'string' ||
+    typeof value['code'] === 'string'
   );
 }
 
@@ -443,8 +469,10 @@ export function releaseSnapshotObjects(
     if (!snapshotRecord || monitorRecord === snapshotRecord) {
       return;
     }
-    // snapshot 中的周期记录来自 periodRecordPool，可安全回收到池中复用
-    periodRecordPool.release(snapshotRecord as Record<number, number>);
+    if (isPeriodRecord(snapshotRecord)) {
+      // snapshot 中的周期记录来自 periodRecordPool，可安全回收到池中复用
+      periodRecordPool.release(snapshotRecord);
+    }
   };
 
   // 释放周期指标对象（如果它们没有被 monitorValues 引用）

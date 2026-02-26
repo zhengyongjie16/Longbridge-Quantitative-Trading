@@ -4,7 +4,7 @@ import type { Signal } from '../../types/signal.js';
 import type { MultiMonitorTradingConfig } from '../../types/config.js';
 import type { OrderRecorder, RiskCheckContext } from '../../types/services.js';
 import type { LiquidationCooldownTracker } from '../../services/liquidationCooldown/types.js';
-import type { TradingCalendarSnapshot } from '../../utils/helpers/types.js';
+import type { TradingCalendarSnapshot } from '../../types/tradingCalendar.js';
 
 // ==================== 结果类型定义 ====================
 

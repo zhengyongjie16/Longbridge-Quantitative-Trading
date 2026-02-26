@@ -140,9 +140,10 @@ export const createUnrealizedLossChecker = (
       return Promise.resolve({ r1: adjustedR1, n1 });
     } catch (error) {
       const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(
         `[浮亏监控] 刷新标的 ${symbolDisplay} 的浮亏数据失败`,
-        (error as Error).message || String(error),
+        errorMessage,
       );
       return Promise.resolve(null);
     }

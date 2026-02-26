@@ -11,7 +11,7 @@ import type {
   Trader,
 } from '../../types/services.js';
 import type { Logger } from '../../utils/logger/types.js';
-import type { TradingCalendarSnapshot } from '../../utils/helpers/types.js';
+import type { TradingCalendarSnapshot } from '../../types/tradingCalendar.js';
 import type { ObjectPool, PoolableSignal } from '../../utils/objectPool/types.js';
 import type {
   FindBestWarrantInput,

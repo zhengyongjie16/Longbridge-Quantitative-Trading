@@ -102,7 +102,7 @@ export const createHangSengMultiIndicatorStrategy = ({
    * @param signalType 信号类型（BUYCALL/SELLCALL/BUYPUT/SELLPUT）
    * @returns 对应的 SignalConfig，无配置时返回 null
    */
-  const getSignalConfigForType = (signalType: string): SignalConfig | null => {
+  const getSignalConfigForType = (signalType: SignalType): SignalConfig | null => {
     switch (signalType) {
       case 'BUYCALL':
         return finalSignalConfig.buycall ?? null;
@@ -112,6 +112,8 @@ export const createHangSengMultiIndicatorStrategy = ({
         return finalSignalConfig.buyput ?? null;
       case 'SELLPUT':
         return finalSignalConfig.sellput ?? null;
+      case 'HOLD':
+        return null;
       default:
         return null;
     }
@@ -133,7 +135,7 @@ export const createHangSengMultiIndicatorStrategy = ({
   const generateSignal = (
     state: IndicatorSnapshot,
     symbol: string,
-    action: string,
+    action: SignalType,
     reasonPrefix: string,
     orderRecorder: OrderRecorder | null,
     isLongSymbol: boolean,
@@ -146,7 +148,7 @@ export const createHangSengMultiIndicatorStrategy = ({
 
     // 对于卖出信号，先检查订单记录中是否有买入订单记录
     // 如果有买入订单记录，进入验证阶段；如果没有，不生成卖出信号
-    if (isSellAction(action as SignalType)) {
+    if (isSellAction(action)) {
       if (!orderRecorder) {
         logger.debug(`[策略] ${symbol} ${action} 订单记录不可用，不生成卖出信号`);
         return null;
@@ -174,7 +176,7 @@ export const createHangSengMultiIndicatorStrategy = ({
     }
 
     // 判断是买入还是卖出信号
-    const isBuySignal = isBuyAction(action as SignalType);
+    const isBuySignal = isBuyAction(action);
     const currentVerificationConfig = isBuySignal
       ? finalVerificationConfig.buy
       : finalVerificationConfig.sell;
@@ -189,7 +191,7 @@ export const createHangSengMultiIndicatorStrategy = ({
       // 从对象池获取信号对象
       const signal = signalObjectPool.acquire() as Signal;
       signal.symbol = symbol;
-      signal.action = action as SignalType;
+      signal.action = action;
       signal.triggerTime = new Date(); // 立即信号的触发时间为当前时间
       signal.indicators1 = null;
       signal.verificationHistory = null;
@@ -232,7 +234,7 @@ export const createHangSengMultiIndicatorStrategy = ({
     // 从对象池获取信号对象
     const signal = signalObjectPool.acquire() as Signal;
     signal.symbol = symbol;
-    signal.action = action as SignalType;
+    signal.action = action;
     signal.triggerTime = triggerTime;
     signal.indicators1 = indicators1;
     signal.verificationHistory = [];

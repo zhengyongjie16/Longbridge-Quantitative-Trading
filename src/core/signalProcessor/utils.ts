@@ -2,7 +2,7 @@ import type { Position } from '../../types/account.js';
 import type { Quote } from '../../types/quote.js';
 import type { OrderRecorder } from '../../types/services.js';
 import type { SellContextValidationResult } from './types.js';
-import type { TradingCalendarSnapshot } from '../../utils/helpers/types.js';
+import type { TradingCalendarSnapshot } from '../../types/tradingCalendar.js';
 
 /**
  * 类型保护：验证持仓和行情数据是否满足卖出条件（内部辅助函数）。

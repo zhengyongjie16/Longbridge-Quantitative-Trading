@@ -26,7 +26,7 @@ import type { Position } from '../../types/account.js';
 import type { Quote } from '../../types/quote.js';
 import type { OrderRecorder } from '../../types/services.js';
 import type { ProcessSellSignalsParams } from './types.js';
-import type { TradingCalendarSnapshot } from '../../utils/helpers/types.js';
+import type { TradingCalendarSnapshot } from '../../types/tradingCalendar.js';
 
 /**
  * 计算卖出信号的数量和原因

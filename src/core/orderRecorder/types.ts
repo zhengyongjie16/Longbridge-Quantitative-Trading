@@ -1,7 +1,7 @@
 import type { TradeContext } from 'longport';
 import type { Quote } from '../../types/quote.js';
 import type { OrderRecord, RateLimiter, RawOrderFromAPI } from '../../types/services.js';
-import type { TradingCalendarSnapshot } from '../../utils/helpers/types.js';
+import type { TradingCalendarSnapshot } from '../../types/tradingCalendar.js';
 
 /**
  * 订单缓存类型。

@@ -12,7 +12,7 @@ import type {
   SellableOrderResult,
   SellableOrderSelectParams,
 } from '../../../src/core/orderRecorder/types.js';
-import type { TradingCalendarSnapshot } from '../../../src/utils/helpers/types.js';
+import type { TradingCalendarSnapshot } from '../../../src/types/tradingCalendar.js';
 
 function makeOrder(orderId: string, price: number, quantity: number): OrderRecord {
   return {

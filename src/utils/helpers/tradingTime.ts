@@ -2,16 +2,10 @@ import { HK_DATE_KEY_PATTERN, TIME } from '../../constants/index.js';
 import type {
   HKTime,
   OrderTimeoutCheckParams,
+  SessionRange,
   TradingCalendarDayInfo,
   TradingDurationBetweenParams,
-} from './types.js';
-
-const MS_PER_MINUTE = 60_000;
-
-type SessionRange = Readonly<{
-  startMs: number;
-  endMs: number;
-}>;
+} from '../../types/tradingCalendar.js';
 
 /**
  * 将 UTC 时间转换为香港时区（UTC+8）的小时与分钟。默认行为：date 为 null/undefined 时返回 null。
@@ -294,7 +288,7 @@ export function isOrderTimedOut(params: OrderTimeoutCheckParams): boolean {
     return false;
   }
 
-  const timeoutMs = timeoutMinutes * MS_PER_MINUTE;
+  const timeoutMs = timeoutMinutes * TIME.MILLISECONDS_PER_MINUTE;
   const heldTradingMs = calculateHeldTradingDurationMs({
     startMs: orderExecutedTimeMs,
     endMs: nowMs,
@@ -372,8 +366,8 @@ function resolveSessionRangesByDay(
   dayInfo: TradingCalendarDayInfo,
 ): ReadonlyArray<SessionRange> {
   const morningSession: SessionRange = {
-    startMs: dayStartUtcMs + (9 * 60 + 30) * MS_PER_MINUTE,
-    endMs: dayStartUtcMs + 12 * 60 * MS_PER_MINUTE,
+    startMs: dayStartUtcMs + (9 * 60 + 30) * TIME.MILLISECONDS_PER_MINUTE,
+    endMs: dayStartUtcMs + 12 * 60 * TIME.MILLISECONDS_PER_MINUTE,
   };
 
   if (dayInfo.isHalfDay) {
@@ -381,8 +375,8 @@ function resolveSessionRangesByDay(
   }
 
   const afternoonSession: SessionRange = {
-    startMs: dayStartUtcMs + 13 * 60 * MS_PER_MINUTE,
-    endMs: dayStartUtcMs + 16 * 60 * MS_PER_MINUTE,
+    startMs: dayStartUtcMs + 13 * 60 * TIME.MILLISECONDS_PER_MINUTE,
+    endMs: dayStartUtcMs + 16 * 60 * TIME.MILLISECONDS_PER_MINUTE,
   };
 
   return [morningSession, afternoonSession];
