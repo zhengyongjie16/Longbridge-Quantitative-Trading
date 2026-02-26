@@ -50,7 +50,12 @@ function isCandleObjectValue(value: unknown): value is { toString: () => string 
  * @returns 规范后的 CandleValue
  */
 function normalizeCandleValue(value: unknown): CandleData['close'] {
-  if (value === null || value === undefined || typeof value === 'number' || typeof value === 'string') {
+  if (
+    value === null ||
+    value === undefined ||
+    typeof value === 'number' ||
+    typeof value === 'string'
+  ) {
     return value;
   }
   if (isCandleObjectValue(value)) {

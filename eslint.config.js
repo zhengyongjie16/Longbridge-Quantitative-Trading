@@ -114,14 +114,16 @@ export default defineConfig(
       // 循环与控制流
       'default-case': 'error',
       'default-case-last': 'error',
-      'max-depth': ['warn', { max: 5 }],
+      'no-unreachable': 'error',
+      'no-unreachable-loop': 'error',
+      'max-depth': ['error', { max: 5 }],
 
       // 调试与全局
-      'no-debugger': 'warn',
+      'no-debugger': 'error',
       'no-caller': 'error',
 
       // 注释与代码卫生
-      'no-warning-comments': ['warn', { terms: ['todo', 'fixme'], location: 'anywhere' }],
+      'no-warning-comments': ['error', { terms: ['todo', 'fixme'], location: 'anywhere' }],
 
       // 对象与数组
       'no-dupe-keys': 'error',
@@ -150,7 +152,7 @@ export default defineConfig(
       // 项目风格约束
       'no-duplicate-imports': 'error',
       'no-nested-ternary': 'error',
-      'prefer-arrow-callback': 'warn',
+      'prefer-arrow-callback': 'error',
 
       // 索引访问表达优化
       'unicorn/prefer-at': [

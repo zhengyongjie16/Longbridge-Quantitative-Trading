@@ -33,7 +33,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * @returns 数字结果；不支持的类型返回 NaN
  */
 function toOrderNumber(value: unknown): number {
-  if (value === null || value === undefined || typeof value === 'number' || typeof value === 'string') {
+  if (
+    value === null ||
+    value === undefined ||
+    typeof value === 'number' ||
+    typeof value === 'string'
+  ) {
     return decimalToNumber(value);
   }
   if (isRecord(value) && typeof value['toNumber'] === 'function') {

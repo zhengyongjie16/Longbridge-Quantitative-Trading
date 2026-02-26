@@ -5,7 +5,11 @@ import { periodRecordPool } from '../../utils/objectPool/index.js';
 import type { CandleData, CandleValue } from '../../types/data.js';
 import type { IndicatorSnapshot } from '../../types/quote.js';
 import type { PoolableKDJ, PoolableMACD } from '../../utils/objectPool/types.js';
-import { validateRsiPeriod, validateEmaPeriod, validatePsyPeriod } from '../../utils/helpers/indicatorHelpers.js';
+import {
+  validateRsiPeriod,
+  validateEmaPeriod,
+  validatePsyPeriod,
+} from '../../utils/helpers/indicatorHelpers.js';
 import type { EmaStreamState } from './types.js';
 import { calculateEMA } from './ema.js';
 import { calculateKDJ } from './kdj.js';

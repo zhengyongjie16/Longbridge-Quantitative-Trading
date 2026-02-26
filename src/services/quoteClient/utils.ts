@@ -60,9 +60,7 @@ function isStaticInfo(value: unknown): value is StaticInfo {
   function isNullableStringProperty(propertyKey: 'nameHk' | 'nameCn' | 'nameEn'): boolean {
     const propertyValue: unknown = valueRecord[propertyKey];
     return (
-      propertyValue === undefined ||
-      propertyValue === null ||
-      typeof propertyValue === 'string'
+      propertyValue === undefined || propertyValue === null || typeof propertyValue === 'string'
     );
   }
 

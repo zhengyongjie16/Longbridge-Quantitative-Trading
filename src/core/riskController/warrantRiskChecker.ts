@@ -23,11 +23,7 @@ import type {
   WarrantDistanceLiquidationResult,
   WarrantRefreshResult,
 } from '../../types/services.js';
-import type {
-  WarrantInfo,
-  WarrantRiskChecker,
-  WarrantRiskCheckerDeps,
-} from './types.js';
+import type { WarrantInfo, WarrantRiskChecker, WarrantRiskCheckerDeps } from './types.js';
 import {
   BULL_WARRANT_MIN_DISTANCE_PERCENT,
   BEAR_WARRANT_MAX_DISTANCE_PERCENT,
@@ -366,8 +362,7 @@ async function checkWarrantType(
     isWarrant: true,
     warrantType,
     callPrice,
-    category:
-      typeof category === 'number' || typeof category === 'string' ? category : 'UNKNOWN',
+    category: typeof category === 'number' || typeof category === 'string' ? category : 'UNKNOWN',
     symbol,
   };
 }

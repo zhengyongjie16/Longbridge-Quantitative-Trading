@@ -460,8 +460,6 @@ export function getIndicatorValue(
     default:
       return null;
   }
-
-  return null;
 }
 
 /**
@@ -541,7 +539,7 @@ export function computeMinuteRows(
     return { rows: [], todayDate: '' };
   }
 
-  const lastCandle = allCandles[allCandles.length - 1];
+  const lastCandle = allCandles.at(-1);
   if (lastCandle === undefined) {
     return { rows: [], todayDate: '' };
   }
