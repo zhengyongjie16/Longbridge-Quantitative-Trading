@@ -10,8 +10,6 @@ import type { LoadTradingDayRuntimeSnapshotDeps } from '../../../src/main/lifecy
 import type { LastState } from '../../../src/types/state.js';
 import type { MultiMonitorTradingConfig } from '../../../src/types/config.js';
 import type { SymbolRegistry } from '../../../src/types/seat.js';
-import { getHKDateKey, listHKDateKeysBetween } from '../../../src/utils/helpers/tradingTime.js';
-import type { RawOrderFromAPI, TradingDaysResult } from '../../../src/types/services.js';
 
 function createMinimalLastState(): LastState {
   return {
@@ -109,10 +107,8 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
       trader: {
         getAccountSnapshot: async () => ({}),
         getStockPositions: async () => [],
-        orderRecorder: {
-          fetchAllOrdersFromAPI: async () => {
-            throw new Error('API 超时');
-          },
+        fetchAllOrdersFromAPI: async () => {
+          throw new Error('API 超时');
         },
         seedOrderHoldSymbols: () => {},
         getOrderHoldSymbols: () => new Set<string>(),
@@ -141,26 +137,9 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
     ).rejects.toThrow(/全量订单获取失败/);
   });
 
-  it('会从最早订单日期开始预热交易日历快照，不截断历史区间', async () => {
+  it('load 阶段不再承担交易日历预热职责', async () => {
     const now = new Date('2026-02-25T03:00:00.000Z');
-    const earliestOrderTime = new Date('2025-01-01T01:30:00.000Z');
-    const oldestDateKey = getHKDateKey(earliestOrderTime);
-    const tradingDayCalls: Array<{ startDate: Date; endDate: Date }> = [];
-
-    const rawOrder = {
-      orderId: 'ORDER-001',
-      symbol: 'BULL.HK',
-      stockName: 'Bull',
-      side: 'Buy',
-      status: 'Filled',
-      orderType: 'LO',
-      price: 1,
-      quantity: 100,
-      executedPrice: 1,
-      executedQuantity: 100,
-      submittedAt: earliestOrderTime,
-      updatedAt: earliestOrderTime,
-    } as unknown as RawOrderFromAPI;
+    let getTradingDaysCalls = 0;
 
     const lastState = createMinimalLastState();
     const deps = {
@@ -171,10 +150,10 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
         subscribeCandlesticks: async () => [],
         resetRuntimeSubscriptionsAndCaches: async () => {},
         isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
-        getTradingDays: async (startDate: Date, endDate: Date): Promise<TradingDaysResult> => {
-          tradingDayCalls.push({ startDate, endDate });
+        getTradingDays: async () => {
+          getTradingDaysCalls += 1;
           return {
-            tradingDays: listHKDateKeysBetween(startDate.getTime(), endDate.getTime()),
+            tradingDays: [],
             halfTradingDays: [],
           };
         },
@@ -182,7 +161,7 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
       trader: {
         getAccountSnapshot: async () => ({}),
         getStockPositions: async () => [],
-        fetchAllOrdersFromAPI: async () => [rawOrder],
+        fetchAllOrdersFromAPI: async () => [],
         seedOrderHoldSymbols: () => {},
         getOrderHoldSymbols: () => new Set<string>(),
       },
@@ -205,14 +184,7 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
       forceOrderRefresh: false,
     });
 
-    expect(tradingDayCalls.length).toBeGreaterThan(0);
-    const earliestRequestedMs = Math.min(
-      ...tradingDayCalls.map((call) => call.startDate.getTime()),
-    );
-    expect(earliestRequestedMs).toBeLessThanOrEqual(earliestOrderTime.getTime());
-    expect(oldestDateKey).not.toBeNull();
-    if (oldestDateKey) {
-      expect(lastState.tradingCalendarSnapshot?.has(oldestDateKey)).toBe(true);
-    }
+    expect(getTradingDaysCalls).toBe(0);
+    expect(lastState.tradingCalendarSnapshot).toBeUndefined();
   });
 });

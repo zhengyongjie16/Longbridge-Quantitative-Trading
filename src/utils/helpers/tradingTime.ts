@@ -1,4 +1,4 @@
-import { TIME } from '../../constants/index.js';
+import { HK_DATE_KEY_PATTERN, TIME } from '../../constants/index.js';
 import type {
   HKTime,
   OrderTimeoutCheckParams,
@@ -6,10 +6,7 @@ import type {
   TradingDurationBetweenParams,
 } from './types.js';
 
-const MINUTES_PER_DAY = 24 * 60;
 const MS_PER_MINUTE = 60_000;
-const MS_PER_DAY = MINUTES_PER_DAY * MS_PER_MINUTE;
-const HK_DATE_KEY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 type SessionRange = Readonly<{
   startMs: number;
@@ -258,7 +255,7 @@ export function calculateTradingDurationMsBetween(params: TradingDurationBetween
       break;
     }
 
-    const nextDayStartUtcMs = dayStartUtcMs + MS_PER_DAY;
+    const nextDayStartUtcMs = dayStartUtcMs + TIME.MILLISECONDS_PER_DAY;
     const segmentEndMs = Math.min(endMs, nextDayStartUtcMs);
 
     const dayInfo = calendarSnapshot.get(dayKey);
@@ -334,7 +331,7 @@ export function listHKDateKeysBetween(startMs: number, endMs: number): ReadonlyA
   for (
     let cursorDayStartUtcMs = startDayStartUtcMs;
     cursorDayStartUtcMs <= endDayStartUtcMs;
-    cursorDayStartUtcMs += MS_PER_DAY
+    cursorDayStartUtcMs += TIME.MILLISECONDS_PER_DAY
   ) {
     const key = getHKDateKey(new Date(cursorDayStartUtcMs));
     if (key) {

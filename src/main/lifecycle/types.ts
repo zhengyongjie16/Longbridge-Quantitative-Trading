@@ -107,6 +107,7 @@ export type RebuildTradingDayStateDeps = Readonly<{
 export type RebuildTradingDayStateParams = Readonly<{
   allOrders: ReadonlyArray<RawOrderFromAPI>;
   quotesMap: ReadonlyMap<string, Quote | null>;
+  now?: Date;
 }>;
 
 /**
@@ -150,4 +151,36 @@ export type LoadTradingDayRuntimeSnapshotDeps = Readonly<{
   dailyLossTracker: DailyLossTracker;
   tradeLogHydrator: TradeLogHydrator;
   warrantListCacheConfig: WarrantListCacheConfig;
+}>;
+
+/** 交易日历预热错误码 */
+export type TradingCalendarPrewarmErrorCode =
+  | 'TRADING_CALENDAR_LOOKBACK_EXCEEDED'
+  | 'TRADING_CALENDAR_INVALID_DATE_KEY';
+
+/** 交易日历预热错误上下文（便于日志与告警） */
+export type TradingCalendarPrewarmErrorDetails = Readonly<
+  Record<string, string | number | boolean | null>
+>;
+
+/** 交易日历预热错误构造参数 */
+export type TradingCalendarPrewarmErrorParams = Readonly<{
+  code: TradingCalendarPrewarmErrorCode;
+  message: string;
+  details: TradingCalendarPrewarmErrorDetails;
+}>;
+
+/** 按自然月分块时的单块日期区间 */
+export type DateRangeChunk = Readonly<{
+  startKey: string;
+  endKey: string;
+  dateKeys: ReadonlyArray<string>;
+}>;
+
+/** 重建阶段预热交易日历快照的入参 */
+export type PrewarmTradingCalendarSnapshotParams = Readonly<{
+  marketDataClient: MarketDataClient;
+  lastState: LastState;
+  monitorContexts: ReadonlyMap<string, MonitorContext>;
+  now: Date;
 }>;

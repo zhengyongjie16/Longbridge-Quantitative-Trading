@@ -18,9 +18,14 @@ import type { OrderTypeConfig, SignalType } from '../types/signal.js';
 export const TIME = {
   /** 每秒的毫秒数 */
   MILLISECONDS_PER_SECOND: 1000,
+  /** 每日的毫秒数 */
+  MILLISECONDS_PER_DAY: 24 * 60 * 60 * 1000,
   /** 香港时区偏移量（毫秒），用于 UTC 转香港时间 */
   HONG_KONG_TIMEZONE_OFFSET_MS: 8 * 60 * 60 * 1000,
 } as const;
+
+/** 港股日期键格式正则（YYYY-MM-DD），用于解析与校验 */
+export const HK_DATE_KEY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 /** 交易相关常量 */
 export const TRADING = {
@@ -48,6 +53,12 @@ export const LIFECYCLE = {
   DEFAULT_REBUILD_RETRY_DELAY_MS: 30_000,
   /** 指数退避最大倍数，避免重试间隔无限增大 */
   MAX_RETRY_BACKOFF_FACTOR: 16,
+  /** 交易日历预热向前看天数（需求窗口右边界） */
+  CALENDAR_PREWARM_LOOKAHEAD_DAYS: 7,
+  /** 交易日历预热无仍持仓时回退回看天数 */
+  CALENDAR_PREWARM_FALLBACK_LOOKBACK_DAYS: 14,
+  /** 交易日历接口最大回看天数（超出则抛错阻断重建） */
+  CALENDAR_API_MAX_LOOKBACK_DAYS: 365,
 } as const;
 
 /** 指标默认周期常量 */

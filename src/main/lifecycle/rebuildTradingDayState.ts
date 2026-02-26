@@ -7,10 +7,11 @@
  * 重建流程（按顺序执行）：
  * 1. 同步所有监控标的的席位快照和行情数据到 MonitorContext
  * 2. 重建订单记录（从全量订单 API 数据中恢复）
- * 3. 重建牛熊证风险缓存（收回价等关键风控数据）
- * 4. 重建浮亏缓存（结合当日已实现亏损偏移量）
- * 5. 恢复订单追踪状态
- * 6. 展示账户和持仓信息
+ * 3. 预热交易日历快照（基于仍持仓订单需求窗口）
+ * 4. 重建牛熊证风险缓存（收回价等关键风控数据）
+ * 5. 重建浮亏缓存（结合当日已实现亏损偏移量）
+ * 6. 恢复订单追踪状态
+ * 7. 展示账户和持仓信息
  *
  * 错误处理：
  * - 任一步骤失败即整体抛出，由生命周期管理器负责重试
@@ -23,6 +24,7 @@ import type { SymbolRegistry } from '../../types/seat.js';
 import type { MarketDataClient, RawOrderFromAPI } from '../../types/services.js';
 import type { DailyLossTracker } from '../../core/riskController/types.js';
 import type { RebuildTradingDayStateDeps, RebuildTradingDayStateParams } from './types.js';
+import { prewarmTradingCalendarSnapshotForRebuild } from './tradingCalendarPrewarmer.js';
 
 /**
  * 将席位状态和行情数据同步到单个 MonitorContext。
@@ -240,19 +242,25 @@ export function createRebuildTradingDayState(
   } = deps;
 
   /**
-   * 重建交易日运行时状态：同步席位/行情 → 重建订单记录 → 重建风险缓存
-   * → 重建浮亏缓存 → 恢复订单追踪 → 展示账户持仓。
+   * 重建交易日运行时状态：同步席位/行情 → 重建订单记录 → 预热交易日历
+   * → 重建风险缓存 → 重建浮亏缓存 → 恢复订单追踪 → 展示账户持仓。
    * 任一步骤失败即整体抛出，由生命周期管理器负责重试。
    */
   return async function rebuildTradingDayState(
     params: RebuildTradingDayStateParams,
   ): Promise<void> {
-    const { allOrders, quotesMap } = params;
+    const { allOrders, quotesMap, now = new Date() } = params;
 
     syncAllMonitorContexts(monitorContexts, symbolRegistry, quotesMap);
 
     try {
       await rebuildOrderRecords(monitorContexts, allOrders);
+      await prewarmTradingCalendarSnapshotForRebuild({
+        marketDataClient,
+        lastState,
+        monitorContexts,
+        now,
+      });
       await rebuildWarrantRiskCache(marketDataClient, monitorContexts);
       await rebuildUnrealizedLossCache(monitorContexts, dailyLossTracker);
       await trader.recoverOrderTracking();
