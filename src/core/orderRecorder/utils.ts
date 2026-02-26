@@ -1,7 +1,8 @@
 import { OrderSide, OrderStatus } from 'longport';
+import { PENDING_ORDER_STATUSES } from '../../constants/index.js';
 import { decimalToNumber } from '../../utils/helpers/index.js';
 import type { OrderRecord, RawOrderFromAPI } from '../../types/services.js';
-import type { OrderStatistics } from './types.js';
+import type { OrderRebuildClassification, OrderStatistics } from './types.js';
 
 /**
  * 计算订单列表的统计信息（用于调试输出与成本均价计算）。
@@ -114,4 +115,62 @@ export function classifyAndConvertOrders(orders: ReadonlyArray<RawOrderFromAPI>)
   }
 
   return { buyOrders, sellOrders };
+}
+
+/**
+ * 启动/重建阶段对单标的全量订单做统一分类与分流。
+ * 默认行为：
+ * - Filled 订单会转换为 OrderRecord 参与重建（无效价格/数量/时间会被跳过）
+ * - Pending 订单保留原始结构，交由恢复阶段继续跟踪或撤单
+ * - 其他关闭状态（Canceled/Rejected 等）直接忽略
+ *
+ * @param orders 单标的全量订单
+ * @returns Filled/Pending 按买卖方向分流后的分类结果
+ */
+export function classifyOrdersForRebuild(
+  orders: ReadonlyArray<RawOrderFromAPI>,
+): OrderRebuildClassification {
+  const filledBuyOrders: OrderRecord[] = [];
+  const filledSellOrders: OrderRecord[] = [];
+  const pendingBuyOrders: RawOrderFromAPI[] = [];
+  const pendingSellOrders: RawOrderFromAPI[] = [];
+
+  for (const order of orders) {
+    if (order.status === OrderStatus.Filled) {
+      const isBuyOrder = order.side === OrderSide.Buy;
+      const isSellOrder = order.side === OrderSide.Sell;
+      if (!isBuyOrder && !isSellOrder) {
+        continue;
+      }
+      const converted = convertOrderToRecord(order, isBuyOrder);
+      if (!converted) {
+        continue;
+      }
+      if (isBuyOrder) {
+        filledBuyOrders.push(converted);
+      } else {
+        filledSellOrders.push(converted);
+      }
+      continue;
+    }
+
+    if (!PENDING_ORDER_STATUSES.has(order.status)) {
+      continue;
+    }
+
+    if (order.side === OrderSide.Buy) {
+      pendingBuyOrders.push(order);
+      continue;
+    }
+    if (order.side === OrderSide.Sell) {
+      pendingSellOrders.push(order);
+    }
+  }
+
+  return {
+    filledBuyOrders,
+    filledSellOrders,
+    pendingBuyOrders,
+    pendingSellOrders,
+  };
 }

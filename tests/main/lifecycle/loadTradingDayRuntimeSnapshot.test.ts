@@ -37,7 +37,9 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
       marketDataClient: {
         isTradingDay: async () => ({ isTradingDay: false, isHalfDay: false }),
       },
-      trader: {},
+      trader: {
+        initializeOrderMonitor: async () => {},
+      },
       lastState,
       tradingConfig: { monitors: [], global: {} } as unknown as MultiMonitorTradingConfig,
       symbolRegistry: {} as SymbolRegistry,
@@ -67,6 +69,7 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
     const deps = {
       marketDataClient: { isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }) },
       trader: {
+        initializeOrderMonitor: async () => {},
         getAccountSnapshot: async () => null,
         getStockPositions: async () => [],
         orderRecorder: {},
@@ -105,6 +108,7 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
     const deps = {
       marketDataClient: { isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }) },
       trader: {
+        initializeOrderMonitor: async () => {},
         getAccountSnapshot: async () => ({}),
         getStockPositions: async () => [],
         fetchAllOrdersFromAPI: async () => {
@@ -159,6 +163,7 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
         },
       },
       trader: {
+        initializeOrderMonitor: async () => {},
         getAccountSnapshot: async () => ({}),
         getStockPositions: async () => [],
         fetchAllOrdersFromAPI: async () => [],

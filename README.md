@@ -374,6 +374,7 @@ graph TD
 - [Longbridge OpenAPI Docs](https://open.longbridge.com/zh-CN/docs)
 - [Longbridge OpenAPI LLM Components Docs](https://open.longbridge.com/docs/llm)
 - [LongPort OpenAPI SDK for Node.js Docs](https://longportapp.github.io/openapi/nodejs/)
+- [OpenAI Codex Docs](https://developers.openai.com/codex)
 - [Claude Code Docs](https://code.claude.com/docs)
 - [Bun Apps Docs](https://bun.com/docs)
 - [Vibe Coding Guide CN](https://github.com/2025Emma/vibe-coding-cn)

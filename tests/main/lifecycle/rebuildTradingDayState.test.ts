@@ -128,7 +128,7 @@ function createRebuildDeps(
 ): RebuildTradingDayStateDeps {
   const tradingDayCalls: Array<{ startDate: Date; endDate: Date }> = [];
   const trader: Trader = {
-    recoverOrderTracking: async () => {},
+    recoverOrderTrackingFromSnapshot: async () => {},
   } as unknown as Trader;
 
   return {
@@ -146,7 +146,7 @@ function createRebuildDeps(
 }
 
 describe('createRebuildTradingDayState', () => {
-  it('无 READY 席位时仍调用 recoverOrderTracking 与 displayAccountAndPositions', async () => {
+  it('无 READY 席位时仍调用 recoverOrderTrackingFromSnapshot 与 displayAccountAndPositions', async () => {
     let recoverCalled = false;
     let displayCalled = false;
     const registry = createSymbolRegistry('EMPTY');
@@ -161,7 +161,7 @@ describe('createRebuildTradingDayState', () => {
     const deps = createRebuildDeps({
       symbolRegistry: registry,
       trader: {
-        recoverOrderTracking: async () => {
+        recoverOrderTrackingFromSnapshot: async () => {
           recoverCalled = true;
         },
       } as unknown as Trader,

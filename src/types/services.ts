@@ -261,6 +261,7 @@ export interface OrderRecorder {
     direction: 'LONG' | 'SHORT',
     quantity: number,
     relatedBuyOrderIds: readonly string[],
+    submittedAtMs?: number,
   ) => void;
   /** 标记卖出订单完全成交 */
   markSellFilled: (orderId: string) => PendingSellInfo | null;
@@ -268,6 +269,8 @@ export interface OrderRecorder {
   markSellPartialFilled: (orderId: string, filledQuantity: number) => PendingSellInfo | null;
   /** 标记卖出订单取消 */
   markSellCancelled: (orderId: string) => PendingSellInfo | null;
+  /** 获取待成交卖单快照（用于恢复一致性校验） */
+  getPendingSellSnapshot: () => ReadonlyArray<PendingSellInfo>;
   /** 恢复期：为待恢复的卖单分配关联买单 ID */
   allocateRelatedBuyOrderIdsForRecovery: (
     symbol: string,
@@ -315,6 +318,8 @@ export interface Trader {
   monitorAndManageOrders: (quotesMap: ReadonlyMap<string, Quote | null>) => Promise<void>;
   /** 获取并清空待刷新标的列表 */
   getAndClearPendingRefreshSymbols: () => ReadonlyArray<PendingRefreshSymbol>;
+  /** 初始化订单监控（WebSocket 订阅） */
+  initializeOrderMonitor: () => Promise<void>;
 
   // ========== 订单执行 ==========
 
@@ -326,8 +331,8 @@ export interface Trader {
   fetchAllOrdersFromAPI: (forceRefresh?: boolean) => Promise<ReadonlyArray<RawOrderFromAPI>>;
   /** 生命周期午夜清理：重置订单运行态缓存 */
   resetRuntimeState: () => void;
-  /** 生命周期开盘重建：恢复订单追踪 */
-  recoverOrderTracking: () => Promise<void>;
+  /** 生命周期开盘重建：基于快照恢复订单追踪 */
+  recoverOrderTrackingFromSnapshot: (allOrders: ReadonlyArray<RawOrderFromAPI>) => Promise<void>;
   /** 执行交易信号；返回实际提交数量与订单 ID 列表（保护性清仓等仅在真正提交后才更新缓存） */
   executeSignals: (
     signals: Signal[],

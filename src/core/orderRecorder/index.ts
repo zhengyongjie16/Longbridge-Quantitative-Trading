@@ -33,11 +33,16 @@ import type { OrderRecord, OrderRecorder, RawOrderFromAPI } from '../../types/se
 import type {
   OrderRecorderDeps,
   OrderStatistics,
+  OrderRefreshResultLogParams,
+  PendingOrderClassificationForRebuild,
   PendingSellInfo,
   SellableOrderResult,
   SellableOrderSelectParams,
 } from './types.js';
-import { calculateOrderStatistics, classifyAndConvertOrders } from './utils.js';
+import {
+  calculateOrderStatistics,
+  classifyOrdersForRebuild,
+} from './utils.js';
 
 /**
  * 验证订单参数有效性
@@ -57,34 +62,33 @@ function validateOrderParams(price: number, quantity: number, symbol: string): b
 }
 
 /**
- * 记录订单刷新结果日志
- * @param symbol - 标的代码
- * @param isLongSymbol - 是否为做多标的
- * @param originalBuyCount - 历史买入订单数量
- * @param sellCount - 历史卖出订单数量
- * @param recordedCount - 最终记录数量
- * @param extraInfo - 额外信息（可选）
- * @param quote - 行情数据（可选）
+ * 记录订单刷新结果日志。
+ * @param params 日志参数（含买卖历史统计、最终记录数与待成交分类）
  */
-function logRefreshResult(
-  symbol: string,
-  isLongSymbol: boolean,
-  originalBuyCount: number,
-  sellCount: number,
-  recordedCount: number,
-  extraInfo?: string,
-  quote?: Quote | null,
-): void {
+function logRefreshResult(params: OrderRefreshResultLogParams): void {
+  const {
+    symbol,
+    isLongSymbol,
+    originalBuyCount,
+    sellCount,
+    recordedCount,
+    pendingClassification,
+    extraInfo,
+    quote,
+  } = params;
   const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
   const symbolDisplay = formatSymbolDisplayFromQuote(quote, symbol);
+  const pendingInfo = pendingClassification
+    ? `, 待成交买单${pendingClassification.pendingBuyOrders.length}笔, 待成交卖单${pendingClassification.pendingSellOrders.length}笔`
+    : '';
   if (extraInfo) {
-    logger.info(`[现存订单记录] ${positionType} ${symbolDisplay}: ${extraInfo}`);
+    logger.info(`[现存订单记录] ${positionType} ${symbolDisplay}: ${extraInfo}${pendingInfo}`);
   } else {
     logger.info(
       `[现存订单记录] ${positionType} ${symbolDisplay}: ` +
         `历史买入${originalBuyCount}笔, ` +
         `历史卖出${sellCount}笔, ` +
-        `最终记录${recordedCount}笔`,
+        `最终记录${recordedCount}笔${pendingInfo}`,
     );
   }
 }
@@ -157,26 +161,37 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     symbol: string,
     allBuyOrders: ReadonlyArray<OrderRecord>,
     filledSellOrders: ReadonlyArray<OrderRecord>,
+    pendingClassification: PendingOrderClassificationForRebuild,
     quote?: Quote | null,
   ): OrderRecord[] {
     if (allBuyOrders.length === 0) {
       storage.setBuyOrdersListForLong(symbol, []);
-      logRefreshResult(symbol, true, 0, 0, 0, '历史买入0笔, 无需记录', quote);
+      logRefreshResult({
+        symbol,
+        isLongSymbol: true,
+        originalBuyCount: 0,
+        sellCount: 0,
+        recordedCount: 0,
+        pendingClassification,
+        extraInfo: '历史买入0笔, 无需记录',
+        quote,
+      });
       return [];
     }
 
     if (filledSellOrders.length === 0) {
       const buyOrdersArray = [...allBuyOrders];
       storage.setBuyOrdersListForLong(symbol, buyOrdersArray);
-      logRefreshResult(
+      logRefreshResult({
         symbol,
-        true,
-        allBuyOrders.length,
-        0,
-        allBuyOrders.length,
-        '无卖出记录, 记录全部买入订单',
+        isLongSymbol: true,
+        originalBuyCount: allBuyOrders.length,
+        sellCount: 0,
+        recordedCount: allBuyOrders.length,
+        pendingClassification,
+        extraInfo: '无卖出记录, 记录全部买入订单',
         quote,
-      );
+      });
       return buyOrdersArray;
     }
 
@@ -184,15 +199,15 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
       ...filteringEngine.applyFilteringAlgorithm(allBuyOrders, filledSellOrders),
     ];
     storage.setBuyOrdersListForLong(symbol, finalBuyOrders);
-    logRefreshResult(
+    logRefreshResult({
       symbol,
-      true,
-      allBuyOrders.length,
-      filledSellOrders.length,
-      finalBuyOrders.length,
-      undefined,
+      isLongSymbol: true,
+      originalBuyCount: allBuyOrders.length,
+      sellCount: filledSellOrders.length,
+      recordedCount: finalBuyOrders.length,
+      pendingClassification,
       quote,
-    );
+    });
 
     return finalBuyOrders;
   }
@@ -202,26 +217,37 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     symbol: string,
     allBuyOrders: ReadonlyArray<OrderRecord>,
     filledSellOrders: ReadonlyArray<OrderRecord>,
+    pendingClassification: PendingOrderClassificationForRebuild,
     quote?: Quote | null,
   ): OrderRecord[] {
     if (allBuyOrders.length === 0) {
       storage.setBuyOrdersListForShort(symbol, []);
-      logRefreshResult(symbol, false, 0, 0, 0, '历史买入0笔, 无需记录', quote);
+      logRefreshResult({
+        symbol,
+        isLongSymbol: false,
+        originalBuyCount: 0,
+        sellCount: 0,
+        recordedCount: 0,
+        pendingClassification,
+        extraInfo: '历史买入0笔, 无需记录',
+        quote,
+      });
       return [];
     }
 
     if (filledSellOrders.length === 0) {
       const buyOrdersArray = [...allBuyOrders];
       storage.setBuyOrdersListForShort(symbol, buyOrdersArray);
-      logRefreshResult(
+      logRefreshResult({
         symbol,
-        false,
-        allBuyOrders.length,
-        0,
-        allBuyOrders.length,
-        '无卖出记录, 记录全部买入订单',
+        isLongSymbol: false,
+        originalBuyCount: allBuyOrders.length,
+        sellCount: 0,
+        recordedCount: allBuyOrders.length,
+        pendingClassification,
+        extraInfo: '无卖出记录, 记录全部买入订单',
         quote,
-      );
+      });
       return buyOrdersArray;
     }
 
@@ -229,15 +255,15 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
       ...filteringEngine.applyFilteringAlgorithm(allBuyOrders, filledSellOrders),
     ];
     storage.setBuyOrdersListForShort(symbol, finalBuyOrders);
-    logRefreshResult(
+    logRefreshResult({
       symbol,
-      false,
-      allBuyOrders.length,
-      filledSellOrders.length,
-      finalBuyOrders.length,
-      undefined,
+      isLongSymbol: false,
+      originalBuyCount: allBuyOrders.length,
+      sellCount: filledSellOrders.length,
+      recordedCount: finalBuyOrders.length,
+      pendingClassification,
       quote,
-    );
+    });
 
     return finalBuyOrders;
   }
@@ -334,13 +360,14 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
   ): Promise<OrderRecord[]> {
     try {
       const filteredOrders = allOrders.filter((order) => order.symbol === symbol);
-      const { buyOrders: allBuyOrders, sellOrders: filledSellOrders } =
-        classifyAndConvertOrders(filteredOrders);
+      const classified = classifyOrdersForRebuild(filteredOrders);
+      const allBuyOrders = classified.filledBuyOrders;
+      const filledSellOrders = classified.filledSellOrders;
 
       apiManager.cacheOrdersForSymbol(symbol, allBuyOrders, filledSellOrders, filteredOrders);
 
       return Promise.resolve(
-        applyOrdersRefreshForLong(symbol, allBuyOrders, filledSellOrders, quote),
+        applyOrdersRefreshForLong(symbol, allBuyOrders, filledSellOrders, classified, quote),
       );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -360,13 +387,14 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
   ): Promise<OrderRecord[]> {
     try {
       const filteredOrders = allOrders.filter((order) => order.symbol === symbol);
-      const { buyOrders: allBuyOrders, sellOrders: filledSellOrders } =
-        classifyAndConvertOrders(filteredOrders);
+      const classified = classifyOrdersForRebuild(filteredOrders);
+      const allBuyOrders = classified.filledBuyOrders;
+      const filledSellOrders = classified.filledSellOrders;
 
       apiManager.cacheOrdersForSymbol(symbol, allBuyOrders, filledSellOrders, filteredOrders);
 
       return Promise.resolve(
-        applyOrdersRefreshForShort(symbol, allBuyOrders, filledSellOrders, quote),
+        applyOrdersRefreshForShort(symbol, allBuyOrders, filledSellOrders, classified, quote),
       );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -403,14 +431,19 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     direction: 'LONG' | 'SHORT',
     quantity: number,
     relatedBuyOrderIds: readonly string[],
+    submittedAtMs?: number,
   ): void {
+    const submittedAt =
+      typeof submittedAtMs === 'number' && isValidPositiveNumber(submittedAtMs)
+        ? submittedAtMs
+        : Date.now();
     storage.addPendingSell({
       orderId,
       symbol,
       direction,
       submittedQuantity: quantity,
       relatedBuyOrderIds,
-      submittedAt: Date.now(),
+      submittedAt,
     });
 
     logger.info(
@@ -432,6 +465,11 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
   /** 标记卖出订单取消 */
   function markSellCancelled(orderId: string): PendingSellInfo | null {
     return storage.markSellCancelled(orderId);
+  }
+
+  /** 获取待成交卖单快照（用于恢复一致性校验） */
+  function getPendingSellSnapshot(): ReadonlyArray<PendingSellInfo> {
+    return storage.getPendingSellSnapshot();
   }
 
   /** 恢复期：为待恢复的卖单分配关联买单 ID */
@@ -477,6 +515,7 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     markSellFilled,
     markSellPartialFilled,
     markSellCancelled,
+    getPendingSellSnapshot,
     allocateRelatedBuyOrderIdsForRecovery,
     getCostAveragePrice,
     selectSellableOrders,

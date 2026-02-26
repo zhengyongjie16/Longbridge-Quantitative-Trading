@@ -46,11 +46,12 @@ import { createOrderFilteringEngine } from '../orderRecorder/orderFilteringEngin
 /**
  * 创建交易执行模块（门面模式）。
  * 按固定顺序创建 rateLimiter、accountService、orderCacheManager、orderRecorder、orderMonitor、orderExecutor 等子模块并组装为 Trader 接口。
+ * createTrader 仅负责依赖装配，不执行运行期副作用（如 WebSocket 初始化、订单恢复），由上层显式调用。
  * 交易能力由多子模块协同完成，门面统一初始化顺序与依赖注入，保证 orderMonitor 依赖 orderRecorder、orderExecutor 依赖 orderMonitor 等约束。
  * @param deps 依赖（config、tradingConfig、liquidationCooldownTracker、symbolRegistry、dailyLossTracker、refreshGate、isExecutionAllowed 等）
  * @returns 实现 Trader 接口的实例（含 canTradeNow、executeSignals、getPendingOrders 等）
  */
-export async function createTrader(deps: TraderDeps): Promise<Trader> {
+export function createTrader(deps: TraderDeps): Promise<Trader> {
   const {
     config,
     tradingConfig,
@@ -112,14 +113,8 @@ export async function createTrader(deps: TraderDeps): Promise<Trader> {
     isExecutionAllowed,
   });
 
-  // ========== 7. 初始化 WebSocket 订阅 ==========
-  await orderMonitor.initialize();
-
-  // ========== 8. 恢复未完成订单的追踪 ==========
-  await orderMonitor.recoverTrackedOrders();
-
   // 创建 Trader 实例
-  return {
+  const trader: Trader = {
     orderRecorder,
 
     // ==================== 账户相关方法 ====================
@@ -163,6 +158,10 @@ export async function createTrader(deps: TraderDeps): Promise<Trader> {
       return orderMonitor.getAndClearPendingRefreshSymbols();
     },
 
+    initializeOrderMonitor(): Promise<void> {
+      return orderMonitor.initialize();
+    },
+
     // ==================== 订单执行相关方法 ====================
 
     canTradeNow(signalAction: SignalType, monitorConfig?: MonitorConfig | null): TradeCheckResult {
@@ -185,8 +184,8 @@ export async function createTrader(deps: TraderDeps): Promise<Trader> {
       orderExecutor.resetBuyThrottle();
     },
 
-    recoverOrderTracking(): Promise<void> {
-      return orderMonitor.recoverTrackedOrders();
+    recoverOrderTrackingFromSnapshot(allOrders: ReadonlyArray<RawOrderFromAPI>): Promise<void> {
+      return orderMonitor.recoverOrderTrackingFromSnapshot(allOrders);
     },
 
     executeSignals(
@@ -195,4 +194,6 @@ export async function createTrader(deps: TraderDeps): Promise<Trader> {
       return orderExecutor.executeSignals(signals);
     },
   };
+
+  return Promise.resolve(trader);
 }

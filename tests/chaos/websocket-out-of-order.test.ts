@@ -43,7 +43,7 @@ function createDeps(params?: {
     },
     orderHoldRegistry: {
       trackOrder: () => {},
-      markOrderFilled: () => {},
+      markOrderClosed: () => {},
       seedFromOrders: () => {},
       getHoldSymbols: () => new Set<string>(),
       clear: () => {},
@@ -81,6 +81,7 @@ describe('chaos: websocket out-of-order and duplicate pushes', () => {
     const monitor = createOrderMonitor(deps);
 
     await monitor.initialize();
+    await monitor.recoverOrderTrackingFromSnapshot([]);
 
     monitor.trackOrder({
       orderId: 'WS-CHAOS-001',

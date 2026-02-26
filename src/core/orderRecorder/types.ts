@@ -40,6 +40,66 @@ export type OrderStatistics = {
 };
 
 /**
+ * 订单重建分类结果。
+ * 类型用途：启动/开盘重建阶段在单标的维度将全量订单按成交状态与买卖方向分流。
+ * 数据来源：由 classifyOrdersForRebuild 从 RawOrderFromAPI 转换得到。
+ * 使用范围：orderRecorder 重建链路内部使用。
+ */
+export type OrderRebuildClassification = {
+  readonly filledBuyOrders: ReadonlyArray<OrderRecord>;
+  readonly filledSellOrders: ReadonlyArray<OrderRecord>;
+  readonly pendingBuyOrders: ReadonlyArray<RawOrderFromAPI>;
+  readonly pendingSellOrders: ReadonlyArray<RawOrderFromAPI>;
+};
+
+/**
+ * 订单重建中的待成交分类（仅买/卖两类）。
+ * 类型用途：在刷新日志与重建流程中传递待成交买卖订单集合。
+ * 数据来源：由 classifyOrdersForRebuild 结果派生。
+ * 使用范围：orderRecorder 重建链路内部使用。
+ */
+export type PendingOrderClassificationForRebuild = {
+  readonly pendingBuyOrders: ReadonlyArray<RawOrderFromAPI>;
+  readonly pendingSellOrders: ReadonlyArray<RawOrderFromAPI>;
+};
+
+/**
+ * 订单刷新结果日志参数。
+ * 类型用途：统一记录刷新前后数量与待成交分类信息，避免实现文件内联类型膨胀。
+ * 数据来源：由 orderRecorder 刷新流程构造。
+ * 使用范围：orderRecorder 模块内部使用。
+ */
+export type OrderRefreshResultLogParams = {
+  readonly symbol: string;
+  readonly isLongSymbol: boolean;
+  readonly originalBuyCount: number;
+  readonly sellCount: number;
+  readonly recordedCount: number;
+  readonly pendingClassification?: PendingOrderClassificationForRebuild;
+  readonly extraInfo?: string;
+  readonly quote?: Quote | null | undefined;
+};
+
+/**
+ * 订单快照来源标识。
+ * 类型用途：标记同一 orderId 的来源（history/today），用于去重覆盖决策。
+ * 数据来源：OrderAPIManager 拉取 history/today 订单时生成。
+ * 使用范围：orderRecorder/orderApiManager 内部使用。
+ */
+export type OrderSnapshotSource = 'history' | 'today';
+
+/**
+ * 合并去重后的订单条目。
+ * 类型用途：在按 orderId 合并时同时保留来源与订单内容，供覆盖策略判断。
+ * 数据来源：mergeAndDeduplicateOrders 构建。
+ * 使用范围：orderRecorder/orderApiManager 内部使用。
+ */
+export type MergedOrderEntry = {
+  readonly source: OrderSnapshotSource;
+  readonly order: RawOrderFromAPI;
+};
+
+/**
  * 待成交卖出订单信息。
  * 类型用途：智能平仓防重追踪，记录已提交但未成交的卖出订单及关联买单。
  * 数据来源：提交卖单时添加，成交/撤单时更新状态。
@@ -159,6 +219,9 @@ export interface OrderStorage {
 
   /** 标记卖出订单取消 */
   markSellCancelled: (orderId: string) => PendingSellInfo | null;
+
+  /** 获取待成交卖单快照（用于恢复一致性校验） */
+  getPendingSellSnapshot: () => ReadonlyArray<PendingSellInfo>;
 
   /**
    * 恢复期：为待恢复的卖单分配关联买单 ID

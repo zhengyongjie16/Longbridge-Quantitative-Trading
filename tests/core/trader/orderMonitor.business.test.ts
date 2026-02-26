@@ -24,14 +24,18 @@ import {
   createQuoteDouble,
   createSymbolRegistryDouble,
 } from '../../helpers/testDoubles.js';
+import type { RawOrderFromAPI } from '../../../src/types/services.js';
+import type { PendingSellInfo } from '../../../src/core/orderRecorder/types.js';
 
 function createDeps(params?: {
   readonly sellTimeoutSeconds?: number;
   readonly buyTimeoutSeconds?: number;
   readonly gateOpen?: () => boolean;
   readonly onHandleOrderChanged?: (handler: (event: PushOrderChanged) => void) => void;
+  readonly allocateRelatedBuyOrderIdsForRecovery?: () => readonly string[];
 }): { deps: OrderMonitorDeps; tradeCtx: ReturnType<typeof createTradeContextMock> } {
   const tradeCtx = createTradeContextMock();
+  const pendingSellSnapshot = new Map<string, PendingSellInfo>();
   const symbolRegistry = createSymbolRegistryDouble({
     monitorSymbol: 'HSI.HK',
     longSeat: {
@@ -55,22 +59,86 @@ function createDeps(params?: {
   });
 
   const orderRecorder = createOrderRecorderDouble({
-    allocateRelatedBuyOrderIdsForRecovery: () => ['BUY-1'],
-    markSellCancelled: (orderId: string) => ({
-      orderId,
-      symbol: 'BULL.HK',
-      direction: 'LONG',
-      submittedQuantity: 100,
-      filledQuantity: 0,
-      relatedBuyOrderIds: ['BUY-1'],
-      status: 'cancelled',
-      submittedAt: Date.now(),
-    }),
+    allocateRelatedBuyOrderIdsForRecovery:
+      params?.allocateRelatedBuyOrderIdsForRecovery ?? (() => ['BUY-1']),
+    submitSellOrder: (
+      orderId: string,
+      symbol: string,
+      direction: 'LONG' | 'SHORT',
+      quantity: number,
+      relatedBuyOrderIds: readonly string[],
+      submittedAtMs?: number,
+    ) => {
+      pendingSellSnapshot.set(orderId, {
+        orderId,
+        symbol,
+        direction,
+        submittedQuantity: quantity,
+        filledQuantity: 0,
+        relatedBuyOrderIds,
+        status: 'pending',
+        submittedAt: submittedAtMs ?? Date.now(),
+      });
+    },
+    markSellPartialFilled: (orderId: string, filledQuantity: number) => {
+      const current = pendingSellSnapshot.get(orderId);
+      if (!current) {
+        return null;
+      }
+      const next: PendingSellInfo = {
+        ...current,
+        filledQuantity,
+        status: filledQuantity >= current.submittedQuantity ? 'filled' : 'partial',
+      };
+      if (next.status === 'filled') {
+        pendingSellSnapshot.delete(orderId);
+      } else {
+        pendingSellSnapshot.set(orderId, next);
+      }
+      return next;
+    },
+    markSellFilled: (orderId: string) => {
+      const current = pendingSellSnapshot.get(orderId);
+      if (!current) {
+        return null;
+      }
+      const filled: PendingSellInfo = {
+        ...current,
+        filledQuantity: current.submittedQuantity,
+        status: 'filled',
+      };
+      pendingSellSnapshot.delete(orderId);
+      return filled;
+    },
+    markSellCancelled: (orderId: string) => {
+      const current = pendingSellSnapshot.get(orderId);
+      if (!current) {
+        return null;
+      }
+      const cancelled: PendingSellInfo = {
+        ...current,
+        status: 'cancelled',
+      };
+      pendingSellSnapshot.delete(orderId);
+      return cancelled;
+    },
+    getPendingSellSnapshot: () => Array.from(pendingSellSnapshot.values()),
   });
 
+  const baseConfig = createTradingConfig();
+  const baseMonitor = baseConfig.monitors[0];
+  if (!baseMonitor) {
+    throw new Error('missing monitor config for orderMonitor test');
+  }
   const tradingConfig = createTradingConfig({
+    monitors: [
+      {
+        ...baseMonitor,
+        orderOwnershipMapping: ['HSI'],
+      },
+    ],
     global: {
-      ...createTradingConfig().global,
+      ...baseConfig.global,
       buyOrderTimeout: {
         enabled: true,
         timeoutSeconds: params?.buyTimeoutSeconds ?? 180,
@@ -101,7 +169,7 @@ function createDeps(params?: {
     },
     orderHoldRegistry: {
       trackOrder: () => {},
-      markOrderFilled: () => {},
+      markOrderClosed: () => {},
       seedFromOrders: () => {},
       getHoldSymbols: () => new Set<string>(),
       clear: () => {},
@@ -122,6 +190,25 @@ function createDeps(params?: {
   return {
     deps,
     tradeCtx,
+  };
+}
+
+function createPendingRecoveryOrder(
+  params: Partial<RawOrderFromAPI>,
+): RawOrderFromAPI {
+  return {
+    orderId: params.orderId ?? 'RECOVER-ORDER',
+    symbol: params.symbol ?? 'BULL.HK',
+    stockName: params.stockName ?? 'HSI RC SAMPLE',
+    side: params.side ?? OrderSide.Buy,
+    status: params.status ?? OrderStatus.New,
+    orderType: params.orderType ?? OrderType.ELO,
+    price: params.price ?? 1,
+    quantity: params.quantity ?? 100,
+    executedPrice: params.executedPrice ?? 0,
+    executedQuantity: params.executedQuantity ?? 0,
+    submittedAt: params.submittedAt ?? new Date('2026-02-25T03:00:00.000Z'),
+    updatedAt: params.updatedAt ?? new Date('2026-02-25T03:00:10.000Z'),
   };
 }
 
@@ -160,6 +247,37 @@ describe('orderMonitor business flow', () => {
     const submitPayload = submitCalls[0]?.args[0] as { readonly orderType: OrderType };
     expect(submitPayload.orderType).toBe(OrderType.MO);
     expect(monitor.getPendingSellOrders('BULL.HK').length).toBeGreaterThan(0);
+  });
+
+  it('reuses cancelled pending-sell relatedBuyOrderIds when converting timeout sells to market', async () => {
+    let allocateCalls = 0;
+    const { deps, tradeCtx } = createDeps({
+      sellTimeoutSeconds: 0,
+      buyTimeoutSeconds: 999,
+      allocateRelatedBuyOrderIdsForRecovery: () => {
+        allocateCalls += 1;
+        return ['BUY-ALLOC'];
+      },
+    });
+    const monitor = createOrderMonitor(deps);
+
+    await monitor.initialize();
+    await monitor.recoverOrderTrackingFromSnapshot([
+      createPendingRecoveryOrder({
+        orderId: 'SELL-RECOVER-ALLOC',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.New,
+      }),
+    ]);
+
+    await monitor.processWithLatestQuotes(
+      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]),
+    );
+
+    expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
+    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(1);
+    expect(allocateCalls).toBe(1);
   });
 
   it('cancels timed-out buy order without market conversion', async () => {
@@ -266,6 +384,164 @@ describe('orderMonitor business flow', () => {
 
     await monitor.processWithLatestQuotes(
       new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.1)]]),
+    );
+
+    expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(0);
+  });
+
+  it('recovers from snapshot without calling todayOrders and cancels mismatched pending buys', async () => {
+    const { deps, tradeCtx } = createDeps();
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+
+    await monitor.recoverOrderTrackingFromSnapshot([
+      createPendingRecoveryOrder({
+        orderId: 'BUY-MISMATCH',
+        symbol: 'OTHER.HK',
+        side: OrderSide.Buy,
+        status: OrderStatus.New,
+      }),
+    ]);
+
+    expect(tradeCtx.getCalls('todayOrders')).toHaveLength(0);
+    expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
+  });
+
+  it('replays bootstrapping filled events after snapshot recovery', async () => {
+    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
+      throw new Error('handleOrderChanged hook was not captured');
+    };
+    const { deps } = createDeps({
+      onHandleOrderChanged: (handler) => {
+        handleOrderChanged = handler;
+      },
+    });
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+
+    handleOrderChanged(
+      createPushOrderChanged({
+        orderId: 'SELL-BOOTSTRAP-FILLED',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.Filled,
+        orderType: OrderType.ELO,
+        submittedPrice: 1,
+        executedPrice: 1,
+        submittedQuantity: 100,
+        executedQuantity: 100,
+        updatedAtMs: Date.parse('2026-02-25T03:00:20.000Z'),
+      }),
+    );
+
+    await monitor.recoverOrderTrackingFromSnapshot([
+      createPendingRecoveryOrder({
+        orderId: 'SELL-BOOTSTRAP-FILLED',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.New,
+        updatedAt: new Date('2026-02-25T03:00:10.000Z'),
+      }),
+    ]);
+
+    expect(monitor.getPendingSellOrders('BULL.HK')).toHaveLength(0);
+  });
+
+  it('fails fast when pending sell ownership cannot be resolved', async () => {
+    const { deps } = createDeps();
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+
+    expect(
+      monitor.recoverOrderTrackingFromSnapshot([
+        createPendingRecoveryOrder({
+          orderId: 'SELL-UNRESOLVED',
+          symbol: 'BULL.HK',
+          side: OrderSide.Sell,
+          stockName: 'UNKNOWN-ORDER-NAME',
+          status: OrderStatus.New,
+        }),
+      ]),
+    ).rejects.toThrow(/无法解析归属/);
+  });
+
+  it('clears recovered sell runtime state when mismatched buy cancel fails, then allows retry', async () => {
+    const { deps, tradeCtx } = createDeps();
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+
+    tradeCtx.setFailureRule('cancelOrder', {
+      failAtCalls: [1],
+      maxFailures: 1,
+      errorMessage: 'simulated cancel failure',
+    });
+
+    const pendingSell = createPendingRecoveryOrder({
+      orderId: 'SELL-RECOVER-FAIL-001',
+      symbol: 'BULL.HK',
+      side: OrderSide.Sell,
+      status: OrderStatus.New,
+    });
+    const mismatchedPendingBuy = createPendingRecoveryOrder({
+      orderId: 'BUY-RECOVER-FAIL-001',
+      symbol: 'OTHER.HK',
+      side: OrderSide.Buy,
+      status: OrderStatus.New,
+    });
+
+    expect(monitor.recoverOrderTrackingFromSnapshot([pendingSell, mismatchedPendingBuy])).rejects.toThrow(
+      /撤单失败/,
+    );
+    expect(monitor.getPendingSellOrders('BULL.HK')).toHaveLength(0);
+
+    tradeCtx.clearFailureRules();
+    await monitor.recoverOrderTrackingFromSnapshot([pendingSell, mismatchedPendingBuy]);
+
+    expect(monitor.getPendingSellOrders('BULL.HK')).toHaveLength(1);
+    expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(2);
+  });
+
+  it('restores submittedAt from snapshot when recovering pending sells', async () => {
+    const { deps } = createDeps();
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+
+    const submittedAt = new Date('2026-02-25T01:23:45.000Z');
+    await monitor.recoverOrderTrackingFromSnapshot([
+      createPendingRecoveryOrder({
+        orderId: 'SELL-RESTORE-TIME',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.New,
+        submittedAt,
+      }),
+    ]);
+
+    const pending = monitor.getPendingSellOrders('BULL.HK');
+    expect(pending).toHaveLength(1);
+    expect(pending[0]?.submittedAt).toBe(submittedAt.getTime());
+  });
+
+  it('keeps wait-to-replace status from snapshot to avoid replace during recovery window', async () => {
+    const { deps, tradeCtx } = createDeps({
+      sellTimeoutSeconds: 999,
+      buyTimeoutSeconds: 999,
+    });
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+
+    await monitor.recoverOrderTrackingFromSnapshot([
+      createPendingRecoveryOrder({
+        orderId: 'BUY-WAIT-TO-REPLACE',
+        symbol: 'BULL.HK',
+        side: OrderSide.Buy,
+        status: OrderStatus.WaitToReplace,
+        submittedAt: new Date(),
+      }),
+    ]);
+
+    await monitor.processWithLatestQuotes(
+      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.2)]])
     );
 
     expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(0);

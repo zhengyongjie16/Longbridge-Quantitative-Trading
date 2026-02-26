@@ -431,6 +431,11 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     return orders;
   }
 
+  /** 获取全部待成交卖单快照 */
+  function getPendingSellSnapshot(): ReadonlyArray<PendingSellInfo> {
+    return Array.from(pendingSells.values());
+  }
+
   /**
    * 恢复期：为待恢复的卖单分配关联买单 ID
    * 从当前买单记录中按价格从低到高分配，排除已被 pendingSells 占用的订单
@@ -596,6 +601,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     markSellFilled,
     markSellPartialFilled,
     markSellCancelled,
+    getPendingSellSnapshot,
     allocateRelatedBuyOrderIdsForRecovery,
     getCostAveragePrice,
     selectSellableOrders,

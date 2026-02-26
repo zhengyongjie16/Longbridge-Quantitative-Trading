@@ -9,7 +9,13 @@
 import type { Order } from 'longport';
 import { decimalToNumber } from '../../utils/helpers/index.js';
 import type { OrderRecord, RawOrderFromAPI } from '../../types/services.js';
-import type { OrderCache, OrderAPIManager, OrderAPIManagerDeps } from './types.js';
+import type {
+  MergedOrderEntry,
+  OrderCache,
+  OrderAPIManager,
+  OrderAPIManagerDeps,
+  OrderSnapshotSource,
+} from './types.js';
 
 /** 将 LongPort SDK Order 实例转换为内部 RawOrderFromAPI（信任边界唯一转换处） */
 function orderToRawOrderFromAPI(order: Order): RawOrderFromAPI {
@@ -31,31 +37,83 @@ function orderToRawOrderFromAPI(order: Order): RawOrderFromAPI {
   };
 }
 
-/** 合并历史订单和今日订单，按 orderId 去重 */
+/**
+ * 解析订单快照版本时间。
+ * 优先使用 updatedAt，其次 submittedAt，均缺失时按 0 处理。
+ */
+function resolveOrderSnapshotVersionMs(order: RawOrderFromAPI): number {
+  const updatedAtMs = order.updatedAt?.getTime() ?? 0;
+  if (updatedAtMs > 0) {
+    return updatedAtMs;
+  }
+  const submittedAtMs = order.submittedAt?.getTime() ?? 0;
+  return submittedAtMs > 0 ? submittedAtMs : 0;
+}
+
+/**
+ * 判断候选订单是否应覆盖现有订单：
+ * - today 快照优先于 history 快照
+ * - 同一来源时，updatedAt/submittedAt 更晚者优先
+ */
+function shouldReplaceMergedEntry(
+  existingEntry: MergedOrderEntry,
+  candidateOrder: RawOrderFromAPI,
+  candidateSource: OrderSnapshotSource,
+): boolean {
+  if (candidateSource === 'today' && existingEntry.source === 'history') {
+    return true;
+  }
+  if (candidateSource === 'history' && existingEntry.source === 'today') {
+    return false;
+  }
+
+  const existingVersion = resolveOrderSnapshotVersionMs(existingEntry.order);
+  const candidateVersion = resolveOrderSnapshotVersionMs(candidateOrder);
+  return candidateVersion > existingVersion;
+}
+
+/** 合并历史订单和今日订单，按 orderId 去重并保留最新快照 */
 function mergeAndDeduplicateOrders(
   historyOrders: ReadonlyArray<RawOrderFromAPI>,
   todayOrders: ReadonlyArray<RawOrderFromAPI>,
 ): RawOrderFromAPI[] {
-  const orderIdSet = new Set<string>();
-  const allOrders: RawOrderFromAPI[] = [];
+  const mergedByOrderId = new Map<string, MergedOrderEntry>();
 
-  // 先添加历史订单
   for (const order of historyOrders) {
-    if (!orderIdSet.has(order.orderId)) {
-      orderIdSet.add(order.orderId);
-      allOrders.push(order);
+    const existing = mergedByOrderId.get(order.orderId);
+    if (!existing) {
+      mergedByOrderId.set(order.orderId, {
+        source: 'history',
+        order,
+      });
+      continue;
+    }
+    if (shouldReplaceMergedEntry(existing, order, 'history')) {
+      mergedByOrderId.set(order.orderId, {
+        source: 'history',
+        order,
+      });
     }
   }
 
-  // 再添加今日订单（去重）
   for (const order of todayOrders) {
-    if (!orderIdSet.has(order.orderId)) {
-      orderIdSet.add(order.orderId);
-      allOrders.push(order);
+    const existing = mergedByOrderId.get(order.orderId);
+    if (!existing) {
+      mergedByOrderId.set(order.orderId, {
+        source: 'today',
+        order,
+      });
+      continue;
+    }
+    if (shouldReplaceMergedEntry(existing, order, 'today')) {
+      mergedByOrderId.set(order.orderId, {
+        source: 'today',
+        order,
+      });
     }
   }
 
-  return allOrders;
+  return Array.from(mergedByOrderId.values(), (entry) => entry.order);
 }
 
 /**

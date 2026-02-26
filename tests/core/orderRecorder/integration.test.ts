@@ -50,6 +50,7 @@ function wrapStorageAsRecorder(storage: OrderStorage): OrderRecorder {
     markSellFilled: () => null,
     markSellPartialFilled: () => null,
     markSellCancelled: () => null,
+    getPendingSellSnapshot: () => [],
     allocateRelatedBuyOrderIdsForRecovery: () => [],
     resetAll: () => {},
   };

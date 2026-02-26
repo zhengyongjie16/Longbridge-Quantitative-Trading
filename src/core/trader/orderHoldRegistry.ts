@@ -13,7 +13,7 @@
  * 使用场景：
  * - 启动时从已有订单列表初始化保留集（seedFromOrders）
  * - 订单提交后追踪订单与标的的关联（trackOrder）
- * - 订单成交后清理索引，若标的无剩余未成交订单则移除（markOrderFilled）
+ * - 订单关闭后清理索引，若标的无剩余未成交订单则移除（markOrderClosed）
  */
 import { PENDING_ORDER_STATUSES } from '../../constants/index.js';
 import type { RawOrderFromAPI } from '../../types/services.js';
@@ -21,7 +21,7 @@ import type { OrderHoldRegistry } from './types.js';
 
 /**
  * 创建订单订阅保留集管理器。
- * 维护 orderId↔symbol 双向索引与 holdSymbols 集合，提供 trackOrder、markOrderFilled、seedFromOrders、getHoldSymbols、clear。
+ * 维护 orderId↔symbol 双向索引与 holdSymbols 集合，提供 trackOrder、markOrderClosed、seedFromOrders、getHoldSymbols、clear。
  * OrderMonitor 需知道哪些标的有未成交订单以持续订阅行情，成交后移除；启动时从历史订单恢复保留集。
  * @returns 实现 OrderHoldRegistry 接口的实例（无外部依赖）
  */
@@ -53,10 +53,10 @@ export function createOrderHoldRegistry(): OrderHoldRegistry {
   }
 
   /**
-   * 订单成交后清理双向索引。
+   * 订单关闭后清理双向索引（成交/撤销/拒绝/主动撤单成功）。
    * 若该标的已无其他未成交订单，同步从 holdSymbols 中移除，避免误判持仓状态。
    */
-  function markOrderFilled(orderId: string): void {
+  function markOrderClosed(orderId: string): void {
     const symbol = orderIdToSymbol.get(orderId);
     if (!symbol) {
       return;
@@ -109,7 +109,7 @@ export function createOrderHoldRegistry(): OrderHoldRegistry {
 
   return {
     trackOrder,
-    markOrderFilled,
+    markOrderClosed,
     seedFromOrders,
     getHoldSymbols,
     clear,

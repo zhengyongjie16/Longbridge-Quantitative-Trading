@@ -48,6 +48,7 @@ function createMockOrderRecorder(params: {
     markSellFilled: () => null,
     markSellPartialFilled: () => null,
     markSellCancelled: () => null,
+    getPendingSellSnapshot: () => [],
     allocateRelatedBuyOrderIdsForRecovery: () => [],
     resetAll: () => {},
   };

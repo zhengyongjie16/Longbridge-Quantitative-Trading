@@ -63,10 +63,57 @@ export type TrackOrderParams = {
   readonly side: OrderSide;
   readonly price: number;
   readonly quantity: number;
+  /** 可选：恢复阶段使用原始下单时间（毫秒），用于保持超时策略语义一致 */
+  readonly submittedAtMs?: number;
+  /** 可选：恢复阶段保留快照中的 pending 状态，避免错误触发改单流程 */
+  readonly initialStatus?: OrderStatus;
   readonly isLongSymbol: boolean;
   readonly monitorSymbol: string | null;
   readonly isProtectiveLiquidation: boolean;
   readonly orderType: OrderType;
+};
+
+/**
+ * 订单监控运行态。
+ * 类型用途：区分恢复期间（BOOTSTRAPPING）与实时处理期间（ACTIVE）的事件处理策略。
+ * 数据来源：OrderMonitor 内部状态机维护。
+ * 使用范围：仅 trader/orderMonitor 模块内部使用。
+ */
+export type OrderMonitorRuntimeState = 'BOOTSTRAPPING' | 'ACTIVE';
+
+/**
+ * 订单席位归属解析结果。
+ * 类型用途：表示订单归属的监控标的与方向，用于恢复阶段席位匹配校验。
+ * 数据来源：根据订单名称映射与监控配置解析得到。
+ * 使用范围：仅 trader/orderMonitor 模块内部使用。
+ */
+export type OrderSeatOwnership = {
+  readonly monitorSymbol: string;
+  readonly direction: 'LONG' | 'SHORT';
+  readonly isLongSymbol: boolean;
+};
+
+/**
+ * 恢复后快照对账参数。
+ * 类型用途：统一携带恢复输入快照、已撤销不匹配买单集合和回放订单集合。
+ * 数据来源：OrderMonitor.recoverOrderTrackingFromSnapshot 流程内部构造。
+ * 使用范围：仅 trader/orderMonitor 模块内部使用。
+ */
+export type RecoverySnapshotReconciliationParams = {
+  readonly allOrders: ReadonlyArray<RawOrderFromAPI>;
+  readonly cancelledMismatchedBuyOrderIds: ReadonlySet<string>;
+  readonly replayedOrderIds: ReadonlySet<string>;
+};
+
+/**
+ * 撤单并清理运行态的返回结果。
+ * 类型用途：标识撤单是否成功，并在卖单场景携带被取消记录的关联买单 ID。
+ * 数据来源：OrderMonitor.cancelOrderWithRuntimeCleanup 的返回值。
+ * 使用范围：仅 trader/orderMonitor 模块内部使用。
+ */
+export type CancelOrderResult = {
+  readonly cancelled: boolean;
+  readonly cancelledRelatedBuyOrderIds: ReadonlyArray<string> | null;
 };
 
 /**
@@ -197,8 +244,8 @@ export interface OrderMonitor {
    */
   processWithLatestQuotes: (quotesMap: ReadonlyMap<string, Quote | null>) => Promise<void>;
 
-  /** 恢复订单追踪（程序启动时调用） */
-  recoverTrackedOrders: () => Promise<void>;
+  /** 基于启动/重建快照恢复订单追踪（仅使用调用方传入的 allOrders） */
+  recoverOrderTrackingFromSnapshot: (allOrders: ReadonlyArray<RawOrderFromAPI>) => Promise<void>;
 
   /** 获取指定标的的未成交卖单快照 */
   getPendingSellOrders: (symbol: string) => ReadonlyArray<PendingSellOrderSnapshot>;
@@ -211,7 +258,7 @@ export interface OrderMonitor {
    */
   getAndClearPendingRefreshSymbols: () => PendingRefreshSymbol[];
 
-  /** 清空 trackedOrders 与 pendingRefreshSymbols */
+  /** 清空恢复运行态（tracked/pendingSell/refreshQueue）与 BOOTSTRAPPING 事件缓存 */
   clearTrackedOrders: () => void;
 }
 
@@ -394,8 +441,8 @@ export type OrderMonitorConfig = {
 export interface OrderHoldRegistry {
   /** 跟踪订单（添加标的到订阅保留集） */
   trackOrder: (orderId: string, symbol: string) => void;
-  /** 标记订单已成交（从订阅保留集中移除） */
-  markOrderFilled: (orderId: string) => void;
+  /** 标记订单已关闭（成交/撤销/拒绝/主动撤单成功），从订阅保留集中移除 */
+  markOrderClosed: (orderId: string) => void;
   /** 从历史订单初始化订阅保留集（程序重启时调用） */
   seedFromOrders: (orders: ReadonlyArray<RawOrderFromAPI>) => void;
   /** 获取当前需要持续订阅的标的集合 */

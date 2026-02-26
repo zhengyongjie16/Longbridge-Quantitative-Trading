@@ -51,7 +51,7 @@ function createDeps(params?: {
     },
     orderHoldRegistry: {
       trackOrder: () => {},
-      markOrderFilled: () => {},
+      markOrderClosed: () => {},
       seedFromOrders: () => {},
       getHoldSymbols: () => new Set<string>(),
       clear: () => {},
@@ -93,6 +93,7 @@ describe('order monitor regression', () => {
     const monitor = createOrderMonitor(deps);
 
     await monitor.initialize();
+    await monitor.recoverOrderTrackingFromSnapshot([]);
     monitor.trackOrder({
       orderId: 'SELL-REGR-001',
       symbol: 'BULL.HK',
@@ -142,6 +143,7 @@ describe('order monitor regression', () => {
 
     const monitor = createOrderMonitor(deps);
     await monitor.initialize();
+    await monitor.recoverOrderTrackingFromSnapshot([]);
 
     monitor.trackOrder({
       orderId: 'SELL-REGR-002',

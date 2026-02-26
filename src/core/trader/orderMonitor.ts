@@ -35,13 +35,19 @@ import {
 } from '../../constants/index.js';
 import type { Quote } from '../../types/quote.js';
 import type { GlobalConfig } from '../../types/config.js';
-import type { PendingRefreshSymbol } from '../../types/services.js';
+import type { PendingRefreshSymbol, RawOrderFromAPI } from '../../types/services.js';
+import { resolveOrderOwnership } from '../orderRecorder/orderOwnershipParser.js';
+import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
 import type {
+  CancelOrderResult,
   OrderMonitor,
   OrderMonitorDeps,
+  OrderMonitorRuntimeState,
+  OrderSeatOwnership,
   TrackedOrder,
   OrderMonitorConfig,
   PendingSellOrderSnapshot,
+  RecoverySnapshotReconciliationParams,
   TrackOrderParams,
 } from './types.js';
 import { recordTrade } from './tradeLogger.js';
@@ -102,6 +108,54 @@ function resolveUpdatedAtMs(updatedAt: unknown): number | null {
 }
 
 /**
+ * 解析订单 submittedAt 为毫秒时间戳（兼容 Date、number、ISO 字符串）
+ * @param submittedAt SDK 推送或 API 返回的 submittedAt 字段
+ * @returns 毫秒时间戳，无法解析时返回 null
+ */
+function resolveSubmittedAtMs(submittedAt: unknown): number | null {
+  if (submittedAt instanceof Date) {
+    return submittedAt.getTime();
+  }
+  if (typeof submittedAt === 'number') {
+    return submittedAt;
+  }
+  if (typeof submittedAt === 'string' && submittedAt.trim()) {
+    const parsed = Date.parse(submittedAt);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+  return null;
+}
+
+/**
+ * 判断是否为关闭状态（成交/撤销/拒绝）
+ * @param status 订单状态
+ * @returns 关闭状态返回 true
+ */
+function isClosedStatus(status: OrderStatus): boolean {
+  return (
+    status === OrderStatus.Filled ||
+    status === OrderStatus.Canceled ||
+    status === OrderStatus.Rejected
+  );
+}
+
+/**
+ * 解析追踪订单初始状态。
+ * 默认行为：仅接受 pending 状态；缺失或非 pending 一律回退为 New。
+ * @param initialStatus 可选初始状态（恢复链路传入）
+ * @returns 可用于 trackedOrders 的初始状态
+ */
+function resolveInitialTrackedStatus(initialStatus?: OrderStatus): OrderStatus {
+  if (typeof initialStatus === 'undefined') {
+    return OrderStatus.New;
+  }
+  if (!PENDING_ORDER_STATUSES.has(initialStatus)) {
+    return OrderStatus.New;
+  }
+  return initialStatus;
+}
+
+/**
  * 类型保护：判断 unknown 是否为可索引对象。
  *
  * @param value 待判断值
@@ -154,45 +208,79 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
   // 待刷新浮亏数据的标的列表（订单成交后添加，主循环中处理后清空）
   const pendingRefreshSymbols: PendingRefreshSymbol[] = [];
 
-  /** 通过标的代码解析席位归属（做多/做空方向及监控标的），未找到时使用默认值并记录警告 */
-  function resolveSeatOwnership(symbol: string): {
-    isLongSymbol: boolean;
-    monitorSymbol: string | null;
-  } {
-    const resolved = symbolRegistry.resolveSeatBySymbol(symbol);
-    if (resolved) {
-      return {
-        isLongSymbol: resolved.direction === 'LONG',
-        monitorSymbol: resolved.monitorSymbol,
-      };
+  // 启动/重建恢复期状态机：BOOTSTRAPPING 期间仅缓存事件，恢复完成后切换 ACTIVE
+  const bootstrappingOrderEvents = new Map<string, PushOrderChanged>();
+  let runtimeState: OrderMonitorRuntimeState = 'BOOTSTRAPPING';
+  let initialized = false;
+
+  /** 基于订单名称映射解析监控标的与方向（禁止默认方向） */
+  function resolveOrderSeatOwnership(order: RawOrderFromAPI): OrderSeatOwnership | null {
+    const resolved = resolveOrderOwnership(order, tradingConfig.monitors);
+    if (!resolved) {
+      return null;
     }
-    logger.warn(`[订单监控] 未找到席位归属，使用默认方向: ${symbol}`);
-    return { isLongSymbol: true, monitorSymbol: null };
+    return {
+      monitorSymbol: resolved.monitorSymbol,
+      direction: resolved.direction,
+      isLongSymbol: resolved.direction === 'LONG',
+    };
+  }
+
+  /** 校验订单是否与当前席位一致（方向 + READY + symbol 均匹配） */
+  function isSeatMatchedForOrder(order: RawOrderFromAPI, ownership: OrderSeatOwnership): boolean {
+    const seatState = symbolRegistry.getSeatState(ownership.monitorSymbol, ownership.direction);
+    if (!isSeatReady(seatState)) {
+      return false;
+    }
+    return seatState.symbol === order.symbol;
+  }
+
+  /** 在 BOOTSTRAPPING 期间缓存每个 orderId 的最新事件 */
+  function cacheBootstrappingEvent(event: PushOrderChanged): void {
+    const current = bootstrappingOrderEvents.get(event.orderId);
+    if (!current) {
+      bootstrappingOrderEvents.set(event.orderId, event);
+      return;
+    }
+
+    const currentUpdatedAt = resolveUpdatedAtMs(current.updatedAt);
+    const nextUpdatedAt = resolveUpdatedAtMs(event.updatedAt);
+    if (currentUpdatedAt !== null && nextUpdatedAt !== null && nextUpdatedAt >= currentUpdatedAt) {
+      bootstrappingOrderEvents.set(event.orderId, event);
+      return;
+    }
+
+    if (currentUpdatedAt === null && nextUpdatedAt !== null) {
+      bootstrappingOrderEvents.set(event.orderId, event);
+      return;
+    }
+
+    if (currentUpdatedAt === null && nextUpdatedAt === null) {
+      bootstrappingOrderEvents.set(event.orderId, event);
+    }
   }
 
   /**
-   * 处理 WebSocket 订单状态变化
+   * 处理 WebSocket 订单状态变化（ACTIVE）
    * 完全成交时用成交价更新本地记录，部分成交时继续追踪
    */
-  function handleOrderChanged(event: PushOrderChanged): void {
+  function handleOrderChangedWhenActive(event: PushOrderChanged): void {
     const orderId = event.orderId;
     const trackedOrder = trackedOrders.get(orderId);
 
     if (!trackedOrder) {
-      // 不是我们追踪的订单，忽略
+      if (isClosedStatus(event.status)) {
+        orderHoldRegistry.markOrderClosed(orderId);
+      }
       return;
     }
 
-    // 更新订单状态
     trackedOrder.status = event.status;
-    // PushOrderChanged 的 executedQuantity / executedPrice 在 SDK 中通常为 Decimal
-    // 必须使用 decimalToNumber() 进行安全转换，避免 Number(Decimal) -> NaN
     const executedQuantity = decimalToNumber(event.executedQuantity);
     trackedOrder.executedQuantity = executedQuantity || 0;
 
-    // ========== 订单完全成交：使用成交价更新本地记录 ==========
     if (event.status === OrderStatus.Filled) {
-      orderHoldRegistry.markOrderFilled(orderId);
+      orderHoldRegistry.markOrderClosed(orderId);
       const executedPrice = decimalToNumber(event.executedPrice);
       const filledQuantity = decimalToNumber(event.executedQuantity);
 
@@ -204,7 +292,6 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
           return;
         }
 
-        // 直接调用 orderRecorder 更新本地记录（无回调，无闭包）
         if (trackedOrder.side === OrderSide.Buy) {
           orderRecorder.recordLocalBuy(
             trackedOrder.symbol,
@@ -222,7 +309,6 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
             executedTimeMs,
             orderId,
           );
-          // 更新待成交追踪
           orderRecorder.markSellFilled(orderId);
         }
 
@@ -281,8 +367,6 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
             '已更新本地订单记录',
         );
 
-        // 记录需要刷新的数据（订单成交后资金和持仓都会变化）
-        // 主循环中会统一刷新账户、持仓和浮亏数据
         refreshGate?.markStale();
         pendingRefreshSymbols.push({
           symbol: trackedOrder.symbol,
@@ -299,14 +383,12 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
         );
       }
 
-      // 移除追踪
       trackedOrders.delete(orderId);
       return;
     }
 
-    // 订单撤销或拒绝
     if (event.status === OrderStatus.Canceled || event.status === OrderStatus.Rejected) {
-      // 订单取消时释放追踪
+      orderHoldRegistry.markOrderClosed(orderId);
       if (trackedOrder.side === OrderSide.Sell) {
         orderRecorder.markSellCancelled(orderId);
       }
@@ -315,9 +397,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       return;
     }
 
-    // 部分成交：继续追踪，不更新本地记录
     if (event.status === OrderStatus.PartialFilled) {
-      // 更新待成交追踪
       if (trackedOrder.side === OrderSide.Sell) {
         orderRecorder.markSellPartialFilled(orderId, executedQuantity);
       }
@@ -329,10 +409,169 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     }
   }
 
+  /** 清空所有 pendingSell 运行态占用，保证恢复可重复执行 */
+  function clearAllPendingSellTracking(): void {
+    const pendingSellSnapshot = orderRecorder.getPendingSellSnapshot();
+    for (const pendingSell of pendingSellSnapshot) {
+      orderRecorder.markSellCancelled(pendingSell.orderId);
+    }
+  }
+
+  /** 重置恢复运行态（trackedOrders/pendingSell/refreshQueue），不触碰 BOOTSTRAPPING 事件缓存 */
+  function resetRecoveryTrackingState(): void {
+    for (const trackedOrder of trackedOrders.values()) {
+      orderHoldRegistry.markOrderClosed(trackedOrder.orderId);
+    }
+    trackedOrders.clear();
+    pendingRefreshSymbols.length = 0;
+    clearAllPendingSellTracking();
+  }
+
+  /** 清空 BOOTSTRAPPING 阶段事件缓存 */
+  function clearBootstrappingEventBuffer(): void {
+    bootstrappingOrderEvents.clear();
+  }
+
+  /** 按更新时间回放 BOOTSTRAPPING 阶段缓存的最新订单事件 */
+  function replayBootstrappingEvents(): ReadonlySet<string> {
+    if (bootstrappingOrderEvents.size === 0) {
+      return new Set<string>();
+    }
+
+    const replayEvents = Array.from(bootstrappingOrderEvents.values());
+    replayEvents.sort((left, right) => {
+      const leftMs = resolveUpdatedAtMs(left.updatedAt) ?? 0;
+      const rightMs = resolveUpdatedAtMs(right.updatedAt) ?? 0;
+      return leftMs - rightMs;
+    });
+    bootstrappingOrderEvents.clear();
+
+    const replayedOrderIds = new Set<string>();
+    for (const event of replayEvents) {
+      replayedOrderIds.add(event.orderId);
+      handleOrderChangedWhenActive(event);
+    }
+    return replayedOrderIds;
+  }
+
+  /** 校验跟踪卖单与 pendingSell 占用集合一致性，发现孤儿状态立即失败 */
+  function assertPendingSellConsistency(): void {
+    const pendingSellSnapshot = orderRecorder.getPendingSellSnapshot();
+    const pendingSellOrderIds = new Set<string>();
+    for (const pendingSell of pendingSellSnapshot) {
+      pendingSellOrderIds.add(pendingSell.orderId);
+    }
+
+    const trackedSellOrderIds = new Set<string>();
+    for (const trackedOrder of trackedOrders.values()) {
+      if (trackedOrder.side !== OrderSide.Sell) {
+        continue;
+      }
+      if (!PENDING_ORDER_STATUSES.has(trackedOrder.status)) {
+        continue;
+      }
+      trackedSellOrderIds.add(trackedOrder.orderId);
+    }
+
+    const orphanTrackedOrders = Array.from(trackedSellOrderIds).filter(
+      (orderId) => !pendingSellOrderIds.has(orderId),
+    );
+    const orphanPendingSells = Array.from(pendingSellOrderIds).filter(
+      (orderId) => !trackedSellOrderIds.has(orderId),
+    );
+
+    if (orphanTrackedOrders.length === 0 && orphanPendingSells.length === 0) {
+      return;
+    }
+
+    const orphanTrackedText = orphanTrackedOrders.join(', ') || 'none';
+    const orphanPendingText = orphanPendingSells.join(', ') || 'none';
+    throw new Error(
+      `[订单监控] 恢复一致性校验失败: orphanTracked=[${orphanTrackedText}] orphanPending=[${orphanPendingText}]`,
+    );
+  }
+
+  /**
+   * 恢复回放后对账：
+   * - trackedOrders 仅允许 pending 状态
+   * - trackedOrders 不得出现快照外且不在回放集中的订单
+   * - 快照中的 pending 订单必须被跟踪，或已在本轮撤销不匹配买单，或已由回放事件推进状态
+   */
+  function assertRecoverySnapshotReconciliation(
+    params: RecoverySnapshotReconciliationParams,
+  ): void {
+    const { allOrders, cancelledMismatchedBuyOrderIds, replayedOrderIds } = params;
+
+    const trackedOrderIds = new Set<string>();
+    const nonPendingTrackedOrderIds: string[] = [];
+    for (const trackedOrder of trackedOrders.values()) {
+      trackedOrderIds.add(trackedOrder.orderId);
+      if (!PENDING_ORDER_STATUSES.has(trackedOrder.status)) {
+        nonPendingTrackedOrderIds.push(trackedOrder.orderId);
+      }
+    }
+    if (nonPendingTrackedOrderIds.length > 0) {
+      throw new Error(
+        `[订单监控] 恢复对账失败: trackedNonPending=[${nonPendingTrackedOrderIds.join(', ')}]`,
+      );
+    }
+
+    const snapshotPendingOrderIds = new Set<string>();
+    for (const order of allOrders) {
+      if (PENDING_ORDER_STATUSES.has(order.status)) {
+        snapshotPendingOrderIds.add(order.orderId);
+      }
+    }
+
+    const unexpectedTrackedOrderIds = Array.from(trackedOrderIds).filter((orderId) => {
+      if (snapshotPendingOrderIds.has(orderId)) {
+        return false;
+      }
+      return !replayedOrderIds.has(orderId);
+    });
+
+    const missingTrackedOrderIds = Array.from(snapshotPendingOrderIds).filter((orderId) => {
+      if (trackedOrderIds.has(orderId)) {
+        return false;
+      }
+      if (cancelledMismatchedBuyOrderIds.has(orderId)) {
+        return false;
+      }
+      return !replayedOrderIds.has(orderId);
+    });
+
+    if (unexpectedTrackedOrderIds.length === 0 && missingTrackedOrderIds.length === 0) {
+      return;
+    }
+
+    const unexpectedText = unexpectedTrackedOrderIds.join(', ') || 'none';
+    const missingText = missingTrackedOrderIds.join(', ') || 'none';
+    throw new Error(
+      `[订单监控] 恢复对账失败: unexpectedTracked=[${unexpectedText}] missingTracked=[${missingText}]`,
+    );
+  }
+
+  /**
+   * 处理 WebSocket 订单状态变化
+   * BOOTSTRAPPING：仅缓存最新事件；ACTIVE：实时更新订单状态
+   */
+  function handleOrderChanged(event: PushOrderChanged): void {
+    if (runtimeState === 'BOOTSTRAPPING') {
+      cacheBootstrappingEvent(event);
+      return;
+    }
+    handleOrderChangedWhenActive(event);
+  }
+
   testHooks?.setHandleOrderChanged?.(handleOrderChanged);
 
   /** 初始化 WebSocket 订阅（订阅 Private 主题） */
   async function initialize(): Promise<void> {
+    runtimeState = 'BOOTSTRAPPING';
+    if (initialized) {
+      return;
+    }
+
     const ctx = await ctxPromise;
 
     // 设置订单变化回调（回调签名包含 err 和 event 两个参数）
@@ -347,6 +586,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     // 订阅私有通知
     await ctx.subscribe([TopicType.Private]);
 
+    initialized = true;
     logger.info('[订单监控] WebSocket 订阅初始化成功');
   }
 
@@ -358,12 +598,18 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       side,
       price,
       quantity,
+      submittedAtMs,
+      initialStatus,
       isLongSymbol,
       monitorSymbol,
       isProtectiveLiquidation,
       orderType,
     } = params;
     const now = Date.now();
+    const submittedAt =
+      typeof submittedAtMs === 'number' && isValidPositiveNumber(submittedAtMs)
+        ? submittedAtMs
+        : now;
 
     orderHoldRegistry.trackOrder(orderId, symbol);
 
@@ -378,8 +624,8 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       submittedPrice: price,
       submittedQuantity: quantity,
       executedQuantity: 0,
-      status: OrderStatus.New,
-      submittedAt: now,
+      status: resolveInitialTrackedStatus(initialStatus),
+      submittedAt,
       lastPriceUpdateAt: now,
       convertedToMarket: false,
     };
@@ -393,99 +639,177 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     );
   }
 
-  /** 程序重启时恢复未完成订单的追踪 */
-  async function recoverTrackedOrders(): Promise<void> {
-    const ctx = await ctxPromise;
-
-    await rateLimiter.throttle();
-    const todayOrders = await ctx.todayOrders();
-
-    let recoveredCount = 0;
-
-    for (const order of todayOrders) {
-      // 跳过已完成的订单
-      if (
-        order.status === OrderStatus.Filled ||
-        order.status === OrderStatus.Canceled ||
-        order.status === OrderStatus.Rejected
-      ) {
-        continue;
-      }
-
-      const symbol = order.symbol;
-      const { isLongSymbol, monitorSymbol } = resolveSeatOwnership(symbol);
-
-      // 获取已成交数量（用于部分成交订单的正确恢复）
-      const executedQuantity = decimalToNumber(order.executedQuantity);
-      const submittedQuantity = decimalToNumber(order.quantity);
-
-      // 重新追踪未完成的订单
-      trackOrder({
-        orderId: order.orderId,
-        symbol,
-        side: order.side,
-        price: decimalToNumber(order.price),
-        quantity: submittedQuantity,
-        isLongSymbol,
-        monitorSymbol,
-        isProtectiveLiquidation: false,
-        orderType: order.orderType,
-      });
-
-      // trackOrder 内部会将 executedQuantity 设为 0，这里需要更新为实际已成交数量
-      const trackedOrder = trackedOrders.get(order.orderId);
-      if (trackedOrder && executedQuantity > 0) {
-        trackedOrder.executedQuantity = executedQuantity;
-        logger.debug(
-          `[订单监控] 恢复部分成交订单 ${order.orderId}，已成交数量=${executedQuantity}`,
-        );
-      }
-
-      // 恢复期：未完成卖单同步恢复 pendingSells，避免跨日后 getProfitableSellOrders 重复分配
-      if (order.side === OrderSide.Sell && submittedQuantity > 0) {
-        const direction = isLongSymbol ? 'LONG' : 'SHORT';
-        const relatedBuyOrderIds = orderRecorder.allocateRelatedBuyOrderIdsForRecovery(
-          symbol,
-          direction,
-          submittedQuantity,
-        );
-        orderRecorder.submitSellOrder(
-          order.orderId,
-          symbol,
-          direction,
-          submittedQuantity,
-          relatedBuyOrderIds,
-        );
-        if (executedQuantity > 0) {
-          orderRecorder.markSellPartialFilled(order.orderId, executedQuantity);
-        }
-      }
-
-      recoveredCount++;
+  /**
+   * 从 allOrders 快照恢复单笔未完成订单追踪（匹配席位时）
+   * - 统一恢复 trackedOrders
+   * - 卖单同步恢复 pendingSells 占用关系
+   */
+  function restorePendingOrderTracking(
+    order: RawOrderFromAPI,
+    ownership: OrderSeatOwnership,
+  ): void {
+    const submittedQuantity = decimalToNumber(order.quantity);
+    if (!isValidPositiveNumber(submittedQuantity)) {
+      throw new Error(`[订单监控] 订单 ${order.orderId} 委托数量无效，无法恢复追踪`);
     }
 
-    if (recoveredCount > 0) {
-      logger.info(`[订单监控] 程序启动恢复追踪 ${recoveredCount} 个未完成订单`);
+    const trackedPriceRaw = decimalToNumber(order.price);
+    const trackedPrice = isValidPositiveNumber(trackedPriceRaw) ? trackedPriceRaw : 0;
+    const submittedAtMs = resolveSubmittedAtMs(order.submittedAt);
+    const executedQuantity = decimalToNumber(order.executedQuantity);
+
+    const trackOrderParams: TrackOrderParams = {
+      orderId: order.orderId,
+      symbol: order.symbol,
+      side: order.side,
+      price: trackedPrice,
+      quantity: submittedQuantity,
+      ...(submittedAtMs !== null ? { submittedAtMs } : {}),
+      initialStatus: order.status,
+      isLongSymbol: ownership.isLongSymbol,
+      monitorSymbol: ownership.monitorSymbol,
+      isProtectiveLiquidation: false,
+      orderType: order.orderType,
+    };
+    trackOrder(trackOrderParams);
+
+    const trackedOrder = trackedOrders.get(order.orderId);
+    if (trackedOrder && executedQuantity > 0) {
+      trackedOrder.executedQuantity = executedQuantity;
+      logger.debug(`[订单监控] 恢复部分成交订单 ${order.orderId}，已成交数量=${executedQuantity}`);
+    }
+
+    if (order.side === OrderSide.Sell) {
+      const relatedBuyOrderIds = orderRecorder.allocateRelatedBuyOrderIdsForRecovery(
+        order.symbol,
+        ownership.direction,
+        submittedQuantity,
+      );
+      orderRecorder.submitSellOrder(
+        order.orderId,
+        order.symbol,
+        ownership.direction,
+        submittedQuantity,
+        relatedBuyOrderIds,
+        submittedAtMs ?? undefined,
+      );
+      if (executedQuantity > 0) {
+        orderRecorder.markSellPartialFilled(order.orderId, executedQuantity);
+      }
     }
   }
 
-  /** 撤销订单 */
-  async function cancelOrder(orderId: string): Promise<boolean> {
+  /**
+   * 基于快照恢复未完成订单追踪。
+   * 规则：
+   * - 卖单：必须可解析归属且匹配当前席位，否则 fail-fast
+   * - 买单：归属不匹配或无法解析时立即撤单，撤单失败 fail-fast
+   */
+  async function recoverOrderTrackingFromSnapshot(
+    allOrders: ReadonlyArray<RawOrderFromAPI>,
+  ): Promise<void> {
+    runtimeState = 'BOOTSTRAPPING';
+    resetRecoveryTrackingState();
+
+    let recoveredCount = 0;
+    const cancelledMismatchedBuyOrderIds = new Set<string>();
+
+    try {
+      for (const order of allOrders) {
+        if (!PENDING_ORDER_STATUSES.has(order.status)) {
+          continue;
+        }
+
+        const ownership = resolveOrderSeatOwnership(order);
+        const isMatched = ownership ? isSeatMatchedForOrder(order, ownership) : false;
+
+        if (order.side === OrderSide.Sell) {
+          if (!ownership) {
+            throw new Error(`[订单监控] 卖单 ${order.orderId} 无法解析归属，阻断恢复`);
+          }
+          if (!isMatched) {
+            throw new Error(`[订单监控] 卖单 ${order.orderId} 与当前席位不匹配，阻断恢复`);
+          }
+          restorePendingOrderTracking(order, ownership);
+          recoveredCount += 1;
+          continue;
+        }
+
+        if (order.side === OrderSide.Buy) {
+          if (!ownership || !isMatched) {
+            const cancelled = await cancelOrder(order.orderId);
+            if (!cancelled) {
+              throw new Error(`[订单监控] 买单 ${order.orderId} 不匹配且撤单失败，阻断恢复`);
+            }
+            cancelledMismatchedBuyOrderIds.add(order.orderId);
+            continue;
+          }
+          restorePendingOrderTracking(order, ownership);
+          recoveredCount += 1;
+        }
+      }
+
+      const replayedOrderIds = replayBootstrappingEvents();
+      assertPendingSellConsistency();
+      assertRecoverySnapshotReconciliation({
+        allOrders,
+        cancelledMismatchedBuyOrderIds,
+        replayedOrderIds,
+      });
+      runtimeState = 'ACTIVE';
+
+      const cancelledMismatchedBuyCount = cancelledMismatchedBuyOrderIds.size;
+      if (recoveredCount > 0 || cancelledMismatchedBuyCount > 0) {
+        logger.info(
+          `[订单监控] 快照恢复完成：恢复追踪=${recoveredCount}，撤销不匹配买单=${cancelledMismatchedBuyCount}`,
+        );
+      }
+    } catch (error) {
+      resetRecoveryTrackingState();
+      throw error;
+    }
+  }
+
+  /**
+   * 撤销订单并执行运行态清理。
+   * - 清理 trackedOrders / holdRegistry
+   * - 对卖单返回已取消记录的关联买单 ID（用于后续转市价单复用）
+   */
+  async function cancelOrderWithRuntimeCleanup(orderId: string): Promise<CancelOrderResult> {
     const ctx = await ctxPromise;
 
     try {
       await rateLimiter.throttle();
       await ctx.cancelOrder(orderId);
 
+      const trackedOrder = trackedOrders.get(orderId);
+      let cancelledRelatedBuyOrderIds: ReadonlyArray<string> | null = null;
       cacheManager.clearCache();
       trackedOrders.delete(orderId);
+      orderHoldRegistry.markOrderClosed(orderId);
+      if (trackedOrder?.side === OrderSide.Sell) {
+        const cancelledSell = orderRecorder.markSellCancelled(orderId);
+        cancelledRelatedBuyOrderIds = cancelledSell?.relatedBuyOrderIds ?? null;
+      }
 
       logger.info(`[订单撤销成功] 订单ID=${orderId}`);
-      return true;
+      return {
+        cancelled: true,
+        cancelledRelatedBuyOrderIds,
+      };
     } catch (err) {
       logger.error(`[订单撤销失败] 订单ID=${orderId}`, formatError(err));
-      return false;
+      return {
+        cancelled: false,
+        cancelledRelatedBuyOrderIds: null,
+      };
     }
+  }
+
+  /** 撤销订单 */
+  async function cancelOrder(orderId: string): Promise<boolean> {
+    const cancelResult = await cancelOrderWithRuntimeCleanup(orderId);
+    return cancelResult.cancelled;
   }
 
   /** 修改订单委托价格 */
@@ -575,17 +899,16 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
 
     try {
       // 1. 撤销原订单
-      const cancelled = await cancelOrder(orderId);
+      const cancelResult = await cancelOrderWithRuntimeCleanup(orderId);
 
       // 如果撤销失败（订单可能已成交或已撤销），不继续提交市价单
       // 避免重复下单导致持仓数据错误
-      if (!cancelled) {
+      if (!cancelResult.cancelled) {
         logger.warn(
           `[订单监控] 卖出订单 ${orderId} 撤销失败（可能已成交或已撤销），跳过市价单提交`,
         );
         return;
       }
-      const cancelledPending = orderRecorder.markSellCancelled(orderId);
 
       // 门禁检查：禁止在门禁关闭时发起新开单（撤销已执行，仅阻止市价单提交）
       if (!isExecutionAllowed()) {
@@ -623,7 +946,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       const newOrderId = resolveOrderIdFromSubmitResponse(resp) ?? 'UNKNOWN';
       const direction: 'LONG' | 'SHORT' = order.isLongSymbol ? 'LONG' : 'SHORT';
       const relatedBuyOrderIds =
-        cancelledPending?.relatedBuyOrderIds ??
+        cancelResult.cancelledRelatedBuyOrderIds ??
         orderRecorder.allocateRelatedBuyOrderIdsForRecovery(
           order.symbol,
           direction,
@@ -780,10 +1103,11 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     return pendingRefreshSymbols.splice(0);
   }
 
-  /** 清空 trackedOrders 与 pendingRefreshSymbols */
+  /** 清空恢复相关运行态（tracked/pendingSell/refreshQueue）与 BOOTSTRAPPING 事件缓存 */
   function clearTrackedOrders(): void {
-    trackedOrders.clear();
-    pendingRefreshSymbols.length = 0;
+    resetRecoveryTrackingState();
+    clearBootstrappingEventBuffer();
+    runtimeState = 'BOOTSTRAPPING';
   }
 
   return {
@@ -792,7 +1116,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     cancelOrder,
     replaceOrderPrice,
     processWithLatestQuotes,
-    recoverTrackedOrders,
+    recoverOrderTrackingFromSnapshot,
     getPendingSellOrders,
     getAndClearPendingRefreshSymbols,
     clearTrackedOrders,

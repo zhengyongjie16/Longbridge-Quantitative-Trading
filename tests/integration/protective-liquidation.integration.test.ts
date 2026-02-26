@@ -60,7 +60,7 @@ describe('protective-liquidation integration', () => {
       },
       orderHoldRegistry: {
         trackOrder: () => {},
-        markOrderFilled: () => {},
+        markOrderClosed: () => {},
         seedFromOrders: () => {},
         getHoldSymbols: () => new Set<string>(),
         clear: () => {},
@@ -94,6 +94,7 @@ describe('protective-liquidation integration', () => {
 
     const monitor = createOrderMonitor(deps);
     await monitor.initialize();
+    await monitor.recoverOrderTrackingFromSnapshot([]);
 
     monitor.trackOrder({
       orderId: 'PL-001',

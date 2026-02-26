@@ -1,4 +1,6 @@
 import type { RunMode, GateMode } from '../../types/seat.js';
+import type { LastState } from '../../types/state.js';
+import { getHKDateKey } from '../../utils/helpers/tradingTime.js';
 
 /**
  * 从环境变量解析运行模式。未设置或非 'dev' 时默认为 'prod'。
@@ -26,4 +28,19 @@ export function resolveGatePolicies(runMode: RunMode): {
     return { startupGate: 'skip', runtimeGate: 'skip' };
   }
   return { startupGate: 'strict', runtimeGate: 'strict' };
+}
+
+/**
+ * 将全局状态切换为“启动快照失败，等待开盘重建重试”。
+ * 默认行为：阻断交易并标记 pendingOpenRebuild，目标交易日使用当前时间的港股交易日 key。
+ *
+ * @param lastState 全局可变状态
+ * @param now 当前时间（用于计算目标交易日）
+ * @returns 无返回值，直接原地更新 lastState
+ */
+export function applyStartupSnapshotFailureState(lastState: LastState, now: Date): void {
+  lastState.pendingOpenRebuild = true;
+  lastState.lifecycleState = 'OPEN_REBUILD_FAILED';
+  lastState.isTradingEnabled = false;
+  lastState.targetTradingDayKey = getHKDateKey(now);
 }

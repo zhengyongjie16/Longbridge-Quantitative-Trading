@@ -71,7 +71,7 @@ function createOrderMonitorDeps(params?: {
     },
     orderHoldRegistry: {
       trackOrder: () => {},
-      markOrderFilled: () => {},
+      markOrderClosed: () => {},
       seedFromOrders: () => {},
       getHoldSymbols: () => new Set<string>(),
       clear: () => {},

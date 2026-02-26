@@ -81,6 +81,7 @@ export function createOrderRecorderDouble(overrides: Partial<OrderRecorder> = {}
     markSellFilled: () => null,
     markSellPartialFilled: () => null,
     markSellCancelled: () => null,
+    getPendingSellSnapshot: () => [],
     allocateRelatedBuyOrderIdsForRecovery: () => [],
     getCostAveragePrice: () => null,
     selectSellableOrders: () => ({
@@ -114,11 +115,12 @@ export function createTraderDouble(overrides: Partial<Trader> = {}): Trader {
     cancelOrder: async () => true,
     monitorAndManageOrders: async () => {},
     getAndClearPendingRefreshSymbols: (): ReadonlyArray<PendingRefreshSymbol> => [],
+    initializeOrderMonitor: async () => {},
     canTradeNow: (): { readonly canTrade: boolean } => ({ canTrade: true }),
     recordBuyAttempt: () => {},
     fetchAllOrdersFromAPI: async () => [],
     resetRuntimeState: () => {},
-    recoverOrderTracking: async () => {},
+    recoverOrderTrackingFromSnapshot: async () => {},
     executeSignals: async () => ({ submittedCount: 0, submittedOrderIds: [] }),
   };
 
