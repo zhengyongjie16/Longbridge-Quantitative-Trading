@@ -1,27 +1,45 @@
 {
   "permissions": {
     "ask": [
-      "Edit(//**)",
-      "Edit(../**)",
-      "Edit(~/**)",
-      "Write(//**)",
-      "Write(../**)",
-      "Write(~/**)"
+      "Bash(git push *)",
+      "Bash(git push --force)",
+      "Bash(git push -f)",
+      "Bash(git reset --hard)",
+      "Bash(git reset --hard *)",
+      "Bash(git clean *)",
+      "Bash(git branch -D *)",
+      "Bash(git branch -d *)",
+      "Bash(rm -rf *)",
+      "Bash(rm -r *)",
+      "Bash(rm -f *)",
+      "Bash(curl *)",
+      "Bash(wget *)"
     ],
     "allow": [
       "Read(*)",
       "Edit(/**)",
       "Write(/**)",
       "Skill(*)",
-      "Bash(git*)",
+      "Bash(git *)",
       "Bash(npm run *)",
       "Bash(npx *)",
       "Bash(bunx *)",
       "Bash(tsc *)",
       "Bash(node *)",
       "Bash(bun *)",
+      "Bash(pnpm *)",
       "Bash(findstr:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(cat *)",
+      "Bash(dir *)",
+      "Bash(type *)",
+      "Bash(Get-ChildItem *)",
+      "Bash(Select-String *)",
+      "Bash(mkdir *)",
+      "Bash(rd *)",
+      "Bash(Remove-Item *)",
+      "Bash(rd /s *)",
+      "Bash(rmdir /s *)"
     ],
     "deny": []
   },
