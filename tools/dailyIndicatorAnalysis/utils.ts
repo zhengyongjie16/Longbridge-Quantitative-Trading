@@ -158,11 +158,7 @@ export function calculateADX(candles: ReadonlyArray<CandleData>, period: number)
       return null;
     }
 
-    const trueRange = Math.max(
-      high - low,
-      Math.abs(high - prevClose),
-      Math.abs(low - prevClose),
-    );
+    const trueRange = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
     const upMove = high - prevHigh;
     const downMove = prevLow - low;
     atr += trueRange;
@@ -188,11 +184,7 @@ export function calculateADX(candles: ReadonlyArray<CandleData>, period: number)
       return null;
     }
 
-    const trueRange = Math.max(
-      high - low,
-      Math.abs(high - prevClose),
-      Math.abs(low - prevClose),
-    );
+    const trueRange = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
     const upMove = high - prevHigh;
     const downMove = prevLow - low;
 
@@ -285,7 +277,9 @@ export function calculateVP(
 
     const typicalPrice = (parsed.high + parsed.low + parsed.close) / 3;
     const index =
-      binSize <= 0 ? 0 : Math.max(0, Math.min(numBins - 1, Math.floor((typicalPrice - minPrice) / binSize)));
+      binSize <= 0
+        ? 0
+        : Math.max(0, Math.min(numBins - 1, Math.floor((typicalPrice - minPrice) / binSize)));
     const current = bins[index];
     if (current === undefined) {
       continue;
@@ -553,7 +547,9 @@ export function computeMinuteRows(
   }
 
   const todayDate = toHKDateStr(lastCandle.timestamp);
-  const todayStartIndex = allCandles.findIndex((candlestick) => toHKDateStr(candlestick.timestamp) === todayDate);
+  const todayStartIndex = allCandles.findIndex(
+    (candlestick) => toHKDateStr(candlestick.timestamp) === todayDate,
+  );
   if (todayStartIndex < 0) {
     return { rows: [], todayDate };
   }

@@ -166,7 +166,7 @@ describe('sellProcessor business flow', () => {
     };
 
     const trader = createTraderDouble({
-      executeSignals: async () => ({ submittedCount: 1 }),
+      executeSignals: async () => ({ submittedCount: 1, submittedOrderIds: [] }),
     });
 
     const monitorContext = createMonitorContext({
@@ -223,7 +223,7 @@ describe('sellProcessor business flow', () => {
     const trader = createTraderDouble({
       executeSignals: async () => {
         executeCalls += 1;
-        return { submittedCount: 1 };
+        return { submittedCount: 1, submittedOrderIds: [] };
       },
     });
 
@@ -271,7 +271,7 @@ describe('sellProcessor business flow', () => {
     const trader = createTraderDouble({
       executeSignals: async () => {
         executeCalls += 1;
-        return { submittedCount: 1 };
+        return { submittedCount: 1, submittedOrderIds: [] };
       },
     });
 
@@ -319,7 +319,7 @@ describe('sellProcessor business flow', () => {
     const trader = createTraderDouble({
       executeSignals: async () => {
         executeCalls += 1;
-        return { submittedCount: 1 };
+        return { submittedCount: 1, submittedOrderIds: [] };
       },
     });
 
@@ -363,7 +363,7 @@ describe('sellProcessor business flow', () => {
     const trader = createTraderDouble({
       executeSignals: async () => {
         executeCalls += 1;
-        return { submittedCount: 1 };
+        return { submittedCount: 1, submittedOrderIds: [] };
       },
     });
 

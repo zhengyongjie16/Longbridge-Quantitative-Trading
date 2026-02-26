@@ -41,7 +41,9 @@ const HK_FEE_RATES: HKFeeRates = {
 const DEFAULT_TRADES_FILE = join(process.cwd(), 'logs', 'trades', '2026-01-21.json');
 
 function main(): void {
-  const trades: ReadonlyArray<Trade> = JSON.parse(readFileSync(DEFAULT_TRADES_FILE, 'utf-8')) as Trade[];
+  const trades: ReadonlyArray<Trade> = JSON.parse(
+    readFileSync(DEFAULT_TRADES_FILE, 'utf-8'),
+  ) as Trade[];
 
   console.log('=== 2026-01-21 交易费用计算 ===\n');
   console.log(`总订单数：${trades.length}\n`);

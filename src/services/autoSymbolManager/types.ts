@@ -110,6 +110,7 @@ export type SwitchState = {
   nextCallPrice: number | null;
   startedAt: number;
   sellSubmitted: boolean;
+  sellOrderId: string | null;
   sellNotional: number | null;
   shouldRebuy: boolean;
   awaitingQuote: boolean;
@@ -426,7 +427,6 @@ export interface AutoSearchManager {
  */
 export type SwitchStateMachineDeps = {
   readonly autoSearchConfig: AutoSearchConfig;
-  readonly monitorConfig: MonitorConfig;
   readonly monitorSymbol: string;
   readonly symbolRegistry: SymbolRegistry;
   readonly trader: Trader;

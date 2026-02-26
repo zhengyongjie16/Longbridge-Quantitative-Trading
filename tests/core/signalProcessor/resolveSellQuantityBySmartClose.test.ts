@@ -38,6 +38,7 @@ function createMockOrderRecorder(params: {
     clearBuyOrders: () => {},
     getLatestBuyOrderPrice: () => null,
     getLatestSellRecord: () => null,
+    getSellRecordByOrderId: () => null,
     fetchAllOrdersFromAPI: async () => [],
     refreshOrdersFromAllOrdersForLong: async () => [],
     refreshOrdersFromAllOrdersForShort: async () => [],

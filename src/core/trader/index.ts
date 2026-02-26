@@ -189,7 +189,9 @@ export async function createTrader(deps: TraderDeps): Promise<Trader> {
       return orderMonitor.recoverTrackedOrders();
     },
 
-    executeSignals(signals: Signal[]): Promise<{ submittedCount: number }> {
+    executeSignals(
+      signals: Signal[],
+    ): Promise<{ submittedCount: number; submittedOrderIds: ReadonlyArray<string> }> {
       return orderExecutor.executeSignals(signals);
     },
   };

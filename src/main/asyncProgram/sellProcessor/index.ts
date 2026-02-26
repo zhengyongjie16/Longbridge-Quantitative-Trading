@@ -107,21 +107,19 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
       // 1. 卖出操作的优先级高于买入，应优先允许执行
       // 2. checkBeforeOrder 对卖出信号基本是直接放行（只有持仓市值限制检查，但对卖出无意义）
       // 3. applyRiskChecks 的冷却期检查会阻止 10 秒内的重复卖出，不适用于卖出场景
-      const processedSignals = signalProcessor.processSellSignals(
-        {
-          signals: [signal],
-          longPosition,
-          shortPosition,
-          longQuote,
-          shortQuote,
-          orderRecorder,
-          smartCloseEnabled: config.smartCloseEnabled,
-          smartCloseTimeoutMinutes: config.smartCloseTimeoutMinutes,
-          nowMs: Date.now(),
-          isHalfDay: lastState.isHalfDay ?? false,
-          tradingCalendarSnapshot: lastState.tradingCalendarSnapshot ?? new Map(),
-        },
-      );
+      const processedSignals = signalProcessor.processSellSignals({
+        signals: [signal],
+        longPosition,
+        shortPosition,
+        longQuote,
+        shortQuote,
+        orderRecorder,
+        smartCloseEnabled: config.smartCloseEnabled,
+        smartCloseTimeoutMinutes: config.smartCloseTimeoutMinutes,
+        nowMs: Date.now(),
+        isHalfDay: lastState.isHalfDay ?? false,
+        tradingCalendarSnapshot: lastState.tradingCalendarSnapshot ?? new Map(),
+      });
 
       // 如果信号被转为 HOLD，跳过执行
       const firstSignal = processedSignals[0];

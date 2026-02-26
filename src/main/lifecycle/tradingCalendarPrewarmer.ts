@@ -101,7 +101,10 @@ function resolveEarliestOpenOrderExecutedMs(
     const shortSeatState = monitorContext.symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
 
     if (isSeatReady(longSeatState)) {
-      const longOrders = monitorContext.orderRecorder.getBuyOrdersForSymbol(longSeatState.symbol, true);
+      const longOrders = monitorContext.orderRecorder.getBuyOrdersForSymbol(
+        longSeatState.symbol,
+        true,
+      );
       earliestMs = resolveMinTimestamp(earliestMs, longOrders);
     }
 
@@ -216,7 +219,9 @@ async function hydrateSnapshotByDailyTradingDay({
 /**
  * 将缺失日期键切分为“同月且连续”的查询分块，确保每次请求不跨自然月且不覆盖已存在日期。
  */
-function splitMissingDateKeysByMonth(dateKeys: ReadonlyArray<string>): ReadonlyArray<DateRangeChunk> {
+function splitMissingDateKeysByMonth(
+  dateKeys: ReadonlyArray<string>,
+): ReadonlyArray<DateRangeChunk> {
   if (dateKeys.length === 0) {
     return [];
   }

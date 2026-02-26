@@ -34,21 +34,19 @@ import type { TradingCalendarSnapshot } from '../../utils/helpers/types.js';
  * @param params 卖出数量计算参数（持仓、行情、方向、配置与时间快照）
  * @returns 包含卖出数量、是否持有、原因说明及关联买入订单ID列表的结果
  */
-function calculateSellQuantity(
-  params: {
-    readonly position: Position | null;
-    readonly quote: Quote | null;
-    readonly orderRecorder: OrderRecorder | null;
-    readonly direction: 'LONG' | 'SHORT';
-    readonly originalReason: string;
-    readonly smartCloseEnabled: boolean;
-    readonly symbol: string;
-    readonly smartCloseTimeoutMinutes: number | null;
-    readonly nowMs: number;
-    readonly isHalfDay: boolean;
-    readonly tradingCalendarSnapshot: TradingCalendarSnapshot;
-  },
-): {
+function calculateSellQuantity(params: {
+  readonly position: Position | null;
+  readonly quote: Quote | null;
+  readonly orderRecorder: OrderRecorder | null;
+  readonly direction: 'LONG' | 'SHORT';
+  readonly originalReason: string;
+  readonly smartCloseEnabled: boolean;
+  readonly symbol: string;
+  readonly smartCloseTimeoutMinutes: number | null;
+  readonly nowMs: number;
+  readonly isHalfDay: boolean;
+  readonly tradingCalendarSnapshot: TradingCalendarSnapshot;
+}): {
   quantity: number | null;
   shouldHold: boolean;
   reason: string;
@@ -125,7 +123,9 @@ function calculateSellQuantity(
  * @param params 卖出信号处理参数（行情、持仓、配置与时间快照）
  * @returns 处理后的信号列表（与入参为同一引用）
  */
-export const processSellSignals = (params: ProcessSellSignalsParams): ProcessSellSignalsParams['signals'] => {
+export const processSellSignals = (
+  params: ProcessSellSignalsParams,
+): ProcessSellSignalsParams['signals'] => {
   const {
     signals,
     longPosition,

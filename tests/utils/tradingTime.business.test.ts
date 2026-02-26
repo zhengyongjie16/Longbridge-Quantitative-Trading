@@ -12,7 +12,9 @@ import {
 } from '../../src/utils/helpers/tradingTime.js';
 import type { TradingCalendarSnapshot } from '../../src/utils/helpers/types.js';
 
-function createCalendar(entries: ReadonlyArray<[string, { isTradingDay: boolean; isHalfDay: boolean }]>): TradingCalendarSnapshot {
+function createCalendar(
+  entries: ReadonlyArray<[string, { isTradingDay: boolean; isHalfDay: boolean }]>,
+): TradingCalendarSnapshot {
   return new Map(entries);
 }
 

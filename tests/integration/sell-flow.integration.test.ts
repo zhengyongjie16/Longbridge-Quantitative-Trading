@@ -55,7 +55,11 @@ describe('sell-flow integration', () => {
 
     const processed = signalProcessor.processSellSignals({
       signals: [signal],
-      longPosition: createPositionDouble({ symbol: 'BULL.HK', quantity: 300, availableQuantity: 300 }),
+      longPosition: createPositionDouble({
+        symbol: 'BULL.HK',
+        quantity: 300,
+        availableQuantity: 300,
+      }),
       shortPosition: null,
       longQuote: createQuoteDouble('BULL.HK', 1.05),
       shortQuote: null,
@@ -179,7 +183,11 @@ describe('sell-flow integration', () => {
 
     const processed = signalProcessor.processSellSignals({
       signals: [signal],
-      longPosition: createPositionDouble({ symbol: 'BULL.HK', quantity: 300, availableQuantity: 300 }),
+      longPosition: createPositionDouble({
+        symbol: 'BULL.HK',
+        quantity: 300,
+        availableQuantity: 300,
+      }),
       shortPosition: null,
       longQuote: createQuoteDouble('BULL.HK', 1.05),
       shortQuote: null,
@@ -292,7 +300,11 @@ describe('sell-flow integration', () => {
     const processed = signalProcessor.processSellSignals({
       signals: [signal],
       longPosition: null,
-      shortPosition: createPositionDouble({ symbol: 'BEAR.HK', quantity: 200, availableQuantity: 200 }),
+      shortPosition: createPositionDouble({
+        symbol: 'BEAR.HK',
+        quantity: 200,
+        availableQuantity: 200,
+      }),
       longQuote: null,
       shortQuote: createQuoteDouble('BEAR.HK', 1.05),
       orderRecorder: recorder,

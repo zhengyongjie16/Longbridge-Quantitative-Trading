@@ -65,7 +65,6 @@ function isReadySeat(seatState: SeatState): seatState is SeatState & { symbol: s
 export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchStateMachine {
   const {
     autoSearchConfig,
-    monitorConfig,
     monitorSymbol,
     symbolRegistry,
     trader,
@@ -238,6 +237,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
       nextCallPrice: next?.callPrice ?? null,
       startedAt: now().getTime(),
       sellSubmitted: false,
+      sellOrderId: null,
       sellNotional: null,
       shouldRebuy,
       awaitingQuote: false,
@@ -268,7 +268,12 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     const { sellAction, buyAction } = resolveDirectionSymbols(direction);
     const seatVersion = symbolRegistry.getSeatVersion(monitorSymbol, direction);
 
-    function failAndClear(): void {
+    function failAndClear(reason: string): void {
+      logger.error(
+        `[自动换标] 状态机失败并清席位 ` +
+          `monitorSymbol=${monitorSymbol} direction=${direction} oldSymbol=${state.oldSymbol} ` +
+          `nextSymbol=${state.nextSymbol ?? 'null'} stage=${state.stage} reason=${reason}`,
+      );
       state.stage = 'FAILED';
       const currentSeat = symbolRegistry.getSeatState(monitorSymbol, direction);
       const nowDate = now();
@@ -328,8 +333,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
           cancelTargets.map((order) => trader.cancelOrder(order.orderId)),
         );
         if (results.some((ok) => !ok)) {
-          failAndClear();
-          logger.error(`[自动换标] 撤销买入订单失败，换标中止: ${state.oldSymbol}`);
+          failAndClear('CANCEL_PENDING_FAILED');
           return;
         }
       }
@@ -364,18 +368,24 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
           seatVersion,
         });
 
-        await trader.executeSignals([signal]);
+        const executionResult = await trader.executeSignals([signal]);
         signalObjectPool.release(signal);
+        if (executionResult.submittedCount <= 0) {
+          logger.warn(
+            `[自动换标] 移仓卖出未提交成功，等待重试: monitorSymbol=${monitorSymbol} direction=${direction} symbol=${state.oldSymbol}`,
+          );
+          return;
+        }
         state.sellSubmitted = true;
+        state.sellOrderId = executionResult.submittedOrderIds[0] ?? null;
         return;
       }
 
-      const latestSellRecord = orderRecorder.getLatestSellRecord(
-        state.oldSymbol,
-        direction === 'LONG',
-      );
-      if (latestSellRecord && latestSellRecord.executedTime >= state.startedAt) {
-        const actualNotional = latestSellRecord.executedPrice * latestSellRecord.executedQuantity;
+      if (state.sellOrderId !== null) {
+        const sellRecord = orderRecorder.getSellRecordByOrderId(state.sellOrderId);
+        const actualNotional = sellRecord
+          ? sellRecord.executedPrice * sellRecord.executedQuantity
+          : Number.NaN;
         if (isValidPositiveNumber(actualNotional)) {
           state.sellNotional = actualNotional;
         }
@@ -387,7 +397,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     if (state.stage === 'BIND_NEW') {
       const nextSymbol = state.nextSymbol;
       if (!nextSymbol) {
-        failAndClear();
+        failAndClear('MISSING_NEXT_SYMBOL_ON_BIND');
         return;
       }
 
@@ -418,7 +428,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     if (state.stage === 'WAIT_QUOTE') {
       const nextSymbol = state.nextSymbol;
       if (!nextSymbol) {
-        failAndClear();
+        failAndClear('MISSING_NEXT_SYMBOL_ON_WAIT_QUOTE');
         return;
       }
       const quote = quotesMap.get(nextSymbol);
@@ -433,7 +443,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     if (state.stage === 'REBUY') {
       const nextSymbol = state.nextSymbol;
       if (!nextSymbol) {
-        failAndClear();
+        failAndClear('MISSING_NEXT_SYMBOL_ON_REBUY');
         return;
       }
       const quote = quotesMap.get(nextSymbol);
@@ -443,7 +453,11 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
         return;
       }
 
-      const buyNotional = state.sellNotional ?? monitorConfig.targetNotional;
+      const buyNotional = state.sellNotional;
+      if (!isValidPositiveNumber(buyNotional)) {
+        failAndClear('MISSING_REBUY_NOTIONAL');
+        return;
+      }
       const buyQuantity = calculateBuyQuantityByNotional(buyNotional, quote.price, quote.lotSize);
 
       if (buyQuantity !== null && isValidPositiveNumber(buyQuantity)) {

@@ -307,6 +307,11 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     return storage.getLatestSellRecord(symbol, isLongSymbol);
   }
 
+  /** 按订单 ID 获取卖出成交记录 */
+  function getSellRecordByOrderId(orderId: string): OrderRecord | null {
+    return storage.getSellRecordByOrderId(orderId);
+  }
+
   // ============================================
   // 公有方法 - 订单获取和刷新
   // ============================================
@@ -460,6 +465,7 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     clearBuyOrders,
     getLatestBuyOrderPrice,
     getLatestSellRecord,
+    getSellRecordByOrderId,
     fetchAllOrdersFromAPI,
     refreshOrdersFromAllOrdersForLong,
     refreshOrdersFromAllOrdersForShort,

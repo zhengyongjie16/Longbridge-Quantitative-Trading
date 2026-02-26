@@ -71,6 +71,7 @@ export function createOrderRecorderDouble(overrides: Partial<OrderRecorder> = {}
     clearBuyOrders: () => {},
     getLatestBuyOrderPrice: () => null,
     getLatestSellRecord: () => null,
+    getSellRecordByOrderId: () => null,
     fetchAllOrdersFromAPI: async () => [],
     refreshOrdersFromAllOrdersForLong: async () => [],
     refreshOrdersFromAllOrdersForShort: async () => [],
@@ -118,7 +119,7 @@ export function createTraderDouble(overrides: Partial<Trader> = {}): Trader {
     fetchAllOrdersFromAPI: async () => [],
     resetRuntimeState: () => {},
     recoverOrderTracking: async () => {},
-    executeSignals: async () => ({ submittedCount: 0 }),
+    executeSignals: async () => ({ submittedCount: 0, submittedOrderIds: [] }),
   };
 
   return {

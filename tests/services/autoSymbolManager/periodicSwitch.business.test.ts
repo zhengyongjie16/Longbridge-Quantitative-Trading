@@ -132,7 +132,7 @@ function createPeriodicHarness(params: HarnessParams): {
   const trader = createTraderDouble({
     executeSignals: async () => {
       params.executeSignalsHook?.();
-      return { submittedCount: 1 };
+      return { submittedCount: 1, submittedOrderIds: [] };
     },
     getPendingOrders: async () => [],
   });
@@ -157,7 +157,6 @@ function createPeriodicHarness(params: HarnessParams): {
 
   const machine = createSwitchStateMachine({
     autoSearchConfig: monitorConfig.autoSearchConfig,
-    monitorConfig,
     monitorSymbol: 'HSI.HK',
     symbolRegistry,
     trader,
@@ -590,7 +589,6 @@ describe('periodic auto-switch regression', () => {
 
     const machine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
-      monitorConfig,
       monitorSymbol: 'HSI.HK',
       symbolRegistry,
       trader,

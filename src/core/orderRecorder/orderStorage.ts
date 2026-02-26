@@ -44,6 +44,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
   const shortBuyOrdersMap: Map<string, OrderRecord[]> = new Map();
   const longSellRecordMap: Map<string, OrderRecord> = new Map();
   const shortSellRecordMap: Map<string, OrderRecord> = new Map();
+  const sellRecordsByOrderId: Map<string, OrderRecord> = new Map();
 
   // 待成交卖出订单追踪
   const pendingSells = new Map<string, PendingSellInfo>();
@@ -101,12 +102,18 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     if (!existing || record.executedTime >= existing.executedTime) {
       targetMap.set(symbol, record);
     }
+    sellRecordsByOrderId.set(record.orderId, record);
   };
 
   /** 获取指定标的的最新卖出记录 */
   const getLatestSellRecord = (symbol: string, isLongSymbol: boolean): OrderRecord | null => {
     const targetMap = isLongSymbol ? longSellRecordMap : shortSellRecordMap;
     return targetMap.get(symbol) ?? null;
+  };
+
+  /** 按订单 ID 获取卖出成交记录 */
+  const getSellRecordByOrderId = (orderId: string): OrderRecord | null => {
+    return sellRecordsByOrderId.get(orderId) ?? null;
   };
 
   /**
@@ -252,7 +259,9 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
   /**
    * 按卖出优先级排序（价格从低到高，时间从早到晚，orderId 字典序）。
    */
-  function sortOrdersBySellPriority(orders: ReadonlyArray<OrderRecord>): ReadonlyArray<OrderRecord> {
+  function sortOrdersBySellPriority(
+    orders: ReadonlyArray<OrderRecord>,
+  ): ReadonlyArray<OrderRecord> {
     return [...orders].sort((a, b) => {
       if (a.executedPrice !== b.executedPrice) {
         return a.executedPrice - b.executedPrice;
@@ -472,6 +481,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     shortBuyOrdersMap.clear();
     longSellRecordMap.clear();
     shortSellRecordMap.clear();
+    sellRecordsByOrderId.clear();
     pendingSells.clear();
   }
 
@@ -579,6 +589,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     clearBuyOrders,
     getLatestBuyOrderPrice,
     getLatestSellRecord,
+    getSellRecordByOrderId,
 
     // 待成交卖出订单追踪
     addPendingSell,

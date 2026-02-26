@@ -231,6 +231,8 @@ export interface OrderRecorder {
   getLatestBuyOrderPrice: (symbol: string, isLongSymbol: boolean) => number | null;
   /** 获取最新卖出订单记录 */
   getLatestSellRecord: (symbol: string, isLongSymbol: boolean) => OrderRecord | null;
+  /** 按订单 ID 获取卖出成交记录 */
+  getSellRecordByOrderId: (orderId: string) => OrderRecord | null;
   /** 从 API 获取全量订单 */
   fetchAllOrdersFromAPI: (forceRefresh?: boolean) => Promise<ReadonlyArray<RawOrderFromAPI>>;
   /** 使用全量订单刷新指定标的记录（做多标的） */
@@ -326,8 +328,10 @@ export interface Trader {
   resetRuntimeState: () => void;
   /** 生命周期开盘重建：恢复订单追踪 */
   recoverOrderTracking: () => Promise<void>;
-  /** 执行交易信号；返回实际提交的订单数量（保护性清仓等仅在真正提交后才更新缓存） */
-  executeSignals: (signals: Signal[]) => Promise<{ submittedCount: number }>;
+  /** 执行交易信号；返回实际提交数量与订单 ID 列表（保护性清仓等仅在真正提交后才更新缓存） */
+  executeSignals: (
+    signals: Signal[],
+  ) => Promise<{ submittedCount: number; submittedOrderIds: ReadonlyArray<string> }>;
 }
 
 /**

@@ -144,6 +144,7 @@ export interface OrderStorage {
   clearBuyOrders: (symbol: string, isLongSymbol: boolean, quote?: Quote | null) => void;
   getLatestBuyOrderPrice: (symbol: string, isLongSymbol: boolean) => number | null;
   getLatestSellRecord: (symbol: string, isLongSymbol: boolean) => OrderRecord | null;
+  getSellRecordByOrderId: (orderId: string) => OrderRecord | null;
 
   // 待成交卖出订单追踪
 

@@ -216,7 +216,7 @@ describe('doomsday integration', () => {
     const trader = createTraderDouble({
       executeSignals: async (signals) => {
         executedSignals = signals.length;
-        return { submittedCount: signals.length };
+        return { submittedCount: signals.length, submittedOrderIds: [] };
       },
     });
 

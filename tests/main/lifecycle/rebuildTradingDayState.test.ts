@@ -221,7 +221,9 @@ describe('createRebuildTradingDayState', () => {
     });
 
     expect(tradingDayCalls.length).toBeGreaterThan(0);
-    const earliestRequestedMs = Math.min(...tradingDayCalls.map((call) => call.startDate.getTime()));
+    const earliestRequestedMs = Math.min(
+      ...tradingDayCalls.map((call) => call.startDate.getTime()),
+    );
     expect(earliestRequestedMs).toBeGreaterThan(oldExecutedTime);
   });
 
@@ -254,7 +256,9 @@ describe('createRebuildTradingDayState', () => {
     });
 
     expect(tradingDayCalls.length).toBeGreaterThan(0);
-    const earliestRequestedMs = Math.min(...tradingDayCalls.map((call) => call.startDate.getTime()));
+    const earliestRequestedMs = Math.min(
+      ...tradingDayCalls.map((call) => call.startDate.getTime()),
+    );
     expect(earliestRequestedMs).toBeLessThanOrEqual(oldOpenOrderTime);
     const oldOrderDateKey = getHKDateKey(new Date(oldOpenOrderTime));
     expect(oldOrderDateKey).not.toBeNull();
@@ -359,9 +363,7 @@ describe('createRebuildTradingDayState', () => {
         'HSI.HK',
         createMonitorContext({
           symbolRegistry: registry,
-          buyOrders: [
-            createBuyOrder(Date.now() - 2 * TIME.MILLISECONDS_PER_DAY, 'BULL.HK'),
-          ],
+          buyOrders: [createBuyOrder(Date.now() - 2 * TIME.MILLISECONDS_PER_DAY, 'BULL.HK')],
         }),
       ],
     ]);

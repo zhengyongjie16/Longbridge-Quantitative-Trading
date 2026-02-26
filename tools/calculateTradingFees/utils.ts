@@ -24,7 +24,11 @@ function calculateTieredFee(tradeAmount: number, tieredRate: TieredFeeRate): num
  * @param feeRates 港股费率配置
  * @returns 单笔订单费用明细
  */
-export function calculateOrderFees(quantity: number, price: number, feeRates: HKFeeRates): OrderFees {
+export function calculateOrderFees(
+  quantity: number,
+  price: number,
+  feeRates: HKFeeRates,
+): OrderFees {
   const tradeAmount = quantity * price;
   const clearingFee = calculateTieredFee(tradeAmount, feeRates.clearingFee);
   const transactionFee = calculateTieredFee(tradeAmount, feeRates.transactionFee);
@@ -55,7 +59,10 @@ export function calculateOrderFees(quantity: number, price: number, feeRates: HK
  * @param trade 单笔交易记录
  * @returns 解析后的数量与价格
  */
-export function parseTradeNumbers(trade: Trade): { readonly quantity: number; readonly price: number } {
+export function parseTradeNumbers(trade: Trade): {
+  readonly quantity: number;
+  readonly price: number;
+} {
   return {
     quantity: Number.parseInt(trade.quantity, 10),
     price: Number.parseFloat(trade.price),

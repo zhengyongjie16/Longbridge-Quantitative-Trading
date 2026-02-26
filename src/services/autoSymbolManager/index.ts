@@ -102,7 +102,6 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
 
   const switchStateMachine = createSwitchStateMachine({
     autoSearchConfig,
-    monitorConfig,
     monitorSymbol,
     symbolRegistry,
     trader,

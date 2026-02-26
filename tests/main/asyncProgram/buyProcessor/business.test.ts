@@ -155,7 +155,7 @@ describe('buyProcessor business flow', () => {
           price: first?.price,
           lotSize: first?.lotSize,
         };
-        return { submittedCount: 1 };
+        return { submittedCount: 1, submittedOrderIds: [] };
       },
     });
 
@@ -207,7 +207,7 @@ describe('buyProcessor business flow', () => {
     const trader = createTraderDouble({
       executeSignals: async () => {
         executeCalls += 1;
-        return { submittedCount: 1 };
+        return { submittedCount: 1, submittedOrderIds: [] };
       },
     });
 
@@ -252,7 +252,7 @@ describe('buyProcessor business flow', () => {
     const trader = createTraderDouble({
       executeSignals: async () => {
         executeCalls += 1;
-        return { submittedCount: 1 };
+        return { submittedCount: 1, submittedOrderIds: [] };
       },
     });
 

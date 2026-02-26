@@ -131,6 +131,7 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
         nextCallPrice: null,
         startedAt: timestamp,
         sellSubmitted: false,
+        sellOrderId: null,
         sellNotional: null,
         shouldRebuy: false,
         awaitingQuote: false,

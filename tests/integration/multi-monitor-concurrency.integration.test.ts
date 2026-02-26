@@ -175,7 +175,7 @@ describe('multi-monitor-concurrency integration', () => {
         fetchAllOrdersFromAPI: async () => [],
         resetRuntimeState: () => {},
         recoverOrderTracking: async () => {},
-        executeSignals: async () => ({ submittedCount: 0 }),
+        executeSignals: async () => ({ submittedCount: 0, submittedOrderIds: [] }),
       },
       lastState: createLastState(),
       marketMonitor: {

@@ -69,7 +69,7 @@ function createRiskContext(params: {
 }
 
 describe('buy-flow integration', () => {
-  it('runs risk pipeline -> order execution and submits expected buy quantity', async () => {
+  it('runs risk pipeline -> order execution and submits notional-based buy quantity', async () => {
     const tradingConfig = createTradingConfig();
     const signalProcessor = createSignalProcessor({
       tradingConfig,
@@ -153,5 +153,110 @@ describe('buy-flow integration', () => {
     expect(payload.side).toBe(OrderSide.Buy);
     expect(payload.symbol).toBe('BULL.HK');
     expect(Number(payload.submittedQuantity.toString())).toBe(1000);
+  });
+
+  it('uses explicit signal quantity when valid quantity is provided', async () => {
+    const tradingConfig = createTradingConfig();
+    const tradeCtx = createTradeContextMock();
+    const trackedOrders: Array<{ orderId: string; quantity: number; side: OrderSide }> = [];
+    const orderExecutor = createOrderExecutor({
+      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      rateLimiter: {
+        throttle: async () => {},
+      },
+      cacheManager: {
+        clearCache: () => {},
+        getPendingOrders: async () => [],
+      },
+      orderMonitor: {
+        initialize: async () => {},
+        trackOrder: ({ orderId, quantity, side }) => {
+          trackedOrders.push({ orderId, quantity, side });
+        },
+        cancelOrder: async () => true,
+        replaceOrderPrice: async () => {},
+        processWithLatestQuotes: async () => {},
+        recoverTrackedOrders: async () => {},
+        getPendingSellOrders: () => [],
+        getAndClearPendingRefreshSymbols: () => [],
+        clearTrackedOrders: () => {},
+      },
+      orderRecorder: createOrderRecorderDouble(),
+      tradingConfig,
+      symbolRegistry: createSymbolRegistryDouble(),
+      isExecutionAllowed: () => true,
+    });
+
+    const signal = createSignal({
+      symbol: 'BULL.HK',
+      action: 'BUYCALL',
+      triggerTimeMs: Date.now(),
+      price: 1,
+      lotSize: 100,
+      reason: 'integration-buy-explicit-quantity',
+    });
+    signal.quantity = 200;
+
+    const result = await orderExecutor.executeSignals([signal]);
+
+    expect(result.submittedCount).toBe(1);
+    expect(trackedOrders).toHaveLength(1);
+    expect(trackedOrders[0]?.side).toBe(OrderSide.Buy);
+    expect(trackedOrders[0]?.quantity).toBe(200);
+
+    const submitCall = tradeCtx.getCalls('submitOrder')[0];
+    const payload = submitCall?.args[0] as {
+      readonly submittedQuantity: { readonly toString: () => string };
+    };
+    expect(Number(payload.submittedQuantity.toString())).toBe(200);
+  });
+
+  it('rejects invalid explicit buy quantity without fallback to targetNotional', async () => {
+    const tradingConfig = createTradingConfig();
+    const tradeCtx = createTradeContextMock();
+    const trackedOrders: Array<{ orderId: string; quantity: number; side: OrderSide }> = [];
+    const orderExecutor = createOrderExecutor({
+      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      rateLimiter: {
+        throttle: async () => {},
+      },
+      cacheManager: {
+        clearCache: () => {},
+        getPendingOrders: async () => [],
+      },
+      orderMonitor: {
+        initialize: async () => {},
+        trackOrder: ({ orderId, quantity, side }) => {
+          trackedOrders.push({ orderId, quantity, side });
+        },
+        cancelOrder: async () => true,
+        replaceOrderPrice: async () => {},
+        processWithLatestQuotes: async () => {},
+        recoverTrackedOrders: async () => {},
+        getPendingSellOrders: () => [],
+        getAndClearPendingRefreshSymbols: () => [],
+        clearTrackedOrders: () => {},
+      },
+      orderRecorder: createOrderRecorderDouble(),
+      tradingConfig,
+      symbolRegistry: createSymbolRegistryDouble(),
+      isExecutionAllowed: () => true,
+    });
+
+    const signal = createSignal({
+      symbol: 'BULL.HK',
+      action: 'BUYCALL',
+      triggerTimeMs: Date.now(),
+      price: 1,
+      lotSize: 100,
+      reason: 'integration-buy-invalid-explicit-quantity',
+    });
+    signal.quantity = 250;
+
+    const result = await orderExecutor.executeSignals([signal]);
+
+    expect(result.submittedCount).toBe(0);
+    expect(trackedOrders).toHaveLength(0);
+    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
   });
 });

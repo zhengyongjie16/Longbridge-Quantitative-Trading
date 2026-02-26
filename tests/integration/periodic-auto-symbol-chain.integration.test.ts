@@ -71,7 +71,9 @@ describe('periodic auto-symbol full chain integration', () => {
     const readyMs = Date.parse('2026-02-16T01:30:00.000Z');
     let currentNowMs = Date.parse('2026-02-16T01:31:00.000Z');
     candidateQueue = [{ symbol: 'NEW_BULL.HK', callPrice: 21_000 }];
-    const tradingCalendarSnapshot = new Map([['2026-02-16', { isTradingDay: true, isHalfDay: false }]]);
+    const tradingCalendarSnapshot = new Map([
+      ['2026-02-16', { isTradingDay: true, isHalfDay: false }],
+    ]);
 
     const monitorConfig = createMonitorConfigDouble({
       monitorSymbol: 'HSI.HK',
@@ -117,7 +119,7 @@ describe('periodic auto-symbol full chain integration', () => {
     const trader = createTraderDouble({
       executeSignals: async (signals) => {
         executeSignalsCalls += signals.length;
-        return { submittedCount: signals.length };
+        return { submittedCount: signals.length, submittedOrderIds: [] };
       },
       getPendingOrders: async () => [],
       cancelOrder: async () => true,
@@ -302,7 +304,7 @@ describe('periodic auto-symbol full chain integration', () => {
     const trader = createTraderDouble({
       executeSignals: async (signals) => {
         executeSignalsCalls += signals.length;
-        return { submittedCount: signals.length };
+        return { submittedCount: signals.length, submittedOrderIds: [] };
       },
       getPendingOrders: async () => [],
       cancelOrder: async () => true,

@@ -269,7 +269,7 @@ describe('full business simulation integration', () => {
         for (const signal of signals) {
           submittedActions.push(signal.action);
         }
-        return { submittedCount: signals.length };
+        return { submittedCount: signals.length, submittedOrderIds: [] };
       },
     });
 
@@ -453,22 +453,29 @@ describe('full business simulation integration', () => {
             symbol: signal.symbol,
           });
         }
-        return { submittedCount: signals.length };
+        const firstSignal = signals[0];
+        if (firstSignal?.action === 'SELLCALL' && firstSignal.symbol === 'OLD_BULL.HK') {
+          return { submittedCount: signals.length, submittedOrderIds: ['SELL-1'] };
+        }
+        return { submittedCount: signals.length, submittedOrderIds: ['BUY-1'] };
       },
       getPendingOrders: async () => [],
       cancelOrder: async () => true,
     });
 
     const orderRecorder = createOrderRecorderDouble({
-      getLatestSellRecord: () => ({
-        orderId: 'SELL-1',
-        symbol: 'OLD_BULL.HK',
-        executedPrice: 2,
-        executedQuantity: 100,
-        executedTime: 9_999_999_999_999,
-        submittedAt: undefined,
-        updatedAt: undefined,
-      }),
+      getSellRecordByOrderId: (orderId) =>
+        orderId === 'SELL-1'
+          ? {
+              orderId: 'SELL-1',
+              symbol: 'OLD_BULL.HK',
+              executedPrice: 2,
+              executedQuantity: 100,
+              executedTime: 9_999_999_999_999,
+              submittedAt: undefined,
+              updatedAt: undefined,
+            }
+          : null,
     });
 
     const riskChecker = createRiskCheckerDouble({
@@ -803,7 +810,7 @@ describe('full business simulation integration', () => {
         for (const signal of signals) {
           submittedActions.push(signal.action);
         }
-        return { submittedCount: signals.length };
+        return { submittedCount: signals.length, submittedOrderIds: [] };
       },
     });
     const signalProcessor = createSignalProcessor({

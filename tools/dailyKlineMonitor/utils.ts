@@ -2,7 +2,12 @@ import type { Candlestick } from 'longport';
 import type { CandleData } from '../../src/types/data.js';
 import type { IndicatorSnapshot, Quote } from '../../src/types/quote.js';
 import { decimalToNumber, formatNumber, toHongKongTimeLog } from '../../src/utils/helpers/index.js';
-import type { ChangeDetectConfig, DisplayContext, IndicatorPeriods, MonitorState } from './types.js';
+import type {
+  ChangeDetectConfig,
+  DisplayContext,
+  IndicatorPeriods,
+  MonitorState,
+} from './types.js';
 
 /**
  * 格式化 K 线时间前缀。默认行为：无效时间返回空字符串。
@@ -61,7 +66,9 @@ export function hasChanged(
  * @param candles LongPort K 线数组
  * @returns CandleData 数组
  */
-export function convertToCandleData(candles: ReadonlyArray<Candlestick>): ReadonlyArray<CandleData> {
+export function convertToCandleData(
+  candles: ReadonlyArray<Candlestick>,
+): ReadonlyArray<CandleData> {
   return candles.map((candle) => ({
     high: decimalToNumber(candle.high),
     low: decimalToNumber(candle.low),
@@ -90,7 +97,12 @@ export function calculateChangePercent(
   ) {
     return null;
   }
-  if (!Number.isFinite(currentPrice) || !Number.isFinite(prevClose) || currentPrice <= 0 || prevClose <= 0) {
+  if (
+    !Number.isFinite(currentPrice) ||
+    !Number.isFinite(prevClose) ||
+    currentPrice <= 0 ||
+    prevClose <= 0
+  ) {
     return null;
   }
   return ((currentPrice - prevClose) / prevClose) * 100;
@@ -206,7 +218,10 @@ export function detectIndicatorChanges(
 ): boolean {
   const changePercent = calculateChangePercent(snapshot.price, quote?.prevClose ?? null);
 
-  if (state.lastPrice === null || hasChanged(snapshot.price, state.lastPrice, config.changeThreshold)) {
+  if (
+    state.lastPrice === null ||
+    hasChanged(snapshot.price, state.lastPrice, config.changeThreshold)
+  ) {
     return true;
   }
   if (
@@ -357,7 +372,10 @@ function buildIndicatorSegments(
  * @returns 无返回值
  */
 export function displayIndicators(context: DisplayContext): void {
-  const changePercent = calculateChangePercent(context.snapshot.price, context.quote?.prevClose ?? null);
+  const changePercent = calculateChangePercent(
+    context.snapshot.price,
+    context.quote?.prevClose ?? null,
+  );
   const indicatorSegments = buildIndicatorSegments(
     context.snapshot,
     changePercent,
