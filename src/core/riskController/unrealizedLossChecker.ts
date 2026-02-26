@@ -197,8 +197,6 @@ export const createUnrealizedLossChecker = (
         2,
       )} HKD 超过阈值 ${threshold} HKD (R1=${r1.toFixed(2)}, R2=${r2.toFixed(2)}, N1=${n1})，执行保护性清仓`;
 
-      logger.warn(reason);
-
       return {
         shouldLiquidate: true,
         reason,
