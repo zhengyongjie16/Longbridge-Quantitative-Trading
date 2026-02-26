@@ -21,6 +21,7 @@
       "Write(/**)",
       "Skill(*)",
       "Bash(git *)",
+      "Bash(git commit:*)",
       "Bash(npm run *)",
       "Bash(npx *)",
       "Bash(bunx *)",
