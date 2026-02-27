@@ -111,7 +111,7 @@ export async function batchGetQuotes(
   marketDataClient: MarketDataClient,
   symbols: Iterable<string>,
 ): Promise<Map<string, Quote | null>> {
-  const symbolArray = Array.from(symbols);
+  const symbolArray = [...symbols];
 
   if (symbolArray.length === 0) {
     return new Map();

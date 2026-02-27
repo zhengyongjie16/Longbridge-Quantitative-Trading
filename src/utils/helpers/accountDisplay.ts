@@ -97,7 +97,7 @@ export function displayAccountAndPositions({
 
       const totalAssets = account?.netAssets ?? 0;
 
-      positions.forEach((pos) => {
+      for (const pos of positions) {
         const symbolInfo = symbolInfoMap.get(pos.symbol);
         const nameText = symbolInfo?.name ?? pos.symbolName;
         const codeText = pos.symbol;
@@ -131,7 +131,7 @@ export function displayAccountAndPositions({
         logger.info(
           `- [${channelDisplay}] ${displayName}(${displayCode}) 持仓=${quantityText} 可用=${availableText} ${priceText} 市值=${marketValueText} 仓位=${positionPercentText}% ${currencyText}`,
         );
-      });
+      }
     } else {
       logger.info('当前无股票持仓。');
     }

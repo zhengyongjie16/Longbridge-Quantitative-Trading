@@ -22,7 +22,7 @@ import type { PsyStreamState } from './types.js';
 function initPsyStreamState(period: number): PsyStreamState {
   return {
     period,
-    upFlags: new Array<number>(period).fill(0),
+    upFlags: Array.from<number>({ length: period }).fill(0),
     previousClose: null,
     validCloseCount: 0,
     windowCount: 0,

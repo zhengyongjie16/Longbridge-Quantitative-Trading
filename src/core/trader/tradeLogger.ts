@@ -98,7 +98,7 @@ export function recordTrade(tradeRecord: TradeRecord): void {
 
     let trades: TradeRecord[] = [];
     if (fs.existsSync(logFile)) {
-      const content = fs.readFileSync(logFile, 'utf-8');
+      const content = fs.readFileSync(logFile, 'utf8');
       try {
         const parsed: unknown = JSON.parse(content);
         // 信任边界：校验 JSON 解析结果
@@ -144,7 +144,7 @@ export function recordTrade(tradeRecord: TradeRecord): void {
 
     trades.push(record);
 
-    fs.writeFileSync(logFile, JSON.stringify(trades, null, 2), 'utf-8');
+    fs.writeFileSync(logFile, JSON.stringify(trades, null, 2), 'utf8');
   } catch (err) {
     logger.error('写入交易记录失败', err);
   }

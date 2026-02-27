@@ -188,12 +188,12 @@ export const performVerification = (
   const passed = result0.passed && result1.passed && result2.passed;
 
   if (!passed && allFailedIndicators.size > 0) {
-    detailParts.push(`[失败指标: ${Array.from(allFailedIndicators).join(', ')}]`);
+    detailParts.push(`[失败指标: ${[...allFailedIndicators].join(', ')}]`);
   }
 
   return {
     passed,
     reason: detailParts.join(' | '),
-    failedIndicators: Array.from(allFailedIndicators),
+    failedIndicators: [...allFailedIndicators],
   };
 };

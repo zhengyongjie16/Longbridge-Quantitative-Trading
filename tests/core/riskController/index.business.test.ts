@@ -25,11 +25,15 @@ function createWarrantCheckerStub(): WarrantRiskChecker {
   };
 }
 
+function getMissingUnrealizedLossData(): undefined {
+  return;
+}
+
 function createUnrealizedLossCheckerStub(
   overrides: Partial<UnrealizedLossChecker> = {},
 ): UnrealizedLossChecker {
   const base: UnrealizedLossChecker = {
-    getUnrealizedLossData: () => undefined,
+    getUnrealizedLossData: getMissingUnrealizedLossData,
     clearUnrealizedLossData: () => {},
     refresh: async () => null,
     check: () => ({ shouldLiquidate: false }),
@@ -129,7 +133,7 @@ describe('riskController(index) business flow', () => {
     const checker = createRiskChecker({
       warrantRiskChecker: createWarrantCheckerStub(),
       unrealizedLossChecker: createUnrealizedLossCheckerStub({
-        getUnrealizedLossData: () => undefined,
+        getUnrealizedLossData: getMissingUnrealizedLossData,
       }),
       positionLimitChecker: createPositionLimitCheckerStub({
         checkLimit: () => ({

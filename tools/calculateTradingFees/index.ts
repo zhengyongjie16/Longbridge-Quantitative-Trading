@@ -4,7 +4,7 @@
  * 流程：读取交易数据 -> 逐单计算费用 -> 累加汇总 -> 输出结果。
  */
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import path from 'node:path';
 import type { HKFeeRates, Trade } from './types.js';
 import {
   accumulateFees,
@@ -38,11 +38,11 @@ const HK_FEE_RATES: HKFeeRates = {
 };
 
 /** 默认交易日志文件路径 */
-const DEFAULT_TRADES_FILE = join(process.cwd(), 'logs', 'trades', '2026-01-21.json');
+const DEFAULT_TRADES_FILE = path.join(process.cwd(), 'logs', 'trades', '2026-01-21.json');
 
 function main(): void {
   const trades: ReadonlyArray<Trade> = JSON.parse(
-    readFileSync(DEFAULT_TRADES_FILE, 'utf-8'),
+    readFileSync(DEFAULT_TRADES_FILE, 'utf8'),
   ) as Trade[];
 
   console.log('=== 2026-01-21 交易费用计算 ===\n');

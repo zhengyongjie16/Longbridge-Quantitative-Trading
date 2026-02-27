@@ -22,10 +22,8 @@ export default defineConfig(
   ...tseslint.configs.strictTypeChecked,
   ...tseslint.configs.stylisticTypeChecked,
   sonarjs.configs.recommended,
+  eslintPluginUnicorn.configs.recommended,
   {
-    plugins: {
-      unicorn: eslintPluginUnicorn,
-    },
     languageOptions: {
       parserOptions: {
         projectService: true,
@@ -154,6 +152,19 @@ export default defineConfig(
       'no-nested-ternary': 'error',
       'prefer-arrow-callback': 'error',
 
+      // Unicorn 规则兼容性调整
+      'unicorn/prefer-string-slice': 'off',
+      'unicorn/prevent-abbreviations': 'off',
+      'unicorn/filename-case': 'off',
+      'unicorn/numeric-separators-style': 'off',
+      'unicorn/catch-error-name': 'off',
+      'unicorn/no-null': 'off',
+      'unicorn/no-process-exit': 'off',
+      'unicorn/prefer-switch': 'off',
+      'unicorn/no-array-callback-reference': 'off',
+      'unicorn/consistent-function-scoping': 'off',
+      'unicorn/no-array-sort': 'off',
+
       // 索引访问表达优化
       'unicorn/prefer-at': [
         'error',
@@ -161,7 +172,6 @@ export default defineConfig(
           checkAllIndexAccess: false,
         },
       ],
-      'unicorn/prefer-negative-index': 'error',
     },
   },
   {

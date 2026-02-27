@@ -432,11 +432,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
         false,
       );
 
-      if (state.shouldRebuy) {
-        state.stage = 'WAIT_QUOTE';
-      } else {
-        state.stage = 'COMPLETE';
-      }
+      state.stage = state.shouldRebuy ? 'WAIT_QUOTE' : 'COMPLETE';
     }
 
     if (state.stage === 'WAIT_QUOTE') {

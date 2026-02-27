@@ -588,7 +588,7 @@ describe('periodic auto-switch regression', () => {
     });
     const signalBuilder = createSignalBuilder({ signalObjectPool });
 
-    const pendingStatus = Array.from(PENDING_ORDER_STATUSES)[0];
+    const pendingStatus = [...PENDING_ORDER_STATUSES][0];
     if (!pendingStatus) {
       throw new Error('PENDING_ORDER_STATUSES must contain at least one status');
     }

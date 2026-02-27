@@ -253,7 +253,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
           uniqueSignalsMap.set(key, signal);
         }
       }
-      const uniqueClearanceSignals = Array.from(uniqueSignalsMap.values());
+      const uniqueClearanceSignals = [...uniqueSignalsMap.values()];
 
       if (uniqueClearanceSignals.length === 0) {
         const availablePositions = positions.filter((pos) => {
@@ -347,7 +347,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
         return { executed: false, cancelledCount: 0 };
       }
 
-      const symbolsArray = Array.from(allTradingSymbols);
+      const symbolsArray = [...allTradingSymbols];
 
       // 首次进入收盘前 15 分钟，查询未成交订单
       // 注意：这是当天唯一一次查询，之后不再重复调用 Trade API

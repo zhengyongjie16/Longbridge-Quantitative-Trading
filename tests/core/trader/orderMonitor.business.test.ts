@@ -122,7 +122,7 @@ function createDeps(params?: {
       pendingSellSnapshot.delete(orderId);
       return cancelled;
     },
-    getPendingSellSnapshot: () => Array.from(pendingSellSnapshot.values()),
+    getPendingSellSnapshot: () => [...pendingSellSnapshot.values()],
   });
 
   const baseConfig = createTradingConfig();

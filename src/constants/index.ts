@@ -125,12 +125,12 @@ export const LOG_LEVELS = {
 
 /** 日志 ANSI 颜色常量（用于控制台高亮） */
 export const LOG_COLORS = {
-  reset: '\x1b[0m',
-  yellow: '\x1b[33m',
-  red: '\x1b[31m',
-  gray: '\x1b[90m',
-  green: '\x1b[32m',
-  cyan: '\x1b[96m',
+  reset: '\u001B[0m',
+  yellow: '\u001B[33m',
+  red: '\u001B[31m',
+  gray: '\u001B[90m',
+  green: '\u001B[32m',
+  cyan: '\u001B[96m',
 } as const;
 
 /** ANSI 转义字符（ESC，ASCII 27） */
@@ -254,6 +254,6 @@ export const ACTION_DESCRIPTIONS: Record<SignalType, string> = {
 /** 订单归属解析常量（标准化规则 + 多空标记） */
 export const ORDER_OWNERSHIP = {
   NORMALIZE_PATTERN: /[^\p{L}\p{N}]/gu,
-  LONG_MARKERS: ['RC', 'BULL', 'CALL', '\u725b'],
-  SHORT_MARKERS: ['RP', 'BEAR', 'PUT', '\u718a'],
+  LONG_MARKERS: ['RC', 'BULL', 'CALL', '\u725B'],
+  SHORT_MARKERS: ['RP', 'BEAR', 'PUT', '\u718A'],
 } as const;

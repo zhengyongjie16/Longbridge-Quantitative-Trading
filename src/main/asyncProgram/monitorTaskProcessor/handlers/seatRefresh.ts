@@ -119,19 +119,15 @@ export function createSeatRefreshHandler({
       tradingConfig.monitors,
       new Date(),
     );
-    if (isLong) {
-      await context.orderRecorder.refreshOrdersFromAllOrdersForLong(
+    await (isLong ? context.orderRecorder.refreshOrdersFromAllOrdersForLong(
         data.nextSymbol,
         allOrders,
         data.quote,
-      );
-    } else {
-      await context.orderRecorder.refreshOrdersFromAllOrdersForShort(
+      ) : context.orderRecorder.refreshOrdersFromAllOrdersForShort(
         data.nextSymbol,
         allOrders,
         data.quote,
-      );
-    }
+      ));
 
     await helpers.refreshAccountCaches();
 

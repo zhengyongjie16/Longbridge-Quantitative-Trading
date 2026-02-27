@@ -64,19 +64,15 @@ export async function prewarmTradingCalendarSnapshotForRebuild(
   const missingDateKeys = demandDateKeys.filter((dateKey) => !nextSnapshot.has(dateKey));
 
   if (missingDateKeys.length > 0) {
-    if (marketDataClient.getTradingDays) {
-      await hydrateSnapshotByMonthlyTradingDays({
+    await (marketDataClient.getTradingDays ? hydrateSnapshotByMonthlyTradingDays({
         marketDataClient,
         dateKeys: missingDateKeys,
         nextSnapshot,
-      });
-    } else {
-      await hydrateSnapshotByDailyTradingDay({
+      }) : hydrateSnapshotByDailyTradingDay({
         marketDataClient,
         dateKeys: missingDateKeys,
         nextSnapshot,
-      });
-    }
+      }));
   }
 
   const nowDateKey = getHKDateKey(now);

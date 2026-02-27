@@ -103,5 +103,5 @@ export function extractPsyPeriods(
     periods.add(DEFAULT_PSY_PERIOD);
   }
 
-  return Array.from(periods).sort((a, b) => a - b);
+  return [...periods].sort((a, b) => a - b);
 }

@@ -227,11 +227,7 @@ function createQuotesForSymbols(
   iteration: number,
 ): Map<string, Quote | null> {
   const quotes = new Map<string, Quote | null>();
-  for (let index = 0; index < monitorConfigs.length; index += 1) {
-    const config = monitorConfigs[index];
-    if (!config) {
-      continue;
-    }
+  for (const [index, config] of monitorConfigs.entries()) {
     const baseMonitor = 20_000 + index * 10 + iteration;
     const baseLong = 1.05 + index * 0.02 + iteration * 0.001;
     const baseShort = 0.95 + index * 0.02 + iteration * 0.001;
@@ -425,11 +421,7 @@ describe('main loop latency full-chain integration', () => {
         quoteCache.set(symbol, quote);
       }
 
-      for (let index = 0; index < monitorConfigs.length; index += 1) {
-        const monitorConfig = monitorConfigs[index];
-        if (!monitorConfig) {
-          continue;
-        }
+      for (const [index, monitorConfig] of monitorConfigs.entries()) {
         const key = makeCandleKey(monitorConfig.monitorSymbol, TRADING.CANDLE_PERIOD);
         if (!subscribedCandlestickKeys.has(key)) {
           continue;
@@ -478,8 +470,8 @@ describe('main loop latency full-chain integration', () => {
           const key = makeCandleKey(symbol, period);
           subscribedCandlestickKeys.add(key);
           let monitorIndex = -1;
-          for (let index = 0; index < monitorConfigs.length; index += 1) {
-            if (monitorConfigs[index]?.monitorSymbol === symbol) {
+          for (const [index, monitorConfig] of monitorConfigs.entries()) {
+            if (monitorConfig.monitorSymbol === symbol) {
               monitorIndex = index;
               break;
             }
@@ -553,7 +545,7 @@ describe('main loop latency full-chain integration', () => {
     };
 
     // 启动阶段：真实链路是先订阅，再进入主循环
-    await marketDataClient.subscribeSymbols(Array.from(allTradingSymbols));
+    await marketDataClient.subscribeSymbols([...allTradingSymbols]);
     for (const monitorConfig of monitorConfigs) {
       await marketDataClient.subscribeCandlesticks(
         monitorConfig.monitorSymbol,

@@ -268,7 +268,7 @@ export function calculateVP(
   }
 
   const binSize = maxPrice > minPrice ? (maxPrice - minPrice) / numBins : 0;
-  const bins = new Array<number>(numBins).fill(0);
+  const bins = Array.from<number>({ length: numBins }).fill(0);
 
   for (const candle of candles) {
     const parsed = parseCandleNumbers(candle);
@@ -431,32 +431,44 @@ export function getIndicatorValue(
   key: RowColorIndicatorKey,
 ): number | null {
   switch (key) {
-    case 'rsi6':
+    case 'rsi6': {
       return row.rsi6 !== null && Number.isFinite(row.rsi6) ? row.rsi6 : null;
-    case 'k':
+    }
+    case 'k': {
       return row.kdj !== null && Number.isFinite(row.kdj.k) ? row.kdj.k : null;
-    case 'd':
+    }
+    case 'd': {
       return row.kdj !== null && Number.isFinite(row.kdj.d) ? row.kdj.d : null;
-    case 'j':
+    }
+    case 'j': {
       return row.kdj !== null && Number.isFinite(row.kdj.j) ? row.kdj.j : null;
-    case 'mfi':
+    }
+    case 'mfi': {
       return row.mfi !== null && Number.isFinite(row.mfi) ? row.mfi : null;
-    case 'adx':
+    }
+    case 'adx': {
       return row.adx !== null && Number.isFinite(row.adx) ? row.adx : null;
-    case 'ema5':
+    }
+    case 'ema5': {
       return row.ema5 !== null && Number.isFinite(row.ema5) ? row.ema5 : null;
-    case 'poc':
+    }
+    case 'poc': {
       return row.vp !== null && Number.isFinite(row.vp.poc) ? row.vp.poc : null;
-    case 'vah':
+    }
+    case 'vah': {
       return row.vp !== null && Number.isFinite(row.vp.vah) ? row.vp.vah : null;
-    case 'val':
+    }
+    case 'val': {
       return row.vp !== null && Number.isFinite(row.vp.val) ? row.vp.val : null;
-    case 'vaPositionInValueArea':
+    }
+    case 'vaPositionInValueArea': {
       return row.vaPositionInValueArea !== null && Number.isFinite(row.vaPositionInValueArea)
         ? row.vaPositionInValueArea
         : null;
-    default:
+    }
+    default: {
       return null;
+    }
   }
 }
 
@@ -546,7 +558,7 @@ export function computeMinuteRows(
   const todayStartIndex = allCandles.findIndex(
     (candlestick) => toHKDateStr(candlestick.timestamp) === todayDate,
   );
-  if (todayStartIndex < 0) {
+  if (todayStartIndex === -1) {
     return { rows: [], todayDate };
   }
 

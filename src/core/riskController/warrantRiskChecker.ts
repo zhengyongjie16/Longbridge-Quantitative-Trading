@@ -203,8 +203,7 @@ function checkDistanceThreshold(
   monitorCurrentPrice: number,
 ): RiskCheckResult {
   // 牛证：当距离回收价百分比低于阈值时停止买入
-  if (warrantType === 'BULL') {
-    if (distancePercent < BULL_WARRANT_MIN_DISTANCE_PERCENT) {
+  if (warrantType === 'BULL' && distancePercent < BULL_WARRANT_MIN_DISTANCE_PERCENT) {
       return {
         allowed: false,
         reason: `牛证距离回收价百分比为 ${distancePercent.toFixed(
@@ -219,11 +218,9 @@ function checkDistanceThreshold(
         },
       };
     }
-  }
 
   // 熊证：当距离回收价百分比高于阈值时停止买入
-  if (warrantType === 'BEAR') {
-    if (distancePercent > BEAR_WARRANT_MAX_DISTANCE_PERCENT) {
+  if (warrantType === 'BEAR' && distancePercent > BEAR_WARRANT_MAX_DISTANCE_PERCENT) {
       return {
         allowed: false,
         reason: `熊证距离回收价百分比为 ${distancePercent.toFixed(
@@ -238,7 +235,6 @@ function checkDistanceThreshold(
         },
       };
     }
-  }
 
   // 风险检查通过
   const warrantTypeName = warrantType === 'BULL' ? '牛证' : '熊证';

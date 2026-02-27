@@ -511,7 +511,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
           submittedPrice: 1,
           quantity: 100,
           executedQuantity: 0,
-          status: Array.from(PENDING_ORDER_STATUSES)[0] as never,
+          status: [...PENDING_ORDER_STATUSES][0] as never,
           orderType: 'ELO' as never,
         },
       ],

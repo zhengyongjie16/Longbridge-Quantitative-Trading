@@ -185,7 +185,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
       updatedAt: undefined,
     });
 
-    if (!list.length) {
+    if (list.length === 0) {
       return;
     }
 
@@ -231,16 +231,16 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
    */
   const getLatestBuyOrderPrice = (symbol: string, isLongSymbol: boolean): number | null => {
     const list = getBuyOrdersList(symbol, isLongSymbol);
-    if (!list.length) {
+    if (list.length === 0) {
       return null;
     }
 
-    const latestOrder = list.reduce<OrderRecord | null>((latest, current) => {
-      if (!latest || current.executedTime > latest.executedTime) {
-        return current;
+    let latestOrder: OrderRecord | null = null;
+    for (const current of list) {
+      if (!latestOrder || current.executedTime > latestOrder.executedTime) {
+        latestOrder = current;
       }
-      return latest;
-    }, null);
+    }
 
     return latestOrder ? latestOrder.executedPrice : null;
   };
@@ -433,7 +433,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
   /** 获取全部待成交卖单快照 */
   function getPendingSellSnapshot(): ReadonlyArray<PendingSellInfo> {
-    return Array.from(pendingSells.values());
+    return [...pendingSells.values()];
   }
 
   /**
@@ -462,7 +462,6 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
     const available = buyOrders
       .filter((o) => !occupiedIds.has(o.orderId))
-      .slice()
       .sort((a, b) => a.executedPrice - b.executedPrice);
 
     const result: string[] = [];

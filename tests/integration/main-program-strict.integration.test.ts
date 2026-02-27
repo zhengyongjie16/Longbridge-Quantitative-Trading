@@ -425,7 +425,7 @@ describe('mainProgram strict-mode integration', () => {
       marketDataClient: {
         getQuoteContext: async () => ({}) as never,
         getQuotes: async (symbols) => {
-          getQuotesSymbols = Array.from(symbols);
+          getQuotesSymbols = [...symbols];
           const quotes = new Map<string, Quote | null>();
           for (const symbol of getQuotesSymbols) {
             quotes.set(symbol, createQuoteDouble(symbol, 1, 100));

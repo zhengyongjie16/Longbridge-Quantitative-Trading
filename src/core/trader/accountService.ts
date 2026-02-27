@@ -64,7 +64,7 @@ export const createAccountService = (deps: AccountServiceDeps): AccountService =
     // stockPositions 接受 Array<string> | undefined | null，直接传递即可
     const resp = await ctx.stockPositions(symbols ?? undefined);
     const channels = resp.channels;
-    if (!channels.length) {
+    if (channels.length === 0) {
       return [];
     }
 

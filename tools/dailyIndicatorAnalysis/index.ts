@@ -52,9 +52,9 @@ const RED_CONDITIONS: RowColorConditionSet = [
   { j: 110 },
 ];
 
-const ANSI_RESET = '\x1b[0m';
-const ANSI_GREEN = '\x1b[32m';
-const ANSI_RED = '\x1b[31m';
+const ANSI_RESET = '\u001B[0m';
+const ANSI_GREEN = '\u001B[32m';
+const ANSI_RED = '\u001B[31m';
 
 /**
  * 输出指标表格（每分钟两行：高/低，每行独立着色）。

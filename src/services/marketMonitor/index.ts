@@ -352,15 +352,13 @@ export function createMarketMonitor(): MarketMonitor {
 
       // 检查涨跌幅变化
       const lastChangePercent = monitorState.monitorValues?.changePercent;
-      if (!hasIndicatorChanged && changePercent !== null) {
-        if (
+      if (!hasIndicatorChanged && changePercent !== null && (
           lastChangePercent === null ||
           lastChangePercent === undefined ||
           hasChanged(changePercent, lastChangePercent, MONITOR.CHANGE_PERCENT_THRESHOLD)
-        ) {
+        )) {
           hasIndicatorChanged = true;
         }
-      }
 
       // 检查EMA变化
       if (!hasIndicatorChanged && monitorSnapshot.ema) {

@@ -271,22 +271,18 @@ function validateMonitorConfig(
 
   const liquidationCooldownEnvKey = `LIQUIDATION_COOLDOWN_MINUTES_${index}`;
   const configuredCooldown = getStringConfig(env, liquidationCooldownEnvKey);
-  if (configuredCooldown && !config.liquidationCooldown) {
+  // 环境变量已设置但配置解析失败，或配置存在且 mode 为 'minutes'，但值超出范围
+  const isCooldownParsingFailed = Boolean(configuredCooldown) && !config.liquidationCooldown;
+  const isMinutesOutOfRange =
+    config.liquidationCooldown?.mode === 'minutes' &&
+    (!Number.isFinite(config.liquidationCooldown.minutes) ||
+      config.liquidationCooldown.minutes < 1 ||
+      config.liquidationCooldown.minutes > 120);
+  if (isCooldownParsingFailed || isMinutesOutOfRange) {
     errors = [
       ...errors,
       `${prefix}: ${liquidationCooldownEnvKey} 无效（范围 1-120 或 half-day / one-day）`,
     ];
-  } else if (config.liquidationCooldown?.mode === 'minutes') {
-    if (
-      !Number.isFinite(config.liquidationCooldown.minutes) ||
-      config.liquidationCooldown.minutes < 1 ||
-      config.liquidationCooldown.minutes > 120
-    ) {
-      errors = [
-        ...errors,
-        `${prefix}: ${liquidationCooldownEnvKey} 无效（范围 1-120 或 half-day / one-day）`,
-      ];
-    }
   }
 
   const smartCloseTimeoutEnvKey = `SMART_CLOSE_TIMEOUT_MINUTES_${index}`;
@@ -590,8 +586,8 @@ export async function validateAllConfig({
     logger.error('配置验证失败！');
     logger.error('='.repeat(60));
     logger.error('发现以下配置问题：');
-    for (let i = 0; i < allErrors.length; i++) {
-      logger.error(`${i + 1}. ${allErrors[i]}`);
+    for (const [i, allError] of allErrors.entries()) {
+      logger.error(`${i + 1}. ${allError}`);
     }
     logger.error('='.repeat(60));
     logger.error('');

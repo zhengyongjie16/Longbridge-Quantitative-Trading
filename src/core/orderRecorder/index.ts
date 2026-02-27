@@ -145,9 +145,9 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     if (currentOrders.length === 0) {
       logLines.push('  当前无订单记录');
     } else {
-      currentOrders.forEach((order, index) => {
+      for (const [index, order] of currentOrders.entries()) {
         logLines.push(formatOrderLine(order, index));
-      });
+      }
       logLines.push(formatOrderStatsLine(calculateOrderStatistics(currentOrders)));
     }
     logger.debug(logLines.join('\n'));

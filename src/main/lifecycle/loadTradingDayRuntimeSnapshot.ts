@@ -136,7 +136,7 @@ export function createLoadTradingDayRuntimeSnapshot(
     );
     lastState.allTradingSymbols = allTradingSymbols;
     if (allTradingSymbols.size > 0) {
-      await marketDataClient.subscribeSymbols(Array.from(allTradingSymbols));
+      await marketDataClient.subscribeSymbols([...allTradingSymbols]);
     }
 
     for (const monitorConfig of tradingConfig.monitors) {

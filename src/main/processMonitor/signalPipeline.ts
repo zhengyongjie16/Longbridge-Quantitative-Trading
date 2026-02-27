@@ -93,11 +93,9 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
         }
         return;
       }
-      if (sigSymbol === shortSymbol && shortQuote) {
-        if (signal.symbolName === null && shortQuote.name !== null) {
+      if (sigSymbol === shortSymbol && shortQuote && signal.symbolName === null && shortQuote.name !== null) {
           signal.symbolName = shortQuote.name;
         }
-      }
     }
 
     function resolveSeatForSignal(signal: Signal): Readonly<{

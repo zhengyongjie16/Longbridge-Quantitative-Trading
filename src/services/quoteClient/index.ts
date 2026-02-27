@@ -101,7 +101,7 @@ function normalizeSymbols(symbols: ReadonlyArray<string>): ReadonlyArray<string>
       uniqueSymbols.add(symbol);
     }
   }
-  return Array.from(uniqueSymbols);
+  return [...uniqueSymbols];
 }
 
 /**
@@ -513,8 +513,8 @@ export async function createMarketDataClient(
    * 订阅集合状态：成功退订的移除，失败的保留，保证可重试。
    */
   async function resetRuntimeSubscriptionsAndCaches(): Promise<void> {
-    const symbolsToUnsub = Array.from(subscribedSymbols);
-    const candlestickEntriesToUnsub = Array.from(subscribedCandlesticks.entries());
+    const symbolsToUnsub = [...subscribedSymbols];
+    const candlestickEntriesToUnsub = [...subscribedCandlesticks.entries()];
 
     const errors: unknown[] = [];
 

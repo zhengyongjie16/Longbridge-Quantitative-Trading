@@ -47,7 +47,7 @@ export function registerTaskAddedCallback(
   callbacks.push(callback);
   return () => {
     const idx = callbacks.indexOf(callback);
-    if (idx >= 0) {
+    if (idx !== -1) {
       callbacks.splice(idx, 1);
     }
   };

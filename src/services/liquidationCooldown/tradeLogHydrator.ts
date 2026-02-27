@@ -88,7 +88,7 @@ export function createTradeLogHydrator(deps: TradeLogHydratorDeps): TradeLogHydr
 
     let parsed: unknown;
     try {
-      const content = readFileSync(logFile, 'utf-8');
+      const content = readFileSync(logFile, 'utf8');
       parsed = JSON.parse(content);
     } catch (err) {
       logger.error('[清仓冷却] 成交日志解析失败，跳过冷却恢复', err);

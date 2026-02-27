@@ -8,7 +8,7 @@ import type { IndicatorCacheEntry, _RingBuffer } from './types.js';
  */
 export function createRingBuffer(capacity: number): _RingBuffer {
   return {
-    entries: new Array<IndicatorCacheEntry | null>(capacity).fill(null),
+    entries: Array.from<IndicatorCacheEntry | null>({ length: capacity }).fill(null),
     head: 0,
     size: 0,
     capacity,

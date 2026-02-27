@@ -107,18 +107,24 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
     helpers: RefreshHelpers,
   ): Promise<MonitorTaskStatus> {
     switch (task.type) {
-      case 'AUTO_SYMBOL_TICK':
+      case 'AUTO_SYMBOL_TICK': {
         return handleAutoSymbolTick(task);
-      case 'AUTO_SYMBOL_SWITCH_DISTANCE':
+      }
+      case 'AUTO_SYMBOL_SWITCH_DISTANCE': {
         return handleAutoSymbolSwitchDistance(task);
-      case 'SEAT_REFRESH':
+      }
+      case 'SEAT_REFRESH': {
         return handleSeatRefresh(task, helpers);
-      case 'LIQUIDATION_DISTANCE_CHECK':
+      }
+      case 'LIQUIDATION_DISTANCE_CHECK': {
         return handleLiquidationDistanceCheck(task);
-      case 'UNREALIZED_LOSS_CHECK':
+      }
+      case 'UNREALIZED_LOSS_CHECK': {
         return handleUnrealizedLossCheck(task);
-      default:
+      }
+      default: {
         return assertNeverTaskType(task.type);
+      }
     }
   }
 

@@ -429,7 +429,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       return new Set<string>();
     }
 
-    const replayEvents = Array.from(bootstrappingOrderEvents.values());
+    const replayEvents = [...bootstrappingOrderEvents.values()];
     replayEvents.sort((left, right) => {
       const leftMs = resolveUpdatedAtMs(left.updatedAt) ?? 0;
       const rightMs = resolveUpdatedAtMs(right.updatedAt) ?? 0;
@@ -464,10 +464,10 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       trackedSellOrderIds.add(trackedOrder.orderId);
     }
 
-    const orphanTrackedOrders = Array.from(trackedSellOrderIds).filter(
+    const orphanTrackedOrders = [...trackedSellOrderIds].filter(
       (orderId) => !pendingSellOrderIds.has(orderId),
     );
-    const orphanPendingSells = Array.from(pendingSellOrderIds).filter(
+    const orphanPendingSells = [...pendingSellOrderIds].filter(
       (orderId) => !trackedSellOrderIds.has(orderId),
     );
 
@@ -514,14 +514,14 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       }
     }
 
-    const unexpectedTrackedOrderIds = Array.from(trackedOrderIds).filter((orderId) => {
+    const unexpectedTrackedOrderIds = [...trackedOrderIds].filter((orderId) => {
       if (snapshotPendingOrderIds.has(orderId)) {
         return false;
       }
       return !replayedOrderIds.has(orderId);
     });
 
-    const missingTrackedOrderIds = Array.from(snapshotPendingOrderIds).filter((orderId) => {
+    const missingTrackedOrderIds = [...snapshotPendingOrderIds].filter((orderId) => {
       if (trackedOrderIds.has(orderId)) {
         return false;
       }
@@ -655,7 +655,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       side: order.side,
       price: trackedPrice,
       quantity: submittedQuantity,
-      ...(submittedAtMs !== null ? { submittedAtMs } : {}),
+      ...(submittedAtMs === null ? {} : { submittedAtMs }),
       initialStatus: order.status,
       isLongSymbol: ownership.isLongSymbol,
       monitorSymbol: ownership.monitorSymbol,
@@ -1001,11 +1001,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       if (timeoutConfig.enabled) {
         const elapsed = now - order.submittedAt;
         if (elapsed >= timeoutConfig.timeoutMs) {
-          if (isBuyOrder) {
-            await handleBuyOrderTimeout(orderId, order);
-          } else {
-            await handleSellOrderTimeout(orderId, order);
-          }
+          await (isBuyOrder ? handleBuyOrderTimeout(orderId, order) : handleSellOrderTimeout(orderId, order));
           continue;
         }
       }
@@ -1082,7 +1078,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
         submittedAt: order.submittedAt,
       });
     }
-    return pendingOrders.sort((a, b) => a.submittedAt - b.submittedAt);
+    return [...pendingOrders].sort((a, b) => a.submittedAt - b.submittedAt);
   }
 
   /** 获取并清空待刷新标的列表（订单成交后需刷新持仓和浮亏） */

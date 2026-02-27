@@ -167,7 +167,7 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
       if (refreshOk) {
         refreshGate.markFresh(targetVersion);
       } else {
-        pendingSymbols = pending.concat(pendingSymbols);
+        pendingSymbols = [...pending, ...pendingSymbols];
         pendingVersion = targetVersion;
       }
       inFlight = false;
@@ -223,7 +223,7 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
       return;
     }
 
-    pendingSymbols = pendingSymbols.concat(params.pending);
+    pendingSymbols = [...pendingSymbols, ...params.pending];
     latestQuotesMap = params.quotesMap;
 
     const { staleVersion } = refreshGate.getStatus();

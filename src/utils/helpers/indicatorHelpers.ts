@@ -55,20 +55,27 @@ export function getIndicatorValue(
   }
 
   switch (indicatorName) {
-    case 'K':
+    case 'K': {
       return kdj && Number.isFinite(kdj.k) ? (kdj.k ?? null) : null;
-    case 'D':
+    }
+    case 'D': {
       return kdj && Number.isFinite(kdj.d) ? (kdj.d ?? null) : null;
-    case 'J':
+    }
+    case 'J': {
       return kdj && Number.isFinite(kdj.j) ? (kdj.j ?? null) : null;
-    case 'MACD':
+    }
+    case 'MACD': {
       return macd && Number.isFinite(macd.macd) ? (macd.macd ?? null) : null;
-    case 'DIF':
+    }
+    case 'DIF': {
       return macd && Number.isFinite(macd.dif) ? (macd.dif ?? null) : null;
-    case 'DEA':
+    }
+    case 'DEA': {
       return macd && Number.isFinite(macd.dea) ? (macd.dea ?? null) : null;
-    default:
+    }
+    default: {
       return null;
+    }
   }
 }
 

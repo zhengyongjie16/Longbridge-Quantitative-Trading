@@ -216,7 +216,7 @@ export function parseOrderOwnershipMapping(
     return [];
   }
 
-  const uniqueItems = Array.from(new Set(items));
+  const uniqueItems = [...new Set(items)];
   uniqueItems.sort((a, b) => b.length - a.length || a.localeCompare(b));
 
   return uniqueItems;

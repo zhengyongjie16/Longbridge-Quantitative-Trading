@@ -55,14 +55,18 @@ function getActionDescription(signalAction: Signal['action']): string {
 /** 配置字符串转 OrderType 枚举 */
 function getOrderTypeFromConfig(typeConfig: OrderTypeConfig): OrderType {
   switch (typeConfig) {
-    case 'LO':
+    case 'LO': {
       return OrderType.LO;
-    case 'ELO':
+    }
+    case 'ELO': {
       return OrderType.ELO;
-    case 'MO':
+    }
+    case 'MO': {
       return OrderType.MO;
-    default:
+    }
+    default: {
       return OrderType.ELO;
+    }
   }
 }
 
@@ -182,15 +186,19 @@ function isLiquidationSignal(signal: Signal): boolean {
 function resolveOrderSide(action: Signal['action']): OrderSide | null {
   switch (action) {
     case 'BUYCALL':
-    case 'BUYPUT':
+    case 'BUYPUT': {
       return OrderSide.Buy;
+    }
     case 'SELLCALL':
-    case 'SELLPUT':
+    case 'SELLPUT': {
       return OrderSide.Sell;
-    case 'HOLD':
+    }
+    case 'HOLD': {
       return null;
-    default:
+    }
+    default: {
       return null;
+    }
   }
 }
 

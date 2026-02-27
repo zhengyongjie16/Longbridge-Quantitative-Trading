@@ -31,7 +31,8 @@ function isComparisonOperator(value: string): value is ComparisonOperator {
 function isSupportedFixedIndicator(
   value: string,
 ): value is (typeof SIGNAL_CONFIG_SUPPORTED_INDICATORS)[number] {
-  return SIGNAL_CONFIG_SUPPORTED_INDICATORS.some((indicator) => indicator === value);
+  const supportedIndicators: ReadonlyArray<string> = SIGNAL_CONFIG_SUPPORTED_INDICATORS;
+  return supportedIndicators.includes(value);
 }
 
 /**
@@ -285,34 +286,41 @@ function evaluateCondition(state: IndicatorState, condition: Condition): boolean
 
   let value: number | undefined;
   switch (indicatorName) {
-    case 'RSI':
+    case 'RSI': {
       // RSI:n 格式，从 state.rsi[period] 获取值
       if (!period || state.rsi?.[period] === undefined) {
         return false;
       }
       value = state.rsi[period];
       break;
-    case 'PSY':
+    }
+    case 'PSY': {
       // PSY:n 格式，从 state.psy[period] 获取值
       if (!period || state.psy?.[period] === undefined) {
         return false;
       }
       value = state.psy[period];
       break;
-    case 'MFI':
+    }
+    case 'MFI': {
       value = state.mfi ?? undefined;
       break;
-    case 'K':
+    }
+    case 'K': {
       value = state.kdj?.k;
       break;
-    case 'D':
+    }
+    case 'D': {
       value = state.kdj?.d;
       break;
-    case 'J':
+    }
+    case 'J': {
       value = state.kdj?.j;
       break;
-    default:
+    }
+    default: {
       return false;
+    }
   }
 
   // 验证值是否有效
@@ -322,12 +330,15 @@ function evaluateCondition(state: IndicatorState, condition: Condition): boolean
 
   // 根据运算符比较
   switch (operator) {
-    case '<':
+    case '<': {
       return value < threshold;
-    case '>':
+    }
+    case '>': {
       return value > threshold;
-    default:
+    }
+    default: {
       return false;
+    }
   }
 }
 
@@ -380,11 +391,7 @@ export function evaluateSignalConfig(
 
   const { conditionGroups } = signalConfig;
 
-  for (let i = 0; i < conditionGroups.length; i++) {
-    const group = conditionGroups[i];
-    if (!group) {
-      continue;
-    }
+  for (const [i, group] of conditionGroups.entries()) {
     const result = evaluateConditionGroup(state, group);
 
     if (result.satisfied) {
@@ -479,7 +486,7 @@ function extractIndicatorPeriods(
       }
     }
   }
-  return Array.from(periods).sort((a, b) => a - b);
+  return [...periods].sort((a, b) => a - b);
 }
 
 /**

@@ -393,25 +393,25 @@ async function main(): Promise<void> {
     quotesMap: initQuotesMap,
   });
 
-  if (!startupRebuildPending) {
+  if (startupRebuildPending) {
+    logger.warn('启动快照失败，跳过运行时标的验证，等待生命周期重建恢复');
+  } else {
     if (runtimeValidationResult.warnings.length > 0) {
       logger.warn('标的验证出现警告：');
-      runtimeValidationResult.warnings.forEach((warning, index) => {
+      for (const [index, warning] of runtimeValidationResult.warnings.entries()) {
         logger.warn(`${index + 1}. ${warning}`);
-      });
+      }
     }
 
     if (!runtimeValidationResult.valid) {
       logger.error('标的验证失败！');
       logger.error('='.repeat(60));
-      runtimeValidationResult.errors.forEach((error, index) => {
+      for (const [index, error] of runtimeValidationResult.errors.entries()) {
         logger.error(`${index + 1}. ${error}`);
-      });
+      }
       logger.error('='.repeat(60));
       process.exit(1);
     }
-  } else {
-    logger.warn('启动快照失败，跳过运行时标的验证，等待生命周期重建恢复');
   }
 
   // 构建每个监控标的的运行上下文与依赖模块
@@ -501,14 +501,14 @@ async function main(): Promise<void> {
     dailyLossTracker,
     displayAccountAndPositions,
   });
-  if (!startupRebuildPending) {
+  if (startupRebuildPending) {
+    logger.warn('启动阶段跳过初次重建，后续由生命周期重建任务自动恢复');
+  } else {
     await rebuildTradingDayState({
       allOrders,
       quotesMap: initQuotesMap,
     });
     refreshGate.markFresh(refreshGate.getStatus().staleVersion);
-  } else {
-    logger.warn('启动阶段跳过初次重建，后续由生命周期重建任务自动恢复');
   }
 
   // 注册延迟验证回调：验证通过后，买入信号入 buyTaskQueue，卖出信号入 sellTaskQueue

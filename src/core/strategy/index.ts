@@ -104,18 +104,24 @@ export const createHangSengMultiIndicatorStrategy = ({
    */
   const getSignalConfigForType = (signalType: SignalType): SignalConfig | null => {
     switch (signalType) {
-      case 'BUYCALL':
+      case 'BUYCALL': {
         return finalSignalConfig.buycall ?? null;
-      case 'SELLCALL':
+      }
+      case 'SELLCALL': {
         return finalSignalConfig.sellcall ?? null;
-      case 'BUYPUT':
+      }
+      case 'BUYPUT': {
         return finalSignalConfig.buyput ?? null;
-      case 'SELLPUT':
+      }
+      case 'SELLPUT': {
         return finalSignalConfig.sellput ?? null;
-      case 'HOLD':
+      }
+      case 'HOLD': {
         return null;
-      default:
+      }
+      default: {
         return null;
+      }
     }
   };
 
