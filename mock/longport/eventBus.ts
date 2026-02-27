@@ -6,9 +6,9 @@
  */
 import type { PushCandlestickEvent, PushOrderChanged, PushQuoteEvent } from 'longport';
 
-export type LongportEventTopic = 'quote' | 'candlestick' | 'orderChanged';
+type LongportEventTopic = 'quote' | 'candlestick' | 'orderChanged';
 
-export type LongportEventPayloadMap = {
+type LongportEventPayloadMap = {
   readonly quote: PushQuoteEvent;
   readonly candlestick: PushCandlestickEvent;
   readonly orderChanged: PushOrderChanged;

@@ -71,12 +71,12 @@ export type MockFailureRule = {
   readonly errorMessage?: string;
 };
 
-export interface MockInvocationLog {
+interface MockInvocationLog {
   getCalls: (method?: MockMethodName) => ReadonlyArray<MockCallRecord>;
   clearCalls: () => void;
 }
 
-export interface MockFailureController {
+interface MockFailureController {
   setFailureRule: (method: MockMethodName, rule: MockFailureRule | null) => void;
   clearFailureRules: () => void;
 }

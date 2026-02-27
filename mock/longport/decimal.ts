@@ -6,7 +6,7 @@
  */
 import { Decimal } from 'longport';
 
-export type MockDecimalInput = string | number | Decimal;
+type MockDecimalInput = string | number | Decimal;
 
 /**
  * 将字符串、数字或 Decimal 统一转换为 Decimal 实例。

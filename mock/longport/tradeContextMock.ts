@@ -253,7 +253,7 @@ function filterStockPositionsBySymbols(
   return { channels } as StockPositionsResponse;
 }
 
-export interface TradeContextMock extends TradeContextContract {
+interface TradeContextMock extends TradeContextContract {
   seedTodayOrders: (orders: ReadonlyArray<Order>) => void;
   seedHistoryOrders: (orders: ReadonlyArray<Order>) => void;
   seedTodayExecutions: (executions: ReadonlyArray<Execution>) => void;

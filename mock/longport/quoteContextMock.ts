@@ -151,7 +151,7 @@ function normalizeWarrantType(value: unknown): 'BULL' | 'BEAR' | null {
   return null;
 }
 
-export interface QuoteContextMock extends QuoteContextContract {
+interface QuoteContextMock extends QuoteContextContract {
   seedQuotes: (quotes: ReadonlyArray<{ readonly symbol: string; readonly quote: unknown }>) => void;
   seedStaticInfo: (
     staticInfos: ReadonlyArray<{ readonly symbol: string; readonly info: unknown }>,
