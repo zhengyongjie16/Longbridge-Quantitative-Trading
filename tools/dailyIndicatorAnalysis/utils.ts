@@ -5,6 +5,7 @@ import { calculateKDJ } from '../../src/services/indicators/kdj.js';
 import { calculateMFI } from '../../src/services/indicators/mfi.js';
 import { calculateRSI } from '../../src/services/indicators/rsi.js';
 import type { CandleData } from '../../src/types/data.js';
+import { formatFiniteNumber } from '../utils.js';
 import type {
   CandleNumbers,
   ComputeMinuteRowsOptions,
@@ -373,10 +374,7 @@ export function padToDisplayWidth(text: string, targetWidth: number): string {
  * @returns 格式化文本
  */
 export function formatMetricValue(value: number | null | undefined, decimals: number = 2): string {
-  if (value === null || value === undefined || !Number.isFinite(value)) {
-    return '-';
-  }
-  return value.toFixed(decimals);
+  return formatFiniteNumber(value, decimals);
 }
 
 /**

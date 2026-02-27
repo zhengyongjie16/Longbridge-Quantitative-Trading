@@ -7,6 +7,7 @@
  * - 队列为空时停止调度，等待新任务触发
  */
 import type { MonitorTaskQueue } from '../monitorTaskQueue/types.js';
+import { scheduleWhenTaskAdded } from '../utils.js';
 import type { MonitorTaskData, MonitorTaskType } from './types.js';
 
 /**
@@ -93,16 +94,6 @@ export function createQueueRunner({
   }
 
   /**
-   * 监听队列新增任务事件
-   * 若调度器已启动且当前无待执行的 setImmediate，则触发调度
-   */
-  function handleTaskAdded(): void {
-    if (running && immediateHandle === null) {
-      scheduleNextProcess();
-    }
-  }
-
-  /**
    * 启动调度器，注册任务新增监听并触发首次调度
    */
   function start(): void {
@@ -111,7 +102,9 @@ export function createQueueRunner({
       return;
     }
     running = true;
-    taskAddedUnregister = monitorTaskQueue.onTaskAdded(handleTaskAdded);
+    taskAddedUnregister = monitorTaskQueue.onTaskAdded(() => {
+      scheduleWhenTaskAdded(running, immediateHandle, scheduleNextProcess);
+    });
 
     scheduleNextProcess();
   }

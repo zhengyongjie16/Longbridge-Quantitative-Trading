@@ -14,15 +14,19 @@ import {
   type WarrantQuote,
 } from 'longport';
 import { toMockDecimal } from '../longport/decimal.js';
+import type {
+  CandlestickParams,
+  PushCandlestickEventParams,
+  PushQuoteEventParams,
+  TradingDaysResultParams,
+  WarrantInfoParams,
+  WarrantQuoteParams,
+} from './types.js';
 
 /**
  * 构造行情推送事件，用于模拟 QuoteContext 的 quote 推送。
  */
-export function createPushQuoteEvent(params: {
-  readonly symbol: string;
-  readonly price: number;
-  readonly timestampMs?: number;
-}): PushQuoteEvent {
+export function createPushQuoteEvent(params: PushQuoteEventParams): PushQuoteEvent {
   const timestampMs = params.timestampMs ?? Date.now();
   const event = {
     symbol: params.symbol,
@@ -47,10 +51,7 @@ export function createPushQuoteEvent(params: {
 /**
  * 构造单根 K 线数据，供 K 线订阅或历史数据 Mock 使用。
  */
-export function createCandlestick(params: {
-  readonly close: number;
-  readonly timestampMs?: number;
-}): Candlestick {
+export function createCandlestick(params: CandlestickParams): Candlestick {
   const timestampMs = params.timestampMs ?? Date.now();
   const candle = {
     close: toMockDecimal(params.close),
@@ -69,11 +70,9 @@ export function createCandlestick(params: {
 /**
  * 构造 K 线推送事件，用于模拟 candlestick 订阅推送。
  */
-export function createPushCandlestickEvent(params: {
-  readonly symbol: string;
-  readonly close: number;
-  readonly timestampMs?: number;
-}): PushCandlestickEvent {
+export function createPushCandlestickEvent(
+  params: PushCandlestickEventParams,
+): PushCandlestickEvent {
   const timestampMs = params.timestampMs ?? Date.now();
   const event = {
     symbol: params.symbol,
@@ -95,11 +94,7 @@ export function createPushCandlestickEvent(params: {
 /**
  * 构造轮证实时报价，供 warrantQuote Mock 使用；可指定 callPrice、category。
  */
-export function createWarrantQuote(params: {
-  readonly symbol: string;
-  readonly callPrice: number;
-  readonly category: number;
-}): WarrantQuote {
+export function createWarrantQuote(params: WarrantQuoteParams): WarrantQuote {
   const quote = {
     symbol: params.symbol,
     lastDone: toMockDecimal(0.05),
@@ -131,11 +126,7 @@ export function createWarrantQuote(params: {
 /**
  * 构造轮证列表项，供 warrantList Mock 使用。
  */
-export function createWarrantInfo(params: {
-  readonly symbol: string;
-  readonly warrantType: string;
-  readonly callPrice: number;
-}): WarrantInfo {
+export function createWarrantInfo(params: WarrantInfoParams): WarrantInfo {
   const info = {
     symbol: params.symbol,
     warrantType: params.warrantType,
@@ -170,10 +161,7 @@ export function createWarrantInfo(params: {
 /**
  * 构造交易日查询结果，供 tradingDays Mock 使用。
  */
-export function createTradingDaysResult(days: {
-  readonly tradingDays: ReadonlyArray<string>;
-  readonly halfTradingDays?: ReadonlyArray<string>;
-}): MarketTradingDays {
+export function createTradingDaysResult(days: TradingDaysResultParams): MarketTradingDays {
   const result = {
     tradingDays: days.tradingDays,
     halfTradingDays: days.halfTradingDays ?? [],

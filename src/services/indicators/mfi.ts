@@ -5,15 +5,10 @@
  * - MFI：周期 14，结合价格和成交量
  */
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
-import { toNumber, logDebug } from './utils.js';
+import { toNumber, logDebug, roundToFixed2 } from './utils.js';
 import { validatePercentage } from '../../utils/helpers/indicatorHelpers.js';
 import type { CandleData } from '../../types/data.js';
 import type { BufferNewPush } from './types.js';
-
-/** 保留两位小数，与 RSI 等指标输出一致 */
-function roundToFixed2(value: number): number {
-  return Number.parseFloat(value.toFixed(2));
-}
 
 /** 向环形缓冲区追加一个值，满窗时覆盖最旧项并更新 sum（O(1) 滑动窗口） */
 function pushBuffer(buffer: BufferNewPush, value: number): void {

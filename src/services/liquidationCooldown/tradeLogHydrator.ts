@@ -9,6 +9,7 @@
 import type { TradeLogHydrator, TradeLogHydratorDeps, RawRecord } from './types.js';
 import type { TradeRecord } from '../../core/trader/types.js';
 import type { SeatSymbolSnapshotEntry } from '../../types/seat.js';
+import { isRecord } from '../../utils/helpers/index.js';
 import { buildTradeLogPath } from '../../core/trader/utils.js';
 import {
   toStringOrNull,
@@ -18,42 +19,33 @@ import {
 } from './utils.js';
 
 /**
- * 类型保护：判断 unknown 是否为交易日志原始记录。
- *
- * @param value 待判断值
- * @returns true 表示可按键读取字段
- */
-function isRawRecord(value: unknown): value is RawRecord {
-  return typeof value === 'object' && value !== null;
-}
-
-/**
  * 将 JSON 解析结果规范化为 TradeRecord，对每个字段做类型安全转换；清仓冷却仅依赖结构键值，局部信任 JSON 解析结果。
  * @param raw - 单条日志解析后的未知类型
  * @returns 规范化后的 TradeRecord，无效时 null
  */
 function normalizeTradeRecord(raw: unknown): TradeRecord | null {
-  if (!isRawRecord(raw)) {
+  if (!isRecord(raw)) {
     return null;
   }
+  const rawRecord: RawRecord = raw;
   const record: TradeRecord = {
-    orderId: toStringOrNull(raw['orderId']),
-    symbol: toStringOrNull(raw['symbol']),
-    symbolName: toStringOrNull(raw['symbolName']),
-    monitorSymbol: toStringOrNull(raw['monitorSymbol']),
-    action: toStringOrNull(raw['action']),
-    side: toStringOrNull(raw['side']),
-    quantity: toStringOrNull(raw['quantity']),
-    price: toStringOrNull(raw['price']),
-    orderType: toStringOrNull(raw['orderType']),
-    status: toStringOrNull(raw['status']),
-    error: toStringOrNull(raw['error']),
-    reason: toStringOrNull(raw['reason']),
-    signalTriggerTime: toStringOrNull(raw['signalTriggerTime']),
-    executedAt: toStringOrNull(raw['executedAt']),
-    executedAtMs: toNumberOrNull(raw['executedAtMs']),
-    timestamp: toStringOrNull(raw['timestamp']),
-    isProtectiveClearance: toBooleanOrNull(raw['isProtectiveClearance']),
+    orderId: toStringOrNull(rawRecord['orderId']),
+    symbol: toStringOrNull(rawRecord['symbol']),
+    symbolName: toStringOrNull(rawRecord['symbolName']),
+    monitorSymbol: toStringOrNull(rawRecord['monitorSymbol']),
+    action: toStringOrNull(rawRecord['action']),
+    side: toStringOrNull(rawRecord['side']),
+    quantity: toStringOrNull(rawRecord['quantity']),
+    price: toStringOrNull(rawRecord['price']),
+    orderType: toStringOrNull(rawRecord['orderType']),
+    status: toStringOrNull(rawRecord['status']),
+    error: toStringOrNull(rawRecord['error']),
+    reason: toStringOrNull(rawRecord['reason']),
+    signalTriggerTime: toStringOrNull(rawRecord['signalTriggerTime']),
+    executedAt: toStringOrNull(rawRecord['executedAt']),
+    executedAtMs: toNumberOrNull(rawRecord['executedAtMs']),
+    timestamp: toStringOrNull(rawRecord['timestamp']),
+    isProtectiveClearance: toBooleanOrNull(rawRecord['isProtectiveClearance']),
   };
 
   return record;

@@ -26,6 +26,7 @@ import {
   formatError,
   toHongKongTimeIso,
   isValidPositiveNumber,
+  isRecord,
 } from '../../utils/helpers/index.js';
 import {
   NON_REPLACEABLE_ORDER_STATUSES,
@@ -146,23 +147,13 @@ function isClosedStatus(status: OrderStatus): boolean {
  * @returns 可用于 trackedOrders 的初始状态
  */
 function resolveInitialTrackedStatus(initialStatus?: OrderStatus): OrderStatus {
-  if (typeof initialStatus === 'undefined') {
+  if (initialStatus === undefined) {
     return OrderStatus.New;
   }
   if (!PENDING_ORDER_STATUSES.has(initialStatus)) {
     return OrderStatus.New;
   }
   return initialStatus;
-}
-
-/**
- * 类型保护：判断 unknown 是否为可索引对象。
- *
- * @param value 待判断值
- * @returns true 表示可按键读取字段
- */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 /**

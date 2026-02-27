@@ -16,22 +16,17 @@ import {
   type StockPositionsResponse,
 } from 'longport';
 import { toMockDecimal } from '../longport/decimal.js';
+import type {
+  OrderFactoryParams,
+  PushOrderChangedParams,
+  StockPositionsResponseParams,
+} from './types.js';
 
 /**
  * 构造符合 LongPort Order 形状的订单对象，供测试或 Mock 使用。
  * 未传字段使用默认值（如 status=New、quantity=100）。
  */
-export function createOrder(params: {
-  readonly orderId: string;
-  readonly symbol: string;
-  readonly side?: OrderSide;
-  readonly status?: OrderStatus;
-  readonly orderType?: OrderType;
-  readonly quantity?: number;
-  readonly executedQuantity?: number;
-  readonly price?: number;
-  readonly executedPrice?: number;
-}): Order {
+export function createOrder(params: OrderFactoryParams): Order {
   const order = {
     orderId: params.orderId,
     status: params.status ?? OrderStatus.New,
@@ -70,18 +65,7 @@ export function createOrder(params: {
 /**
  * 构造订单变更推送事件，用于模拟 TradeContext 的 orderChanged 推送。
  */
-export function createPushOrderChanged(params: {
-  readonly orderId: string;
-  readonly symbol: string;
-  readonly side?: OrderSide;
-  readonly status?: OrderStatus;
-  readonly orderType?: OrderType;
-  readonly submittedQuantity?: number;
-  readonly executedQuantity?: number;
-  readonly submittedPrice?: number;
-  readonly executedPrice?: number;
-  readonly updatedAtMs?: number;
-}): PushOrderChanged {
+export function createPushOrderChanged(params: PushOrderChangedParams): PushOrderChanged {
   const updatedAtMs = params.updatedAtMs ?? Date.now();
   const event = {
     side: params.side ?? OrderSide.Buy,
@@ -167,11 +151,9 @@ export function createAccountBalance(availableCash: number): AccountBalance {
 /**
  * 构造持仓响应，供 stockPositions Mock 使用；可指定标的、数量与可卖数量。
  */
-export function createStockPositionsResponse(params: {
-  readonly symbol: string;
-  readonly quantity: number;
-  readonly availableQuantity: number;
-}): StockPositionsResponse {
+export function createStockPositionsResponse(
+  params: StockPositionsResponseParams,
+): StockPositionsResponse {
   const response = {
     channels: [
       {

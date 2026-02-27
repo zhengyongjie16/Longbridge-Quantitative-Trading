@@ -5,8 +5,7 @@
  * - 统一处理 Mock 场景下的数值到 Decimal 转换与比较
  */
 import { Decimal } from 'longport';
-
-type MockDecimalInput = string | number | Decimal;
+import type { MockDecimalInput } from './types.js';
 
 /**
  * 将字符串、数字或 Decimal 统一转换为 Decimal 实例。

@@ -1,5 +1,5 @@
 import pino from 'pino';
-import { toHongKongTimeLog } from '../helpers/index.js';
+import { toHongKongTimeLog, isRecord } from '../helpers/index.js';
 import {
   IS_DEBUG,
   LOG_ANSI_CODE_REGEX,
@@ -289,16 +289,6 @@ class DateRotatingStream extends Writable {
 function stripAnsiCodes(str: string): string {
   if (typeof str !== 'string') return str;
   return str.replaceAll(LOG_ANSI_CODE_REGEX, '');
-}
-
-/**
- * 类型保护：判断 unknown 是否为对象字典。
- *
- * @param value 待判断值
- * @returns true 表示可按键访问
- */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
 }
 
 /**

@@ -12,19 +12,9 @@ import path from 'node:path';
 import { LOGGING } from '../../constants/index.js';
 import { logger, retainLatestLogFiles } from '../../utils/logger/index.js';
 import { resolveLogRootDir } from '../../utils/runtime.js';
-import { toHongKongTimeIso } from '../../utils/helpers/index.js';
+import { toHongKongTimeIso, isRecord } from '../../utils/helpers/index.js';
 import { buildTradeLogPath } from './utils.js';
 import type { TradeRecord, ErrorTypeIdentifier } from './types.js';
-
-/**
- * 类型保护：判断 unknown 是否为可索引对象。
- *
- * @param value 待判断值
- * @returns true 表示可按键读取字段
- */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
 
 /** 类型守卫：校验 TradeRecord 结构 */
 function isValidTradeRecord(record: unknown): record is TradeRecord {

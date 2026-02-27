@@ -7,15 +7,10 @@
  * - 返回值范围 0-100
  */
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
-import { logDebug, toNumber } from './utils.js';
+import { logDebug, roundToFixed2, toNumber } from './utils.js';
 import { validatePercentage } from '../../utils/helpers/indicatorHelpers.js';
 import type { CandleData } from '../../types/data.js';
 import type { RsiStreamState } from './types.js';
-
-/** 保留两位小数，避免浮点误差导致 RSI 显示异常 */
-function roundToFixed2(value: number): number {
-  return Number.parseFloat(value.toFixed(2));
-}
 
 /** 初始化 RSI 流式状态：前 period 根 K 线用 SMA 平滑涨跌，之后切换为 Wilder 平滑 */
 function initRsiStreamState(period: number): RsiStreamState {

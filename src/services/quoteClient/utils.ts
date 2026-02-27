@@ -1,5 +1,5 @@
 import { NaiveDate, Period } from 'longport';
-import { isValidPositiveNumber } from '../../utils/helpers/index.js';
+import { isValidPositiveNumber, isRecord } from '../../utils/helpers/index.js';
 import { getHKDateKey } from '../../utils/helpers/tradingTime.js';
 import type { StaticInfo } from './types.js';
 
@@ -24,16 +24,6 @@ const PERIOD_LABEL_MAP: Readonly<Record<number, string>> = {
   [Period.Quarter]: '季K',
   [Period.Year]: '年K',
 } as const;
-
-/**
- * 类型保护：判断 unknown 是否为可索引对象。
- *
- * @param value 待判断值
- * @returns true 表示可按键读取字段
- */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
 
 /**
  * 将 Period 枚举转为可读标签，用于日志等展示

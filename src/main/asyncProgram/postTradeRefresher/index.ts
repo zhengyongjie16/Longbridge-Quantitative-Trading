@@ -258,7 +258,9 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
 
   /** 启动刷新器，允许后续 enqueue 触发刷新 */
   function start(): void {
-    running = true;
+    if (!running) {
+      running = true;
+    }
   }
 
   /** 清空待刷新队列与版本，用于生命周期重置时丢弃未消费的刷新请求 */

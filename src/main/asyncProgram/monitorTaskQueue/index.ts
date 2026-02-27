@@ -18,6 +18,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type { TaskAddedCallback } from '../tradeTaskQueue/types.js';
+import { notifyTaskAddedCallbacks, registerTaskAddedCallback } from '../utils.js';
 import type { MonitorTask, MonitorTaskInput, MonitorTaskQueue } from './types.js';
 import { removeTasksFromQueue } from './utils.js';
 
@@ -34,12 +35,6 @@ export function createMonitorTaskQueue<TType extends string, TData>(): MonitorTa
   const queue: MonitorTask<TType, TData>[] = [];
   const callbacks: TaskAddedCallback[] = [];
 
-  function notifyCallbacks(): void {
-    for (const callback of callbacks) {
-      callback();
-    }
-  }
-
   function scheduleLatest(task: MonitorTaskInput<TType, TData>): void {
     removeTasksFromQueue(queue, (queued) => queued.dedupeKey === task.dedupeKey);
 
@@ -53,7 +48,7 @@ export function createMonitorTaskQueue<TType extends string, TData>(): MonitorTa
     };
 
     queue.push(fullTask);
-    notifyCallbacks();
+    notifyTaskAddedCallbacks(callbacks);
   }
 
   function pop(): MonitorTask<TType, TData> | null {
@@ -81,13 +76,7 @@ export function createMonitorTaskQueue<TType extends string, TData>(): MonitorTa
   }
 
   function onTaskAdded(callback: TaskAddedCallback): () => void {
-    callbacks.push(callback);
-    return () => {
-      const idx = callbacks.indexOf(callback);
-      if (idx >= 0) {
-        callbacks.splice(idx, 1);
-      }
-    };
+    return registerTaskAddedCallback(callbacks, callback);
   }
 
   return {

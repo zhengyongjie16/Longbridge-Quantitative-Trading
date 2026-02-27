@@ -29,7 +29,15 @@ import type {
   MockFailureRule,
   MockMethodName,
   QuoteContextContract,
-} from './contracts.js';
+} from './types.js';
+import {
+  applyMockFailureRule,
+  createFailureState,
+  readMockCalls,
+  resetMockCallRecords,
+  resetMockFailureRules,
+  withMockCall,
+} from './utils.js';
 
 const QUOTE_METHODS: ReadonlySet<MockMethodName> = new Set([
   'quote',
@@ -48,84 +56,6 @@ type QuoteContextMockOptions = {
   readonly eventBus?: LongportEventBus;
   readonly now?: () => number;
 };
-
-type FailureState = {
-  readonly callsByMethod: Map<MockMethodName, number>;
-  readonly failedCountByMethod: Map<MockMethodName, number>;
-  readonly rules: Map<MockMethodName, MockFailureRule>;
-};
-
-/**
- * 校验方法名是否属于 QuoteContext Mock 支持的能力集合。
- *
- * 用于失败注入入口防御，避免无效方法污染状态。
- */
-function isMethodSupported(method: MockMethodName): boolean {
-  return QUOTE_METHODS.has(method);
-}
-
-/**
- * 初始化失败注入运行态。
- *
- * 将调用计数、失败计数与规则分离存储，便于独立重置和断言。
- */
-function createFailureState(): FailureState {
-  return {
-    callsByMethod: new Map(),
-    failedCountByMethod: new Map(),
-    rules: new Map(),
-  };
-}
-
-/**
- * 递增并返回指定方法的调用序号。
- *
- * 失败规则按调用序号匹配时依赖该计数保证行为稳定。
- */
-function nextCallIndex(state: FailureState, method: MockMethodName): number {
-  const next = (state.callsByMethod.get(method) ?? 0) + 1;
-  state.callsByMethod.set(method, next);
-  return next;
-}
-
-/**
- * 根据失败注入规则判断当前调用是否应抛出错误。
- *
- * 支持按调用序号列表、固定间隔和自定义谓词三种匹配方式，
- * 并通过 `maxFailures` 限制最大失败次数，防止测试无限失败。
- */
-function shouldFail(
-  state: FailureState,
-  method: MockMethodName,
-  callIndex: number,
-  args: ReadonlyArray<unknown>,
-): Error | null {
-  const rule = state.rules.get(method);
-  if (!rule) {
-    return null;
-  }
-
-  const byCallList = rule.failAtCalls?.includes(callIndex) ?? false;
-  const byEveryCalls =
-    typeof rule.failEveryCalls === 'number' &&
-    rule.failEveryCalls > 0 &&
-    callIndex % rule.failEveryCalls === 0;
-  const byPredicate = rule.predicate?.(args) ?? false;
-  const shouldMatch = byCallList || byEveryCalls || byPredicate;
-
-  if (!shouldMatch) {
-    return null;
-  }
-
-  const failedCount = state.failedCountByMethod.get(method) ?? 0;
-  const maxFailures = rule.maxFailures ?? Number.POSITIVE_INFINITY;
-  if (failedCount >= maxFailures) {
-    return null;
-  }
-
-  state.failedCountByMethod.set(method, failedCount + 1);
-  return new Error(rule.errorMessage ?? `[MockFailure] ${method} call#${callIndex} failed`);
-}
 
 /**
  * 生成 K 线订阅缓存键。
@@ -204,23 +134,6 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
   let quoteSubscriptionDisposer: (() => void) | null = null;
   let candlestickSubscriptionDisposer: (() => void) | null = null;
 
-  function recordCall(
-    method: MockMethodName,
-    callIndex: number,
-    args: ReadonlyArray<unknown>,
-    result: unknown,
-    error: Error | null,
-  ): void {
-    callRecords.push({
-      method,
-      callIndex,
-      calledAtMs: now(),
-      args,
-      result,
-      error,
-    });
-  }
-
   /**
    * 统一封装调用计数、失败注入与调用记录。
    *
@@ -231,22 +144,14 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
     args: ReadonlyArray<unknown>,
     action: () => Promise<T> | T,
   ): Promise<T> {
-    const callIndex = nextCallIndex(failureState, method);
-    const injectedError = shouldFail(failureState, method, callIndex, args);
-    if (injectedError) {
-      recordCall(method, callIndex, args, null, injectedError);
-      throw injectedError;
-    }
-
-    try {
-      const result = await action();
-      recordCall(method, callIndex, args, result, null);
-      return result;
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      recordCall(method, callIndex, args, null, error);
-      throw error;
-    }
+    return withMockCall({
+      state: failureState,
+      callRecords,
+      method,
+      args,
+      now,
+      action,
+    });
   }
 
   function quote(symbols: ReadonlyArray<string>): Promise<ReadonlyArray<unknown>> {
@@ -405,30 +310,24 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
   }
 
   function setFailureRule(method: MockMethodName, rule: MockFailureRule | null): void {
-    if (!isMethodSupported(method)) {
-      return;
-    }
-    if (!rule) {
-      failureState.rules.delete(method);
-      return;
-    }
-    failureState.rules.set(method, rule);
+    applyMockFailureRule({
+      state: failureState,
+      supportedMethods: QUOTE_METHODS,
+      method,
+      rule,
+    });
   }
 
   function clearFailureRules(): void {
-    failureState.rules.clear();
-    failureState.failedCountByMethod.clear();
+    resetMockFailureRules(failureState);
   }
 
   function getCalls(method?: MockMethodName): ReadonlyArray<MockCallRecord> {
-    if (!method) {
-      return [...callRecords];
-    }
-    return callRecords.filter((record) => record.method === method);
+    return readMockCalls(callRecords, method);
   }
 
   function clearCalls(): void {
-    callRecords.length = 0;
+    resetMockCallRecords(callRecords);
   }
 
   function seedQuotes(

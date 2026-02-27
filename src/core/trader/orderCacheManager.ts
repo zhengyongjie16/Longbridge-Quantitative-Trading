@@ -11,20 +11,10 @@
  */
 import type { OrderStatus, OrderSide } from 'longport';
 import { logger } from '../../utils/logger/index.js';
-import { decimalToNumber, formatError } from '../../utils/helpers/index.js';
+import { decimalToNumber, formatError, isRecord } from '../../utils/helpers/index.js';
 import { PENDING_ORDER_STATUSES, API } from '../../constants/index.js';
 import type { PendingOrder } from '../../types/services.js';
 import type { OrderCacheManager, OrderCacheManagerDeps } from './types.js';
-
-/**
- * 类型保护：判断 unknown 是否为可索引对象。
- *
- * @param value 待判断值
- * @returns true 表示 value 可按键访问
- */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
 
 /**
  * 将订单原始数值字段安全转换为 number。

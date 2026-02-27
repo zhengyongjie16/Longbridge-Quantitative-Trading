@@ -9,6 +9,7 @@
  * - 任务添加回调（用于触发处理器）
  */
 import { randomUUID } from 'node:crypto';
+import { notifyTaskAddedCallbacks, registerTaskAddedCallback } from '../utils.js';
 import type { Task, TaskQueue, TaskAddedCallback, BuyTaskType, SellTaskType } from './types.js';
 
 /**
@@ -23,12 +24,6 @@ function createTaskQueue<TType extends string>(): TaskQueue<TType> {
   const queue: Task<TType>[] = [];
   const callbacks: TaskAddedCallback[] = [];
 
-  function notifyCallbacks(): void {
-    for (const callback of callbacks) {
-      callback();
-    }
-  }
-
   return {
     push(task: Omit<Task<TType>, 'id' | 'createdAt'>): void {
       const fullTask: Task<TType> = {
@@ -39,7 +34,7 @@ function createTaskQueue<TType extends string>(): TaskQueue<TType> {
         createdAt: Date.now(),
       };
       queue.push(fullTask);
-      notifyCallbacks();
+      notifyTaskAddedCallbacks(callbacks);
     },
 
     pop(): Task<TType> | null {
@@ -78,13 +73,7 @@ function createTaskQueue<TType extends string>(): TaskQueue<TType> {
     },
 
     onTaskAdded(callback: TaskAddedCallback): () => void {
-      callbacks.push(callback);
-      return () => {
-        const idx = callbacks.indexOf(callback);
-        if (idx >= 0) {
-          callbacks.splice(idx, 1);
-        }
-      };
+      return registerTaskAddedCallback(callbacks, callback);
     },
   };
 }

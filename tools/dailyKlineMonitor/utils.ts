@@ -2,6 +2,7 @@ import type { Candlestick } from 'longport';
 import type { CandleData } from '../../src/types/data.js';
 import type { IndicatorSnapshot, Quote } from '../../src/types/quote.js';
 import { decimalToNumber, formatNumber, toHongKongTimeLog } from '../../src/utils/helpers/index.js';
+import { formatFiniteNumber } from '../utils.js';
 import type {
   ChangeDetectConfig,
   DisplayContext,
@@ -32,10 +33,7 @@ export function formatKlineTimePrefix(timestamp: number | null | undefined): str
  * @returns 格式化后的文本
  */
 export function formatIndicator(value: number | null | undefined, decimals: number = 3): string {
-  if (value === null || value === undefined || !Number.isFinite(value)) {
-    return '-';
-  }
-  return value.toFixed(decimals);
+  return formatFiniteNumber(value, decimals);
 }
 
 /**

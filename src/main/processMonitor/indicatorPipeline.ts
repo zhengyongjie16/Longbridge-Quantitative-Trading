@@ -17,21 +17,11 @@
  */
 import { buildIndicatorSnapshot, getCandleFingerprint } from '../../services/indicators/utils.js';
 import { logger } from '../../utils/logger/index.js';
-import { formatSymbolDisplay, releaseSnapshotObjects } from '../../utils/helpers/index.js';
+import { formatSymbolDisplay, releaseSnapshotObjects, isRecord } from '../../utils/helpers/index.js';
 import { TRADING } from '../../constants/index.js';
 import type { CandleData } from '../../types/data.js';
 import type { IndicatorSnapshot } from '../../types/quote.js';
 import type { IndicatorPipelineParams } from './types.js';
-
-/**
- * 类型保护：判断 unknown 是否为可索引对象。
- *
- * @param value 待判断值
- * @returns true 表示可按键读取字段
- */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
 
 /**
  * 类型保护：判断 unknown 是否可作为 CandleValue 的对象分支（含 toString 方法）。

@@ -1,6 +1,18 @@
 import type { IndicatorState } from './types.js';
 
 /**
+ * 验证周期是否为指定区间内的有限数字（内部复用）。
+ *
+ * @param period 待校验周期
+ * @param min 最小值（含）
+ * @param max 最大值（含）
+ * @returns 符合区间且为有限数字时返回 true，否则返回 false
+ */
+function validatePeriodInRange(period: unknown, min: number, max: number): period is number {
+  return typeof period === 'number' && Number.isFinite(period) && period >= min && period <= max;
+}
+
+/**
  * 从指标状态中提取指定指标的值（用于延迟验证等）。默认行为：state 为 null 或指标名不支持时返回 null；支持 K/D/J、MACD/DIF/DEA、EMA:n、PSY:n。
  *
  * @param state 指标状态对象（kdj、macd、ema、psy）
@@ -77,7 +89,7 @@ export function isValidNumber(value: unknown): value is number {
  * @returns 在 1-250 范围内返回 true，否则返回 false
  */
 export function validateEmaPeriod(period: unknown): period is number {
-  return typeof period === 'number' && Number.isFinite(period) && period >= 1 && period <= 250;
+  return validatePeriodInRange(period, 1, 250);
 }
 
 /**
@@ -87,7 +99,7 @@ export function validateEmaPeriod(period: unknown): period is number {
  * @returns 在 1-100 范围内返回 true，否则返回 false
  */
 export function validateRsiPeriod(period: unknown): period is number {
-  return typeof period === 'number' && Number.isFinite(period) && period >= 1 && period <= 100;
+  return validatePeriodInRange(period, 1, 100);
 }
 
 /**
@@ -97,7 +109,7 @@ export function validateRsiPeriod(period: unknown): period is number {
  * @returns 在 1-100 范围内返回 true，否则返回 false
  */
 export function validatePsyPeriod(period: unknown): period is number {
-  return typeof period === 'number' && Number.isFinite(period) && period >= 1 && period <= 100;
+  return validatePeriodInRange(period, 1, 100);
 }
 
 /**

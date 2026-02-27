@@ -1,4 +1,5 @@
 import { positionObjectPool } from '../../utils/objectPool/index.js';
+import { isRecord } from '../../utils/helpers/index.js';
 import type { Position } from '../../types/account.js';
 import type { Signal } from '../../types/signal.js';
 import type { PositionCache } from '../../types/services.js';
@@ -10,16 +11,6 @@ import type {
   MonitorTaskType,
 } from '../asyncProgram/monitorTaskProcessor/types.js';
 import type { QueueClearResult } from './types.js';
-
-/**
- * 类型保护：判断 unknown 是否为可索引对象。
- *
- * @param value 待判断值
- * @returns true 表示可按键读取
- */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
 
 /**
  * 判断订单动作是否属于指定方向。

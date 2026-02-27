@@ -13,6 +13,7 @@ import {
   isDefined,
   formatError,
   formatSymbolDisplay,
+  isRecord,
 } from '../../utils/helpers/index.js';
 import type { SignalType } from '../../types/signal.js';
 import type {
@@ -39,16 +40,6 @@ const WARRANT_TYPE_NAMES: Record<string, string> = {
   BULL: '牛证',
   BEAR: '熊证',
 };
-
-/**
- * 类型保护：判断 unknown 是否为可索引对象。
- *
- * @param value 待判断值
- * @returns true 表示可按键读取字段
- */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
 
 /**
  * 类型保护：判断值是否包含可调用的 toNumber 方法。

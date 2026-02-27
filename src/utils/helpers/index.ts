@@ -10,12 +10,12 @@ import { logger } from '../logger/index.js';
 import { kdjObjectPool, macdObjectPool, periodRecordPool } from '../objectPool/index.js';
 
 /**
- * 类型保护：判断 unknown 是否为可索引对象。
+ * 类型保护：判断 unknown 是否为可索引对象。默认行为：null 与非对象返回 false。
  *
  * @param value 待判断值
- * @returns true 表示可按键读取
+ * @returns true 表示可按键读取字段，否则返回 false
  */
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 

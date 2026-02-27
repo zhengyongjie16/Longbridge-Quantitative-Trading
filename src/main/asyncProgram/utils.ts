@@ -1,6 +1,57 @@
 import { logger } from '../../utils/logger/index.js';
 import { formatError } from '../../utils/helpers/index.js';
 import type { BaseProcessorConfig, Processor } from './types.js';
+import type { TaskAddedCallback } from './tradeTaskQueue/types.js';
+
+/**
+ * 在处理器运行且当前无待执行调度时触发下一轮调度。默认行为：不满足条件时不做任何操作。
+ *
+ * @param running 处理器是否处于运行态
+ * @param immediateHandle 当前是否已有待执行 setImmediate 句柄
+ * @param scheduleNextProcess 下一轮调度函数
+ * @returns 无返回值
+ */
+export function scheduleWhenTaskAdded(
+  running: boolean,
+  immediateHandle: ReturnType<typeof setImmediate> | null,
+  scheduleNextProcess: () => void,
+): void {
+  if (running && immediateHandle === null) {
+    scheduleNextProcess();
+  }
+}
+
+/**
+ * 通知所有任务入队回调。默认行为：回调列表为空时不执行任何操作。
+ *
+ * @param callbacks 已注册回调列表
+ * @returns 无返回值
+ */
+export function notifyTaskAddedCallbacks(callbacks: ReadonlyArray<TaskAddedCallback>): void {
+  for (const callback of callbacks) {
+    callback();
+  }
+}
+
+/**
+ * 注册任务入队回调并返回注销函数。默认行为：若回调已不存在，注销函数无副作用。
+ *
+ * @param callbacks 回调存储数组
+ * @param callback 待注册回调
+ * @returns 注销函数
+ */
+export function registerTaskAddedCallback(
+  callbacks: TaskAddedCallback[],
+  callback: TaskAddedCallback,
+): () => void {
+  callbacks.push(callback);
+  return () => {
+    const idx = callbacks.indexOf(callback);
+    if (idx >= 0) {
+      callbacks.splice(idx, 1);
+    }
+  };
+}
 
 /**
  * 创建基础任务处理器。
@@ -76,15 +127,6 @@ export function createBaseProcessor<TType extends string>(
   }
 
   /**
-   * 任务入队回调：仅在处理器运行且无待执行调度时触发调度
-   */
-  function handleTaskAdded(): void {
-    if (running && immediateHandle === null) {
-      scheduleNextProcess();
-    }
-  }
-
-  /**
    * 启动处理器，注册任务入队回调并立即调度一次队列处理
    */
   function start(): void {
@@ -94,7 +136,9 @@ export function createBaseProcessor<TType extends string>(
     }
 
     running = true;
-    taskAddedUnregister = taskQueue.onTaskAdded(handleTaskAdded);
+    taskAddedUnregister = taskQueue.onTaskAdded(() => {
+      scheduleWhenTaskAdded(running, immediateHandle, scheduleNextProcess);
+    });
 
     scheduleNextProcess();
   }

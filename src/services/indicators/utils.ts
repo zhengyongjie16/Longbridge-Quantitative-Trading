@@ -66,6 +66,16 @@ export function toNumber(value: CandleValue): number {
 }
 
 /**
+ * 将数值按技术指标展示精度保留两位小数。默认行为：沿用 Number.toFixed 的四舍五入规则。
+ *
+ * @param value 原始数值
+ * @returns 保留两位小数后的 number
+ */
+export function roundToFixed2(value: number): number {
+  return Number.parseFloat(value.toFixed(2));
+}
+
+/**
  * 构建指标快照（统一计算 RSI/MFI/PSY/KDJ/MACD/EMA）。
  *
  * 由 pipeline 负责「K 线未变则复用上一拍快照」的短路，本函数仅做纯计算。

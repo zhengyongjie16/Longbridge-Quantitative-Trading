@@ -32,7 +32,15 @@ import type {
   MockFailureRule,
   MockMethodName,
   TradeContextContract,
-} from './contracts.js';
+} from './types.js';
+import {
+  applyMockFailureRule,
+  createFailureState,
+  readMockCalls,
+  resetMockCallRecords,
+  resetMockFailureRules,
+  withMockCall,
+} from './utils.js';
 
 const TRADE_METHODS: ReadonlySet<MockMethodName> = new Set([
   'submitOrder',
@@ -52,12 +60,6 @@ type TradeContextMockOptions = {
   readonly now?: () => number;
 };
 
-type FailureState = {
-  readonly callsByMethod: Map<MockMethodName, number>;
-  readonly failedCountByMethod: Map<MockMethodName, number>;
-  readonly rules: Map<MockMethodName, MockFailureRule>;
-};
-
 type MinimalOrder = {
   orderId: string;
   status: OrderStatus;
@@ -73,77 +75,6 @@ type MinimalOrder = {
   updatedAt: Date;
 };
 
-/**
- * 校验方法名是否属于 TradeContext Mock 支持的能力集合。
- *
- * 用于失败注入入口防御，避免无效方法写入状态。
- */
-function isMethodSupported(method: MockMethodName): boolean {
-  return TRADE_METHODS.has(method);
-}
-
-/**
- * 初始化失败注入运行态。
- *
- * 将调用计数、失败计数与规则拆分维护，方便测试按需重置。
- */
-function createFailureState(): FailureState {
-  return {
-    callsByMethod: new Map(),
-    failedCountByMethod: new Map(),
-    rules: new Map(),
-  };
-}
-
-/**
- * 递增并返回指定方法的调用序号。
- *
- * 失败规则按调用次数命中时依赖该序号保证可重复性。
- */
-function nextCallIndex(state: FailureState, method: MockMethodName): number {
-  const next = (state.callsByMethod.get(method) ?? 0) + 1;
-  state.callsByMethod.set(method, next);
-  return next;
-}
-
-/**
- * 根据失败注入规则判断当前调用是否应抛出错误。
- *
- * 支持按调用序号列表、固定间隔和自定义谓词三种匹配方式，
- * 并通过 `maxFailures` 限制最大失败次数，防止测试无限失败。
- */
-function shouldFail(
-  state: FailureState,
-  method: MockMethodName,
-  callIndex: number,
-  args: ReadonlyArray<unknown>,
-): Error | null {
-  const rule = state.rules.get(method);
-  if (!rule) {
-    return null;
-  }
-
-  const byCallList = rule.failAtCalls?.includes(callIndex) ?? false;
-  const byEveryCalls =
-    typeof rule.failEveryCalls === 'number' &&
-    rule.failEveryCalls > 0 &&
-    callIndex % rule.failEveryCalls === 0;
-  const byPredicate = rule.predicate?.(args) ?? false;
-  const shouldMatch = byCallList || byEveryCalls || byPredicate;
-
-  if (!shouldMatch) {
-    return null;
-  }
-
-  const failedCount = state.failedCountByMethod.get(method) ?? 0;
-  const maxFailures = rule.maxFailures ?? Number.POSITIVE_INFINITY;
-  if (failedCount >= maxFailures) {
-    return null;
-  }
-
-  state.failedCountByMethod.set(method, failedCount + 1);
-  return new Error(rule.errorMessage ?? `[MockFailure] ${method} call#${callIndex} failed`);
-}
 
 /**
  * 将 submitOrder 入参转换为内部最小订单结构。
@@ -290,23 +221,6 @@ export function createTradeContextMock(options: TradeContextMockOptions = {}): T
   let orderChangedDisposer: (() => void) | null = null;
   let orderCounter = 1;
 
-  function recordCall(
-    method: MockMethodName,
-    callIndex: number,
-    args: ReadonlyArray<unknown>,
-    result: unknown,
-    error: Error | null,
-  ): void {
-    callRecords.push({
-      method,
-      callIndex,
-      calledAtMs: now(),
-      args,
-      result,
-      error,
-    });
-  }
-
   /**
    * 统一封装调用计数、失败注入与调用记录。
    *
@@ -317,22 +231,14 @@ export function createTradeContextMock(options: TradeContextMockOptions = {}): T
     args: ReadonlyArray<unknown>,
     action: () => Promise<T> | T,
   ): Promise<T> {
-    const callIndex = nextCallIndex(failureState, method);
-    const injectedError = shouldFail(failureState, method, callIndex, args);
-    if (injectedError) {
-      recordCall(method, callIndex, args, null, injectedError);
-      throw injectedError;
-    }
-
-    try {
-      const result = await action();
-      recordCall(method, callIndex, args, result, null);
-      return result;
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      recordCall(method, callIndex, args, null, error);
-      throw error;
-    }
+    return withMockCall({
+      state: failureState,
+      callRecords,
+      method,
+      args,
+      now,
+      action,
+    });
   }
 
   function submitOrder(optionsValue: SubmitOrderOptions): Promise<SubmitOrderResponse> {
@@ -442,30 +348,24 @@ export function createTradeContextMock(options: TradeContextMockOptions = {}): T
   }
 
   function setFailureRule(method: MockMethodName, rule: MockFailureRule | null): void {
-    if (!isMethodSupported(method)) {
-      return;
-    }
-    if (!rule) {
-      failureState.rules.delete(method);
-      return;
-    }
-    failureState.rules.set(method, rule);
+    applyMockFailureRule({
+      state: failureState,
+      supportedMethods: TRADE_METHODS,
+      method,
+      rule,
+    });
   }
 
   function clearFailureRules(): void {
-    failureState.rules.clear();
-    failureState.failedCountByMethod.clear();
+    resetMockFailureRules(failureState);
   }
 
   function getCalls(method?: MockMethodName): ReadonlyArray<MockCallRecord> {
-    if (!method) {
-      return [...callRecords];
-    }
-    return callRecords.filter((record) => record.method === method);
+    return readMockCalls(callRecords, method);
   }
 
   function clearCalls(): void {
-    callRecords.length = 0;
+    resetMockCallRecords(callRecords);
   }
 
   function seedTodayOrders(orders: ReadonlyArray<Order>): void {
