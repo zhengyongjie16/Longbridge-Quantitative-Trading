@@ -42,7 +42,7 @@ function createClearanceSignal(params: ClearanceSignalParams): Signal | null {
   const { symbol, symbolName, action, price, lotSize, positionType } = params;
   const positionLabel = positionType === 'short' ? '做空标的' : '做多标的';
 
-  // 从对象池获取信号对象，减少内存分配
+  // 对象池返回 PoolableSignal；末日清仓信号会在此处完整填充后按 Signal 使用
   const signal = signalObjectPool.acquire() as Signal;
   signal.symbol = symbol;
   signal.symbolName = symbolName;

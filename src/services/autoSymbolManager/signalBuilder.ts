@@ -68,6 +68,7 @@ export function createSignalBuilder(deps: SignalBuilderDeps): {
    */
   const buildOrderSignal: OrderSignalBuilder = (params: BuildOrderSignalParams): Signal => {
     const { action, symbol, quote, reason, orderTypeOverride, quantity, seatVersion } = params;
+    // 对象池返回 PoolableSignal；此处会完整填充 Signal 字段后再向外返回
     const signal = signalObjectPool.acquire() as Signal;
     signal.symbol = symbol;
     signal.symbolName = quote?.name ?? symbol;

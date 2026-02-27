@@ -141,7 +141,7 @@ export const signalObjectPool = createObjectPool<PoolableSignal>(
       indicatorRecordPool.release(obj.indicators1);
     }
     // 释放 verificationHistory 中每个 entry 的 indicators 对象和 entry 本身
-    if (obj.verificationHistory && Array.isArray(obj.verificationHistory)) {
+    if (obj.verificationHistory) {
       for (const entry of obj.verificationHistory) {
         // 先释放 entry 中的 indicators 对象
         if (entry.indicators) {

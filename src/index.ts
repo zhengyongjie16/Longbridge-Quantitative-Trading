@@ -29,6 +29,7 @@ import {
   validateAllConfig,
   validateRuntimeSymbolsFromQuotesMap,
 } from './config/config.validator.js';
+import type { RuntimeSymbolValidationInput } from './config/types.js';
 import { createHangSengMultiIndicatorStrategy } from './core/strategy/index.js';
 import { createDailyLossTracker } from './core/riskController/dailyLossTracker.js';
 import { createRiskChecker } from './core/riskController/index.js';
@@ -343,12 +344,7 @@ async function main(): Promise<void> {
   const sellTaskQueue = createSellTaskQueue();
   const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
 
-  const runtimeValidationInputs: Array<{
-    symbol: string;
-    label: string;
-    requireLotSize: boolean;
-    required: boolean;
-  }> = [];
+  const runtimeValidationInputs: RuntimeSymbolValidationInput[] = [];
   const requiredSymbols = new Set<string>();
 
   /**

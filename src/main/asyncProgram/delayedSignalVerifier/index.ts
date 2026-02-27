@@ -160,7 +160,7 @@ export function createDelayedSignalVerifier(
      * 取消指定标的的所有待验证信号，清除定时器并释放信号到对象池
      */
     cancelAllForSymbol(monitorSymbol: string): void {
-      const entriesToRemove: Array<{ signalId: string; signal: Signal }> = [];
+      const entriesToRemove: { signalId: string; signal: Signal }[] = [];
 
       for (const [signalId, entry] of pendingSignals) {
         if (entry.monitorSymbol === monitorSymbol) {
@@ -187,7 +187,7 @@ export function createDelayedSignalVerifier(
      * LONG 方向对应 BUYCALL/SELLCALL，SHORT 方向对应 BUYPUT/SELLPUT
      */
     cancelAllForDirection(monitorSymbol: string, direction: 'LONG' | 'SHORT'): number {
-      const entriesToRemove: Array<{ signalId: string; signal: Signal }> = [];
+      const entriesToRemove: { signalId: string; signal: Signal }[] = [];
 
       for (const [signalId, entry] of pendingSignals) {
         if (entry.monitorSymbol !== monitorSymbol) {

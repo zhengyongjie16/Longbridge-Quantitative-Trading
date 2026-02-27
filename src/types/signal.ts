@@ -56,7 +56,7 @@ export type Signal = {
   /** 延迟验证：T0 时刻的指标快照 */
   indicators1?: Readonly<Record<string, number>> | null;
   /** 延迟验证：历史验证记录 */
-  verificationHistory?: Array<{
+  verificationHistory?: ReadonlyArray<{
     timestamp: Date;
     indicators: Readonly<Record<string, number>>;
   }> | null;

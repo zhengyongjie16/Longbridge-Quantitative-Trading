@@ -188,7 +188,7 @@ export const createHangSengMultiIndicatorStrategy = ({
       // 生成立即执行信号（不需要延迟验证）
       const indicatorDisplayStr = buildIndicatorDisplayString(state);
 
-      // 从对象池获取信号对象
+      // 对象池返回 PoolableSignal；立即信号会在此处完整填充后按 Signal 使用
       const signal = signalObjectPool.acquire() as Signal;
       signal.symbol = symbol;
       signal.action = action;
@@ -231,7 +231,7 @@ export const createHangSengMultiIndicatorStrategy = ({
     // 构建指标状态显示字符串
     const indicatorDisplayStr = buildIndicatorDisplayString(state);
 
-    // 从对象池获取信号对象
+    // 对象池返回 PoolableSignal；延迟验证信号会在此处完整填充后按 Signal 使用
     const signal = signalObjectPool.acquire() as Signal;
     signal.symbol = symbol;
     signal.action = action;

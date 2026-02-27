@@ -107,7 +107,7 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
     const ctx = await ctxPromise;
     try {
       // 使用模块级常量 PENDING_ORDER_STATUSES 过滤未成交订单，避免每次调用创建新 Set
-      let allOrders: Array<{
+      let allOrders: ReadonlyArray<{
         orderId: string;
         symbol: string;
         side: OrderSide;

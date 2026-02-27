@@ -463,7 +463,7 @@ function validateTradingConfig(
 
   // 检测订单归属映射冲突（同一缩写不能归属多个监控标的）
   const ownershipAliases = new Map<string, string>();
-  const ownershipConflicts: Array<{ alias: string; current: string; existing: string }> = [];
+  const ownershipConflicts: { alias: string; current: string; existing: string }[] = [];
   for (const config of tradingConfig.monitors) {
     for (const alias of config.orderOwnershipMapping) {
       const normalizedAlias = alias.trim().toUpperCase();

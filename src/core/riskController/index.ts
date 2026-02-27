@@ -59,8 +59,12 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
   const unrealizedLossChecker: UnrealizedLossChecker = deps.unrealizedLossChecker;
 
   /**
-   * 读取浮亏缓存并结合当前价格构造实时指标（R1/N1/R2/持仓盈亏）。
-   * 仅在有持仓数量（n1>0）时要求有效当前价；n1<=0 时按 r2=0 处理，兼容清仓后残余成本场景。
+   * 读取浮亏缓存并结合当前价格构造实时指标。
+   * - R1: 开仓成本总额
+   * - N1: 当前持仓数量
+   * - R2: 按当前价估算的持仓市值（currentPrice * N1）
+   * - unrealizedPnL: 持仓浮动盈亏（R2 - R1）
+   * 仅在有持仓数量（N1>0）时要求有效当前价；N1<=0 时按 R2=0 处理，兼容清仓后残余成本场景。
    */
   function buildUnrealizedLossMetrics(
     symbol: string | null,

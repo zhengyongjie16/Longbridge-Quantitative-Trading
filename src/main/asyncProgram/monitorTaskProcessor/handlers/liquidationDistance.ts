@@ -89,11 +89,11 @@ export function createLiquidationDistanceHandler({
     );
 
     try {
-      const liquidationTasks: Array<{
+      const liquidationTasks: {
         signal: Signal;
         isLongSymbol: boolean;
         quote: Quote | null;
-      }> = [];
+      }[] = [];
 
       /**
        * 在席位版本、持仓与行情均有效时构造保护性清仓信号，否则返回 null。

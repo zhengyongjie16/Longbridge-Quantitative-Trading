@@ -20,7 +20,7 @@ import type { Task, TaskQueue, TaskAddedCallback, BuyTaskType, SellTaskType } fr
  * @returns TaskQueue<TType> 任务队列实例
  */
 function createTaskQueue<TType extends string>(): TaskQueue<TType> {
-  const queue: Array<Task<TType>> = [];
+  const queue: Task<TType>[] = [];
   const callbacks: TaskAddedCallback[] = [];
 
   function notifyCallbacks(): void {

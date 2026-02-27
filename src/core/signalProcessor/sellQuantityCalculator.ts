@@ -94,7 +94,7 @@ function calculateSellQuantity(params: {
     };
   }
 
-  // 智能平仓开启：按三阶段规则计算卖出数量（防重版本）
+  // 智能平仓开启：按三阶段规则计算可卖数量，并结合订单记录做防重扣减，避免重复卖出同一批持仓
   const smartCloseResult = resolveSellQuantityBySmartClose({
     orderRecorder,
     currentPrice,

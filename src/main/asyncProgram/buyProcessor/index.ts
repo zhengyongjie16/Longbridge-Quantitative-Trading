@@ -171,7 +171,7 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
       signal.price = quote.price;
       signal.lotSize = quote.lotSize;
 
-      // 二次门禁：避免跨日门禁切换期间在途任务继续下单
+      // 二次门禁：防止任务入队后跨越交易日切换/生命周期状态变更，导致门禁关闭时仍继续下单
       if (getCanProcessTask && !getCanProcessTask()) {
         logger.info(`[BuyProcessor] 生命周期门禁关闭，放弃执行: ${symbolDisplay} ${signal.action}`);
         return true;

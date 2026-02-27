@@ -31,7 +31,7 @@ export function createMonitorTaskQueue<TType extends string, TData>(): MonitorTa
   TType,
   TData
 > {
-  const queue: Array<MonitorTask<TType, TData>> = [];
+  const queue: MonitorTask<TType, TData>[] = [];
   const callbacks: TaskAddedCallback[] = [];
 
   function notifyCallbacks(): void {

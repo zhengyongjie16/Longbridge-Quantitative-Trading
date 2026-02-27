@@ -97,7 +97,7 @@ export const createUnrealizedLossMonitor = (
         : lossCheck.reason;
     logger.error(liquidationReason);
 
-    // 从对象池获取信号对象
+    // 对象池返回 PoolableSignal；保护性清仓会在此处完整填充后按 Signal 使用
     const liquidationSignal = signalObjectPool.acquire() as Signal;
     liquidationSignal.symbol = symbol;
     liquidationSignal.action = isLong ? 'SELLCALL' : 'SELLPUT';

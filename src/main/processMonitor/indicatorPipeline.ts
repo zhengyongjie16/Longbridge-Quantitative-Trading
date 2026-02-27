@@ -101,7 +101,10 @@ export async function runIndicatorPipeline(
 
   const monitorCandles = await marketDataClient
     .getRealtimeCandlesticks(monitorSymbol, TRADING.CANDLE_PERIOD, TRADING.CANDLE_COUNT)
-    .catch(() => null);
+    .catch((err: unknown) => {
+      logger.error(`获取监控标的 K 线数据失败: ${monitorSymbol}`, err);
+      return null;
+    });
 
   if (!monitorCandles || monitorCandles.length === 0) {
     logger.warn(
