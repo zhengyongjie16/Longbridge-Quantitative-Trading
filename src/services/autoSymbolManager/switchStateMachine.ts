@@ -58,6 +58,20 @@ function isReadySeat(seatState: SeatState): seatState is SeatState & { symbol: s
 }
 
 /**
+ * 判断周期 pending 是否应因席位重新进入 READY 而失效。
+ * 仅当 lastSeatReadyAt 晚于 pendingSinceMs 时失效，表示周期基线已重置。
+ */
+function shouldResetPeriodicPendingBySeatReadyAt(params: {
+  readonly pendingSinceMs: number | null;
+  readonly lastSeatReadyAt: number | null;
+}): boolean {
+  if (params.pendingSinceMs === null || params.lastSeatReadyAt === null) {
+    return false;
+  }
+  return params.lastSeatReadyAt > params.pendingSinceMs;
+}
+
+/**
  * 创建换标状态机，管理从撤单到回补买入的完整换标流程，并提供周期换标触发能力。
  * @param deps - 依赖（trader、orderRecorder、riskChecker、switchStates、buildOrderSignal、signalObjectPool 等）
  * @returns SwitchStateMachine 实例（maybeSwitchOnInterval、maybeSwitchOnDistance、hasPendingSwitch）
@@ -533,11 +547,37 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     const periodicPendingState = resolvePeriodicPending(direction);
     if (
       periodicPendingState.pending &&
-      periodicPendingState.pendingSinceMs !== null &&
-      seatState.lastSeatReadyAt !== null &&
-      seatState.lastSeatReadyAt > periodicPendingState.pendingSinceMs
+      shouldResetPeriodicPendingBySeatReadyAt({
+        pendingSinceMs: periodicPendingState.pendingSinceMs,
+        lastSeatReadyAt: seatState.lastSeatReadyAt,
+      })
     ) {
       clearPeriodicPending(direction);
+    }
+
+    const pendingStateAfterReset = resolvePeriodicPending(direction);
+    if (pendingStateAfterReset.pending) {
+      if (!canTradeNow || openProtectionActive) {
+        return;
+      }
+
+      const pendingBuyOrders = orderRecorder.getBuyOrdersForSymbol(
+        seatState.symbol,
+        direction === 'LONG',
+      );
+      if (pendingBuyOrders.length > 0) {
+        return;
+      }
+
+      logger.info(`[自动换标] ${monitorSymbol} ${direction} 周期换标等待结束，检测到空仓开始换标`);
+      clearPeriodicPending(direction);
+      await startSwitchFlow({
+        direction,
+        reason: '周期换标触发',
+        switchMode: 'PERIODIC',
+        processImmediately: false,
+      });
+      return;
     }
 
     if (!canTradeNow || openProtectionActive) {
@@ -556,7 +596,6 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     });
     const intervalMs = autoSearchConfig.switchIntervalMinutes * 60_000;
     if (elapsedTradingMs < intervalMs) {
-      clearPeriodicPending(direction);
       return;
     }
 
@@ -636,7 +675,6 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     }
 
     if (distancePercent <= range.min || distancePercent >= range.max) {
-      clearPeriodicPending(direction);
       await startSwitchFlow({
         direction,
         reason: '距回收价阈值越界',

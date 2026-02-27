@@ -80,6 +80,7 @@ function createPeriodicHarness(params: HarnessParams): {
   machine: ReturnType<typeof createSwitchStateMachine>;
   symbolRegistry: ReturnType<typeof createSymbolRegistryDouble>;
   seatStateManager: ReturnType<typeof createSeatStateManager>;
+  periodicSwitchPending: Map<'LONG' | 'SHORT', { pending: boolean; pendingSinceMs: number | null }>;
   setNowMs: (nextNowMs: number) => void;
 } {
   let currentNowMs = params.nowMs;
@@ -204,6 +205,7 @@ function createPeriodicHarness(params: HarnessParams): {
     machine,
     symbolRegistry,
     seatStateManager,
+    periodicSwitchPending,
     setNowMs: (nextNowMs: number) => {
       currentNowMs = nextNowMs;
     },
@@ -316,6 +318,38 @@ describe('periodic auto-switch regression', () => {
     const seat = harness.symbolRegistry.getSeatState('HSI.HK', 'LONG');
     expect(seat.status).toBe('READY');
     expect(seat.symbol).toBe('NEW_BULL.HK');
+    expect(harness.machine.hasPendingSwitch('LONG')).toBeFalse();
+  });
+
+  it('case4-1: periodic pending is retained when distance trigger is suppressed by same candidate', async () => {
+    const readyMs = Date.parse('2026-02-16T01:00:00.000Z');
+    const nowMs = Date.parse('2026-02-16T01:31:00.000Z');
+    const harness = createPeriodicHarness({
+      switchIntervalMinutes: 1,
+      nowMs,
+      lastSeatReadyAt: readyMs,
+      findBestSymbol: 'OLD_BULL.HK',
+      getBuyOrdersCount: () => 1,
+    });
+
+    await harness.machine.maybeSwitchOnInterval({
+      direction: 'LONG',
+      currentTime: new Date(nowMs),
+      canTradeNow: true,
+      openProtectionActive: false,
+    });
+    expect(harness.periodicSwitchPending.get('LONG')?.pending).toBeTrue();
+    expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('READY');
+
+    await harness.machine.maybeSwitchOnDistance({
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      quotesMap: createQuotes({ 'OLD_BULL.HK': 1 }),
+      positions: [],
+    });
+
+    expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('READY');
+    expect(harness.periodicSwitchPending.get('LONG')?.pending).toBeTrue();
     expect(harness.machine.hasPendingSwitch('LONG')).toBeFalse();
   });
 

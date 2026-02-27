@@ -81,16 +81,6 @@ export const createRiskCheckPipeline = ({
         const remainingSeconds = Math.ceil((lastTime + cooldownMs - now) / 1000);
         const reason = `风险检查冷却期内，剩余 ${remainingSeconds} 秒`;
         sig.reason = reason;
-        const sigName = getSymbolName(
-          sig.symbol,
-          longSymbol,
-          shortSymbol,
-          longSymbolName,
-          shortSymbolName,
-        );
-        logger.debug(
-          `[验证冷却] ${sigName}(${sigSymbol}) ${sig.action} 在冷却期内，剩余 ${remainingSeconds} 秒，跳过风险检查`,
-        );
         // 被冷却跳过的信号会在主循环中通过 validSignals.filter 被识别并释放到对象池
       } else {
         signalsAfterCooldown.push(sig);
