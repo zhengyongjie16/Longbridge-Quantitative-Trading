@@ -5,10 +5,7 @@
  * @param decimals 保留小数位数
  * @returns 格式化文本
  */
-export function formatFiniteNumber(
-  value: number | null | undefined,
-  decimals: number,
-): string {
+export function formatFiniteNumber(value: number | null | undefined, decimals: number): string {
   if (value === null || value === undefined || !Number.isFinite(value)) {
     return '-';
   }

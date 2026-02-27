@@ -17,7 +17,11 @@
  */
 import { buildIndicatorSnapshot, getCandleFingerprint } from '../../services/indicators/utils.js';
 import { logger } from '../../utils/logger/index.js';
-import { formatSymbolDisplay, releaseSnapshotObjects, isRecord } from '../../utils/helpers/index.js';
+import {
+  formatSymbolDisplay,
+  releaseSnapshotObjects,
+  isRecord,
+} from '../../utils/helpers/index.js';
 import { TRADING } from '../../constants/index.js';
 import type { CandleData } from '../../types/data.js';
 import type { IndicatorSnapshot } from '../../types/quote.js';

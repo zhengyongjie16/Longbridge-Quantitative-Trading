@@ -1,9 +1,4 @@
-import type {
-  MockCallRecord,
-  MockFailureRule,
-  MockFailureState,
-  MockMethodName,
-} from './types.js';
+import type { MockCallRecord, MockFailureRule, MockFailureState, MockMethodName } from './types.js';
 
 /**
  * 判断方法是否被当前 Mock 支持。默认行为：未命中支持集合返回 false。

@@ -75,7 +75,6 @@ type MinimalOrder = {
   updatedAt: Date;
 };
 
-
 /**
  * 将 submitOrder 入参转换为内部最小订单结构。
  *

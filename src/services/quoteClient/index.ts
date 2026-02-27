@@ -35,7 +35,12 @@ import {
   type PushQuoteEvent,
   type PushCandlestickEvent,
 } from 'longport';
-import { decimalToNumber, formatError, formatSymbolDisplay, isRecord } from '../../utils/helpers/index.js';
+import {
+  decimalToNumber,
+  formatError,
+  formatSymbolDisplay,
+  isRecord,
+} from '../../utils/helpers/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { API } from '../../constants/index.js';
 import type { Quote, QuoteStaticInfo } from '../../types/quote.js';
