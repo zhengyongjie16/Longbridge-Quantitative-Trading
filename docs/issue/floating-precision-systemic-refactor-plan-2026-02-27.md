@@ -39,13 +39,16 @@
 ### 3.1 数值域三层模型
 
 1. 输入边界层（API/配置/行情）
+
 - 外部数据（SDK Decimal、string、number）统一在入口转换为 `Decimal`。
 
 2. 业务计算层（核心域）
+
 - 所有金额、价格、数量、百分比、PnL、距离阈值计算统一使用 `Decimal`。
 - 仅使用统一比较器进行 `< <= > >= ==` 语义判断。
 
 3. 输出边界层（日志/展示）
+
 - 仅在日志与展示时格式化为字符串或 number。
 - 展示转换不得回流至业务决策。
 
@@ -68,16 +71,16 @@
 
 以下比较语义必须逐项保持，不得改变边界：
 
-| 业务场景 | 现语义 | 重构后语义（Decimal） |
-| --- | --- | --- |
-| 单标的浮亏清仓（`unrealizedLossChecker`） | `unrealizedLoss < -threshold` | `decimalLt(unrealizedLoss, threshold.neg())` |
+| 业务场景                                     | 现语义                           | 重构后语义（Decimal）                           |
+| -------------------------------------------- | -------------------------------- | ----------------------------------------------- | ------- | ----------------------- | --- | ----------------------- |
+| 单标的浮亏清仓（`unrealizedLossChecker`）    | `unrealizedLoss < -threshold`    | `decimalLt(unrealizedLoss, threshold.neg())`    |
 | 买入前单日浮亏限制（`riskController/index`） | `unrealizedPnL <= -maxDailyLoss` | `decimalLte(unrealizedPnL, maxDailyLoss.neg())` |
-| 牛证停买阈值 | `distancePercent < bullMin` | `decimalLt(distancePercent, bullMin)` |
-| 熊证停买阈值 | `distancePercent > bearMax` | `decimalGt(distancePercent, bearMax)` |
-| 静态距回收价清仓（牛） | `distancePercent <= threshold` | `decimalLte(distancePercent, threshold)` |
-| 静态距回收价清仓（熊） | `distancePercent >= threshold` | `decimalGte(distancePercent, threshold)` |
-| 距离换标越界 | `<= min || >= max` | `decimalLte(value, min) || decimalGte(value, max)` |
-| 指标条件 `<`/`>` | 直接 number 比较 | Decimal 比较，边界语义不变 |
+| 牛证停买阈值                                 | `distancePercent < bullMin`      | `decimalLt(distancePercent, bullMin)`           |
+| 熊证停买阈值                                 | `distancePercent > bearMax`      | `decimalGt(distancePercent, bearMax)`           |
+| 静态距回收价清仓（牛）                       | `distancePercent <= threshold`   | `decimalLte(distancePercent, threshold)`        |
+| 静态距回收价清仓（熊）                       | `distancePercent >= threshold`   | `decimalGte(distancePercent, threshold)`        |
+| 距离换标越界                                 | `<= min                          |                                                 | >= max` | `decimalLte(value, min) |     | decimalGte(value, max)` |
+| 指标条件 `<`/`>`                             | 直接 number 比较                 | Decimal 比较，边界语义不变                      |
 
 ## 5. 数据结构重构（系统性，不留旧口径）
 
@@ -133,9 +136,12 @@
 2. `sumOrderCost/average/positionNotional` 全部用 Decimal 累计。
 3. 所有阈值比较改为统一比较器。
 4. 日内亏损偏移公式保持原定义：
+
 - `realizedPnL = totalSell - totalBuy + openBuyCost`
 - `realizedPnL > 0 => offset = 0`，否则 `offset = realizedPnL`
+
 5. 浮亏刷新保持原定义：
+
 - `adjustedR1 = baseR1 - dailyLossOffset`（dailyLossOffset 非正）
 
 ### 6.2 订单记录链路
@@ -252,22 +258,27 @@
 ### 8.1 必补测试矩阵
 
 1. 风控边界：
+
 - `unrealizedLoss < -threshold`（小于、等于、大于三点）
 - `unrealizedPnL <= -maxDailyLoss`（小于、等于、大于三点）
 
 2. 牛熊证边界：
+
 - 牛证 `< threshold` 与 `== threshold`
 - 熊证 `> threshold` 与 `== threshold`
 - 清仓 `<= / >=` 双向边界
 
 3. 数量换算：
+
 - `notional/price` 在临界价下是否少一手
 - `lotSize` 取余边界
 
 4. 换标越界：
+
 - `<= min`、`>= max`、区间内三类
 
 5. 信号比较：
+
 - 指标值与阈值在边界小数下的 `<`/`>` 一致性
 
 ### 8.2 已有测试复用与扩展
@@ -317,6 +328,7 @@
 4. 全量 lint/type-check 通过。
 5. 核心业务测试与新增边界测试全部通过。
 6. 回放以下历史问题场景无回归：
+
 - 订单监控 1 tick 改单边界。
 - 浮亏阈值触发边界。
 - 距回收价换标边界。

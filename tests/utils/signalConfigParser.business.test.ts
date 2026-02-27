@@ -6,13 +6,12 @@
  */
 import { describe, expect, it } from 'bun:test';
 
+import { formatSignalConfig, parseSignalConfig } from '../../src/config/utils.js';
+import { evaluateSignalConfig } from '../../src/core/strategy/utils.js';
 import {
-  evaluateSignalConfig,
   extractPsyPeriods,
-  extractRSIPeriods,
-  formatSignalConfig,
-  parseSignalConfig,
-} from '../../src/utils/helpers/signalConfigParser.js';
+  extractRsiPeriodsWithDefault,
+} from '../../src/services/monitorContext/utils.js';
 import type { SignalConfigSet } from '../../src/types/config.js';
 import type { IndicatorState } from '../../src/utils/helpers/types.js';
 
@@ -104,7 +103,7 @@ describe('signalConfigParser business flow', () => {
       sellput: null,
     };
 
-    expect(extractRSIPeriods(signalConfig)).toEqual([6, 14, 20]);
+    expect(extractRsiPeriodsWithDefault(signalConfig)).toEqual([6, 14, 20]);
     expect(extractPsyPeriods(signalConfig)).toEqual([5, 13]);
   });
 });

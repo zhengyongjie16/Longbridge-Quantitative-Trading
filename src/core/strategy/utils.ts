@@ -1,8 +1,11 @@
 import { isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
+import { decimalGt, decimalLt } from '../../utils/numeric/index.js';
 import type { IndicatorSnapshot } from '../../types/quote.js';
 import type { Signal } from '../../types/signal.js';
 import type { SingleVerificationConfig } from '../../types/config.js';
-import type { SignalWithCategory } from './types.js';
+import type { Condition, ConditionGroup, SignalConfig } from '../../types/signalConfig.js';
+import type { ConditionGroupResult, EvaluationResult, SignalWithCategory } from './types.js';
+import type { IndicatorState } from '../../utils/helpers/types.js';
 
 /**
  * 判断是否需要延迟验证。
@@ -61,6 +64,56 @@ export function validateAllIndicators(state: IndicatorSnapshot): boolean {
     isValidNumber(macd.macd) &&
     isValidNumber(price)
   );
+}
+
+/**
+ * 根据指标状态评估完整信号配置，满足任一组即触发。默认行为：signalConfig 为空或无效时返回 triggered=false、reason 为「无效的信号配置」。
+ *
+ * @param state 指标状态（ema、rsi、psy、mfi、kdj 等）
+ * @param signalConfig 信号配置（conditionGroups）
+ * @returns 评估结果（triggered、satisfiedGroupIndex、satisfiedCount、reason）
+ */
+export function evaluateSignalConfig(
+  state: IndicatorState,
+  signalConfig: SignalConfig | null,
+): EvaluationResult {
+  if (!signalConfig?.conditionGroups) {
+    return {
+      triggered: false,
+      satisfiedGroupIndex: -1,
+      satisfiedCount: 0,
+      reason: '无效的信号配置',
+    };
+  }
+
+  const { conditionGroups } = signalConfig;
+  for (const [index, group] of conditionGroups.entries()) {
+    const result = evaluateConditionGroup(state, group);
+
+    if (result.satisfied) {
+      const conditionDescs = group.conditions
+        .map((condition) => `${condition.indicator}${condition.operator}${condition.threshold}`)
+        .join(',');
+      const reason =
+        group.conditions.length === 1
+          ? `满足条件${index + 1}：${conditionDescs}`
+          : `满足条件${index + 1}：(${conditionDescs}) 中${result.count}/${group.conditions.length}项满足`;
+
+      return {
+        triggered: true,
+        satisfiedGroupIndex: index,
+        satisfiedCount: result.count,
+        reason,
+      };
+    }
+  }
+
+  return {
+    triggered: false,
+    satisfiedGroupIndex: -1,
+    satisfiedCount: 0,
+    reason: '未满足任何条件组',
+  };
 }
 
 /**
@@ -131,4 +184,105 @@ export function pushSignalToCorrectArray(
   } else {
     delayedSignals.push(result.signal);
   }
+}
+
+/**
+ * 根据指标状态评估条件。
+ * @param state 指标状态 {rsi/psy/mfi/kdj}
+ * @param condition 条件 {indicator, operator, threshold}
+ * @returns 条件是否满足
+ */
+function evaluateCondition(state: IndicatorState, condition: Condition): boolean {
+  const { indicator, operator, threshold } = condition;
+  let indicatorName = indicator;
+  let period: number | undefined;
+
+  if (indicator.includes(':')) {
+    const parts = indicator.split(':');
+    const namePart = parts[0];
+    const periodPart = parts[1];
+    if (namePart && periodPart) {
+      indicatorName = namePart;
+      period = Number.parseInt(periodPart, 10);
+    }
+  }
+
+  let value: number | undefined;
+  switch (indicatorName) {
+    case 'RSI': {
+      if (!period || state.rsi?.[period] === undefined) {
+        return false;
+      }
+      value = state.rsi[period];
+      break;
+    }
+    case 'PSY': {
+      if (!period || state.psy?.[period] === undefined) {
+        return false;
+      }
+      value = state.psy[period];
+      break;
+    }
+    case 'MFI': {
+      value = state.mfi ?? undefined;
+      break;
+    }
+    case 'K': {
+      value = state.kdj?.k;
+      break;
+    }
+    case 'D': {
+      value = state.kdj?.d;
+      break;
+    }
+    case 'J': {
+      value = state.kdj?.j;
+      break;
+    }
+    default: {
+      return false;
+    }
+  }
+
+  if (value === undefined || !Number.isFinite(value)) {
+    return false;
+  }
+
+  switch (operator) {
+    case '<': {
+      return decimalLt(value, threshold);
+    }
+    case '>': {
+      return decimalGt(value, threshold);
+    }
+    default: {
+      return false;
+    }
+  }
+}
+
+/**
+ * 根据指标状态评估条件组。
+ * @param state 指标状态
+ * @param conditionGroup 条件组 {conditions, requiredCount}
+ * @returns 评估结果
+ */
+function evaluateConditionGroup(
+  state: IndicatorState,
+  conditionGroup: ConditionGroup,
+): ConditionGroupResult {
+  const { conditions, requiredCount } = conditionGroup;
+
+  let count = 0;
+  for (const condition of conditions) {
+    if (evaluateCondition(state, condition)) {
+      count++;
+    }
+  }
+
+  const minSatisfied = requiredCount ?? conditions.length;
+  return {
+    satisfied: count >= minSatisfied,
+    count,
+  };
 }

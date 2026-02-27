@@ -1,10 +1,25 @@
-import { OrderType } from 'longport';
-import { VERIFICATION_FIXED_INDICATORS } from '../constants/index.js';
+import type { OrderType } from 'longport';
+import {
+  ORDER_TYPE_CONFIG_TO_OPEN_API,
+  SIGNAL_CONFIG_SUPPORTED_INDICATORS,
+  SYMBOL_WITH_REGION_REGEX,
+  VERIFICATION_FIXED_INDICATORS,
+} from '../constants/index.js';
 import type { LiquidationCooldownConfig, NumberRange } from '../types/config.js';
 import type { OrderTypeConfig } from '../types/signal.js';
-import { validateEmaPeriod, validatePsyPeriod } from '../utils/helpers/indicatorHelpers.js';
+import type { ConditionGroup, SignalConfig } from '../types/signalConfig.js';
+import {
+  validateEmaPeriod,
+  validatePsyPeriod,
+  validateRsiPeriod,
+} from '../utils/helpers/indicatorHelpers.js';
 import { logger } from '../utils/logger/index.js';
-import type { RegionUrls } from './types.js';
+import type {
+  ComparisonOperator,
+  ParsedCondition,
+  ParsedConditionGroup,
+  RegionUrls,
+} from './types.js';
 
 /**
  * 根据区域返回对应的 LongPort API 端点 URL，cn 使用 .cn 域名，其他区域使用 .com 域名。
@@ -319,12 +334,255 @@ export function parseVerificationIndicators(
   return validItems.length > 0 ? validItems : null;
 }
 
-/** 订单类型字符串到枚举的映射 */
-const ORDER_TYPE_MAPPING: Readonly<Record<OrderTypeConfig, OrderType>> = {
-  LO: OrderType.LO,
-  ELO: OrderType.ELO,
-  MO: OrderType.MO,
-};
+/**
+ * 校验标的代码格式（ticker.region）。默认行为：null/undefined 或非字符串返回 false。
+ *
+ * @param symbol 标的代码，例如 "68547.HK"
+ * @returns 符合 ticker.region 格式时返回 true，否则返回 false
+ */
+export function isSymbolWithRegion(symbol: string | null | undefined): symbol is string {
+  if (!symbol || typeof symbol !== 'string') {
+    return false;
+  }
+  return SYMBOL_WITH_REGION_REGEX.test(symbol);
+}
+
+/**
+ * 类型保护：判断字符串是否为支持的比较运算符（< 或 >）。
+ *
+ * @param value 待判断字符串
+ * @returns true 表示是合法比较运算符
+ */
+function isComparisonOperator(value: string): value is ComparisonOperator {
+  return value === '<' || value === '>';
+}
+
+/**
+ * 类型保护：判断字符串是否为支持的固定指标（不含 RSI/PSY 动态周期指标）。
+ *
+ * @param value 指标名称
+ * @returns true 表示属于固定指标集合
+ */
+function isSupportedFixedIndicator(
+  value: string,
+): value is (typeof SIGNAL_CONFIG_SUPPORTED_INDICATORS)[number] {
+  const supportedIndicators: ReadonlyArray<string> = SIGNAL_CONFIG_SUPPORTED_INDICATORS;
+  return supportedIndicators.includes(value);
+}
+
+/**
+ * 解析单个信号条件字符串，支持 RSI:n、PSY:n 及固定指标（K、D、J、MFI 等）格式。
+ *
+ * @param conditionStr 条件字符串，如 "RSI:6<20"、"PSY:12<25"、"J<-1"
+ * @returns 解析后的 ParsedCondition，格式无效时返回 null
+ */
+function parseCondition(conditionStr: string): ParsedCondition | null {
+  const trimmed = conditionStr.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const rsiRegex = /^RSI:(\d+)\s*([<>])\s*(-?\d+(?:\.\d+)?)$/;
+  const rsiMatch = rsiRegex.exec(trimmed);
+
+  if (rsiMatch) {
+    const [, periodStr, operator, thresholdStr] = rsiMatch;
+
+    if (!periodStr || !operator || !thresholdStr) {
+      return null;
+    }
+
+    const period = Number.parseInt(periodStr, 10);
+    const threshold = Number.parseFloat(thresholdStr);
+    if (
+      !validateRsiPeriod(period) ||
+      !Number.isFinite(threshold) ||
+      !isComparisonOperator(operator)
+    ) {
+      return null;
+    }
+    return { indicator: 'RSI', period, operator, threshold };
+  }
+
+  const psyRegex = /^PSY:(\d+)\s*([<>])\s*(-?\d+(?:\.\d+)?)$/;
+  const psyMatch = psyRegex.exec(trimmed);
+
+  if (psyMatch) {
+    const [, periodStr, operator, thresholdStr] = psyMatch;
+
+    if (!periodStr || !operator || !thresholdStr) {
+      return null;
+    }
+
+    const period = Number.parseInt(periodStr, 10);
+    const threshold = Number.parseFloat(thresholdStr);
+    if (
+      !validatePsyPeriod(period) ||
+      !Number.isFinite(threshold) ||
+      !isComparisonOperator(operator)
+    ) {
+      return null;
+    }
+    return { indicator: 'PSY', period, operator, threshold };
+  }
+
+  const matchRegex = /^([A-Z]+)\s*([<>])\s*(-?\d+(?:\.\d+)?)$/;
+  const match = matchRegex.exec(trimmed);
+  if (!match) {
+    return null;
+  }
+
+  const [, indicator, operator, thresholdStr] = match;
+  if (!indicator || !operator || !thresholdStr) {
+    return null;
+  }
+
+  const threshold = Number.parseFloat(thresholdStr);
+  if (
+    !isSupportedFixedIndicator(indicator) ||
+    !Number.isFinite(threshold) ||
+    !isComparisonOperator(operator)
+  ) {
+    return null;
+  }
+  return { indicator, operator, threshold };
+}
+
+/**
+ * 解析条件组字符串，支持 "(条件列表)/N" 或 "(条件列表)" 格式，逗号分隔多条件。
+ *
+ * @param groupStr 条件组字符串，如 "(RSI:6<20,MFI<15,D<20,J<-1)/3" 或 "(J<-20)"
+ * @returns 解析后的 ParsedConditionGroup（conditions + minSatisfied），格式无效时返回 null
+ */
+function parseConditionGroup(groupStr: string): ParsedConditionGroup | null {
+  const trimmed = groupStr.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  let conditionsStr: string;
+  let minSatisfied: number | null = null;
+
+  const bracketRegex = /^\(([^)]+)\)(?:\/(\d+))?$/;
+  const bracketMatch = bracketRegex.exec(trimmed);
+
+  if (bracketMatch) {
+    const capturedConditions = bracketMatch[1];
+    if (!capturedConditions) {
+      return null;
+    }
+    conditionsStr = capturedConditions;
+    const minSatisfiedStr = bracketMatch[2];
+    minSatisfied = minSatisfiedStr ? Number.parseInt(minSatisfiedStr, 10) : null;
+  } else {
+    conditionsStr = trimmed;
+  }
+
+  const conditionStrs = conditionsStr.split(',');
+  const conditions: ParsedCondition[] = [];
+
+  for (const condStr of conditionStrs) {
+    const condition = parseCondition(condStr);
+    if (!condition) {
+      return null;
+    }
+    conditions.push(condition);
+  }
+
+  if (conditions.length === 0) {
+    return null;
+  }
+
+  minSatisfied ??= conditions.length;
+  if (minSatisfied < 1 || minSatisfied > conditions.length) {
+    minSatisfied = Math.max(1, Math.min(minSatisfied, conditions.length));
+  }
+
+  return {
+    conditions,
+    minSatisfied,
+  };
+}
+
+/**
+ * 将配置字符串解析为 SignalConfig。默认行为：空字符串或非字符串返回 null；最多解析 3 个条件组（| 分隔）；任一条件组解析失败则整体返回 null。
+ *
+ * @param configStr 配置字符串，如 "(RSI:6<20,MFI<15,D<20,J<-1)/3|(J<-20)"
+ * @returns 解析后的 SignalConfig，无效时返回 null
+ */
+export function parseSignalConfig(configStr: string | null | undefined): SignalConfig | null {
+  if (!configStr || typeof configStr !== 'string') {
+    return null;
+  }
+
+  const trimmed = configStr.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const groupStrs = trimmed.split('|');
+  const conditionGroups: ConditionGroup[] = [];
+
+  for (let i = 0; i < Math.min(groupStrs.length, 3); i++) {
+    const groupStr = groupStrs[i];
+    if (!groupStr) {
+      continue;
+    }
+    const group = parseConditionGroup(groupStr);
+    if (!group) {
+      return null;
+    }
+    conditionGroups.push({
+      conditions: group.conditions.map((condition) => ({
+        indicator: condition.period
+          ? `${condition.indicator}:${condition.period}`
+          : condition.indicator,
+        operator: condition.operator,
+        threshold: condition.threshold,
+      })),
+      requiredCount: group.minSatisfied,
+    });
+  }
+
+  if (conditionGroups.length === 0) {
+    return null;
+  }
+
+  return {
+    conditionGroups,
+  };
+}
+
+/**
+ * 将信号配置格式化为可读字符串（与配置格式一致）。默认行为：无效配置返回 "(无效配置)"。
+ *
+ * @param signalConfig 信号配置
+ * @returns 可读字符串，如 "(RSI:6<20,MFI<15)/3|(J<-20)"
+ */
+export function formatSignalConfig(signalConfig: SignalConfig | null): string {
+  if (!signalConfig?.conditionGroups) {
+    return '(无效配置)';
+  }
+
+  const groups = signalConfig.conditionGroups.map((group) => {
+    const conditions = group.conditions
+      .map((condition) => `${condition.indicator}${condition.operator}${condition.threshold}`)
+      .join(',');
+
+    if (group.conditions.length === 1) {
+      return `(${conditions})`;
+    }
+
+    const minSatisfied = group.requiredCount ?? group.conditions.length;
+    if (minSatisfied === group.conditions.length) {
+      return `(${conditions})`;
+    }
+
+    return `(${conditions})/${minSatisfied}`;
+  });
+
+  return groups.join('|');
+}
 
 /**
  * 类型保护：判断字符串是否为受支持的订单类型配置代码。
@@ -332,7 +590,7 @@ const ORDER_TYPE_MAPPING: Readonly<Record<OrderTypeConfig, OrderType>> = {
  * @returns true 表示值属于 OrderTypeConfig
  */
 function isOrderTypeConfig(value: string): value is OrderTypeConfig {
-  return Object.hasOwn(ORDER_TYPE_MAPPING, value);
+  return Object.hasOwn(ORDER_TYPE_CONFIG_TO_OPEN_API, value);
 }
 
 /**
@@ -351,11 +609,11 @@ export function parseOrderTypeConfig(
   const value = getStringConfig(env, envKey);
   if (value) {
     if (isOrderTypeConfig(value)) {
-      return ORDER_TYPE_MAPPING[value];
+      return ORDER_TYPE_CONFIG_TO_OPEN_API[value];
     }
     logger.warn(
       `[配置警告] ${envKey} 值无效: ${value}，必须使用全大写: LO, ELO, MO。已使用默认值: ${defaultType}`,
     );
   }
-  return ORDER_TYPE_MAPPING[defaultType];
+  return ORDER_TYPE_CONFIG_TO_OPEN_API[defaultType];
 }

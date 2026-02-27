@@ -8,12 +8,12 @@
  * - 浮亏 = R2 - R1（负值表示亏损）
  */
 import { logger } from '../../utils/logger/index.js';
+import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import {
-  isValidPositiveNumber,
+  formatSymbolDisplayFromQuote,
   getLongDirectionName,
   getShortDirectionName,
-  formatSymbolDisplayFromQuote,
-} from '../../utils/helpers/index.js';
+} from '../utils.js';
 import {
   decimalAdd,
   decimalGt,

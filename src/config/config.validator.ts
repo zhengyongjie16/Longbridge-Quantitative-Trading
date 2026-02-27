@@ -4,9 +4,7 @@
  * 验证 LongPort API 凭证、交易配置完整性（不触发行情订阅）
  */
 import { logger } from '../utils/logger/index.js';
-import { getStringConfig } from './utils.js';
-import { isSymbolWithRegion } from '../utils/helpers/index.js';
-import { formatSignalConfig } from '../utils/helpers/signalConfigParser.js';
+import { formatSignalConfig, getStringConfig, isSymbolWithRegion } from './utils.js';
 import type {
   LiquidationCooldownConfig,
   MonitorConfig,

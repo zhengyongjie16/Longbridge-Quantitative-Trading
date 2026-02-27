@@ -1,7 +1,6 @@
 import { HK_DATE_KEY_PATTERN, TIME } from '../../constants/index.js';
 import type {
   HKTime,
-  OrderTimeoutCheckParams,
   SessionRange,
   TradingCalendarDayInfo,
   TradingDurationBetweenParams,
@@ -13,7 +12,7 @@ import type {
  * @param date 时间对象（UTC）
  * @returns 香港时区的小时与分钟（hkHour、hkMinute），无效时返回 null
  */
-export function getHKTime(date: Date | null | undefined): HKTime | null {
+function getHKTime(date: Date | null | undefined): HKTime | null {
   if (!date) return null;
   const utcHour = date.getUTCHours();
   const utcMinute = date.getUTCMinutes();
@@ -166,58 +165,6 @@ export function isWithinAfternoonOpenProtection(
 }
 
 /**
- * 判断是否在当日收盘前 15 分钟内（末日保护：拒绝买入）。默认行为：date 无效返回 false；半日市按 12:00 收盘计算。
- *
- * @param date 时间对象（UTC）
- * @param isHalfDay 是否为半日交易日，默认 false
- * @returns 在收盘前 15 分钟窗口内为 true，否则为 false
- */
-export function isBeforeClose15Minutes(
-  date: Date | null | undefined,
-  isHalfDay: boolean = false,
-): boolean {
-  return isBeforeCloseMinutes(date, 15, isHalfDay);
-}
-
-/**
- * 判断是否在当日收盘前 5 分钟内（末日保护：自动清仓）。默认行为：date 无效返回 false；半日市按 12:00 收盘计算。
- *
- * @param date 时间对象（UTC）
- * @param isHalfDay 是否为半日交易日，默认 false
- * @returns 在收盘前 5 分钟窗口内为 true，否则为 false
- */
-export function isBeforeClose5Minutes(
-  date: Date | null | undefined,
-  isHalfDay: boolean = false,
-): boolean {
-  return isBeforeCloseMinutes(date, 5, isHalfDay);
-}
-
-/**
- * 判断是否在当日收盘前指定分钟数内（用于末日保护等）。半日市按 12:00 收盘，正常日按 16:00。
- *
- * @param date 时间对象（UTC）
- * @param minutes 距离收盘的分钟数（正数）
- * @param isHalfDay 是否为半日交易日，默认 false
- * @returns 在收盘前该分钟数窗口内返回 true，否则返回 false
- */
-function isBeforeCloseMinutes(
-  date: Date | null | undefined,
-  minutes: number,
-  isHalfDay: boolean = false,
-): boolean {
-  if (!date || !Number.isFinite(minutes) || minutes <= 0) return false;
-  const hkTime = getHKTime(date);
-  if (!hkTime) return false;
-
-  const closeHour = isHalfDay ? 12 : 16;
-  const closeMinutes = closeHour * 60;
-  const currentMinutes = hkTime.hkHour * 60 + hkTime.hkMinute;
-
-  return currentMinutes >= closeMinutes - minutes && currentMinutes < closeMinutes;
-}
-
-/**
  * 计算两个时间点之间的交易时段累计毫秒（严格按交易日历快照与会话时段累计）。
  *
  * 规则：
@@ -264,75 +211,6 @@ export function calculateTradingDurationMsBetween(params: TradingDurationBetween
   }
 
   return totalMs;
-}
-
-/**
- * 语义化别名：计算持仓区间内的交易时段累计毫秒。
- * @param params - 交易时段累计时长计算参数
- * @returns 持仓交易时段累计毫秒
- */
-function calculateHeldTradingDurationMs(params: TradingDurationBetweenParams): number {
-  return calculateTradingDurationMsBetween(params);
-}
-
-/**
- * 按严格交易时段累计口径判定订单是否超时。
- * 触发条件：heldTradingMs > timeoutMinutes * 60_000（严格大于）。
- *
- * @param params - 订单成交时间、当前时间、超时分钟与交易日历快照
- * @returns true 表示超时；false 表示未超时或参数无效
- */
-export function isOrderTimedOut(params: OrderTimeoutCheckParams): boolean {
-  const { orderExecutedTimeMs, nowMs, timeoutMinutes, calendarSnapshot } = params;
-  if (!Number.isInteger(timeoutMinutes) || timeoutMinutes < 0) {
-    return false;
-  }
-
-  const timeoutMs = timeoutMinutes * TIME.MILLISECONDS_PER_MINUTE;
-  const heldTradingMs = calculateHeldTradingDurationMs({
-    startMs: orderExecutedTimeMs,
-    endMs: nowMs,
-    calendarSnapshot,
-  });
-
-  return heldTradingMs > timeoutMs;
-}
-
-/**
- * 枚举起止时间区间覆盖的港股日期键列表（含首尾日期）。
- * @param startMs - 区间起点毫秒时间戳
- * @param endMs - 区间终点毫秒时间戳
- * @returns 升序日期键数组
- */
-export function listHKDateKeysBetween(startMs: number, endMs: number): ReadonlyArray<string> {
-  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) {
-    return [];
-  }
-
-  const startKey = getHKDateKey(new Date(startMs));
-  const endKey = getHKDateKey(new Date(endMs));
-  if (!startKey || !endKey) {
-    return [];
-  }
-
-  const startDayStartUtcMs = resolveHKDayStartUtcMs(startKey);
-  const endDayStartUtcMs = resolveHKDayStartUtcMs(endKey);
-  if (startDayStartUtcMs === null || endDayStartUtcMs === null) {
-    return [];
-  }
-
-  const keys: string[] = [];
-  for (
-    let cursorDayStartUtcMs = startDayStartUtcMs;
-    cursorDayStartUtcMs <= endDayStartUtcMs;
-    cursorDayStartUtcMs += TIME.MILLISECONDS_PER_DAY
-  ) {
-    const key = getHKDateKey(new Date(cursorDayStartUtcMs));
-    if (key) {
-      keys.push(key);
-    }
-  }
-  return keys;
 }
 
 /**

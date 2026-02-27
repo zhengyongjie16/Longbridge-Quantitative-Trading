@@ -22,7 +22,6 @@ import {
 import { logger } from '../../utils/logger/index.js';
 import {
   decimalToNumber,
-  toDecimal,
   formatError,
   toHongKongTimeIso,
   isValidPositiveNumber,
@@ -40,6 +39,7 @@ import type { GlobalConfig } from '../../types/config.js';
 import type { PendingRefreshSymbol, RawOrderFromAPI } from '../../types/services.js';
 import { resolveOrderOwnership } from '../orderRecorder/orderOwnershipParser.js';
 import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
+import { toDecimal } from './utils.js';
 import type {
   CancelOrderResult,
   OrderMonitor,
@@ -861,7 +861,10 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       logger.info(`[订单修改成功] 订单ID=${orderId} 新价格=${normalizedNewPriceText}`);
     } catch (err) {
       const errorMessage = formatError(err);
-      logger.error(`[订单修改失败] 订单ID=${orderId} 新价格=${normalizedNewPriceText}`, errorMessage);
+      logger.error(
+        `[订单修改失败] 订单ID=${orderId} 新价格=${normalizedNewPriceText}`,
+        errorMessage,
+      );
       throw new Error(`订单修改失败: ${errorMessage}`, { cause: err });
     }
   }
@@ -1018,7 +1021,9 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       if (timeoutConfig.enabled) {
         const elapsed = now - order.submittedAt;
         if (elapsed >= timeoutConfig.timeoutMs) {
-          await (isBuyOrder ? handleBuyOrderTimeout(orderId, order) : handleSellOrderTimeout(orderId, order));
+          await (isBuyOrder
+            ? handleBuyOrderTimeout(orderId, order)
+            : handleSellOrderTimeout(orderId, order));
           continue;
         }
       }

@@ -1,6 +1,11 @@
 import { OrderStatus } from 'longport';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
-import { decimalAdd, decimalMul, decimalToNumberValue, toDecimalValue } from '../../utils/numeric/index.js';
+import {
+  decimalAdd,
+  decimalMul,
+  decimalToNumberValue,
+  toDecimalValue,
+} from '../../utils/numeric/index.js';
 import type { MonitorConfig } from '../../types/config.js';
 import type { OrderRecord, RawOrderFromAPI } from '../../types/services.js';
 import type { OrderOwnership } from '../orderRecorder/types.js';

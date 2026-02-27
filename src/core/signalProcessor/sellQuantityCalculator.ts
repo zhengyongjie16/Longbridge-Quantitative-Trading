@@ -11,11 +11,8 @@
  * - 本模块在决定卖出时使用当前 quote，并写回 signal.price，确保 orderExecutor 提交时用的是执行时价格。
  */
 import { logger } from '../../utils/logger/index.js';
-import {
-  getLongDirectionName,
-  getShortDirectionName,
-  isSellAction,
-} from '../../utils/helpers/index.js';
+import { isSellAction } from '../../utils/helpers/index.js';
+import { getLongDirectionName, getShortDirectionName } from '../utils.js';
 import {
   buildSellReason,
   validateSellContext,

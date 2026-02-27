@@ -18,20 +18,6 @@ export type TimeFormatOptions = {
 };
 
 /**
- * 行情显示格式化结果。
- * 类型用途：封装单只标的行情的可读文本字段，供日志和界面展示使用，作为 formatQuoteDisplay 的返回类型。
- * 数据来源：由 formatQuoteDisplay 根据行情快照计算生成。
- * 使用范围：仅 helpers 模块内部使用。
- */
-export type QuoteDisplayResult = {
-  readonly nameText: string;
-  readonly codeText: string;
-  readonly priceText: string;
-  readonly changeAmountText: string;
-  readonly changePercentText: string;
-};
-
-/**
  * 指标状态接口。
  * 类型用途：描述单次主循环中各技术指标的当前计算值，用于信号条件评估。
  * 数据来源：由行情服务和指标计算模块填充后传入信号解析器。

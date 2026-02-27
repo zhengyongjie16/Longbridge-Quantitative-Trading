@@ -19,7 +19,6 @@
  * - |：分隔不同条件组，满足任一组即可
  */
 import { logger } from '../../utils/logger/index.js';
-import { evaluateSignalConfig } from '../../utils/helpers/signalConfigParser.js';
 import { isBuyAction, isSellAction } from '../../utils/helpers/index.js';
 import { signalObjectPool, indicatorRecordPool } from '../../utils/objectPool/index.js';
 import { getIndicatorValue } from '../../utils/helpers/indicatorHelpers.js';
@@ -38,6 +37,7 @@ import type {
 } from './types.js';
 import {
   needsDelayedVerification,
+  evaluateSignalConfig,
   validateBasicIndicators,
   validateAllIndicators,
   buildIndicatorDisplayString,

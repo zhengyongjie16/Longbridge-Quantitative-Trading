@@ -10,11 +10,11 @@
 import { logger } from '../../utils/logger/index.js';
 import {
   decimalToNumber,
-  isDefined,
   formatError,
   formatSymbolDisplay,
   isRecord,
 } from '../../utils/helpers/index.js';
+import { isDefined } from '../utils.js';
 import {
   decimalDiv,
   decimalGt,
@@ -47,12 +47,8 @@ import {
   MIN_WARRANT_PRICE_THRESHOLD,
   DEFAULT_PRICE_DECIMALS,
   DEFAULT_PERCENT_DECIMALS,
+  WARRANT_TYPE_NAMES,
 } from '../../constants/index.js';
-
-const WARRANT_TYPE_NAMES: Record<string, string> = {
-  BULL: '牛证',
-  BEAR: '熊证',
-};
 
 /**
  * 类型保护：判断值是否包含可调用的 toNumber 方法。
@@ -70,7 +66,7 @@ function hasToNumber(value: unknown): value is { toNumber: () => number } {
  * 统一文案来源，避免不同风险分支出现术语不一致。
  */
 function getWarrantTypeName(warrantType: WarrantType): string {
-  return WARRANT_TYPE_NAMES[warrantType] ?? '轮证';
+  return WARRANT_TYPE_NAMES[warrantType];
 }
 
 /** 解析 API 返回的 category 字段为牛熊证类型 */
@@ -211,7 +207,8 @@ function validateWarrantCurrentPrice(
 
 /** 计算距离回收价的百分比：(当前价 - 回收价) / 回收价 * 100 */
 function calculateDistancePercentDecimal(monitorCurrentPrice: number, callPrice: number): Decimal {
-  const normalizedMonitorPrice = toDecimalValue(monitorCurrentPrice).roundDp(DEFAULT_PRICE_DECIMALS);
+  const normalizedMonitorPrice =
+    toDecimalValue(monitorCurrentPrice).roundDp(DEFAULT_PRICE_DECIMALS);
   const normalizedCallPrice = toDecimalValue(callPrice).roundDp(DEFAULT_PRICE_DECIMALS);
   const spread = decimalSub(normalizedMonitorPrice, normalizedCallPrice);
   const ratio = decimalDiv(spread, normalizedCallPrice);

@@ -1,9 +1,11 @@
 import path from 'node:path';
-import { OrderType } from 'longport';
+import { Decimal, type OrderType } from 'longport';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import {
   NON_REPLACEABLE_ORDER_STATUSES,
   NON_REPLACEABLE_ORDER_TYPES,
+  ORDER_TYPE_CODE_MAP,
+  ORDER_TYPE_LABEL_MAP,
 } from '../../constants/index.js';
 import type { OrderTypeConfig, Signal } from '../../types/signal.js';
 import type {
@@ -14,22 +16,6 @@ import type {
   SellMergeDecisionInput,
 } from './types.js';
 
-const orderTypeLabelMap: ReadonlyMap<OrderType, string> = new Map([
-  [OrderType.LO, '限价单'],
-  [OrderType.ELO, '增强限价单'],
-  [OrderType.MO, '市价单'],
-  [OrderType.ALO, '竞价限价单'],
-  [OrderType.SLO, '特别限价单'],
-]);
-
-const orderTypeCodeMap: ReadonlyMap<OrderType, string> = new Map([
-  [OrderType.LO, 'LO'],
-  [OrderType.ELO, 'ELO'],
-  [OrderType.MO, 'MO'],
-  [OrderType.ALO, 'ALO'],
-  [OrderType.SLO, 'SLO'],
-]);
-
 /**
  * 获取订单类型显示文本。
  * 默认行为：未匹配时返回「限价单」。
@@ -38,7 +24,7 @@ const orderTypeCodeMap: ReadonlyMap<OrderType, string> = new Map([
  * @returns 对应的中文标签字符串
  */
 export function formatOrderTypeLabel(orderType: OrderType): string {
-  return orderTypeLabelMap.get(orderType) ?? '限价单';
+  return ORDER_TYPE_LABEL_MAP.get(orderType) ?? '限价单';
 }
 
 /**
@@ -49,7 +35,7 @@ export function formatOrderTypeLabel(orderType: OrderType): string {
  * @returns 对应的订单类型代码字符串（如 "LO"、"ELO"）
  */
 export function getOrderTypeCode(orderType: OrderType): string {
-  return orderTypeCodeMap.get(orderType) ?? 'SLO';
+  return ORDER_TYPE_CODE_MAP.get(orderType) ?? 'SLO';
 }
 
 /**
@@ -99,6 +85,22 @@ export function extractOrderId(resp: unknown): string {
     return resp;
   }
   return 'UNKNOWN_ORDER_ID';
+}
+
+/**
+ * 将值转换为 LongPort Decimal 类型。默认行为：非 number/string/Decimal 时返回 Decimal.ZERO()。
+ *
+ * @param value 要转换的值（number、string 或已存在的 Decimal）
+ * @returns Decimal 对象，无效输入时返回 Decimal.ZERO()
+ */
+export function toDecimal(value: unknown): Decimal {
+  if (value instanceof Decimal) {
+    return value;
+  }
+  if (typeof value === 'number' || typeof value === 'string') {
+    return new Decimal(value);
+  }
+  return Decimal.ZERO();
 }
 
 /**

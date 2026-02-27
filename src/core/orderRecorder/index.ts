@@ -22,12 +22,12 @@
  * - 避免频繁调用 historyOrders API
  */
 import { logger } from '../../utils/logger/index.js';
+import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import {
+  formatSymbolDisplayFromQuote,
   getLongDirectionName,
   getShortDirectionName,
-  formatSymbolDisplayFromQuote,
-  isValidPositiveNumber,
-} from '../../utils/helpers/index.js';
+} from '../utils.js';
 import type { Quote } from '../../types/quote.js';
 import type { OrderRecord, OrderRecorder, RawOrderFromAPI } from '../../types/services.js';
 import type {

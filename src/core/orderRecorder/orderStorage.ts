@@ -13,13 +13,12 @@
  * - 避免每次查询都遍历整个数组
  */
 import { logger } from '../../utils/logger/index.js';
+import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import {
+  formatSymbolDisplayFromQuote,
   getLongDirectionName,
   getShortDirectionName,
-  formatSymbolDisplayFromQuote,
-  isValidPositiveNumber,
-} from '../../utils/helpers/index.js';
-import { isOrderTimedOut } from '../../utils/helpers/tradingTime.js';
+} from '../utils.js';
 import type { Quote } from '../../types/quote.js';
 import type { OrderRecord } from '../../types/services.js';
 import type {
@@ -29,7 +28,7 @@ import type {
   SellableOrderResult,
   SellableOrderSelectParams,
 } from './types.js';
-import { calculateTotalQuantity, calculateOrderStatistics } from './utils.js';
+import { calculateOrderStatistics, calculateTotalQuantity, isOrderTimedOut } from './utils.js';
 import { deductSellQuantityFromBuyOrders } from './sellDeductionPolicy.js';
 
 /**

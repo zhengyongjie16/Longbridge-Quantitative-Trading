@@ -11,7 +11,7 @@
  * - 指标缓存相关：计算缓存、时序缓存配置
  * - 信号相关：交易信号类型定义
  */
-import { OrderStatus, OrderType, Period } from 'longport';
+import { FilterWarrantExpiryDate, OrderStatus, OrderType, Period } from 'longport';
 import type { OrderTypeConfig, SignalType } from '../types/signal.js';
 
 /** 时间相关常量 */
@@ -180,6 +180,39 @@ export const MONITOR = {
 /** 订单相关常量 */
 export const ORDER_PRICE_DIFF_THRESHOLD = 0.001;
 
+/** 配置字符串到 OpenAPI 订单类型的映射 */
+export const ORDER_TYPE_CONFIG_TO_OPEN_API: Readonly<Record<OrderTypeConfig, OrderType>> = {
+  LO: OrderType.LO,
+  ELO: OrderType.ELO,
+  MO: OrderType.MO,
+};
+
+/** OpenAPI 订单类型到配置字符串的映射（仅支持 LO/ELO/MO） */
+export const OPEN_API_ORDER_TYPE_TO_CONFIG: Readonly<Partial<Record<OrderType, OrderTypeConfig>>> =
+  {
+    [OrderType.LO]: 'LO',
+    [OrderType.ELO]: 'ELO',
+    [OrderType.MO]: 'MO',
+  };
+
+/** 订单类型显示文本映射 */
+export const ORDER_TYPE_LABEL_MAP: ReadonlyMap<OrderType, string> = new Map([
+  [OrderType.LO, '限价单'],
+  [OrderType.ELO, '增强限价单'],
+  [OrderType.MO, '市价单'],
+  [OrderType.ALO, '竞价限价单'],
+  [OrderType.SLO, '特别限价单'],
+]);
+
+/** 订单类型代码映射 */
+export const ORDER_TYPE_CODE_MAP: ReadonlyMap<OrderType, string> = new Map([
+  [OrderType.LO, 'LO'],
+  [OrderType.ELO, 'ELO'],
+  [OrderType.MO, 'MO'],
+  [OrderType.ALO, 'ALO'],
+  [OrderType.SLO, 'SLO'],
+]);
+
 /** 未成交订单状态集合（New/PartialFilled/WaitToNew/WaitToReplace/PendingReplace） */
 export const PENDING_ORDER_STATUSES = new Set<OrderStatus>([
   OrderStatus.New,
@@ -250,6 +283,28 @@ export const ACTION_DESCRIPTIONS: Record<SignalType, string> = {
   SELLPUT: '卖出做空',
   HOLD: '持有',
 };
+
+/** 信号操作详细描述映射，用于执行链路日志 */
+export const SIGNAL_ACTION_DESCRIPTIONS: Record<SignalType, string> = {
+  BUYCALL: '买入做多标的（做多）',
+  SELLCALL: '卖出做多标的（平仓）',
+  BUYPUT: '买入做空标的（做空）',
+  SELLPUT: '卖出做空标的（平仓）',
+  HOLD: '持有',
+};
+
+/** 轮证类型中文名称映射 */
+export const WARRANT_TYPE_NAMES: Readonly<Record<'BULL' | 'BEAR', string>> = {
+  BULL: '牛证',
+  BEAR: '熊证',
+};
+
+/** 自动寻标默认到期日筛选条件 */
+export const EXPIRY_DATE_FILTERS: ReadonlyArray<FilterWarrantExpiryDate> = [
+  FilterWarrantExpiryDate.Between_3_6,
+  FilterWarrantExpiryDate.Between_6_12,
+  FilterWarrantExpiryDate.GT_12,
+];
 
 /** 订单归属解析常量（标准化规则 + 多空标记） */
 export const ORDER_OWNERSHIP = {

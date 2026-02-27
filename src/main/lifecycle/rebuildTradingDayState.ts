@@ -60,8 +60,8 @@ function syncMonitorContextQuotes(
   monitorContext.shortQuote = shortQuote;
   monitorContext.monitorQuote = monitorQuote;
 
-  monitorContext.longSymbolName = longSymbol ? longQuote?.name ?? longSymbol : '';
-  monitorContext.shortSymbolName = shortSymbol ? shortQuote?.name ?? shortSymbol : '';
+  monitorContext.longSymbolName = longSymbol ? (longQuote?.name ?? longSymbol) : '';
+  monitorContext.shortSymbolName = shortSymbol ? (shortQuote?.name ?? shortSymbol) : '';
   monitorContext.monitorSymbolName = monitorQuote?.name ?? monitorSymbol;
 }
 

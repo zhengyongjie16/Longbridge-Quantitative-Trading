@@ -16,14 +16,11 @@
  * - 监控标的的所有技术指标值
  */
 import { logger } from '../../utils/logger/index.js';
-import {
-  formatQuoteDisplay,
-  isValidPositiveNumber,
-  toHongKongTimeLog,
-} from '../../utils/helpers/index.js';
+import { isValidPositiveNumber, toHongKongTimeLog } from '../../utils/helpers/index.js';
 import { isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
 import {
   copyPeriodRecord,
+  formatQuoteDisplay,
   formatPositionDisplay,
   formatWarrantDistanceDisplay,
   hasChanged,
@@ -352,13 +349,15 @@ export function createMarketMonitor(): MarketMonitor {
 
       // 检查涨跌幅变化
       const lastChangePercent = monitorState.monitorValues?.changePercent;
-      if (!hasIndicatorChanged && changePercent !== null && (
-          lastChangePercent === null ||
+      if (
+        !hasIndicatorChanged &&
+        changePercent !== null &&
+        (lastChangePercent === null ||
           lastChangePercent === undefined ||
-          hasChanged(changePercent, lastChangePercent, MONITOR.CHANGE_PERCENT_THRESHOLD)
-        )) {
-          hasIndicatorChanged = true;
-        }
+          hasChanged(changePercent, lastChangePercent, MONITOR.CHANGE_PERCENT_THRESHOLD))
+      ) {
+        hasIndicatorChanged = true;
+      }
 
       // 检查EMA变化
       if (!hasIndicatorChanged && monitorSnapshot.ema) {

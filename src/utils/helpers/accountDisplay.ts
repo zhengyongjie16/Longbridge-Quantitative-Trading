@@ -1,57 +1,8 @@
+import { ACCOUNT_CHANNEL_MAP } from '../../constants/index.js';
+import { formatError, isValidPositiveNumber } from './index.js';
 import { logger } from '../logger/index.js';
-import { formatError, formatAccountChannel, formatNumber, isValidPositiveNumber } from './index.js';
-
 import type { LastState } from '../../types/state.js';
 import type { Quote } from '../../types/quote.js';
-import type { Trader } from '../../types/services.js';
-
-/**
- * 刷新账户与持仓缓存（仅数据拉取，不做行情订阅）。默认行为：仅当 lastState.cachedAccount 为空时调用
- * trader.getAccountSnapshot 与 getStockPositions，否则直接使用已有缓存；成功后更新 lastState 的
- * cachedAccount、cachedPositions 与 positionCache，失败时仅打日志不抛错。
- *
- * @param trader Trader 实例，用于拉取账户与持仓
- * @param lastState 状态对象，用于读取/更新缓存（cachedAccount、cachedPositions、positionCache）
- * @returns Promise<void>，无返回值；拉取失败时不抛错
- */
-export async function refreshAccountAndPositions(
-  trader: Trader,
-  lastState: LastState,
-): Promise<void> {
-  try {
-    // 检查是否有缓存数据（账户缓存非空即可，持仓缓存可以是空数组表示无持仓）
-    const hasCache = lastState.cachedAccount !== null;
-
-    let account = lastState.cachedAccount;
-    let positions = lastState.cachedPositions;
-
-    // 仅当缓存为空时才从 API 获取数据
-    if (!hasCache) {
-      // 并行获取账户信息和持仓信息，减少等待时间
-      const [freshAccount, freshPositions] = await Promise.all([
-        trader.getAccountSnapshot().catch((err: unknown) => {
-          logger.warn('获取账户信息失败', formatError(err));
-          return null;
-        }),
-        trader.getStockPositions().catch((err: unknown) => {
-          logger.warn('获取股票仓位失败', formatError(err));
-          return [];
-        }),
-      ]);
-
-      account = freshAccount;
-      positions = freshPositions;
-
-      // 更新缓存
-      lastState.cachedAccount = account;
-      lastState.cachedPositions = positions;
-      // 同步更新持仓缓存（O(1) 查找优化）
-      lastState.positionCache.update(positions);
-    }
-  } catch (err) {
-    logger.warn('获取账户和持仓信息失败', formatError(err));
-  }
-}
 
 /**
  * 将 lastState 中的账户与持仓缓存输出到日志。默认行为：依赖 lastState 缓存，不主动拉取；quotesMap 可选，用于持仓现价与名称展示。
@@ -139,4 +90,32 @@ export function displayAccountAndPositions({
     logger.warn('获取账户和持仓信息失败', formatError(err));
   }
   return Promise.resolve();
+}
+
+/**
+ * 格式化数字，保留指定小数位数。默认行为：num 为 null/undefined 或非有限数时返回 "-"；digits 默认为 2。
+ *
+ * @param num 要格式化的数字
+ * @param digits 保留的小数位数，默认 2
+ * @returns 格式化后的字符串，无效时返回 "-"
+ */
+function formatNumber(num: number | null | undefined, digits: number = 2): string {
+  if (num === null || num === undefined) {
+    return '-';
+  }
+  return Number.isFinite(num) ? num.toFixed(digits) : String(num);
+}
+
+/**
+ * 格式化账户渠道显示名称。默认行为：accountChannel 为空或非字符串时返回「未知账户」。
+ *
+ * @param accountChannel 账户渠道代码
+ * @returns 映射后的显示名称，无效时返回「未知账户」
+ */
+function formatAccountChannel(accountChannel: string | null | undefined): string {
+  if (!accountChannel || typeof accountChannel !== 'string') {
+    return '未知账户';
+  }
+  const key = accountChannel.toLowerCase();
+  return ACCOUNT_CHANNEL_MAP[key] ?? accountChannel;
 }

@@ -1,6 +1,7 @@
 import { OrderSide, OrderStatus } from 'longport';
-import { PENDING_ORDER_STATUSES } from '../../constants/index.js';
+import { PENDING_ORDER_STATUSES, TIME } from '../../constants/index.js';
 import { decimalToNumber } from '../../utils/helpers/index.js';
+import { calculateTradingDurationMsBetween } from '../../utils/helpers/tradingTime.js';
 import {
   decimalAdd,
   decimalDiv,
@@ -10,6 +11,7 @@ import {
   toDecimalValue,
 } from '../../utils/numeric/index.js';
 import type { OrderRecord, RawOrderFromAPI } from '../../types/services.js';
+import type { OrderTimeoutCheckParams } from '../../types/tradingCalendar.js';
 import type { OrderRebuildClassification, OrderStatistics } from './types.js';
 
 /**
@@ -54,6 +56,28 @@ export function calculateTotalQuantity(orders: ReadonlyArray<OrderRecord>): numb
     total = decimalAdd(total, quantity);
   }
   return decimalToNumberValue(total);
+}
+
+/**
+ * 按严格交易时段累计口径判定订单是否超时。
+ * 触发条件：heldTradingMs > timeoutMinutes * 60_000（严格大于）。
+ *
+ * @param params 订单成交时间、当前时间、超时分钟与交易日历快照
+ * @returns true 表示超时；false 表示未超时或参数无效
+ */
+export function isOrderTimedOut(params: OrderTimeoutCheckParams): boolean {
+  const { orderExecutedTimeMs, nowMs, timeoutMinutes, calendarSnapshot } = params;
+  if (!Number.isInteger(timeoutMinutes) || timeoutMinutes < 0) {
+    return false;
+  }
+
+  const timeoutMs = timeoutMinutes * TIME.MILLISECONDS_PER_MINUTE;
+  const heldTradingMs = calculateTradingDurationMsBetween({
+    startMs: orderExecutedTimeMs,
+    endMs: nowMs,
+    calendarSnapshot,
+  });
+  return heldTradingMs > timeoutMs;
 }
 
 /**

@@ -2,6 +2,53 @@ import { isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
 import { DEFAULT_PERCENT_DECIMALS } from '../../constants/index.js';
 import type { ObjectPool } from '../../utils/objectPool/types.js';
 import type { UnrealizedLossMetrics, WarrantDistanceInfo } from '../../types/services.js';
+import type { Quote } from '../../types/quote.js';
+
+/**
+ * 格式化行情数据显示为可读字段。默认行为：quote 为 null 时返回 null。
+ *
+ * @param quote 行情对象
+ * @param symbol 标的代码
+ * @returns 格式化后的行情显示对象，quote 无效时返回 null
+ */
+export function formatQuoteDisplay(
+  quote: Quote | null,
+  symbol: string,
+): {
+  readonly nameText: string;
+  readonly codeText: string;
+  readonly priceText: string;
+  readonly changeAmountText: string;
+  readonly changePercentText: string;
+} | null {
+  if (!quote) {
+    return null;
+  }
+
+  const nameText = quote.name ?? '-';
+  const currentPrice = quote.price;
+
+  const priceText = Number.isFinite(currentPrice) ? currentPrice.toFixed(3) : String(currentPrice);
+
+  let changeAmountText = '-';
+  let changePercentText = '-';
+
+  if (Number.isFinite(currentPrice) && Number.isFinite(quote.prevClose) && quote.prevClose !== 0) {
+    const changeAmount = currentPrice - quote.prevClose;
+    changeAmountText = `${changeAmount >= 0 ? '+' : ''}${changeAmount.toFixed(3)}`;
+
+    const changePercent = (changeAmount / quote.prevClose) * 100;
+    changePercentText = `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`;
+  }
+
+  return {
+    nameText,
+    codeText: symbol,
+    priceText,
+    changeAmountText,
+    changePercentText,
+  };
+}
 
 /**
  * 检查数值是否发生变化（超过阈值）

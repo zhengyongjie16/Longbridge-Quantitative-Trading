@@ -4,6 +4,28 @@ import type { SeatSymbolSnapshotEntry } from '../../types/seat.js';
 import type { CooldownCandidate } from './types.js';
 
 /**
+ * 将 UTC 时间转换为香港时区（UTC+8）的小时与分钟。默认行为：date 为 null 时返回 null。
+ *
+ * @param date 时间对象（UTC）
+ * @returns 香港时区的小时与分钟（hkHour、hkMinute），无效时返回 null
+ */
+export function getHKTime(
+  date: Date | null,
+): { readonly hkHour: number; readonly hkMinute: number } | null {
+  if (!date) {
+    return null;
+  }
+
+  const utcHour = date.getUTCHours();
+  const utcMinute = date.getUTCMinutes();
+  const offsetHours = TIME.HONG_KONG_TIMEZONE_OFFSET_MS / (60 * 60 * 1000);
+  return {
+    hkHour: (utcHour + offsetHours) % 24,
+    hkMinute: utcMinute,
+  };
+}
+
+/**
  * 构建冷却记录的 key
  * @param symbol 标的代码
  * @param direction 方向（LONG / SHORT）

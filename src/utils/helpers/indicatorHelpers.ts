@@ -118,13 +118,3 @@ export function validateRsiPeriod(period: unknown): period is number {
 export function validatePsyPeriod(period: unknown): period is number {
   return validatePeriodInRange(period, 1, 100);
 }
-
-/**
- * 验证百分比值是否在 0-100 范围内。默认行为：非 number 或超出范围返回 false。
- *
- * @param value 待验证的百分比值
- * @returns 在 0-100 范围内返回 true，否则返回 false
- */
-export function validatePercentage(value: unknown): boolean {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100;
-}

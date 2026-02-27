@@ -21,14 +21,13 @@
  */
 import { TRADING } from '../../constants/index.js';
 import { formatError } from '../../utils/helpers/index.js';
-import { refreshAccountAndPositions } from '../../utils/helpers/accountDisplay.js';
 import {
   getTradingMinutesSinceOpen,
   isWithinMorningOpenProtection,
 } from '../../utils/helpers/tradingTime.js';
-import { collectRuntimeQuoteSymbols } from '../../utils/helpers/quoteHelpers.js';
 import { logger } from '../../utils/logger/index.js';
 import { prepareSeatsOnStartup } from '../startup/seat.js';
+import { collectRuntimeQuoteSymbols, refreshAccountAndPositions } from '../utils.js';
 import type { RawOrderFromAPI } from '../../types/services.js';
 import type {
   LoadTradingDayRuntimeSnapshotDeps,

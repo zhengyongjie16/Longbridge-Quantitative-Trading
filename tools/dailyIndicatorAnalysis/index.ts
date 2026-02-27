@@ -6,7 +6,6 @@
 import dotenv from 'dotenv';
 import { AdjustType, Period, QuoteContext, TradeSessions } from 'longport';
 import { createConfig } from '../../src/config/config.index.js';
-import { formatNumber } from '../../src/utils/helpers/index.js';
 import type {
   ComputeMinuteRowsOptions,
   MinuteIndicatorRow,
@@ -55,6 +54,20 @@ const RED_CONDITIONS: RowColorConditionSet = [
 const ANSI_RESET = '\u001B[0m';
 const ANSI_GREEN = '\u001B[32m';
 const ANSI_RED = '\u001B[31m';
+
+/**
+ * 格式化数字文本。默认行为：无效值返回 "-"。
+ *
+ * @param value 待格式化值
+ * @param digits 小数位数
+ * @returns 格式化后的文本
+ */
+function formatNumber(value: number | null | undefined, digits: number): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return '-';
+  }
+  return value.toFixed(digits);
+}
 
 /**
  * 输出指标表格（每分钟两行：高/低，每行独立着色）。

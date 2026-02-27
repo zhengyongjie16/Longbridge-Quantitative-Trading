@@ -13,18 +13,17 @@
  */
 import { OrderSide, OrderType, TimeInForceType, Decimal, type TradeContext } from 'longport';
 import { logger } from '../../utils/logger/index.js';
-import { LOG_COLORS, TIME, TRADING } from '../../constants/index.js';
+import { LOG_COLORS, SIGNAL_ACTION_DESCRIPTIONS, TIME, TRADING } from '../../constants/index.js';
 import { getHKDateKey } from '../../utils/helpers/tradingTime.js';
 import {
   decimalToNumber,
-  toDecimal,
   formatError,
-  isDefined,
   isValidPositiveNumber,
   formatSymbolDisplay,
   isBuyAction,
   isSellAction,
 } from '../../utils/helpers/index.js';
+import { isDefined } from '../utils.js';
 import type { OrderTypeConfig, Signal, SignalType } from '../../types/signal.js';
 import type { MonitorConfig } from '../../types/config.js';
 import type { TradeCheckResult } from '../../types/services.js';
@@ -41,20 +40,12 @@ import {
   getOrderTypeCode,
   resolveOrderTypeConfig,
   resolveSellMergeDecision,
+  toDecimal,
 } from './utils.js';
-
-/** 操作描述映射 */
-const ACTION_DESCRIPTION_MAP: Record<string, string> = {
-  BUYCALL: '买入做多标的（做多）',
-  SELLCALL: '卖出做多标的（平仓）',
-  BUYPUT: '买入做空标的（做空）',
-  SELLPUT: '卖出做空标的（平仓）',
-  HOLD: '持有',
-};
 
 /** 获取操作描述（用于日志） */
 function getActionDescription(signalAction: Signal['action']): string {
-  return ACTION_DESCRIPTION_MAP[signalAction] ?? `未知操作(${signalAction})`;
+  return SIGNAL_ACTION_DESCRIPTIONS[signalAction];
 }
 
 /** 配置字符串转 OrderType 枚举 */

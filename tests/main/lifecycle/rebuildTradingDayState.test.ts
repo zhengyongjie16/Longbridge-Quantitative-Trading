@@ -9,7 +9,8 @@
 import { describe, it, expect } from 'bun:test';
 import { TIME } from '../../../src/constants/index.js';
 import { createRebuildTradingDayState } from '../../../src/main/lifecycle/rebuildTradingDayState.js';
-import { getHKDateKey, listHKDateKeysBetween } from '../../../src/utils/helpers/tradingTime.js';
+import { listHKDateKeysBetween } from '../../../src/main/lifecycle/utils.js';
+import { getHKDateKey } from '../../../src/utils/helpers/tradingTime.js';
 import type { RebuildTradingDayStateDeps } from '../../../src/main/lifecycle/types.js';
 import type { MonitorContext } from '../../../src/types/state.js';
 import type { SymbolRegistry } from '../../../src/types/seat.js';

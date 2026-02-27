@@ -224,14 +224,14 @@ export function isLotMultiple(quantity: DecimalInput, lotSize: DecimalInput): bo
  * @param lotSize 每手股数
  * @returns 向下对齐后的数量；lotSize 非法时返回 null
  */
-export function floorQuantityToLotSize(quantity: DecimalInput, lotSize: DecimalInput): Decimal | null {
+export function floorQuantityToLotSize(
+  quantity: DecimalInput,
+  lotSize: DecimalInput,
+): Decimal | null {
   const quantityDecimal = toDecimalValue(quantity);
   const lotSizeDecimal = toDecimalValue(lotSize);
 
-  if (
-    !quantityDecimal.greaterThan(Decimal.ZERO()) ||
-    !lotSizeDecimal.greaterThan(Decimal.ZERO())
-  ) {
+  if (!quantityDecimal.greaterThan(Decimal.ZERO()) || !lotSizeDecimal.greaterThan(Decimal.ZERO())) {
     return null;
   }
 

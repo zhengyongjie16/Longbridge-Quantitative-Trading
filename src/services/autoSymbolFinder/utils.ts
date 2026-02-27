@@ -1,5 +1,6 @@
-import { FilterWarrantExpiryDate, WarrantStatus } from 'longport';
+import { WarrantStatus, type FilterWarrantExpiryDate } from 'longport';
 import { decimalToNumber } from '../../utils/helpers/index.js';
+import { EXPIRY_DATE_FILTERS } from '../../constants/index.js';
 import {
   decimalAbs,
   decimalDiv,
@@ -24,12 +25,6 @@ import type {
 function isNormalStatus(status: WarrantListItem['status']): boolean {
   return status === WarrantStatus.Normal;
 }
-
-const EXPIRY_DATE_FILTERS: ReadonlyArray<FilterWarrantExpiryDate> = [
-  FilterWarrantExpiryDate.Between_3_6,
-  FilterWarrantExpiryDate.Between_6_12,
-  FilterWarrantExpiryDate.GT_12,
-];
 
 /**
  * 创建牛熊证列表缓存实例，用于避免频繁调用 API，支持 TTL 缓存和请求去重。
@@ -155,7 +150,8 @@ export function selectBestWarrant({
     if (
       bestSymbol === null ||
       decimalLt(absDistance, bestAbsDistance) ||
-      (decimalEq(absDistance, bestAbsDistance) && decimalGt(turnoverPerMinute, bestTurnoverPerMinute))
+      (decimalEq(absDistance, bestAbsDistance) &&
+        decimalGt(turnoverPerMinute, bestTurnoverPerMinute))
     ) {
       bestSymbol = warrant.symbol;
       bestName = warrant.name ?? null;

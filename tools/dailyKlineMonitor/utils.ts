@@ -1,7 +1,7 @@
 import type { Candlestick } from 'longport';
 import type { CandleData } from '../../src/types/data.js';
 import type { IndicatorSnapshot, Quote } from '../../src/types/quote.js';
-import { decimalToNumber, formatNumber, toHongKongTimeLog } from '../../src/utils/helpers/index.js';
+import { decimalToNumber, toHongKongTimeLog } from '../../src/utils/helpers/index.js';
 import { formatFiniteNumber } from '../utils.js';
 import type {
   ChangeDetectConfig,
@@ -9,6 +9,20 @@ import type {
   IndicatorPeriods,
   MonitorState,
 } from './types.js';
+
+/**
+ * 格式化数字文本。默认行为：无效值返回 "-"。
+ *
+ * @param value 待格式化值
+ * @param digits 小数位数
+ * @returns 格式化后的文本
+ */
+function formatNumber(value: number | null | undefined, digits: number): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return '-';
+  }
+  return value.toFixed(digits);
+}
 
 /**
  * 格式化 K 线时间前缀。默认行为：无效时间返回空字符串。

@@ -1,7 +1,3 @@
-import {
-  extractRSIPeriods,
-  extractPsyPeriods as extractPsyPeriodsFromSignalConfig,
-} from '../../utils/helpers/signalConfigParser.js';
 import { validateEmaPeriod, validatePsyPeriod } from '../../utils/helpers/indicatorHelpers.js';
 import {
   DEFAULT_EMA_PERIOD,
@@ -53,7 +49,9 @@ export function extractEmaPeriods(
  * @returns RSI 周期数组（至少包含默认值 6）
  */
 export function extractRsiPeriodsWithDefault(signalConfig: SignalConfigSet | null): number[] {
-  const rsiPeriods = extractRSIPeriods(signalConfig);
+  const rsiPeriods = extractIndicatorPeriods(signalConfig, 'RSI:', (period) =>
+    Number.isFinite(period),
+  );
 
   // 如果没有配置任何 RSI 周期，使用默认值 6
   if (rsiPeriods.length === 0) {
@@ -75,7 +73,7 @@ export function extractPsyPeriods(
 ): number[] {
   const periods = new Set<number>();
 
-  for (const period of extractPsyPeriodsFromSignalConfig(signalConfig)) {
+  for (const period of extractIndicatorPeriods(signalConfig, 'PSY:', validatePsyPeriod)) {
     if (validatePsyPeriod(period)) {
       periods.add(period);
     }
@@ -103,5 +101,51 @@ export function extractPsyPeriods(
     periods.add(DEFAULT_PSY_PERIOD);
   }
 
+  return [...periods].sort((a, b) => a - b);
+}
+
+/**
+ * 从信号配置集中提取指定指标的所有周期（去重后排序）
+ * @param signalConfig 信号配置集
+ * @param prefix 指标前缀（如 'RSI:' 或 'PSY:'）
+ * @param isValidPeriod 周期有效性校验函数
+ * @returns 去重排序后的周期数组
+ */
+function extractIndicatorPeriods(
+  signalConfig: SignalConfigSet | null,
+  prefix: 'RSI:' | 'PSY:',
+  isValidPeriod: (period: number) => boolean,
+): number[] {
+  if (!signalConfig) {
+    return [];
+  }
+  const periods = new Set<number>();
+  const configs = [
+    signalConfig.buycall,
+    signalConfig.sellcall,
+    signalConfig.buyput,
+    signalConfig.sellput,
+  ];
+
+  for (const config of configs) {
+    if (!config?.conditionGroups) {
+      continue;
+    }
+    for (const group of config.conditionGroups) {
+      for (const condition of group.conditions) {
+        if (!condition.indicator.startsWith(prefix)) {
+          continue;
+        }
+        const periodStr = condition.indicator.split(':')[1];
+        if (!periodStr) {
+          continue;
+        }
+        const period = Number.parseInt(periodStr, 10);
+        if (isValidPeriod(period)) {
+          periods.add(period);
+        }
+      }
+    }
+  }
   return [...periods].sort((a, b) => a - b);
 }

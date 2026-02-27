@@ -76,6 +76,16 @@ export function roundToFixed2(value: number): number {
 }
 
 /**
+ * 验证百分比值是否在 0-100 范围内。默认行为：非 number 或超出范围返回 false。
+ *
+ * @param value 待验证的百分比值
+ * @returns 在 0-100 范围内返回 true，否则返回 false
+ */
+export function validatePercentage(value: unknown): boolean {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100;
+}
+
+/**
  * 构建指标快照（统一计算 RSI/MFI/PSY/KDJ/MACD/EMA）。
  *
  * 由 pipeline 负责「K 线未变则复用上一拍快照」的短路，本函数仅做纯计算。

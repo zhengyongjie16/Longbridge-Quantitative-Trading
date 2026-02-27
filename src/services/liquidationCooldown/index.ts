@@ -11,9 +11,8 @@ import type {
   LiquidationCooldownTrackerDeps,
   RecordCooldownParams,
 } from './types.js';
-import { buildCooldownKey, convertMinutesToMs, resolveHongKongTimeMs } from './utils.js';
+import { buildCooldownKey, convertMinutesToMs, getHKTime, resolveHongKongTimeMs } from './utils.js';
 import type { LiquidationCooldownConfig } from '../../types/config.js';
-import { getHKTime } from '../../utils/helpers/tradingTime.js';
 
 /**
  * 根据清仓成交时间与冷却模式计算冷却结束时间戳。

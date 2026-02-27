@@ -1,11 +1,10 @@
 import type { MonitorState } from '../../types/state.js';
-import type { IndicatorSnapshot, Quote } from '../../types/quote.js';
 import type { MonitorConfig } from '../../types/config.js';
+import type { IndicatorSnapshot } from '../../types/quote.js';
 import type { SignalType } from '../../types/signal.js';
 import { inspect } from 'node:util';
-import { Decimal } from 'longport';
-import { TIME, SYMBOL_WITH_REGION_REGEX, ACCOUNT_CHANNEL_MAP } from '../../constants/index.js';
-import type { DecimalLike, QuoteDisplayResult, TimeFormatOptions } from './types.js';
+import { TIME } from '../../constants/index.js';
+import type { DecimalLike, TimeFormatOptions } from './types.js';
 import { logger } from '../logger/index.js';
 import { kdjObjectPool, macdObjectPool, periodRecordPool } from '../objectPool/index.js';
 
@@ -38,16 +37,6 @@ function isPeriodRecord(value: unknown): value is Record<number, number> {
 }
 
 /**
- * 检查值是否已定义（不是 null 或 undefined）。默认行为：无。
- *
- * @param value 待检查的值
- * @returns 值非 null 且非 undefined 时返回 true，否则返回 false
- */
-export function isDefined<T>(value: T | null | undefined): value is T {
-  return value !== null && value !== undefined;
-}
-
-/**
  * 类型保护：检查是否为 Error 实例（内部使用）
  * @param value 待检查的值
  * @returns 如果是 Error 实例返回 true，同时收窄类型为 Error
@@ -71,35 +60,6 @@ function isErrorLike(value: unknown): value is Record<string, unknown> {
     typeof value['msg'] === 'string' ||
     typeof value['code'] === 'string'
   );
-}
-
-/**
- * 校验标的代码格式（ticker.region）。默认行为：null/undefined 或非字符串返回 false。
- *
- * @param symbol 标的代码，例如 "68547.HK"
- * @returns 符合 ticker.region 格式时返回 true，否则返回 false
- */
-export function isSymbolWithRegion(symbol: string | null | undefined): symbol is string {
-  if (!symbol || typeof symbol !== 'string') {
-    return false;
-  }
-  return SYMBOL_WITH_REGION_REGEX.test(symbol);
-}
-
-/**
- * 将值转换为 LongPort Decimal 类型。默认行为：非 number/string/Decimal 时返回 Decimal.ZERO()。
- *
- * @param value 要转换的值（number、string 或已存在的 Decimal）
- * @returns Decimal 对象，无效输入时返回 Decimal.ZERO()
- */
-export function toDecimal(value: unknown): Decimal {
-  if (value instanceof Decimal) {
-    return value;
-  }
-  if (typeof value === 'number' || typeof value === 'string') {
-    return new Decimal(value);
-  }
-  return Decimal.ZERO();
 }
 
 /**
@@ -130,32 +90,6 @@ export function decimalToNumber(
  */
 export function isValidPositiveNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0;
-}
-
-/**
- * 格式化数字，保留指定小数位数。默认行为：num 为 null/undefined 或非有限数时返回 "-"；digits 默认为 2。
- *
- * @param num 要格式化的数字
- * @param digits 保留的小数位数，默认 2
- * @returns 格式化后的字符串，无效时返回 "-"
- */
-export function formatNumber(num: number | null | undefined, digits: number = 2): string {
-  if (num === null || num === undefined) {
-    return '-';
-  }
-  return Number.isFinite(num) ? num.toFixed(digits) : String(num);
-}
-
-/**
- * 格式化账户渠道显示名称。默认行为：accountChannel 为空或非字符串时返回「未知账户」。
- *
- * @param accountChannel 账户渠道代码
- * @returns 映射后的显示名称，无效时返回「未知账户」
- */
-export function formatAccountChannel(accountChannel: string | null | undefined): string {
-  if (!accountChannel || typeof accountChannel !== 'string') return '未知账户';
-  const key = accountChannel.toLowerCase();
-  return ACCOUNT_CHANNEL_MAP[key] ?? accountChannel;
 }
 
 /**
@@ -230,65 +164,6 @@ export function toHongKongTimeLog(date: Date | null = null): string {
 }
 
 /**
- * 格式化行情数据显示为可读字段。默认行为：quote 为 null 时返回 null。
- *
- * @param quote 行情对象
- * @param symbol 标的代码
- * @returns 格式化后的行情显示对象，quote 无效时返回 null
- */
-export function formatQuoteDisplay(quote: Quote | null, symbol: string): QuoteDisplayResult | null {
-  if (!quote) {
-    return null;
-  }
-
-  const nameText = quote.name ?? '-';
-  const currentPrice = quote.price;
-
-  // 最新价格
-  const priceText = Number.isFinite(currentPrice) ? currentPrice.toFixed(3) : String(currentPrice);
-
-  // 涨跌额和涨跌幅度
-  let changeAmountText = '-';
-  let changePercentText = '-';
-
-  if (Number.isFinite(currentPrice) && Number.isFinite(quote.prevClose) && quote.prevClose !== 0) {
-    // 涨跌额 = 当前价格 - 前收盘价
-    const changeAmount = currentPrice - quote.prevClose;
-    changeAmountText = `${changeAmount >= 0 ? '+' : ''}${changeAmount.toFixed(3)}`;
-
-    // 涨跌幅度 = (当前价格 - 前收盘价) / 前收盘价 * 100%
-    const changePercent = (changeAmount / quote.prevClose) * 100;
-    changePercentText = `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`;
-  }
-
-  return {
-    nameText,
-    codeText: symbol,
-    priceText,
-    changeAmountText,
-    changePercentText,
-  };
-}
-
-/**
- * 从行情对象生成标的显示字符串。默认行为：quote 存在时返回「中文名称(代码)」，否则返回 symbol。
- *
- * @param quote 行情对象（可选）
- * @param symbol 标的代码
- * @returns 格式化后的标的显示字符串
- */
-export function formatSymbolDisplayFromQuote(
-  quote: Quote | null | undefined,
-  symbol: string,
-): string {
-  if (quote) {
-    const display = formatQuoteDisplay(quote, symbol);
-    return display ? `${display.nameText}(${display.codeText})` : symbol;
-  }
-  return symbol;
-}
-
-/**
  * 判断是否为买入操作。默认行为：无。
  *
  * @param action 信号类型
@@ -306,64 +181,6 @@ export function isBuyAction(action: SignalType): boolean {
  */
 export function isSellAction(action: SignalType): boolean {
   return action === 'SELLCALL' || action === 'SELLPUT';
-}
-
-/**
- * 获取做多标的方向名称。默认行为：无参数，固定返回「做多标的」。
- *
- * @returns 做多标的方向名称字符串
- */
-export function getLongDirectionName(): string {
-  return '做多标的';
-}
-
-/**
- * 获取做空标的方向名称。默认行为：无参数，固定返回「做空标的」。
- *
- * @returns 做空标的方向名称字符串
- */
-export function getShortDirectionName(): string {
-  return '做空标的';
-}
-
-/** 信号操作描述映射 */
-const SIGNAL_ACTION_DESCRIPTIONS: Record<SignalType, string> = {
-  BUYCALL: '买入做多标的（做多）',
-  SELLCALL: '卖出做多标的（平仓）',
-  BUYPUT: '买入做空标的（做空）',
-  SELLPUT: '卖出做空标的（平仓）',
-  HOLD: '持有',
-};
-
-/**
- * 将信号类型格式化为可读操作描述，用于日志与展示。
- *
- * @param action 信号类型（BUYCALL/SELLCALL/BUYPUT/SELLPUT/HOLD）
- * @returns 对应的中文描述字符串
- */
-function getSignalActionDescription(action: SignalType): string {
-  return SIGNAL_ACTION_DESCRIPTIONS[action] || `未知操作(${action})`;
-}
-
-/**
- * 格式化信号日志（标的显示为「中文名称(代码）」）。默认行为：reason 为空时使用「策略信号」。
- *
- * @param signal 包含 action、symbol、symbolName、reason 的对象
- * @returns 格式化后的信号日志字符串
- */
-export function formatSignalLog(signal: {
-  action: SignalType;
-  symbol: string;
-  symbolName?: string | null;
-  reason?: string | null;
-}): string {
-  const actionDesc = getSignalActionDescription(signal.action);
-  const symbolDisplay = formatSymbolDisplay(signal.symbol, signal.symbolName ?? null);
-  const reason =
-    signal.reason === null || signal.reason === undefined || signal.reason === ''
-      ? '策略信号'
-      : signal.reason;
-  return `${actionDesc} ${symbolDisplay} - ${reason}`;
 }
 
 /**

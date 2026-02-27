@@ -10,11 +10,12 @@
  * - 交易日历接口仅支持最近一年窗口，超出范围直接抛错阻断重建
  * - 任一查询失败即抛错，由生命周期管理器统一重试
  */
-import { HK_DATE_KEY_PATTERN, LIFECYCLE, TIME } from '../../constants/index.js';
+import { LIFECYCLE, TIME } from '../../constants/index.js';
 import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
-import { getHKDateKey, listHKDateKeysBetween } from '../../utils/helpers/tradingTime.js';
+import { getHKDateKey } from '../../utils/helpers/tradingTime.js';
 import type { MonitorContext } from '../../types/state.js';
 import type { MarketDataClient, OrderRecord, TradingDayInfo } from '../../types/services.js';
+import { listHKDateKeysBetween, resolveHKDayStartUtcMs } from './utils.js';
 import type {
   DateRangeChunk,
   PrewarmTradingCalendarSnapshotParams,
@@ -64,15 +65,17 @@ export async function prewarmTradingCalendarSnapshotForRebuild(
   const missingDateKeys = demandDateKeys.filter((dateKey) => !nextSnapshot.has(dateKey));
 
   if (missingDateKeys.length > 0) {
-    await (marketDataClient.getTradingDays ? hydrateSnapshotByMonthlyTradingDays({
-        marketDataClient,
-        dateKeys: missingDateKeys,
-        nextSnapshot,
-      }) : hydrateSnapshotByDailyTradingDay({
-        marketDataClient,
-        dateKeys: missingDateKeys,
-        nextSnapshot,
-      }));
+    await (marketDataClient.getTradingDays
+      ? hydrateSnapshotByMonthlyTradingDays({
+          marketDataClient,
+          dateKeys: missingDateKeys,
+          nextSnapshot,
+        })
+      : hydrateSnapshotByDailyTradingDay({
+          marketDataClient,
+          dateKeys: missingDateKeys,
+          nextSnapshot,
+        }));
   }
 
   const nowDateKey = getHKDateKey(now);
@@ -300,24 +303,4 @@ function resolveDateFromHKDateKey(dayKey: string): Date {
   }
 
   return new Date(dayStartUtcMs);
-}
-
-/**
- * 解析港股日期键并返回该港股日 00:00 对应的 UTC 毫秒时间戳。
- */
-function resolveHKDayStartUtcMs(dayKey: string): number | null {
-  const match = HK_DATE_KEY_PATTERN.exec(dayKey);
-  if (!match) {
-    return null;
-  }
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
-    return null;
-  }
-
-  const utcMs = Date.UTC(year, month - 1, day) - TIME.HONG_KONG_TIMEZONE_OFFSET_MS;
-  return Number.isFinite(utcMs) ? utcMs : null;
 }

@@ -7,8 +7,7 @@
  * - 返回值范围 0-100
  */
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
-import { logDebug, roundToFixed2, toNumber } from './utils.js';
-import { validatePercentage } from '../../utils/helpers/indicatorHelpers.js';
+import { logDebug, roundToFixed2, toNumber, validatePercentage } from './utils.js';
 import type { CandleData } from '../../types/data.js';
 import type { RsiStreamState } from './types.js';
 

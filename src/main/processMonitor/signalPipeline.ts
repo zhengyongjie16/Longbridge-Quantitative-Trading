@@ -18,15 +18,10 @@
  * 3. 信号标的必须与席位当前标的匹配
  */
 import { logger } from '../../utils/logger/index.js';
-import {
-  formatSignalLog,
-  formatSymbolDisplay,
-  isBuyAction,
-  isSellAction,
-} from '../../utils/helpers/index.js';
+import { formatSymbolDisplay, isBuyAction, isSellAction } from '../../utils/helpers/index.js';
 import { VALID_SIGNAL_ACTIONS } from '../../constants/index.js';
 import { isSeatReady, describeSeatUnavailable } from '../../services/autoSymbolManager/utils.js';
-import { getPositions } from './utils.js';
+import { formatSignalLog, getPositions } from './utils.js';
 import type { Quote } from '../../types/quote.js';
 import type { Signal } from '../../types/signal.js';
 import type { SignalPipelineParams } from './types.js';
@@ -93,9 +88,14 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
         }
         return;
       }
-      if (sigSymbol === shortSymbol && shortQuote && signal.symbolName === null && shortQuote.name !== null) {
-          signal.symbolName = shortQuote.name;
-        }
+      if (
+        sigSymbol === shortSymbol &&
+        shortQuote &&
+        signal.symbolName === null &&
+        shortQuote.name !== null
+      ) {
+        signal.symbolName = shortQuote.name;
+      }
     }
 
     function resolveSeatForSignal(signal: Signal): Readonly<{

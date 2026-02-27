@@ -16,12 +16,7 @@
 import { OrderSide } from 'longport';
 import { logger } from '../../utils/logger/index.js';
 import { formatError } from '../../utils/helpers/index.js';
-import { batchGetQuotes } from '../../utils/helpers/quoteHelpers.js';
-import {
-  getHKDateKey,
-  isBeforeClose15Minutes,
-  isBeforeClose5Minutes,
-} from '../../utils/helpers/tradingTime.js';
+import { getHKDateKey } from '../../utils/helpers/tradingTime.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
 import type { MonitorContext } from '../../types/state.js';
@@ -36,6 +31,7 @@ import type {
   CancelPendingBuyOrdersResult,
   ClearanceSignalParams,
 } from './types.js';
+import { batchGetQuotes, isBeforeClose15Minutes, isBeforeClose5Minutes } from './utils.js';
 
 /** 创建单个清仓信号，从对象池获取 Signal 对象 */
 function createClearanceSignal(params: ClearanceSignalParams): Signal | null {

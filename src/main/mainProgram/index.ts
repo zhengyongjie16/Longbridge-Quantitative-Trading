@@ -19,7 +19,7 @@ import {
   isWithinMorningOpenProtection,
   isWithinAfternoonOpenProtection,
 } from '../../utils/helpers/tradingTime.js';
-import { collectRuntimeQuoteSymbols, diffQuoteSymbols } from '../../utils/helpers/quoteHelpers.js';
+import { collectRuntimeQuoteSymbols, diffQuoteSymbols } from '../utils.js';
 import { processMonitor } from '../processMonitor/index.js';
 
 import type { MainProgramContext } from './types.js';

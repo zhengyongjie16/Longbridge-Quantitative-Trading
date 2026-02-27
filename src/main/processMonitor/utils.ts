@@ -1,7 +1,8 @@
 import { positionObjectPool } from '../../utils/objectPool/index.js';
 import { isRecord } from '../../utils/helpers/index.js';
+import { SIGNAL_ACTION_DESCRIPTIONS } from '../../constants/index.js';
 import type { Position } from '../../types/account.js';
-import type { Signal } from '../../types/signal.js';
+import type { Signal, SignalType } from '../../types/signal.js';
 import type { PositionCache } from '../../types/services.js';
 import type { DelayedSignalVerifier } from '../asyncProgram/delayedSignalVerifier/types.js';
 import type { TaskQueue, BuyTaskType, SellTaskType } from '../asyncProgram/tradeTaskQueue/types.js';
@@ -159,4 +160,27 @@ function createPositionFromCache(symbol: string, source: Position): Position {
   position.currency = source.currency;
   position.market = source.market;
   return position as Position;
+}
+
+/**
+ * 格式化信号日志（标的显示为「中文名称(代码）」）。默认行为：reason 为空时使用「策略信号」。
+ *
+ * @param signal 包含 action、symbol、symbolName、reason 的对象
+ * @returns 格式化后的信号日志字符串
+ */
+export function formatSignalLog(signal: {
+  readonly action: SignalType;
+  readonly symbol: string;
+  readonly symbolName?: string | null;
+  readonly reason?: string | null;
+}): string {
+  const actionDesc = SIGNAL_ACTION_DESCRIPTIONS[signal.action];
+  const symbolDisplay = signal.symbolName
+    ? `${signal.symbolName}(${signal.symbol})`
+    : signal.symbol;
+  const reason =
+    signal.reason === null || signal.reason === undefined || signal.reason === ''
+      ? '策略信号'
+      : signal.reason;
+  return `${actionDesc} ${symbolDisplay} - ${reason}`;
 }

@@ -72,9 +72,7 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
     // 将 symbols 数组排序，用于比较缓存是否对应同一组 symbols
     const symbolsKey =
       symbols && symbols.length > 0
-        ? [...symbols]
-            .sort((a, b) => a.localeCompare(b))
-            .join(',')
+        ? [...symbols].sort((a, b) => a.localeCompare(b)).join(',')
         : 'ALL'; // null 或空数组统一标记为 "ALL"
 
     const now = Date.now();

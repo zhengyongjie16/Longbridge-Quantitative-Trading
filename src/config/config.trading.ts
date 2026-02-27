@@ -4,17 +4,17 @@
  * 从环境变量读取交易相关配置，支持多标的配置（通过 _N 后缀区分）
  * 配置包括：标的代码、交易金额、风险限制、信号规则、延迟验证等
  */
-import { OrderType } from 'longport';
+import type { OrderType } from 'longport';
 import type { MonitorConfig, MultiMonitorTradingConfig } from '../types/config.js';
 import type { OrderTypeConfig } from '../types/signal.js';
 import type { SignalConfig } from '../types/signalConfig.js';
-import { parseSignalConfig } from '../utils/helpers/signalConfigParser.js';
 import { logger } from '../utils/logger/index.js';
-import { TRADING } from '../constants/index.js';
+import { OPEN_API_ORDER_TYPE_TO_CONFIG, TRADING } from '../constants/index.js';
 import {
   getBooleanConfig,
   getNumberConfig,
   getStringConfig,
+  parseSignalConfig,
   parseLiquidationCooldownConfig,
   parseNumberRangeConfig,
   parseOrderOwnershipMapping,
@@ -122,19 +122,8 @@ function getPercentAsDecimalConfig(
   return raw === null ? null : raw / 100;
 }
 
-/**
- * 将 OpenAPI 订单类型枚举映射为配置值字符串，用于统一内部订单类型表示。
- * @param orderType - LongPort OrderType 枚举值
- * @returns 对应的订单类型配置字符串
- */
-const SUPPORTED_ORDER_TYPE_CONFIG_MAP: Readonly<Partial<Record<OrderType, OrderTypeConfig>>> = {
-  [OrderType.LO]: 'LO',
-  [OrderType.ELO]: 'ELO',
-  [OrderType.MO]: 'MO',
-};
-
 function mapOrderTypeConfig(orderType: OrderType): OrderTypeConfig {
-  return SUPPORTED_ORDER_TYPE_CONFIG_MAP[orderType] ?? 'ELO';
+  return OPEN_API_ORDER_TYPE_TO_CONFIG[orderType] ?? 'ELO';
 }
 
 /**

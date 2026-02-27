@@ -7,11 +7,8 @@
  * - 处理风控数据源切换（买入实时/卖出缓存）
  */
 import { logger } from '../../utils/logger/index.js';
-import {
-  formatSymbolDisplayFromQuote,
-  formatError,
-  isBuyAction,
-} from '../../utils/helpers/index.js';
+import { formatError, isBuyAction } from '../../utils/helpers/index.js';
+import { formatSymbolDisplayFromQuote } from '../utils.js';
 import { VERIFICATION } from '../../constants/index.js';
 import { getSymbolName } from './utils.js';
 import type { AccountSnapshot, Position } from '../../types/account.js';

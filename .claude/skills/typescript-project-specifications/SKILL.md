@@ -72,54 +72,32 @@ description: 编写简洁、易于维护且遵循严格规范的 TypeScript 代�
 
 35. **完成检查**：编写完成后**必须**运行 `bun run lint` 和 `bun run type-check` 并修复所有问题
 
-## 类型和工具函数定义位置（示例）
-
-```
-src/
-├── core/                   # 核心业务模块（示例）
-│   ├── types.ts            # core模块中的公共类型
-│   ├── utils.ts            # core模块中的公共函数
-│   ├── trader/             # 交易模块（示例）
-│   │   └── index.ts
-│   └── risk/               # 风险检查模块（示例）
-│        ├── index.ts       # 风险检查模块逻辑
-│        ├── types.ts       # 风险检查模块独享类型
-│        └── utils.ts       # 风险检查模块独享工具函数
-├── utils/                  # 公共工具模块（包含主index的公共函数）
-└── types/                  # 公共类型模块（包含主index的公共类型）
-
-tests/                      # 单元测试（与 src/ 目录结构对应，见规则 21）
-├── core/
-│   ├── trader/             # 对应 src/core/trader 的测试
-│   └── risk/               # 对应 src/core/risk 的测试
-└── ...
-```
-
 ## 示例文档
 
-以下示例展示了核心原则的正确和错误写法：
+核心原则与代码组织的精简示例：
 
-- [严格类型安全](./examples/strict-type-safety.md) - 禁止 any、类型断言、@ts-ignore 的正反对比，tsconfig 严格配置
-- [type 与 interface 选择](./examples/type-and-interface.md) - 数据结构 vs 行为契约的选择规则，品牌类型
-- [不可变与函数式编程](./examples/immutable-and-functional.md) - readonly 模式、Result 类型、纯函数、组合、数组方法
-- [Schema 组织与校验](./examples/schema-organization.md) - Schema 单一来源、信任边界校验的正反对比
-- [工厂函数与依赖注入](./examples/factory-and-di.md) - 工厂函数模式、非闭包函数提升、依赖注入的正反对比
-- [对象池模式](./examples/object-pool.md) - 对象池的实现、嵌套释放、异常安全处理
-- [代码风格规则](./examples/code-style-rules.md) - 类型定义、三元表达式、参数限制、条件语句的正反对比
+- [严格类型安全](./examples/strict-type-safety.md) - any/断言/@ts-ignore、tsconfig 严格配置
+- [type 与 interface](./examples/type-and-interface.md) - 数据结构用 type、行为契约用 interface、品牌类型
+- [不可变与函数式](./examples/immutable-and-functional.md) - readonly、Result、纯函数、数组方法
+- [Schema 组织与校验](./examples/schema-organization.md) - 单一来源、信任边界校验
+- [工厂函数与依赖注入](./examples/factory-and-di.md) - 工厂函数、闭包提升、依赖注入
+- [对象池模式](./examples/object-pool.md) - 实现、嵌套释放、异常安全
+- [代码风格规则](./examples/code-style-rules.md) - 类型、三元、参数个数、条件写法
+- [代码组织](./examples/code-organization-rules.md) - types/utils/constants 放置、tests 与 src 对应
 
 ## 验证检查清单
 
-完成代码后必须逐项检查：
+完成代码后逐项自检，按核心原则核对：
 
-- [ ] 无 `any`（使用 `unknown`）、无无理由类型断言、无无说明 `@ts-ignore`
-- [ ] 文件命名 camelCase，tsconfig 严格模式已开启
-- [ ] 使用工厂函数 + 依赖注入，非闭包函数已提升到模块顶层
-- [ ] 类型属性 `readonly`，数组 `ReadonlyArray`（对象池例外）
-- [ ] 数据结构用 `type`，行为契约用 `interface`
-- [ ] 无重复类型（`type A = B`）、无等价类型（`type A = number`）、无 re-export（类型/函数/常量等均从源模块直接引用）、无内联 import（类型注解/方法签名中不使用 `import('...')`，仅在顶部显式 import）
-- [ ] 类型在 `types.ts`，工具函数在 `utils.ts`，常量在 `/src/constants`，单元测试在 `tests/` 下且与 `src/` 目录结构对应
-- [ ] Schema 单一来源，信任边界处已校验
-- [ ] 无嵌套三元、函数参数 ≤ 7 个、`if-else` 中 `if` 非否定条件
-- [ ] 纯函数优先、不修改数据、预期错误用 Result 类型
-- [ ] 无兼容/临时代码、无多余注释、无无用代码，命名与行为语义一致（新增语义正确方法后必须全量替换并弃用旧方法）
-- [ ] 已运行 `bun run lint` 和 `bun run type-check` 并修复所有问题
+- [ ] 符合 [严格类型安全](./examples/strict-type-safety.md) 示例
+- [ ] 符合 [type 与 interface](./examples/type-and-interface.md) 示例
+- [ ] 符合 [不可变与函数式](./examples/immutable-and-functional.md) 示例
+- [ ] 符合 [工厂函数与依赖注入](./examples/factory-and-di.md) 示例
+- [ ] 符合 [对象池模式](./examples/object-pool.md) 示例（若使用对象池）
+- [ ] 符合 [代码组织](./examples/code-organization-rules.md) 示例
+- [ ] 符合 [Schema 组织与校验](./examples/schema-organization.md) 示例
+- [ ] 符合 [代码风格规则](./examples/code-style-rules.md) 示例
+- [ ] 文件命名 camelCase（config/ 下除外）
+- [ ] 无 re-export，无内联 `import('...')`（类型等从源模块直接引用，顶部显式 import）
+- [ ] 无兼容/临时代码与多余注释，命名与行为一致
+- [ ] 已通过 `bun run lint` 与 `bun run type-check`

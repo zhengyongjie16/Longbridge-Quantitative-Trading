@@ -5,8 +5,7 @@
  * - MFI：周期 14，结合价格和成交量
  */
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
-import { toNumber, logDebug, roundToFixed2 } from './utils.js';
-import { validatePercentage } from '../../utils/helpers/indicatorHelpers.js';
+import { toNumber, logDebug, roundToFixed2, validatePercentage } from './utils.js';
 import type { CandleData } from '../../types/data.js';
 import type { BufferNewPush } from './types.js';
 

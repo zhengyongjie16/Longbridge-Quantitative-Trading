@@ -70,3 +70,25 @@ export interface HangSengMultiIndicatorStrategy {
     orderRecorder: OrderRecorder,
   ) => SignalGenerationResult;
 }
+
+/**
+ * 信号配置评估结果。
+ * 类型用途：描述单次 evaluateSignalConfig 的触发状态、命中条件组索引、命中数量与原因文案。
+ * 使用范围：仅 strategy 模块内部与调用方诊断日志使用。
+ */
+export type EvaluationResult = {
+  readonly triggered: boolean;
+  readonly satisfiedGroupIndex: number;
+  readonly satisfiedCount: number;
+  readonly reason: string;
+};
+
+/**
+ * 条件组评估结果。
+ * 类型用途：描述单个条件组是否满足及满足的条件数量。
+ * 使用范围：仅 strategy 模块内部条件组评估流程使用。
+ */
+export type ConditionGroupResult = {
+  readonly satisfied: boolean;
+  readonly count: number;
+};
