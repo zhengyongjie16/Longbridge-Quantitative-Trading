@@ -86,6 +86,53 @@ function createDeps(params?: {
 }
 
 describe('order monitor regression', () => {
+  it('keeps threshold contract at floating-point boundary', async () => {
+    const { deps, tradeCtx } = createDeps({
+      sellTimeoutSeconds: 999,
+      buyTimeoutSeconds: 999,
+    });
+    const monitor = createOrderMonitor(deps);
+
+    await monitor.initialize();
+    await monitor.recoverOrderTrackingFromSnapshot([]);
+
+    monitor.trackOrder({
+      orderId: 'SELL-REGR-BOUNDARY-EQUAL',
+      symbol: 'BULL.HK',
+      side: OrderSide.Sell,
+      price: 0.059,
+      quantity: 100,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+
+    await monitor.processWithLatestQuotes(
+      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.05 + 0.008)]]),
+    );
+
+    expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(1);
+
+    monitor.trackOrder({
+      orderId: 'SELL-REGR-BOUNDARY-LESS',
+      symbol: 'BULL.HK',
+      side: OrderSide.Sell,
+      price: 0.059,
+      quantity: 100,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+
+    await monitor.processWithLatestQuotes(
+      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.0581)]]),
+    );
+
+    expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(1);
+  });
+
   it('does not repeatedly convert the same timed-out sell order to market order', async () => {
     const { deps, tradeCtx } = createDeps({
       sellTimeoutSeconds: 0,

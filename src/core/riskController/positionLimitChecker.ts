@@ -9,11 +9,12 @@
 import type { Position } from '../../types/account.js';
 import type { Signal } from '../../types/signal.js';
 import type { RiskCheckResult } from '../../types/services.js';
+import { decimalAdd, decimalGt, decimalMul, formatDecimal } from '../../utils/numeric/index.js';
 import type { PositionLimitChecker, PositionLimitCheckerDeps } from './types.js';
 
 /** 构建下单金额超限的拒绝原因文本，供多处复用以保持消息格式一致。 */
 function buildOrderNotionalExceededReason(orderNotional: number, max: number): string {
-  return `本次计划下单金额 ${orderNotional.toFixed(2)} HKD 超过单标的最大持仓市值限制 ${max} HKD`;
+  return `本次计划下单金额 ${formatDecimal(orderNotional, 2)} HKD 超过单标的最大持仓市值限制 ${formatDecimal(max, 2)} HKD`;
 }
 
 /** 根据标的代码查找持仓 */
@@ -36,7 +37,7 @@ export const createPositionLimitChecker = (
 
   /** 仅检查下单金额是否超限（无持仓时使用） */
   const checkOrderNotionalOnly = (orderNotional: number): RiskCheckResult => {
-    if (maxPositionNotional !== null && orderNotional > maxPositionNotional) {
+    if (maxPositionNotional !== null && decimalGt(orderNotional, maxPositionNotional)) {
       return {
         allowed: false,
         reason: buildOrderNotionalExceededReason(orderNotional, maxPositionNotional),
@@ -67,22 +68,22 @@ export const createPositionLimitChecker = (
       return checkOrderNotionalOnly(orderNotional);
     }
 
-    const currentNotional = posQuantity * price;
-    const totalNotional = currentNotional + orderNotional;
+    const currentNotional = decimalMul(posQuantity, price);
+    const totalNotional = decimalAdd(currentNotional, orderNotional);
 
-    if (!Number.isFinite(totalNotional)) {
+    if (maxPositionNotional !== null && decimalGt(totalNotional, maxPositionNotional)) {
       return {
         allowed: false,
-        reason: `持仓市值计算错误：数量=${posQuantity} × 价格=${price}`,
-      };
-    }
-
-    if (maxPositionNotional !== null && totalNotional > maxPositionNotional) {
-      return {
-        allowed: false,
-        reason: `该标的当前持仓市值约 ${currentNotional.toFixed(2)} HKD（数量=${posQuantity} × 价格=${price.toFixed(
+        reason: `该标的当前持仓市值约 ${formatDecimal(
+          currentNotional,
+          2,
+        )} HKD（数量=${posQuantity} × 价格=${formatDecimal(
+          price,
           3,
-        )}），加上本次计划下单 ${orderNotional.toFixed(2)} HKD 将超过单标的最大持仓市值限制 ${maxPositionNotional} HKD`,
+        )}），加上本次计划下单 ${formatDecimal(
+          orderNotional,
+          2,
+        )} HKD 将超过单标的最大持仓市值限制 ${formatDecimal(maxPositionNotional, 2)} HKD`,
       };
     }
 
@@ -108,7 +109,7 @@ export const createPositionLimitChecker = (
     }
 
     // 检查下单金额是否超过限制（无持仓时）
-    if (maxPositionNotional !== null && orderNotional > maxPositionNotional) {
+    if (maxPositionNotional !== null && decimalGt(orderNotional, maxPositionNotional)) {
       return {
         allowed: false,
         reason: buildOrderNotionalExceededReason(orderNotional, maxPositionNotional),

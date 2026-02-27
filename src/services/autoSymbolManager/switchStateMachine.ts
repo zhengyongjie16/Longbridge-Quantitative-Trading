@@ -7,6 +7,7 @@
  * - 处理周期换标到期后的空仓等待与触发
  */
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
+import { decimalGte, decimalLte } from '../../utils/numeric/index.js';
 import type { Position } from '../../types/account.js';
 import type { Quote } from '../../types/quote.js';
 import type { SeatState } from '../../types/seat.js';
@@ -670,7 +671,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
       return;
     }
 
-    if (distancePercent <= range.min || distancePercent >= range.max) {
+    if (decimalLte(distancePercent, range.min) || decimalGte(distancePercent, range.max)) {
       await startSwitchFlow({
         direction,
         reason: '距回收价阈值越界',

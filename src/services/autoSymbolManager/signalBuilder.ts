@@ -7,6 +7,7 @@
  * - 对象池构造信号
  */
 import type { Signal } from '../../types/signal.js';
+import { calculateLotQuantityByNotional, decimalToNumberValue } from '../../utils/numeric/index.js';
 import type { BuildOrderSignalParams, OrderSignalBuilder, SignalBuilderDeps } from './types.js';
 
 /**
@@ -39,18 +40,15 @@ export function calculateBuyQuantityByNotional(
   price: number,
   lotSize: number,
 ): number | null {
-  if (!Number.isFinite(notional) || notional <= 0) {
+  const quantity = calculateLotQuantityByNotional({
+    notional,
+    price,
+    lotSize,
+  });
+  if (!quantity) {
     return null;
   }
-  if (!Number.isFinite(price) || price <= 0) {
-    return null;
-  }
-  if (!Number.isFinite(lotSize) || lotSize <= 0) {
-    return null;
-  }
-  let rawQuantity = Math.floor(notional / price);
-  rawQuantity = Math.floor(rawQuantity / lotSize) * lotSize;
-  return rawQuantity >= lotSize ? rawQuantity : null;
+  return decimalToNumberValue(quantity);
 }
 
 /**

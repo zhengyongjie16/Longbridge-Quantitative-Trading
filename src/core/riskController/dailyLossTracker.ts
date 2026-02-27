@@ -8,6 +8,13 @@ import { OrderSide, OrderStatus } from 'longport';
 import { logger } from '../../utils/logger/index.js';
 import type { MonitorConfig } from '../../types/config.js';
 import type { OrderRecord, RawOrderFromAPI } from '../../types/services.js';
+import {
+  decimalAdd,
+  decimalGt,
+  decimalSub,
+  decimalToNumberValue,
+  toDecimalValue,
+} from '../../utils/numeric/index.js';
 import type {
   DailyLossFilledOrderInput,
   DailyLossState,
@@ -41,21 +48,21 @@ function calculateLossOffsetFromRecords(
   if (buyOrders.length === 0 && sellOrders.length === 0) {
     return 0;
   }
-  const totalBuy = sumOrderCost(buyOrders);
-  const totalSell = sumOrderCost(sellOrders);
-  if (totalBuy === 0 && totalSell === 0) {
+  const totalBuy = toDecimalValue(sumOrderCost(buyOrders));
+  const totalSell = toDecimalValue(sumOrderCost(sellOrders));
+  if (totalBuy.isZero() && totalSell.isZero()) {
     return 0;
   }
   const openBuyOrders =
     buyOrders.length > 0
       ? filteringEngine.applyFilteringAlgorithm([...buyOrders], [...sellOrders])
       : [];
-  const openBuyCost = sumOrderCost(openBuyOrders);
-  const realizedPnL = totalSell - totalBuy + openBuyCost;
-  if (realizedPnL > 0) {
+  const openBuyCost = toDecimalValue(sumOrderCost(openBuyOrders));
+  const realizedPnL = decimalAdd(decimalSub(totalSell, totalBuy), openBuyCost);
+  if (decimalGt(realizedPnL, 0)) {
     return 0;
   }
-  return realizedPnL;
+  return decimalToNumberValue(realizedPnL);
 }
 
 /**

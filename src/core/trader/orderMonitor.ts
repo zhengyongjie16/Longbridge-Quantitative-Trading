@@ -29,6 +29,7 @@ import {
   isRecord,
 } from '../../utils/helpers/index.js';
 import {
+  DEFAULT_PRICE_DECIMALS,
   NON_REPLACEABLE_ORDER_STATUSES,
   NON_REPLACEABLE_ORDER_TYPES,
   ORDER_PRICE_DIFF_THRESHOLD,
@@ -169,6 +170,18 @@ function resolveOrderIdFromSubmitResponse(response: unknown): string | null {
   return typeof orderId === 'string' && orderId.length > 0 ? orderId : null;
 }
 
+/** 价格标准化为固定小数位文本（与日志与阈值比较保持一致口径） */
+function normalizePriceText(price: number): string {
+  return price.toFixed(DEFAULT_PRICE_DECIMALS);
+}
+
+/** 基于原始价格计算差值（Decimal），避免比较阶段被四舍五入放大/缩小 */
+function calculatePriceDiffDecimal(currentPrice: number, submittedPrice: number) {
+  const currentPriceDecimal = toDecimal(currentPrice);
+  const submittedPriceDecimal = toDecimal(submittedPrice);
+  return currentPriceDecimal.sub(submittedPriceDecimal).abs();
+}
+
 /**
  * 创建订单监控器。
  * 订阅 WebSocket 订单推送、维护追踪订单列表、委托价跟随市价更新、超时转市价/撤单，成交后更新本地订单记录与浮亏刷新列表。
@@ -192,6 +205,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     isExecutionAllowed,
   } = deps;
   const config = buildOrderMonitorConfig(tradingConfig.global);
+  const thresholdDecimal = toDecimal(config.priceDiffThreshold);
 
   // 追踪中的订单
   const trackedOrders = new Map<string, TrackedOrder>();
@@ -826,9 +840,12 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       return;
     }
 
+    const normalizedNewPriceText = normalizePriceText(newPrice);
+    const normalizedNewPriceDecimal = toDecimal(normalizedNewPriceText);
+    const normalizedNewPriceNumber = Number(normalizedNewPriceText);
     const replacePayload = {
       orderId,
-      price: toDecimal(newPrice),
+      price: normalizedNewPriceDecimal,
       quantity: toDecimal(targetQuantity),
     };
 
@@ -837,14 +854,14 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       await ctx.replaceOrder(replacePayload);
 
       cacheManager.clearCache();
-      trackedOrder.submittedPrice = newPrice;
+      trackedOrder.submittedPrice = normalizedNewPriceNumber;
       trackedOrder.submittedQuantity = trackedOrder.executedQuantity + targetQuantity;
       trackedOrder.lastPriceUpdateAt = Date.now();
 
-      logger.info(`[订单修改成功] 订单ID=${orderId} 新价格=${newPrice.toFixed(3)}`);
+      logger.info(`[订单修改成功] 订单ID=${orderId} 新价格=${normalizedNewPriceText}`);
     } catch (err) {
       const errorMessage = formatError(err);
-      logger.error(`[订单修改失败] 订单ID=${orderId} 新价格=${newPrice.toFixed(3)}`, errorMessage);
+      logger.error(`[订单修改失败] 订单ID=${orderId} 新价格=${normalizedNewPriceText}`, errorMessage);
       throw new Error(`订单修改失败: ${errorMessage}`, { cause: err });
     }
   }
@@ -1025,24 +1042,29 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       }
 
       const currentPrice = quote.price;
-      const priceDiff = Math.abs(currentPrice - order.submittedPrice);
+      const normalizedCurrentPriceText = normalizePriceText(currentPrice);
+      const normalizedCurrentPriceNumber = Number(normalizedCurrentPriceText);
+      const normalizedSubmittedPriceText = normalizePriceText(order.submittedPrice);
+      const normalizedSubmittedPriceNumber = Number(normalizedSubmittedPriceText);
+      const priceDiffDecimal = calculatePriceDiffDecimal(currentPrice, order.submittedPrice);
 
       // 价格差异小于阈值，不修改
-      if (priceDiff < config.priceDiffThreshold) {
+      if (priceDiffDecimal.comparedTo(thresholdDecimal) < 0) {
         continue;
       }
 
       // 更新委托价
       const sideDesc = isBuyOrder ? '买入' : '卖出';
-      const priceDirection = currentPrice > order.submittedPrice ? '上涨' : '下跌';
+      const priceDirection =
+        normalizedCurrentPriceNumber > normalizedSubmittedPriceNumber ? '上涨' : '下跌';
 
       logger.info(
-        `[订单监控] ${sideDesc}订单 ${orderId} 当前价(${currentPrice.toFixed(3)}) ` +
-          `${priceDirection}，更新委托价：${order.submittedPrice.toFixed(3)} → ${currentPrice.toFixed(3)}`,
+        `[订单监控] ${sideDesc}订单 ${orderId} 当前价(${normalizedCurrentPriceText}) ` +
+          `${priceDirection}，更新委托价：${normalizedSubmittedPriceText} → ${normalizedCurrentPriceText}`,
       );
 
       try {
-        await replaceOrderPrice(orderId, currentPrice);
+        await replaceOrderPrice(orderId, normalizedCurrentPriceNumber);
       } catch (err) {
         logger.error(`[订单监控] 修改订单 ${orderId} 价格失败:`, err);
       }

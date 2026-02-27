@@ -15,7 +15,20 @@ import {
   formatSymbolDisplay,
   isRecord,
 } from '../../utils/helpers/index.js';
+import {
+  decimalDiv,
+  decimalGt,
+  decimalGte,
+  decimalLt,
+  decimalLte,
+  decimalMul,
+  decimalSub,
+  decimalToNumberValue,
+  formatDecimal,
+  toDecimalValue,
+} from '../../utils/numeric/index.js';
 import type { SignalType } from '../../types/signal.js';
+import type { Decimal } from 'longport';
 import type {
   MarketDataClient,
   WarrantType,
@@ -129,7 +142,12 @@ function validateCallPrice(
   symbol: string,
   callPrice: number | null | undefined,
 ): RiskCheckResult | null {
-  if (!Number.isFinite(callPrice) || !callPrice || callPrice <= 0) {
+  if (
+    !Number.isFinite(callPrice) ||
+    callPrice === null ||
+    callPrice === undefined ||
+    !decimalGt(callPrice, 0)
+  ) {
     logger.warn(`[风险检查] ${symbol} 的回收价无效（${callPrice}），拒绝买入`);
     return {
       allowed: false,
@@ -141,7 +159,7 @@ function validateCallPrice(
 
 /** 验证监控标的价格有效性，防止使用错误的价格 */
 function validateMonitorPrice(monitorCurrentPrice: number): RiskCheckResult | null {
-  if (!Number.isFinite(monitorCurrentPrice) || monitorCurrentPrice <= 0) {
+  if (!Number.isFinite(monitorCurrentPrice) || !decimalGt(monitorCurrentPrice, 0)) {
     logger.warn(`[风险检查] 监控标的的当前价格无效（${monitorCurrentPrice}），无法检查牛熊证风险`);
     return {
       allowed: false,
@@ -150,7 +168,7 @@ function validateMonitorPrice(monitorCurrentPrice: number): RiskCheckResult | nu
   }
 
   // 额外验证：监控标的价格应该远大于牛熊证价格（通常>1000）
-  if (monitorCurrentPrice < MIN_MONITOR_PRICE_THRESHOLD) {
+  if (decimalLt(monitorCurrentPrice, MIN_MONITOR_PRICE_THRESHOLD)) {
     logger.warn(
       `[风险检查] 监控标的价格异常小（${monitorCurrentPrice}），可能获取到了错误的价格（如牛熊证本身的价格），拒绝买入以确保安全`,
     );
@@ -178,12 +196,13 @@ function validateWarrantCurrentPrice(
     };
   }
 
-  if (warrantCurrentPrice <= MIN_WARRANT_PRICE_THRESHOLD) {
+  if (decimalLte(warrantCurrentPrice, MIN_WARRANT_PRICE_THRESHOLD)) {
     return {
       allowed: false,
-      reason: `牛熊证当前价格 ${warrantCurrentPrice.toFixed(DEFAULT_PRICE_DECIMALS)} 低于或等于 ${MIN_WARRANT_PRICE_THRESHOLD.toFixed(
+      reason: `牛熊证当前价格 ${formatDecimal(
+        warrantCurrentPrice,
         DEFAULT_PRICE_DECIMALS,
-      )}，拒绝买入`,
+      )} 低于或等于 ${formatDecimal(MIN_WARRANT_PRICE_THRESHOLD, DEFAULT_PRICE_DECIMALS)}，拒绝买入`,
     };
   }
 
@@ -191,60 +210,75 @@ function validateWarrantCurrentPrice(
 }
 
 /** 计算距离回收价的百分比：(当前价 - 回收价) / 回收价 * 100 */
-function calculateDistancePercent(monitorCurrentPrice: number, callPrice: number): number {
-  return ((monitorCurrentPrice - callPrice) / callPrice) * 100;
+function calculateDistancePercentDecimal(monitorCurrentPrice: number, callPrice: number): Decimal {
+  const normalizedMonitorPrice = toDecimalValue(monitorCurrentPrice).roundDp(DEFAULT_PRICE_DECIMALS);
+  const normalizedCallPrice = toDecimalValue(callPrice).roundDp(DEFAULT_PRICE_DECIMALS);
+  const spread = decimalSub(normalizedMonitorPrice, normalizedCallPrice);
+  const ratio = decimalDiv(spread, normalizedCallPrice);
+  return decimalMul(ratio, 100);
 }
 
 /** 检查距离回收价是否在安全范围内 */
 function checkDistanceThreshold(
   warrantType: WarrantType,
-  distancePercent: number,
+  distancePercent: Decimal,
   callPrice: number,
   monitorCurrentPrice: number,
 ): RiskCheckResult {
+  const distancePercentNumber = decimalToNumberValue(distancePercent);
   // 牛证：当距离回收价百分比低于阈值时停止买入
-  if (warrantType === 'BULL' && distancePercent < BULL_WARRANT_MIN_DISTANCE_PERCENT) {
-      return {
-        allowed: false,
-        reason: `牛证距离回收价百分比为 ${distancePercent.toFixed(
-          DEFAULT_PERCENT_DECIMALS,
-        )}%，低于${BULL_WARRANT_MIN_DISTANCE_PERCENT}%阈值，停止买入（回收价=${callPrice.toFixed(
-          DEFAULT_PRICE_DECIMALS,
-        )}，监控标的当前价=${monitorCurrentPrice.toFixed(DEFAULT_PRICE_DECIMALS)}）`,
-        warrantInfo: {
-          isWarrant: true,
-          warrantType,
-          distanceToStrikePercent: distancePercent,
-        },
-      };
-    }
+  if (warrantType === 'BULL' && decimalLt(distancePercent, BULL_WARRANT_MIN_DISTANCE_PERCENT)) {
+    return {
+      allowed: false,
+      reason: `牛证距离回收价百分比为 ${formatDecimal(
+        distancePercent,
+        DEFAULT_PERCENT_DECIMALS,
+      )}%，低于${formatDecimal(
+        BULL_WARRANT_MIN_DISTANCE_PERCENT,
+        DEFAULT_PERCENT_DECIMALS,
+      )}%阈值，停止买入（回收价=${formatDecimal(
+        callPrice,
+        DEFAULT_PRICE_DECIMALS,
+      )}，监控标的当前价=${formatDecimal(monitorCurrentPrice, DEFAULT_PRICE_DECIMALS)}）`,
+      warrantInfo: {
+        isWarrant: true,
+        warrantType,
+        distanceToStrikePercent: distancePercentNumber,
+      },
+    };
+  }
 
   // 熊证：当距离回收价百分比高于阈值时停止买入
-  if (warrantType === 'BEAR' && distancePercent > BEAR_WARRANT_MAX_DISTANCE_PERCENT) {
-      return {
-        allowed: false,
-        reason: `熊证距离回收价百分比为 ${distancePercent.toFixed(
-          DEFAULT_PERCENT_DECIMALS,
-        )}%，高于${BEAR_WARRANT_MAX_DISTANCE_PERCENT}%阈值，停止买入（回收价=${callPrice.toFixed(
-          DEFAULT_PRICE_DECIMALS,
-        )}，监控标的当前价=${monitorCurrentPrice.toFixed(DEFAULT_PRICE_DECIMALS)}）`,
-        warrantInfo: {
-          isWarrant: true,
-          warrantType,
-          distanceToStrikePercent: distancePercent,
-        },
-      };
-    }
+  if (warrantType === 'BEAR' && decimalGt(distancePercent, BEAR_WARRANT_MAX_DISTANCE_PERCENT)) {
+    return {
+      allowed: false,
+      reason: `熊证距离回收价百分比为 ${formatDecimal(
+        distancePercent,
+        DEFAULT_PERCENT_DECIMALS,
+      )}%，高于${formatDecimal(
+        BEAR_WARRANT_MAX_DISTANCE_PERCENT,
+        DEFAULT_PERCENT_DECIMALS,
+      )}%阈值，停止买入（回收价=${formatDecimal(
+        callPrice,
+        DEFAULT_PRICE_DECIMALS,
+      )}，监控标的当前价=${formatDecimal(monitorCurrentPrice, DEFAULT_PRICE_DECIMALS)}）`,
+      warrantInfo: {
+        isWarrant: true,
+        warrantType,
+        distanceToStrikePercent: distancePercentNumber,
+      },
+    };
+  }
 
   // 风险检查通过
   const warrantTypeName = warrantType === 'BULL' ? '牛证' : '熊证';
   return {
     allowed: true,
-    reason: `${warrantTypeName}距离回收价百分比为 ${distancePercent.toFixed(DEFAULT_PERCENT_DECIMALS)}%，在安全范围内`,
+    reason: `${warrantTypeName}距离回收价百分比为 ${formatDecimal(distancePercent, DEFAULT_PERCENT_DECIMALS)}%，在安全范围内`,
     warrantInfo: {
       isWarrant: true,
       warrantType,
-      distanceToStrikePercent: distancePercent,
+      distanceToStrikePercent: distancePercentNumber,
     },
   };
 }
@@ -252,21 +286,24 @@ function checkDistanceThreshold(
 /** 构建距回收价清仓判定结果 */
 function buildDistanceLiquidationResult(
   warrantType: WarrantType,
-  distancePercent: number,
+  distancePercent: Decimal,
   callPrice: number,
   monitorCurrentPrice: number,
 ): WarrantDistanceLiquidationResult {
+  const distancePercentNumber = decimalToNumberValue(distancePercent);
   const isBull = warrantType === 'BULL';
   const threshold = isBull
     ? BULL_WARRANT_LIQUIDATION_DISTANCE_PERCENT
     : BEAR_WARRANT_LIQUIDATION_DISTANCE_PERCENT;
-  const shouldLiquidate = isBull ? distancePercent <= threshold : distancePercent >= threshold;
+  const shouldLiquidate = isBull
+    ? decimalLte(distancePercent, threshold)
+    : decimalGte(distancePercent, threshold);
 
   const compareText = isBull ? '低于或等于' : '高于或等于';
   const prefix = isBull ? '牛证' : '熊证';
-  const distanceText = distancePercent.toFixed(DEFAULT_PERCENT_DECIMALS);
-  const callPriceText = callPrice.toFixed(DEFAULT_PRICE_DECIMALS);
-  const monitorPriceText = monitorCurrentPrice.toFixed(DEFAULT_PRICE_DECIMALS);
+  const distanceText = formatDecimal(distancePercent, DEFAULT_PERCENT_DECIMALS);
+  const callPriceText = formatDecimal(callPrice, DEFAULT_PRICE_DECIMALS);
+  const monitorPriceText = formatDecimal(monitorCurrentPrice, DEFAULT_PRICE_DECIMALS);
 
   const reason = shouldLiquidate
     ? `${prefix}距离回收价百分比为 ${distanceText}%，${compareText}${threshold}%阈值，触发清仓（回收价=${callPriceText}，监控标的当前价=${monitorPriceText}）`
@@ -275,7 +312,7 @@ function buildDistanceLiquidationResult(
   return {
     shouldLiquidate,
     warrantType,
-    distancePercent,
+    distancePercent: distancePercentNumber,
     reason,
   };
 }
@@ -297,21 +334,23 @@ function buildWarrantDistanceInfo(
     };
   }
 
-  if (
-    monitorCurrentPrice === null ||
-    !Number.isFinite(monitorCurrentPrice) ||
-    monitorCurrentPrice <= 0
-  ) {
+  if (monitorCurrentPrice === null || !Number.isFinite(monitorCurrentPrice)) {
+    return {
+      warrantType: warrantInfo.warrantType,
+      distanceToStrikePercent: null,
+    };
+  }
+  if (!decimalGt(monitorCurrentPrice, 0)) {
     return {
       warrantType: warrantInfo.warrantType,
       distanceToStrikePercent: null,
     };
   }
 
-  const distancePercent = calculateDistancePercent(monitorCurrentPrice, callPrice);
+  const distancePercent = calculateDistancePercentDecimal(monitorCurrentPrice, callPrice);
   return {
     warrantType: warrantInfo.warrantType,
-    distanceToStrikePercent: distancePercent,
+    distanceToStrikePercent: decimalToNumberValue(distancePercent),
   };
 }
 
@@ -385,7 +424,9 @@ export function createWarrantRiskChecker(_deps: WarrantRiskCheckerDeps = {}): Wa
       if (warrantInfo.isWarrant) {
         const warrantTypeName = getWarrantTypeName(warrantInfo.warrantType);
         logger.info(
-          `[风险检查] ${isLong ? '做多' : '做空'}标的 ${symbolDisplay} 是${warrantTypeName}，回收价=${warrantInfo.callPrice?.toFixed(3) ?? '未知'}`,
+          `[风险检查] ${isLong ? '做多' : '做空'}标的 ${symbolDisplay} 是${warrantTypeName}，回收价=${
+            warrantInfo.callPrice === null ? '未知' : formatDecimal(warrantInfo.callPrice, 3)
+          }`,
         );
         return { status: 'ok', isWarrant: true };
       } else {
@@ -452,7 +493,7 @@ export function createWarrantRiskChecker(_deps: WarrantRiskCheckerDeps = {}): Wa
     const { warrantType } = warrantInfo;
 
     // 计算距离回收价的百分比
-    const distancePercent = calculateDistancePercent(monitorCurrentPrice, callPrice);
+    const distancePercent = calculateDistancePercentDecimal(monitorCurrentPrice, callPrice);
 
     // 检查风险阈值
     return checkDistanceThreshold(warrantType, distancePercent, callPrice, monitorCurrentPrice);
@@ -500,7 +541,7 @@ export function createWarrantRiskChecker(_deps: WarrantRiskCheckerDeps = {}): Wa
       };
     }
 
-    const distancePercent = calculateDistancePercent(monitorCurrentPrice, callPrice);
+    const distancePercent = calculateDistancePercentDecimal(monitorCurrentPrice, callPrice);
 
     return buildDistanceLiquidationResult(
       warrantInfo.warrantType,
@@ -552,7 +593,7 @@ export function createWarrantRiskChecker(_deps: WarrantRiskCheckerDeps = {}): Wa
     isLongSymbol: boolean,
     symbolName: string | null = null,
   ): WarrantRefreshResult {
-    if (!Number.isFinite(callPrice) || callPrice <= 0) {
+    if (!Number.isFinite(callPrice) || !decimalGt(callPrice, 0)) {
       return {
         status: 'error',
         isWarrant: false,
@@ -579,7 +620,7 @@ export function createWarrantRiskChecker(_deps: WarrantRiskCheckerDeps = {}): Wa
 
     const symbolDisplay = formatSymbolDisplay(symbol, symbolName);
     logger.info(
-      `[风险检查] ${isLongSymbol ? '做多' : '做空'}标的 ${symbolDisplay}，回收价=${callPrice.toFixed(3)}`,
+      `[风险检查] ${isLongSymbol ? '做多' : '做空'}标的 ${symbolDisplay}，回收价=${formatDecimal(callPrice, 3)}`,
     );
 
     return { status: 'ok', isWarrant: true };

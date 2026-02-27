@@ -14,6 +14,18 @@ import {
   getShortDirectionName,
   formatSymbolDisplayFromQuote,
 } from '../../utils/helpers/index.js';
+import {
+  decimalAdd,
+  decimalGt,
+  decimalLt,
+  decimalMul,
+  decimalNeg,
+  decimalSub,
+  decimalToNumberValue,
+  formatDecimal,
+  toDecimalStrict,
+  toDecimalValue,
+} from '../../utils/numeric/index.js';
 import type { Quote } from '../../types/quote.js';
 import type {
   OrderRecorder,
@@ -29,20 +41,25 @@ import type { UnrealizedLossChecker, UnrealizedLossCheckerDeps } from './types.j
 function calculateCostAndQuantity(
   buyOrders: ReadonlyArray<{ executedPrice: number | string; executedQuantity: number | string }>,
 ): Readonly<{ r1: number; n1: number }> {
-  let r1 = 0;
-  let n1 = 0;
+  let r1 = toDecimalValue(0);
+  let n1 = toDecimalValue(0);
 
   for (const order of buyOrders) {
-    const price = Number(order.executedPrice) || 0;
-    const quantity = Number(order.executedQuantity) || 0;
+    const price = toDecimalStrict(order.executedPrice);
+    const quantity = toDecimalStrict(order.executedQuantity);
 
-    if (isValidPositiveNumber(price) && isValidPositiveNumber(quantity)) {
-      r1 += price * quantity;
-      n1 += quantity;
+    if (!price || !quantity) {
+      continue;
     }
+    if (!decimalGt(price, 0) || !decimalGt(quantity, 0)) {
+      continue;
+    }
+
+    r1 = decimalAdd(r1, decimalMul(price, quantity));
+    n1 = decimalAdd(n1, quantity);
   }
 
-  return { r1, n1 };
+  return { r1: decimalToNumberValue(r1), n1: decimalToNumberValue(n1) };
 }
 
 /**
@@ -113,7 +130,7 @@ export const createUnrealizedLossChecker = (
       // 调整后R1 = 基础R1 - 当日偏移
       // 当日偏移仅记录亏损（<=0）：盈利偏移统一按 0，不减少 R1
       // 亏损偏移为负数时，减去负数使 R1 增大，从而更容易触发浮亏保护
-      const adjustedR1 = baseR1 - normalizedOffset;
+      const adjustedR1 = decimalToNumberValue(decimalSub(baseR1, normalizedOffset));
 
       // 更新缓存
       unrealizedLossData.set(symbol, {
@@ -131,9 +148,9 @@ export const createUnrealizedLossChecker = (
 
       logger.info(
         `[浮亏监控] ${positionType} ${symbolDisplay}: ` +
-          `R1(开仓成本)=${baseR1.toFixed(2)} HKD, ` +
-          `当日偏移=${normalizedOffset.toFixed(2)} HKD, ` +
-          `调整后R1(开仓成本)=${adjustedR1.toFixed(2)} HKD, ` +
+          `R1(开仓成本)=${formatDecimal(baseR1, 2)} HKD, ` +
+          `当日偏移=${formatDecimal(normalizedOffset, 2)} HKD, ` +
+          `调整后R1(开仓成本)=${formatDecimal(adjustedR1, 2)} HKD, ` +
           `N1(持仓数量)=${n1}, 未平仓订单数=${buyOrders.length}`,
       );
 
@@ -185,15 +202,19 @@ export const createUnrealizedLossChecker = (
     const threshold = Number(maxUnrealizedLossPerSymbol);
 
     // 计算当前持仓市值R2和浮亏
-    const r2 = currentPrice * n1;
-    const unrealizedLoss = r2 - r1;
+    const r2 = decimalMul(currentPrice, n1);
+    const unrealizedLoss = decimalSub(r2, r1);
 
     // 检查浮亏是否超过阈值（浮亏为负数表示亏损）
-    if (unrealizedLoss < -threshold) {
+    if (decimalLt(unrealizedLoss, decimalNeg(threshold))) {
       const positionType = isLongSymbol ? getLongDirectionName() : getShortDirectionName();
-      const reason = `[保护性清仓] ${positionType} ${symbol} 浮亏=${unrealizedLoss.toFixed(
+      const reason = `[保护性清仓] ${positionType} ${symbol} 浮亏=${formatDecimal(
+        unrealizedLoss,
         2,
-      )} HKD 超过阈值 ${threshold} HKD (R1=${r1.toFixed(2)}, R2=${r2.toFixed(2)}, N1=${n1})，执行保护性清仓`;
+      )} HKD 超过阈值 ${formatDecimal(threshold, 2)} HKD (R1=${formatDecimal(
+        r1,
+        2,
+      )}, R2=${formatDecimal(r2, 2)}, N1=${n1})，执行保护性清仓`;
 
       return {
         shouldLiquidate: true,

@@ -210,7 +210,108 @@ function createPendingRecoveryOrder(params: Partial<RawOrderFromAPI>): RawOrderF
   };
 }
 
+async function executeReplaceScenario(params: {
+  readonly initialPrice: number;
+  readonly quotePrice: number;
+  readonly processTimes?: number;
+}): Promise<{
+  readonly replaceCalls: number;
+  readonly submittedPrice: number | null;
+}> {
+  const { deps, tradeCtx } = createDeps({
+    sellTimeoutSeconds: 999,
+    buyTimeoutSeconds: 999,
+  });
+  const monitor = createOrderMonitor(deps);
+  await monitor.initialize();
+
+  monitor.trackOrder({
+    orderId: 'SELL-PRICE-DIFF-CASE',
+    symbol: 'BULL.HK',
+    side: OrderSide.Sell,
+    price: params.initialPrice,
+    quantity: 100,
+    isLongSymbol: true,
+    monitorSymbol: 'HSI.HK',
+    isProtectiveLiquidation: false,
+    orderType: OrderType.ELO,
+  });
+
+  const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', params.quotePrice)]]);
+  const processTimes = params.processTimes ?? 1;
+  for (let index = 0; index < processTimes; index += 1) {
+    await monitor.processWithLatestQuotes(quotes);
+  }
+
+  const pendingOrders = monitor.getPendingSellOrders('BULL.HK');
+  return {
+    replaceCalls: tradeCtx.getCalls('replaceOrder').length,
+    submittedPrice: pendingOrders[0]?.submittedPrice ?? null,
+  };
+}
+
 describe('orderMonitor business flow', () => {
+  it('replaces order when price diff equals threshold on downward move', async () => {
+    const result = await executeReplaceScenario({
+      initialPrice: 0.059,
+      quotePrice: 0.058,
+    });
+
+    expect(result.replaceCalls).toBe(1);
+    expect(result.submittedPrice).toBe(0.058);
+  });
+
+  it('replaces order when price diff equals threshold on upward move', async () => {
+    const result = await executeReplaceScenario({
+      initialPrice: 0.058,
+      quotePrice: 0.059,
+    });
+
+    expect(result.replaceCalls).toBe(1);
+    expect(result.submittedPrice).toBe(0.059);
+  });
+
+  it('does not replace order when price diff is lower than threshold', async () => {
+    const result = await executeReplaceScenario({
+      initialPrice: 0.059,
+      quotePrice: 0.0581,
+    });
+
+    expect(result.replaceCalls).toBe(0);
+    expect(result.submittedPrice).toBe(0.059);
+  });
+
+  it('replaces order when price diff is greater than threshold', async () => {
+    const result = await executeReplaceScenario({
+      initialPrice: 0.059,
+      quotePrice: 0.057,
+    });
+
+    expect(result.replaceCalls).toBe(1);
+    expect(result.submittedPrice).toBe(0.057);
+  });
+
+  it('does not repeatedly replace when quote price does not change', async () => {
+    const result = await executeReplaceScenario({
+      initialPrice: 0.058,
+      quotePrice: 0.058,
+      processTimes: 2,
+    });
+
+    expect(result.replaceCalls).toBe(0);
+    expect(result.submittedPrice).toBe(0.058);
+  });
+
+  it('normalizes tracked submitted price after replace', async () => {
+    const result = await executeReplaceScenario({
+      initialPrice: 0.059,
+      quotePrice: 0.05 + 0.008,
+    });
+
+    expect(result.replaceCalls).toBe(1);
+    expect(result.submittedPrice).toBe(0.058);
+  });
+
   it('converts timed-out sell order to market order after cancel', async () => {
     const { deps, tradeCtx } = createDeps({
       sellTimeoutSeconds: 0,

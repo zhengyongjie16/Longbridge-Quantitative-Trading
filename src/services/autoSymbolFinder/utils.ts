@@ -1,5 +1,13 @@
 import { FilterWarrantExpiryDate, WarrantStatus } from 'longport';
 import { decimalToNumber } from '../../utils/helpers/index.js';
+import {
+  decimalAbs,
+  decimalDiv,
+  decimalEq,
+  decimalGt,
+  decimalLt,
+  decimalToNumberValue,
+} from '../../utils/numeric/index.js';
 import type {
   SelectBestWarrantInput,
   WarrantCandidate,
@@ -110,7 +118,7 @@ export function selectBestWarrant({
     }
 
     const callPriceNum = decimalToNumber(warrant.callPrice);
-    if (!Number.isFinite(callPriceNum) || callPriceNum <= 0) {
+    if (!Number.isFinite(callPriceNum) || !decimalGt(callPriceNum, 0)) {
       continue;
     }
 
@@ -120,32 +128,34 @@ export function selectBestWarrant({
     }
 
     const passesDistanceFilter = isBull
-      ? distancePct > minDistancePct
-      : distancePct < minDistancePct;
+      ? decimalGt(distancePct, minDistancePct)
+      : decimalLt(distancePct, minDistancePct);
     if (!passesDistanceFilter) {
       continue;
     }
 
     const turnover = decimalToNumber(warrant.turnover);
-    if (!Number.isFinite(turnover) || turnover <= 0) {
+    if (!Number.isFinite(turnover) || !decimalGt(turnover, 0)) {
       continue;
     }
 
-    if (shouldFilterTurnover && (!hasTradingMinutes || turnover < minTurnover)) {
+    if (shouldFilterTurnover && (!hasTradingMinutes || decimalLt(turnover, minTurnover))) {
       continue;
     }
 
-    const turnoverPerMinute = hasTradingMinutes ? turnover / tradingMinutes : 0;
-    if (turnoverPerMinute < minTurnoverPerMinute) {
+    const turnoverPerMinute = hasTradingMinutes
+      ? decimalToNumberValue(decimalDiv(turnover, tradingMinutes))
+      : 0;
+    if (decimalLt(turnoverPerMinute, minTurnoverPerMinute)) {
       continue;
     }
 
-    const absDistance = Math.abs(distancePct);
-    const bestAbsDistance = Math.abs(bestDistancePct);
+    const absDistance = decimalAbs(distancePct);
+    const bestAbsDistance = decimalAbs(bestDistancePct);
     if (
       bestSymbol === null ||
-      absDistance < bestAbsDistance ||
-      (absDistance === bestAbsDistance && turnoverPerMinute > bestTurnoverPerMinute)
+      decimalLt(absDistance, bestAbsDistance) ||
+      (decimalEq(absDistance, bestAbsDistance) && decimalGt(turnoverPerMinute, bestTurnoverPerMinute))
     ) {
       bestSymbol = warrant.symbol;
       bestName = warrant.name ?? null;

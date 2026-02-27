@@ -1,5 +1,6 @@
 import { OrderStatus } from 'longport';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
+import { decimalAdd, decimalMul, decimalToNumberValue, toDecimalValue } from '../../utils/numeric/index.js';
 import type { MonitorConfig } from '../../types/config.js';
 import type { OrderRecord, RawOrderFromAPI } from '../../types/services.js';
 import type { OrderOwnership } from '../orderRecorder/types.js';
@@ -36,15 +37,15 @@ export function resolveHongKongDayKey(
  * @returns 总成本金额（港币）
  */
 export function sumOrderCost(orders: ReadonlyArray<OrderRecord>): number {
-  let total = 0;
+  let total = toDecimalValue(0);
   for (const order of orders) {
     const price = order.executedPrice;
     const quantity = order.executedQuantity;
     if (isValidPositiveNumber(price) && isValidPositiveNumber(quantity)) {
-      total += price * quantity;
+      total = decimalAdd(total, decimalMul(price, quantity));
     }
   }
-  return total;
+  return decimalToNumberValue(total);
 }
 
 /**

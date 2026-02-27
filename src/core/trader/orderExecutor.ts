@@ -31,6 +31,11 @@ import type { TradeCheckResult } from '../../types/services.js';
 import type { OrderPayload, OrderExecutor, OrderExecutorDeps, SubmitOrderParams } from './types.js';
 import { identifyErrorType } from './tradeLogger.js';
 import {
+  calculateLotQuantityByNotional,
+  decimalToNumberValue,
+  isLotMultiple,
+} from '../../utils/numeric/index.js';
+import {
   extractOrderId,
   formatOrderTypeLabel,
   getOrderTypeCode,
@@ -95,8 +100,6 @@ function calculateBuyQuantity(
     ? targetNotional
     : TRADING.DEFAULT_TARGET_NOTIONAL;
 
-  let rawQty = Math.floor(notional / priceNum);
-
   // 获取最小买卖单位（已在配置验证阶段确保 lotSize 有效）
   const lotSize: number = signal.lotSize ?? 0;
   if (!Number.isFinite(lotSize) || lotSize <= 0) {
@@ -104,21 +107,25 @@ function calculateBuyQuantity(
     return Decimal.ZERO();
   }
 
-  // 此时 lotSize 一定是有效的正数
-  rawQty = Math.floor(rawQty / lotSize) * lotSize;
-  if (!Number.isFinite(rawQty) || rawQty < lotSize) {
+  const alignedQuantity = calculateLotQuantityByNotional({
+    notional,
+    price: priceNum,
+    lotSize,
+  });
+  if (!alignedQuantity) {
     logger.warn(
-      `[跳过订单] 目标金额(${notional}) 相对于价格(${priceNum}) 太小，按每手 ${lotSize} 股计算得到数量=${rawQty}，跳过提交订单`,
+      `[跳过订单] 目标金额(${notional}) 相对于价格(${priceNum}) 太小，按每手 ${lotSize} 股无法凑整手，跳过提交订单`,
     );
     return Decimal.ZERO();
   }
+  const rawQty = decimalToNumberValue(alignedQuantity);
 
   const actionType = isShortSymbol ? '买入做空标的（做空）' : '买入做多标的（做多）';
   logger.info(
     `[仓位计算] 按目标金额 ${notional} 计算得到${actionType}数量=${rawQty} 股（${lotSize} 股一手），单价≈${priceNum}`,
   );
 
-  return toDecimal(rawQty);
+  return alignedQuantity;
 }
 
 /**
@@ -163,7 +170,7 @@ function resolveBuyQuantitySource(
     };
   }
 
-  if (quantity % lotSize !== 0) {
+  if (!isLotMultiple(quantity, lotSize)) {
     return {
       source: 'INVALID',
       reason: `quantity=${quantity} 不满足整手约束，lotSize=${lotSize}`,

@@ -14,6 +14,16 @@
  */
 import { isBuyAction, isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { logger } from '../../utils/logger/index.js';
+import {
+  decimalLte,
+  decimalLt,
+  decimalMul,
+  decimalNeg,
+  decimalSub,
+  decimalToNumberValue,
+  formatDecimal,
+  toDecimalValue,
+} from '../../utils/numeric/index.js';
 import type { Position, AccountSnapshot, CashInfo } from '../../types/account.js';
 import type { Signal, SignalType } from '../../types/signal.js';
 import type { Quote } from '../../types/quote.js';
@@ -84,24 +94,26 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
       return null;
     }
 
-    let r2 = 0;
+    let r2 = toDecimalValue(0);
     if (n1 > 0) {
       if (!isValidPositiveNumber(currentPrice)) {
         return null;
       }
-      r2 = currentPrice * n1;
+      r2 = decimalMul(currentPrice, n1);
     }
 
-    const unrealizedPnL = r2 - r1;
-    if (!Number.isFinite(unrealizedPnL)) {
+    const unrealizedPnL = decimalSub(r2, r1);
+    const r2Number = decimalToNumberValue(r2);
+    const unrealizedPnLNumber = decimalToNumberValue(unrealizedPnL);
+    if (!Number.isFinite(unrealizedPnLNumber)) {
       return null;
     }
 
     return {
       r1,
       n1,
-      r2,
-      unrealizedPnL,
+      r2: r2Number,
+      unrealizedPnL: unrealizedPnLNumber,
     };
   }
 
@@ -127,19 +139,30 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
     // 记录浮亏计算详情（仅在DEBUG模式下）
     if (IS_DEBUG) {
       logger.debug(
-        `[风险检查调试] ${directionName}浮亏检查: R1(开仓成本)=${r1.toFixed(2)}, R2(当前市值)=${r2.toFixed(
+        `[风险检查调试] ${directionName}浮亏检查: R1(开仓成本)=${formatDecimal(
+          r1,
           2,
-        )}, 浮亏=${unrealizedPnL.toFixed(2)} HKD，最大允许亏损=${maxDailyLoss} HKD`,
+        )}, R2(当前市值)=${formatDecimal(r2, 2)}, 浮亏=${formatDecimal(
+          unrealizedPnL,
+          2,
+        )} HKD，最大允许亏损=${formatDecimal(maxDailyLoss, 2)} HKD`,
       );
     }
 
     // 检查持仓浮亏是否超过最大允许亏损
-    if (unrealizedPnL <= -maxDailyLoss) {
+    if (decimalLte(unrealizedPnL, decimalNeg(maxDailyLoss))) {
       return {
         allowed: false,
-        reason: `${directionName}持仓浮亏约 ${unrealizedPnL.toFixed(2)} HKD 已超过单日最大亏损限制 ${
-          maxDailyLoss
-        } HKD，禁止买入${directionName}（R1=${r1.toFixed(2)}, R2=${r2.toFixed(2)}, N1=${n1}）`,
+        reason: `${directionName}持仓浮亏约 ${formatDecimal(
+          unrealizedPnL,
+          2,
+        )} HKD 已超过单日最大亏损限制 ${formatDecimal(
+          maxDailyLoss,
+          2,
+        )} HKD，禁止买入${directionName}（R1=${formatDecimal(r1, 2)}, R2=${formatDecimal(
+          r2,
+          2,
+        )}, N1=${n1}）`,
       };
     }
 
@@ -240,10 +263,13 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
       const hkdCashInfo = account.cashInfos.find((c: CashInfo) => c.currency === 'HKD');
       const availableCash = hkdCashInfo?.availableCash ?? 0;
 
-      if (availableCash < orderNotional) {
+      if (decimalLt(availableCash, orderNotional)) {
         return {
           allowed: false,
-          reason: `港币可用现金 ${availableCash.toFixed(2)} HKD 不足以支付买入金额 ${orderNotional.toFixed(2)} HKD`,
+          reason: `港币可用现金 ${formatDecimal(availableCash, 2)} HKD 不足以支付买入金额 ${formatDecimal(
+            orderNotional,
+            2,
+          )} HKD`,
         };
       }
     }

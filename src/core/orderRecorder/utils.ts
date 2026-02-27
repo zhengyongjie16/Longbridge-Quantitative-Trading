@@ -1,6 +1,14 @@
 import { OrderSide, OrderStatus } from 'longport';
 import { PENDING_ORDER_STATUSES } from '../../constants/index.js';
 import { decimalToNumber } from '../../utils/helpers/index.js';
+import {
+  decimalAdd,
+  decimalDiv,
+  decimalGt,
+  decimalMul,
+  decimalToNumberValue,
+  toDecimalValue,
+} from '../../utils/numeric/index.js';
 import type { OrderRecord, RawOrderFromAPI } from '../../types/services.js';
 import type { OrderRebuildClassification, OrderStatistics } from './types.js';
 
@@ -12,18 +20,24 @@ import type { OrderRebuildClassification, OrderStatistics } from './types.js';
  * @returns 包含总数量、总价值、均价的统计对象
  */
 export function calculateOrderStatistics(orders: ReadonlyArray<OrderRecord>): OrderStatistics {
-  let totalQuantity = 0;
-  let totalValue = 0;
+  let totalQuantity = toDecimalValue(0);
+  let totalValue = toDecimalValue(0);
 
   for (const order of orders) {
     const quantity = Number.isFinite(order.executedQuantity) ? order.executedQuantity : 0;
     const price = Number.isFinite(order.executedPrice) ? order.executedPrice : 0;
-    totalQuantity += quantity;
-    totalValue += price * quantity;
+    totalQuantity = decimalAdd(totalQuantity, quantity);
+    totalValue = decimalAdd(totalValue, decimalMul(price, quantity));
   }
 
-  const averagePrice = totalQuantity > 0 ? totalValue / totalQuantity : 0;
-  return { totalQuantity, totalValue, averagePrice };
+  const averagePrice = decimalGt(totalQuantity, 0)
+    ? decimalToNumberValue(decimalDiv(totalValue, totalQuantity))
+    : 0;
+  return {
+    totalQuantity: decimalToNumberValue(totalQuantity),
+    totalValue: decimalToNumberValue(totalValue),
+    averagePrice,
+  };
 }
 
 /**
@@ -34,7 +48,12 @@ export function calculateOrderStatistics(orders: ReadonlyArray<OrderRecord>): Or
  * @returns 所有订单的成交数量之和，无效数量视为 0
  */
 export function calculateTotalQuantity(orders: ReadonlyArray<OrderRecord>): number {
-  return orders.reduce((sum, order) => sum + (order.executedQuantity || 0), 0);
+  let total = toDecimalValue(0);
+  for (const order of orders) {
+    const quantity = Number.isFinite(order.executedQuantity) ? order.executedQuantity : 0;
+    total = decimalAdd(total, quantity);
+  }
+  return decimalToNumberValue(total);
 }
 
 /**

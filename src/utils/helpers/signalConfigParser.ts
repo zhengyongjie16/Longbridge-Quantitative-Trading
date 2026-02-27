@@ -1,4 +1,5 @@
 import { SIGNAL_CONFIG_SUPPORTED_INDICATORS } from '../../constants/index.js';
+import { decimalGt, decimalLt } from '../numeric/index.js';
 import { validateRsiPeriod, validatePsyPeriod } from './indicatorHelpers.js';
 import type { Condition, ConditionGroup, SignalConfig } from '../../types/signalConfig.js';
 import type { SignalConfigSet } from '../../types/config.js';
@@ -331,10 +332,10 @@ function evaluateCondition(state: IndicatorState, condition: Condition): boolean
   // 根据运算符比较
   switch (operator) {
     case '<': {
-      return value < threshold;
+      return decimalLt(value, threshold);
     }
     case '>': {
-      return value > threshold;
+      return decimalGt(value, threshold);
     }
     default: {
       return false;
