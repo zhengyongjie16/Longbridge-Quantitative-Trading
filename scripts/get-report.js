@@ -1,65 +1,33 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+/**
+ * 获取 SonarQube 代码质量报告（问题列表等）
+ *
+ * 功能：拉取项目指标（Bugs、Code Smells、覆盖率、重复行等）、质量门禁状态、
+ * 以及所有 OPEN 状态的问题，按文件和严重级别汇总后输出到控制台。
+ *
+ * 使用方式: bun sonarqube:report
+ * 注意: 请先配置 .env.sonar，再运行 bun sonarqube 完成扫描，然后执行本命令。
+ */
+import { loadConfig, apiRequest, paginatedRequest } from './common.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const projectRoot = join(__dirname, '..');
-
-// 读取配置
-function loadConfig() {
-  const envPath = join(projectRoot, '.env.sonar');
-  const config = {};
-
-  try {
-    const content = readFileSync(envPath, 'utf-8');
-    content.split('\n').forEach((line) => {
-      const trimmed = line.trim();
-      if (trimmed && !trimmed.startsWith('#')) {
-        const [key, ...valueParts] = trimmed.split('=');
-        if (key && valueParts.length > 0) {
-          config[key.trim()] = valueParts.join('=').trim();
-        }
-      }
-    });
-  } catch (error) {
-    console.error('❌ 无法读取 .env.sonar 文件:', error.message);
-    process.exit(1);
-  }
-
-  return config;
+let config;
+try {
+  config = loadConfig();
+} catch (error) {
+  console.error('❌ 无法读取 .env.sonar 文件:', error.message);
+  process.exit(1);
 }
 
-const { SONAR_HOST_URL, SONAR_TOKEN, SONAR_PROJECT_KEY } = loadConfig();
+const { SONAR_HOST_URL, SONAR_PROJECT_KEY } = config;
 
-// API 请求函数
-async function apiRequest(path) {
-  const separator = path.includes('?') ? '&' : '?';
-  const url = `${SONAR_HOST_URL}${path}${separator}_=${Date.now()}`;
-  const auth = Buffer.from(`${SONAR_TOKEN}:`).toString('base64');
-
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Basic ${auth}`,
-      Accept: 'application/json',
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
-      Pragma: 'no-cache',
-      Expires: '0',
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`API 请求失败: ${response.status} ${response.statusText}`);
-  }
-
-  return response.json();
-}
-
-// 获取项目分析时间
+/**
+ * 获取最近一次分析的时间（用于提示数据新旧）
+ * @returns {Promise<Date|null>} 分析时间，无权限或失败时返回 null
+ */
 async function getAnalysisTime() {
   try {
     const data = await apiRequest(
       `/api/measures/component?component=${SONAR_PROJECT_KEY}&metricKeys=analysis_date`,
+      config,
     );
     const value = data.component?.measures?.[0]?.value;
     if (value) {
@@ -71,42 +39,40 @@ async function getAnalysisTime() {
   return null;
 }
 
-// 获取所有问题（处理分页）
+/**
+ * 分页拉取项目下所有 OPEN 状态的问题（issues）
+ * @returns {Promise<Array<object>>} 问题列表，每项含 component、line、message、rule、severity、type 等
+ */
 async function getAllIssues() {
-  const issues = [];
-  const pageSize = 500;
-  let page = 1;
-
-  while (true) {
-    const response = await apiRequest(
+  return paginatedRequest(
+    (page, pageSize) =>
       `/api/issues/search?componentKeys=${SONAR_PROJECT_KEY}&ps=${pageSize}&p=${page}&statuses=OPEN`,
-    );
-
-    const pageIssues = response.issues || [];
-    issues.push(...pageIssues);
-
-    if (pageIssues.length < pageSize || issues.length >= (response.total || 0)) {
-      break;
-    }
-    page++;
-  }
-
-  return issues;
+    config,
+    { responseArrayKey: 'issues', totalKey: 'total' },
+  );
 }
 
-// 获取所有数据
+/**
+ * 一次性拉取：项目指标、质量门禁状态、全部问题
+ * @returns {Promise<{ metrics: object, issues: object[], qualityGate: string }>}
+ */
 async function fetchAllData() {
   const metrics =
     'bugs,vulnerabilities,code_smells,coverage,duplicated_lines_density,ncloc,security_rating,reliability_rating,sqale_rating';
 
   const [measuresData, qualityGateData] = await Promise.all([
-    apiRequest(`/api/measures/component?component=${SONAR_PROJECT_KEY}&metricKeys=${metrics}`),
-    apiRequest(`/api/qualitygates/project_status?projectKey=${SONAR_PROJECT_KEY}`),
+    apiRequest(
+      `/api/measures/component?component=${SONAR_PROJECT_KEY}&metricKeys=${metrics}`,
+      config,
+    ),
+    apiRequest(
+      `/api/qualitygates/project_status?projectKey=${SONAR_PROJECT_KEY}`,
+      config,
+    ),
   ]);
 
   const issues = await getAllIssues();
 
-  // 转换指标为对象
   const metricsMap = {};
   measuresData.component.measures.forEach((measure) => {
     metricsMap[measure.metric] = measure.value;
@@ -119,7 +85,11 @@ async function fetchAllData() {
   };
 }
 
-// 统计问题
+/**
+ * 按严重级别、类型统计问题，并按文件分组便于输出
+ * @param {object[]} issues
+ * @returns {{ stats: { bySeverity: object, byType: object }, byFile: object }}
+ */
 function calculateStats(issues) {
   const stats = {
     bySeverity: { CRITICAL: 0, MAJOR: 0, MINOR: 0, INFO: 0 },
@@ -131,7 +101,6 @@ function calculateStats(issues) {
     stats.byType[issue.type] = (stats.byType[issue.type] || 0) + 1;
   });
 
-  // 按文件分组
   const byFile = {};
   issues.forEach((issue) => {
     const file = issue.component.replace(`${SONAR_PROJECT_KEY}:`, '');
@@ -142,11 +111,14 @@ function calculateStats(issues) {
   return { stats, byFile };
 }
 
-// 格式化分析时间信息
+/**
+ * 在控制台输出分析时间及数据新旧提示
+ * @param {Date|null} analysisTime - 最近一次分析时间
+ */
 function formatAnalysisTime(analysisTime) {
   if (!analysisTime) {
     console.log(`获取时间: ${new Date().toLocaleString('zh-CN')}`);
-    console.log(`💡 提示: 如需获取最新分析结果，请先运行: bun run sonarqube\n`);
+    console.log(`💡 提示: 先配置 .env.sonar 后，运行 bun sonarqube 可获取最新分析结果\n`);
     return;
   }
 
@@ -161,11 +133,14 @@ function formatAnalysisTime(analysisTime) {
     console.log(`✅ 数据较新（${diffMinutes} 分钟前）\n`);
   } else {
     console.log(`⚠️  数据较旧（${diffHours} 小时前）`);
-    console.log(`💡 如需获取最新报告，请先运行: bun run sonarqube\n`);
+    console.log(`💡 先配置 .env.sonar 后运行 bun sonarqube，可获取最新报告\n`);
   }
 }
 
-// 输出问题详情
+/**
+ * 按文件输出问题详情：文件按“最严重问题”排序，同一文件内问题按严重级别排序
+ * @param {object} byFile - 文件路径 -> 问题数组 的映射
+ */
 function printIssueDetails(byFile) {
   const severityOrder = { CRITICAL: 1, MAJOR: 2, MINOR: 3, INFO: 4 };
 
@@ -197,7 +172,11 @@ function printIssueDetails(byFile) {
   });
 }
 
-// 格式化输出报告
+/**
+ * 将拉取到的指标、问题、门禁状态格式化为完整报告并打印到控制台
+ * @param {object} data - fetchAllData() 的返回值
+ * @param {Date|null} analysisTime - getAnalysisTime() 的返回值
+ */
 function formatReport(data, analysisTime) {
   const { metrics, issues, qualityGate } = data;
   const { stats, byFile } = calculateStats(issues);
@@ -244,7 +223,7 @@ function formatReport(data, analysisTime) {
   console.log(`- Issues: ${SONAR_HOST_URL}/project/issues?id=${SONAR_PROJECT_KEY}\n`);
 }
 
-// 主程序
+// --- 主程序：拉取数据并输出报告 ---
 try {
   console.log('正在获取 SonarQube 报告...');
 
@@ -254,10 +233,10 @@ try {
 } catch (error) {
   console.error('\n❌ 错误:', error.message);
   console.error('\n请检查:');
-  console.error('  1. SonarQube 服务是否运行 (http://localhost:9000)');
-  console.error('  2. .env.sonar 配置是否正确');
-  console.error('  3. 项目是否已扫描');
-  console.error('  4. 如果数据较旧，请运行: bun run sonarqube');
+  console.error('  1. 是否已先配置 .env.sonar，再运行 bun sonarqube');
+  console.error('  2. SonarQube 服务是否运行 (http://localhost:9000)');
+  console.error('  3. .env.sonar 配置是否正确');
+  console.error('  4. 如果数据较旧，请重新运行: bun sonarqube');
   console.error('  5. 扫描完成后请等待几秒钟再查看报告\n');
   process.exit(1);
 }

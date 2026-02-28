@@ -1,10 +1,21 @@
-import { readFileSync, existsSync } from 'node:fs';
+/**
+ * SonarQube 扫描入口脚本
+ *
+ * 功能：读取 .env.sonar 配置 → 校验 URL/路径/Token/ProjectKey 防注入 →
+ * 检查 SonarQube 服务状态，未运行则尝试 docker-compose up -d →
+ * 调用本机 sonar-scanner 执行扫描。
+ *
+ * 使用方式: bun sonarqube
+ * 注意: 使用前请先配置 .env.sonar，再运行本命令。
+ */
+import { existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 
+import { getProjectRoot, loadConfig } from './common.js';
 import { assertSafePathEnv } from './pathEnvSafety.js';
 
+/** 用于校验配置值中是否含 shell 危险字符，防止命令注入 */
 const dangerousShellChars = /[;&|`$(){}[\]<>!#*?'"\r\n^%]/;
 
 /**
@@ -61,28 +72,14 @@ function isValidToken(token) {
   return /^[\w-]+$/.test(token);
 }
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const projectRoot = join(__dirname, '..');
+const projectRoot = getProjectRoot();
 
-// 读取 .env.sonar 文件
-const envPath = join(projectRoot, '.env.sonar');
-const config = {};
-
+let config;
 try {
-  const envContent = readFileSync(envPath, 'utf-8');
-  envContent.split('\n').forEach((line) => {
-    const trimmed = line.trim();
-    if (trimmed && !trimmed.startsWith('#')) {
-      const [key, ...valueParts] = trimmed.split('=');
-      if (key && valueParts.length > 0) {
-        config[key.trim()] = valueParts.join('=').trim();
-      }
-    }
-  });
+  config = loadConfig(projectRoot);
 } catch (error) {
   console.error('❌ 无法读取 .env.sonar 文件:', error.message);
-  console.log('\n请确保 .env.sonar 文件存在并包含必要配置：');
+  console.log('\n请先配置 .env.sonar 后再运行 bun sonarqube。确保该文件存在并包含：');
   console.log('  SONAR_TOKEN=your_token');
   console.log('  SONAR_HOST_URL=http://localhost:9000');
   console.log('  SONAR_PROJECT_KEY=longbridge-option-quant');
@@ -90,7 +87,6 @@ try {
   process.exit(1);
 }
 
-// 验证必需的配置
 const required = ['SONAR_TOKEN', 'SONAR_HOST_URL', 'SONAR_PROJECT_KEY', 'SONAR_SCANNER_PATH'];
 const missingKey = required.find((key) => !config[key]);
 if (missingKey) {
@@ -98,7 +94,7 @@ if (missingKey) {
   process.exit(1);
 }
 
-// 验证配置值的安全性，防止命令注入
+// --- 校验配置值格式与安全性（防止后续 exec 命令注入）---
 if (!isValidUrl(config.SONAR_HOST_URL)) {
   console.error(
     '❌ SONAR_HOST_URL 格式无效，必须是安全的 http/https URL（不含查询参数和 shell 特殊字符）',
@@ -121,9 +117,13 @@ if (!isValidToken(config.SONAR_TOKEN)) {
   process.exit(1);
 }
 
-// 检查 SonarQube 服务状态（使用 fetch 替代 curl，更安全）
+// --- 检查 SonarQube 是否已运行，未运行则尝试 docker-compose 启动 ---
 console.log('🔍 检查 SonarQube 服务状态...');
 
+/**
+ * 请求 /api/system/status 判断服务是否 UP（5 秒超时）
+ * @returns {Promise<boolean>} 是否运行正常
+ */
 async function checkSonarQubeStatus() {
   try {
     const controller = new AbortController();
@@ -150,6 +150,10 @@ async function checkSonarQubeStatus() {
   }
 }
 
+/**
+ * 使用 docker-compose up -d 启动 SonarQube；执行前校验 PATH 安全（pathEnvSafety）
+ * 启动后固定等待 30 秒再继续，以便服务就绪。
+ */
 async function startSonarQube() {
   const dockerComposePath = join(projectRoot, 'docker-compose.yml');
   try {
@@ -164,13 +168,11 @@ async function startSonarQube() {
       process.exit(1);
     }
     console.log('📦 启动 Docker 容器...');
-    // docker-compose 是固定命令，安全
     execSync('docker-compose up -d', {
       cwd: projectRoot,
       stdio: 'inherit',
     });
     console.log('⏳ 等待 SonarQube 启动（大约 30 秒）...');
-    // 使用 Node.js 原生方式等待，避免 shell 命令
     await new Promise((resolve) => setTimeout(resolve, 30000));
   } catch (dockerError) {
     console.error('❌ 无法启动 SonarQube，请手动运行: docker-compose up -d', dockerError.message);
@@ -186,14 +188,13 @@ if (!isRunning) {
 console.log('\n🚀 开始 SonarQube 扫描...');
 console.log(`   项目: ${config.SONAR_PROJECT_KEY}`);
 console.log(`   服务器: ${config.SONAR_HOST_URL}`);
-// 构建扫描命令
+
 const scannerCmd = join(
   config.SONAR_SCANNER_PATH,
   'bin',
   process.platform === 'win32' ? 'sonar-scanner.bat' : 'sonar-scanner',
 );
 
-// 验证 scanner 可执行文件存在
 if (!existsSync(scannerCmd)) {
   console.error(`❌ SonarQube Scanner 不存在: ${scannerCmd}`);
   process.exit(1);
@@ -205,8 +206,7 @@ const scannerArgs = [
   `-Dsonar.projectKey=${config.SONAR_PROJECT_KEY}`,
 ];
 
-// 运行 sonar-scanner
-// 由于已验证所有配置值的安全性（不包含 shell 特殊字符），使用 execSync 是安全的
+// 执行 sonar-scanner（上述配置已做格式与安全校验，可安全传入 execSync）
 try {
   execSync(`"${scannerCmd}" ${scannerArgs.join(' ')}`, {
     cwd: projectRoot,

@@ -18,7 +18,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "sonarqube": "bun scripts/run-sonar.js",
-    "sonarqube:report": "bun scripts/get-report.js"
+    "sonarqube:report": "bun scripts/get-report.js",
+    "sonarqube:duplications": "bun scripts/get-duplications.js"
   },
   "dependencies": {
     "dotenv": "^16.6.1",

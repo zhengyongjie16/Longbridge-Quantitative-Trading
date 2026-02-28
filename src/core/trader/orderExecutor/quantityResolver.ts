@@ -120,6 +120,36 @@ function calculateBuyQuantity(
 }
 
 /**
+ * 解析买入数量（显式数量优先，未提供时按金额换算）。
+ *
+ * @param signal 交易信号
+ * @param isShortSymbol 是否为空头方向标的
+ * @param targetNotional 目标金额
+ * @returns 买入数量（Decimal），无效返回 Decimal.ZERO()
+ */
+function resolveBuyQuantity(
+  signal: Signal,
+  isShortSymbol: boolean,
+  targetNotional: number,
+): Decimal {
+  const buyQuantitySource = resolveBuyQuantitySource(signal);
+  if (buyQuantitySource.source === 'INVALID') {
+    logger.warn(
+      `[跳过订单] 显式买入数量校验失败: ${buyQuantitySource.reason}, symbol=${signal.symbol}`,
+    );
+    return Decimal.ZERO();
+  }
+  if (buyQuantitySource.source === 'EXPLICIT') {
+    const actionType = isShortSymbol ? '买入做空标的（做空）' : '买入做多标的（做多）';
+    logger.info(
+      `[仓位计算] 按显式数量提交${actionType}数量=${buyQuantitySource.quantity} 股（${buyQuantitySource.lotSize} 股一手）`,
+    );
+    return toDecimal(buyQuantitySource.quantity);
+  }
+  return calculateBuyQuantity(signal, isShortSymbol, targetNotional);
+}
+
+/**
  * 创建数量解析器。
  *
  * @param deps 数量解析依赖
@@ -183,36 +213,6 @@ export function createQuantityResolver(deps: {
       `[部分卖出] 信号指定卖出数量=${targetQuantity}，可用数量=${totalAvailable}，实际卖出=${actualQty}`,
     );
     return toDecimal(actualQty);
-  }
-
-  /**
-   * 解析买入数量（显式数量优先，未提供时按金额换算）。
-   *
-   * @param signal 交易信号
-   * @param isShortSymbol 是否为空头方向标的
-   * @param targetNotional 目标金额
-   * @returns 买入数量（Decimal），无效返回 Decimal.ZERO()
-   */
-  function resolveBuyQuantity(
-    signal: Signal,
-    isShortSymbol: boolean,
-    targetNotional: number,
-  ): Decimal {
-    const buyQuantitySource = resolveBuyQuantitySource(signal);
-    if (buyQuantitySource.source === 'INVALID') {
-      logger.warn(
-        `[跳过订单] 显式买入数量校验失败: ${buyQuantitySource.reason}, symbol=${signal.symbol}`,
-      );
-      return Decimal.ZERO();
-    }
-    if (buyQuantitySource.source === 'EXPLICIT') {
-      const actionType = isShortSymbol ? '买入做空标的（做空）' : '买入做多标的（做多）';
-      logger.info(
-        `[仓位计算] 按显式数量提交${actionType}数量=${buyQuantitySource.quantity} 股（${buyQuantitySource.lotSize} 股一手）`,
-      );
-      return toDecimal(buyQuantitySource.quantity);
-    }
-    return calculateBuyQuantity(signal, isShortSymbol, targetNotional);
   }
 
   return {
