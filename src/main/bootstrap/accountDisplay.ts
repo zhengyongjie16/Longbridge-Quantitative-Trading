@@ -5,7 +5,7 @@
  * - 使用缓存账户与持仓输出统一展示日志
  * - 基于可选行情补充持仓现价、市值与仓位信息
  */
-import { logger as appLogger } from '../../utils/logger/index.js';
+import { logger } from '../../utils/logger/index.js';
 import { formatError } from '../../utils/error/index.js';
 import { formatAccountChannel, formatNumber } from '../../utils/utils.js';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
@@ -27,7 +27,7 @@ export function displayAccountAndPositions({
     const positions = lastState.cachedPositions;
 
     if (account) {
-      appLogger.info(
+      logger.info(
         `账户概览 [${account.currency}] 余额=${account.totalCash.toFixed(2)} 市值=${account.netAssets.toFixed(
           2,
         )} 持仓市值≈${account.positionValue.toFixed(2)}`,
@@ -35,7 +35,7 @@ export function displayAccountAndPositions({
     }
 
     if (positions.length > 0) {
-      appLogger.info('股票持仓：');
+      logger.info('股票持仓：');
 
       const symbolInfoMap = new Map<string, { name: string | null; price: number | null }>();
       if (quotesMap) {
@@ -83,15 +83,15 @@ export function displayAccountAndPositions({
         const positionPercentText = formatNumber(positionPercent, 2);
         const currencyText = position.currency;
 
-        appLogger.info(
+        logger.info(
           `- [${channelDisplay}] ${displayName}(${displayCode}) 持仓=${quantityText} 可用=${availableText} ${priceText} 市值=${marketValueText} 仓位=${positionPercentText}% ${currencyText}`,
         );
       }
     } else {
-      appLogger.info('当前无股票持仓。');
+      logger.info('当前无股票持仓。');
     }
   } catch (err) {
-    appLogger.warn('获取账户和持仓信息失败', formatError(err));
+    logger.warn('获取账户和持仓信息失败', formatError(err));
   }
   return Promise.resolve();
 }

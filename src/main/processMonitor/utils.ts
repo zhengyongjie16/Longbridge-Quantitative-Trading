@@ -82,7 +82,7 @@ function removeSignalTasks(
  * @param params 清理参数，包含 monitorSymbol、direction、各队列实例及 releaseSignal 回调
  * @returns 各队列移除的任务数量汇总（removedDelayed、removedBuy、removedSell、removedMonitorTasks）
  */
-export function clearQueuesForDirection(params: {
+export function clearMonitorDirectionQueues(params: {
   readonly monitorSymbol: string;
   readonly direction: 'LONG' | 'SHORT';
   readonly delayedSignalVerifier: DelayedSignalVerifier;

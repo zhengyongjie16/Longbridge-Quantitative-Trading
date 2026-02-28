@@ -184,7 +184,7 @@ describe('periodic auto-symbol full chain integration', () => {
       monitorTaskQueue,
       refreshGate: createRefreshGate(),
       getMonitorContext: () => monitorContext as never,
-      clearQueuesForDirection: () => {},
+      clearMonitorDirectionQueues: () => {},
       trader,
       lastState: createLastState(),
       tradingConfig: {
@@ -369,7 +369,7 @@ describe('periodic auto-symbol full chain integration', () => {
       monitorTaskQueue,
       refreshGate: createRefreshGate(),
       getMonitorContext: () => monitorContext as never,
-      clearQueuesForDirection: () => {},
+      clearMonitorDirectionQueues: () => {},
       trader,
       lastState: createLastState(),
       tradingConfig: {

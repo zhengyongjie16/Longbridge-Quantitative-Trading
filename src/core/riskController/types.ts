@@ -9,7 +9,7 @@ import type {
   RawOrderFromAPI,
   RiskChecker,
   Trader,
-  WarrantType,
+  BullBearWarrantType,
   RiskCheckResult,
   WarrantDistanceInfo,
   WarrantDistanceLiquidationResult,
@@ -18,7 +18,7 @@ import type {
   UnrealizedLossCheckResult,
 } from '../../types/services.js';
 import type { OrderFilteringEngine, OrderOwnership } from '../orderRecorder/types.js';
-import type { Decimal, NaiveDate, OrderSide, WarrantType as SDKWarrantType } from 'longport';
+import type { Decimal, NaiveDate, OrderSide, WarrantType } from 'longport';
 
 /**
  * 牛熊证报价。
@@ -60,7 +60,7 @@ export type WarrantQuote = {
   /** 换股比率 */
   readonly conversionRatio: Decimal | null;
   /** 轮证类型 (WarrantType: Call/Put/Bull/Bear/Inline) */
-  readonly category: SDKWarrantType | null;
+  readonly category: WarrantType | null;
   /** 行权价 */
   readonly strikePrice: Decimal | null;
   /** 上限价 */
@@ -83,7 +83,7 @@ export type WarrantInfo =
   | { readonly isWarrant: false }
   | {
       readonly isWarrant: true;
-      readonly warrantType: WarrantType;
+      readonly warrantType: BullBearWarrantType;
       readonly callPrice: number | null;
       readonly category: number | string;
       readonly symbol: string;

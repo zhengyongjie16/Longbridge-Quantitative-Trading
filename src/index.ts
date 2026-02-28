@@ -77,10 +77,10 @@ import { createGlobalStateDomain } from './main/lifecycle/cacheDomains/globalSta
 import { createLoadTradingDayRuntimeSnapshot } from './main/lifecycle/loadTradingDayRuntimeSnapshot.js';
 import { createRebuildTradingDayState } from './main/lifecycle/rebuildTradingDayState.js';
 import { displayAccountAndPositions } from './main/bootstrap/accountDisplay.js';
-import { clearQueuesForDirectionWithLog } from './main/bootstrap/queueCleanup.js';
+import { clearMonitorDirectionQueuesWithLog } from './main/bootstrap/queueCleanup.js';
 import {
   createTradingDayInfoResolver,
-  runOpenRebuild as runOpenRebuildUtil,
+  executeTradingDayOpenRebuild,
 } from './main/bootstrap/rebuild.js';
 import {
   pushRuntimeValidationSymbol,
@@ -527,8 +527,8 @@ async function main(): Promise<void> {
     monitorTaskQueue,
     refreshGate,
     getMonitorContext: (monitorSymbol: string) => monitorContexts.get(monitorSymbol) ?? null,
-    clearQueuesForDirection: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => {
-      clearQueuesForDirectionWithLog({
+    clearMonitorDirectionQueues: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => {
+      clearMonitorDirectionQueuesWithLog({
         monitorSymbol,
         direction,
         monitorContexts,
@@ -605,8 +605,8 @@ async function main(): Promise<void> {
       }),
       createGlobalStateDomain({
         lastState,
-        runOpenRebuild: async (now: Date): Promise<void> => {
-          await runOpenRebuildUtil({
+        runTradingDayOpenRebuild: async (now: Date): Promise<void> => {
+          await executeTradingDayOpenRebuild({
             now,
             loadTradingDayRuntimeSnapshot,
             rebuildTradingDayState,

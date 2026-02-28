@@ -183,7 +183,7 @@ describe('monitorTaskProcessor business flow', () => {
       monitorTaskQueue: queue,
       refreshGate: createRefreshGate(),
       getMonitorContext: () => context as unknown as MonitorTaskContext,
-      clearQueuesForDirection: () => {},
+      clearMonitorDirectionQueues: () => {},
       trader: createTraderDouble(),
       lastState: createLastState(),
       tradingConfig: {
@@ -245,7 +245,7 @@ describe('monitorTaskProcessor business flow', () => {
       monitorTaskQueue: queue,
       refreshGate: createRefreshGate(),
       getMonitorContext: () => context as unknown as MonitorTaskContext,
-      clearQueuesForDirection: () => {},
+      clearMonitorDirectionQueues: () => {},
       trader: createTraderDouble(),
       lastState: createLastState(),
       tradingConfig: {
@@ -301,7 +301,7 @@ describe('monitorTaskProcessor business flow', () => {
       monitorTaskQueue: queue,
       refreshGate: createRefreshGate(),
       getMonitorContext: () => context as unknown as MonitorTaskContext,
-      clearQueuesForDirection: () => {},
+      clearMonitorDirectionQueues: () => {},
       trader: createTraderDouble(),
       lastState: createLastState(),
       tradingConfig: {
@@ -353,7 +353,7 @@ describe('monitorTaskProcessor business flow', () => {
       monitorTaskQueue: queue,
       refreshGate: createRefreshGate(),
       getMonitorContext: () => context as unknown as MonitorTaskContext,
-      clearQueuesForDirection: () => {},
+      clearMonitorDirectionQueues: () => {},
       trader: createTraderDouble(),
       lastState: createLastState(),
       tradingConfig: {
@@ -436,7 +436,7 @@ describe('monitorTaskProcessor business flow', () => {
       monitorTaskQueue: queue,
       refreshGate: createRefreshGate(),
       getMonitorContext: () => context as unknown as MonitorTaskContext,
-      clearQueuesForDirection: () => {},
+      clearMonitorDirectionQueues: () => {},
       trader: createTraderDouble({
         getAccountSnapshot: async () => {
           accountSnapshotCalls += 1;
@@ -532,7 +532,7 @@ describe('monitorTaskProcessor business flow', () => {
       monitorTaskQueue: queue,
       refreshGate: createRefreshGate(),
       getMonitorContext: () => context as unknown as MonitorTaskContext,
-      clearQueuesForDirection: () => {},
+      clearMonitorDirectionQueues: () => {},
       trader: createTraderDouble({
         executeSignals: async (signals) => {
           for (const signal of signals) {

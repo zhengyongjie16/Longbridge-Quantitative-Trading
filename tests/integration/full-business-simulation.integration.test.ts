@@ -540,7 +540,7 @@ describe('full business simulation integration', () => {
       monitorTaskQueue,
       refreshGate,
       getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol) ?? null,
-      clearQueuesForDirection: () => {},
+      clearMonitorDirectionQueues: () => {},
       trader,
       lastState,
       tradingConfig,
@@ -846,7 +846,7 @@ describe('full business simulation integration', () => {
       monitorTaskQueue,
       refreshGate,
       getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol) ?? null,
-      clearQueuesForDirection: () => {},
+      clearMonitorDirectionQueues: () => {},
       trader,
       lastState,
       tradingConfig,
@@ -894,7 +894,7 @@ describe('full business simulation integration', () => {
 
     const globalStateDomain = createGlobalStateDomain({
       lastState,
-      runOpenRebuild: async () => {
+      runTradingDayOpenRebuild: async () => {
         runOpenRebuildCount += 1;
       },
     });

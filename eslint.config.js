@@ -17,6 +17,38 @@ const restrictTemplateExpressionsRule = [
   },
 ];
 
+const noImportAliasRule = {
+  meta: {
+    type: 'suggestion',
+    schema: [],
+    messages: {
+      forbiddenAlias: "不允许重命名导入: '{{imported}} as {{local}}'",
+    },
+  },
+  create(context) {
+    return {
+      ImportSpecifier(node) {
+        const imported =
+          node.imported.type === 'Identifier' ? node.imported.name : String(node.imported.value);
+        const local = node.local.name;
+
+        if (imported === local) {
+          return;
+        }
+
+        context.report({
+          node,
+          messageId: 'forbiddenAlias',
+          data: {
+            imported,
+            local,
+          },
+        });
+      },
+    };
+  },
+};
+
 export default defineConfig(
   js.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
@@ -24,6 +56,13 @@ export default defineConfig(
   sonarjs.configs.recommended,
   eslintPluginUnicorn.configs.recommended,
   {
+    plugins: {
+      local: {
+        rules: {
+          'no-import-alias': noImportAliasRule,
+        },
+      },
+    },
     languageOptions: {
       parserOptions: {
         projectService: true,
@@ -151,6 +190,7 @@ export default defineConfig(
       'no-duplicate-imports': 'error',
       'no-nested-ternary': 'error',
       'prefer-arrow-callback': 'error',
+      'local/no-import-alias': 'error',
 
       // Unicorn 规则兼容性调整
       'unicorn/prefer-string-slice': 'off',
@@ -178,6 +218,7 @@ export default defineConfig(
     files: ['tests/**/*.ts'],
     rules: {
       // 测试文件统一放宽部分规则，减少测试实现噪音
+      'local/no-import-alias': 'off',
       '@typescript-eslint/no-empty-function': 'off',
       '@typescript-eslint/require-await': 'off',
       '@typescript-eslint/no-extraneous-class': 'off',

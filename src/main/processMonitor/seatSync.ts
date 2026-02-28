@@ -16,7 +16,7 @@
  */
 import { logger } from '../../utils/logger/index.js';
 import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
-import { clearQueuesForDirection as clearQueuesForDirectionUtil } from './utils.js';
+import { clearMonitorDirectionQueues } from './utils.js';
 import type { SeatSyncParams, SeatSyncResult } from './types.js';
 
 /**
@@ -75,8 +75,8 @@ export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
    * @param direction 席位方向（LONG/SHORT）
    * @returns 无返回值
    */
-  function clearQueuesForDirection(direction: 'LONG' | 'SHORT'): void {
-    const result = clearQueuesForDirectionUtil({
+  function clearDirectionQueues(direction: 'LONG' | 'SHORT'): void {
+    const result = clearMonitorDirectionQueues({
       monitorSymbol,
       direction,
       delayedSignalVerifier,
@@ -104,11 +104,11 @@ export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
 
   if (previousLongSeatState.status === 'READY' && longSeatState.status !== 'READY') {
     clearWarrantInfoForDirection('LONG');
-    clearQueuesForDirection('LONG');
+    clearDirectionQueues('LONG');
   }
   if (previousShortSeatState.status === 'READY' && shortSeatState.status !== 'READY') {
     clearWarrantInfoForDirection('SHORT');
-    clearQueuesForDirection('SHORT');
+    clearDirectionQueues('SHORT');
   }
 
   if (

@@ -9,7 +9,7 @@
  * - 释放对象池中的快照对象，防止内存泄漏
  *
  * 开盘重建：
- * - 调用 runOpenRebuild 执行完整的开盘重建流水线
+ * - 调用 runTradingDayOpenRebuild 执行完整的开盘重建流水线
  *   （加载运行时快照 → 重建交易日状态）
  */
 import { logger } from '../../../utils/logger/index.js';
@@ -57,20 +57,20 @@ function runGlobalMidnightClear(lastState: LastState): void {
 
 /**
  * 创建全局状态缓存域。
- * 午夜清理时重置交易门禁、交易日信息、allTradingSymbols 及各监控标的状态；开盘重建时调用 runOpenRebuild 执行完整流水线。
+ * 午夜清理时重置交易门禁、交易日信息、allTradingSymbols 及各监控标的状态；开盘重建时调用 runTradingDayOpenRebuild 执行完整流水线。
  *
- * @param deps 依赖注入，包含 lastState、runOpenRebuild
+ * @param deps 依赖注入，包含 lastState、runTradingDayOpenRebuild
  * @returns 实现 CacheDomain 的全局状态域实例
  */
 export function createGlobalStateDomain(deps: GlobalStateDomainDeps): CacheDomain {
-  const { lastState, runOpenRebuild } = deps;
+  const { lastState, runTradingDayOpenRebuild } = deps;
   return {
     midnightClear(): void {
       runGlobalMidnightClear(lastState);
       logger.info('[Lifecycle][globalState] 午夜状态清理完成');
     },
     async openRebuild(ctx): Promise<void> {
-      await runOpenRebuild(ctx.now);
+      await runTradingDayOpenRebuild(ctx.now);
       logger.info('[Lifecycle][globalState] 开盘重建流程执行完成');
     },
   };

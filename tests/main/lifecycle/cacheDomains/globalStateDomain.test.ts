@@ -2,7 +2,7 @@
  * 全局状态缓存域单元测试
  *
  * 覆盖：midnightClear 禁止交易、清空 allTradingSymbols、重置各 monitorState；
- * openRebuild 调用 runOpenRebuild(ctx.now)
+ * openRebuild 调用 runTradingDayOpenRebuild(ctx.now)
  */
 import { describe, it, expect } from 'bun:test';
 import { createGlobalStateDomain } from '../../../../src/main/lifecycle/cacheDomains/globalStateDomain.js';
@@ -47,7 +47,7 @@ describe('createGlobalStateDomain', () => {
     let runOpenRebuildCalled = false;
     const domain = createGlobalStateDomain({
       lastState,
-      runOpenRebuild: async () => {
+      runTradingDayOpenRebuild: async () => {
         runOpenRebuildCalled = true;
       },
     });
@@ -75,7 +75,7 @@ describe('createGlobalStateDomain', () => {
     expect(runOpenRebuildCalled).toBe(false);
   });
 
-  it('openRebuild 调用 runOpenRebuild(ctx.now)', async () => {
+  it('openRebuild 调用 runTradingDayOpenRebuild(ctx.now)', async () => {
     const lastState: LastState = {
       canTrade: false,
       isHalfDay: null,
@@ -95,7 +95,7 @@ describe('createGlobalStateDomain', () => {
     let capturedNow: Date | null = null as Date | null;
     const domain = createGlobalStateDomain({
       lastState,
-      runOpenRebuild: async (now: Date) => {
+      runTradingDayOpenRebuild: async (now: Date) => {
         capturedNow = now;
       },
     });

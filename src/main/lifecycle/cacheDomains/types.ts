@@ -93,11 +93,11 @@ export type MarketDataDomainDeps = Readonly<{
 
 /**
  * 全局状态域依赖。
- * 类型用途：createGlobalStateDomain 的入参，提供 lastState 与 runOpenRebuild 用于午夜清理与开盘重建。
+ * 类型用途：createGlobalStateDomain 的入参，提供 lastState 与 runTradingDayOpenRebuild 用于午夜清理与开盘重建。
  * 数据来源：由 lifecycle 在注册 cacheDomains 时传入。
  * 使用范围：仅 lifecycle 模块使用。
  */
 export type GlobalStateDomainDeps = Readonly<{
   lastState: LastState;
-  runOpenRebuild: (now: Date) => Promise<void>;
+  runTradingDayOpenRebuild: (now: Date) => Promise<void>;
 }>;

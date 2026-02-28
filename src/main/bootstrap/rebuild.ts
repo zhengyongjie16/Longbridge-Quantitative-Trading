@@ -7,7 +7,7 @@
  */
 import type {
   CachedTradingDayInfo,
-  RunOpenRebuildParams,
+  RunTradingDayOpenRebuildParams,
   TradingDayInfoResolver,
   TradingDayInfoResolverDeps,
 } from './types.js';
@@ -53,7 +53,9 @@ export function createTradingDayInfoResolver(
  * @param params 开盘重建参数，包含 now、快照加载函数与重建函数
  * @returns 重建完成后返回 Promise<void>
  */
-export async function runOpenRebuild(params: RunOpenRebuildParams): Promise<void> {
+export async function executeTradingDayOpenRebuild(
+  params: RunTradingDayOpenRebuildParams,
+): Promise<void> {
   const { now, loadTradingDayRuntimeSnapshot, rebuildTradingDayState } = params;
   const openRebuildSnapshot = await loadTradingDayRuntimeSnapshot({
     now,

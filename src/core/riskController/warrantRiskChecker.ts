@@ -27,7 +27,7 @@ import type { SignalType } from '../../types/signal.js';
 import type { Decimal } from 'longport';
 import type {
   MarketDataClient,
-  WarrantType,
+  BullBearWarrantType,
   RiskCheckResult,
   WarrantDistanceInfo,
   WarrantDistanceLiquidationResult,
@@ -61,11 +61,11 @@ function hasToNumber(value: unknown): value is { toNumber: () => number } {
  *
  * 统一文案来源，避免不同风险分支出现术语不一致。
  */
-function getWarrantTypeName(warrantType: WarrantType): string {
+function getWarrantTypeName(warrantType: BullBearWarrantType): string {
   return WARRANT_TYPE_NAMES[warrantType];
 }
 /** 解析 API 返回的 category 字段为牛熊证类型 */
-function parseWarrantType(category: unknown): WarrantType | null {
+function parseWarrantType(category: unknown): BullBearWarrantType | null {
   // 判断牛证：category 可能是数字 3（枚举值）或字符串 "Bull"
   if (category === 3 || category === 'Bull' || category === 'BULL') {
     return 'BULL';
@@ -107,7 +107,7 @@ function extractCategory(warrantQuote: unknown): unknown {
 /** 验证牛熊证类型：做多应为牛证，做空应为熊证 */
 function validateWarrantType(
   symbol: string,
-  warrantType: WarrantType,
+  warrantType: BullBearWarrantType,
   expectedType: 'CALL' | 'PUT',
 ): void {
   const isExpectedType =
@@ -197,7 +197,7 @@ function calculateDistancePercentDecimal(monitorCurrentPrice: number, callPrice:
 }
 /** 检查距离回收价是否在安全范围内 */
 function checkDistanceThreshold(
-  warrantType: WarrantType,
+  warrantType: BullBearWarrantType,
   distancePercent: Decimal,
   callPrice: number,
   monitorCurrentPrice: number,
@@ -259,7 +259,7 @@ function checkDistanceThreshold(
 }
 /** 构建距回收价清仓判定结果 */
 function buildDistanceLiquidationResult(
-  warrantType: WarrantType,
+  warrantType: BullBearWarrantType,
   distancePercent: Decimal,
   callPrice: number,
   monitorCurrentPrice: number,

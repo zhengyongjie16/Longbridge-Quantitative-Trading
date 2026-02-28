@@ -24,16 +24,19 @@ import type {
  * 创建席位刷新任务处理器。
  * 换标后刷新订单记录、日内亏损与浮亏数据，设置牛熊证信息并清理旧标的缓存；保证刷新顺序原子性，避免缓存污染。
  *
- * @param deps 依赖注入，包含 getContextOrSkip、clearQueuesForDirection、tradingConfig
+ * @param deps 依赖注入，包含 getContextOrSkip、clearMonitorDirectionQueues、tradingConfig
  * @returns 处理 SEAT_REFRESH 任务的异步函数
  */
 export function createSeatRefreshHandler({
   getContextOrSkip,
-  clearQueuesForDirection,
+  clearMonitorDirectionQueues,
   tradingConfig,
 }: {
   readonly getContextOrSkip: (monitorSymbol: string) => MonitorTaskContext | null;
-  readonly clearQueuesForDirection: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => void;
+  readonly clearMonitorDirectionQueues: (
+    monitorSymbol: string,
+    direction: 'LONG' | 'SHORT',
+  ) => void;
   readonly tradingConfig: MultiMonitorTradingConfig;
 }): (
   task: MonitorTask<MonitorTaskType, MonitorTaskData>,
@@ -66,7 +69,7 @@ export function createSeatRefreshHandler({
       frozenTradingDayKey: null,
     } as const;
     context.symbolRegistry.updateSeatState(monitorSymbol, direction, nextState);
-    clearQueuesForDirection(monitorSymbol, direction);
+    clearMonitorDirectionQueues(monitorSymbol, direction);
     logger.error(`[自动换标] ${monitorSymbol} ${direction} 换标失败（v${nextVersion}）：${reason}`);
   }
 

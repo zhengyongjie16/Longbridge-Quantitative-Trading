@@ -123,11 +123,11 @@ export type ClearQueuesForDirectionWithLogParams = Readonly<{
 
 /**
  * 开盘重建执行参数。
- * 类型用途：封装 runOpenRebuild 所需的当前时间和重建相关函数依赖。
+ * 类型用途：封装 runTradingDayOpenRebuild 所需的当前时间和重建相关函数依赖。
  * 数据来源：由主入口在创建 lifecycle 前组装并传入。
  * 使用范围：仅 bootstrap/rebuild 使用。
  */
-export type RunOpenRebuildParams = Readonly<{
+export type RunTradingDayOpenRebuildParams = Readonly<{
   now: Date;
   loadTradingDayRuntimeSnapshot: (
     params: LoadTradingDayRuntimeSnapshotParams,
@@ -137,11 +137,11 @@ export type RunOpenRebuildParams = Readonly<{
 
 /**
  * 队列清理执行函数签名。
- * 类型用途：约束 clearQueuesForDirection 返回结构，供 bootstrap/queueCleanup 复用。
+ * 类型用途：约束 clearMonitorDirectionQueues 返回结构，供 bootstrap/queueCleanup 复用。
  * 数据来源：由 processMonitor utils 实现。
  * 使用范围：仅 bootstrap 模块内部使用。
  */
-export type ClearQueuesForDirectionFn = (params: {
+export type ClearMonitorDirectionQueuesFn = (params: {
   readonly monitorSymbol: string;
   readonly direction: SeatDirection;
   readonly delayedSignalVerifier: MonitorContext['delayedSignalVerifier'];

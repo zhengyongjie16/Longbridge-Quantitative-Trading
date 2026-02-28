@@ -199,7 +199,7 @@ export type MonitorTaskProcessorDeps = Readonly<{
   monitorTaskQueue: MonitorTaskQueue<MonitorTaskType, MonitorTaskData>;
   refreshGate: RefreshGate;
   getMonitorContext: (monitorSymbol: string) => MonitorTaskContext | null;
-  clearQueuesForDirection: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => void;
+  clearMonitorDirectionQueues: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => void;
   trader: Trader;
   lastState: LastState;
   tradingConfig: MultiMonitorTradingConfig;

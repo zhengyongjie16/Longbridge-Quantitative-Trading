@@ -421,7 +421,7 @@ export type PendingRefreshSymbol = {
  * 数据来源：LongPort 行情静态信息或 RiskChecker 解析。
  * 使用范围：RiskChecker、UI/监控展示等；全项目可引用。
  */
-export type WarrantType = 'BULL' | 'BEAR';
+export type BullBearWarrantType = 'BULL' | 'BEAR';
 
 /**
  * 牛熊证距离回收价信息。
@@ -431,7 +431,7 @@ export type WarrantType = 'BULL' | 'BEAR';
  */
 export type WarrantDistanceInfo = {
   /** 牛熊证类型 */
-  readonly warrantType: WarrantType;
+  readonly warrantType: BullBearWarrantType;
   /** 距离回收价百分比 */
   readonly distanceToStrikePercent: number | null;
 };
@@ -458,7 +458,7 @@ export type WarrantDistanceLiquidationResult = {
   /** 是否触发清仓 */
   readonly shouldLiquidate: boolean;
   /** 牛熊证类型 */
-  readonly warrantType?: WarrantType;
+  readonly warrantType?: BullBearWarrantType;
   /** 距离回收价百分比 */
   readonly distancePercent?: number | null;
   /** 判定原因 */
@@ -481,7 +481,7 @@ export type RiskCheckResult = {
     /** 是否为牛熊证 */
     readonly isWarrant: boolean;
     /** 牛熊证类型 */
-    readonly warrantType: WarrantType;
+    readonly warrantType: BullBearWarrantType;
     /** 距离回收价百分比 */
     readonly distanceToStrikePercent: number;
   };

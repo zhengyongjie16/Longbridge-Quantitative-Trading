@@ -5,7 +5,7 @@
  * - 清理指定监控标的方向下的延迟/买卖/监控任务
  * - 统一输出队列清理统计日志
  */
-import { clearQueuesForDirection as clearQueuesForDirectionUtil } from '../processMonitor/utils.js';
+import { clearMonitorDirectionQueues } from '../processMonitor/utils.js';
 import { getQueueClearTotalRemoved } from '../../utils/utils.js';
 import type { ClearQueuesForDirectionWithLogParams } from './types.js';
 
@@ -16,7 +16,9 @@ import type { ClearQueuesForDirectionWithLogParams } from './types.js';
  * @param params 清理参数，包含 monitorSymbol、direction、队列实例、释放回调与 logger
  * @returns 无返回值
  */
-export function clearQueuesForDirectionWithLog(params: ClearQueuesForDirectionWithLogParams): void {
+export function clearMonitorDirectionQueuesWithLog(
+  params: ClearQueuesForDirectionWithLogParams,
+): void {
   const {
     monitorSymbol,
     direction,
@@ -33,7 +35,7 @@ export function clearQueuesForDirectionWithLog(params: ClearQueuesForDirectionWi
     return;
   }
 
-  const result = clearQueuesForDirectionUtil({
+  const result = clearMonitorDirectionQueues({
     monitorSymbol,
     direction,
     delayedSignalVerifier: monitorContext.delayedSignalVerifier,
