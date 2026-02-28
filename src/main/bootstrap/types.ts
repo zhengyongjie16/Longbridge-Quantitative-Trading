@@ -16,7 +16,7 @@ import type { Signal } from '../../types/signal.js';
 import type { MarketDataClient, TradingDayInfo } from '../../types/services.js';
 import type { LastState, MonitorContext } from '../../types/state.js';
 import type { Quote } from '../../types/quote.js';
-import type { QueueClearResult } from '../../types/queue/types.js';
+import type { QueueClearResult } from '../../types/queue.js';
 
 /**
  * 席位方向。

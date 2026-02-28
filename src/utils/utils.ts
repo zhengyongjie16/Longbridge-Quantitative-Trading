@@ -1,5 +1,5 @@
 import { ACCOUNT_CHANNEL_MAP } from '../constants/index.js';
-import type { QueueClearResult } from '../types/queue/types.js';
+import type { QueueClearResult } from '../types/queue.js';
 
 /**
  * 判断运行时校验标的是否应跳过收集。

@@ -11,7 +11,7 @@ import type {
   MonitorTaskData,
   MonitorTaskType,
 } from '../asyncProgram/monitorTaskProcessor/types.js';
-import type { QueueClearResult } from '../../types/queue/types.js';
+import type { QueueClearResult } from '../../types/queue.js';
 
 /**
  * 判断订单动作是否属于指定方向。
