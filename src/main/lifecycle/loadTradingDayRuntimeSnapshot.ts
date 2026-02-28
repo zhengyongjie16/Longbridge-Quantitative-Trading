@@ -20,21 +20,20 @@
  * - 开盘重建流程中由 globalStateDomain 调用
  */
 import { TRADING } from '../../constants/index.js';
-import { formatError } from '../../utils/helpers/index.js';
 import {
   getTradingMinutesSinceOpen,
   isWithinMorningOpenProtection,
-} from '../../utils/helpers/tradingTime.js';
+} from '../../utils/tradingTime/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { prepareSeatsOnStartup } from '../startup/seat.js';
 import { collectRuntimeQuoteSymbols, refreshAccountAndPositions } from '../utils.js';
 import type { RawOrderFromAPI } from '../../types/services.js';
+import { formatError } from '../../utils/error/index.js';
 import type {
   LoadTradingDayRuntimeSnapshotDeps,
   LoadTradingDayRuntimeSnapshotParams,
   LoadTradingDayRuntimeSnapshotResult,
 } from './types.js';
-
 /**
  * 创建交易日运行时快照加载函数（工厂）。
  * 注入依赖后返回 loadTradingDayRuntimeSnapshot，用于启动初始化与开盘重建时加载账户、持仓、订单、席位与行情快照。
@@ -55,7 +54,6 @@ export function createLoadTradingDayRuntimeSnapshot(
     tradeLogHydrator,
     warrantListCacheConfig,
   } = deps;
-
   /**
    * 加载交易日完整运行时快照：验证交易日 → 刷新账户持仓 → 获取全量订单
    * → 解析席位 → 水合冷却状态 → 重置行情订阅 → 订阅标的行情和 K 线 → 返回快照。
@@ -71,7 +69,6 @@ export function createLoadTradingDayRuntimeSnapshot(
       hydrateCooldownFromTradeLog,
       forceOrderRefresh,
     } = params;
-
     if (requireTradingDay) {
       const tradingDayInfo = await marketDataClient.isTradingDay(now);
       if (!tradingDayInfo.isTradingDay) {
@@ -80,7 +77,6 @@ export function createLoadTradingDayRuntimeSnapshot(
       lastState.cachedTradingDayInfo = tradingDayInfo;
       lastState.isHalfDay = tradingDayInfo.isHalfDay;
     }
-
     await trader.initializeOrderMonitor();
     await refreshAccountAndPositions(trader, lastState);
     if (!lastState.cachedAccount) {
@@ -89,9 +85,7 @@ export function createLoadTradingDayRuntimeSnapshot(
     if (!Array.isArray(lastState.cachedPositions)) {
       throw new TypeError('无法获取持仓信息');
     }
-
     logger.info('账户和持仓信息获取成功，开始解析席位');
-
     let allOrders: ReadonlyArray<RawOrderFromAPI> = [];
     try {
       allOrders = await trader.fetchAllOrdersFromAPI(forceOrderRefresh);
@@ -101,10 +95,8 @@ export function createLoadTradingDayRuntimeSnapshot(
       }
       logger.warn('[全量订单获取失败] 将按空订单继续初始化', formatError(err));
     }
-
     trader.seedOrderHoldSymbols(allOrders);
     dailyLossTracker.recalculateFromAllOrders(allOrders, tradingConfig.monitors, now);
-
     const seatResult = await prepareSeatsOnStartup({
       tradingConfig,
       symbolRegistry,
@@ -117,15 +109,12 @@ export function createLoadTradingDayRuntimeSnapshot(
       isWithinMorningOpenProtection,
       warrantListCacheConfig,
     });
-
     if (hydrateCooldownFromTradeLog) {
       tradeLogHydrator.hydrate({ seatSymbols: seatResult.seatSymbols });
     }
-
     if (resetRuntimeSubscriptions) {
       await marketDataClient.resetRuntimeSubscriptionsAndCaches();
     }
-
     const orderHoldSymbols = trader.getOrderHoldSymbols();
     const allTradingSymbols = collectRuntimeQuoteSymbols(
       tradingConfig.monitors,
@@ -137,14 +126,12 @@ export function createLoadTradingDayRuntimeSnapshot(
     if (allTradingSymbols.size > 0) {
       await marketDataClient.subscribeSymbols([...allTradingSymbols]);
     }
-
     for (const monitorConfig of tradingConfig.monitors) {
       await marketDataClient.subscribeCandlesticks(
         monitorConfig.monitorSymbol,
         TRADING.CANDLE_PERIOD,
       );
     }
-
     const quotesMap = await marketDataClient.getQuotes(allTradingSymbols);
     return {
       allOrders,

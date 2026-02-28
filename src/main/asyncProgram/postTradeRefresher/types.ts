@@ -1,7 +1,7 @@
 import type { LastState, MonitorContext } from '../../../types/state.js';
 import type { Quote } from '../../../types/quote.js';
 import type { PendingRefreshSymbol, Trader } from '../../../types/services.js';
-import type { RefreshGate } from '../../../utils/refreshGate/types.js';
+import type { RefreshGate } from '../../../utils/types.js';
 
 /**
  * 交易后刷新器入队参数（enqueue 的入参）。

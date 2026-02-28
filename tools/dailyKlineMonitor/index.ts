@@ -6,8 +6,9 @@
 import dotenv from 'dotenv';
 import { AdjustType, Period, QuoteContext, TradeSessions } from 'longport';
 import { createConfig } from '../../src/config/config.index.js';
-import { buildIndicatorSnapshot } from '../../src/services/indicators/utils.js';
-import { decimalToNumber, sleep } from '../../src/utils/helpers/index.js';
+import { buildIndicatorSnapshot } from '../../src/services/indicators/snapshotBuilder.js';
+import { sleep } from '../../src/main/utils.js';
+import { decimalToNumber } from '../../src/utils/helpers/index.js';
 import type { CandleData } from '../../src/types/data.js';
 import type { Quote } from '../../src/types/quote.js';
 import type { ChangeDetectConfig, IndicatorPeriods, MonitorContext } from './types.js';

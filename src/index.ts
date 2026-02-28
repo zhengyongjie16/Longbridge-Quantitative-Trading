@@ -29,7 +29,6 @@ import {
   validateAllConfig,
   validateRuntimeSymbolsFromQuotesMap,
 } from './config/config.validator.js';
-import type { RuntimeSymbolValidationInput } from './config/types.js';
 import { createHangSengMultiIndicatorStrategy } from './core/strategy/index.js';
 import { createDailyLossTracker } from './core/riskController/dailyLossTracker.js';
 import { createRiskChecker } from './core/riskController/index.js';
@@ -40,41 +39,21 @@ import { createUnrealizedLossMonitor } from './core/riskController/unrealizedLos
 import { createOrderFilteringEngine } from './core/orderRecorder/orderFilteringEngine.js';
 import { classifyAndConvertOrders } from './core/orderRecorder/utils.js';
 import { resolveOrderOwnership } from './core/orderRecorder/orderOwnershipParser.js';
-import {
-  initMonitorState,
-  formatError,
-  formatSymbolDisplay,
-  isSellAction,
-  sleep,
-  toHongKongTimeIso,
-} from './utils/helpers/index.js';
-import { resolveLogRootDir } from './utils/runtime.js';
+import { initMonitorState } from './utils/helpers/index.js';
 import { AUTO_SYMBOL_WARRANT_LIST_CACHE_TTL_MS, TRADING } from './constants/index.js';
-import {
-  getHKDateKey,
-  isInContinuousHKSession,
-  isWithinMorningOpenProtection,
-  isWithinAfternoonOpenProtection,
-} from './utils/helpers/tradingTime.js';
-
-// 账户显示、持仓缓存和核心服务模块
-import { displayAccountAndPositions } from './utils/helpers/accountDisplay.js';
-import { createPositionCache } from './utils/helpers/positionCache.js';
+// 账户显示和核心服务模块
 import { createMarketMonitor } from './services/marketMonitor/index.js';
 import { createDoomsdayProtection } from './core/doomsdayProtection/index.js';
 import { createSignalProcessor } from './core/signalProcessor/index.js';
 import { createLiquidationCooldownTracker } from './services/liquidationCooldown/index.js';
 import { createTradeLogHydrator } from './services/liquidationCooldown/tradeLogHydrator.js';
 import { createMarketDataClient } from './services/quoteClient/index.js';
-import { createRefreshGate } from './utils/refreshGate/index.js';
 import { createStartupGate } from './main/startup/gate.js';
-import { resolveReadySeatSymbol } from './main/startup/seat.js';
 import {
   applyStartupSnapshotFailureState,
   resolveGatePolicies,
   resolveRunMode,
 } from './main/startup/utils.js';
-
 // 异步任务处理架构模块
 import { createIndicatorCache } from './main/asyncProgram/indicatorCache/index.js';
 import { createDelayedSignalVerifier } from './main/asyncProgram/delayedSignalVerifier/index.js';
@@ -88,7 +67,6 @@ import { createMonitorTaskQueue } from './main/asyncProgram/monitorTaskQueue/ind
 import { createMonitorTaskProcessor } from './main/asyncProgram/monitorTaskProcessor/index.js';
 import { createOrderMonitorWorker } from './main/asyncProgram/orderMonitorWorker/index.js';
 import { createPostTradeRefresher } from './main/asyncProgram/postTradeRefresher/index.js';
-import { clearQueuesForDirection as clearQueuesForDirectionUtil } from './main/processMonitor/utils.js';
 import { createDayLifecycleManager } from './main/lifecycle/dayLifecycleManager.js';
 import { createSignalRuntimeDomain } from './main/lifecycle/cacheDomains/signalRuntimeDomain.js';
 import { createSeatDomain } from './main/lifecycle/cacheDomains/seatDomain.js';
@@ -98,7 +76,16 @@ import { createMarketDataDomain } from './main/lifecycle/cacheDomains/marketData
 import { createGlobalStateDomain } from './main/lifecycle/cacheDomains/globalStateDomain.js';
 import { createLoadTradingDayRuntimeSnapshot } from './main/lifecycle/loadTradingDayRuntimeSnapshot.js';
 import { createRebuildTradingDayState } from './main/lifecycle/rebuildTradingDayState.js';
-
+import { displayAccountAndPositions } from './main/bootstrap/accountDisplay.js';
+import { clearQueuesForDirectionWithLog } from './main/bootstrap/queueCleanup.js';
+import {
+  createTradingDayInfoResolver,
+  runOpenRebuild as runOpenRebuildUtil,
+} from './main/bootstrap/rebuild.js';
+import {
+  pushRuntimeValidationSymbol,
+  resolveSeatSymbolsByMonitor,
+} from './main/bootstrap/runtimeValidation.js';
 // 服务模块（monitorContext 用于初始化监控上下文，cleanup 用于退出清理）
 import { createMonitorContext } from './services/monitorContext/index.js';
 import { createAutoSymbolManager } from './services/autoSymbolManager/index.js';
@@ -110,23 +97,33 @@ import {
   describeSeatUnavailable,
 } from './services/autoSymbolManager/utils.js';
 import { createCleanup } from './services/cleanup/index.js';
-
 // 导入主程序循环
 import { mainProgram } from './main/mainProgram/index.js';
-
 // 类型从 types 直接导入
 import type { LastState, MonitorContext } from './types/state.js';
 import type { Quote } from './types/quote.js';
 import type { RawOrderFromAPI } from './types/services.js';
+import type { RuntimeValidationCollector } from './main/bootstrap/types.js';
 import type {
   MonitorTaskData,
   MonitorTaskType,
 } from './main/asyncProgram/monitorTaskProcessor/types.js';
 import { getSprintSacreMooacreMoo } from './utils/asciiArt/sacreMooacre.js';
 import { signalObjectPool } from './utils/objectPool/index.js';
-
+import { createPositionCache } from './utils/positionCache/index.js';
+import { createRefreshGate } from './utils/refreshGate/index.js';
+import { resolveLogRootDir } from './utils/runtime/index.js';
+import { formatError } from './utils/error/index.js';
+import { formatSymbolDisplay, isSellAction } from './utils/display/index.js';
+import { toHongKongTimeIso } from './utils/time/index.js';
+import {
+  getHKDateKey,
+  isInContinuousHKSession,
+  isWithinAfternoonOpenProtection,
+  isWithinMorningOpenProtection,
+} from './utils/tradingTime/index.js';
+import { sleep } from './main/utils.js';
 dotenv.config({ path: '.env.local' });
-
 /**
  * 程序主入口函数
  *
@@ -150,7 +147,6 @@ async function main(): Promise<void> {
     ttlMs: AUTO_SYMBOL_WARRANT_LIST_CACHE_TTL_MS,
     nowMs: () => Date.now(),
   };
-
   try {
     await validateAllConfig({ env, tradingConfig });
   } catch (err) {
@@ -162,52 +158,17 @@ async function main(): Promise<void> {
       process.exit(1);
     }
   }
-
   const config = createConfig({ env });
   const marketDataClient = await createMarketDataClient({ config });
   const runMode = resolveRunMode(env);
   const gatePolicies = resolveGatePolicies(runMode);
-
-  /**
-   * 解析监控标的对应的做多/做空席位标的代码
-   * 仅返回已就绪（Ready）状态的席位标的，未就绪时返回 null
-   */
-  function resolveSeatSymbols(monitorSymbol: string): {
-    longSeatSymbol: string | null;
-    shortSeatSymbol: string | null;
-  } {
-    return {
-      longSeatSymbol: resolveReadySeatSymbol(symbolRegistry, monitorSymbol, 'LONG'),
-      shortSeatSymbol: resolveReadySeatSymbol(symbolRegistry, monitorSymbol, 'SHORT'),
-    };
-  }
-
-  let cachedTradingDayInfo: {
-    dateStr: string;
-    info: { isTradingDay: boolean; isHalfDay: boolean };
-  } | null = null;
-
-  /**
-   * 获取交易日信息并按日期缓存，避免频繁调用 API
-   * 同一日期内直接返回缓存结果，跨日或首次调用时重新请求
-   */
-  async function resolveTradingDayInfo(
-    currentTime: Date,
-  ): Promise<{ isTradingDay: boolean; isHalfDay: boolean }> {
-    const dateStr = getHKDateKey(currentTime) ?? currentTime.toISOString().slice(0, 10);
-    if (cachedTradingDayInfo?.dateStr === dateStr) {
-      return cachedTradingDayInfo.info;
-    }
-    try {
-      const info = await marketDataClient.isTradingDay(currentTime);
-      cachedTradingDayInfo = { dateStr, info };
-      return info;
-    } catch (err) {
+  const resolveTradingDayInfo = createTradingDayInfoResolver({
+    marketDataClient,
+    getHKDateKey,
+    onResolveError: (err: unknown) => {
       logger.warn('无法获取交易日信息，按非交易日处理并等待重试', formatError(err));
-      return { isTradingDay: false, isHalfDay: false };
-    }
-  }
-
+    },
+  });
   // 启动门控：按交易日/时段/开盘保护决定是否等待启动
   const startupGate = createStartupGate({
     now: () => new Date(),
@@ -220,13 +181,10 @@ async function main(): Promise<void> {
     intervalMs: TRADING.INTERVAL_MS,
     logger,
   });
-
   // 等待门控完成并拿到交易日信息
   const startupTradingDayInfo = await startupGate.wait({ mode: gatePolicies.startupGate });
-
   // 清仓冷却追踪器：用于买入冷却判断
   const liquidationCooldownTracker = createLiquidationCooldownTracker({ nowMs: () => Date.now() });
-
   // 日内亏损跟踪器：基于订单记录计算与过滤
   const dailyLossFilteringEngine = createOrderFilteringEngine();
   const dailyLossTracker = createDailyLossTracker({
@@ -235,11 +193,9 @@ async function main(): Promise<void> {
     classifyAndConvertOrders,
     toHongKongTimeIso,
   });
-
   // 刷新门控：控制刷新节奏，避免频繁重算
   const refreshGate = createRefreshGate();
   const initialDayKey = getHKDateKey(new Date());
-
   // 记录上一次的数据状态（先创建以便注入执行门禁单一状态源）
   const lastState: LastState = {
     canTrade: null,
@@ -269,7 +225,6 @@ async function main(): Promise<void> {
     // 启动完成后再填充
     allTradingSymbols: new Set(),
   };
-
   // 交易器实例（注入核心依赖，isExecutionAllowed 以 lastState 为单一状态源）
   const trader = await createTrader({
     config,
@@ -280,9 +235,7 @@ async function main(): Promise<void> {
     refreshGate,
     isExecutionAllowed: () => lastState.isTradingEnabled,
   });
-
   logger.info('程序开始运行，在交易时段将进行实时监控和交易（按 Ctrl+C 退出）');
-
   // 交易日志回放器：用于恢复清仓冷却相关状态
   const tradeLogHydrator = createTradeLogHydrator({
     readFileSync: fs.readFileSync,
@@ -293,7 +246,6 @@ async function main(): Promise<void> {
     tradingConfig,
     liquidationCooldownTracker,
   });
-
   const loadTradingDayRuntimeSnapshot = createLoadTradingDayRuntimeSnapshot({
     marketDataClient,
     trader,
@@ -304,7 +256,6 @@ async function main(): Promise<void> {
     tradeLogHydrator,
     warrantListCacheConfig,
   });
-
   let allOrders: ReadonlyArray<RawOrderFromAPI> = [];
   let initQuotesMap: ReadonlyMap<string, Quote | null> = new Map();
   let startupRebuildPending = false;
@@ -324,12 +275,10 @@ async function main(): Promise<void> {
     applyStartupSnapshotFailureState(lastState, new Date());
     logger.error('启动快照加载失败：已阻断交易并切换为开盘重建重试模式', formatError(err));
   }
-
   // 初始化核心模块实例
   const marketMonitor = createMarketMonitor(); // 市场状态监控
   const doomsdayProtection = createDoomsdayProtection(); // 末日保护（收盘前清仓）
   const signalProcessor = createSignalProcessor({ tradingConfig, liquidationCooldownTracker }); // 信号处理和风险检查
-
   // 初始化异步任务处理架构
   // IndicatorCache 容量 = max(buyDelay, sellDelay) + 缓冲区，用于延迟验证时查询历史指标
   // 必须在 monitorContexts 之前初始化，因为 DelayedSignalVerifier 依赖 IndicatorCache
@@ -343,56 +292,55 @@ async function main(): Promise<void> {
   const buyTaskQueue = createBuyTaskQueue();
   const sellTaskQueue = createSellTaskQueue();
   const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
-
-  const runtimeValidationInputs: RuntimeSymbolValidationInput[] = [];
-  const requiredSymbols = new Set<string>();
-
-  /**
-   * 记录运行时行情验证所需标的（必选/可选）
-   * 已收录的标的跳过重复添加，required 为 true 时加入必选集合
-   */
-  function pushSymbol(
-    symbol: string | null,
-    label: string,
-    requireLotSize: boolean,
-    required: boolean,
-  ): void {
-    if (!symbol || requiredSymbols.has(symbol)) {
-      return;
-    }
-    if (required) {
-      requiredSymbols.add(symbol);
-    }
-    runtimeValidationInputs.push({
-      symbol,
-      label,
-      requireLotSize,
-      required,
-    });
-  }
-
+  const runtimeValidationCollector: RuntimeValidationCollector = {
+    requiredSymbols: new Set<string>(),
+    runtimeValidationInputs: [],
+  };
   // 收集监控标的与席位标的，作为运行时行情校验输入
   for (const monitorConfig of tradingConfig.monitors) {
     const index = monitorConfig.originalIndex;
-    pushSymbol(monitorConfig.monitorSymbol, `监控标的 ${index}`, false, true);
-
-    const { longSeatSymbol, shortSeatSymbol } = resolveSeatSymbols(monitorConfig.monitorSymbol);
+    pushRuntimeValidationSymbol({
+      symbol: monitorConfig.monitorSymbol,
+      label: `监控标的 ${index}`,
+      requireLotSize: false,
+      required: true,
+      collector: runtimeValidationCollector,
+    });
+    const { longSeatSymbol, shortSeatSymbol } = resolveSeatSymbolsByMonitor({
+      symbolRegistry,
+      monitorSymbol: monitorConfig.monitorSymbol,
+    });
     const autoSearchEnabled = monitorConfig.autoSearchConfig.autoSearchEnabled;
-    pushSymbol(longSeatSymbol, `做多席位标的 ${index}`, true, !autoSearchEnabled);
-    pushSymbol(shortSeatSymbol, `做空席位标的 ${index}`, true, !autoSearchEnabled);
+    pushRuntimeValidationSymbol({
+      symbol: longSeatSymbol,
+      label: `做多席位标的 ${index}`,
+      requireLotSize: true,
+      required: !autoSearchEnabled,
+      collector: runtimeValidationCollector,
+    });
+    pushRuntimeValidationSymbol({
+      symbol: shortSeatSymbol,
+      label: `做空席位标的 ${index}`,
+      requireLotSize: true,
+      required: !autoSearchEnabled,
+      collector: runtimeValidationCollector,
+    });
   }
-
   // 持仓标的只做可选校验（失败仅警告）
   for (const position of lastState.cachedPositions) {
-    pushSymbol(position.symbol, '持仓标的', false, false);
+    pushRuntimeValidationSymbol({
+      symbol: position.symbol,
+      label: '持仓标的',
+      requireLotSize: false,
+      required: false,
+      collector: runtimeValidationCollector,
+    });
   }
-
   // 根据行情缓存验证标的有效性与交易所需信息
   const runtimeValidationResult = validateRuntimeSymbolsFromQuotesMap({
-    inputs: runtimeValidationInputs,
+    inputs: runtimeValidationCollector.runtimeValidationInputs,
     quotesMap: initQuotesMap,
   });
-
   if (startupRebuildPending) {
     logger.warn('启动快照失败，跳过运行时标的验证，等待生命周期重建恢复');
   } else {
@@ -402,7 +350,6 @@ async function main(): Promise<void> {
         logger.warn(`${index + 1}. ${warning}`);
       }
     }
-
     if (!runtimeValidationResult.valid) {
       logger.error('标的验证失败！');
       logger.error('='.repeat(60));
@@ -413,7 +360,6 @@ async function main(): Promise<void> {
       process.exit(1);
     }
   }
-
   // 构建每个监控标的的运行上下文与依赖模块
   const monitorContexts: Map<string, MonitorContext> = new Map();
   for (const monitorConfig of tradingConfig.monitors) {
@@ -426,7 +372,6 @@ async function main(): Promise<void> {
       );
       continue;
     }
-
     // 初始化风控、自动寻标、策略、浮亏与延迟验证组件
     const warrantRiskChecker = createWarrantRiskChecker();
     const positionLimitChecker = createPositionLimitChecker({
@@ -445,7 +390,6 @@ async function main(): Promise<void> {
         maxUnrealizedLossPerSymbol: monitorConfig.maxUnrealizedLossPerSymbol,
       },
     });
-
     // 自动寻标管理器：负责席位寻标/换标流程
     const autoSymbolManager = createAutoSymbolManager({
       monitorConfig,
@@ -457,24 +401,20 @@ async function main(): Promise<void> {
       warrantListCacheConfig,
       getTradingCalendarSnapshot: () => lastState.tradingCalendarSnapshot ?? new Map(),
     });
-
     // 策略模块：生成交易信号
     const strategy = createHangSengMultiIndicatorStrategy({
       signalConfig: monitorConfig.signalConfig,
       verificationConfig: monitorConfig.verificationConfig,
     });
-
     // 浮亏监控器：监控单标的浮亏
     const unrealizedLossMonitor = createUnrealizedLossMonitor({
       maxUnrealizedLossPerSymbol: monitorConfig.maxUnrealizedLossPerSymbol,
     });
-
     // 延迟验证器：用于延迟信号验证
     const delayedSignalVerifier = createDelayedSignalVerifier({
       indicatorCache,
       verificationConfig: monitorConfig.verificationConfig,
     });
-
     // 构建监控上下文，聚合配置、状态与依赖
     const context = createMonitorContext({
       config: monitorConfig,
@@ -491,7 +431,6 @@ async function main(): Promise<void> {
     });
     monitorContexts.set(monitorConfig.monitorSymbol, context);
   }
-
   const rebuildTradingDayState = createRebuildTradingDayState({
     marketDataClient,
     trader,
@@ -510,11 +449,9 @@ async function main(): Promise<void> {
     });
     refreshGate.markFresh(refreshGate.getStatus().staleVersion);
   }
-
   // 注册延迟验证回调：验证通过后，买入信号入 buyTaskQueue，卖出信号入 sellTaskQueue
   for (const [monitorSymbol, monitorContext] of monitorContexts) {
     const { delayedSignalVerifier } = monitorContext;
-
     delayedSignalVerifier.onVerified((signal, signalMonitorSymbol) => {
       const ctx = monitorContexts.get(signalMonitorSymbol);
       if (!ctx) {
@@ -524,45 +461,35 @@ async function main(): Promise<void> {
         signalObjectPool.release(signal);
         return;
       }
-
       const signalDisplay = formatSymbolDisplay(signal.symbol, signal.symbolName ?? null);
       const signalLabel = `${signalDisplay} ${signal.action}`;
-
       function discardSignal(prefix: string): void {
         logger.info(`${prefix}: ${signalLabel}`);
         signalObjectPool.release(signal);
       }
-
       if (!lastState.isTradingEnabled) {
         discardSignal('[延迟验证通过] 生命周期门禁关闭，丢弃信号');
         return;
       }
-
       const isLongSignal = signal.action === 'BUYCALL' || signal.action === 'SELLCALL';
       const direction = isLongSignal ? 'LONG' : 'SHORT';
       const seatState = ctx.symbolRegistry.getSeatState(signalMonitorSymbol, direction);
       const seatVersion = ctx.symbolRegistry.getSeatVersion(signalMonitorSymbol, direction);
-
       if (!isSeatReady(seatState)) {
         discardSignal(`[延迟验证通过] ${describeSeatUnavailable(seatState)}，丢弃信号`);
         return;
       }
-
       if (!isSeatVersionMatch(signal.seatVersion, seatVersion)) {
         discardSignal('[延迟验证通过] 席位版本不匹配，丢弃信号');
         return;
       }
-
       if (signal.symbol !== seatState.symbol) {
         discardSignal('[延迟验证通过] 标的已切换，丢弃信号');
         return;
       }
-
       logger.info(`[延迟验证通过] 信号推入任务队列: ${signalLabel}`);
-
       // 根据信号类型分流到不同队列
       const isSellSignal = isSellAction(signal.action);
-
       if (isSellSignal) {
         // 卖出信号 → SellTaskQueue（独立队列，不被买入阻塞）
         sellTaskQueue.push({
@@ -579,46 +506,14 @@ async function main(): Promise<void> {
         });
       }
     });
-
     logger.debug(
       `[DelayedSignalVerifier] 监控标的 ${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)} 的验证器已初始化`,
     );
   }
-
-  /**
-   * 清理指定监控标的和方向的所有待执行任务队列
-   * 用于自动换标时清理旧标的的延迟信号、买卖任务和监控任务，防止旧信号在换标后被错误执行
-   */
-  function clearQueuesForDirection(monitorSymbol: string, direction: 'LONG' | 'SHORT'): void {
-    const monitorContext = monitorContexts.get(monitorSymbol);
-    if (!monitorContext) {
-      return;
-    }
-    const result = clearQueuesForDirectionUtil({
-      monitorSymbol,
-      direction,
-      delayedSignalVerifier: monitorContext.delayedSignalVerifier,
-      buyTaskQueue,
-      sellTaskQueue,
-      monitorTaskQueue,
-      releaseSignal: (signal) => {
-        signalObjectPool.release(signal);
-      },
-    });
-    const totalRemoved =
-      result.removedDelayed + result.removedBuy + result.removedSell + result.removedMonitorTasks;
-    if (totalRemoved > 0) {
-      logger.info(
-        `[自动换标] ${monitorSymbol} ${direction} 清理待执行信号：延迟=${result.removedDelayed} 买入=${result.removedBuy} 卖出=${result.removedSell} 监控任务=${result.removedMonitorTasks}`,
-      );
-    }
-  }
-
   // 订单监控工作器：负责盯单与自动调整订单
   const orderMonitorWorker = createOrderMonitorWorker({
     monitorAndManageOrders: (quotesMap) => trader.monitorAndManageOrders(quotesMap),
   });
-
   // 交易后刷新器：统一刷新账户/持仓/浮亏并展示
   const postTradeRefresher = createPostTradeRefresher({
     refreshGate,
@@ -627,19 +522,30 @@ async function main(): Promise<void> {
     monitorContexts,
     displayAccountAndPositions,
   });
-
   // 监控任务处理器：处理寻标/换标等监控任务
   const monitorTaskProcessor = createMonitorTaskProcessor({
     monitorTaskQueue,
     refreshGate,
     getMonitorContext: (monitorSymbol: string) => monitorContexts.get(monitorSymbol) ?? null,
-    clearQueuesForDirection,
+    clearQueuesForDirection: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => {
+      clearQueuesForDirectionWithLog({
+        monitorSymbol,
+        direction,
+        monitorContexts,
+        buyTaskQueue,
+        sellTaskQueue,
+        monitorTaskQueue,
+        releaseSignal: (signal) => {
+          signalObjectPool.release(signal);
+        },
+        logger,
+      });
+    },
     trader,
     lastState,
     tradingConfig,
     getCanProcessTask: () => lastState.isTradingEnabled,
   });
-
   // 创建买卖处理器，分别消费各自队列中的交易任务
   const buyProcessor = createBuyProcessor({
     taskQueue: buyTaskQueue,
@@ -651,7 +557,6 @@ async function main(): Promise<void> {
     getIsHalfDay: () => lastState.isHalfDay ?? false,
     getCanProcessTask: () => lastState.isTradingEnabled,
   });
-
   const sellProcessor = createSellProcessor({
     taskQueue: sellTaskQueue,
     getMonitorContext: (monitorSymbol: string) => monitorContexts.get(monitorSymbol),
@@ -661,26 +566,6 @@ async function main(): Promise<void> {
     refreshGate,
     getCanProcessTask: () => lastState.isTradingEnabled,
   });
-
-  /**
-   * 执行开盘重建：重新拉取订单和行情快照，重建当日运行态
-   * 在跨日或开盘保护结束后调用，确保状态与最新市场数据一致
-   */
-  async function runOpenRebuild(now: Date): Promise<void> {
-    const openRebuildSnapshot = await loadTradingDayRuntimeSnapshot({
-      now,
-      requireTradingDay: true,
-      failOnOrderFetchError: true,
-      resetRuntimeSubscriptions: true,
-      hydrateCooldownFromTradeLog: false,
-      forceOrderRefresh: true,
-    });
-    await rebuildTradingDayState({
-      allOrders: openRebuildSnapshot.allOrders,
-      quotesMap: openRebuildSnapshot.quotesMap,
-    });
-  }
-
   const dayLifecycleManager = createDayLifecycleManager({
     mutableState: lastState,
     cacheDomains: [
@@ -720,19 +605,23 @@ async function main(): Promise<void> {
       }),
       createGlobalStateDomain({
         lastState,
-        runOpenRebuild,
+        runOpenRebuild: async (now: Date): Promise<void> => {
+          await runOpenRebuildUtil({
+            now,
+            loadTradingDayRuntimeSnapshot,
+            rebuildTradingDayState,
+          });
+        },
       }),
     ],
     logger,
   });
-
   monitorTaskProcessor.start();
   // 启动 BuyProcessor 和 SellProcessor
   buyProcessor.start();
   sellProcessor.start();
   orderMonitorWorker.start();
   postTradeRefresher.start();
-
   // 注册退出清理函数（Ctrl+C 时优雅关闭）
   const cleanup = createCleanup({
     buyProcessor,
@@ -746,7 +635,6 @@ async function main(): Promise<void> {
     lastState,
   });
   cleanup.registerExitHandlers();
-
   // 主循环监控
   for (;;) {
     try {
@@ -774,11 +662,9 @@ async function main(): Promise<void> {
     } catch (err) {
       logger.error('本次执行失败', formatError(err));
     }
-
     await sleep(TRADING.INTERVAL_MS);
   }
 }
-
 // 启动程序
 try {
   await main();

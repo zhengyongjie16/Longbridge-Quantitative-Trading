@@ -23,7 +23,7 @@ import type {
 } from '../../types/services.js';
 import type { LiquidationCooldownTracker } from '../../services/liquidationCooldown/types.js';
 import type { DailyLossTracker } from '../riskController/types.js';
-import type { RefreshGate } from '../../utils/refreshGate/types.js';
+import type { RefreshGate } from '../../utils/types.js';
 
 /**
  * 订单提交 API 可能返回的响应形状。

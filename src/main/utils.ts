@@ -2,9 +2,28 @@ import type { Position } from '../types/account.js';
 import type { SymbolRegistry } from '../types/seat.js';
 import type { LastState } from '../types/state.js';
 import type { Trader } from '../types/services.js';
-import { formatError } from '../utils/helpers/index.js';
+import { TIME } from '../constants/index.js';
 import { logger } from '../utils/logger/index.js';
+import { formatError } from '../utils/error/index.js';
 
+/**
+ * 异步延迟指定毫秒数，无效值时使用 1000ms。
+ *
+ * @param ms 延迟毫秒数
+ * @returns Promise，延迟结束后 resolve
+ */
+export async function sleep(ms: number): Promise<void> {
+  const delay = ms;
+  if (!Number.isFinite(delay) || delay < 0) {
+    logger.warn(`[sleep] 无效的延迟时间 ${ms}，使用默认值 ${TIME.MILLISECONDS_PER_SECOND}ms`);
+    return new Promise<void>((resolve) => {
+      setTimeout(resolve, TIME.MILLISECONDS_PER_SECOND);
+    });
+  }
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, delay);
+  });
+}
 /**
  * 刷新账户与持仓缓存（仅数据拉取，不做行情订阅）。默认行为：仅当 lastState.cachedAccount 为空时调用
  * trader.getAccountSnapshot 与 getStockPositions，否则直接使用已有缓存；成功后更新 lastState 的
@@ -20,10 +39,8 @@ export async function refreshAccountAndPositions(
 ): Promise<void> {
   try {
     const hasCache = lastState.cachedAccount !== null;
-
     let account = lastState.cachedAccount;
     let positions = lastState.cachedPositions;
-
     if (!hasCache) {
       const [freshAccount, freshPositions] = await Promise.all([
         trader.getAccountSnapshot().catch((err: unknown) => {
@@ -35,7 +52,6 @@ export async function refreshAccountAndPositions(
           return [];
         }),
       ]);
-
       account = freshAccount;
       positions = freshPositions;
       lastState.cachedAccount = account;
@@ -46,7 +62,6 @@ export async function refreshAccountAndPositions(
     logger.warn('获取账户和持仓信息失败', formatError(err));
   }
 }
-
 /**
  * 收集运行时需要获取行情的标的代码集合（监控标的 + 席位占用标的 + 持仓标的 + 订单持有标的）。默认行为：合并去重后返回 Set。
  *
@@ -79,7 +94,6 @@ export function collectRuntimeQuoteSymbols(
   }
   return symbols;
 }
-
 /**
  * 计算两个行情标的集合的增量（新增与移除）。默认行为：遍历比较后返回 added/removed 数组。
  *
@@ -93,22 +107,18 @@ export function diffQuoteSymbols(
 ): { added: ReadonlyArray<string>; removed: ReadonlyArray<string> } {
   const added: string[] = [];
   const removed: string[] = [];
-
   for (const symbol of nextSymbols) {
     if (!prevSymbols.has(symbol)) {
       added.push(symbol);
     }
   }
-
   for (const symbol of prevSymbols) {
     if (!nextSymbols.has(symbol)) {
       removed.push(symbol);
     }
   }
-
   return { added, removed };
 }
-
 /**
  * 收集所有需要获取行情的标的代码（监控标的 + 席位占用标的），用于主循环一次性批量拉取行情。
  *
@@ -125,7 +135,6 @@ function collectAllQuoteSymbols(
   symbolRegistry?: SymbolRegistry | null,
 ): Set<string> {
   const symbols = new Set<string>();
-
   for (const config of monitorConfigs) {
     symbols.add(config.monitorSymbol);
     if (!symbolRegistry) {
@@ -140,6 +149,5 @@ function collectAllQuoteSymbols(
       symbols.add(shortSeat.symbol);
     }
   }
-
   return symbols;
 }

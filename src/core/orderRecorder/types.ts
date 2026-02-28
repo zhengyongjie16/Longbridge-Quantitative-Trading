@@ -1,7 +1,13 @@
 import type { TradeContext } from 'longport';
 import type { Quote } from '../../types/quote.js';
-import type { OrderRecord, RateLimiter, RawOrderFromAPI } from '../../types/services.js';
-import type { TradingCalendarSnapshot } from '../../types/tradingCalendar.js';
+import type {
+  OrderRecord,
+  PendingSellInfo,
+  RateLimiter,
+  RawOrderFromAPI,
+  SellableOrderResult,
+  SellableOrderSelectParams,
+} from '../../types/services.js';
 
 /**
  * 订单缓存类型。
@@ -97,70 +103,6 @@ export type OrderSnapshotSource = 'history' | 'today';
 export type MergedOrderEntry = {
   readonly source: OrderSnapshotSource;
   readonly order: RawOrderFromAPI;
-};
-
-/**
- * 待成交卖出订单信息。
- * 类型用途：智能平仓防重追踪，记录已提交但未成交的卖出订单及关联买单。
- * 数据来源：提交卖单时添加，成交/撤单时更新状态。
- * 使用范围：仅 orderRecorder 模块内部使用。
- */
-export type PendingSellInfo = {
-  /** 卖出订单ID */
-  readonly orderId: string;
-  /** 标的代码 */
-  readonly symbol: string;
-  /** 方向 */
-  readonly direction: 'LONG' | 'SHORT';
-  /** 提交数量 */
-  readonly submittedQuantity: number;
-  /** 已成交数量 */
-  readonly filledQuantity: number;
-  /** 关联的买入订单ID列表（精确标记哪些订单被占用） */
-  readonly relatedBuyOrderIds: readonly string[];
-  /** 状态 */
-  readonly status: 'pending' | 'partial' | 'filled' | 'cancelled';
-  /** 提交时间 */
-  readonly submittedAt: number;
-};
-
-/**
- * 可卖订单查询结果。
- * 类型用途：OrderStorage.selectSellableOrders 的返回结果，用于卖出数量计算与防重。
- * 数据来源：由 OrderStorage.selectSellableOrders 返回。
- * 使用范围：见调用方（如 signalProcessor、trader）。
- */
-export type SellableOrderResult = {
-  /** 可卖出的订单记录列表 */
-  readonly orders: ReadonlyArray<OrderRecord>;
-  /** 这些订单的总数量 */
-  readonly totalQuantity: number;
-};
-
-/**
- * 可卖订单筛选策略。
- * 类型用途：统一描述卖出订单筛选行为（全量/仅盈利/仅超时）。
- * 数据来源：由卖出决策层传入。
- * 使用范围：orderRecorder 与 signalProcessor 模块。
- */
-export type SellableOrderStrategy = 'ALL' | 'PROFIT_ONLY' | 'TIMEOUT_ONLY';
-
-/**
- * 可卖订单筛选参数。
- * 类型用途：selectSellableOrders 的对象入参，统一承载策略、价格、超时、截断和额外排除规则。
- * 数据来源：卖出决策层构建。
- * 使用范围：orderRecorder 与 signalProcessor 模块。
- */
-export type SellableOrderSelectParams = {
-  readonly symbol: string;
-  readonly direction: 'LONG' | 'SHORT';
-  readonly strategy: SellableOrderStrategy;
-  readonly currentPrice: number;
-  readonly maxSellQuantity?: number;
-  readonly excludeOrderIds?: ReadonlySet<string>;
-  readonly timeoutMinutes?: number | null;
-  readonly nowMs?: number;
-  readonly calendarSnapshot?: TradingCalendarSnapshot;
 };
 
 /**

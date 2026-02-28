@@ -5,23 +5,19 @@
  * - 验证自动寻标相关场景意图、边界条件与业务期望。
  */
 import { describe, expect, it } from 'bun:test';
-
 import { createAutoSearch } from '../../../src/services/autoSymbolManager/autoSearch.js';
 import { createSeatStateManager } from '../../../src/services/autoSymbolManager/seatStateManager.js';
-import { getHKDateKey } from '../../../src/utils/helpers/tradingTime.js';
-
+import { getHKDateKey } from '../../../src/utils/tradingTime/index.js';
 import {
   createMonitorConfigDouble,
   createSymbolRegistryDouble,
 } from '../../helpers/testDoubles.js';
-
 function createLoggerStub() {
   return {
     error: () => {},
     warn: () => {},
   } as never;
 }
-
 describe('autoSymbolManager autoSearch business flow', () => {
   it('fills EMPTY seat to READY and resets failure counters when a candidate is found', async () => {
     const monitorConfig = createMonitorConfigDouble({
@@ -38,7 +34,6 @@ describe('autoSymbolManager autoSearch business flow', () => {
         switchDistanceRangeBear: { min: -1.5, max: -0.2 },
       },
     });
-
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
       longSeat: {
@@ -51,7 +46,6 @@ describe('autoSymbolManager autoSearch business flow', () => {
         frozenTradingDayKey: null,
       },
     });
-
     const switchStates = new Map();
     const switchSuppressions = new Map();
     const manager = createSeatStateManager({
@@ -65,9 +59,7 @@ describe('autoSymbolManager autoSearch business flow', () => {
       } as never,
       getHKDateKey,
     });
-
     let findCalls = 0;
-
     const autoSearch = createAutoSearch({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: 'HSI.HK',
@@ -96,13 +88,11 @@ describe('autoSymbolManager autoSearch business flow', () => {
       maxSearchFailuresPerDay: 3,
       logger: createLoggerStub(),
     });
-
     await autoSearch.maybeSearchOnTick({
       direction: 'LONG',
       currentTime: new Date('2026-02-16T01:00:00.000Z'),
       canTradeNow: true,
     });
-
     const seat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
     expect(findCalls).toBe(1);
     expect(seat.status).toBe('READY');
@@ -112,7 +102,6 @@ describe('autoSymbolManager autoSearch business flow', () => {
     expect(seat.frozenTradingDayKey).toBeNull();
     expect(symbolRegistry.getSeatVersion('HSI.HK', 'LONG')).toBe(2);
   });
-
   it('freezes seat for the day after reaching max search failures', async () => {
     const monitorConfig = createMonitorConfigDouble({
       autoSearchConfig: {
@@ -128,7 +117,6 @@ describe('autoSymbolManager autoSearch business flow', () => {
         switchDistanceRangeBear: { min: -1.5, max: -0.2 },
       },
     });
-
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
       longSeat: {
@@ -141,7 +129,6 @@ describe('autoSymbolManager autoSearch business flow', () => {
         frozenTradingDayKey: null,
       },
     });
-
     const switchStates = new Map();
     const switchSuppressions = new Map();
     const manager = createSeatStateManager({
@@ -155,9 +142,7 @@ describe('autoSymbolManager autoSearch business flow', () => {
       } as never,
       getHKDateKey,
     });
-
     let findCalls = 0;
-
     const autoSearch = createAutoSearch({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: 'HSI.HK',
@@ -179,13 +164,11 @@ describe('autoSymbolManager autoSearch business flow', () => {
       maxSearchFailuresPerDay: 3,
       logger: createLoggerStub(),
     });
-
     await autoSearch.maybeSearchOnTick({
       direction: 'LONG',
       currentTime: new Date('2026-02-16T01:00:00.000Z'),
       canTradeNow: true,
     });
-
     const seat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
     expect(findCalls).toBe(1);
     expect(seat.status).toBe('EMPTY');
@@ -193,7 +176,6 @@ describe('autoSymbolManager autoSearch business flow', () => {
     expect(seat.frozenTradingDayKey).toBe('2026-02-16');
     expect(symbolRegistry.getSeatVersion('HSI.HK', 'LONG')).toBe(1);
   });
-
   it('honors search cooldown and skips finder call within cooldown window', async () => {
     const monitorConfig = createMonitorConfigDouble({
       autoSearchConfig: {
@@ -209,7 +191,6 @@ describe('autoSymbolManager autoSearch business flow', () => {
         switchDistanceRangeBear: { min: -1.5, max: -0.2 },
       },
     });
-
     const now = new Date('2026-02-16T01:00:00.000Z');
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
@@ -223,7 +204,6 @@ describe('autoSymbolManager autoSearch business flow', () => {
         frozenTradingDayKey: null,
       },
     });
-
     const switchStates = new Map();
     const switchSuppressions = new Map();
     const manager = createSeatStateManager({
@@ -237,9 +217,7 @@ describe('autoSymbolManager autoSearch business flow', () => {
       } as never,
       getHKDateKey,
     });
-
     let findCalls = 0;
-
     const autoSearch = createAutoSearch({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: 'HSI.HK',
@@ -261,13 +239,11 @@ describe('autoSymbolManager autoSearch business flow', () => {
       maxSearchFailuresPerDay: 3,
       logger: createLoggerStub(),
     });
-
     await autoSearch.maybeSearchOnTick({
       direction: 'LONG',
       currentTime: now,
       canTradeNow: true,
     });
-
     expect(findCalls).toBe(0);
   });
 });

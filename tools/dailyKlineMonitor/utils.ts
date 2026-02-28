@@ -1,7 +1,8 @@
 import type { Candlestick } from 'longport';
 import type { CandleData } from '../../src/types/data.js';
 import type { IndicatorSnapshot, Quote } from '../../src/types/quote.js';
-import { decimalToNumber, toHongKongTimeLog } from '../../src/utils/helpers/index.js';
+import { decimalToNumber } from '../../src/utils/helpers/index.js';
+import { toHongKongTimeLog } from '../../src/utils/primitives/index.js';
 import { formatFiniteNumber } from '../utils.js';
 import type {
   ChangeDetectConfig,

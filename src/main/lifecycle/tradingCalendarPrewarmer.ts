@@ -12,10 +12,10 @@
  */
 import { LIFECYCLE, TIME } from '../../constants/index.js';
 import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
-import { getHKDateKey } from '../../utils/helpers/tradingTime.js';
 import type { MonitorContext } from '../../types/state.js';
 import type { MarketDataClient, OrderRecord, TradingDayInfo } from '../../types/services.js';
 import { listHKDateKeysBetween, resolveHKDayStartUtcMs } from './utils.js';
+import { getHKDateKey } from '../../utils/tradingTime/index.js';
 import type {
   DateRangeChunk,
   PrewarmTradingCalendarSnapshotParams,
@@ -23,14 +23,12 @@ import type {
   TradingCalendarPrewarmErrorDetails,
   TradingCalendarPrewarmErrorParams,
 } from './types.js';
-
 /**
  * 交易日历预热错误，包含稳定错误码与结构化上下文，便于生命周期日志与告警定位。
  */
 export class TradingCalendarPrewarmError extends Error {
   public readonly code: TradingCalendarPrewarmErrorCode;
   public readonly details: TradingCalendarPrewarmErrorDetails;
-
   public constructor(params: TradingCalendarPrewarmErrorParams) {
     super(params.message);
     this.name = 'TradingCalendarPrewarmError';
@@ -38,7 +36,6 @@ export class TradingCalendarPrewarmError extends Error {
     this.details = params.details;
   }
 }
-
 /**
  * 在重建阶段预热交易日历快照：按 READY 席位仍持仓订单决定窗口，补齐缺失日期后写回 lastState。
  */
@@ -47,23 +44,18 @@ export async function prewarmTradingCalendarSnapshotForRebuild(
 ): Promise<void> {
   const { marketDataClient, lastState, monitorContexts, now } = params;
   const nowMs = now.getTime();
-
   const earliestOpenOrderMs = resolveEarliestOpenOrderExecutedMs(monitorContexts);
   const fallbackStartMs =
     nowMs - LIFECYCLE.CALENDAR_PREWARM_FALLBACK_LOOKBACK_DAYS * TIME.MILLISECONDS_PER_DAY;
   const demandStartMs = earliestOpenOrderMs ?? fallbackStartMs;
   const demandEndMs = nowMs + LIFECYCLE.CALENDAR_PREWARM_LOOKAHEAD_DAYS * TIME.MILLISECONDS_PER_DAY;
-
   assertCalendarLookbackRange(demandStartMs, nowMs);
-
   const demandDateKeys = listHKDateKeysBetween(demandStartMs, demandEndMs);
   if (demandDateKeys.length === 0) {
     return;
   }
-
   const nextSnapshot = new Map<string, TradingDayInfo>(lastState.tradingCalendarSnapshot ?? []);
   const missingDateKeys = demandDateKeys.filter((dateKey) => !nextSnapshot.has(dateKey));
-
   if (missingDateKeys.length > 0) {
     await (marketDataClient.getTradingDays
       ? hydrateSnapshotByMonthlyTradingDays({
@@ -77,15 +69,12 @@ export async function prewarmTradingCalendarSnapshotForRebuild(
           nextSnapshot,
         }));
   }
-
   const nowDateKey = getHKDateKey(now);
   if (nowDateKey && lastState.cachedTradingDayInfo) {
     nextSnapshot.set(nowDateKey, lastState.cachedTradingDayInfo);
   }
-
   lastState.tradingCalendarSnapshot = nextSnapshot;
 }
-
 /**
  * 从 READY 席位提取当前仍持仓买单，返回最早成交时间。
  */
@@ -93,12 +82,10 @@ function resolveEarliestOpenOrderExecutedMs(
   monitorContexts: ReadonlyMap<string, MonitorContext>,
 ): number | null {
   let earliestMs: number | null = null;
-
   for (const monitorContext of monitorContexts.values()) {
     const monitorSymbol = monitorContext.config.monitorSymbol;
     const longSeatState = monitorContext.symbolRegistry.getSeatState(monitorSymbol, 'LONG');
     const shortSeatState = monitorContext.symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
-
     if (isSeatReady(longSeatState)) {
       const longOrders = monitorContext.orderRecorder.getBuyOrdersForSymbol(
         longSeatState.symbol,
@@ -106,7 +93,6 @@ function resolveEarliestOpenOrderExecutedMs(
       );
       earliestMs = resolveMinTimestamp(earliestMs, longOrders);
     }
-
     if (isSeatReady(shortSeatState)) {
       const shortOrders = monitorContext.orderRecorder.getBuyOrdersForSymbol(
         shortSeatState.symbol,
@@ -115,10 +101,8 @@ function resolveEarliestOpenOrderExecutedMs(
       earliestMs = resolveMinTimestamp(earliestMs, shortOrders);
     }
   }
-
   return earliestMs;
 }
-
 /**
  * 在当前最小值基础上，用订单列表中的有效成交时间更新最小时间戳。
  */
@@ -127,7 +111,6 @@ function resolveMinTimestamp(
   orders: ReadonlyArray<OrderRecord>,
 ): number | null {
   let earliestMs = currentEarliestMs;
-
   for (const order of orders) {
     const executedTimeMs = order.executedTime;
     if (!Number.isFinite(executedTimeMs)) {
@@ -137,10 +120,8 @@ function resolveMinTimestamp(
       earliestMs = executedTimeMs;
     }
   }
-
   return earliestMs;
 }
-
 /**
  * 校验需求窗口是否落在交易日接口“最近一年”能力范围内。
  */
@@ -150,7 +131,6 @@ function assertCalendarLookbackRange(demandStartMs: number, nowMs: number): void
   if (demandStartMs >= earliestAllowedMs) {
     return;
   }
-
   throw new TradingCalendarPrewarmError({
     code: 'TRADING_CALENDAR_LOOKBACK_EXCEEDED',
     message: '[交易日历快照] 预热窗口超出接口最近一年限制，重建已阻断',
@@ -162,7 +142,6 @@ function assertCalendarLookbackRange(demandStartMs: number, nowMs: number): void
     },
   });
 }
-
 /**
  * 使用交易日批量接口按自然月分块补齐快照缺失日期。
  */
@@ -179,7 +158,6 @@ async function hydrateSnapshotByMonthlyTradingDays({
   if (!getTradingDays || dateKeys.length === 0) {
     return;
   }
-
   const chunks = splitMissingDateKeysByMonth(dateKeys);
   for (const chunk of chunks) {
     const startDate = resolveDateFromHKDateKey(chunk.startKey);
@@ -187,7 +165,6 @@ async function hydrateSnapshotByMonthlyTradingDays({
     const result = await getTradingDays(startDate, endDate);
     const tradingSet = new Set(result.tradingDays);
     const halfDaySet = new Set(result.halfTradingDays);
-
     for (const dateKey of chunk.dateKeys) {
       const isHalfDay = halfDaySet.has(dateKey);
       const isTradingDay = isHalfDay || tradingSet.has(dateKey);
@@ -195,7 +172,6 @@ async function hydrateSnapshotByMonthlyTradingDays({
     }
   }
 }
-
 /**
  * 批量接口不可用时逐日查询，仍保持按缺失日期补齐语义。
  */
@@ -214,7 +190,6 @@ async function hydrateSnapshotByDailyTradingDay({
     nextSnapshot.set(dateKey, dayInfo);
   }
 }
-
 /**
  * 将缺失日期键切分为“同月且连续”的查询分块，确保每次请求不跨自然月且不覆盖已存在日期。
  */
@@ -224,17 +199,14 @@ function splitMissingDateKeysByMonth(
   if (dateKeys.length === 0) {
     return [];
   }
-
   const firstDateKey = dateKeys[0];
   if (!firstDateKey) {
     return [];
   }
-
   const chunks: DateRangeChunk[] = [];
   let chunkStartKey = firstDateKey;
   let previousKey = firstDateKey;
   let chunkDateKeys: string[] = [chunkStartKey];
-
   for (let index = 1; index < dateKeys.length; index += 1) {
     const currentKey = dateKeys[index];
     if (!currentKey) {
@@ -242,33 +214,27 @@ function splitMissingDateKeysByMonth(
     }
     const sameMonth = resolveMonthKey(chunkStartKey) === resolveMonthKey(currentKey);
     const consecutiveDay = isConsecutiveDateKey(previousKey, currentKey);
-
     if (sameMonth && consecutiveDay) {
       chunkDateKeys.push(currentKey);
       previousKey = currentKey;
       continue;
     }
-
     chunks.push({
       startKey: chunkStartKey,
       endKey: previousKey,
       dateKeys: chunkDateKeys,
     });
-
     chunkStartKey = currentKey;
     previousKey = currentKey;
     chunkDateKeys = [currentKey];
   }
-
   chunks.push({
     startKey: chunkStartKey,
     endKey: previousKey,
     dateKeys: chunkDateKeys,
   });
-
   return chunks;
 }
-
 /**
  * 判断两个日期键是否为相邻自然日。
  */
@@ -278,17 +244,14 @@ function isConsecutiveDateKey(previousKey: string, currentKey: string): boolean 
   if (previousDayStartMs === null || currentDayStartMs === null) {
     return false;
   }
-
   return currentDayStartMs - previousDayStartMs === TIME.MILLISECONDS_PER_DAY;
 }
-
 /**
  * 获取日期键的 YYYY-MM 月键。
  */
 function resolveMonthKey(dayKey: string): string {
   return dayKey.slice(0, 7);
 }
-
 /**
  * 将港股日期键转换为对应港股日 00:00 的 Date（UTC）。
  */
@@ -301,6 +264,5 @@ function resolveDateFromHKDateKey(dayKey: string): Date {
       details: { dateKey: dayKey },
     });
   }
-
   return new Date(dayStartUtcMs);
 }

@@ -11,7 +11,6 @@
  * - 本模块在决定卖出时使用当前 quote，并写回 signal.price，确保 orderExecutor 提交时用的是执行时价格。
  */
 import { logger } from '../../utils/logger/index.js';
-import { isSellAction } from '../../utils/helpers/index.js';
 import { getLongDirectionName, getShortDirectionName } from '../utils.js';
 import {
   buildSellReason,
@@ -24,7 +23,7 @@ import type { Quote } from '../../types/quote.js';
 import type { OrderRecorder } from '../../types/services.js';
 import type { ProcessSellSignalsParams } from './types.js';
 import type { TradingCalendarSnapshot } from '../../types/tradingCalendar.js';
-
+import { isSellAction } from '../../utils/display/index.js';
 /**
  * 计算卖出信号的数量和原因
  * 智能平仓开启：按三阶段规则计算；关闭：清仓所有持仓
@@ -62,10 +61,8 @@ function calculateSellQuantity(params: {
     isHalfDay,
     tradingCalendarSnapshot,
   } = params;
-
   const reason = originalReason || '';
   const directionName = direction === 'LONG' ? getLongDirectionName() : getShortDirectionName();
-
   // 验证输入参数
   const validationResult = validateSellContext(position, quote);
   if (!validationResult.valid) {
@@ -76,9 +73,7 @@ function calculateSellQuantity(params: {
       relatedBuyOrderIds: [],
     };
   }
-
   const { currentPrice, availableQuantity } = validationResult;
-
   // 智能平仓关闭：直接清仓所有持仓
   if (!smartCloseEnabled) {
     const fullCloseResult = resolveSellQuantityByFullClose({
@@ -90,7 +85,6 @@ function calculateSellQuantity(params: {
       reason: buildSellReason(reason, fullCloseResult.reason),
     };
   }
-
   // 智能平仓开启：按三阶段规则计算可卖数量，并结合订单记录做防重扣减，避免重复卖出同一批持仓
   const smartCloseResult = resolveSellQuantityBySmartClose({
     orderRecorder,
@@ -103,13 +97,11 @@ function calculateSellQuantity(params: {
     isHalfDay,
     tradingCalendarSnapshot,
   });
-
   return {
     ...smartCloseResult,
     reason: buildSellReason(reason, smartCloseResult.reason),
   };
 }
-
 /**
  * 处理卖出信号，计算实际卖出数量并写回信号对象
  *
@@ -136,13 +128,11 @@ export const processSellSignals = (
     isHalfDay,
     tradingCalendarSnapshot,
   } = params;
-
   for (const sig of signals) {
     // 只处理卖出信号（SELLCALL 和 SELLPUT），跳过买入信号
     if (!isSellAction(sig.action)) {
       continue;
     }
-
     // 根据信号类型确定对应的持仓和行情
     const isLongSignal = sig.action === 'SELLCALL';
     const position = isLongSignal ? longPosition : shortPosition;
@@ -150,10 +140,8 @@ export const processSellSignals = (
     const direction: 'LONG' | 'SHORT' = isLongSignal ? 'LONG' : 'SHORT';
     const directionName = isLongSignal ? '做多' : '做空';
     const signalName = isLongSignal ? 'SELLCALL' : 'SELLPUT';
-
     // 检查是否是末日保护程序的清仓信号（无条件清仓，不受智能平仓影响）
     const isDoomsdaySignal = sig.reason?.includes('末日保护程序');
-
     // 持仓或行情缺失时记录日志
     if (!position) {
       logger.warn(
@@ -175,7 +163,6 @@ export const processSellSignals = (
         `[卖出信号处理] ${signalName}: 当前价格=${quote.price.toFixed(3)}, 可用数量=${position.availableQuantity}`,
       );
     }
-
     if (isDoomsdaySignal) {
       // 末日保护程序：无条件清仓，使用全部可用数量
       if (position && position.availableQuantity > 0) {
@@ -232,6 +219,5 @@ export const processSellSignals = (
       }
     }
   }
-
   return signals;
 };

@@ -1,4 +1,4 @@
-import { isValidNumber } from '../../utils/helpers/indicatorHelpers.js';
+import { isValidNumber } from '../../utils/indicatorHelpers/index.js';
 import { DEFAULT_PERCENT_DECIMALS } from '../../constants/index.js';
 import type { ObjectPool } from '../../utils/objectPool/types.js';
 import type { UnrealizedLossMetrics, WarrantDistanceInfo } from '../../types/services.js';

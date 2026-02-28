@@ -20,14 +20,13 @@ import {
   getShortDirectionName,
 } from '../utils.js';
 import type { Quote } from '../../types/quote.js';
-import type { OrderRecord } from '../../types/services.js';
 import type {
-  OrderStorage,
-  OrderStorageDeps,
+  OrderRecord,
   PendingSellInfo,
   SellableOrderResult,
   SellableOrderSelectParams,
-} from './types.js';
+} from '../../types/services.js';
+import type { OrderStorage, OrderStorageDeps } from './types.js';
 import { calculateOrderStatistics, calculateTotalQuantity, isOrderTimedOut } from './utils.js';
 import { deductSellQuantityFromBuyOrders } from './sellDeductionPolicy.js';
 

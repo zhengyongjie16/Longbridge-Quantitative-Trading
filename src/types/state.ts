@@ -2,13 +2,125 @@ import type { SignalType, Signal } from './signal.js';
 import type { MonitorValues } from './data.js';
 import type { IndicatorSnapshot, Quote } from './quote.js';
 import type { AccountSnapshot, Position } from './account.js';
+import type { OrderSide } from 'longport';
 import type { MonitorConfig } from './config.js';
 import type { SeatState, SymbolRegistry, LifecycleState } from './seat.js';
-import type { PositionCache, OrderRecorder, RiskChecker, TradingDayInfo } from './services.js';
-import type { AutoSymbolManager } from '../services/autoSymbolManager/types.js';
-import type { HangSengMultiIndicatorStrategy } from '../core/strategy/types.js';
-import type { DailyLossTracker, UnrealizedLossMonitor } from '../core/riskController/types.js';
-import type { DelayedSignalVerifier } from '../main/asyncProgram/delayedSignalVerifier/types.js';
+import type {
+  OrderRecorder,
+  PositionCache,
+  RawOrderFromAPI,
+  RiskChecker,
+  Trader,
+  TradingDayInfo,
+} from './services.js';
+
+/**
+ * 自动换标管理器行为契约。
+ * 类型用途：约束 MonitorContext.autoSymbolManager 的可调用方法，避免 types 层反向依赖业务实现模块。
+ * 数据来源：由 autoSymbolManager 模块实现并注入。
+ * 使用范围：MonitorContext 与调用方使用。
+ */
+export interface AutoSymbolManager {
+  maybeSearchOnTick: (params: {
+    readonly direction: 'LONG' | 'SHORT';
+    readonly currentTime: Date;
+    readonly canTradeNow: boolean;
+  }) => Promise<void>;
+  maybeSwitchOnInterval: (params: {
+    readonly direction: 'LONG' | 'SHORT';
+    readonly currentTime: Date;
+    readonly canTradeNow: boolean;
+    readonly openProtectionActive: boolean;
+  }) => Promise<void>;
+  maybeSwitchOnDistance: (params: {
+    readonly direction: 'LONG' | 'SHORT';
+    readonly monitorPrice: number | null;
+    readonly quotesMap: ReadonlyMap<string, Quote | null>;
+    readonly positions: ReadonlyArray<Position>;
+  }) => Promise<void>;
+  hasPendingSwitch: (direction: 'LONG' | 'SHORT') => boolean;
+  resetAllState: () => void;
+}
+
+/**
+ * 恒生多指标策略行为契约。
+ * 类型用途：约束 MonitorContext.strategy 的信号生成方法。
+ * 数据来源：由 strategy 模块实现并注入。
+ * 使用范围：processMonitor/signalPipeline 等调用方使用。
+ */
+export interface HangSengMultiIndicatorStrategy {
+  generateCloseSignals: (
+    state: IndicatorSnapshot | null,
+    longSymbol: string,
+    shortSymbol: string,
+    orderRecorder: OrderRecorder,
+  ) => {
+    readonly immediateSignals: ReadonlyArray<Signal>;
+    readonly delayedSignals: ReadonlyArray<Signal>;
+  };
+}
+
+/**
+ * 当日亏损跟踪器行为契约。
+ * 类型用途：约束 MonitorContext.dailyLossTracker 的核心方法。
+ * 数据来源：由 riskController 模块实现并注入。
+ * 使用范围：监控任务、成交处理与风险计算链路使用。
+ */
+export interface DailyLossTracker {
+  resetAll: (now: Date) => void;
+  recalculateFromAllOrders: (
+    allOrders: ReadonlyArray<RawOrderFromAPI>,
+    monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
+    now: Date,
+  ) => void;
+  recordFilledOrder: (input: {
+    readonly monitorSymbol: string;
+    readonly symbol: string;
+    readonly isLongSymbol: boolean;
+    readonly side: OrderSide;
+    readonly executedPrice: number;
+    readonly executedQuantity: number;
+    readonly executedTimeMs: number;
+    readonly orderId?: string | null;
+  }) => void;
+  getLossOffset: (monitorSymbol: string, isLongSymbol: boolean) => number;
+}
+
+/**
+ * 浮亏监控器行为契约。
+ * 类型用途：约束 MonitorContext.unrealizedLossMonitor 的调用签名。
+ * 数据来源：由 riskController 模块实现并注入。
+ * 使用范围：monitorTaskProcessor 等调用方使用。
+ */
+export interface UnrealizedLossMonitor {
+  monitorUnrealizedLoss: (context: {
+    readonly longQuote: Quote | null;
+    readonly shortQuote: Quote | null;
+    readonly longSymbol: string;
+    readonly shortSymbol: string;
+    readonly monitorSymbol: string;
+    readonly riskChecker: RiskChecker;
+    readonly trader: Trader;
+    readonly orderRecorder: OrderRecorder;
+    readonly dailyLossTracker: DailyLossTracker;
+  }) => Promise<void>;
+}
+
+/**
+ * 延迟信号验证器行为契约。
+ * 类型用途：约束 MonitorContext.delayedSignalVerifier 的生命周期与队列操作方法。
+ * 数据来源：由 delayedSignalVerifier 模块实现并注入。
+ * 使用范围：signalPipeline、mainProgram、cleanup、queue 清理逻辑使用。
+ */
+export interface DelayedSignalVerifier {
+  addSignal: (signal: Signal, monitorSymbol: string) => void;
+  onVerified: (callback: (signal: Signal, monitorSymbol: string) => void) => void;
+  cancelAll: () => number;
+  cancelAllForSymbol: (monitorSymbol: string) => void;
+  cancelAllForDirection: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => number;
+  getPendingCount: () => number;
+  destroy: () => void;
+}
 
 /**
  * 单个监控标的的运行时状态。

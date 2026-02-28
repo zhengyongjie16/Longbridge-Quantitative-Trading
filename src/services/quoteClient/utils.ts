@@ -1,8 +1,8 @@
 import { NaiveDate, Period } from 'longport';
-import { isValidPositiveNumber, isRecord } from '../../utils/helpers/index.js';
-import { getHKDateKey } from '../../utils/helpers/tradingTime.js';
+import { isValidPositiveNumber } from '../../utils/helpers/index.js';
+import { isRecord } from '../../utils/primitives/index.js';
 import type { StaticInfo } from './types.js';
-
+import { getHKDateKey } from '../../utils/tradingTime/index.js';
 const PERIOD_LABEL_MAP: Readonly<Record<number, string>> = {
   [Period.Unknown]: '未知',
   [Period.Min_1]: '1分钟',
@@ -24,7 +24,6 @@ const PERIOD_LABEL_MAP: Readonly<Record<number, string>> = {
   [Period.Quarter]: '季K',
   [Period.Year]: '年K',
 } as const;
-
 /**
  * 将 Period 枚举转为可读标签，用于日志等展示
  * @param period K 线周期枚举值
@@ -34,7 +33,6 @@ export function formatPeriodForLog(period: Period): string {
   const label = PERIOD_LABEL_MAP[period];
   return label ?? `未知(${period})`;
 }
-
 /**
  * 类型保护：判断 unknown 是否可作为 StaticInfo 使用。
  *
@@ -46,14 +44,12 @@ function isStaticInfo(value: unknown): value is StaticInfo {
     return false;
   }
   const valueRecord = value;
-
   function isNullableStringProperty(propertyKey: 'nameHk' | 'nameCn' | 'nameEn'): boolean {
     const propertyValue: unknown = valueRecord[propertyKey];
     return (
       propertyValue === undefined || propertyValue === null || typeof propertyValue === 'string'
     );
   }
-
   const lotSizeValue: unknown = valueRecord['lotSize'];
   return (
     isNullableStringProperty('nameHk') &&
@@ -62,7 +58,6 @@ function isStaticInfo(value: unknown): value is StaticInfo {
     (lotSizeValue === undefined || lotSizeValue === null || typeof lotSizeValue === 'number')
   );
 }
-
 /**
  * 从静态信息中安全提取 lotSize
  * @param staticInfo 静态信息对象
@@ -73,19 +68,15 @@ export function extractLotSize(staticInfo: unknown): number | undefined {
     return undefined;
   }
   const lotSizeValue = staticInfo.lotSize ?? null;
-
   if (lotSizeValue === null) {
     return undefined;
   }
-
   const parsed = lotSizeValue;
   if (isValidPositiveNumber(parsed)) {
     return parsed;
   }
-
   return undefined;
 }
-
 /**
  * 从静态信息中安全提取名称
  * @param staticInfo 静态信息对象
@@ -97,7 +88,6 @@ export function extractName(staticInfo: unknown): string | null {
   }
   return staticInfo.nameHk ?? staticInfo.nameCn ?? staticInfo.nameEn ?? null;
 }
-
 /**
  * 获取港股日期键（UTC+8），确保返回非空值
  * @param date 时间对象
@@ -108,13 +98,11 @@ export function resolveHKDateKey(date: Date): string {
   if (hkDateKey !== null) {
     return hkDateKey;
   }
-
   const year = date.getUTCFullYear();
   const month = String(date.getUTCMonth() + 1).padStart(2, '0');
   const day = String(date.getUTCDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
-
 /**
  * 将时间对象转换为港股日期的 NaiveDate
  * @param date 时间对象

@@ -13,11 +13,9 @@
  * - 保证同一时刻只有一个 monitorAndManageOrders 在运行
  */
 import { logger } from '../../../utils/logger/index.js';
-import { formatError } from '../../../utils/helpers/index.js';
-
 import type { Quote } from '../../../types/quote.js';
 import type { OrderMonitorWorker, OrderMonitorWorkerDeps } from './types.js';
-
+import { formatError } from '../../../utils/error/index.js';
 /**
  * 创建订单监控工作器。
  * 使用「最新覆盖」策略异步执行订单监控：同一时刻仅有一个 monitorAndManageOrders 在运行，
@@ -28,13 +26,11 @@ import type { OrderMonitorWorker, OrderMonitorWorkerDeps } from './types.js';
  */
 export function createOrderMonitorWorker(deps: OrderMonitorWorkerDeps): OrderMonitorWorker {
   const { monitorAndManageOrders } = deps;
-
   let running = true;
   let inFlight = false;
   let latestQuotes: ReadonlyMap<string, Quote | null> | null = null;
   let drainResolve: (() => void) | null = null;
   const hasQueuedQuotes = (): boolean => latestQuotes !== null;
-
   /**
    * 执行一次订单监控，消费 latestQuotes 并调用 monitorAndManageOrders
    * 完成后若有新行情则自动触发下一次执行，保证最新行情不被丢弃
@@ -43,11 +39,9 @@ export function createOrderMonitorWorker(deps: OrderMonitorWorkerDeps): OrderMon
     if (!running || inFlight || !latestQuotes) {
       return;
     }
-
     const quotes = latestQuotes;
     latestQuotes = null;
     inFlight = true;
-
     try {
       await monitorAndManageOrders(quotes);
     } catch (err) {
@@ -61,7 +55,6 @@ export function createOrderMonitorWorker(deps: OrderMonitorWorkerDeps): OrderMon
       }
     }
   }
-
   /**
    * 记录最新行情并触发执行
    * 若当前有任务在执行，仅更新 latestQuotes，等待当前任务完成后自动消费
@@ -75,7 +68,6 @@ export function createOrderMonitorWorker(deps: OrderMonitorWorkerDeps): OrderMon
       void run();
     }
   }
-
   /**
    * 停止工作器并等待当前在途任务完成
    * 清空待执行行情，确保停止后不再触发新的监控执行
@@ -88,21 +80,18 @@ export function createOrderMonitorWorker(deps: OrderMonitorWorkerDeps): OrderMon
       drainResolve = resolve;
     });
   }
-
   /**
    * 启动工作器，允许后续 schedule 调用触发执行
    */
   function start(): void {
     running = true;
   }
-
   /**
    * 清空待执行行情，用于生命周期重置时丢弃未消费的行情数据
    */
   function clearLatestQuotes(): void {
     latestQuotes = null;
   }
-
   return {
     start,
     schedule,

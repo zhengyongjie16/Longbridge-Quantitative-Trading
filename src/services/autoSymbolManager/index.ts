@@ -12,7 +12,7 @@ import {
   getHKDateKey,
   getTradingMinutesSinceOpen,
   isWithinMorningOpenProtection,
-} from '../../utils/helpers/tradingTime.js';
+} from '../../utils/tradingTime/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import {
@@ -36,7 +36,6 @@ import {
 import { createSeatStateManager } from './seatStateManager.js';
 import { createAutoSearch } from './autoSearch.js';
 import { createSwitchStateMachine } from './switchStateMachine.js';
-
 /**
  * 创建自动换标管理器
  *
@@ -55,14 +54,11 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
   } = deps;
   const now = deps.now ?? (() => new Date());
   const getTradingCalendarSnapshot = deps.getTradingCalendarSnapshot ?? (() => new Map());
-
   const monitorSymbol = monitorConfig.monitorSymbol;
   const autoSearchConfig = monitorConfig.autoSearchConfig;
-
   const switchStates = new Map<'LONG' | 'SHORT', SwitchState>();
   const switchSuppressions = new Map<'LONG' | 'SHORT', SwitchSuppression>();
   const periodicSwitchPending = new Map<'LONG' | 'SHORT', PeriodicSwitchPendingState>();
-
   const thresholdResolver = createThresholdResolver({
     autoSearchConfig,
     monitorSymbol,
@@ -71,9 +67,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     getTradingMinutesSinceOpen,
     ...(warrantListCacheConfig ? { warrantListCacheConfig } : {}),
   });
-
   const signalBuilder = createSignalBuilder({ signalObjectPool });
-
   const seatStateManager = createSeatStateManager({
     monitorSymbol,
     symbolRegistry,
@@ -83,7 +77,6 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     logger,
     getHKDateKey,
   });
-
   const autoSearch = createAutoSearch({
     autoSearchConfig,
     monitorSymbol,
@@ -99,7 +92,6 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     maxSearchFailuresPerDay: AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY,
     logger,
   });
-
   const switchStateMachine = createSwitchStateMachine({
     autoSearchConfig,
     monitorSymbol,
@@ -134,14 +126,12 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     calculateTradingDurationMsBetween,
     getTradingCalendarSnapshot,
   });
-
   /** 清空换标状态与日内抑制记录，用于交易日切换或重新初始化。 */
   function resetAllState(): void {
     switchStates.clear();
     switchSuppressions.clear();
     periodicSwitchPending.clear();
   }
-
   return {
     maybeSearchOnTick: (params) => autoSearch.maybeSearchOnTick(params),
     maybeSwitchOnInterval: (params) => switchStateMachine.maybeSwitchOnInterval(params),

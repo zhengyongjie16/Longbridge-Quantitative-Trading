@@ -9,7 +9,7 @@
 import { isSeatReady } from '../../../../services/autoSymbolManager/utils.js';
 
 import type { Trader } from '../../../../types/services.js';
-import type { RefreshGate } from '../../../../utils/refreshGate/types.js';
+import type { RefreshGate } from '../../../../utils/types.js';
 import type { MonitorTask } from '../../monitorTaskQueue/types.js';
 import type {
   MonitorTaskContext,

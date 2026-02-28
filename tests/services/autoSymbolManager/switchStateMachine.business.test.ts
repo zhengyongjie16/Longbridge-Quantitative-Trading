@@ -6,7 +6,6 @@
  */
 import { describe, expect, it } from 'bun:test';
 import { OrderSide } from 'longport';
-
 import { createSwitchStateMachine } from '../../../src/services/autoSymbolManager/switchStateMachine.js';
 import { createSeatStateManager } from '../../../src/services/autoSymbolManager/seatStateManager.js';
 import {
@@ -19,11 +18,9 @@ import { signalObjectPool } from '../../../src/utils/objectPool/index.js';
 import {
   calculateTradingDurationMsBetween,
   getHKDateKey,
-} from '../../../src/utils/helpers/tradingTime.js';
+} from '../../../src/utils/tradingTime/index.js';
 import { PENDING_ORDER_STATUSES } from '../../../src/constants/index.js';
-
 import type { Quote } from '../../../src/types/quote.js';
-
 import {
   createMonitorConfigDouble,
   createOrderRecorderDouble,
@@ -31,7 +28,6 @@ import {
   createSymbolRegistryDouble,
   createTraderDouble,
 } from '../../helpers/testDoubles.js';
-
 function createLoggerStub() {
   return {
     info: () => {},
@@ -39,7 +35,6 @@ function createLoggerStub() {
     error: () => {},
   } as never;
 }
-
 function createQuotes(prices: Readonly<Record<string, number>>): ReadonlyMap<string, Quote | null> {
   const map = new Map<string, Quote | null>();
   for (const [symbol, price] of Object.entries(prices)) {
@@ -54,14 +49,12 @@ function createQuotes(prices: Readonly<Record<string, number>>): ReadonlyMap<str
   }
   return map;
 }
-
 function createTradingCalendarSnapshot() {
   return new Map([
     ['2026-02-16', { isTradingDay: true, isHalfDay: false }],
     ['2026-02-17', { isTradingDay: true, isHalfDay: false }],
   ]);
 }
-
 describe('autoSymbolManager switchStateMachine business flow', () => {
   it('marks suppression when presearch returns the same symbol and skips switching', async () => {
     const monitorConfig = createMonitorConfigDouble({
@@ -78,7 +71,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         switchDistanceRangeBear: { min: -1.5, max: -0.2 },
       },
     });
-
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
       longSeat: {
@@ -91,10 +83,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         frozenTradingDayKey: null,
       },
     });
-
     const switchStates = new Map();
     const switchSuppressions = new Map();
-
     const nowMs = Date.parse('2026-02-16T01:00:00.000Z');
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -105,9 +95,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-
     const signalBuilder = createSignalBuilder({ signalObjectPool });
-
     const machine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: 'HSI.HK',
@@ -151,23 +139,19 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       calculateTradingDurationMsBetween,
       getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
     });
-
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
       quotesMap: createQuotes({ 'OLD_BULL.HK': 1 }),
       positions: [],
     });
-
     const seat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
     expect(seat.status).toBe('READY');
     expect(seat.symbol).toBe('OLD_BULL.HK');
-
     const suppression = seatStateManager.resolveSuppression('LONG', 'OLD_BULL.HK');
     expect(suppression?.symbol).toBe('OLD_BULL.HK');
     expect(machine.hasPendingSwitch('LONG')).toBeFalse();
   });
-
   it('switches to new symbol directly when no position exists', async () => {
     const monitorConfig = createMonitorConfigDouble({
       autoSearchConfig: {
@@ -183,7 +167,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         switchDistanceRangeBear: { min: -1.5, max: -0.2 },
       },
     });
-
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
       longSeat: {
@@ -197,11 +180,9 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       },
       longVersion: 1,
     });
-
     const switchStates = new Map();
     const switchSuppressions = new Map();
     const nowMs = Date.parse('2026-02-16T01:00:00.000Z');
-
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
       symbolRegistry,
@@ -211,9 +192,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-
     const signalBuilder = createSignalBuilder({ signalObjectPool });
-
     let executeCalls = 0;
     const trader = createTraderDouble({
       executeSignals: async () => {
@@ -222,7 +201,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       },
       getPendingOrders: async () => [],
     });
-
     const machine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: 'HSI.HK',
@@ -266,14 +244,12 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       calculateTradingDurationMsBetween,
       getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
     });
-
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
       quotesMap: createQuotes({ 'OLD_BULL.HK': 1, 'NEW_BULL.HK': 1 }),
       positions: [],
     });
-
     const seat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
     expect(seat.status).toBe('READY');
     expect(seat.symbol).toBe('NEW_BULL.HK');
@@ -282,7 +258,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     expect(executeCalls).toBe(0);
     expect(machine.hasPendingSwitch('LONG')).toBeFalse();
   });
-
   it('executes sell then rebuy in pending-switch flow when position exists', async () => {
     const monitorConfig = createMonitorConfigDouble({
       targetNotional: 5_000,
@@ -299,7 +274,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         switchDistanceRangeBear: { min: -1.5, max: -0.2 },
       },
     });
-
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
       longSeat: {
@@ -313,11 +287,9 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       },
       longVersion: 1,
     });
-
     const switchStates = new Map();
     const switchSuppressions = new Map();
     let nowMs = Date.parse('2026-02-16T01:00:00.000Z');
-
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
       symbolRegistry,
@@ -327,9 +299,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       logger: createLoggerStub(),
       getHKDateKey,
     });
-
     const signalBuilder = createSignalBuilder({ signalObjectPool });
-
     const executedActions: Array<{
       action: string | null;
       symbol: string | null;
@@ -350,7 +320,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       },
       getPendingOrders: async () => [],
     });
-
     const orderRecorder = createOrderRecorderDouble({
       getSellRecordByOrderId: (orderId) =>
         orderId === 'SELL-ORDER-1'
@@ -365,7 +334,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
             }
           : null,
     });
-
     const machine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: 'HSI.HK',
@@ -409,7 +377,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       calculateTradingDurationMsBetween,
       getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
     });
-
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
@@ -427,7 +394,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         },
       ],
     });
-
     expect(machine.hasPendingSwitch('LONG')).toBeTrue();
     expect(executedActions).toHaveLength(1);
     expect(executedActions[0]).toEqual({
@@ -435,27 +401,22 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       symbol: 'OLD_BULL.HK',
       quantity: 100,
     });
-
     nowMs += 1_000;
-
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
       quotesMap: createQuotes({ 'OLD_BULL.HK': 1, 'NEW_BULL.HK': 1 }),
       positions: [],
     });
-
     expect(executedActions).toHaveLength(2);
     expect(executedActions[1]?.action).toBe('BUYCALL');
     expect(executedActions[1]?.symbol).toBe('NEW_BULL.HK');
     expect(executedActions[1]?.quantity).toBe(200);
-
     const finalSeat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
     expect(finalSeat.status).toBe('READY');
     expect(finalSeat.symbol).toBe('NEW_BULL.HK');
     expect(machine.hasPendingSwitch('LONG')).toBeFalse();
   });
-
   it('marks seat EMPTY when canceling pending buy orders fails during switch', async () => {
     const monitorConfig = createMonitorConfigDouble({
       autoSearchConfig: {
@@ -471,7 +432,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         switchDistanceRangeBear: { min: -1.5, max: -0.2 },
       },
     });
-
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
       longSeat: {
@@ -485,11 +445,9 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       },
       longVersion: 1,
     });
-
     const switchStates = new Map();
     const switchSuppressions = new Map();
     const nowMs = Date.parse('2026-02-16T01:00:00.000Z');
-
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
       symbolRegistry,
@@ -500,7 +458,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       getHKDateKey,
     });
     const signalBuilder = createSignalBuilder({ signalObjectPool });
-
     let executeCalls = 0;
     const trader = createTraderDouble({
       getPendingOrders: async () => [
@@ -521,7 +478,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         return { submittedCount: 1, submittedOrderIds: [] };
       },
     });
-
     const machine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: 'HSI.HK',
@@ -565,21 +521,18 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       calculateTradingDurationMsBetween,
       getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
     });
-
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
       quotesMap: createQuotes({ 'OLD_BULL.HK': 1, 'NEW_BULL.HK': 1 }),
       positions: [],
     });
-
     const longSeat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
     expect(longSeat.status).toBe('EMPTY');
     expect(longSeat.symbol).toBeNull();
     expect(machine.hasPendingSwitch('LONG')).toBeFalse();
     expect(executeCalls).toBe(0);
   });
-
   it('keeps pending switch state when rebuy quote is not ready', async () => {
     const monitorConfig = createMonitorConfigDouble({
       targetNotional: 5_000,
@@ -596,7 +549,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         switchDistanceRangeBear: { min: -1.5, max: -0.2 },
       },
     });
-
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
       longSeat: {
@@ -610,11 +562,9 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       },
       longVersion: 1,
     });
-
     const switchStates = new Map();
     const switchSuppressions = new Map();
     let nowMs = Date.parse('2026-02-16T01:00:00.000Z');
-
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
       symbolRegistry,
@@ -625,7 +575,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       getHKDateKey,
     });
     const signalBuilder = createSignalBuilder({ signalObjectPool });
-
     const executedActions: string[] = [];
     const trader = createTraderDouble({
       executeSignals: async (signals) => {
@@ -648,7 +597,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
             }
           : null,
     });
-
     const machine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: 'HSI.HK',
@@ -692,7 +640,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       calculateTradingDurationMsBetween,
       getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
     });
-
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
@@ -710,10 +657,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         },
       ],
     });
-
     expect(executedActions).toEqual(['SELLCALL']);
     expect(machine.hasPendingSwitch('LONG')).toBeTrue();
-
     nowMs += 1_000;
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
@@ -721,11 +666,9 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       quotesMap: createQuotes({ 'OLD_BULL.HK': 1 }),
       positions: [],
     });
-
     expect(executedActions).toEqual(['SELLCALL']);
     expect(machine.hasPendingSwitch('LONG')).toBeTrue();
   });
-
   it('fails and clears seat when rebuy sell-notional is unavailable', async () => {
     const monitorConfig = createMonitorConfigDouble({
       autoSearchConfig: {
@@ -741,7 +684,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         switchDistanceRangeBear: { min: -1.5, max: -0.2 },
       },
     });
-
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
       longSeat: {
@@ -755,11 +697,9 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       },
       longVersion: 1,
     });
-
     const switchStates = new Map();
     const switchSuppressions = new Map();
     let nowMs = Date.parse('2026-02-16T01:00:00.000Z');
-
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
       symbolRegistry,
@@ -770,7 +710,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       getHKDateKey,
     });
     const signalBuilder = createSignalBuilder({ signalObjectPool });
-
     const executedActions: string[] = [];
     const trader = createTraderDouble({
       executeSignals: async (signals) => {
@@ -782,7 +721,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     const orderRecorder = createOrderRecorderDouble({
       getSellRecordByOrderId: () => null,
     });
-
     const machine = createSwitchStateMachine({
       autoSearchConfig: monitorConfig.autoSearchConfig,
       monitorSymbol: 'HSI.HK',
@@ -826,7 +764,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       calculateTradingDurationMsBetween,
       getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
     });
-
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
@@ -844,7 +781,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         },
       ],
     });
-
     nowMs += 1_000;
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
@@ -852,7 +788,6 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       quotesMap: createQuotes({ 'OLD_BULL.HK': 1, 'NEW_BULL.HK': 1 }),
       positions: [],
     });
-
     expect(executedActions).toEqual(['SELLCALL']);
     const longSeat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
     expect(longSeat.status).toBe('EMPTY');

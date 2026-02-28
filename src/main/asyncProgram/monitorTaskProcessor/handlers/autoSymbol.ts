@@ -7,7 +7,7 @@
  * - 执行前校验席位快照，防止旧任务在换标后被错误执行
  */
 import type { LastState } from '../../../../types/state.js';
-import type { RefreshGate } from '../../../../utils/refreshGate/types.js';
+import type { RefreshGate } from '../../../../utils/types.js';
 import type { MonitorTask } from '../../monitorTaskQueue/types.js';
 import type {
   AutoSymbolSwitchDistanceTaskData,

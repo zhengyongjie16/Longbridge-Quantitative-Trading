@@ -19,16 +19,14 @@
  * - 防止换标后执行旧席位的任务
  */
 import { logger } from '../../../utils/logger/index.js';
-import { formatError } from '../../../utils/helpers/index.js';
-
 import { createQueueRunner } from './queueRunner.js';
 import { createRefreshHelpers } from './helpers/refreshHelpers.js';
 import { createAutoSymbolHandlers } from './handlers/autoSymbol.js';
 import { createSeatRefreshHandler } from './handlers/seatRefresh.js';
 import { createLiquidationDistanceHandler } from './handlers/liquidationDistance.js';
 import { createUnrealizedLossHandler } from './handlers/unrealizedLoss.js';
-
 import type { MonitorTask } from '../monitorTaskQueue/types.js';
+import { formatError } from '../../../utils/error/index.js';
 import type {
   MonitorTaskContext,
   MonitorTaskData,
@@ -38,7 +36,6 @@ import type {
   MonitorTaskType,
   RefreshHelpers,
 } from './types.js';
-
 /**
  * 兜底的穷尽性断言，防止新增任务类型后遗漏分派逻辑。
  *
@@ -47,7 +44,6 @@ import type {
 function assertNeverTaskType(taskType: never): never {
   throw new Error(`[MonitorTaskProcessor] 未处理的任务类型: ${String(taskType)}`);
 }
-
 /**
  * 创建监控任务处理器。
  * 消费 MonitorTaskQueue 中的任务，使用 setImmediate 异步执行；依赖 getMonitorContext、refreshGate 等完成席位校验与刷新。
@@ -67,7 +63,6 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
     getCanProcessTask,
     onProcessed,
   } = deps;
-
   /** 根据 monitorSymbol 获取监控上下文，未找到时打日志并返回 null */
   function getContextOrSkip(monitorSymbol: string): MonitorTaskContext | null {
     const context = getMonitorContext(monitorSymbol);
@@ -101,7 +96,6 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
     trader,
     ...(getCanProcessTask ? { getCanProcessTask } : {}),
   });
-
   async function processTask(
     task: MonitorTask<MonitorTaskType, MonitorTaskData>,
     helpers: RefreshHelpers,
@@ -127,7 +121,6 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
       }
     }
   }
-
   /** 循环消费监控任务队列直至为空，每项经 processTask 分派处理，门禁或上下文缺失时跳过并通知 onProcessed */
   async function processQueue(): Promise<void> {
     const helpers = createRefreshHelpers({ trader, lastState });
@@ -157,7 +150,6 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
       logger.warn('[MonitorTaskProcessor] 处理器已在运行中');
     },
   });
-
   return {
     start: queueRunner.start,
     stop: queueRunner.stop,

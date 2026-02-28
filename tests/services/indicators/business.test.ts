@@ -15,8 +15,8 @@ import { calculateRSI } from '../../../src/services/indicators/rsi.js';
 import {
   buildIndicatorSnapshot,
   getCandleFingerprint,
-  toNumber,
-} from '../../../src/services/indicators/utils.js';
+} from '../../../src/services/indicators/snapshotBuilder.js';
+import { toNumber } from '../../../src/services/indicators/utils.js';
 import { toMockDecimal } from '../../../mock/longport/decimal.js';
 import type { CandleData } from '../../../src/types/data.js';
 

@@ -13,12 +13,7 @@ import type { Quote, IndicatorSnapshot } from './quote.js';
 import type { AccountSnapshot, Position } from './account.js';
 import type { DecimalLikeValue } from './common.js';
 import type { MonitorConfig } from './config.js';
-import type { DoomsdayProtection } from '../core/doomsdayProtection/types.js';
-import type {
-  PendingSellInfo,
-  SellableOrderResult,
-  SellableOrderSelectParams,
-} from '../core/orderRecorder/types.js';
+import type { TradingCalendarSnapshot } from './tradingCalendar.js';
 
 /**
  * 交易日查询结果。
@@ -171,6 +166,70 @@ export type OrderRecord = {
   readonly submittedAt: Date | undefined;
   /** 更新时间 */
   readonly updatedAt: Date | undefined;
+};
+
+/**
+ * 待成交卖出订单信息。
+ * 类型用途：智能平仓防重追踪，记录已提交但未成交的卖出订单及关联买单。
+ * 数据来源：提交卖单时添加，成交/撤单时更新状态。
+ * 使用范围：OrderRecorder、OrderStorage、订单监控等；全项目可引用。
+ */
+export type PendingSellInfo = {
+  /** 卖出订单ID */
+  readonly orderId: string;
+  /** 标的代码 */
+  readonly symbol: string;
+  /** 方向 */
+  readonly direction: 'LONG' | 'SHORT';
+  /** 提交数量 */
+  readonly submittedQuantity: number;
+  /** 已成交数量 */
+  readonly filledQuantity: number;
+  /** 关联的买入订单ID列表（精确标记哪些订单被占用） */
+  readonly relatedBuyOrderIds: readonly string[];
+  /** 状态 */
+  readonly status: 'pending' | 'partial' | 'filled' | 'cancelled';
+  /** 提交时间 */
+  readonly submittedAt: number;
+};
+
+/**
+ * 可卖订单筛选策略。
+ * 类型用途：统一描述卖出订单筛选行为（全量/仅盈利/仅超时）。
+ * 数据来源：由卖出决策层传入。
+ * 使用范围：orderRecorder 与 signalProcessor 模块。
+ */
+export type SellableOrderStrategy = 'ALL' | 'PROFIT_ONLY' | 'TIMEOUT_ONLY';
+
+/**
+ * 可卖订单筛选参数。
+ * 类型用途：selectSellableOrders 的对象入参，统一承载策略、价格、超时、截断和额外排除规则。
+ * 数据来源：卖出决策层构建。
+ * 使用范围：orderRecorder 与 signalProcessor 模块。
+ */
+export type SellableOrderSelectParams = {
+  readonly symbol: string;
+  readonly direction: 'LONG' | 'SHORT';
+  readonly strategy: SellableOrderStrategy;
+  readonly currentPrice: number;
+  readonly maxSellQuantity?: number;
+  readonly excludeOrderIds?: ReadonlySet<string>;
+  readonly timeoutMinutes?: number | null;
+  readonly nowMs?: number;
+  readonly calendarSnapshot?: TradingCalendarSnapshot;
+};
+
+/**
+ * 可卖订单查询结果。
+ * 类型用途：OrderStorage.selectSellableOrders 的返回结果，用于卖出数量计算与防重。
+ * 数据来源：由 OrderStorage.selectSellableOrders 返回。
+ * 使用范围：见调用方（如 signalProcessor、trader）。
+ */
+export type SellableOrderResult = {
+  /** 可卖出的订单记录列表 */
+  readonly orders: ReadonlyArray<OrderRecord>;
+  /** 这些订单的总数量 */
+  readonly totalQuantity: number;
 };
 
 /**
@@ -493,6 +552,17 @@ export interface PositionCache {
 }
 
 /**
+ * 末日保护买入门禁最小契约。
+ * 类型用途：仅约束风险检查链路对末日保护的依赖行为，避免类型层反向依赖业务实现。
+ * 数据来源：由 doomsdayProtection 模块实现并注入。
+ * 使用范围：RiskCheckContext 与买入风险检查链路使用。
+ */
+export interface DoomsdayBuyGuard {
+  /** 检查是否应该拒绝买入（收盘前15分钟） */
+  shouldRejectBuy: (currentTime: Date, isHalfDay: boolean) => boolean;
+}
+
+/**
  * 风险检查上下文。
  * 类型用途：执行信号处理与风控时的完整上下文（交易器、风控器、行情、账户、配置等），作为 processSignal、风控检查的入参。
  * 数据来源：由主循环/processMonitor 根据 MonitorContext 与 LastState 组装传入。
@@ -536,7 +606,7 @@ export type RiskCheckContext = {
   /** 是否为半日市 */
   readonly isHalfDay: boolean;
   /** 末日保护实例 */
-  readonly doomsdayProtection: DoomsdayProtection;
+  readonly doomsdayProtection: DoomsdayBuyGuard;
   /** 监控配置 */
   readonly config: MonitorConfig;
 };

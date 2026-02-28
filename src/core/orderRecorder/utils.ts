@@ -1,7 +1,7 @@
 import { OrderSide, OrderStatus } from 'longport';
 import { PENDING_ORDER_STATUSES, TIME } from '../../constants/index.js';
 import { decimalToNumber } from '../../utils/helpers/index.js';
-import { calculateTradingDurationMsBetween } from '../../utils/helpers/tradingTime.js';
+import { calculateTradingDurationMsBetween } from '../../utils/tradingTime/index.js';
 import {
   decimalAdd,
   decimalDiv,

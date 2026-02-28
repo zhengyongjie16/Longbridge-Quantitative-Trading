@@ -1,6 +1,6 @@
 import type { MonitorContext, LastState } from '../../../types/state.js';
 import type { Trader } from '../../../types/services.js';
-import type { RefreshGate } from '../../../utils/refreshGate/types.js';
+import type { RefreshGate } from '../../../utils/types.js';
 import type { TaskQueue, SellTaskType } from '../tradeTaskQueue/types.js';
 import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
 

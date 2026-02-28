@@ -15,18 +15,18 @@
  * - MACD：快线 12、慢线 26、信号线 9
  * - MFI：默认周期 14
  */
-import { buildIndicatorSnapshot, getCandleFingerprint } from '../../services/indicators/utils.js';
-import { logger } from '../../utils/logger/index.js';
 import {
-  formatSymbolDisplay,
-  releaseSnapshotObjects,
-  isRecord,
-} from '../../utils/helpers/index.js';
+  buildIndicatorSnapshot,
+  getCandleFingerprint,
+} from '../../services/indicators/snapshotBuilder.js';
+import { logger } from '../../utils/logger/index.js';
+import { releaseSnapshotObjects } from '../../utils/helpers/index.js';
+import { isRecord } from '../../utils/primitives/index.js';
 import { TRADING } from '../../constants/index.js';
 import type { CandleData } from '../../types/data.js';
 import type { IndicatorSnapshot } from '../../types/quote.js';
 import type { IndicatorPipelineParams } from './types.js';
-
+import { formatSymbolDisplay } from '../../utils/display/index.js';
 /**
  * 类型保护：判断 unknown 是否可作为 CandleValue 的对象分支（含 toString 方法）。
  *
@@ -36,7 +36,6 @@ import type { IndicatorPipelineParams } from './types.js';
 function isCandleObjectValue(value: unknown): value is { toString: () => string } {
   return isRecord(value) && typeof value.toString === 'function';
 }
-
 /**
  * 将 unknown 标准化为 CandleValue。
  *
@@ -57,7 +56,6 @@ function normalizeCandleValue(value: unknown): CandleData['close'] {
   }
   return undefined;
 }
-
 /**
  * 将 SDK K 线数组标准化为内部 CandleData 数组。
  *
@@ -80,7 +78,6 @@ function normalizeCandles(candles: ReadonlyArray<unknown>): ReadonlyArray<Candle
   }
   return normalized;
 }
-
 /**
  * 执行指标处理流水线。
  * 获取 K 线数据后计算技术指标并缓存快照；若 K 线指纹未变化则直接复用上次快照，
@@ -92,24 +89,20 @@ export async function runIndicatorPipeline(
   const { monitorSymbol, monitorContext, mainContext, monitorQuote } = params;
   const { marketDataClient, indicatorCache, marketMonitor } = mainContext;
   const { state, rsiPeriods, emaPeriods, psyPeriods } = monitorContext;
-
   const monitorCandles = await marketDataClient
     .getRealtimeCandlesticks(monitorSymbol, TRADING.CANDLE_PERIOD, TRADING.CANDLE_COUNT)
     .catch((err: unknown) => {
       logger.error(`获取监控标的 K 线数据失败: ${monitorSymbol}`, err);
       return null;
     });
-
   if (!monitorCandles || monitorCandles.length === 0) {
     logger.warn(
       `未获取到监控标的 ${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)} K线数据`,
     );
     return null;
   }
-
   const candles = normalizeCandles(monitorCandles);
   const fingerprint = getCandleFingerprint(candles);
-
   if (
     fingerprint !== null &&
     fingerprint === state.lastCandleFingerprint &&
@@ -127,7 +120,6 @@ export async function runIndicatorPipeline(
     );
     return state.lastMonitorSnapshot;
   }
-
   const monitorSnapshot = buildIndicatorSnapshot(
     monitorSymbol,
     candles,
@@ -135,14 +127,12 @@ export async function runIndicatorPipeline(
     emaPeriods,
     psyPeriods,
   );
-
   if (!monitorSnapshot) {
     logger.warn(
       `[${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)}] 无法构建指标快照，跳过本次处理`,
     );
     return null;
   }
-
   marketMonitor.monitorIndicatorChanges(
     monitorSnapshot,
     monitorQuote,
@@ -152,9 +142,7 @@ export async function runIndicatorPipeline(
     psyPeriods,
     state,
   );
-
   indicatorCache.push(monitorSymbol, monitorSnapshot);
-
   if (state.lastMonitorSnapshot !== monitorSnapshot) {
     releaseSnapshotObjects(state.lastMonitorSnapshot, state.monitorValues);
   }
@@ -162,6 +150,5 @@ export async function runIndicatorPipeline(
   if (fingerprint !== null) {
     state.lastCandleFingerprint = fingerprint;
   }
-
   return monitorSnapshot;
 }

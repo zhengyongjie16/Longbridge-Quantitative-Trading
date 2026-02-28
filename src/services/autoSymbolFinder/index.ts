@@ -13,8 +13,8 @@ import {
   WarrantType,
   type FilterWarrantExpiryDate,
 } from 'longport';
-import { formatError } from '../../utils/helpers/index.js';
 import { buildExpiryDateFilters, selectBestWarrant } from './utils.js';
+import { formatError } from '../../utils/error/index.js';
 import type {
   FindBestWarrantInput,
   WarrantCandidate,
@@ -22,7 +22,6 @@ import type {
   WarrantListFetchParams,
   WarrantListRequestParams,
 } from './types.js';
-
 /**
  * 构建牛熊证列表缓存键，用于 TTL 与请求去重。
  * @param monitorSymbol - 监控标的代码
@@ -37,7 +36,6 @@ function buildCacheKey(
 ): string {
   return `${monitorSymbol}:${String(warrantType)}:${expiryFilters.join(',')}`;
 }
-
 /**
  * 调用 LongPort warrantList API 请求牛熊证列表（按成交额降序）。
  * @param params - 请求参数（ctx、monitorSymbol、warrantType、expiryFilters）
@@ -60,7 +58,6 @@ function requestWarrantList({
     [WarrantStatus.Normal],
   );
 }
-
 /**
  * 带缓存的牛熊证列表获取：命中 TTL 内缓存直接返回，否则请求 API 并写入缓存，并发请求去重。
  * @param params - 含 ctx、monitorSymbol、warrantType、expiryFilters、cacheConfig
@@ -82,28 +79,23 @@ async function fetchWarrantsWithCache({
       expiryFilters,
     });
   }
-
   const cacheKey = buildCacheKey(monitorSymbol, warrantType, expiryFilters);
   const nowMs = cacheConfig.nowMs();
   const cached = cacheConfig.cache.getEntry(cacheKey);
   if (cached && nowMs - cached.fetchedAt <= ttlMs) {
     return cached.warrants;
   }
-
   const inFlight = cacheConfig.cache.getInFlight(cacheKey);
   if (inFlight) {
     return inFlight;
   }
-
   const request = requestWarrantList({
     ctx,
     monitorSymbol,
     warrantType,
     expiryFilters,
   });
-
   cacheConfig.cache.setInFlight(cacheKey, request);
-
   try {
     const warrants = await request;
     cacheConfig.cache.setEntry(cacheKey, {
@@ -115,7 +107,6 @@ async function fetchWarrantsWithCache({
     cacheConfig.cache.deleteInFlight(cacheKey);
   }
 }
-
 /**
  * 获取并筛选最佳牛熊证标的：按方向请求牛熊证列表，按距回收价与分均成交额选优。
  * 用于自动寻标与换标预寻标，无符合条件时返回 null 并打日志。
@@ -150,7 +141,6 @@ export async function findBestWarrant({
           warrantType,
           expiryFilters,
         });
-
     const best = selectBestWarrant({
       warrants,
       tradingMinutes,
@@ -158,14 +148,12 @@ export async function findBestWarrant({
       minDistancePct,
       minTurnoverPerMinute,
     });
-
     if (!best) {
       const listLength = Array.isArray(warrants) ? warrants.length : 0;
       logger.warn(
         `[自动寻标] 未找到符合条件的${isBull ? '牛' : '熊'}证：${monitorSymbol}（列表条数=${listLength}，交易分钟数=${tradingMinutes}）`,
       );
     }
-
     return best;
   } catch (error) {
     logger.warn(

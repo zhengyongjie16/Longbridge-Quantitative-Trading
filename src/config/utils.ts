@@ -12,7 +12,7 @@ import {
   validateEmaPeriod,
   validatePsyPeriod,
   validateRsiPeriod,
-} from '../utils/helpers/indicatorHelpers.js';
+} from '../utils/indicatorHelpers/index.js';
 import { logger } from '../utils/logger/index.js';
 import type {
   ComparisonOperator,

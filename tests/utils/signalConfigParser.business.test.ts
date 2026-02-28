@@ -13,7 +13,7 @@ import {
   extractRsiPeriodsWithDefault,
 } from '../../src/services/monitorContext/utils.js';
 import type { SignalConfigSet } from '../../src/types/config.js';
-import type { IndicatorState } from '../../src/utils/helpers/types.js';
+import type { IndicatorState } from '../../src/utils/indicatorHelpers/types.js';
 
 describe('signalConfigParser business flow', () => {
   it('supports grouped rules with required-count and OR semantics', () => {

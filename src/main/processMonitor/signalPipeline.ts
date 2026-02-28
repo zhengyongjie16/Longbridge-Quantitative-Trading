@@ -18,14 +18,14 @@
  * 3. 信号标的必须与席位当前标的匹配
  */
 import { logger } from '../../utils/logger/index.js';
-import { formatSymbolDisplay, isBuyAction, isSellAction } from '../../utils/helpers/index.js';
+import { isBuyAction } from '../../utils/helpers/index.js';
 import { VALID_SIGNAL_ACTIONS } from '../../constants/index.js';
 import { isSeatReady, describeSeatUnavailable } from '../../services/autoSymbolManager/utils.js';
 import { formatSignalLog, getPositions } from './utils.js';
 import type { Quote } from '../../types/quote.js';
 import type { Signal } from '../../types/signal.js';
 import type { SignalPipelineParams } from './types.js';
-
+import { formatSymbolDisplay, isSellAction } from '../../utils/display/index.js';
 /**
  * 执行信号处理流水线。
  * 调用策略生成平仓信号后，对每个信号进行席位校验（状态、版本、标的匹配）和数据丰富，
@@ -57,25 +57,21 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
     longQuote,
     shortQuote,
   } = seatInfo;
-
   const { longPosition, shortPosition } = getPositions(
     lastState.positionCache,
     longSymbol,
     shortSymbol,
   );
-
   try {
     if (openProtectionActive) {
       return;
     }
-
     const { immediateSignals, delayedSignals } = strategy.generateCloseSignals(
       monitorSnapshot,
       longSymbol,
       shortSymbol,
       orderRecorder,
     );
-
     /**
      * 丰富信号：名称、价格、lotSize。
      * 买卖信号的 price/lotSize 均不在此处写入，由买卖处理器在执行时按「执行时行情」写入，保证委托价与当前价一致。
@@ -97,7 +93,6 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
         signal.symbolName = shortQuote.name;
       }
     }
-
     function resolveSeatForSignal(signal: Signal): Readonly<{
       seatSymbol: string;
       seatVersion: number;
@@ -115,7 +110,6 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
       const quote = isLongSignal ? longQuote : shortQuote;
       return { seatSymbol, seatVersion, quote, isBuySignal };
     }
-
     /**
      * 校验信号合法性并完成数据丰富。
      * 依次检查信号字段完整性、action 合法性、席位就绪状态、标的匹配及行情就绪，
@@ -134,7 +128,6 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
         releaseSignal(signal);
         return false;
       }
-
       const seatInfoForSignal = resolveSeatForSignal(signal);
       if (!seatInfoForSignal) {
         const isLongSignal = signal.action === 'BUYCALL' || signal.action === 'SELLCALL';
@@ -153,22 +146,17 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
         releaseSignal(signal);
         return false;
       }
-
       signal.seatVersion = seatInfoForSignal.seatVersion;
       enrichSignal(signal);
       return true;
     }
-
     for (const signal of immediateSignals) {
       if (!prepareSignal(signal)) {
         continue;
       }
-
       if (canEnqueue) {
         logger.info(`[立即信号] ${formatSignalLog(signal)}`);
-
         const isSellSignal = isSellAction(signal.action);
-
         if (isSellSignal) {
           sellTaskQueue.push({
             type: 'IMMEDIATE_SELL',
@@ -188,12 +176,10 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
         releaseSignal(signal);
       }
     }
-
     for (const signal of delayedSignals) {
       if (!prepareSignal(signal)) {
         continue;
       }
-
       if (canEnqueue) {
         logger.info(`[延迟验证信号] ${formatSignalLog(signal)}`);
         delayedSignalVerifier.addSignal(signal, monitorSymbol);

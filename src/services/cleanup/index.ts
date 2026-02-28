@@ -13,10 +13,9 @@
  * - 释放所有监控快照对象
  */
 import { logger } from '../../utils/logger/index.js';
-import { formatError } from '../../utils/helpers/index.js';
 import type { CleanupContext } from './types.js';
 import { releaseAllMonitorSnapshots } from './utils.js';
-
+import { formatError } from '../../utils/error/index.js';
 /**
  * 创建程序退出时的清理函数，负责按顺序停止处理器、销毁验证器、清空缓存并注册 SIGINT/SIGTERM。
  * @param context - 清理上下文，包含需要停止与释放的处理器、行情客户端、监控上下文等
@@ -38,14 +37,12 @@ export function createCleanup(context: CleanupContext): {
     lastState,
   } = context;
   let isExiting = false;
-
   /**
    * 执行清理：按顺序停止各处理器（stopAndDrain 确保 in-flight 任务排空）、销毁验证器、清空缓存并重置行情订阅，确保程序退出时无残留任务或句柄。
    */
   async function execute(): Promise<void> {
     logger.info('Program exiting, cleaning up resources...');
     const failures: { readonly step: string; readonly error: unknown }[] = [];
-
     const runStep = async (step: string, handler: () => Promise<void> | void): Promise<void> => {
       try {
         await handler();
@@ -54,7 +51,6 @@ export function createCleanup(context: CleanupContext): {
         logger.error(`[Cleanup] ${step} 失败: ${formatError(err)}`);
       }
     };
-
     await runStep('停止 BuyProcessor', async () => {
       await buyProcessor.stopAndDrain();
     });
@@ -84,7 +80,6 @@ export function createCleanup(context: CleanupContext): {
     await runStep('重置行情运行态订阅与缓存', async () => {
       await marketDataClient.resetRuntimeSubscriptionsAndCaches();
     });
-
     if (failures.length > 0) {
       throw new AggregateError(
         failures.map((item) => item.error),
@@ -92,7 +87,6 @@ export function createCleanup(context: CleanupContext): {
       );
     }
   }
-
   /**
    * 注册 SIGINT/SIGTERM 信号处理，确保进程收到退出信号时执行清理并退出；通过 isExiting 防止重复执行。
    */
@@ -114,7 +108,6 @@ export function createCleanup(context: CleanupContext): {
     process.once('SIGINT', handler);
     process.once('SIGTERM', handler);
   }
-
   return {
     execute,
     registerExitHandlers,

@@ -1,5 +1,6 @@
 import type { Candlestick } from 'longport';
-import { decimalToNumber, toHongKongTimeLog } from '../../src/utils/helpers/index.js';
+import { decimalToNumber } from '../../src/utils/helpers/index.js';
+import { toHongKongTimeLog } from '../../src/utils/primitives/index.js';
 import { calculateEMA } from '../../src/services/indicators/ema.js';
 import { calculateKDJ } from '../../src/services/indicators/kdj.js';
 import { calculateMFI } from '../../src/services/indicators/mfi.js';

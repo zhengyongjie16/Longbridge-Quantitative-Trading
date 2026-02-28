@@ -1,5 +1,5 @@
 import pino from 'pino';
-import { toHongKongTimeLog, isRecord } from '../helpers/index.js';
+import { isRecord, toHongKongTimeLog } from '../primitives/index.js';
 import {
   IS_DEBUG,
   LOG_ANSI_CODE_REGEX,
@@ -7,7 +7,7 @@ import {
   LOG_LEVELS,
   LOG_COLORS,
 } from '../../constants/index.js';
-import { resolveLogRootDir, shouldInstallGlobalProcessHooks } from '../runtime.js';
+import { resolveLogRootDir, shouldInstallGlobalProcessHooks } from '../runtime/index.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Writable } from 'node:stream';

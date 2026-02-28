@@ -1,5 +1,5 @@
 import { positionObjectPool } from '../../utils/objectPool/index.js';
-import { isRecord } from '../../utils/helpers/index.js';
+import { isRecord } from '../../utils/primitives/index.js';
 import { SIGNAL_ACTION_DESCRIPTIONS } from '../../constants/index.js';
 import type { Position } from '../../types/account.js';
 import type { Signal, SignalType } from '../../types/signal.js';
@@ -11,7 +11,7 @@ import type {
   MonitorTaskData,
   MonitorTaskType,
 } from '../asyncProgram/monitorTaskProcessor/types.js';
-import type { QueueClearResult } from './types.js';
+import type { QueueClearResult } from '../../types/queue/types.js';
 
 /**
  * 判断订单动作是否属于指定方向。

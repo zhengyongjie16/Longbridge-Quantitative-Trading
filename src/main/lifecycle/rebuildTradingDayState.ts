@@ -16,7 +16,6 @@
  * 错误处理：
  * - 任一步骤失败即整体抛出，由生命周期管理器负责重试
  */
-import { formatError } from '../../utils/helpers/index.js';
 import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
 import type { MonitorContext } from '../../types/state.js';
 import type { Quote } from '../../types/quote.js';
@@ -25,7 +24,7 @@ import type { MarketDataClient, RawOrderFromAPI } from '../../types/services.js'
 import type { DailyLossTracker } from '../../core/riskController/types.js';
 import type { RebuildTradingDayStateDeps, RebuildTradingDayStateParams } from './types.js';
 import { prewarmTradingCalendarSnapshotForRebuild } from './tradingCalendarPrewarmer.js';
-
+import { formatError } from '../../utils/error/index.js';
 /**
  * 将席位状态和行情数据同步到单个 MonitorContext。
  * 重建阶段必须在订单重建前执行，确保后续步骤能读取到最新的席位和行情。
@@ -40,7 +39,6 @@ function syncMonitorContextQuotes(
   const shortSeatState = symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
   const longSeatVersion = symbolRegistry.getSeatVersion(monitorSymbol, 'LONG');
   const shortSeatVersion = symbolRegistry.getSeatVersion(monitorSymbol, 'SHORT');
-
   monitorContext.seatState = {
     long: longSeatState,
     short: shortSeatState,
@@ -49,22 +47,18 @@ function syncMonitorContextQuotes(
     long: longSeatVersion,
     short: shortSeatVersion,
   };
-
   const longSymbol = isSeatReady(longSeatState) ? longSeatState.symbol : null;
   const shortSymbol = isSeatReady(shortSeatState) ? shortSeatState.symbol : null;
   const longQuote = longSymbol ? (quotesMap.get(longSymbol) ?? null) : null;
   const shortQuote = shortSymbol ? (quotesMap.get(shortSymbol) ?? null) : null;
   const monitorQuote = quotesMap.get(monitorSymbol) ?? null;
-
   monitorContext.longQuote = longQuote;
   monitorContext.shortQuote = shortQuote;
   monitorContext.monitorQuote = monitorQuote;
-
   monitorContext.longSymbolName = longSymbol ? (longQuote?.name ?? longSymbol) : '';
   monitorContext.shortSymbolName = shortSymbol ? (shortQuote?.name ?? shortSymbol) : '';
   monitorContext.monitorSymbolName = monitorQuote?.name ?? monitorSymbol;
 }
-
 /**
  * 遍历所有监控标的，将席位状态和行情数据同步到各自的 MonitorContext。
  */
@@ -77,7 +71,6 @@ function syncAllMonitorContexts(
     syncMonitorContextQuotes(monitorContext, symbolRegistry, quotesMap);
   }
 }
-
 /**
  * 从全量订单数据中重建所有就绪席位的订单记录。
  */
@@ -89,7 +82,6 @@ async function rebuildOrderRecords(
     const monitorSymbol = monitorContext.config.monitorSymbol;
     const longSeatState = monitorContext.symbolRegistry.getSeatState(monitorSymbol, 'LONG');
     const shortSeatState = monitorContext.symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
-
     if (isSeatReady(longSeatState)) {
       await monitorContext.orderRecorder.refreshOrdersFromAllOrdersForLong(
         longSeatState.symbol,
@@ -106,7 +98,6 @@ async function rebuildOrderRecords(
     }
   }
 }
-
 /**
  * 刷新单个席位的牛熊证风险信息（收回价等）。
  * 优先使用席位缓存的 callPrice，否则从 API 重新拉取。
@@ -121,7 +112,6 @@ async function refreshSeatWarrantInfo(
   if (!symbol) {
     return;
   }
-
   const quote = isLongSymbol ? monitorContext.longQuote : monitorContext.shortQuote;
   const symbolName = quote?.name ?? null;
   if (callPriceFromSeat !== null && Number.isFinite(callPriceFromSeat) && callPriceFromSeat > 0) {
@@ -136,7 +126,6 @@ async function refreshSeatWarrantInfo(
     }
     return;
   }
-
   const result = await monitorContext.riskChecker.refreshWarrantInfoForSymbol(
     marketDataClient,
     symbol,
@@ -148,7 +137,6 @@ async function refreshSeatWarrantInfo(
     throw new Error(reason);
   }
 }
-
 /**
  * 重建所有就绪席位的牛熊证风险缓存（收回价等关键风控数据）。
  */
@@ -160,7 +148,6 @@ async function rebuildWarrantRiskCache(
     const monitorSymbol = monitorContext.config.monitorSymbol;
     const longSeatState = monitorContext.symbolRegistry.getSeatState(monitorSymbol, 'LONG');
     const shortSeatState = monitorContext.symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
-
     await refreshSeatWarrantInfo(
       marketDataClient,
       monitorContext,
@@ -177,7 +164,6 @@ async function rebuildWarrantRiskCache(
     );
   }
 }
-
 /**
  * 重建所有就绪席位的浮亏缓存，结合当日已实现亏损偏移量计算。
  */
@@ -189,7 +175,6 @@ async function rebuildUnrealizedLossCache(
     const monitorSymbol = monitorContext.config.monitorSymbol;
     const longSeatState = monitorContext.symbolRegistry.getSeatState(monitorSymbol, 'LONG');
     const shortSeatState = monitorContext.symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
-
     if (isSeatReady(longSeatState)) {
       const dailyLossOffset = dailyLossTracker.getLossOffset(monitorSymbol, true);
       await monitorContext.riskChecker.refreshUnrealizedLossData(
@@ -212,7 +197,6 @@ async function rebuildUnrealizedLossCache(
     }
   }
 }
-
 /**
  * 创建交易日状态重建函数（工厂）。
  * 注入依赖后返回 rebuildTradingDayState，在开盘重建阶段基于全量订单与行情快照同步席位、重建订单与风控缓存并展示账户持仓。
@@ -232,7 +216,6 @@ export function createRebuildTradingDayState(
     dailyLossTracker,
     displayAccountAndPositions,
   } = deps;
-
   /**
    * 重建交易日运行时状态：同步席位/行情 → 重建订单记录 → 预热交易日历
    * → 重建风险缓存 → 重建浮亏缓存 → 恢复订单追踪 → 展示账户持仓。
@@ -242,9 +225,7 @@ export function createRebuildTradingDayState(
     params: RebuildTradingDayStateParams,
   ): Promise<void> {
     const { allOrders, quotesMap, now = new Date() } = params;
-
     syncAllMonitorContexts(monitorContexts, symbolRegistry, quotesMap);
-
     try {
       await rebuildOrderRecords(monitorContexts, allOrders);
       await prewarmTradingCalendarSnapshotForRebuild({

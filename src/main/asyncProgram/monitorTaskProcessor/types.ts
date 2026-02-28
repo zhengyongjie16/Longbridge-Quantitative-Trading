@@ -1,5 +1,5 @@
 import type { AutoSymbolManager } from '../../../services/autoSymbolManager/types.js';
-import type { RefreshGate } from '../../../utils/refreshGate/types.js';
+import type { RefreshGate } from '../../../utils/types.js';
 import type { MonitorTaskQueue, MonitorTask } from '../monitorTaskQueue/types.js';
 import type { LastState } from '../../../types/state.js';
 import type { Quote } from '../../../types/quote.js';

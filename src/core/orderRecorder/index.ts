@@ -29,15 +29,19 @@ import {
   getShortDirectionName,
 } from '../utils.js';
 import type { Quote } from '../../types/quote.js';
-import type { OrderRecord, OrderRecorder, RawOrderFromAPI } from '../../types/services.js';
+import type {
+  OrderRecord,
+  OrderRecorder,
+  PendingSellInfo,
+  RawOrderFromAPI,
+  SellableOrderResult,
+  SellableOrderSelectParams,
+} from '../../types/services.js';
 import type {
   OrderRecorderDeps,
   OrderStatistics,
   OrderRefreshResultLogParams,
   PendingOrderClassificationForRebuild,
-  PendingSellInfo,
-  SellableOrderResult,
-  SellableOrderSelectParams,
 } from './types.js';
 import { calculateOrderStatistics, classifyOrdersForRebuild } from './utils.js';
 

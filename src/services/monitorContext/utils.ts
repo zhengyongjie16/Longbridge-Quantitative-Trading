@@ -1,4 +1,4 @@
-import { validateEmaPeriod, validatePsyPeriod } from '../../utils/helpers/indicatorHelpers.js';
+import { validateEmaPeriod, validatePsyPeriod } from '../../utils/indicatorHelpers/index.js';
 import {
   DEFAULT_EMA_PERIOD,
   DEFAULT_PSY_PERIOD,

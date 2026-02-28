@@ -17,8 +17,8 @@
  * - 开盘重建：按注册逆序依次执行各 CacheDomain 的 openRebuild
  * - 失败自动重试：指数退避策略，不吞错
  */
-import { formatError } from '../../utils/helpers/index.js';
 import { LIFECYCLE } from '../../constants/index.js';
+import { formatError } from '../../utils/error/index.js';
 import type {
   CacheDomain,
   DayLifecycleManager,
@@ -27,7 +27,6 @@ import type {
   LifecycleMutableState,
   LifecycleRuntimeFlags,
 } from './types.js';
-
 /** 判断是否需要触发午夜清理：dayKey 存在且与当前记录的日期不同 */
 function shouldRunMidnightClear(
   runtime: LifecycleRuntimeFlags,
@@ -38,7 +37,6 @@ function shouldRunMidnightClear(
   }
   return runtime.dayKey !== mutableState.currentDayKey;
 }
-
 /** 构造传递给各 CacheDomain 的生命周期上下文 */
 function buildLifecycleContext(now: Date, runtime: LifecycleRuntimeFlags): LifecycleContext {
   return {
@@ -46,7 +44,6 @@ function buildLifecycleContext(now: Date, runtime: LifecycleRuntimeFlags): Lifec
     runtime,
   };
 }
-
 /** 不吞错：任一路径失败即抛出，由 tick 负责失败重试。 */
 async function runMidnightClearForDomains(
   domains: ReadonlyArray<CacheDomain>,
@@ -56,7 +53,6 @@ async function runMidnightClearForDomains(
     await domain.midnightClear(ctx);
   }
 }
-
 /** 按逆序依次执行各 CacheDomain 的开盘重建，任一失败即抛出 */
 async function runOpenRebuildForDomains(
   domains: ReadonlyArray<CacheDomain>,
@@ -70,7 +66,6 @@ async function runOpenRebuildForDomains(
     await domain.openRebuild(ctx);
   }
 }
-
 /** 计算指数退避重试延迟，失败次数越多延迟越长，上限由 MAX_RETRY_BACKOFF_FACTOR 控制 */
 function resolveRetryDelayMs(baseDelayMs: number, rebuildFailureCount: number): number {
   const factor = Math.min(
@@ -79,7 +74,6 @@ function resolveRetryDelayMs(baseDelayMs: number, rebuildFailureCount: number): 
   );
   return baseDelayMs * factor;
 }
-
 /**
  * 创建交易日生命周期管理器。对外暴露 tick(now, runtime)，由主循环每秒调用；
  * 内部根据 dayKey 变化执行午夜清理（各 CacheDomain.midnightClear），再在开盘后执行开盘重建（各 CacheDomain.openRebuild），
@@ -95,12 +89,10 @@ export function createDayLifecycleManager(deps: DayLifecycleManagerDeps): DayLif
     logger,
     rebuildRetryDelayMs = LIFECYCLE.DEFAULT_REBUILD_RETRY_DELAY_MS,
   } = deps;
-
   let rebuildFailureCount = 0;
   let nextRetryAtMs: number | null = null;
   let midnightClearFailureCount = 0;
   let nextMidnightRetryAtMs: number | null = null;
-
   /**
    * 每秒由外部驱动的生命周期主循环。
    * 按优先级依次处理：跨日午夜清理 → 等待开盘重建 → 恢复交易门禁。
@@ -110,17 +102,14 @@ export function createDayLifecycleManager(deps: DayLifecycleManagerDeps): DayLif
     if (shouldRunMidnightClear(runtime, mutableState)) {
       mutableState.isTradingEnabled = false;
       mutableState.lifecycleState = 'MIDNIGHT_CLEANING';
-
       const nowMs = now.getTime();
       if (nextMidnightRetryAtMs !== null && nowMs < nextMidnightRetryAtMs) {
         return;
       }
-
       logger.info(
         `[Lifecycle] 检测到跨日: ${runtime.dayKey ?? 'unknown'}` +
           (midnightClearFailureCount > 0 ? `，第 ${midnightClearFailureCount + 1} 次重试` : ''),
       );
-
       const midnightContext = buildLifecycleContext(now, runtime);
       try {
         await runMidnightClearForDomains(cacheDomains, midnightContext);
@@ -142,26 +131,21 @@ export function createDayLifecycleManager(deps: DayLifecycleManagerDeps): DayLif
       }
       return;
     }
-
     if (!mutableState.pendingOpenRebuild) {
       mutableState.lifecycleState = 'ACTIVE';
       mutableState.isTradingEnabled = true;
       return;
     }
-
     mutableState.isTradingEnabled = false;
     if (!runtime.isTradingDay || !runtime.canTradeNow) {
       return;
     }
-
     const nowMs = now.getTime();
     if (nextRetryAtMs !== null && nowMs < nextRetryAtMs) {
       return;
     }
-
     mutableState.lifecycleState = 'OPEN_REBUILDING';
     logger.info('[Lifecycle] 开始执行开盘重建');
-
     const rebuildContext = buildLifecycleContext(now, runtime);
     try {
       await runOpenRebuildForDomains(cacheDomains, rebuildContext);
@@ -176,7 +160,6 @@ export function createDayLifecycleManager(deps: DayLifecycleManagerDeps): DayLif
       rebuildFailureCount += 1;
       mutableState.lifecycleState = 'OPEN_REBUILD_FAILED';
       mutableState.isTradingEnabled = false;
-
       const retryDelayMs = resolveRetryDelayMs(rebuildRetryDelayMs, rebuildFailureCount);
       nextRetryAtMs = nowMs + retryDelayMs;
       logger.error(
@@ -185,7 +168,6 @@ export function createDayLifecycleManager(deps: DayLifecycleManagerDeps): DayLif
       );
     }
   }
-
   return {
     tick,
   };

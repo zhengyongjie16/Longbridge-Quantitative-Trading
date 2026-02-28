@@ -11,11 +11,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { LOGGING } from '../../constants/index.js';
 import { logger, retainLatestLogFiles } from '../../utils/logger/index.js';
-import { resolveLogRootDir } from '../../utils/runtime.js';
-import { toHongKongTimeIso, isRecord } from '../../utils/helpers/index.js';
+import { resolveLogRootDir } from '../../utils/runtime/index.js';
+import { toHongKongTimeIso } from '../../utils/time/index.js';
+import { isRecord } from '../../utils/primitives/index.js';
 import { buildTradeLogPath } from './utils.js';
 import type { TradeRecord, ErrorTypeIdentifier } from './types.js';
-
 /** 类型守卫：校验 TradeRecord 结构 */
 function isValidTradeRecord(record: unknown): record is TradeRecord {
   if (!isRecord(record)) {
@@ -43,12 +43,10 @@ function isValidTradeRecord(record: unknown): record is TradeRecord {
       typeof record['isProtectiveClearance'] === 'boolean')
   );
 }
-
 /** 类型守卫：校验 TradeRecord 数组 */
 function isValidTradeRecordArray(records: unknown): records is TradeRecord[] {
   return Array.isArray(records) && records.every(isValidTradeRecord);
 }
-
 /**
  * 识别错误类型（通过错误消息关键词匹配）
  * 用于区分资金不足、不支持做空、订单不存在、网络错误、限流等，便于日志与风控处理。
@@ -57,7 +55,6 @@ function isValidTradeRecordArray(records: unknown): records is TradeRecord[] {
  */
 export function identifyErrorType(errorMessage: string): ErrorTypeIdentifier {
   const lowerMsg = errorMessage.toLowerCase();
-
   return {
     isShortSellingNotSupported:
       lowerMsg.includes('does not support short selling') ||
@@ -79,7 +76,6 @@ export function identifyErrorType(errorMessage: string): ErrorTypeIdentifier {
       lowerMsg.includes('rate limit') || lowerMsg.includes('频率') || lowerMsg.includes('too many'),
   };
 }
-
 /**
  * 记录交易到 JSON 文件（按日期分文件存储）
  * 写入 <logRootDir>/trades/YYYY-MM-DD.json，缺失字段补 null，并执行日志文件保留策略。
@@ -95,7 +91,6 @@ export function recordTrade(tradeRecord: TradeRecord): void {
     }
     const logFile = buildTradeLogPath(logRootDir, new Date());
     retainLatestLogFiles(logDir, LOGGING.MAX_RETAINED_LOG_FILES, 'json', path.basename(logFile));
-
     let trades: TradeRecord[] = [];
     if (fs.existsSync(logFile)) {
       const content = fs.readFileSync(logFile, 'utf8');
@@ -114,13 +109,11 @@ export function recordTrade(tradeRecord: TradeRecord): void {
         trades = [];
       }
     }
-
     const executedAtMs = Number.isFinite(tradeRecord.executedAtMs)
       ? tradeRecord.executedAtMs
       : null;
     const signalTriggerTime = tradeRecord.signalTriggerTime ?? null;
     const executedAt = tradeRecord.executedAt ?? null;
-
     // 构建记录对象（缺失字段写入 null）
     const record: TradeRecord = {
       orderId: tradeRecord.orderId ?? null,
@@ -141,9 +134,7 @@ export function recordTrade(tradeRecord: TradeRecord): void {
       timestamp: toHongKongTimeIso(),
       isProtectiveClearance: tradeRecord.isProtectiveClearance ?? null,
     };
-
     trades.push(record);
-
     fs.writeFileSync(logFile, JSON.stringify(trades, null, 2), 'utf8');
   } catch (err) {
     logger.error('写入交易记录失败', err);

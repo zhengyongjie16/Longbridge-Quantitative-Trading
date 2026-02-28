@@ -7,11 +7,12 @@
  */
 import { describe, it, expect } from 'bun:test';
 import { resolveSellQuantityBySmartClose } from '../../../src/core/signalProcessor/utils.js';
-import type { OrderRecorder, OrderRecord } from '../../../src/types/services.js';
 import type {
+  OrderRecorder,
+  OrderRecord,
   SellableOrderResult,
   SellableOrderSelectParams,
-} from '../../../src/core/orderRecorder/types.js';
+} from '../../../src/types/services.js';
 import type { TradingCalendarSnapshot } from '../../../src/types/tradingCalendar.js';
 
 function makeOrder(orderId: string, price: number, quantity: number): OrderRecord {

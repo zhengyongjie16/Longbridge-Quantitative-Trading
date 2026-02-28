@@ -9,7 +9,7 @@
 import type { TradeLogHydrator, TradeLogHydratorDeps, RawRecord } from './types.js';
 import type { TradeRecord } from '../../core/trader/types.js';
 import type { SeatSymbolSnapshotEntry } from '../../types/seat.js';
-import { isRecord } from '../../utils/helpers/index.js';
+import { isRecord } from '../../utils/primitives/index.js';
 import { buildTradeLogPath } from '../../core/trader/utils.js';
 import {
   toStringOrNull,

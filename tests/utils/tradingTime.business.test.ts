@@ -7,7 +7,7 @@
  */
 import { describe, it, expect } from 'bun:test';
 import { isOrderTimedOut } from '../../src/core/orderRecorder/utils.js';
-import { calculateTradingDurationMsBetween } from '../../src/utils/helpers/tradingTime.js';
+import { calculateTradingDurationMsBetween } from '../../src/utils/tradingTime/index.js';
 import type { TradingCalendarSnapshot } from '../../src/types/tradingCalendar.js';
 
 function createCalendar(

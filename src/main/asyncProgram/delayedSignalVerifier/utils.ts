@@ -1,4 +1,4 @@
-import { getIndicatorValue } from '../../../utils/helpers/indicatorHelpers.js';
+import { getIndicatorValue } from '../../../utils/indicatorHelpers/index.js';
 import { TIME, VERIFICATION } from '../../../constants/index.js';
 import type { Signal } from '../../../types/signal.js';
 import type { SingleVerificationConfig } from '../../../types/config.js';

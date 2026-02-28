@@ -7,18 +7,16 @@
  * - 保持对象池释放与异常处理顺序
  */
 import { logger } from '../../../../utils/logger/index.js';
-import { formatError } from '../../../../utils/helpers/index.js';
 import { positionObjectPool, signalObjectPool } from '../../../../utils/objectPool/index.js';
 import { isSeatReady } from '../../../../services/autoSymbolManager/utils.js';
 import { WARRANT_LIQUIDATION_ORDER_TYPE } from '../../../../constants/index.js';
 import { getPositions } from '../../../processMonitor/utils.js';
-
 import type { LastState } from '../../../../types/state.js';
 import type { Position } from '../../../../types/account.js';
 import type { Quote } from '../../../../types/quote.js';
 import type { Signal } from '../../../../types/signal.js';
 import type { Trader } from '../../../../types/services.js';
-import type { RefreshGate } from '../../../../utils/refreshGate/types.js';
+import type { RefreshGate } from '../../../../utils/types.js';
 import type { MonitorTask } from '../../monitorTaskQueue/types.js';
 import type {
   LiquidationDistanceCheckTaskData,
@@ -27,11 +25,11 @@ import type {
   MonitorTaskStatus,
   MonitorTaskType,
 } from '../types.js';
+import { formatError } from '../../../../utils/error/index.js';
 import {
   resolveSeatSnapshotReadiness,
   validateSeatSnapshotsAfterRefresh,
 } from '../helpers/seatSnapshot.js';
-
 /**
  * 创建距回收价清仓任务处理器。
  * 校验席位快照后检查牛熊证距回收价，满足条件则生成清仓信号并执行，刷新订单记录与浮亏数据；保证风控检查在席位与行情就绪后执行。
@@ -61,7 +59,6 @@ export function createLiquidationDistanceHandler({
     if (!context) {
       return 'skipped';
     }
-
     const snapshotValidity = await validateSeatSnapshotsAfterRefresh({
       monitorSymbol: data.monitorSymbol,
       context,
@@ -72,7 +69,6 @@ export function createLiquidationDistanceHandler({
     if (!snapshotValidity) {
       return 'skipped';
     }
-
     const seatReadiness = resolveSeatSnapshotReadiness({
       monitorSymbol: data.monitorSymbol,
       context,
@@ -81,20 +77,17 @@ export function createLiquidationDistanceHandler({
     });
     const { isLongReady, isShortReady, longSymbol, shortSymbol } = seatReadiness;
     const { riskChecker } = context;
-
     const { longPosition, shortPosition } = getPositions(
       lastState.positionCache,
       longSymbol,
       shortSymbol,
     );
-
     try {
       const liquidationTasks: {
         signal: Signal;
         isLongSymbol: boolean;
         quote: Quote | null;
       }[] = [];
-
       /**
        * 在席位版本、持仓与行情均有效时构造保护性清仓信号，否则返回 null。
        * 先做前置校验可避免将无效任务推入后续执行链路，降低误清仓风险。
@@ -126,7 +119,6 @@ export function createLiquidationDistanceHandler({
         if (!Number.isFinite(availableQuantity) || availableQuantity <= 0) {
           return null;
         }
-
         const liquidationResult = riskChecker.checkWarrantDistanceLiquidation(
           symbol,
           isLongSymbol,
@@ -135,7 +127,6 @@ export function createLiquidationDistanceHandler({
         if (!liquidationResult.shouldLiquidate) {
           return null;
         }
-
         // 对象池返回 PoolableSignal，这里通过字段赋值构造出完整的 Signal 对象
         const signal = signalObjectPool.acquire() as Signal;
         signal.symbol = symbol;
@@ -149,10 +140,8 @@ export function createLiquidationDistanceHandler({
         signal.orderTypeOverride = WARRANT_LIQUIDATION_ORDER_TYPE;
         signal.isProtectiveLiquidation = false;
         signal.seatVersion = seatVersion;
-
         return { signal, isLongSymbol, quote };
       }
-
       if (isLongReady) {
         const longTask = tryCreateLiquidationSignal(
           longSymbol,
@@ -166,7 +155,6 @@ export function createLiquidationDistanceHandler({
           liquidationTasks.push(longTask);
         }
       }
-
       if (isShortReady) {
         const shortTask = tryCreateLiquidationSignal(
           shortSymbol,
@@ -180,7 +168,6 @@ export function createLiquidationDistanceHandler({
           liquidationTasks.push(shortTask);
         }
       }
-
       if (liquidationTasks.length > 0) {
         if (getCanProcessTask && !getCanProcessTask()) {
           for (const taskItem of liquidationTasks) {
@@ -224,7 +211,6 @@ export function createLiquidationDistanceHandler({
         positionObjectPool.release(shortPosition);
       }
     }
-
     return 'processed';
   };
 }

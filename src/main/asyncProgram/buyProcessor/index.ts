@@ -19,7 +19,7 @@
 import { signalObjectPool } from '../../../utils/objectPool/index.js';
 import { createBaseProcessor } from '../utils.js';
 import { logger } from '../../../utils/logger/index.js';
-import { formatError, formatSymbolDisplay, isBuyAction } from '../../../utils/helpers/index.js';
+import { isBuyAction } from '../../../utils/helpers/index.js';
 import {
   isSeatReady,
   isSeatVersionMatch,
@@ -29,7 +29,8 @@ import type { Processor } from '../types.js';
 import type { BuyProcessorDeps } from './types.js';
 import type { Task, BuyTaskType } from '../tradeTaskQueue/types.js';
 import type { RiskCheckContext } from '../../../types/services.js';
-
+import { formatSymbolDisplay } from '../../../utils/display/index.js';
+import { formatError } from '../../../utils/error/index.js';
 /**
  * 创建买入处理器。
  * 消费 BuyTaskQueue 中的买入任务，执行风险检查后提交订单；与卖出处理器分离，避免买入侧 API 风险检查阻塞卖出执行。
@@ -48,7 +49,6 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
     getIsHalfDay,
     getCanProcessTask,
   } = deps;
-
   /**
    * 处理单个买入任务
    * 注意：卖出信号由 SellProcessor 处理，此处只处理买入信号
@@ -57,7 +57,6 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
     const signal = task.data;
     const monitorSymbol = task.monitorSymbol;
     const symbolDisplay = formatSymbolDisplay(signal.symbol, signal.symbolName ?? null);
-
     try {
       // 验证信号类型：此处理器只处理买入信号
       const isBuySignal = isBuyAction(signal.action);
@@ -65,7 +64,6 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
         logger.warn(`[BuyProcessor] 收到非买入信号，跳过: ${symbolDisplay} ${signal.action}`);
         return true; // 非预期信号，但不算失败
       }
-
       // 获取监控上下文
       const ctx = getMonitorContext(monitorSymbol);
       if (!ctx) {
@@ -74,21 +72,17 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
         );
         return false;
       }
-
       const { config, state, orderRecorder, riskChecker } = ctx;
-
       // 获取行情数据（从 MonitorContext 缓存中获取，主循环每秒更新）
       // 注意：必须使用 ctx.longQuote/shortQuote/monitorQuote，这些字段每秒更新
       // 不能使用 state.longPrice/shortPrice，因为这些只在价格变化超过阈值时才更新
       const longQuote = ctx.longQuote;
       const shortQuote = ctx.shortQuote;
       const monitorQuote = ctx.monitorQuote;
-
       const isLongSignal = signal.action === 'BUYCALL';
       const direction = isLongSignal ? 'LONG' : 'SHORT';
       const seatState = ctx.symbolRegistry.getSeatState(monitorSymbol, direction);
       const seatVersion = ctx.symbolRegistry.getSeatVersion(monitorSymbol, direction);
-
       if (!isSeatReady(seatState)) {
         logger.info(
           `[BuyProcessor] ${describeSeatUnavailable(seatState)}，跳过信号: ${symbolDisplay} ${signal.action}`,
@@ -103,18 +97,15 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
         logger.info(`[BuyProcessor] 标的已切换，跳过信号: ${symbolDisplay} ${signal.action}`);
         return true;
       }
-
       // 获取全局状态
       const lastState = getLastState();
       const isHalfDay = getIsHalfDay();
-
       // 买入信号：执行风险检查（需要 API 调用获取最新账户和持仓）
       // 构建风险检查上下文
       const longSeatState = ctx.symbolRegistry.getSeatState(monitorSymbol, 'LONG');
       const shortSeatState = ctx.symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
       const longSymbol = isSeatReady(longSeatState) ? longSeatState.symbol : '';
       const shortSymbol = isSeatReady(shortSeatState) ? shortSeatState.symbol : '';
-
       const riskCheckContext: RiskCheckContext = {
         trader,
         riskChecker,
@@ -139,9 +130,7 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
         doomsdayProtection,
         config,
       };
-
       const checkedSignals = await signalProcessor.applyRiskChecks([signal], riskCheckContext);
-
       // 如果信号被风险检查拦截，跳过执行
       if (checkedSignals.length === 0) {
         const rejectReason = signal.reason?.trim();
@@ -151,7 +140,6 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
         );
         return true; // 处理成功（虽然被拦截了）
       }
-
       // 买入委托价必须以执行时行情为准，与卖出逻辑一致；lotSize 为按金额计算数量所必需
       const quote = isLongSignal ? longQuote : shortQuote;
       if (quote?.price === undefined || !Number.isFinite(quote.price) || quote.price <= 0) {
@@ -170,17 +158,14 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
       }
       signal.price = quote.price;
       signal.lotSize = quote.lotSize;
-
       // 二次门禁：防止任务入队后跨越交易日切换/生命周期状态变更，导致门禁关闭时仍继续下单
       if (getCanProcessTask && !getCanProcessTask()) {
         logger.info(`[BuyProcessor] 生命周期门禁关闭，放弃执行: ${symbolDisplay} ${signal.action}`);
         return true;
       }
-
       // 执行买入订单
       await trader.executeSignals([signal]);
       logger.info(`[BuyProcessor] 买入订单执行完成: ${symbolDisplay} ${signal.action}`);
-
       return true;
     } catch (err) {
       logger.error(
@@ -190,7 +175,6 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
       return false;
     }
   }
-
   return createBaseProcessor({
     loggerPrefix: 'BuyProcessor',
     taskQueue,

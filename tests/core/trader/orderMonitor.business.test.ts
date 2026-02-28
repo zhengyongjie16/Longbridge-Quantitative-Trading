@@ -24,8 +24,7 @@ import {
   createQuoteDouble,
   createSymbolRegistryDouble,
 } from '../../helpers/testDoubles.js';
-import type { RawOrderFromAPI } from '../../../src/types/services.js';
-import type { PendingSellInfo } from '../../../src/core/orderRecorder/types.js';
+import type { PendingSellInfo, RawOrderFromAPI } from '../../../src/types/services.js';
 
 function createDeps(params?: {
   readonly sellTimeoutSeconds?: number;

@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'bun:test';
 
-import { getCandleFingerprint } from '../../../src/services/indicators/utils.js';
+import { getCandleFingerprint } from '../../../src/services/indicators/snapshotBuilder.js';
 import type { CandleData } from '../../../src/types/data.js';
 import type { IndicatorSnapshot } from '../../../src/types/quote.js';
 import type { MonitorContext } from '../../../src/types/state.js';

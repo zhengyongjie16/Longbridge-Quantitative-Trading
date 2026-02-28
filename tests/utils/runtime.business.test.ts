@@ -11,7 +11,7 @@ import {
   resolveRuntimeProfile,
   resolveLogRootDir,
   shouldInstallGlobalProcessHooks,
-} from '../../src/utils/runtime.js';
+} from '../../src/utils/runtime/index.js';
 
 describe('runtime utils business flow', () => {
   it('loads test runtime preload defaults for the whole test process', () => {

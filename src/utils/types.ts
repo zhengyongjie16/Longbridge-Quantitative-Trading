@@ -1,8 +1,16 @@
 /**
+ * 运行时档位类型。
+ * 类型用途：表示程序当前运行环境（正式运行或测试运行），作为 runtime 解析函数的返回类型。
+ * 数据来源：由环境变量解析逻辑（APP_RUNTIME_PROFILE/BUN_TEST）推导。
+ * 使用范围：仅 src/utils 下的运行时与日志模块使用。
+ */
+export type RuntimeProfile = 'app' | 'test';
+
+/**
  * 等待者回调函数类型。
  * 类型用途：表示在 RefreshGate 中排队等待缓存刷新完成时的回调函数签名。
  * 数据来源：由 waitForFresh() 内部创建并推入等待队列。
- * 使用范围：仅 refreshGate 模块内部使用。
+ * 使用范围：仅 createRefreshGate 内部使用。
  */
 export type Waiter = () => void;
 
@@ -19,9 +27,9 @@ export type RefreshGateStatus = Readonly<{
 
 /**
  * 刷新门禁接口。
- * 类型用途：依赖注入用接口，通过版本号协调缓存刷新与异步处理器时序（markStale/markFresh/waitForFresh/getStatus），供主程序与 PostTradeRefresher 等使用。
- * 数据来源：由 createRefreshGate 等工厂实现并注入。
- * 使用范围：主程序、PostTradeRefresher、门禁逻辑等；全项目可引用。
+ * 类型用途：依赖注入用接口，通过版本号协调缓存刷新与异步处理器时序（markStale/markFresh/waitForFresh/getStatus），供主程序与异步处理模块使用。
+ * 数据来源：由 createRefreshGate 工厂实现并注入。
+ * 使用范围：主程序、异步处理器、生命周期等模块可引用。
  */
 export interface RefreshGate {
   readonly markStale: () => number;
