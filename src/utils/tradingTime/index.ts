@@ -225,6 +225,9 @@ export function calculateTradingDurationMsBetween(params: TradingDurationBetween
 
 /**
  * 获取港股日期键（UTC+8，YYYY-MM-DD）（内部使用）。
+ *
+ * @param date 时间对象
+ * @returns 港股日期键，date 无效时返回 null
  */
 function resolveHKDateKey(date: Date | null | undefined): string | null {
   return getHKDateKey(date);
@@ -232,6 +235,9 @@ function resolveHKDateKey(date: Date | null | undefined): string | null {
 
 /**
  * 解析港股日期键并返回该港股日 00:00 对应的 UTC 毫秒时间戳。
+ *
+ * @param dayKey 港股日期键（YYYY-MM-DD）
+ * @returns 对应 UTC 毫秒时间戳，非法日期键返回 null
  */
 function resolveHKDayStartUtcMs(dayKey: string): number | null {
   const match = HK_DATE_KEY_PATTERN.exec(dayKey);
@@ -255,6 +261,10 @@ function resolveHKDayStartUtcMs(dayKey: string): number | null {
 
 /**
  * 根据交易日类型生成当日交易会话区间（UTC 毫秒）。
+ *
+ * @param dayStartUtcMs 港股日 00:00 对应的 UTC 毫秒时间戳
+ * @param dayInfo 交易日信息（是否交易日/是否半日市）
+ * @returns 当日连续交易会话区间数组
  */
 function resolveSessionRangesByDay(
   dayStartUtcMs: number,
@@ -279,6 +289,12 @@ function resolveSessionRangesByDay(
 
 /**
  * 计算两个半开区间 [aStart, aEnd) 与 [bStart, bEnd) 的重叠毫秒数。
+ *
+ * @param aStart 区间 A 起点
+ * @param aEnd 区间 A 终点
+ * @param bStart 区间 B 起点
+ * @param bEnd 区间 B 终点
+ * @returns 重叠毫秒数，无重叠返回 0
  */
 function calculateOverlapMs(aStart: number, aEnd: number, bStart: number, bEnd: number): number {
   const overlapStart = Math.max(aStart, bStart);

@@ -94,7 +94,7 @@ export type SwitchOnIntervalParams = {
  * 类型用途：区分距回收价触发与周期触发，供换标状态机决定阶段流。
  * 使用范围：仅 autoSymbolManager 模块内部使用。
  */
-export type SwitchMode = 'DISTANCE' | 'PERIODIC';
+type SwitchMode = 'DISTANCE' | 'PERIODIC';
 
 /**
  * 换标状态机的运行时状态，记录换标流程各阶段的中间数据。

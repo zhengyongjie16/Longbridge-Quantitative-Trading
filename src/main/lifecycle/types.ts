@@ -153,17 +153,32 @@ export type LoadTradingDayRuntimeSnapshotDeps = Readonly<{
   warrantListCacheConfig: WarrantListCacheConfig;
 }>;
 
-/** 交易日历预热错误码 */
-export type TradingCalendarPrewarmErrorCode =
+/**
+ * 交易日历预热错误码。
+ * 类型用途：为预热流程提供稳定、可枚举的错误分类，供上层分支处理和日志聚合。
+ * 数据来源：由 tradingCalendarPrewarmer 在校验与分块流程中按错误场景生成。
+ * 使用范围：仅 lifecycle 模块内部使用。
+ */
+type TradingCalendarPrewarmErrorCode =
   | 'TRADING_CALENDAR_LOOKBACK_EXCEEDED'
   | 'TRADING_CALENDAR_INVALID_DATE_KEY';
 
-/** 交易日历预热错误上下文（便于日志与告警） */
-export type TradingCalendarPrewarmErrorDetails = Readonly<
+/**
+ * 交易日历预热错误上下文（便于日志与告警）。
+ * 类型用途：携带错误发生时的关键上下文字段，支持日志排查与告警维度扩展。
+ * 数据来源：由 tradingCalendarPrewarmer 在抛错前根据当前计算状态组装。
+ * 使用范围：仅 lifecycle 模块内部使用。
+ */
+type TradingCalendarPrewarmErrorDetails = Readonly<
   Record<string, string | number | boolean | null>
 >;
 
-/** 交易日历预热错误构造参数 */
+/**
+ * 交易日历预热错误构造参数。
+ * 类型用途：统一错误工厂的入参结构，确保 code/message/details 三元信息完整。
+ * 数据来源：由 tradingCalendarPrewarmer 内部 createTradingCalendarPrewarmError 调用方传入。
+ * 使用范围：仅 lifecycle 模块内部使用。
+ */
 export type TradingCalendarPrewarmErrorParams = Readonly<{
   code: TradingCalendarPrewarmErrorCode;
   message: string;
@@ -181,14 +196,24 @@ export type TradingCalendarPrewarmError = Error & {
   readonly details: TradingCalendarPrewarmErrorDetails;
 };
 
-/** 按自然月分块时的单块日期区间 */
+/**
+ * 按自然月分块时的单块日期区间。
+ * 类型用途：表达一次月级分块结果，供交易日历预热按块拉取与缓存写入。
+ * 数据来源：由 lifecycle 重建流程中的日期分块逻辑生成。
+ * 使用范围：仅 lifecycle 模块内部使用。
+ */
 export type DateRangeChunk = Readonly<{
   startKey: string;
   endKey: string;
   dateKeys: ReadonlyArray<string>;
 }>;
 
-/** 重建阶段预热交易日历快照的入参 */
+/**
+ * 重建阶段预热交易日历快照的入参。
+ * 类型用途：约束 prewarmTradingCalendarSnapshot 的依赖与时间上下文，避免调用方内联结构漂移。
+ * 数据来源：由 rebuildTradingDayState 在开盘重建链路中组装并传入。
+ * 使用范围：仅 lifecycle 模块内部使用。
+ */
 export type PrewarmTradingCalendarSnapshotParams = Readonly<{
   marketDataClient: MarketDataClient;
   lastState: LastState;

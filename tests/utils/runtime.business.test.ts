@@ -8,7 +8,6 @@ import { describe, expect, it } from 'bun:test';
 import path from 'node:path';
 
 import {
-  resolveRuntimeProfile,
   resolveLogRootDir,
   shouldInstallGlobalProcessHooks,
 } from '../../src/utils/runtime/index.js';
@@ -20,30 +19,29 @@ describe('runtime utils business flow', () => {
     expect(process.env['APP_LOG_ROOT_DIR']).toBe(path.join(process.cwd(), 'tests', 'logs'));
   });
 
-  it('resolves runtime profile by explicit config and bun test env fallback', () => {
-    const explicitTest = resolveRuntimeProfile({
-      APP_RUNTIME_PROFILE: 'test',
-    });
-    expect(explicitTest).toBe('test');
-
-    const explicitApp = resolveRuntimeProfile({
-      APP_RUNTIME_PROFILE: 'app',
-      BUN_TEST: '1',
-    });
-    expect(explicitApp).toBe('app');
-
-    const bunTestFallback = resolveRuntimeProfile({
-      BUN_TEST: '1',
-    });
-    expect(bunTestFallback).toBe('test');
-
-    const nodeEnvOnly = resolveRuntimeProfile({
-      NODE_ENV: 'test',
-    });
-    expect(nodeEnvOnly).toBe('app');
-
-    const defaultApp = resolveRuntimeProfile({});
-    expect(defaultApp).toBe('app');
+  it('applies runtime profile rules in public behaviors', () => {
+    expect(
+      resolveLogRootDir({
+        APP_RUNTIME_PROFILE: 'test',
+      }),
+    ).toBe(path.join(process.cwd(), 'tests', 'logs'));
+    expect(
+      resolveLogRootDir({
+        APP_RUNTIME_PROFILE: 'app',
+        BUN_TEST: '1',
+      }),
+    ).toBe(path.join(process.cwd(), 'logs'));
+    expect(
+      resolveLogRootDir({
+        BUN_TEST: '1',
+      }),
+    ).toBe(path.join(process.cwd(), 'tests', 'logs'));
+    expect(
+      resolveLogRootDir({
+        NODE_ENV: 'test',
+      }),
+    ).toBe(path.join(process.cwd(), 'logs'));
+    expect(resolveLogRootDir({})).toBe(path.join(process.cwd(), 'logs'));
   });
 
   it('resolves log root dir with explicit path and profile defaults', () => {

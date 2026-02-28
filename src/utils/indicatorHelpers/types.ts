@@ -4,7 +4,7 @@
  * 数据来源：行情指标计算模块。
  * 使用范围：indicatorHelpers 模块及依赖其类型的策略模块。
  */
-export type IndicatorKdj = {
+type IndicatorKdj = {
   readonly k?: number;
   readonly d?: number;
   readonly j?: number;
@@ -16,7 +16,7 @@ export type IndicatorKdj = {
  * 数据来源：行情指标计算模块。
  * 使用范围：indicatorHelpers 模块及依赖其类型的策略模块。
  */
-export type IndicatorMacd = {
+type IndicatorMacd = {
   readonly macd?: number;
   readonly dif?: number;
   readonly dea?: number;

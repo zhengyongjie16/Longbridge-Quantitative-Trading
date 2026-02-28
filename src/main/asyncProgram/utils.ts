@@ -68,6 +68,7 @@ export function createBaseProcessor<TType extends string>(
   /**
    * 循环消费队列中的任务，直到队列为空或处理器停止
    * 门禁关闭时仅释放信号，不执行业务逻辑
+   * @returns 无返回值
    */
   async function processQueue(): Promise<void> {
     while (running && !taskQueue.isEmpty()) {
@@ -89,6 +90,7 @@ export function createBaseProcessor<TType extends string>(
   /**
    * 通过 setImmediate 调度下一次队列处理，避免阻塞事件循环
    * 队列为空时不调度，等待 onTaskAdded 回调触发
+   * @returns 无返回值
    */
   function scheduleNextProcess(): void {
     if (!running) return;
@@ -114,6 +116,7 @@ export function createBaseProcessor<TType extends string>(
   }
   /**
    * 启动处理器，注册任务入队回调并立即调度一次队列处理
+   * @returns 无返回值
    */
   function start(): void {
     if (running) {
@@ -129,6 +132,7 @@ export function createBaseProcessor<TType extends string>(
   /**
    * 停止处理器，注销任务入队回调并取消待执行的 setImmediate
    * 不等待在途任务完成，如需等待请使用 stopAndDrain
+   * @returns 无返回值
    */
   function stop(): void {
     if (!running) {
@@ -145,6 +149,7 @@ export function createBaseProcessor<TType extends string>(
   }
   /**
    * 停止处理器并等待当前在途任务完成，确保优雅退出
+   * @returns 无返回值
    */
   async function stopAndDrain(): Promise<void> {
     running = false;
@@ -160,6 +165,7 @@ export function createBaseProcessor<TType extends string>(
   }
   /**
    * 重启处理器：先 stop 再 start，用于跨日重置等生命周期场景
+   * @returns 无返回值
    */
   function restart(): void {
     if (running) {

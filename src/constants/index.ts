@@ -134,7 +134,7 @@ export const LOG_COLORS = {
 } as const;
 
 /** ANSI 转义字符（ESC，ASCII 27） */
-export const LOG_ANSI_ESC = String.fromCodePoint(27);
+const LOG_ANSI_ESC = String.fromCodePoint(27);
 /** ANSI 颜色代码正则（ESC[...m） */
 export const LOG_ANSI_CODE_REGEX = new RegExp(LOG_ANSI_ESC + String.raw`\[[0-9;]*m`, 'g');
 

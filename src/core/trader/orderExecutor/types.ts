@@ -5,17 +5,6 @@ import type { OrderCacheManager, OrderMonitor } from '../types.js';
 import type { OrderRecorder, RateLimiter, TradeCheckResult } from '../../../types/services.js';
 
 /**
- * 买入数量来源判定结果。
- * 类型用途：统一表达显式数量/按金额换算/无效输入三种分支。
- * 数据来源：由买入数量解析逻辑根据 signal.quantity 和 signal.lotSize 计算。
- * 使用范围：仅 orderExecutor 模块内部使用。
- */
-export type BuyQuantitySource =
-  | { readonly source: 'NOTIONAL' }
-  | { readonly source: 'EXPLICIT'; readonly quantity: number; readonly lotSize: number }
-  | { readonly source: 'INVALID'; readonly reason: string };
-
-/**
  * 提交目标订单函数签名。
  * 类型用途：约束 submitFlow 对外暴露的核心提交流程函数形状。
  * 数据来源：由 createSubmitTargetOrder 工厂返回。

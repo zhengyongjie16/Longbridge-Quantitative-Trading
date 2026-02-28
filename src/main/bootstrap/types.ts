@@ -16,7 +16,6 @@ import type { Signal } from '../../types/signal.js';
 import type { MarketDataClient, TradingDayInfo } from '../../types/services.js';
 import type { LastState, MonitorContext } from '../../types/state.js';
 import type { Quote } from '../../types/quote.js';
-import type { QueueClearResult } from '../../types/queue.js';
 
 /**
  * 席位方向。
@@ -24,7 +23,7 @@ import type { QueueClearResult } from '../../types/queue.js';
  * 数据来源：由主流程和席位管理逻辑传入。
  * 使用范围：仅启动与 bootstrap 模块使用。
  */
-export type SeatDirection = 'LONG' | 'SHORT';
+type SeatDirection = 'LONG' | 'SHORT';
 
 /**
  * 单个监控标的的双向席位标的代码。
@@ -134,22 +133,6 @@ export type RunTradingDayOpenRebuildParams = Readonly<{
   ) => Promise<LoadTradingDayRuntimeSnapshotResult>;
   rebuildTradingDayState: (params: RebuildTradingDayStateParams) => Promise<void>;
 }>;
-
-/**
- * 队列清理执行函数签名。
- * 类型用途：约束 clearMonitorDirectionQueues 返回结构，供 bootstrap/queueCleanup 复用。
- * 数据来源：由 processMonitor utils 实现。
- * 使用范围：仅 bootstrap 模块内部使用。
- */
-export type ClearMonitorDirectionQueuesFn = (params: {
-  readonly monitorSymbol: string;
-  readonly direction: SeatDirection;
-  readonly delayedSignalVerifier: MonitorContext['delayedSignalVerifier'];
-  readonly buyTaskQueue: TaskQueue<BuyTaskType>;
-  readonly sellTaskQueue: TaskQueue<SellTaskType>;
-  readonly monitorTaskQueue: MonitorTaskQueue<MonitorTaskType, MonitorTaskData>;
-  readonly releaseSignal: (signal: Signal) => void;
-}) => QueueClearResult;
 
 /**
  * 账户与持仓展示函数入参。

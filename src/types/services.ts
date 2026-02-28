@@ -199,7 +199,7 @@ export type PendingSellInfo = {
  * 数据来源：由卖出决策层传入。
  * 使用范围：orderRecorder 与 signalProcessor 模块。
  */
-export type SellableOrderStrategy = 'ALL' | 'PROFIT_ONLY' | 'TIMEOUT_ONLY';
+type SellableOrderStrategy = 'ALL' | 'PROFIT_ONLY' | 'TIMEOUT_ONLY';
 
 /**
  * 可卖订单筛选参数。
@@ -557,7 +557,7 @@ export interface PositionCache {
  * 数据来源：由 doomsdayProtection 模块实现并注入。
  * 使用范围：RiskCheckContext 与买入风险检查链路使用。
  */
-export interface DoomsdayBuyGuard {
+interface DoomsdayBuyGuard {
   /** 检查是否应该拒绝买入（收盘前15分钟） */
   shouldRejectBuy: (currentTime: Date, isHalfDay: boolean) => boolean;
 }

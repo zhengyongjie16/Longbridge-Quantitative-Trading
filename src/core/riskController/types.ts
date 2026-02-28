@@ -18,60 +18,7 @@ import type {
   UnrealizedLossCheckResult,
 } from '../../types/services.js';
 import type { OrderFilteringEngine, OrderOwnership } from '../orderRecorder/types.js';
-import type { Decimal, NaiveDate, OrderSide, WarrantType } from 'longport';
-
-/**
- * 牛熊证报价。
- * 类型用途：牛熊证风险检查与距离计算所需的行情结构。
- * 数据来源：LongPort SDK QuoteContext.warrantQuote()。
- * 使用范围：仅 riskController 模块内部使用。
- */
-export type WarrantQuote = {
-  /** 证券代码 */
-  readonly symbol: string | null;
-  /** 最新价 */
-  readonly lastDone: Decimal | null;
-  /** 昨收价 */
-  readonly prevClose: Decimal | null;
-  /** 开盘价 */
-  readonly open: Decimal | null;
-  /** 最高价 */
-  readonly high: Decimal | null;
-  /** 最低价 */
-  readonly low: Decimal | null;
-  /** 最新价时间戳 */
-  readonly timestamp: Date | null;
-  /** 成交量 */
-  readonly volume: number | null;
-  /** 成交额 */
-  readonly turnover: Decimal | null;
-  /** 交易状态 (TradeStatus 枚举值) */
-  readonly tradeStatus: number | null;
-  /** 引伸波幅 */
-  readonly impliedVolatility: Decimal | null;
-  /** 到期日 */
-  readonly expiryDate: NaiveDate | null;
-  /** 最后交易日 */
-  readonly lastTradeDate: NaiveDate | null;
-  /** 街货比 */
-  readonly outstandingRatio: Decimal | null;
-  /** 街货量 */
-  readonly outstandingQuantity: number | null;
-  /** 换股比率 */
-  readonly conversionRatio: Decimal | null;
-  /** 轮证类型 (WarrantType: Call/Put/Bull/Bear/Inline) */
-  readonly category: WarrantType | null;
-  /** 行权价 */
-  readonly strikePrice: Decimal | null;
-  /** 上限价 */
-  readonly upperStrikePrice: Decimal | null;
-  /** 下限价 */
-  readonly lowerStrikePrice: Decimal | null;
-  /** 回收价 */
-  readonly callPrice: Decimal | null;
-  /** 标的证券代码 */
-  readonly underlyingSymbol: string | null;
-};
+import type { OrderSide } from 'longport';
 
 /**
  * 牛熊证信息。

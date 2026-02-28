@@ -7,7 +7,7 @@ import type { MockCallRecord, MockFailureRule, MockFailureState, MockMethodName 
  * @param supportedMethods 支持的方法集合
  * @returns 是否支持
  */
-export function isMethodSupported(
+function isMethodSupported(
   method: MockMethodName,
   supportedMethods: ReadonlySet<MockMethodName>,
 ): boolean {
@@ -34,7 +34,7 @@ export function createFailureState(): MockFailureState {
  * @param method 方法名
  * @returns 当前调用序号（从 1 开始）
  */
-export function nextCallIndex(state: MockFailureState, method: MockMethodName): number {
+function nextCallIndex(state: MockFailureState, method: MockMethodName): number {
   const next = (state.callsByMethod.get(method) ?? 0) + 1;
   state.callsByMethod.set(method, next);
   return next;
@@ -49,7 +49,7 @@ export function nextCallIndex(state: MockFailureState, method: MockMethodName): 
  * @param args 调用参数
  * @returns 需注入的 Error；不注入时返回 null
  */
-export function shouldFail(
+function shouldFail(
   state: MockFailureState,
   method: MockMethodName,
   callIndex: number,
@@ -88,7 +88,7 @@ export function shouldFail(
  * @param params 调用日志写入参数
  * @returns 无返回值
  */
-export function recordCall(params: {
+function recordCall(params: {
   readonly callRecords: MockCallRecord[];
   readonly method: MockMethodName;
   readonly callIndex: number;

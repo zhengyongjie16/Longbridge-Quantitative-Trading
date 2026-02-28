@@ -44,6 +44,7 @@ function createObjectPool<T>(
   /**
    * 将对象归还到池中
    * @param obj - 待归还的对象，为 null/undefined 时忽略
+   * @returns 无返回值
    */
   function release(obj: T | null | undefined): void {
     if (!obj || pool.length >= maxSize) return;
@@ -55,6 +56,7 @@ function createObjectPool<T>(
   /**
    * 批量释放对象数组
    * @param objects - 待释放的对象数组，为 null/undefined 或非数组时忽略
+   * @returns 无返回值
    */
   function releaseAll(objects: ReadonlyArray<T> | null | undefined): void {
     if (!objects) return;

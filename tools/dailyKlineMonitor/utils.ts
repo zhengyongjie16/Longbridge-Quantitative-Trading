@@ -31,7 +31,7 @@ function formatNumber(value: number | null | undefined, digits: number): string 
  * @param timestamp 毫秒时间戳
  * @returns 日志前缀文本
  */
-export function formatKlineTimePrefix(timestamp: number | null | undefined): string {
+function formatKlineTimePrefix(timestamp: number | null | undefined): string {
   if (timestamp === null || timestamp === undefined || !Number.isFinite(timestamp)) {
     return '';
   }
@@ -47,7 +47,7 @@ export function formatKlineTimePrefix(timestamp: number | null | undefined): str
  * @param decimals 小数位
  * @returns 格式化后的文本
  */
-export function formatIndicator(value: number | null | undefined, decimals: number = 3): string {
+function formatIndicator(value: number | null | undefined, decimals: number = 3): string {
   return formatFiniteNumber(value, decimals);
 }
 
@@ -59,7 +59,7 @@ export function formatIndicator(value: number | null | undefined, decimals: numb
  * @param threshold 变化阈值
  * @returns 是否发生变化
  */
-export function hasChanged(
+function hasChanged(
   current: number | null | undefined,
   last: number | null | undefined,
   threshold: number,
@@ -98,7 +98,7 @@ export function convertToCandleData(
  * @param prevClose 前收盘价
  * @returns 涨跌幅百分比或 null
  */
-export function calculateChangePercent(
+function calculateChangePercent(
   currentPrice: number | null | undefined,
   prevClose: number | null | undefined,
 ): number | null {

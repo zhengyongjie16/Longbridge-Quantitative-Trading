@@ -44,6 +44,12 @@ function isStaticInfo(value: unknown): value is StaticInfo {
     return false;
   }
   const valueRecord = value;
+  /**
+   * 判断静态信息对象中的名称字段是否为可接受类型。
+   *
+   * @param propertyKey 静态信息中的名称字段键
+   * @returns 当字段为 undefined/null/string 时返回 true
+   */
   function isNullableStringProperty(propertyKey: 'nameHk' | 'nameCn' | 'nameEn'): boolean {
     const propertyValue: unknown = valueRecord[propertyKey];
     return (

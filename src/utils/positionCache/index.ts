@@ -11,6 +11,11 @@ import { isValidPositiveNumber } from '../helpers/index.js';
 export function createPositionCache(): PositionCache {
   const positionMap = new Map<string, Position>();
 
+  /**
+   * 用最新持仓列表重建缓存。
+   * @param positions 当前持仓快照
+   * @returns 无返回值
+   */
   function update(positions: ReadonlyArray<Position>): void {
     positionMap.clear();
 
@@ -26,6 +31,11 @@ export function createPositionCache(): PositionCache {
     }
   }
 
+  /**
+   * 按标的代码读取缓存持仓。
+   * @param symbol 标的代码
+   * @returns 命中时返回持仓，否则返回 null
+   */
   function get(symbol: string): Position | null {
     return positionMap.get(symbol) ?? null;
   }

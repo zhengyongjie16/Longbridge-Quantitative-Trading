@@ -72,7 +72,7 @@ function toNumberFromUnknown(value: unknown): number {
  * @param candlestick LongPort K 线
  * @returns CandleData 对象
  */
-export function toCandle(candlestick: Candlestick): CandleData {
+function toCandle(candlestick: Candlestick): CandleData {
   return {
     high: toNumberFromUnknown(candlestick.high),
     low: toNumberFromUnknown(candlestick.low),
@@ -121,7 +121,7 @@ function parseCandleNumbers(candle: CandleData): CandleNumbers | null {
  * @param period ADX 周期
  * @returns ADX 值（0-100）或 null
  */
-export function calculateADX(candles: ReadonlyArray<CandleData>, period: number): number | null {
+function calculateADX(candles: ReadonlyArray<CandleData>, period: number): number | null {
   if (candles.length < 2 * period + 1) {
     return null;
   }
@@ -239,7 +239,7 @@ export function calculateADX(candles: ReadonlyArray<CandleData>, period: number)
  * @param numBins 价格分桶数量
  * @returns VP 结果或 null
  */
-export function calculateVP(
+function calculateVP(
   candles: ReadonlyArray<CandleData>,
   vaPercent: number,
   numBins: number,
@@ -343,7 +343,7 @@ export function calculateVP(
  * @param text 输入文本
  * @returns 显示宽度
  */
-export function getDisplayWidth(text: string): number {
+function getDisplayWidth(text: string): number {
   let width = 0;
   for (const char of text) {
     const code = char.codePointAt(0) ?? 0;
@@ -398,7 +398,7 @@ export function formatChangePercent(value: number | null | undefined): string {
  * @param date 日期对象
  * @returns `YYYY-MM-DD`
  */
-export function toHKDateStr(date: Date): string {
+function toHKDateStr(date: Date): string {
   const hongKongDate = new Date(date.getTime() + 8 * 3600 * 1000);
   const year = hongKongDate.getUTCFullYear();
   const month = String(hongKongDate.getUTCMonth() + 1).padStart(2, '0');
@@ -427,10 +427,7 @@ function computeVAPosition(price: number, vp: VPResult | null): number | null {
  * @param key 指标键
  * @returns 指标数值或 null
  */
-export function getIndicatorValue(
-  row: MinuteIndicatorRow,
-  key: RowColorIndicatorKey,
-): number | null {
+function getIndicatorValue(row: MinuteIndicatorRow, key: RowColorIndicatorKey): number | null {
   switch (key) {
     case 'rsi6': {
       return row.rsi6 !== null && Number.isFinite(row.rsi6) ? row.rsi6 : null;
@@ -481,7 +478,7 @@ export function getIndicatorValue(
  * @param mode 着色模式
  * @returns 是否满足该条件
  */
-export function rowMatchesOneCondition(
+function rowMatchesOneCondition(
   row: MinuteIndicatorRow,
   condition: RowColorCondition,
   mode: RowColorMode,

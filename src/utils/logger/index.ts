@@ -88,6 +88,7 @@ function formatExtra(extra: unknown): string {
 
 /**
  * 获取当前香港时间日期字符串 (YYYY-MM-DD)
+ * @returns 香港日期字符串，无法解析时返回空字符串
  */
 function getCurrentDate(): string {
   const timestamp = toHongKongTimeLog(new Date());
@@ -417,6 +418,10 @@ function createDrainHandler(
     callback(); // 超时后仍调用 callback 避免阻塞
   }, timeout);
 
+  /**
+   * drain 事件处理器。
+   * @returns 无返回值
+   */
   function onDrain(): void {
     if (resolved) return;
     resolved = true;

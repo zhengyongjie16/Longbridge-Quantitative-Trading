@@ -54,26 +54,6 @@ export function toDecimalStrict(value: unknown): Decimal | null {
 }
 
 /**
- * 判断 DecimalInput 是否为正数。
- *
- * @param value 输入值
- * @returns 大于 0 时返回 true
- */
-export function isPositiveDecimal(value: DecimalInput): boolean {
-  return toDecimalValue(value).greaterThan(Decimal.ZERO());
-}
-
-/**
- * 判断 DecimalInput 是否为非负数。
- *
- * @param value 输入值
- * @returns 大于等于 0 时返回 true
- */
-export function isNonNegativeDecimal(value: DecimalInput): boolean {
-  return toDecimalValue(value).greaterThanOrEqualTo(Decimal.ZERO());
-}
-
-/**
  * Decimal 加法。
  *
  * @param left 左操作数
@@ -135,16 +115,6 @@ export function decimalAbs(value: DecimalInput): Decimal {
  */
 export function decimalNeg(value: DecimalInput): Decimal {
   return toDecimalValue(value).neg();
-}
-
-/**
- * Decimal 向下取整。
- *
- * @param value 输入值
- * @returns floor 结果
- */
-export function decimalFloor(value: DecimalInput): Decimal {
-  return toDecimalValue(value).floor();
 }
 
 /**
@@ -224,10 +194,7 @@ export function isLotMultiple(quantity: DecimalInput, lotSize: DecimalInput): bo
  * @param lotSize 每手股数
  * @returns 向下对齐后的数量；lotSize 非法时返回 null
  */
-export function floorQuantityToLotSize(
-  quantity: DecimalInput,
-  lotSize: DecimalInput,
-): Decimal | null {
+function floorQuantityToLotSize(quantity: DecimalInput, lotSize: DecimalInput): Decimal | null {
   const quantityDecimal = toDecimalValue(quantity);
   const lotSizeDecimal = toDecimalValue(lotSize);
 

@@ -20,7 +20,7 @@ import type {
  * 数据来源：由 autoSymbolManager 模块实现并注入。
  * 使用范围：MonitorContext 与调用方使用。
  */
-export interface AutoSymbolManager {
+interface AutoSymbolManager {
   maybeSearchOnTick: (params: {
     readonly direction: 'LONG' | 'SHORT';
     readonly currentTime: Date;
@@ -48,7 +48,7 @@ export interface AutoSymbolManager {
  * 数据来源：由 strategy 模块实现并注入。
  * 使用范围：processMonitor/signalPipeline 等调用方使用。
  */
-export interface HangSengMultiIndicatorStrategy {
+interface HangSengMultiIndicatorStrategy {
   generateCloseSignals: (
     state: IndicatorSnapshot | null,
     longSymbol: string,
@@ -66,7 +66,7 @@ export interface HangSengMultiIndicatorStrategy {
  * 数据来源：由 riskController 模块实现并注入。
  * 使用范围：监控任务、成交处理与风险计算链路使用。
  */
-export interface DailyLossTracker {
+interface DailyLossTracker {
   resetAll: (now: Date) => void;
   recalculateFromAllOrders: (
     allOrders: ReadonlyArray<RawOrderFromAPI>,
@@ -92,7 +92,7 @@ export interface DailyLossTracker {
  * 数据来源：由 riskController 模块实现并注入。
  * 使用范围：monitorTaskProcessor 等调用方使用。
  */
-export interface UnrealizedLossMonitor {
+interface UnrealizedLossMonitor {
   monitorUnrealizedLoss: (context: {
     readonly longQuote: Quote | null;
     readonly shortQuote: Quote | null;
@@ -112,7 +112,7 @@ export interface UnrealizedLossMonitor {
  * 数据来源：由 delayedSignalVerifier 模块实现并注入。
  * 使用范围：signalPipeline、mainProgram、cleanup、queue 清理逻辑使用。
  */
-export interface DelayedSignalVerifier {
+interface DelayedSignalVerifier {
   addSignal: (signal: Signal, monitorSymbol: string) => void;
   onVerified: (callback: (signal: Signal, monitorSymbol: string) => void) => void;
   cancelAll: () => number;
