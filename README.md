@@ -40,7 +40,7 @@
 | `longport-nodejs-sdk`               | LongPort OpenAPI SDK for Node.js 完整知识库 | 调用 LongPort API、查询 SDK 文档、处理行情/订单/资产                                           |
 | `typescript-project-specifications` | TypeScript 严格代码规范                     | 编写/修改/重构 .ts 文件时自动使用，包含工厂函数、依赖注入、对象池等模式示例                    |
 
-### 核心功能
+## 核心功能
 
 | 功能               | 说明                                                                                                                                     |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
@@ -48,13 +48,11 @@
 | 多指标组合         | RSI、PSY、MFI、KDJ 组合判断（MACD/EMA 仅用于延迟验证）                                                                                   |
 | 双向交易           | 支持双向交易（做多和做空）                                                                                                               |
 | 延迟验证           | 买入/卖出信号均支持延迟验证（趋势验证）                                                                                                  |
-| 异步处理           | 异步执行交易，不阻塞主循环                                                                                                               |
 | 智能风控           | 浮亏保护、持仓限制、牛熊证回收价检查                                                                                                     |
 | 末日保护           | 收盘前15分钟拒绝买入并撤销未成交订单，收盘前5分钟自动清仓                                                                                |
 | 订单调整           | 自动监控和调整未成交订单价格（买入超时撤单，卖出超时转市价单）                                                                           |
 | 自动寻标/换标      | 启用后以"席位"动态决定牛/熊证交易标的；距回收价百分比越界触发自动换标（含预寻标与同标的日内抑制，可选移仓回补）                          |
 | 交易日生命周期管理 | 自动检测跨日并执行午夜清理（清空运行时状态），交易日开盘时自动重建（恢复账户/持仓/订单/席位等），支持失败重试                            |
-| 内存优化           | 对象池复用减少 GC 压力，IndicatorCache 使用环形缓冲区                                                                                    |
 | 卖出策略           | 智能平仓三阶段：整体盈利全卖；整体未盈利先卖盈利订单；可选再从剩余订单中卖出超时订单（严格按交易时段累计）；并排除待成交占用且按整笔选单 |
 
 ## 快速开始
@@ -90,22 +88,22 @@ LONGPORT_APP_SECRET=your_secret
 LONGPORT_ACCESS_TOKEN=your_token
 LONGPORT_REGION=hk    # 可选，默认 hk（cn 为中国大陆区域）
 
-# 交易标的配置（使用后缀 _N，N从1开始，系统自动检测；标的必须为 ticker.region）
+# 交易标的配置（标的必须为 ticker.region）
 # 示例：第一个监控标的（_1）
 MONITOR_SYMBOL_1=9988.HK    # 监控标的（阿里巴巴）
 LONG_SYMBOL_1=55131.HK      # 做多标的（阿里摩通六甲牛G）
 SHORT_SYMBOL_1=56614.HK     # 做空标的（阿里摩通六七熊A）
 ORDER_OWNERSHIP_MAPPING_1=ALIBA  # 必需：订单归属映射（用于 stockName 归属解析/启动席位恢复）
 
-# 交易参数(示例，接近取值)
+# 交易参数（示例，接近取值）
 TARGET_NOTIONAL_1=10000    # 每次买入金额（HKD）
 
-# 风控参数(示例)
+# 风控参数（示例）
 MAX_POSITION_NOTIONAL_1=200000  # 单标持仓上限
 MAX_DAILY_LOSS_1=20000          # 单日亏损上限
 MAX_UNREALIZED_LOSS_PER_SYMBOL_1=5000  # 单标浮亏保护阈值（0 表示禁用）
 
-# 信号配置（示例，格式见下方）
+# 信号配置（示例，格式见 .env.example 中 # 信号配置）
 SIGNAL_BUYCALL_1=(RSI:6<20,MFI<15,D<20,J<-1)/3|(J<-20)
 SIGNAL_SELLCALL_1=(RSI:6>80,MFI>85,D>79,J>100)/3|(J>110)
 SIGNAL_BUYPUT_1=(RSI:6>80,MFI>85,D>80,J>100)/3|(J>120)
@@ -135,26 +133,9 @@ bun start
 - 代码质量：`bun sonarqube` / `bun sonarqube:report`（需本地安装 `sonar-scanner`，然后配置 `.env.sonar` 及 `docker-compose.yml` 以本地启动）
 - 其他：`bun lint` / `bun lint:fix` / `bun clean` / `bun format`
 
-## 信号配置格式
+## 交易策略
 
-**格式**：`(条件1,条件2,...)/N|(条件A)|(条件B,条件C)/M`
-
-- **括号内**：条件列表，逗号分隔
-- **/N**：括号内条件需满足 N 项
-- **|**：分隔条件组，满足任一组即可
-- **指标**：
-  - `RSI:n`：任意周期 RSI（n 范围 1-100），如 `RSI:6<20`
-  - `PSY:n`：任意周期 PSY（n 范围 1-100），如 `PSY:12>50`
-  - `MFI`：资金流量指标
-  - `K`、`D`、`J`：KDJ 指标
-- **运算符**：`<`、`>`
-- **条件组数量**：最多 3 组，满足任一组即可
-
-> **说明**：`EMA:n`、`MACD`、`DIF`、`DEA` 仅用于延迟验证指标，不支持用于信号配置。
-
-### 交易策略
-
-#### 信号生成与验证流程
+### 信号生成与验证流程
 
 系统支持延迟验证，是否延迟由配置决定：延迟时间为 0 或验证指标为空则为立即信号，否则进入延迟验证流程。
 
@@ -176,7 +157,7 @@ bun start
 3. 在 T0+10s 执行验证，检查 T0 / T0+5s / T0+10s 三点趋势（允许 ±5 秒误差）
 4. 验证通过进入交易执行流程，失败则丢弃该信号
 
-#### 买入策略
+### 买入策略
 
 1. **信号生成**：监控标的技术指标满足配置条件时，生成买入信号（立即/延迟）
 2. **延迟验证**：若启用延迟验证，按配置在延迟期后验证三点趋势
@@ -184,7 +165,7 @@ bun start
 4. **风险检查**：频率限制、清仓冷却（频率通过后会立即记录买入尝试）、价格限制、末日保护、牛熊证风险、浮亏/持仓/现金限制
 5. **订单执行**：按目标金额计算买入数量并提交订单（订单类型可配置）
 
-#### 卖出策略
+### 卖出策略
 
 1. **信号生成**：监控标的技术指标满足配置条件，且存在买入订单记录时，生成卖出信号（立即/延迟）
 2. **延迟验证**：若启用延迟验证，需通过趋势验证后进入执行流程
@@ -215,49 +196,49 @@ bun start
 
 **全局配置**：
 
-| 参数                                   | 默认值  | 说明                                                     |
-| -------------------------------------- | ------- | -------------------------------------------------------- |
-| `LONGPORT_REGION`                      | `hk`    | API 区域配置（`cn`=中国大陆，`hk`=香港及其他）           |
-| `DOOMSDAY_PROTECTION`                  | `true`  | 启用末日保护                                             |
-| `MORNING_OPENING_PROTECTION_ENABLED`   | `false` | 早盘 09:30 起 N 分钟内暂停信号生成                       |
-| `MORNING_OPENING_PROTECTION_MINUTES`   | `无`    | 早盘开盘保护时长（分钟，范围1-60；仅启用早盘保护时必填） |
-| `AFTERNOON_OPENING_PROTECTION_ENABLED` | `false` | 午盘 13:00 起 N 分钟内暂停信号生成（半日市不生效）       |
-| `AFTERNOON_OPENING_PROTECTION_MINUTES` | `无`    | 午盘开盘保护时长（分钟，范围1-60；仅启用午盘保护时必填） |
-| `DEBUG`                                | `false` | 启用调试日志                                             |
-| `TRADING_ORDER_TYPE`                   | `ELO`   | 交易订单类型（LO 限价单 / ELO 增强限价单 / MO 市价单）   |
-| `LIQUIDATION_ORDER_TYPE`               | `MO`    | 清仓订单类型（LO / ELO / MO）                            |
-| `BUY_ORDER_TIMEOUT_ENABLED`            | `true`  | 启用买入订单超时检测（超时后撤单）                       |
-| `BUY_ORDER_TIMEOUT_SECONDS`            | `180`   | 买入订单超时时间（秒，范围30-600）                       |
-| `SELL_ORDER_TIMEOUT_ENABLED`           | `true`  | 启用卖出订单超时检测（超时后转市价单）                   |
-| `SELL_ORDER_TIMEOUT_SECONDS`           | `180`   | 卖出订单超时时间（秒，范围30-600）                       |
-| `ORDER_MONITOR_PRICE_UPDATE_INTERVAL`  | `5`     | 订单价格更新间隔（秒，范围1-60）                         |
+| 参数                                   | 默认值  | 说明                                                      |
+| -------------------------------------- | ------- | --------------------------------------------------------- |
+| `LONGPORT_REGION`                      | `hk`    | API 区域配置（`cn`=中国大陆，`hk`=香港及其他）            |
+| `DOOMSDAY_PROTECTION`                  | `true`  | 启用末日保护                                              |
+| `MORNING_OPENING_PROTECTION_ENABLED`   | `false` | 早盘 09:30 起 N 分钟内暂停信号生成                        |
+| `MORNING_OPENING_PROTECTION_MINUTES`   | `无`    | 早盘开盘保护时长（分钟，范围 1-60；仅启用早盘保护时必填） |
+| `AFTERNOON_OPENING_PROTECTION_ENABLED` | `false` | 午盘 13:00 起 N 分钟内暂停信号生成（半日市不生效）        |
+| `AFTERNOON_OPENING_PROTECTION_MINUTES` | `无`    | 午盘开盘保护时长（分钟，范围 1-60；仅启用午盘保护时必填） |
+| `DEBUG`                                | `false` | 启用调试日志                                              |
+| `TRADING_ORDER_TYPE`                   | `ELO`   | 交易订单类型（LO 限价单 / ELO 增强限价单 / MO 市价单）    |
+| `LIQUIDATION_ORDER_TYPE`               | `MO`    | 清仓订单类型（LO / ELO / MO）                             |
+| `BUY_ORDER_TIMEOUT_ENABLED`            | `true`  | 启用买入订单超时检测（超时后撤单）                        |
+| `BUY_ORDER_TIMEOUT_SECONDS`            | `180`   | 买入订单超时时间（秒，范围 30-600）                       |
+| `SELL_ORDER_TIMEOUT_ENABLED`           | `true`  | 启用卖出订单超时检测（超时后转市价单）                    |
+| `SELL_ORDER_TIMEOUT_SECONDS`           | `180`   | 卖出订单超时时间（秒，范围 30-600）                       |
+| `ORDER_MONITOR_PRICE_UPDATE_INTERVAL`  | `5`     | 订单价格更新间隔（秒，范围 1-60）                         |
 
 **每个监控标的配置**（使用后缀 `_N`，如 `_1`、`_2`）：
 
 | 参数                                         | 默认值  | 说明                                                                                                     |
 | -------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------- |
-| `MAX_UNREALIZED_LOSS_PER_SYMBOL_N`           | `0`     | 单标浮亏保护阈值（0表示禁用）                                                                            |
-| `VERIFICATION_DELAY_SECONDS_BUY_N`           | `60`    | 买入延迟验证时间（秒，范围0-120）                                                                        |
+| `MAX_UNREALIZED_LOSS_PER_SYMBOL_N`           | `0`     | 单标浮亏保护阈值（0 表示禁用）                                                                           |
+| `VERIFICATION_DELAY_SECONDS_BUY_N`           | `60`    | 买入延迟验证时间（秒，范围 0-120）                                                                       |
 | `VERIFICATION_INDICATORS_BUY_N`              | `无`    | 买入验证指标（逗号分隔，可选：K/D/J/MACD/DIF/DEA/EMA:n/PSY:n；未配置则不进行买入延迟验证）               |
-| `VERIFICATION_DELAY_SECONDS_SELL_N`          | `60`    | 卖出延迟验证时间（秒，范围0-120）                                                                        |
+| `VERIFICATION_DELAY_SECONDS_SELL_N`          | `60`    | 卖出延迟验证时间（秒，范围 0-120）                                                                       |
 | `VERIFICATION_INDICATORS_SELL_N`             | `无`    | 卖出验证指标（逗号分隔，可选：K/D/J/MACD/DIF/DEA/EMA:n/PSY:n；未配置则不进行卖出延迟验证）               |
-| `BUY_INTERVAL_SECONDS_N`                     | `60`    | 同向买入间隔（秒，范围10-600）                                                                           |
+| `BUY_INTERVAL_SECONDS_N`                     | `60`    | 同向买入间隔（秒，范围 10-600）                                                                          |
 | `LIQUIDATION_COOLDOWN_MINUTES_N`             | `无`    | 保护性清仓后买入冷却（可选，不设置则不冷却：1-120 / half-day / one-day）                                 |
 | `SMART_CLOSE_ENABLED_N`                      | `true`  | 智能平仓开关（启用时按三阶段执行：整体盈利全卖、未盈利先卖盈利订单、可选第三阶段卖超时；禁用时全仓卖出） |
 | `SMART_CLOSE_TIMEOUT_MINUTES_N`              | `无`    | 智能平仓第三阶段超时阈值（分钟；留空/null=关闭；非负整数；仅在整体未盈利时，从第二阶段剩余订单中筛超时） |
 | `AUTO_SEARCH_ENABLED_N`                      | `false` | 自动寻标开关（启用后忽略 LONG/SHORT 标的配置）                                                           |
-| `ORDER_OWNERSHIP_MAPPING_N`                  | `无`    | **必需**：stockName 归属缩写映射（逗号分隔），用于订单归属解析与启动席位恢复；不同监控标的别名不可冲突   |
+| `ORDER_OWNERSHIP_MAPPING_N`                  | 必填    | stockName 归属缩写映射（逗号分隔），用于订单归属解析与启动席位恢复；不同监控标的别名不可冲突             |
 | `AUTO_SEARCH_MIN_DISTANCE_PCT_BULL_N`        | `无`    | 牛证最低距回收价百分比阈值（正值）                                                                       |
 | `AUTO_SEARCH_MIN_DISTANCE_PCT_BEAR_N`        | `无`    | 熊证最低距回收价百分比阈值（负值）                                                                       |
 | `AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_BULL_N` | `无`    | 牛证分均成交额阈值（HKD/分钟）                                                                           |
 | `AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_BEAR_N` | `无`    | 熊证分均成交额阈值（HKD/分钟）                                                                           |
 | `AUTO_SEARCH_EXPIRY_MIN_MONTHS_N`            | `3`     | 到期日最小月份                                                                                           |
 | `AUTO_SEARCH_OPEN_DELAY_MINUTES_N`           | `5`     | 早盘开盘延迟分钟数（仅早盘生效）                                                                         |
-| `SWITCH_INTERVAL_MINUTES_N`                  | `0`     | 周期换标间隔（分钟，0 表示关闭；仅在交易时段且非开盘保护期触发，午休/非交易时段不累计）                  |
+| `SWITCH_INTERVAL_MINUTES_N`                  | `0`     | 周期换标间隔（分钟，范围 0-120，0 表示关闭；仅在交易时段且非开盘保护期触发，午休/非交易时段不累计）      |
 | `SWITCH_DISTANCE_RANGE_BULL_N`               | `无`    | 牛证距回收价换标范围（格式 min,max，包含等于）                                                           |
 | `SWITCH_DISTANCE_RANGE_BEAR_N`               | `无`    | 熊证距回收价换标范围（格式 min,max，包含等于）                                                           |
 
-#### 自动寻标/自动换标（席位机制）说明
+### 自动寻标/自动换标（席位机制）说明
 
 启用 `AUTO_SEARCH_ENABLED_N=true` 后，系统会为每个监控标的维护 **两张席位（LONG=牛证 / SHORT=熊证）**，交易标的由席位动态决定：
 
