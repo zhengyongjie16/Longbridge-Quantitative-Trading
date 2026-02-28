@@ -8,7 +8,7 @@ import { describe, expect, it } from 'bun:test';
 import { OrderSide, OrderType, type TradeContext } from 'longport';
 
 import { API } from '../../src/constants/index.js';
-import { createOrderMonitor } from '../../src/core/trader/orderMonitor.js';
+import { createOrderMonitor } from '../../src/core/trader/orderMonitor/index.js';
 import type { OrderMonitorDeps } from '../../src/core/trader/types.js';
 import { createPostTradeRefresher } from '../../src/main/asyncProgram/postTradeRefresher/index.js';
 import type { MonitorContext, LastState } from '../../src/types/state.js';

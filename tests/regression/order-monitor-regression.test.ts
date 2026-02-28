@@ -13,7 +13,7 @@ import {
   type TradeContext,
 } from 'longport';
 
-import { createOrderMonitor } from '../../src/core/trader/orderMonitor.js';
+import { createOrderMonitor } from '../../src/core/trader/orderMonitor/index.js';
 import type { OrderMonitorDeps } from '../../src/core/trader/types.js';
 import { createTradingConfig } from '../../mock/factories/configFactory.js';
 import { createPushOrderChanged } from '../../mock/factories/tradeFactory.js';

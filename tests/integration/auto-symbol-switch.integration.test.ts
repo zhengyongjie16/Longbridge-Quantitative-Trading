@@ -15,7 +15,7 @@ mock.module('../../src/services/autoSymbolFinder/index.js', () => ({
 }));
 
 import { createAutoSymbolManager } from '../../src/services/autoSymbolManager/index.js';
-import { createOrderExecutor } from '../../src/core/trader/orderExecutor.js';
+import { createOrderExecutor } from '../../src/core/trader/orderExecutor/index.js';
 import { createTradingConfig } from '../../mock/factories/configFactory.js';
 import { createTradeContextMock } from '../../mock/longport/tradeContextMock.js';
 import { createStockPositionsResponse } from '../../mock/factories/tradeFactory.js';
