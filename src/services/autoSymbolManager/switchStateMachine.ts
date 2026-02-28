@@ -13,7 +13,7 @@ import type { Quote } from '../../types/quote.js';
 import type { SeatState } from '../../types/seat.js';
 import type { PendingOrder } from '../../types/services.js';
 import type {
-  SwitchMode,
+  StartSwitchFlowParams,
   SwitchOnDistanceParams,
   SwitchOnIntervalParams,
   SwitchState,
@@ -109,14 +109,6 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     calculateTradingDurationMsBetween,
     getTradingCalendarSnapshot,
   } = deps;
-
-  type StartSwitchFlowParams = {
-    readonly direction: 'LONG' | 'SHORT';
-    readonly reason: string;
-    readonly switchMode: SwitchMode;
-    readonly distanceContext?: SwitchOnDistanceParams;
-    readonly processImmediately: boolean;
-  };
 
   /** 判断订单是否为指定标的的可撤销买入挂单 */
   function isCancelableBuyOrder(order: PendingOrder, symbol: string): boolean {

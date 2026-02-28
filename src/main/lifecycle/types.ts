@@ -170,6 +170,17 @@ export type TradingCalendarPrewarmErrorParams = Readonly<{
   details: TradingCalendarPrewarmErrorDetails;
 }>;
 
+/**
+ * 交易日历预热结构化错误对象。
+ * 类型用途：在预热流程中承载稳定错误码与上下文 details，供日志与重试链路识别。
+ * 数据来源：由 tradingCalendarPrewarmer 内部错误工厂创建。
+ * 使用范围：仅 lifecycle 模块内部使用。
+ */
+export type TradingCalendarPrewarmError = Error & {
+  readonly code: TradingCalendarPrewarmErrorCode;
+  readonly details: TradingCalendarPrewarmErrorDetails;
+};
+
 /** 按自然月分块时的单块日期区间 */
 export type DateRangeChunk = Readonly<{
   startKey: string;

@@ -66,5 +66,9 @@
     "typescript-lsp@claude-plugins-official": true
   },
   "language": "chinese",
-  "autoUpdatesChannel": "latest"
+  "autoUpdatesChannel": "latest",
+  "statusLine": {
+    "type": "command",
+    "command": "bash .claude/statusline-command.sh"
+  }
 }

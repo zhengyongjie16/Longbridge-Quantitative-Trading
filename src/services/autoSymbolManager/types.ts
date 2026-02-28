@@ -422,6 +422,20 @@ export interface AutoSearchManager {
 }
 
 /**
+ * 启动换标流程的入参。
+ * 类型用途：供 switchStateMachine.startSwitchFlow 统一接收距离换标/周期换标请求，并描述是否立即推进状态机。
+ * 数据来源：由 maybeSwitchOnDistance / maybeSwitchOnInterval 组装后传入。
+ * 使用范围：仅 autoSymbolManager 模块内部使用。
+ */
+export type StartSwitchFlowParams = {
+  readonly direction: 'LONG' | 'SHORT';
+  readonly reason: string;
+  readonly switchMode: SwitchMode;
+  readonly distanceContext?: SwitchOnDistanceParams;
+  readonly processImmediately: boolean;
+};
+
+/**
  * 换标状态机的依赖注入参数，包含交易器、风控、席位管理与信号构建等完整依赖。
  * 由 createSwitchStateMachine 工厂函数消费。
  */

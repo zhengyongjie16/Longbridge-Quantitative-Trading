@@ -19,22 +19,21 @@ import { getHKDateKey } from '../../utils/tradingTime/index.js';
 import type {
   DateRangeChunk,
   PrewarmTradingCalendarSnapshotParams,
-  TradingCalendarPrewarmErrorCode,
-  TradingCalendarPrewarmErrorDetails,
+  TradingCalendarPrewarmError,
   TradingCalendarPrewarmErrorParams,
 } from './types.js';
 /**
- * 交易日历预热错误，包含稳定错误码与结构化上下文，便于生命周期日志与告警定位。
+ * 创建交易日历预热结构化错误，附带稳定错误码与上下文，便于生命周期日志与告警定位。
  */
-export class TradingCalendarPrewarmError extends Error {
-  public readonly code: TradingCalendarPrewarmErrorCode;
-  public readonly details: TradingCalendarPrewarmErrorDetails;
-  public constructor(params: TradingCalendarPrewarmErrorParams) {
-    super(params.message);
-    this.name = 'TradingCalendarPrewarmError';
-    this.code = params.code;
-    this.details = params.details;
-  }
+function createTradingCalendarPrewarmError(
+  params: TradingCalendarPrewarmErrorParams,
+): TradingCalendarPrewarmError {
+  const error = new Error(params.message);
+  error.name = 'TradingCalendarPrewarmError';
+  return Object.assign(error, {
+    code: params.code,
+    details: params.details,
+  });
 }
 /**
  * 在重建阶段预热交易日历快照：按 READY 席位仍持仓订单决定窗口，补齐缺失日期后写回 lastState。
@@ -131,7 +130,7 @@ function assertCalendarLookbackRange(demandStartMs: number, nowMs: number): void
   if (demandStartMs >= earliestAllowedMs) {
     return;
   }
-  throw new TradingCalendarPrewarmError({
+  throw createTradingCalendarPrewarmError({
     code: 'TRADING_CALENDAR_LOOKBACK_EXCEEDED',
     message: '[交易日历快照] 预热窗口超出接口最近一年限制，重建已阻断',
     details: {
@@ -258,7 +257,7 @@ function resolveMonthKey(dayKey: string): string {
 function resolveDateFromHKDateKey(dayKey: string): Date {
   const dayStartUtcMs = resolveHKDayStartUtcMs(dayKey);
   if (dayStartUtcMs === null) {
-    throw new TradingCalendarPrewarmError({
+    throw createTradingCalendarPrewarmError({
       code: 'TRADING_CALENDAR_INVALID_DATE_KEY',
       message: `[交易日历快照] 无法解析日期键: ${dayKey}`,
       details: { dateKey: dayKey },
