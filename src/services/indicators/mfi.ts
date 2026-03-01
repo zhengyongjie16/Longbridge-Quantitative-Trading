@@ -9,7 +9,13 @@ import { toNumber, logDebug, roundToFixed2, validatePercentage } from './utils.j
 import type { CandleData } from '../../types/data.js';
 import type { BufferNewPush } from './types.js';
 
-/** 向环形缓冲区追加一个值，满窗时覆盖最旧项并更新 sum（O(1) 滑动窗口） */
+/**
+ * 向环形缓冲区追加一个值，满窗时覆盖最旧项并更新 sum（O(1) 滑动窗口）。
+ *
+ * @param buffer 环形缓冲区（含 size、pushes、sum、data）
+ * @param value 待追加的数值
+ * @returns 无返回值（原地更新 buffer）
+ */
 function pushBuffer(buffer: BufferNewPush, value: number): void {
   if (buffer.pushes >= buffer.size) {
     const old = buffer.vals[buffer.index];

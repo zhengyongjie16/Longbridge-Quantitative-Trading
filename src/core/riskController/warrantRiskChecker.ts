@@ -61,13 +61,19 @@ function hasToNumber(value: unknown): value is { toNumber: () => number } {
 /**
  * 将内部牛熊证类型映射为用于日志和提示的中文名称。
  *
- * 统一文案来源，避免不同风险分支出现术语不一致。
+ * @param warrantType 内部牛熊证类型（BULL/BEAR）
+ * @returns 对应的中文名称
  */
 function getWarrantTypeName(warrantType: BullBearWarrantType): string {
   return WARRANT_TYPE_NAMES[warrantType];
 }
 
-/** 解析 API 返回的 category 字段为牛熊证类型 */
+/**
+ * 解析 API 返回的 category 字段为牛熊证类型。
+ *
+ * @param category 行情或静态信息中的 category（可能为数字 3/4 或字符串 Bull/Bear 等）
+ * @returns BULL、BEAR 或 null（无法识别时）
+ */
 function parseWarrantType(category: unknown): BullBearWarrantType | null {
   // 判断牛证：category 可能是数字 3（枚举值）或字符串 "Bull"
   if (category === 3 || category === 'Bull' || category === 'BULL') {

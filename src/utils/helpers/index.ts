@@ -88,6 +88,8 @@ export function initMonitorState(config: MonitorConfig): MonitorState {
 
 /**
  * 释放快照中的池化对象（如果它们没有被 monitorValues 引用），避免重复归还同一引用导致池状态异常。
+ * 默认行为：snapshot 为 null 直接返回；否则仅释放未被 monitorValues 引用的池化对象，已引用的不释放。
+ *
  * @param snapshot 要释放的快照
  * @param monitorValues 监控值对象，用于检查引用
  * @returns 无返回值

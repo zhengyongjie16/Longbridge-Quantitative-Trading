@@ -36,7 +36,10 @@ function extractPosition(positions: ReadonlyArray<Position>, symbol: string): Po
 }
 
 /**
- * 判断行情是否可用于下单：需同时具备有效 price 与 lotSize。
+ * 判断行情是否可用于下单：需同时具备有效 price 与 lotSize（类型收窄为带 lotSize 的 Quote）。
+ *
+ * @param quote 行情对象，可为 null/undefined
+ * @returns 为 true 时收窄为 Quote & { lotSize: number }
  */
 function isQuoteReadyForOrder(
   quote: Quote | null | undefined,

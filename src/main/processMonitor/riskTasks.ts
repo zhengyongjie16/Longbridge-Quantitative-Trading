@@ -18,6 +18,9 @@ import type { RiskChecker, OrderRecorder } from '../../types/services.js';
 /**
  * 构建单方向价格展示信息（距回收价、持仓市值/持仓盈亏、订单数量）。
  * 统一复用 riskChecker 的浮亏缓存计算结果，避免展示层重复实现 R1/N1/R2 公式。
+ *
+ * @param params 含 seatReady、symbol、monitorCurrentPrice、quotePrice、isLongSymbol、riskChecker、orderRecorder
+ * @returns 价格展示信息，席位未就绪时返回 null
  */
 function buildPriceDisplayInfo(params: {
   readonly seatReady: boolean;

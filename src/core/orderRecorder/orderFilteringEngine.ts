@@ -28,9 +28,11 @@ import { calculateTotalQuantity } from './utils.js';
 import { deductSellQuantityFromBuyOrders } from './sellDeductionPolicy.js';
 
 /**
- * 初始化过滤状态
- * - M0: 最新卖出时间之后成交的买入订单（无条件保留）
- * - candidateOrders: 需要过滤的候选订单
+ * 初始化过滤状态：拆出 M0（最新卖出时间之后成交的买入订单）与待过滤候选订单。
+ *
+ * @param allBuyOrders 全部买入订单记录
+ * @param sortedSellOrders 已按成交时间升序排列的卖出订单
+ * @returns 含 m0Orders 与 candidateOrders 的 FilteringState；无卖出订单时返回 null
  */
 function initializeFilteringState(
   allBuyOrders: ReadonlyArray<OrderRecord>,

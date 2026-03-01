@@ -17,7 +17,12 @@ import { isRecord } from '../../utils/primitives/index.js';
 import { buildTradeLogPath } from './utils.js';
 import type { TradeRecord, ErrorTypeIdentifier } from './types.js';
 
-/** 类型守卫：校验 TradeRecord 结构 */
+/**
+ * 类型守卫：校验 unknown 是否为符合 TradeRecord 结构的对象。
+ *
+ * @param record 待校验值
+ * @returns 为 true 时收窄为 TradeRecord
+ */
 function isValidTradeRecord(record: unknown): record is TradeRecord {
   if (!isRecord(record)) {
     return false;
@@ -46,7 +51,12 @@ function isValidTradeRecord(record: unknown): record is TradeRecord {
   );
 }
 
-/** 类型守卫：校验 TradeRecord 数组 */
+/**
+ * 类型守卫：校验 unknown 是否为 TradeRecord 数组（每项通过 isValidTradeRecord）。
+ *
+ * @param records 待校验值
+ * @returns 为 true 时收窄为 TradeRecord[]
+ */
 function isValidTradeRecordArray(records: unknown): records is TradeRecord[] {
   return Array.isArray(records) && records.every(isValidTradeRecord);
 }

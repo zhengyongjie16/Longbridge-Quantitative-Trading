@@ -3,6 +3,7 @@ import type { DecimalInput, LotQuantityInput } from './types.js';
 
 /**
  * 将 DecimalInput 转换为 Decimal。
+ * 默认行为：Decimal 原样返回；number 校验有限性后转；string 直接 new Decimal；非法 number 抛 TypeError。
  *
  * @param value 输入值（Decimal、number、string）
  * @returns Decimal 实例
@@ -23,6 +24,7 @@ export function toDecimalValue(value: DecimalInput): Decimal {
 
 /**
  * 严格将 unknown 转换为 Decimal；不合法输入返回 null。
+ * 默认行为：仅接受 Decimal、有限 number、非空可解析 string，其余（含空串、非有限数）返回 null。
  *
  * @param value 未知输入
  * @returns 合法时返回 Decimal，否则返回 null
@@ -57,6 +59,7 @@ export function toDecimalStrict(value: unknown): Decimal | null {
 
 /**
  * Decimal 加法。
+ * 默认行为：按 Decimal 运算规则计算，先通过 toDecimalValue 转成 Decimal 再相加。
  *
  * @param left 左操作数
  * @param right 右操作数
@@ -68,6 +71,7 @@ export function decimalAdd(left: DecimalInput, right: DecimalInput): Decimal {
 
 /**
  * Decimal 减法。
+ * 默认行为：按 Decimal 运算规则计算。
  *
  * @param left 左操作数
  * @param right 右操作数
@@ -79,6 +83,7 @@ export function decimalSub(left: DecimalInput, right: DecimalInput): Decimal {
 
 /**
  * Decimal 乘法。
+ * 默认行为：按 Decimal 运算规则计算。
  *
  * @param left 左操作数
  * @param right 右操作数
@@ -90,6 +95,7 @@ export function decimalMul(left: DecimalInput, right: DecimalInput): Decimal {
 
 /**
  * Decimal 除法。
+ * 默认行为：按 Decimal 运算规则计算。
  *
  * @param left 左操作数
  * @param right 右操作数
@@ -101,6 +107,7 @@ export function decimalDiv(left: DecimalInput, right: DecimalInput): Decimal {
 
 /**
  * Decimal 取绝对值。
+ * 默认行为：按 Decimal 运算规则取绝对值。
  *
  * @param value 输入值
  * @returns 绝对值
@@ -111,6 +118,7 @@ export function decimalAbs(value: DecimalInput): Decimal {
 
 /**
  * Decimal 取负。
+ * 默认行为：按 Decimal 运算规则取负。
  *
  * @param value 输入值
  * @returns 取负结果
@@ -121,6 +129,7 @@ export function decimalNeg(value: DecimalInput): Decimal {
 
 /**
  * Decimal 比较：小于。
+ * 默认行为：将左右值转为 Decimal 后比较，返回 left < right。
  *
  * @param left 左值
  * @param right 右值
@@ -132,6 +141,7 @@ export function decimalLt(left: DecimalInput, right: DecimalInput): boolean {
 
 /**
  * Decimal 比较：小于等于。
+ * 默认行为：将左右值转为 Decimal 后比较，返回 left <= right。
  *
  * @param left 左值
  * @param right 右值
@@ -143,6 +153,7 @@ export function decimalLte(left: DecimalInput, right: DecimalInput): boolean {
 
 /**
  * Decimal 比较：大于。
+ * 默认行为：将左右值转为 Decimal 后比较，返回 left > right。
  *
  * @param left 左值
  * @param right 右值
@@ -154,6 +165,7 @@ export function decimalGt(left: DecimalInput, right: DecimalInput): boolean {
 
 /**
  * Decimal 比较：大于等于。
+ * 默认行为：将左右值转为 Decimal 后比较，返回 left >= right。
  *
  * @param left 左值
  * @param right 右值
@@ -165,6 +177,7 @@ export function decimalGte(left: DecimalInput, right: DecimalInput): boolean {
 
 /**
  * Decimal 比较：相等。
+ * 默认行为：将左右值转为 Decimal 后比较，返回数值相等结果。
  *
  * @param left 左值
  * @param right 右值
@@ -176,6 +189,7 @@ export function decimalEq(left: DecimalInput, right: DecimalInput): boolean {
 
 /**
  * 判断数量是否满足整手约束。
+ * 默认行为：lotSize ≤ 0 返回 false；否则判断 quantity 是否为 lotSize 的整数倍（取余为零）。
  *
  * @param quantity 数量
  * @param lotSize 每手股数
@@ -242,6 +256,7 @@ export function calculateLotQuantityByNotional(input: LotQuantityInput): Decimal
 
 /**
  * 将 DecimalInput 转换为 number（用于现有 number 类型边界输出）。
+ * 默认行为：通过 toDecimalValue 转成 Decimal 后调用 toNumber()。
  *
  * @param value 输入值
  * @returns number 值
@@ -252,6 +267,7 @@ export function decimalToNumberValue(value: DecimalInput): number {
 
 /**
  * 格式化 DecimalInput 为固定小数字符串（仅展示用途）。
+ * 默认行为：按 digits 四舍五入后格式化为固定小数位字符串；digits 非法时按 2 处理。
  *
  * @param value 输入值
  * @param digits 小数位数

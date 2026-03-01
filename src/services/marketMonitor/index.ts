@@ -155,7 +155,9 @@ function formatIndicator(value: number | null | undefined, decimals: number = 2)
 
 /**
  * 按固定顺序组装并输出监控标的的指标行（价格、涨跌幅、EMA/RSI/MFI/PSY/KDJ/MACD）。
- * @param params - 含 monitorSnapshot、monitorQuote、周期数组、klineTimestamp 等
+ *
+ * @param params 含 monitorSnapshot、monitorQuote、周期数组、klineTimestamp 等
+ * @returns 无返回值
  */
 function displayIndicators(params: {
   readonly monitorSnapshot: IndicatorSnapshot;

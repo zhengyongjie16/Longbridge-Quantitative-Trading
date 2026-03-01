@@ -20,7 +20,10 @@ export const createAccountService = (deps: AccountServiceDeps): AccountService =
   const { ctxPromise, rateLimiter } = deps;
 
   /**
-   * 获取账户快照（余额、资产等）
+   * 获取账户快照（余额、净资产、购买力、现金详情等）。
+   * 供下单前风控与资金校验使用；无主账户时返回 null。
+   *
+   * @returns 账户快照或 null
    */
   const getAccountSnapshot = async (): Promise<AccountSnapshot | null> => {
     const ctx = await ctxPromise;
@@ -55,8 +58,10 @@ export const createAccountService = (deps: AccountServiceDeps): AccountService =
   };
 
   /**
-   * 获取股票持仓
-   * @param symbols 标的代码数组，如果为null则获取所有持仓
+   * 获取股票持仓，支持按标的过滤。
+   *
+   * @param symbols 标的代码数组，null 或未传时获取所有持仓
+   * @returns 持仓列表（含 accountChannel、symbol、availableQuantity 等）
    */
   const getStockPositions = async (symbols: string[] | null = null): Promise<Position[]> => {
     const ctx = await ctxPromise;

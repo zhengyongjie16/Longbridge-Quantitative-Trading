@@ -11,7 +11,12 @@ import { logDebug, roundToFixed2, toNumber, validatePercentage } from './utils.j
 import type { CandleData } from '../../types/data.js';
 import type { RsiStreamState } from './types.js';
 
-/** 初始化 RSI 流式状态：前 period 根 K 线用 SMA 平滑涨跌，之后切换为 Wilder 平滑 */
+/**
+ * 初始化 RSI 流式状态：前 period 根 K 线用 SMA 平滑涨跌，之后切换为 Wilder 平滑。
+ *
+ * @param period RSI 周期
+ * @returns 初始化的 RsiStreamState
+ */
 function initRsiStreamState(period: number): RsiStreamState {
   return {
     period,

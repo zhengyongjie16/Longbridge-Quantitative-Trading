@@ -38,10 +38,10 @@ import { createAutoSearch } from './autoSearch.js';
 import { createSwitchStateMachine } from './switchStateMachine.js';
 
 /**
- * 创建自动换标管理器
+ * 创建自动换标管理器。负责席位初始化、自动寻标与换标流程的完整管理；通过距离阈值触发换标并执行撤单/卖出/买入链路。
  *
- * 负责席位初始化、自动寻标与换标流程的完整管理。
- * 通过距离阈值判断触发换标，执行撤单/卖出/买入的完整链路。
+ * @param deps 依赖（监控配置、席位注册表、行情客户端、交易器、风控、订单记录等）
+ * @returns AutoSymbolManager 实例
  */
 export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbolManager {
   const {

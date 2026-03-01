@@ -37,6 +37,9 @@ import type { UnrealizedLossChecker, UnrealizedLossCheckerDeps } from './types.j
 /**
  * 从未平仓买入订单列表计算 R1（开仓成本总和）和 N1（持仓数量总和）。
  * 价格或数量无效的订单将被跳过，不计入结果。
+ *
+ * @param buyOrders 未平仓买入订单（含 executedPrice、executedQuantity）
+ * @returns 含 r1（成本总和）、n1（数量总和）的对象
  */
 function calculateCostAndQuantity(
   buyOrders: ReadonlyArray<{ executedPrice: number | string; executedQuantity: number | string }>,

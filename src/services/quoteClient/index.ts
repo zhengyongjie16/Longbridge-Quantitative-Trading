@@ -279,7 +279,11 @@ export async function createMarketDataClient(
   const subscribedCandlesticks = new Map<string, Period>();
 
   /**
-   * 处理行情推送（WebSocket 回调）
+   * 处理行情推送（WebSocket 回调）。解析 lastDone 等字段并更新 quoteCache。
+   *
+   * @param event 推送事件（含 symbol、data.lastDone、data.timestamp 等）
+   * @returns 无返回值
+   * 副作用：更新 quoteCache；lastDone 无效时仅打日志不写入缓存
    */
   function handleQuotePush(event: PushQuoteEvent): void {
     const symbol = event.symbol;
@@ -325,8 +329,10 @@ export async function createMarketDataClient(
   });
 
   /**
-   * 获取行情数据（从本地缓存读取）
-   * 支持任意可迭代对象（Array、Set 等），调用方无需转换
+   * 获取行情数据（从本地缓存读取）。支持任意可迭代对象（Array、Set 等）。
+   *
+   * @param requestSymbols 请求的标的代码集合（可迭代）
+   * @returns 标的 -> Quote 或 null 的 Map；未订阅的标的存在于请求中会 reject
    */
   function getQuotes(requestSymbols: Iterable<string>): Promise<Map<string, Quote | null>> {
     try {
@@ -354,7 +360,11 @@ export async function createMarketDataClient(
   }
 
   /**
-   * 动态订阅新增标的
+   * 动态订阅新增标的。先拉静态信息与初始报价，再订阅推送，并更新 subscribedSymbols 与 quoteCache。
+   *
+   * @param symbols 待订阅的标的代码列表
+   * @returns Promise<void>
+   * 副作用：更新 staticInfoCache、prevCloseCache、quoteCache、subscribedSymbols
    */
   async function subscribeSymbols(symbols: ReadonlyArray<string>): Promise<void> {
     const uniqueSymbols = normalizeSymbols(symbols);
@@ -389,7 +399,11 @@ export async function createMarketDataClient(
   }
 
   /**
-   * 动态取消订阅标的
+   * 动态取消订阅标的。退订并清理本地缓存中对应标的的 quote、prevClose、staticInfo。
+   *
+   * @param symbols 待退订的标的代码列表
+   * @returns Promise<void>
+   * 副作用：从 subscribedSymbols 移除、清理 quoteCache/prevCloseCache/staticInfoCache
    */
   async function unsubscribeSymbols(symbols: ReadonlyArray<string>): Promise<void> {
     const uniqueSymbols = normalizeSymbols(symbols);
@@ -407,7 +421,13 @@ export async function createMarketDataClient(
     logger.info(`[行情订阅] 已退订 ${removeSymbols.length} 个标的`);
   }
 
-  /** 补充缓存静态信息，确保新增标的具备名称和 lotSize。 */
+  /**
+   * 补充缓存静态信息，确保新增标的具备名称和 lotSize。
+   *
+   * @param newSymbols 待缓存的标的代码列表（已存在缓存的会跳过）
+   * @returns Promise<void>
+   * 副作用：写入 staticInfoCache
+   */
   async function cacheStaticInfo(newSymbols: ReadonlyArray<string>): Promise<void> {
     const uncachedSymbols = newSymbols.filter((s) => !staticInfoCache.has(s));
     if (uncachedSymbols.length === 0) return;
@@ -419,14 +439,22 @@ export async function createMarketDataClient(
   }
 
   /**
-   * 获取 QuoteContext 实例（供内部使用）
+   * 获取 QuoteContext 实例（供内部或下游使用）。
+   *
+   * @returns Promise<QuoteContext> 当前行情上下文
    */
   async function getQuoteContext(): Promise<QuoteContext> {
     return await Promise.resolve(ctx);
   }
 
   /**
-   * 订阅指定标的的 K 线推送
+   * 订阅指定标的的 K 线推送，并返回初始 K 线数据。
+   *
+   * @param symbol 标的代码
+   * @param period K 线周期
+   * @param tradeSessions 交易时段，默认 All
+   * @returns 初始 K 线数组；已订阅过则返回空数组
+   * 副作用：写入 subscribedCandlesticks、拉取并返回初始 K 线
    */
   async function subscribeCandlesticks(
     symbol: string,
@@ -449,7 +477,12 @@ export async function createMarketDataClient(
   }
 
   /**
-   * 获取实时 K 线数据（从 SDK 内部缓存读取，无 HTTP 请求）
+   * 获取实时 K 线数据（从 SDK 内部缓存读取，无 HTTP 请求）。
+   *
+   * @param symbol 标的代码
+   * @param period K 线周期
+   * @param count 返回的 K 线根数
+   * @returns 实时 K 线数组
    */
   async function getRealtimeCandlesticks(
     symbol: string,
@@ -460,7 +493,13 @@ export async function createMarketDataClient(
   }
 
   /**
-   * 获取指定日期范围的交易日信息
+   * 获取指定日期范围的交易日信息。
+   *
+   * @param startDate 起始日期
+   * @param endDate 结束日期
+   * @param market 市场，默认 HK
+   * @returns 交易日与半日交易日字符串数组
+   * 副作用：批量写入 tradingDayCache
    */
   async function getTradingDays(
     startDate: Date,
@@ -540,7 +579,12 @@ export async function createMarketDataClient(
   }
 
   /**
-   * 判断指定日期是否是交易日
+   * 判断指定日期是否是交易日。先查缓存，未命中则请求 getTradingDays 并写缓存。
+   *
+   * @param date 待判断日期
+   * @param market 市场，默认 HK
+   * @returns 是否交易日、是否半日等信息
+   * 副作用：缓存未命中时会写入 tradingDayCache
    */
   async function isTradingDay(date: Date, market: Market = Market.HK): Promise<TradingDayInfo> {
     // 格式化为港股日期键 YYYY-MM-DD

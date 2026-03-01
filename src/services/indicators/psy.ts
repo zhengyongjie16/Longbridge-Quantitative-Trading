@@ -31,7 +31,13 @@ function initPsyStreamState(period: number): PsyStreamState {
   };
 }
 
-/** 喂入一根 K 线收盘价，更新环形窗口内的上涨标志与 upCount（流式递推） */
+/**
+ * 喂入一根 K 线收盘价，更新环形窗口内的上涨标志与 upCount（流式递推）。
+ *
+ * @param state PSY 流式状态（原地更新）
+ * @param close 当前 K 线收盘价
+ * @returns 无返回值
+ */
 function updatePsyStreamState(state: PsyStreamState, close: number): void {
   if (state.previousClose === null) {
     state.previousClose = close;

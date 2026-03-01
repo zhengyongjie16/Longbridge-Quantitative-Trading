@@ -42,6 +42,16 @@ export function createSeatRefreshHandler({
   task: MonitorTask<MonitorTaskType, MonitorTaskData>,
   helpers: RefreshHelpers,
 ) => Promise<MonitorTaskStatus> {
+  /**
+   * 将指定监控标的的方向席位标记为空（刷新失败或数据无效时调用）。
+   * 通过 context 更新 symbolRegistry 席位状态与版本，并清理风控缓存与方向队列。
+   *
+   * @param monitorSymbol 监控标的代码
+   * @param direction 多空方向
+   * @param reason 标记原因（用于日志）
+   * @param context 任务上下文，为 null 时直接返回
+   * @returns 无返回值
+   */
   function markSeatAsEmpty(
     monitorSymbol: string,
     direction: 'LONG' | 'SHORT',

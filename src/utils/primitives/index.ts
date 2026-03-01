@@ -2,6 +2,7 @@ import { TIME } from '../../constants/index.js';
 
 /**
  * 类型保护：判断 unknown 是否为可索引对象。
+ * 默认行为：仅当 typeof value === 'object' 且 value !== null 时返回 true，否则返回 false。
  *
  * @param value 待判断值
  * @returns true 表示可按键读取字段，否则返回 false

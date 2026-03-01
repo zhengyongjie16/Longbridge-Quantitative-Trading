@@ -12,12 +12,24 @@ import type { RiskCheckResult } from '../../types/services.js';
 import { decimalAdd, decimalGt, decimalMul, formatDecimal } from '../../utils/numeric/index.js';
 import type { PositionLimitChecker, PositionLimitCheckerDeps } from './types.js';
 
-/** 构建下单金额超限的拒绝原因文本，供多处复用以保持消息格式一致。 */
+/**
+ * 构建下单金额超限的拒绝原因文本，供多处复用以保持消息格式一致。
+ *
+ * @param orderNotional 本次计划下单金额
+ * @param max 单标的最大持仓市值限制
+ * @returns 格式化的拒绝原因字符串
+ */
 function buildOrderNotionalExceededReason(orderNotional: number, max: number): string {
   return `本次计划下单金额 ${formatDecimal(orderNotional, 2)} HKD 超过单标的最大持仓市值限制 ${formatDecimal(max, 2)} HKD`;
 }
 
-/** 根据标的代码查找持仓 */
+/**
+ * 根据标的代码查找持仓。
+ *
+ * @param positions 持仓列表，可为 null
+ * @param symbol 标的代码
+ * @returns 匹配的持仓或 undefined
+ */
 function findPosition(
   positions: ReadonlyArray<Position> | null,
   symbol: string,

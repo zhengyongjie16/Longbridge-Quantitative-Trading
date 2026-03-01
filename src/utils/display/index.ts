@@ -24,6 +24,7 @@ export function formatSymbolDisplay(
 
 /**
  * 判断是否为卖出操作。
+ * 默认行为：仅当 action 为 SELLCALL 或 SELLPUT 时返回 true，否则返回 false。
  *
  * @param action 信号类型
  * @returns 为 SELLCALL 或 SELLPUT 时返回 true

@@ -620,6 +620,8 @@ const pinoLogger = pino(
 export const logger: Logger = {
   /**
    * 输出调试级别日志，仅当 DEBUG=true 时生效。
+   * 默认行为：环境变量 DEBUG 不为 true 时不输出；有 extra 时以 { extra } 形式写入 pino。
+   *
    * @param msg - 日志消息
    * @param extra - 可选附加数据（对象或原始值）
    * @returns 无返回值
@@ -636,6 +638,8 @@ export const logger: Logger = {
 
   /**
    * 输出信息级别日志。
+   * 默认行为：写入 stdout 及日志文件；有 extra 时以 { extra } 形式写入 pino。
+   *
    * @param msg - 日志消息
    * @param extra - 可选附加数据（对象或原始值）
    * @returns 无返回值
@@ -650,6 +654,8 @@ export const logger: Logger = {
 
   /**
    * 输出警告级别日志（同时输出到 stderr）。
+   * 默认行为：pino 的 warn 级别会写 stderr 及日志文件；有 extra 时以 { extra } 形式写入。
+   *
    * @param msg - 日志消息
    * @param extra - 可选附加数据（对象或原始值）
    * @returns 无返回值
@@ -664,6 +670,8 @@ export const logger: Logger = {
 
   /**
    * 输出错误级别日志（同时输出到 stderr）。
+   * 默认行为：pino 的 error 级别会写 stderr 及日志文件；有 extra 时以 { extra } 形式写入。
+   *
    * @param msg - 日志消息
    * @param extra - 可选附加数据（对象或原始值）
    * @returns 无返回值

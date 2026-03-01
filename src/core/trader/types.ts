@@ -119,9 +119,10 @@ export type CancelOrderResult = {
 };
 
 /**
- * 提交订单入参
- * 用途：传递给内部 submitOrder 函数的参数，封装订单提交所需的完整上下文
- * 使用范围：仅在 trader 模块内部使用
+ * 提交订单入参。
+ * 类型用途：传递给内部 submitOrder 函数的参数，封装订单提交所需的完整上下文（交易上下文、信号、标的、方向、数量、价格等）。
+ * 数据来源：由 OrderExecutor.executeSignals 等根据信号与配置构造。
+ * 使用范围：仅在 trader 模块内部使用。
  */
 export type SubmitOrderParams = {
   readonly ctx: TradeContext;
@@ -207,9 +208,10 @@ export type TradeRecord = {
 };
 
 /**
- * 错误类型标识
- * 用途：识别 API 错误的具体类型，便于针对性处理（如重试、跳过、记录日志）
- * 使用范围：仅在 trader 模块内部使用
+ * 错误类型标识。
+ * 类型用途：识别 API 错误的具体类型，便于针对性处理（如重试、跳过、记录日志）。
+ * 数据来源：由 identifyErrorType 等根据 API 抛错或返回结果解析得到。
+ * 使用范围：仅在 trader 模块内部使用。
  */
 export type ErrorTypeIdentifier = {
   readonly isShortSellingNotSupported: boolean;
@@ -223,7 +225,9 @@ export type ErrorTypeIdentifier = {
 
 /**
  * 账户服务接口。
- * 由 Trader 依赖注入，仅 trader 模块内部实现使用。
+ * 类型用途：提供账户快照与持仓查询，供 Trader/OrderExecutor 等获取资金与持仓状态。
+ * 数据来源：由 Trader 依赖注入，实现层通过 TradeContext 调用 LongPort API 获取。
+ * 使用范围：仅 trader 模块内部实现与使用。
  */
 export interface AccountService {
   getAccountSnapshot: () => Promise<AccountSnapshot | null>;
@@ -232,7 +236,9 @@ export interface AccountService {
 
 /**
  * 订单缓存管理器接口。
- * 由 Trader 依赖注入，仅 trader 模块内部实现使用。
+ * 类型用途：提供待成交订单查询与缓存清理，供下单前校验与恢复阶段使用。
+ * 数据来源：由 Trader 依赖注入，实现层通过 TradeContext 拉取订单并缓存。
+ * 使用范围：仅 trader 模块内部实现与使用。
  */
 export interface OrderCacheManager {
   getPendingOrders: (symbols?: string[] | null, forceRefresh?: boolean) => Promise<PendingOrder[]>;
@@ -241,7 +247,9 @@ export interface OrderCacheManager {
 
 /**
  * 订单监控器接口。
- * 由 Trader 依赖注入。
+ * 类型用途：订单生命周期监控（追踪、撤单、改价、恢复、待刷新标的等），与 WebSocket 订单推送协同。
+ * 数据来源：由 Trader 依赖注入，实现层在 orderMonitor 模块内。
+ * 使用范围：trader 模块内部；主循环与恢复流程调用其方法。
  */
 export interface OrderMonitor {
   /** 初始化 WebSocket 订阅 */
@@ -304,7 +312,9 @@ export interface OrderExecutor {
 
 /**
  * 频率限制器配置。
- * 用于 trader 模块内建限流器。
+ * 类型用途：控制 API 调用频率（窗口内最大调用次数与窗口时长）。
+ * 数据来源：由 Trader 从 tradingConfig 或默认值构造，传入 createRateLimiter。
+ * 使用范围：仅在 trader 模块内部使用。
  */
 export type RateLimiterConfig = {
   readonly maxCalls: number;
@@ -313,7 +323,9 @@ export type RateLimiterConfig = {
 
 /**
  * 频率限制器依赖。
- * 用于创建 RateLimiter 实例时的依赖注入。
+ * 类型用途：创建 RateLimiter 实例时的依赖注入参数。
+ * 数据来源：由 Trader 工厂在创建 rateLimiter 时传入。
+ * 使用范围：仅在 trader 模块内部使用。
  */
 export type RateLimiterDeps = {
   readonly config?: RateLimiterConfig;
@@ -321,7 +333,9 @@ export type RateLimiterDeps = {
 
 /**
  * 账户服务依赖。
- * 用于创建 AccountService 时的依赖注入。
+ * 类型用途：创建 AccountService 实例时的依赖注入参数。
+ * 数据来源：由 Trader 工厂在创建 accountService 时传入。
+ * 使用范围：仅在 trader 模块内部使用。
  */
 export type AccountServiceDeps = {
   readonly ctxPromise: Promise<TradeContext>;
@@ -403,9 +417,10 @@ export type PendingSellOrderSnapshot = {
 };
 
 /**
- * 卖单合并决策动作
- * SUBMIT：直接提交新卖单；REPLACE：修改现有卖单价格/数量；CANCEL_AND_SUBMIT：撤销现有卖单后重新提交；SKIP：跳过本次卖出
- * 仅在 trader 模块内部使用
+ * 卖单合并决策动作。
+ * 类型用途：表示卖单合并策略（SUBMIT/REPLACE/CANCEL_AND_SUBMIT/SKIP），供 OrderExecutor 执行对应操作。
+ * 数据来源：由 decideSellMerge 根据 pendingOrders 与 newOrder 计算后返回的 action 字段。
+ * 使用范围：仅在 trader 模块内部使用。
  */
 type SellMergeDecisionAction = 'SUBMIT' | 'REPLACE' | 'CANCEL_AND_SUBMIT' | 'SKIP';
 
@@ -530,8 +545,10 @@ export type OrderMonitorDeps = {
 };
 
 /**
- * 运行时执行门禁：返回当前是否允许下单
- * 门禁关闭时 orderExecutor 仅记录日志并跳过，不下单
+ * 运行时执行门禁。
+ * 类型用途：无参函数，返回当前是否允许下单；门禁关闭时 OrderExecutor 仅记录日志并跳过，不下单。
+ * 数据来源：由主程序/启动层注入，单一状态源，执行层统一判定。
+ * 使用范围：Trader、OrderMonitor、OrderExecutor 依赖注入使用。
  */
 type IsExecutionAllowed = () => boolean;
 

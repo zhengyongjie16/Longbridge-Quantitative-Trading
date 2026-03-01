@@ -25,6 +25,8 @@ import { collectOrderOwnershipDiagnostics, resolveHongKongDayKey, sumOrderCost }
 
 /**
  * 构建空状态，避免分支重复初始化。
+ *
+ * @returns 无买入/卖出订单、亏损偏移为 0 的 DailyLossState
  */
 function createEmptyState(): DailyLossState {
   return {
@@ -35,10 +37,13 @@ function createEmptyState(): DailyLossState {
 }
 
 /**
- * 计算当日盈亏偏移：
- * realizedPnL = totalSell - (totalBuy - openBuyCost)
- * 仅记录亏损偏移：当 realizedPnL > 0（当日盈利）时按 0 处理；
- * 负值表示当日亏损偏移。
+ * 计算当日盈亏偏移：realizedPnL = totalSell - (totalBuy - openBuyCost)。
+ * 仅记录亏损偏移：当 realizedPnL > 0（当日盈利）时按 0 处理；负值表示当日亏损偏移。
+ *
+ * @param buyOrders 买入订单记录
+ * @param sellOrders 卖出订单记录
+ * @param filteringEngine 过滤引擎（用于计算未平仓买入成本）
+ * @returns 当日亏损偏移（非正数，0 表示无亏损或盈利）
  */
 function calculateLossOffsetFromRecords(
   buyOrders: ReadonlyArray<OrderRecord>,
@@ -67,6 +72,10 @@ function calculateLossOffsetFromRecords(
 
 /**
  * 将订单列表转换为当日状态并计算亏损偏移。
+ *
+ * @param orders 原始 API 订单列表
+ * @param deps 依赖（filteringEngine、classifyAndConvertOrders）
+ * @returns 含 buyOrders、sellOrders、dailyLossOffset 的状态
  */
 function buildStateFromOrders(
   orders: ReadonlyArray<RawOrderFromAPI>,
@@ -87,6 +96,9 @@ function buildStateFromOrders(
 
 /**
  * 将成交回报转换为订单记录，若数据不完整则返回 null。
+ *
+ * @param input 成交回报（订单 ID、标的、成交价、成交量、成交时间等）
+ * @returns OrderRecord 或 null（价格/数量/时间非法时）
  */
 function createOrderRecordFromFill(input: DailyLossFilledOrderInput): OrderRecord | null {
   const executedPrice = input.executedPrice;

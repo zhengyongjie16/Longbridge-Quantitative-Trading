@@ -28,7 +28,12 @@ import { formatError } from '../../utils/error/index.js';
 
 /**
  * 将席位状态和行情数据同步到单个 MonitorContext。
- * 重建阶段必须在订单重建前执行，确保后续步骤能读取到最新的席位和行情。
+ * 为什么必须在订单重建前执行：后续订单重建、风控缓存重建等步骤依赖 symbolRegistry 与各 MonitorContext 中的最新席位与行情，若延后执行会导致恢复状态基于过旧数据。
+ *
+ * @param monitorContext 待同步的监控上下文
+ * @param symbolRegistry 席位注册表（取席位状态与版本）
+ * @param quotesMap 标的 -> 行情 Map
+ * @returns 无返回值
  */
 function syncMonitorContextQuotes(
   monitorContext: MonitorContext,

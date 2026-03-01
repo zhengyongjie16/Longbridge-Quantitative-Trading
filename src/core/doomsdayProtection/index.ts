@@ -33,7 +33,13 @@ import { batchGetQuotes, isBeforeClose15Minutes, isBeforeClose5Minutes } from '.
 import { formatError } from '../../utils/error/index.js';
 import { getHKDateKey } from '../../utils/tradingTime/index.js';
 
-/** 创建单个清仓信号，从对象池获取 Signal 对象 */
+/**
+ * 创建单个清仓信号（收盘前 5 分钟清仓用）。
+ * 从对象池获取 Signal 对象并填充标的、动作、价格、原因等，避免频繁分配。
+ *
+ * @param params 清仓信号参数（标的、名称、动作、价格、每手股数、多空类型）
+ * @returns 填充后的 Signal，或 null（调用方需在不用时释放回对象池）
+ */
 function createClearanceSignal(params: ClearanceSignalParams): Signal | null {
   const { symbol, symbolName, action, price, lotSize, positionType } = params;
   const positionLabel = positionType === 'short' ? '做空标的' : '做多标的';
@@ -50,7 +56,15 @@ function createClearanceSignal(params: ClearanceSignalParams): Signal | null {
   return signal;
 }
 
-/** 从监控上下文中解析席位对应的交易标的，席位未就绪或上下文缺失时返回 null */
+/**
+ * 从监控上下文中解析席位对应的交易标的。
+ * 用于末日清仓时确定每个监控标的下的多/空实际交易标的（牛熊证代码）。
+ *
+ * @param context 监控上下文，缺失时无法解析
+ * @param monitorSymbol 监控标的代码（如 HSI.HK）
+ * @param direction 多空方向（LONG/SHORT）
+ * @returns 该席位对应的交易标的代码，席位未就绪或上下文缺失时返回 null
+ */
 function resolveSeatSymbol(
   context: MonitorContext | undefined,
   monitorSymbol: string,
@@ -68,7 +82,14 @@ function resolveSeatSymbol(
   return seatState.symbol;
 }
 
-/** 解析指定监控标的的多空席位交易标的，返回 longSymbol 和 shortSymbol */
+/**
+ * 解析指定监控标的的多空席位交易标的。
+ * 供清仓流程按监控维度获取做多/做空标的，用于匹配持仓与拉取行情。
+ *
+ * @param monitorSymbol 监控标的代码
+ * @param monitorContexts 各监控标的的上下文 Map
+ * @returns 该监控标的下的 longSymbol 与 shortSymbol（未就绪时为 null）
+ */
 function resolveMonitorSymbols(
   monitorSymbol: string,
   monitorContexts: DoomsdayClearanceContext['monitorContexts'],
@@ -80,7 +101,17 @@ function resolveMonitorSymbols(
   };
 }
 
-/** 处理单个持仓，生成清仓信号（仅处理属于当前监控配置的持仓） */
+/**
+ * 处理单个持仓，生成一条清仓信号。
+ * 仅当持仓属于当前监控配置（longSymbol/shortSymbol）且数量有效时生成信号；从对象池创建 Signal，调用方负责释放。
+ *
+ * @param pos 持仓信息（标的、可用数量、名称等）
+ * @param longSymbol 当前监控下的做多交易标的，null 表示无
+ * @param shortSymbol 当前监控下的做空交易标的，null 表示无
+ * @param longQuote 做多标的最新行情（用于价格与 lotSize）
+ * @param shortQuote 做空标的最新行情（用于价格与 lotSize）
+ * @returns 一条清仓 Signal（SELLCALL/SELLPUT），或不属于本监控/无效持仓时 null
+ */
 function processPositionForClearance(
   pos: Position,
   longSymbol: string | null,

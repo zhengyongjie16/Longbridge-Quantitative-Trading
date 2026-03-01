@@ -11,8 +11,9 @@ import { getHKDateKey } from '../../../utils/tradingTime/index.js';
 
 /**
  * 获取信号动作的中文描述。
+ * 默认行为：从常量表 SIGNAL_ACTION_DESCRIPTIONS 取对应项；键全覆盖时无未匹配回退。
  *
- * @param signalAction 信号动作
+ * @param signalAction 信号动作（BUYCALL/SELLCALL/BUYPUT/SELLPUT）
  * @returns 对应动作描述文本
  */
 export function getActionDescription(signalAction: Signal['action']): string {

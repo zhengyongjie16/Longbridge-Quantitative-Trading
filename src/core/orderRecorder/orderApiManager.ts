@@ -17,7 +17,12 @@ import type {
   OrderSnapshotSource,
 } from './types.js';
 
-/** 将 LongPort SDK Order 实例转换为内部 RawOrderFromAPI（信任边界唯一转换处） */
+/**
+ * 将 LongPort SDK Order 实例转换为内部 RawOrderFromAPI（信任边界唯一转换处）。
+ *
+ * @param order LongPort SDK 返回的 Order 实例
+ * @returns 内部统一的 RawOrderFromAPI 结构
+ */
 function orderToRawOrderFromAPI(order: Order): RawOrderFromAPI {
   const price = order.price;
   const executedPrice = order.executedPrice;
@@ -38,8 +43,11 @@ function orderToRawOrderFromAPI(order: Order): RawOrderFromAPI {
 }
 
 /**
- * 解析订单快照版本时间。
+ * 解析订单快照版本时间（用于合并去重时比较新旧）。
  * 优先使用 updatedAt，其次 submittedAt，均缺失时按 0 处理。
+ *
+ * @param order 订单记录
+ * @returns 版本时间戳（毫秒）
  */
 function resolveOrderSnapshotVersionMs(order: RawOrderFromAPI): number {
   const updatedAtMs = order.updatedAt?.getTime() ?? 0;
@@ -51,9 +59,12 @@ function resolveOrderSnapshotVersionMs(order: RawOrderFromAPI): number {
 }
 
 /**
- * 判断候选订单是否应覆盖现有订单：
- * - today 快照优先于 history 快照
- * - 同一来源时，updatedAt/submittedAt 更晚者优先
+ * 判断候选订单是否应覆盖现有订单：today 快照优先于 history；同一来源时版本时间更晚者优先。
+ *
+ * @param existingEntry 已存在的合并项
+ * @param candidateOrder 候选订单
+ * @param candidateSource 候选订单来源（today/history）
+ * @returns 为 true 时应用候选订单覆盖现有项
  */
 function shouldReplaceMergedEntry(
   existingEntry: MergedOrderEntry,
@@ -73,7 +84,13 @@ function shouldReplaceMergedEntry(
   return candidateVersion > existingVersion;
 }
 
-/** 合并历史订单和今日订单，按 orderId 去重并保留最新快照 */
+/**
+ * 合并历史订单和今日订单，按 orderId 去重并保留最新快照。
+ *
+ * @param historyOrders 历史订单列表
+ * @param todayOrders 今日订单列表
+ * @returns 按 orderId 去重后的订单数组（同 ID 保留版本更新的一条）
+ */
 function mergeAndDeduplicateOrders(
   historyOrders: ReadonlyArray<RawOrderFromAPI>,
   todayOrders: ReadonlyArray<RawOrderFromAPI>,
