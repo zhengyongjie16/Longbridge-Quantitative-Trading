@@ -10,6 +10,7 @@ import type { OrderTypeConfig } from '../types/signal.js';
 import type { SignalConfig } from '../types/signalConfig.js';
 import { logger } from '../utils/logger/index.js';
 import { OPEN_API_ORDER_TYPE_TO_CONFIG, TRADING } from '../constants/index.js';
+import { decimalDiv, decimalToNumberValue } from '../utils/numeric/index.js';
 import {
   getBooleanConfig,
   getNumberConfig,
@@ -123,7 +124,7 @@ function getPercentAsDecimalConfig(
   minValue: number = 0,
 ): number | null {
   const raw = getNumberConfig(env, envKey, minValue);
-  return raw === null ? null : raw / 100;
+  return raw === null ? null : decimalToNumberValue(decimalDiv(raw, 100));
 }
 
 function mapOrderTypeConfig(orderType: OrderType): OrderTypeConfig {
