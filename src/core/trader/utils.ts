@@ -70,6 +70,7 @@ export function extractOrderId(resp: unknown): string {
   if (isOrderSubmitResponse(resp) && resp.orderId !== undefined) {
     return resp.orderId;
   }
+
   // 信任边界：unknown 的 resp 可能具有 toString，需在运行时安全检查后访问
   const obj: { toString?: () => unknown } | null | undefined = resp as
     | { toString?: () => unknown }

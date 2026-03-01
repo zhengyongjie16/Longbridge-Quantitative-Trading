@@ -24,6 +24,7 @@ export async function sleep(ms: number): Promise<void> {
     setTimeout(resolve, delay);
   });
 }
+
 /**
  * 刷新账户与持仓缓存（仅数据拉取，不做行情订阅）。默认行为：仅当 lastState.cachedAccount 为空时调用
  * trader.getAccountSnapshot 与 getStockPositions，否则直接使用已有缓存；成功后更新 lastState 的
@@ -62,6 +63,7 @@ export async function refreshAccountAndPositions(
     logger.warn('获取账户和持仓信息失败', formatError(err));
   }
 }
+
 /**
  * 收集运行时需要获取行情的标的代码集合（监控标的 + 席位占用标的 + 持仓标的 + 订单持有标的）。默认行为：合并去重后返回 Set。
  *
@@ -94,6 +96,7 @@ export function collectRuntimeQuoteSymbols(
   }
   return symbols;
 }
+
 /**
  * 计算两个行情标的集合的增量（新增与移除）。默认行为：遍历比较后返回 added/removed 数组。
  *
@@ -119,6 +122,7 @@ export function diffQuoteSymbols(
   }
   return { added, removed };
 }
+
 /**
  * 收集所有需要获取行情的标的代码（监控标的 + 席位占用标的），用于主循环一次性批量拉取行情。
  *

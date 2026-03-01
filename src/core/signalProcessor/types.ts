@@ -54,6 +54,7 @@ export type ProcessSellSignalsParams = {
  * 使用范围：主程序持有并调用；仅 signalProcessor 模块实现。
  */
 export interface SignalProcessor {
+
   /**
    * 处理卖出信号，计算实际卖出数量
    * 根据智能平仓配置决定是全仓卖出还是按三阶段智能平仓卖出

@@ -23,6 +23,7 @@ import {
   isWithinAfternoonOpenProtection,
   isWithinMorningOpenProtection,
 } from '../../utils/tradingTime/index.js';
+
 /**
  * 主程序 - 每秒执行一次的核心循环
  *
@@ -58,6 +59,7 @@ export async function mainProgram({
   // 判断是否在交易时段（使用当前系统时间）
   const currentTime = new Date();
   const isStrictMode = runtimeGateMode === 'strict';
+
   // dailyLossTracker 日切重置由 lifecycle riskDomain.midnightClear 统一驱动，此处不再重复
   const currentDayKey = getHKDateKey(currentTime);
   let isTradingDayToday = lastState.cachedTradingDayInfo?.isTradingDay ?? true;
@@ -163,8 +165,10 @@ export async function mainProgram({
   if (isStrictMode && (!isTradingDayToday || !canTradeNow)) {
     return;
   }
+
   // 使用 lifecycle tick 后的最新持仓缓存
   const positions = lastState.cachedPositions;
+
   // 末日保护检查（全局性，在所有监控标的处理之前）
   if (tradingConfig.global.doomsdayProtection) {
     // 收盘前15分钟：撤销所有未成交的买入订单
@@ -180,6 +184,7 @@ export async function mainProgram({
         `[末日保护程序] 收盘前15分钟撤单完成，共撤销 ${cancelResult.cancelledCount} 个买入订单`,
       );
     }
+
     // 收盘前5分钟：自动清仓所有持仓
     const clearanceResult = await doomsdayProtection.executeClearance({
       currentTime,
@@ -196,6 +201,7 @@ export async function mainProgram({
       return;
     }
   }
+
   // 收集所有需要获取行情的标的，一次性批量获取（减少 API 调用次数）
   const orderHoldSymbols = trader.getOrderHoldSymbols();
   const desiredSymbols = collectRuntimeQuoteSymbols(
@@ -241,6 +247,7 @@ export async function mainProgram({
     runtimeGateMode,
     dayLifecycleManager,
   };
+
   // 并发处理所有监控标的（使用预先获取的行情数据）
   const monitorTasks: Promise<void>[] = [];
   for (const [monitorSymbol, monitorContext] of monitorContexts) {
@@ -267,6 +274,7 @@ export async function mainProgram({
     );
   }
   await Promise.allSettled(monitorTasks);
+
   // 全局操作：订单监控（在所有监控标的处理完成后）
   // 使用已维护的 allTradingSymbols
   if (canTradeNow && lastState.allTradingSymbols.size > 0) {

@@ -147,6 +147,7 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
   const shortSymbol = getStringConfig(env, `SHORT_SYMBOL${suffix}`) ?? '';
 
   const autoSearchEnabled = getBooleanConfig(env, `AUTO_SEARCH_ENABLED${suffix}`, false);
+
   // 百分比数值转为小数：配置值 2 → 内部 0.02（牛证 >= 0，熊证 <= 0）
   const autoSearchMinDistancePctBull = getPercentAsDecimalConfig(
     env,

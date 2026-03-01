@@ -36,6 +36,7 @@ import {
 import { createSeatStateManager } from './seatStateManager.js';
 import { createAutoSearch } from './autoSearch.js';
 import { createSwitchStateMachine } from './switchStateMachine.js';
+
 /**
  * 创建自动换标管理器
  *
@@ -126,6 +127,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     calculateTradingDurationMsBetween,
     getTradingCalendarSnapshot,
   });
+
   /** 清空换标状态与日内抑制记录，用于交易日切换或重新初始化。 */
   function resetAllState(): void {
     switchStates.clear();

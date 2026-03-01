@@ -13,20 +13,28 @@ export type SeatStatus = 'READY' | 'SEARCHING' | 'SWITCHING' | 'EMPTY';
  * 使用范围：SymbolRegistry、换标/寻标逻辑、setWarrantInfoFromCallPrice 等；全项目可引用。
  */
 export type SeatState = {
+
   /** 当前占用标的 */
   readonly symbol: string | null;
+
   /** 席位状态 */
   readonly status: SeatStatus;
+
   /** 上次换标时间戳（毫秒） */
   readonly lastSwitchAt: number | null;
+
   /** 上次寻标时间戳（毫秒） */
   readonly lastSearchAt: number | null;
+
   /** 最近一次进入 READY 状态时间戳（毫秒） */
   readonly lastSeatReadyAt: number | null;
+
   /** 回收价（从 warrantList 透传，做多/做空标的换标后用于 setWarrantInfoFromCallPrice） */
   readonly callPrice?: number | null;
+
   /** 当日连续寻标失败次数 */
   readonly searchFailCountToday: number;
+
   /** 当日冻结标记（值为 HK 日期 key，非 null 时表示冻结，midnight clear 重置） */
   readonly frozenTradingDayKey: string | null;
 };
@@ -38,10 +46,13 @@ export type SeatState = {
  * 使用范围：主程序、MonitorContext、autoSymbolManager、orderRecorder 等；全项目可引用。
  */
 export interface SymbolRegistry {
+
   /** 获取席位状态 */
   getSeatState: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => SeatState;
+
   /** 获取席位版本号 */
   getSeatVersion: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => number;
+
   /** 根据标的代码解析所属席位 */
   resolveSeatBySymbol: (symbol: string) => {
     monitorSymbol: string;
@@ -49,12 +60,14 @@ export interface SymbolRegistry {
     seatState: SeatState;
     seatVersion: number;
   } | null;
+
   /** 更新席位状态 */
   updateSeatState: (
     monitorSymbol: string,
     direction: 'LONG' | 'SHORT',
     nextState: SeatState,
   ) => SeatState;
+
   /** 递增席位版本号 */
   bumpSeatVersion: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => number;
 }

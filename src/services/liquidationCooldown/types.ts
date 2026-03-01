@@ -59,6 +59,7 @@ export type ClearMidnightEligibleParams = {
 export interface LiquidationCooldownTracker {
   recordCooldown: (params: RecordCooldownParams) => void;
   getRemainingMs: (params: GetRemainingMsParams) => number;
+
   /** 跨日午夜按策略清理：仅清除指定 keys，minutes 模式条目不受影响 */
   clearMidnightEligible: (params: ClearMidnightEligibleParams) => void;
 }

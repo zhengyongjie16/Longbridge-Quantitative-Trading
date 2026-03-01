@@ -44,6 +44,7 @@ import {
   buildIndicatorDisplayString,
   pushSignalToCorrectArray,
 } from './utils.js';
+
 /**
  * 创建恒生多指标策略
  * @param config - 包含 signalConfig 和 verificationConfig 的策略配置对象
@@ -69,6 +70,7 @@ export const createHangSengMultiIndicatorStrategy = ({
     BUYPUT: needsDelayedVerification(finalVerificationConfig.buy) ? 'delayed' : 'immediate',
     SELLPUT: needsDelayedVerification(finalVerificationConfig.sell) ? 'delayed' : 'immediate',
   };
+
   /**
    * 计算延迟验证触发时间
    * @param isBuySignal true=买入信号，false=卖出信号
@@ -76,19 +78,23 @@ export const createHangSengMultiIndicatorStrategy = ({
    */
   const calculateVerificationTime = (isBuySignal: boolean): Date | null => {
     const config = isBuySignal ? finalVerificationConfig.buy : finalVerificationConfig.sell;
+
     // 如果延迟时间为 0 或指标列表为空，则不进行延迟验证
     if (!config.delaySeconds || !config.indicators?.length) {
       return null;
     }
+
     // 使用 Date.now() 获取时间戳，只创建一个 Date 对象（triggerTime）
     const nowTimestamp = Date.now();
     const triggerTimestamp = nowTimestamp + config.delaySeconds * TIME.MILLISECONDS_PER_SECOND;
+
     // 防御性检查：如果目标时间已经过去（配置错误或负数延迟），返回null
     if (triggerTimestamp <= nowTimestamp) {
       return null;
     }
     return new Date(triggerTimestamp);
   };
+
   /**
    * 获取信号类型对应的配置
    * @param signalType 信号类型（BUYCALL/SELLCALL/BUYPUT/SELLPUT）
@@ -116,6 +122,7 @@ export const createHangSengMultiIndicatorStrategy = ({
       }
     }
   };
+
   /**
    * 生成交易信号
    *
@@ -142,6 +149,7 @@ export const createHangSengMultiIndicatorStrategy = ({
       logger.debug(`[策略] ${symbol} ${action} 指标未通过校验，不生成信号`);
       return null;
     }
+
     // 对于卖出信号，先检查订单记录中是否有买入订单记录
     // 如果有买入订单记录，进入验证阶段；如果没有，不生成卖出信号
     if (isSellAction(action)) {
@@ -153,30 +161,37 @@ export const createHangSengMultiIndicatorStrategy = ({
       if (buyOrders.length === 0) {
         return null;
       }
+
       // 有买入订单记录，继续后续流程
     }
+
     // 获取该信号类型的配置
     const signalConfigForAction = getSignalConfigForType(action);
     if (!signalConfigForAction) {
       logger.debug(`[策略] ${symbol} ${action} 无该信号类型配置，不生成信号`);
       return null;
     }
+
     // 使用配置评估信号条件
     const evalResult = evaluateSignalConfig(state, signalConfigForAction);
+
     // 如果没有触发任何条件组，返回 null
     if (!evalResult.triggered) {
       return null;
     }
+
     // 判断是买入还是卖出信号
     const isBuySignal = isBuyAction(action);
     const currentVerificationConfig = isBuySignal
       ? finalVerificationConfig.buy
       : finalVerificationConfig.sell;
+
     // 根据预计算的信号类型映射判断是立即信号还是延迟信号
     const isImmediate = signalTypeMap[action] === 'immediate';
     if (isImmediate) {
       // 生成立即执行信号（不需要延迟验证）
       const indicatorDisplayStr = buildIndicatorDisplayString(state);
+
       // 对象池返回 PoolableSignal；立即信号会在此处完整填充后按 Signal 使用
       const signal = signalObjectPool.acquire() as Signal;
       signal.symbol = symbol;
@@ -187,12 +202,14 @@ export const createHangSengMultiIndicatorStrategy = ({
       signal.reason = `${reasonPrefix}（立即执行）：${evalResult.reason}，${indicatorDisplayStr}`;
       return { signal, isImmediate: true };
     }
+
     // 生成延迟验证信号
     const triggerTime = calculateVerificationTime(isBuySignal);
     if (!triggerTime) {
       // 理论上不会发生，因为 isImmediate 已经处理了这种情况
       return null;
     }
+
     // 记录当前配置的所有指标的初始值（indicators1）
     // 从对象池获取 indicators1 对象，减少内存分配
     const indicators1 = indicatorRecordPool.acquire();
@@ -208,12 +225,15 @@ export const createHangSengMultiIndicatorStrategy = ({
       }
       indicators1[indicatorName] = value;
     }
+
     // 构建指标值的显示字符串（用于日志）
     const indicators1Str = Object.entries(indicators1)
       .map(([name, value]) => `${name}1=${value.toFixed(3)}`)
       .join(' ');
+
     // 构建指标状态显示字符串
     const indicatorDisplayStr = buildIndicatorDisplayString(state);
+
     // 对象池返回 PoolableSignal；延迟验证信号会在此处完整填充后按 Signal 使用
     const signal = signalObjectPool.acquire() as Signal;
     signal.symbol = symbol;
@@ -230,6 +250,7 @@ export const createHangSengMultiIndicatorStrategy = ({
     return { signal, isImmediate: false };
   };
   return {
+
     /**
      * 生成交易信号
      *
@@ -254,11 +275,13 @@ export const createHangSengMultiIndicatorStrategy = ({
         logger.debug('[策略] 无指标快照，不生成任何信号');
         return { immediateSignals, delayedSignals };
       }
+
       // 验证所有必要的指标值是否有效
       if (!validateBasicIndicators(state)) {
         logger.debug('[策略] 基础指标未通过，不生成信号');
         return { immediateSignals, delayedSignals };
       }
+
       // 1. 买入做多标的
       if (longSymbol) {
         const buyLongResult = generateSignal(
@@ -271,6 +294,7 @@ export const createHangSengMultiIndicatorStrategy = ({
         );
         pushSignalToCorrectArray(buyLongResult, immediateSignals, delayedSignals);
       }
+
       // 2. 卖出做多标的
       // 注意：卖出信号生成时不做智能平仓判断，卖出数量由 signalProcessor 统一计算
       // 注意：检查订单记录以确定是否有持仓（在 generateSignal 中检查）
@@ -285,6 +309,7 @@ export const createHangSengMultiIndicatorStrategy = ({
         );
         pushSignalToCorrectArray(sellLongResult, immediateSignals, delayedSignals);
       }
+
       // 3. 买入做空标的
       if (shortSymbol) {
         const buyShortResult = generateSignal(
@@ -297,6 +322,7 @@ export const createHangSengMultiIndicatorStrategy = ({
         );
         pushSignalToCorrectArray(buyShortResult, immediateSignals, delayedSignals);
       }
+
       // 4. 卖出做空标的
       if (shortSymbol) {
         const sellShortResult = generateSignal(

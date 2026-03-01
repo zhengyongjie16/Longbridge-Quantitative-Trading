@@ -42,6 +42,7 @@ export const createRateLimiter = (deps: RateLimiterDeps = {}): RateLimiter => {
    */
   const throttle = async (): Promise<void> => {
     const noop = (): void => undefined;
+
     // 如果有正在执行的 throttle，等待它完成
     while (throttlePromise) {
       await throttlePromise;

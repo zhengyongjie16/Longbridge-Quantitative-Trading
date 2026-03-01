@@ -100,6 +100,7 @@ export interface PositionLimitChecker {
  */
 export interface UnrealizedLossChecker {
   getUnrealizedLossData: (symbol: string) => UnrealizedLossData | undefined;
+
   /** 清空浮亏数据，symbol 为空时清空全部 */
   clearUnrealizedLossData: (symbol?: string | null) => void;
   refresh: (
@@ -172,6 +173,7 @@ export type RiskCheckerDeps = {
 export type DailyLossState = {
   readonly buyOrders: ReadonlyArray<OrderRecord>;
   readonly sellOrders: ReadonlyArray<OrderRecord>;
+
   /** 当日偏移仅记录亏损，盈利按 0 处理，因此该值始终 <= 0 */
   readonly dailyLossOffset: number;
 };
@@ -226,16 +228,20 @@ export type DailyLossFilledOrderInput = {
  * 使用范围：主程序通过 riskDomain 使用；仅 riskController 模块实现。
  */
 export interface DailyLossTracker {
+
   /** 显式重置 dayKey 与 states */
   resetAll: (now: Date) => void;
+
   /** 使用完整订单列表重新计算当日状态，作为启动初始化或纠偏手段 */
   recalculateFromAllOrders: (
     allOrders: ReadonlyArray<RawOrderFromAPI>,
     monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
     now: Date,
   ) => void;
+
   /** 增量记录单笔成交，仅接受当日日键匹配的订单 */
   recordFilledOrder: (input: DailyLossFilledOrderInput) => void;
+
   /** 获取指定标的与方向的当日亏损偏移（仅亏损，<=0），未初始化时返回 0 */
   getLossOffset: (monitorSymbol: string, isLongSymbol: boolean) => number;
 }
@@ -286,6 +292,7 @@ export type UnrealizedLossMonitorContext = {
  * 使用范围：主程序通过 riskDomain 使用；仅 riskController 模块实现。
  */
 export interface UnrealizedLossMonitor {
+
   /**
    * 监控做多和做空标的的浮亏
    * @param context 浮亏监控上下文
@@ -300,6 +307,7 @@ export interface UnrealizedLossMonitor {
  * 使用范围：仅 riskController 模块内部使用。
  */
 export type UnrealizedLossMonitorDeps = {
+
   /** 单标的最大浮亏阈值（港币），<=0 表示禁用浮亏监控 */
   readonly maxUnrealizedLossPerSymbol: number;
 };

@@ -34,6 +34,7 @@ import type {
   LoadTradingDayRuntimeSnapshotParams,
   LoadTradingDayRuntimeSnapshotResult,
 } from './types.js';
+
 /**
  * 创建交易日运行时快照加载函数（工厂）。
  * 注入依赖后返回 loadTradingDayRuntimeSnapshot，用于启动初始化与开盘重建时加载账户、持仓、订单、席位与行情快照。
@@ -54,6 +55,7 @@ export function createLoadTradingDayRuntimeSnapshot(
     tradeLogHydrator,
     warrantListCacheConfig,
   } = deps;
+
   /**
    * 加载交易日完整运行时快照：验证交易日 → 刷新账户持仓 → 获取全量订单
    * → 解析席位 → 水合冷却状态 → 重置行情订阅 → 订阅标的行情和 K 线 → 返回快照。

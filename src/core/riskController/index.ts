@@ -222,6 +222,7 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
       longCurrentPrice = null,
       shortCurrentPrice = null,
     } = params;
+
     // HOLD 信号不需要检查
     if (!signal || signal.action === 'HOLD') {
       return { allowed: true };
@@ -254,6 +255,7 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
           reason: `账户数据无效（netAssets=${netAssets}, totalCash=${totalCash}），无法进行风险检查，禁止买入操作`,
         };
       }
+
       // 对于卖出操作，账户数据无效时允许继续
       return { allowed: true };
     }

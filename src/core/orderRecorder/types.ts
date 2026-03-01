@@ -213,6 +213,7 @@ export interface OrderAPIManager {
     allOrders: ReadonlyArray<RawOrderFromAPI>,
   ) => void;
   clearCacheForSymbol: (symbol: string) => void;
+
   /** 清空 symbol cache 与 allOrdersCache */
   clearCache: () => void;
 }

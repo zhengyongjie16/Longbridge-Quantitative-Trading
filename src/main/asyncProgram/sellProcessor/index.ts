@@ -32,6 +32,7 @@ import type { SellProcessorDeps } from './types.js';
 import type { Task, SellTaskType } from '../tradeTaskQueue/types.js';
 import { formatSymbolDisplay } from '../../../utils/display/index.js';
 import { formatError } from '../../../utils/error/index.js';
+
 /**
  * 创建卖出处理器。
  * 消费 SellTaskQueue 中的卖出任务，经 RefreshGate 等待缓存刷新后计算卖出数量并执行；独立于买入处理器，保证卖出优先、不被风险检查阻塞。
@@ -49,6 +50,7 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
     refreshGate,
     getCanProcessTask,
   } = deps;
+
   /**
    * 处理单个卖出任务
    */
@@ -57,6 +59,7 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
     const symbolDisplay = formatSymbolDisplay(signal.symbol, signal.symbolName ?? null);
     try {
       await refreshGate.waitForFresh();
+
       // 获取监控上下文
       const ctx = getMonitorContext(monitorSymbol);
       if (!ctx) {
@@ -65,6 +68,7 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
         );
         return false;
       }
+
       // 注意：longQuote/shortQuote 必须来自 ctx（每秒更新）
       const { config, orderRecorder, longQuote, shortQuote, symbolRegistry } = ctx;
       const lastState = getLastState();
@@ -86,6 +90,7 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
         logger.info(`[SellProcessor] 标的已切换，跳过信号: ${symbolDisplay} ${signal.action}`);
         return true;
       }
+
       // 获取持仓数据（从 positionCache 获取）
       const longSeatState = symbolRegistry.getSeatState(monitorSymbol, 'LONG');
       const shortSeatState = symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
@@ -95,6 +100,7 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
       const shortPosition = isSeatReady(shortSeatState)
         ? lastState.positionCache.get(shortSeatState.symbol)
         : null;
+
       // 卖出信号处理：计算卖出数量（不经过风险检查）
       // 原因：
       // 1. 卖出操作的优先级高于买入，应优先允许执行
@@ -113,12 +119,14 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
         isHalfDay: lastState.isHalfDay ?? false,
         tradingCalendarSnapshot: lastState.tradingCalendarSnapshot ?? new Map(),
       });
+
       // 如果信号被转为 HOLD，跳过执行
       const firstSignal = processedSignals[0];
       if (!firstSignal || firstSignal.action === 'HOLD') {
         logger.info(`[SellProcessor] 卖出信号被跳过: ${symbolDisplay} ${signal.action}`);
         return true; // 处理成功（虽然跳过了）
       }
+
       // 二次门禁：避免跨日门禁切换期间在途任务继续下单
       if (getCanProcessTask && !getCanProcessTask()) {
         logger.info(
@@ -126,6 +134,7 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
         );
         return true;
       }
+
       // 执行卖出订单
       await trader.executeSignals([signal]);
       logger.info(`[SellProcessor] 卖出订单执行完成: ${symbolDisplay} ${signal.action}`);

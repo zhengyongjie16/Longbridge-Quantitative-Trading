@@ -9,16 +9,22 @@ import type { IndicatorCache } from '../indicatorCache/types.js';
  * 使用范围：仅 delayedSignalVerifier 模块内部使用。
  */
 export type PendingSignalEntry = {
+
   /** 待验证的信号对象 */
   readonly signal: Signal;
+
   /** 监控标的代码 */
   readonly monitorSymbol: string;
+
   /** 信号触发时间戳（毫秒） */
   readonly triggerTime: number;
+
   /** 计划验证时间戳（毫秒） */
   readonly verifyTime: number;
+
   /** 初始指标值（验证时与后续时间点比较） */
   readonly initialIndicators: Readonly<Record<string, number>>;
+
   /** setTimeout 定时器 ID */
   readonly timerId: ReturnType<typeof setTimeout>;
 };
@@ -30,10 +36,13 @@ export type PendingSignalEntry = {
  * 使用范围：仅 delayedSignalVerifier 模块内部使用。
  */
 export type VerificationResult = {
+
   /** 验证是否通过 */
   readonly passed: boolean;
+
   /** 验证结果原因描述 */
   readonly reason: string;
+
   /** 未通过验证的指标名称列表 */
   readonly failedIndicators?: ReadonlyArray<string>;
 };
@@ -64,6 +73,7 @@ export type DelayedSignalVerifierDeps = {
  * 使用范围：mainProgram、processMonitor 等使用，仅内部使用。
  */
 export interface DelayedSignalVerifier {
+
   /**
    * 添加信号到待验证队列
    * @param signal 信号对象（必须包含 triggerTime）

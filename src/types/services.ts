@@ -22,8 +22,10 @@ import type { TradingCalendarSnapshot } from './tradingCalendar.js';
  * 使用范围：行情客户端、生命周期、门禁等；全项目可引用。
  */
 export type TradingDaysResult = {
+
   /** 完整交易日列表 */
   readonly tradingDays: ReadonlyArray<string>;
+
   /** 半日交易日列表 */
   readonly halfTradingDays: ReadonlyArray<string>;
 };
@@ -35,8 +37,10 @@ export type TradingDaysResult = {
  * 使用范围：行情客户端、生命周期、门禁等；全项目可引用。
  */
 export type TradingDayInfo = {
+
   /** 是否为交易日 */
   readonly isTradingDay: boolean;
+
   /** 是否为半日市（如节假日前一天） */
   readonly isHalfDay: boolean;
 };
@@ -48,6 +52,7 @@ export type TradingDayInfo = {
  * 使用范围：主程序、生命周期、processMonitor、行情订阅与 K 线消费方等；全项目可引用。
  */
 export interface MarketDataClient {
+
   /** 获取底层 QuoteContext（内部使用） */
   getQuoteContext: () => Promise<QuoteContext>;
 
@@ -98,6 +103,7 @@ export interface MarketDataClient {
 
   /** 判断指定日期是否为交易日 */
   isTradingDay: (date: Date, market?: Market) => Promise<TradingDayInfo>;
+
   /** 批量获取交易日历区间（可选实现） */
   getTradingDays?: (startDate: Date, endDate: Date, market?: Market) => Promise<TradingDaysResult>;
 
@@ -120,6 +126,7 @@ export type PendingOrder = {
   readonly executedQuantity: number;
   readonly status: OrderStatus;
   readonly orderType: RawOrderFromAPI['orderType'];
+
   /** 订单原始响应（仅用于问题排查与调试日志） */
   readonly _rawOrder?: unknown;
 };
@@ -152,18 +159,25 @@ export type RawOrderFromAPI = {
  * 使用范围：OrderRecorder、RiskChecker、卖出计算、智能平仓等；全项目可引用。
  */
 export type OrderRecord = {
+
   /** 订单 ID */
   readonly orderId: string;
+
   /** 标的代码 */
   readonly symbol: string;
+
   /** 成交价格 */
   readonly executedPrice: number;
+
   /** 成交数量 */
   readonly executedQuantity: number;
+
   /** 成交时间戳 */
   readonly executedTime: number;
+
   /** 下单时间 */
   readonly submittedAt: Date | undefined;
+
   /** 更新时间 */
   readonly updatedAt: Date | undefined;
 };
@@ -175,20 +189,28 @@ export type OrderRecord = {
  * 使用范围：OrderRecorder、OrderStorage、订单监控等；全项目可引用。
  */
 export type PendingSellInfo = {
+
   /** 卖出订单ID */
   readonly orderId: string;
+
   /** 标的代码 */
   readonly symbol: string;
+
   /** 方向 */
   readonly direction: 'LONG' | 'SHORT';
+
   /** 提交数量 */
   readonly submittedQuantity: number;
+
   /** 已成交数量 */
   readonly filledQuantity: number;
+
   /** 关联的买入订单ID列表（精确标记哪些订单被占用） */
   readonly relatedBuyOrderIds: readonly string[];
+
   /** 状态 */
   readonly status: 'pending' | 'partial' | 'filled' | 'cancelled';
+
   /** 提交时间 */
   readonly submittedAt: number;
 };
@@ -226,8 +248,10 @@ export type SellableOrderSelectParams = {
  * 使用范围：见调用方（如 signalProcessor、trader）。
  */
 export type SellableOrderResult = {
+
   /** 可卖出的订单记录列表 */
   readonly orders: ReadonlyArray<OrderRecord>;
+
   /** 这些订单的总数量 */
   readonly totalQuantity: number;
 };
@@ -239,12 +263,16 @@ export type SellableOrderResult = {
  * 使用范围：主循环、买卖处理器等；全项目可引用。
  */
 export type TradeCheckResult = {
+
   /** 是否可以交易 */
   readonly canTrade: boolean;
+
   /** 需等待秒数（频率限制） */
   readonly waitSeconds?: number;
+
   /** 交易方向 */
   readonly direction?: 'LONG' | 'SHORT';
+
   /** 不可交易原因 */
   readonly reason?: string;
 };
@@ -256,6 +284,7 @@ export type TradeCheckResult = {
  * 使用范围：Trader、行情客户端等限流场景；见调用方。
  */
 export interface RateLimiter {
+
   /** 等待限流通过 */
   throttle: () => Promise<void>;
 }
@@ -267,6 +296,7 @@ export interface RateLimiter {
  * 使用范围：Trader、RiskChecker、信号处理、主循环等；全项目可引用。
  */
 export interface OrderRecorder {
+
   /** 记录本地买入订单 */
   recordLocalBuy: (
     symbol: string,
@@ -275,6 +305,7 @@ export interface OrderRecorder {
     isLongSymbol: boolean,
     executedTimeMs: number,
   ) => void;
+
   /** 记录本地卖出订单 */
   recordLocalSell: (
     symbol: string,
@@ -284,30 +315,39 @@ export interface OrderRecorder {
     executedTimeMs: number,
     orderId?: string | null,
   ) => void;
+
   /** 清空指定标的的买入订单记录 */
   clearBuyOrders: (symbol: string, isLongSymbol: boolean, quote?: Quote | null) => void;
+
   /** 获取最新买入订单价格 */
   getLatestBuyOrderPrice: (symbol: string, isLongSymbol: boolean) => number | null;
+
   /** 获取最新卖出订单记录 */
   getLatestSellRecord: (symbol: string, isLongSymbol: boolean) => OrderRecord | null;
+
   /** 按订单 ID 获取卖出成交记录 */
   getSellRecordByOrderId: (orderId: string) => OrderRecord | null;
+
   /** 从 API 获取全量订单 */
   fetchAllOrdersFromAPI: (forceRefresh?: boolean) => Promise<ReadonlyArray<RawOrderFromAPI>>;
+
   /** 使用全量订单刷新指定标的记录（做多标的） */
   refreshOrdersFromAllOrdersForLong: (
     symbol: string,
     allOrders: ReadonlyArray<RawOrderFromAPI>,
     quote?: Quote | null,
   ) => Promise<OrderRecord[]>;
+
   /** 使用全量订单刷新指定标的记录（做空标的） */
   refreshOrdersFromAllOrdersForShort: (
     symbol: string,
     allOrders: ReadonlyArray<RawOrderFromAPI>,
     quote?: Quote | null,
   ) => Promise<OrderRecord[]>;
+
   /** 清理指定标的的 API 订单缓存（不影响本地订单记录） */
   clearOrdersCacheForSymbol: (symbol: string) => void;
+
   /** 获取指定标的的买入订单 */
   getBuyOrdersForSymbol: (symbol: string, isLongSymbol: boolean) => ReadonlyArray<OrderRecord>;
 
@@ -322,24 +362,32 @@ export interface OrderRecorder {
     relatedBuyOrderIds: readonly string[],
     submittedAtMs?: number,
   ) => void;
+
   /** 标记卖出订单完全成交 */
   markSellFilled: (orderId: string) => PendingSellInfo | null;
+
   /** 标记卖出订单部分成交 */
   markSellPartialFilled: (orderId: string, filledQuantity: number) => PendingSellInfo | null;
+
   /** 标记卖出订单取消 */
   markSellCancelled: (orderId: string) => PendingSellInfo | null;
+
   /** 获取待成交卖单快照（用于恢复一致性校验） */
   getPendingSellSnapshot: () => ReadonlyArray<PendingSellInfo>;
+
   /** 恢复期：为待恢复的卖单分配关联买单 ID */
   allocateRelatedBuyOrderIdsForRecovery: (
     symbol: string,
     direction: 'LONG' | 'SHORT',
     quantity: number,
   ) => readonly string[];
+
   /** 获取指定标的的成本均价（实时计算，无缓存） */
   getCostAveragePrice: (symbol: string, isLongSymbol: boolean) => number | null;
+
   /** 按策略筛选可卖订单（统一处理占用过滤、整笔截断与可选额外排除） */
   selectSellableOrders: (params: SellableOrderSelectParams) => SellableOrderResult;
+
   /** 重置全部订单记录与 API 缓存 */
   resetAll: () => void;
 }
@@ -351,6 +399,7 @@ export interface OrderRecorder {
  * 使用范围：主循环、MonitorContext、信号处理、门禁等；全项目可引用。
  */
 export interface Trader {
+
   /** 订单记录器实例 */
   readonly orderRecorder: OrderRecorder;
 
@@ -358,6 +407,7 @@ export interface Trader {
 
   /** 获取账户快照 */
   getAccountSnapshot: () => Promise<AccountSnapshot | null>;
+
   /** 获取持仓列表 */
   getStockPositions: (symbols?: string[] | null) => Promise<Position[]>;
 
@@ -365,18 +415,24 @@ export interface Trader {
 
   /** 获取待处理订单 */
   getPendingOrders: (symbols?: string[] | null, forceRefresh?: boolean) => Promise<PendingOrder[]>;
+
   /** 启动阶段种子化订单订阅保留集 */
   seedOrderHoldSymbols: (orders: ReadonlyArray<RawOrderFromAPI>) => void;
+
   /** 获取订单订阅保留标的集合 */
   getOrderHoldSymbols: () => ReadonlySet<string>;
+
   // ========== 订单监控 ==========
 
   /** 撤销订单 */
   cancelOrder: (orderId: string) => Promise<boolean>;
+
   /** 监控和管理待处理订单 */
   monitorAndManageOrders: (quotesMap: ReadonlyMap<string, Quote | null>) => Promise<void>;
+
   /** 获取并清空待刷新标的列表 */
   getAndClearPendingRefreshSymbols: () => ReadonlyArray<PendingRefreshSymbol>;
+
   /** 初始化订单监控（WebSocket 订阅） */
   initializeOrderMonitor: () => Promise<void>;
 
@@ -384,14 +440,19 @@ export interface Trader {
 
   /** 检查当前是否可交易 */
   canTradeNow: (signalAction: SignalType, monitorConfig?: MonitorConfig | null) => TradeCheckResult;
+
   /** 标记买入意图（预占时间槽，防止并发） */
   recordBuyAttempt: (signalAction: SignalType, monitorConfig?: MonitorConfig | null) => void;
+
   /** 从 API 获取全量订单 */
   fetchAllOrdersFromAPI: (forceRefresh?: boolean) => Promise<ReadonlyArray<RawOrderFromAPI>>;
+
   /** 生命周期午夜清理：重置订单运行态缓存 */
   resetRuntimeState: () => void;
+
   /** 生命周期开盘重建：基于快照恢复订单追踪 */
   recoverOrderTrackingFromSnapshot: (allOrders: ReadonlyArray<RawOrderFromAPI>) => Promise<void>;
+
   /** 执行交易信号；返回实际提交数量与订单 ID 列表（保护性清仓等仅在真正提交后才更新缓存） */
   executeSignals: (
     signals: Signal[],
@@ -405,12 +466,16 @@ export interface Trader {
  * 使用范围：postTradeRefresher、主循环等；全项目可引用。
  */
 export type PendingRefreshSymbol = {
+
   /** 标的代码 */
   readonly symbol: string;
+
   /** 是否为做多标的 */
   readonly isLongSymbol: boolean;
+
   /** 是否刷新账户数据 */
   readonly refreshAccount: boolean;
+
   /** 是否刷新持仓数据 */
   readonly refreshPositions: boolean;
 };
@@ -430,8 +495,10 @@ export type BullBearWarrantType = 'BULL' | 'BEAR';
  * 使用范围：RiskChecker、UI/监控展示；全项目可引用。
  */
 export type WarrantDistanceInfo = {
+
   /** 牛熊证类型 */
   readonly warrantType: BullBearWarrantType;
+
   /** 距离回收价百分比 */
   readonly distanceToStrikePercent: number | null;
 };
@@ -455,12 +522,16 @@ export type WarrantRefreshResult =
  * 使用范围：RiskChecker、信号处理/卖出逻辑；全项目可引用。
  */
 export type WarrantDistanceLiquidationResult = {
+
   /** 是否触发清仓 */
   readonly shouldLiquidate: boolean;
+
   /** 牛熊证类型 */
   readonly warrantType?: BullBearWarrantType;
+
   /** 距离回收价百分比 */
   readonly distancePercent?: number | null;
+
   /** 判定原因 */
   readonly reason?: string;
 };
@@ -472,16 +543,22 @@ export type WarrantDistanceLiquidationResult = {
  * 使用范围：信号处理、买卖流程、主循环；全项目可引用。
  */
 export type RiskCheckResult = {
+
   /** 是否允许交易 */
   readonly allowed: boolean;
+
   /** 不允许原因 */
   readonly reason?: string;
+
   /** 牛熊证风险信息 */
   readonly warrantInfo?: {
+
     /** 是否为牛熊证 */
     readonly isWarrant: boolean;
+
     /** 牛熊证类型 */
     readonly warrantType: BullBearWarrantType;
+
     /** 距离回收价百分比 */
     readonly distanceToStrikePercent: number;
   };
@@ -494,14 +571,19 @@ export type RiskCheckResult = {
  * 使用范围：RiskChecker、UnrealizedLossMonitor 等；全项目可引用。
  */
 export type UnrealizedLossData = {
+
   /** r1: 累计买入金额 */
   readonly r1: number;
+
   /** n1: 累计买入数量 */
   readonly n1: number;
+
   /** baseR1: 未调整的开仓成本 */
   readonly baseR1?: number;
+
   /** dailyLossOffset: 当日亏损偏移（仅记录亏损，<=0） */
   readonly dailyLossOffset?: number;
+
   /** 最后更新时间戳 */
   readonly lastUpdateTime: number;
 };
@@ -513,12 +595,16 @@ export type UnrealizedLossData = {
  * 使用范围：marketMonitor、processMonitor 风险任务等；全项目可引用。
  */
 export type UnrealizedLossMetrics = {
+
   /** r1: 调整后的开仓成本 */
   readonly r1: number;
+
   /** n1: 持仓数量 */
   readonly n1: number;
+
   /** r2: 当前持仓市值 */
   readonly r2: number;
+
   /** 持仓盈亏（r2 - r1） */
   readonly unrealizedPnL: number;
 };
@@ -530,10 +616,13 @@ export type UnrealizedLossMetrics = {
  * 使用范围：信号处理、卖出逻辑；全项目可引用。
  */
 export type UnrealizedLossCheckResult = {
+
   /** 是否应该强制平仓 */
   readonly shouldLiquidate: boolean;
+
   /** 平仓原因 */
   readonly reason?: string;
+
   /** 平仓数量 */
   readonly quantity?: number;
 };
@@ -545,8 +634,10 @@ export type UnrealizedLossCheckResult = {
  * 使用范围：LastState、RiskChecker、主循环等；全项目可引用。
  */
 export interface PositionCache {
+
   /** 更新持仓缓存 */
   update: (positions: ReadonlyArray<Position>) => void;
+
   /** 获取指定标的的持仓 */
   get: (symbol: string) => Position | null;
 }
@@ -558,6 +649,7 @@ export interface PositionCache {
  * 使用范围：RiskCheckContext 与买入风险检查链路使用。
  */
 interface DoomsdayBuyGuard {
+
   /** 检查是否应该拒绝买入（收盘前15分钟） */
   shouldRejectBuy: (currentTime: Date, isHalfDay: boolean) => boolean;
 }
@@ -569,44 +661,62 @@ interface DoomsdayBuyGuard {
  * 使用范围：信号处理、风控检查等；全项目可引用。
  */
 export type RiskCheckContext = {
+
   /** 交易器 */
   readonly trader: Trader;
+
   /** 风险检查器 */
   readonly riskChecker: RiskChecker;
+
   /** 订单记录器 */
   readonly orderRecorder: OrderRecorder;
+
   /** 做多标的行情 */
   readonly longQuote: Quote | null;
+
   /** 做空标的行情 */
   readonly shortQuote: Quote | null;
+
   /** 监控标的行情 */
   readonly monitorQuote: Quote | null;
+
   /** 监控标的指标快照 */
   readonly monitorSnapshot: IndicatorSnapshot | null;
+
   /** 做多标的代码 */
   readonly longSymbol: string;
+
   /** 做空标的代码 */
   readonly shortSymbol: string;
+
   /** 做多标的名称 */
   readonly longSymbolName: string | null;
+
   /** 做空标的名称 */
   readonly shortSymbolName: string | null;
+
   /** 账户缓存（仅用于日志） */
   readonly account: AccountSnapshot | null;
+
   /** 持仓缓存（仅用于日志） */
   readonly positions: ReadonlyArray<Position>;
+
   /** 全局状态引用 */
   readonly lastState: {
     cachedAccount?: AccountSnapshot | null;
     cachedPositions?: ReadonlyArray<Position>;
     positionCache: PositionCache;
   };
+
   /** 当前时间 */
   readonly currentTime: Date;
+
   /** 是否为半日市 */
   readonly isHalfDay: boolean;
+
   /** 末日保护实例 */
   readonly doomsdayProtection: DoomsdayBuyGuard;
+
   /** 监控配置 */
   readonly config: MonitorConfig;
 };
@@ -618,6 +728,7 @@ export type RiskCheckContext = {
  * 使用范围：MonitorContext、信号处理、主循环等；全项目可引用。
  */
 export interface RiskChecker {
+
   /** 从透传的回收价设置牛熊证信息（不调用 API） */
   setWarrantInfoFromCallPrice: (
     symbol: string,
@@ -666,8 +777,10 @@ export interface RiskChecker {
     seatSymbol: string,
     monitorCurrentPrice: number | null,
   ) => WarrantDistanceInfo | null;
+
   /** 清空做多标的牛熊证信息缓存（换标时调用） */
   clearLongWarrantInfo: () => void;
+
   /** 清空做空标的牛熊证信息缓存（换标时调用） */
   clearShortWarrantInfo: () => void;
 
@@ -686,11 +799,13 @@ export interface RiskChecker {
     currentPrice: number,
     isLongSymbol: boolean,
   ) => UnrealizedLossCheckResult;
+
   /** 获取实时浮亏指标（用于展示持仓市值与持仓盈亏） */
   getUnrealizedLossMetrics: (
     symbol: string,
     currentPrice: number | null,
   ) => UnrealizedLossMetrics | null;
+
   /** 清空浮亏缓存（symbol 为空时清空全部） */
   clearUnrealizedLossData: (symbol?: string | null) => void;
 }

@@ -269,6 +269,7 @@ function validateMonitorConfig(
 
   const liquidationCooldownEnvKey = `LIQUIDATION_COOLDOWN_MINUTES_${index}`;
   const configuredCooldown = getStringConfig(env, liquidationCooldownEnvKey);
+
   // 环境变量已设置但配置解析失败，或配置存在且 mode 为 'minutes'，但值超出范围
   const isCooldownParsingFailed = Boolean(configuredCooldown) && !config.liquidationCooldown;
   const isMinutesOutOfRange =
@@ -493,6 +494,7 @@ function validateTradingConfig(
     if (config.autoSearchConfig.autoSearchEnabled) {
       continue;
     }
+
     // 使用配置中保存的原始索引
     const index = config.originalIndex;
 

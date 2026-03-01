@@ -51,11 +51,13 @@ import {
   resolveHKDateKey,
   resolveHKNaiveDate,
 } from './utils.js';
+
 // 默认重试配置（使用统一常量）
 const DEFAULT_RETRY: RetryConfig = {
   retries: API.DEFAULT_RETRY_COUNT,
   delayMs: API.DEFAULT_RETRY_DELAY_MS,
 };
+
 /**
  * 带重试的异步函数执行包装器
  * @param fn - 需要执行的异步函数
@@ -83,6 +85,7 @@ async function withRetry<T>(
   }
   throw lastErr;
 }
+
 /**
  * 规范化标的代码数组，去重并过滤空值
  * @param symbols - 原始标的代码数组
@@ -97,6 +100,7 @@ function normalizeSymbols(symbols: ReadonlyArray<string>): ReadonlyArray<string>
   }
   return [...uniqueSymbols];
 }
+
 /**
  * 将 unknown 静态信息标准化为 QuoteStaticInfo，字段类型不匹配时返回 null。
  *
@@ -171,6 +175,7 @@ function normalizeQuoteStaticInfo(staticInfo: unknown): QuoteStaticInfo | null {
     underlyingSymbol,
   };
 }
+
 /**
  * 创建交易日缓存，支持按日期键读写、批量写入与 TTL 过期，供 isTradingDay 等复用以避免重复请求 API。
  *
@@ -184,6 +189,7 @@ function createTradingDayCache(): {
 } {
   const cache = new Map<string, { isTradingDay: boolean; isHalfDay: boolean; timestamp: number }>();
   const ttl = API.TRADING_DAY_CACHE_TTL_MS;
+
   /**
    * 获取指定日期的交易日信息，过期条目返回 null 并删除。
    * @param dateStr 日期键（YYYY-MM-DD）
@@ -201,6 +207,7 @@ function createTradingDayCache(): {
       isHalfDay: entry.isHalfDay,
     };
   }
+
   /**
    * 设置指定日期的交易日信息并写入时间戳用于 TTL 判断。
    * @param dateStr 日期键（YYYY-MM-DD）
@@ -215,6 +222,7 @@ function createTradingDayCache(): {
       timestamp: Date.now(),
     });
   }
+
   /**
    * 批量设置交易日信息，将全日与半日列表合并后逐条写入缓存。
    * @param tradingDays 全日交易日日期键数组
@@ -239,6 +247,7 @@ function createTradingDayCache(): {
     clear,
   };
 }
+
 /**
  * 创建行情数据客户端（WebSocket 订阅模式）。创建时初始化 QuoteContext，getQuotes 从本地缓存读取。
  * @param deps - 依赖注入，包含 LongPort Config
@@ -250,16 +259,22 @@ export async function createMarketDataClient(
   const { config } = deps;
   const ctx = await QuoteContext.new(config);
   const tradingDayCache = createTradingDayCache();
+
   // 行情缓存（由 WebSocket 推送实时更新）
   const quoteCache = new Map<string, Quote>();
+
   // 昨收价缓存（用于推送时补充 prevClose）
   const prevCloseCache = new Map<string, number>();
+
   // 静态信息缓存
   const staticInfoCache = new Map<string, unknown>();
+
   // 已订阅标的（报价推送）
   const subscribedSymbols = new Set<string>();
+
   // 已订阅 K 线跟踪（key: "symbol:period"）
   const subscribedCandlesticks = new Map<string, Period>();
+
   /**
    * 处理行情推送（WebSocket 回调）
    */
@@ -289,6 +304,7 @@ export async function createMarketDataClient(
     };
     quoteCache.set(symbol, quote);
   }
+
   // 设置推送回调
   ctx.setOnQuote((err: Error | null, event: PushQuoteEvent) => {
     if (err) {
@@ -297,12 +313,14 @@ export async function createMarketDataClient(
     }
     handleQuotePush(event);
   });
+
   // K 线推送回调（错误监控）
   ctx.setOnCandlestick((err: Error | null, _event: PushCandlestickEvent) => {
     if (err) {
       logger.warn(`[K线推送] 接收推送时发生错误: ${formatError(err)}`);
     }
   });
+
   /**
    * 获取行情数据（从本地缓存读取）
    * 支持任意可迭代对象（Array、Set 等），调用方无需转换
@@ -331,6 +349,7 @@ export async function createMarketDataClient(
       return Promise.reject(normalizedError);
     }
   }
+
   /**
    * 动态订阅新增标的
    */
@@ -365,6 +384,7 @@ export async function createMarketDataClient(
     }
     logger.info(`[行情订阅] 新增订阅 ${newSymbols.length} 个标的`);
   }
+
   /**
    * 动态取消订阅标的
    */
@@ -383,6 +403,7 @@ export async function createMarketDataClient(
     }
     logger.info(`[行情订阅] 已退订 ${removeSymbols.length} 个标的`);
   }
+
   /** 补充缓存静态信息，确保新增标的具备名称和 lotSize。 */
   async function cacheStaticInfo(newSymbols: ReadonlyArray<string>): Promise<void> {
     const uncachedSymbols = newSymbols.filter((s) => !staticInfoCache.has(s));
@@ -393,12 +414,14 @@ export async function createMarketDataClient(
     }
     logger.debug(`[静态信息缓存] 新增缓存 ${infoList.length} 个标的的静态信息`);
   }
+
   /**
    * 获取 QuoteContext 实例（供内部使用）
    */
   async function getQuoteContext(): Promise<QuoteContext> {
     return await Promise.resolve(ctx);
   }
+
   /**
    * 订阅指定标的的 K 线推送
    */
@@ -421,6 +444,7 @@ export async function createMarketDataClient(
     );
     return initialCandles;
   }
+
   /**
    * 获取实时 K 线数据（从 SDK 内部缓存读取，无 HTTP 请求）
    */
@@ -431,6 +455,7 @@ export async function createMarketDataClient(
   ): Promise<Candlestick[]> {
     return ctx.realtimeCandlesticks(symbol, period, count);
   }
+
   /**
    * 获取指定日期范围的交易日信息
    */
@@ -443,9 +468,11 @@ export async function createMarketDataClient(
     const startNaive = resolveHKNaiveDate(startDate);
     const endNaive = resolveHKNaiveDate(endDate);
     const resp = await withRetry(() => ctx.tradingDays(market, startNaive, endNaive));
+
     // 将 NaiveDate 数组转换为字符串数组
     const tradingDays = resp.tradingDays.map((date) => date.toString());
     const halfTradingDays = resp.halfTradingDays.map((date) => date.toString());
+
     // 批量缓存交易日信息
     tradingDayCache.setBatch(tradingDays, halfTradingDays);
     return {
@@ -453,6 +480,7 @@ export async function createMarketDataClient(
       halfTradingDays,
     };
   }
+
   /**
    * 重置运行期订阅与缓存：退订所有 quote/kline 订阅，清空本地缓存。
    * Fail-safe 语义：任何退订失败均被汇总并最终抛出，不吞错。
@@ -463,6 +491,7 @@ export async function createMarketDataClient(
     const symbolsToUnsub = [...subscribedSymbols];
     const candlestickEntriesToUnsub = [...subscribedCandlesticks.entries()];
     const errors: unknown[] = [];
+
     // 1. 退订 quote（批量）
     if (symbolsToUnsub.length > 0) {
       try {
@@ -477,6 +506,7 @@ export async function createMarketDataClient(
         errors.push(err);
       }
     }
+
     // 2. 退订 candlestick（逐个，失败不中断）
     for (const [key, periodValue] of candlestickEntriesToUnsub) {
       const colonIdx = key.lastIndexOf(':');
@@ -492,6 +522,7 @@ export async function createMarketDataClient(
         errors.push(err);
       }
     }
+
     // 3. 运行期缓存统一清空（与订阅退订结果解耦，确保跨日不读旧缓存）
     quoteCache.clear();
     prevCloseCache.clear();
@@ -504,24 +535,30 @@ export async function createMarketDataClient(
       );
     }
   }
+
   /**
    * 判断指定日期是否是交易日
    */
   async function isTradingDay(date: Date, market: Market = Market.HK): Promise<TradingDayInfo> {
     // 格式化为港股日期键 YYYY-MM-DD
     const dateStr = resolveHKDateKey(date);
+
     // 先检查缓存
     const cached = tradingDayCache.get(dateStr);
     if (cached !== null) {
       return cached;
     }
+
     // 如果缓存未命中，查询 API（查询当天）
     const tradingDaysResult = await getTradingDays(date, date, market);
+
     // 检查返回的交易日列表中是否包含当天
     const isInTradingDays = tradingDaysResult.tradingDays.includes(dateStr);
     const isInHalfTradingDays = tradingDaysResult.halfTradingDays.includes(dateStr);
+
     // 半日交易日也算交易日
     const isTradingDayResult = isInTradingDays || isInHalfTradingDays;
+
     // 缓存结果（无论是否是交易日都缓存）
     tradingDayCache.set(dateStr, isTradingDayResult, isInHalfTradingDays);
     return {

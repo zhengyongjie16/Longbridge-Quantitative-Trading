@@ -19,6 +19,7 @@ export function toNumber(value: CandleValue): number {
   if (typeof value === 'string') {
     return Number(value);
   }
+
   // Decimal 类型：使用 toString() 转换
   return Number(value.toString());
 }

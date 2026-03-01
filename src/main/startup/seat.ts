@@ -23,6 +23,7 @@ import {
 import { getLatestTradedSymbol } from '../../core/orderRecorder/orderOwnershipParser.js';
 import { AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY } from '../../constants/index.js';
 import { getHKDateKey } from '../../utils/tradingTime/index.js';
+
 /**
  * 基于订单与持仓生成席位快照，用于启动时恢复席位标的。
  *
@@ -72,6 +73,7 @@ function resolveSeatSnapshot(input: SeatSnapshotInput): SeatSnapshot {
   }
   return { entries };
 }
+
 /**
  * 获取指定监控标的和方向的就绪席位标的代码。
  *
@@ -88,6 +90,7 @@ export function resolveReadySeatSymbol(
   const seatState = symbolRegistry.getSeatState(monitorSymbol, direction);
   return isSeatReady(seatState) ? seatState.symbol : null;
 }
+
 /**
  * 收集所有监控标的当前就绪席位的标的代码列表，用于启动后订阅行情。
  *
@@ -122,6 +125,7 @@ function collectSeatSymbols({
   }
   return entries;
 }
+
 /**
  * 启动时准备所有席位：
  * - 先恢复历史标的
@@ -155,6 +159,7 @@ export async function prepareSeatsOnStartup(
     snapshotMap.set(`${entry.monitorSymbol}:${entry.direction}`, entry.symbol);
   }
   const startupTimestampMs = now().getTime();
+
   /**
    * 启动阶段更新席位状态：READY/EMPTY。
    */
@@ -181,6 +186,7 @@ export async function prepareSeatsOnStartup(
     updateSeatOnStartup(monitorConfig.monitorSymbol, 'SHORT', snapshotMap.get(shortKey) ?? null);
   }
   const quoteContextPromise = marketDataClient.getQuoteContext();
+
   /**
    * 执行自动寻标并更新席位状态。
    * 将席位置为 SEARCHING 后调用 findBestWarrant 寻标，成功则更新为 READY 并写入 callPrice，失败则更新失败计数与冻结状态。
@@ -281,6 +287,7 @@ export async function prepareSeatsOnStartup(
     });
     return best.symbol;
   }
+
   /**
    * 处理启动寻标异常：如果席位状态为SEARCHING，更新失败计数和冻结状态。
    */
@@ -315,6 +322,7 @@ export async function prepareSeatsOnStartup(
       frozenTradingDayKey,
     });
   }
+
   /**
    * 检查是否应该跳过该席位的启动寻标。
    */
@@ -331,6 +339,7 @@ export async function prepareSeatsOnStartup(
     }
     return false;
   }
+
   /**
    * 启动时单次非阻塞寻标：遍历所有启用自动寻标的空席位，逐个尝试一次寻标。
    */

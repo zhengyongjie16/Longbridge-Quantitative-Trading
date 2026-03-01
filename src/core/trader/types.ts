@@ -63,8 +63,10 @@ export type TrackOrderParams = {
   readonly side: OrderSide;
   readonly price: number;
   readonly quantity: number;
+
   /** 可选：恢复阶段使用原始下单时间（毫秒），用于保持超时策略语义一致 */
   readonly submittedAtMs?: number;
+
   /** 可选：恢复阶段保留快照中的 pending 状态，避免错误触发改单流程 */
   readonly initialStatus?: OrderStatus;
   readonly isLongSymbol: boolean;
@@ -154,36 +156,52 @@ export type OrderTypeResolutionConfig = {
  */
 export type TradeRecord = {
   readonly orderId: string | null;
+
   /** 交易标的代码（如 55131.HK） */
   readonly symbol: string | null;
+
   /** 交易标的名称（如 阿里摩通六甲牛G） */
   readonly symbolName: string | null;
+
   /** 监控标的代码（如 HSI.HK） */
   readonly monitorSymbol: string | null;
+
   /** 信号动作（BUYCALL/SELLCALL/BUYPUT/SELLPUT） */
   readonly action: string | null;
+
   /** 订单方向（BUY/SELL） */
   readonly side: string | null;
+
   /** 成交数量 */
   readonly quantity: string | null;
+
   /** 成交价格 */
   readonly price: string | null;
+
   /** 订单类型（可为空） */
   readonly orderType: string | null;
+
   /** 订单状态（成交日志仅记录 FILLED） */
   readonly status: string | null;
+
   /** 错误信息（成交日志默认 null） */
   readonly error: string | null;
+
   /** 信号原因 */
   readonly reason: string | null;
+
   /** 信号触发时间（香港时间字符串） */
   readonly signalTriggerTime: string | null;
+
   /** 成交时间（香港时间字符串） */
   readonly executedAt: string | null;
+
   /** 成交时间（毫秒时间戳） */
   readonly executedAtMs: number | null;
+
   /** 日志记录时间（香港时间字符串） */
   readonly timestamp: string | null;
+
   /** 是否为保护性清仓（浮亏超阈值触发） */
   readonly isProtectiveClearance: boolean | null;
 };
@@ -226,6 +244,7 @@ export interface OrderCacheManager {
  * 由 Trader 依赖注入。
  */
 export interface OrderMonitor {
+
   /** 初始化 WebSocket 订阅 */
   initialize: () => Promise<void>;
 
@@ -268,6 +287,7 @@ export interface OrderMonitor {
  */
 export interface OrderExecutor {
   canTradeNow: (signalAction: SignalType, monitorConfig?: MonitorConfig | null) => TradeCheckResult;
+
   /**
    * 标记买入意图（预占买入时间槽）
    * 在 signalProcessor 检查通过后立即调用，防止同一批次中的多个信号同时通过频率检查
@@ -278,6 +298,7 @@ export interface OrderExecutor {
   executeSignals: (
     signals: Signal[],
   ) => Promise<{ submittedCount: number; submittedOrderIds: ReadonlyArray<string> }>;
+
   /** 清空 lastBuyTime（买入节流状态） */
   resetBuyThrottle: () => void;
 }
@@ -329,26 +350,37 @@ export type TrackedOrder = {
   readonly orderId: string;
   readonly symbol: string;
   readonly side: OrderSide;
+
   /** 是否为做多标的（成交后更新本地记录时使用） */
   readonly isLongSymbol: boolean;
+
   /** 监控标的代码（用于成交日志与冷却恢复） */
   readonly monitorSymbol: string | null;
+
   /** 是否为保护性清仓订单（用于触发买入冷却） */
   readonly isProtectiveLiquidation: boolean;
+
   /** 订单类型（用于合并和改单判断） */
   readonly orderType: OrderType;
+
   /** 当前委托价（会随市价更新） */
   submittedPrice: number;
+
   /** 委托数量（含部分成交后的剩余总量） */
   submittedQuantity: number;
+
   /** 已成交数量（部分成交时累加） */
   executedQuantity: number;
+
   /** 当前订单状态（由 WebSocket 推送更新） */
   status: OrderStatus;
+
   /** 提交时间戳（用于超时检测） */
   readonly submittedAt: number;
+
   /** 上次修改价格的时间（用于控制修改频率） */
   lastPriceUpdateAt: number;
+
   /** 是否已转为市价单（防止重复转换） */
   convertedToMarket: boolean;
 };
@@ -426,8 +458,10 @@ export type OrderMonitorConfig = {
     readonly enabled: boolean;
     readonly timeoutMs: number;
   };
+
   /** 价格修改最小间隔（毫秒） */
   readonly priceUpdateIntervalMs: number;
+
   /** 价格差异阈值（低于此值不触发修改） */
   readonly priceDiffThreshold: number;
 };
@@ -439,14 +473,19 @@ export type OrderMonitorConfig = {
  * 使用范围：由 Trader/OrderMonitor 依赖注入，仅 trader 模块实现与使用。
  */
 export interface OrderHoldRegistry {
+
   /** 跟踪订单（添加标的到订阅保留集） */
   trackOrder: (orderId: string, symbol: string) => void;
+
   /** 标记订单已关闭（成交/撤销/拒绝/主动撤单成功），从订阅保留集中移除 */
   markOrderClosed: (orderId: string) => void;
+
   /** 从历史订单初始化订阅保留集（程序重启时调用） */
   seedFromOrders: (orders: ReadonlyArray<RawOrderFromAPI>) => void;
+
   /** 获取当前需要持续订阅的标的集合 */
   getHoldSymbols: () => ReadonlySet<string>;
+
   /** 清空内部 map/set */
   clear: () => void;
 }
@@ -461,24 +500,33 @@ export type OrderMonitorDeps = {
   readonly ctxPromise: Promise<TradeContext>;
   readonly rateLimiter: RateLimiter;
   readonly cacheManager: OrderCacheManager;
+
   /** 订单记录器（用于成交后更新本地记录） */
   readonly orderRecorder: OrderRecorder;
+
   /** 当日亏损跟踪器（成交后增量记录） */
   readonly dailyLossTracker: DailyLossTracker;
+
   /** 订单订阅保留集 */
   readonly orderHoldRegistry: OrderHoldRegistry;
+
   /** 清仓冷却追踪器（用于记录保护性清仓） */
   readonly liquidationCooldownTracker: LiquidationCooldownTracker;
+
   /** 标的注册表（用于解析动态标的归属） */
   readonly symbolRegistry: SymbolRegistry;
+
   /** 可选测试钩子（仅用于单元测试） */
   readonly testHooks?: {
     readonly setHandleOrderChanged?: (handler: (event: PushOrderChanged) => void) => void;
   };
+
   /** 全局交易配置 */
   readonly tradingConfig: MultiMonitorTradingConfig;
+
   /** 刷新门禁（成交后标记 stale） */
   readonly refreshGate?: RefreshGate;
+
   /** 运行时执行门禁（卖单超时转市价单时校验，禁止门禁关闭时新开单） */
   readonly isExecutionAllowed: IsExecutionAllowed;
 };
@@ -500,12 +548,16 @@ export type OrderExecutorDeps = {
   readonly rateLimiter: RateLimiter;
   readonly cacheManager: OrderCacheManager;
   readonly orderMonitor: OrderMonitor;
+
   /** 订单记录器（用于卖出订单防重追踪） */
   readonly orderRecorder: OrderRecorder;
+
   /** 全局交易配置 */
   readonly tradingConfig: MultiMonitorTradingConfig;
+
   /** 标的注册表（用于解析动态标的归属） */
   readonly symbolRegistry: SymbolRegistry;
+
   /** 运行时执行门禁（单一状态源注入，执行层统一判定） */
   readonly isExecutionAllowed: IsExecutionAllowed;
 };
@@ -521,11 +573,14 @@ export type TraderDeps = {
   readonly tradingConfig: MultiMonitorTradingConfig;
   readonly liquidationCooldownTracker: LiquidationCooldownTracker;
   readonly rateLimiterConfig?: RateLimiterConfig;
+
   /** 标的注册表（用于动态标的映射） */
   readonly symbolRegistry: SymbolRegistry;
   readonly dailyLossTracker: DailyLossTracker;
+
   /** 刷新门禁（成交后标记 stale） */
   readonly refreshGate?: RefreshGate;
+
   /** 运行时执行门禁（单一状态源注入，执行层统一判定） */
   readonly isExecutionAllowed: IsExecutionAllowed;
 };

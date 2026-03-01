@@ -89,6 +89,7 @@ export function findClosestEntry(
  */
 export function cloneIndicatorSnapshot(snapshot: IndicatorSnapshot): IndicatorSnapshot {
   const { kdj, macd, rsi, ema, psy } = snapshot;
+
   // 构建基础快照（不包含可选的 symbol）
   const cloned: IndicatorSnapshot = {
     price: snapshot.price,

@@ -61,6 +61,7 @@ export const createAccountService = (deps: AccountServiceDeps): AccountService =
   const getStockPositions = async (symbols: string[] | null = null): Promise<Position[]> => {
     const ctx = await ctxPromise;
     await rateLimiter.throttle();
+
     // stockPositions 接受 Array<string> | undefined | null，直接传递即可
     const resp = await ctx.stockPositions(symbols ?? undefined);
     const channels = resp.channels;

@@ -127,6 +127,7 @@ export const createUnrealizedLossChecker = (
       const rawOffset =
         dailyLossOffset !== undefined && Number.isFinite(dailyLossOffset) ? dailyLossOffset : 0;
       const normalizedOffset = Math.min(rawOffset, 0);
+
       // 调整后R1 = 基础R1 - 当日偏移
       // 当日偏移仅记录亏损（<=0）：盈利偏移统一按 0，不减少 R1
       // 亏损偏移为负数时，减去负数使 R1 增大，从而更容易触发浮亏保护

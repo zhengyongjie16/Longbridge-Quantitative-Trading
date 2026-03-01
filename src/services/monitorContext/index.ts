@@ -67,27 +67,34 @@ export function createMonitorContext(deps: MonitorContextFactoryDeps): MonitorCo
     },
     autoSymbolManager,
     strategy,
+
     // 使用共享 orderRecorder 实例（订单成交后由 orderMonitor 更新）
     orderRecorder,
     dailyLossTracker,
     riskChecker,
+
     // 每个监控标的独立的浮亏监控器（使用各自的 maxUnrealizedLossPerSymbol 配置）
     unrealizedLossMonitor,
+
     // 每个监控标的独立的延迟信号验证器（使用各自的验证配置）
     delayedSignalVerifier,
+
     // 缓存标的名称（避免每次循环重复获取）
     longSymbolName: longSymbol ? (longQuote?.name ?? longSymbol) : '',
     shortSymbolName: shortSymbol ? (shortQuote?.name ?? shortSymbol) : '',
     monitorSymbolName: monitorQuote?.name ?? config.monitorSymbol,
     normalizedMonitorSymbol: config.monitorSymbol,
+
     // 缓存指标周期配置（避免每次循环重复提取）
     rsiPeriods: extractRsiPeriodsWithDefault(config.signalConfig),
     emaPeriods: extractEmaPeriods(config.verificationConfig),
     psyPeriods: extractPsyPeriods(config.signalConfig, config.verificationConfig),
+
     // 缓存的行情数据（主循环每秒更新，供买入/卖出处理器使用）
     longQuote,
     shortQuote,
     monitorQuote,
+
     // 注意：持仓数据通过 lastState.positionCache 获取，不在 MonitorContext 中缓存
   };
 }

@@ -30,6 +30,7 @@ import {
   resolveSeatSnapshotReadiness,
   validateSeatSnapshotsAfterRefresh,
 } from '../helpers/seatSnapshot.js';
+
 /**
  * 创建距回收价清仓任务处理器。
  * 校验席位快照后检查牛熊证距回收价，满足条件则生成清仓信号并执行，刷新订单记录与浮亏数据；保证风控检查在席位与行情就绪后执行。
@@ -88,6 +89,7 @@ export function createLiquidationDistanceHandler({
         isLongSymbol: boolean;
         quote: Quote | null;
       }[] = [];
+
       /**
        * 在席位版本、持仓与行情均有效时构造保护性清仓信号，否则返回 null。
        * 先做前置校验可避免将无效任务推入后续执行链路，降低误清仓风险。
@@ -127,6 +129,7 @@ export function createLiquidationDistanceHandler({
         if (!liquidationResult.shouldLiquidate) {
           return null;
         }
+
         // 对象池返回 PoolableSignal，这里通过字段赋值构造出完整的 Signal 对象
         const signal = signalObjectPool.acquire() as Signal;
         signal.symbol = symbol;

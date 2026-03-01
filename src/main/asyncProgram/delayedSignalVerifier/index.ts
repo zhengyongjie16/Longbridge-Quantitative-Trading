@@ -23,6 +23,7 @@ import type {
 } from './types.js';
 import { generateSignalId, extractInitialIndicators, performVerification } from './utils.js';
 import { formatSymbolDisplay } from '../../../utils/display/index.js';
+
 /**
  * 创建延迟信号验证器。负责管理待验证信号、定时触发验证、调用 performVerification 并执行通过/拒绝回调。
  *
@@ -33,10 +34,13 @@ export function createDelayedSignalVerifier(
   deps: DelayedSignalVerifierDeps,
 ): DelayedSignalVerifier {
   const { indicatorCache, verificationConfig } = deps;
+
   // 待验证信号 Map（signalId -> entry）
   const pendingSignals = new Map<string, PendingSignalEntry>();
+
   // 回调函数列表
   const verifiedCallbacks: VerifiedCallback[] = [];
+
   /**
    * 执行延迟验证
    * 从待验证列表取出信号，调用 performVerification 判断趋势是否持续，
@@ -47,12 +51,15 @@ export function createDelayedSignalVerifier(
     if (!entry) {
       return;
     }
+
     // 从待验证列表中移除
     pendingSignals.delete(signalId);
     const { signal, monitorSymbol } = entry;
+
     // 判断是买入还是卖出信号
     const isBuySignal = isBuyAction(signal.action);
     const currentConfig = isBuySignal ? verificationConfig.buy : verificationConfig.sell;
+
     // 执行验证
     const result = performVerification(indicatorCache, entry, currentConfig);
     const actionDesc = ACTION_DESCRIPTIONS[signal.action];
@@ -60,6 +67,7 @@ export function createDelayedSignalVerifier(
       logger.info(
         `[延迟验证通过] ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${actionDesc} | ${result.reason}`,
       );
+
       // 通知所有验证通过的回调
       // 注意：验证通过的信号由买入/卖出处理器在消费任务后释放
       for (const callback of verifiedCallbacks) {
@@ -73,11 +81,13 @@ export function createDelayedSignalVerifier(
       logger.info(
         `[延迟验证失败] ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${actionDesc} | ${result.reason}`,
       );
+
       // 验证失败的信号在此处释放回对象池
       signalObjectPool.release(signal);
     }
   }
   return {
+
     /**
      * 添加信号到待验证队列，计算延迟时间并设置 setTimeout 定时器
      * 重复信号、缺少 triggerTime 或指标配置为空时直接释放信号并返回
@@ -87,32 +97,40 @@ export function createDelayedSignalVerifier(
       const symbolDisplay = formatSymbolDisplay(signal.symbol, signal.symbolName ?? null);
       if (!signal.triggerTime) {
         logger.warn(`[延迟验证] ${symbolDisplay} 缺少 triggerTime，无法添加到验证队列`);
+
         // 拒绝添加时释放信号对象
         signalObjectPool.release(signal);
         return;
       }
       const signalId = generateSignalId(signal);
+
       // 检查是否已存在（重复信号不添加，释放后返回）
       if (pendingSignals.has(signalId)) {
         logger.debug(`[延迟验证] ${symbolDisplay} 信号已存在于验证队列中，跳过添加`);
+
         // 重复信号释放回对象池
         signalObjectPool.release(signal);
         return;
       }
+
       // 判断是买入还是卖出信号
       const isBuySignal = isBuyAction(signal.action);
       const currentConfig = isBuySignal ? verificationConfig.buy : verificationConfig.sell;
+
       // 安全检查：指标配置
       if (!currentConfig.indicators || currentConfig.indicators.length === 0) {
         logger.warn(`[延迟验证] ${symbolDisplay} 验证指标配置为空，无法添加到验证队列`);
+
         // 拒绝添加时释放信号对象
         signalObjectPool.release(signal);
         return;
       }
+
       // 提取初始指标值
       const initialIndicators = extractInitialIndicators(signal, currentConfig.indicators);
       if (!initialIndicators) {
         logger.warn(`[延迟验证] ${symbolDisplay} 无法提取有效的初始指标值，无法添加到验证队列`);
+
         // 拒绝添加时释放信号对象
         signalObjectPool.release(signal);
         return;
@@ -121,10 +139,12 @@ export function createDelayedSignalVerifier(
       const verifyTime =
         triggerTime + VERIFICATION.READY_DELAY_SECONDS * TIME.MILLISECONDS_PER_SECOND;
       const delayMs = Math.max(0, verifyTime - Date.now());
+
       // 创建定时器
       const timerId = setTimeout(() => {
         executeVerification(signalId);
       }, delayMs);
+
       // 添加到待验证列表
       const entry: PendingSignalEntry = {
         signal,
@@ -136,6 +156,7 @@ export function createDelayedSignalVerifier(
       };
       pendingSignals.set(signalId, entry);
     },
+
     /**
      * 取消指定标的的所有待验证信号，清除定时器并释放信号到对象池
      */
@@ -149,6 +170,7 @@ export function createDelayedSignalVerifier(
       }
       for (const { signalId, signal } of entriesToRemove) {
         pendingSignals.delete(signalId);
+
         // 取消时释放信号对象回对象池
         signalObjectPool.release(signal);
       }
@@ -158,6 +180,7 @@ export function createDelayedSignalVerifier(
         );
       }
     },
+
     /**
      * 取消指定标的指定方向的所有待验证信号
      * LONG 方向对应 BUYCALL/SELLCALL，SHORT 方向对应 BUYPUT/SELLPUT
@@ -188,6 +211,7 @@ export function createDelayedSignalVerifier(
       }
       return entriesToRemove.length;
     },
+
     /**
      * 取消所有待验证信号，清除全部定时器并释放所有信号到对象池
      */
@@ -203,14 +227,17 @@ export function createDelayedSignalVerifier(
       }
       return count;
     },
+
     /** 返回当前待验证信号数量 */
     getPendingCount(): number {
       return pendingSignals.size;
     },
+
     /** 注册验证通过时的回调，信号通过延迟验证后会被调用 */
     onVerified(callback: VerifiedCallback): void {
       verifiedCallbacks.push(callback);
     },
+
     /**
      * 销毁验证器，清除所有定时器、释放所有信号对象并清空回调列表
      */
@@ -221,6 +248,7 @@ export function createDelayedSignalVerifier(
         signalObjectPool.release(entry.signal);
       }
       pendingSignals.clear();
+
       // 清空回调列表
       verifiedCallbacks.length = 0;
       logger.debug('[DelayedSignalVerifier] Verifier destroyed');

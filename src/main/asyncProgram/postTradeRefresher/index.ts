@@ -28,6 +28,7 @@ import type {
   PostTradeRefresherDeps,
   PostTradeRefresherEnqueueParams,
 } from './types.js';
+
 /**
  * 创建交易后刷新器。
  * 订单成交后异步刷新账户、持仓与浮亏数据，并调用 displayAccountAndPositions 展示；完成刷新后 markFresh，供其他异步处理器 waitForFresh 同步。失败时自动重试并合并待刷新标的。
@@ -46,6 +47,7 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
   let retryHandle: ReturnType<typeof setTimeout> | null = null;
   let drainResolve: (() => void) | null = null;
   const isActive = (): boolean => running;
+
   /**
    * 执行交易后刷新：刷新账户/持仓缓存、浮亏数据，并展示最新账户持仓信息
    * 任一步骤失败时返回 false，由调用方决定是否重试
@@ -129,6 +131,7 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
     }
     return refreshOk;
   }
+
   /**
    * 执行一次刷新任务
    * 消费当前 pendingSymbols，刷新失败时将任务归还并触发重试
@@ -165,6 +168,7 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
       }
     }
   }
+
   /**
    * 通过 setImmediate 调度下一次 run，避免重复调度
    * 若存在重试定时器则先取消，优先立即执行
@@ -182,6 +186,7 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
       void run();
     });
   }
+
   /**
    * 刷新失败后延迟重试，使用 API.DEFAULT_RETRY_DELAY_MS 间隔
    */
@@ -194,6 +199,7 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
       void run();
     }, API.DEFAULT_RETRY_DELAY_MS);
   }
+
   /**
    * 将待刷新标的加入队列并触发调度
    * 多次入队时合并 pendingSymbols，取最新行情和最大 staleVersion
@@ -209,6 +215,7 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
       pendingVersion === null ? staleVersion : Math.max(pendingVersion, staleVersion);
     scheduleRun();
   }
+
   /**
    * 停止刷新器并等待当前在途任务完成
    * 清空所有待刷新队列和定时器，确保优雅退出
@@ -231,12 +238,14 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
       drainResolve = resolve;
     });
   }
+
   /** 启动刷新器，允许后续 enqueue 触发刷新 */
   function start(): void {
     if (!running) {
       running = true;
     }
   }
+
   /** 清空待刷新队列与版本，用于生命周期重置时丢弃未消费的刷新请求 */
   function clearPending(): void {
     pendingSymbols = [];

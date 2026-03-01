@@ -24,6 +24,7 @@ import type { OrderRecorder } from '../../types/services.js';
 import type { ProcessSellSignalsParams } from './types.js';
 import type { TradingCalendarSnapshot } from '../../types/tradingCalendar.js';
 import { isSellAction } from '../../utils/display/index.js';
+
 /**
  * 计算卖出信号的数量和原因
  * 智能平仓开启：按三阶段规则计算；关闭：清仓所有持仓
@@ -63,6 +64,7 @@ function calculateSellQuantity(params: {
   } = params;
   const reason = originalReason || '';
   const directionName = direction === 'LONG' ? getLongDirectionName() : getShortDirectionName();
+
   // 验证输入参数
   const validationResult = validateSellContext(position, quote);
   if (!validationResult.valid) {
@@ -74,6 +76,7 @@ function calculateSellQuantity(params: {
     };
   }
   const { currentPrice, availableQuantity } = validationResult;
+
   // 智能平仓关闭：直接清仓所有持仓
   if (!smartCloseEnabled) {
     const fullCloseResult = resolveSellQuantityByFullClose({
@@ -85,6 +88,7 @@ function calculateSellQuantity(params: {
       reason: buildSellReason(reason, fullCloseResult.reason),
     };
   }
+
   // 智能平仓开启：按三阶段规则计算可卖数量，并结合订单记录做防重扣减，避免重复卖出同一批持仓
   const smartCloseResult = resolveSellQuantityBySmartClose({
     orderRecorder,
@@ -102,6 +106,7 @@ function calculateSellQuantity(params: {
     reason: buildSellReason(reason, smartCloseResult.reason),
   };
 }
+
 /**
  * 处理卖出信号，计算实际卖出数量并写回信号对象
  *
@@ -133,6 +138,7 @@ export const processSellSignals = (
     if (!isSellAction(sig.action)) {
       continue;
     }
+
     // 根据信号类型确定对应的持仓和行情
     const isLongSignal = sig.action === 'SELLCALL';
     const position = isLongSignal ? longPosition : shortPosition;
@@ -140,8 +146,10 @@ export const processSellSignals = (
     const direction: 'LONG' | 'SHORT' = isLongSignal ? 'LONG' : 'SHORT';
     const directionName = isLongSignal ? '做多' : '做空';
     const signalName = isLongSignal ? 'SELLCALL' : 'SELLPUT';
+
     // 检查是否是末日保护程序的清仓信号（无条件清仓，不受智能平仓影响）
     const isDoomsdaySignal = sig.reason?.includes('末日保护程序');
+
     // 持仓或行情缺失时记录日志
     if (!position) {
       logger.warn(
@@ -167,6 +175,7 @@ export const processSellSignals = (
       // 末日保护程序：无条件清仓，使用全部可用数量
       if (position && position.availableQuantity > 0) {
         sig.quantity = position.availableQuantity;
+
         // 委托价必须以执行时行情为准，覆盖流水线可能写入的旧价
         if (quote?.price !== undefined) {
           sig.price = quote.price;
@@ -207,8 +216,10 @@ export const processSellSignals = (
         );
         sig.quantity = result.quantity;
         sig.reason = result.reason;
+
         // 设置关联的买入订单ID列表（用于防重追踪）
         sig.relatedBuyOrderIds = result.relatedBuyOrderIds;
+
         // 委托价必须以执行时行情为准，覆盖流水线可能写入的旧价
         if (quote?.price !== undefined) {
           sig.price = quote.price;

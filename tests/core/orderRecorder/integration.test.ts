@@ -34,6 +34,7 @@ function wrapStorageAsRecorder(storage: OrderStorage): OrderRecorder {
     getCostAveragePrice: (symbol: string, isLongSymbol: boolean) =>
       storage.getCostAveragePrice(symbol, isLongSymbol),
     selectSellableOrders: (params) => storage.selectSellableOrders(params),
+
     // 以下方法在智能平仓中不会被调用
     recordLocalBuy: () => {},
     recordLocalSell: () => {},

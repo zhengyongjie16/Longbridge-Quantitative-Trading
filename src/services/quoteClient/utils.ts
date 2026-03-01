@@ -24,6 +24,7 @@ const PERIOD_LABEL_MAP: Readonly<Record<number, string>> = {
   [Period.Quarter]: '季K',
   [Period.Year]: '年K',
 } as const;
+
 /**
  * 将 Period 枚举转为可读标签，用于日志等展示
  * @param period K 线周期枚举值
@@ -33,6 +34,7 @@ export function formatPeriodForLog(period: Period): string {
   const label = PERIOD_LABEL_MAP[period];
   return label ?? `未知(${period})`;
 }
+
 /**
  * 类型保护：判断 unknown 是否可作为 StaticInfo 使用。
  *
@@ -44,6 +46,7 @@ function isStaticInfo(value: unknown): value is StaticInfo {
     return false;
   }
   const valueRecord = value;
+
   /**
    * 判断静态信息对象中的名称字段是否为可接受类型。
    *
@@ -64,6 +67,7 @@ function isStaticInfo(value: unknown): value is StaticInfo {
     (lotSizeValue === undefined || lotSizeValue === null || typeof lotSizeValue === 'number')
   );
 }
+
 /**
  * 从静态信息中安全提取 lotSize
  * @param staticInfo 静态信息对象
@@ -83,6 +87,7 @@ export function extractLotSize(staticInfo: unknown): number | undefined {
   }
   return undefined;
 }
+
 /**
  * 从静态信息中安全提取名称
  * @param staticInfo 静态信息对象
@@ -94,6 +99,7 @@ export function extractName(staticInfo: unknown): string | null {
   }
   return staticInfo.nameHk ?? staticInfo.nameCn ?? staticInfo.nameEn ?? null;
 }
+
 /**
  * 获取港股日期键（UTC+8），确保返回非空值
  * @param date 时间对象
@@ -109,6 +115,7 @@ export function resolveHKDateKey(date: Date): string {
   const day = String(date.getUTCDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
+
 /**
  * 将时间对象转换为港股日期的 NaiveDate
  * @param date 时间对象

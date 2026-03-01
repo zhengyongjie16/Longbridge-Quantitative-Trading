@@ -18,6 +18,7 @@ export type PoolableSignal = {
   lotSize?: number | null;
   quantity?: number | null;
   seatVersion?: number | null;
+
   /**
    * 信号触发时间（统一使用此字段）
    * - 立即信号：信号生成时间

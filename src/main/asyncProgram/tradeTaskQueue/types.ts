@@ -15,14 +15,19 @@ export type TaskAddedCallback = () => void;
  * 使用范围：tradeTaskQueue、buyProcessor、sellProcessor、mainProgram 等，仅内部使用。
  */
 export type Task<TType extends string> = {
+
   /** 任务唯一标识（UUID） */
   readonly id: string;
+
   /** 任务类型 */
   readonly type: TType;
+
   /** 任务数据（信号对象） */
   readonly data: Signal;
+
   /** 监控标的代码 */
   readonly monitorSymbol: string;
+
   /** 任务创建时间戳（毫秒） */
   readonly createdAt: number;
 };
@@ -34,19 +39,25 @@ export type Task<TType extends string> = {
  * 使用范围：mainProgram、buyProcessor、sellProcessor、processMonitor、lifecycle 等，仅内部使用。
  */
 export interface TaskQueue<TType extends string> {
+
   /** 入队任务（自动生成 id 和 createdAt） */
   push: (task: Omit<Task<TType>, 'id' | 'createdAt'>) => void;
+
   /** 出队任务（返回并移除队首） */
   pop: () => Task<TType> | null;
+
   /** 检查队列是否为空 */
   isEmpty: () => boolean;
+
   /** 按条件移除任务，返回移除数量 */
   removeTasks: (
     predicate: (task: Task<TType>) => boolean,
     onRemove?: (task: Task<TType>) => void,
   ) => number;
+
   /** 清空全部任务，返回移除数量 */
   clearAll: (onRemove?: (task: Task<TType>) => void) => number;
+
   /** 注册任务添加回调，返回注销函数 */
   onTaskAdded: (callback: TaskAddedCallback) => () => void;
 }

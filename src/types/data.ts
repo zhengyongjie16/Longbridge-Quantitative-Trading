@@ -15,14 +15,19 @@ export type CandleValue = number | string | { toString: () => string } | null | 
  * 使用范围：indicators、策略、indicatorCache 等；全项目可引用。
  */
 export type CandleData = {
+
   /** 最高价 */
   readonly high?: CandleValue;
+
   /** 最低价 */
   readonly low?: CandleValue;
+
   /** 收盘价 */
   readonly close?: CandleValue;
+
   /** 开盘价 */
   readonly open?: CandleValue;
+
   /** 成交量 */
   readonly volume?: CandleValue;
 };
@@ -34,20 +39,28 @@ export type CandleData = {
  * 使用范围：MonitorState、策略、主循环等；全项目可引用。
  */
 export type MonitorValues = {
+
   /** 当前价格 */
   price: number | null;
+
   /** 涨跌幅 */
   changePercent: number | null;
+
   /** EMA 指数移动平均 */
   ema: Readonly<Record<number, number>> | null;
+
   /** RSI 相对强弱指标 */
   rsi: Readonly<Record<number, number>> | null;
+
   /** PSY 心理线指标 */
   psy: Readonly<Record<number, number>> | null;
+
   /** MFI 资金流量指标 */
   mfi: number | null;
+
   /** KDJ 随机指标 */
   kdj: KDJIndicator | null;
+
   /** MACD 指标 */
   macd: MACDIndicator | null;
 };

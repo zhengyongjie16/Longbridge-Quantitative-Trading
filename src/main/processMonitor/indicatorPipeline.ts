@@ -27,6 +27,7 @@ import type { CandleData } from '../../types/data.js';
 import type { IndicatorSnapshot } from '../../types/quote.js';
 import type { IndicatorPipelineParams } from './types.js';
 import { formatSymbolDisplay } from '../../utils/display/index.js';
+
 /**
  * 类型保护：判断 unknown 是否可作为 CandleValue 的对象分支（含 toString 方法）。
  *
@@ -36,6 +37,7 @@ import { formatSymbolDisplay } from '../../utils/display/index.js';
 function isCandleObjectValue(value: unknown): value is { toString: () => string } {
   return isRecord(value) && typeof value.toString === 'function';
 }
+
 /**
  * 将 unknown 标准化为 CandleValue。
  *
@@ -56,6 +58,7 @@ function normalizeCandleValue(value: unknown): CandleData['close'] {
   }
   return undefined;
 }
+
 /**
  * 将 SDK K 线数组标准化为内部 CandleData 数组。
  *
@@ -78,6 +81,7 @@ function normalizeCandles(candles: ReadonlyArray<unknown>): ReadonlyArray<Candle
   }
   return normalized;
 }
+
 /**
  * 执行指标处理流水线。
  * 获取 K 线数据后计算技术指标并缓存快照；若 K 线指纹未变化则直接复用上次快照，

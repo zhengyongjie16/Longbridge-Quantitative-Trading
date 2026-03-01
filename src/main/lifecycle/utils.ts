@@ -1,5 +1,6 @@
 import { HK_DATE_KEY_PATTERN, TIME } from '../../constants/index.js';
 import { getHKDateKey } from '../../utils/tradingTime/index.js';
+
 /**
  * 枚举起止时间区间覆盖的港股日期键列表（含首尾日期）。
  *
@@ -34,6 +35,7 @@ export function listHKDateKeysBetween(startMs: number, endMs: number): ReadonlyA
   }
   return keys;
 }
+
 /**
  * 解析港股日期键并返回该港股日 00:00 对应的 UTC 毫秒时间戳。
  *

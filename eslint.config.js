@@ -3,6 +3,7 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import sonarjs from 'eslint-plugin-sonarjs';
 import eslintPluginUnicorn from 'eslint-plugin-unicorn';
+import eslintPluginStylistic from '@stylistic/eslint-plugin';
 import eslintConfigPrettier from 'eslint-config-prettier/flat';
 
 const restrictTemplateExpressionsRule = [
@@ -57,6 +58,7 @@ export default defineConfig(
   eslintPluginUnicorn.configs.recommended,
   {
     plugins: {
+      '@stylistic': eslintPluginStylistic,
       local: {
         rules: {
           'no-import-alias': noImportAliasRule,
@@ -230,6 +232,21 @@ export default defineConfig(
     },
   },
   eslintConfigPrettier,
+  {
+    // 注释块上方保留空行（须在 Prettier 之后以覆盖其对该规则的关闭）
+    rules: {
+      '@stylistic/lines-around-comment': [
+        'error',
+        {
+          beforeLineComment: true,
+          afterLineComment: false,
+          beforeBlockComment: true,
+          afterBlockComment: false,
+          allowBlockStart: true,
+        },
+      ],
+    },
+  },
   {
     ignores: [
       // 构建与依赖产物

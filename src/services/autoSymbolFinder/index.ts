@@ -22,6 +22,7 @@ import type {
   WarrantListFetchParams,
   WarrantListRequestParams,
 } from './types.js';
+
 /**
  * 构建牛熊证列表缓存键，用于 TTL 与请求去重。
  * @param monitorSymbol - 监控标的代码
@@ -36,6 +37,7 @@ function buildCacheKey(
 ): string {
   return `${monitorSymbol}:${String(warrantType)}:${expiryFilters.join(',')}`;
 }
+
 /**
  * 调用 LongPort warrantList API 请求牛熊证列表（按成交额降序）。
  * @param params - 请求参数（ctx、monitorSymbol、warrantType、expiryFilters）
@@ -58,6 +60,7 @@ function requestWarrantList({
     [WarrantStatus.Normal],
   );
 }
+
 /**
  * 带缓存的牛熊证列表获取：命中 TTL 内缓存直接返回，否则请求 API 并写入缓存，并发请求去重。
  * @param params - 含 ctx、monitorSymbol、warrantType、expiryFilters、cacheConfig
@@ -107,6 +110,7 @@ async function fetchWarrantsWithCache({
     cacheConfig.cache.deleteInFlight(cacheKey);
   }
 }
+
 /**
  * 获取并筛选最佳牛熊证标的：按方向请求牛熊证列表，按距回收价与分均成交额选优。
  * 用于自动寻标与换标预寻标，无符合条件时返回 null 并打日志。

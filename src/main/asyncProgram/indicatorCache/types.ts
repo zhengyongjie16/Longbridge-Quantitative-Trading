@@ -7,8 +7,10 @@ import type { IndicatorSnapshot } from '../../../types/quote.js';
  * 使用范围：仅 indicatorCache 模块内部使用。
  */
 export type IndicatorCacheEntry = {
+
   /** 记录时间戳（毫秒） */
   readonly timestamp: number;
+
   /** 指标快照（深拷贝，独立于对象池） */
   readonly snapshot: IndicatorSnapshot;
 };
@@ -20,12 +22,16 @@ export type IndicatorCacheEntry = {
  * 使用范围：仅 indicatorCache 模块内部使用（以 _ 前缀表示内部类型）。
  */
 export type _RingBuffer = {
+
   /** 缓冲区数组 */
   entries: (IndicatorCacheEntry | null)[];
+
   /** 下一个写入位置的索引 */
   head: number;
+
   /** 当前有效条目数 */
   size: number;
+
   /** 缓冲区最大容量 */
   readonly capacity: number;
 };
@@ -37,6 +43,7 @@ export type _RingBuffer = {
  * 使用范围：仅 indicatorCache 模块内部使用。
  */
 export type IndicatorCacheOptions = {
+
   /** 最大缓存条目数，默认 100 */
   readonly maxEntries?: number;
 };
@@ -48,6 +55,7 @@ export type IndicatorCacheOptions = {
  * 使用范围：mainProgram、delayedSignalVerifier、lifecycle 等使用，仅内部使用。
  */
 export interface IndicatorCache {
+
   /**
    * 推送新的指标快照
    * @param monitorSymbol 监控标的代码

@@ -37,6 +37,7 @@ export function getRegionUrls(region: string | undefined): RegionUrls {
       tradeWsUrl: 'wss://openapi-trade.longportapp.cn/v2',
     };
   }
+
   // 香港及其他地区（默认）
   return {
     httpUrl: 'https://openapi.longportapp.com',

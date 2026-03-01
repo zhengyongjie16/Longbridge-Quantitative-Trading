@@ -203,6 +203,7 @@ export type MonitorTaskProcessorDeps = Readonly<{
   trader: Trader;
   lastState: LastState;
   tradingConfig: MultiMonitorTradingConfig;
+
   /** 生命周期门禁：false 时任务直接跳过 */
   getCanProcessTask?: () => boolean;
   onProcessed?: (

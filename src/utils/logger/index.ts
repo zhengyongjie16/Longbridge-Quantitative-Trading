@@ -92,6 +92,7 @@ function formatExtra(extra: unknown): string {
  */
 function getCurrentDate(): string {
   const timestamp = toHongKongTimeLog(new Date());
+
   // 从 "YYYY-MM-DD HH:mm:ss.sss" 提取日期部分
   const datePart = timestamp.split(' ').at(0);
   return datePart ?? '';
@@ -135,6 +136,7 @@ class DateRotatingStream extends Writable {
         if (this._fileStream?.writable) {
           // 保存当前流的引用，防止在等待 drain 时流被替换
           const currentStream = this._fileStream;
+
           // 文件流的 write 方法可能是同步或异步的
           // 如果返回 false，表示需要等待 drain 事件
           const canContinue = currentStream.write(chunk, encoding);
@@ -199,7 +201,9 @@ class DateRotatingStream extends Writable {
         });
         stream.once('error', () => {
           resolve();
-        }); // 即使出错也继续
+        });
+
+        // 即使出错也继续
         stream.end();
       });
     }
@@ -222,6 +226,7 @@ class DateRotatingStream extends Writable {
     // 如果已有 rotate 正在进行，加入队列等待
     if (this._rotatePromise) {
       await this._rotatePromise;
+
       // 等待完成后重新检查日期（可能已被其他调用处理）
       if (this._currentDate === today) {
         return;
@@ -610,6 +615,7 @@ const pinoLogger = pino(
  * 输出同时写入控制台与按日期轮转的日志文件；DEBUG 级别仅在 DEBUG=true 时输出。
  */
 export const logger: Logger = {
+
   /**
    * 输出调试级别日志，仅当 DEBUG=true 时生效。
    * @param msg - 日志消息

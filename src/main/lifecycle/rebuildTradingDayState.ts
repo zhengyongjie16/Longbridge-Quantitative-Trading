@@ -25,6 +25,7 @@ import type { DailyLossTracker } from '../../core/riskController/types.js';
 import type { RebuildTradingDayStateDeps, RebuildTradingDayStateParams } from './types.js';
 import { prewarmTradingCalendarSnapshotForRebuild } from './tradingCalendarPrewarmer.js';
 import { formatError } from '../../utils/error/index.js';
+
 /**
  * 将席位状态和行情数据同步到单个 MonitorContext。
  * 重建阶段必须在订单重建前执行，确保后续步骤能读取到最新的席位和行情。
@@ -59,6 +60,7 @@ function syncMonitorContextQuotes(
   monitorContext.shortSymbolName = shortSymbol ? (shortQuote?.name ?? shortSymbol) : '';
   monitorContext.monitorSymbolName = monitorQuote?.name ?? monitorSymbol;
 }
+
 /**
  * 遍历所有监控标的，将席位状态和行情数据同步到各自的 MonitorContext。
  */
@@ -71,6 +73,7 @@ function syncAllMonitorContexts(
     syncMonitorContextQuotes(monitorContext, symbolRegistry, quotesMap);
   }
 }
+
 /**
  * 从全量订单数据中重建所有就绪席位的订单记录。
  */
@@ -98,6 +101,7 @@ async function rebuildOrderRecords(
     }
   }
 }
+
 /**
  * 刷新单个席位的牛熊证风险信息（收回价等）。
  * 优先使用席位缓存的 callPrice，否则从 API 重新拉取。
@@ -137,6 +141,7 @@ async function refreshSeatWarrantInfo(
     throw new Error(reason);
   }
 }
+
 /**
  * 重建所有就绪席位的牛熊证风险缓存（收回价等关键风控数据）。
  */
@@ -164,6 +169,7 @@ async function rebuildWarrantRiskCache(
     );
   }
 }
+
 /**
  * 重建所有就绪席位的浮亏缓存，结合当日已实现亏损偏移量计算。
  */
@@ -197,6 +203,7 @@ async function rebuildUnrealizedLossCache(
     }
   }
 }
+
 /**
  * 创建交易日状态重建函数（工厂）。
  * 注入依赖后返回 rebuildTradingDayState，在开盘重建阶段基于全量订单与行情快照同步席位、重建订单与风控缓存并展示账户持仓。
@@ -216,6 +223,7 @@ export function createRebuildTradingDayState(
     dailyLossTracker,
     displayAccountAndPositions,
   } = deps;
+
   /**
    * 重建交易日运行时状态：同步席位/行情 → 重建订单记录 → 预热交易日历
    * → 重建风险缓存 → 重建浮亏缓存 → 恢复订单追踪 → 展示账户持仓。

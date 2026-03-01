@@ -7,20 +7,28 @@ import type { Market } from 'longport';
  * 使用范围：Trader、RiskChecker、持仓缓存、主循环等；全项目可引用。
  */
 export type Position = {
+
   /** 账户渠道 */
   accountChannel: string;
+
   /** 标的代码 */
   symbol: string;
+
   /** 标的名称 */
   symbolName: string;
+
   /** 持仓数量 */
   quantity: number;
+
   /** 可用数量（可卖出） */
   availableQuantity: number;
+
   /** 币种 */
   currency: string;
+
   /** 成本价 */
   costPrice: number;
+
   /** 市场（LongPort 返回值） */
   market: Market | string;
 };
@@ -32,14 +40,19 @@ export type Position = {
  * 使用范围：AccountSnapshot、账户展示等；全项目可引用。
  */
 export type CashInfo = {
+
   /** 币种（如 HKD、USD） */
   readonly currency: string;
+
   /** 可用现金 */
   readonly availableCash: number;
+
   /** 可提现金额 */
   readonly withdrawCash: number;
+
   /** 冻结资金 */
   readonly frozenCash: number;
+
   /** 待交收资金 */
   readonly settlingCash: number;
 };
@@ -51,16 +64,22 @@ export type CashInfo = {
  * 使用范围：Trader、RiskChecker、LastState、主循环等；全项目可引用。
  */
 export type AccountSnapshot = {
+
   /** 结算币种 */
   readonly currency: string;
+
   /** 总现金 */
   readonly totalCash: number;
+
   /** 净资产 */
   readonly netAssets: number;
+
   /** 持仓市值 */
   readonly positionValue: number;
+
   /** 各币种现金详情 */
   readonly cashInfos: ReadonlyArray<CashInfo>;
+
   /** 购买力 */
   readonly buyPower: number;
 };
