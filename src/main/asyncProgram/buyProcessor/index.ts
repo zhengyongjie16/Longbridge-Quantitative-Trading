@@ -17,7 +17,11 @@
  * 5. 释放信号对象到对象池
  */
 import { signalObjectPool } from '../../../utils/objectPool/index.js';
-import { createBaseProcessor } from '../utils.js';
+import {
+  createBaseProcessor,
+  executeSignalsWithLifecycleGate,
+  logProcessorTaskFailure,
+} from '../utils.js';
 import { logger } from '../../../utils/logger/index.js';
 import { isBuyAction } from '../../../utils/helpers/index.js';
 import {
@@ -30,7 +34,6 @@ import type { BuyProcessorDeps } from './types.js';
 import type { Task, BuyTaskType } from '../tradeTaskQueue/types.js';
 import type { RiskCheckContext } from '../../../types/services.js';
 import { formatSymbolDisplay } from '../../../utils/display/index.js';
-import { formatError } from '../../../utils/error/index.js';
 
 /**
  * 创建买入处理器。
@@ -167,21 +170,16 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
       signal.price = quote.price;
       signal.lotSize = quote.lotSize;
 
-      // 二次门禁：防止任务入队后跨越交易日切换/生命周期状态变更，导致门禁关闭时仍继续下单
-      if (getCanProcessTask && !getCanProcessTask()) {
-        logger.info(`[BuyProcessor] 生命周期门禁关闭，放弃执行: ${symbolDisplay} ${signal.action}`);
-        return true;
-      }
-
-      // 执行买入订单
-      await trader.executeSignals([signal]);
-      logger.info(`[BuyProcessor] 买入订单执行完成: ${symbolDisplay} ${signal.action}`);
-      return true;
+      return await executeSignalsWithLifecycleGate({
+        getCanProcessTask,
+        trader,
+        signal,
+        symbolDisplay,
+        loggerPrefix: 'BuyProcessor',
+        successMessage: '买入订单执行完成',
+      });
     } catch (err) {
-      logger.error(
-        `[BuyProcessor] 处理任务失败: ${symbolDisplay} ${signal.action}`,
-        formatError(err),
-      );
+      logProcessorTaskFailure('BuyProcessor', symbolDisplay, signal.action, err);
       return false;
     }
   }

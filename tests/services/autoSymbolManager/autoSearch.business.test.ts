@@ -12,27 +12,12 @@ import {
   createMonitorConfigDouble,
   createSymbolRegistryDouble,
 } from '../../helpers/testDoubles.js';
-function createLoggerStub() {
-  return {
-    error: () => {},
-    warn: () => {},
-  } as never;
-}
+import { createLoggerStub, getDefaultAutoSearchConfig } from './utils.js';
+
 describe('autoSymbolManager autoSearch business flow', () => {
   it('fills EMPTY seat to READY and resets failure counters when a candidate is found', async () => {
     const monitorConfig = createMonitorConfigDouble({
-      autoSearchConfig: {
-        autoSearchEnabled: true,
-        autoSearchMinDistancePctBull: 0.35,
-        autoSearchMinDistancePctBear: -0.35,
-        autoSearchMinTurnoverPerMinuteBull: 100_000,
-        autoSearchMinTurnoverPerMinuteBear: 100_000,
-        autoSearchExpiryMinMonths: 3,
-        autoSearchOpenDelayMinutes: 0,
-        switchIntervalMinutes: 0,
-        switchDistanceRangeBull: { min: 0.2, max: 1.5 },
-        switchDistanceRangeBear: { min: -1.5, max: -0.2 },
-      },
+      autoSearchConfig: getDefaultAutoSearchConfig(),
     });
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
@@ -102,20 +87,10 @@ describe('autoSymbolManager autoSearch business flow', () => {
     expect(seat.frozenTradingDayKey).toBeNull();
     expect(symbolRegistry.getSeatVersion('HSI.HK', 'LONG')).toBe(2);
   });
+
   it('freezes seat for the day after reaching max search failures', async () => {
     const monitorConfig = createMonitorConfigDouble({
-      autoSearchConfig: {
-        autoSearchEnabled: true,
-        autoSearchMinDistancePctBull: 0.35,
-        autoSearchMinDistancePctBear: -0.35,
-        autoSearchMinTurnoverPerMinuteBull: 100_000,
-        autoSearchMinTurnoverPerMinuteBear: 100_000,
-        autoSearchExpiryMinMonths: 3,
-        autoSearchOpenDelayMinutes: 0,
-        switchIntervalMinutes: 0,
-        switchDistanceRangeBull: { min: 0.2, max: 1.5 },
-        switchDistanceRangeBear: { min: -1.5, max: -0.2 },
-      },
+      autoSearchConfig: getDefaultAutoSearchConfig(),
     });
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
@@ -176,20 +151,10 @@ describe('autoSymbolManager autoSearch business flow', () => {
     expect(seat.frozenTradingDayKey).toBe('2026-02-16');
     expect(symbolRegistry.getSeatVersion('HSI.HK', 'LONG')).toBe(1);
   });
+
   it('honors search cooldown and skips finder call within cooldown window', async () => {
     const monitorConfig = createMonitorConfigDouble({
-      autoSearchConfig: {
-        autoSearchEnabled: true,
-        autoSearchMinDistancePctBull: 0.35,
-        autoSearchMinDistancePctBear: -0.35,
-        autoSearchMinTurnoverPerMinuteBull: 100_000,
-        autoSearchMinTurnoverPerMinuteBear: 100_000,
-        autoSearchExpiryMinMonths: 3,
-        autoSearchOpenDelayMinutes: 0,
-        switchIntervalMinutes: 0,
-        switchDistanceRangeBull: { min: 0.2, max: 1.5 },
-        switchDistanceRangeBear: { min: -1.5, max: -0.2 },
-      },
+      autoSearchConfig: getDefaultAutoSearchConfig(),
     });
     const now = new Date('2026-02-16T01:00:00.000Z');
     const symbolRegistry = createSymbolRegistryDouble({

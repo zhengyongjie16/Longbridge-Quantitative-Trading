@@ -290,12 +290,46 @@ export interface RateLimiter {
 }
 
 /**
+ * 订单记录器中「待成交卖单 + 可卖订单」相关方法的共享契约。
+ * 类型用途：OrderRecorder 与 OrderStorage 共用此方法集合，单一来源避免重复定义。
+ * 数据来源：如适用。
+ * 使用范围：src/types/services（OrderRecorder）、src/core/orderRecorder/types（OrderStorage）从本处直接引用。
+ */
+export interface OrderRecorderPendingSellAndSellable {
+
+  /** 标记卖出订单完全成交 */
+  markSellFilled: (orderId: string) => PendingSellInfo | null;
+
+  /** 标记卖出订单部分成交 */
+  markSellPartialFilled: (orderId: string, filledQuantity: number) => PendingSellInfo | null;
+
+  /** 标记卖出订单取消 */
+  markSellCancelled: (orderId: string) => PendingSellInfo | null;
+
+  /** 获取待成交卖单快照（用于恢复一致性校验） */
+  getPendingSellSnapshot: () => ReadonlyArray<PendingSellInfo>;
+
+  /** 恢复期：为待恢复的卖单分配关联买单 ID */
+  allocateRelatedBuyOrderIdsForRecovery: (
+    symbol: string,
+    direction: 'LONG' | 'SHORT',
+    quantity: number,
+  ) => readonly string[];
+
+  /** 获取指定标的的成本均价（实时计算，无缓存） */
+  getCostAveragePrice: (symbol: string, isLongSymbol: boolean) => number | null;
+
+  /** 按策略筛选可卖订单（统一处理占用过滤、整笔截断与可选额外排除） */
+  selectSellableOrders: (params: SellableOrderSelectParams) => SellableOrderResult;
+}
+
+/**
  * 订单记录器接口。
  * 类型用途：依赖注入用接口，管理买卖订单的本地记录与 API 同步，提供成本价、可卖订单、待成交卖单追踪等。
  * 数据来源：本地记录 + LongPort 订单 API 同步。
  * 使用范围：Trader、RiskChecker、信号处理、主循环等；全项目可引用。
  */
-export interface OrderRecorder {
+export interface OrderRecorder extends OrderRecorderPendingSellAndSellable {
 
   /** 记录本地买入订单 */
   recordLocalBuy: (
@@ -351,8 +385,6 @@ export interface OrderRecorder {
   /** 获取指定标的的买入订单 */
   getBuyOrdersForSymbol: (symbol: string, isLongSymbol: boolean) => ReadonlyArray<OrderRecord>;
 
-  // 待成交卖出订单追踪
-
   /** 提交卖出订单时调用（添加待成交追踪） */
   submitSellOrder: (
     orderId: string,
@@ -362,31 +394,6 @@ export interface OrderRecorder {
     relatedBuyOrderIds: readonly string[],
     submittedAtMs?: number,
   ) => void;
-
-  /** 标记卖出订单完全成交 */
-  markSellFilled: (orderId: string) => PendingSellInfo | null;
-
-  /** 标记卖出订单部分成交 */
-  markSellPartialFilled: (orderId: string, filledQuantity: number) => PendingSellInfo | null;
-
-  /** 标记卖出订单取消 */
-  markSellCancelled: (orderId: string) => PendingSellInfo | null;
-
-  /** 获取待成交卖单快照（用于恢复一致性校验） */
-  getPendingSellSnapshot: () => ReadonlyArray<PendingSellInfo>;
-
-  /** 恢复期：为待恢复的卖单分配关联买单 ID */
-  allocateRelatedBuyOrderIdsForRecovery: (
-    symbol: string,
-    direction: 'LONG' | 'SHORT',
-    quantity: number,
-  ) => readonly string[];
-
-  /** 获取指定标的的成本均价（实时计算，无缓存） */
-  getCostAveragePrice: (symbol: string, isLongSymbol: boolean) => number | null;
-
-  /** 按策略筛选可卖订单（统一处理占用过滤、整笔截断与可选额外排除） */
-  selectSellableOrders: (params: SellableOrderSelectParams) => SellableOrderResult;
 
   /** 重置全部订单记录与 API 缓存 */
   resetAll: () => void;

@@ -17,140 +17,22 @@ import type {
   MonitorTaskContext,
 } from '../../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 import type { MonitorTask } from '../../../../src/main/asyncProgram/monitorTaskQueue/types.js';
-import type { LastState, MonitorContext } from '../../../../src/types/state.js';
 import type { MultiMonitorTradingConfig } from '../../../../src/types/config.js';
 
 import {
   createAccountSnapshotDouble,
   createMonitorConfigDouble,
   createOrderRecorderDouble,
-  createPositionCacheDouble,
   createPositionDouble,
   createQuoteDouble,
   createRiskCheckerDouble,
-  createSymbolRegistryDouble,
   createTraderDouble,
 } from '../../../helpers/testDoubles.js';
-
-function createLastState(): LastState {
-  return {
-    canTrade: true,
-    isHalfDay: false,
-    openProtectionActive: false,
-    currentDayKey: '2026-02-16',
-    lifecycleState: 'ACTIVE',
-    pendingOpenRebuild: false,
-    targetTradingDayKey: null,
-    isTradingEnabled: true,
-    cachedAccount: null,
-    cachedPositions: [],
-    positionCache: createPositionCacheDouble(),
-    cachedTradingDayInfo: null,
-    monitorStates: new Map(),
-    allTradingSymbols: new Set(),
-  };
-}
-
-function createMonitorTaskContext(overrides: Partial<MonitorContext> = {}): MonitorContext {
-  const symbolRegistry = createSymbolRegistryDouble({
-    monitorSymbol: 'HSI.HK',
-    longSeat: {
-      symbol: 'BULL.HK',
-      status: 'READY',
-      lastSwitchAt: null,
-      lastSearchAt: null,
-      lastSeatReadyAt: null,
-      searchFailCountToday: 0,
-      frozenTradingDayKey: null,
-    },
-    shortSeat: {
-      symbol: 'BEAR.HK',
-      status: 'READY',
-      lastSwitchAt: null,
-      lastSearchAt: null,
-      lastSeatReadyAt: null,
-      searchFailCountToday: 0,
-      frozenTradingDayKey: null,
-    },
-    longVersion: 2,
-    shortVersion: 3,
-  });
-
-  return {
-    config: createMonitorConfigDouble(),
-    state: {
-      monitorSymbol: 'HSI.HK',
-      monitorPrice: null,
-      longPrice: null,
-      shortPrice: null,
-      signal: null,
-      pendingDelayedSignals: [],
-      monitorValues: null,
-      lastMonitorSnapshot: null,
-      lastCandleFingerprint: null,
-    },
-    symbolRegistry,
-    seatState: {
-      long: symbolRegistry.getSeatState('HSI.HK', 'LONG'),
-      short: symbolRegistry.getSeatState('HSI.HK', 'SHORT'),
-    },
-    seatVersion: {
-      long: symbolRegistry.getSeatVersion('HSI.HK', 'LONG'),
-      short: symbolRegistry.getSeatVersion('HSI.HK', 'SHORT'),
-    },
-    autoSymbolManager: {
-      maybeSearchOnTick: async () => {},
-      maybeSwitchOnInterval: async () => {},
-      maybeSwitchOnDistance: async () => {},
-      hasPendingSwitch: () => false,
-      resetAllState: () => {},
-    },
-    strategy: {
-      generateCloseSignals: () => ({ immediateSignals: [], delayedSignals: [] }),
-    },
-    orderRecorder: createOrderRecorderDouble(),
-    dailyLossTracker: {
-      resetAll: () => {},
-      recalculateFromAllOrders: () => {},
-      recordFilledOrder: () => {},
-      getLossOffset: () => 0,
-    },
-    riskChecker: createRiskCheckerDouble(),
-    unrealizedLossMonitor: {
-      monitorUnrealizedLoss: async () => {},
-    },
-    delayedSignalVerifier: {
-      addSignal: () => {},
-      cancelAllForSymbol: () => {},
-      cancelAllForDirection: () => 0,
-      cancelAll: () => 0,
-      getPendingCount: () => 0,
-      onVerified: () => {},
-      destroy: () => {},
-    },
-    longSymbolName: 'BULL.HK',
-    shortSymbolName: 'BEAR.HK',
-    monitorSymbolName: 'HSI',
-    normalizedMonitorSymbol: 'HSI.HK',
-    rsiPeriods: [6],
-    emaPeriods: [7],
-    psyPeriods: [13],
-    longQuote: null,
-    shortQuote: null,
-    monitorQuote: null,
-    ...overrides,
-  } as unknown as MonitorContext;
-}
-
-async function waitUntil(predicate: () => boolean, timeoutMs: number = 500): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (!predicate()) {
-    if (Date.now() >= deadline) {
-      throw new Error('waitUntil timeout');
-    }
-    await Bun.sleep(10);
-  }
-}
+import {
+  createLastState,
+  createMonitorTaskContext,
+  runProcessorFlow,
+} from '../utils.js';
 
 describe('monitorTaskProcessor business flow', () => {
   it('processes AUTO_SYMBOL_TICK with valid seat snapshot', async () => {
@@ -194,25 +76,27 @@ describe('monitorTaskProcessor business flow', () => {
       },
     });
 
-    processor.start();
-
-    queue.scheduleLatest({
-      type: 'AUTO_SYMBOL_TICK',
-      dedupeKey: 'HSI.HK:AUTO_SYMBOL_TICK:LONG',
-      monitorSymbol: 'HSI.HK',
-      data: {
-        monitorSymbol: 'HSI.HK',
-        direction: 'LONG',
-        seatVersion: 2,
-        symbol: 'BULL.HK',
-        currentTimeMs: Date.now(),
-        canTradeNow: true,
-        openProtectionActive: false,
+    await runProcessorFlow({
+      processor,
+      pushTask: () => {
+        queue.scheduleLatest({
+          type: 'AUTO_SYMBOL_TICK',
+          dedupeKey: 'HSI.HK:AUTO_SYMBOL_TICK:LONG',
+          monitorSymbol: 'HSI.HK',
+          data: {
+            monitorSymbol: 'HSI.HK',
+            direction: 'LONG',
+            seatVersion: 2,
+            symbol: 'BULL.HK',
+            currentTimeMs: Date.now(),
+            canTradeNow: true,
+            openProtectionActive: false,
+          },
+        });
       },
+      waitCondition: () => statuses.length === 1,
+      timeoutMs: 500,
     });
-
-    await waitUntil(() => statuses.length === 1);
-    await processor.stopAndDrain();
 
     expect(maybeSearchCalls).toBe(1);
     expect(intervalCallArgs).toHaveLength(1);
@@ -256,25 +140,27 @@ describe('monitorTaskProcessor business flow', () => {
       },
     });
 
-    processor.start();
-
-    queue.scheduleLatest({
-      type: 'AUTO_SYMBOL_TICK',
-      dedupeKey: 'HSI.HK:AUTO_SYMBOL_TICK:LONG',
-      monitorSymbol: 'HSI.HK',
-      data: {
-        monitorSymbol: 'HSI.HK',
-        direction: 'LONG',
-        seatVersion: 1,
-        symbol: 'BULL.HK',
-        currentTimeMs: Date.now(),
-        canTradeNow: true,
-        openProtectionActive: false,
+    await runProcessorFlow({
+      processor,
+      pushTask: () => {
+        queue.scheduleLatest({
+          type: 'AUTO_SYMBOL_TICK',
+          dedupeKey: 'HSI.HK:AUTO_SYMBOL_TICK:LONG',
+          monitorSymbol: 'HSI.HK',
+          data: {
+            monitorSymbol: 'HSI.HK',
+            direction: 'LONG',
+            seatVersion: 1,
+            symbol: 'BULL.HK',
+            currentTimeMs: Date.now(),
+            canTradeNow: true,
+            openProtectionActive: false,
+          },
+        });
       },
+      waitCondition: () => statuses.length === 1,
+      timeoutMs: 500,
     });
-
-    await waitUntil(() => statuses.length === 1);
-    await processor.stopAndDrain();
 
     expect(maybeSearchCalls).toBe(0);
     expect(statuses).toEqual(['skipped']);
@@ -313,21 +199,23 @@ describe('monitorTaskProcessor business flow', () => {
       },
     });
 
-    processor.start();
-
-    queue.scheduleLatest({
-      type: 'UNREALIZED_LOSS_CHECK',
-      dedupeKey: 'HSI.HK:UNREALIZED_LOSS_CHECK',
-      monitorSymbol: 'HSI.HK',
-      data: {
-        monitorSymbol: 'HSI.HK',
-        long: { seatVersion: 2, symbol: 'BULL.HK', quote: null },
-        short: { seatVersion: 3, symbol: 'BEAR.HK', quote: null },
+    await runProcessorFlow({
+      processor,
+      pushTask: () => {
+        queue.scheduleLatest({
+          type: 'UNREALIZED_LOSS_CHECK',
+          dedupeKey: 'HSI.HK:UNREALIZED_LOSS_CHECK',
+          monitorSymbol: 'HSI.HK',
+          data: {
+            monitorSymbol: 'HSI.HK',
+            long: { seatVersion: 2, symbol: 'BULL.HK', quote: null },
+            short: { seatVersion: 3, symbol: 'BEAR.HK', quote: null },
+          },
+        });
       },
+      waitCondition: () => seen.length === 1,
+      timeoutMs: 500,
     });
-
-    await waitUntil(() => seen.length === 1);
-    await processor.stopAndDrain();
 
     expect(seen[0]?.status).toBe('skipped');
     expect(unrealizedMonitorCalls).toBe(0);
@@ -364,27 +252,30 @@ describe('monitorTaskProcessor business flow', () => {
       },
     });
 
-    processor.start();
-    queue.scheduleLatest({
-      type: 'AUTO_SYMBOL_SWITCH_DISTANCE',
-      dedupeKey: 'HSI.HK:AUTO_SYMBOL_SWITCH_DISTANCE',
-      monitorSymbol: 'HSI.HK',
-      data: {
-        monitorSymbol: 'HSI.HK',
-        monitorPrice: 20_000,
-        quotesMap: new Map([
-          ['BULL.HK', createQuoteDouble('BULL.HK', 1.1, 100)],
-          ['BEAR.HK', createQuoteDouble('BEAR.HK', 0.9, 100)],
-        ]),
-        seatSnapshots: {
-          long: { seatVersion: 2, symbol: 'BULL.HK' },
-          short: { seatVersion: 3, symbol: 'BEAR.HK' },
-        },
+    await runProcessorFlow({
+      processor,
+      pushTask: () => {
+        queue.scheduleLatest({
+          type: 'AUTO_SYMBOL_SWITCH_DISTANCE',
+          dedupeKey: 'HSI.HK:AUTO_SYMBOL_SWITCH_DISTANCE',
+          monitorSymbol: 'HSI.HK',
+          data: {
+            monitorSymbol: 'HSI.HK',
+            monitorPrice: 20_000,
+            quotesMap: new Map([
+              ['BULL.HK', createQuoteDouble('BULL.HK', 1.1, 100)],
+              ['BEAR.HK', createQuoteDouble('BEAR.HK', 0.9, 100)],
+            ]),
+            seatSnapshots: {
+              long: { seatVersion: 2, symbol: 'BULL.HK' },
+              short: { seatVersion: 3, symbol: 'BEAR.HK' },
+            },
+          },
+        });
       },
+      waitCondition: () => statuses.length === 1,
+      timeoutMs: 500,
     });
-
-    await waitUntil(() => statuses.length === 1);
-    await processor.stopAndDrain();
 
     expect(statuses[0]).toBe('processed');
     expect(calledDirections).toEqual(['LONG', 'SHORT']);
@@ -462,26 +353,29 @@ describe('monitorTaskProcessor business flow', () => {
       },
     });
 
-    processor.start();
-    queue.scheduleLatest({
-      type: 'SEAT_REFRESH',
-      dedupeKey: 'HSI.HK:SEAT_REFRESH:LONG',
-      monitorSymbol: 'HSI.HK',
-      data: {
-        monitorSymbol: 'HSI.HK',
-        direction: 'LONG',
-        seatVersion: 2,
-        previousSymbol: 'OLD_BULL.HK',
-        nextSymbol: 'BULL.HK',
-        callPrice: 20_000,
-        quote: createQuoteDouble('BULL.HK', 1.1, 100),
-        symbolName: 'BULL.HK',
-        quotesMap: new Map<string, ReturnType<typeof createQuoteDouble> | null>(),
+    await runProcessorFlow({
+      processor,
+      pushTask: () => {
+        queue.scheduleLatest({
+          type: 'SEAT_REFRESH',
+          dedupeKey: 'HSI.HK:SEAT_REFRESH:LONG',
+          monitorSymbol: 'HSI.HK',
+          data: {
+            monitorSymbol: 'HSI.HK',
+            direction: 'LONG',
+            seatVersion: 2,
+            previousSymbol: 'OLD_BULL.HK',
+            nextSymbol: 'BULL.HK',
+            callPrice: 20_000,
+            quote: createQuoteDouble('BULL.HK', 1.1, 100),
+            symbolName: 'BULL.HK',
+            quotesMap: new Map<string, ReturnType<typeof createQuoteDouble> | null>(),
+          },
+        });
       },
+      waitCondition: () => statuses.length === 1,
+      timeoutMs: 500,
     });
-
-    await waitUntil(() => statuses.length === 1);
-    await processor.stopAndDrain();
 
     expect(statuses[0]).toBe('processed');
     expect(clearLongWarrantCalls).toBe(1);
@@ -550,31 +444,34 @@ describe('monitorTaskProcessor business flow', () => {
       },
     });
 
-    processor.start();
-    queue.scheduleLatest({
-      type: 'LIQUIDATION_DISTANCE_CHECK',
-      dedupeKey: 'HSI.HK:LIQUIDATION_DISTANCE_CHECK',
-      monitorSymbol: 'HSI.HK',
-      data: {
-        monitorSymbol: 'HSI.HK',
-        monitorPrice: 20_000,
-        long: {
-          seatVersion: 2,
-          symbol: 'BULL.HK',
-          quote: createQuoteDouble('BULL.HK', 1, 100),
-          symbolName: 'BULL.HK',
-        },
-        short: {
-          seatVersion: 3,
-          symbol: 'BEAR.HK',
-          quote: createQuoteDouble('BEAR.HK', 1, 100),
-          symbolName: 'BEAR.HK',
-        },
+    await runProcessorFlow({
+      processor,
+      pushTask: () => {
+        queue.scheduleLatest({
+          type: 'LIQUIDATION_DISTANCE_CHECK',
+          dedupeKey: 'HSI.HK:LIQUIDATION_DISTANCE_CHECK',
+          monitorSymbol: 'HSI.HK',
+          data: {
+            monitorSymbol: 'HSI.HK',
+            monitorPrice: 20_000,
+            long: {
+              seatVersion: 2,
+              symbol: 'BULL.HK',
+              quote: createQuoteDouble('BULL.HK', 1, 100),
+              symbolName: 'BULL.HK',
+            },
+            short: {
+              seatVersion: 3,
+              symbol: 'BEAR.HK',
+              quote: createQuoteDouble('BEAR.HK', 1, 100),
+              symbolName: 'BEAR.HK',
+            },
+          },
+        });
       },
+      waitCondition: () => statuses.length === 1,
+      timeoutMs: 500,
     });
-
-    await waitUntil(() => statuses.length === 1);
-    await processor.stopAndDrain();
 
     expect(statuses[0]).toBe('processed');
     expect(submittedActions).toEqual(['SELLCALL']);

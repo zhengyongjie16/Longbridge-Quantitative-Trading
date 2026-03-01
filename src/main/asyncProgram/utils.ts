@@ -1,7 +1,65 @@
 import { logger } from '../../utils/logger/index.js';
 import type { BaseProcessorConfig, Processor } from './types.js';
 import type { TaskAddedCallback } from './tradeTaskQueue/types.js';
+import type { Trader } from '../../types/services.js';
+import type { Signal } from '../../types/signal.js';
 import { formatError } from '../../utils/error/index.js';
+
+/**
+ * 在生命周期门禁通过时执行信号并记录成功日志；门禁关闭时仅打日志并返回 true（视为跳过）。
+ * 调用方负责 catch 异常并打错误日志、返回 false。
+ *
+ * @param params 参数（getCanProcessTask、trader、signal、symbolDisplay、loggerPrefix、successMessage）
+ * @returns 门禁关闭或执行成功时返回 true；trader.executeSignals 抛错时由调用方捕获
+ */
+/* eslint-disable sonarjs/no-invariant-returns -- 门禁跳过与执行成功均返回 true，仅异常时由调用方返回 false */
+export async function executeSignalsWithLifecycleGate(params: {
+  readonly getCanProcessTask?: (() => boolean) | undefined;
+  readonly trader: Trader;
+  readonly signal: Signal;
+  readonly symbolDisplay: string;
+  readonly loggerPrefix: string;
+  readonly successMessage: string;
+}): Promise<boolean> {
+  const {
+    getCanProcessTask,
+    trader,
+    signal,
+    symbolDisplay,
+    loggerPrefix,
+    successMessage,
+  } = params;
+  if (getCanProcessTask !== undefined && !getCanProcessTask()) {
+    logger.info(
+      `[${loggerPrefix}] 生命周期门禁关闭，放弃执行: ${symbolDisplay} ${signal.action}`,
+    );
+    return true;
+  }
+  await trader.executeSignals([signal]);
+  logger.info(`[${loggerPrefix}] ${successMessage}: ${symbolDisplay} ${signal.action}`);
+  return true; // 门禁跳过与执行成功均返回 true，仅抛错时由调用方 catch 返回 false
+}
+
+/**
+ * 记录处理器任务失败日志。供 buyProcessor/sellProcessor 在 catch 中统一调用。
+ *
+ * @param loggerPrefix 日志前缀（如 BuyProcessor、SellProcessor）
+ * @param symbolDisplay 标的展示名
+ * @param action 信号动作
+ * @param err 异常对象
+ * @returns 无返回值
+ */
+export function logProcessorTaskFailure(
+  loggerPrefix: string,
+  symbolDisplay: string,
+  action: string,
+  err: unknown,
+): void {
+  logger.error(
+    `[${loggerPrefix}] 处理任务失败: ${symbolDisplay} ${action}`,
+    formatError(err),
+  );
+}
 
 /**
  * 在处理器运行且当前无待执行调度时触发下一轮调度。默认行为：不满足条件时不做任何操作。

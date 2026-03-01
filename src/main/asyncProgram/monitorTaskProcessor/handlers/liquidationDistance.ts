@@ -8,7 +8,6 @@
  */
 import { logger } from '../../../../utils/logger/index.js';
 import { positionObjectPool, signalObjectPool } from '../../../../utils/objectPool/index.js';
-import { isSeatReady } from '../../../../services/autoSymbolManager/utils.js';
 import { WARRANT_LIQUIDATION_ORDER_TYPE } from '../../../../constants/index.js';
 import { getPositions } from '../../../processMonitor/utils.js';
 import type { LastState } from '../../../../types/state.js';
@@ -26,10 +25,7 @@ import type {
   MonitorTaskType,
 } from '../types.js';
 import { formatError } from '../../../../utils/error/index.js';
-import {
-  resolveSeatSnapshotReadiness,
-  validateSeatSnapshotsAfterRefresh,
-} from '../helpers/seatSnapshot.js';
+import { evaluateMonitorContextAndSeatReadiness } from '../utils.js';
 
 /**
  * 创建距回收价清仓任务处理器。
@@ -56,26 +52,17 @@ export function createLiquidationDistanceHandler({
   ): Promise<MonitorTaskStatus> {
     // handler 由 LIQUIDATION_DISTANCE_CHECK 类型分派，data 语义上必为 LiquidationDistanceCheckTaskData
     const data = task.data as LiquidationDistanceCheckTaskData;
-    const context = getContextOrSkip(data.monitorSymbol);
-    if (!context) {
-      return 'skipped';
-    }
-    const snapshotValidity = await validateSeatSnapshotsAfterRefresh({
+    const evaluated = await evaluateMonitorContextAndSeatReadiness({
+      getContextOrSkip,
+      refreshGate,
       monitorSymbol: data.monitorSymbol,
-      context,
       longSnapshot: { seatVersion: data.long.seatVersion, symbol: data.long.symbol },
       shortSnapshot: { seatVersion: data.short.seatVersion, symbol: data.short.symbol },
-      refreshGate,
     });
-    if (!snapshotValidity) {
+    if (!evaluated) {
       return 'skipped';
     }
-    const seatReadiness = resolveSeatSnapshotReadiness({
-      monitorSymbol: data.monitorSymbol,
-      context,
-      snapshotValidity,
-      isSeatUsable: isSeatReady,
-    });
+    const { context, seatReadiness } = evaluated;
     const { isLongReady, isShortReady, longSymbol, shortSymbol } = seatReadiness;
     const { riskChecker } = context;
     const { longPosition, shortPosition } = getPositions(

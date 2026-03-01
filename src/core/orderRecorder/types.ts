@@ -1,12 +1,11 @@
 import type { TradeContext } from 'longport';
 import type { Quote } from '../../types/quote.js';
 import type {
+  OrderRecorderPendingSellAndSellable,
   OrderRecord,
   PendingSellInfo,
   RateLimiter,
   RawOrderFromAPI,
-  SellableOrderResult,
-  SellableOrderSelectParams,
 } from '../../types/services.js';
 
 /**
@@ -124,7 +123,7 @@ export type FilteringState = {
  * 数据来源：如适用。
  * 使用范围：由 OrderRecorder 依赖注入；仅 orderRecorder 模块实现与使用。
  */
-export interface OrderStorage {
+export interface OrderStorage extends OrderRecorderPendingSellAndSellable {
   getBuyOrdersList: (symbol: string, isLongSymbol: boolean) => ReadonlyArray<OrderRecord>;
   setBuyOrdersListForLong: (symbol: string, newList: ReadonlyArray<OrderRecord>) => void;
   setBuyOrdersListForShort: (symbol: string, newList: ReadonlyArray<OrderRecord>) => void;
@@ -148,38 +147,8 @@ export interface OrderStorage {
   getLatestSellRecord: (symbol: string, isLongSymbol: boolean) => OrderRecord | null;
   getSellRecordByOrderId: (orderId: string) => OrderRecord | null;
 
-  // 待成交卖出订单追踪
-
   /** 添加待成交卖出订单（提交时调用） */
   addPendingSell: (info: Omit<PendingSellInfo, 'filledQuantity' | 'status'>) => void;
-
-  /** 标记卖出订单完全成交 */
-  markSellFilled: (orderId: string) => PendingSellInfo | null;
-
-  /** 标记卖出订单部分成交 */
-  markSellPartialFilled: (orderId: string, filledQuantity: number) => PendingSellInfo | null;
-
-  /** 标记卖出订单取消 */
-  markSellCancelled: (orderId: string) => PendingSellInfo | null;
-
-  /** 获取待成交卖单快照（用于恢复一致性校验） */
-  getPendingSellSnapshot: () => ReadonlyArray<PendingSellInfo>;
-
-  /**
-   * 恢复期：为待恢复的卖单分配关联买单 ID
-   * 从当前买单记录中按价格从低到高分配，排除已被 pendingSells 占用的订单
-   */
-  allocateRelatedBuyOrderIdsForRecovery: (
-    symbol: string,
-    direction: 'LONG' | 'SHORT',
-    quantity: number,
-  ) => readonly string[];
-
-  /** 获取指定标的的成本均价（实时计算，无缓存） */
-  getCostAveragePrice: (symbol: string, isLongSymbol: boolean) => number | null;
-
-  /** 按策略筛选可卖订单（统一处理占用过滤、整笔截断与可选额外排除） */
-  selectSellableOrders: (params: SellableOrderSelectParams) => SellableOrderResult;
 
   /** 清空买卖记录与 pendingSells */
   clearAll: () => void;

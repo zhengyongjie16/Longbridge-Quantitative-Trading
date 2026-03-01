@@ -7,61 +7,12 @@
 import { describe, expect, it } from 'bun:test';
 
 import { createCleanup } from '../../../src/services/cleanup/index.js';
-import type { LastState, MonitorContext, MonitorState } from '../../../src/types/state.js';
-
-function createMonitorState(monitorSymbol: string): MonitorState {
-  return {
-    monitorSymbol,
-    monitorPrice: null,
-    longPrice: null,
-    shortPrice: null,
-    signal: null,
-    pendingDelayedSignals: [],
-    monitorValues: {
-      price: 20_000,
-      changePercent: 0,
-      ema: null,
-      rsi: null,
-      psy: null,
-      mfi: null,
-      kdj: { k: 50, d: 50, j: 50 },
-      macd: { macd: 0, dif: 0, dea: 0 },
-    },
-    lastMonitorSnapshot: {
-      price: 20_000,
-      changePercent: 0,
-      ema: null,
-      rsi: null,
-      psy: null,
-      mfi: null,
-      kdj: { k: 50, d: 50, j: 50 },
-      macd: { macd: 0, dif: 0, dea: 0 },
-    },
-    lastCandleFingerprint: null,
-  };
-}
-
-function createLastState(monitorStates: ReadonlyMap<string, MonitorState>): LastState {
-  return {
-    canTrade: true,
-    isHalfDay: false,
-    openProtectionActive: false,
-    currentDayKey: '2026-02-16',
-    lifecycleState: 'ACTIVE',
-    pendingOpenRebuild: false,
-    targetTradingDayKey: null,
-    isTradingEnabled: true,
-    cachedAccount: null,
-    cachedPositions: [],
-    positionCache: {
-      update: () => {},
-      get: () => null,
-    },
-    cachedTradingDayInfo: null,
-    monitorStates,
-    allTradingSymbols: new Set(),
-  };
-}
+import type { MonitorContext } from '../../../src/types/state.js';
+import {
+  createCleanupDeps,
+  createLastState,
+  createMonitorState,
+} from './utils.js';
 
 describe('cleanup business flow', () => {
   it('drains processors, destroys delayed verifiers and releases monitor snapshots', async () => {
@@ -81,60 +32,9 @@ describe('cleanup business flow', () => {
     ]);
     const lastState = createLastState(new Map([['HSI.HK', monitorState]]));
 
-    const cleanup = createCleanup({
-      buyProcessor: {
-        start: () => {},
-        stop: () => {},
-        stopAndDrain: async () => {
-          steps.push('buy');
-        },
-        restart: () => {},
-      },
-      sellProcessor: {
-        start: () => {},
-        stop: () => {},
-        stopAndDrain: async () => {
-          steps.push('sell');
-        },
-        restart: () => {},
-      },
-      monitorTaskProcessor: {
-        start: () => {},
-        stopAndDrain: async () => {
-          steps.push('monitorTask');
-        },
-      } as never,
-      orderMonitorWorker: {
-        start: () => {},
-        schedule: () => {},
-        stopAndDrain: async () => {
-          steps.push('orderMonitorWorker');
-        },
-        clearLatestQuotes: () => {},
-      },
-      postTradeRefresher: {
-        start: () => {},
-        enqueue: () => {},
-        stopAndDrain: async () => {
-          steps.push('postTradeRefresher');
-        },
-        clearPending: () => {},
-      },
-      marketDataClient: {
-        resetRuntimeSubscriptionsAndCaches: async () => {
-          steps.push('resetMarketData');
-        },
-      } as never,
-      monitorContexts,
-      indicatorCache: {
-        push: () => {},
-        getAt: () => null,
-        clearAll: () => {
-          steps.push('clearIndicatorCache');
-        },
-      },
-      lastState,
-    });
+    const cleanup = createCleanup(
+      createCleanupDeps(steps, { monitorContexts, lastState }),
+    );
 
     await cleanup.execute();
 
@@ -153,61 +53,7 @@ describe('cleanup business flow', () => {
 
   it('resets market data runtime at the end of cleanup', async () => {
     const steps: string[] = [];
-
-    const cleanup = createCleanup({
-      buyProcessor: {
-        start: () => {},
-        stop: () => {},
-        stopAndDrain: async () => {
-          steps.push('buy');
-        },
-        restart: () => {},
-      },
-      sellProcessor: {
-        start: () => {},
-        stop: () => {},
-        stopAndDrain: async () => {
-          steps.push('sell');
-        },
-        restart: () => {},
-      },
-      monitorTaskProcessor: {
-        start: () => {},
-        stopAndDrain: async () => {
-          steps.push('monitorTask');
-        },
-      } as never,
-      orderMonitorWorker: {
-        start: () => {},
-        schedule: () => {},
-        stopAndDrain: async () => {
-          steps.push('orderMonitorWorker');
-        },
-        clearLatestQuotes: () => {},
-      },
-      postTradeRefresher: {
-        start: () => {},
-        enqueue: () => {},
-        stopAndDrain: async () => {
-          steps.push('postTradeRefresher');
-        },
-        clearPending: () => {},
-      },
-      marketDataClient: {
-        resetRuntimeSubscriptionsAndCaches: async () => {
-          steps.push('resetMarketData');
-        },
-      } as never,
-      monitorContexts: new Map(),
-      indicatorCache: {
-        push: () => {},
-        getAt: () => null,
-        clearAll: () => {
-          steps.push('clearIndicatorCache');
-        },
-      },
-      lastState: createLastState(new Map()),
-    });
+    const cleanup = createCleanup(createCleanupDeps(steps));
 
     await cleanup.execute();
 
@@ -244,61 +90,7 @@ describe('cleanup business flow', () => {
     }) as typeof process.exit;
 
     try {
-      const cleanup = createCleanup({
-        buyProcessor: {
-          start: () => {},
-          stop: () => {},
-          stopAndDrain: async () => {
-            steps.push('buy');
-          },
-          restart: () => {},
-        },
-        sellProcessor: {
-          start: () => {},
-          stop: () => {},
-          stopAndDrain: async () => {
-            steps.push('sell');
-          },
-          restart: () => {},
-        },
-        monitorTaskProcessor: {
-          start: () => {},
-          stopAndDrain: async () => {
-            steps.push('monitorTask');
-          },
-        } as never,
-        orderMonitorWorker: {
-          start: () => {},
-          schedule: () => {},
-          stopAndDrain: async () => {
-            steps.push('orderMonitorWorker');
-          },
-          clearLatestQuotes: () => {},
-        },
-        postTradeRefresher: {
-          start: () => {},
-          enqueue: () => {},
-          stopAndDrain: async () => {
-            steps.push('postTradeRefresher');
-          },
-          clearPending: () => {},
-        },
-        marketDataClient: {
-          resetRuntimeSubscriptionsAndCaches: async () => {
-            steps.push('resetMarketData');
-          },
-        } as never,
-        monitorContexts: new Map(),
-        indicatorCache: {
-          push: () => {},
-          getAt: () => null,
-          clearAll: () => {
-            steps.push('clearIndicatorCache');
-          },
-        },
-        lastState: createLastState(new Map()),
-      });
-
+      const cleanup = createCleanup(createCleanupDeps(steps));
       cleanup.registerExitHandlers();
       expect(handlers.has('SIGINT')).toBe(true);
       expect(handlers.has('SIGTERM')).toBe(true);
@@ -337,62 +129,23 @@ describe('cleanup business flow', () => {
         } as unknown as MonitorContext,
       ],
     ]);
+    const lastState = createLastState(new Map([['HSI.HK', monitorState]]));
 
-    const cleanup = createCleanup({
-      buyProcessor: {
-        start: () => {},
-        stop: () => {},
-        stopAndDrain: async () => {
-          steps.push('buy');
-          throw new Error('buy failed');
+    const cleanup = createCleanup(
+      createCleanupDeps(steps, {
+        monitorContexts,
+        lastState,
+        buyProcessor: {
+          start: () => {},
+          stop: () => {},
+          stopAndDrain: async () => {
+            steps.push('buy');
+            throw new Error('buy failed');
+          },
+          restart: () => {},
         },
-        restart: () => {},
-      },
-      sellProcessor: {
-        start: () => {},
-        stop: () => {},
-        stopAndDrain: async () => {
-          steps.push('sell');
-        },
-        restart: () => {},
-      },
-      monitorTaskProcessor: {
-        start: () => {},
-        stopAndDrain: async () => {
-          steps.push('monitorTask');
-        },
-      } as never,
-      orderMonitorWorker: {
-        start: () => {},
-        schedule: () => {},
-        stopAndDrain: async () => {
-          steps.push('orderMonitorWorker');
-        },
-        clearLatestQuotes: () => {},
-      },
-      postTradeRefresher: {
-        start: () => {},
-        enqueue: () => {},
-        stopAndDrain: async () => {
-          steps.push('postTradeRefresher');
-        },
-        clearPending: () => {},
-      },
-      marketDataClient: {
-        resetRuntimeSubscriptionsAndCaches: async () => {
-          steps.push('resetMarketData');
-        },
-      } as never,
-      monitorContexts,
-      indicatorCache: {
-        push: () => {},
-        getAt: () => null,
-        clearAll: () => {
-          steps.push('clearIndicatorCache');
-        },
-      },
-      lastState: createLastState(new Map([['HSI.HK', monitorState]])),
-    });
+      }),
+    );
 
     let caught: unknown = null;
     try {
@@ -437,62 +190,19 @@ describe('cleanup business flow', () => {
     }) as typeof process.exit;
 
     try {
-      const cleanup = createCleanup({
-        buyProcessor: {
-          start: () => {},
-          stop: () => {},
-          stopAndDrain: async () => {
-            steps.push('buy');
-            throw new Error('buy failed');
+      const cleanup = createCleanup(
+        createCleanupDeps(steps, {
+          buyProcessor: {
+            start: () => {},
+            stop: () => {},
+            stopAndDrain: async () => {
+              steps.push('buy');
+              throw new Error('buy failed');
+            },
+            restart: () => {},
           },
-          restart: () => {},
-        },
-        sellProcessor: {
-          start: () => {},
-          stop: () => {},
-          stopAndDrain: async () => {
-            steps.push('sell');
-          },
-          restart: () => {},
-        },
-        monitorTaskProcessor: {
-          start: () => {},
-          stopAndDrain: async () => {
-            steps.push('monitorTask');
-          },
-        } as never,
-        orderMonitorWorker: {
-          start: () => {},
-          schedule: () => {},
-          stopAndDrain: async () => {
-            steps.push('orderMonitorWorker');
-          },
-          clearLatestQuotes: () => {},
-        },
-        postTradeRefresher: {
-          start: () => {},
-          enqueue: () => {},
-          stopAndDrain: async () => {
-            steps.push('postTradeRefresher');
-          },
-          clearPending: () => {},
-        },
-        marketDataClient: {
-          resetRuntimeSubscriptionsAndCaches: async () => {
-            steps.push('resetMarketData');
-          },
-        } as never,
-        monitorContexts: new Map(),
-        indicatorCache: {
-          push: () => {},
-          getAt: () => null,
-          clearAll: () => {
-            steps.push('clearIndicatorCache');
-          },
-        },
-        lastState: createLastState(new Map()),
-      });
-
+        }),
+      );
       cleanup.registerExitHandlers();
       handlers.get('SIGTERM')?.();
       await Bun.sleep(20);

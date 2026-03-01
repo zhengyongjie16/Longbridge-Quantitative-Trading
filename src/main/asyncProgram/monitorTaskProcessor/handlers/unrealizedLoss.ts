@@ -6,8 +6,6 @@
  * - 根据监控结果执行保护性清仓
  * - 无有效席位时跳过处理
  */
-import { isSeatReady } from '../../../../services/autoSymbolManager/utils.js';
-
 import type { Trader } from '../../../../types/services.js';
 import type { RefreshGate } from '../../../../utils/types.js';
 import type { MonitorTask } from '../../monitorTaskQueue/types.js';
@@ -18,10 +16,7 @@ import type {
   MonitorTaskType,
   UnrealizedLossCheckTaskData,
 } from '../types.js';
-import {
-  resolveSeatSnapshotReadiness,
-  validateSeatSnapshotsAfterRefresh,
-} from '../helpers/seatSnapshot.js';
+import { evaluateMonitorContextAndSeatReadiness } from '../utils.js';
 
 /**
  * 创建浮亏清仓检查任务处理器。
@@ -46,29 +41,17 @@ export function createUnrealizedLossHandler({
   ): Promise<MonitorTaskStatus> {
     // handler 由 UNREALIZED_LOSS_CHECK 类型分派，data 语义上必为 UnrealizedLossCheckTaskData
     const data = task.data as UnrealizedLossCheckTaskData;
-    const context = getContextOrSkip(data.monitorSymbol);
-    if (!context) {
-      return 'skipped';
-    }
-
-    const snapshotValidity = await validateSeatSnapshotsAfterRefresh({
+    const evaluated = await evaluateMonitorContextAndSeatReadiness({
+      getContextOrSkip,
+      refreshGate,
       monitorSymbol: data.monitorSymbol,
-      context,
       longSnapshot: { seatVersion: data.long.seatVersion, symbol: data.long.symbol },
       shortSnapshot: { seatVersion: data.short.seatVersion, symbol: data.short.symbol },
-      refreshGate,
     });
-    if (!snapshotValidity) {
+    if (!evaluated) {
       return 'skipped';
     }
-
-    const seatReadiness = resolveSeatSnapshotReadiness({
-      monitorSymbol: data.monitorSymbol,
-      context,
-      snapshotValidity,
-      isSeatUsable: isSeatReady,
-    });
-
+    const { context, seatReadiness } = evaluated;
     const { isLongReady, isShortReady, longSymbol, shortSymbol } = seatReadiness;
     const longQuote = isLongReady ? data.long.quote : null;
     const shortQuote = isShortReady ? data.short.quote : null;

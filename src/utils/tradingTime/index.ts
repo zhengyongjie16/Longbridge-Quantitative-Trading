@@ -235,11 +235,12 @@ function resolveHKDateKey(date: Date | null | undefined): string | null {
 
 /**
  * 解析港股日期键并返回该港股日 00:00 对应的 UTC 毫秒时间戳。
+ * 单一来源，供 tradingTime 内部及 lifecycle 等模块使用。
  *
  * @param dayKey 港股日期键（YYYY-MM-DD）
  * @returns 对应 UTC 毫秒时间戳，非法日期键返回 null
  */
-function resolveHKDayStartUtcMs(dayKey: string): number | null {
+export function resolveHKDayStartUtcMs(dayKey: string): number | null {
   const match = HK_DATE_KEY_PATTERN.exec(dayKey);
   if (!match) {
     return null;

@@ -28,13 +28,8 @@ import {
   createSymbolRegistryDouble,
   createTraderDouble,
 } from '../../helpers/testDoubles.js';
-function createLoggerStub() {
-  return {
-    info: () => {},
-    warn: () => {},
-    error: () => {},
-  } as never;
-}
+import { createLoggerStub, getDefaultAutoSearchConfig } from './utils.js';
+
 function createQuotes(prices: Readonly<Record<string, number>>): ReadonlyMap<string, Quote | null> {
   const map = new Map<string, Quote | null>();
   for (const [symbol, price] of Object.entries(prices)) {
@@ -49,6 +44,7 @@ function createQuotes(prices: Readonly<Record<string, number>>): ReadonlyMap<str
   }
   return map;
 }
+
 function createTradingCalendarSnapshot() {
   return new Map([
     ['2026-02-16', { isTradingDay: true, isHalfDay: false }],
@@ -58,18 +54,7 @@ function createTradingCalendarSnapshot() {
 describe('autoSymbolManager switchStateMachine business flow', () => {
   it('marks suppression when presearch returns the same symbol and skips switching', async () => {
     const monitorConfig = createMonitorConfigDouble({
-      autoSearchConfig: {
-        autoSearchEnabled: true,
-        autoSearchMinDistancePctBull: 0.35,
-        autoSearchMinDistancePctBear: -0.35,
-        autoSearchMinTurnoverPerMinuteBull: 100_000,
-        autoSearchMinTurnoverPerMinuteBear: 100_000,
-        autoSearchExpiryMinMonths: 3,
-        autoSearchOpenDelayMinutes: 0,
-        switchIntervalMinutes: 0,
-        switchDistanceRangeBull: { min: 0.2, max: 1.5 },
-        switchDistanceRangeBear: { min: -1.5, max: -0.2 },
-      },
+      autoSearchConfig: getDefaultAutoSearchConfig(),
     });
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
@@ -152,20 +137,10 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     expect(suppression?.symbol).toBe('OLD_BULL.HK');
     expect(machine.hasPendingSwitch('LONG')).toBeFalse();
   });
+
   it('switches to new symbol directly when no position exists', async () => {
     const monitorConfig = createMonitorConfigDouble({
-      autoSearchConfig: {
-        autoSearchEnabled: true,
-        autoSearchMinDistancePctBull: 0.35,
-        autoSearchMinDistancePctBear: -0.35,
-        autoSearchMinTurnoverPerMinuteBull: 100_000,
-        autoSearchMinTurnoverPerMinuteBear: 100_000,
-        autoSearchExpiryMinMonths: 3,
-        autoSearchOpenDelayMinutes: 0,
-        switchIntervalMinutes: 0,
-        switchDistanceRangeBull: { min: 0.2, max: 1.5 },
-        switchDistanceRangeBear: { min: -1.5, max: -0.2 },
-      },
+      autoSearchConfig: getDefaultAutoSearchConfig(),
     });
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
@@ -258,21 +233,11 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     expect(executeCalls).toBe(0);
     expect(machine.hasPendingSwitch('LONG')).toBeFalse();
   });
+
   it('executes sell then rebuy in pending-switch flow when position exists', async () => {
     const monitorConfig = createMonitorConfigDouble({
       targetNotional: 5_000,
-      autoSearchConfig: {
-        autoSearchEnabled: true,
-        autoSearchMinDistancePctBull: 0.35,
-        autoSearchMinDistancePctBear: -0.35,
-        autoSearchMinTurnoverPerMinuteBull: 100_000,
-        autoSearchMinTurnoverPerMinuteBear: 100_000,
-        autoSearchExpiryMinMonths: 3,
-        autoSearchOpenDelayMinutes: 0,
-        switchIntervalMinutes: 0,
-        switchDistanceRangeBull: { min: 0.2, max: 1.5 },
-        switchDistanceRangeBear: { min: -1.5, max: -0.2 },
-      },
+      autoSearchConfig: getDefaultAutoSearchConfig(),
     });
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
@@ -417,20 +382,10 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     expect(finalSeat.symbol).toBe('NEW_BULL.HK');
     expect(machine.hasPendingSwitch('LONG')).toBeFalse();
   });
+
   it('marks seat EMPTY when canceling pending buy orders fails during switch', async () => {
     const monitorConfig = createMonitorConfigDouble({
-      autoSearchConfig: {
-        autoSearchEnabled: true,
-        autoSearchMinDistancePctBull: 0.35,
-        autoSearchMinDistancePctBear: -0.35,
-        autoSearchMinTurnoverPerMinuteBull: 100_000,
-        autoSearchMinTurnoverPerMinuteBear: 100_000,
-        autoSearchExpiryMinMonths: 3,
-        autoSearchOpenDelayMinutes: 0,
-        switchIntervalMinutes: 0,
-        switchDistanceRangeBull: { min: 0.2, max: 1.5 },
-        switchDistanceRangeBear: { min: -1.5, max: -0.2 },
-      },
+      autoSearchConfig: getDefaultAutoSearchConfig(),
     });
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
@@ -533,21 +488,11 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     expect(machine.hasPendingSwitch('LONG')).toBeFalse();
     expect(executeCalls).toBe(0);
   });
+
   it('keeps pending switch state when rebuy quote is not ready', async () => {
     const monitorConfig = createMonitorConfigDouble({
       targetNotional: 5_000,
-      autoSearchConfig: {
-        autoSearchEnabled: true,
-        autoSearchMinDistancePctBull: 0.35,
-        autoSearchMinDistancePctBear: -0.35,
-        autoSearchMinTurnoverPerMinuteBull: 100_000,
-        autoSearchMinTurnoverPerMinuteBear: 100_000,
-        autoSearchExpiryMinMonths: 3,
-        autoSearchOpenDelayMinutes: 0,
-        switchIntervalMinutes: 0,
-        switchDistanceRangeBull: { min: 0.2, max: 1.5 },
-        switchDistanceRangeBear: { min: -1.5, max: -0.2 },
-      },
+      autoSearchConfig: getDefaultAutoSearchConfig(),
     });
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
@@ -669,20 +614,10 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     expect(executedActions).toEqual(['SELLCALL']);
     expect(machine.hasPendingSwitch('LONG')).toBeTrue();
   });
+
   it('fails and clears seat when rebuy sell-notional is unavailable', async () => {
     const monitorConfig = createMonitorConfigDouble({
-      autoSearchConfig: {
-        autoSearchEnabled: true,
-        autoSearchMinDistancePctBull: 0.35,
-        autoSearchMinDistancePctBear: -0.35,
-        autoSearchMinTurnoverPerMinuteBull: 100_000,
-        autoSearchMinTurnoverPerMinuteBear: 100_000,
-        autoSearchExpiryMinMonths: 3,
-        autoSearchOpenDelayMinutes: 0,
-        switchIntervalMinutes: 0,
-        switchDistanceRangeBull: { min: 0.2, max: 1.5 },
-        switchDistanceRangeBear: { min: -1.5, max: -0.2 },
-      },
+      autoSearchConfig: getDefaultAutoSearchConfig(),
     });
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',

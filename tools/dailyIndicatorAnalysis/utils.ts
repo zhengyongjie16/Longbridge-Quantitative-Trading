@@ -115,6 +115,41 @@ function parseCandleNumbers(candle: CandleData): CandleNumbers | null {
 }
 
 /**
+ * 根据索引从 high/low/close 数组取段并计算 trueRange、upMove、downMove。默认行为：任一索引缺值返回 null。
+ *
+ * @param highs 高价数组
+ * @param lows 低价数组
+ * @param closes 收盘价数组
+ * @param i 当前索引
+ * @returns 段数据或 null
+ */
+function getADXSegment(
+  highs: ReadonlyArray<number>,
+  lows: ReadonlyArray<number>,
+  closes: ReadonlyArray<number>,
+  i: number,
+): { readonly trueRange: number; readonly upMove: number; readonly downMove: number } | null {
+  const high = highs[i];
+  const low = lows[i];
+  const prevHigh = highs[i - 1];
+  const prevLow = lows[i - 1];
+  const prevClose = closes[i - 1];
+  if (
+    high === undefined ||
+    low === undefined ||
+    prevHigh === undefined ||
+    prevLow === undefined ||
+    prevClose === undefined
+  ) {
+    return null;
+  }
+  const trueRange = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
+  const upMove = high - prevHigh;
+  const downMove = prevLow - low;
+  return { trueRange, upMove, downMove };
+}
+
+/**
  * 计算 ADX（平均趋向指数）。默认行为：数据不足返回 null。
  *
  * @param candles K 线数组
@@ -145,54 +180,25 @@ function calculateADX(candles: ReadonlyArray<CandleData>, period: number): numbe
   let minusDm = 0;
 
   for (let i = 1; i <= period; i += 1) {
-    const high = highs[i];
-    const low = lows[i];
-    const prevHigh = highs[i - 1];
-    const prevLow = lows[i - 1];
-    const prevClose = closes[i - 1];
-    if (
-      high === undefined ||
-      low === undefined ||
-      prevHigh === undefined ||
-      prevLow === undefined ||
-      prevClose === undefined
-    ) {
+    const seg = getADXSegment(highs, lows, closes, i);
+    if (seg === null) {
       return null;
     }
-
-    const trueRange = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
-    const upMove = high - prevHigh;
-    const downMove = prevLow - low;
-    atr += trueRange;
-    plusDm += upMove > downMove && upMove > 0 ? upMove : 0;
-    minusDm += downMove > upMove && downMove > 0 ? downMove : 0;
+    atr += seg.trueRange;
+    plusDm += seg.upMove > seg.downMove && seg.upMove > 0 ? seg.upMove : 0;
+    minusDm += seg.downMove > seg.upMove && seg.downMove > 0 ? seg.downMove : 0;
   }
 
   const dxValues: number[] = [];
 
   for (let i = period + 1; i < candles.length; i += 1) {
-    const high = highs[i];
-    const low = lows[i];
-    const prevHigh = highs[i - 1];
-    const prevLow = lows[i - 1];
-    const prevClose = closes[i - 1];
-    if (
-      high === undefined ||
-      low === undefined ||
-      prevHigh === undefined ||
-      prevLow === undefined ||
-      prevClose === undefined
-    ) {
+    const seg = getADXSegment(highs, lows, closes, i);
+    if (seg === null) {
       return null;
     }
-
-    const trueRange = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
-    const upMove = high - prevHigh;
-    const downMove = prevLow - low;
-
-    atr = atr - atr / period + trueRange;
-    plusDm = plusDm - plusDm / period + (upMove > downMove && upMove > 0 ? upMove : 0);
-    minusDm = minusDm - minusDm / period + (downMove > upMove && downMove > 0 ? downMove : 0);
+    atr = atr - atr / period + seg.trueRange;
+    plusDm = plusDm - plusDm / period + (seg.upMove > seg.downMove && seg.upMove > 0 ? seg.upMove : 0);
+    minusDm = minusDm - minusDm / period + (seg.downMove > seg.upMove && seg.downMove > 0 ? seg.downMove : 0);
 
     if (atr === 0) {
       dxValues.push(0);

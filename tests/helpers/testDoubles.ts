@@ -28,6 +28,7 @@ import type {
   CancelPendingBuyOrdersContext,
   CancelPendingBuyOrdersResult,
 } from '../../src/core/doomsdayProtection/types.js';
+import { createMonitorConfig } from '../../mock/factories/configFactory.js';
 import type {
   GetRemainingMsParams,
   LiquidationCooldownTracker,
@@ -362,53 +363,10 @@ export function createQuoteDouble(symbol: string, price: number, lotSize: number
 /**
  * 构造监控配置测试数据。
  *
- * 内置稳定默认值并支持覆写，方便不同业务分支复用。
+ * 委托 mock/factories/configFactory.createMonitorConfig，测试需默认值时传空 overrides，需覆盖时传入部分字段。
  */
 export function createMonitorConfigDouble(overrides: Partial<MonitorConfig> = {}): MonitorConfig {
-  return {
-    originalIndex: 1,
-    monitorSymbol: 'HSI.HK',
-    longSymbol: 'BULL.HK',
-    shortSymbol: 'BEAR.HK',
-    autoSearchConfig: {
-      autoSearchEnabled: false,
-      autoSearchMinDistancePctBull: null,
-      autoSearchMinDistancePctBear: null,
-      autoSearchMinTurnoverPerMinuteBull: null,
-      autoSearchMinTurnoverPerMinuteBear: null,
-      autoSearchExpiryMinMonths: 3,
-      autoSearchOpenDelayMinutes: 5,
-      switchIntervalMinutes: 0,
-      switchDistanceRangeBull: null,
-      switchDistanceRangeBear: null,
-    },
-    orderOwnershipMapping: [],
-    targetNotional: 5000,
-    maxPositionNotional: 50000,
-    maxDailyLoss: 3000,
-    maxUnrealizedLossPerSymbol: 2000,
-    buyIntervalSeconds: 60,
-    liquidationCooldown: null,
-    verificationConfig: {
-      buy: {
-        delaySeconds: 60,
-        indicators: ['K'],
-      },
-      sell: {
-        delaySeconds: 60,
-        indicators: ['K'],
-      },
-    },
-    signalConfig: {
-      buycall: null,
-      sellcall: null,
-      buyput: null,
-      sellput: null,
-    },
-    smartCloseEnabled: true,
-    smartCloseTimeoutMinutes: null,
-    ...overrides,
-  };
+  return createMonitorConfig(overrides);
 }
 
 /**

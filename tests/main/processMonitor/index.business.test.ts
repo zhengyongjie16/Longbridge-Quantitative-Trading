@@ -18,12 +18,10 @@ import type { ProcessMonitorParams } from '../../../src/main/processMonitor/type
 import type { MonitorContext } from '../../../src/types/state.js';
 import {
   createMonitorConfigDouble,
-  createOrderRecorderDouble,
   createPositionCacheDouble,
   createQuoteDouble,
-  createRiskCheckerDouble,
-  createSymbolRegistryDouble,
 } from '../../helpers/testDoubles.js';
+import { createMonitorContext as createMonitorContextFromAsync } from '../asyncProgram/utils.js';
 
 type ProcessMonitorFn = (
   context: ProcessMonitorParams,
@@ -55,50 +53,24 @@ function createMonitorContext(params: {
   readonly autoSearchEnabled: boolean;
   readonly strategyGenerate: () => { immediateSignals: []; delayedSignals: [] };
 }): MonitorContext {
-  const config = createMonitorConfigDouble({
-    monitorSymbol: 'HSI.HK',
-    autoSearchConfig: {
-      autoSearchEnabled: params.autoSearchEnabled,
-      autoSearchMinDistancePctBull: 0.35,
-      autoSearchMinDistancePctBear: -0.35,
-      autoSearchMinTurnoverPerMinuteBull: 100_000,
-      autoSearchMinTurnoverPerMinuteBear: 100_000,
-      autoSearchExpiryMinMonths: 3,
-      autoSearchOpenDelayMinutes: 0,
-      switchIntervalMinutes: 0,
-      switchDistanceRangeBull: { min: 0.2, max: 1.5 },
-      switchDistanceRangeBear: { min: -1.5, max: -0.2 },
-    },
-  });
-
-  const symbolRegistry = createSymbolRegistryDouble({
-    monitorSymbol: config.monitorSymbol,
-    longSeat: {
-      symbol: 'BULL.HK',
-      status: 'READY',
-      lastSwitchAt: null,
-      lastSearchAt: null,
-      lastSeatReadyAt: null,
-      searchFailCountToday: 0,
-      frozenTradingDayKey: null,
-    },
-    shortSeat: {
-      symbol: 'BEAR.HK',
-      status: 'READY',
-      lastSwitchAt: null,
-      lastSearchAt: null,
-      lastSeatReadyAt: null,
-      searchFailCountToday: 0,
-      frozenTradingDayKey: null,
-    },
-    longVersion: 2,
-    shortVersion: 3,
-  });
-
-  return {
-    config,
+  return createMonitorContextFromAsync({
+    config: createMonitorConfigDouble({
+      monitorSymbol: 'HSI.HK',
+      autoSearchConfig: {
+        autoSearchEnabled: params.autoSearchEnabled,
+        autoSearchMinDistancePctBull: 0.35,
+        autoSearchMinDistancePctBear: -0.35,
+        autoSearchMinTurnoverPerMinuteBull: 100_000,
+        autoSearchMinTurnoverPerMinuteBear: 100_000,
+        autoSearchExpiryMinMonths: 3,
+        autoSearchOpenDelayMinutes: 0,
+        switchIntervalMinutes: 0,
+        switchDistanceRangeBull: { min: 0.2, max: 1.5 },
+        switchDistanceRangeBear: { min: -1.5, max: -0.2 },
+      },
+    }),
     state: {
-      monitorSymbol: config.monitorSymbol,
+      monitorSymbol: 'HSI.HK',
       monitorPrice: 20_000,
       longPrice: null,
       shortPrice: null,
@@ -108,56 +80,10 @@ function createMonitorContext(params: {
       lastMonitorSnapshot: null,
       lastCandleFingerprint: null,
     },
-    symbolRegistry,
-    seatState: {
-      long: symbolRegistry.getSeatState(config.monitorSymbol, 'LONG'),
-      short: symbolRegistry.getSeatState(config.monitorSymbol, 'SHORT'),
-    },
-    seatVersion: {
-      long: symbolRegistry.getSeatVersion(config.monitorSymbol, 'LONG'),
-      short: symbolRegistry.getSeatVersion(config.monitorSymbol, 'SHORT'),
-    },
-    autoSymbolManager: {
-      maybeSearchOnTick: async () => {},
-      maybeSwitchOnInterval: async () => {},
-      maybeSwitchOnDistance: async () => {},
-      hasPendingSwitch: () => false,
-      resetAllState: () => {},
-    },
     strategy: {
       generateCloseSignals: params.strategyGenerate,
     },
-    orderRecorder: createOrderRecorderDouble(),
-    dailyLossTracker: {
-      resetAll: () => {},
-      recalculateFromAllOrders: () => {},
-      recordFilledOrder: () => {},
-      getLossOffset: () => 0,
-    },
-    riskChecker: createRiskCheckerDouble(),
-    unrealizedLossMonitor: {
-      monitorUnrealizedLoss: async () => {},
-    },
-    delayedSignalVerifier: {
-      addSignal: () => {},
-      cancelAllForSymbol: () => {},
-      cancelAllForDirection: () => 0,
-      cancelAll: () => 0,
-      getPendingCount: () => 0,
-      onVerified: () => {},
-      destroy: () => {},
-    },
-    longSymbolName: 'BULL.HK',
-    shortSymbolName: 'BEAR.HK',
-    monitorSymbolName: 'HSI.HK',
-    normalizedMonitorSymbol: 'HSI.HK',
-    rsiPeriods: [6],
-    emaPeriods: [7],
-    psyPeriods: [13],
-    longQuote: createQuoteDouble('BULL.HK', 1.1, 100),
-    shortQuote: createQuoteDouble('BEAR.HK', 0.9, 100),
-    monitorQuote: createQuoteDouble('HSI.HK', 20_000, 1),
-  } as unknown as MonitorContext;
+  });
 }
 
 describe('processMonitor end-to-end orchestration', () => {

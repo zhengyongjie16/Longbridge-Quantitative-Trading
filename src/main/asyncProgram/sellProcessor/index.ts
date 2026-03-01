@@ -20,7 +20,11 @@
  * 5. 释放信号对象到对象池
  */
 import { signalObjectPool } from '../../../utils/objectPool/index.js';
-import { createBaseProcessor } from '../utils.js';
+import {
+  createBaseProcessor,
+  executeSignalsWithLifecycleGate,
+  logProcessorTaskFailure,
+} from '../utils.js';
 import { logger } from '../../../utils/logger/index.js';
 import {
   isSeatReady,
@@ -31,7 +35,6 @@ import type { Processor } from '../types.js';
 import type { SellProcessorDeps } from './types.js';
 import type { Task, SellTaskType } from '../tradeTaskQueue/types.js';
 import { formatSymbolDisplay } from '../../../utils/display/index.js';
-import { formatError } from '../../../utils/error/index.js';
 
 /**
  * 创建卖出处理器。
@@ -127,23 +130,16 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
         return true; // 处理成功（虽然跳过了）
       }
 
-      // 二次门禁：避免跨日门禁切换期间在途任务继续下单
-      if (getCanProcessTask && !getCanProcessTask()) {
-        logger.info(
-          `[SellProcessor] 生命周期门禁关闭，放弃执行: ${symbolDisplay} ${signal.action}`,
-        );
-        return true;
-      }
-
-      // 执行卖出订单
-      await trader.executeSignals([signal]);
-      logger.info(`[SellProcessor] 卖出订单执行完成: ${symbolDisplay} ${signal.action}`);
-      return true;
+      return await executeSignalsWithLifecycleGate({
+        getCanProcessTask,
+        trader,
+        signal,
+        symbolDisplay,
+        loggerPrefix: 'SellProcessor',
+        successMessage: '卖出订单执行完成',
+      });
     } catch (err) {
-      logger.error(
-        `[SellProcessor] 处理任务失败: ${symbolDisplay} ${signal.action}`,
-        formatError(err),
-      );
+      logProcessorTaskFailure('SellProcessor', symbolDisplay, signal.action, err);
       return false;
     }
   }

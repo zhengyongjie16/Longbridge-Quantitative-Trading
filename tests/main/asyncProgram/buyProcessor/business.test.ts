@@ -9,122 +9,18 @@ import { describe, expect, it } from 'bun:test';
 import { createBuyTaskQueue } from '../../../../src/main/asyncProgram/tradeTaskQueue/index.js';
 import { createBuyProcessor } from '../../../../src/main/asyncProgram/buyProcessor/index.js';
 
-import type { LastState, MonitorContext } from '../../../../src/types/state.js';
 import type { Signal } from '../../../../src/types/signal.js';
 
 import {
   createDoomsdayProtectionDouble,
-  createMonitorConfigDouble,
-  createOrderRecorderDouble,
-  createPositionCacheDouble,
-  createQuoteDouble,
-  createRiskCheckerDouble,
   createSignalDouble,
-  createSymbolRegistryDouble,
   createTraderDouble,
 } from '../../../helpers/testDoubles.js';
-
-function createLastState(): LastState {
-  return {
-    canTrade: true,
-    isHalfDay: false,
-    openProtectionActive: false,
-    currentDayKey: '2026-02-16',
-    lifecycleState: 'ACTIVE',
-    pendingOpenRebuild: false,
-    targetTradingDayKey: null,
-    isTradingEnabled: true,
-    cachedAccount: null,
-    cachedPositions: [],
-    positionCache: createPositionCacheDouble(),
-    cachedTradingDayInfo: null,
-    monitorStates: new Map(),
-    allTradingSymbols: new Set(),
-  };
-}
-
-function createMonitorContext(overrides: Partial<MonitorContext> = {}): MonitorContext {
-  const symbolRegistry = createSymbolRegistryDouble({
-    monitorSymbol: 'HSI.HK',
-    longVersion: 2,
-    shortVersion: 3,
-  });
-
-  return {
-    config: createMonitorConfigDouble(),
-    state: {
-      monitorSymbol: 'HSI.HK',
-      monitorPrice: 20_000,
-      longPrice: 1.1,
-      shortPrice: 0.9,
-      signal: null,
-      pendingDelayedSignals: [],
-      monitorValues: null,
-      lastMonitorSnapshot: null,
-      lastCandleFingerprint: null,
-    },
-    symbolRegistry,
-    seatState: {
-      long: symbolRegistry.getSeatState('HSI.HK', 'LONG'),
-      short: symbolRegistry.getSeatState('HSI.HK', 'SHORT'),
-    },
-    seatVersion: {
-      long: symbolRegistry.getSeatVersion('HSI.HK', 'LONG'),
-      short: symbolRegistry.getSeatVersion('HSI.HK', 'SHORT'),
-    },
-    autoSymbolManager: {
-      maybeSearchOnTick: async () => {},
-      maybeSwitchOnInterval: async () => {},
-      maybeSwitchOnDistance: async () => {},
-      hasPendingSwitch: () => false,
-      resetAllState: () => {},
-    },
-    strategy: {
-      generateCloseSignals: () => ({ immediateSignals: [], delayedSignals: [] }),
-    },
-    orderRecorder: createOrderRecorderDouble(),
-    dailyLossTracker: {
-      resetAll: () => {},
-      recalculateFromAllOrders: () => {},
-      recordFilledOrder: () => {},
-      getLossOffset: () => 0,
-    },
-    riskChecker: createRiskCheckerDouble(),
-    unrealizedLossMonitor: {
-      monitorUnrealizedLoss: async () => {},
-    },
-    delayedSignalVerifier: {
-      addSignal: () => {},
-      cancelAllForSymbol: () => {},
-      cancelAllForDirection: () => 0,
-      cancelAll: () => 0,
-      getPendingCount: () => 0,
-      onVerified: () => {},
-      destroy: () => {},
-    },
-    longSymbolName: 'BULL.HK',
-    shortSymbolName: 'BEAR.HK',
-    monitorSymbolName: 'HSI.HK',
-    normalizedMonitorSymbol: 'HSI.HK',
-    rsiPeriods: [6],
-    emaPeriods: [7],
-    psyPeriods: [13],
-    longQuote: createQuoteDouble('BULL.HK', 1.1, 100),
-    shortQuote: createQuoteDouble('BEAR.HK', 0.9, 100),
-    monitorQuote: createQuoteDouble('HSI.HK', 20_000, 1),
-    ...overrides,
-  } as unknown as MonitorContext;
-}
-
-async function waitUntil(predicate: () => boolean, timeoutMs: number = 800): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (!predicate()) {
-    if (Date.now() >= deadline) {
-      throw new Error('waitUntil timeout');
-    }
-    await Bun.sleep(10);
-  }
-}
+import {
+  createLastState,
+  createMonitorContext,
+  runProcessorFlow,
+} from '../utils.js';
 
 describe('buyProcessor business flow', () => {
   it('runs risk pipeline then executes buy order with execution-time quote price/lotSize', async () => {
@@ -173,15 +69,17 @@ describe('buyProcessor business flow', () => {
     const signal = createSignalDouble('BUYCALL', 'BULL.HK');
     signal.seatVersion = 2;
 
-    processor.start();
-    queue.push({
-      type: 'IMMEDIATE_BUY',
-      monitorSymbol: 'HSI.HK',
-      data: signal,
+    await runProcessorFlow({
+      processor,
+      pushTask: () => {
+        queue.push({
+          type: 'IMMEDIATE_BUY',
+          monitorSymbol: 'HSI.HK',
+          data: signal,
+        });
+      },
+      waitCondition: () => executed === 1,
     });
-
-    await waitUntil(() => executed === 1);
-    await processor.stopAndDrain();
 
     expect(riskCheckCalls).toBe(1);
     expect(submittedSnapshotRef.current).toEqual({
@@ -225,12 +123,15 @@ describe('buyProcessor business flow', () => {
     const signal = createSignalDouble('BUYCALL', 'BULL.HK');
     signal.seatVersion = 2;
 
-    processor.start();
-    queue.push({ type: 'IMMEDIATE_BUY', monitorSymbol: 'HSI.HK', data: signal });
-
-    await waitUntil(() => riskCalls === 1);
+    await runProcessorFlow({
+      processor,
+      pushTask: () => {
+        queue.push({ type: 'IMMEDIATE_BUY', monitorSymbol: 'HSI.HK', data: signal });
+      },
+      waitCondition: () => riskCalls === 1,
+      timeoutMs: 800,
+    });
     await Bun.sleep(20);
-    await processor.stopAndDrain();
 
     expect(executeCalls).toBe(0);
   });

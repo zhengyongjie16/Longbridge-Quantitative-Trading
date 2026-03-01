@@ -1,5 +1,8 @@
-import { HK_DATE_KEY_PATTERN, TIME } from '../../constants/index.js';
-import { getHKDateKey } from '../../utils/tradingTime/index.js';
+import { TIME } from '../../constants/index.js';
+import {
+  getHKDateKey,
+  resolveHKDayStartUtcMs,
+} from '../../utils/tradingTime/index.js';
 
 /**
  * 枚举起止时间区间覆盖的港股日期键列表（含首尾日期）。
@@ -34,25 +37,4 @@ export function listHKDateKeysBetween(startMs: number, endMs: number): ReadonlyA
     }
   }
   return keys;
-}
-
-/**
- * 解析港股日期键并返回该港股日 00:00 对应的 UTC 毫秒时间戳。
- *
- * @param dayKey 港股日期键（YYYY-MM-DD）
- * @returns UTC 毫秒时间戳，解析失败时返回 null
- */
-export function resolveHKDayStartUtcMs(dayKey: string): number | null {
-  const match = HK_DATE_KEY_PATTERN.exec(dayKey);
-  if (!match) {
-    return null;
-  }
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
-    return null;
-  }
-  const utcMs = Date.UTC(year, month - 1, day) - TIME.HONG_KONG_TIMEZONE_OFFSET_MS;
-  return Number.isFinite(utcMs) ? utcMs : null;
 }
