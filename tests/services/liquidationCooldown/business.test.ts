@@ -102,6 +102,7 @@ describe('liquidationCooldown business flow', () => {
       direction: 'LONG',
       executedTimeMs: now,
     });
+
     tracker.recordCooldown({
       symbol: 'HSI.HK',
       direction: 'SHORT',

@@ -90,6 +90,7 @@ function extractCallPrice(warrantQuote: unknown): number | null {
   if (!isDefined(callPriceDecimal)) {
     return null;
   }
+
   if (
     callPriceDecimal === null ||
     typeof callPriceDecimal === 'number' ||
@@ -97,6 +98,7 @@ function extractCallPrice(warrantQuote: unknown): number | null {
   ) {
     return decimalToNumber(callPriceDecimal);
   }
+
   if (hasToNumber(callPriceDecimal)) {
     return callPriceDecimal.toNumber();
   }
@@ -186,6 +188,7 @@ function validateWarrantCurrentPrice(
       reason: `牛熊证当前价格无效（${warrantCurrentPrice}），无法进行风险检查，拒绝买入`,
     };
   }
+
   if (decimalLte(warrantCurrentPrice, MIN_WARRANT_PRICE_THRESHOLD)) {
     return {
       allowed: false,
@@ -320,12 +323,14 @@ function buildWarrantDistanceInfo(
       distanceToStrikePercent: null,
     };
   }
+
   if (monitorCurrentPrice === null || !Number.isFinite(monitorCurrentPrice)) {
     return {
       warrantType: warrantInfo.warrantType,
       distanceToStrikePercent: null,
     };
   }
+
   if (!decimalGt(monitorCurrentPrice, 0)) {
     return {
       warrantType: warrantInfo.warrantType,
@@ -401,6 +406,7 @@ export function createWarrantRiskChecker(_deps: WarrantRiskCheckerDeps = {}): Wa
       } else {
         shortWarrantInfo = warrantInfo;
       }
+
       if (warrantInfo.isWarrant) {
         const warrantTypeName = getWarrantTypeName(warrantInfo.warrantType);
         logger.info(
@@ -536,6 +542,7 @@ export function createWarrantRiskChecker(_deps: WarrantRiskCheckerDeps = {}): Wa
     if (!warrantInfo?.isWarrant) {
       return null;
     }
+
     if (warrantInfo.symbol !== seatSymbol) {
       logger.debug(
         `[风险检查调试] 距回收价信息标的校验失败: 席位=${seatSymbol}, 缓存=${warrantInfo.symbol}`,

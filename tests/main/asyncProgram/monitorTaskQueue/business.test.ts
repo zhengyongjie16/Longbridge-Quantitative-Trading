@@ -31,6 +31,7 @@ describe('monitorTaskQueue business behavior', () => {
         openProtectionActive: false,
       },
     });
+
     queue.scheduleLatest({
       type: 'AUTO_SYMBOL_TICK',
       dedupeKey: 'HSI.HK:AUTO_SYMBOL_TICK:LONG',
@@ -104,6 +105,7 @@ describe('monitorTaskQueue business behavior', () => {
         openProtectionActive: false,
       },
     });
+
     queue.scheduleLatest({
       type: 'AUTO_SYMBOL_TICK',
       dedupeKey: 'B',

@@ -3,6 +3,7 @@ import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { isRecord } from '../../utils/primitives/index.js';
 import type { StaticInfo } from './types.js';
 import { getHKDateKey } from '../../utils/tradingTime/index.js';
+
 const PERIOD_LABEL_MAP: Readonly<Record<number, string>> = {
   [Period.Unknown]: '未知',
   [Period.Min_1]: '1分钟',

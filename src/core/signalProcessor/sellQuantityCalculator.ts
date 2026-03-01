@@ -156,11 +156,13 @@ export const processSellSignals = (
         `[卖出信号处理] ${signalName}: ${directionName}标的持仓对象为null，无法计算卖出数量`,
       );
     }
+
     if (!quote) {
       logger.warn(
         `[卖出信号处理] ${signalName}: ${directionName}标的行情数据为null，无法计算卖出数量`,
       );
     }
+
     if (
       position &&
       quote &&
@@ -171,6 +173,7 @@ export const processSellSignals = (
         `[卖出信号处理] ${signalName}: 当前价格=${quote.price.toFixed(3)}, 可用数量=${position.availableQuantity}`,
       );
     }
+
     if (isDoomsdaySignal) {
       // 末日保护程序：无条件清仓，使用全部可用数量
       if (position && position.availableQuantity > 0) {
@@ -180,6 +183,7 @@ export const processSellSignals = (
         if (quote?.price !== undefined) {
           sig.price = quote.price;
         }
+
         if (quote?.lotSize !== undefined) {
           sig.lotSize = quote.lotSize;
         }
@@ -224,6 +228,7 @@ export const processSellSignals = (
         if (quote?.price !== undefined) {
           sig.price = quote.price;
         }
+
         if (quote?.lotSize !== undefined) {
           sig.lotSize = quote.lotSize;
         }

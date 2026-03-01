@@ -143,6 +143,7 @@ export function createBaseProcessor<TType extends string>(
         releaseAfterProcess(signal);
         continue;
       }
+
       try {
         await processTask(task);
       } finally {
@@ -226,6 +227,7 @@ export function createBaseProcessor<TType extends string>(
       clearImmediate(immediateHandle);
       immediateHandle = null;
     }
+
     if (inFlightPromise !== null) {
       await inFlightPromise;
     }

@@ -57,9 +57,11 @@ export function resolveUpdatedAtMs(updatedAt: unknown): number | null {
   if (updatedAt instanceof Date) {
     return updatedAt.getTime();
   }
+
   if (typeof updatedAt === 'number') {
     return updatedAt;
   }
+
   if (typeof updatedAt === 'string' && updatedAt.trim()) {
     const parsed = Date.parse(updatedAt);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
@@ -77,9 +79,11 @@ export function resolveSubmittedAtMs(submittedAt: unknown): number | null {
   if (submittedAt instanceof Date) {
     return submittedAt.getTime();
   }
+
   if (typeof submittedAt === 'number') {
     return submittedAt;
   }
+
   if (typeof submittedAt === 'string' && submittedAt.trim()) {
     const parsed = Date.parse(submittedAt);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
@@ -112,6 +116,7 @@ export function resolveInitialTrackedStatus(initialStatus?: OrderStatus): OrderS
   if (initialStatus === undefined) {
     return OrderStatus.New;
   }
+
   if (!PENDING_ORDER_STATUSES.has(initialStatus)) {
     return OrderStatus.New;
   }

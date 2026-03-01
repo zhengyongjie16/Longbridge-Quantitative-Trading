@@ -84,6 +84,7 @@ export function createLoadTradingDayRuntimeSnapshot(
     if (!lastState.cachedAccount) {
       throw new Error('无法获取账户信息');
     }
+
     if (!Array.isArray(lastState.cachedPositions)) {
       throw new TypeError('无法获取持仓信息');
     }
@@ -114,6 +115,7 @@ export function createLoadTradingDayRuntimeSnapshot(
     if (hydrateCooldownFromTradeLog) {
       tradeLogHydrator.hydrate({ seatSymbols: seatResult.seatSymbols });
     }
+
     if (resetRuntimeSubscriptions) {
       await marketDataClient.resetRuntimeSubscriptionsAndCaches();
     }
@@ -128,6 +130,7 @@ export function createLoadTradingDayRuntimeSnapshot(
     if (allTradingSymbols.size > 0) {
       await marketDataClient.subscribeSymbols([...allTradingSymbols]);
     }
+
     for (const monitorConfig of tradingConfig.monitors) {
       await marketDataClient.subscribeCandlesticks(
         monitorConfig.monitorSymbol,

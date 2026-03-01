@@ -29,6 +29,7 @@ describe('TradeContext mock contract', () => {
         quantity: 100,
       }),
     ]);
+
     tradeCtx.seedHistoryOrders([
       createOrder({
         orderId: 'HIST-001',
@@ -97,6 +98,7 @@ describe('TradeContext mock contract', () => {
       }),
       { sequence: 2 },
     );
+
     tradeCtx.emitOrderChanged(
       createPushOrderChanged({
         orderId: 'WS-001',

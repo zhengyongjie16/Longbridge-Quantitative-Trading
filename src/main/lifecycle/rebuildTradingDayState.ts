@@ -44,6 +44,7 @@ function syncMonitorContextQuotes(
     long: longSeatState,
     short: shortSeatState,
   };
+
   monitorContext.seatVersion = {
     long: longSeatVersion,
     short: shortSeatVersion,
@@ -92,6 +93,7 @@ async function rebuildOrderRecords(
         monitorContext.longQuote,
       );
     }
+
     if (isSeatReady(shortSeatState)) {
       await monitorContext.orderRecorder.refreshOrdersFromAllOrdersForShort(
         shortSeatState.symbol,
@@ -160,6 +162,7 @@ async function rebuildWarrantRiskCache(
       true,
       isSeatReady(longSeatState) ? (longSeatState.callPrice ?? null) : null,
     );
+
     await refreshSeatWarrantInfo(
       marketDataClient,
       monitorContext,
@@ -191,6 +194,7 @@ async function rebuildUnrealizedLossCache(
         dailyLossOffset,
       );
     }
+
     if (isSeatReady(shortSeatState)) {
       const dailyLossOffset = dailyLossTracker.getLossOffset(monitorSymbol, false);
       await monitorContext.riskChecker.refreshUnrealizedLossData(

@@ -96,6 +96,7 @@ export async function mainProgram({
         logger.info('今天不是交易日，暂停实时监控。');
       }
     }
+
     if (lastState.canTrade !== canTradeNow) {
       if (canTradeNow) {
         const sessionType = isHalfDayToday ? '（半日交易）' : '';
@@ -110,6 +111,7 @@ export async function mainProgram({
             totalCancelled += pendingCount;
           }
         }
+
         if (totalCancelled > 0) {
           logger.info(`[交易时段结束] 已清理 ${totalCancelled} 个待验证信号`);
         }
@@ -162,6 +164,7 @@ export async function mainProgram({
   if (!lastState.isTradingEnabled) {
     return;
   }
+
   if (isStrictMode && (!isTradingDayToday || !canTradeNow)) {
     return;
   }
@@ -222,6 +225,7 @@ export async function mainProgram({
   for (const symbol of added) {
     nextSymbols.add(symbol);
   }
+
   for (const symbol of removableSymbols) {
     nextSymbols.delete(symbol);
   }

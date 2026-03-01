@@ -93,6 +93,7 @@ describe('autoSymbolFinder business flow', () => {
       FilterWarrantExpiryDate.Between_6_12,
       FilterWarrantExpiryDate.GT_12,
     ]);
+
     expect(buildExpiryDateFilters(5)).toEqual([
       FilterWarrantExpiryDate.Between_6_12,
       FilterWarrantExpiryDate.GT_12,

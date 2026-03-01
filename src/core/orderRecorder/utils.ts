@@ -189,6 +189,7 @@ export function classifyOrdersForRebuild(
       if (!converted) {
         continue;
       }
+
       if (isBuyOrder) {
         filledBuyOrders.push(converted);
       } else {
@@ -205,6 +206,7 @@ export function classifyOrdersForRebuild(
       pendingBuyOrders.push(order);
       continue;
     }
+
     if (order.side === OrderSide.Sell) {
       pendingSellOrders.push(order);
     }

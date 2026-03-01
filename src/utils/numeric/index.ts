@@ -11,6 +11,7 @@ export function toDecimalValue(value: DecimalInput): Decimal {
   if (value instanceof Decimal) {
     return value;
   }
+
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) {
       throw new TypeError(`Invalid number for Decimal conversion: ${value}`);
@@ -43,6 +44,7 @@ export function toDecimalStrict(value: unknown): Decimal | null {
     if (text.length === 0) {
       return null;
     }
+
     try {
       return new Decimal(text);
     } catch {
@@ -230,6 +232,7 @@ export function calculateLotQuantityByNotional(input: LotQuantityInput): Decimal
   if (!alignedQuantity) {
     return null;
   }
+
   if (alignedQuantity.lessThan(lotSizeDecimal)) {
     return null;
   }

@@ -89,6 +89,7 @@ export function collectRuntimeQuoteSymbols(
       symbols.add(position.symbol);
     }
   }
+
   for (const symbol of orderHoldSymbols) {
     if (symbol) {
       symbols.add(symbol);
@@ -115,6 +116,7 @@ export function diffQuoteSymbols(
       added.push(symbol);
     }
   }
+
   for (const symbol of prevSymbols) {
     if (!nextSymbols.has(symbol)) {
       removed.push(symbol);
@@ -149,6 +151,7 @@ function collectAllQuoteSymbols(
     if (longSeat.symbol) {
       symbols.add(longSeat.symbol);
     }
+
     if (shortSeat.symbol) {
       symbols.add(shortSeat.symbol);
     }

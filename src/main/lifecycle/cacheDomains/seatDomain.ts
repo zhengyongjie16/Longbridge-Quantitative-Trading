@@ -63,6 +63,7 @@ function syncMonitorSeatSnapshots(
       long: symbolRegistry.getSeatState(monitorSymbol, 'LONG'),
       short: symbolRegistry.getSeatState(monitorSymbol, 'SHORT'),
     };
+
     monitorContext.seatVersion = {
       long: symbolRegistry.getSeatVersion(monitorSymbol, 'LONG'),
       short: symbolRegistry.getSeatVersion(monitorSymbol, 'SHORT'),

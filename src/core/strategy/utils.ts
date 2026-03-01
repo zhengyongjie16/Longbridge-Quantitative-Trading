@@ -155,6 +155,7 @@ export function buildIndicatorDisplayString(state: IndicatorSnapshot): string {
       }
     }
   }
+
   if (isValidNumber(mfi)) {
     parts.push(`MFI(${mfi.toFixed(3)})`);
   }
@@ -216,6 +217,7 @@ function evaluateCondition(state: IndicatorState, condition: Condition): boolean
       value = state.rsi[period];
       break;
     }
+
     case 'PSY': {
       if (!period || state.psy?.[period] === undefined) {
         return false;
@@ -223,22 +225,27 @@ function evaluateCondition(state: IndicatorState, condition: Condition): boolean
       value = state.psy[period];
       break;
     }
+
     case 'MFI': {
       value = state.mfi ?? undefined;
       break;
     }
+
     case 'K': {
       value = state.kdj?.k;
       break;
     }
+
     case 'D': {
       value = state.kdj?.d;
       break;
     }
+
     case 'J': {
       value = state.kdj?.j;
       break;
     }
+
     default: {
       return false;
     }
@@ -252,9 +259,11 @@ function evaluateCondition(state: IndicatorState, condition: Condition): boolean
     case '<': {
       return decimalLt(value, threshold);
     }
+
     case '>': {
       return decimalGt(value, threshold);
     }
+
     default: {
       return false;
     }

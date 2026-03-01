@@ -84,6 +84,7 @@ export const createRateLimiter = (deps: RateLimiterDeps = {}): RateLimiter => {
         logger.warn(
           `[频率限制] Trade API 调用频率达到上限 (${maxCalls}次/${windowMs}ms)，等待 ${waitTime}ms`,
         );
+
         await new Promise<void>((resolve) => {
           setTimeout(resolve, waitTime);
         });

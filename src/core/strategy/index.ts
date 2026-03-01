@@ -105,18 +105,23 @@ export const createHangSengMultiIndicatorStrategy = ({
       case 'BUYCALL': {
         return finalSignalConfig.buycall ?? null;
       }
+
       case 'SELLCALL': {
         return finalSignalConfig.sellcall ?? null;
       }
+
       case 'BUYPUT': {
         return finalSignalConfig.buyput ?? null;
       }
+
       case 'SELLPUT': {
         return finalSignalConfig.sellput ?? null;
       }
+
       case 'HOLD': {
         return null;
       }
+
       default: {
         return null;
       }

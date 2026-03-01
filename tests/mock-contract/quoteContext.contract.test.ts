@@ -34,17 +34,21 @@ describe('QuoteContext mock contract', () => {
     quoteCtx.seedStaticInfo([
       { symbol: '700.HK', info: createSecurityStaticInfo('700.HK', 'Tencent', 100) },
     ]);
+
     quoteCtx.seedCandlesticks('700.HK', Period.Min_1, [
       createCandlestick({ close: 320 }),
       createCandlestick({ close: 321 }),
     ]);
+
     quoteCtx.seedWarrantQuotes([
       createWarrantQuote({ symbol: '12345.HK', callPrice: 20000, category: 3 }),
     ]);
+
     quoteCtx.seedWarrantList('HSI.HK', [
       createWarrantInfo({ symbol: '12345.HK', warrantType: 'Bull', callPrice: 20000 }),
       createWarrantInfo({ symbol: '54321.HK', warrantType: 'Bear', callPrice: 22000 }),
     ]);
+
     quoteCtx.seedTradingDays(
       `${String(Market.HK)}:2026-02-16:2026-02-16`,
       createTradingDaysResult({
@@ -89,6 +93,7 @@ describe('QuoteContext mock contract', () => {
     quoteCtx.setOnQuote((_err, event) => {
       quotePrices.push(event.data.lastDone.toNumber());
     });
+
     quoteCtx.setOnCandlestick((_err, event) => {
       const data = event.data as unknown as { readonly close: { readonly toNumber: () => number } };
       candlePrices.push(data.close.toNumber());
@@ -98,10 +103,12 @@ describe('QuoteContext mock contract', () => {
       deliverAtMs,
       sequence: 2,
     });
+
     quoteCtx.emitQuote(createPushQuoteEvent({ symbol: '700.HK', price: 319 }), {
       deliverAtMs,
       sequence: 1,
     });
+
     quoteCtx.emitCandlestick(createPushCandlestickEvent({ symbol: '700.HK', close: 320 }), {
       deliverAtMs,
       sequence: 1,

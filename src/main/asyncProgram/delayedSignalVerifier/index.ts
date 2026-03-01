@@ -168,12 +168,14 @@ export function createDelayedSignalVerifier(
           entriesToRemove.push({ signalId, signal: entry.signal });
         }
       }
+
       for (const { signalId, signal } of entriesToRemove) {
         pendingSignals.delete(signalId);
 
         // 取消时释放信号对象回对象池
         signalObjectPool.release(signal);
       }
+
       if (entriesToRemove.length > 0) {
         logger.debug(
           `[延迟验证] 已取消 ${monitorSymbol} 的 ${entriesToRemove.length} 个待验证信号`,
@@ -200,10 +202,12 @@ export function createDelayedSignalVerifier(
         clearTimeout(entry.timerId);
         entriesToRemove.push({ signalId, signal: entry.signal });
       }
+
       for (const { signalId, signal } of entriesToRemove) {
         pendingSignals.delete(signalId);
         signalObjectPool.release(signal);
       }
+
       if (entriesToRemove.length > 0) {
         logger.debug(
           `[延迟验证] 已取消 ${monitorSymbol} ${direction} 的 ${entriesToRemove.length} 个待验证信号`,

@@ -127,6 +127,7 @@ export function buildIndicatorSnapshot(
         }
       }
     }
+
     if (hasPsyValue) {
       psy = psyRecord;
     } else {

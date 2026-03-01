@@ -179,6 +179,7 @@ export async function prepareSeatsOnStartup(
       frozenTradingDayKey: null,
     });
   }
+
   for (const monitorConfig of tradingConfig.monitors) {
     const longKey = `${monitorConfig.monitorSymbol}:LONG`;
     const shortKey = `${monitorConfig.monitorSymbol}:SHORT`;
@@ -334,6 +335,7 @@ export async function prepareSeatsOnStartup(
     if (isSeatReady(seatState)) {
       return true;
     }
+
     if (openDelayMinutes > 0 && isWithinMorningOpenProtection(currentTime, openDelayMinutes)) {
       return true;
     }
@@ -349,12 +351,14 @@ export async function prepareSeatsOnStartup(
       if (!monitorConfig.autoSearchConfig.autoSearchEnabled) {
         continue;
       }
+
       for (const direction of ['LONG', 'SHORT'] as const) {
         const seatState = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, direction);
         const openDelayMinutes = monitorConfig.autoSearchConfig.autoSearchOpenDelayMinutes;
         if (shouldSkipStartupSearch(seatState, openDelayMinutes, currentTime)) {
           continue;
         }
+
         try {
           const symbol = await searchSeatSymbol({
             monitorSymbol: monitorConfig.monitorSymbol,

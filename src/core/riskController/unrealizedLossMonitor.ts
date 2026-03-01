@@ -109,6 +109,7 @@ export const createUnrealizedLossMonitor = (
     if (quote?.lotSize !== undefined) {
       liquidationSignal.lotSize ??= quote.lotSize;
     }
+
     try {
       const { submittedCount } = await trader.executeSignals([liquidationSignal]);
 

@@ -264,6 +264,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
       if (a.executedPrice !== b.executedPrice) {
         return a.executedPrice - b.executedPrice;
       }
+
       if (a.executedTime !== b.executedTime) {
         return a.executedTime - b.executedTime;
       }
@@ -509,6 +510,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
       if (strategy === 'ALL') {
         return allOrders;
       }
+
       if (strategy === 'PROFIT_ONLY') {
         return selectProfitOrders(allOrders, currentPrice);
       }

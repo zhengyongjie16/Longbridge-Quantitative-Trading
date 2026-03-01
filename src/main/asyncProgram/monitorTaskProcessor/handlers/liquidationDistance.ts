@@ -132,6 +132,7 @@ export function createLiquidationDistanceHandler({
         signal.seatVersion = seatVersion;
         return { signal, isLongSymbol, quote };
       }
+
       if (isLongReady) {
         const longTask = tryCreateLiquidationSignal(
           longSymbol,
@@ -145,6 +146,7 @@ export function createLiquidationDistanceHandler({
           liquidationTasks.push(longTask);
         }
       }
+
       if (isShortReady) {
         const shortTask = tryCreateLiquidationSignal(
           shortSymbol,
@@ -158,6 +160,7 @@ export function createLiquidationDistanceHandler({
           liquidationTasks.push(shortTask);
         }
       }
+
       if (liquidationTasks.length > 0) {
         if (getCanProcessTask && !getCanProcessTask()) {
           for (const taskItem of liquidationTasks) {
@@ -165,6 +168,7 @@ export function createLiquidationDistanceHandler({
           }
           return 'skipped';
         }
+
         try {
           await trader.executeSignals(liquidationTasks.map(({ signal }) => signal));
           for (const taskItem of liquidationTasks) {
@@ -197,6 +201,7 @@ export function createLiquidationDistanceHandler({
       if (longPosition) {
         positionObjectPool.release(longPosition);
       }
+
       if (shortPosition) {
         positionObjectPool.release(shortPosition);
       }

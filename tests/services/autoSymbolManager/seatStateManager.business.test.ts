@@ -8,6 +8,7 @@ import { describe, expect, it } from 'bun:test';
 import { createSeatStateManager } from '../../../src/services/autoSymbolManager/seatStateManager.js';
 import { createSymbolRegistryDouble } from '../../helpers/testDoubles.js';
 import { getHKDateKey } from '../../../src/utils/tradingTime/index.js';
+
 describe('autoSymbolManager seatStateManager business flow', () => {
   it('clearSeat bumps seat version and puts seat into SWITCHING with switch state snapshot', () => {
     const symbolRegistry = createSymbolRegistryDouble({
@@ -55,6 +56,7 @@ describe('autoSymbolManager seatStateManager business flow', () => {
     expect(switchState.oldSymbol).toBe('OLD_BULL.HK');
     expect(switchState.seatVersion).toBe(2);
   });
+
   it('suppression is valid on same HK date and auto-clears on date rollover', () => {
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',

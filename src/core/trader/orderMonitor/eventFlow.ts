@@ -62,6 +62,7 @@ export function createEventFlow(deps: EventFlowDeps): EventFlow {
           runtime.trackedOrders.delete(orderId);
           return;
         }
+
         if (trackedOrder.side === OrderSide.Buy) {
           orderRecorder.recordLocalBuy(
             trackedOrder.symbol,
@@ -81,6 +82,7 @@ export function createEventFlow(deps: EventFlowDeps): EventFlow {
           );
           orderRecorder.markSellFilled(orderId);
         }
+
         if (trackedOrder.monitorSymbol) {
           dailyLossTracker.recordFilledOrder({
             monitorSymbol: trackedOrder.monitorSymbol,
@@ -93,6 +95,7 @@ export function createEventFlow(deps: EventFlowDeps): EventFlow {
             orderId,
           });
         }
+
         if (trackedOrder.isProtectiveLiquidation) {
           const direction = trackedOrder.isLongSymbol ? 'LONG' : 'SHORT';
           if (trackedOrder.monitorSymbol) {
@@ -126,6 +129,7 @@ export function createEventFlow(deps: EventFlowDeps): EventFlow {
           timestamp: null,
           isProtectiveClearance: trackedOrder.isProtectiveLiquidation,
         });
+
         logger.info(
           `[订单监控] 订单 ${orderId} 完全成交，` +
             `成交价=${executedPrice.toFixed(3)}，成交数量=${filledQuantity}，` +

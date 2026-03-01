@@ -103,6 +103,7 @@ export function getBooleanConfig(
   if (normalizedValue === 'true') {
     return true;
   }
+
   if (normalizedValue === 'false') {
     return false;
   }
@@ -127,6 +128,7 @@ export function parseLiquidationCooldownConfig(
   if (normalizedValue === 'half-day') {
     return { mode: 'half-day' };
   }
+
   if (normalizedValue === 'one-day') {
     return { mode: 'one-day' };
   }
@@ -255,6 +257,7 @@ export function parseVerificationDelay(
   if (delay === null) {
     return defaultValue;
   }
+
   if (delay > 120) {
     logger.warn(`[配置警告] ${envKey} 不能大于 120，已设置为 120`);
     return 120;
@@ -322,6 +325,7 @@ export function parseVerificationIndicators(
     if (tryParseIndicatorWithPeriod(item, 'PSY:', validatePsyPeriod)) {
       continue;
     }
+
     if (tryParseIndicatorWithPeriod(item, 'EMA:', validateEmaPeriod)) {
       continue;
     }

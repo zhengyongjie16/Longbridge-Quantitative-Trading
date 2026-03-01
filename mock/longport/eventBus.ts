@@ -87,6 +87,7 @@ function takeDueEvents(
       if (a.deliverAtMs !== b.deliverAtMs) {
         return a.deliverAtMs - b.deliverAtMs;
       }
+
       if (a.sequence !== b.sequence) {
         return a.sequence - b.sequence;
       }

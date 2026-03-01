@@ -191,6 +191,7 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
       logger.error(`[订单提交] 未知的信号类型: ${signal.action}, 标的: ${signal.symbol}`);
       return null;
     }
+
     if (!canExecuteSignal(signal, 'submitTargetOrder')) {
       return null;
     }

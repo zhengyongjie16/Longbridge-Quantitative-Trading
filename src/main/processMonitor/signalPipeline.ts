@@ -86,6 +86,7 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
         }
         return;
       }
+
       if (
         sigSymbol === shortSymbol &&
         shortQuote &&
@@ -95,6 +96,7 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
         signal.symbolName = shortQuote.name;
       }
     }
+
     function resolveSeatForSignal(signal: Signal): Readonly<{
       seatSymbol: string;
       seatVersion: number;
@@ -124,6 +126,7 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
         releaseSignal(signal);
         return false;
       }
+
       if (!VALID_SIGNAL_ACTIONS.has(signal.action)) {
         logger.warn(
           `[跳过信号] 未知的信号类型: ${signal.action}, 标的: ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)}`,
@@ -139,11 +142,13 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
         releaseSignal(signal);
         return false;
       }
+
       if (signal.symbol !== seatInfoForSignal.seatSymbol) {
         logger.info(`[跳过信号] 席位已切换: ${formatSignalLog(signal)}`);
         releaseSignal(signal);
         return false;
       }
+
       if (seatInfoForSignal.isBuySignal && !seatInfoForSignal.quote) {
         logger.info(`[跳过信号] 行情未就绪: ${formatSignalLog(signal)}`);
         releaseSignal(signal);
@@ -153,10 +158,12 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
       enrichSignal(signal);
       return true;
     }
+
     for (const signal of immediateSignals) {
       if (!prepareSignal(signal)) {
         continue;
       }
+
       if (canEnqueue) {
         logger.info(`[立即信号] ${formatSignalLog(signal)}`);
         const isSellSignal = isSellAction(signal.action);
@@ -179,10 +186,12 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
         releaseSignal(signal);
       }
     }
+
     for (const signal of delayedSignals) {
       if (!prepareSignal(signal)) {
         continue;
       }
+
       if (canEnqueue) {
         logger.info(`[延迟验证信号] ${formatSignalLog(signal)}`);
         delayedSignalVerifier.addSignal(signal, monitorSymbol);
@@ -196,6 +205,7 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
     if (longPosition) {
       releasePosition(longPosition);
     }
+
     if (shortPosition) {
       releasePosition(shortPosition);
     }

@@ -16,6 +16,7 @@ function isPeriodRecord(value: unknown): value is Record<number, number> {
   if (!isRecord(value)) {
     return false;
   }
+
   for (const propertyValue of Object.values(value)) {
     if (typeof propertyValue !== 'number') {
       return false;
@@ -38,6 +39,7 @@ export function decimalToNumber(
   if (decimalLike === null || decimalLike === undefined) {
     return Number.NaN;
   }
+
   if (typeof decimalLike === 'object' && 'toNumber' in decimalLike) {
     return decimalLike.toNumber();
   }
@@ -105,6 +107,7 @@ export function releaseSnapshotObjects(
     if (!snapshotRecord || monitorRecord === snapshotRecord) {
       return;
     }
+
     if (isPeriodRecord(snapshotRecord)) {
       // snapshot 中的周期记录来自 periodRecordPool，可安全回收到池中复用
       periodRecordPool.release(snapshotRecord);

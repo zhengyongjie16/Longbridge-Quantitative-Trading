@@ -85,10 +85,12 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
         );
         return true;
       }
+
       if (!isSeatVersionMatch(signal.seatVersion, seatVersion)) {
         logger.info(`[SellProcessor] 席位版本不匹配，跳过信号: ${symbolDisplay} ${signal.action}`);
         return true;
       }
+
       if (signal.symbol !== seatState.symbol) {
         logger.info(`[SellProcessor] 标的已切换，跳过信号: ${symbolDisplay} ${signal.action}`);
         return true;

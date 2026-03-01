@@ -88,6 +88,7 @@ describe('seatSync business flow', () => {
         openProtectionActive: false,
       },
     });
+
     monitorTaskQueue.scheduleLatest({
       type: 'AUTO_SYMBOL_TICK',
       dedupeKey: `${monitorSymbol}:AUTO_SYMBOL_TICK:SHORT`,

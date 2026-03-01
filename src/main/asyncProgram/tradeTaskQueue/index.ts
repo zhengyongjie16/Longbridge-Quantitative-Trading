@@ -55,6 +55,7 @@ function createTaskQueue<TType extends string>(): TaskQueue<TType> {
         if (!task) {
           continue;
         }
+
         if (predicate(task)) {
           onRemove?.(task);
           queue.splice(i, 1);

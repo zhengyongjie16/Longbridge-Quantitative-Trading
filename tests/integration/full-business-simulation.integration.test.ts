@@ -920,6 +920,7 @@ describe('full business simulation integration', () => {
         triggerTimeMs: Date.now(),
       }),
     });
+
     sellTaskQueue.push({
       type: 'IMMEDIATE_SELL',
       monitorSymbol: monitorConfig.monitorSymbol,

@@ -31,12 +31,15 @@ export function getOrderTypeFromConfig(typeConfig: OrderTypeConfig): OrderType {
     case 'LO': {
       return OrderType.LO;
     }
+
     case 'ELO': {
       return OrderType.ELO;
     }
+
     case 'MO': {
       return OrderType.MO;
     }
+
     default: {
       return OrderType.ELO;
     }
@@ -85,9 +88,11 @@ export function resolveOrderSide(action: Signal['action']): OrderSide | null {
     case 'SELLPUT': {
       return OrderSide.Sell;
     }
+
     case 'HOLD': {
       return null;
     }
+
     default: {
       return null;
     }
@@ -129,6 +134,7 @@ export function handleSubmitError(err: unknown, signal: Signal, orderPayload: Or
       `[订单提交失败] ${actionDesc} ${symbolDisplayForError} 失败：该标的不支持做空交易`,
       errorMessage,
     );
+
     logger.warn(
       `[做空错误提示] 标的 ${symbolDisplayForError} 不支持做空交易。可能的原因：\n` +
         '  1. 该标的在港股市场不支持做空\n' +

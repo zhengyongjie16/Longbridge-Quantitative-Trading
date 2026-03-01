@@ -44,6 +44,7 @@ export function parseBooleanEnv(value: string | undefined): boolean | null {
   if (normalized === 'true' || normalized === '1') {
     return true;
   }
+
   if (normalized === 'false' || normalized === '0') {
     return false;
   }

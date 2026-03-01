@@ -44,6 +44,7 @@ export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
     long: longSeatState,
     short: shortSeatState,
   };
+
   monitorContext.seatVersion = {
     long: longSeatVersion,
     short: shortSeatVersion,
@@ -64,6 +65,7 @@ export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
   if (longSeatReady) {
     monitorContext.longSymbolName = longQuote?.name ?? longSymbol;
   }
+
   if (shortSeatReady) {
     monitorContext.shortSymbolName = shortQuote?.name ?? shortSymbol;
   }
@@ -106,6 +108,7 @@ export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
     clearWarrantInfoForDirection('LONG');
     clearDirectionQueues('LONG');
   }
+
   if (previousShortSeatState.status === 'READY' && shortSeatState.status !== 'READY') {
     clearWarrantInfoForDirection('SHORT');
     clearDirectionQueues('SHORT');
@@ -133,6 +136,7 @@ export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
       },
     });
   }
+
   if (
     shortSeatReady &&
     (shortSeatState.symbol !== previousShortSeatState.symbol ||

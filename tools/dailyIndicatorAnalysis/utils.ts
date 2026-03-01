@@ -57,9 +57,11 @@ function toNumberFromUnknown(value: unknown): number {
   if (value === null || value === undefined) {
     return Number.NaN;
   }
+
   if (typeof value === 'number' || typeof value === 'string') {
     return Number(value);
   }
+
   if (hasToNumberMethod(value)) {
     return decimalToNumber(value);
   }
@@ -262,9 +264,11 @@ function calculateVP(
     if (parsed === null) {
       continue;
     }
+
     if (parsed.low < minPrice) {
       minPrice = parsed.low;
     }
+
     if (parsed.high > maxPrice) {
       maxPrice = parsed.high;
     }
@@ -307,6 +311,7 @@ function calculateVP(
     if (current === undefined || poc === undefined) {
       continue;
     }
+
     if (current > poc) {
       pocBin = i;
     }
@@ -323,6 +328,7 @@ function calculateVP(
     if (volAbove === 0 && volBelow === 0) {
       break;
     }
+
     if (volAbove >= volBelow) {
       highBin += 1;
       valueAreaVol += volAbove;
@@ -438,38 +444,49 @@ function getIndicatorValue(row: MinuteIndicatorRow, key: RowColorIndicatorKey): 
     case 'rsi6': {
       return row.rsi6 !== null && Number.isFinite(row.rsi6) ? row.rsi6 : null;
     }
+
     case 'k': {
       return row.kdj !== null && Number.isFinite(row.kdj.k) ? row.kdj.k : null;
     }
+
     case 'd': {
       return row.kdj !== null && Number.isFinite(row.kdj.d) ? row.kdj.d : null;
     }
+
     case 'j': {
       return row.kdj !== null && Number.isFinite(row.kdj.j) ? row.kdj.j : null;
     }
+
     case 'mfi': {
       return row.mfi !== null && Number.isFinite(row.mfi) ? row.mfi : null;
     }
+
     case 'adx': {
       return row.adx !== null && Number.isFinite(row.adx) ? row.adx : null;
     }
+
     case 'ema5': {
       return row.ema5 !== null && Number.isFinite(row.ema5) ? row.ema5 : null;
     }
+
     case 'poc': {
       return row.vp !== null && Number.isFinite(row.vp.poc) ? row.vp.poc : null;
     }
+
     case 'vah': {
       return row.vp !== null && Number.isFinite(row.vp.vah) ? row.vp.vah : null;
     }
+
     case 'val': {
       return row.vp !== null && Number.isFinite(row.vp.val) ? row.vp.val : null;
     }
+
     case 'vaPositionInValueArea': {
       return row.vaPositionInValueArea !== null && Number.isFinite(row.vaPositionInValueArea)
         ? row.vaPositionInValueArea
         : null;
     }
+
     default: {
       return null;
     }
@@ -496,6 +513,7 @@ function rowMatchesOneCondition(
     if (threshold === undefined) {
       continue;
     }
+
     if (!Number.isFinite(threshold)) {
       continue;
     }
@@ -509,6 +527,7 @@ function rowMatchesOneCondition(
     if (mode === 'green' && value >= threshold) {
       return false;
     }
+
     if (mode === 'red' && value <= threshold) {
       return false;
     }

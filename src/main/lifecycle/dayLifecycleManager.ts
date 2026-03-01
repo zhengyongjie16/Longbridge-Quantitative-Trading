@@ -138,6 +138,7 @@ export function createDayLifecycleManager(deps: DayLifecycleManagerDeps): DayLif
       }
       return;
     }
+
     if (!mutableState.pendingOpenRebuild) {
       mutableState.lifecycleState = 'ACTIVE';
       mutableState.isTradingEnabled = true;

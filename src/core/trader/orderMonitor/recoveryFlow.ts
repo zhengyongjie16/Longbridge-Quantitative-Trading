@@ -125,10 +125,12 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
       runtime.bootstrappingOrderEvents.set(event.orderId, event);
       return;
     }
+
     if (currentUpdatedAt === null && nextUpdatedAt !== null) {
       runtime.bootstrappingOrderEvents.set(event.orderId, event);
       return;
     }
+
     if (currentUpdatedAt === null && nextUpdatedAt === null) {
       runtime.bootstrappingOrderEvents.set(event.orderId, event);
     }
@@ -175,6 +177,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
       if (trackedOrder.side !== OrderSide.Sell) {
         continue;
       }
+
       if (!PENDING_ORDER_STATUSES.has(trackedOrder.status)) {
         continue;
       }
@@ -216,6 +219,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
         nonPendingTrackedOrderIds.push(trackedOrder.orderId);
       }
     }
+
     if (nonPendingTrackedOrderIds.length > 0) {
       throw new Error(
         `[订单监控] 恢复对账失败: trackedNonPending=[${nonPendingTrackedOrderIds.join(', ')}]`,
@@ -239,6 +243,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
       if (trackedOrderIds.has(orderId)) {
         return false;
       }
+
       if (cancelledMismatchedBuyOrderIds.has(orderId)) {
         return false;
       }
@@ -294,6 +299,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
       trackedOrder.executedQuantity = executedQuantity;
       logger.debug(`[订单监控] 恢复部分成交订单 ${order.orderId}，已成交数量=${executedQuantity}`);
     }
+
     if (order.side === OrderSide.Sell) {
       const relatedBuyOrderIds = orderRecorder.allocateRelatedBuyOrderIdsForRecovery(
         order.symbol,
@@ -338,6 +344,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
           if (!ownership) {
             throw new Error(`[订单监控] 卖单 ${order.orderId} 无法解析归属，阻断恢复`);
           }
+
           if (!isMatched) {
             throw new Error(`[订单监控] 卖单 ${order.orderId} 与当前席位不匹配，阻断恢复`);
           }
@@ -345,6 +352,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
           recoveredCount += 1;
           continue;
         }
+
         if (order.side === OrderSide.Buy) {
           if (!ownership || !isMatched) {
             const cancelled = await cancelOrder(order.orderId);

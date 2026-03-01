@@ -20,6 +20,7 @@ export const removeTasksFromQueue = <TType extends string, TData>(
     if (!task) {
       continue;
     }
+
     if (predicate(task)) {
       onRemove?.(task);
       queue.splice(i, 1);

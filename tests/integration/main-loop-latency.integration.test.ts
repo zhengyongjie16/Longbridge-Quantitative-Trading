@@ -165,6 +165,7 @@ function createMultiMonitorSymbolRegistry(
             seatVersion: entry.longVersion,
           };
         }
+
         if (entry.shortState.symbol === symbol) {
           return {
             monitorSymbol,
@@ -185,6 +186,7 @@ function createMultiMonitorSymbolRegistry(
       if (!entry) {
         throw new Error(`missing seat entry for monitorSymbol=${monitorSymbol}`);
       }
+
       if (direction === 'LONG') {
         entry.longState = nextState;
         return entry.longState;
@@ -197,6 +199,7 @@ function createMultiMonitorSymbolRegistry(
       if (!entry) {
         throw new Error(`missing seat entry for monitorSymbol=${monitorSymbol}`);
       }
+
       if (direction === 'LONG') {
         entry.longVersion += 1;
         return entry.longVersion;
@@ -240,6 +243,7 @@ function createQuotesForSymbols(
       timestamp: Date.now(),
       lotSize: 1,
     });
+
     quotes.set(config.longSymbol, {
       symbol: config.longSymbol,
       name: config.longSymbol,
@@ -248,6 +252,7 @@ function createQuotesForSymbols(
       timestamp: Date.now(),
       lotSize: 100,
     });
+
     quotes.set(config.shortSymbol, {
       symbol: config.shortSymbol,
       name: config.shortSymbol,

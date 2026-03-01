@@ -55,6 +55,7 @@ export function scheduleAutoSymbolTasks(params: AutoSymbolTasksParams): void {
       openProtectionActive,
     },
   });
+
   monitorTaskQueue.scheduleLatest({
     type: 'AUTO_SYMBOL_TICK',
     dedupeKey: `${monitorSymbol}:AUTO_SYMBOL_TICK:SHORT`,

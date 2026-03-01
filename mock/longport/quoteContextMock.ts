@@ -75,6 +75,7 @@ function normalizeWarrantType(value: unknown): 'BULL' | 'BEAR' | null {
   if (value === WarrantType.Bull || value === 3 || value === 'Bull' || value === 'BULL') {
     return 'BULL';
   }
+
   if (value === WarrantType.Bear || value === 4 || value === 'Bear' || value === 'BEAR') {
     return 'BEAR';
   }

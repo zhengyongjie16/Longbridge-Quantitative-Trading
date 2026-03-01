@@ -59,6 +59,7 @@ function formatLiquidationCooldownConfig(config: LiquidationCooldownConfig | nul
   if (!config) {
     return '未配置（不冷却）';
   }
+
   if (config.mode === 'minutes') {
     return `${config.minutes} 分钟`;
   }
@@ -86,6 +87,7 @@ function validateRequiredSymbol({
       missingFields: [...missingFields, envKey],
     };
   }
+
   if (!isSymbolWithRegion(symbol)) {
     return {
       errors: [...errors, formatSymbolFormatError(prefix, envKey, symbol)],
@@ -378,6 +380,7 @@ function validateMonitorConfig(
         missingFields = [...missingFields, switchIntervalEnvKey];
       }
     }
+
     if (
       !Number.isFinite(autoSearchConfig.switchIntervalMinutes) ||
       autoSearchConfig.switchIntervalMinutes < 0 ||
@@ -477,6 +480,7 @@ function validateTradingConfig(
       ownershipAliases.set(normalizedAlias, config.monitorSymbol);
     }
   }
+
   if (ownershipConflicts.length > 0) {
     for (const conflict of ownershipConflicts) {
       errors = [
@@ -641,6 +645,7 @@ export async function validateAllConfig({
     logger.info(
       `保护性清仓后买入冷却: ${formatLiquidationCooldownConfig(monitorConfig.liquidationCooldown)}`,
     );
+
     logger.info(
       `智能平仓超时（第三阶段）: ${
         monitorConfig.smartCloseTimeoutMinutes === null
@@ -676,12 +681,15 @@ export async function validateAllConfig({
     if (monitorConfig.signalConfig.buycall) {
       logger.info(`BUYCALL: ${formatSignalConfig(monitorConfig.signalConfig.buycall)}`);
     }
+
     if (monitorConfig.signalConfig.sellcall) {
       logger.info(`SELLCALL: ${formatSignalConfig(monitorConfig.signalConfig.sellcall)}`);
     }
+
     if (monitorConfig.signalConfig.buyput) {
       logger.info(`BUYPUT: ${formatSignalConfig(monitorConfig.signalConfig.buyput)}`);
     }
+
     if (monitorConfig.signalConfig.sellput) {
       logger.info(`SELLPUT: ${formatSignalConfig(monitorConfig.signalConfig.sellput)}`);
     }

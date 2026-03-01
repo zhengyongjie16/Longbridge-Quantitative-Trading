@@ -96,10 +96,12 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
         );
         return true;
       }
+
       if (!isSeatVersionMatch(signal.seatVersion, seatVersion)) {
         logger.info(`[BuyProcessor] 席位版本不匹配，跳过信号: ${symbolDisplay} ${signal.action}`);
         return true;
       }
+
       if (signal.symbol !== seatState.symbol) {
         logger.info(`[BuyProcessor] 标的已切换，跳过信号: ${symbolDisplay} ${signal.action}`);
         return true;

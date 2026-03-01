@@ -82,6 +82,7 @@ describe('riskTasks business scheduling', () => {
               unrealizedPnL: 10,
             };
           }
+
           if (symbol === 'BEAR.HK' && currentPrice === 0.8) {
             return {
               r1: 90,
@@ -117,6 +118,7 @@ describe('riskTasks business scheduling', () => {
               },
             ];
           }
+
           if (symbol === 'BEAR.HK') {
             return [
               {
@@ -190,6 +192,7 @@ describe('riskTasks business scheduling', () => {
       },
       orderCount: 2,
     });
+
     expect(receivedShortDisplayInfo).toEqual({
       warrantDistanceInfo: {
         warrantType: 'BEAR',

@@ -14,6 +14,7 @@ export function isSeatReady(
   if (!seatState) {
     return false;
   }
+
   if (seatState.status !== 'READY') {
     return false;
   }
@@ -76,12 +77,15 @@ function resolveSeatUnavailableReason(seatState: SeatState): SeatUnavailableReas
   ) {
     return null;
   }
+
   if (seatState.status === 'SEARCHING') {
     return 'SEAT_SEARCHING';
   }
+
   if (seatState.status === 'SWITCHING') {
     return 'SEAT_SWITCHING';
   }
+
   if (isSeatFrozenToday(seatState)) {
     return 'SEAT_FROZEN_TODAY';
   }
@@ -142,6 +146,7 @@ export function resolveSeatOnStartup({
   if (!autoSearchEnabled) {
     return configuredSymbol ?? null;
   }
+
   if (!candidateSymbol) {
     return null;
   }
@@ -239,6 +244,7 @@ export function createSymbolRegistry(monitors: ReadonlyArray<MonitorConfig>): Sy
       if (!symbol) {
         return null;
       }
+
       for (const [monitorSymbol, entry] of registry) {
         if (entry.long.state.symbol === symbol) {
           return {
@@ -248,6 +254,7 @@ export function createSymbolRegistry(monitors: ReadonlyArray<MonitorConfig>): Sy
             seatVersion: entry.long.version,
           };
         }
+
         if (entry.short.state.symbol === symbol) {
           return {
             monitorSymbol,

@@ -15,6 +15,7 @@ function resolveRuntimeProfile(env: NodeJS.ProcessEnv): RuntimeProfile {
   if (explicitProfile === RUNTIME.TEST_PROFILE) {
     return RUNTIME.TEST_PROFILE;
   }
+
   if (explicitProfile === RUNTIME.APP_PROFILE) {
     return RUNTIME.APP_PROFILE;
   }

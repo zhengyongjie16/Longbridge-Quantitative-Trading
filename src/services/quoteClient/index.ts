@@ -119,6 +119,7 @@ function normalizeQuoteStaticInfo(staticInfo: unknown): QuoteStaticInfo | null {
     }
     return undefined;
   }
+
   function readNullableNumber(key: string): number | null | undefined {
     const fieldValue: unknown = staticInfoRecord[key];
     if (fieldValue === undefined || fieldValue === null || typeof fieldValue === 'number') {
@@ -126,6 +127,7 @@ function normalizeQuoteStaticInfo(staticInfo: unknown): QuoteStaticInfo | null {
     }
     return undefined;
   }
+
   function readWarrantType(): 'BULL' | 'BEAR' | null | undefined {
     const warrantTypeValue: unknown = staticInfoRecord['warrantType'];
     if (
@@ -237,6 +239,7 @@ function createTradingDayCache(): {
       set(dateStr, true, isHalfDay);
     }
   }
+
   function clear(): void {
     cache.clear();
   }

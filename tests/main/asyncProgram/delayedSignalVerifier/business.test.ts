@@ -53,9 +53,11 @@ describe('delayedSignalVerifier business flow', () => {
     withMockedNowSync(baseTime, () => {
       indicatorCache.push('HSI.HK', createSnapshotK(11));
     });
+
     withMockedNowSync(baseTime + 5_000, () => {
       indicatorCache.push('HSI.HK', createSnapshotK(12));
     });
+
     withMockedNowSync(baseTime + 10_000, () => {
       indicatorCache.push('HSI.HK', createSnapshotK(13));
     });
@@ -102,9 +104,11 @@ describe('delayedSignalVerifier business flow', () => {
     withMockedNowSync(baseTime, () => {
       indicatorCache.push('HSI.HK', createSnapshotK(9));
     });
+
     withMockedNowSync(baseTime + 5_000, () => {
       indicatorCache.push('HSI.HK', createSnapshotK(8));
     });
+
     withMockedNowSync(baseTime + 10_000, () => {
       indicatorCache.push('HSI.HK', createSnapshotK(7));
     });
@@ -149,9 +153,11 @@ describe('delayedSignalVerifier business flow', () => {
     withMockedNowSync(baseTime, () => {
       indicatorCache.push('HSI.HK', createSnapshotK(19));
     });
+
     withMockedNowSync(baseTime + 5_000, () => {
       indicatorCache.push('HSI.HK', createSnapshotK(18));
     });
+
     withMockedNowSync(baseTime + 10_000, () => {
       indicatorCache.push('HSI.HK', createSnapshotK(17));
     });
@@ -196,9 +202,11 @@ describe('delayedSignalVerifier business flow', () => {
     withMockedNowSync(baseTime, () => {
       indicatorCache.push('HSI.HK', createSnapshotK(41));
     });
+
     withMockedNowSync(baseTime + 5_000, () => {
       indicatorCache.push('HSI.HK', createSnapshotK(42));
     });
+
     withMockedNowSync(baseTime + 10_000, () => {
       indicatorCache.push('HSI.HK', createSnapshotK(43));
     });
@@ -243,6 +251,7 @@ describe('delayedSignalVerifier business flow', () => {
     withMockedNowSync(baseTime, () => {
       indicatorCache.push('HSI.HK', createSnapshotK(11));
     });
+
     withMockedNowSync(baseTime + 4_000, () => {
       indicatorCache.push('HSI.HK', createSnapshotK(12));
     });
@@ -288,9 +297,11 @@ describe('delayedSignalVerifier business flow', () => {
     withMockedNowSync(baseTime + 4_000, () => {
       indicatorCache.push('HSI.HK', createSnapshotK(11));
     });
+
     withMockedNowSync(baseTime + 5_000 + 4_000, () => {
       indicatorCache.push('HSI.HK', createSnapshotK(12));
     });
+
     withMockedNowSync(baseTime + 10_000 + 4_000, () => {
       indicatorCache.push('HSI.HK', createSnapshotK(13));
     });
@@ -343,6 +354,7 @@ describe('delayedSignalVerifier business flow', () => {
         }),
         'HSI.HK',
       );
+
       verifier.addSignal(
         createSignal({
           symbol: 'BEAR.HK',

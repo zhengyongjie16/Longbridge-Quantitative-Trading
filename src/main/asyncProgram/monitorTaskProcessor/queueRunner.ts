@@ -63,6 +63,7 @@ export function createQueueRunner({
     if (!running) {
       return;
     }
+
     if (monitorTaskQueue.isEmpty()) {
       immediateHandle = null;
       return;
@@ -78,6 +79,7 @@ export function createQueueRunner({
       if (!running) {
         return;
       }
+
       if (monitorTaskQueue.isEmpty()) {
         immediateHandle = null;
         return;
@@ -133,6 +135,7 @@ export function createQueueRunner({
       clearImmediate(immediateHandle);
       immediateHandle = null;
     }
+
     if (inFlightPromise !== null) {
       await inFlightPromise;
     }

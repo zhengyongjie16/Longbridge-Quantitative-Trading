@@ -29,6 +29,7 @@ import {
   createSymbolRegistryDouble,
   createTraderDouble,
 } from '../../helpers/testDoubles.js';
+
 function createLoggerStub() {
   return {
     info: () => {},
@@ -36,6 +37,7 @@ function createLoggerStub() {
     error: () => {},
   } as never;
 }
+
 function createQuotes(prices: Readonly<Record<string, number>>): ReadonlyMap<string, Quote | null> {
   const map = new Map<string, Quote | null>();
   for (const [symbol, price] of Object.entries(prices)) {
@@ -50,6 +52,7 @@ function createQuotes(prices: Readonly<Record<string, number>>): ReadonlyMap<str
   }
   return map;
 }
+
 function createTradingCalendarSnapshot() {
   return new Map([
     ['2026-02-16', { isTradingDay: true, isHalfDay: false }],
@@ -214,6 +217,7 @@ describe('periodic auto-switch regression', () => {
     expect(seat.symbol).toBe('OLD_BULL.HK');
     expect(harness.machine.hasPendingSwitch('LONG')).toBeFalse();
   });
+
   it('case2: periodic trigger starts switch when no buy orders', async () => {
     const readyMs = Date.parse('2026-02-16T01:00:00.000Z'); // 09:00 HK
     const nowMs = Date.parse('2026-02-16T01:31:00.000Z'); // 09:31 HK
@@ -233,6 +237,7 @@ describe('periodic auto-switch regression', () => {
     expect(seat.status).toBe('SWITCHING');
     expect(harness.machine.hasPendingSwitch('LONG')).toBeTrue();
   });
+
   it('case3: periodic trigger enters pending on position and switches after cleared', async () => {
     const readyMs = Date.parse('2026-02-16T01:00:00.000Z');
     const nowMs = Date.parse('2026-02-16T01:31:00.000Z');
@@ -262,6 +267,7 @@ describe('periodic auto-switch regression', () => {
     expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('SWITCHING');
     expect(harness.machine.hasPendingSwitch('LONG')).toBeTrue();
   });
+
   it('case4: distance switch takes priority while periodic pending', async () => {
     const readyMs = Date.parse('2026-02-16T01:00:00.000Z');
     const nowMs = Date.parse('2026-02-16T01:31:00.000Z');
@@ -290,6 +296,7 @@ describe('periodic auto-switch regression', () => {
     expect(seat.symbol).toBe('NEW_BULL.HK');
     expect(harness.machine.hasPendingSwitch('LONG')).toBeFalse();
   });
+
   it('case4-1: periodic pending is retained when distance trigger is suppressed by same candidate', async () => {
     const readyMs = Date.parse('2026-02-16T01:00:00.000Z');
     const nowMs = Date.parse('2026-02-16T01:31:00.000Z');
@@ -318,6 +325,7 @@ describe('periodic auto-switch regression', () => {
     expect(harness.periodicSwitchPending.get('LONG')?.pending).toBeTrue();
     expect(harness.machine.hasPendingSwitch('LONG')).toBeFalse();
   });
+
   it('case5: same candidate marks suppression and skips periodic switch', async () => {
     const readyMs = Date.parse('2026-02-16T01:00:00.000Z');
     const nowMs = Date.parse('2026-02-16T01:31:00.000Z');
@@ -338,6 +346,7 @@ describe('periodic auto-switch regression', () => {
     expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('READY');
     expect(harness.machine.hasPendingSwitch('LONG')).toBeFalse();
   });
+
   it('case6: no trigger in non-trading session, triggers after session resumes', async () => {
     const readyMs = Date.parse('2026-02-16T01:00:00.000Z');
     const nowMs = Date.parse('2026-02-16T01:31:00.000Z');
@@ -362,6 +371,7 @@ describe('periodic auto-switch regression', () => {
     });
     expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('SWITCHING');
   });
+
   it('case7: trading-minute timer pauses at lunch break', async () => {
     const readyMs = Date.parse('2026-02-16T03:59:00.000Z'); // 11:59 HK
     const harness = createPeriodicHarness({
@@ -392,6 +402,7 @@ describe('periodic auto-switch regression', () => {
     });
     expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('SWITCHING');
   });
+
   it('case8: cross-day trigger uses accumulated trading minutes instead of wall-clock', async () => {
     const readyMs = Date.parse('2026-02-16T07:59:00.000Z'); // Day1 15:59 HK
     const harness = createPeriodicHarness({
@@ -419,6 +430,7 @@ describe('periodic auto-switch regression', () => {
     });
     expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('SWITCHING');
   });
+
   it('case9: open protection blocks periodic switch until protection ends', async () => {
     const readyMs = Date.parse('2026-02-16T01:00:00.000Z');
     const nowMs = Date.parse('2026-02-16T01:31:00.000Z');
@@ -443,6 +455,7 @@ describe('periodic auto-switch regression', () => {
     });
     expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('SWITCHING');
   });
+
   it('case10: periodic switch never submits sell/rebuy orders', async () => {
     const readyMs = Date.parse('2026-02-16T01:00:00.000Z');
     const nowMs = Date.parse('2026-02-16T01:31:00.000Z');
@@ -485,6 +498,7 @@ describe('periodic auto-switch regression', () => {
     expect(seat.symbol).toBe('NEW_BULL.HK');
     expect(executeCalls).toBe(0);
   });
+
   it('case11: periodic switch cancel stage only cancels pending buy orders', async () => {
     const readyMs = Date.parse('2026-02-16T01:00:00.000Z');
     const nowMs = Date.parse('2026-02-16T01:31:00.000Z');

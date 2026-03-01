@@ -33,6 +33,7 @@ function toOrderNumber(value: unknown): number {
   ) {
     return decimalToNumber(value);
   }
+
   if (isRecord(value) && typeof value['toNumber'] === 'function') {
     const toNumberFn = value['toNumber'];
     if (typeof toNumberFn === 'function') {

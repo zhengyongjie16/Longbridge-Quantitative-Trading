@@ -72,6 +72,7 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
           lastState.cachedAccount = freshAccount;
           logger.debug('[缓存刷新] 订单成交后刷新账户缓存');
         }
+
         if (Array.isArray(freshPositions)) {
           lastState.cachedPositions = freshPositions;
           lastState.positionCache.update(freshPositions);
@@ -95,6 +96,7 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
         }
       }
     }
+
     for (const { symbol, isLongSymbol } of pending) {
       const monitorContext = monitorContextBySymbol.get(symbol);
       if (!monitorContext) {
@@ -124,6 +126,7 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
         );
       }
     }
+
     try {
       await displayAccountAndPositions({ lastState, quotesMap });
     } catch (err) {
@@ -177,6 +180,7 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
     if (!running || inFlight || immediateHandle) {
       return;
     }
+
     if (retryHandle) {
       clearTimeout(retryHandle);
       retryHandle = null;
@@ -229,6 +233,7 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
       clearImmediate(immediateHandle);
       immediateHandle = null;
     }
+
     if (retryHandle) {
       clearTimeout(retryHandle);
       retryHandle = null;

@@ -63,6 +63,7 @@ function shouldReplaceMergedEntry(
   if (candidateSource === 'today' && existingEntry.source === 'history') {
     return true;
   }
+
   if (candidateSource === 'history' && existingEntry.source === 'today') {
     return false;
   }
@@ -88,6 +89,7 @@ function mergeAndDeduplicateOrders(
       });
       continue;
     }
+
     if (shouldReplaceMergedEntry(existing, order, 'history')) {
       mergedByOrderId.set(order.orderId, {
         source: 'history',
@@ -105,6 +107,7 @@ function mergeAndDeduplicateOrders(
       });
       continue;
     }
+
     if (shouldReplaceMergedEntry(existing, order, 'today')) {
       mergedByOrderId.set(order.orderId, {
         source: 'today',

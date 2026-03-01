@@ -22,6 +22,7 @@ import type {
   Trader,
   TradingDaysResult,
 } from '../../../src/types/services.js';
+
 const emptyQuotesMap = new Map<string, Quote | null>();
 const emptyOrders: ReadonlyArray<RawOrderFromAPI> = [];
 const emptySeatState = {
@@ -39,6 +40,7 @@ function createMinimalLastState(): RebuildTradingDayStateDeps['lastState'] {
     cachedTradingDayInfo: null,
   } as unknown as RebuildTradingDayStateDeps['lastState'];
 }
+
 function createSymbolRegistry(
   seatStatus: 'READY' | 'EMPTY',
   symbol: string = 'BULL.HK',
@@ -59,6 +61,7 @@ function createSymbolRegistry(
     bumpSeatVersion: () => 1,
   };
 }
+
 function createBuyOrder(executedTime: number, symbol: string): OrderRecord {
   return {
     orderId: `BUY-${executedTime}`,
@@ -70,6 +73,7 @@ function createBuyOrder(executedTime: number, symbol: string): OrderRecord {
     updatedAt: new Date(executedTime),
   };
 }
+
 function createMonitorContext(params: {
   symbolRegistry: SymbolRegistry;
   monitorSymbol?: string;
@@ -100,6 +104,7 @@ function createMonitorContext(params: {
     monitorQuote: null,
   } as unknown as MonitorContext;
 }
+
 function createDefaultMarketDataClient(
   tradingDayCalls: Array<{ startDate: Date; endDate: Date }>,
 ): MarketDataClient {
@@ -114,6 +119,7 @@ function createDefaultMarketDataClient(
     isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
   } as unknown as MarketDataClient;
 }
+
 function createRebuildDeps(
   overrides?: Partial<RebuildTradingDayStateDeps>,
 ): RebuildTradingDayStateDeps {
@@ -164,6 +170,7 @@ describe('createRebuildTradingDayState', () => {
     expect(recoverCalled).toBe(true);
     expect(displayCalled).toBe(true);
   });
+
   it('仅存在已平仓历史订单时，预热起点不会回溯到历史订单时间', async () => {
     const oldExecutedTime = new Date('2024-01-05T03:00:00.000Z').getTime();
     const now = new Date('2026-02-20T03:00:00.000Z');
@@ -210,6 +217,7 @@ describe('createRebuildTradingDayState', () => {
     );
     expect(earliestRequestedMs).toBeGreaterThan(oldExecutedTime);
   });
+
   it('存在仍持仓老单时，预热起点回溯到该老单成交时间', async () => {
     const oldOpenOrderTime = new Date('2025-12-15T03:00:00.000Z').getTime();
     const tradingDayCalls: Array<{ startDate: Date; endDate: Date }> = [];
@@ -247,6 +255,7 @@ describe('createRebuildTradingDayState', () => {
       expect(lastState.tradingCalendarSnapshot?.has(oldOrderDateKey)).toBe(true);
     }
   });
+
   it('交易日历查询会按自然月分块，不跨月请求', async () => {
     const openOrderTime = new Date('2025-11-15T03:00:00.000Z').getTime();
     const now = new Date('2026-02-20T03:00:00.000Z');
@@ -275,6 +284,7 @@ describe('createRebuildTradingDayState', () => {
       expect(startMonthKey).toBe(endMonthKey);
     }
   });
+
   it('最近一年边界按毫秒判断，同日更早时刻也应判定为超限', async () => {
     const now = new Date('2026-02-20T12:00:00.000Z');
     const earliestAllowedMs = now.getTime() - 365 * TIME.MILLISECONDS_PER_DAY;
@@ -306,6 +316,7 @@ describe('createRebuildTradingDayState', () => {
     expect((caughtError as Error).message).toMatch(/\[Lifecycle\] 重建交易日状态失败/);
     expect(tradingDayCalls.length).toBe(0);
   });
+
   it('rebuildOrderRecords 中抛错时抛出带 [Lifecycle] 重建交易日状态失败 前缀的错误', async () => {
     const registry = createSymbolRegistry('READY');
     const monitorContexts = new Map<string, MonitorContext>([
@@ -328,6 +339,7 @@ describe('createRebuildTradingDayState', () => {
       /\[Lifecycle\] 重建交易日状态失败/,
     );
   });
+
   it('交易日历预热失败时，rebuildTradingDayState 会抛错', async () => {
     const registry = createSymbolRegistry('READY');
     const monitorContexts = new Map<string, MonitorContext>([
@@ -353,6 +365,7 @@ describe('createRebuildTradingDayState', () => {
       /\[Lifecycle\] 重建交易日状态失败/,
     );
   });
+
   it('displayAccountAndPositions 抛错时同样抛出带前缀的错误', async () => {
     const deps = createRebuildDeps({
       displayAccountAndPositions: async () => {

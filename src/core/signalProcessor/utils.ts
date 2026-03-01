@@ -268,6 +268,7 @@ export function getSymbolName(
   if (longSymbol && signalSymbol === longSymbol) {
     return longSymbolName;
   }
+
   if (shortSymbol && signalSymbol === shortSymbol) {
     return shortSymbolName;
   }

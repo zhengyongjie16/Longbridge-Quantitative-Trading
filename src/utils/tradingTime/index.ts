@@ -162,12 +162,15 @@ export function getTradingMinutesSinceOpen(date: Date | null | undefined): numbe
   if (currentMinutes < morningOpen) {
     return 0;
   }
+
   if (currentMinutes < morningClose) {
     return currentMinutes - morningOpen;
   }
+
   if (currentMinutes < afternoonOpen) {
     return morningMinutes;
   }
+
   if (currentMinutes < afternoonClose) {
     return morningMinutes + (currentMinutes - afternoonOpen);
   }

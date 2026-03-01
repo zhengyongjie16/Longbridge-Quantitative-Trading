@@ -25,17 +25,20 @@ describe('runtime utils business flow', () => {
         APP_RUNTIME_PROFILE: 'test',
       }),
     ).toBe(path.join(process.cwd(), 'tests', 'logs'));
+
     expect(
       resolveLogRootDir({
         APP_RUNTIME_PROFILE: 'app',
         BUN_TEST: '1',
       }),
     ).toBe(path.join(process.cwd(), 'logs'));
+
     expect(
       resolveLogRootDir({
         BUN_TEST: '1',
       }),
     ).toBe(path.join(process.cwd(), 'tests', 'logs'));
+
     expect(
       resolveLogRootDir({
         NODE_ENV: 'test',

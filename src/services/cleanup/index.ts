@@ -56,15 +56,19 @@ export function createCleanup(context: CleanupContext): {
     await runStep('停止 BuyProcessor', async () => {
       await buyProcessor.stopAndDrain();
     });
+
     await runStep('停止 SellProcessor', async () => {
       await sellProcessor.stopAndDrain();
     });
+
     await runStep('停止 MonitorTaskProcessor', async () => {
       await monitorTaskProcessor.stopAndDrain();
     });
+
     await runStep('停止 OrderMonitorWorker', async () => {
       await orderMonitorWorker.stopAndDrain();
     });
+
     await runStep('停止 PostTradeRefresher', async () => {
       await postTradeRefresher.stopAndDrain();
     });
@@ -76,9 +80,11 @@ export function createCleanup(context: CleanupContext): {
     await runStep('清空指标缓存', () => {
       indicatorCache.clearAll();
     });
+
     await runStep('释放监控快照对象', () => {
       releaseAllMonitorSnapshots(lastState.monitorStates);
     });
+
     await runStep('重置行情运行态订阅与缓存', async () => {
       await marketDataClient.resetRuntimeSubscriptionsAndCaches();
     });

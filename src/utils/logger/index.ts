@@ -35,6 +35,7 @@ export function retainLatestLogFiles(
   if (maxFiles < 1) {
     return;
   }
+
   if (!fs.existsSync(logDir)) {
     return;
   }
@@ -199,6 +200,7 @@ class DateRotatingStream extends Writable {
         stream.once('finish', () => {
           resolve();
         });
+
         stream.once('error', () => {
           resolve();
         });
@@ -259,6 +261,7 @@ class DateRotatingStream extends Writable {
           oldStream.once('finish', () => {
             resolve();
           });
+
           oldStream.once('error', (err) => {
             console.error('[DateRotatingStream] 关闭旧流错误:', err);
             resolve(); // 即使出错也继续

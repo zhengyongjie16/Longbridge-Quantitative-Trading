@@ -78,6 +78,7 @@ export function createAutoSymbolHandlers({
       currentTime: new Date(data.currentTimeMs),
       canTradeNow: data.canTradeNow,
     });
+
     await context.autoSymbolManager.maybeSwitchOnInterval({
       direction: data.direction,
       currentTime: new Date(data.currentTimeMs),
@@ -131,6 +132,7 @@ export function createAutoSymbolHandlers({
         positions: lastState.cachedPositions,
       });
     }
+
     if (seatReadiness.isShortReady) {
       if (getCanProcessTask && !getCanProcessTask()) {
         return 'skipped';

@@ -38,6 +38,7 @@ export function createOrderHoldRegistry(): OrderHoldRegistry {
     if (!orderId || !symbol) {
       return;
     }
+
     if (orderIdToSymbol.has(orderId)) {
       return;
     }
@@ -83,6 +84,7 @@ export function createOrderHoldRegistry(): OrderHoldRegistry {
       if (!order.symbol) {
         continue;
       }
+
       if (!PENDING_ORDER_STATUSES.has(order.status)) {
         continue;
       }

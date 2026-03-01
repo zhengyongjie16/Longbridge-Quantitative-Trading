@@ -40,15 +40,19 @@ export function formatError(err: unknown): string {
   if (err === null || err === undefined) {
     return '未知错误';
   }
+
   if (typeof err === 'string') {
     return err;
   }
+
   if (isError(err)) {
     return err.message || err.name || 'Error';
   }
+
   if (typeof err !== 'object') {
     return inspect(err, { depth: 5, maxArrayLength: 100 });
   }
+
   if (isErrorLike(err)) {
     const errorKeys = ['message', 'error', 'msg', 'code'] as const;
     for (const key of errorKeys) {
@@ -58,6 +62,7 @@ export function formatError(err: unknown): string {
       }
     }
   }
+
   try {
     return JSON.stringify(err);
   } catch {

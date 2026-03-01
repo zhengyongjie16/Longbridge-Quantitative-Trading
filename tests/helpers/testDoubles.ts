@@ -265,6 +265,7 @@ export function createSymbolRegistryDouble(params?: {
           seatVersion: longVersion,
         };
       }
+
       if (shortSeat.symbol === symbol) {
         return {
           monitorSymbol,

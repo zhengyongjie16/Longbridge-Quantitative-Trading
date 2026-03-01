@@ -82,6 +82,7 @@ export function extractOrderId(resp: unknown): string {
       return str;
     }
   }
+
   if (typeof resp === 'string') {
     return resp;
   }
@@ -98,6 +99,7 @@ export function toDecimal(value: unknown): Decimal {
   if (value instanceof Decimal) {
     return value;
   }
+
   if (typeof value === 'number' || typeof value === 'string') {
     return new Decimal(value);
   }
@@ -119,6 +121,7 @@ export function resolveOrderTypeConfig(
   if (signal.orderTypeOverride !== null && signal.orderTypeOverride !== undefined) {
     return signal.orderTypeOverride;
   }
+
   if (signal.isProtectiveLiquidation === true) {
     return globalConfig.liquidationOrderType;
   }

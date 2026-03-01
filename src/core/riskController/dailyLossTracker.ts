@@ -153,6 +153,7 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
       if (order.status !== OrderStatus.Filled) {
         continue;
       }
+
       if (!(order.updatedAt instanceof Date)) {
         continue;
       }
@@ -235,6 +236,7 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
     if (!record) {
       return;
     }
+
     if (input.side !== OrderSide.Buy && input.side !== OrderSide.Sell) {
       return;
     }

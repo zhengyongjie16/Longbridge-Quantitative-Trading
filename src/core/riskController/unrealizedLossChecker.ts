@@ -51,6 +51,7 @@ function calculateCostAndQuantity(
     if (!price || !quantity) {
       continue;
     }
+
     if (!decimalGt(price, 0) || !decimalGt(quantity, 0)) {
       continue;
     }

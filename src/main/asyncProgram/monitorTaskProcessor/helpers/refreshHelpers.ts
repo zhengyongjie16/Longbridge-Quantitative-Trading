@@ -60,6 +60,7 @@ export function createRefreshHelpers({
         lastState.cachedAccount = cachedAccountSnapshot;
       }
     }
+
     if (cachedPositionsSnapshot === undefined) {
       cachedPositionsSnapshot = await trader.getStockPositions();
       lastState.cachedPositions = [...cachedPositionsSnapshot];

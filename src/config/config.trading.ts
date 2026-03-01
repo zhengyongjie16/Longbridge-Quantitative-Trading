@@ -61,10 +61,12 @@ function parseBoundedNumberConfig({
   if (value === null) {
     return defaultValue;
   }
+
   if (value < min) {
     logger.warn(`[配置警告] ${envKey} 不能小于 ${min}，已设置为 ${min}`);
     return min;
   }
+
   if (value > max) {
     logger.warn(`[配置警告] ${envKey} 不能大于 ${max}，已设置为 ${max}`);
     return max;
@@ -94,10 +96,12 @@ function parseBoundedNumberConfigFromRaw({
   if (!Number.isFinite(value)) {
     return defaultValue;
   }
+
   if (value < min) {
     logger.warn(`[配置警告] ${envKey} 不能小于 ${min}，已设置为 ${min}`);
     return min;
   }
+
   if (value > max) {
     logger.warn(`[配置警告] ${envKey} 不能大于 ${max}，已设置为 ${max}`);
     return max;

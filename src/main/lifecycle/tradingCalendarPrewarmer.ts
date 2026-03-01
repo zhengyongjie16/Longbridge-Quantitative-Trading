@@ -95,6 +95,7 @@ function resolveEarliestOpenOrderExecutedMs(
       );
       earliestMs = resolveMinTimestamp(earliestMs, longOrders);
     }
+
     if (isSeatReady(shortSeatState)) {
       const shortOrders = monitorContext.orderRecorder.getBuyOrdersForSymbol(
         shortSeatState.symbol,
@@ -119,6 +120,7 @@ function resolveMinTimestamp(
     if (!Number.isFinite(executedTimeMs)) {
       continue;
     }
+
     if (earliestMs === null || executedTimeMs < earliestMs) {
       earliestMs = executedTimeMs;
     }

@@ -43,6 +43,7 @@ function resolveBuyQuantitySource(
       reason: `quantity 无效(${String(quantity)})，必须为大于 0 的有限数`,
     };
   }
+
   if (!Number.isInteger(quantity)) {
     return {
       source: 'INVALID',
@@ -61,6 +62,7 @@ function resolveBuyQuantitySource(
       reason: `lotSize 无效(${String(lotSize)})，无法校验整手约束`,
     };
   }
+
   if (!isLotMultiple(quantity, lotSize)) {
     return {
       source: 'INVALID',
@@ -139,6 +141,7 @@ function resolveBuyQuantity(
     );
     return Decimal.ZERO();
   }
+
   if (buyQuantitySource.source === 'EXPLICIT') {
     const actionType = isShortSymbol ? '买入做空标的（做空）' : '买入做多标的（做多）';
     logger.info(
@@ -204,6 +207,7 @@ export function createQuantityResolver(deps: {
       );
       return Decimal.ZERO();
     }
+
     if (targetQuantity === null) {
       return toDecimal(totalAvailable);
     }

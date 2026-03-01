@@ -15,6 +15,7 @@ export function formatSymbolDisplay(
   if (!symbol) {
     return '';
   }
+
   if (symbolName) {
     return `${symbolName}(${symbol})`;
   }

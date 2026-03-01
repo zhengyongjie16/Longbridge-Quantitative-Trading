@@ -94,6 +94,7 @@ describe('chaos: websocket out-of-order and duplicate pushes', () => {
       isProtectiveLiquidation: false,
       orderType: OrderType.ELO,
     });
+
     monitor.trackOrder({
       orderId: 'WS-CHAOS-002',
       symbol: 'BEAR.HK',

@@ -245,6 +245,16 @@ export default defineConfig(
           allowBlockStart: true,
         },
       ],
+      // import 与顶层块之间保留空行；相邻 import 不强制空行
+      // block-like 之间（如 function/function）保留空行
+      // 多行表达式之间（如 it/it）保留空行
+      '@stylistic/padding-line-between-statements': [
+        'error',
+        { blankLine: 'always', prev: 'import', next: '*' },
+        { blankLine: 'any', prev: 'import', next: 'import' },
+        { blankLine: 'always', prev: 'block-like', next: 'block-like' },
+        { blankLine: 'always', prev: 'multiline-expression', next: 'multiline-expression' },
+      ],
     },
   },
   {

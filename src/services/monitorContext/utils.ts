@@ -131,6 +131,7 @@ function extractIndicatorPeriods(
     if (!config?.conditionGroups) {
       continue;
     }
+
     for (const group of config.conditionGroups) {
       for (const condition of group.conditions) {
         if (!condition.indicator.startsWith(prefix)) {

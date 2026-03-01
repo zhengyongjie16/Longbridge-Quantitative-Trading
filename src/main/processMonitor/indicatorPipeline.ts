@@ -53,6 +53,7 @@ function normalizeCandleValue(value: unknown): CandleData['close'] {
   ) {
     return value;
   }
+
   if (isCandleObjectValue(value)) {
     return value;
   }

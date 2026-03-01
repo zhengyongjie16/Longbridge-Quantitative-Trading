@@ -84,6 +84,7 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
       runtime.trackedOrders.delete(orderId);
       return;
     }
+
     try {
       const cancelResult = await cancelOrderWithRuntimeCleanup(orderId);
       if (!cancelResult.cancelled) {
@@ -92,6 +93,7 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
         );
         return;
       }
+
       if (!isExecutionAllowed()) {
         logger.info(`[执行门禁] 门禁关闭，卖出订单 ${orderId} 超时转市价单被阻止，原订单已撤销`);
         return;
@@ -133,9 +135,11 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
         remainingQuantity,
         relatedBuyOrderIds,
       );
+
       logger.info(
         `[订单监控] 卖出订单 ${orderId} 已转为市价单，新订单ID=${newOrderId}，数量=${remainingQuantity}`,
       );
+
       trackOrder({
         orderId: newOrderId,
         symbol: order.symbol,
@@ -181,12 +185,14 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
           continue;
         }
       }
+
       if (
         NON_REPLACEABLE_ORDER_TYPES.has(order.orderType) ||
         NON_REPLACEABLE_ORDER_STATUSES.has(order.status)
       ) {
         continue;
       }
+
       if (now - order.lastPriceUpdateAt < config.priceUpdateIntervalMs) {
         continue;
       }
@@ -230,9 +236,11 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
       if (order.symbol !== symbol) {
         continue;
       }
+
       if (order.side !== OrderSide.Sell) {
         continue;
       }
+
       if (!PENDING_ORDER_STATUSES.has(order.status)) {
         continue;
       }

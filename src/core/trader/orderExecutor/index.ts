@@ -137,6 +137,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
         );
         continue;
       }
+
       if (!isExecutionAllowed()) {
         logger.info(`[执行门禁] 门禁已关闭，跳过信号: ${signalSymbolDisplay} ${signal.action}`);
         continue;

@@ -121,15 +121,19 @@ function releaseMonitorValuesObjects(monitorValues: MonitorValues | null): void 
   if (monitorValues.ema) {
     periodRecordPool.release(monitorValues.ema);
   }
+
   if (monitorValues.rsi) {
     periodRecordPool.release(monitorValues.rsi);
   }
+
   if (monitorValues.psy) {
     periodRecordPool.release(monitorValues.psy);
   }
+
   if (monitorValues.kdj) {
     kdjObjectPool.release(monitorValues.kdj);
   }
+
   if (monitorValues.macd) {
     macdObjectPool.release(monitorValues.macd);
   }
@@ -210,9 +214,11 @@ function displayIndicators(params: {
     if (Number.isFinite(kdj.k)) {
       indicators.push(`K=${formatIndicator(kdj.k, 3)}`);
     }
+
     if (Number.isFinite(kdj.d)) {
       indicators.push(`D=${formatIndicator(kdj.d, 3)}`);
     }
+
     if (Number.isFinite(kdj.j)) {
       indicators.push(`J=${formatIndicator(kdj.j, 3)}`);
     }
@@ -224,9 +230,11 @@ function displayIndicators(params: {
     if (Number.isFinite(macd.macd)) {
       indicators.push(`MACD=${formatIndicator(macd.macd, 3)}`);
     }
+
     if (Number.isFinite(macd.dif)) {
       indicators.push(`DIF=${formatIndicator(macd.dif, 3)}`);
     }
+
     if (Number.isFinite(macd.dea)) {
       indicators.push(`DEA=${formatIndicator(macd.dea, 3)}`);
     }
@@ -293,6 +301,7 @@ export function createMarketMonitor(): MarketMonitor {
         if (Number.isFinite(longPrice)) {
           monitorState.longPrice = longPrice ?? null;
         }
+
         if (Number.isFinite(shortPrice)) {
           monitorState.shortPrice = shortPrice ?? null;
         }

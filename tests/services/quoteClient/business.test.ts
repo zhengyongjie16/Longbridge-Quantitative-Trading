@@ -164,6 +164,7 @@ describe('quoteClient business flow', () => {
         },
       },
     ]);
+
     quoteMock.seedQuotes([
       {
         symbol: 'BULL.HK',
@@ -252,6 +253,7 @@ describe('quoteClient business flow', () => {
         },
       },
     ]);
+
     quoteMock.seedQuotes([
       {
         symbol: 'BULL.HK',

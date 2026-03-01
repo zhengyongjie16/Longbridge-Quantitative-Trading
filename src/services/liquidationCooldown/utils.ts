@@ -132,6 +132,7 @@ export function resolveCooldownCandidatesBySeat({
     if (!symbol || typeof executedAtMs !== 'number' || !Number.isFinite(executedAtMs)) {
       continue;
     }
+
     if (!seatSymbolSet.has(symbol)) {
       continue;
     }
@@ -153,6 +154,7 @@ export function resolveCooldownCandidatesBySeat({
     if (typeof executedAtMs !== 'number' || !Number.isFinite(executedAtMs)) {
       continue;
     }
+
     if (record.isProtectiveClearance !== true) {
       continue;
     }

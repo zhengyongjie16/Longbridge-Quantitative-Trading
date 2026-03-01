@@ -67,6 +67,7 @@ function hasChanged(
   if (current === null || current === undefined || last === null || last === undefined) {
     return current !== last;
   }
+
   if (!Number.isFinite(current) || !Number.isFinite(last)) {
     return false;
   }
@@ -110,6 +111,7 @@ function calculateChangePercent(
   ) {
     return null;
   }
+
   if (
     !Number.isFinite(currentPrice) ||
     !Number.isFinite(prevClose) ||
@@ -237,6 +239,7 @@ export function detectIndicatorChanges(
   ) {
     return true;
   }
+
   if (
     changePercent !== null &&
     (state.lastChangePercent === null || hasChanged(changePercent, state.lastChangePercent, 0.01))
@@ -254,6 +257,7 @@ export function detectIndicatorChanges(
   ) {
     return true;
   }
+
   if (
     hasPeriodRecordChanged(
       snapshot.rsi,
@@ -276,6 +280,7 @@ export function detectIndicatorChanges(
   if (hasKdjChanged(snapshot.kdj, state.lastKdj, config.changeThreshold)) {
     return true;
   }
+
   if (hasMacdChanged(snapshot.macd, state.lastMacd, config.changeThreshold)) {
     return true;
   }
@@ -355,9 +360,11 @@ function buildIndicatorSegments(
     if (Number.isFinite(snapshot.kdj.k)) {
       segments.push(`K=${formatIndicator(snapshot.kdj.k, 3)}`);
     }
+
     if (Number.isFinite(snapshot.kdj.d)) {
       segments.push(`D=${formatIndicator(snapshot.kdj.d, 3)}`);
     }
+
     if (Number.isFinite(snapshot.kdj.j)) {
       segments.push(`J=${formatIndicator(snapshot.kdj.j, 3)}`);
     }
@@ -367,9 +374,11 @@ function buildIndicatorSegments(
     if (Number.isFinite(snapshot.macd.macd)) {
       segments.push(`MACD=${formatIndicator(snapshot.macd.macd, 3)}`);
     }
+
     if (Number.isFinite(snapshot.macd.dif)) {
       segments.push(`DIF=${formatIndicator(snapshot.macd.dif, 3)}`);
     }
+
     if (Number.isFinite(snapshot.macd.dea)) {
       segments.push(`DEA=${formatIndicator(snapshot.macd.dea, 3)}`);
     }

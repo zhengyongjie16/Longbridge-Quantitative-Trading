@@ -68,6 +68,7 @@ export function buildExpiryDateFilters(
   if (!Number.isFinite(expiryMinMonths) || expiryMinMonths <= 3) {
     return EXPIRY_DATE_FILTERS;
   }
+
   if (expiryMinMonths <= 6) {
     return EXPIRY_DATE_FILTERS.slice(1);
   }
@@ -108,6 +109,7 @@ export function selectBestWarrant({
     if (!warrant.symbol) {
       continue;
     }
+
     if (!isNormalStatus(warrant.status)) {
       continue;
     }

@@ -128,6 +128,7 @@ import {
   isWithinMorningOpenProtection,
 } from './utils/tradingTime/index.js';
 import { sleep } from './main/utils.js';
+
 dotenv.config({ path: '.env.local' });
 
 /**
@@ -339,6 +340,7 @@ async function main(): Promise<void> {
       required: !autoSearchEnabled,
       collector: runtimeValidationCollector,
     });
+
     pushRuntimeValidationSymbol({
       symbol: shortSeatSymbol,
       label: `做空席位标的 ${index}`,
@@ -373,6 +375,7 @@ async function main(): Promise<void> {
         logger.warn(`${index + 1}. ${warning}`);
       }
     }
+
     if (!runtimeValidationResult.valid) {
       logger.error('标的验证失败！');
       logger.error('='.repeat(60));
@@ -498,6 +501,7 @@ async function main(): Promise<void> {
         logger.info(`${prefix}: ${signalLabel}`);
         signalObjectPool.release(signal);
       }
+
       if (!lastState.isTradingEnabled) {
         discardSignal('[延迟验证通过] 生命周期门禁关闭，丢弃信号');
         return;
@@ -510,10 +514,12 @@ async function main(): Promise<void> {
         discardSignal(`[延迟验证通过] ${describeSeatUnavailable(seatState)}，丢弃信号`);
         return;
       }
+
       if (!isSeatVersionMatch(signal.seatVersion, seatVersion)) {
         discardSignal('[延迟验证通过] 席位版本不匹配，丢弃信号');
         return;
       }
+
       if (signal.symbol !== seatState.symbol) {
         discardSignal('[延迟验证通过] 标的已切换，丢弃信号');
         return;
@@ -538,6 +544,7 @@ async function main(): Promise<void> {
         });
       }
     });
+
     logger.debug(
       `[DelayedSignalVerifier] 监控标的 ${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)} 的验证器已初始化`,
     );

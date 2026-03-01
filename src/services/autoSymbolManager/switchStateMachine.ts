@@ -163,6 +163,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
       switchStates.delete(direction);
       return false;
     }
+
     if (switchState.stage === 'COMPLETE' || switchState.stage === 'FAILED') {
       switchStates.delete(direction);
       return false;

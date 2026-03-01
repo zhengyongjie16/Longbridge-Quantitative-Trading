@@ -196,6 +196,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
         if (longSymbol) {
           allTradingSymbols.add(longSymbol);
         }
+
         if (shortSymbol) {
           allTradingSymbols.add(shortSymbol);
         }
@@ -279,6 +280,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
           const quote = quoteMap.get(longSymbol) ?? null;
           orderRecorder.clearBuyOrders(longSymbol, true, quote);
         }
+
         if (shortSymbol) {
           const quote = quoteMap.get(shortSymbol) ?? null;
           orderRecorder.clearBuyOrders(shortSymbol, false, quote);
@@ -318,10 +320,12 @@ export function createDoomsdayProtection(): DoomsdayProtection {
         if (longSymbol) {
           allTradingSymbols.add(longSymbol);
         }
+
         if (shortSymbol) {
           allTradingSymbols.add(shortSymbol);
         }
       }
+
       if (allTradingSymbols.size === 0) {
         return { executed: false, cancelledCount: 0 };
       }
@@ -362,6 +366,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
           );
         }
       }
+
       if (cancelledCount > 0) {
         logger.info(
           `[末日保护程序] 已撤销 ${cancelledCount}/${pendingBuyOrders.length} 个买入订单`,

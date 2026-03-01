@@ -89,6 +89,7 @@ export function createSeatRefreshHandler({
     if (!isSeatVersionMatch(data.seatVersion, seatVersion)) {
       return 'skipped';
     }
+
     if (!isSeatReady(seatState) || seatState.symbol !== data.nextSymbol) {
       return 'skipped';
     }
@@ -122,6 +123,7 @@ export function createSeatRefreshHandler({
       tradingConfig.monitors,
       new Date(),
     );
+
     await (isLong
       ? context.orderRecorder.refreshOrdersFromAllOrdersForLong(
           data.nextSymbol,

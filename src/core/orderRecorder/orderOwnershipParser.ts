@@ -30,6 +30,7 @@ function resolveDirectionFromNormalizedName(normalizedStockName: string): 'LONG'
   if (hasLongMarker && !hasShortMarker) {
     return 'LONG';
   }
+
   if (hasShortMarker && !hasLongMarker) {
     return 'SHORT';
   }
@@ -63,6 +64,7 @@ function parseOrderOwnership(
     if (!normalizedAlias) {
       continue;
     }
+
     if (normalizedStockName.includes(normalizedAlias)) {
       return direction;
     }

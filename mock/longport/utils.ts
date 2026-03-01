@@ -181,6 +181,7 @@ export function applyMockFailureRule(params: {
   if (!isMethodSupported(method, supportedMethods)) {
     return;
   }
+
   if (!rule) {
     state.rules.delete(method);
     return;
