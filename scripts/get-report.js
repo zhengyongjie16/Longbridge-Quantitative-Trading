@@ -65,10 +65,7 @@ async function fetchAllData() {
       `/api/measures/component?component=${SONAR_PROJECT_KEY}&metricKeys=${metrics}`,
       config,
     ),
-    apiRequest(
-      `/api/qualitygates/project_status?projectKey=${SONAR_PROJECT_KEY}`,
-      config,
-    ),
+    apiRequest(`/api/qualitygates/project_status?projectKey=${SONAR_PROJECT_KEY}`, config),
   ]);
 
   const issues = await getAllIssues();

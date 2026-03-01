@@ -46,7 +46,6 @@ export const createIndicatorCache = (options: IndicatorCacheOptions = {}): Indic
   };
 
   return {
-
     /**
      * 推送指标快照到指定标的的缓冲区
      * 对 snapshot 进行深拷贝后存储，确保数据独立于外部对象池

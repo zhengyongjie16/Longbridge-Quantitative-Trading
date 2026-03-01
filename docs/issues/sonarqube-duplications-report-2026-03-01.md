@@ -10,12 +10,12 @@
 
 ### 已完成的修复
 
-| 优先级 | 组号 | 内容 | 状态 |
-|--------|------|------|------|
-| **P0** | 43、44、47、69 | 生产代码重复（buyProcessor/sellProcessor、tradingTime/lifecycle、monitorTaskProcessor handlers、OrderRecorder 类型） | ✅ 已修复 |
-| **P1** | 31、84 | configFactory 单一来源、dailyIndicatorAnalysis utils 内重复 | ✅ 已修复 |
-| **P2** | 12–15、20–27、8–11 | 测试重复（asyncProgram、cleanup、autoSymbolManager 抽 utils/helper） | ✅ 已部分修复 |
-| **补充** | 29–30、64 | processMonitor 测试复用 asyncProgram 的 createMonitorContext；tests/main/asyncProgram/utils 内 createMonitorContext/createMonitorTaskContext 抽 buildMonitorContextBase | ✅ 已修复 |
+| 优先级   | 组号               | 内容                                                                                                                                                                    | 状态          |
+| -------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| **P0**   | 43、44、47、69     | 生产代码重复（buyProcessor/sellProcessor、tradingTime/lifecycle、monitorTaskProcessor handlers、OrderRecorder 类型）                                                    | ✅ 已修复     |
+| **P1**   | 31、84             | configFactory 单一来源、dailyIndicatorAnalysis utils 内重复                                                                                                             | ✅ 已修复     |
+| **P2**   | 12–15、20–27、8–11 | 测试重复（asyncProgram、cleanup、autoSymbolManager 抽 utils/helper）                                                                                                    | ✅ 已部分修复 |
+| **补充** | 29–30、64          | processMonitor 测试复用 asyncProgram 的 createMonitorContext；tests/main/asyncProgram/utils 内 createMonitorContext/createMonitorTaskContext 抽 buildMonitorContextBase | ✅ 已修复     |
 
 **重新执行 `bun sonarqube` 后再运行 `bun sonarqube:duplications`**（2026-03-01 校验）：**涉及文件数 27、重复块组数 60**。组 29–30、64 已从报告中消失（processMonitor 复用 createMonitorContext、tests/main/asyncProgram/utils 内 buildMonitorContextBase 生效）。**所有必要性修复已完成**：无生产代码（src/）、无 Mock/工具脚本重复；剩余 60 组均为测试代码重复（可选修复）。
 
@@ -27,11 +27,11 @@
 
 ### 剩余重复是否有必要继续修复
 
-| 类型 | 建议 | 说明 |
-|------|------|------|
+| 类型                                 | 建议       | 说明                                                                                                                                             |
+| ------------------------------------ | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **测试用例间重复（同文件或跨文件）** | 可选、按需 | 可维护性有益：抽 `run*`/`assert*`/`it.each` 可减少重复；不影响功能。优先处理跨文件、行数多的组（如 integration 大块、switchStateMachine 多段）。 |
-| **单文件内多用例同结构** | 低优先级 | 用 `it.each` 或参数化场景函数即可收敛，需改动测试结构。 |
-| **chaos/regression/helpers 交叉** | 中优先级 | 文档 3.1 节已建议抽到 `tests/helpers`，修复后可减少 3 组以上。 |
+| **单文件内多用例同结构**             | 低优先级   | 用 `it.each` 或参数化场景函数即可收敛，需改动测试结构。                                                                                          |
+| **chaos/regression/helpers 交叉**    | 中优先级   | 文档 3.1 节已建议抽到 `tests/helpers`，修复后可减少 3 组以上。                                                                                   |
 
 结论：**无必须修复项**；继续修复仅为降低重复度、提升可维护性，可按排期择组处理。
 
@@ -359,23 +359,23 @@
 
 以下为执行 `bun sonarqube` 后运行 `bun sonarqube:duplications` 得到的** 60 组**重复（均为**测试代码**，27 个文件）。可按需择组收敛。
 
-| 组号 | 位置概要 | 建议 |
-|------|----------|------|
-| 1–3 | chaos / regression / postTradeRefresher | 抽到 `tests/helpers`（如 chaosRegressionEnv、subscribeAndWait、runPostTradeRefreshScenario） |
-| 4–7 | auto-symbol-switch、full-business-simulation、periodic-auto-symbol-chain 同文件内多段 | 参数化场景函数（runAutoSymbolSwitchScenario、runOneBusinessRound 等） |
-| 8–9 | autoSearch.business.test 内部 | it.each 或 buildAutoSearchTestCase |
-| 10–13 | sellProcessor/buyProcessor/monitorTaskProcessor business.test 内部 | describe.each 或 buildProcessorTestCase |
-| 14 | cleanup/business.test 内部 | 已部分收敛，可继续用 runCleanupTestCase/it.each |
-| 15–19 | buy-flow integration、lifecycle（dayLifecycleManager） | runOrderAndWaitFilled 等入 tests/helpers；lifecycle 入 tests/main/lifecycle/utils.ts |
-| 20–27 | full-business-simulation、main-loop-latency 多段 | runSimulationStart、runOneBusinessRound、assertSimulationState 等 |
-| 28–29 | orderRecorder / resolveSellQuantityBySmartClose / testDoubles | tests/helpers 或 tests/core/utils 单一 fixture 工厂 |
-| 30 | loadTradingDayRuntimeSnapshot 同文件内 | tests/main/lifecycle/utils.ts 场景函数 |
-| 31–33 | main-program-strict / multi-monitor-concurrency | tests/helpers 统一编排函数 |
-| 34–36 | periodic-auto-symbol-chain 大块（含 126 行） | 运行一条链的公共场景函数，参数区分链/周期 |
-| 37–42 | autoSymbolManager periodicSwitch / switchStateMachine | it.each 或 tests/services/autoSymbolManager/utils 场景函数 |
-| 43–44 | startup/seat、processMonitor/seatSync | tests/main/startup/utils、processMonitor/utils 场景函数 |
-| 45–50 | sell-flow.integration.test 多段 | runOrderAndWaitFilled、assertPositionAfterFill 等 |
-| 51–60 | switchStateMachine.business.test 内部多段 | 表格驱动 / it.each 收敛 |
+| 组号  | 位置概要                                                                              | 建议                                                                                         |
+| ----- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| 1–3   | chaos / regression / postTradeRefresher                                               | 抽到 `tests/helpers`（如 chaosRegressionEnv、subscribeAndWait、runPostTradeRefreshScenario） |
+| 4–7   | auto-symbol-switch、full-business-simulation、periodic-auto-symbol-chain 同文件内多段 | 参数化场景函数（runAutoSymbolSwitchScenario、runOneBusinessRound 等）                        |
+| 8–9   | autoSearch.business.test 内部                                                         | it.each 或 buildAutoSearchTestCase                                                           |
+| 10–13 | sellProcessor/buyProcessor/monitorTaskProcessor business.test 内部                    | describe.each 或 buildProcessorTestCase                                                      |
+| 14    | cleanup/business.test 内部                                                            | 已部分收敛，可继续用 runCleanupTestCase/it.each                                              |
+| 15–19 | buy-flow integration、lifecycle（dayLifecycleManager）                                | runOrderAndWaitFilled 等入 tests/helpers；lifecycle 入 tests/main/lifecycle/utils.ts         |
+| 20–27 | full-business-simulation、main-loop-latency 多段                                      | runSimulationStart、runOneBusinessRound、assertSimulationState 等                            |
+| 28–29 | orderRecorder / resolveSellQuantityBySmartClose / testDoubles                         | tests/helpers 或 tests/core/utils 单一 fixture 工厂                                          |
+| 30    | loadTradingDayRuntimeSnapshot 同文件内                                                | tests/main/lifecycle/utils.ts 场景函数                                                       |
+| 31–33 | main-program-strict / multi-monitor-concurrency                                       | tests/helpers 统一编排函数                                                                   |
+| 34–36 | periodic-auto-symbol-chain 大块（含 126 行）                                          | 运行一条链的公共场景函数，参数区分链/周期                                                    |
+| 37–42 | autoSymbolManager periodicSwitch / switchStateMachine                                 | it.each 或 tests/services/autoSymbolManager/utils 场景函数                                   |
+| 43–44 | startup/seat、processMonitor/seatSync                                                 | tests/main/startup/utils、processMonitor/utils 场景函数                                      |
+| 45–50 | sell-flow.integration.test 多段                                                       | runOrderAndWaitFilled、assertPositionAfterFill 等                                            |
+| 51–60 | switchStateMachine.business.test 内部多段                                             | 表格驱动 / it.each 收敛                                                                      |
 
 ---
 

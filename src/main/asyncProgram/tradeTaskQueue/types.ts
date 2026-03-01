@@ -15,7 +15,6 @@ export type TaskAddedCallback = () => void;
  * 使用范围：tradeTaskQueue、buyProcessor、sellProcessor、mainProgram 等，仅内部使用。
  */
 export type Task<TType extends string> = {
-
   /** 任务唯一标识（UUID） */
   readonly id: string;
 
@@ -39,7 +38,6 @@ export type Task<TType extends string> = {
  * 使用范围：mainProgram、buyProcessor、sellProcessor、processMonitor、lifecycle 等，仅内部使用。
  */
 export interface TaskQueue<TType extends string> {
-
   /** 入队任务（自动生成 id 和 createdAt） */
   push: (task: Omit<Task<TType>, 'id' | 'createdAt'>) => void;
 

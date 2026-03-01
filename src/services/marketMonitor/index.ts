@@ -256,7 +256,6 @@ function displayIndicators(params: {
  */
 export function createMarketMonitor(): MarketMonitor {
   return {
-
     /**
      * 检测做多/做空标的价格变化，变化时打印行情并更新状态。
      * 首次出现有效价格也视为变化，确保启动后立即输出一次行情。

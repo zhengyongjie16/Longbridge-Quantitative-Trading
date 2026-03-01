@@ -48,13 +48,7 @@ export async function evaluateMonitorContextAndSeatReadiness(params: {
   readonly longSnapshot: SeatSnapshot;
   readonly shortSnapshot: SeatSnapshot;
 }): Promise<MonitorContextAndSeatReadiness | null> {
-  const {
-    getContextOrSkip,
-    refreshGate,
-    monitorSymbol,
-    longSnapshot,
-    shortSnapshot,
-  } = params;
+  const { getContextOrSkip, refreshGate, monitorSymbol, longSnapshot, shortSnapshot } = params;
   const context = getContextOrSkip(monitorSymbol);
   if (!context) {
     return null;

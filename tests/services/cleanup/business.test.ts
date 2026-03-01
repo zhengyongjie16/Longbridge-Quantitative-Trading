@@ -8,11 +8,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { createCleanup } from '../../../src/services/cleanup/index.js';
 import type { MonitorContext } from '../../../src/types/state.js';
-import {
-  createCleanupDeps,
-  createLastState,
-  createMonitorState,
-} from './utils.js';
+import { createCleanupDeps, createLastState, createMonitorState } from './utils.js';
 
 describe('cleanup business flow', () => {
   it('drains processors, destroys delayed verifiers and releases monitor snapshots', async () => {
@@ -32,9 +28,7 @@ describe('cleanup business flow', () => {
     ]);
     const lastState = createLastState(new Map([['HSI.HK', monitorState]]));
 
-    const cleanup = createCleanup(
-      createCleanupDeps(steps, { monitorContexts, lastState }),
-    );
+    const cleanup = createCleanup(createCleanupDeps(steps, { monitorContexts, lastState }));
 
     await cleanup.execute();
 

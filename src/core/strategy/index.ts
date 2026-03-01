@@ -255,7 +255,6 @@ export const createHangSengMultiIndicatorStrategy = ({
     return { signal, isImmediate: false };
   };
   return {
-
     /**
      * 生成交易信号
      *

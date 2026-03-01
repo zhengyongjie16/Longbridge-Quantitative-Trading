@@ -26,7 +26,6 @@ export type OrderTypeConfig = 'LO' | 'ELO' | 'MO';
  * 使用范围：策略、信号处理、Trader、对象池等；全项目可引用。
  */
 export type Signal = {
-
   /** 交易标的代码 */
   symbol: string;
 

@@ -199,8 +199,13 @@ function calculateADX(candles: ReadonlyArray<CandleData>, period: number): numbe
       return null;
     }
     atr = atr - atr / period + seg.trueRange;
-    plusDm = plusDm - plusDm / period + (seg.upMove > seg.downMove && seg.upMove > 0 ? seg.upMove : 0);
-    minusDm = minusDm - minusDm / period + (seg.downMove > seg.upMove && seg.downMove > 0 ? seg.downMove : 0);
+    plusDm =
+      plusDm - plusDm / period + (seg.upMove > seg.downMove && seg.upMove > 0 ? seg.upMove : 0);
+
+    minusDm =
+      minusDm -
+      minusDm / period +
+      (seg.downMove > seg.upMove && seg.downMove > 0 ? seg.downMove : 0);
 
     if (atr === 0) {
       dxValues.push(0);

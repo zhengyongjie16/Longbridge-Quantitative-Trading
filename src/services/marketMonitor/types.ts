@@ -9,7 +9,6 @@ import type { UnrealizedLossMetrics, WarrantDistanceInfo } from '../../types/ser
  * 使用范围：marketMonitor.monitorPriceChanges 入参。
  */
 export type PriceDisplayInfo = {
-
   /** 距回收价信息 */
   readonly warrantDistanceInfo: WarrantDistanceInfo | null;
 
@@ -27,7 +26,6 @@ export type PriceDisplayInfo = {
  * 使用范围：主循环调用，仅用于控制台输出。
  */
 export interface MarketMonitor {
-
   /**
    * 监控并显示做多和做空标的的价格变化
    * @param longQuote 做多标的行情数据

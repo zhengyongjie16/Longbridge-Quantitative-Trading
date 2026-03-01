@@ -51,7 +51,6 @@ export type SignalGenerationResult = {
  * 使用范围：主程序持有并调用；仅 strategy 模块实现。
  */
 export interface HangSengMultiIndicatorStrategy {
-
   /**
    * 生成交易信号
    *

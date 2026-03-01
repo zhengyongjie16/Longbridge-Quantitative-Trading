@@ -50,9 +50,7 @@ export function createMonitorState(monitorSymbol: string): MonitorState {
  * @param monitorStates 监控状态 Map
  * @returns 用于测试的 LastState
  */
-export function createLastState(
-  monitorStates: ReadonlyMap<string, MonitorState>,
-): LastState {
+export function createLastState(monitorStates: ReadonlyMap<string, MonitorState>): LastState {
   return {
     canTrade: true,
     isHalfDay: false,

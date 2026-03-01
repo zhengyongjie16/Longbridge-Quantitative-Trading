@@ -24,7 +24,6 @@ export type QuoteStaticInfo = {
  * 使用范围：行情客户端、策略、风控、订单监控等；全项目可引用。
  */
 export type Quote = {
-
   /** 标的代码 */
   readonly symbol: string;
 
@@ -57,7 +56,6 @@ export type Quote = {
  * 使用范围：IndicatorSnapshot、策略、data.MonitorValues 等；全项目可引用。
  */
 export type KDJIndicator = {
-
   /** K 值（快速随机值） */
   readonly k: number;
 
@@ -75,7 +73,6 @@ export type KDJIndicator = {
  * 使用范围：IndicatorSnapshot、策略、data.MonitorValues 等；全项目可引用。
  */
 export type MACDIndicator = {
-
   /** MACD 柱状图值 */
   readonly macd: number;
 
@@ -93,7 +90,6 @@ export type MACDIndicator = {
  * 使用范围：策略、DelayedSignalVerifier、RiskCheckContext 等；全项目可引用。
  */
 export type IndicatorSnapshot = {
-
   /** 标的代码（可选，因为 Quote 已包含） */
   readonly symbol?: string;
 

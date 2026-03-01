@@ -16,7 +16,6 @@ import type { OrderTypeConfig, SignalType } from '../types/signal.js';
 
 /** 时间相关常量 */
 export const TIME = {
-
   /** 每秒的毫秒数 */
   MILLISECONDS_PER_SECOND: 1000,
 
@@ -32,7 +31,6 @@ export const TIME = {
 
 /** 运行时环境变量与档位常量 */
 export const RUNTIME = {
-
   /** 环境变量：运行时档位（app/test） */
   PROFILE_ENV_KEY: 'APP_RUNTIME_PROFILE',
 
@@ -54,7 +52,6 @@ export const HK_DATE_KEY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 /** 交易相关常量 */
 export const TRADING = {
-
   /** 默认目标金额（港币），单次开仓的目标市值 */
   DEFAULT_TARGET_NOTIONAL: 5000,
 
@@ -80,7 +77,6 @@ export const AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY = 3;
 
 /** 生命周期重建相关常量 */
 export const LIFECYCLE = {
-
   /** 开盘重建失败后首次重试间隔（毫秒） */
   DEFAULT_REBUILD_RETRY_DELAY_MS: 30_000,
 
@@ -107,7 +103,6 @@ export const DEFAULT_PSY_PERIOD = 13;
  * 用于 DelayedSignalVerifier 模块，验证开仓信号的趋势持续性
  */
 export const VERIFICATION = {
-
   /** 验证时间点1偏移量（秒），信号触发后首次验证 */
   TIME_OFFSET_1_SECONDS: 5,
 
@@ -132,7 +127,6 @@ export const SIGNAL_CONFIG_SUPPORTED_INDICATORS = ['MFI', 'K', 'D', 'J'] as cons
 
 /** 日志相关常量，用于 pino 日志系统 */
 export const LOGGING = {
-
   /** 文件流 drain 超时时间（毫秒），程序退出时等待日志写入 */
   DRAIN_TIMEOUT_MS: 5000,
 
@@ -172,7 +166,6 @@ export const IS_DEBUG = process.env['DEBUG'] === 'true';
 
 /** API 相关常量，用于 LongPort API 调用 */
 export const API = {
-
   /** 默认重试次数，API 调用失败时的重试上限 */
   DEFAULT_RETRY_COUNT: 2,
 
@@ -194,7 +187,6 @@ export const API = {
 
 /** 指标缓存相关常量 */
 export const INDICATOR_CACHE = {
-
   /** 指标计算缓存 TTL（毫秒） */
   CALCULATION_TTL_MS: 5_000,
 
@@ -207,7 +199,6 @@ export const INDICATOR_CACHE = {
 
 /** 行情监控相关常量，用于 MarketMonitor 检测价格/指标变化 */
 export const MONITOR = {
-
   /** 价格变化检测阈值，低于此值不触发更新 */
   PRICE_CHANGE_THRESHOLD: 0.001,
 

@@ -228,7 +228,6 @@ export type DailyLossFilledOrderInput = {
  * 使用范围：主程序通过 riskDomain 使用；仅 riskController 模块实现。
  */
 export interface DailyLossTracker {
-
   /** 显式重置 dayKey 与 states */
   resetAll: (now: Date) => void;
 
@@ -292,7 +291,6 @@ export type UnrealizedLossMonitorContext = {
  * 使用范围：主程序通过 riskDomain 使用；仅 riskController 模块实现。
  */
 export interface UnrealizedLossMonitor {
-
   /**
    * 监控做多和做空标的的浮亏
    * @param context 浮亏监控上下文
@@ -307,7 +305,6 @@ export interface UnrealizedLossMonitor {
  * 使用范围：仅 riskController 模块内部使用。
  */
 export type UnrealizedLossMonitorDeps = {
-
   /** 单标的最大浮亏阈值（港币），<=0 表示禁用浮亏监控 */
   readonly maxUnrealizedLossPerSymbol: number;
 };

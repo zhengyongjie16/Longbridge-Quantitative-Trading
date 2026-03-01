@@ -16,11 +16,7 @@ import {
   createSignalDouble,
   createTraderDouble,
 } from '../../../helpers/testDoubles.js';
-import {
-  createLastState,
-  createMonitorContext,
-  runProcessorFlow,
-} from '../utils.js';
+import { createLastState, createMonitorContext, runProcessorFlow } from '../utils.js';
 
 describe('buyProcessor business flow', () => {
   it('runs risk pipeline then executes buy order with execution-time quote price/lotSize', async () => {

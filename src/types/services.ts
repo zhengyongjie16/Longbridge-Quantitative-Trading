@@ -22,7 +22,6 @@ import type { TradingCalendarSnapshot } from './tradingCalendar.js';
  * 使用范围：行情客户端、生命周期、门禁等；全项目可引用。
  */
 export type TradingDaysResult = {
-
   /** 完整交易日列表 */
   readonly tradingDays: ReadonlyArray<string>;
 
@@ -37,7 +36,6 @@ export type TradingDaysResult = {
  * 使用范围：行情客户端、生命周期、门禁等；全项目可引用。
  */
 export type TradingDayInfo = {
-
   /** 是否为交易日 */
   readonly isTradingDay: boolean;
 
@@ -52,7 +50,6 @@ export type TradingDayInfo = {
  * 使用范围：主程序、生命周期、processMonitor、行情订阅与 K 线消费方等；全项目可引用。
  */
 export interface MarketDataClient {
-
   /** 获取底层 QuoteContext（内部使用） */
   getQuoteContext: () => Promise<QuoteContext>;
 
@@ -159,7 +156,6 @@ export type RawOrderFromAPI = {
  * 使用范围：OrderRecorder、RiskChecker、卖出计算、智能平仓等；全项目可引用。
  */
 export type OrderRecord = {
-
   /** 订单 ID */
   readonly orderId: string;
 
@@ -189,7 +185,6 @@ export type OrderRecord = {
  * 使用范围：OrderRecorder、OrderStorage、订单监控等；全项目可引用。
  */
 export type PendingSellInfo = {
-
   /** 卖出订单ID */
   readonly orderId: string;
 
@@ -248,7 +243,6 @@ export type SellableOrderSelectParams = {
  * 使用范围：见调用方（如 signalProcessor、trader）。
  */
 export type SellableOrderResult = {
-
   /** 可卖出的订单记录列表 */
   readonly orders: ReadonlyArray<OrderRecord>;
 
@@ -263,7 +257,6 @@ export type SellableOrderResult = {
  * 使用范围：主循环、买卖处理器等；全项目可引用。
  */
 export type TradeCheckResult = {
-
   /** 是否可以交易 */
   readonly canTrade: boolean;
 
@@ -284,7 +277,6 @@ export type TradeCheckResult = {
  * 使用范围：Trader、行情客户端等限流场景；见调用方。
  */
 export interface RateLimiter {
-
   /** 等待限流通过 */
   throttle: () => Promise<void>;
 }
@@ -296,7 +288,6 @@ export interface RateLimiter {
  * 使用范围：src/types/services（OrderRecorder）、src/core/orderRecorder/types（OrderStorage）从本处直接引用。
  */
 export interface OrderRecorderPendingSellAndSellable {
-
   /** 标记卖出订单完全成交 */
   markSellFilled: (orderId: string) => PendingSellInfo | null;
 
@@ -330,7 +321,6 @@ export interface OrderRecorderPendingSellAndSellable {
  * 使用范围：Trader、RiskChecker、信号处理、主循环等；全项目可引用。
  */
 export interface OrderRecorder extends OrderRecorderPendingSellAndSellable {
-
   /** 记录本地买入订单 */
   recordLocalBuy: (
     symbol: string,
@@ -406,7 +396,6 @@ export interface OrderRecorder extends OrderRecorderPendingSellAndSellable {
  * 使用范围：主循环、MonitorContext、信号处理、门禁等；全项目可引用。
  */
 export interface Trader {
-
   /** 订单记录器实例 */
   readonly orderRecorder: OrderRecorder;
 
@@ -473,7 +462,6 @@ export interface Trader {
  * 使用范围：postTradeRefresher、主循环等；全项目可引用。
  */
 export type PendingRefreshSymbol = {
-
   /** 标的代码 */
   readonly symbol: string;
 
@@ -502,7 +490,6 @@ export type BullBearWarrantType = 'BULL' | 'BEAR';
  * 使用范围：RiskChecker、UI/监控展示；全项目可引用。
  */
 export type WarrantDistanceInfo = {
-
   /** 牛熊证类型 */
   readonly warrantType: BullBearWarrantType;
 
@@ -529,7 +516,6 @@ export type WarrantRefreshResult =
  * 使用范围：RiskChecker、信号处理/卖出逻辑；全项目可引用。
  */
 export type WarrantDistanceLiquidationResult = {
-
   /** 是否触发清仓 */
   readonly shouldLiquidate: boolean;
 
@@ -550,7 +536,6 @@ export type WarrantDistanceLiquidationResult = {
  * 使用范围：信号处理、买卖流程、主循环；全项目可引用。
  */
 export type RiskCheckResult = {
-
   /** 是否允许交易 */
   readonly allowed: boolean;
 
@@ -559,7 +544,6 @@ export type RiskCheckResult = {
 
   /** 牛熊证风险信息 */
   readonly warrantInfo?: {
-
     /** 是否为牛熊证 */
     readonly isWarrant: boolean;
 
@@ -578,7 +562,6 @@ export type RiskCheckResult = {
  * 使用范围：RiskChecker、UnrealizedLossMonitor 等；全项目可引用。
  */
 export type UnrealizedLossData = {
-
   /** r1: 累计买入金额 */
   readonly r1: number;
 
@@ -602,7 +585,6 @@ export type UnrealizedLossData = {
  * 使用范围：marketMonitor、processMonitor 风险任务等；全项目可引用。
  */
 export type UnrealizedLossMetrics = {
-
   /** r1: 调整后的开仓成本 */
   readonly r1: number;
 
@@ -623,7 +605,6 @@ export type UnrealizedLossMetrics = {
  * 使用范围：信号处理、卖出逻辑；全项目可引用。
  */
 export type UnrealizedLossCheckResult = {
-
   /** 是否应该强制平仓 */
   readonly shouldLiquidate: boolean;
 
@@ -641,7 +622,6 @@ export type UnrealizedLossCheckResult = {
  * 使用范围：LastState、RiskChecker、主循环等；全项目可引用。
  */
 export interface PositionCache {
-
   /** 更新持仓缓存 */
   update: (positions: ReadonlyArray<Position>) => void;
 
@@ -656,7 +636,6 @@ export interface PositionCache {
  * 使用范围：RiskCheckContext 与买入风险检查链路使用。
  */
 interface DoomsdayBuyGuard {
-
   /** 检查是否应该拒绝买入（收盘前15分钟） */
   shouldRejectBuy: (currentTime: Date, isHalfDay: boolean) => boolean;
 }
@@ -668,7 +647,6 @@ interface DoomsdayBuyGuard {
  * 使用范围：信号处理、风控检查等；全项目可引用。
  */
 export type RiskCheckContext = {
-
   /** 交易器 */
   readonly trader: Trader;
 
@@ -735,7 +713,6 @@ export type RiskCheckContext = {
  * 使用范围：MonitorContext、信号处理、主循环等；全项目可引用。
  */
 export interface RiskChecker {
-
   /** 从透传的回收价设置牛熊证信息（不调用 API） */
   setWarrantInfoFromCallPrice: (
     symbol: string,

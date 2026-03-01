@@ -244,7 +244,6 @@ export interface OrderCacheManager {
  * 由 Trader 依赖注入。
  */
 export interface OrderMonitor {
-
   /** 初始化 WebSocket 订阅 */
   initialize: () => Promise<void>;
 
@@ -473,7 +472,6 @@ export type OrderMonitorConfig = {
  * 使用范围：由 Trader/OrderMonitor 依赖注入，仅 trader 模块实现与使用。
  */
 export interface OrderHoldRegistry {
-
   /** 跟踪订单（添加标的到订阅保留集） */
   trackOrder: (orderId: string, symbol: string) => void;
 

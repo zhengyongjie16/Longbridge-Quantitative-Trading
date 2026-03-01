@@ -21,18 +21,9 @@ export async function executeSignalsWithLifecycleGate(params: {
   readonly loggerPrefix: string;
   readonly successMessage: string;
 }): Promise<boolean> {
-  const {
-    getCanProcessTask,
-    trader,
-    signal,
-    symbolDisplay,
-    loggerPrefix,
-    successMessage,
-  } = params;
+  const { getCanProcessTask, trader, signal, symbolDisplay, loggerPrefix, successMessage } = params;
   if (getCanProcessTask !== undefined && !getCanProcessTask()) {
-    logger.info(
-      `[${loggerPrefix}] 生命周期门禁关闭，放弃执行: ${symbolDisplay} ${signal.action}`,
-    );
+    logger.info(`[${loggerPrefix}] 生命周期门禁关闭，放弃执行: ${symbolDisplay} ${signal.action}`);
     return true;
   }
   await trader.executeSignals([signal]);
@@ -55,10 +46,7 @@ export function logProcessorTaskFailure(
   action: string,
   err: unknown,
 ): void {
-  logger.error(
-    `[${loggerPrefix}] 处理任务失败: ${symbolDisplay} ${action}`,
-    formatError(err),
-  );
+  logger.error(`[${loggerPrefix}] 处理任务失败: ${symbolDisplay} ${action}`, formatError(err));
 }
 
 /**

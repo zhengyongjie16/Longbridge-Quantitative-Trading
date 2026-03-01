@@ -22,10 +22,7 @@ import {
  * @param timeoutMs 超时毫秒数
  * @returns 无返回值，超时抛出 Error
  */
-export async function waitUntil(
-  predicate: () => boolean,
-  timeoutMs: number = 800,
-): Promise<void> {
+export async function waitUntil(predicate: () => boolean, timeoutMs: number = 800): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (!predicate()) {
     if (Date.now() >= deadline) {

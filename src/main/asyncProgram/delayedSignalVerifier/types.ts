@@ -9,7 +9,6 @@ import type { IndicatorCache } from '../indicatorCache/types.js';
  * 使用范围：仅 delayedSignalVerifier 模块内部使用。
  */
 export type PendingSignalEntry = {
-
   /** 待验证的信号对象 */
   readonly signal: Signal;
 
@@ -36,7 +35,6 @@ export type PendingSignalEntry = {
  * 使用范围：仅 delayedSignalVerifier 模块内部使用。
  */
 export type VerificationResult = {
-
   /** 验证是否通过 */
   readonly passed: boolean;
 
@@ -73,7 +71,6 @@ export type DelayedSignalVerifierDeps = {
  * 使用范围：mainProgram、processMonitor 等使用，仅内部使用。
  */
 export interface DelayedSignalVerifier {
-
   /**
    * 添加信号到待验证队列
    * @param signal 信号对象（必须包含 triggerTime）

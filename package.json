@@ -16,7 +16,7 @@
     "clean": "rimraf dist",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "format": "prettier --write .",
+    "format": "prettier --write . && eslint . --fix",
     "sonarqube": "bun scripts/run-sonar.js",
     "sonarqube:report": "bun scripts/get-report.js",
     "sonarqube:duplications": "bun scripts/get-duplications.js"

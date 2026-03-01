@@ -11,7 +11,6 @@ import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
  * 使用范围：仅 sellProcessor 及启动流程使用，内部使用。
  */
 export type SellProcessorDeps = {
-
   /** 卖出任务队列 */
   readonly taskQueue: TaskQueue<SellTaskType>;
 

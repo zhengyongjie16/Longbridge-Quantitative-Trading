@@ -87,7 +87,6 @@ export function createDelayedSignalVerifier(
     }
   }
   return {
-
     /**
      * 添加信号到待验证队列，计算延迟时间并设置 setTimeout 定时器
      * 重复信号、缺少 triggerTime 或指标配置为空时直接释放信号并返回

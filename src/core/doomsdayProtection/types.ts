@@ -79,7 +79,6 @@ export type CancelPendingBuyOrdersResult = {
  * 使用范围：主程序持有并调用；仅 doomsdayProtection 模块实现。
  */
 export interface DoomsdayProtection {
-
   /**
    * 检查是否应该拒绝买入（收盘前15分钟）
    * @param currentTime 当前时间

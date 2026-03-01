@@ -8,7 +8,6 @@ import type { Task, TaskQueue } from './tradeTaskQueue/types.js';
  * 使用范围：mainProgram、lifecycle 等持有并调用，仅内部使用。
  */
 export interface Processor {
-
   /** 启动处理器，开始消费任务队列 */
   start: () => void;
 
@@ -29,7 +28,6 @@ export interface Processor {
  * 使用范围：仅 asyncProgram 子模块内部使用。
  */
 export type BaseProcessorConfig<TType extends string> = {
-
   /** 日志前缀（如 BuyProcessor、SellProcessor） */
   readonly loggerPrefix: string;
 

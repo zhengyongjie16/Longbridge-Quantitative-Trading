@@ -5,7 +5,6 @@
  * 使用范围：信号配置解析与条件评估；全项目可引用。
  */
 export type Condition = {
-
   /** 指标名称（如 rsi_14, kdj_k） */
   readonly indicator: string;
 
@@ -23,7 +22,6 @@ export type Condition = {
  * 使用范围：信号配置解析与条件评估；全项目可引用。
  */
 export type ConditionGroup = {
-
   /** 条件列表 */
   readonly conditions: ReadonlyArray<Condition>;
 
@@ -38,7 +36,6 @@ export type ConditionGroup = {
  * 使用范围：策略、信号条件评估等；全项目可引用。
  */
 export type SignalConfig = {
-
   /** 条件组列表（组间为 AND 关系） */
   readonly conditionGroups: ReadonlyArray<ConditionGroup>;
 };

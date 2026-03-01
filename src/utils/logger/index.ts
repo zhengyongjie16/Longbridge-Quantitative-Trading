@@ -618,7 +618,6 @@ const pinoLogger = pino(
  * 输出同时写入控制台与按日期轮转的日志文件；DEBUG 级别仅在 DEBUG=true 时输出。
  */
 export const logger: Logger = {
-
   /**
    * 输出调试级别日志，仅当 DEBUG=true 时生效。
    * @param msg - 日志消息

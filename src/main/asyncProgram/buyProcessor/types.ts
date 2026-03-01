@@ -11,7 +11,6 @@ import type { DoomsdayProtection } from '../../../core/doomsdayProtection/types.
  * 使用范围：仅 buyProcessor 及启动流程使用，内部使用。
  */
 export type BuyProcessorDeps = {
-
   /** 买入任务队列 */
   readonly taskQueue: TaskQueue<BuyTaskType>;
 

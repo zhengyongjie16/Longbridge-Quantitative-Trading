@@ -28,11 +28,7 @@ import {
   createRiskCheckerDouble,
   createTraderDouble,
 } from '../../../helpers/testDoubles.js';
-import {
-  createLastState,
-  createMonitorTaskContext,
-  runProcessorFlow,
-} from '../utils.js';
+import { createLastState, createMonitorTaskContext, runProcessorFlow } from '../utils.js';
 
 describe('monitorTaskProcessor business flow', () => {
   it('processes AUTO_SYMBOL_TICK with valid seat snapshot', async () => {

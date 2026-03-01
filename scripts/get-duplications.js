@@ -205,12 +205,12 @@ function printGroupDetails(allGroups) {
 async function run() {
   console.log('正在获取 SonarQube 重复项报告...\n');
 
-  const projectMeasures = await getProjectDuplicationMeasures();
+  const projectMeasures = getProjectDuplicationMeasures();
   let fileKeys = await getFileKeysWithDuplication();
   let projectLevelData = null;
 
   if (fileKeys.length === 0) {
-    projectLevelData = await getDuplicationsForComponent(SONAR_PROJECT_KEY);
+    projectLevelData = getDuplicationsForComponent(SONAR_PROJECT_KEY);
     if (!projectLevelData?.duplications?.length) {
       const hasDup = projectMeasures && projectMeasures.duplicatedLines > 0;
       console.log('=== SonarQube 重复项报告 ===\n');
@@ -218,22 +218,16 @@ async function run() {
         console.log(
           `项目存在重复代码：${projectMeasures.duplicatedLines} 行（${projectMeasures.duplicatedLinesDensity}%）。\n`,
         );
-        console.log(
-          '当前 Token 无权限拉取具体重复块列表（需「查看源代码」或更高权限）。\n',
-        );
+        console.log('当前 Token 无权限拉取具体重复块列表（需「查看源代码」或更高权限）。\n');
         console.log(
           '若使用的是 Project/Global Analysis Token，请改用 User Token（My Account → Security 中创建）。\n',
         );
-        console.log(
-          '详见：docs/others/sonarqube-token-permissions.md\n',
-        );
+        console.log('详见：docs/others/sonarqube-token-permissions.md\n');
       } else {
         console.log('未发现包含重复代码的文件。\n');
       }
       console.log(`Dashboard: ${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}`);
-      console.log(
-        `Duplications: ${SONAR_HOST_URL}/project/duplications?id=${SONAR_PROJECT_KEY}\n`,
-      );
+      console.log(`Duplications: ${SONAR_HOST_URL}/project/duplications?id=${SONAR_PROJECT_KEY}\n`);
       return;
     }
   }
@@ -245,7 +239,7 @@ async function run() {
     addGroupsFromResponse(projectLevelData, seenFingerprints, allGroups);
   } else {
     for (const key of fileKeys) {
-      const data = await getDuplicationsForComponent(key);
+      const data = getDuplicationsForComponent(key);
       addGroupsFromResponse(data, seenFingerprints, allGroups);
     }
   }
@@ -262,9 +256,7 @@ async function run() {
 
   console.log('## 链接');
   console.log(`- Dashboard: ${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}`);
-  console.log(
-    `- Duplications: ${SONAR_HOST_URL}/project/duplications?id=${SONAR_PROJECT_KEY}\n`,
-  );
+  console.log(`- Duplications: ${SONAR_HOST_URL}/project/duplications?id=${SONAR_PROJECT_KEY}\n`);
 }
 
 try {
@@ -277,4 +269,3 @@ try {
   console.error('  3. .env.sonar 配置是否正确');
   process.exit(1);
 }
-

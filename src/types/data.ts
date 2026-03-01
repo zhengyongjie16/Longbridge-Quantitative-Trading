@@ -15,7 +15,6 @@ export type CandleValue = number | string | { toString: () => string } | null | 
  * 使用范围：indicators、策略、indicatorCache 等；全项目可引用。
  */
 export type CandleData = {
-
   /** 最高价 */
   readonly high?: CandleValue;
 
@@ -39,7 +38,6 @@ export type CandleData = {
  * 使用范围：MonitorState、策略、主循环等；全项目可引用。
  */
 export type MonitorValues = {
-
   /** 当前价格 */
   price: number | null;
 

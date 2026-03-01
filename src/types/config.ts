@@ -8,7 +8,6 @@ import type { SignalConfig } from './signalConfig.js';
  * 使用范围：延迟验证器、配置校验等；全项目可引用。
  */
 export type SingleVerificationConfig = {
-
   /** 延迟验证时间（秒） */
   readonly delaySeconds: number;
 
@@ -23,7 +22,6 @@ export type SingleVerificationConfig = {
  * 使用范围：MonitorConfig、DelayedSignalVerifier 等；全项目可引用。
  */
 export type VerificationConfig = {
-
   /** 买入信号验证配置 */
   readonly buy: SingleVerificationConfig;
 
@@ -49,7 +47,6 @@ export type NumberRange = {
  * 使用范围：MonitorConfig、autoSymbolManager、autoSymbolFinder 等；全项目可引用。
  */
 export type AutoSearchConfig = {
-
   /** 自动寻标开关 */
   readonly autoSearchEnabled: boolean;
 
@@ -88,7 +85,6 @@ export type AutoSearchConfig = {
  * 使用范围：MonitorConfig、策略、信号处理等；全项目可引用。
  */
 export type SignalConfigSet = {
-
   /** 买入做多配置 */
   readonly buycall: SignalConfig | null;
 
@@ -127,7 +123,6 @@ export type LiquidationCooldownConfig =
  * 使用范围：主循环、MonitorContext、信号处理、风控等；全项目可引用。
  */
 export type MonitorConfig = {
-
   /** 原始环境变量索引（对应 _1, _2 等后缀） */
   readonly originalIndex: number;
 
@@ -184,7 +179,6 @@ export type MonitorConfig = {
  * 使用范围：主程序、doomsdayProtection、orderMonitor 等；全项目可引用。
  */
 export type GlobalConfig = {
-
   /** 末日保护开关（收盘前清仓） */
   readonly doomsdayProtection: boolean;
 
@@ -193,10 +187,8 @@ export type GlobalConfig = {
 
   /** 开盘保护配置（早盘 + 午盘） */
   readonly openProtection: {
-
     /** 早盘开盘保护 */
     readonly morning: {
-
       /** 是否启用早盘开盘保护 */
       readonly enabled: boolean;
 
@@ -206,7 +198,6 @@ export type GlobalConfig = {
 
     /** 午盘开盘保护 */
     readonly afternoon: {
-
       /** 是否启用午盘开盘保护 */
       readonly enabled: boolean;
 
@@ -226,7 +217,6 @@ export type GlobalConfig = {
 
   /** 买入订单超时配置 */
   readonly buyOrderTimeout: {
-
     /** 是否启用超时检测 */
     readonly enabled: boolean;
 
@@ -236,7 +226,6 @@ export type GlobalConfig = {
 
   /** 卖出订单超时配置 */
   readonly sellOrderTimeout: {
-
     /** 是否启用超时检测 */
     readonly enabled: boolean;
 
@@ -252,7 +241,6 @@ export type GlobalConfig = {
  * 使用范围：启动、主程序、gate 等；全项目可引用。
  */
 export type MultiMonitorTradingConfig = {
-
   /** 监控标的配置列表 */
   readonly monitors: ReadonlyArray<MonitorConfig>;
 

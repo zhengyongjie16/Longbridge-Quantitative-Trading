@@ -7,7 +7,6 @@ import type { Market } from 'longport';
  * 使用范围：Trader、RiskChecker、持仓缓存、主循环等；全项目可引用。
  */
 export type Position = {
-
   /** 账户渠道 */
   accountChannel: string;
 
@@ -40,7 +39,6 @@ export type Position = {
  * 使用范围：AccountSnapshot、账户展示等；全项目可引用。
  */
 export type CashInfo = {
-
   /** 币种（如 HKD、USD） */
   readonly currency: string;
 
@@ -64,7 +62,6 @@ export type CashInfo = {
  * 使用范围：Trader、RiskChecker、LastState、主循环等；全项目可引用。
  */
 export type AccountSnapshot = {
-
   /** 结算币种 */
   readonly currency: string;
 

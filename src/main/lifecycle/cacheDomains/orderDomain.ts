@@ -21,7 +21,6 @@ import type { OrderDomainDeps } from './types.js';
 export function createOrderDomain(deps: OrderDomainDeps): CacheDomain {
   const { trader } = deps;
   return {
-
     /**
      * 午夜清理：重置交易执行器的运行时状态（订单追踪、持有标的集合等），
      * 确保跨日后不残留前一交易日的订单状态。

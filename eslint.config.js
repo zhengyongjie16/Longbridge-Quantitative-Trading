@@ -99,6 +99,7 @@ export default defineConfig(
       ],
 
       // TypeScript 语义与边界
+      '@typescript-eslint/await-thenable': 'error',
       '@typescript-eslint/explicit-member-accessibility': 'error',
       '@typescript-eslint/consistent-type-imports': [
         'error',
@@ -233,26 +234,40 @@ export default defineConfig(
   },
   eslintConfigPrettier,
   {
-    // 注释块上方保留空行（须在 Prettier 之后以覆盖其对该规则的关闭）
+    // 以下规则须在 Prettier 之后以覆盖其对该规则的关闭
     rules: {
       '@stylistic/lines-around-comment': [
         'error',
         {
-          beforeLineComment: true,
+          // 行注释（//）上方不强制空行
+          beforeLineComment: false,
+          // 行注释下方不强制空行
           afterLineComment: false,
+          // 块注释（/* */、/** */）上方需空行
           beforeBlockComment: true,
+          // 块注释下方不强制空行
           afterBlockComment: false,
+          // 块/函数体/switch 等开头处的注释上方无需空行
           allowBlockStart: true,
+          // interface 体开头处的注释上方无需空行
+          allowInterfaceStart: true,
+          // 对象字面量/解构开头处的注释上方无需空行
+          allowObjectStart: true,
+          // class 体开头处的注释上方无需空行
+          allowClassStart: true,
+          // 类型字面体（type X = { ... }）开头处的注释上方无需空行
+          allowTypeStart: true,
         },
       ],
-      // import 与顶层块之间保留空行；相邻 import 不强制空行
-      // block-like 之间（如 function/function）保留空行
-      // 多行表达式之间（如 it/it）保留空行
       '@stylistic/padding-line-between-statements': [
         'error',
+        // import 与顶层其他语句之间必须有空行
         { blankLine: 'always', prev: 'import', next: '*' },
+        // 相邻 import 之间不强制空行
         { blankLine: 'any', prev: 'import', next: 'import' },
+        // block-like 之间（如 function 与 function）必须有空行
         { blankLine: 'always', prev: 'block-like', next: 'block-like' },
+        // 多行表达式之间（如 it 与 it）必须有空行
         { blankLine: 'always', prev: 'multiline-expression', next: 'multiline-expression' },
       ],
     },

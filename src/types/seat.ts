@@ -13,7 +13,6 @@ export type SeatStatus = 'READY' | 'SEARCHING' | 'SWITCHING' | 'EMPTY';
  * 使用范围：SymbolRegistry、换标/寻标逻辑、setWarrantInfoFromCallPrice 等；全项目可引用。
  */
 export type SeatState = {
-
   /** 当前占用标的 */
   readonly symbol: string | null;
 
@@ -46,7 +45,6 @@ export type SeatState = {
  * 使用范围：主程序、MonitorContext、autoSymbolManager、orderRecorder 等；全项目可引用。
  */
 export interface SymbolRegistry {
-
   /** 获取席位状态 */
   getSeatState: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => SeatState;
 

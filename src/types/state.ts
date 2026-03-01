@@ -129,7 +129,6 @@ interface DelayedSignalVerifier {
  * 使用范围：LastState、MonitorContext、主循环、pipeline 等；全项目可引用。
  */
 export type MonitorState = {
-
   /** 监控标的代码 */
   readonly monitorSymbol: string;
 
@@ -169,7 +168,6 @@ export type MonitorState = {
  * 使用范围：主循环、MonitorContext、RiskCheckContext、买卖处理器等；全项目可引用。
  */
 export type LastState = {
-
   /**
    * 运行中持续更新的状态字段（性能考虑保持可变）
    * - canTrade/isHalfDay/openProtectionActive/cachedAccount/cachedPositions/cachedTradingDayInfo/allTradingSymbols
@@ -227,7 +225,6 @@ export type LastState = {
  * 使用范围：processMonitor、主循环、买卖处理器、策略等；全项目可引用。
  */
 export type MonitorContext = {
-
   /** 监控标的配置 */
   readonly config: MonitorConfig;
 
