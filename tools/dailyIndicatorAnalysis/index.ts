@@ -41,19 +41,23 @@ const COMPUTE_OPTIONS: ComputeMinuteRowsOptions = {
 
 /** 绿色多条件：满足任意一条（该条内所有指标 < 阈值）即标绿 */
 const GREEN_CONDITIONS: RowColorConditionSet = [
-  { rsi6: 20, d: 20, j: 0, vaPositionInValueArea: 0.6 },
-  { j: -10 },
+  { rsi6: 20, d: 20, j: 0.5, vaPositionInValueArea: 0.6 },
+  { j: -25 },
 ];
+
+/** 黄色多条件：满足任意一条（该条内所有指标 < 阈值）即标黄 */
+const YELLOW_CONDITIONS: RowColorConditionSet = [{ rsi6: 20, d: 20, j: 0.5 }, { j: -10 }];
 
 /** 红色多条件：满足任意一条（该条内所有指标 > 阈值）即标红 */
 const RED_CONDITIONS: RowColorConditionSet = [
   { rsi6: 80, d: 80, j: 100, vaPositionInValueArea: 0.8 },
-  { j: 110 },
+  { j: 125 },
 ];
 
 const ANSI_RESET = '\u001B[0m';
 const ANSI_GREEN = '\u001B[32m';
 const ANSI_RED = '\u001B[31m';
+const ANSI_YELLOW = '\u001B[33m';
 
 /**
  * 格式化数字文本。默认行为：无效值返回 "-"。
@@ -128,6 +132,7 @@ function displayRows(rows: ReadonlyArray<MinuteIndicatorRow>, symbol: string, da
     const line = `|${lineCells.join('|')}|`;
 
     const isGreen = rowMatchesAnyCondition(row, GREEN_CONDITIONS, 'green');
+    const isYellow = !isGreen && rowMatchesAnyCondition(row, YELLOW_CONDITIONS, 'yellow');
     const isRed = rowMatchesAnyCondition(row, RED_CONDITIONS, 'red');
 
     let prefix = '';
@@ -135,8 +140,10 @@ function displayRows(rows: ReadonlyArray<MinuteIndicatorRow>, symbol: string, da
       prefix = ANSI_GREEN;
     } else if (isRed) {
       prefix = ANSI_RED;
+    } else if (isYellow) {
+      prefix = ANSI_YELLOW;
     }
-    const suffix = isGreen || isRed ? ANSI_RESET : '';
+    const suffix = isGreen || isYellow || isRed ? ANSI_RESET : '';
     console.log(`${prefix}${line}${suffix}`);
 
     if (row.variant === 'low') {

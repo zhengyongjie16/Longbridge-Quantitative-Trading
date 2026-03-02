@@ -27,17 +27,17 @@ export type RowColorCondition = Readonly<Partial<Record<RowColorIndicatorKey, nu
 
 /**
  * 多条着色条件集合类型：任意一条条件满足即触发对应颜色。
- * 数据来源：工具配置常量（GREEN_CONDITIONS / RED_CONDITIONS）。
+ * 数据来源：工具配置常量（GREEN_CONDITIONS / YELLOW_CONDITIONS / RED_CONDITIONS）。
  * 使用范围：仅 `tools/dailyIndicatorAnalysis` 工具内部。
  */
 export type RowColorConditionSet = ReadonlyArray<RowColorCondition>;
 
 /**
- * 行着色模式类型：用于区分绿色（小于阈值）与红色（大于阈值）判断。
+ * 行着色模式类型：用于区分绿色/黄色（小于阈值）与红色（大于阈值）判断。
  * 数据来源：输出渲染阶段传入。
  * 使用范围：仅 `tools/dailyIndicatorAnalysis` 工具内部。
  */
-export type RowColorMode = 'green' | 'red';
+export type RowColorMode = 'green' | 'yellow' | 'red';
 
 /**
  * VP（Volume Profile）结果类型：包含 POC 与价值区域上下沿。

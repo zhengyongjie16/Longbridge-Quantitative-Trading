@@ -529,7 +529,7 @@ function rowMatchesOneCondition(
       return false;
     }
 
-    if (mode === 'green' && value >= threshold) {
+    if ((mode === 'green' || mode === 'yellow') && value >= threshold) {
       return false;
     }
 
