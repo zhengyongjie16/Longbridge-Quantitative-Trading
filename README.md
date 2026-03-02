@@ -224,6 +224,7 @@ bun start
 | `VERIFICATION_INDICATORS_SELL_N`             | `无`    | 卖出验证指标（逗号分隔，可选：K/D/J/MACD/DIF/DEA/EMA:n/PSY:n；未配置则不进行卖出延迟验证）               |
 | `BUY_INTERVAL_SECONDS_N`                     | `60`    | 同向买入间隔（秒，范围 10-600）                                                                          |
 | `LIQUIDATION_COOLDOWN_MINUTES_N`             | `无`    | 保护性清仓后买入冷却（可选，不设置则不冷却：1-120 / half-day / one-day）                                 |
+| `LIQUIDATION_TRIGGER_LIMIT_N`                | `1`     | 保护性清仓触发上限（范围 1-10；达到此次数后才激活买入冷却；仅在配置冷却时有意义）                        |
 | `SMART_CLOSE_ENABLED_N`                      | `true`  | 智能平仓开关（启用时按三阶段执行：整体盈利全卖、未盈利先卖盈利订单、可选第三阶段卖超时；禁用时全仓卖出） |
 | `SMART_CLOSE_TIMEOUT_MINUTES_N`              | `无`    | 智能平仓第三阶段超时阈值（分钟；留空/null=关闭；非负整数；仅在整体未盈利时，从第二阶段剩余订单中筛超时） |
 | `AUTO_SEARCH_ENABLED_N`                      | `false` | 自动寻标开关（启用后忽略 LONG/SHORT 标的配置）                                                           |
@@ -254,7 +255,7 @@ bun start
 - **版本号隔离（关键）**：换标会递增席位版本号；延迟验证/队列/订单跟踪处理前校验版本，不匹配直接丢弃，防止误用旧标的。
 
 **清仓冷却说明（香港时间）**：
-`LIQUIDATION_COOLDOWN_MINUTES_N` 未设置则不启用冷却；`half-day` 为上午触发冷却到 13:00、下午触发则当日不再买入；`one-day` 为当日不再买入。
+`LIQUIDATION_COOLDOWN_MINUTES_N` 未设置则不启用冷却；`half-day` 为上午触发冷却到 13:00、下午触发则当日不再买入；`one-day` 为当日不再买入。`LIQUIDATION_TRIGGER_LIMIT_N` 控制触发上限：默认 1 即每次清仓立即冷却；设为 N 则允许连续触发 N 次保护性清仓后才进入冷却，触发计数在午夜重置。
 
 ## 系统架构
 
