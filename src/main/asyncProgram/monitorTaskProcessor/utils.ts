@@ -19,7 +19,7 @@ import {
  * 数据来源：由 evaluateMonitorContextAndSeatReadiness 在校验与解析后构造。
  * 使用范围：仅 monitorTaskProcessor 各 handler 内部使用。
  */
-export type MonitorContextAndSeatReadiness = Readonly<{
+type MonitorContextAndSeatReadiness = Readonly<{
   context: MonitorTaskContext;
   seatReadiness: Readonly<{
     longSeat: SeatState;

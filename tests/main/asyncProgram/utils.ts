@@ -37,7 +37,7 @@ export async function waitUntil(predicate: () => boolean, timeoutMs: number = 80
  * 类型用途：测试中启动处理器、推送任务、等待条件并排空的参数聚合。
  * 使用范围：仅 tests/main/asyncProgram 使用。
  */
-export type RunProcessorFlowParams = {
+type RunProcessorFlowParams = {
   readonly processor: { start: () => void; stopAndDrain: () => Promise<void> };
   readonly pushTask: () => void;
   readonly waitCondition: () => boolean;
