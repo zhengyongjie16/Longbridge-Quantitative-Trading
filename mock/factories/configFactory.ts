@@ -35,6 +35,7 @@ export function createMonitorConfig(overrides: Partial<MonitorConfig> = {}): Mon
     maxUnrealizedLossPerSymbol: 2000,
     buyIntervalSeconds: 60,
     liquidationCooldown: null,
+    liquidationTriggerLimit: 1,
     verificationConfig: {
       buy: {
         delaySeconds: 60,

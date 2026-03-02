@@ -12,6 +12,7 @@ import {
   NON_REPLACEABLE_ORDER_STATUSES,
   NON_REPLACEABLE_ORDER_TYPES,
   PENDING_ORDER_STATUSES,
+  TRADING,
 } from '../../../constants/index.js';
 import type { Quote } from '../../../types/quote.js';
 import { toDecimal } from '../utils.js';
@@ -103,13 +104,17 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
         logger.info(`[执行门禁] 门禁已关闭，卖出订单 ${orderId} 转市价单被阻止，原订单已撤销`);
         return;
       }
+      let timeoutConversionRemark = `超时转市价-原订单${orderId}`;
+      if (order.isProtectiveLiquidation) {
+        timeoutConversionRemark += TRADING.PROTECTIVE_LIQUIDATION_REMARK_SUFFIX;
+      }
       const marketOrderPayload = {
         symbol: order.symbol,
         side: order.side,
         orderType: OrderType.MO,
         submittedQuantity: toDecimal(remainingQuantity),
         timeInForce: TimeInForceType.Day,
-        remark: `超时转市价-原订单${orderId}`,
+        remark: timeoutConversionRemark,
       };
       await rateLimiter.throttle();
       if (!isExecutionAllowed()) {
@@ -150,6 +155,7 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
         monitorSymbol: order.monitorSymbol,
         isProtectiveLiquidation: order.isProtectiveLiquidation,
         orderType: OrderType.MO,
+        liquidationTriggerLimit: order.liquidationTriggerLimit,
       });
       const newTrackedOrder = runtime.trackedOrders.get(newOrderId);
       if (newTrackedOrder) {

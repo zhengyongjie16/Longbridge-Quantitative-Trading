@@ -26,9 +26,12 @@ describe('sell-flow integration', () => {
     const signalProcessor = createSignalProcessor({
       tradingConfig,
       liquidationCooldownTracker: {
+        recordLiquidationTrigger: () => ({ currentCount: 0, cooldownActivated: false }),
         recordCooldown: () => {},
+        restoreTriggerCount: () => {},
         getRemainingMs: () => 0,
         clearMidnightEligible: () => {},
+        resetAllTriggerCounts: () => {},
       },
     });
 
@@ -138,9 +141,12 @@ describe('sell-flow integration', () => {
     const signalProcessor = createSignalProcessor({
       tradingConfig,
       liquidationCooldownTracker: {
+        recordLiquidationTrigger: () => ({ currentCount: 0, cooldownActivated: false }),
         recordCooldown: () => {},
+        restoreTriggerCount: () => {},
         getRemainingMs: () => 0,
         clearMidnightEligible: () => {},
+        resetAllTriggerCounts: () => {},
       },
     });
 
@@ -270,9 +276,12 @@ describe('sell-flow integration', () => {
     const signalProcessor = createSignalProcessor({
       tradingConfig,
       liquidationCooldownTracker: {
+        recordLiquidationTrigger: () => ({ currentCount: 0, cooldownActivated: false }),
         recordCooldown: () => {},
+        restoreTriggerCount: () => {},
         getRemainingMs: () => 0,
         clearMidnightEligible: () => {},
+        resetAllTriggerCounts: () => {},
       },
     });
 

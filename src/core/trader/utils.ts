@@ -6,6 +6,7 @@ import {
   NON_REPLACEABLE_ORDER_TYPES,
   ORDER_TYPE_CODE_MAP,
   ORDER_TYPE_LABEL_MAP,
+  TRADING,
 } from '../../constants/index.js';
 import type { OrderTypeConfig, Signal } from '../../types/signal.js';
 import type {
@@ -36,6 +37,36 @@ export function formatOrderTypeLabel(orderType: OrderType): string {
  */
 export function getOrderTypeCode(orderType: OrderType): string {
   return ORDER_TYPE_CODE_MAP.get(orderType) ?? 'SLO';
+}
+
+/**
+ * 构造订单备注。
+ * 默认行为：普通订单使用默认备注；保护性清仓订单在默认备注后追加保护性标记。
+ *
+ * @param isProtectiveLiquidation 是否为保护性清仓订单
+ * @returns 最终写入下单载荷的备注字符串
+ */
+export function buildOrderRemark(isProtectiveLiquidation: boolean): string {
+  if (isProtectiveLiquidation) {
+    return `${TRADING.DEFAULT_ORDER_REMARK}${TRADING.PROTECTIVE_LIQUIDATION_REMARK_SUFFIX}`;
+  }
+  return TRADING.DEFAULT_ORDER_REMARK;
+}
+
+/**
+ * 判断订单备注是否包含保护性清仓标记。
+ * 默认行为：备注为空或非字符串时返回 false。
+ *
+ * @param remark 订单备注
+ * @returns true 表示备注可判定为保护性清仓订单
+ */
+export function hasProtectiveLiquidationRemark(
+  remark: string | null | undefined,
+): boolean {
+  if (typeof remark !== 'string') {
+    return false;
+  }
+  return remark.endsWith(TRADING.PROTECTIVE_LIQUIDATION_REMARK_SUFFIX);
 }
 
 /**

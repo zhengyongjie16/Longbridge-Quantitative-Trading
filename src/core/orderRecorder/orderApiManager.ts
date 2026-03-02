@@ -26,6 +26,7 @@ import type {
 function orderToRawOrderFromAPI(order: Order): RawOrderFromAPI {
   const price = order.price;
   const executedPrice = order.executedPrice;
+  const remark = order.remark;
   return {
     orderId: order.orderId,
     symbol: order.symbol,
@@ -33,6 +34,7 @@ function orderToRawOrderFromAPI(order: Order): RawOrderFromAPI {
     side: order.side,
     status: order.status,
     orderType: order.orderType,
+    remark: typeof remark === 'string' ? remark : null,
     price: price === null ? null : decimalToNumber(price),
     quantity: decimalToNumber(order.quantity),
     executedPrice: executedPrice === null ? null : decimalToNumber(executedPrice),

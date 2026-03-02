@@ -224,6 +224,13 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
     env,
     `LIQUIDATION_COOLDOWN_MINUTES${suffix}`,
   );
+  const liquidationTriggerLimit = parseBoundedNumberConfig({
+    env,
+    envKey: `LIQUIDATION_TRIGGER_LIMIT${suffix}`,
+    defaultValue: 1,
+    min: 1,
+    max: 10,
+  });
 
   const verificationConfig = {
     buy: {
@@ -274,6 +281,7 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
     maxUnrealizedLossPerSymbol,
     buyIntervalSeconds,
     liquidationCooldown,
+    liquidationTriggerLimit,
     verificationConfig,
     signalConfig,
     smartCloseEnabled,

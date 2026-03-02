@@ -1,8 +1,8 @@
 /**
  * 清仓冷却追踪器
  *
- * 功能/职责：记录保护性清仓成交时间，并计算剩余冷却时间。
- * 执行流程：调用方通过 recordCooldown 记录成交时间，通过 getRemainingMs 查询剩余冷却毫秒数，跨日时通过 clearMidnightEligible 清理指定键的冷却记录。
+ * 功能/职责：记录保护性清仓触发与冷却时间，并计算剩余冷却时间。
+ * 执行流程：运行时通过 recordLiquidationTrigger 累加触发计数并按上限激活冷却；启动恢复通过 recordCooldown/restoreTriggerCount 恢复状态；买入前通过 getRemainingMs 查询剩余冷却毫秒数；跨日时通过 clearMidnightEligible 与 resetAllTriggerCounts 清理状态。
  */
 import type {
   ClearMidnightEligibleParams,
@@ -10,76 +10,23 @@ import type {
   LiquidationCooldownTracker,
   LiquidationCooldownTrackerDeps,
   RecordCooldownParams,
+  RecordLiquidationTriggerParams,
+  RecordLiquidationTriggerResult,
+  RestoreTriggerCountParams,
 } from './types.js';
-import { buildCooldownKey, convertMinutesToMs, getHKTime, resolveHongKongTimeMs } from './utils.js';
-import type { LiquidationCooldownConfig } from '../../types/config.js';
-
-/**
- * 根据清仓成交时间与冷却模式计算冷却结束时间戳。
- * 默认行为：cooldownConfig 为 null 或 executedTimeMs 无效时返回 null。
- * 按 mode 行为：minutes 按配置分钟数在成交时间上叠加；one-day 为下一自然日 00:00（香港时间）；half-day 为上午清仓冷却到当日 13:00、下午清仓冷却到次日 00:00（香港时间）。
- *
- * @param executedTimeMs - 保护性清仓成交时间戳（毫秒）
- * @param cooldownConfig - 冷却配置，null 时返回 null
- * @returns 冷却结束时间戳（毫秒），无效时 null
- */
-function resolveCooldownEndMs(
-  executedTimeMs: number,
-  cooldownConfig: LiquidationCooldownConfig | null,
-): number | null {
-  if (!Number.isFinite(executedTimeMs) || !cooldownConfig) {
-    return null;
-  }
-
-  if (cooldownConfig.mode === 'minutes') {
-    const cooldownMs = convertMinutesToMs(cooldownConfig.minutes);
-    if (cooldownMs <= 0) {
-      return null;
-    }
-    return executedTimeMs + cooldownMs;
-  }
-
-  if (cooldownConfig.mode === 'one-day') {
-    return resolveHongKongTimeMs({
-      baseTimestampMs: executedTimeMs,
-      hour: 0,
-      minute: 0,
-      dayOffset: 1,
-    });
-  }
-
-  const hkTime = getHKTime(new Date(executedTimeMs));
-  if (!hkTime) {
-    return null;
-  }
-
-  if (hkTime.hkHour < 12) {
-    return resolveHongKongTimeMs({
-      baseTimestampMs: executedTimeMs,
-      hour: 13,
-      minute: 0,
-      dayOffset: 0,
-    });
-  }
-
-  return resolveHongKongTimeMs({
-    baseTimestampMs: executedTimeMs,
-    hour: 0,
-    minute: 0,
-    dayOffset: 1,
-  });
-}
+import { buildCooldownKey, resolveCooldownEndMs } from './utils.js';
 
 /**
  * 创建清仓冷却追踪器，记录保护性清仓成交时间并计算剩余冷却时长。
  * 内部以 symbol:direction 为键存储成交时间戳，查询时按冷却模式动态计算结束时间。
  * @param deps - 依赖，包含 nowMs（当前时间毫秒）
- * @returns LiquidationCooldownTracker 实例（recordCooldown、getRemainingMs、clearMidnightEligible）
+ * @returns LiquidationCooldownTracker 实例（recordLiquidationTrigger、recordCooldown、restoreTriggerCount、getRemainingMs、clearMidnightEligible、resetAllTriggerCounts）
  */
 export function createLiquidationCooldownTracker(
   deps: LiquidationCooldownTrackerDeps,
 ): LiquidationCooldownTracker {
   const cooldownMap = new Map<string, number>();
+  const triggerCountMap = new Map<string, number>();
   const { nowMs } = deps;
 
   /** 记录保护性清仓成交时间，无效时间戳不写入，避免脏数据影响冷却判断 */
@@ -89,6 +36,55 @@ export function createLiquidationCooldownTracker(
       return;
     }
     cooldownMap.set(buildCooldownKey(symbol, direction), executedTimeMs);
+  }
+
+  /**
+   * 记录保护性清仓触发事件。
+   * 每次触发都会累加计数，达到 triggerLimit 时写入冷却记录。
+   */
+  function recordLiquidationTrigger({
+    symbol,
+    direction,
+    executedTimeMs,
+    triggerLimit,
+  }: RecordLiquidationTriggerParams): RecordLiquidationTriggerResult {
+    if (
+      !Number.isFinite(executedTimeMs) ||
+      executedTimeMs <= 0 ||
+      !Number.isInteger(triggerLimit) ||
+      triggerLimit <= 0
+    ) {
+      return {
+        currentCount: 0,
+        cooldownActivated: false,
+      };
+    }
+
+    const key = buildCooldownKey(symbol, direction);
+    const previousCount = triggerCountMap.get(key) ?? 0;
+    const currentCount = previousCount + 1;
+    triggerCountMap.set(key, currentCount);
+
+    if (currentCount >= triggerLimit) {
+      cooldownMap.set(key, executedTimeMs);
+      return {
+        currentCount,
+        cooldownActivated: true,
+      };
+    }
+
+    return {
+      currentCount,
+      cooldownActivated: false,
+    };
+  }
+
+  /** 恢复触发计数器，用于启动时从成交日志恢复当前周期计数。 */
+  function restoreTriggerCount({ symbol, direction, count }: RestoreTriggerCountParams): void {
+    if (!Number.isInteger(count) || count <= 0) {
+      return;
+    }
+    triggerCountMap.set(buildCooldownKey(symbol, direction), count);
   }
 
   /**
@@ -105,12 +101,14 @@ export function createLiquidationCooldownTracker(
     const cooldownEndMs = resolveCooldownEndMs(executedTimeMs, cooldownConfig);
     if (cooldownEndMs === null || !Number.isFinite(cooldownEndMs)) {
       cooldownMap.delete(key);
+      triggerCountMap.delete(key);
       return 0;
     }
 
     const remainingMs = cooldownEndMs - nowMs();
     if (!Number.isFinite(remainingMs) || remainingMs <= 0) {
       cooldownMap.delete(key);
+      triggerCountMap.delete(key);
       return 0;
     }
     return remainingMs;
@@ -120,12 +118,21 @@ export function createLiquidationCooldownTracker(
   function clearMidnightEligible({ keysToClear }: ClearMidnightEligibleParams): void {
     for (const key of keysToClear) {
       cooldownMap.delete(key);
+      triggerCountMap.delete(key);
     }
   }
 
+  /** 重置所有触发计数器。 */
+  function resetAllTriggerCounts(): void {
+    triggerCountMap.clear();
+  }
+
   return {
+    recordLiquidationTrigger,
     recordCooldown,
+    restoreTriggerCount,
     getRemainingMs,
     clearMidnightEligible,
+    resetAllTriggerCounts,
   };
 }

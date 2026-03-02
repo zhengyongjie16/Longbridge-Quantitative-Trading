@@ -20,6 +20,7 @@ function createSdkOrder(params: {
   readonly orderId: string;
   readonly symbol: string;
   readonly stockName?: string;
+  readonly remark?: string;
   readonly side: OrderSide;
   readonly status: OrderStatus;
   readonly updatedAt: Date;
@@ -31,6 +32,7 @@ function createSdkOrder(params: {
     side: params.side,
     status: params.status,
     orderType: OrderType.ELO,
+    remark: params.remark ?? '',
     price: new Decimal('1'),
     quantity: new Decimal('100'),
     executedPrice: new Decimal('1'),
@@ -107,5 +109,30 @@ describe('createOrderAPIManager', () => {
     expect(allOrders).toHaveLength(1);
     expect(allOrders[0]?.status).toBe(OrderStatus.PartialFilled);
     expect(allOrders[0]?.updatedAt?.toISOString()).toBe('2026-02-25T03:05:00.000Z');
+  });
+
+  it('maps sdk order remark into raw order snapshot', async () => {
+    const tradeCtx = createTradeContextMock();
+    tradeCtx.seedHistoryOrders([]);
+    tradeCtx.seedTodayOrders([
+      createSdkOrder({
+        orderId: 'ORDER-REMARK',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.New,
+        updatedAt: new Date('2026-02-25T03:01:00.000Z'),
+        remark: 'QuantDemo|PL',
+      }),
+    ]);
+
+    const apiManager = createOrderAPIManager({
+      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      rateLimiter: {
+        throttle: async () => {},
+      },
+    });
+
+    const allOrders = await apiManager.fetchAllOrdersFromAPI(true);
+    expect(allOrders[0]?.remark).toBe('QuantDemo|PL');
   });
 });

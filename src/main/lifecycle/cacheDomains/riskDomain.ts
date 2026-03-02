@@ -5,6 +5,7 @@
  * - 重置风控检查冷却（signalProcessor.resetRiskCheckCooldown）
  * - 重置日内亏损追踪器（dailyLossTracker.resetAll）
  * - 清除跨日模式的清仓冷却键（保留分钟模式的冷却）
+ * - 重置保护性清仓触发计数器
  * - 清空各监控标的的浮亏数据和牛熊证风险信息缓存
  *
  * 开盘重建：
@@ -68,6 +69,7 @@ function runMidnightRiskClear(deps: RiskDomainDeps, ctx: LifecycleContext): void
   dailyLossTracker.resetAll(ctx.now);
   const keysToClear = collectMidnightEligibleCooldownKeys(monitorContexts);
   liquidationCooldownTracker.clearMidnightEligible({ keysToClear });
+  liquidationCooldownTracker.resetAllTriggerCounts();
   const monitorCount = clearRiskCaches(monitorContexts);
   logger.info(`[Lifecycle][risk] 午夜清理完成: monitors=${monitorCount}`);
 }

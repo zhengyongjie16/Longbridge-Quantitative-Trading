@@ -16,6 +16,7 @@ describe('createRiskDomain', () => {
     let resetRiskCheckCooldownCalled = false;
     let resetAllCalled = false;
     let resetAllNow: Date | null = null as Date | null;
+    let resetAllTriggerCountsCalled = false;
     let clearMidnightEligibleKeys: Set<string> | null = null as Set<string> | null;
     let clearUnrealizedCount = 0;
     let clearLongCount = 0;
@@ -55,10 +56,15 @@ describe('createRiskDomain', () => {
       },
     } as unknown as DailyLossTracker;
     const liquidationCooldownTracker: LiquidationCooldownTracker = {
+      recordLiquidationTrigger: () => ({ currentCount: 0, cooldownActivated: false }),
       recordCooldown: () => {},
+      restoreTriggerCount: () => {},
       getRemainingMs: () => 0,
       clearMidnightEligible: (params) => {
         clearMidnightEligibleKeys = new Set(params.keysToClear);
+      },
+      resetAllTriggerCounts: () => {
+        resetAllTriggerCountsCalled = true;
       },
     };
 
@@ -77,6 +83,7 @@ describe('createRiskDomain', () => {
     expect(resetRiskCheckCooldownCalled).toBe(true);
     expect(resetAllCalled).toBe(true);
     expect(resetAllNow?.getTime()).toBe(now.getTime());
+    expect(resetAllTriggerCountsCalled).toBe(true);
     expect(clearMidnightEligibleKeys).not.toBe(null);
     expect(clearMidnightEligibleKeys?.has('HSI.HK:LONG')).toBe(true);
     expect(clearMidnightEligibleKeys?.has('HSI.HK:SHORT')).toBe(true);
@@ -104,11 +111,14 @@ describe('createRiskDomain', () => {
       ],
     ]);
     const liquidationCooldownTracker: LiquidationCooldownTracker = {
+      recordLiquidationTrigger: () => ({ currentCount: 0, cooldownActivated: false }),
       recordCooldown: () => {},
+      restoreTriggerCount: () => {},
       getRemainingMs: () => 0,
       clearMidnightEligible: (params) => {
         clearMidnightEligibleKeys = new Set(params.keysToClear);
       },
+      resetAllTriggerCounts: () => {},
     };
 
     const domain = createRiskDomain({
@@ -131,9 +141,12 @@ describe('createRiskDomain', () => {
       dailyLossTracker: { resetAll: () => {} } as unknown as DailyLossTracker,
       monitorContexts: new Map(),
       liquidationCooldownTracker: {
+        recordLiquidationTrigger: () => ({ currentCount: 0, cooldownActivated: false }),
         recordCooldown: () => {},
+        restoreTriggerCount: () => {},
         getRemainingMs: () => 0,
         clearMidnightEligible: () => {},
+        resetAllTriggerCounts: () => {},
       },
     });
     await domain.openRebuild({

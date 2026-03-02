@@ -32,6 +32,8 @@ function createDeps(params?: {
   readonly gateOpen?: () => boolean;
   readonly onHandleOrderChanged?: (handler: (event: PushOrderChanged) => void) => void;
   readonly allocateRelatedBuyOrderIdsForRecovery?: () => readonly string[];
+  readonly liquidationTriggerLimit?: number;
+  readonly liquidationCooldownTrackerOverride?: OrderMonitorDeps['liquidationCooldownTracker'];
 }): { deps: OrderMonitorDeps; tradeCtx: ReturnType<typeof createTradeContextMock> } {
   const tradeCtx = createTradeContextMock();
   const pendingSellSnapshot = new Map<string, PendingSellInfo>();
@@ -134,6 +136,7 @@ function createDeps(params?: {
       {
         ...baseMonitor,
         orderOwnershipMapping: ['HSI'],
+        liquidationTriggerLimit: params?.liquidationTriggerLimit ?? 1,
       },
     ],
     global: {
@@ -173,7 +176,8 @@ function createDeps(params?: {
       getHoldSymbols: () => new Set<string>(),
       clear: () => {},
     },
-    liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),
+    liquidationCooldownTracker:
+      params?.liquidationCooldownTrackerOverride ?? createLiquidationCooldownTrackerDouble(),
     tradingConfig,
     symbolRegistry,
     ...(params?.onHandleOrderChanged
@@ -200,6 +204,7 @@ function createPendingRecoveryOrder(params: Partial<RawOrderFromAPI>): RawOrderF
     side: params.side ?? OrderSide.Buy,
     status: params.status ?? OrderStatus.New,
     orderType: params.orderType ?? OrderType.ELO,
+    remark: params.remark ?? null,
     price: params.price ?? 1,
     quantity: params.quantity ?? 100,
     executedPrice: params.executedPrice ?? 0,
@@ -345,6 +350,36 @@ describe('orderMonitor business flow', () => {
     const submitPayload = submitCalls[0]?.args[0] as { readonly orderType: OrderType };
     expect(submitPayload.orderType).toBe(OrderType.MO);
     expect(monitor.getPendingSellOrders('BULL.HK').length).toBeGreaterThan(0);
+  });
+
+  it('keeps protective liquidation marker when timeout sell converts to market order', async () => {
+    const { deps, tradeCtx } = createDeps({
+      sellTimeoutSeconds: 0,
+    });
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+
+    monitor.trackOrder({
+      orderId: 'SELL-PROTECTIVE-TIMEOUT',
+      symbol: 'BULL.HK',
+      side: OrderSide.Sell,
+      price: 1,
+      quantity: 100,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: true,
+      orderType: OrderType.ELO,
+      liquidationTriggerLimit: 3,
+    });
+
+    await monitor.processWithLatestQuotes(
+      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]),
+    );
+
+    const submitCalls = tradeCtx.getCalls('submitOrder');
+    expect(submitCalls).toHaveLength(1);
+    const submitPayload = submitCalls[0]?.args[0] as { readonly remark?: string };
+    expect(submitPayload.remark).toBe('超时转市价-原订单SELL-PROTECTIVE-TIMEOUT|PL');
   });
 
   it('reuses cancelled pending-sell relatedBuyOrderIds when converting timeout sells to market', async () => {
@@ -543,6 +578,65 @@ describe('orderMonitor business flow', () => {
     ]);
 
     expect(monitor.getPendingSellOrders('BULL.HK')).toHaveLength(0);
+  });
+
+  it('restores protective liquidation semantics for recovered pending sells and keeps monitor trigger limit', async () => {
+    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
+      throw new Error('handleOrderChanged hook was not captured');
+    };
+    const triggerCalls: Array<{ triggerLimit: number; symbol: string; direction: string }> = [];
+    const { deps } = createDeps({
+      liquidationTriggerLimit: 3,
+      liquidationCooldownTrackerOverride: createLiquidationCooldownTrackerDouble({
+        recordLiquidationTrigger: (params) => {
+          triggerCalls.push({
+            triggerLimit: params.triggerLimit,
+            symbol: params.symbol,
+            direction: params.direction,
+          });
+          return {
+            currentCount: 1,
+            cooldownActivated: false,
+          };
+        },
+      }),
+      onHandleOrderChanged: (handler) => {
+        handleOrderChanged = handler;
+      },
+    });
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+
+    await monitor.recoverOrderTrackingFromSnapshot([
+      createPendingRecoveryOrder({
+        orderId: 'SELL-RECOVER-PROTECTIVE',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.New,
+        remark: 'QuantDemo|PL',
+      }),
+    ]);
+
+    handleOrderChanged(
+      createPushOrderChanged({
+        orderId: 'SELL-RECOVER-PROTECTIVE',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.Filled,
+        orderType: OrderType.ELO,
+        submittedPrice: 1,
+        submittedQuantity: 100,
+        executedPrice: 1,
+        executedQuantity: 100,
+      }),
+    );
+
+    expect(triggerCalls).toHaveLength(1);
+    expect(triggerCalls[0]).toEqual({
+      triggerLimit: 3,
+      symbol: 'HSI.HK',
+      direction: 'LONG',
+    });
   });
 
   it('fails fast when pending sell ownership cannot be resolved', async () => {

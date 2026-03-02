@@ -99,11 +99,22 @@ export function createEventFlow(deps: EventFlowDeps): EventFlow {
         if (trackedOrder.isProtectiveLiquidation) {
           const direction = trackedOrder.isLongSymbol ? 'LONG' : 'SHORT';
           if (trackedOrder.monitorSymbol) {
-            liquidationCooldownTracker.recordCooldown({
+            const triggerLimit = trackedOrder.liquidationTriggerLimit;
+            const result = liquidationCooldownTracker.recordLiquidationTrigger({
               symbol: trackedOrder.monitorSymbol,
               direction,
               executedTimeMs,
+              triggerLimit,
             });
+            if (result.cooldownActivated) {
+              logger.warn(
+                `[订单监控] 订单 ${orderId} 保护性清仓触发次数已达上限（${result.currentCount}/${triggerLimit}），进入买入冷却`,
+              );
+            } else {
+              logger.info(
+                `[订单监控] 订单 ${orderId} 保护性清仓触发 ${result.currentCount}/${triggerLimit}，未进入买入冷却`,
+              );
+            }
           } else {
             logger.error(`[订单监控] 订单 ${orderId} 缺少监控标的代码，无法记录清仓冷却`);
           }

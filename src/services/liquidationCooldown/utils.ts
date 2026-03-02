@@ -1,6 +1,6 @@
 import { TIME } from '../../constants/index.js';
 import type { TradeRecord } from '../../core/trader/types.js';
-import type { SeatSymbolSnapshotEntry } from '../../types/seat.js';
+import type { LiquidationCooldownConfig } from '../../types/config.js';
 import type { CooldownCandidate } from './types.js';
 
 /**
@@ -26,7 +26,8 @@ export function getHKTime(
 }
 
 /**
- * 构建冷却记录的 key
+ * 构建冷却记录的 key。
+ *
  * @param symbol 标的代码
  * @param direction 方向（LONG / SHORT）
  * @returns 格式为 `symbol:direction` 的字符串键
@@ -36,7 +37,8 @@ export function buildCooldownKey(symbol: string, direction: 'LONG' | 'SHORT'): s
 }
 
 /**
- * 将分钟转换为毫秒，非正数返回 0
+ * 将分钟转换为毫秒，非正数返回 0。
+ *
  * @param minutes 分钟数
  * @returns 对应的毫秒数，非正数时返回 0
  */
@@ -48,7 +50,8 @@ export function convertMinutesToMs(minutes: number): number {
 }
 
 /**
- * 基于香港时区日期计算目标时间的 UTC 毫秒
+ * 基于香港时区日期计算目标时间的 UTC 毫秒。
+ *
  * @param params.baseTimestampMs 基准时间戳（UTC 毫秒）
  * @param params.hour 目标香港时间小时
  * @param params.minute 目标香港时间分钟
@@ -79,7 +82,64 @@ export function resolveHongKongTimeMs({
 }
 
 /**
- * 将未知值转换为字符串，非空字符串时返回原值，否则返回 null
+ * 根据清仓成交时间与冷却模式计算冷却结束时间戳。
+ * 默认行为：cooldownConfig 为 null 或 executedTimeMs 无效时返回 null。
+ * 按 mode 行为：minutes 按配置分钟数在成交时间上叠加；one-day 为下一自然日 00:00（香港时间）；half-day 为上午清仓冷却到当日 13:00、下午清仓冷却到次日 00:00（香港时间）。
+ *
+ * @param executedTimeMs 保护性清仓成交时间戳（毫秒）
+ * @param cooldownConfig 冷却配置，null 时返回 null
+ * @returns 冷却结束时间戳（毫秒），无效时 null
+ */
+export function resolveCooldownEndMs(
+  executedTimeMs: number,
+  cooldownConfig: LiquidationCooldownConfig | null,
+): number | null {
+  if (!Number.isFinite(executedTimeMs) || !cooldownConfig) {
+    return null;
+  }
+
+  if (cooldownConfig.mode === 'minutes') {
+    const cooldownMs = convertMinutesToMs(cooldownConfig.minutes);
+    if (cooldownMs <= 0) {
+      return null;
+    }
+    return executedTimeMs + cooldownMs;
+  }
+
+  if (cooldownConfig.mode === 'one-day') {
+    return resolveHongKongTimeMs({
+      baseTimestampMs: executedTimeMs,
+      hour: 0,
+      minute: 0,
+      dayOffset: 1,
+    });
+  }
+
+  const hkTime = getHKTime(new Date(executedTimeMs));
+  if (!hkTime) {
+    return null;
+  }
+
+  if (hkTime.hkHour < 12) {
+    return resolveHongKongTimeMs({
+      baseTimestampMs: executedTimeMs,
+      hour: 13,
+      minute: 0,
+      dayOffset: 0,
+    });
+  }
+
+  return resolveHongKongTimeMs({
+    baseTimestampMs: executedTimeMs,
+    hour: 0,
+    minute: 0,
+    dayOffset: 1,
+  });
+}
+
+/**
+ * 将未知值转换为字符串，非空字符串时返回原值，否则返回 null。
+ *
  * @param value 待转换的值
  * @returns 非空字符串时返回该字符串，否则返回 null
  */
@@ -88,7 +148,8 @@ export function toStringOrNull(value: unknown): string | null {
 }
 
 /**
- * 将未知值转换为有限数字，非有限数字时返回 null
+ * 将未知值转换为有限数字，非有限数字时返回 null。
+ *
  * @param value 待转换的值
  * @returns 有限数字时返回该数字，否则返回 null
  */
@@ -97,7 +158,8 @@ export function toNumberOrNull(value: unknown): number | null {
 }
 
 /**
- * 将未知值转换为布尔值，非布尔类型时返回 null
+ * 将未知值转换为布尔值，非布尔类型时返回 null。
+ *
  * @param value 待转换的值
  * @returns 布尔值时返回该值，否则返回 null
  */
@@ -106,64 +168,141 @@ export function toBooleanOrNull(value: unknown): boolean | null {
 }
 
 /**
- * 按席位从成交记录中筛选最后一条保护性清仓记录，用于冷却恢复。
+ * 从成交记录中按监控标的和方向收集所有保护性清仓记录。
+ * 1. 按 monitorSymbol 匹配（而非交易标的 symbol），确保换标后旧标的 PL 记录不丢失。
+ * 2. 方向从 action 推导（SELLCALL -> LONG，SELLPUT -> SHORT），不依赖席位快照。
+ * 3. 返回所有记录（而非仅最后一条），供触发计数器周期模拟使用。
  *
- * @param params.seatSymbols 当前席位标的快照列表
- * @param params.tradeRecords 历史成交记录列表
- * @returns 每个席位对应的最后一条保护性清仓候选记录数组
+ * @param params.monitorSymbols 当前监控标的代码集合
+ * @param params.tradeRecords 当日成交记录列表
+ * @returns 按 monitorSymbol:direction 分组的保护性清仓记录（组内按时间升序）
  */
-export function resolveCooldownCandidatesBySeat({
-  seatSymbols,
+export function collectLiquidationRecordsByMonitor({
+  monitorSymbols,
   tradeRecords,
 }: {
-  readonly seatSymbols: ReadonlyArray<SeatSymbolSnapshotEntry>;
+  readonly monitorSymbols: ReadonlySet<string>;
   readonly tradeRecords: ReadonlyArray<TradeRecord>;
-}): ReadonlyArray<CooldownCandidate> {
-  if (seatSymbols.length === 0 || tradeRecords.length === 0) {
-    return [];
+}): ReadonlyMap<string, ReadonlyArray<CooldownCandidate>> {
+  if (monitorSymbols.size === 0 || tradeRecords.length === 0) {
+    return new Map();
   }
 
-  const seatSymbolSet = new Set(seatSymbols.map((seat) => seat.symbol));
-  const lastBySymbol = new Map<string, TradeRecord>();
-
+  const grouped = new Map<string, CooldownCandidate[]>();
   for (const record of tradeRecords) {
-    const symbol = record.symbol;
-    const executedAtMs = record.executedAtMs;
-    if (!symbol || typeof executedAtMs !== 'number' || !Number.isFinite(executedAtMs)) {
-      continue;
-    }
-
-    if (!seatSymbolSet.has(symbol)) {
-      continue;
-    }
-    const existing = lastBySymbol.get(symbol);
-    const existingTime =
-      existing && typeof existing.executedAtMs === 'number' ? existing.executedAtMs : 0;
-    if (!existing || existingTime < executedAtMs) {
-      lastBySymbol.set(symbol, record);
-    }
-  }
-
-  const candidates: CooldownCandidate[] = [];
-  for (const seat of seatSymbols) {
-    const record = lastBySymbol.get(seat.symbol);
-    if (!record) {
-      continue;
-    }
-    const executedAtMs = record.executedAtMs;
-    if (typeof executedAtMs !== 'number' || !Number.isFinite(executedAtMs)) {
-      continue;
-    }
-
     if (record.isProtectiveClearance !== true) {
       continue;
     }
-    candidates.push({
-      monitorSymbol: seat.monitorSymbol,
-      direction: seat.direction,
-      executedAtMs,
-    });
+
+    const monitorSymbol = record.monitorSymbol;
+    const executedAtMs = record.executedAtMs;
+    if (!monitorSymbol || typeof executedAtMs !== 'number' || !Number.isFinite(executedAtMs)) {
+      continue;
+    }
+
+    if (!monitorSymbols.has(monitorSymbol)) {
+      continue;
+    }
+
+    const direction = resolveDirectionFromAction(record.action);
+    if (!direction) {
+      continue;
+    }
+
+    const key = buildCooldownKey(monitorSymbol, direction);
+    const list = grouped.get(key);
+    if (list) {
+      list.push({ monitorSymbol, direction, executedAtMs });
+      continue;
+    }
+    grouped.set(key, [{ monitorSymbol, direction, executedAtMs }]);
   }
 
-  return candidates;
+  for (const list of grouped.values()) {
+    list.sort((a, b) => a.executedAtMs - b.executedAtMs);
+  }
+
+  return grouped;
+}
+
+/**
+ * 模拟触发-冷却周期，计算当前周期计数和最后一次冷却激活时间。
+ * 当记录时间跨过冷却结束时间时，视为进入新周期并重置计数。
+ *
+ * @param params.records 按时间升序排列的保护性清仓记录
+ * @param params.triggerLimit 触发上限
+ * @param params.cooldownConfig 冷却配置
+ * @returns 当前周期计数和最后一次冷却激活时间（null 表示未激活冷却）
+ */
+export function simulateTriggerCycle({
+  records,
+  triggerLimit,
+  cooldownConfig,
+}: {
+  readonly records: ReadonlyArray<CooldownCandidate>;
+  readonly triggerLimit: number;
+  readonly cooldownConfig: LiquidationCooldownConfig | null;
+}): {
+  readonly currentCount: number;
+  readonly cooldownExecutedTimeMs: number | null;
+} {
+  if (records.length === 0 || triggerLimit <= 0) {
+    return {
+      currentCount: 0,
+      cooldownExecutedTimeMs: null,
+    };
+  }
+
+  let count = 0;
+  let cooldownEndMs = 0;
+  let lastCooldownTimeMs: number | null = null;
+
+  for (const record of records) {
+    if (cooldownEndMs > 0 && record.executedAtMs >= cooldownEndMs) {
+      count = 0;
+      cooldownEndMs = 0;
+      lastCooldownTimeMs = null;
+    }
+
+    if (cooldownEndMs > 0 && record.executedAtMs < cooldownEndMs) {
+      continue;
+    }
+
+    count += 1;
+
+    if (count < triggerLimit) {
+      continue;
+    }
+
+    const endMs = resolveCooldownEndMs(record.executedAtMs, cooldownConfig);
+    if (endMs === null || !Number.isFinite(endMs)) {
+      cooldownEndMs = 0;
+      lastCooldownTimeMs = null;
+      continue;
+    }
+    cooldownEndMs = endMs;
+    lastCooldownTimeMs = record.executedAtMs;
+  }
+
+  return {
+    currentCount: count,
+    cooldownExecutedTimeMs: lastCooldownTimeMs,
+  };
+}
+
+/**
+ * 从信号 action 推导方向。
+ *
+ * @param action 信号 action
+ * @returns LONG / SHORT / null
+ */
+function resolveDirectionFromAction(action: string | null): 'LONG' | 'SHORT' | null {
+  if (action === 'SELLCALL') {
+    return 'LONG';
+  }
+
+  if (action === 'SELLPUT') {
+    return 'SHORT';
+  }
+  return null;
 }

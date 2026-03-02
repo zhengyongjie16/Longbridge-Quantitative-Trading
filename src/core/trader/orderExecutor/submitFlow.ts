@@ -15,6 +15,7 @@ import type { MonitorConfig } from '../../../types/config.js';
 import type { Signal } from '../../../types/signal.js';
 import type { OrderPayload, SubmitOrderParams } from '../types.js';
 import {
+  buildOrderRemark,
   extractOrderId,
   formatOrderTypeLabel,
   getOrderTypeCode,
@@ -142,6 +143,7 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
         monitorSymbol: monitorConfig?.monitorSymbol ?? null,
         isProtectiveLiquidation,
         orderType: orderTypeParam,
+        liquidationTriggerLimit: monitorConfig?.liquidationTriggerLimit ?? 1,
       });
 
       if (side === OrderSide.Sell && signal.relatedBuyOrderIds) {
@@ -199,7 +201,8 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
     const targetNotional = monitorConfig?.targetNotional ?? TRADING.DEFAULT_TARGET_NOTIONAL;
     const orderType = resolveOrderType(signal);
     const timeInForce = TimeInForceType.Day;
-    const remark = 'QuantDemo';
+    const isProtectiveLiquidation = isLiquidationSignal(signal);
+    const remark = buildOrderRemark(isProtectiveLiquidation);
 
     if (side === OrderSide.Sell) {
       const submittedQtyDecimal = await quantityResolver.calculateSellQuantity(
@@ -227,7 +230,7 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
         newOrderQuantity: submittedQtyNumber,
         newOrderPrice: resolvedPrice,
         newOrderType: orderType,
-        isProtectiveLiquidation: isLiquidationSignal(signal),
+        isProtectiveLiquidation,
       });
 
       if (decision.action === 'REPLACE' && decision.targetOrderId) {

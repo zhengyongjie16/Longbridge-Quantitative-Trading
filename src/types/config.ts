@@ -159,6 +159,9 @@ export type MonitorConfig = {
   /** 保护性清仓后买入冷却配置（未配置时为 null） */
   readonly liquidationCooldown: LiquidationCooldownConfig | null;
 
+  /** 触发买入冷却所需的保护性清仓次数（默认 1） */
+  readonly liquidationTriggerLimit: number;
+
   /** 延迟验证配置 */
   readonly verificationConfig: VerificationConfig;
 

@@ -73,6 +73,9 @@ export type TrackOrderParams = {
   readonly monitorSymbol: string | null;
   readonly isProtectiveLiquidation: boolean;
   readonly orderType: OrderType;
+
+  /** 触发买入冷却所需的保护性清仓次数（可选，默认 1） */
+  readonly liquidationTriggerLimit?: number;
 };
 
 /**
@@ -372,6 +375,9 @@ export type TrackedOrder = {
 
   /** 是否为保护性清仓订单（用于触发买入冷却） */
   readonly isProtectiveLiquidation: boolean;
+
+  /** 触发买入冷却所需的保护性清仓次数 */
+  readonly liquidationTriggerLimit: number;
 
   /** 订单类型（用于合并和改单判断） */
   readonly orderType: OrderType;

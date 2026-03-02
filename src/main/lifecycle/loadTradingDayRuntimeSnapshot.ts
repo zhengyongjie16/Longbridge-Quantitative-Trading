@@ -100,7 +100,7 @@ export function createLoadTradingDayRuntimeSnapshot(
     }
     trader.seedOrderHoldSymbols(allOrders);
     dailyLossTracker.recalculateFromAllOrders(allOrders, tradingConfig.monitors, now);
-    const seatResult = await prepareSeatsOnStartup({
+    await prepareSeatsOnStartup({
       tradingConfig,
       symbolRegistry,
       positions: lastState.cachedPositions,
@@ -113,7 +113,7 @@ export function createLoadTradingDayRuntimeSnapshot(
       warrantListCacheConfig,
     });
     if (hydrateCooldownFromTradeLog) {
-      tradeLogHydrator.hydrate({ seatSymbols: seatResult.seatSymbols });
+      tradeLogHydrator.hydrate();
     }
 
     if (resetRuntimeSubscriptions) {

@@ -34,6 +34,9 @@ import type {
   LiquidationCooldownTracker,
   RecordCooldownParams,
   ClearMidnightEligibleParams,
+  RecordLiquidationTriggerParams,
+  RecordLiquidationTriggerResult,
+  RestoreTriggerCountParams,
 } from '../../src/services/liquidationCooldown/types.js';
 
 /**
@@ -204,9 +207,17 @@ export function createLiquidationCooldownTrackerDouble(
   overrides: Partial<LiquidationCooldownTracker> = {},
 ): LiquidationCooldownTracker {
   const base: LiquidationCooldownTracker = {
+    recordLiquidationTrigger: (
+      _params: RecordLiquidationTriggerParams,
+    ): RecordLiquidationTriggerResult => ({
+      currentCount: 1,
+      cooldownActivated: true,
+    }),
     recordCooldown: (_params: RecordCooldownParams): void => {},
+    restoreTriggerCount: (_params: RestoreTriggerCountParams): void => {},
     getRemainingMs: (_params: GetRemainingMsParams): number => 0,
     clearMidnightEligible: (_params: ClearMidnightEligibleParams): void => {},
+    resetAllTriggerCounts: (): void => {},
   };
 
   return {

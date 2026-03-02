@@ -30,7 +30,7 @@ describe('protective-liquidation integration', () => {
     };
     let recordLocalSellCount = 0;
     let markSellFilledCount = 0;
-    let cooldownRecords = 0;
+    let liquidationTriggerRecords = 0;
     let staleMarks = 0;
 
     const tradeCtx = createTradeContextMock();
@@ -66,8 +66,12 @@ describe('protective-liquidation integration', () => {
         clear: () => {},
       },
       liquidationCooldownTracker: createLiquidationCooldownTrackerDouble({
-        recordCooldown: () => {
-          cooldownRecords += 1;
+        recordLiquidationTrigger: () => {
+          liquidationTriggerRecords += 1;
+          return {
+            currentCount: 1,
+            cooldownActivated: true,
+          };
         },
       }),
       tradingConfig: createTradingConfig(),
@@ -124,7 +128,7 @@ describe('protective-liquidation integration', () => {
 
     expect(recordLocalSellCount).toBe(1);
     expect(markSellFilledCount).toBe(1);
-    expect(cooldownRecords).toBe(1);
+    expect(liquidationTriggerRecords).toBe(1);
     expect(staleMarks).toBe(1);
 
     const pendingRefresh = monitor.getAndClearPendingRefreshSymbols();

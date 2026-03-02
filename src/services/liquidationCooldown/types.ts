@@ -1,10 +1,9 @@
 import type { LiquidationCooldownConfig, MultiMonitorTradingConfig } from '../../types/config.js';
-import type { SeatSymbolSnapshotEntry } from '../../types/seat.js';
 import type { Logger } from '../../utils/logger/types.js';
 
 /**
  * 未解析的日志记录。
- * 用于日志文件逐行解析后的中间结构；数据来源为日志文件解析；仅 liquidationCooldown 模块内部使用。
+ * 类型用途：用于日志文件逐行解析后的中间结构；数据来源为日志文件解析；仅 liquidationCooldown 模块内部使用。
  */
 export type RawRecord = {
   readonly [key: string]: unknown;
@@ -13,13 +12,52 @@ export type RawRecord = {
 /**
  * 记录清仓冷却的参数。
  * 类型用途：包含标的代码、方向与保护性清仓成交时间戳，由 recordCooldown 消费。
- * 数据来源：由风控模块或 tradeLogHydrator 在清仓成交后传入。
+ * 数据来源：由 tradeLogHydrator 在启动恢复时传入。
  * 使用范围：仅 liquidationCooldown 模块使用。
  */
 export type RecordCooldownParams = {
   readonly symbol: string;
   readonly direction: 'LONG' | 'SHORT';
   readonly executedTimeMs: number;
+};
+
+/**
+ * 记录保护性清仓触发的参数。
+ * 类型用途：包含标的代码、方向、成交时间与触发上限，由 recordLiquidationTrigger 消费。
+ * 数据来源：由 eventFlow 在保护性清仓成交后传入。
+ * 使用范围：仅 liquidationCooldown 模块使用。
+ */
+export type RecordLiquidationTriggerParams = {
+  readonly symbol: string;
+  readonly direction: 'LONG' | 'SHORT';
+  readonly executedTimeMs: number;
+  readonly triggerLimit: number;
+};
+
+/**
+ * 记录保护性清仓触发的返回结果。
+ * 类型用途：告知调用方当前触发是否导致了买入冷却激活。
+ * 数据来源：由 recordLiquidationTrigger 返回。
+ * 使用范围：仅 liquidationCooldown 模块使用。
+ */
+export type RecordLiquidationTriggerResult = {
+  /** 当前累计触发次数（含本次） */
+  readonly currentCount: number;
+
+  /** 本次触发是否导致了买入冷却激活 */
+  readonly cooldownActivated: boolean;
+};
+
+/**
+ * 恢复触发计数器的参数。
+ * 类型用途：启动恢复时将模拟得到的当前周期计数写入追踪器。
+ * 数据来源：由 tradeLogHydrator 传入。
+ * 使用范围：仅 liquidationCooldown 模块使用。
+ */
+export type RestoreTriggerCountParams = {
+  readonly symbol: string;
+  readonly direction: 'LONG' | 'SHORT';
+  readonly count: number;
 };
 
 /**
@@ -53,15 +91,31 @@ export type ClearMidnightEligibleParams = {
 };
 
 /**
- * 冷却追踪器接口，提供记录冷却、查询剩余时间与跨日清理方法。
+ * 冷却追踪器接口，提供触发记录、冷却记录、剩余时间查询与跨日清理能力。
  * 由 createLiquidationCooldownTracker 实现，供风控模块消费。
  */
 export interface LiquidationCooldownTracker {
+  /**
+   * 记录保护性清仓触发事件。
+   * 内部累加触发计数器，当计数达到 triggerLimit 时写入冷却记录。
+   */
+  recordLiquidationTrigger: (
+    params: RecordLiquidationTriggerParams,
+  ) => RecordLiquidationTriggerResult;
+
+  /** 直接写入冷却时间戳（仅供 tradeLogHydrator 启动恢复使用） */
   recordCooldown: (params: RecordCooldownParams) => void;
+
+  /** 恢复触发计数器（启动恢复专用） */
+  restoreTriggerCount: (params: RestoreTriggerCountParams) => void;
+
   getRemainingMs: (params: GetRemainingMsParams) => number;
 
   /** 跨日午夜按策略清理：仅清除指定 keys，minutes 模式条目不受影响 */
   clearMidnightEligible: (params: ClearMidnightEligibleParams) => void;
+
+  /** 重置所有触发计数器（午夜清理调用） */
+  resetAllTriggerCounts: () => void;
 }
 
 /**
@@ -85,13 +139,13 @@ export type TradeLogHydratorDeps = {
  * 使用范围：供主程序 startup 消费。
  */
 export interface TradeLogHydrator {
-  hydrate: (params: { readonly seatSymbols: ReadonlyArray<SeatSymbolSnapshotEntry> }) => void;
+  hydrate: () => void;
 }
 
 /**
  * 冷却候选记录。
  * 类型用途：包含监控标的、方向与保护性清仓成交时间，作为恢复冷却状态的中间结果。
- * 数据来源：由 resolveCooldownCandidatesBySeat 从日志解析返回。
+ * 数据来源：由 collectLiquidationRecordsByMonitor 从日志解析返回。
  * 使用范围：仅 liquidationCooldown 模块内部使用。
  */
 export type CooldownCandidate = {

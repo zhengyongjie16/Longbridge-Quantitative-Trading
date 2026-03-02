@@ -2,40 +2,150 @@
  * liquidationCooldown 业务测试
  *
  * 功能：
- * - 验证清仓冷却追踪相关场景意图、边界条件与业务期望。
+ * - 验证清仓冷却追踪与触发次数限制相关的业务行为。
  */
 import { describe, expect, it } from 'bun:test';
 
 import { createLiquidationCooldownTracker } from '../../../src/services/liquidationCooldown/index.js';
 
 describe('liquidationCooldown business flow', () => {
-  it('applies minutes-mode cooldown and auto-expires records', () => {
+  it('triggerLimit=1 keeps backward compatibility and activates cooldown immediately', () => {
+    const now = 1_000_000;
+    const tracker = createLiquidationCooldownTracker({
+      nowMs: () => now,
+    });
+
+    const result = tracker.recordLiquidationTrigger({
+      symbol: 'HSI.HK',
+      direction: 'LONG',
+      executedTimeMs: now,
+      triggerLimit: 1,
+    });
+
+    expect(result).toEqual({
+      currentCount: 1,
+      cooldownActivated: true,
+    });
+
+    expect(
+      tracker.getRemainingMs({
+        symbol: 'HSI.HK',
+        direction: 'LONG',
+        cooldownConfig: { mode: 'minutes', minutes: 5 },
+      }),
+    ).toBe(300_000);
+  });
+
+  it('triggerLimit=3 activates cooldown only on the third trigger', () => {
+    const now = 1_000_000;
+    const tracker = createLiquidationCooldownTracker({
+      nowMs: () => now,
+    });
+
+    const first = tracker.recordLiquidationTrigger({
+      symbol: 'HSI.HK',
+      direction: 'LONG',
+      executedTimeMs: now,
+      triggerLimit: 3,
+    });
+    expect(first).toEqual({
+      currentCount: 1,
+      cooldownActivated: false,
+    });
+
+    expect(
+      tracker.getRemainingMs({
+        symbol: 'HSI.HK',
+        direction: 'LONG',
+        cooldownConfig: { mode: 'minutes', minutes: 5 },
+      }),
+    ).toBe(0);
+
+    const second = tracker.recordLiquidationTrigger({
+      symbol: 'HSI.HK',
+      direction: 'LONG',
+      executedTimeMs: now + 1_000,
+      triggerLimit: 3,
+    });
+    expect(second).toEqual({
+      currentCount: 2,
+      cooldownActivated: false,
+    });
+
+    expect(
+      tracker.getRemainingMs({
+        symbol: 'HSI.HK',
+        direction: 'LONG',
+        cooldownConfig: { mode: 'minutes', minutes: 5 },
+      }),
+    ).toBe(0);
+
+    const third = tracker.recordLiquidationTrigger({
+      symbol: 'HSI.HK',
+      direction: 'LONG',
+      executedTimeMs: now + 2_000,
+      triggerLimit: 3,
+    });
+    expect(third).toEqual({
+      currentCount: 3,
+      cooldownActivated: true,
+    });
+
+    expect(
+      tracker.getRemainingMs({
+        symbol: 'HSI.HK',
+        direction: 'LONG',
+        cooldownConfig: { mode: 'minutes', minutes: 5 },
+      }),
+    ).toBe(302_000);
+  });
+
+  it('resets trigger counter when cooldown expires', () => {
     let now = 1_000_000;
     const tracker = createLiquidationCooldownTracker({
       nowMs: () => now,
     });
 
-    tracker.recordCooldown({
+    tracker.recordLiquidationTrigger({
       symbol: 'HSI.HK',
       direction: 'LONG',
       executedTimeMs: now,
+      triggerLimit: 3,
     });
 
-    now += 4 * 60_000;
-    const remainingBeforeExpire = tracker.getRemainingMs({
+    tracker.recordLiquidationTrigger({
       symbol: 'HSI.HK',
       direction: 'LONG',
-      cooldownConfig: { mode: 'minutes', minutes: 5 },
+      executedTimeMs: now + 1_000,
+      triggerLimit: 3,
     });
-    expect(remainingBeforeExpire).toBe(60_000);
 
-    now += 61_000;
-    const remainingAfterExpire = tracker.getRemainingMs({
+    tracker.recordLiquidationTrigger({
       symbol: 'HSI.HK',
       direction: 'LONG',
-      cooldownConfig: { mode: 'minutes', minutes: 5 },
+      executedTimeMs: now + 2_000,
+      triggerLimit: 3,
     });
-    expect(remainingAfterExpire).toBe(0);
+
+    now += 62_001;
+    expect(
+      tracker.getRemainingMs({
+        symbol: 'HSI.HK',
+        direction: 'LONG',
+        cooldownConfig: { mode: 'minutes', minutes: 1 },
+      }),
+    ).toBe(0);
+
+    const next = tracker.recordLiquidationTrigger({
+      symbol: 'HSI.HK',
+      direction: 'LONG',
+      executedTimeMs: now,
+      triggerLimit: 3,
+    });
+    expect(next).toEqual({
+      currentCount: 1,
+      cooldownActivated: false,
+    });
   });
 
   it('resolves one-day and half-day cooldown windows by Hong Kong time rules', () => {
@@ -91,22 +201,31 @@ describe('liquidationCooldown business flow', () => {
     ).toBe(60 * 60_000);
   });
 
-  it('clears only midnight-eligible keys', () => {
-    let now = 10_000;
+  it('clearMidnightEligible clears designated keys and related trigger counters', () => {
+    const now = 10_000;
     const tracker = createLiquidationCooldownTracker({
       nowMs: () => now,
     });
 
-    tracker.recordCooldown({
+    tracker.recordLiquidationTrigger({
       symbol: 'HSI.HK',
       direction: 'LONG',
       executedTimeMs: now,
+      triggerLimit: 2,
     });
 
-    tracker.recordCooldown({
+    tracker.recordLiquidationTrigger({
+      symbol: 'HSI.HK',
+      direction: 'LONG',
+      executedTimeMs: now + 1_000,
+      triggerLimit: 2,
+    });
+
+    tracker.recordLiquidationTrigger({
       symbol: 'HSI.HK',
       direction: 'SHORT',
       executedTimeMs: now,
+      triggerLimit: 2,
     });
 
     tracker.clearMidnightEligible({
@@ -121,13 +240,81 @@ describe('liquidationCooldown business flow', () => {
       }),
     ).toBe(0);
 
-    now += 1_000;
-    expect(
-      tracker.getRemainingMs({
-        symbol: 'HSI.HK',
-        direction: 'SHORT',
-        cooldownConfig: { mode: 'minutes', minutes: 10 },
-      }),
-    ).toBe(599_000);
+    const longAfterClear = tracker.recordLiquidationTrigger({
+      symbol: 'HSI.HK',
+      direction: 'LONG',
+      executedTimeMs: now + 2_000,
+      triggerLimit: 2,
+    });
+    expect(longAfterClear).toEqual({
+      currentCount: 1,
+      cooldownActivated: false,
+    });
+
+    const shortSecondTrigger = tracker.recordLiquidationTrigger({
+      symbol: 'HSI.HK',
+      direction: 'SHORT',
+      executedTimeMs: now + 2_000,
+      triggerLimit: 2,
+    });
+    expect(shortSecondTrigger).toEqual({
+      currentCount: 2,
+      cooldownActivated: true,
+    });
+  });
+
+  it('resetAllTriggerCounts resets all counters', () => {
+    const tracker = createLiquidationCooldownTracker({
+      nowMs: () => 1_000,
+    });
+
+    tracker.recordLiquidationTrigger({
+      symbol: 'HSI.HK',
+      direction: 'LONG',
+      executedTimeMs: 1_000,
+      triggerLimit: 2,
+    });
+
+    tracker.recordLiquidationTrigger({
+      symbol: 'HSI.HK',
+      direction: 'SHORT',
+      executedTimeMs: 1_000,
+      triggerLimit: 2,
+    });
+    tracker.resetAllTriggerCounts();
+
+    const result = tracker.recordLiquidationTrigger({
+      symbol: 'HSI.HK',
+      direction: 'LONG',
+      executedTimeMs: 2_000,
+      triggerLimit: 2,
+    });
+    expect(result).toEqual({
+      currentCount: 1,
+      cooldownActivated: false,
+    });
+  });
+
+  it('restoreTriggerCount can continue counting from hydrated state', () => {
+    const tracker = createLiquidationCooldownTracker({
+      nowMs: () => 1_000,
+    });
+
+    tracker.restoreTriggerCount({
+      symbol: 'HSI.HK',
+      direction: 'LONG',
+      count: 2,
+    });
+    const result = tracker.recordLiquidationTrigger({
+      symbol: 'HSI.HK',
+      direction: 'LONG',
+      executedTimeMs: 2_000,
+      triggerLimit: 3,
+    });
+
+    expect(result).toEqual({
+      currentCount: 3,
+      cooldownActivated: true,
+    });
   });
 });

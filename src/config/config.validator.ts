@@ -286,6 +286,15 @@ function validateMonitorConfig(
     ];
   }
 
+  if (config.liquidationCooldown) {
+    const triggerLimit = config.liquidationTriggerLimit;
+    if (!Number.isInteger(triggerLimit) || triggerLimit < 1 || triggerLimit > 10) {
+      const triggerLimitEnvKey = `LIQUIDATION_TRIGGER_LIMIT_${index}`;
+      errors = [...errors, `${prefix}: ${triggerLimitEnvKey} 无效（范围 1-10）`];
+      missingFields = [...missingFields, triggerLimitEnvKey];
+    }
+  }
+
   const smartCloseTimeoutEnvKey = `SMART_CLOSE_TIMEOUT_MINUTES_${index}`;
   const smartCloseTimeoutRaw = env[smartCloseTimeoutEnvKey];
   if (smartCloseTimeoutRaw !== undefined) {
@@ -645,6 +654,9 @@ export async function validateAllConfig({
     logger.info(
       `保护性清仓后买入冷却: ${formatLiquidationCooldownConfig(monitorConfig.liquidationCooldown)}`,
     );
+    if (monitorConfig.liquidationCooldown) {
+      logger.info(`止损触发冷却次数: ${monitorConfig.liquidationTriggerLimit}`);
+    }
 
     logger.info(
       `智能平仓超时（第三阶段）: ${

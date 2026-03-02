@@ -66,6 +66,12 @@ export const TRADING = {
 
   /** 监控标的最大扫描范围（从 _1 扫描到 _100） */
   MAX_MONITOR_SCAN_RANGE: 100,
+
+  /** 默认订单备注（提交订单时写入，便于排查） */
+  DEFAULT_ORDER_REMARK: 'QuantDemo',
+
+  /** 保护性清仓订单备注后缀（用于重启恢复时识别订单语义） */
+  PROTECTIVE_LIQUIDATION_REMARK_SUFFIX: '|PL',
 } as const;
 
 /** 自动寻标相关常量 */

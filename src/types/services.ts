@@ -141,6 +141,7 @@ export type RawOrderFromAPI = {
   readonly side: OrderSide;
   readonly status: OrderStatus;
   readonly orderType: OrderType;
+  readonly remark?: string | null;
   readonly price: DecimalLikeValue;
   readonly quantity: DecimalLikeValue;
   readonly executedPrice: DecimalLikeValue;

@@ -20,6 +20,7 @@ import type {
 } from '../types.js';
 import type { RecoveryFlow, RecoveryFlowDeps } from './types.js';
 import { resolveSubmittedAtMs, resolveUpdatedAtMs } from './utils.js';
+import { hasProtectiveLiquidationRemark } from '../utils.js';
 
 /**
  * 创建恢复流程处理器。
@@ -38,6 +39,9 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
     cancelOrder,
     handleOrderChangedWhenActive,
   } = deps;
+  const triggerLimitByMonitor = new Map(
+    tradingConfig.monitors.map((monitor) => [monitor.monitorSymbol, monitor.liquidationTriggerLimit]),
+  );
 
   /**
    * 基于订单名称映射解析监控标的与方向。
@@ -55,6 +59,19 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
       direction: resolved.direction,
       isLongSymbol: resolved.direction === 'LONG',
     };
+  }
+
+  /**
+   * 获取监控标的的保护性清仓触发上限。
+   *
+   * @param monitorSymbol 监控标的
+   * @returns 触发上限，缺失时回退 1
+   */
+  function resolveLiquidationTriggerLimit(monitorSymbol: string | null): number {
+    if (!monitorSymbol) {
+      return 1;
+    }
+    return triggerLimitByMonitor.get(monitorSymbol) ?? 1;
   }
 
   /**
@@ -280,6 +297,8 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
     const trackedPrice = isValidPositiveNumber(trackedPriceRaw) ? trackedPriceRaw : 0;
     const submittedAtMs = resolveSubmittedAtMs(order.submittedAt);
     const executedQuantity = decimalToNumber(order.executedQuantity);
+    const isProtectiveLiquidation = hasProtectiveLiquidationRemark(order.remark);
+    const liquidationTriggerLimit = resolveLiquidationTriggerLimit(ownership.monitorSymbol);
     const trackOrderParams: TrackOrderParams = {
       orderId: order.orderId,
       symbol: order.symbol,
@@ -290,8 +309,9 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
       initialStatus: order.status,
       isLongSymbol: ownership.isLongSymbol,
       monitorSymbol: ownership.monitorSymbol,
-      isProtectiveLiquidation: false,
+      isProtectiveLiquidation,
       orderType: order.orderType,
+      liquidationTriggerLimit,
     };
     trackOrder(trackOrderParams);
     const trackedOrder = runtime.trackedOrders.get(order.orderId);

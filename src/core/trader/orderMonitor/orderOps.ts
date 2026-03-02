@@ -43,6 +43,7 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
       monitorSymbol,
       isProtectiveLiquidation,
       orderType,
+      liquidationTriggerLimit,
     } = params;
     const now = Date.now();
     const submittedAt =
@@ -57,6 +58,7 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
       isLongSymbol,
       monitorSymbol,
       isProtectiveLiquidation,
+      liquidationTriggerLimit: liquidationTriggerLimit ?? 1,
       orderType,
       submittedPrice: price,
       submittedQuantity: quantity,
