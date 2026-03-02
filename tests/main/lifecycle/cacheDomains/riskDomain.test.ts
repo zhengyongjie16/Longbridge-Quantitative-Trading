@@ -54,6 +54,7 @@ describe('createRiskDomain', () => {
         resetAllCalled = true;
         resetAllNow = now;
       },
+      resetDirectionSegment: () => {},
     } as unknown as DailyLossTracker;
     const liquidationCooldownTracker: LiquidationCooldownTracker = {
       recordLiquidationTrigger: () => ({ currentCount: 0, cooldownActivated: false }),
@@ -63,6 +64,7 @@ describe('createRiskDomain', () => {
       clearMidnightEligible: (params) => {
         clearMidnightEligibleKeys = new Set(params.keysToClear);
       },
+      sweepExpired: () => [],
       resetAllTriggerCounts: () => {
         resetAllTriggerCountsCalled = true;
       },
@@ -118,12 +120,16 @@ describe('createRiskDomain', () => {
       clearMidnightEligible: (params) => {
         clearMidnightEligibleKeys = new Set(params.keysToClear);
       },
+      sweepExpired: () => [],
       resetAllTriggerCounts: () => {},
     };
 
     const domain = createRiskDomain({
       signalProcessor: { resetRiskCheckCooldown: () => {} } as unknown as SignalProcessor,
-      dailyLossTracker: { resetAll: () => {} } as unknown as DailyLossTracker,
+      dailyLossTracker: {
+        resetAll: () => {},
+        resetDirectionSegment: () => {},
+      } as unknown as DailyLossTracker,
       monitorContexts,
       liquidationCooldownTracker,
     });
@@ -138,7 +144,10 @@ describe('createRiskDomain', () => {
   it('openRebuild 为空操作，不抛错', async () => {
     const domain = createRiskDomain({
       signalProcessor: { resetRiskCheckCooldown: () => {} } as unknown as SignalProcessor,
-      dailyLossTracker: { resetAll: () => {} } as unknown as DailyLossTracker,
+      dailyLossTracker: {
+        resetAll: () => {},
+        resetDirectionSegment: () => {},
+      } as unknown as DailyLossTracker,
       monitorContexts: new Map(),
       liquidationCooldownTracker: {
         recordLiquidationTrigger: () => ({ currentCount: 0, cooldownActivated: false }),
@@ -146,6 +155,7 @@ describe('createRiskDomain', () => {
         restoreTriggerCount: () => {},
         getRemainingMs: () => 0,
         clearMidnightEligible: () => {},
+        sweepExpired: () => [],
         resetAllTriggerCounts: () => {},
       },
     });

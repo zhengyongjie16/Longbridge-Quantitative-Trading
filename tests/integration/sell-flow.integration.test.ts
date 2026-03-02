@@ -31,8 +31,10 @@ describe('sell-flow integration', () => {
         restoreTriggerCount: () => {},
         getRemainingMs: () => 0,
         clearMidnightEligible: () => {},
+        sweepExpired: () => [],
         resetAllTriggerCounts: () => {},
       },
+      syncLossOffsetLifecycle: () => {},
     });
 
     const storage = createOrderStorage();
@@ -146,8 +148,10 @@ describe('sell-flow integration', () => {
         restoreTriggerCount: () => {},
         getRemainingMs: () => 0,
         clearMidnightEligible: () => {},
+        sweepExpired: () => [],
         resetAllTriggerCounts: () => {},
       },
+      syncLossOffsetLifecycle: () => {},
     });
 
     const storage = createOrderStorage();
@@ -281,8 +285,10 @@ describe('sell-flow integration', () => {
         restoreTriggerCount: () => {},
         getRemainingMs: () => 0,
         clearMidnightEligible: () => {},
+        sweepExpired: () => [],
         resetAllTriggerCounts: () => {},
       },
+      syncLossOffsetLifecycle: () => {},
     });
 
     const storage = createOrderStorage();

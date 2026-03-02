@@ -97,6 +97,7 @@ describe('riskCheckPipeline business flow', () => {
     const pipeline = createRiskCheckPipeline({
       tradingConfig: createTradingConfig(),
       liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),
+      syncLossOffsetLifecycle: () => {},
       lastRiskCheckTime,
     });
 
@@ -113,6 +114,8 @@ describe('riskCheckPipeline business flow', () => {
 
   it('executes buy checks in business order and marks buy attempt before heavy checks', async () => {
     const steps: string[] = [];
+    const syncTimes: number[] = [];
+    const cooldownCheckTimes: number[] = [];
     const trader = createTraderDouble({
       getAccountSnapshot: async () => {
         steps.push('getAccountSnapshot');
@@ -145,8 +148,11 @@ describe('riskCheckPipeline business flow', () => {
     });
 
     const cooldownTracker = createLiquidationCooldownTrackerDouble({
-      getRemainingMs: () => {
+      getRemainingMs: (params) => {
         steps.push('getRemainingMs');
+        if (params.currentTimeMs !== undefined) {
+          cooldownCheckTimes.push(params.currentTimeMs);
+        }
         return 0;
       },
     });
@@ -154,6 +160,10 @@ describe('riskCheckPipeline business flow', () => {
     const pipeline = createRiskCheckPipeline({
       tradingConfig: createTradingConfig(),
       liquidationCooldownTracker: cooldownTracker,
+      syncLossOffsetLifecycle: (currentTimeMs) => {
+        steps.push('syncLossOffsetLifecycle');
+        syncTimes.push(currentTimeMs);
+      },
       lastRiskCheckTime,
     });
 
@@ -163,9 +173,16 @@ describe('riskCheckPipeline business flow', () => {
     );
 
     expect(result).toHaveLength(1);
+    expect(syncTimes).toHaveLength(1);
+    expect(cooldownCheckTimes).toHaveLength(1);
+    expect(syncTimes[0]).toBe(cooldownCheckTimes[0]);
+    const syncIndex = steps.indexOf('syncLossOffsetLifecycle');
+    const getRemainingIndex = steps.indexOf('getRemainingMs');
     const markIndex = steps.indexOf('recordBuyAttempt');
     const warrantIndex = steps.indexOf('checkWarrantRisk');
     const baseRiskIndex = steps.indexOf('checkBeforeOrder');
+    expect(syncIndex).toBeGreaterThan(-1);
+    expect(getRemainingIndex).toBeGreaterThan(syncIndex);
     expect(markIndex).toBeGreaterThan(-1);
     expect(warrantIndex).toBeGreaterThan(markIndex);
     expect(baseRiskIndex).toBeGreaterThan(warrantIndex);
@@ -185,6 +202,7 @@ describe('riskCheckPipeline business flow', () => {
     const pipeline = createRiskCheckPipeline({
       tradingConfig: createTradingConfig(),
       liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),
+      syncLossOffsetLifecycle: () => {},
       lastRiskCheckTime,
     });
 
@@ -223,6 +241,7 @@ describe('riskCheckPipeline business flow', () => {
     const pipeline = createRiskCheckPipeline({
       tradingConfig: createTradingConfig(),
       liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),
+      syncLossOffsetLifecycle: () => {},
       lastRiskCheckTime,
     });
 

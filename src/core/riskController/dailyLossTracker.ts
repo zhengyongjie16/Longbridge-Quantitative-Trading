@@ -20,7 +20,9 @@ import type {
   DailyLossState,
   DailyLossTracker,
   DailyLossTrackerDeps,
+  ResetDirectionSegmentParams,
 } from './types.js';
+import { buildCooldownKey } from '../../services/liquidationCooldown/utils.js';
 import { collectOrderOwnershipDiagnostics, resolveHongKongDayKey, sumOrderCost } from './utils.js';
 
 /**
@@ -136,26 +138,43 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
   let dayKey: string | null = null;
   const statesByMonitor = new Map<string, { long: DailyLossState; short: DailyLossState }>();
 
+  /** 分段起始时间：按 "monitorSymbol:direction" 为键，成交时间 < segmentStartMs 的不纳入偏移计算 */
+  const segmentStartByDirection = new Map<string, number>();
+
+  /** 幂等保护：按 "monitorSymbol:direction" 记录上次 resetDirectionSegment 的 cooldownEndMs */
+  const lastResetByCooldownEndMs = new Map<string, number>();
+
   /**
-   * 显式重置 dayKey 与 states。
+   * 显式重置 dayKey、states 与分段元数据。
    */
   function resetAll(now: Date): void {
     const nextKey = resolveHongKongDayKey(deps.toHongKongTimeIso, now);
     dayKey = nextKey;
     statesByMonitor.clear();
+    segmentStartByDirection.clear();
+    lastResetByCooldownEndMs.clear();
   }
 
   /**
    * 启动时根据历史成交订单初始化当日状态。
+   * externalSegmentStarts 可选：按 "monitorSymbol:direction" 为键恢复分段起始时间。
    */
   function initializeFromOrders(
     allOrders: ReadonlyArray<RawOrderFromAPI>,
     monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
     now: Date,
+    externalSegmentStarts?: ReadonlyMap<string, number>,
   ): void {
     const nextKey = resolveHongKongDayKey(deps.toHongKongTimeIso, now);
     dayKey = nextKey;
     statesByMonitor.clear();
+    // 恢复外部提供的分段起始时间（启动恢复链传入）
+    if (externalSegmentStarts) {
+      for (const [key, startMs] of externalSegmentStarts) {
+        segmentStartByDirection.set(key, startMs);
+      }
+    }
+
     if (!nextKey) {
       return;
     }
@@ -177,6 +196,17 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
       if (!ownership) {
         continue;
       }
+
+      // 分段过滤：仅计入 executedTime >= segmentStartMs 的成交
+      const directionKey = buildCooldownKey(ownership.monitorSymbol, ownership.direction);
+      const segmentStart = segmentStartByDirection.get(directionKey);
+      if (segmentStart !== undefined) {
+        const orderTimeMs = order.updatedAt.getTime();
+        if (orderTimeMs < segmentStart) {
+          continue;
+        }
+      }
+
       const existing = grouped.get(ownership.monitorSymbol) ?? {
         long: [],
         short: [],
@@ -220,18 +250,21 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
 
   /**
    * 使用完整订单重新计算状态，作为纠偏手段。
+   * externalSegmentStarts 可选：提供分段起始时间以过滤旧段成交。
    */
   function recalculateFromAllOrders(
     allOrders: ReadonlyArray<RawOrderFromAPI>,
     monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
     now: Date,
+    externalSegmentStarts?: ReadonlyMap<string, number>,
   ): void {
-    initializeFromOrders(allOrders, monitors, now);
+    initializeFromOrders(allOrders, monitors, now, externalSegmentStarts);
   }
 
   /**
    * 增量记录成交订单并更新亏损偏移。
    * dayKey 由 lifecycle riskDomain.midnightClear 通过 resetAll 统一驱动，此处仅记录当日成交。
+   * 分段过滤：仅接受 executedTimeMs >= 当前分段起始时间的成交。
    */
   function recordFilledOrder(input: DailyLossFilledOrderInput): void {
     if (!dayKey) {
@@ -242,6 +275,15 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
       new Date(input.executedTimeMs),
     );
     if (fillDayKey !== dayKey) {
+      return;
+    }
+    // 分段过滤：成交时间早于分段起始时间的不纳入
+    const directionKey = buildCooldownKey(
+      input.monitorSymbol,
+      input.isLongSymbol ? 'LONG' : 'SHORT',
+    );
+    const segmentStart = segmentStartByDirection.get(directionKey);
+    if (segmentStart !== undefined && input.executedTimeMs < segmentStart) {
       return;
     }
     const record = createOrderRecordFromFill(input);
@@ -294,10 +336,48 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
     return isLongSymbol ? state.long.dailyLossOffset : state.short.dailyLossOffset;
   }
 
+  /**
+   * 重置指定 monitor+direction 的分段：清空旧段订单与偏移，设置新分段起始时间。
+   * 幂等：同一 cooldownEndMs 重复调用不产生副作用。
+   */
+  function resetDirectionSegment({
+    monitorSymbol,
+    direction,
+    segmentStartMs,
+    cooldownEndMs,
+  }: ResetDirectionSegmentParams): void {
+    const key = buildCooldownKey(monitorSymbol, direction);
+    // 幂等保护：同一 cooldownEndMs 不重复执行
+    if (lastResetByCooldownEndMs.get(key) === cooldownEndMs) {
+      return;
+    }
+    lastResetByCooldownEndMs.set(key, cooldownEndMs);
+    segmentStartByDirection.set(key, segmentStartMs);
+
+    // 清空该方向的订单与偏移，进入新分段
+    const existing = statesByMonitor.get(monitorSymbol);
+    if (!existing) {
+      return;
+    }
+    const isLong = direction === 'LONG';
+    if (isLong) {
+      statesByMonitor.set(monitorSymbol, {
+        long: createEmptyState(),
+        short: existing.short,
+      });
+    } else {
+      statesByMonitor.set(monitorSymbol, {
+        long: existing.long,
+        short: createEmptyState(),
+      });
+    }
+  }
+
   return {
     resetAll,
     recalculateFromAllOrders,
     recordFilledOrder,
     getLossOffset,
+    resetDirectionSegment,
   };
 }

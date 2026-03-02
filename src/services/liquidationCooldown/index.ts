@@ -6,6 +6,7 @@
  */
 import type {
   ClearMidnightEligibleParams,
+  CooldownExpiredEvent,
   GetRemainingMsParams,
   LiquidationCooldownTracker,
   LiquidationCooldownTrackerDeps,
@@ -13,6 +14,7 @@ import type {
   RecordLiquidationTriggerParams,
   RecordLiquidationTriggerResult,
   RestoreTriggerCountParams,
+  SweepExpiredParams,
 } from './types.js';
 import { buildCooldownKey, resolveCooldownEndMs } from './utils.js';
 
@@ -47,6 +49,7 @@ export function createLiquidationCooldownTracker(
     direction,
     executedTimeMs,
     triggerLimit,
+    cooldownConfig,
   }: RecordLiquidationTriggerParams): RecordLiquidationTriggerResult {
     if (
       !Number.isFinite(executedTimeMs) ||
@@ -61,6 +64,33 @@ export function createLiquidationCooldownTracker(
     }
 
     const key = buildCooldownKey(symbol, direction);
+
+    if (cooldownConfig !== null) {
+      const previousCooldownExecutedTimeMs = cooldownMap.get(key);
+      if (
+        previousCooldownExecutedTimeMs !== undefined &&
+        Number.isFinite(previousCooldownExecutedTimeMs)
+      ) {
+        const previousCooldownEndMs = resolveCooldownEndMs(
+          previousCooldownExecutedTimeMs,
+          cooldownConfig,
+        );
+        if (
+          previousCooldownEndMs !== null &&
+          Number.isFinite(previousCooldownEndMs) &&
+          executedTimeMs < previousCooldownEndMs
+        ) {
+          const currentCount = triggerCountMap.get(key) ?? 0;
+          return {
+            currentCount,
+            cooldownActivated: false,
+          };
+        }
+        cooldownMap.delete(key);
+        triggerCountMap.delete(key);
+      }
+    }
+
     const previousCount = triggerCountMap.get(key) ?? 0;
     const currentCount = previousCount + 1;
     triggerCountMap.set(key, currentCount);
@@ -88,10 +118,15 @@ export function createLiquidationCooldownTracker(
   }
 
   /**
-   * 查询指定标的方向的剩余冷却毫秒数。
-   * 冷却已过期或无记录时返回 0，并顺带清除过期条目。
+   * 纯查询：返回指定标的方向的剩余冷却毫秒数。
+   * 冷却已过期或无记录时返回 0，不产生清理副作用（过期清理由 sweepExpired 统一负责）。
    */
-  function getRemainingMs({ symbol, direction, cooldownConfig }: GetRemainingMsParams): number {
+  function getRemainingMs({
+    symbol,
+    direction,
+    cooldownConfig,
+    currentTimeMs,
+  }: GetRemainingMsParams): number {
     const key = buildCooldownKey(symbol, direction);
     const executedTimeMs = cooldownMap.get(key);
     if (executedTimeMs === undefined || !Number.isFinite(executedTimeMs)) {
@@ -100,18 +135,56 @@ export function createLiquidationCooldownTracker(
 
     const cooldownEndMs = resolveCooldownEndMs(executedTimeMs, cooldownConfig);
     if (cooldownEndMs === null || !Number.isFinite(cooldownEndMs)) {
-      cooldownMap.delete(key);
-      triggerCountMap.delete(key);
       return 0;
     }
 
-    const remainingMs = cooldownEndMs - nowMs();
+    const referenceNowMs =
+      currentTimeMs !== undefined && Number.isFinite(currentTimeMs) ? currentTimeMs : nowMs();
+    const remainingMs = cooldownEndMs - referenceNowMs;
     if (!Number.isFinite(remainingMs) || remainingMs <= 0) {
-      cooldownMap.delete(key);
-      triggerCountMap.delete(key);
       return 0;
     }
     return remainingMs;
+  }
+
+  /**
+   * 扫描所有冷却条目，消费已过期的条目并返回过期事件列表。
+   * 过期条目从 cooldownMap 和 triggerCountMap 中移除（幂等：同一条目只产出一次事件）。
+   */
+  function sweepExpired({
+    nowMs: currentMs,
+    resolveCooldownConfig,
+  }: SweepExpiredParams): ReadonlyArray<CooldownExpiredEvent> {
+    const events: CooldownExpiredEvent[] = [];
+    for (const [key, executedTimeMs] of cooldownMap) {
+      const parts = key.split(':');
+      const monitorSymbol = parts[0];
+      const directionRaw = parts[1];
+      if (!monitorSymbol || (directionRaw !== 'LONG' && directionRaw !== 'SHORT')) {
+        continue;
+      }
+      const direction = directionRaw;
+      const cooldownConfig = resolveCooldownConfig(monitorSymbol, direction);
+      const cooldownEndMs = resolveCooldownEndMs(executedTimeMs, cooldownConfig);
+      if (cooldownEndMs === null || !Number.isFinite(cooldownEndMs)) {
+        cooldownMap.delete(key);
+        triggerCountMap.delete(key);
+        continue;
+      }
+
+      if (currentMs >= cooldownEndMs) {
+        const triggerCount = triggerCountMap.get(key) ?? 0;
+        events.push({
+          monitorSymbol,
+          direction,
+          cooldownEndMs,
+          triggerCountAtExpire: triggerCount,
+        });
+        cooldownMap.delete(key);
+        triggerCountMap.delete(key);
+      }
+    }
+    return events;
   }
 
   /** 跨日午夜清理：删除指定键集合中的冷却记录，minutes 模式条目不在此处清理 */
@@ -132,6 +205,7 @@ export function createLiquidationCooldownTracker(
     recordCooldown,
     restoreTriggerCount,
     getRemainingMs,
+    sweepExpired,
     clearMidnightEligible,
     resetAllTriggerCounts,
   };

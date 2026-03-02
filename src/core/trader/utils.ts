@@ -60,9 +60,7 @@ export function buildOrderRemark(isProtectiveLiquidation: boolean): string {
  * @param remark 订单备注
  * @returns true 表示备注可判定为保护性清仓订单
  */
-export function hasProtectiveLiquidationRemark(
-  remark: string | null | undefined,
-): boolean {
+export function hasProtectiveLiquidationRemark(remark: string | null | undefined): boolean {
   if (typeof remark !== 'string') {
     return false;
   }

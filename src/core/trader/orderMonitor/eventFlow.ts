@@ -105,6 +105,7 @@ export function createEventFlow(deps: EventFlowDeps): EventFlow {
               direction,
               executedTimeMs,
               triggerLimit,
+              cooldownConfig: trackedOrder.liquidationCooldownConfig,
             });
             if (result.cooldownActivated) {
               logger.warn(

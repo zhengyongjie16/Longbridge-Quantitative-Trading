@@ -102,6 +102,7 @@ function createNoopDelayedSignalVerifier(): DelayedSignalVerifier {
 function createNoopDailyLossTracker(): DailyLossTracker {
   return {
     resetAll: () => {},
+    resetDirectionSegment: () => {},
     recalculateFromAllOrders: () => {},
     recordFilledOrder: () => {},
     getLossOffset: () => 0,
@@ -547,6 +548,7 @@ describe('main loop latency full-chain integration', () => {
       dayLifecycleManager: {
         tick: async () => {},
       },
+      lossOffsetLifecycleCoordinator: { sync: () => {} },
     };
 
     // 启动阶段：真实链路是先订阅，再进入主循环

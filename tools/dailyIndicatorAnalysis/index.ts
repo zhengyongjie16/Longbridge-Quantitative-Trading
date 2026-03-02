@@ -41,18 +41,15 @@ const COMPUTE_OPTIONS: ComputeMinuteRowsOptions = {
 
 /** 绿色多条件：满足任意一条（该条内所有指标 < 阈值）即标绿 */
 const GREEN_CONDITIONS: RowColorConditionSet = [
-  { rsi6: 20, d: 20, j: 0.5, vaPositionInValueArea: 0.6 },
+  { rsi6: 25, d: 25, j: 0.5, vaPositionInValueArea: 0.6 },
   { j: -25 },
 ];
 
 /** 黄色多条件：满足任意一条（该条内所有指标 < 阈值）即标黄 */
-const YELLOW_CONDITIONS: RowColorConditionSet = [{ rsi6: 20, d: 20, j: 0.5 }, { j: -10 }];
+const YELLOW_CONDITIONS: RowColorConditionSet = [{ rsi6: 25, d: 25, j: 0.5 }, { j: -25 }];
 
 /** 红色多条件：满足任意一条（该条内所有指标 > 阈值）即标红 */
-const RED_CONDITIONS: RowColorConditionSet = [
-  { rsi6: 80, d: 80, j: 100, vaPositionInValueArea: 0.8 },
-  { j: 125 },
-];
+const RED_CONDITIONS: RowColorConditionSet = [{ rsi6: 75, d: 75, j: 95 }, { j: 125 }];
 
 const ANSI_RESET = '\u001B[0m';
 const ANSI_GREEN = '\u001B[32m';

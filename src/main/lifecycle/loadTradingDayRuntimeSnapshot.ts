@@ -99,7 +99,6 @@ export function createLoadTradingDayRuntimeSnapshot(
       logger.warn('[全量订单获取失败] 将按空订单继续初始化', formatError(err));
     }
     trader.seedOrderHoldSymbols(allOrders);
-    dailyLossTracker.recalculateFromAllOrders(allOrders, tradingConfig.monitors, now);
     await prepareSeatsOnStartup({
       tradingConfig,
       symbolRegistry,
@@ -112,9 +111,20 @@ export function createLoadTradingDayRuntimeSnapshot(
       isWithinMorningOpenProtection,
       warrantListCacheConfig,
     });
+    // 恢复顺序：先 hydrate 冷却状态得到分段边界，再按分段边界回算亏损偏移
+    let segmentStartByDirection: ReadonlyMap<string, number> | undefined;
     if (hydrateCooldownFromTradeLog) {
-      tradeLogHydrator.hydrate();
+      const hydrateResult = tradeLogHydrator.hydrate();
+      if (hydrateResult.segmentStartByDirection.size > 0) {
+        segmentStartByDirection = hydrateResult.segmentStartByDirection;
+      }
     }
+    dailyLossTracker.recalculateFromAllOrders(
+      allOrders,
+      tradingConfig.monitors,
+      now,
+      segmentStartByDirection,
+    );
 
     if (resetRuntimeSubscriptions) {
       await marketDataClient.resetRuntimeSubscriptionsAndCaches();

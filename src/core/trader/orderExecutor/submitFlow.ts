@@ -144,6 +144,7 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
         isProtectiveLiquidation,
         orderType: orderTypeParam,
         liquidationTriggerLimit: monitorConfig?.liquidationTriggerLimit ?? 1,
+        liquidationCooldownConfig: monitorConfig?.liquidationCooldown ?? null,
       });
 
       if (side === OrderSide.Sell && signal.relatedBuyOrderIds) {

@@ -216,6 +216,7 @@ export function createLiquidationCooldownTrackerDouble(
     recordCooldown: (_params: RecordCooldownParams): void => {},
     restoreTriggerCount: (_params: RestoreTriggerCountParams): void => {},
     getRemainingMs: (_params: GetRemainingMsParams): number => 0,
+    sweepExpired: () => [],
     clearMidnightEligible: (_params: ClearMidnightEligibleParams): void => {},
     resetAllTriggerCounts: (): void => {},
   };

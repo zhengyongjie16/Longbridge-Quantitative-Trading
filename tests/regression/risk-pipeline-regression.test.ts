@@ -100,6 +100,7 @@ describe('risk pipeline regression', () => {
     const pipeline = createRiskCheckPipeline({
       tradingConfig: createTradingConfig(),
       liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),
+      syncLossOffsetLifecycle: () => {},
       lastRiskCheckTime,
     });
 
@@ -140,6 +141,7 @@ describe('risk pipeline regression', () => {
     const pipeline = createRiskCheckPipeline({
       tradingConfig: createTradingConfig(),
       liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),
+      syncLossOffsetLifecycle: () => {},
       lastRiskCheckTime,
     });
 

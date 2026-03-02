@@ -72,6 +72,7 @@ interface DailyLossTracker {
     allOrders: ReadonlyArray<RawOrderFromAPI>,
     monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
     now: Date,
+    segmentStartByDirection?: ReadonlyMap<string, number>,
   ) => void;
   recordFilledOrder: (input: {
     readonly monitorSymbol: string;
@@ -84,6 +85,12 @@ interface DailyLossTracker {
     readonly orderId?: string | null;
   }) => void;
   getLossOffset: (monitorSymbol: string, isLongSymbol: boolean) => number;
+  resetDirectionSegment: (params: {
+    readonly monitorSymbol: string;
+    readonly direction: 'LONG' | 'SHORT';
+    readonly segmentStartMs: number;
+    readonly cooldownEndMs: number;
+  }) => void;
 }
 
 /**

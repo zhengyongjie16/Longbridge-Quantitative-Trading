@@ -95,6 +95,7 @@ describe('monitorContext business flow', () => {
       orderRecorder: createOrderRecorderDouble(),
       dailyLossTracker: {
         resetAll: () => {},
+        resetDirectionSegment: () => {},
         recalculateFromAllOrders: () => {},
         recordFilledOrder: () => {},
         getLossOffset: () => 0,
@@ -153,6 +154,7 @@ describe('monitorContext business flow', () => {
       orderRecorder: createOrderRecorderDouble(),
       dailyLossTracker: {
         resetAll: () => {},
+        resetDirectionSegment: () => {},
         recalculateFromAllOrders: () => {},
         recordFilledOrder: () => {},
         getLossOffset: () => 0,

@@ -83,6 +83,7 @@ function createMockCandlesticks(length: number, start: number, step: number): Ca
 function createNoopDailyLossTracker(): DailyLossTracker {
   return {
     resetAll: () => {},
+    resetDirectionSegment: () => {},
     recalculateFromAllOrders: () => {},
     recordFilledOrder: () => {},
     getLossOffset: () => 0,
@@ -281,8 +282,10 @@ describe('full business simulation integration', () => {
         restoreTriggerCount: () => {},
         getRemainingMs: () => 0,
         clearMidnightEligible: () => {},
+        sweepExpired: () => [],
         resetAllTriggerCounts: () => {},
       },
+      syncLossOffsetLifecycle: () => {},
     });
 
     const refreshGate = createRefreshGate();
@@ -372,6 +375,7 @@ describe('full business simulation integration', () => {
         },
         runtimeGateMode: 'skip',
         dayLifecycleManager: createNoopDayLifecycleManager(),
+        lossOffsetLifecycleCoordinator: { sync: () => {} },
       });
 
       await Bun.sleep(80);
@@ -558,8 +562,10 @@ describe('full business simulation integration', () => {
         restoreTriggerCount: () => {},
         getRemainingMs: () => 0,
         clearMidnightEligible: () => {},
+        sweepExpired: () => [],
         resetAllTriggerCounts: () => {},
       },
+      syncLossOffsetLifecycle: () => {},
     });
 
     const sharedMainContext = {
@@ -603,6 +609,7 @@ describe('full business simulation integration', () => {
       },
       runtimeGateMode: 'skip' as const,
       dayLifecycleManager: createNoopDayLifecycleManager(),
+      lossOffsetLifecycleCoordinator: { sync: () => {} },
     };
 
     monitorTaskProcessor.start();
@@ -827,8 +834,10 @@ describe('full business simulation integration', () => {
         restoreTriggerCount: () => {},
         getRemainingMs: () => 0,
         clearMidnightEligible: () => {},
+        sweepExpired: () => [],
         resetAllTriggerCounts: () => {},
       },
+      syncLossOffsetLifecycle: () => {},
     });
 
     const refreshGate = createRefreshGate();
@@ -999,6 +1008,7 @@ describe('full business simulation integration', () => {
         },
         runtimeGateMode: 'skip',
         dayLifecycleManager,
+        lossOffsetLifecycleCoordinator: { sync: () => {} },
       });
 
       expect(lastState.lifecycleState).toBe('MIDNIGHT_CLEANED');
@@ -1042,6 +1052,7 @@ describe('full business simulation integration', () => {
         },
         runtimeGateMode: 'skip',
         dayLifecycleManager,
+        lossOffsetLifecycleCoordinator: { sync: () => {} },
       });
 
       expect(runOpenRebuildCount).toBe(1);

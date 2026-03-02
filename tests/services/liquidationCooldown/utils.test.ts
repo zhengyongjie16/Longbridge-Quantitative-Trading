@@ -128,6 +128,7 @@ describe('liquidationCooldown utils', () => {
     expect(result).toEqual({
       currentCount: 0,
       cooldownExecutedTimeMs: null,
+      lastExpiredCooldownEndMs: null,
     });
   });
 
@@ -141,6 +142,7 @@ describe('liquidationCooldown utils', () => {
     expect(result).toEqual({
       currentCount: 3,
       cooldownExecutedTimeMs: 1_800_000,
+      lastExpiredCooldownEndMs: null,
     });
   });
 
@@ -160,6 +162,7 @@ describe('liquidationCooldown utils', () => {
     expect(result).toEqual({
       currentCount: 2,
       cooldownExecutedTimeMs: null,
+      lastExpiredCooldownEndMs: 3_600_000,
     });
   });
 
@@ -180,6 +183,7 @@ describe('liquidationCooldown utils', () => {
     expect(result).toEqual({
       currentCount: 3,
       cooldownExecutedTimeMs: 6_300_000,
+      lastExpiredCooldownEndMs: 3_600_000,
     });
   });
 });

@@ -32,12 +32,14 @@ import type { SignalProcessor, SignalProcessorDeps } from './types.js';
 export const createSignalProcessor = ({
   tradingConfig,
   liquidationCooldownTracker,
+  syncLossOffsetLifecycle,
 }: SignalProcessorDeps): SignalProcessor => {
   /** 冷却时间记录：Map<symbol_direction, timestamp>，防止重复信号频繁触发风险检查 */
   const lastRiskCheckTime = new Map<string, number>();
   const applyRiskChecks = createRiskCheckPipeline({
     tradingConfig,
     liquidationCooldownTracker,
+    syncLossOffsetLifecycle,
     lastRiskCheckTime,
   });
 

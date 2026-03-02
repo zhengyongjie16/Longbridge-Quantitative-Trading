@@ -15,6 +15,7 @@ import type { MarketMonitor } from '../../services/marketMonitor/types.js';
 import type { DoomsdayProtection } from '../../core/doomsdayProtection/types.js';
 import type { SignalProcessor } from '../../core/signalProcessor/types.js';
 import type { DailyLossTracker } from '../../core/riskController/types.js';
+import type { LossOffsetLifecycleCoordinator } from '../../core/riskController/lossOffsetLifecycleCoordinator/types.js';
 import type { DayLifecycleManager } from '../lifecycle/types.js';
 
 /**
@@ -40,6 +41,7 @@ export type MainProgramContext = {
   readonly monitorTaskQueue: MonitorTaskQueue<MonitorTaskType, MonitorTaskData>;
   readonly orderMonitorWorker: OrderMonitorWorker;
   readonly postTradeRefresher: PostTradeRefresher;
+  readonly lossOffsetLifecycleCoordinator: LossOffsetLifecycleCoordinator;
   readonly runtimeGateMode: GateMode;
   readonly dayLifecycleManager: DayLifecycleManager;
 };

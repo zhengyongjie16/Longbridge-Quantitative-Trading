@@ -45,6 +45,7 @@ function createDeps(params?: {
     orderRecorder: params?.orderRecorder ?? createOrderRecorderDouble(),
     dailyLossTracker: {
       resetAll: () => {},
+      resetDirectionSegment: () => {},
       recalculateFromAllOrders: () => {},
       recordFilledOrder: () => {},
       getLossOffset: () => 0,

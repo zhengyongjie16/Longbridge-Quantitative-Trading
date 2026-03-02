@@ -65,6 +65,7 @@ function createOrderMonitorDeps(params?: {
     orderRecorder: params?.orderRecorder ?? createOrderRecorderDouble(),
     dailyLossTracker: {
       resetAll: () => {},
+      resetDirectionSegment: () => {},
       recalculateFromAllOrders: () => {},
       recordFilledOrder: () => {},
       getLossOffset: () => 0,
@@ -201,6 +202,7 @@ describe('chaos: api flaky recovery', () => {
       orderRecorder: createOrderRecorderDouble(),
       dailyLossTracker: {
         resetAll: () => {},
+        resetDirectionSegment: () => {},
         recalculateFromAllOrders: () => {},
         recordFilledOrder: () => {},
         getLossOffset: () => 0,

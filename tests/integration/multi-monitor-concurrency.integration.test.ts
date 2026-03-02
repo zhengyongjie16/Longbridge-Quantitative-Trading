@@ -196,6 +196,7 @@ describe('multi-monitor-concurrency integration', () => {
       tradingConfig,
       dailyLossTracker: {
         resetAll: () => {},
+        resetDirectionSegment: () => {},
         recalculateFromAllOrders: () => {},
         recordFilledOrder: () => {},
         getLossOffset: () => 0,
@@ -254,6 +255,7 @@ describe('multi-monitor-concurrency integration', () => {
       dayLifecycleManager: {
         tick: async () => {},
       },
+      lossOffsetLifecycleCoordinator: { sync: () => {} },
     });
 
     expect(processCalls).toContain('HSI-A.HK');

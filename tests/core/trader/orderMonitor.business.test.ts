@@ -165,6 +165,7 @@ function createDeps(params?: {
     orderRecorder,
     dailyLossTracker: {
       resetAll: () => {},
+      resetDirectionSegment: () => {},
       recalculateFromAllOrders: () => {},
       recordFilledOrder: () => {},
       getLossOffset: () => 0,

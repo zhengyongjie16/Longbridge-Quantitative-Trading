@@ -95,7 +95,7 @@ export type MonitorConfig = {
 const liquidationTriggerLimit = parseBoundedNumberConfig({
   env,
   envKey: `LIQUIDATION_TRIGGER_LIMIT${suffix}`,
-  defaultValue: 1,    // 默认 1 次，与当前行为一致
+  defaultValue: 1, // 默认 1 次，与当前行为一致
   min: 1,
   max: 10,
 });
@@ -167,7 +167,9 @@ export interface LiquidationCooldownTracker {
    * 记录保护性清仓触发事件。
    * 内部累加触发计数器，当计数达到 triggerLimit 时写入冷却记录。
    */
-  recordLiquidationTrigger: (params: RecordLiquidationTriggerParams) => RecordLiquidationTriggerResult;
+  recordLiquidationTrigger: (
+    params: RecordLiquidationTriggerParams,
+  ) => RecordLiquidationTriggerResult;
 
   /** 直接写入冷却时间戳（仅供 tradeLogHydrator 启动恢复使用，运行时请用 recordLiquidationTrigger） */
   recordCooldown: (params: RecordCooldownParams) => void;
@@ -191,10 +193,10 @@ export interface LiquidationCooldownTracker {
 
 ```typescript
 // 现有
-const cooldownMap = new Map<string, number>();  // key → executedTimeMs
+const cooldownMap = new Map<string, number>(); // key → executedTimeMs
 
 // 新增
-const triggerCountMap = new Map<string, number>();  // key → 当前周期触发次数
+const triggerCountMap = new Map<string, number>(); // key → 当前周期触发次数
 ```
 
 **新增 `recordLiquidationTrigger` 方法**：
@@ -243,14 +245,14 @@ function getRemainingMs({ symbol, direction, cooldownConfig }: GetRemainingMsPar
   const cooldownEndMs = resolveCooldownEndMs(executedTimeMs, cooldownConfig);
   if (cooldownEndMs === null || !Number.isFinite(cooldownEndMs)) {
     cooldownMap.delete(key);
-    triggerCountMap.delete(key);  // 同步重置计数器
+    triggerCountMap.delete(key); // 同步重置计数器
     return 0;
   }
 
   const remainingMs = cooldownEndMs - nowMs();
   if (!Number.isFinite(remainingMs) || remainingMs <= 0) {
     cooldownMap.delete(key);
-    triggerCountMap.delete(key);  // 冷却过期，重置计数器，允许新一轮触发
+    triggerCountMap.delete(key); // 冷却过期，重置计数器，允许新一轮触发
     return 0;
   }
   return remainingMs;
@@ -282,7 +284,7 @@ function resetAllTriggerCounts(): void {
 ```typescript
 return {
   recordLiquidationTrigger,
-  recordCooldown,         // 保留：仅供 tradeLogHydrator 启动恢复使用
+  recordCooldown, // 保留：仅供 tradeLogHydrator 启动恢复使用
   restoreTriggerCount,
   getRemainingMs,
   clearMidnightEligible,
@@ -350,7 +352,7 @@ orderMonitor.trackOrder({
   monitorSymbol: monitorConfig?.monitorSymbol ?? null,
   isProtectiveLiquidation,
   orderType: orderTypeParam,
-  liquidationTriggerLimit: monitorConfig?.liquidationTriggerLimit ?? 1,  // 新增
+  liquidationTriggerLimit: monitorConfig?.liquidationTriggerLimit ?? 1, // 新增
 });
 ```
 
@@ -369,7 +371,7 @@ trackOrder({
   monitorSymbol: order.monitorSymbol,
   isProtectiveLiquidation: order.isProtectiveLiquidation,
   orderType: OrderType.MO,
-  liquidationTriggerLimit: order.liquidationTriggerLimit,  // 新增：从原订单复制
+  liquidationTriggerLimit: order.liquidationTriggerLimit, // 新增：从原订单复制
 });
 ```
 
@@ -433,6 +435,7 @@ if (trackedOrder.isProtectiveLiquidation) {
 **新增函数** `collectLiquidationRecordsByMonitor`：
 
 与已删除的 `resolveCooldownCandidatesBySeat` 的关键区别：
+
 - 按 `TradeRecord.monitorSymbol`（而非 `record.symbol`）匹配，确保换标后旧交易标的的 PL 记录不会丢失。
 - 方向从 `TradeRecord.action`（`SELLCALL` → LONG，`SELLPUT` → SHORT）推导，不依赖当前席位快照。
 - 返回所有保护性清仓记录（而非仅最后一条），按 `monitorSymbol:direction` 分组并按时间升序排列。
@@ -561,8 +564,8 @@ export function simulateTriggerCycle({
   }
 
   let count = 0;
-  let cooldownEndMs = 0;         // 当前冷却结束时间（0 表示无冷却）
-  let lastCooldownTimeMs: number | null = null;  // 最后一次冷却激活的成交时间
+  let cooldownEndMs = 0; // 当前冷却结束时间（0 表示无冷却）
+  let lastCooldownTimeMs: number | null = null; // 最后一次冷却激活的成交时间
 
   for (const record of records) {
     // 若当前记录在冷却过期之后，开始新周期
@@ -607,9 +610,7 @@ function hydrate(): void {
   // ... 文件读取与解析逻辑不变 ...
 
   // 收集当前所有监控标的
-  const monitorSymbols = new Set(
-    tradingConfig.monitors.map((config) => config.monitorSymbol),
-  );
+  const monitorSymbols = new Set(tradingConfig.monitors.map((config) => config.monitorSymbol));
 
   // 按 monitorSymbol:direction 收集所有保护性清仓记录
   const allLiquidationRecords = collectLiquidationRecordsByMonitor({
@@ -723,6 +724,7 @@ function runMidnightRiskClear(deps: RiskDomainDeps, ctx: LifecycleContext): void
 **改动**：将 `resolveCooldownEndMs` 从 `index.ts` 移至 `utils.ts` 并导出，`index.ts` 改为从 `utils.ts` 导入。该函数是纯函数（无闭包依赖），移动不影响行为。
 
 **import 变更**：
+
 - `utils.ts`：新增 `import type { LiquidationCooldownConfig } from '../../types/config.js'`（供 `resolveCooldownEndMs` 和 `simulateTriggerCycle` 使用）；删除 `import type { SeatSymbolSnapshotEntry } from '../../types/seat.js'`（随 `resolveCooldownCandidatesBySeat` 删除）。
 - `index.ts`：新增 `import { resolveCooldownEndMs } from './utils.js'`；删除原内部 `resolveCooldownEndMs` 函数定义。
 - `tradeLogHydrator.ts`：删除 `import type { SeatSymbolSnapshotEntry } from '../../types/seat.js'`；将 `import { ... resolveCooldownCandidatesBySeat } from './utils.js'` 替换为 `import { collectLiquidationRecordsByMonitor, simulateTriggerCycle } from './utils.js'`。
@@ -733,76 +735,76 @@ function runMidnightRiskClear(deps: RiskDomainDeps, ctx: LifecycleContext): void
 
 新增测试用例：
 
-| 场景 | 预期 |
-|------|------|
-| triggerLimit=1，触发 1 次 | 立即进入冷却（向后兼容） |
-| triggerLimit=3，触发 1 次 | 不进入冷却，getRemainingMs 返回 0 |
-| triggerLimit=3，触发 2 次 | 不进入冷却，getRemainingMs 返回 0 |
-| triggerLimit=3，触发 3 次 | 进入冷却，getRemainingMs 返回正值 |
-| triggerLimit=3，触发 3 次后冷却过期 | 计数器重置为 0，可再次触发 3 次 |
-| triggerLimit=3，触发 3 次冷却过期后再触发 2 次 | count=2，不进入冷却 |
-| triggerLimit=3，触发 3 次冷却过期后再触发 3 次 | count=3，再次进入冷却 |
-| 午夜清理后 | 计数器归零，冷却状态按模式清理 |
-| restoreTriggerCount 恢复后 getRemainingMs 行为正确 | 无冷却记录时返回 0 |
+| 场景                                               | 预期                              |
+| -------------------------------------------------- | --------------------------------- |
+| triggerLimit=1，触发 1 次                          | 立即进入冷却（向后兼容）          |
+| triggerLimit=3，触发 1 次                          | 不进入冷却，getRemainingMs 返回 0 |
+| triggerLimit=3，触发 2 次                          | 不进入冷却，getRemainingMs 返回 0 |
+| triggerLimit=3，触发 3 次                          | 进入冷却，getRemainingMs 返回正值 |
+| triggerLimit=3，触发 3 次后冷却过期                | 计数器重置为 0，可再次触发 3 次   |
+| triggerLimit=3，触发 3 次冷却过期后再触发 2 次     | count=2，不进入冷却               |
+| triggerLimit=3，触发 3 次冷却过期后再触发 3 次     | count=3，再次进入冷却             |
+| 午夜清理后                                         | 计数器归零，冷却状态按模式清理    |
+| restoreTriggerCount 恢复后 getRemainingMs 行为正确 | 无冷却记录时返回 0                |
 
 #### 7.2 `tests/services/liquidationCooldown/utils.test.ts`（新增）
 
 `simulateTriggerCycle` 测试用例：
 
-| 场景 | 预期 |
-|------|------|
-| 空记录 | count=0，无冷却 |
-| 3 条记录，triggerLimit=3，minutes=30 | count=3，冷却激活（第 3 条时间） |
-| 5 条记录，triggerLimit=3，第 3 条冷却已过期 | count=2（第 4、5 条），无冷却 |
+| 场景                                        | 预期                                              |
+| ------------------------------------------- | ------------------------------------------------- |
+| 空记录                                      | count=0，无冷却                                   |
+| 3 条记录，triggerLimit=3，minutes=30        | count=3，冷却激活（第 3 条时间）                  |
+| 5 条记录，triggerLimit=3，第 3 条冷却已过期 | count=2（第 4、5 条），无冷却                     |
 | 6 条记录，triggerLimit=3，第 3 条冷却已过期 | count=3（第 4、5、6 条），冷却激活（第 6 条时间） |
-| 3 条记录，triggerLimit=3，冷却未过期 | count=3，冷却激活 |
-| triggerLimit=1 | 每条记录独立触发冷却，最终为最后一个未过期周期 |
+| 3 条记录，triggerLimit=3，冷却未过期        | count=3，冷却激活                                 |
+| triggerLimit=1                              | 每条记录独立触发冷却，最终为最后一个未过期周期    |
 
 `collectLiquidationRecordsByMonitor` 测试用例：
 
-| 场景 | 预期 |
-|------|------|
-| 无保护性清仓记录 | 空 Map |
-| 混合保护性清仓和普通成交 | 仅包含保护性清仓记录 |
-| 换标后两个交易标的的 PL 都属于同一 monitorSymbol | 合并到同一组 |
-| 多个 monitorSymbol 的记录 | 分组正确 |
-| 组内时间顺序 | 按 executedAtMs 升序 |
+| 场景                                             | 预期                 |
+| ------------------------------------------------ | -------------------- |
+| 无保护性清仓记录                                 | 空 Map               |
+| 混合保护性清仓和普通成交                         | 仅包含保护性清仓记录 |
+| 换标后两个交易标的的 PL 都属于同一 monitorSymbol | 合并到同一组         |
+| 多个 monitorSymbol 的记录                        | 分组正确             |
+| 组内时间顺序                                     | 按 executedAtMs 升序 |
 
 #### 7.3 `tests/services/liquidationCooldown/tradeLogHydrator.business.test.ts`
 
 新增测试用例：
 
-| 场景 | 预期 |
-|------|------|
-| 当日 2 条 PL 记录，triggerLimit=3 | 恢复 count=2，不写入冷却 |
-| 当日 3 条 PL 记录，triggerLimit=3，冷却未过期 | 恢复 count=3，冷却仍有效 |
-| 当日 3 条 PL 记录，triggerLimit=3，冷却已过期 | count 和冷却均被清除 |
-| 当日 5 条 PL，triggerLimit=3，第 3 条冷却已过期 | 恢复 count=2（新周期），不写入冷却 |
-| 当日 6 条 PL，triggerLimit=3，第 3 条冷却已过期 | 恢复 count=3（新周期），冷却有效（第 6 条时间） |
-| 当日换标：BULL1 有 2 条 PL，BULL2 有 1 条 PL，同一 monitorSymbol | 合并 count=3 |
+| 场景                                                             | 预期                                            |
+| ---------------------------------------------------------------- | ----------------------------------------------- |
+| 当日 2 条 PL 记录，triggerLimit=3                                | 恢复 count=2，不写入冷却                        |
+| 当日 3 条 PL 记录，triggerLimit=3，冷却未过期                    | 恢复 count=3，冷却仍有效                        |
+| 当日 3 条 PL 记录，triggerLimit=3，冷却已过期                    | count 和冷却均被清除                            |
+| 当日 5 条 PL，triggerLimit=3，第 3 条冷却已过期                  | 恢复 count=2（新周期），不写入冷却              |
+| 当日 6 条 PL，triggerLimit=3，第 3 条冷却已过期                  | 恢复 count=3（新周期），冷却有效（第 6 条时间） |
+| 当日换标：BULL1 有 2 条 PL，BULL2 有 1 条 PL，同一 monitorSymbol | 合并 count=3                                    |
 
 ## 文件变更清单
 
-| 文件 | 变更类型 | 说明 |
-|------|---------|------|
-| `.env.example` | 修改 | 在 `LIQUIDATION_COOLDOWN_MINUTES` 下方新增 `LIQUIDATION_TRIGGER_LIMIT` 环境变量示例与注释（格式见下方 .env.example 变更详情） |
-| `src/types/config.ts` | 修改 | MonitorConfig 新增 `liquidationTriggerLimit` 字段 |
-| `src/config/config.trading.ts` | 修改 | 新增 `LIQUIDATION_TRIGGER_LIMIT` 环境变量解析 |
-| `src/config/config.validator.ts` | 修改 | 新增 `liquidationTriggerLimit` 校验与日志输出 |
-| `src/services/liquidationCooldown/types.ts` | 修改 | 新增 `RecordLiquidationTriggerParams`、`RecordLiquidationTriggerResult`、`RestoreTriggerCountParams` 类型；扩展 `LiquidationCooldownTracker` 接口；`TradeLogHydrator` 接口移除 `seatSymbols` 参数；删除 `TradeLogHydratorDeps` 中不再需要的类型引用 |
-| `src/services/liquidationCooldown/index.ts` | 修改 | 新增 `triggerCountMap`、`recordLiquidationTrigger`、`restoreTriggerCount`、`resetAllTriggerCounts`；`getRemainingMs` 冷却过期时同步重置计数器；`resolveCooldownEndMs` 移至 utils.ts |
-| `src/services/liquidationCooldown/utils.ts` | 修改 | 从 index.ts 接收 `resolveCooldownEndMs`；删除 `resolveCooldownCandidatesBySeat`；新增 `collectLiquidationRecordsByMonitor`、`resolveDirectionFromAction`、`simulateTriggerCycle` |
-| `src/services/liquidationCooldown/tradeLogHydrator.ts` | 修改 | 移除 `seatSymbols` 参数；使用 `collectLiquidationRecordsByMonitor` + `simulateTriggerCycle` 替代原有恢复逻辑 |
-| `src/core/trader/types.ts` | 修改 | `TrackedOrder` 新增 `liquidationTriggerLimit` 字段；`TrackOrderParams` 新增可选 `liquidationTriggerLimit` 字段 |
-| `src/core/trader/orderMonitor/orderOps.ts` | 修改 | `trackOrder` 解构并写入 `liquidationTriggerLimit` |
-| `src/core/trader/orderExecutor/submitFlow.ts` | 修改 | `trackOrder` 调用新增 `liquidationTriggerLimit` 传参 |
-| `src/core/trader/orderMonitor/quoteFlow.ts` | 修改 | 超时转市价单时复制 `liquidationTriggerLimit` |
-| `src/core/trader/orderMonitor/eventFlow.ts` | 修改 | 将 `recordCooldown` 替换为 `recordLiquidationTrigger` |
-| `src/main/lifecycle/cacheDomains/riskDomain.ts` | 修改 | 午夜清理新增 `resetAllTriggerCounts` 调用 |
-| `tests/services/liquidationCooldown/business.test.ts` | 修改 | 新增触发次数限制相关测试用例 |
-| `tests/services/liquidationCooldown/utils.test.ts` | 新增 | `simulateTriggerCycle` 和 `collectLiquidationRecordsByMonitor` 测试 |
-| `tests/services/liquidationCooldown/tradeLogHydrator.business.test.ts` | 修改 | 移除 `seatSymbols` 传参；新增周期模拟恢复相关测试用例 |
-| `src/main/lifecycle/loadTradingDayRuntimeSnapshot.ts` | 修改 | hydrate 调用移除 `seatSymbols` 参数：`tradeLogHydrator.hydrate({ seatSymbols })` → `tradeLogHydrator.hydrate()` |
+| 文件                                                                   | 变更类型 | 说明                                                                                                                                                                                                                                                |
+| ---------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.env.example`                                                         | 修改     | 在 `LIQUIDATION_COOLDOWN_MINUTES` 下方新增 `LIQUIDATION_TRIGGER_LIMIT` 环境变量示例与注释（格式见下方 .env.example 变更详情）                                                                                                                       |
+| `src/types/config.ts`                                                  | 修改     | MonitorConfig 新增 `liquidationTriggerLimit` 字段                                                                                                                                                                                                   |
+| `src/config/config.trading.ts`                                         | 修改     | 新增 `LIQUIDATION_TRIGGER_LIMIT` 环境变量解析                                                                                                                                                                                                       |
+| `src/config/config.validator.ts`                                       | 修改     | 新增 `liquidationTriggerLimit` 校验与日志输出                                                                                                                                                                                                       |
+| `src/services/liquidationCooldown/types.ts`                            | 修改     | 新增 `RecordLiquidationTriggerParams`、`RecordLiquidationTriggerResult`、`RestoreTriggerCountParams` 类型；扩展 `LiquidationCooldownTracker` 接口；`TradeLogHydrator` 接口移除 `seatSymbols` 参数；删除 `TradeLogHydratorDeps` 中不再需要的类型引用 |
+| `src/services/liquidationCooldown/index.ts`                            | 修改     | 新增 `triggerCountMap`、`recordLiquidationTrigger`、`restoreTriggerCount`、`resetAllTriggerCounts`；`getRemainingMs` 冷却过期时同步重置计数器；`resolveCooldownEndMs` 移至 utils.ts                                                                 |
+| `src/services/liquidationCooldown/utils.ts`                            | 修改     | 从 index.ts 接收 `resolveCooldownEndMs`；删除 `resolveCooldownCandidatesBySeat`；新增 `collectLiquidationRecordsByMonitor`、`resolveDirectionFromAction`、`simulateTriggerCycle`                                                                    |
+| `src/services/liquidationCooldown/tradeLogHydrator.ts`                 | 修改     | 移除 `seatSymbols` 参数；使用 `collectLiquidationRecordsByMonitor` + `simulateTriggerCycle` 替代原有恢复逻辑                                                                                                                                        |
+| `src/core/trader/types.ts`                                             | 修改     | `TrackedOrder` 新增 `liquidationTriggerLimit` 字段；`TrackOrderParams` 新增可选 `liquidationTriggerLimit` 字段                                                                                                                                      |
+| `src/core/trader/orderMonitor/orderOps.ts`                             | 修改     | `trackOrder` 解构并写入 `liquidationTriggerLimit`                                                                                                                                                                                                   |
+| `src/core/trader/orderExecutor/submitFlow.ts`                          | 修改     | `trackOrder` 调用新增 `liquidationTriggerLimit` 传参                                                                                                                                                                                                |
+| `src/core/trader/orderMonitor/quoteFlow.ts`                            | 修改     | 超时转市价单时复制 `liquidationTriggerLimit`                                                                                                                                                                                                        |
+| `src/core/trader/orderMonitor/eventFlow.ts`                            | 修改     | 将 `recordCooldown` 替换为 `recordLiquidationTrigger`                                                                                                                                                                                               |
+| `src/main/lifecycle/cacheDomains/riskDomain.ts`                        | 修改     | 午夜清理新增 `resetAllTriggerCounts` 调用                                                                                                                                                                                                           |
+| `tests/services/liquidationCooldown/business.test.ts`                  | 修改     | 新增触发次数限制相关测试用例                                                                                                                                                                                                                        |
+| `tests/services/liquidationCooldown/utils.test.ts`                     | 新增     | `simulateTriggerCycle` 和 `collectLiquidationRecordsByMonitor` 测试                                                                                                                                                                                 |
+| `tests/services/liquidationCooldown/tradeLogHydrator.business.test.ts` | 修改     | 移除 `seatSymbols` 传参；新增周期模拟恢复相关测试用例                                                                                                                                                                                               |
+| `src/main/lifecycle/loadTradingDayRuntimeSnapshot.ts`                  | 修改     | hydrate 调用移除 `seatSymbols` 参数：`tradeLogHydrator.hydrate({ seatSymbols })` → `tradeLogHydrator.hydrate()`                                                                                                                                     |
 
 ### 8. `.env.example` 变更详情
 

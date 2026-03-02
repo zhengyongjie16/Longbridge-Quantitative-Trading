@@ -11,6 +11,7 @@ import { logger } from '../../../utils/logger/index.js';
 import { decimalToNumber, isValidPositiveNumber } from '../../../utils/helpers/index.js';
 import { PENDING_ORDER_STATUSES } from '../../../constants/index.js';
 import type { RawOrderFromAPI } from '../../../types/services.js';
+import type { MonitorConfig } from '../../../types/config.js';
 import { resolveOrderOwnership } from '../../orderRecorder/orderOwnershipParser.js';
 import { isSeatReady } from '../../../services/autoSymbolManager/utils.js';
 import type {
@@ -40,7 +41,13 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
     handleOrderChangedWhenActive,
   } = deps;
   const triggerLimitByMonitor = new Map(
-    tradingConfig.monitors.map((monitor) => [monitor.monitorSymbol, monitor.liquidationTriggerLimit]),
+    tradingConfig.monitors.map((monitor) => [
+      monitor.monitorSymbol,
+      monitor.liquidationTriggerLimit,
+    ]),
+  );
+  const cooldownConfigByMonitor = new Map(
+    tradingConfig.monitors.map((monitor) => [monitor.monitorSymbol, monitor.liquidationCooldown]),
   );
 
   /**
@@ -72,6 +79,21 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
       return 1;
     }
     return triggerLimitByMonitor.get(monitorSymbol) ?? 1;
+  }
+
+  /**
+   * 获取监控标的的保护性清仓冷却配置。
+   *
+   * @param monitorSymbol 监控标的
+   * @returns 冷却配置，缺失时回退 null
+   */
+  function resolveLiquidationCooldownConfig(
+    monitorSymbol: string | null,
+  ): MonitorConfig['liquidationCooldown'] {
+    if (!monitorSymbol) {
+      return null;
+    }
+    return cooldownConfigByMonitor.get(monitorSymbol) ?? null;
   }
 
   /**
@@ -299,6 +321,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
     const executedQuantity = decimalToNumber(order.executedQuantity);
     const isProtectiveLiquidation = hasProtectiveLiquidationRemark(order.remark);
     const liquidationTriggerLimit = resolveLiquidationTriggerLimit(ownership.monitorSymbol);
+    const liquidationCooldownConfig = resolveLiquidationCooldownConfig(ownership.monitorSymbol);
     const trackOrderParams: TrackOrderParams = {
       orderId: order.orderId,
       symbol: order.symbol,
@@ -312,6 +335,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
       isProtectiveLiquidation,
       orderType: order.orderType,
       liquidationTriggerLimit,
+      liquidationCooldownConfig,
     };
     trackOrder(trackOrderParams);
     const trackedOrder = runtime.trackedOrders.get(order.orderId);

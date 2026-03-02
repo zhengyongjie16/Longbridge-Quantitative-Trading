@@ -79,8 +79,10 @@ describe('buy-flow integration', () => {
         restoreTriggerCount: () => {},
         getRemainingMs: () => 0,
         clearMidnightEligible: () => {},
+        sweepExpired: () => [],
         resetAllTriggerCounts: () => {},
       },
+      syncLossOffsetLifecycle: () => {},
     });
 
     const tradeCtx = createTradeContextMock();

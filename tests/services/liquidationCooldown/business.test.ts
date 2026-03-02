@@ -20,6 +20,7 @@ describe('liquidationCooldown business flow', () => {
       direction: 'LONG',
       executedTimeMs: now,
       triggerLimit: 1,
+      cooldownConfig: { mode: 'minutes', minutes: 1 },
     });
 
     expect(result).toEqual({
@@ -47,6 +48,7 @@ describe('liquidationCooldown business flow', () => {
       direction: 'LONG',
       executedTimeMs: now,
       triggerLimit: 3,
+      cooldownConfig: { mode: 'minutes', minutes: 1 },
     });
     expect(first).toEqual({
       currentCount: 1,
@@ -66,6 +68,7 @@ describe('liquidationCooldown business flow', () => {
       direction: 'LONG',
       executedTimeMs: now + 1_000,
       triggerLimit: 3,
+      cooldownConfig: { mode: 'minutes', minutes: 1 },
     });
     expect(second).toEqual({
       currentCount: 2,
@@ -85,6 +88,7 @@ describe('liquidationCooldown business flow', () => {
       direction: 'LONG',
       executedTimeMs: now + 2_000,
       triggerLimit: 3,
+      cooldownConfig: { mode: 'minutes', minutes: 1 },
     });
     expect(third).toEqual({
       currentCount: 3,
@@ -111,6 +115,7 @@ describe('liquidationCooldown business flow', () => {
       direction: 'LONG',
       executedTimeMs: now,
       triggerLimit: 3,
+      cooldownConfig: { mode: 'minutes', minutes: 1 },
     });
 
     tracker.recordLiquidationTrigger({
@@ -118,6 +123,7 @@ describe('liquidationCooldown business flow', () => {
       direction: 'LONG',
       executedTimeMs: now + 1_000,
       triggerLimit: 3,
+      cooldownConfig: { mode: 'minutes', minutes: 1 },
     });
 
     tracker.recordLiquidationTrigger({
@@ -125,6 +131,7 @@ describe('liquidationCooldown business flow', () => {
       direction: 'LONG',
       executedTimeMs: now + 2_000,
       triggerLimit: 3,
+      cooldownConfig: { mode: 'minutes', minutes: 1 },
     });
 
     now += 62_001;
@@ -141,6 +148,7 @@ describe('liquidationCooldown business flow', () => {
       direction: 'LONG',
       executedTimeMs: now,
       triggerLimit: 3,
+      cooldownConfig: { mode: 'minutes', minutes: 1 },
     });
     expect(next).toEqual({
       currentCount: 1,
@@ -212,6 +220,7 @@ describe('liquidationCooldown business flow', () => {
       direction: 'LONG',
       executedTimeMs: now,
       triggerLimit: 2,
+      cooldownConfig: { mode: 'minutes', minutes: 1 },
     });
 
     tracker.recordLiquidationTrigger({
@@ -219,6 +228,7 @@ describe('liquidationCooldown business flow', () => {
       direction: 'LONG',
       executedTimeMs: now + 1_000,
       triggerLimit: 2,
+      cooldownConfig: { mode: 'minutes', minutes: 1 },
     });
 
     tracker.recordLiquidationTrigger({
@@ -226,6 +236,7 @@ describe('liquidationCooldown business flow', () => {
       direction: 'SHORT',
       executedTimeMs: now,
       triggerLimit: 2,
+      cooldownConfig: { mode: 'minutes', minutes: 1 },
     });
 
     tracker.clearMidnightEligible({
@@ -245,6 +256,7 @@ describe('liquidationCooldown business flow', () => {
       direction: 'LONG',
       executedTimeMs: now + 2_000,
       triggerLimit: 2,
+      cooldownConfig: { mode: 'minutes', minutes: 1 },
     });
     expect(longAfterClear).toEqual({
       currentCount: 1,
@@ -256,6 +268,7 @@ describe('liquidationCooldown business flow', () => {
       direction: 'SHORT',
       executedTimeMs: now + 2_000,
       triggerLimit: 2,
+      cooldownConfig: { mode: 'minutes', minutes: 1 },
     });
     expect(shortSecondTrigger).toEqual({
       currentCount: 2,
@@ -273,6 +286,7 @@ describe('liquidationCooldown business flow', () => {
       direction: 'LONG',
       executedTimeMs: 1_000,
       triggerLimit: 2,
+      cooldownConfig: { mode: 'minutes', minutes: 1 },
     });
 
     tracker.recordLiquidationTrigger({
@@ -280,6 +294,7 @@ describe('liquidationCooldown business flow', () => {
       direction: 'SHORT',
       executedTimeMs: 1_000,
       triggerLimit: 2,
+      cooldownConfig: { mode: 'minutes', minutes: 1 },
     });
     tracker.resetAllTriggerCounts();
 
@@ -288,6 +303,7 @@ describe('liquidationCooldown business flow', () => {
       direction: 'LONG',
       executedTimeMs: 2_000,
       triggerLimit: 2,
+      cooldownConfig: { mode: 'minutes', minutes: 1 },
     });
     expect(result).toEqual({
       currentCount: 1,
@@ -310,6 +326,7 @@ describe('liquidationCooldown business flow', () => {
       direction: 'LONG',
       executedTimeMs: 2_000,
       triggerLimit: 3,
+      cooldownConfig: { mode: 'minutes', minutes: 1 },
     });
 
     expect(result).toEqual({

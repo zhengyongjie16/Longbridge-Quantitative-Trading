@@ -255,6 +255,7 @@ describe('mainProgram strict-mode integration', () => {
       }),
       dailyLossTracker: {
         resetAll: () => {},
+        resetDirectionSegment: () => {},
         recalculateFromAllOrders: () => {},
         recordFilledOrder: () => {},
         getLossOffset: () => 0,
@@ -280,6 +281,7 @@ describe('mainProgram strict-mode integration', () => {
           dayLifecycleTicks.push(runtime);
         },
       },
+      lossOffsetLifecycleCoordinator: { sync: () => {} },
     });
 
     expect(cancelledSymbols).toEqual(['HSI.HK']);
@@ -352,6 +354,7 @@ describe('mainProgram strict-mode integration', () => {
       }),
       dailyLossTracker: {
         resetAll: () => {},
+        resetDirectionSegment: () => {},
         recalculateFromAllOrders: () => {},
         recordFilledOrder: () => {},
         getLossOffset: () => 0,
@@ -377,6 +380,7 @@ describe('mainProgram strict-mode integration', () => {
       dayLifecycleManager: {
         tick: async () => {},
       },
+      lossOffsetLifecycleCoordinator: { sync: () => {} },
     });
 
     expect(cancelCalls).toBe(1);
@@ -470,6 +474,7 @@ describe('mainProgram strict-mode integration', () => {
       }),
       dailyLossTracker: {
         resetAll: () => {},
+        resetDirectionSegment: () => {},
         recalculateFromAllOrders: () => {},
         recordFilledOrder: () => {},
         getLossOffset: () => 0,
@@ -497,6 +502,7 @@ describe('mainProgram strict-mode integration', () => {
       dayLifecycleManager: {
         tick: async () => {},
       },
+      lossOffsetLifecycleCoordinator: { sync: () => {} },
     });
 
     expect(processMonitorCalls).toHaveLength(1);

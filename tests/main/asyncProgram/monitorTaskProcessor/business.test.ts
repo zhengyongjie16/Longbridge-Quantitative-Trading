@@ -305,6 +305,7 @@ describe('monitorTaskProcessor business flow', () => {
         },
         recordFilledOrder: () => {},
         getLossOffset: () => 0,
+        resetDirectionSegment: () => {},
       },
       riskChecker: createRiskCheckerDouble({
         clearLongWarrantInfo: () => {

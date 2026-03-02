@@ -54,6 +54,7 @@ describe('protective-liquidation integration', () => {
       }),
       dailyLossTracker: {
         resetAll: () => {},
+        resetDirectionSegment: () => {},
         recalculateFromAllOrders: () => {},
         recordFilledOrder: () => {},
         getLossOffset: () => 0,

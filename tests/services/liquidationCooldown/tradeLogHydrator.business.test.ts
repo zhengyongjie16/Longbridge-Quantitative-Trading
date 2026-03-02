@@ -46,14 +46,16 @@ describe('tradeLogHydrator business flow', () => {
         },
         getRemainingMs: () => 0,
         clearMidnightEligible: () => {},
+        sweepExpired: () => [],
         resetAllTriggerCounts: () => {},
       },
     });
 
-    hydrator.hydrate();
+    const result = hydrator.hydrate();
 
     expect(recordCooldownCount).toBe(0);
     expect(restoreTriggerCount).toBe(0);
+    expect(result.segmentStartByDirection.size).toBe(0);
     expect(infoLogs.some((line) => line.includes('当日成交日志不存在'))).toBe(true);
   });
 
@@ -80,13 +82,15 @@ describe('tradeLogHydrator business flow', () => {
         restoreTriggerCount: () => {},
         getRemainingMs: () => 0,
         clearMidnightEligible: () => {},
+        sweepExpired: () => [],
         resetAllTriggerCounts: () => {},
       },
     });
 
-    hydrator.hydrate();
+    const result = hydrator.hydrate();
 
     expect(errorLogCount).toBe(1);
+    expect(result.segmentStartByDirection.size).toBe(0);
   });
 
   it('restores trigger count without activating cooldown when trigger limit is not reached', () => {
@@ -137,11 +141,12 @@ describe('tradeLogHydrator business flow', () => {
         },
         getRemainingMs: () => 0,
         clearMidnightEligible: () => {},
+        sweepExpired: () => [],
         resetAllTriggerCounts: () => {},
       },
     });
 
-    hydrator.hydrate();
+    const result = hydrator.hydrate();
 
     expect(restoreCalls).toEqual([
       {
@@ -151,6 +156,7 @@ describe('tradeLogHydrator business flow', () => {
       },
     ]);
     expect(recordCooldownCalls.length).toBe(0);
+    expect(result.segmentStartByDirection.size).toBe(0);
   });
 
   it('restores cooldown when current cycle reached trigger limit and cooldown is still active', () => {
@@ -214,11 +220,12 @@ describe('tradeLogHydrator business flow', () => {
           return 10_000;
         },
         clearMidnightEligible: () => {},
+        sweepExpired: () => [],
         resetAllTriggerCounts: () => {},
       },
     });
 
-    hydrator.hydrate();
+    const result = hydrator.hydrate();
 
     expect(restoreCalls).toEqual([
       {
@@ -236,6 +243,7 @@ describe('tradeLogHydrator business flow', () => {
       },
     ]);
     expect(getRemainingMsCalls).toBe(1);
+    expect(result.segmentStartByDirection.size).toBe(0);
     expect(infoLogs.some((line) => line.includes('当前周期触发 3/3'))).toBe(true);
   });
 
@@ -305,11 +313,12 @@ describe('tradeLogHydrator business flow', () => {
         },
         getRemainingMs: () => 0,
         clearMidnightEligible: () => {},
+        sweepExpired: () => [],
         resetAllTriggerCounts: () => {},
       },
     });
 
-    hydrator.hydrate();
+    const result = hydrator.hydrate();
 
     expect(restoreCalls).toEqual([
       {
@@ -319,5 +328,103 @@ describe('tradeLogHydrator business flow', () => {
       },
     ]);
     expect(recordCooldownCalls.length).toBe(0);
+    expect(result.segmentStartByDirection.get('HSI.HK:LONG')).toBe(3_600_000);
+  });
+
+  it('keeps latest expired segment boundary when a new-cycle cooldown is currently active', () => {
+    const restoreCalls: RestoreTriggerCountParams[] = [];
+    const recordCooldownCalls: RecordCooldownParams[] = [];
+
+    const hydrator = createTradeLogHydrator({
+      readFileSync: () =>
+        JSON.stringify([
+          {
+            monitorSymbol: 'HSI.HK',
+            action: 'SELLCALL',
+            executedAtMs: 0,
+            isProtectiveClearance: true,
+          },
+          {
+            monitorSymbol: 'HSI.HK',
+            action: 'SELLCALL',
+            executedAtMs: 900_000,
+            isProtectiveClearance: true,
+          },
+          {
+            monitorSymbol: 'HSI.HK',
+            action: 'SELLCALL',
+            executedAtMs: 1_800_000,
+            isProtectiveClearance: true,
+          },
+          {
+            monitorSymbol: 'HSI.HK',
+            action: 'SELLCALL',
+            executedAtMs: 4_500_000,
+            isProtectiveClearance: true,
+          },
+          {
+            monitorSymbol: 'HSI.HK',
+            action: 'SELLCALL',
+            executedAtMs: 5_400_000,
+            isProtectiveClearance: true,
+          },
+          {
+            monitorSymbol: 'HSI.HK',
+            action: 'SELLCALL',
+            executedAtMs: 6_300_000,
+            isProtectiveClearance: true,
+          },
+        ]),
+      existsSync: () => true,
+      resolveLogRootDir: () => TEST_LOG_ROOT_DIR,
+      nowMs: () => Date.parse('2026-02-16T10:00:00+08:00'),
+      logger: {
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+        debug: () => {},
+      },
+      tradingConfig: createTradingConfig({
+        monitors: [
+          createMonitorConfig({
+            monitorSymbol: 'HSI.HK',
+            liquidationCooldown: { mode: 'minutes', minutes: 30 },
+            liquidationTriggerLimit: 3,
+          }),
+        ],
+      }),
+      liquidationCooldownTracker: {
+        recordLiquidationTrigger: () => ({ currentCount: 0, cooldownActivated: false }),
+        recordCooldown: (params) => {
+          recordCooldownCalls.push(params);
+        },
+        restoreTriggerCount: (params) => {
+          restoreCalls.push(params);
+        },
+        getRemainingMs: () => 10_000,
+        clearMidnightEligible: () => {},
+        sweepExpired: () => [],
+        resetAllTriggerCounts: () => {},
+      },
+    });
+
+    const result = hydrator.hydrate();
+
+    expect(restoreCalls).toEqual([
+      {
+        symbol: 'HSI.HK',
+        direction: 'LONG',
+        count: 3,
+      },
+    ]);
+
+    expect(recordCooldownCalls).toEqual([
+      {
+        symbol: 'HSI.HK',
+        direction: 'LONG',
+        executedTimeMs: 6_300_000,
+      },
+    ]);
+    expect(result.segmentStartByDirection.get('HSI.HK:LONG')).toBe(3_600_000);
   });
 });

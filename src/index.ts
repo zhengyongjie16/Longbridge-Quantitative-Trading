@@ -36,6 +36,7 @@ import { createWarrantRiskChecker } from './core/riskController/warrantRiskCheck
 import { createPositionLimitChecker } from './core/riskController/positionLimitChecker.js';
 import { createUnrealizedLossChecker } from './core/riskController/unrealizedLossChecker.js';
 import { createUnrealizedLossMonitor } from './core/riskController/unrealizedLossMonitor.js';
+import { createLossOffsetLifecycleCoordinator } from './core/riskController/lossOffsetLifecycleCoordinator/index.js';
 import { createOrderFilteringEngine } from './core/orderRecorder/orderFilteringEngine.js';
 import { classifyAndConvertOrders } from './core/orderRecorder/utils.js';
 import { resolveOrderOwnership } from './core/orderRecorder/orderOwnershipParser.js';
@@ -206,6 +207,18 @@ async function main(): Promise<void> {
     toHongKongTimeIso,
   });
 
+  // 亏损偏移生命周期协调器：冷却过期后切段偏移
+  const monitorConfigMap = new Map(tradingConfig.monitors.map((cfg) => [cfg.monitorSymbol, cfg]));
+  const lossOffsetLifecycleCoordinator = createLossOffsetLifecycleCoordinator({
+    liquidationCooldownTracker,
+    dailyLossTracker,
+    logger,
+    resolveCooldownConfig: (monitorSymbol, _direction) => {
+      const cfg = monitorConfigMap.get(monitorSymbol);
+      return cfg?.liquidationCooldown ?? null;
+    },
+  });
+
   // 刷新门控：控制刷新节奏，避免频繁重算
   const refreshGate = createRefreshGate();
   const initialDayKey = getHKDateKey(new Date());
@@ -299,7 +312,11 @@ async function main(): Promise<void> {
   // 初始化核心模块实例
   const marketMonitor = createMarketMonitor(); // 市场状态监控
   const doomsdayProtection = createDoomsdayProtection(); // 末日保护（收盘前清仓）
-  const signalProcessor = createSignalProcessor({ tradingConfig, liquidationCooldownTracker }); // 信号处理和风险检查
+  const signalProcessor = createSignalProcessor({
+    tradingConfig,
+    liquidationCooldownTracker,
+    syncLossOffsetLifecycle: lossOffsetLifecycleCoordinator.sync,
+  }); // 信号处理和风险检查
   // 初始化异步任务处理架构
   // IndicatorCache 容量 = max(buyDelay, sellDelay) + 缓冲区，用于延迟验证时查询历史指标
   // 必须在 monitorContexts 之前初始化，因为 DelayedSignalVerifier 依赖 IndicatorCache
@@ -703,6 +720,7 @@ async function main(): Promise<void> {
         monitorTaskQueue,
         orderMonitorWorker,
         postTradeRefresher,
+        lossOffsetLifecycleCoordinator,
         runtimeGateMode: gatePolicies.runtimeGate,
         dayLifecycleManager,
       });
