@@ -4,7 +4,7 @@
  * 系统概述：
  * - 监控恒生指数等目标资产的技术指标（RSI、KDJ、MACD、MFI等）
  * - 根据指标信号在牛熊证上执行双向交易（做多/做空）
- * - 采用多指标组合策略，买卖信号均可配置延迟验证（默认60秒）或立即执行
+ * - 采用多指标组合策略，买卖信号均可按策略配置选择延迟验证（由 verificationConfig.buy/sell.delaySeconds 决定具体秒数）或立即执行
  *
  * 核心流程：
  * 1. 初始化所有模块实例（MarketMonitor、DoomsdayProtection、UnrealizedLossMonitor等）

@@ -31,7 +31,14 @@ import type {
 
 /**
  * 创建交易后刷新器。
- * 订单成交后异步刷新账户、持仓与浮亏数据，并调用 displayAccountAndPositions 展示；完成刷新后 markFresh，供其他异步处理器 waitForFresh 同步。失败时自动重试并合并待刷新标的。
+ * 订单成交后异步刷新账户、持仓与浮亏数据，并调用 displayAccountAndPositions 展示；
+ * 完成刷新后按目标 staleVersion 调用 markFresh，供其他异步处理器通过 waitForFresh 等待一致的刷新版本。
+ *
+ * 刷新批次与版本语义：
+ * - 多次 enqueue 会合并 pendingSymbols 与最新 quotesMap，实际刷新按照当前批次的最大 staleVersion 记为 targetVersion
+ * - 刷新成功后 markFresh(targetVersion)，确保所有等待 refreshGate 的处理器以同一版本视为“已新鲜”
+ * - 刷新失败时不调用 markFresh，而是保留合并后的 pendingSymbols/pendingVersion，并按 API.DEFAULT_RETRY_DELAY_MS 间隔重试
+ * - 因为失败重试在统一入口进行，其他依赖刷新结果的处理器只需等待 waitForFresh 即可，不需要关心重试细节
  *
  * @param deps 依赖注入，包含 refreshGate、trader、lastState、monitorContexts、displayAccountAndPositions
  * @returns PostTradeRefresher 实例（start、enqueue、stopAndDrain、clearPending）

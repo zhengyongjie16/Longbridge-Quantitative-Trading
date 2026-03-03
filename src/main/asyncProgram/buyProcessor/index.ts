@@ -38,6 +38,11 @@ import { formatSymbolDisplay } from '../../../utils/display/index.js';
 /**
  * 创建买入处理器。
  * 消费 BuyTaskQueue 中的买入任务，执行风险检查后提交订单；与卖出处理器分离，避免买入侧 API 风险检查阻塞卖出执行。
+ * 信号处理语义：
+ * - 非买入信号（配置或调用错误）仅记录告警并视为已处理，不影响队列
+ * - 无监控上下文时返回失败（需要运维介入），保持任务保留以便后续排查
+ * - 席位未就绪、席位版本不匹配或席位标的已切换时，仅记录信息日志并安全丢弃信号
+ * - 风险检查拦截、行情缺失或 lotSize 无效等场景下，会记录原因并跳过下单，同样视为“正常完成但不下单”，调用方无需重试
  *
  * @param deps 依赖注入（任务队列、getMonitorContext、signalProcessor、trader、doomsdayProtection、getLastState、getIsHalfDay、可选 getCanProcessTask）
  * @returns 实现 Processor 接口的买入处理器实例（start/stop/stopAndDrain/restart）

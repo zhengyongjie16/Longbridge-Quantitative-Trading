@@ -21,6 +21,10 @@ import { buildCooldownKey, resolveCooldownEndMs } from './utils.js';
 /**
  * 创建清仓冷却追踪器，记录保护性清仓成交时间并计算剩余冷却时长。
  * 内部以 symbol:direction 为键存储成交时间戳，查询时按冷却模式动态计算结束时间。
+ * 与日内亏损分段的协作方式：
+ * - getRemainingMs 仅做纯查询，过期条目保留给 sweepExpired 统一消费，避免查询产生隐式切段
+ * - sweepExpired 在冷却自然到期时产出 CooldownExpiredEvent，由上游（lossOffsetLifecycleCoordinator）据此切换亏损分段
+ * - restoreTriggerCount/recordCooldown 则用于启动阶段从成交日志恢复当前周期计数与冷却起点
  * @param deps - 依赖，包含 nowMs（当前时间毫秒）
  * @returns LiquidationCooldownTracker 实例（recordLiquidationTrigger、recordCooldown、restoreTriggerCount、getRemainingMs、clearMidnightEligible、resetAllTriggerCounts）
  */

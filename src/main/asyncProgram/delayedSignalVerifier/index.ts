@@ -88,8 +88,15 @@ export function createDelayedSignalVerifier(
   }
   return {
     /**
-     * 添加信号到待验证队列，计算延迟时间并设置 setTimeout 定时器
-     * 重复信号、缺少 triggerTime 或指标配置为空时直接释放信号并返回
+     * 添加信号到待验证队列，计算延迟时间并设置 setTimeout 定时器。
+     *
+     * 入队前置条件（不满足时直接释放信号并返回，不进入队列）：
+     * - signal.triggerTime 存在且为有效时间
+     * - 当前监控方向的 verificationConfig.indicators 非空
+     * - 能够从 signal.indicators1 中提取到所有需要的初始指标值
+     *
+     * 幂等与去重：
+     * - 以 generateSignalId 作为键，若相同信号已在 pendingSignals 中，则视为重复信号并直接释放
      */
     addSignal(signal: Signal, monitorSymbol: string): void {
       // 验证 triggerTime

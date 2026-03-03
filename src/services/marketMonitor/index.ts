@@ -4,11 +4,16 @@
  * 功能：
  * - 监控做多/做空标的价格变化
  * - 监控监控标的的技术指标变化
- * - 格式化显示价格和指标信息
+ * - 将监控标的的指标快照复制到本地 MonitorValues 缓存（通过对象池管理），格式化显示价格和指标信息
  *
  * 变化检测阈值（定义在 constants/index.ts 的 MONITOR 常量中）：
  * - 价格变化：MONITOR.PRICE_CHANGE_THRESHOLD
  * - 技术指标变化（EMA/RSI/PSY/MFI/KDJ/MACD）：MONITOR.INDICATOR_CHANGE_THRESHOLD
+ *
+ * 对象池与快照解耦：
+ * - monitorSnapshot 由指标流水线缓存管理，可能被对象池复用或回收
+ * - monitorValues 持有的是 monitorSnapshot 的一份深拷贝（通过 periodRecordPool/kdjObjectPool/macdObjectPool 等），避免引用被回收的对象
+ * - 每次检测到指标变化时，会先释放旧的 monitorValues，再从对象池获取新对象并复制当前快照
  *
  * 显示内容：
  * - 做多/做空标的的现价和涨跌幅

@@ -94,8 +94,10 @@ export function createTradeLogHydrator(deps: TradeLogHydratorDeps): TradeLogHydr
 
   /**
    * 读取当日成交日志，按监控标的方向模拟触发-冷却周期并恢复当前状态。
-   * 启动时调用一次，用于跨进程重启后恢复触发计数器和未到期冷却。
-   * 返回分段边界恢复结果，供 dailyLossTracker 回算时过滤旧段成交。
+ * 启动时调用一次，用于跨进程重启后恢复触发计数器和未到期冷却。
+ * 返回的 segmentStartByDirection 会作为“日内亏损分段起点”，供 dailyLossTracker 在回算偏移时截断旧段成交：
+ * - 冷却仍有效：保持当前周期不切段，后续成交继续累加到同一分段
+ * - 冷却已过期：以 cooldownEndMs 作为新分段起点，冷却前的成交不再计入当前偏移
    */
   function hydrate(): HydrateResult {
     const logFile = buildTradeLogPath(resolveLogRootDir(), new Date(nowMs()));

@@ -332,7 +332,8 @@ export async function createMarketDataClient(
    * 获取行情数据（从本地缓存读取）。支持任意可迭代对象（Array、Set 等）。
    *
    * @param requestSymbols 请求的标的代码集合（可迭代）
-   * @returns 标的 -> Quote 或 null 的 Map；未订阅的标的存在于请求中会 reject
+ * @returns 标的 -> Quote 或 null 的 Map；已订阅但暂无数据的标的返回 null
+ * @throws Error 若 requestSymbols 中包含尚未通过 subscribeSymbols 订阅的标的，将抛出错误以暴露配置问题
    */
   function getQuotes(requestSymbols: Iterable<string>): Promise<Map<string, Quote | null>> {
     try {
