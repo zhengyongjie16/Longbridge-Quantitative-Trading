@@ -201,11 +201,11 @@
 1. **`EventFlowDeps` 中的未使用字段**
    - 类型定义（节选）：
      - `readonly runtime: OrderMonitorRuntimeStore;`
-     - `readonly orderHoldRegistry: OrderHoldRegistry;`  ← 未在实现中使用
+     - `readonly orderHoldRegistry: OrderHoldRegistry;` ← 未在实现中使用
      - `readonly orderRecorder: OrderRecorder;`
-     - `readonly dailyLossTracker: DailyLossTracker;`    ← 未在实现中使用
+     - `readonly dailyLossTracker: DailyLossTracker;` ← 未在实现中使用
      - `readonly liquidationCooldownTracker: LiquidationCooldownTracker;` ← 未在实现中使用
-     - `readonly refreshGate?: RefreshGate;`             ← 未在实现中使用
+     - `readonly refreshGate?: RefreshGate;` ← 未在实现中使用
      - `readonly finalizeOrderClose: ...`
      - `readonly enqueueCloseSync: ...`
      - `readonly cacheBootstrappingEvent: ...`
@@ -219,7 +219,7 @@
      - `readonly ctxPromise: Promise<TradeContext>;`
      - `readonly rateLimiter: RateLimiter;`
      - `readonly cacheManager: OrderCacheManager;`
-     - `readonly orderRecorder: OrderRecorder;`          ← 未在实现中使用
+     - `readonly orderRecorder: OrderRecorder;` ← 未在实现中使用
      - `readonly orderHoldRegistry: OrderHoldRegistry;`
      - `readonly finalizeOrderClose: ...`
      - `readonly enqueueCloseSync: ...`
@@ -234,7 +234,7 @@
      - `readonly config: OrderMonitorConfig;`
      - `readonly thresholdDecimal: Decimal;`
      - `readonly orderRecorder: OrderRecorder;`
-     - `readonly orderHoldRegistry: OrderHoldRegistry;`  ← 未在实现中使用
+     - `readonly orderHoldRegistry: OrderHoldRegistry;` ← 未在实现中使用
      - 其余字段若干（`ctxPromise`、`rateLimiter`、`trackOrder` 等）。
    - 对应实现：`orderMonitor/quoteFlow.ts` 中的 `createQuoteFlow(deps: QuoteFlowDeps)` 仅解构并使用：
      - `runtime`, `config`, `thresholdDecimal`, `orderRecorder`, `ctxPromise`, `rateLimiter`,
@@ -258,4 +258,3 @@
 1. **重要问题**：撤单退避期间仍存在每秒级的超时告警日志输出，虽不会触发 API 调用风暴，但在日志维度仍构成“日志风暴”，与原系统性修复方案的验收标准存在差距，**建议在后续迭代中优先修复**。
 2. **建议问题**：`isOrderAlreadyClosedError`、`CancelOrderOutcomeSource` 以及 `orderMonitor/types.ts` 中部分未使用依赖字段，均已确认在当前实现中没有实际消费点，属于冗余代码与冗余契约，**建议在保证测试通过的前提下逐步清理**。
 3. 本文件仅作为**验证与分析记录**，不直接引入新的业务逻辑或兼容性补丁；后续如需修改实现，应在新的方案文档或变更说明中给出完整设计与测试计划，并严格遵守项目的 TypeScript 规范与文档要求。
-

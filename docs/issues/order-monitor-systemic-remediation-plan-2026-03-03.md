@@ -26,11 +26,11 @@
 
 ### 2.3 二次验证结论（关键结果）
 
-| 场景 | 实验结果 | 结论 |
-| --- | --- | --- |
-| 买单超时 + `601011` | `cancelCalls=1`，后续不重复撤单 | 原无限撤单问题在该场景被抑制 |
-| 卖单超时 + `601012` | `cancelCalls=1`，`submitCalls=1`（仍转市价） | 存在高风险重复卖出回归 |
-| 买单超时 + 网络失败 + 后续 `Filled` 推送 | `recordLocalBuyCount=0` | 存在成交副作用丢失回归 |
+| 场景                                     | 实验结果                                     | 结论                         |
+| ---------------------------------------- | -------------------------------------------- | ---------------------------- |
+| 买单超时 + `601011`                      | `cancelCalls=1`，后续不重复撤单              | 原无限撤单问题在该场景被抑制 |
+| 卖单超时 + `601012`                      | `cancelCalls=1`，`submitCalls=1`（仍转市价） | 存在高风险重复卖出回归       |
+| 买单超时 + 网络失败 + 后续 `Filled` 推送 | `recordLocalBuyCount=0`                      | 存在成交副作用丢失回归       |
 
 ## 3. 现状问题矩阵（基于二次验证）
 
@@ -69,7 +69,11 @@
 ```ts
 type CancelOrderOutcome =
   | { kind: 'CANCEL_CONFIRMED'; closedReason: 'CANCELED' | 'REJECTED'; source: 'API' | 'WS' }
-  | { kind: 'ALREADY_CLOSED'; closedReason: 'CANCELED' | 'FILLED' | 'REJECTED' | 'NOT_FOUND'; source: 'API_ERROR' }
+  | {
+      kind: 'ALREADY_CLOSED';
+      closedReason: 'CANCELED' | 'FILLED' | 'REJECTED' | 'NOT_FOUND';
+      source: 'API_ERROR';
+    }
   | { kind: 'RETRYABLE_FAILURE'; errorCode: string | null; message: string }
   | { kind: 'UNKNOWN_FAILURE'; errorCode: string | null; message: string };
 ```
@@ -100,12 +104,12 @@ type CancelOrderOutcome =
 
 ## 5.3 核心设计变更 C：关闭原因驱动的副作用矩阵
 
-| closedReason | 本地订单记录 | 卖单 pendingSell | 追踪清理 |
-| --- | --- | --- | --- |
-| `FILLED` | 必须走成交路径（若缺成交明细先进入同步态） | `markSellFilled` | 成交记账完成后清理 |
-| `CANCELED` | 不记成交 | `markSellCancelled` | 立即清理 |
-| `REJECTED` | 不记成交 | `markSellCancelled` | 立即清理 |
-| `NOT_FOUND` | 先对账判定，不直接假设撤销 | 暂不执行取消副作用 | 对账完成后决定 |
+| closedReason | 本地订单记录                               | 卖单 pendingSell    | 追踪清理           |
+| ------------ | ------------------------------------------ | ------------------- | ------------------ |
+| `FILLED`     | 必须走成交路径（若缺成交明细先进入同步态） | `markSellFilled`    | 成交记账完成后清理 |
+| `CANCELED`   | 不记成交                                   | `markSellCancelled` | 立即清理           |
+| `REJECTED`   | 不记成交                                   | `markSellCancelled` | 立即清理           |
+| `NOT_FOUND`  | 先对账判定，不直接假设撤销                 | 暂不执行取消副作用  | 对账完成后决定     |
 
 ## 5.4 核心设计变更 D：超时策略重构
 

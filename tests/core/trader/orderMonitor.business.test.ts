@@ -63,70 +63,70 @@ function createDeps(params?: {
   const orderRecorder =
     params?.orderRecorderOverride ??
     createOrderRecorderDouble({
-    allocateRelatedBuyOrderIdsForRecovery:
-      params?.allocateRelatedBuyOrderIdsForRecovery ?? (() => ['BUY-1']),
-    submitSellOrder: (
-      orderId: string,
-      symbol: string,
-      direction: 'LONG' | 'SHORT',
-      quantity: number,
-      relatedBuyOrderIds: readonly string[],
-      submittedAtMs?: number,
-    ) => {
-      pendingSellSnapshot.set(orderId, {
-        orderId,
-        symbol,
-        direction,
-        submittedQuantity: quantity,
-        filledQuantity: 0,
-        relatedBuyOrderIds,
-        status: 'pending',
-        submittedAt: submittedAtMs ?? Date.now(),
-      });
-    },
-    markSellPartialFilled: (orderId: string, filledQuantity: number) => {
-      const current = pendingSellSnapshot.get(orderId);
-      if (!current) {
-        return null;
-      }
-      const next: PendingSellInfo = {
-        ...current,
-        filledQuantity,
-        status: filledQuantity >= current.submittedQuantity ? 'filled' : 'partial',
-      };
-      if (next.status === 'filled') {
+      allocateRelatedBuyOrderIdsForRecovery:
+        params?.allocateRelatedBuyOrderIdsForRecovery ?? (() => ['BUY-1']),
+      submitSellOrder: (
+        orderId: string,
+        symbol: string,
+        direction: 'LONG' | 'SHORT',
+        quantity: number,
+        relatedBuyOrderIds: readonly string[],
+        submittedAtMs?: number,
+      ) => {
+        pendingSellSnapshot.set(orderId, {
+          orderId,
+          symbol,
+          direction,
+          submittedQuantity: quantity,
+          filledQuantity: 0,
+          relatedBuyOrderIds,
+          status: 'pending',
+          submittedAt: submittedAtMs ?? Date.now(),
+        });
+      },
+      markSellPartialFilled: (orderId: string, filledQuantity: number) => {
+        const current = pendingSellSnapshot.get(orderId);
+        if (!current) {
+          return null;
+        }
+        const next: PendingSellInfo = {
+          ...current,
+          filledQuantity,
+          status: filledQuantity >= current.submittedQuantity ? 'filled' : 'partial',
+        };
+        if (next.status === 'filled') {
+          pendingSellSnapshot.delete(orderId);
+        } else {
+          pendingSellSnapshot.set(orderId, next);
+        }
+        return next;
+      },
+      markSellFilled: (orderId: string) => {
+        const current = pendingSellSnapshot.get(orderId);
+        if (!current) {
+          return null;
+        }
+        const filled: PendingSellInfo = {
+          ...current,
+          filledQuantity: current.submittedQuantity,
+          status: 'filled',
+        };
         pendingSellSnapshot.delete(orderId);
-      } else {
-        pendingSellSnapshot.set(orderId, next);
-      }
-      return next;
-    },
-    markSellFilled: (orderId: string) => {
-      const current = pendingSellSnapshot.get(orderId);
-      if (!current) {
-        return null;
-      }
-      const filled: PendingSellInfo = {
-        ...current,
-        filledQuantity: current.submittedQuantity,
-        status: 'filled',
-      };
-      pendingSellSnapshot.delete(orderId);
-      return filled;
-    },
-    markSellCancelled: (orderId: string) => {
-      const current = pendingSellSnapshot.get(orderId);
-      if (!current) {
-        return null;
-      }
-      const cancelled: PendingSellInfo = {
-        ...current,
-        status: 'cancelled',
-      };
-      pendingSellSnapshot.delete(orderId);
-      return cancelled;
-    },
-    getPendingSellSnapshot: () => [...pendingSellSnapshot.values()],
+        return filled;
+      },
+      markSellCancelled: (orderId: string) => {
+        const current = pendingSellSnapshot.get(orderId);
+        if (!current) {
+          return null;
+        }
+        const cancelled: PendingSellInfo = {
+          ...current,
+          status: 'cancelled',
+        };
+        pendingSellSnapshot.delete(orderId);
+        return cancelled;
+      },
+      getPendingSellSnapshot: () => [...pendingSellSnapshot.values()],
     });
 
   const baseConfig = createTradingConfig();

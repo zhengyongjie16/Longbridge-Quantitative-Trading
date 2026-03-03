@@ -96,11 +96,11 @@ describe('auto-symbol-switch integration', () => {
       },
       getPendingOrders: async () => [],
       cancelOrder: async () => ({
-          kind: 'CANCEL_CONFIRMED',
-          closedReason: 'CANCELED',
-          source: 'API',
-          relatedBuyOrderIds: null,
-        }),
+        kind: 'CANCEL_CONFIRMED',
+        closedReason: 'CANCELED',
+        source: 'API',
+        relatedBuyOrderIds: null,
+      }),
     });
 
     const orderRecorder = createOrderRecorderDouble({
@@ -320,11 +320,11 @@ describe('auto-symbol-switch integration', () => {
       executeSignals: async (signals) => orderExecutor.executeSignals(signals),
       getPendingOrders: async () => [],
       cancelOrder: async () => ({
-          kind: 'CANCEL_CONFIRMED',
-          closedReason: 'CANCELED',
-          source: 'API',
-          relatedBuyOrderIds: null,
-        }),
+        kind: 'CANCEL_CONFIRMED',
+        closedReason: 'CANCELED',
+        source: 'API',
+        relatedBuyOrderIds: null,
+      }),
     });
 
     const riskChecker = createRiskCheckerDouble({

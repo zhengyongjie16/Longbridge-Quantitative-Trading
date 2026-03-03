@@ -169,7 +169,13 @@ export function createCloseFlow(deps: CloseFlowDeps): CloseFlow {
 
       const orderSide = resolveOrderSideFromText(side);
       if (orderSide === OrderSide.Buy) {
-        orderRecorder.recordLocalBuy(symbol, executedPrice, executedQuantity, isLongSymbol, executedTimeMs);
+        orderRecorder.recordLocalBuy(
+          symbol,
+          executedPrice,
+          executedQuantity,
+          isLongSymbol,
+          executedTimeMs,
+        );
       } else {
         orderRecorder.recordLocalSell(
           symbol,
@@ -330,7 +336,9 @@ export function createCloseFlow(deps: CloseFlowDeps): CloseFlow {
       return;
     }
 
-    const orderById = new Map<string, RawOrderFromAPI>(allOrders.map((order) => [order.orderId, order]));
+    const orderById = new Map<string, RawOrderFromAPI>(
+      allOrders.map((order) => [order.orderId, order]),
+    );
     for (const task of dueTasks) {
       const snapshot = orderById.get(task.orderId);
       if (!snapshot) {

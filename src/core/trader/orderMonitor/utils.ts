@@ -188,7 +188,9 @@ function isOrderClosedErrorCode(code: string): code is OrderClosedErrorCode {
  * @param code - 错误码字符串
  * @returns 是否为不支持改单错误码
  */
-function isReplaceUnsupportedByTypeErrorCode(code: string): code is ReplaceUnsupportedByTypeErrorCode {
+function isReplaceUnsupportedByTypeErrorCode(
+  code: string,
+): code is ReplaceUnsupportedByTypeErrorCode {
   return REPLACE_UNSUPPORTED_BY_TYPE_ERROR_CODE_SET.has(code as ReplaceUnsupportedByTypeErrorCode);
 }
 

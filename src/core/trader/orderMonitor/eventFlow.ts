@@ -19,7 +19,8 @@ import { isClosedStatus, resolveUpdatedAtMs } from './utils.js';
  * @returns 事件流接口
  */
 export function createEventFlow(deps: EventFlowDeps): EventFlow {
-  const { runtime, orderRecorder, finalizeOrderClose, enqueueCloseSync, cacheBootstrappingEvent } = deps;
+  const { runtime, orderRecorder, finalizeOrderClose, enqueueCloseSync, cacheBootstrappingEvent } =
+    deps;
 
   /**
    * 处理 ACTIVE 状态下的订单推送。

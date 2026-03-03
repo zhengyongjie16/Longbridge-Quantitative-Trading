@@ -96,9 +96,7 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
       return;
     }
 
-    logger.warn(
-      `[订单监控] 买入订单 ${orderId} 超时(${Math.floor(elapsed / 1000)}秒)，尝试撤销`,
-    );
+    logger.warn(`[订单监控] 买入订单 ${orderId} 超时(${Math.floor(elapsed / 1000)}秒)，尝试撤销`);
 
     const outcome = await cancelOrder(orderId);
     if (outcome.kind === 'CANCEL_CONFIRMED') {

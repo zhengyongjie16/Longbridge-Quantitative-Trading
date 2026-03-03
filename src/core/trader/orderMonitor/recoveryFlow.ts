@@ -414,7 +414,8 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
 
             if (
               cancelOutcome.kind === 'ALREADY_CLOSED' &&
-              (cancelOutcome.closedReason === 'FILLED' || cancelOutcome.closedReason === 'NOT_FOUND')
+              (cancelOutcome.closedReason === 'FILLED' ||
+                cancelOutcome.closedReason === 'NOT_FOUND')
             ) {
               enqueueCloseSync(
                 order.orderId,
