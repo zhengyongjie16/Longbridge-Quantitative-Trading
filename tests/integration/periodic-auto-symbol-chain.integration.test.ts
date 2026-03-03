@@ -122,7 +122,12 @@ describe('periodic auto-symbol full chain integration', () => {
         return { submittedCount: signals.length, submittedOrderIds: [] };
       },
       getPendingOrders: async () => [],
-      cancelOrder: async () => true,
+      cancelOrder: async () => ({
+          kind: 'CANCEL_CONFIRMED',
+          closedReason: 'CANCELED',
+          source: 'API',
+          relatedBuyOrderIds: null,
+        }),
     });
 
     const orderRecorder = createOrderRecorderDouble({
@@ -307,7 +312,12 @@ describe('periodic auto-symbol full chain integration', () => {
         return { submittedCount: signals.length, submittedOrderIds: [] };
       },
       getPendingOrders: async () => [],
-      cancelOrder: async () => true,
+      cancelOrder: async () => ({
+          kind: 'CANCEL_CONFIRMED',
+          closedReason: 'CANCELED',
+          source: 'API',
+          relatedBuyOrderIds: null,
+        }),
     });
 
     const orderRecorder = createOrderRecorderDouble({

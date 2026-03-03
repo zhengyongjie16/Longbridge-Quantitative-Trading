@@ -2,9 +2,9 @@
  * orderMonitor 行情驱动流程模块
  *
  * 职责：
- * - 处理买卖订单超时（买撤单/卖转市价）
+ * - 处理买卖订单超时（outcome 驱动）
  * - 基于最新行情执行委托价跟踪与改单
- * - 提供未成交卖单快照供卖单合并决策使用
+ * - 调度 closeSyncQueue 定向对账
  */
 import { OrderSide, OrderType, TimeInForceType } from 'longport';
 import { logger } from '../../../utils/logger/index.js';
@@ -15,14 +15,45 @@ import {
   TRADING,
 } from '../../../constants/index.js';
 import type { Quote } from '../../../types/quote.js';
-import { toDecimal } from '../utils.js';
-import type { PendingSellOrderSnapshot, TrackedOrder } from '../types.js';
+import { isConfirmedNonFilledClose, toDecimal } from '../utils.js';
+import type { CancelOrderOutcome, PendingSellOrderSnapshot, TrackedOrder } from '../types.js';
 import type { QuoteFlow, QuoteFlowDeps } from './types.js';
 import {
   calculatePriceDiffDecimal,
   normalizePriceText,
   resolveOrderIdFromSubmitResponse,
 } from './utils.js';
+
+const CANCEL_RETRY_BASE_DELAY_MS = 1000;
+const CANCEL_RETRY_MAX_DELAY_MS = 30_000;
+
+function resolveCancelRetryDelayMs(retryCount: number): number {
+  const delay = CANCEL_RETRY_BASE_DELAY_MS * 2 ** Math.max(0, retryCount - 1);
+  return Math.min(delay, CANCEL_RETRY_MAX_DELAY_MS);
+}
+
+function shouldStopTimeoutConversion(outcome: CancelOrderOutcome): boolean {
+  return outcome.kind === 'ALREADY_CLOSED' && outcome.closedReason === 'FILLED';
+}
+
+function resolveRelatedBuyOrderIdsFromOutcome(
+  outcome: CancelOrderOutcome,
+): ReadonlyArray<string> | null {
+  if (outcome.kind === 'CANCEL_CONFIRMED' || outcome.kind === 'ALREADY_CLOSED') {
+    return outcome.relatedBuyOrderIds;
+  }
+  return null;
+}
+
+function applyCancelRetryBackoff(order: TrackedOrder): void {
+  order.cancelRetryCount += 1;
+  order.nextCancelAttemptAt = Date.now() + resolveCancelRetryDelayMs(order.cancelRetryCount);
+}
+
+function resetCancelRetry(order: TrackedOrder): void {
+  order.cancelRetryCount = 0;
+  order.nextCancelAttemptAt = Date.now();
+}
 
 /**
  * 创建行情驱动流程处理器。
@@ -41,7 +72,8 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
     isExecutionAllowed,
     trackOrder,
     cancelOrder,
-    cancelOrderWithRuntimeCleanup,
+    cancelOrderWithOutcome,
+    processCloseSyncQueue,
     replaceOrderPrice,
   } = deps;
 
@@ -53,57 +85,99 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
    * @returns 无返回值
    */
   async function handleBuyOrderTimeout(orderId: string, order: TrackedOrder): Promise<void> {
-    const elapsed = Date.now() - order.submittedAt;
-    logger.warn(`[订单监控] 买入订单 ${orderId} 超时(${Math.floor(elapsed / 1000)}秒)，撤销订单`);
-    const remainingQuantity = order.submittedQuantity - order.executedQuantity;
-    if (remainingQuantity <= 0) {
-      runtime.trackedOrders.delete(orderId);
+    const now = Date.now();
+    if (order.nextCancelAttemptAt > now) {
       return;
     }
-    const cancelled = await cancelOrder(orderId);
-    if (cancelled) {
-      logger.info(`[订单监控] 买入订单 ${orderId} 已撤销，剩余未成交数量=${remainingQuantity}`);
-    } else {
-      logger.warn(`[订单监控] 买入订单 ${orderId} 撤销失败（可能已成交或已撤销）`);
+
+    const elapsed = now - order.submittedAt;
+    const remainingQuantity = order.submittedQuantity - order.executedQuantity;
+    if (remainingQuantity <= 0) {
+      return;
     }
+
+    logger.warn(
+      `[订单监控] 买入订单 ${orderId} 超时(${Math.floor(elapsed / 1000)}秒)，尝试撤销`,
+    );
+
+    const outcome = await cancelOrder(orderId);
+    if (outcome.kind === 'CANCEL_CONFIRMED') {
+      resetCancelRetry(order);
+      logger.info(`[订单监控] 买入订单 ${orderId} 已撤销，剩余未成交数量=${remainingQuantity}`);
+      return;
+    }
+
+    if (outcome.kind === 'ALREADY_CLOSED') {
+      if (outcome.closedReason === 'FILLED') {
+        logger.info(`[订单监控] 买入订单 ${orderId} 已成交，等待成交同步收口`);
+      } else if (outcome.closedReason === 'NOT_FOUND') {
+        logger.warn(`[订单监控] 买入订单 ${orderId} 处于 NOT_FOUND 对账流程，暂不清理追踪`);
+      } else {
+        logger.info(`[订单监控] 买入订单 ${orderId} 已关闭，关闭原因=${outcome.closedReason}`);
+      }
+      applyCancelRetryBackoff(order);
+      return;
+    }
+
+    applyCancelRetryBackoff(order);
+    logger.warn(
+      `[订单监控] 买入订单 ${orderId} 撤销失败 kind=${outcome.kind}` +
+        `，下次重试时间=${new Date(order.nextCancelAttemptAt).toISOString()}`,
+    );
   }
 
   /**
-   * 处理卖出订单超时：撤销后转市价单。
+   * 处理卖出订单超时：确认非成交终态后转市价单。
    *
    * @param orderId 订单 ID
    * @param order 追踪订单
    * @returns 无返回值
    */
   async function handleSellOrderTimeout(orderId: string, order: TrackedOrder): Promise<void> {
-    const elapsed = Date.now() - order.submittedAt;
-    logger.warn(
-      `[订单监控] 卖出订单 ${orderId} 超时(${Math.floor(elapsed / 1000)}秒)，转换为市价单`,
-    );
+    const now = Date.now();
+    if (order.nextCancelAttemptAt > now) {
+      return;
+    }
+
+    const elapsed = now - order.submittedAt;
     const remainingQuantity = order.submittedQuantity - order.executedQuantity;
     if (remainingQuantity <= 0) {
-      runtime.trackedOrders.delete(orderId);
+      return;
+    }
+
+    logger.warn(
+      `[订单监控] 卖出订单 ${orderId} 超时(${Math.floor(elapsed / 1000)}秒)，评估是否转市价单`,
+    );
+
+    const outcome = await cancelOrderWithOutcome(orderId);
+    if (shouldStopTimeoutConversion(outcome)) {
+      resetCancelRetry(order);
+      logger.info(`[订单监控] 卖出订单 ${orderId} 已成交，禁止超时转市价`);
+      return;
+    }
+
+    if (!isConfirmedNonFilledClose(outcome)) {
+      applyCancelRetryBackoff(order);
+      logger.warn(
+        `[订单监控] 卖出订单 ${orderId} 未确认可转换终态，kind=${outcome.kind}` +
+          `，下次重试时间=${new Date(order.nextCancelAttemptAt).toISOString()}`,
+      );
+      return;
+    }
+    resetCancelRetry(order);
+
+    if (!isExecutionAllowed()) {
+      logger.info(`[执行门禁] 门禁关闭，卖出订单 ${orderId} 超时转市价单被阻止`);
       return;
     }
 
     try {
-      const cancelResult = await cancelOrderWithRuntimeCleanup(orderId);
-      if (!cancelResult.cancelled) {
-        logger.warn(
-          `[订单监控] 卖出订单 ${orderId} 撤销失败（可能已成交或已撤销），跳过市价单提交`,
-        );
+      const ctx = await ctxPromise;
+      if (!isExecutionAllowed()) {
+        logger.info(`[执行门禁] 门禁已关闭，卖出订单 ${orderId} 转市价单被阻止`);
         return;
       }
 
-      if (!isExecutionAllowed()) {
-        logger.info(`[执行门禁] 门禁关闭，卖出订单 ${orderId} 超时转市价单被阻止，原订单已撤销`);
-        return;
-      }
-      const ctx = await ctxPromise;
-      if (!isExecutionAllowed()) {
-        logger.info(`[执行门禁] 门禁已关闭，卖出订单 ${orderId} 转市价单被阻止，原订单已撤销`);
-        return;
-      }
       let timeoutConversionRemark = `超时转市价-原订单${orderId}`;
       if (order.isProtectiveLiquidation) {
         timeoutConversionRemark += TRADING.PROTECTIVE_LIQUIDATION_REMARK_SUFFIX;
@@ -118,16 +192,14 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
       };
       await rateLimiter.throttle();
       if (!isExecutionAllowed()) {
-        logger.info(
-          `[执行门禁] 门禁已关闭，卖出订单 ${orderId} 转市价单在提交前被阻止，原订单已撤销`,
-        );
+        logger.info(`[执行门禁] 门禁已关闭，卖出订单 ${orderId} 转市价单在提交前被阻止`);
         return;
       }
-      const resp = await ctx.submitOrder(marketOrderPayload);
-      const newOrderId = resolveOrderIdFromSubmitResponse(resp) ?? 'UNKNOWN';
+      const response = await ctx.submitOrder(marketOrderPayload);
+      const newOrderId = resolveOrderIdFromSubmitResponse(response) ?? 'UNKNOWN';
       const direction: 'LONG' | 'SHORT' = order.isLongSymbol ? 'LONG' : 'SHORT';
       const relatedBuyOrderIds =
-        cancelResult.cancelledRelatedBuyOrderIds ??
+        resolveRelatedBuyOrderIdsFromOutcome(outcome) ??
         orderRecorder.allocateRelatedBuyOrderIdsForRecovery(
           order.symbol,
           direction,
@@ -156,13 +228,15 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
         isProtectiveLiquidation: order.isProtectiveLiquidation,
         orderType: OrderType.MO,
         liquidationTriggerLimit: order.liquidationTriggerLimit,
+        liquidationCooldownConfig: order.liquidationCooldownConfig,
       });
       const newTrackedOrder = runtime.trackedOrders.get(newOrderId);
       if (newTrackedOrder) {
         newTrackedOrder.convertedToMarket = true;
       }
-    } catch (err) {
-      logger.error(`[订单监控] 卖出订单 ${orderId} 转市价单失败:`, err);
+    } catch (error) {
+      logger.error(`[订单监控] 卖出订单 ${orderId} 转市价单失败`, error);
+      applyCancelRetryBackoff(order);
     }
   }
 
@@ -175,11 +249,14 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
   async function processWithLatestQuotes(
     quotesMap: ReadonlyMap<string, Quote | null>,
   ): Promise<void> {
+    await processCloseSyncQueue();
+
     const now = Date.now();
     for (const [orderId, order] of runtime.trackedOrders) {
       if (order.convertedToMarket) {
         continue;
       }
+
       const isBuyOrder = order.side === OrderSide.Buy;
       const timeoutConfig = isBuyOrder ? config.buyTimeout : config.sellTimeout;
       if (timeoutConfig.enabled) {
@@ -206,6 +283,7 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
       if (!quote || !Number.isFinite(quote.price)) {
         continue;
       }
+
       const currentPrice = quote.price;
       const normalizedCurrentPriceText = normalizePriceText(currentPrice);
       const normalizedCurrentPriceNumber = Number(normalizedCurrentPriceText);
@@ -215,6 +293,7 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
       if (priceDiffDecimal.comparedTo(thresholdDecimal) < 0) {
         continue;
       }
+
       const sideDesc = isBuyOrder ? '买入' : '卖出';
       const priceDirection =
         normalizedCurrentPriceNumber > normalizedSubmittedPriceNumber ? '上涨' : '下跌';
@@ -222,11 +301,7 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
         `[订单监控] ${sideDesc}订单 ${orderId} 当前价(${normalizedCurrentPriceText}) ` +
           `${priceDirection}，更新委托价：${normalizedSubmittedPriceText} → ${normalizedCurrentPriceText}`,
       );
-      try {
-        await replaceOrderPrice(orderId, normalizedCurrentPriceNumber);
-      } catch (err) {
-        logger.error(`[订单监控] 修改订单 ${orderId} 价格失败:`, err);
-      }
+      await replaceOrderPrice(orderId, normalizedCurrentPriceNumber);
     }
   }
 
@@ -239,11 +314,7 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
   function getPendingSellOrders(symbol: string): ReadonlyArray<PendingSellOrderSnapshot> {
     const pendingOrders: PendingSellOrderSnapshot[] = [];
     for (const order of runtime.trackedOrders.values()) {
-      if (order.symbol !== symbol) {
-        continue;
-      }
-
-      if (order.side !== OrderSide.Sell) {
+      if (order.symbol !== symbol || order.side !== OrderSide.Sell) {
         continue;
       }
 

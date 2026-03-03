@@ -38,6 +38,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
     symbolRegistry,
     trackOrder,
     cancelOrder,
+    enqueueCloseSync,
     handleOrderChangedWhenActive,
   } = deps;
   const triggerLimitByMonitor = new Map(
@@ -133,6 +134,9 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
       orderHoldRegistry.markOrderClosed(trackedOrder.orderId);
     }
     runtime.trackedOrders.clear();
+    runtime.trackedOrderLifecycles.clear();
+    runtime.closeSyncQueue.clear();
+    runtime.closedOrderIds.clear();
     runtime.pendingRefreshSymbols.length = 0;
     clearAllPendingSellTracking();
   }
@@ -249,7 +253,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
   function assertRecoverySnapshotReconciliation(
     params: RecoverySnapshotReconciliationParams,
   ): void {
-    const { allOrders, cancelledMismatchedBuyOrderIds, replayedOrderIds } = params;
+    const { allOrders, closedMismatchedBuyOrderIds, replayedOrderIds } = params;
     const trackedOrderIds = new Set<string>();
     const nonPendingTrackedOrderIds: string[] = [];
     for (const trackedOrder of runtime.trackedOrders.values()) {
@@ -283,7 +287,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
         return false;
       }
 
-      if (cancelledMismatchedBuyOrderIds.has(orderId)) {
+      if (closedMismatchedBuyOrderIds.has(orderId)) {
         return false;
       }
       return !replayedOrderIds.has(orderId);
@@ -376,7 +380,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
     runtime.runtimeState = 'BOOTSTRAPPING';
     resetRecoveryTrackingState();
     let recoveredCount = 0;
-    const cancelledMismatchedBuyOrderIds = new Set<string>();
+    const closedMismatchedBuyOrderIds = new Set<string>();
     try {
       for (const order of allOrders) {
         if (!PENDING_ORDER_STATUSES.has(order.status)) {
@@ -399,11 +403,29 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
 
         if (order.side === OrderSide.Buy) {
           if (!ownership || !isMatched) {
-            const cancelled = await cancelOrder(order.orderId);
-            if (!cancelled) {
+            const cancelOutcome = await cancelOrder(order.orderId);
+            if (cancelOutcome.kind === 'RETRYABLE_FAILURE') {
               throw new Error(`[订单监控] 买单 ${order.orderId} 不匹配且撤单失败，阻断恢复`);
             }
-            cancelledMismatchedBuyOrderIds.add(order.orderId);
+
+            if (cancelOutcome.kind === 'UNKNOWN_FAILURE') {
+              throw new Error(`[订单监控] 买单 ${order.orderId} 撤单结果未知，阻断恢复`);
+            }
+
+            if (
+              cancelOutcome.kind === 'ALREADY_CLOSED' &&
+              (cancelOutcome.closedReason === 'FILLED' || cancelOutcome.closedReason === 'NOT_FOUND')
+            ) {
+              enqueueCloseSync(
+                order.orderId,
+                cancelOutcome.closedReason === 'FILLED'
+                  ? 'ALREADY_CLOSED_FILLED'
+                  : 'ALREADY_CLOSED_NOT_FOUND',
+                cancelOutcome.closedReason,
+              );
+            }
+
+            closedMismatchedBuyOrderIds.add(order.orderId);
             continue;
           }
           restorePendingOrderTracking(order, ownership);
@@ -414,14 +436,14 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
       assertPendingSellConsistency();
       assertRecoverySnapshotReconciliation({
         allOrders,
-        cancelledMismatchedBuyOrderIds,
+        closedMismatchedBuyOrderIds,
         replayedOrderIds,
       });
       runtime.runtimeState = 'ACTIVE';
-      const cancelledMismatchedBuyCount = cancelledMismatchedBuyOrderIds.size;
-      if (recoveredCount > 0 || cancelledMismatchedBuyCount > 0) {
+      const closedMismatchedBuyCount = closedMismatchedBuyOrderIds.size;
+      if (recoveredCount > 0 || closedMismatchedBuyCount > 0) {
         logger.info(
-          `[订单监控] 快照恢复完成：恢复追踪=${recoveredCount}，撤销不匹配买单=${cancelledMismatchedBuyCount}`,
+          `[订单监控] 快照恢复完成：恢复追踪=${recoveredCount}，关闭不匹配买单=${closedMismatchedBuyCount}`,
         );
       }
     } catch (error) {

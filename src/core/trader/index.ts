@@ -146,7 +146,7 @@ export function createTrader(deps: TraderDeps): Promise<Trader> {
 
     // ==================== 订单监控相关方法 ====================
 
-    cancelOrder(orderId: string): Promise<boolean> {
+    cancelOrder(orderId: string) {
       return orderMonitor.cancelOrder(orderId);
     },
 

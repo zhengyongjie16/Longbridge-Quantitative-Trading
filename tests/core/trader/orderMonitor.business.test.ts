@@ -34,6 +34,7 @@ function createDeps(params?: {
   readonly allocateRelatedBuyOrderIdsForRecovery?: () => readonly string[];
   readonly liquidationTriggerLimit?: number;
   readonly liquidationCooldownTrackerOverride?: OrderMonitorDeps['liquidationCooldownTracker'];
+  readonly orderRecorderOverride?: OrderMonitorDeps['orderRecorder'];
 }): { deps: OrderMonitorDeps; tradeCtx: ReturnType<typeof createTradeContextMock> } {
   const tradeCtx = createTradeContextMock();
   const pendingSellSnapshot = new Map<string, PendingSellInfo>();
@@ -59,7 +60,9 @@ function createDeps(params?: {
     },
   });
 
-  const orderRecorder = createOrderRecorderDouble({
+  const orderRecorder =
+    params?.orderRecorderOverride ??
+    createOrderRecorderDouble({
     allocateRelatedBuyOrderIdsForRecovery:
       params?.allocateRelatedBuyOrderIdsForRecovery ?? (() => ['BUY-1']),
     submitSellOrder: (
@@ -124,7 +127,7 @@ function createDeps(params?: {
       return cancelled;
     },
     getPendingSellSnapshot: () => [...pendingSellSnapshot.values()],
-  });
+    });
 
   const baseConfig = createTradingConfig();
   const baseMonitor = baseConfig.monitors[0];
@@ -359,6 +362,7 @@ describe('orderMonitor business flow', () => {
     });
     const monitor = createOrderMonitor(deps);
     await monitor.initialize();
+    await monitor.recoverOrderTrackingFromSnapshot([]);
 
     monitor.trackOrder({
       orderId: 'SELL-PROTECTIVE-TIMEOUT',
@@ -629,6 +633,7 @@ describe('orderMonitor business flow', () => {
         submittedQuantity: 100,
         executedPrice: 1,
         executedQuantity: 100,
+        updatedAtMs: Date.now(),
       }),
     );
 
@@ -684,7 +689,7 @@ describe('orderMonitor business flow', () => {
 
     expect(
       monitor.recoverOrderTrackingFromSnapshot([pendingSell, mismatchedPendingBuy]),
-    ).rejects.toThrow(/撤单失败/);
+    ).rejects.toThrow(/撤单失败|撤单结果未知/);
     expect(monitor.getPendingSellOrders('BULL.HK')).toHaveLength(0);
 
     tradeCtx.clearFailureRules();
@@ -738,5 +743,300 @@ describe('orderMonitor business flow', () => {
     );
 
     expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(0);
+  });
+
+  it('does not submit market sell when timeout cancel returns already-filled (601012)', async () => {
+    const { deps, tradeCtx } = createDeps({
+      sellTimeoutSeconds: 0,
+      buyTimeoutSeconds: 999,
+    });
+    tradeCtx.setFailureRule('cancelOrder', {
+      failAtCalls: [1],
+      maxFailures: 1,
+      errorMessage: 'openapi error: code=601012: Order has been filled',
+    });
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+    await monitor.recoverOrderTrackingFromSnapshot([]);
+
+    monitor.trackOrder({
+      orderId: 'SELL-TIMEOUT-ALREADY-FILLED',
+      symbol: 'BULL.HK',
+      side: OrderSide.Sell,
+      price: 1,
+      quantity: 100,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+
+    await monitor.processWithLatestQuotes(
+      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]),
+    );
+
+    expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
+    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
+  });
+
+  it('records local buy when timeout cancel fails by network error and filled event arrives later', async () => {
+    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
+      throw new Error('handleOrderChanged hook was not captured');
+    };
+    let localBuyCount = 0;
+    const { deps, tradeCtx } = createDeps({
+      buyTimeoutSeconds: 0,
+      sellTimeoutSeconds: 999,
+      onHandleOrderChanged: (handler) => {
+        handleOrderChanged = handler;
+      },
+      orderRecorderOverride: createOrderRecorderDouble({
+        recordLocalBuy: () => {
+          localBuyCount += 1;
+        },
+      }),
+    });
+    tradeCtx.setFailureRule('cancelOrder', {
+      failAtCalls: [1],
+      maxFailures: 1,
+      errorMessage: 'network timeout',
+    });
+
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+    await monitor.recoverOrderTrackingFromSnapshot([]);
+
+    monitor.trackOrder({
+      orderId: 'BUY-TIMEOUT-NETWORK-FAIL',
+      symbol: 'BULL.HK',
+      side: OrderSide.Buy,
+      price: 1,
+      quantity: 100,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+
+    await monitor.processWithLatestQuotes(
+      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]),
+    );
+
+    handleOrderChanged(
+      createPushOrderChanged({
+        orderId: 'BUY-TIMEOUT-NETWORK-FAIL',
+        symbol: 'BULL.HK',
+        side: OrderSide.Buy,
+        status: OrderStatus.Filled,
+        orderType: OrderType.ELO,
+        submittedPrice: 1,
+        submittedQuantity: 100,
+        executedPrice: 1,
+        executedQuantity: 100,
+      }),
+    );
+
+    expect(localBuyCount).toBe(1);
+  });
+
+  it('cleans tracked order once when cancel returns already-canceled (601011)', async () => {
+    const { deps, tradeCtx } = createDeps({
+      buyTimeoutSeconds: 0,
+      sellTimeoutSeconds: 999,
+    });
+    tradeCtx.setFailureRule('cancelOrder', {
+      failAtCalls: [1],
+      maxFailures: 1,
+      errorMessage: 'openapi error: code=601011: Order has been cancelled',
+    });
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+
+    monitor.trackOrder({
+      orderId: 'BUY-TIMEOUT-601011',
+      symbol: 'BULL.HK',
+      side: OrderSide.Buy,
+      price: 1,
+      quantity: 100,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+
+    const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]);
+    await monitor.processWithLatestQuotes(quotes);
+    await monitor.processWithLatestQuotes(quotes);
+
+    expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
+  });
+
+  it('marks 602012 as permanently unsupported and skips further replace attempts', async () => {
+    const { deps, tradeCtx } = createDeps({
+      sellTimeoutSeconds: 999,
+      buyTimeoutSeconds: 999,
+    });
+    tradeCtx.setFailureRule('replaceOrder', {
+      failAtCalls: [1],
+      maxFailures: 1,
+      errorMessage: 'openapi error: code=602012: not supported by type',
+    });
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+
+    monitor.trackOrder({
+      orderId: 'SELL-REPLACE-602012',
+      symbol: 'BULL.HK',
+      side: OrderSide.Sell,
+      price: 1,
+      quantity: 100,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+
+    const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.1)]]);
+    await monitor.processWithLatestQuotes(quotes);
+    await monitor.processWithLatestQuotes(quotes);
+
+    expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(1);
+  });
+
+  it('marks 602013 as temporarily blocked and retries replace after backoff', async () => {
+    const { deps, tradeCtx } = createDeps({
+      sellTimeoutSeconds: 999,
+      buyTimeoutSeconds: 999,
+    });
+    tradeCtx.setFailureRule('replaceOrder', {
+      failAtCalls: [1],
+      maxFailures: 1,
+      errorMessage: 'openapi error: code=602013: status does not allow amendment',
+    });
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+
+    monitor.trackOrder({
+      orderId: 'SELL-REPLACE-602013',
+      symbol: 'BULL.HK',
+      side: OrderSide.Sell,
+      price: 1,
+      quantity: 100,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+
+    const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.1)]]);
+    await monitor.processWithLatestQuotes(quotes);
+    await monitor.processWithLatestQuotes(quotes);
+    expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(1);
+
+    await Bun.sleep(1100);
+    await monitor.processWithLatestQuotes(quotes);
+    expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(2);
+  });
+
+  it('enters close sync on 603001 and reconciles to closed state without repeated cancel', async () => {
+    let fetchAllOrdersCalls = 0;
+    const { deps, tradeCtx } = createDeps({
+      sellTimeoutSeconds: 0,
+      buyTimeoutSeconds: 999,
+      orderRecorderOverride: createOrderRecorderDouble({
+        fetchAllOrdersFromAPI: async () => {
+          fetchAllOrdersCalls += 1;
+          return [
+            createPendingRecoveryOrder({
+              orderId: 'SELL-NOT-FOUND-CLOSE-SYNC',
+              symbol: 'BULL.HK',
+              side: OrderSide.Sell,
+              status: OrderStatus.Canceled,
+              quantity: 100,
+              executedQuantity: 0,
+              executedPrice: 0,
+            }),
+          ];
+        },
+      }),
+    });
+    tradeCtx.setFailureRule('cancelOrder', {
+      failAtCalls: [1],
+      maxFailures: 1,
+      errorMessage: 'openapi error: code=603001: Order not found',
+    });
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+
+    monitor.trackOrder({
+      orderId: 'SELL-NOT-FOUND-CLOSE-SYNC',
+      symbol: 'BULL.HK',
+      side: OrderSide.Sell,
+      price: 1,
+      quantity: 100,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+
+    const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.01)]]);
+    await monitor.processWithLatestQuotes(quotes);
+    await monitor.processWithLatestQuotes(quotes);
+    await Bun.sleep(1100);
+    await monitor.processWithLatestQuotes(quotes);
+
+    expect(fetchAllOrdersCalls).toBeGreaterThan(0);
+    expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
+  });
+
+  it('keeps close sink idempotent when duplicate filled events are received', async () => {
+    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
+      throw new Error('handleOrderChanged hook was not captured');
+    };
+    let localBuyCount = 0;
+    const { deps } = createDeps({
+      onHandleOrderChanged: (handler) => {
+        handleOrderChanged = handler;
+      },
+      orderRecorderOverride: createOrderRecorderDouble({
+        recordLocalBuy: () => {
+          localBuyCount += 1;
+        },
+      }),
+    });
+
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+    await monitor.recoverOrderTrackingFromSnapshot([]);
+
+    monitor.trackOrder({
+      orderId: 'BUY-DUP-FILLED',
+      symbol: 'BULL.HK',
+      side: OrderSide.Buy,
+      price: 1,
+      quantity: 100,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+
+    const filledEvent = createPushOrderChanged({
+      orderId: 'BUY-DUP-FILLED',
+      symbol: 'BULL.HK',
+      side: OrderSide.Buy,
+      status: OrderStatus.Filled,
+      orderType: OrderType.ELO,
+      submittedPrice: 1,
+      submittedQuantity: 100,
+      executedPrice: 1,
+      executedQuantity: 100,
+      updatedAtMs: Date.now(),
+    });
+    handleOrderChanged(filledEvent);
+    handleOrderChanged(filledEvent);
+
+    expect(localBuyCount).toBe(1);
   });
 });

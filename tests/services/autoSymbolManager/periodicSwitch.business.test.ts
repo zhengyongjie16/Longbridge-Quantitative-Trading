@@ -572,7 +572,12 @@ describe('periodic auto-switch regression', () => {
       ],
       cancelOrder: async (orderId: string) => {
         canceledOrderIds.push(orderId);
-        return true;
+        return {
+          kind: 'CANCEL_CONFIRMED' as const,
+          closedReason: 'CANCELED' as const,
+          source: 'API' as const,
+          relatedBuyOrderIds: null,
+        };
       },
     });
     const machine = createSwitchStateMachine({

@@ -13,12 +13,13 @@ import { decimalToNumber, isValidPositiveNumber } from '../../../utils/helpers/i
 import { formatSymbolDisplay } from '../../../utils/display/index.js';
 import type { MonitorConfig } from '../../../types/config.js';
 import type { Signal } from '../../../types/signal.js';
-import type { OrderPayload, SubmitOrderParams } from '../types.js';
+import type { CancelOrderOutcome, OrderPayload, SubmitOrderParams } from '../types.js';
 import {
   buildOrderRemark,
   extractOrderId,
   formatOrderTypeLabel,
   getOrderTypeCode,
+  isConfirmedNonFilledClose,
   resolveOrderTypeConfig,
   resolveSellMergeDecision,
   toDecimal,
@@ -32,6 +33,10 @@ import {
   resolveOrderSide,
 } from './utils.js';
 import { createQuantityResolver } from './quantityResolver.js';
+
+function isFilledCancelOutcome(outcome: CancelOrderOutcome): boolean {
+  return outcome.kind === 'ALREADY_CLOSED' && outcome.closedReason === 'FILLED';
+}
 
 /**
  * 创建 submitTargetOrder 实现。
@@ -255,15 +260,17 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
         if (!canExecuteSignal(signal, 'cancelAndSubmit')) {
           return null;
         }
-        const cancelResults = await Promise.all(
+        const cancelOutcomes = await Promise.all(
           decision.pendingOrderIds.map((orderId) => orderMonitor.cancelOrder(orderId)),
         );
-        if (cancelResults.some((ok) => !ok)) {
-          const remaining = orderMonitor.getPendingSellOrders(targetSymbol);
-          if (remaining.length > 0) {
-            logger.warn(`[订单合并] 撤单失败且仍有未成交卖单，跳过合并提交: ${targetSymbol}`);
-            return null;
-          }
+        if (cancelOutcomes.some(isFilledCancelOutcome)) {
+          logger.warn(`[订单合并] 检测到已成交卖单，禁止重复提交: ${targetSymbol}`);
+          return null;
+        }
+
+        if (cancelOutcomes.some((outcome) => !isConfirmedNonFilledClose(outcome))) {
+          logger.warn(`[订单合并] 撤单未确认非成交终态，跳过合并提交: ${targetSymbol}`);
+          return null;
         }
       }
 

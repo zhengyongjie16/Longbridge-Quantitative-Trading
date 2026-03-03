@@ -12,6 +12,7 @@ import type { Position } from '../../types/account.js';
 import type { Quote } from '../../types/quote.js';
 import type { SeatState } from '../../types/seat.js';
 import type { PendingOrder } from '../../types/services.js';
+import { isConfirmedNonFilledClose } from '../../core/trader/utils.js';
 import type {
   StartSwitchFlowParams,
   SwitchOnDistanceParams,
@@ -340,10 +341,10 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
       );
 
       if (cancelTargets.length > 0) {
-        const results = await Promise.all(
+        const cancelOutcomes = await Promise.all(
           cancelTargets.map((order) => trader.cancelOrder(order.orderId)),
         );
-        if (results.some((ok) => !ok)) {
+        if (cancelOutcomes.some((outcome) => !isConfirmedNonFilledClose(outcome))) {
           failAndClear('CANCEL_PENDING_FAILED');
           return;
         }

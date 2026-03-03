@@ -3,16 +3,14 @@
  *
  * 职责：
  * - 处理 BOOTSTRAPPING / ACTIVE 两阶段订单推送
- * - 在成交/撤销/部分成交时维护本地运行态与业务副作用
- * - 成交后写入 trade 日志并登记待刷新标的
+ * - 将终态订单统一交给关闭收口函数
+ * - 在部分成交时维护 pendingSell 部分成交状态
  */
 import { OrderSide, OrderStatus, type PushOrderChanged } from 'longport';
 import { logger } from '../../../utils/logger/index.js';
-import { decimalToNumber, isValidPositiveNumber } from '../../../utils/helpers/index.js';
-import { toHongKongTimeIso } from '../../../utils/time/index.js';
-import { recordTrade } from '../tradeLogger.js';
+import { decimalToNumber } from '../../../utils/helpers/index.js';
 import type { EventFlow, EventFlowDeps } from './types.js';
-import { isClosedStatus, resolveSignalAction, resolveUpdatedAtMs } from './utils.js';
+import { isClosedStatus, resolveUpdatedAtMs } from './utils.js';
 
 /**
  * 创建事件流处理器。
@@ -21,15 +19,7 @@ import { isClosedStatus, resolveSignalAction, resolveUpdatedAtMs } from './utils
  * @returns 事件流接口
  */
 export function createEventFlow(deps: EventFlowDeps): EventFlow {
-  const {
-    runtime,
-    orderHoldRegistry,
-    orderRecorder,
-    dailyLossTracker,
-    liquidationCooldownTracker,
-    refreshGate,
-    cacheBootstrappingEvent,
-  } = deps;
+  const { runtime, orderRecorder, finalizeOrderClose, enqueueCloseSync, cacheBootstrappingEvent } = deps;
 
   /**
    * 处理 ACTIVE 状态下的订单推送。
@@ -42,144 +32,44 @@ export function createEventFlow(deps: EventFlowDeps): EventFlow {
     const trackedOrder = runtime.trackedOrders.get(orderId);
     if (!trackedOrder) {
       if (isClosedStatus(event.status)) {
-        orderHoldRegistry.markOrderClosed(orderId);
+        enqueueCloseSync(orderId, 'LATE_CLOSED_EVENT');
       }
       return;
     }
 
     trackedOrder.status = event.status;
-    const executedQuantity = decimalToNumber(event.executedQuantity);
-    trackedOrder.executedQuantity = executedQuantity || 0;
+    trackedOrder.executedQuantity = decimalToNumber(event.executedQuantity) || 0;
 
     if (event.status === OrderStatus.Filled) {
-      orderHoldRegistry.markOrderClosed(orderId);
       const executedPrice = decimalToNumber(event.executedPrice);
-      const filledQuantity = decimalToNumber(event.executedQuantity);
-      if (isValidPositiveNumber(executedPrice) && isValidPositiveNumber(filledQuantity)) {
-        const executedTimeMs = resolveUpdatedAtMs(event.updatedAt);
-        if (executedTimeMs === null) {
-          logger.error(`[订单监控] 订单 ${orderId} 成交时间缺失，无法更新订单记录`);
-          runtime.trackedOrders.delete(orderId);
-          return;
-        }
-
-        if (trackedOrder.side === OrderSide.Buy) {
-          orderRecorder.recordLocalBuy(
-            trackedOrder.symbol,
-            executedPrice,
-            filledQuantity,
-            trackedOrder.isLongSymbol,
-            executedTimeMs,
-          );
-        } else {
-          orderRecorder.recordLocalSell(
-            trackedOrder.symbol,
-            executedPrice,
-            filledQuantity,
-            trackedOrder.isLongSymbol,
-            executedTimeMs,
-            orderId,
-          );
-          orderRecorder.markSellFilled(orderId);
-        }
-
-        if (trackedOrder.monitorSymbol) {
-          dailyLossTracker.recordFilledOrder({
-            monitorSymbol: trackedOrder.monitorSymbol,
-            symbol: trackedOrder.symbol,
-            isLongSymbol: trackedOrder.isLongSymbol,
-            side: trackedOrder.side,
-            executedPrice,
-            executedQuantity: filledQuantity,
-            executedTimeMs,
-            orderId,
-          });
-        }
-
-        if (trackedOrder.isProtectiveLiquidation) {
-          const direction = trackedOrder.isLongSymbol ? 'LONG' : 'SHORT';
-          if (trackedOrder.monitorSymbol) {
-            const triggerLimit = trackedOrder.liquidationTriggerLimit;
-            const result = liquidationCooldownTracker.recordLiquidationTrigger({
-              symbol: trackedOrder.monitorSymbol,
-              direction,
-              executedTimeMs,
-              triggerLimit,
-              cooldownConfig: trackedOrder.liquidationCooldownConfig,
-            });
-            if (result.cooldownActivated) {
-              logger.warn(
-                `[订单监控] 订单 ${orderId} 保护性清仓触发次数已达上限（${result.currentCount}/${triggerLimit}），进入买入冷却`,
-              );
-            } else {
-              logger.info(
-                `[订单监控] 订单 ${orderId} 保护性清仓触发 ${result.currentCount}/${triggerLimit}，未进入买入冷却`,
-              );
-            }
-          } else {
-            logger.error(`[订单监控] 订单 ${orderId} 缺少监控标的代码，无法记录清仓冷却`);
-          }
-        }
-        const signalAction = resolveSignalAction(trackedOrder.side, trackedOrder.isLongSymbol);
-        const executedAt = toHongKongTimeIso(new Date(executedTimeMs));
-        recordTrade({
-          orderId,
-          symbol: trackedOrder.symbol,
-          symbolName: null,
-          monitorSymbol: trackedOrder.monitorSymbol,
-          action: signalAction,
-          side: trackedOrder.side === OrderSide.Buy ? 'BUY' : 'SELL',
-          quantity: String(filledQuantity),
-          price: String(executedPrice),
-          orderType: null,
-          status: 'FILLED',
-          error: null,
-          reason: null,
-          signalTriggerTime: null,
-          executedAt,
-          executedAtMs: executedTimeMs,
-          timestamp: null,
-          isProtectiveClearance: trackedOrder.isProtectiveLiquidation,
-        });
-
-        logger.info(
-          `[订单监控] 订单 ${orderId} 完全成交，` +
-            `成交价=${executedPrice.toFixed(3)}，成交数量=${filledQuantity}，` +
-            '已更新本地订单记录',
-        );
-        refreshGate?.markStale();
-        runtime.pendingRefreshSymbols.push({
-          symbol: trackedOrder.symbol,
-          isLongSymbol: trackedOrder.isLongSymbol,
-          refreshAccount: true,
-          refreshPositions: true,
-        });
-      } else {
-        const executedPriceText = event.executedPrice?.toString() ?? 'null';
-        const executedQuantityText = event.executedQuantity.toString();
-        logger.warn(
-          `[订单监控] 订单 ${orderId} 成交数据无效，` +
-            `executedPrice=${executedPriceText}，executedQuantity=${executedQuantityText}`,
-        );
+      const executedQuantity = decimalToNumber(event.executedQuantity);
+      const executedTimeMs = resolveUpdatedAtMs(event.updatedAt);
+      const result = finalizeOrderClose({
+        orderId,
+        closedReason: 'FILLED',
+        source: 'WS',
+        executedPrice,
+        executedQuantity,
+        executedTimeMs,
+      });
+      if (!result.handled) {
+        enqueueCloseSync(orderId, 'LATE_CLOSED_EVENT', 'FILLED');
       }
-      runtime.trackedOrders.delete(orderId);
       return;
     }
 
     if (event.status === OrderStatus.Canceled || event.status === OrderStatus.Rejected) {
-      orderHoldRegistry.markOrderClosed(orderId);
-      if (trackedOrder.side === OrderSide.Sell) {
-        orderRecorder.markSellCancelled(orderId);
-      }
-      runtime.trackedOrders.delete(orderId);
+      finalizeOrderClose({
+        orderId,
+        closedReason: event.status === OrderStatus.Canceled ? 'CANCELED' : 'REJECTED',
+        source: 'WS',
+      });
       logger.info(`[订单监控] 订单 ${orderId} 状态变为 ${event.status}，停止追踪`);
       return;
     }
 
-    if (event.status === OrderStatus.PartialFilled) {
-      if (trackedOrder.side === OrderSide.Sell) {
-        orderRecorder.markSellPartialFilled(orderId, executedQuantity);
-      }
+    if (event.status === OrderStatus.PartialFilled && trackedOrder.side === OrderSide.Sell) {
+      orderRecorder.markSellPartialFilled(orderId, trackedOrder.executedQuantity);
       logger.info(
         `[订单监控] 订单 ${orderId} 部分成交，` +
           `已成交=${trackedOrder.executedQuantity}/${trackedOrder.submittedQuantity}，` +

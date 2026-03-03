@@ -427,7 +427,11 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
           orderType: 'ELO' as never,
         },
       ],
-      cancelOrder: async () => false,
+      cancelOrder: async () => ({
+        kind: 'UNKNOWN_FAILURE',
+        errorCode: null,
+        message: 'simulated cancel failure',
+      }),
       executeSignals: async () => {
         executeCalls += 1;
         return { submittedCount: 1, submittedOrderIds: [] };

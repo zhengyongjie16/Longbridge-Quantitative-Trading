@@ -100,7 +100,7 @@ function createOrderMonitorDeps(params?: {
 }
 
 describe('chaos: api flaky recovery', () => {
-  it('retries timeout conversion on next tick after transient cancelOrder failure', async () => {
+  it('retries timeout conversion after backoff when cancelOrder is transiently failing', async () => {
     const orderRecorder = createOrderRecorderDouble({
       markSellCancelled: (orderId) => ({
         orderId,
@@ -140,6 +140,11 @@ describe('chaos: api flaky recovery', () => {
 
     const quotesMap = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.01)]]);
     await monitor.processWithLatestQuotes(quotesMap);
+    await monitor.processWithLatestQuotes(quotesMap);
+    expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
+    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
+
+    await Bun.sleep(1100);
     await monitor.processWithLatestQuotes(quotesMap);
 
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(2);

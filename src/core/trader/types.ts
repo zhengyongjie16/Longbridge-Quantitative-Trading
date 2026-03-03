@@ -109,20 +109,47 @@ export type OrderSeatOwnership = {
  */
 export type RecoverySnapshotReconciliationParams = {
   readonly allOrders: ReadonlyArray<RawOrderFromAPI>;
-  readonly cancelledMismatchedBuyOrderIds: ReadonlySet<string>;
+  readonly closedMismatchedBuyOrderIds: ReadonlySet<string>;
   readonly replayedOrderIds: ReadonlySet<string>;
 };
 
 /**
- * 撤单并清理运行态的返回结果。
- * 类型用途：标识撤单是否成功，并在卖单场景携带被取消记录的关联买单 ID。
- * 数据来源：OrderMonitor.cancelOrderWithRuntimeCleanup 的返回值。
- * 使用范围：仅 trader/orderMonitor 模块内部使用。
+ * 订单关闭原因。
+ * 类型用途：统一表示订单终态关闭语义，驱动副作用与清理策略。
+ * 数据来源：撤单 API 返回、WebSocket 终态事件、定向对账结果。
+ * 使用范围：trader/orderMonitor 及调用链路使用。
  */
-export type CancelOrderResult = {
-  readonly cancelled: boolean;
-  readonly cancelledRelatedBuyOrderIds: ReadonlyArray<string> | null;
-};
+export type OrderClosedReason = 'FILLED' | 'CANCELED' | 'REJECTED' | 'NOT_FOUND';
+
+/**
+ * 撤单结果（语义化 outcome）。
+ * 类型用途：替代 boolean 语义，区分确认撤销、已关闭、可重试失败与未知失败。
+ * 数据来源：OrderMonitor.cancelOrder / cancelOrderWithOutcome 返回值。
+ * 使用范围：trader/orderMonitor 及所有调用方链路。
+ */
+export type CancelOrderOutcome =
+  | {
+      readonly kind: 'CANCEL_CONFIRMED';
+      readonly closedReason: 'CANCELED' | 'REJECTED';
+      readonly source: 'API' | 'WS';
+      readonly relatedBuyOrderIds: ReadonlyArray<string> | null;
+    }
+  | {
+      readonly kind: 'ALREADY_CLOSED';
+      readonly closedReason: OrderClosedReason;
+      readonly source: 'API_ERROR';
+      readonly relatedBuyOrderIds: ReadonlyArray<string> | null;
+    }
+  | {
+      readonly kind: 'RETRYABLE_FAILURE';
+      readonly errorCode: string | null;
+      readonly message: string;
+    }
+  | {
+      readonly kind: 'UNKNOWN_FAILURE';
+      readonly errorCode: string | null;
+      readonly message: string;
+    };
 
 /**
  * 提交订单入参。
@@ -265,7 +292,7 @@ export interface OrderMonitor {
   trackOrder: (params: TrackOrderParams) => void;
 
   /** 撤销订单 */
-  cancelOrder: (orderId: string) => Promise<boolean>;
+  cancelOrder: (orderId: string) => Promise<CancelOrderOutcome>;
 
   /** 修改订单价格 */
   replaceOrderPrice: (orderId: string, newPrice: number, quantity?: number | null) => Promise<void>;
@@ -408,6 +435,18 @@ export type TrackedOrder = {
 
   /** 是否已转为市价单（防止重复转换） */
   convertedToMarket: boolean;
+
+  /** 下次允许发起撤单尝试的时间戳（毫秒） */
+  nextCancelAttemptAt: number;
+
+  /** 撤单重试计数（用于指数退避） */
+  cancelRetryCount: number;
+
+  /** 改单能力状态 */
+  replaceCapability: 'SUPPORTED' | 'UNSUPPORTED_BY_TYPE' | 'TEMP_BLOCKED_BY_STATUS';
+
+  /** 临时禁改截止时间戳（毫秒） */
+  replaceBlockedUntilAt: number | null;
 };
 
 /**

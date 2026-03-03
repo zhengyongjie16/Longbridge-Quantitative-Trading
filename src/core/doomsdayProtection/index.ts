@@ -383,13 +383,28 @@ export function createDoomsdayProtection(): DoomsdayProtection {
       let cancelledCount = 0;
       for (const order of pendingBuyOrders) {
         try {
-          const success = await trader.cancelOrder(order.orderId);
-          if (success) {
+          const cancelOutcome = await trader.cancelOrder(order.orderId);
+          const cancelledByOutcome =
+            cancelOutcome.kind === 'CANCEL_CONFIRMED' ||
+            (cancelOutcome.kind === 'ALREADY_CLOSED' &&
+              (cancelOutcome.closedReason === 'CANCELED' ||
+                cancelOutcome.closedReason === 'REJECTED'));
+          if (cancelledByOutcome) {
             cancelledCount++;
             logger.info(
               `[末日保护程序] 撤销买入订单成功：${order.symbol} 订单ID=${order.orderId} 数量=${order.quantity} 价格=${order.submittedPrice.toFixed(3)}`,
             );
+            continue;
           }
+
+          if (cancelOutcome.kind === 'ALREADY_CLOSED' && cancelOutcome.closedReason === 'FILLED') {
+            logger.info(`[末日保护程序] 买入订单已成交，无需撤单：${order.orderId}`);
+            continue;
+          }
+
+          logger.warn(
+            `[末日保护程序] 撤销买入订单未确认成功：${order.orderId} kind=${cancelOutcome.kind}`,
+          );
         } catch (err) {
           logger.warn(
             `[末日保护程序] 撤销买入订单失败：${order.symbol} 订单ID=${order.orderId}`,

@@ -104,7 +104,12 @@ describe('sell-flow integration', () => {
         trackOrder: ({ orderId, quantity, side }) => {
           trackedOrders.push({ orderId, quantity, side });
         },
-        cancelOrder: async () => true,
+        cancelOrder: async () => ({
+          kind: 'CANCEL_CONFIRMED',
+          closedReason: 'CANCELED',
+          source: 'API',
+          relatedBuyOrderIds: null,
+        }),
         replaceOrderPrice: async () => {},
         processWithLatestQuotes: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},
@@ -241,7 +246,12 @@ describe('sell-flow integration', () => {
         trackOrder: ({ orderId, quantity, side }) => {
           trackedOrders.push({ orderId, quantity, side });
         },
-        cancelOrder: async () => true,
+        cancelOrder: async () => ({
+          kind: 'CANCEL_CONFIRMED',
+          closedReason: 'CANCELED',
+          source: 'API',
+          relatedBuyOrderIds: null,
+        }),
         replaceOrderPrice: async () => {},
         processWithLatestQuotes: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},
@@ -361,7 +371,12 @@ describe('sell-flow integration', () => {
         trackOrder: ({ orderId, quantity, side }) => {
           trackedOrders.push({ orderId, quantity, side });
         },
-        cancelOrder: async () => true,
+        cancelOrder: async () => ({
+          kind: 'CANCEL_CONFIRMED',
+          closedReason: 'CANCELED',
+          source: 'API',
+          relatedBuyOrderIds: null,
+        }),
         replaceOrderPrice: async () => {},
         processWithLatestQuotes: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},

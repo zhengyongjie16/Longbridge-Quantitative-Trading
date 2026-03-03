@@ -167,7 +167,12 @@ describe('multi-monitor-concurrency integration', () => {
         getPendingOrders: async () => [],
         seedOrderHoldSymbols: () => {},
         getOrderHoldSymbols: () => new Set<string>(),
-        cancelOrder: async () => true,
+        cancelOrder: async () => ({
+          kind: 'CANCEL_CONFIRMED',
+          closedReason: 'CANCELED',
+          source: 'API',
+          relatedBuyOrderIds: null,
+        }),
         monitorAndManageOrders: async () => {},
         getAndClearPendingRefreshSymbols: () => [],
         initializeOrderMonitor: async () => {},

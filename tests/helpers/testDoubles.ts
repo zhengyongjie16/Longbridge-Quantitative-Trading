@@ -116,7 +116,12 @@ export function createTraderDouble(overrides: Partial<Trader> = {}): Trader {
     getPendingOrders: async (): Promise<PendingOrder[]> => [],
     seedOrderHoldSymbols: () => {},
     getOrderHoldSymbols: () => new Set<string>(),
-    cancelOrder: async () => true,
+    cancelOrder: async () => ({
+      kind: 'CANCEL_CONFIRMED',
+      closedReason: 'CANCELED',
+      source: 'API',
+      relatedBuyOrderIds: null,
+    }),
     monitorAndManageOrders: async () => {},
     getAndClearPendingRefreshSymbols: (): ReadonlyArray<PendingRefreshSymbol> => [],
     initializeOrderMonitor: async () => {},

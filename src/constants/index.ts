@@ -251,19 +251,25 @@ export const ORDER_TYPE_CODE_MAP: ReadonlyMap<OrderType, string> = new Map([
   [OrderType.SLO, 'SLO'],
 ]);
 
-/** 未成交订单状态集合（New/PartialFilled/WaitToNew/WaitToReplace/PendingReplace） */
+/** 未成交订单状态集合（New/PartialFilled/WaitToNew/WaitToReplace/PendingReplace/Replaced/WaitToCancel/PendingCancel/PartialWithdrawal） */
 export const PENDING_ORDER_STATUSES = new Set<OrderStatus>([
   OrderStatus.New,
   OrderStatus.PartialFilled,
   OrderStatus.WaitToNew,
   OrderStatus.WaitToReplace,
   OrderStatus.PendingReplace,
+  OrderStatus.Replaced,
+  OrderStatus.WaitToCancel,
+  OrderStatus.PendingCancel,
+  OrderStatus.PartialWithdrawal,
 ]) as ReadonlySet<OrderStatus>;
 
-/** 不可改单的订单状态集合（WaitToReplace/PendingReplace） */
+/** 不可改单的订单状态集合（包含改单中与撤单中状态） */
 export const NON_REPLACEABLE_ORDER_STATUSES = new Set<OrderStatus>([
   OrderStatus.WaitToReplace,
   OrderStatus.PendingReplace,
+  OrderStatus.WaitToCancel,
+  OrderStatus.PendingCancel,
 ]) as ReadonlySet<OrderStatus>;
 
 /** 不可改单的订单类型集合（MO 市价单不支持改单） */
@@ -292,6 +298,48 @@ export const MIN_WARRANT_PRICE_THRESHOLD = 0.015;
 
 /** 价格格式化小数位数 */
 export const DEFAULT_PRICE_DECIMALS = 3;
+
+/**
+ * LongPort API 错误码常量（订单监控使用）
+ *
+ * 订单已关闭类错误码:
+ * - 601011: Order has been cancelled (订单已撤销)
+ * - 601012: Order has been filled (订单已成交)
+ * - 601013: Order has been rejected (订单已拒绝)
+ * - 603001: Order not found (订单不存在)
+ */
+export const ORDER_CLOSED_ERROR_CODE_SET = new Set(['601011', '601012', '601013', '603001']);
+
+/**
+ * 可确认撤单闭环的错误码:
+ * - 601011: Order has been cancelled
+ * - 601013: Order has been rejected
+ */
+export const ORDER_CANCEL_CONFIRMED_ERROR_CODE_SET = new Set(['601011', '601013']);
+
+/**
+ * 订单已成交错误码:
+ * - 601012: Order has been filled
+ */
+export const ORDER_ALREADY_FILLED_ERROR_CODE_SET = new Set(['601012']);
+
+/**
+ * 订单不存在错误码:
+ * - 603001: Order not found
+ */
+export const ORDER_NOT_FOUND_ERROR_CODE_SET = new Set(['603001']);
+
+/**
+ * 不支持改单（订单类型不支持）错误码:
+ * - 602012: Order amendment is not supported for this order type
+ */
+export const REPLACE_UNSUPPORTED_BY_TYPE_ERROR_CODE_SET = new Set(['602012']);
+
+/**
+ * 不支持改单（订单状态暂不允许）错误码:
+ * - 602013: Order status does not allow amendment
+ */
+export const REPLACE_TEMP_BLOCKED_BY_STATUS_ERROR_CODE_SET = new Set(['602013']);
 
 /** 百分比格式化小数位数 */
 export const DEFAULT_PERCENT_DECIMALS = 2;

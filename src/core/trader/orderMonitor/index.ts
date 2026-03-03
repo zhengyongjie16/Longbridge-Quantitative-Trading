@@ -15,6 +15,7 @@ import type { OrderMonitorRuntimeStore } from './types.js';
 import { buildOrderMonitorConfig } from './utils.js';
 import { createRecoveryFlow } from './recoveryFlow.js';
 import { createEventFlow } from './eventFlow.js';
+import { createCloseFlow } from './closeFlow.js';
 import { createOrderOps } from './orderOps.js';
 import { createQuoteFlow } from './quoteFlow.js';
 
@@ -43,19 +44,34 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
   const thresholdDecimal = toDecimal(config.priceDiffThreshold);
   const runtime: OrderMonitorRuntimeStore = {
     trackedOrders: new Map<string, TrackedOrder>(),
+    trackedOrderLifecycles: new Map(),
     pendingRefreshSymbols: [],
     bootstrappingOrderEvents: new Map<string, PushOrderChanged>(),
+    closeSyncQueue: new Map(),
+    closedOrderIds: new Set(),
     runtimeState: 'BOOTSTRAPPING',
   };
   let initialized = false;
+
+  const closeFlow = createCloseFlow({
+    runtime,
+    orderHoldRegistry,
+    orderRecorder,
+    dailyLossTracker,
+    liquidationCooldownTracker,
+    tradingConfig,
+    symbolRegistry,
+    ...(refreshGate ? { refreshGate } : {}),
+  });
 
   const orderOps = createOrderOps({
     runtime,
     ctxPromise,
     rateLimiter,
     cacheManager,
-    orderRecorder,
     orderHoldRegistry,
+    finalizeOrderClose: closeFlow.finalizeOrderClose,
+    enqueueCloseSync: closeFlow.enqueueCloseSync,
   });
 
   let activeHandler: ((event: PushOrderChanged) => void) | null = null;
@@ -67,6 +83,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     symbolRegistry,
     trackOrder: orderOps.trackOrder,
     cancelOrder: orderOps.cancelOrder,
+    enqueueCloseSync: closeFlow.enqueueCloseSync,
     handleOrderChangedWhenActive: (event) => {
       if (!activeHandler) {
         throw new Error('[订单监控] ACTIVE 事件处理器尚未初始化');
@@ -77,11 +94,9 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
 
   const eventFlow = createEventFlow({
     runtime,
-    orderHoldRegistry,
     orderRecorder,
-    dailyLossTracker,
-    liquidationCooldownTracker,
-    ...(refreshGate ? { refreshGate } : {}),
+    finalizeOrderClose: closeFlow.finalizeOrderClose,
+    enqueueCloseSync: closeFlow.enqueueCloseSync,
     cacheBootstrappingEvent: recoveryFlow.cacheBootstrappingEvent,
   });
   activeHandler = eventFlow.handleOrderChangedWhenActive;
@@ -96,7 +111,8 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     isExecutionAllowed,
     trackOrder: orderOps.trackOrder,
     cancelOrder: orderOps.cancelOrder,
-    cancelOrderWithRuntimeCleanup: orderOps.cancelOrderWithRuntimeCleanup,
+    cancelOrderWithOutcome: orderOps.cancelOrderWithOutcome,
+    processCloseSyncQueue: closeFlow.processCloseSyncQueue,
     replaceOrderPrice: orderOps.replaceOrderPrice,
   });
 
@@ -145,6 +161,9 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
   function clearTrackedOrders(): void {
     recoveryFlow.resetRecoveryTrackingState();
     recoveryFlow.clearBootstrappingEventBuffer();
+    closeFlow.clearCloseSyncQueue();
+    runtime.trackedOrderLifecycles.clear();
+    runtime.closedOrderIds.clear();
     runtime.runtimeState = 'BOOTSTRAPPING';
   }
 

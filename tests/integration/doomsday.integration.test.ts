@@ -178,7 +178,12 @@ describe('doomsday integration', () => {
           orderType: 'ELO' as never,
         },
       ],
-      cancelOrder: async () => true,
+      cancelOrder: async () => ({
+          kind: 'CANCEL_CONFIRMED',
+          closedReason: 'CANCELED',
+          source: 'API',
+          relatedBuyOrderIds: null,
+        }),
     });
 
     const result1 = await doomsday.cancelPendingBuyOrders({

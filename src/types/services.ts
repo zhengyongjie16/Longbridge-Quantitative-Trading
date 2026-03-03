@@ -14,6 +14,7 @@ import type { AccountSnapshot, Position } from './account.js';
 import type { DecimalLikeValue } from './common.js';
 import type { MonitorConfig } from './config.js';
 import type { TradingCalendarSnapshot } from './tradingCalendar.js';
+import type { CancelOrderOutcome } from '../core/trader/types.js';
 
 /**
  * 交易日查询结果。
@@ -422,7 +423,7 @@ export interface Trader {
   // ========== 订单监控 ==========
 
   /** 撤销订单 */
-  cancelOrder: (orderId: string) => Promise<boolean>;
+  cancelOrder: (orderId: string) => Promise<CancelOrderOutcome>;
 
   /** 监控和管理待处理订单 */
   monitorAndManageOrders: (quotesMap: ReadonlyMap<string, Quote | null>) => Promise<void>;

@@ -10,6 +10,7 @@ import {
 } from '../../constants/index.js';
 import type { OrderTypeConfig, Signal } from '../../types/signal.js';
 import type {
+  CancelOrderOutcome,
   OrderSubmitResponse,
   OrderTypeResolutionConfig,
   PendingSellOrderSnapshot,
@@ -167,6 +168,23 @@ export function resolveOrderTypeConfig(
 function resolveRemainingQuantity(order: PendingSellOrderSnapshot): number {
   const remaining = order.submittedQuantity - order.executedQuantity;
   return isValidPositiveNumber(remaining) ? remaining : 0;
+}
+
+/**
+ * 判断撤单结果是否可确认为「未成交关闭」终态。
+ * 默认行为：CANCEL_CONFIRMED 或 ALREADY_CLOSED 且关闭原因为 CANCELED/REJECTED 时返回 true。
+ *
+ * @param outcome 撤单 outcome
+ * @returns true 表示可确认订单已以非成交方式关闭
+ */
+export function isConfirmedNonFilledClose(outcome: CancelOrderOutcome): boolean {
+  if (outcome.kind === 'CANCEL_CONFIRMED') {
+    return true;
+  }
+  return (
+    outcome.kind === 'ALREADY_CLOSED' &&
+    (outcome.closedReason === 'CANCELED' || outcome.closedReason === 'REJECTED')
+  );
 }
 
 /**

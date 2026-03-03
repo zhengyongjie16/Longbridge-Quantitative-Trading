@@ -95,7 +95,12 @@ describe('auto-symbol-switch integration', () => {
         return { submittedCount: 1, submittedOrderIds: ['BUY-ORDER-1'] };
       },
       getPendingOrders: async () => [],
-      cancelOrder: async () => true,
+      cancelOrder: async () => ({
+          kind: 'CANCEL_CONFIRMED',
+          closedReason: 'CANCELED',
+          source: 'API',
+          relatedBuyOrderIds: null,
+        }),
     });
 
     const orderRecorder = createOrderRecorderDouble({
@@ -292,7 +297,12 @@ describe('auto-symbol-switch integration', () => {
         trackOrder: ({ orderId, side, quantity }) => {
           trackedOrders.push({ orderId, side, quantity });
         },
-        cancelOrder: async () => true,
+        cancelOrder: async () => ({
+          kind: 'CANCEL_CONFIRMED',
+          closedReason: 'CANCELED',
+          source: 'API',
+          relatedBuyOrderIds: null,
+        }),
         replaceOrderPrice: async () => {},
         processWithLatestQuotes: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},
@@ -309,7 +319,12 @@ describe('auto-symbol-switch integration', () => {
     const trader = createTraderDouble({
       executeSignals: async (signals) => orderExecutor.executeSignals(signals),
       getPendingOrders: async () => [],
-      cancelOrder: async () => true,
+      cancelOrder: async () => ({
+          kind: 'CANCEL_CONFIRMED',
+          closedReason: 'CANCELED',
+          source: 'API',
+          relatedBuyOrderIds: null,
+        }),
     });
 
     const riskChecker = createRiskCheckerDouble({

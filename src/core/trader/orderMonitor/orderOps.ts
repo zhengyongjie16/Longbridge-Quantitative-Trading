@@ -3,17 +3,27 @@
  *
  * 职责：
  * - 管理 trackOrder 运行态写入
- * - 封装撤单与运行态清理
+ * - 封装撤单 outcome 语义
  * - 封装改单与委托价更新
  */
+import { OrderSide } from 'longport';
 import { logger } from '../../../utils/logger/index.js';
 import { isValidPositiveNumber } from '../../../utils/helpers/index.js';
-import { formatError } from '../../../utils/error/index.js';
 import { toDecimal } from '../utils.js';
-import { OrderSide } from 'longport';
 import type { OrderOps, OrderOpsDeps } from './types.js';
-import type { TrackOrderParams, TrackedOrder } from '../types.js';
-import { normalizePriceText, resolveInitialTrackedStatus } from './utils.js';
+import type { CancelOrderOutcome, TrackOrderParams, TrackedOrder } from '../types.js';
+import {
+  extractErrorCode,
+  extractErrorMessage,
+  isReplaceTempBlockedError,
+  isReplaceUnsupportedByTypeError,
+  isRetryableCancelError,
+  normalizePriceText,
+  resolveInitialTrackedStatus,
+  resolveOrderClosedReasonFromError,
+} from './utils.js';
+
+const REPLACE_TEMP_BLOCK_BACKOFF_MS = 1000;
 
 /**
  * 创建订单操作处理器。
@@ -22,7 +32,15 @@ import { normalizePriceText, resolveInitialTrackedStatus } from './utils.js';
  * @returns 订单操作接口
  */
 export function createOrderOps(deps: OrderOpsDeps): OrderOps {
-  const { runtime, ctxPromise, rateLimiter, cacheManager, orderRecorder, orderHoldRegistry } = deps;
+  const {
+    runtime,
+    ctxPromise,
+    rateLimiter,
+    cacheManager,
+    orderHoldRegistry,
+    finalizeOrderClose,
+    enqueueCloseSync,
+  } = deps;
 
   /**
    * 开始追踪订单（订单提交后调用）。
@@ -69,8 +87,13 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
       submittedAt,
       lastPriceUpdateAt: now,
       convertedToMarket: false,
+      nextCancelAttemptAt: now,
+      cancelRetryCount: 0,
+      replaceCapability: 'SUPPORTED',
+      replaceBlockedUntilAt: null,
     };
     runtime.trackedOrders.set(orderId, order);
+    runtime.trackedOrderLifecycles.set(orderId, 'OPEN');
     logger.info(
       `[订单监控] 开始追踪订单 ${orderId}，` +
         `标的=${symbol}，方向=${side === OrderSide.Buy ? '买入' : '卖出'}，` +
@@ -79,48 +102,82 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
   }
 
   /**
-   * 撤销订单并执行运行态清理。
+   * 撤销订单并返回 outcome。
    *
    * @param orderId 订单 ID
-   * @returns 撤单结果
+   * @returns 语义化撤单结果
    */
-  async function cancelOrderWithRuntimeCleanup(orderId: string) {
+  async function cancelOrderWithOutcome(orderId: string): Promise<CancelOrderOutcome> {
     const ctx = await ctxPromise;
+
     try {
       await rateLimiter.throttle();
       await ctx.cancelOrder(orderId);
-      const trackedOrder = runtime.trackedOrders.get(orderId);
-      let cancelledRelatedBuyOrderIds: ReadonlyArray<string> | null = null;
       cacheManager.clearCache();
-      runtime.trackedOrders.delete(orderId);
-      orderHoldRegistry.markOrderClosed(orderId);
-      if (trackedOrder?.side === OrderSide.Sell) {
-        const cancelledSell = orderRecorder.markSellCancelled(orderId);
-        cancelledRelatedBuyOrderIds = cancelledSell?.relatedBuyOrderIds ?? null;
-      }
+      const closeResult = finalizeOrderClose({
+        orderId,
+        closedReason: 'CANCELED',
+        source: 'API',
+      });
       logger.info(`[订单撤销成功] 订单ID=${orderId}`);
       return {
-        cancelled: true,
-        cancelledRelatedBuyOrderIds,
+        kind: 'CANCEL_CONFIRMED',
+        closedReason: 'CANCELED',
+        source: 'API',
+        relatedBuyOrderIds: closeResult.relatedBuyOrderIds,
       };
-    } catch (err) {
-      logger.error(`[订单撤销失败] 订单ID=${orderId}`, formatError(err));
+    } catch (error) {
+      const closedReason = resolveOrderClosedReasonFromError(error);
+      if (closedReason !== null) {
+        let relatedBuyOrderIds: ReadonlyArray<string> | null = null;
+        if (closedReason === 'CANCELED' || closedReason === 'REJECTED') {
+          const closeResult = finalizeOrderClose({
+            orderId,
+            closedReason,
+            source: 'API',
+          });
+          cacheManager.clearCache();
+          relatedBuyOrderIds = closeResult.relatedBuyOrderIds;
+        } else if (closedReason === 'FILLED') {
+          enqueueCloseSync(orderId, 'ALREADY_CLOSED_FILLED', 'FILLED');
+        } else {
+          enqueueCloseSync(orderId, 'ALREADY_CLOSED_NOT_FOUND', 'NOT_FOUND');
+        }
+
+        return {
+          kind: 'ALREADY_CLOSED',
+          closedReason,
+          source: 'API_ERROR',
+          relatedBuyOrderIds,
+        };
+      }
+
+      const errorCode = extractErrorCode(error);
+      const message = extractErrorMessage(error);
+      if (isRetryableCancelError(error)) {
+        return {
+          kind: 'RETRYABLE_FAILURE',
+          errorCode,
+          message,
+        };
+      }
+      enqueueCloseSync(orderId, 'UNKNOWN_FAILURE');
       return {
-        cancelled: false,
-        cancelledRelatedBuyOrderIds: null,
+        kind: 'UNKNOWN_FAILURE',
+        errorCode,
+        message,
       };
     }
   }
 
   /**
-   * 撤销订单。
+   * 撤销订单（外部统一入口）。
    *
    * @param orderId 订单 ID
-   * @returns true 表示撤单成功
+   * @returns 语义化撤单结果
    */
-  async function cancelOrder(orderId: string): Promise<boolean> {
-    const cancelResult = await cancelOrderWithRuntimeCleanup(orderId);
-    return cancelResult.cancelled;
+  async function cancelOrder(orderId: string): Promise<CancelOrderOutcome> {
+    return cancelOrderWithOutcome(orderId);
   }
 
   /**
@@ -138,16 +195,34 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
   ): Promise<void> {
     const ctx = await ctxPromise;
     const trackedOrder = runtime.trackedOrders.get(orderId);
+
     if (!trackedOrder) {
       logger.warn(`[订单修改] 订单 ${orderId} 未在追踪列表中`);
       return;
     }
+
+    const now = Date.now();
+    if (trackedOrder.replaceCapability === 'UNSUPPORTED_BY_TYPE') {
+      logger.debug(`[订单修改] 订单 ${orderId} 已标记为类型不支持改单，跳过`);
+      return;
+    }
+
+    if (
+      trackedOrder.replaceCapability === 'TEMP_BLOCKED_BY_STATUS' &&
+      trackedOrder.replaceBlockedUntilAt !== null &&
+      trackedOrder.replaceBlockedUntilAt > now
+    ) {
+      logger.debug(`[订单修改] 订单 ${orderId} 状态临时不允许改单，等待退避结束`);
+      return;
+    }
+
     const remainingQty = trackedOrder.submittedQuantity - trackedOrder.executedQuantity;
     const targetQuantity = quantity ?? remainingQty;
     if (!Number.isFinite(targetQuantity) || targetQuantity <= 0) {
       logger.warn(`[订单修改] 订单 ${orderId} 剩余数量无效: ${targetQuantity}`);
       return;
     }
+
     const normalizedNewPriceText = normalizePriceText(newPrice);
     const normalizedNewPriceDecimal = toDecimal(normalizedNewPriceText);
     const normalizedNewPriceNumber = Number(normalizedNewPriceText);
@@ -156,27 +231,57 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
       price: normalizedNewPriceDecimal,
       quantity: toDecimal(targetQuantity),
     };
+
     try {
       await rateLimiter.throttle();
       await ctx.replaceOrder(replacePayload);
       cacheManager.clearCache();
       trackedOrder.submittedPrice = normalizedNewPriceNumber;
       trackedOrder.submittedQuantity = trackedOrder.executedQuantity + targetQuantity;
-      trackedOrder.lastPriceUpdateAt = Date.now();
+      trackedOrder.lastPriceUpdateAt = now;
+      trackedOrder.replaceCapability = 'SUPPORTED';
+      trackedOrder.replaceBlockedUntilAt = null;
       logger.info(`[订单修改成功] 订单ID=${orderId} 新价格=${normalizedNewPriceText}`);
-    } catch (err) {
-      const errorMessage = formatError(err);
-      logger.error(
-        `[订单修改失败] 订单ID=${orderId} 新价格=${normalizedNewPriceText}`,
-        errorMessage,
-      );
-      throw new Error(`订单修改失败: ${errorMessage}`, { cause: err });
+    } catch (error) {
+      trackedOrder.lastPriceUpdateAt = now;
+      const closedReason = resolveOrderClosedReasonFromError(error);
+      if (closedReason !== null) {
+        if (closedReason === 'FILLED') {
+          enqueueCloseSync(orderId, 'ALREADY_CLOSED_FILLED', 'FILLED');
+        } else if (closedReason === 'NOT_FOUND') {
+          enqueueCloseSync(orderId, 'ALREADY_CLOSED_NOT_FOUND', 'NOT_FOUND');
+        } else {
+          finalizeOrderClose({
+            orderId,
+            closedReason,
+            source: 'API',
+          });
+        }
+        logger.warn(`[订单修改] 订单 ${orderId} 已关闭，停止改单流程`);
+        return;
+      }
+
+      if (isReplaceUnsupportedByTypeError(error)) {
+        trackedOrder.replaceCapability = 'UNSUPPORTED_BY_TYPE';
+        logger.warn(`[订单修改] 订单 ${orderId} 类型不支持改单（602012），后续永久禁改`);
+        return;
+      }
+
+      if (isReplaceTempBlockedError(error)) {
+        trackedOrder.replaceCapability = 'TEMP_BLOCKED_BY_STATUS';
+        trackedOrder.replaceBlockedUntilAt = now + REPLACE_TEMP_BLOCK_BACKOFF_MS;
+        logger.warn(`[订单修改] 订单 ${orderId} 状态暂不允许改单（602013），进入短时退避`);
+        return;
+      }
+
+      const message = extractErrorMessage(error);
+      logger.error(`[订单修改失败] 订单ID=${orderId} 新价格=${normalizedNewPriceText}: ${message}`);
     }
   }
 
   return {
     trackOrder,
-    cancelOrderWithRuntimeCleanup,
+    cancelOrderWithOutcome,
     cancelOrder,
     replaceOrderPrice,
   };
