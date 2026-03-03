@@ -250,7 +250,7 @@ export interface CloseFlow {
  * 数据来源：orderMonitor 运行态维护。
  * 使用范围：orderMonitor 目录内部。
  */
-export type TrackedOrderLifecycleState = 'OPEN' | 'CLOSE_SYNC_PENDING' | 'CLOSED';
+type TrackedOrderLifecycleState = 'OPEN' | 'CLOSE_SYNC_PENDING' | 'CLOSED';
 
 /**
  * 定向对账触发原因。

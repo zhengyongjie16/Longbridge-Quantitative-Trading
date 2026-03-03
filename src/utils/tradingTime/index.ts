@@ -12,7 +12,7 @@ import type { HKTime, SessionRange } from './types.js';
  * @param date 时间对象（UTC）
  * @returns 香港时区的小时与分钟（hkHour、hkMinute），无效时返回 null
  */
-function getHKTime(date: Date | null | undefined): HKTime | null {
+export function getHKTime(date: Date | null | undefined): HKTime | null {
   if (!date) {
     return null;
   }

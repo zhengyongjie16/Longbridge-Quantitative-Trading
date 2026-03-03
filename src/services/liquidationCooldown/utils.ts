@@ -1,29 +1,8 @@
 import { TIME } from '../../constants/index.js';
+import { getHKTime } from '../../utils/tradingTime/index.js';
 import type { TradeRecord } from '../../core/trader/types.js';
 import type { LiquidationCooldownConfig } from '../../types/config.js';
 import type { CooldownCandidate } from './types.js';
-
-/**
- * 将 UTC 时间转换为香港时区（UTC+8）的小时与分钟。默认行为：date 为 null 时返回 null。
- *
- * @param date 时间对象（UTC）
- * @returns 香港时区的小时与分钟（hkHour、hkMinute），无效时返回 null
- */
-export function getHKTime(
-  date: Date | null,
-): { readonly hkHour: number; readonly hkMinute: number } | null {
-  if (!date) {
-    return null;
-  }
-
-  const utcHour = date.getUTCHours();
-  const utcMinute = date.getUTCMinutes();
-  const offsetHours = TIME.HONG_KONG_TIMEZONE_OFFSET_MS / (60 * 60 * 1000);
-  return {
-    hkHour: (utcHour + offsetHours) % 24,
-    hkMinute: utcMinute,
-  };
-}
 
 /**
  * 构建冷却记录的 key。
@@ -42,7 +21,7 @@ export function buildCooldownKey(symbol: string, direction: 'LONG' | 'SHORT'): s
  * @param minutes 分钟数
  * @returns 对应的毫秒数，非正数时返回 0
  */
-export function convertMinutesToMs(minutes: number): number {
+function convertMinutesToMs(minutes: number): number {
   if (!Number.isFinite(minutes) || minutes <= 0) {
     return 0;
   }
@@ -58,7 +37,7 @@ export function convertMinutesToMs(minutes: number): number {
  * @param params.dayOffset 日期偏移天数，默认为 0
  * @returns 目标时间的 UTC 毫秒，baseTimestampMs 无效时返回 null
  */
-export function resolveHongKongTimeMs({
+function resolveHongKongTimeMs({
   baseTimestampMs,
   hour,
   minute,
