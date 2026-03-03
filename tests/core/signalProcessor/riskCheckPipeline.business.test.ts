@@ -188,6 +188,53 @@ describe('riskCheckPipeline business flow', () => {
     expect(baseRiskIndex).toBeGreaterThan(warrantIndex);
   });
 
+  it('awaits async syncLossOffsetLifecycle before cooldown query', async () => {
+    const steps: string[] = [];
+    let allowSyncResolve = false;
+    const trader = createTraderDouble({
+      getAccountSnapshot: async () => createAccountSnapshotDouble(100000),
+      getStockPositions: async () => [],
+      canTradeNow: () => ({ canTrade: true }),
+    });
+    const riskChecker = createRiskCheckerDouble({
+      checkBeforeOrder: () => ({ allowed: true }),
+    });
+
+    const pipeline = createRiskCheckPipeline({
+      tradingConfig: createTradingConfig(),
+      liquidationCooldownTracker: createLiquidationCooldownTrackerDouble({
+        getRemainingMs: () => {
+          steps.push('getRemainingMs');
+          return 0;
+        },
+      }),
+      syncLossOffsetLifecycle: async () => {
+        steps.push('sync:start');
+        await Promise.resolve();
+        if (!allowSyncResolve) {
+          await Promise.resolve();
+        }
+        steps.push('sync:end');
+      },
+      lastRiskCheckTime,
+    });
+
+    allowSyncResolve = true;
+    const result = await withMockedNow(35_000, async () =>
+      pipeline(
+        [createSignalDouble('BUYCALL', 'BULL.HK')],
+        createContext({
+          trader,
+          riskChecker,
+          orderRecorder: createOrderRecorderDouble(),
+        }),
+      ),
+    );
+
+    expect(result).toHaveLength(1);
+    expect(steps).toEqual(['sync:start', 'sync:end', 'getRemainingMs']);
+  });
+
   it('shares BUY cooldown key between BUYCALL and BUYPUT for the same symbol', async () => {
     let buyApiCallCount = 0;
     const trader = createTraderDouble({

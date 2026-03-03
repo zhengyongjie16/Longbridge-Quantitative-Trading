@@ -334,4 +334,84 @@ describe('liquidationCooldown business flow', () => {
       cooldownActivated: true,
     });
   });
+
+  it('sweepExpired emits exactly once with correct fields after expiration', () => {
+    const executedTimeMs = 1_000;
+    const tracker = createLiquidationCooldownTracker({
+      nowMs: () => executedTimeMs,
+    });
+
+    tracker.recordLiquidationTrigger({
+      symbol: 'HSI.HK',
+      direction: 'LONG',
+      executedTimeMs,
+      triggerLimit: 1,
+      cooldownConfig: { mode: 'minutes', minutes: 1 },
+    });
+
+    const events = tracker.sweepExpired({
+      nowMs: 61_000,
+      resolveCooldownConfig: () => ({ mode: 'minutes', minutes: 1 }),
+    });
+    const secondSweep = tracker.sweepExpired({
+      nowMs: 61_001,
+      resolveCooldownConfig: () => ({ mode: 'minutes', minutes: 1 }),
+    });
+
+    expect(events).toEqual([
+      {
+        monitorSymbol: 'HSI.HK',
+        direction: 'LONG',
+        cooldownEndMs: 61_000,
+        triggerCountAtExpire: 1,
+      },
+    ]);
+    expect(secondSweep).toEqual([]);
+  });
+
+  it('getRemainingMs stays side-effect free before and after expiration', () => {
+    let now = 1_000;
+    const tracker = createLiquidationCooldownTracker({
+      nowMs: () => now,
+    });
+
+    tracker.recordLiquidationTrigger({
+      symbol: 'HSI.HK',
+      direction: 'LONG',
+      executedTimeMs: now,
+      triggerLimit: 1,
+      cooldownConfig: { mode: 'minutes', minutes: 1 },
+    });
+
+    now = 30_000;
+    expect(
+      tracker.getRemainingMs({
+        symbol: 'HSI.HK',
+        direction: 'LONG',
+        cooldownConfig: { mode: 'minutes', minutes: 1 },
+      }),
+    ).toBe(31_000);
+
+    now = 61_001;
+    expect(
+      tracker.getRemainingMs({
+        symbol: 'HSI.HK',
+        direction: 'LONG',
+        cooldownConfig: { mode: 'minutes', minutes: 1 },
+      }),
+    ).toBe(0);
+
+    const events = tracker.sweepExpired({
+      nowMs: now,
+      resolveCooldownConfig: () => ({ mode: 'minutes', minutes: 1 }),
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toEqual({
+      monitorSymbol: 'HSI.HK',
+      direction: 'LONG',
+      cooldownEndMs: 61_000,
+      triggerCountAtExpire: 1,
+    });
+  });
 });

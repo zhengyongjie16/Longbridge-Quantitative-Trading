@@ -8,9 +8,9 @@
  * 1. 验证交易日信息（可选）
  * 2. 初始化订单监控订阅（进入 BOOTSTRAPPING）
  * 3. 刷新账户和持仓数据
- * 4. 获取全量订单并初始化日内亏损追踪
- * 5. 解析席位绑定（prepareSeatsOnStartup）
- * 6. 从交易日志水合冷却状态（可选）
+ * 4. 获取全量订单并解析席位绑定（prepareSeatsOnStartup）
+ * 5. 从交易日志水合冷却状态，恢复分段边界（可选）
+ * 6. 基于分段边界回算日内亏损追踪
  * 7. 重置行情订阅（可选）
  * 8. 收集并订阅所有交易标的的行情和 K 线
  * 9. 返回全量订单和行情快照，供后续重建使用
@@ -58,7 +58,8 @@ export function createLoadTradingDayRuntimeSnapshot(
 
   /**
    * 加载交易日完整运行时快照：验证交易日 → 刷新账户持仓 → 获取全量订单
-   * → 解析席位 → 水合冷却状态 → 重置行情订阅 → 订阅标的行情和 K 线 → 返回快照。
+   * → 解析席位 → 水合冷却状态并恢复分段边界 → 回算日内亏损追踪
+   * → 重置行情订阅 → 订阅标的行情和 K 线 → 返回快照。
    */
   return async function loadTradingDayRuntimeSnapshot(
     params: LoadTradingDayRuntimeSnapshotParams,

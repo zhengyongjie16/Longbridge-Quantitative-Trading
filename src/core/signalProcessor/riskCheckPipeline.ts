@@ -40,7 +40,7 @@ export const createRiskCheckPipeline = ({
 }: {
   readonly tradingConfig: MultiMonitorTradingConfig;
   readonly liquidationCooldownTracker: LiquidationCooldownTracker;
-  readonly syncLossOffsetLifecycle: (currentTimeMs: number) => void;
+  readonly syncLossOffsetLifecycle: (currentTimeMs: number) => void | Promise<void>;
   readonly lastRiskCheckTime: Map<string, number>;
 }): ((signals: Signal[], context: RiskCheckContext) => Promise<Signal[]>) => {
   /** 对信号列表应用风险检查，过滤不符合条件的信号 */
@@ -170,7 +170,7 @@ export const createRiskCheckPipeline = ({
         const liquidationDirection = isLongBuyAction ? 'LONG' : 'SHORT';
         // 在冷却判定前执行一次边界同步，并用同一时间戳计算剩余冷却，避免“已过期但未切段”的短暂不一致
         const cooldownCheckNowMs = Date.now();
-        syncLossOffsetLifecycle(cooldownCheckNowMs);
+        await syncLossOffsetLifecycle(cooldownCheckNowMs);
         const remainingMs = liquidationCooldownTracker.getRemainingMs({
           symbol: context.config.monitorSymbol,
           direction: liquidationDirection,

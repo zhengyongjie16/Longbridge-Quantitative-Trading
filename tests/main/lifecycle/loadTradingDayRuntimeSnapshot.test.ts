@@ -192,4 +192,70 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
     expect(getTradingDaysCalls).toBe(0);
     expect(lastState.tradingCalendarSnapshot).toBeUndefined();
   });
+
+  it('hydrateCooldownFromTradeLog=true 时先 hydrate 再 recalculate，且透传 segmentStartByDirection', async () => {
+    const now = new Date('2026-02-25T03:00:00.000Z');
+    const callOrder: string[] = [];
+    const segmentStartByDirection = new Map<string, number>([['HSI.HK:LONG', 3_600_000]]);
+    const allOrders: never[] = [];
+
+    const lastState = createMinimalLastState();
+    const deps = {
+      marketDataClient: {
+        getQuoteContext: async () => ({}),
+        getQuotes: async () => new Map<string, null>(),
+        subscribeSymbols: async () => {},
+        subscribeCandlesticks: async () => [],
+        resetRuntimeSubscriptionsAndCaches: async () => {},
+      },
+      trader: {
+        initializeOrderMonitor: async () => {},
+        getAccountSnapshot: async () => ({}),
+        getStockPositions: async () => [],
+        fetchAllOrdersFromAPI: async () => allOrders,
+        seedOrderHoldSymbols: () => {},
+        getOrderHoldSymbols: () => new Set<string>(),
+      },
+      lastState,
+      tradingConfig: {
+        monitors: [],
+        global: {},
+      } as unknown as MultiMonitorTradingConfig,
+      symbolRegistry: {} as SymbolRegistry,
+      dailyLossTracker: {
+        recalculateFromAllOrders: (
+          receivedOrders: ReadonlyArray<never>,
+          _monitors: ReadonlyArray<{
+            monitorSymbol: string;
+            orderOwnershipMapping: unknown[];
+          }>,
+          _now: Date,
+          receivedSegments?: ReadonlyMap<string, number>,
+        ) => {
+          callOrder.push('recalculate');
+          expect(receivedOrders).toBe(allOrders);
+          expect(receivedSegments).toBe(segmentStartByDirection);
+        },
+      },
+      tradeLogHydrator: {
+        hydrate: () => {
+          callOrder.push('hydrate');
+          return { segmentStartByDirection };
+        },
+      },
+      warrantListCacheConfig: {},
+    } as unknown as LoadTradingDayRuntimeSnapshotDeps;
+
+    const load = createLoadTradingDayRuntimeSnapshot(deps);
+    await load({
+      now,
+      requireTradingDay: false,
+      failOnOrderFetchError: false,
+      resetRuntimeSubscriptions: false,
+      hydrateCooldownFromTradeLog: true,
+      forceOrderRefresh: false,
+    });
+
+    expect(callOrder).toEqual(['hydrate', 'recalculate']);
+  });
 });

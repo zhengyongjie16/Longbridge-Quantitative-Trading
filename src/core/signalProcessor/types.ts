@@ -86,5 +86,5 @@ export type SignalProcessorDeps = {
   readonly liquidationCooldownTracker: LiquidationCooldownTracker;
 
   /** 冷却边界同步函数：在关键风控边界前触发分段同步，保证冷却判定与偏移切段一致 */
-  readonly syncLossOffsetLifecycle: (currentTimeMs: number) => void;
+  readonly syncLossOffsetLifecycle: (currentTimeMs: number) => void | Promise<void>;
 };

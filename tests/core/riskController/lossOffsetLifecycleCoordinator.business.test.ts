@@ -13,7 +13,7 @@ import type {
 } from '../../../src/services/liquidationCooldown/types.js';
 
 describe('lossOffsetLifecycleCoordinator business flow', () => {
-  it('consumes expired cooldown events and resets corresponding direction segments', () => {
+  it('consumes expired cooldown events and resets corresponding direction segments', async () => {
     const expiredEvents: ReadonlyArray<CooldownExpiredEvent> = [
       {
         monitorSymbol: 'HSI.HK',
@@ -59,9 +59,10 @@ describe('lossOffsetLifecycleCoordinator business flow', () => {
         warn: () => {},
       },
       resolveCooldownConfig: () => ({ mode: 'minutes', minutes: 30 }),
+      onSegmentReset: () => {},
     });
 
-    coordinator.sync(3_000_000);
+    await coordinator.sync(3_000_000);
 
     expect(resetCalls).toEqual([
       {
@@ -79,7 +80,7 @@ describe('lossOffsetLifecycleCoordinator business flow', () => {
     ]);
   });
 
-  it('does not call resetDirectionSegment when no expired events are returned', () => {
+  it('does not call resetDirectionSegment when no expired events are returned', async () => {
     let resetCount = 0;
     const coordinator = createLossOffsetLifecycleCoordinator({
       liquidationCooldownTracker: {
@@ -105,10 +106,62 @@ describe('lossOffsetLifecycleCoordinator business flow', () => {
         warn: () => {},
       },
       resolveCooldownConfig: () => ({ mode: 'minutes', minutes: 30 }),
+      onSegmentReset: () => {},
     });
 
-    coordinator.sync(1_000);
+    await coordinator.sync(1_000);
 
     expect(resetCount).toBe(0);
+  });
+
+  it('awaits onSegmentReset callback so downstream refresh can complete in same sync cycle', async () => {
+    const order: string[] = [];
+    const coordinator = createLossOffsetLifecycleCoordinator({
+      liquidationCooldownTracker: {
+        recordLiquidationTrigger: () => ({ currentCount: 0, cooldownActivated: false }),
+        recordCooldown: () => {},
+        restoreTriggerCount: () => {},
+        getRemainingMs: () => 0,
+        sweepExpired: () => [
+          {
+            monitorSymbol: 'HSI.HK',
+            direction: 'LONG',
+            cooldownEndMs: 10_000,
+            triggerCountAtExpire: 1,
+          },
+        ],
+        clearMidnightEligible: () => {},
+        resetAllTriggerCounts: () => {},
+      } as LiquidationCooldownTracker,
+      dailyLossTracker: {
+        resetAll: () => {},
+        recalculateFromAllOrders: () => {},
+        recordFilledOrder: () => {},
+        getLossOffset: () => 0,
+        resetDirectionSegment: () => {
+          order.push('resetDirectionSegment');
+        },
+      } as DailyLossTracker,
+      logger: {
+        info: () => {},
+        warn: () => {},
+      },
+      resolveCooldownConfig: () => ({ mode: 'minutes', minutes: 30 }),
+      onSegmentReset: async () => {
+        order.push('onSegmentReset:start');
+        await Promise.resolve();
+        order.push('onSegmentReset:end');
+      },
+    });
+
+    await coordinator.sync(10_001);
+    order.push('sync:returned');
+
+    expect(order).toEqual([
+      'resetDirectionSegment',
+      'onSegmentReset:start',
+      'onSegmentReset:end',
+      'sync:returned',
+    ]);
   });
 });

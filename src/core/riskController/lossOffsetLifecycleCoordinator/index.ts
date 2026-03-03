@@ -2,8 +2,9 @@
  * 亏损偏移生命周期协调器
  *
  * 功能/职责：在主循环每轮 tick 前扫描冷却过期事件，并触发 dailyLossTracker 分段切换，
- * 确保冷却结束后旧段偏移失效、新成交进入新分段。
- * 执行流程：调用 sync(currentTimeMs) → sweepExpired 拉取过期事件 → 对每个事件调用 resetDirectionSegment → 输出审计日志。
+ * 确保冷却结束后旧段偏移失效、新成交进入新分段，并在切段后联动刷新浮亏缓存。
+ * 执行流程：调用 sync(currentTimeMs) → sweepExpired 拉取过期事件 → 对每个事件调用 resetDirectionSegment
+ * → 执行 onSegmentReset 刷新 → 输出审计日志。
  */
 import type {
   LossOffsetLifecycleCoordinator,
@@ -12,7 +13,8 @@ import type {
 
 /**
  * 创建亏损偏移生命周期协调器。
- * 绑定 liquidationCooldownTracker 与 dailyLossTracker，在每轮 sync 时消费过期事件并切段。
+ * 绑定 liquidationCooldownTracker 与 dailyLossTracker，在每轮 sync 时消费过期事件并切段，
+ * 并在切段后等待 onSegmentReset 联动刷新完成，保证同一轮语义一致。
  *
  * @param deps 依赖注入（liquidationCooldownTracker、dailyLossTracker、logger、resolveCooldownConfig）
  * @returns LossOffsetLifecycleCoordinator 实例
@@ -20,13 +22,19 @@ import type {
 export function createLossOffsetLifecycleCoordinator(
   deps: LossOffsetLifecycleCoordinatorDeps,
 ): LossOffsetLifecycleCoordinator {
-  const { liquidationCooldownTracker, dailyLossTracker, logger, resolveCooldownConfig } = deps;
+  const {
+    liquidationCooldownTracker,
+    dailyLossTracker,
+    logger,
+    resolveCooldownConfig,
+    onSegmentReset,
+  } = deps;
 
   /**
    * 同步冷却过期事件与分段切换。
    * 即使 canTradeNow=false 也必须调用，防止分段边界漂移。
    */
-  function sync(currentTimeMs: number): void {
+  async function sync(currentTimeMs: number): Promise<void> {
     const events = liquidationCooldownTracker.sweepExpired({
       nowMs: currentTimeMs,
       resolveCooldownConfig,
@@ -49,6 +57,12 @@ export function createLossOffsetLifecycleCoordinator(
           `切段时间=${event.cooldownEndMs}，触发计数=${event.triggerCountAtExpire}，` +
           `旧段偏移已失效`,
       );
+
+      await onSegmentReset({
+        monitorSymbol: event.monitorSymbol,
+        direction: event.direction,
+        cooldownEndMs: event.cooldownEndMs,
+      });
     }
   }
 

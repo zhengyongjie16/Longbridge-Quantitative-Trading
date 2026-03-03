@@ -206,6 +206,7 @@ async function main(): Promise<void> {
     classifyAndConvertOrders,
     toHongKongTimeIso,
   });
+  const monitorContexts: Map<string, MonitorContext> = new Map();
 
   // 亏损偏移生命周期协调器：冷却过期后切段偏移
   const monitorConfigMap = new Map(tradingConfig.monitors.map((cfg) => [cfg.monitorSymbol, cfg]));
@@ -216,6 +217,29 @@ async function main(): Promise<void> {
     resolveCooldownConfig: (monitorSymbol, _direction) => {
       const cfg = monitorConfigMap.get(monitorSymbol);
       return cfg?.liquidationCooldown ?? null;
+    },
+    onSegmentReset: async ({ monitorSymbol, direction }) => {
+      const monitorContext = monitorContexts.get(monitorSymbol);
+      if (!monitorContext) {
+        return;
+      }
+
+      const seatState = monitorContext.symbolRegistry.getSeatState(monitorSymbol, direction);
+      if (!isSeatReady(seatState)) {
+        return;
+      }
+
+      const isLongSymbol = direction === 'LONG';
+      const seatSymbol = seatState.symbol;
+      const quote = isLongSymbol ? monitorContext.longQuote : monitorContext.shortQuote;
+      const dailyLossOffset = dailyLossTracker.getLossOffset(monitorSymbol, isLongSymbol);
+      await monitorContext.riskChecker.refreshUnrealizedLossData(
+        monitorContext.orderRecorder,
+        seatSymbol,
+        isLongSymbol,
+        quote,
+        dailyLossOffset,
+      );
     },
   });
 
@@ -405,7 +429,6 @@ async function main(): Promise<void> {
   }
 
   // 构建每个监控标的的运行上下文与依赖模块
-  const monitorContexts: Map<string, MonitorContext> = new Map();
   for (const monitorConfig of tradingConfig.monitors) {
     const monitorState = lastState.monitorStates.get(monitorConfig.monitorSymbol);
     const monitorQuote = initQuotesMap.get(monitorConfig.monitorSymbol) ?? null;

@@ -164,7 +164,7 @@ export async function mainProgram({
   });
 
   // 冷却过期扫描与分段切换：即使 canTradeNow=false 也必须执行，防止分段边界漂移
-  lossOffsetLifecycleCoordinator.sync(currentTime.getTime());
+  await lossOffsetLifecycleCoordinator.sync(currentTime.getTime());
 
   if (!lastState.isTradingEnabled) {
     return;
