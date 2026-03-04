@@ -29,14 +29,7 @@ import {
   createSymbolRegistryDouble,
   createTraderDouble,
 } from '../../helpers/testDoubles.js';
-
-function createLoggerStub() {
-  return {
-    info: () => {},
-    warn: () => {},
-    error: () => {},
-  } as never;
-}
+import { createLoggerStub, getDefaultAutoSearchConfig } from './utils.js';
 
 function createQuotes(prices: Readonly<Record<string, number>>): ReadonlyMap<string, Quote | null> {
   const map = new Map<string, Quote | null>();
@@ -82,16 +75,8 @@ function createPeriodicHarness(params: HarnessParams): {
   let currentNowMs = params.nowMs;
   const monitorConfig = createMonitorConfigDouble({
     autoSearchConfig: {
-      autoSearchEnabled: true,
-      autoSearchMinDistancePctBull: 0.35,
-      autoSearchMinDistancePctBear: -0.35,
-      autoSearchMinTurnoverPerMinuteBull: 100_000,
-      autoSearchMinTurnoverPerMinuteBear: 100_000,
-      autoSearchExpiryMinMonths: 3,
-      autoSearchOpenDelayMinutes: 0,
+      ...getDefaultAutoSearchConfig(),
       switchIntervalMinutes: params.switchIntervalMinutes,
-      switchDistanceRangeBull: { min: 0.2, max: 1.5 },
-      switchDistanceRangeBear: { min: -1.5, max: -0.2 },
     },
   });
   const symbolRegistry = createSymbolRegistryDouble({
@@ -507,16 +492,8 @@ describe('periodic auto-switch regression', () => {
     const canceledOrderIds: string[] = [];
     const monitorConfig = createMonitorConfigDouble({
       autoSearchConfig: {
-        autoSearchEnabled: true,
-        autoSearchMinDistancePctBull: 0.35,
-        autoSearchMinDistancePctBear: -0.35,
-        autoSearchMinTurnoverPerMinuteBull: 100_000,
-        autoSearchMinTurnoverPerMinuteBear: 100_000,
-        autoSearchExpiryMinMonths: 3,
-        autoSearchOpenDelayMinutes: 0,
+        ...getDefaultAutoSearchConfig(),
         switchIntervalMinutes: 1,
-        switchDistanceRangeBull: { min: 0.2, max: 1.5 },
-        switchDistanceRangeBear: { min: -1.5, max: -0.2 },
       },
     });
     const symbolRegistry = createSymbolRegistryDouble({

@@ -107,7 +107,7 @@ async function getFileKeysWithDuplication() {
 
 /**
  * 获取项目级重复行指标（仅需项目 Browse 权限，与 get-report 一致）。
- * @returns {{ duplicatedLines: number, duplicatedLinesDensity: number } | null}
+ * @returns {Promise<{ duplicatedLines: number, duplicatedLinesDensity: number } | null>}
  */
 async function getProjectDuplicationMeasures() {
   try {
@@ -129,7 +129,7 @@ async function getProjectDuplicationMeasures() {
 
 /**
  * 获取单个组件的重复块详情
- * @returns {{ duplications: Array<{ blocks: Array<{ from: number, size: number, _ref: string }> }>, files: Record<string, { key: string, name: string }> } | null }
+ * @returns {Promise<{ duplications: Array<{ blocks: Array<{ from: number, size: number, _ref: string }> }>, files: Record<string, { key: string, name: string }> } | null>}
  */
 async function getDuplicationsForComponent(componentKey) {
   try {
@@ -205,49 +205,45 @@ function printGroupDetails(allGroups) {
 async function run() {
   console.log('正在获取 SonarQube 重复项报告...\n');
 
-  const projectMeasures = getProjectDuplicationMeasures();
-  let fileKeys = await getFileKeysWithDuplication();
-  let projectLevelData = null;
-
-  if (fileKeys.length === 0) {
-    projectLevelData = getDuplicationsForComponent(SONAR_PROJECT_KEY);
-    if (!projectLevelData?.duplications?.length) {
-      const hasDup = projectMeasures && projectMeasures.duplicatedLines > 0;
-      console.log('=== SonarQube 重复项报告 ===\n');
-      if (hasDup) {
-        console.log(
-          `项目存在重复代码：${projectMeasures.duplicatedLines} 行（${projectMeasures.duplicatedLinesDensity}%）。\n`,
-        );
-        console.log('当前 Token 无权限拉取具体重复块列表（需「查看源代码」或更高权限）。\n');
-        console.log(
-          '若使用的是 Project/Global Analysis Token，请改用 User Token（My Account → Security 中创建）。\n',
-        );
-        console.log('详见：docs/others/sonarqube-token-permissions.md\n');
-      } else {
-        console.log('未发现包含重复代码的文件。\n');
-      }
-      console.log(`Dashboard: ${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}`);
-      console.log(`Duplications: ${SONAR_HOST_URL}/project/duplications?id=${SONAR_PROJECT_KEY}\n`);
-      return;
-    }
-  }
+  const projectMeasures = await getProjectDuplicationMeasures();
+  const fileKeys = await getFileKeysWithDuplication();
 
   const seenFingerprints = new Set();
   const allGroups = [];
 
-  if (projectLevelData) {
+  if (fileKeys.length === 0) {
+    const projectLevelData = await getDuplicationsForComponent(SONAR_PROJECT_KEY);
     addGroupsFromResponse(projectLevelData, seenFingerprints, allGroups);
   } else {
     for (const key of fileKeys) {
-      const data = getDuplicationsForComponent(key);
+      const data = await getDuplicationsForComponent(key);
       addGroupsFromResponse(data, seenFingerprints, allGroups);
     }
   }
 
-  const fileCount =
-    fileKeys.length > 0
-      ? fileKeys.length
-      : new Set(allGroups.flatMap((g) => g.map((b) => b.path))).size;
+  if (allGroups.length === 0) {
+    const hasDup = projectMeasures && projectMeasures.duplicatedLines > 0;
+    console.log('=== SonarQube 重复项报告 ===\n');
+    if (hasDup) {
+      console.log(
+        `项目存在重复代码：${projectMeasures.duplicatedLines} 行（${projectMeasures.duplicatedLinesDensity}%）。\n`,
+      );
+      console.log('当前 Token 无权限拉取具体重复块列表（需「查看源代码」或更高权限）。\n');
+      console.log(
+        '若使用的是 Project/Global Analysis Token，请改用 User Token（My Account → Security 中创建）。\n',
+      );
+      console.log('详见：docs/others/sonarqube-token-permissions.md\n');
+    } else {
+      console.log('未发现包含重复代码的文件。\n');
+    }
+    console.log(`Dashboard: ${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}`);
+    console.log(
+      '请在 SonarQube Web 界面中进入项目 Dashboard 后，通过 Code / Measures → Duplications 查看详细重复代码。\n',
+    );
+    return;
+  }
+
+  const fileCount = new Set(allGroups.flatMap((g) => g.map((b) => b.path))).size;
   console.log('=== SonarQube 重复项报告 ===\n');
   console.log(`涉及文件数: ${fileCount}`);
   console.log(`重复块组数: ${allGroups.length}\n`);
@@ -255,8 +251,7 @@ async function run() {
   printGroupDetails(allGroups);
 
   console.log('## 链接');
-  console.log(`- Dashboard: ${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}`);
-  console.log(`- Duplications: ${SONAR_HOST_URL}/project/duplications?id=${SONAR_PROJECT_KEY}\n`);
+  console.log(`- Dashboard: ${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}\n`);
 }
 
 try {
