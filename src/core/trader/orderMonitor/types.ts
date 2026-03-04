@@ -279,11 +279,26 @@ export type CloseSyncTask = {
   lastError: string | null;
 };
 
-/** 可识别的订单关闭错误码类型 */
+/**
+ * 可识别的订单关闭错误码类型。
+ * 类型用途：约束可映射为订单已关闭语义的错误码集合。
+ * 数据来源：来源于 LongPort 交易接口返回的错误码约定。
+ * 使用范围：仅在 orderMonitor 模块的错误分类流程使用。
+ */
 export type OrderClosedErrorCode = '601011' | '601012' | '601013' | '603001';
 
-/** 不支持改单（类型不支持）错误码类型 */
+/**
+ * 不支持改单（类型不支持）错误码类型。
+ * 类型用途：标识因订单类型限制导致的改单拒绝错误。
+ * 数据来源：来源于 LongPort 交易接口返回的错误码约定。
+ * 使用范围：仅在 orderMonitor 模块的改单错误分类流程使用。
+ */
 export type ReplaceUnsupportedByTypeErrorCode = '602012';
 
-/** 不支持改单（状态暂不允许）错误码类型 */
+/**
+ * 不支持改单（状态暂不允许）错误码类型。
+ * 类型用途：标识因订单状态限制导致的临时改单拒绝错误。
+ * 数据来源：来源于 LongPort 交易接口返回的错误码约定。
+ * 使用范围：仅在 orderMonitor 模块的改单错误分类流程使用。
+ */
 export type ReplaceTempBlockedErrorCode = '602013';

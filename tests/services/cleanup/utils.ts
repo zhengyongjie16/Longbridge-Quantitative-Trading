@@ -137,6 +137,10 @@ function defaultDeps(steps: string[]): CleanupContext {
 
 /**
  * 构建 createCleanup 的入参，默认各步骤向 steps 数组 push 名称；可传 overrides 覆盖 monitorContexts、lastState 或任意处理器。
+ *
+ * @param steps 记录执行步骤顺序的数组
+ * @param overrides 对默认依赖的覆盖项（可选）
+ * @returns 供 createCleanup 使用的 CleanupContext
  */
 export function createCleanupDeps(
   steps: string[],

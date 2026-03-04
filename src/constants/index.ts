@@ -294,7 +294,7 @@ export const BEAR_WARRANT_LIQUIDATION_DISTANCE_PERCENT = -0.3;
 export const MIN_MONITOR_PRICE_THRESHOLD = 1;
 
 /** 牛熊证当前价格最小阈值（小于或等于拒绝买入） */
-export const MIN_WARRANT_PRICE_THRESHOLD = 0.015;
+export const MIN_WARRANT_PRICE_THRESHOLD = 0.012;
 
 /** 价格格式化小数位数 */
 export const DEFAULT_PRICE_DECIMALS = 3;

@@ -4,6 +4,7 @@ import type { Logger } from '../../utils/logger/types.js';
 /**
  * 未解析的日志记录。
  * 类型用途：用于日志文件逐行解析后的中间结构；数据来源为日志文件解析；仅 liquidationCooldown 模块内部使用。
+ * 使用范围：仅在当前模块及其直接依赖方使用。
  */
 export type RawRecord = {
   readonly [key: string]: unknown;
@@ -80,6 +81,7 @@ export type GetRemainingMsParams = {
  * 冷却追踪器工厂的依赖注入参数。
  * 类型用途：包含当前时间获取函数，供 createLiquidationCooldownTracker 消费。
  * 使用范围：仅 liquidationCooldown 模块使用。
+ * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
  */
 export type LiquidationCooldownTrackerDeps = {
   readonly nowMs: () => number;
@@ -89,6 +91,7 @@ export type LiquidationCooldownTrackerDeps = {
  * 午夜按策略清理的参数。
  * 类型用途：包含需要清除的冷却键集合，由 clearMidnightEligible 消费；仅清理 half-day/one-day 模式条目。
  * 使用范围：仅 liquidationCooldown 模块使用。
+ * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
  */
 export type ClearMidnightEligibleParams = {
   readonly keysToClear: ReadonlySet<string>;
@@ -97,6 +100,9 @@ export type ClearMidnightEligibleParams = {
 /**
  * 冷却追踪器接口，提供触发记录、冷却记录、剩余时间查询与跨日清理能力。
  * 由 createLiquidationCooldownTracker 实现，供风控模块消费。
+ * 类型用途：用于 LiquidationCooldownTracker 的类型约束与语义表达。
+ * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
+ * 使用范围：仅在当前模块及其直接依赖方使用。
  */
 export interface LiquidationCooldownTracker {
   /**
@@ -133,6 +139,9 @@ export interface LiquidationCooldownTracker {
 /**
  * 交易日志水化器的依赖注入参数，包含文件读取、当前时间与冷却追踪器。
  * 由 createTradeLogHydrator 工厂函数消费，仅在 liquidationCooldown 模块内部使用。
+ * 类型用途：用于 TradeLogHydratorDeps 的类型约束与语义表达。
+ * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
+ * 使用范围：仅在当前模块及其直接依赖方使用。
  */
 export type TradeLogHydratorDeps = {
   readonly readFileSync: (path: string, encoding: BufferEncoding) => string;

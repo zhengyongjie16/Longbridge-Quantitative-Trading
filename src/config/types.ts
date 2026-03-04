@@ -61,6 +61,7 @@ export type TradingValidationResult = ValidationResult & {
 /**
  * 标的校验上下文。
  * 类型用途：作为 validateRequiredSymbol 的入参/上下文，累积错误与缺失字段。
+ * 数据来源：由 validateTradingConfig 在遍历每个监控标的时构造。
  * 使用范围：仅 config 模块内部使用。
  */
 export type SymbolValidationContext = {
@@ -86,6 +87,7 @@ export type DuplicateSymbol = {
 /**
  * 运行时标的校验单条输入。
  * 类型用途：作为 validateRuntimeSymbolsFromQuotesMap 的单条校验项入参。
+ * 数据来源：由运行时标的列表与校验策略映射后构造。
  * 使用范围：仅 config 模块内部使用。
  */
 export type RuntimeSymbolValidationInput = {
@@ -110,6 +112,7 @@ export type RuntimeSymbolValidationResult = {
 /**
  * 信号配置键名联合类型。
  * 类型用途：表示 MonitorConfig.signalConfig 的键名（buycall/sellcall/buyput/sellput），用于遍历信号配置项。
+ * 数据来源：派生自 MonitorConfig 的 signalConfig 字段键名。
  * 使用范围：仅 config 模块内部使用。
  */
 export type SignalConfigKey = keyof MonitorConfig['signalConfig'];
@@ -117,6 +120,7 @@ export type SignalConfigKey = keyof MonitorConfig['signalConfig'];
 /**
  * 比较运算符。
  * 类型用途：约束信号条件中允许的比较符，仅支持 `<` 与 `>`。
+ * 数据来源：来自信号条件字符串语法定义。
  * 使用范围：仅 config 模块内部解析与校验流程使用。
  */
 export type ComparisonOperator = '<' | '>';
@@ -124,6 +128,7 @@ export type ComparisonOperator = '<' | '>';
 /**
  * 解析后的单条条件。
  * 类型用途：表示从信号配置字符串中解析出的单个指标比较条件。
+ * 数据来源：由 parseCondition 解析配置字符串得到。
  * 使用范围：仅 config 模块内部 signalConfig 解析流程使用。
  */
 export type ParsedCondition = {
@@ -136,6 +141,7 @@ export type ParsedCondition = {
 /**
  * 解析后的条件组。
  * 类型用途：表示一组条件及其最少满足数量，用于信号配置解析结果的中间表达。
+ * 数据来源：由 parseConditionGroup 解析配置字符串得到。
  * 使用范围：仅 config 模块内部 signalConfig 解析流程使用。
  */
 export type ParsedConditionGroup = {

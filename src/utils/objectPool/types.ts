@@ -104,6 +104,7 @@ export type PoolableVerificationEntry = {
  * 对象池工厂函数类型。
  * 类型用途：定义对象池创建新对象的工厂函数签名，作为 createObjectPool 的参数。
  * 使用范围：仅对象池内部在对象不足时调用。
+ * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
  */
 export type Factory<T> = () => T;
 
@@ -111,6 +112,7 @@ export type Factory<T> = () => T;
  * 对象池重置函数类型。
  * 类型用途：定义对象归还对象池时的重置函数签名，将对象属性清零以备复用，作为 createObjectPool 的参数。
  * 使用范围：仅对象池内部在 release 时自动调用。
+ * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
  */
 export type Reset<T> = (obj: T) => T;
 

@@ -12,6 +12,7 @@ export type EmaStream = {
  * 环形缓冲区状态。
  * 类型用途：在 MFI 计算中维护固定窗口的正向/负向资金流累加，支持 O(1) 滑动窗口更新。
  * 使用范围：仅 indicators 子模块 mfi.ts 内部使用。
+ * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
  */
 export type BufferNewPush = {
   readonly size: number;

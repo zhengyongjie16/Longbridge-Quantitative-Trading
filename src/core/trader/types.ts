@@ -324,6 +324,9 @@ export interface OrderMonitor {
 /**
  * 订单执行器接口。
  * 由 Trader 依赖注入。
+ * 类型用途：用于 OrderExecutor 的类型约束与语义表达。
+ * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
+ * 使用范围：仅在当前模块及其直接依赖方使用。
  */
 export interface OrderExecutor {
   canTradeNow: (signalAction: SignalType, monitorConfig?: MonitorConfig | null) => TradeCheckResult;
@@ -479,6 +482,9 @@ type SellMergeDecisionAction = 'SUBMIT' | 'REPLACE' | 'CANCEL_AND_SUBMIT' | 'SKI
  * 卖单合并决策输入
  * 由 OrderExecutor 在提交卖单前构造，传入 decideSellMerge 函数以决定合并策略
  * 仅在 trader 模块内部使用
+ * 类型用途：用于 SellMergeDecisionInput 的类型约束与语义表达。
+ * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
+ * 使用范围：仅在当前模块及其直接依赖方使用。
  */
 export type SellMergeDecisionInput = {
   readonly symbol: string;
@@ -493,6 +499,9 @@ export type SellMergeDecisionInput = {
  * 卖单合并决策结果
  * 由 decideSellMerge 函数返回，OrderExecutor 根据 action 字段执行对应的下单/改单/撤单操作
  * 仅在 trader 模块内部使用
+ * 类型用途：用于 SellMergeDecision 的类型约束与语义表达。
+ * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
+ * 使用范围：仅在当前模块及其直接依赖方使用。
  */
 export type SellMergeDecision = {
   readonly action: SellMergeDecisionAction;

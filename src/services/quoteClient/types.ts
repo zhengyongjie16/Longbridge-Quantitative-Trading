@@ -4,6 +4,7 @@ import type { Config } from 'longport';
  * withRetry 重试配置。
  * 类型用途：控制 API 调用的重试次数与间隔，作为 withRetry 的参数。
  * 使用范围：仅 quoteClient 模块内部使用。
+ * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
  */
 export type RetryConfig = {
   readonly retries: number;
