@@ -10,6 +10,12 @@ import { isOrderTimedOut } from '../../src/core/orderRecorder/utils.js';
 import { calculateTradingDurationMsBetween } from '../../src/utils/tradingTime/index.js';
 import type { TradingCalendarSnapshot } from '../../src/types/tradingCalendar.js';
 
+/**
+ * 生成测试用交易日历快照，默认行为：按输入顺序构造 Map。
+ *
+ * @param entries 交易日条目数组
+ * @returns TradingCalendarSnapshot
+ */
 function createCalendar(
   entries: ReadonlyArray<[string, { isTradingDay: boolean; isHalfDay: boolean }]>,
 ): TradingCalendarSnapshot {

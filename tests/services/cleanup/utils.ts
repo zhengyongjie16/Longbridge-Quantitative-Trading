@@ -72,6 +72,12 @@ export function createLastState(monitorStates: ReadonlyMap<string, MonitorState>
   };
 }
 
+/**
+ * 构造 cleanup 测试依赖的默认实现，并将每个清理步骤写入 steps。
+ *
+ * @param steps 记录执行步骤顺序的数组
+ * @returns 默认 CleanupContext
+ */
 function defaultDeps(steps: string[]): CleanupContext {
   return {
     buyProcessor: {

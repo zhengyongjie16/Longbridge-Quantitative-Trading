@@ -95,6 +95,13 @@ type MonitorContextBaseOptions = Readonly<{
   monitorSymbolName: string;
 }>;
 
+/**
+ * 组装 MonitorContext 的公共基线字段，并合并调用方覆盖项。
+ *
+ * @param options 基线行情与状态选项
+ * @param overrides 额外覆盖字段
+ * @returns 合并后的 MonitorContext
+ */
 function buildMonitorContextBase(
   options: MonitorContextBaseOptions,
   overrides: Partial<MonitorContext>,
