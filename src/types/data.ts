@@ -15,6 +15,9 @@ export type CandleValue = number | string | { toString: () => string } | null | 
  * 使用范围：indicators、策略、indicatorCache 等；全项目可引用。
  */
 export type CandleData = {
+  /** K 线时间戳（毫秒） */
+  readonly timestamp?: number;
+
   /** 最高价 */
   readonly high?: CandleValue;
 

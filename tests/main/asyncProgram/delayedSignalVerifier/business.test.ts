@@ -366,7 +366,9 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     let verified = 0;
-    verifier.onVerified(() => { verified += 1; });
+    verifier.onVerified(() => {
+      verified += 1;
+    });
 
     const signal = createSignal({
       symbol: 'BULL.HK',
@@ -407,7 +409,9 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     let verified = 0;
-    verifier.onVerified(() => { verified += 1; });
+    verifier.onVerified(() => {
+      verified += 1;
+    });
 
     const signal = createSignal({
       symbol: 'BEAR.HK',
@@ -448,7 +452,9 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     let verified = 0;
-    verifier.onVerified(() => { verified += 1; });
+    verifier.onVerified(() => {
+      verified += 1;
+    });
 
     const signal = createSignal({
       symbol: 'BULL.HK',
@@ -489,7 +495,9 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     let verified = 0;
-    verifier.onVerified(() => { verified += 1; });
+    verifier.onVerified(() => {
+      verified += 1;
+    });
 
     const signal = createSignal({
       symbol: 'BEAR.HK',
@@ -531,7 +539,9 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     let verified = 0;
-    verifier.onVerified(() => { verified += 1; });
+    verifier.onVerified(() => {
+      verified += 1;
+    });
 
     const signal = createSignal({
       symbol: 'BULL.HK',

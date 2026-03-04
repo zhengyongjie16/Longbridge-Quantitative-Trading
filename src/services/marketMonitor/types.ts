@@ -20,6 +20,23 @@ export type PriceDisplayInfo = {
 };
 
 /**
+ * 指标监控参数。
+ * 类型用途：封装 monitorIndicatorChanges 所需的指标快照、行情、周期配置与 K 线时间戳，避免超参数函数签名。
+ * 数据来源：由指标流水线（indicatorPipeline）基于实时 K 线与行情组装传入。
+ * 使用范围：marketMonitor.monitorIndicatorChanges 入参。
+ */
+export type MonitorIndicatorChangesParams = Readonly<{
+  readonly monitorSnapshot: IndicatorSnapshot | null;
+  readonly monitorQuote: Quote | null;
+  readonly monitorSymbol: string;
+  readonly emaPeriods: ReadonlyArray<number>;
+  readonly rsiPeriods: ReadonlyArray<number>;
+  readonly psyPeriods: ReadonlyArray<number>;
+  readonly klineTimestamp: number | null;
+  readonly monitorState: MonitorState;
+}>;
+
+/**
  * 行情监控器接口。
  * 类型用途：对外暴露价格与指标监控方法，供主循环驱动控制台输出。
  * 数据来源：主循环传入行情快照与 MonitorState，由本模块计算是否变化。
@@ -47,22 +64,8 @@ export interface MarketMonitor {
 
   /**
    * 监控并显示监控标的的指标变化
-   * @param monitorSnapshot 监控标的指标快照
-   * @param monitorQuote 监控标的行情数据
-   * @param monitorSymbol 监控标的代码
-   * @param emaPeriods EMA周期数组
-   * @param rsiPeriods RSI周期数组
-   * @param psyPeriods PSY周期数组
-   * @param monitorState 监控标的状态（包含 monitorValues）
+   * @param params 指标监控参数（含快照、行情、周期配置、K线时间戳与状态）
    * @returns 指标是否发生变化
    */
-  monitorIndicatorChanges: (
-    monitorSnapshot: IndicatorSnapshot | null,
-    monitorQuote: Quote | null,
-    monitorSymbol: string,
-    emaPeriods: ReadonlyArray<number>,
-    rsiPeriods: ReadonlyArray<number>,
-    psyPeriods: ReadonlyArray<number>,
-    monitorState: MonitorState,
-  ) => boolean;
+  monitorIndicatorChanges: (params: MonitorIndicatorChangesParams) => boolean;
 }

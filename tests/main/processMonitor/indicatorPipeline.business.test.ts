@@ -11,10 +11,12 @@ import type { CandleData } from '../../../src/types/data.js';
 import type { IndicatorSnapshot } from '../../../src/types/quote.js';
 import type { MonitorContext } from '../../../src/types/state.js';
 import type { IndicatorPipelineParams } from '../../../src/main/processMonitor/types.js';
+import type { MonitorIndicatorChangesParams } from '../../../src/services/marketMonitor/types.js';
 import { createMonitorConfigDouble, createQuoteDouble } from '../../helpers/testDoubles.js';
 
 function createCandles(length: number, start: number, step: number): ReadonlyArray<CandleData> {
   const candles: CandleData[] = [];
+  const baseTimestamp = 1_708_000_000_000;
   for (let i = 0; i < length; i += 1) {
     const close = start + i * step;
     candles.push({
@@ -23,6 +25,7 @@ function createCandles(length: number, start: number, step: number): ReadonlyArr
       low: close - 0.4,
       close,
       volume: 1_000 + i,
+      timestamp: baseTimestamp + i * 60_000,
     });
   }
   return candles;
@@ -134,6 +137,7 @@ describe('processMonitor indicatorPipeline business flow', () => {
 
     const pushed: IndicatorSnapshot[] = [];
     const monitorChanges: IndicatorSnapshot[] = [];
+    const klineTimestamps: number[] = [];
 
     const result = await runIndicatorPipeline({
       monitorSymbol: 'HSI.HK',
@@ -151,8 +155,14 @@ describe('processMonitor indicatorPipeline business flow', () => {
           clearAll: () => {},
         },
         marketMonitor: {
-          monitorIndicatorChanges: (snapshot: IndicatorSnapshot) => {
-            monitorChanges.push(snapshot);
+          monitorIndicatorChanges: (params: MonitorIndicatorChangesParams) => {
+            if (params.monitorSnapshot) {
+              monitorChanges.push(params.monitorSnapshot);
+            }
+            const klineTimestamp = params.klineTimestamp;
+            if (klineTimestamp !== null) {
+              klineTimestamps.push(klineTimestamp);
+            }
             return false;
           },
         },
@@ -162,6 +172,11 @@ describe('processMonitor indicatorPipeline business flow', () => {
     expect(result).toBe(lastSnapshot);
     expect(pushed).toEqual([lastSnapshot]);
     expect(monitorChanges).toEqual([lastSnapshot]);
+    const expectedKlineTimestamp = candles.at(-1)?.timestamp;
+    if (expectedKlineTimestamp === undefined) {
+      throw new Error('expected latest candle timestamp');
+    }
+    expect(klineTimestamps).toEqual([expectedKlineTimestamp]);
   });
 
   it('builds fresh snapshot, pushes cache and updates state on new candle data', async () => {

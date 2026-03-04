@@ -122,42 +122,46 @@ describe('marketMonitor business flow', () => {
     const monitor = createMarketMonitor();
     const state = createMonitorState('HSI.HK');
     const monitorQuote = createQuoteDouble('HSI.HK', 20_000);
+    const klineTimestamp = 1_708_000_000_000;
 
-    const first = monitor.monitorIndicatorChanges(
-      createSnapshot(),
+    const first = monitor.monitorIndicatorChanges({
+      monitorSnapshot: createSnapshot(),
       monitorQuote,
-      'HSI.HK',
-      [7],
-      [6],
-      [13],
-      state,
-    );
+      monitorSymbol: 'HSI.HK',
+      emaPeriods: [7],
+      rsiPeriods: [6],
+      psyPeriods: [13],
+      klineTimestamp,
+      monitorState: state,
+    });
     expect(first).toBe(true);
     expect(state.monitorValues?.price).toBe(20_000);
     expect(state.monitorValues?.ema?.[7]).toBe(19_980);
 
-    const unchanged = monitor.monitorIndicatorChanges(
-      createSnapshot(),
+    const unchanged = monitor.monitorIndicatorChanges({
+      monitorSnapshot: createSnapshot(),
       monitorQuote,
-      'HSI.HK',
-      [7],
-      [6],
-      [13],
-      state,
-    );
+      monitorSymbol: 'HSI.HK',
+      emaPeriods: [7],
+      rsiPeriods: [6],
+      psyPeriods: [13],
+      klineTimestamp,
+      monitorState: state,
+    });
     expect(unchanged).toBe(false);
 
-    const changed = monitor.monitorIndicatorChanges(
-      createSnapshot({
+    const changed = monitor.monitorIndicatorChanges({
+      monitorSnapshot: createSnapshot({
         macd: { macd: 12, dif: 4, dea: 2.2 },
       }),
       monitorQuote,
-      'HSI.HK',
-      [7],
-      [6],
-      [13],
-      state,
-    );
+      monitorSymbol: 'HSI.HK',
+      emaPeriods: [7],
+      rsiPeriods: [6],
+      psyPeriods: [13],
+      klineTimestamp,
+      monitorState: state,
+    });
     expect(changed).toBe(true);
     expect(state.monitorValues?.macd?.macd).toBe(12);
   });
@@ -166,29 +170,32 @@ describe('marketMonitor business flow', () => {
     const monitor = createMarketMonitor();
     const state = createMonitorState('HSI.HK');
     const monitorQuote = createQuoteDouble('HSI.HK', 20_000);
+    const klineTimestamp = 1_708_000_000_000;
 
     // 首次写入
-    monitor.monitorIndicatorChanges(
-      createSnapshot({ adx: 25 }),
+    monitor.monitorIndicatorChanges({
+      monitorSnapshot: createSnapshot({ adx: 25 }),
       monitorQuote,
-      'HSI.HK',
-      [7],
-      [6],
-      [13],
-      state,
-    );
+      monitorSymbol: 'HSI.HK',
+      emaPeriods: [7],
+      rsiPeriods: [6],
+      psyPeriods: [13],
+      klineTimestamp,
+      monitorState: state,
+    });
     expect(state.monitorValues?.adx).toBe(25);
 
     // ADX 变化触发更新
-    const changed = monitor.monitorIndicatorChanges(
-      createSnapshot({ adx: 30 }),
+    const changed = monitor.monitorIndicatorChanges({
+      monitorSnapshot: createSnapshot({ adx: 30 }),
       monitorQuote,
-      'HSI.HK',
-      [7],
-      [6],
-      [13],
-      state,
-    );
+      monitorSymbol: 'HSI.HK',
+      emaPeriods: [7],
+      rsiPeriods: [6],
+      psyPeriods: [13],
+      klineTimestamp,
+      monitorState: state,
+    });
     expect(changed).toBe(true);
     expect(state.monitorValues?.adx).toBe(30);
   });

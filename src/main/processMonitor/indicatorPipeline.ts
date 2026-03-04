@@ -61,6 +61,35 @@ function normalizeCandleValue(value: unknown): CandleData['close'] {
 }
 
 /**
+ * 将 unknown 标准化为 K 线时间戳（毫秒）。
+ *
+ * @param value 原始时间字段
+ * @returns 有效毫秒时间戳；无效时返回 undefined
+ */
+function normalizeCandleTimestamp(value: unknown): number | undefined {
+  if (value instanceof Date) {
+    const timestamp = value.getTime();
+    if (Number.isFinite(timestamp)) {
+      return timestamp;
+    }
+    return undefined;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const timestamp = Date.parse(value);
+    if (Number.isFinite(timestamp)) {
+      return timestamp;
+    }
+  }
+
+  return undefined;
+}
+
+/**
  * 将 SDK K 线数组标准化为内部 CandleData 数组。
  *
  * @param candles 原始 K 线数据
@@ -72,15 +101,38 @@ function normalizeCandles(candles: ReadonlyArray<unknown>): ReadonlyArray<Candle
     if (!isRecord(candle)) {
       continue;
     }
+    const normalizedTimestamp = normalizeCandleTimestamp(candle['timestamp']);
     normalized.push({
       open: normalizeCandleValue(candle['open']),
       high: normalizeCandleValue(candle['high']),
       low: normalizeCandleValue(candle['low']),
       close: normalizeCandleValue(candle['close']),
       volume: normalizeCandleValue(candle['volume']),
+      ...(normalizedTimestamp === undefined ? {} : { timestamp: normalizedTimestamp }),
     });
   }
   return normalized;
+}
+
+/**
+ * 获取实时 K 线数组中最后一根 K 线的时间戳（毫秒）。
+ *
+ * @param candles 标准化后的 K 线数组
+ * @returns 最后一根 K 线时间戳；不可用时返回 null
+ */
+function getLastRealtimeCandleTimestamp(candles: ReadonlyArray<CandleData>): number | null {
+  if (candles.length === 0) {
+    return null;
+  }
+  const latestCandle = candles.at(-1);
+  if (!latestCandle) {
+    return null;
+  }
+  const timestamp = latestCandle.timestamp;
+  if (timestamp !== undefined && Number.isFinite(timestamp)) {
+    return timestamp;
+  }
+  return null;
 }
 
 /**
@@ -107,6 +159,7 @@ export async function runIndicatorPipeline(
     return null;
   }
   const candles = normalizeCandles(monitorCandles);
+  const klineTimestamp = getLastRealtimeCandleTimestamp(candles);
   const fingerprint = getCandleFingerprint(candles);
   if (
     fingerprint !== null &&
@@ -114,15 +167,16 @@ export async function runIndicatorPipeline(
     state.lastMonitorSnapshot !== null
   ) {
     indicatorCache.push(monitorSymbol, state.lastMonitorSnapshot);
-    marketMonitor.monitorIndicatorChanges(
-      state.lastMonitorSnapshot,
+    marketMonitor.monitorIndicatorChanges({
+      monitorSnapshot: state.lastMonitorSnapshot,
       monitorQuote,
       monitorSymbol,
       emaPeriods,
       rsiPeriods,
       psyPeriods,
-      state,
-    );
+      klineTimestamp,
+      monitorState: state,
+    });
     return state.lastMonitorSnapshot;
   }
   const monitorSnapshot = buildIndicatorSnapshot(
@@ -138,15 +192,16 @@ export async function runIndicatorPipeline(
     );
     return null;
   }
-  marketMonitor.monitorIndicatorChanges(
+  marketMonitor.monitorIndicatorChanges({
     monitorSnapshot,
     monitorQuote,
     monitorSymbol,
     emaPeriods,
     rsiPeriods,
     psyPeriods,
-    state,
-  );
+    klineTimestamp,
+    monitorState: state,
+  });
   indicatorCache.push(monitorSymbol, monitorSnapshot);
   if (state.lastMonitorSnapshot !== monitorSnapshot) {
     releaseSnapshotObjects(state.lastMonitorSnapshot, state.monitorValues);

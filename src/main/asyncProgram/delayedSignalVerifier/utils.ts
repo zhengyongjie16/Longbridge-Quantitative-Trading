@@ -94,7 +94,9 @@ const verifyTimePoint = (
     const needNegativeForAdx = name === 'ADX' && isUptrend;
     const effectiveInitial = needNegativeForAdx ? -initialValue : initialValue;
     const effectiveCurrent = needNegativeForAdx ? -currentValueRaw : currentValueRaw;
-    const passed = isUptrend ? effectiveCurrent > effectiveInitial : effectiveCurrent < effectiveInitial;
+    const passed = isUptrend
+      ? effectiveCurrent > effectiveInitial
+      : effectiveCurrent < effectiveInitial;
 
     // 根据趋势方向和验证结果确定比较符号
     // ADX 日志始终显示原始正值和实际比较方向（<），避免负值造成运营误读

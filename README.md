@@ -219,9 +219,9 @@ bun start
 | -------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------- |
 | `MAX_UNREALIZED_LOSS_PER_SYMBOL_N`           | `0`     | 单标浮亏保护阈值（0 表示禁用）                                                                           |
 | `VERIFICATION_DELAY_SECONDS_BUY_N`           | `60`    | 买入延迟验证时间（秒，范围 0-120）                                                                       |
-| `VERIFICATION_INDICATORS_BUY_N`              | `无`    | 买入验证指标（逗号分隔，可选：K/D/J/MACD/DIF/DEA/ADX/EMA:n/PSY:n；未配置则不进行买入延迟验证）               |
+| `VERIFICATION_INDICATORS_BUY_N`              | `无`    | 买入验证指标（逗号分隔，可选：K/D/J/MACD/DIF/DEA/ADX/EMA:n/PSY:n；未配置则不进行买入延迟验证）           |
 | `VERIFICATION_DELAY_SECONDS_SELL_N`          | `60`    | 卖出延迟验证时间（秒，范围 0-120）                                                                       |
-| `VERIFICATION_INDICATORS_SELL_N`             | `无`    | 卖出验证指标（逗号分隔，可选：K/D/J/MACD/DIF/DEA/ADX/EMA:n/PSY:n；未配置则不进行卖出延迟验证）               |
+| `VERIFICATION_INDICATORS_SELL_N`             | `无`    | 卖出验证指标（逗号分隔，可选：K/D/J/MACD/DIF/DEA/ADX/EMA:n/PSY:n；未配置则不进行卖出延迟验证）           |
 | `BUY_INTERVAL_SECONDS_N`                     | `60`    | 同向买入间隔（秒，范围 10-600）                                                                          |
 | `LIQUIDATION_COOLDOWN_MINUTES_N`             | `无`    | 保护性清仓后买入冷却（可选，不设置则不冷却：1-120 / half-day / one-day）                                 |
 | `LIQUIDATION_TRIGGER_LIMIT_N`                | `1`     | 保护性清仓触发上限（范围 1-10；达到此次数后才激活买入冷却；仅在配置冷却时有意义）                        |

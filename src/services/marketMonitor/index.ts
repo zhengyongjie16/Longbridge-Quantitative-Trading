@@ -42,7 +42,7 @@ import { LOG_COLORS, MONITOR } from '../../constants/index.js';
 import type { MonitorState } from '../../types/state.js';
 import type { IndicatorSnapshot, Quote } from '../../types/quote.js';
 import type { MonitorValues } from '../../types/data.js';
-import type { MarketMonitor, PriceDisplayInfo } from './types.js';
+import type { MarketMonitor, MonitorIndicatorChangesParams, PriceDisplayInfo } from './types.js';
 
 /**
  * 格式化K线时间戳为日志前缀（仅显示时分秒）
@@ -327,15 +327,18 @@ export function createMarketMonitor(): MarketMonitor {
      * 检测监控标的技术指标变化，变化时打印全量指标并通过对象池更新状态缓存。
      * 任意指标（价格、涨跌幅、EMA/RSI/PSY/MFI/KDJ/MACD）超过阈值即触发显示与状态更新。
      */
-    monitorIndicatorChanges: (
-      monitorSnapshot: IndicatorSnapshot | null,
-      monitorQuote: Quote | null,
-      monitorSymbol: string,
-      emaPeriods: ReadonlyArray<number>,
-      rsiPeriods: ReadonlyArray<number>,
-      psyPeriods: ReadonlyArray<number>,
-      monitorState: MonitorState,
-    ): boolean => {
+    monitorIndicatorChanges: (params: MonitorIndicatorChangesParams): boolean => {
+      const {
+        monitorSnapshot,
+        monitorQuote,
+        monitorSymbol,
+        emaPeriods,
+        rsiPeriods,
+        psyPeriods,
+        klineTimestamp,
+        monitorState,
+      } = params;
+
       if (!monitorSnapshot) {
         return false;
       }
@@ -494,7 +497,7 @@ export function createMarketMonitor(): MarketMonitor {
           emaPeriods,
           rsiPeriods,
           psyPeriods,
-          klineTimestamp: monitorQuote?.timestamp ?? null,
+          klineTimestamp,
         });
 
         releaseMonitorValuesObjects(monitorState.monitorValues);
