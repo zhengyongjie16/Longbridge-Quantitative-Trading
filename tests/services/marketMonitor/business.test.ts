@@ -39,6 +39,7 @@ function createSnapshot(overrides: Partial<IndicatorSnapshot> = {}): IndicatorSn
     mfi: 45,
     kdj: { k: 51, d: 49, j: 55 },
     macd: { macd: 10, dif: 3, dea: 2 },
+    adx: null,
     ...overrides,
   };
 }
@@ -159,5 +160,36 @@ describe('marketMonitor business flow', () => {
     );
     expect(changed).toBe(true);
     expect(state.monitorValues?.macd?.macd).toBe(12);
+  });
+
+  it('detects ADX change and writes adx to monitorValues', () => {
+    const monitor = createMarketMonitor();
+    const state = createMonitorState('HSI.HK');
+    const monitorQuote = createQuoteDouble('HSI.HK', 20_000);
+
+    // 首次写入
+    monitor.monitorIndicatorChanges(
+      createSnapshot({ adx: 25 }),
+      monitorQuote,
+      'HSI.HK',
+      [7],
+      [6],
+      [13],
+      state,
+    );
+    expect(state.monitorValues?.adx).toBe(25);
+
+    // ADX 变化触发更新
+    const changed = monitor.monitorIndicatorChanges(
+      createSnapshot({ adx: 30 }),
+      monitorQuote,
+      'HSI.HK',
+      [7],
+      [6],
+      [13],
+      state,
+    );
+    expect(changed).toBe(true);
+    expect(state.monitorValues?.adx).toBe(30);
   });
 });

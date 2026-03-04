@@ -116,4 +116,7 @@ export type IndicatorSnapshot = {
 
   /** MACD 指标 */
   readonly macd: MACDIndicator | null;
+
+  /** ADX 趋势强度指标 */
+  readonly adx: number | null;
 };

@@ -38,6 +38,7 @@ function createSnapshot(price: number): IndicatorSnapshot {
     mfi: 48,
     kdj: { k: 50, d: 49, j: 52 },
     macd: { macd: 1, dif: 0.5, dea: 0.4 },
+    adx: null,
   };
 }
 

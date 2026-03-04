@@ -49,6 +49,7 @@ function createRiskContext(params: {
       mfi: null,
       kdj: { k: 50, d: 50, j: 50 },
       macd: { macd: 0, dif: 0, dea: 0 },
+      adx: null,
     },
     longSymbol: 'BULL.HK',
     shortSymbol: 'BEAR.HK',

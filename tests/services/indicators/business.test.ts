@@ -6,6 +6,7 @@
  */
 import { describe, expect, it } from 'bun:test';
 
+import { calculateADX } from '../../../src/services/indicators/adx.js';
 import { calculateEMA } from '../../../src/services/indicators/ema.js';
 import { calculateKDJ } from '../../../src/services/indicators/kdj.js';
 import { calculateMACD } from '../../../src/services/indicators/macd.js';
@@ -106,6 +107,32 @@ describe('indicators business flow', () => {
     expect(calculateKDJ(createTrendCandles(3, 10, 1), 9)).toBeNull();
     expect(calculateMACD(createTrendCandles(4, 1, 1), 12, 26, 9)).toBeNull();
     expect(calculateMFI([{ high: 1, low: 1, close: 1, volume: 1 }], 14)).toBeNull();
+  });
+
+  it('computes ADX as finite number when sufficient candles are provided', () => {
+    const candles = createTrendCandles(60, 100, 0.5);
+    const adx = calculateADX(candles, 14);
+
+    expect(adx).not.toBeNull();
+    expect(adx).toBeFinite();
+    if (adx !== null) {
+      expect(adx).toBeGreaterThanOrEqual(0);
+      expect(adx).toBeLessThanOrEqual(100);
+    }
+  });
+
+  it('returns null for ADX when candles are insufficient', () => {
+    const shortCandles = createTrendCandles(20, 100, 1);
+    expect(calculateADX(shortCandles, 14)).toBeNull();
+    expect(calculateADX([], 14)).toBeNull();
+  });
+
+  it('includes ADX in full indicator snapshot', () => {
+    const candles = createTrendCandles(80, 100, 0.5);
+    const snapshot = buildIndicatorSnapshot('HSI.HK', candles, [6], [5], [13]);
+
+    expect(snapshot).not.toBeNull();
+    expect(snapshot?.adx).toBeFinite();
   });
 
   it('keeps zero-value MACD as valid output on flat closes', () => {

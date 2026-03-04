@@ -240,6 +240,7 @@ export const monitorValuesObjectPool = createObjectPool<PoolableMonitorValues>(
     mfi: null,
     kdj: null,
     macd: null,
+    adx: null,
   }),
 
   // 重置函数：清空所有属性
@@ -252,6 +253,7 @@ export const monitorValuesObjectPool = createObjectPool<PoolableMonitorValues>(
     obj.mfi = null;
     obj.kdj = null;
     obj.macd = null;
+    obj.adx = null;
     return obj;
   },
   20, // 最大保存20个监控值对象

@@ -61,4 +61,7 @@ export type MonitorValues = {
 
   /** MACD 指标 */
   macd: MACDIndicator | null;
+
+  /** ADX 趋势强度指标 */
+  adx: number | null;
 };

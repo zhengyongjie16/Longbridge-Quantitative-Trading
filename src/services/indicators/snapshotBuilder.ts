@@ -19,6 +19,7 @@ import { calculateKDJ } from './kdj.js';
 import { calculateMACD } from './macd.js';
 import { calculateMFI } from './mfi.js';
 import { calculatePSY } from './psy.js';
+import { calculateADX } from './adx.js';
 import { calculateRSI } from './rsi.js';
 import { toNumber } from './utils.js';
 
@@ -144,6 +145,7 @@ export function buildIndicatorSnapshot(
     kdj: calculateKDJ(candles, 9),
     macd: calculateMACD(candles),
     mfi: calculateMFI(candles, 14),
+    adx: calculateADX(candles, 14),
     ema,
   };
 }

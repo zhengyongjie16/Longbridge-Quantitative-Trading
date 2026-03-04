@@ -29,6 +29,7 @@ export function createMonitorState(monitorSymbol: string): MonitorState {
       mfi: null,
       kdj: { k: 50, d: 50, j: 50 },
       macd: { macd: 0, dif: 0, dea: 0 },
+      adx: null,
     },
     lastMonitorSnapshot: {
       price: 20_000,
@@ -39,6 +40,7 @@ export function createMonitorState(monitorSymbol: string): MonitorState {
       mfi: null,
       kdj: { k: 50, d: 50, j: 50 },
       macd: { macd: 0, dif: 0, dea: 0 },
+      adx: null,
     },
     lastCandleFingerprint: null,
   };

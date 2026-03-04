@@ -36,6 +36,7 @@ function createSnapshot(): IndicatorSnapshot {
     mfi: null,
     kdj: null,
     macd: null,
+    adx: null,
   };
 }
 

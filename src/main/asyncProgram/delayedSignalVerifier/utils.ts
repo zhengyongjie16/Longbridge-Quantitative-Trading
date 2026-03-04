@@ -89,18 +89,25 @@ const verifyTimePoint = (
       continue;
     }
 
-    const currentValue = currentValueRaw;
-    const passed = isUptrend ? currentValue > initialValue : currentValue < initialValue;
+    // ADX 动作感知的正负值映射：ADX 无方向性，业务目标统一为 ADX_t < ADX_0
+    // 对 BUYCALL/SELLPUT（上涨比较），将 ADX 取负使 (-current) > (-initial) 等价于 current < initial
+    const needNegativeForAdx = name === 'ADX' && isUptrend;
+    const effectiveInitial = needNegativeForAdx ? -initialValue : initialValue;
+    const effectiveCurrent = needNegativeForAdx ? -currentValueRaw : currentValueRaw;
+    const passed = isUptrend ? effectiveCurrent > effectiveInitial : effectiveCurrent < effectiveInitial;
 
     // 根据趋势方向和验证结果确定比较符号
-    let symbol: string;
-    if (passed) {
-      symbol = isUptrend ? '>' : '<';
+    // ADX 日志始终显示原始正值和实际比较方向（<），避免负值造成运营误读
+    let displaySymbol: string;
+    if (needNegativeForAdx) {
+      displaySymbol = passed ? '<' : '>=';
+    } else if (passed) {
+      displaySymbol = isUptrend ? '>' : '<';
     } else {
-      symbol = isUptrend ? '<=' : '>=';
+      displaySymbol = isUptrend ? '<=' : '>=';
     }
 
-    details.push(`${name}=${currentValue.toFixed(3)}${symbol}${initialValue.toFixed(3)}`);
+    details.push(`${name}=${currentValueRaw.toFixed(3)}${displaySymbol}${initialValue.toFixed(3)}`);
 
     if (!passed) {
       failedIndicators.push(name);

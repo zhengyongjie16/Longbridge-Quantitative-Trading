@@ -231,7 +231,12 @@ function displayIndicators(params: {
     }
   }
 
-  // 8. MACD（MACD、DIF、DEA三个值）
+  // 8. ADX
+  if (Number.isFinite(monitorSnapshot.adx)) {
+    indicators.push(`ADX=${formatIndicator(monitorSnapshot.adx, 3)}`);
+  }
+
+  // 9. MACD（MACD、DIF、DEA三个值）
   if (monitorSnapshot.macd) {
     const macd = monitorSnapshot.macd;
     if (Number.isFinite(macd.macd)) {
@@ -437,6 +442,19 @@ export function createMarketMonitor(): MarketMonitor {
         }
       }
 
+      // 检查ADX变化
+      if (!hasIndicatorChanged) {
+        const lastAdx = monitorState.monitorValues?.adx;
+        if (
+          Number.isFinite(monitorSnapshot.adx) &&
+          (lastAdx === null ||
+            lastAdx === undefined ||
+            hasChanged(monitorSnapshot.adx, lastAdx, MONITOR.INDICATOR_CHANGE_THRESHOLD))
+        ) {
+          hasIndicatorChanged = true;
+        }
+      }
+
       // 检查KDJ变化
       if (!hasIndicatorChanged && monitorSnapshot.kdj) {
         const lastKdj = monitorState.monitorValues?.kdj;
@@ -492,6 +510,7 @@ export function createMarketMonitor(): MarketMonitor {
         newMonitorValues.psy = copyPeriodRecord(periodRecordPool, monitorSnapshot.psy);
 
         newMonitorValues.mfi = monitorSnapshot.mfi;
+        newMonitorValues.adx = monitorSnapshot.adx;
 
         // 从对象池获取 kdj 和 macd 对象，复制值
         // 避免直接引用对象池中的对象，防止对象池回收时数据被意外修改

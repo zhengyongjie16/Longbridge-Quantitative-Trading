@@ -35,4 +35,5 @@ export type IndicatorState = {
   readonly mfi?: number | null;
   readonly kdj?: IndicatorKdj | null;
   readonly macd?: IndicatorMacd | null;
+  readonly adx?: number | null;
 };

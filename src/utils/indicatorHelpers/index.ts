@@ -79,6 +79,11 @@ export function getIndicatorValue(
       return macd && Number.isFinite(macd.dea) ? (macd.dea ?? null) : null;
     }
 
+    case 'ADX': {
+      const adxValue = state.adx;
+      return typeof adxValue === 'number' && Number.isFinite(adxValue) ? adxValue : null;
+    }
+
     default: {
       return null;
     }

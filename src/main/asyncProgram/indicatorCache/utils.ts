@@ -95,6 +95,7 @@ export function cloneIndicatorSnapshot(snapshot: IndicatorSnapshot): IndicatorSn
     price: snapshot.price,
     changePercent: snapshot.changePercent,
     mfi: snapshot.mfi,
+    adx: snapshot.adx,
     kdj: kdj ? { k: kdj.k, d: kdj.d, j: kdj.j } : null,
     macd: macd ? { macd: macd.macd, dif: macd.dif, dea: macd.dea } : null,
     rsi: rsi ? { ...rsi } : null,

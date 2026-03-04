@@ -126,7 +126,7 @@ export const VERIFICATION = {
 } as const;
 
 /** 延迟验证中允许无周期的固定指标集合 */
-export const VERIFICATION_FIXED_INDICATORS = new Set(['K', 'D', 'J', 'MACD', 'DIF', 'DEA']);
+export const VERIFICATION_FIXED_INDICATORS = new Set(['K', 'D', 'J', 'MACD', 'DIF', 'DEA', 'ADX']);
 
 /** 信号条件解析中允许无周期的固定指标集合（不含 RSI/PSY） */
 export const SIGNAL_CONFIG_SUPPORTED_INDICATORS = ['MFI', 'K', 'D', 'J'] as const;

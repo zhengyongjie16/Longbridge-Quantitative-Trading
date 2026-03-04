@@ -29,6 +29,21 @@ function createSnapshotK(k: number) {
     mfi: null,
     kdj: { k, d: k, j: k },
     macd: { macd: 0, dif: 0, dea: 0 },
+    adx: null,
+  };
+}
+
+function createSnapshotAdx(adx: number) {
+  return {
+    price: 100,
+    changePercent: 0,
+    ema: null,
+    rsi: null,
+    psy: null,
+    mfi: null,
+    kdj: { k: 50, d: 50, j: 50 },
+    macd: { macd: 0, dif: 0, dea: 0 },
+    adx,
   };
 }
 
@@ -325,6 +340,212 @@ describe('delayedSignalVerifier business flow', () => {
     await Bun.sleep(20);
 
     expect(passed).toBe(1);
+  });
+
+  it('passes SELLCALL + ADX when three points decline (positive path)', async () => {
+    const baseTime = 400_000;
+    const indicatorCache = createIndicatorCache();
+    const verifier = createDelayedSignalVerifier({
+      indicatorCache,
+      verificationConfig: {
+        buy: { delaySeconds: 10, indicators: ['ADX'] },
+        sell: { delaySeconds: 10, indicators: ['ADX'] },
+      },
+    });
+
+    withMockedNowSync(baseTime, () => {
+      indicatorCache.push('HSI.HK', createSnapshotAdx(28));
+    });
+
+    withMockedNowSync(baseTime + 5_000, () => {
+      indicatorCache.push('HSI.HK', createSnapshotAdx(27));
+    });
+
+    withMockedNowSync(baseTime + 10_000, () => {
+      indicatorCache.push('HSI.HK', createSnapshotAdx(26));
+    });
+
+    let verified = 0;
+    verifier.onVerified(() => { verified += 1; });
+
+    const signal = createSignal({
+      symbol: 'BULL.HK',
+      action: 'SELLCALL',
+      triggerTimeMs: baseTime,
+      indicators1: { ADX: 30 },
+    });
+
+    withMockedNowSync(baseTime + 10_000, () => {
+      verifier.addSignal(signal, 'HSI.HK');
+    });
+
+    await Bun.sleep(20);
+    expect(verified).toBe(1);
+  });
+
+  it('passes BUYPUT + ADX when three points decline (positive path)', async () => {
+    const baseTime = 450_000;
+    const indicatorCache = createIndicatorCache();
+    const verifier = createDelayedSignalVerifier({
+      indicatorCache,
+      verificationConfig: {
+        buy: { delaySeconds: 10, indicators: ['ADX'] },
+        sell: { delaySeconds: 10, indicators: ['ADX'] },
+      },
+    });
+
+    withMockedNowSync(baseTime, () => {
+      indicatorCache.push('HSI.HK', createSnapshotAdx(25));
+    });
+
+    withMockedNowSync(baseTime + 5_000, () => {
+      indicatorCache.push('HSI.HK', createSnapshotAdx(24));
+    });
+
+    withMockedNowSync(baseTime + 10_000, () => {
+      indicatorCache.push('HSI.HK', createSnapshotAdx(23));
+    });
+
+    let verified = 0;
+    verifier.onVerified(() => { verified += 1; });
+
+    const signal = createSignal({
+      symbol: 'BEAR.HK',
+      action: 'BUYPUT',
+      triggerTimeMs: baseTime,
+      indicators1: { ADX: 27 },
+    });
+
+    withMockedNowSync(baseTime + 10_000, () => {
+      verifier.addSignal(signal, 'HSI.HK');
+    });
+
+    await Bun.sleep(20);
+    expect(verified).toBe(1);
+  });
+
+  it('passes BUYCALL + ADX when three points decline (negative mapping path)', async () => {
+    const baseTime = 500_000;
+    const indicatorCache = createIndicatorCache();
+    const verifier = createDelayedSignalVerifier({
+      indicatorCache,
+      verificationConfig: {
+        buy: { delaySeconds: 10, indicators: ['ADX'] },
+        sell: { delaySeconds: 10, indicators: ['ADX'] },
+      },
+    });
+
+    withMockedNowSync(baseTime, () => {
+      indicatorCache.push('HSI.HK', createSnapshotAdx(22));
+    });
+
+    withMockedNowSync(baseTime + 5_000, () => {
+      indicatorCache.push('HSI.HK', createSnapshotAdx(21));
+    });
+
+    withMockedNowSync(baseTime + 10_000, () => {
+      indicatorCache.push('HSI.HK', createSnapshotAdx(20));
+    });
+
+    let verified = 0;
+    verifier.onVerified(() => { verified += 1; });
+
+    const signal = createSignal({
+      symbol: 'BULL.HK',
+      action: 'BUYCALL',
+      triggerTimeMs: baseTime,
+      indicators1: { ADX: 25 },
+    });
+
+    withMockedNowSync(baseTime + 10_000, () => {
+      verifier.addSignal(signal, 'HSI.HK');
+    });
+
+    await Bun.sleep(20);
+    expect(verified).toBe(1);
+  });
+
+  it('passes SELLPUT + ADX when three points decline (negative mapping path)', async () => {
+    const baseTime = 550_000;
+    const indicatorCache = createIndicatorCache();
+    const verifier = createDelayedSignalVerifier({
+      indicatorCache,
+      verificationConfig: {
+        buy: { delaySeconds: 10, indicators: ['ADX'] },
+        sell: { delaySeconds: 10, indicators: ['ADX'] },
+      },
+    });
+
+    withMockedNowSync(baseTime, () => {
+      indicatorCache.push('HSI.HK', createSnapshotAdx(18));
+    });
+
+    withMockedNowSync(baseTime + 5_000, () => {
+      indicatorCache.push('HSI.HK', createSnapshotAdx(17));
+    });
+
+    withMockedNowSync(baseTime + 10_000, () => {
+      indicatorCache.push('HSI.HK', createSnapshotAdx(16));
+    });
+
+    let verified = 0;
+    verifier.onVerified(() => { verified += 1; });
+
+    const signal = createSignal({
+      symbol: 'BEAR.HK',
+      action: 'SELLPUT',
+      triggerTimeMs: baseTime,
+      indicators1: { ADX: 20 },
+    });
+
+    withMockedNowSync(baseTime + 10_000, () => {
+      verifier.addSignal(signal, 'HSI.HK');
+    });
+
+    await Bun.sleep(20);
+    expect(verified).toBe(1);
+  });
+
+  it('rejects ADX when any time point has not declined', async () => {
+    const baseTime = 600_000;
+    const indicatorCache = createIndicatorCache();
+    const verifier = createDelayedSignalVerifier({
+      indicatorCache,
+      verificationConfig: {
+        buy: { delaySeconds: 10, indicators: ['ADX'] },
+        sell: { delaySeconds: 10, indicators: ['ADX'] },
+      },
+    });
+
+    // T0+5s ADX 上升而非下降
+    withMockedNowSync(baseTime, () => {
+      indicatorCache.push('HSI.HK', createSnapshotAdx(28));
+    });
+
+    withMockedNowSync(baseTime + 5_000, () => {
+      indicatorCache.push('HSI.HK', createSnapshotAdx(31));
+    });
+
+    withMockedNowSync(baseTime + 10_000, () => {
+      indicatorCache.push('HSI.HK', createSnapshotAdx(26));
+    });
+
+    let verified = 0;
+    verifier.onVerified(() => { verified += 1; });
+
+    const signal = createSignal({
+      symbol: 'BULL.HK',
+      action: 'BUYCALL',
+      triggerTimeMs: baseTime,
+      indicators1: { ADX: 30 },
+    });
+
+    withMockedNowSync(baseTime + 10_000, () => {
+      verifier.addSignal(signal, 'HSI.HK');
+    });
+
+    await Bun.sleep(20);
+    expect(verified).toBe(0);
   });
 
   it('clears pending signals by direction on symbol switch', () => {

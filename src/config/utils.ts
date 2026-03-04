@@ -266,7 +266,7 @@ export function parseVerificationDelay(
 }
 
 /**
- * 解析延迟验证指标列表，支持 K/D/J/MACD/DIF/DEA/EMA:N/PSY:N，无效项记录警告后跳过。
+ * 解析延迟验证指标列表，支持 K/D/J/MACD/DIF/DEA/ADX/EMA:N/PSY:N，无效项记录警告后跳过。
  * @param env - 进程环境变量对象
  * @param envKey - 环境变量键名
  * @returns 有效指标字符串数组，未设置或全部无效时返回 null

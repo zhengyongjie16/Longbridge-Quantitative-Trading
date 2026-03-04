@@ -70,6 +70,7 @@ export type PoolableMonitorValues = {
   mfi: number | null;
   kdj: PoolableKDJ | null;
   macd: PoolableMACD | null;
+  adx: number | null;
 };
 
 /**
