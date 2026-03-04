@@ -33,6 +33,7 @@ function extractPosition(positions: ReadonlyArray<Position>, symbol: string): Po
   if (!symbol) {
     return null;
   }
+
   return positions.find((pos) => pos.symbol === symbol) ?? null;
 }
 
@@ -73,6 +74,7 @@ function shouldResetPeriodicPendingBySeatReadyAt(params: {
   if (params.pendingSinceMs === null || params.lastSeatReadyAt === null) {
     return false;
   }
+
   return params.lastSeatReadyAt > params.pendingSinceMs;
 }
 
@@ -146,6 +148,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
         pendingSinceMs: null,
       };
     }
+
     return state;
   }
 
@@ -155,11 +158,13 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     if (!switchState) {
       return false;
     }
+
     const currentVersion = symbolRegistry.getSeatVersion(monitorSymbol, direction);
     if (currentVersion !== switchState.seatVersion) {
       switchStates.delete(direction);
       return false;
     }
+
     const seatState = symbolRegistry.getSeatState(monitorSymbol, direction);
     const symbolMatches =
       seatState.symbol === switchState.oldSymbol || seatState.symbol === switchState.nextSymbol;
@@ -172,6 +177,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
       switchStates.delete(direction);
       return false;
     }
+
     return true;
   }
 
@@ -186,6 +192,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     if (!thresholds) {
       return null;
     }
+
     const input = await buildFindBestWarrantInput({
       direction,
       currentTime: now(),
@@ -196,6 +203,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     if (!best) {
       return null;
     }
+
     return { symbol: best.symbol, callPrice: best.callPrice };
   }
 
@@ -263,6 +271,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     if (!startedState) {
       return;
     }
+
     const pendingOrdersForOldSymbol = await trader.getPendingOrders([startedState.oldSymbol]);
     await processSwitchState(distanceContext, startedState, pendingOrdersForOldSymbol);
   }
@@ -302,6 +311,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
             `[自动换标] ${monitorSymbol} ${direction} 当日寻标失败达 ${nextFailCount} 次，席位冻结`,
           );
         }
+
         updateSeatState(
           direction,
           buildSeatState({
@@ -332,6 +342,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
           false,
         );
       }
+
       switchStates.delete(direction);
     }
 
@@ -349,6 +360,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
           return;
         }
       }
+
       state.stage = state.switchMode === 'PERIODIC' ? 'BIND_NEW' : 'SELL_OUT';
     }
 
@@ -365,6 +377,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
         if (state.sellSubmitted) {
           return;
         }
+
         const quote = quotesMap.get(state.oldSymbol);
         if (!isQuoteReadyForOrder(quote)) {
           return;
@@ -388,6 +401,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
           );
           return;
         }
+
         state.sellSubmitted = true;
         state.sellOrderId = executionResult.submittedOrderIds[0] ?? null;
         return;
@@ -439,11 +453,13 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
         failAndClear('MISSING_NEXT_SYMBOL_ON_WAIT_QUOTE');
         return;
       }
+
       const quote = quotesMap.get(nextSymbol);
       if (!isQuoteReadyForOrder(quote)) {
         state.awaitingQuote = true;
         return;
       }
+
       state.awaitingQuote = false;
       state.stage = 'REBUY';
     }
@@ -454,6 +470,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
         failAndClear('MISSING_NEXT_SYMBOL_ON_REBUY');
         return;
       }
+
       const quote = quotesMap.get(nextSymbol);
       if (!isQuoteReadyForOrder(quote)) {
         state.awaitingQuote = true;
@@ -466,6 +483,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
         failAndClear('MISSING_REBUY_NOTIONAL');
         return;
       }
+
       const buyQuantity = calculateBuyQuantityByNotional(buyNotional, quote.price, quote.lotSize);
 
       if (buyQuantity !== null && isValidPositiveNumber(buyQuantity)) {
@@ -486,6 +504,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
           `[自动换标] 回补买入数量无效或过小，跳过回补: ${nextSymbol}, buyQuantity=${String(buyQuantity)}`,
         );
       }
+
       state.stage = 'COMPLETE';
     }
 
@@ -508,6 +527,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
           false,
         );
       }
+
       switchStates.delete(direction);
     }
   }
@@ -602,6 +622,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
           `[自动换标] ${monitorSymbol} ${direction} 周期换标到期但仍有持仓，进入等待空仓状态`,
         );
       }
+
       return;
     }
 
@@ -609,6 +630,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     if (pendingState.pending) {
       logger.info(`[自动换标] ${monitorSymbol} ${direction} 周期换标等待结束，检测到空仓开始换标`);
     }
+
     clearPeriodicPending(direction);
 
     await startSwitchFlow({
@@ -638,6 +660,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
       if (!pendingSwitch) {
         return;
       }
+
       const pendingOrdersForOldSymbol = await trader.getPendingOrders([pendingSwitch.oldSymbol]);
       await processSwitchState(
         { direction, monitorPrice, quotesMap, positions },

@@ -186,6 +186,7 @@ export function applyMockFailureRule(params: {
     state.rules.delete(method);
     return;
   }
+
   state.rules.set(method, rule);
 }
 
@@ -214,6 +215,7 @@ export function readMockCalls(
   if (!method) {
     return [...callRecords];
   }
+
   return callRecords.filter((record) => record.method === method);
 }
 

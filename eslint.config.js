@@ -269,6 +269,28 @@ export default defineConfig(
         { blankLine: 'always', prev: 'block-like', next: 'block-like' },
         // 多行表达式之间（如 it 与 it）必须有空行
         { blankLine: 'always', prev: 'multiline-expression', next: 'multiline-expression' },
+        // if 语句前：仅当前一条是多行表达式/多行块状语句时才强制空行（块顶部的 if 不会触发）
+        { blankLine: 'always', prev: 'multiline-expression', next: 'if' },
+        { blankLine: 'always', prev: 'multiline-block-like', next: 'if' },
+        // if 语句后必须有空行（块尾部的 if 不会触发）
+        { blankLine: 'always', prev: 'if', next: '*' },
+        // for / while / do / switch / try 前：仅当上一条是多行表达式/多行块状语句时才强制空行（块顶部不触发）
+        { blankLine: 'always', prev: 'multiline-expression', next: 'for' },
+        { blankLine: 'always', prev: 'multiline-block-like', next: 'for' },
+        { blankLine: 'always', prev: 'multiline-expression', next: 'while' },
+        { blankLine: 'always', prev: 'multiline-block-like', next: 'while' },
+        { blankLine: 'always', prev: 'multiline-expression', next: 'do' },
+        { blankLine: 'always', prev: 'multiline-block-like', next: 'do' },
+        { blankLine: 'always', prev: 'multiline-expression', next: 'switch' },
+        { blankLine: 'always', prev: 'multiline-block-like', next: 'switch' },
+        { blankLine: 'always', prev: 'multiline-expression', next: 'try' },
+        { blankLine: 'always', prev: 'multiline-block-like', next: 'try' },
+        // for / while / do / switch / try 后必须有空行（块尾部不触发）
+        { blankLine: 'always', prev: 'for', next: '*' },
+        { blankLine: 'always', prev: 'while', next: '*' },
+        { blankLine: 'always', prev: 'do', next: '*' },
+        { blankLine: 'always', prev: 'switch', next: '*' },
+        { blankLine: 'always', prev: 'try', next: '*' },
       ],
     },
   },

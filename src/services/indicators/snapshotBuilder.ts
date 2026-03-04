@@ -45,11 +45,13 @@ export function getCandleFingerprint(candles: ReadonlyArray<CandleData>): string
   if (candles.length === 0) {
     return null;
   }
+
   const lastCandle = candles.at(-1);
   const lastClose = lastCandle ? toNumber(lastCandle.close) : 0;
   if (!isValidPositiveNumber(lastClose)) {
     return null;
   }
+
   return buildDataFingerprint(candles, lastClose);
 }
 

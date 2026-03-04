@@ -67,6 +67,7 @@ function formatNumber(value: number | null | undefined, digits: number): string 
   if (value === null || value === undefined || !Number.isFinite(value)) {
     return '-';
   }
+
   return value.toFixed(digits);
 }
 
@@ -140,6 +141,7 @@ function displayRows(rows: ReadonlyArray<MinuteIndicatorRow>, symbol: string, da
     } else if (isYellow) {
       prefix = ANSI_YELLOW;
     }
+
     const suffix = isGreen || isYellow || isRed ? ANSI_RESET : '';
     console.log(`${prefix}${line}${suffix}`);
 

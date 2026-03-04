@@ -48,6 +48,7 @@ export function createBuyThrottle(): BuyThrottle {
     if (timeDiff >= intervalMs) {
       return { canTrade: true };
     }
+
     const waitSeconds = Math.ceil((intervalMs - timeDiff) / TIME.MILLISECONDS_PER_SECOND);
     return {
       canTrade: false,

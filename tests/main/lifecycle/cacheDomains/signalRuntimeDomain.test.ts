@@ -53,6 +53,7 @@ describe('createSignalRuntimeDomain', () => {
           onRemove({ data: {} as Signal });
           onRemove({ data: {} as Signal });
         }
+
         return 2;
       },
     };
@@ -62,6 +63,7 @@ describe('createSignalRuntimeDomain', () => {
         if (onRemove) {
           onRemove({ data: {} as Signal });
         }
+
         return 1;
       },
     };

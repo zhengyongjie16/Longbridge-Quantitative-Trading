@@ -62,6 +62,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
     if (!resolved) {
       return null;
     }
+
     return {
       monitorSymbol: resolved.monitorSymbol,
       direction: resolved.direction,
@@ -79,6 +80,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
     if (!monitorSymbol) {
       return 1;
     }
+
     return triggerLimitByMonitor.get(monitorSymbol) ?? 1;
   }
 
@@ -94,6 +96,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
     if (!monitorSymbol) {
       return null;
     }
+
     return cooldownConfigByMonitor.get(monitorSymbol) ?? null;
   }
 
@@ -109,6 +112,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
     if (!isSeatReady(seatState)) {
       return false;
     }
+
     return seatState.symbol === order.symbol;
   }
 
@@ -133,6 +137,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
     for (const trackedOrder of runtime.trackedOrders.values()) {
       orderHoldRegistry.markOrderClosed(trackedOrder.orderId);
     }
+
     runtime.trackedOrders.clear();
     runtime.trackedOrderLifecycles.clear();
     runtime.closeSyncQueue.clear();
@@ -162,6 +167,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
       runtime.bootstrappingOrderEvents.set(event.orderId, event);
       return;
     }
+
     const currentUpdatedAt = resolveUpdatedAtMs(current.updatedAt);
     const nextUpdatedAt = resolveUpdatedAtMs(event.updatedAt);
     if (currentUpdatedAt !== null && nextUpdatedAt !== null && nextUpdatedAt >= currentUpdatedAt) {
@@ -188,6 +194,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
     if (runtime.bootstrappingOrderEvents.size === 0) {
       return new Set<string>();
     }
+
     const replayEvents = [...runtime.bootstrappingOrderEvents.values()];
     replayEvents.sort((left, right) => {
       const leftMs = resolveUpdatedAtMs(left.updatedAt) ?? 0;
@@ -200,6 +207,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
       replayedOrderIds.add(event.orderId);
       handleOrderChangedWhenActive(event);
     }
+
     return replayedOrderIds;
   }
 
@@ -224,6 +232,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
       if (!PENDING_ORDER_STATUSES.has(trackedOrder.status)) {
         continue;
       }
+
       trackedSellOrderIds.add(trackedOrder.orderId);
     }
 
@@ -280,6 +289,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
       if (snapshotPendingOrderIds.has(orderId)) {
         return false;
       }
+
       return !replayedOrderIds.has(orderId);
     });
     const missingTrackedOrderIds = [...snapshotPendingOrderIds].filter((orderId) => {
@@ -290,6 +300,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
       if (closedMismatchedBuyOrderIds.has(orderId)) {
         return false;
       }
+
       return !replayedOrderIds.has(orderId);
     });
 
@@ -319,6 +330,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
     if (!isValidPositiveNumber(submittedQuantity)) {
       throw new Error(`[订单监控] 订单 ${order.orderId} 委托数量无效，无法恢复追踪`);
     }
+
     const trackedPriceRaw = decimalToNumber(order.price);
     const trackedPrice = isValidPositiveNumber(trackedPriceRaw) ? trackedPriceRaw : 0;
     const submittedAtMs = resolveSubmittedAtMs(order.submittedAt);
@@ -362,6 +374,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
         relatedBuyOrderIds,
         submittedAtMs ?? undefined,
       );
+
       if (executedQuantity > 0) {
         orderRecorder.markSellPartialFilled(order.orderId, executedQuantity);
       }
@@ -386,6 +399,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
         if (!PENDING_ORDER_STATUSES.has(order.status)) {
           continue;
         }
+
         const ownership = resolveOrderSeatOwnership(order);
         const isMatched = ownership ? isSeatMatchedForOrder(order, ownership) : false;
         if (order.side === OrderSide.Sell) {
@@ -396,6 +410,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
           if (!isMatched) {
             throw new Error(`[订单监控] 卖单 ${order.orderId} 与当前席位不匹配，阻断恢复`);
           }
+
           restorePendingOrderTracking(order, ownership);
           recoveredCount += 1;
           continue;
@@ -429,10 +444,12 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
             closedMismatchedBuyOrderIds.add(order.orderId);
             continue;
           }
+
           restorePendingOrderTracking(order, ownership);
           recoveredCount += 1;
         }
       }
+
       const replayedOrderIds = replayBootstrappingEvents();
       assertPendingSellConsistency();
       assertRecoverySnapshotReconciliation({

@@ -57,6 +57,7 @@ export function getStringConfig(env: NodeJS.ProcessEnv, envKey: string): string 
   if (!value || value.trim() === '' || value === `your_${envKey.toLowerCase()}_here`) {
     return null;
   }
+
   return value.trim();
 }
 
@@ -76,10 +77,12 @@ export function getNumberConfig(
   if (!value || value.trim() === '') {
     return null;
   }
+
   const num = Number(value);
   if (!Number.isFinite(num) || num < minValue) {
     return null;
   }
+
   return num;
 }
 
@@ -99,6 +102,7 @@ export function getBooleanConfig(
   if (value === undefined || value.trim() === '') {
     return defaultValue;
   }
+
   const normalizedValue = value.trim().toLowerCase();
   if (normalizedValue === 'true') {
     return true;
@@ -107,6 +111,7 @@ export function getBooleanConfig(
   if (normalizedValue === 'false') {
     return false;
   }
+
   return defaultValue;
 }
 
@@ -124,6 +129,7 @@ export function parseLiquidationCooldownConfig(
   if (!value) {
     return null;
   }
+
   const normalizedValue = value.trim().toLowerCase();
   if (normalizedValue === 'half-day') {
     return { mode: 'half-day' };
@@ -137,6 +143,7 @@ export function parseLiquidationCooldownConfig(
   if (!Number.isFinite(minutes) || minutes < 1 || minutes > 120) {
     return null;
   }
+
   return { mode: 'minutes', minutes };
 }
 
@@ -262,6 +269,7 @@ export function parseVerificationDelay(
     logger.warn(`[配置警告] ${envKey} 不能大于 120，已设置为 120`);
     return 120;
   }
+
   return delay;
 }
 
@@ -307,11 +315,13 @@ export function parseVerificationIndicators(
     if (!item.startsWith(prefix)) {
       return false;
     }
+
     const period = Number.parseInt(item.slice(prefix.length), 10);
     if (validator(period)) {
       validItems.push(item);
       return true;
     }
+
     invalidItems.push(item);
     return true;
   }
@@ -329,6 +339,7 @@ export function parseVerificationIndicators(
     if (tryParseIndicatorWithPeriod(item, 'EMA:', validateEmaPeriod)) {
       continue;
     }
+
     invalidItems.push(item);
   }
 
@@ -349,6 +360,7 @@ export function isSymbolWithRegion(symbol: string | null | undefined): symbol is
   if (!symbol || typeof symbol !== 'string') {
     return false;
   }
+
   return SYMBOL_WITH_REGION_REGEX.test(symbol);
 }
 
@@ -406,6 +418,7 @@ function parseCondition(conditionStr: string): ParsedCondition | null {
     ) {
       return null;
     }
+
     return { indicator: 'RSI', period, operator, threshold };
   }
 
@@ -428,6 +441,7 @@ function parseCondition(conditionStr: string): ParsedCondition | null {
     ) {
       return null;
     }
+
     return { indicator: 'PSY', period, operator, threshold };
   }
 
@@ -450,6 +464,7 @@ function parseCondition(conditionStr: string): ParsedCondition | null {
   ) {
     return null;
   }
+
   return { indicator, operator, threshold };
 }
 
@@ -476,6 +491,7 @@ function parseConditionGroup(groupStr: string): ParsedConditionGroup | null {
     if (!capturedConditions) {
       return null;
     }
+
     conditionsStr = capturedConditions;
     const minSatisfiedStr = bracketMatch[2];
     minSatisfied = minSatisfiedStr ? Number.parseInt(minSatisfiedStr, 10) : null;
@@ -491,6 +507,7 @@ function parseConditionGroup(groupStr: string): ParsedConditionGroup | null {
     if (!condition) {
       return null;
     }
+
     conditions.push(condition);
   }
 
@@ -533,10 +550,12 @@ export function parseSignalConfig(configStr: string | null | undefined): SignalC
     if (!groupStr) {
       continue;
     }
+
     const group = parseConditionGroup(groupStr);
     if (!group) {
       return null;
     }
+
     conditionGroups.push({
       conditions: group.conditions.map((condition) => ({
         indicator: condition.period
@@ -616,9 +635,11 @@ export function parseOrderTypeConfig(
     if (isOrderTypeConfig(value)) {
       return ORDER_TYPE_CONFIG_TO_OPEN_API[value];
     }
+
     logger.warn(
       `[配置警告] ${envKey} 值无效: ${value}，必须使用全大写: LO, ELO, MO。已使用默认值: ${defaultType}`,
     );
   }
+
   return ORDER_TYPE_CONFIG_TO_OPEN_API[defaultType];
 }

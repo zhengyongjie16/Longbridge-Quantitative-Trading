@@ -59,6 +59,7 @@ function resolveAutoSearchThresholdInput(params: ResolveAutoSearchThresholdInput
     logger.error(`${logPrefix}: ${monitorSymbol} ${direction}`);
     return null;
   }
+
   return { minDistancePct, minTurnoverPerMinute };
 }
 

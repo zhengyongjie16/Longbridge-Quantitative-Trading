@@ -20,6 +20,7 @@ export async function sleep(ms: number): Promise<void> {
       setTimeout(resolve, TIME.MILLISECONDS_PER_SECOND);
     });
   }
+
   return new Promise<void>((resolve) => {
     setTimeout(resolve, delay);
   });
@@ -95,6 +96,7 @@ export function collectRuntimeQuoteSymbols(
       symbols.add(symbol);
     }
   }
+
   return symbols;
 }
 
@@ -122,6 +124,7 @@ export function diffQuoteSymbols(
       removed.push(symbol);
     }
   }
+
   return { added, removed };
 }
 
@@ -146,6 +149,7 @@ function collectAllQuoteSymbols(
     if (!symbolRegistry) {
       continue;
     }
+
     const longSeat = symbolRegistry.getSeatState(config.monitorSymbol, 'LONG');
     const shortSeat = symbolRegistry.getSeatState(config.monitorSymbol, 'SHORT');
     if (longSeat.symbol) {
@@ -156,5 +160,6 @@ function collectAllQuoteSymbols(
       symbols.add(shortSeat.symbol);
     }
   }
+
   return symbols;
 }

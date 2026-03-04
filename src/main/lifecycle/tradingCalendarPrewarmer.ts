@@ -55,6 +55,7 @@ export async function prewarmTradingCalendarSnapshotForRebuild(
   if (demandDateKeys.length === 0) {
     return;
   }
+
   const nextSnapshot = new Map<string, TradingDayInfo>(lastState.tradingCalendarSnapshot ?? []);
   const missingDateKeys = demandDateKeys.filter((dateKey) => !nextSnapshot.has(dateKey));
   if (missingDateKeys.length > 0) {
@@ -70,10 +71,12 @@ export async function prewarmTradingCalendarSnapshotForRebuild(
           nextSnapshot,
         }));
   }
+
   const nowDateKey = getHKDateKey(now);
   if (nowDateKey && lastState.cachedTradingDayInfo) {
     nextSnapshot.set(nowDateKey, lastState.cachedTradingDayInfo);
   }
+
   lastState.tradingCalendarSnapshot = nextSnapshot;
 }
 
@@ -104,6 +107,7 @@ function resolveEarliestOpenOrderExecutedMs(
       earliestMs = resolveMinTimestamp(earliestMs, shortOrders);
     }
   }
+
   return earliestMs;
 }
 
@@ -125,6 +129,7 @@ function resolveMinTimestamp(
       earliestMs = executedTimeMs;
     }
   }
+
   return earliestMs;
 }
 
@@ -137,6 +142,7 @@ function assertCalendarLookbackRange(demandStartMs: number, nowMs: number): void
   if (demandStartMs >= earliestAllowedMs) {
     return;
   }
+
   throw createTradingCalendarPrewarmError({
     code: 'TRADING_CALENDAR_LOOKBACK_EXCEEDED',
     message: '[交易日历快照] 预热窗口超出接口最近一年限制，重建已阻断',
@@ -165,6 +171,7 @@ async function hydrateSnapshotByMonthlyTradingDays({
   if (!getTradingDays || dateKeys.length === 0) {
     return;
   }
+
   const chunks = splitMissingDateKeysByMonth(dateKeys);
   for (const chunk of chunks) {
     const startDate = resolveDateFromHKDateKey(chunk.startKey);
@@ -208,10 +215,12 @@ function splitMissingDateKeysByMonth(
   if (dateKeys.length === 0) {
     return [];
   }
+
   const firstDateKey = dateKeys[0];
   if (!firstDateKey) {
     return [];
   }
+
   const chunks: DateRangeChunk[] = [];
   let chunkStartKey = firstDateKey;
   let previousKey = firstDateKey;
@@ -221,6 +230,7 @@ function splitMissingDateKeysByMonth(
     if (!currentKey) {
       continue;
     }
+
     const sameMonth = resolveMonthKey(chunkStartKey) === resolveMonthKey(currentKey);
     const consecutiveDay = isConsecutiveDateKey(previousKey, currentKey);
     if (sameMonth && consecutiveDay) {
@@ -228,6 +238,7 @@ function splitMissingDateKeysByMonth(
       previousKey = currentKey;
       continue;
     }
+
     chunks.push({
       startKey: chunkStartKey,
       endKey: previousKey,
@@ -237,6 +248,7 @@ function splitMissingDateKeysByMonth(
     previousKey = currentKey;
     chunkDateKeys = [currentKey];
   }
+
   chunks.push({
     startKey: chunkStartKey,
     endKey: previousKey,
@@ -254,6 +266,7 @@ function isConsecutiveDateKey(previousKey: string, currentKey: string): boolean 
   if (previousDayStartMs === null || currentDayStartMs === null) {
     return false;
   }
+
   return currentDayStartMs - previousDayStartMs === TIME.MILLISECONDS_PER_DAY;
 }
 
@@ -276,5 +289,6 @@ function resolveDateFromHKDateKey(dayKey: string): Date {
       details: { dateKey: dayKey },
     });
   }
+
   return new Date(dayStartUtcMs);
 }

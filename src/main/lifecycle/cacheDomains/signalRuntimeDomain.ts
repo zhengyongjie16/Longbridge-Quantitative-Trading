@@ -59,6 +59,7 @@ function cancelAllDelayedSignals(monitorContexts: ReadonlyMap<string, MonitorCon
   for (const monitorContext of monitorContexts.values()) {
     total += monitorContext.delayedSignalVerifier.cancelAll();
   }
+
   return total;
 }
 

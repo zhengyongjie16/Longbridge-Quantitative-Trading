@@ -89,9 +89,11 @@ describe('auto-symbol-switch integration', () => {
           symbol: signal?.symbol,
           quantity: signal?.quantity,
         });
+
         if (signal?.action === 'SELLCALL') {
           return { submittedCount: 1, submittedOrderIds: ['SELL-ORDER-1'] };
         }
+
         return { submittedCount: 1, submittedOrderIds: ['BUY-ORDER-1'] };
       },
       getPendingOrders: async () => [],
@@ -123,6 +125,7 @@ describe('auto-symbol-switch integration', () => {
         if (!isLongSymbol) {
           return null;
         }
+
         return {
           warrantType: 'BULL',
           distanceToStrikePercent: 0.1,
@@ -332,6 +335,7 @@ describe('auto-symbol-switch integration', () => {
         if (!isLongSymbol) {
           return null;
         }
+
         return {
           warrantType: 'BULL',
           distanceToStrikePercent: 0.1,

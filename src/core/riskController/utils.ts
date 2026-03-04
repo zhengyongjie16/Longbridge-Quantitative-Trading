@@ -26,11 +26,13 @@ export function resolveHongKongDayKey(
   if (!Number.isFinite(date.getTime())) {
     return null;
   }
+
   const iso = toHongKongTimeIso(date);
   const parts = iso.split('/');
   if (parts.length < 3) {
     return null;
   }
+
   return `${parts[0]}/${parts[1]}/${parts[2]}`;
 }
 
@@ -50,6 +52,7 @@ export function sumOrderCost(orders: ReadonlyArray<OrderRecord>): number {
       total = decimalAdd(total, decimalMul(price, quantity));
     }
   }
+
   return decimalToNumberValue(total);
 }
 
@@ -97,21 +100,25 @@ export function collectOrderOwnershipDiagnostics({
     if (order.status !== OrderStatus.Filled) {
       continue;
     }
+
     totalFilled += 1;
 
     if (!(order.updatedAt instanceof Date)) {
       continue;
     }
+
     const orderDayKey = resolveHongKongDayKey(toHongKongTimeIso, order.updatedAt);
     if (!orderDayKey || orderDayKey !== dayKey) {
       continue;
     }
+
     inDayFilled += 1;
 
     const ownership = resolveOrderOwnership(order, monitors);
     if (ownership) {
       continue;
     }
+
     unmatchedFilled += 1;
     if (sampleLimit > 0 && unmatchedSamples.length < sampleLimit) {
       unmatchedSamples.push({

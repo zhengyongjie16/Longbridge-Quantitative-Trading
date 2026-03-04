@@ -27,6 +27,7 @@ function isDirectionAction(
   if (!action) {
     return false;
   }
+
   const isLongAction = action === 'BUYCALL' || action === 'SELLCALL';
   return direction === 'LONG' ? isLongAction : !isLongAction;
 }
@@ -45,6 +46,7 @@ function isMonitorTaskForDirection(
   if (!isRecord(task.data)) {
     return false;
   }
+
   const isDirectionMatch = task.data['direction'] === direction;
   const isSharedTask =
     Object.hasOwn(task.data, 'seatSnapshots') ||

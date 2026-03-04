@@ -67,6 +67,7 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
     if (openProtectionActive) {
       return;
     }
+
     const { immediateSignals, delayedSignals } = strategy.generateCloseSignals(
       monitorSnapshot,
       longSymbol,
@@ -84,6 +85,7 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
         if (signal.symbolName === null && longQuote.name !== null) {
           signal.symbolName = longQuote.name;
         }
+
         return;
       }
 
@@ -109,6 +111,7 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
       if (!isSeatReady(seatState)) {
         return null;
       }
+
       const seatSymbol = seatState.symbol;
       const seatVersion = isLongSignal ? longSeatVersion : shortSeatVersion;
       const quote = isLongSignal ? longQuote : shortQuote;
@@ -134,6 +137,7 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
         releaseSignal(signal);
         return false;
       }
+
       const seatInfoForSignal = resolveSeatForSignal(signal);
       if (!seatInfoForSignal) {
         const isLongSignal = signal.action === 'BUYCALL' || signal.action === 'SELLCALL';
@@ -154,6 +158,7 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
         releaseSignal(signal);
         return false;
       }
+
       signal.seatVersion = seatInfoForSignal.seatVersion;
       enrichSignal(signal);
       return true;

@@ -42,6 +42,7 @@ function resolveRelatedBuyOrderIdsFromOutcome(
   if (outcome.kind === 'CANCEL_CONFIRMED' || outcome.kind === 'ALREADY_CLOSED') {
     return outcome.relatedBuyOrderIds;
   }
+
   return null;
 }
 
@@ -113,6 +114,7 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
       } else {
         logger.info(`[订单监控] 买入订单 ${orderId} 已关闭，关闭原因=${outcome.closedReason}`);
       }
+
       applyCancelRetryBackoff(order);
       return;
     }
@@ -162,6 +164,7 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
       );
       return;
     }
+
     resetCancelRetry(order);
 
     if (!isExecutionAllowed()) {
@@ -180,6 +183,7 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
       if (order.isProtectiveLiquidation) {
         timeoutConversionRemark += TRADING.PROTECTIVE_LIQUIDATION_REMARK_SUFFIX;
       }
+
       const marketOrderPayload = {
         symbol: order.symbol,
         side: order.side,
@@ -193,6 +197,7 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
         logger.info(`[执行门禁] 门禁已关闭，卖出订单 ${orderId} 转市价单在提交前被阻止`);
         return;
       }
+
       const response = await ctx.submitOrder(marketOrderPayload);
       const newOrderId = resolveOrderIdFromSubmitResponse(response) ?? 'UNKNOWN';
       const direction: 'LONG' | 'SHORT' = order.isLongSymbol ? 'LONG' : 'SHORT';
@@ -277,6 +282,7 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
       if (now - order.lastPriceUpdateAt < config.priceUpdateIntervalMs) {
         continue;
       }
+
       const quote = quotesMap.get(order.symbol);
       if (!quote || !Number.isFinite(quote.price)) {
         continue;
@@ -319,10 +325,12 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
       if (!PENDING_ORDER_STATUSES.has(order.status)) {
         continue;
       }
+
       const remaining = order.submittedQuantity - order.executedQuantity;
       if (!Number.isFinite(remaining) || remaining <= 0) {
         continue;
       }
+
       pendingOrders.push({
         orderId: order.orderId,
         symbol: order.symbol,
@@ -335,6 +343,7 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
         submittedAt: order.submittedAt,
       });
     }
+
     return [...pendingOrders].sort((a, b) => a.submittedAt - b.submittedAt);
   }
 

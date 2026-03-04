@@ -54,6 +54,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       logger.warn(`[订单执行] 未找到席位标的，跳过信号: ${signalSymbol}`);
       return null;
     }
+
     const monitorConfig = monitors.find(
       (config) => config.monitorSymbol === resolvedSeat.monitorSymbol,
     );
@@ -61,6 +62,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       logger.warn(`[订单执行] 未找到监控配置，跳过信号: ${signalSymbol}`);
       return null;
     }
+
     return {
       monitorConfig,
       isShortSymbol: resolvedSeat.direction === 'SHORT',
@@ -78,6 +80,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
     if (isExecutionAllowed()) {
       return true;
     }
+
     logger.info(
       `[执行门禁] ${stage} 门禁关闭，跳过信号: ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${signal.action}`,
     );
@@ -154,6 +157,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
         logger.warn(`[跳过信号] 无法找到信号标的 ${signalSymbolDisplay} 对应的监控配置`);
         continue;
       }
+
       const { monitorConfig, isShortSymbol } = resolved;
       const actualAction = getActionDescription(signal.action);
       const symbolDisplay = formatSymbolDisplay(signal.symbol, signal.symbolName);

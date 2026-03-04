@@ -17,6 +17,7 @@ export function toMockDecimal(value: MockDecimalInput): Decimal {
   if (value instanceof Decimal) {
     return value;
   }
+
   return new Decimal(value);
 }
 

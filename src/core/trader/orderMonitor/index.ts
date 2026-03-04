@@ -88,6 +88,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
       if (!activeHandler) {
         throw new Error('[订单监控] ACTIVE 事件处理器尚未初始化');
       }
+
       activeHandler(event);
     },
   });
@@ -128,12 +129,14 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     if (initialized) {
       return;
     }
+
     const ctx = await ctxPromise;
     ctx.setOnOrderChanged((err: Error | null, event: PushOrderChanged) => {
       if (err) {
         logger.error('[订单监控] WebSocket 推送错误:', err.message);
         return;
       }
+
       eventFlow.handleOrderChanged(event);
     });
     await ctx.subscribe([TopicType.Private]);
@@ -150,6 +153,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     if (runtime.pendingRefreshSymbols.length === 0) {
       return [];
     }
+
     return runtime.pendingRefreshSymbols.splice(0);
   }
 

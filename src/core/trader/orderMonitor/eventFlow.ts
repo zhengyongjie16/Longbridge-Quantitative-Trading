@@ -35,6 +35,7 @@ export function createEventFlow(deps: EventFlowDeps): EventFlow {
       if (isClosedStatus(event.status)) {
         enqueueCloseSync(orderId, 'LATE_CLOSED_EVENT');
       }
+
       return;
     }
 
@@ -56,6 +57,7 @@ export function createEventFlow(deps: EventFlowDeps): EventFlow {
       if (!result.handled) {
         enqueueCloseSync(orderId, 'LATE_CLOSED_EVENT', 'FILLED');
       }
+
       return;
     }
 
@@ -90,6 +92,7 @@ export function createEventFlow(deps: EventFlowDeps): EventFlow {
       cacheBootstrappingEvent(event);
       return;
     }
+
     handleOrderChangedWhenActive(event);
   }
 

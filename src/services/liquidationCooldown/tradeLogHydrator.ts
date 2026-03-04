@@ -28,6 +28,7 @@ function normalizeTradeRecord(raw: unknown): TradeRecord | null {
   if (!isRecord(raw)) {
     return null;
   }
+
   const rawRecord: RawRecord = raw;
   const record: TradeRecord = {
     orderId: toStringOrNull(rawRecord['orderId']),
@@ -126,6 +127,7 @@ export function createTradeLogHydrator(deps: TradeLogHydratorDeps): TradeLogHydr
       if (!normalized) {
         continue;
       }
+
       records.push(normalized);
     }
 
@@ -142,6 +144,7 @@ export function createTradeLogHydrator(deps: TradeLogHydratorDeps): TradeLogHydr
       if (!firstRecord) {
         continue;
       }
+
       const directionKey = `${firstRecord.monitorSymbol}:${firstRecord.direction}`;
       const monitorConfig = monitorConfigMap.get(firstRecord.monitorSymbol) ?? null;
       const cooldownConfig = monitorConfig?.liquidationCooldown ?? null;

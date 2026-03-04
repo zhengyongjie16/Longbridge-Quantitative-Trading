@@ -71,6 +71,7 @@ export function createMonitorTaskQueue<TType extends string, TData>(): MonitorTa
     for (const task of queue) {
       onRemove?.(task);
     }
+
     queue.length = 0;
     return count;
   }

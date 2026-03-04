@@ -38,8 +38,10 @@ export const extractInitialIndicators = (
     if (typeof value !== 'number' || !Number.isFinite(value)) {
       return null;
     }
+
     result[name] = value;
   }
+
   return result;
 };
 
@@ -164,8 +166,11 @@ export const performVerification = (
   if (!entry0 || !entry1 || !entry2) {
     const missing: string[] = [];
     if (!entry0) missing.push('T0');
+
     if (!entry1) missing.push('T0+5s');
+
     if (!entry2) missing.push('T0+10s');
+
     return { passed: false, reason: `缺少时间点数据: ${missing.join(', ')}` };
   }
 

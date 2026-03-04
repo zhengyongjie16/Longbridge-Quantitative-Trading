@@ -44,6 +44,7 @@ function hasToNumberMethod(value: unknown): value is { readonly toNumber: () => 
   if (typeof value !== 'object' || value === null) {
     return false;
   }
+
   return 'toNumber' in value && typeof value.toNumber === 'function';
 }
 
@@ -65,6 +66,7 @@ function toNumberFromUnknown(value: unknown): number {
   if (hasToNumberMethod(value)) {
     return decimalToNumber(value);
   }
+
   return Number.NaN;
 }
 
@@ -145,6 +147,7 @@ function getADXSegment(
   ) {
     return null;
   }
+
   const trueRange = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
   const upMove = high - prevHigh;
   const downMove = prevLow - low;
@@ -172,6 +175,7 @@ function calculateADX(candles: ReadonlyArray<CandleData>, period: number): numbe
     if (parsed === null) {
       return null;
     }
+
     highs.push(parsed.high);
     lows.push(parsed.low);
     closes.push(parsed.close);
@@ -186,6 +190,7 @@ function calculateADX(candles: ReadonlyArray<CandleData>, period: number): numbe
     if (seg === null) {
       return null;
     }
+
     atr += seg.trueRange;
     plusDm += seg.upMove > seg.downMove && seg.upMove > 0 ? seg.upMove : 0;
     minusDm += seg.downMove > seg.upMove && seg.downMove > 0 ? seg.downMove : 0;
@@ -198,6 +203,7 @@ function calculateADX(candles: ReadonlyArray<CandleData>, period: number): numbe
     if (seg === null) {
       return null;
     }
+
     atr = atr - atr / period + seg.trueRange;
     plusDm =
       plusDm - plusDm / period + (seg.upMove > seg.downMove && seg.upMove > 0 ? seg.upMove : 0);
@@ -229,8 +235,10 @@ function calculateADX(candles: ReadonlyArray<CandleData>, period: number): numbe
     if (dx === undefined) {
       return null;
     }
+
     adx += dx;
   }
+
   adx /= period;
 
   for (let i = period; i < dxValues.length; i += 1) {
@@ -238,6 +246,7 @@ function calculateADX(candles: ReadonlyArray<CandleData>, period: number): numbe
     if (dx === undefined) {
       return null;
     }
+
     adx = (adx * (period - 1) + dx) / period;
   }
 
@@ -301,6 +310,7 @@ function calculateVP(
     if (current === undefined) {
       continue;
     }
+
     bins[index] = current + parsed.volume;
   }
 
@@ -339,6 +349,7 @@ function calculateVP(
       valueAreaVol += volAbove;
       continue;
     }
+
     lowBin -= 1;
     valueAreaVol += volBelow;
   }
@@ -366,6 +377,7 @@ function getDisplayWidth(text: string): number {
     const code = char.codePointAt(0) ?? 0;
     width += code > 127 ? 2 : 1;
   }
+
   return width;
 }
 
@@ -381,6 +393,7 @@ export function padToDisplayWidth(text: string, targetWidth: number): string {
   if (current >= targetWidth) {
     return text;
   }
+
   return text + ' '.repeat(targetWidth - current);
 }
 
@@ -405,6 +418,7 @@ export function formatChangePercent(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) {
     return '-';
   }
+
   const sign = value >= 0 ? '+' : '';
   return `${sign}${value.toFixed(2)}%`;
 }
@@ -434,6 +448,7 @@ function computeVAPosition(price: number, vp: VPResult | null): number | null {
   if (vp === null || !Number.isFinite(vp.vah) || !Number.isFinite(vp.val) || vp.vah === vp.val) {
     return null;
   }
+
   return Number.isFinite(price) ? (price - vp.val) / (vp.vah - vp.val) : null;
 }
 
@@ -559,6 +574,7 @@ export function rowMatchesAnyCondition(
       return true;
     }
   }
+
   return false;
 }
 

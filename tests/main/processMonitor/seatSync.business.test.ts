@@ -72,6 +72,7 @@ describe('seatSync business flow', () => {
     for (const signal of buySignals) {
       buyTaskQueue.push({ type: 'IMMEDIATE_BUY', monitorSymbol, data: signal });
     }
+
     sellTaskQueue.push({ type: 'IMMEDIATE_SELL', monitorSymbol, data: longSellSignal });
 
     monitorTaskQueue.scheduleLatest({
@@ -115,6 +116,7 @@ describe('seatSync business flow', () => {
             delayedCancelled += 2;
             return 2;
           }
+
           return 0;
         },
       },

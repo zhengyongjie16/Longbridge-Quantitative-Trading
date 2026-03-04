@@ -24,6 +24,7 @@ function getRiskCheckCooldownKey(symbol: string, action: Signal['action']): stri
   if (isBuyAction(action)) {
     return `${symbol}_BUY`;
   }
+
   return `${symbol}_SELL`;
 }
 
@@ -106,6 +107,7 @@ export const createRiskCheckPipeline = ({
         buyApiFetchFailed = true;
       }
     }
+
     const finalSignals: Signal[] = [];
 
     // 遍历过滤后的信号进行风险检查
@@ -141,6 +143,7 @@ export const createRiskCheckPipeline = ({
           logger.warn(`[风险检查] ${reason}：${signalLabel}`);
           continue;
         }
+
         const isLongBuyAction = sig.action === 'BUYCALL';
         const directionDesc = isLongBuyAction ? '做多标的' : '做空标的';
 
@@ -202,6 +205,7 @@ export const createRiskCheckPipeline = ({
             );
             continue;
           }
+
           logger.info(
             `[买入价格限制] ${directionDesc} 当前价格 ${currentPriceStr} 低于或等于最新买入订单价格 ${latestBuyPriceStr}，允许买入：${signalLabel}`,
           );
@@ -239,6 +243,7 @@ export const createRiskCheckPipeline = ({
             } else if (sigSymbol === shortSymbol) {
               quoteForSymbol = shortQuote;
             }
+
             const symbolDisplay = formatSymbolDisplayFromQuote(quoteForSymbol, sig.symbol);
             logger.info(
               `[牛熊证风险检查] ${symbolDisplay} 为${warrantType}，距离回收价百分比：${distancePercent.toFixed(
@@ -286,6 +291,7 @@ export const createRiskCheckPipeline = ({
         logger.warn(`[风险拦截] 信号被风险控制拦截：${signalLabel} - ${reason}`);
       }
     }
+
     return finalSignals;
   };
   return applyRiskChecks;

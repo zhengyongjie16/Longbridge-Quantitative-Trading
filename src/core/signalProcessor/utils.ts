@@ -39,6 +39,7 @@ export function buildSellReason(originalReason: string, detail: string): string 
   if (!trimmedReason) {
     return detail;
   }
+
   return `${trimmedReason}，${detail}`;
 }
 
@@ -272,5 +273,6 @@ export function getSymbolName(
   if (shortSymbol && signalSymbol === shortSymbol) {
     return shortSymbolName;
   }
+
   return signalSymbol;
 }

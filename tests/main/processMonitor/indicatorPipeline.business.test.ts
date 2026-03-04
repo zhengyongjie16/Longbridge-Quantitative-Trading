@@ -28,6 +28,7 @@ function createCandles(length: number, start: number, step: number): ReadonlyArr
       timestamp: baseTimestamp + i * 60_000,
     });
   }
+
   return candles;
 }
 
@@ -159,10 +160,12 @@ describe('processMonitor indicatorPipeline business flow', () => {
             if (params.monitorSnapshot) {
               monitorChanges.push(params.monitorSnapshot);
             }
+
             const klineTimestamp = params.klineTimestamp;
             if (klineTimestamp !== null) {
               klineTimestamps.push(klineTimestamp);
             }
+
             return false;
           },
         },
@@ -176,6 +179,7 @@ describe('processMonitor indicatorPipeline business flow', () => {
     if (expectedKlineTimestamp === undefined) {
       throw new Error('expected latest candle timestamp');
     }
+
     expect(klineTimestamps).toEqual([expectedKlineTimestamp]);
   });
 
@@ -227,6 +231,7 @@ describe('processMonitor indicatorPipeline business flow', () => {
     if (!result) {
       throw new Error('expected indicator snapshot');
     }
+
     expect(pushed).toHaveLength(1);
     expect(pushed[0]).toBe(result);
     expect(monitorContext.state.lastMonitorSnapshot).toBe(result);

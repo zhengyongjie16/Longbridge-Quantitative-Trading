@@ -19,6 +19,7 @@ export function formatSymbolDisplay(
   if (symbolName) {
     return `${symbolName}(${symbol})`;
   }
+
   return symbol;
 }
 

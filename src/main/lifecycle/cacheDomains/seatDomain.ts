@@ -49,6 +49,7 @@ function clearAllSeatBindings(
       changed += 1;
     }
   }
+
   return changed;
 }
 

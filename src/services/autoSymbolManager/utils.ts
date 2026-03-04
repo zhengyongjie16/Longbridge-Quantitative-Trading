@@ -18,6 +18,7 @@ export function isSeatReady(
   if (seatState.status !== 'READY') {
     return false;
   }
+
   return typeof seatState.symbol === 'string' && seatState.symbol.length > 0;
 }
 
@@ -89,6 +90,7 @@ function resolveSeatUnavailableReason(seatState: SeatState): SeatUnavailableReas
   if (isSeatFrozenToday(seatState)) {
     return 'SEAT_FROZEN_TODAY';
   }
+
   return 'SEAT_EMPTY';
 }
 
@@ -150,6 +152,7 @@ export function resolveSeatOnStartup({
   if (!candidateSymbol) {
     return null;
   }
+
   const hasPosition = positions.some((position) => {
     return position.symbol === candidateSymbol && position.quantity > 0;
   });
@@ -205,6 +208,7 @@ function resolveSeatEntry(
   if (!entry) {
     throw new Error(`SymbolRegistry 未找到监控标的: ${monitorSymbol}`);
   }
+
   return direction === 'LONG' ? entry.long : entry.short;
 }
 
@@ -264,6 +268,7 @@ export function createSymbolRegistry(monitors: ReadonlyArray<MonitorConfig>): Sy
           };
         }
       }
+
       return null;
     },
     updateSeatState(

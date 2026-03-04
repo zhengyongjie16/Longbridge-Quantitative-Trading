@@ -77,9 +77,11 @@ export function createLoadTradingDayRuntimeSnapshot(
       if (!tradingDayInfo.isTradingDay) {
         throw new Error('重建触发时交易日信息无效');
       }
+
       lastState.cachedTradingDayInfo = tradingDayInfo;
       lastState.isHalfDay = tradingDayInfo.isHalfDay;
     }
+
     await trader.initializeOrderMonitor();
     await refreshAccountAndPositions(trader, lastState);
     if (!lastState.cachedAccount) {
@@ -89,6 +91,7 @@ export function createLoadTradingDayRuntimeSnapshot(
     if (!Array.isArray(lastState.cachedPositions)) {
       throw new TypeError('无法获取持仓信息');
     }
+
     logger.info('账户和持仓信息获取成功，开始解析席位');
     let allOrders: ReadonlyArray<RawOrderFromAPI> = [];
     try {
@@ -97,8 +100,10 @@ export function createLoadTradingDayRuntimeSnapshot(
       if (failOnOrderFetchError) {
         throw new Error(`[全量订单获取失败] ${formatError(err)}`, { cause: err });
       }
+
       logger.warn('[全量订单获取失败] 将按空订单继续初始化', formatError(err));
     }
+
     trader.seedOrderHoldSymbols(allOrders);
     await prepareSeatsOnStartup({
       tradingConfig,
@@ -120,6 +125,7 @@ export function createLoadTradingDayRuntimeSnapshot(
         segmentStartByDirection = hydrateResult.segmentStartByDirection;
       }
     }
+
     dailyLossTracker.recalculateFromAllOrders(
       allOrders,
       tradingConfig.monitors,
@@ -130,6 +136,7 @@ export function createLoadTradingDayRuntimeSnapshot(
     if (resetRuntimeSubscriptions) {
       await marketDataClient.resetRuntimeSubscriptionsAndCaches();
     }
+
     const orderHoldSymbols = trader.getOrderHoldSymbols();
     const allTradingSymbols = collectRuntimeQuoteSymbols(
       tradingConfig.monitors,
@@ -148,6 +155,7 @@ export function createLoadTradingDayRuntimeSnapshot(
         TRADING.CANDLE_PERIOD,
       );
     }
+
     const quotesMap = await marketDataClient.getQuotes(allTradingSymbols);
     return {
       allOrders,

@@ -82,16 +82,19 @@ async function fetchWarrantsWithCache({
       expiryFilters,
     });
   }
+
   const cacheKey = buildCacheKey(monitorSymbol, warrantType, expiryFilters);
   const nowMs = cacheConfig.nowMs();
   const cached = cacheConfig.cache.getEntry(cacheKey);
   if (cached && nowMs - cached.fetchedAt <= ttlMs) {
     return cached.warrants;
   }
+
   const inFlight = cacheConfig.cache.getInFlight(cacheKey);
   if (inFlight) {
     return inFlight;
   }
+
   const request = requestWarrantList({
     ctx,
     monitorSymbol,
@@ -158,6 +161,7 @@ export async function findBestWarrant({
         `[自动寻标] 未找到符合条件的${isBull ? '牛' : '熊'}证：${monitorSymbol}（列表条数=${listLength}，交易分钟数=${tradingMinutes}）`,
       );
     }
+
     return best;
   } catch (error) {
     logger.warn(

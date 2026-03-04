@@ -56,6 +56,7 @@ function resolveOrderSnapshotVersionMs(order: RawOrderFromAPI): number {
   if (updatedAtMs > 0) {
     return updatedAtMs;
   }
+
   const submittedAtMs = order.submittedAt?.getTime() ?? 0;
   return Math.max(Number.isNaN(submittedAtMs) ? 0 : submittedAtMs, 0);
 }

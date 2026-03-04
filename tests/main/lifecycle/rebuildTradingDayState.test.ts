@@ -312,6 +312,7 @@ describe('createRebuildTradingDayState', () => {
     } catch (error) {
       caughtError = error;
     }
+
     expect(caughtError).toBeInstanceOf(Error);
     expect((caughtError as Error).message).toMatch(/\[Lifecycle\] 重建交易日状态失败/);
     expect(tradingDayCalls.length).toBe(0);

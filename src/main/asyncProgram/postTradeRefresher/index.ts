@@ -66,6 +66,7 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
     if (pending.length === 0) {
       return true;
     }
+
     const needRefreshAccount = pending.some((item) => item.refreshAccount);
     const needRefreshPositions = pending.some((item) => item.refreshPositions);
     let refreshOk = true;
@@ -90,6 +91,7 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
         logger.warn('[缓存刷新] 订单成交后刷新缓存失败', formatError(err));
       }
     }
+
     const monitorContextBySymbol = new Map<string, MonitorContext>();
     for (const ctx of monitorContexts.values()) {
       const monitorSymbol = ctx.config.monitorSymbol;
@@ -109,6 +111,7 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
       if (!monitorContext) {
         continue;
       }
+
       const quote = quotesMap.get(symbol) ?? null;
       const symbolName = isLongSymbol
         ? monitorContext.longSymbolName
@@ -139,6 +142,7 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
     } catch (err) {
       logger.warn('[缓存刷新] 订单成交后展示账户持仓失败', formatError(err));
     }
+
     return refreshOk;
   }
 
@@ -150,6 +154,7 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
     if (!running || inFlight || pendingSymbols.length === 0 || !latestQuotesMap) {
       return;
     }
+
     const pending = pendingSymbols;
     const quotesMap = latestQuotesMap;
     const targetVersion = pendingVersion ?? refreshGate.getStatus().staleVersion;
@@ -166,6 +171,7 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
         pendingSymbols = [...pending, ...pendingSymbols];
         pendingVersion = targetVersion;
       }
+
       inFlight = false;
       drainResolve?.();
       drainResolve = null;
@@ -192,6 +198,7 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
       clearTimeout(retryHandle);
       retryHandle = null;
     }
+
     immediateHandle = setImmediate(() => {
       immediateHandle = null;
       void run();
@@ -205,6 +212,7 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
     if (!running || inFlight || retryHandle) {
       return;
     }
+
     retryHandle = setTimeout(() => {
       retryHandle = null;
       void run();
@@ -219,6 +227,7 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
     if (!running || params.pending.length === 0) {
       return;
     }
+
     pendingSymbols = [...pendingSymbols, ...params.pending];
     latestQuotesMap = params.quotesMap;
     const { staleVersion } = refreshGate.getStatus();
@@ -245,7 +254,9 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
       clearTimeout(retryHandle);
       retryHandle = null;
     }
+
     if (!inFlight) return;
+
     await new Promise<void>((resolve) => {
       drainResolve = resolve;
     });

@@ -51,6 +51,7 @@ export function createUnrealizedLossHandler({
     if (!evaluated) {
       return 'skipped';
     }
+
     const { context, seatReadiness } = evaluated;
     const { isLongReady, isShortReady, longSymbol, shortSymbol } = seatReadiness;
     const longQuote = isLongReady ? data.long.quote : null;

@@ -37,11 +37,13 @@ function parseSignalConfigFromEnv(env: NodeJS.ProcessEnv, envKey: string): Signa
   if (!configStr) {
     return null;
   }
+
   const config = parseSignalConfig(configStr);
   if (!config) {
     logger.error(`[配置错误] ${envKey} 格式无效`);
     return null;
   }
+
   return config;
 }
 
@@ -72,6 +74,7 @@ function parseBoundedNumberConfig({
     logger.warn(`[配置警告] ${envKey} 不能大于 ${max}，已设置为 ${max}`);
     return max;
   }
+
   return value;
 }
 
@@ -107,6 +110,7 @@ function parseBoundedNumberConfigFromRaw({
     logger.warn(`[配置警告] ${envKey} 不能大于 ${max}，已设置为 ${max}`);
     return max;
   }
+
   return value;
 }
 
@@ -141,6 +145,7 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
   if (index < 1) {
     return null;
   }
+
   const suffix = `_${index}`;
 
   const monitorSymbol = getStringConfig(env, `MONITOR_SYMBOL${suffix}`);

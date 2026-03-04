@@ -9,5 +9,6 @@ export function formatFiniteNumber(value: number | null | undefined, decimals: n
   if (value === null || value === undefined || !Number.isFinite(value)) {
     return '-';
   }
+
   return value.toFixed(decimals);
 }

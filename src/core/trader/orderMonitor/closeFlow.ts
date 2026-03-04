@@ -42,6 +42,7 @@ function resolveClosedReasonFromStatus(status: OrderStatus): OrderClosedReason |
   if (status === OrderStatus.Rejected) {
     return 'REJECTED';
   }
+
   return null;
 }
 
@@ -92,6 +93,7 @@ function resolveCloseContextFromSnapshot(params: {
   if (!ownership) {
     return null;
   }
+
   return {
     side: resolveOrderSideText(order.side),
     monitorSymbol: ownership.monitorSymbol,
@@ -255,6 +257,7 @@ export function createCloseFlow(deps: CloseFlowDeps): CloseFlow {
     if (closedReason !== 'NOT_FOUND') {
       runtime.closedOrderIds.add(orderId);
     }
+
     clearRuntimeTracking(orderId);
     return {
       handled: true,
@@ -270,12 +273,14 @@ export function createCloseFlow(deps: CloseFlowDeps): CloseFlow {
     if (runtime.closedOrderIds.has(orderId)) {
       return;
     }
+
     const existing = runtime.closeSyncQueue.get(orderId);
     if (existing) {
       existing.nextAttemptAtMs = Math.min(existing.nextAttemptAtMs, Date.now());
       existing.lastError = null;
       return;
     }
+
     const task: CloseSyncTask = {
       orderId,
       triggerReason: reason,
@@ -298,6 +303,7 @@ export function createCloseFlow(deps: CloseFlowDeps): CloseFlow {
       logger.error(
         `[订单监控] closeSync 对账失败达到上限，orderId=${task.orderId} trigger=${task.triggerReason} lastError=${message}`,
       );
+
       if (task.expectedReason === 'NOT_FOUND') {
         finalizeOrderClose({
           orderId: task.orderId,
@@ -307,8 +313,10 @@ export function createCloseFlow(deps: CloseFlowDeps): CloseFlow {
       } else {
         runtime.closeSyncQueue.delete(task.orderId);
       }
+
       return;
     }
+
     task.nextAttemptAtMs = Date.now() + resolveBackoffDelayMs(task.attempts);
   }
 
@@ -316,6 +324,7 @@ export function createCloseFlow(deps: CloseFlowDeps): CloseFlow {
     if (runtime.closeSyncQueue.size === 0) {
       return;
     }
+
     const nowMs = Date.now();
     const dueTasks = [...runtime.closeSyncQueue.values()]
       .filter((task) => task.nextAttemptAtMs <= nowMs)
@@ -333,6 +342,7 @@ export function createCloseFlow(deps: CloseFlowDeps): CloseFlow {
       for (const task of dueTasks) {
         scheduleCloseSyncRetry(task, message);
       }
+
       return;
     }
 

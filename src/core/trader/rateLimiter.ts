@@ -80,6 +80,7 @@ export const createRateLimiter = (deps: RateLimiterDeps = {}): RateLimiter => {
           // 这种情况不应该发生，但为了类型安全还是检查一下
           throw new Error('[频率限制] 调用时间戳数组异常');
         }
+
         const waitTime = windowMs - (now - oldestCall) + API.RATE_LIMIT_BUFFER_MS;
         logger.warn(
           `[频率限制] Trade API 调用频率达到上限 (${maxCalls}次/${windowMs}ms)，等待 ${waitTime}ms`,

@@ -108,6 +108,7 @@ export function createDelayedSignalVerifier(
         signalObjectPool.release(signal);
         return;
       }
+
       const signalId = generateSignalId(signal);
 
       // 检查是否已存在（重复信号不添加，释放后返回）
@@ -141,6 +142,7 @@ export function createDelayedSignalVerifier(
         signalObjectPool.release(signal);
         return;
       }
+
       const triggerTime = signal.triggerTime.getTime();
       const verifyTime =
         triggerTime + VERIFICATION.READY_DELAY_SECONDS * TIME.MILLISECONDS_PER_SECOND;
@@ -199,12 +201,14 @@ export function createDelayedSignalVerifier(
         if (entry.monitorSymbol !== monitorSymbol) {
           continue;
         }
+
         const action = entry.signal.action;
         const isLongSignal = action === 'BUYCALL' || action === 'SELLCALL';
         const signalDirection = isLongSignal ? 'LONG' : 'SHORT';
         if (signalDirection !== direction) {
           continue;
         }
+
         clearTimeout(entry.timerId);
         entriesToRemove.push({ signalId, signal: entry.signal });
       }
@@ -219,6 +223,7 @@ export function createDelayedSignalVerifier(
           `[延迟验证] 已取消 ${monitorSymbol} ${direction} 的 ${entriesToRemove.length} 个待验证信号`,
         );
       }
+
       return entriesToRemove.length;
     },
 
@@ -231,10 +236,12 @@ export function createDelayedSignalVerifier(
         clearTimeout(entry.timerId);
         signalObjectPool.release(entry.signal);
       }
+
       pendingSignals.clear();
       if (count > 0) {
         logger.debug(`[延迟验证] 已取消全部 ${count} 个待验证信号`);
       }
+
       return count;
     },
 
@@ -257,6 +264,7 @@ export function createDelayedSignalVerifier(
         clearTimeout(entry.timerId);
         signalObjectPool.release(entry.signal);
       }
+
       pendingSignals.clear();
 
       // 清空回调列表

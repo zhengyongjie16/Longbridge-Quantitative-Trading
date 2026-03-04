@@ -65,6 +65,7 @@ export function hasChanged(
   if (!isValidNumber(current) || !isValidNumber(last)) {
     return false;
   }
+
   return Math.abs(current - last) > threshold;
 }
 
@@ -130,6 +131,7 @@ export function formatPositionDisplay(
   } else {
     pnlText = '-';
   }
+
   const orderCountText =
     orderCount !== null && Number.isFinite(orderCount) ? String(orderCount) : '-';
 
@@ -158,5 +160,6 @@ export function copyPeriodRecord(
       record[numKey] = value;
     }
   }
+
   return record;
 }

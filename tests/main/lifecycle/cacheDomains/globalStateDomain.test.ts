@@ -72,6 +72,7 @@ describe('createGlobalStateDomain', () => {
       expect(state.monitorValues).toBe(null);
       expect(state.lastMonitorSnapshot).toBe(null);
     }
+
     expect(runOpenRebuildCalled).toBe(false);
   });
 

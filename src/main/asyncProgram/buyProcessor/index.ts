@@ -83,6 +83,7 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
         );
         return false;
       }
+
       const { config, state, orderRecorder, riskChecker } = ctx;
 
       // 获取行情数据（从 MonitorContext 缓存中获取，主循环每秒更新）
@@ -166,6 +167,7 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
         );
         return true;
       }
+
       const lotSizeValid =
         quote.lotSize !== undefined && Number.isFinite(quote.lotSize) && quote.lotSize > 0;
       if (!lotSizeValid) {
@@ -174,6 +176,7 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
         );
         return true;
       }
+
       signal.price = quote.price;
       signal.lotSize = quote.lotSize;
 

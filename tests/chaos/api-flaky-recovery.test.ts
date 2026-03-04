@@ -165,6 +165,7 @@ describe('chaos: api flaky recovery', () => {
         if (accountCallCount === 1) {
           throw new Error('account API temporary unavailable');
         }
+
         return createAccountSnapshotDouble(66_000);
       },
       getStockPositions: async () => [

@@ -34,6 +34,7 @@ function resolveDirectionFromNormalizedName(normalizedStockName: string): 'LONG'
   if (hasShortMarker && !hasLongMarker) {
     return 'SHORT';
   }
+
   return null;
 }
 

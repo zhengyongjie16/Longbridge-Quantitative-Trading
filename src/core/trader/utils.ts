@@ -51,6 +51,7 @@ export function buildOrderRemark(isProtectiveLiquidation: boolean): string {
   if (isProtectiveLiquidation) {
     return `${TRADING.DEFAULT_ORDER_REMARK}${TRADING.PROTECTIVE_LIQUIDATION_REMARK_SUFFIX}`;
   }
+
   return TRADING.DEFAULT_ORDER_REMARK;
 }
 
@@ -65,6 +66,7 @@ export function hasProtectiveLiquidationRemark(remark: string | null | undefined
   if (typeof remark !== 'string') {
     return false;
   }
+
   return remark.endsWith(TRADING.PROTECTIVE_LIQUIDATION_REMARK_SUFFIX);
 }
 
@@ -116,6 +118,7 @@ export function extractOrderId(resp: unknown): string {
   if (typeof resp === 'string') {
     return resp;
   }
+
   return 'UNKNOWN_ORDER_ID';
 }
 
@@ -133,6 +136,7 @@ export function toDecimal(value: unknown): Decimal {
   if (typeof value === 'number' || typeof value === 'string') {
     return new Decimal(value);
   }
+
   return Decimal.ZERO();
 }
 
@@ -155,6 +159,7 @@ export function resolveOrderTypeConfig(
   if (signal.isProtectiveLiquidation === true) {
     return globalConfig.liquidationOrderType;
   }
+
   return globalConfig.tradingOrderType;
 }
 
@@ -181,6 +186,7 @@ export function isConfirmedNonFilledClose(outcome: CancelOrderOutcome): boolean 
   if (outcome.kind === 'CANCEL_CONFIRMED') {
     return true;
   }
+
   return (
     outcome.kind === 'ALREADY_CLOSED' &&
     (outcome.closedReason === 'CANCELED' || outcome.closedReason === 'REJECTED')

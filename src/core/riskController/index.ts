@@ -99,6 +99,7 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
       if (!isValidPositiveNumber(currentPrice)) {
         return null;
       }
+
       r2 = decimalMul(currentPrice, n1);
     }
 

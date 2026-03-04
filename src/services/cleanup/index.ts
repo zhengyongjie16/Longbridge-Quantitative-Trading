@@ -72,11 +72,13 @@ export function createCleanup(context: CleanupContext): {
     await runStep('停止 PostTradeRefresher', async () => {
       await postTradeRefresher.stopAndDrain();
     });
+
     for (const [monitorSymbol, monitorContext] of monitorContexts) {
       await runStep(`销毁延迟验证器 ${monitorSymbol}`, () => {
         monitorContext.delayedSignalVerifier.destroy();
       });
     }
+
     await runStep('清空指标缓存', () => {
       indicatorCache.clearAll();
     });
@@ -88,6 +90,7 @@ export function createCleanup(context: CleanupContext): {
     await runStep('重置行情运行态订阅与缓存', async () => {
       await marketDataClient.resetRuntimeSubscriptionsAndCaches();
     });
+
     if (failures.length > 0) {
       throw new AggregateError(
         failures.map((item) => item.error),
@@ -104,6 +107,7 @@ export function createCleanup(context: CleanupContext): {
       if (isExiting) {
         return;
       }
+
       isExiting = true;
       void execute()
         .then(() => {

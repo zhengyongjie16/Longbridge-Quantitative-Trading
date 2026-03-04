@@ -147,6 +147,7 @@ function createMultiMonitorSymbolRegistry(
       if (!entry) {
         throw new Error(`missing seat entry for monitorSymbol=${monitorSymbol}`);
       }
+
       return direction === 'LONG' ? entry.longState : entry.shortState;
     },
     getSeatVersion(monitorSymbol: string, direction: 'LONG' | 'SHORT'): number {
@@ -154,6 +155,7 @@ function createMultiMonitorSymbolRegistry(
       if (!entry) {
         throw new Error(`missing seat entry for monitorSymbol=${monitorSymbol}`);
       }
+
       return direction === 'LONG' ? entry.longVersion : entry.shortVersion;
     },
     resolveSeatBySymbol(symbol: string) {
@@ -176,6 +178,7 @@ function createMultiMonitorSymbolRegistry(
           };
         }
       }
+
       return null;
     },
     updateSeatState(
@@ -192,6 +195,7 @@ function createMultiMonitorSymbolRegistry(
         entry.longState = nextState;
         return entry.longState;
       }
+
       entry.shortState = nextState;
       return entry.shortState;
     },
@@ -205,6 +209,7 @@ function createMultiMonitorSymbolRegistry(
         entry.longVersion += 1;
         return entry.longVersion;
       }
+
       entry.shortVersion += 1;
       return entry.shortVersion;
     },
@@ -223,6 +228,7 @@ function createMonitorConfigs(monitorCount: number): ReadonlyArray<MonitorConfig
       }),
     );
   }
+
   return monitorConfigs;
 }
 
@@ -263,6 +269,7 @@ function createQuotesForSymbols(
       lotSize: 100,
     });
   }
+
   return quotes;
 }
 
@@ -278,6 +285,7 @@ function createCandles(length: number, start: number, step: number): CandleData[
       volume: 10_000 + index,
     });
   }
+
   return candles;
 }
 
@@ -288,6 +296,7 @@ function createAllTradingSymbols(monitorConfigs: ReadonlyArray<MonitorConfig>): 
     symbols.add(monitorConfig.longSymbol);
     symbols.add(monitorConfig.shortSymbol);
   }
+
   return symbols;
 }
 
@@ -295,6 +304,7 @@ function mean(values: ReadonlyArray<number>): number {
   if (values.length === 0) {
     return 0;
   }
+
   const total = values.reduce((acc, value) => acc + value, 0);
   return total / values.length;
 }
@@ -354,6 +364,7 @@ describe('main loop latency full-chain integration', () => {
       if (!monitorState) {
         throw new Error(`missing monitor state for ${monitorConfig.monitorSymbol}`);
       }
+
       monitorContexts.set(
         monitorConfig.monitorSymbol,
         createMonitorContext({
@@ -424,6 +435,7 @@ describe('main loop latency full-chain integration', () => {
         if (!quote || !subscribedSymbols.has(symbol)) {
           continue;
         }
+
         quoteCache.set(symbol, quote);
       }
 
@@ -432,6 +444,7 @@ describe('main loop latency full-chain integration', () => {
         if (!subscribedCandlestickKeys.has(key)) {
           continue;
         }
+
         const base = 100 + index * 20 + iteration;
         candleCache.set(key, createCandles(TRADING.CANDLE_COUNT, base, 0.15));
       }
@@ -445,8 +458,10 @@ describe('main loop latency full-chain integration', () => {
           if (!subscribedSymbols.has(symbol)) {
             throw new Error(`[行情获取] 标的 ${symbol} 未订阅，请先订阅`);
           }
+
           result.set(symbol, quoteCache.get(symbol) ?? null);
         }
+
         return result;
       },
       subscribeSymbols: async (symbols) =>
@@ -482,6 +497,7 @@ describe('main loop latency full-chain integration', () => {
               break;
             }
           }
+
           const base = 100 + Math.max(monitorIndex, 0) * 20;
           const candles = createCandles(TRADING.CANDLE_COUNT, base, 0.15);
           candleCache.set(key, candles);
@@ -493,6 +509,7 @@ describe('main loop latency full-chain integration', () => {
         if (!candles || candles.length === 0) {
           return [];
         }
+
         const startIndex = Math.max(candles.length - count, 0);
         return candles.slice(startIndex) as unknown as Candlestick[];
       },

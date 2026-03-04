@@ -68,6 +68,7 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
     if (bumpOnSymbolChange && current.symbol !== nextState.symbol) {
       symbolRegistry.bumpSeatVersion(monitorSymbol, direction);
     }
+
     symbolRegistry.updateSeatState(monitorSymbol, direction, nextState);
   };
 
@@ -82,11 +83,13 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
     if (!record) {
       return null;
     }
+
     const currentKey = getHKDateKey(now());
     if (!currentKey || record.dateKey !== currentKey || record.symbol !== seatSymbol) {
       switchSuppressions.delete(direction);
       return null;
     }
+
     return record;
   }
 
@@ -98,6 +101,7 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
     if (!dateKey) {
       return;
     }
+
     switchSuppressions.set(direction, { symbol: seatSymbol, dateKey });
   }
 
@@ -139,6 +143,7 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
     } else {
       switchStates.delete(direction);
     }
+
     logger.info(
       `${LOG_COLORS.green}[自动换标] ${monitorSymbol} ${direction} 清空席位: ${reason}${LOG_COLORS.reset}`,
     );

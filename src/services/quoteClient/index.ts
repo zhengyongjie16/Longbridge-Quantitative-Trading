@@ -83,6 +83,7 @@ async function withRetry<T>(
       }
     }
   }
+
   throw lastErr;
 }
 
@@ -98,6 +99,7 @@ function normalizeSymbols(symbols: ReadonlyArray<string>): ReadonlyArray<string>
       uniqueSymbols.add(symbol);
     }
   }
+
   return [...uniqueSymbols];
 }
 
@@ -111,12 +113,14 @@ function normalizeQuoteStaticInfo(staticInfo: unknown): QuoteStaticInfo | null {
   if (!isRecord(staticInfo)) {
     return null;
   }
+
   const staticInfoRecord = staticInfo;
   function readNullableString(key: string): string | null | undefined {
     const fieldValue: unknown = staticInfoRecord[key];
     if (fieldValue === undefined || fieldValue === null || typeof fieldValue === 'string') {
       return fieldValue;
     }
+
     return undefined;
   }
 
@@ -125,6 +129,7 @@ function normalizeQuoteStaticInfo(staticInfo: unknown): QuoteStaticInfo | null {
     if (fieldValue === undefined || fieldValue === null || typeof fieldValue === 'number') {
       return fieldValue;
     }
+
     return undefined;
   }
 
@@ -138,6 +143,7 @@ function normalizeQuoteStaticInfo(staticInfo: unknown): QuoteStaticInfo | null {
     ) {
       return warrantTypeValue;
     }
+
     return undefined;
   }
   const nameHk = readNullableString('nameHk');
@@ -164,6 +170,7 @@ function normalizeQuoteStaticInfo(staticInfo: unknown): QuoteStaticInfo | null {
   ) {
     return null;
   }
+
   return {
     nameHk,
     nameCn,
@@ -200,10 +207,12 @@ function createTradingDayCache(): {
   function get(dateStr: string): TradingDayInfo | null {
     const entry = cache.get(dateStr);
     if (!entry) return null;
+
     if (Date.now() - entry.timestamp > ttl) {
       cache.delete(dateStr);
       return null;
     }
+
     return {
       isTradingDay: entry.isTradingDay,
       isHalfDay: entry.isHalfDay,
@@ -299,6 +308,7 @@ export async function createMarketDataClient(
       );
       return;
     }
+
     const quote: Quote = {
       symbol,
       name: extractName(staticInfo),
@@ -318,6 +328,7 @@ export async function createMarketDataClient(
       logger.warn(`[行情推送] 接收推送时发生错误: ${formatError(err)}`);
       return;
     }
+
     handleQuotePush(event);
   });
 
@@ -353,6 +364,7 @@ export async function createMarketDataClient(
           throw new Error(`[行情获取] 标的 ${reqSymbol} 未订阅，请先订阅`);
         }
       }
+
       return Promise.resolve(result);
     } catch (error) {
       const normalizedError = error instanceof Error ? error : new Error(String(error));
@@ -373,6 +385,7 @@ export async function createMarketDataClient(
     if (newSymbols.length === 0) {
       return;
     }
+
     await cacheStaticInfo(newSymbols);
     const initialQuotes = await withRetry(() => ctx.quote(newSymbols));
     for (const quote of initialQuotes) {
@@ -392,10 +405,12 @@ export async function createMarketDataClient(
       };
       quoteCache.set(quoteSymbol, quoteResult);
     }
+
     await withRetry(() => ctx.subscribe(newSymbols, [SubType.Quote]));
     for (const symbol of newSymbols) {
       subscribedSymbols.add(symbol);
     }
+
     logger.info(`[行情订阅] 新增订阅 ${newSymbols.length} 个标的`);
   }
 
@@ -412,6 +427,7 @@ export async function createMarketDataClient(
     if (removeSymbols.length === 0) {
       return;
     }
+
     await withRetry(() => ctx.unsubscribe(removeSymbols, [SubType.Quote]));
     for (const symbol of removeSymbols) {
       subscribedSymbols.delete(symbol);
@@ -419,6 +435,7 @@ export async function createMarketDataClient(
       prevCloseCache.delete(symbol);
       staticInfoCache.delete(symbol);
     }
+
     logger.info(`[行情订阅] 已退订 ${removeSymbols.length} 个标的`);
   }
 
@@ -432,10 +449,12 @@ export async function createMarketDataClient(
   async function cacheStaticInfo(newSymbols: ReadonlyArray<string>): Promise<void> {
     const uncachedSymbols = newSymbols.filter((s) => !staticInfoCache.has(s));
     if (uncachedSymbols.length === 0) return;
+
     const infoList = await withRetry(() => ctx.staticInfo(uncachedSymbols));
     for (const info of infoList) {
       staticInfoCache.set(info.symbol, info);
     }
+
     logger.debug(`[静态信息缓存] 新增缓存 ${infoList.length} 个标的的静态信息`);
   }
 
@@ -467,6 +486,7 @@ export async function createMarketDataClient(
       logger.debug(`[K线订阅] ${symbol} 周期 ${formatPeriodForLog(period)} 已订阅，跳过重复订阅`);
       return [];
     }
+
     const initialCandles = await withRetry(() =>
       ctx.subscribeCandlesticks(symbol, period, tradeSessions),
     );
@@ -557,6 +577,7 @@ export async function createMarketDataClient(
         errors.push(new Error(`[行情重置] K线 key 格式无效: ${key}`));
         continue;
       }
+
       const symbol = key.slice(0, colonIdx);
       try {
         await withRetry(() => ctx.unsubscribeCandlesticks(symbol, periodValue));

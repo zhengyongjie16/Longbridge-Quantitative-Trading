@@ -42,6 +42,7 @@ export function createOrderHoldRegistry(): OrderHoldRegistry {
     if (orderIdToSymbol.has(orderId)) {
       return;
     }
+
     orderIdToSymbol.set(orderId, symbol);
 
     let symbolOrders = orderIdsBySymbol.get(symbol);
@@ -49,6 +50,7 @@ export function createOrderHoldRegistry(): OrderHoldRegistry {
       symbolOrders = new Set<string>();
       orderIdsBySymbol.set(symbol, symbolOrders);
     }
+
     symbolOrders.add(orderId);
     holdSymbols.add(symbol);
   }
@@ -62,12 +64,14 @@ export function createOrderHoldRegistry(): OrderHoldRegistry {
     if (!symbol) {
       return;
     }
+
     orderIdToSymbol.delete(orderId);
 
     const symbolOrders = orderIdsBySymbol.get(symbol);
     if (!symbolOrders) {
       return;
     }
+
     symbolOrders.delete(orderId);
     if (symbolOrders.size === 0) {
       orderIdsBySymbol.delete(symbol);
@@ -88,6 +92,7 @@ export function createOrderHoldRegistry(): OrderHoldRegistry {
       if (!PENDING_ORDER_STATUSES.has(order.status)) {
         continue;
       }
+
       trackOrder(order.orderId, order.symbol);
     }
   }

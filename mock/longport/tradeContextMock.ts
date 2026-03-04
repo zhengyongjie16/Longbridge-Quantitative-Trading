@@ -140,6 +140,7 @@ function asPushEvent(event: PushOrderChanged | MinimalOrder): PushOrderChanged {
   if ('submittedQuantity' in event) {
     return event;
   }
+
   const converted = {
     orderId: event.orderId,
     symbol: event.symbol,
@@ -257,6 +258,7 @@ export function createTradeContextMock(options: TradeContextMockOptions = {}): T
         if (order.orderId !== orderId) {
           return order;
         }
+
         return {
           ...order,
           status: OrderStatus.Canceled,
@@ -310,6 +312,7 @@ export function createTradeContextMock(options: TradeContextMockOptions = {}): T
       if (!currency) {
         return [...balancesStore];
       }
+
       return balancesStore.filter((balance) => balance.currency === currency);
     });
   }
@@ -319,6 +322,7 @@ export function createTradeContextMock(options: TradeContextMockOptions = {}): T
       if (!symbols || symbols.length === 0) {
         return stockPositionsStore;
       }
+
       return filterStockPositionsBySymbols(stockPositionsStore, symbols);
     });
   }

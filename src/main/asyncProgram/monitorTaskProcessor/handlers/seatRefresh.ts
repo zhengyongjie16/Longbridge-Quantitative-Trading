@@ -67,6 +67,7 @@ export function createSeatRefreshHandler({
     } else {
       context.riskChecker.clearShortWarrantInfo();
     }
+
     const nextVersion = context.symbolRegistry.bumpSeatVersion(monitorSymbol, direction);
     const nextState = {
       symbol: null,

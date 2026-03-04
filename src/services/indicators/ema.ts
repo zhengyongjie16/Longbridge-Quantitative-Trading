@@ -27,6 +27,7 @@ export function calculateEMA(candles: ReadonlyArray<CandleData>, period: number)
       if (!isValidPositiveNumber(close)) {
         continue;
       }
+
       feedEmaStreamState(state, close);
     }
 

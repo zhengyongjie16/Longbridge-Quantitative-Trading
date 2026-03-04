@@ -72,6 +72,7 @@ export function buildExpiryDateFilters(
   if (expiryMinMonths <= 6) {
     return EXPIRY_DATE_FILTERS.slice(1);
   }
+
   return EXPIRY_DATE_FILTERS.slice(2);
 }
 

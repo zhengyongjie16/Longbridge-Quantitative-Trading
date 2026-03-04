@@ -91,6 +91,7 @@ describe('riskTasks business scheduling', () => {
               unrealizedPnL: -10,
             };
           }
+
           return null;
         },
       }),
@@ -132,6 +133,7 @@ describe('riskTasks business scheduling', () => {
               },
             ];
           }
+
           return [];
         },
       }),

@@ -125,10 +125,14 @@ export function evaluateSignalConfig(
  */
 function formatKdjSegment(kdj: IndicatorSnapshot['kdj']): string {
   if (kdj === null) return '';
+
   const kdjParts: string[] = [];
   if (isValidNumber(kdj.k)) kdjParts.push(`K=${kdj.k.toFixed(3)}`);
+
   if (isValidNumber(kdj.d)) kdjParts.push(`D=${kdj.d.toFixed(3)}`);
+
   if (isValidNumber(kdj.j)) kdjParts.push(`J=${kdj.j.toFixed(3)}`);
+
   return kdjParts.length > 0 ? `KDJ(${kdjParts.join(',')})` : '';
 }
 
@@ -159,6 +163,7 @@ export function buildIndicatorDisplayString(state: IndicatorSnapshot): string {
   if (isValidNumber(mfi)) {
     parts.push(`MFI(${mfi.toFixed(3)})`);
   }
+
   const kdjStr = formatKdjSegment(kdj);
   if (kdjStr) parts.push(kdjStr);
 
@@ -180,6 +185,7 @@ export function pushSignalToCorrectArray(
   delayedSignals: Signal[],
 ): void {
   if (result === null) return;
+
   if (result.isImmediate) {
     immediateSignals.push(result.signal);
   } else {
@@ -214,6 +220,7 @@ function evaluateCondition(state: IndicatorState, condition: Condition): boolean
       if (!period || state.rsi?.[period] === undefined) {
         return false;
       }
+
       value = state.rsi[period];
       break;
     }
@@ -222,6 +229,7 @@ function evaluateCondition(state: IndicatorState, condition: Condition): boolean
       if (!period || state.psy?.[period] === undefined) {
         return false;
       }
+
       value = state.psy[period];
       break;
     }

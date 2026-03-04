@@ -21,6 +21,7 @@ function isErrorLike(value: unknown): value is Record<string, unknown> {
   if (!isRecord(value)) {
     return false;
   }
+
   return (
     typeof value['message'] === 'string' ||
     typeof value['error'] === 'string' ||

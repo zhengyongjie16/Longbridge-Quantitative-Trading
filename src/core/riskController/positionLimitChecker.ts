@@ -55,6 +55,7 @@ export const createPositionLimitChecker = (
         reason: buildOrderNotionalExceededReason(orderNotional, maxPositionNotional),
       };
     }
+
     return { allowed: true };
   };
 

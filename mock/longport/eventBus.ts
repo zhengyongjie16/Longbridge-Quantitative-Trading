@@ -91,6 +91,7 @@ function takeDueEvents(
       if (a.sequence !== b.sequence) {
         return a.sequence - b.sequence;
       }
+
       return a.insertedAt - b.insertedAt;
     });
 
@@ -179,6 +180,7 @@ export function createLongportEventBus(
         }
       }
     }
+
     return dueEvents.length;
   }
 
@@ -187,6 +189,7 @@ export function createLongportEventBus(
     while (queue.length > 0) {
       total += flushDue(Number.POSITIVE_INFINITY);
     }
+
     return total;
   }
 

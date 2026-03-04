@@ -89,6 +89,7 @@ function createDeps(params?: {
         if (!current) {
           return null;
         }
+
         const next: PendingSellInfo = {
           ...current,
           filledQuantity,
@@ -99,6 +100,7 @@ function createDeps(params?: {
         } else {
           pendingSellSnapshot.set(orderId, next);
         }
+
         return next;
       },
       markSellFilled: (orderId: string) => {
@@ -106,6 +108,7 @@ function createDeps(params?: {
         if (!current) {
           return null;
         }
+
         const filled: PendingSellInfo = {
           ...current,
           filledQuantity: current.submittedQuantity,
@@ -119,6 +122,7 @@ function createDeps(params?: {
         if (!current) {
           return null;
         }
+
         const cancelled: PendingSellInfo = {
           ...current,
           status: 'cancelled',
@@ -134,6 +138,7 @@ function createDeps(params?: {
   if (!baseMonitor) {
     throw new Error('missing monitor config for orderMonitor test');
   }
+
   const tradingConfig = createTradingConfig({
     monitors: [
       {

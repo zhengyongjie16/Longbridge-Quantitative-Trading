@@ -75,6 +75,7 @@ function calculateSellQuantity(params: {
       relatedBuyOrderIds: [],
     };
   }
+
   const { currentPrice, availableQuantity } = validationResult;
 
   // 智能平仓关闭：直接清仓所有持仓
@@ -187,6 +188,7 @@ export const processSellSignals = (
         if (quote?.lotSize !== undefined) {
           sig.lotSize = quote.lotSize;
         }
+
         logger.info(`[卖出信号处理] ${signalName}(末日保护): 无条件清仓，卖出数量=${sig.quantity}`);
       } else {
         logger.warn(`[卖出信号处理] ${signalName}(末日保护): 持仓对象无效，无法清仓`);
@@ -235,5 +237,6 @@ export const processSellSignals = (
       }
     }
   }
+
   return signals;
 };

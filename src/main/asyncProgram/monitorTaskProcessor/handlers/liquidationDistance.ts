@@ -62,6 +62,7 @@ export function createLiquidationDistanceHandler({
     if (!evaluated) {
       return 'skipped';
     }
+
     const { context, seatReadiness } = evaluated;
     const { isLongReady, isShortReady, longSymbol, shortSymbol } = seatReadiness;
     const { riskChecker } = context;
@@ -104,10 +105,12 @@ export function createLiquidationDistanceHandler({
         if (!symbol) {
           return null;
         }
+
         const availableQuantity = position?.availableQuantity ?? 0;
         if (!Number.isFinite(availableQuantity) || availableQuantity <= 0) {
           return null;
         }
+
         const liquidationResult = riskChecker.checkWarrantDistanceLiquidation(
           symbol,
           isLongSymbol,
@@ -166,6 +169,7 @@ export function createLiquidationDistanceHandler({
           for (const taskItem of liquidationTasks) {
             signalObjectPool.release(taskItem.signal);
           }
+
           return 'skipped';
         }
 
@@ -206,6 +210,7 @@ export function createLiquidationDistanceHandler({
         positionObjectPool.release(shortPosition);
       }
     }
+
     return 'processed';
   };
 }

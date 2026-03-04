@@ -119,6 +119,7 @@ function extractIndicatorPeriods(
   if (!signalConfig) {
     return [];
   }
+
   const periods = new Set<number>();
   const configs = [
     signalConfig.buycall,
@@ -137,10 +138,12 @@ function extractIndicatorPeriods(
         if (!condition.indicator.startsWith(prefix)) {
           continue;
         }
+
         const periodStr = condition.indicator.split(':')[1];
         if (!periodStr) {
           continue;
         }
+
         const period = Number.parseInt(periodStr, 10);
         if (isValidPeriod(period)) {
           periods.add(period);
@@ -148,5 +151,6 @@ function extractIndicatorPeriods(
       }
     }
   }
+
   return [...periods].sort((a, b) => a - b);
 }

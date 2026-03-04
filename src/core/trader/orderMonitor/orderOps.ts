@@ -161,6 +161,7 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
           message,
         };
       }
+
       enqueueCloseSync(orderId, 'UNKNOWN_FAILURE');
       return {
         kind: 'UNKNOWN_FAILURE',
@@ -257,6 +258,7 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
             source: 'API',
           });
         }
+
         logger.warn(`[订单修改] 订单 ${orderId} 已关闭，停止改单流程`);
         return;
       }

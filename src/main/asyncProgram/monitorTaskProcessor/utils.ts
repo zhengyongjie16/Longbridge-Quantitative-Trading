@@ -53,6 +53,7 @@ export async function evaluateMonitorContextAndSeatReadiness(params: {
   if (!context) {
     return null;
   }
+
   const snapshotValidity = await validateSeatSnapshotsAfterRefresh({
     monitorSymbol,
     context,
@@ -63,6 +64,7 @@ export async function evaluateMonitorContextAndSeatReadiness(params: {
   if (!snapshotValidity) {
     return null;
   }
+
   const seatReadiness = resolveSeatSnapshotReadiness({
     monitorSymbol,
     context,

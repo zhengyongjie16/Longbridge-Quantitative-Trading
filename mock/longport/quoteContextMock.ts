@@ -79,6 +79,7 @@ function normalizeWarrantType(value: unknown): 'BULL' | 'BEAR' | null {
   if (value === WarrantType.Bear || value === 4 || value === 'Bear' || value === 'BEAR') {
     return 'BEAR';
   }
+
   return null;
 }
 
@@ -180,6 +181,7 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
         for (const subType of subTypes) {
           current.add(subType);
         }
+
         subscribedByType.set(symbol, current);
       }
     });
@@ -241,6 +243,7 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
       if (count <= 0 || data.length <= count) {
         return data;
       }
+
       return data.slice(data.length - count);
     });
   }
@@ -279,6 +282,7 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
       if (types.length === 0) {
         return list;
       }
+
       const typeSet = new Set(
         types
           .map((type) => normalizeWarrantType(type))
@@ -289,6 +293,7 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
         if (normalizedType === null) {
           return false;
         }
+
         return typeSet.has(normalizedType);
       });
     });

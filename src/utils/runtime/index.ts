@@ -23,6 +23,7 @@ function resolveRuntimeProfile(env: NodeJS.ProcessEnv): RuntimeProfile {
   if (env['BUN_TEST'] === '1') {
     return RUNTIME.TEST_PROFILE;
   }
+
   return RUNTIME.APP_PROFILE;
 }
 
@@ -42,6 +43,7 @@ export function resolveLogRootDir(env: NodeJS.ProcessEnv): string {
   if (resolveRuntimeProfile(env) === RUNTIME.TEST_PROFILE) {
     return path.join(process.cwd(), 'tests', 'logs');
   }
+
   return path.join(process.cwd(), 'logs');
 }
 
@@ -57,5 +59,6 @@ export function shouldInstallGlobalProcessHooks(env: NodeJS.ProcessEnv): boolean
   if (explicit !== null) {
     return explicit;
   }
+
   return resolveRuntimeProfile(env) === RUNTIME.APP_PROFILE;
 }

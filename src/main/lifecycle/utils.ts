@@ -12,16 +12,19 @@ export function listHKDateKeysBetween(startMs: number, endMs: number): ReadonlyA
   if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) {
     return [];
   }
+
   const startKey = getHKDateKey(new Date(startMs));
   const endKey = getHKDateKey(new Date(endMs));
   if (!startKey || !endKey) {
     return [];
   }
+
   const startDayStartUtcMs = resolveHKDayStartUtcMs(startKey);
   const endDayStartUtcMs = resolveHKDayStartUtcMs(endKey);
   if (startDayStartUtcMs === null || endDayStartUtcMs === null) {
     return [];
   }
+
   const keys: string[] = [];
   for (
     let cursorDayStartUtcMs = startDayStartUtcMs;
@@ -33,5 +36,6 @@ export function listHKDateKeysBetween(startMs: number, endMs: number): ReadonlyA
       keys.push(key);
     }
   }
+
   return keys;
 }

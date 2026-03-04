@@ -18,6 +18,7 @@ export async function batchGetQuotes(
   if (symbolArray.length === 0) {
     return new Map();
   }
+
   return marketDataClient.getQuotes(symbolArray);
 }
 

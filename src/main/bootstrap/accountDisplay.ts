@@ -93,5 +93,6 @@ export function displayAccountAndPositions({
   } catch (err) {
     logger.warn('获取账户和持仓信息失败', formatError(err));
   }
+
   return Promise.resolve();
 }

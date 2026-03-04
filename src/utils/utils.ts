@@ -40,6 +40,7 @@ export function parseBooleanEnv(value: string | undefined): boolean | null {
   if (value === undefined) {
     return null;
   }
+
   const normalized = value.trim().toLowerCase();
   if (normalized === 'true' || normalized === '1') {
     return true;
@@ -48,6 +49,7 @@ export function parseBooleanEnv(value: string | undefined): boolean | null {
   if (normalized === 'false' || normalized === '0') {
     return false;
   }
+
   return null;
 }
 
@@ -63,6 +65,7 @@ export function formatNumber(num: number | null | undefined, digits: number = 2)
   if (num === null || num === undefined) {
     return '-';
   }
+
   return Number.isFinite(num) ? num.toFixed(digits) : String(num);
 }
 
@@ -77,6 +80,7 @@ export function formatAccountChannel(accountChannel: string | null | undefined):
   if (!accountChannel || typeof accountChannel !== 'string') {
     return '未知账户';
   }
+
   const key = accountChannel.toLowerCase();
   return ACCOUNT_CHANNEL_MAP[key] ?? accountChannel;
 }

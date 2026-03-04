@@ -219,6 +219,7 @@ describe('getCostAveragePrice', () => {
     for (let i = 0; i < 1000; i++) {
       orders.push(makeOrder(`O${i}`, 1 + i * 0.001, 100));
     }
+
     storage.setBuyOrdersListForLong('TEST.HK', orders);
 
     const avg = storage.getCostAveragePrice('TEST.HK', true);

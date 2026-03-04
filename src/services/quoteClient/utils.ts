@@ -46,6 +46,7 @@ function isStaticInfo(value: unknown): value is StaticInfo {
   if (!isRecord(value)) {
     return false;
   }
+
   const valueRecord = value;
 
   /**
@@ -78,14 +79,17 @@ export function extractLotSize(staticInfo: unknown): number | undefined {
   if (!isStaticInfo(staticInfo)) {
     return undefined;
   }
+
   const lotSizeValue = staticInfo.lotSize ?? null;
   if (lotSizeValue === null) {
     return undefined;
   }
+
   const parsed = lotSizeValue;
   if (isValidPositiveNumber(parsed)) {
     return parsed;
   }
+
   return undefined;
 }
 
@@ -98,6 +102,7 @@ export function extractName(staticInfo: unknown): string | null {
   if (!isStaticInfo(staticInfo)) {
     return null;
   }
+
   return staticInfo.nameHk ?? staticInfo.nameCn ?? staticInfo.nameEn ?? null;
 }
 
@@ -111,6 +116,7 @@ export function resolveHKDateKey(date: Date): string {
   if (hkDateKey !== null) {
     return hkDateKey;
   }
+
   const year = date.getUTCFullYear();
   const month = String(date.getUTCMonth() + 1).padStart(2, '0');
   const day = String(date.getUTCDate()).padStart(2, '0');

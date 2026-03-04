@@ -17,8 +17,10 @@ export function toDecimalValue(value: DecimalInput): Decimal {
     if (!Number.isFinite(value)) {
       throw new TypeError(`Invalid number for Decimal conversion: ${value}`);
     }
+
     return new Decimal(value.toString());
   }
+
   return new Decimal(value);
 }
 
@@ -38,6 +40,7 @@ export function toDecimalStrict(value: unknown): Decimal | null {
     if (!Number.isFinite(value)) {
       return null;
     }
+
     return new Decimal(value.toString());
   }
 
@@ -200,6 +203,7 @@ export function isLotMultiple(quantity: DecimalInput, lotSize: DecimalInput): bo
   if (!lotSizeDecimal.greaterThan(Decimal.ZERO())) {
     return false;
   }
+
   return toDecimalValue(quantity).rem(lotSizeDecimal).isZero();
 }
 

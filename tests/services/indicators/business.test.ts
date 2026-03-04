@@ -37,6 +37,7 @@ function createTrendCandles(
       volume: 10_000 + i * 10,
     });
   }
+
   return candles;
 }
 

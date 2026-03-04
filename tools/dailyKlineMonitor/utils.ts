@@ -22,6 +22,7 @@ function formatNumber(value: number | null | undefined, digits: number): string 
   if (value === null || value === undefined || !Number.isFinite(value)) {
     return '-';
   }
+
   return value.toFixed(digits);
 }
 
@@ -35,6 +36,7 @@ function formatKlineTimePrefix(timestamp: number | null | undefined): string {
   if (timestamp === null || timestamp === undefined || !Number.isFinite(timestamp)) {
     return '';
   }
+
   const timeText = toHongKongTimeLog(new Date(timestamp));
   const hhmmss = timeText.split(' ')[1] ?? timeText;
   return `[K线时间: ${hhmmss}] `;
@@ -71,6 +73,7 @@ function hasChanged(
   if (!Number.isFinite(current) || !Number.isFinite(last)) {
     return false;
   }
+
   return Math.abs(current - last) > threshold;
 }
 
@@ -120,6 +123,7 @@ function calculateChangePercent(
   ) {
     return null;
   }
+
   return ((currentPrice - prevClose) / prevClose) * 100;
 }
 
@@ -153,6 +157,7 @@ function hasPeriodRecordChanged(
       return true;
     }
   }
+
   return false;
 }
 

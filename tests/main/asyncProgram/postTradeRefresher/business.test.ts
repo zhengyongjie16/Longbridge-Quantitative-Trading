@@ -159,6 +159,7 @@ describe('postTradeRefresher business flow', () => {
         if (accountCalls === 1) {
           throw new Error('account temporary unavailable');
         }
+
         return createAccountSnapshotDouble(66_000);
       },
       getStockPositions: async () => [],

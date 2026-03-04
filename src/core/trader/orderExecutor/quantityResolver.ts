@@ -36,6 +36,7 @@ function resolveBuyQuantitySource(
   if (!isDefined(signal.quantity)) {
     return { source: 'NOTIONAL' };
   }
+
   const quantity = signal.quantity;
   if (!Number.isFinite(quantity) || quantity <= 0) {
     return {
@@ -50,6 +51,7 @@ function resolveBuyQuantitySource(
       reason: `quantity 无效(${quantity})，必须为整数`,
     };
   }
+
   const lotSize = signal.lotSize;
   if (
     typeof lotSize !== 'number' ||
@@ -69,6 +71,7 @@ function resolveBuyQuantitySource(
       reason: `quantity=${quantity} 不满足整手约束，lotSize=${lotSize}`,
     };
   }
+
   return {
     source: 'EXPLICIT',
     quantity,
@@ -94,6 +97,7 @@ function calculateBuyQuantity(
     logger.warn(`[跳过订单] 无法获取有效价格，无法按金额计算买入数量，price=${priceNum}`);
     return Decimal.ZERO();
   }
+
   const notional = isValidPositiveNumber(targetNotional)
     ? targetNotional
     : TRADING.DEFAULT_TARGET_NOTIONAL;
@@ -102,6 +106,7 @@ function calculateBuyQuantity(
     logger.error(`[跳过订单] lotSize 无效(${lotSize})，这不应该发生，请检查配置验证逻辑`);
     return Decimal.ZERO();
   }
+
   const alignedQuantity = calculateLotQuantityByNotional({
     notional,
     price: priceNum,
@@ -113,6 +118,7 @@ function calculateBuyQuantity(
     );
     return Decimal.ZERO();
   }
+
   const rawQty = decimalToNumberValue(alignedQuantity);
   const actionType = isShortSymbol ? '买入做空标的（做空）' : '买入做多标的（做多）';
   logger.info(
@@ -149,6 +155,7 @@ function resolveBuyQuantity(
     );
     return toDecimal(buyQuantitySource.quantity);
   }
+
   return calculateBuyQuantity(signal, isShortSymbol, targetNotional);
 }
 
@@ -194,6 +201,7 @@ export function createQuantityResolver(deps: {
         if (pos.symbol !== symbol) {
           continue;
         }
+
         const qty = decimalToNumber(pos.availableQuantity);
         if (isValidPositiveNumber(qty)) {
           totalAvailable += qty;

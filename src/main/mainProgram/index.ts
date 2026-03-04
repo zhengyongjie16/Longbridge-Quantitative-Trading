@@ -77,6 +77,7 @@ export async function mainProgram({
         isTradingDay: isTradingDayToday,
         isHalfDay: isHalfDayToday,
       };
+
       if (isTradingDayToday) {
         const dayType = isHalfDayToday ? '半日交易日' : '交易日';
         logger.info(`今天是${dayType}`);
@@ -89,6 +90,7 @@ export async function mainProgram({
       logger.warn('无法获取交易日信息，进入保护性暂停（按非交易日处理）', formatError(err));
     }
   }
+
   let canTradeNow = true;
   let openProtectionActive = false;
   if (isStrictMode) {
@@ -121,6 +123,7 @@ export async function mainProgram({
         }
       }
     }
+
     lastState.canTrade = canTradeNow;
     lastState.isHalfDay = isHalfDayToday;
     if (canTradeNow) {
@@ -148,6 +151,7 @@ export async function mainProgram({
           logger.info('[开盘保护] 保护期结束，恢复信号生成');
         }
       }
+
       lastState.openProtectionActive = openProtectionActive;
     } else {
       lastState.openProtectionActive = false;
@@ -156,10 +160,12 @@ export async function mainProgram({
     if (lastState.canTrade !== true) {
       logger.info('[运行模式] 已跳过交易时段检查');
     }
+
     lastState.canTrade = true;
     lastState.isHalfDay = isHalfDayToday;
     lastState.openProtectionActive = false;
   }
+
   await dayLifecycleManager.tick(currentTime, {
     dayKey: currentDayKey,
     canTradeNow,
@@ -225,10 +231,12 @@ export async function mainProgram({
   if (added.length > 0) {
     await marketDataClient.subscribeSymbols(added);
   }
+
   const removableSymbols = removed.filter((symbol) => lastState.positionCache.get(symbol) === null);
   if (removableSymbols.length > 0) {
     await marketDataClient.unsubscribeSymbols(removableSymbols);
   }
+
   const nextSymbols = new Set(lastState.allTradingSymbols);
   for (const symbol of added) {
     nextSymbols.add(symbol);
@@ -237,6 +245,7 @@ export async function mainProgram({
   for (const symbol of removableSymbols) {
     nextSymbols.delete(symbol);
   }
+
   lastState.allTradingSymbols = nextSymbols;
   const quotesMap = await marketDataClient.getQuotes(nextSymbols);
   const mainContext: MainProgramContext = {
@@ -286,6 +295,7 @@ export async function mainProgram({
       }),
     );
   }
+
   await Promise.allSettled(monitorTasks);
 
   // 全局操作：订单监控（在所有监控标的处理完成后）

@@ -43,6 +43,7 @@ export function createRefreshHelpers({
     if (cached) {
       return cached;
     }
+
     const allOrders = await orderRecorder.fetchAllOrdersFromAPI(true);
     cachedAllOrdersByMonitor.set(monitorSymbol, allOrders);
     return allOrders;

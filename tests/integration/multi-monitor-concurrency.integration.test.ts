@@ -20,6 +20,7 @@ mock.module('../../src/main/processMonitor/index.js', () => ({
     if (symbol === 'HSI-A.HK') {
       throw new Error('simulated monitor failure');
     }
+
     await Bun.sleep(10);
   },
 }));
@@ -151,6 +152,7 @@ describe('multi-monitor-concurrency integration', () => {
               lotSize: 100,
             });
           }
+
           return map;
         },
         subscribeSymbols: async () => {},

@@ -100,6 +100,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     if (!existing || record.executedTime >= existing.executedTime) {
       targetMap.set(symbol, record);
     }
+
     sellRecordsByOrderId.set(record.orderId, record);
   };
 
@@ -268,6 +269,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
       if (a.executedTime !== b.executedTime) {
         return a.executedTime - b.executedTime;
       }
+
       return a.orderId.localeCompare(b.orderId);
     });
   }
@@ -326,6 +328,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     if (orders.length === 0) {
       return null;
     }
+
     const stats = calculateOrderStatistics(orders);
     return stats.totalQuantity > 0 ? stats.averagePrice : null;
   };
@@ -427,6 +430,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
         orders.push(order);
       }
     }
+
     return orders;
   }
 
@@ -468,6 +472,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
     for (const order of available) {
       if (remaining <= 0) break;
+
       const qty = order.executedQuantity;
       if (qty <= 0) continue;
 
@@ -514,6 +519,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
       if (strategy === 'PROFIT_ONLY') {
         return selectProfitOrders(allOrders, currentPrice);
       }
+
       return selectTimedOutOrders({
         allOrders,
         timeoutMinutes: timeoutMinutes ?? null,

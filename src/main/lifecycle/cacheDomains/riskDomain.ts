@@ -31,6 +31,7 @@ function clearRiskCaches(monitorContexts: ReadonlyMap<string, MonitorContext>): 
     monitorContext.riskChecker.clearShortWarrantInfo();
     count += 1;
   }
+
   return count;
 }
 
@@ -49,10 +50,12 @@ function collectMidnightEligibleCooldownKeys(
     if (!cfg || cfg.mode === 'minutes') {
       continue;
     }
+
     const monitorSymbol = monitorContext.config.monitorSymbol;
     keysToClear.add(buildCooldownKey(monitorSymbol, 'LONG'));
     keysToClear.add(buildCooldownKey(monitorSymbol, 'SHORT'));
   }
+
   return keysToClear;
 }
 

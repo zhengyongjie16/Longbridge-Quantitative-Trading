@@ -92,6 +92,7 @@ export const createHangSengMultiIndicatorStrategy = ({
     if (triggerTimestamp <= nowTimestamp) {
       return null;
     }
+
     return new Date(triggerTimestamp);
   };
 
@@ -162,6 +163,7 @@ export const createHangSengMultiIndicatorStrategy = ({
         logger.debug(`[策略] ${symbol} ${action} 订单记录不可用，不生成卖出信号`);
         return null;
       }
+
       const buyOrders = orderRecorder.getBuyOrdersForSymbol(symbol, isLongSymbol);
       if (buyOrders.length === 0) {
         return null;
@@ -228,6 +230,7 @@ export const createHangSengMultiIndicatorStrategy = ({
         indicatorRecordPool.release(indicators1);
         return null;
       }
+
       indicators1[indicatorName] = value;
     }
 
@@ -339,6 +342,7 @@ export const createHangSengMultiIndicatorStrategy = ({
         );
         pushSignalToCorrectArray(sellShortResult, immediateSignals, delayedSignals);
       }
+
       return { immediateSignals, delayedSignals };
     },
   };

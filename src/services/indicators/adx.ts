@@ -167,6 +167,7 @@ function computeAdx(
   for (let i = 0; i < period; i += 1) {
     adx += at(dxValues, i);
   }
+
   adx /= period;
 
   for (let i = period; i < dxValues.length; i += 1) {

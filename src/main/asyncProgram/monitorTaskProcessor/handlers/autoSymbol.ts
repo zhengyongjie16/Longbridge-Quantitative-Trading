@@ -125,6 +125,7 @@ export function createAutoSymbolHandlers({
       if (getCanProcessTask && !getCanProcessTask()) {
         return 'skipped';
       }
+
       await context.autoSymbolManager.maybeSwitchOnDistance({
         direction: 'LONG',
         monitorPrice: data.monitorPrice,
@@ -137,6 +138,7 @@ export function createAutoSymbolHandlers({
       if (getCanProcessTask && !getCanProcessTask()) {
         return 'skipped';
       }
+
       await context.autoSymbolManager.maybeSwitchOnDistance({
         direction: 'SHORT',
         monitorPrice: data.monitorPrice,

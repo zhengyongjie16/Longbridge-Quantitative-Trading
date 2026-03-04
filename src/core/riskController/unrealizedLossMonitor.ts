@@ -173,6 +173,7 @@ export const createUnrealizedLossMonitor = (
       if (!quote || !symbol) {
         return;
       }
+
       const price = quote.price;
       if (isValidPositiveNumber(price)) {
         await checkAndLiquidate({

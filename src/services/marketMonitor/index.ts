@@ -54,6 +54,7 @@ function formatKlineTimePrefix(timestamp: number | null | undefined): string {
     const timeStr = toHongKongTimeLog(new Date(timestamp));
     return `[K线时间: ${timeStr.split(' ')[1]}] `;
   }
+
   return '';
 }
 
@@ -142,6 +143,7 @@ function releaseMonitorValuesObjects(monitorValues: MonitorValues | null): void 
   if (monitorValues.macd) {
     macdObjectPool.release(monitorValues.macd);
   }
+
   monitorValuesObjectPool.release(monitorValues);
 }
 
@@ -155,6 +157,7 @@ function formatIndicator(value: number | null | undefined, decimals: number = 2)
   if (isValidNumber(value)) {
     return value.toFixed(decimals);
   }
+
   return '-';
 }
 

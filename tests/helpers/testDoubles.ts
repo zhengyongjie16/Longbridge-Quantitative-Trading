@@ -291,6 +291,7 @@ export function createSymbolRegistryDouble(params?: {
           seatVersion: shortVersion,
         };
       }
+
       return null;
     },
     updateSeatState(
@@ -302,6 +303,7 @@ export function createSymbolRegistryDouble(params?: {
         Object.assign(longSeat, nextState);
         return longSeat;
       }
+
       Object.assign(shortSeat, nextState);
       return shortSeat;
     },
@@ -310,6 +312,7 @@ export function createSymbolRegistryDouble(params?: {
         longVersion += 1;
         return longVersion;
       }
+
       shortVersion += 1;
       return shortVersion;
     },

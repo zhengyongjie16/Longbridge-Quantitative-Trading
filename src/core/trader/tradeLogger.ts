@@ -104,6 +104,7 @@ export function recordTrade(tradeRecord: TradeRecord): void {
     if (!fs.existsSync(logDir)) {
       fs.mkdirSync(logDir, { recursive: true });
     }
+
     const logFile = buildTradeLogPath(logRootDir, new Date());
     retainLatestLogFiles(logDir, LOGGING.MAX_RETAINED_LOG_FILES, 'json', path.basename(logFile));
     let trades: TradeRecord[] = [];
@@ -125,6 +126,7 @@ export function recordTrade(tradeRecord: TradeRecord): void {
         trades = [];
       }
     }
+
     const executedAtMs = Number.isFinite(tradeRecord.executedAtMs)
       ? tradeRecord.executedAtMs
       : null;

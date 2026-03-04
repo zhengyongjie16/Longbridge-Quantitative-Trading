@@ -115,6 +115,7 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
           `[自动寻标] ${monitorSymbol} ${direction} 当日寻标失败达 ${nextFailCount} 次，席位冻结`,
         );
       }
+
       updateSeatState(
         direction,
         buildSeatState({

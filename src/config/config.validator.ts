@@ -63,6 +63,7 @@ function formatLiquidationCooldownConfig(config: LiquidationCooldownConfig | nul
   if (config.mode === 'minutes') {
     return `${config.minutes} 分钟`;
   }
+
   return config.mode;
 }
 
@@ -94,6 +95,7 @@ function validateRequiredSymbol({
       missingFields,
     };
   }
+
   return { errors, missingFields };
 }
 
@@ -119,6 +121,7 @@ function recordTradingSymbolUsage(
     });
     return;
   }
+
   tradingSymbols.set(symbol, index);
 }
 
@@ -477,6 +480,7 @@ function validateTradingConfig(
       if (!normalizedAlias) {
         continue;
       }
+
       const existing = ownershipAliases.get(normalizedAlias);
       if (existing && existing !== config.monitorSymbol) {
         ownershipConflicts.push({
@@ -486,6 +490,7 @@ function validateTradingConfig(
         });
         continue;
       }
+
       ownershipAliases.set(normalizedAlias, config.monitorSymbol);
     }
   }
@@ -533,6 +538,7 @@ function validateTradingConfig(
         `交易标的重复：标的 ${dup.symbol} 被监控标的 ${dup.previousIndex} 和监控标的 ${dup.index} 重复使用。每个交易标的只能被一个监控标的使用。`,
       ];
     }
+
     errors = [
       ...errors,
       '请检查配置，确保每个 LONG_SYMBOL 和 SHORT_SYMBOL 在所有监控标的中是唯一的。',
@@ -602,6 +608,7 @@ export async function validateAllConfig({
     for (const [i, allError] of allErrors.entries()) {
       logger.error(`${i + 1}. ${allError}`);
     }
+
     logger.error('='.repeat(60));
     logger.error('');
     logger.error('请检查 .env.local 文件，确保所有必需的配置项都已正确设置。');
@@ -640,6 +647,7 @@ export async function validateAllConfig({
       logger.info(`做多标的: ${monitorConfig.longSymbol}`);
       logger.info(`做空标的: ${monitorConfig.shortSymbol}`);
     }
+
     logger.info(`目标买入金额: ${monitorConfig.targetNotional} HKD`);
     logger.info(`最大持仓市值: ${monitorConfig.maxPositionNotional} HKD`);
     logger.info(`单日最大亏损: ${monitorConfig.maxDailyLoss} HKD`);
@@ -654,6 +662,7 @@ export async function validateAllConfig({
     logger.info(
       `保护性清仓后买入冷却: ${formatLiquidationCooldownConfig(monitorConfig.liquidationCooldown)}`,
     );
+
     if (monitorConfig.liquidationCooldown) {
       logger.info(`止损触发冷却次数: ${monitorConfig.liquidationTriggerLimit}`);
     }

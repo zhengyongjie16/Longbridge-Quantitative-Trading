@@ -35,6 +35,7 @@ export function resolveSignalAction(
   if (side === OrderSide.Buy) {
     return isLongSymbol ? 'BUYCALL' : 'BUYPUT';
   }
+
   return isLongSymbol ? 'SELLCALL' : 'SELLPUT';
 }
 
@@ -78,6 +79,7 @@ export function resolveUpdatedAtMs(updatedAt: unknown): number | null {
     const parsed = Date.parse(updatedAt);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
   }
+
   return null;
 }
 
@@ -100,6 +102,7 @@ export function resolveSubmittedAtMs(submittedAt: unknown): number | null {
     const parsed = Date.parse(submittedAt);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
   }
+
   return null;
 }
 
@@ -132,6 +135,7 @@ export function resolveInitialTrackedStatus(initialStatus?: OrderStatus): OrderS
   if (!PENDING_ORDER_STATUSES.has(initialStatus)) {
     return OrderStatus.New;
   }
+
   return initialStatus;
 }
 
@@ -145,6 +149,7 @@ export function resolveOrderIdFromSubmitResponse(response: unknown): string | nu
   if (!isRecord(response)) {
     return null;
   }
+
   const orderId = response['orderId'];
   return typeof orderId === 'string' && orderId.length > 0 ? orderId : null;
 }
@@ -225,6 +230,7 @@ function extractErrorCodeFromRecord(value: Record<string, unknown>): string | nu
       return String(Math.trunc(rawValue));
     }
   }
+
   return null;
 }
 
@@ -240,6 +246,7 @@ export function extractErrorCode(err: unknown, depth: number = 0): string | null
   if (depth > 2 || !isRecord(err)) {
     return null;
   }
+
   const directCode = extractErrorCodeFromRecord(err);
   if (directCode !== null) {
     return directCode;
@@ -295,6 +302,7 @@ export function extractErrorMessage(err: unknown): string {
       return message;
     }
   }
+
   return String(err);
 }
 
@@ -314,6 +322,7 @@ export function resolveOrderClosedReasonFromError(err: unknown): OrderClosedReas
     if (code === '601013') {
       return 'REJECTED';
     }
+
     return 'CANCELED';
   }
 

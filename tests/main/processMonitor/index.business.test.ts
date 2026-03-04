@@ -46,6 +46,7 @@ function createCandles(length: number, start: number, step: number): ReadonlyArr
       volume: 1_000 + i,
     });
   }
+
   return candles;
 }
 

@@ -42,6 +42,7 @@ function createQuotes(prices: Readonly<Record<string, number>>): ReadonlyMap<str
       lotSize: 100,
     });
   }
+
   return map;
 }
 
@@ -278,9 +279,11 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
           symbol: signal?.symbol ?? null,
           quantity: signal?.quantity ?? null,
         });
+
         if (signal?.action === 'SELLCALL') {
           return { submittedCount: 1, submittedOrderIds: ['SELL-ORDER-1'] };
         }
+
         return { submittedCount: 1, submittedOrderIds: ['BUY-ORDER-1'] };
       },
       getPendingOrders: async () => [],

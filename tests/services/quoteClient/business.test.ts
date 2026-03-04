@@ -104,6 +104,7 @@ class QuoteContext {
     if (!activeQuoteContext) {
       throw new Error('QuoteContext mock is not initialized');
     }
+
     return activeQuoteContext;
   }
 }

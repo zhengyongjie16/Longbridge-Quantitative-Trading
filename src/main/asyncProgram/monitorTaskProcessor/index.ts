@@ -73,6 +73,7 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
       logger.warn(`[MonitorTaskProcessor] 未找到监控上下文: ${monitorSymbol}`);
       return null;
     }
+
     return context;
   }
   const { handleAutoSymbolTick, handleAutoSymbolSwitchDistance } = createAutoSymbolHandlers({
@@ -143,6 +144,7 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
         onProcessed?.(task, 'skipped');
         continue;
       }
+
       const status = await processTask(task, helpers).catch((err: unknown) => {
         logger.error('[MonitorTaskProcessor] 处理任务失败', formatError(err));
         return 'failed' as const;

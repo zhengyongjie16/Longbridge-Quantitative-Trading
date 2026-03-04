@@ -61,6 +61,7 @@ function createTaskQueue<TType extends string>(): TaskQueue<TType> {
           queue.splice(i, 1);
         }
       }
+
       return originalLength - queue.length;
     },
 
@@ -69,6 +70,7 @@ function createTaskQueue<TType extends string>(): TaskQueue<TType> {
       for (const task of queue) {
         onRemove?.(task);
       }
+
       queue.length = 0;
       return count;
     },

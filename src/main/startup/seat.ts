@@ -57,6 +57,7 @@ function resolveSeatSnapshot(input: SeatSnapshotInput): SeatSnapshot {
         symbol: resolvedLongSymbol,
       });
     }
+
     const resolvedShortSymbol = resolveSeatOnStartup({
       autoSearchEnabled: monitor.autoSearchConfig.autoSearchEnabled,
       candidateSymbol: candidateShortSymbol ?? null,
@@ -71,6 +72,7 @@ function resolveSeatSnapshot(input: SeatSnapshotInput): SeatSnapshot {
       });
     }
   }
+
   return { entries };
 }
 
@@ -114,6 +116,7 @@ function collectSeatSymbols({
         symbol: longSymbol,
       });
     }
+
     const shortSymbol = resolveReadySeatSymbol(symbolRegistry, monitor.monitorSymbol, 'SHORT');
     if (shortSymbol) {
       entries.push({
@@ -123,6 +126,7 @@ function collectSeatSymbols({
       });
     }
   }
+
   return entries;
 }
 
@@ -158,6 +162,7 @@ export async function prepareSeatsOnStartup(
   for (const entry of snapshot.entries) {
     snapshotMap.set(`${entry.monitorSymbol}:${entry.direction}`, entry.symbol);
   }
+
   const startupTimestampMs = now().getTime();
 
   /**
@@ -186,6 +191,7 @@ export async function prepareSeatsOnStartup(
     updateSeatOnStartup(monitorConfig.monitorSymbol, 'LONG', snapshotMap.get(longKey) ?? null);
     updateSeatOnStartup(monitorConfig.monitorSymbol, 'SHORT', snapshotMap.get(shortKey) ?? null);
   }
+
   const quoteContextPromise = marketDataClient.getQuoteContext();
 
   /**
@@ -226,6 +232,7 @@ export async function prepareSeatsOnStartup(
       logger.error(`[启动席位] 缺少自动寻标阈值配置: ${monitorSymbol} ${direction}`);
       return null;
     }
+
     const currentSeat = symbolRegistry.getSeatState(monitorSymbol, direction);
     const nowMs = currentTime.getTime();
     symbolRegistry.updateSeatState(monitorSymbol, direction, {
@@ -264,6 +271,7 @@ export async function prepareSeatsOnStartup(
           `[启动席位] ${monitorSymbol} ${direction} 当日寻标失败达 ${nextFailCount} 次，席位冻结`,
         );
       }
+
       symbolRegistry.updateSeatState(monitorSymbol, direction, {
         symbol: null,
         status: 'EMPTY',
@@ -276,6 +284,7 @@ export async function prepareSeatsOnStartup(
       });
       return null;
     }
+
     symbolRegistry.updateSeatState(monitorSymbol, direction, {
       symbol: best.symbol,
       status: 'READY',
@@ -301,6 +310,7 @@ export async function prepareSeatsOnStartup(
     if (stuckSeat.status !== 'SEARCHING') {
       return;
     }
+
     const hkDateKey = getHKDateKey(currentTime);
     const { nextFailCount, frozenTradingDayKey, shouldFreeze } = resolveNextSearchFailureState({
       currentSeat: stuckSeat,
@@ -312,6 +322,7 @@ export async function prepareSeatsOnStartup(
         `[启动席位] ${monitorSymbol} ${direction} 当日寻标失败达 ${nextFailCount} 次，席位冻结`,
       );
     }
+
     symbolRegistry.updateSeatState(monitorSymbol, direction, {
       symbol: null,
       status: 'EMPTY',
@@ -339,6 +350,7 @@ export async function prepareSeatsOnStartup(
     if (openDelayMinutes > 0 && isWithinMorningOpenProtection(currentTime, openDelayMinutes)) {
       return true;
     }
+
     return false;
   }
 

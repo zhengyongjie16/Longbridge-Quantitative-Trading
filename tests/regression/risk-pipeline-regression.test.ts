@@ -90,6 +90,7 @@ describe('risk pipeline regression', () => {
         if (buySlotOccupied) {
           return { canTrade: false, waitSeconds: 59 };
         }
+
         return { canTrade: true };
       },
       recordBuyAttempt: () => {

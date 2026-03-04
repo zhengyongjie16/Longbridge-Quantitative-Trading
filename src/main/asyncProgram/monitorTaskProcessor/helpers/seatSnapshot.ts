@@ -41,11 +41,13 @@ export function isSeatSnapshotValid(
   if (!context) {
     return false;
   }
+
   const seatState = context.symbolRegistry.getSeatState(monitorSymbol, direction);
   const currentVersion = context.symbolRegistry.getSeatVersion(monitorSymbol, direction);
   if (!isSeatVersionMatch(snapshot.seatVersion, currentVersion)) {
     return false;
   }
+
   return seatState.symbol === snapshot.symbol;
 }
 

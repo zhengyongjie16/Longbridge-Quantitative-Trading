@@ -92,6 +92,7 @@ describe('sellProcessor business flow', () => {
     if (captured === null) {
       throw new Error('processSellSignals input not captured');
     }
+
     expect(captured.smartCloseTimeoutMinutes).toBe(45);
     expect(captured.isHalfDay).toBe(true);
     expect(captured.tradingCalendarSnapshot).toBe(tradingCalendarSnapshot);
@@ -204,6 +205,7 @@ describe('sellProcessor business flow', () => {
         if (first) {
           first.action = 'HOLD';
         }
+
         return signals;
       },
       resetRiskCheckCooldown: () => {},

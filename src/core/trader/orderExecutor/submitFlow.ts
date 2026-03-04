@@ -105,6 +105,7 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
         );
         return null;
       }
+
       const orderTypeCode = getOrderTypeCode(orderTypeParam);
       logger.info(
         `[订单类型] 使用${orderTypeLabel}(${orderTypeCode})，标的=${symbolDisplayForLog}，价格=${resolvedPrice}`,
@@ -127,6 +128,7 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
       if (!canExecuteSignal(signal, 'submitOrder.beforeApi')) {
         return null;
       }
+
       const resp = await ctx.submitOrder(orderPayload);
       cacheManager.clearCache();
       const orderId = extractOrderId(resp);
@@ -243,11 +245,13 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
         if (!canExecuteSignal(signal, 'replaceOrderPrice')) {
           return null;
         }
+
         const price = decision.price ?? resolvedPrice ?? 0;
         if (!isValidPositiveNumber(price)) {
           logger.warn(`[订单合并] 无法获取有效改单价格，跳过: ${targetSymbol}`);
           return null;
         }
+
         await orderMonitor.replaceOrderPrice(
           decision.targetOrderId,
           price,
@@ -260,6 +264,7 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
         if (!canExecuteSignal(signal, 'cancelAndSubmit')) {
           return null;
         }
+
         const cancelOutcomes = await Promise.all(
           decision.pendingOrderIds.map((orderId) => orderMonitor.cancelOrder(orderId)),
         );
@@ -295,6 +300,7 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
           monitorConfig,
         });
       }
+
       return null;
     }
 

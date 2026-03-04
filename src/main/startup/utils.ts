@@ -27,6 +27,7 @@ export function resolveGatePolicies(runMode: RunMode): {
   if (runMode === 'dev') {
     return { startupGate: 'skip', runtimeGate: 'skip' };
   }
+
   return { startupGate: 'strict', runtimeGate: 'strict' };
 }
 

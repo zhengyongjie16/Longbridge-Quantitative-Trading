@@ -25,6 +25,7 @@ function convertMinutesToMs(minutes: number): number {
   if (!Number.isFinite(minutes) || minutes <= 0) {
     return 0;
   }
+
   return Math.floor(minutes * 60_000);
 }
 
@@ -51,6 +52,7 @@ function resolveHongKongTimeMs({
   if (!Number.isFinite(baseTimestampMs)) {
     return null;
   }
+
   const offsetMs = TIME.HONG_KONG_TIMEZONE_OFFSET_MS;
   const hkDate = new Date(baseTimestampMs + offsetMs);
   const year = hkDate.getUTCFullYear();
@@ -82,6 +84,7 @@ export function resolveCooldownEndMs(
     if (cooldownMs <= 0) {
       return null;
     }
+
     return executedTimeMs + cooldownMs;
   }
 
@@ -194,6 +197,7 @@ export function collectLiquidationRecordsByMonitor({
       list.push({ monitorSymbol, direction, executedAtMs });
       continue;
     }
+
     grouped.set(key, [{ monitorSymbol, direction, executedAtMs }]);
   }
 
@@ -266,6 +270,7 @@ export function simulateTriggerCycle({
       lastCooldownTimeMs = null;
       continue;
     }
+
     cooldownEndMs = endMs;
     lastCooldownTimeMs = record.executedAtMs;
   }
@@ -291,5 +296,6 @@ function resolveDirectionFromAction(action: string | null): 'LONG' | 'SHORT' | n
   if (action === 'SELLPUT') {
     return 'SHORT';
   }
+
   return null;
 }

@@ -62,6 +62,7 @@ async function waitUntil(predicate: () => boolean, timeoutMs: number = 1000): Pr
     if (Date.now() >= deadline) {
       throw new Error('waitUntil timeout');
     }
+
     await Bun.sleep(10);
   }
 }

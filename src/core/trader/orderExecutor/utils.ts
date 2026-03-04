@@ -59,6 +59,7 @@ export function isStaleCrossDaySignal(signal: Signal, now: Date): boolean {
   if (!(signal.triggerTime instanceof Date) || Number.isNaN(signal.triggerTime.getTime())) {
     return true;
   }
+
   return getHKDateKey(signal.triggerTime) !== getHKDateKey(now);
 }
 

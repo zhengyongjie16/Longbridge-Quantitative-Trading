@@ -36,6 +36,7 @@ function shouldRunMidnightClear(
   if (!runtime.dayKey) {
     return false;
   }
+
   return runtime.dayKey !== mutableState.currentDayKey;
 }
 
@@ -67,6 +68,7 @@ async function runOpenRebuildForDomains(
     if (!domain) {
       continue;
     }
+
     await domain.openRebuild(ctx);
   }
 }
@@ -113,6 +115,7 @@ export function createDayLifecycleManager(deps: DayLifecycleManagerDeps): DayLif
       if (nextMidnightRetryAtMs !== null && nowMs < nextMidnightRetryAtMs) {
         return;
       }
+
       logger.info(
         `[Lifecycle] 检测到跨日: ${runtime.dayKey ?? 'unknown'}` +
           (midnightClearFailureCount > 0 ? `，第 ${midnightClearFailureCount + 1} 次重试` : ''),
@@ -136,6 +139,7 @@ export function createDayLifecycleManager(deps: DayLifecycleManagerDeps): DayLif
           formatError(err),
         );
       }
+
       return;
     }
 
@@ -144,14 +148,17 @@ export function createDayLifecycleManager(deps: DayLifecycleManagerDeps): DayLif
       mutableState.isTradingEnabled = true;
       return;
     }
+
     mutableState.isTradingEnabled = false;
     if (!runtime.isTradingDay || !runtime.canTradeNow) {
       return;
     }
+
     const nowMs = now.getTime();
     if (nextRetryAtMs !== null && nowMs < nextRetryAtMs) {
       return;
     }
+
     mutableState.lifecycleState = 'OPEN_REBUILDING';
     logger.info('[Lifecycle] 开始执行开盘重建');
     const rebuildContext = buildLifecycleContext(now, runtime);

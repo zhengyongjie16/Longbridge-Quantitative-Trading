@@ -40,6 +40,7 @@ function toOrderNumber(value: unknown): number {
       return decimalToNumber({ toNumber: () => Number(toNumberFn.call(value)) });
     }
   }
+
   return Number.NaN;
 }
 
@@ -92,6 +93,7 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
       );
       return pendingOrdersCache;
     }
+
     const ctx = await ctxPromise;
     try {
       // 使用模块级常量 PENDING_ORDER_STATUSES 过滤未成交订单，避免每次调用创建新 Set
@@ -109,6 +111,7 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
         if (!isRecord(order)) {
           return false;
         }
+
         return (
           typeof order['orderId'] === 'string' &&
           typeof order['symbol'] === 'string' &&
@@ -143,6 +146,7 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
         if (targetSymbols && !targetSymbols.has(order.symbol)) {
           continue;
         }
+
         result.push({
           orderId: order.orderId,
           symbol: order.symbol,
@@ -155,6 +159,7 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
           _rawOrder: order,
         });
       }
+
       pendingOrdersCache = result;
       pendingOrdersCacheSymbols = symbolsKey;
       pendingOrdersCacheTime = Date.now();

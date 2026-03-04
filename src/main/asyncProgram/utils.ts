@@ -26,6 +26,7 @@ export async function executeSignalsWithLifecycleGate(params: {
     logger.info(`[${loggerPrefix}] 生命周期门禁关闭，放弃执行: ${symbolDisplay} ${signal.action}`);
     return true;
   }
+
   await trader.executeSignals([signal]);
   logger.info(`[${loggerPrefix}] ${successMessage}: ${symbolDisplay} ${signal.action}`);
   return true; // 门禁跳过与执行成功均返回 true，仅抛错时由调用方 catch 返回 false
@@ -125,6 +126,7 @@ export function createBaseProcessor<TType extends string>(
     while (running && !taskQueue.isEmpty()) {
       const task = taskQueue.pop();
       if (!task) break;
+
       const signal = task.data;
       const canProcess = getCanProcessTask ? getCanProcessTask() : true;
       if (!canProcess) {
@@ -147,12 +149,15 @@ export function createBaseProcessor<TType extends string>(
    */
   function scheduleNextProcess(): void {
     if (!running) return;
+
     if (taskQueue.isEmpty()) {
       immediateHandle = null;
       return;
     }
+
     immediateHandle = setImmediate(() => {
       if (!running) return;
+
       if (taskQueue.isEmpty()) {
         immediateHandle = null;
       } else {
@@ -177,6 +182,7 @@ export function createBaseProcessor<TType extends string>(
       logger.warn(`[${loggerPrefix}] 处理器已在运行中`);
       return;
     }
+
     running = true;
     taskAddedUnregister = taskQueue.onTaskAdded(() => {
       scheduleWhenTaskAdded(running, immediateHandle, scheduleNextProcess);
@@ -194,6 +200,7 @@ export function createBaseProcessor<TType extends string>(
       logger.warn(`[${loggerPrefix}] 处理器未在运行`);
       return;
     }
+
     running = false;
     taskAddedUnregister?.();
     taskAddedUnregister = null;
@@ -229,6 +236,7 @@ export function createBaseProcessor<TType extends string>(
     if (running) {
       stop();
     }
+
     start();
   }
   return {

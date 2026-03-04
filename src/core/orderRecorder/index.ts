@@ -59,6 +59,7 @@ function validateOrderParams(price: number, quantity: number, symbol: string): b
     );
     return false;
   }
+
   return true;
 }
 
@@ -101,6 +102,7 @@ function logRefreshResult(params: OrderRefreshResultLogParams): void {
  */
 function formatOrderExecutedTime(executedTime: number): string {
   if (!executedTime) return '未知时间';
+
   const date = new Date(executedTime);
   return Number.isNaN(date.getTime())
     ? '无效时间'
@@ -152,8 +154,10 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
       for (const [index, order] of currentOrders.entries()) {
         logLines.push(formatOrderLine(order, index));
       }
+
       logLines.push(formatOrderStatsLine(calculateOrderStatistics(currentOrders)));
     }
+
     logger.debug(logLines.join('\n'));
   }
 

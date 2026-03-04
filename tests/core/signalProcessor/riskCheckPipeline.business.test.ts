@@ -154,6 +154,7 @@ describe('riskCheckPipeline business flow', () => {
         if (params.currentTimeMs !== undefined) {
           cooldownCheckTimes.push(params.currentTimeMs);
         }
+
         return 0;
       },
     });
@@ -215,6 +216,7 @@ describe('riskCheckPipeline business flow', () => {
         if (!allowSyncResolve) {
           await Promise.resolve();
         }
+
         steps.push('sync:end');
       },
       lastRiskCheckTime,
@@ -298,6 +300,7 @@ describe('riskCheckPipeline business flow', () => {
         if (params.signal?.action === 'SELLCALL') {
           return { allowed: true };
         }
+
         return { allowed: false, reason: 'buy blocked' };
       },
     });

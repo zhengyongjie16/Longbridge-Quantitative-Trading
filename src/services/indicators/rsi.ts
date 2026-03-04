@@ -104,6 +104,7 @@ export function calculateRSI(candles: ReadonlyArray<CandleData>, period: number)
       if (!isValidPositiveNumber(close)) {
         continue;
       }
+
       updateRsiStreamState(state, close);
     }
 

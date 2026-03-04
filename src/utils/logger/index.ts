@@ -48,6 +48,7 @@ export function retainLatestLogFiles(
     if (!name.endsWith(extSuffix)) {
       continue;
     }
+
     const fullPath = path.join(logDir, name);
     try {
       if (fs.statSync(fullPath).isFile()) {
@@ -69,6 +70,7 @@ export function retainLatestLogFiles(
     if (file === undefined) {
       continue;
     }
+
     const fullPath = path.join(logDir, file);
     try {
       fs.unlinkSync(fullPath);
@@ -163,6 +165,7 @@ class DateRotatingStream extends Writable {
           if (IS_DEBUG) {
             console.error(`[DateRotatingStream] 文件流不可用 (${this._logSubDir})`);
           }
+
           callback();
         }
       } catch (err) {
@@ -209,6 +212,7 @@ class DateRotatingStream extends Writable {
         stream.end();
       });
     }
+
     return Promise.resolve();
   }
 
@@ -297,6 +301,7 @@ class DateRotatingStream extends Writable {
  */
 function stripAnsiCodes(str: string): string {
   if (typeof str !== 'string') return str;
+
   return str.replaceAll(LOG_ANSI_CODE_REGEX, '');
 }
 
@@ -310,6 +315,7 @@ function isLogObject(value: unknown): value is LogObject {
   if (!isRecord(value)) {
     return false;
   }
+
   return (
     typeof value['level'] === 'number' &&
     typeof value['time'] === 'number' &&
@@ -420,6 +426,7 @@ function createDrainHandler(
   let resolved = false;
   const timeoutId = setTimeout(() => {
     if (resolved) return;
+
     resolved = true;
     stream.removeListener('drain', onDrain);
     onTimeout?.();
@@ -432,6 +439,7 @@ function createDrainHandler(
    */
   function onDrain(): void {
     if (resolved) return;
+
     resolved = true;
     clearTimeout(timeoutId);
     callback();
@@ -473,6 +481,7 @@ const consoleStream = new Writable({
         callback();
         return;
       }
+
       const obj = parsed;
       const formatted = formatForConsole(obj);
 
@@ -501,6 +510,7 @@ const consoleStream = new Writable({
       } catch {
         // 如果连 stderr 都失败，只能忽略
       }
+
       callback();
     }
   },
@@ -518,6 +528,7 @@ const fileStream = new Writable({
           callback();
           return;
         }
+
         obj = parsed;
       } catch (err) {
         try {
@@ -525,6 +536,7 @@ const fileStream = new Writable({
         } catch {
           // 忽略
         }
+
         callback();
         return;
       }
@@ -543,6 +555,7 @@ const fileStream = new Writable({
               if (err) {
                 console.error('[FileStream] 系统日志写入失败:', err);
               }
+
               resolve();
             });
           }),
@@ -557,6 +570,7 @@ const fileStream = new Writable({
                 if (err) {
                   console.error('[FileStream] Debug日志写入失败:', err);
                 }
+
                 resolve();
               });
             }),
@@ -573,6 +587,7 @@ const fileStream = new Writable({
         } catch {
           // 忽略
         }
+
         callback();
       }
     })().catch((err: unknown) => {
@@ -582,6 +597,7 @@ const fileStream = new Writable({
       } catch {
         // 忽略
       }
+
       callback();
     });
   },
@@ -697,6 +713,7 @@ function cleanupSync(): void {
   if (isSyncCleaningUp) {
     return;
   }
+
   isSyncCleaningUp = true;
 
   try {
@@ -741,6 +758,7 @@ if (shouldInstallProcessHooks) {
         // 忽略
       }
     }
+
     cleanupSync();
     process.exit(1);
   });

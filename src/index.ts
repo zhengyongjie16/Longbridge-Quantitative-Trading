@@ -156,6 +156,7 @@ async function main(): Promise<void> {
     ttlMs: AUTO_SYMBOL_WARRANT_LIST_CACHE_TTL_MS,
     nowMs: () => Date.now(),
   };
+
   try {
     await validateAllConfig({ env, tradingConfig });
   } catch (err) {
@@ -167,6 +168,7 @@ async function main(): Promise<void> {
       process.exit(1);
     }
   }
+
   const config = createConfig({ env });
   const marketDataClient = await createMarketDataClient({ config });
   const runMode = resolveRunMode(env);
@@ -423,6 +425,7 @@ async function main(): Promise<void> {
       for (const [index, error] of runtimeValidationResult.errors.entries()) {
         logger.error(`${index + 1}. ${error}`);
       }
+
       logger.error('='.repeat(60));
       process.exit(1);
     }
@@ -504,6 +507,7 @@ async function main(): Promise<void> {
     });
     monitorContexts.set(monitorConfig.monitorSymbol, context);
   }
+
   const rebuildTradingDayState = createRebuildTradingDayState({
     marketDataClient,
     trader,
@@ -535,6 +539,7 @@ async function main(): Promise<void> {
         signalObjectPool.release(signal);
         return;
       }
+
       const signalDisplay = formatSymbolDisplay(signal.symbol, signal.symbolName ?? null);
       const signalLabel = `${signalDisplay} ${signal.action}`;
       function discardSignal(prefix: string): void {
@@ -546,6 +551,7 @@ async function main(): Promise<void> {
         discardSignal('[延迟验证通过] 生命周期门禁关闭，丢弃信号');
         return;
       }
+
       const isLongSignal = signal.action === 'BUYCALL' || signal.action === 'SELLCALL';
       const direction = isLongSignal ? 'LONG' : 'SHORT';
       const seatState = ctx.symbolRegistry.getSeatState(signalMonitorSymbol, direction);
@@ -564,6 +570,7 @@ async function main(): Promise<void> {
         discardSignal('[延迟验证通过] 标的已切换，丢弃信号');
         return;
       }
+
       logger.info(`[延迟验证通过] 信号推入任务队列: ${signalLabel}`);
 
       // 根据信号类型分流到不同队列
@@ -750,6 +757,7 @@ async function main(): Promise<void> {
     } catch (err) {
       logger.error('本次执行失败', formatError(err));
     }
+
     await sleep(TRADING.INTERVAL_MS);
   }
 }

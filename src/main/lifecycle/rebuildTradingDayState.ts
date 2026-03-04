@@ -123,6 +123,7 @@ async function refreshSeatWarrantInfo(
   if (!symbol) {
     return;
   }
+
   const quote = isLongSymbol ? monitorContext.longQuote : monitorContext.shortQuote;
   const symbolName = quote?.name ?? null;
   if (callPriceFromSeat !== null && Number.isFinite(callPriceFromSeat) && callPriceFromSeat > 0) {
@@ -135,8 +136,10 @@ async function refreshSeatWarrantInfo(
     if (result.status === 'error') {
       throw new Error(result.reason);
     }
+
     return;
   }
+
   const result = await monitorContext.riskChecker.refreshWarrantInfoForSymbol(
     marketDataClient,
     symbol,

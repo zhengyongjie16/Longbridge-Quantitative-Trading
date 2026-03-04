@@ -21,10 +21,12 @@ function computeSma(values: ReadonlyArray<number>): number {
   if (values.length === 0) {
     return 0;
   }
+
   let sum = 0;
   for (const value of values) {
     sum += value;
   }
+
   return sum / values.length;
 }
 
@@ -49,6 +51,7 @@ function createEmaStream(period: number): EmaStream {
         if (buffer.length < period) {
           return undefined;
         }
+
         emaValue = computeSma(buffer);
         return emaValue;
       }
@@ -102,6 +105,7 @@ export function calculateKDJ(
           if (high > highestHigh) {
             highestHigh = high;
           }
+
           hasHigh = true;
         }
 
@@ -110,6 +114,7 @@ export function calculateKDJ(
           if (low < lowestLow) {
             lowestLow = low;
           }
+
           hasLow = true;
         }
       }

@@ -42,6 +42,7 @@ export const createIndicatorCache = (options: IndicatorCacheOptions = {}): Indic
       buffer = createRingBuffer(maxEntries);
       buffers.set(monitorSymbol, buffer);
     }
+
     return buffer;
   };
 
@@ -73,6 +74,7 @@ export const createIndicatorCache = (options: IndicatorCacheOptions = {}): Indic
     ): IndicatorCacheEntry | null {
       const buffer = buffers.get(monitorSymbol);
       if (!buffer || buffer.size === 0) return null;
+
       return findClosestEntry(buffer, targetTime, toleranceMs);
     },
 

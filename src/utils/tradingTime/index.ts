@@ -16,6 +16,7 @@ export function getHKTime(date: Date | null | undefined): HKTime | null {
   if (!date) {
     return null;
   }
+
   const utcHour = date.getUTCHours();
   const utcMinute = date.getUTCMinutes();
   const offsetHours = TIME.HONG_KONG_TIMEZONE_OFFSET_MS / (60 * 60 * 1000);
@@ -36,6 +37,7 @@ export function getHKDateKey(date: Date | null | undefined): string | null {
   if (!date) {
     return null;
   }
+
   const hkDate = new Date(date.getTime() + TIME.HONG_KONG_TIMEZONE_OFFSET_MS);
   const year = hkDate.getUTCFullYear();
   const month = String(hkDate.getUTCMonth() + 1).padStart(2, '0');
@@ -58,10 +60,12 @@ export function isInContinuousHKSession(
   if (!date) {
     return false;
   }
+
   const hkTime = getHKTime(date);
   if (!hkTime) {
     return false;
   }
+
   const { hkHour, hkMinute } = hkTime;
 
   const inMorning = (hkHour === 9 && hkMinute >= 30) || (hkHour >= 10 && hkHour < 12);
@@ -88,10 +92,12 @@ export function isWithinMorningOpenProtection(
   if (!date || !Number.isFinite(minutes) || minutes <= 0) {
     return false;
   }
+
   const hkTime = getHKTime(date);
   if (!hkTime) {
     return false;
   }
+
   const { hkHour, hkMinute } = hkTime;
   if (hkHour >= 12) {
     return false;
@@ -118,10 +124,12 @@ export function isWithinAfternoonOpenProtection(
   if (!date || !Number.isFinite(minutes) || minutes <= 0) {
     return false;
   }
+
   const hkTime = getHKTime(date);
   if (!hkTime) {
     return false;
   }
+
   const { hkHour, hkMinute } = hkTime;
   if (hkHour < 13) {
     return false;
@@ -144,6 +152,7 @@ export function getTradingMinutesSinceOpen(date: Date | null | undefined): numbe
   if (!date) {
     return 0;
   }
+
   const hkTime = getHKTime(date);
   if (!hkTime) {
     return 0;
@@ -174,6 +183,7 @@ export function getTradingMinutesSinceOpen(date: Date | null | undefined): numbe
   if (currentMinutes < afternoonClose) {
     return morningMinutes + (currentMinutes - afternoonOpen);
   }
+
   return morningMinutes + afternoonMinutes;
 }
 
@@ -260,6 +270,7 @@ export function resolveHKDayStartUtcMs(dayKey: string): number | null {
   if (!Number.isFinite(utcMs)) {
     return null;
   }
+
   return utcMs;
 }
 
@@ -306,5 +317,6 @@ function calculateOverlapMs(aStart: number, aEnd: number, bStart: number, bEnd: 
   if (overlapEnd <= overlapStart) {
     return 0;
   }
+
   return overlapEnd - overlapStart;
 }

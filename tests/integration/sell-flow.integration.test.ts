@@ -170,6 +170,7 @@ describe('sell-flow integration', () => {
     if (!occupiedOrder) {
       throw new Error('missing occupied order');
     }
+
     storage.addPendingSell({
       orderId: 'PENDING-1',
       symbol: 'BULL.HK',

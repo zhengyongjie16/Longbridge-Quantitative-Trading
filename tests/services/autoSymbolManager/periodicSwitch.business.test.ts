@@ -50,6 +50,7 @@ function createQuotes(prices: Readonly<Record<string, number>>): ReadonlyMap<str
       lotSize: 100,
     });
   }
+
   return map;
 }
 
@@ -132,6 +133,7 @@ function createPeriodicHarness(params: HarnessParams): {
       if (count <= 0) {
         return [];
       }
+
       return Array.from({ length: count }, (_, index) => ({
         orderId: `B-${index}`,
         symbol: 'OLD_BULL.HK',
@@ -547,6 +549,7 @@ describe('periodic auto-switch regression', () => {
     if (!pendingStatus) {
       throw new Error('PENDING_ORDER_STATUSES must contain at least one status');
     }
+
     const trader = createTraderDouble({
       getPendingOrders: async () => [
         {

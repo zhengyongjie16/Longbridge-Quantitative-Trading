@@ -126,6 +126,7 @@ export function feedEmaStreamState(state: EmaStreamState, value: number): number
       state.emaValue = state.seedSum / state.period;
       return state.emaValue;
     }
+
     return null;
   }
 

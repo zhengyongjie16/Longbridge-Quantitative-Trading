@@ -55,6 +55,7 @@ export function calculateTotalQuantity(orders: ReadonlyArray<OrderRecord>): numb
     const quantity = Number.isFinite(order.executedQuantity) ? order.executedQuantity : 0;
     total = decimalAdd(total, quantity);
   }
+
   return decimalToNumberValue(total);
 }
 
@@ -185,6 +186,7 @@ export function classifyOrdersForRebuild(
       if (!isBuyOrder && !isSellOrder) {
         continue;
       }
+
       const converted = convertOrderToRecord(order, isBuyOrder);
       if (!converted) {
         continue;
@@ -195,6 +197,7 @@ export function classifyOrdersForRebuild(
       } else {
         filledSellOrders.push(converted);
       }
+
       continue;
     }
 

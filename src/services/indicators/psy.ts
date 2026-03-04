@@ -57,6 +57,7 @@ function updatePsyStreamState(state: PsyStreamState, close: number): void {
     if (oldFlag !== undefined) {
       state.upCount -= oldFlag;
     }
+
     state.upFlags[state.windowIndex] = isUp;
     state.upCount += isUp;
     state.windowIndex = (state.windowIndex + 1) % state.period;
@@ -83,6 +84,7 @@ export function calculatePSY(candles: ReadonlyArray<CandleData>, period: number)
       if (!isValidPositiveNumber(close)) {
         continue;
       }
+
       updatePsyStreamState(state, close);
     }
 

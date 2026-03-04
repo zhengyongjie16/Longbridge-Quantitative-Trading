@@ -61,6 +61,7 @@ function createObjectPool<T>(
    */
   function releaseAll(objects: ReadonlyArray<T> | null | undefined): void {
     if (!objects) return;
+
     for (const obj of objects) {
       release(obj);
     }
@@ -108,6 +109,7 @@ export const indicatorRecordPool = createObjectPool<Record<string, number>>(
     for (const key in obj) {
       Reflect.deleteProperty(obj, key);
     }
+
     return obj;
   },
   100, // 最大保存100个对象
@@ -159,6 +161,7 @@ export const signalObjectPool = createObjectPool<PoolableSignal>(
         verificationEntryPool.release(entry);
       }
     }
+
     obj.symbol = null;
     obj.symbolName = null;
     obj.action = null;
@@ -310,6 +313,7 @@ export const periodRecordPool = createObjectPool<Record<number, number>>(
     for (const key in obj) {
       Reflect.deleteProperty(obj, key);
     }
+
     return obj;
   },
   100, // 最大保存100个对象

@@ -72,6 +72,7 @@ function createCandles(length: number, start: number, step: number): CandleData[
       volume: 5_000 + index,
     });
   }
+
   return candles;
 }
 
@@ -270,6 +271,7 @@ describe('full business simulation integration', () => {
         for (const signal of signals) {
           submittedActions.push(signal.action);
         }
+
         return { submittedCount: signals.length, submittedOrderIds: [] };
       },
     });
@@ -332,6 +334,7 @@ describe('full business simulation integration', () => {
                 quotes.set(symbol, null);
               }
             }
+
             return quotes;
           },
           subscribeSymbols: async () => {},
@@ -460,10 +463,12 @@ describe('full business simulation integration', () => {
             symbol: signal.symbol,
           });
         }
+
         const firstSignal = signals[0];
         if (firstSignal?.action === 'SELLCALL' && firstSignal.symbol === 'OLD_BULL.HK') {
           return { submittedCount: signals.length, submittedOrderIds: ['SELL-1'] };
         }
+
         return { submittedCount: signals.length, submittedOrderIds: ['BUY-1'] };
       },
       getPendingOrders: async () => [],
@@ -495,6 +500,7 @@ describe('full business simulation integration', () => {
         if (!isLongSymbol || seatSymbol !== 'OLD_BULL.HK') {
           return null;
         }
+
         return {
           warrantType: 'BULL',
           distanceToStrikePercent: 0.1,
@@ -828,6 +834,7 @@ describe('full business simulation integration', () => {
         for (const signal of signals) {
           submittedActions.push(signal.action);
         }
+
         return { submittedCount: signals.length, submittedOrderIds: [] };
       },
     });
@@ -971,6 +978,7 @@ describe('full business simulation integration', () => {
               quotes.set(symbol, null);
             }
           }
+
           return quotes;
         },
         subscribeSymbols: async () => {},

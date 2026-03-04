@@ -57,6 +57,7 @@ function normalizeCandleValue(value: unknown): CandleData['close'] {
   if (isCandleObjectValue(value)) {
     return value;
   }
+
   return undefined;
 }
 
@@ -72,6 +73,7 @@ function normalizeCandleTimestamp(value: unknown): number | undefined {
     if (Number.isFinite(timestamp)) {
       return timestamp;
     }
+
     return undefined;
   }
 
@@ -101,6 +103,7 @@ function normalizeCandles(candles: ReadonlyArray<unknown>): ReadonlyArray<Candle
     if (!isRecord(candle)) {
       continue;
     }
+
     const normalizedTimestamp = normalizeCandleTimestamp(candle['timestamp']);
     normalized.push({
       open: normalizeCandleValue(candle['open']),
@@ -111,6 +114,7 @@ function normalizeCandles(candles: ReadonlyArray<unknown>): ReadonlyArray<Candle
       ...(normalizedTimestamp === undefined ? {} : { timestamp: normalizedTimestamp }),
     });
   }
+
   return normalized;
 }
 
@@ -124,14 +128,17 @@ function getLastRealtimeCandleTimestamp(candles: ReadonlyArray<CandleData>): num
   if (candles.length === 0) {
     return null;
   }
+
   const latestCandle = candles.at(-1);
   if (!latestCandle) {
     return null;
   }
+
   const timestamp = latestCandle.timestamp;
   if (timestamp !== undefined && Number.isFinite(timestamp)) {
     return timestamp;
   }
+
   return null;
 }
 
@@ -158,6 +165,7 @@ export async function runIndicatorPipeline(
     );
     return null;
   }
+
   const candles = normalizeCandles(monitorCandles);
   const klineTimestamp = getLastRealtimeCandleTimestamp(candles);
   const fingerprint = getCandleFingerprint(candles);
@@ -179,6 +187,7 @@ export async function runIndicatorPipeline(
     });
     return state.lastMonitorSnapshot;
   }
+
   const monitorSnapshot = buildIndicatorSnapshot(
     monitorSymbol,
     candles,
@@ -192,6 +201,7 @@ export async function runIndicatorPipeline(
     );
     return null;
   }
+
   marketMonitor.monitorIndicatorChanges({
     monitorSnapshot,
     monitorQuote,
@@ -206,9 +216,11 @@ export async function runIndicatorPipeline(
   if (state.lastMonitorSnapshot !== monitorSnapshot) {
     releaseSnapshotObjects(state.lastMonitorSnapshot, state.monitorValues);
   }
+
   state.lastMonitorSnapshot = monitorSnapshot;
   if (fingerprint !== null) {
     state.lastCandleFingerprint = fingerprint;
   }
+
   return monitorSnapshot;
 }

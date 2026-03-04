@@ -51,6 +51,7 @@ function isInContinuousHKSessionFallback(now: Date, isHalfDay: boolean): boolean
   if (isHalfDay) {
     return inMorning;
   }
+
   const inAfternoon = minuteOfDay >= 13 * 60 && minuteOfDay < 16 * 60;
   return inMorning || inAfternoon;
 }
@@ -59,6 +60,7 @@ function isWithinMorningOpenProtectionFallback(now: Date, minutes: number): bool
   if (!Number.isFinite(minutes) || minutes <= 0) {
     return false;
   }
+
   const minuteOfDay = resolveHKMinuteOfDay(now);
   const start = 9 * 60 + 30;
   return minuteOfDay >= start && minuteOfDay < start + minutes;
@@ -68,6 +70,7 @@ function isWithinAfternoonOpenProtectionFallback(now: Date, minutes: number): bo
   if (!Number.isFinite(minutes) || minutes <= 0) {
     return false;
   }
+
   const minuteOfDay = resolveHKMinuteOfDay(now);
   const start = 13 * 60;
   return minuteOfDay >= start && minuteOfDay < start + minutes;
@@ -434,6 +437,7 @@ describe('mainProgram strict-mode integration', () => {
           for (const symbol of getQuotesSymbols) {
             quotes.set(symbol, createQuoteDouble(symbol, 1, 100));
           }
+
           return quotes;
         },
         subscribeSymbols: async (symbols) => {

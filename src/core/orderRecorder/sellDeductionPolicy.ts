@@ -41,6 +41,7 @@ export function deductSellQuantityFromBuyOrders(
     if (sellQuantity < 0) {
       logger.warn(`[卖出扣减策略] 卖出数量为负数: ${sellQuantity},返回原列表`);
     }
+
     return [...candidateBuyOrders];
   }
 

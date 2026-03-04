@@ -22,6 +22,7 @@ function isPeriodRecord(value: unknown): value is Record<number, number> {
       return false;
     }
   }
+
   return true;
 }
 
@@ -43,6 +44,7 @@ export function decimalToNumber(
   if (typeof decimalLike === 'object' && 'toNumber' in decimalLike) {
     return decimalLike.toNumber();
   }
+
   return Number(decimalLike);
 }
 

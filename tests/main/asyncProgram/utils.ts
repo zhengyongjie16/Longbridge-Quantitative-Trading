@@ -28,6 +28,7 @@ export async function waitUntil(predicate: () => boolean, timeoutMs: number = 80
     if (Date.now() >= deadline) {
       throw new Error('waitUntil timeout');
     }
+
     await Bun.sleep(10);
   }
 }

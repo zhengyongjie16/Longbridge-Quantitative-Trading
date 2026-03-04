@@ -55,11 +55,13 @@ function calculateLossOffsetFromRecords(
   if (buyOrders.length === 0 && sellOrders.length === 0) {
     return 0;
   }
+
   const totalBuy = toDecimalValue(sumOrderCost(buyOrders));
   const totalSell = toDecimalValue(sumOrderCost(sellOrders));
   if (totalBuy.isZero() && totalSell.isZero()) {
     return 0;
   }
+
   const openBuyOrders =
     buyOrders.length > 0
       ? filteringEngine.applyFilteringAlgorithm([...buyOrders], [...sellOrders])
@@ -69,6 +71,7 @@ function calculateLossOffsetFromRecords(
   if (decimalGt(realizedPnL, 0)) {
     return 0;
   }
+
   return decimalToNumberValue(realizedPnL);
 }
 
@@ -116,6 +119,7 @@ function createOrderRecordFromFill(input: DailyLossFilledOrderInput): OrderRecor
   ) {
     return null;
   }
+
   return {
     orderId: input.orderId ?? `${input.symbol}-${executedTime}`,
     symbol: input.symbol,
@@ -188,10 +192,12 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
       if (!(order.updatedAt instanceof Date)) {
         continue;
       }
+
       const orderDayKey = resolveHongKongDayKey(deps.toHongKongTimeIso, order.updatedAt);
       if (!orderDayKey || orderDayKey !== nextKey) {
         continue;
       }
+
       const ownership = deps.resolveOrderOwnership(order, monitors);
       if (!ownership) {
         continue;
@@ -216,6 +222,7 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
       } else {
         existing.short.push(order);
       }
+
       grouped.set(ownership.monitorSymbol, existing);
     }
 
@@ -270,6 +277,7 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
     if (!dayKey) {
       return;
     }
+
     const fillDayKey = resolveHongKongDayKey(
       deps.toHongKongTimeIso,
       new Date(input.executedTimeMs),
@@ -277,6 +285,7 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
     if (fillDayKey !== dayKey) {
       return;
     }
+
     // 分段过滤：成交时间早于分段起始时间的不纳入
     const directionKey = buildCooldownKey(
       input.monitorSymbol,
@@ -286,6 +295,7 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
     if (segmentStart !== undefined && input.executedTimeMs < segmentStart) {
       return;
     }
+
     const record = createOrderRecordFromFill(input);
     if (!record) {
       return;
@@ -294,6 +304,7 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
     if (input.side !== OrderSide.Buy && input.side !== OrderSide.Sell) {
       return;
     }
+
     const existing = statesByMonitor.get(input.monitorSymbol) ?? {
       long: createEmptyState(),
       short: createEmptyState(),
@@ -333,6 +344,7 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
     if (!state) {
       return 0;
     }
+
     return isLongSymbol ? state.long.dailyLossOffset : state.short.dailyLossOffset;
   }
 
@@ -351,6 +363,7 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
     if (lastResetByCooldownEndMs.get(key) === cooldownEndMs) {
       return;
     }
+
     lastResetByCooldownEndMs.set(key, cooldownEndMs);
     segmentStartByDirection.set(key, segmentStartMs);
 
@@ -359,6 +372,7 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
     if (!existing) {
       return;
     }
+
     const isLong = direction === 'LONG';
     if (isLong) {
       statesByMonitor.set(monitorSymbol, {

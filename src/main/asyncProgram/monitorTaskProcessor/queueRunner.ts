@@ -86,6 +86,7 @@ export function createQueueRunner({
         immediateHandle = null;
         return;
       }
+
       inFlightPromise = processQueue()
         .catch(handleProcessError)
         .finally(() => {
@@ -105,6 +106,7 @@ export function createQueueRunner({
       onAlreadyRunning();
       return;
     }
+
     running = true;
     taskAddedUnregister = monitorTaskQueue.onTaskAdded(() => {
       scheduleWhenTaskAdded(running, immediateHandle, scheduleNextProcess);

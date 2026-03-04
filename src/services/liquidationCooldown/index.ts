@@ -41,6 +41,7 @@ export function createLiquidationCooldownTracker(
     if (!Number.isFinite(executedTimeMs) || executedTimeMs <= 0) {
       return;
     }
+
     cooldownMap.set(buildCooldownKey(symbol, direction), executedTimeMs);
   }
 
@@ -90,6 +91,7 @@ export function createLiquidationCooldownTracker(
             cooldownActivated: false,
           };
         }
+
         cooldownMap.delete(key);
         triggerCountMap.delete(key);
       }
@@ -118,6 +120,7 @@ export function createLiquidationCooldownTracker(
     if (!Number.isInteger(count) || count <= 0) {
       return;
     }
+
     triggerCountMap.set(buildCooldownKey(symbol, direction), count);
   }
 
@@ -148,6 +151,7 @@ export function createLiquidationCooldownTracker(
     if (!Number.isFinite(remainingMs) || remainingMs <= 0) {
       return 0;
     }
+
     return remainingMs;
   }
 
@@ -167,6 +171,7 @@ export function createLiquidationCooldownTracker(
       if (!monitorSymbol || (directionRaw !== 'LONG' && directionRaw !== 'SHORT')) {
         continue;
       }
+
       const direction = directionRaw;
       const cooldownConfig = resolveCooldownConfig(monitorSymbol, direction);
       const cooldownEndMs = resolveCooldownEndMs(executedTimeMs, cooldownConfig);
@@ -188,6 +193,7 @@ export function createLiquidationCooldownTracker(
         triggerCountMap.delete(key);
       }
     }
+
     return events;
   }
 

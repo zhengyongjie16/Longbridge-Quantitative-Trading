@@ -429,6 +429,7 @@ describe('monitorTaskProcessor business flow', () => {
           for (const signal of signals) {
             submittedActions.push(signal.action);
           }
+
           return { submittedCount: signals.length, submittedOrderIds: [] };
         },
       }),

@@ -13,6 +13,7 @@ function calculateTieredFee(tradeAmount: number, tieredRate: TieredFeeRate): num
   if (tieredRate.max === undefined) {
     return feeWithMin;
   }
+
   return Math.min(tieredRate.max, feeWithMin);
 }
 
@@ -116,6 +117,7 @@ export function toShortSymbol(symbol: string, maxLength: number = 20): string {
   if (symbol.length <= maxLength) {
     return symbol;
   }
+
   const preserveLength = Math.max(1, maxLength - 3);
   return `${symbol.substring(0, preserveLength)}...`;
 }

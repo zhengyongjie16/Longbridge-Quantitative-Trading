@@ -74,11 +74,13 @@ function resolveSeatSymbol(
     logger.warn(`[末日保护程序] 未找到监控上下文，跳过席位: ${monitorSymbol} ${direction}`);
     return null;
   }
+
   const seatState = context.symbolRegistry.getSeatState(monitorSymbol, direction);
   if (!isSeatReady(seatState)) {
     logger.info(`[末日保护程序] 席位未就绪，跳过: ${monitorSymbol} ${direction}`);
     return null;
   }
+
   return seatState.symbol;
 }
 
@@ -123,6 +125,7 @@ function processPositionForClearance(
   if (pos.symbol.length === 0) {
     return null;
   }
+
   const availableQty = pos.availableQuantity || 0;
   if (!Number.isFinite(availableQty) || availableQty <= 0) {
     return null;
@@ -132,6 +135,7 @@ function processPositionForClearance(
   if (![longSymbol, shortSymbol].includes(pos.symbol)) {
     return null;
   }
+
   const isShortPos = pos.symbol === shortSymbol;
 
   // 获取该标的的当前价格、最小买卖单位和名称
@@ -165,6 +169,7 @@ function processPositionForClearance(
       `[末日保护程序] 生成清仓信号：${positionLabel} ${pos.symbol} 数量=${availableQty} 操作=${action}`,
     );
   }
+
   return signal;
 }
 
@@ -182,6 +187,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
     if (lastClearanceNoticeKey === key) {
       return;
     }
+
     lastClearanceNoticeKey = key;
     logger.info(message);
   };
@@ -269,6 +275,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
           uniqueSignalsMap.set(key, signal);
         }
       }
+
       const uniqueClearanceSignals = [...uniqueSignalsMap.values()];
       if (uniqueClearanceSignals.length === 0) {
         const availablePositions = positions.filter((pos) => {
@@ -287,6 +294,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
         );
         return { executed: false, signalCount: 0 };
       }
+
       logger.info(`[末日保护程序] 生成 ${uniqueClearanceSignals.length} 个清仓信号，准备执行`);
 
       // 执行清仓信号
@@ -317,6 +325,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
           orderRecorder.clearBuyOrders(shortSymbol, false, quote);
         }
       }
+
       return { executed: true, signalCount: uniqueClearanceSignals.length };
     },
     async cancelPendingBuyOrders(
@@ -360,6 +369,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
       if (allTradingSymbols.size === 0) {
         return { executed: false, cancelledCount: 0 };
       }
+
       const symbolsArray = [...allTradingSymbols];
 
       // 首次进入收盘前 15 分钟，查询未成交订单
@@ -377,6 +387,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
         logger.info('[末日保护程序] 无未成交买入订单，无需撤单');
         return { executed: false, cancelledCount: 0 };
       }
+
       logger.info(`[末日保护程序] 发现 ${pendingBuyOrders.length} 个未成交买入订单，准备撤单`);
 
       // 撤销所有买入订单
@@ -418,6 +429,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
           `[末日保护程序] 已撤销 ${cancelledCount}/${pendingBuyOrders.length} 个买入订单`,
         );
       }
+
       return { executed: true, cancelledCount };
     },
   };

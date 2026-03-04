@@ -41,6 +41,7 @@ export function createOrderMonitorWorker(deps: OrderMonitorWorkerDeps): OrderMon
     if (!running || inFlight || !latestQuotes) {
       return;
     }
+
     const quotes = latestQuotes;
     latestQuotes = null;
     inFlight = true;
@@ -66,6 +67,7 @@ export function createOrderMonitorWorker(deps: OrderMonitorWorkerDeps): OrderMon
     if (!running) {
       return;
     }
+
     latestQuotes = quotesMap;
     if (!inFlight) {
       void run();
@@ -80,6 +82,7 @@ export function createOrderMonitorWorker(deps: OrderMonitorWorkerDeps): OrderMon
     running = false;
     latestQuotes = null;
     if (!inFlight) return;
+
     await new Promise<void>((resolve) => {
       drainResolve = resolve;
     });

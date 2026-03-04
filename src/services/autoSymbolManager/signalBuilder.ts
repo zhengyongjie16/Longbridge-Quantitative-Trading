@@ -48,6 +48,7 @@ export function calculateBuyQuantityByNotional(
   if (!quantity) {
     return null;
   }
+
   return decimalToNumberValue(quantity);
 }
 
