@@ -34,7 +34,7 @@ function pushBuffer(buffer: BufferNewPush, value: number): void {
 }
 
 /**
- * 根据典型价与成交量计算 MFI 序列：正向/负向资金流用环形窗口累加，窗口满后输出 (up/(up+down))*100。
+ * 根据典型价与成交量流式推进窗口，仅保留最后一个 MFI 原始值。
  *
  * @param high 最高价数组
  * @param low 最低价数组
@@ -42,18 +42,18 @@ function pushBuffer(buffer: BufferNewPush, value: number): void {
  * @param volume 成交量数组
  * @param period MFI 周期
  * @param size 实际参与计算的长度，默认 full length
- * @returns MFI 值序列（0–100）
+ * @returns 最后一个 MFI 原始值（未 round），无法计算时返回 null
  */
-function calculateMfiSeries(
+function calculateLatestMfiRawValue(
   high: ReadonlyArray<number>,
   low: ReadonlyArray<number>,
   close: ReadonlyArray<number>,
   volume: ReadonlyArray<number>,
   period: number,
   size: number = high.length,
-): number[] {
+): number | null {
   if (size <= period) {
-    return [];
+    return null;
   }
 
   const firstHigh = high[0];
@@ -67,10 +67,10 @@ function calculateMfiSeries(
     !Number.isFinite(firstLow) ||
     !Number.isFinite(firstClose)
   ) {
-    return [];
+    return null;
   }
 
-  const output: number[] = [];
+  let lastRawMfi: number | null = null;
   let previousTypicalPrice = (firstHigh + firstLow + firstClose) / 3;
 
   const up: BufferNewPush = {
@@ -124,31 +124,11 @@ function calculateMfiSeries(
     previousTypicalPrice = typicalPrice;
 
     if (i >= period) {
-      output.push((up.sum / (up.sum + down.sum)) * 100);
+      lastRawMfi = (up.sum / (up.sum + down.sum)) * 100;
     }
   }
 
-  return output;
-}
-
-/**
- * 在 calculateMfiSeries 结果上对每个值保留两位小数，满足技术指标展示精度。
- * @param high - 最高价数组
- * @param low - 最低价数组
- * @param close - 收盘价数组
- * @param volume - 成交量数组
- * @param period - MFI 周期
- * @returns 保留两位小数的 MFI 值序列（0–100）
- */
-function calculateMfiSeriesWithTechnicalPrecision(
-  high: ReadonlyArray<number>,
-  low: ReadonlyArray<number>,
-  close: ReadonlyArray<number>,
-  volume: ReadonlyArray<number>,
-  period: number,
-): number[] {
-  const result = calculateMfiSeries(high, low, close, volume, period);
-  return result.map((value) => roundToFixed2(value));
+  return lastRawMfi;
 }
 
 /**
@@ -198,21 +178,19 @@ export function calculateMFI(
       return null;
     }
 
-    const mfiResult = calculateMfiSeriesWithTechnicalPrecision(
+    const latestRawMfi = calculateLatestMfiRawValue(
       validHighs,
       validLows,
       mfiCloses,
       validVolumes,
       period,
     );
-
-    if (mfiResult.length === 0) {
+    if (latestRawMfi === null) {
       return null;
     }
 
-    const mfi = mfiResult.at(-1);
-
-    if (mfi === undefined || !validatePercentage(mfi)) {
+    const mfi = roundToFixed2(latestRawMfi);
+    if (!validatePercentage(mfi)) {
       return null;
     }
 

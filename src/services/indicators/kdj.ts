@@ -79,107 +79,128 @@ export function calculateKDJ(
   try {
     const emaPeriod = 5;
 
-    // 优化：预先提取所有high、low、close值,避免重复toNumber转换
-    const highs: number[] = [];
-    const lows: number[] = [];
-    const closes: number[] = [];
+    // 单调队列：同时维护窗口最高/最低，并在同一轮流式推进 K 与 D，避免中间序列落地。
+    const maxIndexDeque = new Int32Array(candles.length);
+    const maxValueDeque = new Float64Array(candles.length);
+    const minIndexDeque = new Int32Array(candles.length);
+    const minValueDeque = new Float64Array(candles.length);
+    let maxHead = 0;
+    let maxTail = 0;
+    let minHead = 0;
+    let minTail = 0;
 
-    for (const candle of candles) {
-      highs.push(toNumber(candle.high));
-      lows.push(toNumber(candle.low));
-      closes.push(toNumber(candle.close));
-    }
+    const emaK = createEmaStream(emaPeriod);
+    const emaD = createEmaStream(emaPeriod);
+    emaK.nextValue(50);
+    emaD.nextValue(50);
 
-    // 计算所有 RSV 值
-    const rsvValues: number[] = [];
-    for (let i = period - 1; i < candles.length; i += 1) {
-      const windowStart = i - period + 1;
-      let highestHigh = Number.NEGATIVE_INFINITY;
-      let lowestLow = Number.POSITIVE_INFINITY;
-      let hasHigh = false;
-      let hasLow = false;
+    let hasKdjValue = false;
+    let lastK = 50;
+    let lastD = 50;
 
-      for (let j = windowStart; j <= i; j += 1) {
-        const high = highs[j];
-        if (high !== undefined && Number.isFinite(high)) {
-          if (high > highestHigh) {
-            highestHigh = high;
+    for (const [i, candle] of candles.entries()) {
+      const high = toNumber(candle.high);
+      if (Number.isFinite(high)) {
+        while (maxTail > maxHead) {
+          const lastQueueIndex = maxTail - 1;
+          const lastValue = maxValueDeque[lastQueueIndex];
+          if (lastValue === undefined || lastValue <= high) {
+            maxTail -= 1;
+            continue;
           }
 
-          hasHigh = true;
+          break;
         }
 
-        const low = lows[j];
-        if (low !== undefined && Number.isFinite(low)) {
-          if (low < lowestLow) {
-            lowestLow = low;
-          }
-
-          hasLow = true;
-        }
+        maxIndexDeque[maxTail] = i;
+        maxValueDeque[maxTail] = high;
+        maxTail += 1;
       }
 
-      const close = closes[i];
+      const low = toNumber(candle.low);
+      if (Number.isFinite(low)) {
+        while (minTail > minHead) {
+          const lastQueueIndex = minTail - 1;
+          const lastValue = minValueDeque[lastQueueIndex];
+          if (lastValue === undefined || lastValue >= low) {
+            minTail -= 1;
+            continue;
+          }
 
-      if (!hasHigh || !hasLow || close === undefined || !Number.isFinite(close)) {
+          break;
+        }
+
+        minIndexDeque[minTail] = i;
+        minValueDeque[minTail] = low;
+        minTail += 1;
+      }
+
+      if (i < period - 1) {
+        continue;
+      }
+
+      const windowStart = i - period + 1;
+      while (maxTail > maxHead) {
+        const index = maxIndexDeque[maxHead];
+        if (index !== undefined && index < windowStart) {
+          maxHead += 1;
+          continue;
+        }
+
+        break;
+      }
+
+      while (minTail > minHead) {
+        const index = minIndexDeque[minHead];
+        if (index !== undefined && index < windowStart) {
+          minHead += 1;
+          continue;
+        }
+
+        break;
+      }
+
+      const highestHigh = maxValueDeque[maxHead];
+      const lowestLow = minValueDeque[minHead];
+      if (highestHigh === undefined || lowestLow === undefined) {
+        continue;
+      }
+
+      const close = toNumber(candle.close);
+      if (!Number.isFinite(close)) {
         continue;
       }
 
       const range = highestHigh - lowestLow;
-
       if (!Number.isFinite(range) || range === 0) {
         continue;
       }
 
       const rsv = ((close - lowestLow) / range) * 100;
-      rsvValues.push(rsv);
-    }
-
-    if (rsvValues.length === 0) {
-      return null;
-    }
-
-    // 使用 EMA(period=5) 平滑 RSV 得到 K 值
-    const emaK = createEmaStream(emaPeriod);
-    const kValues: number[] = [];
-    emaK.nextValue(50);
-    for (const rsv of rsvValues) {
       const kValue = emaK.nextValue(rsv);
-      if (kValue === undefined) {
-        kValues.push(kValues.at(-1) ?? 50);
-      } else {
-        kValues.push(kValue);
+      if (kValue !== undefined) {
+        lastK = kValue;
       }
+
+      const dValue = emaD.nextValue(lastK);
+      if (dValue !== undefined) {
+        lastD = dValue;
+      }
+
+      hasKdjValue = true;
     }
 
-    // 使用 EMA(period=5) 平滑 K 值得到 D 值
-    const emaD = createEmaStream(emaPeriod);
-    const dValues: number[] = [];
-    emaD.nextValue(50);
-    for (const kv of kValues) {
-      const dValue = emaD.nextValue(kv);
-      if (dValue === undefined) {
-        dValues.push(dValues.at(-1) ?? 50);
-      } else {
-        dValues.push(dValue);
-      }
-    }
-
-    // 获取最后的 K 和 D 值
-    const k = kValues.at(-1);
-    const d = dValues.at(-1);
-
-    if (k === undefined || d === undefined) {
+    if (!hasKdjValue) {
       return null;
     }
 
     // 计算J值
-    const j = 3 * k - 2 * d;
+    const j = 3 * lastK - 2 * lastD;
 
-    if (Number.isFinite(k) && Number.isFinite(d) && Number.isFinite(j)) {
+    if (Number.isFinite(lastK) && Number.isFinite(lastD) && Number.isFinite(j)) {
       const kdjObj = kdjObjectPool.acquire();
-      kdjObj.k = k;
-      kdjObj.d = d;
+      kdjObj.k = lastK;
+      kdjObj.d = lastD;
       kdjObj.j = j;
 
       // 使用类型守卫验证对象有效性

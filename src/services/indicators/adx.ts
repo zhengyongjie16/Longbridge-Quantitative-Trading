@@ -66,17 +66,6 @@ export function calculateADX(
 }
 
 /**
- * 安全读取数组元素，索引越界时返回 0。
- *
- * @param arr 数字数组
- * @param index 索引
- * @returns 对应元素值，越界时返回 0
- */
-function at(arr: ReadonlyArray<number>, index: number): number {
-  return arr[index] ?? 0;
-}
-
-/**
  * ADX 核心计算逻辑（纯函数，不依赖外部状态）。
  *
  * @param highs 最高价数组
@@ -91,109 +80,96 @@ function computeAdx(
   closes: ReadonlyArray<number>,
   period: number,
 ): number | null {
-  const length = highs.length;
-
-  // 计算 TR、+DM、-DM 序列（从第 1 根开始，共 length - 1 个值）
-  const trValues: number[] = [];
-  const plusDmValues: number[] = [];
-  const minusDmValues: number[] = [];
-
-  for (let i = 1; i < length; i += 1) {
-    const high = at(highs, i);
-    const low = at(lows, i);
-    const prevHigh = at(highs, i - 1);
-    const prevLow = at(lows, i - 1);
-    const prevClose = at(closes, i - 1);
-
-    // True Range
-    const tr = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
-    trValues.push(tr);
-
-    // +DM / -DM
-    const upMove = high - prevHigh;
-    const downMove = prevLow - low;
-
-    if (upMove > downMove && upMove > 0) {
-      plusDmValues.push(upMove);
-    } else {
-      plusDmValues.push(0);
-    }
-
-    if (downMove > upMove && downMove > 0) {
-      minusDmValues.push(downMove);
-    } else {
-      minusDmValues.push(0);
-    }
-  }
-
-  const dmCount = trValues.length;
-  // 需要至少 2 * period 个 TR/DM 值
+  const dmCount = highs.length - 1;
   if (dmCount < 2 * period) {
     return null;
   }
 
-  // Wilder 平滑初始值：前 period 个值求和
   let smoothTr = 0;
   let smoothPlusDm = 0;
   let smoothMinusDm = 0;
+  let trDmCount = 0;
 
-  for (let i = 0; i < period; i += 1) {
-    smoothTr += at(trValues, i);
-    smoothPlusDm += at(plusDmValues, i);
-    smoothMinusDm += at(minusDmValues, i);
+  let initialDxSum = 0;
+  let dxCount = 0;
+  let adx: number | null = null;
+
+  for (let i = 1; i < highs.length; i += 1) {
+    const high = highs[i];
+    const low = lows[i];
+    const prevHigh = highs[i - 1];
+    const prevLow = lows[i - 1];
+    const prevClose = closes[i - 1];
+    if (
+      high === undefined ||
+      low === undefined ||
+      prevHigh === undefined ||
+      prevLow === undefined ||
+      prevClose === undefined
+    ) {
+      return null;
+    }
+
+    const tr = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
+    const upMove = high - prevHigh;
+    const downMove = prevLow - low;
+    const plusDm = upMove > downMove && upMove > 0 ? upMove : 0;
+    const minusDm = downMove > upMove && downMove > 0 ? downMove : 0;
+
+    if (trDmCount < period) {
+      smoothTr += tr;
+      smoothPlusDm += plusDm;
+      smoothMinusDm += minusDm;
+      trDmCount += 1;
+      if (trDmCount < period) {
+        continue;
+      }
+    } else {
+      smoothTr = smoothTr - smoothTr / period + tr;
+      smoothPlusDm = smoothPlusDm - smoothPlusDm / period + plusDm;
+      smoothMinusDm = smoothMinusDm - smoothMinusDm / period + minusDm;
+    }
+
+    const dx = calculateDx(smoothTr, smoothPlusDm, smoothMinusDm);
+    if (dxCount < period) {
+      initialDxSum += dx;
+      dxCount += 1;
+      if (dxCount === period) {
+        adx = initialDxSum / period;
+      }
+
+      continue;
+    }
+
+    if (adx === null) {
+      return null;
+    }
+
+    adx = (adx * (period - 1) + dx) / period;
   }
 
-  // 计算 DX 序列
-  const dxValues: number[] = [];
-
-  // 首个 DI 值
-  pushDx(dxValues, smoothTr, smoothPlusDm, smoothMinusDm);
-
-  // 后续用 Wilder 平滑递推
-  for (let i = period; i < dmCount; i += 1) {
-    smoothTr = smoothTr - smoothTr / period + at(trValues, i);
-    smoothPlusDm = smoothPlusDm - smoothPlusDm / period + at(plusDmValues, i);
-    smoothMinusDm = smoothMinusDm - smoothMinusDm / period + at(minusDmValues, i);
-
-    pushDx(dxValues, smoothTr, smoothPlusDm, smoothMinusDm);
-  }
-
-  if (dxValues.length < period) {
+  if (adx === null) {
     return null;
-  }
-
-  // 对 DX 序列做 Wilder 平滑得到 ADX
-  let adx = 0;
-  for (let i = 0; i < period; i += 1) {
-    adx += at(dxValues, i);
-  }
-
-  adx /= period;
-
-  for (let i = period; i < dxValues.length; i += 1) {
-    adx = (adx * (period - 1) + at(dxValues, i)) / period;
   }
 
   return roundToFixed2(adx);
 }
 
 /**
- * 根据平滑后的 TR/+DM/-DM 计算 DX 并追加到数组。
+ * 根据平滑后的 TR/+DM/-DM 计算单个 DX。
  *
- * @param dxValues 输出数组
  * @param smoothTr 平滑 True Range
  * @param smoothPlusDm 平滑 +DM
  * @param smoothMinusDm 平滑 -DM
+ * @returns DX 值
  */
-function pushDx(
-  dxValues: number[],
+function calculateDx(
   smoothTr: number,
   smoothPlusDm: number,
   smoothMinusDm: number,
-): void {
+): number {
   if (smoothTr === 0) {
-    dxValues.push(0);
-    return;
+    return 0;
   }
 
   const plusDi = (smoothPlusDm / smoothTr) * 100;
@@ -201,10 +177,8 @@ function pushDx(
   const diSum = plusDi + minusDi;
 
   if (diSum === 0) {
-    dxValues.push(0);
-    return;
+    return 0;
   }
 
-  const dx = (Math.abs(plusDi - minusDi) / diSum) * 100;
-  dxValues.push(dx);
+  return (Math.abs(plusDi - minusDi) / diSum) * 100;
 }
