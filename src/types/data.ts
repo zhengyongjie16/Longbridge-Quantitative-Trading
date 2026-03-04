@@ -33,7 +33,7 @@ export type CandleData = {
 
 /**
  * 监控值。
- * 类型用途：市场监控用的技术指标集合（价格、EMA、RSI、KDJ、MACD 等），作为 MonitorState.monitorValues 类型；需可变以支持对象池（PoolableMonitorValues）。
+ * 类型用途：市场监控用的技术指标集合（价格、EMA、RSI、KDJ、MACD、MFI、ADX 等），作为 MonitorState.monitorValues 类型；需可变以支持对象池（PoolableMonitorValues）。
  * 数据来源：由 K 线经指标计算得到（如 indicatorCache、marketMonitor）。
  * 使用范围：MonitorState、策略、主循环等；全项目可引用。
  */

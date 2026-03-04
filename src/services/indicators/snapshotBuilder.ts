@@ -3,7 +3,7 @@
  *
  * 职责：
  * - 根据 K 线数据生成指纹用于快照复用判断
- * - 统一构建 RSI/MFI/PSY/KDJ/MACD/EMA 指标快照
+ * - 统一构建 RSI/MFI/PSY/KDJ/MACD/EMA/ADX 指标快照
  */
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { periodRecordPool } from '../../utils/objectPool/index.js';
@@ -54,7 +54,7 @@ export function getCandleFingerprint(candles: ReadonlyArray<CandleData>): string
 }
 
 /**
- * 构建指标快照（统一计算 RSI/MFI/PSY/KDJ/MACD/EMA）。
+ * 构建指标快照（统一计算 RSI/MFI/PSY/KDJ/MACD/EMA/ADX）。
  *
  * 由 pipeline 负责「K 线未变则复用上一拍快照」的短路，本函数仅做纯计算。
  *

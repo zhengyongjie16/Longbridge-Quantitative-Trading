@@ -8,7 +8,7 @@
  *
  * 变化检测阈值（定义在 constants/index.ts 的 MONITOR 常量中）：
  * - 价格变化：MONITOR.PRICE_CHANGE_THRESHOLD
- * - 技术指标变化（EMA/RSI/PSY/MFI/KDJ/MACD）：MONITOR.INDICATOR_CHANGE_THRESHOLD
+ * - 技术指标变化（EMA/RSI/PSY/MFI/KDJ/MACD/ADX）：MONITOR.INDICATOR_CHANGE_THRESHOLD
  *
  * 对象池与快照解耦：
  * - monitorSnapshot 由指标流水线缓存管理，可能被对象池复用或回收
