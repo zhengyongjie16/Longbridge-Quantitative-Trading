@@ -26,8 +26,8 @@
 
 同时执行了类型/规范与关键测试验证：
 
-1. `bun run type-check`：通过
-2. `bun run lint`：通过
+1. `bun type-check`：通过
+2. `bun lint`：通过
 3. 关键业务测试：通过（见第 6 节）
 
 ---
@@ -182,8 +182,8 @@
 
 以下检查与测试已执行且通过：
 
-1. `bun run type-check`
-2. `bun run lint`
+1. `bun type-check`
+2. `bun lint`
 3. `bun test tests/services/liquidationCooldown/business.test.ts`
 4. `bun test tests/services/liquidationCooldown/tradeLogHydrator.business.test.ts`
 5. `bun test tests/services/liquidationCooldown/utils.test.ts`

@@ -8,7 +8,7 @@
     "build": "tsc",
     "build:watch": "tsc --watch",
     "start": "bun src/index.ts",
-    "dev": "cross-env RUN_MODE=dev bun run start",
+    "dev": "cross-env RUN_MODE=dev bun start",
     "dev:watch": "concurrently -k -r \"tsc --watch\" \"bun --watch dist/src/index.js\"",
     "type-check": "tsc --noEmit",
     "test": "bun test",

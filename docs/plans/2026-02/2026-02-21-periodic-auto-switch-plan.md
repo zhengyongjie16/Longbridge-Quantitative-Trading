@@ -359,8 +359,8 @@
 
 5. 验证与回归
 
-- `bun run lint`
-- `bun run type-check`
+- `bun lint`
+- `bun type-check`
 - 日志验证周期触发、等待空仓与换标推进路径。
 
 ---

@@ -20,7 +20,7 @@
 
 ### 2.2 已执行验证
 
-1. 静态检查：`bun run type-check`、`bun run lint`。
+1. 静态检查：`bun type-check`、`bun lint`。
 2. 自动化测试：`bun test` 全量。
 3. 定向复现实验：使用 `tradeContextMock` 注入真实错误码和网络失败场景。
 
@@ -190,7 +190,7 @@ type CancelOrderOutcome =
 1. 新增错误码专项测试。
 2. 新增超时+网络失败+迟到事件测试。
 3. 新增卖单 `601012` 防重复卖出测试。
-4. 通过 `bun run lint`、`bun run type-check`、`bun test` 全量。
+4. 通过 `bun lint`、`bun type-check`、`bun test` 全量。
 
 ## 8. 测试矩阵（必须新增）
 

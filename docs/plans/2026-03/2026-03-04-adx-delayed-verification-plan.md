@@ -308,8 +308,8 @@
    - `BUYCALL`、`SELLPUT`：按负值 `>` 判定
 4. 四类动作最终业务效果均为 ADX 三时点小于初始值。
 5. 全量通过：
-   - `bun run lint`
-   - `bun run type-check`
+   - `bun lint`
+   - `bun type-check`
    - 受影响测试集
 
 ## 10. 实施顺序建议

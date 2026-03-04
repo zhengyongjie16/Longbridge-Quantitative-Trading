@@ -457,7 +457,7 @@ export interface OrderRecorder {
 3. **第三步**：修改 `OrderRecorder` 门面层透传
 4. **第四步**：修改智能平仓逻辑
 5. **第五步**：更新类型定义
-6. **第六步**：运行 `bun run lint` 和 `bun run type-check`
+6. **第六步**：运行 `bun lint` 和 `bun type-check`
 
 ### 7.2 测试阶段
 
@@ -690,7 +690,7 @@ const getCostAveragePrice = (symbol: string, isLongSymbol: boolean): number | nu
 - 不在 utils 中新增重复的成本均价函数；工具函数仍在 `utils.ts`，本方案仅在使用处组合。
 - 函数参数 ≤7：`getSellableOrders` 与 `getProfitableSellOrders` 均为 5 个参数（含可选），符合。
 - 禁止嵌套三元；**禁止否定条件前置**：`resolveSellQuantityBySmartClose` 中有可卖订单时的分支使用肯定条件 `if (result.orders.length > 0 && result.totalQuantity > 0)` 返回卖出结果，否则分支返回保持持仓（仅有 if 无 else 的 guard clause 如 `if (!orderRecorder)` 可例外）。
-- 完成后运行 `bun run lint` 与 `bun run type-check` 并修复所有问题。
+- 完成后运行 `bun lint` 与 `bun type-check` 并修复所有问题。
 
 ---
 
@@ -736,7 +736,7 @@ const getCostAveragePrice = (symbol: string, isLongSymbol: boolean): number | nu
 2. 更新 `orderRecorder/types.ts` 与 `types/services.ts`：增加 `getCostAveragePrice`、`getSellableOrders` 签名，保留 `getProfitableSellOrders` 并增加可选参数 `sellAll?`。
 3. 更新 `orderRecorder/index.ts`：透传 `getCostAveragePrice`、`getSellableOrders`；`getProfitableSellOrders` 透传时增加第五参 `sellAll?` 并传给 storage。
 4. 修改 `signalProcessor/utils.ts`：`resolveSellQuantityBySmartClose` 中先取成本均价与 `isOverallProfitable`，再调用 `getSellableOrders(..., { includeAll: isOverallProfitable })`；使用肯定条件 `result.orders.length > 0 && result.totalQuantity > 0` 分支返回卖出结果，否则用局部变量拼接 reason 返回保持持仓。
-5. 运行 `bun run lint` 与 `bun run type-check` 并修复所有问题；按「测试验证要点」补充/跑通单测与集成测试。
+5. 运行 `bun lint` 与 `bun type-check` 并修复所有问题；按「测试验证要点」补充/跑通单测与集成测试。
 
 ---
 

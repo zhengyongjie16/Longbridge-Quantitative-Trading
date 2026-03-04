@@ -226,7 +226,7 @@
 2. 从 `loadTradingDayRuntimeSnapshot` 移除旧预热调用。
 3. 在 `rebuildTradingDayState` 接入新预热步骤并改为 fail-fast。
 4. 更新测试（load 测试与 rebuild 测试）。
-5. 执行 `bun run lint`、`bun run type-check`、关键集成测试。
+5. 执行 `bun lint`、`bun type-check`、关键集成测试。
 
 ## 11. 最终结论
 

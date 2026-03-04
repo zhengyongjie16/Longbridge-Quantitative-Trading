@@ -363,7 +363,7 @@
 6. sellProcessor 入参与上下文接线改造。
 7. 文档更新（`.env.example`、`README`）。
 8. 单元 + 集成测试补齐。
-9. `bun run lint` 与 `bun run type-check` 全通过。
+9. `bun lint` 与 `bun type-check` 全通过。
 
 ---
 

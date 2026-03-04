@@ -197,8 +197,8 @@
 
 ### 阶段 F：验收与收尾
 
-1. 执行 `bun run lint`
-2. 执行 `bun run type-check`
+1. 执行 `bun lint`
+2. 执行 `bun type-check`
 3. 执行 `bun test`
 4. 执行 `rg -n "technicalindicators" -S src tests package.json bun.lock` 必须无残留。
 5. 执行 `rg -n "from 'technicalindicators'|technicalindicators\." -S src tests` 必须无残留。

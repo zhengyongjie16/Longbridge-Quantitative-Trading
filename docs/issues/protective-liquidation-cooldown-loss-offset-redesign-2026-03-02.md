@@ -297,7 +297,7 @@
 2. 接口扩展在 `types.ts` 完整定义，禁止行内 `import('...')`。
 3. 采用工厂函数 + 依赖注入，不在内部隐式创建依赖。
 4. 命名与语义一致（如 `sweepExpired` 必须只做过期扫描与事件产出）。
-5. 最终必须通过 `bun run lint` 与 `bun run type-check`。
+5. 最终必须通过 `bun lint` 与 `bun type-check`。
 
 ---
 
@@ -427,7 +427,7 @@
 ### 阶段 5：测试与验收
 
 1. 单元/集成/回归补齐。
-2. 执行 `bun run lint`、`bun run type-check`、目标测试集。
+2. 执行 `bun lint`、`bun type-check`、目标测试集。
 
 ---
 
