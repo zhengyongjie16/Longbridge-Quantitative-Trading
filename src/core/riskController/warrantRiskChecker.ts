@@ -5,7 +5,6 @@
  * - 初始化时获取牛熊证回收价
  * - 买入前计算距离回收价百分比
  * - 牛证低于 配置阈值 或熊证高于 配置阈值 时拒绝买入
- * - 牛熊证当前价格过低时拒绝买入
  */
 import { logger } from '../../utils/logger/index.js';
 import { decimalToNumber } from '../../utils/helpers/index.js';
@@ -42,7 +41,6 @@ import {
   BULL_WARRANT_LIQUIDATION_DISTANCE_PERCENT,
   BEAR_WARRANT_LIQUIDATION_DISTANCE_PERCENT,
   MIN_MONITOR_PRICE_THRESHOLD,
-  MIN_WARRANT_PRICE_THRESHOLD,
   DEFAULT_PRICE_DECIMALS,
   DEFAULT_PERCENT_DECIMALS,
   WARRANT_TYPE_NAMES,
@@ -175,33 +173,6 @@ function validateMonitorPrice(monitorCurrentPrice: number): RiskCheckResult | nu
     return {
       allowed: false,
       reason: `监控标的价格异常（${monitorCurrentPrice}），无法进行牛熊证风险检查，拒绝买入`,
-    };
-  }
-  return null;
-}
-
-/** 验证牛熊证当前价格有效性并检查最低价阈值 */
-function validateWarrantCurrentPrice(
-  symbol: string,
-  warrantCurrentPrice: number | null,
-): RiskCheckResult | null {
-  if (warrantCurrentPrice === null || !Number.isFinite(warrantCurrentPrice)) {
-    logger.warn(
-      `[风险检查] ${symbol} 的牛熊证当前价格无效（${warrantCurrentPrice}），无法进行牛熊证风险检查`,
-    );
-    return {
-      allowed: false,
-      reason: `牛熊证当前价格无效（${warrantCurrentPrice}），无法进行风险检查，拒绝买入`,
-    };
-  }
-
-  if (decimalLte(warrantCurrentPrice, MIN_WARRANT_PRICE_THRESHOLD)) {
-    return {
-      allowed: false,
-      reason: `牛熊证当前价格 ${formatDecimal(
-        warrantCurrentPrice,
-        DEFAULT_PRICE_DECIMALS,
-      )} 低于或等于 ${formatDecimal(MIN_WARRANT_PRICE_THRESHOLD, DEFAULT_PRICE_DECIMALS)}，拒绝买入`,
     };
   }
   return null;
@@ -387,7 +358,7 @@ async function checkWarrantType(
 }
 
 /**
- * 创建牛熊证风险检查器（风控：距离回收价与最低价检查）
+ * 创建牛熊证风险检查器（风控：距离回收价检查）
  * @param _deps 可选依赖，当前未使用
  * @returns WarrantRiskChecker 接口实例
  */
@@ -445,7 +416,6 @@ export function createWarrantRiskChecker(_deps: WarrantRiskCheckerDeps = {}): Wa
     symbol: string,
     signalType: SignalType,
     monitorCurrentPrice: number,
-    warrantCurrentPrice: number | null,
   ): RiskCheckResult {
     // 确定是做多还是做空标的
     const isLong = signalType === 'BUYCALL';
@@ -466,10 +436,6 @@ export function createWarrantRiskChecker(_deps: WarrantRiskCheckerDeps = {}): Wa
     const priceValidation = validateMonitorPrice(monitorCurrentPrice);
     if (priceValidation) {
       return priceValidation;
-    }
-    const warrantPriceValidation = validateWarrantCurrentPrice(symbol, warrantCurrentPrice);
-    if (warrantPriceValidation) {
-      return warrantPriceValidation;
     }
 
     // 此处 callPrice 已通过验证，不为 null/undefined

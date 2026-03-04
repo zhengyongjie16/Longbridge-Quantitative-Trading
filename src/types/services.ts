@@ -742,12 +742,11 @@ export interface RiskChecker {
     readonly shortCurrentPrice?: number | null;
   }) => RiskCheckResult;
 
-  /** 牛熊证风险检查（距离回收价 + 当前价阈值） */
+  /** 牛熊证风险检查（距离回收价阈值） */
   checkWarrantRisk: (
     symbol: string,
     signalType: SignalType,
     monitorCurrentPrice: number,
-    warrantCurrentPrice: number | null,
   ) => RiskCheckResult;
 
   /** 牛熊证距回收价清仓检查 */

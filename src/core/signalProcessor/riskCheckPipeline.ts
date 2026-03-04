@@ -225,7 +225,6 @@ export const createRiskCheckPipeline = ({
           sig.symbol,
           sig.action,
           monitorCurrentPrice ?? 0,
-          currentPrice,
         );
         if (warrantRiskResult.allowed) {
           if (warrantRiskResult.warrantInfo?.isWarrant) {
