@@ -45,7 +45,7 @@
 | 功能               | 说明                                                                                                                                     |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | 多标的支持         | 支持并发监控多个标的，每个标的独立配置                                                                                                   |
-| 多指标组合         | RSI、PSY、MFI、KDJ 组合判断（MACD/EMA 仅用于延迟验证）                                                                                   |
+| 多指标组合         | RSI、PSY、MFI、KDJ 组合判断（MACD/EMA/ADX 仅用于延迟验证；ADX 为无方向性趋势强度指标，延迟验证阶段采用数值映射口径）                     |
 | 双向交易           | 支持双向交易（做多和做空）                                                                                                               |
 | 延迟验证           | 买入/卖出信号均支持延迟验证（趋势验证）                                                                                                  |
 | 智能风控           | 浮亏保护、持仓限制、牛熊证回收价检查                                                                                                     |
@@ -294,7 +294,7 @@ src/
 │   ├── autoSymbolManager/          # 席位管理（寻标/换标状态机）
 │   ├── liquidationCooldown/        # 保护性清仓后的买入冷却
 │   ├── cleanup/                    # 退出清理
-│   └── indicators/                 # 技术指标计算（RSI/KDJ/MACD/MFI/EMA/PSY）
+│   └── indicators/                 # 技术指标计算（RSI/KDJ/MACD/MFI/EMA/PSY/ADX）
 └── utils/                          # 工具模块
     ├── refreshGate/                # 刷新门禁（等待账户/持仓等缓存"足够新"）
     ├── objectPool/                 # 对象池（减少 GC）
@@ -335,7 +335,7 @@ graph TD
   subgraph DS ["延迟/趋势验证"]
     D1["记录 T0 与初始指标值<br/>（T0=延迟期结束时刻）"] --> D2["setTimeout @T0+10s<br/>执行验证"]
     D2 --> D3["读取 IndicatorCache<br/>T0 / T0+5s / T0+10s"]
-    D3 --> D4{"趋势满足？<br/>BUYCALL/SELLPUT 上涨<br/>BUYPUT/SELLCALL 下跌"}
+    D3 --> D4{"趋势满足？<br/>BUYCALL/SELLPUT 上涨<br/>BUYPUT/SELLCALL 下跌<br/>ADX 采用数值映射口径"}
     D4 -->|通过| D5["验证通过入队<br/>买队列 / 卖队列"]
     D4 -->|失败| D6["释放信号对象"]
   end
