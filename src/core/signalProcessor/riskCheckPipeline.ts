@@ -197,17 +197,17 @@ export const createRiskCheckPipeline = ({
         if (latestBuyPrice !== null && currentPrice !== null) {
           const currentPriceStr = currentPrice.toFixed(3);
           const latestBuyPriceStr = latestBuyPrice.toFixed(3);
-          if (currentPrice > latestBuyPrice) {
-            const reason = `买入价格限制：当前价格 ${currentPriceStr} 高于最新买入订单价格 ${latestBuyPriceStr}`;
+          if (currentPrice >= latestBuyPrice) {
+            const reason = `买入价格限制：当前价格 ${currentPriceStr} 高于或等于最新买入订单价格 ${latestBuyPriceStr}`;
             sig.reason = reason;
             logger.warn(
-              `[买入价格限制] ${directionDesc} 当前价格 ${currentPriceStr} 高于最新买入订单价格 ${latestBuyPriceStr}，拒绝买入：${signalLabel}`,
+              `[买入价格限制] ${directionDesc} 当前价格 ${currentPriceStr} 高于或等于最新买入订单价格 ${latestBuyPriceStr}，拒绝买入：${signalLabel}`,
             );
             continue;
           }
 
           logger.info(
-            `[买入价格限制] ${directionDesc} 当前价格 ${currentPriceStr} 低于或等于最新买入订单价格 ${latestBuyPriceStr}，允许买入：${signalLabel}`,
+            `[买入价格限制] ${directionDesc} 当前价格 ${currentPriceStr} 低于最新买入订单价格 ${latestBuyPriceStr}，允许买入：${signalLabel}`,
           );
         }
 
