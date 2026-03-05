@@ -380,6 +380,7 @@ adjustedR1 = baseR1 - dailyLossOffset（dailyLossOffset ≤ 0）
 #### 6.6.2 `docs/issues/protective-liquidation-cooldown-loss-offset-redesign-2026-03-02.md`
 
 - **更新** L169 的描述，移除 `maxDailyLoss` 拒买的引用：
+
   ```markdown
   // 修改前
 
