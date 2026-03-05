@@ -113,13 +113,7 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
     readonly orderNotional: number;
     readonly currentPrice?: number | null;
   }): RiskCheckResult {
-    const {
-      account,
-      positions,
-      signal,
-      orderNotional,
-      currentPrice = null,
-    } = params;
+    const { account, positions, signal, orderNotional, currentPrice = null } = params;
 
     // HOLD 信号不需要检查
     if (!signal || signal.action === 'HOLD') {

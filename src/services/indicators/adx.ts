@@ -163,11 +163,7 @@ function computeAdx(
  * @param smoothMinusDm 平滑 -DM
  * @returns DX 值
  */
-function calculateDx(
-  smoothTr: number,
-  smoothPlusDm: number,
-  smoothMinusDm: number,
-): number {
+function calculateDx(smoothTr: number, smoothPlusDm: number, smoothMinusDm: number): number {
   if (smoothTr === 0) {
     return 0;
   }
