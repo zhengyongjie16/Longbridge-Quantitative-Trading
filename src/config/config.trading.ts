@@ -213,7 +213,6 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
   // 使用 ?? 保留 0 的合法配置，仅在 null/undefined 时回退默认值
   const targetNotional = getNumberConfig(env, `TARGET_NOTIONAL${suffix}`, 1) ?? 10000;
   const maxPositionNotional = getNumberConfig(env, `MAX_POSITION_NOTIONAL${suffix}`, 1) ?? 100000;
-  const maxDailyLoss = getNumberConfig(env, `MAX_DAILY_LOSS${suffix}`, 0) ?? 0;
   const maxUnrealizedLossPerSymbol =
     getNumberConfig(env, `MAX_UNREALIZED_LOSS_PER_SYMBOL${suffix}`, 0) ?? 0;
 
@@ -282,7 +281,6 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
     orderOwnershipMapping,
     targetNotional,
     maxPositionNotional,
-    maxDailyLoss,
     maxUnrealizedLossPerSymbol,
     buyIntervalSeconds,
     liquidationCooldown,

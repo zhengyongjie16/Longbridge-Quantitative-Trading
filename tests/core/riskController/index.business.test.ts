@@ -2,7 +2,7 @@
  * riskController/index 业务测试
  *
  * 功能：
- * - 验证风控组合（日内亏损/持仓/浮亏）场景意图与业务期望。
+ * - 验证风控组合（持仓/浮亏）场景意图与业务期望。
  */
 import { describe, expect, it } from 'bun:test';
 import { createRiskChecker } from '../../../src/core/riskController/index.js';
@@ -56,7 +56,6 @@ describe('riskController(index) business flow', () => {
       warrantRiskChecker: createWarrantCheckerStub(),
       unrealizedLossChecker: createUnrealizedLossCheckerStub(),
       positionLimitChecker: createPositionLimitCheckerStub(),
-      options: { maxDailyLoss: 1_000 },
     });
 
     const result = checker.checkBeforeOrder({
@@ -65,40 +64,10 @@ describe('riskController(index) business flow', () => {
       signal: createSignalDouble('BUYCALL', 'BULL.HK'),
       orderNotional: 5_000,
       currentPrice: 5,
-      longCurrentPrice: 5,
-      shortCurrentPrice: 5,
     });
 
     expect(result.allowed).toBeFalse();
     expect(result.reason).toContain('港币可用现金');
-  });
-
-  it('rejects buy when unrealized loss exceeds configured maxDailyLoss', () => {
-    const checker = createRiskChecker({
-      warrantRiskChecker: createWarrantCheckerStub(),
-      unrealizedLossChecker: createUnrealizedLossCheckerStub({
-        getUnrealizedLossData: () => ({
-          r1: 1_000,
-          n1: 100,
-          lastUpdateTime: Date.now(),
-        }),
-      }),
-      positionLimitChecker: createPositionLimitCheckerStub(),
-      options: { maxDailyLoss: 100 },
-    });
-
-    const result = checker.checkBeforeOrder({
-      account: createAccountSnapshotDouble(50_000),
-      positions: [],
-      signal: createSignalDouble('BUYCALL', 'BULL.HK'),
-      orderNotional: 5_000,
-      currentPrice: 8,
-      longCurrentPrice: 8,
-      shortCurrentPrice: 12,
-    });
-
-    expect(result.allowed).toBeFalse();
-    expect(result.reason).toContain('浮亏约');
   });
 
   it('allows sell when account data is unavailable', () => {
@@ -112,7 +81,6 @@ describe('riskController(index) business flow', () => {
           return { allowed: true };
         },
       }),
-      options: { maxDailyLoss: 100 },
     });
 
     const result = checker.checkBeforeOrder({
@@ -121,8 +89,6 @@ describe('riskController(index) business flow', () => {
       signal: createSignalDouble('SELLCALL', 'BULL.HK'),
       orderNotional: 5_000,
       currentPrice: 10,
-      longCurrentPrice: 10,
-      shortCurrentPrice: 10,
     });
 
     expect(result.allowed).toBeTrue();
@@ -141,7 +107,6 @@ describe('riskController(index) business flow', () => {
           reason: '持仓市值超过限制',
         }),
       }),
-      options: { maxDailyLoss: 1_000 },
     });
 
     const result = checker.checkBeforeOrder({
@@ -150,8 +115,6 @@ describe('riskController(index) business flow', () => {
       signal: createSignalDouble('BUYCALL', 'BULL.HK'),
       orderNotional: 5_000,
       currentPrice: 10,
-      longCurrentPrice: 10,
-      shortCurrentPrice: 10,
     });
 
     expect(result.allowed).toBeFalse();
@@ -169,7 +132,6 @@ describe('riskController(index) business flow', () => {
         }),
       }),
       positionLimitChecker: createPositionLimitCheckerStub(),
-      options: { maxDailyLoss: 1_000 },
     });
 
     const metrics = checker.getUnrealizedLossMetrics('BULL.HK', 12);

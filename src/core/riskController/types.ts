@@ -155,7 +155,6 @@ export type RiskCheckerDeps = {
   readonly positionLimitChecker: PositionLimitChecker;
   readonly unrealizedLossChecker: UnrealizedLossChecker;
   readonly options?: {
-    readonly maxDailyLoss?: number | null;
     readonly maxPositionNotional?: number | null;
     readonly maxUnrealizedLossPerSymbol?: number | null;
   };

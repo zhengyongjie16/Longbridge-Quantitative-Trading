@@ -31,7 +31,6 @@ export function createMonitorConfig(overrides: Partial<MonitorConfig> = {}): Mon
     orderOwnershipMapping: [],
     targetNotional: 5000,
     maxPositionNotional: 50000,
-    maxDailyLoss: 3000,
     maxUnrealizedLossPerSymbol: 2000,
     buyIntervalSeconds: 60,
     liquidationCooldown: null,

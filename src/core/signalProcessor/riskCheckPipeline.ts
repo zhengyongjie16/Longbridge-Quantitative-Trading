@@ -272,16 +272,12 @@ export const createRiskCheckPipeline = ({
 
       // 使用选择的数据进行风险检查
       const orderNotional = context.config.targetNotional;
-      const longCurrentPrice = longQuote?.price ?? null;
-      const shortCurrentPrice = shortQuote?.price ?? null;
       const riskResult = riskChecker.checkBeforeOrder({
         account: accountForRiskCheck,
         positions: positionsForRiskCheck,
         signal: sig,
         orderNotional,
         currentPrice,
-        longCurrentPrice,
-        shortCurrentPrice,
       });
       if (riskResult.allowed) {
         finalSignals.push(sig);

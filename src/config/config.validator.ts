@@ -267,11 +267,6 @@ function validateMonitorConfig(
     missingFields = [...missingFields, `MAX_POSITION_NOTIONAL_${index}`];
   }
 
-  if (!Number.isFinite(config.maxDailyLoss) || config.maxDailyLoss < 0) {
-    errors = [...errors, `${prefix}: MAX_DAILY_LOSS_${index} 未配置或无效（必须为非负数）`];
-    missingFields = [...missingFields, `MAX_DAILY_LOSS_${index}`];
-  }
-
   const liquidationCooldownEnvKey = `LIQUIDATION_COOLDOWN_MINUTES_${index}`;
   const configuredCooldown = getStringConfig(env, liquidationCooldownEnvKey);
 
@@ -650,8 +645,6 @@ export async function validateAllConfig({
 
     logger.info(`目标买入金额: ${monitorConfig.targetNotional} HKD`);
     logger.info(`最大持仓市值: ${monitorConfig.maxPositionNotional} HKD`);
-    logger.info(`单日最大亏损: ${monitorConfig.maxDailyLoss} HKD`);
-
     if (monitorConfig.maxUnrealizedLossPerSymbol && monitorConfig.maxUnrealizedLossPerSymbol > 0) {
       logger.info(`单标的浮亏保护阈值: ${monitorConfig.maxUnrealizedLossPerSymbol} HKD`);
     } else {

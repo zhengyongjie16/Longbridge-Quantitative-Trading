@@ -456,7 +456,6 @@ async function main(): Promise<void> {
       positionLimitChecker,
       unrealizedLossChecker,
       options: {
-        maxDailyLoss: monitorConfig.maxDailyLoss,
         maxPositionNotional: monitorConfig.maxPositionNotional,
         maxUnrealizedLossPerSymbol: monitorConfig.maxUnrealizedLossPerSymbol,
       },

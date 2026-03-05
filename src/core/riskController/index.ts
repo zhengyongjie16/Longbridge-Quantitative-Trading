@@ -9,16 +9,12 @@
  * 风险阈值（均为配置项，具体数值以 constants/index.ts 为准）：
  * - 牛熊证距离回收价：使用 BULL_WARRANT_MIN_DISTANCE_PERCENT / BEAR_WARRANT_MAX_DISTANCE_PERCENT 控制可买入距离（当前默认约为 +0.35% / -0.35%）
  * - 单标的市值上限：maxPositionNotional（由监控配置提供）
- * - 买入风控阈值：maxDailyLoss（浮亏超过阈值则拒绝新开仓）
  * - 保护性清仓触发阈值：maxUnrealizedLossPerSymbol（浮亏低于阈值时触发保护性清仓）
  */
 import { isBuyAction, isValidPositiveNumber } from '../../utils/helpers/index.js';
-import { logger } from '../../utils/logger/index.js';
 import {
-  decimalLte,
   decimalLt,
   decimalMul,
-  decimalNeg,
   decimalSub,
   decimalToNumberValue,
   formatDecimal,
@@ -42,27 +38,15 @@ import type {
   PositionLimitChecker,
   UnrealizedLossChecker,
 } from './types.js';
-import { IS_DEBUG } from '../../constants/index.js';
 
 /**
  * 创建风险检查器（门面模式）。
  * 聚合牛熊证、持仓限制、浮亏三个子检查器，对外提供统一 checkBeforeOrder / checkWarrantRisk / refreshUnrealizedLossData 等接口。
  * 订单前风控、牛熊证距离、浮亏刷新与清仓判定需在同一入口按固定顺序执行，门面统一依赖注入与调用顺序。
- * @param deps 依赖（warrantRiskChecker、positionLimitChecker、unrealizedLossChecker 及可选 maxDailyLoss 等）
+ * @param deps 依赖（warrantRiskChecker、positionLimitChecker、unrealizedLossChecker）
  * @returns 实现 RiskChecker 接口的门面实例
  */
 export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
-  const options = deps.options ?? {};
-  let maxDailyLoss = options.maxDailyLoss ?? 0;
-
-  // 验证 maxDailyLoss 的有效性
-  if (!Number.isFinite(maxDailyLoss) || maxDailyLoss < 0) {
-    logger.warn(
-      `[风险检查警告] maxDailyLoss 配置无效（${maxDailyLoss}），将使用默认值 0（禁止任何浮亏）`,
-    );
-    maxDailyLoss = 0;
-  }
-
   // 依赖注入：子检查器通过参数注入，不在内部创建
   const warrantRiskChecker: WarrantRiskChecker = deps.warrantRiskChecker;
   const positionLimitChecker: PositionLimitChecker = deps.positionLimitChecker;
@@ -119,90 +103,7 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
   }
 
   /**
-   * 检查单个标的的浮亏是否超过 maxDailyLoss，超过则返回拒绝结果，通过则返回 null。
-   * 仅在有持仓数量（n1>0）时要求有效价格；n1<=0 时允许 R2=0 以处理已清仓但仍有成本记录的情况。
-   */
-  function checkUnrealizedLossForSymbol(
-    symbol: string | null,
-    currentPrice: number | null,
-    directionName: string,
-  ): RiskCheckResult | null {
-    const metrics = buildUnrealizedLossMetrics(symbol, currentPrice);
-    if (!metrics) {
-      return null;
-    }
-
-    const { r1, n1, r2, unrealizedPnL } = metrics;
-    if (n1 <= 0 && r1 === 0) {
-      return null;
-    }
-
-    // 记录浮亏计算详情（仅在DEBUG模式下）
-    if (IS_DEBUG) {
-      logger.debug(
-        `[风险检查调试] ${directionName}浮亏检查: R1(开仓成本)=${formatDecimal(
-          r1,
-          2,
-        )}, R2(当前市值)=${formatDecimal(r2, 2)}, 浮亏=${formatDecimal(
-          unrealizedPnL,
-          2,
-        )} HKD，最大允许亏损=${formatDecimal(maxDailyLoss, 2)} HKD`,
-      );
-    }
-
-    // 检查持仓浮亏是否超过最大允许亏损
-    if (decimalLte(unrealizedPnL, decimalNeg(maxDailyLoss))) {
-      return {
-        allowed: false,
-        reason: `${directionName}持仓浮亏约 ${formatDecimal(
-          unrealizedPnL,
-          2,
-        )} HKD 已超过单日最大亏损限制 ${formatDecimal(
-          maxDailyLoss,
-          2,
-        )} HKD，禁止买入${directionName}（R1=${formatDecimal(r1, 2)}, R2=${formatDecimal(
-          r2,
-          2,
-        )}, N1=${n1}）`,
-      };
-    }
-
-    return null; // 检查通过
-  }
-
-  /**
-   * 买入前浮亏检查：根据信号方向（BUYCALL/BUYPUT）确定对应标的，
-   * 调用 checkUnrealizedLossForSymbol 检查该方向浮亏是否超过 maxDailyLoss。
-   * 非买入信号直接放行，避免对卖出操作施加不必要的限制。
-   */
-  function checkUnrealizedLossBeforeBuy(
-    signal: Signal,
-    longCurrentPrice: number | null,
-    shortCurrentPrice: number | null,
-  ): RiskCheckResult {
-    // 判断当前信号是做多还是做空，并确定对应的符号和价格
-    const isBuyCall = signal.action === 'BUYCALL';
-    const isBuyPut = signal.action === 'BUYPUT';
-
-    if (!isBuyCall && !isBuyPut) {
-      return { allowed: true };
-    }
-
-    // 使用信号中的符号来确定要检查的标的
-    const signalSymbol = signal.symbol;
-    const directionName = isBuyCall ? '做多标的' : '做空标的';
-    const currentPrice = isBuyCall ? longCurrentPrice : shortCurrentPrice;
-
-    const result = checkUnrealizedLossForSymbol(signalSymbol, currentPrice, directionName);
-    if (result) {
-      return result;
-    }
-
-    return { allowed: true };
-  }
-
-  /**
-   * 订单前综合风险检查，按顺序执行：账户数据有效性 → 港币可用现金 → 浮亏限制 → 持仓市值限制。
+   * 订单前综合风险检查，按顺序执行：账户数据有效性 → 港币可用现金 → 持仓市值限制。
    * 卖出操作跳过浮亏与现金检查；账户数据缺失时买入拒绝、卖出放行。
    */
   function checkBeforeOrder(params: {
@@ -211,8 +112,6 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
     readonly signal: Signal | null;
     readonly orderNotional: number;
     readonly currentPrice?: number | null;
-    readonly longCurrentPrice?: number | null;
-    readonly shortCurrentPrice?: number | null;
   }): RiskCheckResult {
     const {
       account,
@@ -220,8 +119,6 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
       signal,
       orderNotional,
       currentPrice = null,
-      longCurrentPrice = null,
-      shortCurrentPrice = null,
     } = params;
 
     // HOLD 信号不需要检查
@@ -274,18 +171,6 @@ export function createRiskChecker(deps: RiskCheckerDeps): RiskChecker {
             2,
           )} HKD`,
         };
-      }
-    }
-
-    // 当日浮亏超过 maxDailyLoss 时，停止开新仓（仅对买入操作检查）
-    if (isBuy) {
-      const unrealizedLossResult = checkUnrealizedLossBeforeBuy(
-        signal,
-        longCurrentPrice,
-        shortCurrentPrice,
-      );
-      if (!unrealizedLossResult.allowed) {
-        return unrealizedLossResult;
       }
     }
 

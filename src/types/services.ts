@@ -738,8 +738,6 @@ export interface RiskChecker {
     readonly signal: Signal | null;
     readonly orderNotional: number;
     readonly currentPrice?: number | null;
-    readonly longCurrentPrice?: number | null;
-    readonly shortCurrentPrice?: number | null;
   }) => RiskCheckResult;
 
   /** 牛熊证风险检查（距离回收价阈值） */

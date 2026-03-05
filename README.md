@@ -100,7 +100,6 @@ TARGET_NOTIONAL_1=10000    # 每次买入金额（HKD）
 
 # 风控参数（示例）
 MAX_POSITION_NOTIONAL_1=200000  # 单标持仓上限
-MAX_DAILY_LOSS_1=20000          # 单日亏损上限
 MAX_UNREALIZED_LOSS_PER_SYMBOL_1=5000  # 单标浮亏保护阈值（0 表示禁用）
 
 # 信号配置（示例，格式见 .env.example 中 # 信号配置）

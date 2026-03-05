@@ -147,9 +147,6 @@ export type MonitorConfig = {
   /** 单标的最大持仓市值 */
   readonly maxPositionNotional: number;
 
-  /** 单日最大亏损 */
-  readonly maxDailyLoss: number;
-
   /** 单标的最大浮亏 */
   readonly maxUnrealizedLossPerSymbol: number;
 
