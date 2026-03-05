@@ -77,7 +77,7 @@ function loadBashAskPatterns(projectRoot) {
  * @returns {string | null} Windows 路径，若不符合驱动器路径格式则返回 null
  */
 function gitBashToWindowsPath(gitBashPath) {
-  const m = gitBashPath.match(/^\/([a-zA-Z])(\/.*)?$/);
+  const m = new RegExp(/^\/([a-zA-Z])(\/.*)?$/).exec(gitBashPath);
   if (!m) return null;
   const drive = m[1].toUpperCase();
   const rest = (m[2] ?? '').replaceAll('/', '\\');
@@ -142,7 +142,7 @@ function extractAbsolutePaths(command) {
     // 步骤 1：去除带 scheme 的 URL（http://、https://、git:// 等），
     // 防止将 URL 中的路径段（/api/data）误识别为本地文件路径。
     // 这是原则性过滤，而非补丁：scheme:// 是可靠的"非本地路径"标识。
-    const commandWithoutUrls = command.replace(/\w+:\/\/[^\s'"`,;|&<>]*/g, '');
+    const commandWithoutUrls = command.replaceAll(/\w+:\/\/[^\s'"`,;|&<>]*/g, '');
 
     // 步骤 2：提取 Unix 绝对路径
     // 负向后瞻 (?<![a-zA-Z0-9:]) 排除以下误匹配：
