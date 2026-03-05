@@ -52,13 +52,18 @@ ctx_max_fmt=$(fmt_tokens "$context_size")
 # Round percentage to integer
 used_pct_int=$(printf "%.0f" "$used_pct" 2>/dev/null || echo "0")
 
-# Progress bar: 9 blocks wide
+# True color definitions (24-bit ANSI)
+RESET='\033[0m'
+C_BAR_FILL='\033[38;2;65;160;41m'   # #41a029 进度条填充色
+C_BAR_BG='\033[38;2;199;222;197m'   # #c7dec5 进度条背景色
+
+# Progress bar: 9 blocks wide，填充与背景均用 █，仅颜色不同（无砂纸感）
 bar_filled=$(( used_pct_int * 9 / 100 ))
 [ "$bar_filled" -gt 9 ] && bar_filled=9
 bar_empty=$(( 9 - bar_filled ))
 bar=""
-for i in $(seq 1 "$bar_filled"); do bar="${bar}█"; done
-for i in $(seq 1 "$bar_empty");  do bar="${bar}░"; done
+for i in $(seq 1 "$bar_filled"); do bar="${bar}${C_BAR_FILL}█${RESET}"; done
+for i in $(seq 1 "$bar_empty");  do bar="${bar}${C_BAR_BG}█${RESET}"; done
 
 # --- Cost: approximate from cumulative token totals ---
 # Opus 4 pricing: input $3/M, output $15/M
@@ -84,26 +89,15 @@ if [ -n "$transcript" ] && [ -f "$transcript" ]; then
     duration_str="${dur_min}m ${dur_sec}s"
   fi
 fi
+# --- Render ---
+C_MODEL='\033[38;2;0;142;139m'    # #008e8b 模型名颜色
+C_COST='\033[38;2;209;131;0m'     # #d18300 金额颜色
+C_BRANCH='\033[38;2;41;104;216m'  # #2968d8 分支名颜色
+C_PROJECT='\033[38;2;34;226;152m' # #22e298 项目名颜色
+C_TIME='\033[38;2;221;115;221m'   # #dd73dd 时间颜色
 
-# --- Git diff stats against HEAD ---
-git_stats=$(git -C "$project_dir" --no-optional-locks diff --shortstat HEAD 2>/dev/null)
-[ -z "$git_stats" ] && git_stats=$(git -C "$project_dir" --no-optional-locks diff --shortstat 2>/dev/null)
-
-diff_files=0
-diff_ins=0
-diff_del=0
-if [ -n "$git_stats" ]; then
-  diff_files=$(echo "$git_stats" | grep -oP '\d+(?= file)'      | head -1 || echo 0)
-  diff_ins=$(echo "$git_stats"   | grep -oP '\d+(?= insertion)' | head -1 || echo 0)
-  diff_del=$(echo "$git_stats"   | grep -oP '\d+(?= deletion)'  | head -1 || echo 0)
-fi
-
-# --- Render three lines ---
-printf "[%s] 📁 %s | 🌿 %s | ↑%s ↓%s\n" \
+printf "🚀 ${C_MODEL}%b${RESET} | 🗃️ ${C_PROJECT}%s${RESET} | 🚩 ${C_BRANCH}%s${RESET} | ⬆️%s ⬇️%s\n" \
   "$model_label" "$project" "$git_branch" "$input_fmt" "$output_fmt"
 
-printf "[%s] %s%% (%s/%s) | %s | ⏱ %s\n" \
+printf "%b %s%% (%s/%s) | ${C_COST}%s${RESET} | ⏰ ${C_TIME}%s${RESET}\n" \
   "$bar" "$used_pct_int" "$ctx_used_fmt" "$ctx_max_fmt" "$cost" "$duration_str"
-
-printf "%s files +%s -%s\n" \
-  "$diff_files" "$diff_ins" "$diff_del"
