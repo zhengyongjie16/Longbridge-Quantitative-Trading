@@ -15,6 +15,93 @@ import type {
 } from './services.js';
 
 /**
+ * 策略动作类型。
+ * 类型用途：限定策略与指标画像中参与信号判定的动作集合（不含 HOLD）。
+ * 数据来源：由 SignalType 收窄得到。
+ * 使用范围：IndicatorUsageProfile、strategy 模块等需要按动作索引指标集合的场景。
+ */
+export type StrategyAction = 'BUYCALL' | 'SELLCALL' | 'BUYPUT' | 'SELLPUT';
+
+/**
+ * 指标画像中的指标名称。
+ * 类型用途：统一表达策略条件、延迟验证与展示计划中的可配置指标键，作为单一真相输入。
+ * 数据来源：由 signalConfig / verificationConfig 编译生成。
+ * 使用范围：IndicatorUsageProfile、strategy、delayedSignalVerifier、marketMonitor 等模块。
+ */
+export type ProfileIndicator =
+  | 'MFI'
+  | 'K'
+  | 'D'
+  | 'J'
+  | 'MACD'
+  | 'DIF'
+  | 'DEA'
+  | 'ADX'
+  | `RSI:${number}`
+  | `EMA:${number}`
+  | `PSY:${number}`;
+
+/**
+ * 延迟验证支持的指标名称集合。
+ * 类型用途：约束延迟验证链路可配置的指标键，避免将仅用于信号求值/展示的指标（如 RSI/MFI）误用于延迟验证。
+ * 数据来源：由 verificationConfig 编译生成。
+ * 使用范围：IndicatorUsageProfile.verificationIndicatorsBySide、DelayedSignalVerifier、signalPipeline 等延迟验证链路。
+ */
+export type VerificationIndicator =
+  | 'K'
+  | 'D'
+  | 'J'
+  | 'MACD'
+  | 'DIF'
+  | 'DEA'
+  | 'ADX'
+  | `EMA:${number}`
+  | `PSY:${number}`;
+
+/**
+ * 指标展示项。
+ * 类型用途：定义监控日志输出顺序中的单个展示元素，包含价格/涨跌幅与技术指标项。
+ * 数据来源：由 indicatorProfile.displayPlan 编译生成。
+ * 使用范围：marketMonitor 展示与变化检测。
+ */
+export type DisplayIndicatorItem = 'price' | 'changePercent' | ProfileIndicator;
+
+/**
+ * 监控标的指标画像。
+ * 类型用途：描述单标的在运行期需要计算、校验、延迟验证和展示的指标范围，是全链路唯一输入。
+ * 数据来源：monitorContext 编译阶段由 signalConfig + verificationConfig 生成。
+ * 使用范围：MonitorContext、indicatorPipeline、strategy、marketMonitor、delayedSignalVerifier。
+ */
+export type IndicatorUsageProfile = {
+  /** 指标族使用开关（族展开后） */
+  readonly requiredFamilies: {
+    readonly mfi: boolean;
+    readonly kdj: boolean;
+    readonly macd: boolean;
+    readonly adx: boolean;
+  };
+
+  /** 周期指标集合（去重排序后） */
+  readonly requiredPeriods: {
+    readonly rsi: ReadonlyArray<number>;
+    readonly ema: ReadonlyArray<number>;
+    readonly psy: ReadonlyArray<number>;
+  };
+
+  /** 各动作在策略判定时要求存在的指标集合（与配置粒度一致） */
+  readonly actionSignalIndicators: Readonly<Record<StrategyAction, ReadonlyArray<ProfileIndicator>>>;
+
+  /** 延迟验证按买卖方向要求存在的指标集合（与配置粒度一致） */
+  readonly verificationIndicatorsBySide: {
+    readonly buy: ReadonlyArray<VerificationIndicator>;
+    readonly sell: ReadonlyArray<VerificationIndicator>;
+  };
+
+  /** 指标展示计划（最终展示顺序） */
+  readonly displayPlan: ReadonlyArray<DisplayIndicatorItem>;
+};
+
+/**
  * 自动换标管理器行为契约。
  * 类型用途：约束 MonitorContext.autoSymbolManager 的可调用方法，避免 types 层反向依赖业务实现模块。
  * 数据来源：由 autoSymbolManager 模块实现并注入。
@@ -54,6 +141,7 @@ interface HangSengMultiIndicatorStrategy {
     longSymbol: string,
     shortSymbol: string,
     orderRecorder: OrderRecorder,
+    indicatorProfile: IndicatorUsageProfile,
   ) => {
     readonly immediateSignals: ReadonlyArray<Signal>;
     readonly delayedSignals: ReadonlyArray<Signal>;
@@ -120,7 +208,11 @@ interface UnrealizedLossMonitor {
  * 使用范围：signalPipeline、mainProgram、cleanup、queue 清理逻辑使用。
  */
 interface DelayedSignalVerifier {
-  addSignal: (signal: Signal, monitorSymbol: string) => void;
+  addSignal: (params: {
+    readonly signal: Signal;
+    readonly monitorSymbol: string;
+    readonly verificationIndicators: ReadonlyArray<VerificationIndicator>;
+  }) => void;
   onVerified: (callback: (signal: Signal, monitorSymbol: string) => void) => void;
   cancelAll: () => number;
   cancelAllForSymbol: (monitorSymbol: string) => void;
@@ -289,14 +381,8 @@ export type MonitorContext = {
   /** 已校验的监控标的代码 */
   readonly normalizedMonitorSymbol: string;
 
-  /** RSI 指标周期配置 */
-  rsiPeriods: ReadonlyArray<number>;
-
-  /** EMA 指标周期配置 */
-  emaPeriods: ReadonlyArray<number>;
-
-  /** PSY 指标周期配置 */
-  psyPeriods: ReadonlyArray<number>;
+  /** 监控标的指标画像（启动编译，运行期只读） */
+  readonly indicatorProfile: IndicatorUsageProfile;
 
   /** 做多标的行情缓存 */
   longQuote: Quote | null;

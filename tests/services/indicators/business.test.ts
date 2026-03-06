@@ -20,6 +20,7 @@ import {
 import { toNumber } from '../../../src/services/indicators/utils.js';
 import { toMockDecimal } from '../../../mock/longport/decimal.js';
 import type { CandleData } from '../../../src/types/data.js';
+import { createIndicatorUsageProfileDouble } from '../../helpers/testDoubles.js';
 
 function createTrendCandles(
   length: number,
@@ -44,12 +45,23 @@ function createTrendCandles(
 describe('indicators business flow', () => {
   it('builds a full indicator snapshot for signal engine with configured periods', () => {
     const candles = createTrendCandles(80, 100, 0.5);
+    const indicatorProfile = createIndicatorUsageProfileDouble({
+      requiredFamilies: {
+        mfi: true,
+        kdj: true,
+        macd: true,
+        adx: true,
+      },
+      requiredPeriods: {
+        rsi: [6, 14, 0, 101],
+        ema: [5, 20, 251],
+        psy: [13, 0, 101],
+      },
+    });
     const snapshot = buildIndicatorSnapshot(
       'HSI.HK',
       candles,
-      [6, 14, 0, 101],
-      [5, 20, 251],
-      [13, 0, 101],
+      indicatorProfile,
     );
 
     expect(snapshot).not.toBeNull();
@@ -73,18 +85,41 @@ describe('indicators business flow', () => {
   });
 
   it('returns null when candles are empty or no valid close exists', () => {
-    expect(buildIndicatorSnapshot('HSI.HK', [])).toBeNull();
+    expect(buildIndicatorSnapshot('HSI.HK', [], createIndicatorUsageProfileDouble())).toBeNull();
     expect(
       buildIndicatorSnapshot('HSI.HK', [
         { close: 0, high: 1, low: 1, volume: 1 },
         { close: null, high: 1, low: 1, volume: 1 },
-      ]),
+      ], createIndicatorUsageProfileDouble({
+        requiredFamilies: {
+          mfi: false,
+          kdj: false,
+          macd: false,
+          adx: false,
+        },
+        requiredPeriods: {
+          rsi: [],
+          ema: [],
+          psy: [],
+        },
+        displayPlan: ['price', 'changePercent'],
+      })),
     ).toBeNull();
   });
 
   it('keeps psy as null when configured periods are all invalid', () => {
     const candles = createTrendCandles(40, 90, 0.2);
-    const snapshot = buildIndicatorSnapshot('HSI.HK', candles, [6], [5], [0, 101]);
+    const snapshot = buildIndicatorSnapshot(
+      'HSI.HK',
+      candles,
+      createIndicatorUsageProfileDouble({
+        requiredPeriods: {
+          rsi: [6],
+          ema: [5],
+          psy: [0, 101],
+        },
+      }),
+    );
     expect(snapshot).not.toBeNull();
     expect(snapshot?.psy).toBeNull();
   });
@@ -130,7 +165,7 @@ describe('indicators business flow', () => {
 
   it('includes ADX in full indicator snapshot', () => {
     const candles = createTrendCandles(80, 100, 0.5);
-    const snapshot = buildIndicatorSnapshot('HSI.HK', candles, [6], [5], [13]);
+    const snapshot = buildIndicatorSnapshot('HSI.HK', candles, createIndicatorUsageProfileDouble());
 
     expect(snapshot).not.toBeNull();
     expect(snapshot?.adx).toBeFinite();

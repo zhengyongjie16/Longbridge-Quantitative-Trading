@@ -1,4 +1,4 @@
-import type { MonitorState } from '../../types/state.js';
+import type { IndicatorUsageProfile, MonitorState } from '../../types/state.js';
 import type { IndicatorSnapshot, Quote } from '../../types/quote.js';
 import type { UnrealizedLossMetrics, WarrantDistanceInfo } from '../../types/services.js';
 
@@ -21,7 +21,7 @@ export type PriceDisplayInfo = {
 
 /**
  * 指标监控参数。
- * 类型用途：封装 monitorIndicatorChanges 所需的指标快照、行情、周期配置与 K 线时间戳，避免超参数函数签名。
+ * 类型用途：封装 monitorIndicatorChanges 所需的指标快照、行情、指标画像与 K 线时间戳，避免超参数函数签名。
  * 数据来源：由指标流水线（indicatorPipeline）基于实时 K 线与行情组装传入。
  * 使用范围：marketMonitor.monitorIndicatorChanges 入参。
  */
@@ -29,9 +29,7 @@ export type MonitorIndicatorChangesParams = Readonly<{
   readonly monitorSnapshot: IndicatorSnapshot | null;
   readonly monitorQuote: Quote | null;
   readonly monitorSymbol: string;
-  readonly emaPeriods: ReadonlyArray<number>;
-  readonly rsiPeriods: ReadonlyArray<number>;
-  readonly psyPeriods: ReadonlyArray<number>;
+  readonly indicatorProfile: IndicatorUsageProfile;
   readonly klineTimestamp: number | null;
   readonly monitorState: MonitorState;
 }>;

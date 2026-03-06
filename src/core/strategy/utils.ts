@@ -1,4 +1,4 @@
-import { isValidNumber } from '../../utils/indicatorHelpers/index.js';
+import { isValidNumber, parseIndicatorPeriod } from '../../utils/indicatorHelpers/index.js';
 import { decimalGt, decimalLt } from '../../utils/numeric/index.js';
 import type { IndicatorSnapshot } from '../../types/quote.js';
 import type { Signal } from '../../types/signal.js';
@@ -19,51 +19,93 @@ export function needsDelayedVerification(config: SingleVerificationConfig): bool
 }
 
 /**
- * 判断 RSI 对象是否包含至少一个有效数值（内部辅助）。
- * 默认行为：rsi 为 null、非对象或所有周期值均无效时返回 false。
+ * 判断某个条件引用的指标键在当前快照中是否具备“可评估的有效数值”。
+ * 默认行为：不解析阈值与运算符，仅判断该条件是否可能为 true（有值才可能）。
  *
- * @param rsi 指标快照中的 rsi 字段（可为 null 或各周期 RSI 对象）
- * @returns true 表示存在至少一个有效 RSI 值，否则为 false
+ * @param params 入参（快照 + 条件指标键）
+ * @returns 该条件指标具备有效值时返回 true，否则 false
  */
-function hasValidRsiValue(rsi: IndicatorSnapshot['rsi']): boolean {
-  return (
-    rsi !== null && typeof rsi === 'object' && Object.values(rsi).some((v) => isValidNumber(v))
-  );
+function isConditionIndicatorValueAvailable(params: {
+  readonly state: IndicatorSnapshot;
+  readonly indicatorKey: string;
+}): boolean {
+  const { state, indicatorKey } = params;
+
+  if (indicatorKey === 'MFI') {
+    return isValidNumber(state.mfi);
+  }
+
+  if (indicatorKey === 'K') {
+    return state.kdj !== null && isValidNumber(state.kdj.k);
+  }
+
+  if (indicatorKey === 'D') {
+    return state.kdj !== null && isValidNumber(state.kdj.d);
+  }
+
+  if (indicatorKey === 'J') {
+    return state.kdj !== null && isValidNumber(state.kdj.j);
+  }
+
+  const rsiPeriod = parseIndicatorPeriod({ indicatorName: indicatorKey, prefix: 'RSI:' });
+  if (rsiPeriod !== null) {
+    return isValidNumber(state.rsi?.[rsiPeriod]);
+  }
+
+  const psyPeriod = parseIndicatorPeriod({ indicatorName: indicatorKey, prefix: 'PSY:' });
+  if (psyPeriod !== null) {
+    return isValidNumber(state.psy?.[psyPeriod]);
+  }
+
+  return false;
 }
 
 /**
- * 验证基本指标有效性（RSI、MFI、KDJ）。
- * 默认行为：任一指标缺失或非有限数则返回 false。
+ * 校验 action 所需的指标值是否齐全且有效。
  *
- * @param state 当前指标快照
- * @returns true 所有基本指标有效，否则为 false
+ * 重要语义：
+ * - 本函数不改变 N-of-M（/N）配置的求值口径。
+ * - 当某些条件引用的指标缺失时，仅代表该条件必不满足，不应直接阻断整条 action 信号生成。
+ *
+ * 默认行为：只做“可评估性”门禁——若当前快照不足以评估任何一个条件组（即所有组都不可能满足 requiredCount），返回 false；否则返回 true 并交由 evaluateSignalConfig 做唯一求值。
+ *
+ * @param params 校验参数（快照 + action 的信号配置）
+ * @returns 至少存在一个“可能满足”的条件组时返回 true，否则 false
  */
-export function validateBasicIndicators(state: IndicatorSnapshot): boolean {
-  const { rsi, mfi, kdj } = state;
-  return (
-    hasValidRsiValue(rsi) &&
-    isValidNumber(mfi) &&
-    kdj !== null &&
-    isValidNumber(kdj.d) &&
-    isValidNumber(kdj.j)
-  );
-}
+export function validateIndicatorsForAction(params: {
+  readonly state: IndicatorSnapshot;
+  readonly signalConfig: SignalConfig;
+}): boolean {
+  const { state, signalConfig } = params;
+  const conditionGroups = signalConfig.conditionGroups;
+  if (conditionGroups.length === 0) {
+    return false;
+  }
 
-/**
- * 验证所有指标有效性（基本指标 + MACD + 价格）。
- * 默认行为：在 validateBasicIndicators 通过前提下，MACD 或 price 无效则返回 false。
- *
- * @param state 当前指标快照
- * @returns true 所有指标有效，否则为 false
- */
-export function validateAllIndicators(state: IndicatorSnapshot): boolean {
-  const { macd, price } = state;
-  return (
-    validateBasicIndicators(state) &&
-    macd !== null &&
-    isValidNumber(macd.macd) &&
-    isValidNumber(price)
-  );
+  for (const group of conditionGroups) {
+    const minSatisfied = group.requiredCount ?? group.conditions.length;
+    if (minSatisfied <= 0) {
+      return true;
+    }
+
+    let availableCount = 0;
+    for (const condition of group.conditions) {
+      if (
+        isConditionIndicatorValueAvailable({
+          state,
+          indicatorKey: condition.indicator,
+        })
+      ) {
+        availableCount++;
+      }
+    }
+
+    if (availableCount >= minSatisfied) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -144,7 +186,7 @@ function formatKdjSegment(kdj: IndicatorSnapshot['kdj']): string {
  * @returns 格式化的指标值字符串（如 "RSI14(0.123)、MFI(0.456)、KDJ(...)"）
  */
 export function buildIndicatorDisplayString(state: IndicatorSnapshot): string {
-  const { rsi, mfi, kdj } = state;
+  const { rsi, psy, mfi, kdj } = state;
   const parts: string[] = [];
 
   if (rsi && typeof rsi === 'object') {
@@ -162,6 +204,19 @@ export function buildIndicatorDisplayString(state: IndicatorSnapshot): string {
 
   if (isValidNumber(mfi)) {
     parts.push(`MFI(${mfi.toFixed(3)})`);
+  }
+
+  if (psy && typeof psy === 'object') {
+    const periods = Object.keys(psy)
+      .map((p) => Number.parseInt(p, 10))
+      .filter((p) => Number.isFinite(p))
+      .sort((a, b) => a - b);
+    for (const period of periods) {
+      const psyValue = psy[period];
+      if (isValidNumber(psyValue)) {
+        parts.push(`PSY${period}(${psyValue.toFixed(3)})`);
+      }
+    }
   }
 
   const kdjStr = formatKdjSegment(kdj);
@@ -201,61 +256,47 @@ export function pushSignalToCorrectArray(
  */
 function evaluateCondition(state: IndicatorState, condition: Condition): boolean {
   const { indicator, operator, threshold } = condition;
-  let indicatorName = indicator;
-  let period: number | undefined;
-
-  if (indicator.includes(':')) {
-    const parts = indicator.split(':');
-    const namePart = parts[0];
-    const periodPart = parts[1];
-    if (namePart && periodPart) {
-      indicatorName = namePart;
-      period = Number.parseInt(periodPart, 10);
-    }
-  }
-
   let value: number | undefined;
-  switch (indicatorName) {
-    case 'RSI': {
-      if (!period || state.rsi?.[period] === undefined) {
-        return false;
-      }
 
-      value = state.rsi[period];
-      break;
-    }
-
-    case 'PSY': {
-      if (!period || state.psy?.[period] === undefined) {
-        return false;
-      }
-
-      value = state.psy[period];
-      break;
-    }
-
-    case 'MFI': {
-      value = state.mfi ?? undefined;
-      break;
-    }
-
-    case 'K': {
-      value = state.kdj?.k;
-      break;
-    }
-
-    case 'D': {
-      value = state.kdj?.d;
-      break;
-    }
-
-    case 'J': {
-      value = state.kdj?.j;
-      break;
-    }
-
-    default: {
+  if (indicator.startsWith('RSI:')) {
+    const period = parseIndicatorPeriod({ indicatorName: indicator, prefix: 'RSI:' });
+    if (period === null || state.rsi?.[period] === undefined) {
       return false;
+    }
+
+    value = state.rsi[period];
+  } else if (indicator.startsWith('PSY:')) {
+    const period = parseIndicatorPeriod({ indicatorName: indicator, prefix: 'PSY:' });
+    if (period === null || state.psy?.[period] === undefined) {
+      return false;
+    }
+
+    value = state.psy[period];
+  } else {
+    switch (indicator) {
+      case 'MFI': {
+        value = state.mfi ?? undefined;
+        break;
+      }
+
+      case 'K': {
+        value = state.kdj?.k;
+        break;
+      }
+
+      case 'D': {
+        value = state.kdj?.d;
+        break;
+      }
+
+      case 'J': {
+        value = state.kdj?.j;
+        break;
+      }
+
+      default: {
+        return false;
+      }
     }
   }
 

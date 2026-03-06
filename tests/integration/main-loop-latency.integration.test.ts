@@ -5,7 +5,7 @@
  * - 启动阶段：模拟订阅相关 API 每次调用固定延迟 200ms
  * - 主循环阶段：模拟真实逻辑，仅从本地缓存读取行情和 K 线（无 API 延迟）
  * - 构造 5 个监控标的并执行真实 mainProgram -> processMonitor -> indicatorPipeline 链路
- * - 校验每轮都完成 RSI/KDJ/MACD/MFI/EMA/PSY 指标计算，并统计循环耗时
+ * - 校验每轮仅计算配置所需指标（本用例为 KDJ/MACD）并统计循环耗时
  */
 import { describe, expect, it } from 'bun:test';
 import type { Candlestick, Period, TradeSessions } from 'longport';
@@ -607,10 +607,10 @@ describe('main loop latency full-chain integration', () => {
         expect(snapshot).not.toBeNull();
         expect(snapshot?.kdj).not.toBeNull();
         expect(snapshot?.macd).not.toBeNull();
-        expect(Number.isFinite(snapshot?.mfi ?? Number.NaN)).toBeTrue();
-        expect(snapshot?.rsi?.[6]).not.toBeUndefined();
-        expect(snapshot?.ema?.[7]).not.toBeUndefined();
-        expect(snapshot?.psy?.[13]).not.toBeUndefined();
+        expect(snapshot?.mfi).toBeNull();
+        expect(snapshot?.rsi).toBeNull();
+        expect(snapshot?.ema).toBeNull();
+        expect(snapshot?.psy).toBeNull();
       }
     }
 

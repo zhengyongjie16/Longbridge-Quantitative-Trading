@@ -9,6 +9,12 @@ import type { MonitorConfig } from '../../src/types/config.js';
 import type { Quote } from '../../src/types/quote.js';
 import type { Signal, SignalType } from '../../src/types/signal.js';
 import type {
+  DisplayIndicatorItem,
+  IndicatorUsageProfile,
+  ProfileIndicator,
+  StrategyAction,
+} from '../../src/types/state.js';
+import type {
   OrderRecorder,
   PendingOrder,
   PendingRefreshSymbol,
@@ -388,6 +394,72 @@ export function createQuoteDouble(symbol: string, price: number, lotSize: number
  */
 export function createMonitorConfigDouble(overrides: Partial<MonitorConfig> = {}): MonitorConfig {
   return createMonitorConfig(overrides);
+}
+
+/**
+ * 构造指标画像测试数据。
+ *
+ * 默认覆盖常见指标集合，支持按用例覆盖族开关、周期、动作指标、验证指标和展示计划。
+ */
+export function createIndicatorUsageProfileDouble(overrides?: {
+  readonly requiredFamilies?: Partial<IndicatorUsageProfile['requiredFamilies']>;
+  readonly requiredPeriods?: Partial<IndicatorUsageProfile['requiredPeriods']>;
+  readonly actionSignalIndicators?: Partial<Record<StrategyAction, ReadonlyArray<ProfileIndicator>>>;
+  readonly verificationIndicatorsBySide?: Partial<
+    IndicatorUsageProfile['verificationIndicatorsBySide']
+  >;
+  readonly displayPlan?: ReadonlyArray<DisplayIndicatorItem>;
+}): IndicatorUsageProfile {
+  const requiredFamilies: IndicatorUsageProfile['requiredFamilies'] = {
+    mfi: overrides?.requiredFamilies?.mfi ?? true,
+    kdj: overrides?.requiredFamilies?.kdj ?? true,
+    macd: overrides?.requiredFamilies?.macd ?? true,
+    adx: overrides?.requiredFamilies?.adx ?? true,
+  };
+  const requiredPeriods: IndicatorUsageProfile['requiredPeriods'] = {
+    rsi: overrides?.requiredPeriods?.rsi ?? [6],
+    ema: overrides?.requiredPeriods?.ema ?? [7],
+    psy: overrides?.requiredPeriods?.psy ?? [13],
+  };
+
+  const defaultActionIndicators: Record<StrategyAction, ReadonlyArray<ProfileIndicator>> = {
+    BUYCALL: ['RSI:6', 'MFI', 'K', 'D', 'J'],
+    SELLCALL: ['RSI:6', 'MFI', 'K', 'D', 'J'],
+    BUYPUT: ['RSI:6', 'MFI', 'K', 'D', 'J'],
+    SELLPUT: ['RSI:6', 'MFI', 'K', 'D', 'J'],
+  };
+
+  const actionSignalIndicators: Record<StrategyAction, ReadonlyArray<ProfileIndicator>> = {
+    BUYCALL: overrides?.actionSignalIndicators?.BUYCALL ?? defaultActionIndicators.BUYCALL,
+    SELLCALL: overrides?.actionSignalIndicators?.SELLCALL ?? defaultActionIndicators.SELLCALL,
+    BUYPUT: overrides?.actionSignalIndicators?.BUYPUT ?? defaultActionIndicators.BUYPUT,
+    SELLPUT: overrides?.actionSignalIndicators?.SELLPUT ?? defaultActionIndicators.SELLPUT,
+  };
+
+  const verificationIndicatorsBySide: IndicatorUsageProfile['verificationIndicatorsBySide'] = {
+    buy: overrides?.verificationIndicatorsBySide?.buy ?? ['K', 'D', 'J'],
+    sell: overrides?.verificationIndicatorsBySide?.sell ?? ['K', 'D', 'J'],
+  };
+
+  const defaultDisplayPlan: ReadonlyArray<DisplayIndicatorItem> = [
+    'price',
+    'changePercent',
+    ...requiredPeriods.ema.map((period) => `EMA:${period}` as const),
+    ...requiredPeriods.rsi.map((period) => `RSI:${period}` as const),
+    ...(requiredFamilies.mfi ? (['MFI'] as const) : []),
+    ...requiredPeriods.psy.map((period) => `PSY:${period}` as const),
+    ...(requiredFamilies.kdj ? (['K', 'D', 'J'] as const) : []),
+    ...(requiredFamilies.adx ? (['ADX'] as const) : []),
+    ...(requiredFamilies.macd ? (['MACD', 'DIF', 'DEA'] as const) : []),
+  ];
+
+  return {
+    requiredFamilies,
+    requiredPeriods,
+    actionSignalIndicators,
+    verificationIndicatorsBySide,
+    displayPlan: overrides?.displayPlan ?? defaultDisplayPlan,
+  };
 }
 
 /**

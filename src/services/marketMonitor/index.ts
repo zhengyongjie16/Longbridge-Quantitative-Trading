@@ -18,29 +18,33 @@
  * 显示内容：
  * - 做多/做空标的的现价和涨跌幅
  * - 做多/做空标的的距回收价、持仓市值、持仓盈亏、订单数量
- * - 监控标的的所有技术指标值
+ * - 监控标的按指标画像 displayPlan 的技术指标值（仅显示实际使用的指标）
  */
 import { logger } from '../../utils/logger/index.js';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { toHongKongTimeLog } from '../../utils/primitives/index.js';
-import { isValidNumber } from '../../utils/indicatorHelpers/index.js';
+import { isValidNumber, parseIndicatorPeriod } from '../../utils/indicatorHelpers/index.js';
 import {
   copyPeriodRecord,
   formatQuoteDisplay,
   formatPositionDisplay,
   formatWarrantDistanceDisplay,
   hasChanged,
-  indicatorChanged,
 } from './utils.js';
 import {
+  acquireMonitorValues,
   kdjObjectPool,
   macdObjectPool,
   monitorValuesObjectPool,
   periodRecordPool,
 } from '../../utils/objectPool/index.js';
 import { LOG_COLORS, MONITOR } from '../../constants/index.js';
-import type { MonitorState } from '../../types/state.js';
-import type { IndicatorSnapshot, Quote } from '../../types/quote.js';
+import type {
+  DisplayIndicatorItem,
+  IndicatorUsageProfile,
+  MonitorState,
+} from '../../types/state.js';
+import type { IndicatorSnapshot, Quote, KDJIndicator, MACDIndicator } from '../../types/quote.js';
 import type { MonitorValues } from '../../types/data.js';
 import type { MarketMonitor, MonitorIndicatorChangesParams, PriceDisplayInfo } from './types.js';
 
@@ -58,31 +62,182 @@ function formatKlineTimePrefix(timestamp: number | null | undefined): string {
   return '';
 }
 
-/**
- * 将指定周期的指标值追加到显示列表，格式为「指标名周期=值」。
- *
- * @param indicators 输出数组，本函数向其中 push 字符串
- * @param indicatorData 按周期键的指标值对象，为 null/undefined 时不处理
- * @param periods 要输出的周期数组
- * @param indicatorName 指标名称前缀（如 EMA、RSI）
- * @param decimals 数值小数位数，默认 3
- * @returns 无返回值
- */
-function addPeriodIndicators(
-  indicators: string[],
-  indicatorData: Record<number, number> | null | undefined,
-  periods: ReadonlyArray<number>,
-  indicatorName: string,
-  decimals: number = 3,
-): void {
-  if (!indicatorData) return;
+function parsePeriodDisplayItem(
+  item: DisplayIndicatorItem,
+  prefix: 'EMA:' | 'RSI:' | 'PSY:',
+): number | null {
+  return parseIndicatorPeriod({ indicatorName: item, prefix });
+}
 
-  for (const period of periods) {
-    const value = indicatorData[period];
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      indicators.push(`${indicatorName}${period}=${value.toFixed(decimals)}`);
-    }
+/**
+ * 读取展示项在当前快照中的值。
+ * @param params 展示项读取参数
+ * @returns 数值型展示值，缺失时返回 null
+ */
+function getSnapshotDisplayValue(params: {
+  readonly item: DisplayIndicatorItem;
+  readonly snapshot: IndicatorSnapshot;
+  readonly currentPrice: number;
+  readonly changePercent: number | null;
+}): number | null {
+  const { item, snapshot, currentPrice, changePercent } = params;
+  if (item === 'price') {
+    return Number.isFinite(currentPrice) ? currentPrice : null;
   }
+
+  if (item === 'changePercent') {
+    return changePercent !== null && Number.isFinite(changePercent) ? changePercent : null;
+  }
+
+  if (item === 'MFI') {
+    return Number.isFinite(snapshot.mfi) ? snapshot.mfi : null;
+  }
+
+  if (item === 'K') {
+    return snapshot.kdj && Number.isFinite(snapshot.kdj.k) ? snapshot.kdj.k : null;
+  }
+
+  if (item === 'D') {
+    return snapshot.kdj && Number.isFinite(snapshot.kdj.d) ? snapshot.kdj.d : null;
+  }
+
+  if (item === 'J') {
+    return snapshot.kdj && Number.isFinite(snapshot.kdj.j) ? snapshot.kdj.j : null;
+  }
+
+  if (item === 'ADX') {
+    return Number.isFinite(snapshot.adx) ? snapshot.adx : null;
+  }
+
+  if (item === 'MACD') {
+    return snapshot.macd && Number.isFinite(snapshot.macd.macd) ? snapshot.macd.macd : null;
+  }
+
+  if (item === 'DIF') {
+    return snapshot.macd && Number.isFinite(snapshot.macd.dif) ? snapshot.macd.dif : null;
+  }
+
+  if (item === 'DEA') {
+    return snapshot.macd && Number.isFinite(snapshot.macd.dea) ? snapshot.macd.dea : null;
+  }
+
+  const emaPeriod = parsePeriodDisplayItem(item, 'EMA:');
+  if (emaPeriod !== null) {
+    const value = snapshot.ema?.[emaPeriod];
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  }
+
+  const rsiPeriod = parsePeriodDisplayItem(item, 'RSI:');
+  if (rsiPeriod !== null) {
+    const value = snapshot.rsi?.[rsiPeriod];
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  }
+
+  const psyPeriod = parsePeriodDisplayItem(item, 'PSY:');
+  if (psyPeriod !== null) {
+    const value = snapshot.psy?.[psyPeriod];
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  }
+
+  return null;
+}
+
+/**
+ * 读取展示项在 monitorValues 缓存中的上一次值。
+ * @param monitorValues monitorState 中缓存的展示值对象
+ * @param item 展示项
+ * @returns 上一次展示值，缺失时返回 null
+ */
+function getCachedDisplayValue(
+  monitorValues: MonitorValues | null,
+  item: DisplayIndicatorItem,
+): number | null {
+  if (!monitorValues) {
+    return null;
+  }
+
+  if (item === 'price') {
+    return Number.isFinite(monitorValues.price) ? monitorValues.price : null;
+  }
+
+  if (item === 'changePercent') {
+    return Number.isFinite(monitorValues.changePercent) ? monitorValues.changePercent : null;
+  }
+
+  if (item === 'MFI') {
+    return Number.isFinite(monitorValues.mfi) ? monitorValues.mfi : null;
+  }
+
+  if (item === 'K') {
+    return monitorValues.kdj && Number.isFinite(monitorValues.kdj.k) ? monitorValues.kdj.k : null;
+  }
+
+  if (item === 'D') {
+    return monitorValues.kdj && Number.isFinite(monitorValues.kdj.d) ? monitorValues.kdj.d : null;
+  }
+
+  if (item === 'J') {
+    return monitorValues.kdj && Number.isFinite(monitorValues.kdj.j) ? monitorValues.kdj.j : null;
+  }
+
+  if (item === 'ADX') {
+    return Number.isFinite(monitorValues.adx) ? monitorValues.adx : null;
+  }
+
+  if (item === 'MACD') {
+    return monitorValues.macd && Number.isFinite(monitorValues.macd.macd)
+      ? monitorValues.macd.macd
+      : null;
+  }
+
+  if (item === 'DIF') {
+    return monitorValues.macd && Number.isFinite(monitorValues.macd.dif)
+      ? monitorValues.macd.dif
+      : null;
+  }
+
+  if (item === 'DEA') {
+    return monitorValues.macd && Number.isFinite(monitorValues.macd.dea)
+      ? monitorValues.macd.dea
+      : null;
+  }
+
+  const emaPeriod = parsePeriodDisplayItem(item, 'EMA:');
+  if (emaPeriod !== null) {
+    const value = monitorValues.ema?.[emaPeriod];
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  }
+
+  const rsiPeriod = parsePeriodDisplayItem(item, 'RSI:');
+  if (rsiPeriod !== null) {
+    const value = monitorValues.rsi?.[rsiPeriod];
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  }
+
+  const psyPeriod = parsePeriodDisplayItem(item, 'PSY:');
+  if (psyPeriod !== null) {
+    const value = monitorValues.psy?.[psyPeriod];
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  }
+
+  return null;
+}
+
+/**
+ * 返回展示项对应的变化阈值。
+ * @param item 展示项
+ * @returns 变化阈值
+ */
+function resolveDisplayThreshold(item: DisplayIndicatorItem): number {
+  if (item === 'price') {
+    return MONITOR.PRICE_CHANGE_THRESHOLD;
+  }
+
+  if (item === 'changePercent') {
+    return MONITOR.CHANGE_PERCENT_THRESHOLD;
+  }
+
+  return MONITOR.INDICATOR_CHANGE_THRESHOLD;
 }
 
 /**
@@ -162,9 +317,27 @@ function formatIndicator(value: number | null | undefined, decimals: number = 2)
 }
 
 /**
- * 按固定顺序组装并输出监控标的的指标行（价格、涨跌幅、EMA/RSI/MFI/PSY/KDJ/MACD）。
+ * 类型守卫：判断对象池 KDJ 记录是否具备有效数值（用于安全写入到 MonitorValues）。
+ * @param record 对象池获取的 KDJ 记录
+ * @returns 具备有效 k/d/j 时返回 true
+ */
+function isValidPooledKdj(record: { readonly k: number | null; readonly d: number | null; readonly j: number | null }): record is KDJIndicator {
+  return isValidNumber(record.k) && isValidNumber(record.d) && isValidNumber(record.j);
+}
+
+/**
+ * 类型守卫：判断对象池 MACD 记录是否具备有效数值（用于安全写入到 MonitorValues）。
+ * @param record 对象池获取的 MACD 记录
+ * @returns 具备有效 macd/dif/dea 时返回 true
+ */
+function isValidPooledMacd(record: { readonly macd: number | null; readonly dif: number | null; readonly dea: number | null }): record is MACDIndicator {
+  return isValidNumber(record.macd) && isValidNumber(record.dif) && isValidNumber(record.dea);
+}
+
+/**
+ * 按 indicatorProfile.displayPlan 组装并输出监控标的指标行。
  *
- * @param params 含 monitorSnapshot、monitorQuote、周期数组、klineTimestamp 等
+ * @param params 含 monitorSnapshot、monitorQuote、指标画像、klineTimestamp 等
  * @returns 无返回值
  */
 function displayIndicators(params: {
@@ -173,9 +346,7 @@ function displayIndicators(params: {
   readonly monitorSymbol: string;
   readonly currentPrice: number;
   readonly changePercent: number | null;
-  readonly emaPeriods: ReadonlyArray<number>;
-  readonly rsiPeriods: ReadonlyArray<number>;
-  readonly psyPeriods: ReadonlyArray<number>;
+  readonly indicatorProfile: IndicatorUsageProfile;
   readonly klineTimestamp: number | null;
 }): void {
   const {
@@ -184,75 +355,60 @@ function displayIndicators(params: {
     monitorSymbol,
     currentPrice,
     changePercent,
-    emaPeriods,
-    rsiPeriods,
-    psyPeriods,
+    indicatorProfile,
     klineTimestamp,
   } = params;
 
-  // 构建指标显示字符串（按照指定顺序：最新价、涨跌幅、EMAn、RSIn、MFI、PSY、K、D、J、MACD、DIF、DEA）
+  // 构建指标显示字符串（按 indicatorProfile.displayPlan 固定顺序输出）
   const indicators: string[] = [];
 
-  // 1. 最新价
-  if (Number.isFinite(currentPrice)) {
-    indicators.push(`价格=${currentPrice.toFixed(3)}`);
-  }
+  for (const displayItem of indicatorProfile.displayPlan) {
+    if (displayItem === 'price') {
+      indicators.push(Number.isFinite(currentPrice) ? `价格=${currentPrice.toFixed(3)}` : '价格=-');
 
-  // 2. 涨跌幅（基于上日收盘价）
-  if (changePercent !== null) {
-    const sign = changePercent >= 0 ? '+' : '';
-    indicators.push(`涨跌幅=${sign}${changePercent.toFixed(2)}%`);
-  }
-
-  // 3. EMAn（所有配置的EMA周期）
-  addPeriodIndicators(indicators, monitorSnapshot.ema, emaPeriods, 'EMA', 3);
-
-  // 4. RSIn（所有配置的RSI周期）
-  addPeriodIndicators(indicators, monitorSnapshot.rsi, rsiPeriods, 'RSI', 3);
-
-  // 5. MFI
-  if (Number.isFinite(monitorSnapshot.mfi)) {
-    indicators.push(`MFI=${formatIndicator(monitorSnapshot.mfi, 3)}`);
-  }
-
-  // 6. PSY（所有配置的PSY周期）
-  addPeriodIndicators(indicators, monitorSnapshot.psy, psyPeriods, 'PSY', 3);
-
-  // 7. KDJ（K、D、J三个值）
-  if (monitorSnapshot.kdj) {
-    const kdj = monitorSnapshot.kdj;
-    if (Number.isFinite(kdj.k)) {
-      indicators.push(`K=${formatIndicator(kdj.k, 3)}`);
+      continue;
     }
 
-    if (Number.isFinite(kdj.d)) {
-      indicators.push(`D=${formatIndicator(kdj.d, 3)}`);
+    if (displayItem === 'changePercent') {
+      if (changePercent !== null && Number.isFinite(changePercent)) {
+        const sign = changePercent >= 0 ? '+' : '';
+        indicators.push(`涨跌幅=${sign}${changePercent.toFixed(2)}%`);
+      } else {
+        indicators.push('涨跌幅=-');
+      }
+
+      continue;
     }
 
-    if (Number.isFinite(kdj.j)) {
-      indicators.push(`J=${formatIndicator(kdj.j, 3)}`);
-    }
-  }
-
-  // 8. ADX
-  if (Number.isFinite(monitorSnapshot.adx)) {
-    indicators.push(`ADX=${formatIndicator(monitorSnapshot.adx, 3)}`);
-  }
-
-  // 9. MACD（MACD、DIF、DEA三个值）
-  if (monitorSnapshot.macd) {
-    const macd = monitorSnapshot.macd;
-    if (Number.isFinite(macd.macd)) {
-      indicators.push(`MACD=${formatIndicator(macd.macd, 3)}`);
+    const value = getSnapshotDisplayValue({
+      item: displayItem,
+      snapshot: monitorSnapshot,
+      currentPrice,
+      changePercent,
+    });
+    if (value === null) {
+      continue;
     }
 
-    if (Number.isFinite(macd.dif)) {
-      indicators.push(`DIF=${formatIndicator(macd.dif, 3)}`);
+    const emaPeriod = parsePeriodDisplayItem(displayItem, 'EMA:');
+    if (emaPeriod !== null) {
+      indicators.push(`EMA${emaPeriod}=${formatIndicator(value, 3)}`);
+      continue;
     }
 
-    if (Number.isFinite(macd.dea)) {
-      indicators.push(`DEA=${formatIndicator(macd.dea, 3)}`);
+    const rsiPeriod = parsePeriodDisplayItem(displayItem, 'RSI:');
+    if (rsiPeriod !== null) {
+      indicators.push(`RSI${rsiPeriod}=${formatIndicator(value, 3)}`);
+      continue;
     }
+
+    const psyPeriod = parsePeriodDisplayItem(displayItem, 'PSY:');
+    if (psyPeriod !== null) {
+      indicators.push(`PSY${psyPeriod}=${formatIndicator(value, 3)}`);
+      continue;
+    }
+
+    indicators.push(`${displayItem}=${formatIndicator(value, 3)}`);
   }
 
   const monitorSymbolName = monitorQuote?.name ?? monitorSymbol;
@@ -335,9 +491,7 @@ export function createMarketMonitor(): MarketMonitor {
         monitorSnapshot,
         monitorQuote,
         monitorSymbol,
-        emaPeriods,
-        rsiPeriods,
-        psyPeriods,
+        indicatorProfile,
         klineTimestamp,
         monitorState,
       } = params;
@@ -363,129 +517,34 @@ export function createMarketMonitor(): MarketMonitor {
         changePercent = ((currentPrice - prevClose) / prevClose) * 100;
       }
 
-      // 检测指标变化（检查所有指标是否发生变化）
       let hasIndicatorChanged = false;
-
-      // 检查价格变化
-      const lastPrice = monitorState.monitorValues?.price;
-      if (
-        ((lastPrice === null || lastPrice === undefined) && isValidPositiveNumber(currentPrice)) ||
-        hasChanged(currentPrice, lastPrice ?? null, MONITOR.PRICE_CHANGE_THRESHOLD)
-      ) {
-        hasIndicatorChanged = true;
-      }
-
-      // 检查涨跌幅变化
-      const lastChangePercent = monitorState.monitorValues?.changePercent;
-      if (
-        !hasIndicatorChanged &&
-        changePercent !== null &&
-        (lastChangePercent === null ||
-          lastChangePercent === undefined ||
-          hasChanged(changePercent, lastChangePercent, MONITOR.CHANGE_PERCENT_THRESHOLD))
-      ) {
-        hasIndicatorChanged = true;
-      }
-
-      // 检查EMA变化
-      if (!hasIndicatorChanged && monitorSnapshot.ema) {
-        for (const period of emaPeriods) {
-          const currentEma = monitorSnapshot.ema[period];
-          const lastEma = monitorState.monitorValues?.ema?.[period];
-          if (
-            Number.isFinite(currentEma) &&
-            (lastEma === undefined ||
-              hasChanged(currentEma, lastEma, MONITOR.INDICATOR_CHANGE_THRESHOLD))
-          ) {
-            hasIndicatorChanged = true;
-            break;
-          }
+      for (const displayItem of indicatorProfile.displayPlan) {
+        const currentValue = getSnapshotDisplayValue({
+          item: displayItem,
+          snapshot: monitorSnapshot,
+          currentPrice,
+          changePercent,
+        });
+        if (currentValue === null) {
+          continue;
         }
-      }
 
-      // 检查RSI变化
-      if (!hasIndicatorChanged && monitorSnapshot.rsi) {
-        for (const period of rsiPeriods) {
-          const currentRsi = monitorSnapshot.rsi[period];
-          const lastRsi = monitorState.monitorValues?.rsi?.[period];
-          if (
-            Number.isFinite(currentRsi) &&
-            (lastRsi === undefined ||
-              hasChanged(currentRsi, lastRsi, MONITOR.INDICATOR_CHANGE_THRESHOLD))
-          ) {
-            hasIndicatorChanged = true;
-            break;
-          }
-        }
-      }
-
-      // 检查PSY变化
-      if (!hasIndicatorChanged && monitorSnapshot.psy) {
-        for (const period of psyPeriods) {
-          const currentPsy = monitorSnapshot.psy[period];
-          const lastPsy = monitorState.monitorValues?.psy?.[period];
-          if (
-            Number.isFinite(currentPsy) &&
-            (lastPsy === undefined ||
-              hasChanged(currentPsy, lastPsy, MONITOR.INDICATOR_CHANGE_THRESHOLD))
-          ) {
-            hasIndicatorChanged = true;
-            break;
-          }
-        }
-      }
-
-      // 检查MFI变化
-      if (!hasIndicatorChanged) {
-        const lastMfi = monitorState.monitorValues?.mfi;
+        const lastValue = getCachedDisplayValue(monitorState.monitorValues, displayItem);
         if (
-          Number.isFinite(monitorSnapshot.mfi) &&
-          (lastMfi === null ||
-            lastMfi === undefined ||
-            hasChanged(monitorSnapshot.mfi, lastMfi, MONITOR.INDICATOR_CHANGE_THRESHOLD))
+          displayItem === 'price' &&
+          lastValue === null &&
+          isValidPositiveNumber(currentValue)
         ) {
           hasIndicatorChanged = true;
+          break;
         }
-      }
 
-      // 检查ADX变化
-      if (!hasIndicatorChanged) {
-        const lastAdx = monitorState.monitorValues?.adx;
         if (
-          Number.isFinite(monitorSnapshot.adx) &&
-          (lastAdx === null ||
-            lastAdx === undefined ||
-            hasChanged(monitorSnapshot.adx, lastAdx, MONITOR.INDICATOR_CHANGE_THRESHOLD))
+          lastValue === null ||
+          hasChanged(currentValue, lastValue, resolveDisplayThreshold(displayItem))
         ) {
           hasIndicatorChanged = true;
-        }
-      }
-
-      // 检查KDJ变化
-      if (!hasIndicatorChanged && monitorSnapshot.kdj) {
-        const lastKdj = monitorState.monitorValues?.kdj;
-        const kdj = monitorSnapshot.kdj;
-        const threshold = MONITOR.INDICATOR_CHANGE_THRESHOLD;
-        if (
-          indicatorChanged(kdj.k, lastKdj?.k, threshold) ||
-          indicatorChanged(kdj.d, lastKdj?.d, threshold) ||
-          indicatorChanged(kdj.j, lastKdj?.j, threshold)
-        ) {
-          hasIndicatorChanged = true;
-        }
-      }
-
-      // 检查MACD变化
-      if (!hasIndicatorChanged && monitorSnapshot.macd) {
-        const lastMacd = monitorState.monitorValues?.macd;
-        const macd = monitorSnapshot.macd;
-        const threshold = MONITOR.INDICATOR_CHANGE_THRESHOLD;
-        if (
-          indicatorChanged(macd.macd, lastMacd?.macd, threshold) ||
-          indicatorChanged(macd.dif, lastMacd?.dif, threshold) ||
-          indicatorChanged(macd.dea, lastMacd?.dea, threshold)
-        ) {
-          hasIndicatorChanged = true;
+          break;
         }
       }
 
@@ -497,16 +556,14 @@ export function createMarketMonitor(): MarketMonitor {
           monitorSymbol,
           currentPrice,
           changePercent,
-          emaPeriods,
-          rsiPeriods,
-          psyPeriods,
+          indicatorProfile,
           klineTimestamp,
         });
 
         releaseMonitorValuesObjects(monitorState.monitorValues);
 
         // 从对象池获取新的监控值对象
-        const newMonitorValues = monitorValuesObjectPool.acquire();
+        const newMonitorValues = acquireMonitorValues();
         newMonitorValues.price = currentPrice;
         newMonitorValues.changePercent = changePercent;
 
@@ -526,7 +583,13 @@ export function createMarketMonitor(): MarketMonitor {
           kdjRecord.k = kdjData.k;
           kdjRecord.d = kdjData.d;
           kdjRecord.j = kdjData.j;
-          newMonitorValues.kdj = kdjRecord;
+
+          if (isValidPooledKdj(kdjRecord)) {
+            newMonitorValues.kdj = kdjRecord;
+          } else {
+            kdjObjectPool.release(kdjRecord);
+            newMonitorValues.kdj = null;
+          }
         } else {
           newMonitorValues.kdj = null;
         }
@@ -537,12 +600,18 @@ export function createMarketMonitor(): MarketMonitor {
           macdRecord.dif = macdData.dif;
           macdRecord.dea = macdData.dea;
           macdRecord.macd = macdData.macd;
-          newMonitorValues.macd = macdRecord;
+
+          if (isValidPooledMacd(macdRecord)) {
+            newMonitorValues.macd = macdRecord;
+          } else {
+            macdObjectPool.release(macdRecord);
+            newMonitorValues.macd = null;
+          }
         } else {
           newMonitorValues.macd = null;
         }
 
-        monitorState.monitorValues = newMonitorValues as MonitorValues;
+        monitorState.monitorValues = newMonitorValues;
 
         return true; // 指标发生变化
       }

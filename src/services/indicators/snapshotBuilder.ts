@@ -9,6 +9,7 @@ import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { periodRecordPool } from '../../utils/objectPool/index.js';
 import type { CandleData } from '../../types/data.js';
 import type { IndicatorSnapshot } from '../../types/quote.js';
+import type { IndicatorUsageProfile } from '../../types/state.js';
 import {
   validateRsiPeriod,
   validateEmaPeriod,
@@ -62,17 +63,13 @@ export function getCandleFingerprint(candles: ReadonlyArray<CandleData>): string
  *
  * @param symbol 标的代码
  * @param candles K线数据数组
- * @param rsiPeriods RSI周期数组
- * @param emaPeriods EMA周期数组
- * @param psyPeriods PSY周期数组
+ * @param indicatorProfile 指标画像（定义本次需要计算的指标范围）
  * @returns 指标快照对象，无有效价格时返回 null
  */
 export function buildIndicatorSnapshot(
   symbol: string,
   candles: ReadonlyArray<CandleData>,
-  rsiPeriods: ReadonlyArray<number> = [],
-  emaPeriods: ReadonlyArray<number> = [],
-  psyPeriods: ReadonlyArray<number> = [],
+  indicatorProfile: IndicatorUsageProfile,
 ): IndicatorSnapshot | null {
   if (candles.length === 0) {
     return null;
@@ -97,46 +94,26 @@ export function buildIndicatorSnapshot(
     changePercent = ((lastPrice - prevClose) / prevClose) * 100;
   }
 
-  const rsi = periodRecordPool.acquire();
-  for (const period of rsiPeriods) {
-    if (validateRsiPeriod(period) && Number.isInteger(period)) {
-      const rsiValue = calculateRSI(candles, period);
-      if (rsiValue !== null) {
-        rsi[period] = rsiValue;
-      }
-    }
-  }
-
-  const ema = periodRecordPool.acquire();
-  for (const period of emaPeriods) {
-    if (validateEmaPeriod(period) && Number.isInteger(period)) {
-      const emaValue = calculateEMA(candles, period);
-      if (emaValue !== null) {
-        ema[period] = emaValue;
-      }
-    }
-  }
-
-  let psy: Record<number, number> | null = null;
-  if (psyPeriods.length > 0) {
-    const psyRecord = periodRecordPool.acquire();
-    let hasPsyValue = false;
-    for (const period of psyPeriods) {
-      if (validatePsyPeriod(period) && Number.isInteger(period)) {
-        const psyValue = calculatePSY(candles, period);
-        if (psyValue !== null) {
-          psyRecord[period] = psyValue;
-          hasPsyValue = true;
-        }
-      }
-    }
-
-    if (hasPsyValue) {
-      psy = psyRecord;
-    } else {
-      periodRecordPool.release(psyRecord);
-    }
-  }
+  const { requiredFamilies, requiredPeriods } = indicatorProfile;
+  const rsi = buildPeriodIndicatorRecord({
+    periods: requiredPeriods.rsi,
+    isValidPeriod: validateRsiPeriod,
+    calculate: (period) => calculateRSI(candles, period),
+  });
+  const ema = buildPeriodIndicatorRecord({
+    periods: requiredPeriods.ema,
+    isValidPeriod: validateEmaPeriod,
+    calculate: (period) => calculateEMA(candles, period),
+  });
+  const psy = buildPeriodIndicatorRecord({
+    periods: requiredPeriods.psy,
+    isValidPeriod: validatePsyPeriod,
+    calculate: (period) => calculatePSY(candles, period),
+  });
+  const kdj = requiredFamilies.kdj ? calculateKDJ(candles, 9) : null;
+  const macd = requiredFamilies.macd ? calculateMACD(candles) : null;
+  const mfi = requiredFamilies.mfi ? calculateMFI(candles, 14) : null;
+  const adx = requiredFamilies.adx ? calculateADX(candles, 14) : null;
 
   return {
     symbol,
@@ -144,10 +121,49 @@ export function buildIndicatorSnapshot(
     changePercent,
     rsi,
     psy,
-    kdj: calculateKDJ(candles, 9),
-    macd: calculateMACD(candles),
-    mfi: calculateMFI(candles, 14),
-    adx: calculateADX(candles, 14),
+    kdj,
+    macd,
+    mfi,
+    adx,
     ema,
   };
+}
+
+/**
+ * 构建按周期索引的指标记录。
+ * @param params 周期列表、周期校验函数与计算函数
+ * @returns 至少包含一个有效值时返回对象池记录，否则返回 null
+ */
+function buildPeriodIndicatorRecord(params: {
+  readonly periods: ReadonlyArray<number>;
+  readonly isValidPeriod: (period: unknown) => period is number;
+  readonly calculate: (period: number) => number | null;
+}): Record<number, number> | null {
+  const { periods, isValidPeriod, calculate } = params;
+  if (periods.length === 0) {
+    return null;
+  }
+
+  const periodRecord = periodRecordPool.acquire();
+  let hasValue = false;
+  for (const period of periods) {
+    if (!isValidPeriod(period) || !Number.isInteger(period)) {
+      continue;
+    }
+
+    const value = calculate(period);
+    if (value === null) {
+      continue;
+    }
+
+    periodRecord[period] = value;
+    hasValue = true;
+  }
+
+  if (hasValue) {
+    return periodRecord;
+  }
+
+  periodRecordPool.release(periodRecord);
+  return null;
 }

@@ -13,7 +13,7 @@ import {
 } from '../../../src/services/marketMonitor/utils.js';
 import type { IndicatorSnapshot } from '../../../src/types/quote.js';
 import type { MonitorState } from '../../../src/types/state.js';
-import { createQuoteDouble } from '../../helpers/testDoubles.js';
+import { createIndicatorUsageProfileDouble, createQuoteDouble } from '../../helpers/testDoubles.js';
 
 function createMonitorState(monitorSymbol: string): MonitorState {
   return {
@@ -123,14 +123,13 @@ describe('marketMonitor business flow', () => {
     const state = createMonitorState('HSI.HK');
     const monitorQuote = createQuoteDouble('HSI.HK', 20_000);
     const klineTimestamp = 1_708_000_000_000;
+    const indicatorProfile = createIndicatorUsageProfileDouble();
 
     const first = monitor.monitorIndicatorChanges({
       monitorSnapshot: createSnapshot(),
       monitorQuote,
       monitorSymbol: 'HSI.HK',
-      emaPeriods: [7],
-      rsiPeriods: [6],
-      psyPeriods: [13],
+      indicatorProfile,
       klineTimestamp,
       monitorState: state,
     });
@@ -142,9 +141,7 @@ describe('marketMonitor business flow', () => {
       monitorSnapshot: createSnapshot(),
       monitorQuote,
       monitorSymbol: 'HSI.HK',
-      emaPeriods: [7],
-      rsiPeriods: [6],
-      psyPeriods: [13],
+      indicatorProfile,
       klineTimestamp,
       monitorState: state,
     });
@@ -156,9 +153,7 @@ describe('marketMonitor business flow', () => {
       }),
       monitorQuote,
       monitorSymbol: 'HSI.HK',
-      emaPeriods: [7],
-      rsiPeriods: [6],
-      psyPeriods: [13],
+      indicatorProfile,
       klineTimestamp,
       monitorState: state,
     });
@@ -171,15 +166,14 @@ describe('marketMonitor business flow', () => {
     const state = createMonitorState('HSI.HK');
     const monitorQuote = createQuoteDouble('HSI.HK', 20_000);
     const klineTimestamp = 1_708_000_000_000;
+    const indicatorProfile = createIndicatorUsageProfileDouble();
 
     // 首次写入
     monitor.monitorIndicatorChanges({
       monitorSnapshot: createSnapshot({ adx: 25 }),
       monitorQuote,
       monitorSymbol: 'HSI.HK',
-      emaPeriods: [7],
-      rsiPeriods: [6],
-      psyPeriods: [13],
+      indicatorProfile,
       klineTimestamp,
       monitorState: state,
     });
@@ -190,9 +184,7 @@ describe('marketMonitor business flow', () => {
       monitorSnapshot: createSnapshot({ adx: 30 }),
       monitorQuote,
       monitorSymbol: 'HSI.HK',
-      emaPeriods: [7],
-      rsiPeriods: [6],
-      psyPeriods: [13],
+      indicatorProfile,
       klineTimestamp,
       monitorState: state,
     });

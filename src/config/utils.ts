@@ -9,6 +9,7 @@ import type { LiquidationCooldownConfig, NumberRange } from '../types/config.js'
 import type { OrderTypeConfig } from '../types/signal.js';
 import type { ConditionGroup, SignalConfig } from '../types/signalConfig.js';
 import {
+  parseIndicatorPeriod,
   validateEmaPeriod,
   validatePsyPeriod,
   validateRsiPeriod,
@@ -316,9 +317,9 @@ export function parseVerificationIndicators(
       return false;
     }
 
-    const period = Number.parseInt(item.slice(prefix.length), 10);
-    if (validator(period)) {
-      validItems.push(item);
+    const period = parseIndicatorPeriod({ indicatorName: item, prefix });
+    if (period !== null && validator(period)) {
+      validItems.push(`${prefix}${period}`);
       return true;
     }
 

@@ -8,10 +8,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { formatSignalConfig, parseSignalConfig } from '../../src/config/utils.js';
 import { evaluateSignalConfig } from '../../src/core/strategy/utils.js';
-import {
-  extractPsyPeriods,
-  extractRsiPeriodsWithDefault,
-} from '../../src/services/monitorContext/utils.js';
+import { compileIndicatorUsageProfile } from '../../src/services/monitorContext/utils.js';
 import type { SignalConfigSet } from '../../src/types/config.js';
 import type { IndicatorState } from '../../src/utils/indicatorHelpers/types.js';
 
@@ -71,7 +68,7 @@ describe('signalConfigParser business flow', () => {
     expect(unsatisfied.reason).toBe('未满足任何条件组');
   });
 
-  it('extracts RSI and PSY periods from config set with dedupe and sorting', () => {
+  it('compiles indicator profile with exact strategy/verification indicators and family-based display expansion', () => {
     const signalConfig: SignalConfigSet = {
       buycall: {
         conditionGroups: [
@@ -102,8 +99,49 @@ describe('signalConfigParser business flow', () => {
       buyput: null,
       sellput: null,
     };
+    const indicatorProfile = compileIndicatorUsageProfile({
+      signalConfig,
+      verificationConfig: {
+        buy: { delaySeconds: 10, indicators: ['EMA:7', 'DIF'] },
+        sell: { delaySeconds: 10, indicators: ['EMA:21', 'K'] },
+      },
+    });
 
-    expect(extractRsiPeriodsWithDefault(signalConfig)).toEqual([6, 14, 20]);
-    expect(extractPsyPeriods(signalConfig)).toEqual([5, 13]);
+    expect(indicatorProfile.requiredPeriods.rsi).toEqual([6, 14, 20]);
+    expect(indicatorProfile.requiredPeriods.psy).toEqual([5, 13]);
+    expect(indicatorProfile.requiredPeriods.ema).toEqual([7, 21]);
+    expect(indicatorProfile.requiredFamilies.kdj).toBeTrue();
+    expect(indicatorProfile.requiredFamilies.macd).toBeTrue();
+
+    expect(indicatorProfile.actionSignalIndicators.BUYCALL).toEqual([
+      'RSI:14',
+      'RSI:6',
+      'PSY:13',
+    ]);
+
+    expect(indicatorProfile.actionSignalIndicators.SELLCALL).toEqual([
+      'RSI:6',
+      'RSI:20',
+      'PSY:5',
+    ]);
+    expect(indicatorProfile.verificationIndicatorsBySide.buy).toEqual(['EMA:7', 'DIF']);
+    expect(indicatorProfile.verificationIndicatorsBySide.sell).toEqual(['EMA:21', 'K']);
+    expect(indicatorProfile.displayPlan).toEqual([
+      'price',
+      'changePercent',
+      'EMA:7',
+      'EMA:21',
+      'RSI:6',
+      'RSI:14',
+      'RSI:20',
+      'PSY:5',
+      'PSY:13',
+      'K',
+      'D',
+      'J',
+      'MACD',
+      'DIF',
+      'DEA',
+    ]);
   });
 });

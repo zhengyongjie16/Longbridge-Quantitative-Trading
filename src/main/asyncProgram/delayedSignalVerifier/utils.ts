@@ -1,7 +1,8 @@
-import { getIndicatorValue } from '../../../utils/indicatorHelpers/index.js';
+import { getIndicatorValue, parseIndicatorPeriod } from '../../../utils/indicatorHelpers/index.js';
 import { TIME, VERIFICATION } from '../../../constants/index.js';
 import type { Signal } from '../../../types/signal.js';
-import type { SingleVerificationConfig } from '../../../types/config.js';
+import type { IndicatorSnapshot } from '../../../types/quote.js';
+import type { VerificationIndicator } from '../../../types/state.js';
 import type { IndicatorCache, IndicatorCacheEntry } from '../indicatorCache/types.js';
 import type { PendingSignalEntry, VerificationResult } from './types.js';
 
@@ -25,7 +26,7 @@ export const generateSignalId = (signal: Signal): string => {
  */
 export const extractInitialIndicators = (
   signal: Signal,
-  indicatorNames: ReadonlyArray<string>,
+  indicatorNames: ReadonlyArray<VerificationIndicator>,
 ): Record<string, number> | null => {
   const indicators1 = signal.indicators1;
   if (!indicators1 || typeof indicators1 !== 'object') {
@@ -61,7 +62,7 @@ export const extractInitialIndicators = (
 const verifyTimePoint = (
   entry: IndicatorCacheEntry | null,
   initialIndicators: Readonly<Record<string, number>>,
-  indicatorNames: ReadonlyArray<string>,
+  indicatorNames: ReadonlyArray<VerificationIndicator>,
   isUptrend: boolean,
 ): Readonly<{
   passed: boolean;
@@ -80,12 +81,16 @@ const verifyTimePoint = (
     const initialValue = initialIndicators[name];
     const currentValueRaw = getIndicatorValue(entry.snapshot, name);
 
-    if (
-      initialValue === undefined ||
-      currentValueRaw === null ||
-      !Number.isFinite(currentValueRaw)
-    ) {
-      details.push(`${name}: 无效值`);
+    if (initialValue === undefined) {
+      details.push(`${name}: 初始值缺失`);
+      failedIndicators.push(name);
+      allPassed = false;
+      continue;
+    }
+
+    if (currentValueRaw === null || !Number.isFinite(currentValueRaw)) {
+      const missingReason = isIndicatorPresentInSnapshot(entry.snapshot, name) ? '值无效' : '快照缺失';
+      details.push(`${name}: ${missingReason}`);
       failedIndicators.push(name);
       allPassed = false;
       continue;
@@ -132,19 +137,17 @@ const verifyTimePoint = (
  *
  * @param indicatorCache 指标缓存
  * @param entry 待验证信号条目
- * @param verificationConfig 验证配置
+ * @param entry 待验证信号条目（包含 triggerTime、初始指标与验证指标列表）
  * @returns 验证结果
  */
 export const performVerification = (
   indicatorCache: IndicatorCache,
   entry: PendingSignalEntry,
-  verificationConfig: SingleVerificationConfig,
 ): VerificationResult => {
-  const { signal, monitorSymbol, triggerTime, initialIndicators } = entry;
-  const indicatorNames = verificationConfig.indicators;
+  const { signal, monitorSymbol, triggerTime, initialIndicators, indicatorNames } = entry;
 
   // 安全检查：指标配置
-  if (!indicatorNames || indicatorNames.length === 0) {
+  if (indicatorNames.length === 0) {
     return { passed: false, reason: '验证指标配置为空' };
   }
 
@@ -211,3 +214,38 @@ export const performVerification = (
     failedIndicators: [...allFailedIndicators],
   };
 };
+
+/**
+ * 判断快照是否包含指定指标字段（不校验数值有效性）。
+ * @param snapshot 指标快照
+ * @param indicator 指标名称
+ * @returns 指标字段存在返回 true，否则 false
+ */
+function isIndicatorPresentInSnapshot(
+  snapshot: IndicatorSnapshot,
+  indicator: VerificationIndicator,
+): boolean {
+  if (indicator === 'ADX') {
+    return snapshot.adx !== null;
+  }
+
+  if (indicator === 'K' || indicator === 'D' || indicator === 'J') {
+    return snapshot.kdj !== null;
+  }
+
+  if (indicator === 'MACD' || indicator === 'DIF' || indicator === 'DEA') {
+    return snapshot.macd !== null;
+  }
+
+  if (indicator.startsWith('EMA:')) {
+    const period = parseIndicatorPeriod({ indicatorName: indicator, prefix: 'EMA:' });
+    return period !== null && snapshot.ema?.[period] !== undefined;
+  }
+
+  if (indicator.startsWith('PSY:')) {
+    const period = parseIndicatorPeriod({ indicatorName: indicator, prefix: 'PSY:' });
+    return period !== null && snapshot.psy?.[period] !== undefined;
+  }
+
+  return false;
+}

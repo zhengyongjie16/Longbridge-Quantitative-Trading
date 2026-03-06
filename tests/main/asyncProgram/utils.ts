@@ -7,6 +7,7 @@
 import type { LastState, MonitorContext } from '../../../src/types/state.js';
 import {
   createMonitorConfigDouble,
+  createIndicatorUsageProfileDouble,
   createOrderRecorderDouble,
   createPositionCacheDouble,
   createPositionDouble,
@@ -159,9 +160,7 @@ function buildMonitorContextBase(
     shortSymbolName: 'BEAR.HK',
     monitorSymbolName,
     normalizedMonitorSymbol: 'HSI.HK',
-    rsiPeriods: [6],
-    emaPeriods: [7],
-    psyPeriods: [13],
+    indicatorProfile: createIndicatorUsageProfileDouble(),
     longQuote,
     shortQuote,
     monitorQuote,

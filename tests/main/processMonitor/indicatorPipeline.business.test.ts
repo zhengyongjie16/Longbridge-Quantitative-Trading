@@ -12,7 +12,11 @@ import type { IndicatorSnapshot } from '../../../src/types/quote.js';
 import type { MonitorContext } from '../../../src/types/state.js';
 import type { IndicatorPipelineParams } from '../../../src/main/processMonitor/types.js';
 import type { MonitorIndicatorChangesParams } from '../../../src/services/marketMonitor/types.js';
-import { createMonitorConfigDouble, createQuoteDouble } from '../../helpers/testDoubles.js';
+import {
+  createIndicatorUsageProfileDouble,
+  createMonitorConfigDouble,
+  createQuoteDouble,
+} from '../../helpers/testDoubles.js';
 
 function createCandles(length: number, start: number, step: number): ReadonlyArray<CandleData> {
   const candles: CandleData[] = [];
@@ -62,9 +66,7 @@ function createMonitorContext(overrides: Partial<MonitorContext> = {}): MonitorC
       lastCandleFingerprint: null,
     },
     monitorSymbolName: config.monitorSymbol,
-    rsiPeriods: [6],
-    emaPeriods: [7],
-    psyPeriods: [13],
+    indicatorProfile: createIndicatorUsageProfileDouble(),
     ...overrides,
   } as unknown as MonitorContext;
 }

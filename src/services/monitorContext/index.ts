@@ -4,7 +4,7 @@
  * 功能：
  * - 创建每个监控标的的独立上下文（MonitorContext）
  * - 初始化策略、风险检查器、浮亏监控器、延迟验证器等组件
- * - 缓存标的名称和指标周期配置，避免重复计算
+ * - 缓存标的名称和指标画像配置，避免重复计算
  *
  * 上下文内容：
  * - config/state：监控配置和状态
@@ -13,16 +13,16 @@
  * - riskChecker：风险检查器
  * - unrealizedLossMonitor：浮亏监控器
  * - delayedSignalVerifier：延迟信号验证器
- * - 缓存的标的名称和指标周期
+ * - 缓存的标的名称和指标画像
  */
 import { isSeatReady } from '../autoSymbolManager/utils.js';
 import type { MonitorContext } from '../../types/state.js';
 import type { MonitorContextFactoryDeps } from './types.js';
-import { extractRsiPeriodsWithDefault, extractEmaPeriods, extractPsyPeriods } from './utils.js';
+import { compileIndicatorUsageProfile } from './utils.js';
 
 /**
  * 创建监控标的运行时上下文，从注册表读取席位状态与版本号，从行情 Map 提取标的名称，
- * 并预计算指标周期配置，避免主循环每 tick 重复解析。
+ * 并预编译指标画像，避免主循环每 tick 重复解析。
  * @param deps - 工厂依赖（config、state、symbolRegistry、quotesMap、strategy、orderRecorder 等）
  * @returns 该监控标的的 MonitorContext 实例
  */
@@ -52,6 +52,10 @@ export function createMonitorContext(deps: MonitorContextFactoryDeps): MonitorCo
   const longQuote = longSymbol ? (quotesMap.get(longSymbol) ?? null) : null;
   const shortQuote = shortSymbol ? (quotesMap.get(shortSymbol) ?? null) : null;
   const monitorQuote = quotesMap.get(config.monitorSymbol) ?? null;
+  const indicatorProfile = compileIndicatorUsageProfile({
+    signalConfig: config.signalConfig,
+    verificationConfig: config.verificationConfig,
+  });
 
   return {
     config,
@@ -85,10 +89,8 @@ export function createMonitorContext(deps: MonitorContextFactoryDeps): MonitorCo
     monitorSymbolName: monitorQuote?.name ?? config.monitorSymbol,
     normalizedMonitorSymbol: config.monitorSymbol,
 
-    // 缓存指标周期配置（避免每次循环重复提取）
-    rsiPeriods: extractRsiPeriodsWithDefault(config.signalConfig),
-    emaPeriods: extractEmaPeriods(config.verificationConfig),
-    psyPeriods: extractPsyPeriods(config.signalConfig, config.verificationConfig),
+    // 缓存指标画像配置（避免每次循环重复提取）
+    indicatorProfile,
 
     // 缓存的行情数据（主循环每秒更新，供买入/卖出处理器使用）
     longQuote,

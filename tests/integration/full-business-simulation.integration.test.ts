@@ -213,7 +213,6 @@ describe('full business simulation integration', () => {
 
     const delayedSignalVerifier = createDelayedSignalVerifier({
       indicatorCache,
-      verificationConfig: monitorConfig.verificationConfig,
     });
 
     const strategy = {
@@ -529,7 +528,6 @@ describe('full business simulation integration', () => {
 
     const delayedSignalVerifier = createDelayedSignalVerifier({
       indicatorCache,
-      verificationConfig: monitorConfig.verificationConfig,
     });
     const monitorContext = createMonitorContext({
       config: monitorConfig,

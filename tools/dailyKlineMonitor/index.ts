@@ -11,6 +11,7 @@ import { sleep } from '../../src/main/utils.js';
 import { decimalToNumber } from '../../src/utils/helpers/index.js';
 import type { CandleData } from '../../src/types/data.js';
 import type { Quote } from '../../src/types/quote.js';
+import type { IndicatorUsageProfile } from '../../src/types/state.js';
 import type { ChangeDetectConfig, IndicatorPeriods, MonitorContext } from './types.js';
 import {
   convertToCandleData,
@@ -43,6 +44,36 @@ const CHANGE_THRESHOLD = 0.001;
 const INDICATOR_PERIODS: IndicatorPeriods = {
   emaPeriods: EMA_PERIODS,
   rsiPeriods: RSI_PERIODS,
+};
+
+const INDICATOR_PROFILE: IndicatorUsageProfile = {
+  requiredFamilies: {
+    mfi: false,
+    kdj: false,
+    macd: false,
+    adx: false,
+  },
+  requiredPeriods: {
+    rsi: [...RSI_PERIODS],
+    ema: [...EMA_PERIODS],
+    psy: [],
+  },
+  actionSignalIndicators: {
+    BUYCALL: [],
+    SELLCALL: [],
+    BUYPUT: [],
+    SELLPUT: [],
+  },
+  verificationIndicatorsBySide: {
+    buy: [],
+    sell: [],
+  },
+  displayPlan: [
+    'price',
+    'changePercent',
+    ...EMA_PERIODS.map((period) => `EMA:${period}` as const),
+    ...RSI_PERIODS.map((period) => `RSI:${period}` as const),
+  ],
 };
 
 const CHANGE_DETECT_CONFIG: ChangeDetectConfig = {
@@ -117,8 +148,7 @@ async function runMonitorCycle(
       ? buildIndicatorSnapshot(
           context.monitorSymbol,
           dailyCandles,
-          detectConfig.indicatorPeriods.rsiPeriods,
-          detectConfig.indicatorPeriods.emaPeriods,
+          INDICATOR_PROFILE,
         )
       : null;
   if (snapshot === null) {

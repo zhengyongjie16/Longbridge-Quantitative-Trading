@@ -3,17 +3,13 @@
  *
  * 功能：
  * - 从行情服务获取监控标的的 K 线数据
- * - 根据 K 线数据计算技术指标（RSI、KDJ、MACD、MFI、EMA、PSY）
+ * - 根据指标画像按需计算技术指标
  * - 构建指标快照并缓存到 indicatorCache
  * - 释放旧的快照对象以支持对象池复用
  *
- * 指标参数：
- * - RSI：默认周期 [6, 12, 24]
- * - EMA：默认周期 [5, 10, 20]
- * - PSY：默认周期 [5, 10, 20]
- * - KDJ：默认周期 9
- * - MACD：快线 12、慢线 26、信号线 9
- * - MFI：默认周期 14
+ * 说明：
+ * - 指标范围由 monitorContext.indicatorProfile 决定
+ * - KDJ/MACD 家族联动已在 profile 编译阶段完成
  */
 import {
   buildIndicatorSnapshot,
@@ -152,7 +148,7 @@ export async function runIndicatorPipeline(
 ): Promise<IndicatorSnapshot | null> {
   const { monitorSymbol, monitorContext, mainContext, monitorQuote } = params;
   const { marketDataClient, indicatorCache, marketMonitor } = mainContext;
-  const { state, rsiPeriods, emaPeriods, psyPeriods } = monitorContext;
+  const { state, indicatorProfile } = monitorContext;
   const monitorCandles = await marketDataClient
     .getRealtimeCandlesticks(monitorSymbol, TRADING.CANDLE_PERIOD, TRADING.CANDLE_COUNT)
     .catch((err: unknown) => {
@@ -179,9 +175,7 @@ export async function runIndicatorPipeline(
       monitorSnapshot: state.lastMonitorSnapshot,
       monitorQuote,
       monitorSymbol,
-      emaPeriods,
-      rsiPeriods,
-      psyPeriods,
+      indicatorProfile,
       klineTimestamp,
       monitorState: state,
     });
@@ -191,9 +185,7 @@ export async function runIndicatorPipeline(
   const monitorSnapshot = buildIndicatorSnapshot(
     monitorSymbol,
     candles,
-    rsiPeriods,
-    emaPeriods,
-    psyPeriods,
+    indicatorProfile,
   );
   if (!monitorSnapshot) {
     logger.warn(
@@ -206,9 +198,7 @@ export async function runIndicatorPipeline(
     monitorSnapshot,
     monitorQuote,
     monitorSymbol,
-    emaPeriods,
-    rsiPeriods,
-    psyPeriods,
+    indicatorProfile,
     klineTimestamp,
     monitorState: state,
   });

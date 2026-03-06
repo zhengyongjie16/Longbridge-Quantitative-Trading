@@ -1,5 +1,5 @@
 import type { Signal } from '../../../types/signal.js';
-import type { VerificationConfig } from '../../../types/config.js';
+import type { VerificationIndicator } from '../../../types/state.js';
 import type { IndicatorCache } from '../indicatorCache/types.js';
 
 /**
@@ -23,6 +23,9 @@ export type PendingSignalEntry = {
 
   /** 初始指标值（验证时与后续时间点比较） */
   readonly initialIndicators: Readonly<Record<string, number>>;
+
+  /** 需要验证的指标顺序（用于验证比较与日志输出） */
+  readonly indicatorNames: ReadonlyArray<VerificationIndicator>;
 
   /** setTimeout 定时器 ID */
   readonly timerId: ReturnType<typeof setTimeout>;
@@ -56,12 +59,11 @@ export type VerifiedCallback = (signal: Signal, monitorSymbol: string) => void;
 /**
  * DelayedSignalVerifier 依赖配置（创建验证器时的参数）。
  * 类型用途：创建 DelayedSignalVerifier 时的依赖注入对象。
- * 数据来源：由主程序/启动流程组装（indicatorCache、verificationConfig）并传入工厂。
+ * 数据来源：由主程序/启动流程组装（indicatorCache）并传入工厂。
  * 使用范围：仅创建 DelayedSignalVerifier 的调用方使用，内部使用。
  */
 export type DelayedSignalVerifierDeps = {
   readonly indicatorCache: IndicatorCache;
-  readonly verificationConfig: VerificationConfig;
 };
 
 /**
@@ -73,10 +75,15 @@ export type DelayedSignalVerifierDeps = {
 export interface DelayedSignalVerifier {
   /**
    * 添加信号到待验证队列
-   * @param signal 信号对象（必须包含 triggerTime）
-   * @param monitorSymbol 监控标的代码
+   * @param params.signal 信号对象（必须包含 triggerTime）
+   * @param params.monitorSymbol 监控标的代码
+   * @param params.verificationIndicators 当前方向需要验证的指标集合（来自 indicatorProfile）
    */
-  addSignal: (signal: Signal, monitorSymbol: string) => void;
+  addSignal: (params: {
+    readonly signal: Signal;
+    readonly monitorSymbol: string;
+    readonly verificationIndicators: ReadonlyArray<VerificationIndicator>;
+  }) => void;
 
   /**
    * 取消指定标的的所有待验证信号

@@ -31,7 +31,7 @@ function createMonitorState(monitorSymbol: string): MonitorState {
 }
 
 describe('monitorContext business flow', () => {
-  it('hydrates ready seats, quote names and default indicator periods into context', () => {
+  it('hydrates ready seats, quote names and compiled indicator profile into context', () => {
     const config = createMonitorConfigDouble({
       monitorSymbol: 'HSI.HK',
       signalConfig: {
@@ -111,9 +111,17 @@ describe('monitorContext business flow', () => {
     expect(context.monitorSymbolName).toBe('HangSeng');
     expect(context.seatVersion.long).toBe(3);
     expect(context.seatVersion.short).toBe(4);
-    expect(context.emaPeriods).toEqual([7]);
-    expect(context.rsiPeriods).toEqual([6]);
-    expect(context.psyPeriods).toEqual([13]);
+    expect(context.indicatorProfile.requiredPeriods.ema).toEqual([]);
+    expect(context.indicatorProfile.requiredPeriods.rsi).toEqual([]);
+    expect(context.indicatorProfile.requiredPeriods.psy).toEqual([]);
+    expect(context.indicatorProfile.requiredFamilies.kdj).toBe(true);
+    expect(context.indicatorProfile.displayPlan).toEqual([
+      'price',
+      'changePercent',
+      'K',
+      'D',
+      'J',
+    ]);
   });
 
   it('keeps quote/name empty when seat is not READY', () => {

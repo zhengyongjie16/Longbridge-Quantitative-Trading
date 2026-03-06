@@ -46,7 +46,7 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
   } = params;
   const { canTradeNow, openProtectionActive, isTradingEnabled } = runtimeFlags;
   const canEnqueue = isTradingEnabled && canTradeNow;
-  const { strategy, orderRecorder, delayedSignalVerifier } = monitorContext;
+  const { strategy, orderRecorder, delayedSignalVerifier, indicatorProfile } = monitorContext;
   const { lastState, buyTaskQueue, sellTaskQueue } = mainContext;
   const {
     longSeatState,
@@ -73,6 +73,7 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
       longSymbol,
       shortSymbol,
       orderRecorder,
+      indicatorProfile,
     );
 
     /**
@@ -199,7 +200,14 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
 
       if (canEnqueue) {
         logger.info(`[延迟验证信号] ${formatSignalLog(signal)}`);
-        delayedSignalVerifier.addSignal(signal, monitorSymbol);
+        const verificationIndicators = isBuyAction(signal.action)
+          ? indicatorProfile.verificationIndicatorsBySide.buy
+          : indicatorProfile.verificationIndicatorsBySide.sell;
+        delayedSignalVerifier.addSignal({
+          signal,
+          monitorSymbol,
+          verificationIndicators,
+        });
       } else {
         const reason = isTradingEnabled ? '非交易时段，暂不添加验证' : '交易门禁关闭，暂不添加验证';
         logger.info(`[延迟验证信号] ${formatSignalLog(signal)}（${reason}）`);

@@ -9,6 +9,8 @@ import type {
   PoolablePosition,
   PoolableVerificationEntry,
 } from './types.js';
+import type { Signal } from '../../types/signal.js';
+import type { MonitorValues } from '../../types/data.js';
 
 /**
  * 创建通用对象池，池空时用 factory 创建新对象，release 时用 reset 重置后放回池中。默认行为：maxSize 未传时为 100。
@@ -182,6 +184,19 @@ export const signalObjectPool = createObjectPool<PoolableSignal>(
 );
 
 /**
+ * 从对象池获取一个可写的 Signal 结构。
+ *
+ * 重要说明：
+ * - 对象池内部使用可空字段（PoolableSignal）以便 reset；
+ * - 调用方必须在使用前完整填充 `symbol`、`action` 等必填字段。
+ *
+ * @returns 可复用的 Signal 对象（调用方负责填充必填字段）
+ */
+export function acquireSignal(): Signal {
+  return signalObjectPool.acquire() as unknown as Signal;
+}
+
+/**
  * KDJ指标对象池
  * 用于KDJ指标数据对象的复用
  */
@@ -261,6 +276,14 @@ export const monitorValuesObjectPool = createObjectPool<PoolableMonitorValues>(
   },
   20, // 最大保存20个监控值对象
 );
+
+/**
+ * 从对象池获取一个可写的 MonitorValues 结构。
+ * @returns 可复用的 MonitorValues 对象（字段默认为 null）
+ */
+export function acquireMonitorValues(): MonitorValues {
+  return monitorValuesObjectPool.acquire() as unknown as MonitorValues;
+}
 
 /**
  * 持仓对象池

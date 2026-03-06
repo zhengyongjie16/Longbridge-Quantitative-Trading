@@ -19,6 +19,7 @@ import type { MonitorContext } from '../../../src/types/state.js';
 import type { SeatSyncResult } from '../../../src/main/processMonitor/types.js';
 
 import {
+  createIndicatorUsageProfileDouble,
   createOrderRecorderDouble,
   createPositionCacheDouble,
   createPositionDouble,
@@ -105,9 +106,10 @@ function createPipelineHarness(params: {
       }),
     },
     orderRecorder: createOrderRecorderDouble(),
+    indicatorProfile: createIndicatorUsageProfileDouble(),
     delayedSignalVerifier: {
-      addSignal: (signal: Signal) => {
-        delayedAdded.push(signal);
+      addSignal: (queuedSignal: { readonly signal: Signal }) => {
+        delayedAdded.push(queuedSignal.signal);
       },
     },
   } as unknown as MonitorContext;

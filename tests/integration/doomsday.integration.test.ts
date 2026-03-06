@@ -13,6 +13,7 @@ import type { LastState, MonitorContext } from '../../src/types/state.js';
 
 import {
   createAccountSnapshotDouble,
+  createIndicatorUsageProfileDouble,
   createMonitorConfigDouble,
   createOrderRecorderDouble,
   createPositionCacheDouble,
@@ -141,9 +142,7 @@ function createMonitorContext(
     shortSymbolName: 'BEAR.HK',
     monitorSymbolName: config.monitorSymbol,
     normalizedMonitorSymbol: config.monitorSymbol,
-    rsiPeriods: [6],
-    emaPeriods: [7],
-    psyPeriods: [13],
+    indicatorProfile: createIndicatorUsageProfileDouble(),
     longQuote: createQuoteDouble('BULL.HK', 1.1, 100),
     shortQuote: createQuoteDouble('BEAR.HK', 0.9, 100),
     monitorQuote: createQuoteDouble(config.monitorSymbol, 20_000),

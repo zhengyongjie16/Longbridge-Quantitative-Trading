@@ -2,6 +2,7 @@ import type { Signal } from '../../types/signal.js';
 import type { IndicatorSnapshot } from '../../types/quote.js';
 import type { SignalConfigSet, VerificationConfig } from '../../types/config.js';
 import type { OrderRecorder } from '../../types/services.js';
+import type { IndicatorUsageProfile } from '../../types/state.js';
 
 /**
  * 信号类型分类。
@@ -68,6 +69,7 @@ export interface HangSengMultiIndicatorStrategy {
     longSymbol: string,
     shortSymbol: string,
     orderRecorder: OrderRecorder,
+    indicatorProfile: IndicatorUsageProfile,
   ) => SignalGenerationResult;
 }
 

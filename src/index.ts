@@ -487,7 +487,6 @@ async function main(): Promise<void> {
     // 延迟验证器：用于延迟信号验证
     const delayedSignalVerifier = createDelayedSignalVerifier({
       indicatorCache,
-      verificationConfig: monitorConfig.verificationConfig,
     });
 
     // 构建监控上下文，聚合配置、状态与依赖

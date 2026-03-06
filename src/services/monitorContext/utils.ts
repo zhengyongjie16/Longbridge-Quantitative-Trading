@@ -1,156 +1,400 @@
-import { validateEmaPeriod, validatePsyPeriod } from '../../utils/indicatorHelpers/index.js';
 import {
-  DEFAULT_EMA_PERIOD,
-  DEFAULT_PSY_PERIOD,
-  DEFAULT_RSI_PERIOD,
-} from '../../constants/index.js';
-import type { VerificationConfig, SignalConfigSet } from '../../types/config.js';
+  parseIndicatorPeriod,
+  validateEmaPeriod,
+  validatePsyPeriod,
+  validateRsiPeriod,
+} from '../../utils/indicatorHelpers/index.js';
+import { VERIFICATION_FIXED_INDICATORS } from '../../constants/index.js';
+import type { SignalConfigSet, VerificationConfig } from '../../types/config.js';
+import type {
+  DisplayIndicatorItem,
+  IndicatorUsageProfile,
+  ProfileIndicator,
+  StrategyAction,
+  VerificationIndicator,
+} from '../../types/state.js';
+
+const STRATEGY_ACTIONS: ReadonlyArray<StrategyAction> = [
+  'BUYCALL',
+  'SELLCALL',
+  'BUYPUT',
+  'SELLPUT',
+];
+
+type IndicatorCollector = {
+  readonly requiredFamilies: {
+    mfi: boolean;
+    kdj: boolean;
+    macd: boolean;
+    adx: boolean;
+  };
+  readonly requiredPeriods: {
+    readonly rsi: Set<number>;
+    readonly ema: Set<number>;
+    readonly psy: Set<number>;
+  };
+};
 
 /**
- * 从验证配置中提取 EMA 周期
- * @param verificationConfig 验证配置
- * @returns EMA 周期数组（至少包含默认值 7）
+ * 解析单个指标名称并标准化为 ProfileIndicator。
+ * @param indicatorName 原始指标名称
+ * @returns 合法指标返回标准化结果，否则返回 null
  */
-export function extractEmaPeriods(
-  verificationConfig: VerificationConfig | null | undefined,
-): number[] {
-  const emaPeriods: number[] = [];
+function parseProfileIndicator(indicatorName: string): ProfileIndicator | null {
+  switch (indicatorName) {
+    case 'MFI':
+    case 'K':
+    case 'D':
+    case 'J':
+    case 'MACD':
+    case 'DIF':
+    case 'DEA':
+    case 'ADX': {
+      return indicatorName;
+    }
 
-  if (verificationConfig) {
-    // 从买入和卖出配置中提取 EMA 周期
-    const allIndicators = [
-      ...(verificationConfig.buy.indicators ?? []),
-      ...(verificationConfig.sell.indicators ?? []),
-    ];
-
-    for (const indicator of allIndicators) {
-      if (indicator.startsWith('EMA:')) {
-        const periodStr = indicator.substring(4);
-        const period = Number.parseInt(periodStr, 10);
-
-        if (validateEmaPeriod(period) && !emaPeriods.includes(period)) {
-          emaPeriods.push(period);
-        }
-      }
+    default: {
+      break;
     }
   }
 
-  // 如果没有配置任何 EMA 周期，使用默认值 7
-  if (emaPeriods.length === 0) {
-    emaPeriods.push(DEFAULT_EMA_PERIOD);
+  if (indicatorName.startsWith('RSI:')) {
+    const period = parseIndicatorPeriod({ indicatorName, prefix: 'RSI:' });
+
+    if (period !== null && validateRsiPeriod(period)) {
+      return `RSI:${period}`;
+    }
+
+    return null;
   }
 
-  return emaPeriods;
+  if (indicatorName.startsWith('EMA:')) {
+    const period = parseIndicatorPeriod({ indicatorName, prefix: 'EMA:' });
+
+    if (period !== null && validateEmaPeriod(period)) {
+      return `EMA:${period}`;
+    }
+
+    return null;
+  }
+
+  if (indicatorName.startsWith('PSY:')) {
+    const period = parseIndicatorPeriod({ indicatorName, prefix: 'PSY:' });
+
+    if (period !== null && validatePsyPeriod(period)) {
+      return `PSY:${period}`;
+    }
+
+    return null;
+  }
+
+  return null;
 }
 
 /**
- * 从信号配置中提取 RSI 周期
- * @param signalConfig 信号配置
- * @returns RSI 周期数组（至少包含默认值 6）
+ * 向目标数组追加唯一指标。
+ * @param indicators 目标指标数组
+ * @param indicator 待追加指标
  */
-export function extractRsiPeriodsWithDefault(signalConfig: SignalConfigSet | null): number[] {
-  const rsiPeriods = extractIndicatorPeriods(signalConfig, 'RSI:', (period) =>
-    Number.isFinite(period),
-  );
-
-  // 如果没有配置任何 RSI 周期，使用默认值 6
-  if (rsiPeriods.length === 0) {
-    rsiPeriods.push(DEFAULT_RSI_PERIOD);
+function appendUniqueIndicator(
+  indicators: ProfileIndicator[],
+  indicator: ProfileIndicator,
+): void {
+  if (!indicators.includes(indicator)) {
+    indicators.push(indicator);
   }
-
-  return rsiPeriods;
 }
 
 /**
- * 从信号配置和验证配置中提取 PSY 周期（未配置时使用默认周期）
- * @param signalConfig 信号配置
- * @param verificationConfig 验证配置
- * @returns PSY 周期数组
+ * 收集周期指标到全局周期集合。
+ * @param indicator 标准化指标名
+ * @param collector 指标收集器
  */
-export function extractPsyPeriods(
-  signalConfig: SignalConfigSet | null,
-  verificationConfig?: VerificationConfig | null,
-): number[] {
-  const periods = new Set<number>();
+function collectPeriodIfNeeded(indicator: ProfileIndicator, collector: IndicatorCollector): void {
+  if (indicator.startsWith('RSI:')) {
+    const period = parseIndicatorPeriod({ indicatorName: indicator, prefix: 'RSI:' });
 
-  for (const period of extractIndicatorPeriods(signalConfig, 'PSY:', validatePsyPeriod)) {
-    if (validatePsyPeriod(period)) {
-      periods.add(period);
+    if (period !== null) {
+      collector.requiredPeriods.rsi.add(period);
+    }
+
+    return;
+  }
+
+  if (indicator.startsWith('EMA:')) {
+    const period = parseIndicatorPeriod({ indicatorName: indicator, prefix: 'EMA:' });
+
+    if (period !== null) {
+      collector.requiredPeriods.ema.add(period);
+    }
+
+    return;
+  }
+
+  if (indicator.startsWith('PSY:')) {
+    const period = parseIndicatorPeriod({ indicatorName: indicator, prefix: 'PSY:' });
+
+    if (period !== null) {
+      collector.requiredPeriods.psy.add(period);
     }
   }
-
-  if (verificationConfig) {
-    const allIndicators = [
-      ...(verificationConfig.buy.indicators ?? []),
-      ...(verificationConfig.sell.indicators ?? []),
-    ];
-    for (const indicator of allIndicators) {
-      if (!indicator.startsWith('PSY:')) {
-        continue;
-      }
-
-      const periodStr = indicator.substring(4);
-      const period = Number.parseInt(periodStr, 10);
-      if (validatePsyPeriod(period)) {
-        periods.add(period);
-      }
-    }
-  }
-
-  if (periods.size === 0 && validatePsyPeriod(DEFAULT_PSY_PERIOD)) {
-    periods.add(DEFAULT_PSY_PERIOD);
-  }
-
-  return [...periods].sort((a, b) => a - b);
 }
 
 /**
- * 从信号配置集中提取指定指标的所有周期（去重后排序）
- * @param signalConfig 信号配置集
- * @param prefix 指标前缀（如 'RSI:' 或 'PSY:'）
- * @param isValidPeriod 周期有效性校验函数
- * @returns 去重排序后的周期数组
+ * 收集单个指标的全局使用信息（家族开关与周期集合）。
+ * @param indicator 标准化指标名
+ * @param collector 指标收集器
  */
-function extractIndicatorPeriods(
-  signalConfig: SignalConfigSet | null,
-  prefix: 'RSI:' | 'PSY:',
-  isValidPeriod: (period: number) => boolean,
-): number[] {
-  if (!signalConfig) {
-    return [];
+function collectIndicatorUsage(indicator: ProfileIndicator, collector: IndicatorCollector): void {
+  if (indicator === 'K' || indicator === 'D' || indicator === 'J') {
+    collector.requiredFamilies.kdj = true;
+    return;
   }
 
-  const periods = new Set<number>();
-  const configs = [
-    signalConfig.buycall,
-    signalConfig.sellcall,
-    signalConfig.buyput,
-    signalConfig.sellput,
-  ];
+  if (indicator === 'MACD' || indicator === 'DIF' || indicator === 'DEA') {
+    collector.requiredFamilies.macd = true;
+    return;
+  }
 
-  for (const config of configs) {
-    if (!config?.conditionGroups) {
+  if (indicator === 'MFI') {
+    collector.requiredFamilies.mfi = true;
+    return;
+  }
+
+  if (indicator === 'ADX') {
+    collector.requiredFamilies.adx = true;
+    return;
+  }
+
+  collectPeriodIfNeeded(indicator, collector);
+}
+
+/**
+ * 将指标字符串列表编译为 ProfileIndicator 列表并写入收集器。
+ * @param sourceIndicators 原始指标字符串列表
+ * @param collector 指标收集器
+ * @returns 去重后的标准化指标列表（保持配置原始粒度）
+ */
+function compileIndicatorList(
+  sourceIndicators: ReadonlyArray<string>,
+  collector: IndicatorCollector,
+): ReadonlyArray<ProfileIndicator> {
+  const compiledIndicators: ProfileIndicator[] = [];
+
+  for (const indicatorName of sourceIndicators) {
+    const parsedIndicator = parseProfileIndicator(indicatorName);
+    if (!parsedIndicator) {
       continue;
     }
 
-    for (const group of config.conditionGroups) {
-      for (const condition of group.conditions) {
-        if (!condition.indicator.startsWith(prefix)) {
-          continue;
-        }
+    collectIndicatorUsage(parsedIndicator, collector);
+    appendUniqueIndicator(compiledIndicators, parsedIndicator);
+  }
 
-        const periodStr = condition.indicator.split(':')[1];
-        if (!periodStr) {
-          continue;
-        }
+  return compiledIndicators;
+}
 
-        const period = Number.parseInt(periodStr, 10);
-        if (isValidPeriod(period)) {
-          periods.add(period);
-        }
-      }
+function isSupportedVerificationIndicator(indicator: ProfileIndicator): indicator is VerificationIndicator {
+  if (VERIFICATION_FIXED_INDICATORS.has(indicator)) {
+    return true;
+  }
+
+  return (
+    indicator.startsWith('EMA:') ||
+    indicator.startsWith('PSY:')
+  );
+}
+
+/**
+ * 编译延迟验证指标列表。
+ *
+ * 重要约束：
+ * - 延迟验证仅支持 K/D/J、MACD/DIF/DEA、ADX、EMA:n、PSY:n；
+ * - 明确不支持 RSI:n 与 MFI（即便它们可用于信号条件求值与展示）。
+ *
+ * @param sourceIndicators 原始指标字符串列表（来自 verificationConfig）
+ * @param collector 指标收集器
+ * @returns 去重后的标准化指标列表（保持配置原始粒度）
+ */
+function compileVerificationIndicatorList(
+  sourceIndicators: ReadonlyArray<string>,
+  collector: IndicatorCollector,
+): ReadonlyArray<VerificationIndicator> {
+  const compiledIndicators: VerificationIndicator[] = [];
+
+  for (const indicatorName of sourceIndicators) {
+    const parsedIndicator = parseProfileIndicator(indicatorName);
+    if (!parsedIndicator) {
+      throw new Error(`[配置错误] 延迟验证指标无效: ${indicatorName}`);
+    }
+
+    if (!isSupportedVerificationIndicator(parsedIndicator)) {
+      throw new Error(`[配置错误] 延迟验证不支持指标: ${indicatorName}`);
+    }
+
+    collectIndicatorUsage(parsedIndicator, collector);
+    appendUniqueIndicator(compiledIndicators, parsedIndicator);
+  }
+
+  return compiledIndicators;
+}
+
+/**
+ * 收集 action 配置中出现的原始指标名称。
+ * @param signalConfig 信号配置
+ * @param action 策略动作
+ * @returns 原始指标名称列表
+ */
+function collectActionSourceIndicators(
+  signalConfig: SignalConfigSet,
+  action: StrategyAction,
+): ReadonlyArray<string> {
+  let actionConfig: SignalConfigSet['buycall'];
+  if (action === 'BUYCALL') {
+    actionConfig = signalConfig.buycall;
+  } else if (action === 'SELLCALL') {
+    actionConfig = signalConfig.sellcall;
+  } else if (action === 'BUYPUT') {
+    actionConfig = signalConfig.buyput;
+  } else {
+    actionConfig = signalConfig.sellput;
+  }
+
+  if (!actionConfig?.conditionGroups) {
+    return [];
+  }
+
+  const indicators: string[] = [];
+  for (const group of actionConfig.conditionGroups) {
+    for (const condition of group.conditions) {
+      indicators.push(condition.indicator);
     }
   }
 
+  return indicators;
+}
+
+/**
+ * 将周期集合转换为排序后的只读数组。
+ * @param periods 周期集合
+ * @returns 升序数组
+ */
+function toSortedPeriods(periods: ReadonlySet<number>): ReadonlyArray<number> {
   return [...periods].sort((a, b) => a - b);
+}
+
+/**
+ * 根据收集结果生成最终展示计划。
+ * @param collector 指标收集器
+ * @returns 展示计划（固定顺序）
+ */
+function buildDisplayPlan(collector: IndicatorCollector): ReadonlyArray<DisplayIndicatorItem> {
+  const displayPlan: DisplayIndicatorItem[] = ['price', 'changePercent'];
+  const emaPeriods = toSortedPeriods(collector.requiredPeriods.ema);
+  for (const period of emaPeriods) {
+    displayPlan.push(`EMA:${period}`);
+  }
+
+  const rsiPeriods = toSortedPeriods(collector.requiredPeriods.rsi);
+  for (const period of rsiPeriods) {
+    displayPlan.push(`RSI:${period}`);
+  }
+
+  if (collector.requiredFamilies.mfi) {
+    displayPlan.push('MFI');
+  }
+
+  const psyPeriods = toSortedPeriods(collector.requiredPeriods.psy);
+  for (const period of psyPeriods) {
+    displayPlan.push(`PSY:${period}`);
+  }
+
+  if (collector.requiredFamilies.kdj) {
+    displayPlan.push('K', 'D', 'J');
+  }
+
+  if (collector.requiredFamilies.adx) {
+    displayPlan.push('ADX');
+  }
+
+  if (collector.requiredFamilies.macd) {
+    displayPlan.push('MACD', 'DIF', 'DEA');
+  }
+
+  return displayPlan;
+}
+
+/**
+ * 编译监控标的指标画像。
+ *
+ * 编译规则：
+ * - 指标来源为 signalConfig + verificationConfig；
+ * - 命中 K/D/J 任一项时标记 KDJ 家族已启用（用于按需计算与展示）；
+ * - 命中 MACD/DIF/DEA 任一项时标记 MACD 家族已启用（用于按需计算与展示）；
+ * - RSI/EMA/PSY 周期去重并排序；
+ * - 不注入任何默认周期。
+ *
+ * @param params 编译入参（信号配置 + 延迟验证配置）
+ * @returns 监控标的指标画像
+ */
+export function compileIndicatorUsageProfile(params: {
+  readonly signalConfig: SignalConfigSet;
+  readonly verificationConfig: VerificationConfig;
+}): IndicatorUsageProfile {
+  const collector: IndicatorCollector = {
+    requiredFamilies: {
+      mfi: false,
+      kdj: false,
+      macd: false,
+      adx: false,
+    },
+    requiredPeriods: {
+      rsi: new Set<number>(),
+      ema: new Set<number>(),
+      psy: new Set<number>(),
+    },
+  };
+
+  const actionSignalIndicators: Record<StrategyAction, ReadonlyArray<ProfileIndicator>> = {
+    BUYCALL: [],
+    SELLCALL: [],
+    BUYPUT: [],
+    SELLPUT: [],
+  };
+
+  for (const action of STRATEGY_ACTIONS) {
+    const actionSourceIndicators = collectActionSourceIndicators(params.signalConfig, action);
+    actionSignalIndicators[action] = compileIndicatorList(actionSourceIndicators, collector);
+  }
+
+  const buyVerificationIndicators = compileVerificationIndicatorList(
+    params.verificationConfig.buy.indicators ?? [],
+    collector,
+  );
+  const sellVerificationIndicators = compileVerificationIndicatorList(
+    params.verificationConfig.sell.indicators ?? [],
+    collector,
+  );
+
+  const requiredPeriods = {
+    rsi: toSortedPeriods(collector.requiredPeriods.rsi),
+    ema: toSortedPeriods(collector.requiredPeriods.ema),
+    psy: toSortedPeriods(collector.requiredPeriods.psy),
+  };
+
+  return {
+    requiredFamilies: {
+      mfi: collector.requiredFamilies.mfi,
+      kdj: collector.requiredFamilies.kdj,
+      macd: collector.requiredFamilies.macd,
+      adx: collector.requiredFamilies.adx,
+    },
+    requiredPeriods,
+    actionSignalIndicators,
+    verificationIndicatorsBySide: {
+      buy: buyVerificationIndicators,
+      sell: sellVerificationIndicators,
+    },
+    displayPlan: buildDisplayPlan(collector),
+  };
 }

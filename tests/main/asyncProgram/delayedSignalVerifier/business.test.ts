@@ -8,6 +8,10 @@ import { describe, expect, it } from 'bun:test';
 import { createIndicatorCache } from '../../../../src/main/asyncProgram/indicatorCache/index.js';
 import { createDelayedSignalVerifier } from '../../../../src/main/asyncProgram/delayedSignalVerifier/index.js';
 import { createSignal } from '../../../../mock/factories/signalFactory.js';
+import type { VerificationIndicator } from '../../../../src/types/state.js';
+
+const K_VERIFICATION_INDICATORS: ReadonlyArray<VerificationIndicator> = ['K'];
+const ADX_VERIFICATION_INDICATORS: ReadonlyArray<VerificationIndicator> = ['ADX'];
 
 function withMockedNowSync<T>(nowMs: number, run: () => T): T {
   const originalNow = Date.now;
@@ -53,16 +57,6 @@ describe('delayedSignalVerifier business flow', () => {
     const indicatorCache = createIndicatorCache();
     const verifier = createDelayedSignalVerifier({
       indicatorCache,
-      verificationConfig: {
-        buy: {
-          delaySeconds: 10,
-          indicators: ['K'],
-        },
-        sell: {
-          delaySeconds: 10,
-          indicators: ['K'],
-        },
-      },
     });
 
     withMockedNowSync(baseTime, () => {
@@ -90,7 +84,11 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      verifier.addSignal(signal, 'HSI.HK');
+      verifier.addSignal({
+        signal,
+        monitorSymbol: 'HSI.HK',
+        verificationIndicators: K_VERIFICATION_INDICATORS,
+      });
     });
 
     await Bun.sleep(20);
@@ -104,16 +102,6 @@ describe('delayedSignalVerifier business flow', () => {
     const indicatorCache = createIndicatorCache();
     const verifier = createDelayedSignalVerifier({
       indicatorCache,
-      verificationConfig: {
-        buy: {
-          delaySeconds: 10,
-          indicators: ['K'],
-        },
-        sell: {
-          delaySeconds: 10,
-          indicators: ['K'],
-        },
-      },
     });
 
     withMockedNowSync(baseTime, () => {
@@ -141,7 +129,11 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      verifier.addSignal(signal, 'HSI.HK');
+      verifier.addSignal({
+        signal,
+        monitorSymbol: 'HSI.HK',
+        verificationIndicators: K_VERIFICATION_INDICATORS,
+      });
     });
 
     await Bun.sleep(20);
@@ -153,16 +145,6 @@ describe('delayedSignalVerifier business flow', () => {
     const indicatorCache = createIndicatorCache();
     const verifier = createDelayedSignalVerifier({
       indicatorCache,
-      verificationConfig: {
-        buy: {
-          delaySeconds: 10,
-          indicators: ['K'],
-        },
-        sell: {
-          delaySeconds: 10,
-          indicators: ['K'],
-        },
-      },
     });
 
     withMockedNowSync(baseTime, () => {
@@ -190,7 +172,11 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      verifier.addSignal(signal, 'HSI.HK');
+      verifier.addSignal({
+        signal,
+        monitorSymbol: 'HSI.HK',
+        verificationIndicators: K_VERIFICATION_INDICATORS,
+      });
     });
 
     await Bun.sleep(20);
@@ -202,16 +188,6 @@ describe('delayedSignalVerifier business flow', () => {
     const indicatorCache = createIndicatorCache();
     const verifier = createDelayedSignalVerifier({
       indicatorCache,
-      verificationConfig: {
-        buy: {
-          delaySeconds: 10,
-          indicators: ['K'],
-        },
-        sell: {
-          delaySeconds: 10,
-          indicators: ['K'],
-        },
-      },
     });
 
     withMockedNowSync(baseTime, () => {
@@ -239,7 +215,11 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      verifier.addSignal(signal, 'HSI.HK');
+      verifier.addSignal({
+        signal,
+        monitorSymbol: 'HSI.HK',
+        verificationIndicators: K_VERIFICATION_INDICATORS,
+      });
     });
 
     await Bun.sleep(20);
@@ -251,16 +231,6 @@ describe('delayedSignalVerifier business flow', () => {
     const indicatorCache = createIndicatorCache();
     const verifier = createDelayedSignalVerifier({
       indicatorCache,
-      verificationConfig: {
-        buy: {
-          delaySeconds: 10,
-          indicators: ['K'],
-        },
-        sell: {
-          delaySeconds: 10,
-          indicators: ['K'],
-        },
-      },
     });
 
     withMockedNowSync(baseTime, () => {
@@ -284,7 +254,11 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime + 10000, () => {
-      verifier.addSignal(signal, 'HSI.HK');
+      verifier.addSignal({
+        signal,
+        monitorSymbol: 'HSI.HK',
+        verificationIndicators: K_VERIFICATION_INDICATORS,
+      });
     });
 
     await Bun.sleep(20);
@@ -297,16 +271,6 @@ describe('delayedSignalVerifier business flow', () => {
     const indicatorCache = createIndicatorCache();
     const verifier = createDelayedSignalVerifier({
       indicatorCache,
-      verificationConfig: {
-        buy: {
-          delaySeconds: 10,
-          indicators: ['K'],
-        },
-        sell: {
-          delaySeconds: 10,
-          indicators: ['K'],
-        },
-      },
     });
 
     withMockedNowSync(baseTime + 4_000, () => {
@@ -334,7 +298,11 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime + 10000, () => {
-      verifier.addSignal(signal, 'HSI.HK');
+      verifier.addSignal({
+        signal,
+        monitorSymbol: 'HSI.HK',
+        verificationIndicators: K_VERIFICATION_INDICATORS,
+      });
     });
 
     await Bun.sleep(20);
@@ -347,10 +315,6 @@ describe('delayedSignalVerifier business flow', () => {
     const indicatorCache = createIndicatorCache();
     const verifier = createDelayedSignalVerifier({
       indicatorCache,
-      verificationConfig: {
-        buy: { delaySeconds: 10, indicators: ['ADX'] },
-        sell: { delaySeconds: 10, indicators: ['ADX'] },
-      },
     });
 
     withMockedNowSync(baseTime, () => {
@@ -378,7 +342,11 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      verifier.addSignal(signal, 'HSI.HK');
+      verifier.addSignal({
+        signal,
+        monitorSymbol: 'HSI.HK',
+        verificationIndicators: ADX_VERIFICATION_INDICATORS,
+      });
     });
 
     await Bun.sleep(20);
@@ -390,10 +358,6 @@ describe('delayedSignalVerifier business flow', () => {
     const indicatorCache = createIndicatorCache();
     const verifier = createDelayedSignalVerifier({
       indicatorCache,
-      verificationConfig: {
-        buy: { delaySeconds: 10, indicators: ['ADX'] },
-        sell: { delaySeconds: 10, indicators: ['ADX'] },
-      },
     });
 
     withMockedNowSync(baseTime, () => {
@@ -421,7 +385,11 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      verifier.addSignal(signal, 'HSI.HK');
+      verifier.addSignal({
+        signal,
+        monitorSymbol: 'HSI.HK',
+        verificationIndicators: ADX_VERIFICATION_INDICATORS,
+      });
     });
 
     await Bun.sleep(20);
@@ -433,10 +401,6 @@ describe('delayedSignalVerifier business flow', () => {
     const indicatorCache = createIndicatorCache();
     const verifier = createDelayedSignalVerifier({
       indicatorCache,
-      verificationConfig: {
-        buy: { delaySeconds: 10, indicators: ['ADX'] },
-        sell: { delaySeconds: 10, indicators: ['ADX'] },
-      },
     });
 
     withMockedNowSync(baseTime, () => {
@@ -464,7 +428,11 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      verifier.addSignal(signal, 'HSI.HK');
+      verifier.addSignal({
+        signal,
+        monitorSymbol: 'HSI.HK',
+        verificationIndicators: ADX_VERIFICATION_INDICATORS,
+      });
     });
 
     await Bun.sleep(20);
@@ -476,10 +444,6 @@ describe('delayedSignalVerifier business flow', () => {
     const indicatorCache = createIndicatorCache();
     const verifier = createDelayedSignalVerifier({
       indicatorCache,
-      verificationConfig: {
-        buy: { delaySeconds: 10, indicators: ['ADX'] },
-        sell: { delaySeconds: 10, indicators: ['ADX'] },
-      },
     });
 
     withMockedNowSync(baseTime, () => {
@@ -507,7 +471,11 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      verifier.addSignal(signal, 'HSI.HK');
+      verifier.addSignal({
+        signal,
+        monitorSymbol: 'HSI.HK',
+        verificationIndicators: ADX_VERIFICATION_INDICATORS,
+      });
     });
 
     await Bun.sleep(20);
@@ -519,10 +487,6 @@ describe('delayedSignalVerifier business flow', () => {
     const indicatorCache = createIndicatorCache();
     const verifier = createDelayedSignalVerifier({
       indicatorCache,
-      verificationConfig: {
-        buy: { delaySeconds: 10, indicators: ['ADX'] },
-        sell: { delaySeconds: 10, indicators: ['ADX'] },
-      },
     });
 
     // T0+5s ADX 上升而非下降
@@ -551,7 +515,11 @@ describe('delayedSignalVerifier business flow', () => {
     });
 
     withMockedNowSync(baseTime + 10_000, () => {
-      verifier.addSignal(signal, 'HSI.HK');
+      verifier.addSignal({
+        signal,
+        monitorSymbol: 'HSI.HK',
+        verificationIndicators: ADX_VERIFICATION_INDICATORS,
+      });
     });
 
     await Bun.sleep(20);
@@ -562,38 +530,34 @@ describe('delayedSignalVerifier business flow', () => {
     const indicatorCache = createIndicatorCache();
     const verifier = createDelayedSignalVerifier({
       indicatorCache,
-      verificationConfig: {
-        buy: {
-          delaySeconds: 10,
-          indicators: ['K'],
-        },
-        sell: {
-          delaySeconds: 10,
-          indicators: ['K'],
-        },
-      },
     });
 
     const now = 500_000;
     withMockedNowSync(now, () => {
       verifier.addSignal(
-        createSignal({
-          symbol: 'BULL.HK',
-          action: 'BUYCALL',
-          triggerTimeMs: now,
-          indicators1: { K: 10 },
-        }),
-        'HSI.HK',
+        {
+          signal: createSignal({
+            symbol: 'BULL.HK',
+            action: 'BUYCALL',
+            triggerTimeMs: now,
+            indicators1: { K: 10 },
+          }),
+          monitorSymbol: 'HSI.HK',
+          verificationIndicators: K_VERIFICATION_INDICATORS,
+        },
       );
 
       verifier.addSignal(
-        createSignal({
-          symbol: 'BEAR.HK',
-          action: 'BUYPUT',
-          triggerTimeMs: now,
-          indicators1: { K: 10 },
-        }),
-        'HSI.HK',
+        {
+          signal: createSignal({
+            symbol: 'BEAR.HK',
+            action: 'BUYPUT',
+            triggerTimeMs: now,
+            indicators1: { K: 10 },
+          }),
+          monitorSymbol: 'HSI.HK',
+          verificationIndicators: K_VERIFICATION_INDICATORS,
+        },
       );
     });
 
@@ -604,3 +568,4 @@ describe('delayedSignalVerifier business flow', () => {
     verifier.destroy();
   });
 });
+

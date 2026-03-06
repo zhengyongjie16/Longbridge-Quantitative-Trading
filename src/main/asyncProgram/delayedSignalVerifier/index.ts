@@ -12,9 +12,9 @@
  */
 import { logger } from '../../../utils/logger/index.js';
 import { signalObjectPool } from '../../../utils/objectPool/index.js';
-import { isBuyAction } from '../../../utils/helpers/index.js';
 import { TIME, VERIFICATION, ACTION_DESCRIPTIONS } from '../../../constants/index.js';
 import type { Signal } from '../../../types/signal.js';
+import type { VerificationIndicator } from '../../../types/state.js';
 import type {
   DelayedSignalVerifier,
   DelayedSignalVerifierDeps,
@@ -27,13 +27,13 @@ import { formatSymbolDisplay } from '../../../utils/display/index.js';
 /**
  * 创建延迟信号验证器。负责管理待验证信号、定时触发验证、调用 performVerification 并执行通过/拒绝回调。
  *
- * @param deps 依赖注入，包含 indicatorCache、verificationConfig
+ * @param deps 依赖注入，包含 indicatorCache
  * @returns DelayedSignalVerifier 实例（addSignal、onVerified、cancelAll 等）
  */
 export function createDelayedSignalVerifier(
   deps: DelayedSignalVerifierDeps,
 ): DelayedSignalVerifier {
-  const { indicatorCache, verificationConfig } = deps;
+  const { indicatorCache } = deps;
 
   // 待验证信号 Map（signalId -> entry）
   const pendingSignals = new Map<string, PendingSignalEntry>();
@@ -56,12 +56,8 @@ export function createDelayedSignalVerifier(
     pendingSignals.delete(signalId);
     const { signal, monitorSymbol } = entry;
 
-    // 判断是买入还是卖出信号
-    const isBuySignal = isBuyAction(signal.action);
-    const currentConfig = isBuySignal ? verificationConfig.buy : verificationConfig.sell;
-
     // 执行验证
-    const result = performVerification(indicatorCache, entry, currentConfig);
+    const result = performVerification(indicatorCache, entry);
     const actionDesc = ACTION_DESCRIPTIONS[signal.action];
     if (result.passed) {
       logger.info(
@@ -92,13 +88,18 @@ export function createDelayedSignalVerifier(
      *
      * 入队前置条件（不满足时直接释放信号并返回，不进入队列）：
      * - signal.triggerTime 存在且为有效时间
-     * - 当前监控方向的 verificationConfig.indicators 非空
+     * - 调用方传入的 verificationIndicators 非空
      * - 能够从 signal.indicators1 中提取到所有需要的初始指标值
      *
      * 幂等与去重：
      * - 以 generateSignalId 作为键，若相同信号已在 pendingSignals 中，则视为重复信号并直接释放
      */
-    addSignal(signal: Signal, monitorSymbol: string): void {
+    addSignal(params: {
+      readonly signal: Signal;
+      readonly monitorSymbol: string;
+      readonly verificationIndicators: ReadonlyArray<VerificationIndicator>;
+    }): void {
+      const { signal, monitorSymbol, verificationIndicators } = params;
       // 验证 triggerTime
       const symbolDisplay = formatSymbolDisplay(signal.symbol, signal.symbolName ?? null);
       if (!signal.triggerTime) {
@@ -120,12 +121,8 @@ export function createDelayedSignalVerifier(
         return;
       }
 
-      // 判断是买入还是卖出信号
-      const isBuySignal = isBuyAction(signal.action);
-      const currentConfig = isBuySignal ? verificationConfig.buy : verificationConfig.sell;
-
       // 安全检查：指标配置
-      if (!currentConfig.indicators || currentConfig.indicators.length === 0) {
+      if (verificationIndicators.length === 0) {
         logger.warn(`[延迟验证] ${symbolDisplay} 验证指标配置为空，无法添加到验证队列`);
 
         // 拒绝添加时释放信号对象
@@ -134,7 +131,7 @@ export function createDelayedSignalVerifier(
       }
 
       // 提取初始指标值
-      const initialIndicators = extractInitialIndicators(signal, currentConfig.indicators);
+      const initialIndicators = extractInitialIndicators(signal, verificationIndicators);
       if (!initialIndicators) {
         logger.warn(`[延迟验证] ${symbolDisplay} 无法提取有效的初始指标值，无法添加到验证队列`);
 
@@ -160,6 +157,7 @@ export function createDelayedSignalVerifier(
         triggerTime,
         verifyTime,
         initialIndicators,
+        indicatorNames: [...verificationIndicators],
         timerId,
       };
       pendingSignals.set(signalId, entry);
