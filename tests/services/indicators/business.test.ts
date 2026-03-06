@@ -58,11 +58,7 @@ describe('indicators business flow', () => {
         psy: [13, 0, 101],
       },
     });
-    const snapshot = buildIndicatorSnapshot(
-      'HSI.HK',
-      candles,
-      indicatorProfile,
-    );
+    const snapshot = buildIndicatorSnapshot('HSI.HK', candles, indicatorProfile);
 
     expect(snapshot).not.toBeNull();
     expect(snapshot?.symbol).toBe('HSI.HK');
@@ -87,23 +83,27 @@ describe('indicators business flow', () => {
   it('returns null when candles are empty or no valid close exists', () => {
     expect(buildIndicatorSnapshot('HSI.HK', [], createIndicatorUsageProfileDouble())).toBeNull();
     expect(
-      buildIndicatorSnapshot('HSI.HK', [
-        { close: 0, high: 1, low: 1, volume: 1 },
-        { close: null, high: 1, low: 1, volume: 1 },
-      ], createIndicatorUsageProfileDouble({
-        requiredFamilies: {
-          mfi: false,
-          kdj: false,
-          macd: false,
-          adx: false,
-        },
-        requiredPeriods: {
-          rsi: [],
-          ema: [],
-          psy: [],
-        },
-        displayPlan: ['price', 'changePercent'],
-      })),
+      buildIndicatorSnapshot(
+        'HSI.HK',
+        [
+          { close: 0, high: 1, low: 1, volume: 1 },
+          { close: null, high: 1, low: 1, volume: 1 },
+        ],
+        createIndicatorUsageProfileDouble({
+          requiredFamilies: {
+            mfi: false,
+            kdj: false,
+            macd: false,
+            adx: false,
+          },
+          requiredPeriods: {
+            rsi: [],
+            ema: [],
+            psy: [],
+          },
+          displayPlan: ['price', 'changePercent'],
+        }),
+      ),
     ).toBeNull();
   });
 

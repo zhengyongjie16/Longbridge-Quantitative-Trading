@@ -415,20 +415,20 @@ adjustedR1 = baseR1 - dailyLossOffset（dailyLossOffset ≤ 0）
 
 ## 8. 修改文件完整清单
 
-| #   | 文件路径                                           | 操作      | 说明                                                        |
-| --- | -------------------------------------------------- | --------- | ----------------------------------------------------------- |
-| 1   | `src/config/config.trading.ts`                     | 删除      | 移除环境变量读取和返回赋值                                  |
-| 2   | `src/config/config.validator.ts`                   | 删除      | 移除校验逻辑和日志输出                                      |
-| 3   | `src/types/config.ts`                              | 删除      | 移除 MonitorConfig.maxDailyLoss 字段                        |
-| 4   | `.env.example`                                     | 删除      | 移除 MAX_DAILY_LOSS_1 和 MAX_DAILY_LOSS_2                   |
-| 5   | `src/core/riskController/index.ts`                 | 删除+清理 | 核心：移除 3 个函数、参数、import                           |
-| 6   | `src/core/riskController/types.ts`                 | 删除      | 移除 RiskCheckerDeps.options.maxDailyLoss                   |
-| 7   | `src/types/services.ts`                            | 删除      | 移除 checkBeforeOrder 的 longCurrentPrice/shortCurrentPrice |
-| 8   | `src/core/signalProcessor/riskCheckPipeline.ts`    | 删除      | 移除变量声明和传参                                          |
-| 9   | `src/index.ts`                                     | 删除      | 移除注入 maxDailyLoss                                       |
-| 10  | `mock/factories/configFactory.ts`                  | 删除      | 移除 maxDailyLoss: 3000                                     |
-| 11  | `tests/core/riskController/index.business.test.ts` | 删除+修改 | 删除 1 个用例，修改 4 个用例                                |
-| 12  | `README.md`                                        | 删除      | 移除配置示例                                                |
+| #   | 文件路径                                                                                 | 操作      | 说明                                                        |
+| --- | ---------------------------------------------------------------------------------------- | --------- | ----------------------------------------------------------- |
+| 1   | `src/config/config.trading.ts`                                                           | 删除      | 移除环境变量读取和返回赋值                                  |
+| 2   | `src/config/config.validator.ts`                                                         | 删除      | 移除校验逻辑和日志输出                                      |
+| 3   | `src/types/config.ts`                                                                    | 删除      | 移除 MonitorConfig.maxDailyLoss 字段                        |
+| 4   | `.env.example`                                                                           | 删除      | 移除 MAX_DAILY_LOSS_1 和 MAX_DAILY_LOSS_2                   |
+| 5   | `src/core/riskController/index.ts`                                                       | 删除+清理 | 核心：移除 3 个函数、参数、import                           |
+| 6   | `src/core/riskController/types.ts`                                                       | 删除      | 移除 RiskCheckerDeps.options.maxDailyLoss                   |
+| 7   | `src/types/services.ts`                                                                  | 删除      | 移除 checkBeforeOrder 的 longCurrentPrice/shortCurrentPrice |
+| 8   | `src/core/signalProcessor/riskCheckPipeline.ts`                                          | 删除      | 移除变量声明和传参                                          |
+| 9   | `src/index.ts`                                                                           | 删除      | 移除注入 maxDailyLoss                                       |
+| 10  | `mock/factories/configFactory.ts`                                                        | 删除      | 移除 maxDailyLoss: 3000                                     |
+| 11  | `tests/core/riskController/index.business.test.ts`                                       | 删除+修改 | 删除 1 个用例，修改 4 个用例                                |
+| 12  | `README.md`                                                                              | 删除      | 移除配置示例                                                |
 | 13  | `docs/issues/2026-03/2026-03-02-protective-liquidation-cooldown-loss-offset-redesign.md` | 更新      | 标注该检查已移除                                            |
 
 ## 9. 验证清单

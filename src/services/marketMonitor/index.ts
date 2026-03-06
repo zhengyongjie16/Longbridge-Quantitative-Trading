@@ -321,7 +321,11 @@ function formatIndicator(value: number | null | undefined, decimals: number = 2)
  * @param record 对象池获取的 KDJ 记录
  * @returns 具备有效 k/d/j 时返回 true
  */
-function isValidPooledKdj(record: { readonly k: number | null; readonly d: number | null; readonly j: number | null }): record is KDJIndicator {
+function isValidPooledKdj(record: {
+  readonly k: number | null;
+  readonly d: number | null;
+  readonly j: number | null;
+}): record is KDJIndicator {
   return isValidNumber(record.k) && isValidNumber(record.d) && isValidNumber(record.j);
 }
 
@@ -330,7 +334,11 @@ function isValidPooledKdj(record: { readonly k: number | null; readonly d: numbe
  * @param record 对象池获取的 MACD 记录
  * @returns 具备有效 macd/dif/dea 时返回 true
  */
-function isValidPooledMacd(record: { readonly macd: number | null; readonly dif: number | null; readonly dea: number | null }): record is MACDIndicator {
+function isValidPooledMacd(record: {
+  readonly macd: number | null;
+  readonly dif: number | null;
+  readonly dea: number | null;
+}): record is MACDIndicator {
   return isValidNumber(record.macd) && isValidNumber(record.dif) && isValidNumber(record.dea);
 }
 
@@ -530,11 +538,7 @@ export function createMarketMonitor(): MarketMonitor {
         }
 
         const lastValue = getCachedDisplayValue(monitorState.monitorValues, displayItem);
-        if (
-          displayItem === 'price' &&
-          lastValue === null &&
-          isValidPositiveNumber(currentValue)
-        ) {
+        if (displayItem === 'price' && lastValue === null && isValidPositiveNumber(currentValue)) {
           hasIndicatorChanged = true;
           break;
         }

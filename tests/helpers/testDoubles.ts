@@ -404,7 +404,9 @@ export function createMonitorConfigDouble(overrides: Partial<MonitorConfig> = {}
 export function createIndicatorUsageProfileDouble(overrides?: {
   readonly requiredFamilies?: Partial<IndicatorUsageProfile['requiredFamilies']>;
   readonly requiredPeriods?: Partial<IndicatorUsageProfile['requiredPeriods']>;
-  readonly actionSignalIndicators?: Partial<Record<StrategyAction, ReadonlyArray<ProfileIndicator>>>;
+  readonly actionSignalIndicators?: Partial<
+    Record<StrategyAction, ReadonlyArray<ProfileIndicator>>
+  >;
   readonly verificationIndicatorsBySide?: Partial<
     IndicatorUsageProfile['verificationIndicatorsBySide']
   >;

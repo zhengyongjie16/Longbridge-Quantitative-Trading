@@ -115,13 +115,7 @@ describe('monitorContext business flow', () => {
     expect(context.indicatorProfile.requiredPeriods.rsi).toEqual([]);
     expect(context.indicatorProfile.requiredPeriods.psy).toEqual([]);
     expect(context.indicatorProfile.requiredFamilies.kdj).toBe(true);
-    expect(context.indicatorProfile.displayPlan).toEqual([
-      'price',
-      'changePercent',
-      'K',
-      'D',
-      'J',
-    ]);
+    expect(context.indicatorProfile.displayPlan).toEqual(['price', 'changePercent', 'K', 'D', 'J']);
   });
 
   it('keeps quote/name empty when seat is not READY', () => {

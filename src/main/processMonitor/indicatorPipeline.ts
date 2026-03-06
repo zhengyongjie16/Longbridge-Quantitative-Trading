@@ -182,11 +182,7 @@ export async function runIndicatorPipeline(
     return state.lastMonitorSnapshot;
   }
 
-  const monitorSnapshot = buildIndicatorSnapshot(
-    monitorSymbol,
-    candles,
-    indicatorProfile,
-  );
+  const monitorSnapshot = buildIndicatorSnapshot(monitorSymbol, candles, indicatorProfile);
   if (!monitorSnapshot) {
     logger.warn(
       `[${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)}] 无法构建指标快照，跳过本次处理`,

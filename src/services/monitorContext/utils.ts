@@ -96,10 +96,7 @@ function parseProfileIndicator(indicatorName: string): ProfileIndicator | null {
  * @param indicators 目标指标数组
  * @param indicator 待追加指标
  */
-function appendUniqueIndicator(
-  indicators: ProfileIndicator[],
-  indicator: ProfileIndicator,
-): void {
+function appendUniqueIndicator(indicators: ProfileIndicator[], indicator: ProfileIndicator): void {
   if (!indicators.includes(indicator)) {
     indicators.push(indicator);
   }
@@ -194,15 +191,14 @@ function compileIndicatorList(
   return compiledIndicators;
 }
 
-function isSupportedVerificationIndicator(indicator: ProfileIndicator): indicator is VerificationIndicator {
+function isSupportedVerificationIndicator(
+  indicator: ProfileIndicator,
+): indicator is VerificationIndicator {
   if (VERIFICATION_FIXED_INDICATORS.has(indicator)) {
     return true;
   }
 
-  return (
-    indicator.startsWith('EMA:') ||
-    indicator.startsWith('PSY:')
-  );
+  return indicator.startsWith('EMA:') || indicator.startsWith('PSY:');
 }
 
 /**

@@ -89,7 +89,9 @@ const verifyTimePoint = (
     }
 
     if (currentValueRaw === null || !Number.isFinite(currentValueRaw)) {
-      const missingReason = isIndicatorPresentInSnapshot(entry.snapshot, name) ? '值无效' : '快照缺失';
+      const missingReason = isIndicatorPresentInSnapshot(entry.snapshot, name)
+        ? '值无效'
+        : '快照缺失';
       details.push(`${name}: ${missingReason}`);
       failedIndicators.push(name);
       allPassed = false;

@@ -534,31 +534,27 @@ describe('delayedSignalVerifier business flow', () => {
 
     const now = 500_000;
     withMockedNowSync(now, () => {
-      verifier.addSignal(
-        {
-          signal: createSignal({
-            symbol: 'BULL.HK',
-            action: 'BUYCALL',
-            triggerTimeMs: now,
-            indicators1: { K: 10 },
-          }),
-          monitorSymbol: 'HSI.HK',
-          verificationIndicators: K_VERIFICATION_INDICATORS,
-        },
-      );
+      verifier.addSignal({
+        signal: createSignal({
+          symbol: 'BULL.HK',
+          action: 'BUYCALL',
+          triggerTimeMs: now,
+          indicators1: { K: 10 },
+        }),
+        monitorSymbol: 'HSI.HK',
+        verificationIndicators: K_VERIFICATION_INDICATORS,
+      });
 
-      verifier.addSignal(
-        {
-          signal: createSignal({
-            symbol: 'BEAR.HK',
-            action: 'BUYPUT',
-            triggerTimeMs: now,
-            indicators1: { K: 10 },
-          }),
-          monitorSymbol: 'HSI.HK',
-          verificationIndicators: K_VERIFICATION_INDICATORS,
-        },
-      );
+      verifier.addSignal({
+        signal: createSignal({
+          symbol: 'BEAR.HK',
+          action: 'BUYPUT',
+          triggerTimeMs: now,
+          indicators1: { K: 10 },
+        }),
+        monitorSymbol: 'HSI.HK',
+        verificationIndicators: K_VERIFICATION_INDICATORS,
+      });
     });
 
     const cancelledLong = verifier.cancelAllForDirection('HSI.HK', 'LONG');
@@ -568,4 +564,3 @@ describe('delayedSignalVerifier business flow', () => {
     verifier.destroy();
   });
 });
-

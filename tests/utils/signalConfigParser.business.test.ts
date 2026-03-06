@@ -113,17 +113,9 @@ describe('signalConfigParser business flow', () => {
     expect(indicatorProfile.requiredFamilies.kdj).toBeTrue();
     expect(indicatorProfile.requiredFamilies.macd).toBeTrue();
 
-    expect(indicatorProfile.actionSignalIndicators.BUYCALL).toEqual([
-      'RSI:14',
-      'RSI:6',
-      'PSY:13',
-    ]);
+    expect(indicatorProfile.actionSignalIndicators.BUYCALL).toEqual(['RSI:14', 'RSI:6', 'PSY:13']);
 
-    expect(indicatorProfile.actionSignalIndicators.SELLCALL).toEqual([
-      'RSI:6',
-      'RSI:20',
-      'PSY:5',
-    ]);
+    expect(indicatorProfile.actionSignalIndicators.SELLCALL).toEqual(['RSI:6', 'RSI:20', 'PSY:5']);
     expect(indicatorProfile.verificationIndicatorsBySide.buy).toEqual(['EMA:7', 'DIF']);
     expect(indicatorProfile.verificationIndicatorsBySide.sell).toEqual(['EMA:21', 'K']);
     expect(indicatorProfile.displayPlan).toEqual([
