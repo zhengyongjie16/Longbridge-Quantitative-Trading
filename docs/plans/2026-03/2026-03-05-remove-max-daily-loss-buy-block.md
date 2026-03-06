@@ -377,7 +377,7 @@ adjustedR1 = baseR1 - dailyLossOffset（dailyLossOffset ≤ 0）
 
 - **删除** `MAX_DAILY_LOSS_1=20000` 配置示例及其注释（约 L103）
 
-#### 6.6.2 `docs/issues/protective-liquidation-cooldown-loss-offset-redesign-2026-03-02.md`
+#### 6.6.2 `docs/issues/2026-03/2026-03-02-protective-liquidation-cooldown-loss-offset-redesign.md`
 
 - **更新** L169 的描述，移除 `maxDailyLoss` 拒买的引用：
 
@@ -429,7 +429,7 @@ adjustedR1 = baseR1 - dailyLossOffset（dailyLossOffset ≤ 0）
 | 10  | `mock/factories/configFactory.ts`                  | 删除      | 移除 maxDailyLoss: 3000                                     |
 | 11  | `tests/core/riskController/index.business.test.ts` | 删除+修改 | 删除 1 个用例，修改 4 个用例                                |
 | 12  | `README.md`                                        | 删除      | 移除配置示例                                                |
-| 13  | `docs/issues/...redesign-2026-03-02.md`            | 更新      | 标注该检查已移除                                            |
+| 13  | `docs/issues/2026-03/2026-03-02-protective-liquidation-cooldown-loss-offset-redesign.md` | 更新      | 标注该检查已移除                                            |
 
 ## 9. 验证清单
 

@@ -2,7 +2,7 @@
 
 ## 1. 文档目的
 
-本文档用于记录对 `docs/issues/protective-liquidation-cooldown-loss-offset-redesign-2026-03-02.md` 对应重构的复核结果。
+本文档用于记录对 `docs/issues/2026-03/2026-03-02-protective-liquidation-cooldown-loss-offset-redesign.md` 对应重构的复核结果。
 目标是明确：
 
 1. 当前实现是否完全满足既定重构语义。

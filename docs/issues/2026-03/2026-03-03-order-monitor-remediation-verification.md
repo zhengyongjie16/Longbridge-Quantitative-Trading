@@ -144,7 +144,7 @@
 
 - 仅在以下位置被命中：
   - `src/core/trader/orderMonitor/utils.ts`（定义本身）；
-  - `docs/issues/order-monitor-infinite-cancel-loop-fix.md` 中的文档示例与说明。
+  - `docs/issues/2026-03/2026-03-03-order-monitor-infinite-cancel-loop-fix.md` 中的文档示例与说明。
 - **在 `src/` 与 `tests/` 代码中均无任何实际调用点**。
 
 结合现有实现可以确认：
