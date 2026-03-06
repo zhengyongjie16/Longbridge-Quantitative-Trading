@@ -21,8 +21,8 @@
 
 建议选择第一梯队模型处理复杂任务，以确保代码质量与效率。
 
-- **第一梯队**: `GPT-5.3-Codex-Extra-High`, `Claude-Opus-4.6`
-- **第二梯队**: `Claude-Sonnet-4.6`, `Kimi-K2.5-Thinking`, `MiniMax-M2.5`, `GLM-5`, `Gemini-3-Pro`
+- **第一梯队**: `GPT-5.4`, `GPT-5.3-Codex-Extra-High`, `Claude-Opus-4.6`
+- **第二梯队**: `Claude-Sonnet-4.6`, `MiniMax-M2.5`, `GLM-5`, `Gemini-3.1-Pro`
 - **第三梯队**: `Qwen-3.5`, `Grok-4`, `Deepseek-v3.2`
 
 ## 开发者提示
