@@ -1,8 +1,6 @@
 # 剔除 MAX_DAILY_LOSS_N 超阈值禁止买入检查
 
-> 日期：2026-03-05
-> 状态：待审批
-> 影响范围：风控核心层、配置层、注入层、测试层、文档层
+> 日期：2026-03-05状态：待审批影响范围：风控核心层、配置层、注入层、测试层、文档层
 
 ---
 
@@ -26,9 +24,9 @@
 
 ### 2.2 保护性清仓 + 买入冷却（保留）
 
-| 配置项                             | 代码字段                     | 默认值 | 作用                             |
-| ---------------------------------- | ---------------------------- | ------ | -------------------------------- |
-| `MAX_UNREALIZED_LOSS_PER_SYMBOL_N` | `maxUnrealizedLossPerSymbol` | 3000   | 浮亏 < -阈值时**触发保护性清仓** |
+| 配置项 | 代码字段 | 默认值 | 作用 |
+| --- | --- | --- | --- |
+| `MAX_UNREALIZED_LOSS_PER_SYMBOL_N` | `maxUnrealizedLossPerSymbol` | 3000 | 浮亏 < -阈值时**触发保护性清仓** |
 
 - **检查位置**：`src/core/riskController/unrealizedLossChecker.ts` → `check` → 由浮亏监控定时触发
 - **清仓后行为**：
@@ -250,20 +248,7 @@ adjustedR1 = baseR1 - dailyLossOffset（dailyLossOffset ≤ 0）
 
    同时更新 `checkBeforeOrder` 的 JSDoc（L205），将"账户数据有效性 → 港币可用现金 → 浮亏限制 → 持仓市值限制"改为"账户数据有效性 → 港币可用现金 → 持仓市值限制"
 
-9. **清理** 不再需要的 import（已确认使用情况）：
-   | import | 仅被待删除代码使用 | 处理 |
-   |--------|---------------------|------|
-   | `decimalLte` | 是（仅 L154） | **删除** |
-   | `decimalNeg` | 是（仅 L154） | **删除** |
-   | `IS_DEBUG` | 是（仅 L141） | **删除** |
-   | `decimalMul` | 否（`buildUnrealizedLossMetrics` L103） | 保留 |
-   | `decimalSub` | 否（`buildUnrealizedLossMetrics` L106） | 保留 |
-   | `decimalToNumberValue` | 否（`buildUnrealizedLossMetrics` L107） | 保留 |
-   | `toDecimalValue` | 否（`buildUnrealizedLossMetrics` L97） | 保留 |
-   | `formatDecimal` | 否（`checkBeforeOrder` L272-275） | 保留 |
-   | `decimalLt` | 否（`checkBeforeOrder` L269） | 保留 |
-   | `isBuyAction` | 否（`checkBeforeOrder` L233） | 保留 |
-   | `isValidPositiveNumber` | 否（`buildUnrealizedLossMetrics` L99） | 保留 |
+9. **清理** 不再需要的 import（已确认使用情况）：| import | 仅被待删除代码使用 | 处理 | |--------|---------------------|------| | `decimalLte` | 是（仅 L154） | **删除** | | `decimalNeg` | 是（仅 L154） | **删除** | | `IS_DEBUG` | 是（仅 L141） | **删除** | | `decimalMul` | 否（`buildUnrealizedLossMetrics` L103） | 保留 | | `decimalSub` | 否（`buildUnrealizedLossMetrics` L106） | 保留 | | `decimalToNumberValue` | 否（`buildUnrealizedLossMetrics` L107） | 保留 | | `toDecimalValue` | 否（`buildUnrealizedLossMetrics` L97） | 保留 | | `formatDecimal` | 否（`checkBeforeOrder` L272-275） | 保留 | | `decimalLt` | 否（`checkBeforeOrder` L269） | 保留 | | `isBuyAction` | 否（`checkBeforeOrder` L233） | 保留 | | `isValidPositiveNumber` | 否（`buildUnrealizedLossMetrics` L99） | 保留 |
 
 #### 6.2.2 `src/core/riskController/types.ts`
 
@@ -289,13 +274,13 @@ adjustedR1 = baseR1 - dailyLossOffset（dailyLossOffset ≤ 0）
 
 该文件共 5 个测试用例，逐一分析：
 
-| #   | 测试名称                                                                   | 涉及 maxDailyLoss                                                      | 处理方式                                                                                | 理由                             |
-| --- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------- |
-| 1   | `rejects buy when HKD available cash is insufficient`                      | options 传入 maxDailyLoss: 1000，但测试目标是现金不足拒绝              | **保留，删除 options 中的 maxDailyLoss 并删除 longCurrentPrice/shortCurrentPrice 参数** | 测试现金检查逻辑，与浮亏禁买无关 |
-| 2   | `rejects buy when unrealized loss exceeds configured maxDailyLoss`         | 核心测试浮亏禁买功能                                                   | **整个用例删除**                                                                        | 测试目标就是待剔除的功能         |
-| 3   | `allows sell when account data is unavailable`                             | options 传入 maxDailyLoss: 100，但测试目标是卖出跳过检查               | **保留，删除 options 中的 maxDailyLoss 并删除 longCurrentPrice/shortCurrentPrice 参数** | 测试卖出放行逻辑，与浮亏禁买无关 |
-| 4   | `returns position limit checker rejection after passing buy preconditions` | options 传入 maxDailyLoss: 1000，但测试目标是持仓市值限制              | **保留，删除 options 中的 maxDailyLoss 并删除 longCurrentPrice/shortCurrentPrice 参数** | 测试持仓限制逻辑，与浮亏禁买无关 |
-| 5   | `builds unrealized-loss metrics from cached R1/N1 and current price`       | options 传入 maxDailyLoss: 1000，但测试目标是 getUnrealizedLossMetrics | **保留，删除 options 中的 maxDailyLoss**                                                | 测试指标构建逻辑，与浮亏禁买无关 |
+| # | 测试名称 | 涉及 maxDailyLoss | 处理方式 | 理由 |
+| --- | --- | --- | --- | --- |
+| 1 | `rejects buy when HKD available cash is insufficient` | options 传入 maxDailyLoss: 1000，但测试目标是现金不足拒绝 | **保留，删除 options 中的 maxDailyLoss 并删除 longCurrentPrice/shortCurrentPrice 参数** | 测试现金检查逻辑，与浮亏禁买无关 |
+| 2 | `rejects buy when unrealized loss exceeds configured maxDailyLoss` | 核心测试浮亏禁买功能 | **整个用例删除** | 测试目标就是待剔除的功能 |
+| 3 | `allows sell when account data is unavailable` | options 传入 maxDailyLoss: 100，但测试目标是卖出跳过检查 | **保留，删除 options 中的 maxDailyLoss 并删除 longCurrentPrice/shortCurrentPrice 参数** | 测试卖出放行逻辑，与浮亏禁买无关 |
+| 4 | `returns position limit checker rejection after passing buy preconditions` | options 传入 maxDailyLoss: 1000，但测试目标是持仓市值限制 | **保留，删除 options 中的 maxDailyLoss 并删除 longCurrentPrice/shortCurrentPrice 参数** | 测试持仓限制逻辑，与浮亏禁买无关 |
+| 5 | `builds unrealized-loss metrics from cached R1/N1 and current price` | options 传入 maxDailyLoss: 1000，但测试目标是 getUnrealizedLossMetrics | **保留，删除 options 中的 maxDailyLoss** | 测试指标构建逻辑，与浮亏禁买无关 |
 
 **详细修改清单：**
 
@@ -384,8 +369,7 @@ adjustedR1 = baseR1 - dailyLossOffset（dailyLossOffset ≤ 0）
   ```markdown
   // 修改前
 
-  - 浮亏口径仍可能触发 `maxDailyLoss` 拒买。
-    // 修改后（删除该行或改为标注该功能已移除）
+  - 浮亏口径仍可能触发 `maxDailyLoss` 拒买。// 修改后（删除该行或改为标注该功能已移除）
   - ~~浮亏口径仍可能触发 `maxDailyLoss` 拒买。~~（该检查已在 2026-03-05 剔除）
   ```
 
@@ -415,21 +399,21 @@ adjustedR1 = baseR1 - dailyLossOffset（dailyLossOffset ≤ 0）
 
 ## 8. 修改文件完整清单
 
-| #   | 文件路径                                                                                 | 操作      | 说明                                                        |
-| --- | ---------------------------------------------------------------------------------------- | --------- | ----------------------------------------------------------- |
-| 1   | `src/config/config.trading.ts`                                                           | 删除      | 移除环境变量读取和返回赋值                                  |
-| 2   | `src/config/config.validator.ts`                                                         | 删除      | 移除校验逻辑和日志输出                                      |
-| 3   | `src/types/config.ts`                                                                    | 删除      | 移除 MonitorConfig.maxDailyLoss 字段                        |
-| 4   | `.env.example`                                                                           | 删除      | 移除 MAX_DAILY_LOSS_1 和 MAX_DAILY_LOSS_2                   |
-| 5   | `src/core/riskController/index.ts`                                                       | 删除+清理 | 核心：移除 3 个函数、参数、import                           |
-| 6   | `src/core/riskController/types.ts`                                                       | 删除      | 移除 RiskCheckerDeps.options.maxDailyLoss                   |
-| 7   | `src/types/services.ts`                                                                  | 删除      | 移除 checkBeforeOrder 的 longCurrentPrice/shortCurrentPrice |
-| 8   | `src/core/signalProcessor/riskCheckPipeline.ts`                                          | 删除      | 移除变量声明和传参                                          |
-| 9   | `src/index.ts`                                                                           | 删除      | 移除注入 maxDailyLoss                                       |
-| 10  | `mock/factories/configFactory.ts`                                                        | 删除      | 移除 maxDailyLoss: 3000                                     |
-| 11  | `tests/core/riskController/index.business.test.ts`                                       | 删除+修改 | 删除 1 个用例，修改 4 个用例                                |
-| 12  | `README.md`                                                                              | 删除      | 移除配置示例                                                |
-| 13  | `docs/issues/2026-03/2026-03-02-protective-liquidation-cooldown-loss-offset-redesign.md` | 更新      | 标注该检查已移除                                            |
+| # | 文件路径 | 操作 | 说明 |
+| --- | --- | --- | --- |
+| 1 | `src/config/config.trading.ts` | 删除 | 移除环境变量读取和返回赋值 |
+| 2 | `src/config/config.validator.ts` | 删除 | 移除校验逻辑和日志输出 |
+| 3 | `src/types/config.ts` | 删除 | 移除 MonitorConfig.maxDailyLoss 字段 |
+| 4 | `.env.example` | 删除 | 移除 MAX_DAILY_LOSS_1 和 MAX_DAILY_LOSS_2 |
+| 5 | `src/core/riskController/index.ts` | 删除+清理 | 核心：移除 3 个函数、参数、import |
+| 6 | `src/core/riskController/types.ts` | 删除 | 移除 RiskCheckerDeps.options.maxDailyLoss |
+| 7 | `src/types/services.ts` | 删除 | 移除 checkBeforeOrder 的 longCurrentPrice/shortCurrentPrice |
+| 8 | `src/core/signalProcessor/riskCheckPipeline.ts` | 删除 | 移除变量声明和传参 |
+| 9 | `src/index.ts` | 删除 | 移除注入 maxDailyLoss |
+| 10 | `mock/factories/configFactory.ts` | 删除 | 移除 maxDailyLoss: 3000 |
+| 11 | `tests/core/riskController/index.business.test.ts` | 删除+修改 | 删除 1 个用例，修改 4 个用例 |
+| 12 | `README.md` | 删除 | 移除配置示例 |
+| 13 | `docs/issues/2026-03/2026-03-02-protective-liquidation-cooldown-loss-offset-redesign.md` | 更新 | 标注该检查已移除 |
 
 ## 9. 验证清单
 

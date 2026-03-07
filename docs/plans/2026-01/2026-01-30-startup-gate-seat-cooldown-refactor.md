@@ -42,8 +42,7 @@ const result = await gate.wait({ mode: 'skip' });
 assert.deepEqual(result, { isTradingDay: true, isHalfDay: false });
 ```
 
-**Step 2: Run test to verify it fails**
-Run: `npm run build && node tests/startup/startup-gate.test.js`  
+**Step 2: Run test to verify it fails** Run: `npm run build && node tests/startup/startup-gate.test.js`  
 Expected: FAIL with "createStartupGate is not a function"
 
 **Step 3: Write minimal implementation**
@@ -61,12 +60,9 @@ export function createStartupGate(deps: GateDeps) {
 }
 ```
 
-同时在 `mainProgram` 中加入 `runtimeGateMode`，当 `dev` 时跳过交易日/交易时段/开盘保护的运行期检查。
-并将启动订阅从 `accountDisplay` 中移除，改为席位就绪后统一订阅。
-并将 `createMarketDataClient` 改为无自动订阅，标的有效性验证移至席位就绪后执行。
+同时在 `mainProgram` 中加入 `runtimeGateMode`，当 `dev` 时跳过交易日/交易时段/开盘保护的运行期检查。并将启动订阅从 `accountDisplay` 中移除，改为席位就绪后统一订阅。并将 `createMarketDataClient` 改为无自动订阅，标的有效性验证移至席位就绪后执行。
 
-**Step 4: Run test to verify it passes**
-Run: `npm run build && node tests/startup/startup-gate.test.js`  
+**Step 4: Run test to verify it passes** Run: `npm run build && node tests/startup/startup-gate.test.js`  
 Expected: PASS
 
 **Step 5: Commit**
@@ -102,8 +98,7 @@ const snapshot = resolveSeatSnapshot({
 assert.equal(snapshot.seats.get('HSI:LONG'), 'ABC.HK');
 ```
 
-**Step 2: Run test to verify it fails**
-Run: `npm run build && node tests/startup/seat.test.js`  
+**Step 2: Run test to verify it fails** Run: `npm run build && node tests/startup/seat.test.js`  
 Expected: FAIL with "resolveSeatSnapshot is not a function"
 
 **Step 3: Write minimal implementation**
@@ -116,8 +111,7 @@ export function resolveSeatSnapshot(deps: SeatSnapshotDeps): SeatSnapshot {
 }
 ```
 
-**Step 4: Run test to verify it passes**
-Run: `npm run build && node tests/startup/seat.test.js`  
+**Step 4: Run test to verify it passes** Run: `npm run build && node tests/startup/seat.test.js`  
 Expected: PASS
 
 **Step 5: Commit**
@@ -157,8 +151,7 @@ const result = hydrateCooldownBySeat({
 assert.equal(result.get('HSI:LONG'), null);
 ```
 
-**Step 2: Run test to verify it fails**
-Run: `npm run build && node tests/startup/cooldown-hydrator.test.js`  
+**Step 2: Run test to verify it fails** Run: `npm run build && node tests/startup/cooldown-hydrator.test.js`  
 Expected: FAIL with "hydrateCooldownBySeat is not a function"
 
 **Step 3: Write minimal implementation**
@@ -173,8 +166,7 @@ export function hydrateCooldownBySeat(/* ... */) {
 }
 ```
 
-**Step 4: Run test to verify it passes**
-Run: `npm run build && node tests/startup/cooldown-hydrator.test.js`  
+**Step 4: Run test to verify it passes** Run: `npm run build && node tests/startup/cooldown-hydrator.test.js`  
 Expected: PASS
 
 **Step 5: Commit**
@@ -198,18 +190,15 @@ git commit -m "refactor: hydrate cooldown by seat symbols"
 
 - 编写最小启动脚本（模拟 gate -> account -> seat -> cooldown -> init 顺序），断言日志顺序。
 
-**Step 2: Run test to verify it fails**
-Run: `npm run build && node tests/startup/startup-sequence.test.js`  
+**Step 2: Run test to verify it fails** Run: `npm run build && node tests/startup/startup-sequence.test.js`  
 Expected: FAIL with "order mismatch"
 
 **Step 3: Write minimal implementation**
 
-- 将 `src/index.ts` 拆为 `startup` 阶段函数，并显式顺序：
-  `gate → account/positions(cache) → seat → unified subscription → cooldown hydrate → seat-based init → run`.
+- 将 `src/index.ts` 拆为 `startup` 阶段函数，并显式顺序： `gate → account/positions(cache) → seat → unified subscription → cooldown hydrate → seat-based init → run`.
 - 仅在席位就绪后执行：行情订阅、持仓行情展示、monitorContext 创建、牛熊证信息、订单记录、浮亏初始化。
 
-**Step 4: Run test to verify it passes**
-Run: `npm run build && node tests/startup/startup-sequence.test.js`  
+**Step 4: Run test to verify it passes** Run: `npm run build && node tests/startup/startup-sequence.test.js`  
 Expected: PASS
 
 **Step 5: Commit**

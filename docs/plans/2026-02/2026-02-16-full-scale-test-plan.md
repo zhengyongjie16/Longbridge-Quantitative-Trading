@@ -1,10 +1,6 @@
 # 全规模业务逻辑测试最终实施方案（合并版）
 
-> 文档版本：v3（合并 `full-scale-test-plan.md` + `2026-02-16-full-scale-test-implementation-plan.md`）
-> 适用仓库：`D:/code/Longbridge-Quantitative-Trading`
-> 测试框架：`bun:test`
-> 输出范围：`tests/` + 根目录 `mock/`
-> 文档目标：作为唯一执行基线，指导后续全规模测试代码落地
+> 文档版本：v3（合并 `full-scale-test-plan.md` + `2026-02-16-full-scale-test-implementation-plan.md`）适用仓库：`D:/code/Longbridge-Quantitative-Trading` 测试框架：`bun:test` 输出范围：`tests/` + 根目录 `mock/` 文档目标：作为唯一执行基线，指导后续全规模测试代码落地
 
 ---
 
@@ -47,18 +43,18 @@
 
 ### 2.1 常量与阈值基线
 
-| 主题                 | 源码常量                                    |     实际值 | 测试要求                   |
-| -------------------- | ------------------------------------------- | ---------: | -------------------------- |
-| 牛证买入最小安全距离 | `BULL_WARRANT_MIN_DISTANCE_PERCENT`         |     `0.35` | 覆盖边界值：0.35 上下邻域  |
-| 熊证买入最大安全距离 | `BEAR_WARRANT_MAX_DISTANCE_PERCENT`         |    `-0.35` | 覆盖边界值：-0.35 上下邻域 |
-| 牛证清仓距离阈值     | `BULL_WARRANT_LIQUIDATION_DISTANCE_PERCENT` |      `0.3` | 覆盖触发/不触发边界        |
-| 熊证清仓距离阈值     | `BEAR_WARRANT_LIQUIDATION_DISTANCE_PERCENT` |     `-0.3` | 覆盖触发/不触发边界        |
-| 监控标的最小有效价   | `MIN_MONITOR_PRICE_THRESHOLD`               |        `1` | 覆盖 `<1` 拒绝、`=1` 通过  |
-| 风险检查冷却秒数     | `VERIFIED_SIGNAL_COOLDOWN_SECONDS`          |       `10` | 覆盖 0~10 秒行为           |
-| Trade API 最小间隔   | `API.MIN_CALL_INTERVAL_MS`                  |     `30ms` | 覆盖并发节流与串行         |
-| Trade API 窗口限制   | `rateLimiter default`                       |  30秒≤30次 | 覆盖窗口边界               |
-| 自动寻标候选缓存 TTL | `AUTO_SYMBOL_WARRANT_LIST_CACHE_TTL_MS`     |   `3000ms` | 覆盖过期与复用             |
-| 自动寻标冷却         | `AUTO_SYMBOL_SEARCH_COOLDOWN_MS`            | `600000ms` | 覆盖 10 分钟冷却           |
+| 主题 | 源码常量 | 实际值 | 测试要求 |
+| --- | --- | --: | --- |
+| 牛证买入最小安全距离 | `BULL_WARRANT_MIN_DISTANCE_PERCENT` | `0.35` | 覆盖边界值：0.35 上下邻域 |
+| 熊证买入最大安全距离 | `BEAR_WARRANT_MAX_DISTANCE_PERCENT` | `-0.35` | 覆盖边界值：-0.35 上下邻域 |
+| 牛证清仓距离阈值 | `BULL_WARRANT_LIQUIDATION_DISTANCE_PERCENT` | `0.3` | 覆盖触发/不触发边界 |
+| 熊证清仓距离阈值 | `BEAR_WARRANT_LIQUIDATION_DISTANCE_PERCENT` | `-0.3` | 覆盖触发/不触发边界 |
+| 监控标的最小有效价 | `MIN_MONITOR_PRICE_THRESHOLD` | `1` | 覆盖 `<1` 拒绝、`=1` 通过 |
+| 风险检查冷却秒数 | `VERIFIED_SIGNAL_COOLDOWN_SECONDS` | `10` | 覆盖 0~10 秒行为 |
+| Trade API 最小间隔 | `API.MIN_CALL_INTERVAL_MS` | `30ms` | 覆盖并发节流与串行 |
+| Trade API 窗口限制 | `rateLimiter default` | 30秒≤30次 | 覆盖窗口边界 |
+| 自动寻标候选缓存 TTL | `AUTO_SYMBOL_WARRANT_LIST_CACHE_TTL_MS` | `3000ms` | 覆盖过期与复用 |
+| 自动寻标冷却 | `AUTO_SYMBOL_SEARCH_COOLDOWN_MS` | `600000ms` | 覆盖 10 分钟冷却 |
 
 ### 2.2 买入风险流水线真实顺序
 
@@ -98,13 +94,13 @@
 
 ### 3.1 分层模型
 
-| 层级           | 目标                      | 关注点                       | 目录                                |
-| -------------- | ------------------------- | ---------------------------- | ----------------------------------- |
-| L0 Mock 合同层 | 验证 mock 与 SDK 合同一致 | 接口签名、字段结构、事件语义 | `tests/mock-contract/`              |
-| L1 业务规则层  | 验证单模块业务规则        | 规则正确性、边界值、拒绝路径 | `tests/core/`, `tests/services/`    |
-| L2 协同流程层  | 验证模块协作与时序        | 门禁、队列、缓存一致性       | `tests/main/`                       |
-| L3 端到端层    | 验证交易日真实流程        | 全链路状态迁移与不变量       | `tests/integration/`                |
-| L4 回归/混沌层 | 验证异常恢复与稳定性      | 失败注入、并发竞态、乱序推送 | `tests/regression/`, `tests/chaos/` |
+| 层级 | 目标 | 关注点 | 目录 |
+| --- | --- | --- | --- |
+| L0 Mock 合同层 | 验证 mock 与 SDK 合同一致 | 接口签名、字段结构、事件语义 | `tests/mock-contract/` |
+| L1 业务规则层 | 验证单模块业务规则 | 规则正确性、边界值、拒绝路径 | `tests/core/`, `tests/services/` |
+| L2 协同流程层 | 验证模块协作与时序 | 门禁、队列、缓存一致性 | `tests/main/` |
+| L3 端到端层 | 验证交易日真实流程 | 全链路状态迁移与不变量 | `tests/integration/` |
+| L4 回归/混沌层 | 验证异常恢复与稳定性 | 失败注入、并发竞态、乱序推送 | `tests/regression/`, `tests/chaos/` |
 
 ### 3.2 测试设计原则
 
@@ -462,22 +458,22 @@ tests/
 
 ## 9. 子代理协同分工（14 Agent）
 
-| Agent    | 负责范围                   | 关键交付物                                                                         | 依赖             |
-| -------- | -------------------------- | ---------------------------------------------------------------------------------- | ---------------- |
-| Agent-1  | Mock 基础设施总控          | `mock/longport/*`, `mock/factories/*`, 合同测试                                    | 无               |
-| Agent-2  | 信号策略+延迟验证          | `tests/core/strategy/*`, `tests/main/asyncProgram/delayedSignalVerifier/*`         | Agent-1          |
-| Agent-3  | 买入风控流水线             | `tests/core/signalProcessor/riskCheckPipeline*`, `tests/core/riskController/*`     | Agent-1          |
-| Agent-4  | 卖出策略+订单记录          | `tests/core/signalProcessor/*sell*`, `tests/core/orderRecorder/*`                  | Agent-1          |
-| Agent-5  | 下单执行+限流              | `tests/core/trader/orderExecutor*`, `tests/core/trader/rateLimiter*`               | Agent-1          |
-| Agent-6  | 订单监控+超时转市价        | `tests/core/trader/orderMonitor*`, `tests/main/asyncProgram/orderMonitorWorker/*`  | Agent-1          |
-| Agent-7  | processMonitor 调度        | `tests/main/processMonitor/seatSync*`, `riskTasks*`, `autoSymbolTasks*`            | Agent-1          |
-| Agent-8  | monitorTaskQueue/Processor | `tests/main/asyncProgram/monitorTaskQueue/*`, `monitorTaskProcessor/*`             | Agent-1          |
-| Agent-9  | postTradeRefresher         | `tests/main/asyncProgram/postTradeRefresher/*`                                     | Agent-1          |
-| Agent-10 | 服务层模块                 | `tests/services/quoteClient/*`, `marketMonitor/*`, `monitorContext/*`, `cleanup/*` | Agent-1          |
-| Agent-11 | 自动寻标/换标状态机        | `tests/services/autoSymbol*/*`, `tests/integration/auto-symbol-switch*`            | Agent-1, Agent-7 |
-| Agent-12 | 生命周期                   | `tests/main/lifecycle/*`, `tests/integration/lifecycle-crossday*`                  | Agent-1          |
-| Agent-13 | 端到端整合                 | `tests/integration/*`                                                              | Agent-2~12       |
-| Agent-14 | 回归与混沌                 | `tests/regression/*`, `tests/chaos/*`                                              | Agent-13         |
+| Agent | 负责范围 | 关键交付物 | 依赖 |
+| --- | --- | --- | --- |
+| Agent-1 | Mock 基础设施总控 | `mock/longport/*`, `mock/factories/*`, 合同测试 | 无 |
+| Agent-2 | 信号策略+延迟验证 | `tests/core/strategy/*`, `tests/main/asyncProgram/delayedSignalVerifier/*` | Agent-1 |
+| Agent-3 | 买入风控流水线 | `tests/core/signalProcessor/riskCheckPipeline*`, `tests/core/riskController/*` | Agent-1 |
+| Agent-4 | 卖出策略+订单记录 | `tests/core/signalProcessor/*sell*`, `tests/core/orderRecorder/*` | Agent-1 |
+| Agent-5 | 下单执行+限流 | `tests/core/trader/orderExecutor*`, `tests/core/trader/rateLimiter*` | Agent-1 |
+| Agent-6 | 订单监控+超时转市价 | `tests/core/trader/orderMonitor*`, `tests/main/asyncProgram/orderMonitorWorker/*` | Agent-1 |
+| Agent-7 | processMonitor 调度 | `tests/main/processMonitor/seatSync*`, `riskTasks*`, `autoSymbolTasks*` | Agent-1 |
+| Agent-8 | monitorTaskQueue/Processor | `tests/main/asyncProgram/monitorTaskQueue/*`, `monitorTaskProcessor/*` | Agent-1 |
+| Agent-9 | postTradeRefresher | `tests/main/asyncProgram/postTradeRefresher/*` | Agent-1 |
+| Agent-10 | 服务层模块 | `tests/services/quoteClient/*`, `marketMonitor/*`, `monitorContext/*`, `cleanup/*` | Agent-1 |
+| Agent-11 | 自动寻标/换标状态机 | `tests/services/autoSymbol*/*`, `tests/integration/auto-symbol-switch*` | Agent-1, Agent-7 |
+| Agent-12 | 生命周期 | `tests/main/lifecycle/*`, `tests/integration/lifecycle-crossday*` | Agent-1 |
+| Agent-13 | 端到端整合 | `tests/integration/*` | Agent-2~12 |
+| Agent-14 | 回归与混沌 | `tests/regression/*`, `tests/chaos/*` | Agent-13 |
 
 ---
 
@@ -593,13 +589,13 @@ tests/
 
 ## 15. 规则追踪矩阵模板（执行时使用）
 
-| Rule ID      | 规则描述             | 源码位置                                        | 测试文件                                               | 场景 ID                |
-| ------------ | -------------------- | ----------------------------------------------- | ------------------------------------------------------ | ---------------------- |
-| BR-RISK-001  | 风险检查冷却10秒     | `src/core/signalProcessor/riskCheckPipeline.ts` | `tests/core/signalProcessor/riskCheckPipeline.test.ts` | `SCN-RISK-COOLDOWN-01` |
-| BR-RISK-002  | 频率通过后预占时间槽 | `src/core/signalProcessor/riskCheckPipeline.ts` | `tests/core/signalProcessor/riskCheckPipeline.test.ts` | `SCN-RISK-MARK-01`     |
-| BR-ORDER-001 | 卖出超时转市价单     | `src/core/trader/orderMonitor.ts`               | `tests/core/trader/orderMonitor.timeout.test.ts`       | `SCN-ORDER-TO-MO-01`   |
-| BR-AUTO-001  | 寻标失败冻结         | `src/services/autoSymbolManager/*`              | `tests/services/autoSymbol/*`                          | `SCN-AUTO-FREEZE-01`   |
-| BR-LIFE-001  | 午夜清理与开盘重建   | `src/main/lifecycle/*`                          | `tests/main/lifecycle/*`                               | `SCN-LIFE-CROSSDAY-01` |
+| Rule ID | 规则描述 | 源码位置 | 测试文件 | 场景 ID |
+| --- | --- | --- | --- | --- |
+| BR-RISK-001 | 风险检查冷却10秒 | `src/core/signalProcessor/riskCheckPipeline.ts` | `tests/core/signalProcessor/riskCheckPipeline.test.ts` | `SCN-RISK-COOLDOWN-01` |
+| BR-RISK-002 | 频率通过后预占时间槽 | `src/core/signalProcessor/riskCheckPipeline.ts` | `tests/core/signalProcessor/riskCheckPipeline.test.ts` | `SCN-RISK-MARK-01` |
+| BR-ORDER-001 | 卖出超时转市价单 | `src/core/trader/orderMonitor.ts` | `tests/core/trader/orderMonitor.timeout.test.ts` | `SCN-ORDER-TO-MO-01` |
+| BR-AUTO-001 | 寻标失败冻结 | `src/services/autoSymbolManager/*` | `tests/services/autoSymbol/*` | `SCN-AUTO-FREEZE-01` |
+| BR-LIFE-001 | 午夜清理与开盘重建 | `src/main/lifecycle/*` | `tests/main/lifecycle/*` | `SCN-LIFE-CROSSDAY-01` |
 
 执行时按此模板持续补全至全量规则覆盖。
 

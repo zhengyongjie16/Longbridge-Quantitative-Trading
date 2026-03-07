@@ -69,8 +69,7 @@ if (Math.abs(longLoss - 10) > 1e-6) {
 console.log('OK');
 ```
 
-**步骤 2：运行检查（预期失败）**
-运行：`npm run build && node dist/tools/dailyLossCalculatorCheck.js`  
+**步骤 2：运行检查（预期失败）** 运行：`npm run build && node dist/tools/dailyLossCalculatorCheck.js`  
 预期：FAIL（缺少导出 / 未实现）
 
 **步骤 3：实现当日亏损计算工具**
@@ -93,8 +92,7 @@ export function calculateDailyLossOffsetForOrders({
 }
 ```
 
-**步骤 4：重新运行检查（预期通过）**
-运行：`npm run build && node dist/tools/dailyLossCalculatorCheck.js`  
+**步骤 4：重新运行检查（预期通过）** 运行：`npm run build && node dist/tools/dailyLossCalculatorCheck.js`  
 预期：PASS 且输出 `OK`
 
 **步骤 5：提交**
@@ -119,8 +117,7 @@ import { createDailyLossTracker } from '../src/core/risk/dailyLossTracker.js';
 // 用订单初始化，然后记录一笔新成交并重新检查亏损
 ```
 
-**步骤 2：运行检查（预期失败）**
-运行：`npm run build && node dist/tools/dailyLossCalculatorCheck.js`  
+**步骤 2：运行检查（预期失败）** 运行：`npm run build && node dist/tools/dailyLossCalculatorCheck.js`  
 预期：FAIL（跟踪器缺失）
 
 **步骤 3：实现跟踪器**
@@ -134,8 +131,7 @@ export function createDailyLossTracker(/* deps */) {
 }
 ```
 
-**步骤 4：重新运行检查（预期通过）**
-运行：`npm run build && node dist/tools/dailyLossCalculatorCheck.js`  
+**步骤 4：重新运行检查（预期通过）** 运行：`npm run build && node dist/tools/dailyLossCalculatorCheck.js`  
 预期：PASS
 
 **步骤 5：提交**
@@ -188,8 +184,7 @@ const { r1, n1 } = lossData;
 // 允许在 n1 <= 0 且 r1 != 0 时仍进行检查
 ```
 
-**步骤 4：类型检查**
-运行：`npm run type-check`  
+**步骤 4：类型检查** 运行：`npm run type-check`  
 预期：PASS
 
 **步骤 5：提交**
@@ -271,14 +266,11 @@ git commit -m "feat: wire daily loss offsets into refresh flow"
 
 ### 任务 5：验证
 
-**步骤 1：Lint**
-运行：`npm run lint`  
+**步骤 1：Lint** 运行：`npm run lint`  
 预期：PASS
 
-**步骤 2：类型检查**
-运行：`npm run type-check`  
+**步骤 2：类型检查** 运行：`npm run type-check`  
 预期：PASS
 
-**步骤 3：手动冒烟检查**
-运行：`npm run build && node dist/tools/dailyLossCalculatorCheck.js`  
+**步骤 3：手动冒烟检查** 运行：`npm run build && node dist/tools/dailyLossCalculatorCheck.js`  
 预期：PASS 且输出 `OK`

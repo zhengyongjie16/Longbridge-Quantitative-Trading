@@ -121,8 +121,7 @@
 5. 最终卖量 `Q = Q2 + Q3`。
 6. 若 `Q == 0`：HOLD。
 
-超时判定：`heldTradingMs > timeoutMs`（严格大于）。
-等于阈值时不触发，超过 1ms 才触发。
+超时判定：`heldTradingMs > timeoutMs`（严格大于）。等于阈值时不触发，超过 1ms 才触发。
 
 ---
 

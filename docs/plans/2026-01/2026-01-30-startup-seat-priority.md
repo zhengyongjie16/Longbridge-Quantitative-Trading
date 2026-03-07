@@ -218,8 +218,7 @@ git commit -m "feat: prioritize seat resolution during startup"
 
 - 增加最小化启动模拟脚本（若不便编写单测，可先记录日志断言预期）。
 
-**Step 2: Run test to verify it fails**
-Run: `npm run type-check`  
+**Step 2: Run test to verify it fails** Run: `npm run type-check`  
 Expected: PASS（类型检查不失败，但日志断言未满足）
 
 **Step 3: Write minimal implementation**
@@ -227,8 +226,7 @@ Expected: PASS（类型检查不失败，但日志断言未满足）
 - 仅在席位就绪时初始化牛熊证信息、订单记录、浮亏数据。
 - `monitorContext` 的初始 `longQuote/shortQuote` 只读取席位标的行情。
 
-**Step 4: Run test to verify it passes**
-Run: `npm run type-check`  
+**Step 4: Run test to verify it passes** Run: `npm run type-check`  
 Expected: PASS
 
 **Step 5: Commit**
@@ -257,8 +255,7 @@ git commit -m "refactor: initialize risk/order/loss by seat symbols"
 
 - 增加脚本模拟"席位标的非配置标的"的刷新场景（可在日志中标记命中）。
 
-**Step 2: Run test to verify it fails**
-Run: `npm run type-check`  
+**Step 2: Run test to verify it fails** Run: `npm run type-check`  
 Expected: PASS（日志断言未满足）
 
 **Step 3: Write minimal implementation**
@@ -268,8 +265,7 @@ Expected: PASS（日志断言未满足）
 - 行情订阅与订单归属解析不再使用配置兜底（`orderExecutor`/`orderMonitor`）。
 - 风险检查与订单记录刷新入口统一走席位标的。
 
-**Step 4: Run test to verify it passes**
-Run: `npm run type-check`  
+**Step 4: Run test to verify it passes** Run: `npm run type-check`  
 Expected: PASS
 
 **Step 5: Commit**
@@ -292,8 +288,7 @@ git commit -m "refactor: use seat symbols across runtime flow"
 
 - 更新启动流程图，突出"席位唯一来源 + 寻标完成后再初始化"。
 
-**Step 2: Validate docs**
-Run: `git diff -- docs/startup-initialization-flow.md`  
+**Step 2: Validate docs** Run: `git diff -- docs/startup-initialization-flow.md`  
 Expected: 流程图与说明已更新
 
 **Step 3: Commit**

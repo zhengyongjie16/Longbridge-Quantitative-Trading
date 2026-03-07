@@ -216,8 +216,7 @@ await testCachedCandidateAfterSell();
 console.log('ok');
 ```
 
-**步骤 2：运行并确认失败**
-运行: `npm run build && node tests/autoSymbolSwitchSameSymbol.js`  
+**步骤 2：运行并确认失败** 运行: `npm run build && node tests/autoSymbolSwitchSameSymbol.js`  
 预期: FAIL，包含 "seat version should not change"（当前逻辑同标的仍清席位并递增版本号）。
 
 ---
@@ -518,16 +517,13 @@ async function maybeSwitchOnDistance({
 }
 ```
 
-**步骤 4：运行脚本验证通过**
-运行: `npm run build && node tests/autoSymbolSwitchSameSymbol.js`  
+**步骤 4：运行脚本验证通过** 运行: `npm run build && node tests/autoSymbolSwitchSameSymbol.js`  
 预期: PASS 并输出 `ok`。
 
-**步骤 5：运行类型检查**
-运行: `npm run type-check`  
+**步骤 5：运行类型检查** 运行: `npm run type-check`  
 预期: 无 TypeScript 错误。
 
-**步骤 6：运行 Lint**
-运行: `npm run lint`  
+**步骤 6：运行 Lint** 运行: `npm run lint`  
 预期: 无 ESLint 错误。
 
 ---
@@ -541,10 +537,7 @@ async function maybeSwitchOnDistance({
 **步骤 1：在流程图中加入预寻标与同标的抑制**
 
 ```markdown
-G --|是|--> H["预寻标候选（findBestWarrant）"]
-H --> H1{"候选 == 旧标的?"}
-H1 --|是|--> H2["标记当日抑制；停止换标"]
-H1 --|否|--> I["clearSeat -> 创建 SwitchState（缓存候选）"]
+G --|是|--> H["预寻标候选（findBestWarrant）"] H --> H1{"候选 == 旧标的?"} H1 --|是|--> H2["标记当日抑制；停止换标"] H1 --|否|--> I["clearSeat -> 创建 SwitchState（缓存候选）"]
 ```
 
 ---
@@ -581,8 +574,7 @@ const lastState: LastState = {
 
 **步骤 3：主循环跨日检测（跨日后刷新交易日信息 + 清理抑制）**
 
-> 放置位置：`currentTime` 生成后、`isTradingDayToday` 计算前，避免当次循环仍使用旧交易日信息。
-> 若运行环境非港股时区，需保证交易日查询与 `getHKDateKey` 使用同一日期基准。
+> 放置位置：`currentTime` 生成后、`isTradingDayToday` 计算前，避免当次循环仍使用旧交易日信息。若运行环境非港股时区，需保证交易日查询与 `getHKDateKey` 使用同一日期基准。
 
 ```typescript
 const currentDayKey = getHKDateKey(currentTime);
@@ -718,6 +710,5 @@ await testResetSuppression();
 console.log('ok');
 ```
 
-**步骤 6：运行脚本与检查**
-运行: `npm run build && node tests/autoSymbolSwitchSameSymbol.js && node tests/autoSymbolSwitchResetSuppression.js`  
+**步骤 6：运行脚本与检查** 运行: `npm run build && node tests/autoSymbolSwitchSameSymbol.js && node tests/autoSymbolSwitchResetSuppression.js`  
 预期: PASS 并输出 `ok`。

@@ -2,18 +2,18 @@
 
 ## 环境变量
 
-| 环境变量                         | 说明                               | 默认值                                   |
-| -------------------------------- | ---------------------------------- | ---------------------------------------- |
-| `LONGPORT_APP_KEY`               | App Key                            | 必填                                     |
-| `LONGPORT_APP_SECRET`            | App Secret                         | 必填                                     |
-| `LONGPORT_ACCESS_TOKEN`          | Access Token                       | 必填                                     |
-| `LONGPORT_HTTP_URL`              | HTTP API URL                       | `https://openapi.longportapp.com`        |
-| `LONGPORT_QUOTE_WS_URL`          | 行情 WebSocket URL                 | `wss://openapi-quote.longportapp.com/v2` |
-| `LONGPORT_TRADE_WS_URL`          | 交易 WebSocket URL                 | `wss://openapi-trade.longportapp.com/v2` |
-| `LONGPORT_LANGUAGE`              | 语言 `zh-CN`/`zh-HK`/`en`          | `en`                                     |
-| `LONGPORT_ENABLE_OVERNIGHT`      | 启用夜盘行情                       | `false`                                  |
-| `LONGPORT_PUSH_CANDLESTICK_MODE` | K线推送模式 `realtime`/`confirmed` | `realtime`                               |
-| `LONGPORT_PRINT_QUOTE_PACKAGES`  | 连接时打印行情套餐                 | `true`                                   |
+| 环境变量 | 说明 | 默认值 |
+| --- | --- | --- |
+| `LONGPORT_APP_KEY` | App Key | 必填 |
+| `LONGPORT_APP_SECRET` | App Secret | 必填 |
+| `LONGPORT_ACCESS_TOKEN` | Access Token | 必填 |
+| `LONGPORT_HTTP_URL` | HTTP API URL | `https://openapi.longportapp.com` |
+| `LONGPORT_QUOTE_WS_URL` | 行情 WebSocket URL | `wss://openapi-quote.longportapp.com/v2` |
+| `LONGPORT_TRADE_WS_URL` | 交易 WebSocket URL | `wss://openapi-trade.longportapp.com/v2` |
+| `LONGPORT_LANGUAGE` | 语言 `zh-CN`/`zh-HK`/`en` | `en` |
+| `LONGPORT_ENABLE_OVERNIGHT` | 启用夜盘行情 | `false` |
+| `LONGPORT_PUSH_CANDLESTICK_MODE` | K线推送模式 `realtime`/`confirmed` | `realtime` |
+| `LONGPORT_PRINT_QUOTE_PACKAGES` | 连接时打印行情套餐 | `true` |
 
 ## Config 类
 

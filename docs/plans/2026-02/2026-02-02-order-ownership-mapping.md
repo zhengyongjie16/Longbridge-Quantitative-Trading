@@ -73,8 +73,7 @@ test('getLatestTradedSymbol uses mapping to pick latest fill', () => {
 });
 ```
 
-**Step 2: Run test to verify it fails**
-Run: `npm test`  
+**Step 2: Run test to verify it fails** Run: `npm test`  
 Expected: 失败，解析结果为 `null` 或未命中映射
 
 ---
@@ -129,8 +128,7 @@ export function parseOrderOwnership(
 }
 ```
 
-**Step 4: Run test to verify it passes**
-Run: `npm test`  
+**Step 4: Run test to verify it passes** Run: `npm test`  
 Expected: PASS
 
 **Step 5: Commit**
@@ -162,8 +160,7 @@ ORDER_OWNERSHIP_MAPPING_1=ALIBA
 | `ORDER_OWNERSHIP_MAPPING_N` | 无 | stockName 归属缩写映射（逗号分隔） |
 ```
 
-**Step 3: Run lint + type-check**
-Run: `npm run lint`  
+**Step 3: Run lint + type-check** Run: `npm run lint`  
 Run: `npm run type-check`  
 Expected: 无错误
 

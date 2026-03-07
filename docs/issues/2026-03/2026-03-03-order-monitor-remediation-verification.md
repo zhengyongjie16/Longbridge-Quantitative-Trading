@@ -237,9 +237,7 @@
      - `readonly orderHoldRegistry: OrderHoldRegistry;` ← 未在实现中使用
      - 其余字段若干（`ctxPromise`、`rateLimiter`、`trackOrder` 等）。
    - 对应实现：`orderMonitor/quoteFlow.ts` 中的 `createQuoteFlow(deps: QuoteFlowDeps)` 仅解构并使用：
-     - `runtime`, `config`, `thresholdDecimal`, `orderRecorder`, `ctxPromise`, `rateLimiter`,
-       `isExecutionAllowed`, `trackOrder`, `cancelOrder`, `cancelOrderWithOutcome`,
-       `processCloseSyncQueue`, `replaceOrderPrice`。
+     - `runtime`, `config`, `thresholdDecimal`, `orderRecorder`, `ctxPromise`, `rateLimiter`, `isExecutionAllowed`, `trackOrder`, `cancelOrder`, `cancelOrderWithOutcome`, `processCloseSyncQueue`, `replaceOrderPrice`。
    - 结论：`QuoteFlowDeps` 中的 `orderHoldRegistry` 字段目前未被使用。
 
 #### 4.3.3 风险与建议

@@ -16,6 +16,12 @@
         "parser": "json-stringify",
         "trailingComma": "none"
       }
+    },
+    {
+      "files": "*.md",
+      "options": {
+        "proseWrap": "never"
+      }
     }
   ]
 }

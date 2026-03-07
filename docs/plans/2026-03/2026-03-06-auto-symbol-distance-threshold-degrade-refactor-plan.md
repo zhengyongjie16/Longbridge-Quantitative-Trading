@@ -18,14 +18,10 @@
 
 - 第 1 层主条件保持不变。
 - 第 2 层降级条件只在“第 1 层完全没有命中候选”时启用。
-- 牛证降级区间：
-  `switchDistanceRangeBull.min < distancePct < autoSearchMinDistancePctBull`
-- 熊证降级区间：
-  `autoSearchMinDistancePctBear < distancePct < switchDistanceRangeBear.max`
-- 降级区间内的选优规则：
-  选择“最接近自动寻标阈值”的候选。
-- 若降级区间内仍无候选：
-  结果仍为“未找到符合条件的标的”，与当前失败语义保持一致。
+- 牛证降级区间： `switchDistanceRangeBull.min < distancePct < autoSearchMinDistancePctBull`
+- 熊证降级区间： `autoSearchMinDistancePctBear < distancePct < switchDistanceRangeBear.max`
+- 降级区间内的选优规则：选择“最接近自动寻标阈值”的候选。
+- 若降级区间内仍无候选：结果仍为“未找到符合条件的标的”，与当前失败语义保持一致。
 
 ### 1.3 本次方案目标
 

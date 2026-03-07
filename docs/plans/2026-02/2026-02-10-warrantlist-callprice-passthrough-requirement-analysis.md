@@ -88,11 +88,11 @@
 
 ## 四、修改点汇总（使方案符合用户要求）
 
-| 位置                                       | 当前方案                                                       | 建议修改                                                                                                                                |
-| ------------------------------------------ | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| **selectBestWarrant**（utils.ts）          | 从 best warrant 取 callPrice，无则 null                        | 在筛选循环中增加「回收价有效」条件：callPrice 无效的 warrant 直接 continue，不参与最优比较；选中者必带有效 callPrice                    |
+| 位置 | 当前方案 | 建议修改 |
+| --- | --- | --- |
+| **selectBestWarrant**（utils.ts） | 从 best warrant 取 callPrice，无则 null | 在筛选循环中增加「回收价有效」条件：callPrice 无效的 warrant 直接 continue，不参与最优比较；选中者必带有效 callPrice |
 | **seatRefresh**（handlers/seatRefresh.ts） | 无/无效 callPrice 时调用 `refreshWarrantInfoForSymbol`（兜底） | 换标过程不再使用 warrantQuote：无/无效 callPrice 时不调用 `refreshWarrantInfoForSymbol`，改为 `markSeatAsEmpty`（未提供有效 callPrice） |
-| **方案文档**                               | 关键设计决策 2：「保留 warrantQuote 兜底路径」                 | 改为：换标/刷新链路不再使用 warrantQuote API；启动恢复/静态是否保留兜底单独说明                                                         |
+| **方案文档** | 关键设计决策 2：「保留 warrantQuote 兜底路径」 | 改为：换标/刷新链路不再使用 warrantQuote API；启动恢复/静态是否保留兜底单独说明 |
 
 按上表修改后，方案可同时满足：
 
