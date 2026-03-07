@@ -263,7 +263,8 @@ src/
 ├── index.ts                        # 主入口（每秒循环）
 ├── config/                         # 配置模块
 ├── constants/                      # 全局常量定义
-├── types/                          # TypeScript 类型定义
+├── types/                          # 全局公共类型定义
+├── utils/                          # 全局公共工具模块
 ├── main/                           # 主程序架构模块
 │   ├── startup/                    # 启动流程（运行门禁/席位恢复与初始寻标）
 │   ├── mainProgram/                # 主循环逻辑
@@ -295,12 +296,6 @@ src/
 │   ├── liquidationCooldown/        # 保护性清仓后的买入冷却
 │   ├── cleanup/                    # 退出清理
 │   └── indicators/                 # 技术指标计算（按画像按需计算 RSI/KDJ/MACD/MFI/EMA/PSY/ADX）
-└── utils/                          # 工具模块
-    ├── refreshGate/                # 刷新门禁（等待账户/持仓等缓存"足够新"）
-    ├── objectPool/                 # 对象池（减少 GC）
-    ├── logger/                     # 日志系统（pino）
-    ├── asciiArt/                   # 启动 ASCII 艺术字
-    └── helpers/                    # 辅助工具
 ```
 
 ## 运行流程
