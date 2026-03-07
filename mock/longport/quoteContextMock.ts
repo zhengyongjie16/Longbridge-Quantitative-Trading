@@ -25,6 +25,7 @@ import {
   type LongportEventBus,
 } from './eventBus.js';
 import type {
+  MockWarrantListItem,
   MockCallRecord,
   MockFailureRule,
   MockMethodName,
@@ -91,7 +92,7 @@ interface QuoteContextMock extends QuoteContextContract {
   seedCandlesticks: (symbol: string, period: Period, candles: ReadonlyArray<Candlestick>) => void;
   seedTradingDays: (key: string, value: MarketTradingDays) => void;
   seedWarrantQuotes: (quotes: ReadonlyArray<WarrantQuote>) => void;
-  seedWarrantList: (symbol: string, list: ReadonlyArray<WarrantInfo>) => void;
+  seedWarrantList: (symbol: string, list: ReadonlyArray<MockWarrantListItem>) => void;
   emitQuote: (event: PushQuoteEvent, options?: EventPublishOptions) => void;
   emitCandlestick: (event: PushCandlestickEvent, options?: EventPublishOptions) => void;
   flushEvents: (nowMs?: number) => number;
@@ -126,7 +127,7 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
   const staticInfoBySymbol = new Map<string, unknown>();
   const candlesticksByKey = new Map<string, ReadonlyArray<Candlestick>>();
   const warrantQuoteBySymbol = new Map<string, WarrantQuote>();
-  const warrantListBySymbol = new Map<string, ReadonlyArray<WarrantInfo>>();
+  const warrantListBySymbol = new Map<string, ReadonlyArray<MockWarrantListItem>>();
   const tradingDaysByKey = new Map<string, MarketTradingDays>();
 
   const subscribedSymbols = new Set<string>();
@@ -280,7 +281,8 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
     return withCall('warrantList', [symbol, types], () => {
       const list = warrantListBySymbol.get(symbol) ?? [];
       if (types.length === 0) {
-        return list;
+        // mock 存储的是自动寻标实际消费的最小字段子集，返回到 QuoteContext 合同时在此处集中收口断言。
+        return list as unknown as ReadonlyArray<WarrantInfo>;
       }
 
       const typeSet = new Set(
@@ -288,7 +290,7 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
           .map((type) => normalizeWarrantType(type))
           .filter((item): item is 'BULL' | 'BEAR' => item !== null),
       );
-      return list.filter((item) => {
+      const filteredList = list.filter((item) => {
         const normalizedType = normalizeWarrantType(item.warrantType);
         if (normalizedType === null) {
           return false;
@@ -296,6 +298,9 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
 
         return typeSet.has(normalizedType);
       });
+
+      // 经过 mock 边界过滤后，返回值只会流向当前测试所覆盖的消费字段。
+      return filteredList as unknown as ReadonlyArray<WarrantInfo>;
     });
   }
 
@@ -370,7 +375,7 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
     }
   }
 
-  function seedWarrantList(symbol: string, list: ReadonlyArray<WarrantInfo>): void {
+  function seedWarrantList(symbol: string, list: ReadonlyArray<MockWarrantListItem>): void {
     warrantListBySymbol.set(symbol, [...list]);
   }
 

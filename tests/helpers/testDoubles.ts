@@ -16,6 +16,7 @@ import type {
 } from '../../src/types/state.js';
 import type {
   OrderRecorder,
+  MarketDataClient,
   PendingOrder,
   PendingRefreshSymbol,
   PositionCache,
@@ -27,6 +28,7 @@ import type {
   WarrantRefreshResult,
 } from '../../src/types/services.js';
 import type { SymbolRegistry, SeatState } from '../../src/types/seat.js';
+import type { QuoteContext, TradeContext } from 'longport';
 import type {
   DoomsdayProtection,
   DoomsdayClearanceContext,
@@ -44,6 +46,9 @@ import type {
   RecordLiquidationTriggerResult,
   RestoreTriggerCountParams,
 } from '../../src/services/liquidationCooldown/types.js';
+import { toMockDecimal } from '../../mock/longport/decimal.js';
+import { createQuoteContextMock } from '../../mock/longport/quoteContextMock.js';
+import { createTradeContextMock } from '../../mock/longport/tradeContextMock.js';
 
 /**
  * 创建 PositionCache 测试替身。
@@ -176,6 +181,83 @@ export function createRiskCheckerDouble(overrides: Partial<RiskChecker> = {}): R
   return {
     ...base,
     ...overrides,
+  };
+}
+
+/**
+ * 将 QuoteContext mock 收口为测试可用的 QuoteContext。
+ *
+ * LongPort SDK 的 QuoteContext 类型比当前 mock 暴露的子集更宽；
+ * 这里集中收口断言，避免在各测试用例中散落无说明的类型断言。
+ *
+ * @param quoteContextMock 行情上下文 mock；未传时自动创建
+ * @returns 可供依赖注入边界消费的 QuoteContext
+ */
+export function createQuoteContextDouble(
+  quoteContextMock: ReturnType<typeof createQuoteContextMock> = createQuoteContextMock(),
+): QuoteContext {
+  return quoteContextMock as unknown as QuoteContext;
+}
+
+/**
+ * 将 TradeContext mock 收口为测试可用的 TradeContext。
+ *
+ * LongPort SDK 的 TradeContext 类型同样比测试 mock 暴露的能力更宽；
+ * 这里集中收口断言，避免在测试中散落无说明的断言。
+ *
+ * @param tradeContextMock 交易上下文 mock；未传时自动创建
+ * @returns 可供依赖注入边界消费的 TradeContext
+ */
+export function createTradeContextDouble(
+  tradeContextMock: ReturnType<typeof createTradeContextMock> = createTradeContextMock(),
+): TradeContext {
+  return tradeContextMock as unknown as TradeContext;
+}
+
+/**
+ * 创建 MarketDataClient 测试替身。
+ *
+ * 默认返回无副作用实现，并提供可覆盖的 getQuoteContext / getQuotes 等方法。
+ */
+export function createMarketDataClientDouble(
+  overrides: Partial<MarketDataClient> = {},
+): MarketDataClient {
+  const quoteContext = createQuoteContextDouble();
+  const base: MarketDataClient = {
+    getQuoteContext: async () => quoteContext,
+    getQuotes: async () => new Map(),
+    subscribeSymbols: async () => {},
+    unsubscribeSymbols: async () => {},
+    subscribeCandlesticks: async () => [],
+    getRealtimeCandlesticks: async () => [],
+    isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
+    resetRuntimeSubscriptionsAndCaches: async () => {},
+  };
+
+  return {
+    ...base,
+    ...overrides,
+  };
+}
+
+/**
+ * 创建距回收价信息测试数据。
+ *
+ * 运行时使用 Decimal 保持判定精度，测试侧允许直接传入 number 以简化用例编写。
+ *
+ * @param params 牛熊证类型与距回收价百分比
+ * @returns 符合 WarrantDistanceInfo 的测试对象
+ */
+export function createWarrantDistanceInfoDouble(params: {
+  readonly warrantType: WarrantDistanceInfo['warrantType'];
+  readonly distanceToStrikePercent: number | null;
+}): WarrantDistanceInfo {
+  return {
+    warrantType: params.warrantType,
+    distanceToStrikePercent:
+      params.distanceToStrikePercent === null
+        ? null
+        : toMockDecimal(params.distanceToStrikePercent),
   };
 }
 

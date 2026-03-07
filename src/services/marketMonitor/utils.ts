@@ -3,6 +3,7 @@ import { DEFAULT_PERCENT_DECIMALS } from '../../constants/index.js';
 import type { ObjectPool } from '../../utils/objectPool/types.js';
 import type { UnrealizedLossMetrics, WarrantDistanceInfo } from '../../types/services.js';
 import type { Quote } from '../../types/quote.js';
+import { decimalGte, formatDecimal } from '../../utils/numeric/index.js';
 
 /**
  * 格式化行情数据显示为可读字段。默认行为：quote 为 null 时返回 null。
@@ -102,12 +103,12 @@ export function formatWarrantDistanceDisplay(
   }
 
   const distance = warrantDistanceInfo.distanceToStrikePercent;
-  if (distance === null || !Number.isFinite(distance)) {
+  if (distance === null) {
     return '距回收价=未知';
   }
 
-  const sign = distance >= 0 ? '+' : '';
-  return `距回收价=${sign}${distance.toFixed(decimals)}%`;
+  const sign = decimalGte(distance, 0) ? '+' : '';
+  return `距回收价=${sign}${formatDecimal(distance, decimals)}%`;
 }
 
 /**

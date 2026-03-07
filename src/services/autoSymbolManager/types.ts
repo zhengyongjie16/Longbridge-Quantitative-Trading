@@ -14,7 +14,9 @@ import type { Logger } from '../../utils/logger/types.js';
 import type { TradingCalendarSnapshot } from '../../types/tradingCalendar.js';
 import type { ObjectPool, PoolableSignal } from '../../utils/objectPool/types.js';
 import type {
+  DirectionalAutoSearchPolicy,
   FindBestWarrantInput,
+  ResolveDirectionalAutoSearchPolicyInput,
   WarrantCandidate,
   WarrantListCacheConfig,
 } from '../autoSymbolFinder/types.js';
@@ -42,11 +44,9 @@ export type SymbolSeatEntry = {
 };
 
 /**
- * 自动换标管理器的依赖注入参数，包含监控配置、席位注册表与各服务实例。
- * 由 createAutoSymbolManager 工厂函数消费。
- * 类型用途：用于 AutoSymbolManagerDeps 的类型约束与语义表达。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- * 使用范围：仅在当前模块及其直接依赖方使用。
+ * 自动换标管理器的依赖注入参数。
+ * 类型用途：包含监控配置、席位注册表与各服务实例，由 createAutoSymbolManager 工厂函数消费。
+ * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
 export type AutoSymbolManagerDeps = {
   readonly monitorConfig: MonitorConfig;
@@ -56,16 +56,15 @@ export type AutoSymbolManagerDeps = {
   readonly orderRecorder: OrderRecorder;
   readonly riskChecker: RiskChecker;
   readonly warrantListCacheConfig?: WarrantListCacheConfig;
+  readonly findBestWarrant?: FindBestWarrant;
   readonly getTradingCalendarSnapshot?: () => TradingCalendarSnapshot;
   readonly now?: () => Date;
 };
 
 /**
- * 每 tick 触发自动寻标的入参，包含方向、当前时间与是否可交易标志。
- * 由 autoSearch.maybeSearchOnTick 消费。
- * 类型用途：用于 SearchOnTickParams 的类型约束与语义表达。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- * 使用范围：仅在当前模块及其直接依赖方使用。
+ * 每 tick 触发自动寻标的入参。
+ * 类型用途：包含方向、当前时间与是否可交易标志，由 autoSearch.maybeSearchOnTick 消费。
+ * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
 export type SearchOnTickParams = {
   readonly direction: 'LONG' | 'SHORT';
@@ -74,11 +73,9 @@ export type SearchOnTickParams = {
 };
 
 /**
- * 距回收价阈值触发换标的入参，包含方向、监控标的价格、行情 Map 与持仓列表。
- * 由 switchStateMachine.maybeSwitchOnDistance 消费。
- * 类型用途：用于 SwitchOnDistanceParams 的类型约束与语义表达。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- * 使用范围：仅在当前模块及其直接依赖方使用。
+ * 距回收价阈值触发换标的入参。
+ * 类型用途：包含方向、监控标的价格、行情 Map 与持仓列表，由 switchStateMachine.maybeSwitchOnDistance 消费。
+ * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
 export type SwitchOnDistanceParams = {
   readonly direction: 'LONG' | 'SHORT';
@@ -88,11 +85,9 @@ export type SwitchOnDistanceParams = {
 };
 
 /**
- * 周期换标触发检查入参，包含方向、当前时间、交易时段与开盘保护状态。
- * 由 switchStateMachine.maybeSwitchOnInterval 消费。
- * 类型用途：用于 SwitchOnIntervalParams 的类型约束与语义表达。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- * 使用范围：仅在当前模块及其直接依赖方使用。
+ * 周期换标触发检查入参。
+ * 类型用途：包含方向、当前时间、交易时段与开盘保护状态，由 switchStateMachine.maybeSwitchOnInterval 消费。
+ * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
 export type SwitchOnIntervalParams = {
   readonly direction: 'LONG' | 'SHORT';
@@ -102,19 +97,16 @@ export type SwitchOnIntervalParams = {
 };
 
 /**
- * 换标触发模式。
+ * 换标触发模式（内部类型）。
  * 类型用途：区分距回收价触发与周期触发，供换标状态机决定阶段流。
  * 使用范围：仅 autoSymbolManager 模块内部使用。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
  */
 type SwitchMode = 'DISTANCE' | 'PERIODIC';
 
 /**
- * 换标状态机的运行时状态，记录换标流程各阶段的中间数据。
- * 存储于 switchStates Map，由 switchStateMachine 读写。
- * 类型用途：用于 SwitchState 的类型约束与语义表达。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- * 使用范围：仅在当前模块及其直接依赖方使用。
+ * 换标状态机的运行时状态。
+ * 类型用途：记录换标流程各阶段的中间数据，存储于 switchStates Map，由 switchStateMachine 读写。
+ * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
 export type SwitchState = {
   direction: 'LONG' | 'SHORT';
@@ -144,11 +136,9 @@ export type PeriodicSwitchPendingState = {
 };
 
 /**
- * 换标流程阶段枚举，描述状态机从撤单到完成的各个步骤。
- * 仅在 autoSymbolManager 模块内部使用。
- * 类型用途：用于 SwitchStage 的类型约束与语义表达。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- * 使用范围：仅在当前模块及其直接依赖方使用。
+ * 换标流程阶段枚举（内部类型）。
+ * 类型用途：描述状态机从撤单到完成的各个步骤。
+ * 使用范围：仅 autoSymbolManager 模块内部使用。
  */
 type SwitchStage =
   | 'CANCEL_PENDING'
@@ -160,11 +150,9 @@ type SwitchStage =
   | 'FAILED';
 
 /**
- * 日内换标抑制记录，防止同一标的在同一交易日重复触发换标。
- * 存储于 switchSuppressions Map，仅在 autoSymbolManager 模块内部使用。
- * 类型用途：用于 SwitchSuppression 的类型约束与语义表达。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- * 使用范围：仅在当前模块及其直接依赖方使用。
+ * 日内换标抑制记录。
+ * 类型用途：防止同一标的在同一交易日重复触发换标，存储于 switchSuppressions Map。
+ * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
 export type SwitchSuppression = {
   readonly symbol: string;
@@ -172,11 +160,9 @@ export type SwitchSuppression = {
 };
 
 /**
- * 自动换标管理器接口，提供每 tick 寻标、距离阈值换标、挂起状态查询与状态重置方法。
- * 由 createAutoSymbolManager 实现，供主循环消费。
- * 类型用途：用于 AutoSymbolManager 的类型约束与语义表达。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- * 使用范围：仅在当前模块及其直接依赖方使用。
+ * 自动换标管理器接口。
+ * 类型用途：提供每 tick 寻标、距离阈值换标、挂起状态查询与状态重置方法，由 createAutoSymbolManager 实现，供主循环消费。
+ * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
 export interface AutoSymbolManager {
   maybeSearchOnTick: (params: SearchOnTickParams) => Promise<void>;
@@ -187,56 +173,44 @@ export interface AutoSymbolManager {
 }
 
 /**
- * 内部类型：信号对象池，仅暴露 acquire/release 方法。
- * 仅在 autoSymbolManager 模块内部使用。
- * 类型用途：用于 SignalObjectPool 的类型约束与语义表达。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- * 使用范围：仅在当前模块及其直接依赖方使用。
+ * 信号对象池（内部类型）。
+ * 类型用途：仅暴露 acquire/release 方法，供换标状态机使用。
+ * 使用范围：仅 autoSymbolManager 模块内部使用。
  */
 type SignalObjectPool = Pick<ObjectPool<PoolableSignal>, 'acquire' | 'release'>;
 
 /**
- * 内部类型：换标状态 Map，以方向为键存储当前换标状态。
- * 仅在 autoSymbolManager 模块内部使用。
- * 类型用途：用于 SwitchStateMap 的类型约束与语义表达。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- * 使用范围：仅在当前模块及其直接依赖方使用。
+ * 换标状态 Map（内部类型）。
+ * 类型用途：以方向为键存储当前换标状态。
+ * 使用范围：仅 autoSymbolManager 模块内部使用。
  */
 type SwitchStateMap = Map<'LONG' | 'SHORT', SwitchState>;
 
 /**
- * 内部类型：换标抑制 Map，以方向为键存储日内抑制记录。
- * 仅在 autoSymbolManager 模块内部使用。
- * 类型用途：用于 SwitchSuppressionMap 的类型约束与语义表达。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- * 使用范围：仅在当前模块及其直接依赖方使用。
+ * 换标抑制 Map（内部类型）。
+ * 类型用途：以方向为键存储日内抑制记录。
+ * 使用范围：仅 autoSymbolManager 模块内部使用。
  */
 type SwitchSuppressionMap = Map<'LONG' | 'SHORT', SwitchSuppression>;
 
 /**
- * 内部类型：周期换标等待状态 Map，以方向为键存储 pending 状态。
- * 仅在 autoSymbolManager 模块内部使用。
- * 类型用途：用于 PeriodicSwitchPendingMap 的类型约束与语义表达。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- * 使用范围：仅在当前模块及其直接依赖方使用。
+ * 周期换标等待状态 Map（内部类型）。
+ * 类型用途：以方向为键存储 pending 状态。
+ * 使用范围：仅 autoSymbolManager 模块内部使用。
  */
 type PeriodicSwitchPendingMap = Map<'LONG' | 'SHORT', PeriodicSwitchPendingState>;
 
 /**
- * 内部类型：已交易分钟数解析函数，用于计算分均成交额。
- * 仅在 autoSymbolManager 模块内部使用。
- * 类型用途：用于 TradingMinutesResolver 的类型约束与语义表达。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- * 使用范围：仅在当前模块及其直接依赖方使用。
+ * 已交易分钟数解析函数（内部类型）。
+ * 类型用途：用于计算分均成交额。
+ * 使用范围：仅 autoSymbolManager 模块内部使用。
  */
 type TradingMinutesResolver = (date: Date | null | undefined) => number;
 
 /**
- * 内部类型：交易时段累计时长计算函数。
- * 仅在 autoSymbolManager 模块内部使用。
- * 类型用途：用于 TradingDurationCalculator 的类型约束与语义表达。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- * 使用范围：仅在当前模块及其直接依赖方使用。
+ * 交易时段累计时长计算函数（内部类型）。
+ * 类型用途：计算两个时间戳之间的交易时长（毫秒）。
+ * 使用范围：仅 autoSymbolManager 模块内部使用。
  */
 type TradingDurationCalculator = (params: {
   readonly startMs: number;
@@ -245,91 +219,60 @@ type TradingDurationCalculator = (params: {
 }) => number;
 
 /**
- * 内部类型：交易日历快照提供函数。
- * 仅在 autoSymbolManager 模块内部使用。
- * 类型用途：用于 TradingCalendarSnapshotProvider 的类型约束与语义表达。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- * 使用范围：仅在当前模块及其直接依赖方使用。
+ * 交易日历快照提供函数（内部类型）。
+ * 类型用途：获取当前交易日历快照。
+ * 使用范围：仅 autoSymbolManager 模块内部使用。
  */
 type TradingCalendarSnapshotProvider = () => TradingCalendarSnapshot;
 
 /**
- * 内部类型：香港日期键解析函数，用于跨日冻结判断。
- * 仅在 autoSymbolManager 模块内部使用。
- * 类型用途：用于 HKDateKeyResolver 的类型约束与语义表达。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- * 使用范围：仅在当前模块及其直接依赖方使用。
+ * 香港日期键解析函数（内部类型）。
+ * 类型用途：用于跨日冻结判断。
+ * 使用范围：仅 autoSymbolManager 模块内部使用。
  */
 type HKDateKeyResolver = (date: Date | null | undefined) => string | null;
 
 /**
- * 内部类型：开盘保护检查函数，判断当前时间是否在开盘延迟保护窗口内。
- * 仅在 autoSymbolManager 模块内部使用。
- * 类型用途：用于 MorningOpenProtectionChecker 的类型约束与语义表达。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- * 使用范围：仅在当前模块及其直接依赖方使用。
+ * 开盘保护检查函数（内部类型）。
+ * 类型用途：判断当前时间是否在开盘延迟保护窗口内。
+ * 使用范围：仅 autoSymbolManager 模块内部使用。
  */
 type MorningOpenProtectionChecker = (date: Date | null | undefined, minutes: number) => boolean;
 
 /**
- * 解析自动寻标阈值输入参数的完整依赖，包含配置、标的、日志前缀等。
- * 仅在 autoSymbolManager 模块内部使用。
- * 类型用途：用于 ResolveAutoSearchThresholdInputParams 的类型约束与语义表达。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- * 使用范围：仅在当前模块及其直接依赖方使用。
- */
-export type ResolveAutoSearchThresholdInputParams = {
-  readonly direction: 'LONG' | 'SHORT';
-  readonly autoSearchConfig: AutoSearchConfig;
-  readonly monitorSymbol: string;
-  readonly logPrefix: string;
-  readonly logger: Logger;
-};
-
-/**
- * 构建 FindBestWarrantInput 的完整依赖参数，包含行情客户端、缓存配置与阈值。
- * 仅在 autoSymbolManager 模块内部使用。
- * 类型用途：用于 BuildFindBestWarrantInputParams 的类型约束与语义表达。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- * 使用范围：仅在当前模块及其直接依赖方使用。
+ * 基于共享策略构建 FindBestWarrantInput 的完整依赖参数（内部类型）。
+ * 类型用途：供 buildFindBestWarrantInput 消费。
+ * 使用范围：仅 autoSymbolManager 模块内部使用。
  */
 export type BuildFindBestWarrantInputParams = {
-  readonly direction: 'LONG' | 'SHORT';
   readonly monitorSymbol: string;
-  readonly autoSearchConfig: AutoSearchConfig;
   readonly currentTime: Date;
   readonly marketDataClient: MarketDataClient;
   readonly warrantListCacheConfig?: WarrantListCacheConfig;
-  readonly minDistancePct: number;
-  readonly minTurnoverPerMinute: number;
+  readonly policy: DirectionalAutoSearchPolicy;
+  readonly expiryMinMonths: number;
   readonly getTradingMinutesSinceOpen: TradingMinutesResolver;
   readonly logger: Logger;
 };
 
 /**
- * 解析自动寻标阈值的函数类型。
- * 类型用途：返回 minDistancePct 与 minTurnoverPerMinute，无配置时返回 null。
+ * 解析方向化自动寻标策略的函数类型。
+ * 类型用途：返回已校验的不变量策略对象；配置不完整或区间无效时返回 null。
  * 数据来源：由 createThresholdResolver 实现并注入。
  * 使用范围：供 autoSearch 与 switchStateMachine 消费。
  */
-export type ResolveAutoSearchThresholdInput = (
-  params: Pick<ResolveAutoSearchThresholdInputParams, 'direction' | 'logPrefix'>,
-) => Readonly<{
-  minDistancePct: number;
-  minTurnoverPerMinute: number;
-}> | null;
+export type ResolveDirectionalAutoSearchPolicy = (
+  params: Pick<ResolveDirectionalAutoSearchPolicyInput, 'direction' | 'logPrefix'>,
+) => DirectionalAutoSearchPolicy | null;
 
 /**
  * 构建 FindBestWarrantInput 的函数类型。
- * 类型用途：根据方向、时间与阈值等参数构造 FindBestWarrantInput。
+ * 类型用途：根据共享策略与当前时间构造 FindBestWarrantInput。
  * 数据来源：由 createThresholdResolver 实现并注入。
  * 使用范围：供寻标与换标流程消费。
  */
 export type BuildFindBestWarrantInput = (
-  params: Pick<
-    BuildFindBestWarrantInputParams,
-    'direction' | 'currentTime' | 'minDistancePct' | 'minTurnoverPerMinute'
-  >,
+  params: Pick<BuildFindBestWarrantInputParams, 'currentTime' | 'policy'>,
 ) => Promise<FindBestWarrantInput>;
 
 /**
@@ -346,6 +289,7 @@ export type ThresholdResolverDeps = {
   readonly warrantListCacheConfig?: WarrantListCacheConfig;
   readonly logger: Logger;
   readonly getTradingMinutesSinceOpen: TradingMinutesResolver;
+  readonly expiryMinMonths: number;
 };
 
 /**
@@ -367,28 +311,24 @@ export type BuildOrderSignalParams = {
 
 /**
  * 订单信号构建函数类型。
- * 类型用途：根据 BuildOrderSignalParams 构造订单 Signal。
- * 数据来源：由 createSignalBuilder 实现并注入。
- * 使用范围：供换标状态机消费。
+ * 类型用途：根据 BuildOrderSignalParams 构造订单 Signal，由 createSignalBuilder 实现并注入，供换标状态机消费。
+ * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
 export type OrderSignalBuilder = (params: BuildOrderSignalParams) => Signal;
 
 /**
- * 信号构建器工厂的依赖注入参数。
+ * 信号构建器工厂的依赖注入参数（内部类型）。
  * 类型用途：包含信号对象池，供 createSignalBuilder 消费。
  * 使用范围：仅 autoSymbolManager 模块内部使用。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
  */
 export type SignalBuilderDeps = {
   readonly signalObjectPool: SignalObjectPool;
 };
 
 /**
- * 席位不可用原因枚举，描述席位无法用于交易的具体状态。
- * 由 resolveSeatUnavailableReason 返回，仅在 autoSymbolManager 模块内部使用。
- * 类型用途：用于 SeatUnavailableReason 的类型约束与语义表达。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- * 使用范围：仅在当前模块及其直接依赖方使用。
+ * 席位不可用原因枚举。
+ * 类型用途：描述席位无法用于交易的具体状态，由 resolveSeatUnavailableReason 返回。
+ * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
 export type SeatUnavailableReason =
   | 'SEAT_EMPTY'
@@ -397,11 +337,9 @@ export type SeatUnavailableReason =
   | 'SEAT_SWITCHING';
 
 /**
- * 构建席位状态的参数（对象参数模式），包含标的、状态、时间戳与冻结信息。
- * 由 seatStateManager.buildSeatState 消费，仅在 autoSymbolManager 模块内部使用。
- * 类型用途：用于 BuildSeatStateParams 的类型约束与语义表达。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- * 使用范围：仅在当前模块及其直接依赖方使用。
+ * 构建席位状态的参数（对象参数模式）。
+ * 类型用途：包含标的、状态、时间戳与冻结信息，由 seatStateManager.buildSeatState 消费。
+ * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
 export type BuildSeatStateParams = {
   readonly symbol: string | null;
@@ -416,17 +354,15 @@ export type BuildSeatStateParams = {
 
 /**
  * 席位状态构建函数类型。
- * 类型用途：根据 BuildSeatStateParams 构造 SeatState。
- * 数据来源：由 createSeatStateManager 实现并注入。
- * 使用范围：供寻标与换标流程消费。
+ * 类型用途：根据 BuildSeatStateParams 构造 SeatState，由 createSeatStateManager 实现并注入，供寻标与换标流程消费。
+ * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
 export type SeatStateBuilder = (params: BuildSeatStateParams) => SeatState;
 
 /**
  * 席位状态更新函数类型。
- * 类型用途：负责写入注册表并按需递增版本号；bumpOnSymbolChange 为 true 时标的变更会触发版本号递增。
- * 使用范围：由 createSeatStateManager 实现，供寻标与换标流程调用。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
+ * 类型用途：负责写入注册表并按需递增版本号；bumpOnSymbolChange 为 true 时标的变更会触发版本号递增。由 createSeatStateManager 实现，供寻标与换标流程调用。
+ * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
 export type SeatStateUpdater = (
   direction: 'LONG' | 'SHORT',
@@ -435,11 +371,9 @@ export type SeatStateUpdater = (
 ) => void;
 
 /**
- * 席位状态管理器的依赖注入参数，包含注册表、状态 Map 与日志工具。
- * 由 createSeatStateManager 工厂函数消费。
- * 类型用途：用于 SeatStateManagerDeps 的类型约束与语义表达。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- * 使用范围：仅在当前模块及其直接依赖方使用。
+ * 席位状态管理器的依赖注入参数。
+ * 类型用途：包含注册表、状态 Map 与日志工具，由 createSeatStateManager 工厂函数消费。
+ * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
 export type SeatStateManagerDeps = {
   readonly monitorSymbol: string;
@@ -452,11 +386,9 @@ export type SeatStateManagerDeps = {
 };
 
 /**
- * 席位状态管理器接口，提供席位构建、更新、抑制与清空操作。
- * 由 createSeatStateManager 实现，供 autoSearch 与 switchStateMachine 消费。
- * 类型用途：用于 SeatStateManager 的类型约束与语义表达。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- * 使用范围：仅在当前模块及其直接依赖方使用。
+ * 席位状态管理器接口。
+ * 类型用途：提供席位构建、更新、抑制与清空操作，由 createSeatStateManager 实现，供 autoSearch 与 switchStateMachine 消费。
+ * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
 export interface SeatStateManager {
   buildSeatState: SeatStateBuilder;
@@ -467,11 +399,9 @@ export interface SeatStateManager {
 }
 
 /**
- * 内部类型：寻标函数，调用 autoSymbolFinder 返回最佳候选标的。
- * 仅在 autoSymbolManager 模块内部使用。
- * 类型用途：用于 FindBestWarrant 的类型约束与语义表达。
- * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
- * 使用范围：仅在当前模块及其直接依赖方使用。
+ * 寻标函数（内部类型）。
+ * 类型用途：调用 autoSymbolFinder 返回最佳候选标的。
+ * 使用范围：仅 autoSymbolManager 模块内部使用。
  */
 type FindBestWarrant = (input: FindBestWarrantInput) => Promise<WarrantCandidate | null>;
 
@@ -488,7 +418,7 @@ export type AutoSearchDeps = {
   readonly symbolRegistry: SymbolRegistry;
   readonly buildSeatState: SeatStateBuilder;
   readonly updateSeatState: SeatStateUpdater;
-  readonly resolveAutoSearchThresholdInput: ResolveAutoSearchThresholdInput;
+  readonly resolveDirectionalAutoSearchPolicy: ResolveDirectionalAutoSearchPolicy;
   readonly buildFindBestWarrantInput: BuildFindBestWarrantInput;
   readonly findBestWarrant: FindBestWarrant;
   readonly isWithinMorningOpenProtection: MorningOpenProtectionChecker;
@@ -548,15 +478,7 @@ export type SwitchStateMachineDeps = {
   readonly clearSeat: (params: { direction: 'LONG' | 'SHORT'; reason: string }) => number;
   readonly buildSeatState: SeatStateBuilder;
   readonly updateSeatState: SeatStateUpdater;
-  readonly resolveAutoSearchThresholds: (
-    direction: 'LONG' | 'SHORT',
-    config: AutoSearchConfig,
-  ) => {
-    readonly minDistancePct: number | null;
-    readonly minTurnoverPerMinute: number | null;
-    readonly switchDistanceRange: AutoSearchConfig['switchDistanceRangeBull'];
-  };
-  readonly resolveAutoSearchThresholdInput: ResolveAutoSearchThresholdInput;
+  readonly resolveDirectionalAutoSearchPolicy: ResolveDirectionalAutoSearchPolicy;
   readonly buildFindBestWarrantInput: BuildFindBestWarrantInput;
   readonly findBestWarrant: FindBestWarrant;
   readonly resolveDirectionSymbols: (direction: 'LONG' | 'SHORT') => {

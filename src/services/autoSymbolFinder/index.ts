@@ -13,9 +13,12 @@ import {
   WarrantType,
   type FilterWarrantExpiryDate,
 } from 'longport';
+import { DEFAULT_PERCENT_DECIMALS, DEFAULT_PRICE_DECIMALS } from '../../constants/index.js';
 import { buildExpiryDateFilters, selectBestWarrant } from './utils.js';
 import { formatError } from '../../utils/error/index.js';
+import { formatDecimal } from '../../utils/numeric/index.js';
 import type {
+  DirectionalAutoSearchPolicy,
   FindBestWarrantInput,
   WarrantCandidate,
   WarrantListItem,
@@ -36,6 +39,94 @@ function buildCacheKey(
   expiryFilters: ReadonlyArray<FilterWarrantExpiryDate>,
 ): string {
   return `${monitorSymbol}:${String(warrantType)}:${expiryFilters.join(',')}`;
+}
+
+/**
+ * 根据共享策略方向解析 warrantList 所需的牛熊证类型。
+ * @param policy 方向化自动寻标策略
+ * @returns LONG 返回 Bull，SHORT 返回 Bear
+ */
+function resolvePolicyWarrantType(policy: DirectionalAutoSearchPolicy): WarrantType {
+  return policy.direction === 'LONG' ? WarrantType.Bull : WarrantType.Bear;
+}
+
+/**
+ * 读取方向中文标签，用于日志区分牛证/熊证。
+ * @param policy 方向化自动寻标策略
+ * @returns LONG 返回「牛」，SHORT 返回「熊」
+ */
+function resolvePolicyDirectionLabel(policy: DirectionalAutoSearchPolicy): '牛' | '熊' {
+  return policy.direction === 'LONG' ? '牛' : '熊';
+}
+
+/**
+ * 记录自动寻标命中日志，显式区分主条件与降级条件。
+ * @param params 日志参数
+ * @returns 无返回值
+ */
+function logSelectedCandidate(params: {
+  readonly logger: FindBestWarrantInput['logger'];
+  readonly monitorSymbol: string;
+  readonly tradingMinutes: number;
+  readonly policy: DirectionalAutoSearchPolicy;
+  readonly candidate: WarrantCandidate;
+  readonly primaryCandidateCount: number;
+  readonly degradedCandidateCount: number;
+}): void {
+  const directionLabel = resolvePolicyDirectionLabel(params.policy);
+  const thresholdText = formatDecimal(params.policy.primaryThreshold, DEFAULT_PERCENT_DECIMALS);
+  const degradedRangeText = `${formatDecimal(
+    params.policy.degradedRange.min,
+    DEFAULT_PERCENT_DECIMALS,
+  )},${formatDecimal(params.policy.degradedRange.max, DEFAULT_PERCENT_DECIMALS)}`;
+  const distanceText = formatDecimal(params.candidate.distancePct, DEFAULT_PERCENT_DECIMALS);
+  const turnoverText = formatDecimal(params.candidate.turnoverPerMinute, 0);
+  const distanceDeltaText = formatDecimal(
+    params.candidate.distanceDeltaToThreshold,
+    DEFAULT_PERCENT_DECIMALS,
+  );
+  const callPriceText = formatDecimal(params.candidate.callPrice, DEFAULT_PRICE_DECIMALS);
+  if (params.candidate.selectionStage === 'PRIMARY') {
+    params.logger.info(
+      `[自动寻标] 主条件命中${directionLabel}证：${params.monitorSymbol} -> ${params.candidate.symbol} ` +
+        `(selectionStage=PRIMARY, distancePct=${distanceText}%, delta=${distanceDeltaText}%, ` +
+        `threshold=${thresholdText}%, turnoverPerMinute=${turnoverText}, callPrice=${callPriceText}, ` +
+        `primaryCandidates=${params.primaryCandidateCount}, tradingMinutes=${params.tradingMinutes})`,
+    );
+    return;
+  }
+
+  params.logger.info(
+    `[自动寻标] 主条件无候选，降级区间命中${directionLabel}证：${params.monitorSymbol} -> ${params.candidate.symbol} ` +
+      `(selectionStage=DEGRADED, distancePct=${distanceText}%, delta=${distanceDeltaText}%, ` +
+      `threshold=${thresholdText}%, degradedRange=${degradedRangeText}, turnoverPerMinute=${turnoverText}, ` +
+      `callPrice=${callPriceText}, degradedCandidates=${params.degradedCandidateCount}, tradingMinutes=${params.tradingMinutes})`,
+  );
+}
+
+/**
+ * 记录自动寻标失败日志，显式说明主条件与降级条件均未命中。
+ * @param params 日志参数
+ * @returns 无返回值
+ */
+function logNoCandidateFound(params: {
+  readonly logger: FindBestWarrantInput['logger'];
+  readonly monitorSymbol: string;
+  readonly tradingMinutes: number;
+  readonly warrants: ReadonlyArray<WarrantListItem>;
+  readonly policy: DirectionalAutoSearchPolicy;
+  readonly primaryCandidateCount: number;
+  readonly degradedCandidateCount: number;
+}): void {
+  const directionLabel = resolvePolicyDirectionLabel(params.policy);
+  params.logger.warn(
+    `[自动寻标] 主条件与降级条件均未命中${directionLabel}证：${params.monitorSymbol} ` +
+      `(列表条数=${params.warrants.length}, 交易分钟数=${params.tradingMinutes}, ` +
+      `primaryThreshold=${formatDecimal(params.policy.primaryThreshold, DEFAULT_PERCENT_DECIMALS)}%, ` +
+      `degradedRange=${formatDecimal(params.policy.degradedRange.min, DEFAULT_PERCENT_DECIMALS)}%,` +
+      `${formatDecimal(params.policy.degradedRange.max, DEFAULT_PERCENT_DECIMALS)}%, ` +
+      `primaryCandidates=${params.primaryCandidateCount}, degradedCandidates=${params.degradedCandidateCount})`,
+  );
 }
 
 /**
@@ -117,22 +208,20 @@ async function fetchWarrantsWithCache({
 /**
  * 获取并筛选最佳牛熊证标的：按方向请求牛熊证列表，按距回收价与分均成交额选优。
  * 用于自动寻标与换标预寻标，无符合条件时返回 null 并打日志。
- * @param input - 寻标入参（ctx、monitorSymbol、isBull、tradingMinutes、阈值、cacheConfig 等）
- * @returns 最佳候选标的（symbol、name、callPrice、distancePct、turnover 等），无则 null
+ * @param input - 寻标入参（ctx、monitorSymbol、policy、tradingMinutes、cacheConfig 等）
+ * @returns 最佳候选标的（symbol、name、callPrice、内部百分比值口径的 distancePct、turnover 等），无则 null
  */
 export async function findBestWarrant({
   ctx,
   monitorSymbol,
-  isBull,
   tradingMinutes,
-  minDistancePct,
-  minTurnoverPerMinute,
+  policy,
   expiryMinMonths,
   logger,
   cacheConfig,
 }: FindBestWarrantInput): Promise<WarrantCandidate | null> {
   try {
-    const warrantType = isBull ? WarrantType.Bull : WarrantType.Bear;
+    const warrantType = resolvePolicyWarrantType(policy);
     const expiryFilters = buildExpiryDateFilters(expiryMinMonths);
     const warrants = cacheConfig
       ? await fetchWarrantsWithCache({
@@ -148,24 +237,37 @@ export async function findBestWarrant({
           warrantType,
           expiryFilters,
         });
-    const best = selectBestWarrant({
+    const selectionResult = selectBestWarrant({
       warrants,
       tradingMinutes,
-      isBull,
-      minDistancePct,
-      minTurnoverPerMinute,
+      policy,
     });
-    if (!best) {
-      const listLength = Array.isArray(warrants) ? warrants.length : 0;
-      logger.warn(
-        `[自动寻标] 未找到符合条件的${isBull ? '牛' : '熊'}证：${monitorSymbol}（列表条数=${listLength}，交易分钟数=${tradingMinutes}）`,
-      );
+    if (selectionResult.candidate === null) {
+      logNoCandidateFound({
+        logger,
+        monitorSymbol,
+        tradingMinutes,
+        warrants,
+        policy,
+        primaryCandidateCount: selectionResult.primaryCandidateCount,
+        degradedCandidateCount: selectionResult.degradedCandidateCount,
+      });
+      return null;
     }
 
-    return best;
+    logSelectedCandidate({
+      logger,
+      monitorSymbol,
+      tradingMinutes,
+      policy,
+      candidate: selectionResult.candidate,
+      primaryCandidateCount: selectionResult.primaryCandidateCount,
+      degradedCandidateCount: selectionResult.degradedCandidateCount,
+    });
+    return selectionResult.candidate;
   } catch (error) {
     logger.warn(
-      `[自动寻标] warrantList 获取失败：${monitorSymbol}(${isBull ? '牛' : '熊'})`,
+      `[自动寻标] warrantList 获取失败：${monitorSymbol}(${resolvePolicyDirectionLabel(policy)})`,
       formatError(error),
     );
     return null;

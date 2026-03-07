@@ -1,10 +1,9 @@
 /**
  * 自动换标模块：换标状态机
  *
- * 职责：
- * - 统一处理距离换标与周期换标的启动入口
- * - 推进换标状态机（撤单/卖出/绑定/等待行情/回补/完成）
- * - 处理周期换标到期后的空仓等待与触发
+ * 功能：管理从撤单到回补买入的完整换标流程。
+ * 职责：统一处理距离换标与周期换标的启动入口，推进换标状态机（撤单/卖出/绑定/等待行情/回补/完成），处理周期换标到期后的空仓等待与触发。
+ * 执行流程：maybeSwitchOnDistance/maybeSwitchOnInterval 触发 → startSwitchFlow 初始化状态 → processSwitchStateMachine 推进各阶段 → 完成或失败。
  */
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { decimalGte, decimalLte } from '../../utils/numeric/index.js';
@@ -99,8 +98,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     clearSeat,
     buildSeatState,
     updateSeatState,
-    resolveAutoSearchThresholds,
-    resolveAutoSearchThresholdInput,
+    resolveDirectionalAutoSearchPolicy,
     buildFindBestWarrantInput,
     findBestWarrant,
     resolveDirectionSymbols,
@@ -185,19 +183,17 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
   async function findSwitchCandidate(
     direction: 'LONG' | 'SHORT',
   ): Promise<{ symbol: string; callPrice: number } | null> {
-    const thresholds = resolveAutoSearchThresholdInput({
+    const policy = resolveDirectionalAutoSearchPolicy({
       direction,
       logPrefix: '[自动换标] 缺少阈值配置，无法预寻标',
     });
-    if (!thresholds) {
+    if (policy === null) {
       return null;
     }
 
     const input = await buildFindBestWarrantInput({
-      direction,
       currentTime: now(),
-      minDistancePct: thresholds.minDistancePct,
-      minTurnoverPerMinute: thresholds.minTurnoverPerMinute,
+      policy,
     });
     const best = await findBestWarrant(input);
     if (!best) {
@@ -686,11 +682,15 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
       monitorPrice,
     );
     const distancePercent = distanceInfo?.distanceToStrikePercent ?? null;
-    const range = resolveAutoSearchThresholds(direction, autoSearchConfig).switchDistanceRange;
-    if (distancePercent === null || !range) {
+    const policy = resolveDirectionalAutoSearchPolicy({
+      direction,
+      logPrefix: '[自动换标] 缺少阈值配置，无法检查换标区间',
+    });
+    if (distancePercent === null || policy === null) {
       return;
     }
 
+    const range = policy.switchDistanceRange;
     if (decimalLte(distancePercent, range.min) || decimalGte(distancePercent, range.max)) {
       await startSwitchFlow({
         direction,

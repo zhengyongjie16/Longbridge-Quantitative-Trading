@@ -5,6 +5,7 @@ import type {
   OrderType,
   QuoteContext,
   Candlestick,
+  Decimal,
   Period,
   TradeSessions,
 } from 'longport';
@@ -495,8 +496,8 @@ export type WarrantDistanceInfo = {
   /** 牛熊证类型 */
   readonly warrantType: BullBearWarrantType;
 
-  /** 距离回收价百分比 */
-  readonly distanceToStrikePercent: number | null;
+  /** 距离回收价百分比（运行时保持 Decimal 精度，展示时再格式化） */
+  readonly distanceToStrikePercent: Decimal | null;
 };
 
 /**

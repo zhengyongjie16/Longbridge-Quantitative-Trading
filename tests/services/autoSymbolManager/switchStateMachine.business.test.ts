@@ -5,7 +5,8 @@
  * - 验证换标状态机相关场景意图、边界条件与业务期望。
  */
 import { describe, expect, it } from 'bun:test';
-import { OrderSide } from 'longport';
+import { OrderSide, OrderType } from 'longport';
+import { toMockDecimal } from '../../../mock/longport/decimal.js';
 import { createSwitchStateMachine } from '../../../src/services/autoSymbolManager/switchStateMachine.js';
 import { createSeatStateManager } from '../../../src/services/autoSymbolManager/seatStateManager.js';
 import {
@@ -13,7 +14,6 @@ import {
   calculateBuyQuantityByNotional,
   resolveDirectionSymbols,
 } from '../../../src/services/autoSymbolManager/signalBuilder.js';
-import { resolveAutoSearchThresholds } from '../../../src/services/autoSymbolManager/thresholdResolver.js';
 import { signalObjectPool } from '../../../src/utils/objectPool/index.js';
 import {
   calculateTradingDurationMsBetween,
@@ -22,13 +22,21 @@ import {
 import { PENDING_ORDER_STATUSES } from '../../../src/constants/index.js';
 import type { Quote } from '../../../src/types/quote.js';
 import {
+  createWarrantDistanceInfoDouble,
   createMonitorConfigDouble,
   createOrderRecorderDouble,
   createRiskCheckerDouble,
   createSymbolRegistryDouble,
   createTraderDouble,
 } from '../../helpers/testDoubles.js';
-import { createLoggerStub, getDefaultAutoSearchConfig } from './utils.js';
+import {
+  createDirectionalAutoSearchPolicy,
+  createFindBestWarrantInputDouble,
+  createLoggerStub,
+  createWarrantCandidate,
+  createWarrantCandidateWithOverrides,
+  getDefaultAutoSearchConfig,
+} from './utils.js';
 
 function createQuotes(prices: Readonly<Record<string, number>>): ReadonlyMap<string, Quote | null> {
   const map = new Map<string, Quote | null>();
@@ -89,7 +97,11 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       trader: createTraderDouble(),
       orderRecorder: createOrderRecorderDouble(),
       riskChecker: createRiskCheckerDouble({
-        getWarrantDistanceInfo: () => ({ warrantType: 'BULL', distanceToStrikePercent: 0.1 }),
+        getWarrantDistanceInfo: () =>
+          createWarrantDistanceInfoDouble({
+            warrantType: 'BULL',
+            distanceToStrikePercent: 0.1,
+          }),
       }),
       now: () => new Date(nowMs),
       switchStates,
@@ -99,19 +111,11 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       clearSeat: seatStateManager.clearSeat,
       buildSeatState: seatStateManager.buildSeatState,
       updateSeatState: seatStateManager.updateSeatState,
-      resolveAutoSearchThresholds,
-      resolveAutoSearchThresholdInput: () => ({
-        minDistancePct: 0.35,
-        minTurnoverPerMinute: 100_000,
-      }),
-      buildFindBestWarrantInput: async () => ({}) as never,
+      resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
+      buildFindBestWarrantInput: async () => createFindBestWarrantInputDouble(),
       findBestWarrant: async () => ({
-        symbol: 'OLD_BULL.HK',
-        name: 'OLD_BULL.HK',
+        ...createWarrantCandidate('OLD_BULL.HK'),
         callPrice: 20_000,
-        distancePct: 0.5,
-        turnover: 1_000_000,
-        turnoverPerMinute: 100_000,
       }),
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
@@ -184,7 +188,11 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       trader,
       orderRecorder: createOrderRecorderDouble(),
       riskChecker: createRiskCheckerDouble({
-        getWarrantDistanceInfo: () => ({ warrantType: 'BULL', distanceToStrikePercent: 0.1 }),
+        getWarrantDistanceInfo: () =>
+          createWarrantDistanceInfoDouble({
+            warrantType: 'BULL',
+            distanceToStrikePercent: 0.1,
+          }),
       }),
       now: () => new Date(nowMs),
       switchStates,
@@ -194,20 +202,9 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       clearSeat: seatStateManager.clearSeat,
       buildSeatState: seatStateManager.buildSeatState,
       updateSeatState: seatStateManager.updateSeatState,
-      resolveAutoSearchThresholds,
-      resolveAutoSearchThresholdInput: () => ({
-        minDistancePct: 0.35,
-        minTurnoverPerMinute: 100_000,
-      }),
-      buildFindBestWarrantInput: async () => ({}) as never,
-      findBestWarrant: async () => ({
-        symbol: 'NEW_BULL.HK',
-        name: 'NEW_BULL.HK',
-        callPrice: 21_000,
-        distancePct: 0.5,
-        turnover: 1_000_000,
-        turnoverPerMinute: 100_000,
-      }),
+      resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
+      buildFindBestWarrantInput: async () => createFindBestWarrantInputDouble(),
+      findBestWarrant: async () => createWarrantCandidate('NEW_BULL.HK'),
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
@@ -309,7 +306,11 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       trader,
       orderRecorder,
       riskChecker: createRiskCheckerDouble({
-        getWarrantDistanceInfo: () => ({ warrantType: 'BULL', distanceToStrikePercent: 0.1 }),
+        getWarrantDistanceInfo: () =>
+          createWarrantDistanceInfoDouble({
+            warrantType: 'BULL',
+            distanceToStrikePercent: 0.1,
+          }),
       }),
       now: () => new Date(nowMs),
       switchStates,
@@ -319,20 +320,9 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       clearSeat: seatStateManager.clearSeat,
       buildSeatState: seatStateManager.buildSeatState,
       updateSeatState: seatStateManager.updateSeatState,
-      resolveAutoSearchThresholds,
-      resolveAutoSearchThresholdInput: () => ({
-        minDistancePct: 0.35,
-        minTurnoverPerMinute: 100_000,
-      }),
-      buildFindBestWarrantInput: async () => ({}) as never,
-      findBestWarrant: async () => ({
-        symbol: 'NEW_BULL.HK',
-        name: 'NEW_BULL.HK',
-        callPrice: 21_000,
-        distancePct: 0.5,
-        turnover: 1_000_000,
-        turnoverPerMinute: 100_000,
-      }),
+      resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
+      buildFindBestWarrantInput: async () => createFindBestWarrantInputDouble(),
+      findBestWarrant: async () => createWarrantCandidate('NEW_BULL.HK'),
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
@@ -416,6 +406,11 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       getHKDateKey,
     });
     const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const pendingStatus = [...PENDING_ORDER_STATUSES][0];
+    if (!pendingStatus) {
+      throw new Error('PENDING_ORDER_STATUSES must contain at least one status');
+    }
+
     let executeCalls = 0;
     const trader = createTraderDouble({
       getPendingOrders: async () => [
@@ -426,8 +421,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
           submittedPrice: 1,
           quantity: 100,
           executedQuantity: 0,
-          status: [...PENDING_ORDER_STATUSES][0] as never,
-          orderType: 'ELO' as never,
+          status: pendingStatus,
+          orderType: OrderType.ELO,
         },
       ],
       cancelOrder: async () => ({
@@ -447,7 +442,11 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       trader,
       orderRecorder: createOrderRecorderDouble(),
       riskChecker: createRiskCheckerDouble({
-        getWarrantDistanceInfo: () => ({ warrantType: 'BULL', distanceToStrikePercent: 0.1 }),
+        getWarrantDistanceInfo: () =>
+          createWarrantDistanceInfoDouble({
+            warrantType: 'BULL',
+            distanceToStrikePercent: 0.1,
+          }),
       }),
       now: () => new Date(nowMs),
       switchStates,
@@ -457,20 +456,9 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       clearSeat: seatStateManager.clearSeat,
       buildSeatState: seatStateManager.buildSeatState,
       updateSeatState: seatStateManager.updateSeatState,
-      resolveAutoSearchThresholds,
-      resolveAutoSearchThresholdInput: () => ({
-        minDistancePct: 0.35,
-        minTurnoverPerMinute: 100_000,
-      }),
-      buildFindBestWarrantInput: async () => ({}) as never,
-      findBestWarrant: async () => ({
-        symbol: 'NEW_BULL.HK',
-        name: 'NEW_BULL.HK',
-        callPrice: 21_000,
-        distancePct: 0.5,
-        turnover: 1_000_000,
-        turnoverPerMinute: 100_000,
-      }),
+      resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
+      buildFindBestWarrantInput: async () => createFindBestWarrantInputDouble(),
+      findBestWarrant: async () => createWarrantCandidate('NEW_BULL.HK'),
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
@@ -556,7 +544,11 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       trader,
       orderRecorder,
       riskChecker: createRiskCheckerDouble({
-        getWarrantDistanceInfo: () => ({ warrantType: 'BULL', distanceToStrikePercent: 0.1 }),
+        getWarrantDistanceInfo: () =>
+          createWarrantDistanceInfoDouble({
+            warrantType: 'BULL',
+            distanceToStrikePercent: 0.1,
+          }),
       }),
       now: () => new Date(nowMs),
       switchStates,
@@ -566,20 +558,9 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       clearSeat: seatStateManager.clearSeat,
       buildSeatState: seatStateManager.buildSeatState,
       updateSeatState: seatStateManager.updateSeatState,
-      resolveAutoSearchThresholds,
-      resolveAutoSearchThresholdInput: () => ({
-        minDistancePct: 0.35,
-        minTurnoverPerMinute: 100_000,
-      }),
-      buildFindBestWarrantInput: async () => ({}) as never,
-      findBestWarrant: async () => ({
-        symbol: 'NEW_BULL.HK',
-        name: 'NEW_BULL.HK',
-        callPrice: 21_000,
-        distancePct: 0.5,
-        turnover: 1_000_000,
-        turnoverPerMinute: 100_000,
-      }),
+      resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
+      buildFindBestWarrantInput: async () => createFindBestWarrantInputDouble(),
+      findBestWarrant: async () => createWarrantCandidate('NEW_BULL.HK'),
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
@@ -670,7 +651,11 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       trader,
       orderRecorder,
       riskChecker: createRiskCheckerDouble({
-        getWarrantDistanceInfo: () => ({ warrantType: 'BULL', distanceToStrikePercent: 0.1 }),
+        getWarrantDistanceInfo: () =>
+          createWarrantDistanceInfoDouble({
+            warrantType: 'BULL',
+            distanceToStrikePercent: 0.1,
+          }),
       }),
       now: () => new Date(nowMs),
       switchStates,
@@ -680,20 +665,9 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       clearSeat: seatStateManager.clearSeat,
       buildSeatState: seatStateManager.buildSeatState,
       updateSeatState: seatStateManager.updateSeatState,
-      resolveAutoSearchThresholds,
-      resolveAutoSearchThresholdInput: () => ({
-        minDistancePct: 0.35,
-        minTurnoverPerMinute: 100_000,
-      }),
-      buildFindBestWarrantInput: async () => ({}) as never,
-      findBestWarrant: async () => ({
-        symbol: 'NEW_BULL.HK',
-        name: 'NEW_BULL.HK',
-        callPrice: 21_000,
-        distancePct: 0.5,
-        turnover: 1_000_000,
-        turnoverPerMinute: 100_000,
-      }),
+      resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
+      buildFindBestWarrantInput: async () => createFindBestWarrantInputDouble(),
+      findBestWarrant: async () => createWarrantCandidate('NEW_BULL.HK'),
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,
@@ -735,5 +709,183 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     expect(longSeat.status).toBe('EMPTY');
     expect(longSeat.symbol).toBeNull();
     expect(machine.hasPendingSwitch('LONG')).toBeFalse();
+  });
+
+  it('does not trigger distance switch when Decimal distance is slightly above the lower bound', async () => {
+    const monitorConfig = createMonitorConfigDouble({
+      autoSearchConfig: getDefaultAutoSearchConfig(),
+    });
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+      longSeat: {
+        symbol: 'OLD_BULL.HK',
+        status: 'READY',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatReadyAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      longVersion: 1,
+    });
+    const switchStates = new Map();
+    const switchSuppressions = new Map();
+    const nowMs = Date.parse('2026-02-16T01:00:00.000Z');
+    const seatStateManager = createSeatStateManager({
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      switchStates,
+      switchSuppressions,
+      now: () => new Date(nowMs),
+      logger: createLoggerStub(),
+      getHKDateKey,
+    });
+    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    let findCalls = 0;
+    const machine = createSwitchStateMachine({
+      autoSearchConfig: monitorConfig.autoSearchConfig,
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      trader: createTraderDouble(),
+      orderRecorder: createOrderRecorderDouble(),
+      riskChecker: createRiskCheckerDouble({
+        getWarrantDistanceInfo: () => ({
+          warrantType: 'BULL',
+          distanceToStrikePercent: toMockDecimal('0.20000000000000000001'),
+        }),
+      }),
+      now: () => new Date(nowMs),
+      switchStates,
+      periodicSwitchPending: new Map(),
+      resolveSuppression: seatStateManager.resolveSuppression,
+      markSuppression: seatStateManager.markSuppression,
+      clearSeat: seatStateManager.clearSeat,
+      buildSeatState: seatStateManager.buildSeatState,
+      updateSeatState: seatStateManager.updateSeatState,
+      resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
+      buildFindBestWarrantInput: async () => createFindBestWarrantInputDouble(),
+      findBestWarrant: async () => {
+        findCalls += 1;
+        return createWarrantCandidate('NEW_BULL.HK');
+      },
+      resolveDirectionSymbols,
+      calculateBuyQuantityByNotional,
+      buildOrderSignal: signalBuilder.buildOrderSignal,
+      signalObjectPool,
+      pendingOrderStatuses: PENDING_ORDER_STATUSES,
+      buySide: OrderSide.Buy,
+      logger: createLoggerStub(),
+      maxSearchFailuresPerDay: 3,
+      getHKDateKey,
+      calculateTradingDurationMsBetween,
+      getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
+    });
+    await machine.maybeSwitchOnDistance({
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      quotesMap: createQuotes({ 'OLD_BULL.HK': 1 }),
+      positions: [],
+    });
+
+    const seat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
+    expect(findCalls).toBe(0);
+    expect(seat.status).toBe('READY');
+    expect(seat.symbol).toBe('OLD_BULL.HK');
+    expect(machine.hasPendingSwitch('LONG')).toBeFalse();
+  });
+
+  it('switches SHORT seat when bear distance is outside the upper bound', async () => {
+    const monitorConfig = createMonitorConfigDouble({
+      autoSearchConfig: getDefaultAutoSearchConfig(),
+    });
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+      shortSeat: {
+        symbol: 'OLD_BEAR.HK',
+        status: 'READY',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatReadyAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      shortVersion: 1,
+    });
+    const switchStates = new Map();
+    const switchSuppressions = new Map();
+    const nowMs = Date.parse('2026-02-16T01:00:00.000Z');
+    const seatStateManager = createSeatStateManager({
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      switchStates,
+      switchSuppressions,
+      now: () => new Date(nowMs),
+      logger: createLoggerStub(),
+      getHKDateKey,
+    });
+    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    let executeCalls = 0;
+    const machine = createSwitchStateMachine({
+      autoSearchConfig: monitorConfig.autoSearchConfig,
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      trader: createTraderDouble({
+        executeSignals: async () => {
+          executeCalls += 1;
+          return { submittedCount: 1, submittedOrderIds: [] };
+        },
+      }),
+      orderRecorder: createOrderRecorderDouble(),
+      riskChecker: createRiskCheckerDouble({
+        getWarrantDistanceInfo: () =>
+          createWarrantDistanceInfoDouble({
+            warrantType: 'BEAR',
+            distanceToStrikePercent: -0.1,
+          }),
+      }),
+      now: () => new Date(nowMs),
+      switchStates,
+      periodicSwitchPending: new Map(),
+      resolveSuppression: seatStateManager.resolveSuppression,
+      markSuppression: seatStateManager.markSuppression,
+      clearSeat: seatStateManager.clearSeat,
+      buildSeatState: seatStateManager.buildSeatState,
+      updateSeatState: seatStateManager.updateSeatState,
+      resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('SHORT'),
+      buildFindBestWarrantInput: async () =>
+        createFindBestWarrantInputDouble(createDirectionalAutoSearchPolicy('SHORT')),
+      findBestWarrant: async () =>
+        createWarrantCandidateWithOverrides('NEW_BEAR.HK', {
+          callPrice: 19_500,
+          distancePct: -0.3499,
+          selectionStage: 'DEGRADED',
+          distanceDeltaToThreshold: 0.0001,
+        }),
+      resolveDirectionSymbols,
+      calculateBuyQuantityByNotional,
+      buildOrderSignal: signalBuilder.buildOrderSignal,
+      signalObjectPool,
+      pendingOrderStatuses: PENDING_ORDER_STATUSES,
+      buySide: OrderSide.Buy,
+      logger: createLoggerStub(),
+      maxSearchFailuresPerDay: 3,
+      getHKDateKey,
+      calculateTradingDurationMsBetween,
+      getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
+    });
+    await machine.maybeSwitchOnDistance({
+      direction: 'SHORT',
+      monitorPrice: 20_000,
+      quotesMap: createQuotes({ 'OLD_BEAR.HK': 1, 'NEW_BEAR.HK': 1 }),
+      positions: [],
+    });
+
+    const seat = symbolRegistry.getSeatState('HSI.HK', 'SHORT');
+    expect(seat.status).toBe('READY');
+    expect(seat.symbol).toBe('NEW_BEAR.HK');
+    expect(seat.callPrice).toBe(19_500);
+    expect(symbolRegistry.getSeatVersion('HSI.HK', 'SHORT')).toBe(2);
+    expect(executeCalls).toBe(0);
+    expect(machine.hasPendingSwitch('SHORT')).toBeFalse();
   });
 });

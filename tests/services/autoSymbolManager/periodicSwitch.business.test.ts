@@ -5,7 +5,7 @@
  * - 按方案文档验证周期换标新增能力与关键边界行为。
  */
 import { describe, expect, it } from 'bun:test';
-import { OrderSide } from 'longport';
+import { OrderSide, OrderType } from 'longport';
 import { createSwitchStateMachine } from '../../../src/services/autoSymbolManager/switchStateMachine.js';
 import { createSeatStateManager } from '../../../src/services/autoSymbolManager/seatStateManager.js';
 import {
@@ -13,7 +13,6 @@ import {
   createSignalBuilder,
   resolveDirectionSymbols,
 } from '../../../src/services/autoSymbolManager/signalBuilder.js';
-import { resolveAutoSearchThresholds } from '../../../src/services/autoSymbolManager/thresholdResolver.js';
 import {
   calculateTradingDurationMsBetween,
   getHKDateKey,
@@ -23,13 +22,20 @@ import { PENDING_ORDER_STATUSES } from '../../../src/constants/index.js';
 import type { Quote } from '../../../src/types/quote.js';
 import type { SwitchState } from '../../../src/services/autoSymbolManager/types.js';
 import {
+  createWarrantDistanceInfoDouble,
   createMonitorConfigDouble,
   createOrderRecorderDouble,
   createRiskCheckerDouble,
   createSymbolRegistryDouble,
   createTraderDouble,
 } from '../../helpers/testDoubles.js';
-import { createLoggerStub, getDefaultAutoSearchConfig } from './utils.js';
+import {
+  createDirectionalAutoSearchPolicy,
+  createFindBestWarrantInputDouble,
+  createLoggerStub,
+  createWarrantCandidate,
+  getDefaultAutoSearchConfig,
+} from './utils.js';
 
 function createQuotes(prices: Readonly<Record<string, number>>): ReadonlyMap<string, Quote | null> {
   const map = new Map<string, Quote | null>();
@@ -137,7 +143,11 @@ function createPeriodicHarness(params: HarnessParams): {
     trader,
     orderRecorder,
     riskChecker: createRiskCheckerDouble({
-      getWarrantDistanceInfo: () => ({ warrantType: 'BULL', distanceToStrikePercent: 0.1 }),
+      getWarrantDistanceInfo: () =>
+        createWarrantDistanceInfoDouble({
+          warrantType: 'BULL',
+          distanceToStrikePercent: 0.1,
+        }),
     }),
     now: () => new Date(currentNowMs),
     switchStates,
@@ -147,20 +157,9 @@ function createPeriodicHarness(params: HarnessParams): {
     clearSeat: seatStateManager.clearSeat,
     buildSeatState: seatStateManager.buildSeatState,
     updateSeatState: seatStateManager.updateSeatState,
-    resolveAutoSearchThresholds,
-    resolveAutoSearchThresholdInput: () => ({
-      minDistancePct: 0.35,
-      minTurnoverPerMinute: 100_000,
-    }),
-    buildFindBestWarrantInput: async () => ({}) as never,
-    findBestWarrant: async () => ({
-      symbol: params.findBestSymbol,
-      name: params.findBestSymbol,
-      callPrice: 21_000,
-      distancePct: 0.5,
-      turnover: 1_000_000,
-      turnoverPerMinute: 100_000,
-    }),
+    resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
+    buildFindBestWarrantInput: async () => createFindBestWarrantInputDouble(),
+    findBestWarrant: async () => createWarrantCandidate(params.findBestSymbol),
     resolveDirectionSymbols,
     calculateBuyQuantityByNotional,
     buildOrderSignal: signalBuilder.buildOrderSignal,
@@ -537,7 +536,7 @@ describe('periodic auto-switch regression', () => {
           quantity: 100,
           executedQuantity: 0,
           status: pendingStatus,
-          orderType: 'ELO' as never,
+          orderType: OrderType.ELO,
         },
         {
           orderId: 'SELL-1',
@@ -547,7 +546,7 @@ describe('periodic auto-switch regression', () => {
           quantity: 100,
           executedQuantity: 0,
           status: pendingStatus,
-          orderType: 'ELO' as never,
+          orderType: OrderType.ELO,
         },
       ],
       cancelOrder: async (orderId: string) => {
@@ -569,7 +568,11 @@ describe('periodic auto-switch regression', () => {
         getBuyOrdersForSymbol: () => [],
       }),
       riskChecker: createRiskCheckerDouble({
-        getWarrantDistanceInfo: () => ({ warrantType: 'BULL', distanceToStrikePercent: 0.1 }),
+        getWarrantDistanceInfo: () =>
+          createWarrantDistanceInfoDouble({
+            warrantType: 'BULL',
+            distanceToStrikePercent: 0.1,
+          }),
       }),
       now: () => new Date(nowMs),
       switchStates,
@@ -579,20 +582,9 @@ describe('periodic auto-switch regression', () => {
       clearSeat: seatStateManager.clearSeat,
       buildSeatState: seatStateManager.buildSeatState,
       updateSeatState: seatStateManager.updateSeatState,
-      resolveAutoSearchThresholds,
-      resolveAutoSearchThresholdInput: () => ({
-        minDistancePct: 0.35,
-        minTurnoverPerMinute: 100_000,
-      }),
-      buildFindBestWarrantInput: async () => ({}) as never,
-      findBestWarrant: async () => ({
-        symbol: 'NEW_BULL.HK',
-        name: 'NEW_BULL.HK',
-        callPrice: 21_000,
-        distancePct: 0.5,
-        turnover: 1_000_000,
-        turnoverPerMinute: 100_000,
-      }),
+      resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
+      buildFindBestWarrantInput: async () => createFindBestWarrantInputDouble(),
+      findBestWarrant: async () => createWarrantCandidate('NEW_BULL.HK'),
       resolveDirectionSymbols,
       calculateBuyQuantityByNotional,
       buildOrderSignal: signalBuilder.buildOrderSignal,

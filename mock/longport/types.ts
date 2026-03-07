@@ -23,6 +23,7 @@ import type {
   TradeSessions,
   WarrantInfo,
   WarrantQuote,
+  WarrantStatus,
   WarrantSortBy,
   WarrantType,
 } from 'longport';
@@ -103,6 +104,25 @@ export type MockFailureState = {
  * 使用范围：mock/longport/decimal.ts 使用。
  */
 export type MockDecimalInput = string | number | Decimal;
+
+/**
+ * Mock 轮证列表项。
+ * 类型用途：为 quoteContextMock.seedWarrantList 提供最小必需字段集合，只覆盖自动寻标测试实际消费的字段。
+ * 数据来源：测试用例构造的 mock 轮证数据。
+ * 使用范围：mock/longport/quoteContextMock.ts 与相关业务测试使用。
+ */
+export type MockWarrantListItem = {
+  readonly symbol: string;
+  readonly name?: string | null;
+  readonly lastDone?: MockDecimalInput | null;
+
+  /** LongPort warrantList 原始小数比值；0.0036 表示 0.36% */
+  readonly toCallPrice?: MockDecimalInput | null;
+  readonly callPrice?: MockDecimalInput | null;
+  readonly turnover?: MockDecimalInput | null;
+  readonly warrantType?: WarrantType | number | string | null;
+  readonly status?: WarrantStatus | number | string | null;
+};
 
 /**
  * Mock 调用日志能力契约。

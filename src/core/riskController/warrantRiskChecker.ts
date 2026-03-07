@@ -186,11 +186,8 @@ function validateMonitorPrice(monitorCurrentPrice: number): RiskCheckResult | nu
 
 /** 计算距离回收价的百分比：(当前价 - 回收价) / 回收价 * 100 */
 function calculateDistancePercentDecimal(monitorCurrentPrice: number, callPrice: number): Decimal {
-  const normalizedMonitorPrice =
-    toDecimalValue(monitorCurrentPrice).roundDp(DEFAULT_PRICE_DECIMALS);
-  const normalizedCallPrice = toDecimalValue(callPrice).roundDp(DEFAULT_PRICE_DECIMALS);
-  const spread = decimalSub(normalizedMonitorPrice, normalizedCallPrice);
-  const ratio = decimalDiv(spread, normalizedCallPrice);
+  const spread = decimalSub(toDecimalValue(monitorCurrentPrice), toDecimalValue(callPrice));
+  const ratio = decimalDiv(spread, callPrice);
   return decimalMul(ratio, 100);
 }
 
@@ -325,7 +322,7 @@ function buildWarrantDistanceInfo(
   const distancePercent = calculateDistancePercentDecimal(monitorCurrentPrice, callPrice);
   return {
     warrantType: warrantInfo.warrantType,
-    distanceToStrikePercent: decimalToNumberValue(distancePercent),
+    distanceToStrikePercent: distancePercent,
   };
 }
 

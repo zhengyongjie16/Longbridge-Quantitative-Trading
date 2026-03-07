@@ -16,6 +16,10 @@ import type {
 } from './types.js';
 import { findBestWarrant } from '../../services/autoSymbolFinder/index.js';
 import {
+  buildFindBestWarrantInputFromPolicy,
+  resolveDirectionalAutoSearchPolicy,
+} from '../../services/autoSymbolFinder/policyResolver.js';
+import {
   isSeatReady,
   resolveNextSearchFailureState,
   resolveSeatOnStartup,
@@ -212,24 +216,17 @@ export async function prepareSeatsOnStartup(
   }: {
     readonly monitorSymbol: string;
     readonly direction: 'LONG' | 'SHORT';
-    readonly autoSearchConfig: {
-      readonly autoSearchExpiryMinMonths: number;
-      readonly autoSearchMinDistancePctBull: number | null;
-      readonly autoSearchMinDistancePctBear: number | null;
-      readonly autoSearchMinTurnoverPerMinuteBull: number | null;
-      readonly autoSearchMinTurnoverPerMinuteBear: number | null;
-    };
+    readonly autoSearchConfig: MonitorConfig['autoSearchConfig'];
     readonly currentTime: Date;
   }): Promise<string | null> {
-    const isBull = direction === 'LONG';
-    const minDistancePct = isBull
-      ? autoSearchConfig.autoSearchMinDistancePctBull
-      : autoSearchConfig.autoSearchMinDistancePctBear;
-    const minTurnoverPerMinute = isBull
-      ? autoSearchConfig.autoSearchMinTurnoverPerMinuteBull
-      : autoSearchConfig.autoSearchMinTurnoverPerMinuteBear;
-    if (minDistancePct === null || minTurnoverPerMinute === null) {
-      logger.error(`[启动席位] 缺少自动寻标阈值配置: ${monitorSymbol} ${direction}`);
+    const policy = resolveDirectionalAutoSearchPolicy({
+      direction,
+      autoSearchConfig,
+      monitorSymbol,
+      logPrefix: '[启动席位] 缺少自动寻标阈值配置，跳过启动寻标',
+      logger,
+    });
+    if (policy === null) {
       return null;
     }
 
@@ -246,18 +243,18 @@ export async function prepareSeatsOnStartup(
       frozenTradingDayKey: currentSeat.frozenTradingDayKey,
     });
     const ctx = await quoteContextPromise;
-    const tradingMinutes = getTradingMinutesSinceOpen(currentTime);
-    const best = await findBestWarrant({
-      ctx,
-      monitorSymbol,
-      isBull,
-      tradingMinutes,
-      minDistancePct,
-      minTurnoverPerMinute,
-      expiryMinMonths: autoSearchConfig.autoSearchExpiryMinMonths,
-      logger,
-      ...(warrantListCacheConfig ? { cacheConfig: warrantListCacheConfig } : {}),
-    });
+    const best = await findBestWarrant(
+      buildFindBestWarrantInputFromPolicy({
+        ctx,
+        monitorSymbol,
+        currentTime,
+        policy,
+        expiryMinMonths: autoSearchConfig.autoSearchExpiryMinMonths,
+        logger,
+        getTradingMinutesSinceOpen,
+        ...(warrantListCacheConfig ? { cacheConfig: warrantListCacheConfig } : {}),
+      }),
+    );
     if (!best) {
       const updatedSeat = symbolRegistry.getSeatState(monitorSymbol, direction);
       const hkDateKey = getHKDateKey(currentTime);

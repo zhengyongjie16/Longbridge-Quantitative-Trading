@@ -10,7 +10,6 @@ import type { OrderTypeConfig } from '../types/signal.js';
 import type { SignalConfig } from '../types/signalConfig.js';
 import { logger } from '../utils/logger/index.js';
 import { OPEN_API_ORDER_TYPE_TO_CONFIG, TRADING } from '../constants/index.js';
-import { decimalDiv, decimalToNumberValue } from '../utils/numeric/index.js';
 import {
   getBooleanConfig,
   getNumberConfig,
@@ -115,20 +114,20 @@ function parseBoundedNumberConfigFromRaw({
 }
 
 /**
- * 读取百分比配置并转为小数（如配置 2 → 内部 0.02），未配置或无效时返回 null。
- * 用于需要以百分比形式配置、但内部以小数运算的字段（如距离回收价百分比）。
+ * 读取百分比值配置并保持运行时口径不变（如配置 0.35 → 内部 0.35，表示 0.35%）。
+ * 用于需要以“百分比值”运行的字段（如自动寻标距回收价阈值）。
+ * LongPort warrantList.toCallPrice 的外部原始值仍是小数比值，后续会在 autoSymbolFinder 边界统一转换。
  * @param env - 进程环境变量对象
  * @param envKey - 环境变量键名
  * @param minValue - 允许的最小原始数值，默认为 0
- * @returns 除以 100 后的小数，或 null
+ * @returns 百分比值（0.35 表示 0.35%），或 null
  */
-function getPercentAsDecimalConfig(
+function getPercentValueConfig(
   env: NodeJS.ProcessEnv,
   envKey: string,
   minValue: number = 0,
 ): number | null {
-  const raw = getNumberConfig(env, envKey, minValue);
-  return raw === null ? null : decimalToNumberValue(decimalDiv(raw, 100));
+  return getNumberConfig(env, envKey, minValue);
 }
 
 function mapOrderTypeConfig(orderType: OrderType): OrderTypeConfig {
@@ -158,13 +157,13 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
 
   const autoSearchEnabled = getBooleanConfig(env, `AUTO_SEARCH_ENABLED${suffix}`, false);
 
-  // 百分比数值转为小数：配置值 2 → 内部 0.02（牛证 >= 0，熊证 <= 0）
-  const autoSearchMinDistancePctBull = getPercentAsDecimalConfig(
+  // 统一使用百分比值运行时口径：0.35 表示 0.35%，3 表示 3%
+  const autoSearchMinDistancePctBull = getPercentValueConfig(
     env,
     `AUTO_SEARCH_MIN_DISTANCE_PCT_BULL${suffix}`,
     0,
   );
-  const autoSearchMinDistancePctBear = getPercentAsDecimalConfig(
+  const autoSearchMinDistancePctBear = getPercentValueConfig(
     env,
     `AUTO_SEARCH_MIN_DISTANCE_PCT_BEAR${suffix}`,
     -100,

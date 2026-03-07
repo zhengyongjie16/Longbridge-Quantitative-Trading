@@ -1,4 +1,4 @@
-# LongBridge 证券港股自动化量化交易系统
+# LongBridge证券港股自动化量化交易系统
 
 ## 项目简介及重要提示
 
@@ -228,15 +228,15 @@ bun start
 | `SMART_CLOSE_TIMEOUT_MINUTES_N`              | `无`    | 智能平仓第三阶段超时阈值（分钟；留空/null=关闭；非负整数；仅在整体未盈利时，从第二阶段剩余订单中筛超时） |
 | `AUTO_SEARCH_ENABLED_N`                      | `false` | 自动寻标开关（启用后忽略 LONG/SHORT 标的配置）                                                           |
 | `ORDER_OWNERSHIP_MAPPING_N`                  | 必填    | stockName 归属缩写映射（逗号分隔），用于订单归属解析与启动席位恢复；不同监控标的别名不可冲突             |
-| `AUTO_SEARCH_MIN_DISTANCE_PCT_BULL_N`        | `无`    | 牛证最低距回收价百分比阈值（正值）                                                                       |
-| `AUTO_SEARCH_MIN_DISTANCE_PCT_BEAR_N`        | `无`    | 熊证最低距回收价百分比阈值（负值）                                                                       |
+| `AUTO_SEARCH_MIN_DISTANCE_PCT_BULL_N`        | `无`    | 牛证自动寻标主阈值（百分比值，正值；`0.35` 表示 `0.35%`）                                                |
+| `AUTO_SEARCH_MIN_DISTANCE_PCT_BEAR_N`        | `无`    | 熊证自动寻标主阈值（百分比值，负值；`-0.35` 表示 `-0.35%`）                                              |
 | `AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_BULL_N` | `无`    | 牛证分均成交额阈值（HKD/分钟）                                                                           |
 | `AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_BEAR_N` | `无`    | 熊证分均成交额阈值（HKD/分钟）                                                                           |
 | `AUTO_SEARCH_EXPIRY_MIN_MONTHS_N`            | `3`     | 到期日最小月份                                                                                           |
 | `AUTO_SEARCH_OPEN_DELAY_MINUTES_N`           | `5`     | 早盘开盘延迟分钟数（仅早盘生效）                                                                         |
 | `SWITCH_INTERVAL_MINUTES_N`                  | `0`     | 周期换标间隔（分钟，范围 0-120，0 表示关闭；仅在交易时段且非开盘保护期触发，午休/非交易时段不累计）      |
-| `SWITCH_DISTANCE_RANGE_BULL_N`               | `无`    | 牛证距回收价换标范围（格式 min,max，包含等于）                                                           |
-| `SWITCH_DISTANCE_RANGE_BEAR_N`               | `无`    | 熊证距回收价换标范围（格式 min,max，包含等于）                                                           |
+| `SWITCH_DISTANCE_RANGE_BULL_N`               | `无`    | 牛证距回收价换标范围（百分比值，格式 `min,max`，包含等于；如 `0.2,1.5`）                                 |
+| `SWITCH_DISTANCE_RANGE_BEAR_N`               | `无`    | 熊证距回收价换标范围（百分比值，格式 `min,max`，包含等于；如 `-1.5,-0.2`）                               |
 
 ### 自动寻标/自动换标（席位机制）说明
 
@@ -247,7 +247,7 @@ bun start
 - **启动恢复**：启动时按"历史订单（`ORDER_OWNERSHIP_MAPPING_N`）+ 持仓"恢复席位；无法确认则置 `EMPTY`，由后续寻标补齐。
 - **自动寻标触发**：仅在"席位 `EMPTY` + 交易时段"时尝试，并受 **10 分钟冷却** 与 **早盘延迟**（`AUTO_SEARCH_OPEN_DELAY_MINUTES_N`，仅早盘生效）约束；阈值缺失会跳过寻标。
 - **失败冻结机制**：自动寻标/换标预寻标失败会累计当日失败次数，达到 3 次后冻结该方向席位至下一交易日；冻结当日不再尝试寻标。
-- **自动寻标筛选**：基于 LongPort `warrantList` 筛选牛/熊证：到期（`AUTO_SEARCH_EXPIRY_MIN_MONTHS_N`）、距回收价百分比（`AUTO_SEARCH_MIN_DISTANCE_PCT_*`）、分均成交额（`AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_*`）；选优：**|距回收价百分比|更小优先**，相同取 **分均成交额更高**。
+- **自动寻标筛选**：`AUTO_SEARCH_MIN_DISTANCE_PCT_*` 与 `SWITCH_DISTANCE_RANGE_*` 统一使用“百分比值”口径（`0.35` 表示 `0.35%`）。主条件为牛证 `distancePct > AUTO_SEARCH_MIN_DISTANCE_PCT_BULL_N`、熊证 `distancePct < AUTO_SEARCH_MIN_DISTANCE_PCT_BEAR_N`；若主条件完全无候选，才会在换标区间内侧执行一次降级筛选。主条件与降级条件都按“**最接近自动寻标阈值优先**，相同再取**分均成交额更高**”选优。
 - **自动换标触发**：监控价变化触发检查，若"距回收价百分比"满足 `<=min` 或 `>=max`（`SWITCH_DISTANCE_RANGE_*`，含边界）则进入换标。
 - **周期换标触发**：`SWITCH_INTERVAL_MINUTES_N > 0` 时，席位进入 `READY` 后按"交易分钟"计时；到期若该方向仍有买入订单记录（订单口径）则进入等待空仓，空仓后触发换标（开盘保护期内不触发，保护结束后再判断）。若等待期间触发距离换标但被"同标的抑制"拦截，周期等待状态会保留，不会被清空。
 - **换标流程（状态机）**：先 **预寻标**，候选与旧标一致则记录"同标的日内抑制"并停止；否则撤销旧标未完成买入挂单 → 有持仓则移仓卖出（ELO）→ 占位新标；若换标前有持仓可按"真实卖出成交额（优先）或 `TARGET_NOTIONAL_N`"回补买入（ELO）。

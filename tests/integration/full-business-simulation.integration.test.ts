@@ -4,7 +4,7 @@
  * 功能：
  * - 验证完整业务仿真端到端场景与业务期望。
  */
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 import { createSignalProcessor } from '../../src/core/signalProcessor/index.js';
 import { createMonitorContext } from '../../src/services/monitorContext/index.js';
 import { mainProgram } from '../../src/main/mainProgram/index.js';
@@ -43,6 +43,7 @@ import type {
 import {
   createAccountSnapshotDouble,
   createDoomsdayProtectionDouble,
+  createMarketDataClientDouble,
   createMonitorConfigDouble,
   createOrderRecorderDouble,
   createPositionCacheDouble,
@@ -51,14 +52,11 @@ import {
   createRiskCheckerDouble,
   createSymbolRegistryDouble,
   createTraderDouble,
+  createWarrantDistanceInfoDouble,
 } from '../helpers/testDoubles.js';
+import { createWarrantCandidateWithOverrides } from '../services/autoSymbolManager/utils.js';
 
-let autoSymbolCandidates: Array<{ symbol: string; callPrice: number } | null> = [];
-
-// eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 在导入 createAutoSymbolManager 前同步注册
-mock.module('../../src/services/autoSymbolFinder/index.js', () => ({
-  findBestWarrant: async () => autoSymbolCandidates.shift() ?? null,
-}));
+let autoSymbolCandidates: Array<ReturnType<typeof createWarrantCandidateWithOverrides> | null> = [];
 
 function createCandles(length: number, start: number, step: number): CandleData[] {
   const candles: CandleData[] = [];
@@ -318,8 +316,7 @@ describe('full business simulation integration', () => {
     sellProcessor.start();
     try {
       await mainProgram({
-        marketDataClient: {
-          getQuoteContext: async () => ({}) as never,
+        marketDataClient: createMarketDataClientDouble({
           getQuotes: async (symbols: Iterable<string>) => {
             const quotes = new Map<string, ReturnType<typeof createQuoteDouble> | null>();
             for (const symbol of symbols) {
@@ -336,13 +333,8 @@ describe('full business simulation integration', () => {
 
             return quotes;
           },
-          subscribeSymbols: async () => {},
-          unsubscribeSymbols: async () => {},
-          subscribeCandlesticks: async () => [],
           getRealtimeCandlesticks: async () => candles,
-          isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
-          resetRuntimeSubscriptionsAndCaches: async () => {},
-        },
+        }),
         trader,
         lastState,
         marketMonitor: {
@@ -393,9 +385,9 @@ describe('full business simulation integration', () => {
 
   it('simulates auto-search and auto-switch through processMonitor + monitorTaskProcessor', async () => {
     autoSymbolCandidates = [
-      { symbol: 'OLD_BULL.HK', callPrice: 20_000 },
+      createWarrantCandidateWithOverrides('OLD_BULL.HK', { callPrice: 20_000 }),
       null,
-      { symbol: 'NEW_BULL.HK', callPrice: 21_000 },
+      createWarrantCandidateWithOverrides('NEW_BULL.HK', { callPrice: 21_000 }),
     ];
 
     const monitorConfig = createMonitorConfigDouble({
@@ -500,29 +492,21 @@ describe('full business simulation integration', () => {
           return null;
         }
 
-        return {
+        return createWarrantDistanceInfoDouble({
           warrantType: 'BULL',
           distanceToStrikePercent: 0.1,
-        };
+        });
       },
     });
 
     const autoSymbolManager = createAutoSymbolManager({
       monitorConfig,
       symbolRegistry,
-      marketDataClient: {
-        getQuoteContext: async () => ({}) as never,
-        getQuotes: async () => new Map(),
-        subscribeSymbols: async () => {},
-        unsubscribeSymbols: async () => {},
-        subscribeCandlesticks: async () => [],
-        getRealtimeCandlesticks: async () => [],
-        isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
-        resetRuntimeSubscriptionsAndCaches: async () => {},
-      },
+      marketDataClient: createMarketDataClientDouble(),
       trader,
       orderRecorder,
       riskChecker,
+      findBestWarrant: async () => autoSymbolCandidates.shift() ?? null,
       now: () => new Date('2026-02-16T01:00:00.000Z'),
     });
 
@@ -578,16 +562,10 @@ describe('full business simulation integration', () => {
     });
 
     const sharedMainContext = {
-      marketDataClient: {
-        getQuoteContext: async () => ({}) as never,
+      marketDataClient: createMarketDataClientDouble({
         getQuotes: async () => new Map(),
-        subscribeSymbols: async () => {},
-        unsubscribeSymbols: async () => {},
-        subscribeCandlesticks: async () => [],
         getRealtimeCandlesticks: async () => createMockCandlesticks(120, 200, 0.5),
-        isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
-        resetRuntimeSubscriptionsAndCaches: async () => {},
-      },
+      }),
       trader,
       lastState,
       marketMonitor: {
@@ -961,8 +939,7 @@ describe('full business simulation integration', () => {
     });
 
     try {
-      const marketDataClient = {
-        getQuoteContext: async () => ({}) as never,
+      const marketDataClient = createMarketDataClientDouble({
         getQuotes: async (symbols: Iterable<string>) => {
           const quotes = new Map<string, ReturnType<typeof createQuoteDouble> | null>();
           for (const symbol of symbols) {
@@ -979,13 +956,8 @@ describe('full business simulation integration', () => {
 
           return quotes;
         },
-        subscribeSymbols: async () => {},
-        unsubscribeSymbols: async () => {},
-        subscribeCandlesticks: async () => [],
         getRealtimeCandlesticks: async () => createMockCandlesticks(120, 100, 0.2),
-        isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
-        resetRuntimeSubscriptionsAndCaches: async () => {},
-      };
+      });
 
       await mainProgram({
         marketDataClient,

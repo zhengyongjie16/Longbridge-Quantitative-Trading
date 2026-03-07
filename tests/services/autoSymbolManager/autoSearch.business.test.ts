@@ -12,7 +12,14 @@ import {
   createMonitorConfigDouble,
   createSymbolRegistryDouble,
 } from '../../helpers/testDoubles.js';
-import { createLoggerStub, getDefaultAutoSearchConfig } from './utils.js';
+import {
+  createDirectionalAutoSearchPolicy,
+  createFindBestWarrantInputDouble,
+  createLoggerStub,
+  createWarrantCandidate,
+  createWarrantCandidateWithOverrides,
+  getDefaultAutoSearchConfig,
+} from './utils.js';
 
 describe('autoSymbolManager autoSearch business flow', () => {
   it('fills EMPTY seat to READY and resets failure counters when a candidate is found', async () => {
@@ -39,9 +46,7 @@ describe('autoSymbolManager autoSearch business flow', () => {
       switchStates,
       switchSuppressions,
       now: () => new Date('2026-02-16T01:00:00.000Z'),
-      logger: {
-        warn: () => {},
-      } as never,
+      logger: createLoggerStub(),
       getHKDateKey,
     });
     let findCalls = 0;
@@ -51,20 +56,13 @@ describe('autoSymbolManager autoSearch business flow', () => {
       symbolRegistry,
       buildSeatState: manager.buildSeatState,
       updateSeatState: manager.updateSeatState,
-      resolveAutoSearchThresholdInput: () => ({
-        minDistancePct: 0.35,
-        minTurnoverPerMinute: 100_000,
-      }),
-      buildFindBestWarrantInput: async () => ({}) as never,
+      resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
+      buildFindBestWarrantInput: async () => createFindBestWarrantInputDouble(),
       findBestWarrant: async () => {
         findCalls += 1;
         return {
-          symbol: 'NEW_BULL.HK',
-          name: 'NEW_BULL.HK',
+          ...createWarrantCandidate('NEW_BULL.HK'),
           callPrice: 20_500,
-          distancePct: 0.5,
-          turnover: 1_000_000,
-          turnoverPerMinute: 100_000,
         };
       },
       isWithinMorningOpenProtection: () => false,
@@ -112,9 +110,7 @@ describe('autoSymbolManager autoSearch business flow', () => {
       switchStates,
       switchSuppressions,
       now: () => new Date('2026-02-16T01:00:00.000Z'),
-      logger: {
-        warn: () => {},
-      } as never,
+      logger: createLoggerStub(),
       getHKDateKey,
     });
     let findCalls = 0;
@@ -124,11 +120,8 @@ describe('autoSymbolManager autoSearch business flow', () => {
       symbolRegistry,
       buildSeatState: manager.buildSeatState,
       updateSeatState: manager.updateSeatState,
-      resolveAutoSearchThresholdInput: () => ({
-        minDistancePct: 0.35,
-        minTurnoverPerMinute: 100_000,
-      }),
-      buildFindBestWarrantInput: async () => ({}) as never,
+      resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
+      buildFindBestWarrantInput: async () => createFindBestWarrantInputDouble(),
       findBestWarrant: async () => {
         findCalls += 1;
         return null;
@@ -177,9 +170,7 @@ describe('autoSymbolManager autoSearch business flow', () => {
       switchStates,
       switchSuppressions,
       now: () => now,
-      logger: {
-        warn: () => {},
-      } as never,
+      logger: createLoggerStub(),
       getHKDateKey,
     });
     let findCalls = 0;
@@ -189,11 +180,8 @@ describe('autoSymbolManager autoSearch business flow', () => {
       symbolRegistry,
       buildSeatState: manager.buildSeatState,
       updateSeatState: manager.updateSeatState,
-      resolveAutoSearchThresholdInput: () => ({
-        minDistancePct: 0.35,
-        minTurnoverPerMinute: 100_000,
-      }),
-      buildFindBestWarrantInput: async () => ({}) as never,
+      resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
+      buildFindBestWarrantInput: async () => createFindBestWarrantInputDouble(),
       findBestWarrant: async () => {
         findCalls += 1;
         return null;
@@ -210,5 +198,72 @@ describe('autoSymbolManager autoSearch business flow', () => {
       canTradeNow: true,
     });
     expect(findCalls).toBe(0);
+  });
+
+  it('fills EMPTY SHORT seat to READY when bear candidate is found', async () => {
+    const monitorConfig = createMonitorConfigDouble({
+      autoSearchConfig: getDefaultAutoSearchConfig(),
+    });
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+      shortSeat: {
+        symbol: null,
+        status: 'EMPTY',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatReadyAt: null,
+        searchFailCountToday: 1,
+        frozenTradingDayKey: null,
+      },
+    });
+    const switchStates = new Map();
+    const switchSuppressions = new Map();
+    const manager = createSeatStateManager({
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      switchStates,
+      switchSuppressions,
+      now: () => new Date('2026-02-16T01:00:00.000Z'),
+      logger: createLoggerStub(),
+      getHKDateKey,
+    });
+    let findCalls = 0;
+    const autoSearch = createAutoSearch({
+      autoSearchConfig: monitorConfig.autoSearchConfig,
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      buildSeatState: manager.buildSeatState,
+      updateSeatState: manager.updateSeatState,
+      resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('SHORT'),
+      buildFindBestWarrantInput: async () =>
+        createFindBestWarrantInputDouble(createDirectionalAutoSearchPolicy('SHORT')),
+      findBestWarrant: async () => {
+        findCalls += 1;
+        return createWarrantCandidateWithOverrides('NEW_BEAR.HK', {
+          callPrice: 19_500,
+          distancePct: -0.3499,
+          selectionStage: 'DEGRADED',
+          distanceDeltaToThreshold: 0.0001,
+        });
+      },
+      isWithinMorningOpenProtection: () => false,
+      searchCooldownMs: 10_000,
+      getHKDateKey,
+      maxSearchFailuresPerDay: 3,
+      logger: createLoggerStub(),
+    });
+    await autoSearch.maybeSearchOnTick({
+      direction: 'SHORT',
+      currentTime: new Date('2026-02-16T01:00:00.000Z'),
+      canTradeNow: true,
+    });
+    const seat = symbolRegistry.getSeatState('HSI.HK', 'SHORT');
+    expect(findCalls).toBe(1);
+    expect(seat.status).toBe('READY');
+    expect(seat.symbol).toBe('NEW_BEAR.HK');
+    expect(seat.callPrice).toBe(19_500);
+    expect(seat.searchFailCountToday).toBe(0);
+    expect(seat.frozenTradingDayKey).toBeNull();
+    expect(symbolRegistry.getSeatVersion('HSI.HK', 'SHORT')).toBe(2);
   });
 });

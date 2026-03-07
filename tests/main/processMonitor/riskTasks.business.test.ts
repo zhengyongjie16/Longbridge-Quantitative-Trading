@@ -23,6 +23,7 @@ import {
   createOrderRecorderDouble,
   createQuoteDouble,
   createRiskCheckerDouble,
+  createWarrantDistanceInfoDouble,
 } from '../../helpers/testDoubles.js';
 
 function createSeatInfo(): SeatSyncResult {
@@ -59,8 +60,13 @@ function createSeatInfo(): SeatSyncResult {
 describe('riskTasks business scheduling', () => {
   it('schedules liquidation-distance and unrealized-loss checks in one tick when conditions match', () => {
     const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
-    let receivedLongDisplayInfo: unknown = null;
-    let receivedShortDisplayInfo: unknown = null;
+    const capturedDisplayInfo: {
+      long: PriceDisplayInfo | null | undefined;
+      short: PriceDisplayInfo | null | undefined;
+    } = {
+      long: null,
+      short: null,
+    };
 
     const monitorContext = {
       state: {
@@ -68,10 +74,10 @@ describe('riskTasks business scheduling', () => {
       },
       riskChecker: createRiskCheckerDouble({
         getWarrantDistanceInfo: (isLong) => {
-          return {
+          return createWarrantDistanceInfoDouble({
             warrantType: isLong ? 'BULL' : 'BEAR',
             distanceToStrikePercent: isLong ? 0.7 : -0.8,
-          };
+          });
         },
         getUnrealizedLossMetrics: (symbol, currentPrice) => {
           if (symbol === 'BULL.HK' && currentPrice === 1.1) {
@@ -152,8 +158,8 @@ describe('riskTasks business scheduling', () => {
           longDisplayInfo: PriceDisplayInfo | null | undefined,
           shortDisplayInfo: PriceDisplayInfo | null | undefined,
         ) => {
-          receivedLongDisplayInfo = longDisplayInfo;
-          receivedShortDisplayInfo = shortDisplayInfo;
+          capturedDisplayInfo.long = longDisplayInfo;
+          capturedDisplayInfo.short = shortDisplayInfo;
           return true;
         },
       },
@@ -181,33 +187,43 @@ describe('riskTasks business scheduling', () => {
     expect(second?.type).toBe('UNREALIZED_LOSS_CHECK');
     expect(second?.dedupeKey).toBe('HSI.HK:UNREALIZED_LOSS_CHECK');
 
-    expect(receivedLongDisplayInfo).toEqual({
-      warrantDistanceInfo: {
-        warrantType: 'BULL',
-        distanceToStrikePercent: 0.7,
-      },
-      unrealizedLossMetrics: {
-        r1: 100,
-        n1: 100,
-        r2: 110,
-        unrealizedPnL: 10,
-      },
-      orderCount: 2,
-    });
+    const receivedLongDisplayInfo = capturedDisplayInfo.long;
+    const receivedShortDisplayInfo = capturedDisplayInfo.short;
 
-    expect(receivedShortDisplayInfo).toEqual({
-      warrantDistanceInfo: {
-        warrantType: 'BEAR',
-        distanceToStrikePercent: -0.8,
-      },
-      unrealizedLossMetrics: {
-        r1: 90,
-        n1: 100,
-        r2: 80,
-        unrealizedPnL: -10,
-      },
-      orderCount: 1,
+    if (
+      receivedLongDisplayInfo === null ||
+      receivedLongDisplayInfo === undefined ||
+      receivedShortDisplayInfo === null ||
+      receivedShortDisplayInfo === undefined
+    ) {
+      throw new Error('display info should be populated for both directions');
+    }
+
+    expect(receivedLongDisplayInfo.warrantDistanceInfo?.warrantType).toBe('BULL');
+    expect(receivedLongDisplayInfo.warrantDistanceInfo?.distanceToStrikePercent?.toNumber()).toBe(
+      0.7,
+    );
+
+    expect(receivedLongDisplayInfo.unrealizedLossMetrics).toEqual({
+      r1: 100,
+      n1: 100,
+      r2: 110,
+      unrealizedPnL: 10,
     });
+    expect(receivedLongDisplayInfo.orderCount).toBe(2);
+
+    expect(receivedShortDisplayInfo.warrantDistanceInfo?.warrantType).toBe('BEAR');
+    expect(receivedShortDisplayInfo.warrantDistanceInfo?.distanceToStrikePercent?.toNumber()).toBe(
+      -0.8,
+    );
+
+    expect(receivedShortDisplayInfo.unrealizedLossMetrics).toEqual({
+      r1: 90,
+      n1: 100,
+      r2: 80,
+      unrealizedPnL: -10,
+    });
+    expect(receivedShortDisplayInfo.orderCount).toBe(1);
   });
 
   it('skips liquidation-distance scheduling when auto-search is enabled', () => {

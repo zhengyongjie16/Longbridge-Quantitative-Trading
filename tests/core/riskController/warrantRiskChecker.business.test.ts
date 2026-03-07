@@ -73,4 +73,13 @@ describe('warrantRiskChecker business boundaries', () => {
     expect(bullResult.shouldLiquidate).toBe(true);
     expect(bearResult.shouldLiquidate).toBe(true);
   });
+
+  it('keeps precise distance judgment without pre-rounding prices before threshold comparison', () => {
+    const checker = createWarrantRiskChecker();
+    checker.setWarrantInfoFromCallPrice('PRECISION-BULL.HK', 100.774702, true, 'PRECISION-BULL.HK');
+
+    const result = checker.checkRisk('PRECISION-BULL.HK', 'BUYCALL', 101.12749074212671);
+
+    expect(result.allowed).toBe(true);
+  });
 });

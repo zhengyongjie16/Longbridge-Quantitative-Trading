@@ -1,9 +1,9 @@
 /**
  * 自动换标管理器
  *
- * 功能/职责：负责席位初始化、自动寻标与换标流程；支持「距离换标 + 周期换标」统一状态机推进，并处理撤单/卖出/买入完整链路。
- * 执行流程：AUTO_SYMBOL_TICK 调用 maybeSearchOnTick 与 maybeSwitchOnInterval；
- * AUTO_SYMBOL_SWITCH_DISTANCE 调用 maybeSwitchOnDistance 并在存在 pending switch 时持续推进状态机。
+ * 功能：负责席位初始化、自动寻标与换标流程的完整管理。
+ * 职责：支持「距离换标 + 周期换标」统一状态机推进，并处理撤单/卖出/买入完整链路。
+ * 执行流程：AUTO_SYMBOL_TICK 调用 maybeSearchOnTick 与 maybeSwitchOnInterval；AUTO_SYMBOL_SWITCH_DISTANCE 调用 maybeSwitchOnDistance 并在存在 pending switch 时持续推进状态机。
  */
 import { OrderSide } from 'longport';
 import { findBestWarrant } from '../autoSymbolFinder/index.js';
@@ -27,7 +27,7 @@ import type {
   SwitchState,
   SwitchSuppression,
 } from './types.js';
-import { createThresholdResolver, resolveAutoSearchThresholds } from './thresholdResolver.js';
+import { createThresholdResolver } from './thresholdResolver.js';
 import {
   calculateBuyQuantityByNotional,
   createSignalBuilder,
@@ -54,6 +54,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     warrantListCacheConfig,
   } = deps;
   const now = deps.now ?? (() => new Date());
+  const injectedFindBestWarrant = deps.findBestWarrant ?? findBestWarrant;
   const getTradingCalendarSnapshot = deps.getTradingCalendarSnapshot ?? (() => new Map());
   const monitorSymbol = monitorConfig.monitorSymbol;
   const autoSearchConfig = monitorConfig.autoSearchConfig;
@@ -66,6 +67,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     marketDataClient,
     logger,
     getTradingMinutesSinceOpen,
+    expiryMinMonths: autoSearchConfig.autoSearchExpiryMinMonths,
     ...(warrantListCacheConfig ? { warrantListCacheConfig } : {}),
   });
   const signalBuilder = createSignalBuilder({ signalObjectPool });
@@ -84,9 +86,9 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     symbolRegistry,
     buildSeatState: seatStateManager.buildSeatState,
     updateSeatState: seatStateManager.updateSeatState,
-    resolveAutoSearchThresholdInput: thresholdResolver.resolveAutoSearchThresholdInput,
+    resolveDirectionalAutoSearchPolicy: thresholdResolver.resolveDirectionalAutoSearchPolicy,
     buildFindBestWarrantInput: thresholdResolver.buildFindBestWarrantInput,
-    findBestWarrant,
+    findBestWarrant: injectedFindBestWarrant,
     isWithinMorningOpenProtection,
     searchCooldownMs: AUTO_SYMBOL_SEARCH_COOLDOWN_MS,
     getHKDateKey,
@@ -111,10 +113,9 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     clearSeat: (params) => seatStateManager.clearSeat(params),
     buildSeatState: seatStateManager.buildSeatState,
     updateSeatState: seatStateManager.updateSeatState,
-    resolveAutoSearchThresholds,
-    resolveAutoSearchThresholdInput: thresholdResolver.resolveAutoSearchThresholdInput,
+    resolveDirectionalAutoSearchPolicy: thresholdResolver.resolveDirectionalAutoSearchPolicy,
     buildFindBestWarrantInput: thresholdResolver.buildFindBestWarrantInput,
-    findBestWarrant,
+    findBestWarrant: injectedFindBestWarrant,
     resolveDirectionSymbols,
     calculateBuyQuantityByNotional,
     buildOrderSignal: signalBuilder.buildOrderSignal,

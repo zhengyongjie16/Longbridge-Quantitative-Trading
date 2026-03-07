@@ -4,15 +4,8 @@
  * 功能：
  * - 验证自动换标端到端场景与业务期望。
  */
-import { describe, expect, it, mock } from 'bun:test';
-import { OrderSide, type TradeContext } from 'longport';
-
-let candidateQueue: Array<{ symbol: string; callPrice: number } | null> = [];
-
-// eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 同步注册
-mock.module('../../src/services/autoSymbolFinder/index.js', () => ({
-  findBestWarrant: async () => candidateQueue.shift() ?? null,
-}));
+import { describe, expect, it } from 'bun:test';
+import { OrderSide } from 'longport';
 
 import { createAutoSymbolManager } from '../../src/services/autoSymbolManager/index.js';
 import { createOrderExecutor } from '../../src/core/trader/orderExecutor/index.js';
@@ -21,19 +14,25 @@ import { createTradeContextMock } from '../../mock/longport/tradeContextMock.js'
 import { createStockPositionsResponse } from '../../mock/factories/tradeFactory.js';
 
 import {
+  createMarketDataClientDouble,
   createMonitorConfigDouble,
   createOrderRecorderDouble,
   createQuoteDouble,
   createRiskCheckerDouble,
   createSymbolRegistryDouble,
+  createTradeContextDouble,
   createTraderDouble,
+  createWarrantDistanceInfoDouble,
 } from '../helpers/testDoubles.js';
+import { createWarrantCandidateWithOverrides } from '../services/autoSymbolManager/utils.js';
+
+let candidateQueue: Array<ReturnType<typeof createWarrantCandidateWithOverrides> | null> = [];
 
 describe('auto-symbol-switch integration', () => {
   it('runs empty-seat search then distance-triggered switch with sell->rebuy flow', async () => {
     candidateQueue = [
-      { symbol: 'OLD_BULL.HK', callPrice: 20_000 },
-      { symbol: 'NEW_BULL.HK', callPrice: 21_000 },
+      createWarrantCandidateWithOverrides('OLD_BULL.HK', { callPrice: 20_000 }),
+      createWarrantCandidateWithOverrides('NEW_BULL.HK', { callPrice: 21_000 }),
     ];
 
     const monitorConfig = createMonitorConfigDouble({
@@ -126,29 +125,21 @@ describe('auto-symbol-switch integration', () => {
           return null;
         }
 
-        return {
+        return createWarrantDistanceInfoDouble({
           warrantType: 'BULL',
           distanceToStrikePercent: 0.1,
-        };
+        });
       },
     });
 
     const manager = createAutoSymbolManager({
       monitorConfig,
       symbolRegistry,
-      marketDataClient: {
-        getQuoteContext: async () => ({}) as never,
-        getQuotes: async () => new Map(),
-        subscribeSymbols: async () => {},
-        unsubscribeSymbols: async () => {},
-        subscribeCandlesticks: async () => [],
-        getRealtimeCandlesticks: async () => [],
-        isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
-        resetRuntimeSubscriptionsAndCaches: async () => {},
-      },
+      marketDataClient: createMarketDataClientDouble(),
       trader,
       orderRecorder,
       riskChecker,
+      findBestWarrant: async () => candidateQueue.shift() ?? null,
       now: () => new Date('2026-02-16T01:00:00.000Z'),
     });
 
@@ -213,8 +204,8 @@ describe('auto-symbol-switch integration', () => {
 
   it('uses real orderExecutor chain and submits rebuy quantity by sell-notional', async () => {
     candidateQueue = [
-      { symbol: 'OLD_BULL.HK', callPrice: 20_000 },
-      { symbol: 'NEW_BULL.HK', callPrice: 21_000 },
+      createWarrantCandidateWithOverrides('OLD_BULL.HK', { callPrice: 20_000 }),
+      createWarrantCandidateWithOverrides('NEW_BULL.HK', { callPrice: 21_000 }),
     ];
 
     const monitorConfig = createMonitorConfigDouble({
@@ -287,7 +278,7 @@ describe('auto-symbol-switch integration', () => {
 
     const trackedOrders: Array<{ orderId: string; side: OrderSide; quantity: number }> = [];
     const orderExecutor = createOrderExecutor({
-      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      ctxPromise: Promise.resolve(createTradeContextDouble(tradeCtx)),
       rateLimiter: {
         throttle: async () => {},
       },
@@ -336,29 +327,21 @@ describe('auto-symbol-switch integration', () => {
           return null;
         }
 
-        return {
+        return createWarrantDistanceInfoDouble({
           warrantType: 'BULL',
           distanceToStrikePercent: 0.1,
-        };
+        });
       },
     });
 
     const manager = createAutoSymbolManager({
       monitorConfig,
       symbolRegistry,
-      marketDataClient: {
-        getQuoteContext: async () => ({}) as never,
-        getQuotes: async () => new Map(),
-        subscribeSymbols: async () => {},
-        unsubscribeSymbols: async () => {},
-        subscribeCandlesticks: async () => [],
-        getRealtimeCandlesticks: async () => [],
-        isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
-        resetRuntimeSubscriptionsAndCaches: async () => {},
-      },
+      marketDataClient: createMarketDataClientDouble(),
       trader,
       orderRecorder,
       riskChecker,
+      findBestWarrant: async () => candidateQueue.shift() ?? null,
       now: () => new Date('2026-02-16T01:00:00.000Z'),
     });
 

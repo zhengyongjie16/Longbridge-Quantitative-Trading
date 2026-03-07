@@ -9,6 +9,7 @@ import type {
   LiquidationCooldownConfig,
   MonitorConfig,
   MultiMonitorTradingConfig,
+  NumberRange,
 } from '../types/config.js';
 import type { Quote } from '../types/quote.js';
 import type {
@@ -21,6 +22,9 @@ import type {
   TradingValidationResult,
   ValidationResult,
 } from './types.js';
+
+const AUTO_SEARCH_DISTANCE_UNIT_HINT =
+  'LongPort warrantList.toCallPrice 原始值会先从小数比值转换为该百分比值口径。';
 
 /**
  * 创建配置验证错误对象，供 validateAllConfig 在验证失败时抛出。
@@ -123,6 +127,63 @@ function recordTradingSymbolUsage(
   }
 
   tradingSymbols.set(symbol, index);
+}
+
+/**
+ * 校验自动寻标降级区间与主阈值的相对关系。
+ * 仅在主阈值与换标区间都已通过基础数值校验后调用。
+ *
+ * @param params 校验参数
+ * @returns 违反关系约束时返回错误文案，否则返回 null
+ */
+function validateDegradedRangeRelationship(params: {
+  readonly prefix: string;
+  readonly index: number;
+  readonly direction: 'LONG' | 'SHORT';
+  readonly primaryThreshold: number;
+  readonly switchDistanceRange: NumberRange;
+}): string | null {
+  if (params.direction === 'LONG') {
+    if (params.switchDistanceRange.min >= params.primaryThreshold) {
+      return (
+        `${params.prefix}: SWITCH_DISTANCE_RANGE_BULL_${params.index} 无效（降级区间必须满足 ` +
+        `SWITCH_DISTANCE_RANGE_BULL_${params.index}.min < ` +
+        `AUTO_SEARCH_MIN_DISTANCE_PCT_BULL_${params.index}，` +
+        `运行时单位为百分比值，0.35 表示 0.35%；${AUTO_SEARCH_DISTANCE_UNIT_HINT}）`
+      );
+    }
+
+    if (params.primaryThreshold >= params.switchDistanceRange.max) {
+      return (
+        `${params.prefix}: SWITCH_DISTANCE_RANGE_BULL_${params.index} 无效（主阈值必须满足 ` +
+        `AUTO_SEARCH_MIN_DISTANCE_PCT_BULL_${params.index} < ` +
+        `SWITCH_DISTANCE_RANGE_BULL_${params.index}.max，` +
+        `确保自动寻标候选严格位于换标安全区间内部，运行时单位为百分比值，0.35 表示 0.35%；${AUTO_SEARCH_DISTANCE_UNIT_HINT}）`
+      );
+    }
+
+    return null;
+  }
+
+  if (params.switchDistanceRange.min >= params.primaryThreshold) {
+    return (
+      `${params.prefix}: SWITCH_DISTANCE_RANGE_BEAR_${params.index} 无效（主阈值必须满足 ` +
+      `SWITCH_DISTANCE_RANGE_BEAR_${params.index}.min < ` +
+      `AUTO_SEARCH_MIN_DISTANCE_PCT_BEAR_${params.index}，` +
+      `确保自动寻标候选严格位于换标安全区间内部，运行时单位为百分比值，-0.35 表示 -0.35%；${AUTO_SEARCH_DISTANCE_UNIT_HINT}）`
+    );
+  }
+
+  if (params.primaryThreshold >= params.switchDistanceRange.max) {
+    return (
+      `${params.prefix}: SWITCH_DISTANCE_RANGE_BEAR_${params.index} 无效（降级区间必须满足 ` +
+      `AUTO_SEARCH_MIN_DISTANCE_PCT_BEAR_${params.index} < ` +
+      `SWITCH_DISTANCE_RANGE_BEAR_${params.index}.max，` +
+      `运行时单位为百分比值，-0.35 表示 -0.35%；${AUTO_SEARCH_DISTANCE_UNIT_HINT}）`
+    );
+  }
+
+  return null;
 }
 
 /**
@@ -409,6 +470,20 @@ function validateMonitorConfig(
         `${prefix}: SWITCH_DISTANCE_RANGE_BULL_${index} 未配置或无效（格式 min,max 且 min<=max）`,
       ];
       missingFields = [...missingFields, `SWITCH_DISTANCE_RANGE_BULL_${index}`];
+    } else if (
+      autoSearchConfig.autoSearchMinDistancePctBull !== null &&
+      Number.isFinite(autoSearchConfig.autoSearchMinDistancePctBull)
+    ) {
+      const bullRangeRelationshipError = validateDegradedRangeRelationship({
+        prefix,
+        index,
+        direction: 'LONG',
+        primaryThreshold: autoSearchConfig.autoSearchMinDistancePctBull,
+        switchDistanceRange: bullRange,
+      });
+      if (bullRangeRelationshipError !== null) {
+        errors = [...errors, bullRangeRelationshipError];
+      }
     }
 
     const bearRange = autoSearchConfig.switchDistanceRangeBear;
@@ -423,6 +498,20 @@ function validateMonitorConfig(
         `${prefix}: SWITCH_DISTANCE_RANGE_BEAR_${index} 未配置或无效（格式 min,max 且 min<=max）`,
       ];
       missingFields = [...missingFields, `SWITCH_DISTANCE_RANGE_BEAR_${index}`];
+    } else if (
+      autoSearchConfig.autoSearchMinDistancePctBear !== null &&
+      Number.isFinite(autoSearchConfig.autoSearchMinDistancePctBear)
+    ) {
+      const bearRangeRelationshipError = validateDegradedRangeRelationship({
+        prefix,
+        index,
+        direction: 'SHORT',
+        primaryThreshold: autoSearchConfig.autoSearchMinDistancePctBear,
+        switchDistanceRange: bearRange,
+      });
+      if (bearRangeRelationshipError !== null) {
+        errors = [...errors, bearRangeRelationshipError];
+      }
     }
   }
 

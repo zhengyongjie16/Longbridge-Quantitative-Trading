@@ -50,10 +50,10 @@ export type AutoSearchConfig = {
   /** 自动寻标开关 */
   readonly autoSearchEnabled: boolean;
 
-  /** 牛证最低距回收价百分比阈值（小数，正值，配置层百分比数值经 /100 转换而来） */
+  /** 牛证最低距回收价百分比阈值（内部百分比值，正值；0.35 表示 0.35%；warrantList 原始值会在边界先做单位转换） */
   readonly autoSearchMinDistancePctBull: number | null;
 
-  /** 熊证最低距回收价百分比阈值（小数，负值，配置层百分比数值经 /100 转换而来） */
+  /** 熊证最低距回收价百分比阈值（内部百分比值，负值；-0.35 表示 -0.35%；warrantList 原始值会在边界先做单位转换） */
   readonly autoSearchMinDistancePctBear: number | null;
 
   /** 牛证分均成交额阈值 */
@@ -71,10 +71,10 @@ export type AutoSearchConfig = {
   /** 周期换标间隔（分钟，0 表示关闭） */
   readonly switchIntervalMinutes: number;
 
-  /** 牛证距回收价换标阈值范围 */
+  /** 牛证距回收价换标阈值范围（内部百分比值，含边界触发） */
   readonly switchDistanceRangeBull: NumberRange | null;
 
-  /** 熊证距回收价换标阈值范围 */
+  /** 熊证距回收价换标阈值范围（内部百分比值，含边界触发） */
   readonly switchDistanceRangeBear: NumberRange | null;
 };
 

@@ -1,18 +1,16 @@
 /**
  * 自动换标模块：自动寻标（AutoSearch）
  *
- * 职责：
- * - 在席位为空时按冷却间隔触发自动寻标
- * - 开盘保护：在开盘延迟窗口内跳过寻标
- * - 寻标失败时累计失败计数，达上限后冻结席位
- * - 寻标成功后更新席位状态为 READY
+ * 功能：在席位为空时按冷却间隔触发自动寻标。
+ * 职责：开盘保护（在开盘延迟窗口内跳过寻标），寻标失败时累计失败计数并达上限后冻结席位，寻标成功后更新席位状态为 READY。
+ * 执行流程：maybeSearchOnTick 检查席位状态与冷却 → 调用 findBestWarrant → 成功则更新为 READY，失败则累计失败计数或冻结。
  */
 import type { AutoSearchDeps, AutoSearchManager, SearchOnTickParams } from './types.js';
 import { isSeatFrozenToday, resolveNextSearchFailureState } from './utils.js';
 
 /**
  * 创建自动寻标子模块，管理空席位的寻标触发、冷却控制与失败冻结逻辑；每 tick 检查席位状态，满足条件时调用 findBestWarrant 并更新席位。
- * @param deps - 依赖（autoSearchConfig、symbolRegistry、buildSeatState、updateSeatState、resolveAutoSearchThresholdInput、buildFindBestWarrantInput、findBestWarrant 等）
+ * @param deps - 依赖（autoSearchConfig、symbolRegistry、buildSeatState、updateSeatState、resolveDirectionalAutoSearchPolicy、buildFindBestWarrantInput、findBestWarrant 等）
  * @returns AutoSearchManager 实例（maybeSearchOnTick）
  */
 export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
@@ -22,7 +20,7 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
     symbolRegistry,
     buildSeatState,
     updateSeatState,
-    resolveAutoSearchThresholdInput,
+    resolveDirectionalAutoSearchPolicy,
     buildFindBestWarrantInput,
     findBestWarrant,
     isWithinMorningOpenProtection,
@@ -66,11 +64,11 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
       return;
     }
 
-    const thresholds = resolveAutoSearchThresholdInput({
+    const policy = resolveDirectionalAutoSearchPolicy({
       direction,
       logPrefix: '[自动寻标] 缺少阈值配置，跳过寻标',
     });
-    if (!thresholds) {
+    if (policy === null) {
       return;
     }
 
@@ -92,10 +90,8 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
     let best: { readonly symbol: string; readonly callPrice: number } | null = null;
     try {
       const input = await buildFindBestWarrantInput({
-        direction,
         currentTime,
-        minDistancePct: thresholds.minDistancePct,
-        minTurnoverPerMinute: thresholds.minTurnoverPerMinute,
+        policy,
       });
       best = await findBestWarrant(input);
     } catch (err) {

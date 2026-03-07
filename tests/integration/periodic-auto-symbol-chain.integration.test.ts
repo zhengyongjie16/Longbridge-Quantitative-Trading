@@ -4,7 +4,7 @@
  * 功能：
  * - 验证周期换标的任务链路：任务调度 -> 任务处理器 -> 自动换标管理器状态机。
  */
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 
 import { scheduleAutoSymbolTasks } from '../../src/main/processMonitor/autoSymbolTasks.js';
 import { createAutoSymbolManager } from '../../src/services/autoSymbolManager/index.js';
@@ -22,20 +22,18 @@ import type {
 } from '../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 
 import {
+  createMarketDataClientDouble,
   createMonitorConfigDouble,
   createOrderRecorderDouble,
   createPositionCacheDouble,
   createRiskCheckerDouble,
   createSymbolRegistryDouble,
   createTraderDouble,
+  createWarrantDistanceInfoDouble,
 } from '../helpers/testDoubles.js';
+import { createWarrantCandidateWithOverrides } from '../services/autoSymbolManager/utils.js';
 
-let candidateQueue: Array<{ symbol: string; callPrice: number } | null> = [];
-
-// eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 同步注册
-mock.module('../../src/services/autoSymbolFinder/index.js', () => ({
-  findBestWarrant: async () => candidateQueue.shift() ?? null,
-}));
+let candidateQueue: Array<ReturnType<typeof createWarrantCandidateWithOverrides> | null> = [];
 
 function createLastState(): LastState {
   return {
@@ -71,7 +69,7 @@ describe('periodic auto-symbol full chain integration', () => {
   it('completes periodic switch through AUTO_SYMBOL_TICK and AUTO_SYMBOL_SWITCH_DISTANCE tasks', async () => {
     const readyMs = Date.parse('2026-02-16T01:30:00.000Z');
     let currentNowMs = Date.parse('2026-02-16T01:31:00.000Z');
-    candidateQueue = [{ symbol: 'NEW_BULL.HK', callPrice: 21_000 }];
+    candidateQueue = [createWarrantCandidateWithOverrides('NEW_BULL.HK', { callPrice: 21_000 })];
     const tradingCalendarSnapshot = new Map([
       ['2026-02-16', { isTradingDay: true, isHalfDay: false }],
     ]);
@@ -135,25 +133,21 @@ describe('periodic auto-symbol full chain integration', () => {
       getBuyOrdersForSymbol: () => [],
     });
     const riskChecker = createRiskCheckerDouble({
-      getWarrantDistanceInfo: () => ({ warrantType: 'BULL', distanceToStrikePercent: 0.1 }),
+      getWarrantDistanceInfo: () =>
+        createWarrantDistanceInfoDouble({
+          warrantType: 'BULL',
+          distanceToStrikePercent: 0.1,
+        }),
     });
 
     const autoSymbolManager = createAutoSymbolManager({
       monitorConfig,
       symbolRegistry,
-      marketDataClient: {
-        getQuoteContext: async () => ({}) as never,
-        getQuotes: async () => new Map(),
-        subscribeSymbols: async () => {},
-        unsubscribeSymbols: async () => {},
-        subscribeCandlesticks: async () => [],
-        getRealtimeCandlesticks: async () => [],
-        isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
-        resetRuntimeSubscriptionsAndCaches: async () => {},
-      },
+      marketDataClient: createMarketDataClientDouble(),
       trader,
       orderRecorder,
       riskChecker,
+      findBestWarrant: async () => candidateQueue.shift() ?? null,
       now: () => new Date(currentNowMs),
       getTradingCalendarSnapshot: () => tradingCalendarSnapshot,
     });
@@ -260,7 +254,10 @@ describe('periodic auto-symbol full chain integration', () => {
   it('applies cross-day trading-duration rule before periodic switch is triggered', async () => {
     const readyMs = Date.parse('2026-02-16T07:59:00.000Z'); // Day1 15:59 HK
     let currentNowMs = Date.parse('2026-02-17T01:30:00.000Z'); // Day2 09:30 HK
-    candidateQueue = [null, { symbol: 'NEW_BULL.HK', callPrice: 21_000 }];
+    candidateQueue = [
+      null,
+      createWarrantCandidateWithOverrides('NEW_BULL.HK', { callPrice: 21_000 }),
+    ];
     const tradingCalendarSnapshot = new Map([
       ['2026-02-16', { isTradingDay: true, isHalfDay: false }],
       ['2026-02-17', { isTradingDay: true, isHalfDay: false }],
@@ -325,25 +322,21 @@ describe('periodic auto-symbol full chain integration', () => {
       getBuyOrdersForSymbol: () => [],
     });
     const riskChecker = createRiskCheckerDouble({
-      getWarrantDistanceInfo: () => ({ warrantType: 'BULL', distanceToStrikePercent: 0.1 }),
+      getWarrantDistanceInfo: () =>
+        createWarrantDistanceInfoDouble({
+          warrantType: 'BULL',
+          distanceToStrikePercent: 0.1,
+        }),
     });
 
     const autoSymbolManager = createAutoSymbolManager({
       monitorConfig,
       symbolRegistry,
-      marketDataClient: {
-        getQuoteContext: async () => ({}) as never,
-        getQuotes: async () => new Map(),
-        subscribeSymbols: async () => {},
-        unsubscribeSymbols: async () => {},
-        subscribeCandlesticks: async () => [],
-        getRealtimeCandlesticks: async () => [],
-        isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
-        resetRuntimeSubscriptionsAndCaches: async () => {},
-      },
+      marketDataClient: createMarketDataClientDouble(),
       trader,
       orderRecorder,
       riskChecker,
+      findBestWarrant: async () => candidateQueue.shift() ?? null,
       now: () => new Date(currentNowMs),
       getTradingCalendarSnapshot: () => tradingCalendarSnapshot,
     });

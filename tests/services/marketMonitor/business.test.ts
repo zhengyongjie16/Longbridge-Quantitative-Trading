@@ -13,7 +13,11 @@ import {
 } from '../../../src/services/marketMonitor/utils.js';
 import type { IndicatorSnapshot } from '../../../src/types/quote.js';
 import type { MonitorState } from '../../../src/types/state.js';
-import { createIndicatorUsageProfileDouble, createQuoteDouble } from '../../helpers/testDoubles.js';
+import {
+  createIndicatorUsageProfileDouble,
+  createQuoteDouble,
+  createWarrantDistanceInfoDouble,
+} from '../../helpers/testDoubles.js';
 
 function createMonitorState(monitorSymbol: string): MonitorState {
   return {
@@ -48,22 +52,28 @@ describe('marketMonitor business flow', () => {
   it('formats warrant distance display with unified label', () => {
     expect(formatWarrantDistanceDisplay(null)).toBeNull();
 
-    const bullText = formatWarrantDistanceDisplay({
-      warrantType: 'BULL',
-      distanceToStrikePercent: 1.9,
-    });
+    const bullText = formatWarrantDistanceDisplay(
+      createWarrantDistanceInfoDouble({
+        warrantType: 'BULL',
+        distanceToStrikePercent: 1.9,
+      }),
+    );
     expect(bullText).toBe('距回收价=+1.90%');
 
-    const bearText = formatWarrantDistanceDisplay({
-      warrantType: 'BEAR',
-      distanceToStrikePercent: -2.35,
-    });
+    const bearText = formatWarrantDistanceDisplay(
+      createWarrantDistanceInfoDouble({
+        warrantType: 'BEAR',
+        distanceToStrikePercent: -2.35,
+      }),
+    );
     expect(bearText).toBe('距回收价=-2.35%');
 
-    const unknownText = formatWarrantDistanceDisplay({
-      warrantType: 'BULL',
-      distanceToStrikePercent: null,
-    });
+    const unknownText = formatWarrantDistanceDisplay(
+      createWarrantDistanceInfoDouble({
+        warrantType: 'BULL',
+        distanceToStrikePercent: null,
+      }),
+    );
     expect(unknownText).toBe('距回收价=未知');
   });
 
