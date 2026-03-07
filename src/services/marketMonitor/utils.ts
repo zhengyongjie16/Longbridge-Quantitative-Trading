@@ -71,24 +71,6 @@ export function hasChanged(
 }
 
 /**
- * 检查单个指标值是否变化（当前有效且上次为空或超过阈值）
- * @param current 当前指标值
- * @param last 上次指标值，为 null/undefined 时视为首次出现
- * @param threshold 变化阈值
- * @returns 当前值有效且与上次相比超过阈值时返回 true
- */
-export function indicatorChanged(
-  current: number | null | undefined,
-  last: number | null | undefined,
-  threshold: number,
-): boolean {
-  return (
-    Number.isFinite(current) &&
-    (last === null || last === undefined || hasChanged(current, last, threshold))
-  );
-}
-
-/**
  * 格式化距离回收价的显示文本
  * @param warrantDistanceInfo 牛熊证距离信息，为 null 时返回 null
  * @param decimals 小数位数，默认使用 DEFAULT_PERCENT_DECIMALS

@@ -99,11 +99,6 @@ export const LIFECYCLE = {
   CALENDAR_API_MAX_LOOKBACK_DAYS: 365,
 } as const;
 
-/** 指标默认周期常量 */
-export const DEFAULT_EMA_PERIOD = 7;
-export const DEFAULT_RSI_PERIOD = 6;
-export const DEFAULT_PSY_PERIOD = 13;
-
 /**
  * 延迟信号验证相关常量
  * 用于 DelayedSignalVerifier 模块，验证开仓信号的趋势持续性
