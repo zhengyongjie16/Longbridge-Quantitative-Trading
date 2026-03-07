@@ -97,19 +97,19 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
       const seatState = ctx.symbolRegistry.getSeatState(monitorSymbol, direction);
       const seatVersion = ctx.symbolRegistry.getSeatVersion(monitorSymbol, direction);
       if (!isSeatReady(seatState)) {
-        logger.info(
+        logger.debug(
           `[BuyProcessor] ${describeSeatUnavailable(seatState)}，跳过信号: ${symbolDisplay} ${signal.action}`,
         );
         return true;
       }
 
       if (!isSeatVersionMatch(signal.seatVersion, seatVersion)) {
-        logger.info(`[BuyProcessor] 席位版本不匹配，跳过信号: ${symbolDisplay} ${signal.action}`);
+        logger.debug(`[BuyProcessor] 席位版本不匹配，跳过信号: ${symbolDisplay} ${signal.action}`);
         return true;
       }
 
       if (signal.symbol !== seatState.symbol) {
-        logger.info(`[BuyProcessor] 标的已切换，跳过信号: ${symbolDisplay} ${signal.action}`);
+        logger.debug(`[BuyProcessor] 标的已切换，跳过信号: ${symbolDisplay} ${signal.action}`);
         return true;
       }
 
@@ -153,7 +153,7 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
       if (checkedSignals.length === 0) {
         const rejectReason = signal.reason?.trim();
         const reasonSuffix = rejectReason ? ` - ${rejectReason}` : '';
-        logger.info(
+        logger.debug(
           `[BuyProcessor] 买入信号被风险检查拦截: ${symbolDisplay} ${signal.action}${reasonSuffix}`,
         );
         return true; // 处理成功（虽然被拦截了）

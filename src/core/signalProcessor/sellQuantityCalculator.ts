@@ -170,7 +170,7 @@ export const processSellSignals = (
       Number.isFinite(position.availableQuantity) &&
       Number.isFinite(quote.price)
     ) {
-      logger.info(
+      logger.debug(
         `[卖出信号处理] ${signalName}: 当前价格=${quote.price.toFixed(3)}, 可用数量=${position.availableQuantity}`,
       );
     }
@@ -189,7 +189,9 @@ export const processSellSignals = (
           sig.lotSize = quote.lotSize;
         }
 
-        logger.info(`[卖出信号处理] ${signalName}(末日保护): 无条件清仓，卖出数量=${sig.quantity}`);
+        logger.debug(
+          `[卖出信号处理] ${signalName}(末日保护): 无条件清仓，卖出数量=${sig.quantity}`,
+        );
       } else {
         logger.warn(`[卖出信号处理] ${signalName}(末日保护): 持仓对象无效，无法清仓`);
         sig.action = 'HOLD';
@@ -217,7 +219,7 @@ export const processSellSignals = (
         sig.reason = result.reason;
         sig.relatedBuyOrderIds = null;
       } else {
-        logger.info(
+        logger.debug(
           `[卖出信号处理] ${signalName}通过: 卖出数量=${result.quantity}, 原因=${result.reason}`,
         );
         sig.quantity = result.quantity;

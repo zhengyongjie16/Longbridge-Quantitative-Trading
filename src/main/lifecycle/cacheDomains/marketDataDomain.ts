@@ -25,7 +25,7 @@ export function createMarketDataDomain(deps: MarketDataDomainDeps): CacheDomain 
   return {
     async midnightClear(_ctx: LifecycleContext): Promise<void> {
       await marketDataClient.resetRuntimeSubscriptionsAndCaches();
-      logger.info('[Lifecycle][marketData] 午夜清理完成');
+      logger.debug('[Lifecycle][marketData] 午夜清理完成');
     },
     openRebuild(_ctx: LifecycleContext): void {
       // 行情订阅在统一开盘重建流水线中重建

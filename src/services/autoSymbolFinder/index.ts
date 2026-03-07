@@ -87,7 +87,7 @@ function logSelectedCandidate(params: {
   );
   const callPriceText = formatDecimal(params.candidate.callPrice, DEFAULT_PRICE_DECIMALS);
   if (params.candidate.selectionStage === 'PRIMARY') {
-    params.logger.info(
+    params.logger.debug(
       `[自动寻标] 主条件命中${directionLabel}证：${params.monitorSymbol} -> ${params.candidate.symbol} ` +
         `(selectionStage=PRIMARY, distancePct=${distanceText}%, delta=${distanceDeltaText}%, ` +
         `threshold=${thresholdText}%, turnoverPerMinute=${turnoverText}, callPrice=${callPriceText}, ` +
@@ -96,7 +96,7 @@ function logSelectedCandidate(params: {
     return;
   }
 
-  params.logger.info(
+  params.logger.debug(
     `[自动寻标] 主条件无候选，降级区间命中${directionLabel}证：${params.monitorSymbol} -> ${params.candidate.symbol} ` +
       `(selectionStage=DEGRADED, distancePct=${distanceText}%, delta=${distanceDeltaText}%, ` +
       `threshold=${thresholdText}%, degradedRange=${degradedRangeText}, turnoverPerMinute=${turnoverText}, ` +

@@ -301,7 +301,7 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
       const sideDesc = isBuyOrder ? '买入' : '卖出';
       const priceDirection =
         normalizedCurrentPriceNumber > normalizedSubmittedPriceNumber ? '上涨' : '下跌';
-      logger.info(
+      logger.debug(
         `[订单监控] ${sideDesc}订单 ${orderId} 当前价(${normalizedCurrentPriceText}) ` +
           `${priceDirection}，更新委托价：${normalizedSubmittedPriceText} → ${normalizedCurrentPriceText}`,
       );

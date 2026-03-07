@@ -344,7 +344,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     };
     pendingSells.set(info.orderId, record);
 
-    logger.info(
+    logger.debug(
       `[订单存储] 添加待成交卖出: ${info.orderId} ${info.symbol} ${info.submittedQuantity}股 ` +
         `关联订单=${info.relatedBuyOrderIds.length}个`,
     );
@@ -366,7 +366,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
     pendingSells.delete(orderId);
 
-    logger.info(`[订单存储] 卖出订单成交: ${orderId} ${filled.submittedQuantity}股`);
+    logger.debug(`[订单存储] 卖出订单成交: ${orderId} ${filled.submittedQuantity}股`);
 
     return filled;
   }
@@ -391,7 +391,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
       pendingSells.set(orderId, updated);
     }
 
-    logger.info(
+    logger.debug(
       `[订单存储] 卖出订单部分成交: ${orderId} ${filledQuantity}/${record.submittedQuantity}`,
     );
 
@@ -414,7 +414,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
     pendingSells.delete(orderId);
 
-    logger.info(`[订单存储] 卖出订单取消: ${orderId}`);
+    logger.debug(`[订单存储] 卖出订单取消: ${orderId}`);
 
     return cancelledRecord;
   }
@@ -571,7 +571,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
       }
 
       totalQuantity = calculateTotalQuantity(finalOrders);
-      logger.info(
+      logger.debug(
         `[订单存储] 整笔截断: ${symbol} ${direction} 策略=${strategy} ` +
           `原数量=${calculateTotalQuantity(sortedOrders)} 限制=${maxSellQuantity} 实际=${totalQuantity}`,
       );

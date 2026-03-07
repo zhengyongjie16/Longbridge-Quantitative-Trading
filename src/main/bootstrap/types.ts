@@ -117,7 +117,7 @@ export type ClearQueuesForDirectionWithLogParams = Readonly<{
   sellTaskQueue: TaskQueue<SellTaskType>;
   monitorTaskQueue: MonitorTaskQueue<MonitorTaskType, MonitorTaskData>;
   releaseSignal: (signal: Signal) => void;
-  logger: Pick<Logger, 'info'>;
+  logger: Pick<Logger, 'debug'>;
 }>;
 
 /**

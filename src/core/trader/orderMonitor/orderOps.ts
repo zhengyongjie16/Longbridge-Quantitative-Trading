@@ -94,7 +94,7 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
     };
     runtime.trackedOrders.set(orderId, order);
     runtime.trackedOrderLifecycles.set(orderId, 'OPEN');
-    logger.info(
+    logger.debug(
       `[订单监控] 开始追踪订单 ${orderId}，` +
         `标的=${symbol}，方向=${side === OrderSide.Buy ? '买入' : '卖出'}，` +
         `${isLongSymbol ? '做多' : '做空'}标的`,
@@ -119,7 +119,7 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
         closedReason: 'CANCELED',
         source: 'API',
       });
-      logger.info(`[订单撤销成功] 订单ID=${orderId}`);
+      logger.debug(`[订单撤销成功] 订单ID=${orderId}`);
       return {
         kind: 'CANCEL_CONFIRMED',
         closedReason: 'CANCELED',
@@ -242,7 +242,7 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
       trackedOrder.lastPriceUpdateAt = now;
       trackedOrder.replaceCapability = 'SUPPORTED';
       trackedOrder.replaceBlockedUntilAt = null;
-      logger.info(`[订单修改成功] 订单ID=${orderId} 新价格=${normalizedNewPriceText}`);
+      logger.debug(`[订单修改成功] 订单ID=${orderId} 新价格=${normalizedNewPriceText}`);
     } catch (error) {
       trackedOrder.lastPriceUpdateAt = now;
       const closedReason = resolveOrderClosedReasonFromError(error);

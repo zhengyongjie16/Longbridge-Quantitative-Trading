@@ -74,7 +74,7 @@ function runMidnightRiskClear(deps: RiskDomainDeps, ctx: LifecycleContext): void
   liquidationCooldownTracker.clearMidnightEligible({ keysToClear });
   liquidationCooldownTracker.resetAllTriggerCounts();
   const monitorCount = clearRiskCaches(monitorContexts);
-  logger.info(`[Lifecycle][risk] 午夜清理完成: monitors=${monitorCount}`);
+  logger.debug(`[Lifecycle][risk] 午夜清理完成: monitors=${monitorCount}`);
 }
 
 /**

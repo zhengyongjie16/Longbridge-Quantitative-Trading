@@ -92,7 +92,7 @@ export function createLoadTradingDayRuntimeSnapshot(
       throw new TypeError('无法获取持仓信息');
     }
 
-    logger.info('账户和持仓信息获取成功，开始解析席位');
+    logger.debug('账户和持仓信息获取成功，开始解析席位');
     let allOrders: ReadonlyArray<RawOrderFromAPI> = [];
     try {
       allOrders = await trader.fetchAllOrdersFromAPI(forceOrderRefresh);

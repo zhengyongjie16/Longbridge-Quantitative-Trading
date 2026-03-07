@@ -52,7 +52,7 @@ export function createLossOffsetLifecycleCoordinator(
         cooldownEndMs: event.cooldownEndMs,
       });
 
-      logger.info(
+      logger.debug(
         `[偏移分段] ${event.monitorSymbol}:${event.direction} 冷却结束，` +
           `切段时间=${event.cooldownEndMs}，触发计数=${event.triggerCountAtExpire}，` +
           `旧段偏移已失效`,

@@ -55,8 +55,7 @@ describe('lossOffsetLifecycleCoordinator business flow', () => {
         },
       } as DailyLossTracker,
       logger: {
-        info: () => {},
-        warn: () => {},
+        debug: () => {},
       },
       resolveCooldownConfig: () => ({ mode: 'minutes', minutes: 30 }),
       onSegmentReset: () => {},
@@ -102,8 +101,7 @@ describe('lossOffsetLifecycleCoordinator business flow', () => {
         },
       } as DailyLossTracker,
       logger: {
-        info: () => {},
-        warn: () => {},
+        debug: () => {},
       },
       resolveCooldownConfig: () => ({ mode: 'minutes', minutes: 30 }),
       onSegmentReset: () => {},
@@ -143,8 +141,7 @@ describe('lossOffsetLifecycleCoordinator business flow', () => {
         },
       } as DailyLossTracker,
       logger: {
-        info: () => {},
-        warn: () => {},
+        debug: () => {},
       },
       resolveCooldownConfig: () => ({ mode: 'minutes', minutes: 30 }),
       onSegmentReset: async () => {

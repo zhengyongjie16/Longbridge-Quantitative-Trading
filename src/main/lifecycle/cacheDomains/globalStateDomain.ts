@@ -67,11 +67,11 @@ export function createGlobalStateDomain(deps: GlobalStateDomainDeps): CacheDomai
   return {
     midnightClear(): void {
       runGlobalMidnightClear(lastState);
-      logger.info('[Lifecycle][globalState] 午夜状态清理完成');
+      logger.debug('[Lifecycle][globalState] 午夜状态清理完成');
     },
     async openRebuild(ctx): Promise<void> {
       await runTradingDayOpenRebuild(ctx.now);
-      logger.info('[Lifecycle][globalState] 开盘重建流程执行完成');
+      logger.debug('[Lifecycle][globalState] 开盘重建流程执行完成');
     },
   };
 }

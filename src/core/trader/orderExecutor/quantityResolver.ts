@@ -121,7 +121,7 @@ function calculateBuyQuantity(
 
   const rawQty = decimalToNumberValue(alignedQuantity);
   const actionType = isShortSymbol ? '买入做空标的（做空）' : '买入做多标的（做多）';
-  logger.info(
+  logger.debug(
     `[仓位计算] 按目标金额 ${notional} 计算得到${actionType}数量=${rawQty} 股（${lotSize} 股一手），单价≈${priceNum}`,
   );
   return alignedQuantity;
@@ -150,7 +150,7 @@ function resolveBuyQuantity(
 
   if (buyQuantitySource.source === 'EXPLICIT') {
     const actionType = isShortSymbol ? '买入做空标的（做空）' : '买入做多标的（做多）';
-    logger.info(
+    logger.debug(
       `[仓位计算] 按显式数量提交${actionType}数量=${buyQuantitySource.quantity} 股（${buyQuantitySource.lotSize} 股一手）`,
     );
     return toDecimal(buyQuantitySource.quantity);
@@ -221,7 +221,7 @@ export function createQuantityResolver(deps: {
     }
 
     const actualQty = Math.min(targetQuantity, totalAvailable);
-    logger.info(
+    logger.debug(
       `[部分卖出] 信号指定卖出数量=${targetQuantity}，可用数量=${totalAvailable}，实际卖出=${actualQty}`,
     );
     return toDecimal(actualQty);

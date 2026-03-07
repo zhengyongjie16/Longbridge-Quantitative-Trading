@@ -541,7 +541,7 @@ async function main(): Promise<void> {
       const signalDisplay = formatSymbolDisplay(signal.symbol, signal.symbolName ?? null);
       const signalLabel = `${signalDisplay} ${signal.action}`;
       function discardSignal(prefix: string): void {
-        logger.info(`${prefix}: ${signalLabel}`);
+        logger.debug(`${prefix}: ${signalLabel}`);
         signalObjectPool.release(signal);
       }
 
@@ -569,7 +569,7 @@ async function main(): Promise<void> {
         return;
       }
 
-      logger.info(`[延迟验证通过] 信号推入任务队列: ${signalLabel}`);
+      logger.debug(`[延迟验证通过] 信号推入任务队列: ${signalLabel}`);
 
       // 根据信号类型分流到不同队列
       const isSellSignal = isSellAction(signal.action);

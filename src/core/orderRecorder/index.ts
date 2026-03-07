@@ -451,7 +451,7 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
       submittedAt,
     });
 
-    logger.info(
+    logger.debug(
       `[订单记录器] 卖出订单提交追踪: ${orderId} ${symbol} ${direction} ${quantity}股 ` +
         `关联订单=${relatedBuyOrderIds.length}个`,
     );

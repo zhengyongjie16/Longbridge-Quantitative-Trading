@@ -411,7 +411,7 @@ export async function createMarketDataClient(
       subscribedSymbols.add(symbol);
     }
 
-    logger.info(`[行情订阅] 新增订阅 ${newSymbols.length} 个标的`);
+    logger.debug(`[行情订阅] 新增订阅 ${newSymbols.length} 个标的`);
   }
 
   /**
@@ -436,7 +436,7 @@ export async function createMarketDataClient(
       staticInfoCache.delete(symbol);
     }
 
-    logger.info(`[行情订阅] 已退订 ${removeSymbols.length} 个标的`);
+    logger.debug(`[行情订阅] 已退订 ${removeSymbols.length} 个标的`);
   }
 
   /**
@@ -491,7 +491,7 @@ export async function createMarketDataClient(
       ctx.subscribeCandlesticks(symbol, period, tradeSessions),
     );
     subscribedCandlesticks.set(key, period);
-    logger.info(
+    logger.debug(
       `[K线订阅] 已订阅 ${symbol} 周期 ${formatPeriodForLog(period)} K线，初始数据 ${initialCandles.length} 根`,
     );
     return initialCandles;

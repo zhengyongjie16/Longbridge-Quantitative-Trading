@@ -61,13 +61,23 @@ export function createEventFlow(deps: EventFlowDeps): EventFlow {
       return;
     }
 
-    if (event.status === OrderStatus.Canceled || event.status === OrderStatus.Rejected) {
+    if (event.status === OrderStatus.Canceled) {
       finalizeOrderClose({
         orderId,
-        closedReason: event.status === OrderStatus.Canceled ? 'CANCELED' : 'REJECTED',
+        closedReason: 'CANCELED',
         source: 'WS',
       });
       logger.info(`[订单监控] 订单 ${orderId} 状态变为 ${event.status}，停止追踪`);
+      return;
+    }
+
+    if (event.status === OrderStatus.Rejected) {
+      finalizeOrderClose({
+        orderId,
+        closedReason: 'REJECTED',
+        source: 'WS',
+      });
+      logger.warn(`[订单监控] 订单 ${orderId} 状态变为 ${event.status}，停止追踪`);
       return;
     }
 

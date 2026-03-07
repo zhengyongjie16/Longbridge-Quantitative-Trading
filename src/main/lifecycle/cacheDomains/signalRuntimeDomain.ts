@@ -108,7 +108,7 @@ export function createSignalRuntimeDomain(deps: SignalRuntimeDomainDeps): CacheD
       postTradeRefresher.clearPending();
       indicatorCache.clearAll();
 
-      logger.info(
+      logger.debug(
         `[Lifecycle][signalRuntime] 午夜清理完成: delayed=${removedDelayed}, buy=${queueResult.removedBuy}, sell=${queueResult.removedSell}, monitor=${queueResult.removedMonitor}`,
       );
     },
@@ -120,7 +120,7 @@ export function createSignalRuntimeDomain(deps: SignalRuntimeDomainDeps): CacheD
       postTradeRefresher.start();
       const latestStaleVersion = refreshGate.getStatus().staleVersion;
       refreshGate.markFresh(latestStaleVersion);
-      logger.info('[Lifecycle][signalRuntime] 处理器与运行态已重启');
+      logger.debug('[Lifecycle][signalRuntime] 处理器与运行态已重启');
     },
   };
 }

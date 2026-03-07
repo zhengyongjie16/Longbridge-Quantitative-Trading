@@ -77,7 +77,7 @@ function resolveSeatSymbol(
 
   const seatState = context.symbolRegistry.getSeatState(monitorSymbol, direction);
   if (!isSeatReady(seatState)) {
-    logger.info(`[末日保护程序] 席位未就绪，跳过: ${monitorSymbol} ${direction}`);
+    logger.debug(`[末日保护程序] 席位未就绪，跳过: ${monitorSymbol} ${direction}`);
     return null;
   }
 
@@ -165,7 +165,7 @@ function processPositionForClearance(
     positionType,
   });
   if (signal) {
-    logger.info(
+    logger.debug(
       `[末日保护程序] 生成清仓信号：${positionLabel} ${pos.symbol} 数量=${availableQty} 操作=${action}`,
     );
   }
@@ -402,14 +402,14 @@ export function createDoomsdayProtection(): DoomsdayProtection {
                 cancelOutcome.closedReason === 'REJECTED'));
           if (cancelledByOutcome) {
             cancelledCount++;
-            logger.info(
+            logger.debug(
               `[末日保护程序] 撤销买入订单成功：${order.symbol} 订单ID=${order.orderId} 数量=${order.quantity} 价格=${order.submittedPrice.toFixed(3)}`,
             );
             continue;
           }
 
           if (cancelOutcome.kind === 'ALREADY_CLOSED' && cancelOutcome.closedReason === 'FILLED') {
-            logger.info(`[末日保护程序] 买入订单已成交，无需撤单：${order.orderId}`);
+            logger.debug(`[末日保护程序] 买入订单已成交，无需撤单：${order.orderId}`);
             continue;
           }
 

@@ -27,7 +27,7 @@ export interface LossOffsetLifecycleCoordinator {
 export type LossOffsetLifecycleCoordinatorDeps = {
   readonly liquidationCooldownTracker: LiquidationCooldownTracker;
   readonly dailyLossTracker: DailyLossTracker;
-  readonly logger: Pick<Logger, 'info' | 'warn'>;
+  readonly logger: Pick<Logger, 'debug'>;
 
   /** 根据 monitorSymbol 和 direction 解析冷却配置 */
   readonly resolveCooldownConfig: (

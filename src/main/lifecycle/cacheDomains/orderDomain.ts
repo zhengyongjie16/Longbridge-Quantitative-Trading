@@ -27,7 +27,7 @@ export function createOrderDomain(deps: OrderDomainDeps): CacheDomain {
      */
     midnightClear(): void {
       trader.resetRuntimeState();
-      logger.info('[Lifecycle][order] 午夜清理完成');
+      logger.debug('[Lifecycle][order] 午夜清理完成');
     },
 
     /**

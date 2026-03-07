@@ -23,12 +23,12 @@ export async function executeSignalsWithLifecycleGate(params: {
 }): Promise<boolean> {
   const { getCanProcessTask, trader, signal, symbolDisplay, loggerPrefix, successMessage } = params;
   if (getCanProcessTask !== undefined && !getCanProcessTask()) {
-    logger.info(`[${loggerPrefix}] 生命周期门禁关闭，放弃执行: ${symbolDisplay} ${signal.action}`);
+    logger.debug(`[${loggerPrefix}] 生命周期门禁关闭，放弃执行: ${symbolDisplay} ${signal.action}`);
     return true;
   }
 
   await trader.executeSignals([signal]);
-  logger.info(`[${loggerPrefix}] ${successMessage}: ${symbolDisplay} ${signal.action}`);
+  logger.debug(`[${loggerPrefix}] ${successMessage}: ${symbolDisplay} ${signal.action}`);
   return true; // 门禁跳过与执行成功均返回 true，仅抛错时由调用方 catch 返回 false
 }
 

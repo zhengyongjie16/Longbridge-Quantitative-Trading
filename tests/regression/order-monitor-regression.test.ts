@@ -251,4 +251,90 @@ describe('order monitor regression', () => {
     expect(cancelCount).toBe(1);
     expect(monitor.getPendingSellOrders('BULL.HK')).toHaveLength(0);
   });
+
+  it('releases pending sell tracking once when partial-filled then rejected arrives', async () => {
+    let handleOrderChanged: (event: PushOrderChanged) => void = () => {};
+    let partialCount = 0;
+    let cancelCount = 0;
+
+    const orderRecorder = createOrderRecorderDouble({
+      markSellPartialFilled: () => {
+        partialCount += 1;
+        return null;
+      },
+      markSellCancelled: () => {
+        cancelCount += 1;
+        return null;
+      },
+    });
+
+    const { deps } = createDeps({
+      orderRecorder,
+      onHandleOrderChanged: (handler) => {
+        handleOrderChanged = handler;
+      },
+    });
+
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+    await monitor.recoverOrderTrackingFromSnapshot([]);
+
+    monitor.trackOrder({
+      orderId: 'SELL-REGR-REJECTED',
+      symbol: 'BULL.HK',
+      side: OrderSide.Sell,
+      price: 1,
+      quantity: 100,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+
+    handleOrderChanged(
+      createPushOrderChanged({
+        orderId: 'SELL-REGR-REJECTED',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.PartialFilled,
+        orderType: OrderType.ELO,
+        submittedQuantity: 100,
+        executedQuantity: 20,
+        submittedPrice: 1,
+        executedPrice: 1,
+      }),
+    );
+
+    handleOrderChanged(
+      createPushOrderChanged({
+        orderId: 'SELL-REGR-REJECTED',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.Rejected,
+        orderType: OrderType.ELO,
+        submittedQuantity: 100,
+        executedQuantity: 20,
+        submittedPrice: 1,
+        executedPrice: 1,
+      }),
+    );
+
+    handleOrderChanged(
+      createPushOrderChanged({
+        orderId: 'SELL-REGR-REJECTED',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.Rejected,
+        orderType: OrderType.ELO,
+        submittedQuantity: 100,
+        executedQuantity: 20,
+        submittedPrice: 1,
+        executedPrice: 1,
+      }),
+    );
+
+    expect(partialCount).toBe(1);
+    expect(cancelCount).toBe(1);
+    expect(monitor.getPendingSellOrders('BULL.HK')).toHaveLength(0);
+  });
 });

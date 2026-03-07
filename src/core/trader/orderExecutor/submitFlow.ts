@@ -96,7 +96,7 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
     const symbolDisplayForLog = formatSymbolDisplay(symbol, signal.symbolName ?? null);
 
     if (orderTypeParam === OrderType.MO) {
-      logger.info(`[订单类型] 使用市价单(MO)，标的=${symbolDisplayForLog}`);
+      logger.debug(`[订单类型] 使用市价单(MO)，标的=${symbolDisplayForLog}`);
     } else if (orderTypeParam === OrderType.LO || orderTypeParam === OrderType.ELO) {
       const orderTypeLabel = formatOrderTypeLabel(orderTypeParam);
       if (!resolvedPrice) {
@@ -107,7 +107,7 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
       }
 
       const orderTypeCode = getOrderTypeCode(orderTypeParam);
-      logger.info(
+      logger.debug(
         `[订单类型] 使用${orderTypeLabel}(${orderTypeCode})，标的=${symbolDisplayForLog}，价格=${resolvedPrice}`,
       );
     }

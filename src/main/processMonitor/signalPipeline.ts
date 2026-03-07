@@ -143,19 +143,21 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
       if (!seatInfoForSignal) {
         const isLongSignal = signal.action === 'BUYCALL' || signal.action === 'SELLCALL';
         const seatState = isLongSignal ? longSeatState : shortSeatState;
-        logger.info(`[跳过信号] ${describeSeatUnavailable(seatState)}: ${formatSignalLog(signal)}`);
+        logger.debug(
+          `[跳过信号] ${describeSeatUnavailable(seatState)}: ${formatSignalLog(signal)}`,
+        );
         releaseSignal(signal);
         return false;
       }
 
       if (signal.symbol !== seatInfoForSignal.seatSymbol) {
-        logger.info(`[跳过信号] 席位已切换: ${formatSignalLog(signal)}`);
+        logger.debug(`[跳过信号] 席位已切换: ${formatSignalLog(signal)}`);
         releaseSignal(signal);
         return false;
       }
 
       if (seatInfoForSignal.isBuySignal && !seatInfoForSignal.quote) {
-        logger.info(`[跳过信号] 行情未就绪: ${formatSignalLog(signal)}`);
+        logger.debug(`[跳过信号] 行情未就绪: ${formatSignalLog(signal)}`);
         releaseSignal(signal);
         return false;
       }
@@ -171,7 +173,7 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
       }
 
       if (canEnqueue) {
-        logger.info(`[立即信号] ${formatSignalLog(signal)}`);
+        logger.debug(`[立即信号] ${formatSignalLog(signal)}`);
         const isSellSignal = isSellAction(signal.action);
         if (isSellSignal) {
           sellTaskQueue.push({
@@ -188,7 +190,7 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
         }
       } else {
         const reason = isTradingEnabled ? '非交易时段，暂不执行' : '交易门禁关闭，暂不执行';
-        logger.info(`[立即信号] ${formatSignalLog(signal)}（${reason}）`);
+        logger.debug(`[立即信号] ${formatSignalLog(signal)}（${reason}）`);
         releaseSignal(signal);
       }
     }
@@ -199,7 +201,7 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
       }
 
       if (canEnqueue) {
-        logger.info(`[延迟验证信号] ${formatSignalLog(signal)}`);
+        logger.debug(`[延迟验证信号] ${formatSignalLog(signal)}`);
         const verificationIndicators = isBuyAction(signal.action)
           ? indicatorProfile.verificationIndicatorsBySide.buy
           : indicatorProfile.verificationIndicatorsBySide.sell;
@@ -210,7 +212,7 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
         });
       } else {
         const reason = isTradingEnabled ? '非交易时段，暂不添加验证' : '交易门禁关闭，暂不添加验证';
-        logger.info(`[延迟验证信号] ${formatSignalLog(signal)}（${reason}）`);
+        logger.debug(`[延迟验证信号] ${formatSignalLog(signal)}（${reason}）`);
         releaseSignal(signal);
       }
     }

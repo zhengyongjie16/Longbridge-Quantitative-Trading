@@ -85,19 +85,19 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
       const seatState = symbolRegistry.getSeatState(monitorSymbol, direction);
       const seatVersion = symbolRegistry.getSeatVersion(monitorSymbol, direction);
       if (!isSeatReady(seatState)) {
-        logger.info(
+        logger.debug(
           `[SellProcessor] ${describeSeatUnavailable(seatState)}，跳过信号: ${symbolDisplay} ${signal.action}`,
         );
         return true;
       }
 
       if (!isSeatVersionMatch(signal.seatVersion, seatVersion)) {
-        logger.info(`[SellProcessor] 席位版本不匹配，跳过信号: ${symbolDisplay} ${signal.action}`);
+        logger.debug(`[SellProcessor] 席位版本不匹配，跳过信号: ${symbolDisplay} ${signal.action}`);
         return true;
       }
 
       if (signal.symbol !== seatState.symbol) {
-        logger.info(`[SellProcessor] 标的已切换，跳过信号: ${symbolDisplay} ${signal.action}`);
+        logger.debug(`[SellProcessor] 标的已切换，跳过信号: ${symbolDisplay} ${signal.action}`);
         return true;
       }
 
@@ -133,7 +133,7 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
       // 如果信号被转为 HOLD，跳过执行
       const firstSignal = processedSignals[0];
       if (!firstSignal || firstSignal.action === 'HOLD') {
-        logger.info(`[SellProcessor] 卖出信号被跳过: ${symbolDisplay} ${signal.action}`);
+        logger.debug(`[SellProcessor] 卖出信号被跳过: ${symbolDisplay} ${signal.action}`);
         return true; // 处理成功（虽然跳过了）
       }
 

@@ -81,7 +81,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       return true;
     }
 
-    logger.info(
+    logger.debug(
       `[执行门禁] ${stage} 门禁关闭，跳过信号: ${formatSymbolDisplay(signal.symbol, signal.symbolName ?? null)} ${signal.action}`,
     );
     return false;
@@ -109,7 +109,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
     signals: Signal[],
   ): Promise<{ submittedCount: number; submittedOrderIds: ReadonlyArray<string> }> {
     if (!isExecutionAllowed()) {
-      logger.info('[执行门禁] 门禁关闭，跳过本次下单，不提交任何订单');
+      logger.debug('[执行门禁] 门禁关闭，跳过本次下单，不提交任何订单');
       return { submittedCount: 0, submittedOrderIds: [] };
     }
 
@@ -135,14 +135,14 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
       }
 
       if (!isLiquidationSignal(signal) && isStaleCrossDaySignal(signal, new Date())) {
-        logger.info(
+        logger.debug(
           `[执行门禁] 跨日或触发时间无效信号，跳过执行: ${signalSymbolDisplay} ${signal.action}`,
         );
         continue;
       }
 
       if (!isExecutionAllowed()) {
-        logger.info(`[执行门禁] 门禁已关闭，跳过信号: ${signalSymbolDisplay} ${signal.action}`);
+        logger.debug(`[执行门禁] 门禁已关闭，跳过信号: ${signalSymbolDisplay} ${signal.action}`);
         continue;
       }
 

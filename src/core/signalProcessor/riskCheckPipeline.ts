@@ -206,7 +206,7 @@ export const createRiskCheckPipeline = ({
             continue;
           }
 
-          logger.info(
+          logger.debug(
             `[买入价格限制] ${directionDesc} 当前价格 ${currentPriceStr} 低于最新买入订单价格 ${latestBuyPriceStr}，允许买入：${signalLabel}`,
           );
         }
@@ -245,7 +245,7 @@ export const createRiskCheckPipeline = ({
             }
 
             const symbolDisplay = formatSymbolDisplayFromQuote(quoteForSymbol, sig.symbol);
-            logger.info(
+            logger.debug(
               `[牛熊证风险检查] ${symbolDisplay} 为${warrantType}，距离回收价百分比：${distancePercent.toFixed(
                 2,
               )}%，风险检查通过`,

@@ -90,7 +90,7 @@ export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
     const totalRemoved =
       result.removedDelayed + result.removedBuy + result.removedSell + result.removedMonitorTasks;
     if (totalRemoved > 0) {
-      logger.info(
+      logger.debug(
         `[自动换标] ${monitorSymbol} ${direction} 清理待执行信号：延迟=${result.removedDelayed} 买入=${result.removedBuy} 卖出=${result.removedSell} 监控任务=${result.removedMonitorTasks}`,
       );
     }
