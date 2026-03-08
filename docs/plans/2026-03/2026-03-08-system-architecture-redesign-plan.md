@@ -957,19 +957,19 @@
 
 显式 mode matrix：
 
-| 选项 | Startup | Open Rebuild |
-| --- | --- | --- |
-| `requireTradingDay` | `false` | `true` |
-| `hydrateCooldownFromTradeLog` | `true` | `false` |
-| `resetRuntimeSubscriptions` | `false` | `true` |
-| `forceOrderRefresh` | `false` | `true` |
+| 选项                          | Startup | Open Rebuild |
+| ----------------------------- | ------- | ------------ |
+| `requireTradingDay`           | `false` | `true`       |
+| `hydrateCooldownFromTradeLog` | `true`  | `false`      |
+| `resetRuntimeSubscriptions`   | `false` | `true`       |
+| `forceOrderRefresh`           | `false` | `true`       |
 
 显式 run mode -> gate mode matrix：
 
 | `RunMode` | `startupGate` | `runtimeGate` |
-| --- | --- | --- |
-| `prod` | `strict` | `strict` |
-| `dev` | `skip` | `skip` |
+| --------- | ------------- | ------------- |
+| `prod`    | `strict`      | `strict`      |
+| `dev`     | `skip`        | `skip`        |
 
 约束：
 
@@ -1079,8 +1079,7 @@
 
 1. worker 不直接持有大而全上下文，而是依赖显式用例服务。
 2. `seat refresh` 必须调用固定顺序的 `SeatRefreshUseCase`，不得内联多个副作用步骤。
-3. `SeatRefreshUseCase` 的固定顺序必须显式写死为：`ensureAllOrders -> refreshOrderLedgerForNextSeat -> recalculateDailyLoss -> refreshAccountCaches -> refreshUnrealizedLoss -> setWarrantInfoFromCallPrice -> clearPreviousSymbolOrdersIfUnowned`。
-说明：`SeatRefreshUseCase` 在这里被视为单个 application transaction。Seat worker 只负责发起命令与处理 seat 失败收口，不获得订单账本、账户缓存、风险缓存的所有权；这些状态仍分别由 Order Ledger / TradingDayReadModel / Risk Context 的显式 API 完成更新。
+3. `SeatRefreshUseCase` 的固定顺序必须显式写死为：`ensureAllOrders -> refreshOrderLedgerForNextSeat -> recalculateDailyLoss -> refreshAccountCaches -> refreshUnrealizedLoss -> setWarrantInfoFromCallPrice -> clearPreviousSymbolOrdersIfUnowned`。说明：`SeatRefreshUseCase` 在这里被视为单个 application transaction。Seat worker 只负责发起命令与处理 seat 失败收口，不获得订单账本、账户缓存、风险缓存的所有权；这些状态仍分别由 Order Ledger / TradingDayReadModel / Risk Context 的显式 API 完成更新。
 4. 其中“旧标的账本与缓存清理”只能放在新标的账本、账户、浮亏、牛熊证信息全部刷新成功之后执行，不得提前。
 5. 从当前实现迁移到目标顺序时，必须补充顺序调整的等价性证明与回归测试，确认“先 refresh order ledger 再 recalculate daily loss”不会改变当轮 `dailyLossOffset`、浮亏缓存与后续 refresh 读取语义。
 6. 对依赖账户/持仓/席位 freshness 的任务，必须先 `waitForFresh()`，再二次校验任务携带的 seat snapshot。
@@ -1208,7 +1207,7 @@ src/
       tradeGateway/
       orderStream/
     persistence/
-      tradeLog/
+      tradesLog/
     runtime/
       queues/
       refreshGate/
@@ -1495,7 +1494,12 @@ stateDiagram-v2
 
 把交易日志记录结构下沉到：
 
-`infrastructure/persistence/tradeLog`
+`infrastructure/persistence/tradesLog`
+
+补充说明（避免目录语义误读）：
+
+1. `infrastructure/persistence/tradesLog` 是代码模块目录（repository/adapter 所在层），不是运行时日志文件落盘目录。
+2. 交易日志文件的运行时落盘位置保持现有语义：`logRootDir/trades/YYYY-MM-DD.json`（默认 `app` 档位为 `<cwd>/logs/trades`）。
 
 冷却恢复逻辑只依赖：
 

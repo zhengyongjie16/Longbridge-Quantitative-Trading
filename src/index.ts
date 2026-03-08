@@ -114,7 +114,6 @@ import type {
   MonitorTaskData,
   MonitorTaskType,
 } from './main/asyncProgram/monitorTaskProcessor/types.js';
-import { getSprintSacreMooacreMoo } from './utils/asciiArt/sacreMooacre.js';
 import { signalObjectPool } from './utils/objectPool/index.js';
 import { createPositionCache } from './utils/positionCache/index.js';
 import { createRefreshGate } from './utils/refreshGate/index.js';
@@ -129,6 +128,7 @@ import {
   isWithinMorningOpenProtection,
 } from './utils/tradingTime/index.js';
 import { sleep } from './main/utils.js';
+import { getShushCow } from './utils/asciiArt/shushCow.js';
 
 dotenv.config({ path: '.env.local' });
 
@@ -144,7 +144,7 @@ dotenv.config({ path: '.env.local' });
  */
 async function main(): Promise<void> {
   // 启动画面
-  getSprintSacreMooacreMoo();
+  getShushCow();
 
   // 解析配置并创建席位注册表
   const env = process.env;
