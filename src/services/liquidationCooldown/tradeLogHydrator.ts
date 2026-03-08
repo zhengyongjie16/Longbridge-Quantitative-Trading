@@ -103,7 +103,7 @@ export function createTradeLogHydrator(deps: TradeLogHydratorDeps): TradeLogHydr
   function hydrate(): HydrateResult {
     const logFile = buildTradeLogPath(resolveLogRootDir(), new Date(nowMs()));
     if (!existsSync(logFile)) {
-      logger.debug(`[清仓冷却] 当日成交日志不存在，跳过冷却恢复: ${logFile}`);
+      logger.info(`[清仓冷却] 当日成交日志不存在，跳过冷却恢复: ${logFile}`);
       return EMPTY_RESULT;
     }
 
@@ -202,7 +202,7 @@ export function createTradeLogHydrator(deps: TradeLogHydratorDeps): TradeLogHydr
       );
       if (remainingMs > 0) {
         restoredCooldownCount += 1;
-        logger.debug(
+        logger.info(
           `[清仓冷却] 恢复 ${firstRecord.monitorSymbol}:${firstRecord.direction} 冷却，` +
             `当前周期触发 ${cycleResult.currentCount}/${triggerLimit}，` +
             `剩余 ${Math.ceil(remainingMs / 1000)} 秒`,

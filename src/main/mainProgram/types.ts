@@ -17,6 +17,7 @@ import type { SignalProcessor } from '../../core/signalProcessor/types.js';
 import type { DailyLossTracker } from '../../core/riskController/types.js';
 import type { LossOffsetLifecycleCoordinator } from '../../core/riskController/lossOffsetLifecycleCoordinator/types.js';
 import type { DayLifecycleManager } from '../lifecycle/types.js';
+import type { SystemRuntimeStateStore } from '../../app/runtime/types.js';
 
 /**
  * 主程序上下文（主循环与 processMonitor 的依赖容器）。
@@ -44,4 +45,5 @@ export type MainProgramContext = {
   readonly lossOffsetLifecycleCoordinator: LossOffsetLifecycleCoordinator;
   readonly runtimeGateMode: GateMode;
   readonly dayLifecycleManager: DayLifecycleManager;
+  readonly systemRuntimeStateStore?: SystemRuntimeStateStore;
 };

@@ -111,7 +111,7 @@ export function createLoadTradingDayRuntimeSnapshot(
       positions: lastState.cachedPositions,
       orders: allOrders,
       marketDataClient,
-      now: () => new Date(),
+      now: () => now,
       logger,
       getTradingMinutesSinceOpen,
       isWithinMorningOpenProtection,

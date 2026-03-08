@@ -18,6 +18,7 @@ import {
 import type { MainProgramContext } from '../../src/main/mainProgram/types.js';
 import type { LastState, MonitorContext } from '../../src/types/state.js';
 import type { Quote } from '../../src/types/quote.js';
+import type { GatePolicySnapshot } from '../../src/app/runtime/types.js';
 
 const processMonitorCalls: Array<{
   readonly monitorSymbol: string;
@@ -523,5 +524,132 @@ describe('mainProgram strict-mode integration', () => {
     expect(orderMonitorScheduleCalls).toBe(1);
     expect(postTradeEnqueueCalls).toBe(1);
     expect(lastState.allTradingSymbols.has('OLD.HK')).toBeTrue();
+  });
+
+  it('writes structured gate policy snapshot into system runtime store after lifecycle tick', async () => {
+    tradingTimeOverrides.dayKey = '2026-02-16';
+    tradingTimeOverrides.isInContinuousSession = true;
+    tradingTimeOverrides.morningOpenProtection = true;
+
+    const lastState = createLastState({
+      cachedTradingDayInfo: { isTradingDay: true, isHalfDay: false },
+      lifecycleState: 'ACTIVE',
+      isTradingEnabled: true,
+    });
+    const monitorContext = createMonitorContext('HSI.HK', 0, () => {});
+    const monitorContexts = new Map<string, MonitorContext>([['HSI.HK', monitorContext]]);
+    const receivedSnapshots: GatePolicySnapshot[] = [];
+
+    await mainProgram({
+      marketDataClient: {
+        getQuoteContext: async () => ({}) as never,
+        getQuotes: async () => new Map<string, Quote | null>(),
+        subscribeSymbols: async () => {},
+        unsubscribeSymbols: async () => {},
+        subscribeCandlesticks: async () => [],
+        getRealtimeCandlesticks: async () => [],
+        isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
+        resetRuntimeSubscriptionsAndCaches: async () => {},
+      },
+      trader: createTraderDouble(),
+      lastState,
+      marketMonitor: {
+        monitorPriceChanges: () => false,
+        monitorIndicatorChanges: () => false,
+      },
+      doomsdayProtection: createDoomsdayProtectionDouble(),
+      signalProcessor: {
+        processSellSignals: (params) => params.signals,
+        applyRiskChecks: async (signals) => signals,
+        resetRiskCheckCooldown: () => {},
+      },
+      tradingConfig: createTradingConfig({
+        monitors: [createMonitorConfigDouble({ monitorSymbol: 'HSI.HK' })],
+        global: {
+          ...createTradingConfig().global,
+          doomsdayProtection: false,
+          openProtection: {
+            morning: { enabled: true, minutes: 15 },
+            afternoon: { enabled: false, minutes: null },
+          },
+        },
+      }),
+      dailyLossTracker: {
+        resetAll: () => {},
+        resetDirectionSegment: () => {},
+        recalculateFromAllOrders: () => {},
+        recordFilledOrder: () => {},
+        getLossOffset: () => 0,
+      },
+      monitorContexts,
+      symbolRegistry: createSymbolRegistryDouble({ monitorSymbol: 'HSI.HK' }),
+      ...createQueues(),
+      orderMonitorWorker: {
+        start: () => {},
+        schedule: () => {},
+        stopAndDrain: async () => {},
+        clearLatestQuotes: () => {},
+      },
+      postTradeRefresher: {
+        start: () => {},
+        enqueue: () => {},
+        stopAndDrain: async () => {},
+        clearPending: () => {},
+      },
+      runtimeGateMode: 'strict',
+      dayLifecycleManager: {
+        tick: async () => {},
+      },
+      lossOffsetLifecycleCoordinator: { sync: () => {} },
+      systemRuntimeStateStore: {
+        getState: () =>
+          ({
+            canTrade: null,
+            isHalfDay: null,
+            openProtectionActive: null,
+            currentDayKey: null,
+            lifecycleState: 'ACTIVE',
+            pendingOpenRebuild: false,
+            targetTradingDayKey: null,
+            isTradingEnabled: true,
+            cachedAccount: null,
+            cachedPositions: [],
+            positionCache: createPositionCacheDouble(),
+            gatePolicySnapshot: null,
+          }) as never,
+        setCanTrade: () => {},
+        setIsHalfDay: () => {},
+        setOpenProtectionActive: () => {},
+        setCurrentDayKey: () => {},
+        setLifecycleState: () => {},
+        setPendingOpenRebuild: () => {},
+        setTargetTradingDayKey: () => {},
+        setIsTradingEnabled: () => {},
+        setCachedAccount: () => {},
+        setCachedPositions: () => {},
+        setGatePolicySnapshot: (snapshot) => {
+          if (snapshot) {
+            receivedSnapshots.push(snapshot);
+          }
+        },
+      },
+    });
+
+    const snapshot = receivedSnapshots[0];
+    expect(snapshot).toBeDefined();
+    if (!snapshot) {
+      throw new Error('gate policy snapshot should be captured');
+    }
+
+    expect(snapshot.runtimeGateMode).toBe('strict');
+    expect(snapshot.dayKey).toBe('2026-02-16');
+    expect(snapshot.isTradingDay).toBeTrue();
+    expect(snapshot.isHalfDay).toBeFalse();
+    expect(snapshot.canTradeNow).toBeTrue();
+    expect(snapshot.openProtectionActive).toBeTrue();
+    expect(snapshot.executionGateOpen).toBeTrue();
+    expect(snapshot.continuousSessionGateOpen).toBeTrue();
+    expect(snapshot.signalGenerationGateOpen).toBeFalse();
+    expect(snapshot.lifecycleState).toBe('ACTIVE');
   });
 });

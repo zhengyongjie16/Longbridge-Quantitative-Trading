@@ -1,7 +1,9 @@
 import type { MonitorConfig } from '../../types/config.js';
 import type { Position } from '../../types/account.js';
-import type { SeatState, SeatStatus, SymbolRegistry } from '../../types/seat.js';
-import type { SeatEntry, SeatUnavailableReason, SymbolSeatEntry } from './types.js';
+import type { SeatState, SymbolRegistry } from '../../types/seat.js';
+import type { SeatUnavailableReason } from './types.js';
+import type { SeatRuntimeStore } from '../../app/runtime/types.js';
+import { createSeatRuntimeStore } from '../../app/runtime/seatRuntimeStore.js';
 
 /**
  * 检查席位是否就绪（有有效标的且状态为 READY）
@@ -160,56 +162,31 @@ export function resolveSeatOnStartup({
 }
 
 /**
- * 创建席位状态对象（内部工厂函数）
- * @param symbol 交易标的代码，null 表示未绑定
- * @param status 席位状态（READY/SEARCHING/SWITCHING/EMPTY）
- * @returns 初始化的席位状态对象
+ * 基于 SeatRuntimeStore 创建 legacy SymbolRegistry facade。
+ *
+ * @param seatRuntimeStore 席位运行态 store
+ * @returns 兼容旧调用链的 SymbolRegistry
  */
-function createSeatState(symbol: string | null, status: SeatStatus): SeatState {
+export function createSymbolRegistryFromSeatRuntimeStore(
+  seatRuntimeStore: SeatRuntimeStore,
+): SymbolRegistry {
   return {
-    symbol,
-    status,
-    lastSwitchAt: null,
-    lastSearchAt: null,
-    lastSeatReadyAt: null,
-    callPrice: null,
-    searchFailCountToday: 0,
-    frozenTradingDayKey: null,
+    getSeatState: (monitorSymbol, direction) => {
+      return seatRuntimeStore.getSeatState(monitorSymbol, direction);
+    },
+    getSeatVersion: (monitorSymbol, direction) => {
+      return seatRuntimeStore.getSeatVersion(monitorSymbol, direction);
+    },
+    resolveSeatBySymbol: (symbol) => {
+      return seatRuntimeStore.resolveSeatBySymbol(symbol);
+    },
+    updateSeatState: (monitorSymbol, direction, nextState) => {
+      return seatRuntimeStore.setSeatState(monitorSymbol, direction, nextState);
+    },
+    bumpSeatVersion: (monitorSymbol, direction) => {
+      return seatRuntimeStore.bumpSeatVersion(monitorSymbol, direction);
+    },
   };
-}
-
-/**
- * 创建席位条目（内部工厂函数）
- * @param symbol 交易标的代码，null 表示未绑定
- * @param status 席位状态（READY/SEARCHING/SWITCHING/EMPTY）
- * @returns 包含状态和版本号的席位条目，初始版本号为 1
- */
-function createSeatEntry(symbol: string | null, status: SeatStatus): SeatEntry {
-  return {
-    state: createSeatState(symbol, status),
-    version: 1,
-  };
-}
-
-/**
- * 从注册表中解析指定监控标的与方向的席位条目（内部辅助函数）
- * @param registry 席位注册表
- * @param monitorSymbol 监控标的代码
- * @param direction 方向（LONG 或 SHORT）
- * @returns 对应方向的席位条目
- * @throws 当监控标的不存在于注册表时抛出错误
- */
-function resolveSeatEntry(
-  registry: Map<string, SymbolSeatEntry>,
-  monitorSymbol: string,
-  direction: 'LONG' | 'SHORT',
-): SeatEntry {
-  const entry = registry.get(monitorSymbol);
-  if (!entry) {
-    throw new Error(`SymbolRegistry 未找到监控标的: ${monitorSymbol}`);
-  }
-
-  return direction === 'LONG' ? entry.long : entry.short;
 }
 
 /**
@@ -218,81 +195,5 @@ function resolveSeatEntry(
  * @returns 实现了 SymbolRegistry 接口的注册表对象
  */
 export function createSymbolRegistry(monitors: ReadonlyArray<MonitorConfig>): SymbolRegistry {
-  const registry = new Map<string, SymbolSeatEntry>();
-
-  for (const monitor of monitors) {
-    const autoSearchEnabled = monitor.autoSearchConfig.autoSearchEnabled;
-    registry.set(monitor.monitorSymbol, {
-      long: autoSearchEnabled
-        ? createSeatEntry(null, 'EMPTY')
-        : createSeatEntry(monitor.longSymbol, 'READY'),
-      short: autoSearchEnabled
-        ? createSeatEntry(null, 'EMPTY')
-        : createSeatEntry(monitor.shortSymbol, 'READY'),
-    });
-  }
-
-  return {
-    getSeatState(monitorSymbol: string, direction: 'LONG' | 'SHORT'): SeatState {
-      return resolveSeatEntry(registry, monitorSymbol, direction).state;
-    },
-    getSeatVersion(monitorSymbol: string, direction: 'LONG' | 'SHORT'): number {
-      return resolveSeatEntry(registry, monitorSymbol, direction).version;
-    },
-    resolveSeatBySymbol(symbol: string): {
-      monitorSymbol: string;
-      direction: 'LONG' | 'SHORT';
-      seatState: SeatState;
-      seatVersion: number;
-    } | null {
-      if (!symbol) {
-        return null;
-      }
-
-      for (const [monitorSymbol, entry] of registry) {
-        if (entry.long.state.symbol === symbol) {
-          return {
-            monitorSymbol,
-            direction: 'LONG',
-            seatState: entry.long.state,
-            seatVersion: entry.long.version,
-          };
-        }
-
-        if (entry.short.state.symbol === symbol) {
-          return {
-            monitorSymbol,
-            direction: 'SHORT',
-            seatState: entry.short.state,
-            seatVersion: entry.short.version,
-          };
-        }
-      }
-
-      return null;
-    },
-    updateSeatState(
-      monitorSymbol: string,
-      direction: 'LONG' | 'SHORT',
-      nextState: SeatState,
-    ): SeatState {
-      const seatEntry = resolveSeatEntry(registry, monitorSymbol, direction);
-      seatEntry.state = {
-        symbol: nextState.symbol,
-        status: nextState.status,
-        lastSwitchAt: nextState.lastSwitchAt ?? null,
-        lastSearchAt: nextState.lastSearchAt ?? null,
-        lastSeatReadyAt: nextState.lastSeatReadyAt ?? null,
-        callPrice: nextState.callPrice ?? null,
-        searchFailCountToday: nextState.searchFailCountToday,
-        frozenTradingDayKey: nextState.frozenTradingDayKey,
-      };
-      return seatEntry.state;
-    },
-    bumpSeatVersion(monitorSymbol: string, direction: 'LONG' | 'SHORT'): number {
-      const seatEntry = resolveSeatEntry(registry, monitorSymbol, direction);
-      seatEntry.version += 1;
-      return seatEntry.version;
-    },
-  };
+  return createSymbolRegistryFromSeatRuntimeStore(createSeatRuntimeStore(monitors));
 }

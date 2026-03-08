@@ -10,6 +10,12 @@ import type { LoadTradingDayRuntimeSnapshotDeps } from '../../../src/main/lifecy
 import type { LastState } from '../../../src/types/state.js';
 import type { MultiMonitorTradingConfig } from '../../../src/types/config.js';
 import type { SymbolRegistry } from '../../../src/types/seat.js';
+import { createTradingConfig } from '../../../mock/factories/configFactory.js';
+import {
+  createMonitorConfigDouble,
+  createQuoteContextDouble,
+  createSymbolRegistryDouble,
+} from '../../helpers/testDoubles.js';
 
 function createMinimalLastState(): LastState {
   return {
@@ -257,5 +263,94 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
     });
 
     expect(callOrder).toEqual(['hydrate', 'recalculate']);
+  });
+
+  it('forwards the snapshot now value into startup seat preparation instead of creating a second time source', async () => {
+    const now = new Date('2026-03-02T01:23:45.000Z');
+    const monitor = createMonitorConfigDouble({
+      monitorSymbol: 'HSI.HK',
+      longSymbol: 'BULL.HK',
+      shortSymbol: 'BEAR.HK',
+      autoSearchConfig: {
+        autoSearchEnabled: false,
+        autoSearchMinDistancePctBull: null,
+        autoSearchMinDistancePctBear: null,
+        autoSearchMinTurnoverPerMinuteBull: null,
+        autoSearchMinTurnoverPerMinuteBear: null,
+        autoSearchExpiryMinMonths: 3,
+        autoSearchOpenDelayMinutes: 0,
+        switchIntervalMinutes: 0,
+        switchDistanceRangeBull: null,
+        switchDistanceRangeBear: null,
+      },
+    });
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: monitor.monitorSymbol,
+      longSeat: {
+        symbol: null,
+        status: 'EMPTY',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatReadyAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      shortSeat: {
+        symbol: null,
+        status: 'EMPTY',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatReadyAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+    });
+
+    const lastState = createMinimalLastState();
+    const deps: LoadTradingDayRuntimeSnapshotDeps = {
+      marketDataClient: {
+        getQuoteContext: async () => createQuoteContextDouble(),
+        getQuotes: async () => new Map<string, null>(),
+        subscribeSymbols: async () => {},
+        unsubscribeSymbols: async () => {},
+        subscribeCandlesticks: async () => [],
+        getRealtimeCandlesticks: async () => [],
+        resetRuntimeSubscriptionsAndCaches: async () => {},
+        isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
+      },
+      trader: {
+        initializeOrderMonitor: async () => {},
+        getAccountSnapshot: async () => ({}),
+        getStockPositions: async () => [],
+        fetchAllOrdersFromAPI: async () => [],
+        seedOrderHoldSymbols: () => {},
+        getOrderHoldSymbols: () => new Set<string>(),
+      } as unknown as LoadTradingDayRuntimeSnapshotDeps['trader'],
+      lastState,
+      tradingConfig: createTradingConfig({ monitors: [monitor] }),
+      symbolRegistry,
+      dailyLossTracker: {
+        recalculateFromAllOrders: () => {},
+      } as unknown as LoadTradingDayRuntimeSnapshotDeps['dailyLossTracker'],
+      tradeLogHydrator: {
+        hydrate: () => ({
+          segmentStartByDirection: new Map(),
+        }),
+      } as unknown as LoadTradingDayRuntimeSnapshotDeps['tradeLogHydrator'],
+      warrantListCacheConfig: {} as LoadTradingDayRuntimeSnapshotDeps['warrantListCacheConfig'],
+    };
+
+    const load = createLoadTradingDayRuntimeSnapshot(deps);
+    await load({
+      now,
+      requireTradingDay: false,
+      failOnOrderFetchError: false,
+      resetRuntimeSubscriptions: false,
+      hydrateCooldownFromTradeLog: false,
+      forceOrderRefresh: false,
+    });
+
+    expect(symbolRegistry.getSeatState('HSI.HK', 'LONG').lastSeatReadyAt).toBe(now.getTime());
+    expect(symbolRegistry.getSeatState('HSI.HK', 'SHORT').lastSeatReadyAt).toBe(now.getTime());
   });
 });

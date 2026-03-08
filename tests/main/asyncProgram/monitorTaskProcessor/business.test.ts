@@ -26,6 +26,7 @@ import {
   createPositionDouble,
   createQuoteDouble,
   createRiskCheckerDouble,
+  createSymbolRegistryDouble,
   createTraderDouble,
 } from '../../../helpers/testDoubles.js';
 import { createLastState, createMonitorTaskContext, runProcessorFlow } from '../utils.js';
@@ -384,6 +385,132 @@ describe('monitorTaskProcessor business flow', () => {
     expect(refreshUnrealizedCalls).toBe(1);
     expect(lastState.cachedAccount?.totalCash).toBe(200_000);
     expect(lastState.positionCache.get('BULL.HK')?.quantity).toBe(100);
+  });
+
+  it('keeps SEAT_REFRESH fixed order and empties seat on refresh failure without clearing fail-freeze runtime', async () => {
+    const queue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
+    const callOrder: string[] = [];
+    const clearCalls: Array<{ monitorSymbol: string; direction: 'LONG' | 'SHORT' }> = [];
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+      longVersion: 2,
+      longSeat: {
+        symbol: 'BULL.HK',
+        status: 'READY',
+        lastSwitchAt: 123,
+        lastSearchAt: 456,
+        lastSeatReadyAt: 789,
+        callPrice: 20_000,
+        searchFailCountToday: 3,
+        frozenTradingDayKey: '2026-03-08',
+      },
+    });
+    const context = createMonitorTaskContext({
+      symbolRegistry,
+      orderRecorder: createOrderRecorderDouble({
+        fetchAllOrdersFromAPI: async () => {
+          callOrder.push('ensureAllOrders');
+          return [];
+        },
+        refreshOrdersFromAllOrdersForLong: async () => {
+          callOrder.push('refreshOrderLedgerForNextSeat');
+          return [];
+        },
+      }),
+      dailyLossTracker: {
+        resetAll: () => {},
+        recalculateFromAllOrders: () => {
+          callOrder.push('recalculateDailyLoss');
+        },
+        recordFilledOrder: () => {},
+        getLossOffset: () => 0,
+        resetDirectionSegment: () => {},
+      },
+      riskChecker: createRiskCheckerDouble({
+        clearLongWarrantInfo: () => {
+          callOrder.push('clearLongWarrantInfo');
+        },
+        refreshUnrealizedLossData: async () => {
+          callOrder.push('refreshUnrealizedLoss');
+          throw new Error('refresh unrealized fail');
+        },
+      }),
+    });
+    const statuses: MonitorTaskStatus[] = [];
+    const lastState = createLastState();
+    const processor = createMonitorTaskProcessor({
+      monitorTaskQueue: queue,
+      refreshGate: createRefreshGate(),
+      getMonitorContext: () => context as unknown as MonitorTaskContext,
+      clearMonitorDirectionQueues: (monitorSymbol, direction) => {
+        clearCalls.push({ monitorSymbol, direction });
+      },
+      trader: createTraderDouble({
+        getAccountSnapshot: async () => {
+          callOrder.push('refreshAccountCaches:account');
+          return createAccountSnapshotDouble(100_000);
+        },
+        getStockPositions: async () => {
+          callOrder.push('refreshAccountCaches:positions');
+          return [];
+        },
+      }),
+      lastState,
+      tradingConfig: {
+        monitors: [createMonitorConfigDouble()],
+      } as unknown as MultiMonitorTradingConfig,
+      onProcessed: (_task, status) => {
+        statuses.push(status);
+      },
+    });
+
+    await runProcessorFlow({
+      processor,
+      pushTask: () => {
+        queue.scheduleLatest({
+          type: 'SEAT_REFRESH',
+          dedupeKey: 'HSI.HK:SEAT_REFRESH:LONG',
+          monitorSymbol: 'HSI.HK',
+          data: {
+            monitorSymbol: 'HSI.HK',
+            direction: 'LONG',
+            seatVersion: 2,
+            previousSymbol: 'OLD_BULL.HK',
+            nextSymbol: 'BULL.HK',
+            callPrice: 20_000,
+            quote: createQuoteDouble('BULL.HK', 1.1, 100),
+            symbolName: 'BULL.HK',
+            quotesMap: new Map<string, ReturnType<typeof createQuoteDouble> | null>(),
+          },
+        });
+      },
+      waitCondition: () => statuses.length === 1,
+      timeoutMs: 500,
+    });
+
+    expect(statuses[0]).toBe('failed');
+    expect(callOrder).toEqual([
+      'clearLongWarrantInfo',
+      'ensureAllOrders',
+      'refreshOrderLedgerForNextSeat',
+      'recalculateDailyLoss',
+      'refreshAccountCaches:account',
+      'refreshAccountCaches:positions',
+      'refreshUnrealizedLoss',
+      'clearLongWarrantInfo',
+    ]);
+    expect(clearCalls).toEqual([{ monitorSymbol: 'HSI.HK', direction: 'LONG' }]);
+    expect(symbolRegistry.getSeatVersion('HSI.HK', 'LONG')).toBe(3);
+    expect(symbolRegistry.getSeatState('HSI.HK', 'LONG')).toEqual({
+      symbol: null,
+      status: 'EMPTY',
+      lastSwitchAt: 123,
+      lastSearchAt: 456,
+      lastSeatReadyAt: null,
+      callPrice: null,
+      searchFailCountToday: 3,
+      frozenTradingDayKey: '2026-03-08',
+    });
   });
 
   it('processes LIQUIDATION_DISTANCE_CHECK and executes protective sell for triggered side', async () => {

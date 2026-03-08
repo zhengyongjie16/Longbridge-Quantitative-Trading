@@ -126,6 +126,7 @@ mock.module('longport', () => ({
 import { Decimal, Market as MockMarket, NaiveDate, Period as MockPeriod } from 'longport';
 
 import { createQuoteContextMock } from '../../../mock/longport/quoteContextMock.js';
+import { createMarketDataRuntimeStore } from '../../../src/app/runtime/marketDataRuntimeStore.js';
 import { createMarketDataClient } from '../../../src/services/quoteClient/index.js';
 
 let quoteMock: ReturnType<typeof createQuoteContextMock>;
@@ -274,5 +275,38 @@ describe('quoteClient business flow', () => {
     expect(client.getQuotes(['BULL.HK'])).rejects.toThrow('未订阅');
     expect(quoteMock.getCalls('unsubscribe')).toHaveLength(1);
     expect(quoteMock.getCalls('unsubscribeCandlesticks')).toHaveLength(1);
+  });
+
+  it('writes quote and candlestick subscription runtime into injected runtime store', async () => {
+    quoteMock.seedStaticInfo([
+      {
+        symbol: 'BULL.HK',
+        info: {
+          symbol: 'BULL.HK',
+          nameHk: '测试牛证',
+          lotSize: 500,
+        },
+      },
+    ]);
+
+    quoteMock.seedQuotes([
+      {
+        symbol: 'BULL.HK',
+        quote: makeSeedQuote('BULL.HK', 1.23, 1.2),
+      },
+    ]);
+    const runtimeStore = createMarketDataRuntimeStore();
+    const client = await createMarketDataClient({
+      config: {} as never,
+      runtimeStore,
+    });
+
+    await client.subscribeSymbols(['BULL.HK']);
+    await client.subscribeCandlesticks('BULL.HK', MockPeriod.Min_1);
+
+    expect(runtimeStore.getState().subscribedQuoteSymbols.has('BULL.HK')).toBe(true);
+    expect(
+      runtimeStore.getState().subscribedCandlesticks.has(`BULL.HK:${MockPeriod.Min_1}`),
+    ).toBe(true);
   });
 });

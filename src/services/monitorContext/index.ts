@@ -19,6 +19,8 @@ import { isSeatReady } from '../autoSymbolManager/utils.js';
 import type { MonitorContext } from '../../types/state.js';
 import type { MonitorContextFactoryDeps } from './types.js';
 import { compileIndicatorUsageProfile } from './utils.js';
+import { createMonitorRuntimeStore } from '../../app/runtime/monitorRuntimeStore.js';
+import { createLegacyMonitorContextFacade } from '../../app/runtime/legacyStateFacade.js';
 
 /**
  * 创建监控标的运行时上下文，从注册表读取席位状态与版本号，从行情 Map 提取标的名称，
@@ -39,6 +41,7 @@ export function createMonitorContext(deps: MonitorContextFactoryDeps): MonitorCo
     unrealizedLossMonitor,
     delayedSignalVerifier,
     autoSymbolManager,
+    monitorRuntimeStore,
   } = deps;
 
   const longSeatState = symbolRegistry.getSeatState(config.monitorSymbol, 'LONG');
@@ -56,11 +59,16 @@ export function createMonitorContext(deps: MonitorContextFactoryDeps): MonitorCo
     signalConfig: config.signalConfig,
     verificationConfig: config.verificationConfig,
   });
-
-  return {
-    config,
+  const runtimeStore =
+    monitorRuntimeStore ??
+    createMonitorRuntimeStore(
+      new Map([
+        [config.monitorSymbol, state],
+      ]),
+    );
+  const runtimeEntry = runtimeStore.ensureEntry({
+    monitorSymbol: config.monitorSymbol,
     state,
-    symbolRegistry,
     seatState: {
       long: longSeatState,
       short: shortSeatState,
@@ -69,34 +77,26 @@ export function createMonitorContext(deps: MonitorContextFactoryDeps): MonitorCo
       long: longSeatVersion,
       short: shortSeatVersion,
     },
-    autoSymbolManager,
-    strategy,
-
-    // 使用共享 orderRecorder 实例（订单成交后由 orderMonitor 更新）
-    orderRecorder,
-    dailyLossTracker,
-    riskChecker,
-
-    // 每个监控标的独立的浮亏监控器（使用各自的 maxUnrealizedLossPerSymbol 配置）
-    unrealizedLossMonitor,
-
-    // 每个监控标的独立的延迟信号验证器（使用各自的验证配置）
-    delayedSignalVerifier,
-
-    // 缓存标的名称（避免每次循环重复获取）
     longSymbolName: longSymbol ? (longQuote?.name ?? longSymbol) : '',
     shortSymbolName: shortSymbol ? (shortQuote?.name ?? shortSymbol) : '',
     monitorSymbolName: monitorQuote?.name ?? config.monitorSymbol,
     normalizedMonitorSymbol: config.monitorSymbol,
-
-    // 缓存指标画像配置（避免每次循环重复提取）
     indicatorProfile,
-
-    // 缓存的行情数据（主循环每秒更新，供买入/卖出处理器使用）
     longQuote,
     shortQuote,
     monitorQuote,
+  });
 
-    // 注意：持仓数据通过 lastState.positionCache 获取，不在 MonitorContext 中缓存
-  };
+  return createLegacyMonitorContextFacade({
+    config,
+    symbolRegistry,
+    autoSymbolManager,
+    strategy,
+    orderRecorder,
+    dailyLossTracker,
+    riskChecker,
+    unrealizedLossMonitor,
+    delayedSignalVerifier,
+    runtimeEntry,
+  });
 }

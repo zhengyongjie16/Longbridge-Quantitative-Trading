@@ -44,6 +44,7 @@ import type { TradingDayInfo, MarketDataClient, TradingDaysResult } from '../../
 import type { RetryConfig, MarketDataClientDeps } from './types.js';
 import { formatSymbolDisplay } from '../../utils/display/index.js';
 import { formatError } from '../../utils/error/index.js';
+import { createMarketDataRuntimeStore } from '../../app/runtime/marketDataRuntimeStore.js';
 import {
   extractLotSize,
   extractName,
@@ -268,9 +269,10 @@ function createTradingDayCache(): {
 export async function createMarketDataClient(
   deps: MarketDataClientDeps,
 ): Promise<MarketDataClient> {
-  const { config } = deps;
+  const { config, runtimeStore: injectedRuntimeStore } = deps;
   const ctx = await QuoteContext.new(config);
   const tradingDayCache = createTradingDayCache();
+  const runtimeStore = injectedRuntimeStore ?? createMarketDataRuntimeStore();
 
   // 行情缓存（由 WebSocket 推送实时更新）
   const quoteCache = new Map<string, Quote>();
@@ -280,12 +282,6 @@ export async function createMarketDataClient(
 
   // 静态信息缓存
   const staticInfoCache = new Map<string, unknown>();
-
-  // 已订阅标的（报价推送）
-  const subscribedSymbols = new Set<string>();
-
-  // 已订阅 K 线跟踪（key: "symbol:period"）
-  const subscribedCandlesticks = new Map<string, Period>();
 
   /**
    * 处理行情推送（WebSocket 回调）。解析 lastDone 等字段并更新 quoteCache。
@@ -353,7 +349,7 @@ export async function createMarketDataClient(
         const cached = quoteCache.get(reqSymbol);
         if (cached) {
           result.set(reqSymbol, cached);
-        } else if (subscribedSymbols.has(reqSymbol)) {
+        } else if (runtimeStore.hasSubscribedQuoteSymbol(reqSymbol)) {
           // 已订阅但无数据（可能是刚订阅还未收到推送）
           const staticInfo = staticInfoCache.get(reqSymbol);
           const symbolName = extractName(staticInfo);
@@ -381,7 +377,9 @@ export async function createMarketDataClient(
    */
   async function subscribeSymbols(symbols: ReadonlyArray<string>): Promise<void> {
     const uniqueSymbols = normalizeSymbols(symbols);
-    const newSymbols = uniqueSymbols.filter((symbol) => !subscribedSymbols.has(symbol));
+    const newSymbols = uniqueSymbols.filter(
+      (symbol) => !runtimeStore.hasSubscribedQuoteSymbol(symbol),
+    );
     if (newSymbols.length === 0) {
       return;
     }
@@ -407,9 +405,7 @@ export async function createMarketDataClient(
     }
 
     await withRetry(() => ctx.subscribe(newSymbols, [SubType.Quote]));
-    for (const symbol of newSymbols) {
-      subscribedSymbols.add(symbol);
-    }
+    runtimeStore.addSubscribedQuoteSymbols(newSymbols);
 
     logger.debug(`[行情订阅] 新增订阅 ${newSymbols.length} 个标的`);
   }
@@ -423,14 +419,16 @@ export async function createMarketDataClient(
    */
   async function unsubscribeSymbols(symbols: ReadonlyArray<string>): Promise<void> {
     const uniqueSymbols = normalizeSymbols(symbols);
-    const removeSymbols = uniqueSymbols.filter((symbol) => subscribedSymbols.has(symbol));
+    const removeSymbols = uniqueSymbols.filter((symbol) =>
+      runtimeStore.hasSubscribedQuoteSymbol(symbol),
+    );
     if (removeSymbols.length === 0) {
       return;
     }
 
     await withRetry(() => ctx.unsubscribe(removeSymbols, [SubType.Quote]));
+    runtimeStore.removeSubscribedQuoteSymbols(removeSymbols);
     for (const symbol of removeSymbols) {
-      subscribedSymbols.delete(symbol);
       quoteCache.delete(symbol);
       prevCloseCache.delete(symbol);
       staticInfoCache.delete(symbol);
@@ -482,7 +480,7 @@ export async function createMarketDataClient(
     tradeSessions: TradeSessions = TradeSessions.All,
   ): Promise<Candlestick[]> {
     const key = `${symbol}:${period}`;
-    if (subscribedCandlesticks.has(key)) {
+    if (runtimeStore.hasSubscribedCandlestick(key)) {
       logger.debug(`[K线订阅] ${symbol} 周期 ${formatPeriodForLog(period)} 已订阅，跳过重复订阅`);
       return [];
     }
@@ -490,7 +488,7 @@ export async function createMarketDataClient(
     const initialCandles = await withRetry(() =>
       ctx.subscribeCandlesticks(symbol, period, tradeSessions),
     );
-    subscribedCandlesticks.set(key, period);
+    runtimeStore.setSubscribedCandlestick(key, period);
     logger.debug(
       `[K线订阅] 已订阅 ${symbol} 周期 ${formatPeriodForLog(period)} K线，初始数据 ${initialCandles.length} 根`,
     );
@@ -551,16 +549,16 @@ export async function createMarketDataClient(
    * 订阅集合状态：成功退订的移除，失败的保留，保证可重试。
    */
   async function resetRuntimeSubscriptionsAndCaches(): Promise<void> {
-    const symbolsToUnsub = [...subscribedSymbols];
-    const candlestickEntriesToUnsub = [...subscribedCandlesticks.entries()];
+    const symbolsToUnsub = [...runtimeStore.getState().subscribedQuoteSymbols];
+    const candlestickEntriesToUnsub = [...runtimeStore.getState().subscribedCandlesticks.entries()];
     const errors: unknown[] = [];
 
     // 1. 退订 quote（批量）
     if (symbolsToUnsub.length > 0) {
       try {
         await withRetry(() => ctx.unsubscribe(symbolsToUnsub, [SubType.Quote]));
+        runtimeStore.removeSubscribedQuoteSymbols(symbolsToUnsub);
         for (const symbol of symbolsToUnsub) {
-          subscribedSymbols.delete(symbol);
           quoteCache.delete(symbol);
           prevCloseCache.delete(symbol);
           staticInfoCache.delete(symbol);
@@ -581,7 +579,7 @@ export async function createMarketDataClient(
       const symbol = key.slice(0, colonIdx);
       try {
         await withRetry(() => ctx.unsubscribeCandlesticks(symbol, periodValue));
-        subscribedCandlesticks.delete(key);
+        runtimeStore.deleteSubscribedCandlestick(key);
       } catch (err) {
         errors.push(err);
       }

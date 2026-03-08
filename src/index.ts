@@ -95,10 +95,10 @@ import { createMonitorContext } from './services/monitorContext/index.js';
 import { createAutoSymbolManager } from './services/autoSymbolManager/index.js';
 import { createWarrantListCache } from './services/autoSymbolFinder/utils.js';
 import {
-  createSymbolRegistry,
+  createSymbolRegistryFromSeatRuntimeStore,
+  describeSeatUnavailable,
   isSeatReady,
   isSeatVersionMatch,
-  describeSeatUnavailable,
 } from './services/autoSymbolManager/utils.js';
 import { createCleanup } from './services/cleanup/index.js';
 
@@ -129,6 +129,12 @@ import {
 } from './utils/tradingTime/index.js';
 import { sleep } from './main/utils.js';
 import { getShushCow } from './utils/asciiArt/shushCow.js';
+import { createSystemRuntimeStateStore } from './app/runtime/systemRuntimeStateStore.js';
+import { createTradingDayReadModelStore } from './app/runtime/tradingDayReadModelStore.js';
+import { createMonitorRuntimeStore } from './app/runtime/monitorRuntimeStore.js';
+import { createMarketDataRuntimeStore } from './app/runtime/marketDataRuntimeStore.js';
+import { createLegacyLastStateFacade } from './app/runtime/legacyStateFacade.js';
+import { createSeatRuntimeStore } from './app/runtime/seatRuntimeStore.js';
 
 dotenv.config({ path: '.env.local' });
 
@@ -149,7 +155,8 @@ async function main(): Promise<void> {
   // 解析配置并创建席位注册表
   const env = process.env;
   const tradingConfig = createMultiMonitorTradingConfig({ env });
-  const symbolRegistry = createSymbolRegistry(tradingConfig.monitors);
+  const seatRuntimeStore = createSeatRuntimeStore(tradingConfig.monitors);
+  const symbolRegistry = createSymbolRegistryFromSeatRuntimeStore(seatRuntimeStore);
   const warrantListCache = createWarrantListCache();
   const warrantListCacheConfig = {
     cache: warrantListCache,
@@ -170,7 +177,11 @@ async function main(): Promise<void> {
   }
 
   const config = createConfig({ env });
-  const marketDataClient = await createMarketDataClient({ config });
+  const marketDataRuntimeStore = createMarketDataRuntimeStore();
+  const marketDataClient = await createMarketDataClient({
+    config,
+    runtimeStore: marketDataRuntimeStore,
+  });
   const runMode = resolveRunMode(env);
   const gatePolicies = resolveGatePolicies(runMode);
   const resolveTradingDayInfo = createTradingDayInfoResolver({
@@ -248,9 +259,13 @@ async function main(): Promise<void> {
   // 刷新门控：控制刷新节奏，避免频繁重算
   const refreshGate = createRefreshGate();
   const initialDayKey = getHKDateKey(new Date());
-
-  // 记录上一次的数据状态（先创建以便注入执行门禁单一状态源）
-  const lastState: LastState = {
+  const initialMonitorStates = new Map(
+    tradingConfig.monitors.map((monitorConfig) => [
+      monitorConfig.monitorSymbol,
+      initMonitorState(monitorConfig),
+    ]),
+  );
+  const systemRuntimeStateStore = createSystemRuntimeStateStore({
     canTrade: null,
     isHalfDay: null,
     openProtectionActive: null,
@@ -261,27 +276,24 @@ async function main(): Promise<void> {
     isTradingEnabled: true,
     cachedAccount: null,
     cachedPositions: [],
-
-    // 初始化持仓缓存（O(1) 查找）
     positionCache: createPositionCache(),
-
-    // 缓存的交易日信息 { isTradingDay, isHalfDay }
+    gatePolicySnapshot: null,
+  });
+  const tradingDayReadModelStore = createTradingDayReadModelStore({
     cachedTradingDayInfo: startupTradingDayInfo,
-
-    // 交易日历快照（生命周期阶段预热与更新）
     tradingCalendarSnapshot: new Map(
       initialDayKey === null ? [] : [[initialDayKey, startupTradingDayInfo]],
     ),
-    monitorStates: new Map(
-      tradingConfig.monitors.map((monitorConfig) => [
-        monitorConfig.monitorSymbol,
-        initMonitorState(monitorConfig),
-      ]),
-    ),
+  });
+  const monitorRuntimeStore = createMonitorRuntimeStore(initialMonitorStates);
 
-    // 启动完成后再填充
-    allTradingSymbols: new Set(),
-  };
+  // 记录上一次的数据状态（先创建以便注入执行门禁单一状态源）
+  const lastState: LastState = createLegacyLastStateFacade({
+    systemRuntimeStateStore,
+    tradingDayReadModelStore,
+    monitorRuntimeStore,
+    marketDataRuntimeStore,
+  });
 
   // 交易器实例（注入核心依赖，isExecutionAllowed 以 lastState 为单一状态源）
   const trader = await createTrader({
@@ -502,6 +514,7 @@ async function main(): Promise<void> {
       unrealizedLossMonitor,
       delayedSignalVerifier,
       autoSymbolManager,
+      monitorRuntimeStore,
     });
     monitorContexts.set(monitorConfig.monitorSymbol, context);
   }
@@ -751,6 +764,7 @@ async function main(): Promise<void> {
         lossOffsetLifecycleCoordinator,
         runtimeGateMode: gatePolicies.runtimeGate,
         dayLifecycleManager,
+        systemRuntimeStateStore,
       });
     } catch (err) {
       logger.error('本次执行失败', formatError(err));

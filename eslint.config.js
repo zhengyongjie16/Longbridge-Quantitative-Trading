@@ -218,6 +218,46 @@ export default defineConfig(
     },
   },
   {
+    files: ['src/types/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['../main/**'],
+              message: 'types 层禁止反向依赖 main 层。',
+            },
+            {
+              group: ['../services/monitorContext/**'],
+              message: 'types 层禁止反向依赖 monitorContext 服务层。',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/app/runtime/*Store.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['../main/**', '../../main/**'],
+              message: 'app runtime 层禁止直接依赖 main 编排层。',
+            },
+            {
+              group: ['../index.js', '../../index.js'],
+              message: 'app runtime 层禁止反向依赖入口装配层。',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['tests/**/*.ts'],
     rules: {
       // 测试文件统一放宽部分规则，减少测试实现噪音

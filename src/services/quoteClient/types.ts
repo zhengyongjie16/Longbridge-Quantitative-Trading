@@ -1,4 +1,5 @@
 import type { Config } from 'longport';
+import type { MarketDataRuntimeStore } from '../../app/runtime/types.js';
 
 /**
  * withRetry 重试配置。
@@ -32,4 +33,5 @@ export type StaticInfo = {
  */
 export type MarketDataClientDeps = {
   readonly config: Config;
+  readonly runtimeStore?: MarketDataRuntimeStore;
 };

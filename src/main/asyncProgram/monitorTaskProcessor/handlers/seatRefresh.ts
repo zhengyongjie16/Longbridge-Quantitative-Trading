@@ -69,15 +69,16 @@ export function createSeatRefreshHandler({
     }
 
     const nextVersion = context.symbolRegistry.bumpSeatVersion(monitorSymbol, direction);
+    const currentSeatState = context.symbolRegistry.getSeatState(monitorSymbol, direction);
     const nextState = {
       symbol: null,
       status: 'EMPTY',
-      lastSwitchAt: Date.now(),
-      lastSearchAt: null,
+      lastSwitchAt: currentSeatState.lastSwitchAt,
+      lastSearchAt: currentSeatState.lastSearchAt,
       lastSeatReadyAt: null,
       callPrice: null,
-      searchFailCountToday: 0,
-      frozenTradingDayKey: null,
+      searchFailCountToday: currentSeatState.searchFailCountToday,
+      frozenTradingDayKey: currentSeatState.frozenTradingDayKey,
     } as const;
     context.symbolRegistry.updateSeatState(monitorSymbol, direction, nextState);
     clearMonitorDirectionQueues(monitorSymbol, direction);
@@ -128,59 +129,69 @@ export function createSeatRefreshHandler({
       return 'processed';
     }
 
-    const allOrders = await helpers.ensureAllOrders(data.monitorSymbol, context.orderRecorder);
-    context.dailyLossTracker.recalculateFromAllOrders(
-      allOrders,
-      tradingConfig.monitors,
-      new Date(),
-    );
+    try {
+      const allOrders = await helpers.ensureAllOrders(data.monitorSymbol, context.orderRecorder);
+      await (isLong
+        ? context.orderRecorder.refreshOrdersFromAllOrdersForLong(
+            data.nextSymbol,
+            allOrders,
+            data.quote,
+          )
+        : context.orderRecorder.refreshOrdersFromAllOrdersForShort(
+            data.nextSymbol,
+            allOrders,
+            data.quote,
+          ));
 
-    await (isLong
-      ? context.orderRecorder.refreshOrdersFromAllOrdersForLong(
-          data.nextSymbol,
-          allOrders,
-          data.quote,
-        )
-      : context.orderRecorder.refreshOrdersFromAllOrdersForShort(
-          data.nextSymbol,
-          allOrders,
-          data.quote,
-        ));
+      context.dailyLossTracker.recalculateFromAllOrders(
+        allOrders,
+        tradingConfig.monitors,
+        new Date(),
+      );
 
-    await helpers.refreshAccountCaches();
+      await helpers.refreshAccountCaches();
 
-    const dailyLossOffset = context.dailyLossTracker.getLossOffset(data.monitorSymbol, isLong);
-    await context.riskChecker.refreshUnrealizedLossData(
-      context.orderRecorder,
-      data.nextSymbol,
-      isLong,
-      data.quote,
-      dailyLossOffset,
-    );
+      const dailyLossOffset = context.dailyLossTracker.getLossOffset(data.monitorSymbol, isLong);
+      await context.riskChecker.refreshUnrealizedLossData(
+        context.orderRecorder,
+        data.nextSymbol,
+        isLong,
+        data.quote,
+        dailyLossOffset,
+      );
 
-    const warrantRefreshResult = context.riskChecker.setWarrantInfoFromCallPrice(
-      data.nextSymbol,
-      data.callPrice,
-      isLong,
-      data.symbolName,
-    );
-    if (warrantRefreshResult.status === 'error') {
+      const warrantRefreshResult = context.riskChecker.setWarrantInfoFromCallPrice(
+        data.nextSymbol,
+        data.callPrice,
+        isLong,
+        data.symbolName,
+      );
+      if (warrantRefreshResult.status === 'error') {
+        markSeatAsEmpty(
+          data.monitorSymbol,
+          data.direction,
+          `设置牛熊证信息失败：${warrantRefreshResult.reason}`,
+          context,
+        );
+        return 'processed';
+      }
+
+      if (data.previousSymbol && data.previousSymbol !== data.nextSymbol) {
+        const previousQuote = data.quotesMap.get(data.previousSymbol) ?? null;
+        const existingSeat = context.symbolRegistry.resolveSeatBySymbol(data.previousSymbol);
+        if (!existingSeat) {
+          context.orderRecorder.clearBuyOrders(data.previousSymbol, isLong, previousQuote);
+          context.orderRecorder.clearOrdersCacheForSymbol(data.previousSymbol);
+        }
+      }
+    } catch (error) {
       markSeatAsEmpty(
         data.monitorSymbol,
         data.direction,
-        `设置牛熊证信息失败：${warrantRefreshResult.reason}`,
+        error instanceof Error ? error.message : String(error),
         context,
       );
-      return 'processed';
-    }
-
-    if (data.previousSymbol && data.previousSymbol !== data.nextSymbol) {
-      const previousQuote = data.quotesMap.get(data.previousSymbol) ?? null;
-      const existingSeat = context.symbolRegistry.resolveSeatBySymbol(data.previousSymbol);
-      if (!existingSeat) {
-        context.orderRecorder.clearBuyOrders(data.previousSymbol, isLong, previousQuote);
-        context.orderRecorder.clearOrdersCacheForSymbol(data.previousSymbol);
-      }
+      return 'failed';
     }
 
     return 'processed';

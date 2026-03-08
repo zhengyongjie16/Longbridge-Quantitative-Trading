@@ -22,28 +22,6 @@ import type {
 } from '../autoSymbolFinder/types.js';
 
 /**
- * 席位注册表内部条目。
- * 类型用途：存储单方向席位状态与版本号，供 SymbolRegistry 读写。
- * 数据来源：由 createSymbolRegistry 内 createSeatEntry 创建并维护。
- * 使用范围：仅 autoSymbolManager 模块内部（SymbolRegistry 实现）使用。
- */
-export type SeatEntry = {
-  state: SeatState;
-  version: number;
-};
-
-/**
- * 单个监控标的的席位条目。
- * 类型用途：存储多空两个方向的 SeatEntry，作为 SymbolRegistry Map 的值类型。
- * 数据来源：由 createSymbolRegistry 初始化并维护。
- * 使用范围：仅 autoSymbolManager 模块内部使用。
- */
-export type SymbolSeatEntry = {
-  long: SeatEntry;
-  short: SeatEntry;
-};
-
-/**
  * 自动换标管理器的依赖注入参数。
  * 类型用途：包含监控配置、席位注册表与各服务实例，由 createAutoSymbolManager 工厂函数消费。
  * 使用范围：autoSymbolManager 模块及其调用方使用。

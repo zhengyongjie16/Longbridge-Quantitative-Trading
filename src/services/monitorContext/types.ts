@@ -7,6 +7,7 @@ import type { HangSengMultiIndicatorStrategy } from '../../core/strategy/types.j
 import type { DailyLossTracker, UnrealizedLossMonitor } from '../../core/riskController/types.js';
 import type { DelayedSignalVerifier } from '../../main/asyncProgram/delayedSignalVerifier/types.js';
 import type { AutoSymbolManager } from '../autoSymbolManager/types.js';
+import type { MonitorRuntimeStore } from '../../app/runtime/types.js';
 
 /**
  * 监控上下文工厂的依赖注入参数。
@@ -26,4 +27,5 @@ export type MonitorContextFactoryDeps = {
   readonly unrealizedLossMonitor: UnrealizedLossMonitor;
   readonly delayedSignalVerifier: DelayedSignalVerifier;
   readonly autoSymbolManager: AutoSymbolManager;
+  readonly monitorRuntimeStore?: MonitorRuntimeStore;
 };
