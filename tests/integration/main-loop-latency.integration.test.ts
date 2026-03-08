@@ -39,10 +39,7 @@ import type { MainProgramContext } from '../../src/main/mainProgram/types.js';
 import type { MarketDataClient } from '../../src/types/services.js';
 import type { AutoSymbolManager } from '../../src/services/autoSymbolManager/types.js';
 import type { DelayedSignalVerifier } from '../../src/main/asyncProgram/delayedSignalVerifier/types.js';
-import type {
-  DailyLossTracker,
-  UnrealizedLossMonitor,
-} from '../../src/core/riskController/types.js';
+import type { DailyLossTracker, UnrealizedLossMonitor } from '../../src/types/risk.js';
 import type {
   MonitorTaskData,
   MonitorTaskType,

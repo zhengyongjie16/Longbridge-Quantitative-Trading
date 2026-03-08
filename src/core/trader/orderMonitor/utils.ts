@@ -1,6 +1,7 @@
 import { OrderSide, OrderStatus, type Decimal } from 'longport';
 import type { GlobalConfig } from '../../../types/config.js';
-import type { OrderClosedReason, OrderMonitorConfig } from '../types.js';
+import type { OrderClosedReason } from '../../../types/trader.js';
+import type { OrderMonitorConfig } from '../types.js';
 import {
   DEFAULT_PRICE_DECIMALS,
   ORDER_ALREADY_FILLED_ERROR_CODE_SET,

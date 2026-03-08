@@ -1,6 +1,6 @@
 import { TIME } from '../../constants/index.js';
 import { getHKTime } from '../../utils/tradingTime/index.js';
-import type { TradeRecord } from '../../core/trader/types.js';
+import type { TradeRecord } from '../../types/trader.js';
 import type { LiquidationCooldownConfig } from '../../types/config.js';
 import type { CooldownCandidate } from './types.js';
 

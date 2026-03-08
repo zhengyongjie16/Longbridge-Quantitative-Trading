@@ -14,7 +14,7 @@ import type { MarketDataClient, Trader } from '../../types/services.js';
 import type { MarketMonitor } from '../../services/marketMonitor/types.js';
 import type { DoomsdayProtection } from '../../core/doomsdayProtection/types.js';
 import type { SignalProcessor } from '../../core/signalProcessor/types.js';
-import type { DailyLossTracker } from '../../core/riskController/types.js';
+import type { DailyLossTracker } from '../../types/risk.js';
 import type { LossOffsetLifecycleCoordinator } from '../../core/riskController/lossOffsetLifecycleCoordinator/types.js';
 import type { DayLifecycleManager } from '../lifecycle/types.js';
 

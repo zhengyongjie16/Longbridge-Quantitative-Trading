@@ -9,9 +9,10 @@
 import { OrderSide } from 'longport';
 import { logger } from '../../../utils/logger/index.js';
 import { isValidPositiveNumber } from '../../../utils/helpers/index.js';
+import type { CancelOrderOutcome } from '../../../types/trader.js';
 import { toDecimal } from '../utils.js';
 import type { OrderOps, OrderOpsDeps } from './types.js';
-import type { CancelOrderOutcome, TrackOrderParams, TrackedOrder } from '../types.js';
+import type { TrackOrderParams, TrackedOrder } from '../types.js';
 import {
   extractErrorCode,
   extractErrorMessage,

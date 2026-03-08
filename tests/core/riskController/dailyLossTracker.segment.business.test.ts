@@ -11,8 +11,8 @@ import { createOrderFilteringEngine } from '../../../src/core/orderRecorder/orde
 import { classifyAndConvertOrders } from '../../../src/core/orderRecorder/utils.js';
 import { toHongKongTimeIso } from '../../../src/utils/time/index.js';
 import type { MonitorConfig } from '../../../src/types/config.js';
+import type { OrderOwnership } from '../../../src/types/orderRecorder.js';
 import type { RawOrderFromAPI } from '../../../src/types/services.js';
-import type { OrderOwnership } from '../../../src/core/orderRecorder/types.js';
 
 function createFilledOrder(params: {
   readonly orderId: string;

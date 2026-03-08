@@ -7,8 +7,8 @@
 import { describe, it, expect } from 'bun:test';
 import { createRiskDomain } from '../../../../src/main/lifecycle/cacheDomains/riskDomain.js';
 import type { MonitorContext } from '../../../../src/types/state.js';
+import type { DailyLossTracker } from '../../../../src/types/risk.js';
 import type { SignalProcessor } from '../../../../src/core/signalProcessor/types.js';
-import type { DailyLossTracker } from '../../../../src/core/riskController/types.js';
 import type { LiquidationCooldownTracker } from '../../../../src/services/liquidationCooldown/types.js';
 
 describe('createRiskDomain', () => {

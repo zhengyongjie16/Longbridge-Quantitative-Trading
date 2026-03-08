@@ -15,7 +15,8 @@ import { resolveLogRootDir } from '../../utils/runtime/index.js';
 import { toHongKongTimeIso } from '../../utils/time/index.js';
 import { isRecord } from '../../utils/primitives/index.js';
 import { buildTradeLogPath } from './utils.js';
-import type { TradeRecord, ErrorTypeIdentifier } from './types.js';
+import type { TradeRecord } from '../../types/trader.js';
+import type { ErrorTypeIdentifier } from './types.js';
 
 /**
  * 类型守卫：校验 unknown 是否为符合 TradeRecord 结构的对象。

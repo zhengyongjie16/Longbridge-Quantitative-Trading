@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'bun:test';
 import { createLossOffsetLifecycleCoordinator } from '../../../src/core/riskController/lossOffsetLifecycleCoordinator/index.js';
-import type { DailyLossTracker } from '../../../src/core/riskController/types.js';
+import type { DailyLossTracker } from '../../../src/types/risk.js';
 import type {
   CooldownExpiredEvent,
   LiquidationCooldownTracker,

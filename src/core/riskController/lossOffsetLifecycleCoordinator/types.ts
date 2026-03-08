@@ -1,6 +1,6 @@
 import type { LiquidationCooldownConfig } from '../../../types/config.js';
 import type { LiquidationCooldownTracker } from '../../../services/liquidationCooldown/types.js';
-import type { DailyLossTracker } from '../types.js';
+import type { DailyLossTracker } from '../../../types/risk.js';
 import type { Logger } from '../../../utils/logger/types.js';
 
 /**

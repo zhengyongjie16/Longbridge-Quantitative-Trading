@@ -13,7 +13,8 @@ import { decimalToNumber, isValidPositiveNumber } from '../../../utils/helpers/i
 import { formatSymbolDisplay } from '../../../utils/display/index.js';
 import type { MonitorConfig } from '../../../types/config.js';
 import type { Signal } from '../../../types/signal.js';
-import type { CancelOrderOutcome, OrderPayload, SubmitOrderParams } from '../types.js';
+import type { CancelOrderOutcome } from '../../../types/trader.js';
+import type { OrderPayload, SubmitOrderParams } from '../types.js';
 import {
   buildOrderRemark,
   extractOrderId,

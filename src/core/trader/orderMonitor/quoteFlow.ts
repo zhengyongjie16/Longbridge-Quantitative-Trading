@@ -15,8 +15,9 @@ import {
   TRADING,
 } from '../../../constants/index.js';
 import type { Quote } from '../../../types/quote.js';
+import type { CancelOrderOutcome } from '../../../types/trader.js';
 import { isConfirmedNonFilledClose, toDecimal } from '../utils.js';
-import type { CancelOrderOutcome, PendingSellOrderSnapshot, TrackedOrder } from '../types.js';
+import type { PendingSellOrderSnapshot, TrackedOrder } from '../types.js';
 import type { QuoteFlow, QuoteFlowDeps } from './types.js';
 import {
   calculatePriceDiffDecimal,

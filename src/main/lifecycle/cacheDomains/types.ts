@@ -21,7 +21,7 @@ import type { RefreshGate } from '../../../utils/types.js';
 import type { IndicatorCache } from '../../asyncProgram/indicatorCache/types.js';
 import type { WarrantListCache } from '../../../services/autoSymbolFinder/types.js';
 import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
-import type { DailyLossTracker } from '../../../core/riskController/types.js';
+import type { DailyLossTracker } from '../../../types/risk.js';
 import type { LiquidationCooldownTracker } from '../../../services/liquidationCooldown/types.js';
 
 /**

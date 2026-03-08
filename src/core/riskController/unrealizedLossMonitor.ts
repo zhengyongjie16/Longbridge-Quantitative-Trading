@@ -21,16 +21,16 @@ import { logger } from '../../utils/logger/index.js';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import type { Quote } from '../../types/quote.js';
-import type { Signal } from '../../types/signal.js';
-import type { RiskChecker, Trader, OrderRecorder } from '../../types/services.js';
-import { formatSymbolDisplay } from '../../utils/display/index.js';
-import { formatError } from '../../utils/error/index.js';
 import type {
   DailyLossTracker,
   UnrealizedLossMonitor,
   UnrealizedLossMonitorContext,
-  UnrealizedLossMonitorDeps,
-} from './types.js';
+} from '../../types/risk.js';
+import type { Signal } from '../../types/signal.js';
+import type { RiskChecker, Trader, OrderRecorder } from '../../types/services.js';
+import { formatSymbolDisplay } from '../../utils/display/index.js';
+import { formatError } from '../../utils/error/index.js';
+import type { UnrealizedLossMonitorDeps } from './types.js';
 
 /**
  * 创建浮亏监控器。

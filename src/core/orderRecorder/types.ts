@@ -1,5 +1,6 @@
 import type { TradeContext } from 'longport';
 import type { Quote } from '../../types/quote.js';
+import type { OrderFilteringEngine } from '../../types/orderRecorder.js';
 import type {
   OrderRecorderPendingSellAndSellable,
   OrderRecord,
@@ -19,17 +20,6 @@ export type OrderCache = {
   readonly sellOrders: ReadonlyArray<OrderRecord>;
   readonly allOrders: ReadonlyArray<RawOrderFromAPI> | null;
   readonly fetchTime: number;
-};
-
-/**
- * 订单归属解析结果。
- * 类型用途：表示单笔 API 订单归属的监控标的与方向，供 DailyLossTracker 等使用。
- * 数据来源：订单归属逻辑解析 RawOrderFromAPI 得到。
- * 使用范围：orderRecorder 与 riskController 等模块使用。
- */
-export type OrderOwnership = {
-  readonly monitorSymbol: string;
-  readonly direction: 'LONG' | 'SHORT';
 };
 
 /**
@@ -152,19 +142,6 @@ export interface OrderStorage extends OrderRecorderPendingSellAndSellable {
 
   /** 清空买卖记录与 pendingSells */
   clearAll: () => void;
-}
-
-/**
- * 订单过滤引擎接口。
- * 类型用途：依赖注入，实现智能清仓决策的订单过滤算法。
- * 数据来源：如适用。
- * 使用范围：由 OrderRecorder、DailyLossTracker 等依赖注入；仅 orderRecorder 模块实现。
- */
-export interface OrderFilteringEngine {
-  applyFilteringAlgorithm: (
-    allBuyOrders: ReadonlyArray<OrderRecord>,
-    filledSellOrders: ReadonlyArray<OrderRecord>,
-  ) => ReadonlyArray<OrderRecord>;
 }
 
 /**

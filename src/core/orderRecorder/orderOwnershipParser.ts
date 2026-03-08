@@ -11,8 +11,8 @@
 import { OrderStatus } from 'longport';
 import { ORDER_OWNERSHIP } from '../../constants/index.js';
 import type { MonitorConfig } from '../../types/config.js';
+import type { OrderOwnership } from '../../types/orderRecorder.js';
 import type { RawOrderFromAPI } from '../../types/services.js';
-import type { OrderOwnership } from './types.js';
 
 /** 统一转大写并去除非字母数字字符，避免大小写与分隔符导致误判 */
 function normalizeForMatching(str: string): string {

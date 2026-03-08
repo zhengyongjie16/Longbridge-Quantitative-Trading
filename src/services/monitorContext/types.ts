@@ -4,7 +4,7 @@ import type { Quote } from '../../types/quote.js';
 import type { SymbolRegistry } from '../../types/seat.js';
 import type { OrderRecorder, RiskChecker } from '../../types/services.js';
 import type { HangSengMultiIndicatorStrategy } from '../../core/strategy/types.js';
-import type { DailyLossTracker, UnrealizedLossMonitor } from '../../core/riskController/types.js';
+import type { DailyLossTracker, UnrealizedLossMonitor } from '../../types/risk.js';
 import type { DelayedSignalVerifier } from '../../main/asyncProgram/delayedSignalVerifier/types.js';
 import type { AutoSymbolManager } from '../autoSymbolManager/types.js';
 

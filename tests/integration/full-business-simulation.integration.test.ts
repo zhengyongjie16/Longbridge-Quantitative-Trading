@@ -31,10 +31,7 @@ import type { Candlestick } from 'longport';
 import type { CandleData } from '../../src/types/data.js';
 import type { LastState, MonitorContext } from '../../src/types/state.js';
 import type { MultiMonitorTradingConfig, MonitorConfig } from '../../src/types/config.js';
-import type {
-  DailyLossTracker,
-  UnrealizedLossMonitor,
-} from '../../src/core/riskController/types.js';
+import type { DailyLossTracker, UnrealizedLossMonitor } from '../../src/types/risk.js';
 import type { DayLifecycleManager } from '../../src/main/lifecycle/types.js';
 import type {
   MonitorTaskData,

@@ -7,7 +7,7 @@
  * - 恢复触发计数器与仍有效的清仓冷却缓存
  */
 import type { TradeLogHydrator, TradeLogHydratorDeps, RawRecord, HydrateResult } from './types.js';
-import type { TradeRecord } from '../../core/trader/types.js';
+import type { TradeRecord } from '../../types/trader.js';
 import { isRecord } from '../../utils/primitives/index.js';
 import { buildTradeLogPath } from '../../core/trader/utils.js';
 import {

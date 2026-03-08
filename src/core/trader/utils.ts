@@ -9,8 +9,8 @@ import {
   TRADING,
 } from '../../constants/index.js';
 import type { OrderTypeConfig, Signal } from '../../types/signal.js';
+import type { CancelOrderOutcome } from '../../types/trader.js';
 import type {
-  CancelOrderOutcome,
   OrderSubmitResponse,
   OrderTypeResolutionConfig,
   PendingSellOrderSnapshot,

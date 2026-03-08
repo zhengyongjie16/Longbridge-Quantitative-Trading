@@ -11,10 +11,7 @@ import type {
   RiskChecker,
   Trader,
 } from '../../../types/services.js';
-import type {
-  DailyLossTracker,
-  UnrealizedLossMonitor,
-} from '../../../core/riskController/types.js';
+import type { DailyLossTracker, UnrealizedLossMonitor } from '../../../types/risk.js';
 
 /**
  * 席位快照（任务创建时点的席位状态）。

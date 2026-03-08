@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'bun:test';
 
-import type { TradeRecord } from '../../../src/core/trader/types.js';
+import type { TradeRecord } from '../../../src/types/trader.js';
 import type { CooldownCandidate } from '../../../src/services/liquidationCooldown/types.js';
 import {
   collectLiquidationRecordsByMonitor,

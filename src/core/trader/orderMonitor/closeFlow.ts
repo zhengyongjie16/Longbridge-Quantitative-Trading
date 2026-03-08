@@ -14,7 +14,8 @@ import { recordTrade } from '../tradeLogger.js';
 import { hasProtectiveLiquidationRemark } from '../utils.js';
 import { resolveOrderOwnership } from '../../orderRecorder/orderOwnershipParser.js';
 import type { RawOrderFromAPI } from '../../../types/services.js';
-import type { OrderClosedReason, TrackedOrder } from '../types.js';
+import type { OrderClosedReason } from '../../../types/trader.js';
+import type { TrackedOrder } from '../types.js';
 import type {
   CloseFlow,
   CloseFlowDeps,

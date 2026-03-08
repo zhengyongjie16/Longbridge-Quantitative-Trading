@@ -1,5 +1,5 @@
 import type { Logger } from '../../utils/logger/types.js';
-import type { DailyLossTracker } from '../../core/riskController/types.js';
+import type { DailyLossTracker } from '../../types/risk.js';
 import type { TradeLogHydrator } from '../../services/liquidationCooldown/types.js';
 import type { WarrantListCacheConfig } from '../../services/autoSymbolFinder/types.js';
 import type { LastState, MonitorContext } from '../../types/state.js';

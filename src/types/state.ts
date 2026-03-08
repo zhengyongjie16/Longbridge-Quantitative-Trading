@@ -2,17 +2,10 @@ import type { SignalType, Signal } from './signal.js';
 import type { MonitorValues } from './data.js';
 import type { IndicatorSnapshot, Quote } from './quote.js';
 import type { AccountSnapshot, Position } from './account.js';
-import type { OrderSide } from 'longport';
 import type { MonitorConfig } from './config.js';
 import type { SeatState, SymbolRegistry, LifecycleState } from './seat.js';
-import type {
-  OrderRecorder,
-  PositionCache,
-  RawOrderFromAPI,
-  RiskChecker,
-  Trader,
-  TradingDayInfo,
-} from './services.js';
+import type { OrderRecorder, PositionCache, RiskChecker, TradingDayInfo } from './services.js';
+import type { DailyLossTracker, UnrealizedLossMonitor } from './risk.js';
 
 /**
  * 策略动作类型。
@@ -148,59 +141,6 @@ interface HangSengMultiIndicatorStrategy {
     readonly immediateSignals: ReadonlyArray<Signal>;
     readonly delayedSignals: ReadonlyArray<Signal>;
   };
-}
-
-/**
- * 当日亏损跟踪器行为契约。
- * 类型用途：约束 MonitorContext.dailyLossTracker 的核心方法。
- * 数据来源：由 riskController 模块实现并注入。
- * 使用范围：监控任务、成交处理与风险计算链路使用。
- */
-interface DailyLossTracker {
-  resetAll: (now: Date) => void;
-  recalculateFromAllOrders: (
-    allOrders: ReadonlyArray<RawOrderFromAPI>,
-    monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
-    now: Date,
-    segmentStartByDirection?: ReadonlyMap<string, number>,
-  ) => void;
-  recordFilledOrder: (input: {
-    readonly monitorSymbol: string;
-    readonly symbol: string;
-    readonly isLongSymbol: boolean;
-    readonly side: OrderSide;
-    readonly executedPrice: number;
-    readonly executedQuantity: number;
-    readonly executedTimeMs: number;
-    readonly orderId?: string | null;
-  }) => void;
-  getLossOffset: (monitorSymbol: string, isLongSymbol: boolean) => number;
-  resetDirectionSegment: (params: {
-    readonly monitorSymbol: string;
-    readonly direction: 'LONG' | 'SHORT';
-    readonly segmentStartMs: number;
-    readonly cooldownEndMs: number;
-  }) => void;
-}
-
-/**
- * 浮亏监控器行为契约。
- * 类型用途：约束 MonitorContext.unrealizedLossMonitor 的调用签名。
- * 数据来源：由 riskController 模块实现并注入。
- * 使用范围：monitorTaskProcessor 等调用方使用。
- */
-interface UnrealizedLossMonitor {
-  monitorUnrealizedLoss: (context: {
-    readonly longQuote: Quote | null;
-    readonly shortQuote: Quote | null;
-    readonly longSymbol: string;
-    readonly shortSymbol: string;
-    readonly monitorSymbol: string;
-    readonly riskChecker: RiskChecker;
-    readonly trader: Trader;
-    readonly orderRecorder: OrderRecorder;
-    readonly dailyLossTracker: DailyLossTracker;
-  }) => Promise<void>;
 }
 
 /**

@@ -1,6 +1,8 @@
 import type { Decimal, PushOrderChanged, TradeContext } from 'longport';
 import type { MonitorConfig, MultiMonitorTradingConfig } from '../../../types/config.js';
+import type { DailyLossTracker } from '../../../types/risk.js';
 import type { SymbolRegistry } from '../../../types/seat.js';
+import type { CancelOrderOutcome, OrderClosedReason } from '../../../types/trader.js';
 import type {
   OrderRecorder,
   PendingRefreshSymbol,
@@ -8,12 +10,9 @@ import type {
   RawOrderFromAPI,
 } from '../../../types/services.js';
 import type { Quote } from '../../../types/quote.js';
-import type { DailyLossTracker } from '../../riskController/types.js';
 import type { LiquidationCooldownTracker } from '../../../services/liquidationCooldown/types.js';
 import type { RefreshGate } from '../../../utils/types.js';
 import type {
-  CancelOrderOutcome,
-  OrderClosedReason,
   OrderCacheManager,
   OrderMonitorConfig,
   OrderHoldRegistry,

@@ -15,7 +15,7 @@ import type { AccountSnapshot, Position } from './account.js';
 import type { DecimalLikeValue } from './common.js';
 import type { MonitorConfig } from './config.js';
 import type { TradingCalendarSnapshot } from './tradingCalendar.js';
-import type { CancelOrderOutcome } from '../core/trader/types.js';
+import type { CancelOrderOutcome } from './trader.js';
 
 /**
  * 交易日查询结果。
@@ -288,7 +288,7 @@ export interface RateLimiter {
  * 订单记录器中「待成交卖单 + 可卖订单」相关方法的共享契约。
  * 类型用途：OrderRecorder 与 OrderStorage 共用此方法集合，单一来源避免重复定义。
  * 数据来源：如适用。
- * 使用范围：src/types/services（OrderRecorder）、src/core/orderRecorder/types（OrderStorage）从本处直接引用。
+ * 使用范围：OrderRecorder、OrderStorage 等订单记录相关契约；全项目可直接引用。
  */
 export interface OrderRecorderPendingSellAndSellable {
   /** 标记卖出订单完全成交 */

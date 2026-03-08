@@ -21,7 +21,7 @@ import type { MonitorContext } from '../../types/state.js';
 import type { Quote } from '../../types/quote.js';
 import type { SymbolRegistry } from '../../types/seat.js';
 import type { MarketDataClient, RawOrderFromAPI } from '../../types/services.js';
-import type { DailyLossTracker } from '../../core/riskController/types.js';
+import type { DailyLossTracker } from '../../types/risk.js';
 import type { RebuildTradingDayStateDeps, RebuildTradingDayStateParams } from './types.js';
 import { prewarmTradingCalendarSnapshotForRebuild } from './tradingCalendarPrewarmer.js';
 import { formatError } from '../../utils/error/index.js';

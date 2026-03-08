@@ -7,6 +7,12 @@
 import { OrderSide, OrderStatus } from 'longport';
 import { logger } from '../../utils/logger/index.js';
 import type { MonitorConfig } from '../../types/config.js';
+import type {
+  DailyLossFilledOrderInput,
+  DailyLossTracker,
+  DailyLossTrackerDeps,
+  ResetDirectionSegmentParams,
+} from '../../types/risk.js';
 import type { OrderRecord, RawOrderFromAPI } from '../../types/services.js';
 import {
   decimalAdd,
@@ -15,13 +21,7 @@ import {
   decimalToNumberValue,
   toDecimalValue,
 } from '../../utils/numeric/index.js';
-import type {
-  DailyLossFilledOrderInput,
-  DailyLossState,
-  DailyLossTracker,
-  DailyLossTrackerDeps,
-  ResetDirectionSegmentParams,
-} from './types.js';
+import type { DailyLossState } from './types.js';
 import { buildCooldownKey } from '../../services/liquidationCooldown/utils.js';
 import { collectOrderOwnershipDiagnostics, resolveHongKongDayKey, sumOrderCost } from './utils.js';
 
