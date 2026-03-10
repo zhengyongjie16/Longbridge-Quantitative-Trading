@@ -97,7 +97,7 @@ mock.module('../../src/main/processMonitor/index.js', () => ({
 }));
 
 // eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 在导入 mainProgram 前同步注册
-mock.module('../../src/utils/tradingTime/index.js', () => ({
+mock.module('../../src/utils/time/index.js', () => ({
   getHKDateKey: (now: Date) => tradingTimeOverrides.dayKey ?? getHKDateKeyFallback(now),
   isInContinuousHKSession: (now: Date, isHalfDay: boolean) =>
     tradingTimeOverrides.isInContinuousSession ?? isInContinuousHKSessionFallback(now, isHalfDay),

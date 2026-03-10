@@ -5,7 +5,7 @@
  * - 验证卖出流程端到端场景与业务期望。
  */
 import { describe, expect, it } from 'bun:test';
-import { OrderSide, OrderType, type TradeContext } from 'longport';
+import { OrderSide, OrderStatus, OrderType, type TradeContext } from 'longport';
 import { createSignalProcessor } from '../../src/core/signalProcessor/index.js';
 import { createOrderStorage } from '../../src/core/orderRecorder/orderStorage.js';
 import { createOrderExecutor } from '../../src/core/trader/orderExecutor/index.js';
@@ -409,5 +409,231 @@ describe('sell-flow integration', () => {
     expect(payload.side).toBe(OrderSide.Sell);
     expect(Number(payload.submittedQuantity.toString())).toBe(200);
     expect(sellOrderLinks[0]?.related.length).toBe(2);
+  });
+
+  it('merges pending sell occupancy on REPLACE without releasing original related buy orders', async () => {
+    const tradingConfig = createTradingConfig();
+    const tradeCtx = createTradeContextMock();
+    tradeCtx.seedStockPositions(
+      createStockPositionsResponse({
+        symbol: 'BULL.HK',
+        quantity: 300,
+        availableQuantity: 300,
+      }),
+    );
+
+    const replaceCalls: Array<{
+      orderId: string;
+      price: number;
+      quantity: number | null | undefined;
+    }> = [];
+    const updatedPendingSells: Array<{
+      orderId: string;
+      submittedQuantity: number;
+      relatedBuyOrderIds: ReadonlyArray<string>;
+    }> = [];
+    const submittedAt = Date.parse('2026-02-25T03:00:00.000Z');
+
+    const orderExecutor = createOrderExecutor({
+      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      rateLimiter: {
+        throttle: async () => {},
+      },
+      cacheManager: {
+        clearCache: () => {},
+        getPendingOrders: async () => [],
+      },
+      orderMonitor: {
+        initialize: async () => {},
+        trackOrder: () => {},
+        cancelOrder: async () => ({
+          kind: 'CANCEL_CONFIRMED',
+          closedReason: 'CANCELED',
+          source: 'API',
+          relatedBuyOrderIds: null,
+        }),
+        replaceOrderPrice: async (orderId, price, quantity) => {
+          replaceCalls.push({ orderId, price, quantity });
+        },
+        processWithLatestQuotes: async () => {},
+        recoverOrderTrackingFromSnapshot: async () => {},
+        getPendingSellOrders: () => [
+          {
+            orderId: 'SELL-EXISTING',
+            symbol: 'BULL.HK',
+            side: OrderSide.Sell,
+            status: OrderStatus.New,
+            orderType: OrderType.ELO,
+            submittedPrice: 1,
+            submittedQuantity: 100,
+            executedQuantity: 0,
+            submittedAt,
+          },
+        ],
+        getAndClearPendingRefreshSymbols: () => [],
+        clearTrackedOrders: () => {},
+      },
+      orderRecorder: createOrderRecorderDouble({
+        getPendingSellSnapshot: () => [
+          {
+            orderId: 'SELL-EXISTING',
+            symbol: 'BULL.HK',
+            direction: 'LONG',
+            submittedQuantity: 100,
+            filledQuantity: 0,
+            relatedBuyOrderIds: ['BUY-OLD'],
+            status: 'pending',
+            submittedAt,
+          },
+        ],
+        updatePendingSell: (orderId, params) => {
+          updatedPendingSells.push({
+            orderId,
+            submittedQuantity: params.submittedQuantity,
+            relatedBuyOrderIds: params.relatedBuyOrderIds,
+          });
+          return null;
+        },
+      }),
+      tradingConfig,
+      symbolRegistry: createSymbolRegistryDouble(),
+      isExecutionAllowed: () => true,
+    });
+
+    const signal = createSignal({
+      symbol: 'BULL.HK',
+      action: 'SELLCALL',
+      price: 1.02,
+      triggerTimeMs: Date.now(),
+      reason: 'replace-merge',
+    });
+    signal.quantity = 50;
+    signal.relatedBuyOrderIds = ['BUY-NEW'];
+
+    const result = await orderExecutor.executeSignals([signal]);
+
+    expect(result).toEqual({
+      submittedCount: 0,
+      submittedOrderIds: [],
+    });
+
+    expect(replaceCalls).toEqual([
+      {
+        orderId: 'SELL-EXISTING',
+        price: 1.02,
+        quantity: 150,
+      },
+    ]);
+
+    expect(updatedPendingSells).toEqual([
+      {
+        orderId: 'SELL-EXISTING',
+        submittedQuantity: 150,
+        relatedBuyOrderIds: ['BUY-OLD', 'BUY-NEW'],
+      },
+    ]);
+    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
+  });
+
+  it('carries original related buy orders into CANCEL_AND_SUBMIT merged sell order', async () => {
+    const tradingConfig = createTradingConfig();
+    const tradeCtx = createTradeContextMock();
+    tradeCtx.seedStockPositions(
+      createStockPositionsResponse({
+        symbol: 'BULL.HK',
+        quantity: 300,
+        availableQuantity: 300,
+      }),
+    );
+
+    const cancelCalls: string[] = [];
+    const trackedOrders: Array<{ orderId: string; quantity: number }> = [];
+    const submittedSellLinks: Array<{
+      orderId: string;
+      quantity: number;
+      relatedBuyOrderIds: ReadonlyArray<string>;
+    }> = [];
+
+    const orderExecutor = createOrderExecutor({
+      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      rateLimiter: {
+        throttle: async () => {},
+      },
+      cacheManager: {
+        clearCache: () => {},
+        getPendingOrders: async () => [],
+      },
+      orderMonitor: {
+        initialize: async () => {},
+        trackOrder: ({ orderId, quantity }) => {
+          trackedOrders.push({ orderId, quantity });
+        },
+        cancelOrder: async (orderId) => {
+          cancelCalls.push(orderId);
+          return {
+            kind: 'CANCEL_CONFIRMED',
+            closedReason: 'CANCELED',
+            source: 'API',
+            relatedBuyOrderIds: ['BUY-OLD'],
+          };
+        },
+        replaceOrderPrice: async () => {},
+        processWithLatestQuotes: async () => {},
+        recoverOrderTrackingFromSnapshot: async () => {},
+        getPendingSellOrders: () => [
+          {
+            orderId: 'SELL-MARKET-EXISTING',
+            symbol: 'BULL.HK',
+            side: OrderSide.Sell,
+            status: OrderStatus.New,
+            orderType: OrderType.MO,
+            submittedPrice: 1,
+            submittedQuantity: 100,
+            executedQuantity: 0,
+            submittedAt: Date.parse('2026-02-25T03:00:00.000Z'),
+          },
+        ],
+        getAndClearPendingRefreshSymbols: () => [],
+        clearTrackedOrders: () => {},
+      },
+      orderRecorder: createOrderRecorderDouble({
+        submitSellOrder: (orderId, _symbol, _direction, quantity, relatedBuyOrderIds) => {
+          submittedSellLinks.push({
+            orderId,
+            quantity,
+            relatedBuyOrderIds,
+          });
+        },
+      }),
+      tradingConfig,
+      symbolRegistry: createSymbolRegistryDouble(),
+      isExecutionAllowed: () => true,
+    });
+
+    const signal = createSignal({
+      symbol: 'BULL.HK',
+      action: 'SELLCALL',
+      price: 1.03,
+      triggerTimeMs: Date.now(),
+      reason: 'cancel-and-submit-merge',
+    });
+    signal.quantity = 50;
+    signal.relatedBuyOrderIds = ['BUY-NEW'];
+
+    const result = await orderExecutor.executeSignals([signal]);
+
+    expect(result.submittedCount).toBe(1);
+    expect(cancelCalls).toEqual(['SELL-MARKET-EXISTING']);
+    expect(trackedOrders).toHaveLength(1);
+    expect(trackedOrders[0]?.quantity).toBe(150);
+    expect(submittedSellLinks).toHaveLength(1);
+    expect(submittedSellLinks[0]?.quantity).toBe(150);
+    expect(submittedSellLinks[0]?.relatedBuyOrderIds).toEqual(['BUY-NEW', 'BUY-OLD']);
+
+    const submitCall = tradeCtx.getCalls('submitOrder')[0];
+    const payload = submitCall?.args[0] as {
+      readonly submittedQuantity: { readonly toString: () => string };
+    };
+    expect(Number(payload.submittedQuantity.toString())).toBe(150);
   });
 });

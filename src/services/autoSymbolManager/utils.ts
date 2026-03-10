@@ -1,7 +1,13 @@
 import type { MonitorConfig } from '../../types/config.js';
 import type { Position } from '../../types/account.js';
 import type { SeatState, SeatStatus, SymbolRegistry } from '../../types/seat.js';
-import type { SeatEntry, SeatUnavailableReason, SymbolSeatEntry } from './types.js';
+import type {
+  SeatEntry,
+  SeatUnavailableReason,
+  SignalSeatValidationResult,
+  SymbolSeatEntry,
+  ValidateSignalSeatParams,
+} from './types.js';
 
 /**
  * 检查席位是否就绪（有有效标的且状态为 READY）
@@ -124,6 +130,108 @@ export function isSeatVersionMatch(
   currentVersion: number,
 ): boolean {
   return Number.isFinite(signalVersion) && signalVersion === currentVersion;
+}
+
+function resolveSignalDirection(
+  action: ValidateSignalSeatParams['signal']['action'],
+): 'LONG' | 'SHORT' {
+  switch (action) {
+    case 'BUYCALL':
+    case 'SELLCALL': {
+      return 'LONG';
+    }
+
+    case 'BUYPUT':
+    case 'SELLPUT': {
+      return 'SHORT';
+    }
+
+    case 'HOLD': {
+      throw new Error('HOLD 信号不支持席位校验');
+    }
+
+    default: {
+      throw new Error(`不支持的席位校验信号动作: ${String(action)}`);
+    }
+  }
+}
+
+/**
+ * 校验信号是否仍绑定到当前席位。
+ * 默认行为：按 action 推导方向后，依次校验席位 READY、席位版本匹配与席位标的一致性。
+ *
+ * @param params 校验所需的 monitorSymbol、signal 与 symbolRegistry
+ * @returns 校验结果；成功时返回收窄后的就绪 seatState，失败时返回失败原因
+ */
+export function validateSignalSeat(params: ValidateSignalSeatParams): SignalSeatValidationResult {
+  const direction = resolveSignalDirection(params.signal.action);
+  const seatState = params.symbolRegistry.getSeatState(params.monitorSymbol, direction);
+  const seatVersion = params.symbolRegistry.getSeatVersion(params.monitorSymbol, direction);
+  if (!isSeatReady(seatState)) {
+    return {
+      valid: false,
+      direction,
+      reason: 'SEAT_UNAVAILABLE',
+      seatState,
+      seatVersion,
+    };
+  }
+
+  if (!isSeatVersionMatch(params.signal.seatVersion, seatVersion)) {
+    return {
+      valid: false,
+      direction,
+      reason: 'SEAT_VERSION_MISMATCH',
+      seatState,
+      seatVersion,
+    };
+  }
+
+  if (params.signal.symbol !== seatState.symbol) {
+    return {
+      valid: false,
+      direction,
+      reason: 'SEAT_SYMBOL_MISMATCH',
+      seatState,
+      seatVersion,
+    };
+  }
+
+  return {
+    valid: true,
+    direction,
+    seatState,
+    seatVersion,
+  };
+}
+
+/**
+ * 格式化信号席位校验失败原因。
+ * 默认行为：席位不可用时复用席位状态描述，其余失败返回统一中文原因。
+ *
+ * @param result validateSignalSeat 返回的失败结果
+ * @returns 可直接用于日志的中文失败原因
+ */
+export function describeSignalSeatValidationFailure(
+  result: Extract<SignalSeatValidationResult, { valid: false }>,
+): string {
+  switch (result.reason) {
+    case 'SEAT_UNAVAILABLE': {
+      return describeSeatUnavailable(result.seatState);
+    }
+
+    case 'SEAT_VERSION_MISMATCH': {
+      return '席位版本不匹配';
+    }
+
+    case 'SEAT_SYMBOL_MISMATCH': {
+      return '标的已切换';
+    }
+
+    default: {
+      throw new Error(`未知的信号席位校验失败原因: ${String(result.reason)}`);
+    }
+  }
 }
 
 /**

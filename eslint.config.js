@@ -232,6 +232,105 @@ export default defineConfig(
       '@typescript-eslint/unbound-method': 'off',
     },
   },
+  {
+    files: ['src/main/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '../app/*',
+                '../../app/*',
+                '../../../app/*',
+                '../../../../app/*',
+                '../../../../../app/*',
+              ],
+              message: 'main 层不得反向依赖 app 层',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/services/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '../app/*',
+                '../../app/*',
+                '../../../app/*',
+                '../../../../app/*',
+                '../../../../../app/*',
+              ],
+              message: 'services 层不得反向依赖 app 层',
+            },
+            {
+              group: [
+                '../main/*',
+                '../../main/*',
+                '../../../main/*',
+                '../../../../main/*',
+                '../../../../../main/*',
+              ],
+              message: 'services 层不得依赖 main 层',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/core/**/*.ts', 'src/types/**/*.ts', 'src/config/**/*.ts', 'src/utils/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '../app/*',
+                '../../app/*',
+                '../../../app/*',
+                '../../../../app/*',
+                '../../../../../app/*',
+              ],
+              message: '下层模块不得反向依赖 app 层',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/index.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            './app/*',
+            '!./app/runApp.js',
+            './config/*',
+            './constants/*',
+            './core/*',
+            './main/*',
+            './services/*',
+            './types/*',
+            './utils/*',
+            '!./utils/error/index.js',
+            '!./utils/logger/index.js',
+          ],
+        },
+      ],
+    },
+  },
   eslintConfigPrettier,
   {
     // 以下规则须在 Prettier 之后以覆盖其对该规则的关闭

@@ -8,11 +8,12 @@
  */
 import type { TradeLogHydrator, TradeLogHydratorDeps, RawRecord, HydrateResult } from './types.js';
 import type { TradeRecord } from '../../types/trader.js';
-import { isRecord } from '../../utils/primitives/index.js';
+import { isRecord } from '../../utils/helpers/index.js';
 import { buildTradeLogPath } from '../../core/trader/utils.js';
 import {
   collectLiquidationRecordsByMonitor,
   resolveCooldownEndMs,
+  resolveRemainingCooldownMs,
   simulateTriggerCycle,
   toStringOrNull,
   toNumberOrNull,
@@ -101,9 +102,10 @@ export function createTradeLogHydrator(deps: TradeLogHydratorDeps): TradeLogHydr
    * - 冷却已过期：以 cooldownEndMs 作为新分段起点，冷却前的成交不再计入当前偏移
    */
   function hydrate(): HydrateResult {
-    const logFile = buildTradeLogPath(resolveLogRootDir(), new Date(nowMs()));
+    const currentTimeMs = nowMs();
+    const logFile = buildTradeLogPath(resolveLogRootDir(), new Date(currentTimeMs));
     if (!existsSync(logFile)) {
-      logger.debug(`[清仓冷却] 当日成交日志不存在，跳过冷却恢复: ${logFile}`);
+      logger.info(`[清仓冷却] 当日成交日志不存在，跳过冷却恢复: ${logFile}`);
       return EMPTY_RESULT;
     }
 
@@ -170,29 +172,17 @@ export function createTradeLogHydrator(deps: TradeLogHydratorDeps): TradeLogHydr
         );
       }
 
-      if (cycleResult.currentCount > 0) {
-        liquidationCooldownTracker.restoreTriggerCount({
-          symbol: firstRecord.monitorSymbol,
-          direction: firstRecord.direction,
-          count: cycleResult.currentCount,
-        });
-      }
-
       if (cycleResult.cooldownExecutedTimeMs === null) {
+        if (cycleResult.currentCount > 0) {
+          liquidationCooldownTracker.restoreTriggerCount({
+            symbol: firstRecord.monitorSymbol,
+            direction: firstRecord.direction,
+            count: cycleResult.currentCount,
+          });
+        }
+
         continue;
       }
-
-      liquidationCooldownTracker.recordCooldown({
-        symbol: firstRecord.monitorSymbol,
-        direction: firstRecord.direction,
-        executedTimeMs: cycleResult.cooldownExecutedTimeMs,
-      });
-
-      const remainingMs = liquidationCooldownTracker.getRemainingMs({
-        symbol: firstRecord.monitorSymbol,
-        direction: firstRecord.direction,
-        cooldownConfig,
-      });
 
       // 计算分段边界：冷却活跃时无需切段（当前冷却内的成交仍属同一分段）；
       // 冷却已过期时，cooldownEndMs 作为新分段起始时间，旧段成交不纳入偏移
@@ -200,9 +190,23 @@ export function createTradeLogHydrator(deps: TradeLogHydratorDeps): TradeLogHydr
         cycleResult.cooldownExecutedTimeMs,
         cooldownConfig,
       );
+      const remainingMs = resolveRemainingCooldownMs(cooldownEndMs, currentTimeMs);
       if (remainingMs > 0) {
+        if (cycleResult.currentCount > 0) {
+          liquidationCooldownTracker.restoreTriggerCount({
+            symbol: firstRecord.monitorSymbol,
+            direction: firstRecord.direction,
+            count: cycleResult.currentCount,
+          });
+        }
+
+        liquidationCooldownTracker.recordCooldown({
+          symbol: firstRecord.monitorSymbol,
+          direction: firstRecord.direction,
+          executedTimeMs: cycleResult.cooldownExecutedTimeMs,
+        });
         restoredCooldownCount += 1;
-        logger.debug(
+        logger.info(
           `[清仓冷却] 恢复 ${firstRecord.monitorSymbol}:${firstRecord.direction} 冷却，` +
             `当前周期触发 ${cycleResult.currentCount}/${triggerLimit}，` +
             `剩余 ${Math.ceil(remainingMs / 1000)} 秒`,
@@ -210,7 +214,7 @@ export function createTradeLogHydrator(deps: TradeLogHydratorDeps): TradeLogHydr
       } else if (cooldownEndMs !== null && Number.isFinite(cooldownEndMs)) {
         // 冷却已过期：设置分段起始时间为冷却结束时间
         setLatestSegmentStart(segmentStartByDirection, directionKey, cooldownEndMs);
-        logger.debug(
+        logger.info(
           `[清仓冷却] ${firstRecord.monitorSymbol}:${firstRecord.direction} 历史冷却已过期，` +
             `分段起始时间=${cooldownEndMs}`,
         );

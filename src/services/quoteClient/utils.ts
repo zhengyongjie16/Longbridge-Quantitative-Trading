@@ -1,8 +1,7 @@
 import { NaiveDate, Period } from 'longport';
-import { isValidPositiveNumber } from '../../utils/helpers/index.js';
-import { isRecord } from '../../utils/primitives/index.js';
+import { isRecord, isValidPositiveNumber } from '../../utils/helpers/index.js';
 import type { StaticInfo } from './types.js';
-import { getHKDateKey } from '../../utils/tradingTime/index.js';
+import { getHKDateKey } from '../../utils/time/index.js';
 
 const PERIOD_LABEL_MAP: Readonly<Record<number, string>> = {
   [Period.Unknown]: '未知',
@@ -107,29 +106,12 @@ export function extractName(staticInfo: unknown): string | null {
 }
 
 /**
- * 获取港股日期键（UTC+8），确保返回非空值
- * @param date 时间对象
- * @returns YYYY-MM-DD 格式日期键
- */
-export function resolveHKDateKey(date: Date): string {
-  const hkDateKey = getHKDateKey(date);
-  if (hkDateKey !== null) {
-    return hkDateKey;
-  }
-
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(date.getUTCDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-/**
  * 将时间对象转换为港股日期的 NaiveDate
  * @param date 时间对象
  * @returns NaiveDate 实例
  */
 export function resolveHKNaiveDate(date: Date): NaiveDate {
-  const dateKey = resolveHKDateKey(date);
+  const dateKey = getHKDateKey(date);
   const parts = dateKey.split('-');
   const year = Number(parts[0]);
   const month = Number(parts[1]);

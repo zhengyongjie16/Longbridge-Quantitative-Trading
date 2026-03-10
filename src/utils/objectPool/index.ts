@@ -12,6 +12,14 @@ import type {
 import type { Signal } from '../../types/signal.js';
 import type { MonitorValues } from '../../types/data.js';
 
+function resetRecordObject<T extends Record<string | number, unknown>>(obj: T): T {
+  for (const key of Object.keys(obj)) {
+    Reflect.deleteProperty(obj, key);
+  }
+
+  return obj;
+}
+
 /**
  * 创建通用对象池，池空时用 factory 创建新对象，release 时用 reset 重置后放回池中。默认行为：maxSize 未传时为 100。
  *
@@ -50,9 +58,10 @@ function createObjectPool<T>(
    * @returns 无返回值
    */
   function release(obj: T | null | undefined): void {
-    if (!obj || pool.length >= maxSize) return;
+    if (!obj || pool.length >= maxSize) {
+      return;
+    }
 
-    // 重置对象状态
     pool.push(reset(obj));
   }
 
@@ -62,7 +71,9 @@ function createObjectPool<T>(
    * @returns 无返回值
    */
   function releaseAll(objects: ReadonlyArray<T> | null | undefined): void {
-    if (!objects) return;
+    if (!objects) {
+      return;
+    }
 
     for (const obj of objects) {
       release(obj);
@@ -81,10 +92,7 @@ function createObjectPool<T>(
  * 用于 verificationHistory 数组中的条目对象
  */
 const verificationEntryPool = createObjectPool<PoolableVerificationEntry>(
-  // 工厂函数：创建空对象（支持动态配置的验证指标）
   () => ({ timestamp: null, indicators: null }),
-
-  // 重置函数：清空所有属性
   (obj) => {
     obj.timestamp = null;
     obj.indicators = null; // 清空引用，避免内存泄漏
@@ -103,17 +111,8 @@ const verificationEntryPool = createObjectPool<PoolableVerificationEntry>(
  * 注意：此对象池需要在 signalObjectPool 之前定义，因为 signalObjectPool 的重置函数需要使用它
  */
 export const indicatorRecordPool = createObjectPool<Record<string, number>>(
-  // 工厂函数：创建空对象
   () => ({}),
-
-  // 重置函数：清空所有属性
-  (obj) => {
-    for (const key in obj) {
-      Reflect.deleteProperty(obj, key);
-    }
-
-    return obj;
-  },
+  resetRecordObject,
   100, // 最大保存100个对象
 );
 
@@ -125,7 +124,6 @@ export const indicatorRecordPool = createObjectPool<Record<string, number>>(
  * 这是对象池模式的标准实现，类型断言在此场景下是安全的
  */
 export const signalObjectPool = createObjectPool<PoolableSignal>(
-  // 工厂函数：创建信号对象
   () => ({
     symbol: null,
     symbolName: null,
@@ -201,14 +199,11 @@ export function acquireSignal(): Signal {
  * 用于KDJ指标数据对象的复用
  */
 export const kdjObjectPool = createObjectPool<PoolableKDJ>(
-  // 工厂函数：创建空对象
   () => ({
     k: null,
     d: null,
     j: null,
   }),
-
-  // 重置函数：清空所有属性
   (obj) => {
     obj.k = null;
     obj.d = null;
@@ -223,14 +218,11 @@ export const kdjObjectPool = createObjectPool<PoolableKDJ>(
  * 用于MACD指标数据对象的复用
  */
 export const macdObjectPool = createObjectPool<PoolableMACD>(
-  // 工厂函数：创建空对象
   () => ({
     macd: null,
     dif: null,
     dea: null,
   }),
-
-  // 重置函数：清空所有属性
   (obj) => {
     obj.macd = null;
     obj.dif = null;
@@ -248,7 +240,6 @@ export const macdObjectPool = createObjectPool<PoolableMACD>(
  * 这是对象池模式的标准实现，类型断言在此场景下是安全的
  */
 export const monitorValuesObjectPool = createObjectPool<PoolableMonitorValues>(
-  // 工厂函数：创建空对象
   () => ({
     price: null,
     changePercent: null,
@@ -260,8 +251,6 @@ export const monitorValuesObjectPool = createObjectPool<PoolableMonitorValues>(
     macd: null,
     adx: null,
   }),
-
-  // 重置函数：清空所有属性
   (obj) => {
     obj.price = null;
     obj.changePercent = null;
@@ -293,7 +282,6 @@ export function acquireMonitorValues(): MonitorValues {
  * 这是对象池模式的标准实现，类型断言在此场景下是安全的
  */
 export const positionObjectPool = createObjectPool<PoolablePosition>(
-  // 工厂函数：创建空对象
   () => ({
     accountChannel: null,
     symbol: null,
@@ -304,8 +292,6 @@ export const positionObjectPool = createObjectPool<PoolablePosition>(
     costPrice: 0,
     market: null,
   }),
-
-  // 重置函数：清空所有属性
   (obj) => {
     obj.accountChannel = null;
     obj.symbol = null;
@@ -328,16 +314,7 @@ export const positionObjectPool = createObjectPool<PoolablePosition>(
  * - marketMonitor/index.ts 中的 EMA/RSI 浅拷贝
  */
 export const periodRecordPool = createObjectPool<Record<number, number>>(
-  // 工厂函数：创建空对象
   () => ({}),
-
-  // 重置函数：清空所有属性
-  (obj) => {
-    for (const key in obj) {
-      Reflect.deleteProperty(obj, key);
-    }
-
-    return obj;
-  },
+  resetRecordObject,
   100, // 最大保存100个对象
 );

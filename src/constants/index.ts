@@ -13,6 +13,7 @@
  */
 import { FilterWarrantExpiryDate, OrderStatus, OrderType, Period } from 'longport';
 import type { OrderTypeConfig, SignalType } from '../types/signal.js';
+import type { StrategyAction } from '../types/state.js';
 
 /** 时间相关常量 */
 export const TIME = {
@@ -124,7 +125,7 @@ export const VERIFICATION = {
 export const VERIFICATION_FIXED_INDICATORS = new Set(['K', 'D', 'J', 'MACD', 'DIF', 'DEA', 'ADX']);
 
 /** 信号条件解析中允许无周期的固定指标集合（不含 RSI/PSY） */
-export const SIGNAL_CONFIG_SUPPORTED_INDICATORS = ['MFI', 'K', 'D', 'J'] as const;
+export const SIGNAL_CONFIG_SUPPORTED_INDICATORS = ['MFI', 'K', 'D', 'J', 'ADX'] as const;
 
 /** 日志相关常量，用于 pino 日志系统 */
 export const LOGGING = {
@@ -354,12 +355,15 @@ export const ACCOUNT_CHANNEL_MAP: Record<string, string> = {
 };
 
 /** 有效的交易信号集合，不包含 HOLD（仅用于判断是否需要执行交易） */
-export const VALID_SIGNAL_ACTIONS = new Set<SignalType>([
+export const STRATEGY_ACTIONS: ReadonlyArray<StrategyAction> = [
   'BUYCALL',
   'SELLCALL',
   'BUYPUT',
   'SELLPUT',
-]);
+] as const;
+
+/** 有效的交易信号集合，不包含 HOLD（仅用于判断是否需要执行交易） */
+export const VALID_SIGNAL_ACTIONS = new Set<SignalType>(STRATEGY_ACTIONS);
 
 /** 信号操作描述映射，用于日志输出 */
 export const ACTION_DESCRIPTIONS: Record<SignalType, string> = {

@@ -8,7 +8,7 @@
  * 1. 验证交易日信息（可选）
  * 2. 初始化订单监控订阅（进入 BOOTSTRAPPING）
  * 3. 刷新账户和持仓数据
- * 4. 获取全量订单并解析席位绑定（prepareSeatsOnStartup）
+ * 4. 获取全量订单并解析席位绑定（prepareSeatsForRuntime）
  * 5. 从交易日志水合冷却状态，恢复分段边界（可选）
  * 6. 基于分段边界回算日内亏损追踪
  * 7. 重置行情订阅（可选）
@@ -23,9 +23,9 @@ import { TRADING } from '../../constants/index.js';
 import {
   getTradingMinutesSinceOpen,
   isWithinMorningOpenProtection,
-} from '../../utils/tradingTime/index.js';
+} from '../../utils/time/index.js';
 import { logger } from '../../utils/logger/index.js';
-import { prepareSeatsOnStartup } from '../startup/seat.js';
+import { prepareSeatsForRuntime } from '../recovery/seatPreparation.js';
 import { collectRuntimeQuoteSymbols, refreshAccountAndPositions } from '../utils.js';
 import type { RawOrderFromAPI } from '../../types/services.js';
 import { formatError } from '../../utils/error/index.js';
@@ -105,13 +105,13 @@ export function createLoadTradingDayRuntimeSnapshot(
     }
 
     trader.seedOrderHoldSymbols(allOrders);
-    await prepareSeatsOnStartup({
+    await prepareSeatsForRuntime({
       tradingConfig,
       symbolRegistry,
       positions: lastState.cachedPositions,
       orders: allOrders,
       marketDataClient,
-      now: () => new Date(),
+      now: () => now,
       logger,
       getTradingMinutesSinceOpen,
       isWithinMorningOpenProtection,

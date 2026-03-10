@@ -8,10 +8,10 @@ import type { MonitorTask } from './types.js';
  * @param onRemove 可选的移除回调，每移除一个任务时调用
  * @returns 实际移除的任务数量
  */
-export const removeTasksFromQueue = <TType extends string, TData>(
-  queue: Array<MonitorTask<TType, TData>>,
-  predicate: (task: MonitorTask<TType, TData>) => boolean,
-  onRemove?: (task: MonitorTask<TType, TData>) => void,
+export const removeTasksFromQueue = <TDataMap extends Readonly<Record<string, unknown>>>(
+  queue: Array<MonitorTask<TDataMap>>,
+  predicate: (task: MonitorTask<TDataMap>) => boolean,
+  onRemove?: (task: MonitorTask<TDataMap>) => void,
 ): number => {
   const originalLength = queue.length;
 

@@ -13,9 +13,8 @@ import type {
   AutoSymbolSwitchDistanceTaskData,
   AutoSymbolTickTaskData,
   MonitorTaskContext,
-  MonitorTaskData,
+  MonitorTaskDataMap,
   MonitorTaskStatus,
-  MonitorTaskType,
 } from '../types.js';
 import {
   isSeatSnapshotValid,
@@ -43,17 +42,16 @@ export function createAutoSymbolHandlers({
   readonly getCanProcessTask?: () => boolean;
 }): Readonly<{
   handleAutoSymbolTick: (
-    task: MonitorTask<MonitorTaskType, MonitorTaskData>,
+    task: MonitorTask<MonitorTaskDataMap, 'AUTO_SYMBOL_TICK'>,
   ) => Promise<MonitorTaskStatus>;
   handleAutoSymbolSwitchDistance: (
-    task: MonitorTask<MonitorTaskType, MonitorTaskData>,
+    task: MonitorTask<MonitorTaskDataMap, 'AUTO_SYMBOL_SWITCH_DISTANCE'>,
   ) => Promise<MonitorTaskStatus>;
 }> {
   async function handleAutoSymbolTick(
-    task: MonitorTask<MonitorTaskType, MonitorTaskData>,
+    task: MonitorTask<MonitorTaskDataMap, 'AUTO_SYMBOL_TICK'>,
   ): Promise<MonitorTaskStatus> {
-    // 由队列按 type 分派，此处断言为 AutoSymbolTickTaskData
-    const data = task.data as AutoSymbolTickTaskData;
+    const data: AutoSymbolTickTaskData = task.data;
     const context = getContextOrSkip(data.monitorSymbol);
     if (!context) {
       return 'skipped';
@@ -90,10 +88,9 @@ export function createAutoSymbolHandlers({
   }
 
   async function handleAutoSymbolSwitchDistance(
-    task: MonitorTask<MonitorTaskType, MonitorTaskData>,
+    task: MonitorTask<MonitorTaskDataMap, 'AUTO_SYMBOL_SWITCH_DISTANCE'>,
   ): Promise<MonitorTaskStatus> {
-    // 由队列按 type 分派，此处断言为 AutoSymbolSwitchDistanceTaskData
-    const data = task.data as AutoSymbolSwitchDistanceTaskData;
+    const data: AutoSymbolSwitchDistanceTaskData = task.data;
     const context = getContextOrSkip(data.monitorSymbol);
     if (!context) {
       return 'skipped';

@@ -13,7 +13,7 @@ import { LOGGING } from '../../constants/index.js';
 import { logger, retainLatestLogFiles } from '../../utils/logger/index.js';
 import { resolveLogRootDir } from '../../utils/runtime/index.js';
 import { toHongKongTimeIso } from '../../utils/time/index.js';
-import { isRecord } from '../../utils/primitives/index.js';
+import { isRecord } from '../../utils/helpers/index.js';
 import { buildTradeLogPath } from './utils.js';
 import type { TradeRecord } from '../../types/trader.js';
 import type { ErrorTypeIdentifier } from './types.js';

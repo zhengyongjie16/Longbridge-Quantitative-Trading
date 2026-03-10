@@ -131,17 +131,18 @@ export type MonitorTaskType =
   | 'UNREALIZED_LOSS_CHECK';
 
 /**
- * 监控任务数据联合类型。
- * 类型用途：与 MonitorTaskType 一一对应的任务 data 类型联合，供 MonitorTask<MonitorTaskType, MonitorTaskData> 使用。
+ * 监控任务类型到 payload 的映射。
+ * 类型用途：表达 task.type 与 task.data 的一一对应关系，确保队列与处理器形成判别联合。
  * 数据来源：由各调度点组装的具体任务数据入队时确定。
  * 使用范围：仅 monitorTaskProcessor、monitorTaskQueue、processMonitor 内部使用。
  */
-export type MonitorTaskData =
-  | AutoSymbolTickTaskData
-  | AutoSymbolSwitchDistanceTaskData
-  | SeatRefreshTaskData
-  | LiquidationDistanceCheckTaskData
-  | UnrealizedLossCheckTaskData;
+export type MonitorTaskDataMap = Readonly<{
+  AUTO_SYMBOL_TICK: AutoSymbolTickTaskData;
+  AUTO_SYMBOL_SWITCH_DISTANCE: AutoSymbolSwitchDistanceTaskData;
+  SEAT_REFRESH: SeatRefreshTaskData;
+  LIQUIDATION_DISTANCE_CHECK: LiquidationDistanceCheckTaskData;
+  UNREALIZED_LOSS_CHECK: UnrealizedLossCheckTaskData;
+}>;
 
 /**
  * 监控任务处理状态（任务处理结果）。
@@ -193,7 +194,7 @@ export type RefreshHelpers = Readonly<{
  * 使用范围：仅 monitorTaskProcessor 及启动流程使用，内部使用。
  */
 export type MonitorTaskProcessorDeps = Readonly<{
-  monitorTaskQueue: MonitorTaskQueue<MonitorTaskType, MonitorTaskData>;
+  monitorTaskQueue: MonitorTaskQueue<MonitorTaskDataMap>;
   refreshGate: RefreshGate;
   getMonitorContext: (monitorSymbol: string) => MonitorTaskContext | null;
   clearMonitorDirectionQueues: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => void;
@@ -203,10 +204,7 @@ export type MonitorTaskProcessorDeps = Readonly<{
 
   /** 生命周期门禁：false 时任务直接跳过 */
   getCanProcessTask?: () => boolean;
-  onProcessed?: (
-    task: MonitorTask<MonitorTaskType, MonitorTaskData>,
-    status: MonitorTaskStatus,
-  ) => void;
+  onProcessed?: (task: MonitorTask<MonitorTaskDataMap>, status: MonitorTaskStatus) => void;
 }>;
 
 /**

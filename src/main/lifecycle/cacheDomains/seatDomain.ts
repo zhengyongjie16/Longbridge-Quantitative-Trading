@@ -11,6 +11,7 @@
  * - 席位在统一开盘重建流水线（loadTradingDayRuntimeSnapshot）中重建，此处为空操作
  */
 import { logger } from '../../../utils/logger/index.js';
+import { resolveMonitorContextSeatSnapshot } from '../../../utils/utils.js';
 import type { MonitorContext } from '../../../types/state.js';
 import type { MultiMonitorTradingConfig } from '../../../types/config.js';
 import type { SeatState, SymbolRegistry } from '../../../types/seat.js';
@@ -59,16 +60,12 @@ function syncMonitorSeatSnapshots(
   symbolRegistry: SymbolRegistry,
 ): void {
   for (const monitorContext of monitorContexts.values()) {
-    const monitorSymbol = monitorContext.config.monitorSymbol;
-    monitorContext.seatState = {
-      long: symbolRegistry.getSeatState(monitorSymbol, 'LONG'),
-      short: symbolRegistry.getSeatState(monitorSymbol, 'SHORT'),
-    };
-
-    monitorContext.seatVersion = {
-      long: symbolRegistry.getSeatVersion(monitorSymbol, 'LONG'),
-      short: symbolRegistry.getSeatVersion(monitorSymbol, 'SHORT'),
-    };
+    const seatSnapshot = resolveMonitorContextSeatSnapshot(
+      monitorContext.config.monitorSymbol,
+      symbolRegistry,
+    );
+    monitorContext.seatState = seatSnapshot.seatState;
+    monitorContext.seatVersion = seatSnapshot.seatVersion;
   }
 }
 

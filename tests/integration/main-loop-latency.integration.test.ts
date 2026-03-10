@@ -11,7 +11,7 @@ import { describe, expect, it } from 'bun:test';
 import type { Candlestick, Period, TradeSessions } from 'longport';
 import { TRADING } from '../../src/constants/index.js';
 import { mainProgram } from '../../src/main/mainProgram/index.js';
-import { createMonitorContext } from '../../src/services/monitorContext/index.js';
+import { createMonitorContext } from '../../src/app/createMonitorContext.js';
 import { createHangSengMultiIndicatorStrategy } from '../../src/core/strategy/index.js';
 import {
   createBuyTaskQueue,
@@ -40,10 +40,7 @@ import type { MarketDataClient } from '../../src/types/services.js';
 import type { AutoSymbolManager } from '../../src/services/autoSymbolManager/types.js';
 import type { DelayedSignalVerifier } from '../../src/main/asyncProgram/delayedSignalVerifier/types.js';
 import type { DailyLossTracker, UnrealizedLossMonitor } from '../../src/types/risk.js';
-import type {
-  MonitorTaskData,
-  MonitorTaskType,
-} from '../../src/main/asyncProgram/monitorTaskProcessor/types.js';
+import type { MonitorTaskDataMap } from '../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 
 type DelayedApiMethod =
   | 'subscribeSymbols'
@@ -353,7 +350,7 @@ describe('main loop latency full-chain integration', () => {
     const indicatorCache = createIndicatorCache({ maxEntries: 400 });
     const buyTaskQueue = createBuyTaskQueue();
     const sellTaskQueue = createSellTaskQueue();
-    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
+    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
 
     const monitorContexts = new Map<string, MonitorContext>();
     for (const monitorConfig of monitorConfigs) {

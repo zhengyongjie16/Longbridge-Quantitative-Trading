@@ -20,9 +20,8 @@ import type { MonitorTask } from '../../monitorTaskQueue/types.js';
 import type {
   LiquidationDistanceCheckTaskData,
   MonitorTaskContext,
-  MonitorTaskData,
+  MonitorTaskDataMap,
   MonitorTaskStatus,
-  MonitorTaskType,
 } from '../types.js';
 import { formatError } from '../../../../utils/error/index.js';
 import { evaluateMonitorContextAndSeatReadiness } from '../utils.js';
@@ -46,12 +45,13 @@ export function createLiquidationDistanceHandler({
   readonly lastState: LastState;
   readonly trader: Trader;
   readonly getCanProcessTask?: () => boolean;
-}): (task: MonitorTask<MonitorTaskType, MonitorTaskData>) => Promise<MonitorTaskStatus> {
+}): (
+  task: MonitorTask<MonitorTaskDataMap, 'LIQUIDATION_DISTANCE_CHECK'>,
+) => Promise<MonitorTaskStatus> {
   return async function handleLiquidationDistanceCheck(
-    task: MonitorTask<MonitorTaskType, MonitorTaskData>,
+    task: MonitorTask<MonitorTaskDataMap, 'LIQUIDATION_DISTANCE_CHECK'>,
   ): Promise<MonitorTaskStatus> {
-    // handler 由 LIQUIDATION_DISTANCE_CHECK 类型分派，data 语义上必为 LiquidationDistanceCheckTaskData
-    const data = task.data as LiquidationDistanceCheckTaskData;
+    const data: LiquidationDistanceCheckTaskData = task.data;
     const evaluated = await evaluateMonitorContextAndSeatReadiness({
       getContextOrSkip,
       refreshGate,

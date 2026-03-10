@@ -41,6 +41,8 @@ export function createEventFlow(deps: EventFlowDeps): EventFlow {
 
     trackedOrder.status = event.status;
     trackedOrder.executedQuantity = decimalToNumber(event.executedQuantity) || 0;
+    trackedOrder.executedPrice = decimalToNumber(event.executedPrice) || null;
+    trackedOrder.lastExecutedTimeMs = resolveUpdatedAtMs(event.updatedAt);
 
     if (event.status === OrderStatus.Filled) {
       const executedPrice = decimalToNumber(event.executedPrice);
@@ -62,20 +64,32 @@ export function createEventFlow(deps: EventFlowDeps): EventFlow {
     }
 
     if (event.status === OrderStatus.Canceled) {
+      const executedPrice = decimalToNumber(event.executedPrice);
+      const executedQuantity = decimalToNumber(event.executedQuantity);
+      const executedTimeMs = resolveUpdatedAtMs(event.updatedAt);
       finalizeOrderClose({
         orderId,
         closedReason: 'CANCELED',
         source: 'WS',
+        executedPrice,
+        executedQuantity,
+        executedTimeMs,
       });
       logger.info(`[订单监控] 订单 ${orderId} 状态变为 ${event.status}，停止追踪`);
       return;
     }
 
     if (event.status === OrderStatus.Rejected) {
+      const executedPrice = decimalToNumber(event.executedPrice);
+      const executedQuantity = decimalToNumber(event.executedQuantity);
+      const executedTimeMs = resolveUpdatedAtMs(event.updatedAt);
       finalizeOrderClose({
         orderId,
         closedReason: 'REJECTED',
         source: 'WS',
+        executedPrice,
+        executedQuantity,
+        executedTimeMs,
       });
       logger.warn(`[订单监控] 订单 ${orderId} 状态变为 ${event.status}，停止追踪`);
       return;

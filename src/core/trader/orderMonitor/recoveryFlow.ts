@@ -357,6 +357,8 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
     const trackedOrder = runtime.trackedOrders.get(order.orderId);
     if (trackedOrder && executedQuantity > 0) {
       trackedOrder.executedQuantity = executedQuantity;
+      trackedOrder.executedPrice = decimalToNumber(order.executedPrice);
+      trackedOrder.lastExecutedTimeMs = resolveUpdatedAtMs(order.updatedAt);
       logger.debug(`[订单监控] 恢复部分成交订单 ${order.orderId}，已成交数量=${executedQuantity}`);
     }
 

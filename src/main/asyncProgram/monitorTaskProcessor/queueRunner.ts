@@ -8,7 +8,7 @@
  */
 import type { MonitorTaskQueue } from '../monitorTaskQueue/types.js';
 import { scheduleWhenTaskAdded } from '../utils.js';
-import type { MonitorTaskData, MonitorTaskType } from './types.js';
+import type { MonitorTaskDataMap } from './types.js';
 
 /**
  * 创建监控任务队列调度器。
@@ -26,7 +26,7 @@ export function createQueueRunner({
   onQueueError,
   onAlreadyRunning,
 }: {
-  readonly monitorTaskQueue: MonitorTaskQueue<MonitorTaskType, MonitorTaskData>;
+  readonly monitorTaskQueue: MonitorTaskQueue<MonitorTaskDataMap>;
   readonly processQueue: () => Promise<void>;
   readonly onQueueError: (err: unknown) => void;
   readonly onAlreadyRunning: () => void;

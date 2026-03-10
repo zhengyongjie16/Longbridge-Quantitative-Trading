@@ -10,9 +10,8 @@ import type {
   SellTaskType,
 } from '../../asyncProgram/tradeTaskQueue/types.js';
 import type {
-  MonitorTaskData,
+  MonitorTaskDataMap,
   MonitorTaskProcessor,
-  MonitorTaskType,
 } from '../../asyncProgram/monitorTaskProcessor/types.js';
 import type { MonitorTaskQueue } from '../../asyncProgram/monitorTaskQueue/types.js';
 import type { OrderMonitorWorker } from '../../asyncProgram/orderMonitorWorker/types.js';
@@ -40,7 +39,7 @@ export type SignalRuntimeDomainDeps = Readonly<{
   indicatorCache: IndicatorCache;
   buyTaskQueue: TaskQueue<BuyTaskType>;
   sellTaskQueue: TaskQueue<SellTaskType>;
-  monitorTaskQueue: MonitorTaskQueue<MonitorTaskType, MonitorTaskData>;
+  monitorTaskQueue: MonitorTaskQueue<MonitorTaskDataMap>;
   refreshGate: RefreshGate;
   releaseSignal: (signal: Signal) => void;
 }>;

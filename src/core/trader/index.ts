@@ -123,16 +123,18 @@ export function createTrader(deps: TraderDeps): Promise<Trader> {
       return accountService.getAccountSnapshot();
     },
 
-    getStockPositions(symbols: string[] | null = null): Promise<Position[]> {
+    getStockPositions(
+      symbols: ReadonlyArray<string> | null = null,
+    ): Promise<ReadonlyArray<Position>> {
       return accountService.getStockPositions(symbols);
     },
 
     // ==================== 订单缓存相关方法 ====================
 
     getPendingOrders(
-      symbols: string[] | null = null,
+      symbols: ReadonlyArray<string> | null = null,
       forceRefresh: boolean = false,
-    ): Promise<PendingOrder[]> {
+    ): Promise<ReadonlyArray<PendingOrder>> {
       return cacheManager.getPendingOrders(symbols, forceRefresh);
     },
 

@@ -46,6 +46,7 @@ export type BoundedNumberConfig = {
 export type ValidationResult = {
   readonly valid: boolean;
   readonly errors: ReadonlyArray<string>;
+  readonly missingFields: ReadonlyArray<string>;
 };
 
 /**

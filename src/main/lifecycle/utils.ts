@@ -1,5 +1,5 @@
 import { TIME } from '../../constants/index.js';
-import { getHKDateKey, resolveHKDayStartUtcMs } from '../../utils/tradingTime/index.js';
+import { getHKDateKey, resolveHKDayStartUtcMs } from '../../utils/time/index.js';
 
 /**
  * 枚举起止时间区间覆盖的港股日期键列表（含首尾日期）。

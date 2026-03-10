@@ -7,7 +7,7 @@ import type { OrderPayload } from '../types.js';
 import { identifyErrorType } from '../tradeLogger.js';
 import { formatError } from '../../../utils/error/index.js';
 import { formatSymbolDisplay } from '../../../utils/display/index.js';
-import { getHKDateKey } from '../../../utils/tradingTime/index.js';
+import { getHKDateKey } from '../../../utils/time/index.js';
 
 /**
  * 获取信号动作的中文描述。

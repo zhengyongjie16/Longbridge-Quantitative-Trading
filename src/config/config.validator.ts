@@ -189,10 +189,11 @@ function validateDegradedRangeRelationship(params: {
 /**
  * 验证 LongPort API 凭证是否已配置（APP_KEY、APP_SECRET、ACCESS_TOKEN），占位符视为未配置。
  * @param env - 进程环境变量
- * @returns 验证结果（valid、errors）
+ * @returns 验证结果（valid、errors、missingFields）
  */
 function validateLongPortConfig(env: NodeJS.ProcessEnv): Promise<ValidationResult> {
   const errors: string[] = [];
+  const missingFields: string[] = [];
 
   const requiredConfigs = [
     { key: 'LONGPORT_APP_KEY', placeholder: 'your_app_key_here' },
@@ -202,12 +203,16 @@ function validateLongPortConfig(env: NodeJS.ProcessEnv): Promise<ValidationResul
 
   for (const { key, placeholder } of requiredConfigs) {
     const value = env[key];
-    if (!value?.trim() || value === placeholder) errors.push(`${key} 未配置`);
+    if (!value?.trim() || value === placeholder) {
+      errors.push(`${key} 未配置`);
+      missingFields.push(key);
+    }
   }
 
   return Promise.resolve({
     valid: errors.length === 0,
     errors,
+    missingFields,
   });
 }
 
@@ -683,7 +688,9 @@ export async function validateAllConfig({
   const tradingResult = validateTradingConfig(tradingConfig, env);
 
   const allErrors = [...longPortResult.errors, ...tradingResult.errors];
-  const allMissingFields = [...tradingResult.missingFields];
+  const allMissingFields = [
+    ...new Set([...longPortResult.missingFields, ...tradingResult.missingFields]),
+  ];
 
   if (allErrors.length > 0) {
     logger.error('配置验证失败！');

@@ -15,7 +15,7 @@ import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
 import type { MonitorContext } from '../../types/state.js';
 import type { MarketDataClient, OrderRecord, TradingDayInfo } from '../../types/services.js';
 import { listHKDateKeysBetween } from './utils.js';
-import { getHKDateKey, resolveHKDayStartUtcMs } from '../../utils/tradingTime/index.js';
+import { getHKDateKey, resolveHKDayStartUtcMs } from '../../utils/time/index.js';
 import type {
   DateRangeChunk,
   PrewarmTradingCalendarSnapshotParams,

@@ -1,5 +1,5 @@
 import pino from 'pino';
-import { isRecord, toHongKongTimeLog } from '../primitives/index.js';
+import { isRecord } from '../helpers/index.js';
 import {
   IS_DEBUG,
   LOG_ANSI_CODE_REGEX,
@@ -13,6 +13,7 @@ import path from 'node:path';
 import { Writable } from 'node:stream';
 import { inspect } from 'node:util';
 import type { LogObject, Logger } from './types.js';
+import { toHongKongTimeLog } from '../time/index.js';
 
 /**
  * 保留目录下仅扩展名匹配且为文件的最新若干条，删除更早的。

@@ -15,7 +15,7 @@
  * - 席位从不就绪变为就绪
  */
 import { logger } from '../../utils/logger/index.js';
-import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
+import { resolveMonitorContextRuntimeSnapshot } from '../../utils/utils.js';
 import { clearMonitorDirectionQueues } from './utils.js';
 import type { SeatSyncParams, SeatSyncResult } from './types.js';
 
@@ -35,40 +35,30 @@ export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
   const previousLongSeatState = previousSeatState.long;
   const previousShortSeatState = previousSeatState.short;
 
-  const longSeatState = symbolRegistry.getSeatState(monitorSymbol, 'LONG');
-  const shortSeatState = symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
-  const longSeatVersion = symbolRegistry.getSeatVersion(monitorSymbol, 'LONG');
-  const shortSeatVersion = symbolRegistry.getSeatVersion(monitorSymbol, 'SHORT');
+  const runtimeSnapshot = resolveMonitorContextRuntimeSnapshot(
+    monitorSymbol,
+    symbolRegistry,
+    quotesMap,
+  );
+  const longSeatState = runtimeSnapshot.seatState.long;
+  const shortSeatState = runtimeSnapshot.seatState.short;
+  const longSeatVersion = runtimeSnapshot.seatVersion.long;
+  const shortSeatVersion = runtimeSnapshot.seatVersion.short;
+  const longSeatReady = runtimeSnapshot.longSymbol !== null;
+  const shortSeatReady = runtimeSnapshot.shortSymbol !== null;
+  const longSymbol = runtimeSnapshot.longSymbol ?? '';
+  const shortSymbol = runtimeSnapshot.shortSymbol ?? '';
+  const longQuote = runtimeSnapshot.longQuote;
+  const shortQuote = runtimeSnapshot.shortQuote;
 
-  monitorContext.seatState = {
-    long: longSeatState,
-    short: shortSeatState,
-  };
-
-  monitorContext.seatVersion = {
-    long: longSeatVersion,
-    short: shortSeatVersion,
-  };
-
-  const longSeatReady = isSeatReady(longSeatState);
-  const shortSeatReady = isSeatReady(shortSeatState);
-  const longSymbol = longSeatReady ? longSeatState.symbol : '';
-  const shortSymbol = shortSeatReady ? shortSeatState.symbol : '';
-
-  const longQuote = longSeatReady ? (quotesMap.get(longSymbol) ?? null) : null;
-  const shortQuote = shortSeatReady ? (quotesMap.get(shortSymbol) ?? null) : null;
-
+  monitorContext.seatState = runtimeSnapshot.seatState;
+  monitorContext.seatVersion = runtimeSnapshot.seatVersion;
   monitorContext.longQuote = longQuote;
   monitorContext.shortQuote = shortQuote;
   monitorContext.monitorQuote = monitorQuote;
-
-  if (longSeatReady) {
-    monitorContext.longSymbolName = longQuote?.name ?? longSymbol;
-  }
-
-  if (shortSeatReady) {
-    monitorContext.shortSymbolName = shortQuote?.name ?? shortSymbol;
-  }
+  monitorContext.longSymbolName = runtimeSnapshot.longSymbolName;
+  monitorContext.shortSymbolName = runtimeSnapshot.shortSymbolName;
+  monitorContext.monitorSymbolName = runtimeSnapshot.monitorSymbolName;
 
   /**
    * 清理指定方向的延迟验证与各类任务队列，并同步清空牛熊证距离缓存。
@@ -128,7 +118,7 @@ export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
         direction: 'LONG',
         seatVersion: longSeatVersion,
         previousSymbol: previousLongSeatState.symbol ?? null,
-        nextSymbol: longSeatState.symbol,
+        nextSymbol: longSymbol,
         callPrice: longSeatState.callPrice ?? null,
         quote: longQuote,
         symbolName: monitorContext.longSymbolName,
@@ -151,7 +141,7 @@ export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
         direction: 'SHORT',
         seatVersion: shortSeatVersion,
         previousSymbol: previousShortSeatState.symbol ?? null,
-        nextSymbol: shortSeatState.symbol,
+        nextSymbol: shortSymbol,
         callPrice: shortSeatState.callPrice ?? null,
         quote: shortQuote,
         symbolName: monitorContext.shortSymbolName,

@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'bun:test';
 import { createSeatStateManager } from '../../../src/services/autoSymbolManager/seatStateManager.js';
 import { createSymbolRegistryDouble } from '../../helpers/testDoubles.js';
-import { getHKDateKey } from '../../../src/utils/tradingTime/index.js';
+import { getHKDateKey } from '../../../src/utils/time/index.js';
 
 describe('autoSymbolManager seatStateManager business flow', () => {
   it('clearSeat bumps seat version and puts seat into SWITCHING with switch state snapshot', () => {

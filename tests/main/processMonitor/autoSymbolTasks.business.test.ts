@@ -12,7 +12,7 @@ import { createMonitorTaskQueue } from '../../../src/main/asyncProgram/monitorTa
 import type { MainProgramContext } from '../../../src/main/mainProgram/types.js';
 import type { MonitorContext } from '../../../src/types/state.js';
 import type {
-  MonitorTaskData,
+  MonitorTaskDataMap,
   MonitorTaskType,
 } from '../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 
@@ -20,7 +20,7 @@ import { createSymbolRegistryDouble } from '../../helpers/testDoubles.js';
 
 describe('autoSymbolTasks business scheduling', () => {
   it('always schedules LONG/SHORT AUTO_SYMBOL_TICK when auto-search is enabled', () => {
-    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
+    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
       longVersion: 5,
@@ -70,7 +70,7 @@ describe('autoSymbolTasks business scheduling', () => {
   });
 
   it('schedules AUTO_SYMBOL_SWITCH_DISTANCE when pending switch exists even without price change', () => {
-    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
+    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
     });
@@ -112,7 +112,7 @@ describe('autoSymbolTasks business scheduling', () => {
   });
 
   it('does nothing when auto-search is disabled', () => {
-    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
+    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
 
     scheduleAutoSymbolTasks({
       monitorSymbol: 'HSI.HK',

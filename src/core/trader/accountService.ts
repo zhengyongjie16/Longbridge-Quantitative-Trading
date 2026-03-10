@@ -63,12 +63,14 @@ export const createAccountService = (deps: AccountServiceDeps): AccountService =
    * @param symbols 标的代码数组，null 或未传时获取所有持仓
    * @returns 持仓列表（含 accountChannel、symbol、availableQuantity 等）
    */
-  const getStockPositions = async (symbols: string[] | null = null): Promise<Position[]> => {
+  const getStockPositions = async (
+    symbols: ReadonlyArray<string> | null = null,
+  ): Promise<ReadonlyArray<Position>> => {
     const ctx = await ctxPromise;
     await rateLimiter.throttle();
 
     // stockPositions 接受 Array<string> | undefined | null，直接传递即可
-    const resp = await ctx.stockPositions(symbols ?? undefined);
+    const resp = await ctx.stockPositions(symbols ? [...symbols] : undefined);
     const channels = resp.channels;
     if (channels.length === 0) {
       return [];

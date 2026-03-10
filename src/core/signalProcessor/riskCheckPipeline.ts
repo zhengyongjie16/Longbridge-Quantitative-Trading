@@ -94,14 +94,17 @@ export const createRiskCheckPipeline = ({
     // 检查过滤后是否有买入信号，决定是否调用 API
     const hasBuySignals = signalsAfterCooldown.some((signal) => isBuyAction(signal.action));
     let freshAccount: AccountSnapshot | null = null;
-    let freshPositions: Position[] = [];
+    let freshPositions: ReadonlyArray<Position> = [];
     let buyApiFetchFailed = false;
     if (hasBuySignals) {
       try {
-        [freshAccount, freshPositions] = await Promise.all([
+        const [nextAccount, nextPositions]: [AccountSnapshot | null, ReadonlyArray<Position>] =
+          await Promise.all([
           trader.getAccountSnapshot(),
           trader.getStockPositions(),
         ]);
+        freshAccount = nextAccount;
+        freshPositions = nextPositions;
       } catch (err) {
         logger.warn('[风险检查] 批量获取账户和持仓信息失败，买入信号将被拒绝', formatError(err));
         buyApiFetchFailed = true;

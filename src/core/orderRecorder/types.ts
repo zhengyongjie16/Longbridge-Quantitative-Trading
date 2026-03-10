@@ -131,6 +131,7 @@ export interface OrderStorage extends OrderRecorderPendingSellAndSellable {
     isLongSymbol: boolean,
     executedTimeMs: number,
     orderId?: string | null,
+    relatedBuyOrderIds?: ReadonlyArray<string> | null,
   ) => void;
   clearBuyOrders: (symbol: string, isLongSymbol: boolean, quote?: Quote | null) => void;
   getLatestBuyOrderPrice: (symbol: string, isLongSymbol: boolean) => number | null;

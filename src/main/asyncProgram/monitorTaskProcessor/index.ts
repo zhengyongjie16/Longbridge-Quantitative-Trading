@@ -29,11 +29,10 @@ import type { MonitorTask } from '../monitorTaskQueue/types.js';
 import { formatError } from '../../../utils/error/index.js';
 import type {
   MonitorTaskContext,
-  MonitorTaskData,
+  MonitorTaskDataMap,
   MonitorTaskProcessor,
   MonitorTaskProcessorDeps,
   MonitorTaskStatus,
-  MonitorTaskType,
   RefreshHelpers,
 } from './types.js';
 
@@ -42,8 +41,8 @@ import type {
  *
  * 一旦出现未覆盖类型，立即抛错并暴露实现缺口。
  */
-function assertNeverTaskType(taskType: never): never {
-  throw new Error(`[MonitorTaskProcessor] 未处理的任务类型: ${String(taskType)}`);
+function assertNeverTaskType(taskType: string): never {
+  throw new Error(`[MonitorTaskProcessor] 未处理的任务类型: ${taskType}`);
 }
 
 /**
@@ -101,7 +100,7 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
     ...(getCanProcessTask ? { getCanProcessTask } : {}),
   });
   async function processTask(
-    task: MonitorTask<MonitorTaskType, MonitorTaskData>,
+    task: MonitorTask<MonitorTaskDataMap>,
     helpers: RefreshHelpers,
   ): Promise<MonitorTaskStatus> {
     switch (task.type) {
@@ -126,7 +125,7 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
       }
 
       default: {
-        return assertNeverTaskType(task.type);
+        return assertNeverTaskType('unknown-monitor-task');
       }
     }
   }

@@ -311,6 +311,7 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     isLongSymbol: boolean,
     executedTimeMs: number,
     orderId?: string | null,
+    relatedBuyOrderIds?: ReadonlyArray<string> | null,
   ): void {
     const price = executedPrice;
     const quantity = executedQuantity;
@@ -319,7 +320,15 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
       return;
     }
 
-    storage.updateAfterSell(symbol, price, quantity, isLongSymbol, executedTimeMs, orderId);
+    storage.updateAfterSell(
+      symbol,
+      price,
+      quantity,
+      isLongSymbol,
+      executedTimeMs,
+      orderId,
+      relatedBuyOrderIds,
+    );
     debugOutputOrders(symbol, isLongSymbol);
   }
 
@@ -362,23 +371,17 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     symbol: string,
     allOrders: ReadonlyArray<RawOrderFromAPI>,
     quote?: Quote | null,
-  ): Promise<OrderRecord[]> {
-    try {
-      const filteredOrders = allOrders.filter((order) => order.symbol === symbol);
-      const classified = classifyOrdersForRebuild(filteredOrders);
-      const allBuyOrders = classified.filledBuyOrders;
-      const filledSellOrders = classified.filledSellOrders;
+  ): Promise<ReadonlyArray<OrderRecord>> {
+    const filteredOrders = allOrders.filter((order) => order.symbol === symbol);
+    const classified = classifyOrdersForRebuild(filteredOrders);
+    const allBuyOrders = classified.filledBuyOrders;
+    const filledSellOrders = classified.filledSellOrders;
 
-      apiManager.cacheOrdersForSymbol(symbol, allBuyOrders, filledSellOrders, filteredOrders);
+    apiManager.cacheOrdersForSymbol(symbol, allBuyOrders, filledSellOrders, filteredOrders);
 
-      return Promise.resolve(
-        applyOrdersRefreshForLong(symbol, allBuyOrders, filledSellOrders, classified, quote),
-      );
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`[订单记录失败] 标的 ${symbol}`, errorMessage);
-      return Promise.resolve([]);
-    }
+    return Promise.resolve(
+      applyOrdersRefreshForLong(symbol, allBuyOrders, filledSellOrders, classified, quote),
+    );
   }
 
   /**
@@ -389,23 +392,17 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
     symbol: string,
     allOrders: ReadonlyArray<RawOrderFromAPI>,
     quote?: Quote | null,
-  ): Promise<OrderRecord[]> {
-    try {
-      const filteredOrders = allOrders.filter((order) => order.symbol === symbol);
-      const classified = classifyOrdersForRebuild(filteredOrders);
-      const allBuyOrders = classified.filledBuyOrders;
-      const filledSellOrders = classified.filledSellOrders;
+  ): Promise<ReadonlyArray<OrderRecord>> {
+    const filteredOrders = allOrders.filter((order) => order.symbol === symbol);
+    const classified = classifyOrdersForRebuild(filteredOrders);
+    const allBuyOrders = classified.filledBuyOrders;
+    const filledSellOrders = classified.filledSellOrders;
 
-      apiManager.cacheOrdersForSymbol(symbol, allBuyOrders, filledSellOrders, filteredOrders);
+    apiManager.cacheOrdersForSymbol(symbol, allBuyOrders, filledSellOrders, filteredOrders);
 
-      return Promise.resolve(
-        applyOrdersRefreshForShort(symbol, allBuyOrders, filledSellOrders, classified, quote),
-      );
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`[订单记录失败] 标的 ${symbol}`, errorMessage);
-      return Promise.resolve([]);
-    }
+    return Promise.resolve(
+      applyOrdersRefreshForShort(symbol, allBuyOrders, filledSellOrders, classified, quote),
+    );
   }
 
   // ============================================
@@ -455,6 +452,17 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
       `[订单记录器] 卖出订单提交追踪: ${orderId} ${symbol} ${direction} ${quantity}股 ` +
         `关联订单=${relatedBuyOrderIds.length}个`,
     );
+  }
+
+  /** 标记卖出订单完全成交 */
+  function updatePendingSell(
+    orderId: string,
+    params: {
+      readonly submittedQuantity: number;
+      readonly relatedBuyOrderIds: ReadonlyArray<string>;
+    },
+  ): PendingSellInfo | null {
+    return storage.updatePendingSell(orderId, params);
   }
 
   /** 标记卖出订单完全成交 */
@@ -517,6 +525,7 @@ export function createOrderRecorder(deps: OrderRecorderDeps): OrderRecorder {
 
     // 待成交卖出订单追踪
     submitSellOrder,
+    updatePendingSell,
     markSellFilled,
     markSellPartialFilled,
     markSellCancelled,

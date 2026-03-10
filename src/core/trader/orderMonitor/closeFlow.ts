@@ -13,7 +13,7 @@ import { toHongKongTimeIso } from '../../../utils/time/index.js';
 import { recordTrade } from '../tradeLogger.js';
 import { hasProtectiveLiquidationRemark } from '../utils.js';
 import { resolveOrderOwnership } from '../../orderRecorder/orderOwnershipParser.js';
-import type { RawOrderFromAPI } from '../../../types/services.js';
+import type { OrderRecord, OrderRecorder, RawOrderFromAPI } from '../../../types/services.js';
 import type { OrderClosedReason } from '../../../types/trader.js';
 import type { TrackedOrder } from '../types.js';
 import type {
@@ -58,6 +58,135 @@ function resolveOrderSideText(orderSide: OrderSide): 'BUY' | 'SELL' {
 
 function resolveOrderSideFromText(side: 'BUY' | 'SELL'): OrderSide {
   return side === 'BUY' ? OrderSide.Buy : OrderSide.Sell;
+}
+
+function sortOrdersBySellPriority(
+  orders: ReadonlyArray<OrderRecord>,
+): ReadonlyArray<OrderRecord> {
+  return [...orders].sort((left, right) => {
+    if (left.executedPrice !== right.executedPrice) {
+      return left.executedPrice - right.executedPrice;
+    }
+
+    if (left.executedTime !== right.executedTime) {
+      return left.executedTime - right.executedTime;
+    }
+
+    return left.orderId.localeCompare(right.orderId);
+  });
+}
+
+function resolveExactFilledRelatedBuyOrderIds(params: {
+  readonly orderRecorder: OrderRecorder;
+  readonly symbol: string;
+  readonly isLongSymbol: boolean;
+  readonly relatedBuyOrderIds: ReadonlyArray<string>;
+  readonly filledQuantity: number;
+}): ReadonlyArray<string> | null {
+  const { orderRecorder, symbol, isLongSymbol, relatedBuyOrderIds, filledQuantity } = params;
+  if (relatedBuyOrderIds.length === 0 || !isValidPositiveNumber(filledQuantity)) {
+    return null;
+  }
+
+  const relatedBuyOrderIdSet = new Set(relatedBuyOrderIds);
+  const relatedBuyOrders = sortOrdersBySellPriority(
+    orderRecorder
+      .getBuyOrdersForSymbol(symbol, isLongSymbol)
+      .filter((order) => relatedBuyOrderIdSet.has(order.orderId)),
+  );
+  if (relatedBuyOrders.length !== relatedBuyOrderIds.length) {
+    return null;
+  }
+
+  const settledOrderIds: string[] = [];
+  let matchedQuantity = 0;
+  for (const order of relatedBuyOrders) {
+    if (!isValidPositiveNumber(order.executedQuantity)) {
+      return null;
+    }
+
+    matchedQuantity += order.executedQuantity;
+    if (matchedQuantity > filledQuantity) {
+      return null;
+    }
+
+    settledOrderIds.push(order.orderId);
+    if (matchedQuantity === filledQuantity) {
+      return settledOrderIds;
+    }
+  }
+
+  return null;
+}
+
+function settleCancelledOrRejectedSell(params: {
+  readonly orderRecorder: OrderRecorder;
+  readonly orderId: string;
+  readonly symbol: string;
+  readonly isLongSymbol: boolean;
+  readonly executedPrice: number | null;
+  readonly executedQuantity: number | null;
+  readonly executedTimeMs: number | null;
+  readonly relatedBuyOrderIds: ReadonlyArray<string>;
+}): {
+  readonly remainingRelatedBuyOrderIds: ReadonlyArray<string> | null;
+} {
+  const {
+    orderRecorder,
+    orderId,
+    symbol,
+    isLongSymbol,
+    executedPrice,
+    executedQuantity,
+    executedTimeMs,
+    relatedBuyOrderIds,
+  } = params;
+  if (
+    !isValidPositiveNumber(executedPrice) ||
+    !isValidPositiveNumber(executedQuantity) ||
+    !isValidPositiveNumber(executedTimeMs)
+  ) {
+    return {
+      remainingRelatedBuyOrderIds: relatedBuyOrderIds,
+    };
+  }
+
+  const settledRelatedBuyOrderIds = resolveExactFilledRelatedBuyOrderIds({
+    orderRecorder,
+    symbol,
+    isLongSymbol,
+    relatedBuyOrderIds,
+    filledQuantity: executedQuantity,
+  });
+  orderRecorder.recordLocalSell(
+    symbol,
+    executedPrice,
+    executedQuantity,
+    isLongSymbol,
+    executedTimeMs,
+    orderId,
+    settledRelatedBuyOrderIds,
+  );
+
+  if (settledRelatedBuyOrderIds === null) {
+    return {
+      remainingRelatedBuyOrderIds: null,
+    };
+  }
+
+  const currentBuyOrderIdSet = new Set(
+    orderRecorder.getBuyOrdersForSymbol(symbol, isLongSymbol).map((order) => order.orderId),
+  );
+  const settledOrderIdSet = new Set(settledRelatedBuyOrderIds);
+  const remainingRelatedBuyOrderIds = relatedBuyOrderIds.filter(
+    (relatedBuyOrderId) =>
+      currentBuyOrderIdSet.has(relatedBuyOrderId) && !settledOrderIdSet.has(relatedBuyOrderId),
+  );
+
+  return {
+    remainingRelatedBuyOrderIds:
+      remainingRelatedBuyOrderIds.length > 0 ? remainingRelatedBuyOrderIds : null,
+  };
 }
 
 function resolveCloseContextFromSnapshot(params: {
@@ -140,7 +269,6 @@ export function createCloseFlow(deps: CloseFlowDeps): CloseFlow {
     const trackedOrder = runtime.trackedOrders.get(orderId);
     const sideText = params.side ?? (trackedOrder ? resolveOrderSideText(trackedOrder.side) : null);
     let relatedBuyOrderIds: ReadonlyArray<string> | null = null;
-
     if (closedReason === 'FILLED') {
       const executedPrice = params.executedPrice ?? null;
       const executedQuantity = params.executedQuantity ?? null;
@@ -180,15 +308,18 @@ export function createCloseFlow(deps: CloseFlowDeps): CloseFlow {
           executedTimeMs,
         );
       } else {
-        orderRecorder.recordLocalSell(
+        const filledSell = orderRecorder.markSellFilled(orderId);
+        const settledSell = settleCancelledOrRejectedSell({
+          orderRecorder,
+          orderId,
           symbol,
+          isLongSymbol,
           executedPrice,
           executedQuantity,
-          isLongSymbol,
           executedTimeMs,
-          orderId,
-        );
-        orderRecorder.markSellFilled(orderId);
+          relatedBuyOrderIds: filledSell?.relatedBuyOrderIds ?? [],
+        });
+        relatedBuyOrderIds = settledSell.remainingRelatedBuyOrderIds;
       }
 
       if (monitorSymbol) {
@@ -252,7 +383,105 @@ export function createCloseFlow(deps: CloseFlowDeps): CloseFlow {
 
     if ((closedReason === 'CANCELED' || closedReason === 'REJECTED') && sideText === 'SELL') {
       const cancelledSell = orderRecorder.markSellCancelled(orderId);
-      relatedBuyOrderIds = cancelledSell?.relatedBuyOrderIds ?? null;
+      const cancelledRelatedBuyOrderIds = cancelledSell?.relatedBuyOrderIds ?? [];
+      const symbol = trackedOrder?.symbol ?? params.symbol ?? null;
+      const isLongSymbol = trackedOrder?.isLongSymbol ?? params.isLongSymbol;
+      const executedPrice = params.executedPrice ?? trackedOrder?.executedPrice ?? null;
+      const executedQuantity =
+        params.executedQuantity ??
+        trackedOrder?.executedQuantity ??
+        cancelledSell?.filledQuantity ??
+        null;
+      const executedTimeMs = params.executedTimeMs ?? trackedOrder?.lastExecutedTimeMs ?? null;
+      if (symbol && isLongSymbol !== undefined && isValidPositiveNumber(executedQuantity)) {
+        const settledSell = settleCancelledOrRejectedSell({
+          orderRecorder,
+          orderId,
+          symbol,
+          isLongSymbol,
+          executedPrice,
+          executedQuantity,
+          executedTimeMs,
+          relatedBuyOrderIds: cancelledRelatedBuyOrderIds,
+        });
+        relatedBuyOrderIds = settledSell.remainingRelatedBuyOrderIds;
+      } else {
+        relatedBuyOrderIds =
+          cancelledRelatedBuyOrderIds.length > 0 ? cancelledRelatedBuyOrderIds : null;
+      }
+
+      const monitorSymbol = trackedOrder?.monitorSymbol ?? params.monitorSymbol ?? null;
+      const isProtectiveLiquidation =
+        trackedOrder?.isProtectiveLiquidation ?? params.isProtectiveLiquidation ?? false;
+      const liquidationTriggerLimit =
+        trackedOrder?.liquidationTriggerLimit ?? params.liquidationTriggerLimit ?? 1;
+      const liquidationCooldownConfig =
+        trackedOrder?.liquidationCooldownConfig ?? params.liquidationCooldownConfig ?? null;
+      if (
+        symbol &&
+        monitorSymbol &&
+        isLongSymbol !== undefined &&
+        isValidPositiveNumber(executedPrice) &&
+        isValidPositiveNumber(executedQuantity) &&
+        isValidPositiveNumber(executedTimeMs)
+      ) {
+        const orderSide = resolveOrderSideFromText(sideText);
+        dailyLossTracker.recordFilledOrder({
+          monitorSymbol,
+          symbol,
+          isLongSymbol,
+          side: orderSide,
+          executedPrice,
+          executedQuantity,
+          executedTimeMs,
+          orderId,
+        });
+
+        if (isProtectiveLiquidation) {
+          const direction = isLongSymbol ? 'LONG' : 'SHORT';
+          const result = liquidationCooldownTracker.recordLiquidationTrigger({
+            symbol: monitorSymbol,
+            direction,
+            executedTimeMs,
+            triggerLimit: liquidationTriggerLimit,
+            cooldownConfig: liquidationCooldownConfig,
+          });
+          if (result.cooldownActivated) {
+            logger.warn(
+              `[订单监控] 订单 ${orderId} 保护性清仓触发次数已达上限（${result.currentCount}/${liquidationTriggerLimit}），进入买入冷却`,
+            );
+          }
+        }
+
+        const action = resolveSignalAction(orderSide, isLongSymbol);
+        recordTrade({
+          orderId,
+          symbol,
+          symbolName: null,
+          monitorSymbol,
+          action,
+          side: sideText,
+          quantity: String(executedQuantity),
+          price: String(executedPrice),
+          orderType: null,
+          status: 'FILLED',
+          error: null,
+          reason: closedReason,
+          signalTriggerTime: null,
+          executedAt: toHongKongTimeIso(new Date(executedTimeMs)),
+          executedAtMs: executedTimeMs,
+          timestamp: null,
+          isProtectiveClearance: isProtectiveLiquidation,
+        });
+
+        refreshGate?.markStale();
+        runtime.pendingRefreshSymbols.push({
+          symbol,
+          isLongSymbol,
+          refreshAccount: true,
+          refreshPositions: true,
+        });
+      }
     }
 
     if (closedReason !== 'NOT_FOUND') {

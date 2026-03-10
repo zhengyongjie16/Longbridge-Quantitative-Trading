@@ -14,7 +14,7 @@ import type { RebuildTradingDayStateDeps } from '../../../src/main/lifecycle/typ
 import type { MonitorContext } from '../../../src/types/state.js';
 import type { SymbolRegistry } from '../../../src/types/seat.js';
 import type { Quote } from '../../../src/types/quote.js';
-import { getHKDateKey } from '../../../src/utils/tradingTime/index.js';
+import { getHKDateKey } from '../../../src/utils/time/index.js';
 import type {
   MarketDataClient,
   OrderRecord,
@@ -78,20 +78,24 @@ function createMonitorContext(params: {
   symbolRegistry: SymbolRegistry;
   monitorSymbol?: string;
   buyOrders?: ReadonlyArray<OrderRecord>;
-  onRefreshLong?: () => Promise<void>;
+  onRefreshLong?: (
+    symbol: string,
+    allOrders: ReadonlyArray<RawOrderFromAPI>,
+    quote?: Quote | null,
+  ) => Promise<ReadonlyArray<OrderRecord>>;
 }): MonitorContext {
   const {
     symbolRegistry,
     monitorSymbol = 'HSI.HK',
     buyOrders = [],
-    onRefreshLong = async () => {},
+    onRefreshLong = async () => [],
   } = params;
   return {
     config: { monitorSymbol },
     symbolRegistry,
     orderRecorder: {
       refreshOrdersFromAllOrdersForLong: onRefreshLong,
-      refreshOrdersFromAllOrdersForShort: async () => {},
+      refreshOrdersFromAllOrdersForShort: async () => [],
       getBuyOrdersForSymbol: () => buyOrders,
     },
     riskChecker: {
@@ -279,8 +283,8 @@ describe('createRebuildTradingDayState', () => {
     await rebuild({ allOrders: emptyOrders, quotesMap: emptyQuotesMap, now });
     expect(tradingDayCalls.length).toBeGreaterThan(1);
     for (const call of tradingDayCalls) {
-      const startMonthKey = getHKDateKey(call.startDate)?.slice(0, 7) ?? null;
-      const endMonthKey = getHKDateKey(call.endDate)?.slice(0, 7) ?? null;
+      const startMonthKey = getHKDateKey(call.startDate).slice(0, 7);
+      const endMonthKey = getHKDateKey(call.endDate).slice(0, 7);
       expect(startMonthKey).toBe(endMonthKey);
     }
   });

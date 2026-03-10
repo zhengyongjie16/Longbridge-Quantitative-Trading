@@ -16,10 +16,7 @@ import { createMonitorTaskQueue } from '../../../src/main/asyncProgram/monitorTa
 import type { Signal } from '../../../src/types/signal.js';
 import type { MainProgramContext } from '../../../src/main/mainProgram/types.js';
 import type { MonitorContext } from '../../../src/types/state.js';
-import type {
-  MonitorTaskData,
-  MonitorTaskType,
-} from '../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
+import type { MonitorTaskDataMap } from '../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 
 import {
   createQuoteDouble,
@@ -62,7 +59,7 @@ describe('seatSync business flow', () => {
 
     const buyTaskQueue = createBuyTaskQueue();
     const sellTaskQueue = createSellTaskQueue();
-    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
+    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
 
     const longBuySignal = createSignalDouble('BUYCALL', 'BULL.HK');
     const longSellSignal = createSignalDouble('SELLCALL', 'BULL.HK');
@@ -206,7 +203,7 @@ describe('seatSync business flow', () => {
       shortVersion: 6,
     });
 
-    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
+    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const monitorContext = {
       riskChecker: createRiskCheckerDouble(),
       delayedSignalVerifier: {

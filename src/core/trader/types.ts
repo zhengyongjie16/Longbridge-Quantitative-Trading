@@ -130,6 +130,7 @@ export type SubmitOrderParams = {
   readonly timeInForce: TimeInForceType;
   readonly remark: string | undefined;
   readonly overridePrice: number | undefined;
+  readonly relatedBuyOrderIds?: ReadonlyArray<string> | null;
   readonly isShortSymbol: boolean;
   readonly monitorConfig?: MonitorConfig | null;
 };
@@ -169,7 +170,9 @@ export type ErrorTypeIdentifier = {
  */
 export interface AccountService {
   getAccountSnapshot: () => Promise<AccountSnapshot | null>;
-  getStockPositions: (symbols?: string[] | null) => Promise<Position[]>;
+  getStockPositions: (
+    symbols?: ReadonlyArray<string> | null,
+  ) => Promise<ReadonlyArray<Position>>;
 }
 
 /**
@@ -179,7 +182,10 @@ export interface AccountService {
  * 使用范围：仅 trader 模块内部实现与使用。
  */
 export interface OrderCacheManager {
-  getPendingOrders: (symbols?: string[] | null, forceRefresh?: boolean) => Promise<PendingOrder[]>;
+  getPendingOrders: (
+    symbols?: ReadonlyArray<string> | null,
+    forceRefresh?: boolean,
+  ) => Promise<ReadonlyArray<PendingOrder>>;
   clearCache: () => void;
 }
 
@@ -331,6 +337,12 @@ export type TrackedOrder = {
 
   /** 已成交数量（部分成交时累加） */
   executedQuantity: number;
+
+  /** 最近一次已成交价格（部分成交/完全成交时更新） */
+  executedPrice: number | null;
+
+  /** 最近一次已成交时间（毫秒） */
+  lastExecutedTimeMs: number | null;
 
   /** 当前订单状态（由 WebSocket 推送更新） */
   status: OrderStatus;

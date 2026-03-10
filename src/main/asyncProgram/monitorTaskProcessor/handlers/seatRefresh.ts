@@ -13,9 +13,8 @@ import type { MultiMonitorTradingConfig } from '../../../../types/config.js';
 import type { MonitorTask } from '../../monitorTaskQueue/types.js';
 import type {
   MonitorTaskContext,
-  MonitorTaskData,
+  MonitorTaskDataMap,
   MonitorTaskStatus,
-  MonitorTaskType,
   RefreshHelpers,
   SeatRefreshTaskData,
 } from '../types.js';
@@ -39,7 +38,7 @@ export function createSeatRefreshHandler({
   ) => void;
   readonly tradingConfig: MultiMonitorTradingConfig;
 }): (
-  task: MonitorTask<MonitorTaskType, MonitorTaskData>,
+  task: MonitorTask<MonitorTaskDataMap, 'SEAT_REFRESH'>,
   helpers: RefreshHelpers,
 ) => Promise<MonitorTaskStatus> {
   /**
@@ -85,11 +84,10 @@ export function createSeatRefreshHandler({
   }
 
   return async function handleSeatRefresh(
-    task: MonitorTask<MonitorTaskType, MonitorTaskData>,
+    task: MonitorTask<MonitorTaskDataMap, 'SEAT_REFRESH'>,
     helpers: RefreshHelpers,
   ): Promise<MonitorTaskStatus> {
-    // handler 由 SEAT_REFRESH 类型分派，data 语义上必为 SeatRefreshTaskData
-    const data = task.data as SeatRefreshTaskData;
+    const data: SeatRefreshTaskData = task.data;
     const context = getContextOrSkip(data.monitorSymbol);
     if (!context) {
       return 'skipped';

@@ -7,8 +7,7 @@
  * - 牛证低于 配置阈值 或熊证高于 配置阈值 时拒绝买入
  */
 import { logger } from '../../utils/logger/index.js';
-import { decimalToNumber } from '../../utils/helpers/index.js';
-import { isRecord } from '../../utils/primitives/index.js';
+import { decimalToNumber, isRecord } from '../../utils/helpers/index.js';
 import { isDefined } from '../utils.js';
 import {
   decimalDiv,

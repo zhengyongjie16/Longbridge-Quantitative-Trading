@@ -30,6 +30,21 @@ import type { OrderStorage, OrderStorageDeps } from './types.js';
 import { calculateOrderStatistics, calculateTotalQuantity, isOrderTimedOut } from './utils.js';
 import { deductSellQuantityFromBuyOrders } from './sellDeductionPolicy.js';
 
+function resolvePendingSellStatus(
+  filledQuantity: number,
+  submittedQuantity: number,
+): PendingSellInfo['status'] {
+  if (filledQuantity >= submittedQuantity) {
+    return 'filled';
+  }
+
+  if (filledQuantity > 0) {
+    return 'partial';
+  }
+
+  return 'pending';
+}
+
 /**
  * 创建订单存储管理器（纯内存，无异步）
  * 管理本地订单增删改查、待成交卖单追踪与可卖订单策略筛选，供 orderRecorder 与风控使用。
@@ -46,6 +61,12 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
   // 待成交卖出订单追踪
   const pendingSells = new Map<string, PendingSellInfo>();
+  let nextLocalOrderSequence = 0;
+
+  function createLocalOrderId(prefix: 'LOCAL' | 'LOCAL_SELL', executedTime: number): string {
+    nextLocalOrderSequence += 1;
+    return `${prefix}_${executedTime}_${nextLocalOrderSequence}`;
+  }
 
   /**
    * 获取指定标的的买入订单列表
@@ -134,7 +155,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     const list = [...getBuyOrdersList(symbol, isLongSymbol)];
 
     list.push({
-      orderId: `LOCAL_${executedTime}`,
+      orderId: createLocalOrderId('LOCAL', executedTime),
       symbol,
       executedPrice,
       executedQuantity,
@@ -170,12 +191,13 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     isLongSymbol: boolean,
     executedTimeMs: number,
     orderId?: string | null,
+    relatedBuyOrderIds?: ReadonlyArray<string> | null,
   ): void => {
     const list = getBuyOrdersList(symbol, isLongSymbol);
     const executedTime = isValidPositiveNumber(executedTimeMs) ? executedTimeMs : Date.now();
 
     setLatestSellRecord(symbol, isLongSymbol, {
-      orderId: orderId ?? `LOCAL_SELL_${executedTime}`,
+      orderId: orderId ?? createLocalOrderId('LOCAL_SELL', executedTime),
       symbol,
       executedPrice,
       executedQuantity,
@@ -200,7 +222,20 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
       return;
     }
 
-    // 否则,使用低价优先整笔消除策略扣减卖出数量
+    const relatedBuyOrderIdSet = new Set(relatedBuyOrderIds ?? []);
+    if (relatedBuyOrderIdSet.size > 0) {
+      const filtered = list.filter((order) => !relatedBuyOrderIdSet.has(order.orderId));
+      setBuyOrdersList(symbol, filtered, isLongSymbol);
+
+      const deductedQuantity = calculateTotalQuantity(list) - calculateTotalQuantity(filtered);
+      logger.info(
+        `[现存订单记录] 本地卖出更新:${positionType} ${symbol} 卖出数量=${executedQuantity},` +
+          `按关联买单精确扣减 ${relatedBuyOrderIdSet.size} 笔后剩余买入记录 ${filtered.length} 笔(消除数量=${deductedQuantity})`,
+      );
+      return;
+    }
+
+    // 否则，回退为低价优先整笔消除策略扣减卖出数量
     const filtered = deductSellQuantityFromBuyOrders(list, executedQuantity);
     setBuyOrdersList(symbol, filtered, isLongSymbol);
 
@@ -382,7 +417,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
     const updated: PendingSellInfo = {
       ...record,
       filledQuantity,
-      status: filledQuantity >= record.submittedQuantity ? 'filled' : 'partial',
+      status: resolvePendingSellStatus(filledQuantity, record.submittedQuantity),
     };
 
     if (updated.status === 'filled') {
@@ -393,6 +428,36 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
     logger.debug(
       `[订单存储] 卖出订单部分成交: ${orderId} ${filledQuantity}/${record.submittedQuantity}`,
+    );
+
+    return updated;
+  }
+
+  /** 更新待成交卖单的数量与占用买单集合（用于卖单合并后的元数据同步） */
+  function updatePendingSell(
+    orderId: string,
+    params: {
+      readonly submittedQuantity: number;
+      readonly relatedBuyOrderIds: ReadonlyArray<string>;
+    },
+  ): PendingSellInfo | null {
+    const record = pendingSells.get(orderId);
+    if (!record) {
+      logger.warn(`[订单存储] 找不到待更新的卖出订单: ${orderId}`);
+      return null;
+    }
+
+    const updated: PendingSellInfo = {
+      ...record,
+      submittedQuantity: params.submittedQuantity,
+      relatedBuyOrderIds: [...params.relatedBuyOrderIds],
+      status: resolvePendingSellStatus(record.filledQuantity, params.submittedQuantity),
+    };
+    pendingSells.set(orderId, updated);
+
+    logger.debug(
+      `[订单存储] 更新待成交卖出: ${orderId} ` +
+        `数量=${updated.submittedQuantity} 关联订单=${updated.relatedBuyOrderIds.length}个`,
     );
 
     return updated;
@@ -603,6 +668,7 @@ export const createOrderStorage = (_deps: OrderStorageDeps = {}): OrderStorage =
 
     // 待成交卖出订单追踪
     addPendingSell,
+    updatePendingSell,
     markSellFilled,
     markSellPartialFilled,
     markSellCancelled,

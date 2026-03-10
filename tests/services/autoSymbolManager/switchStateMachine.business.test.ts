@@ -18,7 +18,7 @@ import { signalObjectPool } from '../../../src/utils/objectPool/index.js';
 import {
   calculateTradingDurationMsBetween,
   getHKDateKey,
-} from '../../../src/utils/tradingTime/index.js';
+} from '../../../src/utils/time/index.js';
 import { PENDING_ORDER_STATUSES } from '../../../src/constants/index.js';
 import type { Quote } from '../../../src/types/quote.js';
 import {

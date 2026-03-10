@@ -291,6 +291,15 @@ export interface RateLimiter {
  * 使用范围：OrderRecorder、OrderStorage 等订单记录相关契约；全项目可直接引用。
  */
 export interface OrderRecorderPendingSellAndSellable {
+  /** 更新待成交卖单元数据（卖单合并后同步数量与占用集合） */
+  updatePendingSell: (
+    orderId: string,
+    params: {
+      readonly submittedQuantity: number;
+      readonly relatedBuyOrderIds: ReadonlyArray<string>;
+    },
+  ) => PendingSellInfo | null;
+
   /** 标记卖出订单完全成交 */
   markSellFilled: (orderId: string) => PendingSellInfo | null;
 
@@ -341,6 +350,7 @@ export interface OrderRecorder extends OrderRecorderPendingSellAndSellable {
     isLongSymbol: boolean,
     executedTimeMs: number,
     orderId?: string | null,
+    relatedBuyOrderIds?: ReadonlyArray<string> | null,
   ) => void;
 
   /** 清空指定标的的买入订单记录 */
@@ -363,14 +373,14 @@ export interface OrderRecorder extends OrderRecorderPendingSellAndSellable {
     symbol: string,
     allOrders: ReadonlyArray<RawOrderFromAPI>,
     quote?: Quote | null,
-  ) => Promise<OrderRecord[]>;
+  ) => Promise<ReadonlyArray<OrderRecord>>;
 
   /** 使用全量订单刷新指定标的记录（做空标的） */
   refreshOrdersFromAllOrdersForShort: (
     symbol: string,
     allOrders: ReadonlyArray<RawOrderFromAPI>,
     quote?: Quote | null,
-  ) => Promise<OrderRecord[]>;
+  ) => Promise<ReadonlyArray<OrderRecord>>;
 
   /** 清理指定标的的 API 订单缓存（不影响本地订单记录） */
   clearOrdersCacheForSymbol: (symbol: string) => void;
@@ -408,12 +418,17 @@ export interface Trader {
   getAccountSnapshot: () => Promise<AccountSnapshot | null>;
 
   /** 获取持仓列表 */
-  getStockPositions: (symbols?: string[] | null) => Promise<Position[]>;
+  getStockPositions: (
+    symbols?: ReadonlyArray<string> | null,
+  ) => Promise<ReadonlyArray<Position>>;
 
   // ========== 订单缓存 ==========
 
   /** 获取待处理订单 */
-  getPendingOrders: (symbols?: string[] | null, forceRefresh?: boolean) => Promise<PendingOrder[]>;
+  getPendingOrders: (
+    symbols?: ReadonlyArray<string> | null,
+    forceRefresh?: boolean,
+  ) => Promise<ReadonlyArray<PendingOrder>>;
 
   /** 启动阶段种子化订单订阅保留集 */
   seedOrderHoldSymbols: (orders: ReadonlyArray<RawOrderFromAPI>) => void;

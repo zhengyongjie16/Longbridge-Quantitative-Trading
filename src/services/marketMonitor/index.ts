@@ -22,7 +22,7 @@
  */
 import { logger } from '../../utils/logger/index.js';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
-import { toHongKongTimeLog } from '../../utils/primitives/index.js';
+import { toHongKongTimeLog } from '../../utils/time/index.js';
 import { isValidNumber, parseIndicatorPeriod } from '../../utils/indicatorHelpers/index.js';
 import {
   copyPeriodRecord,

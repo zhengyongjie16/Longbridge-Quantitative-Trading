@@ -1,5 +1,5 @@
 import { TIME } from '../../constants/index.js';
-import { getHKTime } from '../../utils/tradingTime/index.js';
+import { getHKTime } from '../../utils/time/index.js';
 import type { TradeRecord } from '../../types/trader.js';
 import type { LiquidationCooldownConfig } from '../../types/config.js';
 import type { CooldownCandidate } from './types.js';
@@ -298,4 +298,27 @@ function resolveDirectionFromAction(action: string | null): 'LONG' | 'SHORT' | n
   }
 
   return null;
+}
+
+/**
+ * 根据冷却结束时间与当前时间计算剩余冷却毫秒数。
+ *
+ * @param cooldownEndMs 冷却结束时间戳
+ * @param currentTimeMs 当前时间戳
+ * @returns 剩余毫秒数；已过期或无效时返回 0
+ */
+export function resolveRemainingCooldownMs(
+  cooldownEndMs: number | null,
+  currentTimeMs: number,
+): number {
+  if (cooldownEndMs === null || !Number.isFinite(cooldownEndMs)) {
+    return 0;
+  }
+
+  const remainingMs = cooldownEndMs - currentTimeMs;
+  if (!Number.isFinite(remainingMs) || remainingMs <= 0) {
+    return 0;
+  }
+
+  return remainingMs;
 }

@@ -199,6 +199,10 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
         return;
       }
 
+      if (order.executedQuantity > 0 && resolveRelatedBuyOrderIdsFromOutcome(outcome) === null) {
+        await processCloseSyncQueue();
+      }
+
       const response = await ctx.submitOrder(marketOrderPayload);
       const newOrderId = resolveOrderIdFromSubmitResponse(response) ?? 'UNKNOWN';
       const direction: 'LONG' | 'SHORT' = order.isLongSymbol ? 'LONG' : 'SHORT';

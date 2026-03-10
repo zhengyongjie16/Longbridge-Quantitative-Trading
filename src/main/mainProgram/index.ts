@@ -24,7 +24,7 @@ import {
   isInContinuousHKSession,
   isWithinAfternoonOpenProtection,
   isWithinMorningOpenProtection,
-} from '../../utils/tradingTime/index.js';
+} from '../../utils/time/index.js';
 
 /**
  * 主程序 - 每秒执行一次的核心循环

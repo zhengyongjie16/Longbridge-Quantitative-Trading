@@ -84,6 +84,8 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
       submittedPrice: price,
       submittedQuantity: quantity,
       executedQuantity: 0,
+      executedPrice: null,
+      lastExecutedTimeMs: null,
       status: resolveInitialTrackedStatus(initialStatus),
       submittedAt,
       lastPriceUpdateAt: now,
@@ -110,35 +112,54 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
    */
   async function cancelOrderWithOutcome(orderId: string): Promise<CancelOrderOutcome> {
     const ctx = await ctxPromise;
+    const trackedOrder = runtime.trackedOrders.get(orderId);
+    const requiresFilledSellSync =
+      trackedOrder?.side === OrderSide.Sell && trackedOrder.executedQuantity > 0;
 
     try {
       await rateLimiter.throttle();
       await ctx.cancelOrder(orderId);
       cacheManager.clearCache();
-      const closeResult = finalizeOrderClose({
-        orderId,
-        closedReason: 'CANCELED',
-        source: 'API',
-      });
+      const closeResult = requiresFilledSellSync
+        ? null
+        : finalizeOrderClose({
+            orderId,
+            closedReason: 'CANCELED',
+            source: 'API',
+            executedPrice: trackedOrder?.executedPrice ?? null,
+            executedQuantity: trackedOrder?.executedQuantity ?? null,
+            executedTimeMs: trackedOrder?.lastExecutedTimeMs ?? null,
+          });
+      if (requiresFilledSellSync) {
+        enqueueCloseSync(orderId, 'UNKNOWN_FAILURE', 'CANCELED');
+      }
+
       logger.debug(`[订单撤销成功] 订单ID=${orderId}`);
       return {
         kind: 'CANCEL_CONFIRMED',
         closedReason: 'CANCELED',
         source: 'API',
-        relatedBuyOrderIds: closeResult.relatedBuyOrderIds,
+        relatedBuyOrderIds: closeResult?.relatedBuyOrderIds ?? null,
       };
     } catch (error) {
       const closedReason = resolveOrderClosedReasonFromError(error);
       if (closedReason !== null) {
         let relatedBuyOrderIds: ReadonlyArray<string> | null = null;
         if (closedReason === 'CANCELED' || closedReason === 'REJECTED') {
-          const closeResult = finalizeOrderClose({
-            orderId,
-            closedReason,
-            source: 'API',
-          });
           cacheManager.clearCache();
-          relatedBuyOrderIds = closeResult.relatedBuyOrderIds;
+          if (requiresFilledSellSync) {
+            enqueueCloseSync(orderId, 'UNKNOWN_FAILURE', closedReason);
+          } else {
+            const closeResult = finalizeOrderClose({
+              orderId,
+              closedReason,
+              source: 'API',
+              executedPrice: trackedOrder?.executedPrice ?? null,
+              executedQuantity: trackedOrder?.executedQuantity ?? null,
+              executedTimeMs: trackedOrder?.lastExecutedTimeMs ?? null,
+            });
+            relatedBuyOrderIds = closeResult.relatedBuyOrderIds;
+          }
         } else if (closedReason === 'FILLED') {
           enqueueCloseSync(orderId, 'ALREADY_CLOSED_FILLED', 'FILLED');
         } else {

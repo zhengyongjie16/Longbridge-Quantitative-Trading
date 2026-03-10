@@ -11,9 +11,8 @@ import { createMonitorTaskProcessor } from '../../../../src/main/asyncProgram/mo
 import { createRefreshGate } from '../../../../src/utils/refreshGate/index.js';
 
 import type {
-  MonitorTaskData,
+  MonitorTaskDataMap,
   MonitorTaskStatus,
-  MonitorTaskType,
   MonitorTaskContext,
 } from '../../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 import type { MonitorTask } from '../../../../src/main/asyncProgram/monitorTaskQueue/types.js';
@@ -32,7 +31,7 @@ import { createLastState, createMonitorTaskContext, runProcessorFlow } from '../
 
 describe('monitorTaskProcessor business flow', () => {
   it('processes AUTO_SYMBOL_TICK with valid seat snapshot', async () => {
-    const queue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
+    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
     let maybeSearchCalls = 0;
     const intervalCallArgs: Array<{
       direction: 'LONG' | 'SHORT';
@@ -104,7 +103,7 @@ describe('monitorTaskProcessor business flow', () => {
   });
 
   it('skips AUTO_SYMBOL_TICK when seat snapshot is stale', async () => {
-    const queue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
+    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
     let maybeSearchCalls = 0;
 
     const context = createMonitorTaskContext({
@@ -163,7 +162,7 @@ describe('monitorTaskProcessor business flow', () => {
   });
 
   it('skips tasks when lifecycle gate denies processing', async () => {
-    const queue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
+    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
     let unrealizedMonitorCalls = 0;
 
     const context = createMonitorTaskContext({
@@ -175,7 +174,7 @@ describe('monitorTaskProcessor business flow', () => {
     });
 
     const seen: Array<{
-      task: MonitorTask<MonitorTaskType, MonitorTaskData>;
+      task: MonitorTask<MonitorTaskDataMap>;
       status: MonitorTaskStatus;
     }> = [];
 
@@ -218,7 +217,7 @@ describe('monitorTaskProcessor business flow', () => {
   });
 
   it('processes AUTO_SYMBOL_SWITCH_DISTANCE for both directions with valid snapshots', async () => {
-    const queue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
+    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const calledDirections: Array<'LONG' | 'SHORT'> = [];
     const context = createMonitorTaskContext({
       autoSymbolManager: {
@@ -278,7 +277,7 @@ describe('monitorTaskProcessor business flow', () => {
   });
 
   it('processes SEAT_REFRESH and rebuilds long-side runtime caches', async () => {
-    const queue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
+    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
     let fetchAllOrdersCalls = 0;
     let refreshOrdersCalls = 0;
     let recalculateCalls = 0;
@@ -386,8 +385,63 @@ describe('monitorTaskProcessor business flow', () => {
     expect(lastState.positionCache.get('BULL.HK')?.quantity).toBe(100);
   });
 
+  it('marks SEAT_REFRESH as failed when order refresh throws', async () => {
+    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
+    const statuses: MonitorTaskStatus[] = [];
+
+    const context = createMonitorTaskContext({
+      orderRecorder: createOrderRecorderDouble({
+        fetchAllOrdersFromAPI: async () => [],
+        refreshOrdersFromAllOrdersForLong: async () => {
+          throw new Error('seat refresh order rebuild failed');
+        },
+      }),
+    });
+
+    const processor = createMonitorTaskProcessor({
+      monitorTaskQueue: queue,
+      refreshGate: createRefreshGate(),
+      getMonitorContext: () => context as unknown as MonitorTaskContext,
+      clearMonitorDirectionQueues: () => {},
+      trader: createTraderDouble(),
+      lastState: createLastState(),
+      tradingConfig: {
+        monitors: [createMonitorConfigDouble()],
+      } as unknown as MultiMonitorTradingConfig,
+      onProcessed: (_task, status) => {
+        statuses.push(status);
+      },
+    });
+
+    await runProcessorFlow({
+      processor,
+      pushTask: () => {
+        queue.scheduleLatest({
+          type: 'SEAT_REFRESH',
+          dedupeKey: 'HSI.HK:SEAT_REFRESH:LONG:FAIL',
+          monitorSymbol: 'HSI.HK',
+          data: {
+            monitorSymbol: 'HSI.HK',
+            direction: 'LONG',
+            seatVersion: 2,
+            previousSymbol: 'OLD_BULL.HK',
+            nextSymbol: 'BULL.HK',
+            callPrice: 20_000,
+            quote: createQuoteDouble('BULL.HK', 1.1, 100),
+            symbolName: 'BULL.HK',
+            quotesMap: new Map<string, ReturnType<typeof createQuoteDouble> | null>(),
+          },
+        });
+      },
+      waitCondition: () => statuses.length === 1,
+      timeoutMs: 500,
+    });
+
+    expect(statuses).toEqual(['failed']);
+  });
+
   it('processes LIQUIDATION_DISTANCE_CHECK and executes protective sell for triggered side', async () => {
-    const queue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
+    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const lastState = createLastState();
     const longPosition = createPositionDouble({
       symbol: 'BULL.HK',

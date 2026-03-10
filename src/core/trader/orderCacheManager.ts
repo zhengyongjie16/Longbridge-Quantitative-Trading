@@ -11,8 +11,7 @@
  */
 import type { OrderStatus, OrderSide } from 'longport';
 import { logger } from '../../utils/logger/index.js';
-import { decimalToNumber } from '../../utils/helpers/index.js';
-import { isRecord } from '../../utils/primitives/index.js';
+import { decimalToNumber, isRecord } from '../../utils/helpers/index.js';
 import { PENDING_ORDER_STATUSES, API } from '../../constants/index.js';
 import type { PendingOrder } from '../../types/services.js';
 import type { OrderCacheManager, OrderCacheManagerDeps } from './types.js';
@@ -70,9 +69,9 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
    * @returns 未成交订单列表（仅包含 PENDING 等未完成状态）
    */
   const getPendingOrders = async (
-    symbols: string[] | null = null,
+    symbols: ReadonlyArray<string> | null = null,
     forceRefresh: boolean = false,
-  ): Promise<PendingOrder[]> => {
+  ): Promise<ReadonlyArray<PendingOrder>> => {
     // 将 symbols 数组排序，用于比较缓存是否对应同一组 symbols
     const symbolsKey =
       symbols && symbols.length > 0
@@ -91,7 +90,7 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
       logger.debug(
         `[订单缓存] 使用缓存的未成交订单数据 (symbols=${symbolsKey}, 缓存时间: ${now - pendingOrdersCacheTime}ms)`,
       );
-      return pendingOrdersCache;
+      return [...pendingOrdersCache];
     }
 
     const ctx = await ctxPromise;
@@ -166,7 +165,7 @@ export const createOrderCacheManager = (deps: OrderCacheManagerDeps): OrderCache
       logger.debug(
         `[订单缓存] 已刷新未成交订单缓存 (symbols=${symbolsKey})，共 ${result.length} 个订单`,
       );
-      return result;
+      return [...result];
     } catch (err) {
       logger.error('获取未成交订单失败', formatError(err));
       return [];

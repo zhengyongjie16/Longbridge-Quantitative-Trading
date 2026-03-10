@@ -14,10 +14,9 @@
 import {
   buildIndicatorSnapshot,
   getCandleFingerprint,
-} from '../../services/indicators/snapshotBuilder.js';
+} from '../../services/indicators/runtime/index.js';
 import { logger } from '../../utils/logger/index.js';
-import { releaseSnapshotObjects } from '../../utils/helpers/index.js';
-import { isRecord } from '../../utils/primitives/index.js';
+import { isRecord, releaseSnapshotObjects } from '../../utils/helpers/index.js';
 import { TRADING } from '../../constants/index.js';
 import type { CandleData } from '../../types/data.js';
 import type { IndicatorSnapshot } from '../../types/quote.js';

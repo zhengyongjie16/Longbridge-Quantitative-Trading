@@ -48,6 +48,7 @@ function wrapStorageAsRecorder(storage: OrderStorage): OrderRecorder {
     clearOrdersCacheForSymbol: () => {},
     getBuyOrdersForSymbol: () => [],
     submitSellOrder: () => {},
+    updatePendingSell: () => null,
     markSellFilled: () => null,
     markSellPartialFilled: () => null,
     markSellCancelled: () => null,
@@ -339,5 +340,49 @@ describe('成本均价与智能平仓全链路集成测试', () => {
     });
 
     expect(storage.getCostAveragePrice('TEST.HK', true)).toBeCloseTo(1.1, 6);
+  });
+
+  it('场景11: 卖出结算优先按关联买单 ID 精确扣减', () => {
+    storage.addBuyOrder('TEST.HK', 0.8, 100, true, 1000);
+    storage.addBuyOrder('TEST.HK', 0.9, 100, true, 2000);
+    storage.addBuyOrder('TEST.HK', 1.2, 100, true, 3000);
+
+    const orders = storage.getBuyOrdersList('TEST.HK', true);
+    const relatedBuyOrderIds = [orders[0]!.orderId, orders[2]!.orderId];
+
+    storage.updateAfterSell('TEST.HK', 1.05, 200, true, 4000, 'SELL-001', relatedBuyOrderIds);
+
+    const remainingOrderIds = storage
+      .getBuyOrdersList('TEST.HK', true)
+      .map((order) => order.orderId);
+    expect(remainingOrderIds).toEqual(['LOCAL_2000_2']);
+  });
+
+  it('场景12: 同毫秒本地买单仍生成唯一 orderId，避免占用误伤', () => {
+    storage.addBuyOrder('TEST.HK', 1, 100, true, 1000);
+    storage.addBuyOrder('TEST.HK', 1.1, 100, true, 1000);
+
+    const orders = storage.getBuyOrdersList('TEST.HK', true);
+    expect(orders).toHaveLength(2);
+    expect(orders[0]?.orderId).not.toBe(orders[1]?.orderId);
+
+    storage.addPendingSell({
+      orderId: 'SELL-UNIQUE-ID',
+      symbol: 'TEST.HK',
+      direction: 'LONG',
+      submittedQuantity: 100,
+      relatedBuyOrderIds: [orders[0]!.orderId],
+      submittedAt: Date.now(),
+    });
+
+    const sellable = storage.selectSellableOrders({
+      symbol: 'TEST.HK',
+      direction: 'LONG',
+      strategy: 'ALL',
+      currentPrice: 1.5,
+    });
+    expect(sellable.totalQuantity).toBe(100);
+    expect(sellable.orders).toHaveLength(1);
+    expect(sellable.orders[0]?.orderId).toBe(orders[1]?.orderId);
   });
 });

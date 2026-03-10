@@ -1,10 +1,7 @@
 import type { IndicatorCache } from '../asyncProgram/indicatorCache/types.js';
 import type { TaskQueue, BuyTaskType, SellTaskType } from '../asyncProgram/tradeTaskQueue/types.js';
 import type { MonitorTaskQueue } from '../asyncProgram/monitorTaskQueue/types.js';
-import type {
-  MonitorTaskData,
-  MonitorTaskType,
-} from '../asyncProgram/monitorTaskProcessor/types.js';
+import type { MonitorTaskDataMap } from '../asyncProgram/monitorTaskProcessor/types.js';
 import type { OrderMonitorWorker } from '../asyncProgram/orderMonitorWorker/types.js';
 import type { PostTradeRefresher } from '../asyncProgram/postTradeRefresher/types.js';
 import type { LastState, MonitorContext } from '../../types/state.js';
@@ -38,7 +35,7 @@ export type MainProgramContext = {
   readonly indicatorCache: IndicatorCache;
   readonly buyTaskQueue: TaskQueue<BuyTaskType>;
   readonly sellTaskQueue: TaskQueue<SellTaskType>;
-  readonly monitorTaskQueue: MonitorTaskQueue<MonitorTaskType, MonitorTaskData>;
+  readonly monitorTaskQueue: MonitorTaskQueue<MonitorTaskDataMap>;
   readonly orderMonitorWorker: OrderMonitorWorker;
   readonly postTradeRefresher: PostTradeRefresher;
   readonly lossOffsetLifecycleCoordinator: LossOffsetLifecycleCoordinator;

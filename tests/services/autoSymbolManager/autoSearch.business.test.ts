@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'bun:test';
 import { createAutoSearch } from '../../../src/services/autoSymbolManager/autoSearch.js';
 import { createSeatStateManager } from '../../../src/services/autoSymbolManager/seatStateManager.js';
-import { getHKDateKey } from '../../../src/utils/tradingTime/index.js';
+import { getHKDateKey } from '../../../src/utils/time/index.js';
 import {
   createMonitorConfigDouble,
   createSymbolRegistryDouble,

@@ -16,9 +16,8 @@ import type { MultiMonitorTradingConfig } from '../../src/types/config.js';
 import type { LastState, MonitorContext } from '../../src/types/state.js';
 import type { MainProgramContext } from '../../src/main/mainProgram/types.js';
 import type {
-  MonitorTaskData,
+  MonitorTaskDataMap,
   MonitorTaskStatus,
-  MonitorTaskType,
 } from '../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 
 import {
@@ -152,7 +151,7 @@ describe('periodic auto-symbol full chain integration', () => {
       getTradingCalendarSnapshot: () => tradingCalendarSnapshot,
     });
 
-    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
+    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const monitorContext = {
       config: monitorConfig,
       symbolRegistry,
@@ -341,7 +340,7 @@ describe('periodic auto-symbol full chain integration', () => {
       getTradingCalendarSnapshot: () => tradingCalendarSnapshot,
     });
 
-    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
+    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const monitorContext = {
       config: monitorConfig,
       symbolRegistry,

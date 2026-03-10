@@ -1,5 +1,5 @@
 import { inspect } from 'node:util';
-import { isRecord } from '../primitives/index.js';
+import { isRecord } from '../helpers/index.js';
 
 /**
  * 类型保护：检查是否为 Error 实例（内部使用）。

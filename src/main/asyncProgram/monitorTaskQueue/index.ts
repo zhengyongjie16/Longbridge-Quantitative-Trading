@@ -28,30 +28,31 @@ import { removeTasksFromQueue } from './utils.js';
  *
  * @returns 监控任务队列实例，含 scheduleLatest、pop、isEmpty、removeTasks、clearAll、onTaskAdded
  */
-export function createMonitorTaskQueue<TType extends string, TData>(): MonitorTaskQueue<
-  TType,
-  TData
-> {
-  const queue: MonitorTask<TType, TData>[] = [];
+export function createMonitorTaskQueue<
+  TDataMap extends Readonly<Record<string, unknown>>,
+>(): MonitorTaskQueue<TDataMap> {
+  const queue: Array<MonitorTask<TDataMap>> = [];
   const callbacks: TaskAddedCallback[] = [];
 
-  function scheduleLatest(task: MonitorTaskInput<TType, TData>): void {
+  function scheduleLatest<TType extends keyof TDataMap>(
+    task: MonitorTaskInput<TDataMap, TType>,
+  ): void {
     removeTasksFromQueue(queue, (queued) => queued.dedupeKey === task.dedupeKey);
 
-    const fullTask: MonitorTask<TType, TData> = {
+    const fullTask = {
       id: randomUUID(),
       type: task.type,
       dedupeKey: task.dedupeKey,
       monitorSymbol: task.monitorSymbol,
       data: task.data,
       createdAt: Date.now(),
-    };
+    } as MonitorTask<TDataMap, TType>;
 
     queue.push(fullTask);
     notifyTaskAddedCallbacks(callbacks);
   }
 
-  function pop(): MonitorTask<TType, TData> | null {
+  function pop(): MonitorTask<TDataMap> | null {
     return queue.shift() ?? null;
   }
 
@@ -60,13 +61,13 @@ export function createMonitorTaskQueue<TType extends string, TData>(): MonitorTa
   }
 
   function removeTasks(
-    predicate: (task: MonitorTask<TType, TData>) => boolean,
-    onRemove?: (task: MonitorTask<TType, TData>) => void,
+    predicate: (task: MonitorTask<TDataMap>) => boolean,
+    onRemove?: (task: MonitorTask<TDataMap>) => void,
   ): number {
     return removeTasksFromQueue(queue, predicate, onRemove);
   }
 
-  function clearAll(onRemove?: (task: MonitorTask<TType, TData>) => void): number {
+  function clearAll(onRemove?: (task: MonitorTask<TDataMap>) => void): number {
     const count = queue.length;
     for (const task of queue) {
       onRemove?.(task);

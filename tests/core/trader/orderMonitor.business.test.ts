@@ -24,7 +24,7 @@ import {
   createQuoteDouble,
   createSymbolRegistryDouble,
 } from '../../helpers/testDoubles.js';
-import type { PendingSellInfo, RawOrderFromAPI } from '../../../src/types/services.js';
+import type { OrderRecord, PendingSellInfo, RawOrderFromAPI } from '../../../src/types/services.js';
 
 function createDeps(params?: {
   readonly sellTimeoutSeconds?: number;
@@ -35,6 +35,7 @@ function createDeps(params?: {
   readonly liquidationTriggerLimit?: number;
   readonly liquidationCooldownTrackerOverride?: OrderMonitorDeps['liquidationCooldownTracker'];
   readonly orderRecorderOverride?: OrderMonitorDeps['orderRecorder'];
+  readonly dailyLossTrackerOverride?: OrderMonitorDeps['dailyLossTracker'];
 }): { deps: OrderMonitorDeps; tradeCtx: ReturnType<typeof createTradeContextMock> } {
   const tradeCtx = createTradeContextMock();
   const pendingSellSnapshot = new Map<string, PendingSellInfo>();
@@ -83,6 +84,28 @@ function createDeps(params?: {
           status: 'pending',
           submittedAt: submittedAtMs ?? Date.now(),
         });
+      },
+      updatePendingSell: (orderId, nextPendingSell) => {
+        const current = pendingSellSnapshot.get(orderId);
+        if (!current) {
+          return null;
+        }
+
+        let status: PendingSellInfo['status'] = 'pending';
+        if (current.filledQuantity >= nextPendingSell.submittedQuantity) {
+          status = 'filled';
+        } else if (current.filledQuantity > 0) {
+          status = 'partial';
+        }
+
+        const updated: PendingSellInfo = {
+          ...current,
+          submittedQuantity: nextPendingSell.submittedQuantity,
+          relatedBuyOrderIds: [...nextPendingSell.relatedBuyOrderIds],
+          status,
+        };
+        pendingSellSnapshot.set(orderId, updated);
+        return updated;
       },
       markSellPartialFilled: (orderId: string, filledQuantity: number) => {
         const current = pendingSellSnapshot.get(orderId);
@@ -171,13 +194,14 @@ function createDeps(params?: {
       getPendingOrders: async () => [],
     },
     orderRecorder,
-    dailyLossTracker: {
-      resetAll: () => {},
-      resetDirectionSegment: () => {},
-      recalculateFromAllOrders: () => {},
-      recordFilledOrder: () => {},
-      getLossOffset: () => 0,
-    },
+    dailyLossTracker:
+      params?.dailyLossTrackerOverride ?? {
+        resetAll: () => {},
+        resetDirectionSegment: () => {},
+        recalculateFromAllOrders: () => {},
+        recordFilledOrder: () => {},
+        getLossOffset: () => 0,
+      },
     orderHoldRegistry: {
       trackOrder: () => {},
       markOrderClosed: () => {},
@@ -842,6 +866,488 @@ describe('orderMonitor business flow', () => {
     );
 
     expect(localBuyCount).toBe(1);
+  });
+
+  it('settles filled quantity when sell is canceled after partial fill', async () => {
+    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
+      throw new Error('handleOrderChanged hook was not captured');
+    };
+    const pendingSellSnapshot = new Map<string, PendingSellInfo>();
+    const buyOrders: ReadonlyArray<OrderRecord> = [
+      {
+        orderId: 'BUY-1',
+        symbol: 'BULL.HK',
+        executedPrice: 1,
+        executedQuantity: 100,
+        executedTime: Date.parse('2026-02-25T03:00:00.000Z'),
+        submittedAt: new Date('2026-02-25T03:00:00.000Z'),
+        updatedAt: new Date('2026-02-25T03:00:00.000Z'),
+      },
+      {
+        orderId: 'BUY-2',
+        symbol: 'BULL.HK',
+        executedPrice: 1.2,
+        executedQuantity: 100,
+        executedTime: Date.parse('2026-02-25T03:05:00.000Z'),
+        submittedAt: new Date('2026-02-25T03:05:00.000Z'),
+        updatedAt: new Date('2026-02-25T03:05:00.000Z'),
+      },
+    ];
+    const recordLocalSellCalls: Array<{ relatedBuyOrderIds: ReadonlyArray<string> | null }> = [];
+    let dailyLossCalls = 0;
+    const orderRecorder = createOrderRecorderDouble({
+      submitSellOrder: (
+        orderId: string,
+        symbol: string,
+        direction: 'LONG' | 'SHORT',
+        quantity: number,
+        relatedBuyOrderIds: readonly string[],
+        submittedAtMs?: number,
+      ) => {
+        pendingSellSnapshot.set(orderId, {
+          orderId,
+          symbol,
+          direction,
+          submittedQuantity: quantity,
+          filledQuantity: 0,
+          relatedBuyOrderIds,
+          status: 'pending',
+          submittedAt: submittedAtMs ?? Date.now(),
+        });
+      },
+      markSellPartialFilled: (orderId: string, filledQuantity: number) => {
+        const current = pendingSellSnapshot.get(orderId);
+        if (!current) {
+          return null;
+        }
+
+        const updated: PendingSellInfo = {
+          ...current,
+          filledQuantity,
+          status: 'partial',
+        };
+        pendingSellSnapshot.set(orderId, updated);
+        return updated;
+      },
+      markSellCancelled: (orderId: string) => {
+        const current = pendingSellSnapshot.get(orderId);
+        if (!current) {
+          return null;
+        }
+
+        pendingSellSnapshot.delete(orderId);
+        return {
+          ...current,
+          status: 'cancelled',
+        };
+      },
+      getBuyOrdersForSymbol: () => buyOrders,
+      recordLocalSell: (
+        _symbol,
+        _executedPrice,
+        _executedQuantity,
+        _isLongSymbol,
+        _executedTimeMs,
+        _orderId,
+        relatedBuyOrderIds,
+      ) => {
+        recordLocalSellCalls.push({
+          relatedBuyOrderIds: relatedBuyOrderIds ?? null,
+        });
+      },
+    });
+    const { deps } = createDeps({
+      orderRecorderOverride: orderRecorder,
+      dailyLossTrackerOverride: {
+        resetAll: () => {},
+        resetDirectionSegment: () => {},
+        recalculateFromAllOrders: () => {},
+        recordFilledOrder: () => {
+          dailyLossCalls += 1;
+        },
+        getLossOffset: () => 0,
+      },
+      onHandleOrderChanged: (handler) => {
+        handleOrderChanged = handler;
+      },
+    });
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+    await monitor.recoverOrderTrackingFromSnapshot([]);
+
+    orderRecorder.submitSellOrder('SELL-PARTIAL-CANCELED', 'BULL.HK', 'LONG', 200, [
+      'BUY-1',
+      'BUY-2',
+    ]);
+
+    monitor.trackOrder({
+      orderId: 'SELL-PARTIAL-CANCELED',
+      symbol: 'BULL.HK',
+      side: OrderSide.Sell,
+      price: 1,
+      quantity: 200,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+
+    handleOrderChanged(
+      createPushOrderChanged({
+        orderId: 'SELL-PARTIAL-CANCELED',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.PartialFilled,
+        orderType: OrderType.ELO,
+        submittedPrice: 1,
+        submittedQuantity: 200,
+        executedPrice: 1.05,
+        executedQuantity: 100,
+        updatedAtMs: Date.parse('2026-02-25T03:10:00.000Z'),
+      }),
+    );
+
+    handleOrderChanged(
+      createPushOrderChanged({
+        orderId: 'SELL-PARTIAL-CANCELED',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.Canceled,
+        orderType: OrderType.ELO,
+        submittedPrice: 1,
+        submittedQuantity: 200,
+        executedPrice: 1.05,
+        executedQuantity: 100,
+        updatedAtMs: Date.parse('2026-02-25T03:11:00.000Z'),
+      }),
+    );
+
+    expect(recordLocalSellCalls).toHaveLength(1);
+    expect(recordLocalSellCalls[0]?.relatedBuyOrderIds).toEqual(['BUY-1']);
+    expect(dailyLossCalls).toBe(1);
+    expect(monitor.getAndClearPendingRefreshSymbols()).toEqual([
+      {
+        symbol: 'BULL.HK',
+        isLongSymbol: true,
+        refreshAccount: true,
+        refreshPositions: true,
+      },
+    ]);
+  });
+
+  it('settles filled quantity when sell is rejected after partial fill', async () => {
+    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
+      throw new Error('handleOrderChanged hook was not captured');
+    };
+    const pendingSellSnapshot = new Map<string, PendingSellInfo>();
+    const buyOrders: ReadonlyArray<OrderRecord> = [
+      {
+        orderId: 'BUY-1',
+        symbol: 'BULL.HK',
+        executedPrice: 1,
+        executedQuantity: 100,
+        executedTime: Date.parse('2026-02-25T03:00:00.000Z'),
+        submittedAt: new Date('2026-02-25T03:00:00.000Z'),
+        updatedAt: new Date('2026-02-25T03:00:00.000Z'),
+      },
+      {
+        orderId: 'BUY-2',
+        symbol: 'BULL.HK',
+        executedPrice: 1.2,
+        executedQuantity: 100,
+        executedTime: Date.parse('2026-02-25T03:05:00.000Z'),
+        submittedAt: new Date('2026-02-25T03:05:00.000Z'),
+        updatedAt: new Date('2026-02-25T03:05:00.000Z'),
+      },
+    ];
+    const recordLocalSellCalls: Array<{ relatedBuyOrderIds: ReadonlyArray<string> | null }> = [];
+    let dailyLossCalls = 0;
+    const orderRecorder = createOrderRecorderDouble({
+      submitSellOrder: (
+        orderId: string,
+        symbol: string,
+        direction: 'LONG' | 'SHORT',
+        quantity: number,
+        relatedBuyOrderIds: readonly string[],
+        submittedAtMs?: number,
+      ) => {
+        pendingSellSnapshot.set(orderId, {
+          orderId,
+          symbol,
+          direction,
+          submittedQuantity: quantity,
+          filledQuantity: 0,
+          relatedBuyOrderIds,
+          status: 'pending',
+          submittedAt: submittedAtMs ?? Date.now(),
+        });
+      },
+      markSellPartialFilled: (orderId: string, filledQuantity: number) => {
+        const current = pendingSellSnapshot.get(orderId);
+        if (!current) {
+          return null;
+        }
+
+        const updated: PendingSellInfo = {
+          ...current,
+          filledQuantity,
+          status: 'partial',
+        };
+        pendingSellSnapshot.set(orderId, updated);
+        return updated;
+      },
+      markSellCancelled: (orderId: string) => {
+        const current = pendingSellSnapshot.get(orderId);
+        if (!current) {
+          return null;
+        }
+
+        pendingSellSnapshot.delete(orderId);
+        return {
+          ...current,
+          status: 'cancelled',
+        };
+      },
+      getBuyOrdersForSymbol: () => buyOrders,
+      recordLocalSell: (
+        _symbol,
+        _executedPrice,
+        _executedQuantity,
+        _isLongSymbol,
+        _executedTimeMs,
+        _orderId,
+        relatedBuyOrderIds,
+      ) => {
+        recordLocalSellCalls.push({
+          relatedBuyOrderIds: relatedBuyOrderIds ?? null,
+        });
+      },
+    });
+    const { deps } = createDeps({
+      orderRecorderOverride: orderRecorder,
+      dailyLossTrackerOverride: {
+        resetAll: () => {},
+        resetDirectionSegment: () => {},
+        recalculateFromAllOrders: () => {},
+        recordFilledOrder: () => {
+          dailyLossCalls += 1;
+        },
+        getLossOffset: () => 0,
+      },
+      onHandleOrderChanged: (handler) => {
+        handleOrderChanged = handler;
+      },
+    });
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+    await monitor.recoverOrderTrackingFromSnapshot([]);
+
+    orderRecorder.submitSellOrder('SELL-PARTIAL-REJECTED', 'BULL.HK', 'LONG', 200, [
+      'BUY-1',
+      'BUY-2',
+    ]);
+
+    monitor.trackOrder({
+      orderId: 'SELL-PARTIAL-REJECTED',
+      symbol: 'BULL.HK',
+      side: OrderSide.Sell,
+      price: 1,
+      quantity: 200,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+
+    handleOrderChanged(
+      createPushOrderChanged({
+        orderId: 'SELL-PARTIAL-REJECTED',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.PartialFilled,
+        orderType: OrderType.ELO,
+        submittedPrice: 1,
+        submittedQuantity: 200,
+        executedPrice: 1.05,
+        executedQuantity: 100,
+        updatedAtMs: Date.parse('2026-02-25T03:10:00.000Z'),
+      }),
+    );
+
+    handleOrderChanged(
+      createPushOrderChanged({
+        orderId: 'SELL-PARTIAL-REJECTED',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.Rejected,
+        orderType: OrderType.ELO,
+        submittedPrice: 1,
+        submittedQuantity: 200,
+        executedPrice: 1.05,
+        executedQuantity: 100,
+        updatedAtMs: Date.parse('2026-02-25T03:11:00.000Z'),
+      }),
+    );
+
+    expect(recordLocalSellCalls).toHaveLength(1);
+    expect(recordLocalSellCalls[0]?.relatedBuyOrderIds).toEqual(['BUY-1']);
+    expect(dailyLossCalls).toBe(1);
+    expect(monitor.getAndClearPendingRefreshSymbols()).toEqual([
+      {
+        symbol: 'BULL.HK',
+        isLongSymbol: true,
+        refreshAccount: true,
+        refreshPositions: true,
+      },
+    ]);
+  });
+
+  it('falls back to quantity-based local settlement when partial fill cannot be mapped to exact buy orders', async () => {
+    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
+      throw new Error('handleOrderChanged hook was not captured');
+    };
+    const pendingSellSnapshot = new Map<string, PendingSellInfo>();
+    const buyOrders: ReadonlyArray<OrderRecord> = [
+      {
+        orderId: 'BUY-A',
+        symbol: 'BULL.HK',
+        executedPrice: 1,
+        executedQuantity: 70,
+        executedTime: Date.parse('2026-02-25T03:00:00.000Z'),
+        submittedAt: new Date('2026-02-25T03:00:00.000Z'),
+        updatedAt: new Date('2026-02-25T03:00:00.000Z'),
+      },
+      {
+        orderId: 'BUY-B',
+        symbol: 'BULL.HK',
+        executedPrice: 1.2,
+        executedQuantity: 70,
+        executedTime: Date.parse('2026-02-25T03:05:00.000Z'),
+        submittedAt: new Date('2026-02-25T03:05:00.000Z'),
+        updatedAt: new Date('2026-02-25T03:05:00.000Z'),
+      },
+    ];
+    const recordLocalSellCalls: Array<{ relatedBuyOrderIds: ReadonlyArray<string> | null }> = [];
+    const orderRecorder = createOrderRecorderDouble({
+      submitSellOrder: (
+        orderId: string,
+        symbol: string,
+        direction: 'LONG' | 'SHORT',
+        quantity: number,
+        relatedBuyOrderIds: readonly string[],
+        submittedAtMs?: number,
+      ) => {
+        pendingSellSnapshot.set(orderId, {
+          orderId,
+          symbol,
+          direction,
+          submittedQuantity: quantity,
+          filledQuantity: 0,
+          relatedBuyOrderIds,
+          status: 'pending',
+          submittedAt: submittedAtMs ?? Date.now(),
+        });
+      },
+      markSellPartialFilled: (orderId: string, filledQuantity: number) => {
+        const current = pendingSellSnapshot.get(orderId);
+        if (!current) {
+          return null;
+        }
+
+        const updated: PendingSellInfo = {
+          ...current,
+          filledQuantity,
+          status: 'partial',
+        };
+        pendingSellSnapshot.set(orderId, updated);
+        return updated;
+      },
+      markSellCancelled: (orderId: string) => {
+        const current = pendingSellSnapshot.get(orderId);
+        if (!current) {
+          return null;
+        }
+
+        pendingSellSnapshot.delete(orderId);
+        return {
+          ...current,
+          status: 'cancelled',
+        };
+      },
+      getBuyOrdersForSymbol: () => buyOrders,
+      recordLocalSell: (
+        _symbol,
+        _executedPrice,
+        _executedQuantity,
+        _isLongSymbol,
+        _executedTimeMs,
+        _orderId,
+        relatedBuyOrderIds,
+      ) => {
+        recordLocalSellCalls.push({
+          relatedBuyOrderIds: relatedBuyOrderIds ?? null,
+        });
+      },
+    });
+    const { deps } = createDeps({
+      orderRecorderOverride: orderRecorder,
+      onHandleOrderChanged: (handler) => {
+        handleOrderChanged = handler;
+      },
+    });
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+    await monitor.recoverOrderTrackingFromSnapshot([]);
+
+    orderRecorder.submitSellOrder('SELL-PARTIAL-FALLBACK', 'BULL.HK', 'LONG', 140, [
+      'BUY-A',
+      'BUY-B',
+    ]);
+
+    monitor.trackOrder({
+      orderId: 'SELL-PARTIAL-FALLBACK',
+      symbol: 'BULL.HK',
+      side: OrderSide.Sell,
+      price: 1,
+      quantity: 140,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+
+    handleOrderChanged(
+      createPushOrderChanged({
+        orderId: 'SELL-PARTIAL-FALLBACK',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.PartialFilled,
+        orderType: OrderType.ELO,
+        submittedPrice: 1,
+        submittedQuantity: 140,
+        executedPrice: 1.05,
+        executedQuantity: 100,
+        updatedAtMs: Date.parse('2026-02-25T03:10:00.000Z'),
+      }),
+    );
+
+    handleOrderChanged(
+      createPushOrderChanged({
+        orderId: 'SELL-PARTIAL-FALLBACK',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.Canceled,
+        orderType: OrderType.ELO,
+        submittedPrice: 1,
+        submittedQuantity: 140,
+        executedPrice: 1.05,
+        executedQuantity: 100,
+        updatedAtMs: Date.parse('2026-02-25T03:11:00.000Z'),
+      }),
+    );
+
+    expect(recordLocalSellCalls).toHaveLength(1);
+    expect(recordLocalSellCalls[0]?.relatedBuyOrderIds).toBeNull();
   });
 
   it('cleans tracked order once when cancel returns already-canceled (601011)', async () => {

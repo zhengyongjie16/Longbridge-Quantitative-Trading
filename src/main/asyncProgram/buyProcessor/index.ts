@@ -25,9 +25,9 @@ import {
 import { logger } from '../../../utils/logger/index.js';
 import { isBuyAction } from '../../../utils/helpers/index.js';
 import {
+  describeSignalSeatValidationFailure,
   isSeatReady,
-  isSeatVersionMatch,
-  describeSeatUnavailable,
+  validateSignalSeat,
 } from '../../../services/autoSymbolManager/utils.js';
 import type { Processor } from '../types.js';
 import type { BuyProcessorDeps } from './types.js';
@@ -93,23 +93,15 @@ export function createBuyProcessor(deps: BuyProcessorDeps): Processor {
       const shortQuote = ctx.shortQuote;
       const monitorQuote = ctx.monitorQuote;
       const isLongSignal = signal.action === 'BUYCALL';
-      const direction = isLongSignal ? 'LONG' : 'SHORT';
-      const seatState = ctx.symbolRegistry.getSeatState(monitorSymbol, direction);
-      const seatVersion = ctx.symbolRegistry.getSeatVersion(monitorSymbol, direction);
-      if (!isSeatReady(seatState)) {
+      const seatValidation = validateSignalSeat({
+        monitorSymbol,
+        signal,
+        symbolRegistry: ctx.symbolRegistry,
+      });
+      if (!seatValidation.valid) {
         logger.debug(
-          `[BuyProcessor] ${describeSeatUnavailable(seatState)}，跳过信号: ${symbolDisplay} ${signal.action}`,
+          `[BuyProcessor] ${describeSignalSeatValidationFailure(seatValidation)}，跳过信号: ${symbolDisplay} ${signal.action}`,
         );
-        return true;
-      }
-
-      if (!isSeatVersionMatch(signal.seatVersion, seatVersion)) {
-        logger.debug(`[BuyProcessor] 席位版本不匹配，跳过信号: ${symbolDisplay} ${signal.action}`);
-        return true;
-      }
-
-      if (signal.symbol !== seatState.symbol) {
-        logger.debug(`[BuyProcessor] 标的已切换，跳过信号: ${symbolDisplay} ${signal.action}`);
         return true;
       }
 

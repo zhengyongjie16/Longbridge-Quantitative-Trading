@@ -12,7 +12,7 @@ import {
   getHKDateKey,
   getTradingMinutesSinceOpen,
   isWithinMorningOpenProtection,
-} from '../../utils/tradingTime/index.js';
+} from '../../utils/time/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import {

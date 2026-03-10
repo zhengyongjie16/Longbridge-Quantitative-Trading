@@ -11,6 +11,8 @@ import type { Signal, SignalType } from '../../src/types/signal.js';
 import type {
   DisplayIndicatorItem,
   IndicatorUsageProfile,
+  MonitorContext,
+  MonitorState,
   ProfileIndicator,
   StrategyAction,
 } from '../../src/types/state.js';
@@ -29,6 +31,7 @@ import type {
 } from '../../src/types/services.js';
 import type { SymbolRegistry, SeatState } from '../../src/types/seat.js';
 import type { QuoteContext, TradeContext } from 'longport';
+import type { HangSengMultiIndicatorStrategy } from '../../src/core/strategy/types.js';
 import type {
   DoomsdayProtection,
   DoomsdayClearanceContext,
@@ -36,6 +39,7 @@ import type {
   CancelPendingBuyOrdersContext,
   CancelPendingBuyOrdersResult,
 } from '../../src/core/doomsdayProtection/types.js';
+import type { DailyLossTracker, UnrealizedLossMonitor } from '../../src/types/risk.js';
 import { createMonitorConfig } from '../../mock/factories/configFactory.js';
 import type {
   GetRemainingMsParams,
@@ -46,6 +50,8 @@ import type {
   RecordLiquidationTriggerResult,
   RestoreTriggerCountParams,
 } from '../../src/services/liquidationCooldown/types.js';
+import type { DelayedSignalVerifier } from '../../src/main/asyncProgram/delayedSignalVerifier/types.js';
+import type { AutoSymbolManager } from '../../src/services/autoSymbolManager/types.js';
 import { toMockDecimal } from '../../mock/longport/decimal.js';
 import { createQuoteContextMock } from '../../mock/longport/quoteContextMock.js';
 import { createTradeContextMock } from '../../mock/longport/tradeContextMock.js';
@@ -93,6 +99,7 @@ export function createOrderRecorderDouble(overrides: Partial<OrderRecorder> = {}
     clearOrdersCacheForSymbol: () => {},
     getBuyOrdersForSymbol: () => [],
     submitSellOrder: () => {},
+    updatePendingSell: () => null,
     markSellFilled: () => null,
     markSellPartialFilled: () => null,
     markSellCancelled: () => null,
@@ -176,6 +183,113 @@ export function createRiskCheckerDouble(overrides: Partial<RiskChecker> = {}): R
     checkUnrealizedLoss: () => ({ shouldLiquidate: false }),
     getUnrealizedLossMetrics: () => null,
     clearUnrealizedLossData: () => {},
+  };
+
+  return {
+    ...base,
+    ...overrides,
+  };
+}
+
+/**
+ * 创建 DailyLossTracker 测试替身。
+ *
+ * 默认提供无副作用实现，适用于 app 组装层与监控上下文测试。
+ */
+export function createDailyLossTrackerDouble(
+  overrides: Partial<DailyLossTracker> = {},
+): DailyLossTracker {
+  const base: DailyLossTracker = {
+    resetAll: () => {},
+    recalculateFromAllOrders: () => {},
+    recordFilledOrder: () => {},
+    getLossOffset: () => 0,
+    resetDirectionSegment: () => {},
+  };
+
+  return {
+    ...base,
+    ...overrides,
+  };
+}
+
+/**
+ * 创建策略测试替身。
+ *
+ * 默认不生成任何信号，用于隔离组装层与上下文测试。
+ */
+export function createStrategyDouble(
+  overrides: Partial<HangSengMultiIndicatorStrategy> = {},
+): HangSengMultiIndicatorStrategy {
+  const base: HangSengMultiIndicatorStrategy = {
+    generateCloseSignals: () => ({
+      immediateSignals: [],
+      delayedSignals: [],
+    }),
+  };
+
+  return {
+    ...base,
+    ...overrides,
+  };
+}
+
+/**
+ * 创建浮亏监控器测试替身。
+ *
+ * 默认无副作用，便于仅验证装配与数据填充。
+ */
+export function createUnrealizedLossMonitorDouble(
+  overrides: Partial<UnrealizedLossMonitor> = {},
+): UnrealizedLossMonitor {
+  const base: UnrealizedLossMonitor = {
+    monitorUnrealizedLoss: async () => {},
+  };
+
+  return {
+    ...base,
+    ...overrides,
+  };
+}
+
+/**
+ * 创建延迟验证器测试替身。
+ *
+ * 默认提供空实现，供 app 装配与 cleanup 测试复用。
+ */
+export function createDelayedSignalVerifierDouble(
+  overrides: Partial<DelayedSignalVerifier> = {},
+): DelayedSignalVerifier {
+  const base: DelayedSignalVerifier = {
+    addSignal: () => {},
+    onVerified: () => {},
+    cancelAll: () => 0,
+    cancelAllForSymbol: () => {},
+    cancelAllForDirection: () => 0,
+    getPendingCount: () => 0,
+    destroy: () => {},
+  };
+
+  return {
+    ...base,
+    ...overrides,
+  };
+}
+
+/**
+ * 创建自动换标管理器测试替身。
+ *
+ * 默认不触发寻标和换标，用于上下文与主流程测试。
+ */
+export function createAutoSymbolManagerDouble(
+  overrides: Partial<AutoSymbolManager> = {},
+): AutoSymbolManager {
+  const base: AutoSymbolManager = {
+    maybeSearchOnTick: async () => {},
+    maybeSwitchOnInterval: async () => {},
+    maybeSwitchOnDistance: async () => {},
+    hasPendingSwitch: () => false,
+    resetAllState: () => {},
   };
 
   return {
@@ -543,6 +657,74 @@ export function createIndicatorUsageProfileDouble(overrides?: {
     actionSignalIndicators,
     verificationIndicatorsBySide,
     displayPlan: overrides?.displayPlan ?? defaultDisplayPlan,
+  };
+}
+
+/**
+ * 构造单标的监控状态测试数据。
+ *
+ * 默认只提供最小运行时状态字段，便于组装层与 cleanup 测试复用。
+ */
+function createMonitorStateDouble(monitorSymbol: string = 'HSI.HK'): MonitorState {
+  return {
+    monitorSymbol,
+    monitorPrice: null,
+    longPrice: null,
+    shortPrice: null,
+    signal: null,
+    pendingDelayedSignals: [],
+    monitorValues: null,
+    lastMonitorSnapshot: null,
+    lastCandleFingerprint: null,
+  };
+}
+
+/**
+ * 创建 MonitorContext 测试替身。
+ *
+ * 默认填充最小完整结构，允许调用方覆盖任意字段以聚焦特定断言。
+ */
+export function createMonitorContextDouble(
+  overrides: Partial<MonitorContext> = {},
+): MonitorContext {
+  const config = overrides.config ?? createMonitorConfigDouble();
+  const symbolRegistry =
+    overrides.symbolRegistry ??
+    createSymbolRegistryDouble({
+      monitorSymbol: config.monitorSymbol,
+    });
+  const longSeatState =
+    overrides.seatState?.long ?? symbolRegistry.getSeatState(config.monitorSymbol, 'LONG');
+  const shortSeatState =
+    overrides.seatState?.short ?? symbolRegistry.getSeatState(config.monitorSymbol, 'SHORT');
+
+  return {
+    config,
+    state: overrides.state ?? createMonitorStateDouble(config.monitorSymbol),
+    symbolRegistry,
+    seatState: overrides.seatState ?? {
+      long: longSeatState,
+      short: shortSeatState,
+    },
+    seatVersion: overrides.seatVersion ?? {
+      long: symbolRegistry.getSeatVersion(config.monitorSymbol, 'LONG'),
+      short: symbolRegistry.getSeatVersion(config.monitorSymbol, 'SHORT'),
+    },
+    autoSymbolManager: overrides.autoSymbolManager ?? createAutoSymbolManagerDouble(),
+    strategy: overrides.strategy ?? createStrategyDouble(),
+    orderRecorder: overrides.orderRecorder ?? createOrderRecorderDouble(),
+    dailyLossTracker: overrides.dailyLossTracker ?? createDailyLossTrackerDouble(),
+    riskChecker: overrides.riskChecker ?? createRiskCheckerDouble(),
+    unrealizedLossMonitor: overrides.unrealizedLossMonitor ?? createUnrealizedLossMonitorDouble(),
+    delayedSignalVerifier: overrides.delayedSignalVerifier ?? createDelayedSignalVerifierDouble(),
+    longSymbolName: overrides.longSymbolName ?? '',
+    shortSymbolName: overrides.shortSymbolName ?? '',
+    monitorSymbolName: overrides.monitorSymbolName ?? config.monitorSymbol,
+    normalizedMonitorSymbol: overrides.normalizedMonitorSymbol ?? config.monitorSymbol,
+    indicatorProfile: overrides.indicatorProfile ?? createIndicatorUsageProfileDouble(),
+    longQuote: overrides.longQuote ?? null,
+    shortQuote: overrides.shortQuote ?? null,
+    monitorQuote: overrides.monitorQuote ?? null,
   };
 }
 

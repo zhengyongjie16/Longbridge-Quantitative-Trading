@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'bun:test';
 import { createSignalProcessor } from '../../src/core/signalProcessor/index.js';
-import { createMonitorContext } from '../../src/services/monitorContext/index.js';
+import { createMonitorContext } from '../../src/app/createMonitorContext.js';
 import { mainProgram } from '../../src/main/mainProgram/index.js';
 import { processMonitor } from '../../src/main/processMonitor/index.js';
 import { createBuyProcessor } from '../../src/main/asyncProgram/buyProcessor/index.js';
@@ -33,10 +33,7 @@ import type { LastState, MonitorContext } from '../../src/types/state.js';
 import type { MultiMonitorTradingConfig, MonitorConfig } from '../../src/types/config.js';
 import type { DailyLossTracker, UnrealizedLossMonitor } from '../../src/types/risk.js';
 import type { DayLifecycleManager } from '../../src/main/lifecycle/types.js';
-import type {
-  MonitorTaskData,
-  MonitorTaskType,
-} from '../../src/main/asyncProgram/monitorTaskProcessor/types.js';
+import type { MonitorTaskDataMap } from '../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 import {
   createAccountSnapshotDouble,
   createDoomsdayProtectionDouble,
@@ -169,7 +166,7 @@ describe('full business simulation integration', () => {
     const indicatorCache = createIndicatorCache({ maxEntries: 300 });
     const buyTaskQueue = createBuyTaskQueue();
     const sellTaskQueue = createSellTaskQueue();
-    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
+    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const monitorState = initMonitorState(monitorConfig);
     const positions = [
       createPositionDouble({ symbol: 'BULL.HK', quantity: 300, availableQuantity: 300 }),
@@ -433,7 +430,7 @@ describe('full business simulation integration', () => {
     const indicatorCache = createIndicatorCache({ maxEntries: 300 });
     const buyTaskQueue = createBuyTaskQueue();
     const sellTaskQueue = createSellTaskQueue();
-    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
+    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const monitorState = initMonitorState(monitorConfig);
     const lastState = createSimulationLastState({
       monitorConfig,
@@ -722,7 +719,7 @@ describe('full business simulation integration', () => {
     const indicatorCache = createIndicatorCache({ maxEntries: 300 });
     const buyTaskQueue = createBuyTaskQueue();
     const sellTaskQueue = createSellTaskQueue();
-    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
+    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const monitorState = initMonitorState(monitorConfig);
     const longPosition = createPositionDouble({
       symbol: 'BULL.HK',

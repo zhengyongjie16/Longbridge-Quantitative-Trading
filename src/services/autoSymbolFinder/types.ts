@@ -13,7 +13,7 @@ import type { DecimalLike } from '../../utils/helpers/types.js';
  * 方向化自动寻标策略。
  * 类型用途：统一表达某一方向自动寻标的主条件阈值、降级区间、换标区间与成交额要求，作为自动寻标三条入口共享的策略对象。
  * 数据来源：由 policyResolver 基于 AutoSearchConfig 构造并校验。
- * 使用范围：autoSymbolFinder、autoSymbolManager、startup/seat 等自动寻标链路使用。
+ * 使用范围：autoSymbolFinder、autoSymbolManager、recovery/seatPreparation 等自动寻标链路使用。
  */
 export type DirectionalAutoSearchPolicy = {
   /** 寻标方向（LONG=牛证，SHORT=熊证） */
@@ -35,7 +35,7 @@ export type DirectionalAutoSearchPolicy = {
 /**
  * 构造方向化自动寻标策略的入参。
  * 类型用途：为 policyResolver 提供方向、配置、日志与错误上下文，统一生成共享策略对象。
- * 数据来源：由 startup/seat、autoSymbolManager 等调用方组装。
+ * 数据来源：由 recovery/seatPreparation、autoSymbolManager 等调用方组装。
  * 使用范围：自动寻标策略构造边界使用。
  */
 export type ResolveDirectionalAutoSearchPolicyInput = {
@@ -49,7 +49,7 @@ export type ResolveDirectionalAutoSearchPolicyInput = {
 /**
  * 基于共享策略构造 findBestWarrant 入参的参数。
  * 类型用途：将共享策略、QuoteContext 与交易分钟数解析器组装为最终 Finder 输入，避免调用方重复拼装。
- * 数据来源：由 startup/seat、thresholdResolver 等调用方组装。
+ * 数据来源：由 recovery/seatPreparation、thresholdResolver 等调用方组装。
  * 使用范围：autoSymbolFinder 与自动寻标入口之间的共享边界。
  */
 export type BuildFindBestWarrantInputFromPolicyParams = {

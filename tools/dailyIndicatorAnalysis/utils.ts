@@ -1,10 +1,10 @@
 import type { Candlestick } from 'longport';
 import { decimalToNumber } from '../../src/utils/helpers/index.js';
-import { toHongKongTimeLog } from '../../src/utils/primitives/index.js';
-import { calculateEMA } from '../../src/services/indicators/ema.js';
-import { calculateKDJ } from '../../src/services/indicators/kdj.js';
-import { calculateMFI } from '../../src/services/indicators/mfi.js';
-import { calculateRSI } from '../../src/services/indicators/rsi.js';
+import { toHongKongTimeLog } from '../../src/utils/time/index.js';
+import { calculateEMA } from '../../src/services/indicators/runtime/ema.js';
+import { calculateKDJ } from '../../src/services/indicators/runtime/kdj.js';
+import { calculateMFI } from '../../src/services/indicators/runtime/mfi.js';
+import { calculateRSI } from '../../src/services/indicators/runtime/rsi.js';
 import type { CandleData } from '../../src/types/data.js';
 import { formatFiniteNumber } from '../utils.js';
 import type {

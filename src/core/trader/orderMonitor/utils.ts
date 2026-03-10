@@ -18,7 +18,7 @@ import type {
   ReplaceTempBlockedErrorCode,
   ReplaceUnsupportedByTypeErrorCode,
 } from './types.js';
-import { isRecord } from '../../../utils/primitives/index.js';
+import { isRecord } from '../../../utils/helpers/index.js';
 import { toDecimal } from '../utils.js';
 import { logger } from '../../../utils/logger/index.js';
 

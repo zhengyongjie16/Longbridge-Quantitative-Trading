@@ -337,6 +337,47 @@ export type SeatUnavailableReason =
   | 'SEAT_SWITCHING';
 
 /**
+ * 信号席位绑定校验失败原因。
+ * 类型用途：统一表达交易信号与当前席位状态不一致的失败类型，供延迟验证与买卖处理器共享。
+ * 使用范围：autoSymbolManager/utils 与相关调用方使用。
+ */
+type SignalSeatValidationFailureReason =
+  | 'SEAT_UNAVAILABLE'
+  | 'SEAT_VERSION_MISMATCH'
+  | 'SEAT_SYMBOL_MISMATCH';
+
+/**
+ * 信号席位绑定校验入参。
+ * 类型用途：封装按 monitorSymbol 校验 signal 与当前 seat 绑定关系所需的最小依赖。
+ * 使用范围：autoSymbolManager/utils 与相关调用方使用。
+ */
+export type ValidateSignalSeatParams = Readonly<{
+  monitorSymbol: string;
+  signal: Pick<Signal, 'action' | 'seatVersion' | 'symbol'>;
+  symbolRegistry: SymbolRegistry;
+}>;
+
+/**
+ * 信号席位绑定校验结果。
+ * 类型用途：表达 signal 与当前席位是否一致；成功时暴露收窄后的就绪 seatState，失败时暴露原因与当前 seatState。
+ * 使用范围：延迟验证接线、买卖处理器等需要统一过滤旧席位信号的调用方。
+ */
+export type SignalSeatValidationResult =
+  | Readonly<{
+      valid: true;
+      direction: 'LONG' | 'SHORT';
+      seatState: SeatState & { symbol: string };
+      seatVersion: number;
+    }>
+  | Readonly<{
+      valid: false;
+      direction: 'LONG' | 'SHORT';
+      reason: SignalSeatValidationFailureReason;
+      seatState: SeatState;
+      seatVersion: number;
+    }>;
+
+/**
  * 构建席位状态的参数（对象参数模式）。
  * 类型用途：包含标的、状态、时间戳与冻结信息，由 seatStateManager.buildSeatState 消费。
  * 使用范围：autoSymbolManager 模块及其调用方使用。

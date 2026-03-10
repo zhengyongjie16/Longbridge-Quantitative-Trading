@@ -8,14 +8,11 @@ import { describe, expect, it } from 'bun:test';
 
 import { createMonitorTaskQueue } from '../../../../src/main/asyncProgram/monitorTaskQueue/index.js';
 
-import type {
-  MonitorTaskData,
-  MonitorTaskType,
-} from '../../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
+import type { MonitorTaskDataMap } from '../../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 
 describe('monitorTaskQueue business behavior', () => {
   it('scheduleLatest keeps only the latest task for the same dedupeKey', () => {
-    const queue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
+    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
 
     queue.scheduleLatest({
       type: 'AUTO_SYMBOL_TICK',
@@ -54,7 +51,7 @@ describe('monitorTaskQueue business behavior', () => {
   });
 
   it('notifies onTaskAdded callbacks and supports unregister', () => {
-    const queue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
+    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
 
     let calls = 0;
     const unregister = queue.onTaskAdded(() => {
@@ -89,7 +86,7 @@ describe('monitorTaskQueue business behavior', () => {
   });
 
   it('removeTasks and clearAll return removed count and call onRemove', () => {
-    const queue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
+    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
 
     queue.scheduleLatest({
       type: 'AUTO_SYMBOL_TICK',

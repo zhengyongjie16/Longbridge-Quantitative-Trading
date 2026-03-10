@@ -99,4 +99,26 @@ describe('smart close timeout config', () => {
       expect(validationError.missingFields).toContain('SMART_CLOSE_TIMEOUT_MINUTES_1');
     }
   });
+
+  it('includes missing LongPort credentials in ConfigValidationError.missingFields', async () => {
+    const tradingConfig = createTradingConfig({
+      monitors: [createMonitorConfigDouble()],
+    });
+
+    let caughtError: unknown = null;
+    try {
+      await validateAllConfig({
+        env: {},
+        tradingConfig,
+      });
+    } catch (error) {
+      caughtError = error;
+    }
+
+    expect(caughtError).not.toBeNull();
+    const validationError = caughtError as { missingFields?: ReadonlyArray<string> };
+    expect(validationError.missingFields).toContain('LONGPORT_APP_KEY');
+    expect(validationError.missingFields).toContain('LONGPORT_APP_SECRET');
+    expect(validationError.missingFields).toContain('LONGPORT_ACCESS_TOKEN');
+  });
 });

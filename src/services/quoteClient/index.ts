@@ -35,8 +35,7 @@ import {
   type PushQuoteEvent,
   type PushCandlestickEvent,
 } from 'longport';
-import { decimalToNumber } from '../../utils/helpers/index.js';
-import { isRecord } from '../../utils/primitives/index.js';
+import { decimalToNumber, isRecord } from '../../utils/helpers/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { API } from '../../constants/index.js';
 import type { Quote, QuoteStaticInfo } from '../../types/quote.js';
@@ -44,13 +43,8 @@ import type { TradingDayInfo, MarketDataClient, TradingDaysResult } from '../../
 import type { RetryConfig, MarketDataClientDeps } from './types.js';
 import { formatSymbolDisplay } from '../../utils/display/index.js';
 import { formatError } from '../../utils/error/index.js';
-import {
-  extractLotSize,
-  extractName,
-  formatPeriodForLog,
-  resolveHKDateKey,
-  resolveHKNaiveDate,
-} from './utils.js';
+import { getHKDateKey } from '../../utils/time/index.js';
+import { extractLotSize, extractName, formatPeriodForLog, resolveHKNaiveDate } from './utils.js';
 
 // 默认重试配置（使用统一常量）
 const DEFAULT_RETRY: RetryConfig = {
@@ -610,7 +604,7 @@ export async function createMarketDataClient(
    */
   async function isTradingDay(date: Date, market: Market = Market.HK): Promise<TradingDayInfo> {
     // 格式化为港股日期键 YYYY-MM-DD
-    const dateStr = resolveHKDateKey(date);
+    const dateStr = getHKDateKey(date);
 
     // 先检查缓存
     const cached = tradingDayCache.get(dateStr);

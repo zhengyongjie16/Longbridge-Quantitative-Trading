@@ -3,8 +3,18 @@ import type { MonitorConfig } from '../../types/config.js';
 import type { IndicatorSnapshot } from '../../types/quote.js';
 import type { SignalType } from '../../types/signal.js';
 import type { DecimalLike } from './types.js';
-import { isRecord } from '../primitives/index.js';
 import { kdjObjectPool, macdObjectPool, periodRecordPool } from '../objectPool/index.js';
+
+/**
+ * 类型保护：判断 unknown 是否为可索引对象。
+ * 默认行为：仅当 typeof value === 'object' 且 value !== null 时返回 true，否则返回 false。
+ *
+ * @param value 待判断值
+ * @returns true 表示可按键读取字段，否则返回 false
+ */
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
 
 /**
  * 类型保护：判断 unknown 是否为数值周期字典（Record<number, number>）。
@@ -26,6 +36,19 @@ function isPeriodRecord(value: unknown): value is Record<number, number> {
   return true;
 }
 
+function releaseDetachedPeriodRecord(
+  snapshotRecord: Readonly<Record<number, number>> | null,
+  monitorRecord: Readonly<Record<number, number>> | null | undefined,
+): void {
+  if (!snapshotRecord || monitorRecord === snapshotRecord) {
+    return;
+  }
+
+  if (isPeriodRecord(snapshotRecord)) {
+    periodRecordPool.release(snapshotRecord);
+  }
+}
+
 /**
  * 将 Decimal 类型转换为数字。默认行为：null/undefined 返回 NaN，便于调用方用 Number.isFinite() 判断。
  *
@@ -35,8 +58,6 @@ function isPeriodRecord(value: unknown): value is Record<number, number> {
 export function decimalToNumber(
   decimalLike: DecimalLike | number | string | null | undefined,
 ): number {
-  // 如果输入为 null 或 undefined，返回 NaN 而非 0
-  // 这样 Number.isFinite() 检查会返回 false，避免错误地使用 0 作为有效值
   if (decimalLike === null || decimalLike === undefined) {
     return Number.NaN;
   }
@@ -104,24 +125,10 @@ export function releaseSnapshotObjects(
     return;
   }
 
-  const releasePeriodRecord = (
-    snapshotRecord: Readonly<Record<number, number>> | null,
-    monitorRecord: Readonly<Record<number, number>> | null | undefined,
-  ): void => {
-    if (!snapshotRecord || monitorRecord === snapshotRecord) {
-      return;
-    }
-
-    if (isPeriodRecord(snapshotRecord)) {
-      // snapshot 中的周期记录来自 periodRecordPool，可安全回收到池中复用
-      periodRecordPool.release(snapshotRecord);
-    }
-  };
-
   // 释放周期指标对象（如果它们没有被 monitorValues 引用）
-  releasePeriodRecord(snapshot.ema, monitorValues?.ema);
-  releasePeriodRecord(snapshot.rsi, monitorValues?.rsi);
-  releasePeriodRecord(snapshot.psy, monitorValues?.psy);
+  releaseDetachedPeriodRecord(snapshot.ema, monitorValues?.ema);
+  releaseDetachedPeriodRecord(snapshot.rsi, monitorValues?.rsi);
+  releaseDetachedPeriodRecord(snapshot.psy, monitorValues?.psy);
 
   // 释放 KDJ 对象（如果它没有被 monitorValues 引用）
   if (snapshot.kdj && monitorValues?.kdj !== snapshot.kdj) {

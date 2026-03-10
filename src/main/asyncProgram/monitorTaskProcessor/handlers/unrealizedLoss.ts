@@ -11,9 +11,8 @@ import type { RefreshGate } from '../../../../utils/types.js';
 import type { MonitorTask } from '../../monitorTaskQueue/types.js';
 import type {
   MonitorTaskContext,
-  MonitorTaskData,
+  MonitorTaskDataMap,
   MonitorTaskStatus,
-  MonitorTaskType,
   UnrealizedLossCheckTaskData,
 } from '../types.js';
 import { evaluateMonitorContextAndSeatReadiness } from '../utils.js';
@@ -35,12 +34,11 @@ export function createUnrealizedLossHandler({
   readonly refreshGate: RefreshGate;
   readonly trader: Trader;
   readonly getCanProcessTask?: () => boolean;
-}): (task: MonitorTask<MonitorTaskType, MonitorTaskData>) => Promise<MonitorTaskStatus> {
+}): (task: MonitorTask<MonitorTaskDataMap, 'UNREALIZED_LOSS_CHECK'>) => Promise<MonitorTaskStatus> {
   return async function handleUnrealizedLossCheck(
-    task: MonitorTask<MonitorTaskType, MonitorTaskData>,
+    task: MonitorTask<MonitorTaskDataMap, 'UNREALIZED_LOSS_CHECK'>,
   ): Promise<MonitorTaskStatus> {
-    // handler 由 UNREALIZED_LOSS_CHECK 类型分派，data 语义上必为 UnrealizedLossCheckTaskData
-    const data = task.data as UnrealizedLossCheckTaskData;
+    const data: UnrealizedLossCheckTaskData = task.data;
     const evaluated = await evaluateMonitorContextAndSeatReadiness({
       getContextOrSkip,
       refreshGate,

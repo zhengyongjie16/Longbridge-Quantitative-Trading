@@ -3,6 +3,10 @@ import type { IndicatorSnapshot, Quote } from '../../types/quote.js';
 import type { Position } from '../../types/account.js';
 import type { SeatState } from '../../types/seat.js';
 import type { Signal } from '../../types/signal.js';
+import type { Logger } from '../../utils/logger/types.js';
+import type { MonitorTaskQueue } from '../asyncProgram/monitorTaskQueue/types.js';
+import type { MonitorTaskDataMap } from '../asyncProgram/monitorTaskProcessor/types.js';
+import type { BuyTaskType, SellTaskType, TaskQueue } from '../asyncProgram/tradeTaskQueue/types.js';
 import type { MainProgramContext } from '../mainProgram/types.js';
 
 /**
@@ -45,8 +49,8 @@ export type AutoSymbolTasksParams = Readonly<{
 }>;
 
 /**
- * 席位同步参数（同步席位信息函数的入参）。
- * 类型用途：封装 syncSeatInfo 所需的监控标的、行情、主上下文及信号/持仓释放回调。
+ * 席位同步参数（同步席位状态函数的入参）。
+ * 类型用途：封装 syncSeatState 所需的监控标的、行情、主上下文及信号/持仓释放回调。
  * 数据来源：由 processMonitor 从当前上下文与行情等组装传入。
  * 使用范围：仅 processMonitor 内部使用。
  */
@@ -60,9 +64,9 @@ export type SeatSyncParams = Readonly<{
 }>;
 
 /**
- * 席位同步结果（syncSeatInfo 的返回值）。
+ * 席位同步结果（syncSeatState 的返回值）。
  * 类型用途：包含双向席位状态、版本、就绪标志、标的与行情，供信号流水线与风险任务等使用。
- * 数据来源：由 syncSeatInfo(SeatSyncParams) 根据 symbolRegistry 与行情计算返回。
+ * 数据来源：由 syncSeatState(SeatSyncParams) 根据 symbolRegistry 与行情计算返回。
  * 使用范围：仅 processMonitor 内部及下游流水线使用。
  */
 export type SeatSyncResult = Readonly<{
@@ -123,4 +127,21 @@ export type SignalPipelineParams = Readonly<{
   monitorSnapshot: IndicatorSnapshot;
   releaseSignal: (signal: Signal) => void;
   releasePosition: (position: Position) => void;
+}>;
+
+/**
+ * 带日志的队列清理参数。
+ * 类型用途：清理指定监控标的方向下的延迟/买卖/监控任务并输出日志。
+ * 数据来源：由 app 顶层装配在创建 MonitorTaskProcessor 时传入。
+ * 使用范围：仅 processMonitor/queueCleanup 使用。
+ */
+export type ClearQueuesForDirectionWithLogParams = Readonly<{
+  monitorSymbol: string;
+  direction: 'LONG' | 'SHORT';
+  monitorContexts: ReadonlyMap<string, MonitorContext>;
+  buyTaskQueue: TaskQueue<BuyTaskType>;
+  sellTaskQueue: TaskQueue<SellTaskType>;
+  monitorTaskQueue: MonitorTaskQueue<MonitorTaskDataMap>;
+  releaseSignal: (signal: Signal) => void;
+  logger: Pick<Logger, 'debug'>;
 }>;

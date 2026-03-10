@@ -10,7 +10,7 @@ import { OrderSide, WarrantStatus, WarrantType } from 'longport';
 import { createTradingConfig } from '../../mock/factories/configFactory.js';
 import { toMockDecimal } from '../../mock/longport/decimal.js';
 import { createQuoteContextMock } from '../../mock/longport/quoteContextMock.js';
-import { prepareSeatsOnStartup } from '../../src/main/startup/seat.js';
+import { prepareSeatsForRuntime } from '../../src/main/recovery/seatPreparation.js';
 import { findBestWarrant } from '../../src/services/autoSymbolFinder/index.js';
 import {
   buildFindBestWarrantInputFromPolicy,
@@ -28,7 +28,7 @@ import { PENDING_ORDER_STATUSES } from '../../src/constants/index.js';
 import type { Quote } from '../../src/types/quote.js';
 import type { Logger } from '../../src/utils/logger/types.js';
 import { signalObjectPool } from '../../src/utils/objectPool/index.js';
-import { getHKDateKey } from '../../src/utils/tradingTime/index.js';
+import { getHKDateKey } from '../../src/utils/time/index.js';
 import {
   createMarketDataClientDouble,
   createMonitorConfigDouble,
@@ -167,7 +167,7 @@ describe('auto search policy consistency integration', () => {
         frozenTradingDayKey: null,
       },
     });
-    await prepareSeatsOnStartup({
+    await prepareSeatsForRuntime({
       tradingConfig: createTradingConfig({ monitors: [monitorConfig] }),
       symbolRegistry: startupRegistry,
       positions: [],
@@ -418,7 +418,7 @@ describe('auto search policy consistency integration', () => {
         frozenTradingDayKey: null,
       },
     });
-    await prepareSeatsOnStartup({
+    await prepareSeatsForRuntime({
       tradingConfig: createTradingConfig({ monitors: [monitorConfig] }),
       symbolRegistry: startupRegistry,
       positions: [],

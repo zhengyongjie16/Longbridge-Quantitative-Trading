@@ -22,6 +22,7 @@ import type { Quote } from '../../types/quote.js';
 import type { SymbolRegistry } from '../../types/seat.js';
 import type { MarketDataClient, RawOrderFromAPI } from '../../types/services.js';
 import type { DailyLossTracker } from '../../types/risk.js';
+import { resolveMonitorContextRuntimeSnapshot } from '../../utils/utils.js';
 import type { RebuildTradingDayStateDeps, RebuildTradingDayStateParams } from './types.js';
 import { prewarmTradingCalendarSnapshotForRebuild } from './tradingCalendarPrewarmer.js';
 import { formatError } from '../../utils/error/index.js';
@@ -40,31 +41,19 @@ function syncMonitorContextQuotes(
   symbolRegistry: SymbolRegistry,
   quotesMap: ReadonlyMap<string, Quote | null>,
 ): void {
-  const monitorSymbol = monitorContext.config.monitorSymbol;
-  const longSeatState = symbolRegistry.getSeatState(monitorSymbol, 'LONG');
-  const shortSeatState = symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
-  const longSeatVersion = symbolRegistry.getSeatVersion(monitorSymbol, 'LONG');
-  const shortSeatVersion = symbolRegistry.getSeatVersion(monitorSymbol, 'SHORT');
-  monitorContext.seatState = {
-    long: longSeatState,
-    short: shortSeatState,
-  };
-
-  monitorContext.seatVersion = {
-    long: longSeatVersion,
-    short: shortSeatVersion,
-  };
-  const longSymbol = isSeatReady(longSeatState) ? longSeatState.symbol : null;
-  const shortSymbol = isSeatReady(shortSeatState) ? shortSeatState.symbol : null;
-  const longQuote = longSymbol ? (quotesMap.get(longSymbol) ?? null) : null;
-  const shortQuote = shortSymbol ? (quotesMap.get(shortSymbol) ?? null) : null;
-  const monitorQuote = quotesMap.get(monitorSymbol) ?? null;
-  monitorContext.longQuote = longQuote;
-  monitorContext.shortQuote = shortQuote;
-  monitorContext.monitorQuote = monitorQuote;
-  monitorContext.longSymbolName = longSymbol ? (longQuote?.name ?? longSymbol) : '';
-  monitorContext.shortSymbolName = shortSymbol ? (shortQuote?.name ?? shortSymbol) : '';
-  monitorContext.monitorSymbolName = monitorQuote?.name ?? monitorSymbol;
+  const runtimeSnapshot = resolveMonitorContextRuntimeSnapshot(
+    monitorContext.config.monitorSymbol,
+    symbolRegistry,
+    quotesMap,
+  );
+  monitorContext.seatState = runtimeSnapshot.seatState;
+  monitorContext.seatVersion = runtimeSnapshot.seatVersion;
+  monitorContext.longQuote = runtimeSnapshot.longQuote;
+  monitorContext.shortQuote = runtimeSnapshot.shortQuote;
+  monitorContext.monitorQuote = runtimeSnapshot.monitorQuote;
+  monitorContext.longSymbolName = runtimeSnapshot.longSymbolName;
+  monitorContext.shortSymbolName = runtimeSnapshot.shortSymbolName;
+  monitorContext.monitorSymbolName = runtimeSnapshot.monitorSymbolName;
 }
 
 /**

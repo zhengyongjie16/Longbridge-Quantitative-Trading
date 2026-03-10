@@ -31,7 +31,7 @@ import type {
 } from './types.js';
 import { batchGetQuotes, isBeforeClose15Minutes, isBeforeClose5Minutes } from './utils.js';
 import { formatError } from '../../utils/error/index.js';
-import { getHKDateKey } from '../../utils/tradingTime/index.js';
+import { getHKDateKey } from '../../utils/time/index.js';
 
 /**
  * 创建单个清仓信号（收盘前 5 分钟清仓用）。
@@ -206,7 +206,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
         marketDataClient,
         lastState,
       } = context;
-      const todayKey = getHKDateKey(currentTime) ?? currentTime.toISOString().slice(0, 10);
+      const todayKey = getHKDateKey(currentTime);
 
       // 检查是否应该清仓
       if (!isBeforeClose5Minutes(currentTime, isHalfDay)) {
@@ -273,7 +273,10 @@ export function createDoomsdayProtection(): DoomsdayProtection {
         const key = `${signal.action}_${signal.symbol}`;
         if (!uniqueSignalsMap.has(key)) {
           uniqueSignalsMap.set(key, signal);
+          continue;
         }
+
+        signalObjectPool.release(signal);
       }
 
       const uniqueClearanceSignals = [...uniqueSignalsMap.values()];
@@ -297,11 +300,24 @@ export function createDoomsdayProtection(): DoomsdayProtection {
 
       logger.info(`[末日保护程序] 生成 ${uniqueClearanceSignals.length} 个清仓信号，准备执行`);
 
-      // 执行清仓信号
-      await trader.executeSignals(uniqueClearanceSignals);
+      const submittedCount = await (async (): Promise<number> => {
+        try {
+          const executionResult = await trader.executeSignals(uniqueClearanceSignals);
+          return executionResult.submittedCount;
+        } finally {
+          signalObjectPool.releaseAll(uniqueClearanceSignals);
+        }
+      })();
 
-      // 释放执行后的清仓信号对象回对象池
-      signalObjectPool.releaseAll(uniqueClearanceSignals);
+      if (submittedCount !== uniqueClearanceSignals.length) {
+        logger.warn(
+          `[末日保护程序] 清仓信号仅提交 ${submittedCount}/${uniqueClearanceSignals.length} 个，保留缓存与订单记录等待后续刷新`,
+        );
+        return {
+          executed: submittedCount > 0,
+          signalCount: submittedCount,
+        };
+      }
 
       // 清空缓存（订单成交后会在主循环中刷新并显示账户和持仓信息）
       lastState.cachedAccount = null;
@@ -326,7 +342,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
         }
       }
 
-      return { executed: true, signalCount: uniqueClearanceSignals.length };
+      return { executed: true, signalCount: submittedCount };
     },
     async cancelPendingBuyOrders(
       context: CancelPendingBuyOrdersContext,
@@ -344,7 +360,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
       // 逻辑：首次进入 15 分钟范围时执行一次，之后不再重复
       // 原因：末日保护期间已拒绝新买入，不会有新的买入订单产生
       //       已撤销的订单会进入 WebSocket 监控，无需重复查询
-      const todayDateString = getHKDateKey(currentTime) ?? currentTime.toISOString().slice(0, 10);
+      const todayDateString = getHKDateKey(currentTime);
       if (cancelCheckExecutedDate === todayDateString) {
         // 当天已执行过，直接返回
         return { executed: false, cancelledCount: 0 };

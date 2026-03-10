@@ -8,6 +8,7 @@ import { describe, expect, it } from 'bun:test';
 import { OrderSide } from 'longport';
 
 import { createDoomsdayProtection } from '../../src/core/doomsdayProtection/index.js';
+import { signalObjectPool } from '../../src/utils/objectPool/index.js';
 
 import type { LastState, MonitorContext } from '../../src/types/state.js';
 
@@ -270,5 +271,123 @@ describe('doomsday integration', () => {
     expect(lastState.cachedAccount).toBeNull();
     expect(lastState.cachedPositions).toHaveLength(0);
     expect(lastState.positionCache.get('BULL.HK')).toBeNull();
+  });
+
+  it('keeps caches and order records when close-5 liquidation signals are not actually submitted', async () => {
+    const doomsday = createDoomsdayProtection();
+    const monitorConfig = createMonitorConfigDouble();
+
+    const trader = createTraderDouble({
+      executeSignals: async () => ({ submittedCount: 0, submittedOrderIds: [] }),
+    });
+
+    let clearCalls = 0;
+    const orderRecorder = createOrderRecorderDouble({
+      clearBuyOrders: () => {
+        clearCalls += 1;
+      },
+    });
+    const lastState = createLastState();
+
+    const result = await doomsday.executeClearance({
+      currentTime: new Date('2026-02-16T07:56:00.000Z'),
+      isHalfDay: false,
+      positions: lastState.cachedPositions,
+      monitorConfigs: [monitorConfig],
+      monitorContexts: new Map([
+        [monitorConfig.monitorSymbol, createMonitorContext(monitorConfig, orderRecorder)],
+      ]),
+      trader,
+      marketDataClient: {
+        getQuoteContext: async () => ({}) as never,
+        getQuotes: async () =>
+          new Map([
+            ['BULL.HK', createQuoteDouble('BULL.HK', 1.1, 100)],
+            ['BEAR.HK', createQuoteDouble('BEAR.HK', 0.9, 100)],
+          ]),
+        subscribeSymbols: async () => {},
+        unsubscribeSymbols: async () => {},
+        subscribeCandlesticks: async () => [],
+        getRealtimeCandlesticks: async () => [],
+        isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
+        resetRuntimeSubscriptionsAndCaches: async () => {},
+      },
+      lastState,
+    });
+
+    expect(result).toEqual({ executed: false, signalCount: 0 });
+    expect(clearCalls).toBe(0);
+    expect(lastState.cachedAccount).not.toBeNull();
+    expect(lastState.cachedPositions).toHaveLength(2);
+    expect(lastState.positionCache.get('BULL.HK')).not.toBeNull();
+  });
+
+  it('releases duplicate and unique clearance signals even when execution throws', async () => {
+    const doomsday = createDoomsdayProtection();
+    const primaryMonitor = createMonitorConfigDouble({ monitorSymbol: 'HSI.HK' });
+    const secondaryMonitor = createMonitorConfigDouble({ monitorSymbol: 'HSCEI.HK' });
+
+    const originalRelease = signalObjectPool.release;
+    const originalReleaseAll = signalObjectPool.releaseAll;
+    let releasedSignals = 0;
+
+    signalObjectPool.release = (signal) => {
+      releasedSignals += signal ? 1 : 0;
+      originalRelease.call(signalObjectPool, signal);
+    };
+
+    signalObjectPool.releaseAll = (signals) => {
+      releasedSignals += signals?.length ?? 0;
+      originalReleaseAll.call(signalObjectPool, signals);
+    };
+
+    try {
+      const trader = createTraderDouble({
+        executeSignals: async () => {
+          throw new Error('submit failed');
+        },
+      });
+
+      let caught: unknown = null;
+      try {
+        await doomsday.executeClearance({
+          currentTime: new Date('2026-02-16T07:56:00.000Z'),
+          isHalfDay: false,
+          positions: createLastState().cachedPositions,
+          monitorConfigs: [primaryMonitor, secondaryMonitor],
+          monitorContexts: new Map([
+            [primaryMonitor.monitorSymbol, createMonitorContext(primaryMonitor)],
+            [secondaryMonitor.monitorSymbol, createMonitorContext(secondaryMonitor)],
+          ]),
+          trader,
+          marketDataClient: {
+            getQuoteContext: async () => ({}) as never,
+            getQuotes: async () =>
+              new Map([
+                ['BULL.HK', createQuoteDouble('BULL.HK', 1.1, 100)],
+                ['BEAR.HK', createQuoteDouble('BEAR.HK', 0.9, 100)],
+              ]),
+            subscribeSymbols: async () => {},
+            unsubscribeSymbols: async () => {},
+            subscribeCandlesticks: async () => [],
+            getRealtimeCandlesticks: async () => [],
+            isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
+            resetRuntimeSubscriptionsAndCaches: async () => {},
+          },
+          lastState: createLastState(),
+        });
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught).toMatchObject({
+        message: 'submit failed',
+      });
+
+      expect(releasedSignals).toBe(4);
+    } finally {
+      signalObjectPool.release = originalRelease;
+      signalObjectPool.releaseAll = originalReleaseAll;
+    }
   });
 });

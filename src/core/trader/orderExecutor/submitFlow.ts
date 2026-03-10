@@ -39,6 +39,26 @@ function isFilledCancelOutcome(outcome: CancelOrderOutcome): boolean {
   return outcome.kind === 'ALREADY_CLOSED' && outcome.closedReason === 'FILLED';
 }
 
+function mergeRelatedBuyOrderIds(
+  left: ReadonlyArray<string> | null | undefined,
+  right: ReadonlyArray<string> | null | undefined,
+): ReadonlyArray<string> | null {
+  const merged = [...(left ?? []), ...(right ?? [])];
+  if (merged.length === 0) {
+    return null;
+  }
+
+  return [...new Set(merged)];
+}
+
+function getOutcomeRelatedBuyOrderIds(outcome: CancelOrderOutcome): ReadonlyArray<string> {
+  if (outcome.kind === 'CANCEL_CONFIRMED' || outcome.kind === 'ALREADY_CLOSED') {
+    return outcome.relatedBuyOrderIds ?? [];
+  }
+
+  return [];
+}
+
 /**
  * 创建 submitTargetOrder 实现。
  *
@@ -87,6 +107,7 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
       overridePrice,
       isShortSymbol,
       monitorConfig = null,
+      relatedBuyOrderIds = null,
     } = params;
 
     if (!canExecuteSignal(signal, 'submitOrder')) {
@@ -155,14 +176,15 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
         liquidationCooldownConfig: monitorConfig?.liquidationCooldown ?? null,
       });
 
-      if (side === OrderSide.Sell && signal.relatedBuyOrderIds) {
+      const sellRelatedBuyOrderIds = relatedBuyOrderIds ?? signal.relatedBuyOrderIds ?? null;
+      if (side === OrderSide.Sell && sellRelatedBuyOrderIds) {
         const direction: 'LONG' | 'SHORT' = isLongSymbol ? 'LONG' : 'SHORT';
         orderRecorder.submitSellOrder(
           orderId,
           symbol,
           direction,
           submittedQuantityNum,
-          signal.relatedBuyOrderIds,
+          sellRelatedBuyOrderIds,
         );
       }
 
@@ -258,17 +280,33 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
           price,
           decision.mergedQuantity,
         );
+        const existingPendingSell = orderRecorder
+          .getPendingSellSnapshot()
+          .find((pendingSell) => pendingSell.orderId === decision.targetOrderId);
+        const mergedRelatedBuyOrderIds = mergeRelatedBuyOrderIds(
+          existingPendingSell?.relatedBuyOrderIds,
+          signal.relatedBuyOrderIds,
+        );
+        if (existingPendingSell) {
+          orderRecorder.updatePendingSell(decision.targetOrderId, {
+            submittedQuantity: decision.mergedQuantity,
+            relatedBuyOrderIds: mergedRelatedBuyOrderIds ?? [],
+          });
+        }
+
         return null;
       }
 
+      let cancelOutcomes: ReadonlyArray<CancelOrderOutcome> = [];
       if (decision.action === 'CANCEL_AND_SUBMIT') {
         if (!canExecuteSignal(signal, 'cancelAndSubmit')) {
           return null;
         }
 
-        const cancelOutcomes = await Promise.all(
+        cancelOutcomes = await Promise.all(
           decision.pendingOrderIds.map((orderId) => orderMonitor.cancelOrder(orderId)),
         );
+
         if (cancelOutcomes.some(isFilledCancelOutcome)) {
           logger.warn(`[订单合并] 检测到已成交卖单，禁止重复提交: ${targetSymbol}`);
           return null;
@@ -287,6 +325,13 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
 
       if (decision.action === 'SUBMIT' || decision.action === 'CANCEL_AND_SUBMIT') {
         const mergedQtyDecimal = toDecimal(decision.mergedQuantity);
+        const mergedRelatedBuyOrderIds =
+          decision.action === 'CANCEL_AND_SUBMIT'
+            ? mergeRelatedBuyOrderIds(
+                signal.relatedBuyOrderIds,
+                cancelOutcomes.flatMap(getOutcomeRelatedBuyOrderIds),
+              )
+            : signal.relatedBuyOrderIds ?? null;
         return submitOrder({
           ctx,
           signal,
@@ -299,6 +344,7 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
           overridePrice: decision.price ?? undefined,
           isShortSymbol,
           monitorConfig,
+          relatedBuyOrderIds: mergedRelatedBuyOrderIds,
         });
       }
 

@@ -14,10 +14,7 @@ import type { MonitorContext } from '../../../src/types/state.js';
 import type { Quote } from '../../../src/types/quote.js';
 import type { SeatSyncResult } from '../../../src/main/processMonitor/types.js';
 import type { PriceDisplayInfo } from '../../../src/services/marketMonitor/types.js';
-import type {
-  MonitorTaskData,
-  MonitorTaskType,
-} from '../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
+import type { MonitorTaskDataMap } from '../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 
 import {
   createOrderRecorderDouble,
@@ -59,7 +56,7 @@ function createSeatInfo(): SeatSyncResult {
 
 describe('riskTasks business scheduling', () => {
   it('schedules liquidation-distance and unrealized-loss checks in one tick when conditions match', () => {
-    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
+    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const capturedDisplayInfo: {
       long: PriceDisplayInfo | null | undefined;
       short: PriceDisplayInfo | null | undefined;
@@ -227,7 +224,7 @@ describe('riskTasks business scheduling', () => {
   });
 
   it('skips liquidation-distance scheduling when auto-search is enabled', () => {
-    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskType, MonitorTaskData>();
+    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
 
     const monitorContext = {
       state: {

@@ -46,6 +46,7 @@ function createMockOrderRecorder(params: {
     clearOrdersCacheForSymbol: () => {},
     getBuyOrdersForSymbol: () => [],
     submitSellOrder: () => {},
+    updatePendingSell: () => null,
     markSellFilled: () => null,
     markSellPartialFilled: () => null,
     markSellCancelled: () => null,

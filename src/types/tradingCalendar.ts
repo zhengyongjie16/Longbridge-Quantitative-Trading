@@ -21,7 +21,7 @@ export type TradingCalendarSnapshot = ReadonlyMap<string, TradingCalendarDayInfo
  * 交易时段累计时长计算参数。
  * 类型用途：定义起止时间与交易日历快照输入，供交易时段累计函数使用。
  * 数据来源：卖出决策、周期换标等业务层构建。
- * 使用范围：tradingTime 及其调用方。
+ * 使用范围：time 工具及其调用方。
  */
 export type TradingDurationBetweenParams = {
   readonly startMs: number;
@@ -33,7 +33,7 @@ export type TradingDurationBetweenParams = {
  * 持仓超时判定参数。
  * 类型用途：定义订单成交时间、当前时间、超时阈值与交易日历快照输入。
  * 数据来源：智能平仓调用方构建。
- * 使用范围：tradingTime 超时判定逻辑及相关调用方。
+ * 使用范围：time 超时判定逻辑及相关调用方。
  */
 export type OrderTimeoutCheckParams = {
   readonly orderExecutedTimeMs: number;

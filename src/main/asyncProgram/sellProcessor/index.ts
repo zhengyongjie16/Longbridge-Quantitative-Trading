@@ -32,9 +32,9 @@ import {
 } from '../utils.js';
 import { logger } from '../../../utils/logger/index.js';
 import {
+  describeSignalSeatValidationFailure,
   isSeatReady,
-  isSeatVersionMatch,
-  describeSeatUnavailable,
+  validateSignalSeat,
 } from '../../../services/autoSymbolManager/utils.js';
 import type { Processor } from '../types.js';
 import type { SellProcessorDeps } from './types.js';
@@ -80,24 +80,15 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
       // 注意：longQuote/shortQuote 必须来自 ctx（每秒更新）
       const { config, orderRecorder, longQuote, shortQuote, symbolRegistry } = ctx;
       const lastState = getLastState();
-      const isLongSignal = signal.action === 'SELLCALL';
-      const direction = isLongSignal ? 'LONG' : 'SHORT';
-      const seatState = symbolRegistry.getSeatState(monitorSymbol, direction);
-      const seatVersion = symbolRegistry.getSeatVersion(monitorSymbol, direction);
-      if (!isSeatReady(seatState)) {
+      const seatValidation = validateSignalSeat({
+        monitorSymbol,
+        signal,
+        symbolRegistry,
+      });
+      if (!seatValidation.valid) {
         logger.debug(
-          `[SellProcessor] ${describeSeatUnavailable(seatState)}，跳过信号: ${symbolDisplay} ${signal.action}`,
+          `[SellProcessor] ${describeSignalSeatValidationFailure(seatValidation)}，跳过信号: ${symbolDisplay} ${signal.action}`,
         );
-        return true;
-      }
-
-      if (!isSeatVersionMatch(signal.seatVersion, seatVersion)) {
-        logger.debug(`[SellProcessor] 席位版本不匹配，跳过信号: ${symbolDisplay} ${signal.action}`);
-        return true;
-      }
-
-      if (signal.symbol !== seatState.symbol) {
-        logger.debug(`[SellProcessor] 标的已切换，跳过信号: ${symbolDisplay} ${signal.action}`);
         return true;
       }
 

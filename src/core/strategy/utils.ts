@@ -47,6 +47,10 @@ function isConditionIndicatorValueAvailable(params: {
     return state.kdj !== null && isValidNumber(state.kdj.j);
   }
 
+  if (indicatorKey === 'ADX') {
+    return isValidNumber(state.adx);
+  }
+
   const rsiPeriod = parseIndicatorPeriod({ indicatorName: indicatorKey, prefix: 'RSI:' });
   if (rsiPeriod !== null) {
     return isValidNumber(state.rsi?.[rsiPeriod]);
@@ -186,7 +190,7 @@ function formatKdjSegment(kdj: IndicatorSnapshot['kdj']): string {
  * @returns 格式化的指标值字符串（如 "RSI14(0.123)、MFI(0.456)、KDJ(...)"）
  */
 export function buildIndicatorDisplayString(state: IndicatorSnapshot): string {
-  const { rsi, psy, mfi, kdj } = state;
+  const { rsi, psy, mfi, kdj, adx } = state;
   const parts: string[] = [];
 
   if (rsi && typeof rsi === 'object') {
@@ -221,6 +225,10 @@ export function buildIndicatorDisplayString(state: IndicatorSnapshot): string {
 
   const kdjStr = formatKdjSegment(kdj);
   if (kdjStr) parts.push(kdjStr);
+
+  if (isValidNumber(adx)) {
+    parts.push(`ADX(${adx.toFixed(3)})`);
+  }
 
   return parts.join('、');
 }
@@ -291,6 +299,11 @@ function evaluateCondition(state: IndicatorState, condition: Condition): boolean
 
       case 'J': {
         value = state.kdj?.j;
+        break;
+      }
+
+      case 'ADX': {
+        value = state.adx ?? undefined;
         break;
       }
 
