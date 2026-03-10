@@ -211,4 +211,45 @@ describe('createHangSengMultiIndicatorStrategy', () => {
     expect(successfulResult.delayedSignals).toHaveLength(1);
     expect(successfulResult.delayedSignals[0]?.indicators1).toEqual({ D: 60 });
   });
+
+  it('does not generate signals for manually injected ADX signal conditions', () => {
+    const strategy = createHangSengMultiIndicatorStrategy({
+      signalConfig: {
+        buycall: {
+          conditionGroups: [
+            {
+              conditions: [{ indicator: 'ADX', operator: '>', threshold: 25 }],
+              requiredCount: 1,
+            },
+          ],
+        },
+        sellcall: null,
+        buyput: null,
+        sellput: null,
+      },
+      verificationConfig: {
+        buy: {
+          delaySeconds: 0,
+          indicators: [],
+        },
+        sell: {
+          delaySeconds: 0,
+          indicators: [],
+        },
+      },
+    });
+
+    const result = strategy.generateCloseSignals(
+      createSnapshot({
+        adx: 35,
+      }),
+      'BULL.HK',
+      '',
+      createOrderRecorderDouble(),
+      createIndicatorUsageProfileDouble(),
+    );
+
+    expect(result.immediateSignals).toHaveLength(0);
+    expect(result.delayedSignals).toHaveLength(0);
+  });
 });

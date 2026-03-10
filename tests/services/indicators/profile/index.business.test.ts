@@ -77,4 +77,53 @@ describe('indicators/profile business flow', () => {
       'DEA',
     ]);
   });
+
+  it('keeps ADX as verification-only and rejects it from signal indicators', () => {
+    const indicatorProfile = compileIndicatorUsageProfile({
+      signalConfig: {
+        buycall: {
+          conditionGroups: [
+            {
+              conditions: [{ indicator: 'K', operator: '>', threshold: 80 }],
+              requiredCount: 1,
+            },
+          ],
+        },
+        sellcall: null,
+        buyput: null,
+        sellput: null,
+      },
+      verificationConfig: {
+        buy: { delaySeconds: 10, indicators: ['ADX'] },
+        sell: { delaySeconds: 10, indicators: [] },
+      },
+    });
+
+    expect(indicatorProfile.actionSignalIndicators.BUYCALL).toEqual(['K']);
+    expect(indicatorProfile.verificationIndicatorsBySide.buy).toEqual(['ADX']);
+    expect(indicatorProfile.requiredFamilies.adx).toBeTrue();
+    expect(indicatorProfile.displayPlan).toContain('ADX');
+
+    expect(() =>
+      compileIndicatorUsageProfile({
+        signalConfig: {
+          buycall: {
+            conditionGroups: [
+              {
+                conditions: [{ indicator: 'ADX', operator: '>', threshold: 25 }],
+                requiredCount: 1,
+              },
+            ],
+          },
+          sellcall: null,
+          buyput: null,
+          sellput: null,
+        },
+        verificationConfig: {
+          buy: { delaySeconds: 0, indicators: [] },
+          sell: { delaySeconds: 0, indicators: [] },
+        },
+      }),
+    ).toThrow('[配置错误] 信号条件不支持指标: ADX');
+  });
 });

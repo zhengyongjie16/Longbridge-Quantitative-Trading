@@ -49,18 +49,9 @@ describe('signalConfigParser business flow', () => {
     expect(maxGroups?.conditionGroups).toHaveLength(3);
   });
 
-  it('supports ADX as a fixed indicator in signal conditions', () => {
-    const parsed = parseSignalConfig('(ADX>25)|(ADX<10)');
-    expect(parsed).not.toBeNull();
-    expect(parsed?.conditionGroups).toHaveLength(2);
-
-    const strongTrendResult = evaluateSignalConfig({ adx: 30 }, parsed);
-    expect(strongTrendResult.triggered).toBeTrue();
-    expect(strongTrendResult.satisfiedGroupIndex).toBe(0);
-
-    const weakTrendResult = evaluateSignalConfig({ adx: 8 }, parsed);
-    expect(weakTrendResult.triggered).toBeTrue();
-    expect(weakTrendResult.satisfiedGroupIndex).toBe(1);
+  it('rejects ADX in signal conditions because ADX is verification-only', () => {
+    expect(parseSignalConfig('(ADX>25)')).toBeNull();
+    expect(parseSignalConfig('(ADX<10)|(K>80)')).toBeNull();
   });
 
   it('formats parsed config into deterministic display text', () => {

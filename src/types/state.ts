@@ -17,7 +17,7 @@ export type StrategyAction = 'BUYCALL' | 'SELLCALL' | 'BUYPUT' | 'SELLPUT';
 
 /**
  * 指标画像中的指标名称。
- * 类型用途：统一表达策略条件、延迟验证与展示计划中的可配置指标键，作为单一真相输入。
+ * 类型用途：统一表达运行时可计算的指标键，供展示与延迟验证等链路复用。
  * 数据来源：由 signalConfig / verificationConfig 编译生成。
  * 使用范围：IndicatorUsageProfile、strategy、delayedSignalVerifier、marketMonitor 等模块。
  */
@@ -33,6 +33,14 @@ export type ProfileIndicator =
   | `RSI:${number}`
   | `EMA:${number}`
   | `PSY:${number}`;
+
+/**
+ * 信号条件支持的指标名称集合。
+ * 类型用途：约束 signalConfig 进入策略求值的合法指标键，避免将仅用于延迟验证的指标（如 ADX/MACD/EMA）误用于信号生成。
+ * 数据来源：由 signalConfig 编译生成。
+ * 使用范围：IndicatorUsageProfile.actionSignalIndicators、strategy 等信号生成链路。
+ */
+export type SignalIndicator = 'MFI' | 'K' | 'D' | 'J' | `RSI:${number}` | `PSY:${number}`;
 
 /**
  * 延迟验证支持的指标名称集合。
@@ -81,9 +89,9 @@ export type IndicatorUsageProfile = {
     readonly psy: ReadonlyArray<number>;
   };
 
-  /** 各动作在策略判定时要求存在的指标集合（与配置粒度一致） */
+  /** 各动作在策略判定时要求存在的指标集合（与配置粒度一致，仅含信号条件支持集） */
   readonly actionSignalIndicators: Readonly<
-    Record<StrategyAction, ReadonlyArray<ProfileIndicator>>
+    Record<StrategyAction, ReadonlyArray<SignalIndicator>>
   >;
 
   /** 延迟验证按买卖方向要求存在的指标集合（与配置粒度一致） */

@@ -10,7 +10,7 @@ import type { LastState } from '../../types/state.js';
 import { getHKDateKey } from '../../utils/time/index.js';
 
 /**
- * 将全局状态切换为“启动快照失败，等待开盘重建重试”。
+ * 将全局状态切换为"启动快照失败，等待开盘重建重试"。
  * 默认行为：阻断交易并标记 pendingOpenRebuild，目标交易日使用当前时间的港股交易日 key。
  *
  * @param lastState 全局可变状态

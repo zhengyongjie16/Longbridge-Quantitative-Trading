@@ -124,8 +124,8 @@ export const VERIFICATION = {
 /** 延迟验证中允许无周期的固定指标集合 */
 export const VERIFICATION_FIXED_INDICATORS = new Set(['K', 'D', 'J', 'MACD', 'DIF', 'DEA', 'ADX']);
 
-/** 信号条件解析中允许无周期的固定指标集合（不含 RSI/PSY） */
-export const SIGNAL_CONFIG_SUPPORTED_INDICATORS = ['MFI', 'K', 'D', 'J', 'ADX'] as const;
+/** 信号条件解析中允许无周期的固定指标集合（不含 RSI/PSY，ADX 仅用于延迟验证） */
+export const SIGNAL_CONFIG_SUPPORTED_INDICATORS = ['MFI', 'K', 'D', 'J'] as const;
 
 /** 日志相关常量，用于 pino 日志系统 */
 export const LOGGING = {

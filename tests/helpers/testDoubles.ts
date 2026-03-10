@@ -13,7 +13,7 @@ import type {
   IndicatorUsageProfile,
   MonitorContext,
   MonitorState,
-  ProfileIndicator,
+  SignalIndicator,
   StrategyAction,
 } from '../../src/types/state.js';
 import type {
@@ -601,7 +601,7 @@ export function createIndicatorUsageProfileDouble(overrides?: {
   readonly requiredFamilies?: Partial<IndicatorUsageProfile['requiredFamilies']>;
   readonly requiredPeriods?: Partial<IndicatorUsageProfile['requiredPeriods']>;
   readonly actionSignalIndicators?: Partial<
-    Record<StrategyAction, ReadonlyArray<ProfileIndicator>>
+    Record<StrategyAction, ReadonlyArray<SignalIndicator>>
   >;
   readonly verificationIndicatorsBySide?: Partial<
     IndicatorUsageProfile['verificationIndicatorsBySide']
@@ -620,14 +620,14 @@ export function createIndicatorUsageProfileDouble(overrides?: {
     psy: overrides?.requiredPeriods?.psy ?? [13],
   };
 
-  const defaultActionIndicators: Record<StrategyAction, ReadonlyArray<ProfileIndicator>> = {
+  const defaultActionIndicators: Record<StrategyAction, ReadonlyArray<SignalIndicator>> = {
     BUYCALL: ['RSI:6', 'MFI', 'K', 'D', 'J'],
     SELLCALL: ['RSI:6', 'MFI', 'K', 'D', 'J'],
     BUYPUT: ['RSI:6', 'MFI', 'K', 'D', 'J'],
     SELLPUT: ['RSI:6', 'MFI', 'K', 'D', 'J'],
   };
 
-  const actionSignalIndicators: Record<StrategyAction, ReadonlyArray<ProfileIndicator>> = {
+  const actionSignalIndicators: Record<StrategyAction, ReadonlyArray<SignalIndicator>> = {
     BUYCALL: overrides?.actionSignalIndicators?.BUYCALL ?? defaultActionIndicators.BUYCALL,
     SELLCALL: overrides?.actionSignalIndicators?.SELLCALL ?? defaultActionIndicators.SELLCALL,
     BUYPUT: overrides?.actionSignalIndicators?.BUYPUT ?? defaultActionIndicators.BUYPUT,

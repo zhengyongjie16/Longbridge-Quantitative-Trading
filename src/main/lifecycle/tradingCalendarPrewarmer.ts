@@ -2,7 +2,7 @@
  * 交易日历预热器模块
  *
  * 核心职责：
- * - 在重建阶段基于“当前仍持仓买单”计算交易日历需求窗口
+ * - 在重建阶段基于"当前仍持仓买单"计算交易日历需求窗口
  * - 仅补齐快照缺失日期，避免重复查询
  * - 按自然月分块调用交易日接口，严格遵守单次查询区间约束
  *
@@ -134,7 +134,7 @@ function resolveMinTimestamp(
 }
 
 /**
- * 校验需求窗口是否落在交易日接口“最近一年”能力范围内。
+ * 校验需求窗口是否落在交易日接口"最近一年"能力范围内。
  */
 function assertCalendarLookbackRange(demandStartMs: number, nowMs: number): void {
   const earliestAllowedMs =
@@ -207,7 +207,7 @@ async function hydrateSnapshotByDailyTradingDay({
 }
 
 /**
- * 将缺失日期键切分为“同月且连续”的查询分块，确保每次请求不跨自然月且不覆盖已存在日期。
+ * 将缺失日期键切分为"同月且连续"的查询分块，确保每次请求不跨自然月且不覆盖已存在日期。
  */
 function splitMissingDateKeysByMonth(
   dateKeys: ReadonlyArray<string>,

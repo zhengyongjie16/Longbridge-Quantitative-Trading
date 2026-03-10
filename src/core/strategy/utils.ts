@@ -19,7 +19,7 @@ export function needsDelayedVerification(config: SingleVerificationConfig): bool
 }
 
 /**
- * 判断某个条件引用的指标键在当前快照中是否具备“可评估的有效数值”。
+ * 判断某个条件引用的指标键在当前快照中是否具备"可评估的有效数值"。
  * 默认行为：不解析阈值与运算符，仅判断该条件是否可能为 true（有值才可能）。
  *
  * @param params 入参（快照 + 条件指标键）
@@ -47,10 +47,6 @@ function isConditionIndicatorValueAvailable(params: {
     return state.kdj !== null && isValidNumber(state.kdj.j);
   }
 
-  if (indicatorKey === 'ADX') {
-    return isValidNumber(state.adx);
-  }
-
   const rsiPeriod = parseIndicatorPeriod({ indicatorName: indicatorKey, prefix: 'RSI:' });
   if (rsiPeriod !== null) {
     return isValidNumber(state.rsi?.[rsiPeriod]);
@@ -71,10 +67,10 @@ function isConditionIndicatorValueAvailable(params: {
  * - 本函数不改变 N-of-M（/N）配置的求值口径。
  * - 当某些条件引用的指标缺失时，仅代表该条件必不满足，不应直接阻断整条 action 信号生成。
  *
- * 默认行为：只做“可评估性”门禁——若当前快照不足以评估任何一个条件组（即所有组都不可能满足 requiredCount），返回 false；否则返回 true 并交由 evaluateSignalConfig 做唯一求值。
+ * 默认行为：只做"可评估性"门禁——若当前快照不足以评估任何一个条件组（即所有组都不可能满足 requiredCount），返回 false；否则返回 true 并交由 evaluateSignalConfig 做唯一求值。
  *
  * @param params 校验参数（快照 + action 的信号配置）
- * @returns 至少存在一个“可能满足”的条件组时返回 true，否则 false
+ * @returns 至少存在一个"可能满足"的条件组时返回 true，否则 false
  */
 export function validateIndicatorsForAction(params: {
   readonly state: IndicatorSnapshot;
@@ -299,11 +295,6 @@ function evaluateCondition(state: IndicatorState, condition: Condition): boolean
 
       case 'J': {
         value = state.kdj?.j;
-        break;
-      }
-
-      case 'ADX': {
-        value = state.adx ?? undefined;
         break;
       }
 

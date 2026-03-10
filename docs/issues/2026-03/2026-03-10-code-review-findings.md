@@ -235,9 +235,9 @@ await rebuildOrderRecords(monitorContexts, allOrders);
 
 ---
 
-### 问题 G：ADX 无法作为信号生成条件，与业务文档口径不一致
+### 问题 G：ADX 被错误接入信号生成链路，与权威业务口径不一致
 
-**严重级别**：重要（规格缺口）
+**严重级别**：重要（逻辑偏移）
 **涉及文件**：
 - `src/constants/index.ts:128`（`SIGNAL_CONFIG_SUPPORTED_INDICATORS`）
 - `src/config/utils.ts:384`（`isSupportedFixedIndicator` 校验范围）
@@ -246,32 +246,34 @@ await rebuildOrderRecords(monitorContexts, allOrders);
 
 #### 问题描述
 
-`SIGNAL_CONFIG_SUPPORTED_INDICATORS`（第 128 行）仅包含四个固定指标：
+当前实现一度把 `ADX` 同时接入了“信号生成”和“延迟验证”两条链路，但权威业务口径是：`ADX` **仅用于延迟验证**，**不参与信号生成条件**。
 
-```typescript
-export const SIGNAL_CONFIG_SUPPORTED_INDICATORS = ['MFI', 'K', 'D', 'J'] as const;
-```
+错误点包括：
 
-`parseCondition`（第 462 行）对非 RSI/PSY 的固定指标通过 `isSupportedFixedIndicator` 校验，`ADX` 会直接返回 `null`（解析失败）；即使绕过解析层，`evaluateCondition` 也没有 `ADX` 分支，仍无法参与信号判断。
+- `SIGNAL_CONFIG_SUPPORTED_INDICATORS` 把 `ADX` 纳入信号条件固定指标集合
+- `parseCondition` 允许解析 `ADX>...` / `ADX<...`
+- 策略求值层为 `ADX` 提供了条件可评估性判断与阈值比较分支
+- 指标画像会把来自 `signalConfig` 的 `ADX` 编译进 `actionSignalIndicators`
 
-对比：`VERIFICATION_FIXED_INDICATORS`（第 125 行）包含 `MACD/DIF/DEA/ADX`，这些指标可用于**延迟验证**，但 `ADX` 不能用于信号生成条件。
+对比之下，`VERIFICATION_FIXED_INDICATORS` 中包含 `ADX` 是正确的，因为 `ADX` 的权威用途就是**延迟验证指标**。
 
-业务逻辑知识库中明确说明「并额外支持用于衡量趋势强度的无方向性指标（例如 ADX）」作为信号触发条件，实现层未覆盖。
+#### 纠偏说明
 
-#### 二次复核补充：MACD 不应继续并列为本问题主张
-
-- 当前仓库测试 `tests/utils/signalConfigParser.business.test.ts` 明确断言 `parseSignalConfig('MACD>0') === null`
-- 现有业务知识库只明确要求 **ADX** 可用于信号条件，并未同样明确要求 `MACD/DIF/DEA`
-- 因此原问题标题中“MACD/ADX”并列表述过宽，二次复核后应收窄为 **ADX 规格缺口**
+- `MACD/DIF/DEA/EMA` 仍然保持“仅用于延迟验证”的既有边界
+- 本问题的真实范围是：**ADX 从延迟验证专用指标错误外溢到了信号生成链路**
+- 若按错误实现配置 `ADX` 信号条件，系统会真的接受并生成信号，这是业务逻辑偏移，而不是单纯文档问题
 
 #### 风险
 
-- 若按业务文档配置了 `ADX` 条件，`parseSignalConfig` 会整体解析失败，启动校验会将对应 `SIGNAL_*` 配置判定为“未配置或解析失败”
-- 问题不是“静默忽略”，而是**实现未覆盖该规格，导致配置无法通过校验**
+- 使用 `ADX` 作为 `SIGNAL_*` 条件时，会错误触发买卖信号
+- 延迟验证专用指标被混入信号生成，会改变策略触发口径并放大误交易风险
 
 #### 修复方向
 
-将 `ADX` 加入 `SIGNAL_CONFIG_SUPPORTED_INDICATORS`，在 `parseCondition` 中支持其解析，并在 `evaluateCondition`（信号评估层）实现相应的指标读取逻辑。`MACD` 是否需要支持，应单独以业务规格为准，不应在本问题中一并假定。
+- 从 `SIGNAL_CONFIG_SUPPORTED_INDICATORS` 中移除 `ADX`
+- 让 `parseCondition` 拒绝 `ADX` 信号条件
+- 移除策略求值层对 `ADX` 的信号判断分支
+- 保留 `ADX` 在 `VERIFICATION_INDICATORS_*` 与延迟验证器中的支持
 
 ---
 
@@ -349,7 +351,7 @@ export const SIGNAL_CONFIG_SUPPORTED_INDICATORS = ['MFI', 'K', 'D', 'J'] as cons
 | D | positionLimitChecker 注释与实现不一致 | 规范（注释） | 建议修复 |
 | E | LongPort 凭证错误不进入 missingFields | 重要 | 建议修复 |
 | F | orderRecorder 刷新链路吞掉异常 | 重要 | 必须 |
-| G | ADX 无法作为信号生成条件 | 重要 | 视业务配置 |
+| G | ADX 被错误用于信号生成条件 | 重要 | 必须 |
 | I | 部分公共服务契约暴露可变数组 | 规范 | 建议修复 |
 | J | 策略工厂缺少直接回归测试 | 测试缺口 | 建议补充 |
 | K | 启动门禁行为缺少直接回归测试 | 测试缺口 | 建议补充 |
@@ -367,5 +369,5 @@ export const SIGNAL_CONFIG_SUPPORTED_INDICATORS = ['MFI', 'K', 'D', 'J'] as cons
 | D | 否 | 无关 |
 | E | 否 | 无关 |
 | F | 是（orderRecorder/index.ts, rebuildTradingDayState.ts, seatRefresh.ts） | catch 块静默返回逻辑未改动 |
-| G | 是（constants/index.ts） | 仅新增 STRATEGY_ACTIONS，ADX 信号条件支持范围未改动 |
+| G | 是（constants/index.ts） | 当时曾把 ADX 接入信号条件，需按权威业务口径收回为延迟验证专用 |
 | I | 是（types/services.ts） | 仅修复 getPendingOrders 返回类型一处，其他签名仍存在可变数组契约 |

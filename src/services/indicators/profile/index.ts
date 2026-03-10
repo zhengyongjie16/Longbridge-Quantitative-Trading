@@ -12,12 +12,14 @@ import type { SignalConfigSet, VerificationConfig } from '../../../types/config.
 import type {
   IndicatorUsageProfile,
   ProfileIndicator,
+  SignalIndicator,
   StrategyAction,
   VerificationIndicator,
 } from '../../../types/state.js';
 import type { IndicatorCollector } from './types.js';
 import {
   buildDisplayPlan,
+  isSupportedSignalIndicator,
   isSupportedVerificationIndicator,
   parseProfileIndicator,
   toSortedPeriods,
@@ -30,7 +32,10 @@ import {
  * @param indicator 待追加指标
  * @returns void
  */
-function appendUniqueIndicator(indicators: ProfileIndicator[], indicator: ProfileIndicator): void {
+function appendUniqueIndicator<T extends ProfileIndicator | SignalIndicator>(
+  indicators: T[],
+  indicator: T,
+): void {
   if (!indicators.includes(indicator)) {
     indicators.push(indicator);
   }
@@ -105,22 +110,26 @@ function collectIndicatorUsage(indicator: ProfileIndicator, collector: Indicator
 }
 
 /**
- * 将原始指标列表编译为 ProfileIndicator 列表，同时累计运行时所需的家族与周期集合。
+ * 将原始指标列表编译为信号条件支持的指标列表，同时累计运行时所需的家族与周期集合。
  *
  * @param sourceIndicators 原始指标字符串列表
  * @param collector 指标收集器
  * @returns 去重后的标准化指标列表
  */
-function compileIndicatorList(
+function compileSignalIndicatorList(
   sourceIndicators: ReadonlyArray<string>,
   collector: IndicatorCollector,
-): ReadonlyArray<ProfileIndicator> {
-  const compiledIndicators: ProfileIndicator[] = [];
+): ReadonlyArray<SignalIndicator> {
+  const compiledIndicators: SignalIndicator[] = [];
 
   for (const indicatorName of sourceIndicators) {
     const parsedIndicator = parseProfileIndicator(indicatorName);
     if (!parsedIndicator) {
       continue;
+    }
+
+    if (!isSupportedSignalIndicator(parsedIndicator)) {
+      throw new Error(`[配置错误] 信号条件不支持指标: ${indicatorName}`);
     }
 
     collectIndicatorUsage(parsedIndicator, collector);
@@ -220,7 +229,7 @@ export function compileIndicatorUsageProfile(params: {
     },
   };
 
-  const actionSignalIndicators: Record<StrategyAction, ReadonlyArray<ProfileIndicator>> = {
+  const actionSignalIndicators: Record<StrategyAction, ReadonlyArray<SignalIndicator>> = {
     BUYCALL: [],
     SELLCALL: [],
     BUYPUT: [],
@@ -229,7 +238,7 @@ export function compileIndicatorUsageProfile(params: {
 
   for (const action of STRATEGY_ACTIONS) {
     const actionSourceIndicators = collectActionSourceIndicators(params.signalConfig, action);
-    actionSignalIndicators[action] = compileIndicatorList(actionSourceIndicators, collector);
+    actionSignalIndicators[action] = compileSignalIndicatorList(actionSourceIndicators, collector);
   }
 
   const buyVerificationIndicators = compileVerificationIndicatorList(

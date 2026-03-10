@@ -389,7 +389,7 @@ function isSupportedFixedIndicator(
 }
 
 /**
- * 解析单个信号条件字符串，支持 RSI:n、PSY:n 及固定指标（K、D、J、MFI、ADX 等）格式。
+ * 解析单个信号条件字符串，支持 RSI:n、PSY:n 及固定指标（K、D、J、MFI）格式。
  *
  * @param conditionStr 条件字符串，如 "RSI:6<20"、"PSY:12<25"、"J<-1"
  * @returns 解析后的 ParsedCondition，格式无效时返回 null

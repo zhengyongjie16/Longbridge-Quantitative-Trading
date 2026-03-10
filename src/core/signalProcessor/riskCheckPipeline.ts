@@ -99,10 +99,7 @@ export const createRiskCheckPipeline = ({
     if (hasBuySignals) {
       try {
         const [nextAccount, nextPositions]: [AccountSnapshot | null, ReadonlyArray<Position>] =
-          await Promise.all([
-          trader.getAccountSnapshot(),
-          trader.getStockPositions(),
-        ]);
+          await Promise.all([trader.getAccountSnapshot(), trader.getStockPositions()]);
         freshAccount = nextAccount;
         freshPositions = nextPositions;
       } catch (err) {
@@ -174,7 +171,7 @@ export const createRiskCheckPipeline = ({
 
         // 2. 保护性清仓冷却：拦截冷却时间内的买入
         const liquidationDirection = isLongBuyAction ? 'LONG' : 'SHORT';
-        // 在冷却判定前执行一次边界同步，并用同一时间戳计算剩余冷却，避免“已过期但未切段”的短暂不一致
+        // 在冷却判定前执行一次边界同步，并用同一时间戳计算剩余冷却，避免"已过期但未切段"的短暂不一致
         const cooldownCheckNowMs = Date.now();
         await syncLossOffsetLifecycle(cooldownCheckNowMs);
         const remainingMs = liquidationCooldownTracker.getRemainingMs({

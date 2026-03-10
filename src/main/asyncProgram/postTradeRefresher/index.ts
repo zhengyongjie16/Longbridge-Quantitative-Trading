@@ -36,7 +36,7 @@ import type {
  *
  * 刷新批次与版本语义：
  * - 多次 enqueue 会合并 pendingSymbols 与最新 quotesMap，实际刷新按照当前批次的最大 staleVersion 记为 targetVersion
- * - 刷新成功后 markFresh(targetVersion)，确保所有等待 refreshGate 的处理器以同一版本视为“已新鲜”
+ * - 刷新成功后 markFresh(targetVersion)，确保所有等待 refreshGate 的处理器以同一版本视为"已新鲜"
  * - 刷新失败时不调用 markFresh，而是保留合并后的 pendingSymbols/pendingVersion，并按 API.DEFAULT_RETRY_DELAY_MS 间隔重试
  * - 因为失败重试在统一入口进行，其他依赖刷新结果的处理器只需等待 waitForFresh 即可，不需要关心重试细节
  *

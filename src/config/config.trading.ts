@@ -115,7 +115,7 @@ function parseBoundedNumberConfigFromRaw({
 
 /**
  * 读取百分比值配置并保持运行时口径不变（如配置 0.35 → 内部 0.35，表示 0.35%）。
- * 用于需要以“百分比值”运行的字段（如自动寻标距回收价阈值）。
+ * 用于需要以"百分比值”运行的字段（如自动寻标距回收价阈值）。
  * LongPort warrantList.toCallPrice 的外部原始值仍是小数比值，后续会在 autoSymbolFinder 边界统一转换。
  * @param env - 进程环境变量对象
  * @param envKey - 环境变量键名
