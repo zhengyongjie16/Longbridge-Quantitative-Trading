@@ -11,10 +11,7 @@ import { createMonitorTaskQueue } from '../../../src/main/asyncProgram/monitorTa
 
 import type { MainProgramContext } from '../../../src/main/mainProgram/types.js';
 import type { MonitorContext } from '../../../src/types/state.js';
-import type {
-  MonitorTaskDataMap,
-  MonitorTaskType,
-} from '../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
+import type { MonitorTaskDataMap } from '../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 
 import { createSymbolRegistryDouble } from '../../helpers/testDoubles.js';
 
@@ -99,7 +96,7 @@ describe('autoSymbolTasks business scheduling', () => {
       quotesMap: new Map(),
     });
 
-    const tasks: MonitorTaskType[] = [];
+    const tasks: Array<keyof MonitorTaskDataMap> = [];
     while (!monitorTaskQueue.isEmpty()) {
       const task = monitorTaskQueue.pop();
       if (task) {

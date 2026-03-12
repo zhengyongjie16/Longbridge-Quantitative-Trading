@@ -10,7 +10,7 @@
       "Bash(git branch -D *)",
       "Bash(git branch -d *)"
     ],
-    "allow": ["Read(*)", "Skill(*)"],
+    "allow": ["Read(*)", "Skill(*)", "WebSearch(*)", "WebFetch(*)"],
     "deny": []
   },
   "extraKnownMarketplaces": {

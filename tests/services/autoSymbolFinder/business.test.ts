@@ -13,7 +13,6 @@ import { resolveDirectionalAutoSearchPolicy } from '../../../src/services/autoSy
 import {
   buildExpiryDateFilters,
   createWarrantListCache,
-  normalizeWarrantDistancePercentFromApiRatio,
   selectBestWarrant,
 } from '../../../src/services/autoSymbolFinder/utils.js';
 import { toMockDecimal } from '../../../mock/longbridge/decimal.js';
@@ -395,12 +394,6 @@ describe('autoSymbolFinder business flow', () => {
     });
 
     expect(result.candidate?.symbol).toBe('NEARER.HK');
-  });
-
-  it('normalizes warrantList raw api ratio to internal percent-value distance', () => {
-    const normalized = normalizeWarrantDistancePercentFromApiRatio(0.0221146825);
-
-    expect(normalized?.toNumber()).toBeCloseTo(2.21146825);
   });
 
   it('interprets realistic bull thresholds against api raw ratio inputs', () => {

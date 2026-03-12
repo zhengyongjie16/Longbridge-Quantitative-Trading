@@ -118,19 +118,6 @@ export type UnrealizedLossCheckTaskData = Readonly<{
 }>;
 
 /**
- * 监控任务类型枚举（任务 type 字段字面量）。
- * 类型用途：标识监控任务的处理类型，供 MonitorTaskProcessor 分发到对应处理逻辑。
- * 数据来源：由 processMonitor 在 scheduleLatest 时根据业务选择 type 入队。
- * 使用范围：monitorTaskQueue、monitorTaskProcessor、mainProgram、processMonitor 等，仅内部使用。
- */
-export type MonitorTaskType =
-  | 'AUTO_SYMBOL_TICK'
-  | 'AUTO_SYMBOL_SWITCH_DISTANCE'
-  | 'SEAT_REFRESH'
-  | 'LIQUIDATION_DISTANCE_CHECK'
-  | 'UNREALIZED_LOSS_CHECK';
-
-/**
  * 监控任务类型到 payload 的映射。
  * 类型用途：表达 task.type 与 task.data 的一一对应关系，确保队列与处理器形成判别联合。
  * 数据来源：由各调度点组装的具体任务数据入队时确定。

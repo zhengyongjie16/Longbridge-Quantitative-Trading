@@ -1,22 +1,13 @@
 import type { OAuth } from 'longbridge';
 
 /**
- * OAuth 授权 URL 回调。
- * 类型用途：在需要用户手动完成首次授权时，将 SDK 生成的授权 URL 交给上层输出。
- * 数据来源：由 createPreGateRuntime、工具脚本等调用方注入。
- * 使用范围：仅 config/auth 模块及其调用方使用。
- */
-export type OAuthUrlHandler = {
-  readonly onOpenUrl: (url: string) => void;
-};
-
-/**
  * OAuth 初始化参数。
  * 类型用途：封装 initializeOAuth 所需环境变量与授权 URL 回调。
  * 数据来源：由启动入口或工具脚本传入。
  * 使用范围：仅 config/auth 模块使用。
  */
-export type InitializeOAuthParams = OAuthUrlHandler & {
+export type InitializeOAuthParams = {
+  readonly onOpenUrl: (url: string) => void;
   readonly env: NodeJS.ProcessEnv;
 };
 

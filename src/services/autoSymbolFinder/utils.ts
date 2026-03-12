@@ -53,7 +53,7 @@ function isBullPolicy(policy: DirectionalAutoSearchPolicy): boolean {
  * @param rawDistanceRatio warrantList.toCallPrice 原始值（小数比值）
  * @returns 内部百分比值；无法解析时返回 null
  */
-export function normalizeWarrantDistancePercentFromApiRatio(
+function normalizeWarrantDistancePercentFromApiRatio(
   rawDistanceRatio: WarrantListItem['toCallPrice'],
 ): ReturnType<typeof toDecimalStrict> {
   const distanceRatio = toDecimalStrict(rawDistanceRatio);

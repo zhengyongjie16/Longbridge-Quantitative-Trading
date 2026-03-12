@@ -359,7 +359,7 @@ export type CreatePostGateRuntimeParams = Readonly<{
  * 数据来源：由 createPostGateRuntime 创建。
  * 使用范围：仅 app 顶层装配与后续 runtime 工厂使用。
  */
-export type PostGateRuntime = Readonly<{
+type PostGateRuntime = Readonly<{
   liquidationCooldownTracker: LiquidationCooldownTracker;
   dailyLossTracker: DailyLossTracker;
   monitorContexts: ReadonlyMap<string, MonitorContext>;

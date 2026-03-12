@@ -2,15 +2,12 @@
  * app/createLifecycleRuntime 接线测试
  *
  * 覆盖：
- * - createLifecycleCacheDomains 按固定顺序创建各 cache domain
+ * - createLifecycleRuntime 按固定顺序创建各 cache domain
  * - globalState domain 的 openRebuild 统一委托 executeTradingDayOpenRebuild
  * - createLifecycleRuntime 将固定顺序的 cache domains 交给 dayLifecycleManager
  */
 import { beforeEach, describe, expect, it } from 'bun:test';
-import {
-  createLifecycleCacheDomains,
-  createLifecycleRuntime,
-} from '../../src/app/createLifecycleRuntime.js';
+import { createLifecycleRuntime } from '../../src/app/createLifecycleRuntime.js';
 import type {
   LifecycleRuntimeFactories,
   LifecycleRuntimeFactoryDeps,
@@ -298,7 +295,11 @@ describe('app createLifecycleRuntime wiring', () => {
   it('creates cache domains in the declared order and delegates global open rebuild centrally', async () => {
     const deps = createLifecycleDeps();
     const factories = createLifecycleRuntimeFactories();
-    const domains = createLifecycleCacheDomains(deps, factories);
+    createLifecycleRuntime(deps, factories);
+    const domains = createDayLifecycleManagerCalls[0]?.cacheDomains;
+    if (domains === undefined) {
+      throw new Error('expected createDayLifecycleManager to receive cache domains');
+    }
 
     expect(factoryCalls).toEqual([
       'signalRuntime.factory',

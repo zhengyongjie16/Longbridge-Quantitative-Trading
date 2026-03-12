@@ -36,7 +36,7 @@ const DEFAULT_LIFECYCLE_RUNTIME_FACTORIES: LifecycleRuntimeFactories = {
  * @param params pre-gate runtime、post-gate runtime、异步 runtime 与重建函数
  * @returns 按注册顺序排列的 cache domains
  */
-export function createLifecycleCacheDomains(
+function createLifecycleCacheDomains(
   params: LifecycleRuntimeFactoryDeps,
   factories: LifecycleRuntimeFactories = DEFAULT_LIFECYCLE_RUNTIME_FACTORIES,
 ): ReadonlyArray<CacheDomain> {
