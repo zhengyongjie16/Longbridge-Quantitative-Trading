@@ -1,4 +1,4 @@
-import type { Candlestick } from 'longport';
+import type { Candlestick } from 'longbridge';
 import { decimalToNumber } from '../../src/utils/helpers/index.js';
 import { toHongKongTimeLog } from '../../src/utils/time/index.js';
 import { calculateEMA } from '../../src/services/indicators/runtime/ema.js';
@@ -71,9 +71,9 @@ function toNumberFromUnknown(value: unknown): number {
 }
 
 /**
- * 将 LongPort K 线转换为项目 CandleData。默认行为：所有字段尽力转 number。
+ * 将 Longbridge K 线转换为项目 CandleData。默认行为：所有字段尽力转 number。
  *
- * @param candlestick LongPort K 线
+ * @param candlestick Longbridge K 线
  * @returns CandleData 对象
  */
 function toCandle(candlestick: Candlestick): CandleData {

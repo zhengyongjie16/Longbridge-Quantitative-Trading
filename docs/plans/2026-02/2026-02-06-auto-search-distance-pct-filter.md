@@ -4,7 +4,7 @@
 
 **目标**: 将自动寻标的核心筛选标准从「当前价格 ≥ 最低价格阈值」改为「距回收价百分比满足阈值」，利用 warrantList API 返回的 `toCallPrice` 字段直接筛选，无需额外 API 调用。
 
-**Tech Stack**: TypeScript (ES2022), Node.js, LongPort OpenAPI SDK, pino。
+**Tech Stack**: TypeScript (ES2022), Node.js, Longbridge OpenAPI SDK, pino。
 
 **规范约束**: 遵守 `typescript-project-specifications` skill 全部核心原则。
 
@@ -687,8 +687,8 @@ export function selectBestWarrant({
 **筛选说明**（约第 270 行）：
 
 ```diff
-- - **自动寻标筛选**：基于 LongPort `warrantList` 筛选牛/熊证：到期（`AUTO_SEARCH_EXPIRY_MIN_MONTHS_N`）、价格（`AUTO_SEARCH_MIN_PRICE_*`）、分均成交额（`AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_*`）；选优：**低价优先**，同价取 **分均成交额更高**。
-+ - **自动寻标筛选**：基于 LongPort `warrantList` 筛选牛/熊证：到期（`AUTO_SEARCH_EXPIRY_MIN_MONTHS_N`）、距回收价百分比（`AUTO_SEARCH_MIN_DISTANCE_PCT_*`，牛证 > 阈值、熊证 < -阈值）、分均成交额（`AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_*`）；选优：**距回收价绝对值更小优先**，相同取 **分均成交额更高**。
+- - **自动寻标筛选**：基于 Longbridge `warrantList` 筛选牛/熊证：到期（`AUTO_SEARCH_EXPIRY_MIN_MONTHS_N`）、价格（`AUTO_SEARCH_MIN_PRICE_*`）、分均成交额（`AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_*`）；选优：**低价优先**，同价取 **分均成交额更高**。
++ - **自动寻标筛选**：基于 Longbridge `warrantList` 筛选牛/熊证：到期（`AUTO_SEARCH_EXPIRY_MIN_MONTHS_N`）、距回收价百分比（`AUTO_SEARCH_MIN_DISTANCE_PCT_*`，牛证 > 阈值、熊证 < -阈值）、分均成交额（`AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_*`）；选优：**距回收价绝对值更小优先**，相同取 **分均成交额更高**。
 ```
 
 ---

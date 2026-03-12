@@ -1,5 +1,7 @@
 # 全规模业务逻辑测试最终实施方案（合并版）
 
+> 状态：部分过时（2026-03-12）。本文中的 `mock/longport/*`、旧 SDK 包名与旧认证路径描述仅保留历史参考；当前测试与 Mock 基线请以 `longbridge + OAuth 2.0` 实现和最新迁移方案为准。
+
 > 文档版本：v3（合并 `full-scale-test-plan.md` + `2026-02-16-full-scale-test-implementation-plan.md`）适用仓库：`D:/code/Longbridge-Quantitative-Trading` 测试框架：`bun:test` 输出范围：`tests/` + 根目录 `mock/` 文档目标：作为唯一执行基线，指导后续全规模测试代码落地
 
 ---
@@ -9,7 +11,7 @@
 ### 1.1 总目标
 
 1. 在 `tests/` 下建立业务逻辑驱动的全规模测试体系，而不是仅做函数级单元测试。
-2. 通过 `mock/` 构建 LongPort API 仿真环境，覆盖运行中真实交互行为（行情推送、订单推送、API 查询、失败恢复）。
+2. 通过 `mock/` 构建 Longbridge API 仿真环境，覆盖运行中真实交互行为（行情推送、订单推送、API 查询、失败恢复）。
 3. 覆盖程序全链路：
 
 - 行情与指标
@@ -208,7 +210,7 @@ tests/
 
 ---
 
-## 5. LongPort API Mock 设计（按 SDK 文档）
+## 5. Longbridge API Mock 设计（按 SDK 文档）
 
 ### 5.1 QuoteContext Mock 接口合同
 
@@ -542,7 +544,7 @@ tests/
 ### 11.3 稳定性门槛
 
 1. 全量测试连续 3 次通过。
-2. 禁止真实网络调用 LongPort。
+2. 禁止真实网络调用 Longbridge。
 3. 禁止依赖真实时间漂移。
 
 ---

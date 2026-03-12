@@ -1,17 +1,17 @@
 ---
 name: longport-nodejs-sdk
-description: LongPort OpenAPI SDK for Node.js 完整知识库。当用户需要阅读和检查 API 文档、查询 SDK 内容、根据 API 文档编写代码、调用 LongPort API、处理行情/订单/资产时使用此 skill。涵盖 Config、QuoteContext、TradeContext 所有方法的调用方式、完整入参、返回结果类型、枚举定义和代码示例。
+description: Longbridge OpenAPI SDK for Node.js 完整知识库。当用户需要阅读和检查 API 文档、查询 SDK 内容、根据 API 文档编写代码、调用 Longbridge API、处理行情/订单/资产时使用此 skill。涵盖 Config、QuoteContext、TradeContext 所有方法的调用方式、完整入参、返回结果类型、枚举定义和代码示例。
 ---
 
-# LongPort OpenAPI SDK for Node.js
+# Longbridge OpenAPI SDK for Node.js
 
-NPM 包名：`longport`
+NPM 包名：`longbridge`
 
 ```
-bun install longport
+bun install longbridge
 ```
 
-LongPort OpenAPI 为具有研发能力的投资者提供程序化行情交易接口，帮助基于自身投资策略构建交易或行情策略分析工具。
+Longbridge OpenAPI 为具有研发能力的投资者提供程序化行情交易接口，帮助基于自身投资策略构建交易或行情策略分析工具。
 
 **功能分类：**
 
@@ -84,9 +84,10 @@ LongPort OpenAPI 为具有研发能力的投资者提供程序化行情交易接
 ### 获取证券报价
 
 ```typescript
-import { Config, QuoteContext } from 'longport';
+import { OAuth, Config, QuoteContext } from 'longbridge';
 
-const config = Config.fromEnv();
+const oauth = await OAuth.build('your-client-id', (_, url) => console.log('Visit:', url));
+const config = Config.fromOAuth(oauth);
 const ctx = await QuoteContext.new(config);
 const quotes = await ctx.quote(['700.HK', 'AAPL.US']);
 for (const q of quotes) {
@@ -97,9 +98,10 @@ for (const q of quotes) {
 ### 订阅实时行情
 
 ```typescript
-import { Config, QuoteContext, SubType } from 'longport';
+import { OAuth, Config, QuoteContext, SubType } from 'longbridge';
 
-const config = Config.fromEnv();
+const oauth = await OAuth.build('your-client-id', (_, url) => console.log('Visit:', url));
+const config = Config.fromOAuth(oauth);
 const ctx = await QuoteContext.new(config);
 
 ctx.setOnQuote((_, event) => {
@@ -112,9 +114,18 @@ await ctx.subscribe(['700.HK', 'AAPL.US'], [SubType.Quote]);
 ### 提交限价买单
 
 ```typescript
-import { Config, TradeContext, Decimal, OrderSide, TimeInForceType, OrderType } from 'longport';
+import {
+  OAuth,
+  Config,
+  TradeContext,
+  Decimal,
+  OrderSide,
+  TimeInForceType,
+  OrderType,
+} from 'longbridge';
 
-const config = Config.fromEnv();
+const oauth = await OAuth.build('your-client-id', (_, url) => console.log('Visit:', url));
+const config = Config.fromOAuth(oauth);
 const ctx = await TradeContext.new(config);
 const resp = await ctx.submitOrder({
   symbol: '700.HK',
@@ -130,9 +141,10 @@ console.log(`Order ID: ${resp.orderId}`);
 ### 监听订单状态变更
 
 ```typescript
-import { Config, TradeContext, TopicType } from 'longport';
+import { OAuth, Config, TradeContext, TopicType } from 'longbridge';
 
-const config = Config.fromEnv();
+const oauth = await OAuth.build('your-client-id', (_, url) => console.log('Visit:', url));
+const config = Config.fromOAuth(oauth);
 const ctx = await TradeContext.new(config);
 
 ctx.setOnOrderChanged((_, event) => {
@@ -145,9 +157,10 @@ await ctx.subscribe([TopicType.Private]);
 ### 查询股票持仓
 
 ```typescript
-import { Config, TradeContext } from 'longport';
+import { OAuth, Config, TradeContext } from 'longbridge';
 
-const config = Config.fromEnv();
+const oauth = await OAuth.build('your-client-id', (_, url) => console.log('Visit:', url));
+const config = Config.fromOAuth(oauth);
 const ctx = await TradeContext.new(config);
 const resp = await ctx.stockPositions();
 for (const channel of resp.channels) {
@@ -162,9 +175,10 @@ for (const channel of resp.channels) {
 ### 获取 K 线数据
 
 ```typescript
-import { Config, QuoteContext, Period, AdjustType, TradeSessions } from 'longport';
+import { OAuth, Config, QuoteContext, Period, AdjustType, TradeSessions } from 'longbridge';
 
-const config = Config.fromEnv();
+const oauth = await OAuth.build('your-client-id', (_, url) => console.log('Visit:', url));
+const config = Config.fromOAuth(oauth);
 const ctx = await QuoteContext.new(config);
 const candles = await ctx.candlesticks(
   '700.HK',
@@ -181,9 +195,10 @@ for (const c of candles) {
 ### 筛选轮证
 
 ```typescript
-import { Config, QuoteContext, WarrantSortBy, SortOrderType, WarrantType } from 'longport';
+import { OAuth, Config, QuoteContext, WarrantSortBy, SortOrderType, WarrantType } from 'longbridge';
 
-const config = Config.fromEnv();
+const oauth = await OAuth.build('your-client-id', (_, url) => console.log('Visit:', url));
+const config = Config.fromOAuth(oauth);
 const ctx = await QuoteContext.new(config);
 const warrants = await ctx.warrantList('700.HK', WarrantSortBy.LastDone, SortOrderType.Descending, [
   WarrantType.Bull,
@@ -197,9 +212,10 @@ for (const w of warrants) {
 ### 查询今日订单
 
 ```typescript
-import { Config, TradeContext, OrderStatus, Market } from 'longport';
+import { OAuth, Config, TradeContext, OrderStatus, Market } from 'longbridge';
 
-const config = Config.fromEnv();
+const oauth = await OAuth.build('your-client-id', (_, url) => console.log('Visit:', url));
+const config = Config.fromOAuth(oauth);
 const ctx = await TradeContext.new(config);
 const orders = await ctx.todayOrders({
   market: Market.HK,
@@ -215,9 +231,10 @@ for (const o of orders) {
 ### 撤销订单
 
 ```typescript
-import { Config, TradeContext } from 'longport';
+import { OAuth, Config, TradeContext } from 'longbridge';
 
-const config = Config.fromEnv();
+const oauth = await OAuth.build('your-client-id', (_, url) => console.log('Visit:', url));
+const config = Config.fromOAuth(oauth);
 const ctx = await TradeContext.new(config);
 await ctx.cancelOrder('709043056541253632');
 ```
@@ -225,9 +242,10 @@ await ctx.cancelOrder('709043056541253632');
 ### 获取账户余额
 
 ```typescript
-import { Config, TradeContext } from 'longport';
+import { OAuth, Config, TradeContext } from 'longbridge';
 
-const config = Config.fromEnv();
+const oauth = await OAuth.build('your-client-id', (_, url) => console.log('Visit:', url));
+const config = Config.fromOAuth(oauth);
 const ctx = await TradeContext.new(config);
 const balances = await ctx.accountBalance();
 for (const b of balances) {
@@ -244,6 +262,7 @@ SDK 所有可导入的类型完整列表：
 ```typescript
 import {
   // 核心类
+  OAuth,
   Config,
   QuoteContext,
   TradeContext,
@@ -363,5 +382,5 @@ import {
   DeleteWatchlistGroup,
   UpdateWatchlistGroup,
   ConfigParams,
-} from 'longport';
+} from 'longbridge';
 ```

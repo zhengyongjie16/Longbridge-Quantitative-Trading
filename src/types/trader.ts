@@ -1,4 +1,4 @@
-import type { OrderStatus } from 'longport';
+import type { OrderStatus } from 'longbridge';
 
 /**
  * 订单关闭原因。

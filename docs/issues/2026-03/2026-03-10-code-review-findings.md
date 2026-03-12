@@ -1,8 +1,6 @@
 # 代码审查问题记录
 
-**日期**：2026-03-10
-**审查范围**：全链路复核，涵盖卖单执行链路、订单记录、风控、启动恢复、配置校验、类型规范
-**状态说明**：已完成二次复核；删除 1 项无需修复问题（L），并收窄 2 项表述（D、G）
+**日期**：2026-03-10 **审查范围**：全链路复核，涵盖卖单执行链路、订单记录、风控、启动恢复、配置校验、类型规范 **状态说明**：已完成二次复核；删除 1 项无需修复问题（L），并收窄 2 项表述（D、G）
 
 ---
 
@@ -12,8 +10,8 @@
 
 ### 问题 A：卖单合并分支破坏 relatedBuyOrderIds 占用一致性
 
-**严重级别**：严重
-**涉及文件**：
+**严重级别**：严重 **涉及文件**：
+
 - `src/core/trader/orderExecutor/submitFlow.ts:245`（REPLACE 分支）
 - `src/core/trader/orderExecutor/submitFlow.ts:264`（CANCEL_AND_SUBMIT 分支）
 - `src/core/trader/orderMonitor/closeFlow.ts:183`（markSellFilled 收口）
@@ -49,8 +47,8 @@
 
 ### 问题 B：卖单部分成交后撤单/拒单，已成交部分不落本地账本
 
-**严重级别**：严重
-**涉及文件**：
+**严重级别**：严重 **涉及文件**：
+
 - `src/core/trader/orderMonitor/eventFlow.ts:84`（PartialFilled 处理）
 - `src/core/trader/orderMonitor/closeFlow.ts:144`（finalizeOrderClose CANCELED/REJECTED 路径）
 
@@ -80,6 +78,7 @@ if ((closedReason === 'CANCELED' || closedReason === 'REJECTED') && sideText ===
 ```
 
 `finalizeOrderClose` 的 CANCELED/REJECTED 路径不检查 `executedQuantity`，不调用：
+
 - `orderRecorder.recordLocalSell`
 - `dailyLossTracker.recordFilledOrder`
 - `recordTrade`
@@ -102,8 +101,8 @@ if ((closedReason === 'CANCELED' || closedReason === 'REJECTED') && sideText ===
 
 ### 问题 D：positionLimitChecker 注释与实现不一致，属于注释契约错误
 
-**严重级别**：规范（注释）
-**涉及文件**：
+**严重级别**：规范（注释） **涉及文件**：
+
 - `src/core/riskController/positionLimitChecker.ts:63`（`_currentPrice` 参数未使用）
 - `src/core/riskController/positionLimitChecker.ts:107`（`checkLimit` 注释与实现不符）
 
@@ -119,7 +118,7 @@ if ((closedReason === 'CANCELED' || closedReason === 'REJECTED') && sideText ===
 const checkWithExistingHoldings = (
   pos: Position,
   orderNotional: number,
-  _currentPrice: number | null,  // 下划线前缀：故意未使用
+  _currentPrice: number | null, // 下划线前缀：故意未使用
 ): RiskCheckResult => {
   const price = pos.costPrice;
 
@@ -145,15 +144,16 @@ const checkWithExistingHoldings = (
 #### 修复方向
 
 优先修正文档而非改逻辑：
+
 1. 删除或改写 `checkLimit` 的误导性注释，明确说明「成本价无效时仅检查下单金额，不使用当前价回退」
 2. 若后续业务规格明确要求回退当前价，再单独立项修改实现与测试
 
 ---
 
-### 问题 E：配置校验错误契约不完整，LongPort 凭证缺失不进入 missingFields
+### 问题 E：配置校验错误契约不完整，Longbridge 凭证缺失不进入 missingFields
 
-**严重级别**：重要
-**涉及文件**：
+**严重级别**：重要 **涉及文件**：
+
 - `src/config/config.validator.ts:194`（`validateLongPortConfig` 返回类型）
 - `src/config/config.validator.ts:686`（`validateAllConfig` 中 `allMissingFields` 组装）
 
@@ -181,7 +181,7 @@ const allMissingFields = [...tradingResult.missingFields];
 
 #### 二次复核验证
 
-定向运行 `bun test tests/config/smartCloseTimeoutConfig.business.test.ts` 后，`includes missing LongPort credentials in ConfigValidationError.missingFields` 用例实际失败，说明该问题在当前工作区中仍然存在。
+定向运行 `bun test tests/config/smartCloseTimeoutConfig.business.test.ts` 后，`includes missing Longbridge credentials in ConfigValidationError.missingFields` 用例实际失败，说明该问题在当前工作区中仍然存在。
 
 #### 修复方向
 
@@ -191,8 +191,8 @@ const allMissingFields = [...tradingResult.missingFields];
 
 ### 问题 F：orderRecorder 刷新链路吞掉异常，重建在损坏数据上无声继续
 
-**严重级别**：重要
-**涉及文件**：
+**严重级别**：重要 **涉及文件**：
+
 - `src/core/orderRecorder/index.ts:386`（`catch` 静默返回空数组）
 - `src/main/lifecycle/rebuildTradingDayState.ts:239`（调用方不检查失败）
 - `src/main/asyncProgram/monitorTaskProcessor/handlers/seatRefresh.ts:136`（同上）
@@ -237,8 +237,8 @@ await rebuildOrderRecords(monitorContexts, allOrders);
 
 ### 问题 G：ADX 被错误接入信号生成链路，与权威业务口径不一致
 
-**严重级别**：重要（逻辑偏移）
-**涉及文件**：
+**严重级别**：重要（逻辑偏移） **涉及文件**：
+
 - `src/constants/index.ts:128`（`SIGNAL_CONFIG_SUPPORTED_INDICATORS`）
 - `src/config/utils.ts:384`（`isSupportedFixedIndicator` 校验范围）
 - `src/config/utils.ts:462`（`parseCondition` 拒绝不支持的指标）
@@ -283,8 +283,8 @@ await rebuildOrderRecords(monitorContexts, allOrders);
 
 ### 问题 I：部分公共服务契约暴露可变数组，违反 ReadonlyArray 规范
 
-**严重级别**：重要（类型规范）
-**涉及文件**：
+**严重级别**：重要（类型规范） **涉及文件**：
+
 - `src/types/services.ts:367`
 - `src/types/services.ts:374`
 - `src/types/services.ts:412`
@@ -295,7 +295,7 @@ await rebuildOrderRecords(monitorContexts, allOrders);
 以下公共接口方法的参数或返回值使用了可变数组，违反仓库 `ReadonlyArray` 规范：
 
 | 位置 | 当前类型 | 应改为 |
-|------|---------|--------|
+| --- | --- | --- |
 | `OrderRecorder.refreshOrdersFromAllOrdersForLong` 返回值（:367） | `Promise<OrderRecord[]>` | `Promise<ReadonlyArray<OrderRecord>>` |
 | `OrderRecorder.refreshOrdersFromAllOrdersForShort` 返回值（:374） | `Promise<OrderRecord[]>` | `Promise<ReadonlyArray<OrderRecord>>` |
 | `Trader.getStockPositions` 参数（:412） | `symbols?: string[] \| null` | `symbols?: ReadonlyArray<string> \| null` |
@@ -344,17 +344,17 @@ await rebuildOrderRecords(monitorContexts, allOrders);
 
 ## 附：问题优先级汇总
 
-| 编号 | 问题 | 级别 | 是否必须修复 |
-|------|------|------|------------|
-| A | 卖单合并 relatedBuyOrderIds 占用一致性 | 严重 | 必须 |
-| B | 部分成交后撤单/拒单不落账本 | 严重 | 必须 |
-| D | positionLimitChecker 注释与实现不一致 | 规范（注释） | 建议修复 |
-| E | LongPort 凭证错误不进入 missingFields | 重要 | 建议修复 |
-| F | orderRecorder 刷新链路吞掉异常 | 重要 | 必须 |
-| G | ADX 被错误用于信号生成条件 | 重要 | 必须 |
-| I | 部分公共服务契约暴露可变数组 | 规范 | 建议修复 |
-| J | 策略工厂缺少直接回归测试 | 测试缺口 | 建议补充 |
-| K | 启动门禁行为缺少直接回归测试 | 测试缺口 | 建议补充 |
+| 编号 | 问题                                    | 级别         | 是否必须修复 |
+| ---- | --------------------------------------- | ------------ | ------------ |
+| A    | 卖单合并 relatedBuyOrderIds 占用一致性  | 严重         | 必须         |
+| B    | 部分成交后撤单/拒单不落账本             | 严重         | 必须         |
+| D    | positionLimitChecker 注释与实现不一致   | 规范（注释） | 建议修复     |
+| E    | Longbridge 凭证错误不进入 missingFields | 重要         | 建议修复     |
+| F    | orderRecorder 刷新链路吞掉异常          | 重要         | 必须         |
+| G    | ADX 被错误用于信号生成条件              | 重要         | 必须         |
+| I    | 部分公共服务契约暴露可变数组            | 规范         | 建议修复     |
+| J    | 策略工厂缺少直接回归测试                | 测试缺口     | 建议补充     |
+| K    | 启动门禁行为缺少直接回归测试            | 测试缺口     | 建议补充     |
 
 ---
 
@@ -363,7 +363,7 @@ await rebuildOrderRecords(monitorContexts, allOrders);
 **审查结论**：二次复核后保留的问题均为此次暂存修改**之前已存在**的缺陷，暂存修改未引入本文件中仍保留的问题。
 
 | 问题 | 暂存文件涉及 | 暂存修改影响 |
-|------|------------|------------|
+| --- | --- | --- |
 | A | 是（closeFlow.ts, orderStorage.ts） | 修复了成交后账本精确扣减，REPLACE/CANCEL_AND_SUBMIT 占用集合问题未触及 |
 | B | 是（closeFlow.ts） | 仅修改 FILLED 路径顺序，CANCELED/REJECTED 路径完全未触及 |
 | D | 否 | 无关 |

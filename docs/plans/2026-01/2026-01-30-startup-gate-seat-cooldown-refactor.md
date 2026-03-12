@@ -6,7 +6,7 @@
 
 **Architecture:** 引入 `startup` 分层（Gate / Account+Position / Seat / Subscription / Cooldown / ContextInit），由统一的启动编排器串联。账户/持仓仅做缓存，行情订阅与展示延后到席位就绪之后统一处理。标的验证拆分为"静态配置校验（无订阅）"与"运行期校验（订阅后）"。冷却恢复不再以监控标的过滤日志，而是以席位标的为入口并回写监控标的方向的冷却。门禁以"策略对象 + 运行模式"控制，`dev` 模式同时跳过启动与运行期交易时段检查。
 
-**Tech Stack:** TypeScript, Node.js, LongPort OpenAPI, pino
+**Tech Stack:** TypeScript, Node.js, Longbridge OpenAPI, pino
 
 ---
 

@@ -5,13 +5,13 @@
  * - 验证 WebSocket 乱序场景下的行为与恢复期望。
  */
 import { describe, expect, it } from 'bun:test';
-import { OrderSide, OrderStatus, OrderType, type TradeContext } from 'longport';
+import { OrderSide, OrderStatus, OrderType, type TradeContext } from 'longbridge';
 
 import { createOrderMonitor } from '../../src/core/trader/orderMonitor/index.js';
 import type { OrderMonitorDeps } from '../../src/core/trader/types.js';
 import { createTradingConfig } from '../../mock/factories/configFactory.js';
 import { createPushOrderChanged } from '../../mock/factories/tradeFactory.js';
-import { createTradeContextMock } from '../../mock/longport/tradeContextMock.js';
+import { createTradeContextMock } from '../../mock/longbridge/tradeContextMock.js';
 import {
   createLiquidationCooldownTrackerDouble,
   createOrderRecorderDouble,

@@ -18,7 +18,7 @@ import {
   getCandleFingerprint,
 } from '../../../../src/services/indicators/runtime/index.js';
 import { toNumber } from '../../../../src/services/indicators/runtime/utils.js';
-import { toMockDecimal } from '../../../../mock/longport/decimal.js';
+import { toMockDecimal } from '../../../../mock/longbridge/decimal.js';
 import type { CandleData } from '../../../../src/types/data.js';
 import { createIndicatorUsageProfileDouble } from '../../../helpers/testDoubles.js';
 

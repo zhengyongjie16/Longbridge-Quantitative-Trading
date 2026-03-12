@@ -1,7 +1,7 @@
 /**
  * 自动寻标模块入口
  *
- * 功能：根据监控标的与方向从 LongPort 牛熊证列表筛选最佳标的（距回收价、分均成交额等）。
+ * 功能：根据监控标的与方向从 Longbridge 牛熊证列表筛选最佳标的（距回收价、分均成交额等）。
  * 职责：调用 warrantList API、到期日筛选、带缓存的列表获取、选优并返回 WarrantCandidate。
  * 执行流程：findBestWarrant 入参校验 → 可选缓存获取列表 → selectBestWarrant 筛选 → 返回最佳或 null。
  */
@@ -12,7 +12,7 @@ import {
   WarrantStatus,
   WarrantType,
   type FilterWarrantExpiryDate,
-} from 'longport';
+} from 'longbridge';
 import { DEFAULT_PERCENT_DECIMALS, DEFAULT_PRICE_DECIMALS } from '../../constants/index.js';
 import { buildExpiryDateFilters, selectBestWarrant } from './utils.js';
 import { formatError } from '../../utils/error/index.js';
@@ -130,7 +130,7 @@ function logNoCandidateFound(params: {
 }
 
 /**
- * 调用 LongPort warrantList API 请求牛熊证列表（按成交额降序）。
+ * 调用 Longbridge warrantList API 请求牛熊证列表（按成交额降序）。
  * @param params - 请求参数（ctx、monitorSymbol、warrantType、expiryFilters）
  * @returns 牛熊证列表
  */

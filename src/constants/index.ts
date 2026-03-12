@@ -11,7 +11,7 @@
  * - 指标缓存相关：计算缓存、时序缓存配置
  * - 信号相关：交易信号类型定义
  */
-import { FilterWarrantExpiryDate, OrderStatus, OrderType, Period } from 'longport';
+import { FilterWarrantExpiryDate, OrderStatus, OrderType, Period } from 'longbridge';
 import type { OrderTypeConfig, SignalType } from '../types/signal.js';
 import type { StrategyAction } from '../types/state.js';
 
@@ -166,7 +166,7 @@ export const LOG_ANSI_CODE_REGEX = new RegExp(LOG_ANSI_ESC + String.raw`\[[0-9;]
 /** 是否为调试模式（环境变量 DEBUG=true 时启用） */
 export const IS_DEBUG = process.env['DEBUG'] === 'true';
 
-/** API 相关常量，用于 LongPort API 调用 */
+/** API 相关常量，用于 Longbridge API 调用 */
 export const API = {
   /** 默认重试次数，API 调用失败时的重试上限 */
   DEFAULT_RETRY_COUNT: 2,
@@ -304,7 +304,7 @@ export const ORDER_MONITOR_CANCEL_RETRY_MAX_DELAY_MS = 30_000;
 export const ORDER_MONITOR_WAIT_WS_ONLY_BLOCK_UNTIL_MS = Number.MAX_SAFE_INTEGER;
 
 /**
- * LongPort API 错误码常量（订单监控使用）
+ * Longbridge API 错误码常量（订单监控使用）
  *
  * 订单关闭/状态未知类业务错误码:
  * - 601011: Order has been cancelled (订单已撤销)

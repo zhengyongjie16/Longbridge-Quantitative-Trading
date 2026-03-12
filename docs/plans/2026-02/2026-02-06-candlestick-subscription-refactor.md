@@ -1,10 +1,12 @@
 # K 线获取重构：从轮询 API 迁移到订阅模式
 
+> 状态：已过时（2026-03-12）。本文仍基于 `longport` 包名与旧认证链路编写；当前 SDK 与认证基线请以 `docs/plans/2026-03/2026-03-12-longbridge-oauth2-auth-migration-plan.md` 为准。
+
 **日期**: 2026-02-06
 
 **目标**: 将主循环中每秒轮询 `candlesticks()` HTTP API 的方式，重构为 SDK 原生的 K 线订阅模式（`subscribeCandlesticks` + `realtimeCandlesticks`），消除高频 API 调用，从 SDK 本地缓存读取实时 K 线数据。
 
-**Tech Stack**: TypeScript (ES2022), Node.js, LongPort OpenAPI SDK, pino。
+**Tech Stack**: TypeScript (ES2022), Node.js, Longbridge OpenAPI SDK, pino。
 
 **规范约束**: 遵守 `typescript-project-specifications` skill 全部核心原则。
 
@@ -51,7 +53,7 @@ await withRetry(() => ctx.subscribe(newSymbols, [SubType.Quote]));
 
 ## 二、SDK K 线订阅能力
 
-LongPort SDK 提供独立于 `subscribe/SubType` 体系的 K 线订阅 API。
+Longbridge SDK 提供独立于 `subscribe/SubType` 体系的 K 线订阅 API。
 
 ### 2.1 核心机制
 

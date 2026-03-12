@@ -6,7 +6,7 @@
  * - 构造订单载荷并提交到 Trade API
  * - 在提交成功后注册 orderMonitor 追踪与卖单防重占用
  */
-import { OrderSide, OrderType, TimeInForceType, type TradeContext } from 'longport';
+import { OrderSide, OrderType, TimeInForceType, type TradeContext } from 'longbridge';
 import { logger } from '../../../utils/logger/index.js';
 import { TRADING } from '../../../constants/index.js';
 import { decimalToNumber, isValidPositiveNumber } from '../../../utils/helpers/index.js';
@@ -94,7 +94,7 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
    * 根据全局配置与信号属性解析最终订单类型。
    *
    * @param signal 交易信号
-   * @returns LongPort 订单类型
+   * @returns Longbridge 订单类型
    */
   function resolveOrderType(signal: Signal): OrderType {
     const orderTypeConfig = resolveOrderTypeConfig(signal, globalConfig);
@@ -349,7 +349,7 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
                 signal.relatedBuyOrderIds,
                 cancelOutcomes.flatMap(getOutcomeRelatedBuyOrderIds),
               )
-            : signal.relatedBuyOrderIds ?? null;
+            : (signal.relatedBuyOrderIds ?? null);
         return submitOrder({
           ctx,
           signal,

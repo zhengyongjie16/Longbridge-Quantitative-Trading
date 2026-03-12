@@ -6,7 +6,7 @@
  * - 同一时间源会同时透传给 load 与 rebuild
  */
 import { describe, expect, it } from 'bun:test';
-import { OrderSide, OrderStatus, OrderType } from 'longport';
+import { OrderSide, OrderStatus, OrderType } from 'longbridge';
 import { executeTradingDayOpenRebuild } from '../../src/app/rebuild.js';
 import type { LoadTradingDayRuntimeSnapshotParams } from '../../src/main/lifecycle/types.js';
 import type { Quote } from '../../src/types/quote.js';

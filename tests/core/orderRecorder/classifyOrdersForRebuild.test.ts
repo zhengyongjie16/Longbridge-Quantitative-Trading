@@ -6,7 +6,7 @@
  * - 确保 Filled/Pending 与 Buy/Sell 四类输出正确
  */
 import { describe, expect, it } from 'bun:test';
-import { OrderSide, OrderStatus, OrderType } from 'longport';
+import { OrderSide, OrderStatus, OrderType } from 'longbridge';
 import { classifyOrdersForRebuild } from '../../../src/core/orderRecorder/utils.js';
 import type { RawOrderFromAPI } from '../../../src/types/services.js';
 

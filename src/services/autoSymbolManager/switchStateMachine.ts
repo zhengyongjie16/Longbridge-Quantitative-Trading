@@ -391,7 +391,8 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
         }
 
         const unconfirmedOutcome = cancelOutcomes.find(
-          (outcome) => !isCancelAcceptedOrTerminalNonFilledClose(outcome) && !isFilledCloseOutcome(outcome),
+          (outcome) =>
+            !isCancelAcceptedOrTerminalNonFilledClose(outcome) && !isFilledCloseOutcome(outcome),
         );
         if (unconfirmedOutcome) {
           failAndClear(`CANCEL_PENDING_FAILED:${resolveCancelFailureReason(unconfirmedOutcome)}`);

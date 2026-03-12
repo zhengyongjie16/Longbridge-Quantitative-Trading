@@ -13,7 +13,7 @@
  * 控制开关：
  * - DOOMSDAY_PROTECTION 环境变量（默认 true）
  */
-import { OrderSide } from 'longport';
+import { OrderSide } from 'longbridge';
 import { logger } from '../../utils/logger/index.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import { isSeatReady } from '../../services/autoSymbolManager/utils.js';

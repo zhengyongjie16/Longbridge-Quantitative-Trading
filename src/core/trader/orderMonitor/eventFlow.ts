@@ -6,17 +6,13 @@
  * - 将已确认终态订单统一交给 settlementFlow 结算
  * - 在部分成交时维护 pendingSell 部分成交状态
  */
-import { OrderSide, OrderStatus, type PushOrderChanged } from 'longport';
+import { OrderSide, OrderStatus, type PushOrderChanged } from 'longbridge';
 import { logger } from '../../../utils/logger/index.js';
 import { decimalToNumber } from '../../../utils/helpers/index.js';
 import { ORDER_MONITOR_WAIT_WS_ONLY_BLOCK_UNTIL_MS } from '../../../constants/index.js';
 import type { EventFlow, EventFlowDeps } from './types.js';
 import { resetOrderReplaceRuntimeState, resumeOrderReplaceFromWsProgress } from './orderOps.js';
-import {
-  isClosedStatus,
-  resolveOrderClosedReasonFromStatus,
-  resolveUpdatedAtMs,
-} from './utils.js';
+import { isClosedStatus, resolveOrderClosedReasonFromStatus, resolveUpdatedAtMs } from './utils.js';
 
 /** 仅当状态已离开撤单中阶段时，才恢复下一次撤单重试机会。 */
 function shouldResumeCancelRetryFromWsStatus(status: OrderStatus): boolean {

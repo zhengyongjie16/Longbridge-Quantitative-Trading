@@ -6,7 +6,7 @@
  * - 封装撤单/改单 API 结果的统一语义
  * - 维护改单阻塞恢复与运行态重置
  */
-import { OrderSide } from 'longport';
+import { OrderSide } from 'longbridge';
 import { logger } from '../../../utils/logger/index.js';
 import { isValidPositiveNumber } from '../../../utils/helpers/index.js';
 import type { CancelOrderOutcome, OrderStateCheckResult } from '../../../types/trader.js';
@@ -451,7 +451,10 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
           errorCode,
           message,
         });
-        logger.warn(`[订单修改失败] 订单ID=${orderId} 新价格=${normalizedNewPriceText}: ${message}`);
+
+        logger.warn(
+          `[订单修改失败] 订单ID=${orderId} 新价格=${normalizedNewPriceText}: ${message}`,
+        );
         return;
       }
 

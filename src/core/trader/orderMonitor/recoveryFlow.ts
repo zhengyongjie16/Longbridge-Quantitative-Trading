@@ -6,7 +6,7 @@
  * - 执行快照恢复、席位一致性校验与失败回滚
  * - 消费权威终态快照并保持 trackedOrders 与 pendingSell 一致
  */
-import { OrderSide, type PushOrderChanged } from 'longport';
+import { OrderSide, type PushOrderChanged } from 'longbridge';
 import { logger } from '../../../utils/logger/index.js';
 import { decimalToNumber, isValidPositiveNumber } from '../../../utils/helpers/index.js';
 import { PENDING_ORDER_STATUSES } from '../../../constants/index.js';
@@ -453,7 +453,9 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
               side: 'BUY',
               monitorSymbol: ownership?.monitorSymbol ?? null,
               isProtectiveLiquidation: hasProtectiveLiquidationRemark(order.remark),
-              liquidationTriggerLimit: resolveLiquidationTriggerLimit(ownership?.monitorSymbol ?? null),
+              liquidationTriggerLimit: resolveLiquidationTriggerLimit(
+                ownership?.monitorSymbol ?? null,
+              ),
               liquidationCooldownConfig: resolveLiquidationCooldownConfig(
                 ownership?.monitorSymbol ?? null,
               ),

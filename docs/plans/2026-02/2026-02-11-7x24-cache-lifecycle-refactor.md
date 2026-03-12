@@ -6,7 +6,7 @@
 
 **Architecture:** 以"统一生命周期状态机 + 缓存域（Cache Domain）标准接口 + 双阶段跨日策略（00:00 清理 / 开盘重建）"为核心。启动初始化与跨日后开盘初始化复用同一条重建流水线，所有交易相关处理器在重建窗口内受全局门禁约束，保证不读旧缓存、不执行旧信号。
 
-**Tech Stack:** TypeScript (ES2022), Node.js, LongPort OpenAPI SDK, 现有异步队列架构（Buy/Sell/MonitorTask Processor, OrderMonitorWorker, PostTradeRefresher）, RefreshGate。
+**Tech Stack:** TypeScript (ES2022), Node.js, Longbridge OpenAPI SDK, 现有异步队列架构（Buy/Sell/MonitorTask Processor, OrderMonitorWorker, PostTradeRefresher）, RefreshGate。
 
 ---
 

@@ -8,7 +8,7 @@
  * 执行流程：
  * - 标准化 stockName（大写、去除非字母数字）→ 匹配多空标记（RC/BULL/CALL/牛 vs RP/BEAR/PUT/熊）→ 匹配监控缩写 → 返回 monitorSymbol + direction
  */
-import { OrderStatus } from 'longport';
+import { OrderStatus } from 'longbridge';
 import { ORDER_OWNERSHIP } from '../../constants/index.js';
 import type { MonitorConfig } from '../../types/config.js';
 import type { OrderOwnership } from '../../types/orderRecorder.js';

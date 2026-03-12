@@ -5,7 +5,7 @@
  * - 验证冷却切段后的分段过滤、幂等重置与启动恢复分段边界语义。
  */
 import { describe, expect, it } from 'bun:test';
-import { OrderSide, OrderStatus, OrderType } from 'longport';
+import { OrderSide, OrderStatus, OrderType } from 'longbridge';
 import { createDailyLossTracker } from '../../../src/core/riskController/dailyLossTracker.js';
 import { createOrderFilteringEngine } from '../../../src/core/orderRecorder/orderFilteringEngine.js';
 import { classifyAndConvertOrders } from '../../../src/core/orderRecorder/utils.js';

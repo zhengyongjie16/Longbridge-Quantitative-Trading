@@ -6,7 +6,7 @@
  * - 维护买卖记录、tradeLogger 写入与冷却链路更新
  * - 在缺少归属上下文时拒绝结算，避免错误记账
  */
-import { OrderSide } from 'longport';
+import { OrderSide } from 'longbridge';
 import { logger } from '../../../utils/logger/index.js';
 import { isValidPositiveNumber } from '../../../utils/helpers/index.js';
 import { toHongKongTimeIso } from '../../../utils/time/index.js';
@@ -505,12 +505,7 @@ export function createSettlementFlow(deps: SettlementFlowDeps): SettlementFlow {
         relatedBuyOrderIds = settledSell.remainingRelatedBuyOrderIds;
       }
 
-      if (
-        side === 'BUY' &&
-        symbol &&
-        isLongSymbol !== undefined &&
-        recordedExecution !== null
-      ) {
+      if (side === 'BUY' && symbol && isLongSymbol !== undefined && recordedExecution !== null) {
         orderRecorder.recordLocalBuy(
           symbol,
           recordedExecution.executedPrice,
@@ -520,12 +515,7 @@ export function createSettlementFlow(deps: SettlementFlowDeps): SettlementFlow {
         );
       }
 
-      if (
-        symbol &&
-        side &&
-        isLongSymbol !== undefined &&
-        recordedExecution !== null
-      ) {
+      if (symbol && side && isLongSymbol !== undefined && recordedExecution !== null) {
         recordDailyLossAndCooldown({
           orderId,
           side,

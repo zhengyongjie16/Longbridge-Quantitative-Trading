@@ -13,12 +13,12 @@ import {
   TopicType,
   type PushOrderChanged,
   type TradeContext,
-} from 'longport';
+} from 'longbridge';
 import { createOrderMonitor } from '../../../src/core/trader/orderMonitor/index.js';
 import type { OrderMonitorDeps } from '../../../src/core/trader/types.js';
 import { createTradingConfig } from '../../../mock/factories/configFactory.js';
 import { createPushOrderChanged } from '../../../mock/factories/tradeFactory.js';
-import { createTradeContextMock } from '../../../mock/longport/tradeContextMock.js';
+import { createTradeContextMock } from '../../../mock/longbridge/tradeContextMock.js';
 import {
   createLiquidationCooldownTrackerDouble,
   createOrderRecorderDouble,
@@ -215,14 +215,13 @@ function createDeps(params?: {
       getPendingOrders: async () => [],
     },
     orderRecorder,
-    dailyLossTracker:
-      params?.dailyLossTrackerOverride ?? {
-        resetAll: () => {},
-        resetDirectionSegment: () => {},
-        recalculateFromAllOrders: () => {},
-        recordFilledOrder: () => {},
-        getLossOffset: () => 0,
-      },
+    dailyLossTracker: params?.dailyLossTrackerOverride ?? {
+      resetAll: () => {},
+      resetDirectionSegment: () => {},
+      recalculateFromAllOrders: () => {},
+      recordFilledOrder: () => {},
+      getLossOffset: () => 0,
+    },
     orderHoldRegistry: {
       trackOrder: () => {},
       markOrderClosed: () => {},
@@ -2040,7 +2039,11 @@ describe('orderMonitor business flow', () => {
     await monitor.initialize();
     await monitor.recoverOrderTrackingFromSnapshot([]);
 
-    orderRecorder.submitSellOrder('SELL-CANCEL-SETTLED', 'BULL.HK', 'LONG', 200, ['BUY-1', 'BUY-2']);
+    orderRecorder.submitSellOrder('SELL-CANCEL-SETTLED', 'BULL.HK', 'LONG', 200, [
+      'BUY-1',
+      'BUY-2',
+    ]);
+
     monitor.trackOrder({
       orderId: 'SELL-CANCEL-SETTLED',
       symbol: 'BULL.HK',

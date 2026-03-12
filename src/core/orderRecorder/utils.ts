@@ -1,4 +1,4 @@
-import { OrderSide, OrderStatus } from 'longport';
+import { OrderSide, OrderStatus } from 'longbridge';
 import { PENDING_ORDER_STATUSES, TIME } from '../../constants/index.js';
 import { decimalToNumber } from '../../utils/helpers/index.js';
 import { calculateTradingDurationMsBetween } from '../../utils/time/index.js';

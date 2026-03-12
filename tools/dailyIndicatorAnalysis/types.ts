@@ -107,7 +107,7 @@ export type ComputeMinuteRowsResult = {
 
 /**
  * 数值化 K 线类型：用于在指标计算前保存经过数值校验的 OHLCV。
- * 数据来源：LongPort Candlestick 转换后得到。
+ * 数据来源：Longbridge Candlestick 转换后得到。
  * 使用范围：仅 `tools/dailyIndicatorAnalysis` 工具内部。
  */
 export type CandleNumbers = {

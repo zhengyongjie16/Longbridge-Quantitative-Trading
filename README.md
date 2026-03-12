@@ -4,7 +4,7 @@
 
 ### 项目介绍
 
-基于 LongPort OpenAPI SDK / TypeScript 的港股自动化量化交易系统，通过监控目标资产的技术指标，在轮证/ETF上自动执行双向（做多/做空）交易。支持多指标组合策略、按需指标计算、延迟验证、风险控制和订单管理。
+基于 Longbridge OpenAPI SDK / TypeScript 的港股自动化量化交易系统，通过监控目标资产的技术指标，在轮证/ETF上自动执行双向（做多/做空）交易。支持多指标组合策略、按需指标计算、延迟验证、风险控制和订单管理。
 
 ### 重要提示（必读）
 
@@ -38,7 +38,7 @@
 | --- | --- | --- |
 | `code-review` | 多专家协同的代码审查与简化技能（仅分析反馈，死代码可代执行删除） | 代码审查、实现与计划一致性检查、项目规范符合性审查、代码质量/架构/注释/类型设计评估、代码简化、死代码识别与安全清理、PR 测试覆盖分析 |
 | `core-program-business-logic` | 港股量化交易系统业务逻辑知识库 | 理解交易逻辑、验证代码实现、修改功能、解答业务规则；重构代码时应一并更新此文档 |
-| `longport-nodejs-sdk` | LongPort OpenAPI SDK for Node.js 完整知识库 | 调用 LongPort API、查询 SDK 文档、处理行情/订单/资产 |
+| `longport-nodejs-sdk` | Longbridge OpenAPI SDK for Node.js 完整知识库 | 调用 Longbridge API、查询 SDK 文档、处理行情/订单/资产 |
 | `typescript-project-specifications` | TypeScript 严格代码规范 | 编写/修改/重构 .ts 文件时自动使用，包含工厂函数、依赖注入、对象池等模式示例 |
 
 ## 核心功能
@@ -83,11 +83,19 @@ cp .env.example .env.local
 系统支持多个监控标的，每个监控标的使用后缀 `_N`（N从1开始）区分配置。索引需连续（`_1`、`_2`...）；系统扫描到首个缺失索引后会停止读取后续配置。
 
 ```env
-# API 配置
-LONGPORT_APP_KEY=your_key
-LONGPORT_APP_SECRET=your_secret
-LONGPORT_ACCESS_TOKEN=your_token
-LONGPORT_REGION=hk    # 可选，默认 hk（cn 为中国大陆区域）
+# OAuth 配置
+LONGBRIDGE_CLIENT_ID=your_client_id
+LONGBRIDGE_CALLBACK_PORT=60355    # 可选，默认 60355；需与 OAuth Client 注册回调一致
+
+# SDK 扩展配置（可选）
+# LONGBRIDGE_HTTP_URL=https://openapi.longbridge.com
+# LONGBRIDGE_QUOTE_WS_URL=wss://openapi-quote.longbridge.com/v2
+# LONGBRIDGE_TRADE_WS_URL=wss://openapi-trade.longbridge.com/v2
+# LONGBRIDGE_LANGUAGE=zh-CN
+# LONGBRIDGE_ENABLE_OVERNIGHT=false
+# LONGBRIDGE_PUSH_CANDLESTICK_MODE=realtime
+# LONGBRIDGE_PRINT_QUOTE_PACKAGES=true
+# LONGBRIDGE_LOG_PATH=logs/sdk
 
 # 交易标的配置（标的必须为 ticker.region）
 # 示例：第一个监控标的（_1）
@@ -117,6 +125,8 @@ SIGNAL_SELLPUT_1=(RSI:6<20,MFI<15,D<22,J<0)/3|(J<-15)
 # MONITOR_SYMBOL_2=9988.HK
 # LONG_SYMBOL_2=55131.HK
 ```
+
+首次启动若本地没有有效 token cache，程序会在终端输出 Longbridge OAuth 授权 URL；授权成功后，SDK 会在用户目录复用和刷新 token cache，后续启动无需再次手动授权。
 
 ### 启动
 
@@ -198,7 +208,15 @@ bun start
 
 | 参数 | 默认值 | 说明 |
 | --- | --- | --- |
-| `LONGPORT_REGION` | `hk` | API 区域配置（`cn`=中国大陆，`hk`=香港及其他） |
+| `LONGBRIDGE_CALLBACK_PORT` | `60355` | OAuth 本地回调端口，必须与 OAuth Client 注册的 redirect URI 一致 |
+| `LONGBRIDGE_HTTP_URL` | 官方默认值 | HTTP API 端点覆盖 |
+| `LONGBRIDGE_QUOTE_WS_URL` | 官方默认值 | 行情 WebSocket 端点覆盖 |
+| `LONGBRIDGE_TRADE_WS_URL` | 官方默认值 | 交易 WebSocket 端点覆盖 |
+| `LONGBRIDGE_LANGUAGE` | `en` | SDK 语言（`zh-CN` / `zh-HK` / `en`） |
+| `LONGBRIDGE_ENABLE_OVERNIGHT` | `false` | 是否启用夜盘行情 |
+| `LONGBRIDGE_PUSH_CANDLESTICK_MODE` | `realtime` | K 线推送模式（`realtime` / `confirmed`） |
+| `LONGBRIDGE_PRINT_QUOTE_PACKAGES` | `true` | 连接时打印行情套餐 |
+| `LONGBRIDGE_LOG_PATH` | `无` | SDK 日志目录 |
 | `DOOMSDAY_PROTECTION` | `true` | 启用末日保护 |
 | `MORNING_OPENING_PROTECTION_ENABLED` | `false` | 早盘 09:30 起 N 分钟内暂停信号生成 |
 | `MORNING_OPENING_PROTECTION_MINUTES` | `无` | 早盘开盘保护时长（分钟，范围 1-60；仅启用早盘保护时必填） |
@@ -351,7 +369,7 @@ graph TD
 
 - [Longbridge OpenAPI Docs](https://open.longbridge.com/zh-CN/docs)
 - [Longbridge OpenAPI LLM Components Docs](https://open.longbridge.com/docs/llm)
-- [LongPort OpenAPI SDK for Node.js Docs](https://longportapp.github.io/openapi/nodejs/)
+- [Longbridge OpenAPI SDK for Node.js Docs](https://longbridge.github.io/openapi/nodejs/index.html)
 - [OpenAI Codex Docs](https://developers.openai.com/codex)
 - [Claude Code Docs](https://code.claude.com/docs)
 - [Bun Apps Docs](https://bun.com/docs)

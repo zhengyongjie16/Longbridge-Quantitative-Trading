@@ -1,10 +1,11 @@
 /**
  * 配置验证模块
  *
- * 验证 LongPort API 凭证、交易配置完整性（不触发行情订阅）
+ * 验证 Longbridge API 凭证、交易配置完整性（不触发行情订阅）
  */
 import { logger } from '../utils/logger/index.js';
 import { formatSignalConfig, getStringConfig, isSymbolWithRegion } from './utils.js';
+import { readOAuthBootstrapConfig } from './auth/utils.js';
 import type {
   LiquidationCooldownConfig,
   MonitorConfig,
@@ -24,7 +25,10 @@ import type {
 } from './types.js';
 
 const AUTO_SEARCH_DISTANCE_UNIT_HINT =
-  'LongPort warrantList.toCallPrice 原始值会先从小数比值转换为该百分比值口径。';
+  'Longbridge warrantList.toCallPrice 原始值会先从小数比值转换为该百分比值口径。';
+const VALID_LONGBRIDGE_LANGUAGE_VALUES = new Set(['zh-CN', 'zh-HK', 'en']);
+const VALID_LONGBRIDGE_PUSH_CANDLESTICK_MODE_VALUES = new Set(['realtime', 'confirmed']);
+const VALID_BOOLEAN_CONFIG_VALUES = new Set(['true', 'false']);
 
 /**
  * 创建配置验证错误对象，供 validateAllConfig 在验证失败时抛出。
@@ -187,33 +191,80 @@ function validateDegradedRangeRelationship(params: {
 }
 
 /**
- * 验证 LongPort API 凭证是否已配置（APP_KEY、APP_SECRET、ACCESS_TOKEN），占位符视为未配置。
+ * 验证 Longbridge OAuth 启动配置是否已配置且合法。
  * @param env - 进程环境变量
  * @returns 验证结果（valid、errors、missingFields）
  */
-function validateLongPortConfig(env: NodeJS.ProcessEnv): Promise<ValidationResult> {
+function validateLongbridgeOAuthConfig(env: NodeJS.ProcessEnv): ValidationResult {
   const errors: string[] = [];
   const missingFields: string[] = [];
+  const oauthBootstrapConfig = readOAuthBootstrapConfig(env);
+  if (oauthBootstrapConfig.clientId === null) {
+    errors.push('LONGBRIDGE_CLIENT_ID 未配置');
+    missingFields.push('LONGBRIDGE_CLIENT_ID');
+  }
 
-  const requiredConfigs = [
-    { key: 'LONGPORT_APP_KEY', placeholder: 'your_app_key_here' },
-    { key: 'LONGPORT_APP_SECRET', placeholder: 'your_app_secret_here' },
-    { key: 'LONGPORT_ACCESS_TOKEN', placeholder: 'your_access_token_here' },
-  ];
+  const callbackPortValue = getStringConfig(env, 'LONGBRIDGE_CALLBACK_PORT');
+  if (callbackPortValue !== null && oauthBootstrapConfig.callbackPort === null) {
+    errors.push('LONGBRIDGE_CALLBACK_PORT 无效（必须为 1-65535 的整数端口）');
+    missingFields.push('LONGBRIDGE_CALLBACK_PORT');
+  }
 
-  for (const { key, placeholder } of requiredConfigs) {
-    const value = env[key];
-    if (!value?.trim() || value === placeholder) {
-      errors.push(`${key} 未配置`);
-      missingFields.push(key);
+  const urlConfigKeys = [
+    'LONGBRIDGE_HTTP_URL',
+    'LONGBRIDGE_QUOTE_WS_URL',
+    'LONGBRIDGE_TRADE_WS_URL',
+  ] as const;
+
+  for (const urlConfigKey of urlConfigKeys) {
+    const urlValue = getStringConfig(env, urlConfigKey);
+    if (urlValue === null) {
+      continue;
+    }
+
+    if (!URL.canParse(urlValue)) {
+      errors.push(`${urlConfigKey} 无效（必须为合法 URL）`);
+      missingFields.push(urlConfigKey);
     }
   }
 
-  return Promise.resolve({
+  const languageValue = getStringConfig(env, 'LONGBRIDGE_LANGUAGE');
+  if (languageValue !== null && !VALID_LONGBRIDGE_LANGUAGE_VALUES.has(languageValue)) {
+    errors.push('LONGBRIDGE_LANGUAGE 无效（仅支持 zh-CN / zh-HK / en）');
+    missingFields.push('LONGBRIDGE_LANGUAGE');
+  }
+
+  const pushCandlestickModeValue = getStringConfig(env, 'LONGBRIDGE_PUSH_CANDLESTICK_MODE');
+  if (
+    pushCandlestickModeValue !== null &&
+    !VALID_LONGBRIDGE_PUSH_CANDLESTICK_MODE_VALUES.has(pushCandlestickModeValue)
+  ) {
+    errors.push('LONGBRIDGE_PUSH_CANDLESTICK_MODE 无效（仅支持 realtime / confirmed）');
+    missingFields.push('LONGBRIDGE_PUSH_CANDLESTICK_MODE');
+  }
+
+  const booleanConfigKeys = [
+    'LONGBRIDGE_ENABLE_OVERNIGHT',
+    'LONGBRIDGE_PRINT_QUOTE_PACKAGES',
+  ] as const;
+
+  for (const booleanConfigKey of booleanConfigKeys) {
+    const booleanValue = getStringConfig(env, booleanConfigKey);
+    if (booleanValue === null) {
+      continue;
+    }
+
+    if (!VALID_BOOLEAN_CONFIG_VALUES.has(booleanValue)) {
+      errors.push(`${booleanConfigKey} 无效（仅支持 true / false）`);
+      missingFields.push(booleanConfigKey);
+    }
+  }
+
+  return {
     valid: errors.length === 0,
     errors,
     missingFields,
-  });
+  };
 }
 
 /**
@@ -669,8 +720,8 @@ function validateTradingConfig(
 }
 
 /**
- * 验证 LongPort 凭证与多监控交易配置完整性，通过则仅打日志，失败则抛出 ConfigValidationError。
- * @param options.env - 进程环境变量，用于校验 LONGPORT_* 与交易配置键
+ * 验证 Longbridge OAuth 启动配置与多监控交易配置完整性，通过则仅打日志，失败则抛出 ConfigValidationError。
+ * @param options.env - 进程环境变量，用于校验 LONGBRIDGE_* 与交易配置键
  * @param options.tradingConfig - 多监控标的交易配置，用于校验标的、金额、信号、自动寻标等
  * @returns Promise<void>，无返回值；验证失败时抛出
  * @throws {ConfigValidationError} 配置验证失败时抛出，含 missingFields
@@ -684,12 +735,12 @@ export async function validateAllConfig({
 }): Promise<void> {
   logger.info('开始验证配置...');
 
-  const longPortResult = await validateLongPortConfig(env);
+  const longbridgeOAuthResult = await Promise.resolve(validateLongbridgeOAuthConfig(env));
   const tradingResult = validateTradingConfig(tradingConfig, env);
 
-  const allErrors = [...longPortResult.errors, ...tradingResult.errors];
+  const allErrors = [...longbridgeOAuthResult.errors, ...tradingResult.errors];
   const allMissingFields = [
-    ...new Set([...longPortResult.missingFields, ...tradingResult.missingFields]),
+    ...new Set([...longbridgeOAuthResult.missingFields, ...tradingResult.missingFields]),
   ];
 
   if (allErrors.length > 0) {

@@ -5,7 +5,7 @@
  * - 验证 API 不稳定时的重试与恢复行为期望。
  */
 import { describe, expect, it } from 'bun:test';
-import { OrderSide, OrderType, type TradeContext } from 'longport';
+import { OrderSide, OrderType, type TradeContext } from 'longbridge';
 
 import { API } from '../../src/constants/index.js';
 import { createOrderMonitor } from '../../src/core/trader/orderMonitor/index.js';
@@ -15,7 +15,7 @@ import type { MonitorContext, LastState } from '../../src/types/state.js';
 import { createRefreshGate } from '../../src/utils/refreshGate/index.js';
 
 import { createTradingConfig } from '../../mock/factories/configFactory.js';
-import { createTradeContextMock } from '../../mock/longport/tradeContextMock.js';
+import { createTradeContextMock } from '../../mock/longbridge/tradeContextMock.js';
 import {
   createAccountSnapshotDouble,
   createLiquidationCooldownTrackerDouble,

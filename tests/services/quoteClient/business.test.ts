@@ -110,7 +110,7 @@ class QuoteContext {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 为同步注册
-mock.module('longport', () => ({
+mock.module('longbridge', () => ({
   Decimal: TestDecimal,
   NaiveDate: TestNaiveDate,
   Period,
@@ -123,10 +123,11 @@ mock.module('longport', () => ({
   QuoteContext,
 }));
 
-import { Decimal, Market as MockMarket, NaiveDate, Period as MockPeriod } from 'longport';
+import { Decimal, Market as MockMarket, NaiveDate, Period as MockPeriod } from 'longbridge';
 
-import { createQuoteContextMock } from '../../../mock/longport/quoteContextMock.js';
+import { createQuoteContextMock } from '../../../mock/longbridge/quoteContextMock.js';
 import { createMarketDataClient } from '../../../src/services/quoteClient/index.js';
+import { createSdkConfigDouble } from '../../helpers/testDoubles.js';
 
 let quoteMock: ReturnType<typeof createQuoteContextMock>;
 
@@ -174,7 +175,7 @@ describe('quoteClient business flow', () => {
     ]);
 
     const client = await createMarketDataClient({
-      config: {} as never,
+      config: createSdkConfigDouble(),
     });
 
     await client.subscribeSymbols(['BULL.HK']);
@@ -192,7 +193,7 @@ describe('quoteClient business flow', () => {
 
   it('throws when getQuotes is called for an unsubscribed symbol', async () => {
     const client = await createMarketDataClient({
-      config: {} as never,
+      config: createSdkConfigDouble(),
     });
 
     expect(client.getQuotes(['NOT_SUBSCRIBED.HK'])).rejects.toThrow('未订阅');
@@ -212,7 +213,7 @@ describe('quoteClient business flow', () => {
     ]);
 
     const client = await createMarketDataClient({
-      config: {} as never,
+      config: createSdkConfigDouble(),
     });
 
     const first = await client.subscribeCandlesticks('BULL.HK', MockPeriod.Min_1);
@@ -232,7 +233,7 @@ describe('quoteClient business flow', () => {
     } as never);
 
     const client = await createMarketDataClient({
-      config: {} as never,
+      config: createSdkConfigDouble(),
     });
 
     const first = await client.isTradingDay(date, MockMarket.HK);
@@ -263,7 +264,7 @@ describe('quoteClient business flow', () => {
     ]);
 
     const client = await createMarketDataClient({
-      config: {} as never,
+      config: createSdkConfigDouble(),
     });
 
     await client.subscribeSymbols(['BULL.HK']);

@@ -14,8 +14,8 @@ import {
   type Order,
   type PushOrderChanged,
   type StockPositionsResponse,
-} from 'longport';
-import { toMockDecimal } from '../longport/decimal.js';
+} from 'longbridge';
+import { toMockDecimal } from '../longbridge/decimal.js';
 import type {
   OrderFactoryParams,
   PushOrderChangedParams,
@@ -23,7 +23,7 @@ import type {
 } from './types.js';
 
 /**
- * 构造符合 LongPort Order 形状的订单对象，供测试或 Mock 使用。
+ * 构造符合 Longbridge Order 形状的订单对象，供测试或 Mock 使用。
  * 未传字段使用默认值（如 status=New、quantity=100）。
  */
 export function createOrder(params: OrderFactoryParams): Order {

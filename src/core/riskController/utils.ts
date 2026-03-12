@@ -1,4 +1,4 @@
-import { OrderStatus } from 'longport';
+import { OrderStatus } from 'longbridge';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import {
   decimalAdd,

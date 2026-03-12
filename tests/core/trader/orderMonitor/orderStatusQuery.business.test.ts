@@ -6,21 +6,15 @@
  * - Expired、PartialWithdrawal、603001 等关键边界语义
  */
 import { describe, expect, it } from 'bun:test';
-import {
-  Decimal,
-  OrderSide,
-  OrderType,
-  type OrderDetail,
-  type TradeContext,
-} from 'longport';
+import { Decimal, OrderSide, OrderType, type OrderDetail, type TradeContext } from 'longbridge';
 import { createOrderStatusQuery } from '../../../../src/core/trader/orderMonitor/orderStatusQuery.js';
 
-const LONGPORT_STATUS_FILLED = 5;
-const LONGPORT_STATUS_REJECTED = 14;
-const LONGPORT_STATUS_CANCELED = 15;
-const LONGPORT_STATUS_EXPIRED = 16;
-const LONGPORT_STATUS_PARTIAL_WITHDRAWAL = 17;
-const LONGPORT_STATUS_PENDING_CANCEL = 12;
+const OPEN_API_ORDER_STATUS_FILLED = 5;
+const OPEN_API_ORDER_STATUS_REJECTED = 14;
+const OPEN_API_ORDER_STATUS_CANCELED = 15;
+const OPEN_API_ORDER_STATUS_EXPIRED = 16;
+const OPEN_API_ORDER_STATUS_PARTIAL_WITHDRAWAL = 17;
+const OPEN_API_ORDER_STATUS_PENDING_CANCEL = 12;
 
 function createOrderSnapshot(params: {
   readonly orderId: string;
@@ -77,9 +71,9 @@ describe('orderStatusQuery business flow', () => {
       readonly status: number;
       readonly expectedReason: 'FILLED' | 'CANCELED' | 'REJECTED';
     }> = [
-      { status: LONGPORT_STATUS_FILLED, expectedReason: 'FILLED' },
-      { status: LONGPORT_STATUS_CANCELED, expectedReason: 'CANCELED' },
-      { status: LONGPORT_STATUS_REJECTED, expectedReason: 'REJECTED' },
+      { status: OPEN_API_ORDER_STATUS_FILLED, expectedReason: 'FILLED' },
+      { status: OPEN_API_ORDER_STATUS_CANCELED, expectedReason: 'CANCELED' },
+      { status: OPEN_API_ORDER_STATUS_REJECTED, expectedReason: 'REJECTED' },
     ];
 
     for (const testCase of terminalCases) {
@@ -114,14 +108,14 @@ describe('orderStatusQuery business flow', () => {
         'ORDER-EXPIRED',
         createOrderSnapshot({
           orderId: 'ORDER-EXPIRED',
-          status: LONGPORT_STATUS_EXPIRED,
+          status: OPEN_API_ORDER_STATUS_EXPIRED,
         }),
       ],
       [
         'ORDER-PARTIAL-WITHDRAWAL',
         createOrderSnapshot({
           orderId: 'ORDER-PARTIAL-WITHDRAWAL',
-          status: LONGPORT_STATUS_PARTIAL_WITHDRAWAL,
+          status: OPEN_API_ORDER_STATUS_PARTIAL_WITHDRAWAL,
           executedQuantity: 20,
           executedPrice: 1.02,
         }),
@@ -144,8 +138,9 @@ describe('orderStatusQuery business flow', () => {
       expect(expiredResult.closedReason).toBe('CANCELED');
     }
 
-    const partialWithdrawalResult =
-      await orderStatusQuery.checkOrderState('ORDER-PARTIAL-WITHDRAWAL');
+    const partialWithdrawalResult = await orderStatusQuery.checkOrderState(
+      'ORDER-PARTIAL-WITHDRAWAL',
+    );
     expect(partialWithdrawalResult.kind).toBe('TERMINAL');
     if (partialWithdrawalResult.kind === 'TERMINAL') {
       expect(partialWithdrawalResult.closedReason).toBe('CANCELED');
@@ -181,7 +176,7 @@ describe('orderStatusQuery business flow', () => {
     const orderId = 'ORDER-PENDING-CANCEL';
     const snapshot = createOrderSnapshot({
       orderId,
-      status: LONGPORT_STATUS_PENDING_CANCEL,
+      status: OPEN_API_ORDER_STATUS_PENDING_CANCEL,
       executedQuantity: 20,
       executedPrice: 1.01,
     });
@@ -198,7 +193,7 @@ describe('orderStatusQuery business flow', () => {
     const result = await orderStatusQuery.checkOrderState(orderId);
     expect(result.kind).toBe('OPEN');
     if (result.kind === 'OPEN') {
-      expect(result.status).toBe(LONGPORT_STATUS_PENDING_CANCEL);
+      expect(result.status).toBe(OPEN_API_ORDER_STATUS_PENDING_CANCEL);
       expect(result.executedQuantity).toBe(20);
     }
   });

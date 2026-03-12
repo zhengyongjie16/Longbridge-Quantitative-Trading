@@ -1,4 +1,4 @@
-import { NaiveDate, Period } from 'longport';
+import { NaiveDate, Period } from 'longbridge';
 import { isRecord, isValidPositiveNumber } from '../../utils/helpers/index.js';
 import type { StaticInfo } from './types.js';
 import { getHKDateKey } from '../../utils/time/index.js';

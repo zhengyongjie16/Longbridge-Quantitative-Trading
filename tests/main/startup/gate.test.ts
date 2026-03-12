@@ -48,8 +48,7 @@ describe('createStartupGate', () => {
     const gate = createStartupGate(
       createDeps({
         now: () => {
-          const current =
-            times.at(Math.min(index, times.length - 1)) ?? times.at(-1) ?? new Date();
+          const current = times.at(Math.min(index, times.length - 1)) ?? times.at(-1) ?? new Date();
           index += 1;
           return current;
         },
@@ -74,17 +73,13 @@ describe('createStartupGate', () => {
   });
 
   it('waits until open protection window ends', async () => {
-    const times = [
-      new Date('2026-03-10T01:00:00.000Z'),
-      new Date('2026-03-10T01:16:00.000Z'),
-    ];
+    const times = [new Date('2026-03-10T01:00:00.000Z'), new Date('2026-03-10T01:16:00.000Z')];
     let index = 0;
     const sleepCalls: number[] = [];
     const gate = createStartupGate(
       createDeps({
         now: () => {
-          const current =
-            times.at(Math.min(index, times.length - 1)) ?? times.at(-1) ?? new Date();
+          const current = times.at(Math.min(index, times.length - 1)) ?? times.at(-1) ?? new Date();
           index += 1;
           return current;
         },
@@ -105,17 +100,13 @@ describe('createStartupGate', () => {
   });
 
   it('waits until afternoon open protection window ends on full trading days', async () => {
-    const times = [
-      new Date('2026-03-10T05:00:00.000Z'),
-      new Date('2026-03-10T05:16:00.000Z'),
-    ];
+    const times = [new Date('2026-03-10T05:00:00.000Z'), new Date('2026-03-10T05:16:00.000Z')];
     let index = 0;
     const sleepCalls: number[] = [];
     const gate = createStartupGate(
       createDeps({
         now: () => {
-          const current =
-            times.at(Math.min(index, times.length - 1)) ?? times.at(-1) ?? new Date();
+          const current = times.at(Math.min(index, times.length - 1)) ?? times.at(-1) ?? new Date();
           index += 1;
           return current;
         },

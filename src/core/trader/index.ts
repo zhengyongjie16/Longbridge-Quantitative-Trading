@@ -17,7 +17,7 @@
  * 1. ctxPromise → 2. rateLimiter/cacheManager/accountService
  * 3. orderRecorder → 4. orderMonitor → 5. orderExecutor
  */
-import { TradeContext } from 'longport';
+import { TradeContext } from 'longbridge';
 import { createOrderRecorder } from '../orderRecorder/index.js';
 import type { Signal, SignalType } from '../../types/signal.js';
 import type { Quote } from '../../types/quote.js';

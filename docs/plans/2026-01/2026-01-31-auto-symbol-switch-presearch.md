@@ -6,7 +6,7 @@
 
 **架构:** 将换标流程拆成两个阶段：候选判断与日内抑制、执行阶段（撤单 → 卖出 → 占位 → 可选回补）。候选写入 `SwitchState`，换标期间不二次寻标；日内抑制按"方向 + 标的 + 港股日期"记录，防止同标的循环触发。
 
-**技术栈:** TypeScript, Node.js, LongPort OpenAPI
+**技术栈:** TypeScript, Node.js, Longbridge OpenAPI
 
 **关键规则:**
 

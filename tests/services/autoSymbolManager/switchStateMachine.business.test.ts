@@ -5,8 +5,8 @@
  * - 验证换标状态机相关场景意图、边界条件与业务期望。
  */
 import { describe, expect, it } from 'bun:test';
-import { OrderSide, OrderType } from 'longport';
-import { toMockDecimal } from '../../../mock/longport/decimal.js';
+import { OrderSide, OrderType } from 'longbridge';
+import { toMockDecimal } from '../../../mock/longbridge/decimal.js';
 import { createSwitchStateMachine } from '../../../src/services/autoSymbolManager/switchStateMachine.js';
 import { createSeatStateManager } from '../../../src/services/autoSymbolManager/seatStateManager.js';
 import {
@@ -15,10 +15,7 @@ import {
   resolveDirectionSymbols,
 } from '../../../src/services/autoSymbolManager/signalBuilder.js';
 import { signalObjectPool } from '../../../src/utils/objectPool/index.js';
-import {
-  calculateTradingDurationMsBetween,
-  getHKDateKey,
-} from '../../../src/utils/time/index.js';
+import { calculateTradingDurationMsBetween, getHKDateKey } from '../../../src/utils/time/index.js';
 import { PENDING_ORDER_STATUSES } from '../../../src/constants/index.js';
 import type { Quote } from '../../../src/types/quote.js';
 import {

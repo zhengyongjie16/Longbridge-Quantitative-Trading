@@ -1,8 +1,10 @@
 # 港股量化交易系统全系统架构重设计方案
 
+> 状态：部分过时（2026-03-12）。本文中的 `Longbridge`/`longport` 命名、旧认证路径和历史目录示例仅保留架构讨论背景；当前 SDK 与认证基线请以 `docs/plans/2026-03/2026-03-12-longbridge-oauth2-auth-migration-plan.md` 为准。
+
 ## 1. 文档目的
 
-本文档用于指导当前代码库的全系统架构重构，目标是将现有基于 LongPort OpenAPI 的港股双向量化交易系统，从“可运行但边界松散的工程实现”重构为“业务边界清晰、依赖方向稳定、生命周期可控、可持续演进”的架构。
+本文档用于指导当前代码库的全系统架构重构，目标是将现有基于 Longbridge OpenAPI 的港股双向量化交易系统，从“可运行但边界松散的工程实现”重构为“业务边界清晰、依赖方向稳定、生命周期可控、可持续演进”的架构。
 
 本文档为二次全链路校验后的修订版，已补齐门禁模型、门禁 owner 与解析时序、风险运行态完整状态模型、订单恢复与事件回放、席位刷新原子顺序、Seat 单写者不变量与分阶段迁移边界等一级架构约束。
 
@@ -21,7 +23,7 @@
 技术边界：
 
 1. 继续使用 TypeScript + Bun + ESM。
-2. 继续对接 LongPort OpenAPI。
+2. 继续对接 Longbridge OpenAPI。
 3. 不改变交易业务语义。
 4. 不引入长期并存的双轨兼容架构。
 
@@ -661,7 +663,7 @@
 2. startup recovery、strict recovery、daily loss 回算等快照语义场景，以 `stockName + orderOwnershipMapping` 作为规范口径。
 3. close sink / close sync 运行时为保持当前实现语义，必须先尝试 seat symbol 反查作为运行时快捷路径，seat 无法解析时才回退到 parser；但若 seat 与 parser 同时存在且结果冲突，必须记录显式冲突日志/指标，禁止静默丢失冲突信息，也不得用 parser 覆盖 tracked lifecycle 或已命中的 seat 快捷路径。
 
-它是订单业务口径，不是 LongPort API adapter。
+它是订单业务口径，不是 Longbridge API adapter。
 
 ## 7.5 Trade Execution Context
 
@@ -1154,7 +1156,7 @@ flowchart TD
   O --> Q
   P --> K
   P --> R[RiskApplicationService]
-  Q --> S[LongPort Trade Gateway]
+  Q --> S[Longbridge Trade Gateway]
   H --> T[OrderTrackingApplicationService]
   T --> X[OrderCloseSink]
   X --> U[OrderLedger Domain]
@@ -1167,7 +1169,7 @@ flowchart TD
 
 1. 主循环只编排用例，不下沉业务。
 2. worker 只消费任务，不拥有系统全局状态。
-3. LongPort 适配器下沉到 infrastructure。
+3. Longbridge 适配器下沉到 infrastructure。
 4. 订单账本与风险口径留在 core/application，不留在 adapter 中。
 5. 门禁解析、风险运行态、严格恢复、订单关闭收口都必须是明确节点，而不是隐藏在胖门面内部。
 
@@ -1303,7 +1305,7 @@ src/
 -> BuyWorker / SellWorker
 -> Risk / SellQuantity use case
 -> TradeExecutionUseCase
--> LongPort Trade Gateway
+-> Longbridge Trade Gateway
 -> OrderTrackingApplicationService
 -> OrderLedger / DailyLoss / RefreshScheduler
 ```
@@ -1649,7 +1651,7 @@ stateDiagram-v2
 
 1. 使用 ESLint `no-restricted-imports`。
 2. 为层间依赖写静态检查。
-3. 禁止 `application` 直接 import LongPort SDK。
+3. 禁止 `application` 直接 import Longbridge SDK。
 4. 禁止 `core` 使用 logger。
 
 原因：
@@ -1836,7 +1838,7 @@ stateDiagram-v2
 阶段目标：
 
 1. 形成稳定的 trade、orderLedger、risk 三大上下文。
-2. 把 LongPort 适配器与业务口径彻底分开。
+2. 把 Longbridge 适配器与业务口径彻底分开。
 3. 让 `ExecutionRuntimeStore` 与 `RiskRuntimeStore` 成为唯一真相源，收口 `Trader`、`dailyLossTracker`、`liquidationCooldownTracker`、`signalProcessor`、`buyThrottle`、`riskChecker` 内部私有运行态。
 4. 把 refreshGate、一致性对账、风险收口从隐式行为提升为显式应用层协议。
 
@@ -1990,7 +1992,7 @@ stateDiagram-v2
 2. store 单写者状态模型；
 3. application use case 编排；
 4. core（domain layer）纯业务规则；
-5. infrastructure 适配 LongPort 与运行时资源；
+5. infrastructure 适配 Longbridge 与运行时资源；
 6. lifecycle 作为一级系统能力；
 7. 结构化 gate policy、risk runtime store 与严格恢复模型；
 8. 全量遵循 TypeScript 项目规范。

@@ -6,7 +6,7 @@
 
 **Architecture:** 以现有 buy/sell 异步处理器为范式，引入"监控级任务队列 + 处理器""订单监控后台单飞""成交后刷新后台合并器""刷新门禁(RefreshGate)"四块异步基础设施；主循环仅负责门禁、行情/K线与信号分流，异步任务负责 API 调用与刷新逻辑，并通过刷新门禁确保缓存一致性。
 
-**Tech Stack:** TypeScript (ES2022), Node.js, LongPort OpenAPI SDK, pino, 现有任务队列与 setImmediate 调度模式。
+**Tech Stack:** TypeScript (ES2022), Node.js, Longbridge OpenAPI SDK, pino, 现有任务队列与 setImmediate 调度模式。
 
 ---
 

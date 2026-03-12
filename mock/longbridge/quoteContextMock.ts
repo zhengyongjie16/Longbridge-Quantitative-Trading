@@ -18,7 +18,7 @@ import {
   type WarrantQuote,
   type WarrantSortBy,
   WarrantType,
-} from 'longport';
+} from 'longbridge';
 import {
   createLongportEventBus,
   type EventPublishOptions,

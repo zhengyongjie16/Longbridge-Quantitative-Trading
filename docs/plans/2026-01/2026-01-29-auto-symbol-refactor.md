@@ -103,7 +103,7 @@
 - **末日保护遗漏**：若旧标的仍有持仓，末日保护需能覆盖旧标的（动态集合）。
 - **缓存污染**：`orderApiManager` 与 `orderStorage` 必须支持按 symbol 清理缓存，避免旧标的污染新席位。
 
-**Tech Stack:** TypeScript, Node.js, LongPort OpenAPI
+**Tech Stack:** TypeScript, Node.js, Longbridge OpenAPI
 
 ---
 

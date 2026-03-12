@@ -1,4 +1,4 @@
-import { Decimal } from 'longport';
+import { Decimal } from 'longbridge';
 import type { DecimalInput, LotQuantityInput } from './types.js';
 
 /**

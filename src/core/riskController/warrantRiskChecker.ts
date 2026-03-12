@@ -22,7 +22,7 @@ import {
   toDecimalValue,
 } from '../../utils/numeric/index.js';
 import type { SignalType } from '../../types/signal.js';
-import type { Decimal } from 'longport';
+import type { Decimal } from 'longbridge';
 import type {
   MarketDataClient,
   BullBearWarrantType,

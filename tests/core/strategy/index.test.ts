@@ -2,7 +2,10 @@ import { describe, expect, it } from 'bun:test';
 import { parseSignalConfig } from '../../../src/config/utils.js';
 import { createHangSengMultiIndicatorStrategy } from '../../../src/core/strategy/index.js';
 import type { IndicatorSnapshot } from '../../../src/types/quote.js';
-import { createIndicatorUsageProfileDouble, createOrderRecorderDouble } from '../../helpers/testDoubles.js';
+import {
+  createIndicatorUsageProfileDouble,
+  createOrderRecorderDouble,
+} from '../../helpers/testDoubles.js';
 
 function requireSignalConfig(configText: string) {
   const signalConfig = parseSignalConfig(configText);
@@ -13,9 +16,7 @@ function requireSignalConfig(configText: string) {
   return signalConfig;
 }
 
-function createSnapshot(
-  overrides: Partial<IndicatorSnapshot> = {},
-): IndicatorSnapshot {
+function createSnapshot(overrides: Partial<IndicatorSnapshot> = {}): IndicatorSnapshot {
   return {
     price: 1,
     changePercent: null,

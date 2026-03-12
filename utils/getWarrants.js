@@ -40,7 +40,8 @@
 import dotenv from 'dotenv';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Config, QuoteContext } from 'longport';
+import { QuoteContext } from 'longbridge';
+import { createSdkConfigFromOAuth, initializeOAuth } from '../src/config/auth/index.js';
 
 // ==================== 常量 ====================
 
@@ -148,7 +149,14 @@ async function main() {
   console.log(`已开盘: ${tradingMinutes} 分钟\n`);
 
   // 初始化 API 并获取数据
-  const ctx = await QuoteContext.new(Config.fromEnv());
+  const oauth = await initializeOAuth({
+    env: process.env,
+    onOpenUrl: (url) => {
+      console.log(`请在浏览器中完成 Longbridge OAuth 授权：${url}`);
+    },
+  });
+  const config = createSdkConfigFromOAuth({ oauth, env: process.env });
+  const ctx = await QuoteContext.new(config);
   const warrants = await ctx.warrantList(
     symbol,
     SORT_BY_TURNOVER,

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目简介
 
-基于 LongPort OpenAPI SDK for Node.js / bun / TypeScript 的港股自动化量化交易系统。
+基于 Longbridge OpenAPI SDK for Node.js / bun / TypeScript 的港股自动化量化交易系统。
 
 ## 项目结构示例
 

@@ -1,4 +1,4 @@
-import { OrderSide, OrderType } from 'longport';
+import { OrderSide, OrderType } from 'longbridge';
 import { logger } from '../../../utils/logger/index.js';
 import { SIGNAL_ACTION_DESCRIPTIONS } from '../../../constants/index.js';
 import type { OrderTypeConfig, Signal } from '../../../types/signal.js';
@@ -21,11 +21,11 @@ export function getActionDescription(signalAction: Signal['action']): string {
 }
 
 /**
- * 将配置中的订单类型字符串转换为 LongPort 订单类型枚举。
+ * 将配置中的订单类型字符串转换为 Longbridge 订单类型枚举。
  * 默认行为：未知值回退为 ELO。
  *
  * @param typeConfig 订单类型配置
- * @returns LongPort 订单类型枚举
+ * @returns Longbridge 订单类型枚举
  */
 export function getOrderTypeFromConfig(typeConfig: OrderTypeConfig): OrderType {
   switch (typeConfig) {

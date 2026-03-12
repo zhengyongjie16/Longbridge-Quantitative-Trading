@@ -424,8 +424,7 @@
    - 仍在进行中
    - 查询失败
 
-它不负责任何副作用，也不直接暴露给 `quoteFlow`、`recoveryFlow`、`submitFlow`、`doomsdayProtection`、`switchStateMachine`。
-它也不用于 `PartialFilled` 的日常状态推进。
+它不负责任何副作用，也不直接暴露给 `quoteFlow`、`recoveryFlow`、`submitFlow`、`doomsdayProtection`、`switchStateMachine`。它也不用于 `PartialFilled` 的日常状态推进。
 
 ## 8. 类型与状态模型重构
 

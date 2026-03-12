@@ -1,4 +1,4 @@
-import type { OrderSide, OrderStatus, OrderType } from 'longport';
+import type { OrderSide, OrderStatus, OrderType } from 'longbridge';
 import type { SignalType } from '../../src/types/signal.js';
 
 /**

@@ -7,7 +7,7 @@ import type {
   TimeInForceType,
   TradeContext,
   PushOrderChanged,
-} from 'longport';
+} from 'longbridge';
 import type { Signal, SignalType, OrderTypeConfig } from '../../types/signal.js';
 import type { Quote } from '../../types/quote.js';
 import type { AccountSnapshot, Position } from '../../types/account.js';
@@ -29,7 +29,7 @@ import type { RefreshGate } from '../../utils/types.js';
 /**
  * 订单提交 API 可能返回的响应形状。
  * 类型用途：用于 extractOrderId 安全提取订单 ID。
- * 数据来源：由 LongPort API 的 submitOrder 响应返回。
+ * 数据来源：由 Longbridge API 的 submitOrder 响应返回。
  * 使用范围：仅在 trader 模块内部使用。
  */
 export type OrderSubmitResponse = {
@@ -165,14 +165,12 @@ export type ErrorTypeIdentifier = {
 /**
  * 账户服务接口。
  * 类型用途：提供账户快照与持仓查询，供 Trader/OrderExecutor 等获取资金与持仓状态。
- * 数据来源：由 Trader 依赖注入，实现层通过 TradeContext 调用 LongPort API 获取。
+ * 数据来源：由 Trader 依赖注入，实现层通过 TradeContext 调用 Longbridge API 获取。
  * 使用范围：仅 trader 模块内部实现与使用。
  */
 export interface AccountService {
   getAccountSnapshot: () => Promise<AccountSnapshot | null>;
-  getStockPositions: (
-    symbols?: ReadonlyArray<string> | null,
-  ) => Promise<ReadonlyArray<Position>>;
+  getStockPositions: (symbols?: ReadonlyArray<string> | null) => Promise<ReadonlyArray<Position>>;
 }
 
 /**

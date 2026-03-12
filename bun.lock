@@ -6,7 +6,7 @@
       "name": "longbridge-option-quant",
       "dependencies": {
         "dotenv": "^16.6.1",
-        "longport": "^3.0.23",
+        "longbridge": "^4.0.0",
         "pino": "^10.3.1"
       },
       "devDependencies": {
@@ -1144,65 +1144,65 @@
       {},
       "sha512-0KpjqXRVvrYyCsX1swR/XTK0va6VQkQM6MNo7PqW77ByjAhoARA8EfrP1N4+KlKj8YS0ZUCtRT/YUuhyYDujIQ=="
     ],
-    "longport": [
-      "longport@3.0.23",
+    "longbridge": [
+      "longbridge@4.0.0",
       "",
       {
         "optionalDependencies": {
-          "longport-darwin-arm64": "3.0.23",
-          "longport-darwin-x64": "3.0.23",
-          "longport-linux-arm64-gnu": "3.0.23",
-          "longport-linux-x64-gnu": "3.0.23",
-          "longport-linux-x64-musl": "3.0.23",
-          "longport-win32-x64-msvc": "3.0.23"
+          "longbridge-darwin-arm64": "4.0.0",
+          "longbridge-darwin-x64": "4.0.0",
+          "longbridge-linux-arm64-gnu": "4.0.0",
+          "longbridge-linux-x64-gnu": "4.0.0",
+          "longbridge-linux-x64-musl": "4.0.0",
+          "longbridge-win32-x64-msvc": "4.0.0"
         }
       },
-      "sha512-kvBnasMEiVKCiM11YtQpYe2gVYJzxb9tnvCbhPWI5J4FHPFW/J+SPOnohtgK6+MZHhCAN7jQdHaPsYOFZdOI9w=="
+      "sha512-eA4HZCBARMvOakK9LIWsFN516TaXt331qeFHGlu6TAaROnv/qSI0rvN3L2u4i65iqJYzGvqq5+czHO638RQgAg=="
     ],
-    "longport-darwin-arm64": [
-      "longport-darwin-arm64@3.0.23",
+    "longbridge-darwin-arm64": [
+      "longbridge-darwin-arm64@4.0.0",
       "",
       {
         "os": "darwin",
         "cpu": "arm64"
       },
-      "sha512-Jw26+XL7nvmxJ0qvoMyVw15ls4kNEolZYn8HqGrqnmKUUcivX4k3sSgjIZ1X3aE01nL+w2uSH9QEESLjLtq7QQ=="
+      "sha512-Owlf7uR/6GOgz6H3gXoDrCafc/SYhZulutm6klGsB+c/Rt4AAWEUk746xphq8InuB3YgLN5ufEnqcpGSiSTqOg=="
     ],
-    "longport-darwin-x64": [
-      "longport-darwin-x64@3.0.23",
+    "longbridge-darwin-x64": [
+      "longbridge-darwin-x64@4.0.0",
       "",
       {
         "os": "darwin",
         "cpu": "x64"
       },
-      "sha512-5d02Yfnm64vcz9IQcinLOGg/hZkTSvz2ugLvlA0rbJe3NLdPyXrWWhF4lUcoA5m1fg357EM96veNPcxMI1RLZw=="
+      "sha512-GMiH6mSBOClaBaRMiL9mOFtTkEt3JXE6QzPXIrUaFl85C+WZ4VffXyS8W3O6zadYlAP9mSxrMKlnbanS96oPtw=="
     ],
-    "longport-linux-arm64-gnu": [
-      "longport-linux-arm64-gnu@3.0.23",
+    "longbridge-linux-arm64-gnu": [
+      "longbridge-linux-arm64-gnu@4.0.0",
       "",
       {
         "os": "linux",
         "cpu": "arm64"
       },
-      "sha512-BwfMZshIl5ADfMitaLswYmuca04B2Cq5FLbOoUJB48kZPE0CHOIN15AOJH6p+J2j0EIllmBUEuc08VsHd7RC0w=="
+      "sha512-NrX+5KFuNtXFniAxah1DvKaW4+l035q2G+LIvOYdpTF5wRrkTYVQF7zeFVv03qjegsBLSwpITKCYVV1hpLlO4Q=="
     ],
-    "longport-linux-x64-gnu": [
-      "longport-linux-x64-gnu@3.0.23",
+    "longbridge-linux-x64-gnu": [
+      "longbridge-linux-x64-gnu@4.0.0",
       "",
       {
         "os": "linux",
         "cpu": "x64"
       },
-      "sha512-aGcv29C5AnoWZeOAbPIf4ZLp3Vb74fXCsqWErzfDQ4uJcYBLoiKoMW1DhWKHyOQmF4HWqRtNdspLkcSW8ukJFw=="
+      "sha512-1PGRwLd3yHYwmo5G7DeCqtfmEeRIeuyNuFFzCrvkiG7IfPOedcjzBGJpGEQ+BdjY8oMZQ15+NGMdeIvbQjQqig=="
     ],
-    "longport-win32-x64-msvc": [
-      "longport-win32-x64-msvc@3.0.23",
+    "longbridge-win32-x64-msvc": [
+      "longbridge-win32-x64-msvc@4.0.0",
       "",
       {
         "os": "win32",
         "cpu": "x64"
       },
-      "sha512-Ew2Aar0aikFJ5NncS/AGs/O8Nu6CyN/1sTyIlU3LHSPu/7aUuCiZSaQAN34934PUbkg5mnioE2BPtEbMueT8dQ=="
+      "sha512-RWkcdYeiy6ZnA3vRZrZOgjxQy19LXdcPQFEY1KFnoqn/CKKU+C5n7zvjsJwnzd6YDPwQIrx5FL8UuVPrwNsJuQ=="
     ],
     "lru-cache": [
       "lru-cache@10.4.3",

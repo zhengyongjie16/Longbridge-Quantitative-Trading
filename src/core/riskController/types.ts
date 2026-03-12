@@ -17,7 +17,7 @@ import type {
 /**
  * 牛熊证信息。
  * 类型用途：区分非轮证（isWarrant=false）与轮证（isWarrant=true），供风险检查使用。
- * 数据来源：WarrantRiskChecker 通过 LongPort API 查询后解析填充。
+ * 数据来源：WarrantRiskChecker 通过 Longbridge API 查询后解析填充。
  * 使用范围：仅在 riskController 模块内部使用。
  */
 export type WarrantInfo =

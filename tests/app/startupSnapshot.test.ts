@@ -6,7 +6,7 @@
  * - 启动快照失败时切换 pendingOpenRebuild 分支并继续返回空快照
  */
 import { describe, expect, it } from 'bun:test';
-import { OrderSide, OrderStatus, OrderType } from 'longport';
+import { OrderSide, OrderStatus, OrderType } from 'longbridge';
 import { loadStartupSnapshot } from '../../src/app/startupSnapshot.js';
 import { applyStartupSnapshotFailureState } from '../../src/main/lifecycle/startupFailureState.js';
 import type { Quote } from '../../src/types/quote.js';

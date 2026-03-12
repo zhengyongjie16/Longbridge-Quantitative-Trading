@@ -6,7 +6,7 @@
  * - 基于最新行情执行委托价跟踪与改单
  * - 在必要时消费单订单权威终态并驱动结算
  */
-import { OrderSide, OrderStatus, OrderType, TimeInForceType } from 'longport';
+import { OrderSide, OrderStatus, OrderType, TimeInForceType } from 'longbridge';
 import { logger } from '../../../utils/logger/index.js';
 import {
   NON_REPLACEABLE_ORDER_STATUSES,
@@ -198,7 +198,9 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
         return;
       }
 
-      logger.info(`[订单监控] 买入订单 ${orderId} 已确认终态=${settlementInput.params.closedReason}`);
+      logger.info(
+        `[订单监控] 买入订单 ${orderId} 已确认终态=${settlementInput.params.closedReason}`,
+      );
       return;
     }
 
@@ -236,7 +238,10 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
     );
 
     let settlementInput: TerminalSettlementInput;
-    if (order.timeoutMarketConversionPending && order.timeoutMarketConversionTerminalState !== null) {
+    if (
+      order.timeoutMarketConversionPending &&
+      order.timeoutMarketConversionTerminalState !== null
+    ) {
       const terminalState = order.timeoutMarketConversionTerminalState;
       if (!isSupportedTerminalCloseReason(terminalState.closedReason)) {
         applyCancelRetryBackoff(order);
@@ -276,7 +281,12 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
         return;
       }
 
-      const resolvedSettlementInput = resolveTerminalSettlementInput(runtime, orderId, order, outcome);
+      const resolvedSettlementInput = resolveTerminalSettlementInput(
+        runtime,
+        orderId,
+        order,
+        outcome,
+      );
       if (resolvedSettlementInput === null) {
         applyCancelRetryBackoff(order);
         return;

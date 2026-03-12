@@ -5,9 +5,9 @@
  * - 验证 TradeContext Mock 契约与调用行为。
  */
 import { describe, expect, it } from 'bun:test';
-import { OrderSide, OrderStatus, OrderType, TimeInForceType, TopicType } from 'longport';
-import { createTradeContextMock } from '../../mock/longport/tradeContextMock.js';
-import { toMockDecimal } from '../../mock/longport/decimal.js';
+import { OrderSide, OrderStatus, OrderType, TimeInForceType, TopicType } from 'longbridge';
+import { createTradeContextMock } from '../../mock/longbridge/tradeContextMock.js';
+import { toMockDecimal } from '../../mock/longbridge/decimal.js';
 import {
   createAccountBalance,
   createExecution,

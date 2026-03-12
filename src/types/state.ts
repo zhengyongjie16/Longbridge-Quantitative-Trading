@@ -90,9 +90,7 @@ export type IndicatorUsageProfile = {
   };
 
   /** 各动作在策略判定时要求存在的指标集合（与配置粒度一致，仅含信号条件支持集） */
-  readonly actionSignalIndicators: Readonly<
-    Record<StrategyAction, ReadonlyArray<SignalIndicator>>
-  >;
+  readonly actionSignalIndicators: Readonly<Record<StrategyAction, ReadonlyArray<SignalIndicator>>>;
 
   /** 延迟验证按买卖方向要求存在的指标集合（与配置粒度一致） */
   readonly verificationIndicatorsBySide: {

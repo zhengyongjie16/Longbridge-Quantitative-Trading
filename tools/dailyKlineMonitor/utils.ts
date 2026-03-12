@@ -1,4 +1,4 @@
-import type { Candlestick } from 'longport';
+import type { Candlestick } from 'longbridge';
 import type { CandleData } from '../../src/types/data.js';
 import type { IndicatorSnapshot, Quote } from '../../src/types/quote.js';
 import { decimalToNumber } from '../../src/utils/helpers/index.js';
@@ -78,9 +78,9 @@ function hasChanged(
 }
 
 /**
- * 将 LongPort K 线数组转换为 CandleData。默认行为：字段统一转 number。
+ * 将 Longbridge K 线数组转换为 CandleData。默认行为：字段统一转 number。
  *
- * @param candles LongPort K 线数组
+ * @param candles Longbridge K 线数组
  * @returns CandleData 数组
  */
 export function convertToCandleData(

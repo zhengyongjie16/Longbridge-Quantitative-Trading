@@ -6,7 +6,7 @@
  * - 校验显式数量整手约束
  * - 计算卖出可提交数量（按可用持仓裁剪）
  */
-import { Decimal, type TradeContext } from 'longport';
+import { Decimal, type TradeContext } from 'longbridge';
 import { logger } from '../../../utils/logger/index.js';
 import { TRADING } from '../../../constants/index.js';
 import { decimalToNumber, isValidPositiveNumber } from '../../../utils/helpers/index.js';

@@ -30,7 +30,7 @@ import type {
   WarrantRefreshResult,
 } from '../../src/types/services.js';
 import type { SymbolRegistry, SeatState } from '../../src/types/seat.js';
-import type { QuoteContext, TradeContext } from 'longport';
+import type { Config, QuoteContext, TradeContext } from 'longbridge';
 import type { HangSengMultiIndicatorStrategy } from '../../src/core/strategy/types.js';
 import type {
   DoomsdayProtection,
@@ -52,9 +52,18 @@ import type {
 } from '../../src/services/liquidationCooldown/types.js';
 import type { DelayedSignalVerifier } from '../../src/main/asyncProgram/delayedSignalVerifier/types.js';
 import type { AutoSymbolManager } from '../../src/services/autoSymbolManager/types.js';
-import { toMockDecimal } from '../../mock/longport/decimal.js';
-import { createQuoteContextMock } from '../../mock/longport/quoteContextMock.js';
-import { createTradeContextMock } from '../../mock/longport/tradeContextMock.js';
+import { toMockDecimal } from '../../mock/longbridge/decimal.js';
+import { createQuoteContextMock } from '../../mock/longbridge/quoteContextMock.js';
+import { createTradeContextMock } from '../../mock/longbridge/tradeContextMock.js';
+
+/**
+ * 创建 SDK Config 测试替身。
+ *
+ * Longbridge Config 为原生绑定对象，单测只需满足依赖注入边界，不需要真实认证能力。
+ */
+export function createSdkConfigDouble(): Config {
+  return {} as unknown as Config;
+}
 
 /**
  * 创建 PositionCache 测试替身。
@@ -301,7 +310,7 @@ export function createAutoSymbolManagerDouble(
 /**
  * 将 QuoteContext mock 收口为测试可用的 QuoteContext。
  *
- * LongPort SDK 的 QuoteContext 类型比当前 mock 暴露的子集更宽；
+ * Longbridge SDK 的 QuoteContext 类型比当前 mock 暴露的子集更宽；
  * 这里集中收口断言，避免在各测试用例中散落无说明的类型断言。
  *
  * @param quoteContextMock 行情上下文 mock；未传时自动创建
@@ -316,7 +325,7 @@ export function createQuoteContextDouble(
 /**
  * 将 TradeContext mock 收口为测试可用的 TradeContext。
  *
- * LongPort SDK 的 TradeContext 类型同样比测试 mock 暴露的能力更宽；
+ * Longbridge SDK 的 TradeContext 类型同样比测试 mock 暴露的能力更宽；
  * 这里集中收口断言，避免在测试中散落无说明的断言。
  *
  * @param tradeContextMock 交易上下文 mock；未传时自动创建
@@ -600,9 +609,7 @@ export function createMonitorConfigDouble(overrides: Partial<MonitorConfig> = {}
 export function createIndicatorUsageProfileDouble(overrides?: {
   readonly requiredFamilies?: Partial<IndicatorUsageProfile['requiredFamilies']>;
   readonly requiredPeriods?: Partial<IndicatorUsageProfile['requiredPeriods']>;
-  readonly actionSignalIndicators?: Partial<
-    Record<StrategyAction, ReadonlyArray<SignalIndicator>>
-  >;
+  readonly actionSignalIndicators?: Partial<Record<StrategyAction, ReadonlyArray<SignalIndicator>>>;
   readonly verificationIndicatorsBySide?: Partial<
     IndicatorUsageProfile['verificationIndicatorsBySide']
   >;

@@ -5,7 +5,7 @@
  * - 按方案文档验证周期换标新增能力与关键边界行为。
  */
 import { describe, expect, it } from 'bun:test';
-import { OrderSide, OrderType } from 'longport';
+import { OrderSide, OrderType } from 'longbridge';
 import { createSwitchStateMachine } from '../../../src/services/autoSymbolManager/switchStateMachine.js';
 import { createSeatStateManager } from '../../../src/services/autoSymbolManager/seatStateManager.js';
 import {
@@ -13,10 +13,7 @@ import {
   createSignalBuilder,
   resolveDirectionSymbols,
 } from '../../../src/services/autoSymbolManager/signalBuilder.js';
-import {
-  calculateTradingDurationMsBetween,
-  getHKDateKey,
-} from '../../../src/utils/time/index.js';
+import { calculateTradingDurationMsBetween, getHKDateKey } from '../../../src/utils/time/index.js';
 import { signalObjectPool } from '../../../src/utils/objectPool/index.js';
 import { PENDING_ORDER_STATUSES } from '../../../src/constants/index.js';
 import type { Quote } from '../../../src/types/quote.js';

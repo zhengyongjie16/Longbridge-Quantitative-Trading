@@ -6,7 +6,7 @@
  * - 初始化 WebSocket 私有主题订阅并分发订单推送
  * - 对外暴露 OrderMonitor 接口，保持原有签名不变
  */
-import { TopicType, type PushOrderChanged } from 'longport';
+import { TopicType, type PushOrderChanged } from 'longbridge';
 import { logger } from '../../../utils/logger/index.js';
 import { toDecimal } from '../utils.js';
 import type { OrderMonitor, OrderMonitorDeps } from '../types.js';
@@ -17,7 +17,11 @@ import { createRecoveryFlow } from './recoveryFlow.js';
 import { createEventFlow } from './eventFlow.js';
 import { createSettlementFlow } from './settlementFlow.js';
 import { createOrderStatusQuery } from './orderStatusQuery.js';
-import { consumeQueriedTerminalState, createOrderOps, resetOrderReplaceRuntimeState } from './orderOps.js';
+import {
+  consumeQueriedTerminalState,
+  createOrderOps,
+  resetOrderReplaceRuntimeState,
+} from './orderOps.js';
 import { createQuoteFlow } from './quoteFlow.js';
 import type { CancelOrderOutcome } from '../../../types/trader.js';
 
@@ -134,7 +138,9 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
 
     const terminalState = consumeQueriedTerminalState(runtime, orderId);
     if (terminalState === null) {
-      logger.error(`[订单监控] 订单 ${orderId} 已确认终态，但缺少权威终态快照，拒绝向调用方暴露半成品结果`);
+      logger.error(
+        `[订单监控] 订单 ${orderId} 已确认终态，但缺少权威终态快照，拒绝向调用方暴露半成品结果`,
+      );
       return {
         kind: 'UNKNOWN_FAILURE',
         errorCode: null,
@@ -153,7 +159,9 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     });
     resetOrderReplaceRuntimeState(runtime, orderId);
     if (!settlementResult.handled && !alreadySettled) {
-      logger.error(`[订单监控] 订单 ${orderId} 已确认终态，但本地结算失败，拒绝向调用方暴露未结算结果`);
+      logger.error(
+        `[订单监控] 订单 ${orderId} 已确认终态，但本地结算失败，拒绝向调用方暴露未结算结果`,
+      );
       return {
         kind: 'UNKNOWN_FAILURE',
         errorCode: null,

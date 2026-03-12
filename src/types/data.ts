@@ -2,8 +2,8 @@ import type { KDJIndicator, MACDIndicator } from './quote.js';
 
 /**
  * K 线数据值类型。
- * 类型用途：兼容 LongPort SDK 的 Decimal 与原始数值，作为 CandleData 各 OHLCV 字段的类型。
- * 数据来源：LongPort K 线 API 返回。
+ * 类型用途：兼容 Longbridge SDK 的 Decimal 与原始数值，作为 CandleData 各 OHLCV 字段的类型。
+ * 数据来源：Longbridge K 线 API 返回。
  * 使用范围：CandleData、指标计算等；全项目可引用。
  */
 export type CandleValue = number | string | { toString: () => string } | null | undefined;
@@ -11,7 +11,7 @@ export type CandleValue = number | string | { toString: () => string } | null | 
 /**
  * K 线数据。
  * 类型用途：表示单根 K 线的 OHLCV 数据，用于指标计算、策略输入等。
- * 数据来源：LongPort K 线 API（如 candlesticks、实时 K 线）。
+ * 数据来源：Longbridge K 线 API（如 candlesticks、实时 K 线）。
  * 使用范围：indicators、策略、indicatorCache 等；全项目可引用。
  */
 export type CandleData = {

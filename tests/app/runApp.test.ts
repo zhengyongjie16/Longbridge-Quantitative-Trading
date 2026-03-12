@@ -6,7 +6,6 @@
  * - startupRebuildPending 分支会跳过首次重建，但仍完成后续装配
  */
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { createConfig } from '../../src/config/config.index.js';
 import { createWarrantListCache } from '../../src/services/autoSymbolFinder/utils.js';
 import { createRunApp } from '../../src/app/runApp.js';
 import type { AppEnvironmentParams, RunAppDeps } from '../../src/app/types.js';
@@ -15,6 +14,7 @@ import { createTradingConfig } from '../../mock/factories/configFactory.js';
 import {
   createMarketDataClientDouble,
   createPositionCacheDouble,
+  createSdkConfigDouble,
   createSymbolRegistryDouble,
 } from '../helpers/testDoubles.js';
 import type { AppTestTaskQueueDouble, MutableRunAppHarnessState } from './types.js';
@@ -85,53 +85,53 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
     createPreGateRuntime: async (params: AppEnvironmentParams) => {
       harnessState.preGateRuntimeEnv = params.env;
       return {
-      config: createConfig({ env: {} }),
-      tradingConfig: createTradingConfig({
-        monitors: [],
-        global: {
-          doomsdayProtection: true,
-          debug: false,
-          openProtection: {
-            morning: { enabled: true, minutes: 3 },
-            afternoon: { enabled: true, minutes: 3 },
+        config: createSdkConfigDouble(),
+        tradingConfig: createTradingConfig({
+          monitors: [],
+          global: {
+            doomsdayProtection: true,
+            debug: false,
+            openProtection: {
+              morning: { enabled: true, minutes: 3 },
+              afternoon: { enabled: true, minutes: 3 },
+            },
+            orderMonitorPriceUpdateInterval: 1,
+            tradingOrderType: 'ELO',
+            liquidationOrderType: 'MO',
+            buyOrderTimeout: {
+              enabled: true,
+              timeoutSeconds: 180,
+            },
+            sellOrderTimeout: {
+              enabled: true,
+              timeoutSeconds: 180,
+            },
           },
-          orderMonitorPriceUpdateInterval: 1,
-          tradingOrderType: 'ELO',
-          liquidationOrderType: 'MO',
-          buyOrderTimeout: {
-            enabled: true,
-            timeoutSeconds: 180,
-          },
-          sellOrderTimeout: {
-            enabled: true,
-            timeoutSeconds: 180,
-          },
+        }),
+        symbolRegistry: createSymbolRegistryDouble(),
+        warrantListCache,
+        warrantListCacheConfig: {
+          cache: warrantListCache,
+          ttlMs: 60_000,
+          nowMs: () => 0,
         },
-      }),
-      symbolRegistry: createSymbolRegistryDouble(),
-      warrantListCache,
-      warrantListCacheConfig: {
-        cache: warrantListCache,
-        ttlMs: 60_000,
-        nowMs: () => 0,
-      },
-      marketDataClient: createMarketDataClientDouble({
-        getQuoteContext: async () => {
-          throw new Error('runApp test should not request quote context');
+        marketDataClient: createMarketDataClientDouble({
+          getQuoteContext: async () => {
+            throw new Error('runApp test should not request quote context');
+          },
+        }),
+        runMode: 'prod',
+        gatePolicies: {
+          startupGate: 'strict',
+          runtimeGate: harnessState.runtimeGateMode,
         },
-      }),
-      runMode: 'prod',
-      gatePolicies: {
-        startupGate: 'strict',
-        runtimeGate: harnessState.runtimeGateMode,
-      },
-      startupTradingDayInfo: {
-        isTradingDay: true,
-        isHalfDay: false,
-      },
-      startupGate: {
-        wait: async () => ({ isTradingDay: true, isHalfDay: false }),
-      },
+        startupTradingDayInfo: {
+          isTradingDay: true,
+          isHalfDay: false,
+        },
+        startupGate: {
+          wait: async () => ({ isTradingDay: true, isHalfDay: false }),
+        },
       };
     },
     createPostGateRuntime: async (params) => {

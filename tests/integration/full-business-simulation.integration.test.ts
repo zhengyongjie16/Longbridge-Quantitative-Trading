@@ -27,7 +27,7 @@ import { createSignalRuntimeDomain } from '../../src/main/lifecycle/cacheDomains
 import { createGlobalStateDomain } from '../../src/main/lifecycle/cacheDomains/globalStateDomain.js';
 import { createSignal } from '../../mock/factories/signalFactory.js';
 import { createTradingConfig } from '../../mock/factories/configFactory.js';
-import type { Candlestick } from 'longport';
+import type { Candlestick } from 'longbridge';
 import type { CandleData } from '../../src/types/data.js';
 import type { LastState, MonitorContext } from '../../src/types/state.js';
 import type { MultiMonitorTradingConfig, MonitorConfig } from '../../src/types/config.js';

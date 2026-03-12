@@ -1,4 +1,4 @@
-import type { QuoteContext } from 'longport';
+import type { QuoteContext } from 'longbridge';
 import type { IndicatorSnapshot, Quote } from '../../src/types/quote.js';
 
 /**

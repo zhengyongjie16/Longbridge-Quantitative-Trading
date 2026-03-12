@@ -5,12 +5,12 @@
  * - 验证自动换标端到端场景与业务期望。
  */
 import { describe, expect, it } from 'bun:test';
-import { OrderSide } from 'longport';
+import { OrderSide } from 'longbridge';
 
 import { createAutoSymbolManager } from '../../src/services/autoSymbolManager/index.js';
 import { createOrderExecutor } from '../../src/core/trader/orderExecutor/index.js';
 import { createTradingConfig } from '../../mock/factories/configFactory.js';
-import { createTradeContextMock } from '../../mock/longport/tradeContextMock.js';
+import { createTradeContextMock } from '../../mock/longbridge/tradeContextMock.js';
 import { createStockPositionsResponse } from '../../mock/factories/tradeFactory.js';
 
 import {

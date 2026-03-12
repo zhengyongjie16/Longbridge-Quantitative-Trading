@@ -5,12 +5,12 @@
  * - 验证买入流程风险管道与下单执行的端到端场景与业务期望。
  */
 import { describe, expect, it } from 'bun:test';
-import { OrderSide, OrderType, TimeInForceType, type TradeContext } from 'longport';
+import { OrderSide, OrderType, TimeInForceType, type TradeContext } from 'longbridge';
 import { createSignalProcessor } from '../../src/core/signalProcessor/index.js';
 import { createOrderExecutor } from '../../src/core/trader/orderExecutor/index.js';
 import { createTradingConfig } from '../../mock/factories/configFactory.js';
 import { createSignal } from '../../mock/factories/signalFactory.js';
-import { createTradeContextMock } from '../../mock/longport/tradeContextMock.js';
+import { createTradeContextMock } from '../../mock/longbridge/tradeContextMock.js';
 import {
   createAccountSnapshotDouble,
   createDoomsdayProtectionDouble,

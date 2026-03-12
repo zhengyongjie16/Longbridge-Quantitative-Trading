@@ -8,7 +8,7 @@
  */
 import { AUTO_SYMBOL_WARRANT_LIST_CACHE_TTL_MS, TRADING } from '../../constants/index.js';
 import { validateAllConfig } from '../../config/config.validator.js';
-import { createConfig } from '../../config/config.index.js';
+import { createSdkConfigFromOAuth, initializeOAuth } from '../../config/auth/index.js';
 import { createMultiMonitorTradingConfig } from '../../config/config.trading.js';
 import { createStartupGate } from '../../main/startup/gate.js';
 import { sleep } from '../../main/utils.js';
@@ -46,7 +46,13 @@ export async function createPreGateRuntime(params: AppEnvironmentParams): Promis
 
   await validateAllConfig({ env, tradingConfig });
 
-  const config = createConfig({ env });
+  const oauth = await initializeOAuth({
+    env,
+    onOpenUrl: (url: string) => {
+      logger.info(`请在浏览器中完成 Longbridge OAuth 授权：${url}`);
+    },
+  });
+  const config = createSdkConfigFromOAuth({ oauth, env });
   const marketDataClient = await createMarketDataClient({ config });
   const runMode = resolveRunMode(env);
   const gatePolicies = resolveGatePolicies(runMode);

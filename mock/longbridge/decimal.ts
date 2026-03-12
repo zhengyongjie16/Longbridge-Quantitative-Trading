@@ -4,7 +4,7 @@
  * 功能：
  * - 统一处理 Mock 场景下的数值到 Decimal 转换与比较
  */
-import { Decimal } from 'longport';
+import { Decimal } from 'longbridge';
 import type { MockDecimalInput } from './types.js';
 
 /**

@@ -5,11 +5,11 @@
  * - 验证启动寻标、运行时空席位自动寻标、距回收价换标预寻标三条入口在同一候选集下使用同一策略并得到一致结果。
  */
 import { describe, expect, it } from 'bun:test';
-import { OrderSide, WarrantStatus, WarrantType } from 'longport';
+import { OrderSide, WarrantStatus, WarrantType } from 'longbridge';
 
 import { createTradingConfig } from '../../mock/factories/configFactory.js';
-import { toMockDecimal } from '../../mock/longport/decimal.js';
-import { createQuoteContextMock } from '../../mock/longport/quoteContextMock.js';
+import { toMockDecimal } from '../../mock/longbridge/decimal.js';
+import { createQuoteContextMock } from '../../mock/longbridge/quoteContextMock.js';
 import { prepareSeatsForRuntime } from '../../src/main/recovery/seatPreparation.js';
 import { findBestWarrant } from '../../src/services/autoSymbolFinder/index.js';
 import {

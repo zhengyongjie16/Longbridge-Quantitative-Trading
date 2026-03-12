@@ -1,4 +1,4 @@
-import type { Decimal, TradeContext } from 'longport';
+import type { Decimal, TradeContext } from 'longbridge';
 import type { MonitorConfig, GlobalConfig } from '../../../types/config.js';
 import type { Signal, SignalType } from '../../../types/signal.js';
 import type { OrderCacheManager, OrderMonitor } from '../types.js';

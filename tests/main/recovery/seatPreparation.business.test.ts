@@ -5,14 +5,14 @@
  * - 验证席位解析与就绪状态的场景与边界。
  */
 import { describe, expect, it } from 'bun:test';
-import { WarrantStatus, WarrantType } from 'longport';
+import { WarrantStatus, WarrantType } from 'longbridge';
 
 import {
   prepareSeatsForRuntime,
   resolveReadySeatSymbol,
 } from '../../../src/main/recovery/seatPreparation.js';
-import { createQuoteContextMock } from '../../../mock/longport/quoteContextMock.js';
-import { toMockDecimal } from '../../../mock/longport/decimal.js';
+import { createQuoteContextMock } from '../../../mock/longbridge/quoteContextMock.js';
+import { toMockDecimal } from '../../../mock/longbridge/decimal.js';
 import {
   createMarketDataClientDouble,
   createMonitorConfigDouble,

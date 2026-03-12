@@ -61,7 +61,7 @@ graph TD
 
 ### 2. 行情客户端与启动门禁
 
-- `createConfig` 生成 LongPort 配置，`createMarketDataClient` 创建行情客户端（仅创建上下文，未订阅）。
+- `createConfig` 生成 Longbridge 配置，`createMarketDataClient` 创建行情客户端（仅创建上下文，未订阅）。
 - `resolveRunMode` 与 `resolveGatePolicies` 决定门禁模式：dev 跳过、prod 严格。
 - `createStartupGate.wait` 在严格模式下循环等待：交易日 + 连续交易时段 + 开盘保护期（早盘或午盘）结束；通过后返回 `startupTradingDayInfo`。
 
@@ -121,7 +121,7 @@ graph TD
 - `tradingConfig`：全局 + 多监控标的配置对象，贯穿策略、风控与自动寻标。
 - `createSymbolRegistry` / `symbolRegistry`：席位注册表，维护席位状态与版本号。
 - `validateAllConfig`：静态配置校验，失败即退出。
-- `createConfig`：构建 LongPort 连接配置。
+- `createConfig`：构建 Longbridge 连接配置。
 - `createMarketDataClient` / `marketDataClient`：行情客户端，管理订阅、行情缓存与 K 线获取。
 - `resolveRunMode`：解析 `RUN_MODE`，返回 `dev` 或 `prod`。
 - `resolveGatePolicies` / `gatePolicies`：将运行模式映射为启动/运行期门禁策略。

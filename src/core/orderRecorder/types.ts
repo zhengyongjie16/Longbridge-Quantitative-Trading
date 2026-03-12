@@ -1,4 +1,4 @@
-import type { TradeContext } from 'longport';
+import type { TradeContext } from 'longbridge';
 import type { Quote } from '../../types/quote.js';
 import type { OrderFilteringEngine } from '../../types/orderRecorder.js';
 import type {
@@ -147,7 +147,7 @@ export interface OrderStorage extends OrderRecorderPendingSellAndSellable {
 
 /**
  * 订单 API 管理器接口。
- * 类型用途：依赖注入，负责从 LongPort API 获取订单并管理缓存。
+ * 类型用途：依赖注入，负责从 Longbridge API 获取订单并管理缓存。
  * 数据来源：如适用。
  * 使用范围：由 OrderRecorder 依赖注入；仅 orderRecorder 模块实现与使用。
  */

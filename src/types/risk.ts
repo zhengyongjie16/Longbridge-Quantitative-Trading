@@ -1,4 +1,4 @@
-import type { OrderSide } from 'longport';
+import type { OrderSide } from 'longbridge';
 import type { MonitorConfig } from './config.js';
 import type { Quote } from './quote.js';
 import type {

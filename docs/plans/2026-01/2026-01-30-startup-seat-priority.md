@@ -6,7 +6,7 @@
 
 **Architecture:** 以 `SymbolRegistry + SeatState/SeatVersion` 作为标的唯一事实源。启动阶段先完成账户/持仓与全量订单获取，基于"持仓优先 + 自动寻标"确定席位，席位确定后才初始化牛熊证信息、订单记录与浮亏监控；运行期所有模块仅从席位读取交易标的。
 
-**Tech Stack:** TypeScript, Node.js, LongPort OpenAPI
+**Tech Stack:** TypeScript, Node.js, Longbridge OpenAPI
 
 ---
 

@@ -1,4 +1,4 @@
-import type { Config } from 'longport';
+import type { Config } from 'longbridge';
 
 /**
  * withRetry 重试配置。
@@ -12,9 +12,9 @@ export type RetryConfig = {
 };
 
 /**
- * LongPort 静态信息结构。
+ * Longbridge 静态信息结构。
  * 类型用途：提取标的名称与每手股数，供行情缓存组装使用。
- * 数据来源：LongPort staticInfo API 返回值的结构映射。
+ * 数据来源：Longbridge staticInfo API 返回值的结构映射。
  * 使用范围：仅 quoteClient 模块内部使用。
  */
 export type StaticInfo = {
@@ -27,7 +27,7 @@ export type StaticInfo = {
 /**
  * 行情数据客户端工厂的依赖注入参数。
  * 类型用途：供 createMarketDataClient 初始化 QuoteContext。
- * 数据来源：由主程序传入 LongPort Config。
+ * 数据来源：由主程序传入 Longbridge Config。
  * 使用范围：仅 quoteClient 模块使用。
  */
 export type MarketDataClientDeps = {

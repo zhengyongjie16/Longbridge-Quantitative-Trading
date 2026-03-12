@@ -13,6 +13,7 @@ import { createTradingConfig } from '../../mock/factories/configFactory.js';
 
 function createBaseEnv(overrides: Readonly<Record<string, string>> = {}): NodeJS.ProcessEnv {
   return {
+    LONGBRIDGE_CLIENT_ID: 'client-id',
     MONITOR_SYMBOL_1: 'HSI.HK',
     ...overrides,
   };
@@ -94,9 +95,7 @@ describe('periodic switch config business flow', () => {
     try {
       await validateAllConfig({
         env: {
-          LONGPORT_APP_KEY: 'k',
-          LONGPORT_APP_SECRET: 's',
-          LONGPORT_ACCESS_TOKEN: 't',
+          LONGBRIDGE_CLIENT_ID: 'client-id',
           SWITCH_INTERVAL_MINUTES_1: 'not-a-number',
         },
         tradingConfig,

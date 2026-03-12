@@ -4,7 +4,7 @@
 
 **目标**: 在现有“距回收价越界触发换标”的基础上，新增可配置的“周期换标”能力，保证换标与现有席位状态机、队列清理、撤单逻辑一致，并避免与距离换标发生竞态。
 
-**Tech Stack**: TypeScript (ES2022), bun, LongPort OpenAPI SDK, pino。
+**Tech Stack**: TypeScript (ES2022), bun, Longbridge OpenAPI SDK, pino。
 
 **规范约束**: 遵守 `typescript-project-specifications` 全部核心原则；方案必须系统性且完整，避免兼容性或补丁式实现。
 

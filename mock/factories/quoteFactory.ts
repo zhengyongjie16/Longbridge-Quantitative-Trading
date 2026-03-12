@@ -12,8 +12,8 @@ import {
   type PushQuoteEvent,
   type WarrantInfo,
   type WarrantQuote,
-} from 'longport';
-import { toMockDecimal } from '../longport/decimal.js';
+} from 'longbridge';
+import { toMockDecimal } from '../longbridge/decimal.js';
 import type {
   CandlestickParams,
   PushCandlestickEventParams,

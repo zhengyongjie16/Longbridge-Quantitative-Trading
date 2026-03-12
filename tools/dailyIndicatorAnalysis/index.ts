@@ -4,8 +4,8 @@
  * 流程：读取参数 -> 获取分钟 K 线 -> 计算高/低双行指标 -> 按条件着色输出。
  */
 import dotenv from 'dotenv';
-import { AdjustType, Period, QuoteContext, TradeSessions } from 'longport';
-import { createConfig } from '../../src/config/config.index.js';
+import { AdjustType, Period, QuoteContext, TradeSessions } from 'longbridge';
+import { createSdkConfigFromOAuth, initializeOAuth } from '../../src/config/auth/index.js';
 import type {
   ComputeMinuteRowsOptions,
   MinuteIndicatorRow,
@@ -157,7 +157,13 @@ async function main(): Promise<void> {
   console.log(`查询标的: ${symbol}`);
   console.log('正在获取数据...');
 
-  const config = createConfig({ env: process.env });
+  const oauth = await initializeOAuth({
+    env: process.env,
+    onOpenUrl: (url: string) => {
+      console.log(`请在浏览器中完成 Longbridge OAuth 授权：${url}`);
+    },
+  });
+  const config = createSdkConfigFromOAuth({ oauth, env: process.env });
   const quoteContext = await QuoteContext.new(config);
   const candles = await quoteContext.candlesticks(
     symbol,

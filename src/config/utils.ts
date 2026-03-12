@@ -1,4 +1,4 @@
-import type { OrderType } from 'longport';
+import type { OrderType } from 'longbridge';
 import {
   ORDER_TYPE_CONFIG_TO_OPEN_API,
   SIGNAL_CONFIG_SUPPORTED_INDICATORS,
@@ -15,47 +15,25 @@ import {
   validateRsiPeriod,
 } from '../utils/indicatorHelpers/index.js';
 import { logger } from '../utils/logger/index.js';
-import type {
-  ComparisonOperator,
-  ParsedCondition,
-  ParsedConditionGroup,
-  RegionUrls,
-} from './types.js';
+import type { ComparisonOperator, ParsedCondition, ParsedConditionGroup } from './types.js';
 
 /**
- * 根据区域返回对应的 LongPort API 端点 URL，cn 使用 .cn 域名，其他区域使用 .com 域名。
- * @param region - 区域标识字符串（如 'cn'、'hk'），未传入时默认为 'hk'
- * @returns 包含 httpUrl、quoteWsUrl、tradeWsUrl 的端点对象
- */
-export function getRegionUrls(region: string | undefined): RegionUrls {
-  const normalizedRegion = (region === '' ? 'hk' : (region ?? 'hk')).toLowerCase();
-
-  if (normalizedRegion === 'cn') {
-    // 中国大陆区域
-    return {
-      httpUrl: 'https://openapi.longportapp.cn',
-      quoteWsUrl: 'wss://openapi-quote.longportapp.cn/v2',
-      tradeWsUrl: 'wss://openapi-trade.longportapp.cn/v2',
-    };
-  }
-
-  // 香港及其他地区（默认）
-  return {
-    httpUrl: 'https://openapi.longportapp.com',
-    quoteWsUrl: 'wss://openapi-quote.longportapp.com/v2',
-    tradeWsUrl: 'wss://openapi-trade.longportapp.com/v2',
-  };
-}
-
-/**
- * 读取字符串配置，未设置、空串或占位符（形如 your_xxx_here）时返回 null。
+ * 读取字符串配置，未设置、空串或模板占位符（形如 your_xxx / your_xxx_here）时返回 null。
  * @param env - 进程环境变量对象
  * @param envKey - 环境变量键名
  * @returns 去除首尾空白后的字符串，或 null
  */
+function isPlaceholderConfigValue(value: string, envKey: string): boolean {
+  const normalizedValue = value.trim();
+  const normalizedKey = envKey.toLowerCase();
+  return (
+    normalizedValue === `your_${normalizedKey}` || normalizedValue === `your_${normalizedKey}_here`
+  );
+}
+
 export function getStringConfig(env: NodeJS.ProcessEnv, envKey: string): string | null {
   const value = env[envKey];
-  if (!value || value.trim() === '' || value === `your_${envKey.toLowerCase()}_here`) {
+  if (!value || value.trim() === '' || isPlaceholderConfigValue(value, envKey)) {
     return null;
   }
 

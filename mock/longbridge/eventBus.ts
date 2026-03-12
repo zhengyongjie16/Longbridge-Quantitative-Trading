@@ -1,10 +1,10 @@
 /**
- * LongPort 事件总线
+ * Longbridge 事件总线
  *
  * 功能：
  * - 提供延迟投递、顺序控制与批量刷新能力
  */
-import type { PushCandlestickEvent, PushOrderChanged, PushQuoteEvent } from 'longport';
+import type { PushCandlestickEvent, PushOrderChanged, PushQuoteEvent } from 'longbridge';
 
 type LongportEventTopic = 'quote' | 'candlestick' | 'orderChanged';
 
@@ -106,7 +106,7 @@ function takeDueEvents(
 }
 
 /**
- * 创建可控的 LongPort 事件总线。
+ * 创建可控的 Longbridge 事件总线。
  *
  * 该实现支持延迟投递和显式 flush，目的是让测试在时间推进与事件分发之间
  * 获得确定性的执行边界。

@@ -12,6 +12,7 @@ import { createTradingConfig } from '../../mock/factories/configFactory.js';
 
 function createBaseEnv(overrides: Readonly<Record<string, string>> = {}): NodeJS.ProcessEnv {
   return {
+    LONGBRIDGE_CLIENT_ID: 'client-id',
     MONITOR_SYMBOL_1: 'HSI.HK',
     ...overrides,
   };
@@ -83,9 +84,7 @@ describe('smart close timeout config', () => {
       try {
         await validateAllConfig({
           env: {
-            LONGPORT_APP_KEY: 'k',
-            LONGPORT_APP_SECRET: 's',
-            LONGPORT_ACCESS_TOKEN: 't',
+            LONGBRIDGE_CLIENT_ID: 'client-id',
             SMART_CLOSE_TIMEOUT_MINUTES_1: invalidValue,
           },
           tradingConfig,
@@ -100,7 +99,7 @@ describe('smart close timeout config', () => {
     }
   });
 
-  it('includes missing LongPort credentials in ConfigValidationError.missingFields', async () => {
+  it('includes missing Longbridge OAuth config in ConfigValidationError.missingFields', async () => {
     const tradingConfig = createTradingConfig({
       monitors: [createMonitorConfigDouble()],
     });
@@ -117,8 +116,6 @@ describe('smart close timeout config', () => {
 
     expect(caughtError).not.toBeNull();
     const validationError = caughtError as { missingFields?: ReadonlyArray<string> };
-    expect(validationError.missingFields).toContain('LONGPORT_APP_KEY');
-    expect(validationError.missingFields).toContain('LONGPORT_APP_SECRET');
-    expect(validationError.missingFields).toContain('LONGPORT_ACCESS_TOKEN');
+    expect(validationError.missingFields).toContain('LONGBRIDGE_CLIENT_ID');
   });
 });

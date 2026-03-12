@@ -2,11 +2,11 @@
  * 订单 API 管理模块
  *
  * 职责：
- * - 从 LongPort API 获取订单
+ * - 从 Longbridge API 获取订单
  * - 管理订单缓存（缓存到显式清理/刷新为止）
  * - 在信任边界将 SDK Order 转换为 RawOrderFromAPI
  */
-import type { Order } from 'longport';
+import type { Order } from 'longbridge';
 import { decimalToNumber } from '../../utils/helpers/index.js';
 import type { OrderRecord, RawOrderFromAPI } from '../../types/services.js';
 import type {
@@ -18,9 +18,9 @@ import type {
 } from './types.js';
 
 /**
- * 将 LongPort SDK Order 实例转换为内部 RawOrderFromAPI（信任边界唯一转换处）。
+ * 将 Longbridge SDK Order 实例转换为内部 RawOrderFromAPI（信任边界唯一转换处）。
  *
- * @param order LongPort SDK 返回的 Order 实例
+ * @param order Longbridge SDK 返回的 Order 实例
  * @returns 内部统一的 RawOrderFromAPI 结构
  */
 function orderToRawOrderFromAPI(order: Order): RawOrderFromAPI {

@@ -4,7 +4,7 @@
  * 从环境变量读取交易相关配置，支持多标的配置（通过 _N 后缀区分）
  * 配置包括：标的代码、交易金额、风险限制、信号规则、延迟验证等
  */
-import type { OrderType } from 'longport';
+import type { OrderType } from 'longbridge';
 import type { MonitorConfig, MultiMonitorTradingConfig } from '../types/config.js';
 import type { OrderTypeConfig } from '../types/signal.js';
 import type { SignalConfig } from '../types/signalConfig.js';
@@ -116,7 +116,7 @@ function parseBoundedNumberConfigFromRaw({
 /**
  * 读取百分比值配置并保持运行时口径不变（如配置 0.35 → 内部 0.35，表示 0.35%）。
  * 用于需要以"百分比值”运行的字段（如自动寻标距回收价阈值）。
- * LongPort warrantList.toCallPrice 的外部原始值仍是小数比值，后续会在 autoSymbolFinder 边界统一转换。
+ * Longbridge warrantList.toCallPrice 的外部原始值仍是小数比值，后续会在 autoSymbolFinder 边界统一转换。
  * @param env - 进程环境变量对象
  * @param envKey - 环境变量键名
  * @param minValue - 允许的最小原始数值，默认为 0

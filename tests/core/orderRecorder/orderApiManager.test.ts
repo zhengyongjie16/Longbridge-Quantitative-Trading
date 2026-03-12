@@ -12,9 +12,9 @@ import {
   OrderType,
   type Order,
   type TradeContext,
-} from 'longport';
+} from 'longbridge';
 import { createOrderAPIManager } from '../../../src/core/orderRecorder/orderApiManager.js';
-import { createTradeContextMock } from '../../../mock/longport/tradeContextMock.js';
+import { createTradeContextMock } from '../../../mock/longbridge/tradeContextMock.js';
 
 function createSdkOrder(params: {
   readonly orderId: string;

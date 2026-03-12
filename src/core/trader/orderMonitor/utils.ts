@@ -1,4 +1,4 @@
-import { OrderSide, OrderStatus, type Decimal } from 'longport';
+import { OrderSide, OrderStatus, type Decimal } from 'longbridge';
 import type { GlobalConfig } from '../../../types/config.js';
 import type { OrderClosedReason } from '../../../types/trader.js';
 import type { OrderMonitorConfig, TrackedOrder } from '../types.js';

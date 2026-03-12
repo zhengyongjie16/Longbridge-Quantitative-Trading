@@ -4,7 +4,7 @@ import type {
   QuoteContext,
   WarrantStatus,
   WarrantType,
-} from 'longport';
+} from 'longbridge';
 import type { AutoSearchConfig, NumberRange } from '../../types/config.js';
 import type { Logger } from '../../utils/logger/types.js';
 import type { DecimalLike } from '../../utils/helpers/types.js';
@@ -82,7 +82,7 @@ export type FindBestWarrantInput = {
 /**
  * 牛熊证列表单项数据。
  * 类型用途：表示单只牛熊证的行情与属性，供 selectBestWarrant 等筛选使用。
- * 数据来源：LongPort warrantList API 返回值结构映射。
+ * 数据来源：Longbridge warrantList API 返回值结构映射。
  * 使用范围：仅 autoSymbolFinder 模块内部使用；其中 toCallPrice 保留外部 API 原始小数比值口径。
  */
 export type WarrantListItem = {
@@ -90,7 +90,7 @@ export type WarrantListItem = {
   readonly name?: string | null;
   readonly lastDone: DecimalLike | number | string | null | undefined;
 
-  /** LongPort warrantList 原始小数比值；0.0036 表示 0.36% */
+  /** Longbridge warrantList 原始小数比值；0.0036 表示 0.36% */
   readonly toCallPrice: DecimalLike | number | string | null | undefined;
   readonly callPrice?: DecimalLike | number | string | null | undefined;
   readonly turnover: DecimalLike | number | string | null | undefined;
@@ -239,7 +239,7 @@ export type WarrantListFetchParams = {
 
 /**
  * 请求牛熊证列表的入参（无缓存）。
- * 类型用途：直接调用 LongPort warrantList API 时的入参。
+ * 类型用途：直接调用 Longbridge warrantList API 时的入参。
  * 数据来源：由 fetchWarrantsWithCache 或调用方组装。
  * 使用范围：仅 autoSymbolFinder 模块内部使用。
  */

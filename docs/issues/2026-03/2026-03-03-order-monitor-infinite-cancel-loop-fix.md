@@ -76,7 +76,7 @@ async function cancelOrderWithRuntimeCleanup(orderId: string) {
 - 当前实现将所有异常视为失败，不清理本地追踪
 - 导致下一秒继续尝试撤单，形成无限循环
 
-**错误码含义**（根据 LongPort API 文档和实际日志）：
+**错误码含义**（根据 Longbridge API 文档和实际日志）：
 
 - `601011` - Order has been cancelled（订单已撤销）
 - `601012` - Order has been filled（订单已成交）
@@ -199,11 +199,11 @@ async function replaceOrderPrice(orderId: string, newPrice: number, ...): Promis
  * 订单监控错误码常量定义
  *
  * 职责：
- * - 定义 LongPort API 返回的业务错误码常量
+ * - 定义 Longbridge API 返回的业务错误码常量
  * - 提供类型安全的错误码识别
  *
  * 说明：
- * - LongPort SDK 不提供错误码枚举，需要在项目中自行定义
+ * - Longbridge SDK 不提供错误码枚举，需要在项目中自行定义
  * - 错误码来自服务端返回，格式：'openapi error: code=<错误码>: <错误信息>'
  */
 
@@ -284,7 +284,7 @@ import { isOrderClosedErrorCode, isReplaceNotSupportedErrorCode } from './errorC
 /**
  * 从错误对象中提取错误码
  *
- * LongPort SDK 错误格式：'openapi error: code=<错误码>: <错误信息>'
+ * Longbridge SDK 错误格式：'openapi error: code=<错误码>: <错误信息>'
  */
 function extractErrorCode(err: unknown): string | null {
   if (!err) return null;
@@ -606,7 +606,7 @@ export const PENDING_ORDER_STATUSES = new Set([
 
 **修复理由**：
 
-- 根据 LongPort API 文档，`PartialWithdrawal` (17) 是活跃状态
+- 根据 Longbridge API 文档，`PartialWithdrawal` (17) 是活跃状态
 - 当前代码缺少此状态，可能导致部分撤单的订单未被正确追踪
 
 ### 修复效果预期
@@ -869,7 +869,7 @@ bun test tests/chaos/api-flaky-recovery.test.ts
 ### 中风险点
 
 1. **错误码识别失败**
-   - 风险：LongPort 修改错误格式，识别失败
+   - 风险：Longbridge 修改错误格式，识别失败
    - 缓解：未识别的错误不会导致无限循环
    - 残留影响：可能延迟清理，但不会无限循环
 
@@ -937,7 +937,7 @@ bun test tests/chaos/api-flaky-recovery.test.ts
 
 ## 附录
 
-### A. LongPort API 错误码参考
+### A. Longbridge API 错误码参考
 
 | 错误码 | 含义                                                 | 分类       | 处理策略     |
 | ------ | ---------------------------------------------------- | ---------- | ------------ |
@@ -950,7 +950,7 @@ bun test tests/chaos/api-flaky-recovery.test.ts
 
 ### B. OrderStatus 枚举完整定义
 
-根据 LongPort API 文档：
+根据 Longbridge API 文档：
 
 **待提交状态**：
 
@@ -1135,7 +1135,7 @@ Refs: #<issue-number>
 
 #### 改进 2：错误码提取失败时打印调试日志
 
-**问题**：如果 LongPort 修改错误格式，错误码识别可能失败，但无法监控
+**问题**：如果 Longbridge 修改错误格式，错误码识别可能失败，但无法监控
 
 **改进**：在 `extractErrorCode` 函数中添加调试日志
 

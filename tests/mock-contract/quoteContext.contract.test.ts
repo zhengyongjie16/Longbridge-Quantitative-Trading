@@ -13,8 +13,8 @@ import {
   TradeSessions,
   WarrantSortBy,
   WarrantType,
-} from 'longport';
-import { createQuoteContextMock } from '../../mock/longport/quoteContextMock.js';
+} from 'longbridge';
+import { createQuoteContextMock } from '../../mock/longbridge/quoteContextMock.js';
 import {
   createCandlestick,
   createPushCandlestickEvent,

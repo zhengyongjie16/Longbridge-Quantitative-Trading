@@ -4,8 +4,8 @@
  * 流程：初始化上下文 -> 轮询行情与 K 线 -> 变化检测 -> 条件输出。
  */
 import dotenv from 'dotenv';
-import { AdjustType, Period, QuoteContext, TradeSessions } from 'longport';
-import { createConfig } from '../../src/config/config.index.js';
+import { AdjustType, Period, QuoteContext, TradeSessions } from 'longbridge';
+import { createSdkConfigFromOAuth, initializeOAuth } from '../../src/config/auth/index.js';
 import { buildIndicatorSnapshot } from '../../src/services/indicators/runtime/index.js';
 import { sleep } from '../../src/main/utils.js';
 import { decimalToNumber } from '../../src/utils/helpers/index.js';
@@ -166,13 +166,19 @@ async function runMonitorCycle(
 }
 
 /**
- * 创建监控上下文（初始化 LongPort QuoteContext 与状态）。
+ * 创建监控上下文（初始化 Longbridge QuoteContext 与状态）。
  *
  * @param monitorSymbol 监控标的代码
  * @returns 监控上下文
  */
 async function createMonitorContext(monitorSymbol: string): Promise<MonitorContext> {
-  const config = createConfig({ env: process.env });
+  const oauth = await initializeOAuth({
+    env: process.env,
+    onOpenUrl: (url: string) => {
+      console.log(`请在浏览器中完成 Longbridge OAuth 授权：${url}`);
+    },
+  });
+  const config = createSdkConfigFromOAuth({ oauth, env: process.env });
   const ctx = await QuoteContext.new(config);
 
   return {

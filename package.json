@@ -1,7 +1,7 @@
 {
   "name": "longbridge-option-quant",
   "version": "16.8.0",
-  "description": "基于 LongPort OpenAPI 的港股双向量化交易系统（TypeScript）",
+  "description": "基于 Longbridge OpenAPI 的港股双向量化交易系统（TypeScript）",
   "main": "src/index.ts",
   "type": "module",
   "scripts": {
@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "dotenv": "^16.6.1",
-    "longport": "^3.0.23",
+    "longbridge": "^4.0.0",
     "pino": "^10.3.1"
   },
   "devDependencies": {

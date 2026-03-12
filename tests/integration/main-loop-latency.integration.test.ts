@@ -8,7 +8,7 @@
  * - 校验每轮仅计算配置所需指标（本用例为 KDJ/MACD）并统计循环耗时
  */
 import { describe, expect, it } from 'bun:test';
-import type { Candlestick, Period, TradeSessions } from 'longport';
+import type { Candlestick, Period, TradeSessions } from 'longbridge';
 import { TRADING } from '../../src/constants/index.js';
 import { mainProgram } from '../../src/main/mainProgram/index.js';
 import { createMonitorContext } from '../../src/app/createMonitorContext.js';

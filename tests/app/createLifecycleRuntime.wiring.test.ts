@@ -7,7 +7,6 @@
  * - createLifecycleRuntime 将固定顺序的 cache domains 交给 dayLifecycleManager
  */
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { createConfig } from '../../src/config/config.index.js';
 import {
   createLifecycleCacheDomains,
   createLifecycleRuntime,
@@ -28,6 +27,7 @@ import { createTradingConfig } from '../../mock/factories/configFactory.js';
 import {
   createDailyLossTrackerDouble,
   createMarketDataClientDouble,
+  createSdkConfigDouble,
   createSymbolRegistryDouble,
   createTraderDouble,
 } from '../helpers/testDoubles.js';
@@ -119,7 +119,7 @@ function createLifecycleDeps(): LifecycleRuntimeFactoryDeps {
 
   return {
     preGateRuntime: {
-      config: createConfig({ env: {} }),
+      config: createSdkConfigDouble(),
       tradingConfig,
       symbolRegistry: createSymbolRegistryDouble(),
       warrantListCache,

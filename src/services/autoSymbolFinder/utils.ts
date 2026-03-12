@@ -1,4 +1,4 @@
-import { WarrantStatus, type FilterWarrantExpiryDate } from 'longport';
+import { WarrantStatus, type FilterWarrantExpiryDate } from 'longbridge';
 import { EXPIRY_DATE_FILTERS } from '../../constants/index.js';
 import {
   decimalAbs,
@@ -46,7 +46,7 @@ function isBullPolicy(policy: DirectionalAutoSearchPolicy): boolean {
 }
 
 /**
- * 将 LongPort warrantList.toCallPrice 原始小数比值转换为内部百分比值。
+ * 将 Longbridge warrantList.toCallPrice 原始小数比值转换为内部百分比值。
  * 默认行为：仅接受可解析的 Decimal / number / string；转换后返回百分比值，
  * 例如 `0.0036` 转为 `0.36`，表示 `0.36%`。
  *

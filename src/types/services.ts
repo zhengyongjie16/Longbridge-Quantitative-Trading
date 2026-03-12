@@ -8,7 +8,7 @@ import type {
   Decimal,
   Period,
   TradeSessions,
-} from 'longport';
+} from 'longbridge';
 import type { SignalType, Signal } from './signal.js';
 import type { Quote, IndicatorSnapshot } from './quote.js';
 import type { AccountSnapshot, Position } from './account.js';
@@ -20,7 +20,7 @@ import type { CancelOrderOutcome } from './trader.js';
 /**
  * 交易日查询结果。
  * 类型用途：封装交易日 API 的返回结构，作为 isTradingDay / 交易日查询的返回值或中间数据。
- * 数据来源：LongPort 交易日 API（如 trading_days）。
+ * 数据来源：Longbridge 交易日 API（如 trading_days）。
  * 使用范围：行情客户端、生命周期、门禁等；全项目可引用。
  */
 export type TradingDaysResult = {
@@ -34,7 +34,7 @@ export type TradingDaysResult = {
 /**
  * 交易日信息。
  * 类型用途：表示某日是否为交易日及是否为半日市，作为 isTradingDay 返回值、门禁与跨日逻辑的入参。
- * 数据来源：LongPort 交易日 API（如 trading_days）或行情客户端 isTradingDay。
+ * 数据来源：Longbridge 交易日 API（如 trading_days）或行情客户端 isTradingDay。
  * 使用范围：行情客户端、生命周期、门禁等；全项目可引用。
  */
 export type TradingDayInfo = {
@@ -47,8 +47,8 @@ export type TradingDayInfo = {
 
 /**
  * 行情数据客户端接口。
- * 类型用途：依赖注入用接口，封装 LongPort 行情 API，提供行情获取、订阅、K 线、交易日查询及运行期缓存重置。
- * 数据来源：由 quoteClient 等实现，对接 LongPort QuoteContext。
+ * 类型用途：依赖注入用接口，封装 Longbridge 行情 API，提供行情获取、订阅、K 线、交易日查询及运行期缓存重置。
+ * 数据来源：由 quoteClient 等实现，对接 Longbridge QuoteContext。
  * 使用范围：主程序、生命周期、processMonitor、行情订阅与 K 线消费方等；全项目可引用。
  */
 export interface MarketDataClient {
@@ -132,8 +132,8 @@ export type PendingOrder = {
 
 /**
  * API 返回的原始订单类型。
- * 类型用途：从 LongPort 订单 API 接收订单数据时的类型安全结构，作为 fetchAllOrdersFromAPI、refreshOrdersFromAllOrdersForLong/Short 等入参或元素类型。
- * 数据来源：LongPort 订单 API 返回。
+ * 类型用途：从 Longbridge 订单 API 接收订单数据时的类型安全结构，作为 fetchAllOrdersFromAPI、refreshOrdersFromAllOrdersForLong/Short 等入参或元素类型。
+ * 数据来源：Longbridge 订单 API 返回。
  * 使用范围：OrderRecorder、Trader、orderApiManager 等；全项目可引用。
  */
 export type RawOrderFromAPI = {
@@ -329,7 +329,7 @@ export interface OrderRecorderPendingSellAndSellable {
 /**
  * 订单记录器接口。
  * 类型用途：依赖注入用接口，管理买卖订单的本地记录与 API 同步，提供成本价、可卖订单、待成交卖单追踪等。
- * 数据来源：本地记录 + LongPort 订单 API 同步。
+ * 数据来源：本地记录 + Longbridge 订单 API 同步。
  * 使用范围：Trader、RiskChecker、信号处理、主循环等；全项目可引用。
  */
 export interface OrderRecorder extends OrderRecorderPendingSellAndSellable {
@@ -404,8 +404,8 @@ export interface OrderRecorder extends OrderRecorderPendingSellAndSellable {
 
 /**
  * 交易器接口。
- * 类型用途：依赖注入用接口，封装 LongPort 交易 API，提供账户/持仓、订单执行、订单监控与信号执行等。
- * 数据来源：实现层对接 LongPort TradeContext；账户与订单数据来自 API。
+ * 类型用途：依赖注入用接口，封装 Longbridge 交易 API，提供账户/持仓、订单执行、订单监控与信号执行等。
+ * 数据来源：实现层对接 Longbridge TradeContext；账户与订单数据来自 API。
  * 使用范围：主循环、MonitorContext、信号处理、门禁等；全项目可引用。
  */
 export interface Trader {
@@ -418,9 +418,7 @@ export interface Trader {
   getAccountSnapshot: () => Promise<AccountSnapshot | null>;
 
   /** 获取持仓列表 */
-  getStockPositions: (
-    symbols?: ReadonlyArray<string> | null,
-  ) => Promise<ReadonlyArray<Position>>;
+  getStockPositions: (symbols?: ReadonlyArray<string> | null) => Promise<ReadonlyArray<Position>>;
 
   // ========== 订单缓存 ==========
 
@@ -496,7 +494,7 @@ export type PendingRefreshSymbol = {
 /**
  * 牛熊证类型。
  * 类型用途：区分牛证（做多）与熊证（做空），用于 RiskCheckResult、WarrantDistanceInfo 等字段。
- * 数据来源：LongPort 行情静态信息或 RiskChecker 解析。
+ * 数据来源：Longbridge 行情静态信息或 RiskChecker 解析。
  * 使用范围：RiskChecker、UI/监控展示等；全项目可引用。
  */
 export type BullBearWarrantType = 'BULL' | 'BEAR';

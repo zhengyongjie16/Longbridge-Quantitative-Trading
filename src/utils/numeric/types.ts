@@ -1,4 +1,4 @@
-import type { Decimal } from 'longport';
+import type { Decimal } from 'longbridge';
 
 /**
  * Decimal 输入类型。

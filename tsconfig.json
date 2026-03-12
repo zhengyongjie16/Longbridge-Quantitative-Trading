@@ -28,7 +28,7 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
-    // 注意: 禁用 isolatedModules 因为 longport SDK 使用了 const enum
+    // 注意: 禁用 isolatedModules 因为 longbridge SDK 使用了 const enum
     "isolatedModules": false,
     // ===== 输出配置 =====
     "outDir": "./dist",

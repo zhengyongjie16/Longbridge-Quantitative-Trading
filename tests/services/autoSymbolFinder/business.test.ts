@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'bun:test';
 import { inspect } from 'node:util';
-import { FilterWarrantExpiryDate, WarrantStatus, WarrantType } from 'longport';
+import { FilterWarrantExpiryDate, WarrantStatus, WarrantType } from 'longbridge';
 
 import { findBestWarrant } from '../../../src/services/autoSymbolFinder/index.js';
 import { resolveDirectionalAutoSearchPolicy } from '../../../src/services/autoSymbolFinder/policyResolver.js';
@@ -16,8 +16,8 @@ import {
   normalizeWarrantDistancePercentFromApiRatio,
   selectBestWarrant,
 } from '../../../src/services/autoSymbolFinder/utils.js';
-import { toMockDecimal } from '../../../mock/longport/decimal.js';
-import { createQuoteContextMock } from '../../../mock/longport/quoteContextMock.js';
+import { toMockDecimal } from '../../../mock/longbridge/decimal.js';
+import { createQuoteContextMock } from '../../../mock/longbridge/quoteContextMock.js';
 import type {
   DirectionalAutoSearchPolicy,
   WarrantListItem,

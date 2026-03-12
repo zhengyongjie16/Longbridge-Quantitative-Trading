@@ -12,7 +12,7 @@ If you discover a vulnerability in the program, please do the following:
   - **RedNote**: 2615258442
   - **WeChat**: Salem_1796
 
-If you discover any vulnerabilities in the LongPort OpenAPI SDK, please do the following:
+If you discover any vulnerabilities in the Longbridge OpenAPI SDK, please do the following:
 
 - E-mail your findings to li.sun [at] longbridge-inc [dot] com.
 - Do not take advantage of the vulnerability or problem you have discovered, for example by downloading more data than necessary to demonstrate the vulnerability or deleting or modifying other people's data.

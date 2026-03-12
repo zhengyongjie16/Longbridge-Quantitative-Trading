@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { Decimal, type OrderType } from 'longport';
+import { Decimal, type OrderType } from 'longbridge';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import {
   NON_REPLACEABLE_ORDER_STATUSES,
@@ -123,7 +123,7 @@ export function extractOrderId(resp: unknown): string {
 }
 
 /**
- * 将值转换为 LongPort Decimal 类型。默认行为：非 number/string/Decimal 时返回 Decimal.ZERO()。
+ * 将值转换为 Longbridge Decimal 类型。默认行为：非 number/string/Decimal 时返回 Decimal.ZERO()。
  *
  * @param value 要转换的值（number、string 或已存在的 Decimal）
  * @returns Decimal 对象，无效输入时返回 Decimal.ZERO()

@@ -5,7 +5,7 @@
  * - 验证末日保护端到端场景与业务期望。
  */
 import { describe, expect, it } from 'bun:test';
-import { OrderSide } from 'longport';
+import { OrderSide } from 'longbridge';
 
 import { createDoomsdayProtection } from '../../src/core/doomsdayProtection/index.js';
 import { signalObjectPool } from '../../src/utils/objectPool/index.js';

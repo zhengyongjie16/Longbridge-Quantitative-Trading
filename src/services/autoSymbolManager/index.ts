@@ -5,7 +5,7 @@
  * 职责：支持「距离换标 + 周期换标」统一状态机推进，并处理撤单/卖出/买入完整链路。
  * 执行流程：AUTO_SYMBOL_TICK 调用 maybeSearchOnTick 与 maybeSwitchOnInterval；AUTO_SYMBOL_SWITCH_DISTANCE 调用 maybeSwitchOnDistance 并在存在 pending switch 时持续推进状态机。
  */
-import { OrderSide } from 'longport';
+import { OrderSide } from 'longbridge';
 import { findBestWarrant } from '../autoSymbolFinder/index.js';
 import {
   calculateTradingDurationMsBetween,

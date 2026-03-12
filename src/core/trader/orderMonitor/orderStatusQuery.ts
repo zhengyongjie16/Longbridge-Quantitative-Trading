@@ -3,40 +3,36 @@
  *
  * 职责：
  * - 在撤单/改单 API 业务失败后调用 orderDetail 做权威确认
- * - 将 LongPort 原始订单状态映射为统一 OrderStateCheckResult
+ * - 将 Longbridge 原始订单状态映射为统一 OrderStateCheckResult
  * - 区分终态、仍开放状态与查询失败原因
  */
 import { decimalToNumber } from '../../../utils/helpers/index.js';
 import type { OrderStateCheckResult } from '../../../types/trader.js';
 import type { OrderStatusQuery, OrderStatusQueryDeps } from './types.js';
-import {
-  extractErrorCode,
-  extractErrorMessage,
-  resolveUpdatedAtMs,
-} from './utils.js';
+import { extractErrorCode, extractErrorMessage, resolveUpdatedAtMs } from './utils.js';
 
-const LONGPORT_STATUS_FILLED = 5;
-const LONGPORT_STATUS_REJECTED = 14;
-const LONGPORT_STATUS_CANCELED = 15;
-const LONGPORT_STATUS_EXPIRED = 16;
-const LONGPORT_STATUS_PARTIAL_WITHDRAWAL = 17;
+const OPEN_API_ORDER_STATUS_FILLED = 5;
+const OPEN_API_ORDER_STATUS_REJECTED = 14;
+const OPEN_API_ORDER_STATUS_CANCELED = 15;
+const OPEN_API_ORDER_STATUS_EXPIRED = 16;
+const OPEN_API_ORDER_STATUS_PARTIAL_WITHDRAWAL = 17;
 
 function resolveClosedReasonFromStatus(
   status: number,
 ): Extract<OrderStateCheckResult, { kind: 'TERMINAL' }>['closedReason'] | null {
-  if (status === LONGPORT_STATUS_FILLED) {
+  if (status === OPEN_API_ORDER_STATUS_FILLED) {
     return 'FILLED';
   }
 
   if (
-    status === LONGPORT_STATUS_CANCELED ||
-    status === LONGPORT_STATUS_EXPIRED ||
-    status === LONGPORT_STATUS_PARTIAL_WITHDRAWAL
+    status === OPEN_API_ORDER_STATUS_CANCELED ||
+    status === OPEN_API_ORDER_STATUS_EXPIRED ||
+    status === OPEN_API_ORDER_STATUS_PARTIAL_WITHDRAWAL
   ) {
     return 'CANCELED';
   }
 
-  if (status === LONGPORT_STATUS_REJECTED) {
+  if (status === OPEN_API_ORDER_STATUS_REJECTED) {
     return 'REJECTED';
   }
 

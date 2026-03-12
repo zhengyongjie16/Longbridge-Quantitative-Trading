@@ -1,7 +1,7 @@
 /**
  * 行情静态信息。
  * 类型用途：标的静态元数据（名称、每手股数、回收价、到期日、牛熊证类型等），作为 Quote.staticInfo 的类型。
- * 数据来源：LongPort 行情 API（如 getQuotes 返回的静态字段）。
+ * 数据来源：Longbridge 行情 API（如 getQuotes 返回的静态字段）。
  * 使用范围：Quote、风控与牛熊证距离计算等；全项目可引用。
  */
 export type QuoteStaticInfo = {
@@ -20,7 +20,7 @@ export type QuoteStaticInfo = {
 /**
  * 行情数据。
  * 类型用途：单标的实时行情快照，作为 getQuotes 返回值、策略与风控的行情入参。
- * 数据来源：LongPort 行情推送或 getQuotes。
+ * 数据来源：Longbridge 行情推送或 getQuotes。
  * 使用范围：行情客户端、策略、风控、订单监控等；全项目可引用。
  */
 export type Quote = {

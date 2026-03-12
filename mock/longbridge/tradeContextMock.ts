@@ -22,7 +22,7 @@ import {
   type SubmitOrderOptions,
   type SubmitOrderResponse,
   type TopicType,
-} from 'longport';
+} from 'longbridge';
 import {
   createLongportEventBus,
   type EventPublishOptions,

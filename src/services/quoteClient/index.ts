@@ -34,7 +34,7 @@ import {
   type Period,
   type PushQuoteEvent,
   type PushCandlestickEvent,
-} from 'longport';
+} from 'longbridge';
 import { decimalToNumber, isRecord } from '../../utils/helpers/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { API } from '../../constants/index.js';
@@ -256,7 +256,7 @@ function createTradingDayCache(): {
 
 /**
  * 创建行情数据客户端（WebSocket 订阅模式）。创建时初始化 QuoteContext，getQuotes 从本地缓存读取。
- * @param deps - 依赖注入，包含 LongPort Config
+ * @param deps - 依赖注入，包含 Longbridge Config
  * @returns Promise<MarketDataClient>，提供 getQuotes、subscribeSymbols、subscribeCandlesticks、isTradingDay 等
  */
 export async function createMarketDataClient(
