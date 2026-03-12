@@ -50,6 +50,20 @@ const DEFAULT_RUN_APP_DEPS: RunAppDeps = {
 };
 
 /**
+ * 构造 app 运行期统一环境快照。
+ * 默认行为：以进程环境为基线，允许调用方显式覆盖同名键。
+ *
+ * @param env 调用方传入的环境变量对象
+ * @returns 完整环境变量快照
+ */
+function buildAppRuntimeEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    ...env,
+  };
+}
+
+/**
  * 创建 app 主入口。
  *
  * @param deps app 组装链路依赖；生产环境使用默认依赖，测试可注入受控替身
@@ -78,13 +92,13 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
   } = deps;
 
   return async function runApp(params: AppEnvironmentParams): Promise<void> {
-    const { env } = params;
+    const runtimeEnv = buildAppRuntimeEnv(params.env);
     runShushCow();
 
-    const preGateRuntime = await buildPreGateRuntime({ env });
+    const preGateRuntime = await buildPreGateRuntime({ env: runtimeEnv });
     const startupNow = new Date();
     const postGateRuntime = await buildPostGateRuntime({
-      env,
+      env: runtimeEnv,
       preGateRuntime,
       now: startupNow,
     });

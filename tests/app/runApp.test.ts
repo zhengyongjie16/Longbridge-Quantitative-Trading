@@ -60,6 +60,8 @@ function createHarnessState(): MutableRunAppHarnessState {
     events: [],
     startupRebuildPending: false,
     runtimeGateMode: 'strict',
+    preGateRuntimeEnv: null,
+    postGateRuntimeEnv: null,
     createPostGateRuntimeNow: null,
     loadStartupSnapshotNow: null,
     rebuildCalls: [],
@@ -80,7 +82,9 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
 
   return {
     getShushCow: () => {},
-    createPreGateRuntime: async (_params: AppEnvironmentParams) => ({
+    createPreGateRuntime: async (params: AppEnvironmentParams) => {
+      harnessState.preGateRuntimeEnv = params.env;
+      return {
       config: createConfig({ env: {} }),
       tradingConfig: createTradingConfig({
         monitors: [],
@@ -128,9 +132,11 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
       startupGate: {
         wait: async () => ({ isTradingDay: true, isHalfDay: false }),
       },
-    }),
+      };
+    },
     createPostGateRuntime: async (params) => {
       harnessState.createPostGateRuntimeNow = params.now;
+      harnessState.postGateRuntimeEnv = params.env;
       const refreshGateStatus = {
         currentVersion: 3,
         staleVersion: 7,
@@ -380,6 +386,8 @@ describe('app runApp assembly', () => {
     }
 
     expect(caught).toBe(STOP_AFTER_FIRST_LOOP);
+    expect(harnessState.preGateRuntimeEnv?.['APP_RUNTIME_PROFILE']).toBe('test');
+    expect(harnessState.postGateRuntimeEnv?.['APP_RUNTIME_PROFILE']).toBe('test');
     expect(harnessState.createPostGateRuntimeNow).toBe(harnessState.loadStartupSnapshotNow);
     expect(harnessState.rebuildCalls).toHaveLength(1);
     expect(harnessState.events).toEqual([

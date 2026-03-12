@@ -36,6 +36,8 @@ export type MutableRunAppHarnessState = {
   events: string[];
   startupRebuildPending: boolean;
   runtimeGateMode: 'strict' | 'skip';
+  preGateRuntimeEnv: NodeJS.ProcessEnv | null;
+  postGateRuntimeEnv: NodeJS.ProcessEnv | null;
   createPostGateRuntimeNow: Date | null;
   loadStartupSnapshotNow: Date | null;
   rebuildCalls: RunAppRebuildCall[];
