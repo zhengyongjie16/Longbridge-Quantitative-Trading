@@ -139,6 +139,7 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
         sellNotional: null,
         shouldRebuy: false,
         awaitingQuote: false,
+        cancelRequestSubmitted: false,
       });
     } else {
       switchStates.delete(direction);

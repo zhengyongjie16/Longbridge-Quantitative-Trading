@@ -336,7 +336,7 @@ describe('mainProgram strict-mode integration', () => {
       doomsdayProtection: createDoomsdayProtectionDouble({
         cancelPendingBuyOrders: async () => {
           cancelCalls += 1;
-          return { executed: true, cancelledCount: 1 };
+          return { executed: true, cancelRequestAcceptedCount: 1 };
         },
         executeClearance: async () => {
           clearanceCalls += 1;

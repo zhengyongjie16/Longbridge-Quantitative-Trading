@@ -171,6 +171,7 @@ describe('chaos: websocket out-of-order and duplicate pushes', () => {
     );
 
     expect(tradeCtx.flushAllEvents()).toBe(4);
+    expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
     expect(localSellCount).toBe(2);
     expect(markSellFilledCount).toBe(2);
     expect(markSellPartialCount).toBe(0);

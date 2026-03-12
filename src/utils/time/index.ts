@@ -11,7 +11,7 @@ import type { HKTime, SessionRange } from './types.js';
  * @param date 时间对象，默认当前时间
  * @returns 香港时间各组成部分
  */
-export function getHongKongDateTimeParts(date: Date | null = null): Readonly<{
+function getHongKongDateTimeParts(date: Date | null = null): Readonly<{
   year: number;
   month: string;
   day: string;

@@ -395,7 +395,7 @@ export function createDoomsdayProtectionDouble(
       _context: CancelPendingBuyOrdersContext,
     ): Promise<CancelPendingBuyOrdersResult> => ({
       executed: false,
-      cancelledCount: 0,
+      cancelRequestAcceptedCount: 0,
     }),
   };
 

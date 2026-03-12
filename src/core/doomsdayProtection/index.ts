@@ -32,6 +32,7 @@ import type {
 import { batchGetQuotes, isBeforeClose15Minutes, isBeforeClose5Minutes } from './utils.js';
 import { formatError } from '../../utils/error/index.js';
 import { getHKDateKey } from '../../utils/time/index.js';
+import { isCancelAcceptedOrTerminalNonFilledClose } from '../trader/utils.js';
 
 /**
  * 创建单个清仓信号（收盘前 5 分钟清仓用）。
@@ -353,7 +354,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
       if (!isBeforeClose15Minutes(currentTime, isHalfDay)) {
         // 不在 15 分钟范围内，重置状态（为下次进入做准备）
         // 注意：这里不重置 cancelCheckExecutedDate，因为跨天时日期字符串会自动不匹配
-        return { executed: false, cancelledCount: 0 };
+        return { executed: false, cancelRequestAcceptedCount: 0 };
       }
 
       // 检查当天是否已执行过撤单检查
@@ -363,7 +364,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
       const todayDateString = getHKDateKey(currentTime);
       if (cancelCheckExecutedDate === todayDateString) {
         // 当天已执行过，直接返回
-        return { executed: false, cancelledCount: 0 };
+        return { executed: false, cancelRequestAcceptedCount: 0 };
       }
 
       // 收集所有唯一的交易标的
@@ -383,7 +384,7 @@ export function createDoomsdayProtection(): DoomsdayProtection {
       }
 
       if (allTradingSymbols.size === 0) {
-        return { executed: false, cancelledCount: 0 };
+        return { executed: false, cancelRequestAcceptedCount: 0 };
       }
 
       const symbolsArray = [...allTradingSymbols];
@@ -401,25 +402,20 @@ export function createDoomsdayProtection(): DoomsdayProtection {
       const pendingBuyOrders = pendingOrders.filter((order) => order.side === OrderSide.Buy);
       if (pendingBuyOrders.length === 0) {
         logger.info('[末日保护程序] 无未成交买入订单，无需撤单');
-        return { executed: false, cancelledCount: 0 };
+        return { executed: false, cancelRequestAcceptedCount: 0 };
       }
 
       logger.info(`[末日保护程序] 发现 ${pendingBuyOrders.length} 个未成交买入订单，准备撤单`);
 
       // 撤销所有买入订单
-      let cancelledCount = 0;
+      let cancelRequestAcceptedCount = 0;
       for (const order of pendingBuyOrders) {
         try {
           const cancelOutcome = await trader.cancelOrder(order.orderId);
-          const cancelledByOutcome =
-            cancelOutcome.kind === 'CANCEL_CONFIRMED' ||
-            (cancelOutcome.kind === 'ALREADY_CLOSED' &&
-              (cancelOutcome.closedReason === 'CANCELED' ||
-                cancelOutcome.closedReason === 'REJECTED'));
-          if (cancelledByOutcome) {
-            cancelledCount++;
+          if (isCancelAcceptedOrTerminalNonFilledClose(cancelOutcome)) {
+            cancelRequestAcceptedCount++;
             logger.debug(
-              `[末日保护程序] 撤销买入订单成功：${order.symbol} 订单ID=${order.orderId} 数量=${order.quantity} 价格=${order.submittedPrice.toFixed(3)}`,
+              `[末日保护程序] 买入订单撤单请求已接受：${order.symbol} 订单ID=${order.orderId} 数量=${order.quantity} 价格=${order.submittedPrice.toFixed(3)}，终态以后续 WS 为准`,
             );
             continue;
           }
@@ -440,13 +436,13 @@ export function createDoomsdayProtection(): DoomsdayProtection {
         }
       }
 
-      if (cancelledCount > 0) {
+      if (cancelRequestAcceptedCount > 0) {
         logger.info(
-          `[末日保护程序] 已撤销 ${cancelledCount}/${pendingBuyOrders.length} 个买入订单`,
+          `[末日保护程序] 已提交撤单请求 ${cancelRequestAcceptedCount}/${pendingBuyOrders.length} 个买入订单，终态以后续 WS 为准`,
         );
       }
 
-      return { executed: true, cancelledCount };
+      return { executed: true, cancelRequestAcceptedCount };
     },
   };
 }

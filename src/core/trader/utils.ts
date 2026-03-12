@@ -176,17 +176,31 @@ function resolveRemainingQuantity(order: PendingSellOrderSnapshot): number {
 }
 
 /**
- * 判断撤单结果是否可确认为「未成交关闭」终态。
- * 默认行为：CANCEL_CONFIRMED 或 ALREADY_CLOSED 且关闭原因为 CANCELED/REJECTED 时返回 true。
+ * 判断撤单结果是否表示“撤单请求已被接受”或“已确认非成交终态”。
+ * 默认行为：CANCEL_CONFIRMED 返回 true；ALREADY_CLOSED 仅在关闭原因为 CANCELED/REJECTED 时返回 true。
  *
  * @param outcome 撤单 outcome
- * @returns true 表示可确认订单已以非成交方式关闭
+ * @returns true 表示调用方可停止继续发起撤单，且不会把 FILLED 误当作撤单成功
  */
-export function isConfirmedNonFilledClose(outcome: CancelOrderOutcome): boolean {
+export function isCancelAcceptedOrTerminalNonFilledClose(outcome: CancelOrderOutcome): boolean {
   if (outcome.kind === 'CANCEL_CONFIRMED') {
     return true;
   }
 
+  return (
+    outcome.kind === 'ALREADY_CLOSED' &&
+    (outcome.closedReason === 'CANCELED' || outcome.closedReason === 'REJECTED')
+  );
+}
+
+/**
+ * 判断撤单结果是否已确认「非成交关闭」终态。
+ * 默认行为：仅 ALREADY_CLOSED 且关闭原因为 CANCELED/REJECTED 时返回 true。
+ *
+ * @param outcome 撤单 outcome
+ * @returns true 表示订单已被权威确认为非成交终态
+ */
+export function isTerminalNonFilledCloseConfirmed(outcome: CancelOrderOutcome): boolean {
   return (
     outcome.kind === 'ALREADY_CLOSED' &&
     (outcome.closedReason === 'CANCELED' || outcome.closedReason === 'REJECTED')

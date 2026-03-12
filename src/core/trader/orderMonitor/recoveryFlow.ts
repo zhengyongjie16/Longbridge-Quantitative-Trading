@@ -4,14 +4,14 @@
  * 职责：
  * - 管理 BOOTSTRAPPING 阶段订单事件缓存与回放
  * - 执行快照恢复、席位一致性校验与失败回滚
- * - 保证 trackedOrders 与 pendingSell 占用集合的一致性
+ * - 消费权威终态快照并保持 trackedOrders 与 pendingSell 一致
  */
 import { OrderSide, type PushOrderChanged } from 'longport';
 import { logger } from '../../../utils/logger/index.js';
 import { decimalToNumber, isValidPositiveNumber } from '../../../utils/helpers/index.js';
 import { PENDING_ORDER_STATUSES } from '../../../constants/index.js';
-import type { RawOrderFromAPI } from '../../../types/services.js';
 import type { MonitorConfig } from '../../../types/config.js';
+import type { RawOrderFromAPI } from '../../../types/services.js';
 import { resolveOrderOwnership } from '../../orderRecorder/orderOwnershipParser.js';
 import { isSeatReady } from '../../../services/autoSymbolManager/utils.js';
 import type {
@@ -20,6 +20,7 @@ import type {
   TrackOrderParams,
 } from '../types.js';
 import type { RecoveryFlow, RecoveryFlowDeps } from './types.js';
+import { consumeQueriedTerminalState, resetOrderReplaceRuntimeState } from './orderOps.js';
 import { resolveSubmittedAtMs, resolveUpdatedAtMs } from './utils.js';
 import { hasProtectiveLiquidationRemark } from '../utils.js';
 
@@ -38,7 +39,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
     symbolRegistry,
     trackOrder,
     cancelOrder,
-    enqueueCloseSync,
+    settleOrder,
     handleOrderChangedWhenActive,
   } = deps;
   const triggerLimitByMonitor = new Map(
@@ -136,12 +137,14 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
   function resetRecoveryTrackingState(): void {
     for (const trackedOrder of runtime.trackedOrders.values()) {
       orderHoldRegistry.markOrderClosed(trackedOrder.orderId);
+      resetOrderReplaceRuntimeState(runtime, trackedOrder.orderId);
     }
 
     runtime.trackedOrders.clear();
     runtime.trackedOrderLifecycles.clear();
-    runtime.closeSyncQueue.clear();
     runtime.closedOrderIds.clear();
+    runtime.latestReplaceOutcomeByOrderId.clear();
+    runtime.queriedTerminalStateByOrderId.clear();
     runtime.pendingRefreshSymbols.length = 0;
     clearAllPendingSellTracking();
   }
@@ -421,26 +424,46 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
         if (order.side === OrderSide.Buy) {
           if (!ownership || !isMatched) {
             const cancelOutcome = await cancelOrder(order.orderId);
-            if (cancelOutcome.kind === 'RETRYABLE_FAILURE') {
-              throw new Error(`[订单监控] 买单 ${order.orderId} 不匹配且撤单失败，阻断恢复`);
-            }
-
-            if (cancelOutcome.kind === 'UNKNOWN_FAILURE') {
-              throw new Error(`[订单监控] 买单 ${order.orderId} 撤单结果未知，阻断恢复`);
+            if (cancelOutcome.kind === 'CANCEL_CONFIRMED') {
+              throw new Error(
+                `[订单监控] 买单 ${order.orderId} 不匹配且撤单请求成功，但终态未确认（等待 WS），阻断恢复`,
+              );
             }
 
             if (
-              cancelOutcome.kind === 'ALREADY_CLOSED' &&
-              (cancelOutcome.closedReason === 'FILLED' ||
-                cancelOutcome.closedReason === 'NOT_FOUND')
+              cancelOutcome.kind === 'RETRYABLE_FAILURE' ||
+              cancelOutcome.kind === 'UNKNOWN_FAILURE'
             ) {
-              enqueueCloseSync(
-                order.orderId,
-                cancelOutcome.closedReason === 'FILLED'
-                  ? 'ALREADY_CLOSED_FILLED'
-                  : 'ALREADY_CLOSED_NOT_FOUND',
-                cancelOutcome.closedReason,
-              );
+              throw new Error(`[订单监控] 买单 ${order.orderId} 不匹配且撤单失败，阻断恢复`);
+            }
+
+            const queriedTerminalState = consumeQueriedTerminalState(runtime, order.orderId);
+            if (queriedTerminalState === null) {
+              throw new Error(`[订单监控] 买单 ${order.orderId} 缺少权威终态查询结果，阻断恢复`);
+            }
+
+            const settlementPayload = {
+              orderId: order.orderId,
+              closedReason: queriedTerminalState.closedReason,
+              source: 'RECOVERY',
+              executedPrice: queriedTerminalState.executedPrice,
+              executedQuantity: queriedTerminalState.executedQuantity,
+              executedTimeMs: queriedTerminalState.executedTimeMs,
+              symbol: order.symbol,
+              side: 'BUY',
+              monitorSymbol: ownership?.monitorSymbol ?? null,
+              isProtectiveLiquidation: hasProtectiveLiquidationRemark(order.remark),
+              liquidationTriggerLimit: resolveLiquidationTriggerLimit(ownership?.monitorSymbol ?? null),
+              liquidationCooldownConfig: resolveLiquidationCooldownConfig(
+                ownership?.monitorSymbol ?? null,
+              ),
+              ...(ownership?.isLongSymbol === undefined
+                ? {}
+                : { isLongSymbol: ownership.isLongSymbol }),
+            } as const;
+            const settlementResult = settleOrder(settlementPayload);
+            if (!settlementResult.handled) {
+              throw new Error(`[订单监控] 买单 ${order.orderId} 终态已确认但结算失败，阻断恢复`);
             }
 
             closedMismatchedBuyOrderIds.add(order.orderId);

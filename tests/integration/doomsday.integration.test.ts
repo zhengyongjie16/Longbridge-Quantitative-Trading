@@ -207,10 +207,49 @@ describe('doomsday integration', () => {
     });
 
     expect(result1.executed).toBeTrue();
-    expect(result1.cancelledCount).toBe(1);
+    expect(result1.cancelRequestAcceptedCount).toBe(1);
     expect(result2.executed).toBeFalse();
 
     expect(trader.getPendingOrders).toBeDefined();
+  });
+
+  it('does not count already-filled buy orders as cancelled in close-15 window', async () => {
+    const doomsday = createDoomsdayProtection();
+    const monitorConfig = createMonitorConfigDouble();
+
+    const trader = createTraderDouble({
+      getPendingOrders: async () => [
+        {
+          orderId: 'B-FILLED',
+          symbol: 'BULL.HK',
+          side: OrderSide.Buy,
+          submittedPrice: 1,
+          quantity: 100,
+          executedQuantity: 0,
+          status: 'New' as never,
+          orderType: 'ELO' as never,
+        },
+      ],
+      cancelOrder: async () => ({
+        kind: 'ALREADY_CLOSED',
+        closedReason: 'FILLED',
+        source: 'API_ERROR',
+        relatedBuyOrderIds: null,
+      }),
+    });
+
+    const result = await doomsday.cancelPendingBuyOrders({
+      currentTime: new Date('2026-02-16T07:50:00.000Z'),
+      isHalfDay: false,
+      monitorConfigs: [monitorConfig],
+      monitorContexts: new Map([
+        [monitorConfig.monitorSymbol, createMonitorContext(monitorConfig)],
+      ]),
+      trader,
+    });
+
+    expect(result.executed).toBeTrue();
+    expect(result.cancelRequestAcceptedCount).toBe(0);
   });
 
   it('executes close-5 liquidation, clears caches and order records for both sides', async () => {

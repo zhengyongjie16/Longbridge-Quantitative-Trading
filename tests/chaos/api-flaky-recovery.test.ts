@@ -100,7 +100,7 @@ function createOrderMonitorDeps(params?: {
 }
 
 describe('chaos: api flaky recovery', () => {
-  it('retries timeout conversion after backoff when cancelOrder is transiently failing', async () => {
+  it('retries timeout cancel after backoff and still waits for WS after cancel succeeds', async () => {
     const orderRecorder = createOrderRecorderDouble({
       markSellCancelled: (orderId) => ({
         orderId,
@@ -142,13 +142,15 @@ describe('chaos: api flaky recovery', () => {
     await monitor.processWithLatestQuotes(quotesMap);
     await monitor.processWithLatestQuotes(quotesMap);
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
+    expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
     expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
 
     await Bun.sleep(1100);
     await monitor.processWithLatestQuotes(quotesMap);
 
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(2);
-    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(1);
+    expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
+    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
   });
 
   it('keeps pending refresh symbols and drains merged backlog after API recovery', async () => {

@@ -275,12 +275,23 @@ describe('periodic auto-switch regression', () => {
       direction: 'LONG',
       monitorPrice: 20_000,
       quotesMap: createQuotes({ 'OLD_BULL.HK': 1, 'NEW_BULL.HK': 1 }),
-      positions: [],
+      positions: [
+        {
+          symbol: 'OLD_BULL.HK',
+          quantity: 100,
+          availableQuantity: 100,
+          symbolName: 'OLD_BULL',
+          accountChannel: 'lb_papertrading',
+          currency: 'HKD',
+          costPrice: 1,
+          market: 'HK',
+        },
+      ],
     });
     const seat = harness.symbolRegistry.getSeatState('HSI.HK', 'LONG');
-    expect(seat.status).toBe('READY');
-    expect(seat.symbol).toBe('NEW_BULL.HK');
-    expect(harness.machine.hasPendingSwitch('LONG')).toBeFalse();
+    expect(seat.status).toBe('SWITCHING');
+    expect(seat.symbol).toBe('OLD_BULL.HK');
+    expect(harness.machine.hasPendingSwitch('LONG')).toBeTrue();
   });
 
   it('case4-1: periodic pending is retained when distance trigger is suppressed by same candidate', async () => {
@@ -480,9 +491,10 @@ describe('periodic auto-switch regression', () => {
       ],
     });
     const seat = harness.symbolRegistry.getSeatState('HSI.HK', 'LONG');
-    expect(seat.status).toBe('READY');
-    expect(seat.symbol).toBe('NEW_BULL.HK');
+    expect(seat.status).toBe('SWITCHING');
+    expect(seat.symbol).toBe('OLD_BULL.HK');
     expect(executeCalls).toBe(0);
+    expect(harness.machine.hasPendingSwitch('LONG')).toBeTrue();
   });
 
   it('case11: periodic switch cancel stage only cancels pending buy orders', async () => {

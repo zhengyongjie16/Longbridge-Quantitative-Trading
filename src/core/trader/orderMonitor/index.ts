@@ -2,22 +2,24 @@
  * 订单监控模块（WebSocket 推送）
  *
  * 职责：
- * - 组装事件流、恢复流、订单操作流与行情驱动流
+ * - 组装恢复流、事件流、订单操作流、单订单状态查询与终态结算流程
  * - 初始化 WebSocket 私有主题订阅并分发订单推送
  * - 对外暴露 OrderMonitor 接口，保持原有签名不变
  */
 import { TopicType, type PushOrderChanged } from 'longport';
 import { logger } from '../../../utils/logger/index.js';
 import { toDecimal } from '../utils.js';
-import type { OrderMonitor, OrderMonitorDeps, TrackedOrder } from '../types.js';
+import type { OrderMonitor, OrderMonitorDeps } from '../types.js';
 import type { PendingRefreshSymbol } from '../../../types/services.js';
-import type { OrderMonitorRuntimeStore } from './types.js';
+import type { OrderMonitorRuntimeStore, OrderMonitorTrackedOrder } from './types.js';
 import { buildOrderMonitorConfig } from './utils.js';
 import { createRecoveryFlow } from './recoveryFlow.js';
 import { createEventFlow } from './eventFlow.js';
-import { createCloseFlow } from './closeFlow.js';
-import { createOrderOps } from './orderOps.js';
+import { createSettlementFlow } from './settlementFlow.js';
+import { createOrderStatusQuery } from './orderStatusQuery.js';
+import { consumeQueriedTerminalState, createOrderOps, resetOrderReplaceRuntimeState } from './orderOps.js';
 import { createQuoteFlow } from './quoteFlow.js';
+import type { CancelOrderOutcome } from '../../../types/trader.js';
 
 /**
  * 创建订单监控器。
@@ -43,25 +45,29 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
   const config = buildOrderMonitorConfig(tradingConfig.global);
   const thresholdDecimal = toDecimal(config.priceDiffThreshold);
   const runtime: OrderMonitorRuntimeStore = {
-    trackedOrders: new Map<string, TrackedOrder>(),
+    trackedOrders: new Map<string, OrderMonitorTrackedOrder>(),
     trackedOrderLifecycles: new Map(),
     pendingRefreshSymbols: [],
     bootstrappingOrderEvents: new Map<string, PushOrderChanged>(),
-    closeSyncQueue: new Map(),
     closedOrderIds: new Set(),
+    queriedTerminalStateByOrderId: new Map(),
+    latestReplaceOutcomeByOrderId: new Map(),
     runtimeState: 'BOOTSTRAPPING',
   };
   let initialized = false;
 
-  const closeFlow = createCloseFlow({
+  const settlementFlow = createSettlementFlow({
     runtime,
     orderHoldRegistry,
     orderRecorder,
     dailyLossTracker,
     liquidationCooldownTracker,
-    tradingConfig,
-    symbolRegistry,
     ...(refreshGate ? { refreshGate } : {}),
+  });
+
+  const orderStatusQuery = createOrderStatusQuery({
+    ctxPromise,
+    rateLimiter,
   });
 
   const orderOps = createOrderOps({
@@ -70,8 +76,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     rateLimiter,
     cacheManager,
     orderHoldRegistry,
-    finalizeOrderClose: closeFlow.finalizeOrderClose,
-    enqueueCloseSync: closeFlow.enqueueCloseSync,
+    orderStatusQuery,
   });
 
   let activeHandler: ((event: PushOrderChanged) => void) | null = null;
@@ -83,7 +88,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     symbolRegistry,
     trackOrder: orderOps.trackOrder,
     cancelOrder: orderOps.cancelOrder,
-    enqueueCloseSync: closeFlow.enqueueCloseSync,
+    settleOrder: settlementFlow.settleOrder,
     handleOrderChangedWhenActive: (event) => {
       if (!activeHandler) {
         throw new Error('[订单监控] ACTIVE 事件处理器尚未初始化');
@@ -96,8 +101,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
   const eventFlow = createEventFlow({
     runtime,
     orderRecorder,
-    finalizeOrderClose: closeFlow.finalizeOrderClose,
-    enqueueCloseSync: closeFlow.enqueueCloseSync,
+    settleOrder: settlementFlow.settleOrder,
     cacheBootstrappingEvent: recoveryFlow.cacheBootstrappingEvent,
   });
   activeHandler = eventFlow.handleOrderChangedWhenActive;
@@ -112,10 +116,56 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     isExecutionAllowed,
     trackOrder: orderOps.trackOrder,
     cancelOrder: orderOps.cancelOrder,
-    cancelOrderWithOutcome: orderOps.cancelOrderWithOutcome,
-    processCloseSyncQueue: closeFlow.processCloseSyncQueue,
+    settleOrder: settlementFlow.settleOrder,
     replaceOrderPrice: orderOps.replaceOrderPrice,
   });
+
+  async function cancelOrder(orderId: string): Promise<CancelOrderOutcome> {
+    const outcome = await orderOps.cancelOrder(orderId);
+    if (outcome.kind !== 'ALREADY_CLOSED') {
+      return outcome;
+    }
+
+    const trackedOrder = runtime.trackedOrders.get(orderId);
+    if (!trackedOrder) {
+      resetOrderReplaceRuntimeState(runtime, orderId);
+      return outcome;
+    }
+
+    const terminalState = consumeQueriedTerminalState(runtime, orderId);
+    if (terminalState === null) {
+      logger.error(`[订单监控] 订单 ${orderId} 已确认终态，但缺少权威终态快照，拒绝向调用方暴露半成品结果`);
+      return {
+        kind: 'UNKNOWN_FAILURE',
+        errorCode: null,
+        message: `missing terminal state snapshot for settled cancel order ${orderId}`,
+      };
+    }
+
+    const alreadySettled = runtime.closedOrderIds.has(orderId);
+    const settlementResult = settlementFlow.settleOrder({
+      orderId,
+      closedReason: terminalState.closedReason,
+      source: 'STATE_CHECK',
+      executedPrice: terminalState.executedPrice,
+      executedQuantity: terminalState.executedQuantity,
+      executedTimeMs: terminalState.executedTimeMs,
+    });
+    resetOrderReplaceRuntimeState(runtime, orderId);
+    if (!settlementResult.handled && !alreadySettled) {
+      logger.error(`[订单监控] 订单 ${orderId} 已确认终态，但本地结算失败，拒绝向调用方暴露未结算结果`);
+      return {
+        kind: 'UNKNOWN_FAILURE',
+        errorCode: null,
+        message: `terminal settlement failed for cancel order ${orderId}`,
+      };
+    }
+
+    return {
+      ...outcome,
+      relatedBuyOrderIds: settlementResult.relatedBuyOrderIds,
+    };
+  }
 
   testHooks?.setHandleOrderChanged?.(eventFlow.handleOrderChanged);
 
@@ -165,7 +215,6 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
   function clearTrackedOrders(): void {
     recoveryFlow.resetRecoveryTrackingState();
     recoveryFlow.clearBootstrappingEventBuffer();
-    closeFlow.clearCloseSyncQueue();
     runtime.trackedOrderLifecycles.clear();
     runtime.closedOrderIds.clear();
     runtime.runtimeState = 'BOOTSTRAPPING';
@@ -174,7 +223,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
   return {
     initialize,
     trackOrder: orderOps.trackOrder,
-    cancelOrder: orderOps.cancelOrder,
+    cancelOrder,
     replaceOrderPrice: orderOps.replaceOrderPrice,
     processWithLatestQuotes: quoteFlow.processWithLatestQuotes,
     recoverOrderTrackingFromSnapshot: recoveryFlow.recoverOrderTrackingFromSnapshot,

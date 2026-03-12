@@ -69,7 +69,7 @@ export type CancelPendingBuyOrdersContext = {
  */
 export type CancelPendingBuyOrdersResult = {
   readonly executed: boolean;
-  readonly cancelledCount: number;
+  readonly cancelRequestAcceptedCount: number;
 };
 
 /**

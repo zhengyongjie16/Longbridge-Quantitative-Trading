@@ -9,6 +9,7 @@ import type {
   Market,
   MarketTradingDays,
   Order,
+  OrderDetail,
   Period,
   PushCandlestickEvent,
   PushOrderChanged,
@@ -47,6 +48,7 @@ export type MockMethodName =
   | 'warrantList'
   | 'submitOrder'
   | 'cancelOrder'
+  | 'orderDetail'
   | 'replaceOrder'
   | 'todayOrders'
   | 'historyOrders'
@@ -189,6 +191,7 @@ export interface QuoteContextContract extends MockInvocationLog, MockFailureCont
 export interface TradeContextContract extends MockInvocationLog, MockFailureController {
   submitOrder: (options: SubmitOrderOptions) => Promise<SubmitOrderResponse>;
   cancelOrder: (orderId: string) => Promise<void>;
+  orderDetail: (orderId: string) => Promise<OrderDetail>;
   replaceOrder: (options: ReplaceOrderOptions) => Promise<void>;
   todayOrders: (options?: GetTodayOrdersOptions) => Promise<ReadonlyArray<Order>>;
   historyOrders: (options?: GetHistoryOrdersOptions) => Promise<ReadonlyArray<Order>>;

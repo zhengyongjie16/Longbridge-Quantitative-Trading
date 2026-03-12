@@ -2,7 +2,7 @@
  * orderExecutor 提交流程模块
  *
  * 职责：
- * - 计算买卖数量并完成卖单合并决策
+ * - 计算买卖数量并完成卖单合并与前置撤单决策
  * - 构造订单载荷并提交到 Trade API
  * - 在提交成功后注册 orderMonitor 追踪与卖单防重占用
  */
@@ -20,9 +20,9 @@ import {
   extractOrderId,
   formatOrderTypeLabel,
   getOrderTypeCode,
-  isConfirmedNonFilledClose,
   resolveOrderTypeConfig,
   resolveSellMergeDecision,
+  isTerminalNonFilledCloseConfirmed,
   toDecimal,
 } from '../utils.js';
 import type { SubmitTargetOrder, SubmitTargetOrderDeps } from './types.js';
@@ -57,6 +57,19 @@ function getOutcomeRelatedBuyOrderIds(outcome: CancelOrderOutcome): ReadonlyArra
   }
 
   return [];
+}
+
+function resolveCancelFailureTag(outcome: CancelOrderOutcome): string {
+  if (outcome.kind === 'ALREADY_CLOSED') {
+    return `${outcome.kind}:${outcome.closedReason}`;
+  }
+
+  if (outcome.kind === 'RETRYABLE_FAILURE' || outcome.kind === 'UNKNOWN_FAILURE') {
+    const errorCode = outcome.errorCode ?? 'UNKNOWN';
+    return `${outcome.kind}:${errorCode}`;
+  }
+
+  return outcome.kind;
 }
 
 /**
@@ -312,8 +325,13 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
           return null;
         }
 
-        if (cancelOutcomes.some((outcome) => !isConfirmedNonFilledClose(outcome))) {
-          logger.warn(`[订单合并] 撤单未确认非成交终态，跳过合并提交: ${targetSymbol}`);
+        const unconfirmedOutcome = cancelOutcomes.find(
+          (outcome) => !isTerminalNonFilledCloseConfirmed(outcome),
+        );
+        if (unconfirmedOutcome) {
+          logger.warn(
+            `[订单合并] 撤单未确认非成交终态，跳过合并提交: ${targetSymbol}, outcome=${resolveCancelFailureTag(unconfirmedOutcome)}`,
+          );
           return null;
         }
       }

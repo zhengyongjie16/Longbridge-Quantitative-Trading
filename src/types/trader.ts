@@ -1,15 +1,49 @@
+import type { OrderStatus } from 'longport';
+
 /**
  * 订单关闭原因。
- * 类型用途：统一表示订单终态关闭语义，供撤单结果、订单监控与定向对账共享。
- * 数据来源：撤单 API 返回、WebSocket 终态事件、定向对账结果。
+ * 类型用途：统一表示订单终态关闭语义，供撤单结果、订单监控与终态结算共享。
+ * 数据来源：撤单 API 返回、WebSocket 终态事件、单订单权威状态确认结果。
  * 使用范围：Trader、OrderMonitor、清仓冷却日志恢复等跨模块场景；全项目可引用。
  */
-export type OrderClosedReason = 'FILLED' | 'CANCELED' | 'REJECTED' | 'NOT_FOUND';
+export type OrderClosedReason = 'FILLED' | 'CANCELED' | 'REJECTED';
+
+/**
+ * 单订单权威状态确认结果。
+ * 类型用途：表达撤单/改单 API 业务失败后，单订单状态查询的标准化结果。
+ * 数据来源：orderStatusQuery.checkOrderState。
+ * 使用范围：orderMonitor 内部（orderOps 与调用链）。
+ */
+export type OrderStateCheckResult =
+  | {
+      readonly kind: 'TERMINAL';
+      readonly closedReason: OrderClosedReason;
+      readonly executedPrice: number | null;
+      readonly executedQuantity: number | null;
+      readonly executedTimeMs: number | null;
+      readonly status: OrderStatus;
+    }
+  | {
+      readonly kind: 'OPEN';
+      readonly status: OrderStatus;
+      readonly executedPrice: number | null;
+      readonly executedQuantity: number | null;
+      readonly updatedAtMs: number | null;
+    }
+  | {
+      readonly kind: 'QUERY_FAILED';
+      readonly reason: 'NOT_FOUND' | 'API_ERROR';
+      readonly errorCode: string | null;
+      readonly message: string;
+    };
 
 /**
  * 撤单结果（语义化 outcome）。
  * 类型用途：替代 boolean 语义，区分确认撤销、已关闭、可重试失败与未知失败。
- * 数据来源：OrderMonitor.cancelOrder / cancelOrderWithOutcome 返回值。
+ * 注意：
+ * - 对外的 trader/orderMonitor.cancelOrder() 会在确认 tracked order 已终态时先完成本地结算，再返回结果。
+ * - relatedBuyOrderIds 表示卖单终态结算后仍需由后续卖单继续关联的买单 ID；无法确定时为 null。
+ * 数据来源：OrderMonitor.cancelOrder 返回值。
  * 使用范围：Trader、OrderMonitor、订单执行与恢复链路；全项目可引用。
  */
 export type CancelOrderOutcome =

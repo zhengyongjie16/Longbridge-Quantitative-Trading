@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'bun:test';
 import {
   OrderSide,
+  type Order,
   OrderStatus,
   OrderType,
   TopicType,
@@ -25,6 +26,26 @@ import {
   createSymbolRegistryDouble,
 } from '../../helpers/testDoubles.js';
 import type { OrderRecord, PendingSellInfo, RawOrderFromAPI } from '../../../src/types/services.js';
+
+async function expectPromiseRejectsToMatch(
+  operation: () => Promise<unknown>,
+  expectedMessagePattern: RegExp,
+): Promise<void> {
+  try {
+    await operation();
+  } catch (error: unknown) {
+    if (!(error instanceof Error)) {
+      throw new Error(`[测试] 预期 Promise 以 Error 拒绝，实际为: ${String(error)}`, {
+        cause: error,
+      });
+    }
+
+    expect(error.message).toMatch(expectedMessagePattern);
+    return;
+  }
+
+  throw new Error('[测试] 预期 Promise 拒绝，但实际成功');
+}
 
 function createDeps(params?: {
   readonly sellTimeoutSeconds?: number;
@@ -349,7 +370,7 @@ describe('orderMonitor business flow', () => {
     expect(result.submittedPrice).toBe(0.058);
   });
 
-  it('converts timed-out sell order to market order after cancel', async () => {
+  it('waits for WS after timed-out sell cancel request success and does not convert immediately', async () => {
     const { deps, tradeCtx } = createDeps({
       sellTimeoutSeconds: 0,
     });
@@ -378,14 +399,201 @@ describe('orderMonitor business flow', () => {
     const submitCalls = tradeCtx.getCalls('submitOrder');
 
     expect(cancelCalls).toHaveLength(1);
-    expect(submitCalls).toHaveLength(1);
-
-    const submitPayload = submitCalls[0]?.args[0] as { readonly orderType: OrderType };
-    expect(submitPayload.orderType).toBe(OrderType.MO);
-    expect(monitor.getPendingSellOrders('BULL.HK').length).toBeGreaterThan(0);
+    expect(submitCalls).toHaveLength(0);
+    expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
+    expect(monitor.getPendingSellOrders('BULL.HK')).toHaveLength(1);
+    expect(monitor.getPendingSellOrders('BULL.HK')[0]?.orderType).toBe(OrderType.ELO);
   });
 
-  it('keeps protective liquidation marker when timeout sell converts to market order', async () => {
+  it('does not retry cancel when timed-out sell receives PendingCancel after cancel request success', async () => {
+    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
+      throw new Error('handleOrderChanged hook was not captured');
+    };
+    const { deps, tradeCtx } = createDeps({
+      sellTimeoutSeconds: 0,
+      onHandleOrderChanged: (handler) => {
+        handleOrderChanged = handler;
+      },
+    });
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+    await monitor.recoverOrderTrackingFromSnapshot([]);
+    monitor.trackOrder({
+      orderId: 'SELL-TIMEOUT-PENDING-CANCEL',
+      symbol: 'BULL.HK',
+      side: OrderSide.Sell,
+      price: 1,
+      quantity: 100,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+    const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]);
+    await monitor.processWithLatestQuotes(quotes);
+    expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
+    handleOrderChanged(
+      createPushOrderChanged({
+        orderId: 'SELL-TIMEOUT-PENDING-CANCEL',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.PendingCancel,
+        orderType: OrderType.ELO,
+        submittedPrice: 1,
+        submittedQuantity: 100,
+        executedQuantity: 0,
+        executedPrice: 0,
+        updatedAtMs: Date.parse('2026-02-25T03:11:00.000Z'),
+      }),
+    );
+    await monitor.processWithLatestQuotes(quotes);
+    expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
+    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
+    expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
+  });
+
+  it('does not retry cancel when timed-out buy receives PendingCancel after cancel request success', async () => {
+    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
+      throw new Error('handleOrderChanged hook was not captured');
+    };
+    const { deps, tradeCtx } = createDeps({
+      buyTimeoutSeconds: 0,
+      sellTimeoutSeconds: 999,
+      onHandleOrderChanged: (handler) => {
+        handleOrderChanged = handler;
+      },
+    });
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+    await monitor.recoverOrderTrackingFromSnapshot([]);
+    monitor.trackOrder({
+      orderId: 'BUY-TIMEOUT-PENDING-CANCEL',
+      symbol: 'BULL.HK',
+      side: OrderSide.Buy,
+      price: 1,
+      quantity: 100,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+    const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]);
+    await monitor.processWithLatestQuotes(quotes);
+    expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
+    handleOrderChanged(
+      createPushOrderChanged({
+        orderId: 'BUY-TIMEOUT-PENDING-CANCEL',
+        symbol: 'BULL.HK',
+        side: OrderSide.Buy,
+        status: OrderStatus.PendingCancel,
+        orderType: OrderType.ELO,
+        submittedPrice: 1,
+        submittedQuantity: 100,
+        executedQuantity: 0,
+        executedPrice: 0,
+        updatedAtMs: Date.parse('2026-02-25T03:12:00.000Z'),
+      }),
+    );
+    await monitor.processWithLatestQuotes(quotes);
+    expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
+    expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
+  });
+
+  it('does not retry cancel when timed-out sell receives WaitToCancel after cancel request success', async () => {
+    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
+      throw new Error('handleOrderChanged hook was not captured');
+    };
+    const { deps, tradeCtx } = createDeps({
+      sellTimeoutSeconds: 0,
+      onHandleOrderChanged: (handler) => {
+        handleOrderChanged = handler;
+      },
+    });
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+    await monitor.recoverOrderTrackingFromSnapshot([]);
+    monitor.trackOrder({
+      orderId: 'SELL-TIMEOUT-WAIT-TO-CANCEL',
+      symbol: 'BULL.HK',
+      side: OrderSide.Sell,
+      price: 1,
+      quantity: 100,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+    const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]);
+    await monitor.processWithLatestQuotes(quotes);
+    expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
+    handleOrderChanged(
+      createPushOrderChanged({
+        orderId: 'SELL-TIMEOUT-WAIT-TO-CANCEL',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.WaitToCancel,
+        orderType: OrderType.ELO,
+        submittedPrice: 1,
+        submittedQuantity: 100,
+        executedQuantity: 0,
+        executedPrice: 0,
+        updatedAtMs: Date.parse('2026-02-25T03:13:00.000Z'),
+      }),
+    );
+    await monitor.processWithLatestQuotes(quotes);
+    expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
+    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
+    expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
+  });
+
+  it('does not retry cancel when timed-out buy receives WaitToCancel after cancel request success', async () => {
+    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
+      throw new Error('handleOrderChanged hook was not captured');
+    };
+    const { deps, tradeCtx } = createDeps({
+      buyTimeoutSeconds: 0,
+      sellTimeoutSeconds: 999,
+      onHandleOrderChanged: (handler) => {
+        handleOrderChanged = handler;
+      },
+    });
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+    await monitor.recoverOrderTrackingFromSnapshot([]);
+    monitor.trackOrder({
+      orderId: 'BUY-TIMEOUT-WAIT-TO-CANCEL',
+      symbol: 'BULL.HK',
+      side: OrderSide.Buy,
+      price: 1,
+      quantity: 100,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+    const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]);
+    await monitor.processWithLatestQuotes(quotes);
+    expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
+    handleOrderChanged(
+      createPushOrderChanged({
+        orderId: 'BUY-TIMEOUT-WAIT-TO-CANCEL',
+        symbol: 'BULL.HK',
+        side: OrderSide.Buy,
+        status: OrderStatus.WaitToCancel,
+        orderType: OrderType.ELO,
+        submittedPrice: 1,
+        submittedQuantity: 100,
+        executedQuantity: 0,
+        executedPrice: 0,
+        updatedAtMs: Date.parse('2026-02-25T03:14:00.000Z'),
+      }),
+    );
+    await monitor.processWithLatestQuotes(quotes);
+    expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
+    expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
+  });
+
+  it('keeps protective sell tracked and does not submit market order before WS confirmation', async () => {
     const { deps, tradeCtx } = createDeps({
       sellTimeoutSeconds: 0,
     });
@@ -410,13 +618,74 @@ describe('orderMonitor business flow', () => {
       new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]),
     );
 
-    const submitCalls = tradeCtx.getCalls('submitOrder');
-    expect(submitCalls).toHaveLength(1);
-    const submitPayload = submitCalls[0]?.args[0] as { readonly remark?: string };
-    expect(submitPayload.remark).toBe('超时转市价-原订单SELL-PROTECTIVE-TIMEOUT|PL');
+    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
+    expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
+    const pending = monitor.getPendingSellOrders('BULL.HK');
+    expect(pending).toHaveLength(1);
+    expect(pending[0]?.orderId).toBe('SELL-PROTECTIVE-TIMEOUT');
   });
 
-  it('reuses cancelled pending-sell relatedBuyOrderIds when converting timeout sells to market', async () => {
+  it('converts timed-out sell to market order after WS confirms non-filled terminal', async () => {
+    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
+      throw new Error('handleOrderChanged hook was not captured');
+    };
+    const { deps, tradeCtx } = createDeps({
+      sellTimeoutSeconds: 0,
+      onHandleOrderChanged: (handler) => {
+        handleOrderChanged = handler;
+      },
+    });
+    const monitor = createOrderMonitor(deps);
+
+    await monitor.initialize();
+    await monitor.recoverOrderTrackingFromSnapshot([]);
+
+    monitor.trackOrder({
+      orderId: 'SELL-TIMEOUT-CONVERT-WS',
+      symbol: 'BULL.HK',
+      side: OrderSide.Sell,
+      price: 1,
+      quantity: 100,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+
+    const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]);
+    await monitor.processWithLatestQuotes(quotes);
+
+    handleOrderChanged(
+      createPushOrderChanged({
+        orderId: 'SELL-TIMEOUT-CONVERT-WS',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.Canceled,
+        orderType: OrderType.ELO,
+        submittedPrice: 1,
+        submittedQuantity: 100,
+        executedQuantity: 0,
+        executedPrice: 0,
+        updatedAtMs: Date.parse('2026-02-25T03:11:00.000Z'),
+      }),
+    );
+
+    await monitor.processWithLatestQuotes(quotes);
+
+    expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
+    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(1);
+    const submitCall = tradeCtx.getCalls('submitOrder')[0];
+    const payload = submitCall?.args[0] as {
+      readonly orderType: OrderType;
+      readonly side: OrderSide;
+      readonly submittedQuantity: { readonly toString: () => string };
+    };
+    expect(payload.orderType).toBe(OrderType.MO);
+    expect(payload.side).toBe(OrderSide.Sell);
+    expect(Number(payload.submittedQuantity.toString())).toBe(100);
+  });
+
+  it('does not allocate replacement relatedBuyOrderIds when timeout sell cancel request succeeds', async () => {
     let allocateCalls = 0;
     const { deps, tradeCtx } = createDeps({
       sellTimeoutSeconds: 0,
@@ -437,14 +706,16 @@ describe('orderMonitor business flow', () => {
         status: OrderStatus.New,
       }),
     ]);
+    const allocateCallsBeforeTimeoutProcessing = allocateCalls;
 
     await monitor.processWithLatestQuotes(
       new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]),
     );
 
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
-    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(1);
-    expect(allocateCalls).toBe(1);
+    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
+    expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
+    expect(allocateCalls).toBe(allocateCallsBeforeTimeoutProcessing);
   });
 
   it('cancels timed-out buy order without market conversion', async () => {
@@ -556,22 +827,67 @@ describe('orderMonitor business flow', () => {
     expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(0);
   });
 
-  it('recovers from snapshot without calling todayOrders and cancels mismatched pending buys', async () => {
+  it('recovery keeps strict mode when mismatched buy cancel request succeeds without WS terminal', async () => {
     const { deps, tradeCtx } = createDeps();
     const monitor = createOrderMonitor(deps);
     await monitor.initialize();
 
-    await monitor.recoverOrderTrackingFromSnapshot([
-      createPendingRecoveryOrder({
-        orderId: 'BUY-MISMATCH',
-        symbol: 'OTHER.HK',
-        side: OrderSide.Buy,
-        status: OrderStatus.New,
-      }),
-    ]);
+    await expectPromiseRejectsToMatch(
+      () =>
+        monitor.recoverOrderTrackingFromSnapshot([
+          createPendingRecoveryOrder({
+            orderId: 'BUY-MISMATCH',
+            symbol: 'OTHER.HK',
+            side: OrderSide.Buy,
+            status: OrderStatus.New,
+          }),
+        ]),
+      /终态未确认/,
+    );
 
     expect(tradeCtx.getCalls('todayOrders')).toHaveLength(0);
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
+  });
+
+  it('recovery blocks when mismatched buy terminal has executed quantity but ownership is unresolved', async () => {
+    const { deps, tradeCtx } = createDeps();
+    tradeCtx.setFailureRule('cancelOrder', {
+      failAtCalls: [1],
+      maxFailures: 1,
+      errorMessage: 'openapi error: code=603001: Order not found',
+    });
+
+    tradeCtx.seedTodayOrders([
+      createPendingRecoveryOrder({
+        orderId: 'BUY-MISMATCH-PARTIAL',
+        symbol: 'OTHER.HK',
+        stockName: 'UNKNOWN-ORDER-NAME',
+        side: OrderSide.Buy,
+        status: OrderStatus.PartialWithdrawal,
+        quantity: 100,
+        executedQuantity: 20,
+        executedPrice: 1.02,
+      }) as unknown as Order,
+    ]);
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+
+    await expectPromiseRejectsToMatch(
+      () =>
+        monitor.recoverOrderTrackingFromSnapshot([
+          createPendingRecoveryOrder({
+            orderId: 'BUY-MISMATCH-PARTIAL',
+            symbol: 'OTHER.HK',
+            stockName: 'UNKNOWN-ORDER-NAME',
+            side: OrderSide.Buy,
+            status: OrderStatus.New,
+          }),
+        ]),
+      /终态已确认但结算失败/,
+    );
+
+    expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
+    expect(tradeCtx.getCalls('orderDetail')).toHaveLength(1);
   });
 
   it('replays bootstrapping filled events after snapshot recovery', async () => {
@@ -679,20 +995,22 @@ describe('orderMonitor business flow', () => {
     const monitor = createOrderMonitor(deps);
     await monitor.initialize();
 
-    expect(
-      monitor.recoverOrderTrackingFromSnapshot([
-        createPendingRecoveryOrder({
-          orderId: 'SELL-UNRESOLVED',
-          symbol: 'BULL.HK',
-          side: OrderSide.Sell,
-          stockName: 'UNKNOWN-ORDER-NAME',
-          status: OrderStatus.New,
-        }),
-      ]),
-    ).rejects.toThrow(/无法解析归属/);
+    await expectPromiseRejectsToMatch(
+      () =>
+        monitor.recoverOrderTrackingFromSnapshot([
+          createPendingRecoveryOrder({
+            orderId: 'SELL-UNRESOLVED',
+            symbol: 'BULL.HK',
+            side: OrderSide.Sell,
+            stockName: 'UNKNOWN-ORDER-NAME',
+            status: OrderStatus.New,
+          }),
+        ]),
+      /无法解析归属/,
+    );
   });
 
-  it('clears recovered sell runtime state when mismatched buy cancel fails, then allows retry', async () => {
+  it('clears recovered sell runtime state when mismatched buy cancel fails, and remains strict on later cancel success', async () => {
     const { deps, tradeCtx } = createDeps();
     const monitor = createOrderMonitor(deps);
     await monitor.initialize();
@@ -716,15 +1034,18 @@ describe('orderMonitor business flow', () => {
       status: OrderStatus.New,
     });
 
-    expect(
-      monitor.recoverOrderTrackingFromSnapshot([pendingSell, mismatchedPendingBuy]),
-    ).rejects.toThrow(/撤单失败|撤单结果未知/);
+    await expectPromiseRejectsToMatch(
+      () => monitor.recoverOrderTrackingFromSnapshot([pendingSell, mismatchedPendingBuy]),
+      /撤单失败|终态未确认/,
+    );
     expect(monitor.getPendingSellOrders('BULL.HK')).toHaveLength(0);
 
     tradeCtx.clearFailureRules();
-    await monitor.recoverOrderTrackingFromSnapshot([pendingSell, mismatchedPendingBuy]);
-
-    expect(monitor.getPendingSellOrders('BULL.HK')).toHaveLength(1);
+    await expectPromiseRejectsToMatch(
+      () => monitor.recoverOrderTrackingFromSnapshot([pendingSell, mismatchedPendingBuy]),
+      /终态未确认/,
+    );
+    expect(monitor.getPendingSellOrders('BULL.HK')).toHaveLength(0);
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(2);
   });
 
@@ -1350,36 +1671,58 @@ describe('orderMonitor business flow', () => {
     expect(recordLocalSellCalls[0]?.relatedBuyOrderIds).toBeNull();
   });
 
-  it('cleans tracked order once when cancel returns already-canceled (601011)', async () => {
-    const { deps, tradeCtx } = createDeps({
-      buyTimeoutSeconds: 0,
-      sellTimeoutSeconds: 999,
-    });
-    tradeCtx.setFailureRule('cancelOrder', {
-      failAtCalls: [1],
-      maxFailures: 1,
-      errorMessage: 'openapi error: code=601011: Order has been cancelled',
-    });
-    const monitor = createOrderMonitor(deps);
-    await monitor.initialize();
+  it('cleans tracked order when cancel returns already-canceled (601011) and orderDetail confirms terminal', async () => {
+    const originalNow = Date.now;
+    let nowMs = Date.parse('2026-02-25T03:00:00.000Z');
+    Date.now = () => nowMs;
+    try {
+      const { deps, tradeCtx } = createDeps({
+        buyTimeoutSeconds: 0,
+        sellTimeoutSeconds: 999,
+      });
+      tradeCtx.setFailureRule('cancelOrder', {
+        failAtCalls: [1],
+        maxFailures: 1,
+        errorMessage: 'openapi error: code=601011: Order has been cancelled',
+      });
 
-    monitor.trackOrder({
-      orderId: 'BUY-TIMEOUT-601011',
-      symbol: 'BULL.HK',
-      side: OrderSide.Buy,
-      price: 1,
-      quantity: 100,
-      isLongSymbol: true,
-      monitorSymbol: 'HSI.HK',
-      isProtectiveLiquidation: false,
-      orderType: OrderType.ELO,
-    });
+      tradeCtx.seedTodayOrders([
+        createPendingRecoveryOrder({
+          orderId: 'BUY-TIMEOUT-601011',
+          symbol: 'BULL.HK',
+          side: OrderSide.Buy,
+          status: OrderStatus.Canceled,
+          quantity: 100,
+          executedQuantity: 0,
+          executedPrice: 0,
+          updatedAt: new Date('2026-02-25T03:00:05.000Z'),
+        }) as unknown as Order,
+      ]);
+      const monitor = createOrderMonitor(deps);
+      await monitor.initialize();
 
-    const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]);
-    await monitor.processWithLatestQuotes(quotes);
-    await monitor.processWithLatestQuotes(quotes);
+      monitor.trackOrder({
+        orderId: 'BUY-TIMEOUT-601011',
+        symbol: 'BULL.HK',
+        side: OrderSide.Buy,
+        price: 1,
+        quantity: 100,
+        isLongSymbol: true,
+        monitorSymbol: 'HSI.HK',
+        isProtectiveLiquidation: false,
+        orderType: OrderType.ELO,
+      });
 
-    expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
+      const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]);
+      await monitor.processWithLatestQuotes(quotes);
+      nowMs += 2_000;
+      await monitor.processWithLatestQuotes(quotes);
+
+      expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
+      expect(tradeCtx.getCalls('orderDetail')).toHaveLength(1);
+    } finally {
+      Date.now = originalNow;
+    }
   });
 
   it('marks 602012 as permanently unsupported and skips further replace attempts', async () => {
@@ -1414,42 +1757,359 @@ describe('orderMonitor business flow', () => {
     expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(1);
   });
 
-  it('marks 602013 as temporarily blocked and retries replace after backoff', async () => {
+  it('marks 602013 as temporarily blocked and escalates to orderDetail on 5th consecutive hit', async () => {
+    const originalNow = Date.now;
+    let nowMs = Date.parse('2026-02-25T03:00:00.000Z');
+    Date.now = () => nowMs;
+
     const { deps, tradeCtx } = createDeps({
       sellTimeoutSeconds: 999,
       buyTimeoutSeconds: 999,
     });
     tradeCtx.setFailureRule('replaceOrder', {
-      failAtCalls: [1],
-      maxFailures: 1,
+      failAtCalls: [1, 2, 3, 4, 5],
+      maxFailures: 5,
       errorMessage: 'openapi error: code=602013: status does not allow amendment',
     });
+
+    tradeCtx.seedTodayOrders([
+      createPendingRecoveryOrder({
+        orderId: 'SELL-REPLACE-602013',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.PendingReplace,
+        quantity: 100,
+        executedQuantity: 0,
+        executedPrice: 0,
+      }) as unknown as Order,
+    ]);
+    const monitor = createOrderMonitor(deps);
+    try {
+      await monitor.initialize();
+
+      monitor.trackOrder({
+        orderId: 'SELL-REPLACE-602013',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        price: 1,
+        quantity: 100,
+        isLongSymbol: true,
+        monitorSymbol: 'HSI.HK',
+        isProtectiveLiquidation: false,
+        orderType: OrderType.ELO,
+      });
+
+      const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.1)]]);
+      await monitor.processWithLatestQuotes(quotes);
+      expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(1);
+      expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
+
+      nowMs += 1_000;
+      await monitor.processWithLatestQuotes(quotes);
+      expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(2);
+      expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
+
+      nowMs += 2_000;
+      await monitor.processWithLatestQuotes(quotes);
+      expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(3);
+      expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
+
+      nowMs += 4_000;
+      await monitor.processWithLatestQuotes(quotes);
+      expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(4);
+      expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
+
+      nowMs += 8_000;
+      await monitor.processWithLatestQuotes(quotes);
+      expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(5);
+      expect(tradeCtx.getCalls('orderDetail')).toHaveLength(1);
+
+      nowMs += 60_000;
+      await monitor.processWithLatestQuotes(quotes);
+      expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(5);
+    } finally {
+      Date.now = originalNow;
+    }
+  });
+
+  it('resets 602013 consecutive counter after ws status progression and re-escalates only after next 5 hits', async () => {
+    const originalNow = Date.now;
+    let nowMs = Date.parse('2026-02-25T04:00:00.000Z');
+    Date.now = () => nowMs;
+
+    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
+      throw new Error('handleOrderChanged hook was not captured');
+    };
+    const { deps, tradeCtx } = createDeps({
+      sellTimeoutSeconds: 999,
+      buyTimeoutSeconds: 999,
+      onHandleOrderChanged: (handler) => {
+        handleOrderChanged = handler;
+      },
+    });
+    tradeCtx.setFailureRule('replaceOrder', {
+      failAtCalls: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+      maxFailures: 10,
+      errorMessage: 'openapi error: code=602013: status does not allow amendment',
+    });
+
+    tradeCtx.seedTodayOrders([
+      createPendingRecoveryOrder({
+        orderId: 'SELL-REPLACE-602013-RESET',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.PendingReplace,
+        quantity: 100,
+        executedQuantity: 0,
+        executedPrice: 0,
+      }) as unknown as Order,
+    ]);
+
+    const monitor = createOrderMonitor(deps);
+    try {
+      await monitor.initialize();
+      await monitor.recoverOrderTrackingFromSnapshot([]);
+
+      monitor.trackOrder({
+        orderId: 'SELL-REPLACE-602013-RESET',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        price: 1,
+        quantity: 100,
+        isLongSymbol: true,
+        monitorSymbol: 'HSI.HK',
+        isProtectiveLiquidation: false,
+        orderType: OrderType.ELO,
+      });
+
+      const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.1)]]);
+
+      await monitor.processWithLatestQuotes(quotes);
+      nowMs += 1_000;
+      await monitor.processWithLatestQuotes(quotes);
+      nowMs += 2_000;
+      await monitor.processWithLatestQuotes(quotes);
+      nowMs += 4_000;
+      await monitor.processWithLatestQuotes(quotes);
+      nowMs += 8_000;
+      await monitor.processWithLatestQuotes(quotes);
+
+      expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(5);
+      expect(tradeCtx.getCalls('orderDetail')).toHaveLength(1);
+
+      handleOrderChanged(
+        createPushOrderChanged({
+          orderId: 'SELL-REPLACE-602013-RESET',
+          symbol: 'BULL.HK',
+          side: OrderSide.Sell,
+          status: OrderStatus.PendingReplace,
+          orderType: OrderType.ELO,
+          submittedPrice: 1,
+          submittedQuantity: 100,
+          executedPrice: 0,
+          executedQuantity: 0,
+        }),
+      );
+
+      handleOrderChanged(
+        createPushOrderChanged({
+          orderId: 'SELL-REPLACE-602013-RESET',
+          symbol: 'BULL.HK',
+          side: OrderSide.Sell,
+          status: OrderStatus.New,
+          orderType: OrderType.ELO,
+          submittedPrice: 1,
+          submittedQuantity: 100,
+          executedPrice: 0,
+          executedQuantity: 0,
+        }),
+      );
+
+      await monitor.processWithLatestQuotes(quotes);
+      expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(6);
+      expect(tradeCtx.getCalls('orderDetail')).toHaveLength(1);
+
+      nowMs += 1_000;
+      await monitor.processWithLatestQuotes(quotes);
+      nowMs += 2_000;
+      await monitor.processWithLatestQuotes(quotes);
+      nowMs += 4_000;
+      await monitor.processWithLatestQuotes(quotes);
+      nowMs += 8_000;
+      await monitor.processWithLatestQuotes(quotes);
+
+      expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(10);
+      expect(tradeCtx.getCalls('orderDetail')).toHaveLength(2);
+    } finally {
+      Date.now = originalNow;
+    }
+  });
+
+  it('public cancelOrder settles state-checked sell close and returns remaining related buy order ids', async () => {
+    const pendingSellSnapshot = new Map<string, PendingSellInfo>();
+    const buyOrders: ReadonlyArray<OrderRecord> = [
+      {
+        orderId: 'BUY-1',
+        symbol: 'BULL.HK',
+        executedPrice: 1,
+        executedQuantity: 100,
+        executedTime: Date.parse('2026-02-25T03:00:00.000Z'),
+        submittedAt: new Date('2026-02-25T03:00:00.000Z'),
+        updatedAt: new Date('2026-02-25T03:00:00.000Z'),
+      },
+      {
+        orderId: 'BUY-2',
+        symbol: 'BULL.HK',
+        executedPrice: 1.2,
+        executedQuantity: 100,
+        executedTime: Date.parse('2026-02-25T03:05:00.000Z'),
+        submittedAt: new Date('2026-02-25T03:05:00.000Z'),
+        updatedAt: new Date('2026-02-25T03:05:00.000Z'),
+      },
+    ];
+    const recordLocalSellCalls: Array<ReadonlyArray<string> | null> = [];
+    const orderRecorder = createOrderRecorderDouble({
+      submitSellOrder: (
+        orderId: string,
+        symbol: string,
+        direction: 'LONG' | 'SHORT',
+        quantity: number,
+        relatedBuyOrderIds: readonly string[],
+        submittedAtMs?: number,
+      ) => {
+        pendingSellSnapshot.set(orderId, {
+          orderId,
+          symbol,
+          direction,
+          submittedQuantity: quantity,
+          filledQuantity: 0,
+          relatedBuyOrderIds,
+          status: 'pending',
+          submittedAt: submittedAtMs ?? Date.now(),
+        });
+      },
+      markSellCancelled: (orderId: string) => {
+        const current = pendingSellSnapshot.get(orderId);
+        if (!current) {
+          return null;
+        }
+
+        pendingSellSnapshot.delete(orderId);
+        return {
+          ...current,
+          status: 'cancelled' as const,
+        };
+      },
+      getPendingSellSnapshot: () => [...pendingSellSnapshot.values()],
+      getBuyOrdersForSymbol: () => buyOrders,
+      recordLocalSell: (
+        _symbol,
+        _executedPrice,
+        _executedQuantity,
+        _isLongSymbol,
+        _executedTimeMs,
+        _orderId,
+        relatedBuyOrderIds,
+      ) => {
+        recordLocalSellCalls.push(relatedBuyOrderIds ?? null);
+      },
+    });
+    const { deps, tradeCtx } = createDeps({
+      orderRecorderOverride: orderRecorder,
+    });
+    tradeCtx.setFailureRule('cancelOrder', {
+      failAtCalls: [1],
+      maxFailures: 1,
+      errorMessage: 'openapi error: code=603001: Order not found',
+    });
+
+    tradeCtx.seedTodayOrders([
+      createPendingRecoveryOrder({
+        orderId: 'SELL-CANCEL-SETTLED',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.PartialWithdrawal,
+        quantity: 200,
+        executedQuantity: 100,
+        executedPrice: 1.05,
+        updatedAt: new Date('2026-02-25T03:11:00.000Z'),
+      }) as unknown as Order,
+    ]);
+
     const monitor = createOrderMonitor(deps);
     await monitor.initialize();
+    await monitor.recoverOrderTrackingFromSnapshot([]);
 
+    orderRecorder.submitSellOrder('SELL-CANCEL-SETTLED', 'BULL.HK', 'LONG', 200, ['BUY-1', 'BUY-2']);
     monitor.trackOrder({
-      orderId: 'SELL-REPLACE-602013',
+      orderId: 'SELL-CANCEL-SETTLED',
       symbol: 'BULL.HK',
       side: OrderSide.Sell,
       price: 1,
-      quantity: 100,
+      quantity: 200,
       isLongSymbol: true,
       monitorSymbol: 'HSI.HK',
       isProtectiveLiquidation: false,
       orderType: OrderType.ELO,
     });
 
-    const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.1)]]);
-    await monitor.processWithLatestQuotes(quotes);
-    await monitor.processWithLatestQuotes(quotes);
-    expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(1);
+    const outcome = await monitor.cancelOrder('SELL-CANCEL-SETTLED');
 
-    await Bun.sleep(1100);
-    await monitor.processWithLatestQuotes(quotes);
-    expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(2);
+    expect(outcome.kind).toBe('ALREADY_CLOSED');
+    if (outcome.kind === 'ALREADY_CLOSED') {
+      expect(outcome.closedReason).toBe('CANCELED');
+      expect(outcome.relatedBuyOrderIds).toEqual(['BUY-2']);
+    }
+
+    expect(recordLocalSellCalls).toEqual([['BUY-1']]);
+    expect(tradeCtx.getCalls('orderDetail')).toHaveLength(1);
+    expect(monitor.getPendingSellOrders('BULL.HK')).toHaveLength(0);
+    expect(monitor.getAndClearPendingRefreshSymbols()).toEqual([
+      {
+        symbol: 'BULL.HK',
+        isLongSymbol: true,
+        refreshAccount: true,
+        refreshPositions: true,
+      },
+    ]);
   });
 
-  it('enters close sync on 603001 and reconciles to closed state without repeated cancel', async () => {
+  it('public cancelOrder returns already-closed for untracked filled order (601012)', async () => {
+    const { deps, tradeCtx } = createDeps();
+    tradeCtx.setFailureRule('cancelOrder', {
+      failAtCalls: [1],
+      maxFailures: 1,
+      errorMessage: 'openapi error: code=601012: Order has been filled',
+    });
+
+    tradeCtx.seedTodayOrders([
+      createPendingRecoveryOrder({
+        orderId: 'UNTRACKED-601012-FILLED',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.Filled,
+        quantity: 100,
+        executedQuantity: 100,
+        executedPrice: 1.03,
+      }) as unknown as Order,
+    ]);
+
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+    await monitor.recoverOrderTrackingFromSnapshot([]);
+
+    const outcome = await monitor.cancelOrder('UNTRACKED-601012-FILLED');
+
+    expect(outcome.kind).toBe('ALREADY_CLOSED');
+    if (outcome.kind === 'ALREADY_CLOSED') {
+      expect(outcome.closedReason).toBe('FILLED');
+      expect(outcome.relatedBuyOrderIds).toBeNull();
+    }
+
+    expect(tradeCtx.getCalls('orderDetail')).toHaveLength(1);
+  });
+
+  it('does not enter close sync on 603001 and keeps timeout conversion blocked', async () => {
     let fetchAllOrdersCalls = 0;
     const { deps, tradeCtx } = createDeps({
       sellTimeoutSeconds: 0,
@@ -1494,11 +2154,11 @@ describe('orderMonitor business flow', () => {
     const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.01)]]);
     await monitor.processWithLatestQuotes(quotes);
     await monitor.processWithLatestQuotes(quotes);
-    await Bun.sleep(1100);
-    await monitor.processWithLatestQuotes(quotes);
 
-    expect(fetchAllOrdersCalls).toBeGreaterThan(0);
+    expect(fetchAllOrdersCalls).toBe(0);
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
+    expect(tradeCtx.getCalls('orderDetail')).toHaveLength(1);
+    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
   });
 
   it('keeps close sink idempotent when duplicate filled events are received', async () => {
@@ -1549,5 +2209,73 @@ describe('orderMonitor business flow', () => {
     handleOrderChanged(filledEvent);
 
     expect(localBuyCount).toBe(1);
+  });
+
+  it('records executed buy quantity when PartialWithdrawal closes remaining quantity', async () => {
+    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
+      throw new Error('handleOrderChanged hook was not captured');
+    };
+    let localBuyCount = 0;
+    let dailyLossCount = 0;
+    const { deps } = createDeps({
+      onHandleOrderChanged: (handler) => {
+        handleOrderChanged = handler;
+      },
+      orderRecorderOverride: createOrderRecorderDouble({
+        recordLocalBuy: () => {
+          localBuyCount += 1;
+        },
+      }),
+      dailyLossTrackerOverride: {
+        resetAll: () => {},
+        resetDirectionSegment: () => {},
+        recalculateFromAllOrders: () => {},
+        recordFilledOrder: () => {
+          dailyLossCount += 1;
+        },
+        getLossOffset: () => 0,
+      },
+    });
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+    await monitor.recoverOrderTrackingFromSnapshot([]);
+
+    monitor.trackOrder({
+      orderId: 'BUY-PARTIAL-WITHDRAWAL',
+      symbol: 'BULL.HK',
+      side: OrderSide.Buy,
+      price: 1,
+      quantity: 100,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+
+    handleOrderChanged(
+      createPushOrderChanged({
+        orderId: 'BUY-PARTIAL-WITHDRAWAL',
+        symbol: 'BULL.HK',
+        side: OrderSide.Buy,
+        status: OrderStatus.PartialWithdrawal,
+        orderType: OrderType.ELO,
+        submittedPrice: 1,
+        submittedQuantity: 100,
+        executedPrice: 1.01,
+        executedQuantity: 20,
+        updatedAtMs: Date.parse('2026-02-25T03:11:00.000Z'),
+      }),
+    );
+
+    expect(localBuyCount).toBe(1);
+    expect(dailyLossCount).toBe(1);
+    expect(monitor.getAndClearPendingRefreshSymbols()).toEqual([
+      {
+        symbol: 'BULL.HK',
+        isLongSymbol: true,
+        refreshAccount: true,
+        refreshPositions: true,
+      },
+    ]);
   });
 });

@@ -202,7 +202,7 @@ export interface OrderMonitor {
   /** 开始追踪订单 */
   trackOrder: (params: TrackOrderParams) => void;
 
-  /** 撤销订单 */
+  /** 撤销订单；若 tracked order 已被权威确认为终态，会先完成本地结算再返回结果 */
   cancelOrder: (orderId: string) => Promise<CancelOrderOutcome>;
 
   /** 修改订单价格 */

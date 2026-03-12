@@ -535,6 +535,84 @@ describe('sell-flow integration', () => {
     expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
   });
 
+  it('does not submit merged sell order before cancel reaches confirmed terminal close', async () => {
+    const tradingConfig = createTradingConfig();
+    const tradeCtx = createTradeContextMock();
+    tradeCtx.seedStockPositions(
+      createStockPositionsResponse({
+        symbol: 'BULL.HK',
+        quantity: 300,
+        availableQuantity: 300,
+      }),
+    );
+
+    const cancelCalls: string[] = [];
+    const orderExecutor = createOrderExecutor({
+      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      rateLimiter: {
+        throttle: async () => {},
+      },
+      cacheManager: {
+        clearCache: () => {},
+        getPendingOrders: async () => [],
+      },
+      orderMonitor: {
+        initialize: async () => {},
+        trackOrder: () => {},
+        cancelOrder: async (orderId) => {
+          cancelCalls.push(orderId);
+          return {
+            kind: 'CANCEL_CONFIRMED',
+            closedReason: 'CANCELED',
+            source: 'API',
+            relatedBuyOrderIds: ['BUY-OLD'],
+          };
+        },
+        replaceOrderPrice: async () => {},
+        processWithLatestQuotes: async () => {},
+        recoverOrderTrackingFromSnapshot: async () => {},
+        getPendingSellOrders: () => [
+          {
+            orderId: 'SELL-MARKET-EXISTING',
+            symbol: 'BULL.HK',
+            side: OrderSide.Sell,
+            status: OrderStatus.New,
+            orderType: OrderType.MO,
+            submittedPrice: 1,
+            submittedQuantity: 100,
+            executedQuantity: 0,
+            submittedAt: Date.parse('2026-02-25T03:00:00.000Z'),
+          },
+        ],
+        getAndClearPendingRefreshSymbols: () => [],
+        clearTrackedOrders: () => {},
+      },
+      orderRecorder: createOrderRecorderDouble(),
+      tradingConfig,
+      symbolRegistry: createSymbolRegistryDouble(),
+      isExecutionAllowed: () => true,
+    });
+
+    const signal = createSignal({
+      symbol: 'BULL.HK',
+      action: 'SELLCALL',
+      price: 1.03,
+      triggerTimeMs: Date.now(),
+      reason: 'cancel-and-submit-wait-terminal',
+    });
+    signal.quantity = 50;
+    signal.relatedBuyOrderIds = ['BUY-NEW'];
+
+    const result = await orderExecutor.executeSignals([signal]);
+
+    expect(result).toEqual({
+      submittedCount: 0,
+      submittedOrderIds: [],
+    });
+    expect(cancelCalls).toEqual(['SELL-MARKET-EXISTING']);
+    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
+  });
+
   it('carries original related buy orders into CANCEL_AND_SUBMIT merged sell order', async () => {
     const tradingConfig = createTradingConfig();
     const tradeCtx = createTradeContextMock();
@@ -571,9 +649,9 @@ describe('sell-flow integration', () => {
         cancelOrder: async (orderId) => {
           cancelCalls.push(orderId);
           return {
-            kind: 'CANCEL_CONFIRMED',
+            kind: 'ALREADY_CLOSED',
             closedReason: 'CANCELED',
-            source: 'API',
+            source: 'API_ERROR',
             relatedBuyOrderIds: ['BUY-OLD'],
           };
         },

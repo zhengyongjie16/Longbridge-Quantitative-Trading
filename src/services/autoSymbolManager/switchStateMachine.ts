@@ -11,7 +11,8 @@ import type { Position } from '../../types/account.js';
 import type { Quote } from '../../types/quote.js';
 import type { SeatState } from '../../types/seat.js';
 import type { PendingOrder } from '../../types/services.js';
-import { isConfirmedNonFilledClose } from '../../core/trader/utils.js';
+import type { CancelOrderOutcome } from '../../types/trader.js';
+import { isCancelAcceptedOrTerminalNonFilledClose } from '../../core/trader/utils.js';
 import type {
   StartSwitchFlowParams,
   SwitchOnDistanceParams,
@@ -75,6 +76,38 @@ function shouldResetPeriodicPendingBySeatReadyAt(params: {
   }
 
   return params.lastSeatReadyAt > params.pendingSinceMs;
+}
+
+function resolveCancelFailureReason(outcome: CancelOrderOutcome): string {
+  if (outcome.kind === 'ALREADY_CLOSED') {
+    return `${outcome.kind}:${outcome.closedReason}`;
+  }
+
+  if (outcome.kind === 'RETRYABLE_FAILURE' || outcome.kind === 'UNKNOWN_FAILURE') {
+    return `${outcome.kind}:${outcome.errorCode ?? 'UNKNOWN'}`;
+  }
+
+  return outcome.kind;
+}
+
+function isFilledCloseOutcome(outcome: CancelOrderOutcome): boolean {
+  return outcome.kind === 'ALREADY_CLOSED' && outcome.closedReason === 'FILLED';
+}
+
+function hasOpenBuyExposure(params: {
+  readonly orderRecorder: SwitchStateMachineDeps['orderRecorder'];
+  readonly symbol: string;
+  readonly direction: 'LONG' | 'SHORT';
+  readonly positions: ReadonlyArray<Position>;
+}): boolean {
+  const { orderRecorder, symbol, direction, positions } = params;
+  const buyOrders = orderRecorder.getBuyOrdersForSymbol(symbol, direction === 'LONG');
+  if (buyOrders.length > 0) {
+    return true;
+  }
+
+  const position = extractPosition(positions, symbol);
+  return (position?.quantity ?? 0) > 0;
 }
 
 /**
@@ -257,6 +290,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
       sellNotional: null,
       shouldRebuy,
       awaitingQuote: false,
+      cancelRequestSubmitted: false,
     });
 
     if (!processImmediately || !distanceContext) {
@@ -347,16 +381,46 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
         isCancelableBuyOrder(order, state.oldSymbol),
       );
 
-      if (cancelTargets.length > 0) {
+      if (cancelTargets.length > 0 && !state.cancelRequestSubmitted) {
         const cancelOutcomes = await Promise.all(
           cancelTargets.map((order) => trader.cancelOrder(order.orderId)),
         );
-        if (cancelOutcomes.some((outcome) => !isConfirmedNonFilledClose(outcome))) {
-          failAndClear('CANCEL_PENDING_FAILED');
+        const sawFilledOutcome = cancelOutcomes.some(isFilledCloseOutcome);
+        if (sawFilledOutcome && state.switchMode === 'DISTANCE') {
+          state.shouldRebuy = true;
+        }
+
+        const unconfirmedOutcome = cancelOutcomes.find(
+          (outcome) => !isCancelAcceptedOrTerminalNonFilledClose(outcome) && !isFilledCloseOutcome(outcome),
+        );
+        if (unconfirmedOutcome) {
+          failAndClear(`CANCEL_PENDING_FAILED:${resolveCancelFailureReason(unconfirmedOutcome)}`);
           return;
         }
+
+        state.cancelRequestSubmitted = true;
+        return;
       }
 
+      if (cancelTargets.length > 0) {
+        return;
+      }
+
+      const openBuyExposure = hasOpenBuyExposure({
+        orderRecorder,
+        symbol: state.oldSymbol,
+        direction,
+        positions,
+      });
+      if (state.switchMode === 'PERIODIC' && openBuyExposure) {
+        return;
+      }
+
+      if (state.switchMode === 'DISTANCE' && openBuyExposure) {
+        state.shouldRebuy = true;
+      }
+
+      state.cancelRequestSubmitted = false;
       state.stage = state.switchMode === 'PERIODIC' ? 'BIND_NEW' : 'SELL_OUT';
     }
 
@@ -401,6 +465,20 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
         state.sellSubmitted = true;
         state.sellOrderId = executionResult.submittedOrderIds[0] ?? null;
         return;
+      }
+
+      if (state.shouldRebuy && !state.sellSubmitted && !isValidPositiveNumber(totalQuantity)) {
+        const openBuyExposure = hasOpenBuyExposure({
+          orderRecorder,
+          symbol: state.oldSymbol,
+          direction,
+          positions,
+        });
+        if (openBuyExposure) {
+          return;
+        }
+
+        state.shouldRebuy = false;
       }
 
       if (state.sellOrderId !== null) {

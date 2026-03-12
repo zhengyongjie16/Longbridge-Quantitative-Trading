@@ -122,6 +122,7 @@ export type SwitchState = {
   sellNotional: number | null;
   shouldRebuy: boolean;
   awaitingQuote: boolean;
+  cancelRequestSubmitted: boolean;
 };
 
 /**

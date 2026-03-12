@@ -233,7 +233,7 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
         doomsdayProtection: {
           shouldRejectBuy: () => false,
           executeClearance: async () => ({ executed: false, signalCount: 0 }),
-          cancelPendingBuyOrders: async () => ({ executed: false, cancelledCount: 0 }),
+          cancelPendingBuyOrders: async () => ({ executed: false, cancelRequestAcceptedCount: 0 }),
         },
         signalProcessor: {
           processSellSignals: ({ signals }) => signals,

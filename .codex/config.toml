@@ -1,2 +1,22 @@
 approval_policy = "on-request"
 sandbox_mode = "workspace-write"
+personality = "pragmatic"
+
+project_doc_fallback_filenames = ["CLAUDE.md"]
+
+[notice]
+hide_rate_limit_model_nudge = false
+
+[tui]
+status_line = [
+    "model-with-reasoning",
+    "context-remaining",
+    "five-hour-limit",
+    "weekly-limit",
+    "used-tokens",
+    "total-input-tokens",
+    "total-output-tokens",
+]
+
+[sandbox_workspace_write]
+network_access = true

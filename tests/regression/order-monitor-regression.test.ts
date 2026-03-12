@@ -134,7 +134,7 @@ describe('order monitor regression', () => {
     expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(1);
   });
 
-  it('does not repeatedly convert the same timed-out sell order to market order', async () => {
+  it('does not repeatedly process timeout sells after cancel request succeeds before WS terminal', async () => {
     const { deps, tradeCtx } = createDeps({
       sellTimeoutSeconds: 0,
     });
@@ -159,11 +159,12 @@ describe('order monitor regression', () => {
     await monitor.processWithLatestQuotes(quotes);
 
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
-    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(1);
+    expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
+    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
 
     const pending = monitor.getPendingSellOrders('BULL.HK');
     expect(pending).toHaveLength(1);
-    expect(pending[0]?.orderType).toBe(OrderType.MO);
+    expect(pending[0]?.orderType).toBe(OrderType.ELO);
   });
 
   it('releases pending sell tracking once when partial-filled then canceled arrives', async () => {

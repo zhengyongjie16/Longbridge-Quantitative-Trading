@@ -247,7 +247,7 @@ export const ORDER_TYPE_CODE_MAP: ReadonlyMap<OrderType, string> = new Map([
   [OrderType.SLO, 'SLO'],
 ]);
 
-/** 未成交订单状态集合（New/PartialFilled/WaitToNew/WaitToReplace/PendingReplace/Replaced/WaitToCancel/PendingCancel/PartialWithdrawal） */
+/** 未成交订单状态集合（New/PartialFilled/WaitToNew/WaitToReplace/PendingReplace/Replaced/WaitToCancel/PendingCancel） */
 export const PENDING_ORDER_STATUSES = new Set<OrderStatus>([
   OrderStatus.New,
   OrderStatus.PartialFilled,
@@ -257,7 +257,6 @@ export const PENDING_ORDER_STATUSES = new Set<OrderStatus>([
   OrderStatus.Replaced,
   OrderStatus.WaitToCancel,
   OrderStatus.PendingCancel,
-  OrderStatus.PartialWithdrawal,
 ]) as ReadonlySet<OrderStatus>;
 
 /** 不可改单的订单状态集合（包含改单中与撤单中状态） */
@@ -292,35 +291,28 @@ export const MIN_MONITOR_PRICE_THRESHOLD = 1;
 /** 价格格式化小数位数 */
 export const DEFAULT_PRICE_DECIMALS = 3;
 
+/** orderMonitor 改单临时阻塞（602013）重试退避序列（毫秒） */
+export const ORDER_MONITOR_REPLACE_TEMP_BLOCK_BACKOFF_MS = [1000, 2000, 4000, 8000] as const;
+
+/** orderMonitor 撤单重试退避：基础间隔（毫秒） */
+export const ORDER_MONITOR_CANCEL_RETRY_BASE_DELAY_MS = 1000;
+
+/** orderMonitor 撤单重试退避：最大间隔（毫秒） */
+export const ORDER_MONITOR_CANCEL_RETRY_MAX_DELAY_MS = 30_000;
+
+/** orderMonitor WAIT_WS_ONLY 模式阻塞时间（等同“无限等待 WS”） */
+export const ORDER_MONITOR_WAIT_WS_ONLY_BLOCK_UNTIL_MS = Number.MAX_SAFE_INTEGER;
+
 /**
  * LongPort API 错误码常量（订单监控使用）
  *
- * 订单已关闭类错误码:
+ * 订单关闭/状态未知类业务错误码:
  * - 601011: Order has been cancelled (订单已撤销)
  * - 601012: Order has been filled (订单已成交)
  * - 601013: Order has been rejected (订单已拒绝)
- * - 603001: Order not found (订单不存在)
+ * - 603001: Order not found (订单不存在，需要再做 orderDetail 权威确认)
  */
 export const ORDER_CLOSED_ERROR_CODE_SET = new Set(['601011', '601012', '601013', '603001']);
-
-/**
- * 可确认撤单闭环的错误码:
- * - 601011: Order has been cancelled
- * - 601013: Order has been rejected
- */
-export const ORDER_CANCEL_CONFIRMED_ERROR_CODE_SET = new Set(['601011', '601013']);
-
-/**
- * 订单已成交错误码:
- * - 601012: Order has been filled
- */
-export const ORDER_ALREADY_FILLED_ERROR_CODE_SET = new Set(['601012']);
-
-/**
- * 订单不存在错误码:
- * - 603001: Order not found
- */
-export const ORDER_NOT_FOUND_ERROR_CODE_SET = new Set(['603001']);
 
 /**
  * 不支持改单（订单类型不支持）错误码:

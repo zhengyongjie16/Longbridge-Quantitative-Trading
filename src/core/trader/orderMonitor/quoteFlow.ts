@@ -2,49 +2,47 @@
  * orderMonitor 行情驱动流程模块
  *
  * 职责：
- * - 处理买卖订单超时（outcome 驱动）
+ * - 处理买卖订单超时、撤单重试与改单结果消费
  * - 基于最新行情执行委托价跟踪与改单
- * - 调度 closeSyncQueue 定向对账
+ * - 在必要时消费单订单权威终态并驱动结算
  */
-import { OrderSide, OrderType, TimeInForceType } from 'longport';
+import { OrderSide, OrderStatus, OrderType, TimeInForceType } from 'longport';
 import { logger } from '../../../utils/logger/index.js';
 import {
   NON_REPLACEABLE_ORDER_STATUSES,
   NON_REPLACEABLE_ORDER_TYPES,
+  ORDER_MONITOR_CANCEL_RETRY_BASE_DELAY_MS,
+  ORDER_MONITOR_CANCEL_RETRY_MAX_DELAY_MS,
+  ORDER_MONITOR_WAIT_WS_ONLY_BLOCK_UNTIL_MS,
   PENDING_ORDER_STATUSES,
   TRADING,
 } from '../../../constants/index.js';
 import type { Quote } from '../../../types/quote.js';
 import type { CancelOrderOutcome } from '../../../types/trader.js';
-import { isConfirmedNonFilledClose, toDecimal } from '../utils.js';
+import { toDecimal } from '../utils.js';
 import type { PendingSellOrderSnapshot, TrackedOrder } from '../types.js';
-import type { QuoteFlow, QuoteFlowDeps } from './types.js';
+import type {
+  OrderMonitorTrackedOrder,
+  QuoteFlow,
+  QuoteFlowDeps,
+  TerminalClosedReason,
+  TerminalSettlementInput,
+} from './types.js';
+import {
+  consumeLatestReplaceOutcome,
+  consumeQueriedTerminalState,
+  resetOrderReplaceRuntimeState,
+} from './orderOps.js';
 import {
   calculatePriceDiffDecimal,
+  isWaitWsOnlyReplaceMode,
   normalizePriceText,
   resolveOrderIdFromSubmitResponse,
 } from './utils.js';
 
-const CANCEL_RETRY_BASE_DELAY_MS = 1000;
-const CANCEL_RETRY_MAX_DELAY_MS = 30_000;
-
 function resolveCancelRetryDelayMs(retryCount: number): number {
-  const delay = CANCEL_RETRY_BASE_DELAY_MS * 2 ** Math.max(0, retryCount - 1);
-  return Math.min(delay, CANCEL_RETRY_MAX_DELAY_MS);
-}
-
-function shouldStopTimeoutConversion(outcome: CancelOrderOutcome): boolean {
-  return outcome.kind === 'ALREADY_CLOSED' && outcome.closedReason === 'FILLED';
-}
-
-function resolveRelatedBuyOrderIdsFromOutcome(
-  outcome: CancelOrderOutcome,
-): ReadonlyArray<string> | null {
-  if (outcome.kind === 'CANCEL_CONFIRMED' || outcome.kind === 'ALREADY_CLOSED') {
-    return outcome.relatedBuyOrderIds;
-  }
-
-  return null;
+  const delay = ORDER_MONITOR_CANCEL_RETRY_BASE_DELAY_MS * 2 ** Math.max(0, retryCount - 1);
+  return Math.min(delay, ORDER_MONITOR_CANCEL_RETRY_MAX_DELAY_MS);
 }
 
 function applyCancelRetryBackoff(order: TrackedOrder): void {
@@ -55,6 +53,83 @@ function applyCancelRetryBackoff(order: TrackedOrder): void {
 function resetCancelRetry(order: TrackedOrder): void {
   order.cancelRetryCount = 0;
   order.nextCancelAttemptAt = Date.now();
+}
+
+function pauseCancelRetryAndWaitWs(order: TrackedOrder): void {
+  order.cancelRetryCount = 0;
+  order.nextCancelAttemptAt = ORDER_MONITOR_WAIT_WS_ONLY_BLOCK_UNTIL_MS;
+}
+
+function isSupportedTerminalCloseReason(
+  closedReason: string,
+): closedReason is TerminalClosedReason {
+  switch (closedReason) {
+    case 'FILLED': {
+      return true;
+    }
+
+    case 'CANCELED': {
+      return true;
+    }
+
+    case 'REJECTED': {
+      return true;
+    }
+
+    default: {
+      return false;
+    }
+  }
+}
+
+function resolveTerminalSettlementInput(
+  runtime: QuoteFlowDeps['runtime'],
+  orderId: string,
+  order: TrackedOrder,
+  outcome: CancelOrderOutcome,
+): TerminalSettlementInput | null {
+  if (outcome.kind !== 'ALREADY_CLOSED' || !isSupportedTerminalCloseReason(outcome.closedReason)) {
+    return null;
+  }
+
+  const queriedTerminalState = consumeQueriedTerminalState(runtime, orderId);
+  const closedReason = queriedTerminalState?.closedReason ?? outcome.closedReason;
+  if (!isSupportedTerminalCloseReason(closedReason)) {
+    return null;
+  }
+
+  return {
+    params: {
+      orderId,
+      closedReason,
+      source: 'API',
+      executedPrice: queriedTerminalState?.executedPrice ?? order.executedPrice ?? null,
+      executedQuantity: queriedTerminalState?.executedQuantity ?? order.executedQuantity,
+      executedTimeMs: queriedTerminalState?.executedTimeMs ?? order.lastExecutedTimeMs ?? null,
+    },
+    queriedExecutedQuantity: queriedTerminalState?.executedQuantity ?? null,
+  };
+}
+
+function resolveRemainingQuantityForConversion(
+  order: TrackedOrder,
+  queriedExecutedQuantity: number | null,
+): number | null {
+  if (!Number.isFinite(queriedExecutedQuantity) || queriedExecutedQuantity === null) {
+    return null;
+  }
+
+  const remaining = order.submittedQuantity - queriedExecutedQuantity;
+  if (!Number.isFinite(remaining)) {
+    return null;
+  }
+
+  return Math.max(remaining, 0);
+}
+
+function clearTimeoutMarketConversionState(order: OrderMonitorTrackedOrder): void {
+  order.timeoutMarketConversionPending = false;
+  order.timeoutMarketConversionTerminalState = null;
 }
 
 /**
@@ -74,9 +149,8 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
     isExecutionAllowed,
     trackOrder,
     cancelOrder,
-    cancelOrderWithOutcome,
-    processCloseSyncQueue,
     replaceOrderPrice,
+    settleOrder,
   } = deps;
 
   /**
@@ -86,7 +160,10 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
    * @param order 追踪订单
    * @returns 无返回值
    */
-  async function handleBuyOrderTimeout(orderId: string, order: TrackedOrder): Promise<void> {
+  async function handleBuyOrderTimeout(
+    orderId: string,
+    order: OrderMonitorTrackedOrder,
+  ): Promise<void> {
     const now = Date.now();
     if (order.nextCancelAttemptAt > now) {
       return;
@@ -102,21 +179,26 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
 
     const outcome = await cancelOrder(orderId);
     if (outcome.kind === 'CANCEL_CONFIRMED') {
-      resetCancelRetry(order);
-      logger.info(`[订单监控] 买入订单 ${orderId} 已撤销，剩余未成交数量=${remainingQuantity}`);
+      pauseCancelRetryAndWaitWs(order);
+      logger.info(`[订单监控] 买入订单 ${orderId} 撤单请求成功，等待 WS 终态`);
       return;
     }
 
-    if (outcome.kind === 'ALREADY_CLOSED') {
-      if (outcome.closedReason === 'FILLED') {
-        logger.info(`[订单监控] 买入订单 ${orderId} 已成交，等待成交同步收口`);
-      } else if (outcome.closedReason === 'NOT_FOUND') {
-        logger.warn(`[订单监控] 买入订单 ${orderId} 处于 NOT_FOUND 对账流程，暂不清理追踪`);
-      } else {
-        logger.info(`[订单监控] 买入订单 ${orderId} 已关闭，关闭原因=${outcome.closedReason}`);
+    if (outcome.kind === 'ALREADY_CLOSED' && isSupportedTerminalCloseReason(outcome.closedReason)) {
+      const settlementInput = resolveTerminalSettlementInput(runtime, orderId, order, outcome);
+      if (settlementInput === null) {
+        applyCancelRetryBackoff(order);
+        return;
       }
 
-      applyCancelRetryBackoff(order);
+      const result = settleOrder(settlementInput.params);
+      resetOrderReplaceRuntimeState(runtime, orderId);
+      if (!result.handled) {
+        applyCancelRetryBackoff(order);
+        return;
+      }
+
+      logger.info(`[订单监控] 买入订单 ${orderId} 已确认终态=${settlementInput.params.closedReason}`);
       return;
     }
 
@@ -134,7 +216,10 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
    * @param order 追踪订单
    * @returns 无返回值
    */
-  async function handleSellOrderTimeout(orderId: string, order: TrackedOrder): Promise<void> {
+  async function handleSellOrderTimeout(
+    orderId: string,
+    order: OrderMonitorTrackedOrder,
+  ): Promise<void> {
     const now = Date.now();
     if (order.nextCancelAttemptAt > now) {
       return;
@@ -150,23 +235,84 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
       `[订单监控] 卖出订单 ${orderId} 超时(${Math.floor(elapsed / 1000)}秒)，评估是否转市价单`,
     );
 
-    const outcome = await cancelOrderWithOutcome(orderId);
-    if (shouldStopTimeoutConversion(outcome)) {
-      resetCancelRetry(order);
+    let settlementInput: TerminalSettlementInput;
+    if (order.timeoutMarketConversionPending && order.timeoutMarketConversionTerminalState !== null) {
+      const terminalState = order.timeoutMarketConversionTerminalState;
+      if (!isSupportedTerminalCloseReason(terminalState.closedReason)) {
+        applyCancelRetryBackoff(order);
+        return;
+      }
+
+      settlementInput = {
+        params: {
+          orderId,
+          closedReason: terminalState.closedReason,
+          source: terminalState.source,
+          executedPrice: terminalState.executedPrice,
+          executedQuantity: terminalState.executedQuantity,
+          executedTimeMs: terminalState.executedTimeMs,
+        },
+        queriedExecutedQuantity: terminalState.executedQuantity,
+      };
+    } else {
+      const outcome = await cancelOrder(orderId);
+      if (outcome.kind === 'CANCEL_CONFIRMED') {
+        order.timeoutMarketConversionPending = true;
+        order.timeoutMarketConversionTerminalState = null;
+        pauseCancelRetryAndWaitWs(order);
+        logger.info(`[订单监控] 卖出订单 ${orderId} 撤单请求成功，等待 WS 非成交终态后再评估`);
+        return;
+      }
+
+      if (
+        outcome.kind !== 'ALREADY_CLOSED' ||
+        !isSupportedTerminalCloseReason(outcome.closedReason)
+      ) {
+        applyCancelRetryBackoff(order);
+        logger.warn(
+          `[订单监控] 卖出订单 ${orderId} 未确认可转换终态，kind=${outcome.kind}` +
+            `，下次重试时间=${new Date(order.nextCancelAttemptAt).toISOString()}`,
+        );
+        return;
+      }
+
+      const resolvedSettlementInput = resolveTerminalSettlementInput(runtime, orderId, order, outcome);
+      if (resolvedSettlementInput === null) {
+        applyCancelRetryBackoff(order);
+        return;
+      }
+
+      settlementInput = resolvedSettlementInput;
+    }
+
+    const settlementResult = settleOrder(settlementInput.params);
+    resetOrderReplaceRuntimeState(runtime, orderId);
+    if (!settlementResult.handled) {
+      applyCancelRetryBackoff(order);
+      return;
+    }
+
+    clearTimeoutMarketConversionState(order);
+    resetCancelRetry(order);
+
+    if (settlementInput.params.closedReason === 'FILLED') {
       logger.info(`[订单监控] 卖出订单 ${orderId} 已成交，禁止超时转市价`);
       return;
     }
 
-    if (!isConfirmedNonFilledClose(outcome)) {
-      applyCancelRetryBackoff(order);
-      logger.warn(
-        `[订单监控] 卖出订单 ${orderId} 未确认可转换终态，kind=${outcome.kind}` +
-          `，下次重试时间=${new Date(order.nextCancelAttemptAt).toISOString()}`,
-      );
+    const marketConversionQuantity = resolveRemainingQuantityForConversion(
+      order,
+      settlementInput.queriedExecutedQuantity,
+    );
+    if (marketConversionQuantity === null) {
+      logger.warn(`[订单监控] 卖出订单 ${orderId} 已确认非成交终态，但剩余数量不明确，禁止转市价`);
       return;
     }
 
-    resetCancelRetry(order);
+    if (marketConversionQuantity <= 0) {
+      logger.info(`[订单监控] 卖出订单 ${orderId} 已无可转市价剩余数量`);
+      return;
+    }
 
     if (!isExecutionAllowed()) {
       logger.info(`[执行门禁] 门禁关闭，卖出订单 ${orderId} 超时转市价单被阻止`);
@@ -189,7 +335,7 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
         symbol: order.symbol,
         side: order.side,
         orderType: OrderType.MO,
-        submittedQuantity: toDecimal(remainingQuantity),
+        submittedQuantity: toDecimal(marketConversionQuantity),
         timeInForce: TimeInForceType.Day,
         remark: timeoutConversionRemark,
       };
@@ -199,30 +345,26 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
         return;
       }
 
-      if (order.executedQuantity > 0 && resolveRelatedBuyOrderIdsFromOutcome(outcome) === null) {
-        await processCloseSyncQueue();
-      }
-
       const response = await ctx.submitOrder(marketOrderPayload);
       const newOrderId = resolveOrderIdFromSubmitResponse(response) ?? 'UNKNOWN';
       const direction: 'LONG' | 'SHORT' = order.isLongSymbol ? 'LONG' : 'SHORT';
       const relatedBuyOrderIds =
-        resolveRelatedBuyOrderIdsFromOutcome(outcome) ??
+        settlementResult.relatedBuyOrderIds ??
         orderRecorder.allocateRelatedBuyOrderIdsForRecovery(
           order.symbol,
           direction,
-          remainingQuantity,
+          marketConversionQuantity,
         );
       orderRecorder.submitSellOrder(
         newOrderId,
         order.symbol,
         direction,
-        remainingQuantity,
+        marketConversionQuantity,
         relatedBuyOrderIds,
       );
 
       logger.info(
-        `[订单监控] 卖出订单 ${orderId} 已转为市价单，新订单ID=${newOrderId}，数量=${remainingQuantity}`,
+        `[订单监控] 卖出订单 ${orderId} 已转为市价单，新订单ID=${newOrderId}，数量=${marketConversionQuantity}`,
       );
 
       trackOrder({
@@ -230,7 +372,7 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
         symbol: order.symbol,
         side: order.side,
         price: 0,
-        quantity: remainingQuantity,
+        quantity: marketConversionQuantity,
         isLongSymbol: order.isLongSymbol,
         monitorSymbol: order.monitorSymbol,
         isProtectiveLiquidation: order.isProtectiveLiquidation,
@@ -257,8 +399,6 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
   async function processWithLatestQuotes(
     quotesMap: ReadonlyMap<string, Quote | null>,
   ): Promise<void> {
-    await processCloseSyncQueue();
-
     const now = Date.now();
     for (const [orderId, order] of runtime.trackedOrders) {
       if (order.convertedToMarket) {
@@ -281,6 +421,10 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
         NON_REPLACEABLE_ORDER_TYPES.has(order.orderType) ||
         NON_REPLACEABLE_ORDER_STATUSES.has(order.status)
       ) {
+        continue;
+      }
+
+      if (isWaitWsOnlyReplaceMode(order)) {
         continue;
       }
 
@@ -311,6 +455,24 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
           `${priceDirection}，更新委托价：${normalizedSubmittedPriceText} → ${normalizedCurrentPriceText}`,
       );
       await replaceOrderPrice(orderId, normalizedCurrentPriceNumber);
+      const replaceOutcome = consumeLatestReplaceOutcome(runtime, orderId);
+      if (replaceOutcome?.kind !== 'TERMINAL_CONFIRMED') {
+        continue;
+      }
+
+      const terminal = replaceOutcome.terminalState;
+      const settlementResult = settleOrder({
+        orderId,
+        closedReason: terminal.closedReason,
+        source: 'STATE_CHECK',
+        executedPrice: terminal.executedPrice,
+        executedQuantity: terminal.executedQuantity,
+        executedTimeMs: terminal.executedTimeMs,
+      });
+      resetOrderReplaceRuntimeState(runtime, orderId);
+      if (!settlementResult.handled) {
+        logger.warn(`[订单监控] 订单 ${orderId} 改单失败后确认终态，但结算未执行`);
+      }
     }
   }
 
@@ -328,6 +490,10 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
       }
 
       if (!PENDING_ORDER_STATUSES.has(order.status)) {
+        continue;
+      }
+
+      if (order.status === OrderStatus.PartialWithdrawal) {
         continue;
       }
 

@@ -196,9 +196,9 @@ export async function mainProgram({
       monitorContexts,
       trader,
     });
-    if (cancelResult.executed && cancelResult.cancelledCount > 0) {
+    if (cancelResult.executed && cancelResult.cancelRequestAcceptedCount > 0) {
       logger.info(
-        `[末日保护程序] 收盘前15分钟撤单完成，共撤销 ${cancelResult.cancelledCount} 个买入订单`,
+        `[末日保护程序] 收盘前15分钟已提交撤单请求，共 ${cancelResult.cancelRequestAcceptedCount} 个买入订单，终态以后续 WS 为准`,
       );
     }
 

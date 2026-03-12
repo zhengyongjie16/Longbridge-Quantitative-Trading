@@ -2,7 +2,11 @@ import type { Decimal, PushOrderChanged, TradeContext } from 'longport';
 import type { MonitorConfig, MultiMonitorTradingConfig } from '../../../types/config.js';
 import type { DailyLossTracker } from '../../../types/risk.js';
 import type { SymbolRegistry } from '../../../types/seat.js';
-import type { CancelOrderOutcome, OrderClosedReason } from '../../../types/trader.js';
+import type {
+  CancelOrderOutcome,
+  OrderClosedReason,
+  OrderStateCheckResult,
+} from '../../../types/trader.js';
 import type {
   OrderRecorder,
   PendingRefreshSymbol,
@@ -23,18 +27,124 @@ import type {
 } from '../types.js';
 
 /**
+ * 改单恢复模式。
+ * 类型用途：约束 602013 临时阻塞后的恢复策略。
+ * 数据来源：orderOps/quoteFlow 运行态更新。
+ * 使用范围：orderMonitor 目录内部。
+ */
+type ReplaceResumeMode = 'TIME_BACKOFF' | 'WAIT_WS_ONLY';
+
+export type TerminalClosedReason = 'FILLED' | 'CANCELED' | 'REJECTED';
+
+export type TerminalSettlementInput = {
+  readonly params: {
+    readonly orderId: string;
+    readonly closedReason: TerminalClosedReason;
+    readonly source: 'API' | 'WS';
+    readonly executedPrice: number | null;
+    readonly executedQuantity: number | null;
+    readonly executedTimeMs: number | null;
+  };
+  readonly queriedExecutedQuantity: number | null;
+};
+
+/**
+ * 单订单权威终态快照。
+ * 类型用途：缓存撤单/改单业务失败后的权威终态查询结果。
+ * 数据来源：orderStatusQuery.checkOrderState 返回的 TERMINAL 分支。
+ * 使用范围：orderMonitor 目录内部。
+ */
+export type TerminalStateSnapshot = Extract<OrderStateCheckResult, { kind: 'TERMINAL' }>;
+
+/**
+ * 改单结果语义。
+ * 类型用途：描述改单执行后的标准化结果，供 quoteFlow 消费。
+ * 数据来源：orderOps.replaceOrderPrice 写入运行态后由 quoteFlow 消费。
+ * 使用范围：orderMonitor 目录内部。
+ */
+export type ReplaceOrderOutcome =
+  | {
+      readonly kind: 'SKIPPED';
+      readonly reason:
+        | 'ORDER_NOT_TRACKED'
+        | 'UNSUPPORTED_BY_TYPE'
+        | 'WAIT_WS_ONLY'
+        | 'BACKOFF_IN_PROGRESS'
+        | 'INVALID_REMAINING_QUANTITY';
+    }
+  | {
+      readonly kind: 'REPLACED';
+    }
+  | {
+      readonly kind: 'TEMP_BLOCKED';
+      readonly retryCount: number;
+      readonly nextRetryAtMs: number;
+      readonly resumeMode: ReplaceResumeMode;
+    }
+  | {
+      readonly kind: 'WAIT_WS_ONLY';
+      readonly reason: 'OPEN' | 'QUERY_FAILED';
+    }
+  | {
+      readonly kind: 'TERMINAL_CONFIRMED';
+      readonly terminalState: TerminalStateSnapshot;
+    }
+  | {
+      readonly kind: 'FAILED';
+      readonly reason: 'RETRYABLE' | 'QUERY_OPEN' | 'QUERY_FAILED' | 'UNKNOWN';
+      readonly errorCode: string | null;
+      readonly message: string;
+    };
+
+/**
+ * orderMonitor 内部追踪订单模型。
+ * 类型用途：在基础 TrackedOrder 上补充状态确认与改单恢复的窄状态字段。
+ * 数据来源：trackOrder 初始化，后续由 orderOps/quoteFlow 更新。
+ * 使用范围：orderMonitor 目录内部。
+ */
+export type OrderMonitorTrackedOrder = TrackedOrder & {
+  /** 下一次允许触发单订单状态确认的时间戳（毫秒） */
+  nextStateCheckAt: number | null;
+
+  /** 单订单状态确认重试计数 */
+  stateCheckRetryCount: number;
+
+  /** 单订单状态确认阻塞截止时间戳（毫秒） */
+  stateCheckBlockedUntilAt: number | null;
+
+  /** 连续命中 602013 的计数 */
+  replaceTempBlockedCount: number;
+
+  /** 改单恢复模式 */
+  replaceResumeMode: ReplaceResumeMode;
+
+  /** 卖单超时后是否已进入“等待终态确认后转市价”阶段 */
+  timeoutMarketConversionPending: boolean;
+
+  /** 卖单超时等待阶段已收到的终态快照 */
+  timeoutMarketConversionTerminalState: {
+    readonly closedReason: OrderClosedReason;
+    readonly source: 'WS';
+    readonly executedPrice: number | null;
+    readonly executedQuantity: number | null;
+    readonly executedTimeMs: number | null;
+  } | null;
+};
+
+/**
  * 订单监控运行态容器。
  * 类型用途：集中存放 orderMonitor 在运行期维护的可变状态。
  * 数据来源：createOrderMonitor 初始化，后续由事件处理与恢复流程更新。
  * 使用范围：orderMonitor 目录内部各子模块共享。
  */
 export type OrderMonitorRuntimeStore = {
-  readonly trackedOrders: Map<string, TrackedOrder>;
+  readonly trackedOrders: Map<string, OrderMonitorTrackedOrder>;
   readonly trackedOrderLifecycles: Map<string, TrackedOrderLifecycleState>;
   readonly pendingRefreshSymbols: PendingRefreshSymbol[];
   readonly bootstrappingOrderEvents: Map<string, PushOrderChanged>;
-  readonly closeSyncQueue: Map<string, CloseSyncTask>;
   readonly closedOrderIds: Set<string>;
+  readonly queriedTerminalStateByOrderId: Map<string, TerminalStateSnapshot>;
+  readonly latestReplaceOutcomeByOrderId: Map<string, ReplaceOrderOutcome>;
   runtimeState: OrderMonitorRuntimeState;
 };
 
@@ -52,11 +162,7 @@ export type RecoveryFlowDeps = {
   readonly symbolRegistry: SymbolRegistry;
   readonly trackOrder: (params: TrackOrderParams) => void;
   readonly cancelOrder: (orderId: string) => Promise<CancelOrderOutcome>;
-  readonly enqueueCloseSync: (
-    orderId: string,
-    reason: CloseSyncTriggerReason,
-    expectedReason?: OrderClosedReason | null,
-  ) => void;
+  readonly settleOrder: (params: FinalizeOrderSettlementParams) => FinalizeOrderSettlementResult;
   readonly handleOrderChangedWhenActive: (event: PushOrderChanged) => void;
 };
 
@@ -83,12 +189,7 @@ export interface RecoveryFlow {
 export type EventFlowDeps = {
   readonly runtime: OrderMonitorRuntimeStore;
   readonly orderRecorder: OrderRecorder;
-  readonly finalizeOrderClose: (params: FinalizeOrderCloseParams) => FinalizeOrderCloseResult;
-  readonly enqueueCloseSync: (
-    orderId: string,
-    reason: CloseSyncTriggerReason,
-    expectedReason?: OrderClosedReason | null,
-  ) => void;
+  readonly settleOrder: (params: FinalizeOrderSettlementParams) => FinalizeOrderSettlementResult;
   readonly cacheBootstrappingEvent: (event: PushOrderChanged) => void;
 };
 
@@ -104,6 +205,27 @@ export interface EventFlow {
 }
 
 /**
+ * 单订单状态查询依赖。
+ * 类型用途：为 orderStatusQuery 提供单订单权威状态查询所需依赖。
+ * 数据来源：由 createOrderMonitor 装配注入。
+ * 使用范围：仅 orderMonitor/orderStatusQuery.ts 使用。
+ */
+export type OrderStatusQueryDeps = {
+  readonly ctxPromise: Promise<TradeContext>;
+  readonly rateLimiter: RateLimiter;
+};
+
+/**
+ * 单订单状态查询接口。
+ * 类型用途：统一封装撤单/改单业务失败后的权威状态确认。
+ * 数据来源：createOrderStatusQuery 工厂返回。
+ * 使用范围：orderMonitor/orderOps.ts 调用。
+ */
+export interface OrderStatusQuery {
+  checkOrderState: (orderId: string) => Promise<OrderStateCheckResult>;
+}
+
+/**
  * 订单操作流依赖。
  * 类型用途：为 orderOps 提供 track/cancel/replace 所需依赖。
  * 数据来源：由 createOrderMonitor 装配注入。
@@ -115,12 +237,7 @@ export type OrderOpsDeps = {
   readonly rateLimiter: RateLimiter;
   readonly cacheManager: OrderCacheManager;
   readonly orderHoldRegistry: OrderHoldRegistry;
-  readonly finalizeOrderClose: (params: FinalizeOrderCloseParams) => FinalizeOrderCloseResult;
-  readonly enqueueCloseSync: (
-    orderId: string,
-    reason: CloseSyncTriggerReason,
-    expectedReason?: OrderClosedReason | null,
-  ) => void;
+  readonly orderStatusQuery: OrderStatusQuery;
 };
 
 /**
@@ -131,7 +248,6 @@ export type OrderOpsDeps = {
  */
 export interface OrderOps {
   trackOrder: (params: TrackOrderParams) => void;
-  cancelOrderWithOutcome: (orderId: string) => Promise<CancelOrderOutcome>;
   cancelOrder: (orderId: string) => Promise<CancelOrderOutcome>;
   replaceOrderPrice: (orderId: string, newPrice: number, quantity?: number | null) => Promise<void>;
 }
@@ -152,8 +268,7 @@ export type QuoteFlowDeps = {
   readonly isExecutionAllowed: () => boolean;
   readonly trackOrder: (params: TrackOrderParams) => void;
   readonly cancelOrder: (orderId: string) => Promise<CancelOrderOutcome>;
-  readonly cancelOrderWithOutcome: (orderId: string) => Promise<CancelOrderOutcome>;
-  readonly processCloseSyncQueue: () => Promise<void>;
+  readonly settleOrder: (params: FinalizeOrderSettlementParams) => FinalizeOrderSettlementResult;
   readonly replaceOrderPrice: (
     orderId: string,
     newPrice: number,
@@ -173,15 +288,15 @@ export interface QuoteFlow {
 }
 
 /**
- * 关闭收口入参。
- * 类型用途：统一描述订单关闭时副作用计算所需上下文。
- * 数据来源：撤单 outcome、WebSocket 事件、定向对账快照。
- * 使用范围：orderMonitor/closeFlow.ts。
+ * 终态结算入参。
+ * 类型用途：统一描述订单终态结算副作用所需上下文。
+ * 数据来源：撤单 outcome 归一结果、WebSocket 终态事件、恢复链路终态确认结果。
+ * 使用范围：orderMonitor/settlementFlow.ts。
  */
-export type FinalizeOrderCloseParams = {
+export type FinalizeOrderSettlementParams = {
   readonly orderId: string;
   readonly closedReason: OrderClosedReason;
-  readonly source: 'API' | 'WS' | 'SYNC' | 'RECOVERY';
+  readonly source: 'API' | 'WS' | 'STATE_CHECK' | 'RECOVERY';
   readonly executedPrice?: number | null;
   readonly executedQuantity?: number | null;
   readonly executedTimeMs?: number | null;
@@ -195,88 +310,48 @@ export type FinalizeOrderCloseParams = {
 };
 
 /**
- * 关闭收口结果。
+ * 终态结算结果。
  * 类型用途：向调用方返回幂等处理结果与卖单关联买单占用信息。
- * 数据来源：closeFlow.finalizeOrderClose 计算结果。
+ * 数据来源：settlementFlow.settleOrder 计算结果。
  * 使用范围：orderMonitor 各流程共享。
  */
-export type FinalizeOrderCloseResult = {
+export type FinalizeOrderSettlementResult = {
   readonly handled: boolean;
   readonly relatedBuyOrderIds: ReadonlyArray<string> | null;
 };
 
 /**
- * 关闭收口流程依赖。
- * 类型用途：为 closeFlow 提供统一关闭语义处理所需依赖。
+ * 终态结算流程依赖。
+ * 类型用途：为 settlementFlow 提供终态结算副作用依赖。
  * 数据来源：createOrderMonitor 组装注入。
- * 使用范围：orderMonitor/closeFlow.ts。
+ * 使用范围：orderMonitor/settlementFlow.ts。
  */
-export type CloseFlowDeps = {
+export type SettlementFlowDeps = {
   readonly runtime: OrderMonitorRuntimeStore;
   readonly orderHoldRegistry: OrderHoldRegistry;
   readonly orderRecorder: OrderRecorder;
   readonly dailyLossTracker: DailyLossTracker;
   readonly liquidationCooldownTracker: LiquidationCooldownTracker;
-  readonly tradingConfig: MultiMonitorTradingConfig;
-  readonly symbolRegistry: SymbolRegistry;
   readonly refreshGate?: RefreshGate;
 };
 
 /**
- * 关闭收口流程接口。
- * 类型用途：统一提供关闭收口、定向对账入队和调度能力。
- * 数据来源：createCloseFlow 工厂返回。
+ * 终态结算流程接口。
+ * 类型用途：统一提供订单终态副作用结算能力。
+ * 数据来源：createSettlementFlow 工厂返回。
  * 使用范围：orderMonitor/index.ts 及子流程调用。
  */
-export interface CloseFlow {
-  finalizeOrderClose: (params: FinalizeOrderCloseParams) => FinalizeOrderCloseResult;
-  enqueueCloseSync: (
-    orderId: string,
-    reason: CloseSyncTriggerReason,
-    expectedReason?: OrderClosedReason | null,
-  ) => void;
-  processCloseSyncQueue: () => Promise<void>;
-  clearCloseSyncQueue: () => void;
+export interface SettlementFlow {
+  settleOrder: (params: FinalizeOrderSettlementParams) => FinalizeOrderSettlementResult;
 }
 
 /**
- * LongPort API 错误码类型定义
- */
-
-/**
  * 追踪订单生命周期状态。
- * 类型用途：用于统一关闭收口与定向对账状态流转控制。
+ * 类型用途：用于统一 OPEN/CLOSED 生命周期流转控制。
  * 数据来源：orderMonitor 运行态维护。
  * 使用范围：orderMonitor 目录内部。
  */
-type TrackedOrderLifecycleState = 'OPEN' | 'CLOSE_SYNC_PENDING' | 'CLOSED';
-
-/**
- * 定向对账触发原因。
- * 类型用途：用于 closeSyncQueue 的可观测性与重试策略区分。
- * 数据来源：撤单 outcome、WS 终态缺失、异常路径。
- * 使用范围：orderMonitor 目录内部。
- */
-export type CloseSyncTriggerReason =
-  | 'ALREADY_CLOSED_FILLED'
-  | 'ALREADY_CLOSED_NOT_FOUND'
-  | 'UNKNOWN_FAILURE'
-  | 'LATE_CLOSED_EVENT';
-
-/**
- * 定向对账任务。
- * 类型用途：维护按 orderId 去重的有限重试队列项。
- * 数据来源：orderMonitor 运行态任务入队。
- * 使用范围：orderMonitor 目录内部。
- */
-export type CloseSyncTask = {
-  readonly orderId: string;
-  readonly triggerReason: CloseSyncTriggerReason;
-  readonly expectedReason: OrderClosedReason | null;
-  attempts: number;
-  nextAttemptAtMs: number;
-  lastError: string | null;
-};
+type TrackedOrderLifecycleState = 'OPEN' | 'CLOSED';
 
 /**
  * 可识别的订单关闭错误码类型。

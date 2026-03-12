@@ -1,13 +1,11 @@
 import { OrderSide, OrderStatus, type Decimal } from 'longport';
 import type { GlobalConfig } from '../../../types/config.js';
 import type { OrderClosedReason } from '../../../types/trader.js';
-import type { OrderMonitorConfig } from '../types.js';
+import type { OrderMonitorConfig, TrackedOrder } from '../types.js';
 import {
   DEFAULT_PRICE_DECIMALS,
-  ORDER_ALREADY_FILLED_ERROR_CODE_SET,
-  ORDER_CANCEL_CONFIRMED_ERROR_CODE_SET,
   ORDER_CLOSED_ERROR_CODE_SET,
-  ORDER_NOT_FOUND_ERROR_CODE_SET,
+  ORDER_MONITOR_WAIT_WS_ONLY_BLOCK_UNTIL_MS,
   ORDER_PRICE_DIFF_THRESHOLD,
   PENDING_ORDER_STATUSES,
   REPLACE_TEMP_BLOCKED_BY_STATUS_ERROR_CODE_SET,
@@ -117,7 +115,38 @@ export function isClosedStatus(status: OrderStatus): boolean {
   return (
     status === OrderStatus.Filled ||
     status === OrderStatus.Canceled ||
-    status === OrderStatus.Rejected
+    status === OrderStatus.Rejected ||
+    status === OrderStatus.Expired ||
+    status === OrderStatus.PartialWithdrawal
+  );
+}
+
+export function resolveOrderClosedReasonFromStatus(status: OrderStatus): OrderClosedReason | null {
+  if (status === OrderStatus.Filled) {
+    return 'FILLED';
+  }
+
+  if (
+    status === OrderStatus.Canceled ||
+    status === OrderStatus.Expired ||
+    status === OrderStatus.PartialWithdrawal
+  ) {
+    return 'CANCELED';
+  }
+
+  if (status === OrderStatus.Rejected) {
+    return 'REJECTED';
+  }
+
+  return null;
+}
+
+export function isWaitWsOnlyReplaceMode(
+  order: Pick<TrackedOrder, 'replaceCapability' | 'replaceBlockedUntilAt'>,
+): boolean {
+  return (
+    order.replaceCapability === 'TEMP_BLOCKED_BY_STATUS' &&
+    order.replaceBlockedUntilAt === ORDER_MONITOR_WAIT_WS_ONLY_BLOCK_UNTIL_MS
   );
 }
 
@@ -185,7 +214,7 @@ export function calculatePriceDiffDecimal(currentPrice: number, submittedPrice: 
  * @returns 是否为订单已关闭错误码
  */
 function isOrderClosedErrorCode(code: string): code is OrderClosedErrorCode {
-  return ORDER_CLOSED_ERROR_CODE_SET.has(code as OrderClosedErrorCode);
+  return ORDER_CLOSED_ERROR_CODE_SET.has(code);
 }
 
 /**
@@ -197,7 +226,7 @@ function isOrderClosedErrorCode(code: string): code is OrderClosedErrorCode {
 function isReplaceUnsupportedByTypeErrorCode(
   code: string,
 ): code is ReplaceUnsupportedByTypeErrorCode {
-  return REPLACE_UNSUPPORTED_BY_TYPE_ERROR_CODE_SET.has(code as ReplaceUnsupportedByTypeErrorCode);
+  return REPLACE_UNSUPPORTED_BY_TYPE_ERROR_CODE_SET.has(code);
 }
 
 /**
@@ -207,7 +236,7 @@ function isReplaceUnsupportedByTypeErrorCode(
  * @returns 是否为状态暂不允许改单错误码
  */
 function isReplaceTempBlockedErrorCode(code: string): code is ReplaceTempBlockedErrorCode {
-  return REPLACE_TEMP_BLOCKED_BY_STATUS_ERROR_CODE_SET.has(code as ReplaceTempBlockedErrorCode);
+  return REPLACE_TEMP_BLOCKED_BY_STATUS_ERROR_CODE_SET.has(code);
 }
 
 /**
@@ -307,35 +336,9 @@ export function extractErrorMessage(err: unknown): string {
   return String(err);
 }
 
-/**
- * 解析订单关闭原因（基于错误码）。
- *
- * @param err 错误对象
- * @returns 关闭原因，无法解析返回 null
- */
-export function resolveOrderClosedReasonFromError(err: unknown): OrderClosedReason | null {
+export function isOrderClosedBusinessError(err: unknown): boolean {
   const code = extractErrorCode(err);
-  if (code === null || !isOrderClosedErrorCode(code)) {
-    return null;
-  }
-
-  if (ORDER_CANCEL_CONFIRMED_ERROR_CODE_SET.has(code)) {
-    if (code === '601013') {
-      return 'REJECTED';
-    }
-
-    return 'CANCELED';
-  }
-
-  if (ORDER_ALREADY_FILLED_ERROR_CODE_SET.has(code)) {
-    return 'FILLED';
-  }
-
-  if (ORDER_NOT_FOUND_ERROR_CODE_SET.has(code)) {
-    return 'NOT_FOUND';
-  }
-
-  return null;
+  return code !== null && isOrderClosedErrorCode(code);
 }
 
 /**

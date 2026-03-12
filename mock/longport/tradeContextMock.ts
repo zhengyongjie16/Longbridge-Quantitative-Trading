@@ -13,6 +13,7 @@ import {
   type GetTodayExecutionsOptions,
   type GetTodayOrdersOptions,
   type Order,
+  type OrderDetail,
   type OrderType,
   type OrderSide,
   type PushOrderChanged,
@@ -45,6 +46,7 @@ import {
 const TRADE_METHODS: ReadonlySet<MockMethodName> = new Set([
   'submitOrder',
   'cancelOrder',
+  'orderDetail',
   'replaceOrder',
   'todayOrders',
   'historyOrders',
@@ -129,6 +131,15 @@ function cloneOrder(order: MinimalOrder): MinimalOrder {
 function asOrder(order: MinimalOrder): Order {
   // 信任边界：mock 按 Order 的核心字段构建，测试用例只依赖这些字段
   return order as unknown as Order;
+}
+
+/**
+ * 在信任边界将内部订单转为 SDK OrderDetail 类型。
+ *
+ * mock 仅维护测试依赖字段，类型断言用于缩小样板代码。
+ */
+function asOrderDetail(order: MinimalOrder): OrderDetail {
+  return order as unknown as OrderDetail;
 }
 
 /**
@@ -265,6 +276,22 @@ export function createTradeContextMock(options: TradeContextMockOptions = {}): T
           updatedAt: new Date(now()),
         };
       });
+    });
+  }
+
+  function orderDetail(orderId: string): Promise<OrderDetail> {
+    return withCall('orderDetail', [orderId], () => {
+      const todayOrder = todayOrdersStore.find((order) => order.orderId === orderId);
+      if (todayOrder) {
+        return asOrderDetail(cloneOrder(todayOrder));
+      }
+
+      const historyOrder = historyOrdersStore.find((order) => order.orderId === orderId);
+      if (historyOrder) {
+        return asOrderDetail(cloneOrder(historyOrder));
+      }
+
+      throw new Error(`openapi error: code=603001: Order not found, orderId=${orderId}`);
     });
   }
 
@@ -419,6 +446,7 @@ export function createTradeContextMock(options: TradeContextMockOptions = {}): T
   return {
     submitOrder,
     cancelOrder,
+    orderDetail,
     replaceOrder,
     todayOrders,
     historyOrders,
