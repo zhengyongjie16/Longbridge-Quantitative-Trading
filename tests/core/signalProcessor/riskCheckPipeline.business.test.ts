@@ -7,6 +7,7 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import type { RiskCheckContext } from '../../../src/types/services.js';
 import { createRiskCheckPipeline } from '../../../src/core/signalProcessor/riskCheckPipeline.js';
+import type { GetRemainingMsParams } from '../../../src/services/liquidationCooldown/types.js';
 import {
   createLiquidationCooldownTrackerDouble,
   createMonitorConfigDouble,
@@ -114,7 +115,7 @@ describe('riskCheckPipeline business flow', () => {
 
   it('executes buy checks in business order and marks buy attempt before heavy checks', async () => {
     const steps: string[] = [];
-    const cooldownCheckTimes: number[] = [];
+    const cooldownCheckParams: GetRemainingMsParams[] = [];
     const trader = createTraderDouble({
       getAccountSnapshot: async () => {
         steps.push('getAccountSnapshot');
@@ -149,9 +150,7 @@ describe('riskCheckPipeline business flow', () => {
     const cooldownTracker = createLiquidationCooldownTrackerDouble({
       getRemainingMs: (params) => {
         steps.push('getRemainingMs');
-        if (params.currentTimeMs !== undefined) {
-          cooldownCheckTimes.push(params.currentTimeMs);
-        }
+        cooldownCheckParams.push(params);
 
         return 0;
       },
@@ -169,7 +168,11 @@ describe('riskCheckPipeline business flow', () => {
     );
 
     expect(result).toHaveLength(1);
-    expect(cooldownCheckTimes).toHaveLength(1);
+    expect(cooldownCheckParams).toHaveLength(2);
+    const cooldownDirections = cooldownCheckParams.map((item) => item.direction);
+    expect(cooldownDirections).toContain('LONG');
+    expect(cooldownDirections).toContain('SHORT');
+    expect(cooldownCheckParams.every((item) => item.currentTimeMs === 30_000)).toBe(true);
     const getRemainingIndex = steps.indexOf('getRemainingMs');
     const markIndex = steps.indexOf('recordBuyAttempt');
     const warrantIndex = steps.indexOf('checkWarrantRisk');
@@ -259,5 +262,87 @@ describe('riskCheckPipeline business flow', () => {
     expect(result).toHaveLength(1);
     expect(result[0]?.action).toBe('SELLCALL');
     expect(buySignal.reason).toContain('批量获取账户和持仓信息失败');
+  });
+
+  it('rejects BUYPUT when LONG cooldown is active for the same monitor', async () => {
+    let recordBuyAttemptCount = 0;
+    const trackerCalls: GetRemainingMsParams[] = [];
+    const trader = createTraderDouble({
+      getAccountSnapshot: async () => createAccountSnapshotDouble(100000),
+      getStockPositions: async () => [],
+      canTradeNow: () => ({ canTrade: true }),
+      recordBuyAttempt: () => {
+        recordBuyAttemptCount += 1;
+      },
+    });
+
+    const pipeline = createRiskCheckPipeline({
+      tradingConfig: createTradingConfig(),
+      liquidationCooldownTracker: createLiquidationCooldownTrackerDouble({
+        getRemainingMs: (params) => {
+          trackerCalls.push(params);
+          if (params.direction === 'LONG') {
+            return 5_000;
+          }
+
+          return 0;
+        },
+      }),
+      lastRiskCheckTime,
+    });
+
+    const signal = createSignalDouble('BUYPUT', 'BEAR.HK');
+    const result = await withMockedNow(70_000, async () =>
+      pipeline([signal], createContext({ trader, riskChecker: createRiskCheckerDouble(), orderRecorder: createOrderRecorderDouble() })),
+    );
+
+    expect(result).toHaveLength(0);
+    expect(signal.reason).toContain('清仓冷却期内');
+    expect(recordBuyAttemptCount).toBe(0);
+    expect(trackerCalls).toHaveLength(2);
+    const trackerDirections = trackerCalls.map((item) => item.direction);
+    expect(trackerDirections).toContain('LONG');
+    expect(trackerDirections).toContain('SHORT');
+  });
+
+  it('rejects BUYCALL when SHORT cooldown is active for the same monitor', async () => {
+    const trackerCalls: GetRemainingMsParams[] = [];
+    const pipeline = createRiskCheckPipeline({
+      tradingConfig: createTradingConfig(),
+      liquidationCooldownTracker: createLiquidationCooldownTrackerDouble({
+        getRemainingMs: (params) => {
+          trackerCalls.push(params);
+          if (params.direction === 'SHORT') {
+            return 8_000;
+          }
+
+          return 0;
+        },
+      }),
+      lastRiskCheckTime,
+    });
+
+    const signal = createSignalDouble('BUYCALL', 'BULL.HK');
+    const result = await withMockedNow(80_000, async () =>
+      pipeline(
+        [signal],
+        createContext({
+          trader: createTraderDouble({
+            getAccountSnapshot: async () => createAccountSnapshotDouble(100000),
+            getStockPositions: async () => [],
+            canTradeNow: () => ({ canTrade: true }),
+          }),
+          riskChecker: createRiskCheckerDouble(),
+          orderRecorder: createOrderRecorderDouble(),
+        }),
+      ),
+    );
+
+    expect(result).toHaveLength(0);
+    expect(signal.reason).toContain('清仓冷却期内');
+    expect(trackerCalls).toHaveLength(2);
+    const trackerDirections = trackerCalls.map((item) => item.direction);
+    expect(trackerDirections).toContain('LONG');
+    expect(trackerDirections).toContain('SHORT');
   });
 });

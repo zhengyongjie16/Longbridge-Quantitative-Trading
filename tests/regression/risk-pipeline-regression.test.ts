@@ -101,7 +101,8 @@ describe('risk pipeline regression', () => {
 
     const pipeline = createRiskCheckPipeline({
       tradingConfig: createTradingConfig(),
-      liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),      lastRiskCheckTime,
+      liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),
+      lastRiskCheckTime,
     });
 
     const firstBuy = createSignalDouble('BUYCALL', 'BULL.HK');
@@ -140,7 +141,8 @@ describe('risk pipeline regression', () => {
 
     const pipeline = createRiskCheckPipeline({
       tradingConfig: createTradingConfig(),
-      liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),      lastRiskCheckTime,
+      liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),
+      lastRiskCheckTime,
     });
 
     const buySignal = createSignalDouble('BUYCALL', 'BULL.HK');
@@ -165,6 +167,49 @@ describe('risk pipeline regression', () => {
     expect(result[0]).toBe(sellSignal);
     expect(buySignal.reason).toContain('风险检查冷却期内');
     expect(buyApiFetchCount).toBe(0);
+  });
+
+  it('blocks both BUYCALL and BUYPUT when any monitor direction is in liquidation cooldown', async () => {
+    const lastRiskCheckTime = new Map<string, number>();
+    const trader = createTraderDouble({
+      getAccountSnapshot: async () => createAccountSnapshotDouble(100_000),
+      getStockPositions: async () => [],
+      canTradeNow: () => ({ canTrade: true }),
+    });
+    const riskChecker = createRiskCheckerDouble();
+    const orderRecorder = createOrderRecorderDouble();
+    const pipeline = createRiskCheckPipeline({
+      tradingConfig: createTradingConfig(),
+      liquidationCooldownTracker: createLiquidationCooldownTrackerDouble({
+        getRemainingMs: (params) => {
+          if (params.direction === 'LONG') {
+            return 6_000;
+          }
+
+          return 0;
+        },
+      }),
+      lastRiskCheckTime,
+    });
+    const context = createContext({
+      trader,
+      riskChecker,
+      orderRecorder,
+    });
+    const buyCallSignal = createSignalDouble('BUYCALL', 'BULL.HK');
+    const buyPutSignal = createSignalDouble('BUYPUT', 'BEAR.HK');
+
+    const buyCallResult = await withMockedNow(300_000, async () =>
+      pipeline([buyCallSignal], context),
+    );
+    const buyPutResult = await withMockedNow(300_100, async () =>
+      pipeline([buyPutSignal], context),
+    );
+
+    expect(buyCallResult).toHaveLength(0);
+    expect(buyPutResult).toHaveLength(0);
+    expect(buyCallSignal.reason).toContain('清仓冷却期内');
+    expect(buyPutSignal.reason).toContain('清仓冷却期内');
   });
 });
 

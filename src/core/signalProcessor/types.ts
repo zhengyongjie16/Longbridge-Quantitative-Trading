@@ -62,7 +62,7 @@ export interface SignalProcessor {
 
   /**
    * 对信号列表应用风险检查
-   * 检查顺序：验证冷却 → 交易频率 → 清仓冷却 → 买入价格限制 → 末日保护 → 牛熊证风险 → 基础风险
+   * 检查顺序：验证冷却 → 交易频率 → 监控标的级清仓冷却 → 买入价格限制 → 末日保护 → 牛熊证风险 → 基础风险
    */
   applyRiskChecks: (signals: Signal[], context: RiskCheckContext) => Promise<Signal[]>;
 

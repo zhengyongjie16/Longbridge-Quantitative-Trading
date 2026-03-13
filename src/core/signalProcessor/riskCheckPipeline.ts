@@ -14,7 +14,7 @@ import { getSymbolName } from './utils.js';
 import type { AccountSnapshot, Position } from '../../types/account.js';
 import type { Quote } from '../../types/quote.js';
 import type { Signal } from '../../types/signal.js';
-import type { MultiMonitorTradingConfig } from '../../types/config.js';
+import type { LiquidationCooldownConfig, MultiMonitorTradingConfig } from '../../types/config.js';
 import type { RiskCheckContext } from '../../types/services.js';
 import type { LiquidationCooldownTracker } from '../../services/liquidationCooldown/types.js';
 import { formatError } from '../../utils/error/index.js';
@@ -26,6 +26,29 @@ function getRiskCheckCooldownKey(symbol: string, action: Signal['action']): stri
   }
 
   return `${symbol}_SELL`;
+}
+
+function getMonitorCooldownRemainingMs(params: {
+  readonly liquidationCooldownTracker: LiquidationCooldownTracker;
+  readonly monitorSymbol: string;
+  readonly cooldownConfig: LiquidationCooldownConfig | null;
+  readonly currentTimeMs: number;
+}): number {
+  const { liquidationCooldownTracker, monitorSymbol, cooldownConfig, currentTimeMs } = params;
+  const longRemainingMs = liquidationCooldownTracker.getRemainingMs({
+    symbol: monitorSymbol,
+    direction: 'LONG',
+    cooldownConfig,
+    currentTimeMs,
+  });
+  const shortRemainingMs = liquidationCooldownTracker.getRemainingMs({
+    symbol: monitorSymbol,
+    direction: 'SHORT',
+    cooldownConfig,
+    currentTimeMs,
+  });
+
+  return Math.max(longRemainingMs, shortRemainingMs);
 }
 
 /**
@@ -64,21 +87,22 @@ export const createRiskCheckPipeline = ({
       doomsdayProtection,
     } = context;
 
-    // 在 API 调用之前先过滤冷却期内的信号
+    // 在本次调用入口固定当前毫秒时间，供冷却过滤/冷却写入/清仓冷却查询复用
+    const currentTimeMs = Date.now();
+
+    // 在批量预取账户/持仓 API 之前先过滤风险检查冷却期信号
     // 这样可以避免所有买入信号都在冷却期内时的无效 API 调用
-    const now = Date.now();
     const cooldownMs = VERIFICATION.VERIFIED_SIGNAL_COOLDOWN_SECONDS * 1000;
     const signalsAfterCooldown: Signal[] = [];
     for (const sig of signals) {
       const sigSymbol = sig.symbol;
       const cooldownKey = getRiskCheckCooldownKey(sigSymbol, sig.action);
       const lastTime = lastRiskCheckTime.get(cooldownKey);
-      if (lastTime && now - lastTime < cooldownMs) {
-        const remainingSeconds = Math.ceil((lastTime + cooldownMs - now) / 1000);
+      if (lastTime && currentTimeMs - lastTime < cooldownMs) {
+        const remainingSeconds = Math.ceil((lastTime + cooldownMs - currentTimeMs) / 1000);
         const reason = `风险检查冷却期内，剩余 ${remainingSeconds} 秒`;
         sig.reason = reason;
 
-        // 被冷却跳过的信号会在主循环中通过 validSignals.filter 被识别并释放到对象池
       } else {
         signalsAfterCooldown.push(sig);
       }
@@ -122,7 +146,7 @@ export const createRiskCheckPipeline = ({
 
       // 标记进入风险检查的时间（在处理信号前标记，确保后续相同信号被冷却）
       const cooldownKey = getRiskCheckCooldownKey(sigSymbol, sig.action);
-      lastRiskCheckTime.set(cooldownKey, now);
+      lastRiskCheckTime.set(cooldownKey, currentTimeMs);
 
       // 获取标的的当前价格用于计算持仓市值
       let currentPrice: number | null = null;
@@ -148,12 +172,13 @@ export const createRiskCheckPipeline = ({
         /**
          * 买入风险检查流水线执行顺序及原因：
          *
-         * 1. 交易频率限制（轻量）：仅检查内存中的时间戳，无 API 调用
+         * 0. 账户/持仓 API 批量预取（仅当存在买入信号时，在主循环前执行一次）
+         * 1. 交易频率限制（轻量）：仅检查内存中的时间戳，无额外 API 调用
          * 2. 清仓冷却（中量）：检查冷却追踪器
          * 3. 买入价格限制（轻量）：比较当前价与最近买入价
          * 4. 末日保护程序（轻量）：检查时间是否在保护期内
          * 5. 牛熊证风险（中量）：计算距回收价百分比
-         * 6. 基础风险检查（重量）：调用 API 获取账户和持仓数据
+         * 6. 基础风险检查（重量）：使用已批量预取的账户和持仓数据
          *
          * 排序原则：先轻量后重量，减少不必要的 API 调用
          */
@@ -167,13 +192,12 @@ export const createRiskCheckPipeline = ({
           continue;
         }
 
-        // 2. 保护性清仓冷却：拦截冷却时间内的买入
-        const liquidationDirection = isLongBuyAction ? 'LONG' : 'SHORT';
-        const remainingMs = liquidationCooldownTracker.getRemainingMs({
-          symbol: context.config.monitorSymbol,
-          direction: liquidationDirection,
+        // 2. 保护性清仓冷却：同监控标的任一方向在冷却中则双方向买入都拦截
+        const remainingMs = getMonitorCooldownRemainingMs({
+          liquidationCooldownTracker,
+          monitorSymbol: context.config.monitorSymbol,
           cooldownConfig: context.config.liquidationCooldown,
-          currentTimeMs: Date.now(),
+          currentTimeMs,
         });
         if (remainingMs > 0) {
           const remainingSeconds = Math.ceil(remainingMs / 1000);
