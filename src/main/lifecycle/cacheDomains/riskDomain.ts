@@ -66,10 +66,17 @@ function collectMidnightEligibleCooldownKeys(
  * @param ctx 生命周期上下文
  */
 function runMidnightRiskClear(deps: RiskDomainDeps, ctx: LifecycleContext): void {
-  const { signalProcessor, dailyLossTracker, monitorContexts, liquidationCooldownTracker } = deps;
+  const {
+    signalProcessor,
+    dailyLossTracker,
+    protectiveLiquidationEpisodeTracker,
+    monitorContexts,
+    liquidationCooldownTracker,
+  } = deps;
 
   signalProcessor.resetRiskCheckCooldown();
   dailyLossTracker.resetAll(ctx.now);
+  protectiveLiquidationEpisodeTracker.resetAll();
   const keysToClear = collectMidnightEligibleCooldownKeys(monitorContexts);
   liquidationCooldownTracker.clearMidnightEligible({ keysToClear });
   liquidationCooldownTracker.resetAllTriggerCounts();

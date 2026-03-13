@@ -7,7 +7,6 @@
  * - 在缺少归属上下文时拒绝结算，避免错误记账
  */
 import { OrderSide } from 'longbridge';
-import { logger } from '../../../utils/logger/index.js';
 import { isValidPositiveNumber } from '../../../utils/helpers/index.js';
 import { toHongKongTimeIso } from '../../../utils/time/index.js';
 import { recordTrade } from '../tradeLogger.js';
@@ -233,7 +232,7 @@ export function createSettlementFlow(deps: SettlementFlowDeps): SettlementFlow {
     orderHoldRegistry,
     orderRecorder,
     dailyLossTracker,
-    liquidationCooldownTracker,
+    protectiveLiquidationEpisodeTracker,
     refreshGate,
   } = deps;
 
@@ -253,15 +252,13 @@ export function createSettlementFlow(deps: SettlementFlowDeps): SettlementFlow {
     });
   }
 
-  function recordDailyLossAndCooldown(params: {
+  function recordDailyLossAndEpisodeProgress(params: {
     readonly orderId: string;
     readonly side: 'BUY' | 'SELL';
     readonly monitorSymbol: string | null;
     readonly symbol: string | null;
     readonly isLongSymbol: boolean | undefined;
     readonly isProtectiveLiquidation: boolean;
-    readonly liquidationTriggerLimit: number;
-    readonly liquidationCooldownConfig: MonitorConfig['liquidationCooldown'];
     readonly executedPrice: number | null;
     readonly executedQuantity: number | null;
     readonly executedTimeMs: number | null;
@@ -273,8 +270,6 @@ export function createSettlementFlow(deps: SettlementFlowDeps): SettlementFlow {
       symbol,
       isLongSymbol,
       isProtectiveLiquidation,
-      liquidationTriggerLimit,
-      liquidationCooldownConfig,
       executedPrice,
       executedQuantity,
       executedTimeMs,
@@ -302,20 +297,17 @@ export function createSettlementFlow(deps: SettlementFlowDeps): SettlementFlow {
       orderId,
     });
 
-    if (isProtectiveLiquidation) {
+    if (isProtectiveLiquidation && orderSide === OrderSide.Sell) {
+      if (!isValidPositiveNumber(executedQuantity) || !isValidPositiveNumber(executedTimeMs)) {
+        return;
+      }
+
       const direction = isLongSymbol ? 'LONG' : 'SHORT';
-      const result = liquidationCooldownTracker.recordLiquidationTrigger({
-        symbol: monitorSymbol,
+      protectiveLiquidationEpisodeTracker.recordProtectiveFillProgress({
+        monitorSymbol,
         direction,
         executedTimeMs,
-        triggerLimit: liquidationTriggerLimit,
-        cooldownConfig: liquidationCooldownConfig,
       });
-      if (result.cooldownActivated) {
-        logger.warn(
-          `[订单监控] 订单 ${orderId} 保护性清仓触发次数已达上限（${result.currentCount}/${liquidationTriggerLimit}），进入买入冷却`,
-        );
-      }
     }
   }
 
@@ -453,15 +445,13 @@ export function createSettlementFlow(deps: SettlementFlowDeps): SettlementFlow {
         relatedBuyOrderIds = settledSell.remainingRelatedBuyOrderIds;
       }
 
-      recordDailyLossAndCooldown({
+      recordDailyLossAndEpisodeProgress({
         orderId,
         side,
         monitorSymbol: context.monitorSymbol,
         symbol,
         isLongSymbol,
         isProtectiveLiquidation: context.isProtectiveLiquidation,
-        liquidationTriggerLimit: context.liquidationTriggerLimit,
-        liquidationCooldownConfig: context.liquidationCooldownConfig,
         executedPrice,
         executedQuantity,
         executedTimeMs,
@@ -516,15 +506,13 @@ export function createSettlementFlow(deps: SettlementFlowDeps): SettlementFlow {
       }
 
       if (symbol && side && isLongSymbol !== undefined && recordedExecution !== null) {
-        recordDailyLossAndCooldown({
+        recordDailyLossAndEpisodeProgress({
           orderId,
           side,
           monitorSymbol: context.monitorSymbol,
           symbol,
           isLongSymbol,
           isProtectiveLiquidation: context.isProtectiveLiquidation,
-          liquidationTriggerLimit: context.liquidationTriggerLimit,
-          liquidationCooldownConfig: context.liquidationCooldownConfig,
           executedPrice: recordedExecution.executedPrice,
           executedQuantity: recordedExecution.executedQuantity,
           executedTimeMs: recordedExecution.executedTimeMs,

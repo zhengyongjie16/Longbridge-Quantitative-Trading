@@ -7,6 +7,7 @@ import type { LifecycleState, SymbolRegistry } from '../../types/seat.js';
 import type { MultiMonitorTradingConfig } from '../../types/config.js';
 import type { Quote } from '../../types/quote.js';
 import type { MarketDataClient, RawOrderFromAPI, Trader } from '../../types/services.js';
+import type { ProtectiveLiquidationEpisodeTracker } from '../../core/trader/protectiveLiquidationEpisodeTracker/types.js';
 
 /**
  * 每次 tick 传入的运行时标志（生命周期 tick 的入参之一）。
@@ -149,6 +150,7 @@ export type LoadTradingDayRuntimeSnapshotDeps = Readonly<{
   tradingConfig: MultiMonitorTradingConfig;
   symbolRegistry: SymbolRegistry;
   dailyLossTracker: DailyLossTracker;
+  protectiveLiquidationEpisodeTracker: ProtectiveLiquidationEpisodeTracker;
   tradeLogHydrator: TradeLogHydrator;
   warrantListCacheConfig: WarrantListCacheConfig;
 }>;

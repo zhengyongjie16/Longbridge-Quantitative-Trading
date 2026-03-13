@@ -18,19 +18,19 @@ import { createTradingConfig } from '../../mock/factories/configFactory.js';
 import { createPushOrderChanged } from '../../mock/factories/tradeFactory.js';
 import { createTradeContextMock } from '../../mock/longbridge/tradeContextMock.js';
 import {
-  createLiquidationCooldownTrackerDouble,
   createOrderRecorderDouble,
+  createProtectiveLiquidationEpisodeTrackerDouble,
   createSymbolRegistryDouble,
 } from '../helpers/testDoubles.js';
 
 describe('protective-liquidation integration', () => {
-  it('records cooldown + local sell update after protective liquidation fill event', async () => {
+  it('records protective episode progress + local sell update after protective liquidation fill event', async () => {
     let capturedHandler: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
       throw new Error('order changed handler was not captured');
     };
     let recordLocalSellCount = 0;
     let markSellFilledCount = 0;
-    let liquidationTriggerRecords = 0;
+    let episodeProgressRecords = 0;
     let staleMarks = 0;
 
     const tradeCtx = createTradeContextMock();
@@ -54,7 +54,7 @@ describe('protective-liquidation integration', () => {
       }),
       dailyLossTracker: {
         resetAll: () => {},
-        resetDirectionSegment: () => {},
+        startNewProtectionEpisode: () => {},
         recalculateFromAllOrders: () => {},
         recordFilledOrder: () => {},
         getLossOffset: () => 0,
@@ -66,13 +66,9 @@ describe('protective-liquidation integration', () => {
         getHoldSymbols: () => new Set<string>(),
         clear: () => {},
       },
-      liquidationCooldownTracker: createLiquidationCooldownTrackerDouble({
-        recordLiquidationTrigger: () => {
-          liquidationTriggerRecords += 1;
-          return {
-            currentCount: 1,
-            cooldownActivated: true,
-          };
+      protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble({
+        recordProtectiveFillProgress: () => {
+          episodeProgressRecords += 1;
         },
       }),
       tradingConfig: createTradingConfig(),
@@ -129,7 +125,7 @@ describe('protective-liquidation integration', () => {
 
     expect(recordLocalSellCount).toBe(1);
     expect(markSellFilledCount).toBe(1);
-    expect(liquidationTriggerRecords).toBe(1);
+    expect(episodeProgressRecords).toBe(1);
     expect(staleMarks).toBe(1);
 
     const pendingRefresh = monitor.getAndClearPendingRefreshSymbols();
@@ -137,3 +133,4 @@ describe('protective-liquidation integration', () => {
     expect(pendingRefresh[0]?.symbol).toBe('BULL.HK');
   });
 });
+

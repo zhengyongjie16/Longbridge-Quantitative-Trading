@@ -5,6 +5,7 @@
  * - 验证保护性清仓记录分组与触发周期模拟算法。
  */
 import { describe, expect, it } from 'bun:test';
+import { TRADING } from '../../../src/constants/index.js';
 
 import type { TradeRecord } from '../../../src/types/trader.js';
 import type { CooldownCandidate } from '../../../src/services/liquidationCooldown/types.js';
@@ -19,6 +20,7 @@ function createTradeRecord(params: {
   readonly action: string | null;
   readonly executedAtMs: number;
   readonly isProtectiveClearance: boolean;
+  readonly reason?: string | null;
 }): TradeRecord {
   return {
     orderId: 'order-id',
@@ -32,7 +34,7 @@ function createTradeRecord(params: {
     orderType: 'ELO',
     status: 'FILLED',
     error: null,
-    reason: null,
+    reason: params.reason ?? null,
     signalTriggerTime: null,
     executedAt: null,
     executedAtMs: params.executedAtMs,
@@ -58,6 +60,7 @@ describe('liquidationCooldown utils', () => {
         action: 'SELLCALL',
         executedAtMs: 300,
         isProtectiveClearance: true,
+        reason: TRADING.PROTECTIVE_LIQUIDATION_COMPLETED_REASON,
       }),
       createTradeRecord({
         monitorSymbol: 'HSI.HK',
@@ -65,6 +68,7 @@ describe('liquidationCooldown utils', () => {
         action: 'SELLCALL',
         executedAtMs: 100,
         isProtectiveClearance: true,
+        reason: TRADING.PROTECTIVE_LIQUIDATION_COMPLETED_REASON,
       }),
       createTradeRecord({
         monitorSymbol: 'HSI.HK',
@@ -72,6 +76,7 @@ describe('liquidationCooldown utils', () => {
         action: 'SELLPUT',
         executedAtMs: 200,
         isProtectiveClearance: true,
+        reason: TRADING.PROTECTIVE_LIQUIDATION_COMPLETED_REASON,
       }),
       createTradeRecord({
         monitorSymbol: 'QQQ.HK',
@@ -79,6 +84,7 @@ describe('liquidationCooldown utils', () => {
         action: 'SELLCALL',
         executedAtMs: 50,
         isProtectiveClearance: true,
+        reason: TRADING.PROTECTIVE_LIQUIDATION_COMPLETED_REASON,
       }),
       createTradeRecord({
         monitorSymbol: 'HSI.HK',
@@ -86,6 +92,7 @@ describe('liquidationCooldown utils', () => {
         action: 'BUYCALL',
         executedAtMs: 400,
         isProtectiveClearance: true,
+        reason: TRADING.PROTECTIVE_LIQUIDATION_COMPLETED_REASON,
       }),
     ];
 
@@ -101,7 +108,7 @@ describe('liquidationCooldown utils', () => {
     expect(grouped.has('QQQ.HK:LONG')).toBe(false);
   });
 
-  it('collectLiquidationRecordsByMonitor returns empty map for non-protective records', () => {
+  it('collectLiquidationRecordsByMonitor returns empty map for non-completion records', () => {
     const grouped = collectLiquidationRecordsByMonitor({
       monitorSymbols: new Set(['HSI.HK']),
       tradeRecords: [

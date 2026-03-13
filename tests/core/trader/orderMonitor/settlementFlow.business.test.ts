@@ -7,8 +7,8 @@
  */
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import {
-  createLiquidationCooldownTrackerDouble,
   createOrderRecorderDouble,
+  createProtectiveLiquidationEpisodeTrackerDouble,
 } from '../../../helpers/testDoubles.js';
 import type { TradeRecord } from '../../../../src/types/trader.js';
 import type { OrderRecord } from '../../../../src/types/services.js';
@@ -80,12 +80,12 @@ describe('settlementFlow business flow', () => {
       }),
       dailyLossTracker: {
         resetAll: () => {},
-        resetDirectionSegment: () => {},
+        startNewProtectionEpisode: () => {},
         recalculateFromAllOrders: () => {},
         recordFilledOrder: () => {},
         getLossOffset: () => 0,
       },
-      liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),
+      protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
     });
 
     const settledResult = settlementFlow.settleOrder({
@@ -174,12 +174,12 @@ describe('settlementFlow business flow', () => {
       }),
       dailyLossTracker: {
         resetAll: () => {},
-        resetDirectionSegment: () => {},
+        startNewProtectionEpisode: () => {},
         recalculateFromAllOrders: () => {},
         recordFilledOrder: () => {},
         getLossOffset: () => 0,
       },
-      liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),
+      protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
     });
 
     const settledResult = settlementFlow.settleOrder({
@@ -210,12 +210,12 @@ describe('settlementFlow business flow', () => {
       orderRecorder: createOrderRecorderDouble(),
       dailyLossTracker: {
         resetAll: () => {},
-        resetDirectionSegment: () => {},
+        startNewProtectionEpisode: () => {},
         recalculateFromAllOrders: () => {},
         recordFilledOrder: () => {},
         getLossOffset: () => 0,
       },
-      liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),
+      protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
     });
 
     const result = settlementFlow.settleOrder({
@@ -233,3 +233,4 @@ describe('settlementFlow business flow', () => {
     expect(runtime.closedOrderIds.has('BUY-PARTIAL-MISSING-ATTR')).toBe(false);
   });
 });
+

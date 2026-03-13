@@ -445,6 +445,12 @@ export interface Trader {
   /** 获取并清空待刷新标的列表 */
   getAndClearPendingRefreshSymbols: () => ReadonlyArray<PendingRefreshSymbol>;
 
+  /** 是否存在指定监控标的方向的未完成保护性清仓卖单链路 */
+  hasPendingProtectiveLiquidationOrders: (
+    monitorSymbol: string,
+    direction: 'LONG' | 'SHORT',
+  ) => boolean;
+
   /** 初始化订单监控（WebSocket 订阅） */
   initializeOrderMonitor: () => Promise<void>;
 

@@ -9,9 +9,8 @@
  * - 管理订单监控和缓存刷新（账户、持仓、浮亏）
  *
  * 执行流程：
- * 1. 交易日/时段判断 → 2. 调用 dayLifecycleManager.tick 驱动生命周期 → 3. 同步冷却/亏损分段（lossOffsetLifecycleCoordinator.sync）
- * → 4. 末日保护检查 → 5. 批量获取行情
- * → 6. 并发处理监控标的 → 7. 订单监控与缓存刷新
+ * 1. 交易日/时段判断 → 2. 调用 dayLifecycleManager.tick 驱动生命周期
+ * → 3. 末日保护检查 → 4. 批量获取行情 → 5. 并发处理监控标的 → 6. 订单监控与缓存刷新
  */
 import { logger } from '../../utils/logger/index.js';
 import { collectRuntimeQuoteSymbols, diffQuoteSymbols } from '../utils.js';
@@ -31,11 +30,10 @@ import {
  *
  * 职责：
  * 1. 判断交易日和交易时段，并驱动 dayLifecycleManager.tick 更新 lifecycleState / isTradingEnabled
- * 2. 调用 lossOffsetLifecycleCoordinator.sync 维护买入冷却相关的亏损分段（即使非交易时段也照常推进）
- * 3. 在生命周期与门禁允许的前提下执行末日保护检查
- * 4. 批量获取行情数据
- * 5. 并发处理所有监控标的
- * 6. 执行订单监控和缓存刷新
+ * 2. 在生命周期与门禁允许的前提下执行末日保护检查
+ * 3. 批量获取行情数据
+ * 4. 并发处理所有监控标的
+ * 5. 执行订单监控和缓存刷新
  *
  * @param context 主程序上下文，包含所有必要的依赖
  */
@@ -56,7 +54,6 @@ export async function mainProgram({
   monitorTaskQueue,
   orderMonitorWorker,
   postTradeRefresher,
-  lossOffsetLifecycleCoordinator,
   runtimeGateMode,
   dayLifecycleManager,
 }: MainProgramContext): Promise<void> {
@@ -172,9 +169,6 @@ export async function mainProgram({
     isTradingDay: isTradingDayToday,
   });
 
-  // 冷却过期扫描与分段切换：即使 canTradeNow=false 也必须执行，防止分段边界漂移
-  await lossOffsetLifecycleCoordinator.sync(currentTime.getTime());
-
   if (!lastState.isTradingEnabled) {
     return;
   }
@@ -265,7 +259,6 @@ export async function mainProgram({
     monitorTaskQueue,
     orderMonitorWorker,
     postTradeRefresher,
-    lossOffsetLifecycleCoordinator,
     runtimeGateMode,
     dayLifecycleManager,
   };

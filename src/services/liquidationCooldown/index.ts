@@ -6,7 +6,6 @@
  */
 import type {
   ClearMidnightEligibleParams,
-  CooldownExpiredEvent,
   GetRemainingMsParams,
   LiquidationCooldownTracker,
   LiquidationCooldownTrackerDeps,
@@ -14,17 +13,16 @@ import type {
   RecordLiquidationTriggerParams,
   RecordLiquidationTriggerResult,
   RestoreTriggerCountParams,
-  SweepExpiredParams,
 } from './types.js';
 import { buildCooldownKey, resolveCooldownEndMs } from './utils.js';
 
 /**
  * 创建清仓冷却追踪器，记录保护性清仓成交时间并计算剩余冷却时长。
  * 内部以 symbol:direction 为键存储成交时间戳，查询时按冷却模式动态计算结束时间。
- * 与日内亏损分段的协作方式：
- * - getRemainingMs 仅做纯查询，过期条目保留给 sweepExpired 统一消费，避免查询产生隐式切段
- * - sweepExpired 在冷却自然到期时产出 CooldownExpiredEvent，由上游（lossOffsetLifecycleCoordinator）据此切换亏损分段
- * - restoreTriggerCount/recordCooldown 则用于启动阶段从成交日志恢复当前周期计数与冷却起点
+ * 与保护性清仓完成链路的协作方式：
+ * - getRemainingMs 仅做纯查询，不产生任何清理副作用
+ * - recordLiquidationTrigger 仅在“保护性清仓事件完成”时调用一次
+ * - restoreTriggerCount/recordCooldown 用于启动阶段从完成事件日志恢复当前周期计数与冷却起点
  * @param deps - 依赖，包含 nowMs（当前时间毫秒）
  * @returns LiquidationCooldownTracker 实例（recordLiquidationTrigger、recordCooldown、restoreTriggerCount、getRemainingMs、clearMidnightEligible、resetAllTriggerCounts）
  */
@@ -126,7 +124,7 @@ export function createLiquidationCooldownTracker(
 
   /**
    * 纯查询：返回指定标的方向的剩余冷却毫秒数。
-   * 冷却已过期或无记录时返回 0，不产生清理副作用（过期清理由 sweepExpired 统一负责）。
+   * 冷却已过期或无记录时返回 0，不产生清理副作用。
    */
   function getRemainingMs({
     symbol,
@@ -155,48 +153,6 @@ export function createLiquidationCooldownTracker(
     return remainingMs;
   }
 
-  /**
-   * 扫描所有冷却条目，消费已过期的条目并返回过期事件列表。
-   * 过期条目从 cooldownMap 和 triggerCountMap 中移除（幂等：同一条目只产出一次事件）。
-   */
-  function sweepExpired({
-    nowMs: currentMs,
-    resolveCooldownConfig,
-  }: SweepExpiredParams): ReadonlyArray<CooldownExpiredEvent> {
-    const events: CooldownExpiredEvent[] = [];
-    for (const [key, executedTimeMs] of cooldownMap) {
-      const parts = key.split(':');
-      const monitorSymbol = parts[0];
-      const directionRaw = parts[1];
-      if (!monitorSymbol || (directionRaw !== 'LONG' && directionRaw !== 'SHORT')) {
-        continue;
-      }
-
-      const direction = directionRaw;
-      const cooldownConfig = resolveCooldownConfig(monitorSymbol, direction);
-      const cooldownEndMs = resolveCooldownEndMs(executedTimeMs, cooldownConfig);
-      if (cooldownEndMs === null || !Number.isFinite(cooldownEndMs)) {
-        cooldownMap.delete(key);
-        triggerCountMap.delete(key);
-        continue;
-      }
-
-      if (currentMs >= cooldownEndMs) {
-        const triggerCount = triggerCountMap.get(key) ?? 0;
-        events.push({
-          monitorSymbol,
-          direction,
-          cooldownEndMs,
-          triggerCountAtExpire: triggerCount,
-        });
-        cooldownMap.delete(key);
-        triggerCountMap.delete(key);
-      }
-    }
-
-    return events;
-  }
-
   /** 跨日午夜清理：删除指定键集合中的冷却记录，minutes 模式条目不在此处清理 */
   function clearMidnightEligible({ keysToClear }: ClearMidnightEligibleParams): void {
     for (const key of keysToClear) {
@@ -215,7 +171,6 @@ export function createLiquidationCooldownTracker(
     recordCooldown,
     restoreTriggerCount,
     getRemainingMs,
-    sweepExpired,
     clearMidnightEligible,
     resetAllTriggerCounts,
   };

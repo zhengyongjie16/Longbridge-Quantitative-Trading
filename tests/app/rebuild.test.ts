@@ -57,7 +57,7 @@ describe('app rebuild helpers', () => {
         requireTradingDay: true,
         failOnOrderFetchError: true,
         resetRuntimeSubscriptions: true,
-        hydrateCooldownFromTradeLog: false,
+        hydrateCooldownFromTradeLog: true,
         forceOrderRefresh: true,
       },
     ]);

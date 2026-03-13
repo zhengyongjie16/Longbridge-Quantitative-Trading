@@ -28,20 +28,17 @@ export type DailyLossFilledOrderInput = {
 };
 
 /**
- * 重置方向分段的参数。
- * 类型用途：lossOffsetLifecycleCoordinator 在冷却过期后调用 resetDirectionSegment 时传入。
- * 数据来源：由冷却过期事件转换而来。
- * 使用范围：风险控制生命周期协同；全项目可引用。
+ * 开启保护性清仓新周期参数。
+ * 类型用途：保护性清仓业务事件完成后推进偏移边界并清空旧周期状态。
+ * 数据来源：postTradeRefresher 在完成确认后传入。
+ * 使用范围：风险控制链路；全项目可引用。
  */
-export type ResetDirectionSegmentParams = {
+export type StartNewProtectionEpisodeParams = {
   readonly monitorSymbol: string;
   readonly direction: 'LONG' | 'SHORT';
 
-  /** 新分段起始时间（冷却结束时间），后续成交必须 >= 此时间才纳入偏移计算 */
-  readonly segmentStartMs: number;
-
-  /** 冷却结束时间（用于幂等保护，同一值重复调用无效） */
-  readonly cooldownEndMs: number;
+  /** 最近一次已完成保护性清仓事件边界（毫秒） */
+  readonly boundaryExecutedTimeMs: number;
 };
 
 /**
@@ -54,29 +51,22 @@ export interface DailyLossTracker {
   /** 显式重置 dayKey 与 states（含分段元数据） */
   resetAll: (now: Date) => void;
 
-  /**
-   * 使用完整订单列表重新计算当日状态，作为启动初始化或纠偏手段。
-   * segmentStartByDirection 可选：按 "monitorSymbol:direction" 为键提供分段起始时间，
-   * 仅计入 executedTimeMs >= segmentStartMs 的成交。
-   */
+  /** 使用完整订单列表重新计算当日状态，作为启动初始化或纠偏手段。 */
   recalculateFromAllOrders: (
     allOrders: ReadonlyArray<RawOrderFromAPI>,
     monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
     now: Date,
-    segmentStartByDirection?: ReadonlyMap<string, number>,
+    protectionBoundaryByDirection?: ReadonlyMap<string, number>,
   ) => void;
 
-  /** 增量记录单笔成交，仅接受 executedTimeMs >= 当前分段起始时间 且 当日日键匹配的订单 */
+  /** 增量记录单笔成交，仅接受 executedTimeMs > 当前保护性边界 且 当日日键匹配的订单 */
   recordFilledOrder: (input: DailyLossFilledOrderInput) => void;
 
   /** 获取指定标的与方向的当日亏损偏移（仅亏损，<=0），未初始化时返回 0 */
   getLossOffset: (monitorSymbol: string, isLongSymbol: boolean) => number;
 
-  /**
-   * 重置指定 monitor+direction 的分段：清空旧段订单与偏移，设置新分段起始时间。
-   * 幂等：同一 cooldownEndMs 重复调用不产生副作用。
-   */
-  resetDirectionSegment: (params: ResetDirectionSegmentParams) => void;
+  /** 推进保护性边界并开启新周期（幂等且只允许边界单向前进）。 */
+  startNewProtectionEpisode: (params: StartNewProtectionEpisodeParams) => void;
 }
 
 /**

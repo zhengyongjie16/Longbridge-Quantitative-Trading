@@ -84,7 +84,4 @@ export interface SignalProcessor {
 export type SignalProcessorDeps = {
   readonly tradingConfig: MultiMonitorTradingConfig;
   readonly liquidationCooldownTracker: LiquidationCooldownTracker;
-
-  /** 冷却边界同步函数：在关键风控边界前触发分段同步，保证冷却判定与偏移切段一致 */
-  readonly syncLossOffsetLifecycle: (currentTimeMs: number) => void | Promise<void>;
 };

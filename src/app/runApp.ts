@@ -232,7 +232,6 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
           monitorTaskQueue: postGateRuntime.monitorTaskQueue,
           orderMonitorWorker: asyncRuntime.orderMonitorWorker,
           postTradeRefresher: asyncRuntime.postTradeRefresher,
-          lossOffsetLifecycleCoordinator: postGateRuntime.lossOffsetLifecycleCoordinator,
           runtimeGateMode: preGateRuntime.gatePolicies.runtimeGate,
           dayLifecycleManager,
         });

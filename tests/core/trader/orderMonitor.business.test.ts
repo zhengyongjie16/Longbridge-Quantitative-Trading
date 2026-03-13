@@ -20,8 +20,8 @@ import { createTradingConfig } from '../../../mock/factories/configFactory.js';
 import { createPushOrderChanged } from '../../../mock/factories/tradeFactory.js';
 import { createTradeContextMock } from '../../../mock/longbridge/tradeContextMock.js';
 import {
-  createLiquidationCooldownTrackerDouble,
   createOrderRecorderDouble,
+  createProtectiveLiquidationEpisodeTrackerDouble,
   createQuoteDouble,
   createSymbolRegistryDouble,
 } from '../../helpers/testDoubles.js';
@@ -54,7 +54,7 @@ function createDeps(params?: {
   readonly onHandleOrderChanged?: (handler: (event: PushOrderChanged) => void) => void;
   readonly allocateRelatedBuyOrderIdsForRecovery?: () => readonly string[];
   readonly liquidationTriggerLimit?: number;
-  readonly liquidationCooldownTrackerOverride?: OrderMonitorDeps['liquidationCooldownTracker'];
+  readonly protectiveLiquidationEpisodeTrackerOverride?: OrderMonitorDeps['protectiveLiquidationEpisodeTracker'];
   readonly orderRecorderOverride?: OrderMonitorDeps['orderRecorder'];
   readonly dailyLossTrackerOverride?: OrderMonitorDeps['dailyLossTracker'];
 }): { deps: OrderMonitorDeps; tradeCtx: ReturnType<typeof createTradeContextMock> } {
@@ -217,7 +217,7 @@ function createDeps(params?: {
     orderRecorder,
     dailyLossTracker: params?.dailyLossTrackerOverride ?? {
       resetAll: () => {},
-      resetDirectionSegment: () => {},
+      startNewProtectionEpisode: () => {},
       recalculateFromAllOrders: () => {},
       recordFilledOrder: () => {},
       getLossOffset: () => 0,
@@ -229,8 +229,9 @@ function createDeps(params?: {
       getHoldSymbols: () => new Set<string>(),
       clear: () => {},
     },
-    liquidationCooldownTracker:
-      params?.liquidationCooldownTrackerOverride ?? createLiquidationCooldownTrackerDouble(),
+    protectiveLiquidationEpisodeTracker:
+      params?.protectiveLiquidationEpisodeTrackerOverride ??
+      createProtectiveLiquidationEpisodeTrackerDouble(),
     tradingConfig,
     symbolRegistry,
     ...(params?.onHandleOrderChanged
@@ -933,22 +934,21 @@ describe('orderMonitor business flow', () => {
     let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
       throw new Error('handleOrderChanged hook was not captured');
     };
-    const triggerCalls: Array<{ triggerLimit: number; symbol: string; direction: string }> = [];
+    const progressCalls: Array<{
+      monitorSymbol: string;
+      direction: 'LONG' | 'SHORT';
+      executedTimeMs: number;
+    }> = [];
+    const executedTimeMs = Date.parse('2026-02-25T03:20:00.000Z');
     const { deps } = createDeps({
       liquidationTriggerLimit: 3,
-      liquidationCooldownTrackerOverride: createLiquidationCooldownTrackerDouble({
-        recordLiquidationTrigger: (params) => {
-          triggerCalls.push({
-            triggerLimit: params.triggerLimit,
-            symbol: params.symbol,
-            direction: params.direction,
-          });
-          return {
-            currentCount: 1,
-            cooldownActivated: false,
-          };
+      protectiveLiquidationEpisodeTrackerOverride: createProtectiveLiquidationEpisodeTrackerDouble(
+        {
+          recordProtectiveFillProgress: (params) => {
+            progressCalls.push(params);
+          },
         },
-      }),
+      ),
       onHandleOrderChanged: (handler) => {
         handleOrderChanged = handler;
       },
@@ -977,15 +977,15 @@ describe('orderMonitor business flow', () => {
         submittedQuantity: 100,
         executedPrice: 1,
         executedQuantity: 100,
-        updatedAtMs: Date.now(),
+        updatedAtMs: executedTimeMs,
       }),
     );
 
-    expect(triggerCalls).toHaveLength(1);
-    expect(triggerCalls[0]).toEqual({
-      triggerLimit: 3,
-      symbol: 'HSI.HK',
+    expect(progressCalls).toHaveLength(1);
+    expect(progressCalls[0]).toEqual({
+      monitorSymbol: 'HSI.HK',
       direction: 'LONG',
+      executedTimeMs,
     });
   });
 
@@ -1280,7 +1280,7 @@ describe('orderMonitor business flow', () => {
       orderRecorderOverride: orderRecorder,
       dailyLossTrackerOverride: {
         resetAll: () => {},
-        resetDirectionSegment: () => {},
+        startNewProtectionEpisode: () => {},
         recalculateFromAllOrders: () => {},
         recordFilledOrder: () => {
           dailyLossCalls += 1;
@@ -1447,7 +1447,7 @@ describe('orderMonitor business flow', () => {
       orderRecorderOverride: orderRecorder,
       dailyLossTrackerOverride: {
         resetAll: () => {},
-        resetDirectionSegment: () => {},
+        startNewProtectionEpisode: () => {},
         recalculateFromAllOrders: () => {},
         recordFilledOrder: () => {
           dailyLossCalls += 1;
@@ -2231,7 +2231,7 @@ describe('orderMonitor business flow', () => {
       }),
       dailyLossTrackerOverride: {
         resetAll: () => {},
-        resetDirectionSegment: () => {},
+        startNewProtectionEpisode: () => {},
         recalculateFromAllOrders: () => {},
         recordFilledOrder: () => {
           dailyLossCount += 1;
@@ -2282,3 +2282,4 @@ describe('orderMonitor business flow', () => {
     ]);
   });
 });
+

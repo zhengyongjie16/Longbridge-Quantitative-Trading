@@ -27,7 +27,7 @@ import type {
   LiquidationCooldownTracker,
   TradeLogHydrator,
 } from '../services/liquidationCooldown/types.js';
-import type { LossOffsetLifecycleCoordinator } from '../core/riskController/lossOffsetLifecycleCoordinator/types.js';
+import type { ProtectiveLiquidationEpisodeTracker } from '../core/trader/protectiveLiquidationEpisodeTracker/types.js';
 import type { RefreshGate } from '../utils/types.js';
 import type { MarketMonitor } from '../services/marketMonitor/types.js';
 import type { DoomsdayProtection } from '../core/doomsdayProtection/types.js';
@@ -362,8 +362,8 @@ export type CreatePostGateRuntimeParams = Readonly<{
 type PostGateRuntime = Readonly<{
   liquidationCooldownTracker: LiquidationCooldownTracker;
   dailyLossTracker: DailyLossTracker;
+  protectiveLiquidationEpisodeTracker: ProtectiveLiquidationEpisodeTracker;
   monitorContexts: ReadonlyMap<string, MonitorContext>;
-  lossOffsetLifecycleCoordinator: LossOffsetLifecycleCoordinator;
   refreshGate: RefreshGate;
   lastState: LastState;
   trader: Trader;

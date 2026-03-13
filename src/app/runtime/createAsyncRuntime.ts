@@ -30,6 +30,9 @@ export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntim
     refreshGate,
     trader,
     lastState,
+    dailyLossTracker,
+    liquidationCooldownTracker,
+    protectiveLiquidationEpisodeTracker,
     signalProcessor,
     doomsdayProtection,
     buyTaskQueue,
@@ -44,6 +47,9 @@ export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntim
     trader,
     lastState,
     monitorContexts,
+    dailyLossTracker,
+    liquidationCooldownTracker,
+    protectiveLiquidationEpisodeTracker,
     displayAccountAndPositions,
   });
   const monitorTaskProcessor = createMonitorTaskProcessor({

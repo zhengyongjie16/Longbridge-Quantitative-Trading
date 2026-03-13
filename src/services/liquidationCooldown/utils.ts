@@ -1,4 +1,4 @@
-import { TIME } from '../../constants/index.js';
+import { TIME, TRADING } from '../../constants/index.js';
 import { getHKTime } from '../../utils/time/index.js';
 import type { TradeRecord } from '../../types/trader.js';
 import type { LiquidationCooldownConfig } from '../../types/config.js';
@@ -150,10 +150,8 @@ export function toBooleanOrNull(value: unknown): boolean | null {
 }
 
 /**
- * 从成交记录中按监控标的和方向收集所有保护性清仓记录。
- * 1. 按 monitorSymbol 匹配（而非交易标的 symbol），确保换标后旧标的 PL 记录不丢失。
- * 2. 方向从 action 推导（SELLCALL -> LONG，SELLPUT -> SHORT），不依赖席位快照。
- * 3. 返回所有记录（而非仅最后一条），供触发计数器周期模拟使用。
+ * 从成交记录中按监控标的和方向收集保护性清仓“完成事件”记录。
+ * 仅识别 reason = PROTECTIVE_LIQUIDATION_COMPLETED 的日志。
  *
  * @param params.monitorSymbols 当前监控标的代码集合
  * @param params.tradeRecords 当日成交记录列表
@@ -172,7 +170,7 @@ export function collectLiquidationRecordsByMonitor({
 
   const grouped = new Map<string, CooldownCandidate[]>();
   for (const record of tradeRecords) {
-    if (record.isProtectiveClearance !== true) {
+    if (record.reason !== TRADING.PROTECTIVE_LIQUIDATION_COMPLETED_REASON) {
       continue;
     }
 

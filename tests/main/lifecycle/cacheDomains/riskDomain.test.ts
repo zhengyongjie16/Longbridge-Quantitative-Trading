@@ -10,6 +10,7 @@ import type { MonitorContext } from '../../../../src/types/state.js';
 import type { DailyLossTracker } from '../../../../src/types/risk.js';
 import type { SignalProcessor } from '../../../../src/core/signalProcessor/types.js';
 import type { LiquidationCooldownTracker } from '../../../../src/services/liquidationCooldown/types.js';
+import { createProtectiveLiquidationEpisodeTrackerDouble } from '../../../helpers/testDoubles.js';
 
 describe('createRiskDomain', () => {
   it('midnightClear 调用 signalProcessor.resetRiskCheckCooldown、dailyLossTracker.resetAll、clearMidnightEligible、各 riskChecker 清理', async () => {
@@ -54,7 +55,7 @@ describe('createRiskDomain', () => {
         resetAllCalled = true;
         resetAllNow = now;
       },
-      resetDirectionSegment: () => {},
+      startNewProtectionEpisode: () => {},
     } as unknown as DailyLossTracker;
     const liquidationCooldownTracker: LiquidationCooldownTracker = {
       recordLiquidationTrigger: () => ({ currentCount: 0, cooldownActivated: false }),
@@ -63,9 +64,7 @@ describe('createRiskDomain', () => {
       getRemainingMs: () => 0,
       clearMidnightEligible: (params) => {
         clearMidnightEligibleKeys = new Set(params.keysToClear);
-      },
-      sweepExpired: () => [],
-      resetAllTriggerCounts: () => {
+      },      resetAllTriggerCounts: () => {
         resetAllTriggerCountsCalled = true;
       },
     };
@@ -73,6 +72,7 @@ describe('createRiskDomain', () => {
     const domain = createRiskDomain({
       signalProcessor,
       dailyLossTracker,
+      protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
       monitorContexts,
       liquidationCooldownTracker,
     });
@@ -119,17 +119,16 @@ describe('createRiskDomain', () => {
       getRemainingMs: () => 0,
       clearMidnightEligible: (params) => {
         clearMidnightEligibleKeys = new Set(params.keysToClear);
-      },
-      sweepExpired: () => [],
-      resetAllTriggerCounts: () => {},
+      },      resetAllTriggerCounts: () => {},
     };
 
     const domain = createRiskDomain({
       signalProcessor: { resetRiskCheckCooldown: () => {} } as unknown as SignalProcessor,
       dailyLossTracker: {
         resetAll: () => {},
-        resetDirectionSegment: () => {},
+        startNewProtectionEpisode: () => {},
       } as unknown as DailyLossTracker,
+      protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
       monitorContexts,
       liquidationCooldownTracker,
     });
@@ -146,17 +145,16 @@ describe('createRiskDomain', () => {
       signalProcessor: { resetRiskCheckCooldown: () => {} } as unknown as SignalProcessor,
       dailyLossTracker: {
         resetAll: () => {},
-        resetDirectionSegment: () => {},
+        startNewProtectionEpisode: () => {},
       } as unknown as DailyLossTracker,
+      protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
       monitorContexts: new Map(),
       liquidationCooldownTracker: {
         recordLiquidationTrigger: () => ({ currentCount: 0, cooldownActivated: false }),
         recordCooldown: () => {},
         restoreTriggerCount: () => {},
         getRemainingMs: () => 0,
-        clearMidnightEligible: () => {},
-        sweepExpired: () => [],
-        resetAllTriggerCounts: () => {},
+        clearMidnightEligible: () => {},        resetAllTriggerCounts: () => {},
       },
     });
     await domain.openRebuild({
@@ -165,3 +163,5 @@ describe('createRiskDomain', () => {
     });
   });
 });
+
+

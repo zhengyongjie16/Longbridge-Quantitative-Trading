@@ -23,7 +23,7 @@ import type {
 } from '../../types/services.js';
 import type { DailyLossTracker } from '../../types/risk.js';
 import type { CancelOrderOutcome } from '../../types/trader.js';
-import type { LiquidationCooldownTracker } from '../../services/liquidationCooldown/types.js';
+import type { ProtectiveLiquidationEpisodeTracker } from './protectiveLiquidationEpisodeTracker/types.js';
 import type { RefreshGate } from '../../utils/types.js';
 
 /**
@@ -225,6 +225,12 @@ export interface OrderMonitor {
    * @returns 待刷新的标的列表（调用后列表会被清空）
    */
   getAndClearPendingRefreshSymbols: () => PendingRefreshSymbol[];
+
+  /** 是否存在指定监控标的方向的未完成保护性清仓卖单链路 */
+  hasPendingProtectiveLiquidationOrders?: (
+    monitorSymbol: string,
+    direction: 'LONG' | 'SHORT',
+  ) => boolean;
 
   /** 清空恢复运行态（tracked/pendingSell/refreshQueue）与 BOOTSTRAPPING 事件缓存 */
   clearTrackedOrders: () => void;
@@ -498,8 +504,8 @@ export type OrderMonitorDeps = {
   /** 订单订阅保留集 */
   readonly orderHoldRegistry: OrderHoldRegistry;
 
-  /** 清仓冷却追踪器（用于记录保护性清仓） */
-  readonly liquidationCooldownTracker: LiquidationCooldownTracker;
+  /** 保护性清仓事件跟踪器（用于完成边界） */
+  readonly protectiveLiquidationEpisodeTracker: ProtectiveLiquidationEpisodeTracker;
 
   /** 标的注册表（用于解析动态标的归属） */
   readonly symbolRegistry: SymbolRegistry;
@@ -561,12 +567,12 @@ export type OrderExecutorDeps = {
 export type TraderDeps = {
   readonly config: Config;
   readonly tradingConfig: MultiMonitorTradingConfig;
-  readonly liquidationCooldownTracker: LiquidationCooldownTracker;
   readonly rateLimiterConfig?: RateLimiterConfig;
 
   /** 标的注册表（用于动态标的映射） */
   readonly symbolRegistry: SymbolRegistry;
   readonly dailyLossTracker: DailyLossTracker;
+  readonly protectiveLiquidationEpisodeTracker: ProtectiveLiquidationEpisodeTracker;
 
   /** 刷新门禁（成交后标记 stale） */
   readonly refreshGate?: RefreshGate;

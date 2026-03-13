@@ -6,9 +6,10 @@
  * - 初始化 WebSocket 私有主题订阅并分发订单推送
  * - 对外暴露 OrderMonitor 接口，保持原有签名不变
  */
-import { TopicType, type PushOrderChanged } from 'longbridge';
+import { OrderSide, TopicType, type PushOrderChanged } from 'longbridge';
 import { logger } from '../../../utils/logger/index.js';
 import { toDecimal } from '../utils.js';
+import { PENDING_ORDER_STATUSES } from '../../../constants/index.js';
 import type { OrderMonitor, OrderMonitorDeps } from '../types.js';
 import type { PendingRefreshSymbol } from '../../../types/services.js';
 import type { OrderMonitorRuntimeStore, OrderMonitorTrackedOrder } from './types.js';
@@ -39,7 +40,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     orderRecorder,
     dailyLossTracker,
     orderHoldRegistry,
-    liquidationCooldownTracker,
+    protectiveLiquidationEpisodeTracker,
     testHooks,
     tradingConfig,
     symbolRegistry,
@@ -65,7 +66,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     orderHoldRegistry,
     orderRecorder,
     dailyLossTracker,
-    liquidationCooldownTracker,
+    protectiveLiquidationEpisodeTracker,
     ...(refreshGate ? { refreshGate } : {}),
   });
 
@@ -228,6 +229,36 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     runtime.runtimeState = 'BOOTSTRAPPING';
   }
 
+  function hasPendingProtectiveLiquidationOrders(
+    monitorSymbol: string,
+    direction: 'LONG' | 'SHORT',
+  ): boolean {
+    for (const trackedOrder of runtime.trackedOrders.values()) {
+      if (!trackedOrder.isProtectiveLiquidation) {
+        continue;
+      }
+
+      if (!PENDING_ORDER_STATUSES.has(trackedOrder.status)) {
+        continue;
+      }
+
+      if (trackedOrder.side !== OrderSide.Sell) {
+        continue;
+      }
+
+      if (trackedOrder.monitorSymbol !== monitorSymbol) {
+        continue;
+      }
+
+      const trackedDirection = trackedOrder.isLongSymbol ? 'LONG' : 'SHORT';
+      if (trackedDirection === direction) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   return {
     initialize,
     trackOrder: orderOps.trackOrder,
@@ -237,6 +268,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     recoverOrderTrackingFromSnapshot: recoveryFlow.recoverOrderTrackingFromSnapshot,
     getPendingSellOrders: quoteFlow.getPendingSellOrders,
     getAndClearPendingRefreshSymbols,
+    hasPendingProtectiveLiquidationOrders,
     clearTrackedOrders,
   };
 }

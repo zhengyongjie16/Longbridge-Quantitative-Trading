@@ -23,6 +23,7 @@ import {
   createOrderRecorderDouble,
   createPositionCacheDouble,
   createPositionDouble,
+  createProtectiveLiquidationEpisodeTrackerDouble,
   createRiskCheckerDouble,
   createSymbolRegistryDouble,
   createTraderDouble,
@@ -65,7 +66,7 @@ function createOrderMonitorDeps(params?: {
     orderRecorder: params?.orderRecorder ?? createOrderRecorderDouble(),
     dailyLossTracker: {
       resetAll: () => {},
-      resetDirectionSegment: () => {},
+      startNewProtectionEpisode: () => {},
       recalculateFromAllOrders: () => {},
       recordFilledOrder: () => {},
       getLossOffset: () => 0,
@@ -77,7 +78,7 @@ function createOrderMonitorDeps(params?: {
       getHoldSymbols: () => new Set<string>(),
       clear: () => {},
     },
-    liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),
+    protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
     tradingConfig: createTradingConfig({
       global: {
         ...createTradingConfig().global,
@@ -210,7 +211,7 @@ describe('chaos: api flaky recovery', () => {
       orderRecorder: createOrderRecorderDouble(),
       dailyLossTracker: {
         resetAll: () => {},
-        resetDirectionSegment: () => {},
+        startNewProtectionEpisode: () => {},
         recalculateFromAllOrders: () => {},
         recordFilledOrder: () => {},
         getLossOffset: () => 0,
@@ -228,6 +229,15 @@ describe('chaos: api flaky recovery', () => {
       trader,
       lastState,
       monitorContexts: new Map([['HSI.HK', monitorContext]]),
+      dailyLossTracker: {
+        resetAll: () => {},
+        startNewProtectionEpisode: () => {},
+        recalculateFromAllOrders: () => {},
+        recordFilledOrder: () => {},
+        getLossOffset: () => 0,
+      },
+      liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),
+      protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
       displayAccountAndPositions: async () => {},
     });
 
@@ -271,3 +281,4 @@ describe('chaos: api flaky recovery', () => {
     expect(gateStatus.currentVersion).toBe(staleVersion);
   });
 });
+

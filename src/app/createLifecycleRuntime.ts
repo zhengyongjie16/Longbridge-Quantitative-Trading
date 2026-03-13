@@ -53,6 +53,7 @@ function createLifecycleCacheDomains(
     lastState,
     signalProcessor,
     dailyLossTracker,
+    protectiveLiquidationEpisodeTracker,
     liquidationCooldownTracker,
     loadTradingDayRuntimeSnapshot,
   } = postGateRuntime;
@@ -105,6 +106,7 @@ function createLifecycleCacheDomains(
     buildRiskDomain({
       signalProcessor,
       dailyLossTracker,
+      protectiveLiquidationEpisodeTracker,
       monitorContexts,
       liquidationCooldownTracker,
     }),

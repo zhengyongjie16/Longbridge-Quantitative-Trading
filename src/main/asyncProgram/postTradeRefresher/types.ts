@@ -1,6 +1,9 @@
 import type { LastState, MonitorContext } from '../../../types/state.js';
 import type { Quote } from '../../../types/quote.js';
 import type { PendingRefreshSymbol, Trader } from '../../../types/services.js';
+import type { DailyLossTracker } from '../../../types/risk.js';
+import type { LiquidationCooldownTracker } from '../../../services/liquidationCooldown/types.js';
+import type { ProtectiveLiquidationEpisodeTracker } from '../../../core/trader/protectiveLiquidationEpisodeTracker/types.js';
 import type { RefreshGate } from '../../../utils/types.js';
 
 /**
@@ -25,6 +28,9 @@ export type PostTradeRefresherDeps = Readonly<{
   trader: Trader;
   lastState: LastState;
   monitorContexts: ReadonlyMap<string, MonitorContext>;
+  dailyLossTracker: DailyLossTracker;
+  liquidationCooldownTracker: LiquidationCooldownTracker;
+  protectiveLiquidationEpisodeTracker: ProtectiveLiquidationEpisodeTracker;
   displayAccountAndPositions: (params: {
     lastState: LastState;
     quotesMap: ReadonlyMap<string, Quote | null>;

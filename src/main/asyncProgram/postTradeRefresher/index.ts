@@ -16,18 +16,62 @@
  * - 重试时合并所有待刷新标的，避免重复刷新
  */
 import { logger } from '../../../utils/logger/index.js';
-import { API } from '../../../constants/index.js';
+import { API, TRADING } from '../../../constants/index.js';
 import { isSeatReady } from '../../../services/autoSymbolManager/utils.js';
 import type { MonitorContext } from '../../../types/state.js';
 import type { Quote } from '../../../types/quote.js';
 import type { PendingRefreshSymbol } from '../../../types/services.js';
 import { formatSymbolDisplay } from '../../../utils/display/index.js';
 import { formatError } from '../../../utils/error/index.js';
+import { toHongKongTimeIso } from '../../../utils/time/index.js';
+import { recordTrade } from '../../../core/trader/tradeLogger.js';
 import type {
   PostTradeRefresher,
   PostTradeRefresherDeps,
   PostTradeRefresherEnqueueParams,
 } from './types.js';
+import type { ProtectiveLiquidationDirection } from '../../../core/trader/protectiveLiquidationEpisodeTracker/types.js';
+
+function resolveProtectiveAction(direction: ProtectiveLiquidationDirection): 'SELLCALL' | 'SELLPUT' {
+  if (direction === 'LONG') {
+    return 'SELLCALL';
+  }
+
+  return 'SELLPUT';
+}
+
+function resolveDirectionSeatSymbol(
+  monitorContext: MonitorContext,
+  direction: ProtectiveLiquidationDirection,
+): string | null {
+  const seatState = monitorContext.symbolRegistry.getSeatState(
+    monitorContext.config.monitorSymbol,
+    direction,
+  );
+  if (!isSeatReady(seatState)) {
+    return null;
+  }
+
+  return seatState.symbol;
+}
+
+function isDirectionFlatByPositionCache(
+  monitorContext: MonitorContext,
+  direction: ProtectiveLiquidationDirection,
+  getPositionBySymbol: (symbol: string) => { quantity: number } | null,
+): boolean {
+  const seatSymbol = resolveDirectionSeatSymbol(monitorContext, direction);
+  if (!seatSymbol) {
+    return true;
+  }
+
+  const position = getPositionBySymbol(seatSymbol);
+  if (!position) {
+    return true;
+  }
+
+  return position.quantity <= 0;
+}
 
 /**
  * 创建交易后刷新器。
@@ -44,7 +88,16 @@ import type {
  * @returns PostTradeRefresher 实例（start、enqueue、stopAndDrain、clearPending）
  */
 export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTradeRefresher {
-  const { refreshGate, trader, lastState, monitorContexts, displayAccountAndPositions } = deps;
+  const {
+    refreshGate,
+    trader,
+    lastState,
+    monitorContexts,
+    dailyLossTracker,
+    liquidationCooldownTracker,
+    protectiveLiquidationEpisodeTracker,
+    displayAccountAndPositions,
+  } = deps;
   let running = true;
   let inFlight = false;
   let pendingSymbols: PendingRefreshSymbol[] = [];
@@ -89,6 +142,81 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
       } catch (err) {
         refreshOk = false;
         logger.warn('[缓存刷新] 订单成交后刷新缓存失败', formatError(err));
+      }
+    }
+
+    if (refreshOk) {
+      const inProgressEpisodes = protectiveLiquidationEpisodeTracker.getInProgressEpisodes();
+      for (const episode of inProgressEpisodes) {
+        const monitorContext = monitorContexts.get(episode.monitorSymbol);
+        if (!monitorContext) {
+          continue;
+        }
+
+        const direction = episode.direction;
+        const isDirectionFlat = isDirectionFlatByPositionCache(
+          monitorContext,
+          direction,
+          (symbol) => lastState.positionCache.get(symbol),
+        );
+        const hasPendingProtectiveOrders = trader.hasPendingProtectiveLiquidationOrders(
+          episode.monitorSymbol,
+          direction,
+        );
+        const completedEvent = protectiveLiquidationEpisodeTracker.completeIfEligible({
+          monitorSymbol: episode.monitorSymbol,
+          direction,
+          isDirectionFlat,
+          hasPendingProtectiveOrders,
+        });
+        if (!completedEvent) {
+          continue;
+        }
+
+        dailyLossTracker.startNewProtectionEpisode({
+          monitorSymbol: completedEvent.monitorSymbol,
+          direction: completedEvent.direction,
+          boundaryExecutedTimeMs: completedEvent.boundaryExecutedTimeMs,
+        });
+        const cooldownResult = liquidationCooldownTracker.recordLiquidationTrigger({
+          symbol: completedEvent.monitorSymbol,
+          direction: completedEvent.direction,
+          executedTimeMs: completedEvent.boundaryExecutedTimeMs,
+          triggerLimit: monitorContext.config.liquidationTriggerLimit,
+          cooldownConfig: monitorContext.config.liquidationCooldown,
+        });
+        const seatSymbol = resolveDirectionSeatSymbol(monitorContext, completedEvent.direction);
+        recordTrade({
+          orderId: null,
+          symbol: seatSymbol,
+          symbolName: null,
+          monitorSymbol: completedEvent.monitorSymbol,
+          action: resolveProtectiveAction(completedEvent.direction),
+          side: 'SELL',
+          quantity: null,
+          price: null,
+          orderType: null,
+          status: 'FILLED',
+          error: null,
+          reason: TRADING.PROTECTIVE_LIQUIDATION_COMPLETED_REASON,
+          signalTriggerTime: null,
+          executedAt: toHongKongTimeIso(new Date(completedEvent.boundaryExecutedTimeMs)),
+          executedAtMs: completedEvent.boundaryExecutedTimeMs,
+          timestamp: null,
+          isProtectiveClearance: true,
+        });
+
+        logger.info(
+          `[保护性清仓] ${completedEvent.monitorSymbol}:${completedEvent.direction} 已确认完成，` +
+            `切换新偏移周期边界=${completedEvent.boundaryExecutedTimeMs}`,
+        );
+
+        if (cooldownResult.cooldownActivated) {
+          logger.warn(
+            `[保护性清仓] ${completedEvent.monitorSymbol}:${completedEvent.direction} ` +
+              `触发次数达到上限（${cooldownResult.currentCount}/${monitorContext.config.liquidationTriggerLimit}），进入买入冷却`,
+          );
+        }
       }
     }
 

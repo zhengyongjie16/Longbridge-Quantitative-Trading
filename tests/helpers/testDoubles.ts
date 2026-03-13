@@ -52,6 +52,7 @@ import type {
 } from '../../src/services/liquidationCooldown/types.js';
 import type { DelayedSignalVerifier } from '../../src/main/asyncProgram/delayedSignalVerifier/types.js';
 import type { AutoSymbolManager } from '../../src/services/autoSymbolManager/types.js';
+import type { ProtectiveLiquidationEpisodeTracker } from '../../src/core/trader/protectiveLiquidationEpisodeTracker/types.js';
 import { toMockDecimal } from '../../mock/longbridge/decimal.js';
 import { createQuoteContextMock } from '../../mock/longbridge/quoteContextMock.js';
 import { createTradeContextMock } from '../../mock/longbridge/tradeContextMock.js';
@@ -151,6 +152,7 @@ export function createTraderDouble(overrides: Partial<Trader> = {}): Trader {
     }),
     monitorAndManageOrders: async () => {},
     getAndClearPendingRefreshSymbols: (): ReadonlyArray<PendingRefreshSymbol> => [],
+    hasPendingProtectiveLiquidationOrders: () => false,
     initializeOrderMonitor: async () => {},
     canTradeNow: (): { readonly canTrade: boolean } => ({ canTrade: true }),
     recordBuyAttempt: () => {},
@@ -213,7 +215,7 @@ export function createDailyLossTrackerDouble(
     recalculateFromAllOrders: () => {},
     recordFilledOrder: () => {},
     getLossOffset: () => 0,
-    resetDirectionSegment: () => {},
+    startNewProtectionEpisode: () => {},
   };
 
   return {
@@ -432,9 +434,32 @@ export function createLiquidationCooldownTrackerDouble(
     recordCooldown: (_params: RecordCooldownParams): void => {},
     restoreTriggerCount: (_params: RestoreTriggerCountParams): void => {},
     getRemainingMs: (_params: GetRemainingMsParams): number => 0,
-    sweepExpired: () => [],
     clearMidnightEligible: (_params: ClearMidnightEligibleParams): void => {},
     resetAllTriggerCounts: (): void => {},
+  };
+
+  return {
+    ...base,
+    ...overrides,
+  };
+}
+
+/**
+ * 创建 ProtectiveLiquidationEpisodeTracker 测试替身。
+ *
+ * 用于在测试中模拟保护性清仓事件进度与完成判定。
+ */
+export function createProtectiveLiquidationEpisodeTrackerDouble(
+  overrides: Partial<ProtectiveLiquidationEpisodeTracker> = {},
+): ProtectiveLiquidationEpisodeTracker {
+  const base: ProtectiveLiquidationEpisodeTracker = {
+    recordProtectiveFillProgress: () => {},
+    completeIfEligible: () => null,
+    restoreCompletedBoundary: () => {},
+    restoreInProgressEpisode: () => {},
+    getLatestProtectionBoundaryByDirection: () => new Map<string, number>(),
+    getInProgressEpisodes: () => [],
+    resetAll: () => {},
   };
 
   return {

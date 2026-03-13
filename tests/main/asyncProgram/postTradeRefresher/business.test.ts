@@ -14,10 +14,13 @@ import type { LastState, MonitorContext } from '../../../../src/types/state.js';
 
 import {
   createAccountSnapshotDouble,
+  createDailyLossTrackerDouble,
+  createLiquidationCooldownTrackerDouble,
   createMonitorConfigDouble,
   createOrderRecorderDouble,
   createPositionCacheDouble,
   createPositionDouble,
+  createProtectiveLiquidationEpisodeTrackerDouble,
   createRiskCheckerDouble,
   createSymbolRegistryDouble,
   createTraderDouble,
@@ -111,6 +114,9 @@ describe('postTradeRefresher business flow', () => {
       trader,
       lastState,
       monitorContexts: new Map([['HSI.HK', monitorContext]]),
+      dailyLossTracker: createDailyLossTrackerDouble(),
+      liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),
+      protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
       displayAccountAndPositions: async () => {
         displayCalls += 1;
       },
@@ -170,6 +176,9 @@ describe('postTradeRefresher business flow', () => {
       trader,
       lastState,
       monitorContexts: new Map(),
+      dailyLossTracker: createDailyLossTrackerDouble(),
+      liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),
+      protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
       displayAccountAndPositions: async () => {},
     });
 
@@ -197,5 +206,101 @@ describe('postTradeRefresher business flow', () => {
 
     const finalStatus = refreshGate.getStatus();
     expect(finalStatus.currentVersion).toBe(staleVersion);
+  });
+
+  it('skips protective completion decision when account or position refresh fails', async () => {
+    const refreshGate = createRefreshGate();
+    refreshGate.markStale();
+    const lastState = createLastState();
+    let completeIfEligibleCalls = 0;
+    let startNewEpisodeCalls = 0;
+
+    const monitorContext = {
+      config: createMonitorConfigDouble({
+        monitorSymbol: 'HSI.HK',
+      }),
+      symbolRegistry: createSymbolRegistryDouble({
+        monitorSymbol: 'HSI.HK',
+        longSeat: {
+          symbol: 'BULL.HK',
+          status: 'READY',
+          lastSwitchAt: null,
+          lastSearchAt: null,
+          lastSeatReadyAt: null,
+          searchFailCountToday: 0,
+          frozenTradingDayKey: null,
+        },
+        shortSeat: {
+          symbol: 'BEAR.HK',
+          status: 'READY',
+          lastSwitchAt: null,
+          lastSearchAt: null,
+          lastSeatReadyAt: null,
+          searchFailCountToday: 0,
+          frozenTradingDayKey: null,
+        },
+      }),
+      longSymbolName: 'BULL',
+      shortSymbolName: 'BEAR',
+      orderRecorder: createOrderRecorderDouble(),
+      dailyLossTracker: createDailyLossTrackerDouble(),
+      riskChecker: createRiskCheckerDouble(),
+    } as unknown as MonitorContext;
+
+    const trader = createTraderDouble({
+      getAccountSnapshot: async () => {
+        throw new Error('refresh account failed');
+      },
+      getStockPositions: async () => [],
+    });
+
+    const refresher = createPostTradeRefresher({
+      refreshGate,
+      trader,
+      lastState,
+      monitorContexts: new Map([['HSI.HK', monitorContext]]),
+      dailyLossTracker: createDailyLossTrackerDouble({
+        startNewProtectionEpisode: () => {
+          startNewEpisodeCalls += 1;
+        },
+      }),
+      liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),
+      protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble({
+        getInProgressEpisodes: () => [
+          {
+            monitorSymbol: 'HSI.HK',
+            direction: 'LONG',
+            latestExecutedTimeMs: Date.parse('2026-02-16T02:00:00.000Z'),
+          },
+        ],
+        completeIfEligible: () => {
+          completeIfEligibleCalls += 1;
+          return {
+            monitorSymbol: 'HSI.HK',
+            direction: 'LONG',
+            boundaryExecutedTimeMs: Date.parse('2026-02-16T02:00:00.000Z'),
+          };
+        },
+      }),
+      displayAccountAndPositions: async () => {},
+    });
+
+    refresher.enqueue({
+      pending: [
+        {
+          symbol: 'BULL.HK',
+          isLongSymbol: true,
+          refreshAccount: true,
+          refreshPositions: true,
+        },
+      ],
+      quotesMap: new Map(),
+    });
+
+    await Bun.sleep(80);
+    await refresher.stopAndDrain();
+
+    expect(completeIfEligibleCalls).toBe(0);
+    expect(startNewEpisodeCalls).toBe(0);
   });
 });

@@ -13,8 +13,8 @@ import { createTradingConfig } from '../../mock/factories/configFactory.js';
 import { createPushOrderChanged } from '../../mock/factories/tradeFactory.js';
 import { createTradeContextMock } from '../../mock/longbridge/tradeContextMock.js';
 import {
-  createLiquidationCooldownTrackerDouble,
   createOrderRecorderDouble,
+  createProtectiveLiquidationEpisodeTrackerDouble,
   createSymbolRegistryDouble,
 } from '../helpers/testDoubles.js';
 
@@ -37,7 +37,7 @@ function createDeps(params?: {
     orderRecorder: params?.orderRecorder ?? createOrderRecorderDouble(),
     dailyLossTracker: {
       resetAll: () => {},
-      resetDirectionSegment: () => {},
+      startNewProtectionEpisode: () => {},
       recalculateFromAllOrders: () => {},
       recordFilledOrder: () => {},
       getLossOffset: () => 0,
@@ -49,7 +49,7 @@ function createDeps(params?: {
       getHoldSymbols: () => new Set<string>(),
       clear: () => {},
     },
-    liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),
+    protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
     tradingConfig: createTradingConfig(),
     symbolRegistry: createSymbolRegistryDouble(),
     isExecutionAllowed: () => true,
@@ -183,3 +183,4 @@ describe('chaos: websocket out-of-order and duplicate pushes', () => {
     expect(monitor.getPendingSellOrders('BEAR.HK')).toHaveLength(0);
   });
 });
+

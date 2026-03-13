@@ -14,6 +14,7 @@ import { createTradingConfig } from '../../mock/factories/configFactory.js';
 import {
   createMarketDataClientDouble,
   createPositionCacheDouble,
+  createProtectiveLiquidationEpisodeTrackerDouble,
   createSdkConfigDouble,
   createSymbolRegistryDouble,
 } from '../helpers/testDoubles.js';
@@ -150,9 +151,7 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
           }),
           recordCooldown: () => {},
           restoreTriggerCount: () => {},
-          getRemainingMs: () => 0,
-          sweepExpired: () => [],
-          clearMidnightEligible: () => {},
+          getRemainingMs: () => 0,          clearMidnightEligible: () => {},
           resetAllTriggerCounts: () => {},
         },
         dailyLossTracker: {
@@ -160,12 +159,10 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
           recalculateFromAllOrders: () => {},
           recordFilledOrder: () => {},
           getLossOffset: () => 0,
-          resetDirectionSegment: () => {},
+          startNewProtectionEpisode: () => {},
         },
+        protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
         monitorContexts: new Map(),
-        lossOffsetLifecycleCoordinator: {
-          sync: async () => {},
-        },
         refreshGate: {
           markStale: () => 0,
           markFresh: (version: number) => {
@@ -215,6 +212,7 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
           }),
           monitorAndManageOrders: async () => {},
           getAndClearPendingRefreshSymbols: () => [],
+          hasPendingProtectiveLiquidationOrders: () => false,
           initializeOrderMonitor: async () => {},
           canTradeNow: () => ({ canTrade: true }),
           recordBuyAttempt: () => {},
@@ -224,9 +222,7 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
           executeSignals: async () => ({ submittedCount: 0, submittedOrderIds: [] }),
         },
         tradeLogHydrator: {
-          hydrate: () => ({
-            segmentStartByDirection: new Map(),
-          }),
+          hydrate: () => new Map(),
         },
         loadTradingDayRuntimeSnapshot: async () => ({
           allOrders: [],
@@ -489,3 +485,5 @@ describe('app runApp assembly', () => {
     expect(harnessState.cleanupRegistered).toBe(0);
   });
 });
+
+

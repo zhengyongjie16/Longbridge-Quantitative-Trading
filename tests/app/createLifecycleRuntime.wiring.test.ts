@@ -24,6 +24,7 @@ import { createTradingConfig } from '../../mock/factories/configFactory.js';
 import {
   createDailyLossTrackerDouble,
   createMarketDataClientDouble,
+  createProtectiveLiquidationEpisodeTrackerDouble,
   createSdkConfigDouble,
   createSymbolRegistryDouble,
   createTraderDouble,
@@ -147,16 +148,12 @@ function createLifecycleDeps(): LifecycleRuntimeFactoryDeps {
         }),
         recordCooldown: () => {},
         restoreTriggerCount: () => {},
-        getRemainingMs: () => 0,
-        sweepExpired: () => [],
-        clearMidnightEligible: () => {},
+        getRemainingMs: () => 0,        clearMidnightEligible: () => {},
         resetAllTriggerCounts: () => {},
       },
       dailyLossTracker: createDailyLossTrackerDouble(),
+      protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
       monitorContexts: new Map(),
-      lossOffsetLifecycleCoordinator: {
-        sync: async () => {},
-      },
       refreshGate: {
         markStale: () => 0,
         markFresh: () => {},
@@ -169,9 +166,7 @@ function createLifecycleDeps(): LifecycleRuntimeFactoryDeps {
       lastState,
       trader: createTraderDouble(),
       tradeLogHydrator: {
-        hydrate: () => ({
-          segmentStartByDirection: new Map(),
-        }),
+        hydrate: () => new Map(),
       },
       loadTradingDayRuntimeSnapshot: async () => ({
         allOrders: [],
@@ -339,3 +334,4 @@ describe('app createLifecycleRuntime wiring', () => {
     expect(createDayLifecycleManagerCalls[0]?.cacheDomains).toHaveLength(6);
   });
 });
+

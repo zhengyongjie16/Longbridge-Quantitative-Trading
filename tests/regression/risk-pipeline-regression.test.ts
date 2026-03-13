@@ -101,9 +101,7 @@ describe('risk pipeline regression', () => {
 
     const pipeline = createRiskCheckPipeline({
       tradingConfig: createTradingConfig(),
-      liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),
-      syncLossOffsetLifecycle: () => {},
-      lastRiskCheckTime,
+      liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),      lastRiskCheckTime,
     });
 
     const firstBuy = createSignalDouble('BUYCALL', 'BULL.HK');
@@ -142,9 +140,7 @@ describe('risk pipeline regression', () => {
 
     const pipeline = createRiskCheckPipeline({
       tradingConfig: createTradingConfig(),
-      liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),
-      syncLossOffsetLifecycle: () => {},
-      lastRiskCheckTime,
+      liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),      lastRiskCheckTime,
     });
 
     const buySignal = createSignalDouble('BUYCALL', 'BULL.HK');
@@ -171,3 +167,4 @@ describe('risk pipeline regression', () => {
     expect(buyApiFetchCount).toBe(0);
   });
 });
+

@@ -55,9 +55,9 @@ export function createTrader(deps: TraderDeps): Promise<Trader> {
   const {
     config,
     tradingConfig,
-    liquidationCooldownTracker,
     symbolRegistry,
     dailyLossTracker,
+    protectiveLiquidationEpisodeTracker,
     refreshGate,
     isExecutionAllowed,
   } = deps;
@@ -94,7 +94,7 @@ export function createTrader(deps: TraderDeps): Promise<Trader> {
     orderRecorder,
     dailyLossTracker,
     orderHoldRegistry,
-    liquidationCooldownTracker,
+    protectiveLiquidationEpisodeTracker,
     tradingConfig,
     symbolRegistry,
     isExecutionAllowed,
@@ -158,6 +158,18 @@ export function createTrader(deps: TraderDeps): Promise<Trader> {
 
     getAndClearPendingRefreshSymbols(): PendingRefreshSymbol[] {
       return orderMonitor.getAndClearPendingRefreshSymbols();
+    },
+
+    hasPendingProtectiveLiquidationOrders(
+      monitorSymbol: string,
+      direction: 'LONG' | 'SHORT',
+    ): boolean {
+      const query = orderMonitor.hasPendingProtectiveLiquidationOrders;
+      if (!query) {
+        return false;
+      }
+
+      return query(monitorSymbol, direction);
     },
 
     initializeOrderMonitor(): Promise<void> {

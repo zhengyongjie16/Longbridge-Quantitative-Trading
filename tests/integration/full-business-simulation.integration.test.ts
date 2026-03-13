@@ -76,7 +76,7 @@ function createMockCandlesticks(length: number, start: number, step: number): Ca
 function createNoopDailyLossTracker(): DailyLossTracker {
   return {
     resetAll: () => {},
-    resetDirectionSegment: () => {},
+    startNewProtectionEpisode: () => {},
     recalculateFromAllOrders: () => {},
     recordFilledOrder: () => {},
     getLossOffset: () => 0,
@@ -274,12 +274,8 @@ describe('full business simulation integration', () => {
         recordCooldown: () => {},
         restoreTriggerCount: () => {},
         getRemainingMs: () => 0,
-        clearMidnightEligible: () => {},
-        sweepExpired: () => [],
-        resetAllTriggerCounts: () => {},
-      },
-      syncLossOffsetLifecycle: () => {},
-    });
+        clearMidnightEligible: () => {},        resetAllTriggerCounts: () => {},
+      },    });
 
     const refreshGate = createRefreshGate();
     const buyProcessor = createBuyProcessor({
@@ -363,7 +359,6 @@ describe('full business simulation integration', () => {
         },
         runtimeGateMode: 'skip',
         dayLifecycleManager: createNoopDayLifecycleManager(),
-        lossOffsetLifecycleCoordinator: { sync: () => {} },
       });
 
       await Bun.sleep(80);
@@ -548,12 +543,8 @@ describe('full business simulation integration', () => {
         recordCooldown: () => {},
         restoreTriggerCount: () => {},
         getRemainingMs: () => 0,
-        clearMidnightEligible: () => {},
-        sweepExpired: () => [],
-        resetAllTriggerCounts: () => {},
-      },
-      syncLossOffsetLifecycle: () => {},
-    });
+        clearMidnightEligible: () => {},        resetAllTriggerCounts: () => {},
+      },    });
 
     const sharedMainContext = {
       marketDataClient: createMarketDataClientDouble({
@@ -590,7 +581,6 @@ describe('full business simulation integration', () => {
       },
       runtimeGateMode: 'skip' as const,
       dayLifecycleManager: createNoopDayLifecycleManager(),
-      lossOffsetLifecycleCoordinator: { sync: () => {} },
     };
 
     monitorTaskProcessor.start();
@@ -815,12 +805,8 @@ describe('full business simulation integration', () => {
         recordCooldown: () => {},
         restoreTriggerCount: () => {},
         getRemainingMs: () => 0,
-        clearMidnightEligible: () => {},
-        sweepExpired: () => [],
-        resetAllTriggerCounts: () => {},
-      },
-      syncLossOffsetLifecycle: () => {},
-    });
+        clearMidnightEligible: () => {},        resetAllTriggerCounts: () => {},
+      },    });
 
     const refreshGate = createRefreshGate();
     const buyProcessor = createBuyProcessor({
@@ -985,7 +971,6 @@ describe('full business simulation integration', () => {
         },
         runtimeGateMode: 'skip',
         dayLifecycleManager,
-        lossOffsetLifecycleCoordinator: { sync: () => {} },
       });
 
       expect(lastState.lifecycleState).toBe('MIDNIGHT_CLEANED');
@@ -1029,7 +1014,6 @@ describe('full business simulation integration', () => {
         },
         runtimeGateMode: 'skip',
         dayLifecycleManager,
-        lossOffsetLifecycleCoordinator: { sync: () => {} },
       });
 
       expect(runOpenRebuildCount).toBe(1);
@@ -1061,3 +1045,6 @@ describe('full business simulation integration', () => {
     }
   });
 });
+
+
+

@@ -73,6 +73,9 @@ export const TRADING = {
 
   /** 保护性清仓订单备注后缀（用于重启恢复时识别订单语义） */
   PROTECTIVE_LIQUIDATION_REMARK_SUFFIX: '|PL',
+
+  /** 保护性清仓业务事件完成日志原因（用于冷却恢复） */
+  PROTECTIVE_LIQUIDATION_COMPLETED_REASON: 'PROTECTIVE_LIQUIDATION_COMPLETED',
 } as const;
 
 /** 自动寻标相关常量 */

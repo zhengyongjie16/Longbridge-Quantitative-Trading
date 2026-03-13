@@ -22,6 +22,7 @@ import type { WarrantListCache } from '../../../services/autoSymbolFinder/types.
 import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
 import type { DailyLossTracker } from '../../../types/risk.js';
 import type { LiquidationCooldownTracker } from '../../../services/liquidationCooldown/types.js';
+import type { ProtectiveLiquidationEpisodeTracker } from '../../../core/trader/protectiveLiquidationEpisodeTracker/types.js';
 
 /**
  * 信号运行时域依赖。
@@ -76,6 +77,7 @@ export type OrderDomainDeps = Readonly<{
 export type RiskDomainDeps = Readonly<{
   signalProcessor: SignalProcessor;
   dailyLossTracker: DailyLossTracker;
+  protectiveLiquidationEpisodeTracker: ProtectiveLiquidationEpisodeTracker;
   monitorContexts: ReadonlyMap<string, MonitorContext>;
   liquidationCooldownTracker: LiquidationCooldownTracker;
 }>;

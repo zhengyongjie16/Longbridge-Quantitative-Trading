@@ -177,6 +177,7 @@ describe('multi-monitor-concurrency integration', () => {
         }),
         monitorAndManageOrders: async () => {},
         getAndClearPendingRefreshSymbols: () => [],
+        hasPendingProtectiveLiquidationOrders: () => false,
         initializeOrderMonitor: async () => {},
         canTradeNow: () => ({ canTrade: true }),
         recordBuyAttempt: () => {},
@@ -203,7 +204,7 @@ describe('multi-monitor-concurrency integration', () => {
       tradingConfig,
       dailyLossTracker: {
         resetAll: () => {},
-        resetDirectionSegment: () => {},
+        startNewProtectionEpisode: () => {},
         recalculateFromAllOrders: () => {},
         recordFilledOrder: () => {},
         getLossOffset: () => 0,
@@ -262,7 +263,6 @@ describe('multi-monitor-concurrency integration', () => {
       dayLifecycleManager: {
         tick: async () => {},
       },
-      lossOffsetLifecycleCoordinator: { sync: () => {} },
     });
 
     expect(processCalls).toContain('HSI-A.HK');
@@ -271,3 +271,4 @@ describe('multi-monitor-concurrency integration', () => {
     expect(postTradeEnqueueCalls).toBe(1);
   });
 });
+

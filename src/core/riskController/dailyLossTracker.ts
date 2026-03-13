@@ -4,14 +4,14 @@
  * 功能/职责：按监控标的与方向累计已实现亏损偏移；内部基于当日成交订单与过滤算法（filteringEngine）计算未平仓买入成本。
  * 执行流程：调用方通过 recalculateFromAllOrders 或 recordFilledOrder 传入/增量订单，通过 getLossOffset(monitorSymbol, isLongSymbol) 获取当日亏损偏移；内部按 (monitorSymbol, direction) 分组维护订单与偏移。
  */
-import { OrderSide, OrderStatus } from 'longbridge';
+import { OrderSide } from 'longbridge';
 import { logger } from '../../utils/logger/index.js';
 import type { MonitorConfig } from '../../types/config.js';
 import type {
   DailyLossFilledOrderInput,
   DailyLossTracker,
   DailyLossTrackerDeps,
-  ResetDirectionSegmentParams,
+  StartNewProtectionEpisodeParams,
 } from '../../types/risk.js';
 import type { OrderRecord, RawOrderFromAPI } from '../../types/services.js';
 import {
@@ -142,11 +142,11 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
   let dayKey: string | null = null;
   const statesByMonitor = new Map<string, { long: DailyLossState; short: DailyLossState }>();
 
-  /** 分段起始时间：按 "monitorSymbol:direction" 为键，成交时间 < segmentStartMs 的不纳入偏移计算 */
-  const segmentStartByDirection = new Map<string, number>();
+  /** 最新已完成保护性清仓边界：仅计入 executedTimeMs > boundary 的成交。 */
+  const latestProtectionBoundaryByDirection = new Map<string, number>();
 
-  /** 幂等保护：按 "monitorSymbol:direction" 记录上次 resetDirectionSegment 的 cooldownEndMs */
-  const lastResetByCooldownEndMs = new Map<string, number>();
+  /** 幂等保护：记录已应用边界，保证边界仅单向前进。 */
+  const lastAppliedProtectionBoundaryByDirection = new Map<string, number>();
 
   /**
    * 显式重置 dayKey、states 与分段元数据。
@@ -155,28 +155,44 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
     const nextKey = resolveHongKongDayKey(deps.toHongKongTimeIso, now);
     dayKey = nextKey;
     statesByMonitor.clear();
-    segmentStartByDirection.clear();
-    lastResetByCooldownEndMs.clear();
+    latestProtectionBoundaryByDirection.clear();
+    lastAppliedProtectionBoundaryByDirection.clear();
   }
 
   /**
    * 启动时根据历史成交订单初始化当日状态。
-   * externalSegmentStarts 可选：按 "monitorSymbol:direction" 为键恢复分段起始时间。
+   * protectionBoundaryByDirection 可选：按 "monitorSymbol:direction" 为键恢复保护性边界。
    */
   function initializeFromOrders(
     allOrders: ReadonlyArray<RawOrderFromAPI>,
     monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
     now: Date,
-    externalSegmentStarts?: ReadonlyMap<string, number>,
+    protectionBoundaryByDirection?: ReadonlyMap<string, number>,
   ): void {
     const nextKey = resolveHongKongDayKey(deps.toHongKongTimeIso, now);
+    const previousDayKey = dayKey;
+    const isSameTradingDay = previousDayKey !== null && previousDayKey === nextKey;
     dayKey = nextKey;
     statesByMonitor.clear();
-    // 恢复外部提供的分段起始时间（启动恢复链传入）
-    if (externalSegmentStarts) {
-      for (const [key, startMs] of externalSegmentStarts) {
-        segmentStartByDirection.set(key, startMs);
+
+    // 边界来源优先级：
+    // 1) 显式传入（启动恢复）；
+    // 2) 同日重算沿用当前运行态边界（如 SEAT_REFRESH）；
+    // 3) 跨日重算清空边界，避免旧日边界泄漏。
+    if (protectionBoundaryByDirection) {
+      latestProtectionBoundaryByDirection.clear();
+      lastAppliedProtectionBoundaryByDirection.clear();
+      for (const [key, boundaryMs] of protectionBoundaryByDirection) {
+        if (!Number.isFinite(boundaryMs) || boundaryMs <= 0) {
+          continue;
+        }
+
+        latestProtectionBoundaryByDirection.set(key, boundaryMs);
+        lastAppliedProtectionBoundaryByDirection.set(key, boundaryMs);
       }
+    } else if (!isSameTradingDay) {
+      latestProtectionBoundaryByDirection.clear();
+      lastAppliedProtectionBoundaryByDirection.clear();
     }
 
     if (!nextKey) {
@@ -185,10 +201,6 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
 
     const grouped = new Map<string, { long: RawOrderFromAPI[]; short: RawOrderFromAPI[] }>();
     for (const order of allOrders) {
-      if (order.status !== OrderStatus.Filled) {
-        continue;
-      }
-
       if (!(order.updatedAt instanceof Date)) {
         continue;
       }
@@ -203,12 +215,12 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
         continue;
       }
 
-      // 分段过滤：仅计入 executedTime >= segmentStartMs 的成交
+      // 边界过滤：仅计入 executedTime > latestProtectionBoundaryMs 的成交
       const directionKey = buildCooldownKey(ownership.monitorSymbol, ownership.direction);
-      const segmentStart = segmentStartByDirection.get(directionKey);
-      if (segmentStart !== undefined) {
+      const protectionBoundary = latestProtectionBoundaryByDirection.get(directionKey);
+      if (protectionBoundary !== undefined) {
         const orderTimeMs = order.updatedAt.getTime();
-        if (orderTimeMs < segmentStart) {
+        if (orderTimeMs <= protectionBoundary) {
           continue;
         }
       }
@@ -257,21 +269,21 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
 
   /**
    * 使用完整订单重新计算状态，作为纠偏手段。
-   * externalSegmentStarts 可选：提供分段起始时间以过滤旧段成交。
+   * protectionBoundaryByDirection 可选：提供保护性边界以过滤旧段成交。
    */
   function recalculateFromAllOrders(
     allOrders: ReadonlyArray<RawOrderFromAPI>,
     monitors: ReadonlyArray<Pick<MonitorConfig, 'monitorSymbol' | 'orderOwnershipMapping'>>,
     now: Date,
-    externalSegmentStarts?: ReadonlyMap<string, number>,
+    protectionBoundaryByDirection?: ReadonlyMap<string, number>,
   ): void {
-    initializeFromOrders(allOrders, monitors, now, externalSegmentStarts);
+    initializeFromOrders(allOrders, monitors, now, protectionBoundaryByDirection);
   }
 
   /**
    * 增量记录成交订单并更新亏损偏移。
    * dayKey 由 lifecycle riskDomain.midnightClear 通过 resetAll 统一驱动，此处仅记录当日成交。
-   * 分段过滤：仅接受 executedTimeMs >= 当前分段起始时间的成交。
+   * 边界过滤：仅接受 executedTimeMs > 当前保护性边界的成交。
    */
   function recordFilledOrder(input: DailyLossFilledOrderInput): void {
     if (!dayKey) {
@@ -286,13 +298,13 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
       return;
     }
 
-    // 分段过滤：成交时间早于分段起始时间的不纳入
+    // 边界过滤：成交时间小于等于保护性边界的不纳入
     const directionKey = buildCooldownKey(
       input.monitorSymbol,
       input.isLongSymbol ? 'LONG' : 'SHORT',
     );
-    const segmentStart = segmentStartByDirection.get(directionKey);
-    if (segmentStart !== undefined && input.executedTimeMs < segmentStart) {
+    const protectionBoundary = latestProtectionBoundaryByDirection.get(directionKey);
+    if (protectionBoundary !== undefined && input.executedTimeMs <= protectionBoundary) {
       return;
     }
 
@@ -348,26 +360,26 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
     return isLongSymbol ? state.long.dailyLossOffset : state.short.dailyLossOffset;
   }
 
-  /**
-   * 重置指定 monitor+direction 的分段：清空旧段订单与偏移，设置新分段起始时间。
-   * 幂等：同一 cooldownEndMs 重复调用不产生副作用。
-   */
-  function resetDirectionSegment({
+  /** 推进保护性边界并开启新周期。 */
+  function startNewProtectionEpisode({
     monitorSymbol,
     direction,
-    segmentStartMs,
-    cooldownEndMs,
-  }: ResetDirectionSegmentParams): void {
-    const key = buildCooldownKey(monitorSymbol, direction);
-    // 幂等保护：同一 cooldownEndMs 不重复执行
-    if (lastResetByCooldownEndMs.get(key) === cooldownEndMs) {
+    boundaryExecutedTimeMs,
+  }: StartNewProtectionEpisodeParams): void {
+    if (!Number.isFinite(boundaryExecutedTimeMs) || boundaryExecutedTimeMs <= 0) {
       return;
     }
 
-    lastResetByCooldownEndMs.set(key, cooldownEndMs);
-    segmentStartByDirection.set(key, segmentStartMs);
+    const key = buildCooldownKey(monitorSymbol, direction);
+    const lastAppliedBoundary = lastAppliedProtectionBoundaryByDirection.get(key);
+    if (lastAppliedBoundary !== undefined && boundaryExecutedTimeMs <= lastAppliedBoundary) {
+      return;
+    }
 
-    // 清空该方向的订单与偏移，进入新分段
+    lastAppliedProtectionBoundaryByDirection.set(key, boundaryExecutedTimeMs);
+    latestProtectionBoundaryByDirection.set(key, boundaryExecutedTimeMs);
+
+    // 清空该方向旧周期订单与偏移，进入新周期
     const existing = statesByMonitor.get(monitorSymbol);
     if (!existing) {
       return;
@@ -392,6 +404,6 @@ export function createDailyLossTracker(deps: DailyLossTrackerDeps): DailyLossTra
     recalculateFromAllOrders,
     recordFilledOrder,
     getLossOffset,
-    resetDirectionSegment,
+    startNewProtectionEpisode,
   };
 }

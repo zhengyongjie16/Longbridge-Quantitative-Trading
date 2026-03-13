@@ -14,7 +14,7 @@ import type {
   RawOrderFromAPI,
 } from '../../../types/services.js';
 import type { Quote } from '../../../types/quote.js';
-import type { LiquidationCooldownTracker } from '../../../services/liquidationCooldown/types.js';
+import type { ProtectiveLiquidationEpisodeTracker } from '../protectiveLiquidationEpisodeTracker/types.js';
 import type { RefreshGate } from '../../../utils/types.js';
 import type {
   OrderCacheManager,
@@ -331,7 +331,7 @@ export type SettlementFlowDeps = {
   readonly orderHoldRegistry: OrderHoldRegistry;
   readonly orderRecorder: OrderRecorder;
   readonly dailyLossTracker: DailyLossTracker;
-  readonly liquidationCooldownTracker: LiquidationCooldownTracker;
+  readonly protectiveLiquidationEpisodeTracker: ProtectiveLiquidationEpisodeTracker;
   readonly refreshGate?: RefreshGate;
 };
 

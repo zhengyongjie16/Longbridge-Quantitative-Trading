@@ -122,10 +122,10 @@ function convertOrderToRecord(order: RawOrderFromAPI, isBuyOrder: boolean): Orde
 
 /**
  * 将原始 API 订单列表按买卖方向分类并转换为内部 OrderRecord 格式。
- * 默认行为：仅处理 status 为 Filled 的订单，价格/数量/时间无效的订单被跳过。
+ * 默认行为：处理所有存在有效成交事实的订单（不限终态），价格/数量/时间无效的订单被跳过。
  *
  * @param orders 原始 API 订单列表
- * @returns 分类后的买入订单列表与卖出订单列表（仅包含已成交且转换成功的订单）
+ * @returns 分类后的买入订单列表与卖出订单列表（仅包含有有效成交且转换成功的订单）
  */
 export function classifyAndConvertOrders(orders: ReadonlyArray<RawOrderFromAPI>): {
   buyOrders: ReadonlyArray<OrderRecord>;
@@ -135,10 +135,6 @@ export function classifyAndConvertOrders(orders: ReadonlyArray<RawOrderFromAPI>)
   const sellOrders: OrderRecord[] = [];
 
   for (const order of orders) {
-    if (order.status !== OrderStatus.Filled) {
-      continue;
-    }
-
     const isBuyOrder = order.side === OrderSide.Buy;
     const isSellOrder = order.side === OrderSide.Sell;
 

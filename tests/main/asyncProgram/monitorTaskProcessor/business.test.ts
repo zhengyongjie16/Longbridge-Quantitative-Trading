@@ -304,7 +304,7 @@ describe('monitorTaskProcessor business flow', () => {
         },
         recordFilledOrder: () => {},
         getLossOffset: () => 0,
-        resetDirectionSegment: () => {},
+        startNewProtectionEpisode: () => {},
       },
       riskChecker: createRiskCheckerDouble({
         clearLongWarrantInfo: () => {
@@ -531,3 +531,4 @@ describe('monitorTaskProcessor business flow', () => {
     expect(refreshUnrealizedCalls).toBe(1);
   });
 });
+
