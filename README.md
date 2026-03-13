@@ -80,14 +80,23 @@ cp .env.example .env.local
 
 ### 配置必需参数 (.env.local)
 
-系统支持多个监控标的，每个监控标的使用后缀 `_N`（N从1开始）区分配置。索引需连续（`_1`、`_2`...）；系统扫描到首个缺失索引后会停止读取后续配置。
+系统支持多个监控标的，每个监控标的使用后缀 `_N`（N从1开始）区分配置。索引需连续（`_1`、`_2`...）；系统扫描到首个缺失索引后会停止读取后续配置。Longbridge 认证当前支持 `oauth` 与 `apikey` 两种模式，但**单次运行只能选择其中一种**。
 
 ```env
-# OAuth 配置
+# 认证模式（二选一）
+LONGBRIDGE_AUTH_MODE=oauth
+
+# OAuth 模式
 LONGBRIDGE_CLIENT_ID=your_client_id
 LONGBRIDGE_CALLBACK_PORT=60355    # 可选，默认 60355；需与 OAuth Client 注册回调一致
 
-# SDK 扩展配置（可选）
+# API Key 模式
+# LONGBRIDGE_AUTH_MODE=apikey
+# LONGBRIDGE_APP_KEY=your_app_key
+# LONGBRIDGE_APP_SECRET=your_app_secret
+# LONGBRIDGE_ACCESS_TOKEN=your_access_token
+
+# SDK 扩展配置（可选，oauth / apikey 共用）
 # LONGBRIDGE_HTTP_URL=https://openapi.longbridge.com
 # LONGBRIDGE_QUOTE_WS_URL=wss://openapi-quote.longbridge.com/v2
 # LONGBRIDGE_TRADE_WS_URL=wss://openapi-trade.longbridge.com/v2
@@ -126,7 +135,7 @@ SIGNAL_SELLPUT_1=(RSI:6<20,MFI<15,D<22,J<0)/3|(J<-15)
 # LONG_SYMBOL_2=55131.HK
 ```
 
-首次启动若本地没有有效 token cache，程序会在终端输出 Longbridge OAuth 授权 URL；授权成功后，SDK 会在用户目录复用和刷新 token cache，后续启动无需再次手动授权。
+当 `LONGBRIDGE_AUTH_MODE=oauth` 且本地没有有效 token cache 时，程序会在终端输出 Longbridge OAuth 授权 URL；授权成功后，SDK 会在用户目录复用和刷新 token cache，后续启动无需再次手动授权。`apikey` 模式不会触发该授权流程。
 
 ### 启动
 
@@ -208,7 +217,12 @@ bun start
 
 | 参数 | 默认值 | 说明 |
 | --- | --- | --- |
+| `LONGBRIDGE_AUTH_MODE` | `无` | 认证模式，仅支持 `oauth` / `apikey`，单次运行只能选一种 |
+| `LONGBRIDGE_CLIENT_ID` | `无` | OAuth 模式下必填的 OAuth Client ID |
 | `LONGBRIDGE_CALLBACK_PORT` | `60355` | OAuth 本地回调端口，必须与 OAuth Client 注册的 redirect URI 一致 |
+| `LONGBRIDGE_APP_KEY` | `无` | API Key 模式下必填的 App Key |
+| `LONGBRIDGE_APP_SECRET` | `无` | API Key 模式下必填的 App Secret |
+| `LONGBRIDGE_ACCESS_TOKEN` | `无` | API Key 模式下必填的 Access Token |
 | `LONGBRIDGE_HTTP_URL` | 官方默认值 | HTTP API 端点覆盖 |
 | `LONGBRIDGE_QUOTE_WS_URL` | 官方默认值 | 行情 WebSocket 端点覆盖 |
 | `LONGBRIDGE_TRADE_WS_URL` | 官方默认值 | 交易 WebSocket 端点覆盖 |

@@ -1,6 +1,6 @@
 import { Language, PushCandlestickMode, type ExtraConfigParams } from 'longbridge';
 import { getStringConfig } from '../utils.js';
-import type { ParsedOAuthBootstrapConfig } from './types.js';
+import type { ApiKeyAuthConfig, AuthMode, OAuthAuthConfig } from './types.js';
 
 const LANGUAGE_CONFIG_MAP: Readonly<Record<string, Language>> = {
   'zh-CN': Language.ZH_CN,
@@ -43,6 +43,10 @@ function parseCallbackPort(env: NodeJS.ProcessEnv): number | null {
   return callbackPort;
 }
 
+function isAuthMode(value: string): value is AuthMode {
+  return value === 'oauth' || value === 'apikey';
+}
+
 function readOptionalLanguage(env: NodeJS.ProcessEnv): Language | undefined {
   const languageValue = getStringConfig(env, 'LONGBRIDGE_LANGUAGE');
   if (languageValue === null) {
@@ -62,16 +66,49 @@ function readOptionalPushCandlestickMode(env: NodeJS.ProcessEnv): PushCandlestic
 }
 
 /**
- * 读取 OAuth 启动配置。
+ * 读取认证模式。
+ * 默认行为：仅识别 oauth / apikey；非法值返回 null，由校验层报错。
+ *
+ * @param env 进程环境变量
+ * @returns 认证模式，未配置或无效时返回 null
+ */
+export function readAuthMode(env: NodeJS.ProcessEnv): AuthMode | null {
+  const authModeValue = getStringConfig(env, 'LONGBRIDGE_AUTH_MODE');
+  if (authModeValue === null || !isAuthMode(authModeValue)) {
+    return null;
+  }
+
+  return authModeValue;
+}
+
+/**
+ * 读取 OAuth 认证配置。
  * 默认行为：仅解析 client_id 与 callback_port；非法 callback_port 返回 null，由校验层报错。
  *
  * @param env 进程环境变量
- * @returns OAuth 启动配置解析结果
+ * @returns OAuth 认证配置解析结果
  */
-export function readOAuthBootstrapConfig(env: NodeJS.ProcessEnv): ParsedOAuthBootstrapConfig {
+export function readOAuthAuthConfig(env: NodeJS.ProcessEnv): OAuthAuthConfig {
   return {
+    mode: 'oauth',
     clientId: getStringConfig(env, 'LONGBRIDGE_CLIENT_ID'),
     callbackPort: parseCallbackPort(env),
+  };
+}
+
+/**
+ * 读取 API Key 认证配置。
+ * 默认行为：仅解析 API Key 三元组，未配置或占位值返回 null，由校验层报错。
+ *
+ * @param env 进程环境变量
+ * @returns API Key 认证配置解析结果
+ */
+export function readApiKeyAuthConfig(env: NodeJS.ProcessEnv): ApiKeyAuthConfig {
+  return {
+    mode: 'apikey',
+    appKey: getStringConfig(env, 'LONGBRIDGE_APP_KEY'),
+    appSecret: getStringConfig(env, 'LONGBRIDGE_APP_SECRET'),
+    accessToken: getStringConfig(env, 'LONGBRIDGE_ACCESS_TOKEN'),
   };
 }
 

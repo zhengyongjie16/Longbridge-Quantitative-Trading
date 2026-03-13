@@ -13,6 +13,7 @@ import { createTradingConfig } from '../../mock/factories/configFactory.js';
 
 function createBaseEnv(overrides: Readonly<Record<string, string>> = {}): NodeJS.ProcessEnv {
   return {
+    LONGBRIDGE_AUTH_MODE: 'oauth',
     LONGBRIDGE_CLIENT_ID: 'client-id',
     MONITOR_SYMBOL_1: 'HSI.HK',
     ...overrides,
@@ -68,6 +69,7 @@ async function validateMonitorConfig(
   try {
     await validateAllConfig({
       env: {
+        LONGBRIDGE_AUTH_MODE: 'oauth',
         LONGBRIDGE_CLIENT_ID: 'client-id',
       },
       tradingConfig: createTradingConfig({

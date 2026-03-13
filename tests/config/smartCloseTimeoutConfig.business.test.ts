@@ -12,6 +12,7 @@ import { createTradingConfig } from '../../mock/factories/configFactory.js';
 
 function createBaseEnv(overrides: Readonly<Record<string, string>> = {}): NodeJS.ProcessEnv {
   return {
+    LONGBRIDGE_AUTH_MODE: 'oauth',
     LONGBRIDGE_CLIENT_ID: 'client-id',
     MONITOR_SYMBOL_1: 'HSI.HK',
     ...overrides,
@@ -84,6 +85,7 @@ describe('smart close timeout config', () => {
       try {
         await validateAllConfig({
           env: {
+            LONGBRIDGE_AUTH_MODE: 'oauth',
             LONGBRIDGE_CLIENT_ID: 'client-id',
             SMART_CLOSE_TIMEOUT_MINUTES_1: invalidValue,
           },
@@ -116,6 +118,6 @@ describe('smart close timeout config', () => {
 
     expect(caughtError).not.toBeNull();
     const validationError = caughtError as { missingFields?: ReadonlyArray<string> };
-    expect(validationError.missingFields).toContain('LONGBRIDGE_CLIENT_ID');
+    expect(validationError.missingFields).toContain('LONGBRIDGE_AUTH_MODE');
   });
 });

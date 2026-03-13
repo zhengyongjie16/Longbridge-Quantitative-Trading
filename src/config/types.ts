@@ -3,7 +3,7 @@ import type { MonitorConfig } from '../types/config.js';
 /**
  * 配置验证错误（含缺失字段列表）。
  * 类型用途：封装配置验证失败时的错误信息，作为验证函数抛出的错误类型。
- * 数据来源：由 validateLongbridgeOAuthConfig / validateTradingConfig 抛出。
+ * 数据来源：由 validateLongbridgeAuthConfig / validateTradingConfig 抛出。
  * 使用范围：仅 config 模块内部使用。
  */
 export type ConfigValidationError = Error & {
@@ -28,7 +28,7 @@ export type BoundedNumberConfig = {
 /**
  * 通用验证结果。
  * 类型用途：描述配置验证的通过/失败状态及错误列表，作为验证函数的返回类型。
- * 数据来源：由 validateLongbridgeOAuthConfig / validateTradingConfig 返回。
+ * 数据来源：由 validateLongbridgeAuthConfig / validateTradingConfig 返回。
  * 使用范围：仅 config 模块内部使用。
  */
 export type ValidationResult = {

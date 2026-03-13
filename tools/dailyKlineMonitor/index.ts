@@ -5,7 +5,7 @@
  */
 import dotenv from 'dotenv';
 import { AdjustType, Period, QuoteContext, TradeSessions } from 'longbridge';
-import { createSdkConfigFromOAuth, initializeOAuth } from '../../src/config/auth/index.js';
+import { createSdkConfigFromAuth } from '../../src/config/auth/index.js';
 import { buildIndicatorSnapshot } from '../../src/services/indicators/runtime/index.js';
 import { sleep } from '../../src/main/utils.js';
 import { decimalToNumber } from '../../src/utils/helpers/index.js';
@@ -172,13 +172,12 @@ async function runMonitorCycle(
  * @returns 监控上下文
  */
 async function createMonitorContext(monitorSymbol: string): Promise<MonitorContext> {
-  const oauth = await initializeOAuth({
+  const config = await createSdkConfigFromAuth({
     env: process.env,
     onOpenUrl: (url: string) => {
       console.log(`请在浏览器中完成 Longbridge OAuth 授权：${url}`);
     },
   });
-  const config = createSdkConfigFromOAuth({ oauth, env: process.env });
   const ctx = await QuoteContext.new(config);
 
   return {

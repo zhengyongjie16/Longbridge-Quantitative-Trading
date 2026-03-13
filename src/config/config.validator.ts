@@ -5,7 +5,7 @@
  */
 import { logger } from '../utils/logger/index.js';
 import { formatSignalConfig, getStringConfig, isSymbolWithRegion } from './utils.js';
-import { readOAuthBootstrapConfig } from './auth/utils.js';
+import { readApiKeyAuthConfig, readAuthMode, readOAuthAuthConfig } from './auth/utils.js';
 import type {
   LiquidationCooldownConfig,
   MonitorConfig,
@@ -26,6 +26,7 @@ import type {
 
 const AUTO_SEARCH_DISTANCE_UNIT_HINT =
   'Longbridge warrantList.toCallPrice 原始值会先从小数比值转换为该百分比值口径。';
+const VALID_AUTH_MODE_VALUES = new Set(['oauth', 'apikey']);
 const VALID_LONGBRIDGE_LANGUAGE_VALUES = new Set(['zh-CN', 'zh-HK', 'en']);
 const VALID_LONGBRIDGE_PUSH_CANDLESTICK_MODE_VALUES = new Set(['realtime', 'confirmed']);
 const VALID_BOOLEAN_CONFIG_VALUES = new Set(['true', 'false']);
@@ -190,25 +191,9 @@ function validateDegradedRangeRelationship(params: {
   return null;
 }
 
-/**
- * 验证 Longbridge OAuth 启动配置是否已配置且合法。
- * @param env - 进程环境变量
- * @returns 验证结果（valid、errors、missingFields）
- */
-function validateLongbridgeOAuthConfig(env: NodeJS.ProcessEnv): ValidationResult {
+function validateSdkExtraConfig(env: NodeJS.ProcessEnv): ValidationResult {
   const errors: string[] = [];
   const missingFields: string[] = [];
-  const oauthBootstrapConfig = readOAuthBootstrapConfig(env);
-  if (oauthBootstrapConfig.clientId === null) {
-    errors.push('LONGBRIDGE_CLIENT_ID 未配置');
-    missingFields.push('LONGBRIDGE_CLIENT_ID');
-  }
-
-  const callbackPortValue = getStringConfig(env, 'LONGBRIDGE_CALLBACK_PORT');
-  if (callbackPortValue !== null && oauthBootstrapConfig.callbackPort === null) {
-    errors.push('LONGBRIDGE_CALLBACK_PORT 无效（必须为 1-65535 的整数端口）');
-    missingFields.push('LONGBRIDGE_CALLBACK_PORT');
-  }
 
   const urlConfigKeys = [
     'LONGBRIDGE_HTTP_URL',
@@ -264,6 +249,75 @@ function validateLongbridgeOAuthConfig(env: NodeJS.ProcessEnv): ValidationResult
     valid: errors.length === 0,
     errors,
     missingFields,
+  };
+}
+
+/**
+ * 验证 Longbridge 认证启动配置是否已配置且合法。
+ * @param env - 进程环境变量
+ * @returns 验证结果（valid、errors、missingFields）
+ */
+function validateLongbridgeAuthConfig(env: NodeJS.ProcessEnv): ValidationResult {
+  const errors: string[] = [];
+  const missingFields: string[] = [];
+  const authModeValue = getStringConfig(env, 'LONGBRIDGE_AUTH_MODE');
+  const authMode = readAuthMode(env);
+
+  if (authModeValue === null) {
+    errors.push('LONGBRIDGE_AUTH_MODE 未配置');
+    missingFields.push('LONGBRIDGE_AUTH_MODE');
+  } else if (!VALID_AUTH_MODE_VALUES.has(authModeValue) || authMode === null) {
+    errors.push('LONGBRIDGE_AUTH_MODE 无效（仅支持 oauth / apikey）');
+    missingFields.push('LONGBRIDGE_AUTH_MODE');
+  }
+
+  if (authMode === 'oauth') {
+    const oauthAuthConfig = readOAuthAuthConfig(env);
+    if (oauthAuthConfig.clientId === null) {
+      errors.push('LONGBRIDGE_CLIENT_ID 未配置');
+      missingFields.push('LONGBRIDGE_CLIENT_ID');
+    }
+
+    const callbackPortValue = getStringConfig(env, 'LONGBRIDGE_CALLBACK_PORT');
+    if (callbackPortValue !== null && oauthAuthConfig.callbackPort === null) {
+      errors.push('LONGBRIDGE_CALLBACK_PORT 无效（必须为 1-65535 的整数端口）');
+      missingFields.push('LONGBRIDGE_CALLBACK_PORT');
+    }
+  }
+
+  if (authMode === 'apikey') {
+    const apiKeyAuthConfig = readApiKeyAuthConfig(env);
+    const requiredApiKeyFields = [
+      {
+        envKey: 'LONGBRIDGE_APP_KEY',
+        value: apiKeyAuthConfig.appKey,
+      },
+      {
+        envKey: 'LONGBRIDGE_APP_SECRET',
+        value: apiKeyAuthConfig.appSecret,
+      },
+      {
+        envKey: 'LONGBRIDGE_ACCESS_TOKEN',
+        value: apiKeyAuthConfig.accessToken,
+      },
+    ] as const;
+
+    for (const field of requiredApiKeyFields) {
+      if (field.value !== null) {
+        continue;
+      }
+
+      errors.push(`${field.envKey} 未配置`);
+      missingFields.push(field.envKey);
+    }
+  }
+
+  const sdkExtraValidationResult = validateSdkExtraConfig(env);
+
+  return {
+    valid: errors.length === 0 && sdkExtraValidationResult.valid,
+    errors: [...errors, ...sdkExtraValidationResult.errors],
+    missingFields: [...missingFields, ...sdkExtraValidationResult.missingFields],
   };
 }
 
@@ -720,7 +774,7 @@ function validateTradingConfig(
 }
 
 /**
- * 验证 Longbridge OAuth 启动配置与多监控交易配置完整性，通过则仅打日志，失败则抛出 ConfigValidationError。
+ * 验证 Longbridge 认证启动配置与多监控交易配置完整性，通过则仅打日志，失败则抛出 ConfigValidationError。
  * @param options.env - 进程环境变量，用于校验 LONGBRIDGE_* 与交易配置键
  * @param options.tradingConfig - 多监控标的交易配置，用于校验标的、金额、信号、自动寻标等
  * @returns Promise<void>，无返回值；验证失败时抛出
@@ -735,12 +789,12 @@ export async function validateAllConfig({
 }): Promise<void> {
   logger.info('开始验证配置...');
 
-  const longbridgeOAuthResult = await Promise.resolve(validateLongbridgeOAuthConfig(env));
+  const longbridgeAuthResult = await Promise.resolve(validateLongbridgeAuthConfig(env));
   const tradingResult = validateTradingConfig(tradingConfig, env);
 
-  const allErrors = [...longbridgeOAuthResult.errors, ...tradingResult.errors];
+  const allErrors = [...longbridgeAuthResult.errors, ...tradingResult.errors];
   const allMissingFields = [
-    ...new Set([...longbridgeOAuthResult.missingFields, ...tradingResult.missingFields]),
+    ...new Set([...longbridgeAuthResult.missingFields, ...tradingResult.missingFields]),
   ];
 
   if (allErrors.length > 0) {
@@ -764,7 +818,12 @@ export async function validateAllConfig({
     );
   }
 
+  const currentAuthMode = readAuthMode(env);
   logger.info('配置验证通过，当前配置如下：');
+  if (currentAuthMode !== null) {
+    logger.info(`Longbridge 认证模式: ${currentAuthMode}`);
+  }
+
   logger.info(`监控标的数量: ${tradingConfig.monitors.length}`);
 
   for (const monitorConfig of tradingConfig.monitors) {

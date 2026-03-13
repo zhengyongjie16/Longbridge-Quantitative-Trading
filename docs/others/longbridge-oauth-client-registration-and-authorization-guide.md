@@ -11,14 +11,15 @@
 5. 验证 token 已缓存且二次启动可复用
 6. 排查常见失败原因
 
-本文只覆盖当前仓库已经实现的 OAuth 认证路径：
+本文是当前仓库的 **OAuth 专用操作文档**，只覆盖 `LONGBRIDGE_AUTH_MODE=oauth` 时的认证路径：
 
+- `LONGBRIDGE_AUTH_MODE=oauth`
 - `LONGBRIDGE_CLIENT_ID`
 - `LONGBRIDGE_CALLBACK_PORT`
 - `OAuth.build(...)`
 - `Config.fromOAuth(...)`
 
-本文不使用旧的 `LONGPORT_APP_KEY / LONGPORT_APP_SECRET / LONGPORT_ACCESS_TOKEN` 方案，也不使用 `LONGBRIDGE_REGION`。
+当前仓库也支持 `LONGBRIDGE_AUTH_MODE=apikey`，但那是另一条认证路径，不在本文讨论范围内。本文不使用旧的 `LONGPORT_APP_KEY / LONGPORT_APP_SECRET / LONGPORT_ACCESS_TOKEN` 方案，也不使用 `LONGBRIDGE_REGION`。
 
 ---
 
@@ -44,11 +45,12 @@
 
 ---
 
-## 2. 当前项目采用的 OAuth 方式
+## 2. 当前项目在 OAuth 模式下的接入方式
 
-当前仓库已经迁移到 Longbridge Node SDK OAuth 模式，启动链路会读取：
+当 `.env.local` 中显式配置 `LONGBRIDGE_AUTH_MODE=oauth` 时，启动链路会读取：
 
 ```env
+LONGBRIDGE_AUTH_MODE=oauth
 LONGBRIDGE_CLIENT_ID=...
 LONGBRIDGE_CALLBACK_PORT=60355
 ```
@@ -69,11 +71,12 @@ const config = Config.fromOAuth(oauth);
 
 这意味着：
 
-1. 你需要先拿到官方分配的 `client_id`
-2. 首次运行时，SDK 会输出一个授权 URL
-3. 你在浏览器中登录并同意授权
-4. SDK 会把 token 持久化到本地缓存目录
-5. 后续再次启动时，通常不需要重新授权
+1. 你需要显式选择 `LONGBRIDGE_AUTH_MODE=oauth`
+2. 你需要先拿到官方分配的 `client_id`
+3. 首次运行时，SDK 会输出一个授权 URL
+4. 你在浏览器中登录并同意授权
+5. SDK 会把 token 持久化到本地缓存目录
+6. 后续再次启动时，通常不需要重新授权
 
 ---
 
@@ -222,6 +225,7 @@ Write-Host $envContent
 当前项目需要的配置示例：
 
 ```env
+LONGBRIDGE_AUTH_MODE=oauth
 LONGBRIDGE_CLIENT_ID=你的_client_id
 LONGBRIDGE_CALLBACK_PORT=60355
 ```
@@ -244,6 +248,7 @@ LONGBRIDGE_CALLBACK_PORT=60355
 在项目根目录创建或编辑 `.env.local`：
 
 ```env
+LONGBRIDGE_AUTH_MODE=oauth
 LONGBRIDGE_CLIENT_ID=你的_client_id
 LONGBRIDGE_CALLBACK_PORT=60355
 ```
@@ -439,6 +444,7 @@ Get-NetTCPConnection -LocalPort 60355 -ErrorAction SilentlyContinue
 4. 在项目根目录写入：
 
 ```env
+LONGBRIDGE_AUTH_MODE=oauth
 LONGBRIDGE_CLIENT_ID=你的_client_id
 LONGBRIDGE_CALLBACK_PORT=60355
 ```
@@ -458,7 +464,7 @@ bun start
 
 ## 14. 当前项目相关文件索引
 
-如果你要对照代码确认当前仓库的 OAuth 行为，可以看这些文件：
+如果你要对照代码确认当前仓库在 OAuth 模式下的行为，可以看这些文件：
 
 - [src/config/auth/index.ts](/D:/code/Longbridge-Quantitative-Trading/src/config/auth/index.ts)
 - [src/config/auth/utils.ts](/D:/code/Longbridge-Quantitative-Trading/src/config/auth/utils.ts)

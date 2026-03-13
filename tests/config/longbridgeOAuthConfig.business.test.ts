@@ -1,8 +1,8 @@
 /**
- * Longbridge OAuth 配置业务测试
+ * Longbridge 认证配置业务测试
  *
  * 功能：
- * - 验证 OAuth 迁移后的启动配置校验行为
+ * - 验证双认证模式下的启动配置校验行为
  */
 import { describe, expect, it } from 'bun:test';
 import { validateAllConfig } from '../../src/config/config.validator.js';
@@ -49,9 +49,31 @@ async function validateEnv(env: NodeJS.ProcessEnv): Promise<unknown> {
   }
 }
 
-describe('longbridge oauth config validation', () => {
+describe('longbridge auth config validation', () => {
+  it('rejects missing auth mode before auth fields are evaluated', async () => {
+    const error = await validateEnv({
+      LONGBRIDGE_CLIENT_ID: 'client-id',
+    });
+
+    expect(error).not.toBeNull();
+    const validationError = error as { missingFields?: ReadonlyArray<string> };
+    expect(validationError.missingFields).toContain('LONGBRIDGE_AUTH_MODE');
+  });
+
+  it('rejects an invalid auth mode', async () => {
+    const error = await validateEnv({
+      LONGBRIDGE_AUTH_MODE: 'token',
+      LONGBRIDGE_CLIENT_ID: 'client-id',
+    });
+
+    expect(error).not.toBeNull();
+    const validationError = error as { missingFields?: ReadonlyArray<string> };
+    expect(validationError.missingFields).toContain('LONGBRIDGE_AUTH_MODE');
+  });
+
   it('rejects the .env.example placeholder client id as missing config', async () => {
     const error = await validateEnv({
+      LONGBRIDGE_AUTH_MODE: 'oauth',
       LONGBRIDGE_CLIENT_ID: 'your_longbridge_client_id',
     });
 
@@ -62,6 +84,7 @@ describe('longbridge oauth config validation', () => {
 
   it('rejects an invalid callback port', async () => {
     const error = await validateEnv({
+      LONGBRIDGE_AUTH_MODE: 'oauth',
       LONGBRIDGE_CLIENT_ID: 'client-id',
       LONGBRIDGE_CALLBACK_PORT: '70000',
     });
@@ -73,6 +96,7 @@ describe('longbridge oauth config validation', () => {
 
   it('rejects invalid sdk extra config values', async () => {
     const error = await validateEnv({
+      LONGBRIDGE_AUTH_MODE: 'oauth',
       LONGBRIDGE_CLIENT_ID: 'client-id',
       LONGBRIDGE_HTTP_URL: 'not-a-url',
       LONGBRIDGE_LANGUAGE: 'fr',
@@ -90,6 +114,48 @@ describe('longbridge oauth config validation', () => {
         'LONGBRIDGE_PUSH_CANDLESTICK_MODE',
         'LONGBRIDGE_ENABLE_OVERNIGHT',
         'LONGBRIDGE_PRINT_QUOTE_PACKAGES',
+      ]),
+    );
+  });
+
+  it('accepts a complete apikey config', async () => {
+    const error = await validateEnv({
+      LONGBRIDGE_AUTH_MODE: 'apikey',
+      LONGBRIDGE_APP_KEY: 'app-key',
+      LONGBRIDGE_APP_SECRET: 'app-secret',
+      LONGBRIDGE_ACCESS_TOKEN: 'access-token',
+    });
+
+    expect(error).toBeNull();
+  });
+
+  it('rejects missing apikey fields individually', async () => {
+    const error = await validateEnv({
+      LONGBRIDGE_AUTH_MODE: 'apikey',
+      LONGBRIDGE_APP_KEY: 'app-key',
+      LONGBRIDGE_APP_SECRET: 'app-secret',
+    });
+
+    expect(error).not.toBeNull();
+    const validationError = error as { missingFields?: ReadonlyArray<string> };
+    expect(validationError.missingFields).toContain('LONGBRIDGE_ACCESS_TOKEN');
+  });
+
+  it('treats apikey placeholder values from .env.example as missing config', async () => {
+    const error = await validateEnv({
+      LONGBRIDGE_AUTH_MODE: 'apikey',
+      LONGBRIDGE_APP_KEY: 'your_longbridge_app_key',
+      LONGBRIDGE_APP_SECRET: 'your_longbridge_app_secret',
+      LONGBRIDGE_ACCESS_TOKEN: 'your_longbridge_access_token',
+    });
+
+    expect(error).not.toBeNull();
+    const validationError = error as { missingFields?: ReadonlyArray<string> };
+    expect(validationError.missingFields).toEqual(
+      expect.arrayContaining([
+        'LONGBRIDGE_APP_KEY',
+        'LONGBRIDGE_APP_SECRET',
+        'LONGBRIDGE_ACCESS_TOKEN',
       ]),
     );
   });

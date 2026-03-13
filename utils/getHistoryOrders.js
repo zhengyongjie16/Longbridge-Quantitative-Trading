@@ -13,7 +13,7 @@ import dotenv from 'dotenv';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TradeContext, OrderStatus, OrderSide } from 'longbridge';
-import { createSdkConfigFromOAuth, initializeOAuth } from '../src/config/auth/index.js';
+import { createSdkConfigFromAuth } from '../src/config/auth/index.js';
 
 // 加载环境变量
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -423,13 +423,12 @@ async function main() {
   console.log('\n====== 获取所有已成交订单（上限1000条） ======\n');
 
   // 初始化交易上下文
-  const oauth = await initializeOAuth({
+  const config = await createSdkConfigFromAuth({
     env: process.env,
     onOpenUrl: (url) => {
       console.log(`请在浏览器中完成 Longbridge OAuth 授权：${url}`);
     },
   });
-  const config = createSdkConfigFromOAuth({ oauth, env: process.env });
   const ctx = await TradeContext.new(config);
 
   // 获取历史订单（已成交状态，不包含当日，不设日期范围）
