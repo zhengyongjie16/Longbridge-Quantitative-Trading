@@ -6,8 +6,11 @@
       "WebSearch(*)",
       "WebFetch(*)",
       "Search(*)",
-      "Bash(node:*)",
-      "Bash(bun:*)"
+      "Bash(node *)",
+      "Bash(bun *)",
+      "Bash(ls *)",
+      "Bash(cd *)",
+      "Bash(mkdir *)"
     ],
     "ask": [
       "Bash(git push *)",

@@ -1,397 +1,436 @@
-# QuoteContext - 行情上下文
+# QuoteContext
 
-## 创建与基础信息
+Official sources:
 
-```typescript
-const ctx: QuoteContext = await QuoteContext.new(config);
-const memberId: number = ctx.memberId();
-const level: string = ctx.quoteLevel();
-const details: QuotePackageDetail[] = ctx.quotePackageDetails();
+- https://longbridge.github.io/openapi/nodejs/classes/QuoteContext.html
+- https://longbridge.github.io/openapi/nodejs/modules.html
+
+## Creation
+
+### QuoteContext.new
+
+```ts
+QuoteContext.new(config: Config): Promise<QuoteContext>
 ```
 
-## 实时推送回调
+Create a quote context from `Config`.
 
-```typescript
-ctx.setOnQuote((err: Error, event: PushQuoteEvent) => void);
-ctx.setOnDepth((err: Error, event: PushDepthEvent) => void);
-ctx.setOnBrokers((err: Error, event: PushBrokersEvent) => void);
-ctx.setOnTrades((err: Error, event: PushTradesEvent) => void);
-ctx.setOnCandlestick((err: Error, event: PushCandlestickEvent) => void);
+## Context metadata
+
+### memberId
+
+```ts
+memberId(): number
 ```
 
-## 订阅管理
+Returns member ID.
 
-#### subscribe - 订阅行情
+### quoteLevel
 
-```typescript
-await ctx.subscribe(
-  symbols: string[],        // 证券代码列表，如 ["700.HK", "AAPL.US"]
-  subTypes: SubType[],      // 订阅类型列表
-): Promise<void>
+```ts
+quoteLevel(): string
 ```
 
-#### unsubscribe - 取消订阅
+Returns quote level.
 
-```typescript
-await ctx.unsubscribe(
-  symbols: string[],
-  subTypes: SubType[],
-): Promise<void>
+### quotePackageDetails
+
+```ts
+quotePackageDetails(): Array<QuotePackageDetail>
 ```
 
-#### subscribeCandlesticks - 订阅 K 线
+Returns quote package details.
 
-```typescript
-const candlesticks: Candlestick[] = await ctx.subscribeCandlesticks(
+## Callbacks
+
+### setOnQuote
+
+```ts
+setOnQuote(callback: (err: Error, event: PushQuoteEvent) => void): void
+```
+
+Register quote push callback.
+
+### setOnDepth
+
+```ts
+setOnDepth(callback: (err: Error, event: PushDepthEvent) => void): void
+```
+
+Register depth push callback.
+
+### setOnBrokers
+
+```ts
+setOnBrokers(callback: (err: Error, event: PushBrokersEvent) => void): void
+```
+
+Register brokers push callback.
+
+### setOnTrades
+
+```ts
+setOnTrades(callback: (err: Error, event: PushTradesEvent) => void): void
+```
+
+Register trades push callback.
+
+### setOnCandlestick
+
+```ts
+setOnCandlestick(callback: (err: Error, event: PushCandlestickEvent) => void): void
+```
+
+Register candlestick push callback.
+
+## Subscription
+
+### subscribe
+
+```ts
+subscribe(symbols: Array<string>, subTypes: Array<SubType>): Promise<void>
+```
+
+Subscribe symbols by sub-types.
+
+### unsubscribe
+
+```ts
+unsubscribe(symbols: Array<string>, subTypes: Array<SubType>): Promise<void>
+```
+
+Unsubscribe symbols by sub-types.
+
+### subscribeCandlesticks
+
+```ts
+subscribeCandlesticks(symbol: string, period: Period, tradeSessions: TradeSessions): Promise<Array<Candlestick>>
+```
+
+Subscribe security candlesticks.
+
+### unsubscribeCandlesticks
+
+```ts
+unsubscribeCandlesticks(symbol: string, period: Period): Promise<void>
+```
+
+Unsubscribe security candlesticks.
+
+### subscriptions
+
+```ts
+subscriptions(): Promise<Array<Subscription>>
+```
+
+Get current subscription information.
+
+## Basic quote data
+
+### staticInfo
+
+```ts
+staticInfo(symbols: Array<string>): Promise<Array<SecurityStaticInfo>>
+```
+
+Get basic security information.
+
+### quote
+
+```ts
+quote(symbols: Array<string>): Promise<Array<SecurityQuote>>
+```
+
+Get securities quote.
+
+### depth
+
+```ts
+depth(symbol: string): Promise<SecurityDepth>
+```
+
+Get security depth.
+
+### brokers
+
+```ts
+brokers(symbol: string): Promise<SecurityBrokers>
+```
+
+Get security brokers.
+
+### participants
+
+```ts
+participants(): Promise<Array<ParticipantInfo>>
+```
+
+Get participant information.
+
+### trades
+
+```ts
+trades(symbol: string, count: number): Promise<Array<Trade>>
+```
+
+Get security trades.
+
+### intraday
+
+```ts
+intraday(symbol: string, tradeSessions: TradeSessions): Promise<Array<IntradayLine>>
+```
+
+Get security intraday data.
+
+### securityList
+
+```ts
+securityList(market: Market, category?: Overnight): Promise<Array<Security>>
+```
+
+Get security list.
+
+Audit note: keep this signature exactly as shown on the official `QuoteContext` page. The docs link `category` to the `SecurityListCategory` enum via its `Overnight` anchor; interpret `Overnight` through the enums reference, not as an independent exported type.
+
+## K-line
+
+### candlesticks
+
+```ts
+candlesticks(symbol: string, period: Period, count: number, adjustType: AdjustType, tradeSessions: TradeSessions): Promise<Array<Candlestick>>
+```
+
+Get security candlesticks.
+
+### historyCandlesticksByOffset
+
+```ts
+historyCandlesticksByOffset(
   symbol: string,
   period: Period,
-  tradeSessions: TradeSessions,
-): Promise<Candlestick[]>
-```
-
-#### unsubscribeCandlesticks - 取消订阅 K 线
-
-```typescript
-await ctx.unsubscribeCandlesticks(
-  symbol: string,
-  period: Period,
-): Promise<void>
-```
-
-#### subscriptions - 获取订阅信息
-
-```typescript
-const subs: Subscription[] = await ctx.subscriptions(): Promise<Subscription[]>
-// Subscription: { symbol: string, subTypes: SubType[], candlesticks: Period[] }
-```
-
-## 证券基础信息
-
-#### staticInfo - 获取证券基础信息
-
-```typescript
-const info: SecurityStaticInfo[] = await ctx.staticInfo(
-  symbols: string[],
-): Promise<SecurityStaticInfo[]>
-```
-
-#### quote - 获取证券实时报价
-
-```typescript
-const quotes: SecurityQuote[] = await ctx.quote(
-  symbols: string[],
-): Promise<SecurityQuote[]>
-```
-
-#### optionQuote - 获取期权报价
-
-```typescript
-const quotes: OptionQuote[] = await ctx.optionQuote(
-  symbols: string[],         // 如 ["AAPL230317P160000.US"]
-): Promise<OptionQuote[]>
-```
-
-#### warrantQuote - 获取轮证报价
-
-```typescript
-const quotes: WarrantQuote[] = await ctx.warrantQuote(
-  symbols: string[],         // 如 ["21125.HK"]
-): Promise<WarrantQuote[]>
-```
-
-## 盘口与经纪商
-
-#### depth - 获取盘口深度
-
-```typescript
-const depth: SecurityDepth = await ctx.depth(
-  symbol: string,
-): Promise<SecurityDepth>
-// SecurityDepth: { asks: Depth[], bids: Depth[] }
-// Depth: { position: number, price: Decimal, volume: number, orderNum: number }
-```
-
-#### brokers - 获取经纪商分布
-
-```typescript
-const brokers: SecurityBrokers = await ctx.brokers(
-  symbol: string,
-): Promise<SecurityBrokers>
-// SecurityBrokers: { askBrokers: Brokers[], bidBrokers: Brokers[] }
-```
-
-#### participants - 获取券商席位 ID
-
-```typescript
-const participants: ParticipantInfo[] = await ctx.participants(): Promise<ParticipantInfo[]>
-// ParticipantInfo: { brokerIds: number[], nameCn: string, nameEn: string, nameHk: string }
-```
-
-## 成交与分时
-
-#### trades - 获取逐笔成交
-
-```typescript
-const trades: Trade[] = await ctx.trades(
-  symbol: string,
-  count: number,
-): Promise<Trade[]>
-```
-
-#### intraday - 获取分时数据
-
-```typescript
-const lines: IntradayLine[] = await ctx.intraday(
-  symbol: string,
-  tradeSessions: TradeSessions,
-): Promise<IntradayLine[]>
-```
-
-## K 线数据
-
-#### candlesticks - 获取 K 线数据
-
-```typescript
-const candles: Candlestick[] = await ctx.candlesticks(
-  symbol: string,
-  period: Period,
-  count: number,
   adjustType: AdjustType,
-  tradeSessions: TradeSessions,
-): Promise<Candlestick[]>
-```
-
-#### historyCandlesticksByOffset - 按偏移获取历史 K 线
-
-```typescript
-const candles: Candlestick[] = await ctx.historyCandlesticksByOffset(
-  symbol: string,
-  period: Period,
-  adjustType: AdjustType,
-  forward: boolean,          // 是否向前查询
+  forward: boolean,
   datetime: NaiveDatetime,
   count: number,
   tradeSessions: TradeSessions,
-): Promise<Candlestick[]>
+): Promise<Array<Candlestick>>
 ```
 
-#### historyCandlesticksByDate - 按日期获取历史 K 线
+Get historical candlesticks by offset.
 
-```typescript
-const candles: Candlestick[] = await ctx.historyCandlesticksByDate(
+### historyCandlesticksByDate
+
+```ts
+historyCandlesticksByDate(
   symbol: string,
   period: Period,
   adjustType: AdjustType,
   start: NaiveDate,
   end: NaiveDate,
   tradeSessions: TradeSessions,
-): Promise<Candlestick[]>
+): Promise<Array<Candlestick>>
 ```
 
-## 期权链
+Get historical candlesticks by date.
 
-#### optionChainExpiryDateList - 获取期权到期日列表
+## Options
 
-```typescript
-const dates: NaiveDate[] = await ctx.optionChainExpiryDateList(
-  symbol: string,            // 如 "AAPL.US"
-): Promise<NaiveDate[]>
+### optionQuote
+
+```ts
+optionQuote(symbols: Array<string>): Promise<Array<OptionQuote>>
 ```
 
-#### optionChainInfoByDate - 按日期获取期权链信息
+Get option quote.
 
-```typescript
-const strikes: StrikePriceInfo[] = await ctx.optionChainInfoByDate(
+### optionChainExpiryDateList
+
+```ts
+optionChainExpiryDateList(symbol: string): Promise<Array<NaiveDate>>
+```
+
+Get option chain expiry date list.
+
+### optionChainInfoByDate
+
+```ts
+optionChainInfoByDate(symbol: string, expiryDate: NaiveDate): Promise<Array<StrikePriceInfo>>
+```
+
+Get option chain info by date.
+
+## Warrants
+
+### warrantQuote
+
+```ts
+warrantQuote(symbols: Array<string>): Promise<Array<WarrantQuote>>
+```
+
+Get warrant quote.
+
+### warrantIssuers
+
+```ts
+warrantIssuers(): Promise<Array<IssuerInfo>>
+```
+
+Get warrant issuers.
+
+### warrantList
+
+```ts
+warrantList(
   symbol: string,
-  expiryDate: NaiveDate,
-): Promise<StrikePriceInfo[]>
-```
-
-## 轮证筛选
-
-#### warrantIssuers - 获取轮证发行商列表
-
-```typescript
-const issuers: IssuerInfo[] = await ctx.warrantIssuers(): Promise<IssuerInfo[]>
-// IssuerInfo: { id: number, nameCn: string, nameEn: string, nameHk: string }
-```
-
-#### warrantList - 筛选轮证列表
-
-```typescript
-const warrants: WarrantInfo[] = await ctx.warrantList(
-  symbol: string,                     // 标的代码，如 "700.HK"
   sortBy: WarrantSortBy,
   sortOrder: SortOrderType,
-  warrantType?: WarrantType[],        // 可选 - 轮证类型
-  issuer?: number[],                  // 可选 - 发行商 ID
+  warrantType?: WarrantType[],
+  issuer?: number[],
   expiryDate?: FilterWarrantExpiryDate[],
   priceType?: FilterWarrantInOutBoundsType[],
   status?: WarrantStatus[],
-): Promise<WarrantInfo[]>
+): Promise<Array<WarrantInfo>>
 ```
 
-## 交易日与时段
+Query warrant list.
 
-#### tradingSession - 获取当日交易时段
+## Trading days & sessions
 
-```typescript
-const sessions: MarketTradingSession[] = await ctx.tradingSession(): Promise<MarketTradingSession[]>
-// MarketTradingSession: { market: Market, tradeSessions: TradingSessionInfo[] }
+### tradingSession
+
+```ts
+tradingSession(): Promise<Array<MarketTradingSession>>
 ```
 
-#### tradingDays - 获取交易日列表
+Get trading session of the day.
 
-```typescript
-const days: MarketTradingDays = await ctx.tradingDays(
-  market: Market,
-  begin: NaiveDate,
-  end: NaiveDate,
-): Promise<MarketTradingDays>
-// MarketTradingDays: { tradingDays: NaiveDate[], halfTradingDays: NaiveDate[] }
+### tradingDays
+
+```ts
+tradingDays(market: Market, begin: NaiveDate, end: NaiveDate): Promise<MarketTradingDays>
 ```
 
-## 资金流向
+Get market trading days in a date range.
 
-#### capitalFlow - 获取当日资金流入
+## Capital flow & calc index
 
-```typescript
-const flows: CapitalFlowLine[] = await ctx.capitalFlow(
-  symbol: string,
-): Promise<CapitalFlowLine[]>
-// CapitalFlowLine: { inflow: Decimal, timestamp: Date }
+### capitalFlow
+
+```ts
+capitalFlow(symbol: string): Promise<Array<CapitalFlowLine>>
 ```
 
-#### capitalDistribution - 获取资金分布
+Get capital flow intraday.
 
-```typescript
-const dist: CapitalDistributionResponse = await ctx.capitalDistribution(
-  symbol: string,
-): Promise<CapitalDistributionResponse>
-// CapitalDistributionResponse: { timestamp: Date, capitalIn: CapitalDistribution, capitalOut: CapitalDistribution }
+### capitalDistribution
+
+```ts
+capitalDistribution(symbol: string): Promise<CapitalDistributionResponse>
 ```
 
-## 计算指标
+Get capital distribution.
 
-#### calcIndexes - 计算证券指标
+### calcIndexes
 
-```typescript
-const indexes: SecurityCalcIndex[] = await ctx.calcIndexes(
-  symbols: string[],
-  indexes: CalcIndex[],
-): Promise<SecurityCalcIndex[]>
+```ts
+calcIndexes(symbols: Array<string>, indexes: Array<CalcIndex>): Promise<Array<SecurityCalcIndex>>
 ```
 
-## 自选股
+Get calc indexes.
 
-#### watchlist - 获取自选股分组
+## Market temperature
 
-```typescript
-const groups: WatchlistGroup[] = await ctx.watchlist(): Promise<WatchlistGroup[]>
+### marketTemperature
+
+```ts
+marketTemperature(market: Market): Promise<MarketTemperature>
 ```
 
-#### createWatchlistGroup - 创建自选股分组
+Get current market temperature.
 
-```typescript
-const groupId: number = await ctx.createWatchlistGroup(
-  req: CreateWatchlistGroup,   // { name: string, securities?: string[] }
-): Promise<number>
+### historyMarketTemperature
+
+```ts
+historyMarketTemperature(market: Market, startDate: NaiveDate, end: NaiveDate): Promise<HistoryMarketTemperatureResponse>
 ```
 
-#### deleteWatchlistGroup - 删除自选股分组
+Get historical market temperature.
 
-```typescript
-await ctx.deleteWatchlistGroup(
-  req: DeleteWatchlistGroup,   // { id: number, purge?: boolean }
-): Promise<void>
+## Watchlist
+
+### watchlist
+
+```ts
+watchlist(): Promise<Array<WatchlistGroup>>
 ```
 
-#### updateWatchlistGroup - 更新自选股分组
+Get watchlist groups.
 
-```typescript
-await ctx.updateWatchlistGroup(
-  req: UpdateWatchlistGroup,   // { id: number, name?: string, securities?: string[], mode?: SecuritiesUpdateMode }
-): Promise<void>
+### createWatchlistGroup
+
+```ts
+createWatchlistGroup(req: CreateWatchlistGroup): Promise<number>
 ```
 
-## 证券列表
+Create watchlist group and return group ID.
 
-#### securityList - 获取证券列表
+### deleteWatchlistGroup
 
-```typescript
-const securities: Security[] = await ctx.securityList(
-  market: Market,
-  category?: SecurityListCategory,
-): Promise<Security[]>
-// Security: { symbol: string, nameCn: string, nameEn: string, nameHk: string }
+```ts
+deleteWatchlistGroup(req: DeleteWatchlistGroup): Promise<void>
 ```
 
-## 市场温度
+Delete watchlist group.
 
-#### marketTemperature - 获取当前市场温度
+### updateWatchlistGroup
 
-```typescript
-const temp: MarketTemperature = await ctx.marketTemperature(
-  market: Market,
-): Promise<MarketTemperature>
+```ts
+updateWatchlistGroup(req: UpdateWatchlistGroup): Promise<void>
 ```
 
-#### historyMarketTemperature - 获取历史市场温度
+Update watchlist group.
 
-```typescript
-const resp: HistoryMarketTemperatureResponse = await ctx.historyMarketTemperature(
-  market: Market,
-  startDate: NaiveDate,
-  end: NaiveDate,
-): Promise<HistoryMarketTemperatureResponse>
+## Realtime endpoints
+
+Official examples show `realtime*` APIs are used after corresponding subscriptions.
+
+### realtimeQuote
+
+```ts
+realtimeQuote(symbols: Array<string>): Promise<Array<RealtimeQuote>>
 ```
 
-## 实时数据（需先订阅）
+Get realtime quote.
 
-#### realtimeQuote - 获取实时报价
+### realtimeDepth
 
-```typescript
-const quotes: RealtimeQuote[] = await ctx.realtimeQuote(
-  symbols: string[],
-): Promise<RealtimeQuote[]>
-// 需先 subscribe SubType.Quote
+```ts
+realtimeDepth(symbol: string): Promise<SecurityDepth>
 ```
 
-#### realtimeDepth - 获取实时盘口
+Get realtime depth.
 
-```typescript
-const depth: SecurityDepth = await ctx.realtimeDepth(
-  symbol: string,
-): Promise<SecurityDepth>
-// 需先 subscribe SubType.Depth
+### realtimeBrokers
+
+```ts
+realtimeBrokers(symbol: string): Promise<SecurityBrokers>
 ```
 
-#### realtimeBrokers - 获取实时经纪商
+Get realtime brokers.
 
-```typescript
-const brokers: SecurityBrokers = await ctx.realtimeBrokers(
-  symbol: string,
-): Promise<SecurityBrokers>
-// 需先 subscribe SubType.Brokers
+### realtimeTrades
+
+```ts
+realtimeTrades(symbol: string, count: number): Promise<Array<Trade>>
 ```
 
-#### realtimeTrades - 获取实时逐笔成交
+Get realtime trades.
 
-```typescript
-const trades: Trade[] = await ctx.realtimeTrades(
-  symbol: string,
-  count: number,
-): Promise<Trade[]>
-// 需先 subscribe SubType.Trade
+### realtimeCandlesticks
+
+```ts
+realtimeCandlesticks(symbol: string, period: Period, count: number): Promise<Array<Candlestick>>
 ```
 
-#### realtimeCandlesticks - 获取实时 K 线
-
-```typescript
-const candles: Candlestick[] = await ctx.realtimeCandlesticks(
-  symbol: string,
-  period: Period,
-  count: number,
-): Promise<Candlestick[]>
-// 需先 subscribeCandlesticks
-```
+Get realtime candlesticks.

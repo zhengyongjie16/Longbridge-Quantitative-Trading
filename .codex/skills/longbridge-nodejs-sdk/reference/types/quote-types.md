@@ -1,275 +1,444 @@
-# 行情数据类型与推送事件
+# Quote Types
 
-## SecurityQuote - 证券报价
+Official sources:
 
-| 属性              | 类型           | 说明         |
-| ----------------- | -------------- | ------------ |
-| `symbol`          | `string`       | 证券代码     |
-| `lastDone`        | `Decimal`      | 最新价       |
-| `prevClose`       | `Decimal`      | 昨收价       |
-| `open`            | `Decimal`      | 开盘价       |
-| `high`            | `Decimal`      | 最高价       |
-| `low`             | `Decimal`      | 最低价       |
-| `timestamp`       | `Date`         | 最新价时间   |
-| `volume`          | `number`       | 成交量       |
-| `turnover`        | `Decimal`      | 成交额       |
-| `tradeStatus`     | `TradeStatus`  | 交易状态     |
-| `preMarketQuote`  | `PrePostQuote` | 美股盘前报价 |
-| `postMarketQuote` | `PrePostQuote` | 美股盘后报价 |
-| `overnightQuote`  | `PrePostQuote` | 美股夜盘报价 |
+- https://longbridge.github.io/openapi/nodejs/modules.html
+- https://longbridge.github.io/openapi/nodejs/classes/QuoteContext.html
+- https://longbridge.github.io/openapi/nodejs/classes/Brokers.html
+- https://longbridge.github.io/openapi/nodejs/classes/Depth.html
+- https://longbridge.github.io/openapi/nodejs/classes/CapitalDistribution.html
+- https://longbridge.github.io/openapi/nodejs/classes/HistoryMarketTemperatureResponse.html
+- https://longbridge.github.io/openapi/nodejs/classes/OptionQuote.html
+- https://longbridge.github.io/openapi/nodejs/classes/QuotePackageDetail.html
+- https://longbridge.github.io/openapi/nodejs/classes/MarketTemperature.html
+- https://longbridge.github.io/openapi/nodejs/classes/WatchlistGroup.html
+- https://longbridge.github.io/openapi/nodejs/classes/WatchlistSecurity.html
+- https://longbridge.github.io/openapi/nodejs/classes/TradingSessionInfo.html
+- https://longbridge.github.io/openapi/nodejs/classes/RealtimeQuote.html
+- https://longbridge.github.io/openapi/nodejs/classes/PrePostQuote.html
+- https://longbridge.github.io/openapi/nodejs/interfaces/CreateWatchlistGroup.html
+- https://longbridge.github.io/openapi/nodejs/interfaces/DeleteWatchlistGroup.html
+- https://longbridge.github.io/openapi/nodejs/interfaces/UpdateWatchlistGroup.html
 
-## SecurityStaticInfo - 证券基础信息
+## Core quote snapshots
 
-| 属性                | 类型               | 说明               |
-| ------------------- | ------------------ | ------------------ |
-| `symbol`            | `string`           | 证券代码           |
-| `nameCn`            | `string`           | 中文名称           |
-| `nameEn`            | `string`           | 英文名称           |
-| `nameHk`            | `string`           | 繁体中文名称       |
-| `exchange`          | `string`           | 所属交易所         |
-| `currency`          | `string`           | 交易货币           |
-| `lotSize`           | `number`           | 每手股数           |
-| `totalShares`       | `number`           | 总股本             |
-| `circulatingShares` | `number`           | 流通股本           |
-| `hkShares`          | `number`           | 港股股数（仅港股） |
-| `eps`               | `Decimal`          | 每股收益           |
-| `epsTtm`            | `Decimal`          | 每股收益(TTM)      |
-| `bps`               | `Decimal`          | 每股净资产         |
-| `dividendYield`     | `Decimal`          | 股息率             |
-| `stockDerivatives`  | `DerivativeType[]` | 支持的衍生品类型   |
-| `board`             | `SecurityBoard`    | 板块               |
+### SecurityQuote
 
-## WarrantQuote - 轮证报价
+- `symbol: string`
+- `lastDone: Decimal`
+- `prevClose: Decimal`
+- `open: Decimal`
+- `high: Decimal`
+- `low: Decimal`
+- `timestamp: Date`
+- `volume: number`
+- `turnover: Decimal`
+- `tradeStatus: TradeStatus`
+- `preMarketQuote: PrePostQuote`
+- `postMarketQuote: PrePostQuote`
+- `overnightQuote: PrePostQuote`
 
-| 属性                  | 类型          | 说明         |
-| --------------------- | ------------- | ------------ |
-| `symbol`              | `string`      | 证券代码     |
-| `lastDone`            | `Decimal`     | 最新价       |
-| `prevClose`           | `Decimal`     | 昨收价       |
-| `open`                | `Decimal`     | 开盘价       |
-| `high`                | `Decimal`     | 最高价       |
-| `low`                 | `Decimal`     | 最低价       |
-| `timestamp`           | `Date`        | 最新价时间   |
-| `volume`              | `number`      | 成交量       |
-| `turnover`            | `Decimal`     | 成交额       |
-| `tradeStatus`         | `TradeStatus` | 交易状态     |
-| `impliedVolatility`   | `Decimal`     | 引伸波幅     |
-| `expiryDate`          | `NaiveDate`   | 到期日       |
-| `lastTradeDate`       | `NaiveDate`   | 最后交易日   |
-| `outstandingRatio`    | `Decimal`     | 街货比       |
-| `outstandingQuantity` | `number`      | 街货量       |
-| `conversionRatio`     | `Decimal`     | 换股比率     |
-| `category`            | `WarrantType` | 轮证类型     |
-| `strikePrice`         | `Decimal`     | 行权价       |
-| `upperStrikePrice`    | `Decimal`     | 上限价       |
-| `lowerStrikePrice`    | `Decimal`     | 下限价       |
-| `callPrice`           | `Decimal`     | 收回价       |
-| `underlyingSymbol`    | `string`      | 标的证券代码 |
+### SecurityStaticInfo
 
-## WarrantInfo - 轮证信息（warrantList 返回）
+- `symbol: string`
+- `nameCn: string`
+- `nameEn: string`
+- `nameHk: string`
+- `exchange: string`
+- `currency: string`
+- `lotSize: number`
+- `totalShares: number`
+- `circulatingShares: number`
+- `hkShares: number`
+- `eps: Decimal`
+- `epsTtm: Decimal`
+- `bps: Decimal`
+- `dividendYield: Decimal`
+- `stockDerivatives: Array<DerivativeType>`
+- `board: SecurityBoard`
 
-| 属性                | 类型            | 说明      |
-| ------------------- | --------------- | --------- |
-| `symbol`            | `string`        | 证券代码  |
-| `warrantType`       | `WarrantType`   | 轮证类型  |
-| `name`              | `string`        | 名称      |
-| `lastDone`          | `Decimal`       | 最新价    |
-| `changeRate`        | `Decimal`       | 涨跌幅    |
-| `changeValue`       | `Decimal`       | 涨跌额    |
-| `volume`            | `number`        | 成交量    |
-| `turnover`          | `Decimal`       | 成交额    |
-| `expiryDate`        | `NaiveDate`     | 到期日    |
-| `strikePrice`       | `Decimal`       | 行权价    |
-| `upperStrikePrice`  | `Decimal`       | 上限价    |
-| `lowerStrikePrice`  | `Decimal`       | 下限价    |
-| `outstandingQty`    | `number`        | 街货量    |
-| `outstandingRatio`  | `Decimal`       | 街货比    |
-| `premium`           | `Decimal`       | 溢价      |
-| `itmOtm`            | `Decimal`       | 价内/价外 |
-| `impliedVolatility` | `Decimal`       | 引伸波幅  |
-| `delta`             | `Decimal`       | Delta     |
-| `callPrice`         | `Decimal`       | 收回价    |
-| `toCallPrice`       | `Decimal`       | 距收回价  |
-| `effectiveLeverage` | `Decimal`       | 有效杠杆  |
-| `leverageRatio`     | `Decimal`       | 杠杆比率  |
-| `conversionRatio`   | `Decimal`       | 换股比率  |
-| `balancePoint`      | `Decimal`       | 打和点    |
-| `status`            | `WarrantStatus` | 状态      |
+### RealtimeQuote
 
-## Candlestick - K 线数据
+- `symbol: string`
+- `lastDone: Decimal`
+- `open: Decimal`
+- `high: Decimal`
+- `low: Decimal`
+- `timestamp: Date`
+- `volume: number`
+- `turnover: Decimal`
+- `tradeStatus: TradeStatus`
 
-| 属性           | 类型           | 说明     |
-| -------------- | -------------- | -------- |
-| `close`        | `Decimal`      | 收盘价   |
-| `open`         | `Decimal`      | 开盘价   |
-| `low`          | `Decimal`      | 最低价   |
-| `high`         | `Decimal`      | 最高价   |
-| `volume`       | `number`       | 成交量   |
-| `turnover`     | `Decimal`      | 成交额   |
-| `timestamp`    | `Date`         | 时间戳   |
-| `tradeSession` | `TradeSession` | 交易时段 |
+### PrePostQuote
 
-## Trade - 逐笔成交
+- `lastDone: Decimal`
+- `timestamp: Date`
+- `volume: number`
+- `turnover: Decimal`
+- `high: Decimal`
+- `low: Decimal`
+- `prevClose: Decimal`
 
-| 属性           | 类型             | 说明     |
-| -------------- | ---------------- | -------- |
-| `price`        | `Decimal`        | 成交价   |
-| `volume`       | `number`         | 成交量   |
-| `timestamp`    | `Date`           | 成交时间 |
-| `tradeType`    | `string`         | 成交类型 |
-| `direction`    | `TradeDirection` | 成交方向 |
-| `tradeSession` | `TradeSession`   | 交易时段 |
+## Order book and broker-related types
 
-## IntradayLine - 分时数据
+### SecurityDepth
 
-| 属性        | 类型      | 说明         |
-| ----------- | --------- | ------------ |
-| `price`     | `Decimal` | 分钟收盘价   |
-| `timestamp` | `Date`    | 分钟开始时间 |
-| `volume`    | `number`  | 成交量       |
-| `turnover`  | `Decimal` | 成交额       |
-| `avgPrice`  | `Decimal` | 均价         |
+- `asks: Array<Depth>`
+- `bids: Array<Depth>`
 
-## SecurityDepth - 盘口深度
+### Depth
 
-| 属性   | 类型      | 说明 |
-| ------ | --------- | ---- |
-| `asks` | `Depth[]` | 卖盘 |
-| `bids` | `Depth[]` | 买盘 |
+- `position: number`
+- `price: Decimal`
+- `volume: number`
+- `orderNum: number`
 
-**Depth 属性：** `position: number, price: Decimal, volume: number, orderNum: number`
+### SecurityBrokers
 
-## SecurityBrokers - 经纪商分布
+- `askBrokers: Array<Brokers>`
+- `bidBrokers: Array<Brokers>`
 
-| 属性         | 类型        | 说明       |
-| ------------ | ----------- | ---------- |
-| `askBrokers` | `Brokers[]` | 卖方经纪商 |
-| `bidBrokers` | `Brokers[]` | 买方经纪商 |
+### Brokers
 
-## RealtimeQuote - 实时报价
+- `position: number`
+- `brokerIds: Array<number>`
 
-| 属性          | 类型          | 说明     |
-| ------------- | ------------- | -------- |
-| `symbol`      | `string`      | 证券代码 |
-| `lastDone`    | `Decimal`     | 最新价   |
-| `open`        | `Decimal`     | 开盘价   |
-| `high`        | `Decimal`     | 最高价   |
-| `low`         | `Decimal`     | 最低价   |
-| `timestamp`   | `Date`        | 时间     |
-| `volume`      | `number`      | 成交量   |
-| `turnover`    | `Decimal`     | 成交额   |
-| `tradeStatus` | `TradeStatus` | 交易状态 |
+### ParticipantInfo
 
-## Subscription - 订阅信息
+- `brokerIds: Array<number>`
+- `nameCn: string`
+- `nameEn: string`
+- `nameHk: string`
 
-| 属性           | 类型        | 说明            |
-| -------------- | ----------- | --------------- |
-| `symbol`       | `string`    | 证券代码        |
-| `subTypes`     | `SubType[]` | 订阅类型        |
-| `candlesticks` | `Period[]`  | 订阅的 K 线周期 |
+## Trades / intraday / candlestick
 
-## MarketTradingDays - 市场交易日
+### Trade
 
-| 属性              | 类型          | 说明           |
-| ----------------- | ------------- | -------------- |
-| `tradingDays`     | `NaiveDate[]` | 交易日列表     |
-| `halfTradingDays` | `NaiveDate[]` | 半日交易日列表 |
+- `price: Decimal`
+- `volume: number`
+- `timestamp: Date`
+- `tradeType: string`
+- `direction: TradeDirection`
+- `tradeSession: TradeSession`
 
-## MarketTradingSession - 市场交易时段
+### IntradayLine
 
-| 属性            | 类型                   | 说明         |
-| --------------- | ---------------------- | ------------ |
-| `market`        | `Market`               | 市场         |
-| `tradeSessions` | `TradingSessionInfo[]` | 交易时段列表 |
+- `price: Decimal`
+- `timestamp: Date`
+- `volume: number`
+- `turnover: Decimal`
+- `avgPrice: Decimal`
 
-## CapitalFlowLine - 资金流入线
+### Candlestick
 
-| 属性        | 类型      | 说明     |
-| ----------- | --------- | -------- |
-| `inflow`    | `Decimal` | 流入金额 |
-| `timestamp` | `Date`    | 时间     |
+- `close: Decimal`
+- `open: Decimal`
+- `low: Decimal`
+- `high: Decimal`
+- `volume: number`
+- `turnover: Decimal`
+- `timestamp: Date`
+- `tradeSession: TradeSession`
 
-## CapitalDistributionResponse - 资金分布响应
+### Subscription
 
-| 属性         | 类型                  | 说明         |
-| ------------ | --------------------- | ------------ |
-| `timestamp`  | `Date`                | 时间         |
-| `capitalIn`  | `CapitalDistribution` | 流入资金分布 |
-| `capitalOut` | `CapitalDistribution` | 流出资金分布 |
+- `symbol: string`
+- `subTypes: Array<SubType>`
+- `candlesticks: Array<Period>`
 
-## ParticipantInfo - 券商席位
+## Option and warrant-related types
 
-| 属性        | 类型       | 说明         |
-| ----------- | ---------- | ------------ |
-| `brokerIds` | `number[]` | 券商 ID 列表 |
-| `nameCn`    | `string`   | 中文名称     |
-| `nameEn`    | `string`   | 英文名称     |
-| `nameHk`    | `string`   | 繁体中文名称 |
+### OptionQuote
 
-## IssuerInfo - 轮证发行商
+- `symbol: string`
+- `lastDone: Decimal`
+- `prevClose: Decimal`
+- `open: Decimal`
+- `high: Decimal`
+- `low: Decimal`
+- `timestamp: Date`
+- `volume: number`
+- `turnover: Decimal`
+- `tradeStatus: TradeStatus`
+- `impliedVolatility: Decimal`
+- `openInterest: number`
+- `expiryDate: NaiveDate`
+- `strikePrice: Decimal`
+- `contractMultiplier: Decimal`
+- `contractType: OptionType`
+- `contractSize: Decimal`
+- `direction: OptionDirection`
+- `historicalVolatility: Decimal`
+- `underlyingSymbol: string`
 
-| 属性     | 类型     | 说明         |
-| -------- | -------- | ------------ |
-| `id`     | `number` | 发行商 ID    |
-| `nameCn` | `string` | 中文名称     |
-| `nameEn` | `string` | 英文名称     |
-| `nameHk` | `string` | 繁体中文名称 |
+### StrikePriceInfo
 
-## Security - 证券基本信息
+- `price: Decimal`
+- `callSymbol: string`
+- `putSymbol: string`
+- `standard: boolean`
 
-| 属性     | 类型     | 说明         |
-| -------- | -------- | ------------ |
-| `symbol` | `string` | 证券代码     |
-| `nameCn` | `string` | 中文名称     |
-| `nameEn` | `string` | 英文名称     |
-| `nameHk` | `string` | 繁体中文名称 |
+### WarrantQuote
 
-## PrePostQuote - 盘前/盘后报价
+- `symbol: string`
+- `lastDone: Decimal`
+- `prevClose: Decimal`
+- `open: Decimal`
+- `high: Decimal`
+- `low: Decimal`
+- `timestamp: Date`
+- `volume: number`
+- `turnover: Decimal`
+- `tradeStatus: TradeStatus`
+- `impliedVolatility: Decimal`
+- `expiryDate: NaiveDate`
+- `lastTradeDate: NaiveDate`
+- `outstandingRatio: Decimal`
+- `outstandingQuantity: number`
+- `conversionRatio: Decimal`
+- `category: WarrantType`
+- `strikePrice: Decimal`
+- `upperStrikePrice: Decimal`
+- `lowerStrikePrice: Decimal`
+- `callPrice: Decimal`
+- `underlyingSymbol: string`
 
-| 属性        | 类型      | 说明   |
-| ----------- | --------- | ------ |
-| `lastDone`  | `Decimal` | 最新价 |
-| `timestamp` | `Date`    | 时间   |
-| `volume`    | `number`  | 成交量 |
-| `turnover`  | `Decimal` | 成交额 |
-| `high`      | `Decimal` | 最高价 |
-| `low`       | `Decimal` | 最低价 |
-| `prevClose` | `Decimal` | 昨收价 |
+### WarrantInfo
 
----
+- `symbol: string`
+- `warrantType: WarrantType`
+- `name: string`
+- `lastDone: Decimal`
+- `changeRate: Decimal`
+- `changeValue: Decimal`
+- `volume: number`
+- `turnover: Decimal`
+- `expiryDate: NaiveDate`
+- `strikePrice: Decimal`
+- `upperStrikePrice: Decimal`
+- `lowerStrikePrice: Decimal`
+- `outstandingQty: number`
+- `outstandingRatio: Decimal`
+- `premium: Decimal`
+- `itmOtm: Decimal`
+- `impliedVolatility: Decimal`
+- `delta: Decimal`
+- `callPrice: Decimal`
+- `toCallPrice: Decimal`
+- `effectiveLeverage: Decimal`
+- `leverageRatio: Decimal`
+- `conversionRatio: Decimal`
+- `balancePoint: Decimal`
+- `status: WarrantStatus`
 
-## 推送事件类型
+### IssuerInfo
 
-### PushQuoteEvent / PushQuote
+- `issuerId: number`
+- `nameCn: string`
+- `nameEn: string`
+- `nameHk: string`
 
-PushQuoteEvent: `{ symbol: string, data: PushQuote }`
+## Trading calendar and sessions
 
-| 属性              | 类型           | 说明               |
-| ----------------- | -------------- | ------------------ |
-| `lastDone`        | `Decimal`      | 最新价             |
-| `open`            | `Decimal`      | 开盘价             |
-| `high`            | `Decimal`      | 最高价             |
-| `low`             | `Decimal`      | 最低价             |
-| `timestamp`       | `Date`         | 时间               |
-| `volume`          | `number`       | 成交量             |
-| `turnover`        | `Decimal`      | 成交额             |
-| `tradeStatus`     | `TradeStatus`  | 交易状态           |
-| `tradeSession`    | `TradeSession` | 交易时段           |
-| `currentVolume`   | `number`       | 本次推送增量成交量 |
-| `currentTurnover` | `Decimal`      | 本次推送增量成交额 |
+### MarketTradingDays
+
+- `tradingDays: Array<NaiveDate>`
+- `halfTradingDays: Array<NaiveDate>`
+
+### MarketTradingSession
+
+- `market: Market`
+- `tradeSessions: Array<TradingSessionInfo>`
+
+### TradingSessionInfo
+
+- `beginTime: Time`
+- `endTime: Time`
+- `tradeSession: TradeSession`
+
+## Capital flow and calculated indexes
+
+### CapitalFlowLine
+
+- `inflow: Decimal`
+- `timestamp: Date`
+
+### CapitalDistribution
+
+- `large: Decimal`
+- `medium: Decimal`
+- `small: Decimal`
+
+### CapitalDistributionResponse
+
+- `timestamp: Date`
+- `capitalIn: CapitalDistribution`
+- `capitalOut: CapitalDistribution`
+
+### SecurityCalcIndex
+
+- `symbol: string`
+- `lastDone: Decimal`
+- `changeValue: Decimal`
+- `changeRate: Decimal`
+- `volume: number`
+- `turnover: Decimal`
+- `ytdChangeRate: Decimal`
+- `turnoverRate: Decimal`
+- `totalMarketValue: Decimal`
+- `capitalFlow: Decimal`
+- `amplitude: Decimal`
+- `volumeRatio: Decimal`
+- `peTtmRatio: Decimal`
+- `pbRatio: Decimal`
+- `dividendRatioTtm: Decimal`
+- `fiveDayChangeRate: Decimal`
+- `tenDayChangeRate: Decimal`
+- `halfYearChangeRate: Decimal`
+- `fiveMinutesChangeRate: Decimal`
+- `expiryDate: NaiveDate`
+- `strikePrice: Decimal`
+- `upperStrikePrice: Decimal`
+- `lowerStrikePrice: Decimal`
+- `outstandingQty: number`
+- `outstandingRatio: Decimal`
+- `premium: Decimal`
+- `itmOtm: Decimal`
+- `impliedVolatility: Decimal`
+- `warrantDelta: Decimal`
+- `callPrice: Decimal`
+- `toCallPrice: Decimal`
+- `effectiveLeverage: Decimal`
+- `leverageRatio: Decimal`
+- `conversionRatio: Decimal`
+- `balancePoint: Decimal`
+- `openInterest: number`
+- `delta: Decimal`
+- `gamma: Decimal`
+- `theta: Decimal`
+- `vega: Decimal`
+- `rho: Decimal`
+
+### MarketTemperature
+
+- `temperature: number`
+- `description: string`
+- `valuation: number`
+- `sentiment: number`
+- `timestamp: Date`
+
+### HistoryMarketTemperatureResponse
+
+- `granularity: Granularity`
+- `records: Array<MarketTemperature>`
+
+## Watchlist-related types
+
+### WatchlistGroup
+
+- `id: number`
+- `name: string`
+- `securities: Array<WatchlistSecurity>`
+
+### WatchlistSecurity
+
+- `symbol: string`
+- `market: Market`
+- `name: string`
+- `watchedPrice: Decimal`
+- `watchedAt: Date`
+
+### CreateWatchlistGroup
+
+- `name: string`
+- `securities?: Array<string>`
+
+### DeleteWatchlistGroup
+
+- `id: number`
+- `purge: boolean`
+
+### UpdateWatchlistGroup
+
+- `id: number`
+- `name?: string`
+- `securities?: Array<string>`
+- `mode: SecuritiesUpdateMode`
+
+## Additional quote-side utility types
+
+### Security
+
+- `symbol: string`
+- `nameCn: string`
+- `nameEn: string`
+- `nameHk: string`
+
+### QuotePackageDetail
+
+- `key: string`
+- `name: string`
+- `description: string`
+- `startAt: Date`
+- `endAt: Date`
+
+## Push events
+
+### PushQuote
+
+- `lastDone: Decimal`
+- `open: Decimal`
+- `high: Decimal`
+- `low: Decimal`
+- `timestamp: Date`
+- `volume: number`
+- `turnover: Decimal`
+- `tradeStatus: TradeStatus`
+- `tradeSession: TradeSession`
+- `currentVolume: number`
+- `currentTurnover: Decimal`
+
+### PushQuoteEvent
+
+- `symbol: string`
+- `data: PushQuote`
+
+### PushDepth
+
+- `asks: Array<Depth>`
+- `bids: Array<Depth>`
 
 ### PushDepthEvent
 
-`{ symbol: string, data: PushDepth }`
+- `symbol: string`
+- `data: PushDepth`
+
+### PushBrokers
+
+- `askBrokers: Array<Brokers>`
+- `bidBrokers: Array<Brokers>`
 
 ### PushBrokersEvent
 
-`{ symbol: string, data: PushBrokers }`
+- `symbol: string`
+- `data: PushBrokers`
+
+### PushTrades
+
+- `trades: Array<Trade>`
 
 ### PushTradesEvent
 
-`{ symbol: string, data: PushTrades }`
+- `symbol: string`
+- `data: PushTrades`
+
+### PushCandlestick
+
+- `period: Period`
+- `candlestick: Candlestick`
+- `isConfirmed: boolean`
 
 ### PushCandlestickEvent
 
-`{ symbol: string, data: PushCandlestick }`
+- `symbol: string`
+- `data: PushCandlestick`

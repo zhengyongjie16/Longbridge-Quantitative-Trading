@@ -1,401 +1,496 @@
-# 枚举类型完整定义
-
-## SubType - 订阅类型
-
-| 值  | 名称              | 说明       |
-| --- | ----------------- | ---------- |
-| 0   | `SubType.Quote`   | 实时报价   |
-| 1   | `SubType.Depth`   | 盘口深度   |
-| 2   | `SubType.Brokers` | 经纪商分布 |
-| 3   | `SubType.Trade`   | 逐笔成交   |
-
-## OrderType - 订单类型
-
-| 值  | 名称                | 说明                                                         |
-| --- | ------------------- | ------------------------------------------------------------ |
-| 0   | `OrderType.Unknown` | 未知                                                         |
-| 1   | `OrderType.LO`      | 限价单 (Limit Order)                                         |
-| 2   | `OrderType.ELO`     | 增强限价单 (Enhanced Limit Order)                            |
-| 3   | `OrderType.MO`      | 市价单 (Market Order)                                        |
-| 4   | `OrderType.AO`      | 竞价单 (At-auction Order)                                    |
-| 5   | `OrderType.ALO`     | 竞价限价单 (At-auction Limit Order)                          |
-| 6   | `OrderType.ODD`     | 碎股单 (Odd Lots)                                            |
-| 7   | `OrderType.LIT`     | 触价限价单 (Limit If Touched)                                |
-| 8   | `OrderType.MIT`     | 触价市价单 (Market If Touched)                               |
-| 9   | `OrderType.TSLPAMT` | 跟踪止损限价单-金额 (Trailing Limit If Touched - Amount)     |
-| 10  | `OrderType.TSLPPCT` | 跟踪止损限价单-百分比 (Trailing Limit If Touched - Percent)  |
-| 11  | `OrderType.TSMAMT`  | 跟踪止损市价单-金额 (Trailing Market If Touched - Amount)    |
-| 12  | `OrderType.TSMPCT`  | 跟踪止损市价单-百分比 (Trailing Market If Touched - Percent) |
-| 13  | `OrderType.SLO`     | 特殊限价单 (Special Limit Order)                             |
-
-## OrderSide - 买卖方向
-
-| 值  | 名称                | 说明 |
-| --- | ------------------- | ---- |
-| 0   | `OrderSide.Unknown` | 未知 |
-| 1   | `OrderSide.Buy`     | 买入 |
-| 2   | `OrderSide.Sell`    | 卖出 |
-
-## OrderStatus - 订单状态
-
-| 值  | 名称                               | 说明               |
-| --- | ---------------------------------- | ------------------ |
-| 0   | `OrderStatus.Unknown`              | 未知               |
-| 1   | `OrderStatus.NotReported`          | 待提交             |
-| 2   | `OrderStatus.ReplacedNotReported`  | 待提交（改单）     |
-| 3   | `OrderStatus.ProtectedNotReported` | 待提交（保护订单） |
-| 4   | `OrderStatus.VarietiesNotReported` | 待提交（条件订单） |
-| 5   | `OrderStatus.Filled`               | 已成交             |
-| 6   | `OrderStatus.WaitToNew`            | 等待新订单         |
-| 7   | `OrderStatus.New`                  | 新订单             |
-| 8   | `OrderStatus.WaitToReplace`        | 等待改单           |
-| 9   | `OrderStatus.PendingReplace`       | 改单待确认         |
-| 10  | `OrderStatus.Replaced`             | 已改单             |
-| 11  | `OrderStatus.PartialFilled`        | 部分成交           |
-| 12  | `OrderStatus.WaitToCancel`         | 等待撤单           |
-| 13  | `OrderStatus.PendingCancel`        | 撤单待确认         |
-| 14  | `OrderStatus.Rejected`             | 已拒绝             |
-| 15  | `OrderStatus.Canceled`             | 已撤单             |
-| 16  | `OrderStatus.Expired`              | 已过期             |
-| 17  | `OrderStatus.PartialWithdrawal`    | 部分撤单           |
-
-## TimeInForceType - 订单有效期
-
-| 值  | 名称                              | 说明               |
-| --- | --------------------------------- | ------------------ |
-| 0   | `TimeInForceType.Unknown`         | 未知               |
-| 1   | `TimeInForceType.Day`             | 当日有效           |
-| 2   | `TimeInForceType.GoodTilCanceled` | 撤单前有效 (GTC)   |
-| 3   | `TimeInForceType.GoodTilDate`     | 到期日前有效 (GTD) |
-
-## Market - 市场
-
-| 值  | 名称             | 说明         |
-| --- | ---------------- | ------------ |
-| 0   | `Market.Unknown` | 未知         |
-| 1   | `Market.US`      | 美股市场     |
-| 2   | `Market.HK`      | 港股市场     |
-| 3   | `Market.CN`      | A 股市场     |
-| 4   | `Market.SG`      | 新加坡市场   |
-| 5   | `Market.Crypto`  | 加密货币市场 |
-
-## Period - K 线周期
-
-| 值  | 名称             | 说明    |
-| --- | ---------------- | ------- |
-| 0   | `Period.Unknown` | 未知    |
-| 1   | `Period.Min_1`   | 1 分钟  |
-| 2   | `Period.Min_2`   | 2 分钟  |
-| 3   | `Period.Min_3`   | 3 分钟  |
-| 4   | `Period.Min_5`   | 5 分钟  |
-| 5   | `Period.Min_10`  | 10 分钟 |
-| 6   | `Period.Min_15`  | 15 分钟 |
-| 7   | `Period.Min_20`  | 20 分钟 |
-| 8   | `Period.Min_30`  | 30 分钟 |
-| 9   | `Period.Min_45`  | 45 分钟 |
-| 10  | `Period.Min_60`  | 1 小时  |
-| 11  | `Period.Min_120` | 2 小时  |
-| 12  | `Period.Min_180` | 3 小时  |
-| 13  | `Period.Min_240` | 4 小时  |
-| 14  | `Period.Day`     | 日 K    |
-| 15  | `Period.Week`    | 周 K    |
-| 16  | `Period.Month`   | 月 K    |
-| 17  | `Period.Quarter` | 季 K    |
-| 18  | `Period.Year`    | 年 K    |
-
-## AdjustType - 复权类型
-
-| 值  | 名称                       | 说明   |
-| --- | -------------------------- | ------ |
-| 0   | `AdjustType.NoAdjust`      | 不复权 |
-| 1   | `AdjustType.ForwardAdjust` | 前复权 |
-
-## TopicType - 交易推送主题
-
-| 值  | 名称                | 说明         |
-| --- | ------------------- | ------------ |
-| 0   | `TopicType.Private` | 私有交易通知 |
-
-## TradeSessions - 交易时段（查询参数）
-
-| 值  | 名称                     | 说明     |
-| --- | ------------------------ | -------- |
-| 0   | `TradeSessions.Intraday` | 仅盘中   |
-| 1   | `TradeSessions.All`      | 所有时段 |
-
-## TradeSession - 交易时段（数据属性）
-
-| 值  | 名称                     | 说明 |
-| --- | ------------------------ | ---- |
-| 0   | `TradeSession.Intraday`  | 盘中 |
-| 1   | `TradeSession.Pre`       | 盘前 |
-| 2   | `TradeSession.Post`      | 盘后 |
-| 3   | `TradeSession.Overnight` | 夜盘 |
-
-## TradeDirection - 成交方向
-
-| 值  | 名称                     | 说明 |
-| --- | ------------------------ | ---- |
-| 0   | `TradeDirection.Neutral` | 中性 |
-| 1   | `TradeDirection.Down`    | 下跌 |
-| 2   | `TradeDirection.Up`      | 上涨 |
-
-## TradeStatus - 交易状态
-
-| 值  | 名称                             | 说明       |
-| --- | -------------------------------- | ---------- |
-| 0   | `TradeStatus.Normal`             | 正常       |
-| 1   | `TradeStatus.Halted`             | 停牌       |
-| 2   | `TradeStatus.Delisted`           | 退市       |
-| 3   | `TradeStatus.Fuse`               | 熔断       |
-| 4   | `TradeStatus.PrepareList`        | 待上市     |
-| 5   | `TradeStatus.CodeMoved`          | 代码变更   |
-| 6   | `TradeStatus.ToBeOpened`         | 待开盘     |
-| 7   | `TradeStatus.SplitStockHalts`    | 拆合股停牌 |
-| 8   | `TradeStatus.Expired`            | 已过期     |
-| 9   | `TradeStatus.WarrantPrepareList` | 轮证待上市 |
-| 10  | `TradeStatus.Suspend`            | 停牌中     |
-
-## OutsideRTH - 盘前盘后交易
-
-| 值  | 名称                   | 说明           |
-| --- | ---------------------- | -------------- |
-| 0   | `OutsideRTH.Unknown`   | 未知           |
-| 1   | `OutsideRTH.RTHOnly`   | 仅正常交易时段 |
-| 2   | `OutsideRTH.AnyTime`   | 任何时段       |
-| 3   | `OutsideRTH.Overnight` | 夜盘           |
-
-## Language - 语言
-
-| 值  | 名称             | 说明     |
-| --- | ---------------- | -------- |
-| 0   | `Language.ZH_CN` | 简体中文 |
-| 1   | `Language.ZH_HK` | 繁体中文 |
-| 2   | `Language.EN`    | 英语     |
-
-## PushCandlestickMode - K 线推送模式
-
-| 值  | 名称                            | 说明     |
-| --- | ------------------------------- | -------- |
-| 0   | `PushCandlestickMode.Realtime`  | 实时模式 |
-| 1   | `PushCandlestickMode.Confirmed` | 确认模式 |
-
-## WarrantType - 轮证类型
-
-| 值  | 名称                  | 说明   |
-| --- | --------------------- | ------ |
-| 0   | `WarrantType.Unknown` | 未知   |
-| 1   | `WarrantType.Call`    | 认购证 |
-| 2   | `WarrantType.Put`     | 认沽证 |
-| 3   | `WarrantType.Bull`    | 牛证   |
-| 4   | `WarrantType.Bear`    | 熊证   |
-| 5   | `WarrantType.Inline`  | 界内证 |
-
-## WarrantSortBy - 轮证排序
-
-| 值  | 名称                                | 说明      |
-| --- | ----------------------------------- | --------- |
-| 0   | `WarrantSortBy.LastDone`            | 最新价    |
-| 1   | `WarrantSortBy.ChangeRate`          | 涨跌幅    |
-| 2   | `WarrantSortBy.ChangeValue`         | 涨跌额    |
-| 3   | `WarrantSortBy.Volume`              | 成交量    |
-| 4   | `WarrantSortBy.Turnover`            | 成交额    |
-| 5   | `WarrantSortBy.ExpiryDate`          | 到期日    |
-| 6   | `WarrantSortBy.StrikePrice`         | 行权价    |
-| 7   | `WarrantSortBy.UpperStrikePrice`    | 上限价    |
-| 8   | `WarrantSortBy.LowerStrikePrice`    | 下限价    |
-| 9   | `WarrantSortBy.OutstandingQuantity` | 街货量    |
-| 10  | `WarrantSortBy.OutstandingRatio`    | 街货比    |
-| 11  | `WarrantSortBy.Premium`             | 溢价      |
-| 12  | `WarrantSortBy.ItmOtm`              | 价内/价外 |
-| 13  | `WarrantSortBy.ImpliedVolatility`   | 引伸波幅  |
-| 14  | `WarrantSortBy.Delta`               | Delta     |
-| 15  | `WarrantSortBy.CallPrice`           | 收回价    |
-| 16  | `WarrantSortBy.ToCallPrice`         | 距收回价  |
-| 17  | `WarrantSortBy.EffectiveLeverage`   | 有效杠杆  |
-| 18  | `WarrantSortBy.LeverageRatio`       | 杠杆比率  |
-| 19  | `WarrantSortBy.ConversionRatio`     | 换股比率  |
-| 20  | `WarrantSortBy.BalancePoint`        | 打和点    |
-| 21  | `WarrantSortBy.Status`              | 状态      |
-
-## SortOrderType - 排序方向
-
-| 值  | 名称                       | 说明 |
-| --- | -------------------------- | ---- |
-| 0   | `SortOrderType.Ascending`  | 升序 |
-| 1   | `SortOrderType.Descending` | 降序 |
-
-## WarrantStatus - 轮证状态
-
-| 值  | 名称                        | 说明   |
-| --- | --------------------------- | ------ |
-| 0   | `WarrantStatus.Suspend`     | 停牌   |
-| 1   | `WarrantStatus.PrepareList` | 待上市 |
-| 2   | `WarrantStatus.Normal`      | 正常   |
-
-## FilterWarrantExpiryDate - 轮证到期日筛选
-
-| 值  | 名称                                   | 说明        |
-| --- | -------------------------------------- | ----------- |
-| 0   | `FilterWarrantExpiryDate.LT_3`         | 3 个月内    |
-| 1   | `FilterWarrantExpiryDate.Between_3_6`  | 3-6 个月    |
-| 2   | `FilterWarrantExpiryDate.Between_6_12` | 6-12 个月   |
-| 3   | `FilterWarrantExpiryDate.GT_12`        | 12 个月以上 |
-
-## FilterWarrantInOutBoundsType - 价内价外筛选
-
-| 值  | 名称                               | 说明 |
-| --- | ---------------------------------- | ---- |
-| 0   | `FilterWarrantInOutBoundsType.In`  | 价内 |
-| 1   | `FilterWarrantInOutBoundsType.Out` | 价外 |
-
-## SecurityListCategory - 证券列表分类
-
-| 值  | 名称                             | 说明     |
-| --- | -------------------------------- | -------- |
-| 0   | `SecurityListCategory.Overnight` | 夜盘证券 |
-
-## OrderTag - 订单标签
-
-| 值  | 名称                    | 说明         |
-| --- | ----------------------- | ------------ |
-| 0   | `OrderTag.Unknown`      | 未知         |
-| 1   | `OrderTag.Normal`       | 普通订单     |
-| 2   | `OrderTag.LongTerm`     | 长期订单     |
-| 3   | `OrderTag.Grey`         | 暗盘订单     |
-| 4   | `OrderTag.MarginCall`   | 强制平仓     |
-| 5   | `OrderTag.Offline`      | 柜台         |
-| 6   | `OrderTag.Creditor`     | 期权行权多头 |
-| 7   | `OrderTag.Debtor`       | 期权行权空头 |
-| 8   | `OrderTag.NonExercise`  | 期权豁免行权 |
-| 9   | `OrderTag.AllocatedSub` | 交易配售     |
-
-## TriggerStatus - 条件单触发状态
-
-| 值  | 名称                     | 说明   |
-| --- | ------------------------ | ------ |
-| 0   | `TriggerStatus.Unknown`  | 未知   |
-| 1   | `TriggerStatus.Deactive` | 未激活 |
-| 2   | `TriggerStatus.Active`   | 已激活 |
-| 3   | `TriggerStatus.Released` | 已触发 |
-
-## BalanceType - 资金类型
-
-| 值  | 名称                  | 说明 |
-| --- | --------------------- | ---- |
-| 0   | `BalanceType.Unknown` | 未知 |
-| 1   | `BalanceType.Cash`    | 现金 |
-| 2   | `BalanceType.Stock`   | 股票 |
-| 3   | `BalanceType.Fund`    | 基金 |
-
-## CashFlowDirection - 资金流向
-
-| 值  | 名称                        | 说明 |
-| --- | --------------------------- | ---- |
-| 0   | `CashFlowDirection.Unknown` | 未知 |
-| 1   | `CashFlowDirection.Out`     | 流出 |
-| 2   | `CashFlowDirection.In`      | 流入 |
-
-## DerivativeType - 衍生品类型
-
-| 值  | 名称                     | 说明     |
-| --- | ------------------------ | -------- |
-| 0   | `DerivativeType.Option`  | 美股期权 |
-| 1   | `DerivativeType.Warrant` | 港股轮证 |
-
-## SecurityBoard - 证券板块
-
-| 值  | 名称                             | 说明                   |
-| --- | -------------------------------- | ---------------------- |
-| 0   | `SecurityBoard.Unknown`          | 未知                   |
-| 1   | `SecurityBoard.USMain`           | 美国主板               |
-| 2   | `SecurityBoard.USPink`           | 美国粉单               |
-| 3   | `SecurityBoard.USDJI`            | 道琼斯指数             |
-| 4   | `SecurityBoard.USNSDQ`           | 纳斯达克指数           |
-| 5   | `SecurityBoard.USSector`         | 美国行业板块           |
-| 6   | `SecurityBoard.USOption`         | 美股期权               |
-| 7   | `SecurityBoard.USOptionS`        | 美股特殊期权           |
-| 8   | `SecurityBoard.HKEquity`         | 港股主板               |
-| 9   | `SecurityBoard.HKPreIPO`         | 港股暗盘               |
-| 10  | `SecurityBoard.HKWarrant`        | 港股轮证               |
-| 11  | `SecurityBoard.HKHS`             | 恒生指数               |
-| 12  | `SecurityBoard.HKSector`         | 港股行业板块           |
-| 13  | `SecurityBoard.SHMainConnect`    | 沪市主板(互联互通)     |
-| 14  | `SecurityBoard.SHMainNonConnect` | 沪市主板(非互联互通)   |
-| 15  | `SecurityBoard.SHSTAR`           | 沪市科创板             |
-| 16  | `SecurityBoard.CNIX`             | A 股指数               |
-| 17  | `SecurityBoard.CNSector`         | A 股行业板块           |
-| 18  | `SecurityBoard.SZMainConnect`    | 深市主板(互联互通)     |
-| 19  | `SecurityBoard.SZMainNonConnect` | 深市主板(非互联互通)   |
-| 20  | `SecurityBoard.SZGEMConnect`     | 深市创业板(互联互通)   |
-| 21  | `SecurityBoard.SZGEMNonConnect`  | 深市创业板(非互联互通) |
-| 22  | `SecurityBoard.SGMain`           | 新加坡主板             |
-| 23  | `SecurityBoard.STI`              | 海峡时报指数           |
-| 24  | `SecurityBoard.SGSector`         | 新加坡行业板块         |
-| 25  | `SecurityBoard.SPXIndex`         | 标普500指数            |
-| 26  | `SecurityBoard.VIXIndex`         | VIX 波动率指数         |
-
-## CommissionFreeStatus - 免佣状态
-
-| 值  | 名称                              | 说明   |
-| --- | --------------------------------- | ------ |
-| 0   | `CommissionFreeStatus.Unknown`    | 未知   |
-| 1   | `CommissionFreeStatus.None`       | 无     |
-| 2   | `CommissionFreeStatus.Calculated` | 待计算 |
-| 3   | `CommissionFreeStatus.Pending`    | 待结算 |
-| 4   | `CommissionFreeStatus.Ready`      | 已生效 |
-
-## DeductionStatus - 扣费状态
-
-| 值  | 名称                      | 说明         |
-| --- | ------------------------- | ------------ |
-| 0   | `DeductionStatus.Unknown` | 未知         |
-| 1   | `DeductionStatus.None`    | 待结算       |
-| 2   | `DeductionStatus.NoData`  | 已结算无数据 |
-| 3   | `DeductionStatus.Pending` | 已结算待分配 |
-| 4   | `DeductionStatus.Done`    | 已结算已分配 |
-
-## CalcIndex - 计算指标
-
-| 值  | 名称                              | 说明           |
-| --- | --------------------------------- | -------------- |
-| 0   | `CalcIndex.LastDone`              | 最新价         |
-| 1   | `CalcIndex.ChangeValue`           | 涨跌额         |
-| 2   | `CalcIndex.ChangeRate`            | 涨跌幅         |
-| 3   | `CalcIndex.Volume`                | 成交量         |
-| 4   | `CalcIndex.Turnover`              | 成交额         |
-| 5   | `CalcIndex.YtdChangeRate`         | 年初至今涨跌幅 |
-| 6   | `CalcIndex.TurnoverRate`          | 换手率         |
-| 7   | `CalcIndex.TotalMarketValue`      | 总市值         |
-| 8   | `CalcIndex.CapitalFlow`           | 资金流向       |
-| 9   | `CalcIndex.Amplitude`             | 振幅           |
-| 10  | `CalcIndex.VolumeRatio`           | 量比           |
-| 11  | `CalcIndex.PeTtmRatio`            | 市盈率(TTM)    |
-| 12  | `CalcIndex.PbRatio`               | 市净率         |
-| 13  | `CalcIndex.DividendRatioTtm`      | 股息率(TTM)    |
-| 14  | `CalcIndex.FiveDayChangeRate`     | 5 日涨跌幅     |
-| 15  | `CalcIndex.TenDayChangeRate`      | 10 日涨跌幅    |
-| 16  | `CalcIndex.HalfYearChangeRate`    | 半年涨跌幅     |
-| 17  | `CalcIndex.FiveMinutesChangeRate` | 5 分钟涨跌幅   |
-| 18  | `CalcIndex.ExpiryDate`            | 到期日         |
-| 19  | `CalcIndex.StrikePrice`           | 行权价         |
-| 20  | `CalcIndex.UpperStrikePrice`      | 上限价         |
-| 21  | `CalcIndex.LowerStrikePrice`      | 下限价         |
-| 22  | `CalcIndex.OutstandingQty`        | 街货量         |
-| 23  | `CalcIndex.OutstandingRatio`      | 街货比         |
-| 24  | `CalcIndex.Premium`               | 溢价           |
-| 25  | `CalcIndex.ItmOtm`                | 价内/价外      |
-| 26  | `CalcIndex.ImpliedVolatility`     | 引伸波幅       |
-| 27  | `CalcIndex.WarrantDelta`          | 轮证 Delta     |
-| 28  | `CalcIndex.CallPrice`             | 收回价         |
-| 29  | `CalcIndex.ToCallPrice`           | 距收回价       |
-| 30  | `CalcIndex.EffectiveLeverage`     | 有效杠杆       |
-| 31  | `CalcIndex.LeverageRatio`         | 杠杆比率       |
-| 32  | `CalcIndex.ConversionRatio`       | 换股比率       |
-| 33  | `CalcIndex.BalancePoint`          | 打和点         |
-| 34  | `CalcIndex.OpenInterest`          | 未平仓数       |
-| 35  | `CalcIndex.Delta`                 | Delta          |
-| 36  | `CalcIndex.Gamma`                 | Gamma          |
-| 37  | `CalcIndex.Theta`                 | Theta          |
-| 38  | `CalcIndex.Vega`                  | Vega           |
-| 39  | `CalcIndex.Rho`                   | Rho            |
+# Enumerations
+
+Official signature sources:
+
+- https://longbridge.github.io/openapi/nodejs/modules.html
+- https://longbridge.github.io/openapi/nodejs/enums/AdjustType.html
+- https://longbridge.github.io/openapi/nodejs/enums/BalanceType.html
+- https://longbridge.github.io/openapi/nodejs/enums/CalcIndex.html
+- https://longbridge.github.io/openapi/nodejs/enums/CashFlowDirection.html
+- https://longbridge.github.io/openapi/nodejs/enums/ChargeCategoryCode.html
+- https://longbridge.github.io/openapi/nodejs/enums/CommissionFreeStatus.html
+- https://longbridge.github.io/openapi/nodejs/enums/DeductionStatus.html
+- https://longbridge.github.io/openapi/nodejs/enums/DerivativeType.html
+- https://longbridge.github.io/openapi/nodejs/enums/FilterWarrantExpiryDate.html
+- https://longbridge.github.io/openapi/nodejs/enums/FilterWarrantInOutBoundsType.html
+- https://longbridge.github.io/openapi/nodejs/enums/Granularity.html
+- https://longbridge.github.io/openapi/nodejs/enums/Language.html
+- https://longbridge.github.io/openapi/nodejs/enums/Market.html
+- https://longbridge.github.io/openapi/nodejs/enums/OptionDirection.html
+- https://longbridge.github.io/openapi/nodejs/enums/OptionType.html
+- https://longbridge.github.io/openapi/nodejs/enums/OrderSide.html
+- https://longbridge.github.io/openapi/nodejs/enums/OrderStatus.html
+- https://longbridge.github.io/openapi/nodejs/enums/OrderTag.html
+- https://longbridge.github.io/openapi/nodejs/enums/OrderType.html
+- https://longbridge.github.io/openapi/nodejs/enums/OutsideRTH.html
+- https://longbridge.github.io/openapi/nodejs/enums/Period.html
+- https://longbridge.github.io/openapi/nodejs/enums/PushCandlestickMode.html
+- https://longbridge.github.io/openapi/nodejs/enums/SecuritiesUpdateMode.html
+- https://longbridge.github.io/openapi/nodejs/enums/SecurityBoard.html
+- https://longbridge.github.io/openapi/nodejs/enums/SecurityListCategory.html
+- https://longbridge.github.io/openapi/nodejs/enums/SortOrderType.html
+- https://longbridge.github.io/openapi/nodejs/enums/SubType.html
+- https://longbridge.github.io/openapi/nodejs/enums/TimeInForceType.html
+- https://longbridge.github.io/openapi/nodejs/enums/TopicType.html
+- https://longbridge.github.io/openapi/nodejs/enums/TradeDirection.html
+- https://longbridge.github.io/openapi/nodejs/enums/TradeSession.html
+- https://longbridge.github.io/openapi/nodejs/enums/TradeSessions.html
+- https://longbridge.github.io/openapi/nodejs/enums/TradeStatus.html
+- https://longbridge.github.io/openapi/nodejs/enums/TriggerStatus.html
+- https://longbridge.github.io/openapi/nodejs/enums/WarrantSortBy.html
+- https://longbridge.github.io/openapi/nodejs/enums/WarrantStatus.html
+- https://longbridge.github.io/openapi/nodejs/enums/WarrantType.html
+
+## Quote / market / calendar
+
+### AdjustType
+
+| Value | Member          | Official description |
+| ----- | --------------- | -------------------- |
+| 0     | `NoAdjust`      | Actual               |
+| 1     | `ForwardAdjust` | Adjust forward       |
+
+### DerivativeType
+
+| Value | Member    | Official description |
+| ----- | --------- | -------------------- |
+| 0     | `Option`  | US stock options     |
+| 1     | `Warrant` | HK warrants          |
+
+### Granularity
+
+| Value | Member    | Official description |
+| ----- | --------- | -------------------- |
+| 0     | `Unknown` | Unknown              |
+| 1     | `Daily`   | Daily                |
+| 2     | `Weekly`  | Weekly               |
+| 3     | `Monthly` | Monthly              |
+
+### Language
+
+| Value | Member  | Official description |
+| ----- | ------- | -------------------- |
+| 0     | `ZH_CN` | zh-CN                |
+| 1     | `ZH_HK` | zh-HK                |
+| 2     | `EN`    | en                   |
+
+### Market
+
+| Value | Member    | Official description |
+| ----- | --------- | -------------------- |
+| 0     | `Unknown` | Unknown              |
+| 1     | `US`      | US market            |
+| 2     | `HK`      | HK market            |
+| 3     | `CN`      | CN market            |
+| 4     | `SG`      | SG market            |
+| 5     | `Crypto`  | Crypto market        |
+
+### OptionDirection
+
+| Value | Member    | Official description |
+| ----- | --------- | -------------------- |
+| 0     | `Unknown` | Unknown              |
+| 1     | `Put`     | Put                  |
+| 2     | `Call`    | Call                 |
+
+### OptionType
+
+| Value | Member     | Official description |
+| ----- | ---------- | -------------------- |
+| 0     | `Unknown`  | Unknown              |
+| 1     | `American` | American             |
+| 2     | `Europe`   | Europe               |
+
+### Period
+
+| Value | Member    | Official description |
+| ----- | --------- | -------------------- |
+| 0     | `Unknown` | Unknown              |
+| 1     | `Min_1`   | One Minute           |
+| 2     | `Min_2`   | Two Minutes          |
+| 3     | `Min_3`   | Three Minutes        |
+| 4     | `Min_5`   | Five Minutes         |
+| 5     | `Min_10`  | Ten Minutes          |
+| 6     | `Min_15`  | Fifteen Minutes      |
+| 7     | `Min_20`  | Twenty Minutes       |
+| 8     | `Min_30`  | Thirty Minutes       |
+| 9     | `Min_45`  | Forty-Five Minutes   |
+| 10    | `Min_60`  | One Hour             |
+| 11    | `Min_120` | Two Hours            |
+| 12    | `Min_180` | Three Hours          |
+| 13    | `Min_240` | Four Hours           |
+| 14    | `Day`     | Daily                |
+| 15    | `Week`    | Weekly               |
+| 16    | `Month`   | Monthly              |
+| 17    | `Quarter` | Quarterly            |
+| 18    | `Year`    | Yearly               |
+
+### PushCandlestickMode
+
+| Value | Member      | Official description |
+| ----- | ----------- | -------------------- |
+| 0     | `Realtime`  | Realtime mode        |
+| 1     | `Confirmed` | Confirmed mode       |
+
+### SecuritiesUpdateMode
+
+| Value | Member    | Official description |
+| ----- | --------- | -------------------- |
+| 0     | `Add`     | Add securities       |
+| 1     | `Remove`  | Remove securities    |
+| 2     | `Replace` | Replace securities   |
+
+### SecurityBoard
+
+| Value | Member             | Official description                       |
+| ----- | ------------------ | ------------------------------------------ |
+| 0     | `Unknown`          | Unknown                                    |
+| 1     | `USMain`           | US Main Board                              |
+| 2     | `USPink`           | US Pink Board                              |
+| 3     | `USDJI`            | Dow Jones Industrial Average               |
+| 4     | `USNSDQ`           | Nasdsaq Index                              |
+| 5     | `USSector`         | US Industry Board                          |
+| 6     | `USOption`         | US Option                                  |
+| 7     | `USOptionS`        | US Sepecial Option                         |
+| 8     | `HKEquity`         | Hong Kong Equity Securities                |
+| 9     | `HKPreIPO`         | HK PreIPO Security                         |
+| 10    | `HKWarrant`        | HK Warrant                                 |
+| 11    | `HKHS`             | Hang Seng Index                            |
+| 12    | `HKSector`         | HK Industry Board                          |
+| 13    | `SHMainConnect`    | SH Main Board(Connect)                     |
+| 14    | `SHMainNonConnect` | SH Main Board(Non Connect)                 |
+| 15    | `SHSTAR`           | SH Science and Technology Innovation Board |
+| 16    | `CNIX`             | CN Index                                   |
+| 17    | `CNSector`         | CN Industry Board                          |
+| 18    | `SZMainConnect`    | SZ Main Board(Connect)                     |
+| 19    | `SZMainNonConnect` | SZ Main Board(Non Connect)                 |
+| 20    | `SZGEMConnect`     | SZ Gem Board(Connect)                      |
+| 21    | `SZGEMNonConnect`  | SZ Gem Board(Non Connect)                  |
+| 22    | `SGMain`           | SG Main Board                              |
+| 23    | `STI`              | Singapore Straits Index                    |
+| 24    | `SGSector`         | SG Industry Board                          |
+| 25    | `SPXIndex`         | S&P 500 Index                              |
+| 26    | `VIXIndex`         | CBOE Volatility Index                      |
+
+### SecurityListCategory
+
+| Value | Member      | Official description |
+| ----- | ----------- | -------------------- |
+| 0     | `Overnight` | Overnight            |
+
+### SortOrderType
+
+| Value | Member       | Official description |
+| ----- | ------------ | -------------------- |
+| 0     | `Ascending`  | Ascending            |
+| 1     | `Descending` | Descending           |
+
+### SubType
+
+| Value | Member    | Official description |
+| ----- | --------- | -------------------- |
+| 0     | `Quote`   | Quote                |
+| 1     | `Depth`   | Depth                |
+| 2     | `Brokers` | Brokers              |
+| 3     | `Trade`   | Trade                |
+
+### TradeDirection
+
+| Value | Member    | Official description |
+| ----- | --------- | -------------------- |
+| 0     | `Neutral` | Neutral              |
+| 1     | `Down`    | Down                 |
+| 2     | `Up`      | Up                   |
+
+### TradeSession
+
+| Value | Member      | Official description |
+| ----- | ----------- | -------------------- |
+| 0     | `Intraday`  | Intraday             |
+| 1     | `Pre`       | Pre-Market           |
+| 2     | `Post`      | Post-Market          |
+| 3     | `Overnight` | Overnight            |
+
+### TradeSessions
+
+| Value | Member     | Official description |
+| ----- | ---------- | -------------------- |
+| 0     | `Intraday` | Intraday             |
+| 1     | `All`      | All                  |
+
+### TradeStatus
+
+| Value | Member               | Official description |
+| ----- | -------------------- | -------------------- |
+| 0     | `Normal`             | Normal               |
+| 1     | `Halted`             | Suspension           |
+| 2     | `Delisted`           | Delisted             |
+| 3     | `Fuse`               | Fuse                 |
+| 4     | `PrepareList`        | Prepare List         |
+| 5     | `CodeMoved`          | Code Moved           |
+| 6     | `ToBeOpened`         | To Be Opened         |
+| 7     | `SplitStockHalts`    | Split Stock Halts    |
+| 8     | `Expired`            | Expired              |
+| 9     | `WarrantPrepareList` | Warrant To BeListed  |
+| 10    | `Suspend`            | Warrant To BeListed  |
+
+### WarrantSortBy
+
+| Value | Member                | Official description               |
+| ----- | --------------------- | ---------------------------------- |
+| 0     | `LastDone`            | Last done                          |
+| 1     | `ChangeRate`          | Change rate                        |
+| 2     | `ChangeValue`         | Change value                       |
+| 3     | `Volume`              | Volume                             |
+| 4     | `Turnover`            | Turnover                           |
+| 5     | `ExpiryDate`          | Expiry date                        |
+| 6     | `StrikePrice`         | Strike price                       |
+| 7     | `UpperStrikePrice`    | Upper strike price                 |
+| 8     | `LowerStrikePrice`    | Lower strike price                 |
+| 9     | `OutstandingQuantity` | Outstanding quantity               |
+| 10    | `OutstandingRatio`    | Outstanding ratio                  |
+| 11    | `Premium`             | Premium                            |
+| 12    | `ItmOtm`              | In/out of the bound                |
+| 13    | `ImpliedVolatility`   | Implied volatility                 |
+| 14    | `Delta`               | Greek value delta                  |
+| 15    | `CallPrice`           | Call price                         |
+| 16    | `ToCallPrice`         | Price interval from the call price |
+| 17    | `EffectiveLeverage`   | Effective leverage                 |
+| 18    | `LeverageRatio`       | Leverage ratio                     |
+| 19    | `ConversionRatio`     | Conversion ratio                   |
+| 20    | `BalancePoint`        | Breakeven point                    |
+| 21    | `Status`              | Status                             |
+
+### WarrantStatus
+
+| Value | Member        | Official description |
+| ----- | ------------- | -------------------- |
+| 0     | `Suspend`     | Suspend              |
+| 1     | `PrepareList` | Prepare List         |
+| 2     | `Normal`      | Normal               |
+
+### WarrantType
+
+| Value | Member    | Official description |
+| ----- | --------- | -------------------- |
+| 0     | `Unknown` | Unknown              |
+| 1     | `Call`    | Call                 |
+| 2     | `Put`     | Put                  |
+| 3     | `Bull`    | Bull                 |
+| 4     | `Bear`    | Bear                 |
+| 5     | `Inline`  | Inline               |
+
+## Trade / order / account
+
+### BalanceType
+
+| Value | Member    | Official description |
+| ----- | --------- | -------------------- |
+| 0     | `Unknown` | Unknown              |
+| 1     | `Cash`    | Cash                 |
+| 2     | `Stock`   | Stock                |
+| 3     | `Fund`    | Fund                 |
+
+### CashFlowDirection
+
+| Value | Member    | Official description |
+| ----- | --------- | -------------------- |
+| 0     | `Unknown` | Unknown              |
+| 1     | `Out`     | Out                  |
+| 2     | `In`      | In                   |
+
+### ChargeCategoryCode
+
+| Value | Member    | Official description |
+| ----- | --------- | -------------------- |
+| 0     | `Unknown` | Unknown              |
+| 1     | `Broker`  | Broker               |
+| 2     | `Third`   | Third                |
+
+### CommissionFreeStatus
+
+| Value | Member       | Official description                    |
+| ----- | ------------ | --------------------------------------- |
+| 0     | `Unknown`    | Unknown                                 |
+| 1     | `None`       | None                                    |
+| 2     | `Calculated` | Commission-free amount to be calculated |
+| 3     | `Pending`    | Pending commission-free                 |
+| 4     | `Ready`      | Commission-free applied                 |
+
+### DeductionStatus
+
+| Value | Member    | Official description             |
+| ----- | --------- | -------------------------------- |
+| 0     | `Unknown` | Unknown                          |
+| 1     | `None`    | Pending Settlement               |
+| 2     | `NoData`  | Settled with no data             |
+| 3     | `Pending` | Settled and pending distribution |
+| 4     | `Done`    | Settled and distributed          |
+
+### OrderSide
+
+| Value | Member    | Official description |
+| ----- | --------- | -------------------- |
+| 0     | `Unknown` | Unknown              |
+| 1     | `Buy`     | Buy                  |
+| 2     | `Sell`    | Sell                 |
+
+### OrderStatus
+
+| Value | Member                 | Official description             |
+| ----- | ---------------------- | -------------------------------- |
+| 0     | `Unknown`              | Unknown                          |
+| 1     | `NotReported`          | Not reported                     |
+| 2     | `ReplacedNotReported`  | Not reported (Replaced Order)    |
+| 3     | `ProtectedNotReported` | Not reported (Protected Order)   |
+| 4     | `VarietiesNotReported` | Not reported (Conditional Order) |
+| 5     | `Filled`               | Filled                           |
+| 6     | `WaitToNew`            | Wait To New                      |
+| 7     | `New`                  | New                              |
+| 8     | `WaitToReplace`        | Wait To Replace                  |
+| 9     | `PendingReplace`       | Pending Replace                  |
+| 10    | `Replaced`             | Replaced                         |
+| 11    | `PartialFilled`        | Partial Filled                   |
+| 12    | `WaitToCancel`         | Wait To Cancel                   |
+| 13    | `PendingCancel`        | Pending Cancel                   |
+| 14    | `Rejected`             | Rejected                         |
+| 15    | `Canceled`             | Canceled                         |
+| 16    | `Expired`              | Expired                          |
+| 17    | `PartialWithdrawal`    | Partial Withdrawal               |
+
+### OrderTag
+
+| Value | Member         | Official description      |
+| ----- | -------------- | ------------------------- |
+| 0     | `Unknown`      | Unknown                   |
+| 1     | `Normal`       | Normal Order              |
+| 2     | `LongTerm`     | Long term Order           |
+| 3     | `Grey`         | Grey Order                |
+| 4     | `MarginCall`   | Force Selling             |
+| 5     | `Offline`      | OTC                       |
+| 6     | `Creditor`     | Option Exercise Long      |
+| 7     | `Debtor`       | Option Exercise Short     |
+| 8     | `NonExercise`  | Wavier Of Option Exercise |
+| 9     | `AllocatedSub` | Trade Allocation          |
+
+### OrderType
+
+| Value | Member    | Official description                          |
+| ----- | --------- | --------------------------------------------- |
+| 0     | `Unknown` | Unknown                                       |
+| 1     | `LO`      | Limit Order                                   |
+| 2     | `ELO`     | Enhanced Limit Order                          |
+| 3     | `MO`      | Market Order                                  |
+| 4     | `AO`      | At-auction Order                              |
+| 5     | `ALO`     | At-auction Limit Order                        |
+| 6     | `ODD`     | Odd Lots                                      |
+| 7     | `LIT`     | Limit If Touched                              |
+| 8     | `MIT`     | Market If Touched                             |
+| 9     | `TSLPAMT` | Trailing Limit If Touched (Trailing Amount)   |
+| 10    | `TSLPPCT` | Trailing Limit If Touched (Trailing Percent)  |
+| 11    | `TSMAMT`  | Trailing Market If Touched (Trailing Amount)  |
+| 12    | `TSMPCT`  | Trailing Market If Touched (Trailing Percent) |
+| 13    | `SLO`     | Special Limit Order                           |
+
+### OutsideRTH
+
+| Value | Member      | Official description      |
+| ----- | ----------- | ------------------------- |
+| 0     | `Unknown`   | Unknown                   |
+| 1     | `RTHOnly`   | Regular trading hour only |
+| 2     | `AnyTime`   | Any time                  |
+| 3     | `Overnight` | Overnight                 |
+
+### TimeInForceType
+
+| Value | Member            | Official description    |
+| ----- | ----------------- | ----------------------- |
+| 0     | `Unknown`         | Unknown                 |
+| 1     | `Day`             | Day Order               |
+| 2     | `GoodTilCanceled` | Good Til Canceled Order |
+| 3     | `GoodTilDate`     | Good Til Date Order     |
+
+### TopicType
+
+| Value | Member    | Official description           |
+| ----- | --------- | ------------------------------ |
+| 0     | `Private` | Private notification for trade |
+
+### TriggerStatus
+
+| Value | Member     | Official description |
+| ----- | ---------- | -------------------- |
+| 0     | `Unknown`  | Unknown              |
+| 1     | `Deactive` | Deactive             |
+| 2     | `Active`   | Active               |
+| 3     | `Released` | Released             |
+
+## Calculated indexes
+
+### CalcIndex
+
+| Value | Member                  | Official description               |
+| ----- | ----------------------- | ---------------------------------- |
+| 0     | `LastDone`              | Latest price                       |
+| 1     | `ChangeValue`           | Change value                       |
+| 2     | `ChangeRate`            | Change rate                        |
+| 3     | `Volume`                | Volume                             |
+| 4     | `Turnover`              | Turnover                           |
+| 5     | `YtdChangeRate`         | Year-to-date change ratio          |
+| 6     | `TurnoverRate`          | Turnover rate                      |
+| 7     | `TotalMarketValue`      | Total market value                 |
+| 8     | `CapitalFlow`           | Capital flow                       |
+| 9     | `Amplitude`             | Amplitude                          |
+| 10    | `VolumeRatio`           | Volume ratio                       |
+| 11    | `PeTtmRatio`            | PE (TTM)                           |
+| 12    | `PbRatio`               | PB                                 |
+| 13    | `DividendRatioTtm`      | Dividend ratio (TTM)               |
+| 14    | `FiveDayChangeRate`     | Five days change ratio             |
+| 15    | `TenDayChangeRate`      | Ten days change ratio              |
+| 16    | `HalfYearChangeRate`    | Half year change ratio             |
+| 17    | `FiveMinutesChangeRate` | Five minutes change ratio          |
+| 18    | `ExpiryDate`            | Expiry date                        |
+| 19    | `StrikePrice`           | Strike price                       |
+| 20    | `UpperStrikePrice`      | Upper bound price                  |
+| 21    | `LowerStrikePrice`      | Lower bound price                  |
+| 22    | `OutstandingQty`        | Outstanding quantity               |
+| 23    | `OutstandingRatio`      | Outstanding ratio                  |
+| 24    | `Premium`               | Premium                            |
+| 25    | `ItmOtm`                | In/out of the bound                |
+| 26    | `ImpliedVolatility`     | Implied volatility                 |
+| 27    | `WarrantDelta`          | Warrant delta                      |
+| 28    | `CallPrice`             | Call price                         |
+| 29    | `ToCallPrice`           | Price interval from the call price |
+| 30    | `EffectiveLeverage`     | Effective leverage                 |
+| 31    | `LeverageRatio`         | Leverage ratio                     |
+| 32    | `ConversionRatio`       | Conversion ratio                   |
+| 33    | `BalancePoint`          | Breakeven point                    |
+| 34    | `OpenInterest`          | Open interest                      |
+| 35    | `Delta`                 | Delta                              |
+| 36    | `Gamma`                 | Gamma                              |
+| 37    | `Theta`                 | Theta                              |
+| 38    | `Vega`                  | Vega                               |
+| 39    | `Rho`                   | Rho                                |
+
+## Warrant filters
+
+### FilterWarrantExpiryDate
+
+| Value | Member         | Official description   |
+| ----- | -------------- | ---------------------- |
+| 0     | `LT_3`         | Less than 3 months     |
+| 1     | `Between_3_6`  | 3 - 6 months           |
+| 2     | `Between_6_12` | 6 - 12 months          |
+| 3     | `GT_12`        | Greater than 12 months |
+
+### FilterWarrantInOutBoundsType
+
+| Value | Member | Official description |
+| ----- | ------ | -------------------- |
+| 0     | `In`   | In bounds            |
+| 1     | `Out`  | Out bounds           |
+
+## Audit note
+
+- This file keeps official enum names, numeric values, and comments as documented.
+- Some official descriptions include unusual spellings or wording (for example `USNSDQ` comment `Nasdsaq Index`, `USOptionS` comment `US Sepecial Option`, and `TradeStatus.Suspend` sharing `Warrant To BeListed`); these are preserved verbatim without local normalization.

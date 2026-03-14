@@ -1,105 +1,168 @@
-# Decimal 类与日期类型
+# Decimal / NaiveDate / NaiveDatetime / Time
 
-SDK 使用 `Decimal` 类型处理所有价格和金额，避免浮点精度问题。
+Official sources:
 
-## 创建 Decimal
+- https://longbridge.github.io/openapi/nodejs/classes/Decimal.html
+- https://longbridge.github.io/openapi/nodejs/classes/NaiveDate.html
+- https://longbridge.github.io/openapi/nodejs/classes/NaiveDatetime.html
+- https://longbridge.github.io/openapi/nodejs/classes/Time.html
 
-```typescript
-const d = new Decimal('50.5'); // 从字符串创建（推荐）
-const d = new Decimal(50.5); // 从数字创建
-const d = Decimal.newWithScale(505, 1); // 从整数+小数位创建 => 50.5
+## Decimal
+
+### Constructor
+
+```ts
+new Decimal(value: string | number)
 ```
 
-## 静态常量
+### Static methods
 
-```typescript
-Decimal.ZERO(); // 0
-Decimal.ONE(); // 1
-Decimal.TWO(); // 2
-Decimal.TEN(); // 10
-Decimal.ONE_HUNDRED(); // 100
-Decimal.ONE_THOUSAND(); // 1000
-Decimal.NEGATIVE_ONE(); // -1
-Decimal.MAX(); // 最大值
-Decimal.MIN(); // 最小值
-Decimal.PI(); // π
-Decimal.HALF_PI(); // π/2
-Decimal.QUARTER_PI(); // π/4
-Decimal.TWO_PI(); // 2π
-Decimal.E(); // e
-Decimal.E_INVERSE(); // 1/e
+```ts
+Decimal.E(): Decimal
+Decimal.E_INVERSE(): Decimal
+Decimal.HALF_PI(): Decimal
+Decimal.MAX(): Decimal
+Decimal.MIN(): Decimal
+Decimal.NEGATIVE_ONE(): Decimal
+Decimal.ONE(): Decimal
+Decimal.ONE_HUNDRED(): Decimal
+Decimal.ONE_THOUSAND(): Decimal
+Decimal.PI(): Decimal
+Decimal.QUARTER_PI(): Decimal
+Decimal.TEN(): Decimal
+Decimal.TWO(): Decimal
+Decimal.TWO_PI(): Decimal
+Decimal.ZERO(): Decimal
+Decimal.newWithScale(num: number, scale: number): Decimal
 ```
 
-## 转换方法
+### Instance methods
 
-```typescript
-d.toString(): string     // 转为字符串
-d.toNumber(): number     // 转为数字
-d.toJSON(): any          // JSON 序列化
+```ts
+toString(): string
+toNumber(): number
+toJSON(): any
+
+abs(): Decimal
+ceil(): Decimal
+floor(): Decimal
+fract(): Decimal
+isNegative(): boolean
+isPositive(): boolean
+isZero(): boolean
+max(other: Decimal): Decimal
+min(other: Decimal): Decimal
+normalize(): Decimal
+round(): Decimal
+roundDp(dp: number): Decimal
+trunc(): Decimal
+
+add(other: Decimal): Decimal
+sub(other: Decimal): Decimal
+mul(other: Decimal): Decimal
+div(other: Decimal): Decimal
+rem(other: Decimal): Decimal
+neg(): Decimal
+
+greaterThan(other: Decimal): boolean
+greaterThanOrEqualTo(other: Decimal): boolean
+equals(other: Decimal): boolean
+lessThan(other: Decimal): boolean
+lessThanOrEqualTo(other: Decimal): boolean
+comparedTo(other: Decimal): number
+
+sin(): Decimal
+cos(): Decimal
+tan(): Decimal
+sqrt(): Decimal
+pow(exp: Decimal): Decimal
+ln(): Decimal
+log10(): Decimal
+exp(): Decimal
+expWithTolerance(tolerance: Decimal): Decimal
+erf(): Decimal
+normCdf(): Decimal
+normPdf(): Decimal
 ```
 
-## 数学运算
+### Example
 
-```typescript
-d.add(other: Decimal): Decimal     // 加法 +
-d.sub(other: Decimal): Decimal     // 减法 -
-d.mul(other: Decimal): Decimal     // 乘法 *
-d.div(other: Decimal): Decimal     // 除法 /
-d.rem(other: Decimal): Decimal     // 取余 %
-d.neg(): Decimal                   // 取反 -x
-d.abs(): Decimal                   // 绝对值
-d.ceil(): Decimal                  // 向上取整
-d.floor(): Decimal                 // 向下取整
-d.round(): Decimal                 // 四舍五入（银行家舍入：6.5→6, 7.5→8）
-d.roundDp(dp: number): Decimal    // 保留指定小数位（银行家舍入）
-d.trunc(): Decimal                 // 截断小数
-d.fract(): Decimal                 // 小数部分
-d.normalize(): Decimal             // 去除末尾零，-0 转 0
-d.sqrt(): Decimal                  // 平方根
-d.pow(exp: Decimal): Decimal       // 幂运算
-d.ln(): Decimal                    // 自然对数
-d.log10(): Decimal                 // 常用对数
-d.exp(): Decimal                   // e^x
-d.expWithTolerance(t: Decimal): Decimal // e^x（自定义精度）
-d.sin(): Decimal                   // 正弦
-d.cos(): Decimal                   // 余弦
-d.tan(): Decimal                   // 正切
-d.erf(): Decimal                   // 误差函数
-d.normCdf(): Decimal               // 正态分布累积函数
-d.normPdf(): Decimal               // 正态分布概率密度函数
+```ts
+const price = new Decimal('50.5');
+const qty = Decimal.newWithScale(1250, 2); // 12.50
+const value = price.mul(qty);
+console.log(value.toString());
 ```
 
-## 比较方法
+## NaiveDate
 
-```typescript
-d.greaterThan(other: Decimal): boolean         // >
-d.greaterThanOrEqualTo(other: Decimal): boolean // >=
-d.lessThan(other: Decimal): boolean            // <
-d.lessThanOrEqualTo(other: Decimal): boolean   // <=
-d.equals(other: Decimal): boolean              // ==
-d.comparedTo(other: Decimal): number           // -1 / 0 / 1
-d.isZero(): boolean                            // 是否为零
-d.isPositive(): boolean                        // 是否为正
-d.isNegative(): boolean                        // 是否为负
-d.max(other: Decimal): Decimal                 // 取最大值
-d.min(other: Decimal): Decimal                 // 取最小值
+### Constructor
+
+```ts
+new NaiveDate(year: number, month: number, day: number)
 ```
 
----
+### Accessors and methods
 
-## NaiveDate（日期）
-
-```typescript
-const date = new NaiveDate(2023, 1, 20); // 年, 月, 日
-date.year: number    // 年
-date.month: number   // 月
-date.day: number     // 日
-date.toString(): string
-date.toJSON(): any
+```ts
+get year(): number
+get month(): number
+get day(): number
+toString(): string
+toJSON(): any
 ```
 
-## NaiveDatetime（日期时间）
+### Example
 
-```typescript
-const dt = new NaiveDatetime(2023, 1, 20, 10, 30, 0); // 年, 月, 日, 时, 分, 秒
+```ts
+const d = new NaiveDate(2026, 3, 15);
+console.log(d.toString());
+```
+
+## NaiveDatetime
+
+### Constructor
+
+```ts
+new NaiveDatetime(date: NaiveDate, time: Time)
+```
+
+### Accessors and methods
+
+```ts
+get date(): NaiveDate
+get time(): Time
+toString(): string
+toJSON(): any
+```
+
+### Example
+
+```ts
+const dt = new NaiveDatetime(new NaiveDate(2026, 3, 15), new Time(9, 30, 0));
+console.log(dt.toString());
+```
+
+## Time
+
+### Constructor
+
+```ts
+new Time(hour: number, minute: number, second: number)
+```
+
+### Accessors and methods
+
+```ts
+get hour(): number
+get monute(): number
+get toString(): string
+toJSON(): any
+```
+
+### Example
+
+```ts
+const sessionOpen = new Time(9, 30, 0);
+console.log(sessionOpen.toString);
 ```
