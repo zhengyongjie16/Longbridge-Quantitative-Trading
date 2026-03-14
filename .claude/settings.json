@@ -1,7 +1,14 @@
 {
   "permissions": {
-    "allow": ["Skill(*)", "WebSearch(*)", "WebFetch(*)", "Search(*)"],
-    "deny": [],
+    "allow": [
+      "Read(*)",
+      "Skill(*)",
+      "WebSearch(*)",
+      "WebFetch(*)",
+      "Search(*)",
+      "Bash(node:*)",
+      "Bash(bun:*)"
+    ],
     "ask": [
       "Bash(git push *)",
       "Bash(git push --force)",
@@ -11,7 +18,8 @@
       "Bash(git clean *)",
       "Bash(git branch -D *)",
       "Bash(git branch -d *)"
-    ]
+    ],
+    "deny": []
   },
   "hooks": {
     "PermissionRequest": [

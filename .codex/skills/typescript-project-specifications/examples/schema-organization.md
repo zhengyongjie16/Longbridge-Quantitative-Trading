@@ -91,7 +91,6 @@ const createUser = (input: unknown) => {
 - API 响应、用户输入、外部数据
 - 类型带有校验规则（格式、约束）
 - 多系统共享的数据契约
-- 测试工厂中（保证测试数据完整且合法）
 
 ```typescript
 // API 响应校验

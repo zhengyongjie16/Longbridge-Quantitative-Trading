@@ -16,10 +16,10 @@
 
 ### 为何用 `interface`
 
-1. **明确表达"实现契约"**：interface 表示"必须在别处实现"
-2. **TypeScript 报错更清晰**：`class X implements UserRepository` 给出明确错误
-3. **符合依赖注入惯例**：契约与实现分离清晰
-4. **便于用 class 实现**：class 天然实现 interface
+1. **明确表达"行为契约"**：interface 表示"这里定义的是能力边界，而不是数据本体"
+2. **依赖注入更清晰**：工厂函数接收 interface 契约，调用方只关心能力，不关心具体实现
+3. **类型检查更直接**：实现对象是否满足契约，由 TypeScript 在赋值处直接校验
+4. **与工厂函数模式兼容**：即使项目中优先使用工厂函数而非 class，interface 仍然适合作为行为契约
 
 ### 示例
 
@@ -36,13 +36,20 @@ export interface PaymentGateway {
   refund(transactionId: string): Promise<RefundResult>;
 }
 
-// 具体实现
-export class PostgresUserRepository implements UserRepository {
-  async findById(id: string): Promise<User | undefined> {
-    // 实现
-  }
-  // ... 其他方法
-}
+// 工厂函数返回的实现对象
+const createPostgresUserRepository = (deps: Dependencies): UserRepository => {
+  return {
+    async findById(id: string): Promise<User | undefined> {
+      return deps.db.findUserById(id);
+    },
+    async save(user: User): Promise<void> {
+      await deps.db.saveUser(user);
+    },
+    async delete(id: string): Promise<void> {
+      await deps.db.deleteUser(id);
+    },
+  };
+};
 ```
 
 ---
@@ -111,6 +118,10 @@ processPayment(orderId, userId, amount);
 ### ✅ 正确：使用品牌类型区分
 
 ```typescript
+type Result<T, E = Error> =
+  | { readonly success: true; readonly data: T }
+  | { readonly success: false; readonly error: E };
+
 type UserId = string & { readonly brand: unique symbol };
 type OrderId = string & { readonly brand: unique symbol };
 type PaymentAmount = number & { readonly brand: unique symbol };
@@ -122,11 +133,38 @@ const processPayment = (userId: UserId, orderId: OrderId, amount: PaymentAmount)
 // ❌ 编译器报错：不能将 string 赋给 UserId
 processPayment('user-123', 'order-456', 100);
 
-// ✅ 必须使用品牌类型
-const userId = 'user-123' as UserId;
-const orderId = 'order-456' as OrderId;
-const amount = 100 as PaymentAmount;
-processPayment(userId, orderId, amount);
+const createUserId = (value: string): Result<UserId> => {
+  if (value.length === 0) {
+    return { success: false, error: new Error('UserId 不能为空') };
+  }
+  return { success: true, data: value as UserId }; // 已通过构造边界校验
+};
+
+const createOrderId = (value: string): Result<OrderId> => {
+  if (value.length === 0) {
+    return { success: false, error: new Error('OrderId 不能为空') };
+  }
+  return { success: true, data: value as OrderId }; // 已通过构造边界校验
+};
+
+const createPaymentAmount = (value: number): Result<PaymentAmount> => {
+  if (value <= 0) {
+    return { success: false, error: new Error('PaymentAmount 必须大于 0') };
+  }
+  return { success: true, data: value as PaymentAmount }; // 已通过构造边界校验
+};
+
+// ✅ 通过明确的构造边界创建品牌类型
+const userIdResult = createUserId('user-123');
+if (!userIdResult.success) return userIdResult;
+
+const orderIdResult = createOrderId('order-456');
+if (!orderIdResult.success) return orderIdResult;
+
+const amountResult = createPaymentAmount(100);
+if (!amountResult.success) return amountResult;
+
+processPayment(userIdResult.data, orderIdResult.data, amountResult.data);
 ```
 
 ### ⚠️ 使用建议

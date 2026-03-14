@@ -4,7 +4,7 @@
 
 - 类型定义到 `types.ts`
 - 工具函数到 `utils.ts`
-- 常量统一到 `src/constants/index.ts`
+- 常量统一到 `src/constants/`（以下以 `src/constants/index.ts` 为示例）
 - 单元测试到 `tests/`，并与 `src/` 目录结构一一对应
 
 ---
@@ -322,7 +322,7 @@ export const formatBbbId = (id: string): string => `bbb-${id}`;
 
 ---
 
-## 4. 常量组织：统一放在 `src/constants/index.ts`
+## 4. 常量组织：统一放在 `src/constants/`
 
 ### 4.1 正确示例
 
@@ -357,8 +357,8 @@ export const isAboveDefaultThreshold = (value: number): boolean => {
 
 **要点：**
 
-- 所有常量统一集中到 `src/constants/index.ts`
-- 其他模块**只能从这里引用**，不得在业务模块中随意定义重复常量
+- 所有常量统一集中到 `src/constants/`；本节以下用 `src/constants/index.ts` 作为示例
+- 其他模块应从 `src/constants/` 下的常量定义位置引用，不得在业务模块中随意定义重复常量
 
 ### 4.2 错误示例：在各个模块中硬编码或重复定义常量
 
@@ -450,5 +450,5 @@ describe('multiply', () => {
 
 - **类型**：先判断使用范围，跨模块共享类型放在**最近共同父级**的 `types.ts` 中，局部类型放在各自模块的 `types.ts` 中。公共类型不要提升到祖父级；私有类型不要放进父级/祖父级公共 `types.ts`。
 - **工具函数**：公共工具函数放在**最近共同父级**的 `utils.ts` 中，避免复制粘贴；各模块的私有工具函数放在本模块 `utils.ts` 中。公共工具不要提升到祖父级；私有工具不要放进父级/祖父级公共 `utils.ts`。
-- **常量**：所有常量统一放在 `src/constants/index.ts`，禁止在业务模块中到处定义重复常量
+- **常量**：所有常量统一放在 `src/constants/`；若使用 `src/constants/index.ts` 只是其中一种组织方式。禁止在业务模块中到处定义重复常量
 - **测试**：单元测试统一放在 `tests/` 下，并与 `src/` 目录结构一一对应，便于查找和维护

@@ -117,7 +117,7 @@ const createOrderService = ({ productRepository, orderRepository, idGenerator }:
       items: ReadonlyArray<{ productId: string; quantity: number }>,
     ): Promise<Order> {
       // 直接调用模块顶层的 calculateTotal
-      const total = calculateTotal(orderItems);
+      const total = calculateTotal(items);
       // ...
     },
   };
@@ -160,16 +160,20 @@ const createAuthService = ({
   logger: Logger;
 }) => {
   return {
-    async login(credentials: LoginCredentials): Promise<AuthToken> {
+    async login(credentials: LoginCredentials): Promise<Result<AuthToken>> {
       logger.info('User login attempt', { email: credentials.email });
 
       const user = await userRepository.findByEmail(credentials.email);
-      if (!user) throw new Error('Invalid credentials');
+      if (!user) {
+        return { success: false, error: new Error('Invalid credentials') };
+      }
 
       const isValid = await passwordHasher.verify(credentials.password, user.passwordHash);
-      if (!isValid) throw new Error('Invalid credentials');
+      if (!isValid) {
+        return { success: false, error: new Error('Invalid credentials') };
+      }
 
-      return tokenGenerator.generate(user.id);
+      return { success: true, data: await tokenGenerator.generate(user.id) };
     },
   };
 };
@@ -185,7 +189,12 @@ const authService = createAuthService({
   logger: createConsoleLogger(),
 });
 
-const token = await authService.login({ email: 'test@example.com', password: '123' });
+const result = await authService.login({ email: 'test@example.com', password: '123' });
+if (!result.success) {
+  console.error(result.error.message);
+  return;
+}
+const token = result.data;
 ```
 
 ### 测试：轻松替换为 mock 依赖
