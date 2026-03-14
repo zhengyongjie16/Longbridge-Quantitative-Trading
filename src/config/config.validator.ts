@@ -917,6 +917,11 @@ export async function validateAllConfig({
 
   logger.info('');
   logger.info(`是否启动末日保护: ${tradingConfig.global.doomsdayProtection ? '是' : '否'}`);
+  logger.info(
+    `买单跟价允许高于初始委托价: ${
+      tradingConfig.global.allowBuyOrderTrackingAboveInitialPrice ? '是' : '否'
+    }`,
+  );
   logger.info('');
 }
 

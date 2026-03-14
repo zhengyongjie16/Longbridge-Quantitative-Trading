@@ -79,6 +79,7 @@ export function createTradingConfig(
         },
       },
       orderMonitorPriceUpdateInterval: 1,
+      allowBuyOrderTrackingAboveInitialPrice: true,
       tradingOrderType: 'ELO',
       liquidationOrderType: 'MO',
       buyOrderTimeout: {

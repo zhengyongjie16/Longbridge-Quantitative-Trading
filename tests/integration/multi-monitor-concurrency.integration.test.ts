@@ -125,6 +125,7 @@ describe('multi-monitor-concurrency integration', () => {
           afternoon: { enabled: false, minutes: null },
         },
         orderMonitorPriceUpdateInterval: 5,
+        allowBuyOrderTrackingAboveInitialPrice: true,
         tradingOrderType: 'ELO',
         liquidationOrderType: 'MO',
         buyOrderTimeout: { enabled: true, timeoutSeconds: 180 },

@@ -102,6 +102,7 @@ describe('protective-liquidation integration', () => {
       symbol: 'BULL.HK',
       side: OrderSide.Sell,
       price: 1,
+      initialSubmittedPrice: 1,
       quantity: 200,
       isLongSymbol: true,
       monitorSymbol: 'HSI.HK',

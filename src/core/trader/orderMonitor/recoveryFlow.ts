@@ -346,6 +346,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
       symbol: order.symbol,
       side: order.side,
       price: trackedPrice,
+      initialSubmittedPrice: trackedPrice,
       quantity: submittedQuantity,
       ...(submittedAtMs === null ? {} : { submittedAtMs }),
       initialStatus: order.status,

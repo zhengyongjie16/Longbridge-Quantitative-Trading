@@ -180,6 +180,7 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
       symbol,
       side,
       price,
+      initialSubmittedPrice,
       quantity,
       submittedAtMs,
       initialStatus,
@@ -208,6 +209,7 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
       liquidationCooldownConfig: liquidationCooldownConfig ?? null,
       orderType,
       submittedPrice: price,
+      initialSubmittedPrice,
       submittedQuantity: quantity,
       executedQuantity: 0,
       executedPrice: null,
@@ -282,7 +284,7 @@ export function createOrderOps(deps: OrderOpsDeps): OrderOps {
 
   /**
    * 处理 602013（订单状态暂不允许改单）：
-   * 前四次指数退避，第五次开始改为 WAIT_WS_ONLY，仅依赖 WS 状态推进解锁。
+   * 前四次指数退避；第五次先做权威状态查询，若非终态才切换 WAIT_WS_ONLY 并仅依赖 WS 推进解锁。
    */
   async function handleReplaceTempBlockedByStatus(
     orderId: string,

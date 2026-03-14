@@ -244,6 +244,7 @@ bun start
 | `SELL_ORDER_TIMEOUT_ENABLED` | `true` | 启用卖出订单超时检测（超时后转市价单） |
 | `SELL_ORDER_TIMEOUT_SECONDS` | `180` | 卖出订单超时时间（秒，范围 30-600） |
 | `ORDER_MONITOR_PRICE_UPDATE_INTERVAL` | `5` | 订单价格更新间隔（秒，范围 1-60） |
+| `ALLOW_BUY_ORDER_TRACKING_ABOVE_INITIAL_PRICE` | `true` | 买单跟价是否允许高于初始委托价（`false` 时仅允许改低或回到初始价） |
 
 **每个监控标的配置**（使用后缀 `_N`，如 `_1`、`_2`）：
 

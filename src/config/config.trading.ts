@@ -349,6 +349,11 @@ export function createMultiMonitorTradingConfig({
     min: 1,
     max: 60,
   });
+  const allowBuyOrderTrackingAboveInitialPrice = getBooleanConfig(
+    env,
+    'ALLOW_BUY_ORDER_TRACKING_ABOVE_INITIAL_PRICE',
+    true,
+  );
 
   // 早盘开盘保护
   const morningOpenProtectionEnabled = getBooleanConfig(
@@ -400,6 +405,7 @@ export function createMultiMonitorTradingConfig({
         },
       },
       orderMonitorPriceUpdateInterval,
+      allowBuyOrderTrackingAboveInitialPrice,
       tradingOrderType,
       liquidationOrderType,
       buyOrderTimeout: {

@@ -209,6 +209,9 @@ export type GlobalConfig = {
   /** 订单价格修改最小间隔（秒） */
   readonly orderMonitorPriceUpdateInterval: number;
 
+  /** 买单跟价是否允许高于初始委托价 */
+  readonly allowBuyOrderTrackingAboveInitialPrice: boolean;
+
   /** 正常交易订单类型 */
   readonly tradingOrderType: OrderTypeConfig;
 

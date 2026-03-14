@@ -33,6 +33,7 @@ function createTradingConfig(
         },
       },
       orderMonitorPriceUpdateInterval: 3,
+      allowBuyOrderTrackingAboveInitialPrice: true,
       tradingOrderType: 'LO',
       liquidationOrderType: 'ELO',
       buyOrderTimeout: {

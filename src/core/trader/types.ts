@@ -63,6 +63,7 @@ export type TrackOrderParams = {
   readonly symbol: string;
   readonly side: OrderSide;
   readonly price: number;
+  readonly initialSubmittedPrice: number;
   readonly quantity: number;
 
   /** 可选：恢复阶段使用原始下单时间（毫秒），用于保持超时策略语义一致 */
@@ -336,6 +337,9 @@ export type TrackedOrder = {
   /** 当前委托价（会随市价更新） */
   submittedPrice: number;
 
+  /** 跟踪开始时的初始委托价（用于买单跟价上限判断，不会被改单覆盖） */
+  readonly initialSubmittedPrice: number;
+
   /** 委托数量（含部分成交后的剩余总量） */
   submittedQuantity: number;
 
@@ -459,6 +463,9 @@ export type OrderMonitorConfig = {
 
   /** 价格差异阈值（低于此值不触发修改） */
   readonly priceDiffThreshold: number;
+
+  /** 买单跟价是否允许高于初始委托价 */
+  readonly allowBuyOrderTrackingAboveInitialPrice: boolean;
 };
 
 /**

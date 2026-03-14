@@ -382,6 +382,7 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
         symbol: order.symbol,
         side: order.side,
         price: 0,
+        initialSubmittedPrice: 0,
         quantity: marketConversionQuantity,
         isLongSymbol: order.isLongSymbol,
         monitorSymbol: order.monitorSymbol,
@@ -455,6 +456,22 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
       const priceDiffDecimal = calculatePriceDiffDecimal(currentPrice, order.submittedPrice);
       if (priceDiffDecimal.comparedTo(thresholdDecimal) < 0) {
         continue;
+      }
+
+      if (isBuyOrder && !config.allowBuyOrderTrackingAboveInitialPrice) {
+        const normalizedInitialSubmittedPriceText = normalizePriceText(order.initialSubmittedPrice);
+        const normalizedInitialSubmittedPriceNumber = Number(normalizedInitialSubmittedPriceText);
+        if (normalizedCurrentPriceNumber > normalizedInitialSubmittedPriceNumber) {
+          logger.debug(
+            `[订单监控] 买入订单 ${orderId} 跳过追价：` +
+              `当前价=${normalizedCurrentPriceText} 当前委托价=${normalizedSubmittedPriceText} ` +
+              `初始委托价=${normalizedInitialSubmittedPriceText} ` +
+              `allowBuyOrderTrackingAboveInitialPrice=${String(
+                config.allowBuyOrderTrackingAboveInitialPrice,
+              )}`,
+          );
+          continue;
+        }
       }
 
       const sideDesc = isBuyOrder ? '买入' : '卖出';

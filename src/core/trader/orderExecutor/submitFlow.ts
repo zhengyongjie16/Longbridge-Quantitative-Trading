@@ -180,6 +180,7 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
         symbol,
         side,
         price: resolvedPrice ?? 0,
+        initialSubmittedPrice: resolvedPrice ?? 0,
         quantity: submittedQuantityNum,
         isLongSymbol,
         monitorSymbol: monitorConfig?.monitorSymbol ?? null,

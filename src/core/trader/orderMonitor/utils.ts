@@ -56,6 +56,7 @@ export function buildOrderMonitorConfig(globalConfig: GlobalConfig): OrderMonito
     },
     priceUpdateIntervalMs: globalConfig.orderMonitorPriceUpdateInterval * 1000,
     priceDiffThreshold: ORDER_PRICE_DIFF_THRESHOLD,
+    allowBuyOrderTrackingAboveInitialPrice: globalConfig.allowBuyOrderTrackingAboveInitialPrice,
   };
 }
 

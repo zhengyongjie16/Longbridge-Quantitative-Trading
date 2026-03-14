@@ -26,6 +26,7 @@ import {
   createSymbolRegistryDouble,
 } from '../../helpers/testDoubles.js';
 import type { OrderRecord, PendingSellInfo, RawOrderFromAPI } from '../../../src/types/services.js';
+import { isRecord } from '../../../src/utils/helpers/index.js';
 
 async function expectPromiseRejectsToMatch(
   operation: () => Promise<unknown>,
@@ -50,6 +51,7 @@ async function expectPromiseRejectsToMatch(
 function createDeps(params?: {
   readonly sellTimeoutSeconds?: number;
   readonly buyTimeoutSeconds?: number;
+  readonly allowBuyOrderTrackingAboveInitialPrice?: boolean;
   readonly gateOpen?: () => boolean;
   readonly onHandleOrderChanged?: (handler: (event: PushOrderChanged) => void) => void;
   readonly allocateRelatedBuyOrderIdsForRecovery?: () => readonly string[];
@@ -202,6 +204,9 @@ function createDeps(params?: {
         timeoutSeconds: params?.sellTimeoutSeconds ?? 180,
       },
       orderMonitorPriceUpdateInterval: 0,
+      allowBuyOrderTrackingAboveInitialPrice:
+        params?.allowBuyOrderTrackingAboveInitialPrice ??
+        baseConfig.global.allowBuyOrderTrackingAboveInitialPrice,
     },
   });
 
@@ -288,6 +293,7 @@ async function executeReplaceScenario(params: {
     symbol: 'BULL.HK',
     side: OrderSide.Sell,
     price: params.initialPrice,
+    initialSubmittedPrice: params.initialPrice,
     quantity: 100,
     isLongSymbol: true,
     monitorSymbol: 'HSI.HK',
@@ -306,6 +312,38 @@ async function executeReplaceScenario(params: {
     replaceCalls: tradeCtx.getCalls('replaceOrder').length,
     submittedPrice: pendingOrders[0]?.submittedPrice ?? null,
   };
+}
+
+type ReplaceOrderPayload = {
+  readonly price: {
+    readonly toString: () => string;
+  };
+};
+
+function isReplaceOrderPayload(value: unknown): value is ReplaceOrderPayload {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  const price = value['price'];
+  if (!isRecord(price)) {
+    return false;
+  }
+
+  return typeof price.toString === 'function';
+}
+
+function extractReplaceOrderPrices(
+  replaceCalls: ReadonlyArray<{ readonly args: ReadonlyArray<unknown> }>,
+): ReadonlyArray<number> {
+  return replaceCalls.map((call) => {
+    const payload = call.args[0];
+    if (!isReplaceOrderPayload(payload)) {
+      throw new Error('[测试] replaceOrder 调用载荷缺少可序列化 price 字段');
+    }
+
+    return Number(payload.price.toString());
+  });
 }
 
 describe('orderMonitor business flow', () => {
@@ -370,6 +408,192 @@ describe('orderMonitor business flow', () => {
     expect(result.submittedPrice).toBe(0.058);
   });
 
+  it('allows buy order tracking above initial price when config is enabled', async () => {
+    const { deps, tradeCtx } = createDeps({
+      sellTimeoutSeconds: 999,
+      buyTimeoutSeconds: 999,
+      allowBuyOrderTrackingAboveInitialPrice: true,
+    });
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+
+    monitor.trackOrder({
+      orderId: 'BUY-CHASE-ALLOW-UP',
+      symbol: 'BULL.HK',
+      side: OrderSide.Buy,
+      price: 0.5,
+      initialSubmittedPrice: 0.5,
+      quantity: 100,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+
+    await monitor.processWithLatestQuotes(
+      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.51)]]),
+    );
+
+    expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(1);
+    expect(extractReplaceOrderPrices(tradeCtx.getCalls('replaceOrder'))).toEqual([0.51]);
+  });
+
+  it('allows buy order tracking downward when config disables chasing above initial price', async () => {
+    const { deps, tradeCtx } = createDeps({
+      sellTimeoutSeconds: 999,
+      buyTimeoutSeconds: 999,
+      allowBuyOrderTrackingAboveInitialPrice: false,
+    });
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+
+    monitor.trackOrder({
+      orderId: 'BUY-CHASE-ALLOW-DOWN',
+      symbol: 'BULL.HK',
+      side: OrderSide.Buy,
+      price: 0.5,
+      initialSubmittedPrice: 0.5,
+      quantity: 100,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+
+    await monitor.processWithLatestQuotes(
+      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.49)]]),
+    );
+
+    expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(1);
+    expect(extractReplaceOrderPrices(tradeCtx.getCalls('replaceOrder'))).toEqual([0.49]);
+  });
+
+  it('blocks buy order tracking above initial price when config disables chasing above initial price', async () => {
+    const { deps, tradeCtx } = createDeps({
+      sellTimeoutSeconds: 999,
+      buyTimeoutSeconds: 999,
+      allowBuyOrderTrackingAboveInitialPrice: false,
+    });
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+
+    monitor.trackOrder({
+      orderId: 'BUY-CHASE-BLOCK-UP',
+      symbol: 'BULL.HK',
+      side: OrderSide.Buy,
+      price: 0.5,
+      initialSubmittedPrice: 0.5,
+      quantity: 100,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+
+    await monitor.processWithLatestQuotes(
+      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.51)]]),
+    );
+
+    expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(0);
+  });
+
+  it('allows buy order to return to initial price after lowering when config disables chasing above initial price', async () => {
+    const { deps, tradeCtx } = createDeps({
+      sellTimeoutSeconds: 999,
+      buyTimeoutSeconds: 999,
+      allowBuyOrderTrackingAboveInitialPrice: false,
+    });
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+
+    monitor.trackOrder({
+      orderId: 'BUY-CHASE-BACK-TO-INITIAL',
+      symbol: 'BULL.HK',
+      side: OrderSide.Buy,
+      price: 0.5,
+      initialSubmittedPrice: 0.5,
+      quantity: 100,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+
+    await monitor.processWithLatestQuotes(
+      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.49)]]),
+    );
+
+    await monitor.processWithLatestQuotes(
+      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.5)]]),
+    );
+
+    expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(2);
+    expect(extractReplaceOrderPrices(tradeCtx.getCalls('replaceOrder'))).toEqual([0.49, 0.5]);
+  });
+
+  it('keeps sell replace behavior unchanged when config disables buy chasing above initial price', async () => {
+    const { deps, tradeCtx } = createDeps({
+      sellTimeoutSeconds: 999,
+      buyTimeoutSeconds: 999,
+      allowBuyOrderTrackingAboveInitialPrice: false,
+    });
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+
+    monitor.trackOrder({
+      orderId: 'SELL-CHASE-UNTOUCHED',
+      symbol: 'BULL.HK',
+      side: OrderSide.Sell,
+      price: 0.5,
+      initialSubmittedPrice: 0.5,
+      quantity: 100,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+
+    await monitor.processWithLatestQuotes(
+      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.51)]]),
+    );
+
+    expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(1);
+    expect(extractReplaceOrderPrices(tradeCtx.getCalls('replaceOrder'))).toEqual([0.51]);
+  });
+
+  it('uses restored pending buy price as initial submitted price baseline after recovery', async () => {
+    const { deps, tradeCtx } = createDeps({
+      sellTimeoutSeconds: 999,
+      buyTimeoutSeconds: 999,
+      allowBuyOrderTrackingAboveInitialPrice: false,
+    });
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+
+    await monitor.recoverOrderTrackingFromSnapshot([
+      createPendingRecoveryOrder({
+        orderId: 'BUY-RECOVERY-INITIAL-BASELINE',
+        symbol: 'BULL.HK',
+        stockName: 'HSI RC RECOVER',
+        side: OrderSide.Buy,
+        status: OrderStatus.New,
+        price: 0.49,
+        submittedAt: new Date(),
+      }),
+    ]);
+
+    await monitor.processWithLatestQuotes(
+      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.5)]]),
+    );
+    expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(0);
+
+    await monitor.processWithLatestQuotes(
+      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.48)]]),
+    );
+    expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(1);
+    expect(extractReplaceOrderPrices(tradeCtx.getCalls('replaceOrder'))).toEqual([0.48]);
+  });
+
   it('waits for WS after timed-out sell cancel request success and does not convert immediately', async () => {
     const { deps, tradeCtx } = createDeps({
       sellTimeoutSeconds: 0,
@@ -384,6 +608,7 @@ describe('orderMonitor business flow', () => {
       symbol: 'BULL.HK',
       side: OrderSide.Sell,
       price: 1,
+      initialSubmittedPrice: 1,
       quantity: 100,
       isLongSymbol: true,
       monitorSymbol: 'HSI.HK',
@@ -423,6 +648,7 @@ describe('orderMonitor business flow', () => {
       symbol: 'BULL.HK',
       side: OrderSide.Sell,
       price: 1,
+      initialSubmittedPrice: 1,
       quantity: 100,
       isLongSymbol: true,
       monitorSymbol: 'HSI.HK',
@@ -471,6 +697,7 @@ describe('orderMonitor business flow', () => {
       symbol: 'BULL.HK',
       side: OrderSide.Buy,
       price: 1,
+      initialSubmittedPrice: 1,
       quantity: 100,
       isLongSymbol: true,
       monitorSymbol: 'HSI.HK',
@@ -517,6 +744,7 @@ describe('orderMonitor business flow', () => {
       symbol: 'BULL.HK',
       side: OrderSide.Sell,
       price: 1,
+      initialSubmittedPrice: 1,
       quantity: 100,
       isLongSymbol: true,
       monitorSymbol: 'HSI.HK',
@@ -565,6 +793,7 @@ describe('orderMonitor business flow', () => {
       symbol: 'BULL.HK',
       side: OrderSide.Buy,
       price: 1,
+      initialSubmittedPrice: 1,
       quantity: 100,
       isLongSymbol: true,
       monitorSymbol: 'HSI.HK',
@@ -606,6 +835,7 @@ describe('orderMonitor business flow', () => {
       symbol: 'BULL.HK',
       side: OrderSide.Sell,
       price: 1,
+      initialSubmittedPrice: 1,
       quantity: 100,
       isLongSymbol: true,
       monitorSymbol: 'HSI.HK',
@@ -645,6 +875,7 @@ describe('orderMonitor business flow', () => {
       symbol: 'BULL.HK',
       side: OrderSide.Sell,
       price: 1,
+      initialSubmittedPrice: 1,
       quantity: 100,
       isLongSymbol: true,
       monitorSymbol: 'HSI.HK',
@@ -732,6 +963,7 @@ describe('orderMonitor business flow', () => {
       symbol: 'BULL.HK',
       side: OrderSide.Buy,
       price: 1,
+      initialSubmittedPrice: 1,
       quantity: 100,
       isLongSymbol: true,
       monitorSymbol: 'HSI.HK',
@@ -762,6 +994,7 @@ describe('orderMonitor business flow', () => {
       symbol: 'BULL.HK',
       side: OrderSide.Sell,
       price: 1,
+      initialSubmittedPrice: 1,
       quantity: 100,
       isLongSymbol: true,
       monitorSymbol: 'HSI.HK',
@@ -799,6 +1032,7 @@ describe('orderMonitor business flow', () => {
       symbol: 'BULL.HK',
       side: OrderSide.Sell,
       price: 1,
+      initialSubmittedPrice: 1,
       quantity: 100,
       isLongSymbol: true,
       monitorSymbol: 'HSI.HK',
@@ -1113,6 +1347,7 @@ describe('orderMonitor business flow', () => {
       symbol: 'BULL.HK',
       side: OrderSide.Sell,
       price: 1,
+      initialSubmittedPrice: 1,
       quantity: 100,
       isLongSymbol: true,
       monitorSymbol: 'HSI.HK',
@@ -1160,6 +1395,7 @@ describe('orderMonitor business flow', () => {
       symbol: 'BULL.HK',
       side: OrderSide.Buy,
       price: 1,
+      initialSubmittedPrice: 1,
       quantity: 100,
       isLongSymbol: true,
       monitorSymbol: 'HSI.HK',
@@ -1305,6 +1541,7 @@ describe('orderMonitor business flow', () => {
       symbol: 'BULL.HK',
       side: OrderSide.Sell,
       price: 1,
+      initialSubmittedPrice: 1,
       quantity: 200,
       isLongSymbol: true,
       monitorSymbol: 'HSI.HK',
@@ -1472,6 +1709,7 @@ describe('orderMonitor business flow', () => {
       symbol: 'BULL.HK',
       side: OrderSide.Sell,
       price: 1,
+      initialSubmittedPrice: 1,
       quantity: 200,
       isLongSymbol: true,
       monitorSymbol: 'HSI.HK',
@@ -1629,6 +1867,7 @@ describe('orderMonitor business flow', () => {
       symbol: 'BULL.HK',
       side: OrderSide.Sell,
       price: 1,
+      initialSubmittedPrice: 1,
       quantity: 140,
       isLongSymbol: true,
       monitorSymbol: 'HSI.HK',
@@ -1705,6 +1944,7 @@ describe('orderMonitor business flow', () => {
         symbol: 'BULL.HK',
         side: OrderSide.Buy,
         price: 1,
+        initialSubmittedPrice: 1,
         quantity: 100,
         isLongSymbol: true,
         monitorSymbol: 'HSI.HK',
@@ -1742,6 +1982,7 @@ describe('orderMonitor business flow', () => {
       symbol: 'BULL.HK',
       side: OrderSide.Sell,
       price: 1,
+      initialSubmittedPrice: 1,
       quantity: 100,
       isLongSymbol: true,
       monitorSymbol: 'HSI.HK',
@@ -1791,6 +2032,7 @@ describe('orderMonitor business flow', () => {
         symbol: 'BULL.HK',
         side: OrderSide.Sell,
         price: 1,
+        initialSubmittedPrice: 1,
         quantity: 100,
         isLongSymbol: true,
         monitorSymbol: 'HSI.HK',
@@ -1874,6 +2116,7 @@ describe('orderMonitor business flow', () => {
         symbol: 'BULL.HK',
         side: OrderSide.Sell,
         price: 1,
+        initialSubmittedPrice: 1,
         quantity: 100,
         isLongSymbol: true,
         monitorSymbol: 'HSI.HK',
@@ -2049,6 +2292,7 @@ describe('orderMonitor business flow', () => {
       symbol: 'BULL.HK',
       side: OrderSide.Sell,
       price: 1,
+      initialSubmittedPrice: 1,
       quantity: 200,
       isLongSymbol: true,
       monitorSymbol: 'HSI.HK',
@@ -2147,6 +2391,7 @@ describe('orderMonitor business flow', () => {
       symbol: 'BULL.HK',
       side: OrderSide.Sell,
       price: 1,
+      initialSubmittedPrice: 1,
       quantity: 100,
       isLongSymbol: true,
       monitorSymbol: 'HSI.HK',
@@ -2189,6 +2434,7 @@ describe('orderMonitor business flow', () => {
       symbol: 'BULL.HK',
       side: OrderSide.Buy,
       price: 1,
+      initialSubmittedPrice: 1,
       quantity: 100,
       isLongSymbol: true,
       monitorSymbol: 'HSI.HK',
@@ -2248,6 +2494,7 @@ describe('orderMonitor business flow', () => {
       symbol: 'BULL.HK',
       side: OrderSide.Buy,
       price: 1,
+      initialSubmittedPrice: 1,
       quantity: 100,
       isLongSymbol: true,
       monitorSymbol: 'HSI.HK',

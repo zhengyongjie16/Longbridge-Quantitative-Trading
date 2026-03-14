@@ -97,6 +97,7 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
               afternoon: { enabled: true, minutes: 3 },
             },
             orderMonitorPriceUpdateInterval: 1,
+            allowBuyOrderTrackingAboveInitialPrice: true,
             tradingOrderType: 'ELO',
             liquidationOrderType: 'MO',
             buyOrderTimeout: {
