@@ -1,8 +1,9 @@
 # HttpClient
 
-Official source:
+## Source note
 
-- https://longbridge.github.io/openapi/nodejs/classes/HttpClient.html
+This file is a local distilled reference based on Longbridge OpenAPI Node.js official docs.
+For efficiency, detailed official URL lists are omitted; use this file as the primary reference.
 
 ## Position in SDK
 
@@ -38,16 +39,16 @@ class HttpClient {
 
 Creates `HttpClient` with API Key authentication.
 
-Official notes:
+Reference notes:
 
 - Reads `LONGBRIDGE_HTTP_URL` automatically.
-- Official default when `httpUrl` is omitted: `https://openapi.longbridge.com`.
+- Reference default when `httpUrl` is omitted: `https://openapi.longbridge.com`.
 
 ### `HttpClient.fromApikeyEnv()`
 
 Creates `HttpClient` from environment variables (API Key mode).
 
-Official notes:
+Reference notes:
 
 - First reads `.env` in the current directory.
 - Uses:
@@ -60,10 +61,10 @@ Official notes:
 
 Creates `HttpClient` from an `OAuth` handle.
 
-Official notes:
+Reference notes:
 
 - Reads `LONGBRIDGE_HTTP_URL` automatically.
-- Official default when `httpUrl` is omitted: `https://openapi.longbridge.com`.
+- Reference default when `httpUrl` is omitted: `https://openapi.longbridge.com`.
 
 ## `request(...)`
 
@@ -76,7 +77,7 @@ request(
 ): Promise<any>
 ```
 
-Official description: performs an HTTP request.
+Reference description: performs an HTTP request.
 
 ## Usage notes
 

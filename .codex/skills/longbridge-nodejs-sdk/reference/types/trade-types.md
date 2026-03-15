@@ -1,38 +1,5 @@
 # Trade Types
 
-Official sources:
-
-- https://longbridge.github.io/openapi/nodejs/modules.html
-- https://longbridge.github.io/openapi/nodejs/classes/AccountBalance.html
-- https://longbridge.github.io/openapi/nodejs/classes/CashFlow.html
-- https://longbridge.github.io/openapi/nodejs/classes/CashInfo.html
-- https://longbridge.github.io/openapi/nodejs/classes/EstimateMaxPurchaseQuantityResponse.html
-- https://longbridge.github.io/openapi/nodejs/classes/Execution.html
-- https://longbridge.github.io/openapi/nodejs/classes/FrozenTransactionFee.html
-- https://longbridge.github.io/openapi/nodejs/classes/FundPosition.html
-- https://longbridge.github.io/openapi/nodejs/classes/FundPositionChannel.html
-- https://longbridge.github.io/openapi/nodejs/classes/FundPositionsResponse.html
-- https://longbridge.github.io/openapi/nodejs/classes/MarginRatio.html
-- https://longbridge.github.io/openapi/nodejs/classes/Order.html
-- https://longbridge.github.io/openapi/nodejs/classes/OrderChargeDetail.html
-- https://longbridge.github.io/openapi/nodejs/classes/OrderChargeFee.html
-- https://longbridge.github.io/openapi/nodejs/classes/OrderChargeItem.html
-- https://longbridge.github.io/openapi/nodejs/classes/OrderDetail.html
-- https://longbridge.github.io/openapi/nodejs/classes/OrderHistoryDetail.html
-- https://longbridge.github.io/openapi/nodejs/classes/PushOrderChanged.html
-- https://longbridge.github.io/openapi/nodejs/classes/StockPosition.html
-- https://longbridge.github.io/openapi/nodejs/classes/StockPositionChannel.html
-- https://longbridge.github.io/openapi/nodejs/classes/StockPositionsResponse.html
-- https://longbridge.github.io/openapi/nodejs/classes/SubmitOrderResponse.html
-- https://longbridge.github.io/openapi/nodejs/interfaces/SubmitOrderOptions.html
-- https://longbridge.github.io/openapi/nodejs/interfaces/ReplaceOrderOptions.html
-- https://longbridge.github.io/openapi/nodejs/interfaces/GetTodayOrdersOptions.html
-- https://longbridge.github.io/openapi/nodejs/interfaces/GetHistoryOrdersOptions.html
-- https://longbridge.github.io/openapi/nodejs/interfaces/GetTodayExecutionsOptions.html
-- https://longbridge.github.io/openapi/nodejs/interfaces/GetHistoryExecutionsOptions.html
-- https://longbridge.github.io/openapi/nodejs/interfaces/GetCashFlowOptions.html
-- https://longbridge.github.io/openapi/nodejs/interfaces/EstimateMaxPurchaseQuantityOptions.html
-
 ## Order domain
 
 ### Order
@@ -279,36 +246,52 @@ Official sources:
 
 ### SubmitOrderOptions
 
+Always required:
+
 - `symbol: string`
 - `orderType: OrderType`
 - `side: OrderSide`
 - `submittedQuantity: Decimal`
 - `timeInForce: TimeInForceType`
+
+Usually optional:
+
 - `submittedPrice?: Decimal`
-- `triggerPrice?: Decimal`
-- `limitOffset?: Decimal`
-- `trailingAmount?: Decimal`
-- `trailingPercent?: Decimal`
-- `expireDate?: NaiveDate`
 - `outsideRth?: OutsideRTH`
 - `limitDepthLevel?: number`
 - `triggerCount?: number`
 - `monitorPrice?: Decimal`
 - `remark?: string`
 
+Conditionally required:
+
+- `triggerPrice?: Decimal` — required for `LIT` / `MIT`
+- `limitOffset?: Decimal` — required for `TSLPAMT` / `TSLPPCT`
+- `trailingAmount?: Decimal` — required for `TSLPAMT` / `TSMAMT`
+- `trailingPercent?: Decimal` — required for `TSLPPCT` / `TSMPCT`
+- `expireDate?: NaiveDate` — required when `timeInForce` is `GoodTilDate`
+
 ### ReplaceOrderOptions
+
+Always required:
 
 - `orderId: string`
 - `quantity: Decimal`
+
+Usually optional:
+
 - `price?: Decimal`
-- `triggerPrice?: Decimal`
-- `limitOffset?: Decimal`
-- `trailingAmount?: Decimal`
-- `trailingPercent?: Decimal`
 - `limitDepthLevel?: number`
 - `triggerCount?: number`
 - `monitorPrice?: Decimal`
 - `remark?: string`
+
+Conditionally required:
+
+- `triggerPrice?: Decimal` — required for `LIT` / `MIT`
+- `limitOffset?: Decimal` — required for `TSLPAMT` / `TSLPPCT`
+- `trailingAmount?: Decimal` — required for `TSLPAMT` / `TSMAMT`
+- `trailingPercent?: Decimal` — required for `TSLPPCT` / `TSMPCT`
 
 ### GetTodayOrdersOptions
 

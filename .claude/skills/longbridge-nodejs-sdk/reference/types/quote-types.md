@@ -1,25 +1,5 @@
 # Quote Types
 
-Official sources:
-
-- https://longbridge.github.io/openapi/nodejs/modules.html
-- https://longbridge.github.io/openapi/nodejs/classes/QuoteContext.html
-- https://longbridge.github.io/openapi/nodejs/classes/Brokers.html
-- https://longbridge.github.io/openapi/nodejs/classes/Depth.html
-- https://longbridge.github.io/openapi/nodejs/classes/CapitalDistribution.html
-- https://longbridge.github.io/openapi/nodejs/classes/HistoryMarketTemperatureResponse.html
-- https://longbridge.github.io/openapi/nodejs/classes/OptionQuote.html
-- https://longbridge.github.io/openapi/nodejs/classes/QuotePackageDetail.html
-- https://longbridge.github.io/openapi/nodejs/classes/MarketTemperature.html
-- https://longbridge.github.io/openapi/nodejs/classes/WatchlistGroup.html
-- https://longbridge.github.io/openapi/nodejs/classes/WatchlistSecurity.html
-- https://longbridge.github.io/openapi/nodejs/classes/TradingSessionInfo.html
-- https://longbridge.github.io/openapi/nodejs/classes/RealtimeQuote.html
-- https://longbridge.github.io/openapi/nodejs/classes/PrePostQuote.html
-- https://longbridge.github.io/openapi/nodejs/interfaces/CreateWatchlistGroup.html
-- https://longbridge.github.io/openapi/nodejs/interfaces/DeleteWatchlistGroup.html
-- https://longbridge.github.io/openapi/nodejs/interfaces/UpdateWatchlistGroup.html
-
 ## Core quote snapshots
 
 ### SecurityQuote

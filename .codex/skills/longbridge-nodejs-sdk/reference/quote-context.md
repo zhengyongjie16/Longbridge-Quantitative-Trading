@@ -1,10 +1,5 @@
 # QuoteContext
 
-Official sources:
-
-- https://longbridge.github.io/openapi/nodejs/classes/QuoteContext.html
-- https://longbridge.github.io/openapi/nodejs/modules.html
-
 ## Creation
 
 ### QuoteContext.new
@@ -46,7 +41,7 @@ Returns quote package details.
 ### setOnQuote
 
 ```ts
-setOnQuote(callback: (err: Error, event: PushQuoteEvent) => void): void
+setOnQuote(callback: (err: null | Error, event: PushQuoteEvent) => void): void
 ```
 
 Register quote push callback.
@@ -54,7 +49,7 @@ Register quote push callback.
 ### setOnDepth
 
 ```ts
-setOnDepth(callback: (err: Error, event: PushDepthEvent) => void): void
+setOnDepth(callback: (err: null | Error, event: PushDepthEvent) => void): void
 ```
 
 Register depth push callback.
@@ -62,7 +57,7 @@ Register depth push callback.
 ### setOnBrokers
 
 ```ts
-setOnBrokers(callback: (err: Error, event: PushBrokersEvent) => void): void
+setOnBrokers(callback: (err: null | Error, event: PushBrokersEvent) => void): void
 ```
 
 Register brokers push callback.
@@ -70,7 +65,7 @@ Register brokers push callback.
 ### setOnTrades
 
 ```ts
-setOnTrades(callback: (err: Error, event: PushTradesEvent) => void): void
+setOnTrades(callback: (err: null | Error, event: PushTradesEvent) => void): void
 ```
 
 Register trades push callback.
@@ -78,7 +73,7 @@ Register trades push callback.
 ### setOnCandlestick
 
 ```ts
-setOnCandlestick(callback: (err: Error, event: PushCandlestickEvent) => void): void
+setOnCandlestick(callback: (err: null | Error, event: PushCandlestickEvent) => void): void
 ```
 
 Register candlestick push callback.
@@ -186,12 +181,12 @@ Get security intraday data.
 ### securityList
 
 ```ts
-securityList(market: Market, category?: Overnight): Promise<Array<Security>>
+securityList(market: Market, category?: SecurityListCategory | undefined | null): Promise<Array<Security>>
 ```
 
 Get security list.
 
-Audit note: keep this signature exactly as shown on the official `QuoteContext` page. The docs link `category` to the `SecurityListCategory` enum via its `Overnight` anchor; interpret `Overnight` through the enums reference, not as an independent exported type.
+Typing note: the installed `longbridge` package declares `category` as `SecurityListCategory | undefined | null`. Use `SecurityListCategory.Overnight` for the overnight list.
 
 ## K-line
 
@@ -393,7 +388,7 @@ Update watchlist group.
 
 ## Realtime endpoints
 
-Official examples show `realtime*` APIs are used after corresponding subscriptions.
+Reference examples show `realtime*` APIs are used after corresponding subscriptions.
 
 ### realtimeQuote
 

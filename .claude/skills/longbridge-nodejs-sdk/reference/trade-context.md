@@ -1,18 +1,5 @@
 # TradeContext
 
-Official signature sources (唯一签名事实源):
-
-- https://longbridge.github.io/openapi/nodejs/modules.html
-- https://longbridge.github.io/openapi/nodejs/classes/TradeContext.html
-- https://longbridge.github.io/openapi/nodejs/interfaces/SubmitOrderOptions.html
-- https://longbridge.github.io/openapi/nodejs/interfaces/ReplaceOrderOptions.html
-- https://longbridge.github.io/openapi/nodejs/interfaces/GetTodayOrdersOptions.html
-- https://longbridge.github.io/openapi/nodejs/interfaces/GetHistoryOrdersOptions.html
-- https://longbridge.github.io/openapi/nodejs/interfaces/GetTodayExecutionsOptions.html
-- https://longbridge.github.io/openapi/nodejs/interfaces/GetHistoryExecutionsOptions.html
-- https://longbridge.github.io/openapi/nodejs/interfaces/GetCashFlowOptions.html
-- https://longbridge.github.io/openapi/nodejs/interfaces/EstimateMaxPurchaseQuantityOptions.html
-
 ## Setup
 
 ```typescript
@@ -23,11 +10,11 @@ TradeContext.new(config: Config): Promise<TradeContext>
 
 ```typescript
 ctx.setOnOrderChanged(
-  callback: (err: Error, event: PushOrderChanged) => void,
+  callback: (err: null | Error, event: PushOrderChanged) => void,
 ): void
 
-await ctx.subscribe(topics: Private[]): Promise<void>
-await ctx.unsubscribe(topics: Private[]): Promise<void>
+await ctx.subscribe(topics: Array<TopicType>): Promise<void>
+await ctx.unsubscribe(topics: Array<TopicType>): Promise<void>
 ```
 
 ## Order operations
@@ -42,44 +29,11 @@ await ctx.replaceOrder(opts: ReplaceOrderOptions): Promise<undefined>
 
 ### SubmitOrderOptions
 
-```typescript
-interface SubmitOrderOptions {
-  symbol: string;
-  orderType: OrderType;
-  side: OrderSide;
-  submittedQuantity: Decimal;
-  timeInForce: TimeInForceType;
-  submittedPrice?: Decimal;
-  triggerPrice?: Decimal;
-  limitOffset?: Decimal;
-  trailingAmount?: Decimal;
-  trailingPercent?: Decimal;
-  expireDate?: NaiveDate;
-  outsideRth?: OutsideRTH;
-  limitDepthLevel?: number;
-  triggerCount?: number;
-  monitorPrice?: Decimal;
-  remark?: string;
-}
-```
+See `reference/types/trade-types.md#submitorderoptions` for the full field list.
 
 ### ReplaceOrderOptions
 
-```typescript
-interface ReplaceOrderOptions {
-  orderId: string;
-  quantity: Decimal;
-  price?: Decimal;
-  triggerPrice?: Decimal;
-  limitOffset?: Decimal;
-  trailingAmount?: Decimal;
-  trailingPercent?: Decimal;
-  limitDepthLevel?: number;
-  triggerCount?: number;
-  monitorPrice?: Decimal;
-  remark?: string;
-}
-```
+See `reference/types/trade-types.md#replaceorderoptions` for the full field list.
 
 ## Order queries
 
@@ -91,28 +45,11 @@ await ctx.orderDetail(orderId: string): Promise<OrderDetail>
 
 ### GetTodayOrdersOptions
 
-```typescript
-interface GetTodayOrdersOptions {
-  symbol?: string;
-  status?: OrderStatus[];
-  side?: OrderSide;
-  market?: Market;
-  orderId?: string;
-}
-```
+See `reference/types/trade-types.md#gettodayordersoptions` for the full field list.
 
 ### GetHistoryOrdersOptions
 
-```typescript
-interface GetHistoryOrdersOptions {
-  symbol?: string;
-  status?: OrderStatus[];
-  side?: OrderSide;
-  market?: Market;
-  startAt?: Date;
-  endAt?: Date;
-}
-```
+See `reference/types/trade-types.md#gethistoryordersoptions` for the full field list.
 
 ## Execution queries
 
@@ -123,22 +60,11 @@ await ctx.historyExecutions(opts?: GetHistoryExecutionsOptions): Promise<Executi
 
 ### GetTodayExecutionsOptions
 
-```typescript
-interface GetTodayExecutionsOptions {
-  symbol?: string;
-  orderId?: string;
-}
-```
+See `reference/types/trade-types.md#gettodayexecutionsoptions` for the full field list.
 
 ### GetHistoryExecutionsOptions
 
-```typescript
-interface GetHistoryExecutionsOptions {
-  symbol?: string;
-  startAt?: Date;
-  endAt?: Date;
-}
-```
+See `reference/types/trade-types.md#gethistoryexecutionsoptions` for the full field list.
 
 ## Account / cash / positions / margin / purchase estimation
 
@@ -155,27 +81,8 @@ await ctx.estimateMaxPurchaseQuantity(
 
 ### GetCashFlowOptions
 
-```typescript
-interface GetCashFlowOptions {
-  startAt: Date;
-  endAt: Date;
-  businessType?: BalanceType;
-  symbol?: string;
-  page?: number;
-  size?: number;
-}
-```
+See `reference/types/trade-types.md#getcashflowoptions` for the full field list.
 
 ### EstimateMaxPurchaseQuantityOptions
 
-```typescript
-interface EstimateMaxPurchaseQuantityOptions {
-  symbol: string;
-  orderType: OrderType;
-  side: OrderSide;
-  price?: Decimal;
-  currency?: string;
-  orderId?: string;
-  fractionalShares: boolean;
-}
-```
+See `reference/types/trade-types.md#estimatemaxpurchasequantityoptions` for the full field list.

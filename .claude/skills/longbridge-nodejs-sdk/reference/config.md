@@ -1,12 +1,5 @@
 # Authentication & Config
 
-Official sources:
-
-- https://longbridge.github.io/openapi/nodejs/index.html#authentication
-- https://longbridge.github.io/openapi/nodejs/classes/Config.html
-- https://longbridge.github.io/openapi/nodejs/classes/OAuth.html
-- https://longbridge.github.io/openapi/nodejs/interfaces/ExtraConfigParams.html
-
 ## Authentication
 
 Longbridge OpenAPI supports two authentication methods:
@@ -36,7 +29,7 @@ class OAuth {
 
 ## Legacy API Key
 
-Official environment variables for API Key authentication:
+Reference environment variables for API Key authentication:
 
 - `LONGBRIDGE_APP_KEY`
 - `LONGBRIDGE_APP_SECRET`
@@ -54,7 +47,7 @@ You can create config from these variables via `Config.fromApikeyEnv()`.
 
 ### Other environment variables
 
-| Variable | Meaning | Default / Official values |
+| Variable | Meaning | Default / Reference values |
 | --- | --- | --- |
 | `LONGBRIDGE_LANGUAGE` | SDK language | default `en`; values `zh-CN`, `zh-HK`, `en` |
 | `LONGBRIDGE_HTTP_URL` | HTTP endpoint URL | default `https://openapi.longbridge.com` |
@@ -75,7 +68,7 @@ You can create config from these variables via `Config.fromApikeyEnv()`.
 Config.fromOAuth(oauth: OAuth, extra?: ExtraConfigParams): Config
 ```
 
-Official behavior:
+Reference behavior:
 
 - Builds `Config` from an OAuth handle.
 - Reads optional env vars automatically (`LONGBRIDGE_HTTP_URL`, `LONGBRIDGE_LANGUAGE`, `LONGBRIDGE_QUOTE_WS_URL`, `LONGBRIDGE_TRADE_WS_URL`, `LONGBRIDGE_ENABLE_OVERNIGHT`, `LONGBRIDGE_PUSH_CANDLESTICK_MODE`, `LONGBRIDGE_PRINT_QUOTE_PACKAGES`, `LONGBRIDGE_LOG_PATH`).
@@ -92,7 +85,7 @@ Config.fromApikey(
 ): Config
 ```
 
-Official behavior:
+Reference behavior:
 
 - Builds `Config` from API key credentials.
 - Reads the same optional env vars automatically.
@@ -104,7 +97,7 @@ Official behavior:
 Config.fromApikeyEnv(): Config
 ```
 
-Official behavior:
+Reference behavior:
 
 - Builds `Config` from environment variables in API key mode.
 - Reads `.env` in current directory first.
@@ -124,7 +117,7 @@ interface ExtraConfigParams {
 }
 ```
 
-Official defaults for these fields (when not overridden):
+Reference defaults for these fields (when not overridden):
 
 - `httpUrl`: `https://openapi.longbridge.com`
 - `quoteWsUrl`: `wss://openapi-quote.longbridge.com/v2`
@@ -137,7 +130,7 @@ Official defaults for these fields (when not overridden):
 
 ## Token Cache
 
-Official OAuth token cache behavior:
+Reference OAuth token cache behavior:
 
 - Cache path: `~/.longbridge-openapi/tokens/<client_id>`
 - `OAuth.build(...)` loads cached token if it exists and is still valid.

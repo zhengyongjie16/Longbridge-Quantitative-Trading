@@ -1,137 +1,50 @@
 ---
 name: longbridge-nodejs-sdk
-description: 当用户请求查询或对照 Longbridge OpenAPI Node.js SDK 官方文档时触发。
+description: Use when working with the Longbridge OpenAPI Node.js/TypeScript `longbridge` SDK or questions about `Config`, `OAuth`, `QuoteContext`, `TradeContext`, `HttpClient`, `Decimal`, enums, quote/trade types, subscriptions, candlesticks, order submission, account assets, or when the user asks to compare SDK behavior with the official documentation.
 ---
 
 # Longbridge OpenAPI SDK for Node.js
 
-- NPM package: `longbridge`
-- Official documentation: https://longbridge.github.io/openapi/nodejs/index.html
+## Overview
 
-## Quickstart
+This skill is a local-first reference for the `longbridge` NPM package. Read local `reference/*.md` first for speed and consistency. Only cross-check the official docs when the user explicitly asks for official/latest confirmation.
 
-```bash
-bun install longbridge
-```
+## When to Use
 
-```ts
-import { OAuth, Config, QuoteContext } from 'longbridge';
+Use this skill when the user:
 
-const oauth = await OAuth.build('your-client-id', (_, url) => {
-  console.log('Open this URL in your browser:', url);
-});
+- asks how to use a specific SDK API, class, enum, or type
+- asks for method signatures, required vs optional fields, return types, or a minimal example
+- asks about authentication setup, `Config.fromOAuth`, `Config.fromApikey*`, environment variables, or token cache behavior
+- asks about market data, subscriptions, candlesticks, options, warrants, order submission, executions, balances, positions, or account assets
+- wants official Longbridge SDK docs compared against the local reference
 
-const config = Config.fromOAuth(oauth);
-const quoteContext = await QuoteContext.new(config);
-const quotes = await quoteContext.quote(['700.HK']);
-console.log(quotes[0]);
-```
+Do not use this skill for repository business rules unless the question is specifically about the `longbridge` SDK API.
 
-## Documentation Map
+## Lookup Map
 
-- [Authentication / Config / OAuth / ExtraConfigParams](./reference/config.md)
-- [HttpClient](./reference/http-client.md)
-- [QuoteContext](./reference/quote-context.md)
-- [TradeContext](./reference/trade-context.md)
-- [Decimal / NaiveDate / NaiveDatetime / Time](./reference/decimal.md)
-- [Enumerations](./reference/enums.md)
-- [Quote Types](./reference/types/quote-types.md)
-- [Trade Types](./reference/types/trade-types.md)
+| Question | Read first |
+| --- | --- |
+| OAuth, API key, env vars, `Config`, token cache | `reference/config.md` |
+| `HttpClient` low-level calls | `reference/http-client.md` |
+| Quote APIs, subscriptions, candlesticks, options, warrants | `reference/quote-context.md` |
+| Orders, executions, balances, positions | `reference/trade-context.md` |
+| `Decimal`, `NaiveDate`, `NaiveDatetime`, `Time` | `reference/decimal.md` |
+| Enum meanings | `reference/enums.md` |
+| Quote data structures | `reference/types/quote-types.md` |
+| Trade data structures and option interfaces | `reference/types/trade-types.md` |
 
-## Authentication
+## Working Rules
 
-Longbridge OpenAPI supports:
+- Prefer local references before reading external docs.
+- Lead with the relevant API or type signature.
+- Separate required fields from optional fields when describing parameters.
+- Include only the smallest runnable TypeScript example that answers the user’s question.
+- Mention operational caveats when they matter, such as long-running push subscriptions, OAuth browser flow, `.env` loading, or environment variable precedence.
+- If local references do not fully settle a detail, state what is confirmed locally and mark the rest as needing official or source verification.
 
-1. OAuth 2.0 (recommended)
-2. Legacy API Key (environment variables)
+## Official Cross-Check
 
-See [reference/config.md](./reference/config.md) for official setup details.
+Only if the user explicitly asks for official/latest confirmation, use the canonical official entry:
 
-## Quote API (Get basic information of securities)
-
-```ts
-import { OAuth, Config, QuoteContext } from 'longbridge';
-
-const oauth = await OAuth.build('your-client-id', (_, url) => console.log(url));
-const config = Config.fromOAuth(oauth);
-const ctx = await QuoteContext.new(config);
-const quotes = await ctx.quote(['700.HK']);
-console.log(quotes);
-```
-
-## Quote API (Subscribe quotes)
-
-```ts
-import { OAuth, Config, QuoteContext, SubType } from 'longbridge';
-
-const oauth = await OAuth.build('your-client-id', (_, url) => console.log(url));
-const config = Config.fromOAuth(oauth);
-const ctx = await QuoteContext.new(config);
-
-ctx.setOnQuote((err, event) => {
-  if (err) {
-    console.error(err);
-    return;
-  }
-  console.log(event.symbol, event.data);
-});
-
-await ctx.subscribe(['700.HK'], [SubType.Quote]);
-```
-
-## Trade API (Submit order)
-
-```ts
-import {
-  OAuth,
-  Config,
-  TradeContext,
-  Decimal,
-  OrderType,
-  OrderSide,
-  TimeInForceType,
-} from 'longbridge';
-
-const oauth = await OAuth.build('your-client-id', (_, url) => console.log(url));
-const config = Config.fromOAuth(oauth);
-const ctx = await TradeContext.new(config);
-
-const result = await ctx.submitOrder({
-  symbol: '700.HK',
-  orderType: OrderType.LO,
-  side: OrderSide.Buy,
-  timeInForce: TimeInForceType.Day,
-  submittedQuantity: new Decimal('100'),
-  submittedPrice: new Decimal('300'),
-});
-
-console.log(result.orderId);
-```
-
-## Official Examples
-
-Official homepage examples (`examples/nodejs/`):
-
-- `account_asset.js`
-- `http_client.js`
-- `subscribe_candlesticks.js`
-- `subscribe_quote.js`
-- `submit_order.js`
-- `today_orders.js`
-
-## Troubleshooting
-
-Official troubleshooting notes:
-
-- On Windows, `setx` requires opening a new terminal; use `set` for the current `cmd.exe` session.
-- Push events require the Node process to keep running.
-- For SDK debugging logs, set `LONGBRIDGE_LOG_PATH`.
-
-## License
-
-Longbridge OpenAPI Node.js SDK is licensed under either:
-
-- Apache License, Version 2.0
-- MIT license
-
-at your option.
+`https://longbridge.github.io/openapi/nodejs/index.html`

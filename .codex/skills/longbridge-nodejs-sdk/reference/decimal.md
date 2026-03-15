@@ -1,12 +1,5 @@
 # Decimal / NaiveDate / NaiveDatetime / Time
 
-Official sources:
-
-- https://longbridge.github.io/openapi/nodejs/classes/Decimal.html
-- https://longbridge.github.io/openapi/nodejs/classes/NaiveDate.html
-- https://longbridge.github.io/openapi/nodejs/classes/NaiveDatetime.html
-- https://longbridge.github.io/openapi/nodejs/classes/Time.html
-
 ## Decimal
 
 ### Constructor
@@ -155,14 +148,16 @@ new Time(hour: number, minute: number, second: number)
 
 ```ts
 get hour(): number
-get monute(): number
-get toString(): string
+get minute(): number
+toString(): string
 toJSON(): any
 ```
+
+Typing note: the installed `longbridge` package currently exposes `get monute(): number` and `get toString(): string` in `index.d.ts`. This reference normalizes those members to `minute` and `toString()` for readability; verify against the installed package typings if exact emitted declarations matter.
 
 ### Example
 
 ```ts
 const sessionOpen = new Time(9, 30, 0);
-console.log(sessionOpen.toString);
+console.log(sessionOpen.toString());
 ```

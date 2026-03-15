@@ -1,148 +1,107 @@
 # Enumerations
 
-Official signature sources:
-
-- https://longbridge.github.io/openapi/nodejs/modules.html
-- https://longbridge.github.io/openapi/nodejs/enums/AdjustType.html
-- https://longbridge.github.io/openapi/nodejs/enums/BalanceType.html
-- https://longbridge.github.io/openapi/nodejs/enums/CalcIndex.html
-- https://longbridge.github.io/openapi/nodejs/enums/CashFlowDirection.html
-- https://longbridge.github.io/openapi/nodejs/enums/ChargeCategoryCode.html
-- https://longbridge.github.io/openapi/nodejs/enums/CommissionFreeStatus.html
-- https://longbridge.github.io/openapi/nodejs/enums/DeductionStatus.html
-- https://longbridge.github.io/openapi/nodejs/enums/DerivativeType.html
-- https://longbridge.github.io/openapi/nodejs/enums/FilterWarrantExpiryDate.html
-- https://longbridge.github.io/openapi/nodejs/enums/FilterWarrantInOutBoundsType.html
-- https://longbridge.github.io/openapi/nodejs/enums/Granularity.html
-- https://longbridge.github.io/openapi/nodejs/enums/Language.html
-- https://longbridge.github.io/openapi/nodejs/enums/Market.html
-- https://longbridge.github.io/openapi/nodejs/enums/OptionDirection.html
-- https://longbridge.github.io/openapi/nodejs/enums/OptionType.html
-- https://longbridge.github.io/openapi/nodejs/enums/OrderSide.html
-- https://longbridge.github.io/openapi/nodejs/enums/OrderStatus.html
-- https://longbridge.github.io/openapi/nodejs/enums/OrderTag.html
-- https://longbridge.github.io/openapi/nodejs/enums/OrderType.html
-- https://longbridge.github.io/openapi/nodejs/enums/OutsideRTH.html
-- https://longbridge.github.io/openapi/nodejs/enums/Period.html
-- https://longbridge.github.io/openapi/nodejs/enums/PushCandlestickMode.html
-- https://longbridge.github.io/openapi/nodejs/enums/SecuritiesUpdateMode.html
-- https://longbridge.github.io/openapi/nodejs/enums/SecurityBoard.html
-- https://longbridge.github.io/openapi/nodejs/enums/SecurityListCategory.html
-- https://longbridge.github.io/openapi/nodejs/enums/SortOrderType.html
-- https://longbridge.github.io/openapi/nodejs/enums/SubType.html
-- https://longbridge.github.io/openapi/nodejs/enums/TimeInForceType.html
-- https://longbridge.github.io/openapi/nodejs/enums/TopicType.html
-- https://longbridge.github.io/openapi/nodejs/enums/TradeDirection.html
-- https://longbridge.github.io/openapi/nodejs/enums/TradeSession.html
-- https://longbridge.github.io/openapi/nodejs/enums/TradeSessions.html
-- https://longbridge.github.io/openapi/nodejs/enums/TradeStatus.html
-- https://longbridge.github.io/openapi/nodejs/enums/TriggerStatus.html
-- https://longbridge.github.io/openapi/nodejs/enums/WarrantSortBy.html
-- https://longbridge.github.io/openapi/nodejs/enums/WarrantStatus.html
-- https://longbridge.github.io/openapi/nodejs/enums/WarrantType.html
-
 ## Quote / market / calendar
 
 ### AdjustType
 
-| Value | Member          | Official description |
-| ----- | --------------- | -------------------- |
-| 0     | `NoAdjust`      | Actual               |
-| 1     | `ForwardAdjust` | Adjust forward       |
+| Value | Member          | Description    |
+| ----- | --------------- | -------------- |
+| 0     | `NoAdjust`      | Actual         |
+| 1     | `ForwardAdjust` | Adjust forward |
 
 ### DerivativeType
 
-| Value | Member    | Official description |
-| ----- | --------- | -------------------- |
-| 0     | `Option`  | US stock options     |
-| 1     | `Warrant` | HK warrants          |
+| Value | Member    | Description      |
+| ----- | --------- | ---------------- |
+| 0     | `Option`  | US stock options |
+| 1     | `Warrant` | HK warrants      |
 
 ### Granularity
 
-| Value | Member    | Official description |
-| ----- | --------- | -------------------- |
-| 0     | `Unknown` | Unknown              |
-| 1     | `Daily`   | Daily                |
-| 2     | `Weekly`  | Weekly               |
-| 3     | `Monthly` | Monthly              |
+| Value | Member    | Description |
+| ----- | --------- | ----------- |
+| 0     | `Unknown` | Unknown     |
+| 1     | `Daily`   | Daily       |
+| 2     | `Weekly`  | Weekly      |
+| 3     | `Monthly` | Monthly     |
 
 ### Language
 
-| Value | Member  | Official description |
-| ----- | ------- | -------------------- |
-| 0     | `ZH_CN` | zh-CN                |
-| 1     | `ZH_HK` | zh-HK                |
-| 2     | `EN`    | en                   |
+| Value | Member  | Description |
+| ----- | ------- | ----------- |
+| 0     | `ZH_CN` | zh-CN       |
+| 1     | `ZH_HK` | zh-HK       |
+| 2     | `EN`    | en          |
 
 ### Market
 
-| Value | Member    | Official description |
-| ----- | --------- | -------------------- |
-| 0     | `Unknown` | Unknown              |
-| 1     | `US`      | US market            |
-| 2     | `HK`      | HK market            |
-| 3     | `CN`      | CN market            |
-| 4     | `SG`      | SG market            |
-| 5     | `Crypto`  | Crypto market        |
+| Value | Member    | Description   |
+| ----- | --------- | ------------- |
+| 0     | `Unknown` | Unknown       |
+| 1     | `US`      | US market     |
+| 2     | `HK`      | HK market     |
+| 3     | `CN`      | CN market     |
+| 4     | `SG`      | SG market     |
+| 5     | `Crypto`  | Crypto market |
 
 ### OptionDirection
 
-| Value | Member    | Official description |
-| ----- | --------- | -------------------- |
-| 0     | `Unknown` | Unknown              |
-| 1     | `Put`     | Put                  |
-| 2     | `Call`    | Call                 |
+| Value | Member    | Description |
+| ----- | --------- | ----------- |
+| 0     | `Unknown` | Unknown     |
+| 1     | `Put`     | Put         |
+| 2     | `Call`    | Call        |
 
 ### OptionType
 
-| Value | Member     | Official description |
-| ----- | ---------- | -------------------- |
-| 0     | `Unknown`  | Unknown              |
-| 1     | `American` | American             |
-| 2     | `Europe`   | Europe               |
+| Value | Member     | Description |
+| ----- | ---------- | ----------- |
+| 0     | `Unknown`  | Unknown     |
+| 1     | `American` | American    |
+| 2     | `Europe`   | Europe      |
 
 ### Period
 
-| Value | Member    | Official description |
-| ----- | --------- | -------------------- |
-| 0     | `Unknown` | Unknown              |
-| 1     | `Min_1`   | One Minute           |
-| 2     | `Min_2`   | Two Minutes          |
-| 3     | `Min_3`   | Three Minutes        |
-| 4     | `Min_5`   | Five Minutes         |
-| 5     | `Min_10`  | Ten Minutes          |
-| 6     | `Min_15`  | Fifteen Minutes      |
-| 7     | `Min_20`  | Twenty Minutes       |
-| 8     | `Min_30`  | Thirty Minutes       |
-| 9     | `Min_45`  | Forty-Five Minutes   |
-| 10    | `Min_60`  | One Hour             |
-| 11    | `Min_120` | Two Hours            |
-| 12    | `Min_180` | Three Hours          |
-| 13    | `Min_240` | Four Hours           |
-| 14    | `Day`     | Daily                |
-| 15    | `Week`    | Weekly               |
-| 16    | `Month`   | Monthly              |
-| 17    | `Quarter` | Quarterly            |
-| 18    | `Year`    | Yearly               |
+| Value | Member    | Description        |
+| ----- | --------- | ------------------ |
+| 0     | `Unknown` | Unknown            |
+| 1     | `Min_1`   | One Minute         |
+| 2     | `Min_2`   | Two Minutes        |
+| 3     | `Min_3`   | Three Minutes      |
+| 4     | `Min_5`   | Five Minutes       |
+| 5     | `Min_10`  | Ten Minutes        |
+| 6     | `Min_15`  | Fifteen Minutes    |
+| 7     | `Min_20`  | Twenty Minutes     |
+| 8     | `Min_30`  | Thirty Minutes     |
+| 9     | `Min_45`  | Forty-Five Minutes |
+| 10    | `Min_60`  | One Hour           |
+| 11    | `Min_120` | Two Hours          |
+| 12    | `Min_180` | Three Hours        |
+| 13    | `Min_240` | Four Hours         |
+| 14    | `Day`     | Daily              |
+| 15    | `Week`    | Weekly             |
+| 16    | `Month`   | Monthly            |
+| 17    | `Quarter` | Quarterly          |
+| 18    | `Year`    | Yearly             |
 
 ### PushCandlestickMode
 
-| Value | Member      | Official description |
-| ----- | ----------- | -------------------- |
-| 0     | `Realtime`  | Realtime mode        |
-| 1     | `Confirmed` | Confirmed mode       |
+| Value | Member      | Description    |
+| ----- | ----------- | -------------- |
+| 0     | `Realtime`  | Realtime mode  |
+| 1     | `Confirmed` | Confirmed mode |
 
 ### SecuritiesUpdateMode
 
-| Value | Member    | Official description |
-| ----- | --------- | -------------------- |
-| 0     | `Add`     | Add securities       |
-| 1     | `Remove`  | Remove securities    |
-| 2     | `Replace` | Replace securities   |
+| Value | Member    | Description        |
+| ----- | --------- | ------------------ |
+| 0     | `Add`     | Add securities     |
+| 1     | `Remove`  | Remove securities  |
+| 2     | `Replace` | Replace securities |
 
 ### SecurityBoard
 
-| Value | Member             | Official description                       |
+| Value | Member             | Description                                |
 | ----- | ------------------ | ------------------------------------------ |
 | 0     | `Unknown`          | Unknown                                    |
 | 1     | `USMain`           | US Main Board                              |
@@ -174,69 +133,69 @@ Official signature sources:
 
 ### SecurityListCategory
 
-| Value | Member      | Official description |
-| ----- | ----------- | -------------------- |
-| 0     | `Overnight` | Overnight            |
+| Value | Member      | Description |
+| ----- | ----------- | ----------- |
+| 0     | `Overnight` | Overnight   |
 
 ### SortOrderType
 
-| Value | Member       | Official description |
-| ----- | ------------ | -------------------- |
-| 0     | `Ascending`  | Ascending            |
-| 1     | `Descending` | Descending           |
+| Value | Member       | Description |
+| ----- | ------------ | ----------- |
+| 0     | `Ascending`  | Ascending   |
+| 1     | `Descending` | Descending  |
 
 ### SubType
 
-| Value | Member    | Official description |
-| ----- | --------- | -------------------- |
-| 0     | `Quote`   | Quote                |
-| 1     | `Depth`   | Depth                |
-| 2     | `Brokers` | Brokers              |
-| 3     | `Trade`   | Trade                |
+| Value | Member    | Description |
+| ----- | --------- | ----------- |
+| 0     | `Quote`   | Quote       |
+| 1     | `Depth`   | Depth       |
+| 2     | `Brokers` | Brokers     |
+| 3     | `Trade`   | Trade       |
 
 ### TradeDirection
 
-| Value | Member    | Official description |
-| ----- | --------- | -------------------- |
-| 0     | `Neutral` | Neutral              |
-| 1     | `Down`    | Down                 |
-| 2     | `Up`      | Up                   |
+| Value | Member    | Description |
+| ----- | --------- | ----------- |
+| 0     | `Neutral` | Neutral     |
+| 1     | `Down`    | Down        |
+| 2     | `Up`      | Up          |
 
 ### TradeSession
 
-| Value | Member      | Official description |
-| ----- | ----------- | -------------------- |
-| 0     | `Intraday`  | Intraday             |
-| 1     | `Pre`       | Pre-Market           |
-| 2     | `Post`      | Post-Market          |
-| 3     | `Overnight` | Overnight            |
+| Value | Member      | Description |
+| ----- | ----------- | ----------- |
+| 0     | `Intraday`  | Intraday    |
+| 1     | `Pre`       | Pre-Market  |
+| 2     | `Post`      | Post-Market |
+| 3     | `Overnight` | Overnight   |
 
 ### TradeSessions
 
-| Value | Member     | Official description |
-| ----- | ---------- | -------------------- |
-| 0     | `Intraday` | Intraday             |
-| 1     | `All`      | All                  |
+| Value | Member     | Description |
+| ----- | ---------- | ----------- |
+| 0     | `Intraday` | Intraday    |
+| 1     | `All`      | All         |
 
 ### TradeStatus
 
-| Value | Member               | Official description |
-| ----- | -------------------- | -------------------- |
-| 0     | `Normal`             | Normal               |
-| 1     | `Halted`             | Suspension           |
-| 2     | `Delisted`           | Delisted             |
-| 3     | `Fuse`               | Fuse                 |
-| 4     | `PrepareList`        | Prepare List         |
-| 5     | `CodeMoved`          | Code Moved           |
-| 6     | `ToBeOpened`         | To Be Opened         |
-| 7     | `SplitStockHalts`    | Split Stock Halts    |
-| 8     | `Expired`            | Expired              |
-| 9     | `WarrantPrepareList` | Warrant To BeListed  |
-| 10    | `Suspend`            | Warrant To BeListed  |
+| Value | Member               | Description         |
+| ----- | -------------------- | ------------------- |
+| 0     | `Normal`             | Normal              |
+| 1     | `Halted`             | Suspension          |
+| 2     | `Delisted`           | Delisted            |
+| 3     | `Fuse`               | Fuse                |
+| 4     | `PrepareList`        | Prepare List        |
+| 5     | `CodeMoved`          | Code Moved          |
+| 6     | `ToBeOpened`         | To Be Opened        |
+| 7     | `SplitStockHalts`    | Split Stock Halts   |
+| 8     | `Expired`            | Expired             |
+| 9     | `WarrantPrepareList` | Warrant To BeListed |
+| 10    | `Suspend`            | Warrant To BeListed |
 
 ### WarrantSortBy
 
-| Value | Member                | Official description               |
+| Value | Member                | Description                        |
 | ----- | --------------------- | ---------------------------------- |
 | 0     | `LastDone`            | Last done                          |
 | 1     | `ChangeRate`          | Change rate                        |
@@ -263,53 +222,53 @@ Official signature sources:
 
 ### WarrantStatus
 
-| Value | Member        | Official description |
-| ----- | ------------- | -------------------- |
-| 0     | `Suspend`     | Suspend              |
-| 1     | `PrepareList` | Prepare List         |
-| 2     | `Normal`      | Normal               |
+| Value | Member        | Description  |
+| ----- | ------------- | ------------ |
+| 0     | `Suspend`     | Suspend      |
+| 1     | `PrepareList` | Prepare List |
+| 2     | `Normal`      | Normal       |
 
 ### WarrantType
 
-| Value | Member    | Official description |
-| ----- | --------- | -------------------- |
-| 0     | `Unknown` | Unknown              |
-| 1     | `Call`    | Call                 |
-| 2     | `Put`     | Put                  |
-| 3     | `Bull`    | Bull                 |
-| 4     | `Bear`    | Bear                 |
-| 5     | `Inline`  | Inline               |
+| Value | Member    | Description |
+| ----- | --------- | ----------- |
+| 0     | `Unknown` | Unknown     |
+| 1     | `Call`    | Call        |
+| 2     | `Put`     | Put         |
+| 3     | `Bull`    | Bull        |
+| 4     | `Bear`    | Bear        |
+| 5     | `Inline`  | Inline      |
 
 ## Trade / order / account
 
 ### BalanceType
 
-| Value | Member    | Official description |
-| ----- | --------- | -------------------- |
-| 0     | `Unknown` | Unknown              |
-| 1     | `Cash`    | Cash                 |
-| 2     | `Stock`   | Stock                |
-| 3     | `Fund`    | Fund                 |
+| Value | Member    | Description |
+| ----- | --------- | ----------- |
+| 0     | `Unknown` | Unknown     |
+| 1     | `Cash`    | Cash        |
+| 2     | `Stock`   | Stock       |
+| 3     | `Fund`    | Fund        |
 
 ### CashFlowDirection
 
-| Value | Member    | Official description |
-| ----- | --------- | -------------------- |
-| 0     | `Unknown` | Unknown              |
-| 1     | `Out`     | Out                  |
-| 2     | `In`      | In                   |
+| Value | Member    | Description |
+| ----- | --------- | ----------- |
+| 0     | `Unknown` | Unknown     |
+| 1     | `Out`     | Out         |
+| 2     | `In`      | In          |
 
 ### ChargeCategoryCode
 
-| Value | Member    | Official description |
-| ----- | --------- | -------------------- |
-| 0     | `Unknown` | Unknown              |
-| 1     | `Broker`  | Broker               |
-| 2     | `Third`   | Third                |
+| Value | Member    | Description |
+| ----- | --------- | ----------- |
+| 0     | `Unknown` | Unknown     |
+| 1     | `Broker`  | Broker      |
+| 2     | `Third`   | Third       |
 
 ### CommissionFreeStatus
 
-| Value | Member       | Official description                    |
+| Value | Member       | Description                             |
 | ----- | ------------ | --------------------------------------- |
 | 0     | `Unknown`    | Unknown                                 |
 | 1     | `None`       | None                                    |
@@ -319,7 +278,7 @@ Official signature sources:
 
 ### DeductionStatus
 
-| Value | Member    | Official description             |
+| Value | Member    | Description                      |
 | ----- | --------- | -------------------------------- |
 | 0     | `Unknown` | Unknown                          |
 | 1     | `None`    | Pending Settlement               |
@@ -329,15 +288,15 @@ Official signature sources:
 
 ### OrderSide
 
-| Value | Member    | Official description |
-| ----- | --------- | -------------------- |
-| 0     | `Unknown` | Unknown              |
-| 1     | `Buy`     | Buy                  |
-| 2     | `Sell`    | Sell                 |
+| Value | Member    | Description |
+| ----- | --------- | ----------- |
+| 0     | `Unknown` | Unknown     |
+| 1     | `Buy`     | Buy         |
+| 2     | `Sell`    | Sell        |
 
 ### OrderStatus
 
-| Value | Member                 | Official description             |
+| Value | Member                 | Description                      |
 | ----- | ---------------------- | -------------------------------- |
 | 0     | `Unknown`              | Unknown                          |
 | 1     | `NotReported`          | Not reported                     |
@@ -360,7 +319,7 @@ Official signature sources:
 
 ### OrderTag
 
-| Value | Member         | Official description      |
+| Value | Member         | Description               |
 | ----- | -------------- | ------------------------- |
 | 0     | `Unknown`      | Unknown                   |
 | 1     | `Normal`       | Normal Order              |
@@ -375,7 +334,7 @@ Official signature sources:
 
 ### OrderType
 
-| Value | Member    | Official description                          |
+| Value | Member    | Description                                   |
 | ----- | --------- | --------------------------------------------- |
 | 0     | `Unknown` | Unknown                                       |
 | 1     | `LO`      | Limit Order                                   |
@@ -394,7 +353,7 @@ Official signature sources:
 
 ### OutsideRTH
 
-| Value | Member      | Official description      |
+| Value | Member      | Description               |
 | ----- | ----------- | ------------------------- |
 | 0     | `Unknown`   | Unknown                   |
 | 1     | `RTHOnly`   | Regular trading hour only |
@@ -403,7 +362,7 @@ Official signature sources:
 
 ### TimeInForceType
 
-| Value | Member            | Official description    |
+| Value | Member            | Description             |
 | ----- | ----------------- | ----------------------- |
 | 0     | `Unknown`         | Unknown                 |
 | 1     | `Day`             | Day Order               |
@@ -412,24 +371,24 @@ Official signature sources:
 
 ### TopicType
 
-| Value | Member    | Official description           |
+| Value | Member    | Description                    |
 | ----- | --------- | ------------------------------ |
 | 0     | `Private` | Private notification for trade |
 
 ### TriggerStatus
 
-| Value | Member     | Official description |
-| ----- | ---------- | -------------------- |
-| 0     | `Unknown`  | Unknown              |
-| 1     | `Deactive` | Deactive             |
-| 2     | `Active`   | Active               |
-| 3     | `Released` | Released             |
+| Value | Member     | Description |
+| ----- | ---------- | ----------- |
+| 0     | `Unknown`  | Unknown     |
+| 1     | `Deactive` | Deactive    |
+| 2     | `Active`   | Active      |
+| 3     | `Released` | Released    |
 
 ## Calculated indexes
 
 ### CalcIndex
 
-| Value | Member                  | Official description               |
+| Value | Member                  | Description                        |
 | ----- | ----------------------- | ---------------------------------- |
 | 0     | `LastDone`              | Latest price                       |
 | 1     | `ChangeValue`           | Change value                       |
@@ -476,7 +435,7 @@ Official signature sources:
 
 ### FilterWarrantExpiryDate
 
-| Value | Member         | Official description   |
+| Value | Member         | Description            |
 | ----- | -------------- | ---------------------- |
 | 0     | `LT_3`         | Less than 3 months     |
 | 1     | `Between_3_6`  | 3 - 6 months           |
@@ -485,10 +444,10 @@ Official signature sources:
 
 ### FilterWarrantInOutBoundsType
 
-| Value | Member | Official description |
-| ----- | ------ | -------------------- |
-| 0     | `In`   | In bounds            |
-| 1     | `Out`  | Out bounds           |
+| Value | Member | Description |
+| ----- | ------ | ----------- |
+| 0     | `In`   | In bounds   |
+| 1     | `Out`  | Out bounds  |
 
 ## Audit note
 
