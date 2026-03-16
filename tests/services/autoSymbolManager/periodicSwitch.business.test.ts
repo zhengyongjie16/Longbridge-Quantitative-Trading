@@ -17,7 +17,11 @@ import { calculateTradingDurationMsBetween, getHKDateKey } from '../../../src/ut
 import { signalObjectPool } from '../../../src/utils/objectPool/index.js';
 import { PENDING_ORDER_STATUSES } from '../../../src/constants/index.js';
 import type { Quote } from '../../../src/types/quote.js';
-import type { SwitchState } from '../../../src/services/autoSymbolManager/types.js';
+import type { Logger } from '../../../src/utils/logger/types.js';
+import type {
+  PeriodicSwitchPendingState,
+  SwitchState,
+} from '../../../src/services/autoSymbolManager/types.js';
 import {
   createWarrantDistanceInfoDouble,
   createMonitorConfigDouble,
@@ -66,16 +70,20 @@ type HarnessParams = {
     { readonly isTradingDay: boolean; readonly isHalfDay: boolean }
   >;
   readonly getBuyOrdersCount?: () => number;
+  readonly getOrderHoldSymbols?: () => ReadonlySet<string>;
+  readonly findBestWarrantHook?: () => void;
   readonly executeSignalsHook?: () => void;
+  readonly logger?: Logger;
 };
 function createPeriodicHarness(params: HarnessParams): {
   machine: ReturnType<typeof createSwitchStateMachine>;
   symbolRegistry: ReturnType<typeof createSymbolRegistryDouble>;
   seatStateManager: ReturnType<typeof createSeatStateManager>;
-  periodicSwitchPending: Map<'LONG' | 'SHORT', { pending: boolean; pendingSinceMs: number | null }>;
+  periodicSwitchPending: Map<'LONG' | 'SHORT', PeriodicSwitchPendingState>;
   setNowMs: (nextNowMs: number) => void;
 } {
   let currentNowMs = params.nowMs;
+  const testLogger = params.logger ?? createLoggerStub();
   const monitorConfig = createMonitorConfigDouble({
     autoSearchConfig: {
       ...getDefaultAutoSearchConfig(),
@@ -104,7 +112,7 @@ function createPeriodicHarness(params: HarnessParams): {
     switchStates,
     switchSuppressions,
     now: () => new Date(currentNowMs),
-    logger: createLoggerStub(),
+    logger: testLogger,
     getHKDateKey,
   });
   const signalBuilder = createSignalBuilder({ signalObjectPool });
@@ -114,6 +122,7 @@ function createPeriodicHarness(params: HarnessParams): {
       return { submittedCount: 1, submittedOrderIds: [] };
     },
     getPendingOrders: async () => [],
+    getOrderHoldSymbols: () => params.getOrderHoldSymbols?.() ?? new Set<string>(),
   });
   const orderRecorder = createOrderRecorderDouble({
     getBuyOrdersForSymbol: () => {
@@ -156,14 +165,17 @@ function createPeriodicHarness(params: HarnessParams): {
     updateSeatState: seatStateManager.updateSeatState,
     resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
     buildFindBestWarrantInput: async () => createFindBestWarrantInputDouble(),
-    findBestWarrant: async () => createWarrantCandidate(params.findBestSymbol),
+    findBestWarrant: async () => {
+      params.findBestWarrantHook?.();
+      return createWarrantCandidate(params.findBestSymbol);
+    },
     resolveDirectionSymbols,
     calculateBuyQuantityByNotional,
     buildOrderSignal: signalBuilder.buildOrderSignal,
     signalObjectPool,
     pendingOrderStatuses: PENDING_ORDER_STATUSES,
     buySide: OrderSide.Buy,
-    logger: createLoggerStub(),
+    logger: testLogger,
     maxSearchFailuresPerDay: 3,
     getHKDateKey,
     calculateTradingDurationMsBetween,
@@ -249,6 +261,202 @@ describe('periodic auto-switch regression', () => {
     });
     expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('SWITCHING');
     expect(harness.machine.hasPendingSwitch('LONG')).toBeTrue();
+  });
+
+  it('case3-1: periodic trigger enters pending when local pending order exists without buy orders', async () => {
+    const readyMs = Date.parse('2026-02-16T01:00:00.000Z');
+    const nowMs = Date.parse('2026-02-16T01:31:00.000Z');
+    const harness = createPeriodicHarness({
+      switchIntervalMinutes: 1,
+      nowMs,
+      lastSeatReadyAt: readyMs,
+      findBestSymbol: 'NEW_BULL.HK',
+      getOrderHoldSymbols: () => new Set(['OLD_BULL.HK']),
+    });
+    await harness.machine.maybeSwitchOnInterval({
+      direction: 'LONG',
+      currentTime: new Date(nowMs),
+      canTradeNow: true,
+      openProtectionActive: false,
+    });
+    const seat = harness.symbolRegistry.getSeatState('HSI.HK', 'LONG');
+    expect(seat.status).toBe('READY');
+    expect(seat.symbol).toBe('OLD_BULL.HK');
+    expect(harness.machine.hasPendingSwitch('LONG')).toBeFalse();
+    expect(harness.periodicSwitchPending.get('LONG')?.pending).toBeTrue();
+  });
+
+  it('case3-2: periodic trigger keeps pending when block source changes from order recorder to local pending order', async () => {
+    const readyMs = Date.parse('2026-02-16T01:00:00.000Z');
+    const nowMs = Date.parse('2026-02-16T01:31:00.000Z');
+    let buyOrdersCount = 1;
+    let holdSymbols = new Set<string>();
+    const harness = createPeriodicHarness({
+      switchIntervalMinutes: 1,
+      nowMs,
+      lastSeatReadyAt: readyMs,
+      findBestSymbol: 'NEW_BULL.HK',
+      getBuyOrdersCount: () => buyOrdersCount,
+      getOrderHoldSymbols: () => holdSymbols,
+    });
+    await harness.machine.maybeSwitchOnInterval({
+      direction: 'LONG',
+      currentTime: new Date(nowMs),
+      canTradeNow: true,
+      openProtectionActive: false,
+    });
+    expect(harness.periodicSwitchPending.get('LONG')?.pending).toBeTrue();
+    buyOrdersCount = 0;
+    holdSymbols = new Set(['OLD_BULL.HK']);
+    await harness.machine.maybeSwitchOnInterval({
+      direction: 'LONG',
+      currentTime: new Date(nowMs + 1000),
+      canTradeNow: true,
+      openProtectionActive: false,
+    });
+    const seat = harness.symbolRegistry.getSeatState('HSI.HK', 'LONG');
+    expect(seat.status).toBe('READY');
+    expect(seat.symbol).toBe('OLD_BULL.HK');
+    expect(harness.machine.hasPendingSwitch('LONG')).toBeFalse();
+    expect(harness.periodicSwitchPending.get('LONG')?.pending).toBeTrue();
+  });
+
+  it('case3-3: periodic trigger keeps waiting during sell exit when order recorder is empty but local pending sell remains', async () => {
+    const readyMs = Date.parse('2026-02-16T01:00:00.000Z');
+    const nowMs = Date.parse('2026-02-16T01:31:00.000Z');
+    const harness = createPeriodicHarness({
+      switchIntervalMinutes: 1,
+      nowMs,
+      lastSeatReadyAt: readyMs,
+      findBestSymbol: 'NEW_BULL.HK',
+      getBuyOrdersCount: () => 0,
+      getOrderHoldSymbols: () => new Set(['OLD_BULL.HK']),
+    });
+    harness.periodicSwitchPending.set('LONG', {
+      pending: true,
+      pendingSinceMs: nowMs - 5000,
+      blockedBy: 'ORDER_RECORDER',
+    });
+
+    await harness.machine.maybeSwitchOnInterval({
+      direction: 'LONG',
+      currentTime: new Date(nowMs),
+      canTradeNow: true,
+      openProtectionActive: false,
+    });
+    const seat = harness.symbolRegistry.getSeatState('HSI.HK', 'LONG');
+    expect(seat.status).toBe('READY');
+    expect(seat.symbol).toBe('OLD_BULL.HK');
+    expect(harness.machine.hasPendingSwitch('LONG')).toBeFalse();
+    expect(harness.periodicSwitchPending.get('LONG')?.pending).toBeTrue();
+  });
+
+  it('case3-4: periodic trigger starts switch only after local pending order is cleared', async () => {
+    const readyMs = Date.parse('2026-02-16T01:00:00.000Z');
+    const nowMs = Date.parse('2026-02-16T01:31:00.000Z');
+    let holdSymbols = new Set(['OLD_BULL.HK']);
+    const harness = createPeriodicHarness({
+      switchIntervalMinutes: 1,
+      nowMs,
+      lastSeatReadyAt: readyMs,
+      findBestSymbol: 'NEW_BULL.HK',
+      getOrderHoldSymbols: () => holdSymbols,
+    });
+    await harness.machine.maybeSwitchOnInterval({
+      direction: 'LONG',
+      currentTime: new Date(nowMs),
+      canTradeNow: true,
+      openProtectionActive: false,
+    });
+    expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('READY');
+    expect(harness.periodicSwitchPending.get('LONG')?.blockedBy).toBe('LOCAL_PENDING_ORDER');
+
+    holdSymbols = new Set<string>();
+    await harness.machine.maybeSwitchOnInterval({
+      direction: 'LONG',
+      currentTime: new Date(nowMs + 1000),
+      canTradeNow: true,
+      openProtectionActive: false,
+    });
+    expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('SWITCHING');
+    expect(harness.machine.hasPendingSwitch('LONG')).toBeTrue();
+  });
+
+  it('case3-5: periodic pending logs when block source changes from order recorder to local pending order', async () => {
+    const readyMs = Date.parse('2026-02-16T01:00:00.000Z');
+    const nowMs = Date.parse('2026-02-16T01:31:00.000Z');
+    let buyOrdersCount = 1;
+    let holdSymbols = new Set<string>();
+    const warnMessages: string[] = [];
+    const logger: Logger = {
+      debug: () => {},
+      info: () => {},
+      warn: (msg: string) => {
+        warnMessages.push(msg);
+      },
+      error: () => {},
+    };
+    const harness = createPeriodicHarness({
+      switchIntervalMinutes: 1,
+      nowMs,
+      lastSeatReadyAt: readyMs,
+      findBestSymbol: 'NEW_BULL.HK',
+      getBuyOrdersCount: () => buyOrdersCount,
+      getOrderHoldSymbols: () => holdSymbols,
+      logger,
+    });
+    await harness.machine.maybeSwitchOnInterval({
+      direction: 'LONG',
+      currentTime: new Date(nowMs),
+      canTradeNow: true,
+      openProtectionActive: false,
+    });
+    buyOrdersCount = 0;
+    holdSymbols = new Set(['OLD_BULL.HK']);
+    await harness.machine.maybeSwitchOnInterval({
+      direction: 'LONG',
+      currentTime: new Date(nowMs + 1000),
+      canTradeNow: true,
+      openProtectionActive: false,
+    });
+    expect(harness.periodicSwitchPending.get('LONG')?.blockedBy).toBe('LOCAL_PENDING_ORDER');
+    expect(
+      warnMessages.some((message) => message.includes('blockedBy=LOCAL_PENDING_ORDER')),
+    ).toBeTrue();
+  });
+
+  it('case3-6: periodic switch rechecks local pending before clearSeat after async candidate lookup', async () => {
+    const readyMs = Date.parse('2026-02-16T01:00:00.000Z');
+    const nowMs = Date.parse('2026-02-16T01:31:00.000Z');
+    let holdSymbols = new Set<string>();
+    let findBestWarrantCallCount = 0;
+    const harness = createPeriodicHarness({
+      switchIntervalMinutes: 1,
+      nowMs,
+      lastSeatReadyAt: readyMs,
+      findBestSymbol: 'NEW_BULL.HK',
+      getOrderHoldSymbols: () => holdSymbols,
+      findBestWarrantHook: () => {
+        findBestWarrantCallCount += 1;
+        if (findBestWarrantCallCount === 1) {
+          holdSymbols = new Set(['OLD_BULL.HK']);
+        }
+      },
+    });
+
+    await harness.machine.maybeSwitchOnInterval({
+      direction: 'LONG',
+      currentTime: new Date(nowMs),
+      canTradeNow: true,
+      openProtectionActive: false,
+    });
+
+    const seat = harness.symbolRegistry.getSeatState('HSI.HK', 'LONG');
+    expect(seat.status).toBe('READY');
+    expect(seat.symbol).toBe('OLD_BULL.HK');
+    expect(harness.machine.hasPendingSwitch('LONG')).toBeFalse();
+    expect(harness.periodicSwitchPending.get('LONG')?.pending).toBeTrue();
+    expect(harness.periodicSwitchPending.get('LONG')?.blockedBy).toBe('LOCAL_PENDING_ORDER');
   });
 
   it('case4: distance switch takes priority while periodic pending', async () => {

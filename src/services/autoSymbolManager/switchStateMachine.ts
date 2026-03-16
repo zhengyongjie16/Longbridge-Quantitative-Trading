@@ -14,6 +14,9 @@ import type { PendingOrder } from '../../types/services.js';
 import type { CancelOrderOutcome } from '../../types/trader.js';
 import { isCancelAcceptedOrTerminalNonFilledClose } from '../../core/trader/utils.js';
 import type {
+  PeriodicSeatBlockSource,
+  PeriodicSeatBlockingReason,
+  PeriodicSwitchPendingState,
   StartSwitchFlowParams,
   SwitchOnDistanceParams,
   SwitchOnIntervalParams,
@@ -111,6 +114,29 @@ function hasOpenBuyExposure(params: {
 }
 
 /**
+ * 统一判定周期换标是否仍被本地席位占用阻塞。
+ * 周期换标只关心当前席位标的是否仍有未平仓买单记录，或仍有任意本地 pending order 链路。
+ */
+function resolvePeriodicSeatBlockSource(params: {
+  readonly orderRecorder: SwitchStateMachineDeps['orderRecorder'];
+  readonly trader: SwitchStateMachineDeps['trader'];
+  readonly symbol: string;
+  readonly direction: 'LONG' | 'SHORT';
+}): PeriodicSeatBlockSource {
+  const { orderRecorder, trader, symbol, direction } = params;
+  const buyOrders = orderRecorder.getBuyOrdersForSymbol(symbol, direction === 'LONG');
+  if (buyOrders.length > 0) {
+    return 'ORDER_RECORDER';
+  }
+
+  if (trader.getOrderHoldSymbols().has(symbol)) {
+    return 'LOCAL_PENDING_ORDER';
+  }
+
+  return 'EMPTY';
+}
+
+/**
  * 创建换标状态机，管理从撤单到回补买入的完整换标流程，并提供周期换标触发能力。
  * @param deps - 依赖（trader、orderRecorder、riskChecker、switchStates、buildOrderSignal、signalObjectPool 等）
  * @returns SwitchStateMachine 实例（maybeSwitchOnInterval、maybeSwitchOnDistance、hasPendingSwitch）
@@ -160,18 +186,20 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
   }
 
   /** 标记某方向已进入周期换标 pending（等待空仓）。 */
-  function markPeriodicPending(direction: 'LONG' | 'SHORT', pendingSinceMs: number): void {
+  function markPeriodicPending(
+    direction: 'LONG' | 'SHORT',
+    pendingSinceMs: number,
+    blockedBy: PeriodicSeatBlockingReason,
+  ): void {
     periodicSwitchPending.set(direction, {
       pending: true,
       pendingSinceMs,
+      blockedBy,
     });
   }
 
   /** 读取某方向的周期换标 pending 状态。 */
-  function resolvePeriodicPending(direction: 'LONG' | 'SHORT'): {
-    pending: boolean;
-    pendingSinceMs: number | null;
-  } {
+  function resolvePeriodicPending(direction: 'LONG' | 'SHORT'): PeriodicSwitchPendingState {
     const state = periodicSwitchPending.get(direction);
     if (!state) {
       return {
@@ -261,8 +289,30 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     }
 
     const next = await findSwitchCandidate(direction);
-    if (next?.symbol === seatSymbol) {
-      markSuppression(direction, seatSymbol);
+    const latestSeatState = symbolRegistry.getSeatState(monitorSymbol, direction);
+    if (!isReadySeat(latestSeatState)) {
+      clearPeriodicPending(direction);
+      return;
+    }
+
+    if (switchMode === 'PERIODIC') {
+      const periodicBlockSource = resolvePeriodicSeatBlockSource({
+        orderRecorder,
+        trader,
+        symbol: latestSeatState.symbol,
+        direction,
+      });
+      if (periodicBlockSource !== 'EMPTY') {
+        markPeriodicPending(direction, now().getTime(), periodicBlockSource);
+        logger.warn(
+          `[自动换标] ${monitorSymbol} ${direction} 周期换标触发前复核发现本地占用，继续等待 blockedBy=${periodicBlockSource}`,
+        );
+        return;
+      }
+    }
+
+    if (next?.symbol === latestSeatState.symbol) {
+      markSuppression(direction, latestSeatState.symbol);
       logger.info(`[自动换标] ${monitorSymbol} ${direction} 预寻标命中同标的，记录当日抑制`);
       return;
     }
@@ -609,7 +659,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
 
   /**
    * 每 tick 检查是否满足周期换标触发条件。
-   * 到期后若仍有持仓，则进入 pending 等待空仓；空仓后触发周期换标流程。
+   * 到期后若当前席位标的仍被本地订单链路占用，则进入 pending 等待；仅当本地未平仓买单记录与本地 pending order 都清空后才触发周期换标。
    */
   async function maybeSwitchOnInterval({
     direction,
@@ -650,15 +700,28 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
         return;
       }
 
-      const pendingBuyOrders = orderRecorder.getBuyOrdersForSymbol(
-        seatState.symbol,
-        direction === 'LONG',
-      );
-      if (pendingBuyOrders.length > 0) {
+      const blockSource = resolvePeriodicSeatBlockSource({
+        orderRecorder,
+        trader,
+        symbol: seatState.symbol,
+        direction,
+      });
+      if (blockSource !== 'EMPTY') {
+        if (pendingStateAfterReset.blockedBy !== blockSource) {
+          logger.warn(
+            `[自动换标] ${monitorSymbol} ${direction} 周期换标继续等待，blockedBy=${blockSource}`,
+          );
+        }
+
+        markPeriodicPending(
+          direction,
+          pendingStateAfterReset.pendingSinceMs ?? currentTime.getTime(),
+          blockSource,
+        );
         return;
       }
 
-      logger.info(`[自动换标] ${monitorSymbol} ${direction} 周期换标等待结束，检测到空仓开始换标`);
+      logger.info(`[自动换标] ${monitorSymbol} ${direction} 周期换标等待结束，检测到本地空仓开始换标`);
       clearPeriodicPending(direction);
       await startSwitchFlow({
         direction,
@@ -688,13 +751,18 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
       return;
     }
 
-    const buyOrders = orderRecorder.getBuyOrdersForSymbol(seatState.symbol, direction === 'LONG');
-    if (buyOrders.length > 0) {
+    const blockSource = resolvePeriodicSeatBlockSource({
+      orderRecorder,
+      trader,
+      symbol: seatState.symbol,
+      direction,
+    });
+    if (blockSource !== 'EMPTY') {
       const pendingState = resolvePeriodicPending(direction);
-      if (!pendingState.pending) {
-        markPeriodicPending(direction, currentTime.getTime());
+      if (!pendingState.pending || pendingState.blockedBy !== blockSource) {
+        markPeriodicPending(direction, currentTime.getTime(), blockSource);
         logger.warn(
-          `[自动换标] ${monitorSymbol} ${direction} 周期换标到期但仍有持仓，进入等待空仓状态`,
+          `[自动换标] ${monitorSymbol} ${direction} 周期换标到期但本地仍被占用，进入等待空仓状态 blockedBy=${blockSource}`,
         );
       }
 
@@ -703,7 +771,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
 
     const pendingState = resolvePeriodicPending(direction);
     if (pendingState.pending) {
-      logger.info(`[自动换标] ${monitorSymbol} ${direction} 周期换标等待结束，检测到空仓开始换标`);
+      logger.info(`[自动换标] ${monitorSymbol} ${direction} 周期换标等待结束，检测到本地空仓开始换标`);
     }
 
     clearPeriodicPending(direction);

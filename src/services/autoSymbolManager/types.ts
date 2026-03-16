@@ -126,14 +126,31 @@ export type SwitchState = {
 };
 
 /**
+ * 周期换标本地阻塞来源。
+ * 类型用途：表达当前席位为何仍不能执行周期换标；EMPTY 表示本地已满足换标条件。
+ * 数据来源：由周期换标入口基于 orderRecorder 与 trader.getOrderHoldSymbols() 联合判定。
+ * 使用范围：仅 autoSymbolManager 模块内部使用。
+ */
+export type PeriodicSeatBlockSource = 'ORDER_RECORDER' | 'LOCAL_PENDING_ORDER' | 'EMPTY';
+
+/**
+ * 周期换标阻塞来源（有效阻塞值）。
+ * 类型用途：用于表达会阻断周期换标的本地占用来源，不包含 EMPTY。
+ * 数据来源：由 resolvePeriodicSeatBlockSource 判定后收窄得到。
+ * 使用范围：仅 autoSymbolManager 模块内部使用。
+ */
+export type PeriodicSeatBlockingReason = Exclude<PeriodicSeatBlockSource, 'EMPTY'>;
+
+/**
  * 周期换标等待状态。
- * 类型用途：记录周期到期后等待空仓触发换标的状态。
+ * 类型用途：记录周期到期后等待空仓触发换标的状态与最近一次本地阻塞来源。
  * 使用范围：仅 autoSymbolManager 模块内部使用。
  * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
  */
 export type PeriodicSwitchPendingState = {
-  pending: boolean;
-  pendingSinceMs: number | null;
+  readonly pending: boolean;
+  readonly pendingSinceMs: number | null;
+  readonly blockedBy?: PeriodicSeatBlockingReason;
 };
 
 /**

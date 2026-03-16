@@ -250,6 +250,310 @@ describe('periodic auto-symbol full chain integration', () => {
     }
   });
 
+  it('does not clear seat when local pending buy order exists before order recorder is written', async () => {
+    const readyMs = Date.parse('2026-02-16T01:30:00.000Z');
+    const currentNowMs = Date.parse('2026-02-16T01:31:00.000Z');
+    candidateQueue = [createWarrantCandidateWithOverrides('NEW_BULL.HK', { callPrice: 21_000 })];
+    const tradingCalendarSnapshot = new Map([
+      ['2026-02-16', { isTradingDay: true, isHalfDay: false }],
+    ]);
+
+    const monitorConfig = createMonitorConfigDouble({
+      monitorSymbol: 'HSI.HK',
+      autoSearchConfig: {
+        autoSearchEnabled: true,
+        autoSearchMinDistancePctBull: 0.35,
+        autoSearchMinDistancePctBear: -0.35,
+        autoSearchMinTurnoverPerMinuteBull: 100_000,
+        autoSearchMinTurnoverPerMinuteBear: 100_000,
+        autoSearchExpiryMinMonths: 3,
+        autoSearchOpenDelayMinutes: 0,
+        switchIntervalMinutes: 1,
+        switchDistanceRangeBull: { min: 0.2, max: 1.5 },
+        switchDistanceRangeBear: { min: -1.5, max: -0.2 },
+      },
+    });
+
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: monitorConfig.monitorSymbol,
+      longSeat: {
+        symbol: 'OLD_BULL.HK',
+        status: 'READY',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatReadyAt: readyMs,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      shortSeat: {
+        symbol: null,
+        status: 'EMPTY',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatReadyAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      longVersion: 1,
+      shortVersion: 1,
+    });
+
+    const trader = createTraderDouble({
+      getPendingOrders: async () => [],
+      getOrderHoldSymbols: () => new Set(['OLD_BULL.HK']),
+      cancelOrder: async () => ({
+        kind: 'CANCEL_CONFIRMED',
+        closedReason: 'CANCELED',
+        source: 'API',
+        relatedBuyOrderIds: null,
+      }),
+    });
+
+    const orderRecorder = createOrderRecorderDouble({
+      getBuyOrdersForSymbol: () => [],
+    });
+    const riskChecker = createRiskCheckerDouble({
+      getWarrantDistanceInfo: () =>
+        createWarrantDistanceInfoDouble({
+          warrantType: 'BULL',
+          distanceToStrikePercent: 0.1,
+        }),
+    });
+
+    const autoSymbolManager = createAutoSymbolManager({
+      monitorConfig,
+      symbolRegistry,
+      marketDataClient: createMarketDataClientDouble(),
+      trader,
+      orderRecorder,
+      riskChecker,
+      findBestWarrant: async () => candidateQueue.shift() ?? null,
+      now: () => new Date(currentNowMs),
+      getTradingCalendarSnapshot: () => tradingCalendarSnapshot,
+    });
+
+    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
+    const monitorContext = {
+      config: monitorConfig,
+      symbolRegistry,
+      autoSymbolManager,
+      orderRecorder,
+      dailyLossTracker: {
+        resetAll: () => {},
+        recalculateFromAllOrders: () => {},
+        recordFilledOrder: () => {},
+        getLossOffset: () => 0,
+      },
+      riskChecker,
+      unrealizedLossMonitor: {
+        monitorUnrealizedLoss: async () => {},
+      },
+      longSymbolName: 'OLD_BULL.HK',
+      shortSymbolName: '',
+      monitorSymbolName: 'HSI.HK',
+      longQuote: null,
+      shortQuote: null,
+      monitorQuote: null,
+    } as unknown as MonitorContext;
+    const mainContext = {
+      monitorTaskQueue,
+    } as unknown as MainProgramContext;
+
+    const statuses: MonitorTaskStatus[] = [];
+    const processor = createMonitorTaskProcessor({
+      monitorTaskQueue,
+      refreshGate: createRefreshGate(),
+      getMonitorContext: () => monitorContext as never,
+      clearMonitorDirectionQueues: () => {},
+      trader,
+      lastState: createLastState(),
+      tradingConfig: {
+        monitors: [monitorConfig],
+      } as unknown as MultiMonitorTradingConfig,
+      onProcessed: (_task, status) => {
+        statuses.push(status);
+      },
+    });
+
+    processor.start();
+    try {
+      scheduleAutoSymbolTasks({
+        monitorSymbol: 'HSI.HK',
+        monitorContext,
+        mainContext,
+        autoSearchEnabled: true,
+        currentTimeMs: currentNowMs,
+        canTradeNow: true,
+        openProtectionActive: false,
+        monitorPriceChanged: false,
+        resolvedMonitorPrice: 20_000,
+        quotesMap: new Map(),
+      });
+
+      await waitUntil(() => statuses.length >= 2);
+      expect(statuses).toEqual(['processed', 'processed']);
+      const seat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
+      expect(seat.status).toBe('READY');
+      expect(seat.symbol).toBe('OLD_BULL.HK');
+      expect(symbolRegistry.getSeatVersion('HSI.HK', 'LONG')).toBe(1);
+      expect(autoSymbolManager.hasPendingSwitch('LONG')).toBeFalse();
+    } finally {
+      await processor.stopAndDrain();
+    }
+  });
+
+  it('does not clear seat when local pending sell order remains after order recorder is cleared', async () => {
+    const readyMs = Date.parse('2026-02-16T01:30:00.000Z');
+    const currentNowMs = Date.parse('2026-02-16T01:31:00.000Z');
+    candidateQueue = [createWarrantCandidateWithOverrides('NEW_BULL.HK', { callPrice: 21_000 })];
+    const tradingCalendarSnapshot = new Map([
+      ['2026-02-16', { isTradingDay: true, isHalfDay: false }],
+    ]);
+
+    const monitorConfig = createMonitorConfigDouble({
+      monitorSymbol: 'HSI.HK',
+      autoSearchConfig: {
+        autoSearchEnabled: true,
+        autoSearchMinDistancePctBull: 0.35,
+        autoSearchMinDistancePctBear: -0.35,
+        autoSearchMinTurnoverPerMinuteBull: 100_000,
+        autoSearchMinTurnoverPerMinuteBear: 100_000,
+        autoSearchExpiryMinMonths: 3,
+        autoSearchOpenDelayMinutes: 0,
+        switchIntervalMinutes: 1,
+        switchDistanceRangeBull: { min: 0.2, max: 1.5 },
+        switchDistanceRangeBear: { min: -1.5, max: -0.2 },
+      },
+    });
+
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: monitorConfig.monitorSymbol,
+      longSeat: {
+        symbol: 'OLD_BULL.HK',
+        status: 'READY',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatReadyAt: readyMs,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      shortSeat: {
+        symbol: null,
+        status: 'EMPTY',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatReadyAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      longVersion: 1,
+      shortVersion: 1,
+    });
+
+    const trader = createTraderDouble({
+      getPendingOrders: async () => [],
+      getOrderHoldSymbols: () => new Set(['OLD_BULL.HK']),
+      cancelOrder: async () => ({
+        kind: 'CANCEL_CONFIRMED',
+        closedReason: 'CANCELED',
+        source: 'API',
+        relatedBuyOrderIds: null,
+      }),
+    });
+
+    const orderRecorder = createOrderRecorderDouble({
+      getBuyOrdersForSymbol: () => [],
+    });
+    const riskChecker = createRiskCheckerDouble({
+      getWarrantDistanceInfo: () =>
+        createWarrantDistanceInfoDouble({
+          warrantType: 'BULL',
+          distanceToStrikePercent: 0.1,
+        }),
+    });
+
+    const autoSymbolManager = createAutoSymbolManager({
+      monitorConfig,
+      symbolRegistry,
+      marketDataClient: createMarketDataClientDouble(),
+      trader,
+      orderRecorder,
+      riskChecker,
+      findBestWarrant: async () => candidateQueue.shift() ?? null,
+      now: () => new Date(currentNowMs),
+      getTradingCalendarSnapshot: () => tradingCalendarSnapshot,
+    });
+
+    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
+    const monitorContext = {
+      config: monitorConfig,
+      symbolRegistry,
+      autoSymbolManager,
+      orderRecorder,
+      dailyLossTracker: {
+        resetAll: () => {},
+        recalculateFromAllOrders: () => {},
+        recordFilledOrder: () => {},
+        getLossOffset: () => 0,
+      },
+      riskChecker,
+      unrealizedLossMonitor: {
+        monitorUnrealizedLoss: async () => {},
+      },
+      longSymbolName: 'OLD_BULL.HK',
+      shortSymbolName: '',
+      monitorSymbolName: 'HSI.HK',
+      longQuote: null,
+      shortQuote: null,
+      monitorQuote: null,
+    } as unknown as MonitorContext;
+    const mainContext = {
+      monitorTaskQueue,
+    } as unknown as MainProgramContext;
+
+    const statuses: MonitorTaskStatus[] = [];
+    const processor = createMonitorTaskProcessor({
+      monitorTaskQueue,
+      refreshGate: createRefreshGate(),
+      getMonitorContext: () => monitorContext as never,
+      clearMonitorDirectionQueues: () => {},
+      trader,
+      lastState: createLastState(),
+      tradingConfig: {
+        monitors: [monitorConfig],
+      } as unknown as MultiMonitorTradingConfig,
+      onProcessed: (_task, status) => {
+        statuses.push(status);
+      },
+    });
+
+    processor.start();
+    try {
+      scheduleAutoSymbolTasks({
+        monitorSymbol: 'HSI.HK',
+        monitorContext,
+        mainContext,
+        autoSearchEnabled: true,
+        currentTimeMs: currentNowMs,
+        canTradeNow: true,
+        openProtectionActive: false,
+        monitorPriceChanged: false,
+        resolvedMonitorPrice: 20_000,
+        quotesMap: new Map(),
+      });
+
+      await waitUntil(() => statuses.length >= 2);
+      expect(statuses).toEqual(['processed', 'processed']);
+      const seat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
+      expect(seat.status).toBe('READY');
+      expect(seat.symbol).toBe('OLD_BULL.HK');
+      expect(symbolRegistry.getSeatVersion('HSI.HK', 'LONG')).toBe(1);
+      expect(autoSymbolManager.hasPendingSwitch('LONG')).toBeFalse();
+    } finally {
+      await processor.stopAndDrain();
+    }
+  });
+
   it('applies cross-day trading-duration rule before periodic switch is triggered', async () => {
     const readyMs = Date.parse('2026-02-16T07:59:00.000Z'); // Day1 15:59 HK
     let currentNowMs = Date.parse('2026-02-17T01:30:00.000Z'); // Day2 09:30 HK
