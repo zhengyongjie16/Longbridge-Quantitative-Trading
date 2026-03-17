@@ -1,6 +1,16 @@
 import { Language, PushCandlestickMode, type ExtraConfigParams } from 'longbridge';
 import { getStringConfig } from '../utils.js';
-import type { ApiKeyAuthConfig, AuthMode, OAuthAuthConfig } from './types.js';
+import type {
+  ApiKeyAuthConfig,
+  AuthMode,
+  LongbridgeConfigValidationIssue,
+  OAuthAuthConfig,
+} from './types.js';
+
+const VALID_AUTH_MODE_VALUES = new Set(['oauth', 'apikey']);
+const VALID_LONGBRIDGE_LANGUAGE_VALUES = new Set(['zh-CN', 'zh-HK', 'en']);
+const VALID_LONGBRIDGE_PUSH_CANDLESTICK_MODE_VALUES = new Set(['realtime', 'confirmed']);
+const VALID_BOOLEAN_CONFIG_VALUES = new Set(['true', 'false']);
 
 const LANGUAGE_CONFIG_MAP: Readonly<Record<string, Language>> = {
   'zh-CN': Language.ZH_CN,
@@ -165,4 +175,125 @@ export function readSdkExtraConfig(env: NodeJS.ProcessEnv): ExtraConfigParams {
   }
 
   return extraConfig;
+}
+
+/**
+ * 校验 Longbridge 认证与 SDK extra 配置。
+ *
+ * @param env 进程环境变量
+ * @returns 当前 env 中所有认证/extra 配置问题；为空表示校验通过
+ */
+export function validateLongbridgeConfig(env: NodeJS.ProcessEnv): ReadonlyArray<LongbridgeConfigValidationIssue> {
+  const issues: LongbridgeConfigValidationIssue[] = [];
+  const authModeValue = getStringConfig(env, 'LONGBRIDGE_AUTH_MODE');
+  const authMode = readAuthMode(env);
+
+  if (authModeValue === null) {
+    issues.push({
+      envKey: 'LONGBRIDGE_AUTH_MODE',
+      message: 'LONGBRIDGE_AUTH_MODE 未配置',
+    });
+  } else if (!VALID_AUTH_MODE_VALUES.has(authModeValue) || authMode === null) {
+    issues.push({
+      envKey: 'LONGBRIDGE_AUTH_MODE',
+      message: 'LONGBRIDGE_AUTH_MODE 无效（仅支持 oauth / apikey）',
+    });
+  }
+
+  if (authMode === 'oauth') {
+    const oauthAuthConfig = readOAuthAuthConfig(env);
+    if (oauthAuthConfig.clientId === null) {
+      issues.push({
+        envKey: 'LONGBRIDGE_CLIENT_ID',
+        message: 'LONGBRIDGE_CLIENT_ID 未配置',
+      });
+    }
+
+    const callbackPortValue = getStringConfig(env, 'LONGBRIDGE_CALLBACK_PORT');
+    if (callbackPortValue !== null && oauthAuthConfig.callbackPort === null) {
+      issues.push({
+        envKey: 'LONGBRIDGE_CALLBACK_PORT',
+        message: 'LONGBRIDGE_CALLBACK_PORT 无效（必须为 1-65535 的整数端口）',
+      });
+    }
+  }
+
+  if (authMode === 'apikey') {
+    const apiKeyAuthConfig = readApiKeyAuthConfig(env);
+    const requiredApiKeyFields = [
+      {
+        envKey: 'LONGBRIDGE_APP_KEY',
+        value: apiKeyAuthConfig.appKey,
+      },
+      {
+        envKey: 'LONGBRIDGE_APP_SECRET',
+        value: apiKeyAuthConfig.appSecret,
+      },
+      {
+        envKey: 'LONGBRIDGE_ACCESS_TOKEN',
+        value: apiKeyAuthConfig.accessToken,
+      },
+    ] as const;
+
+    for (const field of requiredApiKeyFields) {
+      if (field.value !== null) {
+        continue;
+      }
+
+      issues.push({
+        envKey: field.envKey,
+        message: `${field.envKey} 未配置`,
+      });
+    }
+  }
+
+  const urlConfigKeys = [
+    'LONGBRIDGE_HTTP_URL',
+    'LONGBRIDGE_QUOTE_WS_URL',
+    'LONGBRIDGE_TRADE_WS_URL',
+  ] as const;
+  for (const urlConfigKey of urlConfigKeys) {
+    const urlValue = getStringConfig(env, urlConfigKey);
+    if (urlValue !== null && !URL.canParse(urlValue)) {
+      issues.push({
+        envKey: urlConfigKey,
+        message: `${urlConfigKey} 无效（必须为合法 URL）`,
+      });
+    }
+  }
+
+  const languageValue = getStringConfig(env, 'LONGBRIDGE_LANGUAGE');
+  if (languageValue !== null && !VALID_LONGBRIDGE_LANGUAGE_VALUES.has(languageValue)) {
+    issues.push({
+      envKey: 'LONGBRIDGE_LANGUAGE',
+      message: 'LONGBRIDGE_LANGUAGE 无效（仅支持 zh-CN / zh-HK / en）',
+    });
+  }
+
+  const pushCandlestickModeValue = getStringConfig(env, 'LONGBRIDGE_PUSH_CANDLESTICK_MODE');
+  if (
+    pushCandlestickModeValue !== null &&
+    !VALID_LONGBRIDGE_PUSH_CANDLESTICK_MODE_VALUES.has(pushCandlestickModeValue)
+  ) {
+    issues.push({
+      envKey: 'LONGBRIDGE_PUSH_CANDLESTICK_MODE',
+      message: 'LONGBRIDGE_PUSH_CANDLESTICK_MODE 无效（仅支持 realtime / confirmed）',
+    });
+  }
+
+  const booleanConfigKeys = [
+    'LONGBRIDGE_ENABLE_OVERNIGHT',
+    'LONGBRIDGE_PRINT_QUOTE_PACKAGES',
+  ] as const;
+  for (const booleanConfigKey of booleanConfigKeys) {
+    const booleanValue = getStringConfig(env, booleanConfigKey);
+    if (booleanValue !== null && !VALID_BOOLEAN_CONFIG_VALUES.has(booleanValue)) {
+      issues.push({
+        envKey: booleanConfigKey,
+        message: `${booleanConfigKey} 无效（仅支持 true / false）`,
+      });
+    }
+  }
+
+  return issues;
 }

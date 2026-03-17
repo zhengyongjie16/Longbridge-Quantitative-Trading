@@ -8,12 +8,31 @@ import { describe, it, expect } from 'bun:test';
 import { OrderSide, OrderStatus, OrderType } from 'longbridge';
 import { createLoadTradingDayRuntimeSnapshot } from '../../../src/main/lifecycle/loadTradingDayRuntimeSnapshot.js';
 import { createSymbolRegistry } from '../../../src/services/autoSymbolManager/utils.js';
-import type { LoadTradingDayRuntimeSnapshotDeps } from '../../../src/main/lifecycle/types.js';
-import type { LastState } from '../../../src/types/state.js';
-import type { MultiMonitorTradingConfig } from '../../../src/types/config.js';
-import type { SymbolRegistry } from '../../../src/types/seat.js';
+import type {
+  LoadTradingDayRuntimeSnapshotDeps,
+  LoadTradingDayRuntimeSnapshotParams,
+} from '../../../src/main/lifecycle/types.js';
+import type { LastState, MonitorState } from '../../../src/types/state.js';
+import type { RawOrderFromAPI } from '../../../src/types/services.js';
 import type { ProtectiveLiquidationEpisodeTracker } from '../../../src/core/trader/protectiveLiquidationEpisodeTracker/types.js';
-import { createMonitorConfigDouble } from '../../helpers/testDoubles.js';
+import { createTradingConfig as createTradingConfigFactory } from '../../../mock/factories/configFactory.js';
+import {
+  createAccountSnapshotDouble,
+  createDailyLossTrackerDouble,
+  createMarketDataClientDouble,
+  createMonitorConfigDouble,
+  createPositionCacheDouble,
+  createProtectiveLiquidationEpisodeTrackerDouble,
+  createTraderDouble,
+} from '../../helpers/testDoubles.js';
+
+function getEntry(_key: string): undefined {
+  return;
+}
+
+function getInFlight(_key: string): undefined {
+  return;
+}
 
 function createMinimalLastState(): LastState {
   return {
@@ -27,295 +46,153 @@ function createMinimalLastState(): LastState {
     isTradingEnabled: true,
     cachedAccount: null,
     cachedPositions: [],
-    positionCache: { update: () => {}, get: () => null },
+    positionCache: createPositionCacheDouble(),
     cachedTradingDayInfo: null,
-    monitorStates: new Map(),
-    allTradingSymbols: new Set(),
-  } as unknown as LastState;
-}
-
-function createProtectiveEpisodeTrackerDouble(): ProtectiveLiquidationEpisodeTracker {
-  return {
-    recordProtectiveFillProgress: () => {},
-    completeIfEligible: () => null,
-    restoreCompletedBoundary: () => {},
-    restoreInProgressEpisode: () => {},
-    getLatestProtectionBoundaryByDirection: () => new Map(),
-    getInProgressEpisodes: () => [],
-    resetAll: () => {},
+    monitorStates: new Map<string, MonitorState>(),
+    allTradingSymbols: new Set<string>(),
   };
 }
 
-describe('createLoadTradingDayRuntimeSnapshot', () => {
-  it('requireTradingDay 为 true 且 isTradingDay 为 false 时抛出"重建触发时交易日信息无效"', async () => {
-    const lastState = createMinimalLastState();
-    const deps = {
-      marketDataClient: {
-        isTradingDay: async () => ({ isTradingDay: false, isHalfDay: false }),
-      },
-      trader: {
-        initializeOrderMonitor: async () => {},
-      },
-      lastState,
-      tradingConfig: { monitors: [], global: {} } as unknown as MultiMonitorTradingConfig,
-      symbolRegistry: {} as SymbolRegistry,
-      dailyLossTracker: {} as LoadTradingDayRuntimeSnapshotDeps['dailyLossTracker'],
-      protectiveLiquidationEpisodeTracker: createProtectiveEpisodeTrackerDouble(),
-      tradeLogHydrator: {} as LoadTradingDayRuntimeSnapshotDeps['tradeLogHydrator'],
-      warrantListCacheConfig: {} as LoadTradingDayRuntimeSnapshotDeps['warrantListCacheConfig'],
-    };
+function createTradingConfig(
+  monitors: LoadTradingDayRuntimeSnapshotDeps['tradingConfig']['monitors'] = [],
+): LoadTradingDayRuntimeSnapshotDeps['tradingConfig'] {
+  return createTradingConfigFactory({ monitors });
+}
 
-    const load = createLoadTradingDayRuntimeSnapshot(
-      deps as unknown as LoadTradingDayRuntimeSnapshotDeps,
-    );
+function createWarrantListCacheConfig(): LoadTradingDayRuntimeSnapshotDeps['warrantListCacheConfig'] {
+  return {
+    cache: {
+      getEntry,
+      setEntry: () => {},
+      getInFlight,
+      setInFlight: () => {},
+      deleteInFlight: () => {},
+      clear: () => {},
+    },
+    ttlMs: 60_000,
+    nowMs: () => Date.now(),
+  };
+}
 
-    expect(
-      load({
-        now: new Date(),
-        requireTradingDay: true,
-        failOnOrderFetchError: false,
-        resetRuntimeSubscriptions: false,
-        hydrateCooldownFromTradeLog: false,
-        forceOrderRefresh: false,
-      }),
-    ).rejects.toThrow('重建触发时交易日信息无效');
+function createBaseDeps(
+  overrides: Partial<LoadTradingDayRuntimeSnapshotDeps> = {},
+): LoadTradingDayRuntimeSnapshotDeps {
+  const tradingConfig = overrides.tradingConfig ?? createTradingConfig();
+
+  return {
+    marketDataClient: overrides.marketDataClient ?? createMarketDataClientDouble(),
+    trader: overrides.trader ?? createTraderDouble(),
+    lastState: overrides.lastState ?? createMinimalLastState(),
+    tradingConfig,
+    symbolRegistry: overrides.symbolRegistry ?? createSymbolRegistry(tradingConfig.monitors),
+    dailyLossTracker: overrides.dailyLossTracker ?? createDailyLossTrackerDouble(),
+    protectiveLiquidationEpisodeTracker:
+      overrides.protectiveLiquidationEpisodeTracker ??
+      createProtectiveLiquidationEpisodeTrackerDouble(),
+    tradeLogHydrator: overrides.tradeLogHydrator ?? { hydrate: () => new Map<string, number>() },
+    warrantListCacheConfig: overrides.warrantListCacheConfig ?? createWarrantListCacheConfig(),
+  };
+}
+
+function createReadyTrader(
+  overrides: Partial<LoadTradingDayRuntimeSnapshotDeps['trader']> = {},
+): LoadTradingDayRuntimeSnapshotDeps['trader'] {
+  return createTraderDouble({
+    getAccountSnapshot: async () => createAccountSnapshotDouble(100_000),
+    getStockPositions: async () => [],
+    fetchAllOrdersFromAPI: async () => [],
+    ...overrides,
   });
+}
 
-  it('账户信息缺失（cachedAccount 为 null）时抛出"无法获取账户信息"', async () => {
-    const lastState = createMinimalLastState();
-    const deps = {
-      marketDataClient: { isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }) },
-      trader: {
-        initializeOrderMonitor: async () => {},
-        getAccountSnapshot: async () => null,
-        getStockPositions: async () => [],
-        orderRecorder: {},
-        seedOrderHoldSymbols: () => {},
-        getOrderHoldSymbols: () => new Set<string>(),
-      },
-      lastState,
-      tradingConfig: { monitors: [], global: {} } as unknown as MultiMonitorTradingConfig,
-      symbolRegistry: {} as SymbolRegistry,
-      dailyLossTracker: { recalculateFromAllOrders: () => {} },
-      protectiveLiquidationEpisodeTracker: createProtectiveEpisodeTrackerDouble(),
-      tradeLogHydrator: {},
-      warrantListCacheConfig: {},
-    } as unknown as LoadTradingDayRuntimeSnapshotDeps;
+function createLoadParams(
+  overrides: Partial<LoadTradingDayRuntimeSnapshotParams> = {},
+): LoadTradingDayRuntimeSnapshotParams {
+  return {
+    requireTradingDay: false,
+    failOnOrderFetchError: false,
+    resetRuntimeSubscriptions: false,
+    hydrateCooldownFromTradeLog: false,
+    forceOrderRefresh: false,
+    ...overrides,
+    now: overrides.now ?? new Date(),
+  };
+}
 
-    const load = createLoadTradingDayRuntimeSnapshot(
-      deps as unknown as LoadTradingDayRuntimeSnapshotDeps,
-    );
-
-    expect(
-      load({
-        now: new Date(),
-        requireTradingDay: false,
-        failOnOrderFetchError: false,
-        resetRuntimeSubscriptions: false,
-        hydrateCooldownFromTradeLog: false,
-        forceOrderRefresh: false,
-      }),
-    ).rejects.toThrow('无法获取账户信息');
+function createProtectiveMonitor(): LoadTradingDayRuntimeSnapshotDeps['tradingConfig']['monitors'][number] {
+  return createMonitorConfigDouble({
+    monitorSymbol: 'HSI.HK',
+    orderOwnershipMapping: ['HSI'],
   });
+}
 
-  it('failOnOrderFetchError 为 true 且订单拉取失败时抛出带"全量订单获取失败"的错误', async () => {
-    const lastState = createMinimalLastState();
-    lastState.cachedAccount = {} as LastState['cachedAccount'];
-    lastState.cachedPositions = [];
+type ProtectiveOrderParams = Readonly<{
+  orderId: string;
+  status: RawOrderFromAPI['status'];
+  price: number;
+  quantity: number;
+  executedPrice: number;
+  executedQuantity: number;
+  updatedAtMs: number;
+}>;
 
-    const deps = {
-      marketDataClient: { isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }) },
-      trader: {
-        initializeOrderMonitor: async () => {},
-        getAccountSnapshot: async () => ({}),
-        getStockPositions: async () => [],
-        fetchAllOrdersFromAPI: async () => {
-          throw new Error('API 超时');
-        },
-        seedOrderHoldSymbols: () => {},
-        getOrderHoldSymbols: () => new Set<string>(),
-      },
-      lastState,
-      tradingConfig: { monitors: [], global: {} } as unknown as MultiMonitorTradingConfig,
-      symbolRegistry: {} as SymbolRegistry,
-      dailyLossTracker: { recalculateFromAllOrders: () => {} },
-      protectiveLiquidationEpisodeTracker: createProtectiveEpisodeTrackerDouble(),
-      tradeLogHydrator: {},
-      warrantListCacheConfig: {},
-    } as unknown as LoadTradingDayRuntimeSnapshotDeps;
+function createProtectiveOrder(params: ProtectiveOrderParams): RawOrderFromAPI {
+  return {
+    orderId: params.orderId,
+    symbol: 'BULL.HK',
+    stockName: 'HSI RC',
+    side: OrderSide.Sell,
+    status: params.status,
+    orderType: OrderType.MO,
+    remark: 'AUTO|PL',
+    price: params.price,
+    quantity: params.quantity,
+    executedPrice: params.executedPrice,
+    executedQuantity: params.executedQuantity,
+    submittedAt: new Date(params.updatedAtMs - 30_000),
+    updatedAt: new Date(params.updatedAtMs),
+  };
+}
 
-    const load = createLoadTradingDayRuntimeSnapshot(
-      deps as unknown as LoadTradingDayRuntimeSnapshotDeps,
-    );
+function createBoundaryCaptureDailyLossTracker(
+  onCapture: (
+    protectionBoundaryByDirection: NonNullable<
+      Parameters<
+        LoadTradingDayRuntimeSnapshotDeps['dailyLossTracker']['recalculateFromAllOrders']
+      >[3]
+    >,
+  ) => void,
+): LoadTradingDayRuntimeSnapshotDeps['dailyLossTracker'] {
+  return createDailyLossTrackerDouble({
+    recalculateFromAllOrders: (_allOrders, _monitors, _now, protectionBoundaryByDirection) => {
+      if (protectionBoundaryByDirection === undefined) {
+        return;
+      }
 
-    expect(
-      load({
-        now: new Date(),
-        requireTradingDay: false,
-        failOnOrderFetchError: true,
-        resetRuntimeSubscriptions: false,
-        hydrateCooldownFromTradeLog: false,
-        forceOrderRefresh: false,
-      }),
-    ).rejects.toThrow(/全量订单获取失败/);
+      onCapture(protectionBoundaryByDirection);
+    },
   });
+}
 
-  it('load 阶段不再承担交易日历预热职责', async () => {
-    const now = new Date('2026-02-25T03:00:00.000Z');
-    let getTradingDaysCalls = 0;
+function createProtectiveTrackerRecorder(): {
+  readonly tracker: ProtectiveLiquidationEpisodeTracker;
+  readonly restoreCompletedCalls: Array<
+    Parameters<ProtectiveLiquidationEpisodeTracker['restoreCompletedBoundary']>[0]
+  >;
+  readonly restoreInProgressCalls: Array<
+    Parameters<ProtectiveLiquidationEpisodeTracker['restoreInProgressEpisode']>[0]
+  >;
+} {
+  const boundaryByDirection = new Map<string, number>();
+  const restoreCompletedCalls: Array<
+    Parameters<ProtectiveLiquidationEpisodeTracker['restoreCompletedBoundary']>[0]
+  > = [];
+  const restoreInProgressCalls: Array<
+    Parameters<ProtectiveLiquidationEpisodeTracker['restoreInProgressEpisode']>[0]
+  > = [];
 
-    const lastState = createMinimalLastState();
-    const deps = {
-      marketDataClient: {
-        getQuoteContext: async () => ({}),
-        getQuotes: async () => new Map<string, null>(),
-        subscribeSymbols: async () => {},
-        subscribeCandlesticks: async () => [],
-        resetRuntimeSubscriptionsAndCaches: async () => {},
-        isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
-        getTradingDays: async () => {
-          getTradingDaysCalls += 1;
-          return {
-            tradingDays: [],
-            halfTradingDays: [],
-          };
-        },
-      },
-      trader: {
-        initializeOrderMonitor: async () => {},
-        getAccountSnapshot: async () => ({}),
-        getStockPositions: async () => [],
-        fetchAllOrdersFromAPI: async () => [],
-        seedOrderHoldSymbols: () => {},
-        getOrderHoldSymbols: () => new Set<string>(),
-      },
-      lastState,
-      tradingConfig: { monitors: [], global: {} } as unknown as MultiMonitorTradingConfig,
-      symbolRegistry: {} as SymbolRegistry,
-      dailyLossTracker: { recalculateFromAllOrders: () => {} },
-      protectiveLiquidationEpisodeTracker: createProtectiveEpisodeTrackerDouble(),
-      tradeLogHydrator: { hydrate: () => new Map() },
-      warrantListCacheConfig: {},
-    } as unknown as LoadTradingDayRuntimeSnapshotDeps;
-
-    const load = createLoadTradingDayRuntimeSnapshot(deps);
-
-    await load({
-      now,
-      requireTradingDay: true,
-      failOnOrderFetchError: false,
-      resetRuntimeSubscriptions: false,
-      hydrateCooldownFromTradeLog: false,
-      forceOrderRefresh: false,
-    });
-
-    expect(getTradingDaysCalls).toBe(0);
-    expect(lastState.tradingCalendarSnapshot).toBeUndefined();
-  });
-
-  it('hydrateCooldownFromTradeLog=true 时先 hydrate 再 recalculate', async () => {
-    const now = new Date('2026-02-25T03:00:00.000Z');
-    const callOrder: string[] = [];
-    const allOrders: never[] = [];
-
-    const lastState = createMinimalLastState();
-    const deps = {
-      marketDataClient: {
-        getQuoteContext: async () => ({}),
-        getQuotes: async () => new Map<string, null>(),
-        subscribeSymbols: async () => {},
-        subscribeCandlesticks: async () => [],
-        resetRuntimeSubscriptionsAndCaches: async () => {},
-      },
-      trader: {
-        initializeOrderMonitor: async () => {},
-        getAccountSnapshot: async () => ({}),
-        getStockPositions: async () => [],
-        fetchAllOrdersFromAPI: async () => allOrders,
-        seedOrderHoldSymbols: () => {},
-        getOrderHoldSymbols: () => new Set<string>(),
-      },
-      lastState,
-      tradingConfig: {
-        monitors: [],
-        global: {},
-      } as unknown as MultiMonitorTradingConfig,
-      symbolRegistry: {} as SymbolRegistry,
-      dailyLossTracker: {
-        recalculateFromAllOrders: (
-          receivedOrders: ReadonlyArray<never>,
-          _monitors: ReadonlyArray<{
-            monitorSymbol: string;
-            orderOwnershipMapping: unknown[];
-          }>,
-          _now: Date,
-          receivedSegments?: ReadonlyMap<string, number>,
-        ) => {
-          callOrder.push('recalculate');
-          expect(receivedOrders).toBe(allOrders);
-          expect(receivedSegments).toBeInstanceOf(Map);
-        },
-      },
-      protectiveLiquidationEpisodeTracker: createProtectiveEpisodeTrackerDouble(),
-      tradeLogHydrator: {
-        hydrate: () => {
-          callOrder.push('hydrate');
-          return new Map();
-        },
-      },
-      warrantListCacheConfig: {},
-    } as unknown as LoadTradingDayRuntimeSnapshotDeps;
-
-    const load = createLoadTradingDayRuntimeSnapshot(deps);
-    await load({
-      now,
-      requireTradingDay: false,
-      failOnOrderFetchError: false,
-      resetRuntimeSubscriptions: false,
-      hydrateCooldownFromTradeLog: true,
-      forceOrderRefresh: false,
-    });
-
-    expect(callOrder).toEqual(['hydrate', 'recalculate']);
-  });
-
-  it('restores protective boundary from canceled protective order with executed quantity', async () => {
-    const now = new Date('2026-03-13T03:00:00.000Z');
-    const executedAtMs = Date.parse('2026-03-13T02:30:00.000Z');
-    const monitor = createMonitorConfigDouble({
-      monitorSymbol: 'HSI.HK',
-      orderOwnershipMapping: ['HSI'],
-      autoSearchConfig: {
-        autoSearchEnabled: false,
-        autoSearchMinDistancePctBull: null,
-        autoSearchMinDistancePctBear: null,
-        autoSearchMinTurnoverPerMinuteBull: null,
-        autoSearchMinTurnoverPerMinuteBear: null,
-        autoSearchExpiryMinMonths: 3,
-        autoSearchOpenDelayMinutes: 5,
-        switchIntervalMinutes: 0,
-        switchDistanceRangeBull: null,
-        switchDistanceRangeBear: null,
-      },
-    });
-    const symbolRegistry = createSymbolRegistry([monitor]);
-    const lastState = createMinimalLastState();
-    const boundaryByDirection = new Map<string, number>();
-    const restoreCompletedCalls: Array<{
-      monitorSymbol: string;
-      direction: 'LONG' | 'SHORT';
-      boundaryExecutedTimeMs: number;
-    }> = [];
-    const restoreInProgressCalls: Array<{
-      monitorSymbol: string;
-      direction: 'LONG' | 'SHORT';
-      latestExecutedTimeMs: number;
-    }> = [];
-    let receivedBoundaryMap: ReadonlyMap<string, number> | undefined;
-
-    const protectiveTracker: ProtectiveLiquidationEpisodeTracker = {
-      recordProtectiveFillProgress: () => {},
-      completeIfEligible: () => null,
+  return {
+    tracker: createProtectiveLiquidationEpisodeTrackerDouble({
       restoreCompletedBoundary: (params) => {
         restoreCompletedCalls.push(params);
         boundaryByDirection.set(
@@ -327,79 +204,160 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
         restoreInProgressCalls.push(params);
       },
       getLatestProtectionBoundaryByDirection: () => new Map(boundaryByDirection),
-      getInProgressEpisodes: () => [],
       resetAll: () => {
         boundaryByDirection.clear();
       },
-    };
+    }),
+    restoreCompletedCalls,
+    restoreInProgressCalls,
+  };
+}
 
-    const protectiveOrder = {
+describe('createLoadTradingDayRuntimeSnapshot', () => {
+  it('requireTradingDay 为 true 且 isTradingDay 为 false 时抛出"重建触发时交易日信息无效"', async () => {
+    const deps = createBaseDeps({
+      marketDataClient: createMarketDataClientDouble({
+        isTradingDay: async () => ({ isTradingDay: false, isHalfDay: false }),
+      }),
+    });
+
+    const load = createLoadTradingDayRuntimeSnapshot(deps);
+
+    expect(load(createLoadParams({ requireTradingDay: true }))).rejects.toThrow(
+      '重建触发时交易日信息无效',
+    );
+  });
+
+  it('账户信息缺失（cachedAccount 为 null）时抛出"无法获取账户信息"', async () => {
+    const deps = createBaseDeps({
+      trader: createTraderDouble({
+        getAccountSnapshot: async () => null,
+        getStockPositions: async () => [],
+      }),
+    });
+
+    const load = createLoadTradingDayRuntimeSnapshot(deps);
+
+    expect(load(createLoadParams())).rejects.toThrow('无法获取账户信息');
+  });
+
+  it('failOnOrderFetchError 为 true 且订单拉取失败时抛出带"全量订单获取失败"的错误', async () => {
+    const deps = createBaseDeps({
+      trader: createReadyTrader({
+        fetchAllOrdersFromAPI: async () => {
+          throw new Error('API 超时');
+        },
+      }),
+    });
+
+    const load = createLoadTradingDayRuntimeSnapshot(deps);
+
+    expect(load(createLoadParams({ failOnOrderFetchError: true }))).rejects.toThrow(
+      /全量订单获取失败/,
+    );
+  });
+
+  it('load 阶段不再承担交易日历预热职责', async () => {
+    const now = new Date('2026-02-25T03:00:00.000Z');
+    let getTradingDaysCalls = 0;
+    const lastState = createMinimalLastState();
+
+    const deps = createBaseDeps({
+      lastState,
+      marketDataClient: createMarketDataClientDouble({
+        getTradingDays: async () => {
+          getTradingDaysCalls += 1;
+          return {
+            tradingDays: [],
+            halfTradingDays: [],
+          };
+        },
+      }),
+      trader: createReadyTrader(),
+    });
+
+    const load = createLoadTradingDayRuntimeSnapshot(deps);
+
+    await load(
+      createLoadParams({
+        now,
+        requireTradingDay: true,
+      }),
+    );
+
+    expect(getTradingDaysCalls).toBe(0);
+    expect(lastState.tradingCalendarSnapshot).toBeUndefined();
+  });
+
+  it('hydrateCooldownFromTradeLog=true 时先 hydrate 再 recalculate', async () => {
+    const now = new Date('2026-02-25T03:00:00.000Z');
+    const callOrder: string[] = [];
+    const allOrders: ReadonlyArray<RawOrderFromAPI> = [];
+
+    const deps = createBaseDeps({
+      trader: createReadyTrader({
+        fetchAllOrdersFromAPI: async () => allOrders,
+      }),
+      dailyLossTracker: createDailyLossTrackerDouble({
+        recalculateFromAllOrders: (receivedOrders, _monitors, _now, receivedSegments) => {
+          callOrder.push('recalculate');
+          expect(receivedOrders).toBe(allOrders);
+          expect(receivedSegments).toBeInstanceOf(Map);
+        },
+      }),
+      tradeLogHydrator: {
+        hydrate: () => {
+          callOrder.push('hydrate');
+          return new Map();
+        },
+      },
+    });
+
+    const load = createLoadTradingDayRuntimeSnapshot(deps);
+    await load(
+      createLoadParams({
+        now,
+        hydrateCooldownFromTradeLog: true,
+      }),
+    );
+
+    expect(callOrder).toEqual(['hydrate', 'recalculate']);
+  });
+
+  it('restores protective boundary from canceled protective order with executed quantity', async () => {
+    const now = new Date('2026-03-13T03:00:00.000Z');
+    const executedAtMs = Date.parse('2026-03-13T02:30:00.000Z');
+    const monitor = createProtectiveMonitor();
+    const lastState = createMinimalLastState();
+    const { tracker, restoreCompletedCalls, restoreInProgressCalls } =
+      createProtectiveTrackerRecorder();
+    let receivedBoundaryMap: ReadonlyMap<string, number> | undefined;
+
+    const protectiveOrder = createProtectiveOrder({
       orderId: 'protective-canceled-1',
-      symbol: 'BULL.HK',
-      stockName: 'HSI RC',
-      side: OrderSide.Sell,
       status: OrderStatus.Canceled,
-      orderType: OrderType.MO,
-      remark: 'AUTO|PL',
       price: 9,
       quantity: 10,
       executedPrice: 9,
       executedQuantity: 10,
-      submittedAt: new Date(executedAtMs - 30_000),
-      updatedAt: new Date(executedAtMs),
-    };
+      updatedAtMs: executedAtMs,
+    });
 
-    const deps: LoadTradingDayRuntimeSnapshotDeps = {
-      marketDataClient: {
-        getQuoteContext: async () => ({}),
-        getQuotes: async () => new Map<string, null>(),
-        subscribeSymbols: async () => {},
-        subscribeCandlesticks: async () => [],
-        resetRuntimeSubscriptionsAndCaches: async () => {},
-        isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
-      } as unknown as LoadTradingDayRuntimeSnapshotDeps['marketDataClient'],
-      trader: {
-        initializeOrderMonitor: async () => {},
-        getAccountSnapshot: async () => ({}),
-        getStockPositions: async () => [],
-        fetchAllOrdersFromAPI: async () => [protectiveOrder],
-        seedOrderHoldSymbols: () => {},
-        getOrderHoldSymbols: () => new Set<string>(),
-      } as unknown as LoadTradingDayRuntimeSnapshotDeps['trader'],
+    const deps = createBaseDeps({
       lastState,
-      tradingConfig: {
-        monitors: [monitor],
-        global: {},
-      } as unknown as MultiMonitorTradingConfig,
-      symbolRegistry,
-      dailyLossTracker: {
-        recalculateFromAllOrders: (
-          _allOrders: ReadonlyArray<unknown>,
-          _monitors: ReadonlyArray<{
-            monitorSymbol: string;
-            orderOwnershipMapping: ReadonlyArray<string>;
-          }>,
-          _now: Date,
-          protectionBoundaryByDirection?: ReadonlyMap<string, number>,
-        ): void => {
-          receivedBoundaryMap = protectionBoundaryByDirection;
-        },
-      } as unknown as LoadTradingDayRuntimeSnapshotDeps['dailyLossTracker'],
-      protectiveLiquidationEpisodeTracker: protectiveTracker,
+      tradingConfig: createTradingConfig([monitor]),
+      trader: createReadyTrader({
+        fetchAllOrdersFromAPI: async () => [protectiveOrder],
+      }),
+      dailyLossTracker: createBoundaryCaptureDailyLossTracker((protectionBoundaryByDirection) => {
+        receivedBoundaryMap = protectionBoundaryByDirection;
+      }),
+      protectiveLiquidationEpisodeTracker: tracker,
       tradeLogHydrator: { hydrate: () => new Map() },
-      warrantListCacheConfig:
-        {} as unknown as LoadTradingDayRuntimeSnapshotDeps['warrantListCacheConfig'],
-    };
+    });
 
     const load = createLoadTradingDayRuntimeSnapshot(deps);
-    await load({
-      now,
-      requireTradingDay: false,
-      failOnOrderFetchError: false,
-      resetRuntimeSubscriptions: false,
-      hydrateCooldownFromTradeLog: false,
-      forceOrderRefresh: false,
-    });
+    await load(createLoadParams({ now }));
 
     expect(restoreCompletedCalls).toHaveLength(1);
     expect(restoreCompletedCalls[0]).toEqual({
@@ -414,124 +372,37 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
   it('restores in-progress protective episode for partial-filled pending order', async () => {
     const now = new Date('2026-03-13T03:00:00.000Z');
     const executedAtMs = Date.parse('2026-03-13T02:30:00.000Z');
-    const monitor = createMonitorConfigDouble({
-      monitorSymbol: 'HSI.HK',
-      orderOwnershipMapping: ['HSI'],
-      autoSearchConfig: {
-        autoSearchEnabled: false,
-        autoSearchMinDistancePctBull: null,
-        autoSearchMinDistancePctBear: null,
-        autoSearchMinTurnoverPerMinuteBull: null,
-        autoSearchMinTurnoverPerMinuteBear: null,
-        autoSearchExpiryMinMonths: 3,
-        autoSearchOpenDelayMinutes: 5,
-        switchIntervalMinutes: 0,
-        switchDistanceRangeBull: null,
-        switchDistanceRangeBear: null,
-      },
-    });
-    const symbolRegistry = createSymbolRegistry([monitor]);
+    const monitor = createProtectiveMonitor();
     const lastState = createMinimalLastState();
-    const boundaryByDirection = new Map<string, number>();
-    const restoreCompletedCalls: Array<{
-      monitorSymbol: string;
-      direction: 'LONG' | 'SHORT';
-      boundaryExecutedTimeMs: number;
-    }> = [];
-    const restoreInProgressCalls: Array<{
-      monitorSymbol: string;
-      direction: 'LONG' | 'SHORT';
-      latestExecutedTimeMs: number;
-    }> = [];
+    const { tracker, restoreCompletedCalls, restoreInProgressCalls } =
+      createProtectiveTrackerRecorder();
     let receivedBoundaryMap: ReadonlyMap<string, number> | undefined;
 
-    const protectiveTracker: ProtectiveLiquidationEpisodeTracker = {
-      recordProtectiveFillProgress: () => {},
-      completeIfEligible: () => null,
-      restoreCompletedBoundary: (params) => {
-        restoreCompletedCalls.push(params);
-        boundaryByDirection.set(
-          `${params.monitorSymbol}:${params.direction}`,
-          params.boundaryExecutedTimeMs,
-        );
-      },
-      restoreInProgressEpisode: (params) => {
-        restoreInProgressCalls.push(params);
-      },
-      getLatestProtectionBoundaryByDirection: () => new Map(boundaryByDirection),
-      getInProgressEpisodes: () => [],
-      resetAll: () => {
-        boundaryByDirection.clear();
-      },
-    };
-
-    const protectiveOrder = {
+    const protectiveOrder = createProtectiveOrder({
       orderId: 'protective-partial-1',
-      symbol: 'BULL.HK',
-      stockName: 'HSI RC',
-      side: OrderSide.Sell,
       status: OrderStatus.PartialFilled,
-      orderType: OrderType.MO,
-      remark: 'AUTO|PL',
       price: 9,
       quantity: 10,
       executedPrice: 9,
       executedQuantity: 5,
-      submittedAt: new Date(executedAtMs - 30_000),
-      updatedAt: new Date(executedAtMs),
-    };
+      updatedAtMs: executedAtMs,
+    });
 
-    const deps: LoadTradingDayRuntimeSnapshotDeps = {
-      marketDataClient: {
-        getQuoteContext: async () => ({}),
-        getQuotes: async () => new Map<string, null>(),
-        subscribeSymbols: async () => {},
-        subscribeCandlesticks: async () => [],
-        resetRuntimeSubscriptionsAndCaches: async () => {},
-        isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
-      } as unknown as LoadTradingDayRuntimeSnapshotDeps['marketDataClient'],
-      trader: {
-        initializeOrderMonitor: async () => {},
-        getAccountSnapshot: async () => ({}),
-        getStockPositions: async () => [],
-        fetchAllOrdersFromAPI: async () => [protectiveOrder],
-        seedOrderHoldSymbols: () => {},
-        getOrderHoldSymbols: () => new Set<string>(),
-      } as unknown as LoadTradingDayRuntimeSnapshotDeps['trader'],
+    const deps = createBaseDeps({
       lastState,
-      tradingConfig: {
-        monitors: [monitor],
-        global: {},
-      } as unknown as MultiMonitorTradingConfig,
-      symbolRegistry,
-      dailyLossTracker: {
-        recalculateFromAllOrders: (
-          _allOrders: ReadonlyArray<unknown>,
-          _monitors: ReadonlyArray<{
-            monitorSymbol: string;
-            orderOwnershipMapping: ReadonlyArray<string>;
-          }>,
-          _now: Date,
-          protectionBoundaryByDirection?: ReadonlyMap<string, number>,
-        ): void => {
-          receivedBoundaryMap = protectionBoundaryByDirection;
-        },
-      } as unknown as LoadTradingDayRuntimeSnapshotDeps['dailyLossTracker'],
-      protectiveLiquidationEpisodeTracker: protectiveTracker,
+      tradingConfig: createTradingConfig([monitor]),
+      trader: createReadyTrader({
+        fetchAllOrdersFromAPI: async () => [protectiveOrder],
+      }),
+      dailyLossTracker: createBoundaryCaptureDailyLossTracker((protectionBoundaryByDirection) => {
+        receivedBoundaryMap = protectionBoundaryByDirection;
+      }),
+      protectiveLiquidationEpisodeTracker: tracker,
       tradeLogHydrator: { hydrate: () => new Map() },
-      warrantListCacheConfig:
-        {} as unknown as LoadTradingDayRuntimeSnapshotDeps['warrantListCacheConfig'],
-    };
+    });
 
     const load = createLoadTradingDayRuntimeSnapshot(deps);
-    await load({
-      now,
-      requireTradingDay: false,
-      failOnOrderFetchError: false,
-      resetRuntimeSubscriptions: false,
-      hydrateCooldownFromTradeLog: false,
-      forceOrderRefresh: false,
-    });
+    await load(createLoadParams({ now }));
 
     expect(restoreCompletedCalls).toHaveLength(0);
     expect(restoreInProgressCalls).toHaveLength(1);
@@ -547,141 +418,53 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
     const now = new Date('2026-03-13T03:00:00.000Z');
     const completedBoundaryMs = Date.parse('2026-03-13T02:20:00.000Z');
     const pendingLatestExecutedMs = Date.parse('2026-03-13T02:30:00.000Z');
-    const monitor = createMonitorConfigDouble({
-      monitorSymbol: 'HSI.HK',
-      orderOwnershipMapping: ['HSI'],
-      autoSearchConfig: {
-        autoSearchEnabled: false,
-        autoSearchMinDistancePctBull: null,
-        autoSearchMinDistancePctBear: null,
-        autoSearchMinTurnoverPerMinuteBull: null,
-        autoSearchMinTurnoverPerMinuteBear: null,
-        autoSearchExpiryMinMonths: 3,
-        autoSearchOpenDelayMinutes: 5,
-        switchIntervalMinutes: 0,
-        switchDistanceRangeBull: null,
-        switchDistanceRangeBear: null,
-      },
-    });
-    const symbolRegistry = createSymbolRegistry([monitor]);
+    const monitor = createProtectiveMonitor();
     const lastState = createMinimalLastState();
-    const boundaryByDirection = new Map<string, number>();
-    const restoreCompletedCalls: Array<{
-      monitorSymbol: string;
-      direction: 'LONG' | 'SHORT';
-      boundaryExecutedTimeMs: number;
-    }> = [];
-    const restoreInProgressCalls: Array<{
-      monitorSymbol: string;
-      direction: 'LONG' | 'SHORT';
-      latestExecutedTimeMs: number;
-    }> = [];
+    const { tracker, restoreCompletedCalls, restoreInProgressCalls } =
+      createProtectiveTrackerRecorder();
     let receivedBoundaryMap: ReadonlyMap<string, number> | undefined;
 
-    const protectiveTracker: ProtectiveLiquidationEpisodeTracker = {
-      recordProtectiveFillProgress: () => {},
-      completeIfEligible: () => null,
-      restoreCompletedBoundary: (params) => {
-        restoreCompletedCalls.push(params);
-        boundaryByDirection.set(
-          `${params.monitorSymbol}:${params.direction}`,
-          params.boundaryExecutedTimeMs,
-        );
-      },
-      restoreInProgressEpisode: (params) => {
-        restoreInProgressCalls.push(params);
-      },
-      getLatestProtectionBoundaryByDirection: () => new Map(boundaryByDirection),
-      getInProgressEpisodes: () => [],
-      resetAll: () => {
-        boundaryByDirection.clear();
-      },
-    };
-
-    const completedOrder = {
+    const completedOrder = createProtectiveOrder({
       orderId: 'protective-completed-1',
-      symbol: 'BULL.HK',
-      stockName: 'HSI RC',
-      side: OrderSide.Sell,
       status: OrderStatus.Canceled,
-      orderType: OrderType.MO,
-      remark: 'AUTO|PL',
       price: 9,
       quantity: 10,
       executedPrice: 9,
       executedQuantity: 10,
-      submittedAt: new Date(completedBoundaryMs - 30_000),
-      updatedAt: new Date(completedBoundaryMs),
-    };
-    const pendingOrder = {
+      updatedAtMs: completedBoundaryMs,
+    });
+    const pendingOrder = createProtectiveOrder({
       orderId: 'protective-pending-1',
-      symbol: 'BULL.HK',
-      stockName: 'HSI RC',
-      side: OrderSide.Sell,
       status: OrderStatus.PartialFilled,
-      orderType: OrderType.MO,
-      remark: 'AUTO|PL',
       price: 8.8,
       quantity: 10,
       executedPrice: 8.8,
       executedQuantity: 5,
-      submittedAt: new Date(pendingLatestExecutedMs - 30_000),
-      updatedAt: new Date(pendingLatestExecutedMs),
-    };
+      updatedAtMs: pendingLatestExecutedMs,
+    });
 
-    const deps: LoadTradingDayRuntimeSnapshotDeps = {
-      marketDataClient: {
-        getQuoteContext: async () => ({}),
-        getQuotes: async () => new Map<string, null>(),
-        subscribeSymbols: async () => {},
-        subscribeCandlesticks: async () => [],
-        resetRuntimeSubscriptionsAndCaches: async () => {},
-        isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
-      } as unknown as LoadTradingDayRuntimeSnapshotDeps['marketDataClient'],
-      trader: {
-        initializeOrderMonitor: async () => {},
-        getAccountSnapshot: async () => ({}),
-        getStockPositions: async () => [],
-        fetchAllOrdersFromAPI: async () => [completedOrder, pendingOrder],
-        seedOrderHoldSymbols: () => {},
-        getOrderHoldSymbols: () => new Set<string>(),
-      } as unknown as LoadTradingDayRuntimeSnapshotDeps['trader'],
+    const deps = createBaseDeps({
       lastState,
-      tradingConfig: {
-        monitors: [monitor],
-        global: {},
-      } as unknown as MultiMonitorTradingConfig,
-      symbolRegistry,
-      dailyLossTracker: {
-        recalculateFromAllOrders: (
-          _allOrders: ReadonlyArray<unknown>,
-          _monitors: ReadonlyArray<{
-            monitorSymbol: string;
-            orderOwnershipMapping: ReadonlyArray<string>;
-          }>,
-          _now: Date,
-          protectionBoundaryByDirection?: ReadonlyMap<string, number>,
-        ): void => {
-          receivedBoundaryMap = protectionBoundaryByDirection;
-        },
-      } as unknown as LoadTradingDayRuntimeSnapshotDeps['dailyLossTracker'],
-      protectiveLiquidationEpisodeTracker: protectiveTracker,
+      tradingConfig: createTradingConfig([monitor]),
+      trader: createReadyTrader({
+        fetchAllOrdersFromAPI: async () => [completedOrder, pendingOrder],
+      }),
+      dailyLossTracker: createBoundaryCaptureDailyLossTracker((protectionBoundaryByDirection) => {
+        receivedBoundaryMap = protectionBoundaryByDirection;
+      }),
+      protectiveLiquidationEpisodeTracker: tracker,
       tradeLogHydrator: {
         hydrate: () => new Map([['HSI.HK:LONG', completedBoundaryMs]]),
       },
-      warrantListCacheConfig:
-        {} as unknown as LoadTradingDayRuntimeSnapshotDeps['warrantListCacheConfig'],
-    };
+    });
 
     const load = createLoadTradingDayRuntimeSnapshot(deps);
-    await load({
-      now,
-      requireTradingDay: false,
-      failOnOrderFetchError: false,
-      resetRuntimeSubscriptions: false,
-      hydrateCooldownFromTradeLog: true,
-      forceOrderRefresh: false,
-    });
+    await load(
+      createLoadParams({
+        now,
+        hydrateCooldownFromTradeLog: true,
+      }),
+    );
 
     expect(restoreCompletedCalls).toEqual([
       {
@@ -699,5 +482,62 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
       },
     ]);
     expect(receivedBoundaryMap?.get('HSI.HK:LONG')).toBe(completedBoundaryMs);
+  });
+
+  it('advances restored completed boundary when a newer completed protective fill exists and direction is flat', async () => {
+    const now = new Date('2026-03-13T03:00:00.000Z');
+    const hydratedBoundaryMs = Date.parse('2026-03-13T02:20:00.000Z');
+    const newerCompletedFillMs = Date.parse('2026-03-13T02:35:00.000Z');
+    const monitor = createProtectiveMonitor();
+    const lastState = createMinimalLastState();
+    const { tracker, restoreCompletedCalls } = createProtectiveTrackerRecorder();
+    let receivedBoundaryMap: ReadonlyMap<string, number> | undefined;
+
+    const completedOrder = createProtectiveOrder({
+      orderId: 'protective-completed-newer-1',
+      status: OrderStatus.Canceled,
+      price: 9,
+      quantity: 10,
+      executedPrice: 9,
+      executedQuantity: 10,
+      updatedAtMs: newerCompletedFillMs,
+    });
+
+    const deps = createBaseDeps({
+      lastState,
+      tradingConfig: createTradingConfig([monitor]),
+      trader: createReadyTrader({
+        fetchAllOrdersFromAPI: async () => [completedOrder],
+      }),
+      dailyLossTracker: createBoundaryCaptureDailyLossTracker((protectionBoundaryByDirection) => {
+        receivedBoundaryMap = protectionBoundaryByDirection;
+      }),
+      protectiveLiquidationEpisodeTracker: tracker,
+      tradeLogHydrator: {
+        hydrate: () => new Map([['HSI.HK:LONG', hydratedBoundaryMs]]),
+      },
+    });
+
+    const load = createLoadTradingDayRuntimeSnapshot(deps);
+    await load(
+      createLoadParams({
+        now,
+        hydrateCooldownFromTradeLog: true,
+      }),
+    );
+
+    expect(restoreCompletedCalls).toEqual([
+      {
+        monitorSymbol: 'HSI.HK',
+        direction: 'LONG',
+        boundaryExecutedTimeMs: hydratedBoundaryMs,
+      },
+      {
+        monitorSymbol: 'HSI.HK',
+        direction: 'LONG',
+        boundaryExecutedTimeMs: newerCompletedFillMs,
+      },
+    ]);
+    expect(receivedBoundaryMap?.get('HSI.HK:LONG')).toBe(newerCompletedFillMs);
   });
 });

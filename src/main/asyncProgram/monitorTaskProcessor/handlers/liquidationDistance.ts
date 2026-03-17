@@ -11,6 +11,7 @@ import type { LastState } from '../../../../types/state.js';
 import type { Trader } from '../../../../types/services.js';
 import { formatError } from '../../../../utils/error/index.js';
 import { logger } from '../../../../utils/logger/index.js';
+import { validateSignalSeat } from '../../../../services/autoSymbolManager/utils.js';
 import {
   acquireSignal,
   positionObjectPool,
@@ -40,13 +41,14 @@ function createLiquidationTask(params: CreateLiquidationTaskParams): Liquidation
   const {
     symbol,
     symbolName,
-    isLongSymbol,
+    direction,
     position,
     quote,
     seatVersion,
     monitorPrice,
     riskChecker,
   } = params;
+  const isLongDirection = direction === 'LONG';
 
   if (!symbol) {
     return null;
@@ -59,7 +61,7 @@ function createLiquidationTask(params: CreateLiquidationTaskParams): Liquidation
 
   const liquidationResult = riskChecker.checkWarrantDistanceLiquidation(
     symbol,
-    isLongSymbol,
+    isLongDirection,
     monitorPrice,
   );
   if (!liquidationResult.shouldLiquidate) {
@@ -69,7 +71,7 @@ function createLiquidationTask(params: CreateLiquidationTaskParams): Liquidation
   const signal = acquireSignal();
   signal.symbol = symbol;
   signal.symbolName = symbolName;
-  signal.action = isLongSymbol ? 'SELLCALL' : 'SELLPUT';
+  signal.action = isLongDirection ? 'SELLCALL' : 'SELLPUT';
   signal.reason = liquidationResult.reason ?? '牛熊证距回收价触发清仓';
   signal.price = quote?.price ?? null;
   signal.lotSize = quote?.lotSize ?? null;
@@ -79,7 +81,11 @@ function createLiquidationTask(params: CreateLiquidationTaskParams): Liquidation
   signal.isProtectiveLiquidation = false;
   signal.seatVersion = seatVersion;
 
-  return { signal, isLongSymbol, quote };
+  return {
+    signal,
+    direction,
+    quote,
+  };
 }
 
 /**
@@ -146,7 +152,7 @@ export function createLiquidationDistanceHandler({
         const longTask = createLiquidationTask({
           symbol: longSymbol,
           symbolName: data.long.symbolName,
-          isLongSymbol: true,
+          direction: 'LONG',
           position: longPosition,
           quote: data.long.quote,
           seatVersion: data.long.seatVersion,
@@ -162,7 +168,7 @@ export function createLiquidationDistanceHandler({
         const shortTask = createLiquidationTask({
           symbol: shortSymbol,
           symbolName: data.short.symbolName,
-          isLongSymbol: false,
+          direction: 'SHORT',
           position: shortPosition,
           quote: data.short.quote,
           seatVersion: data.short.seatVersion,
@@ -184,30 +190,45 @@ export function createLiquidationDistanceHandler({
       }
 
       try {
-        const signalsToExecute = liquidationTasks.map((taskItem) => taskItem.signal);
+        const executableTasks = liquidationTasks.filter((taskItem) => {
+          const seatValidation = validateSignalSeat({
+            monitorSymbol: data.monitorSymbol,
+            signal: taskItem.signal,
+            symbolRegistry: context.symbolRegistry,
+          });
+          return seatValidation.valid;
+        });
+
+        if (executableTasks.length === 0) {
+          return 'processed';
+        }
+
+        const signalsToExecute = executableTasks.map((taskItem) => taskItem.signal);
 
         const executionResult = await trader.executeSignals(signalsToExecute);
-        if (executionResult.submittedCount !== liquidationTasks.length) {
+        if (executionResult.submittedCount !== executableTasks.length) {
           logger.warn(
-            `[牛熊证距回收价清仓] 信号仅提交 ${executionResult.submittedCount}/${liquidationTasks.length}，保留缓存与订单记录等待后续刷新`,
+            `[牛熊证距回收价清仓] 信号仅提交 ${executionResult.submittedCount}/${executableTasks.length}，保留缓存与订单记录等待后续刷新`,
           );
           return 'processed';
         }
 
-        for (const taskItem of liquidationTasks) {
+        for (const taskItem of executableTasks) {
+          const isLongDirection = taskItem.direction === 'LONG';
+
           context.orderRecorder.clearBuyOrders(
             taskItem.signal.symbol,
-            taskItem.isLongSymbol,
+            isLongDirection,
             taskItem.quote,
           );
           const dailyLossOffset = context.dailyLossTracker.getLossOffset(
             data.monitorSymbol,
-            taskItem.isLongSymbol,
+            isLongDirection,
           );
           await context.riskChecker.refreshUnrealizedLossData(
             context.orderRecorder,
             taskItem.signal.symbol,
-            taskItem.isLongSymbol,
+            isLongDirection,
             taskItem.quote,
             dailyLossOffset,
           );

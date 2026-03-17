@@ -1154,6 +1154,277 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     expect(machine.hasPendingSwitch('LONG')).toBeTrue();
   });
 
+  it('keeps pending switch state when rebuy submission is rejected', async () => {
+    const monitorConfig = createMonitorConfigDouble({
+      targetNotional: 5_000,
+      autoSearchConfig: getDefaultAutoSearchConfig(),
+    });
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+      longSeat: {
+        symbol: 'OLD_BULL.HK',
+        status: 'READY',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatReadyAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      longVersion: 1,
+    });
+    const switchStates = new Map();
+    const switchSuppressions = new Map();
+    let nowMs = Date.parse('2026-02-16T01:00:00.000Z');
+    const seatStateManager = createSeatStateManager({
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      switchStates,
+      switchSuppressions,
+      now: () => new Date(nowMs),
+      logger: createLoggerStub(),
+      getHKDateKey,
+    });
+    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const executedActions: Array<string | null> = [];
+    const trader = createTraderDouble({
+      executeSignals: async (signals) => {
+        const action = signals[0]?.action ?? null;
+        executedActions.push(action);
+        if (action === 'SELLCALL') {
+          return { submittedCount: 1, submittedOrderIds: ['SELL-ORDER-1'] };
+        }
+
+        return { submittedCount: 0, submittedOrderIds: [] };
+      },
+      getPendingOrders: async () => [],
+    });
+    const orderRecorder = createOrderRecorderDouble({
+      getSellRecordByOrderId: (orderId) =>
+        orderId === 'SELL-ORDER-1'
+          ? {
+              orderId: 'SELL-ORDER-1',
+              symbol: 'OLD_BULL.HK',
+              executedPrice: 2,
+              executedQuantity: 100,
+              executedTime: 9_999_999_999_999,
+              submittedAt: undefined,
+              updatedAt: undefined,
+            }
+          : null,
+    });
+    const machine = createSwitchStateMachine({
+      autoSearchConfig: monitorConfig.autoSearchConfig,
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      trader,
+      orderRecorder,
+      riskChecker: createRiskCheckerDouble({
+        getWarrantDistanceInfo: () =>
+          createWarrantDistanceInfoDouble({
+            warrantType: 'BULL',
+            distanceToStrikePercent: 0.1,
+          }),
+      }),
+      now: () => new Date(nowMs),
+      switchStates,
+      periodicSwitchPending: new Map(),
+      resolveSuppression: seatStateManager.resolveSuppression,
+      markSuppression: seatStateManager.markSuppression,
+      clearSeat: seatStateManager.clearSeat,
+      buildSeatState: seatStateManager.buildSeatState,
+      updateSeatState: seatStateManager.updateSeatState,
+      resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
+      buildFindBestWarrantInput: async () => createFindBestWarrantInputDouble(),
+      findBestWarrant: async () => createWarrantCandidate('NEW_BULL.HK'),
+      resolveDirectionSymbols,
+      calculateBuyQuantityByNotional,
+      buildOrderSignal: signalBuilder.buildOrderSignal,
+      signalObjectPool,
+      pendingOrderStatuses: PENDING_ORDER_STATUSES,
+      buySide: OrderSide.Buy,
+      logger: createLoggerStub(),
+      maxSearchFailuresPerDay: 3,
+      getHKDateKey,
+      calculateTradingDurationMsBetween,
+      getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
+    });
+    await machine.maybeSwitchOnDistance({
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      quotesMap: createQuotes({ 'OLD_BULL.HK': 1, 'NEW_BULL.HK': 1 }),
+      positions: [
+        {
+          symbol: 'OLD_BULL.HK',
+          quantity: 100,
+          availableQuantity: 100,
+          symbolName: 'OLD_BULL',
+          accountChannel: 'lb_papertrading',
+          currency: 'HKD',
+          costPrice: 1,
+          market: 'HK',
+        },
+      ],
+    });
+    expect(executedActions).toEqual(['SELLCALL']);
+    expect(machine.hasPendingSwitch('LONG')).toBeTrue();
+
+    nowMs += 1_000;
+    await machine.maybeSwitchOnDistance({
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      quotesMap: createQuotes({ 'OLD_BULL.HK': 1, 'NEW_BULL.HK': 1 }),
+      positions: [],
+    });
+
+    expect(executedActions).toEqual(['SELLCALL', 'BUYCALL']);
+    expect(machine.hasPendingSwitch('LONG')).toBeTrue();
+    const seat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
+    expect(seat.status).toBe('SWITCHING');
+    expect(seat.symbol).toBe('NEW_BULL.HK');
+  });
+
+  it('releases rebuy signal when rebuy execution throws', async () => {
+    const monitorConfig = createMonitorConfigDouble({
+      targetNotional: 5_000,
+      autoSearchConfig: getDefaultAutoSearchConfig(),
+    });
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+      longSeat: {
+        symbol: 'OLD_BULL.HK',
+        status: 'READY',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatReadyAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      longVersion: 1,
+    });
+    const switchStates = new Map();
+    const switchSuppressions = new Map();
+    let nowMs = Date.parse('2026-02-16T01:00:00.000Z');
+    const seatStateManager = createSeatStateManager({
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      switchStates,
+      switchSuppressions,
+      now: () => new Date(nowMs),
+      logger: createLoggerStub(),
+      getHKDateKey,
+    });
+    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const executedActions: Array<string | null> = [];
+    const originalRelease = signalObjectPool.release;
+    let releasedSignals = 0;
+    signalObjectPool.release = (signal) => {
+      releasedSignals += signal ? 1 : 0;
+      originalRelease.call(signalObjectPool, signal);
+    };
+
+    try {
+      const trader = createTraderDouble({
+        executeSignals: async (signals) => {
+          const action = signals[0]?.action ?? null;
+          executedActions.push(action);
+          if (action === 'SELLCALL') {
+            return { submittedCount: 1, submittedOrderIds: ['SELL-ORDER-REBUY-THROW'] };
+          }
+
+          throw new Error('rebuy submit failed');
+        },
+        getPendingOrders: async () => [],
+      });
+      const orderRecorder = createOrderRecorderDouble({
+        getSellRecordByOrderId: (orderId) =>
+          orderId === 'SELL-ORDER-REBUY-THROW'
+            ? {
+                orderId: 'SELL-ORDER-REBUY-THROW',
+                symbol: 'OLD_BULL.HK',
+                executedPrice: 2,
+                executedQuantity: 100,
+                executedTime: 9_999_999_999_999,
+                submittedAt: undefined,
+                updatedAt: undefined,
+              }
+            : null,
+      });
+      const machine = createSwitchStateMachine({
+        autoSearchConfig: monitorConfig.autoSearchConfig,
+        monitorSymbol: 'HSI.HK',
+        symbolRegistry,
+        trader,
+        orderRecorder,
+        riskChecker: createRiskCheckerDouble({
+          getWarrantDistanceInfo: () =>
+            createWarrantDistanceInfoDouble({
+              warrantType: 'BULL',
+              distanceToStrikePercent: 0.1,
+            }),
+        }),
+        now: () => new Date(nowMs),
+        switchStates,
+        periodicSwitchPending: new Map(),
+        resolveSuppression: seatStateManager.resolveSuppression,
+        markSuppression: seatStateManager.markSuppression,
+        clearSeat: seatStateManager.clearSeat,
+        buildSeatState: seatStateManager.buildSeatState,
+        updateSeatState: seatStateManager.updateSeatState,
+        resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
+        buildFindBestWarrantInput: async () => createFindBestWarrantInputDouble(),
+        findBestWarrant: async () => createWarrantCandidate('NEW_BULL.HK'),
+        resolveDirectionSymbols,
+        calculateBuyQuantityByNotional,
+        buildOrderSignal: signalBuilder.buildOrderSignal,
+        signalObjectPool,
+        pendingOrderStatuses: PENDING_ORDER_STATUSES,
+        buySide: OrderSide.Buy,
+        logger: createLoggerStub(),
+        maxSearchFailuresPerDay: 3,
+        getHKDateKey,
+        calculateTradingDurationMsBetween,
+        getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
+      });
+
+      await machine.maybeSwitchOnDistance({
+        direction: 'LONG',
+        monitorPrice: 20_000,
+        quotesMap: createQuotes({ 'OLD_BULL.HK': 1, 'NEW_BULL.HK': 1 }),
+        positions: [
+          {
+            symbol: 'OLD_BULL.HK',
+            quantity: 100,
+            availableQuantity: 100,
+            symbolName: 'OLD_BULL',
+            accountChannel: 'lb_papertrading',
+            currency: 'HKD',
+            costPrice: 1,
+            market: 'HK',
+          },
+        ],
+      });
+
+      nowMs += 1_000;
+      let caught: unknown = null;
+      try {
+        await machine.maybeSwitchOnDistance({
+          direction: 'LONG',
+          monitorPrice: 20_000,
+          quotesMap: createQuotes({ 'OLD_BULL.HK': 1, 'NEW_BULL.HK': 1 }),
+          positions: [],
+        });
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught).toMatchObject({ message: 'rebuy submit failed' });
+      expect(executedActions).toEqual(['SELLCALL', 'BUYCALL']);
+      expect(releasedSignals).toBe(2);
+    } finally {
+      signalObjectPool.release = originalRelease;
+    }
+  });
+
   it('fails and clears seat when rebuy sell-notional is unavailable', async () => {
     const monitorConfig = createMonitorConfigDouble({
       autoSearchConfig: getDefaultAutoSearchConfig(),

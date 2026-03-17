@@ -57,14 +57,6 @@ export type ResolvedApiKeyAuthConfig = {
 };
 
 /**
- * 已解析的统一认证配置联合类型。
- * 类型用途：表达认证字段的读取结果，供配置校验层复用。
- * 数据来源：由 config/auth/utils 读取环境变量后得到。
- * 使用范围：仅 config/auth 模块与配置校验层使用。
- */
-export type ParsedAuthConfig = OAuthAuthConfig | ApiKeyAuthConfig;
-
-/**
  * 已解析完成的统一认证配置联合类型。
  * 类型用途：表达可直接用于创建 SDK Config 的认证配置。
  * 数据来源：由 config/auth/index 在校验通过后构造。
@@ -82,3 +74,14 @@ export type CreateSdkConfigFromAuthParams = {
   readonly env: NodeJS.ProcessEnv;
   readonly onOpenUrl?: (url: string) => void;
 };
+
+/**
+ * Longbridge 认证与 SDK extra 配置校验问题。
+ * 类型用途：统一表达 auth 模块内可复用的环境变量校验结果，供校验层与工厂层共享。
+ * 数据来源：由 config/auth/utils 中的校验函数生成。
+ * 使用范围：仅 config/auth 模块与配置校验层使用。
+ */
+export type LongbridgeConfigValidationIssue = Readonly<{
+  envKey: string;
+  message: string;
+}>;

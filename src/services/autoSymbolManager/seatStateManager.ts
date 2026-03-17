@@ -108,7 +108,7 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
   /**
    * 清空席位并进入换标流程，同时提升席位版本用于信号隔离。
    */
-  function clearSeat({ direction, reason }: { direction: 'LONG' | 'SHORT'; reason: string }) {
+  function clearSeat({ direction, reason }: { direction: 'LONG' | 'SHORT'; reason: string }): number {
     const timestamp = now().getTime();
     const currentState = symbolRegistry.getSeatState(monitorSymbol, direction);
     const currentSymbol = currentState.symbol;
@@ -133,7 +133,6 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
         oldSymbol: currentSymbol,
         nextSymbol: null,
         nextCallPrice: null,
-        startedAt: timestamp,
         sellSubmitted: false,
         sellOrderId: null,
         sellNotional: null,

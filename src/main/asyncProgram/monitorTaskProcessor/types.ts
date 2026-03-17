@@ -149,7 +149,7 @@ export type MonitorTaskStatus = 'processed' | 'skipped' | 'failed';
  */
 export type LiquidationTask = Readonly<{
   signal: Signal;
-  isLongSymbol: boolean;
+  direction: 'LONG' | 'SHORT';
   quote: Quote | null;
 }>;
 
@@ -162,7 +162,7 @@ export type LiquidationTask = Readonly<{
 export type CreateLiquidationTaskParams = Readonly<{
   symbol: string;
   symbolName: string | null;
-  isLongSymbol: boolean;
+  direction: 'LONG' | 'SHORT';
   position: Position | null;
   quote: Quote | null;
   seatVersion: number;

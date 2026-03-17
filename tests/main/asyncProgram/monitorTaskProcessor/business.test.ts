@@ -8,6 +8,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { createMonitorTaskProcessor } from '../../../../src/main/asyncProgram/monitorTaskProcessor/index.js';
 import type {
+  LiquidationTask,
   MonitorTaskDataMap,
   MonitorTaskProcessorDeps,
   MonitorTaskStatus,
@@ -42,8 +43,9 @@ type CreateBusinessProcessorParams = Readonly<{
 }>;
 
 type CreateTriggeredLongOnlyLiquidationContextParams = Readonly<{
-  onClearBuyOrders?: () => void;
-  onRefreshUnrealizedLoss?: () => void;
+  onClearBuyOrders?: (isLongSymbol: boolean) => void;
+  onGetLossOffset?: (isLongSymbol: boolean) => void;
+  onRefreshUnrealizedLoss?: (isLongSymbol: boolean) => void;
 }>;
 
 function createTradingConfig(): MultiMonitorTradingConfig {
@@ -134,6 +136,50 @@ function scheduleLiquidationDistanceCheckTask(
   });
 }
 
+function scheduleShortOnlyLiquidationDistanceCheckTask(
+  queue: MonitorTaskQueueForTest,
+  dedupeKey: string,
+): void {
+  queue.scheduleLatest({
+    type: 'LIQUIDATION_DISTANCE_CHECK',
+    dedupeKey,
+    monitorSymbol: 'HSI.HK',
+    data: {
+      monitorSymbol: 'HSI.HK',
+      monitorPrice: 20_000,
+      long: {
+        seatVersion: 1,
+        symbol: null,
+        quote: null,
+        symbolName: null,
+      },
+      short: {
+        seatVersion: 3,
+        symbol: 'BEAR.HK',
+        quote: createQuoteDouble('BEAR.HK', 1, 100),
+        symbolName: 'BEAR.HK',
+      },
+    },
+  });
+}
+
+function seedBearPosition(lastState: ReturnType<typeof createLastState>): void {
+  const shortPosition = createPositionDouble({
+    symbol: 'BEAR.HK',
+    quantity: 200,
+    availableQuantity: 200,
+  });
+
+  lastState.positionCache.update([shortPosition]);
+}
+
+function pushLiquidationTaskDirection(
+  directions: Array<LiquidationTask['direction']>,
+  direction: LiquidationTask['direction'],
+): void {
+  directions.push(direction);
+}
+
 function seedBullPosition(lastState: ReturnType<typeof createLastState>): void {
   const longPosition = createPositionDouble({
     symbol: 'BULL.HK',
@@ -147,14 +193,24 @@ function seedBullPosition(lastState: ReturnType<typeof createLastState>): void {
 function createTriggeredLongOnlyLiquidationContext(
   params: CreateTriggeredLongOnlyLiquidationContextParams = {},
 ): ReturnType<typeof createMonitorTaskContext> {
-  const { onClearBuyOrders, onRefreshUnrealizedLoss } = params;
+  const { onClearBuyOrders, onGetLossOffset, onRefreshUnrealizedLoss } = params;
 
   return createMonitorTaskContext({
     orderRecorder: createOrderRecorderDouble({
-      clearBuyOrders: () => {
-        onClearBuyOrders?.();
+      clearBuyOrders: (_symbol, isLongSymbol) => {
+        onClearBuyOrders?.(isLongSymbol);
       },
     }),
+    dailyLossTracker: {
+      resetAll: () => {},
+      recalculateFromAllOrders: () => {},
+      recordFilledOrder: () => {},
+      getLossOffset: (_monitorSymbol, isLongSymbol) => {
+        onGetLossOffset?.(isLongSymbol);
+        return 0;
+      },
+      startNewProtectionEpisode: () => {},
+    },
     riskChecker: createRiskCheckerDouble({
       checkWarrantDistanceLiquidation: function checkWarrantDistanceLiquidation(
         _symbol,
@@ -166,8 +222,8 @@ function createTriggeredLongOnlyLiquidationContext(
 
         return { shouldLiquidate: false };
       },
-      refreshUnrealizedLossData: async () => {
-        onRefreshUnrealizedLoss?.();
+      refreshUnrealizedLossData: async (_orderRecorder, _symbol, isLongSymbol) => {
+        onRefreshUnrealizedLoss?.(isLongSymbol);
         return { r1: 100, n1: 100 };
       },
     }),
@@ -553,6 +609,79 @@ describe('monitorTaskProcessor business flow', () => {
     expect(refreshUnrealizedCalls).toBe(1);
   });
 
+  it('skips stale LIQUIDATION_DISTANCE_CHECK signals when seat changes before execution', async () => {
+    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
+    const lastState = createLastState();
+    seedBullPosition(lastState);
+
+    const submittedActions: string[] = [];
+    let gateCalls = 0;
+    let clearedOrders = 0;
+    let refreshUnrealizedCalls = 0;
+
+    const context = createTriggeredLongOnlyLiquidationContext({
+      onClearBuyOrders: () => {
+        clearedOrders += 1;
+      },
+      onRefreshUnrealizedLoss: () => {
+        refreshUnrealizedCalls += 1;
+      },
+    });
+    const statuses: MonitorTaskStatus[] = [];
+
+    const processor = createBusinessProcessor({
+      queue,
+      context,
+      lastState,
+      trader: createTraderDouble({
+        executeSignals: async (signals) => {
+          for (const signal of signals) {
+            submittedActions.push(signal.action);
+          }
+
+          return { submittedCount: signals.length, submittedOrderIds: [] };
+        },
+      }),
+      getCanProcessTask: () => {
+        gateCalls += 1;
+        if (gateCalls === 2) {
+          const currentSeat = context.symbolRegistry.getSeatState('HSI.HK', 'LONG');
+          context.symbolRegistry.bumpSeatVersion('HSI.HK', 'LONG');
+          context.symbolRegistry.updateSeatState('HSI.HK', 'LONG', {
+            symbol: currentSeat.symbol,
+            status: 'SWITCHING',
+            lastSwitchAt: Date.now(),
+            lastSearchAt: currentSeat.lastSearchAt,
+            lastSeatReadyAt: currentSeat.lastSeatReadyAt,
+            callPrice: currentSeat.callPrice ?? null,
+            searchFailCountToday: currentSeat.searchFailCountToday,
+            frozenTradingDayKey: currentSeat.frozenTradingDayKey,
+          });
+        }
+
+        return true;
+      },
+      onProcessed: createStatusCollector(statuses),
+    });
+
+    await runProcessorFlow({
+      processor,
+      pushTask: () => {
+        scheduleLiquidationDistanceCheckTask(
+          queue,
+          'HSI.HK:LIQUIDATION_DISTANCE_CHECK:STALE_SEAT',
+        );
+      },
+      waitCondition: () => statuses.length === 1,
+      timeoutMs: 500,
+    });
+
+    expect(statuses[0]).toBe('processed');
+    expect(submittedActions).toEqual([]);
+    expect(clearedOrders).toBe(0);
+    expect(refreshUnrealizedCalls).toBe(0);
+  });
+
   it('keeps cache unchanged when LIQUIDATION_DISTANCE_CHECK signals are not submitted', async () => {
     const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const lastState = createLastState();
@@ -604,5 +733,82 @@ describe('monitorTaskProcessor business flow', () => {
     expect(submittedActions).toEqual(['SELLCALL']);
     expect(clearedOrders).toBe(0);
     expect(refreshUnrealizedCalls).toBe(0);
+  });
+
+  it('processes LIQUIDATION_DISTANCE_CHECK and keeps short direction consistent for triggered short side', async () => {
+    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
+    const lastState = createLastState();
+    seedBearPosition(lastState);
+
+    const submittedActions: string[] = [];
+    const clearedDirections: Array<LiquidationTask['direction']> = [];
+    const lossOffsetDirections: Array<LiquidationTask['direction']> = [];
+    const refreshDirections: Array<LiquidationTask['direction']> = [];
+
+    const context = createMonitorTaskContext({
+      orderRecorder: createOrderRecorderDouble({
+        clearBuyOrders: (_symbol, isLongSymbol) => {
+          pushLiquidationTaskDirection(clearedDirections, isLongSymbol ? 'LONG' : 'SHORT');
+        },
+      }),
+      dailyLossTracker: {
+        resetAll: () => {},
+        recalculateFromAllOrders: () => {},
+        recordFilledOrder: () => {},
+        getLossOffset: (_monitorSymbol, isLongSymbol) => {
+          pushLiquidationTaskDirection(lossOffsetDirections, isLongSymbol ? 'LONG' : 'SHORT');
+          return 0;
+        },
+        startNewProtectionEpisode: () => {},
+      },
+      riskChecker: createRiskCheckerDouble({
+        checkWarrantDistanceLiquidation: (_symbol, isLongSymbol) => {
+          if (!isLongSymbol) {
+            return { shouldLiquidate: true, reason: '触发清仓阈值' };
+          }
+
+          return { shouldLiquidate: false };
+        },
+        refreshUnrealizedLossData: async (_orderRecorder, _symbol, isLongSymbol) => {
+          pushLiquidationTaskDirection(refreshDirections, isLongSymbol ? 'LONG' : 'SHORT');
+          return { r1: 100, n1: 100 };
+        },
+      }),
+    });
+    const statuses: MonitorTaskStatus[] = [];
+
+    const processor = createBusinessProcessor({
+      queue,
+      context,
+      lastState,
+      trader: createTraderDouble({
+        executeSignals: async (signals) => {
+          for (const signal of signals) {
+            submittedActions.push(signal.action);
+          }
+
+          return { submittedCount: signals.length, submittedOrderIds: [] };
+        },
+      }),
+      onProcessed: createStatusCollector(statuses),
+    });
+
+    await runProcessorFlow({
+      processor,
+      pushTask: () => {
+        scheduleShortOnlyLiquidationDistanceCheckTask(
+          queue,
+          'HSI.HK:LIQUIDATION_DISTANCE_CHECK:SHORT_ONLY',
+        );
+      },
+      waitCondition: () => statuses.length === 1,
+      timeoutMs: 500,
+    });
+
+    expect(statuses[0]).toBe('processed');
+    expect(submittedActions).toEqual(['SELLPUT']);
+    expect(clearedDirections).toEqual(['SHORT']);
+    expect(lossOffsetDirections).toEqual(['SHORT']);
+    expect(refreshDirections).toEqual(['SHORT']);
   });
 });

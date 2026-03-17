@@ -4,6 +4,7 @@ import {
   readAuthMode,
   readOAuthAuthConfig,
   readSdkExtraConfig,
+  validateLongbridgeConfig,
 } from './utils.js';
 import type {
   CreateSdkConfigFromAuthParams,
@@ -81,6 +82,11 @@ export async function createSdkConfigFromAuth(
   params: CreateSdkConfigFromAuthParams,
 ): Promise<Config> {
   const { env, onOpenUrl } = params;
+  const validationIssues = validateLongbridgeConfig(env);
+  if (validationIssues.length > 0) {
+    throw new Error(validationIssues[0]?.message ?? 'Longbridge 配置无效');
+  }
+
   const authConfig = resolveAuthConfig(env);
   const extraConfig = readSdkExtraConfig(env);
 

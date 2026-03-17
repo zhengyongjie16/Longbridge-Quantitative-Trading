@@ -180,6 +180,25 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     );
   }
 
+  async function executeSwitchSignal(
+    signal: ReturnType<SwitchStateMachineDeps['buildOrderSignal']>,
+    submitFailedMessage: string,
+  ): Promise<Awaited<ReturnType<SwitchStateMachineDeps['trader']['executeSignals']>> | null> {
+    let executionResult: Awaited<ReturnType<SwitchStateMachineDeps['trader']['executeSignals']>>;
+    try {
+      executionResult = await trader.executeSignals([signal]);
+    } finally {
+      signalObjectPool.release(signal);
+    }
+
+    if (executionResult.submittedCount <= 0) {
+      logger.warn(submitFailedMessage);
+      return null;
+    }
+
+    return executionResult;
+  }
+
   /** 清除某方向的周期换标 pending 状态。 */
   function clearPeriodicPending(direction: 'LONG' | 'SHORT'): void {
     periodicSwitchPending.delete(direction);
@@ -334,7 +353,6 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
       oldSymbol: seatSymbol,
       nextSymbol: next?.symbol ?? null,
       nextCallPrice: next?.callPrice ?? null,
-      startedAt: now().getTime(),
       sellSubmitted: false,
       sellOrderId: null,
       sellNotional: null,
@@ -504,12 +522,11 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
           seatVersion,
         });
 
-        const executionResult = await trader.executeSignals([signal]);
-        signalObjectPool.release(signal);
-        if (executionResult.submittedCount <= 0) {
-          logger.warn(
-            `[自动换标] 移仓卖出未提交成功，等待重试: monitorSymbol=${monitorSymbol} direction=${direction} symbol=${state.oldSymbol}`,
-          );
+        const executionResult = await executeSwitchSignal(
+          signal,
+          `[自动换标] 移仓卖出未提交成功，等待重试: monitorSymbol=${monitorSymbol} direction=${direction} symbol=${state.oldSymbol}`,
+        );
+        if (executionResult === null) {
           return;
         }
 
@@ -622,8 +639,13 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
           seatVersion,
         });
 
-        await trader.executeSignals([signal]);
-        signalObjectPool.release(signal);
+        const executionResult = await executeSwitchSignal(
+          signal,
+          `[自动换标] 回补买入未提交成功，等待重试: monitorSymbol=${monitorSymbol} direction=${direction} symbol=${nextSymbol}`,
+        );
+        if (executionResult === null) {
+          return;
+        }
       } else {
         logger.info(
           `[自动换标] 回补买入数量无效或过小，跳过回补: ${nextSymbol}, buyQuantity=${String(buyQuantity)}`,

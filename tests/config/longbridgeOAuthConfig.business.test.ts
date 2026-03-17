@@ -4,10 +4,77 @@
  * 功能：
  * - 验证双认证模式下的启动配置校验行为
  */
-import { describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { validateAllConfig } from '../../src/config/config.validator.js';
 import { createMonitorConfigDouble } from '../helpers/testDoubles.js';
 import { createTradingConfig } from '../../mock/factories/configFactory.js';
+
+const oauthBuildCalls: Array<{ clientId: string; callbackPort?: number }> = [];
+const fromOAuthCalls: Array<{ oauth: unknown; extra: unknown }> = [];
+const fromApikeyCalls: Array<{
+  appKey: string;
+  appSecret: string;
+  accessToken: string;
+  extra: unknown;
+}> = [];
+const oauthHandle = { kind: 'oauth-handle' };
+
+const Language = {
+  ZH_CN: 'ZH_CN',
+  ZH_HK: 'ZH_HK',
+  EN: 'EN',
+} as const;
+
+const PushCandlestickMode = {
+  Realtime: 'Realtime',
+  Confirmed: 'Confirmed',
+} as const;
+
+class Config {
+  public static fromOAuth(oauth: unknown, extra?: unknown): unknown {
+    fromOAuthCalls.push({ oauth, extra: extra ?? null });
+    return { kind: 'oauth-config', oauth, extra: extra ?? null };
+  }
+
+  public static fromApikey(
+    appKey: string,
+    appSecret: string,
+    accessToken: string,
+    extra?: unknown,
+  ): unknown {
+    fromApikeyCalls.push({
+      appKey,
+      appSecret,
+      accessToken,
+      extra: extra ?? null,
+    });
+    return { kind: 'apikey-config', appKey, appSecret, accessToken, extra: extra ?? null };
+  }
+}
+
+const OAuth = {
+  build: async (
+    clientId: string,
+    onOpenUrl: (error: Error | null, url: string) => void,
+    callbackPort?: number,
+  ): Promise<unknown> => {
+    oauthBuildCalls.push(
+      callbackPort === undefined ? { clientId } : { clientId, callbackPort },
+    );
+    onOpenUrl(null, 'https://example.test/oauth');
+    return oauthHandle;
+  },
+};
+
+// eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 为同步注册
+mock.module('longbridge', () => ({
+  Config,
+  OAuth,
+  Language,
+  PushCandlestickMode,
+}));
+
+import { createSdkConfigFromAuth } from '../../src/config/auth/index.js';
 
 function createSignalConfig() {
   return {
@@ -48,6 +115,12 @@ async function validateEnv(env: NodeJS.ProcessEnv): Promise<unknown> {
     return error;
   }
 }
+
+beforeEach(() => {
+  oauthBuildCalls.length = 0;
+  fromOAuthCalls.length = 0;
+  fromApikeyCalls.length = 0;
+});
 
 describe('longbridge auth config validation', () => {
   it('rejects missing auth mode before auth fields are evaluated', async () => {
@@ -158,5 +231,34 @@ describe('longbridge auth config validation', () => {
         'LONGBRIDGE_ACCESS_TOKEN',
       ]),
     );
+  });
+
+  it('createSdkConfigFromAuth rejects invalid callback port before OAuth.build', async () => {
+    expect(
+      createSdkConfigFromAuth({
+        env: {
+          LONGBRIDGE_AUTH_MODE: 'oauth',
+          LONGBRIDGE_CLIENT_ID: 'client-id',
+          LONGBRIDGE_CALLBACK_PORT: '70000',
+        },
+      }),
+    ).rejects.toThrow('LONGBRIDGE_CALLBACK_PORT');
+    expect(oauthBuildCalls).toHaveLength(0);
+    expect(fromOAuthCalls).toHaveLength(0);
+  });
+
+  it('createSdkConfigFromAuth rejects invalid sdk extra config before building config', async () => {
+    expect(
+      createSdkConfigFromAuth({
+        env: {
+          LONGBRIDGE_AUTH_MODE: 'apikey',
+          LONGBRIDGE_APP_KEY: 'app-key',
+          LONGBRIDGE_APP_SECRET: 'app-secret',
+          LONGBRIDGE_ACCESS_TOKEN: 'access-token',
+          LONGBRIDGE_LANGUAGE: 'fr',
+        },
+      }),
+    ).rejects.toThrow('LONGBRIDGE_LANGUAGE');
+    expect(fromApikeyCalls).toHaveLength(0);
   });
 });

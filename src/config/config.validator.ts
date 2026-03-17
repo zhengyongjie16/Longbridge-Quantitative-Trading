@@ -5,7 +5,7 @@
  */
 import { logger } from '../utils/logger/index.js';
 import { formatSignalConfig, getStringConfig, isSymbolWithRegion } from './utils.js';
-import { readApiKeyAuthConfig, readAuthMode, readOAuthAuthConfig } from './auth/utils.js';
+import { readAuthMode, validateLongbridgeConfig } from './auth/utils.js';
 import type {
   LiquidationCooldownConfig,
   MonitorConfig,
@@ -26,10 +26,6 @@ import type {
 
 const AUTO_SEARCH_DISTANCE_UNIT_HINT =
   'Longbridge warrantList.toCallPrice 原始值会先从小数比值转换为该百分比值口径。';
-const VALID_AUTH_MODE_VALUES = new Set(['oauth', 'apikey']);
-const VALID_LONGBRIDGE_LANGUAGE_VALUES = new Set(['zh-CN', 'zh-HK', 'en']);
-const VALID_LONGBRIDGE_PUSH_CANDLESTICK_MODE_VALUES = new Set(['realtime', 'confirmed']);
-const VALID_BOOLEAN_CONFIG_VALUES = new Set(['true', 'false']);
 
 /**
  * 创建配置验证错误对象，供 validateAllConfig 在验证失败时抛出。
@@ -191,133 +187,18 @@ function validateDegradedRangeRelationship(params: {
   return null;
 }
 
-function validateSdkExtraConfig(env: NodeJS.ProcessEnv): ValidationResult {
-  const errors: string[] = [];
-  const missingFields: string[] = [];
-
-  const urlConfigKeys = [
-    'LONGBRIDGE_HTTP_URL',
-    'LONGBRIDGE_QUOTE_WS_URL',
-    'LONGBRIDGE_TRADE_WS_URL',
-  ] as const;
-
-  for (const urlConfigKey of urlConfigKeys) {
-    const urlValue = getStringConfig(env, urlConfigKey);
-    if (urlValue === null) {
-      continue;
-    }
-
-    if (!URL.canParse(urlValue)) {
-      errors.push(`${urlConfigKey} 无效（必须为合法 URL）`);
-      missingFields.push(urlConfigKey);
-    }
-  }
-
-  const languageValue = getStringConfig(env, 'LONGBRIDGE_LANGUAGE');
-  if (languageValue !== null && !VALID_LONGBRIDGE_LANGUAGE_VALUES.has(languageValue)) {
-    errors.push('LONGBRIDGE_LANGUAGE 无效（仅支持 zh-CN / zh-HK / en）');
-    missingFields.push('LONGBRIDGE_LANGUAGE');
-  }
-
-  const pushCandlestickModeValue = getStringConfig(env, 'LONGBRIDGE_PUSH_CANDLESTICK_MODE');
-  if (
-    pushCandlestickModeValue !== null &&
-    !VALID_LONGBRIDGE_PUSH_CANDLESTICK_MODE_VALUES.has(pushCandlestickModeValue)
-  ) {
-    errors.push('LONGBRIDGE_PUSH_CANDLESTICK_MODE 无效（仅支持 realtime / confirmed）');
-    missingFields.push('LONGBRIDGE_PUSH_CANDLESTICK_MODE');
-  }
-
-  const booleanConfigKeys = [
-    'LONGBRIDGE_ENABLE_OVERNIGHT',
-    'LONGBRIDGE_PRINT_QUOTE_PACKAGES',
-  ] as const;
-
-  for (const booleanConfigKey of booleanConfigKeys) {
-    const booleanValue = getStringConfig(env, booleanConfigKey);
-    if (booleanValue === null) {
-      continue;
-    }
-
-    if (!VALID_BOOLEAN_CONFIG_VALUES.has(booleanValue)) {
-      errors.push(`${booleanConfigKey} 无效（仅支持 true / false）`);
-      missingFields.push(booleanConfigKey);
-    }
-  }
-
-  return {
-    valid: errors.length === 0,
-    errors,
-    missingFields,
-  };
-}
-
 /**
  * 验证 Longbridge 认证启动配置是否已配置且合法。
  * @param env - 进程环境变量
  * @returns 验证结果（valid、errors、missingFields）
  */
 function validateLongbridgeAuthConfig(env: NodeJS.ProcessEnv): ValidationResult {
-  const errors: string[] = [];
-  const missingFields: string[] = [];
-  const authModeValue = getStringConfig(env, 'LONGBRIDGE_AUTH_MODE');
-  const authMode = readAuthMode(env);
-
-  if (authModeValue === null) {
-    errors.push('LONGBRIDGE_AUTH_MODE 未配置');
-    missingFields.push('LONGBRIDGE_AUTH_MODE');
-  } else if (!VALID_AUTH_MODE_VALUES.has(authModeValue) || authMode === null) {
-    errors.push('LONGBRIDGE_AUTH_MODE 无效（仅支持 oauth / apikey）');
-    missingFields.push('LONGBRIDGE_AUTH_MODE');
-  }
-
-  if (authMode === 'oauth') {
-    const oauthAuthConfig = readOAuthAuthConfig(env);
-    if (oauthAuthConfig.clientId === null) {
-      errors.push('LONGBRIDGE_CLIENT_ID 未配置');
-      missingFields.push('LONGBRIDGE_CLIENT_ID');
-    }
-
-    const callbackPortValue = getStringConfig(env, 'LONGBRIDGE_CALLBACK_PORT');
-    if (callbackPortValue !== null && oauthAuthConfig.callbackPort === null) {
-      errors.push('LONGBRIDGE_CALLBACK_PORT 无效（必须为 1-65535 的整数端口）');
-      missingFields.push('LONGBRIDGE_CALLBACK_PORT');
-    }
-  }
-
-  if (authMode === 'apikey') {
-    const apiKeyAuthConfig = readApiKeyAuthConfig(env);
-    const requiredApiKeyFields = [
-      {
-        envKey: 'LONGBRIDGE_APP_KEY',
-        value: apiKeyAuthConfig.appKey,
-      },
-      {
-        envKey: 'LONGBRIDGE_APP_SECRET',
-        value: apiKeyAuthConfig.appSecret,
-      },
-      {
-        envKey: 'LONGBRIDGE_ACCESS_TOKEN',
-        value: apiKeyAuthConfig.accessToken,
-      },
-    ] as const;
-
-    for (const field of requiredApiKeyFields) {
-      if (field.value !== null) {
-        continue;
-      }
-
-      errors.push(`${field.envKey} 未配置`);
-      missingFields.push(field.envKey);
-    }
-  }
-
-  const sdkExtraValidationResult = validateSdkExtraConfig(env);
+  const issues = validateLongbridgeConfig(env);
 
   return {
-    valid: errors.length === 0 && sdkExtraValidationResult.valid,
-    errors: [...errors, ...sdkExtraValidationResult.errors],
-    missingFields: [...missingFields, ...sdkExtraValidationResult.missingFields],
+    valid: issues.length === 0,
+    errors: issues.map((issue) => issue.message),
+    missingFields: issues.map((issue) => issue.envKey),
   };
 }
 

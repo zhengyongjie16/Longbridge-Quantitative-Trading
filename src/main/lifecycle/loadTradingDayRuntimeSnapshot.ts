@@ -78,6 +78,31 @@ function isDirectionFlatAtSnapshot(
   return position === null || position.quantity <= 0;
 }
 
+function restoreCompletedBoundary(params: {
+  readonly protectiveLiquidationEpisodeTracker: LoadTradingDayRuntimeSnapshotDeps['protectiveLiquidationEpisodeTracker'];
+  readonly restoredBoundaryByDirection: Map<string, number>;
+  readonly directionKey: string;
+  readonly monitorSymbol: string;
+  readonly direction: ProtectiveLiquidationDirection;
+  readonly boundaryExecutedTimeMs: number;
+}): void {
+  const {
+    protectiveLiquidationEpisodeTracker,
+    restoredBoundaryByDirection,
+    directionKey,
+    monitorSymbol,
+    direction,
+    boundaryExecutedTimeMs,
+  } = params;
+
+  protectiveLiquidationEpisodeTracker.restoreCompletedBoundary({
+    monitorSymbol,
+    direction,
+    boundaryExecutedTimeMs,
+  });
+  restoredBoundaryByDirection.set(directionKey, boundaryExecutedTimeMs);
+}
+
 /**
  * 创建交易日运行时快照加载函数（工厂）。
  * 注入依赖后返回 loadTradingDayRuntimeSnapshot，用于启动初始化与开盘重建时加载账户、持仓、订单、席位与行情快照。
@@ -220,12 +245,14 @@ export function createLoadTradingDayRuntimeSnapshot(
         continue;
       }
 
-      protectiveLiquidationEpisodeTracker.restoreCompletedBoundary({
+      restoreCompletedBoundary({
+        protectiveLiquidationEpisodeTracker,
+        restoredBoundaryByDirection,
+        directionKey,
         monitorSymbol: parsed.monitorSymbol,
         direction: parsed.direction,
         boundaryExecutedTimeMs,
       });
-      restoredBoundaryByDirection.set(directionKey, boundaryExecutedTimeMs);
     }
 
     for (const [directionKey, latestExecutedTimeMs] of protectiveLatestFillByDirection) {
@@ -251,12 +278,14 @@ export function createLoadTradingDayRuntimeSnapshot(
         continue;
       }
 
-      protectiveLiquidationEpisodeTracker.restoreCompletedBoundary({
+      restoreCompletedBoundary({
+        protectiveLiquidationEpisodeTracker,
+        restoredBoundaryByDirection,
+        directionKey,
         monitorSymbol: parsed.monitorSymbol,
         direction: parsed.direction,
         boundaryExecutedTimeMs: latestExecutedTimeMs,
       });
-      restoredBoundaryByDirection.set(directionKey, latestExecutedTimeMs);
     }
 
     for (const [directionKey, latestExecutedTimeMs] of protectiveLatestFillByDirection) {
@@ -296,6 +325,14 @@ export function createLoadTradingDayRuntimeSnapshot(
         parsed.direction,
       );
       if (isDirectionFlat) {
+        restoreCompletedBoundary({
+          protectiveLiquidationEpisodeTracker,
+          restoredBoundaryByDirection,
+          directionKey,
+          monitorSymbol: parsed.monitorSymbol,
+          direction: parsed.direction,
+          boundaryExecutedTimeMs: latestExecutedTimeMs,
+        });
         continue;
       }
 

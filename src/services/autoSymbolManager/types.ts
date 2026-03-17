@@ -116,7 +116,6 @@ export type SwitchState = {
   oldSymbol: string;
   nextSymbol: string | null;
   nextCallPrice: number | null;
-  startedAt: number;
   sellSubmitted: boolean;
   sellOrderId: string | null;
   sellNotional: number | null;
