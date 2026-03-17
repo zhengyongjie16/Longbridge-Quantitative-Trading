@@ -368,4 +368,3 @@ describe('dailyLossTracker segment flow', () => {
     expect(tracker.getLossOffset('HSI.HK', true)).toBe(-10);
   });
 });
-

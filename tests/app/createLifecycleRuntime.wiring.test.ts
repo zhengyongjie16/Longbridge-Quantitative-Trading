@@ -148,7 +148,8 @@ function createLifecycleDeps(): LifecycleRuntimeFactoryDeps {
         }),
         recordCooldown: () => {},
         restoreTriggerCount: () => {},
-        getRemainingMs: () => 0,        clearMidnightEligible: () => {},
+        getRemainingMs: () => 0,
+        clearMidnightEligible: () => {},
         resetAllTriggerCounts: () => {},
       },
       dailyLossTracker: createDailyLossTrackerDouble(),
@@ -334,4 +335,3 @@ describe('app createLifecycleRuntime wiring', () => {
     expect(createDayLifecycleManagerCalls[0]?.cacheDomains).toHaveLength(6);
   });
 });
-

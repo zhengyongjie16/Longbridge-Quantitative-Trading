@@ -43,16 +43,19 @@
 ## Reviewer Mode Strategy
 
 ### quick
+
 - 默认启：`implementation-reviewer`
 - 按需附加：`project-spec-reviewer`、`type-design-reviewer`、`comment-reviewer`
 - 默认不开：`code-simplification-reviewer`、`dead-code-reviewer`、`test-coverage-reviewer`
 
 ### standard
+
 - 默认启：`implementation-reviewer`、`project-spec-reviewer`、`type-design-reviewer`
 - 按需附加：`comment-reviewer`、`test-coverage-reviewer`、`code-simplification-reviewer`
 - 默认不开：`dead-code-reviewer`
 
 ### deep
+
 - 启用全部七个 reviewer
 
 ## Read-Only Boundary

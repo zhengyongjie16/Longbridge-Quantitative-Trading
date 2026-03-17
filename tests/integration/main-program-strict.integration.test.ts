@@ -522,4 +522,3 @@ describe('mainProgram strict-mode integration', () => {
     expect(lastState.allTradingSymbols.has('OLD.HK')).toBeTrue();
   });
 });
-

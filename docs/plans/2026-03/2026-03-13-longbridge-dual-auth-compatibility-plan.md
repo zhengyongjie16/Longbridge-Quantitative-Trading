@@ -20,20 +20,15 @@ OAuth.build(...) -> Config.fromOAuth(...) -> QuoteContext / TradeContext
 
 本次重构必须满足以下原则：
 
-1. **认证模式必须在启动前确定**
-   启动后不允许“OAuth 失败自动切 API Key”这类隐式回退。
+1. **认证模式必须在启动前确定** 启动后不允许“OAuth 失败自动切 API Key”这类隐式回退。
 
-2. **单进程只允许一种认证模式**
-   同一次程序运行中，QuoteContext 与 TradeContext 必须共享同一认证来源。
+2. **单进程只允许一种认证模式** 同一次程序运行中，QuoteContext 与 TradeContext 必须共享同一认证来源。
 
-3. **下游业务模块不感知认证模式**
-   `createMarketDataClient`、`createTrader`、主循环、风控、订单监控等模块继续只依赖统一的 `Config`。
+3. **下游业务模块不感知认证模式** `createMarketDataClient`、`createTrader`、主循环、风控、订单监控等模块继续只依赖统一的 `Config`。
 
-4. **兼容能力必须收敛在认证接入层**
-   不允许把 `if oauth / if apikey` 扩散到服务层、核心业务层、策略层。
+4. **兼容能力必须收敛在认证接入层** 不允许把 `if oauth / if apikey` 扩散到服务层、核心业务层、策略层。
 
-5. **环境变量命名统一使用 LONGBRIDGE 前缀**
-   不恢复 `LONGPORT_*` 历史变量，避免重新引入命名体系混乱。
+5. **环境变量命名统一使用 LONGBRIDGE 前缀** 不恢复 `LONGPORT_*` 历史变量，避免重新引入命名体系混乱。
 
 ## 3. 为什么不采用其他方案
 

@@ -79,8 +79,10 @@ describe('buy-flow integration', () => {
         recordCooldown: () => {},
         restoreTriggerCount: () => {},
         getRemainingMs: () => 0,
-        clearMidnightEligible: () => {},        resetAllTriggerCounts: () => {},
-      },    });
+        clearMidnightEligible: () => {},
+        resetAllTriggerCounts: () => {},
+      },
+    });
 
     const tradeCtx = createTradeContextMock();
     const trackedOrders: Array<{ orderId: string; quantity: number; side: OrderSide }> = [];
@@ -277,5 +279,3 @@ describe('buy-flow integration', () => {
     expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
   });
 });
-
-

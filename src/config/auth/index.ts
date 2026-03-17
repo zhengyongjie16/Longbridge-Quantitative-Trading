@@ -77,7 +77,9 @@ async function buildOAuth(authConfig: ResolvedOAuthAuthConfig, onOpenUrl?: (url:
  * @param params.onOpenUrl OAuth 模式下首次授权时输出授权 URL 的回调
  * @returns 统一的 Longbridge SDK Config
  */
-export async function createSdkConfigFromAuth(params: CreateSdkConfigFromAuthParams): Promise<Config> {
+export async function createSdkConfigFromAuth(
+  params: CreateSdkConfigFromAuthParams,
+): Promise<Config> {
   const { env, onOpenUrl } = params;
   const authConfig = resolveAuthConfig(env);
   const extraConfig = readSdkExtraConfig(env);

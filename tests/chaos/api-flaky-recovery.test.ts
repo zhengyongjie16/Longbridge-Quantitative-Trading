@@ -282,4 +282,3 @@ describe('chaos: api flaky recovery', () => {
     expect(gateStatus.currentVersion).toBe(staleVersion);
   });
 });
-

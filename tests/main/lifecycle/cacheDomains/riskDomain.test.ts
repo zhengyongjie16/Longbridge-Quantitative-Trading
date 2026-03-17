@@ -64,7 +64,8 @@ describe('createRiskDomain', () => {
       getRemainingMs: () => 0,
       clearMidnightEligible: (params) => {
         clearMidnightEligibleKeys = new Set(params.keysToClear);
-      },      resetAllTriggerCounts: () => {
+      },
+      resetAllTriggerCounts: () => {
         resetAllTriggerCountsCalled = true;
       },
     };
@@ -119,7 +120,8 @@ describe('createRiskDomain', () => {
       getRemainingMs: () => 0,
       clearMidnightEligible: (params) => {
         clearMidnightEligibleKeys = new Set(params.keysToClear);
-      },      resetAllTriggerCounts: () => {},
+      },
+      resetAllTriggerCounts: () => {},
     };
 
     const domain = createRiskDomain({
@@ -154,7 +156,8 @@ describe('createRiskDomain', () => {
         recordCooldown: () => {},
         restoreTriggerCount: () => {},
         getRemainingMs: () => 0,
-        clearMidnightEligible: () => {},        resetAllTriggerCounts: () => {},
+        clearMidnightEligible: () => {},
+        resetAllTriggerCounts: () => {},
       },
     });
     await domain.openRebuild({
@@ -163,5 +166,3 @@ describe('createRiskDomain', () => {
     });
   });
 });
-
-

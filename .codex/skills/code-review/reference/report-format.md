@@ -10,58 +10,70 @@
 
 ```markdown
 ## reviewer
+
 <reviewer-name>
 
 ## scope
+
 - target: <file/module/diff/pr>
 - mode: <quick|standard|deep>
 
 ## summary
+
 <1-3 句概括本 reviewer 的总体判断>
 
 ## critical issues
+
 - [file:line or context]
   - issue: ...
   - why: ...
   - recommendation: ...
 
 ## major issues
+
 - [file:line or context]
   - issue: ...
   - why: ...
   - recommendation: ...
 
 ## minor issues
+
 - [file:line or context]
   - issue: ...
   - why: ...
   - recommendation: ...
 
 ## positive findings
+
 - ...
 
 ## not assessed
+
 - <dimension>: <reason>
 
 ## confidence
+
 high | medium | low
 ```
 
 ## Severity Definitions
 
 ### critical
+
 - 明显逻辑错误或高风险缺陷
 - 违反核心项目约束或核心架构边界
 - 关键测试缺口足以让严重回归漏过
 - 高风险类型/边界问题可能导致错误行为
 
 ### major
+
 - 重要但非立即致命的问题
 - 类型设计不足导致非法状态可表示
 - 关键实现边界、维护性或可读性明显受损
 - 注释、测试、结构问题已足以影响后续维护或可靠性
 
 ### minor
+
 - 非阻塞改进项
 - 轻度冗余、轻度噪音或一致性问题
 - 可选但合理的增强建议
@@ -113,6 +125,7 @@ high | medium | low
 
 ```markdown
 ## major issues
+
 - [src/main/asyncProgram/tradeTaskQueue/types.ts:17-42]
   - issue: task type does not encode the signal-direction invariant
   - why: illegal buy/sell combinations remain representable at the type boundary
@@ -120,6 +133,7 @@ high | medium | low
   - sources: implementation-reviewer, type-design-reviewer
 
 ## not assessed
+
 - test coverage: no relevant test diff or test context was provided
 ```
 

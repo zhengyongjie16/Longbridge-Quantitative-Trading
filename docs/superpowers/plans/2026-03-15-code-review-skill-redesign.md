@@ -15,6 +15,7 @@
 ### Task 1: Replace the oversized main SKILL
 
 **Files:**
+
 - Modify: `.claude/skills/code-review/SKILL.md`
 
 - [ ] **Step 1: Read the old `SKILL.md` and identify sections that must be removed**
@@ -28,6 +29,7 @@
 ### Task 2: Add the routing and reporting protocol files
 
 **Files:**
+
 - Create: `.claude/skills/code-review/reference/reviewer-selection-matrix.md`
 - Create: `.claude/skills/code-review/reference/report-format.md`
 
@@ -40,6 +42,7 @@
 ### Task 3: Add the seven read-only reviewer profiles
 
 **Files:**
+
 - Create: `.claude/skills/code-review/reference/project-spec-reviewer.md`
 - Create: `.claude/skills/code-review/reference/implementation-reviewer.md`
 - Create: `.claude/skills/code-review/reference/code-simplification-reviewer.md`
@@ -59,6 +62,7 @@
 ### Task 4: Write the redesign spec and implementation plan
 
 **Files:**
+
 - Create: `docs/superpowers/specs/2026-03-15-code-review-skill-redesign.md`
 - Create: `docs/superpowers/plans/2026-03-15-code-review-skill-redesign.md`
 
@@ -71,6 +75,7 @@
 ### Task 5: Validate the rewritten skill against real review scenarios
 
 **Files:**
+
 - Read: `.claude/skills/code-review/SKILL.md`
 - Read: `.claude/skills/code-review/reference/*.md`
 - Read target code samples from `src/`

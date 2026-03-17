@@ -156,7 +156,10 @@ function createTriggeredLongOnlyLiquidationContext(
       },
     }),
     riskChecker: createRiskCheckerDouble({
-      checkWarrantDistanceLiquidation: function checkWarrantDistanceLiquidation(_symbol, isLongSymbol) {
+      checkWarrantDistanceLiquidation: function checkWarrantDistanceLiquidation(
+        _symbol,
+        isLongSymbol,
+      ) {
         if (isLongSymbol) {
           return { shouldLiquidate: true, reason: '触发清仓阈值' };
         }

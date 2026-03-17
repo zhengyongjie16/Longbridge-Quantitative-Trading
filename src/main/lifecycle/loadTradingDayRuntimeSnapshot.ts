@@ -229,7 +229,10 @@ export function createLoadTradingDayRuntimeSnapshot(
     }
 
     for (const [directionKey, latestExecutedTimeMs] of protectiveLatestFillByDirection) {
-      if (restoredBoundaryByDirection.has(directionKey) || pendingProtectiveDirectionKeys.has(directionKey)) {
+      if (
+        restoredBoundaryByDirection.has(directionKey) ||
+        pendingProtectiveDirectionKeys.has(directionKey)
+      ) {
         continue;
       }
 
@@ -265,10 +268,12 @@ export function createLoadTradingDayRuntimeSnapshot(
       const boundaryExecutedTimeMs = restoredBoundaryByDirection.get(directionKey);
       const hasPendingProtective = pendingProtectiveDirectionKeys.has(directionKey);
       if (hasPendingProtective) {
-        const pendingLatestExecutedTimeMs = pendingProtectiveLatestFillByDirection.get(directionKey);
+        const pendingLatestExecutedTimeMs =
+          pendingProtectiveLatestFillByDirection.get(directionKey);
         if (
           pendingLatestExecutedTimeMs !== undefined &&
-          (boundaryExecutedTimeMs === undefined || pendingLatestExecutedTimeMs > boundaryExecutedTimeMs)
+          (boundaryExecutedTimeMs === undefined ||
+            pendingLatestExecutedTimeMs > boundaryExecutedTimeMs)
         ) {
           protectiveLiquidationEpisodeTracker.restoreInProgressEpisode({
             monitorSymbol: parsed.monitorSymbol,

@@ -102,7 +102,6 @@ export const createRiskCheckPipeline = ({
         const remainingSeconds = Math.ceil((lastTime + cooldownMs - currentTimeMs) / 1000);
         const reason = `风险检查冷却期内，剩余 ${remainingSeconds} 秒`;
         sig.reason = reason;
-
       } else {
         signalsAfterCooldown.push(sig);
       }

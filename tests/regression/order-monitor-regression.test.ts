@@ -407,4 +407,3 @@ describe('order monitor regression', () => {
     expect(monitor.getPendingSellOrders('BULL.HK')).toHaveLength(0);
   });
 });
-

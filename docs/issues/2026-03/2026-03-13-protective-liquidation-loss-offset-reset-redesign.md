@@ -333,8 +333,7 @@
 1. 恢复冷却状态
 2. 恢复当前未完成或已完成的保护性清仓计数口径
 
-它不再输出 `segmentStartByDirection`
-它不再参与 `dailyLossOffset` 的边界建模
+它不再输出 `segmentStartByDirection` 它不再参与 `dailyLossOffset` 的边界建模
 
 ## C. `loadTradingDayRuntimeSnapshot` 顺序调整
 

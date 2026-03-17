@@ -152,7 +152,8 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
           }),
           recordCooldown: () => {},
           restoreTriggerCount: () => {},
-          getRemainingMs: () => 0,          clearMidnightEligible: () => {},
+          getRemainingMs: () => 0,
+          clearMidnightEligible: () => {},
           resetAllTriggerCounts: () => {},
         },
         dailyLossTracker: {
@@ -486,5 +487,3 @@ describe('app runApp assembly', () => {
     expect(harnessState.cleanupRegistered).toBe(0);
   });
 });
-
-

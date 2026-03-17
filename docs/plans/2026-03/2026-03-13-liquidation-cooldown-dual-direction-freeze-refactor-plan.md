@@ -43,7 +43,7 @@
 2. 风控中冷却检查当前只查当前买入方向：
    - BUYCALL 查 LONG
    - BUYPUT 查 SHORT  
-   代码位置：`src/core/signalProcessor/riskCheckPipeline.ts`。
+     代码位置：`src/core/signalProcessor/riskCheckPipeline.ts`。
 
 ### 3.3 重启恢复与跨日
 
@@ -123,29 +123,29 @@ if (monitorRemainingMs > 0) {
 
 ### 6.1 运行时验证
 
-| 场景 | 预置状态 | 动作 | 期望 |
-| --- | --- | --- | --- |
-| A1 | LONG 冷却中，SHORT 无冷却 | BUYCALL | 拒绝 |
-| A2 | LONG 冷却中，SHORT 无冷却 | BUYPUT | 拒绝 |
-| A3 | SHORT 冷却中，LONG 无冷却 | BUYCALL | 拒绝 |
-| A4 | SHORT 冷却中，LONG 无冷却 | BUYPUT | 拒绝 |
-| A5 | LONG/SHORT 都无冷却 | BUYCALL / BUYPUT | 按原风控继续执行 |
-| A6 | 任一方向冷却中且有现存持仓 | BUY* | 仅拒买，不触发额外清仓 |
+| 场景 | 预置状态                   | 动作             | 期望                   |
+| ---- | -------------------------- | ---------------- | ---------------------- |
+| A1   | LONG 冷却中，SHORT 无冷却  | BUYCALL          | 拒绝                   |
+| A2   | LONG 冷却中，SHORT 无冷却  | BUYPUT           | 拒绝                   |
+| A3   | SHORT 冷却中，LONG 无冷却  | BUYCALL          | 拒绝                   |
+| A4   | SHORT 冷却中，LONG 无冷却  | BUYPUT           | 拒绝                   |
+| A5   | LONG/SHORT 都无冷却        | BUYCALL / BUYPUT | 按原风控继续执行       |
+| A6   | 任一方向冷却中且有现存持仓 | BUY\*            | 仅拒买，不触发额外清仓 |
 
 ### 6.2 启动恢复验证
 
-| 场景 | 日志恢复结果 | 动作 | 期望 |
-| --- | --- | --- | --- |
-| B1 | 仅恢复 LONG 冷却 | BUYPUT | 仍拒绝 |
-| B2 | 仅恢复 SHORT 冷却 | BUYCALL | 仍拒绝 |
-| B3 | 两方向都无有效冷却 | BUYCALL/BUYPUT | 不因冷却拒绝 |
+| 场景 | 日志恢复结果       | 动作           | 期望         |
+| ---- | ------------------ | -------------- | ------------ |
+| B1   | 仅恢复 LONG 冷却   | BUYPUT         | 仍拒绝       |
+| B2   | 仅恢复 SHORT 冷却  | BUYCALL        | 仍拒绝       |
+| B3   | 两方向都无有效冷却 | BUYCALL/BUYPUT | 不因冷却拒绝 |
 
 ### 6.3 跨日验证
 
-| 场景 | 前提 | 动作 | 期望 |
-| --- | --- | --- | --- |
-| C1 | half-day/one-day 模式午夜清理执行 | 次日 BUY* | 不受前一日冷却影响 |
-| C2 | minutes 模式冷却跨日未到期 | 次日 BUY* | 继续拒绝直到自然过期 |
+| 场景 | 前提                              | 动作       | 期望                 |
+| ---- | --------------------------------- | ---------- | -------------------- |
+| C1   | half-day/one-day 模式午夜清理执行 | 次日 BUY\* | 不受前一日冷却影响   |
+| C2   | minutes 模式冷却跨日未到期        | 次日 BUY\* | 继续拒绝直到自然过期 |
 
 ### 6.4 不变性验证（防回归）
 

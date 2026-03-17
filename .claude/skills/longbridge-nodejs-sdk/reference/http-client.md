@@ -2,8 +2,7 @@
 
 ## Source note
 
-This file is a local distilled reference based on Longbridge OpenAPI Node.js official docs.
-For efficiency, detailed official URL lists are omitted; use this file as the primary reference.
+This file is a local distilled reference based on Longbridge OpenAPI Node.js official docs. For efficiency, detailed official URL lists are omitted; use this file as the primary reference.
 
 ## Position in SDK
 
@@ -24,12 +23,7 @@ class HttpClient {
 
   static fromOAuth(oauth: OAuth, httpUrl?: string): HttpClient;
 
-  request(
-    method: string,
-    path: string,
-    headers?: Record<string, string>,
-    body?: any,
-  ): Promise<any>;
+  request(method: string, path: string, headers?: Record<string, string>, body?: any): Promise<any>;
 }
 ```
 

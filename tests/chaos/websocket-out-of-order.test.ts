@@ -185,4 +185,3 @@ describe('chaos: websocket out-of-order and duplicate pushes', () => {
     expect(monitor.getPendingSellOrders('BEAR.HK')).toHaveLength(0);
   });
 });
-

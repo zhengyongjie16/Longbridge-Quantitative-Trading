@@ -32,7 +32,9 @@ import type {
 } from './types.js';
 import type { ProtectiveLiquidationDirection } from '../../../core/trader/protectiveLiquidationEpisodeTracker/types.js';
 
-function resolveProtectiveAction(direction: ProtectiveLiquidationDirection): 'SELLCALL' | 'SELLPUT' {
+function resolveProtectiveAction(
+  direction: ProtectiveLiquidationDirection,
+): 'SELLCALL' | 'SELLPUT' {
   if (direction === 'LONG') {
     return 'SELLCALL';
   }

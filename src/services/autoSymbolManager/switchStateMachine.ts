@@ -721,7 +721,9 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
         return;
       }
 
-      logger.info(`[自动换标] ${monitorSymbol} ${direction} 周期换标等待结束，检测到本地空仓开始换标`);
+      logger.info(
+        `[自动换标] ${monitorSymbol} ${direction} 周期换标等待结束，检测到本地空仓开始换标`,
+      );
       clearPeriodicPending(direction);
       await startSwitchFlow({
         direction,
@@ -771,7 +773,9 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
 
     const pendingState = resolvePeriodicPending(direction);
     if (pendingState.pending) {
-      logger.info(`[自动换标] ${monitorSymbol} ${direction} 周期换标等待结束，检测到本地空仓开始换标`);
+      logger.info(
+        `[自动换标] ${monitorSymbol} ${direction} 周期换标等待结束，检测到本地空仓开始换标`,
+      );
     }
 
     clearPeriodicPending(direction);

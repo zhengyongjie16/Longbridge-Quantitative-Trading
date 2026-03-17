@@ -124,7 +124,7 @@ curl -H "Authorization: Bearer <oauth_access_token>" \
 响应：
 
 ```json
-{"code":202201,"message":"获取用户信息失败","data":null}
+{ "code": 202201, "message": "获取用户信息失败", "data": null }
 ```
 
 ### 3. 股票持仓接口失败
@@ -139,7 +139,7 @@ curl -H "Authorization: Bearer <oauth_access_token>" \
 响应：
 
 ```json
-{"code":500,"message":"internal server error","data":null}
+{ "code": 500, "message": "internal server error", "data": null }
 ```
 
 ### 4. 其他交易只读接口同样失败
@@ -154,7 +154,7 @@ curl -H "Authorization: Bearer <oauth_access_token>" \
 响应：
 
 ```json
-{"code":602001,"message":"user not found","data":null}
+{ "code": 602001, "message": "user not found", "data": null }
 ```
 
 由于官方原始 HTTP 接口也完全复现同样的问题，因此我们认为这已经可以排除为本地代码问题。

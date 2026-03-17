@@ -87,7 +87,9 @@ export type InProgressProtectiveEpisode = Readonly<{
  */
 export interface ProtectiveLiquidationEpisodeTracker {
   recordProtectiveFillProgress: (params: RecordProtectiveFillProgressParams) => void;
-  completeIfEligible: (params: CompleteIfEligibleParams) => ProtectiveLiquidationCompletedEvent | null;
+  completeIfEligible: (
+    params: CompleteIfEligibleParams,
+  ) => ProtectiveLiquidationCompletedEvent | null;
   restoreCompletedBoundary: (params: RestoreCompletedBoundaryParams) => void;
   restoreInProgressEpisode: (params: RestoreInProgressEpisodeParams) => void;
   getLatestProtectionBoundaryByDirection: () => ReadonlyMap<string, number>;

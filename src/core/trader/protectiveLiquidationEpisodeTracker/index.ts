@@ -74,10 +74,7 @@ export function createProtectiveLiquidationEpisodeTracker(): ProtectiveLiquidati
 
     inProgressByDirection.delete(key);
     const previousBoundary = latestProtectionBoundaryByDirection.get(key);
-    if (
-      previousBoundary !== undefined &&
-      inProgress.latestExecutedTimeMs <= previousBoundary
-    ) {
+    if (previousBoundary !== undefined && inProgress.latestExecutedTimeMs <= previousBoundary) {
       return null;
     }
 

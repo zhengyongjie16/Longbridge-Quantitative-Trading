@@ -11,7 +11,11 @@ import type { LastState } from '../../../../types/state.js';
 import type { Trader } from '../../../../types/services.js';
 import { formatError } from '../../../../utils/error/index.js';
 import { logger } from '../../../../utils/logger/index.js';
-import { acquireSignal, positionObjectPool, signalObjectPool } from '../../../../utils/objectPool/index.js';
+import {
+  acquireSignal,
+  positionObjectPool,
+  signalObjectPool,
+} from '../../../../utils/objectPool/index.js';
 import type { RefreshGate } from '../../../../utils/types.js';
 import { getPositions } from '../../../processMonitor/utils.js';
 import type { MonitorTask } from '../../monitorTaskQueue/types.js';

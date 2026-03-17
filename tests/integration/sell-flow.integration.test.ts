@@ -30,8 +30,10 @@ describe('sell-flow integration', () => {
         recordCooldown: () => {},
         restoreTriggerCount: () => {},
         getRemainingMs: () => 0,
-        clearMidnightEligible: () => {},        resetAllTriggerCounts: () => {},
-      },    });
+        clearMidnightEligible: () => {},
+        resetAllTriggerCounts: () => {},
+      },
+    });
 
     const storage = createOrderStorage();
     storage.addBuyOrder('BULL.HK', 1, 100, true, Date.now() - 1000);
@@ -148,8 +150,10 @@ describe('sell-flow integration', () => {
         recordCooldown: () => {},
         restoreTriggerCount: () => {},
         getRemainingMs: () => 0,
-        clearMidnightEligible: () => {},        resetAllTriggerCounts: () => {},
-      },    });
+        clearMidnightEligible: () => {},
+        resetAllTriggerCounts: () => {},
+      },
+    });
 
     const storage = createOrderStorage();
     storage.addBuyOrder('BULL.HK', 0.9, 100, true, Date.parse('2026-02-24T01:30:00.000Z'));
@@ -287,8 +291,10 @@ describe('sell-flow integration', () => {
         recordCooldown: () => {},
         restoreTriggerCount: () => {},
         getRemainingMs: () => 0,
-        clearMidnightEligible: () => {},        resetAllTriggerCounts: () => {},
-      },    });
+        clearMidnightEligible: () => {},
+        resetAllTriggerCounts: () => {},
+      },
+    });
 
     const storage = createOrderStorage();
     storage.addBuyOrder('BEAR.HK', 0.9, 100, false, Date.parse('2026-02-24T01:30:00.000Z'));
@@ -703,5 +709,3 @@ describe('sell-flow integration', () => {
     expect(Number(payload.submittedQuantity.toString())).toBe(150);
   });
 });
-
-

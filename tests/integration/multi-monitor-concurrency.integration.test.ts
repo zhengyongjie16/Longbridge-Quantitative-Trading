@@ -272,4 +272,3 @@ describe('multi-monitor-concurrency integration', () => {
     expect(postTradeEnqueueCalls).toBe(1);
   });
 });
-

@@ -44,14 +44,14 @@ reviewer 选择由三层共同决定：
 
 ## Explicit User Focus Adjustments
 
-| User Focus | Add Reviewer |
-| --- | --- |
-| comments / 注释 / 文档 | `comment-reviewer` |
-| types / 类型设计 / 不变量 | `type-design-reviewer` |
-| dead code / 无用代码 / 清理导出 | `dead-code-reviewer` |
-| tests / test coverage / regression | `test-coverage-reviewer` |
-| simplification / 简化 / 冗余 / 过度设计 | `code-simplification-reviewer` |
-| project rules / CLAUDE.md / TypeScript 规范 | `project-spec-reviewer` |
+| User Focus                                  | Add Reviewer                   |
+| ------------------------------------------- | ------------------------------ |
+| comments / 注释 / 文档                      | `comment-reviewer`             |
+| types / 类型设计 / 不变量                   | `type-design-reviewer`         |
+| dead code / 无用代码 / 清理导出             | `dead-code-reviewer`           |
+| tests / test coverage / regression          | `test-coverage-reviewer`       |
+| simplification / 简化 / 冗余 / 过度设计     | `code-simplification-reviewer` |
+| project rules / CLAUDE.md / TypeScript 规范 | `project-spec-reviewer`        |
 
 用户显式点名的 focus 优先级高于默认 mode。
 
@@ -70,6 +70,7 @@ reviewer 选择由三层共同决定：
 ## Escalation and De-escalation Rules
 
 ### Escalate to `standard`
+
 当满足任一条件时，从 `quick` 升到 `standard`：
 
 - 涉及多个文件
@@ -78,6 +79,7 @@ reviewer 选择由三层共同决定：
 - 目标文件是类型密集区、流程编排层或边界层
 
 ### Escalate to `deep`
+
 当满足任一条件时，从 `standard` 升到 `deep`：
 
 - 用户明确要求深审
@@ -87,6 +89,7 @@ reviewer 选择由三层共同决定：
 - 需要七个维度共同给出联合结论
 
 ### De-escalate to `quick`
+
 当同时满足以下条件时，可从 `standard` 降到 `quick`：
 
 - 单文件
@@ -96,4 +99,5 @@ reviewer 选择由三层共同决定：
 - 目标是快速扫主要风险而非完整深审
 
 ### Do Not Auto-Downgrade `deep`
+
 用户明确要求 `deep` 时，不自动降级。

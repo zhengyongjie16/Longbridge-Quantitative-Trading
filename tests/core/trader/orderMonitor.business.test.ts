@@ -1176,13 +1176,11 @@ describe('orderMonitor business flow', () => {
     const executedTimeMs = Date.parse('2026-02-25T03:20:00.000Z');
     const { deps } = createDeps({
       liquidationTriggerLimit: 3,
-      protectiveLiquidationEpisodeTrackerOverride: createProtectiveLiquidationEpisodeTrackerDouble(
-        {
-          recordProtectiveFillProgress: (params) => {
-            progressCalls.push(params);
-          },
+      protectiveLiquidationEpisodeTrackerOverride: createProtectiveLiquidationEpisodeTrackerDouble({
+        recordProtectiveFillProgress: (params) => {
+          progressCalls.push(params);
         },
-      ),
+      }),
       onHandleOrderChanged: (handler) => {
         handleOrderChanged = handler;
       },
@@ -2529,4 +2527,3 @@ describe('orderMonitor business flow', () => {
     ]);
   });
 });
-

@@ -638,4 +638,3 @@ describe('main loop latency full-chain integration', () => {
     );
   });
 });
-

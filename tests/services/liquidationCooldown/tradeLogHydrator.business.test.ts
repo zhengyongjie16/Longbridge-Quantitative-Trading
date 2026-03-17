@@ -64,9 +64,7 @@ describe('tradeLogHydrator business flow', () => {
 
     const boundaries = hydrator.hydrate();
 
-    expect(
-      infoLogs.some((message) => message.includes('当日成交日志不存在')),
-    ).toBe(true);
+    expect(infoLogs.some((message) => message.includes('当日成交日志不存在'))).toBe(true);
     expect(boundaries.size).toBe(0);
   });
 

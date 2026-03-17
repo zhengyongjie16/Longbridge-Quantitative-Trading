@@ -274,8 +274,10 @@ describe('full business simulation integration', () => {
         recordCooldown: () => {},
         restoreTriggerCount: () => {},
         getRemainingMs: () => 0,
-        clearMidnightEligible: () => {},        resetAllTriggerCounts: () => {},
-      },    });
+        clearMidnightEligible: () => {},
+        resetAllTriggerCounts: () => {},
+      },
+    });
 
     const refreshGate = createRefreshGate();
     const buyProcessor = createBuyProcessor({
@@ -543,8 +545,10 @@ describe('full business simulation integration', () => {
         recordCooldown: () => {},
         restoreTriggerCount: () => {},
         getRemainingMs: () => 0,
-        clearMidnightEligible: () => {},        resetAllTriggerCounts: () => {},
-      },    });
+        clearMidnightEligible: () => {},
+        resetAllTriggerCounts: () => {},
+      },
+    });
 
     const sharedMainContext = {
       marketDataClient: createMarketDataClientDouble({
@@ -805,8 +809,10 @@ describe('full business simulation integration', () => {
         recordCooldown: () => {},
         restoreTriggerCount: () => {},
         getRemainingMs: () => 0,
-        clearMidnightEligible: () => {},        resetAllTriggerCounts: () => {},
-      },    });
+        clearMidnightEligible: () => {},
+        resetAllTriggerCounts: () => {},
+      },
+    });
 
     const refreshGate = createRefreshGate();
     const buyProcessor = createBuyProcessor({
@@ -1045,6 +1051,3 @@ describe('full business simulation integration', () => {
     }
   });
 });
-
-
-

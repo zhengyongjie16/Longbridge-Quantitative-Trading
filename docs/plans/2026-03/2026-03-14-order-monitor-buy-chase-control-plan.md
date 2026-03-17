@@ -199,12 +199,9 @@
 
 以下命名不建议采用：
 
-1. `allowBuyOrderChasing`
-   问题：过于口语化，且“追价”边界不清，不知道是信号追价还是订单监控追价。
-2. `disableBuyPriceIncrease`
-   问题：否定式命名，且语义太宽，像是禁止所有买单提价。
-3. `allowBuyOrderPriceIncrease`
-   问题：没有体现“仅相对初始委托价”的约束。
+1. `allowBuyOrderChasing` 问题：过于口语化，且“追价”边界不清，不知道是信号追价还是订单监控追价。
+2. `disableBuyPriceIncrease` 问题：否定式命名，且语义太宽，像是禁止所有买单提价。
+3. `allowBuyOrderPriceIncrease` 问题：没有体现“仅相对初始委托价”的约束。
 
 ## 5.3 最终命名
 

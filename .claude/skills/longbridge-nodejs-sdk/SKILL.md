@@ -23,16 +23,16 @@ Do not use this skill for repository business rules unless the question is speci
 
 ## Lookup Map
 
-| Question | Read first |
-| --- | --- |
-| OAuth, API key, env vars, `Config`, token cache | `reference/config.md` |
-| `HttpClient` low-level calls | `reference/http-client.md` |
-| Quote APIs, subscriptions, candlesticks, options, warrants | `reference/quote-context.md` |
-| Orders, executions, balances, positions | `reference/trade-context.md` |
-| `Decimal`, `NaiveDate`, `NaiveDatetime`, `Time` | `reference/decimal.md` |
-| Enum meanings | `reference/enums.md` |
-| Quote data structures | `reference/types/quote-types.md` |
-| Trade data structures and option interfaces | `reference/types/trade-types.md` |
+| Question                                                   | Read first                       |
+| ---------------------------------------------------------- | -------------------------------- |
+| OAuth, API key, env vars, `Config`, token cache            | `reference/config.md`            |
+| `HttpClient` low-level calls                               | `reference/http-client.md`       |
+| Quote APIs, subscriptions, candlesticks, options, warrants | `reference/quote-context.md`     |
+| Orders, executions, balances, positions                    | `reference/trade-context.md`     |
+| `Decimal`, `NaiveDate`, `NaiveDatetime`, `Time`            | `reference/decimal.md`           |
+| Enum meanings                                              | `reference/enums.md`             |
+| Quote data structures                                      | `reference/types/quote-types.md` |
+| Trade data structures and option interfaces                | `reference/types/trade-types.md` |
 
 ## Working Rules
 

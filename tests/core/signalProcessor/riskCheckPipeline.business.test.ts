@@ -293,7 +293,14 @@ describe('riskCheckPipeline business flow', () => {
 
     const signal = createSignalDouble('BUYPUT', 'BEAR.HK');
     const result = await withMockedNow(70_000, async () =>
-      pipeline([signal], createContext({ trader, riskChecker: createRiskCheckerDouble(), orderRecorder: createOrderRecorderDouble() })),
+      pipeline(
+        [signal],
+        createContext({
+          trader,
+          riskChecker: createRiskCheckerDouble(),
+          orderRecorder: createOrderRecorderDouble(),
+        }),
+      ),
     );
 
     expect(result).toHaveLength(0);

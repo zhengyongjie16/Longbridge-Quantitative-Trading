@@ -47,11 +47,11 @@ description: This skill should be used when performing a structured, read-only c
 
 ## Review Modes
 
-| Mode | 用途 | 默认行为 |
-| --- | --- | --- |
-| `quick` | 单文件快速审查、低成本扫风险 | 默认聚焦实现质量，按需附加专项 reviewer |
-| `standard` | 常规模块或多文件审查 | 平衡广度与成本，是默认推荐模式 |
-| `deep` | 关键模块、PR 深审、高风险重构 | 启用全部七个 reviewer profile |
+| Mode       | 用途                          | 默认行为                                |
+| ---------- | ----------------------------- | --------------------------------------- |
+| `quick`    | 单文件快速审查、低成本扫风险  | 默认聚焦实现质量，按需附加专项 reviewer |
+| `standard` | 常规模块或多文件审查          | 平衡广度与成本，是默认推荐模式          |
+| `deep`     | 关键模块、PR 深审、高风险重构 | 启用全部七个 reviewer profile           |
 
 更详细的 reviewer 选择逻辑见 `reference/reviewer-selection-matrix.md`。
 
