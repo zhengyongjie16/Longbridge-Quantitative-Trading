@@ -352,8 +352,8 @@ export function createDoomsdayProtection(): DoomsdayProtection {
 
       // 检查是否在收盘前15分钟内
       if (!isBeforeClose15Minutes(currentTime, isHalfDay)) {
-        // 不在 15 分钟范围内，重置状态（为下次进入做准备）
-        // 注意：这里不重置 cancelCheckExecutedDate，因为跨天时日期字符串会自动不匹配
+        // 不在 15 分钟范围内，直接返回。
+        // 当天执行标记由日期键自然隔离，无需额外重置 cancelCheckExecutedDate。
         return { executed: false, cancelRequestAcceptedCount: 0 };
       }
 

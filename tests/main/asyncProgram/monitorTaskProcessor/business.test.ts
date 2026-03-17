@@ -6,17 +6,18 @@
  */
 import { describe, expect, it } from 'bun:test';
 
-import { createMonitorTaskQueue } from '../../../../src/main/asyncProgram/monitorTaskQueue/index.js';
 import { createMonitorTaskProcessor } from '../../../../src/main/asyncProgram/monitorTaskProcessor/index.js';
-import { createRefreshGate } from '../../../../src/utils/refreshGate/index.js';
-
 import type {
   MonitorTaskDataMap,
+  MonitorTaskProcessorDeps,
   MonitorTaskStatus,
-  MonitorTaskContext,
 } from '../../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
+import { createMonitorTaskQueue } from '../../../../src/main/asyncProgram/monitorTaskQueue/index.js';
 import type { MonitorTask } from '../../../../src/main/asyncProgram/monitorTaskQueue/types.js';
 import type { MultiMonitorTradingConfig } from '../../../../src/types/config.js';
+import { createRefreshGate } from '../../../../src/utils/refreshGate/index.js';
+
+import { createTradingConfig as createTradingConfigFactory } from '../../../../mock/factories/configFactory.js';
 
 import {
   createAccountSnapshotDouble,
@@ -28,6 +29,147 @@ import {
   createTraderDouble,
 } from '../../../helpers/testDoubles.js';
 import { createLastState, createMonitorTaskContext, runProcessorFlow } from '../utils.js';
+
+type MonitorTaskQueueForTest = MonitorTaskProcessorDeps['monitorTaskQueue'];
+
+type CreateBusinessProcessorParams = Readonly<{
+  queue: MonitorTaskQueueForTest;
+  context: ReturnType<typeof createMonitorTaskContext>;
+  lastState?: ReturnType<typeof createLastState>;
+  trader?: ReturnType<typeof createTraderDouble>;
+  onProcessed?: MonitorTaskProcessorDeps['onProcessed'];
+  getCanProcessTask?: MonitorTaskProcessorDeps['getCanProcessTask'];
+}>;
+
+type CreateTriggeredLongOnlyLiquidationContextParams = Readonly<{
+  onClearBuyOrders?: () => void;
+  onRefreshUnrealizedLoss?: () => void;
+}>;
+
+function createTradingConfig(): MultiMonitorTradingConfig {
+  return createTradingConfigFactory({
+    monitors: [createMonitorConfigDouble()],
+  });
+}
+
+function createStatusCollector(
+  statuses: MonitorTaskStatus[],
+): NonNullable<MonitorTaskProcessorDeps['onProcessed']> {
+  return function collectStatus(
+    _task: MonitorTask<MonitorTaskDataMap>,
+    status: MonitorTaskStatus,
+  ): void {
+    statuses.push(status);
+  };
+}
+
+function createBusinessProcessor(
+  params: CreateBusinessProcessorParams,
+): ReturnType<typeof createMonitorTaskProcessor> {
+  const {
+    queue,
+    context,
+    lastState = createLastState(),
+    trader = createTraderDouble(),
+    onProcessed,
+    getCanProcessTask,
+  } = params;
+
+  return createMonitorTaskProcessor({
+    monitorTaskQueue: queue,
+    refreshGate: createRefreshGate(),
+    getMonitorContext: () => context,
+    clearMonitorDirectionQueues: () => {},
+    trader,
+    lastState,
+    tradingConfig: createTradingConfig(),
+    ...(onProcessed ? { onProcessed } : {}),
+    ...(getCanProcessTask ? { getCanProcessTask } : {}),
+  });
+}
+
+function scheduleSeatRefreshTask(queue: MonitorTaskQueueForTest, dedupeKey: string): void {
+  queue.scheduleLatest({
+    type: 'SEAT_REFRESH',
+    dedupeKey,
+    monitorSymbol: 'HSI.HK',
+    data: {
+      monitorSymbol: 'HSI.HK',
+      direction: 'LONG',
+      seatVersion: 2,
+      previousSymbol: 'OLD_BULL.HK',
+      nextSymbol: 'BULL.HK',
+      callPrice: 20_000,
+      quote: createQuoteDouble('BULL.HK', 1.1, 100),
+      symbolName: 'BULL.HK',
+      quotesMap: new Map<string, ReturnType<typeof createQuoteDouble> | null>(),
+    },
+  });
+}
+
+function scheduleLiquidationDistanceCheckTask(
+  queue: MonitorTaskQueueForTest,
+  dedupeKey: string,
+): void {
+  queue.scheduleLatest({
+    type: 'LIQUIDATION_DISTANCE_CHECK',
+    dedupeKey,
+    monitorSymbol: 'HSI.HK',
+    data: {
+      monitorSymbol: 'HSI.HK',
+      monitorPrice: 20_000,
+      long: {
+        seatVersion: 2,
+        symbol: 'BULL.HK',
+        quote: createQuoteDouble('BULL.HK', 1, 100),
+        symbolName: 'BULL.HK',
+      },
+      short: {
+        seatVersion: 3,
+        symbol: 'BEAR.HK',
+        quote: createQuoteDouble('BEAR.HK', 1, 100),
+        symbolName: 'BEAR.HK',
+      },
+    },
+  });
+}
+
+function seedBullPosition(lastState: ReturnType<typeof createLastState>): void {
+  const longPosition = createPositionDouble({
+    symbol: 'BULL.HK',
+    quantity: 200,
+    availableQuantity: 200,
+  });
+
+  lastState.positionCache.update([longPosition]);
+}
+
+function createTriggeredLongOnlyLiquidationContext(
+  params: CreateTriggeredLongOnlyLiquidationContextParams = {},
+): ReturnType<typeof createMonitorTaskContext> {
+  const { onClearBuyOrders, onRefreshUnrealizedLoss } = params;
+
+  return createMonitorTaskContext({
+    orderRecorder: createOrderRecorderDouble({
+      clearBuyOrders: () => {
+        onClearBuyOrders?.();
+      },
+    }),
+    riskChecker: createRiskCheckerDouble({
+      checkWarrantDistanceLiquidation: function checkWarrantDistanceLiquidation(_symbol, isLongSymbol) {
+        if (isLongSymbol) {
+          return { shouldLiquidate: true, reason: '触发清仓阈值' };
+        }
+
+        return { shouldLiquidate: false };
+      },
+      refreshUnrealizedLossData: async () => {
+        onRefreshUnrealizedLoss?.();
+        return { r1: 100, n1: 100 };
+      },
+    }),
+  });
+}
 
 describe('monitorTaskProcessor business flow', () => {
   it('processes AUTO_SYMBOL_TICK with valid seat snapshot', async () => {
@@ -53,22 +195,12 @@ describe('monitorTaskProcessor business flow', () => {
         resetAllState: () => {},
       },
     });
-
     const statuses: MonitorTaskStatus[] = [];
 
-    const processor = createMonitorTaskProcessor({
-      monitorTaskQueue: queue,
-      refreshGate: createRefreshGate(),
-      getMonitorContext: () => context as unknown as MonitorTaskContext,
-      clearMonitorDirectionQueues: () => {},
-      trader: createTraderDouble(),
-      lastState: createLastState(),
-      tradingConfig: {
-        monitors: [createMonitorConfigDouble()],
-      } as unknown as MultiMonitorTradingConfig,
-      onProcessed: (_task, status) => {
-        statuses.push(status);
-      },
+    const processor = createBusinessProcessor({
+      queue,
+      context,
+      onProcessed: createStatusCollector(statuses),
     });
 
     await runProcessorFlow({
@@ -117,22 +249,12 @@ describe('monitorTaskProcessor business flow', () => {
         resetAllState: () => {},
       },
     });
-
     const statuses: MonitorTaskStatus[] = [];
 
-    const processor = createMonitorTaskProcessor({
-      monitorTaskQueue: queue,
-      refreshGate: createRefreshGate(),
-      getMonitorContext: () => context as unknown as MonitorTaskContext,
-      clearMonitorDirectionQueues: () => {},
-      trader: createTraderDouble(),
-      lastState: createLastState(),
-      tradingConfig: {
-        monitors: [createMonitorConfigDouble()],
-      } as unknown as MultiMonitorTradingConfig,
-      onProcessed: (_task, status) => {
-        statuses.push(status);
-      },
+    const processor = createBusinessProcessor({
+      queue,
+      context,
+      onProcessed: createStatusCollector(statuses),
     });
 
     await runProcessorFlow({
@@ -178,16 +300,9 @@ describe('monitorTaskProcessor business flow', () => {
       status: MonitorTaskStatus;
     }> = [];
 
-    const processor = createMonitorTaskProcessor({
-      monitorTaskQueue: queue,
-      refreshGate: createRefreshGate(),
-      getMonitorContext: () => context as unknown as MonitorTaskContext,
-      clearMonitorDirectionQueues: () => {},
-      trader: createTraderDouble(),
-      lastState: createLastState(),
-      tradingConfig: {
-        monitors: [createMonitorConfigDouble()],
-      } as unknown as MultiMonitorTradingConfig,
+    const processor = createBusinessProcessor({
+      queue,
+      context,
       getCanProcessTask: () => false,
       onProcessed: (task, status) => {
         seen.push({ task, status });
@@ -232,19 +347,10 @@ describe('monitorTaskProcessor business flow', () => {
     });
     const statuses: MonitorTaskStatus[] = [];
 
-    const processor = createMonitorTaskProcessor({
-      monitorTaskQueue: queue,
-      refreshGate: createRefreshGate(),
-      getMonitorContext: () => context as unknown as MonitorTaskContext,
-      clearMonitorDirectionQueues: () => {},
-      trader: createTraderDouble(),
-      lastState: createLastState(),
-      tradingConfig: {
-        monitors: [createMonitorConfigDouble()],
-      } as unknown as MultiMonitorTradingConfig,
-      onProcessed: (_task, status) => {
-        statuses.push(status);
-      },
+    const processor = createBusinessProcessor({
+      queue,
+      context,
+      onProcessed: createStatusCollector(statuses),
     });
 
     await runProcessorFlow({
@@ -319,11 +425,10 @@ describe('monitorTaskProcessor business flow', () => {
     const statuses: MonitorTaskStatus[] = [];
     const lastState = createLastState();
 
-    const processor = createMonitorTaskProcessor({
-      monitorTaskQueue: queue,
-      refreshGate: createRefreshGate(),
-      getMonitorContext: () => context as unknown as MonitorTaskContext,
-      clearMonitorDirectionQueues: () => {},
+    const processor = createBusinessProcessor({
+      queue,
+      context,
+      lastState,
       trader: createTraderDouble({
         getAccountSnapshot: async () => {
           accountSnapshotCalls += 1;
@@ -340,34 +445,13 @@ describe('monitorTaskProcessor business flow', () => {
           ];
         },
       }),
-      lastState,
-      tradingConfig: {
-        monitors: [createMonitorConfigDouble()],
-      } as unknown as MultiMonitorTradingConfig,
-      onProcessed: (_task, status) => {
-        statuses.push(status);
-      },
+      onProcessed: createStatusCollector(statuses),
     });
 
     await runProcessorFlow({
       processor,
       pushTask: () => {
-        queue.scheduleLatest({
-          type: 'SEAT_REFRESH',
-          dedupeKey: 'HSI.HK:SEAT_REFRESH:LONG',
-          monitorSymbol: 'HSI.HK',
-          data: {
-            monitorSymbol: 'HSI.HK',
-            direction: 'LONG',
-            seatVersion: 2,
-            previousSymbol: 'OLD_BULL.HK',
-            nextSymbol: 'BULL.HK',
-            callPrice: 20_000,
-            quote: createQuoteDouble('BULL.HK', 1.1, 100),
-            symbolName: 'BULL.HK',
-            quotesMap: new Map<string, ReturnType<typeof createQuoteDouble> | null>(),
-          },
-        });
+        scheduleSeatRefreshTask(queue, 'HSI.HK:SEAT_REFRESH:LONG');
       },
       waitCondition: () => statuses.length === 1,
       timeoutMs: 500,
@@ -398,40 +482,16 @@ describe('monitorTaskProcessor business flow', () => {
       }),
     });
 
-    const processor = createMonitorTaskProcessor({
-      monitorTaskQueue: queue,
-      refreshGate: createRefreshGate(),
-      getMonitorContext: () => context as unknown as MonitorTaskContext,
-      clearMonitorDirectionQueues: () => {},
-      trader: createTraderDouble(),
-      lastState: createLastState(),
-      tradingConfig: {
-        monitors: [createMonitorConfigDouble()],
-      } as unknown as MultiMonitorTradingConfig,
-      onProcessed: (_task, status) => {
-        statuses.push(status);
-      },
+    const processor = createBusinessProcessor({
+      queue,
+      context,
+      onProcessed: createStatusCollector(statuses),
     });
 
     await runProcessorFlow({
       processor,
       pushTask: () => {
-        queue.scheduleLatest({
-          type: 'SEAT_REFRESH',
-          dedupeKey: 'HSI.HK:SEAT_REFRESH:LONG:FAIL',
-          monitorSymbol: 'HSI.HK',
-          data: {
-            monitorSymbol: 'HSI.HK',
-            direction: 'LONG',
-            seatVersion: 2,
-            previousSymbol: 'OLD_BULL.HK',
-            nextSymbol: 'BULL.HK',
-            callPrice: 20_000,
-            quote: createQuoteDouble('BULL.HK', 1.1, 100),
-            symbolName: 'BULL.HK',
-            quotesMap: new Map<string, ReturnType<typeof createQuoteDouble> | null>(),
-          },
-        });
+        scheduleSeatRefreshTask(queue, 'HSI.HK:SEAT_REFRESH:LONG:FAIL');
       },
       waitCondition: () => statuses.length === 1,
       timeoutMs: 500,
@@ -443,41 +503,26 @@ describe('monitorTaskProcessor business flow', () => {
   it('processes LIQUIDATION_DISTANCE_CHECK and executes protective sell for triggered side', async () => {
     const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const lastState = createLastState();
-    const longPosition = createPositionDouble({
-      symbol: 'BULL.HK',
-      quantity: 200,
-      availableQuantity: 200,
-    });
-    lastState.positionCache.update([longPosition]);
+    seedBullPosition(lastState);
 
     const submittedActions: string[] = [];
     let clearedOrders = 0;
     let refreshUnrealizedCalls = 0;
 
-    const context = createMonitorTaskContext({
-      orderRecorder: createOrderRecorderDouble({
-        clearBuyOrders: () => {
-          clearedOrders += 1;
-        },
-      }),
-      riskChecker: createRiskCheckerDouble({
-        checkWarrantDistanceLiquidation: (_symbol, isLongSymbol) =>
-          isLongSymbol
-            ? { shouldLiquidate: true, reason: '触发清仓阈值' }
-            : { shouldLiquidate: false },
-        refreshUnrealizedLossData: async () => {
-          refreshUnrealizedCalls += 1;
-          return { r1: 100, n1: 100 };
-        },
-      }),
+    const context = createTriggeredLongOnlyLiquidationContext({
+      onClearBuyOrders: () => {
+        clearedOrders += 1;
+      },
+      onRefreshUnrealizedLoss: () => {
+        refreshUnrealizedCalls += 1;
+      },
     });
     const statuses: MonitorTaskStatus[] = [];
 
-    const processor = createMonitorTaskProcessor({
-      monitorTaskQueue: queue,
-      refreshGate: createRefreshGate(),
-      getMonitorContext: () => context as unknown as MonitorTaskContext,
-      clearMonitorDirectionQueues: () => {},
+    const processor = createBusinessProcessor({
+      queue,
+      context,
+      lastState,
       trader: createTraderDouble({
         executeSignals: async (signals) => {
           for (const signal of signals) {
@@ -487,39 +532,13 @@ describe('monitorTaskProcessor business flow', () => {
           return { submittedCount: signals.length, submittedOrderIds: [] };
         },
       }),
-      lastState,
-      tradingConfig: {
-        monitors: [createMonitorConfigDouble()],
-      } as unknown as MultiMonitorTradingConfig,
-      onProcessed: (_task, status) => {
-        statuses.push(status);
-      },
+      onProcessed: createStatusCollector(statuses),
     });
 
     await runProcessorFlow({
       processor,
       pushTask: () => {
-        queue.scheduleLatest({
-          type: 'LIQUIDATION_DISTANCE_CHECK',
-          dedupeKey: 'HSI.HK:LIQUIDATION_DISTANCE_CHECK',
-          monitorSymbol: 'HSI.HK',
-          data: {
-            monitorSymbol: 'HSI.HK',
-            monitorPrice: 20_000,
-            long: {
-              seatVersion: 2,
-              symbol: 'BULL.HK',
-              quote: createQuoteDouble('BULL.HK', 1, 100),
-              symbolName: 'BULL.HK',
-            },
-            short: {
-              seatVersion: 3,
-              symbol: 'BEAR.HK',
-              quote: createQuoteDouble('BEAR.HK', 1, 100),
-              symbolName: 'BEAR.HK',
-            },
-          },
-        });
+        scheduleLiquidationDistanceCheckTask(queue, 'HSI.HK:LIQUIDATION_DISTANCE_CHECK');
       },
       waitCondition: () => statuses.length === 1,
       timeoutMs: 500,
@@ -530,5 +549,57 @@ describe('monitorTaskProcessor business flow', () => {
     expect(clearedOrders).toBe(1);
     expect(refreshUnrealizedCalls).toBe(1);
   });
-});
 
+  it('keeps cache unchanged when LIQUIDATION_DISTANCE_CHECK signals are not submitted', async () => {
+    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
+    const lastState = createLastState();
+    seedBullPosition(lastState);
+
+    const submittedActions: string[] = [];
+    let clearedOrders = 0;
+    let refreshUnrealizedCalls = 0;
+
+    const context = createTriggeredLongOnlyLiquidationContext({
+      onClearBuyOrders: () => {
+        clearedOrders += 1;
+      },
+      onRefreshUnrealizedLoss: () => {
+        refreshUnrealizedCalls += 1;
+      },
+    });
+    const statuses: MonitorTaskStatus[] = [];
+
+    const processor = createBusinessProcessor({
+      queue,
+      context,
+      lastState,
+      trader: createTraderDouble({
+        executeSignals: async (signals) => {
+          for (const signal of signals) {
+            submittedActions.push(signal.action);
+          }
+
+          return { submittedCount: 0, submittedOrderIds: [] };
+        },
+      }),
+      onProcessed: createStatusCollector(statuses),
+    });
+
+    await runProcessorFlow({
+      processor,
+      pushTask: () => {
+        scheduleLiquidationDistanceCheckTask(
+          queue,
+          'HSI.HK:LIQUIDATION_DISTANCE_CHECK:NOT_SUBMITTED',
+        );
+      },
+      waitCondition: () => statuses.length === 1,
+      timeoutMs: 500,
+    });
+
+    expect(statuses[0]).toBe('processed');
+    expect(submittedActions).toEqual(['SELLCALL']);
+    expect(clearedOrders).toBe(0);
+    expect(refreshUnrealizedCalls).toBe(0);
+  });
+});

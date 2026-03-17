@@ -2,8 +2,10 @@ import type { AutoSymbolManager } from '../../../services/autoSymbolManager/type
 import type { RefreshGate } from '../../../utils/types.js';
 import type { MonitorTaskQueue, MonitorTask } from '../monitorTaskQueue/types.js';
 import type { LastState } from '../../../types/state.js';
-import type { Quote } from '../../../types/quote.js';
+import type { Position } from '../../../types/account.js';
 import type { MultiMonitorTradingConfig } from '../../../types/config.js';
+import type { Quote } from '../../../types/quote.js';
+import type { Signal } from '../../../types/signal.js';
 import type { SymbolRegistry } from '../../../types/seat.js';
 import type {
   RawOrderFromAPI,
@@ -138,6 +140,35 @@ export type MonitorTaskDataMap = Readonly<{
  * 使用范围：仅 monitorTaskProcessor 及注册 onProcessed 的调用方使用，内部使用。
  */
 export type MonitorTaskStatus = 'processed' | 'skipped' | 'failed';
+
+/**
+ * 清仓执行项。
+ * 类型用途：LIQUIDATION_DISTANCE_CHECK 处理中用于串联下单、清理与浮亏刷新的单边任务载体。
+ * 数据来源：由 liquidationDistance handler 在风控通过后创建。
+ * 使用范围：仅 monitorTaskProcessor/liquidationDistance handler 使用。
+ */
+export type LiquidationTask = Readonly<{
+  signal: Signal;
+  isLongSymbol: boolean;
+  quote: Quote | null;
+}>;
+
+/**
+ * createLiquidationTask 入参。
+ * 类型用途：聚合单边清仓信号构造所需上下文，避免函数参数列表过长。
+ * 数据来源：由 liquidationDistance handler 组装。
+ * 使用范围：仅 monitorTaskProcessor/liquidationDistance handler 使用。
+ */
+export type CreateLiquidationTaskParams = Readonly<{
+  symbol: string;
+  symbolName: string | null;
+  isLongSymbol: boolean;
+  position: Position | null;
+  quote: Quote | null;
+  seatVersion: number;
+  monitorPrice: number;
+  riskChecker: RiskChecker;
+}>;
 
 /**
  * 监控任务处理上下文（处理器执行任务时的运行时依赖）。

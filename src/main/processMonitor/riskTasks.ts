@@ -3,7 +3,7 @@
  *
  * 功能：
  * - 根据价格变化和监控标的配置调度风险检查任务
- * - 调度距回收价检查（LIQUIDATION_DISTANCE_CHECK）：用于触发自动换标
+ * - 调度距回收价检查（LIQUIDATION_DISTANCE_CHECK）：用于触发距回收价清仓检查
  * - 调度浮亏检查（UNREALIZED_LOSS_CHECK）：用于触发保护性清仓
  * - 监控价格变化并更新价格展示信息（距回收价、持仓市值、持仓盈亏、订单数量）
  *
