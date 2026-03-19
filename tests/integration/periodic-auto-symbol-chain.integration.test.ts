@@ -93,10 +93,10 @@ describe('periodic auto-symbol full chain integration', () => {
       monitorSymbol: monitorConfig.monitorSymbol,
       longSeat: {
         symbol: 'OLD_BULL.HK',
-        status: 'READY',
+        status: 'ACTIVE',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: readyMs,
+        lastSeatActivatedAt: readyMs,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -105,7 +105,7 @@ describe('periodic auto-symbol full chain integration', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -185,6 +185,7 @@ describe('periodic auto-symbol full chain integration', () => {
       getMonitorContext: () => monitorContext as never,
       clearMonitorDirectionQueues: () => {},
       trader,
+      marketDataClient: createMarketDataClientDouble(),
       lastState: createLastState(),
       tradingConfig: {
         monitors: [monitorConfig],
@@ -206,7 +207,6 @@ describe('periodic auto-symbol full chain integration', () => {
         openProtectionActive: false,
         monitorPriceChanged: false,
         resolvedMonitorPrice: 20_000,
-        quotesMap: new Map(),
       });
 
       await waitUntil(() => statuses.length >= 2);
@@ -231,16 +231,15 @@ describe('periodic auto-symbol full chain integration', () => {
         openProtectionActive: false,
         monitorPriceChanged: false,
         resolvedMonitorPrice: 20_000,
-        quotesMap: new Map(),
       });
 
       await waitUntil(() => statuses.length >= 3);
       expect(statuses).toEqual(['processed', 'processed', 'processed']);
 
       const finalSeat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
-      expect(finalSeat.status).toBe('READY');
+      expect(finalSeat.status).toBe('ACTIVATING');
       expect(finalSeat.symbol).toBe('NEW_BULL.HK');
-      expect(finalSeat.lastSeatReadyAt).toBe(currentNowMs);
+      expect(finalSeat.lastSeatActivatedAt).toBeNull();
       expect(finalSeat.callPrice).toBe(21_000);
       expect(autoSymbolManager.hasPendingSwitch('LONG')).toBeFalse();
       expect(executeSignalsCalls).toBe(0);
@@ -278,10 +277,10 @@ describe('periodic auto-symbol full chain integration', () => {
       monitorSymbol: monitorConfig.monitorSymbol,
       longSeat: {
         symbol: 'OLD_BULL.HK',
-        status: 'READY',
+        status: 'ACTIVE',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: readyMs,
+        lastSeatActivatedAt: readyMs,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -290,7 +289,7 @@ describe('periodic auto-symbol full chain integration', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -366,6 +365,7 @@ describe('periodic auto-symbol full chain integration', () => {
       getMonitorContext: () => monitorContext as never,
       clearMonitorDirectionQueues: () => {},
       trader,
+      marketDataClient: createMarketDataClientDouble(),
       lastState: createLastState(),
       tradingConfig: {
         monitors: [monitorConfig],
@@ -387,13 +387,12 @@ describe('periodic auto-symbol full chain integration', () => {
         openProtectionActive: false,
         monitorPriceChanged: false,
         resolvedMonitorPrice: 20_000,
-        quotesMap: new Map(),
       });
 
       await waitUntil(() => statuses.length >= 2);
       expect(statuses).toEqual(['processed', 'processed']);
       const seat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
-      expect(seat.status).toBe('READY');
+      expect(seat.status).toBe('ACTIVE');
       expect(seat.symbol).toBe('OLD_BULL.HK');
       expect(symbolRegistry.getSeatVersion('HSI.HK', 'LONG')).toBe(1);
       expect(autoSymbolManager.hasPendingSwitch('LONG')).toBeFalse();
@@ -430,10 +429,10 @@ describe('periodic auto-symbol full chain integration', () => {
       monitorSymbol: monitorConfig.monitorSymbol,
       longSeat: {
         symbol: 'OLD_BULL.HK',
-        status: 'READY',
+        status: 'ACTIVE',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: readyMs,
+        lastSeatActivatedAt: readyMs,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -442,7 +441,7 @@ describe('periodic auto-symbol full chain integration', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -518,6 +517,7 @@ describe('periodic auto-symbol full chain integration', () => {
       getMonitorContext: () => monitorContext as never,
       clearMonitorDirectionQueues: () => {},
       trader,
+      marketDataClient: createMarketDataClientDouble(),
       lastState: createLastState(),
       tradingConfig: {
         monitors: [monitorConfig],
@@ -539,13 +539,12 @@ describe('periodic auto-symbol full chain integration', () => {
         openProtectionActive: false,
         monitorPriceChanged: false,
         resolvedMonitorPrice: 20_000,
-        quotesMap: new Map(),
       });
 
       await waitUntil(() => statuses.length >= 2);
       expect(statuses).toEqual(['processed', 'processed']);
       const seat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
-      expect(seat.status).toBe('READY');
+      expect(seat.status).toBe('ACTIVE');
       expect(seat.symbol).toBe('OLD_BULL.HK');
       expect(symbolRegistry.getSeatVersion('HSI.HK', 'LONG')).toBe(1);
       expect(autoSymbolManager.hasPendingSwitch('LONG')).toBeFalse();
@@ -586,10 +585,10 @@ describe('periodic auto-symbol full chain integration', () => {
       monitorSymbol: monitorConfig.monitorSymbol,
       longSeat: {
         symbol: 'OLD_BULL.HK',
-        status: 'READY',
+        status: 'ACTIVE',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: readyMs,
+        lastSeatActivatedAt: readyMs,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -598,7 +597,7 @@ describe('periodic auto-symbol full chain integration', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -678,6 +677,7 @@ describe('periodic auto-symbol full chain integration', () => {
       getMonitorContext: () => monitorContext as never,
       clearMonitorDirectionQueues: () => {},
       trader,
+      marketDataClient: createMarketDataClientDouble(),
       lastState: createLastState(),
       tradingConfig: {
         monitors: [monitorConfig],
@@ -699,12 +699,11 @@ describe('periodic auto-symbol full chain integration', () => {
         openProtectionActive: false,
         monitorPriceChanged: false,
         resolvedMonitorPrice: 20_000,
-        quotesMap: new Map(),
       });
 
       await waitUntil(() => statuses.length >= 2);
       expect(statuses).toEqual(['processed', 'processed']);
-      expect(symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('READY');
+      expect(symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVE');
       expect(autoSymbolManager.hasPendingSwitch('LONG')).toBeFalse();
 
       statuses.length = 0;
@@ -720,7 +719,6 @@ describe('periodic auto-symbol full chain integration', () => {
         openProtectionActive: false,
         monitorPriceChanged: false,
         resolvedMonitorPrice: 20_000,
-        quotesMap: new Map(),
       });
 
       await waitUntil(() => statuses.length >= 2);
@@ -744,16 +742,15 @@ describe('periodic auto-symbol full chain integration', () => {
         openProtectionActive: false,
         monitorPriceChanged: false,
         resolvedMonitorPrice: 20_000,
-        quotesMap: new Map(),
       });
 
       await waitUntil(() => statuses.length >= 3);
       expect(statuses).toEqual(['processed', 'processed', 'processed']);
 
       const finalSeat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
-      expect(finalSeat.status).toBe('READY');
+      expect(finalSeat.status).toBe('ACTIVATING');
       expect(finalSeat.symbol).toBe('NEW_BULL.HK');
-      expect(finalSeat.lastSeatReadyAt).toBe(currentNowMs);
+      expect(finalSeat.lastSeatActivatedAt).toBeNull();
       expect(finalSeat.callPrice).toBe(21_000);
       expect(autoSymbolManager.hasPendingSwitch('LONG')).toBeFalse();
       expect(executeSignalsCalls).toBe(0);

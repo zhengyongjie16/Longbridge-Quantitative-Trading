@@ -45,7 +45,6 @@ describe('autoSymbolTasks business scheduling', () => {
       openProtectionActive: false,
       monitorPriceChanged: false,
       resolvedMonitorPrice: null,
-      quotesMap: new Map(),
     });
 
     const first = monitorTaskQueue.pop();
@@ -66,7 +65,7 @@ describe('autoSymbolTasks business scheduling', () => {
     expect((second?.data as { symbol: string | null }).symbol).toBe('BEAR.HK');
   });
 
-  it('schedules AUTO_SYMBOL_SWITCH_DISTANCE when pending switch exists even without price change', () => {
+  it('schedules AUTO_SYMBOL_SWITCH_DISTANCE without quotesMap when pending switch exists even without price change', () => {
     const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
@@ -93,19 +92,17 @@ describe('autoSymbolTasks business scheduling', () => {
       openProtectionActive: false,
       monitorPriceChanged: false,
       resolvedMonitorPrice: 19_999,
-      quotesMap: new Map(),
     });
 
-    const tasks: Array<keyof MonitorTaskDataMap> = [];
-    while (!monitorTaskQueue.isEmpty()) {
-      const task = monitorTaskQueue.pop();
-      if (task) {
-        tasks.push(task.type);
-      }
-    }
+    const first = monitorTaskQueue.pop();
+    const second = monitorTaskQueue.pop();
+    const third = monitorTaskQueue.pop();
 
-    expect(tasks).toContain('AUTO_SYMBOL_TICK');
-    expect(tasks).toContain('AUTO_SYMBOL_SWITCH_DISTANCE');
+    expect(first?.type).toBe('AUTO_SYMBOL_TICK');
+    expect(second?.type).toBe('AUTO_SYMBOL_TICK');
+    expect(third?.type).toBe('AUTO_SYMBOL_SWITCH_DISTANCE');
+    expect(third?.data).not.toBeNull();
+    expect('quotesMap' in ((third?.data ?? {}) as object)).toBeFalse();
   });
 
   it('does nothing when auto-search is disabled', () => {
@@ -128,7 +125,6 @@ describe('autoSymbolTasks business scheduling', () => {
       openProtectionActive: false,
       monitorPriceChanged: true,
       resolvedMonitorPrice: 20_000,
-      quotesMap: new Map(),
     });
 
     expect(monitorTaskQueue.isEmpty()).toBeTrue();

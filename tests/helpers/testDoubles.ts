@@ -483,19 +483,19 @@ export function createSymbolRegistryDouble(params?: {
   const monitorSymbol = params?.monitorSymbol ?? 'HSI.HK';
   const longSeat = params?.longSeat ?? {
     symbol: 'BULL.HK',
-    status: 'READY',
+    status: 'ACTIVE',
     lastSwitchAt: null,
     lastSearchAt: null,
-    lastSeatReadyAt: null,
+    lastSeatActivatedAt: null,
     searchFailCountToday: 0,
     frozenTradingDayKey: null,
   };
   const shortSeat = params?.shortSeat ?? {
     symbol: 'BEAR.HK',
-    status: 'READY',
+    status: 'ACTIVE',
     lastSwitchAt: null,
     lastSearchAt: null,
-    lastSeatReadyAt: null,
+    lastSeatActivatedAt: null,
     searchFailCountToday: 0,
     frozenTradingDayKey: null,
   };
@@ -754,9 +754,6 @@ export function createMonitorContextDouble(
     monitorSymbolName: overrides.monitorSymbolName ?? config.monitorSymbol,
     normalizedMonitorSymbol: overrides.normalizedMonitorSymbol ?? config.monitorSymbol,
     indicatorProfile: overrides.indicatorProfile ?? createIndicatorUsageProfileDouble(),
-    longQuote: overrides.longQuote ?? null,
-    shortQuote: overrides.shortQuote ?? null,
-    monitorQuote: overrides.monitorQuote ?? null,
   };
 }
 

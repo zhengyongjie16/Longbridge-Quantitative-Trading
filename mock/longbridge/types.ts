@@ -40,6 +40,7 @@ export type MockMethodName =
   | 'staticInfo'
   | 'subscribe'
   | 'unsubscribe'
+  | 'realtimeQuote'
   | 'subscribeCandlesticks'
   | 'unsubscribeCandlesticks'
   | 'realtimeCandlesticks'
@@ -157,6 +158,7 @@ interface MockFailureController {
 export interface QuoteContextContract extends MockInvocationLog, MockFailureController {
   quote: (symbols: ReadonlyArray<string>) => Promise<ReadonlyArray<unknown>>;
   staticInfo: (symbols: ReadonlyArray<string>) => Promise<ReadonlyArray<unknown>>;
+  realtimeQuote: (symbols: ReadonlyArray<string>) => Promise<ReadonlyArray<unknown>>;
   subscribe: (symbols: ReadonlyArray<string>, subTypes: ReadonlyArray<SubType>) => Promise<void>;
   unsubscribe: (symbols: ReadonlyArray<string>, subTypes: ReadonlyArray<SubType>) => Promise<void>;
   subscribeCandlesticks: (

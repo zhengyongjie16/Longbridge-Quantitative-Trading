@@ -74,12 +74,10 @@ export async function processMonitor(
     openProtectionActive: runtimeFlags.openProtectionActive,
     monitorPriceChanged,
     resolvedMonitorPrice,
-    quotesMap,
   });
 
   const seatInfo = syncSeatState({
     monitorSymbol: MONITOR_SYMBOL,
-    monitorQuote,
     monitorContext,
     mainContext,
     quotesMap,

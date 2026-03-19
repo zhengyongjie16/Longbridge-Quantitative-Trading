@@ -1,5 +1,5 @@
 import type { MonitorContext, LastState } from '../../../types/state.js';
-import type { Trader } from '../../../types/services.js';
+import type { MarketDataClient, Trader } from '../../../types/services.js';
 import type { TaskQueue, BuyTaskType } from '../tradeTaskQueue/types.js';
 import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
 import type { DoomsdayProtection } from '../../../core/doomsdayProtection/types.js';
@@ -22,6 +22,9 @@ export type BuyProcessorDeps = {
 
   /** 交易执行器 */
   readonly trader: Trader;
+
+  /** 行情客户端 */
+  readonly marketDataClient: MarketDataClient;
 
   /** 末日保护模块 */
   readonly doomsdayProtection: DoomsdayProtection;

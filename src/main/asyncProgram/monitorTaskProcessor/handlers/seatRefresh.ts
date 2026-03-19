@@ -2,14 +2,15 @@
  * 席位刷新任务处理
  *
  * 功能：
- * - 换标后刷新订单记录与风险缓存
- * - 刷新牛熊证信息并处理旧标的清理
- * - 刷新顺序保持原子性，避免缓存污染
+ * - 作为 seat activation barrier，在 ACTIVATING 阶段完成 quote admission 与风险缓存初始化
+ * - 在执行时拉取行情后刷新牛熊证信息并处理旧标的清理
+ * - 成功后推进到 ACTIVE，失败则回 EMPTY 并 bump version
  */
 import { logger } from '../../../../utils/logger/index.js';
-import { isSeatReady, isSeatVersionMatch } from '../../../../services/autoSymbolManager/utils.js';
+import { isSeatVersionMatch } from '../../../../services/autoSymbolManager/utils.js';
 
 import type { MultiMonitorTradingConfig } from '../../../../types/config.js';
+import type { MarketDataClient } from '../../../../types/services.js';
 import type { MonitorTask } from '../../monitorTaskQueue/types.js';
 import type {
   MonitorTaskContext,
@@ -21,15 +22,16 @@ import type {
 
 /**
  * 创建席位刷新任务处理器。
- * 换标后刷新订单记录、日内亏损与浮亏数据，设置牛熊证信息并清理旧标的缓存；保证刷新顺序原子性，避免缓存污染。
+ * 在 seat 进入 ACTIVATING 后执行 admission、订单/风控缓存初始化与旧标的清理；仅当全部成功时才把 seat 推进到 ACTIVE。
  *
- * @param deps 依赖注入，包含 getContextOrSkip、clearMonitorDirectionQueues、tradingConfig
+ * @param deps 依赖注入，包含 getContextOrSkip、clearMonitorDirectionQueues、tradingConfig、marketDataClient
  * @returns 处理 SEAT_REFRESH 任务的异步函数
  */
 export function createSeatRefreshHandler({
   getContextOrSkip,
   clearMonitorDirectionQueues,
   tradingConfig,
+  marketDataClient,
 }: {
   readonly getContextOrSkip: (monitorSymbol: string) => MonitorTaskContext | null;
   readonly clearMonitorDirectionQueues: (
@@ -37,6 +39,7 @@ export function createSeatRefreshHandler({
     direction: 'LONG' | 'SHORT',
   ) => void;
   readonly tradingConfig: MultiMonitorTradingConfig;
+  readonly marketDataClient: MarketDataClient;
 }): (
   task: MonitorTask<MonitorTaskDataMap, 'SEAT_REFRESH'>,
   helpers: RefreshHelpers,
@@ -73,7 +76,7 @@ export function createSeatRefreshHandler({
       status: 'EMPTY',
       lastSwitchAt: Date.now(),
       lastSearchAt: null,
-      lastSeatReadyAt: null,
+      lastSeatActivatedAt: null,
       callPrice: null,
       searchFailCountToday: 0,
       frozenTradingDayKey: null,
@@ -81,6 +84,31 @@ export function createSeatRefreshHandler({
     context.symbolRegistry.updateSeatState(monitorSymbol, direction, nextState);
     clearMonitorDirectionQueues(monitorSymbol, direction);
     logger.error(`[自动换标] ${monitorSymbol} ${direction} 换标失败（v${nextVersion}）：${reason}`);
+  }
+
+  /**
+   * 校验任务快照与当前席位是否仍一致，并返回当前席位状态。
+   * 要求：seatVersion 匹配、状态为 ACTIVATING、symbol 与 nextSymbol 一致。
+   *
+   * @param context 监控上下文
+   * @param data 席位刷新任务数据
+   * @returns 快照仍有效时返回当前 seatState，否则返回 null
+   */
+  function resolveActivatingSeatSnapshot(
+    context: MonitorTaskContext,
+    data: SeatRefreshTaskData,
+  ): ReturnType<MonitorTaskContext['symbolRegistry']['getSeatState']> | null {
+    const seatState = context.symbolRegistry.getSeatState(data.monitorSymbol, data.direction);
+    const seatVersion = context.symbolRegistry.getSeatVersion(data.monitorSymbol, data.direction);
+    if (!isSeatVersionMatch(data.seatVersion, seatVersion)) {
+      return null;
+    }
+
+    if (seatState.status !== 'ACTIVATING' || seatState.symbol !== data.nextSymbol) {
+      return null;
+    }
+
+    return seatState;
   }
 
   return async function handleSeatRefresh(
@@ -93,13 +121,8 @@ export function createSeatRefreshHandler({
       return 'skipped';
     }
 
-    const seatState = context.symbolRegistry.getSeatState(data.monitorSymbol, data.direction);
-    const seatVersion = context.symbolRegistry.getSeatVersion(data.monitorSymbol, data.direction);
-    if (!isSeatVersionMatch(data.seatVersion, seatVersion)) {
-      return 'skipped';
-    }
-
-    if (!isSeatReady(seatState) || seatState.symbol !== data.nextSymbol) {
+    const entrySeatState = resolveActivatingSeatSnapshot(context, data);
+    if (!entrySeatState) {
       return 'skipped';
     }
 
@@ -126,61 +149,92 @@ export function createSeatRefreshHandler({
       return 'processed';
     }
 
-    const allOrders = await helpers.ensureAllOrders(data.monitorSymbol, context.orderRecorder);
-    context.dailyLossTracker.recalculateFromAllOrders(
-      allOrders,
-      tradingConfig.monitors,
-      new Date(),
-    );
+    try {
+      const quoteSymbols = [data.nextSymbol];
+      if (data.previousSymbol && data.previousSymbol !== data.nextSymbol) {
+        quoteSymbols.push(data.previousSymbol);
+      }
 
-    await (isLong
-      ? context.orderRecorder.refreshOrdersFromAllOrdersForLong(
-          data.nextSymbol,
-          allOrders,
-          data.quote,
-        )
-      : context.orderRecorder.refreshOrdersFromAllOrdersForShort(
-          data.nextSymbol,
-          allOrders,
-          data.quote,
-        ));
+      await marketDataClient.subscribeSymbols(quoteSymbols);
+      const executionQuotes = await marketDataClient.getQuotes(quoteSymbols);
+      const nextExecutionQuote = executionQuotes.get(data.nextSymbol) ?? null;
 
-    await helpers.refreshAccountCaches();
+      const allOrders = await helpers.ensureAllOrders(data.monitorSymbol, context.orderRecorder);
+      context.dailyLossTracker.recalculateFromAllOrders(
+        allOrders,
+        tradingConfig.monitors,
+        new Date(),
+      );
 
-    const dailyLossOffset = context.dailyLossTracker.getLossOffset(data.monitorSymbol, isLong);
-    await context.riskChecker.refreshUnrealizedLossData(
-      context.orderRecorder,
-      data.nextSymbol,
-      isLong,
-      data.quote,
-      dailyLossOffset,
-    );
+      await (isLong
+        ? context.orderRecorder.refreshOrdersFromAllOrdersForLong(
+            data.nextSymbol,
+            allOrders,
+            nextExecutionQuote,
+          )
+        : context.orderRecorder.refreshOrdersFromAllOrdersForShort(
+            data.nextSymbol,
+            allOrders,
+            nextExecutionQuote,
+          ));
 
-    const warrantRefreshResult = context.riskChecker.setWarrantInfoFromCallPrice(
-      data.nextSymbol,
-      data.callPrice,
-      isLong,
-      data.symbolName,
-    );
-    if (warrantRefreshResult.status === 'error') {
+      await helpers.refreshAccountCaches();
+
+      const dailyLossOffset = context.dailyLossTracker.getLossOffset(data.monitorSymbol, isLong);
+      await context.riskChecker.refreshUnrealizedLossData(
+        context.orderRecorder,
+        data.nextSymbol,
+        isLong,
+        nextExecutionQuote,
+        dailyLossOffset,
+      );
+
+      const warrantRefreshResult = context.riskChecker.setWarrantInfoFromCallPrice(
+        data.nextSymbol,
+        data.callPrice,
+        isLong,
+        data.symbolName,
+      );
+      if (warrantRefreshResult.status === 'error') {
+        markSeatAsEmpty(
+          data.monitorSymbol,
+          data.direction,
+          `设置牛熊证信息失败：${warrantRefreshResult.reason}`,
+          context,
+        );
+        return 'processed';
+      }
+
+      if (data.previousSymbol && data.previousSymbol !== data.nextSymbol) {
+        const previousExecutionQuote = executionQuotes.get(data.previousSymbol) ?? null;
+        const existingSeat = context.symbolRegistry.resolveSeatBySymbol(data.previousSymbol);
+        if (!existingSeat) {
+          context.orderRecorder.clearBuyOrders(data.previousSymbol, isLong, previousExecutionQuote);
+          context.orderRecorder.clearOrdersCacheForSymbol(data.previousSymbol);
+        }
+      }
+
+      const latestSeatState = resolveActivatingSeatSnapshot(context, data);
+      if (!latestSeatState) {
+        return 'skipped';
+      }
+
+      context.symbolRegistry.updateSeatState(data.monitorSymbol, data.direction, {
+        ...latestSeatState,
+        status: 'ACTIVE',
+        lastSeatActivatedAt: Date.now(),
+        callPrice: data.callPrice,
+      });
+
+      return 'processed';
+    } catch (error) {
       markSeatAsEmpty(
         data.monitorSymbol,
         data.direction,
-        `设置牛熊证信息失败：${warrantRefreshResult.reason}`,
+        error instanceof Error ? error.message : String(error),
         context,
       );
       return 'processed';
     }
-
-    if (data.previousSymbol && data.previousSymbol !== data.nextSymbol) {
-      const previousQuote = data.quotesMap.get(data.previousSymbol) ?? null;
-      const existingSeat = context.symbolRegistry.resolveSeatBySymbol(data.previousSymbol);
-      if (!existingSeat) {
-        context.orderRecorder.clearBuyOrders(data.previousSymbol, isLong, previousQuote);
-        context.orderRecorder.clearOrdersCacheForSymbol(data.previousSymbol);
-      }
-    }
-
-    return 'processed';
   };
 }

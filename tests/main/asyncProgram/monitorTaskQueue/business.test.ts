@@ -64,8 +64,8 @@ describe('monitorTaskQueue business behavior', () => {
       monitorSymbol: 'HSI.HK',
       data: {
         monitorSymbol: 'HSI.HK',
-        long: { seatVersion: 1, symbol: 'BULL.HK', quote: null },
-        short: { seatVersion: 1, symbol: 'BEAR.HK', quote: null },
+        long: { seatVersion: 1, symbol: 'BULL.HK' },
+        short: { seatVersion: 1, symbol: 'BEAR.HK' },
       },
     });
 
@@ -77,8 +77,8 @@ describe('monitorTaskQueue business behavior', () => {
       monitorSymbol: 'HSI.HK',
       data: {
         monitorSymbol: 'HSI.HK',
-        long: { seatVersion: 1, symbol: 'BULL.HK', quote: null },
-        short: { seatVersion: 1, symbol: 'BEAR.HK', quote: null },
+        long: { seatVersion: 1, symbol: 'BULL.HK' },
+        short: { seatVersion: 1, symbol: 'BEAR.HK' },
       },
     });
 

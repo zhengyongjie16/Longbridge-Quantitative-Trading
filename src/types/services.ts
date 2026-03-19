@@ -440,7 +440,7 @@ export interface Trader {
   cancelOrder: (orderId: string) => Promise<CancelOrderOutcome>;
 
   /** 监控和管理待处理订单 */
-  monitorAndManageOrders: (quotesMap: ReadonlyMap<string, Quote | null>) => Promise<void>;
+  monitorAndManageOrders: () => Promise<void>;
 
   /** 获取并清空待刷新标的列表 */
   getAndClearPendingRefreshSymbols: () => ReadonlyArray<PendingRefreshSymbol>;

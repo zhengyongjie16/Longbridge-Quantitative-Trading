@@ -45,10 +45,8 @@
 6. **字段无效 quote**：quote 对象存在，但某个订单路径所需字段（如 `price`、`lotSize`）缺失或无效；它与 `null quote` 是两类不同失败。
 7. **普通买入（signal buy）**：由买入信号进入 buyProcessor 的买入执行路径；这一路径缺行情直接丢弃，不参与统一 quote retry。
 8. **自动换标回补买入（auto-switch rebuy）**：属于自动换标状态机中的订单路径，虽然业务动作是“买入”，但不属于上面的“普通买入”；它受统一 quote retry 规则约束。
-9. **quote retry**：统一的“行情未就绪”处理规则本身。
-10. **retry intent**：一次性订单路径中的单个重试实例，由 coordinator 托管。
-11. **retry state**：周期驱动路径中的运行态字段，例如 `attempts / nextRetryAt / exhausted`。
-12. **reset event**：允许同一路径为同一业务实体重新开启新 retry 周期的业务事件；未发生 reset event 前，不允许无条件重建重试。
+9. **quote retry**：统一的“行情未就绪”处理规则本身，统一的是参数、适用范围、就绪判定、恢复前复核要求与可复用 helper，不预设集中式重试平台。
+10. **retry state**：周期驱动路径中的运行态字段，例如 `attempts / nextRetryAt / exhausted`；一次性路径不要求额外建立全局 registry，而是沿用本路径已有调度宿主做 delayed re-enqueue。
 
 本次重构的精确定义不是“系统完全不再存在任何本地状态”，而是：
 
@@ -57,11 +55,11 @@
 3. **`quote()` 仅保留一个职责：在订阅时初始化 `prevClose` 元数据。**
 4. **当前价格只从 SDK realtime 状态读取；若 symbol 尚未 warm，则普通读取返回 `null`，不再用 `quote()` 补当前价。**
 5. **买入不参与 quote 重试；买入信号若在任一执行阶段发现行情无效，直接丢弃。**
-6. **除买入外，其他需要行情才能提交/改单的订单路径统一进入“每秒一次、最多 30 次”的行情就绪重试。**
+6. **除买入外，其他需要行情才能提交/改单的订单路径统一进入“每 2 秒一次、最多 5 次”的行情就绪重试。**
 7. **该重试仅针对“行情缺失/行情字段未就绪”，不针对未订阅、SDK 报错、权限错误、门禁失败或其他业务失败。**
 8. **该重试必须是非阻塞的，不能通过 `sleep` 或长时间 `await` 卡住主循环、处理器或 worker。**
 9. **主循环仍可在单次 tick 内读取一份临时 `quotesMap` 快照，供本轮 monitor 处理保持一致视图。**
-10. **K 线链路继续维持“订阅 + `realtimeCandlesticks` 读取”的现有模式；若不消费 K push 事件，则不保留无职责回调。**
+10. **K 线链路继续维持“订阅 + `realtimeCandlesticks` 读取”的现有模式；删除 `setOnCandlestick`，改为在读取 `realtimeCandlesticks` 获取不到值或根数不足时记录日志。**
 
 这一定义非常重要。若把目标误解为“任何链路都不得生成临时快照”，会破坏单轮 monitor 处理的一致性。若把目标误解为“纯 `realtimeQuote` 必然可在订阅后立即读取”，则会直接破坏启动和重建链路。若把目标误解为“新订阅 symbol 没有 realtime 时必须再拉一次 `quote()` 补当前价”，则会把本次要删除的冗余设计重新引回来。若把目标误解为“所有读取遇到 `null` 都应自动重试”，又会把 monitor / 展示链路错误地变成阻塞流程。若把目标误解为“只改 `quoteClient.getQuotes` 的内部实现，其他链路不动”，又无法真正解决执行时价格陈旧问题。
 
@@ -349,7 +347,7 @@
 1. **删除应用层动态 `Quote` 缓存。**
 2. **把 `quote()` 收缩为“订阅时一次性初始化 `prevClose` 元数据”的接口用途。**
 3. **把 `getQuotes()` 重定义为纯 realtime 读取器：有 realtime 就返回 `Quote`，无 realtime 就返回 `null`。**
-4. **新增统一的订单行情重试规则：买入除外；其余需要行情的订单路径在遇到 `null/无效 quote` 时，按“1 秒一次、最多 30 次”推进。**
+4. **新增统一的订单行情重试规则：买入除外；其余需要行情的订单路径在遇到 `null/无效 quote` 时，按“每 2 秒一次、最多 5 次”推进。**
 5. **保留单轮主循环临时 `quotesMap` 快照，只用于 monitor 一致视图。**
 6. **删除 `MonitorContext` 中的动态 quote 副本。**
 7. **把买入改成“执行时缺行情直接丢弃”；把卖出、订单监控、末日保护、保护性清仓、距回收价清仓与自动换标改成：执行时读取 realtime，缺行情则按统一非阻塞规则推进重试，重试耗尽后放弃本次操作。**
@@ -398,8 +396,8 @@
 2. 买入不参与该重试。
 3. 当其他订单路径需要 quote 且当前 realtime 结果为 `null` 或字段未满足该订单所需时，进入统一 bounded retry。
 4. 重试参数固定为：
-   1. 间隔 `1s`
-   2. 最多 `30` 次
+   1. 间隔 `2s`
+   2. 最多 `5` 次
 5. 每轮仅重读尚未就绪的 symbol 子集，避免重复请求已就绪标的。
 6. 重试耗尽后直接放弃本次订单相关操作。
 7. 重试必须是非阻塞的：
@@ -488,14 +486,15 @@
 2. `getQuotes()` 对非法输入显式报错的语义必须保留；这里的非法输入包括未订阅、未完成接入、已退订和初始化失败的 symbol。
 3. `prevClose` 只通过 `ctx.quote(...)` 结果建立，不从 push 或 `realtimeQuote` 推断。
 4. `getQuotes()` 不能再假设订阅后立即存在 realtime 状态；缺失时必须直接返回 `null`。
-5. 不再保留 `setOnQuote` 与 `setOnCandlestick` 作为“错误监控”或“未来扩展”钩子。
-6. `subscribeSymbols()` 只有在 `prevCloseCache` 初始化成功后，才能把 symbol 视为本地“已接入”；否则不得进入正常读取路径。
-7. `subscribeSymbols()` 在本次方案中采用批次原子语义：同一批 `newSymbols` 只有在静态信息、`prevClose` 初始化与订阅都成功后，才整体进入可读域；若任一环节失败，该批次不得出现“部分已接入、部分未接入但仍可被 `getQuotes()` 读取”的中间态。
-8. `getQuotes()` 的合法输入域必须严格限定为“已经完成本地接入的 symbols”；未完成接入、已退订或初始化失败的 symbol 一律视为未订阅处理。
+5. 不再保留 `setOnQuote` 作为“错误监控”或“未来扩展”钩子。
+6. 不再保留 `setOnCandlestick` 作为“错误监控”或“未来扩展”钩子；K 线异常观测改为在 `realtimeCandlesticks(...)` 读取结果为空、缺少目标根数或其他无法满足下游消费要求时记录日志。
+7. `subscribeSymbols()` 只有在 `prevCloseCache` 初始化成功后，才能把 symbol 视为本地“已接入”；否则不得进入正常读取路径。
+8. `subscribeSymbols()` 在本次方案中采用批次原子语义：同一批 `newSymbols` 只有在静态信息、`prevClose` 初始化与订阅都成功后，才整体进入可读域；若任一环节失败，该批次不得出现“部分已接入、部分未接入但仍可被 `getQuotes()` 读取”的中间态。
+9. `getQuotes()` 的合法输入域必须严格限定为“已经完成本地接入的 symbols”；未完成接入、已退订或初始化失败的 symbol 一律视为未订阅处理。
 
-### 为什么 `setOnQuote` 必须直接删除
+### 为什么 `setOnQuote` 与 `setOnCandlestick` 都直接删除
 
-删除应用层 `quoteCache` 后，`setOnQuote` / `setOnCandlestick` 只剩下三种可能用途：
+删除应用层 `quoteCache` 后，`setOnQuote` 只剩下三种可能用途：
 
 1. 继续维护本地动态状态。
 2. 驱动当前真实业务流程。
@@ -507,7 +506,9 @@
 2. 第 2 项当前不存在。
 3. 第 3 项不构成保留理由。
 
-因此，`setOnQuote` 与 `setOnCandlestick` 都不应“降级保留”，而应彻底删除。否则它们会把“推送回调仍是架构组成部分”这一错误信号继续留在系统里。
+因此，`setOnQuote` 不应“降级保留”，而应直接删除。否则它会把“quote push 回调仍是架构组成部分”这一错误信号继续留在系统里。
+
+`setOnCandlestick` 也直接删除，但理由不同：当前 K 线主读取链路本来就是 `subscribeCandlesticks(...) + realtimeCandlesticks(...)`，回调本身不参与状态维护或业务推进。为避免保留无业务职责的 push 回调，K 线诊断统一改为围绕实际消费点记录：当读取 `realtimeCandlesticks(...)` 为空、根数不足或结果无法满足下游指标/策略链路要求时，直接输出日志。这样日志与真实消费失败点一致，不再依赖额外的 push 回调观测面。
 
 ### 8.2 `src/types/services.ts`
 
@@ -538,14 +539,16 @@
 
 ### 目标改造
 
-新增一套统一的订单行情重试规则，职责只做一件事：
+本次只统一一件事：**统一 quote retry 规则与可复用代码**，不单独建设一套集中式重试平台。
 
-1. 接收一组 symbol
-2. 接收“本次订单需要哪些 quote 字段才算就绪”的判定规则
-3. 对未就绪 symbol 按固定参数重试 realtime 读取
-4. 返回：
-   1. 已就绪 quotes
-   2. 仍未就绪的 unresolved symbols
+统一内容包括：
+
+1. 哪些路径参与 retry
+2. 哪些失败类型允许 retry
+3. 固定的重试参数
+4. quote 就绪判定 helper
+5. 恢复执行前的统一复核规则
+6. 一次性路径与周期路径各自如何在现有宿主内推进 retry
 
 ### 适用范围
 
@@ -565,9 +568,9 @@
 
 ### 固定规则
 
-1. 重试间隔：`1s`
-2. 最大重试次数：`30`
-3. 上述 `1s * 30` 为真实时间（wall-clock）语义，不是“30 个 tick”语义；周期驱动路径也必须以 `nextRetryAt = now + 1000ms` 或等价方式表达，而不是按当前 tick 频率折算。
+1. 重试间隔：`2s`
+2. 最大重试次数：`5`
+3. 上述 `2s * 5` 为真实时间（wall-clock）语义，不是“5 个 tick”语义；周期驱动路径也必须以 `nextRetryAt = now + 2000ms` 或等价方式表达，而不是按当前 tick 频率折算。
 4. 仅在以下场景重试：
    1. `getQuotes()` 正常返回，但 quote 为 `null`
    2. quote 存在，但订单所需字段缺失或无效
@@ -580,90 +583,73 @@
 
 ### 失败分类与处理动作表
 
-| 失败类型 | 是否重试 | 处理方式 |
-| --- | --- | --- |
-| `null quote`（无可用 realtime 快照） | 是 | 按统一 quote retry 推进 |
-| quote 存在但字段无效 | 是 | 按统一 quote retry 推进 |
-| symbol 未订阅 / 未进入合法输入域 | 否 | 直接失败，暴露调用边界错误 |
-| SDK / 网络 / 权限报错 | 否 | 直接失败，按原链路错误处理 |
-| 生命周期门禁关闭 | 否 | 直接终止当前处理 |
-| `seatVersion` 失配 / 席位归属失效 | 否 | 直接终止当前处理 |
-| 其他业务校验失败 | 否 | 保持原有业务收口 |
+| 失败类型                             | 是否重试 | 处理方式                    |
+| ------------------------------------ | -------- | --------------------------- |
+| `null quote`（无可用 realtime 快照） | 是       | 按统一 quote retry 规则推进 |
+| quote 存在但字段无效                 | 是       | 按统一 quote retry 规则推进 |
+| symbol 未订阅 / 未进入合法输入域     | 否       | 直接失败，暴露调用边界错误  |
+| SDK / 网络 / 权限报错                | 否       | 直接失败，按原链路错误处理  |
+| 生命周期门禁关闭                     | 否       | 直接终止当前处理            |
+| `seatVersion` 失配 / 席位归属失效    | 否       | 直接终止当前处理            |
+| 其他业务校验失败                     | 否       | 保持原有业务收口            |
 
 ### 设计要求
 
-1. 重试器不能把 `getQuotes()` 改造成隐式阻塞接口。
+1. `getQuotes()` 不能被改造成隐式阻塞接口。
 2. 买入不得调用该重试逻辑。
 3. 重试逻辑只能由订单路径显式调用。
 4. 同一轮重试只轮询 unresolved symbols 子集。
 5. 不允许在多个模块各自复制一套 `for + sleep(1000)` 逻辑。
+6. 统一的是 helper 和规则，不要求所有路径把运行态挂到同一个全局中心。
 
-### 非阻塞实现约束
+### 非阻塞推进方式
 
-统一重试规则必须按当前运行模型拆成两种载体，但两者共享同一套参数、同一套就绪判定与同一套耗尽语义：
+统一规则在不同路径上的落地方式固定为两类，但两类共享同一套参数、就绪判定与恢复前复核要求：
 
 1. **一次性订单路径**
    1. 适用：卖出执行、末日保护清仓、保护性清仓、距回收价清仓
-   2. 载体：非阻塞的 retry coordinator / delayed re-enqueue
-   3. 行为：首次发现 quote 未就绪时，注册 retry intent 并立即返回，绝不在当前处理器中 `sleep`
+   2. 推进方式：沿用本路径已有调度宿主，通过 delayed re-enqueue 或等价重入方式在未来时刻重新触发
+   3. 要求：首次发现 quote 未就绪时立即返回，绝不在当前处理器中 `sleep`
 2. **已有周期驱动的订单路径**
    1. 适用：订单监控、自动换标状态机
-   2. 载体：沿用现有每 tick / 每轮 worker 调度
-   3. 行为：在运行态中记录 `attempts / nextRetryAt / exhausted`，由下一轮周期继续推进，绝不新增阻塞等待
+   2. 推进方式：沿用现有每 tick / 每轮 worker 调度
+   3. 要求：在本路径运行态中记录 `attempts / nextRetryAt / exhausted`，由下一轮周期继续推进，绝不新增阻塞等待
+
+### 可复用 helper 边界
+
+允许抽取并复用以下代码，不要求先建立平台化基础设施：
+
+1. quote 就绪判定 helper（按动作区分 `price` / `price + lotSize`）
+2. retry 参数常量与下一次重试时间计算
+3. unresolved symbol 子集筛选逻辑
+4. 恢复执行前复核 helper
+5. 一次性路径重入所需的最小不可变快照构造逻辑
 
 ### 恢复执行前的统一复核约束
 
 所有 quote retry 都只能解决“行情未就绪”问题，不能把第一次失败前的业务校验结果直接沿用到恢复执行时刻。
 
-1. 一次性订单路径在 quote 就绪后恢复执行前，必须重新校验当下业务边界，而不是假设首次注册 retry intent 时的判断仍然成立。
+1. quote 就绪后恢复执行前，必须重新校验当下业务边界，而不是假设首次失败时的判断仍然成立。
 2. 恢复执行前至少必须重新校验：
    1. 生命周期门禁 / `getCanProcessTask`
    2. 若原链路要求刷新后再执行，则必须重新经过 `refreshGate`
    3. 当前交易时间窗口是否仍允许该动作（尤其是末日保护窗口）
    4. 当前席位归属、`seatVersion` 与 `validateSignalSeat(...)`
-3. 任一复核失败时，必须直接终止当前 retry intent，不能继续使用旧任务、旧席位或旧时间窗口提交订单。
+3. 任一复核失败时，必须直接终止当前这次 retry 周期，不能继续使用旧任务、旧席位或旧时间窗口提交订单。
 4. 恢复执行后仍必须使用恢复当下重新读取到的 realtime quote 作为唯一价格输入，不允许回退到首次失败时的旧 quote 或旧快照。
 
 ### 幂等与去重约束
 
-1. 一次性订单路径的 retry coordinator 必须维护 active retry intent registry，防止同一业务动作被重复注册。
-2. 同一业务键在同一时刻只允许存在一个活跃 retry intent；重复触发时应复用或忽略，而不是并行创建多个等待中的 intent。
-3. retry intent 的业务键必须能表达真实业务唯一性，至少应包含：
-   1. 路径类型
-   2. `monitorSymbol` / `symbol`
-   3. 方向或动作类型
-   4. `seatVersion`
-   5. 必要时再补充窗口键、订单标识或状态机流程标识
-4. 周期驱动路径虽然不一定使用集中式 registry，但也必须通过运行态字段表达同等的去重语义，不能在每轮 tick 中反复创建新的等待状态。
-5. 成功提交、明确耗尽、窗口失效、席位失效或流程终止后，必须及时清理或终结对应 retry 状态，避免旧 intent 残留。
-
-### retry business key 与 reset 事件表
-
-| 路径 | 建议 business key | 允许重建的新周期 / reset 事件 |
-| --- | --- | --- |
-| 末日保护清仓 | `DOOMSDAY_CLEARANCE + symbol + action + windowKey` | 新收盘窗口或新交易日 |
-| 保护性清仓 | `PROTECTIVE_LIQUIDATION + monitorSymbol + symbol + action + seatVersion + triggerInstanceKey` | 新 `seatVersion`、新的风险触发实例 |
-| 距回收价清仓 | `LIQUIDATION_DISTANCE + monitorSymbol + symbol + action + seatVersion + triggerInstanceKey` | 新 `seatVersion`、新的风险触发实例 |
-| 订单监控 | `ORDER_MONITOR + orderId + action + orderStatusVersion` | 订单状态推进、tracked order 重新进入需要 quote 的新阶段 |
-| 自动换标 | `AUTO_SWITCH + monitorSymbol + direction + seatVersion + switchFlowId + stage` | 新 switch flow 或当前 flow 进入新动作阶段 |
-
-补充要求：
-
-1. `windowKey`、`triggerInstanceKey`、`orderStatusVersion`、`switchFlowId` 不要求在本阶段先固定为某个现成字段名，但必须在实现前各自收敛为唯一、可测试、可清理的业务键。
-2. 未发生 reset 事件前，不允许因为同一路径被下一轮 tick 或主循环再次触发，就无条件重建新的 retry intent。
-3. 验证与测试必须覆盖“同一 business key 同时最多一个 active retry intent”。
-
-### 重试载荷约束
-
-1. retry intent 不得持有对象池中的 `Signal` 引用。
-2. 一次性订单路径只能保存不可变的业务快照，并在真正恢复执行时重新构造 signal 或重新触发对应任务。
-3. 对象池 signal 必须在当前处理器返回前释放，不能因为等待 quote 而长期占用。
+1. 一次性路径虽然不要求集中式 registry，但也必须保证同一业务动作不会被并行重入多次。
+2. 周期驱动路径必须通过本路径运行态字段表达去重语义，不能在每轮 tick 中反复创建新的等待状态。
+3. 成功提交、明确耗尽、窗口失效、席位失效或流程终止后，必须及时清理或终结对应 retry 状态，避免旧状态残留。
+4. 一次性路径不得持有对象池中的 `Signal` 引用；处理器返回前必须释放对象池资源，后续恢复执行应重新构造 signal 或重新触发对应任务。
 
 ### 耗尽后的业务收口语义
 
-1. `30` 次耗尽只表示“当前这次 quote retry 已终结”，不等于所有后续业务触发都永久失效；但是否允许再次创建新 retry intent，必须按路径显式定义，不能默认下一轮立即无条件重建。
-2. 末日保护清仓的耗尽范围应限定在“当前 symbol + 当前收盘窗口”；同一窗口内不得因为主循环重复触发而无限重建同一 intent。
-3. 保护性清仓与距回收价清仓的耗尽范围应至少限定到当前 `seatVersion` 与当前风险触发实例；不得因为同一旧席位的重复任务而形成忙等式重建。
+1. `5` 次耗尽只表示“当前这次 quote retry 已终结”，不等于所有后续业务触发都永久失效；但同一路径不能因为下一轮 tick 或主循环再次触发，就立即无条件重建同一旧动作的重试周期。
+2. 末日保护清仓的耗尽范围应限定在当前收盘窗口内；同一窗口内不得因为主循环重复触发而无限重试。
+3. 保护性清仓与距回收价清仓的耗尽范围应至少限定到当前席位版本或当前风险触发实例；不得因为同一旧席位的重复任务而形成忙等式重建。
 4. 订单监控的耗尽范围应绑定 tracked order 的当前状态；只有订单状态推进后，才允许重新开始新的 quote retry 周期。
 5. 自动换标的耗尽范围应绑定当前 switch flow；耗尽后按现有失败语义收口，而不是在同一流程内无限等待。
 
@@ -868,7 +854,7 @@
    3. 对 quote 缺失或字段无效的 tracked orders 更新 `attempts / nextRetryAt / exhausted`
    4. 用本轮 ready quotes 做追价、改单和超时判断
    5. 对尚未到下一次重试时间的 orders，本轮直接跳过
-   6. 对 30 次耗尽后仍 unresolved 的 orders，停止 quote 重试并记录原因
+   6. 对 5 次耗尽后仍 unresolved 的 orders，停止 quote 重试并记录原因
 
 ### 设计要求
 
@@ -891,7 +877,7 @@
 1. `executeClearance(...)` 仍然在模块内部批量读取行情
 2. 但其调用时机必须移动到订阅同步之后
 3. 对缺失 quote 的待清仓 symbols 注册一次性订单重试 intent，并立即结束当前主循环内的清仓尝试
-4. 仅在 30 次重试后仍无法获取有效 quote 时，才放弃该 symbol 本轮清仓
+4. 仅在 5 次重试后仍无法获取有效 quote 时，才放弃该 symbol 本轮清仓
 
 ### 说明
 
@@ -908,7 +894,7 @@
 1. 保护性清仓不再因为首次读取到 `null quote` 就立即结束
 2. 在真正生成并提交清仓信号前，若 quote 未就绪则注册一次性订单重试 intent 并立即返回
 3. 仅在重试成功后恢复执行时，才继续使用 `price` / `lotSize` 构造 liquidation signal
-4. 若 30 次重试后仍未拿到有效 quote，则放弃本次保护性清仓
+4. 若 5 次重试后仍未拿到有效 quote，则放弃本次保护性清仓
 
 ### 说明
 
@@ -922,7 +908,7 @@
 2. 任务执行时先确认席位与 symbol 有效，再即时读取 realtime quote
 3. 若 quote 未就绪，则注册一次性订单重试 intent 并立即返回，不阻塞 monitorTaskProcessor
 4. 仅在重试成功后恢复执行时，才构造清仓 signal 的 `price` / `lotSize`
-5. 若 30 次重试后仍无法获取有效 quote，则放弃本次距回收价清仓
+5. 若 5 次重试后仍无法获取有效 quote，则放弃本次距回收价清仓
 
 ### 说明
 
@@ -950,7 +936,7 @@
    1. 要求有效 `price`
    2. 要求有效 `lotSize`
 5. 每次状态机推进时，只有在到达 `nextRetryAt` 后才再次检查 quote
-6. 30 次耗尽后：
+6. 5 次耗尽后：
    1. 距离换标卖出失败则清空流程并按现有失败语义收口
    2. 距离换标回补失败则按现有失败语义收口
    3. 不允许无限等待 quote
@@ -991,6 +977,8 @@
 3. 保留 `setOnCandlestick` 作为错误监控或未来扩展钩子。
 4. 新增 `getQuote(symbol)` 单标的语法糖接口。
 5. 在本次方案中预留 `Depth` / `Trades` / `Brokers` 扩展位。
+
+补充说明：删除 `setOnCandlestick` 后，K 线异常观测统一转移到实际消费点：读取 `realtimeCandlesticks(...)` 为空、根数不足或无法满足下游消费要求时直接记录日志，不再额外维护 push 回调层诊断入口。
 
 原因一致：它们都不是当前需求下的最小必要能力。
 
@@ -1076,84 +1064,72 @@
 
 本次重构必须分阶段落地，但最终状态只能有一套语义，不允许长期双轨。
 
-### Phase 1：收敛 `Quote` 单一事实来源并先修主循环订阅时序
+### Phase 1：收敛 `Quote` 单一事实来源，并同步切断直接执行链路对长期动态 quote 的依赖
 
 目标：
 
 1. `MarketDataClient.getQuotes()` 改为 realtime-only 读取器
-2. 删除 `quoteCache`
-3. 删除 `setOnQuote` 与 `setOnCandlestick`
-4. 保留订阅时一次性 `prevClose` 初始化
-5. 保留现有 `getQuotes()` 调用面
-6. 先把主循环中“订阅同步先于 doomsday 等依赖行情动作”的时序调整到位，消除阶段内断裂
+2. 删除 `quoteCache` 与 `setOnQuote`
+3. 保留订阅时一次性 `prevClose` 初始化
+4. 保留现有 `getQuotes()` 调用面
+5. 先把主循环中“订阅同步先于 doomsday 等依赖行情动作”的时序调整到位
+6. 与 `getQuotes()` 语义同步，直接执行链路不再把 `MonitorContext` / `MonitorTask` 中的长期动态 quote 副本当作最终执行依据
 
 改造项：
 
 1. `src/services/quoteClient/index.ts`
 2. `src/types/services.ts`
 3. `src/main/mainProgram/index.ts`
-4. 对应测试与 mock
+4. `src/main/asyncProgram/buyProcessor/index.ts`
+5. `src/main/asyncProgram/sellProcessor/index.ts`
+6. `src/core/doomsdayProtection/index.ts`
+7. `src/core/riskController/unrealizedLossMonitor.ts`
+8. `src/main/asyncProgram/monitorTaskProcessor/handlers/liquidationDistance.ts`
+9. `src/types/state.ts`
+10. `src/app/createMonitorContext.ts`
+11. `src/main/processMonitor/seatSync.ts`
+12. `src/main/lifecycle/rebuildTradingDayState.ts`
+13. `src/main/asyncProgram/monitorTaskProcessor/types.ts`
+14. `src/main/processMonitor/riskTasks.ts`
+15. 对应测试与 mock
 
 阶段完成标准：
 
 1. 全仓库不再存在应用层动态 `quoteCache`
 2. `getQuotes()` 不再假设 realtime 已 warm，缺失时直接返回 `null`
 3. `quote()` 不再承担当前价补齐职责，只保留 `prevClose` 初始化职责
-4. 主循环内所有依赖实时行情的流程都发生在订阅同步之后，避免在 Phase 1 期间出现 `getQuotes()` 已收紧但调用时序仍旧错误的中间态
-5. 启动、重建、首轮主循环和新订阅 symbol 在出现 `null quote` 时仍可安全推进
+4. 主循环内所有依赖实时行情的流程都发生在订阅同步之后
+5. 买卖执行与风险清仓类一次性订单路径，不再依赖 `MonitorContext` 或 task payload 中的长期动态 quote 副本作为最终执行依据
+6. `MonitorContext`、`MonitorTaskContext` 与重建链路不再把 `longQuote/shortQuote/monitorQuote` 作为长期运行态真相，避免出现 `getQuotes()` 已收紧但执行层仍沿用旧快照的中间态
+7. 启动、重建、首轮主循环和新订阅 symbol 在出现 `null quote` 时仍可安全推进
 
-### Phase 2：建立统一订单行情重试器与公共契约
+### Phase 2：抽取统一 quote retry 规则与可复用代码，但不预先引入全局重试基础设施
 
 目标：
 
 1. 新增统一的非阻塞订单行情重试规则
 2. 明确重试只覆盖“quote 缺失/字段无效”这一类失败
 3. 明确买入不参与该重试
-4. 收敛 retry coordinator、business key、恢复复核与公共类型边界
+4. 收敛统一参数、就绪判定、恢复前复核规则与可复用 helper
+5. 统一的是规则与代码复用，不预先要求为所有路径建立集中式 coordinator / registry
 
 改造项：
 
 1. `src/types/services.ts`
-2. 订单执行相关公共类型与依赖注入点
-3. 一次性订单路径的 retry coordinator / delayed re-enqueue 设计
-4. 对应业务键、reset 事件与验证断言
+2. 订单执行相关公共类型、就绪判定与依赖注入点
+3. 一次性订单路径的 delayed re-enqueue 复用逻辑
+4. 周期驱动路径可复用的 retry 运行态字段与判定逻辑
+5. 对应验证断言
 
 阶段完成标准：
 
-1. 全仓库只存在一套统一的订单行情重试规则定义与公共契约
+1. 全仓库只存在一套统一的订单行情重试规则定义（参数、适用范围、失败分类、恢复前复核）
 2. `getQuotes()` 本身仍保持非阻塞读取，不内置 sleep/retry
-3. 一次性订单路径与周期驱动路径都已有统一的重试参数、恢复复核与幂等去重语义
+3. 一次性订单路径与周期驱动路径共享同一组重试参数与就绪判定规则，但各自仍由本路径已有运行态宿主负责推进和清理
 4. 不存在任何处理器通过 `sleep` 或长时间 `await` 卡住队列
-5. 本阶段的“统一”仅指规则与基础设施统一，不要求订单监控与自动换标已在本阶段全部完成接入
+5. 不要求在本阶段先落一套集中式全局 retry 基础设施；只有当多个路径经过改造后仍出现真实重复样板代码时，才允许再向上抽象
 
-### Phase 3：价格敏感执行路径改为执行时重读 realtime 行情
-
-目标：
-
-1. 买入执行器不再依赖 `MonitorContext` quote 副本
-2. 卖出执行器不再依赖 `MonitorContext` quote 副本
-3. 买卖执行都在执行时重读 realtime 行情
-4. 风险清仓类订单在执行前同样统一走订单行情重试
-
-改造项：
-
-1. `src/main/asyncProgram/buyProcessor/index.ts`
-2. `src/main/asyncProgram/sellProcessor/index.ts`
-3. `RiskCheckContext` 组装点
-4. 将 `marketDataClient` 显式注入相关执行器依赖与类型
-5. `src/core/doomsdayProtection/index.ts`
-6. `src/core/riskController/unrealizedLossMonitor.ts`
-7. `src/main/asyncProgram/monitorTaskProcessor/handlers/liquidationDistance.ts`
-
-阶段完成标准：
-
-1. 买卖执行都不再依赖主循环快照或 `MonitorContext` 副本
-2. 执行价与 `lotSize` 都来源于执行时读取
-3. 买入在执行时缺行情则直接丢弃，不进入重试
-4. 卖出与风险清仓在缺行情时进入非阻塞重试，重试耗尽后才放弃本次操作
-5. 不存在任何一次性订单路径绕开统一规则而直接同步等待 quote
-
-### Phase 4：订单监控改为内部读取 realtime 行情
+### Phase 3：订单监控改为内部读取 realtime 行情
 
 目标：
 
@@ -1177,7 +1153,7 @@
 3. quote 缺失时只记录 retry 状态，等待下一轮 worker 再推进
 4. 相关依赖与类型签名全部收口完成，不留半断裂接口
 
-### Phase 4A：自动换标接入统一重试规则
+### Phase 4：自动换标接入统一重试规则
 
 目标：
 
@@ -1195,32 +1171,29 @@
 
 1. 自动换标不存在无限 WAIT_QUOTE
 2. `SELL_OUT` 不再错误依赖 `lotSize`
-3. 自动换标在 30 次耗尽后按既定失败语义收口
+3. 自动换标在 5 次耗尽后按既定失败语义收口
 
-### Phase 5：删除 `MonitorContext` 动态 quote 副本并清理重建链路
+### Phase 5：收口残余接口、验证生命周期链路与刷新链路边界
 
 目标：
 
-1. 删除 `longQuote/shortQuote/monitorQuote`
-2. monitor 处理只使用单轮 `quotesMap` 与本轮函数返回值
-3. 重建链路不再依赖 `MonitorContext` 中的动态行情字段
+1. 确认 `postTradeRefresher`、展示链路与生命周期清理链路对 `quotesMap` 的使用边界已收口
+2. 清理阶段改造后残留的旧签名、旧字段与无职责接口
+3. 验证午夜清理、开盘重建与运行期刷新在新语义下仍完整闭环
 
 改造项：
 
-1. `src/types/state.ts`
-2. `src/app/createMonitorContext.ts`
-3. `src/main/processMonitor/seatSync.ts`
-4. `src/main/lifecycle/rebuildTradingDayState.ts`
-5. `src/main/asyncProgram/monitorTaskProcessor/types.ts`
-6. `src/main/processMonitor/riskTasks.ts`
-7. 其他直接引用这些字段的模块
+1. `src/main/asyncProgram/postTradeRefresher/index.ts`
+2. 生命周期域相关清理调用
+3. 其余仍直接引用旧 quote 签名或旧字段的模块
+4. 最终测试与 mock 收口
 
 阶段完成标准：
 
-1. `MonitorContext` 不再承载动态行情副本
-2. `MonitorTaskContext` 与相关 task payload 不再默认长期持有执行依据性质的入队时 quote 快照
-3. monitor 同轮处理仍可正常推进
-4. 开盘重建链路在删除上述字段后仍可完整重建订单记录、牛熊证风险和浮亏缓存
+1. 不再存在“旧快照接口 + 新 realtime 接口”长期双轨并存
+2. `postTradeRefresher` 等保留 `quotesMap` 的链路，其职责边界已明确限定为成交后刷新 / 展示，不再被误用为最终执行价来源
+3. 午夜清理、开盘重建、运行期刷新、订阅恢复与风险缓存刷新都已按最终语义完成验证
+4. 全仓库相关依赖与类型签名收口完成，可进入最终门禁验证
 
 ---
 
@@ -1243,7 +1216,7 @@
 4. K 线指标链路不受影响
 5. 风控、延迟验证、席位同步、末日保护的业务判定口径不因 quote 读取模型变化而改变
 6. 普通买入在 quote 缺失时仍保持现有“直接跳过/不入队”语义
-7. 其余需要行情的订单路径在 quote 缺失时统一执行 1 秒一次、最多 30 次的非阻塞重试
+7. 其余需要行情的订单路径在 quote 缺失时统一执行 每 2 秒一次、最多 5 次的非阻塞重试
 
 ### 12.2 实时性验证
 
@@ -1256,20 +1229,20 @@
 3. 某个 symbol 刚完成订阅，realtime 尚未 warm：
    1. `getQuotes()` 直接返回 `null`
    2. 买入路径直接丢弃
-   3. 其余需要行情的订单路径进入统一重试，每秒一次、最多 30 次
-   4. 30 次后仍无 quote 时，才放弃该次卖出、追价或清仓动作
+   3. 其余需要行情的订单路径进入统一重试，每 2 秒一次、最多 5 次
+   4. 5 次后仍无 quote 时，才放弃该次卖出、追价或清仓动作
    5. monitor、重建、展示链路不会因 `null` 崩溃，也不会进入阻塞重试
 4. 处理器与 worker 在 quote 缺失期间：
    1. 不会因为等待 quote 而阻塞后续任务
    2. 仅通过重入调度、下一轮 worker 或 delayed re-enqueue 推进
 5. 一次性订单路径在 retry 恢复执行时：
    1. 必须重新校验生命周期门禁、刷新门禁、席位版本与时间窗口
-   2. 末日保护在窗口失效后不得继续提交旧 retry intent
+   2. 末日保护在窗口失效后不得继续提交旧重试周期对应的动作
    3. 席位版本变化后不得继续提交旧席位对应的卖出或清仓动作
 6. 同一业务动作重复触发 quote 缺失时：
-   1. 不会重复创建多个并行 retry intent
+   1. 不会重复创建多个并行重试周期
    2. 成功提交、耗尽、席位失效或窗口失效后，旧 retry 状态会被及时清理
-   3. 同一 business key 在同一时间最多只能存在一个 active retry intent
+   3. 同一路径对同一业务动作在同一时刻最多只能存在一个有效重试周期
 
 ### 12.3 状态源唯一性验证
 
@@ -1290,15 +1263,15 @@
 4. monitor 链路单轮一致视图
 5. 普通买入执行在缺失 quote 时直接丢弃，不进入重试
 6. 卖出执行在缺失 quote 时进入非阻塞重试，成功后继续下单
-7. 订单追价在缺失 quote 时由下一轮 worker 继续推进，30 次耗尽后跳过
-8. 末日保护与保护性清仓在缺失 quote 时进入非阻塞重试，30 次耗尽后放弃本轮动作
-9. 距回收价清仓在缺失 quote 时进入非阻塞重试，30 次耗尽后放弃本轮动作
-10. 自动换标移仓卖出与回补买入在缺失 quote 时按统一规则推进，30 次耗尽后收口
+7. 订单追价在缺失 quote 时由下一轮 worker 继续推进，5 次耗尽后跳过
+8. 末日保护与保护性清仓在缺失 quote 时进入非阻塞重试，5 次耗尽后放弃本轮动作
+9. 距回收价清仓在缺失 quote 时进入非阻塞重试，5 次耗尽后放弃本轮动作
+10. 自动换标移仓卖出与回补买入在缺失 quote 时按统一规则推进，5 次耗尽后收口
 11. 跨日重置后订阅与读取恢复
 12. `subscribeSymbols()` 批次失败时不会留下半接入 symbol，`getQuotes()` 的合法输入域与接入状态保持一致
 13. 主循环时序满足“先完成订阅同步，再执行 doomsday / 清仓 / 其他依赖实时行情的订单动作”
-14. quote retry 的 `1s * 30` 采用 wall-clock 语义，与 worker tick 频率解耦
-15. 一次性订单路径的 retry intent 不持有对象池 `Signal` 引用，处理器返回前对象池资源已释放
+14. quote retry 的 `2s * 5` 采用 wall-clock 语义，与 worker tick 频率解耦
+15. 一次性订单路径的重试载荷不持有对象池 `Signal` 引用，处理器返回前对象池资源已释放
 16. `OrderMonitorWorker` 旧 `latestQuotes` / `clearLatestQuotes()` 状态已退场，或其替代语义已在功能、时序与清理责任上等价收口
 17. `SwitchState` 不存在 `awaitingQuote` 与新 retry 字段并存的双真相
 
@@ -1333,7 +1306,7 @@
 原因：
 
 1. buy/sell processor、monitorTaskProcessor、orderMonitorWorker 都是串行或单飞模型。
-2. 若在其中任一路径内联 `await sleep(1000)` 持续 30 次，会直接拖住同处理器下的其他任务。
+2. 若在其中任一路径内联 `await sleep(2000)` 持续 5 次，会直接拖住同处理器下的其他任务。
 3. 本次业务明确要求 quote 重试不能阻塞其他任务，因此只能使用 delayed re-enqueue 或既有周期驱动推进。
 
 ### 13.2C 不允许把旧业务校验结果直接复用于 retry 恢复执行
@@ -1344,12 +1317,12 @@
 2. 末日保护、保护性清仓、距回收价清仓都具有明显时序与席位约束，恢复执行前若不重检，会产生越窗执行或旧席位误执行风险。
 3. 因此恢复执行前必须重新经过门禁、`refreshGate`、席位版本和时间窗口校验。
 
-### 13.2D 不允许缺少 retry intent 的幂等与去重语义
+### 13.2D 不允许缺少 quote retry 的幂等与去重语义
 
 原因：
 
 1. 主循环、风险任务和周期状态机都可能重复触发同一业务动作。
-2. 若没有 active retry registry 或等价的运行态去重，会导致同一 symbol / 同一路径并行挂起多个等待中的 retry intent。
+2. 若一次性路径没有最小去重，或周期路径没有等价的运行态去重，会导致同一 symbol / 同一路径并行挂起多个等待中的重试周期。
 3. 这会带来重复下单、重复日志和无限重建等待状态的风险。
 
 ### 13.3 不允许保留旧字段仅标记为 deprecated
@@ -1411,13 +1384,13 @@
    4. 保留主循环单轮临时 `quotesMap`
    5. 删除 `MonitorContext` 动态 quote 副本
    6. 统一 quote retry 只负责解决“行情未就绪”，恢复执行前必须重新校验门禁、`refreshGate`、席位版本与时间窗口
-   7. 一次性订单路径必须具备 retry intent 的幂等与去重语义，不能让同一业务动作重复注册多个等待中的重试
+   7. quote retry 必须具备幂等与去重语义，不能让同一业务动作并行挂起多个等待中的重试周期
    8. 普通买入保持“无行情直接丢弃”的语义，不进入 quote 重试
-   9. 其余需要行情的订单路径共享统一的 quote retry 规则：`1s * 30`，耗尽后放弃
-   10. 一次性订单路径通过 delayed re-enqueue 非阻塞重试；订单监控与自动换标通过现有周期驱动推进同一套 retry 状态
+   9. 其余需要行情的订单路径共享统一的 quote retry 规则：`2s * 5`，耗尽后放弃
+   10. 一次性订单路径通过 delayed re-enqueue 或等价重入方式非阻塞推进；订单监控与自动换标通过现有周期驱动推进同一套 retry 状态
    11. 主循环先同步订阅集合，再执行任何依赖市场数据的订单动作
    12. 自动换标的卖出与回补买入分别按动作使用不同的 quote 就绪条件，且禁止无限等待 quote
    13. 删除不再承担职责的 `setOnQuote` 与 `setOnCandlestick` 回调注册
-   14. K 线链路保持现有模式
+   14. K 线链路保持现有模式，并将异常观测统一收敛到 `realtimeCandlesticks(...)` 读取失败或结果不足场景的日志
 
 这是满足“最短路径、单一真相、非补丁式重构”的唯一推荐实施方案。

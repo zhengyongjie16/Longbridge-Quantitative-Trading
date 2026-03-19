@@ -2,7 +2,7 @@
  * app 运行时标的校验组装模块
  *
  * 职责：
- * - 解析监控标的对应的双向 READY 席位标的
+ * - 解析监控标的对应的双向已绑定席位标的
  * - 按规则收集运行时标的校验输入并执行去重
  */
 import type {
@@ -14,11 +14,11 @@ import type {
   RuntimeValidationCollectionParams,
 } from './types.js';
 import { shouldSkipRuntimeValidationSymbol } from '../utils/utils.js';
-import { resolveReadySeatSymbol } from '../main/recovery/seatPreparation.js';
+import { resolveBoundSeatSymbol } from '../main/recovery/seatPreparation.js';
 
 /**
- * 解析指定监控标的的双向就绪席位代码。
- * 默认行为：仅返回 READY 席位的 symbol，非 READY 返回 null。
+ * 解析指定监控标的的双向已绑定席位代码。
+ * 默认行为：返回已绑定 seat 的 symbol；未绑定时返回 null。
  *
  * @param params 解析参数，包含 symbolRegistry 与 monitorSymbol
  * @returns 当前监控标的的 longSeatSymbol/shortSeatSymbol
@@ -28,8 +28,8 @@ function resolveSeatSymbolsByMonitor(
 ): ResolvedSeatSymbols {
   const { symbolRegistry, monitorSymbol } = params;
   return {
-    longSeatSymbol: resolveReadySeatSymbol(symbolRegistry, monitorSymbol, 'LONG'),
-    shortSeatSymbol: resolveReadySeatSymbol(symbolRegistry, monitorSymbol, 'SHORT'),
+    longSeatSymbol: resolveBoundSeatSymbol(symbolRegistry, monitorSymbol, 'LONG'),
+    shortSeatSymbol: resolveBoundSeatSymbol(symbolRegistry, monitorSymbol, 'SHORT'),
   };
 }
 

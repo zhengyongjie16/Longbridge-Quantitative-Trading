@@ -14,7 +14,8 @@
  *
  * 安全与门禁协作：
  * - 在处理任意卖出任务前，先通过 refreshGate.waitForFresh() 等待最近一次成交后的账户/持仓/浮亏刷新完成
- * - 仍会检查席位 READY 状态、席位版本与标的一致性，任何不满足条件的信号都会被安全跳过并记录原因
+ * - 卖出执行与卖出数量计算均使用执行时从 marketDataClient 读取的 realtime quote
+ * - 仍会检查席位 ACTIVE 状态、席位版本与标的一致性，任何不满足条件的信号都会被安全跳过并记录原因
  * - 真实卖出数量由 signalProcessor.processSellSignals 按智能平仓策略计算，若被转为 HOLD 则不提交订单
  *
  * 执行顺序：
@@ -24,22 +25,83 @@
  * 4. 如果信号未被转为 HOLD，执行 trader.executeSignals()
  * 5. 释放信号对象到对象池
  */
+import { ORDER_QUOTE_RETRY } from '../../../constants/index.js';
 import { signalObjectPool } from '../../../utils/objectPool/index.js';
 import {
   createBaseProcessor,
   executeSignalsWithLifecycleGate,
   logProcessorTaskFailure,
 } from '../utils.js';
+import { isQuoteReadyForRequirement, resolveNextQuoteRetry } from '../../../utils/quoteRetry.js';
 import { logger } from '../../../utils/logger/index.js';
 import {
   describeSignalSeatValidationFailure,
-  isSeatReady,
+  isSeatActive,
   validateSignalSeat,
 } from '../../../services/autoSymbolManager/utils.js';
 import type { Processor } from '../types.js';
 import type { SellProcessorDeps } from './types.js';
 import type { Task, SellTaskType } from '../tradeTaskQueue/types.js';
 import { formatSymbolDisplay } from '../../../utils/display/index.js';
+import type { Signal } from '../../../types/signal.js';
+
+type SellRetryState = {
+  handle: ReturnType<typeof setTimeout> | null;
+  retrySignal: Signal | null;
+  attempts: number;
+};
+
+/**
+ * 复制卖出信号到新的对象池实例，用于 quote retry 的 delayed re-enqueue。
+ *
+ * @param signal 原始卖出信号
+ * @returns 可重新入队的卖出信号副本
+ */
+function cloneSellSignal(signal: Signal): Signal {
+  const clonedSignal = signalObjectPool.acquire() as Signal;
+  clonedSignal.symbol = signal.symbol;
+  clonedSignal.symbolName = signal.symbolName ?? null;
+  clonedSignal.action = signal.action;
+  clonedSignal.reason = signal.reason ?? null;
+  clonedSignal.orderTypeOverride = signal.orderTypeOverride ?? null;
+  clonedSignal.isProtectiveLiquidation = signal.isProtectiveLiquidation ?? null;
+  clonedSignal.price = signal.price ?? null;
+  clonedSignal.lotSize = signal.lotSize ?? null;
+  clonedSignal.quantity = signal.quantity ?? null;
+  clonedSignal.triggerTime = signal.triggerTime ?? null;
+  clonedSignal.seatVersion = signal.seatVersion ?? null;
+  clonedSignal.indicators1 = signal.indicators1 ?? null;
+  clonedSignal.verificationHistory = signal.verificationHistory ?? null;
+  clonedSignal.relatedBuyOrderIds = signal.relatedBuyOrderIds ?? null;
+  return clonedSignal;
+}
+
+/**
+ * 构建卖出 quote retry 键。
+ *
+ * 同一标的同方向的不同业务动作（原因、数量、订单类型等）必须独立重试，
+ * 避免被错误合并导致语义丢失。
+ */
+function buildSellRetryKey(params: {
+  readonly monitorSymbol: string;
+  readonly signal: Signal;
+}): string {
+  const { monitorSymbol, signal } = params;
+  const relatedOrderIds = signal.relatedBuyOrderIds?.join(',') ?? '';
+  const triggerTimeMs = signal.triggerTime instanceof Date ? signal.triggerTime.getTime() : -1;
+  return [
+    monitorSymbol,
+    signal.action,
+    signal.symbol,
+    String(signal.seatVersion ?? ''),
+    String(signal.quantity ?? ''),
+    signal.orderTypeOverride ?? '',
+    String(signal.isProtectiveLiquidation ?? ''),
+    signal.reason ?? '',
+    relatedOrderIds,
+    String(triggerTimeMs),
+  ].join('|');
+}
 
 /**
  * 创建卖出处理器。
@@ -54,10 +116,48 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
     getMonitorContext,
     signalProcessor,
     trader,
+    marketDataClient,
     getLastState,
     refreshGate,
+    scheduleRetry,
+    clearRetry,
     getCanProcessTask,
   } = deps;
+  const retryStates = new Map<string, SellRetryState>();
+  let lifecycleActive = true;
+  const schedule =
+    scheduleRetry ??
+    ((callback: () => void, delayMs: number) => {
+      return setTimeout(callback, delayMs);
+    });
+  const clear =
+    clearRetry ??
+    ((handle: ReturnType<typeof setTimeout>) => {
+      clearTimeout(handle);
+    });
+
+  function clearRetryState(retryKey: string): void {
+    const retryState = retryStates.get(retryKey);
+    if (!retryState) {
+      return;
+    }
+
+    if (retryState.handle) {
+      clear(retryState.handle);
+    }
+
+    if (retryState.retrySignal) {
+      signalObjectPool.release(retryState.retrySignal);
+    }
+
+    retryStates.delete(retryKey);
+  }
+
+  function clearAllRetryStates(): void {
+    for (const retryKey of retryStates.keys()) {
+      clearRetryState(retryKey);
+    }
+  }
 
   /**
    * 处理单个卖出任务
@@ -77,8 +177,7 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
         return false;
       }
 
-      // 注意：longQuote/shortQuote 必须来自 ctx（每秒更新）
-      const { config, orderRecorder, longQuote, shortQuote, symbolRegistry } = ctx;
+      const { config, orderRecorder, symbolRegistry } = ctx;
       const lastState = getLastState();
       const seatValidation = validateSignalSeat({
         monitorSymbol,
@@ -95,12 +194,79 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
       // 获取持仓数据（从 positionCache 获取）
       const longSeatState = symbolRegistry.getSeatState(monitorSymbol, 'LONG');
       const shortSeatState = symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
-      const longPosition = isSeatReady(longSeatState)
+      const longPosition = isSeatActive(longSeatState)
         ? lastState.positionCache.get(longSeatState.symbol)
         : null;
-      const shortPosition = isSeatReady(shortSeatState)
+      const shortPosition = isSeatActive(shortSeatState)
         ? lastState.positionCache.get(shortSeatState.symbol)
         : null;
+      const quoteSymbols: string[] = [];
+      if (isSeatActive(longSeatState)) {
+        quoteSymbols.push(longSeatState.symbol);
+      }
+
+      if (isSeatActive(shortSeatState)) {
+        quoteSymbols.push(shortSeatState.symbol);
+      }
+
+      const executionQuotes = await marketDataClient.getQuotes(quoteSymbols);
+      const longQuote = isSeatActive(longSeatState)
+        ? (executionQuotes.get(longSeatState.symbol) ?? null)
+        : null;
+      const shortQuote = isSeatActive(shortSeatState)
+        ? (executionQuotes.get(shortSeatState.symbol) ?? null)
+        : null;
+      const retryKey = buildSellRetryKey({ monitorSymbol, signal });
+      const retryState = retryStates.get(retryKey);
+      const targetQuote = signal.action === 'SELLCALL' ? longQuote : shortQuote;
+      const quoteReady = isQuoteReadyForRequirement({ quote: targetQuote, requirement: 'PRICE' });
+      if (!quoteReady) {
+        if (!lifecycleActive) {
+          return true;
+        }
+
+        if (retryState?.retrySignal === null || !retryState) {
+          const nextRetry = resolveNextQuoteRetry({
+            attempts: retryState?.attempts ?? 0,
+            nowMs: Date.now(),
+            intervalMs: ORDER_QUOTE_RETRY.INTERVAL_MS,
+            maxAttempts: ORDER_QUOTE_RETRY.MAX_ATTEMPTS,
+          });
+          if (nextRetry.exhausted) {
+            clearRetryState(retryKey);
+            logger.warn(
+              `[SellProcessor] 卖出行情重试耗尽，放弃执行: ${symbolDisplay} ${signal.action}`,
+            );
+          } else {
+            const retrySignal = cloneSellSignal(signal);
+            const nextRetryState: SellRetryState = {
+              handle: null,
+              retrySignal,
+              attempts: nextRetry.nextAttempts,
+            };
+            const retryHandle = schedule(() => {
+              const pendingRetryState = retryStates.get(retryKey);
+              if (!pendingRetryState?.retrySignal || !lifecycleActive) {
+                return;
+              }
+
+              const queuedRetrySignal = pendingRetryState.retrySignal;
+              pendingRetryState.retrySignal = null;
+              taskQueue.push({
+                type: task.type,
+                monitorSymbol,
+                data: queuedRetrySignal,
+              });
+            }, ORDER_QUOTE_RETRY.INTERVAL_MS);
+            nextRetryState.handle = retryHandle;
+            retryStates.set(retryKey, nextRetryState);
+          }
+        }
+
+        return true;
+      }
+
+      clearRetryState(retryKey);
 
       // 卖出信号处理：计算卖出数量（不经过风险检查）
       // 原因：
@@ -128,6 +294,18 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
         return true; // 处理成功（虽然跳过了）
       }
 
+      const executionSeatValidation = validateSignalSeat({
+        monitorSymbol,
+        signal,
+        symbolRegistry,
+      });
+      if (!executionSeatValidation.valid) {
+        logger.debug(
+          `[SellProcessor] ${describeSignalSeatValidationFailure(executionSeatValidation)}，执行前复核失败，跳过信号: ${symbolDisplay} ${signal.action}`,
+        );
+        return true;
+      }
+
       return await executeSignalsWithLifecycleGate({
         getCanProcessTask,
         trader,
@@ -141,7 +319,7 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
       return false;
     }
   }
-  return createBaseProcessor({
+  const baseProcessor = createBaseProcessor({
     loggerPrefix: 'SellProcessor',
     taskQueue,
     processTask,
@@ -150,4 +328,27 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
     },
     ...(getCanProcessTask ? { getCanProcessTask } : {}),
   });
+
+  return {
+    start: () => {
+      lifecycleActive = true;
+      baseProcessor.start();
+    },
+    stop: () => {
+      lifecycleActive = false;
+      clearAllRetryStates();
+      baseProcessor.stop();
+    },
+    stopAndDrain: async () => {
+      lifecycleActive = false;
+      clearAllRetryStates();
+      await baseProcessor.stopAndDrain();
+    },
+    restart: () => {
+      lifecycleActive = false;
+      clearAllRetryStates();
+      baseProcessor.restart();
+      lifecycleActive = true;
+    },
+  };
 }

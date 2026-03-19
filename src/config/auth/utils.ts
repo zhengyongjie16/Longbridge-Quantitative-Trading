@@ -183,7 +183,9 @@ export function readSdkExtraConfig(env: NodeJS.ProcessEnv): ExtraConfigParams {
  * @param env 进程环境变量
  * @returns 当前 env 中所有认证/extra 配置问题；为空表示校验通过
  */
-export function validateLongbridgeConfig(env: NodeJS.ProcessEnv): ReadonlyArray<LongbridgeConfigValidationIssue> {
+export function validateLongbridgeConfig(
+  env: NodeJS.ProcessEnv,
+): ReadonlyArray<LongbridgeConfigValidationIssue> {
   const issues: LongbridgeConfigValidationIssue[] = [];
   const authModeValue = getStringConfig(env, 'LONGBRIDGE_AUTH_MODE');
   const authMode = readAuthMode(env);

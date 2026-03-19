@@ -92,6 +92,7 @@ export async function createPostGateRuntime(
   const trader = await createTrader({
     config,
     tradingConfig,
+    marketDataClient,
     symbolRegistry,
     dailyLossTracker,
     protectiveLiquidationEpisodeTracker,

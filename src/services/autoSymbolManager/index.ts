@@ -102,6 +102,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     trader,
     orderRecorder,
     riskChecker,
+    marketDataClient,
     now,
     switchStates,
     periodicSwitchPending,

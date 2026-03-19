@@ -18,6 +18,7 @@ import { createTradingConfig } from '../../mock/factories/configFactory.js';
 import { createPushOrderChanged } from '../../mock/factories/tradeFactory.js';
 import { createTradeContextMock } from '../../mock/longbridge/tradeContextMock.js';
 import {
+  createMarketDataClientDouble,
   createOrderRecorderDouble,
   createProtectiveLiquidationEpisodeTrackerDouble,
   createSymbolRegistryDouble,
@@ -43,6 +44,7 @@ describe('protective-liquidation integration', () => {
         clearCache: () => {},
         getPendingOrders: async () => [],
       },
+      marketDataClient: createMarketDataClientDouble(),
       orderRecorder: createOrderRecorderDouble({
         recordLocalSell: () => {
           recordLocalSellCount += 1;

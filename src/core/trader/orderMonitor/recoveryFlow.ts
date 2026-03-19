@@ -13,7 +13,7 @@ import { PENDING_ORDER_STATUSES } from '../../../constants/index.js';
 import type { MonitorConfig } from '../../../types/config.js';
 import type { RawOrderFromAPI } from '../../../types/services.js';
 import { resolveOrderOwnership } from '../../orderRecorder/orderOwnershipParser.js';
-import { isSeatReady } from '../../../services/autoSymbolManager/utils.js';
+import { isSeatActive } from '../../../services/autoSymbolManager/utils.js';
 import type {
   OrderSeatOwnership,
   RecoverySnapshotReconciliationParams,
@@ -110,7 +110,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
    */
   function isSeatMatchedForOrder(order: RawOrderFromAPI, ownership: OrderSeatOwnership): boolean {
     const seatState = symbolRegistry.getSeatState(ownership.monitorSymbol, ownership.direction);
-    if (!isSeatReady(seatState)) {
+    if (!isSeatActive(seatState)) {
       return false;
     }
 

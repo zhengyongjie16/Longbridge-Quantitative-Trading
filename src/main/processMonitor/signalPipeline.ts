@@ -13,14 +13,14 @@
  * - 延迟验证信号 → delayedSignalVerifier
  *
  * 席位校验条件：
- * 1. 席位状态必须为 READY
+ * 1. 席位状态必须为 ACTIVE
  * 2. 信号中的席位版本必须与当前席位版本匹配
  * 3. 信号标的必须与席位当前标的匹配
  */
 import { logger } from '../../utils/logger/index.js';
 import { isBuyAction } from '../../utils/helpers/index.js';
 import { VALID_SIGNAL_ACTIONS } from '../../constants/index.js';
-import { isSeatReady, describeSeatUnavailable } from '../../services/autoSymbolManager/utils.js';
+import { isSeatActive, describeSeatUnavailable } from '../../services/autoSymbolManager/utils.js';
 import { formatSignalLog, getPositions } from './utils.js';
 import type { Quote } from '../../types/quote.js';
 import type { Signal } from '../../types/signal.js';
@@ -109,7 +109,7 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
       const isBuySignal = isBuyAction(signal.action);
       const isLongSignal = signal.action === 'BUYCALL' || signal.action === 'SELLCALL';
       const seatState = isLongSignal ? longSeatState : shortSeatState;
-      if (!isSeatReady(seatState)) {
+      if (!isSeatActive(seatState)) {
         return null;
       }
 

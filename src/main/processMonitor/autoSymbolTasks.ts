@@ -28,7 +28,6 @@ export function scheduleAutoSymbolTasks(params: AutoSymbolTasksParams): void {
     openProtectionActive,
     monitorPriceChanged,
     resolvedMonitorPrice,
-    quotesMap,
   } = params;
 
   if (!autoSearchEnabled) {
@@ -82,7 +81,6 @@ export function scheduleAutoSymbolTasks(params: AutoSymbolTasksParams): void {
       data: {
         monitorSymbol,
         monitorPrice: resolvedMonitorPrice,
-        quotesMap,
         seatSnapshots: {
           long: {
             seatVersion: symbolRegistry.getSeatVersion(monitorSymbol, 'LONG'),

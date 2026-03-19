@@ -16,8 +16,11 @@ import {
 } from '../helpers/testDoubles.js';
 
 import type { MainProgramContext } from '../../src/main/mainProgram/types.js';
+import type * as TimeModule from '../../src/utils/time/index.js';
 import type { LastState, MonitorContext } from '../../src/types/state.js';
 import type { Quote } from '../../src/types/quote.js';
+
+type MainProgramFn = (context: MainProgramContext) => Promise<void>;
 
 const processMonitorCalls: Array<{
   readonly monitorSymbol: string;
@@ -76,40 +79,49 @@ function isWithinAfternoonOpenProtectionFallback(now: Date, minutes: number): bo
   return minuteOfDay >= start && minuteOfDay < start + minutes;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 在导入 mainProgram 前同步注册
-mock.module('../../src/main/processMonitor/index.js', () => ({
-  processMonitor: async ({
-    monitorContext,
-    runtimeFlags,
-  }: {
-    readonly monitorContext: { readonly config: { readonly monitorSymbol: string } };
-    readonly runtimeFlags: {
-      readonly openProtectionActive: boolean;
-      readonly canTradeNow: boolean;
-    };
-  }) => {
-    processMonitorCalls.push({
-      monitorSymbol: monitorContext.config.monitorSymbol,
-      openProtectionActive: runtimeFlags.openProtectionActive,
-      canTradeNow: runtimeFlags.canTradeNow,
-    });
-  },
-}));
+async function loadMainProgram(): Promise<{ readonly mainProgram: MainProgramFn }> {
+  const actualTimeModulePath = '../../src/utils/time/index.js?actual-main-program-strict';
+  const actualTimeModuleUnknown: unknown = await import(actualTimeModulePath);
+  const actualTimeModule = actualTimeModuleUnknown as typeof TimeModule;
 
-// eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 在导入 mainProgram 前同步注册
-mock.module('../../src/utils/time/index.js', () => ({
-  getHKDateKey: (now: Date) => tradingTimeOverrides.dayKey ?? getHKDateKeyFallback(now),
-  isInContinuousHKSession: (now: Date, isHalfDay: boolean) =>
-    tradingTimeOverrides.isInContinuousSession ?? isInContinuousHKSessionFallback(now, isHalfDay),
-  isWithinMorningOpenProtection: (now: Date, minutes: number) =>
-    tradingTimeOverrides.morningOpenProtection ??
-    isWithinMorningOpenProtectionFallback(now, minutes),
-  isWithinAfternoonOpenProtection: (now: Date, minutes: number) =>
-    tradingTimeOverrides.afternoonOpenProtection ??
-    isWithinAfternoonOpenProtectionFallback(now, minutes),
-}));
+  // eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 在导入 mainProgram 前同步注册
+  mock.module('../../src/main/processMonitor/index.js', () => ({
+    processMonitor: async ({
+      monitorContext,
+      runtimeFlags,
+    }: {
+      readonly monitorContext: { readonly config: { readonly monitorSymbol: string } };
+      readonly runtimeFlags: {
+        readonly openProtectionActive: boolean;
+        readonly canTradeNow: boolean;
+      };
+    }) => {
+      processMonitorCalls.push({
+        monitorSymbol: monitorContext.config.monitorSymbol,
+        openProtectionActive: runtimeFlags.openProtectionActive,
+        canTradeNow: runtimeFlags.canTradeNow,
+      });
+    },
+  }));
 
-import { mainProgram } from '../../src/main/mainProgram/index.js';
+  // eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 在导入 mainProgram 前同步注册
+  mock.module('../../src/utils/time/index.js', () => ({
+    ...actualTimeModule,
+    getHKDateKey: (now: Date) => tradingTimeOverrides.dayKey ?? getHKDateKeyFallback(now),
+    isInContinuousHKSession: (now: Date, isHalfDay: boolean) =>
+      tradingTimeOverrides.isInContinuousSession ?? isInContinuousHKSessionFallback(now, isHalfDay),
+    isWithinMorningOpenProtection: (now: Date, minutes: number) =>
+      tradingTimeOverrides.morningOpenProtection ??
+      isWithinMorningOpenProtectionFallback(now, minutes),
+    isWithinAfternoonOpenProtection: (now: Date, minutes: number) =>
+      tradingTimeOverrides.afternoonOpenProtection ??
+      isWithinAfternoonOpenProtectionFallback(now, minutes),
+  }));
+
+  const mainProgramModulePath = '../../src/main/mainProgram/index.js?mocked-main-program-strict';
+  const loadedModuleUnknown: unknown = await import(mainProgramModulePath);
+  return loadedModuleUnknown as { readonly mainProgram: MainProgramFn };
+}
 
 function createLastState(overrides: Partial<LastState> = {}): LastState {
   return {
@@ -200,6 +212,7 @@ describe('mainProgram strict-mode integration', () => {
     tradingTimeOverrides.isInContinuousSession = null;
     tradingTimeOverrides.morningOpenProtection = null;
     tradingTimeOverrides.afternoonOpenProtection = null;
+    mock.restore();
   });
 
   it('clears pending delayed signals and exits early when leaving continuous session', async () => {
@@ -223,6 +236,8 @@ describe('mainProgram strict-mode integration', () => {
       dayKey: string | null;
     }> = [];
 
+    const loadedMainProgram = await loadMainProgram();
+    const mainProgram: MainProgramFn = loadedMainProgram.mainProgram;
     await mainProgram({
       marketDataClient: {
         getQuoteContext: async () => ({}) as never,
@@ -248,7 +263,7 @@ describe('mainProgram strict-mode integration', () => {
         processSellSignals: (params) => params.signals,
         applyRiskChecks: async (signals) => signals,
         resetRiskCheckCooldown: () => {},
-      },
+      } as MainProgramContext['signalProcessor'],
       tradingConfig: createTradingConfig({
         monitors: [createMonitorConfigDouble({ monitorSymbol: 'HSI.HK' })],
         global: {
@@ -270,7 +285,6 @@ describe('mainProgram strict-mode integration', () => {
         start: () => {},
         schedule: () => {},
         stopAndDrain: async () => {},
-        clearLatestQuotes: () => {},
       },
       postTradeRefresher: {
         start: () => {},
@@ -297,7 +311,7 @@ describe('mainProgram strict-mode integration', () => {
     });
   });
 
-  it('short-circuits the loop after doomsday clearance executes', async () => {
+  it('subscribes symbols before doomsday clearance and short-circuits after clearance executes', async () => {
     tradingTimeOverrides.dayKey = '2026-02-16';
     tradingTimeOverrides.isInContinuousSession = true;
 
@@ -311,16 +325,26 @@ describe('mainProgram strict-mode integration', () => {
     let clearanceCalls = 0;
     let getQuotesCalls = 0;
     let orderMonitorScheduleCalls = 0;
+    const callSequence: string[] = [];
+    let subscribedSymbols: string[] = [];
 
+    const loadedMainProgram = await loadMainProgram();
+    const mainProgram: MainProgramFn = loadedMainProgram.mainProgram;
     await mainProgram({
       marketDataClient: {
         getQuoteContext: async () => ({}) as never,
         getQuotes: async () => {
+          callSequence.push('getQuotes');
           getQuotesCalls += 1;
           return new Map<string, Quote | null>();
         },
-        subscribeSymbols: async () => {},
-        unsubscribeSymbols: async () => {},
+        subscribeSymbols: async (symbols) => {
+          callSequence.push('subscribeSymbols');
+          subscribedSymbols = [...symbols];
+        },
+        unsubscribeSymbols: async () => {
+          callSequence.push('unsubscribeSymbols');
+        },
         subscribeCandlesticks: async () => [],
         getRealtimeCandlesticks: async () => [],
         isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
@@ -334,10 +358,12 @@ describe('mainProgram strict-mode integration', () => {
       },
       doomsdayProtection: createDoomsdayProtectionDouble({
         cancelPendingBuyOrders: async () => {
+          callSequence.push('cancelPendingBuyOrders');
           cancelCalls += 1;
           return { executed: true, cancelRequestAcceptedCount: 1 };
         },
         executeClearance: async () => {
+          callSequence.push('executeClearance');
           clearanceCalls += 1;
           return { executed: true, signalCount: 2 };
         },
@@ -346,7 +372,7 @@ describe('mainProgram strict-mode integration', () => {
         processSellSignals: (params) => params.signals,
         applyRiskChecks: async (signals) => signals,
         resetRiskCheckCooldown: () => {},
-      },
+      } as MainProgramContext['signalProcessor'],
       tradingConfig: createTradingConfig({
         monitors: [createMonitorConfigDouble({ monitorSymbol: 'HSI.HK' })],
         global: {
@@ -370,7 +396,6 @@ describe('mainProgram strict-mode integration', () => {
           orderMonitorScheduleCalls += 1;
         },
         stopAndDrain: async () => {},
-        clearLatestQuotes: () => {},
       },
       postTradeRefresher: {
         start: () => {},
@@ -389,6 +414,14 @@ describe('mainProgram strict-mode integration', () => {
     expect(getQuotesCalls).toBe(0);
     expect(processMonitorCalls).toHaveLength(0);
     expect(orderMonitorScheduleCalls).toBe(0);
+    expect(subscribedSymbols).toContain('HSI.HK');
+    expect(subscribedSymbols).toContain('BULL.HK');
+    expect(subscribedSymbols).toContain('BEAR.HK');
+    expect(callSequence.slice(0, 3)).toEqual([
+      'subscribeSymbols',
+      'cancelPendingBuyOrders',
+      'executeClearance',
+    ]);
   });
 
   it('keeps held symbols from unsubscribe and propagates strict open-protection flag', async () => {
@@ -426,6 +459,8 @@ describe('mainProgram strict-mode integration', () => {
     let orderMonitorScheduleCalls = 0;
     let postTradeEnqueueCalls = 0;
 
+    const loadedMainProgram = await loadMainProgram();
+    const mainProgram: MainProgramFn = loadedMainProgram.mainProgram;
     await mainProgram({
       marketDataClient: {
         getQuoteContext: async () => ({}) as never,
@@ -462,7 +497,7 @@ describe('mainProgram strict-mode integration', () => {
         processSellSignals: (params) => params.signals,
         applyRiskChecks: async (signals) => signals,
         resetRiskCheckCooldown: () => {},
-      },
+      } as MainProgramContext['signalProcessor'],
       tradingConfig: createTradingConfig({
         monitors: [monitorConfig],
         global: {
@@ -490,7 +525,6 @@ describe('mainProgram strict-mode integration', () => {
           orderMonitorScheduleCalls += 1;
         },
         stopAndDrain: async () => {},
-        clearLatestQuotes: () => {},
       },
       postTradeRefresher: {
         start: () => {},

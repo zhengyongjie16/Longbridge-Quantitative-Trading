@@ -112,10 +112,10 @@ function createNoopUnrealizedLossMonitor(): UnrealizedLossMonitor {
 function createSeatState(symbol: string): SeatState {
   return {
     symbol,
-    status: 'READY',
+    status: 'ACTIVE',
     lastSwitchAt: null,
     lastSearchAt: null,
-    lastSeatReadyAt: null,
+    lastSeatActivatedAt: null,
     searchFailCountToday: 0,
     frozenTradingDayKey: null,
   };
@@ -547,7 +547,6 @@ describe('main loop latency full-chain integration', () => {
         start: () => {},
         schedule: () => {},
         stopAndDrain: async () => {},
-        clearLatestQuotes: () => {},
       },
       postTradeRefresher: {
         start: () => {},

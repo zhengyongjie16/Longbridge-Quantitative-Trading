@@ -12,8 +12,8 @@ import type {
   PendingRefreshSymbol,
   RateLimiter,
   RawOrderFromAPI,
+  MarketDataClient,
 } from '../../../types/services.js';
-import type { Quote } from '../../../types/quote.js';
 import type { ProtectiveLiquidationEpisodeTracker } from '../protectiveLiquidationEpisodeTracker/types.js';
 import type { RefreshGate } from '../../../utils/types.js';
 import type {
@@ -117,6 +117,15 @@ export type OrderMonitorTrackedOrder = TrackedOrder & {
 
   /** 改单恢复模式 */
   replaceResumeMode: ReplaceResumeMode;
+
+  /** quote retry 已尝试次数 */
+  quoteRetryAttempts: number;
+
+  /** 下次允许重试 quote 的时间戳（毫秒） */
+  quoteRetryNextAt: number | null;
+
+  /** quote retry 是否已耗尽 */
+  quoteRetryExhausted: boolean;
 
   /** 卖单超时后是否已进入“等待终态确认后转市价”阶段 */
   timeoutMarketConversionPending: boolean;
@@ -263,6 +272,7 @@ export type QuoteFlowDeps = {
   readonly config: OrderMonitorConfig;
   readonly thresholdDecimal: Decimal;
   readonly orderRecorder: OrderRecorder;
+  readonly marketDataClient: MarketDataClient;
   readonly ctxPromise: Promise<TradeContext>;
   readonly rateLimiter: RateLimiter;
   readonly isExecutionAllowed: () => boolean;
@@ -283,7 +293,7 @@ export type QuoteFlowDeps = {
  * 使用范围：orderMonitor/index.ts 调用。
  */
 export interface QuoteFlow {
-  processWithLatestQuotes: (quotesMap: ReadonlyMap<string, Quote | null>) => Promise<void>;
+  processWithLatestQuotes: () => Promise<void>;
   getPendingSellOrders: (symbol: string) => ReadonlyArray<PendingSellOrderSnapshot>;
 }
 

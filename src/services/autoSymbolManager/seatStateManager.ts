@@ -39,7 +39,7 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
     status,
     lastSwitchAt,
     lastSearchAt,
-    lastSeatReadyAt,
+    lastSeatActivatedAt,
     callPrice,
     searchFailCountToday,
     frozenTradingDayKey,
@@ -49,7 +49,7 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
       status,
       lastSwitchAt,
       lastSearchAt,
-      lastSeatReadyAt,
+      lastSeatActivatedAt,
       callPrice: callPrice ?? null,
       searchFailCountToday,
       frozenTradingDayKey,
@@ -108,7 +108,13 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
   /**
    * 清空席位并进入换标流程，同时提升席位版本用于信号隔离。
    */
-  function clearSeat({ direction, reason }: { direction: 'LONG' | 'SHORT'; reason: string }): number {
+  function clearSeat({
+    direction,
+    reason,
+  }: {
+    direction: 'LONG' | 'SHORT';
+    reason: string;
+  }): number {
     const timestamp = now().getTime();
     const currentState = symbolRegistry.getSeatState(monitorSymbol, direction);
     const currentSymbol = currentState.symbol;
@@ -118,7 +124,7 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
       status: 'SWITCHING',
       lastSwitchAt: timestamp,
       lastSearchAt: null,
-      lastSeatReadyAt: currentState.lastSeatReadyAt,
+      lastSeatActivatedAt: currentState.lastSeatActivatedAt,
       callPrice: null,
       searchFailCountToday: currentState.searchFailCountToday,
       frozenTradingDayKey: currentState.frozenTradingDayKey,
@@ -137,7 +143,9 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
         sellOrderId: null,
         sellNotional: null,
         shouldRebuy: false,
-        awaitingQuote: false,
+        quoteRetryAttempts: 0,
+        quoteRetryNextAt: null,
+        quoteRetryExhausted: false,
         cancelRequestSubmitted: false,
       });
     } else {

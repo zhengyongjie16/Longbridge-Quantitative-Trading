@@ -16,7 +16,7 @@ const emptySeatState = {
   status: 'EMPTY' as const,
   lastSwitchAt: null,
   lastSearchAt: null,
-  lastSeatReadyAt: null,
+  lastSeatActivatedAt: null,
   searchFailCountToday: 0,
   frozenTradingDayKey: null,
 };
@@ -27,20 +27,20 @@ describe('createSeatDomain', () => {
     let clearCount = 0;
     const longBeforeClear: SeatState = {
       symbol: 'OLD_BULL.HK',
-      status: 'READY',
+      status: 'ACTIVE',
       lastSwitchAt: 100,
       lastSearchAt: 200,
-      lastSeatReadyAt: 300,
+      lastSeatActivatedAt: 300,
       callPrice: 20_000,
       searchFailCountToday: 2,
       frozenTradingDayKey: '2026-02-15',
     };
     const shortBeforeClear: SeatState = {
       symbol: 'OLD_BEAR.HK',
-      status: 'READY',
+      status: 'ACTIVE',
       lastSwitchAt: 110,
       lastSearchAt: 210,
-      lastSeatReadyAt: 310,
+      lastSeatActivatedAt: 310,
       callPrice: 19_000,
       searchFailCountToday: 1,
       frozenTradingDayKey: null,
@@ -123,12 +123,12 @@ describe('createSeatDomain', () => {
     expect(longAfterClear?.symbol).toBeNull();
     expect(longAfterClear?.lastSwitchAt).toBe(100);
     expect(longAfterClear?.lastSearchAt).toBe(200);
-    expect(longAfterClear?.lastSeatReadyAt).toBeNull();
+    expect(longAfterClear?.lastSeatActivatedAt).toBeNull();
     expect(shortAfterClear?.status).toBe('EMPTY');
     expect(shortAfterClear?.symbol).toBeNull();
     expect(shortAfterClear?.lastSwitchAt).toBe(110);
     expect(shortAfterClear?.lastSearchAt).toBe(210);
-    expect(shortAfterClear?.lastSeatReadyAt).toBeNull();
+    expect(shortAfterClear?.lastSeatActivatedAt).toBeNull();
     expect(bumpCalls).toHaveLength(2);
   });
 

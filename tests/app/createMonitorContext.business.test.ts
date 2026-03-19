@@ -54,19 +54,19 @@ describe('monitorContext business flow', () => {
       monitorSymbol: 'HSI.HK',
       longSeat: {
         symbol: 'LONG_READY.HK',
-        status: 'READY',
+        status: 'ACTIVE',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
       shortSeat: {
         symbol: 'SHORT_READY.HK',
-        status: 'READY',
+        status: 'ACTIVE',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -110,6 +110,9 @@ describe('monitorContext business flow', () => {
     expect(context.monitorSymbolName).toBe('HangSeng');
     expect(context.seatVersion.long).toBe(3);
     expect(context.seatVersion.short).toBe(4);
+    expect('longQuote' in context).toBeFalse();
+    expect('shortQuote' in context).toBeFalse();
+    expect('monitorQuote' in context).toBeFalse();
     expect(context.indicatorProfile.requiredPeriods.ema).toEqual([]);
     expect(context.indicatorProfile.requiredPeriods.rsi).toEqual([]);
     expect(context.indicatorProfile.requiredPeriods.psy).toEqual([]);
@@ -117,7 +120,7 @@ describe('monitorContext business flow', () => {
     expect(context.indicatorProfile.displayPlan).toEqual(['price', 'changePercent', 'K', 'D', 'J']);
   });
 
-  it('keeps quote/name empty when seat is not READY', () => {
+  it('keeps quote/name empty when seat is not ACTIVE', () => {
     const config = createMonitorConfigDouble({
       monitorSymbol: 'HSI.HK',
     });
@@ -128,16 +131,16 @@ describe('monitorContext business flow', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
       shortSeat: {
         symbol: 'SHORT_READY.HK',
-        status: 'READY',
+        status: 'ACTIVE',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -160,7 +163,7 @@ describe('monitorContext business flow', () => {
       autoSymbolManager: createAutoSymbolManagerDouble(),
     });
 
-    expect(context.longQuote).toBeNull();
+    expect('longQuote' in context).toBeFalse();
     expect(context.longSymbolName).toBe('');
     expect(context.shortSymbolName).toBe('ShortReady');
   });

@@ -12,19 +12,19 @@ describe('shared utils business flow', () => {
       monitorSymbol: 'HSI.HK',
       longSeat: {
         symbol: 'LONG_READY.HK',
-        status: 'READY',
+        status: 'ACTIVE',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
       shortSeat: {
         symbol: 'SHORT_READY.HK',
-        status: 'READY',
+        status: 'ACTIVE',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -58,16 +58,16 @@ describe('shared utils business flow', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
       shortSeat: {
         symbol: 'SHORT_READY.HK',
-        status: 'READY',
+        status: 'ACTIVE',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -87,5 +87,46 @@ describe('shared utils business flow', () => {
     expect(runtimeSnapshot.longSymbolName).toBe('');
     expect(runtimeSnapshot.shortSymbolName).toBe('ShortReady');
     expect(runtimeSnapshot.monitorSymbolName).toBe('HSI.HK');
+  });
+
+  it('does not expose activating seat symbols to runtime consumers', () => {
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+      longSeat: {
+        symbol: 'LONG_ACTIVATING.HK',
+        status: 'ACTIVATING',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      shortSeat: {
+        symbol: 'SHORT_ACTIVE.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+    });
+
+    const seatSnapshot = resolveMonitorContextSeatSnapshot('HSI.HK', symbolRegistry);
+    const runtimeSnapshot = resolveMonitorContextRuntimeSnapshot(
+      'HSI.HK',
+      symbolRegistry,
+      new Map([
+        ['LONG_ACTIVATING.HK', { ...createQuoteDouble('LONG_ACTIVATING.HK', 1.1), name: 'LongActivating' }],
+        ['SHORT_ACTIVE.HK', { ...createQuoteDouble('SHORT_ACTIVE.HK', 0.9), name: 'ShortActive' }],
+      ]),
+    );
+
+    expect(seatSnapshot.longSymbol).toBeNull();
+    expect(seatSnapshot.shortSymbol).toBe('SHORT_ACTIVE.HK');
+    expect(runtimeSnapshot.longSymbol).toBeNull();
+    expect(runtimeSnapshot.longQuote).toBeNull();
+    expect(runtimeSnapshot.longSymbolName).toBe('');
+    expect(runtimeSnapshot.shortSymbolName).toBe('ShortActive');
   });
 });

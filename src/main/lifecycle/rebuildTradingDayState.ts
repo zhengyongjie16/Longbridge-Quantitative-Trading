@@ -16,7 +16,7 @@
  * 错误处理：
  * - 任一步骤失败即整体抛出，由生命周期管理器负责重试
  */
-import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
+import { hasSeatSymbol } from '../../services/autoSymbolManager/utils.js';
 import type { MonitorContext } from '../../types/state.js';
 import type { Quote } from '../../types/quote.js';
 import type { SymbolRegistry } from '../../types/seat.js';
@@ -48,9 +48,6 @@ function syncMonitorContextQuotes(
   );
   monitorContext.seatState = runtimeSnapshot.seatState;
   monitorContext.seatVersion = runtimeSnapshot.seatVersion;
-  monitorContext.longQuote = runtimeSnapshot.longQuote;
-  monitorContext.shortQuote = runtimeSnapshot.shortQuote;
-  monitorContext.monitorQuote = runtimeSnapshot.monitorQuote;
   monitorContext.longSymbolName = runtimeSnapshot.longSymbolName;
   monitorContext.shortSymbolName = runtimeSnapshot.shortSymbolName;
   monitorContext.monitorSymbolName = runtimeSnapshot.monitorSymbolName;
@@ -70,29 +67,30 @@ function syncAllMonitorContexts(
 }
 
 /**
- * 从全量订单数据中重建所有就绪席位的订单记录。
+ * 从全量订单数据中重建所有已绑定席位的订单记录。
  */
 async function rebuildOrderRecords(
   monitorContexts: ReadonlyMap<string, MonitorContext>,
   allOrders: ReadonlyArray<RawOrderFromAPI>,
+  quotesMap: ReadonlyMap<string, Quote | null>,
 ): Promise<void> {
   for (const monitorContext of monitorContexts.values()) {
     const monitorSymbol = monitorContext.config.monitorSymbol;
     const longSeatState = monitorContext.symbolRegistry.getSeatState(monitorSymbol, 'LONG');
     const shortSeatState = monitorContext.symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
-    if (isSeatReady(longSeatState)) {
+    if (hasSeatSymbol(longSeatState)) {
       await monitorContext.orderRecorder.refreshOrdersFromAllOrdersForLong(
         longSeatState.symbol,
         allOrders,
-        monitorContext.longQuote,
+        quotesMap.get(longSeatState.symbol) ?? null,
       );
     }
 
-    if (isSeatReady(shortSeatState)) {
+    if (hasSeatSymbol(shortSeatState)) {
       await monitorContext.orderRecorder.refreshOrdersFromAllOrdersForShort(
         shortSeatState.symbol,
         allOrders,
-        monitorContext.shortQuote,
+        quotesMap.get(shortSeatState.symbol) ?? null,
       );
     }
   }
@@ -106,6 +104,7 @@ async function refreshSeatWarrantInfo(
   marketDataClient: MarketDataClient,
   monitorContext: MonitorContext,
   symbol: string | null,
+  quote: Quote | null,
   isLongSymbol: boolean,
   callPriceFromSeat: number | null,
 ): Promise<void> {
@@ -113,7 +112,6 @@ async function refreshSeatWarrantInfo(
     return;
   }
 
-  const quote = isLongSymbol ? monitorContext.longQuote : monitorContext.shortQuote;
   const symbolName = quote?.name ?? null;
   if (callPriceFromSeat !== null && Number.isFinite(callPriceFromSeat) && callPriceFromSeat > 0) {
     const result = monitorContext.riskChecker.setWarrantInfoFromCallPrice(
@@ -142,11 +140,12 @@ async function refreshSeatWarrantInfo(
 }
 
 /**
- * 重建所有就绪席位的牛熊证风险缓存（收回价等关键风控数据）。
+ * 重建所有已绑定席位的牛熊证风险缓存（收回价等关键风控数据）。
  */
 async function rebuildWarrantRiskCache(
   marketDataClient: MarketDataClient,
   monitorContexts: ReadonlyMap<string, MonitorContext>,
+  quotesMap: ReadonlyMap<string, Quote | null>,
 ): Promise<void> {
   for (const monitorContext of monitorContexts.values()) {
     const monitorSymbol = monitorContext.config.monitorSymbol;
@@ -155,52 +154,76 @@ async function rebuildWarrantRiskCache(
     await refreshSeatWarrantInfo(
       marketDataClient,
       monitorContext,
-      isSeatReady(longSeatState) ? longSeatState.symbol : null,
+      hasSeatSymbol(longSeatState) ? longSeatState.symbol : null,
+      hasSeatSymbol(longSeatState) ? (quotesMap.get(longSeatState.symbol) ?? null) : null,
       true,
-      isSeatReady(longSeatState) ? (longSeatState.callPrice ?? null) : null,
+      hasSeatSymbol(longSeatState) ? (longSeatState.callPrice ?? null) : null,
     );
 
     await refreshSeatWarrantInfo(
       marketDataClient,
       monitorContext,
-      isSeatReady(shortSeatState) ? shortSeatState.symbol : null,
+      hasSeatSymbol(shortSeatState) ? shortSeatState.symbol : null,
+      hasSeatSymbol(shortSeatState) ? (quotesMap.get(shortSeatState.symbol) ?? null) : null,
       false,
-      isSeatReady(shortSeatState) ? (shortSeatState.callPrice ?? null) : null,
+      hasSeatSymbol(shortSeatState) ? (shortSeatState.callPrice ?? null) : null,
     );
   }
 }
 
 /**
- * 重建所有就绪席位的浮亏缓存，结合当日已实现亏损偏移量计算。
+ * 重建所有已绑定席位的浮亏缓存，结合当日已实现亏损偏移量计算。
  */
 async function rebuildUnrealizedLossCache(
   monitorContexts: ReadonlyMap<string, MonitorContext>,
   dailyLossTracker: DailyLossTracker,
+  quotesMap: ReadonlyMap<string, Quote | null>,
 ): Promise<void> {
   for (const monitorContext of monitorContexts.values()) {
     const monitorSymbol = monitorContext.config.monitorSymbol;
     const longSeatState = monitorContext.symbolRegistry.getSeatState(monitorSymbol, 'LONG');
     const shortSeatState = monitorContext.symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
-    if (isSeatReady(longSeatState)) {
+    if (hasSeatSymbol(longSeatState)) {
       const dailyLossOffset = dailyLossTracker.getLossOffset(monitorSymbol, true);
       await monitorContext.riskChecker.refreshUnrealizedLossData(
         monitorContext.orderRecorder,
         longSeatState.symbol,
         true,
-        monitorContext.longQuote,
+        quotesMap.get(longSeatState.symbol) ?? null,
         dailyLossOffset,
       );
     }
 
-    if (isSeatReady(shortSeatState)) {
+    if (hasSeatSymbol(shortSeatState)) {
       const dailyLossOffset = dailyLossTracker.getLossOffset(monitorSymbol, false);
       await monitorContext.riskChecker.refreshUnrealizedLossData(
         monitorContext.orderRecorder,
         shortSeatState.symbol,
         false,
-        monitorContext.shortQuote,
+        quotesMap.get(shortSeatState.symbol) ?? null,
         dailyLossOffset,
       );
+    }
+  }
+}
+
+/**
+ * 在重建完成后，将已完成 admission 与缓存初始化的 seat 统一推进到 ACTIVE。
+ */
+function activateRebuiltSeats(monitorContexts: ReadonlyMap<string, MonitorContext>, nowMs: number): void {
+  for (const monitorContext of monitorContexts.values()) {
+    const monitorSymbol = monitorContext.config.monitorSymbol;
+    for (const direction of ['LONG', 'SHORT'] as const) {
+      const seatState = monitorContext.symbolRegistry.getSeatState(monitorSymbol, direction);
+      if (!hasSeatSymbol(seatState)) {
+        continue;
+      }
+
+      monitorContext.symbolRegistry.updateSeatState(monitorSymbol, direction, {
+        ...seatState,
+        status: 'ACTIVE',
+        lastSeatActivatedAt: nowMs,
+      });
     }
   }
 }
@@ -236,15 +259,17 @@ export function createRebuildTradingDayState(
     const { allOrders, quotesMap, now = new Date() } = params;
     syncAllMonitorContexts(monitorContexts, symbolRegistry, quotesMap);
     try {
-      await rebuildOrderRecords(monitorContexts, allOrders);
+      await rebuildOrderRecords(monitorContexts, allOrders, quotesMap);
       await prewarmTradingCalendarSnapshotForRebuild({
         marketDataClient,
         lastState,
         monitorContexts,
         now,
       });
-      await rebuildWarrantRiskCache(marketDataClient, monitorContexts);
-      await rebuildUnrealizedLossCache(monitorContexts, dailyLossTracker);
+      await rebuildWarrantRiskCache(marketDataClient, monitorContexts, quotesMap);
+      await rebuildUnrealizedLossCache(monitorContexts, dailyLossTracker, quotesMap);
+      activateRebuiltSeats(monitorContexts, now.getTime());
+      syncAllMonitorContexts(monitorContexts, symbolRegistry, quotesMap);
       await trader.recoverOrderTrackingFromSnapshot(allOrders);
       await displayAccountAndPositions({ lastState, quotesMap });
     } catch (err) {

@@ -27,26 +27,26 @@ function createSeatInfo(): SeatSyncResult {
   return {
     longSeatState: {
       symbol: 'BULL.HK',
-      status: 'READY',
+      status: 'ACTIVE',
       lastSwitchAt: null,
       lastSearchAt: null,
-      lastSeatReadyAt: null,
+      lastSeatActivatedAt: null,
       searchFailCountToday: 0,
       frozenTradingDayKey: null,
     },
     shortSeatState: {
       symbol: 'BEAR.HK',
-      status: 'READY',
+      status: 'ACTIVE',
       lastSwitchAt: null,
       lastSearchAt: null,
-      lastSeatReadyAt: null,
+      lastSeatActivatedAt: null,
       searchFailCountToday: 0,
       frozenTradingDayKey: null,
     },
     longSeatVersion: 3,
     shortSeatVersion: 4,
-    longSeatReady: true,
-    shortSeatReady: true,
+    longSeatActive: true,
+    shortSeatActive: true,
     longSymbol: 'BULL.HK',
     shortSymbol: 'BEAR.HK',
     longQuote: createQuoteDouble('BULL.HK', 1.1),
@@ -180,9 +180,21 @@ describe('riskTasks business scheduling', () => {
     expect(first?.type).toBe('LIQUIDATION_DISTANCE_CHECK');
     expect(first?.dedupeKey).toBe('HSI.HK:LIQUIDATION_DISTANCE_CHECK');
     expect((first?.data as { monitorPrice: number }).monitorPrice).toBe(20_000);
+    const liquidationData = first?.data as {
+      long: Record<string, unknown>;
+      short: Record<string, unknown>;
+    };
+    expect('quote' in liquidationData.long).toBeFalse();
+    expect('quote' in liquidationData.short).toBeFalse();
 
     expect(second?.type).toBe('UNREALIZED_LOSS_CHECK');
     expect(second?.dedupeKey).toBe('HSI.HK:UNREALIZED_LOSS_CHECK');
+    const unrealizedData = second?.data as {
+      long: Record<string, unknown>;
+      short: Record<string, unknown>;
+    };
+    expect('quote' in unrealizedData.long).toBeFalse();
+    expect('quote' in unrealizedData.short).toBeFalse();
 
     const receivedLongDisplayInfo = capturedDisplayInfo.long;
     const receivedShortDisplayInfo = capturedDisplayInfo.short;

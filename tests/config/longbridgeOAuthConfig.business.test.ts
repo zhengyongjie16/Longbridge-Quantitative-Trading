@@ -58,9 +58,7 @@ const OAuth = {
     onOpenUrl: (error: Error | null, url: string) => void,
     callbackPort?: number,
   ): Promise<unknown> => {
-    oauthBuildCalls.push(
-      callbackPort === undefined ? { clientId } : { clientId, callbackPort },
-    );
+    oauthBuildCalls.push(callbackPort === undefined ? { clientId } : { clientId, callbackPort });
     onOpenUrl(null, 'https://example.test/oauth');
     return oauthHandle;
   },

@@ -40,7 +40,7 @@ export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntim
     monitorTaskQueue,
   } = postGateRuntime;
   const orderMonitorWorker = createOrderMonitorWorker({
-    monitorAndManageOrders: (quotesMap) => trader.monitorAndManageOrders(quotesMap),
+    monitorAndManageOrders: () => trader.monitorAndManageOrders(),
   });
   const postTradeRefresher = createPostTradeRefresher({
     refreshGate,
@@ -71,6 +71,7 @@ export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntim
       });
     },
     trader,
+    marketDataClient: preGateRuntime.marketDataClient,
     lastState,
     tradingConfig,
     getCanProcessTask: () => lastState.isTradingEnabled,
@@ -80,6 +81,7 @@ export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntim
     getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol),
     signalProcessor,
     trader,
+    marketDataClient: preGateRuntime.marketDataClient,
     doomsdayProtection,
     getLastState: () => lastState,
     getIsHalfDay: () => lastState.isHalfDay ?? false,
@@ -90,8 +92,15 @@ export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntim
     getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol),
     signalProcessor,
     trader,
+    marketDataClient: preGateRuntime.marketDataClient,
     getLastState: () => lastState,
     refreshGate,
+    scheduleRetry: (callback, delayMs) => {
+      return setTimeout(callback, delayMs);
+    },
+    clearRetry: (handle) => {
+      clearTimeout(handle);
+    },
     getCanProcessTask: () => lastState.isTradingEnabled,
   });
 

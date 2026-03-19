@@ -125,7 +125,6 @@ function defaultDeps(steps: string[]): CleanupContext {
       stopAndDrain: async () => {
         steps.push('orderMonitorWorker');
       },
-      clearLatestQuotes: () => {},
     },
     postTradeRefresher: {
       start: () => {},

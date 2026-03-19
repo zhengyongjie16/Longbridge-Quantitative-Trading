@@ -26,7 +26,7 @@ import {
 } from '../../helpers/testDoubles.js';
 
 describe('seatSync business flow', () => {
-  it('clears long-side runtime queues when LONG seat leaves READY', () => {
+  it('clears long-side runtime queues when LONG seat leaves ACTIVE', () => {
     const monitorSymbol = 'HSI.HK';
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol,
@@ -35,16 +35,16 @@ describe('seatSync business flow', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
       shortSeat: {
         symbol: 'BEAR.HK',
-        status: 'READY',
+        status: 'ACTIVE',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -121,19 +121,19 @@ describe('seatSync business flow', () => {
       seatState: {
         long: {
           symbol: 'BULL.HK',
-          status: 'READY',
+          status: 'ACTIVE',
           lastSwitchAt: null,
           lastSearchAt: null,
-          lastSeatReadyAt: null,
+          lastSeatActivatedAt: null,
           searchFailCountToday: 0,
           frozenTradingDayKey: null,
         },
         short: {
           symbol: 'BEAR.HK',
-          status: 'READY',
+          status: 'ACTIVE',
           lastSwitchAt: null,
           lastSearchAt: null,
-          lastSeatReadyAt: null,
+          lastSeatActivatedAt: null,
           searchFailCountToday: 0,
           frozenTradingDayKey: null,
         },
@@ -151,7 +151,6 @@ describe('seatSync business flow', () => {
 
     syncSeatState({
       monitorSymbol,
-      monitorQuote: createQuoteDouble(monitorSymbol, 20_000),
       monitorContext,
       mainContext,
       quotesMap: new Map<string, ReturnType<typeof createQuoteDouble>>([
@@ -175,27 +174,27 @@ describe('seatSync business flow', () => {
     expect(monitorTaskQueue.isEmpty()).toBeTrue();
   });
 
-  it('schedules SEAT_REFRESH tasks when ready seats switch symbols', () => {
+  it('schedules SEAT_REFRESH tasks when activating seats switch symbols', () => {
     const monitorSymbol = 'HSI.HK';
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol,
       longSeat: {
         symbol: 'NEW_BULL.HK',
-        status: 'READY',
+        status: 'ACTIVATING',
         callPrice: 21000,
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
       shortSeat: {
         symbol: 'NEW_BEAR.HK',
-        status: 'READY',
+        status: 'ACTIVATING',
         callPrice: 19000,
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -213,19 +212,19 @@ describe('seatSync business flow', () => {
       seatState: {
         long: {
           symbol: 'OLD_BULL.HK',
-          status: 'READY',
+          status: 'ACTIVE',
           lastSwitchAt: null,
           lastSearchAt: null,
-          lastSeatReadyAt: null,
+          lastSeatActivatedAt: null,
           searchFailCountToday: 0,
           frozenTradingDayKey: null,
         },
         short: {
           symbol: 'OLD_BEAR.HK',
-          status: 'READY',
+          status: 'ACTIVE',
           lastSwitchAt: null,
           lastSearchAt: null,
-          lastSeatReadyAt: null,
+          lastSeatActivatedAt: null,
           searchFailCountToday: 0,
           frozenTradingDayKey: null,
         },
@@ -248,7 +247,6 @@ describe('seatSync business flow', () => {
 
     syncSeatState({
       monitorSymbol,
-      monitorQuote: createQuoteDouble(monitorSymbol, 20_500),
       monitorContext,
       mainContext,
       quotesMap,
@@ -261,9 +259,15 @@ describe('seatSync business flow', () => {
     expect(firstTask?.type).toBe('SEAT_REFRESH');
     expect(firstTask?.dedupeKey).toBe(`${monitorSymbol}:SEAT_REFRESH:LONG`);
     expect((firstTask?.data as { nextSymbol: string }).nextSymbol).toBe('NEW_BULL.HK');
+    const firstTaskData = firstTask?.data as Record<string, unknown>;
+    expect('quote' in firstTaskData).toBeFalse();
+    expect('quotesMap' in firstTaskData).toBeFalse();
 
     expect(secondTask?.type).toBe('SEAT_REFRESH');
     expect(secondTask?.dedupeKey).toBe(`${monitorSymbol}:SEAT_REFRESH:SHORT`);
     expect((secondTask?.data as { nextSymbol: string }).nextSymbol).toBe('NEW_BEAR.HK');
+    const secondTaskData = secondTask?.data as Record<string, unknown>;
+    expect('quote' in secondTaskData).toBeFalse();
+    expect('quotesMap' in secondTaskData).toBeFalse();
   });
 });

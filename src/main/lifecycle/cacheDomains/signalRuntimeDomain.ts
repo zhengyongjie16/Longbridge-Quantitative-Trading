@@ -5,7 +5,7 @@
  * - 停止并排空所有异步处理器（买入、卖出、监控任务、订单监控、交易后刷新）
  * - 清空交易任务队列（买入/卖出/监控），释放队列中的信号对象
  * - 取消所有延迟验证信号
- * - 清空订单监控的最新行情缓存和交易后刷新的待处理项
+ * - 清空交易后刷新的待处理项
  * - 清空指标计算缓存
  *
  * 开盘重建：
@@ -104,7 +104,6 @@ export function createSignalRuntimeDomain(deps: SignalRuntimeDomainDeps): CacheD
       });
       const removedDelayed = cancelAllDelayedSignals(monitorContexts);
 
-      orderMonitorWorker.clearLatestQuotes();
       postTradeRefresher.clearPending();
       indicatorCache.clearAll();
 

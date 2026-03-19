@@ -9,7 +9,6 @@ import type {
   PushOrderChanged,
 } from 'longbridge';
 import type { Signal, SignalType, OrderTypeConfig } from '../../types/signal.js';
-import type { Quote } from '../../types/quote.js';
 import type { AccountSnapshot, Position } from '../../types/account.js';
 import type { MonitorConfig, MultiMonitorTradingConfig } from '../../types/config.js';
 import type { SymbolRegistry } from '../../types/seat.js';
@@ -20,6 +19,7 @@ import type {
   PendingRefreshSymbol,
   RawOrderFromAPI,
   OrderRecorder,
+  MarketDataClient,
 } from '../../types/services.js';
 import type { DailyLossTracker } from '../../types/risk.js';
 import type { CancelOrderOutcome } from '../../types/trader.js';
@@ -208,10 +208,9 @@ export interface OrderMonitor {
   replaceOrderPrice: (orderId: string, newPrice: number, quantity?: number | null) => Promise<void>;
 
   /**
-   * 处理价格更新（主循环调用）
-   * 根据最新行情价格，更新未成交订单的委托价
+   * 处理一轮订单监控（内部自行读取当前 realtime 行情）
    */
-  processWithLatestQuotes: (quotesMap: ReadonlyMap<string, Quote | null>) => Promise<void>;
+  processWithLatestQuotes: () => Promise<void>;
 
   /** 基于启动/重建快照恢复订单追踪（仅使用调用方传入的 allOrders） */
   recoverOrderTrackingFromSnapshot: (allOrders: ReadonlyArray<RawOrderFromAPI>) => Promise<void>;
@@ -501,6 +500,7 @@ export type OrderMonitorDeps = {
   readonly ctxPromise: Promise<TradeContext>;
   readonly rateLimiter: RateLimiter;
   readonly cacheManager: OrderCacheManager;
+  readonly marketDataClient: MarketDataClient;
 
   /** 订单记录器（用于成交后更新本地记录） */
   readonly orderRecorder: OrderRecorder;
@@ -574,6 +574,7 @@ export type OrderExecutorDeps = {
 export type TraderDeps = {
   readonly config: Config;
   readonly tradingConfig: MultiMonitorTradingConfig;
+  readonly marketDataClient: MarketDataClient;
   readonly rateLimiterConfig?: RateLimiterConfig;
 
   /** 标的注册表（用于动态标的映射） */

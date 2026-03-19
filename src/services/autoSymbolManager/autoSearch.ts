@@ -2,8 +2,8 @@
  * 自动换标模块：自动寻标（AutoSearch）
  *
  * 功能：在席位为空时按冷却间隔触发自动寻标。
- * 职责：开盘保护（在开盘延迟窗口内跳过寻标），寻标失败时累计失败计数并达上限后冻结席位，寻标成功后更新席位状态为 READY。
- * 执行流程：maybeSearchOnTick 检查席位状态与冷却 → 调用 findBestWarrant → 成功则更新为 READY，失败则累计失败计数或冻结。
+ * 职责：开盘保护（在开盘延迟窗口内跳过寻标），寻标失败时累计失败计数并达上限后冻结席位，寻标成功后更新席位状态为 ACTIVATING。
+ * 执行流程：maybeSearchOnTick 检查席位状态与冷却 → 调用 findBestWarrant → 成功则更新为 ACTIVATING，失败则累计失败计数或冻结。
  */
 import type { AutoSearchDeps, AutoSearchManager, SearchOnTickParams } from './types.js';
 import { isSeatFrozenToday, resolveNextSearchFailureState } from './utils.js';
@@ -79,7 +79,7 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
         status: 'SEARCHING',
         lastSwitchAt: seatState.lastSwitchAt ?? null,
         lastSearchAt: nowMs,
-        lastSeatReadyAt: seatState.lastSeatReadyAt ?? null,
+        lastSeatActivatedAt: seatState.lastSeatActivatedAt ?? null,
         callPrice: null,
         searchFailCountToday: seatState.searchFailCountToday,
         frozenTradingDayKey: seatState.frozenTradingDayKey,
@@ -119,7 +119,7 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
           status: 'EMPTY',
           lastSwitchAt: currentSeat.lastSwitchAt ?? null,
           lastSearchAt: nowMs,
-          lastSeatReadyAt: currentSeat.lastSeatReadyAt ?? null,
+          lastSeatActivatedAt: currentSeat.lastSeatActivatedAt ?? null,
           callPrice: null,
           searchFailCountToday: nextFailCount,
           frozenTradingDayKey,
@@ -131,10 +131,10 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
 
     const nextState = buildSeatState({
       symbol: best.symbol,
-      status: 'READY',
+      status: 'ACTIVATING',
       lastSwitchAt: nowMs,
       lastSearchAt: nowMs,
-      lastSeatReadyAt: nowMs,
+      lastSeatActivatedAt: null,
       callPrice: best.callPrice,
       searchFailCountToday: 0,
       frozenTradingDayKey: null,

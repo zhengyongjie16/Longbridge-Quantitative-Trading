@@ -5,7 +5,9 @@
  * 职责：统一处理距离换标与周期换标的启动入口，推进换标状态机（撤单/卖出/绑定/等待行情/回补/完成），处理周期换标到期后的空仓等待与触发。
  * 执行流程：maybeSwitchOnDistance/maybeSwitchOnInterval 触发 → startSwitchFlow 初始化状态 → processSwitchStateMachine 推进各阶段 → 完成或失败。
  */
+import { ORDER_QUOTE_RETRY } from '../../constants/index.js';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
+import { isQuoteReadyForRequirement, resolveNextQuoteRetry } from '../../utils/quoteRetry.js';
 import { decimalGte, decimalLte } from '../../utils/numeric/index.js';
 import type { Position } from '../../types/account.js';
 import type { Quote } from '../../types/quote.js';
@@ -40,45 +42,69 @@ function extractPosition(positions: ReadonlyArray<Position>, symbol: string): Po
   return positions.find((pos) => pos.symbol === symbol) ?? null;
 }
 
-/**
- * 判断行情是否可用于下单：需同时具备有效 price 与 lotSize（类型收窄为带 lotSize 的 Quote）。
- *
- * @param quote 行情对象，可为 null/undefined
- * @returns 为 true 时收窄为 Quote & { lotSize: number }
- */
-function isQuoteReadyForOrder(
+function hasQuoteRetryElapsed(state: SwitchState, nowMs: number): boolean {
+  return state.quoteRetryNextAt === null || nowMs >= state.quoteRetryNextAt;
+}
+
+function resetQuoteRetryState(state: SwitchState): void {
+  state.quoteRetryAttempts = 0;
+  state.quoteRetryNextAt = null;
+  state.quoteRetryExhausted = false;
+}
+
+function advanceQuoteRetryState(state: SwitchState, nowMs: number): void {
+  const nextRetry = resolveNextQuoteRetry({
+    attempts: state.quoteRetryAttempts,
+    nowMs,
+    intervalMs: ORDER_QUOTE_RETRY.INTERVAL_MS,
+    maxAttempts: ORDER_QUOTE_RETRY.MAX_ATTEMPTS,
+  });
+  state.quoteRetryAttempts = nextRetry.nextAttempts;
+  state.quoteRetryNextAt = nextRetry.nextRetryAt;
+  state.quoteRetryExhausted = nextRetry.exhausted;
+}
+
+function isQuoteReadyForRebuy(
   quote: Quote | null | undefined,
 ): quote is Quote & { lotSize: number } {
   return (
+    isQuoteReadyForRequirement({ quote, requirement: 'PRICE_AND_LOT_SIZE' }) &&
     quote !== null &&
     quote !== undefined &&
-    isValidPositiveNumber(quote.price) &&
     isValidPositiveNumber(quote.lotSize)
   );
 }
 
-/** 判断席位是否为可触发换标的 READY 状态。 */
-function isReadySeat(seatState: SeatState): seatState is SeatState & { symbol: string } {
+async function fetchRealtimeQuote(
+  marketDataClient: SwitchStateMachineDeps['marketDataClient'],
+  symbol: string,
+): Promise<Quote | null> {
+  const quotes = await marketDataClient.getQuotes([symbol]);
+  return quotes.get(symbol) ?? null;
+}
+
+/** 判断席位是否为可触发换标的 ACTIVE 状态。 */
+function isActiveSeat(seatState: SeatState): seatState is SeatState & { symbol: string } {
   return (
-    seatState.status === 'READY' &&
+    seatState.status === 'ACTIVE' &&
     typeof seatState.symbol === 'string' &&
     seatState.symbol.length > 0
   );
 }
 
 /**
- * 判断周期 pending 是否应因席位重新进入 READY 而失效。
- * 仅当 lastSeatReadyAt 晚于 pendingSinceMs 时失效，表示周期基线已重置。
+ * 判断周期 pending 是否应因席位重新进入 ACTIVE 而失效。
+ * 仅当 lastSeatActivatedAt 晚于 pendingSinceMs 时失效，表示周期基线已重置。
  */
-function shouldResetPeriodicPendingBySeatReadyAt(params: {
+function shouldResetPeriodicPendingBySeatActivatedAt(params: {
   readonly pendingSinceMs: number | null;
-  readonly lastSeatReadyAt: number | null;
+  readonly lastSeatActivatedAt: number | null;
 }): boolean {
-  if (params.pendingSinceMs === null || params.lastSeatReadyAt === null) {
+  if (params.pendingSinceMs === null || params.lastSeatActivatedAt === null) {
     return false;
   }
 
-  return params.lastSeatReadyAt > params.pendingSinceMs;
+  return params.lastSeatActivatedAt > params.pendingSinceMs;
 }
 
 function resolveCancelFailureReason(outcome: CancelOrderOutcome): string {
@@ -149,6 +175,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     trader,
     orderRecorder,
     riskChecker,
+    marketDataClient,
     now,
     switchStates,
     periodicSwitchPending,
@@ -297,11 +324,12 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     }
 
     const seatState = symbolRegistry.getSeatState(monitorSymbol, direction);
-    if (!isReadySeat(seatState)) {
+    if (!isActiveSeat(seatState)) {
       clearPeriodicPending(direction);
       return;
     }
 
+    const seatVersionAtStart = symbolRegistry.getSeatVersion(monitorSymbol, direction);
     const seatSymbol = seatState.symbol;
     if (resolveSuppression(direction, seatSymbol)) {
       return;
@@ -309,7 +337,13 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
 
     const next = await findSwitchCandidate(direction);
     const latestSeatState = symbolRegistry.getSeatState(monitorSymbol, direction);
-    if (!isReadySeat(latestSeatState)) {
+    const latestSeatVersion = symbolRegistry.getSeatVersion(monitorSymbol, direction);
+    if (!isActiveSeat(latestSeatState)) {
+      clearPeriodicPending(direction);
+      return;
+    }
+
+    if (latestSeatVersion !== seatVersionAtStart || latestSeatState.symbol !== seatSymbol) {
       clearPeriodicPending(direction);
       return;
     }
@@ -341,7 +375,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
 
     let shouldRebuy = false;
     if (switchMode === 'DISTANCE' && distanceContext) {
-      const position = extractPosition(distanceContext.positions, seatSymbol);
+      const position = extractPosition(distanceContext.positions, latestSeatState.symbol);
       shouldRebuy = (position?.quantity ?? 0) > 0;
     }
 
@@ -350,14 +384,16 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
       switchMode,
       seatVersion,
       stage: 'CANCEL_PENDING',
-      oldSymbol: seatSymbol,
+      oldSymbol: latestSeatState.symbol,
       nextSymbol: next?.symbol ?? null,
       nextCallPrice: next?.callPrice ?? null,
       sellSubmitted: false,
       sellOrderId: null,
       sellNotional: null,
       shouldRebuy,
-      awaitingQuote: false,
+      quoteRetryAttempts: 0,
+      quoteRetryNextAt: null,
+      quoteRetryExhausted: false,
       cancelRequestSubmitted: false,
     });
 
@@ -383,9 +419,24 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     state: SwitchState,
     pendingOrders: ReadonlyArray<PendingOrder>,
   ): Promise<void> {
-    const { direction, quotesMap, positions } = params;
+    const { direction, positions } = params;
     const { sellAction, buyAction } = resolveDirectionSymbols(direction);
     const seatVersion = symbolRegistry.getSeatVersion(monitorSymbol, direction);
+    let cachedNextQuote: Quote | null | undefined;
+
+    async function getNextQuote(): Promise<Quote | null> {
+      if (cachedNextQuote !== undefined) {
+        return cachedNextQuote;
+      }
+
+      const nextSymbol = state.nextSymbol;
+      if (!nextSymbol) {
+        return null;
+      }
+
+      cachedNextQuote = await fetchRealtimeQuote(marketDataClient, nextSymbol);
+      return cachedNextQuote;
+    }
 
     function failAndClear(reason: string): void {
       logger.error(
@@ -417,7 +468,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
             status: 'EMPTY',
             lastSwitchAt: currentSeat.lastSwitchAt,
             lastSearchAt: nowMs,
-            lastSeatReadyAt: currentSeat.lastSeatReadyAt,
+            lastSeatActivatedAt: currentSeat.lastSeatActivatedAt,
             callPrice: null,
             searchFailCountToday: nextFailCount,
             frozenTradingDayKey,
@@ -432,7 +483,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
             status: 'EMPTY',
             lastSwitchAt: currentSeat.lastSwitchAt,
             lastSearchAt: nowMs,
-            lastSeatReadyAt: currentSeat.lastSeatReadyAt,
+            lastSeatActivatedAt: currentSeat.lastSeatActivatedAt,
             callPrice: null,
             searchFailCountToday: 0,
             frozenTradingDayKey: null,
@@ -490,6 +541,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
       }
 
       state.cancelRequestSubmitted = false;
+      resetQuoteRetryState(state);
       state.stage = state.switchMode === 'PERIODIC' ? 'BIND_NEW' : 'SELL_OUT';
     }
 
@@ -507,10 +559,21 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
           return;
         }
 
-        const quote = quotesMap.get(state.oldSymbol);
-        if (!isQuoteReadyForOrder(quote)) {
+        if (!hasQuoteRetryElapsed(state, now().getTime())) {
           return;
         }
+
+        const quote = await fetchRealtimeQuote(marketDataClient, state.oldSymbol);
+        if (!isQuoteReadyForRequirement({ quote, requirement: 'PRICE' })) {
+          advanceQuoteRetryState(state, now().getTime());
+          if (state.quoteRetryExhausted) {
+            failAndClear('QUOTE_RETRY_EXHAUSTED:SELL_OUT');
+          }
+
+          return;
+        }
+
+        resetQuoteRetryState(state);
 
         const signal = buildOrderSignal({
           action: sellAction,
@@ -578,7 +641,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
           status: 'SWITCHING',
           lastSwitchAt: bindNowMs,
           lastSearchAt: bindNowMs,
-          lastSeatReadyAt: currentSeat.lastSeatReadyAt,
+          lastSeatActivatedAt: currentSeat.lastSeatActivatedAt,
           callPrice: null,
           searchFailCountToday: 0,
           frozenTradingDayKey: null,
@@ -586,6 +649,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
         false,
       );
 
+      resetQuoteRetryState(state);
       state.stage = state.shouldRebuy ? 'WAIT_QUOTE' : 'COMPLETE';
     }
 
@@ -596,13 +660,21 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
         return;
       }
 
-      const quote = quotesMap.get(nextSymbol);
-      if (!isQuoteReadyForOrder(quote)) {
-        state.awaitingQuote = true;
+      if (!hasQuoteRetryElapsed(state, now().getTime())) {
         return;
       }
 
-      state.awaitingQuote = false;
+      const quote = await getNextQuote();
+      if (!isQuoteReadyForRebuy(quote)) {
+
+        advanceQuoteRetryState(state, now().getTime());
+        if (state.quoteRetryExhausted) {
+          failAndClear('QUOTE_RETRY_EXHAUSTED:WAIT_QUOTE');
+        }
+
+        return;
+      }
+
       state.stage = 'REBUY';
     }
 
@@ -613,12 +685,24 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
         return;
       }
 
-      const quote = quotesMap.get(nextSymbol);
-      if (!isQuoteReadyForOrder(quote)) {
-        state.awaitingQuote = true;
+      const quote = await getNextQuote();
+      if (!isQuoteReadyForRebuy(quote)) {
+        if (!hasQuoteRetryElapsed(state, now().getTime())) {
+          state.stage = 'WAIT_QUOTE';
+          return;
+        }
+
+        advanceQuoteRetryState(state, now().getTime());
+        if (state.quoteRetryExhausted) {
+          failAndClear('QUOTE_RETRY_EXHAUSTED:REBUY');
+          return;
+        }
+
         state.stage = 'WAIT_QUOTE';
         return;
       }
+
+      resetQuoteRetryState(state);
 
       const buyNotional = state.sellNotional;
       if (!isValidPositiveNumber(buyNotional)) {
@@ -663,10 +747,10 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
           direction,
           buildSeatState({
             symbol: nextSymbol,
-            status: 'READY',
+            status: 'ACTIVATING',
             lastSwitchAt: completeNowMs,
             lastSearchAt: completeNowMs,
-            lastSeatReadyAt: completeNowMs,
+            lastSeatActivatedAt: null,
             callPrice: state.nextCallPrice ?? null,
             searchFailCountToday: 0,
             frozenTradingDayKey: null,
@@ -700,7 +784,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     }
 
     const seatState = symbolRegistry.getSeatState(monitorSymbol, direction);
-    if (!isReadySeat(seatState)) {
+    if (!isActiveSeat(seatState)) {
       clearPeriodicPending(direction);
       return;
     }
@@ -708,9 +792,9 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     const periodicPendingState = resolvePeriodicPending(direction);
     if (
       periodicPendingState.pending &&
-      shouldResetPeriodicPendingBySeatReadyAt({
+      shouldResetPeriodicPendingBySeatActivatedAt({
         pendingSinceMs: periodicPendingState.pendingSinceMs,
-        lastSeatReadyAt: seatState.lastSeatReadyAt,
+        lastSeatActivatedAt: seatState.lastSeatActivatedAt,
       })
     ) {
       clearPeriodicPending(direction);
@@ -760,13 +844,13 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
       return;
     }
 
-    if (seatState.lastSeatReadyAt === null) {
+    if (seatState.lastSeatActivatedAt === null) {
       clearPeriodicPending(direction);
       return;
     }
 
     const elapsedTradingMs = calculateTradingDurationMsBetween({
-      startMs: seatState.lastSeatReadyAt,
+      startMs: seatState.lastSeatActivatedAt,
       endMs: currentTime.getTime(),
       calendarSnapshot: getTradingCalendarSnapshot(),
     });
@@ -817,7 +901,6 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
   async function maybeSwitchOnDistance({
     direction,
     monitorPrice,
-    quotesMap,
     positions,
   }: SwitchOnDistanceParams): Promise<void> {
     if (!autoSearchConfig.autoSearchEnabled) {
@@ -832,7 +915,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
 
       const pendingOrdersForOldSymbol = await trader.getPendingOrders([pendingSwitch.oldSymbol]);
       await processSwitchState(
-        { direction, monitorPrice, quotesMap, positions },
+        { direction, monitorPrice, positions },
         pendingSwitch,
         pendingOrdersForOldSymbol,
       );
@@ -844,7 +927,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     }
 
     const seatState = symbolRegistry.getSeatState(monitorSymbol, direction);
-    if (!isReadySeat(seatState)) {
+    if (!isActiveSeat(seatState)) {
       clearPeriodicPending(direction);
       return;
     }
@@ -869,7 +952,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
         direction,
         reason: '距回收价阈值越界',
         switchMode: 'DISTANCE',
-        distanceContext: { direction, monitorPrice, quotesMap, positions },
+        distanceContext: { direction, monitorPrice, positions },
         processImmediately: true,
       });
     }

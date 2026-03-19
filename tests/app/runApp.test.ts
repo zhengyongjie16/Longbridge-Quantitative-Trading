@@ -321,7 +321,6 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
         },
         schedule: () => {},
         stopAndDrain: async () => {},
-        clearLatestQuotes: () => {},
       },
       postTradeRefresher: {
         start: () => {

@@ -13,6 +13,7 @@ import { createTradingConfig } from '../../mock/factories/configFactory.js';
 import { createPushOrderChanged } from '../../mock/factories/tradeFactory.js';
 import { createTradeContextMock } from '../../mock/longbridge/tradeContextMock.js';
 import {
+  createMarketDataClientDouble,
   createOrderRecorderDouble,
   createProtectiveLiquidationEpisodeTrackerDouble,
   createSymbolRegistryDouble,
@@ -34,6 +35,7 @@ function createDeps(params?: {
       clearCache: () => {},
       getPendingOrders: async () => [],
     },
+    marketDataClient: createMarketDataClientDouble(),
     orderRecorder: params?.orderRecorder ?? createOrderRecorderDouble(),
     dailyLossTracker: {
       resetAll: () => {},

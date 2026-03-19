@@ -4,7 +4,8 @@
  * 功能：
  * - 提供「获取上下文 + 校验席位快照 + 解析席位就绪」的公共流程，供 liquidationDistance、unrealizedLoss 等 handler 复用
  */
-import { isSeatReady } from '../../../services/autoSymbolManager/utils.js';
+import { isSeatActive } from '../../../services/autoSymbolManager/utils.js';
+import { logger } from '../../../utils/logger/index.js';
 import type { SeatState } from '../../../types/seat.js';
 import type { RefreshGate } from '../../../utils/types.js';
 import type { MonitorTaskContext, SeatSnapshot } from './types.js';
@@ -51,6 +52,7 @@ export async function evaluateMonitorContextAndSeatReadiness(params: {
   const { getContextOrSkip, refreshGate, monitorSymbol, longSnapshot, shortSnapshot } = params;
   const context = getContextOrSkip(monitorSymbol);
   if (!context) {
+    logger.debug(`[MonitorTaskProcessor] 上下文缺失，跳过 monitor=${monitorSymbol}`);
     return null;
   }
 
@@ -62,6 +64,7 @@ export async function evaluateMonitorContextAndSeatReadiness(params: {
     refreshGate,
   });
   if (!snapshotValidity) {
+    logger.debug(`[MonitorTaskProcessor] 席位快照失效，跳过 monitor=${monitorSymbol}`);
     return null;
   }
 
@@ -69,7 +72,7 @@ export async function evaluateMonitorContextAndSeatReadiness(params: {
     monitorSymbol,
     context,
     snapshotValidity,
-    isSeatUsable: isSeatReady,
+    isSeatUsable: isSeatActive,
   });
   return { context, seatReadiness };
 }

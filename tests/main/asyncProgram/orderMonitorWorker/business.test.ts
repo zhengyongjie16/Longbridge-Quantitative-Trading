@@ -8,27 +8,10 @@ import { describe, expect, it } from 'bun:test';
 
 import { createOrderMonitorWorker } from '../../../../src/main/asyncProgram/orderMonitorWorker/index.js';
 
-import type { Quote } from '../../../../src/types/quote.js';
-
 type Deferred = {
   readonly promise: Promise<void>;
   readonly resolve: () => void;
 };
-
-function createQuotes(symbol: string, price: number): ReadonlyMap<string, Quote | null> {
-  return new Map([
-    [
-      symbol,
-      {
-        symbol,
-        name: symbol,
-        price,
-        prevClose: price,
-        timestamp: Date.now(),
-      },
-    ],
-  ]);
-}
 
 function createDeferred(): Deferred {
   let resolver: (() => void) | undefined;
@@ -56,35 +39,34 @@ async function waitUntil(predicate: () => boolean, timeoutMs: number = 800): Pro
 
 describe('orderMonitorWorker business flow', () => {
   it('uses latest-overwrite strategy while keeping single in-flight execution', async () => {
-    const startedPrices: number[] = [];
+    let runCount = 0;
     const finishQueue: Array<() => void> = [];
 
     const worker = createOrderMonitorWorker({
-      monitorAndManageOrders: async (quotesMap) => {
-        const price = quotesMap.get('BULL.HK')?.price ?? 0;
-        startedPrices.push(price);
+      monitorAndManageOrders: async () => {
+        runCount += 1;
         await new Promise<void>((resolve) => {
           finishQueue.push(resolve);
         });
       },
     });
 
-    worker.schedule(createQuotes('BULL.HK', 1));
-    await waitUntil(() => startedPrices.length === 1);
+    worker.schedule();
+    await waitUntil(() => runCount === 1);
 
-    worker.schedule(createQuotes('BULL.HK', 2));
-    worker.schedule(createQuotes('BULL.HK', 3));
+    worker.schedule();
+    worker.schedule();
 
     const firstFinish = finishQueue.shift();
     firstFinish?.();
 
-    await waitUntil(() => startedPrices.length === 2);
+    await waitUntil(() => runCount === 2);
     const secondFinish = finishQueue.shift();
     secondFinish?.();
 
     await worker.stopAndDrain();
 
-    expect(startedPrices).toEqual([1, 3]);
+    expect(runCount).toBe(2);
   });
 
   it('stopAndDrain waits for in-flight run and ignores new schedules after stop', async () => {
@@ -99,11 +81,11 @@ describe('orderMonitorWorker business flow', () => {
       },
     });
 
-    worker.schedule(createQuotes('BULL.HK', 1));
+    worker.schedule();
     await waitUntil(() => runningCount === 1);
 
     const drainPromise = worker.stopAndDrain();
-    worker.schedule(createQuotes('BULL.HK', 2));
+    worker.schedule();
 
     await Bun.sleep(30);
     expect(runningCount).toBe(1);
@@ -114,30 +96,29 @@ describe('orderMonitorWorker business flow', () => {
     expect(runningCount).toBe(1);
   });
 
-  it('clearLatestQuotes drops pending latest task after current run', async () => {
-    const executedPrices: number[] = [];
+  it('drops queued rerun after stopAndDrain clears pending work', async () => {
+    let runCount = 0;
     let firstRunGate: Deferred | undefined;
 
     const worker = createOrderMonitorWorker({
-      monitorAndManageOrders: async (quotesMap) => {
-        executedPrices.push(quotesMap.get('BULL.HK')?.price ?? 0);
-        if (executedPrices.length === 1) {
+      monitorAndManageOrders: async () => {
+        runCount += 1;
+        if (runCount === 1) {
           firstRunGate = createDeferred();
           await firstRunGate.promise;
         }
       },
     });
 
-    worker.schedule(createQuotes('BULL.HK', 1));
-    await waitUntil(() => executedPrices.length === 1);
+    worker.schedule();
+    await waitUntil(() => runCount === 1);
 
-    worker.schedule(createQuotes('BULL.HK', 2));
-    worker.clearLatestQuotes();
+    worker.schedule();
 
+    const drainPromise = worker.stopAndDrain();
     firstRunGate?.resolve();
-    await Bun.sleep(50);
-    await worker.stopAndDrain();
+    await drainPromise;
 
-    expect(executedPrices).toEqual([1]);
+    expect(runCount).toBe(1);
   });
 });

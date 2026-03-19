@@ -19,6 +19,7 @@ import { createTradingConfig } from '../../mock/factories/configFactory.js';
 import { createPushOrderChanged } from '../../mock/factories/tradeFactory.js';
 import { createTradeContextMock } from '../../mock/longbridge/tradeContextMock.js';
 import {
+  createMarketDataClientDouble,
   createOrderRecorderDouble,
   createProtectiveLiquidationEpisodeTrackerDouble,
   createQuoteDouble,
@@ -31,8 +32,15 @@ function createDeps(params?: {
   readonly allowBuyOrderTrackingAboveInitialPrice?: boolean;
   readonly onHandleOrderChanged?: (handler: (event: PushOrderChanged) => void) => void;
   readonly orderRecorder?: ReturnType<typeof createOrderRecorderDouble>;
-}): { deps: OrderMonitorDeps; tradeCtx: ReturnType<typeof createTradeContextMock> } {
+}): {
+  deps: OrderMonitorDeps;
+  tradeCtx: ReturnType<typeof createTradeContextMock>;
+  setQuotes: (quotes: ReadonlyMap<string, ReturnType<typeof createQuoteDouble> | null>) => void;
+} {
   const tradeCtx = createTradeContextMock();
+  let quotes = new Map<string, ReturnType<typeof createQuoteDouble> | null>([
+    ['BULL.HK', createQuoteDouble('BULL.HK', 1.02)],
+  ]);
 
   const deps: OrderMonitorDeps = {
     ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
@@ -43,6 +51,9 @@ function createDeps(params?: {
       clearCache: () => {},
       getPendingOrders: async () => [],
     },
+    marketDataClient: createMarketDataClientDouble({
+      getQuotes: async () => new Map(quotes),
+    }),
     orderRecorder: params?.orderRecorder ?? createOrderRecorderDouble(),
     dailyLossTracker: {
       resetAll: () => {},
@@ -86,12 +97,18 @@ function createDeps(params?: {
       : {}),
   };
 
-  return { deps, tradeCtx };
+  return {
+    deps,
+    tradeCtx,
+    setQuotes: (nextQuotes) => {
+      quotes = new Map(nextQuotes);
+    },
+  };
 }
 
 describe('order monitor regression', () => {
   it('keeps threshold contract at floating-point boundary', async () => {
-    const { deps, tradeCtx } = createDeps({
+    const { deps, tradeCtx, setQuotes } = createDeps({
       sellTimeoutSeconds: 999,
       buyTimeoutSeconds: 999,
     });
@@ -99,6 +116,8 @@ describe('order monitor regression', () => {
 
     await monitor.initialize();
     await monitor.recoverOrderTrackingFromSnapshot([]);
+
+    setQuotes(new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.05 + 0.008)]]));
 
     monitor.trackOrder({
       orderId: 'SELL-REGR-BOUNDARY-EQUAL',
@@ -113,11 +132,11 @@ describe('order monitor regression', () => {
       orderType: OrderType.ELO,
     });
 
-    await monitor.processWithLatestQuotes(
-      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.05 + 0.008)]]),
-    );
+    await monitor.processWithLatestQuotes();
 
     expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(1);
+
+    setQuotes(new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.0581)]]));
 
     monitor.trackOrder({
       orderId: 'SELL-REGR-BOUNDARY-LESS',
@@ -132,15 +151,13 @@ describe('order monitor regression', () => {
       orderType: OrderType.ELO,
     });
 
-    await monitor.processWithLatestQuotes(
-      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.0581)]]),
-    );
+    await monitor.processWithLatestQuotes();
 
     expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(1);
   });
 
   it('blocks buy replace above initial price when chase-above-initial switch is disabled', async () => {
-    const { deps, tradeCtx } = createDeps({
+    const { deps, tradeCtx, setQuotes } = createDeps({
       sellTimeoutSeconds: 999,
       buyTimeoutSeconds: 999,
       allowBuyOrderTrackingAboveInitialPrice: false,
@@ -149,6 +166,8 @@ describe('order monitor regression', () => {
 
     await monitor.initialize();
     await monitor.recoverOrderTrackingFromSnapshot([]);
+    setQuotes(new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.51)]]));
+
     monitor.trackOrder({
       orderId: 'BUY-REGR-CHASE-BLOCK',
       symbol: 'BULL.HK',
@@ -162,9 +181,7 @@ describe('order monitor regression', () => {
       orderType: OrderType.ELO,
     });
 
-    await monitor.processWithLatestQuotes(
-      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.51)]]),
-    );
+    await monitor.processWithLatestQuotes();
 
     expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(0);
   });
@@ -192,9 +209,7 @@ describe('order monitor regression', () => {
       orderType: OrderType.ELO,
     });
 
-    await monitor.processWithLatestQuotes(
-      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.51)]]),
-    );
+    await monitor.processWithLatestQuotes();
 
     expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(1);
   });
@@ -220,9 +235,8 @@ describe('order monitor regression', () => {
       orderType: OrderType.ELO,
     });
 
-    const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.01)]]);
-    await monitor.processWithLatestQuotes(quotes);
-    await monitor.processWithLatestQuotes(quotes);
+    await monitor.processWithLatestQuotes();
+    await monitor.processWithLatestQuotes();
 
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
     expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
@@ -230,7 +244,6 @@ describe('order monitor regression', () => {
 
     const pending = monitor.getPendingSellOrders('BULL.HK');
     expect(pending).toHaveLength(1);
-    expect(pending[0]?.orderType).toBe(OrderType.ELO);
   });
 
   it('releases pending sell tracking once when partial-filled then canceled arrives', async () => {

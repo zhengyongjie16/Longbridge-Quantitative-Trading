@@ -58,7 +58,7 @@ describe('auto-symbol-switch integration', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -67,7 +67,7 @@ describe('auto-symbol-switch integration', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -135,7 +135,10 @@ describe('auto-symbol-switch integration', () => {
     const manager = createAutoSymbolManager({
       monitorConfig,
       symbolRegistry,
-      marketDataClient: createMarketDataClientDouble(),
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async (symbols) =>
+          new Map([...symbols].map((symbol) => [symbol, createQuoteDouble(symbol, 1, 100)])),
+      }),
       trader,
       orderRecorder,
       riskChecker,
@@ -150,17 +153,19 @@ describe('auto-symbol-switch integration', () => {
     });
 
     const searchedSeat = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
-    expect(searchedSeat.status).toBe('READY');
+    expect(searchedSeat.status).toBe('ACTIVATING');
     expect(searchedSeat.symbol).toBe('OLD_BULL.HK');
     expect(symbolRegistry.getSeatVersion(monitorConfig.monitorSymbol, 'LONG')).toBe(2);
+
+    symbolRegistry.updateSeatState(monitorConfig.monitorSymbol, 'LONG', {
+      ...searchedSeat,
+      status: 'ACTIVE',
+      lastSeatActivatedAt: Date.parse('2026-02-16T01:00:00.000Z'),
+    });
 
     await manager.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-      quotesMap: new Map([
-        ['OLD_BULL.HK', createQuoteDouble('OLD_BULL.HK', 1, 100)],
-        ['NEW_BULL.HK', createQuoteDouble('NEW_BULL.HK', 1, 100)],
-      ]),
       positions: [
         {
           symbol: 'OLD_BULL.HK',
@@ -182,10 +187,6 @@ describe('auto-symbol-switch integration', () => {
     await manager.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-      quotesMap: new Map([
-        ['OLD_BULL.HK', createQuoteDouble('OLD_BULL.HK', 1, 100)],
-        ['NEW_BULL.HK', createQuoteDouble('NEW_BULL.HK', 1, 100)],
-      ]),
       positions: [],
     });
 
@@ -195,7 +196,7 @@ describe('auto-symbol-switch integration', () => {
     expect(executedActions[1]?.quantity).toBe(200);
 
     const finalSeat = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
-    expect(finalSeat.status).toBe('READY');
+    expect(finalSeat.status).toBe('ACTIVATING');
     expect(finalSeat.symbol).toBe('NEW_BULL.HK');
     expect(finalSeat.callPrice).toBe(21_000);
     expect(symbolRegistry.getSeatVersion(monitorConfig.monitorSymbol, 'LONG')).toBe(3);
@@ -231,7 +232,7 @@ describe('auto-symbol-switch integration', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -240,7 +241,7 @@ describe('auto-symbol-switch integration', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -337,7 +338,10 @@ describe('auto-symbol-switch integration', () => {
     const manager = createAutoSymbolManager({
       monitorConfig,
       symbolRegistry,
-      marketDataClient: createMarketDataClientDouble(),
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async (symbols) =>
+          new Map([...symbols].map((symbol) => [symbol, createQuoteDouble(symbol, 1, 100)])),
+      }),
       trader,
       orderRecorder,
       riskChecker,
@@ -351,13 +355,18 @@ describe('auto-symbol-switch integration', () => {
       canTradeNow: true,
     });
 
+    const searchedSeat = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
+    expect(searchedSeat.status).toBe('ACTIVATING');
+    expect(searchedSeat.symbol).toBe('OLD_BULL.HK');
+    symbolRegistry.updateSeatState(monitorConfig.monitorSymbol, 'LONG', {
+      ...searchedSeat,
+      status: 'ACTIVE',
+      lastSeatActivatedAt: Date.parse('2026-02-16T01:00:00.000Z'),
+    });
+
     await manager.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-      quotesMap: new Map([
-        ['OLD_BULL.HK', createQuoteDouble('OLD_BULL.HK', 1, 100)],
-        ['NEW_BULL.HK', createQuoteDouble('NEW_BULL.HK', 1, 100)],
-      ]),
       positions: [
         {
           symbol: 'OLD_BULL.HK',
@@ -375,10 +384,6 @@ describe('auto-symbol-switch integration', () => {
     await manager.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-      quotesMap: new Map([
-        ['OLD_BULL.HK', createQuoteDouble('OLD_BULL.HK', 1, 100)],
-        ['NEW_BULL.HK', createQuoteDouble('NEW_BULL.HK', 1, 100)],
-      ]),
       positions: [],
     });
 
@@ -399,7 +404,7 @@ describe('auto-symbol-switch integration', () => {
     expect(Number(rebuyPayload.submittedQuantity.toString())).toBe(200);
 
     const finalSeat = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
-    expect(finalSeat.status).toBe('READY');
+    expect(finalSeat.status).toBe('ACTIVATING');
     expect(finalSeat.symbol).toBe('NEW_BULL.HK');
     expect(manager.hasPendingSwitch('LONG')).toBeFalse();
   });

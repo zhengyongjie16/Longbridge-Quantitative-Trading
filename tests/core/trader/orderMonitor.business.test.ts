@@ -20,11 +20,13 @@ import { createTradingConfig } from '../../../mock/factories/configFactory.js';
 import { createPushOrderChanged } from '../../../mock/factories/tradeFactory.js';
 import { createTradeContextMock } from '../../../mock/longbridge/tradeContextMock.js';
 import {
+  createMarketDataClientDouble,
   createOrderRecorderDouble,
   createProtectiveLiquidationEpisodeTrackerDouble,
   createQuoteDouble,
   createSymbolRegistryDouble,
 } from '../../helpers/testDoubles.js';
+import type { Quote } from '../../../src/types/quote.js';
 import type { OrderRecord, PendingSellInfo, RawOrderFromAPI } from '../../../src/types/services.js';
 import { isRecord } from '../../../src/utils/helpers/index.js';
 
@@ -59,26 +61,31 @@ function createDeps(params?: {
   readonly protectiveLiquidationEpisodeTrackerOverride?: OrderMonitorDeps['protectiveLiquidationEpisodeTracker'];
   readonly orderRecorderOverride?: OrderMonitorDeps['orderRecorder'];
   readonly dailyLossTrackerOverride?: OrderMonitorDeps['dailyLossTracker'];
-}): { deps: OrderMonitorDeps; tradeCtx: ReturnType<typeof createTradeContextMock> } {
+}): {
+  deps: OrderMonitorDeps;
+  tradeCtx: ReturnType<typeof createTradeContextMock>;
+  setQuotes: (quotes: ReadonlyMap<string, Quote | null>) => void;
+} {
   const tradeCtx = createTradeContextMock();
+  let quotesMap = new Map<string, Quote | null>([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]);
   const pendingSellSnapshot = new Map<string, PendingSellInfo>();
   const symbolRegistry = createSymbolRegistryDouble({
     monitorSymbol: 'HSI.HK',
     longSeat: {
       symbol: 'BULL.HK',
-      status: 'READY',
+      status: 'ACTIVE',
       lastSwitchAt: null,
       lastSearchAt: null,
-      lastSeatReadyAt: null,
+      lastSeatActivatedAt: null,
       searchFailCountToday: 0,
       frozenTradingDayKey: null,
     },
     shortSeat: {
       symbol: 'BEAR.HK',
-      status: 'READY',
+      status: 'ACTIVE',
       lastSwitchAt: null,
       lastSearchAt: null,
-      lastSeatReadyAt: null,
+      lastSeatActivatedAt: null,
       searchFailCountToday: 0,
       frozenTradingDayKey: null,
     },
@@ -219,6 +226,9 @@ function createDeps(params?: {
       clearCache: () => {},
       getPendingOrders: async () => [],
     },
+    marketDataClient: createMarketDataClientDouble({
+      getQuotes: async () => quotesMap,
+    }),
     orderRecorder,
     dailyLossTracker: params?.dailyLossTrackerOverride ?? {
       resetAll: () => {},
@@ -252,6 +262,9 @@ function createDeps(params?: {
   return {
     deps,
     tradeCtx,
+    setQuotes: (quotes) => {
+      quotesMap = new Map(quotes);
+    },
   };
 }
 
@@ -281,7 +294,7 @@ async function executeReplaceScenario(params: {
   readonly replaceCalls: number;
   readonly submittedPrice: number | null;
 }> {
-  const { deps, tradeCtx } = createDeps({
+  const { deps, tradeCtx, setQuotes } = createDeps({
     sellTimeoutSeconds: 999,
     buyTimeoutSeconds: 999,
   });
@@ -301,10 +314,11 @@ async function executeReplaceScenario(params: {
     orderType: OrderType.ELO,
   });
 
-  const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', params.quotePrice)]]);
+  setQuotes(new Map([['BULL.HK', createQuoteDouble('BULL.HK', params.quotePrice)]]));
+
   const processTimes = params.processTimes ?? 1;
   for (let index = 0; index < processTimes; index += 1) {
-    await monitor.processWithLatestQuotes(quotes);
+    await monitor.processWithLatestQuotes();
   }
 
   const pendingOrders = monitor.getPendingSellOrders('BULL.HK');
@@ -409,7 +423,7 @@ describe('orderMonitor business flow', () => {
   });
 
   it('allows buy order tracking above initial price when config is enabled', async () => {
-    const { deps, tradeCtx } = createDeps({
+    const { deps, tradeCtx, setQuotes } = createDeps({
       sellTimeoutSeconds: 999,
       buyTimeoutSeconds: 999,
       allowBuyOrderTrackingAboveInitialPrice: true,
@@ -430,16 +444,15 @@ describe('orderMonitor business flow', () => {
       orderType: OrderType.ELO,
     });
 
-    await monitor.processWithLatestQuotes(
-      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.51)]]),
-    );
+    setQuotes(new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.51)]]));
+    await monitor.processWithLatestQuotes();
 
     expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(1);
     expect(extractReplaceOrderPrices(tradeCtx.getCalls('replaceOrder'))).toEqual([0.51]);
   });
 
   it('allows buy order tracking downward when config disables chasing above initial price', async () => {
-    const { deps, tradeCtx } = createDeps({
+    const { deps, tradeCtx, setQuotes } = createDeps({
       sellTimeoutSeconds: 999,
       buyTimeoutSeconds: 999,
       allowBuyOrderTrackingAboveInitialPrice: false,
@@ -460,9 +473,8 @@ describe('orderMonitor business flow', () => {
       orderType: OrderType.ELO,
     });
 
-    await monitor.processWithLatestQuotes(
-      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.49)]]),
-    );
+    setQuotes(new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.49)]]));
+    await monitor.processWithLatestQuotes();
 
     expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(1);
     expect(extractReplaceOrderPrices(tradeCtx.getCalls('replaceOrder'))).toEqual([0.49]);
@@ -490,15 +502,13 @@ describe('orderMonitor business flow', () => {
       orderType: OrderType.ELO,
     });
 
-    await monitor.processWithLatestQuotes(
-      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.51)]]),
-    );
+    await monitor.processWithLatestQuotes();
 
     expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(0);
   });
 
   it('allows buy order to return to initial price after lowering when config disables chasing above initial price', async () => {
-    const { deps, tradeCtx } = createDeps({
+    const { deps, tradeCtx, setQuotes } = createDeps({
       sellTimeoutSeconds: 999,
       buyTimeoutSeconds: 999,
       allowBuyOrderTrackingAboveInitialPrice: false,
@@ -519,20 +529,18 @@ describe('orderMonitor business flow', () => {
       orderType: OrderType.ELO,
     });
 
-    await monitor.processWithLatestQuotes(
-      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.49)]]),
-    );
+    setQuotes(new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.49)]]));
+    await monitor.processWithLatestQuotes();
 
-    await monitor.processWithLatestQuotes(
-      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.5)]]),
-    );
+    setQuotes(new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.5)]]));
+    await monitor.processWithLatestQuotes();
 
     expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(2);
     expect(extractReplaceOrderPrices(tradeCtx.getCalls('replaceOrder'))).toEqual([0.49, 0.5]);
   });
 
   it('keeps sell replace behavior unchanged when config disables buy chasing above initial price', async () => {
-    const { deps, tradeCtx } = createDeps({
+    const { deps, tradeCtx, setQuotes } = createDeps({
       sellTimeoutSeconds: 999,
       buyTimeoutSeconds: 999,
       allowBuyOrderTrackingAboveInitialPrice: false,
@@ -553,16 +561,15 @@ describe('orderMonitor business flow', () => {
       orderType: OrderType.ELO,
     });
 
-    await monitor.processWithLatestQuotes(
-      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.51)]]),
-    );
+    setQuotes(new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.51)]]));
+    await monitor.processWithLatestQuotes();
 
     expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(1);
     expect(extractReplaceOrderPrices(tradeCtx.getCalls('replaceOrder'))).toEqual([0.51]);
   });
 
   it('uses restored pending buy price as initial submitted price baseline after recovery', async () => {
-    const { deps, tradeCtx } = createDeps({
+    const { deps, tradeCtx, setQuotes } = createDeps({
       sellTimeoutSeconds: 999,
       buyTimeoutSeconds: 999,
       allowBuyOrderTrackingAboveInitialPrice: false,
@@ -582,14 +589,12 @@ describe('orderMonitor business flow', () => {
       }),
     ]);
 
-    await monitor.processWithLatestQuotes(
-      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.5)]]),
-    );
+    setQuotes(new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.5)]]));
+    await monitor.processWithLatestQuotes();
     expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(0);
 
-    await monitor.processWithLatestQuotes(
-      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.48)]]),
-    );
+    setQuotes(new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0.48)]]));
+    await monitor.processWithLatestQuotes();
     expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(1);
     expect(extractReplaceOrderPrices(tradeCtx.getCalls('replaceOrder'))).toEqual([0.48]);
   });
@@ -616,9 +621,7 @@ describe('orderMonitor business flow', () => {
       orderType: OrderType.ELO,
     });
 
-    await monitor.processWithLatestQuotes(
-      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]),
-    );
+    await monitor.processWithLatestQuotes();
 
     const cancelCalls = tradeCtx.getCalls('cancelOrder');
     const submitCalls = tradeCtx.getCalls('submitOrder');
@@ -655,8 +658,7 @@ describe('orderMonitor business flow', () => {
       isProtectiveLiquidation: false,
       orderType: OrderType.ELO,
     });
-    const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]);
-    await monitor.processWithLatestQuotes(quotes);
+    await monitor.processWithLatestQuotes();
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
     handleOrderChanged(
       createPushOrderChanged({
@@ -672,7 +674,7 @@ describe('orderMonitor business flow', () => {
         updatedAtMs: Date.parse('2026-02-25T03:11:00.000Z'),
       }),
     );
-    await monitor.processWithLatestQuotes(quotes);
+    await monitor.processWithLatestQuotes();
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
     expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
     expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
@@ -704,8 +706,7 @@ describe('orderMonitor business flow', () => {
       isProtectiveLiquidation: false,
       orderType: OrderType.ELO,
     });
-    const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]);
-    await monitor.processWithLatestQuotes(quotes);
+    await monitor.processWithLatestQuotes();
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
     handleOrderChanged(
       createPushOrderChanged({
@@ -721,7 +722,7 @@ describe('orderMonitor business flow', () => {
         updatedAtMs: Date.parse('2026-02-25T03:12:00.000Z'),
       }),
     );
-    await monitor.processWithLatestQuotes(quotes);
+    await monitor.processWithLatestQuotes();
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
     expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
   });
@@ -751,8 +752,7 @@ describe('orderMonitor business flow', () => {
       isProtectiveLiquidation: false,
       orderType: OrderType.ELO,
     });
-    const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]);
-    await monitor.processWithLatestQuotes(quotes);
+    await monitor.processWithLatestQuotes();
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
     handleOrderChanged(
       createPushOrderChanged({
@@ -768,7 +768,7 @@ describe('orderMonitor business flow', () => {
         updatedAtMs: Date.parse('2026-02-25T03:13:00.000Z'),
       }),
     );
-    await monitor.processWithLatestQuotes(quotes);
+    await monitor.processWithLatestQuotes();
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
     expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
     expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
@@ -800,8 +800,7 @@ describe('orderMonitor business flow', () => {
       isProtectiveLiquidation: false,
       orderType: OrderType.ELO,
     });
-    const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]);
-    await monitor.processWithLatestQuotes(quotes);
+    await monitor.processWithLatestQuotes();
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
     handleOrderChanged(
       createPushOrderChanged({
@@ -817,7 +816,7 @@ describe('orderMonitor business flow', () => {
         updatedAtMs: Date.parse('2026-02-25T03:14:00.000Z'),
       }),
     );
-    await monitor.processWithLatestQuotes(quotes);
+    await monitor.processWithLatestQuotes();
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
     expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
   });
@@ -844,9 +843,7 @@ describe('orderMonitor business flow', () => {
       liquidationTriggerLimit: 3,
     });
 
-    await monitor.processWithLatestQuotes(
-      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]),
-    );
+    await monitor.processWithLatestQuotes();
 
     expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
     expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
@@ -883,8 +880,7 @@ describe('orderMonitor business flow', () => {
       orderType: OrderType.ELO,
     });
 
-    const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]);
-    await monitor.processWithLatestQuotes(quotes);
+    await monitor.processWithLatestQuotes();
 
     handleOrderChanged(
       createPushOrderChanged({
@@ -901,7 +897,7 @@ describe('orderMonitor business flow', () => {
       }),
     );
 
-    await monitor.processWithLatestQuotes(quotes);
+    await monitor.processWithLatestQuotes();
 
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
     expect(tradeCtx.getCalls('submitOrder')).toHaveLength(1);
@@ -939,9 +935,7 @@ describe('orderMonitor business flow', () => {
     ]);
     const allocateCallsBeforeTimeoutProcessing = allocateCalls;
 
-    await monitor.processWithLatestQuotes(
-      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]),
-    );
+    await monitor.processWithLatestQuotes();
 
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
     expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
@@ -971,9 +965,7 @@ describe('orderMonitor business flow', () => {
       orderType: OrderType.ELO,
     });
 
-    await monitor.processWithLatestQuotes(
-      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]),
-    );
+    await monitor.processWithLatestQuotes();
 
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
     expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
@@ -1002,9 +994,7 @@ describe('orderMonitor business flow', () => {
       orderType: OrderType.ELO,
     });
 
-    await monitor.processWithLatestQuotes(
-      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]),
-    );
+    await monitor.processWithLatestQuotes();
 
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
     expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
@@ -1054,9 +1044,7 @@ describe('orderMonitor business flow', () => {
       }),
     );
 
-    await monitor.processWithLatestQuotes(
-      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.1)]]),
-    );
+    await monitor.processWithLatestQuotes();
 
     expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(0);
   });
@@ -1319,9 +1307,7 @@ describe('orderMonitor business flow', () => {
       }),
     ]);
 
-    await monitor.processWithLatestQuotes(
-      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.2)]]),
-    );
+    await monitor.processWithLatestQuotes();
 
     expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(0);
   });
@@ -1353,9 +1339,7 @@ describe('orderMonitor business flow', () => {
       orderType: OrderType.ELO,
     });
 
-    await monitor.processWithLatestQuotes(
-      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]),
-    );
+    await monitor.processWithLatestQuotes();
 
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
     expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
@@ -1401,9 +1385,7 @@ describe('orderMonitor business flow', () => {
       orderType: OrderType.ELO,
     });
 
-    await monitor.processWithLatestQuotes(
-      new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]),
-    );
+    await monitor.processWithLatestQuotes();
 
     handleOrderChanged(
       createPushOrderChanged({
@@ -1950,13 +1932,61 @@ describe('orderMonitor business flow', () => {
         orderType: OrderType.ELO,
       });
 
-      const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.02)]]);
-      await monitor.processWithLatestQuotes(quotes);
+      await monitor.processWithLatestQuotes();
       nowMs += 2_000;
-      await monitor.processWithLatestQuotes(quotes);
+      await monitor.processWithLatestQuotes();
 
       expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
       expect(tradeCtx.getCalls('orderDetail')).toHaveLength(1);
+    } finally {
+      Date.now = originalNow;
+    }
+  });
+
+  it('exhausts quote retry after five attempts when tracked order quote stays unavailable', async () => {
+    const originalNow = Date.now;
+    let nowMs = Date.parse('2026-02-25T03:00:00.000Z');
+    Date.now = () => nowMs;
+
+    const { deps, tradeCtx, setQuotes } = createDeps({
+      sellTimeoutSeconds: 999,
+      buyTimeoutSeconds: 999,
+    });
+    const monitor = createOrderMonitor(deps);
+
+    try {
+      await monitor.initialize();
+      await monitor.recoverOrderTrackingFromSnapshot([]);
+      setQuotes(new Map([['BULL.HK', null]]));
+
+      monitor.trackOrder({
+        orderId: 'SELL-QUOTE-RETRY-EXHAUST',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        price: 1,
+        initialSubmittedPrice: 1,
+        quantity: 100,
+        isLongSymbol: true,
+        monitorSymbol: 'HSI.HK',
+        isProtectiveLiquidation: false,
+        orderType: OrderType.ELO,
+      });
+
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        await monitor.processWithLatestQuotes();
+        nowMs += 2_000;
+      }
+
+      setQuotes(new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.05)]]));
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        await monitor.processWithLatestQuotes();
+        nowMs += 2_000;
+      }
+
+      expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(0);
+      expect(monitor.getPendingSellOrders('BULL.HK')).toHaveLength(1);
+      const pendingOrder = monitor.getPendingSellOrders('BULL.HK')[0];
+      expect(pendingOrder?.orderId).toBe('SELL-QUOTE-RETRY-EXHAUST');
     } finally {
       Date.now = originalNow;
     }
@@ -1988,9 +2018,8 @@ describe('orderMonitor business flow', () => {
       orderType: OrderType.ELO,
     });
 
-    const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.1)]]);
-    await monitor.processWithLatestQuotes(quotes);
-    await monitor.processWithLatestQuotes(quotes);
+    await monitor.processWithLatestQuotes();
+    await monitor.processWithLatestQuotes();
 
     expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(1);
   });
@@ -2038,33 +2067,32 @@ describe('orderMonitor business flow', () => {
         orderType: OrderType.ELO,
       });
 
-      const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.1)]]);
-      await monitor.processWithLatestQuotes(quotes);
+      await monitor.processWithLatestQuotes();
       expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(1);
       expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
 
       nowMs += 1_000;
-      await monitor.processWithLatestQuotes(quotes);
+      await monitor.processWithLatestQuotes();
       expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(2);
       expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
 
       nowMs += 2_000;
-      await monitor.processWithLatestQuotes(quotes);
+      await monitor.processWithLatestQuotes();
       expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(3);
       expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
 
       nowMs += 4_000;
-      await monitor.processWithLatestQuotes(quotes);
+      await monitor.processWithLatestQuotes();
       expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(4);
       expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
 
       nowMs += 8_000;
-      await monitor.processWithLatestQuotes(quotes);
+      await monitor.processWithLatestQuotes();
       expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(5);
       expect(tradeCtx.getCalls('orderDetail')).toHaveLength(1);
 
       nowMs += 60_000;
-      await monitor.processWithLatestQuotes(quotes);
+      await monitor.processWithLatestQuotes();
       expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(5);
     } finally {
       Date.now = originalNow;
@@ -2122,17 +2150,15 @@ describe('orderMonitor business flow', () => {
         orderType: OrderType.ELO,
       });
 
-      const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.1)]]);
-
-      await monitor.processWithLatestQuotes(quotes);
+      await monitor.processWithLatestQuotes();
       nowMs += 1_000;
-      await monitor.processWithLatestQuotes(quotes);
+      await monitor.processWithLatestQuotes();
       nowMs += 2_000;
-      await monitor.processWithLatestQuotes(quotes);
+      await monitor.processWithLatestQuotes();
       nowMs += 4_000;
-      await monitor.processWithLatestQuotes(quotes);
+      await monitor.processWithLatestQuotes();
       nowMs += 8_000;
-      await monitor.processWithLatestQuotes(quotes);
+      await monitor.processWithLatestQuotes();
 
       expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(5);
       expect(tradeCtx.getCalls('orderDetail')).toHaveLength(1);
@@ -2165,18 +2191,18 @@ describe('orderMonitor business flow', () => {
         }),
       );
 
-      await monitor.processWithLatestQuotes(quotes);
+      await monitor.processWithLatestQuotes();
       expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(6);
       expect(tradeCtx.getCalls('orderDetail')).toHaveLength(1);
 
       nowMs += 1_000;
-      await monitor.processWithLatestQuotes(quotes);
+      await monitor.processWithLatestQuotes();
       nowMs += 2_000;
-      await monitor.processWithLatestQuotes(quotes);
+      await monitor.processWithLatestQuotes();
       nowMs += 4_000;
-      await monitor.processWithLatestQuotes(quotes);
+      await monitor.processWithLatestQuotes();
       nowMs += 8_000;
-      await monitor.processWithLatestQuotes(quotes);
+      await monitor.processWithLatestQuotes();
 
       expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(10);
       expect(tradeCtx.getCalls('orderDetail')).toHaveLength(2);
@@ -2397,9 +2423,8 @@ describe('orderMonitor business flow', () => {
       orderType: OrderType.ELO,
     });
 
-    const quotes = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.01)]]);
-    await monitor.processWithLatestQuotes(quotes);
-    await monitor.processWithLatestQuotes(quotes);
+    await monitor.processWithLatestQuotes();
+    await monitor.processWithLatestQuotes();
 
     expect(fetchAllOrdersCalls).toBe(0);
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
@@ -2525,5 +2550,34 @@ describe('orderMonitor business flow', () => {
         refreshPositions: true,
       },
     ]);
+  });
+
+  it('does not treat zero-price quote as ready for replace flow', async () => {
+    const { deps, tradeCtx, setQuotes } = createDeps({
+      sellTimeoutSeconds: 999,
+      buyTimeoutSeconds: 999,
+    });
+    setQuotes(new Map([['BULL.HK', createQuoteDouble('BULL.HK', 0, 100)]]));
+
+    const monitor = createOrderMonitor(deps);
+    await monitor.initialize();
+    await monitor.recoverOrderTrackingFromSnapshot([]);
+
+    monitor.trackOrder({
+      orderId: 'BUY-ZERO-PRICE-QUOTE',
+      symbol: 'BULL.HK',
+      side: OrderSide.Buy,
+      price: 1,
+      initialSubmittedPrice: 1,
+      quantity: 100,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+
+    await monitor.processWithLatestQuotes();
+
+    expect(tradeCtx.getCalls('replaceOrder')).toHaveLength(0);
   });
 });

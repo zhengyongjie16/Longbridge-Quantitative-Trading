@@ -217,6 +217,15 @@ export const MONITOR = {
 /** 订单相关常量 */
 export const ORDER_PRICE_DIFF_THRESHOLD = 0.001;
 
+/** 订单路径行情重试统一参数 */
+export const ORDER_QUOTE_RETRY = {
+  /** 行情未就绪时的重试间隔（毫秒） */
+  INTERVAL_MS: 2 * TIME.MILLISECONDS_PER_SECOND,
+
+  /** 行情未就绪时的最大重试次数 */
+  MAX_ATTEMPTS: 5,
+} as const;
+
 /** 配置字符串到 OpenAPI 订单类型的映射 */
 export const ORDER_TYPE_CONFIG_TO_OPEN_API: Readonly<Record<OrderTypeConfig, OrderType>> = {
   LO: OrderType.LO,

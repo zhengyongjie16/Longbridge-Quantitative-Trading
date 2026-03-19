@@ -4,16 +4,15 @@
  * 功能：
  * - 异步执行订单监控和管理（超时撤单、订单状态追踪）
  * - 使用"最新覆盖"策略，避免并发执行
- * - 当有新行情到达时，如果上一次执行未完成，则记录最新行情待执行
+ * - 当主循环再次触发时，如果上一次执行未完成，则仅记录“需要再跑一次”
  *
  * 执行策略：
- * - 调用 schedule(quotesMap) 时记录最新行情
+ * - 调用 schedule() 时仅标记需要执行
  * - 如果当前无任务在执行，立即开始执行
- * - 如果有任务在执行，等待完成后自动执行最新记录的行情
+ * - 如果有任务在执行，等待完成后自动再执行一次
  * - 保证同一时刻只有一个 monitorAndManageOrders 在运行
  */
 import { logger } from '../../../utils/logger/index.js';
-import type { Quote } from '../../../types/quote.js';
 import type { OrderMonitorWorker, OrderMonitorWorkerDeps } from './types.js';
 import { formatError } from '../../../utils/error/index.js';
 
@@ -23,52 +22,50 @@ import { formatError } from '../../../utils/error/index.js';
  * 新行情到达时若当前有任务在执行则覆盖待执行行情，避免排队积压。
  *
  * @param deps 依赖注入，含 monitorAndManageOrders（订单监控与管理的异步函数）
- * @returns OrderMonitorWorker 实例（start、schedule、stopAndDrain、clearLatestQuotes）
+ * @returns OrderMonitorWorker 实例（start、schedule、stopAndDrain）
  */
 export function createOrderMonitorWorker(deps: OrderMonitorWorkerDeps): OrderMonitorWorker {
   const { monitorAndManageOrders } = deps;
   let running = true;
   let inFlight = false;
-  let latestQuotes: ReadonlyMap<string, Quote | null> | null = null;
+  let queued = false;
   let drainResolve: (() => void) | null = null;
-  const hasQueuedQuotes = (): boolean => latestQuotes !== null;
 
   /**
-   * 执行一次订单监控，消费 latestQuotes 并调用 monitorAndManageOrders
-   * 完成后若有新行情则自动触发下一次执行，保证最新行情不被丢弃
+   * 执行一次订单监控，消费 queued 标记并调用 monitorAndManageOrders。
+   * 完成后若期间又收到新的 schedule，则自动再执行一次。
    */
   async function run(): Promise<void> {
-    if (!running || inFlight || !latestQuotes) {
+    if (!running || inFlight || !queued) {
       return;
     }
 
-    const quotes = latestQuotes;
-    latestQuotes = null;
+    queued = false;
     inFlight = true;
     try {
-      await monitorAndManageOrders(quotes);
+      await monitorAndManageOrders();
     } catch (err) {
       logger.warn('[OrderMonitorWorker] 订单监控失败', formatError(err));
     } finally {
       inFlight = false;
-      drainResolve?.();
-      drainResolve = null;
-      if (hasQueuedQuotes()) {
-        void run();
+      if (drainResolve) {
+        drainResolve();
       }
+
+      drainResolve = null;
+      void run();
     }
   }
 
   /**
-   * 记录最新行情并触发执行
-   * 若当前有任务在执行，仅更新 latestQuotes，等待当前任务完成后自动消费
+   * 标记需要执行一次订单监控；若当前有任务在执行，则等待完成后再跑一轮。
    */
-  function schedule(quotesMap: ReadonlyMap<string, Quote | null>): void {
+  function schedule(): void {
     if (!running) {
       return;
     }
 
-    latestQuotes = quotesMap;
+    queued = true;
     if (!inFlight) {
       void run();
     }
@@ -80,7 +77,7 @@ export function createOrderMonitorWorker(deps: OrderMonitorWorkerDeps): OrderMon
    */
   async function stopAndDrain(): Promise<void> {
     running = false;
-    latestQuotes = null;
+    queued = false;
     if (!inFlight) return;
 
     await new Promise<void>((resolve) => {
@@ -95,16 +92,9 @@ export function createOrderMonitorWorker(deps: OrderMonitorWorkerDeps): OrderMon
     running = true;
   }
 
-  /**
-   * 清空待执行行情，用于生命周期重置时丢弃未消费的行情数据
-   */
-  function clearLatestQuotes(): void {
-    latestQuotes = null;
-  }
   return {
     start,
     schedule,
     stopAndDrain,
-    clearLatestQuotes,
   };
 }

@@ -31,7 +31,7 @@ export type ProcessMonitorParams = {
 
 /**
  * AUTO_SYMBOL 任务调度参数。
- * 类型用途：scheduleAutoSymbolTasks 的入参，封装自动换标任务调度所需的监控标的、上下文、行情与状态。
+ * 类型用途：scheduleAutoSymbolTasks 的入参，封装自动换标任务调度所需的监控标的、上下文与状态；距离换标执行时行情统一在状态机内获取。
  * 数据来源：由 processMonitor 从 ProcessMonitorParams、行情与席位等组装传入。
  * 使用范围：仅 processMonitor 内部（autoSymbolTasks）使用。
  */
@@ -45,7 +45,6 @@ export type AutoSymbolTasksParams = Readonly<{
   openProtectionActive: boolean;
   monitorPriceChanged: boolean;
   resolvedMonitorPrice: number | null;
-  quotesMap: ReadonlyMap<string, Quote | null>;
 }>;
 
 /**
@@ -56,7 +55,6 @@ export type AutoSymbolTasksParams = Readonly<{
  */
 export type SeatSyncParams = Readonly<{
   monitorSymbol: string;
-  monitorQuote: Quote | null;
   monitorContext: MonitorContext;
   mainContext: MainProgramContext;
   quotesMap: ReadonlyMap<string, Quote | null>;
@@ -74,8 +72,8 @@ export type SeatSyncResult = Readonly<{
   shortSeatState: SeatState;
   longSeatVersion: number;
   shortSeatVersion: number;
-  longSeatReady: boolean;
-  shortSeatReady: boolean;
+  longSeatActive: boolean;
+  shortSeatActive: boolean;
   longSymbol: string;
   shortSymbol: string;
   longQuote: Quote | null;

@@ -22,7 +22,7 @@ import {
 } from './utils.js';
 
 describe('autoSymbolManager autoSearch business flow', () => {
-  it('fills EMPTY seat to READY and resets failure counters when a candidate is found', async () => {
+  it('fills EMPTY seat to ACTIVATING and resets failure counters when a candidate is found', async () => {
     const monitorConfig = createMonitorConfigDouble({
       autoSearchConfig: getDefaultAutoSearchConfig(),
     });
@@ -33,7 +33,7 @@ describe('autoSymbolManager autoSearch business flow', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 1,
         frozenTradingDayKey: null,
       },
@@ -78,7 +78,7 @@ describe('autoSymbolManager autoSearch business flow', () => {
     });
     const seat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
     expect(findCalls).toBe(1);
-    expect(seat.status).toBe('READY');
+    expect(seat.status).toBe('ACTIVATING');
     expect(seat.symbol).toBe('NEW_BULL.HK');
     expect(seat.callPrice).toBe(20_500);
     expect(seat.searchFailCountToday).toBe(0);
@@ -97,7 +97,7 @@ describe('autoSymbolManager autoSearch business flow', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 2,
         frozenTradingDayKey: null,
       },
@@ -157,7 +157,7 @@ describe('autoSymbolManager autoSearch business flow', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: now.getTime() - 5_000,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -200,7 +200,7 @@ describe('autoSymbolManager autoSearch business flow', () => {
     expect(findCalls).toBe(0);
   });
 
-  it('fills EMPTY SHORT seat to READY when bear candidate is found', async () => {
+  it('fills EMPTY SHORT seat to ACTIVATING when bear candidate is found', async () => {
     const monitorConfig = createMonitorConfigDouble({
       autoSearchConfig: getDefaultAutoSearchConfig(),
     });
@@ -211,7 +211,7 @@ describe('autoSymbolManager autoSearch business flow', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 1,
         frozenTradingDayKey: null,
       },
@@ -259,7 +259,7 @@ describe('autoSymbolManager autoSearch business flow', () => {
     });
     const seat = symbolRegistry.getSeatState('HSI.HK', 'SHORT');
     expect(findCalls).toBe(1);
-    expect(seat.status).toBe('READY');
+    expect(seat.status).toBe('ACTIVATING');
     expect(seat.symbol).toBe('NEW_BEAR.HK');
     expect(seat.callPrice).toBe(19_500);
     expect(seat.searchFailCountToday).toBe(0);

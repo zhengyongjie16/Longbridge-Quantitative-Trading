@@ -18,7 +18,7 @@ import type { MonitorTaskContext, SeatSnapshot } from '../types.js';
  * @param seatState 席位状态
  * @returns 标的为非空字符串时返回 true
  */
-export const isSeatSymbolActive = (seatState: SeatState): boolean => {
+export const hasSeatSymbolInSnapshot = (seatState: SeatState): boolean => {
   return typeof seatState.symbol === 'string' && seatState.symbol.length > 0;
 };
 
@@ -98,7 +98,7 @@ export async function validateSeatSnapshotsAfterRefresh({
  * @param monitorSymbol 监控标的代码
  * @param context 监控上下文
  * @param snapshotValidity 刷新后的 longValid/shortValid 结果
- * @param isSeatUsable 判断席位是否可用的函数（如 isSeatReady）
+ * @param isSeatUsable 判断席位是否可用的函数（如 isSeatActive）
  * @returns 双向席位状态、就绪标志及 longSymbol/shortSymbol
  */
 export function resolveSeatSnapshotReadiness({

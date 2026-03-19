@@ -19,6 +19,7 @@ import { createTradeContextMock } from '../../mock/longbridge/tradeContextMock.j
 import {
   createAccountSnapshotDouble,
   createLiquidationCooldownTrackerDouble,
+  createMarketDataClientDouble,
   createMonitorConfigDouble,
   createOrderRecorderDouble,
   createPositionCacheDouble,
@@ -63,6 +64,9 @@ function createOrderMonitorDeps(params?: {
       clearCache: () => {},
       getPendingOrders: async () => [],
     },
+    marketDataClient: createMarketDataClientDouble({
+      getQuotes: async () => new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.01, 100)]]),
+    }),
     orderRecorder: params?.orderRecorder ?? createOrderRecorderDouble(),
     dailyLossTracker: {
       resetAll: () => {},
@@ -140,15 +144,14 @@ describe('chaos: api flaky recovery', () => {
       orderType: OrderType.ELO,
     });
 
-    const quotesMap = new Map([['BULL.HK', createQuoteDouble('BULL.HK', 1.01)]]);
-    await monitor.processWithLatestQuotes(quotesMap);
-    await monitor.processWithLatestQuotes(quotesMap);
+    await monitor.processWithLatestQuotes();
+    await monitor.processWithLatestQuotes();
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
     expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
     expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
 
     await Bun.sleep(1100);
-    await monitor.processWithLatestQuotes(quotesMap);
+    await monitor.processWithLatestQuotes();
 
     expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(2);
     expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
@@ -190,19 +193,19 @@ describe('chaos: api flaky recovery', () => {
         monitorSymbol: 'HSI.HK',
         longSeat: {
           symbol: 'BULL.HK',
-          status: 'READY',
+          status: 'ACTIVE',
           lastSwitchAt: null,
           lastSearchAt: null,
-          lastSeatReadyAt: null,
+          lastSeatActivatedAt: null,
           searchFailCountToday: 0,
           frozenTradingDayKey: null,
         },
         shortSeat: {
           symbol: 'BEAR.HK',
-          status: 'READY',
+          status: 'ACTIVE',
           lastSwitchAt: null,
           lastSearchAt: null,
-          lastSeatReadyAt: null,
+          lastSeatActivatedAt: null,
           searchFailCountToday: 0,
           frozenTradingDayKey: null,
         },

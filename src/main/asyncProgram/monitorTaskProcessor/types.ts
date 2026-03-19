@@ -1,6 +1,7 @@
 import type { AutoSymbolManager } from '../../../services/autoSymbolManager/types.js';
 import type { RefreshGate } from '../../../utils/types.js';
-import type { MonitorTaskQueue, MonitorTask } from '../monitorTaskQueue/types.js';
+import type { QuoteRetryRequirement } from '../../../utils/quoteRetry.js';
+import type { MonitorTaskQueue, MonitorTask, MonitorTaskInput } from '../monitorTaskQueue/types.js';
 import type { LastState } from '../../../types/state.js';
 import type { Position } from '../../../types/account.js';
 import type { MultiMonitorTradingConfig } from '../../../types/config.js';
@@ -12,6 +13,7 @@ import type {
   OrderRecorder,
   RiskChecker,
   Trader,
+  MarketDataClient,
 } from '../../../types/services.js';
 import type { DailyLossTracker, UnrealizedLossMonitor } from '../../../types/risk.js';
 
@@ -44,14 +46,13 @@ export type AutoSymbolTickTaskData = Readonly<{
 
 /**
  * 自动换标切换距离检查任务数据。
- * 类型用途：携带监控价格与双向席位快照，供处理器检查是否触发换标流程。
+ * 类型用途：携带监控价格与双向席位快照，供处理器检查是否触发换标流程；实际执行时行情统一由状态机按需获取。
  * 数据来源：由 processMonitor 在 AUTO_SYMBOL_SWITCH_DISTANCE 调度时组装并入队。
  * 使用范围：仅 monitorTaskProcessor、processMonitor 内部使用。
  */
 export type AutoSymbolSwitchDistanceTaskData = Readonly<{
   monitorSymbol: string;
   monitorPrice: number | null;
-  quotesMap: ReadonlyMap<string, Quote | null>;
   seatSnapshots: Readonly<{
     long: SeatSnapshot;
     short: SeatSnapshot;
@@ -60,7 +61,7 @@ export type AutoSymbolSwitchDistanceTaskData = Readonly<{
 
 /**
  * 席位刷新任务数据。
- * 类型用途：换标完成后触发的任务数据，携带新旧标的信息与行情，供处理器执行席位更新与缓存刷新。
+ * 类型用途：换标完成后触发的任务数据，仅携带席位校验与标的信息；行情统一在执行时获取，避免入队快照与执行态双真相。
  * 数据来源：由 processMonitor 在 SEAT_REFRESH 调度时组装并入队。
  * 使用范围：仅 monitorTaskProcessor、processMonitor 内部使用。
  */
@@ -71,51 +72,47 @@ export type SeatRefreshTaskData = Readonly<{
   previousSymbol: string | null;
   nextSymbol: string;
   callPrice?: number | null;
-  quote: Quote | null;
   symbolName: string | null;
-  quotesMap: ReadonlyMap<string, Quote | null>;
 }>;
 
 /**
  * 强平距离检查任务数据。
- * 类型用途：携带监控价格与双向席位行情，供处理器检查是否触及强平距离阈值。
+ * 类型用途：携带监控价格与双向席位快照，供处理器检查是否触及强平距离阈值；行情统一在执行时获取。
  * 数据来源：由 processMonitor 在 LIQUIDATION_DISTANCE_CHECK 调度时组装并入队。
  * 使用范围：仅 monitorTaskProcessor、processMonitor 内部使用。
  */
 export type LiquidationDistanceCheckTaskData = Readonly<{
   monitorSymbol: string;
   monitorPrice: number;
+  retryAttempts?: number;
   long: Readonly<{
     seatVersion: number;
     symbol: string | null;
-    quote: Quote | null;
     symbolName: string | null;
   }>;
   short: Readonly<{
     seatVersion: number;
     symbol: string | null;
-    quote: Quote | null;
     symbolName: string | null;
   }>;
 }>;
 
 /**
  * 浮亏检查任务数据。
- * 类型用途：携带双向席位标的与行情，供处理器检查当前浮亏是否超过阈值。
+ * 类型用途：携带双向席位快照，供处理器检查当前浮亏是否超过阈值；行情统一在执行时获取。
  * 数据来源：由 processMonitor 在 UNREALIZED_LOSS_CHECK 调度时组装并入队。
  * 使用范围：仅 monitorTaskProcessor、processMonitor 内部使用。
  */
 export type UnrealizedLossCheckTaskData = Readonly<{
   monitorSymbol: string;
+  retryAttempts?: number;
   long: Readonly<{
     seatVersion: number;
     symbol: string | null;
-    quote: Quote | null;
   }>;
   short: Readonly<{
     seatVersion: number;
     symbol: string | null;
-    quote: Quote | null;
   }>;
 }>;
 
@@ -140,6 +137,21 @@ export type MonitorTaskDataMap = Readonly<{
  * 使用范围：仅 monitorTaskProcessor 及注册 onProcessed 的调用方使用，内部使用。
  */
 export type MonitorTaskStatus = 'processed' | 'skipped' | 'failed';
+
+/**
+ * 监控任务 quote retry 重新入队请求。
+ * 类型用途：由 handler 返回给 processor 层，由 processor 统一注册 timeout 并重新回灌 monitorTaskQueue。
+ * 数据来源：liquidationDistance / unrealizedLoss handler 在发现 unresolved quote 时构造。
+ * 使用范围：仅 monitorTaskProcessor 内部使用。
+ */
+export type MonitorTaskRetryRequest<
+  TType extends keyof MonitorTaskDataMap = keyof MonitorTaskDataMap,
+> = Readonly<{
+  task: MonitorTaskInput<MonitorTaskDataMap, TType>;
+  retryKey: string;
+  attempts: number;
+  requirement: QuoteRetryRequirement;
+}>;
 
 /**
  * 清仓执行项。
@@ -172,7 +184,7 @@ export type CreateLiquidationTaskParams = Readonly<{
 
 /**
  * 监控任务处理上下文（处理器执行任务时的运行时依赖）。
- * 类型用途：处理器执行监控任务时所需的上下文，含 symbolRegistry、orderRecorder、riskChecker、行情等；由 getMonitorContext(monitorSymbol) 获取。
+ * 类型用途：处理器执行监控任务时所需的上下文，含 symbolRegistry、orderRecorder、riskChecker、名称缓存等；由 getMonitorContext(monitorSymbol) 获取。
  * 数据来源：由 mainProgram 的 getMonitorContext 按 monitorSymbol 从 monitorContexts 等组装返回。
  * 使用范围：仅 monitorTaskProcessor 内部使用。
  */
@@ -186,9 +198,6 @@ export type MonitorTaskContext = Readonly<{
   longSymbolName: string;
   shortSymbolName: string;
   monitorSymbolName: string;
-  longQuote: Quote | null;
-  shortQuote: Quote | null;
-  monitorQuote: Quote | null;
 }>;
 
 /**
@@ -217,8 +226,15 @@ export type MonitorTaskProcessorDeps = Readonly<{
   getMonitorContext: (monitorSymbol: string) => MonitorTaskContext | null;
   clearMonitorDirectionQueues: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => void;
   trader: Trader;
+  marketDataClient: MarketDataClient;
   lastState: LastState;
   tradingConfig: MultiMonitorTradingConfig;
+
+  /** 一次性路径 quote retry 调度器 */
+  scheduleRetry?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
+
+  /** 一次性路径 quote retry 清理器 */
+  clearRetry?: (handle: ReturnType<typeof setTimeout>) => void;
 
   /** 生命周期门禁：false 时任务直接跳过 */
   getCanProcessTask?: () => boolean;

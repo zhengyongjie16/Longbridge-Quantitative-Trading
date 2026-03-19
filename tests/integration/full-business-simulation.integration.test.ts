@@ -143,19 +143,19 @@ describe('full business simulation integration', () => {
       monitorSymbol: monitorConfig.monitorSymbol,
       longSeat: {
         symbol: 'BULL.HK',
-        status: 'READY',
+        status: 'ACTIVE',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
       shortSeat: {
         symbol: 'BEAR.HK',
-        status: 'READY',
+        status: 'ACTIVE',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -285,6 +285,24 @@ describe('full business simulation integration', () => {
       getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol),
       signalProcessor,
       trader,
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async (symbols: Iterable<string>) => {
+          const quotes = new Map<string, ReturnType<typeof createQuoteDouble> | null>();
+          for (const symbol of symbols) {
+            if (symbol === 'HSI.HK') {
+              quotes.set(symbol, createQuoteDouble(symbol, 20_000, 1));
+            } else if (symbol === 'BULL.HK') {
+              quotes.set(symbol, createQuoteDouble(symbol, 1.05, 100));
+            } else if (symbol === 'BEAR.HK') {
+              quotes.set(symbol, createQuoteDouble(symbol, 0.95, 100));
+            } else {
+              quotes.set(symbol, null);
+            }
+          }
+
+          return quotes;
+        },
+      }),
       doomsdayProtection: createDoomsdayProtectionDouble(),
       getLastState: () => lastState,
       getIsHalfDay: () => false,
@@ -295,6 +313,24 @@ describe('full business simulation integration', () => {
       getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol),
       signalProcessor,
       trader,
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async (symbols: Iterable<string>) => {
+          const quotes = new Map<string, ReturnType<typeof createQuoteDouble> | null>();
+          for (const symbol of symbols) {
+            if (symbol === 'HSI.HK') {
+              quotes.set(symbol, createQuoteDouble(symbol, 20_000, 1));
+            } else if (symbol === 'BULL.HK') {
+              quotes.set(symbol, createQuoteDouble(symbol, 1.05, 100));
+            } else if (symbol === 'BEAR.HK') {
+              quotes.set(symbol, createQuoteDouble(symbol, 0.95, 100));
+            } else {
+              quotes.set(symbol, null);
+            }
+          }
+
+          return quotes;
+        },
+      }),
       getLastState: () => lastState,
       refreshGate,
       getCanProcessTask: () => lastState.isTradingEnabled,
@@ -349,7 +385,6 @@ describe('full business simulation integration', () => {
             orderMonitorScheduleCount += 1;
           },
           stopAndDrain: async () => {},
-          clearLatestQuotes: () => {},
         },
         postTradeRefresher: {
           start: () => {},
@@ -407,7 +442,7 @@ describe('full business simulation integration', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -416,7 +451,7 @@ describe('full business simulation integration', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -489,11 +524,26 @@ describe('full business simulation integration', () => {
         });
       },
     });
+    const autoSwitchMarketDataClient = createMarketDataClientDouble({
+      getQuotes: async (symbols: Iterable<string>) => {
+        const quotes = new Map<string, ReturnType<typeof createQuoteDouble> | null>();
+        for (const symbol of symbols) {
+          if (symbol === 'HSI.HK') {
+            quotes.set(symbol, createQuoteDouble(symbol, 20_000, 1));
+            continue;
+          }
+
+          quotes.set(symbol, createQuoteDouble(symbol, 1, 100));
+        }
+
+        return quotes;
+      },
+    });
 
     const autoSymbolManager = createAutoSymbolManager({
       monitorConfig,
       symbolRegistry,
-      marketDataClient: createMarketDataClientDouble(),
+      marketDataClient: autoSwitchMarketDataClient,
       trader,
       orderRecorder,
       riskChecker,
@@ -533,6 +583,7 @@ describe('full business simulation integration', () => {
       getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol) ?? null,
       clearMonitorDirectionQueues: () => {},
       trader,
+      marketDataClient: createMarketDataClientDouble(),
       lastState,
       tradingConfig,
       getCanProcessTask: () => true,
@@ -552,7 +603,7 @@ describe('full business simulation integration', () => {
 
     const sharedMainContext = {
       marketDataClient: createMarketDataClientDouble({
-        getQuotes: async () => new Map(),
+        getQuotes: autoSwitchMarketDataClient.getQuotes,
         getRealtimeCandlesticks: async () => createMockCandlesticks(120, 200, 0.5),
       }),
       trader,
@@ -575,7 +626,6 @@ describe('full business simulation integration', () => {
         start: () => {},
         schedule: () => {},
         stopAndDrain: async () => {},
-        clearLatestQuotes: () => {},
       },
       postTradeRefresher: {
         start: () => {},
@@ -606,7 +656,7 @@ describe('full business simulation integration', () => {
       await Bun.sleep(80);
 
       const searchedSeat = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
-      expect(searchedSeat.status).toBe('READY');
+      expect(searchedSeat.status).toBe('ACTIVE');
       expect(searchedSeat.symbol).toBe('OLD_BULL.HK');
       expect(symbolRegistry.getSeatVersion(monitorConfig.monitorSymbol, 'LONG')).toBe(2);
 
@@ -669,7 +719,7 @@ describe('full business simulation integration', () => {
       expect(executedActions).toHaveLength(2);
 
       const finalSeat = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
-      expect(finalSeat.status).toBe('READY');
+      expect(finalSeat.status).toBe('ACTIVE');
       expect(finalSeat.symbol).toBe('NEW_BULL.HK');
       expect(symbolRegistry.getSeatVersion(monitorConfig.monitorSymbol, 'LONG')).toBe(3);
     } finally {
@@ -690,19 +740,19 @@ describe('full business simulation integration', () => {
       monitorSymbol: monitorConfig.monitorSymbol,
       longSeat: {
         symbol: 'BULL.HK',
-        status: 'READY',
+        status: 'ACTIVE',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
       shortSeat: {
         symbol: 'BEAR.HK',
-        status: 'READY',
+        status: 'ACTIVE',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -820,6 +870,24 @@ describe('full business simulation integration', () => {
       getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol),
       signalProcessor,
       trader,
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async (symbols: Iterable<string>) => {
+          const quotes = new Map<string, ReturnType<typeof createQuoteDouble> | null>();
+          for (const symbol of symbols) {
+            if (symbol === 'HSI.HK') {
+              quotes.set(symbol, createQuoteDouble(symbol, 20_000, 1));
+            } else if (symbol === 'BULL.HK') {
+              quotes.set(symbol, createQuoteDouble(symbol, 1.05, 100));
+            } else if (symbol === 'BEAR.HK') {
+              quotes.set(symbol, createQuoteDouble(symbol, 0.95, 100));
+            } else {
+              quotes.set(symbol, null);
+            }
+          }
+
+          return quotes;
+        },
+      }),
       doomsdayProtection: createDoomsdayProtectionDouble(),
       getLastState: () => lastState,
       getIsHalfDay: () => false,
@@ -830,6 +898,24 @@ describe('full business simulation integration', () => {
       getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol),
       signalProcessor,
       trader,
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async (symbols: Iterable<string>) => {
+          const quotes = new Map<string, ReturnType<typeof createQuoteDouble> | null>();
+          for (const symbol of symbols) {
+            if (symbol === 'HSI.HK') {
+              quotes.set(symbol, createQuoteDouble(symbol, 20_000, 1));
+            } else if (symbol === 'BULL.HK') {
+              quotes.set(symbol, createQuoteDouble(symbol, 1.05, 100));
+            } else if (symbol === 'BEAR.HK') {
+              quotes.set(symbol, createQuoteDouble(symbol, 0.95, 100));
+            } else {
+              quotes.set(symbol, null);
+            }
+          }
+
+          return quotes;
+        },
+      }),
       getLastState: () => lastState,
       refreshGate,
       getCanProcessTask: () => lastState.isTradingEnabled,
@@ -840,6 +926,7 @@ describe('full business simulation integration', () => {
       getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol) ?? null,
       clearMonitorDirectionQueues: () => {},
       trader,
+      marketDataClient: createMarketDataClientDouble(),
       lastState,
       tradingConfig,
       getCanProcessTask: () => lastState.isTradingEnabled,
@@ -864,7 +951,6 @@ describe('full business simulation integration', () => {
         stopAndDrain: async () => {
           orderMonitorStopCount += 1;
         },
-        clearLatestQuotes: () => {},
       },
       postTradeRefresher: {
         start: () => {
@@ -967,7 +1053,6 @@ describe('full business simulation integration', () => {
           start: () => {},
           schedule: () => {},
           stopAndDrain: async () => {},
-          clearLatestQuotes: () => {},
         },
         postTradeRefresher: {
           start: () => {},
@@ -1010,7 +1095,6 @@ describe('full business simulation integration', () => {
           start: () => {},
           schedule: () => {},
           stopAndDrain: async () => {},
-          clearLatestQuotes: () => {},
         },
         postTradeRefresher: {
           start: () => {},

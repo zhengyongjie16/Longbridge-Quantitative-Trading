@@ -10,22 +10,33 @@ import type {
 } from './types.js';
 
 /**
- * 检查席位是否就绪（有有效标的且状态为 READY）
+ * 检查席位是否已激活（有有效标的且状态为 ACTIVE）
  * @param seatState 席位状态，可为 null 或 undefined
- * @returns 席位就绪时返回 true，并收窄类型为含 symbol 字符串的 SeatState
+ * @returns 席位已激活时返回 true，并收窄类型为含 symbol 字符串的 SeatState
  */
-export function isSeatReady(
+export function isSeatActive(
   seatState: SeatState | null | undefined,
 ): seatState is SeatState & { symbol: string } {
   if (!seatState) {
     return false;
   }
 
-  if (seatState.status !== 'READY') {
+  if (seatState.status !== 'ACTIVE') {
     return false;
   }
 
   return typeof seatState.symbol === 'string' && seatState.symbol.length > 0;
+}
+
+/**
+ * 检查席位是否已绑定有效标的。
+ * @param seatState 席位状态，可为 null 或 undefined
+ * @returns 只要存在非空 symbol 即返回 true，不要求 seat 已处于 ACTIVE
+ */
+export function hasSeatSymbol(
+  seatState: SeatState | null | undefined,
+): seatState is SeatState & { symbol: string } {
+  return seatState !== null && seatState !== undefined && typeof seatState.symbol === 'string' && seatState.symbol.length > 0;
 }
 
 /**
@@ -72,13 +83,13 @@ export function resolveNextSearchFailureState(params: {
 }
 
 /**
- * 解析席位不可用原因（席位就绪时返回 null）
+ * 解析席位不可用原因（席位已激活时返回 null）
  * @param seatState 席位状态
- * @returns 不可用原因枚举值，席位就绪时返回 null
+ * @returns 不可用原因枚举值，席位已激活时返回 null
  */
 function resolveSeatUnavailableReason(seatState: SeatState): SeatUnavailableReason | null {
   if (
-    seatState.status === 'READY' &&
+    seatState.status === 'ACTIVE' &&
     typeof seatState.symbol === 'string' &&
     seatState.symbol.length > 0
   ) {
@@ -93,6 +104,10 @@ function resolveSeatUnavailableReason(seatState: SeatState): SeatUnavailableReas
     return 'SEAT_SWITCHING';
   }
 
+  if (seatState.status === 'ACTIVATING') {
+    return 'SEAT_ACTIVATING';
+  }
+
   if (isSeatFrozenToday(seatState)) {
     return 'SEAT_FROZEN_TODAY';
   }
@@ -105,11 +120,12 @@ const SEAT_UNAVAILABLE_REASON_MAP: Readonly<Record<SeatUnavailableReason, string
   SEAT_FROZEN_TODAY: '席位已冻结（当日）',
   SEAT_SEARCHING: '席位正在寻标',
   SEAT_SWITCHING: '席位正在换标',
+  SEAT_ACTIVATING: '席位正在激活',
 };
 
 /**
- * 从非就绪席位状态获取格式化的不可用原因文案。
- * 前提：调用方已确认 isSeatReady(seatState) === false。
+ * 从非激活席位状态获取格式化的不可用原因文案。
+ * 前提：调用方已确认 isSeatActive(seatState) === false。
  * @param seatState 席位状态
  * @returns 不可用原因的中文描述字符串
  */
@@ -158,7 +174,7 @@ function resolveSignalDirection(
 
 /**
  * 校验信号是否仍绑定到当前席位。
- * 默认行为：按 action 推导方向后，依次校验席位 READY、席位版本匹配与席位标的一致性。
+ * 默认行为：按 action 推导方向后，依次校验席位 ACTIVE、席位版本匹配与席位标的一致性。
  *
  * @param params 校验所需的 monitorSymbol、signal 与 symbolRegistry
  * @returns 校验结果；成功时返回收窄后的就绪 seatState，失败时返回失败原因
@@ -167,7 +183,7 @@ export function validateSignalSeat(params: ValidateSignalSeatParams): SignalSeat
   const direction = resolveSignalDirection(params.signal.action);
   const seatState = params.symbolRegistry.getSeatState(params.monitorSymbol, direction);
   const seatVersion = params.symbolRegistry.getSeatVersion(params.monitorSymbol, direction);
-  if (!isSeatReady(seatState)) {
+  if (!isSeatActive(seatState)) {
     return {
       valid: false,
       direction,
@@ -270,7 +286,7 @@ export function resolveSeatOnStartup({
 /**
  * 创建席位状态对象（内部工厂函数）
  * @param symbol 交易标的代码，null 表示未绑定
- * @param status 席位状态（READY/SEARCHING/SWITCHING/EMPTY）
+ * @param status 席位状态（EMPTY/SEARCHING/SWITCHING/ACTIVATING/ACTIVE）
  * @returns 初始化的席位状态对象
  */
 function createSeatState(symbol: string | null, status: SeatStatus): SeatState {
@@ -279,7 +295,7 @@ function createSeatState(symbol: string | null, status: SeatStatus): SeatState {
     status,
     lastSwitchAt: null,
     lastSearchAt: null,
-    lastSeatReadyAt: null,
+    lastSeatActivatedAt: null,
     callPrice: null,
     searchFailCountToday: 0,
     frozenTradingDayKey: null,
@@ -289,7 +305,7 @@ function createSeatState(symbol: string | null, status: SeatStatus): SeatState {
 /**
  * 创建席位条目（内部工厂函数）
  * @param symbol 交易标的代码，null 表示未绑定
- * @param status 席位状态（READY/SEARCHING/SWITCHING/EMPTY）
+ * @param status 席位状态（EMPTY/SEARCHING/SWITCHING/ACTIVATING/ACTIVE）
  * @returns 包含状态和版本号的席位条目，初始版本号为 1
  */
 function createSeatEntry(symbol: string | null, status: SeatStatus): SeatEntry {
@@ -333,10 +349,10 @@ export function createSymbolRegistry(monitors: ReadonlyArray<MonitorConfig>): Sy
     registry.set(monitor.monitorSymbol, {
       long: autoSearchEnabled
         ? createSeatEntry(null, 'EMPTY')
-        : createSeatEntry(monitor.longSymbol, 'READY'),
+        : createSeatEntry(monitor.longSymbol, 'ACTIVE'),
       short: autoSearchEnabled
         ? createSeatEntry(null, 'EMPTY')
-        : createSeatEntry(monitor.shortSymbol, 'READY'),
+        : createSeatEntry(monitor.shortSymbol, 'ACTIVE'),
     });
   }
 
@@ -390,7 +406,7 @@ export function createSymbolRegistry(monitors: ReadonlyArray<MonitorConfig>): Sy
         status: nextState.status,
         lastSwitchAt: nextState.lastSwitchAt ?? null,
         lastSearchAt: nextState.lastSearchAt ?? null,
-        lastSeatReadyAt: nextState.lastSeatReadyAt ?? null,
+        lastSeatActivatedAt: nextState.lastSeatActivatedAt ?? null,
         callPrice: nextState.callPrice ?? null,
         searchFailCountToday: nextState.searchFailCountToday,
         frozenTradingDayKey: nextState.frozenTradingDayKey,

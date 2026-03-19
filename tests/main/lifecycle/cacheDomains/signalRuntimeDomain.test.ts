@@ -2,7 +2,7 @@
  * 信号运行时缓存域单元测试
  *
  * 覆盖：midnightClear 停止并排空处理器、清空队列并释放信号、取消延迟信号、
- * clearLatestQuotes、clearPending、indicatorCache.clearAll；
+ * clearPending、indicatorCache.clearAll；
  * openRebuild 重启处理器并 markFresh
  */
 import { describe, it, expect } from 'bun:test';
@@ -22,9 +22,6 @@ function createMockProcessor() {
     },
     start: () => {
       calls.push('start');
-    },
-    clearLatestQuotes: () => {
-      calls.push('clearLatestQuotes');
     },
     clearPending: () => {
       calls.push('clearPending');
@@ -129,7 +126,6 @@ describe('createSignalRuntimeDomain', () => {
     expect(clearAllMonitor).toBe(1);
     expect(releaseSignalCount).toBe(3);
     expect(cancelAllCount).toBe(1);
-    expect(orderMonitorWorker.calls).toContain('clearLatestQuotes');
     expect(postTradeRefresher.calls).toContain('clearPending');
     expect(indicatorClearAllCount).toBe(1);
   });

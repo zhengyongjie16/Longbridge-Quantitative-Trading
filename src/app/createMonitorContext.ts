@@ -59,8 +59,5 @@ export function createMonitorContext(deps: MonitorContextFactoryDeps): MonitorCo
     monitorSymbolName: runtimeSnapshot.monitorSymbolName,
     normalizedMonitorSymbol: config.monitorSymbol,
     indicatorProfile,
-    longQuote: runtimeSnapshot.longQuote,
-    shortQuote: runtimeSnapshot.shortQuote,
-    monitorQuote: runtimeSnapshot.monitorQuote,
   };
 }

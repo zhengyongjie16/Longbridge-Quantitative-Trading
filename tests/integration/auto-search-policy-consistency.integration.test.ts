@@ -25,7 +25,6 @@ import {
 import { createSeatStateManager } from '../../src/services/autoSymbolManager/seatStateManager.js';
 import { createSwitchStateMachine } from '../../src/services/autoSymbolManager/switchStateMachine.js';
 import { PENDING_ORDER_STATUSES } from '../../src/constants/index.js';
-import type { Quote } from '../../src/types/quote.js';
 import type { Logger } from '../../src/utils/logger/types.js';
 import { signalObjectPool } from '../../src/utils/objectPool/index.js';
 import { getHKDateKey } from '../../src/utils/time/index.js';
@@ -34,6 +33,7 @@ import {
   createMonitorConfigDouble,
   createOrderRecorderDouble,
   createQuoteContextDouble,
+  createQuoteDouble,
   createRiskCheckerDouble,
   createSymbolRegistryDouble,
   createTraderDouble,
@@ -92,22 +92,6 @@ function toApiDistanceRatio(percentValue: number): number {
   return percentValue / 100;
 }
 
-function createQuotes(prices: Readonly<Record<string, number>>): ReadonlyMap<string, Quote | null> {
-  const quotes = new Map<string, Quote | null>();
-  for (const [symbol, price] of Object.entries(prices)) {
-    quotes.set(symbol, {
-      symbol,
-      name: symbol,
-      price,
-      prevClose: price,
-      timestamp: Date.now(),
-      lotSize: 100,
-    });
-  }
-
-  return quotes;
-}
-
 describe('auto search policy consistency integration', () => {
   it('selects the same degraded candidate across startup search, runtime empty-seat search, and distance-switch presearch', async () => {
     const currentTime = new Date('2026-02-16T01:00:00.000Z');
@@ -153,7 +137,7 @@ describe('auto search policy consistency integration', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -162,7 +146,7 @@ describe('auto search policy consistency integration', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -182,7 +166,7 @@ describe('auto search policy consistency integration', () => {
     });
 
     const startupSeat = startupRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
-    expect(startupSeat.status).toBe('READY');
+    expect(startupSeat.status).toBe('ACTIVATING');
     expect(startupSeat.symbol).toBe('BEST_BULL.HK');
     expect(
       startupLogger.infos.some(
@@ -199,7 +183,7 @@ describe('auto search policy consistency integration', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -250,7 +234,7 @@ describe('auto search policy consistency integration', () => {
     });
 
     const runtimeSeat = runtimeRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
-    expect(runtimeSeat.status).toBe('READY');
+    expect(runtimeSeat.status).toBe('ACTIVATING');
     expect(runtimeSeat.symbol).toBe('BEST_BULL.HK');
     expect(
       runtimeLogger.infos.some(
@@ -266,10 +250,10 @@ describe('auto search policy consistency integration', () => {
       monitorSymbol: monitorConfig.monitorSymbol,
       longSeat: {
         symbol: 'OLD_BULL.HK',
-        status: 'READY',
+        status: 'ACTIVE',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: currentTime.getTime(),
+        lastSeatActivatedAt: currentTime.getTime(),
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -337,19 +321,19 @@ describe('auto search policy consistency integration', () => {
       getHKDateKey,
       calculateTradingDurationMsBetween: () => 0,
       getTradingCalendarSnapshot: () => new Map(),
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async (symbols) =>
+          new Map([...symbols].map((symbol) => [symbol, createQuoteDouble(symbol, 1, 100)])),
+      }),
     });
     await switchStateMachine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-      quotesMap: createQuotes({
-        'OLD_BULL.HK': 1,
-        'BEST_BULL.HK': 1,
-      }),
       positions: [],
     });
 
     const switchedSeat = switchRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
-    expect(switchedSeat.status).toBe('READY');
+    expect(switchedSeat.status).toBe('ACTIVATING');
     expect(switchedSeat.symbol).toBe('BEST_BULL.HK');
     expect(
       switchLogger.infos.some(
@@ -404,7 +388,7 @@ describe('auto search policy consistency integration', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -413,7 +397,7 @@ describe('auto search policy consistency integration', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -433,7 +417,7 @@ describe('auto search policy consistency integration', () => {
     });
 
     const startupSeat = startupRegistry.getSeatState(monitorConfig.monitorSymbol, 'SHORT');
-    expect(startupSeat.status).toBe('READY');
+    expect(startupSeat.status).toBe('ACTIVATING');
     expect(startupSeat.symbol).toBe('BEST_BEAR.HK');
     expect(
       startupLogger.infos.some(
@@ -450,7 +434,7 @@ describe('auto search policy consistency integration', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -501,7 +485,7 @@ describe('auto search policy consistency integration', () => {
     });
 
     const runtimeSeat = runtimeRegistry.getSeatState(monitorConfig.monitorSymbol, 'SHORT');
-    expect(runtimeSeat.status).toBe('READY');
+    expect(runtimeSeat.status).toBe('ACTIVATING');
     expect(runtimeSeat.symbol).toBe('BEST_BEAR.HK');
     expect(
       runtimeLogger.infos.some(
@@ -517,10 +501,10 @@ describe('auto search policy consistency integration', () => {
       monitorSymbol: monitorConfig.monitorSymbol,
       shortSeat: {
         symbol: 'OLD_BEAR.HK',
-        status: 'READY',
+        status: 'ACTIVE',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: currentTime.getTime(),
+        lastSeatActivatedAt: currentTime.getTime(),
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -588,19 +572,19 @@ describe('auto search policy consistency integration', () => {
       getHKDateKey,
       calculateTradingDurationMsBetween: () => 0,
       getTradingCalendarSnapshot: () => new Map(),
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async (symbols) =>
+          new Map([...symbols].map((symbol) => [symbol, createQuoteDouble(symbol, 1, 100)])),
+      }),
     });
     await switchStateMachine.maybeSwitchOnDistance({
       direction: 'SHORT',
       monitorPrice: 20_000,
-      quotesMap: createQuotes({
-        'OLD_BEAR.HK': 1,
-        'BEST_BEAR.HK': 1,
-      }),
       positions: [],
     });
 
     const switchedSeat = switchRegistry.getSeatState(monitorConfig.monitorSymbol, 'SHORT');
-    expect(switchedSeat.status).toBe('READY');
+    expect(switchedSeat.status).toBe('ACTIVATING');
     expect(switchedSeat.symbol).toBe('BEST_BEAR.HK');
     expect(
       switchLogger.infos.some(

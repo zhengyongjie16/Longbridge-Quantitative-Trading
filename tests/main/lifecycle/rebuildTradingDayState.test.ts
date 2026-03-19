@@ -30,7 +30,7 @@ const emptySeatState = {
   status: 'EMPTY' as const,
   lastSwitchAt: null as number | null,
   lastSearchAt: null as number | null,
-  lastSeatReadyAt: null,
+  lastSeatActivatedAt: null,
   searchFailCountToday: 0,
   frozenTradingDayKey: null as string | null,
 };
@@ -42,15 +42,15 @@ function createMinimalLastState(): RebuildTradingDayStateDeps['lastState'] {
 }
 
 function createSymbolRegistry(
-  seatStatus: 'READY' | 'EMPTY',
+  seatStatus: 'ACTIVE' | 'EMPTY',
   symbol: string = 'BULL.HK',
 ): SymbolRegistry {
   const readySeatState =
-    seatStatus === 'READY'
+    seatStatus === 'ACTIVE'
       ? {
           ...emptySeatState,
           symbol,
-          status: 'READY' as const,
+          status: 'ACTIVE' as const,
         }
       : emptySeatState;
   return {
@@ -145,7 +145,7 @@ function createRebuildDeps(
   };
 }
 describe('createRebuildTradingDayState', () => {
-  it('无 READY 席位时仍调用 recoverOrderTrackingFromSnapshot 与 displayAccountAndPositions', async () => {
+  it('无 ACTIVE 席位时仍调用 recoverOrderTrackingFromSnapshot 与 displayAccountAndPositions', async () => {
     let recoverCalled = false;
     let displayCalled = false;
     const registry = createSymbolRegistry('EMPTY');
@@ -179,7 +179,7 @@ describe('createRebuildTradingDayState', () => {
     const oldExecutedTime = new Date('2024-01-05T03:00:00.000Z').getTime();
     const now = new Date('2026-02-20T03:00:00.000Z');
     const tradingDayCalls: Array<{ startDate: Date; endDate: Date }> = [];
-    const registry = createSymbolRegistry('READY');
+    const registry = createSymbolRegistry('ACTIVE');
     const monitorContexts = new Map<string, MonitorContext>([
       [
         'HSI.HK',
@@ -225,7 +225,7 @@ describe('createRebuildTradingDayState', () => {
   it('存在仍持仓老单时，预热起点回溯到该老单成交时间', async () => {
     const oldOpenOrderTime = new Date('2025-12-15T03:00:00.000Z').getTime();
     const tradingDayCalls: Array<{ startDate: Date; endDate: Date }> = [];
-    const registry = createSymbolRegistry('READY');
+    const registry = createSymbolRegistry('ACTIVE');
     const monitorContexts = new Map<string, MonitorContext>([
       [
         'HSI.HK',
@@ -264,7 +264,7 @@ describe('createRebuildTradingDayState', () => {
     const openOrderTime = new Date('2025-11-15T03:00:00.000Z').getTime();
     const now = new Date('2026-02-20T03:00:00.000Z');
     const tradingDayCalls: Array<{ startDate: Date; endDate: Date }> = [];
-    const registry = createSymbolRegistry('READY');
+    const registry = createSymbolRegistry('ACTIVE');
     const monitorContexts = new Map<string, MonitorContext>([
       [
         'HSI.HK',
@@ -294,7 +294,7 @@ describe('createRebuildTradingDayState', () => {
     const earliestAllowedMs = now.getTime() - 365 * TIME.MILLISECONDS_PER_DAY;
     const openOrderTime = earliestAllowedMs - 60 * 60 * 1000;
     const tradingDayCalls: Array<{ startDate: Date; endDate: Date }> = [];
-    const registry = createSymbolRegistry('READY');
+    const registry = createSymbolRegistry('ACTIVE');
     const monitorContexts = new Map<string, MonitorContext>([
       [
         'HSI.HK',
@@ -323,7 +323,7 @@ describe('createRebuildTradingDayState', () => {
   });
 
   it('rebuildOrderRecords 中抛错时抛出带 [Lifecycle] 重建交易日状态失败 前缀的错误', async () => {
-    const registry = createSymbolRegistry('READY');
+    const registry = createSymbolRegistry('ACTIVE');
     const monitorContexts = new Map<string, MonitorContext>([
       [
         'HSI.HK',
@@ -346,7 +346,7 @@ describe('createRebuildTradingDayState', () => {
   });
 
   it('交易日历预热失败时，rebuildTradingDayState 会抛错', async () => {
-    const registry = createSymbolRegistry('READY');
+    const registry = createSymbolRegistry('ACTIVE');
     const monitorContexts = new Map<string, MonitorContext>([
       [
         'HSI.HK',

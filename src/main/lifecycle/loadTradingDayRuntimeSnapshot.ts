@@ -35,7 +35,7 @@ import { decimalToNumber, isValidPositiveNumber } from '../../utils/helpers/inde
 import { resolveOrderOwnership } from '../../core/orderRecorder/orderOwnershipParser.js';
 import { hasProtectiveLiquidationRemark } from '../../core/trader/utils.js';
 import { buildCooldownKey } from '../../services/liquidationCooldown/utils.js';
-import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
+import { hasSeatSymbol } from '../../services/autoSymbolManager/utils.js';
 import type {
   LoadTradingDayRuntimeSnapshotDeps,
   LoadTradingDayRuntimeSnapshotParams,
@@ -70,7 +70,7 @@ function isDirectionFlatAtSnapshot(
   direction: ProtectiveLiquidationDirection,
 ): boolean {
   const seatState = symbolRegistry.getSeatState(monitorSymbol, direction);
-  if (!isSeatReady(seatState)) {
+  if (!hasSeatSymbol(seatState)) {
     return true;
   }
 

@@ -64,7 +64,6 @@ function createOrderMonitorWorkerDouble(): OrderMonitorWorker {
     },
     schedule: () => {},
     stopAndDrain: async () => {},
-    clearLatestQuotes: () => {},
   };
 }
 

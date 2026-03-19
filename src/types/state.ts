@@ -1,6 +1,6 @@
 import type { SignalType, Signal } from './signal.js';
 import type { MonitorValues } from './data.js';
-import type { IndicatorSnapshot, Quote } from './quote.js';
+import type { IndicatorSnapshot } from './quote.js';
 import type { AccountSnapshot, Position } from './account.js';
 import type { MonitorConfig } from './config.js';
 import type { SeatState, SymbolRegistry, LifecycleState } from './seat.js';
@@ -123,7 +123,6 @@ interface AutoSymbolManager {
   maybeSwitchOnDistance: (params: {
     readonly direction: 'LONG' | 'SHORT';
     readonly monitorPrice: number | null;
-    readonly quotesMap: ReadonlyMap<string, Quote | null>;
     readonly positions: ReadonlyArray<Position>;
   }) => Promise<void>;
   hasPendingSwitch: (direction: 'LONG' | 'SHORT') => boolean;
@@ -267,7 +266,7 @@ export type LastState = {
 
 /**
  * 监控标的上下文。
- * 类型用途：聚合单监控标的的配置、运行时状态、注册表、策略、风控、行情缓存等，作为单标的处理流程的入参。
+ * 类型用途：聚合单监控标的的配置、运行时状态、注册表、策略、风控与名称缓存等，作为单标的处理流程的入参。
  * 数据来源：主程序/startup 根据配置与 LastState 组装；运行中字段由主循环更新。
  * 使用范围：processMonitor、主循环、买卖处理器、策略等；全项目可引用。
  */
@@ -331,13 +330,4 @@ export type MonitorContext = {
 
   /** 监控标的指标画像（启动编译，运行期只读） */
   readonly indicatorProfile: IndicatorUsageProfile;
-
-  /** 做多标的行情缓存 */
-  longQuote: Quote | null;
-
-  /** 做空标的行情缓存 */
-  shortQuote: Quote | null;
-
-  /** 监控标的行情缓存 */
-  monitorQuote: Quote | null;
 };

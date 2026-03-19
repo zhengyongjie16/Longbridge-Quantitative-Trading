@@ -17,7 +17,7 @@
  */
 import { logger } from '../../../utils/logger/index.js';
 import { API, TRADING } from '../../../constants/index.js';
-import { isSeatReady } from '../../../services/autoSymbolManager/utils.js';
+import { isSeatActive } from '../../../services/autoSymbolManager/utils.js';
 import type { MonitorContext } from '../../../types/state.js';
 import type { Quote } from '../../../types/quote.js';
 import type { PendingRefreshSymbol } from '../../../types/services.js';
@@ -50,7 +50,7 @@ function resolveDirectionSeatSymbol(
     monitorContext.config.monitorSymbol,
     direction,
   );
-  if (!isSeatReady(seatState)) {
+  if (!isSeatActive(seatState)) {
     return null;
   }
 
@@ -230,7 +230,7 @@ export function createPostTradeRefresher(deps: PostTradeRefresherDeps): PostTrad
         ctx.symbolRegistry.getSeatState(monitorSymbol, 'SHORT'),
       ];
       for (const seat of seats) {
-        if (isSeatReady(seat) && !monitorContextBySymbol.has(seat.symbol)) {
+        if (isSeatActive(seat) && !monitorContextBySymbol.has(seat.symbol)) {
           monitorContextBySymbol.set(seat.symbol, ctx);
         }
       }

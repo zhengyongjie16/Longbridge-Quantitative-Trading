@@ -11,7 +11,7 @@
  * - 任一查询失败即抛错，由生命周期管理器统一重试
  */
 import { LIFECYCLE, TIME } from '../../constants/index.js';
-import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
+import { hasSeatSymbol } from '../../services/autoSymbolManager/utils.js';
 import type { MonitorContext } from '../../types/state.js';
 import type { MarketDataClient, OrderRecord, TradingDayInfo } from '../../types/services.js';
 import { listHKDateKeysBetween } from './utils.js';
@@ -38,7 +38,7 @@ function createTradingCalendarPrewarmError(
 }
 
 /**
- * 在重建阶段预热交易日历快照：按 READY 席位仍持仓订单决定窗口，补齐缺失日期后写回 lastState。
+ * 在重建阶段预热交易日历快照：按已绑定席位仍持仓订单决定窗口，补齐缺失日期后写回 lastState。
  */
 export async function prewarmTradingCalendarSnapshotForRebuild(
   params: PrewarmTradingCalendarSnapshotParams,
@@ -81,7 +81,7 @@ export async function prewarmTradingCalendarSnapshotForRebuild(
 }
 
 /**
- * 从 READY 席位提取当前仍持仓买单，返回最早成交时间。
+ * 从已绑定席位提取当前仍持仓买单，返回最早成交时间。
  */
 function resolveEarliestOpenOrderExecutedMs(
   monitorContexts: ReadonlyMap<string, MonitorContext>,
@@ -91,7 +91,7 @@ function resolveEarliestOpenOrderExecutedMs(
     const monitorSymbol = monitorContext.config.monitorSymbol;
     const longSeatState = monitorContext.symbolRegistry.getSeatState(monitorSymbol, 'LONG');
     const shortSeatState = monitorContext.symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
-    if (isSeatReady(longSeatState)) {
+    if (hasSeatSymbol(longSeatState)) {
       const longOrders = monitorContext.orderRecorder.getBuyOrdersForSymbol(
         longSeatState.symbol,
         true,
@@ -99,7 +99,7 @@ function resolveEarliestOpenOrderExecutedMs(
       earliestMs = resolveMinTimestamp(earliestMs, longOrders);
     }
 
-    if (isSeatReady(shortSeatState)) {
+    if (hasSeatSymbol(shortSeatState)) {
       const shortOrders = monitorContext.orderRecorder.getBuyOrdersForSymbol(
         shortSeatState.symbol,
         false,

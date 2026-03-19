@@ -1,4 +1,4 @@
-import type { Config } from 'longbridge';
+import type { Candlestick, Config, Market, Period, TradeSessions } from 'longbridge';
 
 /**
  * withRetry 重试配置。
@@ -30,6 +30,63 @@ export type StaticInfo = {
  * 数据来源：由主程序传入 Longbridge Config。
  * 使用范围：仅 quoteClient 模块使用。
  */
+export type RealtimeQuoteLike = Readonly<{
+  readonly symbol: string;
+  readonly lastDone: { readonly toNumber: () => number } | number | string | null | undefined;
+  readonly timestamp?: Date | null;
+}>;
+
+export type SeedQuoteLike = Readonly<{
+  readonly symbol: string;
+  readonly prevClose: { readonly toNumber: () => number } | number | string | null | undefined;
+}>;
+
+export type QuoteStaticInfoLike = Readonly<{
+  readonly symbol: string;
+  readonly nameHk?: string | null;
+  readonly nameCn?: string | null;
+  readonly nameEn?: string | null;
+  readonly lotSize?: number | null;
+  readonly callPrice?: number | null;
+  readonly expiryDate?: string | null;
+  readonly issuePrice?: number | null;
+  readonly conversionRatio?: number | null;
+  readonly warrantType?: 'BULL' | 'BEAR' | null;
+  readonly underlyingSymbol?: string | null;
+}>;
+
+export type NaiveDateLike = Readonly<{
+  readonly toString: () => string;
+}>;
+
+export interface QuoteContextLike {
+  readonly quote: (symbols: string[]) => Promise<SeedQuoteLike[]>;
+  readonly staticInfo: (symbols: string[]) => Promise<QuoteStaticInfoLike[]>;
+  readonly subscribe: (symbols: string[], subTypes: number[]) => Promise<void>;
+  readonly unsubscribe: (symbols: string[], subTypes: number[]) => Promise<void>;
+  readonly realtimeQuote: (symbols: string[]) => Promise<RealtimeQuoteLike[]>;
+  readonly subscribeCandlesticks: (
+    symbol: string,
+    period: Period,
+    tradeSessions?: TradeSessions,
+  ) => Promise<Candlestick[]>;
+  readonly unsubscribeCandlesticks: (symbol: string, period: Period) => Promise<void>;
+  readonly realtimeCandlesticks: (
+    symbol: string,
+    period: Period,
+    count: number,
+  ) => Promise<Candlestick[]>;
+  readonly tradingDays: (
+    market: Market,
+    begin: unknown,
+    end: unknown,
+  ) => Promise<{
+    readonly tradingDays: ReadonlyArray<NaiveDateLike>;
+    readonly halfTradingDays: ReadonlyArray<NaiveDateLike>;
+  }>;
+}
+
 export type MarketDataClientDeps = {
   readonly config: Config;
+  readonly quoteContextFactory?: (config: Config) => Promise<QuoteContextLike>;
 };

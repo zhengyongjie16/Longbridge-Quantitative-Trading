@@ -16,7 +16,9 @@
 import { OrderSide } from 'longbridge';
 import { logger } from '../../utils/logger/index.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
-import { isSeatReady } from '../../services/autoSymbolManager/utils.js';
+import { isSeatActive } from '../../services/autoSymbolManager/utils.js';
+import { ORDER_QUOTE_RETRY } from '../../constants/index.js';
+import { isQuoteReadyForRequirement, resolveNextQuoteRetry } from '../../utils/quoteRetry.js';
 import type { MonitorContext } from '../../types/state.js';
 import type { Position } from '../../types/account.js';
 import type { Quote } from '../../types/quote.js';
@@ -77,7 +79,7 @@ function resolveSeatSymbol(
   }
 
   const seatState = context.symbolRegistry.getSeatState(monitorSymbol, direction);
-  if (!isSeatReady(seatState)) {
+  if (!isSeatActive(seatState)) {
     logger.debug(`[末日保护程序] 席位未就绪，跳过: ${monitorSymbol} ${direction}`);
     return null;
   }
@@ -133,7 +135,7 @@ function processPositionForClearance(
   }
 
   // 只处理属于当前监控配置的持仓
-  if (![longSymbol, shortSymbol].includes(pos.symbol)) {
+  if (pos.symbol !== longSymbol && pos.symbol !== shortSymbol) {
     return null;
   }
 
@@ -153,10 +155,13 @@ function processPositionForClearance(
     symbolName = symbolName ?? shortQuote.name ?? null;
   }
 
+  if (currentPrice === null || !Number.isFinite(currentPrice) || currentPrice <= 0) {
+    return null;
+  }
+
   // 收盘前清仓
   const action: SignalType = isShortPos ? 'SELLPUT' : 'SELLCALL';
   const positionType = isShortPos ? 'short' : 'long';
-  const positionLabel = positionType === 'short' ? '做空标的' : '做多标的';
   const signal = createClearanceSignal({
     symbol: pos.symbol,
     symbolName,
@@ -166,6 +171,7 @@ function processPositionForClearance(
     positionType,
   });
   if (signal) {
+    const positionLabel = positionType === 'short' ? '做空标的' : '做多标的';
     logger.debug(
       `[末日保护程序] 生成清仓信号：${positionLabel} ${pos.symbol} 数量=${availableQty} 操作=${action}`,
     );
@@ -179,11 +185,37 @@ function processPositionForClearance(
  * 收盘前15分钟拒绝买入并撤销未成交买入单，收盘前5分钟自动清仓所有持仓。
  * @returns DoomsdayProtection 接口实例（shouldRejectBuy、executeClearance、cancelPendingBuyOrders）
  */
-export function createDoomsdayProtection(): DoomsdayProtection {
+export function createDoomsdayProtection(deps?: {
+  readonly now?: () => Date;
+  readonly scheduleRetry?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
+  readonly clearRetry?: (handle: ReturnType<typeof setTimeout>) => void;
+  readonly quoteRetryIntervalMs?: number;
+  readonly quoteRetryMaxAttempts?: number;
+}): DoomsdayProtection {
   // 状态：记录当天是否已执行过收盘前15分钟的撤单检查
   // 格式为日期字符串（YYYY-MM-DD），用于跨天自动重置
   let cancelCheckExecutedDate: string | null = null;
   let lastClearanceNoticeKey: string | null = null;
+  const now = deps?.now ?? (() => new Date());
+  const scheduleRetry = deps?.scheduleRetry ?? setTimeout;
+  const clearRetry = deps?.clearRetry ?? clearTimeout;
+  const quoteRetryIntervalMs = deps?.quoteRetryIntervalMs ?? ORDER_QUOTE_RETRY.INTERVAL_MS;
+  const quoteRetryMaxAttempts = deps?.quoteRetryMaxAttempts ?? ORDER_QUOTE_RETRY.MAX_ATTEMPTS;
+  let clearanceRetryHandle: ReturnType<typeof setTimeout> | null = null;
+  let clearanceRetryAttempts = 0;
+  let clearanceRetrySymbols: ReadonlySet<string> | null = null;
+  const clearanceRetryExhaustedSymbols = new Set<string>();
+
+  const clearClearanceRetry = (): void => {
+    if (clearanceRetryHandle !== null) {
+      clearRetry(clearanceRetryHandle);
+      clearanceRetryHandle = null;
+    }
+
+    clearanceRetryAttempts = 0;
+    clearanceRetrySymbols = null;
+  };
+
   const logClearanceNotice = (key: string, message: string): void => {
     if (lastClearanceNoticeKey === key) {
       return;
@@ -192,159 +224,244 @@ export function createDoomsdayProtection(): DoomsdayProtection {
     lastClearanceNoticeKey = key;
     logger.info(message);
   };
+
+  /**
+   * 执行收盘前 5 分钟清仓。
+   *
+   * 关键约束：
+   * - 生命周期交易门禁关闭时必须直接跳过，不允许执行清仓或继续 retry 恢复；
+   * - 仅在收盘前 5 分钟窗口且持仓非空时继续后续流程。
+   */
+  async function executeClearance(
+    context: DoomsdayClearanceContext,
+  ): Promise<DoomsdayClearanceResult> {
+    const {
+      currentTime,
+      isHalfDay,
+      positions,
+      monitorConfigs,
+      monitorContexts,
+      trader,
+      marketDataClient,
+      lastState,
+    } = context;
+    const todayKey = getHKDateKey(currentTime);
+
+    if (!lastState.isTradingEnabled) {
+      clearClearanceRetry();
+      clearanceRetryExhaustedSymbols.clear();
+      logClearanceNotice(
+        `gate-closed:${todayKey}`,
+        '[末日保护程序] 清仓跳过：生命周期交易门禁关闭',
+      );
+      return { executed: false, signalCount: 0 };
+    }
+
+    if (!isBeforeClose5Minutes(currentTime, isHalfDay)) {
+      clearClearanceRetry();
+      clearanceRetryExhaustedSymbols.clear();
+      logClearanceNotice(
+        `outside-window:${todayKey}`,
+        '[末日保护程序] 清仓跳过：当前不在收盘前5分钟窗口',
+      );
+      return { executed: false, signalCount: 0 };
+    }
+
+    const retryPendingPositions =
+      clearanceRetrySymbols === null
+        ? positions
+        : positions.filter((position) => clearanceRetrySymbols?.has(position.symbol) ?? false);
+    const processingPositions = retryPendingPositions.filter(
+      (position) => !clearanceRetryExhaustedSymbols.has(position.symbol),
+    );
+    if (processingPositions.length === 0) {
+      clearClearanceRetry();
+      logClearanceNotice(`no-positions:${todayKey}`, '[末日保护程序] 清仓跳过：无可处理持仓');
+      return { executed: false, signalCount: 0 };
+    }
+
+    const allTradingSymbols = new Set<string>();
+    for (const monitorConfig of monitorConfigs) {
+      const { longSymbol, shortSymbol } = resolveMonitorSymbols(
+        monitorConfig.monitorSymbol,
+        monitorContexts,
+      );
+      if (longSymbol) {
+        allTradingSymbols.add(longSymbol);
+      }
+
+      if (shortSymbol) {
+        allTradingSymbols.add(shortSymbol);
+      }
+    }
+
+    const quoteMap = await batchGetQuotes(marketDataClient, allTradingSymbols);
+    const allClearanceSignals: Signal[] = [];
+    const unresolvedSymbols = new Set<string>();
+
+    for (const monitorConfig of monitorConfigs) {
+      const { longSymbol, shortSymbol } = resolveMonitorSymbols(
+        monitorConfig.monitorSymbol,
+        monitorContexts,
+      );
+      const longQuote = longSymbol ? (quoteMap.get(longSymbol) ?? null) : null;
+      const shortQuote = shortSymbol ? (quoteMap.get(shortSymbol) ?? null) : null;
+
+      for (const pos of processingPositions) {
+        if (pos.symbol === longSymbol) {
+          const quoteReady = isQuoteReadyForRequirement({
+            quote: longQuote,
+            requirement: 'PRICE',
+          });
+          if (!quoteReady) {
+            unresolvedSymbols.add(pos.symbol);
+            continue;
+          }
+        }
+
+        if (pos.symbol === shortSymbol) {
+          const quoteReady = isQuoteReadyForRequirement({
+            quote: shortQuote,
+            requirement: 'PRICE',
+          });
+          if (!quoteReady) {
+            unresolvedSymbols.add(pos.symbol);
+            continue;
+          }
+        }
+
+        const signal = processPositionForClearance(
+          pos,
+          longSymbol,
+          shortSymbol,
+          longQuote,
+          shortQuote,
+        );
+        if (signal) {
+          allClearanceSignals.push(signal);
+        }
+      }
+    }
+
+    const uniqueSignalsMap = new Map<string, Signal>();
+    for (const signal of allClearanceSignals) {
+      const key = `${signal.action}_${signal.symbol}`;
+      if (!uniqueSignalsMap.has(key)) {
+        uniqueSignalsMap.set(key, signal);
+        continue;
+      }
+
+      signalObjectPool.release(signal);
+    }
+
+    const uniqueClearanceSignals = [...uniqueSignalsMap.values()];
+    let submittedCount = 0;
+    if (uniqueClearanceSignals.length > 0) {
+      logger.info(`[末日保护程序] 生成 ${uniqueClearanceSignals.length} 个清仓信号，准备执行`);
+      const submittedSymbols = new Set(uniqueClearanceSignals.map((signal) => signal.symbol));
+      try {
+        const executionResult = await trader.executeSignals(uniqueClearanceSignals);
+        submittedCount = executionResult.submittedCount;
+      } finally {
+        signalObjectPool.releaseAll(uniqueClearanceSignals);
+      }
+
+      if (submittedCount === uniqueClearanceSignals.length) {
+        lastState.cachedAccount = null;
+        lastState.cachedPositions = lastState.cachedPositions.filter(
+          (position) => !submittedSymbols.has(position.symbol),
+        );
+        lastState.positionCache.update(lastState.cachedPositions);
+
+        for (const monitorContext of monitorContexts.values()) {
+          const { config, orderRecorder } = monitorContext;
+          const { longSymbol, shortSymbol } = resolveMonitorSymbols(
+            config.monitorSymbol,
+            monitorContexts,
+          );
+          if (longSymbol && submittedSymbols.has(longSymbol)) {
+            const quote = quoteMap.get(longSymbol) ?? null;
+            orderRecorder.clearBuyOrders(longSymbol, true, quote);
+          }
+
+          if (shortSymbol && submittedSymbols.has(shortSymbol)) {
+            const quote = quoteMap.get(shortSymbol) ?? null;
+            orderRecorder.clearBuyOrders(shortSymbol, false, quote);
+          }
+        }
+      } else {
+        logger.warn(
+          `[末日保护程序] 清仓信号仅提交 ${submittedCount}/${uniqueClearanceSignals.length} 个，保留缓存与订单记录等待后续刷新`,
+        );
+      }
+    } else {
+      const availablePositions = processingPositions.filter((pos) => {
+        const availableQty = pos.availableQuantity || 0;
+        return typeof pos.symbol === 'string' && Number.isFinite(availableQty) && availableQty > 0;
+      });
+      const seatSymbolSet = new Set(allTradingSymbols);
+      const unmatchedPositions = availablePositions.filter((pos) => !seatSymbolSet.has(pos.symbol));
+      logClearanceNotice(
+        `no-signals:${todayKey}:${positions.length}:${availablePositions.length}:${unmatchedPositions.length}`,
+        `[末日保护程序] 清仓跳过：未生成清仓信号（处理持仓=${processingPositions.length}, 可用持仓=${availablePositions.length}, 非席位持仓=${unmatchedPositions.length}）`,
+      );
+    }
+
+    if (unresolvedSymbols.size > 0) {
+      clearanceRetrySymbols = new Set(unresolvedSymbols);
+      if (clearanceRetryHandle !== null) {
+        return { executed: submittedCount > 0, signalCount: submittedCount };
+      }
+
+      const nextRetry = resolveNextQuoteRetry({
+        attempts: clearanceRetryAttempts,
+        nowMs: now().getTime(),
+        intervalMs: quoteRetryIntervalMs,
+        maxAttempts: quoteRetryMaxAttempts,
+      });
+      if (nextRetry.exhausted) {
+        clearClearanceRetry();
+        for (const symbol of unresolvedSymbols) {
+          clearanceRetryExhaustedSymbols.add(symbol);
+        }
+
+        logger.warn(
+          `[末日保护程序] 清仓行情重试耗尽，放弃本窗口重试: symbols=${[...unresolvedSymbols].join(',')}`,
+        );
+        return { executed: submittedCount > 0, signalCount: submittedCount };
+      }
+
+      clearanceRetryAttempts = nextRetry.nextAttempts;
+      clearanceRetryHandle = scheduleRetry(() => {
+        clearanceRetryHandle = null;
+        const retryTime = now();
+        const retrySymbols = clearanceRetrySymbols;
+        const retryPositions =
+          retrySymbols === null
+            ? context.lastState.cachedPositions
+            : context.lastState.cachedPositions.filter((position) =>
+                retrySymbols.has(position.symbol),
+              );
+        void executeClearance({
+          ...context,
+          currentTime: retryTime,
+          positions: retryPositions,
+        }).catch((err: unknown) => {
+          logger.error('[末日保护程序] 清仓行情重试执行失败', formatError(err));
+        });
+      }, quoteRetryIntervalMs);
+      return { executed: submittedCount > 0, signalCount: submittedCount };
+    }
+
+    clearClearanceRetry();
+    return { executed: submittedCount > 0, signalCount: submittedCount };
+  }
+
   return {
     shouldRejectBuy(currentTime: Date, isHalfDay: boolean): boolean {
       return isBeforeClose15Minutes(currentTime, isHalfDay);
     },
-    async executeClearance(context: DoomsdayClearanceContext): Promise<DoomsdayClearanceResult> {
-      const {
-        currentTime,
-        isHalfDay,
-        positions,
-        monitorConfigs,
-        monitorContexts,
-        trader,
-        marketDataClient,
-        lastState,
-      } = context;
-      const todayKey = getHKDateKey(currentTime);
-
-      // 检查是否应该清仓
-      if (!isBeforeClose5Minutes(currentTime, isHalfDay)) {
-        logClearanceNotice(
-          `outside-window:${todayKey}`,
-          '[末日保护程序] 清仓跳过：当前不在收盘前5分钟窗口',
-        );
-        return { executed: false, signalCount: 0 };
-      }
-
-      // 检查是否有持仓
-      if (positions.length === 0) {
-        logClearanceNotice(`no-positions:${todayKey}`, '[末日保护程序] 清仓跳过：无持仓');
-        return { executed: false, signalCount: 0 };
-      }
-
-      // 收集所有唯一的交易标的
-      const allTradingSymbols = new Set<string>();
-      for (const monitorConfig of monitorConfigs) {
-        const { longSymbol, shortSymbol } = resolveMonitorSymbols(
-          monitorConfig.monitorSymbol,
-          monitorContexts,
-        );
-        if (longSymbol) {
-          allTradingSymbols.add(longSymbol);
-        }
-
-        if (shortSymbol) {
-          allTradingSymbols.add(shortSymbol);
-        }
-      }
-
-      // 获取所有交易标的的行情
-      const quoteMap = await batchGetQuotes(marketDataClient, allTradingSymbols);
-
-      // 为每个监控标的生成清仓信号，然后合并去重
-      const allClearanceSignals: Signal[] = [];
-      for (const monitorConfig of monitorConfigs) {
-        const { longSymbol, shortSymbol } = resolveMonitorSymbols(
-          monitorConfig.monitorSymbol,
-          monitorContexts,
-        );
-        const longQuote = longSymbol ? (quoteMap.get(longSymbol) ?? null) : null;
-        const shortQuote = shortSymbol ? (quoteMap.get(shortSymbol) ?? null) : null;
-
-        // 复用 processPositionForClearance 处理每个持仓
-        for (const pos of positions) {
-          const signal = processPositionForClearance(
-            pos,
-            longSymbol,
-            shortSymbol,
-            longQuote,
-            shortQuote,
-          );
-          if (signal) {
-            allClearanceSignals.push(signal);
-          }
-        }
-      }
-
-      // 去重：使用 (action, symbol) 作为唯一键
-      const uniqueSignalsMap = new Map<string, Signal>();
-      for (const signal of allClearanceSignals) {
-        const key = `${signal.action}_${signal.symbol}`;
-        if (!uniqueSignalsMap.has(key)) {
-          uniqueSignalsMap.set(key, signal);
-          continue;
-        }
-
-        signalObjectPool.release(signal);
-      }
-
-      const uniqueClearanceSignals = [...uniqueSignalsMap.values()];
-      if (uniqueClearanceSignals.length === 0) {
-        const availablePositions = positions.filter((pos) => {
-          const availableQty = pos.availableQuantity || 0;
-          return (
-            typeof pos.symbol === 'string' && Number.isFinite(availableQty) && availableQty > 0
-          );
-        });
-        const seatSymbolSet = new Set(allTradingSymbols);
-        const unmatchedPositions = availablePositions.filter(
-          (pos) => !seatSymbolSet.has(pos.symbol),
-        );
-        logClearanceNotice(
-          `no-signals:${todayKey}:${positions.length}:${availablePositions.length}:${unmatchedPositions.length}`,
-          `[末日保护程序] 清仓跳过：未生成清仓信号（持仓=${positions.length}, 可用持仓=${availablePositions.length}, 非席位持仓=${unmatchedPositions.length}）`,
-        );
-        return { executed: false, signalCount: 0 };
-      }
-
-      logger.info(`[末日保护程序] 生成 ${uniqueClearanceSignals.length} 个清仓信号，准备执行`);
-
-      const submittedCount = await (async (): Promise<number> => {
-        try {
-          const executionResult = await trader.executeSignals(uniqueClearanceSignals);
-          return executionResult.submittedCount;
-        } finally {
-          signalObjectPool.releaseAll(uniqueClearanceSignals);
-        }
-      })();
-
-      if (submittedCount !== uniqueClearanceSignals.length) {
-        logger.warn(
-          `[末日保护程序] 清仓信号仅提交 ${submittedCount}/${uniqueClearanceSignals.length} 个，保留缓存与订单记录等待后续刷新`,
-        );
-        return {
-          executed: submittedCount > 0,
-          signalCount: submittedCount,
-        };
-      }
-
-      // 清空缓存（订单成交后会在主循环中刷新并显示账户和持仓信息）
-      lastState.cachedAccount = null;
-      lastState.cachedPositions = [];
-      lastState.positionCache.update([]);
-
-      // 清空所有监控标的的订单记录
-      for (const monitorContext of monitorContexts.values()) {
-        const { config, orderRecorder } = monitorContext;
-        const { longSymbol, shortSymbol } = resolveMonitorSymbols(
-          config.monitorSymbol,
-          monitorContexts,
-        );
-        if (longSymbol) {
-          const quote = quoteMap.get(longSymbol) ?? null;
-          orderRecorder.clearBuyOrders(longSymbol, true, quote);
-        }
-
-        if (shortSymbol) {
-          const quote = quoteMap.get(shortSymbol) ?? null;
-          orderRecorder.clearBuyOrders(shortSymbol, false, quote);
-        }
-      }
-
-      return { executed: true, signalCount: submittedCount };
-    },
+    executeClearance,
     async cancelPendingBuyOrders(
       context: CancelPendingBuyOrdersContext,
     ): Promise<CancelPendingBuyOrdersResult> {

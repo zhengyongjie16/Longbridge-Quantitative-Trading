@@ -57,19 +57,19 @@ function createMonitorContext(
     monitorSymbol: config.monitorSymbol,
     longSeat: {
       symbol: 'BULL.HK',
-      status: 'READY',
+      status: 'ACTIVE',
       lastSwitchAt: null,
       lastSearchAt: null,
-      lastSeatReadyAt: null,
+      lastSeatActivatedAt: null,
       searchFailCountToday: 0,
       frozenTradingDayKey: null,
     },
     shortSeat: {
       symbol: 'BEAR.HK',
-      status: 'READY',
+      status: 'ACTIVE',
       lastSwitchAt: null,
       lastSearchAt: null,
-      lastSeatReadyAt: null,
+      lastSeatActivatedAt: null,
       searchFailCountToday: 0,
       frozenTradingDayKey: null,
     },
@@ -359,6 +359,325 @@ describe('doomsday integration', () => {
     expect(lastState.cachedAccount).not.toBeNull();
     expect(lastState.cachedPositions).toHaveLength(2);
     expect(lastState.positionCache.get('BULL.HK')).not.toBeNull();
+  });
+
+  it('schedules non-blocking retry when close-5 clearance quote is missing and executes after quote warms', async () => {
+    const scheduledRetries: Array<() => Promise<void>> = [];
+    const doomsday = createDoomsdayProtection({
+      scheduleRetry: (callback) => {
+        scheduledRetries.push(async () => {
+          callback();
+          await Bun.sleep(0);
+        });
+        return setTimeout(() => {}, 0);
+      },
+      clearRetry: () => {},
+      now: () => new Date('2026-02-16T07:56:00.000Z'),
+      quoteRetryIntervalMs: 2_000,
+      quoteRetryMaxAttempts: 2,
+    });
+    const monitorConfig = createMonitorConfigDouble();
+
+    let quoteReady = false;
+    let executedSignals = 0;
+    let clearCalls = 0;
+    const orderRecorder = createOrderRecorderDouble({
+      clearBuyOrders: () => {
+        clearCalls += 1;
+      },
+    });
+    const trader = createTraderDouble({
+      executeSignals: async (signals) => {
+        executedSignals += signals.length;
+        return { submittedCount: signals.length, submittedOrderIds: [] };
+      },
+    });
+
+    const lastState = createLastState();
+    lastState.cachedPositions = [
+      createPositionDouble({ symbol: 'BULL.HK', quantity: 500, availableQuantity: 500 }),
+    ];
+    lastState.positionCache.update(lastState.cachedPositions);
+
+    const marketDataClient = {
+      getQuoteContext: async () => ({}) as never,
+      getQuotes: async () =>
+        new Map([
+          ['BULL.HK', quoteReady ? createQuoteDouble('BULL.HK', 1.1, 100) : null],
+          ['BEAR.HK', null],
+        ]),
+      subscribeSymbols: async () => {},
+      unsubscribeSymbols: async () => {},
+      subscribeCandlesticks: async () => [],
+      getRealtimeCandlesticks: async () => [],
+      isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
+      resetRuntimeSubscriptionsAndCaches: async () => {},
+    };
+
+    const result = await doomsday.executeClearance({
+      currentTime: new Date('2026-02-16T07:56:00.000Z'),
+      isHalfDay: false,
+      positions: lastState.cachedPositions,
+      monitorConfigs: [monitorConfig],
+      monitorContexts: new Map([
+        [monitorConfig.monitorSymbol, createMonitorContext(monitorConfig, orderRecorder)],
+      ]),
+      trader,
+      marketDataClient,
+      lastState,
+    });
+
+    expect(result).toEqual({ executed: false, signalCount: 0 });
+    expect(executedSignals).toBe(0);
+    expect(clearCalls).toBe(0);
+    expect(scheduledRetries).toHaveLength(1);
+
+    quoteReady = true;
+    const retryCallback = scheduledRetries[0];
+    if (!retryCallback) {
+      throw new Error('retry callback should exist');
+    }
+
+    await retryCallback();
+
+    expect(executedSignals).toBe(1);
+    expect(clearCalls).toBe(1);
+  });
+
+  it('skips close-5 retry execution when lifecycle gate closes before retry callback', async () => {
+    const scheduledRetries: Array<() => Promise<void>> = [];
+    const doomsday = createDoomsdayProtection({
+      scheduleRetry: (callback) => {
+        scheduledRetries.push(async () => {
+          callback();
+          await Bun.sleep(0);
+        });
+        return setTimeout(() => {}, 0);
+      },
+      clearRetry: () => {},
+      now: () => new Date('2026-02-16T07:56:00.000Z'),
+      quoteRetryIntervalMs: 2_000,
+      quoteRetryMaxAttempts: 2,
+    });
+    const monitorConfig = createMonitorConfigDouble();
+
+    let quoteReady = false;
+    let executedSignals = 0;
+    let clearCalls = 0;
+    const orderRecorder = createOrderRecorderDouble({
+      clearBuyOrders: () => {
+        clearCalls += 1;
+      },
+    });
+    const trader = createTraderDouble({
+      executeSignals: async (signals) => {
+        executedSignals += signals.length;
+        return { submittedCount: signals.length, submittedOrderIds: [] };
+      },
+    });
+
+    const lastState = createLastState();
+    lastState.cachedPositions = [
+      createPositionDouble({ symbol: 'BULL.HK', quantity: 500, availableQuantity: 500 }),
+    ];
+    lastState.positionCache.update(lastState.cachedPositions);
+
+    const marketDataClient = {
+      getQuoteContext: async () => ({}) as never,
+      getQuotes: async () =>
+        new Map([
+          ['BULL.HK', quoteReady ? createQuoteDouble('BULL.HK', 1.1, 100) : null],
+          ['BEAR.HK', null],
+        ]),
+      subscribeSymbols: async () => {},
+      unsubscribeSymbols: async () => {},
+      subscribeCandlesticks: async () => [],
+      getRealtimeCandlesticks: async () => [],
+      isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
+      resetRuntimeSubscriptionsAndCaches: async () => {},
+    };
+
+    const result = await doomsday.executeClearance({
+      currentTime: new Date('2026-02-16T07:56:00.000Z'),
+      isHalfDay: false,
+      positions: lastState.cachedPositions,
+      monitorConfigs: [monitorConfig],
+      monitorContexts: new Map([
+        [monitorConfig.monitorSymbol, createMonitorContext(monitorConfig, orderRecorder)],
+      ]),
+      trader,
+      marketDataClient,
+      lastState,
+    });
+
+    expect(result).toEqual({ executed: false, signalCount: 0 });
+    expect(executedSignals).toBe(0);
+    expect(clearCalls).toBe(0);
+    expect(scheduledRetries).toHaveLength(1);
+
+    quoteReady = true;
+    lastState.isTradingEnabled = false;
+    const retryCallback = scheduledRetries[0];
+    if (!retryCallback) {
+      throw new Error('retry callback should exist');
+    }
+
+    await retryCallback();
+
+    expect(executedSignals).toBe(0);
+    expect(clearCalls).toBe(0);
+  });
+
+  it('executes ready subset first and retries unresolved subset only in close-5 window', async () => {
+    const scheduledRetries: Array<() => Promise<void>> = [];
+    const doomsday = createDoomsdayProtection({
+      scheduleRetry: (callback) => {
+        scheduledRetries.push(async () => {
+          callback();
+          await Bun.sleep(0);
+        });
+        return setTimeout(() => {}, 0);
+      },
+      clearRetry: () => {},
+      now: () => new Date('2026-02-16T07:56:00.000Z'),
+      quoteRetryIntervalMs: 2_000,
+      quoteRetryMaxAttempts: 2,
+    });
+    const monitorConfig = createMonitorConfigDouble();
+
+    let shortQuoteReady = false;
+    const submittedSymbols: string[] = [];
+    const trader = createTraderDouble({
+      executeSignals: async (signals) => {
+        for (const signal of signals) {
+          submittedSymbols.push(signal.symbol);
+        }
+
+        return { submittedCount: signals.length, submittedOrderIds: [] };
+      },
+    });
+    const orderRecorder = createOrderRecorderDouble();
+    const lastState = createLastState();
+    const marketDataClient = {
+      getQuoteContext: async () => ({}) as never,
+      getQuotes: async () =>
+        new Map([
+          ['BULL.HK', createQuoteDouble('BULL.HK', 1.1, 100)],
+          ['BEAR.HK', shortQuoteReady ? createQuoteDouble('BEAR.HK', 0.9, 100) : null],
+        ]),
+      subscribeSymbols: async () => {},
+      unsubscribeSymbols: async () => {},
+      subscribeCandlesticks: async () => [],
+      getRealtimeCandlesticks: async () => [],
+      isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
+      resetRuntimeSubscriptionsAndCaches: async () => {},
+    };
+
+    await doomsday.executeClearance({
+      currentTime: new Date('2026-02-16T07:56:00.000Z'),
+      isHalfDay: false,
+      positions: lastState.cachedPositions,
+      monitorConfigs: [monitorConfig],
+      monitorContexts: new Map([
+        [monitorConfig.monitorSymbol, createMonitorContext(monitorConfig, orderRecorder)],
+      ]),
+      trader,
+      marketDataClient,
+      lastState,
+    });
+
+    expect(submittedSymbols).toEqual(['BULL.HK']);
+    expect(scheduledRetries).toHaveLength(1);
+
+    shortQuoteReady = true;
+    const retryCallback = scheduledRetries[0];
+    if (!retryCallback) {
+      throw new Error('retry callback should exist');
+    }
+
+    await retryCallback();
+    expect(submittedSymbols).toEqual(['BULL.HK', 'BEAR.HK']);
+  });
+
+  it('strictly terminates exhausted unresolved symbols in close-5 window', async () => {
+    const scheduledRetries: Array<() => Promise<void>> = [];
+    const doomsday = createDoomsdayProtection({
+      scheduleRetry: (callback) => {
+        scheduledRetries.push(async () => {
+          callback();
+          await Bun.sleep(0);
+        });
+        return setTimeout(() => {}, 0);
+      },
+      clearRetry: () => {},
+      now: () => new Date('2026-02-16T07:56:00.000Z'),
+      quoteRetryIntervalMs: 2_000,
+      quoteRetryMaxAttempts: 1,
+    });
+    const monitorConfig = createMonitorConfigDouble();
+
+    let shortQuoteReady = false;
+    const submittedSymbols: string[] = [];
+    const trader = createTraderDouble({
+      executeSignals: async (signals) => {
+        for (const signal of signals) {
+          submittedSymbols.push(signal.symbol);
+        }
+
+        return { submittedCount: signals.length, submittedOrderIds: [] };
+      },
+    });
+    const orderRecorder = createOrderRecorderDouble();
+    const lastState = createLastState();
+    const marketDataClient = {
+      getQuoteContext: async () => ({}) as never,
+      getQuotes: async () =>
+        new Map([
+          ['BULL.HK', createQuoteDouble('BULL.HK', 1.1, 100)],
+          ['BEAR.HK', shortQuoteReady ? createQuoteDouble('BEAR.HK', 0.9, 100) : null],
+        ]),
+      subscribeSymbols: async () => {},
+      unsubscribeSymbols: async () => {},
+      subscribeCandlesticks: async () => [],
+      getRealtimeCandlesticks: async () => [],
+      isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
+      resetRuntimeSubscriptionsAndCaches: async () => {},
+    };
+
+    await doomsday.executeClearance({
+      currentTime: new Date('2026-02-16T07:56:00.000Z'),
+      isHalfDay: false,
+      positions: lastState.cachedPositions,
+      monitorConfigs: [monitorConfig],
+      monitorContexts: new Map([
+        [monitorConfig.monitorSymbol, createMonitorContext(monitorConfig, orderRecorder)],
+      ]),
+      trader,
+      marketDataClient,
+      lastState,
+    });
+
+    const retryCallback = scheduledRetries[0];
+    if (!retryCallback) {
+      throw new Error('retry callback should exist');
+    }
+
+    await retryCallback();
+    shortQuoteReady = true;
+    await doomsday.executeClearance({
+      currentTime: new Date('2026-02-16T07:56:05.000Z'),
+      isHalfDay: false,
+      positions: lastState.cachedPositions,
+      monitorConfigs: [monitorConfig],
+      monitorContexts: new Map([
+        [monitorConfig.monitorSymbol, createMonitorContext(monitorConfig, orderRecorder)],
+      ]),
+      trader,
+      marketDataClient,
+      lastState,
+    });
+
+    expect(submittedSymbols).toEqual(['BULL.HK']);
   });
 
   it('releases duplicate and unique clearance signals even when execution throws', async () => {

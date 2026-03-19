@@ -74,13 +74,12 @@ export type SearchOnTickParams = {
 
 /**
  * 距回收价阈值触发换标的入参。
- * 类型用途：包含方向、监控标的价格、行情 Map 与持仓列表，由 switchStateMachine.maybeSwitchOnDistance 消费。
+ * 类型用途：包含方向、监控标的价格与持仓列表；实际执行时行情由 switchStateMachine 按阶段获取。
  * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
 export type SwitchOnDistanceParams = {
   readonly direction: 'LONG' | 'SHORT';
   readonly monitorPrice: number | null;
-  readonly quotesMap: ReadonlyMap<string, Quote | null>;
   readonly positions: ReadonlyArray<Position>;
 };
 
@@ -120,7 +119,9 @@ export type SwitchState = {
   sellOrderId: string | null;
   sellNotional: number | null;
   shouldRebuy: boolean;
-  awaitingQuote: boolean;
+  quoteRetryAttempts: number;
+  quoteRetryNextAt: number | null;
+  quoteRetryExhausted: boolean;
   cancelRequestSubmitted: boolean;
 };
 
@@ -351,7 +352,8 @@ export type SeatUnavailableReason =
   | 'SEAT_EMPTY'
   | 'SEAT_FROZEN_TODAY'
   | 'SEAT_SEARCHING'
-  | 'SEAT_SWITCHING';
+  | 'SEAT_SWITCHING'
+  | 'SEAT_ACTIVATING';
 
 /**
  * 信号席位绑定校验失败原因。
@@ -404,7 +406,7 @@ export type BuildSeatStateParams = {
   readonly status: SeatStatus;
   readonly lastSwitchAt: number | null;
   readonly lastSearchAt: number | null;
-  readonly lastSeatReadyAt: number | null;
+  readonly lastSeatActivatedAt: number | null;
   readonly callPrice?: number | null;
   readonly searchFailCountToday: number;
   readonly frozenTradingDayKey: string | null;
@@ -525,6 +527,7 @@ export type SwitchStateMachineDeps = {
   readonly trader: Trader;
   readonly orderRecorder: OrderRecorder;
   readonly riskChecker: RiskChecker;
+  readonly marketDataClient: MarketDataClient;
   readonly now: () => Date;
   readonly switchStates: SwitchStateMap;
   readonly periodicSwitchPending: PeriodicSwitchPendingMap;

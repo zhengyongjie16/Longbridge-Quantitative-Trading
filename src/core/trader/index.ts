@@ -20,7 +20,6 @@
 import { TradeContext } from 'longbridge';
 import { createOrderRecorder } from '../orderRecorder/index.js';
 import type { Signal, SignalType } from '../../types/signal.js';
-import type { Quote } from '../../types/quote.js';
 import type { AccountSnapshot, Position } from '../../types/account.js';
 import type {
   Trader,
@@ -55,6 +54,7 @@ export function createTrader(deps: TraderDeps): Promise<Trader> {
   const {
     config,
     tradingConfig,
+    marketDataClient,
     symbolRegistry,
     dailyLossTracker,
     protectiveLiquidationEpisodeTracker,
@@ -91,6 +91,7 @@ export function createTrader(deps: TraderDeps): Promise<Trader> {
     ctxPromise,
     rateLimiter,
     cacheManager,
+    marketDataClient,
     orderRecorder,
     dailyLossTracker,
     orderHoldRegistry,
@@ -152,8 +153,8 @@ export function createTrader(deps: TraderDeps): Promise<Trader> {
       return orderMonitor.cancelOrder(orderId);
     },
 
-    monitorAndManageOrders(quotesMap: ReadonlyMap<string, Quote | null>): Promise<void> {
-      return orderMonitor.processWithLatestQuotes(quotesMap);
+    monitorAndManageOrders(): Promise<void> {
+      return orderMonitor.processWithLatestQuotes();
     },
 
     getAndClearPendingRefreshSymbols(): PendingRefreshSymbol[] {

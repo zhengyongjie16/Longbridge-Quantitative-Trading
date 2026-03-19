@@ -1,10 +1,10 @@
 /**
  * 席位状态枚举。
- * 类型用途：表示做多/做空席位的生命周期（READY 可用、SEARCHING 寻标中、SWITCHING 换标中、EMPTY 空席），用于 getSeatState/updateSeatState 等返回值及换标流程判断。
+ * 类型用途：表示做多/做空席位的生命周期（EMPTY 空席、SEARCHING 寻标中、SWITCHING 换标中、ACTIVATING 激活中、ACTIVE 可消费），用于 getSeatState/updateSeatState 等返回值及换标流程判断。
  * 数据来源：由 SymbolRegistry 内部状态维护。
  * 使用范围：SymbolRegistry、autoSymbolManager、启动/换标流程等；全项目可引用。
  */
-export type SeatStatus = 'READY' | 'SEARCHING' | 'SWITCHING' | 'EMPTY';
+export type SeatStatus = 'EMPTY' | 'SEARCHING' | 'SWITCHING' | 'ACTIVATING' | 'ACTIVE';
 
 /**
  * 席位状态信息。
@@ -25,8 +25,8 @@ export type SeatState = {
   /** 上次寻标时间戳（毫秒） */
   readonly lastSearchAt: number | null;
 
-  /** 最近一次进入 READY 状态时间戳（毫秒） */
-  readonly lastSeatReadyAt: number | null;
+  /** 最近一次进入 ACTIVE 状态时间戳（毫秒） */
+  readonly lastSeatActivatedAt: number | null;
 
   /** 回收价（从 warrantList 透传，做多/做空标的换标后用于 setWarrantInfoFromCallPrice） */
   readonly callPrice?: number | null;

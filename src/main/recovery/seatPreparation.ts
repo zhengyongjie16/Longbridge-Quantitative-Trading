@@ -4,7 +4,7 @@
  * 核心职责：
  * - 基于历史订单与持仓推断席位标的，恢复上次运行状态
  * - 对启用自动寻标的空席位执行运行时恢复寻标
- * - 提供席位就绪状态查询与席位标的代码收集工具
+ * - 提供席位绑定状态查询与席位标的代码收集工具
  */
 import type { SeatSymbolSnapshotEntry, SymbolRegistry } from '../../types/seat.js';
 import type {
@@ -21,7 +21,7 @@ import {
   resolveDirectionalAutoSearchPolicy,
 } from '../../services/autoSymbolFinder/policyResolver.js';
 import {
-  isSeatReady,
+  hasSeatSymbol,
   resolveNextSearchFailureState,
   resolveSeatOnStartup,
 } from '../../services/autoSymbolManager/utils.js';
@@ -83,27 +83,27 @@ function resolveSeatSnapshot(input: SeatSnapshotInput): SeatSnapshot {
 }
 
 /**
- * 获取指定监控标的和方向的就绪席位标的代码。
+ * 获取指定监控标的和方向的已绑定席位标的代码。
  *
  * @param symbolRegistry 席位注册表
  * @param monitorSymbol 监控标的代码
  * @param direction 方向（LONG 或 SHORT）
- * @returns 席位就绪时返回标的代码，否则返回 null
+ * @returns 席位已绑定 symbol 时返回标的代码，否则返回 null
  */
-export function resolveReadySeatSymbol(
+export function resolveBoundSeatSymbol(
   symbolRegistry: SymbolRegistry,
   monitorSymbol: string,
   direction: 'LONG' | 'SHORT',
 ): string | null {
   const seatState = symbolRegistry.getSeatState(monitorSymbol, direction);
-  return isSeatReady(seatState) ? seatState.symbol : null;
+  return hasSeatSymbol(seatState) ? seatState.symbol : null;
 }
 
 /**
- * 收集所有监控标的当前就绪席位的标的代码列表，用于订阅行情。
+ * 收集所有监控标的当前已绑定席位的标的代码列表，用于订阅行情。
  *
  * @param params 包含 monitors、symbolRegistry
- * @returns 就绪席位的 monitorSymbol + direction + symbol 条目数组
+ * @returns 已绑定席位的 monitorSymbol + direction + symbol 条目数组
  */
 function collectSeatSymbols({
   monitors,
@@ -112,7 +112,7 @@ function collectSeatSymbols({
   const entries: SeatSymbolSnapshotEntry[] = [];
 
   for (const monitor of monitors) {
-    const longSymbol = resolveReadySeatSymbol(symbolRegistry, monitor.monitorSymbol, 'LONG');
+    const longSymbol = resolveBoundSeatSymbol(symbolRegistry, monitor.monitorSymbol, 'LONG');
     if (longSymbol) {
       entries.push({
         monitorSymbol: monitor.monitorSymbol,
@@ -121,7 +121,7 @@ function collectSeatSymbols({
       });
     }
 
-    const shortSymbol = resolveReadySeatSymbol(symbolRegistry, monitor.monitorSymbol, 'SHORT');
+    const shortSymbol = resolveBoundSeatSymbol(symbolRegistry, monitor.monitorSymbol, 'SHORT');
     if (shortSymbol) {
       entries.push({
         monitorSymbol: monitor.monitorSymbol,
@@ -140,7 +140,7 @@ function collectSeatSymbols({
  * - 对启用自动寻标的席位执行寻标
  *
  * @param deps 依赖注入，包含 tradingConfig、symbolRegistry、positions、orders、marketDataClient、now、logger 等
- * @returns 就绪席位的标的列表（seatSymbols），用于后续订阅行情
+ * @returns 已绑定席位的标的列表（seatSymbols），用于后续订阅行情
  */
 export async function prepareSeatsForRuntime(
   deps: PrepareSeatsForRuntimeDeps,
@@ -168,8 +168,6 @@ export async function prepareSeatsForRuntime(
     snapshotMap.set(`${entry.monitorSymbol}:${entry.direction}`, entry.symbol);
   }
 
-  const startupTimestampMs = now().getTime();
-
   function updateSeatOnRuntimeRecovery(
     monitorSymbol: string,
     direction: 'LONG' | 'SHORT',
@@ -177,10 +175,10 @@ export async function prepareSeatsForRuntime(
   ): void {
     symbolRegistry.updateSeatState(monitorSymbol, direction, {
       symbol,
-      status: symbol ? 'READY' : 'EMPTY',
+      status: symbol ? 'ACTIVATING' : 'EMPTY',
       lastSwitchAt: null,
       lastSearchAt: null,
-      lastSeatReadyAt: symbol ? startupTimestampMs : null,
+      lastSeatActivatedAt: null,
       callPrice: null,
       searchFailCountToday: 0,
       frozenTradingDayKey: null,
@@ -234,7 +232,7 @@ export async function prepareSeatsForRuntime(
       status: 'SEARCHING',
       lastSwitchAt: currentSeat.lastSwitchAt ?? null,
       lastSearchAt: nowMs,
-      lastSeatReadyAt: currentSeat.lastSeatReadyAt ?? null,
+      lastSeatActivatedAt: currentSeat.lastSeatActivatedAt ?? null,
       callPrice: null,
       searchFailCountToday: currentSeat.searchFailCountToday,
       frozenTradingDayKey: currentSeat.frozenTradingDayKey,
@@ -271,7 +269,7 @@ export async function prepareSeatsForRuntime(
         status: 'EMPTY',
         lastSwitchAt: updatedSeat.lastSwitchAt ?? null,
         lastSearchAt: nowMs,
-        lastSeatReadyAt: updatedSeat.lastSeatReadyAt ?? null,
+        lastSeatActivatedAt: updatedSeat.lastSeatActivatedAt ?? null,
         callPrice: null,
         searchFailCountToday: nextFailCount,
         frozenTradingDayKey,
@@ -281,10 +279,10 @@ export async function prepareSeatsForRuntime(
 
     symbolRegistry.updateSeatState(monitorSymbol, direction, {
       symbol: best.symbol,
-      status: 'READY',
+      status: 'ACTIVATING',
       lastSwitchAt: nowMs,
       lastSearchAt: nowMs,
-      lastSeatReadyAt: nowMs,
+      lastSeatActivatedAt: null,
       callPrice: best.callPrice,
       searchFailCountToday: 0,
       frozenTradingDayKey: null,
@@ -319,7 +317,7 @@ export async function prepareSeatsForRuntime(
       status: 'EMPTY',
       lastSwitchAt: stuckSeat.lastSwitchAt ?? null,
       lastSearchAt: currentTime.getTime(),
-      lastSeatReadyAt: stuckSeat.lastSeatReadyAt ?? null,
+      lastSeatActivatedAt: stuckSeat.lastSeatActivatedAt ?? null,
       callPrice: null,
       searchFailCountToday: nextFailCount,
       frozenTradingDayKey,
@@ -331,7 +329,7 @@ export async function prepareSeatsForRuntime(
     openDelayMinutes: number,
     currentTime: Date,
   ): boolean {
-    if (isSeatReady(seatState)) {
+    if (hasSeatSymbol(seatState)) {
       return true;
     }
 
@@ -365,7 +363,9 @@ export async function prepareSeatsForRuntime(
             currentTime,
           });
           if (symbol) {
-            logger.info(`[席位恢复] ${monitorConfig.monitorSymbol} ${direction} 已就绪: ${symbol}`);
+            logger.info(
+              `[席位恢复] ${monitorConfig.monitorSymbol} ${direction} 已进入激活阶段: ${symbol}`,
+            );
           }
         } catch (err) {
           handleSearchException(monitorConfig.monitorSymbol, direction, currentTime);

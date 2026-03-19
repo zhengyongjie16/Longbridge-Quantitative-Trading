@@ -19,11 +19,11 @@ import type { RiskChecker, OrderRecorder } from '../../types/services.js';
  * 构建单方向价格展示信息（距回收价、持仓市值/持仓盈亏、订单数量）。
  * 统一复用 riskChecker 的浮亏缓存计算结果，避免展示层重复实现 R1/N1/R2 公式。
  *
- * @param params 含 seatReady、symbol、monitorCurrentPrice、quotePrice、isLongSymbol、riskChecker、orderRecorder
+ * @param params 含 seatActive、symbol、monitorCurrentPrice、quotePrice、isLongSymbol、riskChecker、orderRecorder
  * @returns 价格展示信息，席位未就绪时返回 null
  */
 function buildPriceDisplayInfo(params: {
-  readonly seatReady: boolean;
+  readonly seatActive: boolean;
   readonly symbol: string;
   readonly monitorCurrentPrice: number | null;
   readonly quotePrice: number | null;
@@ -32,7 +32,7 @@ function buildPriceDisplayInfo(params: {
   readonly orderRecorder: OrderRecorder;
 }): PriceDisplayInfo | null {
   const {
-    seatReady,
+    seatActive,
     symbol,
     monitorCurrentPrice,
     quotePrice,
@@ -41,7 +41,7 @@ function buildPriceDisplayInfo(params: {
     orderRecorder,
   } = params;
 
-  if (!seatReady) {
+  if (!seatActive) {
     return null;
   }
 
@@ -85,8 +85,8 @@ export function scheduleRiskTasks(params: RiskTasksParams): void {
     shortSeatState,
     longSeatVersion,
     shortSeatVersion,
-    longSeatReady,
-    shortSeatReady,
+    longSeatActive,
+    shortSeatActive,
     longSymbol,
     shortSymbol,
     longQuote,
@@ -104,13 +104,11 @@ export function scheduleRiskTasks(params: RiskTasksParams): void {
         long: {
           seatVersion: longSeatVersion,
           symbol: longSeatState.symbol ?? null,
-          quote: longQuote,
           symbolName: longQuote?.name ?? monitorContext.longSymbolName,
         },
         short: {
           seatVersion: shortSeatVersion,
           symbol: shortSeatState.symbol ?? null,
-          quote: shortQuote,
           symbolName: shortQuote?.name ?? monitorContext.shortSymbolName,
         },
       },
@@ -118,7 +116,7 @@ export function scheduleRiskTasks(params: RiskTasksParams): void {
   }
 
   const longDisplayInfo = buildPriceDisplayInfo({
-    seatReady: longSeatReady,
+    seatActive: longSeatActive,
     symbol: longSymbol,
     monitorCurrentPrice,
     quotePrice: longQuote?.price ?? null,
@@ -127,7 +125,7 @@ export function scheduleRiskTasks(params: RiskTasksParams): void {
     orderRecorder,
   });
   const shortDisplayInfo = buildPriceDisplayInfo({
-    seatReady: shortSeatReady,
+    seatActive: shortSeatActive,
     symbol: shortSymbol,
     monitorCurrentPrice,
     quotePrice: shortQuote?.price ?? null,
@@ -156,12 +154,10 @@ export function scheduleRiskTasks(params: RiskTasksParams): void {
         long: {
           seatVersion: longSeatVersion,
           symbol: longSeatState.symbol ?? null,
-          quote: longQuote,
         },
         short: {
           seatVersion: shortSeatVersion,
           symbol: shortSeatState.symbol ?? null,
-          quote: shortQuote,
         },
       },
     });

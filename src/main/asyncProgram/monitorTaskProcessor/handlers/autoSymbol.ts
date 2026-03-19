@@ -6,10 +6,10 @@
  * - 处理 AUTO_SYMBOL_SWITCH_DISTANCE 距回收价触发的换标检查任务
  * - 执行前校验席位快照，防止旧任务在换标后被错误执行
  */
+import { logger } from '../../../../utils/logger/index.js';
 import type { LastState } from '../../../../types/state.js';
 import type { RefreshGate } from '../../../../utils/types.js';
-import type { MonitorTask } from '../../monitorTaskQueue/types.js';
-import type {
+import type { MonitorTask } from '../../monitorTaskQueue/types.js';import type {
   AutoSymbolSwitchDistanceTaskData,
   AutoSymbolTickTaskData,
   MonitorTaskContext,
@@ -17,8 +17,8 @@ import type {
   MonitorTaskStatus,
 } from '../types.js';
 import {
+  hasSeatSymbolInSnapshot,
   isSeatSnapshotValid,
-  isSeatSymbolActive,
   resolveSeatSnapshotReadiness,
   validateSeatSnapshotsAfterRefresh,
 } from '../helpers/seatSnapshot.js';
@@ -64,10 +64,16 @@ export function createAutoSymbolHandlers({
       context,
     );
     if (!isSnapshotValid) {
+      logger.debug(
+        `[MonitorTaskProcessor] AUTO_SYMBOL_TICK 快照失效，跳过 type=${task.type} monitor=${task.monitorSymbol} direction=${data.direction} dedupe=${task.dedupeKey}`,
+      );
       return 'skipped';
     }
 
     if (getCanProcessTask && !getCanProcessTask()) {
+      logger.debug(
+        `[MonitorTaskProcessor] AUTO_SYMBOL_TICK 门禁关闭，跳过 type=${task.type} monitor=${task.monitorSymbol} direction=${data.direction} dedupe=${task.dedupeKey}`,
+      );
       return 'skipped';
     }
 
@@ -104,10 +110,16 @@ export function createAutoSymbolHandlers({
       refreshGate,
     });
     if (!snapshotValidity) {
+      logger.debug(
+        `[MonitorTaskProcessor] AUTO_SYMBOL_SWITCH_DISTANCE 快照失效，跳过 type=${task.type} monitor=${task.monitorSymbol} dedupe=${task.dedupeKey}`,
+      );
       return 'skipped';
     }
 
     if (getCanProcessTask && !getCanProcessTask()) {
+      logger.debug(
+        `[MonitorTaskProcessor] AUTO_SYMBOL_SWITCH_DISTANCE 门禁关闭，跳过 type=${task.type} monitor=${task.monitorSymbol} dedupe=${task.dedupeKey}`,
+      );
       return 'skipped';
     }
 
@@ -115,31 +127,35 @@ export function createAutoSymbolHandlers({
       monitorSymbol: data.monitorSymbol,
       context,
       snapshotValidity,
-      isSeatUsable: isSeatSymbolActive,
+      isSeatUsable: hasSeatSymbolInSnapshot,
     });
 
     if (seatReadiness.isLongReady) {
       if (getCanProcessTask && !getCanProcessTask()) {
+        logger.debug(
+          `[MonitorTaskProcessor] AUTO_SYMBOL_SWITCH_DISTANCE LONG 门禁关闭，跳过 type=${task.type} monitor=${task.monitorSymbol} dedupe=${task.dedupeKey}`,
+        );
         return 'skipped';
       }
 
       await context.autoSymbolManager.maybeSwitchOnDistance({
         direction: 'LONG',
         monitorPrice: data.monitorPrice,
-        quotesMap: data.quotesMap,
         positions: lastState.cachedPositions,
       });
     }
 
     if (seatReadiness.isShortReady) {
       if (getCanProcessTask && !getCanProcessTask()) {
+        logger.debug(
+          `[MonitorTaskProcessor] AUTO_SYMBOL_SWITCH_DISTANCE SHORT 门禁关闭，跳过 type=${task.type} monitor=${task.monitorSymbol} dedupe=${task.dedupeKey}`,
+        );
         return 'skipped';
       }
 
       await context.autoSymbolManager.maybeSwitchOnDistance({
         direction: 'SHORT',
         monitorPrice: data.monitorPrice,
-        quotesMap: data.quotesMap,
         positions: lastState.cachedPositions,
       });
     }

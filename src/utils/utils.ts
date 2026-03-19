@@ -4,8 +4,15 @@ import type { SymbolRegistry, SeatState } from '../types/seat.js';
 import type { QueueClearResult } from '../types/queue.js';
 import type { MonitorContextSeatSnapshot, MonitorContextRuntimeSnapshot } from './types.js';
 
-function resolveReadySeatSymbol(seatState: SeatState): string | null {
-  if (seatState.status !== 'READY') {
+/**
+ * 解析可消费的 ACTIVE 席位标的代码。
+ * 默认行为：仅当 seat 处于 ACTIVE 且 symbol 为非空字符串时返回 symbol，否则返回 null。
+ *
+ * @param seatState 席位状态
+ * @returns 当前可消费的席位标的代码，或 null
+ */
+function resolveActiveSeatSymbol(seatState: SeatState): string | null {
+  if (seatState.status !== 'ACTIVE') {
     return null;
   }
 
@@ -16,7 +23,7 @@ function resolveReadySeatSymbol(seatState: SeatState): string | null {
 
 /**
  * 解析单个监控标的的席位快照。
- * 默认行为：读取 symbolRegistry 中的多空席位状态与版本，并派生当前就绪标的代码。
+ * 默认行为：读取 symbolRegistry 中的多空席位状态与版本，并派生当前可消费的 ACTIVE 标的代码。
  *
  * @param monitorSymbol 监控标的代码
  * @param symbolRegistry 席位注册表
@@ -37,8 +44,8 @@ export function resolveMonitorContextSeatSnapshot(
       long: symbolRegistry.getSeatVersion(monitorSymbol, 'LONG'),
       short: symbolRegistry.getSeatVersion(monitorSymbol, 'SHORT'),
     },
-    longSymbol: resolveReadySeatSymbol(longSeatState),
-    shortSymbol: resolveReadySeatSymbol(shortSeatState),
+    longSymbol: resolveActiveSeatSymbol(longSeatState),
+    shortSymbol: resolveActiveSeatSymbol(shortSeatState),
   };
 }
 

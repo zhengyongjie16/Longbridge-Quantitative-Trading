@@ -14,10 +14,11 @@ import {
   ORDER_MONITOR_CANCEL_RETRY_BASE_DELAY_MS,
   ORDER_MONITOR_CANCEL_RETRY_MAX_DELAY_MS,
   ORDER_MONITOR_WAIT_WS_ONLY_BLOCK_UNTIL_MS,
+  ORDER_QUOTE_RETRY,
   PENDING_ORDER_STATUSES,
   TRADING,
 } from '../../../constants/index.js';
-import type { Quote } from '../../../types/quote.js';
+import { isQuoteReadyForRequirement, resolveNextQuoteRetry } from '../../../utils/quoteRetry.js';
 import type { CancelOrderOutcome } from '../../../types/trader.js';
 import { toDecimal } from '../utils.js';
 import type { PendingSellOrderSnapshot, TrackedOrder } from '../types.js';
@@ -132,6 +133,12 @@ function clearTimeoutMarketConversionState(order: OrderMonitorTrackedOrder): voi
   order.timeoutMarketConversionTerminalState = null;
 }
 
+function resetQuoteRetryState(order: OrderMonitorTrackedOrder): void {
+  order.quoteRetryAttempts = 0;
+  order.quoteRetryNextAt = null;
+  order.quoteRetryExhausted = false;
+}
+
 /**
  * 创建行情驱动流程处理器。
  *
@@ -144,6 +151,7 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
     config,
     thresholdDecimal,
     orderRecorder,
+    marketDataClient,
     ctxPromise,
     rateLimiter,
     isExecutionAllowed,
@@ -402,15 +410,18 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
   }
 
   /**
-   * 根据最新行情更新委托价并处理超时逻辑。
+   * 根据执行当下批量读取的 realtime 行情更新委托价并处理超时逻辑。
    *
-   * @param quotesMap 最新行情映射
    * @returns 无返回值
    */
-  async function processWithLatestQuotes(
-    quotesMap: ReadonlyMap<string, Quote | null>,
-  ): Promise<void> {
+  async function processWithLatestQuotes(): Promise<void> {
     const now = Date.now();
+    const trackedSymbols = new Set<string>();
+    for (const order of runtime.trackedOrders.values()) {
+      trackedSymbols.add(order.symbol);
+    }
+
+    const quotesMap = await marketDataClient.getQuotes(trackedSymbols);
     for (const [orderId, order] of runtime.trackedOrders) {
       if (order.convertedToMarket) {
         continue;
@@ -443,10 +454,41 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
         continue;
       }
 
-      const quote = quotesMap.get(order.symbol);
-      if (!quote || !Number.isFinite(quote.price)) {
+      if (order.quoteRetryExhausted) {
         continue;
       }
+
+      const quote = quotesMap.get(order.symbol) ?? null;
+      if (!isQuoteReadyForRequirement({ quote, requirement: 'PRICE' })) {
+        if (order.quoteRetryNextAt !== null && now < order.quoteRetryNextAt) {
+          continue;
+        }
+
+        const nextRetry = resolveNextQuoteRetry({
+          attempts: order.quoteRetryAttempts,
+          nowMs: now,
+          intervalMs: ORDER_QUOTE_RETRY.INTERVAL_MS,
+          maxAttempts: ORDER_QUOTE_RETRY.MAX_ATTEMPTS,
+        });
+        if (nextRetry.exhausted) {
+          order.quoteRetryAttempts = nextRetry.nextAttempts;
+          order.quoteRetryNextAt = null;
+          order.quoteRetryExhausted = true;
+          logger.warn(`[订单监控] 订单 ${orderId} 行情重试耗尽，停止追价重试`);
+          continue;
+        }
+
+        order.quoteRetryAttempts = nextRetry.nextAttempts;
+        order.quoteRetryNextAt = nextRetry.nextRetryAt;
+        order.quoteRetryExhausted = false;
+        continue;
+      }
+
+      if (quote === null) {
+        continue;
+      }
+
+      resetQuoteRetryState(order);
 
       const currentPrice = quote.price;
       const normalizedCurrentPriceText = normalizePriceText(currentPrice);

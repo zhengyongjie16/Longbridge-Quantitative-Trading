@@ -180,7 +180,36 @@ export async function mainProgram({
   // 使用 lifecycle tick 后的最新持仓缓存
   const positions = lastState.cachedPositions;
 
-  // 末日保护检查（全局性，在所有监控标的处理之前）
+  // 收集所有需要获取行情的标的，一次性批量获取（减少 API 调用次数）
+  const orderHoldSymbols = trader.getOrderHoldSymbols();
+  const desiredSymbols = collectRuntimeQuoteSymbols(
+    tradingConfig.monitors,
+    symbolRegistry,
+    positions,
+    orderHoldSymbols,
+  );
+  const { added, removed } = diffQuoteSymbols(lastState.allTradingSymbols, desiredSymbols);
+  if (added.length > 0) {
+    await marketDataClient.subscribeSymbols(added);
+  }
+
+  const removableSymbols = removed.filter((symbol) => lastState.positionCache.get(symbol) === null);
+  if (removableSymbols.length > 0) {
+    await marketDataClient.unsubscribeSymbols(removableSymbols);
+  }
+
+  const nextSymbols = new Set(lastState.allTradingSymbols);
+  for (const symbol of added) {
+    nextSymbols.add(symbol);
+  }
+
+  for (const symbol of removableSymbols) {
+    nextSymbols.delete(symbol);
+  }
+
+  lastState.allTradingSymbols = nextSymbols;
+
+  // 末日保护检查（全局性，需在订阅集合已同步后执行）
   if (tradingConfig.global.doomsdayProtection) {
     // 收盘前15分钟：撤销所有未成交的买入订单
     const cancelResult = await doomsdayProtection.cancelPendingBuyOrders({
@@ -213,34 +242,6 @@ export async function mainProgram({
     }
   }
 
-  // 收集所有需要获取行情的标的，一次性批量获取（减少 API 调用次数）
-  const orderHoldSymbols = trader.getOrderHoldSymbols();
-  const desiredSymbols = collectRuntimeQuoteSymbols(
-    tradingConfig.monitors,
-    symbolRegistry,
-    positions,
-    orderHoldSymbols,
-  );
-  const { added, removed } = diffQuoteSymbols(lastState.allTradingSymbols, desiredSymbols);
-  if (added.length > 0) {
-    await marketDataClient.subscribeSymbols(added);
-  }
-
-  const removableSymbols = removed.filter((symbol) => lastState.positionCache.get(symbol) === null);
-  if (removableSymbols.length > 0) {
-    await marketDataClient.unsubscribeSymbols(removableSymbols);
-  }
-
-  const nextSymbols = new Set(lastState.allTradingSymbols);
-  for (const symbol of added) {
-    nextSymbols.add(symbol);
-  }
-
-  for (const symbol of removableSymbols) {
-    nextSymbols.delete(symbol);
-  }
-
-  lastState.allTradingSymbols = nextSymbols;
   const quotesMap = await marketDataClient.getQuotes(nextSymbols);
   const mainContext: MainProgramContext = {
     marketDataClient,
@@ -294,7 +295,7 @@ export async function mainProgram({
   // 全局操作：订单监控（在所有监控标的处理完成后）
   // 使用已维护的 allTradingSymbols
   if (canTradeNow && lastState.allTradingSymbols.size > 0) {
-    orderMonitorWorker.schedule(quotesMap);
+    orderMonitorWorker.schedule();
     postTradeRefresher.enqueue({
       pending: trader.getAndClearPendingRefreshSymbols(),
       quotesMap,

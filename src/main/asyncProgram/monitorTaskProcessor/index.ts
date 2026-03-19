@@ -19,6 +19,7 @@
  * - 防止换标后执行旧席位的任务
  */
 import { logger } from '../../../utils/logger/index.js';
+import { ORDER_QUOTE_RETRY } from '../../../constants/index.js';
 import { createQueueRunner } from './queueRunner.js';
 import { createRefreshHelpers } from './helpers/refreshHelpers.js';
 import { createAutoSymbolHandlers } from './handlers/autoSymbol.js';
@@ -32,6 +33,7 @@ import type {
   MonitorTaskDataMap,
   MonitorTaskProcessor,
   MonitorTaskProcessorDeps,
+  MonitorTaskRetryRequest,
   MonitorTaskStatus,
   RefreshHelpers,
 } from './types.js';
@@ -41,8 +43,8 @@ import type {
  *
  * 一旦出现未覆盖类型，立即抛错并暴露实现缺口。
  */
-function assertNeverTaskType(taskType: string): never {
-  throw new Error(`[MonitorTaskProcessor] 未处理的任务类型: ${taskType}`);
+function assertNeverTask(_task: never): never {
+  throw new Error('[MonitorTaskProcessor] 存在未处理的任务分派分支');
 }
 
 /**
@@ -59,11 +61,64 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
     getMonitorContext,
     clearMonitorDirectionQueues,
     trader,
+    marketDataClient,
     lastState,
     tradingConfig,
+    scheduleRetry,
+    clearRetry,
     getCanProcessTask,
     onProcessed,
   } = deps;
+
+  type RetryRegistryEntry = {
+    handle: ReturnType<typeof setTimeout>;
+  };
+
+  const schedule =
+    scheduleRetry ??
+    ((callback: () => void, delayMs: number) => {
+      return setTimeout(callback, delayMs);
+    });
+  const clear =
+    clearRetry ??
+    ((handle: ReturnType<typeof setTimeout>) => {
+      clearTimeout(handle);
+    });
+  const retryRegistry = new Map<string, RetryRegistryEntry>();
+  let lifecycleActive = true;
+
+  function clearRetryEntry(retryKey: string): void {
+    const retryEntry = retryRegistry.get(retryKey);
+    if (!retryEntry) {
+      return;
+    }
+
+    clear(retryEntry.handle);
+    retryRegistry.delete(retryKey);
+  }
+
+  function clearAllRetryEntries(): void {
+    for (const retryKey of retryRegistry.keys()) {
+      clearRetryEntry(retryKey);
+    }
+  }
+
+  function scheduleTaskRetry(retryRequest: MonitorTaskRetryRequest): void {
+    if (!lifecycleActive || retryRegistry.has(retryRequest.retryKey)) {
+      return;
+    }
+
+    const handle = schedule(() => {
+      const retryEntry = retryRegistry.get(retryRequest.retryKey);
+      if (!retryEntry || !lifecycleActive) {
+        return;
+      }
+
+      retryRegistry.delete(retryRequest.retryKey);
+      monitorTaskQueue.scheduleLatest(retryRequest.task);
+    }, ORDER_QUOTE_RETRY.INTERVAL_MS);
+    retryRegistry.set(retryRequest.retryKey, { handle });
+  }
 
   /** 根据 monitorSymbol 获取监控上下文，未找到时打日志并返回 null */
   function getContextOrSkip(monitorSymbol: string): MonitorTaskContext | null {
@@ -85,10 +140,12 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
     getContextOrSkip,
     clearMonitorDirectionQueues,
     tradingConfig,
+    marketDataClient,
   });
   const handleLiquidationDistanceCheck = createLiquidationDistanceHandler({
     getContextOrSkip,
     refreshGate,
+    marketDataClient,
     lastState,
     trader,
     ...(getCanProcessTask ? { getCanProcessTask } : {}),
@@ -96,24 +153,28 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
   const handleUnrealizedLossCheck = createUnrealizedLossHandler({
     getContextOrSkip,
     refreshGate,
+    marketDataClient,
     trader,
     ...(getCanProcessTask ? { getCanProcessTask } : {}),
   });
   async function processTask(
     task: MonitorTask<MonitorTaskDataMap>,
     helpers: RefreshHelpers,
-  ): Promise<MonitorTaskStatus> {
+  ): Promise<{
+    readonly status: MonitorTaskStatus;
+    readonly retryRequest: MonitorTaskRetryRequest | null;
+  }> {
     switch (task.type) {
       case 'AUTO_SYMBOL_TICK': {
-        return handleAutoSymbolTick(task);
+        return { status: await handleAutoSymbolTick(task), retryRequest: null };
       }
 
       case 'AUTO_SYMBOL_SWITCH_DISTANCE': {
-        return handleAutoSymbolSwitchDistance(task);
+        return { status: await handleAutoSymbolSwitchDistance(task), retryRequest: null };
       }
 
       case 'SEAT_REFRESH': {
-        return handleSeatRefresh(task, helpers);
+        return { status: await handleSeatRefresh(task, helpers), retryRequest: null };
       }
 
       case 'LIQUIDATION_DISTANCE_CHECK': {
@@ -125,7 +186,7 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
       }
 
       default: {
-        return assertNeverTaskType('unknown-monitor-task');
+        return assertNeverTask(task);
       }
     }
   }
@@ -140,15 +201,30 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
       }
 
       if (getCanProcessTask && !getCanProcessTask()) {
+        logger.debug(
+          `[MonitorTaskProcessor] 任务跳过：生命周期门禁关闭 type=${task.type} monitor=${task.monitorSymbol} dedupe=${task.dedupeKey}`,
+        );
         onProcessed?.(task, 'skipped');
         continue;
       }
 
-      const status = await processTask(task, helpers).catch((err: unknown) => {
+      const result = await processTask(task, helpers).catch((err: unknown) => {
         logger.error('[MonitorTaskProcessor] 处理任务失败', formatError(err));
-        return 'failed' as const;
+        return {
+          status: 'failed' as const,
+          retryRequest: null,
+        };
       });
-      onProcessed?.(task, status);
+      if (result.retryRequest) {
+        scheduleTaskRetry(result.retryRequest);
+      } else if (
+        task.type === 'LIQUIDATION_DISTANCE_CHECK' ||
+        task.type === 'UNREALIZED_LOSS_CHECK'
+      ) {
+        clearRetryEntry(`${task.monitorSymbol}:${task.type}`);
+      }
+
+      onProcessed?.(task, result.status);
     }
   }
   const queueRunner = createQueueRunner({
@@ -162,9 +238,25 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
     },
   });
   return {
-    start: queueRunner.start,
-    stop: queueRunner.stop,
-    stopAndDrain: queueRunner.stopAndDrain,
-    restart: queueRunner.restart,
+    start: () => {
+      lifecycleActive = true;
+      queueRunner.start();
+    },
+    stop: () => {
+      lifecycleActive = false;
+      clearAllRetryEntries();
+      queueRunner.stop();
+    },
+    stopAndDrain: async () => {
+      lifecycleActive = false;
+      clearAllRetryEntries();
+      await queueRunner.stopAndDrain();
+    },
+    restart: () => {
+      lifecycleActive = false;
+      clearAllRetryEntries();
+      queueRunner.restart();
+      lifecycleActive = true;
+    },
   };
 }

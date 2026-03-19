@@ -45,6 +45,7 @@ const QUOTE_METHODS: ReadonlySet<MockMethodName> = new Set([
   'staticInfo',
   'subscribe',
   'unsubscribe',
+  'realtimeQuote',
   'subscribeCandlesticks',
   'unsubscribeCandlesticks',
   'realtimeCandlesticks',
@@ -86,6 +87,9 @@ function normalizeWarrantType(value: unknown): 'BULL' | 'BEAR' | null {
 
 interface QuoteContextMock extends QuoteContextContract {
   seedQuotes: (quotes: ReadonlyArray<{ readonly symbol: string; readonly quote: unknown }>) => void;
+  seedRealtimeQuotes: (
+    quotes: ReadonlyArray<{ readonly symbol: string; readonly quote: unknown }>,
+  ) => void;
   seedStaticInfo: (
     staticInfos: ReadonlyArray<{ readonly symbol: string; readonly info: unknown }>,
   ) => void;
@@ -124,6 +128,7 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
   const callRecords: MockCallRecord[] = [];
 
   const quoteBySymbol = new Map<string, unknown>();
+  const realtimeQuoteBySymbol = new Map<string, unknown>();
   const staticInfoBySymbol = new Map<string, unknown>();
   const candlesticksByKey = new Map<string, ReadonlyArray<Candlestick>>();
   const warrantQuoteBySymbol = new Map<string, WarrantQuote>();
@@ -211,6 +216,14 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
         }
       }
     });
+  }
+
+  function realtimeQuote(symbols: ReadonlyArray<string>): Promise<ReadonlyArray<unknown>> {
+    return withCall('realtimeQuote', [symbols], () =>
+      symbols
+        .map((symbol) => realtimeQuoteBySymbol.get(symbol) ?? null)
+        .filter((item) => item !== null),
+    );
   }
 
   function subscribeCandlesticks(
@@ -344,8 +357,20 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
   function seedQuotes(
     quotes: ReadonlyArray<{ readonly symbol: string; readonly quote: unknown }>,
   ): void {
+    quoteBySymbol.clear();
+    realtimeQuoteBySymbol.clear();
     for (const item of quotes) {
       quoteBySymbol.set(item.symbol, item.quote);
+      realtimeQuoteBySymbol.set(item.symbol, item.quote);
+    }
+  }
+
+  function seedRealtimeQuotes(
+    quotes: ReadonlyArray<{ readonly symbol: string; readonly quote: unknown }>,
+  ): void {
+    realtimeQuoteBySymbol.clear();
+    for (const item of quotes) {
+      realtimeQuoteBySymbol.set(item.symbol, item.quote);
     }
   }
 
@@ -411,6 +436,7 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
     staticInfo,
     subscribe,
     unsubscribe,
+    realtimeQuote,
     subscribeCandlesticks,
     unsubscribeCandlesticks,
     realtimeCandlesticks,
@@ -424,6 +450,7 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
     getCalls,
     clearCalls,
     seedQuotes,
+    seedRealtimeQuotes,
     seedStaticInfo,
     seedCandlesticks,
     seedTradingDays,

@@ -9,7 +9,7 @@ import { WarrantStatus, WarrantType } from 'longbridge';
 
 import {
   prepareSeatsForRuntime,
-  resolveReadySeatSymbol,
+  resolveBoundSeatSymbol,
 } from '../../../src/main/recovery/seatPreparation.js';
 import { createQuoteContextMock } from '../../../mock/longbridge/quoteContextMock.js';
 import { toMockDecimal } from '../../../mock/longbridge/decimal.js';
@@ -56,15 +56,15 @@ function toApiDistanceRatio(percentValue: number): number {
 }
 
 describe('recovery seat preparation business flow', () => {
-  it('returns symbol only when seat is READY', () => {
+  it('returns symbol only when seat has a bound symbol', () => {
     const registry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
       longSeat: {
         symbol: 'BULL.HK',
-        status: 'READY',
+        status: 'ACTIVE',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -73,14 +73,14 @@ describe('recovery seat preparation business flow', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
     });
 
-    expect(resolveReadySeatSymbol(registry, 'HSI.HK', 'LONG')).toBe('BULL.HK');
-    expect(resolveReadySeatSymbol(registry, 'HSI.HK', 'SHORT')).toBeNull();
+    expect(resolveBoundSeatSymbol(registry, 'HSI.HK', 'LONG')).toBe('BULL.HK');
+    expect(resolveBoundSeatSymbol(registry, 'HSI.HK', 'SHORT')).toBeNull();
   });
 
   it('restores configured symbols on startup when auto-search is disabled', async () => {
@@ -110,7 +110,7 @@ describe('recovery seat preparation business flow', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -119,7 +119,7 @@ describe('recovery seat preparation business flow', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -153,8 +153,8 @@ describe('recovery seat preparation business flow', () => {
     ]);
     const longSeat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
     const shortSeat = symbolRegistry.getSeatState('HSI.HK', 'SHORT');
-    expect(longSeat.lastSeatReadyAt).toBe(Date.parse(startupTime));
-    expect(shortSeat.lastSeatReadyAt).toBe(Date.parse(startupTime));
+    expect(longSeat.lastSeatActivatedAt).toBeNull();
+    expect(shortSeat.lastSeatActivatedAt).toBeNull();
   });
 
   it('tracks failure counts when auto-search cannot find candidates on startup', async () => {
@@ -182,7 +182,7 @@ describe('recovery seat preparation business flow', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -191,7 +191,7 @@ describe('recovery seat preparation business flow', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -247,7 +247,7 @@ describe('recovery seat preparation business flow', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -256,7 +256,7 @@ describe('recovery seat preparation business flow', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -298,7 +298,7 @@ describe('recovery seat preparation business flow', () => {
     expect(prepared.seatSymbols).toEqual([]);
   });
 
-  it('binds degraded bear candidate for SHORT seat during startup auto-search', async () => {
+  it('binds degraded bear candidate for SHORT seat during startup auto-search and keeps it ACTIVATING', async () => {
     const monitor = createMonitorConfigDouble({
       monitorSymbol: 'HSI.HK',
       autoSearchConfig: {
@@ -323,7 +323,7 @@ describe('recovery seat preparation business flow', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -332,7 +332,7 @@ describe('recovery seat preparation business flow', () => {
         status: 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       },
@@ -371,7 +371,7 @@ describe('recovery seat preparation business flow', () => {
     });
 
     const shortSeat = symbolRegistry.getSeatState(monitor.monitorSymbol, 'SHORT');
-    expect(shortSeat.status).toBe('READY');
+    expect(shortSeat.status).toBe('ACTIVATING');
     expect(shortSeat.symbol).toBe('AUTO_BEAR_BEST.HK');
     expect(shortSeat.callPrice).toBe(19_500);
     expect(

@@ -11,7 +11,6 @@ import {
   createOrderRecorderDouble,
   createPositionCacheDouble,
   createPositionDouble,
-  createQuoteDouble,
   createRiskCheckerDouble,
   createSymbolRegistryDouble,
 } from '../../helpers/testDoubles.js';
@@ -91,9 +90,6 @@ export function createLastState(overrides: Partial<LastState> = {}): LastState {
 
 type MonitorContextBaseOptions = Readonly<{
   state: MonitorContext['state'];
-  longQuote: MonitorContext['longQuote'];
-  shortQuote: MonitorContext['shortQuote'];
-  monitorQuote: MonitorContext['monitorQuote'];
   monitorSymbolName: string;
 }>;
 
@@ -108,7 +104,7 @@ function buildMonitorContextBase(
   options: MonitorContextBaseOptions,
   overrides: Partial<MonitorContext>,
 ): MonitorContext {
-  const { state, longQuote, shortQuote, monitorQuote, monitorSymbolName } = options;
+  const { state, monitorSymbolName } = options;
   const symbolRegistry = createSymbolRegistryDouble({
     monitorSymbol: 'HSI.HK',
     longVersion: 2,
@@ -161,9 +157,6 @@ function buildMonitorContextBase(
     monitorSymbolName,
     normalizedMonitorSymbol: 'HSI.HK',
     indicatorProfile: createIndicatorUsageProfileDouble(),
-    longQuote,
-    shortQuote,
-    monitorQuote,
     ...overrides,
   } as unknown as MonitorContext;
 }
@@ -188,9 +181,6 @@ export function createMonitorContext(overrides: Partial<MonitorContext> = {}): M
         lastMonitorSnapshot: null,
         lastCandleFingerprint: null,
       },
-      longQuote: createQuoteDouble('BULL.HK', 1.1, 100),
-      shortQuote: createQuoteDouble('BEAR.HK', 0.9, 100),
-      monitorQuote: createQuoteDouble('HSI.HK', 20_000, 1),
       monitorSymbolName: 'HSI.HK',
     },
     overrides,
@@ -233,9 +223,6 @@ export function createMonitorTaskContext(overrides: Partial<MonitorContext> = {}
         lastMonitorSnapshot: null,
         lastCandleFingerprint: null,
       },
-      longQuote: null,
-      shortQuote: null,
-      monitorQuote: null,
       monitorSymbolName: 'HSI',
     },
     overrides,

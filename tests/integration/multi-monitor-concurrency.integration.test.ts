@@ -4,29 +4,37 @@
  * 功能：
  * - 验证多监控并发端到端场景与业务期望。
  */
-import { describe, expect, it, mock } from 'bun:test';
+import { afterEach, describe, expect, it, mock } from 'bun:test';
+
+type MainProgramFn = (context: MainProgramContext) => Promise<void>;
 
 const processCalls: string[] = [];
 
-// eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 同步注册
-mock.module('../../src/main/processMonitor/index.js', () => ({
-  processMonitor: async ({
-    monitorContext,
-  }: {
-    monitorContext: { config: { monitorSymbol: string } };
-  }) => {
-    const symbol = monitorContext.config.monitorSymbol;
-    processCalls.push(symbol);
-    if (symbol === 'HSI-A.HK') {
-      throw new Error('simulated monitor failure');
-    }
+async function loadMainProgram(): Promise<{ readonly mainProgram: MainProgramFn }> {
+  // eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 同步注册
+  mock.module('../../src/main/processMonitor/index.js', () => ({
+    processMonitor: async ({
+      monitorContext,
+    }: {
+      monitorContext: { config: { monitorSymbol: string } };
+    }) => {
+      const symbol = monitorContext.config.monitorSymbol;
+      processCalls.push(symbol);
+      if (symbol === 'HSI-A.HK') {
+        throw new Error('simulated monitor failure');
+      }
 
-    await Bun.sleep(10);
-  },
-}));
+      await Bun.sleep(10);
+    },
+  }));
 
-import { mainProgram } from '../../src/main/mainProgram/index.js';
+  const mainProgramModulePath =
+    '../../src/main/mainProgram/index.js?mocked-multi-monitor-concurrency';
+  const loadedModuleUnknown: unknown = await import(mainProgramModulePath);
+  return loadedModuleUnknown as { readonly mainProgram: MainProgramFn };
+}
 
+import type { MainProgramContext } from '../../src/main/mainProgram/types.js';
 import type { LastState, MonitorContext } from '../../src/types/state.js';
 import type { SymbolRegistry } from '../../src/types/seat.js';
 import type { Quote } from '../../src/types/quote.js';
@@ -67,10 +75,10 @@ function createSymbolRegistry(
       const symbol = direction === 'LONG' ? (row?.long ?? null) : (row?.short ?? null);
       return {
         symbol,
-        status: symbol ? 'READY' : 'EMPTY',
+        status: symbol ? 'ACTIVE' : 'EMPTY',
         lastSwitchAt: null,
         lastSearchAt: null,
-        lastSeatReadyAt: null,
+        lastSeatActivatedAt: null,
         searchFailCountToday: 0,
         frozenTradingDayKey: null,
       };
@@ -82,7 +90,7 @@ function createSymbolRegistry(
       status: 'EMPTY',
       lastSwitchAt: null,
       lastSearchAt: null,
-      lastSeatReadyAt: null,
+      lastSeatActivatedAt: null,
       searchFailCountToday: 0,
       frozenTradingDayKey: null,
     }),
@@ -100,6 +108,12 @@ function createMonitorContext(
 }
 
 describe('multi-monitor-concurrency integration', () => {
+  afterEach(() => {
+    if (typeof mock.restore === 'function') {
+      mock.restore();
+    }
+  });
+
   it('continues processing other monitors when one monitor fails and still schedules global workers', async () => {
     processCalls.length = 0;
 
@@ -138,6 +152,8 @@ describe('multi-monitor-concurrency integration', () => {
     let orderMonitorScheduleCalls = 0;
     let postTradeEnqueueCalls = 0;
 
+    const loadedMainProgram = await loadMainProgram();
+    const mainProgram = loadedMainProgram.mainProgram;
     await mainProgram({
       marketDataClient: {
         getQuoteContext: async () => ({}) as never,
@@ -198,10 +214,14 @@ describe('multi-monitor-concurrency integration', () => {
         cancelPendingBuyOrders: async () => ({ executed: false, cancelRequestAcceptedCount: 0 }),
       },
       signalProcessor: {
-        processSellSignals: (params) => params.signals,
-        applyRiskChecks: async (signals) => signals,
+        processSellSignals: (
+          params: Parameters<MainProgramContext['signalProcessor']['processSellSignals']>[0],
+        ) => params.signals,
+        applyRiskChecks: async (
+          signals: Parameters<MainProgramContext['signalProcessor']['applyRiskChecks']>[0],
+        ) => signals,
         resetRiskCheckCooldown: () => {},
-      },
+      } as MainProgramContext['signalProcessor'],
       tradingConfig,
       dailyLossTracker: {
         resetAll: () => {},
@@ -250,7 +270,6 @@ describe('multi-monitor-concurrency integration', () => {
           orderMonitorScheduleCalls += 1;
         },
         stopAndDrain: async () => {},
-        clearLatestQuotes: () => {},
       },
       postTradeRefresher: {
         start: () => {},
