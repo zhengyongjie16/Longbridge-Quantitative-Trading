@@ -302,13 +302,13 @@ bun start
 当前系统为 Windows，默认路径是：
 
 ```text
-%USERPROFILE%\.longbridge-openapi\tokens\<client_id>
+%USERPROFILE%\.longbridge\openapi\tokens\<client_id>
 ```
 
 例如：
 
 ```text
-C:\Users\你的用户名\.longbridge-openapi\tokens\你的client_id
+C:\Users\你的用户名\.longbridge\openapi\tokens\你的client_id
 ```
 
 这一步的意义是：
@@ -354,7 +354,7 @@ http://localhost:60355/callback
 在 PowerShell 中执行：
 
 ```powershell
-Get-ChildItem "$env:USERPROFILE\.longbridge-openapi\tokens" -Recurse
+Get-ChildItem "$env:USERPROFILE\.longbridge\openapi\tokens" -Recurse
 ```
 
 如果授权成功，应该能看到以你的 `client_id` 命名或对应的 token 缓存文件。
@@ -457,7 +457,7 @@ bun start
 
 6. 在浏览器中打开终端打印的授权 URL
 7. 完成登录与授权确认
-8. 验证 `%USERPROFILE%\.longbridge-openapi\tokens\<client_id>` 已生成缓存
+8. 验证 `%USERPROFILE%\.longbridge\openapi\tokens\<client_id>` 已生成缓存
 9. 再次执行 `bun start`，确认不再重复授权
 
 ---

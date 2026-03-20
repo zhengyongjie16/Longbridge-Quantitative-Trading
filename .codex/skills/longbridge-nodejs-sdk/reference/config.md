@@ -132,7 +132,7 @@ Reference defaults for these fields (when not overridden):
 
 Reference OAuth token cache behavior:
 
-- Cache path: `~/.longbridge-openapi/tokens/<client_id>`
+- Cache path: `~/.longbridge/openapi/tokens/<client_id>`
 - `OAuth.build(...)` loads cached token if it exists and is still valid.
 - If no valid cache exists, it starts browser authorization flow automatically.
 - After successful authorization or refresh, token is persisted to the same path.

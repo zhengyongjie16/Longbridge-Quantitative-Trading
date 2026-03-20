@@ -124,7 +124,7 @@ export function readApiKeyAuthConfig(env: NodeJS.ProcessEnv): ApiKeyAuthConfig {
 
 /**
  * 读取官方支持的 Longbridge SDK 扩展配置。
- * 默认行为：仅映射当前 Node SDK 4.0.0 已确认支持的 extra 字段，不处理任何认证字段。
+ * 默认行为：仅映射当前 Node SDK 4.0.x 已确认支持的 extra 字段，不处理任何认证字段。
  *
  * @param env 进程环境变量
  * @returns 可直接传给 Config.fromOAuth / Config.fromApikey 的 extra 配置对象

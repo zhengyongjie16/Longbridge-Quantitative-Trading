@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "dotenv": "^16.6.1",
-    "longbridge": "^4.0.0",
+    "longbridge": "^4.0.3",
     "pino": "^10.3.1"
   },
   "devDependencies": {
