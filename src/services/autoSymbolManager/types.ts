@@ -168,13 +168,28 @@ type SwitchStage =
   | 'FAILED';
 
 /**
+ * 换标触发类型。
+ * 类型用途：区分周期换标与距离换标的安全侧/危险侧触发语义。
+ * 使用范围：autoSymbolManager 模块及其调用方使用。
+ */
+export type SwitchTriggerKind = 'PERIODIC' | 'DISTANCE_SAFE_SIDE' | 'DISTANCE_DANGER_SIDE';
+
+/**
+ * 可写入日内抑制的换标触发类型。
+ * 类型用途：约束 suppression 数据模型与 API，只允许周期换标和距离换标安全侧写入抑制记录。
+ * 使用范围：autoSymbolManager 模块及其调用方使用。
+ */
+export type SuppressibleSwitchTriggerKind = Exclude<SwitchTriggerKind, 'DISTANCE_DANGER_SIDE'>;
+
+/**
  * 日内换标抑制记录。
- * 类型用途：防止同一标的在同一交易日重复触发换标，存储于 switchSuppressions Map。
+ * 类型用途：防止同一标的在同一交易日内，对同一 suppressible trigger kind 重复触发换标。
  * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
 export type SwitchSuppression = {
   readonly symbol: string;
   readonly dateKey: string;
+  readonly suppressedTriggerKinds: ReadonlySet<SuppressibleSwitchTriggerKind>;
 };
 
 /**
@@ -447,15 +462,23 @@ export type SeatStateManagerDeps = {
 
 /**
  * 席位状态管理器接口。
- * 类型用途：提供席位构建、更新、抑制与清空操作，由 createSeatStateManager 实现，供 autoSearch 与 switchStateMachine 消费。
+ * 类型用途：提供席位构建、更新、抑制与进入换标中状态的操作，由 createSeatStateManager 实现，供 autoSearch 与 switchStateMachine 消费。
  * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
 export interface SeatStateManager {
   buildSeatState: SeatStateBuilder;
   updateSeatState: SeatStateUpdater;
-  resolveSuppression: (direction: 'LONG' | 'SHORT', seatSymbol: string) => SwitchSuppression | null;
-  markSuppression: (direction: 'LONG' | 'SHORT', seatSymbol: string) => void;
-  clearSeat: (params: { direction: 'LONG' | 'SHORT'; reason: string }) => number;
+  resolveSuppression: (
+    direction: 'LONG' | 'SHORT',
+    seatSymbol: string,
+    triggerKind: SuppressibleSwitchTriggerKind,
+  ) => SwitchSuppression | null;
+  markSuppression: (
+    direction: 'LONG' | 'SHORT',
+    seatSymbol: string,
+    triggerKind: SuppressibleSwitchTriggerKind,
+  ) => void;
+  enterSwitchingSeat: (params: { direction: 'LONG' | 'SHORT'; reason: string }) => number;
 }
 
 /**
@@ -501,17 +524,21 @@ export interface AutoSearchManager {
 
 /**
  * 启动换标流程的入参。
- * 类型用途：供 switchStateMachine.startSwitchFlow 统一接收距离换标/周期换标请求，并描述是否立即推进状态机。
+ * 类型用途：供 switchStateMachine.startSwitchFlow 统一接收距离换标/周期换标请求，并用判别联合表达触发语义。
  * 数据来源：由 maybeSwitchOnDistance / maybeSwitchOnInterval 组装后传入。
  * 使用范围：仅 autoSymbolManager 模块内部使用。
  */
-export type StartSwitchFlowParams = {
-  readonly direction: 'LONG' | 'SHORT';
-  readonly reason: string;
-  readonly switchMode: SwitchMode;
-  readonly distanceContext?: SwitchOnDistanceParams;
-  readonly processImmediately: boolean;
-};
+export type StartSwitchFlowParams =
+  | {
+      readonly direction: 'LONG' | 'SHORT';
+      readonly reason: string;
+      readonly triggerKind: Extract<SwitchTriggerKind, 'PERIODIC'>;
+    }
+  | {
+      readonly reason: string;
+      readonly triggerKind: Exclude<SwitchTriggerKind, 'PERIODIC'>;
+      readonly distanceContext: SwitchOnDistanceParams;
+    };
 
 /**
  * 换标状态机的依赖注入参数，包含交易器、风控、席位管理与信号构建等完整依赖。
@@ -534,9 +561,14 @@ export type SwitchStateMachineDeps = {
   readonly resolveSuppression: (
     direction: 'LONG' | 'SHORT',
     seatSymbol: string,
+    triggerKind: SuppressibleSwitchTriggerKind,
   ) => SwitchSuppression | null;
-  readonly markSuppression: (direction: 'LONG' | 'SHORT', seatSymbol: string) => void;
-  readonly clearSeat: (params: { direction: 'LONG' | 'SHORT'; reason: string }) => number;
+  readonly markSuppression: (
+    direction: 'LONG' | 'SHORT',
+    seatSymbol: string,
+    triggerKind: SuppressibleSwitchTriggerKind,
+  ) => void;
+  readonly enterSwitchingSeat: (params: { direction: 'LONG' | 'SHORT'; reason: string }) => number;
   readonly buildSeatState: SeatStateBuilder;
   readonly updateSeatState: SeatStateUpdater;
   readonly resolveDirectionalAutoSearchPolicy: ResolveDirectionalAutoSearchPolicy;

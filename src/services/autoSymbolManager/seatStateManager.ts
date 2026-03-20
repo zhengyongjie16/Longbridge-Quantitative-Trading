@@ -4,7 +4,7 @@
  * 职责：
  * - 席位状态创建与更新
  * - 日内抑制记录与清理
- * - 清空席位并重置换标流程
+ * - 进入换标中的席位状态并初始化换标上下文
  */
 import { LOG_COLORS } from '../../constants/index.js';
 import type {
@@ -13,12 +13,38 @@ import type {
   SeatStateManager,
   SeatStateManagerDeps,
   SeatStateUpdater,
+  SuppressibleSwitchTriggerKind,
 } from './types.js';
 
 /**
- * 创建席位状态管理器，封装席位状态构建、更新、日内抑制记录与清空换标流程。
+ * 构造席位状态对象，统一初始化各字段默认值（如 callPrice 默认为 null）。
+ */
+const buildSeatState: SeatStateBuilder = ({
+  symbol,
+  status,
+  lastSwitchAt,
+  lastSearchAt,
+  lastSeatActivatedAt,
+  callPrice,
+  searchFailCountToday,
+  frozenTradingDayKey,
+}: BuildSeatStateParams) => {
+  return {
+    symbol,
+    status,
+    lastSwitchAt,
+    lastSearchAt,
+    lastSeatActivatedAt,
+    callPrice: callPrice ?? null,
+    searchFailCountToday,
+    frozenTradingDayKey,
+  };
+};
+
+/**
+ * 创建席位状态管理器，封装席位状态构建、更新、日内抑制记录与换标启动准备。
  * @param deps - 依赖（monitorSymbol、symbolRegistry、switchStates、switchSuppressions、now、logger、getHKDateKey）
- * @returns SeatStateManager 实例（buildSeatState、updateSeatState、resolveSuppression、markSuppression、clearSeat）
+ * @returns SeatStateManager 实例（buildSeatState、updateSeatState、resolveSuppression、markSuppression、enterSwitchingSeat）
  */
 export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateManager {
   const {
@@ -30,31 +56,6 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
     logger,
     getHKDateKey,
   } = deps;
-
-  /**
-   * 构造席位状态对象，统一初始化各字段默认值（如 callPrice 默认为 null）。
-   */
-  const buildSeatState: SeatStateBuilder = ({
-    symbol,
-    status,
-    lastSwitchAt,
-    lastSearchAt,
-    lastSeatActivatedAt,
-    callPrice,
-    searchFailCountToday,
-    frozenTradingDayKey,
-  }: BuildSeatStateParams) => {
-    return {
-      symbol,
-      status,
-      lastSwitchAt,
-      lastSearchAt,
-      lastSeatActivatedAt,
-      callPrice: callPrice ?? null,
-      searchFailCountToday,
-      frozenTradingDayKey,
-    };
-  };
 
   /**
    * 更新席位状态，若标的发生变更且 bumpOnSymbolChange 为 true，则同步提升席位版本以隔离旧信号。
@@ -73,11 +74,13 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
   };
 
   /**
-   * 查询当前方向的日内抑制记录。若日期键已过期或标的不匹配则自动清除并返回 null。
+   * 查询当前方向指定 trigger kind 的日内抑制记录。
+   * 若日期键已过期或标的不匹配则自动清除并返回 null；若仅 trigger kind 不匹配，则保留原记录并返回 null。
    */
   function resolveSuppression(
     direction: 'LONG' | 'SHORT',
     seatSymbol: string,
+    triggerKind: SuppressibleSwitchTriggerKind,
   ): ReturnType<SeatStateManager['resolveSuppression']> {
     const record = switchSuppressions.get(direction);
     if (!record) {
@@ -90,25 +93,47 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
       return null;
     }
 
+    if (!record.suppressedTriggerKinds.has(triggerKind)) {
+      return null;
+    }
+
     return record;
   }
 
   /**
-   * 记录当日日内抑制，防止同一标的在同一交易日内重复触发换标。
+   * 记录指定 trigger kind 的当日日内抑制，防止同一标的在同一交易日内重复触发相同语义的换标。
    */
-  function markSuppression(direction: 'LONG' | 'SHORT', seatSymbol: string): void {
+  function markSuppression(
+    direction: 'LONG' | 'SHORT',
+    seatSymbol: string,
+    triggerKind: SuppressibleSwitchTriggerKind,
+  ): void {
     const dateKey = getHKDateKey(now());
     if (!dateKey) {
       return;
     }
 
-    switchSuppressions.set(direction, { symbol: seatSymbol, dateKey });
+    const currentRecord = switchSuppressions.get(direction);
+    if (currentRecord?.symbol === seatSymbol && currentRecord.dateKey === dateKey) {
+      switchSuppressions.set(direction, {
+        symbol: seatSymbol,
+        dateKey,
+        suppressedTriggerKinds: new Set([...currentRecord.suppressedTriggerKinds, triggerKind]),
+      });
+      return;
+    }
+
+    switchSuppressions.set(direction, {
+      symbol: seatSymbol,
+      dateKey,
+      suppressedTriggerKinds: new Set([triggerKind]),
+    });
   }
 
   /**
-   * 清空席位并进入换标流程，同时提升席位版本用于信号隔离。
+   * 将当前席位切换为 SWITCHING，并初始化换标上下文，同时提升席位版本用于信号隔离。
    */
-  function clearSeat({
+  function enterSwitchingSeat({
     direction,
     reason,
   }: {
@@ -153,7 +178,7 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
     }
 
     logger.info(
-      `${LOG_COLORS.green}[自动换标] ${monitorSymbol} ${direction} 清空席位: ${reason}${LOG_COLORS.reset}`,
+      `${LOG_COLORS.green}[自动换标] ${monitorSymbol} ${direction} 进入换标中状态: ${reason}${LOG_COLORS.reset}`,
     );
     return nextVersion;
   }
@@ -163,6 +188,6 @@ export function createSeatStateManager(deps: SeatStateManagerDeps): SeatStateMan
     updateSeatState,
     resolveSuppression,
     markSuppression,
-    clearSeat,
+    enterSwitchingSeat,
   };
 }

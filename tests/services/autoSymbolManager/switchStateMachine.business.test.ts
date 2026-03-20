@@ -59,7 +59,92 @@ function createTradingCalendarSnapshot() {
   ]);
 }
 describe('autoSymbolManager switchStateMachine business flow', () => {
-  it('marks suppression when presearch returns the same symbol and skips switching', async () => {
+  it('marks suppression only for safe-side distance same-symbol and skips switching', async () => {
+    const monitorConfig = createMonitorConfigDouble({
+      autoSearchConfig: getDefaultAutoSearchConfig(),
+    });
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+      longSeat: {
+        symbol: 'OLD_BULL.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+    });
+    const switchStates = new Map();
+    const switchSuppressions = new Map();
+    const nowMs = Date.parse('2026-02-16T01:00:00.000Z');
+    const seatStateManager = createSeatStateManager({
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      switchStates,
+      switchSuppressions,
+      now: () => new Date(nowMs),
+      logger: createLoggerStub(),
+      getHKDateKey,
+    });
+    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const machine = createSwitchStateMachine({
+      autoSearchConfig: monitorConfig.autoSearchConfig,
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      trader: createTraderDouble(),
+      orderRecorder: createOrderRecorderDouble(),
+      riskChecker: createRiskCheckerDouble({
+        getWarrantDistanceInfo: () =>
+          createWarrantDistanceInfoDouble({
+            warrantType: 'BULL',
+            distanceToStrikePercent: 2,
+          }),
+      }),
+      now: () => new Date(nowMs),
+      switchStates,
+      periodicSwitchPending: new Map(),
+      resolveSuppression: seatStateManager.resolveSuppression,
+      markSuppression: seatStateManager.markSuppression,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
+      buildSeatState: seatStateManager.buildSeatState,
+      updateSeatState: seatStateManager.updateSeatState,
+      resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
+      buildFindBestWarrantInput: async () => createFindBestWarrantInputDouble(),
+      findBestWarrant: async () => ({
+        ...createWarrantCandidate('OLD_BULL.HK'),
+        callPrice: 20_000,
+      }),
+      resolveDirectionSymbols,
+      calculateBuyQuantityByNotional,
+      buildOrderSignal: signalBuilder.buildOrderSignal,
+      signalObjectPool,
+      pendingOrderStatuses: PENDING_ORDER_STATUSES,
+      buySide: OrderSide.Buy,
+      logger: createLoggerStub(),
+      maxSearchFailuresPerDay: 3,
+      getHKDateKey,
+      calculateTradingDurationMsBetween,
+      getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async (symbols) =>
+          new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
+      }),
+    });
+    await machine.maybeSwitchOnDistance({
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      positions: [],
+    });
+    const seat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
+    expect(seat.status).toBe('ACTIVE');
+    expect(seat.symbol).toBe('OLD_BULL.HK');
+    const suppression = seatStateManager.resolveSuppression('LONG', 'OLD_BULL.HK', 'DISTANCE_SAFE_SIDE');
+    expect(suppression?.symbol).toBe('OLD_BULL.HK');
+    expect(machine.hasPendingSwitch('LONG')).toBeFalse();
+  });
+
+  it('does not mark suppression for danger-side distance same-symbol and skips switching', async () => {
     const monitorConfig = createMonitorConfigDouble({
       autoSearchConfig: getDefaultAutoSearchConfig(),
     });
@@ -106,7 +191,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       periodicSwitchPending: new Map(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
-      clearSeat: seatStateManager.clearSeat,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
       buildSeatState: seatStateManager.buildSeatState,
       updateSeatState: seatStateManager.updateSeatState,
       resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
@@ -127,20 +212,112 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       calculateTradingDurationMsBetween,
       getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
       marketDataClient: createMarketDataClientDouble({
-        getQuotes: async (symbols) => new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
+        getQuotes: async (symbols) =>
+          new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
       }),
     });
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-            positions: [],
+      positions: [],
     });
     const seat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
     expect(seat.status).toBe('ACTIVE');
     expect(seat.symbol).toBe('OLD_BULL.HK');
-    const suppression = seatStateManager.resolveSuppression('LONG', 'OLD_BULL.HK');
-    expect(suppression?.symbol).toBe('OLD_BULL.HK');
+    expect(seatStateManager.resolveSuppression('LONG', 'OLD_BULL.HK', 'DISTANCE_SAFE_SIDE')).toBeNull();
     expect(machine.hasPendingSwitch('LONG')).toBeFalse();
+  });
+
+  it('does not let periodic suppression block safe-side distance presearch on same symbol and day', async () => {
+    const monitorConfig = createMonitorConfigDouble({
+      autoSearchConfig: getDefaultAutoSearchConfig(),
+    });
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+      longSeat: {
+        symbol: 'OLD_BULL.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+    });
+    const switchStates = new Map();
+    const switchSuppressions = new Map();
+    const nowMs = Date.parse('2026-02-16T01:00:00.000Z');
+    const seatStateManager = createSeatStateManager({
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      switchStates,
+      switchSuppressions,
+      now: () => new Date(nowMs),
+      logger: createLoggerStub(),
+      getHKDateKey,
+    });
+    seatStateManager.markSuppression('LONG', 'OLD_BULL.HK', 'PERIODIC');
+
+    let findBestCalls = 0;
+    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const machine = createSwitchStateMachine({
+      autoSearchConfig: monitorConfig.autoSearchConfig,
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      trader: createTraderDouble(),
+      orderRecorder: createOrderRecorderDouble(),
+      riskChecker: createRiskCheckerDouble({
+        getWarrantDistanceInfo: () =>
+          createWarrantDistanceInfoDouble({
+            warrantType: 'BULL',
+            distanceToStrikePercent: 2,
+          }),
+      }),
+      now: () => new Date(nowMs),
+      switchStates,
+      periodicSwitchPending: new Map(),
+      resolveSuppression: seatStateManager.resolveSuppression,
+      markSuppression: seatStateManager.markSuppression,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
+      buildSeatState: seatStateManager.buildSeatState,
+      updateSeatState: seatStateManager.updateSeatState,
+      resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
+      buildFindBestWarrantInput: async () => createFindBestWarrantInputDouble(),
+      findBestWarrant: async () => {
+        findBestCalls += 1;
+        return {
+          ...createWarrantCandidate('OLD_BULL.HK'),
+          callPrice: 20_000,
+        };
+      },
+      resolveDirectionSymbols,
+      calculateBuyQuantityByNotional,
+      buildOrderSignal: signalBuilder.buildOrderSignal,
+      signalObjectPool,
+      pendingOrderStatuses: PENDING_ORDER_STATUSES,
+      buySide: OrderSide.Buy,
+      logger: createLoggerStub(),
+      maxSearchFailuresPerDay: 3,
+      getHKDateKey,
+      calculateTradingDurationMsBetween,
+      getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async (symbols) =>
+          new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
+      }),
+    });
+
+    await machine.maybeSwitchOnDistance({
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      positions: [],
+    });
+
+    expect(findBestCalls).toBe(1);
+    expect(seatStateManager.resolveSuppression('LONG', 'OLD_BULL.HK', 'PERIODIC')).not.toBeNull();
+    expect(
+      seatStateManager.resolveSuppression('LONG', 'OLD_BULL.HK', 'DISTANCE_SAFE_SIDE'),
+    ).not.toBeNull();
   });
 
   it('ignores presearch result when seat changes during candidate lookup', async () => {
@@ -197,7 +374,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       periodicSwitchPending: new Map(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
-      clearSeat: seatStateManager.clearSeat,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
       buildSeatState: seatStateManager.buildSeatState,
       updateSeatState: seatStateManager.updateSeatState,
       resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
@@ -299,7 +476,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       periodicSwitchPending: new Map(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
-      clearSeat: seatStateManager.clearSeat,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
       buildSeatState: seatStateManager.buildSeatState,
       updateSeatState: seatStateManager.updateSeatState,
       resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
@@ -419,7 +596,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       periodicSwitchPending: new Map(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
-      clearSeat: seatStateManager.clearSeat,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
       buildSeatState: seatStateManager.buildSeatState,
       updateSeatState: seatStateManager.updateSeatState,
       resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
@@ -572,7 +749,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       periodicSwitchPending: new Map(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
-      clearSeat: seatStateManager.clearSeat,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
       buildSeatState: seatStateManager.buildSeatState,
       updateSeatState: seatStateManager.updateSeatState,
       resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
@@ -710,7 +887,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       periodicSwitchPending: new Map(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
-      clearSeat: seatStateManager.clearSeat,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
       buildSeatState: seatStateManager.buildSeatState,
       updateSeatState: seatStateManager.updateSeatState,
       resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
@@ -840,7 +1017,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       periodicSwitchPending: new Map(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
-      clearSeat: seatStateManager.clearSeat,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
       buildSeatState: seatStateManager.buildSeatState,
       updateSeatState: seatStateManager.updateSeatState,
       resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
@@ -959,7 +1136,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       periodicSwitchPending: new Map(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
-      clearSeat: seatStateManager.clearSeat,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
       buildSeatState: seatStateManager.buildSeatState,
       updateSeatState: seatStateManager.updateSeatState,
       resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
@@ -1096,7 +1273,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       periodicSwitchPending: new Map(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
-      clearSeat: seatStateManager.clearSeat,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
       buildSeatState: seatStateManager.buildSeatState,
       updateSeatState: seatStateManager.updateSeatState,
       resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
@@ -1225,7 +1402,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       periodicSwitchPending: new Map(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
-      clearSeat: seatStateManager.clearSeat,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
       buildSeatState: seatStateManager.buildSeatState,
       updateSeatState: seatStateManager.updateSeatState,
       resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
@@ -1372,7 +1549,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       periodicSwitchPending: new Map(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
-      clearSeat: seatStateManager.clearSeat,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
       buildSeatState: seatStateManager.buildSeatState,
       updateSeatState: seatStateManager.updateSeatState,
       resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
@@ -1502,7 +1679,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       periodicSwitchPending: new Map(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
-      clearSeat: seatStateManager.clearSeat,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
       buildSeatState: seatStateManager.buildSeatState,
       updateSeatState: seatStateManager.updateSeatState,
       resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
@@ -1645,7 +1822,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       periodicSwitchPending: new Map(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
-      clearSeat: seatStateManager.clearSeat,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
       buildSeatState: seatStateManager.buildSeatState,
       updateSeatState: seatStateManager.updateSeatState,
       resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
@@ -1783,7 +1960,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         periodicSwitchPending: new Map(),
         resolveSuppression: seatStateManager.resolveSuppression,
         markSuppression: seatStateManager.markSuppression,
-        clearSeat: seatStateManager.clearSeat,
+        enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
         buildSeatState: seatStateManager.buildSeatState,
         updateSeatState: seatStateManager.updateSeatState,
         resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
@@ -1901,7 +2078,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       periodicSwitchPending: new Map(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
-      clearSeat: seatStateManager.clearSeat,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
       buildSeatState: seatStateManager.buildSeatState,
       updateSeatState: seatStateManager.updateSeatState,
       resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
@@ -1999,7 +2176,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       periodicSwitchPending: new Map(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
-      clearSeat: seatStateManager.clearSeat,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
       buildSeatState: seatStateManager.buildSeatState,
       updateSeatState: seatStateManager.updateSeatState,
       resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
@@ -2090,7 +2267,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       periodicSwitchPending: new Map(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
-      clearSeat: seatStateManager.clearSeat,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
       buildSeatState: seatStateManager.buildSeatState,
       updateSeatState: seatStateManager.updateSeatState,
       resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('SHORT'),
@@ -2130,6 +2307,184 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     expect(seat.callPrice).toBe(19_500);
     expect(symbolRegistry.getSeatVersion('HSI.HK', 'SHORT')).toBe(2);
     expect(executeCalls).toBe(0);
+    expect(machine.hasPendingSwitch('SHORT')).toBeFalse();
+  });
+
+  it('marks suppression for SHORT safe-side same-symbol and skips switching', async () => {
+    const monitorConfig = createMonitorConfigDouble({
+      autoSearchConfig: getDefaultAutoSearchConfig(),
+    });
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+      shortSeat: {
+        symbol: 'OLD_BEAR.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+    });
+    const switchStates = new Map();
+    const switchSuppressions = new Map();
+    const nowMs = Date.parse('2026-02-16T01:00:00.000Z');
+    const seatStateManager = createSeatStateManager({
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      switchStates,
+      switchSuppressions,
+      now: () => new Date(nowMs),
+      logger: createLoggerStub(),
+      getHKDateKey,
+    });
+    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const machine = createSwitchStateMachine({
+      autoSearchConfig: monitorConfig.autoSearchConfig,
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      trader: createTraderDouble(),
+      orderRecorder: createOrderRecorderDouble(),
+      riskChecker: createRiskCheckerDouble({
+        getWarrantDistanceInfo: () =>
+          createWarrantDistanceInfoDouble({
+            warrantType: 'BEAR',
+            distanceToStrikePercent: -2,
+          }),
+      }),
+      now: () => new Date(nowMs),
+      switchStates,
+      periodicSwitchPending: new Map(),
+      resolveSuppression: seatStateManager.resolveSuppression,
+      markSuppression: seatStateManager.markSuppression,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
+      buildSeatState: seatStateManager.buildSeatState,
+      updateSeatState: seatStateManager.updateSeatState,
+      resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('SHORT'),
+      buildFindBestWarrantInput: async () =>
+        createFindBestWarrantInputDouble(createDirectionalAutoSearchPolicy('SHORT')),
+      findBestWarrant: async () => ({
+        ...createWarrantCandidate('OLD_BEAR.HK'),
+        callPrice: 19_500,
+      }),
+      resolveDirectionSymbols,
+      calculateBuyQuantityByNotional,
+      buildOrderSignal: signalBuilder.buildOrderSignal,
+      signalObjectPool,
+      pendingOrderStatuses: PENDING_ORDER_STATUSES,
+      buySide: OrderSide.Buy,
+      logger: createLoggerStub(),
+      maxSearchFailuresPerDay: 3,
+      getHKDateKey,
+      calculateTradingDurationMsBetween,
+      getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async (symbols) =>
+          new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
+      }),
+    });
+
+    await machine.maybeSwitchOnDistance({
+      direction: 'SHORT',
+      monitorPrice: 20_000,
+      positions: [],
+    });
+
+    const seat = symbolRegistry.getSeatState('HSI.HK', 'SHORT');
+    expect(seat.status).toBe('ACTIVE');
+    expect(seat.symbol).toBe('OLD_BEAR.HK');
+    expect(
+      seatStateManager.resolveSuppression('SHORT', 'OLD_BEAR.HK', 'DISTANCE_SAFE_SIDE'),
+    ).not.toBeNull();
+    expect(machine.hasPendingSwitch('SHORT')).toBeFalse();
+  });
+
+  it('does not mark suppression for SHORT danger-side same-symbol and skips switching', async () => {
+    const monitorConfig = createMonitorConfigDouble({
+      autoSearchConfig: getDefaultAutoSearchConfig(),
+    });
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+      shortSeat: {
+        symbol: 'OLD_BEAR.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+    });
+    const switchStates = new Map();
+    const switchSuppressions = new Map();
+    const nowMs = Date.parse('2026-02-16T01:00:00.000Z');
+    const seatStateManager = createSeatStateManager({
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      switchStates,
+      switchSuppressions,
+      now: () => new Date(nowMs),
+      logger: createLoggerStub(),
+      getHKDateKey,
+    });
+    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const machine = createSwitchStateMachine({
+      autoSearchConfig: monitorConfig.autoSearchConfig,
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      trader: createTraderDouble(),
+      orderRecorder: createOrderRecorderDouble(),
+      riskChecker: createRiskCheckerDouble({
+        getWarrantDistanceInfo: () =>
+          createWarrantDistanceInfoDouble({
+            warrantType: 'BEAR',
+            distanceToStrikePercent: -0.1,
+          }),
+      }),
+      now: () => new Date(nowMs),
+      switchStates,
+      periodicSwitchPending: new Map(),
+      resolveSuppression: seatStateManager.resolveSuppression,
+      markSuppression: seatStateManager.markSuppression,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
+      buildSeatState: seatStateManager.buildSeatState,
+      updateSeatState: seatStateManager.updateSeatState,
+      resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('SHORT'),
+      buildFindBestWarrantInput: async () =>
+        createFindBestWarrantInputDouble(createDirectionalAutoSearchPolicy('SHORT')),
+      findBestWarrant: async () => ({
+        ...createWarrantCandidate('OLD_BEAR.HK'),
+        callPrice: 19_500,
+      }),
+      resolveDirectionSymbols,
+      calculateBuyQuantityByNotional,
+      buildOrderSignal: signalBuilder.buildOrderSignal,
+      signalObjectPool,
+      pendingOrderStatuses: PENDING_ORDER_STATUSES,
+      buySide: OrderSide.Buy,
+      logger: createLoggerStub(),
+      maxSearchFailuresPerDay: 3,
+      getHKDateKey,
+      calculateTradingDurationMsBetween,
+      getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async (symbols) =>
+          new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
+      }),
+    });
+
+    await machine.maybeSwitchOnDistance({
+      direction: 'SHORT',
+      monitorPrice: 20_000,
+      positions: [],
+    });
+
+    const seat = symbolRegistry.getSeatState('HSI.HK', 'SHORT');
+    expect(seat.status).toBe('ACTIVE');
+    expect(seat.symbol).toBe('OLD_BEAR.HK');
+    expect(
+      seatStateManager.resolveSuppression('SHORT', 'OLD_BEAR.HK', 'DISTANCE_SAFE_SIDE'),
+    ).toBeNull();
     expect(machine.hasPendingSwitch('SHORT')).toBeFalse();
   });
 });

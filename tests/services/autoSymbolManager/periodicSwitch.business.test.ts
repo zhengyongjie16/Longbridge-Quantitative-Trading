@@ -50,6 +50,7 @@ type HarnessParams = {
   readonly nowMs: number;
   readonly lastSeatActivatedAt: number | null;
   readonly findBestSymbol: string;
+  readonly distanceToStrikePercent?: number;
   readonly tradingCalendarSnapshot?: ReadonlyMap<
     string,
     { readonly isTradingDay: boolean; readonly isHalfDay: boolean }
@@ -137,7 +138,7 @@ function createPeriodicHarness(params: HarnessParams): {
       getWarrantDistanceInfo: () =>
         createWarrantDistanceInfoDouble({
           warrantType: 'BULL',
-          distanceToStrikePercent: 0.1,
+          distanceToStrikePercent: params.distanceToStrikePercent ?? 0.1,
         }),
     }),
     marketDataClient: createMarketDataClientDouble({
@@ -149,7 +150,7 @@ function createPeriodicHarness(params: HarnessParams): {
     periodicSwitchPending,
     resolveSuppression: seatStateManager.resolveSuppression,
     markSuppression: seatStateManager.markSuppression,
-    clearSeat: seatStateManager.clearSeat,
+    enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
     buildSeatState: seatStateManager.buildSeatState,
     updateSeatState: seatStateManager.updateSeatState,
     resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
@@ -414,7 +415,7 @@ describe('periodic auto-switch regression', () => {
     ).toBeTrue();
   });
 
-  it('case3-6: periodic switch rechecks local pending before clearSeat after async candidate lookup', async () => {
+  it('case3-6: periodic switch rechecks local pending before enterSwitchingSeat after async candidate lookup', async () => {
     const readyMs = Date.parse('2026-02-16T01:00:00.000Z');
     const nowMs = Date.parse('2026-02-16T01:31:00.000Z');
     let holdSymbols = new Set<string>();
@@ -484,10 +485,11 @@ describe('periodic auto-switch regression', () => {
     const seat = harness.symbolRegistry.getSeatState('HSI.HK', 'LONG');
     expect(seat.status).toBe('SWITCHING');
     expect(seat.symbol).toBe('OLD_BULL.HK');
+    expect(harness.periodicSwitchPending.has('LONG')).toBeFalse();
     expect(harness.machine.hasPendingSwitch('LONG')).toBeTrue();
   });
 
-  it('case4-1: periodic pending is retained when distance trigger is suppressed by same candidate', async () => {
+  it('case4-1-safe-side: periodic pending is retained and safe suppression is written on distance same-symbol', async () => {
     const readyMs = Date.parse('2026-02-16T01:00:00.000Z');
     const nowMs = Date.parse('2026-02-16T01:31:00.000Z');
     const harness = createPeriodicHarness({
@@ -496,6 +498,7 @@ describe('periodic auto-switch regression', () => {
       lastSeatActivatedAt: readyMs,
       findBestSymbol: 'OLD_BULL.HK',
       getBuyOrdersCount: () => 1,
+      distanceToStrikePercent: 2,
     });
     await harness.machine.maybeSwitchOnInterval({
       direction: 'LONG',
@@ -505,14 +508,52 @@ describe('periodic auto-switch regression', () => {
     });
     expect(harness.periodicSwitchPending.get('LONG')?.pending).toBeTrue();
     expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVE');
+
     await harness.machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
     });
+
     expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVE');
     expect(harness.periodicSwitchPending.get('LONG')?.pending).toBeTrue();
     expect(harness.machine.hasPendingSwitch('LONG')).toBeFalse();
+    expect(harness.seatStateManager.resolveSuppression('LONG', 'OLD_BULL.HK', 'PERIODIC')).toBeNull();
+    expect(
+      harness.seatStateManager.resolveSuppression('LONG', 'OLD_BULL.HK', 'DISTANCE_SAFE_SIDE'),
+    ).not.toBeNull();
+  });
+
+  it('case4-1-danger-side: periodic pending is retained and suppression is not written on distance same-symbol', async () => {
+    const readyMs = Date.parse('2026-02-16T01:00:00.000Z');
+    const nowMs = Date.parse('2026-02-16T01:31:00.000Z');
+    const harness = createPeriodicHarness({
+      switchIntervalMinutes: 1,
+      nowMs,
+      lastSeatActivatedAt: readyMs,
+      findBestSymbol: 'OLD_BULL.HK',
+      getBuyOrdersCount: () => 1,
+      distanceToStrikePercent: 0.1,
+    });
+    await harness.machine.maybeSwitchOnInterval({
+      direction: 'LONG',
+      currentTime: new Date(nowMs),
+      canTradeNow: true,
+      openProtectionActive: false,
+    });
+    expect(harness.periodicSwitchPending.get('LONG')?.pending).toBeTrue();
+    expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVE');
+
+    await harness.machine.maybeSwitchOnDistance({
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      positions: [],
+    });
+
+    expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVE');
+    expect(harness.periodicSwitchPending.get('LONG')?.pending).toBeTrue();
+    expect(harness.machine.hasPendingSwitch('LONG')).toBeFalse();
+    expect(harness.seatStateManager.resolveSuppression('LONG', 'OLD_BULL.HK', 'DISTANCE_SAFE_SIDE')).toBeNull();
   });
 
   it('case5: same candidate marks suppression and skips periodic switch', async () => {
@@ -530,7 +571,7 @@ describe('periodic auto-switch regression', () => {
       canTradeNow: true,
       openProtectionActive: false,
     });
-    const suppression = harness.seatStateManager.resolveSuppression('LONG', 'OLD_BULL.HK');
+    const suppression = harness.seatStateManager.resolveSuppression('LONG', 'OLD_BULL.HK', 'PERIODIC');
     expect(suppression?.symbol).toBe('OLD_BULL.HK');
     expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVE');
     expect(harness.machine.hasPendingSwitch('LONG')).toBeFalse();
@@ -786,7 +827,7 @@ describe('periodic auto-switch regression', () => {
       periodicSwitchPending,
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
-      clearSeat: seatStateManager.clearSeat,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
       buildSeatState: seatStateManager.buildSeatState,
       updateSeatState: seatStateManager.updateSeatState,
       resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),

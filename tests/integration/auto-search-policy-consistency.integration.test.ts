@@ -289,7 +289,7 @@ describe('auto search policy consistency integration', () => {
       periodicSwitchPending: new Map(),
       resolveSuppression: switchSeatStateManager.resolveSuppression,
       markSuppression: switchSeatStateManager.markSuppression,
-      clearSeat: switchSeatStateManager.clearSeat,
+      enterSwitchingSeat: switchSeatStateManager.enterSwitchingSeat,
       buildSeatState: switchSeatStateManager.buildSeatState,
       updateSeatState: switchSeatStateManager.updateSeatState,
       resolveDirectionalAutoSearchPolicy: (params) =>
@@ -540,7 +540,7 @@ describe('auto search policy consistency integration', () => {
       periodicSwitchPending: new Map(),
       resolveSuppression: switchSeatStateManager.resolveSuppression,
       markSuppression: switchSeatStateManager.markSuppression,
-      clearSeat: switchSeatStateManager.clearSeat,
+      enterSwitchingSeat: switchSeatStateManager.enterSwitchingSeat,
       buildSeatState: switchSeatStateManager.buildSeatState,
       updateSeatState: switchSeatStateManager.updateSeatState,
       resolveDirectionalAutoSearchPolicy: (params) =>
@@ -593,5 +593,301 @@ describe('auto search policy consistency integration', () => {
       ),
     ).toBe(true);
     expect(quoteContext.getCalls('warrantList')).toHaveLength(4);
+  });
+
+  it('keeps candidate selection unchanged when safe/danger trigger semantics differ', async () => {
+    const currentTime = new Date('2026-02-16T01:00:00.000Z');
+    const monitorConfig = createMonitorConfigDouble({
+      monitorSymbol: 'HSI.HK',
+      autoSearchConfig: {
+        autoSearchEnabled: true,
+        autoSearchMinDistancePctBull: 0.35,
+        autoSearchMinDistancePctBear: -0.35,
+        autoSearchMinTurnoverPerMinuteBull: 100_000,
+        autoSearchMinTurnoverPerMinuteBear: 100_000,
+        autoSearchExpiryMinMonths: 3,
+        autoSearchOpenDelayMinutes: 0,
+        switchIntervalMinutes: 0,
+        switchDistanceRangeBull: { min: 0.2, max: 1.5 },
+        switchDistanceRangeBear: { min: -1.5, max: -0.2 },
+      },
+      orderOwnershipMapping: ['HSI'],
+    });
+    const quoteContext = createQuoteContextMock();
+    quoteContext.seedWarrantList('HSI.HK', [
+      createWarrantInfo({
+        symbol: 'LOWER_BULL.HK',
+        warrantType: WarrantType.Bull,
+        apiDistanceRatio: toApiDistanceRatio(0.22),
+        turnover: 1_500_000,
+        callPrice: 20_300,
+      }),
+      createWarrantInfo({
+        symbol: 'BEST_BULL.HK',
+        warrantType: WarrantType.Bull,
+        apiDistanceRatio: toApiDistanceRatio(0.3499),
+        turnover: 1_800_000,
+        callPrice: 20_500,
+      }),
+    ]);
+
+    const runtimeLogger = createLoggerRecorder();
+    const runtimeRegistry = createSymbolRegistryDouble({
+      monitorSymbol: monitorConfig.monitorSymbol,
+      longSeat: {
+        symbol: null,
+        status: 'EMPTY',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+    });
+    const runtimeSeatStateManager = createSeatStateManager({
+      monitorSymbol: monitorConfig.monitorSymbol,
+      symbolRegistry: runtimeRegistry,
+      switchStates: new Map(),
+      switchSuppressions: new Map(),
+      now: () => currentTime,
+      logger: runtimeLogger.logger,
+      getHKDateKey,
+    });
+    const runtimeAutoSearch = createAutoSearch({
+      autoSearchConfig: monitorConfig.autoSearchConfig,
+      monitorSymbol: monitorConfig.monitorSymbol,
+      symbolRegistry: runtimeRegistry,
+      buildSeatState: runtimeSeatStateManager.buildSeatState,
+      updateSeatState: runtimeSeatStateManager.updateSeatState,
+      resolveDirectionalAutoSearchPolicy: (params) =>
+        resolveDirectionalAutoSearchPolicy({
+          ...params,
+          autoSearchConfig: monitorConfig.autoSearchConfig,
+          monitorSymbol: monitorConfig.monitorSymbol,
+          logger: runtimeLogger.logger,
+        }),
+      buildFindBestWarrantInput: async ({ currentTime: nextTime, policy }) =>
+        buildFindBestWarrantInputFromPolicy({
+          ctx: createQuoteContextDouble(quoteContext),
+          monitorSymbol: monitorConfig.monitorSymbol,
+          currentTime: nextTime,
+          policy,
+          expiryMinMonths: monitorConfig.autoSearchConfig.autoSearchExpiryMinMonths,
+          logger: runtimeLogger.logger,
+          getTradingMinutesSinceOpen: () => 10,
+        }),
+      findBestWarrant,
+      isWithinMorningOpenProtection: () => false,
+      searchCooldownMs: 10_000,
+      getHKDateKey,
+      maxSearchFailuresPerDay: 3,
+      logger: runtimeLogger.logger,
+    });
+    await runtimeAutoSearch.maybeSearchOnTick({
+      direction: 'LONG',
+      currentTime,
+      canTradeNow: true,
+    });
+    const runtimeSeat = runtimeRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
+    expect(runtimeSeat.symbol).toBe('BEST_BULL.HK');
+
+    const safeLogger = createLoggerRecorder();
+    const safeSwitchStates = new Map();
+    const safeSwitchSuppressions = new Map();
+    const safeRegistry = createSymbolRegistryDouble({
+      monitorSymbol: monitorConfig.monitorSymbol,
+      longSeat: {
+        symbol: 'BEST_BULL.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: currentTime.getTime(),
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      longVersion: 1,
+    });
+    const safeSeatStateManager = createSeatStateManager({
+      monitorSymbol: monitorConfig.monitorSymbol,
+      symbolRegistry: safeRegistry,
+      switchStates: safeSwitchStates,
+      switchSuppressions: safeSwitchSuppressions,
+      now: () => currentTime,
+      logger: safeLogger.logger,
+      getHKDateKey,
+    });
+    const safeSignalBuilder = createSignalBuilder({ signalObjectPool });
+    const safeSwitchMachine = createSwitchStateMachine({
+      autoSearchConfig: monitorConfig.autoSearchConfig,
+      monitorSymbol: monitorConfig.monitorSymbol,
+      symbolRegistry: safeRegistry,
+      trader: createTraderDouble({
+        getPendingOrders: async () => [],
+      }),
+      orderRecorder: createOrderRecorderDouble(),
+      riskChecker: createRiskCheckerDouble({
+        getWarrantDistanceInfo: () =>
+          createWarrantDistanceInfoDouble({
+            warrantType: 'BULL',
+            distanceToStrikePercent: 2,
+          }),
+      }),
+      now: () => currentTime,
+      switchStates: safeSwitchStates,
+      periodicSwitchPending: new Map(),
+      resolveSuppression: safeSeatStateManager.resolveSuppression,
+      markSuppression: safeSeatStateManager.markSuppression,
+      enterSwitchingSeat: safeSeatStateManager.enterSwitchingSeat,
+      buildSeatState: safeSeatStateManager.buildSeatState,
+      updateSeatState: safeSeatStateManager.updateSeatState,
+      resolveDirectionalAutoSearchPolicy: (params) =>
+        resolveDirectionalAutoSearchPolicy({
+          ...params,
+          autoSearchConfig: monitorConfig.autoSearchConfig,
+          monitorSymbol: monitorConfig.monitorSymbol,
+          logger: safeLogger.logger,
+        }),
+      buildFindBestWarrantInput: async ({ currentTime: nextTime, policy }) =>
+        buildFindBestWarrantInputFromPolicy({
+          ctx: createQuoteContextDouble(quoteContext),
+          monitorSymbol: monitorConfig.monitorSymbol,
+          currentTime: nextTime,
+          policy,
+          expiryMinMonths: monitorConfig.autoSearchConfig.autoSearchExpiryMinMonths,
+          logger: safeLogger.logger,
+          getTradingMinutesSinceOpen: () => 10,
+        }),
+      findBestWarrant,
+      resolveDirectionSymbols,
+      calculateBuyQuantityByNotional,
+      buildOrderSignal: safeSignalBuilder.buildOrderSignal,
+      signalObjectPool,
+      pendingOrderStatuses: PENDING_ORDER_STATUSES,
+      buySide: OrderSide.Buy,
+      logger: safeLogger.logger,
+      maxSearchFailuresPerDay: 3,
+      getHKDateKey,
+      calculateTradingDurationMsBetween: () => 0,
+      getTradingCalendarSnapshot: () => new Map(),
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async (symbols) =>
+          new Map([...symbols].map((symbol) => [symbol, createQuoteDouble(symbol, 1, 100)])),
+      }),
+    });
+    await safeSwitchMachine.maybeSwitchOnDistance({
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      positions: [],
+    });
+
+    const dangerLogger = createLoggerRecorder();
+    const dangerSwitchStates = new Map();
+    const dangerSwitchSuppressions = new Map();
+    const dangerRegistry = createSymbolRegistryDouble({
+      monitorSymbol: monitorConfig.monitorSymbol,
+      longSeat: {
+        symbol: 'BEST_BULL.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: currentTime.getTime(),
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      longVersion: 1,
+    });
+    const dangerSeatStateManager = createSeatStateManager({
+      monitorSymbol: monitorConfig.monitorSymbol,
+      symbolRegistry: dangerRegistry,
+      switchStates: dangerSwitchStates,
+      switchSuppressions: dangerSwitchSuppressions,
+      now: () => currentTime,
+      logger: dangerLogger.logger,
+      getHKDateKey,
+    });
+    const dangerSignalBuilder = createSignalBuilder({ signalObjectPool });
+    const dangerSwitchMachine = createSwitchStateMachine({
+      autoSearchConfig: monitorConfig.autoSearchConfig,
+      monitorSymbol: monitorConfig.monitorSymbol,
+      symbolRegistry: dangerRegistry,
+      trader: createTraderDouble({
+        getPendingOrders: async () => [],
+      }),
+      orderRecorder: createOrderRecorderDouble(),
+      riskChecker: createRiskCheckerDouble({
+        getWarrantDistanceInfo: () =>
+          createWarrantDistanceInfoDouble({
+            warrantType: 'BULL',
+            distanceToStrikePercent: 0.1,
+          }),
+      }),
+      now: () => currentTime,
+      switchStates: dangerSwitchStates,
+      periodicSwitchPending: new Map(),
+      resolveSuppression: dangerSeatStateManager.resolveSuppression,
+      markSuppression: dangerSeatStateManager.markSuppression,
+      enterSwitchingSeat: dangerSeatStateManager.enterSwitchingSeat,
+      buildSeatState: dangerSeatStateManager.buildSeatState,
+      updateSeatState: dangerSeatStateManager.updateSeatState,
+      resolveDirectionalAutoSearchPolicy: (params) =>
+        resolveDirectionalAutoSearchPolicy({
+          ...params,
+          autoSearchConfig: monitorConfig.autoSearchConfig,
+          monitorSymbol: monitorConfig.monitorSymbol,
+          logger: dangerLogger.logger,
+        }),
+      buildFindBestWarrantInput: async ({ currentTime: nextTime, policy }) =>
+        buildFindBestWarrantInputFromPolicy({
+          ctx: createQuoteContextDouble(quoteContext),
+          monitorSymbol: monitorConfig.monitorSymbol,
+          currentTime: nextTime,
+          policy,
+          expiryMinMonths: monitorConfig.autoSearchConfig.autoSearchExpiryMinMonths,
+          logger: dangerLogger.logger,
+          getTradingMinutesSinceOpen: () => 10,
+        }),
+      findBestWarrant,
+      resolveDirectionSymbols,
+      calculateBuyQuantityByNotional,
+      buildOrderSignal: dangerSignalBuilder.buildOrderSignal,
+      signalObjectPool,
+      pendingOrderStatuses: PENDING_ORDER_STATUSES,
+      buySide: OrderSide.Buy,
+      logger: dangerLogger.logger,
+      maxSearchFailuresPerDay: 3,
+      getHKDateKey,
+      calculateTradingDurationMsBetween: () => 0,
+      getTradingCalendarSnapshot: () => new Map(),
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async (symbols) =>
+          new Map([...symbols].map((symbol) => [symbol, createQuoteDouble(symbol, 1, 100)])),
+      }),
+    });
+    await dangerSwitchMachine.maybeSwitchOnDistance({
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      positions: [],
+    });
+
+    const safeSeat = safeRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
+    const dangerSeat = dangerRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
+    expect(safeSeat.status).toBe('ACTIVE');
+    expect(dangerSeat.status).toBe('ACTIVE');
+    expect(safeSeat.symbol).toBe('BEST_BULL.HK');
+    expect(dangerSeat.symbol).toBe('BEST_BULL.HK');
+    expect(
+      safeLogger.infos.some(
+        (message) =>
+          message.includes('BEST_BULL.HK') && message.includes('selectionStage=DEGRADED'),
+      ),
+    ).toBe(true);
+
+    expect(
+      dangerLogger.infos.some(
+        (message) =>
+          message.includes('BEST_BULL.HK') && message.includes('selectionStage=DEGRADED'),
+      ),
+    ).toBe(true);
+    expect(quoteContext.getCalls('warrantList')).toHaveLength(3);
   });
 });

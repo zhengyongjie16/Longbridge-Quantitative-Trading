@@ -408,4 +408,280 @@ describe('auto-symbol-switch integration', () => {
     expect(finalSeat.symbol).toBe('NEW_BULL.HK');
     expect(manager.hasPendingSwitch('LONG')).toBeFalse();
   });
+
+  it('re-enters distance presearch on danger-side after safe-side same-symbol suppression', async () => {
+    candidateQueue = [
+      createWarrantCandidateWithOverrides('OLD_BULL.HK', { callPrice: 20_000 }),
+      createWarrantCandidateWithOverrides('OLD_BULL.HK', { callPrice: 20_000 }),
+    ];
+    let findBestCalls = 0;
+    let distanceToStrikePercent = 2;
+
+    const monitorConfig = createMonitorConfigDouble({
+      autoSearchConfig: {
+        autoSearchEnabled: true,
+        autoSearchMinDistancePctBull: 0.35,
+        autoSearchMinDistancePctBear: -0.35,
+        autoSearchMinTurnoverPerMinuteBull: 100_000,
+        autoSearchMinTurnoverPerMinuteBear: 100_000,
+        autoSearchExpiryMinMonths: 3,
+        autoSearchOpenDelayMinutes: 0,
+        switchIntervalMinutes: 0,
+        switchDistanceRangeBull: { min: 0.2, max: 1.5 },
+        switchDistanceRangeBear: { min: -1.5, max: -0.2 },
+      },
+    });
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: monitorConfig.monitorSymbol,
+      longSeat: {
+        symbol: 'OLD_BULL.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: Date.parse('2026-02-16T01:00:00.000Z'),
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      shortSeat: {
+        symbol: null,
+        status: 'EMPTY',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+    });
+
+    const manager = createAutoSymbolManager({
+      monitorConfig,
+      symbolRegistry,
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async (symbols) =>
+          new Map([...symbols].map((symbol) => [symbol, createQuoteDouble(symbol, 1, 100)])),
+      }),
+      trader: createTraderDouble({
+        getPendingOrders: async () => [],
+      }),
+      orderRecorder: createOrderRecorderDouble(),
+      riskChecker: createRiskCheckerDouble({
+        getWarrantDistanceInfo: () =>
+          createWarrantDistanceInfoDouble({
+            warrantType: 'BULL',
+            distanceToStrikePercent,
+          }),
+      }),
+      findBestWarrant: async () => {
+        findBestCalls += 1;
+        return candidateQueue.shift() ?? null;
+      },
+      now: () => new Date('2026-02-16T01:00:00.000Z'),
+    });
+
+    await manager.maybeSwitchOnDistance({
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      positions: [],
+    });
+
+    await manager.maybeSwitchOnDistance({
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      positions: [],
+    });
+
+    expect(findBestCalls).toBe(1);
+
+    distanceToStrikePercent = 0.1;
+    await manager.maybeSwitchOnDistance({
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      positions: [],
+    });
+
+    expect(findBestCalls).toBe(2);
+    const seat = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
+    expect(seat.status).toBe('ACTIVE');
+    expect(seat.symbol).toBe('OLD_BULL.HK');
+    expect(manager.hasPendingSwitch('LONG')).toBeFalse();
+  });
+
+  it('does not write suppression on danger-side same-symbol, and safe-side still re-runs presearch once', async () => {
+    candidateQueue = [
+      createWarrantCandidateWithOverrides('OLD_BULL.HK', { callPrice: 20_000 }),
+      createWarrantCandidateWithOverrides('OLD_BULL.HK', { callPrice: 20_000 }),
+      createWarrantCandidateWithOverrides('OLD_BULL.HK', { callPrice: 20_000 }),
+    ];
+    let findBestCalls = 0;
+    let distanceToStrikePercent = 0.1;
+
+    const monitorConfig = createMonitorConfigDouble({
+      autoSearchConfig: {
+        autoSearchEnabled: true,
+        autoSearchMinDistancePctBull: 0.35,
+        autoSearchMinDistancePctBear: -0.35,
+        autoSearchMinTurnoverPerMinuteBull: 100_000,
+        autoSearchMinTurnoverPerMinuteBear: 100_000,
+        autoSearchExpiryMinMonths: 3,
+        autoSearchOpenDelayMinutes: 0,
+        switchIntervalMinutes: 0,
+        switchDistanceRangeBull: { min: 0.2, max: 1.5 },
+        switchDistanceRangeBear: { min: -1.5, max: -0.2 },
+      },
+    });
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: monitorConfig.monitorSymbol,
+      longSeat: {
+        symbol: 'OLD_BULL.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: Date.parse('2026-02-16T01:00:00.000Z'),
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      shortSeat: {
+        symbol: null,
+        status: 'EMPTY',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+    });
+
+    const manager = createAutoSymbolManager({
+      monitorConfig,
+      symbolRegistry,
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async (symbols) =>
+          new Map([...symbols].map((symbol) => [symbol, createQuoteDouble(symbol, 1, 100)])),
+      }),
+      trader: createTraderDouble({
+        getPendingOrders: async () => [],
+      }),
+      orderRecorder: createOrderRecorderDouble(),
+      riskChecker: createRiskCheckerDouble({
+        getWarrantDistanceInfo: () =>
+          createWarrantDistanceInfoDouble({
+            warrantType: 'BULL',
+            distanceToStrikePercent,
+          }),
+      }),
+      findBestWarrant: async () => {
+        findBestCalls += 1;
+        return candidateQueue.shift() ?? null;
+      },
+      now: () => new Date('2026-02-16T01:00:00.000Z'),
+    });
+
+    await manager.maybeSwitchOnDistance({
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      positions: [],
+    });
+
+    distanceToStrikePercent = 2;
+    await manager.maybeSwitchOnDistance({
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      positions: [],
+    });
+
+    await manager.maybeSwitchOnDistance({
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      positions: [],
+    });
+
+    expect(findBestCalls).toBe(2);
+    const seat = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
+    expect(seat.status).toBe('ACTIVE');
+    expect(seat.symbol).toBe('OLD_BULL.HK');
+    expect(manager.hasPendingSwitch('LONG')).toBeFalse();
+  });
+
+  it('falls back to EMPTY on danger-side no-candidate and can recover via next auto-search tick', async () => {
+    candidateQueue = [null, createWarrantCandidateWithOverrides('RECOVER_BULL.HK', { callPrice: 22_000 })];
+
+    const monitorConfig = createMonitorConfigDouble({
+      autoSearchConfig: {
+        autoSearchEnabled: true,
+        autoSearchMinDistancePctBull: 0.35,
+        autoSearchMinDistancePctBear: -0.35,
+        autoSearchMinTurnoverPerMinuteBull: 100_000,
+        autoSearchMinTurnoverPerMinuteBear: 100_000,
+        autoSearchExpiryMinMonths: 3,
+        autoSearchOpenDelayMinutes: 0,
+        switchIntervalMinutes: 0,
+        switchDistanceRangeBull: { min: 0.2, max: 1.5 },
+        switchDistanceRangeBear: { min: -1.5, max: -0.2 },
+      },
+    });
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: monitorConfig.monitorSymbol,
+      longSeat: {
+        symbol: 'OLD_BULL.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: Date.parse('2026-02-16T01:00:00.000Z'),
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      shortSeat: {
+        symbol: null,
+        status: 'EMPTY',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+    });
+
+    const manager = createAutoSymbolManager({
+      monitorConfig,
+      symbolRegistry,
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async (symbols) =>
+          new Map([...symbols].map((symbol) => [symbol, createQuoteDouble(symbol, 1, 100)])),
+      }),
+      trader: createTraderDouble({
+        getPendingOrders: async () => [],
+      }),
+      orderRecorder: createOrderRecorderDouble(),
+      riskChecker: createRiskCheckerDouble({
+        getWarrantDistanceInfo: () =>
+          createWarrantDistanceInfoDouble({
+            warrantType: 'BULL',
+            distanceToStrikePercent: 0.1,
+          }),
+      }),
+      findBestWarrant: async () => candidateQueue.shift() ?? null,
+      now: () => new Date('2026-02-16T01:00:00.000Z'),
+    });
+
+    await manager.maybeSwitchOnDistance({
+      direction: 'LONG',
+      monitorPrice: 20_000,
+      positions: [],
+    });
+
+    const emptySeat = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
+    expect(emptySeat.status).toBe('EMPTY');
+    expect(emptySeat.symbol).toBeNull();
+    expect(manager.hasPendingSwitch('LONG')).toBeFalse();
+
+    await manager.maybeSearchOnTick({
+      direction: 'LONG',
+      currentTime: new Date('2026-02-16T01:11:00.000Z'),
+      canTradeNow: true,
+    });
+
+    const recoveredSeat = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
+    expect(recoveredSeat.status).toBe('ACTIVATING');
+    expect(recoveredSeat.symbol).toBe('RECOVER_BULL.HK');
+  });
 });

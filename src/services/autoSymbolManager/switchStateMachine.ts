@@ -3,10 +3,11 @@
  *
  * 功能：管理从撤单到回补买入的完整换标流程。
  * 职责：统一处理距离换标与周期换标的启动入口，推进换标状态机（撤单/卖出/绑定/等待行情/回补/完成），处理周期换标到期后的空仓等待与触发。
- * 执行流程：maybeSwitchOnDistance/maybeSwitchOnInterval 触发 → startSwitchFlow 初始化状态 → processSwitchStateMachine 推进各阶段 → 完成或失败。
+ * 执行流程：maybeSwitchOnDistance/maybeSwitchOnInterval 触发 → startSwitchFlow 初始化状态 → processSwitchState 推进各阶段 → 完成或失败。
  */
 import { ORDER_QUOTE_RETRY } from '../../constants/index.js';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
+import type { DecimalInput } from '../../utils/numeric/types.js';
 import { isQuoteReadyForRequirement, resolveNextQuoteRetry } from '../../utils/quoteRetry.js';
 import { decimalGte, decimalLte } from '../../utils/numeric/index.js';
 import type { Position } from '../../types/account.js';
@@ -162,6 +163,35 @@ function resolvePeriodicSeatBlockSource(params: {
   return 'EMPTY';
 }
 
+function resolveDistanceTriggerSide(params: {
+  readonly direction: 'LONG' | 'SHORT';
+  readonly distancePercent: DecimalInput;
+  readonly range: { readonly min: DecimalInput; readonly max: DecimalInput };
+}): 'SAFE' | 'DANGER' | null {
+  const { direction, distancePercent, range } = params;
+  if (direction === 'LONG') {
+    if (decimalLte(distancePercent, range.min)) {
+      return 'DANGER';
+    }
+
+    if (decimalGte(distancePercent, range.max)) {
+      return 'SAFE';
+    }
+
+    return null;
+  }
+
+  if (decimalGte(distancePercent, range.max)) {
+    return 'DANGER';
+  }
+
+  if (decimalLte(distancePercent, range.min)) {
+    return 'SAFE';
+  }
+
+  return null;
+}
+
 /**
  * 创建换标状态机，管理从撤单到回补买入的完整换标流程，并提供周期换标触发能力。
  * @param deps - 依赖（trader、orderRecorder、riskChecker、switchStates、buildOrderSignal、signalObjectPool 等）
@@ -181,7 +211,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     periodicSwitchPending,
     resolveSuppression,
     markSuppression,
-    clearSeat,
+    enterSwitchingSeat,
     buildSeatState,
     updateSeatState,
     resolveDirectionalAutoSearchPolicy,
@@ -314,11 +344,18 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
    * 统一换标启动入口：
    * - 预寻标
    * - 同标的抑制
-   * - 清席位并写入 switchStates
+   * - 将席位切换为 SWITCHING 并写入 switchStates
    * - 按需决定是否立即推进状态机（仅距离换标）
    */
   async function startSwitchFlow(params: StartSwitchFlowParams): Promise<void> {
-    const { direction, reason, switchMode, distanceContext, processImmediately } = params;
+    const isPeriodicTrigger = params.triggerKind === 'PERIODIC';
+    const direction = isPeriodicTrigger ? params.direction : params.distanceContext.direction;
+    const reason = params.reason;
+    const switchMode = isPeriodicTrigger ? 'PERIODIC' : 'DISTANCE';
+    const suppressionTriggerKind =
+      params.triggerKind === 'DISTANCE_DANGER_SIDE' ? null : params.triggerKind;
+    const distanceContext = isPeriodicTrigger ? null : params.distanceContext;
+
     if (hasPendingSwitch(direction)) {
       return;
     }
@@ -331,7 +368,10 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
 
     const seatVersionAtStart = symbolRegistry.getSeatVersion(monitorSymbol, direction);
     const seatSymbol = seatState.symbol;
-    if (resolveSuppression(direction, seatSymbol)) {
+    if (
+      suppressionTriggerKind !== null &&
+      resolveSuppression(direction, seatSymbol, suppressionTriggerKind)
+    ) {
       return;
     }
 
@@ -365,16 +405,19 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     }
 
     if (next?.symbol === latestSeatState.symbol) {
-      markSuppression(direction, latestSeatState.symbol);
-      logger.info(`[自动换标] ${monitorSymbol} ${direction} 预寻标命中同标的，记录当日抑制`);
+      if (suppressionTriggerKind !== null) {
+        markSuppression(direction, latestSeatState.symbol, suppressionTriggerKind);
+        logger.info(`[自动换标] ${monitorSymbol} ${direction} 预寻标命中同标的，记录当日抑制`);
+      }
+
       return;
     }
 
-    const seatVersion = clearSeat({ direction, reason });
+    const seatVersion = enterSwitchingSeat({ direction, reason });
     clearPeriodicPending(direction);
 
     let shouldRebuy = false;
-    if (switchMode === 'DISTANCE' && distanceContext) {
+    if (distanceContext !== null) {
       const position = extractPosition(distanceContext.positions, latestSeatState.symbol);
       shouldRebuy = (position?.quantity ?? 0) > 0;
     }
@@ -397,12 +440,16 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
       cancelRequestSubmitted: false,
     });
 
-    if (!processImmediately || !distanceContext) {
+    if (switchMode === 'PERIODIC') {
       return;
     }
 
     const startedState = switchStates.get(direction);
     if (!startedState) {
+      return;
+    }
+
+    if (distanceContext === null) {
       return;
     }
 
@@ -834,8 +881,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
       await startSwitchFlow({
         direction,
         reason: '周期换标触发',
-        switchMode: 'PERIODIC',
-        processImmediately: false,
+        triggerKind: 'PERIODIC',
       });
       return;
     }
@@ -889,8 +935,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     await startSwitchFlow({
       direction,
       reason: '周期换标触发',
-      switchMode: 'PERIODIC',
-      processImmediately: false,
+      triggerKind: 'PERIODIC',
     });
   }
 
@@ -947,15 +992,21 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     }
 
     const range = policy.switchDistanceRange;
-    if (decimalLte(distancePercent, range.min) || decimalGte(distancePercent, range.max)) {
-      await startSwitchFlow({
-        direction,
-        reason: '距回收价阈值越界',
-        switchMode: 'DISTANCE',
-        distanceContext: { direction, monitorPrice, positions },
-        processImmediately: true,
-      });
+    const distanceTriggerSide = resolveDistanceTriggerSide({
+      direction,
+      distancePercent,
+      range,
+    });
+    if (distanceTriggerSide === null) {
+      return;
     }
+
+    await startSwitchFlow({
+      reason: '距回收价阈值越界',
+      triggerKind:
+        distanceTriggerSide === 'SAFE' ? 'DISTANCE_SAFE_SIDE' : 'DISTANCE_DANGER_SIDE',
+      distanceContext: { direction, monitorPrice, positions },
+    });
   }
 
   return {

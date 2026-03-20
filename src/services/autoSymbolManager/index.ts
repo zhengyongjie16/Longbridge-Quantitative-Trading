@@ -106,12 +106,12 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     now,
     switchStates,
     periodicSwitchPending,
-    resolveSuppression: (direction, seatSymbol) =>
-      seatStateManager.resolveSuppression(direction, seatSymbol),
-    markSuppression: (direction, seatSymbol) => {
-      seatStateManager.markSuppression(direction, seatSymbol);
+    resolveSuppression: (direction, seatSymbol, triggerKind) =>
+      seatStateManager.resolveSuppression(direction, seatSymbol, triggerKind),
+    markSuppression: (direction, seatSymbol, triggerKind) => {
+      seatStateManager.markSuppression(direction, seatSymbol, triggerKind);
     },
-    clearSeat: (params) => seatStateManager.clearSeat(params),
+    enterSwitchingSeat: (params) => seatStateManager.enterSwitchingSeat(params),
     buildSeatState: seatStateManager.buildSeatState,
     updateSeatState: seatStateManager.updateSeatState,
     resolveDirectionalAutoSearchPolicy: thresholdResolver.resolveDirectionalAutoSearchPolicy,

@@ -10,7 +10,7 @@ import { createSymbolRegistryDouble } from '../../helpers/testDoubles.js';
 import { getHKDateKey } from '../../../src/utils/time/index.js';
 
 describe('autoSymbolManager seatStateManager business flow', () => {
-  it('clearSeat bumps seat version and puts seat into SWITCHING with switch state snapshot', () => {
+  it('enterSwitchingSeat bumps seat version and puts seat into SWITCHING with switch state snapshot', () => {
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
       longSeat: {
@@ -38,9 +38,9 @@ describe('autoSymbolManager seatStateManager business flow', () => {
       } as never,
       getHKDateKey,
     });
-    const nextVersion = manager.clearSeat({
+    const nextVersion = manager.enterSwitchingSeat({
       direction: 'LONG',
-      reason: 'test-clear-seat',
+      reason: 'test-enter-switching-seat',
     });
     expect(nextVersion).toBe(2);
     expect(symbolRegistry.getSeatVersion('HSI.HK', 'LONG')).toBe(2);
@@ -76,12 +76,146 @@ describe('autoSymbolManager seatStateManager business flow', () => {
       } as never,
       getHKDateKey,
     });
-    manager.markSuppression('LONG', 'OLD_BULL.HK');
-    const sameDay = manager.resolveSuppression('LONG', 'OLD_BULL.HK');
+    manager.markSuppression('LONG', 'OLD_BULL.HK', 'PERIODIC');
+    const sameDay = manager.resolveSuppression('LONG', 'OLD_BULL.HK', 'PERIODIC');
     expect(sameDay?.symbol).toBe('OLD_BULL.HK');
     now = new Date('2026-02-17T01:00:00.000Z');
-    const nextDay = manager.resolveSuppression('LONG', 'OLD_BULL.HK');
+    const nextDay = manager.resolveSuppression('LONG', 'OLD_BULL.HK', 'PERIODIC');
     expect(nextDay).toBeNull();
+    expect(switchSuppressions.size).toBe(0);
+  });
+
+  it('keeps PERIODIC and DISTANCE_SAFE_SIDE suppressions independent on same symbol and day', () => {
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+    });
+    const switchStates = new Map();
+    const switchSuppressions = new Map();
+    const now = new Date('2026-02-16T01:00:00.000Z');
+    const manager = createSeatStateManager({
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      switchStates,
+      switchSuppressions,
+      now: () => now,
+      logger: {
+        info: () => {},
+        warn: () => {},
+      } as never,
+      getHKDateKey,
+    });
+
+    manager.markSuppression('LONG', 'OLD_BULL.HK', 'PERIODIC');
+
+    expect(manager.resolveSuppression('LONG', 'OLD_BULL.HK', 'DISTANCE_SAFE_SIDE')).toBeNull();
+    expect(manager.resolveSuppression('LONG', 'OLD_BULL.HK', 'PERIODIC')).not.toBeNull();
+
+    manager.markSuppression('LONG', 'OLD_BULL.HK', 'DISTANCE_SAFE_SIDE');
+
+    const periodicSuppression = manager.resolveSuppression('LONG', 'OLD_BULL.HK', 'PERIODIC');
+    const safeSideSuppression = manager.resolveSuppression(
+      'LONG',
+      'OLD_BULL.HK',
+      'DISTANCE_SAFE_SIDE',
+    );
+
+    expect(periodicSuppression).not.toBeNull();
+    expect(safeSideSuppression).not.toBeNull();
+
+    const expectedTriggerKinds = ['DISTANCE_SAFE_SIDE', 'PERIODIC'] as const;
+    const expectedTriggerKindsList = [...expectedTriggerKinds];
+    const compareTriggerKind = (
+      left: (typeof expectedTriggerKinds)[number],
+      right: (typeof expectedTriggerKinds)[number],
+    ): number => expectedTriggerKinds.indexOf(left) - expectedTriggerKinds.indexOf(right);
+
+    const periodicTriggerKinds = [...(periodicSuppression?.suppressedTriggerKinds ?? [])].sort(
+      compareTriggerKind,
+    );
+    const safeSideTriggerKinds = [...(safeSideSuppression?.suppressedTriggerKinds ?? [])].sort(
+      compareTriggerKind,
+    );
+
+    expect(periodicTriggerKinds).toEqual(expectedTriggerKindsList);
+    expect(safeSideTriggerKinds).toEqual(expectedTriggerKindsList);
+  });
+
+  it('keeps suppression independent when DISTANCE_SAFE_SIDE is recorded before PERIODIC', () => {
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+    });
+    const switchStates = new Map();
+    const switchSuppressions = new Map();
+    const now = new Date('2026-02-16T01:00:00.000Z');
+    const manager = createSeatStateManager({
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      switchStates,
+      switchSuppressions,
+      now: () => now,
+      logger: {
+        info: () => {},
+        warn: () => {},
+      } as never,
+      getHKDateKey,
+    });
+
+    manager.markSuppression('LONG', 'OLD_BULL.HK', 'DISTANCE_SAFE_SIDE');
+    manager.markSuppression('LONG', 'OLD_BULL.HK', 'PERIODIC');
+
+    expect(manager.resolveSuppression('LONG', 'OLD_BULL.HK', 'DISTANCE_SAFE_SIDE')).not.toBeNull();
+    expect(manager.resolveSuppression('LONG', 'OLD_BULL.HK', 'PERIODIC')).not.toBeNull();
+  });
+
+  it('keeps LONG and SHORT suppressions isolated on same symbol and day', () => {
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+    });
+    const switchStates = new Map();
+    const switchSuppressions = new Map();
+    const now = new Date('2026-02-16T01:00:00.000Z');
+    const manager = createSeatStateManager({
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      switchStates,
+      switchSuppressions,
+      now: () => now,
+      logger: {
+        info: () => {},
+        warn: () => {},
+      } as never,
+      getHKDateKey,
+    });
+
+    manager.markSuppression('LONG', 'OLD_BULL.HK', 'PERIODIC');
+
+    expect(manager.resolveSuppression('LONG', 'OLD_BULL.HK', 'PERIODIC')).not.toBeNull();
+    expect(manager.resolveSuppression('SHORT', 'OLD_BULL.HK', 'PERIODIC')).toBeNull();
+  });
+
+  it('auto-clears suppression when symbol changes on same day', () => {
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+    });
+    const switchStates = new Map();
+    const switchSuppressions = new Map();
+    const now = new Date('2026-02-16T01:00:00.000Z');
+    const manager = createSeatStateManager({
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      switchStates,
+      switchSuppressions,
+      now: () => now,
+      logger: {
+        info: () => {},
+        warn: () => {},
+      } as never,
+      getHKDateKey,
+    });
+
+    manager.markSuppression('LONG', 'OLD_BULL.HK', 'PERIODIC');
+
+    expect(manager.resolveSuppression('LONG', 'NEW_BULL.HK', 'PERIODIC')).toBeNull();
     expect(switchSuppressions.size).toBe(0);
   });
 });
