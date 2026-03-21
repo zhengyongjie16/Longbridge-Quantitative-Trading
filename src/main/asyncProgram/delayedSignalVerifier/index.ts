@@ -14,7 +14,7 @@ import { logger } from '../../../utils/logger/index.js';
 import { signalObjectPool } from '../../../utils/objectPool/index.js';
 import { TIME, VERIFICATION, ACTION_DESCRIPTIONS } from '../../../constants/index.js';
 import type { Signal } from '../../../types/signal.js';
-import type { VerificationIndicator } from '../../../types/state.js';
+import type { VerificationIndicator } from '../../../types/indicatorProfile.js';
 import type {
   DelayedSignalVerifier,
   DelayedSignalVerifierDeps,

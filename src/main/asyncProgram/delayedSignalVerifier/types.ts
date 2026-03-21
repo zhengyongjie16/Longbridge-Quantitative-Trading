@@ -1,5 +1,5 @@
 import type { Signal } from '../../../types/signal.js';
-import type { VerificationIndicator } from '../../../types/state.js';
+import type { VerificationIndicator } from '../../../types/indicatorProfile.js';
 import type { IndicatorCache } from '../indicatorCache/types.js';
 
 /**

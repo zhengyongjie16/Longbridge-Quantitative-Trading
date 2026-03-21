@@ -39,11 +39,8 @@ import {
   periodRecordPool,
 } from '../../utils/objectPool/index.js';
 import { LOG_COLORS, MONITOR } from '../../constants/index.js';
-import type {
-  DisplayIndicatorItem,
-  IndicatorUsageProfile,
-  MonitorState,
-} from '../../types/state.js';
+import type { DisplayIndicatorItem, IndicatorUsageProfile } from '../../types/indicatorProfile.js';
+import type { MonitorState } from '../../types/state.js';
 import type { IndicatorSnapshot, Quote, KDJIndicator, MACDIndicator } from '../../types/quote.js';
 import type { MonitorValues } from '../../types/data.js';
 import type { MarketMonitor, MonitorIndicatorChangesParams, PriceDisplayInfo } from './types.js';

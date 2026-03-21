@@ -6,8 +6,8 @@
  */
 import {
   Decimal,
+  Period,
   type Candlestick,
-  type MarketTradingDays,
   type PushCandlestickEvent,
   type PushQuoteEvent,
   type WarrantInfo,
@@ -74,17 +74,22 @@ export function createPushCandlestickEvent(
   params: PushCandlestickEventParams,
 ): PushCandlestickEvent {
   const timestampMs = params.timestampMs ?? Date.now();
+  const candlestick = {
+    close: toMockDecimal(params.close),
+    open: toMockDecimal(params.close),
+    high: toMockDecimal(params.close),
+    low: toMockDecimal(params.close),
+    volume: 1,
+    turnover: Decimal.ZERO(),
+    timestamp: new Date(timestampMs),
+    tradeSession: 0,
+  } as Candlestick;
   const event = {
     symbol: params.symbol,
     data: {
-      close: toMockDecimal(params.close),
-      open: toMockDecimal(params.close),
-      high: toMockDecimal(params.close),
-      low: toMockDecimal(params.close),
-      volume: 1,
-      turnover: Decimal.ZERO(),
-      timestamp: new Date(timestampMs),
-      tradeSession: 0,
+      period: params.period ?? Period.Min_1,
+      candlestick,
+      isConfirmed: params.isConfirmed ?? false,
     },
   };
 
@@ -161,12 +166,15 @@ export function createWarrantInfo(params: WarrantInfoParams): WarrantInfo {
 /**
  * 构造交易日查询结果，供 tradingDays Mock 使用。
  */
-export function createTradingDaysResult(days: TradingDaysResultParams): MarketTradingDays {
+export function createTradingDaysResult(days: TradingDaysResultParams): {
+  readonly tradingDays: ReadonlyArray<string>;
+  readonly halfTradingDays: ReadonlyArray<string>;
+} {
   const result = {
     tradingDays: days.tradingDays,
     halfTradingDays: days.halfTradingDays ?? [],
   };
-  return result as unknown as MarketTradingDays;
+  return result;
 }
 
 /**

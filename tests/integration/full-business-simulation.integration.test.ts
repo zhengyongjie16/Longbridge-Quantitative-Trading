@@ -27,11 +27,12 @@ import { createSignalRuntimeDomain } from '../../src/main/lifecycle/cacheDomains
 import { createGlobalStateDomain } from '../../src/main/lifecycle/cacheDomains/globalStateDomain.js';
 import { createSignal } from '../../mock/factories/signalFactory.js';
 import { createTradingConfig } from '../../mock/factories/configFactory.js';
-import type { Candlestick } from 'longbridge';
+import { Period, type Candlestick } from 'longbridge';
 import type { CandleData } from '../../src/types/data.js';
 import type { LastState, MonitorContext } from '../../src/types/state.js';
 import type { MultiMonitorTradingConfig, MonitorConfig } from '../../src/types/config.js';
 import type { DailyLossTracker, UnrealizedLossMonitor } from '../../src/types/risk.js';
+import type { CandlestickCacheSnapshot } from '../../src/types/services.js';
 import type { DayLifecycleManager } from '../../src/main/lifecycle/types.js';
 import type { MonitorTaskDataMap } from '../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 import {
@@ -72,6 +73,31 @@ function createCandles(length: number, start: number, step: number): CandleData[
 function createMockCandlesticks(length: number, start: number, step: number): Candlestick[] {
   const candles = createCandles(length, start, step);
   return candles as unknown as Candlestick[];
+}
+
+function createCandlestickSnapshot(
+  symbol: string,
+  candles: ReadonlyArray<CandleData>,
+  version: number = 1,
+): CandlestickCacheSnapshot | null {
+  if (candles.length === 0) {
+    return null;
+  }
+
+  const latest = candles.at(-1);
+  const lastBarTimestamp =
+    latest && typeof latest.timestamp === 'number' && Number.isFinite(latest.timestamp)
+      ? latest.timestamp
+      : null;
+  return {
+    symbol,
+    period: Period.Min_1,
+    version,
+    candles,
+    lastBarTimestamp,
+    lastBarConfirmed: false,
+    initialized: true,
+  };
 }
 
 function createNoopDailyLossTracker(): DailyLossTracker {
@@ -362,7 +388,10 @@ describe('full business simulation integration', () => {
 
             return quotes;
           },
-          getRealtimeCandlesticks: async () => candles,
+          getCandlestickSnapshot: (symbol) =>
+            symbol === monitorConfig.monitorSymbol
+              ? createCandlestickSnapshot(symbol, candles as unknown as ReadonlyArray<CandleData>)
+              : null,
         }),
         trader,
         lastState,
@@ -632,10 +661,14 @@ describe('full business simulation integration', () => {
       getCanProcessTask: () => lastState.isTradingEnabled,
     });
 
+    const sharedMainCandles = createCandles(120, 200, 0.5);
     const sharedMainContext = {
       marketDataClient: createMarketDataClientDouble({
         getQuotes: autoSwitchMarketDataClient.getQuotes,
-        getRealtimeCandlesticks: async () => createMockCandlesticks(120, 200, 0.5),
+        getCandlestickSnapshot: (symbol) =>
+          symbol === monitorConfig.monitorSymbol
+            ? createCandlestickSnapshot(symbol, sharedMainCandles)
+            : null,
       }),
       trader,
       lastState,
@@ -1184,7 +1217,10 @@ describe('full business simulation integration', () => {
 
           return quotes;
         },
-        getRealtimeCandlesticks: async () => createMockCandlesticks(120, 100, 0.2),
+        getCandlestickSnapshot: (symbol) =>
+          symbol === monitorConfig.monitorSymbol
+            ? createCandlestickSnapshot(symbol, createCandles(120, 100, 0.2))
+            : null,
       });
 
       await mainProgram({

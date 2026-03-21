@@ -16,6 +16,7 @@ import type { DecimalLikeValue } from './common.js';
 import type { MonitorConfig } from './config.js';
 import type { TradingCalendarSnapshot } from './tradingCalendar.js';
 import type { CancelOrderOutcome } from './trader.js';
+import type { CandleData } from './data.js';
 
 /**
  * 交易日查询结果。
@@ -46,6 +47,22 @@ export type TradingDayInfo = {
 };
 
 /**
+ * 本地 K 线缓存快照。
+ * 类型用途：主循环消费的应用层 K 线缓存结构，包含版本、最后一根 bar 状态与初始化标记。
+ * 数据来源：quoteClient 在 subscribe seed 与 setOnCandlestick push 更新后维护。
+ * 使用范围：MarketDataClient.getCandlestickSnapshot 与主循环指标流水线使用。
+ */
+export type CandlestickCacheSnapshot = {
+  readonly symbol: string;
+  readonly period: Period;
+  readonly version: number;
+  readonly candles: ReadonlyArray<CandleData>;
+  readonly lastBarTimestamp: number | null;
+  readonly lastBarConfirmed: boolean | null;
+  readonly initialized: boolean;
+};
+
+/**
  * 行情数据客户端接口。
  * 类型用途：依赖注入用接口，封装 Longbridge 行情 API，提供行情获取、订阅、K 线、交易日查询及运行期缓存重置。
  * 数据来源：由 quoteClient 等实现，对接 Longbridge QuoteContext。
@@ -71,8 +88,8 @@ export interface MarketDataClient {
   /**
    * 订阅指定标的的 K 线推送
    *
-   * 订阅后 SDK 通过 WebSocket 实时推送 K 线更新到 SDK 内部缓存，
-   * 后续通过 getRealtimeCandlesticks 从 SDK 内部缓存读取。
+   * 订阅后客户端会用返回值 seed 应用层本地 K 线缓存，并通过 push 事件持续更新。
+   * getRealtimeCandlesticks 仍保留为 SDK 内部缓存读取能力（非主循环主路径）。
    *
    * @param symbol 标的代码
    * @param period K 线周期
@@ -83,7 +100,7 @@ export interface MarketDataClient {
     symbol: string,
     period: Period,
     tradeSessions?: TradeSessions,
-  ) => Promise<Candlestick[]>;
+  ) => Promise<ReadonlyArray<Candlestick>>;
 
   /**
    * 获取实时 K 线数据（从 SDK 内部缓存读取，无 HTTP 请求）
@@ -98,7 +115,16 @@ export interface MarketDataClient {
     symbol: string,
     period: Period,
     count: number,
-  ) => Promise<Candlestick[]>;
+  ) => Promise<ReadonlyArray<Candlestick>>;
+
+  /**
+   * 获取应用层本地 K 线缓存快照（由 subscribe seed + push 更新维护）。
+   *
+   * @param symbol 标的代码
+   * @param period K 线周期
+   * @returns 本地缓存快照，不存在时返回 null
+   */
+  getCandlestickSnapshot: (symbol: string, period: Period) => CandlestickCacheSnapshot | null;
 
   /** 判断指定日期是否为交易日 */
   isTradingDay: (date: Date, market?: Market) => Promise<TradingDayInfo>;

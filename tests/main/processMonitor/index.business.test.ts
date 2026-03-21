@@ -5,6 +5,7 @@
  * - 验证 processMonitor 主流程相关场景意图、边界条件与业务期望。
  */
 import { describe, expect, it } from 'bun:test';
+import { Period } from 'longbridge';
 
 import {
   createBuyTaskQueue,
@@ -79,12 +80,30 @@ function createMonitorContext(params: {
       pendingDelayedSignals: [],
       monitorValues: null,
       lastMonitorSnapshot: null,
-      lastCandleFingerprint: null,
+      lastCandlestickCacheVersion: null,
+      incrementalIndicatorRuntime: null,
     },
     strategy: {
       generateCloseSignals: params.strategyGenerate,
     },
   });
+}
+
+function createCacheSnapshot(candles: ReadonlyArray<CandleData>, version: number) {
+  const latest = candles.at(-1);
+  const timestamp =
+    latest && typeof latest.timestamp === 'number' && Number.isFinite(latest.timestamp)
+      ? latest.timestamp
+      : null;
+  return {
+    symbol: 'HSI.HK',
+    period: Period.Min_1,
+    version,
+    candles,
+    lastBarTimestamp: timestamp,
+    lastBarConfirmed: false,
+    initialized: true,
+  };
 }
 
 describe('processMonitor end-to-end orchestration', () => {
@@ -106,7 +125,7 @@ describe('processMonitor end-to-end orchestration', () => {
     const params: ProcessMonitorParams = {
       context: {
         marketDataClient: {
-          getRealtimeCandlesticks: async () => [],
+          getCandlestickSnapshot: () => null,
         },
         indicatorCache: createIndicatorCache(),
         marketMonitor: {
@@ -156,7 +175,7 @@ describe('processMonitor end-to-end orchestration', () => {
     const params: ProcessMonitorParams = {
       context: {
         marketDataClient: {
-          getRealtimeCandlesticks: async () => candles,
+          getCandlestickSnapshot: () => createCacheSnapshot(candles, 1),
         },
         indicatorCache: createIndicatorCache(),
         marketMonitor: {

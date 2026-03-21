@@ -7,10 +7,7 @@
 import { describe, it, expect } from 'bun:test';
 import { createGlobalStateDomain } from '../../../../src/main/lifecycle/cacheDomains/globalStateDomain.js';
 import type { LastState, MonitorState } from '../../../../src/types/state.js';
-import {
-  createAccountSnapshotDouble,
-  createPositionDouble,
-} from '../../../helpers/testDoubles.js';
+import { createAccountSnapshotDouble, createPositionDouble } from '../../../helpers/testDoubles.js';
 
 function createMockMonitorState(monitorSymbol: string): MonitorState {
   return {
@@ -22,7 +19,8 @@ function createMockMonitorState(monitorSymbol: string): MonitorState {
     pendingDelayedSignals: [],
     monitorValues: null,
     lastMonitorSnapshot: null,
-    lastCandleFingerprint: null,
+    lastCandlestickCacheVersion: null,
+    incrementalIndicatorRuntime: null,
   };
 }
 

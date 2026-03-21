@@ -6,7 +6,10 @@
  */
 import { describe, expect, it } from 'bun:test';
 import { createSeatStateManager } from '../../../src/services/autoSymbolManager/seatStateManager.js';
-import type { SwitchState, SwitchSuppression } from '../../../src/services/autoSymbolManager/types.js';
+import type {
+  SwitchState,
+  SwitchSuppression,
+} from '../../../src/services/autoSymbolManager/types.js';
 import { createSymbolRegistryDouble } from '../../helpers/testDoubles.js';
 import { getHKDateKey } from '../../../src/utils/time/index.js';
 import { createLoggerStub } from './utils.js';

@@ -86,7 +86,8 @@ function createMonitorContext(
       pendingDelayedSignals: [],
       monitorValues: null,
       lastMonitorSnapshot: null,
-      lastCandleFingerprint: null,
+      lastCandlestickCacheVersion: null,
+      incrementalIndicatorRuntime: null,
     },
     symbolRegistry,
     seatState: {
@@ -294,6 +295,7 @@ describe('doomsday integration', () => {
         unsubscribeSymbols: async () => {},
         subscribeCandlesticks: async () => [],
         getRealtimeCandlesticks: async () => [],
+        getCandlestickSnapshot: () => null,
         isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
         resetRuntimeSubscriptionsAndCaches: async () => {},
       },
@@ -348,6 +350,7 @@ describe('doomsday integration', () => {
         unsubscribeSymbols: async () => {},
         subscribeCandlesticks: async () => [],
         getRealtimeCandlesticks: async () => [],
+        getCandlestickSnapshot: () => null,
         isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
         resetRuntimeSubscriptionsAndCaches: async () => {},
       },
@@ -410,6 +413,7 @@ describe('doomsday integration', () => {
       unsubscribeSymbols: async () => {},
       subscribeCandlesticks: async () => [],
       getRealtimeCandlesticks: async () => [],
+      getCandlestickSnapshot: () => null,
       isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
       resetRuntimeSubscriptionsAndCaches: async () => {},
     };
@@ -493,6 +497,7 @@ describe('doomsday integration', () => {
       unsubscribeSymbols: async () => {},
       subscribeCandlesticks: async () => [],
       getRealtimeCandlesticks: async () => [],
+      getCandlestickSnapshot: () => null,
       isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
       resetRuntimeSubscriptionsAndCaches: async () => {},
     };
@@ -569,6 +574,7 @@ describe('doomsday integration', () => {
       unsubscribeSymbols: async () => {},
       subscribeCandlesticks: async () => [],
       getRealtimeCandlesticks: async () => [],
+      getCandlestickSnapshot: () => null,
       isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
       resetRuntimeSubscriptionsAndCaches: async () => {},
     };
@@ -640,6 +646,7 @@ describe('doomsday integration', () => {
       unsubscribeSymbols: async () => {},
       subscribeCandlesticks: async () => [],
       getRealtimeCandlesticks: async () => [],
+      getCandlestickSnapshot: () => null,
       isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
       resetRuntimeSubscriptionsAndCaches: async () => {},
     };
@@ -729,6 +736,7 @@ describe('doomsday integration', () => {
             unsubscribeSymbols: async () => {},
             subscribeCandlesticks: async () => [],
             getRealtimeCandlesticks: async () => [],
+            getCandlestickSnapshot: () => null,
             isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
             resetRuntimeSubscriptionsAndCaches: async () => {},
           },

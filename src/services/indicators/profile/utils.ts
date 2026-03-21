@@ -10,7 +10,7 @@ import type {
   ProfileIndicator,
   SignalIndicator,
   VerificationIndicator,
-} from '../../../types/state.js';
+} from '../../../types/indicatorProfile.js';
 import type { IndicatorCollector } from './types.js';
 
 /**

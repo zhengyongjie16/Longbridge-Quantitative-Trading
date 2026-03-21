@@ -5,9 +5,7 @@
  * - 模拟 QuoteContext 的订阅、查询、失败注入与事件回放行为
  */
 import {
-  type Candlestick,
   type Market,
-  type MarketTradingDays,
   type Period,
   type PushCandlestickEvent,
   type PushQuoteEvent,
@@ -93,8 +91,14 @@ interface QuoteContextMock extends QuoteContextContract {
   seedStaticInfo: (
     staticInfos: ReadonlyArray<{ readonly symbol: string; readonly info: unknown }>,
   ) => void;
-  seedCandlesticks: (symbol: string, period: Period, candles: ReadonlyArray<Candlestick>) => void;
-  seedTradingDays: (key: string, value: MarketTradingDays) => void;
+  seedCandlesticks: (symbol: string, period: Period, candles: ReadonlyArray<unknown>) => void;
+  seedTradingDays: (
+    key: string,
+    value: {
+      readonly tradingDays: ReadonlyArray<unknown>;
+      readonly halfTradingDays: ReadonlyArray<unknown>;
+    },
+  ) => void;
   seedWarrantQuotes: (quotes: ReadonlyArray<WarrantQuote>) => void;
   seedWarrantList: (symbol: string, list: ReadonlyArray<MockWarrantListItem>) => void;
   emitQuote: (event: PushQuoteEvent, options?: EventPublishOptions) => void;
@@ -130,10 +134,16 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
   const quoteBySymbol = new Map<string, unknown>();
   const realtimeQuoteBySymbol = new Map<string, unknown>();
   const staticInfoBySymbol = new Map<string, unknown>();
-  const candlesticksByKey = new Map<string, ReadonlyArray<Candlestick>>();
+  const candlesticksByKey = new Map<string, ReadonlyArray<unknown>>();
   const warrantQuoteBySymbol = new Map<string, WarrantQuote>();
   const warrantListBySymbol = new Map<string, ReadonlyArray<MockWarrantListItem>>();
-  const tradingDaysByKey = new Map<string, MarketTradingDays>();
+  const tradingDaysByKey = new Map<
+    string,
+    {
+      readonly tradingDays: ReadonlyArray<unknown>;
+      readonly halfTradingDays: ReadonlyArray<unknown>;
+    }
+  >();
 
   const subscribedSymbols = new Set<string>();
   const subscribedByType = new Map<string, Set<SubType>>();
@@ -230,7 +240,7 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
     symbol: string,
     period: Period,
     _tradeSessions?: TradeSessions,
-  ): Promise<ReadonlyArray<Candlestick>> {
+  ): Promise<ReadonlyArray<unknown>> {
     return withCall('subscribeCandlesticks', [symbol, period], () => {
       const key = createCandleKey(symbol, period);
       subscribedCandlestickKeys.add(key);
@@ -250,7 +260,7 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
     symbol: string,
     period: Period,
     count: number,
-  ): Promise<ReadonlyArray<Candlestick>> {
+  ): Promise<ReadonlyArray<unknown>> {
     return withCall('realtimeCandlesticks', [symbol, period, count], () => {
       const key = createCandleKey(symbol, period);
       const data = candlesticksByKey.get(key) ?? [];
@@ -262,7 +272,14 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
     });
   }
 
-  function tradingDays(market: Market, begin: unknown, end: unknown): Promise<MarketTradingDays> {
+  function tradingDays(
+    market: Market,
+    begin: unknown,
+    end: unknown,
+  ): Promise<{
+    readonly tradingDays: ReadonlyArray<unknown>;
+    readonly halfTradingDays: ReadonlyArray<unknown>;
+  }> {
     return withCall('tradingDays', [market, begin, end], () => {
       const key = getTradingDaysKey(market, begin, end);
       const found = tradingDaysByKey.get(key);
@@ -273,7 +290,7 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
       return {
         tradingDays: [],
         halfTradingDays: [],
-      } as unknown as MarketTradingDays;
+      };
     });
   }
 
@@ -382,15 +399,17 @@ export function createQuoteContextMock(options: QuoteContextMockOptions = {}): Q
     }
   }
 
-  function seedCandlesticks(
-    symbol: string,
-    period: Period,
-    candles: ReadonlyArray<Candlestick>,
-  ): void {
+  function seedCandlesticks(symbol: string, period: Period, candles: ReadonlyArray<unknown>): void {
     candlesticksByKey.set(createCandleKey(symbol, period), [...candles]);
   }
 
-  function seedTradingDays(key: string, value: MarketTradingDays): void {
+  function seedTradingDays(
+    key: string,
+    value: {
+      readonly tradingDays: ReadonlyArray<unknown>;
+      readonly halfTradingDays: ReadonlyArray<unknown>;
+    },
+  ): void {
     tradingDaysByKey.set(key, value);
   }
 

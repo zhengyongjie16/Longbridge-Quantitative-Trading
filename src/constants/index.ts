@@ -13,7 +13,7 @@
  */
 import { FilterWarrantExpiryDate, OrderStatus, OrderType, Period } from 'longbridge';
 import type { OrderTypeConfig, SignalType } from '../types/signal.js';
-import type { StrategyAction } from '../types/state.js';
+import type { StrategyAction } from '../types/indicatorProfile.js';
 
 /** 时间相关常量 */
 export const TIME = {

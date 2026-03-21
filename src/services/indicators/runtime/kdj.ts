@@ -7,59 +7,206 @@
  * - J = 3K - 2D
  */
 import { kdjObjectPool } from '../../../utils/objectPool/index.js';
-import { toNumber, logDebug, isValidKDJ } from './utils.js';
+import { feedEmaStreamState, initEmaStreamState, isValidKDJ, logDebug, toNumber } from './utils.js';
 import type { KDJIndicator } from '../../../types/quote.js';
 import type { CandleData } from '../../../types/data.js';
-import type { EmaStream } from './types.js';
+import type { KdjStreamState } from './types.js';
 
 /**
- * 计算数组的简单算术平均，用于 KDJ 中 EMA 流的种子期。
- * @param values - 数值数组
- * @returns 算术平均值，空数组返回 0
+ * 创建 KDJ 流式状态。
+ *
+ * @param period RSV 窗口周期
+ * @param emaPeriod K/D 平滑周期
+ * @returns 初始化状态
  */
-function computeSma(values: ReadonlyArray<number>): number {
-  if (values.length === 0) {
-    return 0;
-  }
-
-  let sum = 0;
-  for (const value of values) {
-    sum += value;
-  }
-
-  return sum / values.length;
+export function createKdjState(period: number = 9, emaPeriod: number = 5): KdjStreamState {
+  const emaKState = initEmaStreamState(emaPeriod);
+  const emaDState = initEmaStreamState(emaPeriod);
+  feedEmaStreamState(emaKState, 50);
+  feedEmaStreamState(emaDState, 50);
+  return {
+    period,
+    emaPeriod,
+    index: 0,
+    maxIndexDeque: [],
+    maxValueDeque: [],
+    minIndexDeque: [],
+    minValueDeque: [],
+    emaKState,
+    emaDState,
+    hasKdjValue: false,
+    lastK: 50,
+    lastD: 50,
+  };
 }
 
 /**
- * 创建单条 EMA 流：前 period 个值用 SMA 做种子，之后按 EMA 递推，供 K/D 平滑使用。
- * @param period - EMA 周期
- * @returns EmaStream，nextValue 喂入新值并返回当前 EMA，种子期未满时返回 undefined
+ * 克隆 KDJ 状态。
+ *
+ * @param state 原始状态
+ * @returns 深拷贝状态
  */
-function createEmaStream(period: number): EmaStream {
-  const buffer: number[] = [];
-  const per = 2 / (period + 1);
-  let emaValue: number | undefined;
-
+export function cloneKdjState(state: KdjStreamState): KdjStreamState {
   return {
-    nextValue(value: number): number | undefined {
-      if (!Number.isFinite(value)) {
-        return undefined;
-      }
-
-      if (emaValue === undefined) {
-        buffer.push(value);
-        if (buffer.length < period) {
-          return undefined;
-        }
-
-        emaValue = computeSma(buffer);
-        return emaValue;
-      }
-
-      emaValue = (value - emaValue) * per + emaValue;
-      return emaValue;
+    period: state.period,
+    emaPeriod: state.emaPeriod,
+    index: state.index,
+    maxIndexDeque: [...state.maxIndexDeque],
+    maxValueDeque: [...state.maxValueDeque],
+    minIndexDeque: [...state.minIndexDeque],
+    minValueDeque: [...state.minValueDeque],
+    emaKState: {
+      period: state.emaKState.period,
+      per: state.emaKState.per,
+      seedCount: state.emaKState.seedCount,
+      seedSum: state.emaKState.seedSum,
+      emaValue: state.emaKState.emaValue,
     },
+    emaDState: {
+      period: state.emaDState.period,
+      per: state.emaDState.per,
+      seedCount: state.emaDState.seedCount,
+      seedSum: state.emaDState.seedSum,
+      emaValue: state.emaDState.emaValue,
+    },
+    hasKdjValue: state.hasKdjValue,
+    lastK: state.lastK,
+    lastD: state.lastD,
   };
+}
+
+function dropOutdatedEntries(state: KdjStreamState, windowStart: number): void {
+  while (state.maxIndexDeque.length > 0) {
+    const headIndex = state.maxIndexDeque[0];
+    if (headIndex !== undefined && headIndex < windowStart) {
+      state.maxIndexDeque.shift();
+      state.maxValueDeque.shift();
+      continue;
+    }
+
+    break;
+  }
+
+  while (state.minIndexDeque.length > 0) {
+    const headIndex = state.minIndexDeque[0];
+    if (headIndex !== undefined && headIndex < windowStart) {
+      state.minIndexDeque.shift();
+      state.minValueDeque.shift();
+      continue;
+    }
+
+    break;
+  }
+}
+
+/**
+ * 提交一根 K 线到 KDJ 状态。
+ *
+ * @param state KDJ 状态
+ * @param candle K 线
+ * @returns void
+ */
+export function commitKdjCandle(state: KdjStreamState, candle: CandleData): void {
+  const i = state.index;
+  state.index += 1;
+
+  const high = toNumber(candle.high);
+  if (Number.isFinite(high)) {
+    while (state.maxValueDeque.length > 0) {
+      const tailValue = state.maxValueDeque.at(-1);
+      if (tailValue !== undefined && tailValue <= high) {
+        state.maxValueDeque.pop();
+        state.maxIndexDeque.pop();
+        continue;
+      }
+
+      break;
+    }
+
+    state.maxIndexDeque.push(i);
+    state.maxValueDeque.push(high);
+  }
+
+  const low = toNumber(candle.low);
+  if (Number.isFinite(low)) {
+    while (state.minValueDeque.length > 0) {
+      const tailValue = state.minValueDeque.at(-1);
+      if (tailValue !== undefined && tailValue >= low) {
+        state.minValueDeque.pop();
+        state.minIndexDeque.pop();
+        continue;
+      }
+
+      break;
+    }
+
+    state.minIndexDeque.push(i);
+    state.minValueDeque.push(low);
+  }
+
+  if (i < state.period - 1) {
+    return;
+  }
+
+  const windowStart = i - state.period + 1;
+  dropOutdatedEntries(state, windowStart);
+
+  const highestHigh = state.maxValueDeque[0];
+  const lowestLow = state.minValueDeque[0];
+  if (highestHigh === undefined || lowestLow === undefined) {
+    return;
+  }
+
+  const close = toNumber(candle.close);
+  if (!Number.isFinite(close)) {
+    return;
+  }
+
+  const range = highestHigh - lowestLow;
+  if (!Number.isFinite(range) || range === 0) {
+    return;
+  }
+
+  const rsv = ((close - lowestLow) / range) * 100;
+  const kValue = feedEmaStreamState(state.emaKState, rsv);
+  if (kValue !== null) {
+    state.lastK = kValue;
+  }
+
+  const dValue = feedEmaStreamState(state.emaDState, state.lastK);
+  if (dValue !== null) {
+    state.lastD = dValue;
+  }
+
+  state.hasKdjValue = true;
+}
+
+/**
+ * 读取 KDJ 当前可用值。
+ *
+ * @param state KDJ 状态
+ * @returns KDJ 值，不可用返回 null
+ */
+export function readKdjValue(state: KdjStreamState): KDJIndicator | null {
+  if (!state.hasKdjValue) {
+    return null;
+  }
+
+  const jValue = 3 * state.lastK - 2 * state.lastD;
+  if (!Number.isFinite(state.lastK) || !Number.isFinite(state.lastD) || !Number.isFinite(jValue)) {
+    return null;
+  }
+
+  const kdjObj = kdjObjectPool.acquire();
+  kdjObj.k = state.lastK;
+  kdjObj.d = state.lastD;
+  kdjObj.j = jValue;
+  if (isValidKDJ(kdjObj)) {
+    return kdjObj;
+  }
+
+  kdjObjectPool.release(kdjObj);
+  return null;
 }
 
 /**
@@ -77,142 +224,12 @@ export function calculateKDJ(
   }
 
   try {
-    const emaPeriod = 5;
-
-    // 单调队列：同时维护窗口最高/最低，并在同一轮流式推进 K 与 D，避免中间序列落地。
-    const maxIndexDeque = new Int32Array(candles.length);
-    const maxValueDeque = new Float64Array(candles.length);
-    const minIndexDeque = new Int32Array(candles.length);
-    const minValueDeque = new Float64Array(candles.length);
-    let maxHead = 0;
-    let maxTail = 0;
-    let minHead = 0;
-    let minTail = 0;
-
-    const emaK = createEmaStream(emaPeriod);
-    const emaD = createEmaStream(emaPeriod);
-    emaK.nextValue(50);
-    emaD.nextValue(50);
-
-    let hasKdjValue = false;
-    let lastK = 50;
-    let lastD = 50;
-
-    for (const [i, candle] of candles.entries()) {
-      const high = toNumber(candle.high);
-      if (Number.isFinite(high)) {
-        while (maxTail > maxHead) {
-          const lastQueueIndex = maxTail - 1;
-          const lastValue = maxValueDeque[lastQueueIndex];
-          if (lastValue === undefined || lastValue <= high) {
-            maxTail -= 1;
-            continue;
-          }
-
-          break;
-        }
-
-        maxIndexDeque[maxTail] = i;
-        maxValueDeque[maxTail] = high;
-        maxTail += 1;
-      }
-
-      const low = toNumber(candle.low);
-      if (Number.isFinite(low)) {
-        while (minTail > minHead) {
-          const lastQueueIndex = minTail - 1;
-          const lastValue = minValueDeque[lastQueueIndex];
-          if (lastValue === undefined || lastValue >= low) {
-            minTail -= 1;
-            continue;
-          }
-
-          break;
-        }
-
-        minIndexDeque[minTail] = i;
-        minValueDeque[minTail] = low;
-        minTail += 1;
-      }
-
-      if (i < period - 1) {
-        continue;
-      }
-
-      const windowStart = i - period + 1;
-      while (maxTail > maxHead) {
-        const index = maxIndexDeque[maxHead];
-        if (index !== undefined && index < windowStart) {
-          maxHead += 1;
-          continue;
-        }
-
-        break;
-      }
-
-      while (minTail > minHead) {
-        const index = minIndexDeque[minHead];
-        if (index !== undefined && index < windowStart) {
-          minHead += 1;
-          continue;
-        }
-
-        break;
-      }
-
-      const highestHigh = maxValueDeque[maxHead];
-      const lowestLow = minValueDeque[minHead];
-      if (highestHigh === undefined || lowestLow === undefined) {
-        continue;
-      }
-
-      const close = toNumber(candle.close);
-      if (!Number.isFinite(close)) {
-        continue;
-      }
-
-      const range = highestHigh - lowestLow;
-      if (!Number.isFinite(range) || range === 0) {
-        continue;
-      }
-
-      const rsv = ((close - lowestLow) / range) * 100;
-      const kValue = emaK.nextValue(rsv);
-      if (kValue !== undefined) {
-        lastK = kValue;
-      }
-
-      const dValue = emaD.nextValue(lastK);
-      if (dValue !== undefined) {
-        lastD = dValue;
-      }
-
-      hasKdjValue = true;
+    const state = createKdjState(period);
+    for (const candle of candles) {
+      commitKdjCandle(state, candle);
     }
 
-    if (!hasKdjValue) {
-      return null;
-    }
-
-    // 计算J值
-    const j = 3 * lastK - 2 * lastD;
-
-    if (Number.isFinite(lastK) && Number.isFinite(lastD) && Number.isFinite(j)) {
-      const kdjObj = kdjObjectPool.acquire();
-      kdjObj.k = lastK;
-      kdjObj.d = lastD;
-      kdjObj.j = j;
-
-      // 使用类型守卫验证对象有效性
-      if (isValidKDJ(kdjObj)) {
-        return kdjObj;
-      }
-
-      // 如果类型验证失败，释放对象并返回 null
-      kdjObjectPool.release(kdjObj);
-    }
-
-    return null;
+    return readKdjValue(state);
   } catch (err) {
     logDebug('KDJ计算失败', err);
     return null;

@@ -2,173 +2,51 @@
  * 指标处理流水线模块
  *
  * 功能：
- * - 从行情服务获取监控标的的 K 线数据
- * - 根据指标画像按需计算技术指标
- * - 构建指标快照并缓存到 indicatorCache
- * - 释放旧的快照对象以支持对象池复用
- *
- * 说明：
- * - 指标范围由 monitorContext.indicatorProfile 决定
- * - KDJ/MACD 家族联动已在 profile 编译阶段完成
+ * - 每秒从应用层本地 K 线缓存读取快照
+ * - 在缓存 version 未变化时复用上次快照
+ * - 在缓存 version 变化时推进增量 runtime 并构建新快照
+ * - 每拍都写入 indicatorCache，保持延迟验证时间轴连续
  */
 import {
-  buildIndicatorSnapshot,
-  getCandleFingerprint,
+  bootstrapIndicatorRuntime,
+  buildSnapshotFromRuntime,
+  updateRuntimeForCandlestickSnapshot,
 } from '../../services/indicators/runtime/index.js';
 import { logger } from '../../utils/logger/index.js';
-import { isRecord, releaseSnapshotObjects } from '../../utils/helpers/index.js';
+import { releaseSnapshotObjects } from '../../utils/helpers/index.js';
 import { TRADING } from '../../constants/index.js';
-import type { CandleData } from '../../types/data.js';
 import type { IndicatorSnapshot } from '../../types/quote.js';
 import type { IndicatorPipelineParams } from './types.js';
 import { formatSymbolDisplay } from '../../utils/display/index.js';
 
 /**
- * 类型保护：判断 unknown 是否可作为 CandleValue 的对象分支（含 toString 方法）。
- *
- * @param value 待判断值
- * @returns true 表示可作为 CandleValue
- */
-function isCandleObjectValue(value: unknown): value is { toString: () => string } {
-  return isRecord(value) && typeof value.toString === 'function';
-}
-
-/**
- * 将 unknown 标准化为 CandleValue。
- *
- * @param value 原始字段值
- * @returns 规范后的 CandleValue
- */
-function normalizeCandleValue(value: unknown): CandleData['close'] {
-  if (
-    value === null ||
-    value === undefined ||
-    typeof value === 'number' ||
-    typeof value === 'string'
-  ) {
-    return value;
-  }
-
-  if (isCandleObjectValue(value)) {
-    return value;
-  }
-
-  return undefined;
-}
-
-/**
- * 将 unknown 标准化为 K 线时间戳（毫秒）。
- *
- * @param value 原始时间字段
- * @returns 有效毫秒时间戳；无效时返回 undefined
- */
-function normalizeCandleTimestamp(value: unknown): number | undefined {
-  if (value instanceof Date) {
-    const timestamp = value.getTime();
-    if (Number.isFinite(timestamp)) {
-      return timestamp;
-    }
-
-    return undefined;
-  }
-
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value;
-  }
-
-  if (typeof value === 'string') {
-    const timestamp = Date.parse(value);
-    if (Number.isFinite(timestamp)) {
-      return timestamp;
-    }
-  }
-
-  return undefined;
-}
-
-/**
- * 将 SDK K 线数组标准化为内部 CandleData 数组。
- *
- * @param candles 原始 K 线数据
- * @returns 标准化后的 CandleData 数组
- */
-function normalizeCandles(candles: ReadonlyArray<unknown>): ReadonlyArray<CandleData> {
-  const normalized: CandleData[] = [];
-  for (const candle of candles) {
-    if (!isRecord(candle)) {
-      continue;
-    }
-
-    const normalizedTimestamp = normalizeCandleTimestamp(candle['timestamp']);
-    normalized.push({
-      open: normalizeCandleValue(candle['open']),
-      high: normalizeCandleValue(candle['high']),
-      low: normalizeCandleValue(candle['low']),
-      close: normalizeCandleValue(candle['close']),
-      volume: normalizeCandleValue(candle['volume']),
-      ...(normalizedTimestamp === undefined ? {} : { timestamp: normalizedTimestamp }),
-    });
-  }
-
-  return normalized;
-}
-
-/**
- * 获取实时 K 线数组中最后一根 K 线的时间戳（毫秒）。
- *
- * @param candles 标准化后的 K 线数组
- * @returns 最后一根 K 线时间戳；不可用时返回 null
- */
-function getLastRealtimeCandleTimestamp(candles: ReadonlyArray<CandleData>): number | null {
-  if (candles.length === 0) {
-    return null;
-  }
-
-  const latestCandle = candles.at(-1);
-  if (!latestCandle) {
-    return null;
-  }
-
-  const timestamp = latestCandle.timestamp;
-  if (timestamp !== undefined && Number.isFinite(timestamp)) {
-    return timestamp;
-  }
-
-  return null;
-}
-
-/**
  * 执行指标处理流水线。
- * 获取 K 线数据后计算技术指标并缓存快照；若 K 线指纹未变化则直接复用上次快照，
- * 避免重复计算。处理完成后释放旧快照对象以支持对象池复用。
+ * 缓存 version 不变时复用上次快照，但仍按主循环采样时间写入 indicatorCache。
  */
-export async function runIndicatorPipeline(
-  params: IndicatorPipelineParams,
-): Promise<IndicatorSnapshot | null> {
+export function runIndicatorPipeline(params: IndicatorPipelineParams): IndicatorSnapshot | null {
   const { monitorSymbol, monitorContext, mainContext, monitorQuote } = params;
   const { marketDataClient, indicatorCache, marketMonitor } = mainContext;
   const { state, indicatorProfile } = monitorContext;
-  const monitorCandles = await marketDataClient
-    .getRealtimeCandlesticks(monitorSymbol, TRADING.CANDLE_PERIOD, TRADING.CANDLE_COUNT)
-    .catch((err: unknown) => {
-      logger.error(`获取监控标的 K 线数据失败: ${monitorSymbol}`, err);
-      return null;
-    });
-  if (!monitorCandles || monitorCandles.length === 0) {
+
+  const cacheSnapshot = marketDataClient.getCandlestickSnapshot(
+    monitorSymbol,
+    TRADING.CANDLE_PERIOD,
+  );
+  if (cacheSnapshot === null || !cacheSnapshot.initialized || cacheSnapshot.candles.length === 0) {
     logger.warn(
-      `未获取到监控标的 ${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)} K线数据`,
+      `未获取到监控标的 ${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)} K线缓存快照`,
     );
     return null;
   }
 
-  const candles = normalizeCandles(monitorCandles);
-  const klineTimestamp = getLastRealtimeCandleTimestamp(candles);
-  const fingerprint = getCandleFingerprint(candles);
+  const klineTimestamp = cacheSnapshot.lastBarTimestamp;
   if (
-    fingerprint !== null &&
-    fingerprint === state.lastCandleFingerprint &&
+    state.lastCandlestickCacheVersion !== null &&
+    cacheSnapshot.version === state.lastCandlestickCacheVersion &&
     state.lastMonitorSnapshot !== null
   ) {
+    // indicatorCache 继续按主循环采样时间每秒写入，供 delayed verification 按真实时间轴取样。
+    // 即使本秒 K 线缓存没有变化，也要 push 最近一次 snapshot，不能改成“仅事件时写入”。
     indicatorCache.push(monitorSymbol, state.lastMonitorSnapshot);
     marketMonitor.monitorIndicatorChanges({
       monitorSnapshot: state.lastMonitorSnapshot,
@@ -181,7 +59,27 @@ export async function runIndicatorPipeline(
     return state.lastMonitorSnapshot;
   }
 
-  const monitorSnapshot = buildIndicatorSnapshot(monitorSymbol, candles, indicatorProfile);
+  let runtime = state.incrementalIndicatorRuntime;
+  runtime =
+    runtime === null
+      ? bootstrapIndicatorRuntime({
+          symbol: monitorSymbol,
+          cacheSnapshot,
+          indicatorProfile,
+        })
+      : updateRuntimeForCandlestickSnapshot({
+          runtime,
+          cacheSnapshot,
+        });
+
+  if (runtime === null) {
+    logger.warn(
+      `[${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)}] 无法从缓存快照构建增量运行态，跳过本次处理`,
+    );
+    return null;
+  }
+
+  const monitorSnapshot = buildSnapshotFromRuntime(runtime);
   if (!monitorSnapshot) {
     logger.warn(
       `[${formatSymbolDisplay(monitorSymbol, monitorContext.monitorSymbolName)}] 无法构建指标快照，跳过本次处理`,
@@ -202,10 +100,8 @@ export async function runIndicatorPipeline(
     releaseSnapshotObjects(state.lastMonitorSnapshot, state.monitorValues);
   }
 
+  state.incrementalIndicatorRuntime = runtime;
   state.lastMonitorSnapshot = monitorSnapshot;
-  if (fingerprint !== null) {
-    state.lastCandleFingerprint = fingerprint;
-  }
-
+  state.lastCandlestickCacheVersion = cacheSnapshot.version;
   return monitorSnapshot;
 }

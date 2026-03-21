@@ -1,4 +1,4 @@
-import type { OrderSide, OrderStatus, OrderType } from 'longbridge';
+import type { OrderSide, OrderStatus, OrderType, Period } from 'longbridge';
 import type { SignalType } from '../../src/types/signal.js';
 
 /**
@@ -34,6 +34,8 @@ export type PushCandlestickEventParams = {
   readonly symbol: string;
   readonly close: number;
   readonly timestampMs?: number;
+  readonly period?: Period;
+  readonly isConfirmed?: boolean;
 };
 
 /**

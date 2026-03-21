@@ -1,3 +1,6 @@
+import type { CandleData } from '../../../types/data.js';
+import type { IndicatorUsageProfile } from '../../../types/indicatorProfile.js';
+
 /**
  * EMA 流式计算接口。
  * 类型用途：对外暴露单条 EMA 流的逐值推送接口，每次调用返回当前 EMA 值（seed 阶段未满时返回 undefined）。
@@ -68,4 +71,117 @@ export type PsyStreamState = {
   windowCount: number;
   windowIndex: number;
   upCount: number;
+};
+
+/**
+ * MACD 流式状态。
+ * 类型用途：维护 fast/slow/signal 三条 EMA 流与最近 DIF/DEA/Histogram 值。
+ * 数据来源：bootstrap 与运行期增量推进。
+ * 使用范围：仅 indicators/runtime 模块内部使用。
+ */
+export type MacdStreamState = {
+  readonly fastPeriod: number;
+  readonly slowPeriod: number;
+  readonly signalPeriod: number;
+  fastEmaState: EmaStreamState;
+  slowEmaState: EmaStreamState;
+  signalEmaState: EmaStreamState;
+  validCloseCount: number;
+  lastDif: number | null;
+  lastSignal: number | null;
+  lastHistogram: number | null;
+};
+
+/**
+ * MFI 流式状态。
+ * 类型用途：维护典型价比较、正负资金流环形窗口与最后一个原始值。
+ * 数据来源：bootstrap 与运行期增量推进。
+ * 使用范围：仅 indicators/runtime 模块内部使用。
+ */
+export type MfiStreamState = {
+  readonly period: number;
+  previousTypicalPrice: number | null;
+  validOhlcvCount: number;
+  upBuffer: BufferNewPush;
+  downBuffer: BufferNewPush;
+  lastRawValue: number | null;
+};
+
+/**
+ * ADX 流式状态。
+ * 类型用途：维护 Wilder 平滑所需的 TR/+DM/-DM 与 DX/ADX 递推状态。
+ * 数据来源：bootstrap 与运行期增量推进。
+ * 使用范围：仅 indicators/runtime 模块内部使用。
+ */
+export type AdxStreamState = {
+  readonly period: number;
+  prevHigh: number | null;
+  prevLow: number | null;
+  prevClose: number | null;
+  trDmCount: number;
+  smoothTr: number;
+  smoothPlusDm: number;
+  smoothMinusDm: number;
+  initialDxSum: number;
+  dxCount: number;
+  adx: number | null;
+};
+
+/**
+ * KDJ 流式状态。
+ * 类型用途：维护 RSV 窗口单调队列与 K/D 平滑状态，支持逐根增量推进。
+ * 数据来源：bootstrap 与运行期增量推进。
+ * 使用范围：仅 indicators/runtime 模块内部使用。
+ */
+export type KdjStreamState = {
+  readonly period: number;
+  readonly emaPeriod: number;
+  index: number;
+  maxIndexDeque: number[];
+  maxValueDeque: number[];
+  minIndexDeque: number[];
+  minValueDeque: number[];
+  emaKState: EmaStreamState;
+  emaDState: EmaStreamState;
+  hasKdjValue: boolean;
+  lastK: number;
+  lastD: number;
+};
+
+/**
+ * 指标 committed 状态。
+ * 类型用途：保存仅由“已确认收线 bar”推进得到的稳定状态。
+ * 数据来源：bootstrap 初始化与 confirmed/shift commit 更新。
+ * 使用范围：仅 indicators/runtime 模块内部使用。
+ */
+export type IndicatorCommittedState = {
+  lastValidClose: number | null;
+  previousValidClose: number | null;
+  emaStates: Record<number, EmaStreamState>;
+  rsiStates: Record<number, RsiStreamState>;
+  psyStates: Record<number, PsyStreamState>;
+  mfiState: MfiStreamState | null;
+  kdjState: KdjStreamState | null;
+  macdState: MacdStreamState | null;
+  adxState: AdxStreamState | null;
+};
+
+/**
+ * 增量指标运行态。
+ * 类型用途：保存 committed 状态、活动 bar 与最近处理的缓存版本，供主循环增量推进。
+ * 数据来源：bootstrap 与 updateRuntimeForCandlestickSnapshot。
+ * 使用范围：main/processMonitor 与 indicators/runtime 模块使用。
+ */
+export type IndicatorIncrementalRuntime = {
+  readonly symbol: string;
+  readonly profile: IndicatorUsageProfile;
+  lastProcessedVersion: number;
+  closedBarTimestamp: number | null;
+  activeBarTimestamp: number | null;
+  activeBarConfirmed: boolean | null;
+  activeBar: CandleData | null;
+  lastBarTimestamp: number | null;
+  lastBarConfirmed: boolean | null;
+  latestCandles: ReadonlyArray<CandleData>;
+  committed: IndicatorCommittedState;
 };

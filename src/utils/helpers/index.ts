@@ -36,6 +36,13 @@ function isPeriodRecord(value: unknown): value is Record<number, number> {
   return true;
 }
 
+/**
+ * 释放未被 monitorValues 复用的 period record 对象池实例。
+ *
+ * @param snapshotRecord 当前 snapshot 上携带的 period record
+ * @param monitorRecord monitorValues 中仍在引用的 period record
+ * @returns 无返回值
+ */
 function releaseDetachedPeriodRecord(
   snapshotRecord: Readonly<Record<number, number>> | null,
   monitorRecord: Readonly<Record<number, number>> | null | undefined,
@@ -105,7 +112,8 @@ export function initMonitorState(config: MonitorConfig): MonitorState {
     pendingDelayedSignals: [],
     monitorValues: null,
     lastMonitorSnapshot: null,
-    lastCandleFingerprint: null,
+    lastCandlestickCacheVersion: null,
+    incrementalIndicatorRuntime: null,
   };
 }
 

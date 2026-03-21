@@ -36,7 +36,7 @@ import type { MonitorContext, MonitorState, LastState } from '../../src/types/st
 import type { Quote } from '../../src/types/quote.js';
 import type { SymbolRegistry, SeatState } from '../../src/types/seat.js';
 import type { MainProgramContext } from '../../src/main/mainProgram/types.js';
-import type { MarketDataClient } from '../../src/types/services.js';
+import type { CandlestickCacheSnapshot, MarketDataClient } from '../../src/types/services.js';
 import type { AutoSymbolManager } from '../../src/services/autoSymbolManager/types.js';
 import type { DelayedSignalVerifier } from '../../src/main/asyncProgram/delayedSignalVerifier/types.js';
 import type { DailyLossTracker, UnrealizedLossMonitor } from '../../src/types/risk.js';
@@ -330,6 +330,33 @@ function makeCandleKey(symbol: string, period: Period): string {
   return `${symbol}:${period}`;
 }
 
+function createCandleSnapshot(
+  symbol: string,
+  period: Period,
+  candles: ReadonlyArray<CandleData>,
+  version: number,
+): CandlestickCacheSnapshot | null {
+  if (candles.length === 0) {
+    return null;
+  }
+
+  const latest = candles.at(-1);
+  const lastBarTimestamp =
+    latest && typeof latest.timestamp === 'number' && Number.isFinite(latest.timestamp)
+      ? latest.timestamp
+      : null;
+
+  return {
+    symbol,
+    period,
+    version,
+    candles,
+    lastBarTimestamp,
+    lastBarConfirmed: false,
+    initialized: true,
+  };
+}
+
 describe('main loop latency full-chain integration', () => {
   it('matches real loop logic with subscribed candles and 200ms startup API delay', async () => {
     const monitorCount = 5;
@@ -422,6 +449,7 @@ describe('main loop latency full-chain integration', () => {
     const subscribedCandlestickKeys = new Set<string>();
     const quoteCache = new Map<string, Quote>();
     const candleCache = new Map<string, ReadonlyArray<CandleData>>();
+    const candleCacheVersions = new Map<string, number>();
 
     function applyMockRealtimePush(iteration: number): void {
       const latestQuotes = createQuotesForSymbols(monitorConfigs, iteration);
@@ -441,6 +469,7 @@ describe('main loop latency full-chain integration', () => {
 
         const base = 100 + index * 20 + iteration;
         candleCache.set(key, createCandles(TRADING.CANDLE_COUNT, base, 0.15));
+        candleCacheVersions.set(key, (candleCacheVersions.get(key) ?? 0) + 1);
       }
     }
 
@@ -495,6 +524,7 @@ describe('main loop latency full-chain integration', () => {
           const base = 100 + Math.max(monitorIndex, 0) * 20;
           const candles = createCandles(TRADING.CANDLE_COUNT, base, 0.15);
           candleCache.set(key, candles);
+          candleCacheVersions.set(key, (candleCacheVersions.get(key) ?? 0) + 1);
           return candles as unknown as Candlestick[];
         }),
       getRealtimeCandlesticks: async (symbol: string, period: Period, count: number) => {
@@ -507,6 +537,15 @@ describe('main loop latency full-chain integration', () => {
         const startIndex = Math.max(candles.length - count, 0);
         return candles.slice(startIndex) as unknown as Candlestick[];
       },
+      getCandlestickSnapshot: (symbol: string, period: Period) => {
+        const key = makeCandleKey(symbol, period);
+        const candles = candleCache.get(key);
+        if (!candles) {
+          return null;
+        }
+
+        return createCandleSnapshot(symbol, period, candles, candleCacheVersions.get(key) ?? 1);
+      },
       isTradingDay: async () =>
         withApiDelay('isTradingDay', async () => ({
           isTradingDay: true,
@@ -518,6 +557,7 @@ describe('main loop latency full-chain integration', () => {
           subscribedCandlestickKeys.clear();
           quoteCache.clear();
           candleCache.clear();
+          candleCacheVersions.clear();
         }),
     };
 

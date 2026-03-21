@@ -8,6 +8,7 @@ import { describe, it, expect } from 'bun:test';
 import { OrderSide, OrderStatus, OrderType } from 'longbridge';
 import { createLoadTradingDayRuntimeSnapshot } from '../../../src/main/lifecycle/loadTradingDayRuntimeSnapshot.js';
 import { createSymbolRegistry } from '../../../src/services/autoSymbolManager/utils.js';
+import { TRADING } from '../../../src/constants/index.js';
 import type {
   LoadTradingDayRuntimeSnapshotDeps,
   LoadTradingDayRuntimeSnapshotParams,
@@ -287,6 +288,72 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
 
     expect(getTradingDaysCalls).toBe(0);
     expect(lastState.tradingCalendarSnapshot).toBeUndefined();
+  });
+
+  it('subscribes candlesticks and leaves seeded local cache snapshots observable', async () => {
+    const monitors = [
+      createMonitorConfigDouble({ monitorSymbol: 'HSI.HK' }),
+      createMonitorConfigDouble({ monitorSymbol: 'HHI.HK' }),
+    ];
+    const subscribedSymbols: string[] = [];
+    const seededBySymbol = new Set<string>();
+    const marketDataClient = createMarketDataClientDouble({
+      subscribeCandlesticks: async (symbol) => {
+        subscribedSymbols.push(symbol);
+        seededBySymbol.add(symbol);
+        return [
+          {
+            open: 100,
+            high: 101,
+            low: 99,
+            close: 100,
+            volume: 1000,
+            timestamp: new Date('2026-02-25T01:00:00.000Z'),
+          },
+        ] as never;
+      },
+      getCandlestickSnapshot: (symbol, period) => {
+        if (!seededBySymbol.has(symbol)) {
+          return null;
+        }
+
+        return {
+          symbol,
+          period,
+          version: 1,
+          candles: [
+            {
+              open: 100,
+              high: 101,
+              low: 99,
+              close: 100,
+              volume: 1000,
+              timestamp: Date.parse('2026-02-25T01:00:00.000Z'),
+            },
+          ],
+          lastBarTimestamp: Date.parse('2026-02-25T01:00:00.000Z'),
+          lastBarConfirmed: null,
+          initialized: true,
+        };
+      },
+    });
+    const deps = createBaseDeps({
+      tradingConfig: createTradingConfig(monitors),
+      marketDataClient,
+      trader: createReadyTrader(),
+    });
+
+    const load = createLoadTradingDayRuntimeSnapshot(deps);
+    await load(createLoadParams({ requireTradingDay: true }));
+
+    expect(subscribedSymbols).toEqual(['HSI.HK', 'HHI.HK']);
+    expect(
+      marketDataClient.getCandlestickSnapshot('HSI.HK', TRADING.CANDLE_PERIOD)?.initialized,
+    ).toBe(true);
+
+    expect(
+      marketDataClient.getCandlestickSnapshot('HHI.HK', TRADING.CANDLE_PERIOD)?.initialized,
+    ).toBe(true);
   });
 
   it('hydrateCooldownFromTradeLog=true 时先 hydrate 再 recalculate', async () => {

@@ -29,7 +29,8 @@ function createMonitorState(monitorSymbol: string): MonitorState {
     pendingDelayedSignals: [],
     monitorValues: null,
     lastMonitorSnapshot: null,
-    lastCandleFingerprint: null,
+    lastCandlestickCacheVersion: null,
+    incrementalIndicatorRuntime: null,
   };
 }
 

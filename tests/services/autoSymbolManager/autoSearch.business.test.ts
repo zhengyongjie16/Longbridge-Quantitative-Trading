@@ -7,7 +7,10 @@
 import { describe, expect, it } from 'bun:test';
 import { createAutoSearch } from '../../../src/services/autoSymbolManager/autoSearch.js';
 import { createSeatStateManager } from '../../../src/services/autoSymbolManager/seatStateManager.js';
-import type { SwitchState, SwitchSuppression } from '../../../src/services/autoSymbolManager/types.js';
+import type {
+  SwitchState,
+  SwitchSuppression,
+} from '../../../src/services/autoSymbolManager/types.js';
 import { getHKDateKey } from '../../../src/utils/time/index.js';
 import {
   createMonitorConfigDouble,

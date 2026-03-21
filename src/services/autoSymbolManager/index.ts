@@ -20,7 +20,10 @@ import {
   AUTO_SYMBOL_SEARCH_COOLDOWN_MS,
   PENDING_ORDER_STATUSES,
 } from '../../constants/index.js';
-import type { TradingCalendarDayInfo, TradingCalendarSnapshot } from '../../types/tradingCalendar.js';
+import type {
+  TradingCalendarDayInfo,
+  TradingCalendarSnapshot,
+} from '../../types/tradingCalendar.js';
 import type {
   AutoSymbolManager,
   AutoSymbolManagerDeps,

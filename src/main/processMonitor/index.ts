@@ -97,12 +97,14 @@ export async function processMonitor(
     monitorCurrentPrice,
   });
 
-  const monitorSnapshot = await runIndicatorPipeline({
-    monitorSymbol: MONITOR_SYMBOL,
-    monitorContext,
-    mainContext,
-    monitorQuote,
-  });
+  const monitorSnapshot = await Promise.resolve(
+    runIndicatorPipeline({
+      monitorSymbol: MONITOR_SYMBOL,
+      monitorContext,
+      mainContext,
+      monitorQuote,
+    }),
+  );
 
   if (!monitorSnapshot) {
     return;

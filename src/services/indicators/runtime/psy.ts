@@ -19,7 +19,7 @@ import type { PsyStreamState } from './types.js';
  * @param period - PSY 周期
  * @returns 初始化后的 PsyStreamState
  */
-function initPsyStreamState(period: number): PsyStreamState {
+export function createPsyState(period: number): PsyStreamState {
   return {
     period,
     upFlags: Array.from<number>({ length: period }).fill(0),
@@ -38,7 +38,7 @@ function initPsyStreamState(period: number): PsyStreamState {
  * @param close 当前 K 线收盘价
  * @returns 无返回值
  */
-function updatePsyStreamState(state: PsyStreamState, close: number): void {
+export function commitPsyClose(state: PsyStreamState, close: number): void {
   if (state.previousClose === null) {
     state.previousClose = close;
     state.validCloseCount = 1;
@@ -78,24 +78,52 @@ export function calculatePSY(candles: ReadonlyArray<CandleData>, period: number)
   }
 
   try {
-    const state = initPsyStreamState(period);
+    const state = createPsyState(period);
     for (const candle of candles) {
       const close = toNumber(candle.close);
       if (!isValidPositiveNumber(close)) {
         continue;
       }
 
-      updatePsyStreamState(state, close);
+      commitPsyClose(state, close);
     }
 
-    if (state.validCloseCount <= period) {
-      return null;
-    }
-
-    const psy = (state.upCount / period) * 100;
-    return Number.isFinite(psy) ? psy : null;
+    return readPsyValue(state);
   } catch (err) {
     logDebug(`PSY计算失败 (period=${period})`, err);
     return null;
   }
+}
+
+/**
+ * 克隆 PSY 流式状态。
+ *
+ * @param state 原始 PSY 状态
+ * @returns 深拷贝状态
+ */
+export function clonePsyState(state: PsyStreamState): PsyStreamState {
+  return {
+    period: state.period,
+    upFlags: [...state.upFlags],
+    previousClose: state.previousClose,
+    validCloseCount: state.validCloseCount,
+    windowCount: state.windowCount,
+    windowIndex: state.windowIndex,
+    upCount: state.upCount,
+  };
+}
+
+/**
+ * 读取 PSY 状态当前可用值。
+ *
+ * @param state PSY 状态
+ * @returns 可用 PSY 值，不可用返回 null
+ */
+export function readPsyValue(state: PsyStreamState): number | null {
+  if (state.validCloseCount <= state.period) {
+    return null;
+  }
+
+  const psy = (state.upCount / state.period) * 100;
+  return Number.isFinite(psy) ? psy : null;
 }

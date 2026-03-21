@@ -75,7 +75,7 @@ describe('QuoteContext mock contract', () => {
     expect(staticInfos).toHaveLength(1);
     expect(candles).toHaveLength(2);
     expect(latestCandle).toHaveLength(1);
-    expect(tradingDays.tradingDays.map((day) => day.toString())).toEqual(['2026-02-16']);
+    expect(tradingDays.tradingDays.map(String)).toEqual(['2026-02-16']);
     expect(warrantQuotes).toHaveLength(1);
     expect(warrantBullList).toHaveLength(1);
     expect(quoteCtx.getSubscribedSymbols().has('700.HK')).toBe(true);
@@ -95,8 +95,10 @@ describe('QuoteContext mock contract', () => {
     });
 
     quoteCtx.setOnCandlestick((_err, event) => {
-      const data = event.data as unknown as { readonly close: { readonly toNumber: () => number } };
-      candlePrices.push(data.close.toNumber());
+      const data = event.data as unknown as {
+        readonly candlestick: { readonly close: { readonly toNumber: () => number } };
+      };
+      candlePrices.push(data.candlestick.close.toNumber());
     });
 
     quoteCtx.emitQuote(createPushQuoteEvent({ symbol: '700.HK', price: 320 }), {

@@ -28,7 +28,7 @@ import type { IndicatorSnapshot } from '../../types/quote.js';
 import type { VerificationConfig, SignalConfigSet } from '../../types/config.js';
 import type { SignalConfig } from '../../types/signalConfig.js';
 import type { OrderRecorder } from '../../types/services.js';
-import type { IndicatorUsageProfile, StrategyAction } from '../../types/state.js';
+import type { IndicatorUsageProfile, StrategyAction } from '../../types/indicatorProfile.js';
 import type {
   StrategyConfig,
   SignalGenerationResult,

@@ -176,6 +176,7 @@ describe('multi-monitor-concurrency integration', () => {
         unsubscribeSymbols: async () => {},
         subscribeCandlesticks: async () => [],
         getRealtimeCandlesticks: async () => [],
+        getCandlestickSnapshot: () => null,
         isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
         resetRuntimeSubscriptionsAndCaches: async () => {},
       },

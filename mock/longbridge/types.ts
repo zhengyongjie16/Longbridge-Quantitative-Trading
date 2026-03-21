@@ -1,13 +1,11 @@
 import type {
   AccountBalance,
-  Candlestick,
   Decimal,
   Execution,
   GetHistoryOrdersOptions,
   GetTodayExecutionsOptions,
   GetTodayOrdersOptions,
   Market,
-  MarketTradingDays,
   Order,
   OrderDetail,
   Period,
@@ -165,14 +163,21 @@ export interface QuoteContextContract extends MockInvocationLog, MockFailureCont
     symbol: string,
     period: Period,
     tradeSessions?: TradeSessions,
-  ) => Promise<ReadonlyArray<Candlestick>>;
+  ) => Promise<ReadonlyArray<unknown>>;
   unsubscribeCandlesticks: (symbol: string, period: Period) => Promise<void>;
   realtimeCandlesticks: (
     symbol: string,
     period: Period,
     count: number,
-  ) => Promise<ReadonlyArray<Candlestick>>;
-  tradingDays: (market: Market, begin: unknown, end: unknown) => Promise<MarketTradingDays>;
+  ) => Promise<ReadonlyArray<unknown>>;
+  tradingDays: (
+    market: Market,
+    begin: unknown,
+    end: unknown,
+  ) => Promise<{
+    readonly tradingDays: ReadonlyArray<unknown>;
+    readonly halfTradingDays: ReadonlyArray<unknown>;
+  }>;
   warrantQuote: (symbols: ReadonlyArray<string>) => Promise<ReadonlyArray<WarrantQuote>>;
   warrantList: (
     symbol: string,

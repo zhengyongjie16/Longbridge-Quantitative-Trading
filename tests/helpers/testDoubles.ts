@@ -6,16 +6,16 @@
  */
 import type { Position, AccountSnapshot } from '../../src/types/account.js';
 import type { MonitorConfig } from '../../src/types/config.js';
+import type { CandleData } from '../../src/types/data.js';
 import type { Quote } from '../../src/types/quote.js';
 import type { Signal, SignalType } from '../../src/types/signal.js';
 import type {
   DisplayIndicatorItem,
   IndicatorUsageProfile,
-  MonitorContext,
-  MonitorState,
   SignalIndicator,
   StrategyAction,
-} from '../../src/types/state.js';
+} from '../../src/types/indicatorProfile.js';
+import type { MonitorContext, MonitorState } from '../../src/types/state.js';
 import type {
   OrderRecorder,
   MarketDataClient,
@@ -28,9 +28,10 @@ import type {
   WarrantDistanceInfo,
   WarrantDistanceLiquidationResult,
   WarrantRefreshResult,
+  CandlestickCacheSnapshot,
 } from '../../src/types/services.js';
 import type { SymbolRegistry, SeatState } from '../../src/types/seat.js';
-import type { Config, QuoteContext, TradeContext } from 'longbridge';
+import type { Candlestick, Config, Period, QuoteContext, TradeContext } from 'longbridge';
 import type { HangSengMultiIndicatorStrategy } from '../../src/core/strategy/types.js';
 import type {
   DoomsdayProtection,
@@ -56,6 +57,74 @@ import type { ProtectiveLiquidationEpisodeTracker } from '../../src/core/trader/
 import { toMockDecimal } from '../../mock/longbridge/decimal.js';
 import { createQuoteContextMock } from '../../mock/longbridge/quoteContextMock.js';
 import { createTradeContextMock } from '../../mock/longbridge/tradeContextMock.js';
+
+/**
+ * 构建测试用 K 线缓存快照。
+ *
+ * 当测试替身已经持有 candle fixtures 时，直接暴露本地缓存快照，便于
+ * processMonitor / quoteClient 类测试沿用真实语义；没有缓存时返回 null。
+ *
+ * @param symbol 标的代码
+ * @param period K 线周期
+ * @param candles 本地缓存的 K 线序列
+ * @param version 当前缓存版本
+ * @returns 本地 K 线缓存快照；无有效缓存时返回 null
+ */
+function createCandlestickCacheSnapshot(
+  symbol: string,
+  period: Period,
+  candles: ReadonlyArray<CandleData>,
+  version: number,
+): CandlestickCacheSnapshot | null {
+  if (candles.length === 0) {
+    return null;
+  }
+
+  const latest = candles.at(-1);
+  const lastBarTimestamp =
+    latest && typeof latest.timestamp === 'number' && Number.isFinite(latest.timestamp)
+      ? latest.timestamp
+      : null;
+
+  return {
+    symbol,
+    period,
+    version,
+    candles,
+    lastBarTimestamp,
+    lastBarConfirmed: false,
+    initialized: true,
+  };
+}
+
+/**
+ * 将测试中的 Candlestick / CandleData 统一收敛为本地缓存使用的 CandleData。
+ *
+ * @param candles 来自 SDK seed 或测试 fixture 的 K 线数组
+ * @returns 可供本地快照与指标计算消费的 CandleData 数组
+ */
+function normalizeCandlestickData(
+  candles: ReadonlyArray<Candlestick | CandleData>,
+): ReadonlyArray<CandleData> {
+  return candles.map((candle) => {
+    const normalized: CandleData = {
+      open: candle.open,
+      high: candle.high,
+      low: candle.low,
+      close: candle.close,
+      volume: candle.volume,
+    };
+
+    if (typeof candle.timestamp === 'number') {
+      return {
+        ...normalized,
+        timestamp: candle.timestamp,
+      };
+    }
+
+    return normalized;
+  });
+}
 
 /**
  * 创建 SDK Config 测试替身。
@@ -347,20 +416,90 @@ export function createMarketDataClientDouble(
   overrides: Partial<MarketDataClient> = {},
 ): MarketDataClient {
   const quoteContext = createQuoteContextDouble();
+  const candlestickCache = new Map<string, ReadonlyArray<CandleData>>();
+  const candlestickVersions = new Map<string, number>();
+
+  function makeCandlestickKey(symbol: string, period: Period): string {
+    return `${symbol}:${period}`;
+  }
+
+  function getCandlestickCacheSnapshot(
+    symbol: string,
+    period: Period,
+  ): CandlestickCacheSnapshot | null {
+    const key = makeCandlestickKey(symbol, period);
+    const candles = candlestickCache.get(key);
+    if (!candles) {
+      return null;
+    }
+
+    return createCandlestickCacheSnapshot(
+      symbol,
+      period,
+      candles,
+      candlestickVersions.get(key) ?? 1,
+    );
+  }
+
+  async function seedCandlestickCacheFromOverride(
+    symbol: string,
+    period: Period,
+    tradeSessions?: Parameters<MarketDataClient['subscribeCandlesticks']>[2],
+  ): Promise<ReadonlyArray<Candlestick>> {
+    const seedCandles = overrides.subscribeCandlesticks
+      ? await overrides.subscribeCandlesticks(symbol, period, tradeSessions)
+      : [];
+    const normalizedCandles = normalizeCandlestickData(seedCandles);
+    const key = makeCandlestickKey(symbol, period);
+    candlestickCache.set(key, normalizedCandles);
+    candlestickVersions.set(key, (candlestickVersions.get(key) ?? 0) + 1);
+    return seedCandles;
+  }
+
   const base: MarketDataClient = {
     getQuoteContext: async () => quoteContext,
     getQuotes: async () => new Map(),
     subscribeSymbols: async () => {},
     unsubscribeSymbols: async () => {},
-    subscribeCandlesticks: async () => [],
-    getRealtimeCandlesticks: async () => [],
+    subscribeCandlesticks: async (symbol, period, tradeSessions) =>
+      seedCandlestickCacheFromOverride(symbol, period, tradeSessions),
+    getRealtimeCandlesticks: async (symbol: string, period: Period, count: number) => {
+      const key = makeCandlestickKey(symbol, period);
+      const candles = candlestickCache.get(key);
+      if (!candles || candles.length === 0) {
+        return [];
+      }
+
+      const startIndex = Math.max(candles.length - count, 0);
+      return normalizeCandlestickData(candles.slice(startIndex)) as unknown as Candlestick[];
+    },
+    getCandlestickSnapshot: (symbol, period) => getCandlestickCacheSnapshot(symbol, period),
     isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
     resetRuntimeSubscriptionsAndCaches: async () => {},
   };
 
   return {
-    ...base,
-    ...overrides,
+    getQuoteContext: overrides.getQuoteContext ?? base.getQuoteContext,
+    getQuotes: overrides.getQuotes ?? base.getQuotes,
+    subscribeSymbols: overrides.subscribeSymbols ?? base.subscribeSymbols,
+    unsubscribeSymbols: overrides.unsubscribeSymbols ?? base.unsubscribeSymbols,
+    subscribeCandlesticks: async (symbol, period, tradeSessions) =>
+      seedCandlestickCacheFromOverride(symbol, period, tradeSessions),
+    getRealtimeCandlesticks: overrides.getRealtimeCandlesticks ?? base.getRealtimeCandlesticks,
+    getCandlestickSnapshot: overrides.getCandlestickSnapshot ?? base.getCandlestickSnapshot,
+    isTradingDay: overrides.isTradingDay ?? base.isTradingDay,
+    ...((overrides.getTradingDays ?? base.getTradingDays) === undefined
+      ? {}
+      : {
+          getTradingDays: overrides.getTradingDays ?? base.getTradingDays,
+        }),
+    resetRuntimeSubscriptionsAndCaches: async () => {
+      candlestickCache.clear();
+      candlestickVersions.clear();
+      if (overrides.resetRuntimeSubscriptionsAndCaches) {
+        await overrides.resetRuntimeSubscriptionsAndCaches();
+      }
+    },
   };
 }
 
@@ -717,7 +856,8 @@ function createMonitorStateDouble(monitorSymbol: string = 'HSI.HK'): MonitorStat
     pendingDelayedSignals: [],
     monitorValues: null,
     lastMonitorSnapshot: null,
-    lastCandleFingerprint: null,
+    lastCandlestickCacheVersion: null,
+    incrementalIndicatorRuntime: null,
   };
 }
 

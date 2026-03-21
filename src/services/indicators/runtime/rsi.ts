@@ -17,7 +17,7 @@ import type { RsiStreamState } from './types.js';
  * @param period RSI 周期
  * @returns 初始化的 RsiStreamState
  */
-function initRsiStreamState(period: number): RsiStreamState {
+export function createRsiState(period: number): RsiStreamState {
   return {
     period,
     per: 1 / period,
@@ -37,7 +37,7 @@ function initRsiStreamState(period: number): RsiStreamState {
  * @param currentClose - 当前 K 线收盘价
  * @returns void
  */
-function updateRsiStreamState(state: RsiStreamState, currentClose: number): void {
+export function commitRsiClose(state: RsiStreamState, currentClose: number): void {
   if (state.previousClose === null) {
     state.previousClose = currentClose;
     return;
@@ -73,7 +73,7 @@ function updateRsiStreamState(state: RsiStreamState, currentClose: number): void
  * @param state - RSI 流式状态
  * @returns 最终 RSI 值（0–100），未就绪时返回 null
  */
-function finalizeRsiValue(state: RsiStreamState): number | null {
+export function readRsiValue(state: RsiStreamState): number | null {
   if (state.lastRawValue === null) {
     return null;
   }
@@ -98,17 +98,17 @@ export function calculateRSI(candles: ReadonlyArray<CandleData>, period: number)
   }
 
   try {
-    const state = initRsiStreamState(period);
+    const state = createRsiState(period);
     for (const candle of candles) {
       const close = toNumber(candle.close);
       if (!isValidPositiveNumber(close)) {
         continue;
       }
 
-      updateRsiStreamState(state, close);
+      commitRsiClose(state, close);
     }
 
-    const rsi = finalizeRsiValue(state);
+    const rsi = readRsiValue(state);
 
     if (rsi === null || !validatePercentage(rsi)) {
       return null;
@@ -119,4 +119,24 @@ export function calculateRSI(candles: ReadonlyArray<CandleData>, period: number)
     logDebug(`RSI计算失败 (period=${period})`, err);
     return null;
   }
+}
+
+/**
+ * 克隆 RSI 流式状态。
+ *
+ * @param state 原始 RSI 状态
+ * @returns 深拷贝状态
+ */
+export function cloneRsiState(state: RsiStreamState): RsiStreamState {
+  return {
+    period: state.period,
+    per: state.per,
+    previousClose: state.previousClose,
+    seedDiffCount: state.seedDiffCount,
+    seedUpSum: state.seedUpSum,
+    seedDownSum: state.seedDownSum,
+    smoothUp: state.smoothUp,
+    smoothDown: state.smoothDown,
+    lastRawValue: state.lastRawValue,
+  };
 }

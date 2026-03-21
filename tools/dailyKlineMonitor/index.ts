@@ -10,8 +10,8 @@ import { buildIndicatorSnapshot } from '../../src/services/indicators/runtime/in
 import { sleep } from '../../src/main/utils.js';
 import { decimalToNumber } from '../../src/utils/helpers/index.js';
 import type { CandleData } from '../../src/types/data.js';
+import type { IndicatorUsageProfile } from '../../src/types/indicatorProfile.js';
 import type { Quote } from '../../src/types/quote.js';
-import type { IndicatorUsageProfile } from '../../src/types/state.js';
 import type { ChangeDetectConfig, IndicatorPeriods, MonitorContext } from './types.js';
 import {
   convertToCandleData,

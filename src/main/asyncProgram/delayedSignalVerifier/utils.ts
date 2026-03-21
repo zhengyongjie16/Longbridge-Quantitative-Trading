@@ -2,7 +2,7 @@ import { getIndicatorValue, parseIndicatorPeriod } from '../../../utils/indicato
 import { TIME, VERIFICATION } from '../../../constants/index.js';
 import type { Signal } from '../../../types/signal.js';
 import type { IndicatorSnapshot } from '../../../types/quote.js';
-import type { VerificationIndicator } from '../../../types/state.js';
+import type { VerificationIndicator } from '../../../types/indicatorProfile.js';
 import type { IndicatorCache, IndicatorCacheEntry } from '../indicatorCache/types.js';
 import type { PendingSignalEntry, VerificationResult } from './types.js';
 

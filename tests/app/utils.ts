@@ -39,7 +39,8 @@ export function createMonitorState(monitorSymbol: string): MonitorState {
       macd: { macd: 0, dif: 0, dea: 0 },
       adx: null,
     },
-    lastCandleFingerprint: null,
+    lastCandlestickCacheVersion: null,
+    incrementalIndicatorRuntime: null,
   };
 }
 
@@ -95,6 +96,7 @@ function defaultDeps(steps: string[]): CleanupContext {
     unsubscribeSymbols: async () => {},
     subscribeCandlesticks: async () => [],
     getRealtimeCandlesticks: async () => [],
+    getCandlestickSnapshot: () => null,
     isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
     resetRuntimeSubscriptionsAndCaches: async () => {
       steps.push('resetMarketData');

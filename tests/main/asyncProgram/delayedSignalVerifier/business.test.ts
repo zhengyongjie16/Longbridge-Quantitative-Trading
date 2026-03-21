@@ -8,7 +8,7 @@ import { describe, expect, it } from 'bun:test';
 import { createIndicatorCache } from '../../../../src/main/asyncProgram/indicatorCache/index.js';
 import { createDelayedSignalVerifier } from '../../../../src/main/asyncProgram/delayedSignalVerifier/index.js';
 import { createSignal } from '../../../../mock/factories/signalFactory.js';
-import type { VerificationIndicator } from '../../../../src/types/state.js';
+import type { VerificationIndicator } from '../../../../src/types/indicatorProfile.js';
 
 const K_VERIFICATION_INDICATORS: ReadonlyArray<VerificationIndicator> = ['K'];
 const ADX_VERIFICATION_INDICATORS: ReadonlyArray<VerificationIndicator> = ['ADX'];

@@ -12,6 +12,134 @@
 import { isValidPositiveNumber } from '../../../utils/helpers/index.js';
 import { toNumber, logDebug, roundToFixed2 } from './utils.js';
 import type { CandleData } from '../../../types/data.js';
+import type { AdxStreamState } from './types.js';
+
+/**
+ * 创建 ADX 流式状态。
+ *
+ * @param period ADX 周期
+ * @returns 初始化状态
+ */
+export function createAdxState(period: number = 14): AdxStreamState {
+  return {
+    period,
+    prevHigh: null,
+    prevLow: null,
+    prevClose: null,
+    trDmCount: 0,
+    smoothTr: 0,
+    smoothPlusDm: 0,
+    smoothMinusDm: 0,
+    initialDxSum: 0,
+    dxCount: 0,
+    adx: null,
+  };
+}
+
+/**
+ * 克隆 ADX 状态。
+ *
+ * @param state 原始状态
+ * @returns 深拷贝状态
+ */
+export function cloneAdxState(state: AdxStreamState): AdxStreamState {
+  return {
+    period: state.period,
+    prevHigh: state.prevHigh,
+    prevLow: state.prevLow,
+    prevClose: state.prevClose,
+    trDmCount: state.trDmCount,
+    smoothTr: state.smoothTr,
+    smoothPlusDm: state.smoothPlusDm,
+    smoothMinusDm: state.smoothMinusDm,
+    initialDxSum: state.initialDxSum,
+    dxCount: state.dxCount,
+    adx: state.adx,
+  };
+}
+
+/**
+ * 提交一根 K 线到 ADX 状态。
+ *
+ * @param state ADX 状态
+ * @param candle K 线
+ * @returns void
+ */
+export function commitAdxCandle(state: AdxStreamState, candle: CandleData): void {
+  const high = toNumber(candle.high);
+  const low = toNumber(candle.low);
+  const close = toNumber(candle.close);
+  if (
+    !isValidPositiveNumber(high) ||
+    !isValidPositiveNumber(low) ||
+    !isValidPositiveNumber(close)
+  ) {
+    return;
+  }
+
+  if (state.prevHigh === null || state.prevLow === null || state.prevClose === null) {
+    state.prevHigh = high;
+    state.prevLow = low;
+    state.prevClose = close;
+    return;
+  }
+
+  const tr = Math.max(
+    high - low,
+    Math.abs(high - state.prevClose),
+    Math.abs(low - state.prevClose),
+  );
+  const upMove = high - state.prevHigh;
+  const downMove = state.prevLow - low;
+  const plusDm = upMove > downMove && upMove > 0 ? upMove : 0;
+  const minusDm = downMove > upMove && downMove > 0 ? downMove : 0;
+
+  if (state.trDmCount < state.period) {
+    state.smoothTr += tr;
+    state.smoothPlusDm += plusDm;
+    state.smoothMinusDm += minusDm;
+    state.trDmCount += 1;
+    if (state.trDmCount < state.period) {
+      state.prevHigh = high;
+      state.prevLow = low;
+      state.prevClose = close;
+      return;
+    }
+  } else {
+    state.smoothTr = state.smoothTr - state.smoothTr / state.period + tr;
+    state.smoothPlusDm = state.smoothPlusDm - state.smoothPlusDm / state.period + plusDm;
+    state.smoothMinusDm = state.smoothMinusDm - state.smoothMinusDm / state.period + minusDm;
+  }
+
+  const dx = calculateDx(state.smoothTr, state.smoothPlusDm, state.smoothMinusDm);
+  if (state.dxCount < state.period) {
+    state.initialDxSum += dx;
+    state.dxCount += 1;
+    if (state.dxCount === state.period) {
+      state.adx = state.initialDxSum / state.period;
+    }
+  } else if (state.adx !== null) {
+    state.adx = (state.adx * (state.period - 1) + dx) / state.period;
+  }
+
+  state.prevHigh = high;
+  state.prevLow = low;
+  state.prevClose = close;
+}
+
+/**
+ * 读取 ADX 当前可用值。
+ *
+ * @param state ADX 状态
+ * @returns ADX 值，不可用返回 null
+ */
+export function readAdxValue(state: AdxStreamState): number | null {
+  if (state.adx === null) {
+    return null;
+  }
+
+  return roundToFixed2(state.adx);
+}
 
 /**
  * 计算 ADX（平均趋向指数）。
@@ -33,126 +161,33 @@ export function calculateADX(
   }
 
   try {
-    // 提取并验证 OHLC 数据
-    const highs: number[] = [];
-    const lows: number[] = [];
-    const closes: number[] = [];
-
+    const state = createAdxState(period);
+    let validCount = 0;
     for (const candle of candles) {
       const high = toNumber(candle.high);
       const low = toNumber(candle.low);
       const close = toNumber(candle.close);
-
       if (
-        isValidPositiveNumber(high) &&
-        isValidPositiveNumber(low) &&
-        isValidPositiveNumber(close)
+        !isValidPositiveNumber(high) ||
+        !isValidPositiveNumber(low) ||
+        !isValidPositiveNumber(close)
       ) {
-        highs.push(high);
-        lows.push(low);
-        closes.push(close);
+        continue;
       }
+
+      validCount += 1;
+      commitAdxCandle(state, candle);
     }
 
-    if (highs.length < 2 * period + 1) {
+    if (validCount < 2 * period + 1) {
       return null;
     }
 
-    return computeAdx(highs, lows, closes, period);
+    return readAdxValue(state);
   } catch (err) {
     logDebug(`ADX计算失败 (period=${period})`, err);
     return null;
   }
-}
-
-/**
- * ADX 核心计算逻辑（纯函数，不依赖外部状态）。
- *
- * @param highs 最高价数组
- * @param lows 最低价数组
- * @param closes 收盘价数组
- * @param period ADX 周期
- * @returns ADX 值，数据不足时返回 null
- */
-function computeAdx(
-  highs: ReadonlyArray<number>,
-  lows: ReadonlyArray<number>,
-  closes: ReadonlyArray<number>,
-  period: number,
-): number | null {
-  const dmCount = highs.length - 1;
-  if (dmCount < 2 * period) {
-    return null;
-  }
-
-  let smoothTr = 0;
-  let smoothPlusDm = 0;
-  let smoothMinusDm = 0;
-  let trDmCount = 0;
-
-  let initialDxSum = 0;
-  let dxCount = 0;
-  let adx: number | null = null;
-
-  for (let i = 1; i < highs.length; i += 1) {
-    const high = highs[i];
-    const low = lows[i];
-    const prevHigh = highs[i - 1];
-    const prevLow = lows[i - 1];
-    const prevClose = closes[i - 1];
-    if (
-      high === undefined ||
-      low === undefined ||
-      prevHigh === undefined ||
-      prevLow === undefined ||
-      prevClose === undefined
-    ) {
-      return null;
-    }
-
-    const tr = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
-    const upMove = high - prevHigh;
-    const downMove = prevLow - low;
-    const plusDm = upMove > downMove && upMove > 0 ? upMove : 0;
-    const minusDm = downMove > upMove && downMove > 0 ? downMove : 0;
-
-    if (trDmCount < period) {
-      smoothTr += tr;
-      smoothPlusDm += plusDm;
-      smoothMinusDm += minusDm;
-      trDmCount += 1;
-      if (trDmCount < period) {
-        continue;
-      }
-    } else {
-      smoothTr = smoothTr - smoothTr / period + tr;
-      smoothPlusDm = smoothPlusDm - smoothPlusDm / period + plusDm;
-      smoothMinusDm = smoothMinusDm - smoothMinusDm / period + minusDm;
-    }
-
-    const dx = calculateDx(smoothTr, smoothPlusDm, smoothMinusDm);
-    if (dxCount < period) {
-      initialDxSum += dx;
-      dxCount += 1;
-      if (dxCount === period) {
-        adx = initialDxSum / period;
-      }
-
-      continue;
-    }
-
-    if (adx === null) {
-      return null;
-    }
-
-    adx = (adx * (period - 1) + dx) / period;
-  }
-
-  if (adx === null) {
-    return null;
-  }
-
-  return roundToFixed2(adx);
 }
 
 /**

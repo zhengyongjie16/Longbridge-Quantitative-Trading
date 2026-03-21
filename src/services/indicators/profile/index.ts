@@ -15,7 +15,7 @@ import type {
   SignalIndicator,
   StrategyAction,
   VerificationIndicator,
-} from '../../../types/state.js';
+} from '../../../types/indicatorProfile.js';
 import type { IndicatorCollector } from './types.js';
 import {
   buildDisplayPlan,

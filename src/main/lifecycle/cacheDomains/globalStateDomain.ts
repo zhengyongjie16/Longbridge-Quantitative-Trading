@@ -33,7 +33,8 @@ function resetMonitorStateForNewDay(monitorState: MonitorState): void {
   monitorState.pendingDelayedSignals = [];
   monitorState.monitorValues = null;
   monitorState.lastMonitorSnapshot = null;
-  monitorState.lastCandleFingerprint = null;
+  monitorState.lastCandlestickCacheVersion = null;
+  monitorState.incrementalIndicatorRuntime = null;
 }
 
 /**

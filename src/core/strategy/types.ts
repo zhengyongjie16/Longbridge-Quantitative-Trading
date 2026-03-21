@@ -2,7 +2,7 @@ import type { Signal } from '../../types/signal.js';
 import type { IndicatorSnapshot } from '../../types/quote.js';
 import type { SignalConfigSet, VerificationConfig } from '../../types/config.js';
 import type { OrderRecorder } from '../../types/services.js';
-import type { IndicatorUsageProfile } from '../../types/state.js';
+import type { IndicatorUsageProfile } from '../../types/indicatorProfile.js';
 
 /**
  * 信号类型分类。

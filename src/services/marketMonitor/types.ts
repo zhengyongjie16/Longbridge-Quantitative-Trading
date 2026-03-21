@@ -1,4 +1,5 @@
-import type { IndicatorUsageProfile, MonitorState } from '../../types/state.js';
+import type { IndicatorUsageProfile } from '../../types/indicatorProfile.js';
+import type { MonitorState } from '../../types/state.js';
 import type { IndicatorSnapshot, Quote } from '../../types/quote.js';
 import type { UnrealizedLossMetrics, WarrantDistanceInfo } from '../../types/services.js';
 
