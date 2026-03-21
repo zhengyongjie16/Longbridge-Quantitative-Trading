@@ -518,7 +518,10 @@ describe('periodic auto-switch regression', () => {
     expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVE');
     expect(harness.periodicSwitchPending.get('LONG')?.pending).toBeTrue();
     expect(harness.machine.hasPendingSwitch('LONG')).toBeFalse();
-    expect(harness.seatStateManager.resolveSuppression('LONG', 'OLD_BULL.HK', 'PERIODIC')).toBeNull();
+    expect(
+      harness.seatStateManager.resolveSuppression('LONG', 'OLD_BULL.HK', 'PERIODIC'),
+    ).toBeNull();
+
     expect(
       harness.seatStateManager.resolveSuppression('LONG', 'OLD_BULL.HK', 'DISTANCE_SAFE_SIDE'),
     ).not.toBeNull();
@@ -553,7 +556,9 @@ describe('periodic auto-switch regression', () => {
     expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVE');
     expect(harness.periodicSwitchPending.get('LONG')?.pending).toBeTrue();
     expect(harness.machine.hasPendingSwitch('LONG')).toBeFalse();
-    expect(harness.seatStateManager.resolveSuppression('LONG', 'OLD_BULL.HK', 'DISTANCE_SAFE_SIDE')).toBeNull();
+    expect(
+      harness.seatStateManager.resolveSuppression('LONG', 'OLD_BULL.HK', 'DISTANCE_SAFE_SIDE'),
+    ).toBeNull();
   });
 
   it('case5: same candidate marks suppression and skips periodic switch', async () => {
@@ -571,7 +576,11 @@ describe('periodic auto-switch regression', () => {
       canTradeNow: true,
       openProtectionActive: false,
     });
-    const suppression = harness.seatStateManager.resolveSuppression('LONG', 'OLD_BULL.HK', 'PERIODIC');
+    const suppression = harness.seatStateManager.resolveSuppression(
+      'LONG',
+      'OLD_BULL.HK',
+      'PERIODIC',
+    );
     expect(suppression?.symbol).toBe('OLD_BULL.HK');
     expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVE');
     expect(harness.machine.hasPendingSwitch('LONG')).toBeFalse();

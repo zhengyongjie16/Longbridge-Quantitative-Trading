@@ -217,7 +217,6 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
           hasPendingProtectiveLiquidationOrders: () => false,
           initializeOrderMonitor: async () => {},
           canTradeNow: () => ({ canTrade: true }),
-          recordBuyAttempt: () => {},
           fetchAllOrdersFromAPI: async () => [],
           resetRuntimeState: () => {},
           recoverOrderTrackingFromSnapshot: async () => {},

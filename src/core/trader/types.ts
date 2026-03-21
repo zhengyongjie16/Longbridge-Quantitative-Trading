@@ -245,14 +245,6 @@ export interface OrderMonitor {
  */
 export interface OrderExecutor {
   canTradeNow: (signalAction: SignalType, monitorConfig?: MonitorConfig | null) => TradeCheckResult;
-
-  /**
-   * 标记买入意图（预占买入时间槽）
-   * 在 signalProcessor 检查通过后立即调用，防止同一批次中的多个信号同时通过频率检查
-   * @param signalAction 信号类型（BUYCALL 或 BUYPUT）
-   * @param monitorConfig 监控配置
-   */
-  markBuyAttempt: (signalAction: SignalType, monitorConfig?: MonitorConfig | null) => void;
   executeSignals: (
     signals: Signal[],
   ) => Promise<{ submittedCount: number; submittedOrderIds: ReadonlyArray<string> }>;

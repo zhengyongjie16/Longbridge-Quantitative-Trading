@@ -16,11 +16,13 @@ import {
   createMonitorConfigDouble,
   createOrderRecorderDouble,
   createPositionCacheDouble,
+  createPositionDouble,
   createQuoteDouble,
   createRiskCheckerDouble,
   createSignalDouble,
   createTraderDouble,
 } from '../helpers/testDoubles.js';
+import { createBuyThrottle } from '../../src/core/trader/orderExecutor/buyThrottle.js';
 
 function withMockedNow<T>(nowMs: number, run: () => Promise<T>): Promise<T> {
   const originalNow = Date.now;
@@ -34,8 +36,12 @@ function createContext(params: {
   readonly trader: ReturnType<typeof createTraderDouble>;
   readonly riskChecker: ReturnType<typeof createRiskCheckerDouble>;
   readonly orderRecorder: ReturnType<typeof createOrderRecorderDouble>;
+  readonly account?: ReturnType<typeof createAccountSnapshotDouble>;
+  readonly positions?: ReadonlyArray<RiskCheckContext['positions'][number]>;
 }): RiskCheckContext {
   const monitorConfig = createMonitorConfigDouble();
+  const account = params.account ?? createAccountSnapshotDouble(100_000);
+  const positions = params.positions ?? [];
 
   return {
     trader: params.trader,
@@ -59,12 +65,12 @@ function createContext(params: {
     shortSymbol: 'BEAR.HK',
     longSymbolName: 'BULL',
     shortSymbolName: 'BEAR',
-    account: createAccountSnapshotDouble(100_000),
-    positions: [],
+    account,
+    positions,
     lastState: {
-      cachedAccount: createAccountSnapshotDouble(100_000),
-      cachedPositions: [],
-      positionCache: createPositionCacheDouble([]),
+      cachedAccount: account,
+      cachedPositions: positions,
+      positionCache: createPositionCacheDouble(positions),
     },
     currentTime: new Date('2026-02-16T10:00:00+08:00'),
     isHalfDay: false,
@@ -74,29 +80,13 @@ function createContext(params: {
 }
 
 describe('risk pipeline regression', () => {
-  it('marks buy attempt early enough to block the second same-batch buy signal', async () => {
+  it('does not preempt same-direction buy slot in risk check stage', async () => {
     const lastRiskCheckTime = new Map<string, number>();
-    let buySlotOccupied = false;
-    let markBuyAttemptCount = 0;
-    let buyApiFetchCount = 0;
-
+    const buyThrottle = createBuyThrottle();
     const trader = createTraderDouble({
-      getAccountSnapshot: async () => {
-        buyApiFetchCount += 1;
-        return createAccountSnapshotDouble(100_000);
-      },
+      canTradeNow: buyThrottle.canTradeNow,
+      getAccountSnapshot: async () => createAccountSnapshotDouble(100_000),
       getStockPositions: async () => [],
-      canTradeNow: () => {
-        if (buySlotOccupied) {
-          return { canTrade: false, waitSeconds: 59 };
-        }
-
-        return { canTrade: true };
-      },
-      recordBuyAttempt: () => {
-        markBuyAttemptCount += 1;
-        buySlotOccupied = true;
-      },
     });
 
     const pipeline = createRiskCheckPipeline({
@@ -104,39 +94,52 @@ describe('risk pipeline regression', () => {
       liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),
       lastRiskCheckTime,
     });
+    const context = createContext({
+      trader,
+      riskChecker: createRiskCheckerDouble(),
+      orderRecorder: createOrderRecorderDouble(),
+    });
 
     const firstBuy = createSignalDouble('BUYCALL', 'BULL.HK');
+    const firstResult = await withMockedNow(100_000, async () => pipeline([firstBuy], context));
+
+    expect(firstResult).toHaveLength(1);
+
     const secondBuy = createSignalDouble('BUYCALL', 'BULL.HK');
+    const secondResult = await withMockedNow(110_001, async () => pipeline([secondBuy], context));
 
-    const result = await withMockedNow(100_000, async () =>
-      pipeline(
-        [firstBuy, secondBuy],
-        createContext({
-          trader,
-          riskChecker: createRiskCheckerDouble(),
-          orderRecorder: createOrderRecorderDouble(),
-        }),
-      ),
+    expect(secondResult).toHaveLength(1);
+    expect(secondBuy.reason).toBeUndefined();
+
+    const buyTradeCheck = await withMockedNow(110_001, async () =>
+      buyThrottle.canTradeNow('BUYCALL', context.config),
     );
-
-    expect(result).toHaveLength(1);
-    expect(result[0]).toBe(firstBuy);
-    expect(secondBuy.reason).toContain('交易频率限制');
-    expect(markBuyAttemptCount).toBe(1);
-    expect(buyApiFetchCount).toBe(1);
+    expect(buyTradeCheck.canTrade).toBe(true);
   });
 
-  it('uses separated BUY/SELL cooldown keys for the same symbol', async () => {
-    const nowMs = 200_000;
-    const lastRiskCheckTime = new Map<string, number>([['BULL.HK_BUY', nowMs - 1_000]]);
-    let buyApiFetchCount = 0;
+  it('skips realtime fetch when mixed-batch buy is rejected by light checks and keeps sell on cached context', async () => {
+    const lastRiskCheckTime = new Map<string, number>();
+    let accountFetchCount = 0;
+    let positionFetchCount = 0;
+    const cachedAccount = createAccountSnapshotDouble(77_777);
+    const cachedPositions = [
+      createPositionDouble({
+        symbol: 'BULL.HK',
+        quantity: 500,
+        availableQuantity: 400,
+      }),
+    ];
 
     const trader = createTraderDouble({
+      canTradeNow: () => ({ canTrade: false, waitSeconds: 59 }),
       getAccountSnapshot: async () => {
-        buyApiFetchCount += 1;
+        accountFetchCount += 1;
         return createAccountSnapshotDouble(100_000);
       },
-      getStockPositions: async () => [],
+      getStockPositions: async () => {
+        positionFetchCount += 1;
+        return [];
+      },
     });
 
     const pipeline = createRiskCheckPipeline({
@@ -148,67 +151,96 @@ describe('risk pipeline regression', () => {
     const buySignal = createSignalDouble('BUYCALL', 'BULL.HK');
     const sellSignal = createSignalDouble('SELLCALL', 'BULL.HK');
 
-    const result = await withMockedNow(nowMs, async () =>
+    const result = await withMockedNow(200_000, async () =>
       pipeline(
         [buySignal, sellSignal],
         createContext({
           trader,
           riskChecker: createRiskCheckerDouble({
-            checkBeforeOrder: ({ signal }) => ({
-              allowed: signal?.action === 'SELLCALL',
-            }),
+            checkBeforeOrder: ({ account, positions, signal }) => {
+              if (signal?.action === 'SELLCALL') {
+                return {
+                  allowed: account === cachedAccount && positions === cachedPositions,
+                  reason: 'sell should use cached context',
+                };
+              }
+
+              return { allowed: false, reason: 'unexpected buy base risk check' };
+            },
           }),
           orderRecorder: createOrderRecorderDouble(),
+          account: cachedAccount,
+          positions: cachedPositions,
         }),
       ),
     );
 
     expect(result).toHaveLength(1);
     expect(result[0]).toBe(sellSignal);
-    expect(buySignal.reason).toContain('风险检查冷却期内');
-    expect(buyApiFetchCount).toBe(0);
+    expect(buySignal.reason).toContain('交易频率限制');
+    expect(accountFetchCount).toBe(0);
+    expect(positionFetchCount).toBe(0);
   });
 
-  it('blocks both BUYCALL and BUYPUT when any monitor direction is in liquidation cooldown', async () => {
+  it('keeps sell path on cached context when buy realtime fetch fails after light checks', async () => {
     const lastRiskCheckTime = new Map<string, number>();
+    const cachedAccount = createAccountSnapshotDouble(88_888);
+    const cachedPositions = [
+      createPositionDouble({
+        symbol: 'BULL.HK',
+        quantity: 200,
+        availableQuantity: 100,
+      }),
+    ];
+
     const trader = createTraderDouble({
-      getAccountSnapshot: async () => createAccountSnapshotDouble(100_000),
-      getStockPositions: async () => [],
       canTradeNow: () => ({ canTrade: true }),
+      getAccountSnapshot: async () => {
+        throw new Error('buy api down');
+      },
+      getStockPositions: async () => [],
     });
-    const riskChecker = createRiskCheckerDouble();
-    const orderRecorder = createOrderRecorderDouble();
+
     const pipeline = createRiskCheckPipeline({
       tradingConfig: createTradingConfig(),
       liquidationCooldownTracker: createLiquidationCooldownTrackerDouble({
-        getRemainingMs: (params) => {
-          if (params.direction === 'LONG') {
-            return 6_000;
-          }
-
-          return 0;
-        },
+        getRemainingMs: () => 0,
       }),
       lastRiskCheckTime,
     });
-    const context = createContext({
-      trader,
-      riskChecker,
-      orderRecorder,
-    });
-    const buyCallSignal = createSignalDouble('BUYCALL', 'BULL.HK');
-    const buyPutSignal = createSignalDouble('BUYPUT', 'BEAR.HK');
 
-    const buyCallResult = await withMockedNow(300_000, async () =>
-      pipeline([buyCallSignal], context),
-    );
-    const buyPutResult = await withMockedNow(300_100, async () =>
-      pipeline([buyPutSignal], context),
+    const buySignal = createSignalDouble('BUYCALL', 'BULL.HK');
+    const sellSignal = createSignalDouble('SELLCALL', 'BULL.HK');
+
+    const result = await withMockedNow(300_000, async () =>
+      pipeline(
+        [buySignal, sellSignal],
+        createContext({
+          trader,
+          riskChecker: createRiskCheckerDouble({
+            checkWarrantRisk: () => ({ allowed: true }),
+            checkBeforeOrder: ({ account, positions, signal }) => {
+              if (signal?.action === 'SELLCALL') {
+                return {
+                  allowed: account === cachedAccount && positions === cachedPositions,
+                  reason: 'sell should use cached context',
+                };
+              }
+
+              return { allowed: false, reason: 'unexpected buy base risk check' };
+            },
+          }),
+          orderRecorder: createOrderRecorderDouble({
+            getLatestBuyOrderPrice: () => null,
+          }),
+          account: cachedAccount,
+          positions: cachedPositions,
+        }),
+      ),
     );
 
-    expect(buyCallResult).toHaveLength(0);
-    expect(buyPutResult).toHaveLength(0);
-    expect(buyCallSignal.reason).toContain('清仓冷却期内');
-    expect(buyPutSignal.reason).toContain('清仓冷却期内');
+    expect(result).toHaveLength(1);
+    expect(result[0]).toBe(sellSignal);
+    expect(buySignal.reason).toContain('获取实时账户和持仓信息失败');
   });
 });

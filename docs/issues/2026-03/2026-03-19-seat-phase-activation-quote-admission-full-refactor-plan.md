@@ -116,8 +116,7 @@
 
 `resolveMonitorContextRuntimeSnapshot()` 旧逻辑按 `READY` 派生 symbol 和 quote。下游再把这些 symbol/quote 直接用于：
 
-- signal generation
-n- risk scheduling
+- signal generation n- risk scheduling
 - buy / sell execution
 - 部分恢复与展示链路
 

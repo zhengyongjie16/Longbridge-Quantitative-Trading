@@ -36,7 +36,12 @@ export function isSeatActive(
 export function hasSeatSymbol(
   seatState: SeatState | null | undefined,
 ): seatState is SeatState & { symbol: string } {
-  return seatState !== null && seatState !== undefined && typeof seatState.symbol === 'string' && seatState.symbol.length > 0;
+  return (
+    seatState !== null &&
+    seatState !== undefined &&
+    typeof seatState.symbol === 'string' &&
+    seatState.symbol.length > 0
+  );
 }
 
 /**

@@ -1,17 +1,16 @@
 /**
- * 信号处理模块 - 买入风险检查流水线
+ * 信号处理模块 - 风险检查流水线
  *
  * 功能：
- * - 执行买入信号风险检查并过滤无效信号
+ * - 执行信号风险检查并过滤无效信号
  * - 维护风险检查冷却与交易频率控制
- * - 处理风控数据源切换（买入实时/卖出缓存）
+ * - 买入在轻检查通过后实时拉取账户/持仓，卖出使用上下文缓存数据
  */
 import { logger } from '../../utils/logger/index.js';
 import { isBuyAction } from '../../utils/helpers/index.js';
 import { formatSymbolDisplayFromQuote } from '../utils.js';
 import { VERIFICATION } from '../../constants/index.js';
 import { getSymbolName } from './utils.js';
-import type { AccountSnapshot, Position } from '../../types/account.js';
 import type { Quote } from '../../types/quote.js';
 import type { Signal } from '../../types/signal.js';
 import type { LiquidationCooldownConfig, MultiMonitorTradingConfig } from '../../types/config.js';
@@ -51,10 +50,30 @@ function getMonitorCooldownRemainingMs(params: {
   return Math.max(longRemainingMs, shortRemainingMs);
 }
 
+function getSignalQuote(params: {
+  readonly signalSymbol: string;
+  readonly longSymbol: string;
+  readonly shortSymbol: string;
+  readonly longQuote: Quote | null;
+  readonly shortQuote: Quote | null;
+}): Quote | null {
+  const { signalSymbol, longSymbol, shortSymbol, longQuote, shortQuote } = params;
+  if (signalSymbol === longSymbol) {
+    return longQuote;
+  }
+
+  if (signalSymbol === shortSymbol) {
+    return shortQuote;
+  }
+
+  return null;
+}
+
 /**
- * 创建买入风险检查流水线
- * 返回一个异步函数，对信号列表依次执行冷却过滤、API 数据获取、买入专项检查（频率/冷却/价格/末日保护/牛熊证）
- * 和基础风险检查，过滤掉不符合条件的信号后返回通过的信号列表
+ * 创建风险检查流水线
+ * 返回一个异步函数：先做统一冷却过滤，再按买卖路径执行风控。
+ * 买入路径固定为轻检查通过后实时拉取账户/持仓并执行基础风险检查；
+ * 卖出路径直接使用上下文缓存账户/持仓执行基础风险检查。
  */
 export const createRiskCheckPipeline = ({
   tradingConfig,
@@ -90,8 +109,8 @@ export const createRiskCheckPipeline = ({
     // 在本次调用入口固定当前毫秒时间，供冷却过滤/冷却写入/清仓冷却查询复用
     const currentTimeMs = Date.now();
 
-    // 在批量预取账户/持仓 API 之前先过滤风险检查冷却期信号
-    // 这样可以避免所有买入信号都在冷却期内时的无效 API 调用
+    // 先过滤风险检查冷却期信号
+    // 这样可以避免冷却期内信号进入后续检查与实时数据拉取
     const cooldownMs = VERIFICATION.VERIFIED_SIGNAL_COOLDOWN_SECONDS * 1000;
     const signalsAfterCooldown: Signal[] = [];
     for (const sig of signals) {
@@ -112,23 +131,6 @@ export const createRiskCheckPipeline = ({
       return [];
     }
 
-    // 检查过滤后是否有买入信号，决定是否调用 API
-    const hasBuySignals = signalsAfterCooldown.some((signal) => isBuyAction(signal.action));
-    let freshAccount: AccountSnapshot | null = null;
-    let freshPositions: ReadonlyArray<Position> = [];
-    let buyApiFetchFailed = false;
-    if (hasBuySignals) {
-      try {
-        const [nextAccount, nextPositions]: [AccountSnapshot | null, ReadonlyArray<Position>] =
-          await Promise.all([trader.getAccountSnapshot(), trader.getStockPositions()]);
-        freshAccount = nextAccount;
-        freshPositions = nextPositions;
-      } catch (err) {
-        logger.warn('[风险检查] 批量获取账户和持仓信息失败，买入信号将被拒绝', formatError(err));
-        buyApiFetchFailed = true;
-      }
-    }
-
     const finalSignals: Signal[] = [];
 
     // 遍历过滤后的信号进行风险检查
@@ -147,41 +149,31 @@ export const createRiskCheckPipeline = ({
       const cooldownKey = getRiskCheckCooldownKey(sigSymbol, sig.action);
       lastRiskCheckTime.set(cooldownKey, currentTimeMs);
 
-      // 获取标的的当前价格用于计算持仓市值
-      let currentPrice: number | null = null;
-      if (sigSymbol === longSymbol && longQuote) {
-        currentPrice = longQuote.price;
-      } else if (sigSymbol === shortSymbol && shortQuote) {
-        currentPrice = shortQuote.price;
-      }
+      const signalQuote = getSignalQuote({
+        signalSymbol: sigSymbol,
+        longSymbol,
+        shortSymbol,
+        longQuote,
+        shortQuote,
+      });
+      const currentPrice = signalQuote?.price ?? null;
 
-      // 检查是否是买入操作
-      const isBuyActionCheck = isBuyAction(sig.action);
-      if (isBuyActionCheck) {
-        if (buyApiFetchFailed) {
-          const reason = '批量获取账户和持仓信息失败，买入信号被拒绝';
-          sig.reason = reason;
-          logger.warn(`[风险检查] ${reason}：${signalLabel}`);
-          continue;
-        }
-
+      // 买入路径：冷却已在循环前处理，这里按固定顺序执行轻检查后再实时拉取风控数据
+      if (isBuyAction(sig.action)) {
         const isLongBuyAction = sig.action === 'BUYCALL';
         const directionDesc = isLongBuyAction ? '做多标的' : '做空标的';
 
         /**
-         * 买入风险检查流水线执行顺序及原因：
-         *
-         * 0. 账户/持仓 API 批量预取（仅当存在买入信号时，在主循环前执行一次）
-         * 1. 交易频率限制（轻量）：仅检查内存中的时间戳，无额外 API 调用
-         * 2. 清仓冷却（中量）：检查冷却追踪器
-         * 3. 买入价格限制（轻量）：比较当前价与最近买入价
-         * 4. 末日保护程序（轻量）：检查时间是否在保护期内
-         * 5. 牛熊证风险（中量）：计算距回收价百分比
-         * 6. 基础风险检查（重量）：使用已批量预取的账户和持仓数据
-         *
-         * 排序原则：先轻量后重量，减少不必要的 API 调用
+         * 买入风险检查流水线顺序（固定）：
+         * 1. 风险检查冷却（已在循环前完成）
+         * 2. 交易频率限制
+         * 3. 清仓冷却
+         * 4. 买入价格限制
+         * 5. 末日保护程序
+         * 6. 牛熊证风险
+         * 7. Promise.all([trader.getAccountSnapshot(), trader.getStockPositions()])
+         * 8. 基础风险检查（使用第 7 步实时数据）
          */
-        // 1. 检查交易频率限制
         const tradeCheck = trader.canTradeNow(sig.action, context.config);
         if (!tradeCheck.canTrade) {
           const waitSeconds = tradeCheck.waitSeconds ?? 0;
@@ -191,7 +183,6 @@ export const createRiskCheckPipeline = ({
           continue;
         }
 
-        // 2. 保护性清仓冷却：同监控标的任一方向在冷却中则双方向买入都拦截
         const remainingMs = getMonitorCooldownRemainingMs({
           liquidationCooldownTracker,
           monitorSymbol: context.config.monitorSymbol,
@@ -206,11 +197,6 @@ export const createRiskCheckPipeline = ({
           continue;
         }
 
-        // 频率检查通过后立即标记买入意图（预占时间槽）
-        // 防止同一批次中的多个延迟验证信号同时通过频率检查
-        trader.recordBuyAttempt(sig.action, context.config);
-
-        // 3. 买入价格限制
         const latestBuyPrice = orderRecorder.getLatestBuyOrderPrice(sigSymbol, isLongBuyAction);
         if (latestBuyPrice !== null && currentPrice !== null) {
           const currentPriceStr = currentPrice.toFixed(3);
@@ -229,7 +215,6 @@ export const createRiskCheckPipeline = ({
           );
         }
 
-        // 4. 末日保护程序：收盘前15分钟拒绝买入
         if (
           tradingConfig.global.doomsdayProtection &&
           doomsdayProtection.shouldRejectBuy(currentTime, isHalfDay)
@@ -241,7 +226,6 @@ export const createRiskCheckPipeline = ({
           continue;
         }
 
-        // 5. 检查牛熊证风险
         const monitorCurrentPrice = monitorQuote?.price ?? monitorSnapshot?.price ?? null;
         const warrantRiskResult = riskChecker.checkWarrantRisk(
           sig.symbol,
@@ -254,15 +238,7 @@ export const createRiskCheckPipeline = ({
               warrantRiskResult.warrantInfo.warrantType === 'BULL' ? '牛证' : '熊证';
             const distancePercent = warrantRiskResult.warrantInfo.distanceToStrikePercent;
 
-            // 使用 formatSymbolDisplayFromQuote 格式化标的显示
-            let quoteForSymbol: Quote | null = null;
-            if (sigSymbol === longSymbol) {
-              quoteForSymbol = longQuote;
-            } else if (sigSymbol === shortSymbol) {
-              quoteForSymbol = shortQuote;
-            }
-
-            const symbolDisplay = formatSymbolDisplayFromQuote(quoteForSymbol, sig.symbol);
+            const symbolDisplay = formatSymbolDisplayFromQuote(signalQuote, sig.symbol);
             logger.debug(
               `[牛熊证风险检查] ${symbolDisplay} 为${warrantType}，距离回收价百分比：${distancePercent.toFixed(
                 2,
@@ -275,32 +251,60 @@ export const createRiskCheckPipeline = ({
           logger.warn(`[牛熊证风险拦截] 信号被牛熊证风险控制拦截：${signalLabel} - ${reason}`);
           continue;
         }
-      }
 
-      // 6. 基础风险检查
-      // 买入信号使用实时数据，卖出信号使用缓存数据
-      const accountForRiskCheck = isBuyActionCheck ? freshAccount : context.account;
-      const positionsForRiskCheck = isBuyActionCheck ? freshPositions : context.positions;
-      if (isBuyActionCheck && accountForRiskCheck === null) {
-        const reason = '买入操作无法获取账户信息，买入信号被拒绝';
-        sig.reason = reason;
-        logger.warn(`[风险检查] ${reason}：${signalLabel}`);
+        let realtimeAccount: Awaited<ReturnType<typeof trader.getAccountSnapshot>>;
+        let realtimePositions: Awaited<ReturnType<typeof trader.getStockPositions>>;
+        try {
+          [realtimeAccount, realtimePositions] = await Promise.all([
+            trader.getAccountSnapshot(),
+            trader.getStockPositions(),
+          ]);
+        } catch (err) {
+          const reason = '获取实时账户和持仓信息失败，买入信号被拒绝';
+          sig.reason = reason;
+          logger.warn(`[风险检查] ${reason}：${signalLabel}`, formatError(err));
+          continue;
+        }
+
+        if (realtimeAccount === null) {
+          const reason = '买入操作无法获取账户信息，买入信号被拒绝';
+          sig.reason = reason;
+          logger.warn(`[风险检查] ${reason}：${signalLabel}`);
+          continue;
+        }
+
+        const orderNotional = context.config.targetNotional;
+        const buyRiskResult = riskChecker.checkBeforeOrder({
+          account: realtimeAccount,
+          positions: realtimePositions,
+          signal: sig,
+          orderNotional,
+          currentPrice,
+        });
+        if (buyRiskResult.allowed) {
+          finalSignals.push(sig);
+        } else {
+          const reason = buyRiskResult.reason ?? '基础风险检查未通过';
+          sig.reason = reason;
+          logger.warn(`[风险拦截] 信号被风险控制拦截：${signalLabel} - ${reason}`);
+        }
+
         continue;
       }
 
-      // 使用选择的数据进行风险检查
+      // 卖出路径基础风险检查使用上下文缓存数据
       const orderNotional = context.config.targetNotional;
-      const riskResult = riskChecker.checkBeforeOrder({
-        account: accountForRiskCheck,
-        positions: positionsForRiskCheck,
+      const sellRiskResult = riskChecker.checkBeforeOrder({
+        account: context.account,
+        positions: context.positions,
         signal: sig,
         orderNotional,
         currentPrice,
       });
-      if (riskResult.allowed) {
+      if (sellRiskResult.allowed) {
         finalSignals.push(sig);
       } else {
-        const reason = riskResult.reason ?? '基础风险检查未通过';
+        const reason = sellRiskResult.reason ?? '基础风险检查未通过';
         sig.reason = reason;
         logger.warn(`[风险拦截] 信号被风险控制拦截：${signalLabel} - ${reason}`);
       }

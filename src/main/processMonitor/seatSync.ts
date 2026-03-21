@@ -137,7 +137,8 @@ export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
         previousSymbol: previousShortSeatState.symbol ?? null,
         nextSymbol: shortSeatState.symbol ?? '',
         callPrice: shortSeatState.callPrice ?? null,
-        symbolName: quotesMap.get(shortSeatState.symbol ?? '')?.name ?? shortSeatState.symbol ?? null,
+        symbolName:
+          quotesMap.get(shortSeatState.symbol ?? '')?.name ?? shortSeatState.symbol ?? null,
       },
     });
   }

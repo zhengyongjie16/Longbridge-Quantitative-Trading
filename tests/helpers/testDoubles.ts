@@ -155,7 +155,6 @@ export function createTraderDouble(overrides: Partial<Trader> = {}): Trader {
     hasPendingProtectiveLiquidationOrders: () => false,
     initializeOrderMonitor: async () => {},
     canTradeNow: (): { readonly canTrade: boolean } => ({ canTrade: true }),
-    recordBuyAttempt: () => {},
     fetchAllOrdersFromAPI: async () => [],
     resetRuntimeState: () => {},
     recoverOrderTrackingFromSnapshot: async () => {},
@@ -481,7 +480,7 @@ export function createSymbolRegistryDouble(params?: {
   readonly shortVersion?: number;
 }): SymbolRegistry {
   const monitorSymbol = params?.monitorSymbol ?? 'HSI.HK';
-  const longSeat = params?.longSeat ?? {
+  let longSeat = params?.longSeat ?? {
     symbol: 'BULL.HK',
     status: 'ACTIVE',
     lastSwitchAt: null,
@@ -490,7 +489,7 @@ export function createSymbolRegistryDouble(params?: {
     searchFailCountToday: 0,
     frozenTradingDayKey: null,
   };
-  const shortSeat = params?.shortSeat ?? {
+  let shortSeat = params?.shortSeat ?? {
     symbol: 'BEAR.HK',
     status: 'ACTIVE',
     lastSwitchAt: null,
@@ -535,12 +534,23 @@ export function createSymbolRegistryDouble(params?: {
       direction: 'LONG' | 'SHORT',
       nextState: SeatState,
     ): SeatState {
+      const normalizedNextState = {
+        symbol: nextState.symbol,
+        status: nextState.status,
+        lastSwitchAt: nextState.lastSwitchAt ?? null,
+        lastSearchAt: nextState.lastSearchAt ?? null,
+        lastSeatActivatedAt: nextState.lastSeatActivatedAt ?? null,
+        callPrice: nextState.callPrice ?? null,
+        searchFailCountToday: nextState.searchFailCountToday,
+        frozenTradingDayKey: nextState.frozenTradingDayKey,
+      };
+
       if (direction === 'LONG') {
-        Object.assign(longSeat, nextState);
+        longSeat = normalizedNextState;
         return longSeat;
       }
 
-      Object.assign(shortSeat, nextState);
+      shortSeat = normalizedNextState;
       return shortSeat;
     },
     bumpSeatVersion(_monitorSymbol: string, direction: 'LONG' | 'SHORT'): number {

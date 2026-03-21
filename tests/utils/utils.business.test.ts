@@ -117,7 +117,10 @@ describe('shared utils business flow', () => {
       'HSI.HK',
       symbolRegistry,
       new Map([
-        ['LONG_ACTIVATING.HK', { ...createQuoteDouble('LONG_ACTIVATING.HK', 1.1), name: 'LongActivating' }],
+        [
+          'LONG_ACTIVATING.HK',
+          { ...createQuoteDouble('LONG_ACTIVATING.HK', 1.1), name: 'LongActivating' },
+        ],
         ['SHORT_ACTIVE.HK', { ...createQuoteDouble('SHORT_ACTIVE.HK', 0.9), name: 'ShortActive' }],
       ]),
     );

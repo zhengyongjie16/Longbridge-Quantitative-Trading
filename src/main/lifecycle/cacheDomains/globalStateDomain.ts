@@ -4,6 +4,7 @@
  * 午夜清理：
  * - 禁止交易（canTrade = false）
  * - 重置半日标记、开盘保护、交易日信息缓存
+ * - 清空账户/持仓缓存，确保开盘重建强制拉取当日实时快照
  * - 清空交易标的集合（allTradingSymbols 的权威清理位置）
  * - 重置各监控标的的运行状态（行情、信号、指标快照等）
  * - 释放对象池中的快照对象，防止内存泄漏
@@ -46,6 +47,9 @@ function runGlobalMidnightClear(lastState: LastState): void {
   lastState.canTrade = false;
   lastState.isHalfDay = null;
   lastState.openProtectionActive = null;
+  lastState.cachedAccount = null;
+  lastState.cachedPositions = [];
+  lastState.positionCache.update([]);
   lastState.cachedTradingDayInfo = null;
   lastState.tradingCalendarSnapshot = new Map();
   lastState.allTradingSymbols = new Set<string>();

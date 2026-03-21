@@ -603,7 +603,10 @@ describe('auto-symbol-switch integration', () => {
   });
 
   it('falls back to EMPTY on danger-side no-candidate and can recover via next auto-search tick', async () => {
-    candidateQueue = [null, createWarrantCandidateWithOverrides('RECOVER_BULL.HK', { callPrice: 22_000 })];
+    candidateQueue = [
+      null,
+      createWarrantCandidateWithOverrides('RECOVER_BULL.HK', { callPrice: 22_000 }),
+    ];
 
     const monitorConfig = createMonitorConfigDouble({
       autoSearchConfig: {

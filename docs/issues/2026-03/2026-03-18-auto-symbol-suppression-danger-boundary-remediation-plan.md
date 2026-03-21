@@ -230,10 +230,7 @@
 
 ```ts
 type SwitchTriggerKind = 'PERIODIC' | 'DISTANCE_SAFE_SIDE' | 'DISTANCE_DANGER_SIDE';
-type SuppressibleSwitchTriggerKind = Extract<
-  SwitchTriggerKind,
-  'PERIODIC' | 'DISTANCE_SAFE_SIDE'
->;
+type SuppressibleSwitchTriggerKind = Extract<SwitchTriggerKind, 'PERIODIC' | 'DISTANCE_SAFE_SIDE'>;
 ```
 
 但最终设计**不建议**简单地在现有 `StartSwitchFlowParams` 上裸加一个 `triggerKind` 字段并继续保留自由组合的 `switchMode`，因为那会让以下非法状态在类型层可表示：
@@ -352,10 +349,7 @@ export type SwitchSuppression = {
 在 `switchStateMachine.ts` 中新增统一解析函数，例如：
 
 ```ts
-function resolveDistanceTriggerKind(params):
-  | 'DISTANCE_SAFE_SIDE'
-  | 'DISTANCE_DANGER_SIDE'
-  | null;
+function resolveDistanceTriggerKind(params): 'DISTANCE_SAFE_SIDE' | 'DISTANCE_DANGER_SIDE' | null;
 ```
 
 统一输入：
@@ -810,12 +804,14 @@ danger-side same-symbol 不写 suppression，并不意味着本次要强行 clea
    - safe-side suppression 写入成功
 
 10. periodic pending 存在时，distance danger-side same-symbol
-   - periodic pending 保留
-   - 不写 suppression
+
+- periodic pending 保留
+- 不写 suppression
 
 11. periodic pending 存在时，distance 找到新 symbol 并接管
-   - periodic pending 被清理
-   - distance switch 正常启动
+
+- periodic pending 被清理
+- distance switch 正常启动
 
 ## 9.3 PeriodicSwitch 级测试
 
@@ -864,8 +860,7 @@ danger-side same-symbol 不写 suppression，并不意味着本次要强行 clea
    - `auto-search-policy-consistency.integration.test.ts` 继续验证：
      - 启动补席
      - 运行中空席补席
-     - 距离换标前预寻标
-     三条链路依然共用同一套候选筛选规则
+     - 距离换标前预寻标三条链路依然共用同一套候选筛选规则
 
 6. **关键类型边界不可构造非法组合**
    - distance 分支不存在顶层 `direction` 与 `distanceContext.direction` 双源冲突

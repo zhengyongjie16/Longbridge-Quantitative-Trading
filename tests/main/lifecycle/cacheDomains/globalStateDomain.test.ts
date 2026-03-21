@@ -7,6 +7,10 @@
 import { describe, it, expect } from 'bun:test';
 import { createGlobalStateDomain } from '../../../../src/main/lifecycle/cacheDomains/globalStateDomain.js';
 import type { LastState, MonitorState } from '../../../../src/types/state.js';
+import {
+  createAccountSnapshotDouble,
+  createPositionDouble,
+} from '../../../helpers/testDoubles.js';
 
 function createMockMonitorState(monitorSymbol: string): MonitorState {
   return {
@@ -27,6 +31,7 @@ describe('createGlobalStateDomain', () => {
     const monitorStates = new Map<string, MonitorState>([
       ['HSI.HK', createMockMonitorState('HSI.HK')],
     ]);
+    const positionCacheUpdateSizes: number[] = [];
     const lastState: LastState = {
       canTrade: true,
       isHalfDay: false,
@@ -36,9 +41,20 @@ describe('createGlobalStateDomain', () => {
       pendingOpenRebuild: false,
       targetTradingDayKey: null,
       isTradingEnabled: true,
-      cachedAccount: null,
-      cachedPositions: [],
-      positionCache: { update: () => {}, get: () => null },
+      cachedAccount: createAccountSnapshotDouble(100000),
+      cachedPositions: [
+        createPositionDouble({
+          symbol: 'BULL.HK',
+          quantity: 100,
+          availableQuantity: 100,
+        }),
+      ],
+      positionCache: {
+        update: (positions) => {
+          positionCacheUpdateSizes.push(positions.length);
+        },
+        get: () => null,
+      },
       cachedTradingDayInfo: null,
       monitorStates,
       allTradingSymbols: new Set(['12345.HK']),
@@ -61,6 +77,9 @@ describe('createGlobalStateDomain', () => {
     expect(lastState.allTradingSymbols.size).toBe(0);
     expect(lastState.isHalfDay).toBe(null);
     expect(lastState.openProtectionActive).toBe(null);
+    expect(lastState.cachedAccount).toBe(null);
+    expect(lastState.cachedPositions).toHaveLength(0);
+    expect(positionCacheUpdateSizes).toEqual([0]);
     expect(lastState.cachedTradingDayInfo).toBe(null);
     const state = monitorStates.get('HSI.HK');
     expect(state).toBeDefined();

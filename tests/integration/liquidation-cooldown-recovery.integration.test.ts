@@ -141,14 +141,10 @@ async function assertDualDirectionBuyBlockedAfterHydration(params: {
   const boundaries = hydrator.hydrate();
   expect(boundaries.get(params.expectedBoundaryKey)).toBe(executedAtMs);
 
-  let buyAttemptCount = 0;
   const trader = createTraderDouble({
     getAccountSnapshot: async () => createAccountSnapshotDouble(100_000),
     getStockPositions: async () => [],
     canTradeNow: () => ({ canTrade: true }),
-    recordBuyAttempt: () => {
-      buyAttemptCount += 1;
-    },
   });
   const signalProcessor = createSignalProcessor({
     tradingConfig,
@@ -188,7 +184,6 @@ async function assertDualDirectionBuyBlockedAfterHydration(params: {
   expect(buyPutResult).toHaveLength(0);
   expect(buyCallSignal.reason).toContain('清仓冷却期内');
   expect(buyPutSignal.reason).toContain('清仓冷却期内');
-  expect(buyAttemptCount).toBe(0);
 }
 
 describe('liquidation-cooldown-recovery integration', () => {
@@ -243,23 +238,15 @@ describe('liquidation-cooldown-recovery integration', () => {
     expect(boundaries.get('HSCEI.HK:LONG')).toBeUndefined();
     expect(boundaries.get('HSCEI.HK:SHORT')).toBeUndefined();
 
-    let buyAttemptCountA = 0;
-    let buyAttemptCountB = 0;
     const traderA = createTraderDouble({
       getAccountSnapshot: async () => createAccountSnapshotDouble(100_000),
       getStockPositions: async () => [],
       canTradeNow: () => ({ canTrade: true }),
-      recordBuyAttempt: () => {
-        buyAttemptCountA += 1;
-      },
     });
     const traderB = createTraderDouble({
       getAccountSnapshot: async () => createAccountSnapshotDouble(100_000),
       getStockPositions: async () => [],
       canTradeNow: () => ({ canTrade: true }),
-      recordBuyAttempt: () => {
-        buyAttemptCountB += 1;
-      },
     });
     const signalProcessor = createSignalProcessor({
       tradingConfig,
@@ -333,9 +320,6 @@ describe('liquidation-cooldown-recovery integration', () => {
     expect(monitorBBuyPutResult).toHaveLength(1);
     expect(monitorBBuyCallSignal.reason).not.toContain('清仓冷却期内');
     expect(monitorBBuyPutSignal.reason).not.toContain('清仓冷却期内');
-
-    expect(buyAttemptCountA).toBe(0);
-    expect(buyAttemptCountB).toBe(2);
   });
 
   it('blocks BUYCALL and BUYPUT after hydrating only LONG cooldown records', async () => {
@@ -394,14 +378,10 @@ describe('liquidation-cooldown-recovery integration', () => {
 
     hydrator.hydrate();
 
-    let buyAttemptCount = 0;
     const trader = createTraderDouble({
       getAccountSnapshot: async () => createAccountSnapshotDouble(100_000),
       getStockPositions: async () => [],
       canTradeNow: () => ({ canTrade: true }),
-      recordBuyAttempt: () => {
-        buyAttemptCount += 1;
-      },
     });
     const signalProcessor = createSignalProcessor({
       tradingConfig,
@@ -441,6 +421,5 @@ describe('liquidation-cooldown-recovery integration', () => {
     expect(buyPutResult).toHaveLength(1);
     expect(buyCallSignal.reason).not.toContain('清仓冷却期内');
     expect(buyPutSignal.reason).not.toContain('清仓冷却期内');
-    expect(buyAttemptCount).toBe(2);
   });
 });

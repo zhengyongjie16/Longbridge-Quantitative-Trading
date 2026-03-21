@@ -45,7 +45,6 @@ export type SubmitTargetOrderDeps = {
  */
 export interface BuyThrottle {
   canTradeNow: (signalAction: SignalType, monitorConfig?: MonitorConfig | null) => TradeCheckResult;
-  markBuyAttempt: (signalAction: SignalType, monitorConfig?: MonitorConfig | null) => void;
   resetBuyThrottle: () => void;
   updateLastBuyTime: (signalAction: SignalType, monitorConfig?: MonitorConfig | null) => void;
 }

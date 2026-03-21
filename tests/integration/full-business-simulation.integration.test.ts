@@ -48,6 +48,7 @@ import {
   createTraderDouble,
   createWarrantDistanceInfoDouble,
 } from '../helpers/testDoubles.js';
+import { waitUntil } from '../main/asyncProgram/utils.js';
 import { createWarrantCandidateWithOverrides } from '../services/autoSymbolManager/utils.js';
 
 let autoSymbolCandidates: Array<ReturnType<typeof createWarrantCandidateWithOverrides> | null> = [];
@@ -576,6 +577,7 @@ describe('full business simulation integration', () => {
       [monitorConfig.monitorSymbol, monitorContext],
     ]);
 
+    const processedTaskTypes: string[] = [];
     const refreshGate = createRefreshGate();
     const monitorTaskProcessor = createMonitorTaskProcessor({
       monitorTaskQueue,
@@ -587,6 +589,9 @@ describe('full business simulation integration', () => {
       lastState,
       tradingConfig,
       getCanProcessTask: () => true,
+      onProcessed: (task, status) => {
+        processedTaskTypes.push(`${task.type}:${status}`);
+      },
     });
 
     const signalProcessor = createSignalProcessor({
@@ -599,6 +604,32 @@ describe('full business simulation integration', () => {
         clearMidnightEligible: () => {},
         resetAllTriggerCounts: () => {},
       },
+    });
+
+    const buyProcessor = createBuyProcessor({
+      taskQueue: buyTaskQueue,
+      getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol),
+      signalProcessor,
+      trader,
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: autoSwitchMarketDataClient.getQuotes,
+      }),
+      doomsdayProtection: createDoomsdayProtectionDouble(),
+      getLastState: () => lastState,
+      getIsHalfDay: () => false,
+      getCanProcessTask: () => lastState.isTradingEnabled,
+    });
+    const sellProcessor = createSellProcessor({
+      taskQueue: sellTaskQueue,
+      getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol),
+      signalProcessor,
+      trader,
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: autoSwitchMarketDataClient.getQuotes,
+      }),
+      getLastState: () => lastState,
+      refreshGate,
+      getCanProcessTask: () => lastState.isTradingEnabled,
     });
 
     const sharedMainContext = {
@@ -637,6 +668,8 @@ describe('full business simulation integration', () => {
       dayLifecycleManager: createNoopDayLifecycleManager(),
     };
 
+    buyProcessor.start();
+    sellProcessor.start();
     monitorTaskProcessor.start();
     try {
       await processMonitor(
@@ -653,12 +686,47 @@ describe('full business simulation integration', () => {
         },
         new Map([['HSI.HK', createQuoteDouble('HSI.HK', 20_000, 1)]]),
       );
-      await Bun.sleep(80);
+
+      await waitUntil(() => {
+        const seat = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
+        return seat.status === 'ACTIVATING' && seat.symbol === 'OLD_BULL.HK';
+      });
 
       const searchedSeat = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
-      expect(searchedSeat.status).toBe('ACTIVE');
+      expect(searchedSeat.status).toBe('ACTIVATING');
       expect(searchedSeat.symbol).toBe('OLD_BULL.HK');
       expect(symbolRegistry.getSeatVersion(monitorConfig.monitorSymbol, 'LONG')).toBe(2);
+
+      await processMonitor(
+        {
+          context: sharedMainContext,
+          monitorContext,
+          runtimeFlags: {
+            currentTime: new Date('2026-02-16T01:00:00.500Z'),
+            isHalfDay: false,
+            canTradeNow: true,
+            openProtectionActive: false,
+            isTradingEnabled: true,
+          },
+        },
+        new Map([
+          ['HSI.HK', createQuoteDouble('HSI.HK', 20_000, 1)],
+          ['OLD_BULL.HK', createQuoteDouble('OLD_BULL.HK', 1, 100)],
+        ]),
+      );
+
+      await waitUntil(() => {
+        const seat = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
+        return seat.status === 'ACTIVE' && seat.symbol === 'OLD_BULL.HK';
+      }).catch((error: unknown) => {
+        throw new Error(
+          `seat activation timeout after second monitor cycle: seat=${JSON.stringify(symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG'))}, tasks=${processedTaskTypes.join(',')}, cause=${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+
+      const activatedSeat = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
+      expect(activatedSeat.status).toBe('ACTIVE');
+      expect(activatedSeat.symbol).toBe('OLD_BULL.HK');
 
       const oldPosition = createPositionDouble({
         symbol: 'OLD_BULL.HK',
@@ -686,13 +754,19 @@ describe('full business simulation integration', () => {
           ['NEW_BULL.HK', createQuoteDouble('NEW_BULL.HK', 1, 100)],
         ]),
       );
-      await Bun.sleep(80);
+      await waitUntil(() => executedActions.length > 0);
 
       expect(executedActions[0]?.action).toBe('SELLCALL');
       expect(executedActions[0]?.symbol).toBe('OLD_BULL.HK');
 
       lastState.cachedPositions = [];
       lastState.positionCache.update([]);
+
+      const finalQuotes = new Map([
+        ['HSI.HK', createQuoteDouble('HSI.HK', 20_020, 1)],
+        ['OLD_BULL.HK', createQuoteDouble('OLD_BULL.HK', 1, 100)],
+        ['NEW_BULL.HK', createQuoteDouble('NEW_BULL.HK', 1, 100)],
+      ]);
 
       await processMonitor(
         {
@@ -706,17 +780,84 @@ describe('full business simulation integration', () => {
             isTradingEnabled: true,
           },
         },
-        new Map([
-          ['HSI.HK', createQuoteDouble('HSI.HK', 20_020, 1)],
-          ['OLD_BULL.HK', createQuoteDouble('OLD_BULL.HK', 1, 100)],
-          ['NEW_BULL.HK', createQuoteDouble('NEW_BULL.HK', 1, 100)],
-        ]),
+        finalQuotes,
       );
-      await Bun.sleep(80);
+
+      await processMonitor(
+        {
+          context: sharedMainContext,
+          monitorContext,
+          runtimeFlags: {
+            currentTime: new Date('2026-02-16T01:00:02.500Z'),
+            isHalfDay: false,
+            canTradeNow: true,
+            openProtectionActive: false,
+            isTradingEnabled: true,
+          },
+        },
+        finalQuotes,
+      );
+
+      await processMonitor(
+        {
+          context: sharedMainContext,
+          monitorContext,
+          runtimeFlags: {
+            currentTime: new Date('2026-02-16T01:00:03.000Z'),
+            isHalfDay: false,
+            canTradeNow: true,
+            openProtectionActive: false,
+            isTradingEnabled: true,
+          },
+        },
+        finalQuotes,
+      );
+
+      await waitUntil(() => executedActions.length > 1).catch((error: unknown) => {
+        throw new Error(
+          `rebuy action timeout: seat=${JSON.stringify(symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG'))}, actions=${JSON.stringify(executedActions)}, tasks=${processedTaskTypes.join(',')}, cause=${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+
+      await waitUntil(() => {
+        const seat = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
+        return seat.status === 'ACTIVATING' && seat.symbol === 'NEW_BULL.HK';
+      }).catch((error: unknown) => {
+        throw new Error(
+          `rebuy seat transition timeout: seat=${JSON.stringify(symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG'))}, actions=${JSON.stringify(executedActions)}, tasks=${processedTaskTypes.join(',')}, cause=${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
 
       expect(executedActions[1]?.action).toBe('BUYCALL');
       expect(executedActions[1]?.symbol).toBe('NEW_BULL.HK');
       expect(executedActions).toHaveLength(2);
+
+      await processMonitor(
+        {
+          context: sharedMainContext,
+          monitorContext,
+          runtimeFlags: {
+            currentTime: new Date('2026-02-16T01:00:03.500Z'),
+            isHalfDay: false,
+            canTradeNow: true,
+            openProtectionActive: false,
+            isTradingEnabled: true,
+          },
+        },
+        new Map([
+          ['HSI.HK', createQuoteDouble('HSI.HK', 20_020, 1)],
+          ['NEW_BULL.HK', createQuoteDouble('NEW_BULL.HK', 1, 100)],
+        ]),
+      );
+
+      await waitUntil(() => {
+        const seat = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
+        return seat.status === 'ACTIVE' && seat.symbol === 'NEW_BULL.HK';
+      }).catch((error: unknown) => {
+        throw new Error(
+          `final seat activation timeout: seat=${JSON.stringify(symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG'))}, actions=${JSON.stringify(executedActions)}, tasks=${processedTaskTypes.join(',')}, cause=${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
 
       const finalSeat = symbolRegistry.getSeatState(monitorConfig.monitorSymbol, 'LONG');
       expect(finalSeat.status).toBe('ACTIVE');
@@ -724,7 +865,11 @@ describe('full business simulation integration', () => {
       expect(symbolRegistry.getSeatVersion(monitorConfig.monitorSymbol, 'LONG')).toBe(3);
     } finally {
       delayedSignalVerifier.destroy();
-      await monitorTaskProcessor.stopAndDrain();
+      await Promise.all([
+        buyProcessor.stopAndDrain(),
+        sellProcessor.stopAndDrain(),
+        monitorTaskProcessor.stopAndDrain(),
+      ]);
     }
   });
 
@@ -974,6 +1119,17 @@ describe('full business simulation integration', () => {
       lastState,
       runTradingDayOpenRebuild: async () => {
         runOpenRebuildCount += 1;
+        // 重建阶段应使用当日快照恢复账户/持仓，这里显式模拟恢复结果，避免依赖跨日残留缓存。
+        const rebuiltPositions = [
+          createPositionDouble({
+            symbol: 'BULL.HK',
+            quantity: 500,
+            availableQuantity: 500,
+          }),
+        ];
+        lastState.cachedAccount = createAccountSnapshotDouble(200_000);
+        lastState.cachedPositions = rebuiltPositions;
+        lastState.positionCache.update(rebuiltPositions);
       },
     });
 

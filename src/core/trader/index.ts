@@ -183,10 +183,6 @@ export function createTrader(deps: TraderDeps): Promise<Trader> {
       return orderExecutor.canTradeNow(signalAction, monitorConfig);
     },
 
-    recordBuyAttempt(signalAction: SignalType, monitorConfig?: MonitorConfig | null): void {
-      orderExecutor.markBuyAttempt(signalAction, monitorConfig);
-    },
-
     fetchAllOrdersFromAPI(forceRefresh: boolean = false): Promise<ReadonlyArray<RawOrderFromAPI>> {
       return orderRecorder.fetchAllOrdersFromAPI(forceRefresh);
     },

@@ -255,7 +255,7 @@ export type SellableOrderResult = {
 
 /**
  * 交易检查结果。
- * 类型用途：表示当前是否可执行交易及原因，作为 canTradeNow、recordBuyAttempt 等调用的返回值。
+ * 类型用途：表示当前是否可执行交易及原因，作为 canTradeNow 等频率检查调用的返回值。
  * 数据来源：Trader 内部根据频率限制、门禁等计算。
  * 使用范围：主循环、买卖处理器等；全项目可引用。
  */
@@ -458,9 +458,6 @@ export interface Trader {
 
   /** 检查当前是否可交易 */
   canTradeNow: (signalAction: SignalType, monitorConfig?: MonitorConfig | null) => TradeCheckResult;
-
-  /** 标记买入意图（预占时间槽，防止并发） */
-  recordBuyAttempt: (signalAction: SignalType, monitorConfig?: MonitorConfig | null) => void;
 
   /** 从 API 获取全量订单 */
   fetchAllOrdersFromAPI: (forceRefresh?: boolean) => Promise<ReadonlyArray<RawOrderFromAPI>>;
@@ -702,10 +699,10 @@ export type RiskCheckContext = {
   /** 做空标的名称 */
   readonly shortSymbolName: string | null;
 
-  /** 账户缓存（仅用于日志） */
+  /** 账户缓存（卖出基础风险检查与日志共用） */
   readonly account: AccountSnapshot | null;
 
-  /** 持仓缓存（仅用于日志） */
+  /** 持仓缓存（卖出基础风险检查与日志共用） */
   readonly positions: ReadonlyArray<Position>;
 
   /** 全局状态引用 */

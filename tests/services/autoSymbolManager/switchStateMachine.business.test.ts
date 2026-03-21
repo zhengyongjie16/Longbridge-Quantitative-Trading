@@ -139,7 +139,11 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     const seat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
     expect(seat.status).toBe('ACTIVE');
     expect(seat.symbol).toBe('OLD_BULL.HK');
-    const suppression = seatStateManager.resolveSuppression('LONG', 'OLD_BULL.HK', 'DISTANCE_SAFE_SIDE');
+    const suppression = seatStateManager.resolveSuppression(
+      'LONG',
+      'OLD_BULL.HK',
+      'DISTANCE_SAFE_SIDE',
+    );
     expect(suppression?.symbol).toBe('OLD_BULL.HK');
     expect(machine.hasPendingSwitch('LONG')).toBeFalse();
   });
@@ -224,7 +228,9 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     const seat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
     expect(seat.status).toBe('ACTIVE');
     expect(seat.symbol).toBe('OLD_BULL.HK');
-    expect(seatStateManager.resolveSuppression('LONG', 'OLD_BULL.HK', 'DISTANCE_SAFE_SIDE')).toBeNull();
+    expect(
+      seatStateManager.resolveSuppression('LONG', 'OLD_BULL.HK', 'DISTANCE_SAFE_SIDE'),
+    ).toBeNull();
     expect(machine.hasPendingSwitch('LONG')).toBeFalse();
   });
 
@@ -494,13 +500,14 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       calculateTradingDurationMsBetween,
       getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
       marketDataClient: createMarketDataClientDouble({
-        getQuotes: async (symbols) => new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
+        getQuotes: async (symbols) =>
+          new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
       }),
     });
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-            positions: [],
+      positions: [],
     });
     const seat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
     expect(seat.status).toBe('ACTIVATING');
@@ -614,13 +621,14 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       calculateTradingDurationMsBetween,
       getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
       marketDataClient: createMarketDataClientDouble({
-        getQuotes: async (symbols) => new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
+        getQuotes: async (symbols) =>
+          new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
       }),
     });
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-            positions: [
+      positions: [
         {
           symbol: 'OLD_BULL.HK',
           quantity: 100,
@@ -644,7 +652,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-            positions: [],
+      positions: [],
     });
     expect(executedActions).toHaveLength(2);
     expect(executedActions[1]?.action).toBe('BUYCALL');
@@ -772,7 +780,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-            positions: [
+      positions: [
         {
           symbol: 'OLD_BULL.HK',
           quantity: 100,
@@ -852,7 +860,9 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         const requestedSymbols = [...symbols];
         quoteRequests.push(requestedSymbols);
         if (requestedSymbols[0] === 'OLD_BULL.HK') {
-          return new Map([['OLD_BULL.HK', createQuotes({ 'OLD_BULL.HK': 1 }).get('OLD_BULL.HK') ?? null]]);
+          return new Map([
+            ['OLD_BULL.HK', createQuotes({ 'OLD_BULL.HK': 1 }).get('OLD_BULL.HK') ?? null],
+          ]);
         }
 
         return new Map([
@@ -910,7 +920,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-            positions: [
+      positions: [
         {
           symbol: 'OLD_BULL.HK',
           quantity: 100,
@@ -929,7 +939,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       await machine.maybeSwitchOnDistance({
         direction: 'LONG',
         monitorPrice: 20_000,
-                positions: [],
+        positions: [],
       });
     }
 
@@ -1035,13 +1045,14 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       calculateTradingDurationMsBetween,
       getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
       marketDataClient: createMarketDataClientDouble({
-        getQuotes: async (symbols) => new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
+        getQuotes: async (symbols) =>
+          new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
       }),
     });
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-            positions: [],
+      positions: [],
     });
     const longSeat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
     expect(longSeat.status).toBe('EMPTY');
@@ -1154,14 +1165,15 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       calculateTradingDurationMsBetween,
       getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
       marketDataClient: createMarketDataClientDouble({
-        getQuotes: async (symbols) => new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
+        getQuotes: async (symbols) =>
+          new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
       }),
     });
 
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-            positions: [],
+      positions: [],
     });
 
     expect(machine.hasPendingSwitch('LONG')).toBeTrue();
@@ -1171,7 +1183,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-            positions: [],
+      positions: [],
     });
 
     expect(machine.hasPendingSwitch('LONG')).toBeFalse();
@@ -1291,7 +1303,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       calculateTradingDurationMsBetween,
       getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
       marketDataClient: createMarketDataClientDouble({
-        getQuotes: async (symbols) => new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
+        getQuotes: async (symbols) =>
+          new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
       }),
     });
 
@@ -1307,7 +1320,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-            positions: [],
+      positions: [],
     });
 
     const seat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
@@ -1420,14 +1433,15 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       calculateTradingDurationMsBetween,
       getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
       marketDataClient: createMarketDataClientDouble({
-        getQuotes: async (symbols) => new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
+        getQuotes: async (symbols) =>
+          new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
       }),
     });
 
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-            positions: [],
+      positions: [],
     });
     expect(machine.hasPendingSwitch('LONG')).toBeTrue();
     expect(symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('SWITCHING');
@@ -1435,7 +1449,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-            positions: [],
+      positions: [],
     });
 
     expect(machine.hasPendingSwitch('LONG')).toBeFalse();
@@ -1567,14 +1581,15 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       calculateTradingDurationMsBetween,
       getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
       marketDataClient: createMarketDataClientDouble({
-        getQuotes: async (symbols) => new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
+        getQuotes: async (symbols) =>
+          new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
       }),
     });
 
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-            positions: [],
+      positions: [],
     });
     expect(executedActions).toHaveLength(0);
 
@@ -1582,7 +1597,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-            positions: [
+      positions: [
         {
           symbol: 'OLD_BULL.HK',
           quantity: 100,
@@ -1601,7 +1616,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-            positions: [],
+      positions: [],
     });
     expect(executedActions).toEqual(['SELLCALL', 'BUYCALL']);
     expect(symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVATING');
@@ -1721,7 +1736,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-            positions: [
+      positions: [
         {
           symbol: 'OLD_BULL.HK',
           quantity: 100,
@@ -1740,7 +1755,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-            positions: [],
+      positions: [],
     });
     expect(executedActions).toEqual(['SELLCALL']);
     expect(machine.hasPendingSwitch('LONG')).toBeTrue();
@@ -1840,13 +1855,14 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       calculateTradingDurationMsBetween,
       getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
       marketDataClient: createMarketDataClientDouble({
-        getQuotes: async (symbols) => new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
+        getQuotes: async (symbols) =>
+          new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
       }),
     });
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-            positions: [
+      positions: [
         {
           symbol: 'OLD_BULL.HK',
           quantity: 100,
@@ -1866,7 +1882,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-            positions: [],
+      positions: [],
     });
 
     expect(executedActions).toEqual(['SELLCALL', 'BUYCALL']);
@@ -1978,14 +1994,15 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         calculateTradingDurationMsBetween,
         getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
         marketDataClient: createMarketDataClientDouble({
-          getQuotes: async (symbols) => new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
+          getQuotes: async (symbols) =>
+            new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
         }),
       });
 
       await machine.maybeSwitchOnDistance({
         direction: 'LONG',
         monitorPrice: 20_000,
-                positions: [
+        positions: [
           {
             symbol: 'OLD_BULL.HK',
             quantity: 100,
@@ -2005,7 +2022,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         await machine.maybeSwitchOnDistance({
           direction: 'LONG',
           monitorPrice: 20_000,
-                    positions: [],
+          positions: [],
         });
       } catch (error) {
         caught = error;
@@ -2096,13 +2113,14 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       calculateTradingDurationMsBetween,
       getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
       marketDataClient: createMarketDataClientDouble({
-        getQuotes: async (symbols) => new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
+        getQuotes: async (symbols) =>
+          new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
       }),
     });
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-            positions: [
+      positions: [
         {
           symbol: 'OLD_BULL.HK',
           quantity: 100,
@@ -2119,7 +2137,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-            positions: [],
+      positions: [],
     });
     expect(executedActions).toEqual(['SELLCALL']);
     const longSeat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
@@ -2197,13 +2215,14 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       calculateTradingDurationMsBetween,
       getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
       marketDataClient: createMarketDataClientDouble({
-        getQuotes: async (symbols) => new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
+        getQuotes: async (symbols) =>
+          new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
       }),
     });
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
       monitorPrice: 20_000,
-            positions: [],
+      positions: [],
     });
 
     const seat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
@@ -2292,13 +2311,14 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       calculateTradingDurationMsBetween,
       getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
       marketDataClient: createMarketDataClientDouble({
-        getQuotes: async (symbols) => new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
+        getQuotes: async (symbols) =>
+          new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
       }),
     });
     await machine.maybeSwitchOnDistance({
       direction: 'SHORT',
       monitorPrice: 20_000,
-            positions: [],
+      positions: [],
     });
 
     const seat = symbolRegistry.getSeatState('HSI.HK', 'SHORT');

@@ -210,7 +210,10 @@ async function rebuildUnrealizedLossCache(
 /**
  * 在重建完成后，将已完成 admission 与缓存初始化的 seat 统一推进到 ACTIVE。
  */
-function activateRebuiltSeats(monitorContexts: ReadonlyMap<string, MonitorContext>, nowMs: number): void {
+function activateRebuiltSeats(
+  monitorContexts: ReadonlyMap<string, MonitorContext>,
+  nowMs: number,
+): void {
   for (const monitorContext of monitorContexts.values()) {
     const monitorSymbol = monitorContext.config.monitorSymbol;
     for (const direction of ['LONG', 'SHORT'] as const) {

@@ -219,7 +219,6 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
 
   return {
     canTradeNow: buyThrottle.canTradeNow,
-    markBuyAttempt: buyThrottle.markBuyAttempt,
     executeSignals,
     resetBuyThrottle: buyThrottle.resetBuyThrottle,
   };

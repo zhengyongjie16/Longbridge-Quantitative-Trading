@@ -24,8 +24,7 @@
 
 1. 对同一份 K 线输入序列，在同一个处理时刻：
    - 旧实现的全量 `buildIndicatorSnapshot(...)`
-   - 新实现的 `bootstrap + 增量推进 + buildSnapshotFromRuntime(...)`
-   输出的 `IndicatorSnapshot` 必须一致。
+   - 新实现的 `bootstrap + 增量推进 + buildSnapshotFromRuntime(...)` 输出的 `IndicatorSnapshot` 必须一致。
 2. 不仅最终一拍要一致，运行过程中的每一拍也必须一致，包括：
    - bootstrap 初始拍
    - 同一活动 bar 的连续未收线更新
@@ -54,13 +53,13 @@
 3. 对同一输入序列做逐拍对拍。
 4. 只有全部通过后，才允许移除运行期对旧全量路径的依赖并宣告交付。
 
-1. **主循环仍然是业务推进时钟**：生命周期、交易门禁、末日保护、自动换标、风险任务、订单监控与成交后刷新都继续由主循环/现有异步处理器驱动，不能把指标与信号推进改成新的事件直驱业务总线。
-2. **`setOnCandlestick` 只负责更新本地 K 线缓存**：不在 push 回调中直接做指标计算、信号生成或 `indicatorCache.push(...)`。主循环每秒消费缓存，本身就相当于 1 秒节流。
-3. **`indicatorCache` 必须保持“每秒采样”语义**：即使本秒 K 线缓存没有变化，也要继续把 `lastMonitorSnapshot` 按当前采样时间写入 `indicatorCache`，避免延迟验证出现时间序列空窗。
-4. **`indicatorCache` 的时间戳不能改成 K 线 `timestamp`**：延迟验证依赖的是触发时刻之后的真实时间轴，而不是 bar 所属时间轴。K 线时间只能用于识别活动 bar、确认收线和日志展示。
-5. **K 线本地缓存必须记录 `isConfirmed` 的最后状态**：仅存 candles 数组不够。若同一根 bar 在主循环两拍之间发生 `false -> true` 变化，而下一根 bar 尚未 append，主循环必须能识别“同 timestamp 的收线确认”。
-6. **运行期只能有一套指标推进语义**：允许 bootstrap 阶段从完整 candles 建立一次稳定状态；bootstrap 之后必须只走增量推进，不允许运行时继续随机回退到整批全量重算。
-7. **必须覆盖“confirmed 与下一根新 bar 在同一秒内都到达”的场景**：主循环下一拍只看到最终缓存快照时，仍需通过“timestamp 前进 + confirmed 状态”正确推导出移位与新活动 bar 初始化。
+5. **主循环仍然是业务推进时钟**：生命周期、交易门禁、末日保护、自动换标、风险任务、订单监控与成交后刷新都继续由主循环/现有异步处理器驱动，不能把指标与信号推进改成新的事件直驱业务总线。
+6. **`setOnCandlestick` 只负责更新本地 K 线缓存**：不在 push 回调中直接做指标计算、信号生成或 `indicatorCache.push(...)`。主循环每秒消费缓存，本身就相当于 1 秒节流。
+7. **`indicatorCache` 必须保持“每秒采样”语义**：即使本秒 K 线缓存没有变化，也要继续把 `lastMonitorSnapshot` 按当前采样时间写入 `indicatorCache`，避免延迟验证出现时间序列空窗。
+8. **`indicatorCache` 的时间戳不能改成 K 线 `timestamp`**：延迟验证依赖的是触发时刻之后的真实时间轴，而不是 bar 所属时间轴。K 线时间只能用于识别活动 bar、确认收线和日志展示。
+9. **K 线本地缓存必须记录 `isConfirmed` 的最后状态**：仅存 candles 数组不够。若同一根 bar 在主循环两拍之间发生 `false -> true` 变化，而下一根 bar 尚未 append，主循环必须能识别“同 timestamp 的收线确认”。
+10. **运行期只能有一套指标推进语义**：允许 bootstrap 阶段从完整 candles 建立一次稳定状态；bootstrap 之后必须只走增量推进，不允许运行时继续随机回退到整批全量重算。
+11. **必须覆盖“confirmed 与下一根新 bar 在同一秒内都到达”的场景**：主循环下一拍只看到最终缓存快照时，仍需通过“timestamp 前进 + confirmed 状态”正确推导出移位与新活动 bar 初始化。
 
 ---
 
@@ -137,7 +136,6 @@ export type CandlestickCacheSnapshot = {
   readonly period: Period;
   readonly version: number;
   readonly candles: ReadonlyArray<CandleData>;
-  readonly lastEventAt: number;
   readonly lastBarTimestamp: number | null;
   readonly lastBarConfirmed: boolean | null;
   readonly initialized: boolean;
@@ -158,7 +156,9 @@ lastCandlestickCacheVersion: number | null;
 1. bootstrap 后的稳定闭合状态。
 2. 当前活动 bar 的增量推导状态。
 3. 上一次处理的 `lastBarTimestamp` 与 `lastBarConfirmed`。
-4. 最近一次成功构造出的 `IndicatorSnapshot`。
+4. 最近一个有效 close / 上一个有效 close，以及构造对外 `IndicatorSnapshot` 所需的最小内部状态。
+
+`lastMonitorSnapshot` 继续作为 `MonitorState` 上的对外缓存存在；**`IndicatorIncrementalRuntime` 本身不保存 `IndicatorSnapshot` 或任何对象池快照对象。**
 
 ### 2.4 `indicatorCache` 保持的语义
 
@@ -205,7 +205,9 @@ lastCandlestickCacheVersion: number | null;
 1. `price` 取 **最后一个有效 close**。
 2. `changePercent` 取 **最后两个有效 close 的相对变化**。
 
-它**不是**基于 `monitorQuote.prevClose` 计算，也不是日级涨跌幅。
+这里约束的是 **`IndicatorSnapshot` 自身字段语义**。它**不是**基于 `monitorQuote.prevClose` 计算，也不是日级涨跌幅。
+
+同时必须保持另一个边界不变：**`marketMonitor` 用于展示与变化检测的 `changePercent` 仍继续基于 `monitorQuote.prevClose` 计算，本次重构不改变该业务口径。**
 
 因此增量运行态必须显式保留：
 
@@ -215,8 +217,11 @@ lastCandlestickCacheVersion: number | null;
 由此构造：
 
 ```ts
-price = lastValidClose
-changePercent = previousValidClose === null ? null : ((lastValidClose - previousValidClose) / previousValidClose) * 100
+price = lastValidClose;
+changePercent =
+  previousValidClose === null
+    ? null
+    : ((lastValidClose - previousValidClose) / previousValidClose) * 100;
 ```
 
 #### 2.5.4 各指标必须严格复刻当前实现的 seed / rounding / invalid 规则
@@ -287,6 +292,7 @@ bootstrap 后的运行期，如果发现某个指标当前状态不足以精确 
 ### Task 1: 建立本地 K 线缓存并接入 `setOnCandlestick`
 
 **Files:**
+
 - Create: `src/services/quoteClient/candlestickCache.ts`
 - Modify: `src/services/quoteClient/types.ts`
 - Modify: `src/services/quoteClient/index.ts:1-708`
@@ -325,8 +331,7 @@ it('appends next bar when push timestamp advances', async () => {
 
 - [ ] **Step 2: Run quoteClient tests to verify they fail**
 
-Run: `bun test tests/services/quoteClient/business.test.ts`
-Expected: FAIL，提示 `MarketDataClient` 缺少 K 线缓存读取接口，或 `QuoteContextLike` 缺少 `setOnCandlestick`，或相关断言失败。
+Run: `bun test tests/services/quoteClient/business.test.ts` Expected: FAIL，提示 `MarketDataClient` 缺少 K 线缓存读取接口，或 `QuoteContextLike` 缺少 `setOnCandlestick`，或相关断言失败。
 
 - [ ] **Step 3: Add K 线缓存类型与 `QuoteContextLike` push callback 能力**
 
@@ -358,11 +363,11 @@ readonly setOnCandlestick: (
 实现缓存 helper，至少包含：
 
 ```ts
-createCandlestickCacheStore()
-seedCandlestickSeries(params)
-applyCandlestickPush(params)
-getCandlestickSnapshot(symbol, period)
-clearCandlestickSnapshots()
+createCandlestickCacheStore();
+seedCandlestickSeries(params);
+applyCandlestickPush(params);
+getCandlestickSnapshot(symbol, period);
+clearCandlestickSnapshots();
 ```
 
 规则必须固定：
@@ -370,8 +375,8 @@ clearCandlestickSnapshots()
 1. 同 timestamp：replace 最后一根，并更新 `lastBarConfirmed`。
 2. 更大 timestamp：append 新 bar，必要时裁剪最旧 bar。
 3. 更小 timestamp：忽略旧事件。
-4. 每次有效更新都返回新的只读快照对象，`version += 1`。
-5. 对“同 timestamp + `isConfirmed=true` 的重复 push”必须是幂等的：允许缓存版本递增，但不能在后续指标运行态里导致重复 commit / 重复移位。
+4. 仅当缓存语义发生变化（最后一根内容变化，或 `lastBarConfirmed` 首次发生状态变化）时，才返回新的只读快照对象并执行 `version += 1`。
+5. 对“同 timestamp + `isConfirmed=true` 的重复 push”必须保持完全幂等：若缓存内容与确认状态均未变化，则不更新快照、也不递增 `version`。
 
 - [ ] **Step 5: Wire `quoteClient` to seed and update the local candlestick cache**
 
@@ -391,16 +396,15 @@ getCandlestickSnapshot(symbol: string, period: Period): CandlestickCacheSnapshot
 
 在 `resetRuntimeSubscriptionsAndCaches()` 路径中，确保：
 
-1. 仅对“成功退订”的 candlestick key 清空本地缓存；退订失败的 key 必须与 `subscribedCandlesticks` 保持一致，避免留下“订阅仍保留但缓存被清空且后续无法重新 seed”的半状态。
-2. 若同一 key 因 reset 退订失败而仍处于订阅集合，后续重建路径必须能够重新补种子，不能因为 dedup 直接返回空数组而跳过 seed。
+1. 仅对“成功退订”的 candlestick key 清空本地缓存；退订失败的 key 必须同时保留于 `subscribedCandlesticks` 与本地缓存，避免留下“订阅仍保留但缓存被清空且后续无法重新 seed”的半状态。
+2. 本方案固定采用**单一路径**：reset 退订失败时保留原缓存，不引入“已订阅但缓存缺失时强制 reseed”的兼容分支。
 3. 午夜清理测试能观察到：
    - 成功退订的 key 被清空；
-   - 失败保留的 key 不会进入错误的空缓存半状态。
+   - 失败保留的 key 同时保留订阅状态与既有缓存，不会进入空缓存半状态。
 
 - [ ] **Step 7: Run targeted tests for quoteClient and lifecycle wiring**
 
-Run: `bun test tests/services/quoteClient/business.test.ts tests/main/lifecycle/loadTradingDayRuntimeSnapshot.test.ts tests/main/lifecycle/cacheDomains/marketDataDomain.test.ts`
-Expected: PASS
+Run: `bun test tests/services/quoteClient/business.test.ts tests/main/lifecycle/loadTradingDayRuntimeSnapshot.test.ts tests/main/lifecycle/cacheDomains/marketDataDomain.test.ts` Expected: PASS
 
 - [ ] **Step 8: Commit**
 
@@ -412,6 +416,7 @@ git commit -m "refactor: cache realtime candlesticks locally"
 ### Task 2: 让主循环从本地 K 线缓存消费，并保持 `indicatorCache` 每秒采样语义
 
 **Files:**
+
 - Modify: `src/types/state.ts:171-208`
 - Modify: `src/main/processMonitor/indicatorPipeline.ts:1-212`
 - Modify: `src/main/processMonitor/types.ts:100-111`
@@ -437,8 +442,7 @@ it('returns null when local candlestick cache is missing or not initialized', as
 
 - [ ] **Step 2: Run indicator pipeline tests to verify they fail**
 
-Run: `bun test tests/main/processMonitor/indicatorPipeline.business.test.ts`
-Expected: FAIL，提示 `marketDataClient` 尚无 `getCandlestickSnapshot` 依赖，或旧逻辑仍在调用 `getRealtimeCandlesticks()`。
+Run: `bun test tests/main/processMonitor/indicatorPipeline.business.test.ts` Expected: FAIL，提示 `marketDataClient` 尚无 `getCandlestickSnapshot` 依赖，或旧逻辑仍在调用 `getRealtimeCandlesticks()`。
 
 - [ ] **Step 3: Extend `MonitorState` with cache-version and incremental runtime fields**
 
@@ -462,7 +466,7 @@ marketDataClient.getRealtimeCandlesticks(...)
 替换为：
 
 ```ts
-marketDataClient.getCandlestickSnapshot(monitorSymbol, TRADING.CANDLE_PERIOD)
+marketDataClient.getCandlestickSnapshot(monitorSymbol, TRADING.CANDLE_PERIOD);
 ```
 
 逻辑固定为：
@@ -492,8 +496,7 @@ marketDataClient.getCandlestickSnapshot(monitorSymbol, TRADING.CANDLE_PERIOD)
 
 - [ ] **Step 7: Run targeted tests for pipeline and delayed verification**
 
-Run: `bun test tests/main/processMonitor/indicatorPipeline.business.test.ts tests/main/processMonitor/index.business.test.ts tests/main/asyncProgram/delayedSignalVerifier/business.test.ts`
-Expected: PASS
+Run: `bun test tests/main/processMonitor/indicatorPipeline.business.test.ts tests/main/processMonitor/index.business.test.ts tests/main/asyncProgram/delayedSignalVerifier/business.test.ts` Expected: PASS
 
 - [ ] **Step 8: Commit**
 
@@ -507,6 +510,7 @@ git commit -m "refactor: consume cached candlesticks in indicator pipeline"
 > **Task gate:** 这一任务完成的判定标准不是“bootstrap 跑起来”，而是“bootstrap 结果已经能作为旧全量实现的等价基准参与对拍”。若对拍不通过，则本任务不得标记完成。
 
 **Files:**
+
 - Modify: `src/services/indicators/runtime/types.ts:1-72`
 - Modify: `src/services/indicators/runtime/index.ts:1-170`
 - Modify: `src/services/indicators/runtime/{ema,rsi,psy,mfi,kdj,macd,adx}.ts`
@@ -541,8 +545,7 @@ it('matches current rounding and invalid-value semantics for RSI/MFI/ADX and non
 
 - [ ] **Step 2: Run runtime tests to verify they fail**
 
-Run: `bun test tests/services/indicators/runtime/index.business.test.ts tests/services/indicators/runtime/incremental.business.test.ts`
-Expected: FAIL，提示 bootstrap / snapshot-build 新 API 尚不存在。
+Run: `bun test tests/services/indicators/runtime/index.business.test.ts tests/services/indicators/runtime/incremental.business.test.ts` Expected: FAIL，提示 bootstrap / snapshot-build 新 API 尚不存在。
 
 - [ ] **Step 3: Define top-level incremental runtime state in `types.ts`**
 
@@ -555,8 +558,8 @@ export type IndicatorIncrementalRuntime = {
   readonly closedBarTimestamp: number | null;
   readonly activeBarTimestamp: number | null;
   readonly activeBarConfirmed: boolean | null;
-  readonly lastSnapshot: IndicatorSnapshot | null;
-  // 各指标子状态
+  // 最近两个有效 close 与各指标最小内部状态
+  // 不保存 IndicatorSnapshot 或任何对象池快照对象
 };
 ```
 
@@ -570,14 +573,14 @@ export type IndicatorIncrementalRuntime = {
 在 `src/services/indicators/runtime/index.ts` 中实现：
 
 ```ts
-bootstrapIndicatorRuntime(symbol, candles, profile)
-buildSnapshotFromRuntime(runtime)
+bootstrapIndicatorRuntime(symbol, candles, profile);
+buildSnapshotFromRuntime(runtime);
 ```
 
 规则：
 
 1. bootstrap 允许遍历完整 candles。
-2. bootstrap 完成后得到的 `lastSnapshot` 必须与旧 `buildIndicatorSnapshot(...)` 等价。
+2. bootstrap 完成后，通过 `buildSnapshotFromRuntime(runtime)` 构造出的 `IndicatorSnapshot` 必须与旧 `buildIndicatorSnapshot(...)` 等价。
 3. bootstrap 必须同时建立：
    - committed indicator states
    - 最近两个有效 close 的语义状态
@@ -598,8 +601,7 @@ buildSnapshotFromRuntime(runtime)
 
 - [ ] **Step 6: Run bootstrap equivalence tests**
 
-Run: `bun test tests/services/indicators/runtime/index.business.test.ts tests/services/indicators/runtime/incremental.business.test.ts`
-Expected: PASS，且含义必须明确为：bootstrap runtime 构造出的 `IndicatorSnapshot` 与当前全量 `buildIndicatorSnapshot(...)` 对同一输入完全一致；若只是“数值接近”，不能视为通过。
+Run: `bun test tests/services/indicators/runtime/index.business.test.ts tests/services/indicators/runtime/incremental.business.test.ts` Expected: PASS，且含义必须明确为：bootstrap runtime 构造出的 `IndicatorSnapshot` 与当前全量 `buildIndicatorSnapshot(...)` 对同一输入完全一致；若只是“数值接近”，不能视为通过。
 
 - [ ] **Step 7: Commit**
 
@@ -613,6 +615,7 @@ git commit -m "refactor: bootstrap incremental indicator runtime"
 > **Task gate:** 这一任务完成的判定标准不是“运行期改成增量推进”，而是“所有运行期增量拍都能与当前全量实现逐拍对拍一致”。若任一指标、任一边界场景不一致，则不得标记完成。
 
 **Files:**
+
 - Modify: `src/services/indicators/runtime/index.ts`
 - Modify: `src/services/indicators/runtime/{ema,rsi,psy,mfi,kdj,macd,adx}.ts`
 - Modify: `src/main/processMonitor/indicatorPipeline.ts`
@@ -647,15 +650,14 @@ it('shifts to next bar when timestamp advances within one main-loop interval', (
 
 - [ ] **Step 2: Run incremental tests to verify they fail**
 
-Run: `bun test tests/services/indicators/runtime/incremental.business.test.ts`
-Expected: FAIL，提示 active-update / confirmed-shift API 尚不存在或结果不一致。
+Run: `bun test tests/services/indicators/runtime/incremental.business.test.ts` Expected: FAIL，提示 active-update / confirmed-shift API 尚不存在或结果不一致。
 
 - [ ] **Step 3: Implement runtime transitions in `runtime/index.ts`**
 
 新增主入口：
 
 ```ts
-updateRuntimeForCandlestickSnapshot(runtime, cacheSnapshot)
+updateRuntimeForCandlestickSnapshot(runtime, cacheSnapshot);
 ```
 
 内部必须明确处理三类分支：
@@ -695,8 +697,7 @@ updateRuntimeForCandlestickSnapshot(runtime, cacheSnapshot)
 
 - [ ] **Step 6: Run targeted runtime and pipeline tests**
 
-Run: `bun test tests/services/indicators/runtime/incremental.business.test.ts tests/main/processMonitor/indicatorPipeline.business.test.ts`
-Expected: PASS，且含义必须明确为：活动 bar preview、confirmed commit、同秒 shift 等所有运行期增量拍，与“此刻若调用当前全量实现重算”的结果逐拍一致。
+Run: `bun test tests/services/indicators/runtime/incremental.business.test.ts tests/main/processMonitor/indicatorPipeline.business.test.ts` Expected: PASS，且含义必须明确为：活动 bar preview、confirmed commit、同秒 shift 等所有运行期增量拍，与“此刻若调用当前全量实现重算”的结果逐拍一致。
 
 - [ ] **Step 7: Commit**
 
@@ -708,6 +709,7 @@ git commit -m "refactor: incrementally update realtime indicator snapshots"
 ### Task 5: 做全链路回归验证并清理旧短路语义
 
 **Files:**
+
 - Modify: `src/main/processMonitor/indicatorPipeline.ts:1-212`
 - Modify: `src/types/state.ts:177-208`
 - Modify: `src/main/lifecycle/cacheDomains/globalStateDomain.ts:1-77`
@@ -733,32 +735,34 @@ it('ignores out-of-order candlestick push events without regressing local series
 it('does not duplicate signal generation when multiple push updates collapse into one main-loop tick', () => {
   // 多次 push -> 主循环一拍只消费最终状态
 });
+
+it('does not duplicate downstream side effects when confirmed push is replayed with unchanged cache semantics', () => {
+  // 重复 confirmed push 若未改变缓存语义，则不递增 version
+  // 不重复触发 runtime commit、signal generation 与 monitor side effects
+});
 ```
 
-并新增独立 chaos 文件 `tests/chaos/candlestick-websocket-out-of-order.test.ts`，不要复用现有订单 WS 乱序测试文件，避免语义混杂。
+并新增独立 chaos 文件 `tests/chaos/candlestick-websocket-out-of-order.test.ts`，不要复用现有订单 WS 乱序测试文件，避免语义混杂。该文件名必须在后续测试命令与提交清单中保持一致。
 
 - [ ] **Step 2: Remove stale fingerprint-only short-circuit assumptions**
 
 清理或收缩旧语义：
 
-1. `lastCandleFingerprint` 不再作为运行期的主判定依据。
-2. 若保留，只允许用于调试或兼容断言，不得继续主导是否重算。
-3. 运行期主短路条件固定为 `lastCandlestickCacheVersion`。
+1. 删除 `lastCandleFingerprint` 运行态字段及其相关短路逻辑，不保留调试或兼容断言分支。
+2. 运行期主短路条件固定为 `lastCandlestickCacheVersion`。
 
 - [ ] **Step 3: Run focused regressions and integration tests**
 
-Run: `bun test tests/main/asyncProgram/delayedSignalVerifier/business.test.ts tests/integration/main-program-strict.integration.test.ts tests/integration/full-business-simulation.integration.test.ts tests/chaos/websocket-out-of-order.test.ts`
-Expected: PASS
+Run: `bun test tests/main/asyncProgram/delayedSignalVerifier/business.test.ts tests/integration/main-program-strict.integration.test.ts tests/integration/full-business-simulation.integration.test.ts tests/chaos/candlestick-websocket-out-of-order.test.ts` Expected: PASS
 
 - [ ] **Step 4: Run project-wide quality gates**
 
-Run: `bun lint && bun type-check`
-Expected: PASS
+Run: `bun lint && bun type-check` Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/main/processMonitor/indicatorPipeline.ts src/types/state.ts tests/main/asyncProgram/delayedSignalVerifier/business.test.ts tests/integration/main-program-strict.integration.test.ts tests/integration/full-business-simulation.integration.test.ts tests/chaos/websocket-out-of-order.test.ts
+git add src/main/processMonitor/indicatorPipeline.ts src/types/state.ts tests/main/asyncProgram/delayedSignalVerifier/business.test.ts tests/integration/main-program-strict.integration.test.ts tests/integration/full-business-simulation.integration.test.ts tests/chaos/candlestick-websocket-out-of-order.test.ts
 git commit -m "test: cover candlestick cache incremental runtime regressions"
 ```
 
@@ -833,7 +837,6 @@ git commit -m "test: cover candlestick cache incremental runtime regressions"
 - [ ] 整体 `IndicatorSnapshot` 对拍通过。
 - [ ] 任一指标若未能证明与当前全量实现一致，则本次重构不得宣告完成。
 
-
 - [ ] `setOnCandlestick` 仅更新本地缓存，不做业务推进。
 - [ ] 同一输入序列下，增量计算产出的每一拍 `IndicatorSnapshot` 与当前全量实现逐拍一致。
 - [ ] `subscribeCandlesticks(...)` 返回的初始 candles 已种子化到本地缓存。
@@ -859,4 +862,5 @@ git commit -m "test: cover candlestick cache incremental runtime regressions"
 2. 每完成一个任务都要做对拍测试，尤其是 incremental runtime 与旧全量 snapshot 的等价性测试。
 3. 运行期一旦切入增量状态后，不要再在主路径保留“version 变化时直接整批全量重算”的回退逻辑；这会把运行时语义重新分裂成双轨。
 4. 若发现个别指标当前无法在一次任务中稳定实现增量状态，应停下来重新审视状态设计，而不是临时把该指标留在运行期全量分支中。
-5. 最终验收以“业务语义不变 + 指标结果与旧实现等价 + 延迟验证无采样空窗 + 主循环仍为统一业务时钟”为准。
+5. 方案实现必须坚持最短路径：只引入支撑缓存消费、增量推进和严格对拍所必需的状态与测试，不额外引入新的事件节流器、兼容 reseed 分支、调试型双判定机制或与本次链路无关的抽象层。
+6. 最终验收以“业务语义不变 + 指标结果与旧实现等价 + 延迟验证无采样空窗 + 主循环仍为统一业务时钟”为准。

@@ -406,7 +406,9 @@ export async function createMarketDataClient(
         );
       }
 
-      const symbolsNeedingPrevClose = symbolsNeedingMetadata.filter((symbol) => !prevCloseCache.has(symbol));
+      const symbolsNeedingPrevClose = symbolsNeedingMetadata.filter(
+        (symbol) => !prevCloseCache.has(symbol),
+      );
       if (symbolsNeedingPrevClose.length > 0) {
         const initialQuotes = await withRetry(() => ctx.quote(symbolsNeedingPrevClose));
         const initializedPrevCloseBySymbol = new Map<string, number>();

@@ -713,7 +713,6 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
 
       const quote = await getNextQuote();
       if (!isQuoteReadyForRebuy(quote)) {
-
         advanceQuoteRetryState(state, now().getTime());
         if (state.quoteRetryExhausted) {
           failAndClear('QUOTE_RETRY_EXHAUSTED:WAIT_QUOTE');
@@ -1003,8 +1002,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
 
     await startSwitchFlow({
       reason: '距回收价阈值越界',
-      triggerKind:
-        distanceTriggerSide === 'SAFE' ? 'DISTANCE_SAFE_SIDE' : 'DISTANCE_DANGER_SIDE',
+      triggerKind: distanceTriggerSide === 'SAFE' ? 'DISTANCE_SAFE_SIDE' : 'DISTANCE_DANGER_SIDE',
       distanceContext: { direction, monitorPrice, positions },
     });
   }

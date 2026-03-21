@@ -9,7 +9,8 @@
 import { logger } from '../../../../utils/logger/index.js';
 import type { LastState } from '../../../../types/state.js';
 import type { RefreshGate } from '../../../../utils/types.js';
-import type { MonitorTask } from '../../monitorTaskQueue/types.js';import type {
+import type { MonitorTask } from '../../monitorTaskQueue/types.js';
+import type {
   AutoSymbolSwitchDistanceTaskData,
   AutoSymbolTickTaskData,
   MonitorTaskContext,

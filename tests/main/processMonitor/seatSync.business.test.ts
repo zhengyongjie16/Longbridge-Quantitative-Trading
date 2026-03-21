@@ -174,14 +174,14 @@ describe('seatSync business flow', () => {
     expect(monitorTaskQueue.isEmpty()).toBeTrue();
   });
 
-  it('schedules SEAT_REFRESH tasks when activating seats switch symbols', () => {
+  it('schedules SEAT_REFRESH when registry updates seat from ACTIVE to ACTIVATING after snapshot capture', () => {
     const monitorSymbol = 'HSI.HK';
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol,
       longSeat: {
-        symbol: 'NEW_BULL.HK',
-        status: 'ACTIVATING',
-        callPrice: 21000,
+        symbol: 'OLD_BULL.HK',
+        status: 'ACTIVE',
+        callPrice: null,
         lastSwitchAt: null,
         lastSearchAt: null,
         lastSeatActivatedAt: null,
@@ -189,9 +189,9 @@ describe('seatSync business flow', () => {
         frozenTradingDayKey: null,
       },
       shortSeat: {
-        symbol: 'NEW_BEAR.HK',
-        status: 'ACTIVATING',
-        callPrice: 19000,
+        symbol: 'OLD_BEAR.HK',
+        status: 'ACTIVE',
+        callPrice: null,
         lastSwitchAt: null,
         lastSearchAt: null,
         lastSeatActivatedAt: null,
@@ -202,6 +202,30 @@ describe('seatSync business flow', () => {
       shortVersion: 6,
     });
 
+    const previousLongSeat = symbolRegistry.getSeatState(monitorSymbol, 'LONG');
+    const previousShortSeat = symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
+    symbolRegistry.updateSeatState(monitorSymbol, 'LONG', {
+      symbol: 'NEW_BULL.HK',
+      status: 'ACTIVATING',
+      callPrice: 21000,
+      lastSwitchAt: null,
+      lastSearchAt: null,
+      lastSeatActivatedAt: null,
+      searchFailCountToday: 0,
+      frozenTradingDayKey: null,
+    });
+
+    symbolRegistry.updateSeatState(monitorSymbol, 'SHORT', {
+      symbol: 'NEW_BEAR.HK',
+      status: 'ACTIVATING',
+      callPrice: 19000,
+      lastSwitchAt: null,
+      lastSearchAt: null,
+      lastSeatActivatedAt: null,
+      searchFailCountToday: 0,
+      frozenTradingDayKey: null,
+    });
+
     const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const monitorContext = {
       riskChecker: createRiskCheckerDouble(),
@@ -210,24 +234,8 @@ describe('seatSync business flow', () => {
       },
       symbolRegistry,
       seatState: {
-        long: {
-          symbol: 'OLD_BULL.HK',
-          status: 'ACTIVE',
-          lastSwitchAt: null,
-          lastSearchAt: null,
-          lastSeatActivatedAt: null,
-          searchFailCountToday: 0,
-          frozenTradingDayKey: null,
-        },
-        short: {
-          symbol: 'OLD_BEAR.HK',
-          status: 'ACTIVE',
-          lastSwitchAt: null,
-          lastSearchAt: null,
-          lastSeatActivatedAt: null,
-          searchFailCountToday: 0,
-          frozenTradingDayKey: null,
-        },
+        long: previousLongSeat,
+        short: previousShortSeat,
       },
       seatVersion: { long: 1, short: 1 },
       longSymbolName: 'OLD_BULL',

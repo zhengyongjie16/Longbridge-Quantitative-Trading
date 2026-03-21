@@ -197,7 +197,6 @@ describe('multi-monitor-concurrency integration', () => {
         hasPendingProtectiveLiquidationOrders: () => false,
         initializeOrderMonitor: async () => {},
         canTradeNow: () => ({ canTrade: true }),
-        recordBuyAttempt: () => {},
         fetchAllOrdersFromAPI: async () => [],
         resetRuntimeState: () => {},
         recoverOrderTrackingFromSnapshot: async () => {},

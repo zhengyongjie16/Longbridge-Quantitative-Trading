@@ -3,7 +3,7 @@
  *
  * 职责：
  * - 维护买入频率限制运行态（lastBuyTime）
- * - 提供 canTradeNow / markBuyAttempt / resetBuyThrottle
+ * - 提供 canTradeNow / updateLastBuyTime / resetBuyThrottle
  * - 向提交流程暴露 updateLastBuyTime 复用同一状态源
  */
 import { TIME } from '../../../constants/index.js';
@@ -72,17 +72,6 @@ export function createBuyThrottle(): BuyThrottle {
   }
 
   /**
-   * 预占买入时间槽，防同批次重复通过频率检查。
-   *
-   * @param signalAction 信号动作
-   * @param monitorConfig 监控配置
-   * @returns 无返回值
-   */
-  function markBuyAttempt(signalAction: SignalType, monitorConfig?: MonitorConfig | null): void {
-    updateLastBuyTime(signalAction, monitorConfig);
-  }
-
-  /**
    * 清空买入节流状态。
    *
    * @returns 无返回值
@@ -93,7 +82,6 @@ export function createBuyThrottle(): BuyThrottle {
 
   return {
     canTradeNow,
-    markBuyAttempt,
     resetBuyThrottle,
     updateLastBuyTime,
   };

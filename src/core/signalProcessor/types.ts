@@ -10,9 +10,9 @@ import type { TradingCalendarSnapshot } from '../../types/tradingCalendar.js';
 
 /**
  * 卖出上下文校验结果（联合类型）。
- * 类型用途：卖出前校验的返回类型，valid=true 时包含可用数量与当前价，valid=false 时包含失败原因。
- * 数据来源：如适用（由卖出流程中的校验逻辑构造）。
- * 使用范围：仅 signalProcessor 模块内部使用。
+ * 类型用途：描述卖出前上下文校验结果，成功时携带可用数量与当前价，失败时携带拒绝原因。
+ * 数据来源：由 signalProcessor 卖出前校验逻辑构造。
+ * 使用范围：仅 signalProcessor 模块内部与其直接调用方使用。
  */
 export type SellContextValidationResult =
   | {
@@ -26,10 +26,10 @@ export type SellContextValidationResult =
     };
 
 /**
- * 卖出信号处理参数。
- * 类型用途：processSellSignals 的对象入参，统一承载卖出计算所需上下文（行情/持仓/配置/时间快照）。
- * 数据来源：sellProcessor 组装并传入。
- * 使用范围：仅 signalProcessor 模块内部与调用方使用。
+ * 卖出信号处理入参。
+ * 类型用途：统一承载 processSellSignals 卖出数量计算所需的行情、持仓、订单记录与时间上下文。
+ * 数据来源：由卖出处理链路在调用前组装。
+ * 使用范围：signalProcessor 模块与调用方之间的参数契约。
  */
 export type ProcessSellSignalsParams = {
   readonly signals: Signal[];
@@ -49,9 +49,9 @@ export type ProcessSellSignalsParams = {
 
 /**
  * 信号处理器接口。
- * 类型用途：依赖注入，负责卖出信号的数量计算与买入信号的风险检查（含冷却、频率、牛熊证等）。
- * 数据来源：如适用。
- * 使用范围：主程序持有并调用；仅 signalProcessor 模块实现。
+ * 类型用途：定义卖出数量计算与买入/卖出信号风险检查能力，供主程序依赖注入。
+ * 数据来源：由 createSignalProcessor 工厂实现并返回。
+ * 使用范围：主程序与异步处理器通过该接口调用 signalProcessor 能力。
  */
 export interface SignalProcessor {
   /**
@@ -61,8 +61,11 @@ export interface SignalProcessor {
   processSellSignals: (params: ProcessSellSignalsParams) => Signal[];
 
   /**
-   * 对信号列表应用风险检查
-   * 检查顺序：验证冷却 → 交易频率 → 监控标的级清仓冷却 → 买入价格限制 → 末日保护 → 牛熊证风险 → 基础风险
+   * 对信号列表应用风险检查。
+   * 买入轻检查顺序：风险检查冷却 → 交易频率 → 清仓冷却 → 买入价格限制 → 末日保护 → 牛熊证风险。
+   * 仅当上述轻检查全部通过后，才实时拉取账户/持仓并执行基础风险检查。
+   * 风险检查阶段不会刷新买入频率状态，即不会在此阶段记录买入尝试。
+   * 卖出路径继续使用缓存上下文 context.account/context.positions 执行基础风险检查。
    */
   applyRiskChecks: (signals: Signal[], context: RiskCheckContext) => Promise<Signal[]>;
 
@@ -76,10 +79,10 @@ export interface SignalProcessor {
 // ==================== 依赖类型定义 ====================
 
 /**
- * 信号处理器依赖类型。
- * 类型用途：创建 SignalProcessor 时的依赖注入，包含全局交易配置与清仓冷却追踪等。
- * 数据来源：如适用。
- * 使用范围：见调用方（如主程序/processMonitor）。
+ * 创建 SignalProcessor 所需依赖。
+ * 类型用途：约束 createSignalProcessor 的依赖注入形状。
+ * 数据来源：由 app 组装层在启动时注入。
+ * 使用范围：仅 signalProcessor 工厂创建阶段使用。
  */
 export type SignalProcessorDeps = {
   readonly tradingConfig: MultiMonitorTradingConfig;
