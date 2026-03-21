@@ -70,6 +70,7 @@ function createHarnessState(): MutableRunAppHarnessState {
     cleanupRegistered: 0,
     mainProgramCalls: 0,
     mainProgramRuntimeGateModes: [],
+    sleepDurations: [],
     validationResult: {
       valid: true,
       warnings: [],
@@ -348,8 +349,9 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
       harnessState.mainProgramRuntimeGateModes.push(params.runtimeGateMode);
       harnessState.events.push('mainProgram');
     },
-    sleep: async () => {
-      harnessState.events.push('sleep');
+    sleep: async (ms) => {
+      harnessState.sleepDurations.push(ms);
+      harnessState.events.push(`sleep:${ms}`);
       throw STOP_AFTER_FIRST_LOOP;
     },
     logger: {
@@ -401,8 +403,9 @@ describe('app runApp assembly', () => {
       'postTradeRefresher.start',
       'registerExitHandlers',
       'mainProgram',
-      'sleep',
+      'sleep:1000',
     ]);
+    expect(harnessState.sleepDurations).toEqual([1000]);
     expect(harnessState.registerDelayedCalls).toBe(1);
     expect(harnessState.cleanupRegistered).toBe(1);
     expect(harnessState.mainProgramCalls).toBe(1);
@@ -436,8 +439,9 @@ describe('app runApp assembly', () => {
       'postTradeRefresher.start',
       'registerExitHandlers',
       'mainProgram',
-      'sleep',
+      'sleep:1000',
     ]);
+    expect(harnessState.sleepDurations).toEqual([1000]);
     expect(harnessState.registerDelayedCalls).toBe(1);
     expect(harnessState.cleanupRegistered).toBe(1);
     expect(harnessState.mainProgramCalls).toBe(1);
@@ -483,5 +487,51 @@ describe('app runApp assembly', () => {
     expect(harnessState.events).toEqual(['loadStartupSnapshot']);
     expect(harnessState.mainProgramCalls).toBe(0);
     expect(harnessState.cleanupRegistered).toBe(0);
+  });
+
+  it('sleeps only for the remaining interval after a short mainProgram run', async () => {
+    const originalDateNow = Date.now;
+    let nowCallIndex = 0;
+    Date.now = () => {
+      nowCallIndex += 1;
+      return nowCallIndex === 1 ? 1_000 : 1_250;
+    };
+    const runApp = createRunApp(createRunAppDeps(harnessState));
+    let caught: unknown = null;
+
+    try {
+      await runApp({ env: {} });
+    } catch (err) {
+      caught = err;
+    } finally {
+      Date.now = originalDateNow;
+    }
+
+    expect(caught).toBe(STOP_AFTER_FIRST_LOOP);
+    expect(harnessState.sleepDurations).toEqual([750]);
+    expect(harnessState.events.at(-1)).toBe('sleep:750');
+  });
+
+  it('starts the next tick immediately when a mainProgram run exceeds the interval', async () => {
+    const originalDateNow = Date.now;
+    let nowCallIndex = 0;
+    Date.now = () => {
+      nowCallIndex += 1;
+      return nowCallIndex === 1 ? 5_000 : 6_250;
+    };
+    const runApp = createRunApp(createRunAppDeps(harnessState));
+    let caught: unknown = null;
+
+    try {
+      await runApp({ env: {} });
+    } catch (err) {
+      caught = err;
+    } finally {
+      Date.now = originalDateNow;
+    }
+
+    expect(caught).toBe(STOP_AFTER_FIRST_LOOP);
+    expect(harnessState.sleepDurations).toEqual([0]);
+    expect(harnessState.events.at(-1)).toBe('sleep:0');
   });
 });

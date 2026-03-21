@@ -45,6 +45,7 @@ export type MutableRunAppHarnessState = {
   cleanupRegistered: number;
   mainProgramCalls: number;
   mainProgramRuntimeGateModes: Array<'strict' | 'skip'>;
+  sleepDurations: number[];
   validationResult: MutableRunAppValidationResult;
 };
 

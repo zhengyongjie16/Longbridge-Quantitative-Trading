@@ -20,6 +20,7 @@ import {
   AUTO_SYMBOL_SEARCH_COOLDOWN_MS,
   PENDING_ORDER_STATUSES,
 } from '../../constants/index.js';
+import type { TradingCalendarDayInfo, TradingCalendarSnapshot } from '../../types/tradingCalendar.js';
 import type {
   AutoSymbolManager,
   AutoSymbolManagerDeps,
@@ -55,7 +56,8 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
   } = deps;
   const now = deps.now ?? (() => new Date());
   const injectedFindBestWarrant = deps.findBestWarrant ?? findBestWarrant;
-  const getTradingCalendarSnapshot = deps.getTradingCalendarSnapshot ?? (() => new Map());
+  const getTradingCalendarSnapshot: () => TradingCalendarSnapshot =
+    deps.getTradingCalendarSnapshot ?? (() => new Map<string, TradingCalendarDayInfo>());
   const monitorSymbol = monitorConfig.monitorSymbol;
   const autoSearchConfig = monitorConfig.autoSearchConfig;
   const switchStates = new Map<'LONG' | 'SHORT', SwitchState>();

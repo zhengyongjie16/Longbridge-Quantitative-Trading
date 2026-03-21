@@ -20,6 +20,7 @@ import type { Logger } from '../../../src/utils/logger/types.js';
 import type {
   PeriodicSwitchPendingState,
   SwitchState,
+  SwitchSuppression,
 } from '../../../src/services/autoSymbolManager/types.js';
 import {
   createWarrantDistanceInfoDouble,
@@ -90,8 +91,8 @@ function createPeriodicHarness(params: HarnessParams): {
     longVersion: 1,
   });
   const switchStates = new Map<'LONG' | 'SHORT', SwitchState>();
-  const switchSuppressions = new Map();
-  const periodicSwitchPending = new Map();
+  const switchSuppressions = new Map<'LONG' | 'SHORT', SwitchSuppression>();
+  const periodicSwitchPending = new Map<'LONG' | 'SHORT', PeriodicSwitchPendingState>();
   const seatStateManager = createSeatStateManager({
     monitorSymbol: 'HSI.HK',
     symbolRegistry,
@@ -762,8 +763,8 @@ describe('periodic auto-switch regression', () => {
       longVersion: 1,
     });
     const switchStates = new Map<'LONG' | 'SHORT', SwitchState>();
-    const switchSuppressions = new Map();
-    const periodicSwitchPending = new Map();
+    const switchSuppressions = new Map<'LONG' | 'SHORT', SwitchSuppression>();
+    const periodicSwitchPending = new Map<'LONG' | 'SHORT', PeriodicSwitchPendingState>();
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
       symbolRegistry,

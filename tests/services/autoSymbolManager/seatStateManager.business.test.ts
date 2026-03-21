@@ -6,8 +6,18 @@
  */
 import { describe, expect, it } from 'bun:test';
 import { createSeatStateManager } from '../../../src/services/autoSymbolManager/seatStateManager.js';
+import type { SwitchState, SwitchSuppression } from '../../../src/services/autoSymbolManager/types.js';
 import { createSymbolRegistryDouble } from '../../helpers/testDoubles.js';
 import { getHKDateKey } from '../../../src/utils/time/index.js';
+import { createLoggerStub } from './utils.js';
+
+function createSwitchStatesMap(): Map<'LONG' | 'SHORT', SwitchState> {
+  return new Map<'LONG' | 'SHORT', SwitchState>();
+}
+
+function createSwitchSuppressionsMap(): Map<'LONG' | 'SHORT', SwitchSuppression> {
+  return new Map<'LONG' | 'SHORT', SwitchSuppression>();
+}
 
 describe('autoSymbolManager seatStateManager business flow', () => {
   it('enterSwitchingSeat bumps seat version and puts seat into SWITCHING with switch state snapshot', () => {
@@ -23,8 +33,8 @@ describe('autoSymbolManager seatStateManager business flow', () => {
         frozenTradingDayKey: null,
       },
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     const nowMs = Date.parse('2026-02-16T01:00:00.000Z');
     const manager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -32,10 +42,7 @@ describe('autoSymbolManager seatStateManager business flow', () => {
       switchStates,
       switchSuppressions,
       now: () => new Date(nowMs),
-      logger: {
-        info: () => {},
-        warn: () => {},
-      } as never,
+      logger: createLoggerStub(),
       getHKDateKey,
     });
     const nextVersion = manager.enterSwitchingSeat({
@@ -47,11 +54,12 @@ describe('autoSymbolManager seatStateManager business flow', () => {
     const seat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
     expect(seat.status).toBe('SWITCHING');
     expect(seat.symbol).toBe('OLD_BULL.HK');
-    const switchState = switchStates.get('LONG') as {
-      stage: string;
-      oldSymbol: string;
-      seatVersion: number;
-    };
+    const switchState = switchStates.get('LONG');
+    expect(switchState).toBeDefined();
+    if (!switchState) {
+      throw new Error('LONG switch state must exist after enterSwitchingSeat');
+    }
+
     expect(switchState.stage).toBe('CANCEL_PENDING');
     expect(switchState.oldSymbol).toBe('OLD_BULL.HK');
     expect(switchState.seatVersion).toBe(2);
@@ -61,8 +69,8 @@ describe('autoSymbolManager seatStateManager business flow', () => {
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     let now = new Date('2026-02-16T01:00:00.000Z');
     const manager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -70,10 +78,7 @@ describe('autoSymbolManager seatStateManager business flow', () => {
       switchStates,
       switchSuppressions,
       now: () => now,
-      logger: {
-        info: () => {},
-        warn: () => {},
-      } as never,
+      logger: createLoggerStub(),
       getHKDateKey,
     });
     manager.markSuppression('LONG', 'OLD_BULL.HK', 'PERIODIC');
@@ -89,8 +94,8 @@ describe('autoSymbolManager seatStateManager business flow', () => {
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     const now = new Date('2026-02-16T01:00:00.000Z');
     const manager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -98,10 +103,7 @@ describe('autoSymbolManager seatStateManager business flow', () => {
       switchStates,
       switchSuppressions,
       now: () => now,
-      logger: {
-        info: () => {},
-        warn: () => {},
-      } as never,
+      logger: createLoggerStub(),
       getHKDateKey,
     });
 
@@ -144,8 +146,8 @@ describe('autoSymbolManager seatStateManager business flow', () => {
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     const now = new Date('2026-02-16T01:00:00.000Z');
     const manager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -153,10 +155,7 @@ describe('autoSymbolManager seatStateManager business flow', () => {
       switchStates,
       switchSuppressions,
       now: () => now,
-      logger: {
-        info: () => {},
-        warn: () => {},
-      } as never,
+      logger: createLoggerStub(),
       getHKDateKey,
     });
 
@@ -171,8 +170,8 @@ describe('autoSymbolManager seatStateManager business flow', () => {
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     const now = new Date('2026-02-16T01:00:00.000Z');
     const manager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -180,10 +179,7 @@ describe('autoSymbolManager seatStateManager business flow', () => {
       switchStates,
       switchSuppressions,
       now: () => now,
-      logger: {
-        info: () => {},
-        warn: () => {},
-      } as never,
+      logger: createLoggerStub(),
       getHKDateKey,
     });
 
@@ -197,8 +193,8 @@ describe('autoSymbolManager seatStateManager business flow', () => {
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     const now = new Date('2026-02-16T01:00:00.000Z');
     const manager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -206,10 +202,7 @@ describe('autoSymbolManager seatStateManager business flow', () => {
       switchStates,
       switchSuppressions,
       now: () => now,
-      logger: {
-        info: () => {},
-        warn: () => {},
-      } as never,
+      logger: createLoggerStub(),
       getHKDateKey,
     });
 

@@ -214,6 +214,7 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
 
     appLogger.info('程序开始运行，在交易时段将进行实时监控和交易（按 Ctrl+C 退出）');
     for (;;) {
+      const loopStartTimeMs = Date.now();
       try {
         await runMainProgram({
           marketDataClient: preGateRuntime.marketDataClient,
@@ -239,7 +240,9 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
         appLogger.error('本次执行失败', formatAppError(err));
       }
 
-      await waitForNextTick(TRADING.INTERVAL_MS);
+      const elapsedMs = Date.now() - loopStartTimeMs;
+      const remainingWaitMs = Math.max(0, TRADING.INTERVAL_MS - elapsedMs);
+      await waitForNextTick(remainingWaitMs);
     }
   };
 }

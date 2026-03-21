@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'bun:test';
 import { createAutoSearch } from '../../../src/services/autoSymbolManager/autoSearch.js';
 import { createSeatStateManager } from '../../../src/services/autoSymbolManager/seatStateManager.js';
+import type { SwitchState, SwitchSuppression } from '../../../src/services/autoSymbolManager/types.js';
 import { getHKDateKey } from '../../../src/utils/time/index.js';
 import {
   createMonitorConfigDouble,
@@ -20,6 +21,14 @@ import {
   createWarrantCandidateWithOverrides,
   getDefaultAutoSearchConfig,
 } from './utils.js';
+
+function createSwitchStatesMap(): Map<'LONG' | 'SHORT', SwitchState> {
+  return new Map<'LONG' | 'SHORT', SwitchState>();
+}
+
+function createSwitchSuppressionsMap(): Map<'LONG' | 'SHORT', SwitchSuppression> {
+  return new Map<'LONG' | 'SHORT', SwitchSuppression>();
+}
 
 describe('autoSymbolManager autoSearch business flow', () => {
   it('fills EMPTY seat to ACTIVATING and resets failure counters when a candidate is found', async () => {
@@ -38,8 +47,8 @@ describe('autoSymbolManager autoSearch business flow', () => {
         frozenTradingDayKey: null,
       },
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     const manager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
       symbolRegistry,
@@ -102,8 +111,8 @@ describe('autoSymbolManager autoSearch business flow', () => {
         frozenTradingDayKey: null,
       },
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     const manager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
       symbolRegistry,
@@ -162,8 +171,8 @@ describe('autoSymbolManager autoSearch business flow', () => {
         frozenTradingDayKey: null,
       },
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     const manager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
       symbolRegistry,
@@ -216,8 +225,8 @@ describe('autoSymbolManager autoSearch business flow', () => {
         frozenTradingDayKey: null,
       },
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     const manager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
       symbolRegistry,

@@ -17,6 +17,11 @@ import {
 import { signalObjectPool } from '../../../src/utils/objectPool/index.js';
 import { calculateTradingDurationMsBetween, getHKDateKey } from '../../../src/utils/time/index.js';
 import { PENDING_ORDER_STATUSES } from '../../../src/constants/index.js';
+import type {
+  PeriodicSwitchPendingState,
+  SwitchState,
+  SwitchSuppression,
+} from '../../../src/services/autoSymbolManager/types.js';
 import type { Quote } from '../../../src/types/quote.js';
 import {
   createWarrantDistanceInfoDouble,
@@ -58,6 +63,18 @@ function createTradingCalendarSnapshot() {
     ['2026-02-17', { isTradingDay: true, isHalfDay: false }],
   ]);
 }
+
+function createSwitchStatesMap(): Map<'LONG' | 'SHORT', SwitchState> {
+  return new Map<'LONG' | 'SHORT', SwitchState>();
+}
+
+function createSwitchSuppressionsMap(): Map<'LONG' | 'SHORT', SwitchSuppression> {
+  return new Map<'LONG' | 'SHORT', SwitchSuppression>();
+}
+
+function createPeriodicSwitchPendingMap(): Map<'LONG' | 'SHORT', PeriodicSwitchPendingState> {
+  return new Map<'LONG' | 'SHORT', PeriodicSwitchPendingState>();
+}
 describe('autoSymbolManager switchStateMachine business flow', () => {
   it('marks suppression only for safe-side distance same-symbol and skips switching', async () => {
     const monitorConfig = createMonitorConfigDouble({
@@ -75,8 +92,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         frozenTradingDayKey: null,
       },
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     const nowMs = Date.parse('2026-02-16T01:00:00.000Z');
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -103,7 +120,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
       now: () => new Date(nowMs),
       switchStates,
-      periodicSwitchPending: new Map(),
+      periodicSwitchPending: createPeriodicSwitchPendingMap(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
       enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
@@ -164,8 +181,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         frozenTradingDayKey: null,
       },
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     const nowMs = Date.parse('2026-02-16T01:00:00.000Z');
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -192,7 +209,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
       now: () => new Date(nowMs),
       switchStates,
-      periodicSwitchPending: new Map(),
+      periodicSwitchPending: createPeriodicSwitchPendingMap(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
       enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
@@ -250,8 +267,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         frozenTradingDayKey: null,
       },
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     const nowMs = Date.parse('2026-02-16T01:00:00.000Z');
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -281,7 +298,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
       now: () => new Date(nowMs),
       switchStates,
-      periodicSwitchPending: new Map(),
+      periodicSwitchPending: createPeriodicSwitchPendingMap(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
       enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
@@ -343,8 +360,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       },
       longVersion: 1,
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     const nowMs = Date.parse('2026-02-16T01:00:00.000Z');
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -377,7 +394,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
       now: () => new Date(nowMs),
       switchStates,
-      periodicSwitchPending: new Map(),
+      periodicSwitchPending: createPeriodicSwitchPendingMap(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
       enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
@@ -443,8 +460,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       },
       longVersion: 1,
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     const nowMs = Date.parse('2026-02-16T01:00:00.000Z');
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -479,7 +496,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
       now: () => new Date(nowMs),
       switchStates,
-      periodicSwitchPending: new Map(),
+      periodicSwitchPending: createPeriodicSwitchPendingMap(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
       enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
@@ -536,8 +553,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       },
       longVersion: 1,
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     let nowMs = Date.parse('2026-02-16T01:00:00.000Z');
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -600,7 +617,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
       now: () => new Date(nowMs),
       switchStates,
-      periodicSwitchPending: new Map(),
+      periodicSwitchPending: createPeriodicSwitchPendingMap(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
       enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
@@ -681,8 +698,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       },
       longVersion: 1,
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     const nowMs = Date.parse('2026-02-16T01:00:00.000Z');
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -734,7 +751,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
               price: 1,
               prevClose: 1,
               timestamp: Date.now(),
-            } as Quote,
+            },
           ],
         ]);
       },
@@ -754,7 +771,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
       now: () => new Date(nowMs),
       switchStates,
-      periodicSwitchPending: new Map(),
+      periodicSwitchPending: createPeriodicSwitchPendingMap(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
       enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
@@ -775,7 +792,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       calculateTradingDurationMsBetween,
       getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
       marketDataClient,
-    } as unknown as Parameters<typeof createSwitchStateMachine>[0]);
+    });
 
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
@@ -816,8 +833,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       },
       longVersion: 1,
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     let nowMs = Date.parse('2026-02-16T01:00:00.000Z');
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -874,7 +891,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
               price: 1,
               prevClose: 1,
               timestamp: Date.now(),
-            } as Quote,
+            },
           ],
         ]);
       },
@@ -894,7 +911,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
       now: () => new Date(nowMs),
       switchStates,
-      periodicSwitchPending: new Map(),
+      periodicSwitchPending: createPeriodicSwitchPendingMap(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
       enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
@@ -915,7 +932,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       calculateTradingDurationMsBetween,
       getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
       marketDataClient,
-    } as unknown as Parameters<typeof createSwitchStateMachine>[0]);
+    });
 
     await machine.maybeSwitchOnDistance({
       direction: 'LONG',
@@ -967,8 +984,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       },
       longVersion: 1,
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     const nowMs = Date.parse('2026-02-16T01:00:00.000Z');
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -1024,7 +1041,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
       now: () => new Date(nowMs),
       switchStates,
-      periodicSwitchPending: new Map(),
+      periodicSwitchPending: createPeriodicSwitchPendingMap(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
       enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
@@ -1078,8 +1095,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       },
       longVersion: 1,
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     const nowMs = Date.parse('2026-02-16T01:00:00.000Z');
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -1144,7 +1161,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
       now: () => new Date(nowMs),
       switchStates,
-      periodicSwitchPending: new Map(),
+      periodicSwitchPending: createPeriodicSwitchPendingMap(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
       enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
@@ -1209,8 +1226,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       },
       longVersion: 1,
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     const nowMs = Date.parse('2026-02-16T01:31:00.000Z');
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -1282,7 +1299,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
       now: () => new Date(nowMs),
       switchStates,
-      periodicSwitchPending: new Map(),
+      periodicSwitchPending: createPeriodicSwitchPendingMap(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
       enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
@@ -1346,8 +1363,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       },
       longVersion: 1,
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     const nowMs = Date.parse('2026-02-16T01:40:00.000Z');
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -1412,7 +1429,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
       now: () => new Date(nowMs),
       switchStates,
-      periodicSwitchPending: new Map(),
+      periodicSwitchPending: createPeriodicSwitchPendingMap(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
       enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
@@ -1476,8 +1493,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       },
       longVersion: 1,
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     let nowMs = Date.parse('2026-02-16T01:00:00.000Z');
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -1560,7 +1577,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
       now: () => new Date(nowMs),
       switchStates,
-      periodicSwitchPending: new Map(),
+      periodicSwitchPending: createPeriodicSwitchPendingMap(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
       enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
@@ -1641,8 +1658,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       },
       longVersion: 1,
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     let nowMs = Date.parse('2026-02-16T01:00:00.000Z');
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -1691,7 +1708,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
       now: () => new Date(nowMs),
       switchStates,
-      periodicSwitchPending: new Map(),
+      periodicSwitchPending: createPeriodicSwitchPendingMap(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
       enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
@@ -1727,7 +1744,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
                 price: 1,
                 prevClose: 1,
                 timestamp: Date.now(),
-              } as Quote,
+              },
             ],
           ]);
         },
@@ -1779,8 +1796,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       },
       longVersion: 1,
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     let nowMs = Date.parse('2026-02-16T01:00:00.000Z');
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -1834,7 +1851,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
       now: () => new Date(nowMs),
       switchStates,
-      periodicSwitchPending: new Map(),
+      periodicSwitchPending: createPeriodicSwitchPendingMap(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
       enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
@@ -1910,8 +1927,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       },
       longVersion: 1,
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     let nowMs = Date.parse('2026-02-16T01:00:00.000Z');
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -1973,7 +1990,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         }),
         now: () => new Date(nowMs),
         switchStates,
-        periodicSwitchPending: new Map(),
+        periodicSwitchPending: createPeriodicSwitchPendingMap(),
         resolveSuppression: seatStateManager.resolveSuppression,
         markSuppression: seatStateManager.markSuppression,
         enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
@@ -2053,8 +2070,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       },
       longVersion: 1,
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     let nowMs = Date.parse('2026-02-16T01:00:00.000Z');
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -2092,7 +2109,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
       now: () => new Date(nowMs),
       switchStates,
-      periodicSwitchPending: new Map(),
+      periodicSwitchPending: createPeriodicSwitchPendingMap(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
       enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
@@ -2163,8 +2180,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       },
       longVersion: 1,
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     const nowMs = Date.parse('2026-02-16T01:00:00.000Z');
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -2191,7 +2208,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
       now: () => new Date(nowMs),
       switchStates,
-      periodicSwitchPending: new Map(),
+      periodicSwitchPending: createPeriodicSwitchPendingMap(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
       enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
@@ -2249,8 +2266,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       },
       shortVersion: 1,
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     const nowMs = Date.parse('2026-02-16T01:00:00.000Z');
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -2283,7 +2300,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
       now: () => new Date(nowMs),
       switchStates,
-      periodicSwitchPending: new Map(),
+      periodicSwitchPending: createPeriodicSwitchPendingMap(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
       enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
@@ -2346,8 +2363,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         frozenTradingDayKey: null,
       },
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     const nowMs = Date.parse('2026-02-16T01:00:00.000Z');
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -2374,7 +2391,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
       now: () => new Date(nowMs),
       switchStates,
-      periodicSwitchPending: new Map(),
+      periodicSwitchPending: createPeriodicSwitchPendingMap(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
       enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
@@ -2435,8 +2452,8 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
         frozenTradingDayKey: null,
       },
     });
-    const switchStates = new Map();
-    const switchSuppressions = new Map();
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
     const nowMs = Date.parse('2026-02-16T01:00:00.000Z');
     const seatStateManager = createSeatStateManager({
       monitorSymbol: 'HSI.HK',
@@ -2463,7 +2480,7 @@ describe('autoSymbolManager switchStateMachine business flow', () => {
       }),
       now: () => new Date(nowMs),
       switchStates,
-      periodicSwitchPending: new Map(),
+      periodicSwitchPending: createPeriodicSwitchPendingMap(),
       resolveSuppression: seatStateManager.resolveSuppression,
       markSuppression: seatStateManager.markSuppression,
       enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
