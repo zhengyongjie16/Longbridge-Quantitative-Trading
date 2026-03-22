@@ -8,7 +8,7 @@
 import { ORDER_QUOTE_RETRY } from '../../constants/index.js';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import type { DecimalInput } from '../../utils/numeric/types.js';
-import { isQuoteReadyForRequirement, resolveNextQuoteRetry } from '../../utils/quoteRetry.js';
+import { isQuoteReadyForRequirement, resolveNextQuoteRetry } from '../../utils/quoteRetry/index.js';
 import { decimalGte, decimalLte } from '../../utils/numeric/index.js';
 import type { Position } from '../../types/account.js';
 import type { Quote } from '../../types/quote.js';

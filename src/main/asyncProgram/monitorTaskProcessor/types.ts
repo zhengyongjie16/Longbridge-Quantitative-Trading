@@ -1,6 +1,6 @@
 import type { AutoSymbolManager } from '../../../services/autoSymbolManager/types.js';
 import type { RefreshGate } from '../../../utils/types.js';
-import type { QuoteRetryRequirement } from '../../../utils/quoteRetry.js';
+import type { QuoteRetryRequirement } from '../../../utils/quoteRetry/types.js';
 import type { MonitorTaskQueue, MonitorTask, MonitorTaskInput } from '../monitorTaskQueue/types.js';
 import type { LastState } from '../../../types/state.js';
 import type { Position } from '../../../types/account.js';

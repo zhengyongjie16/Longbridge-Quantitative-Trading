@@ -25,65 +25,12 @@ export type StaticInfo = {
 };
 
 /**
- * 实时行情最小结构。
- * 类型用途：抽象 QuoteContext.realtimeQuote 返回项中 quoteClient 实际消费的字段子集。
- * 数据来源：Longbridge realtimeQuote 返回值。
- * 使用范围：quoteClient 模块内部使用。
- */
-export type RealtimeQuoteLike = Readonly<{
-  readonly symbol: string;
-  readonly lastDone: { readonly toNumber: () => number } | number | string | null | undefined;
-  readonly timestamp?: Date | null;
-}>;
-
-/**
- * 初始昨收价最小结构。
- * 类型用途：抽象 QuoteContext.quote 返回项中 prevClose 初始化所需字段。
- * 数据来源：Longbridge quote 返回值。
- * 使用范围：quoteClient 模块内部使用。
- */
-export type SeedQuoteLike = Readonly<{
-  readonly symbol: string;
-  readonly prevClose: { readonly toNumber: () => number } | number | string | null | undefined;
-}>;
-
-/**
- * 标的静态信息最小结构。
- * 类型用途：抽象 QuoteContext.staticInfo 返回项中名称、手数与轮证扩展字段。
- * 数据来源：Longbridge staticInfo 返回值。
- * 使用范围：quoteClient 模块内部使用。
- */
-export type QuoteStaticInfoLike = Readonly<{
-  readonly symbol: string;
-  readonly nameHk?: string | null;
-  readonly nameCn?: string | null;
-  readonly nameEn?: string | null;
-  readonly lotSize?: number | null;
-  readonly callPrice?: number | null;
-  readonly expiryDate?: string | null;
-  readonly issuePrice?: number | null;
-  readonly conversionRatio?: number | null;
-  readonly warrantType?: 'BULL' | 'BEAR' | null;
-  readonly underlyingSymbol?: string | null;
-}>;
-
-/**
- * 交易日接口日期对象最小结构。
- * 类型用途：抽象交易日 API 返回值中的日期对象，仅保留 toString 转换能力。
- * 数据来源：Longbridge tradingDays 返回值中的 NaiveDate。
- * 使用范围：quoteClient 模块内部使用。
- */
-export type NaiveDateLike = Readonly<{
-  readonly toString: () => string;
-}>;
-
-/**
  * K 线 push 数据结构（最小语义子集）。
  * 类型用途：抽象 QuoteContext.setOnCandlestick 的 push data 数据形态。
  * 数据来源：Longbridge PushCandlestickEvent.data。
  * 使用范围：quoteClient 模块内部使用。
  */
-export type PushCandlestickLike = Readonly<{
+type PushCandlestickLike = Readonly<{
   readonly period: Period;
   readonly candlestick: Candlestick;
   readonly isConfirmed: boolean;
@@ -95,7 +42,7 @@ export type PushCandlestickLike = Readonly<{
  * 数据来源：Longbridge PushCandlestickEvent。
  * 使用范围：quoteClient 模块内部使用。
  */
-export type PushCandlestickEventLike = Readonly<{
+type PushCandlestickEventLike = Readonly<{
   readonly symbol: string;
   readonly data: PushCandlestickLike;
 }>;

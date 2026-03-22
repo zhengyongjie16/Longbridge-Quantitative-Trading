@@ -32,7 +32,7 @@ import {
   executeSignalsWithLifecycleGate,
   logProcessorTaskFailure,
 } from '../utils.js';
-import { isQuoteReadyForRequirement, resolveNextQuoteRetry } from '../../../utils/quoteRetry.js';
+import { isQuoteReadyForRequirement, resolveNextQuoteRetry } from '../../../utils/quoteRetry/index.js';
 import { logger } from '../../../utils/logger/index.js';
 import {
   describeSignalSeatValidationFailure,

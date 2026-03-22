@@ -172,7 +172,7 @@ type SwitchStage =
  * 类型用途：区分周期换标与距离换标的安全侧/危险侧触发语义。
  * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
-export type SwitchTriggerKind = 'PERIODIC' | 'DISTANCE_SAFE_SIDE' | 'DISTANCE_DANGER_SIDE';
+type SwitchTriggerKind = 'PERIODIC' | 'DISTANCE_SAFE_SIDE' | 'DISTANCE_DANGER_SIDE';
 
 /**
  * 可写入日内抑制的换标触发类型。

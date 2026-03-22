@@ -2,16 +2,6 @@ import type { CandleData } from '../../../types/data.js';
 import type { IndicatorUsageProfile } from '../../../types/indicatorProfile.js';
 
 /**
- * EMA 流式计算接口。
- * 类型用途：对外暴露单条 EMA 流的逐值推送接口，每次调用返回当前 EMA 值（seed 阶段未满时返回 undefined）。
- * 数据来源：由 createEmaStream 创建并返回。
- * 使用范围：供 ema.ts 及依赖 EMA 的指标模块使用。
- */
-export type EmaStream = {
-  nextValue: (value: number) => number | undefined;
-};
-
-/**
  * 环形缓冲区状态。
  * 类型用途：在 MFI 计算中维护固定窗口的正向/负向资金流累加，支持 O(1) 滑动窗口更新。
  * 使用范围：仅 indicators 子模块 mfi.ts 内部使用。

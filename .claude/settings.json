@@ -76,6 +76,12 @@
         "source": "github",
         "repo": "anthropics/skills"
       }
+    },
+    "claude-hud": {
+      "source": {
+        "source": "github",
+        "repo": "jarrodwatts/claude-hud"
+      }
     }
   },
   "language": "chinese",

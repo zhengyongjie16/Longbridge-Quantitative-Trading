@@ -12,7 +12,7 @@ export type ProtectiveLiquidationDirection = 'LONG' | 'SHORT';
  * 数据来源：settlementFlow 成交结算链路。
  * 使用范围：protectiveLiquidationEpisodeTracker。
  */
-export type RecordProtectiveFillProgressParams = Readonly<{
+type RecordProtectiveFillProgressParams = Readonly<{
   monitorSymbol: string;
   direction: ProtectiveLiquidationDirection;
   executedTimeMs: number;
@@ -24,7 +24,7 @@ export type RecordProtectiveFillProgressParams = Readonly<{
  * 数据来源：postTradeRefresher。
  * 使用范围：protectiveLiquidationEpisodeTracker。
  */
-export type CompleteIfEligibleParams = Readonly<{
+type CompleteIfEligibleParams = Readonly<{
   monitorSymbol: string;
   direction: ProtectiveLiquidationDirection;
   isDirectionFlat: boolean;
@@ -49,7 +49,7 @@ export type ProtectiveLiquidationCompletedEvent = Readonly<{
  * 数据来源：loadTradingDayRuntimeSnapshot。
  * 使用范围：protectiveLiquidationEpisodeTracker。
  */
-export type RestoreCompletedBoundaryParams = Readonly<{
+type RestoreCompletedBoundaryParams = Readonly<{
   monitorSymbol: string;
   direction: ProtectiveLiquidationDirection;
   boundaryExecutedTimeMs: number;
@@ -61,7 +61,7 @@ export type RestoreCompletedBoundaryParams = Readonly<{
  * 数据来源：loadTradingDayRuntimeSnapshot。
  * 使用范围：protectiveLiquidationEpisodeTracker。
  */
-export type RestoreInProgressEpisodeParams = Readonly<{
+type RestoreInProgressEpisodeParams = Readonly<{
   monitorSymbol: string;
   direction: ProtectiveLiquidationDirection;
   latestExecutedTimeMs: number;

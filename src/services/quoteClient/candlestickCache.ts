@@ -17,7 +17,7 @@ import { isRecord } from '../../utils/helpers/index.js';
  * 数据来源：createCandlestickCacheStore 创建。
  * 使用范围：quoteClient 模块内部使用。
  */
-export type CandlestickCacheStore = {
+type CandlestickCacheStore = {
   readonly maxCandles: number;
   readonly snapshots: Map<string, CandlestickCacheSnapshot>;
 };
@@ -28,7 +28,7 @@ export type CandlestickCacheStore = {
  * 数据来源：subscribeCandlesticks 返回值。
  * 使用范围：quoteClient 模块内部使用。
  */
-export type SeedCandlestickSeriesParams = {
+type SeedCandlestickSeriesParams = {
   readonly store: CandlestickCacheStore;
   readonly symbol: string;
   readonly period: Period;
@@ -41,7 +41,7 @@ export type SeedCandlestickSeriesParams = {
  * 数据来源：QuoteContext candlestick push event。
  * 使用范围：quoteClient 模块内部使用。
  */
-export type ApplyCandlestickPushParams = {
+type ApplyCandlestickPushParams = {
   readonly store: CandlestickCacheStore;
   readonly symbol: string;
   readonly period: Period;

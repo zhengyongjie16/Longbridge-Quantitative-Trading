@@ -8,6 +8,7 @@
  *
  * Bash policy:
  * - Blocklisted patterns are loaded from `.claude/settings.json` (`permissions.ask` entries of `Bash(...)`).
+ * - Explicitly allowed patterns are loaded from `.claude/settings.json` (`permissions.allow` entries of `Bash(...)`) and are allowed directly.
  * - For other commands: reject `..` traversal and Windows UNC paths, then extract absolute paths and ensure all stay under the project root.
  *
  * Edit/Write policy:
@@ -22,6 +23,13 @@ import { resolve as _resolve, sep, join as _join } from 'node:path';
 
 /** Cache platform value. */
 const PLATFORM = process.platform;
+const PERMISSION_REQUEST_EVENT_NAME = 'PermissionRequest';
+const ALLOW_DECISION = JSON.stringify({
+  hookSpecificOutput: {
+    hookEventName: PERMISSION_REQUEST_EVENT_NAME,
+    decision: { behavior: 'allow' },
+  },
+});
 
 /**
  * Convert a glob (supports `*` only) into a safe regex source.
@@ -43,22 +51,36 @@ function globToRegexSource(pattern) {
 }
 
 /**
- * Load Bash patterns from `.claude/settings.json` -> `permissions.ask`.
+ * Load Bash patterns from `.claude/settings.json` -> `permissions[permissionKey]`.
  * @param {string} projectRoot
+ * @param {'ask' | 'allow'} permissionKey
  * @returns {string[]} Patterns without the `Bash(...)` wrapper.
  */
-function loadBashAskPatterns(projectRoot) {
+function loadBashPatterns(projectRoot, permissionKey) {
   try {
     const settingsPath = _join(projectRoot, '.claude', 'settings.json');
     const raw = readFileSync(settingsPath, 'utf8');
     const json = JSON.parse(raw);
-    const ask = json.permissions?.ask ?? [];
-    return ask
+    const patterns = json.permissions?.[permissionKey] ?? [];
+    return patterns
       .filter((item) => typeof item === 'string' && item.startsWith('Bash(') && item.endsWith(')'))
       .map((item) => item.slice('Bash('.length, -1).trim());
   } catch {
     return [];
   }
+}
+
+/**
+ * Check whether a command matches any configured Bash glob pattern.
+ * @param {string} command
+ * @param {string[]} patterns
+ * @returns {boolean}
+ */
+function matchesBashPattern(command, patterns) {
+  return patterns.some((pattern) => {
+    const re = new RegExp('^' + globToRegexSource(pattern), 'i');
+    return re.test(command);
+  });
 }
 
 /**
@@ -99,8 +121,8 @@ function extractAbsolutePaths(command) {
   const paths = [];
 
   if (PLATFORM === 'win32') {
-    // Windows absolute paths: `C:\...`
-    for (const raw of command.match(/[A-Za-z]:\\[^\s'"`,;|&<>]*/g) ?? []) {
+    // Windows absolute paths: `C:\...` or `C:/...`
+    for (const raw of command.match(/[A-Za-z]:(?:\\|\/)[^\s'"`,;|&<>]*/g) ?? []) {
       paths.push(raw.replaceAll(/^["']|["']$/g, ''));
     }
 
@@ -149,7 +171,7 @@ function readStdin() {
     }
 
     const input = JSON.parse(raw);
-    if (input.hook_event_name !== 'PermissionRequest') {
+    if (input.hook_event_name !== PERMISSION_REQUEST_EVENT_NAME) {
       process.exit(0);
     }
 
@@ -174,14 +196,7 @@ function readStdin() {
       if (!isPathInProject(resolved, projectRootLower)) {
         process.exit(0);
       }
-      process.stdout.write(
-        JSON.stringify({
-          hookSpecificOutput: {
-            hookEventName: 'PermissionRequest',
-            decision: { behavior: 'allow' },
-          },
-        }),
-      );
+      process.stdout.write(ALLOW_DECISION);
       return;
     }
 
@@ -194,31 +209,32 @@ function readStdin() {
     const trimmedCommand = command.trim();
 
     // 1) Blocklist check (anchored at start to avoid substring matches).
-    const bashAskPatterns = loadBashAskPatterns(projectRoot);
-    if (bashAskPatterns.length > 0) {
-      const isBlacklisted = bashAskPatterns.some((pattern) => {
-        const re = new RegExp('^' + globToRegexSource(pattern), 'i');
-        return re.test(trimmedCommand);
-      });
-      if (isBlacklisted) {
-        process.exit(0);
-      }
+    const bashAskPatterns = loadBashPatterns(projectRoot, 'ask');
+    if (matchesBashPattern(trimmedCommand, bashAskPatterns)) {
+      process.exit(0);
     }
 
-    // 2) Reject traversal and Windows UNC paths.
-    const hasParentRef = /(^|[\\/])\.\.([\\/]|$)/.test(command);
+    // 2) Allowlisted Bash commands: allow directly (not restricted to project root).
+    const bashAllowPatterns = loadBashPatterns(projectRoot, 'allow');
+    if (matchesBashPattern(trimmedCommand, bashAllowPatterns)) {
+      process.stdout.write(ALLOW_DECISION);
+      return;
+    }
+
+    // 3) Reject traversal and Windows UNC paths.
+    const hasParentRef = /(^|[\\/\s"'`;,|&<>])\.\.([\\/]|$)/.test(command);
     const hasNetworkPath = /\\\\[^\\]/.test(command);
     if (hasParentRef || hasNetworkPath) {
       process.exit(0);
     }
 
-    // 3) Extract absolute paths (platform-specific inside `extractAbsolutePaths`).
+    // 4) Extract absolute paths (platform-specific inside `extractAbsolutePaths`).
     const { paths, requiresConfirmation } = extractAbsolutePaths(command);
     if (requiresConfirmation) {
       process.exit(0);
     }
 
-    // 4) Ensure all extracted paths stay within project root.
+    // 5) Ensure all extracted paths stay within project root.
     for (const rawPath of paths) {
       const resolved = _resolve(rawPath);
       if (!isPathInProject(resolved, projectRootLower)) {
@@ -226,15 +242,8 @@ function readStdin() {
       }
     }
 
-    // 5) All checks passed: allow.
-    process.stdout.write(
-      JSON.stringify({
-        hookSpecificOutput: {
-          hookEventName: 'PermissionRequest',
-          decision: { behavior: 'allow' },
-        },
-      }),
-    );
+    // 6) All checks passed: allow.
+    process.stdout.write(ALLOW_DECISION);
   } catch {
     // Fail closed.
     process.exit(0);

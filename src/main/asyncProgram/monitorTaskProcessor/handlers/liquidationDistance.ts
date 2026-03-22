@@ -9,7 +9,7 @@
 import { ORDER_QUOTE_RETRY, WARRANT_LIQUIDATION_ORDER_TYPE } from '../../../../constants/index.js';
 import type { LastState } from '../../../../types/state.js';
 import type { Trader, MarketDataClient } from '../../../../types/services.js';
-import { isQuoteReadyForRequirement, resolveNextQuoteRetry } from '../../../../utils/quoteRetry.js';
+import { isQuoteReadyForRequirement, resolveNextQuoteRetry } from '../../../../utils/quoteRetry/index.js';
 import { formatError } from '../../../../utils/error/index.js';
 import { logger } from '../../../../utils/logger/index.js';
 import { validateSignalSeat } from '../../../../services/autoSymbolManager/utils.js';

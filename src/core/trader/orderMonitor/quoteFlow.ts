@@ -18,7 +18,7 @@ import {
   PENDING_ORDER_STATUSES,
   TRADING,
 } from '../../../constants/index.js';
-import { isQuoteReadyForRequirement, resolveNextQuoteRetry } from '../../../utils/quoteRetry.js';
+import { isQuoteReadyForRequirement, resolveNextQuoteRetry } from '../../../utils/quoteRetry/index.js';
 import type { CancelOrderOutcome } from '../../../types/trader.js';
 import { toDecimal } from '../utils.js';
 import type { PendingSellOrderSnapshot, TrackedOrder } from '../types.js';

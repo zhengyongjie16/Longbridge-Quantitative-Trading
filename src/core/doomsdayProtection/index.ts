@@ -18,7 +18,7 @@ import { logger } from '../../utils/logger/index.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import { isSeatActive } from '../../services/autoSymbolManager/utils.js';
 import { ORDER_QUOTE_RETRY } from '../../constants/index.js';
-import { isQuoteReadyForRequirement, resolveNextQuoteRetry } from '../../utils/quoteRetry.js';
+import { isQuoteReadyForRequirement, resolveNextQuoteRetry } from '../../utils/quoteRetry/index.js';
 import type { MonitorContext } from '../../types/state.js';
 import type { Position } from '../../types/account.js';
 import type { Quote } from '../../types/quote.js';
