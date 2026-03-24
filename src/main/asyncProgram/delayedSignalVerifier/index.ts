@@ -15,12 +15,8 @@ import { signalObjectPool } from '../../../utils/objectPool/index.js';
 import { TIME, VERIFICATION, ACTION_DESCRIPTIONS } from '../../../constants/index.js';
 import type { Signal } from '../../../types/signal.js';
 import type { VerificationIndicator } from '../../../types/indicatorProfile.js';
-import type {
-  DelayedSignalVerifier,
-  DelayedSignalVerifierDeps,
-  PendingSignalEntry,
-  VerifiedCallback,
-} from './types.js';
+import type { DelayedSignalVerifierPort } from '../../../types/monitorContextPorts.js';
+import type { DelayedSignalVerifierDeps, PendingSignalEntry, VerifiedCallback } from './types.js';
 import { generateSignalId, extractInitialIndicators, performVerification } from './utils.js';
 import { formatSymbolDisplay } from '../../../utils/display/index.js';
 
@@ -28,11 +24,11 @@ import { formatSymbolDisplay } from '../../../utils/display/index.js';
  * 创建延迟信号验证器。负责管理待验证信号、定时触发验证、调用 performVerification 并执行通过/拒绝回调。
  *
  * @param deps 依赖注入，包含 indicatorCache
- * @returns DelayedSignalVerifier 实例（addSignal、onVerified、cancelAll 等）
+ * @returns DelayedSignalVerifierPort 实例（addSignal、onVerified、cancelAll 等）
  */
 export function createDelayedSignalVerifier(
   deps: DelayedSignalVerifierDeps,
-): DelayedSignalVerifier {
+): DelayedSignalVerifierPort {
   const { indicatorCache } = deps;
 
   // 待验证信号 Map（signalId -> entry）

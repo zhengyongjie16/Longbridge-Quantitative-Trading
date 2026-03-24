@@ -31,7 +31,7 @@ export type SubmitTargetOrderDeps = {
   readonly orderRecorder: OrderRecorder;
   readonly globalConfig: GlobalConfig;
   readonly canExecuteSignal: (signal: Signal, stage: string) => boolean;
-  readonly updateLastBuyTime: (
+  readonly recordBuyAttempt: (
     signalAction: SignalType,
     monitorConfig?: MonitorConfig | null,
   ) => void;
@@ -46,7 +46,7 @@ export type SubmitTargetOrderDeps = {
 export interface BuyThrottle {
   canTradeNow: (signalAction: SignalType, monitorConfig?: MonitorConfig | null) => TradeCheckResult;
   resetBuyThrottle: () => void;
-  updateLastBuyTime: (signalAction: SignalType, monitorConfig?: MonitorConfig | null) => void;
+  recordBuyAttempt: (signalAction: SignalType, monitorConfig?: MonitorConfig | null) => void;
 }
 
 /**

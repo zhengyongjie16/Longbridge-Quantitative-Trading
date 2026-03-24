@@ -235,7 +235,7 @@ describe('full business simulation integration', () => {
     });
 
     const strategy = {
-      generateCloseSignals: () => ({
+      generateSignals: () => ({
         immediateSignals: [
           createSignal({
             symbol: 'BULL.HK',
@@ -590,7 +590,7 @@ describe('full business simulation integration', () => {
       symbolRegistry,
       quotesMap: new Map([['HSI.HK', createQuoteDouble('HSI.HK', 20_000, 1)]]),
       strategy: {
-        generateCloseSignals: () => ({
+        generateSignals: () => ({
           immediateSignals: [],
           delayedSignals: [],
         }),
@@ -996,7 +996,7 @@ describe('full business simulation integration', () => {
         ['BEAR.HK', createQuoteDouble('BEAR.HK', 0.95, 100)],
       ]),
       strategy: {
-        generateCloseSignals: () => ({
+        generateSignals: () => ({
           immediateSignals: [],
           delayedSignals: [],
         }),

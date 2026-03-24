@@ -37,8 +37,10 @@ import type { Quote } from '../../src/types/quote.js';
 import type { SymbolRegistry, SeatState } from '../../src/types/seat.js';
 import type { MainProgramContext } from '../../src/main/mainProgram/types.js';
 import type { CandlestickCacheSnapshot, MarketDataClient } from '../../src/types/services.js';
-import type { AutoSymbolManager } from '../../src/services/autoSymbolManager/types.js';
-import type { DelayedSignalVerifier } from '../../src/main/asyncProgram/delayedSignalVerifier/types.js';
+import type {
+  AutoSymbolManagerPort,
+  DelayedSignalVerifierPort,
+} from '../../src/types/monitorContextPorts.js';
 import type { DailyLossTracker, UnrealizedLossMonitor } from '../../src/types/risk.js';
 import type { MonitorTaskDataMap } from '../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 
@@ -71,7 +73,7 @@ type MultiMonitorSeatEntry = {
   shortVersion: number;
 };
 
-function createNoopAutoSymbolManager(): AutoSymbolManager {
+function createNoopAutoSymbolManager(): AutoSymbolManagerPort {
   return {
     maybeSearchOnTick: async () => {},
     maybeSwitchOnInterval: async () => {},
@@ -81,7 +83,7 @@ function createNoopAutoSymbolManager(): AutoSymbolManager {
   };
 }
 
-function createNoopDelayedSignalVerifier(): DelayedSignalVerifier {
+function createNoopDelayedSignalVerifier(): DelayedSignalVerifierPort {
   return {
     addSignal: () => {},
     cancelAllForSymbol: () => {},

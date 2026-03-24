@@ -76,6 +76,118 @@ function createPeriodicSwitchPendingMap(): Map<'LONG' | 'SHORT', PeriodicSwitchP
   return new Map<'LONG' | 'SHORT', PeriodicSwitchPendingState>();
 }
 describe('autoSymbolManager switchStateMachine business flow', () => {
+  it('treats periodic no-candidate as business closeout instead of state-machine failure', async () => {
+    const monitorConfig = createMonitorConfigDouble({
+      autoSearchConfig: {
+        ...getDefaultAutoSearchConfig(),
+        switchIntervalMinutes: 1,
+      },
+    });
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+      longSeat: {
+        symbol: 'OLD_BULL.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: Date.parse('2026-02-16T01:00:00.000Z'),
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      longVersion: 1,
+    });
+    const switchStates = createSwitchStatesMap();
+    const switchSuppressions = createSwitchSuppressionsMap();
+    const periodicSwitchPending = createPeriodicSwitchPendingMap();
+    const nowMs = Date.parse('2026-02-16T01:31:00.000Z');
+    const infoMessages: string[] = [];
+    const errorMessages: string[] = [];
+    const logger = {
+      ...createLoggerStub(),
+      info: (message: string) => {
+        infoMessages.push(message);
+      },
+      error: (message: string) => {
+        errorMessages.push(message);
+      },
+    };
+    const seatStateManager = createSeatStateManager({
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      switchStates,
+      switchSuppressions,
+      now: () => new Date(nowMs),
+      logger,
+      getHKDateKey,
+    });
+    periodicSwitchPending.set('LONG', {
+      pending: true,
+      pendingSinceMs: nowMs - 5_000,
+      blockedBy: 'ORDER_RECORDER',
+    });
+    const signalBuilder = createSignalBuilder({ signalObjectPool });
+    const machine = createSwitchStateMachine({
+      autoSearchConfig: monitorConfig.autoSearchConfig,
+      monitorSymbol: 'HSI.HK',
+      symbolRegistry,
+      trader: createTraderDouble(),
+      orderRecorder: createOrderRecorderDouble(),
+      riskChecker: createRiskCheckerDouble({
+        getWarrantDistanceInfo: () =>
+          createWarrantDistanceInfoDouble({
+            warrantType: 'BULL',
+            distanceToStrikePercent: 0.1,
+          }),
+      }),
+      now: () => new Date(nowMs),
+      switchStates,
+      periodicSwitchPending,
+      resolveSuppression: seatStateManager.resolveSuppression,
+      markSuppression: seatStateManager.markSuppression,
+      enterSwitchingSeat: seatStateManager.enterSwitchingSeat,
+      buildSeatState: seatStateManager.buildSeatState,
+      updateSeatState: seatStateManager.updateSeatState,
+      resolveDirectionalAutoSearchPolicy: () => createDirectionalAutoSearchPolicy('LONG'),
+      buildFindBestWarrantInput: async () => createFindBestWarrantInputDouble(),
+      findBestWarrant: async () => null,
+      resolveDirectionSymbols,
+      calculateBuyQuantityByNotional,
+      buildOrderSignal: signalBuilder.buildOrderSignal,
+      signalObjectPool,
+      pendingOrderStatuses: PENDING_ORDER_STATUSES,
+      buySide: OrderSide.Buy,
+      logger,
+      maxSearchFailuresPerDay: 3,
+      getHKDateKey,
+      calculateTradingDurationMsBetween,
+      getTradingCalendarSnapshot: () => createTradingCalendarSnapshot(),
+      marketDataClient: createMarketDataClientDouble({
+        getQuotes: async (symbols) =>
+          new Map(createQuotes(Object.fromEntries([...symbols].map((symbol) => [symbol, 1])))),
+      }),
+    });
+
+    await machine.maybeSwitchOnInterval({
+      direction: 'LONG',
+      currentTime: new Date(nowMs),
+      canTradeNow: true,
+      openProtectionActive: false,
+    });
+
+    const seat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
+    expect(seat.status).toBe('EMPTY');
+    expect(seat.symbol).toBeNull();
+    expect(seat.searchFailCountToday).toBe(1);
+    expect(symbolRegistry.getSeatVersion('HSI.HK', 'LONG')).toBe(2);
+    expect(periodicSwitchPending.has('LONG')).toBeFalse();
+    expect(machine.hasPendingSwitch('LONG')).toBeFalse();
+    expect(infoMessages.some((message) => message.includes('周期换标无候选，清空席位'))).toBeTrue();
+    expect(errorMessages.some((message) => message.includes('状态机失败并清席位'))).toBeFalse();
+    expect(
+      errorMessages.some((message) => message.includes('MISSING_NEXT_SYMBOL_ON_BIND')),
+    ).toBeFalse();
+  });
+
   it('marks suppression only for safe-side distance same-symbol and skips switching', async () => {
     const monitorConfig = createMonitorConfigDouble({
       autoSearchConfig: getDefaultAutoSearchConfig(),

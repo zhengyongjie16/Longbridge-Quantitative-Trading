@@ -2,11 +2,15 @@
  * app/startupModes 单元测试
  *
  * 覆盖：
- * - RUN_MODE 解析默认 prod，dev 显式切换为跳过门禁
- * - startup/runtime gate 策略矩阵保持一致
+ * - RUN_MODE 仅保留 dev/prod 解析语义
+ * - startup/runtime gate 仅由独立环境变量控制
  */
 import { describe, expect, it } from 'bun:test';
-import { resolveGatePolicies, resolveRunMode } from '../../src/app/startupModes.js';
+import {
+  resolveGatePolicies,
+  resolveGatePolicySources,
+  resolveRunMode,
+} from '../../src/app/startupModes.js';
 
 describe('app startupModes', () => {
   it('resolves prod as the default run mode', () => {
@@ -19,15 +23,49 @@ describe('app startupModes', () => {
     expect(resolveRunMode({ RUN_MODE: 'DeV' })).toBe('dev');
   });
 
-  it('maps run mode to startup/runtime gate policies', () => {
-    expect(resolveGatePolicies('prod')).toEqual({
+  it('defaults startup/runtime gates to strict when env vars are absent', () => {
+    expect(resolveGatePolicies({})).toEqual({
       startupGate: 'strict',
       runtimeGate: 'strict',
     });
 
-    expect(resolveGatePolicies('dev')).toEqual({
+    expect(resolveGatePolicySources({})).toEqual({
+      startupGateSource: 'default',
+      runtimeGateSource: 'default',
+    });
+  });
+
+  it('keeps strict gate defaults in RUN_MODE=dev without explicit gate overrides', () => {
+    expect(resolveGatePolicies({ RUN_MODE: 'dev' })).toEqual({
+      startupGate: 'strict',
+      runtimeGate: 'strict',
+    });
+
+    expect(resolveGatePolicySources({ RUN_MODE: 'dev' })).toEqual({
+      startupGateSource: 'default',
+      runtimeGateSource: 'default',
+    });
+  });
+
+  it('uses explicit skip only for the configured gate env key', () => {
+    expect(resolveGatePolicies({ STARTUP_GATE_MODE: ' skip ' })).toEqual({
       startupGate: 'skip',
+      runtimeGate: 'strict',
+    });
+
+    expect(resolveGatePolicySources({ STARTUP_GATE_MODE: ' skip ' })).toEqual({
+      startupGateSource: 'explicit',
+      runtimeGateSource: 'default',
+    });
+
+    expect(resolveGatePolicies({ RUNTIME_GATE_MODE: 'SKIP' })).toEqual({
+      startupGate: 'strict',
       runtimeGate: 'skip',
+    });
+
+    expect(resolveGatePolicySources({ RUNTIME_GATE_MODE: 'SKIP' })).toEqual({
+      startupGateSource: 'default',
+      runtimeGateSource: 'explicit',
     });
   });
 });

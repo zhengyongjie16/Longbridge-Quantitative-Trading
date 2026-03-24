@@ -9,7 +9,7 @@
 import type { TradeLogHydrator, TradeLogHydratorDeps, RawRecord } from './types.js';
 import type { TradeRecord } from '../../types/trader.js';
 import { isRecord } from '../../utils/helpers/index.js';
-import { buildTradeLogPath } from '../../core/trader/utils.js';
+import { buildTradeLogPath } from '../../utils/trading/tradeLogPath.js';
 import {
   buildCooldownKey,
   collectLiquidationRecordsByMonitor,

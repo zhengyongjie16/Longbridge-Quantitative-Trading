@@ -912,6 +912,124 @@ describe('orderMonitor business flow', () => {
     expect(Number(payload.submittedQuantity.toString())).toBe(100);
   });
 
+  it('fails fast when timeout market sell submit response misses real orderId', async () => {
+    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
+      throw new Error('handleOrderChanged hook was not captured');
+    };
+    let submitCalls = 0;
+    const { deps, tradeCtx } = createDeps({
+      sellTimeoutSeconds: 0,
+      onHandleOrderChanged: (handler) => {
+        handleOrderChanged = handler;
+      },
+    });
+    tradeCtx.submitOrder = (async () => {
+      submitCalls += 1;
+      return {} as never;
+    }) as typeof tradeCtx.submitOrder;
+    const monitor = createOrderMonitor(deps);
+
+    await monitor.initialize();
+    await monitor.recoverOrderTrackingFromSnapshot([]);
+
+    monitor.trackOrder({
+      orderId: 'SELL-TIMEOUT-MISSING-ID',
+      symbol: 'BULL.HK',
+      side: OrderSide.Sell,
+      price: 1,
+      initialSubmittedPrice: 1,
+      quantity: 100,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+
+    await monitor.processWithLatestQuotes();
+
+    handleOrderChanged(
+      createPushOrderChanged({
+        orderId: 'SELL-TIMEOUT-MISSING-ID',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.Canceled,
+        orderType: OrderType.ELO,
+        submittedPrice: 1,
+        submittedQuantity: 100,
+        executedQuantity: 0,
+        executedPrice: 0,
+        updatedAtMs: Date.parse('2026-02-25T03:11:00.000Z'),
+      }),
+    );
+
+    await expectPromiseRejectsToMatch(
+      () => monitor.processWithLatestQuotes(),
+      /submitOrder response missing valid orderId/,
+    );
+
+    expect(submitCalls).toBe(1);
+    expect(monitor.getPendingSellOrders('BULL.HK')).toHaveLength(0);
+  });
+
+  it('surfaces timeout market sell local sync failures after broker submit succeeds', async () => {
+    let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
+      throw new Error('handleOrderChanged hook was not captured');
+    };
+    const { deps, tradeCtx } = createDeps({
+      sellTimeoutSeconds: 0,
+      onHandleOrderChanged: (handler) => {
+        handleOrderChanged = handler;
+      },
+      orderRecorderOverride: createOrderRecorderDouble({
+        submitSellOrder: () => {
+          throw new Error('submit sell sync failed');
+        },
+      }),
+    });
+    const monitor = createOrderMonitor(deps);
+
+    await monitor.initialize();
+    await monitor.recoverOrderTrackingFromSnapshot([]);
+
+    monitor.trackOrder({
+      orderId: 'SELL-TIMEOUT-LOCAL-SYNC-FAIL',
+      symbol: 'BULL.HK',
+      side: OrderSide.Sell,
+      price: 1,
+      initialSubmittedPrice: 1,
+      quantity: 100,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      orderType: OrderType.ELO,
+    });
+
+    await monitor.processWithLatestQuotes();
+
+    handleOrderChanged(
+      createPushOrderChanged({
+        orderId: 'SELL-TIMEOUT-LOCAL-SYNC-FAIL',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.Canceled,
+        orderType: OrderType.ELO,
+        submittedPrice: 1,
+        submittedQuantity: 100,
+        executedQuantity: 0,
+        executedPrice: 0,
+        updatedAtMs: Date.parse('2026-02-25T03:11:00.000Z'),
+      }),
+    );
+
+    await expectPromiseRejectsToMatch(
+      () => monitor.processWithLatestQuotes(),
+      /order submitted but local sync failed: MOCK-000001/,
+    );
+
+    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(1);
+    expect(monitor.getPendingSellOrders('BULL.HK')).toHaveLength(0);
+  });
+
   it('does not allocate replacement relatedBuyOrderIds when timeout sell cancel request succeeds', async () => {
     let allocateCalls = 0;
     const { deps, tradeCtx } = createDeps({

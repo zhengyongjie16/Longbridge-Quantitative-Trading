@@ -22,9 +22,12 @@ import {
   getOrderTypeCode,
   resolveOrderTypeConfig,
   resolveSellMergeDecision,
-  isTerminalNonFilledCloseConfirmed,
   toDecimal,
 } from '../utils.js';
+import {
+  formatCancelOutcomeTag,
+  isTerminalNonFilledCloseConfirmed,
+} from '../../../utils/trading/orderStatus.js';
 import type { SubmitTargetOrder, SubmitTargetOrderDeps } from './types.js';
 import {
   getActionDescription,
@@ -59,19 +62,6 @@ function getOutcomeRelatedBuyOrderIds(outcome: CancelOrderOutcome): ReadonlyArra
   return [];
 }
 
-function resolveCancelFailureTag(outcome: CancelOrderOutcome): string {
-  if (outcome.kind === 'ALREADY_CLOSED') {
-    return `${outcome.kind}:${outcome.closedReason}`;
-  }
-
-  if (outcome.kind === 'RETRYABLE_FAILURE' || outcome.kind === 'UNKNOWN_FAILURE') {
-    const errorCode = outcome.errorCode ?? 'UNKNOWN';
-    return `${outcome.kind}:${errorCode}`;
-  }
-
-  return outcome.kind;
-}
-
 /**
  * 创建 submitTargetOrder 实现。
  *
@@ -86,7 +76,7 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
     orderRecorder,
     globalConfig,
     canExecuteSignal,
-    updateLastBuyTime,
+    recordBuyAttempt,
   } = deps;
   const quantityResolver = createQuantityResolver({ rateLimiter });
 
@@ -164,6 +154,7 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
         return null;
       }
 
+      recordBuyAttempt(signal.action, monitorConfig);
       const resp = await ctx.submitOrder(orderPayload);
       cacheManager.clearCache();
       const orderId = extractOrderId(resp);
@@ -175,37 +166,50 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
       const submittedQuantityNum = decimalToNumber(orderPayload.submittedQuantity);
       const isLongSymbol = !isShortSymbol;
       const isProtectiveLiquidation = isLiquidationSignal(signal);
-      orderMonitor.trackOrder({
-        orderId,
-        symbol,
-        side,
-        price: resolvedPrice ?? 0,
-        initialSubmittedPrice: resolvedPrice ?? 0,
-        quantity: submittedQuantityNum,
-        isLongSymbol,
-        monitorSymbol: monitorConfig?.monitorSymbol ?? null,
-        isProtectiveLiquidation,
-        orderType: orderTypeParam,
-        liquidationTriggerLimit: monitorConfig?.liquidationTriggerLimit ?? 1,
-        liquidationCooldownConfig: monitorConfig?.liquidationCooldown ?? null,
-      });
-
-      const sellRelatedBuyOrderIds = relatedBuyOrderIds ?? signal.relatedBuyOrderIds ?? null;
-      if (side === OrderSide.Sell && sellRelatedBuyOrderIds) {
-        const direction: 'LONG' | 'SHORT' = isLongSymbol ? 'LONG' : 'SHORT';
-        orderRecorder.submitSellOrder(
+      try {
+        orderMonitor.trackOrder({
           orderId,
           symbol,
-          direction,
-          submittedQuantityNum,
-          sellRelatedBuyOrderIds,
-        );
+          side,
+          price: resolvedPrice ?? 0,
+          initialSubmittedPrice: resolvedPrice ?? 0,
+          quantity: submittedQuantityNum,
+          isLongSymbol,
+          monitorSymbol: monitorConfig?.monitorSymbol ?? null,
+          isProtectiveLiquidation,
+          orderType: orderTypeParam,
+          liquidationTriggerLimit: monitorConfig?.liquidationTriggerLimit ?? 1,
+          liquidationCooldownConfig: monitorConfig?.liquidationCooldown ?? null,
+        });
+
+        const sellRelatedBuyOrderIds = relatedBuyOrderIds ?? signal.relatedBuyOrderIds ?? null;
+        if (side === OrderSide.Sell && sellRelatedBuyOrderIds) {
+          const direction: 'LONG' | 'SHORT' = isLongSymbol ? 'LONG' : 'SHORT';
+          orderRecorder.submitSellOrder(
+            orderId,
+            symbol,
+            direction,
+            submittedQuantityNum,
+            sellRelatedBuyOrderIds,
+          );
+        }
+      } catch (error) {
+        throw new Error(`order submitted but local sync failed: ${orderId}`, {
+          cause: error,
+        });
       }
 
-      updateLastBuyTime(signal.action, monitorConfig);
       return orderId;
     } catch (err) {
       handleSubmitError(err, signal, orderPayload);
+      const message = err instanceof Error ? err.message : '';
+      if (
+        message.includes('orderId') ||
+        message.startsWith('order submitted but local sync failed:')
+      ) {
+        throw err;
+      }
+
       return null;
     }
   }
@@ -331,7 +335,7 @@ export function createSubmitTargetOrder(deps: SubmitTargetOrderDeps): SubmitTarg
         );
         if (unconfirmedOutcome) {
           logger.warn(
-            `[订单合并] 撤单未确认非成交终态，跳过合并提交: ${targetSymbol}, outcome=${resolveCancelFailureTag(unconfirmedOutcome)}`,
+            `[订单合并] 撤单未确认非成交终态，跳过合并提交: ${targetSymbol}, outcome=${formatCancelOutcomeTag(unconfirmedOutcome)}`,
           );
           return null;
         }

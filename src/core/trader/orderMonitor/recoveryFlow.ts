@@ -13,7 +13,7 @@ import { PENDING_ORDER_STATUSES } from '../../../constants/index.js';
 import type { MonitorConfig } from '../../../types/config.js';
 import type { RawOrderFromAPI } from '../../../types/services.js';
 import { resolveOrderOwnership } from '../../orderRecorder/orderOwnershipParser.js';
-import { isSeatActive } from '../../../services/autoSymbolManager/utils.js';
+import { isSeatActive } from '../../../utils/seat/guards.js';
 import type {
   OrderSeatOwnership,
   RecoverySnapshotReconciliationParams,

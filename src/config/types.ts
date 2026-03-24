@@ -1,7 +1,7 @@
 import type { MonitorConfig } from '../types/config.js';
 
 /**
- * 配置验证错误（含缺失字段列表）。
+ * 配置验证错误（含缺失或非法字段列表）。
  * 类型用途：封装配置验证失败时的错误信息，作为验证函数抛出的错误类型。
  * 数据来源：由 validateLongbridgeAuthConfig / validateTradingConfig 抛出。
  * 使用范围：仅 config 模块内部使用。
@@ -26,9 +26,9 @@ export type BoundedNumberConfig = {
 };
 
 /**
- * 通用验证结果。
- * 类型用途：描述配置验证的通过/失败状态及错误列表，作为验证函数的返回类型。
- * 数据来源：由 validateLongbridgeAuthConfig / validateTradingConfig 返回。
+ * 通用配置校验结果。
+ * 类型用途：表达配置校验是否通过，以及累积的错误与缺失或非法字段列表。
+ * 数据来源：由 config 模块内部各类 validate 函数返回。
  * 使用范围：仅 config 模块内部使用。
  */
 export type ValidationResult = {
@@ -38,8 +38,21 @@ export type ValidationResult = {
 };
 
 /**
- * 交易配置验证结果（含缺失字段列表）。
- * 类型用途：扩展 ValidationResult，额外包含缺失字段列表，作为 validateTradingConfig 的返回类型。
+ * 仅带下限的数值配置读取参数。
+ * 类型用途：作为 parseFailFastMinimumNumberConfig 的入参，从环境变量读取并校验最小值约束。
+ * 数据来源：调用方从 process.env 及配置键传入。
+ * 使用范围：仅 config 模块内部使用。
+ */
+export type MinimumNumberConfig = {
+  readonly env: NodeJS.ProcessEnv;
+  readonly envKey: string;
+  readonly defaultValue: number;
+  readonly min: number;
+};
+
+/**
+ * 交易配置验证结果（含缺失或非法字段列表）。
+ * 类型用途：扩展 ValidationResult，额外包含缺失或非法字段列表，作为 validateTradingConfig 的返回类型。
  * 数据来源：由 validateTradingConfig 返回。
  * 使用范围：仅 config 模块内部使用。
  */

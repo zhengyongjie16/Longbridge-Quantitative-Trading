@@ -15,13 +15,36 @@ import {
   validateRsiPeriod,
 } from '../utils/indicatorHelpers/index.js';
 import { logger } from '../utils/logger/index.js';
-import type { ComparisonOperator, ParsedCondition, ParsedConditionGroup } from './types.js';
+import type {
+  ComparisonOperator,
+  ConfigValidationError,
+  ParsedCondition,
+  ParsedConditionGroup,
+} from './types.js';
 
 /**
- * 读取字符串配置，未设置、空串或模板占位符（形如 your_xxx / your_xxx_here）时返回 null。
- * @param env - 进程环境变量对象
- * @param envKey - 环境变量键名
- * @returns 去除首尾空白后的字符串，或 null
+ * 创建配置验证错误对象。
+ *
+ * @param message 错误消息
+ * @param missingFields 缺失或非法的字段列表
+ * @returns 带 `name` 与 `missingFields` 的 ConfigValidationError
+ */
+export function createConfigValidationError(
+  message: string,
+  missingFields: ReadonlyArray<string> = [],
+): ConfigValidationError {
+  return Object.assign(new Error(message), {
+    name: 'ConfigValidationError' as const,
+    missingFields,
+  });
+}
+
+/**
+ * 判断配置值是否仍是模板占位符。
+ *
+ * @param value 原始配置值
+ * @param envKey 环境变量键名
+ * @returns true 表示该值仍是占位符，不应视为有效配置
  */
 function isPlaceholderConfigValue(value: string, envKey: string): boolean {
   const normalizedValue = value.trim();
@@ -31,6 +54,13 @@ function isPlaceholderConfigValue(value: string, envKey: string): boolean {
   );
 }
 
+/**
+ * 读取字符串配置，未设置、空串或模板占位符（形如 your_xxx / your_xxx_here）时返回 null。
+ *
+ * @param env 进程环境变量对象
+ * @param envKey 环境变量键名
+ * @returns 去除首尾空白后的字符串，或 null
+ */
 export function getStringConfig(env: NodeJS.ProcessEnv, envKey: string): string | null {
   const value = env[envKey];
   if (!value || value.trim() === '' || isPlaceholderConfigValue(value, envKey)) {

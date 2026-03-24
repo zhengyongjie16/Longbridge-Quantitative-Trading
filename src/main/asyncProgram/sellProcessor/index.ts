@@ -32,11 +32,14 @@ import {
   executeSignalsWithLifecycleGate,
   logProcessorTaskFailure,
 } from '../utils.js';
-import { isQuoteReadyForRequirement, resolveNextQuoteRetry } from '../../../utils/quoteRetry/index.js';
+import {
+  isQuoteReadyForRequirement,
+  resolveNextQuoteRetry,
+} from '../../../utils/quoteRetry/index.js';
 import { logger } from '../../../utils/logger/index.js';
+import { isSeatActive } from '../../../utils/seat/guards.js';
 import {
   describeSignalSeatValidationFailure,
-  isSeatActive,
   validateSignalSeat,
 } from '../../../services/autoSymbolManager/utils.js';
 import type { Processor } from '../types.js';

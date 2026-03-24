@@ -171,21 +171,6 @@ export function resolveInitialTrackedStatus(initialStatus?: OrderStatus): OrderS
 }
 
 /**
- * 从 submitOrder 响应中提取 orderId。
- *
- * @param response 提交响应
- * @returns 订单 ID，缺失时返回 null
- */
-export function resolveOrderIdFromSubmitResponse(response: unknown): string | null {
-  if (!isRecord(response)) {
-    return null;
-  }
-
-  const orderId = response['orderId'];
-  return typeof orderId === 'string' && orderId.length > 0 ? orderId : null;
-}
-
-/**
  * 将价格标准化为固定小数位文本。
  *
  * @param price 原始价格

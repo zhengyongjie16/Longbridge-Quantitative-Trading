@@ -24,9 +24,9 @@ import {
 } from '../utils.js';
 import { logger } from '../../../utils/logger/index.js';
 import { isBuyAction } from '../../../utils/helpers/index.js';
+import { isSeatActive } from '../../../utils/seat/guards.js';
 import {
   describeSignalSeatValidationFailure,
-  isSeatActive,
   validateSignalSeat,
 } from '../../../services/autoSymbolManager/utils.js';
 import type { Processor } from '../types.js';

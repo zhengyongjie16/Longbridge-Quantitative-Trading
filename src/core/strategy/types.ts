@@ -1,8 +1,27 @@
-import type { Signal } from '../../types/signal.js';
-import type { IndicatorSnapshot } from '../../types/quote.js';
 import type { SignalConfigSet, VerificationConfig } from '../../types/config.js';
-import type { OrderRecorder } from '../../types/services.js';
-import type { IndicatorUsageProfile } from '../../types/indicatorProfile.js';
+import type { Signal } from '../../types/signal.js';
+
+/**
+ * 交易信号策略配置。
+ * 类型用途：表达 app 装配层传给策略工厂的最小配置子集。
+ * 数据来源：来自 monitorConfig.signalConfig 与 monitorConfig.verificationConfig。
+ * 使用范围：策略工厂、app 装配层与相关测试使用。
+ */
+export type TradingSignalStrategyConfig = Readonly<{
+  signalConfig: SignalConfigSet | null;
+  verificationConfig: VerificationConfig;
+}>;
+
+/**
+ * 交易信号生成结果。
+ * 类型用途：表达策略输出的立即信号与延迟验证信号集合。
+ * 数据来源：由策略端口 generateSignals 返回。
+ * 使用范围：app 组装层、signalPipeline 与策略实现模块使用。
+ */
+export type TradingSignalGenerationResult = {
+  readonly immediateSignals: ReadonlyArray<Signal>;
+  readonly delayedSignals: ReadonlyArray<Signal>;
+};
 
 /**
  * 信号类型分类。
@@ -22,56 +41,6 @@ export type SignalWithCategory = {
   readonly signal: Signal;
   readonly isImmediate: boolean;
 };
-
-/**
- * 策略配置。
- * 类型用途：策略工厂或主程序注入的配置，供信号生成使用。
- * 数据来源：如适用（来自主配置等）。
- * 使用范围：仅策略模块使用。
- */
-export type StrategyConfig = {
-  readonly signalConfig?: SignalConfigSet | null;
-  readonly verificationConfig?: VerificationConfig;
-};
-
-/**
- * 信号生成结果。
- * 类型用途：策略 generateCloseSignals 的返回值，区分立即执行与延迟验证两类信号。
- * 数据来源：HangSengMultiIndicatorStrategy.generateCloseSignals。
- * 使用范围：仅策略模块与主循环使用。
- */
-export type SignalGenerationResult = {
-  readonly immediateSignals: ReadonlyArray<Signal>;
-  readonly delayedSignals: ReadonlyArray<Signal>;
-};
-
-/**
- * 恒生多指标策略接口。
- * 类型用途：依赖注入，基于技术指标生成交易信号（立即/延迟分类）。
- * 数据来源：如适用。
- * 使用范围：主程序持有并调用；仅 strategy 模块实现。
- */
-export interface HangSengMultiIndicatorStrategy {
-  /**
-   * 生成交易信号
-   *
-   * 根据当前指标状态评估信号条件，生成买入/卖出信号。
-   * 卖出信号需要有对应的买入订单记录才会生成。
-   *
-   * @param state 当前指标快照
-   * @param longSymbol 做多标的代码
-   * @param shortSymbol 做空标的代码
-   * @param orderRecorder 订单记录器
-   * @returns 立即信号和延迟信号
-   */
-  generateCloseSignals: (
-    state: IndicatorSnapshot | null,
-    longSymbol: string,
-    shortSymbol: string,
-    orderRecorder: OrderRecorder,
-    indicatorProfile: IndicatorUsageProfile,
-  ) => SignalGenerationResult;
-}
 
 /**
  * 信号配置评估结果。

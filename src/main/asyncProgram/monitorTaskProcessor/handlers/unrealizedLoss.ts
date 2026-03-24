@@ -9,7 +9,10 @@
 import { ORDER_QUOTE_RETRY } from '../../../../constants/index.js';
 import type { Trader, MarketDataClient } from '../../../../types/services.js';
 import type { RefreshGate } from '../../../../utils/types.js';
-import { isQuoteReadyForRequirement, resolveNextQuoteRetry } from '../../../../utils/quoteRetry/index.js';
+import {
+  isQuoteReadyForRequirement,
+  resolveNextQuoteRetry,
+} from '../../../../utils/quoteRetry/index.js';
 import { logger } from '../../../../utils/logger/index.js';
 import type { MonitorTask } from '../../monitorTaskQueue/types.js';
 import type {

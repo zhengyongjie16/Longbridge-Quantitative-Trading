@@ -24,8 +24,8 @@ import type {
   TradingCalendarDayInfo,
   TradingCalendarSnapshot,
 } from '../../types/tradingCalendar.js';
+import type { AutoSymbolManagerPort } from '../../types/monitorContextPorts.js';
 import type {
-  AutoSymbolManager,
   AutoSymbolManagerDeps,
   PeriodicSwitchPendingState,
   SwitchState,
@@ -47,7 +47,7 @@ import { createSwitchStateMachine } from './switchStateMachine.js';
  * @param deps 依赖（监控配置、席位注册表、行情客户端、交易器、风控、订单记录等）
  * @returns AutoSymbolManager 实例
  */
-export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbolManager {
+export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbolManagerPort {
   const {
     monitorConfig,
     symbolRegistry,

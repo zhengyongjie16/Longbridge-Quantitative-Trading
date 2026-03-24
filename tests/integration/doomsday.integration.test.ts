@@ -106,7 +106,7 @@ function createMonitorContext(
       resetAllState: () => {},
     },
     strategy: {
-      generateCloseSignals: () => ({ immediateSignals: [], delayedSignals: [] }),
+      generateSignals: () => ({ immediateSignals: [], delayedSignals: [] }),
     },
     orderRecorder,
     dailyLossTracker: {

@@ -7,7 +7,7 @@
  * - 成功后推进到 ACTIVE，失败则回 EMPTY 并 bump version
  */
 import { logger } from '../../../../utils/logger/index.js';
-import { isSeatVersionMatch } from '../../../../services/autoSymbolManager/utils.js';
+import { isSeatVersionMatch } from '../../../../utils/seat/guards.js';
 
 import type { MultiMonitorTradingConfig } from '../../../../types/config.js';
 import type { MarketDataClient } from '../../../../types/services.js';

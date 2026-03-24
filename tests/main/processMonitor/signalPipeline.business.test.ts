@@ -100,7 +100,7 @@ function createPipelineHarness(params: {
 
   const monitorContext = {
     strategy: {
-      generateCloseSignals: () => ({
+      generateSignals: () => ({
         immediateSignals: params.immediateSignals,
         delayedSignals: params.delayedSignals,
       }),

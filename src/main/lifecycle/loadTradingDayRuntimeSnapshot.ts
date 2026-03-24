@@ -35,7 +35,7 @@ import { decimalToNumber, isValidPositiveNumber } from '../../utils/helpers/inde
 import { resolveOrderOwnership } from '../../core/orderRecorder/orderOwnershipParser.js';
 import { hasProtectiveLiquidationRemark } from '../../core/trader/utils.js';
 import { buildCooldownKey } from '../../services/liquidationCooldown/utils.js';
-import { hasSeatSymbol } from '../../services/autoSymbolManager/utils.js';
+import { hasSeatSymbol } from '../../utils/seat/guards.js';
 import type {
   LoadTradingDayRuntimeSnapshotDeps,
   LoadTradingDayRuntimeSnapshotParams,

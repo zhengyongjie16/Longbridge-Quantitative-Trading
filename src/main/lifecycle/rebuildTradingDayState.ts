@@ -16,7 +16,7 @@
  * 错误处理：
  * - 任一步骤失败即整体抛出，由生命周期管理器负责重试
  */
-import { hasSeatSymbol } from '../../services/autoSymbolManager/utils.js';
+import { hasSeatSymbol } from '../../utils/seat/guards.js';
 import type { MonitorContext } from '../../types/state.js';
 import type { Quote } from '../../types/quote.js';
 import type { SymbolRegistry } from '../../types/seat.js';

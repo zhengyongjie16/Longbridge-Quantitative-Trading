@@ -32,7 +32,7 @@ import type {
 } from '../../src/types/services.js';
 import type { SymbolRegistry, SeatState } from '../../src/types/seat.js';
 import type { Candlestick, Config, Period, QuoteContext, TradeContext } from 'longbridge';
-import type { HangSengMultiIndicatorStrategy } from '../../src/core/strategy/types.js';
+import type { TradingSignalStrategy } from '../../src/core/strategy/ports.js';
 import type {
   DoomsdayProtection,
   DoomsdayClearanceContext,
@@ -51,8 +51,10 @@ import type {
   RecordLiquidationTriggerResult,
   RestoreTriggerCountParams,
 } from '../../src/services/liquidationCooldown/types.js';
-import type { DelayedSignalVerifier } from '../../src/main/asyncProgram/delayedSignalVerifier/types.js';
-import type { AutoSymbolManager } from '../../src/services/autoSymbolManager/types.js';
+import type {
+  AutoSymbolManagerPort,
+  DelayedSignalVerifierPort,
+} from '../../src/types/monitorContextPorts.js';
 import type { ProtectiveLiquidationEpisodeTracker } from '../../src/core/trader/protectiveLiquidationEpisodeTracker/types.js';
 import { toMockDecimal } from '../../mock/longbridge/decimal.js';
 import { createQuoteContextMock } from '../../mock/longbridge/quoteContextMock.js';
@@ -298,10 +300,10 @@ export function createDailyLossTrackerDouble(
  * 默认不生成任何信号，用于隔离组装层与上下文测试。
  */
 export function createStrategyDouble(
-  overrides: Partial<HangSengMultiIndicatorStrategy> = {},
-): HangSengMultiIndicatorStrategy {
-  const base: HangSengMultiIndicatorStrategy = {
-    generateCloseSignals: () => ({
+  overrides: Partial<TradingSignalStrategy> = {},
+): TradingSignalStrategy {
+  const base: TradingSignalStrategy = {
+    generateSignals: () => ({
       immediateSignals: [],
       delayedSignals: [],
     }),
@@ -337,9 +339,9 @@ export function createUnrealizedLossMonitorDouble(
  * 默认提供空实现，供 app 装配与 cleanup 测试复用。
  */
 export function createDelayedSignalVerifierDouble(
-  overrides: Partial<DelayedSignalVerifier> = {},
-): DelayedSignalVerifier {
-  const base: DelayedSignalVerifier = {
+  overrides: Partial<DelayedSignalVerifierPort> = {},
+): DelayedSignalVerifierPort {
+  const base: DelayedSignalVerifierPort = {
     addSignal: () => {},
     onVerified: () => {},
     cancelAll: () => 0,
@@ -361,9 +363,9 @@ export function createDelayedSignalVerifierDouble(
  * 默认不触发寻标和换标，用于上下文与主流程测试。
  */
 export function createAutoSymbolManagerDouble(
-  overrides: Partial<AutoSymbolManager> = {},
-): AutoSymbolManager {
-  const base: AutoSymbolManager = {
+  overrides: Partial<AutoSymbolManagerPort> = {},
+): AutoSymbolManagerPort {
+  const base: AutoSymbolManagerPort = {
     maybeSearchOnTick: async () => {},
     maybeSwitchOnInterval: async () => {},
     maybeSwitchOnDistance: async () => {},

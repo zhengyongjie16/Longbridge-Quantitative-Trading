@@ -18,11 +18,11 @@ import type {
   MonitorTaskStatus,
 } from '../types.js';
 import {
-  hasSeatSymbolInSnapshot,
   isSeatSnapshotValid,
   resolveSeatSnapshotReadiness,
   validateSeatSnapshotsAfterRefresh,
 } from '../helpers/seatSnapshot.js';
+import { hasSeatSymbol } from '../../../../utils/seat/guards.js';
 
 /**
  * 创建自动寻标任务处理器（AUTO_SYMBOL_TICK、AUTO_SYMBOL_SWITCH_DISTANCE）。
@@ -128,7 +128,7 @@ export function createAutoSymbolHandlers({
       monitorSymbol: data.monitorSymbol,
       context,
       snapshotValidity,
-      isSeatUsable: hasSeatSymbolInSnapshot,
+      isSeatUsable: hasSeatSymbol,
     });
 
     if (seatReadiness.isLongReady) {

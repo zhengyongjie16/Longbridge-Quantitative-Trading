@@ -6,74 +6,10 @@ import type { MonitorConfig } from './config.js';
 import type { SeatState, SymbolRegistry, LifecycleState } from './seat.js';
 import type { OrderRecorder, PositionCache, RiskChecker, TradingDayInfo } from './services.js';
 import type { DailyLossTracker, UnrealizedLossMonitor } from './risk.js';
-import type { IndicatorUsageProfile, VerificationIndicator } from './indicatorProfile.js';
-import type { IndicatorIncrementalRuntime } from '../services/indicators/runtime/types.js';
-
-/**
- * 自动换标管理器行为契约。
- * 类型用途：约束 MonitorContext.autoSymbolManager 的可调用方法，避免 types 层反向依赖业务实现模块。
- * 数据来源：由 autoSymbolManager 模块实现并注入。
- * 使用范围：MonitorContext 与调用方使用。
- */
-interface AutoSymbolManager {
-  maybeSearchOnTick: (params: {
-    readonly direction: 'LONG' | 'SHORT';
-    readonly currentTime: Date;
-    readonly canTradeNow: boolean;
-  }) => Promise<void>;
-  maybeSwitchOnInterval: (params: {
-    readonly direction: 'LONG' | 'SHORT';
-    readonly currentTime: Date;
-    readonly canTradeNow: boolean;
-    readonly openProtectionActive: boolean;
-  }) => Promise<void>;
-  maybeSwitchOnDistance: (params: {
-    readonly direction: 'LONG' | 'SHORT';
-    readonly monitorPrice: number | null;
-    readonly positions: ReadonlyArray<Position>;
-  }) => Promise<void>;
-  hasPendingSwitch: (direction: 'LONG' | 'SHORT') => boolean;
-  resetAllState: () => void;
-}
-
-/**
- * 恒生多指标策略行为契约。
- * 类型用途：约束 MonitorContext.strategy 的信号生成方法。
- * 数据来源：由 strategy 模块实现并注入。
- * 使用范围：processMonitor/signalPipeline 等调用方使用。
- */
-interface HangSengMultiIndicatorStrategy {
-  generateCloseSignals: (
-    state: IndicatorSnapshot | null,
-    longSymbol: string,
-    shortSymbol: string,
-    orderRecorder: OrderRecorder,
-    indicatorProfile: IndicatorUsageProfile,
-  ) => {
-    readonly immediateSignals: ReadonlyArray<Signal>;
-    readonly delayedSignals: ReadonlyArray<Signal>;
-  };
-}
-
-/**
- * 延迟信号验证器行为契约。
- * 类型用途：约束 MonitorContext.delayedSignalVerifier 的生命周期与队列操作方法。
- * 数据来源：由 delayedSignalVerifier 模块实现并注入。
- * 使用范围：signalPipeline、mainProgram、cleanup、queue 清理逻辑使用。
- */
-interface DelayedSignalVerifier {
-  addSignal: (params: {
-    readonly signal: Signal;
-    readonly monitorSymbol: string;
-    readonly verificationIndicators: ReadonlyArray<VerificationIndicator>;
-  }) => void;
-  onVerified: (callback: (signal: Signal, monitorSymbol: string) => void) => void;
-  cancelAll: () => number;
-  cancelAllForSymbol: (monitorSymbol: string) => void;
-  cancelAllForDirection: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => number;
-  getPendingCount: () => number;
-  destroy: () => void;
-}
+import type { IndicatorUsageProfile } from './indicatorProfile.js';
+import type { AutoSymbolManagerPort, DelayedSignalVerifierPort } from './monitorContextPorts.js';
+import type { IndicatorIncrementalRuntime } from './indicatorRuntime.js';
+import type { TradingSignalStrategy } from '../core/strategy/ports.js';
 
 /**
  * 单个监控标的的运行时状态。
@@ -207,10 +143,10 @@ export type MonitorContext = {
   };
 
   /** 自动换标管理器 */
-  readonly autoSymbolManager: AutoSymbolManager;
+  readonly autoSymbolManager: AutoSymbolManagerPort;
 
   /** 策略实例 */
-  readonly strategy: HangSengMultiIndicatorStrategy;
+  readonly strategy: TradingSignalStrategy;
 
   /** 订单记录器 */
   readonly orderRecorder: OrderRecorder;
@@ -225,7 +161,7 @@ export type MonitorContext = {
   readonly unrealizedLossMonitor: UnrealizedLossMonitor;
 
   /** 延迟信号验证器 */
-  readonly delayedSignalVerifier: DelayedSignalVerifier;
+  readonly delayedSignalVerifier: DelayedSignalVerifierPort;
 
   /** 做多标的名称缓存 */
   longSymbolName: string;

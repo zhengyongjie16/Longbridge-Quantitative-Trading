@@ -1,4 +1,4 @@
-import type { AutoSymbolManager } from '../../../services/autoSymbolManager/types.js';
+import type { AutoSymbolManagerPort } from '../../../types/monitorContextPorts.js';
 import type { RefreshGate } from '../../../utils/types.js';
 import type { QuoteRetryRequirement } from '../../../utils/quoteRetry/types.js';
 import type { MonitorTaskQueue, MonitorTask, MonitorTaskInput } from '../monitorTaskQueue/types.js';
@@ -190,7 +190,7 @@ export type CreateLiquidationTaskParams = Readonly<{
  */
 export type MonitorTaskContext = Readonly<{
   symbolRegistry: SymbolRegistry;
-  autoSymbolManager: AutoSymbolManager;
+  autoSymbolManager: AutoSymbolManagerPort;
   orderRecorder: OrderRecorder;
   dailyLossTracker: DailyLossTracker;
   riskChecker: RiskChecker;

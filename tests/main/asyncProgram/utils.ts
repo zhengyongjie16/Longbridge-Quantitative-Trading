@@ -130,7 +130,7 @@ function buildMonitorContextBase(
       resetAllState: () => {},
     },
     strategy: {
-      generateCloseSignals: () => ({ immediateSignals: [], delayedSignals: [] }),
+      generateSignals: () => ({ immediateSignals: [], delayedSignals: [] }),
     },
     orderRecorder: createOrderRecorderDouble(),
     dailyLossTracker: {

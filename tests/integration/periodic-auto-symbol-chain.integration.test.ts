@@ -65,6 +65,187 @@ async function waitUntil(predicate: () => boolean, timeoutMs: number = 1000): Pr
 }
 
 describe('periodic auto-symbol full chain integration', () => {
+  it('hands periodic no-candidate back to EMPTY auto-search ticks without leaving pending switch state', async () => {
+    const readyMs = Date.parse('2026-02-16T01:30:00.000Z');
+    let currentNowMs = Date.parse('2026-02-16T01:31:00.000Z');
+    candidateQueue = [
+      null,
+      null,
+      createWarrantCandidateWithOverrides('NEW_BULL.HK', { callPrice: 21_000 }),
+    ];
+    const tradingCalendarSnapshot = new Map([
+      ['2026-02-16', { isTradingDay: true, isHalfDay: false }],
+    ]);
+
+    const monitorConfig = createMonitorConfigDouble({
+      monitorSymbol: 'HSI.HK',
+      autoSearchConfig: {
+        autoSearchEnabled: true,
+        autoSearchMinDistancePctBull: 0.35,
+        autoSearchMinDistancePctBear: -0.35,
+        autoSearchMinTurnoverPerMinuteBull: 100_000,
+        autoSearchMinTurnoverPerMinuteBear: 100_000,
+        autoSearchExpiryMinMonths: 3,
+        autoSearchOpenDelayMinutes: 0,
+        switchIntervalMinutes: 1,
+        switchDistanceRangeBull: { min: 0.2, max: 1.5 },
+        switchDistanceRangeBear: { min: -1.5, max: -0.2 },
+      },
+    });
+
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: monitorConfig.monitorSymbol,
+      longSeat: {
+        symbol: 'OLD_BULL.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: readyMs,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      shortSeat: {
+        symbol: null,
+        status: 'EMPTY',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      longVersion: 1,
+      shortVersion: 1,
+    });
+
+    const trader = createTraderDouble({
+      getPendingOrders: async () => [],
+      cancelOrder: async () => ({
+        kind: 'CANCEL_CONFIRMED',
+        closedReason: 'CANCELED',
+        source: 'API',
+        relatedBuyOrderIds: null,
+      }),
+    });
+    const orderRecorder = createOrderRecorderDouble({
+      getBuyOrdersForSymbol: () => [],
+    });
+    const riskChecker = createRiskCheckerDouble({
+      getWarrantDistanceInfo: () =>
+        createWarrantDistanceInfoDouble({
+          warrantType: 'BULL',
+          distanceToStrikePercent: 0.1,
+        }),
+    });
+
+    const autoSymbolManager = createAutoSymbolManager({
+      monitorConfig,
+      symbolRegistry,
+      marketDataClient: createMarketDataClientDouble(),
+      trader,
+      orderRecorder,
+      riskChecker,
+      findBestWarrant: async () => candidateQueue.shift() ?? null,
+      now: () => new Date(currentNowMs),
+      getTradingCalendarSnapshot: () => tradingCalendarSnapshot,
+    });
+
+    const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
+    const monitorContext = {
+      config: monitorConfig,
+      symbolRegistry,
+      autoSymbolManager,
+      orderRecorder,
+      dailyLossTracker: {
+        resetAll: () => {},
+        recalculateFromAllOrders: () => {},
+        recordFilledOrder: () => {},
+        getLossOffset: () => 0,
+      },
+      riskChecker,
+      unrealizedLossMonitor: {
+        monitorUnrealizedLoss: async () => {},
+      },
+      longSymbolName: 'OLD_BULL.HK',
+      shortSymbolName: '',
+      monitorSymbolName: 'HSI.HK',
+      longQuote: null,
+      shortQuote: null,
+      monitorQuote: null,
+    } as unknown as MonitorContext;
+    const mainContext = {
+      monitorTaskQueue,
+    } as unknown as MainProgramContext;
+
+    const statuses: MonitorTaskStatus[] = [];
+    const processor = createMonitorTaskProcessor({
+      monitorTaskQueue,
+      refreshGate: createRefreshGate(),
+      getMonitorContext: () => monitorContext as never,
+      clearMonitorDirectionQueues: () => {},
+      trader,
+      marketDataClient: createMarketDataClientDouble(),
+      lastState: createLastState(),
+      tradingConfig: {
+        monitors: [monitorConfig],
+      } as unknown as MultiMonitorTradingConfig,
+      onProcessed: (_task, status) => {
+        statuses.push(status);
+      },
+    });
+
+    processor.start();
+    try {
+      scheduleAutoSymbolTasks({
+        monitorSymbol: 'HSI.HK',
+        monitorContext,
+        mainContext,
+        autoSearchEnabled: true,
+        currentTimeMs: currentNowMs,
+        canTradeNow: true,
+        openProtectionActive: false,
+        monitorPriceChanged: false,
+        resolvedMonitorPrice: 20_000,
+      });
+
+      await waitUntil(() => statuses.length >= 2);
+      expect(statuses).toEqual(['processed', 'processed']);
+
+      const seatAfterPeriodicMiss = symbolRegistry.getSeatState('HSI.HK', 'LONG');
+      expect(seatAfterPeriodicMiss.status).toBe('EMPTY');
+      expect(seatAfterPeriodicMiss.symbol).toBeNull();
+      expect(seatAfterPeriodicMiss.searchFailCountToday).toBe(1);
+      expect(symbolRegistry.getSeatVersion('HSI.HK', 'LONG')).toBe(2);
+      expect(autoSymbolManager.hasPendingSwitch('LONG')).toBeFalse();
+
+      statuses.length = 0;
+      currentNowMs += 600_000;
+
+      scheduleAutoSymbolTasks({
+        monitorSymbol: 'HSI.HK',
+        monitorContext,
+        mainContext,
+        autoSearchEnabled: true,
+        currentTimeMs: currentNowMs,
+        canTradeNow: true,
+        openProtectionActive: false,
+        monitorPriceChanged: false,
+        resolvedMonitorPrice: 20_000,
+      });
+
+      await waitUntil(() => statuses.length >= 2);
+      expect(statuses).toEqual(['processed', 'processed']);
+
+      const seatAfterAutoSearch = symbolRegistry.getSeatState('HSI.HK', 'LONG');
+      expect(seatAfterAutoSearch.status).toBe('ACTIVATING');
+      expect(seatAfterAutoSearch.symbol).toBe('NEW_BULL.HK');
+      expect(seatAfterAutoSearch.searchFailCountToday).toBe(0);
+      expect(autoSymbolManager.hasPendingSwitch('LONG')).toBeFalse();
+      expect(symbolRegistry.getSeatVersion('HSI.HK', 'LONG')).toBe(3);
+    } finally {
+      await processor.stopAndDrain();
+    }
+  });
+
   it('completes periodic switch through AUTO_SYMBOL_TICK and AUTO_SYMBOL_SWITCH_DISTANCE tasks', async () => {
     const readyMs = Date.parse('2026-02-16T01:30:00.000Z');
     let currentNowMs = Date.parse('2026-02-16T01:31:00.000Z');

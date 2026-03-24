@@ -6,21 +6,11 @@
  * - 计算席位就绪状态与可用标的
  * - 刷新后再校验快照，避免旧席位任务执行
  */
-import { isSeatVersionMatch } from '../../../../services/autoSymbolManager/utils.js';
+import { isSeatVersionMatch } from '../../../../utils/seat/guards.js';
 
 import type { SeatState } from '../../../../types/seat.js';
 import type { RefreshGate } from '../../../../utils/types.js';
 import type { MonitorTaskContext, SeatSnapshot } from '../types.js';
-
-/**
- * 判断席位是否持有有效标的（symbol 为非空字符串）
- *
- * @param seatState 席位状态
- * @returns 标的为非空字符串时返回 true
- */
-export const hasSeatSymbolInSnapshot = (seatState: SeatState): boolean => {
-  return typeof seatState.symbol === 'string' && seatState.symbol.length > 0;
-};
 
 /**
  * 校验席位快照是否与当前席位状态一致

@@ -84,7 +84,7 @@ function createMonitorContext(params: {
       incrementalIndicatorRuntime: null,
     },
     strategy: {
-      generateCloseSignals: params.strategyGenerate,
+      generateSignals: params.strategyGenerate,
     },
   });
 }

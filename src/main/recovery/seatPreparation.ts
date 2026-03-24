@@ -20,8 +20,8 @@ import {
   buildFindBestWarrantInputFromPolicy,
   resolveDirectionalAutoSearchPolicy,
 } from '../../services/autoSymbolFinder/policyResolver.js';
+import { hasSeatSymbol } from '../../utils/seat/guards.js';
 import {
-  hasSeatSymbol,
   resolveNextSearchFailureState,
   resolveSeatOnStartup,
 } from '../../services/autoSymbolManager/utils.js';

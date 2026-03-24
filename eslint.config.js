@@ -281,13 +281,17 @@ export default defineConfig(
               ],
               message: 'services 层不得依赖 main 层',
             },
+            {
+              regex: String.raw`^(?:\.\./)+core/(?!strategy/ports\.js$).+`,
+              message: 'services 层不得依赖 core 层',
+            },
           ],
         },
       ],
     },
   },
   {
-    files: ['src/core/**/*.ts', 'src/types/**/*.ts', 'src/config/**/*.ts', 'src/utils/**/*.ts'],
+    files: ['src/core/**/*.ts', 'src/config/**/*.ts', 'src/utils/**/*.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -302,6 +306,38 @@ export default defineConfig(
                 '../../../../../app/*',
               ],
               message: '下层模块不得反向依赖 app 层',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/types/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '../app/*',
+                '../../app/*',
+                '../../../app/*',
+                '../../../../app/*',
+                '../../../../../app/*',
+              ],
+              message: '下层模块不得反向依赖 app 层',
+            },
+            {
+              group: [
+                '../services/*',
+                '../../services/*',
+                '../../../services/*',
+                '../../../../services/*',
+                '../../../../../services/*',
+              ],
+              message: 'types 层不得依赖 services 层',
             },
           ],
         },

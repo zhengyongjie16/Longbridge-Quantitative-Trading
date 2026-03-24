@@ -11,7 +11,7 @@
  * - 任一查询失败即抛错，由生命周期管理器统一重试
  */
 import { LIFECYCLE, TIME } from '../../constants/index.js';
-import { hasSeatSymbol } from '../../services/autoSymbolManager/utils.js';
+import { hasSeatSymbol } from '../../utils/seat/guards.js';
 import type { MonitorContext } from '../../types/state.js';
 import type { MarketDataClient, OrderRecord, TradingDayInfo } from '../../types/services.js';
 import { listHKDateKeysBetween } from './utils.js';

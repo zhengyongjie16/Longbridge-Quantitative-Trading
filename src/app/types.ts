@@ -17,8 +17,11 @@ import type {
   TradingDayInfo,
 } from '../types/services.js';
 import type { DailyLossTracker, UnrealizedLossMonitor } from '../types/risk.js';
-import type { HangSengMultiIndicatorStrategy } from '../core/strategy/types.js';
-import type { AutoSymbolManager } from '../services/autoSymbolManager/types.js';
+import type {
+  TradingSignalStrategy,
+  TradingSignalStrategyFactory,
+} from '../core/strategy/ports.js';
+import type { AutoSymbolManagerPort } from '../types/monitorContextPorts.js';
 import type {
   WarrantListCache,
   WarrantListCacheConfig,
@@ -78,6 +81,13 @@ import type { DisplayAccountAndPositionsParams } from '../services/accountDispla
 export type GatePolicies = Readonly<{
   startupGate: GateMode;
   runtimeGate: GateMode;
+}>;
+
+export type GatePolicySource = 'default' | 'explicit';
+
+export type GatePolicySources = Readonly<{
+  startupGateSource: GatePolicySource;
+  runtimeGateSource: GatePolicySource;
 }>;
 
 /**
@@ -216,13 +226,13 @@ export type MonitorContextFactoryDeps = Readonly<{
   state: MonitorState;
   symbolRegistry: SymbolRegistry;
   quotesMap: ReadonlyMap<string, Quote | null>;
-  strategy: HangSengMultiIndicatorStrategy;
+  strategy: TradingSignalStrategy;
   orderRecorder: OrderRecorder;
   dailyLossTracker: DailyLossTracker;
   riskChecker: RiskChecker;
   unrealizedLossMonitor: UnrealizedLossMonitor;
   delayedSignalVerifier: MonitorContext['delayedSignalVerifier'];
-  autoSymbolManager: AutoSymbolManager;
+  autoSymbolManager: AutoSymbolManagerPort;
 }>;
 
 /**
@@ -320,6 +330,7 @@ export type CreateMonitorContextsParams = Readonly<{
   preGateRuntime: PreGateRuntime;
   postGateRuntime: MutableMonitorContextsPostGateRuntime;
   quotesMap: ReadonlyMap<string, Quote | null>;
+  strategyFactory?: TradingSignalStrategyFactory;
 }>;
 
 /**

@@ -4,7 +4,7 @@
  * 功能：
  * - 提供「获取上下文 + 校验席位快照 + 解析席位就绪」的公共流程，供 liquidationDistance、unrealizedLoss 等 handler 复用
  */
-import { isSeatActive } from '../../../services/autoSymbolManager/utils.js';
+import { isSeatActive } from '../../../utils/seat/guards.js';
 import { logger } from '../../../utils/logger/index.js';
 import type { SeatState } from '../../../types/seat.js';
 import type { RefreshGate } from '../../../utils/types.js';

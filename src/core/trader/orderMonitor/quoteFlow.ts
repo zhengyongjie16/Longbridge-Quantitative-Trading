@@ -18,9 +18,12 @@ import {
   PENDING_ORDER_STATUSES,
   TRADING,
 } from '../../../constants/index.js';
-import { isQuoteReadyForRequirement, resolveNextQuoteRetry } from '../../../utils/quoteRetry/index.js';
+import {
+  isQuoteReadyForRequirement,
+  resolveNextQuoteRetry,
+} from '../../../utils/quoteRetry/index.js';
 import type { CancelOrderOutcome } from '../../../types/trader.js';
-import { toDecimal } from '../utils.js';
+import { extractOrderId, toDecimal } from '../utils.js';
 import type { PendingSellOrderSnapshot, TrackedOrder } from '../types.js';
 import type {
   OrderMonitorTrackedOrder,
@@ -34,12 +37,7 @@ import {
   consumeQueriedTerminalState,
   resetOrderReplaceRuntimeState,
 } from './orderOps.js';
-import {
-  calculatePriceDiffDecimal,
-  isWaitWsOnlyReplaceMode,
-  normalizePriceText,
-  resolveOrderIdFromSubmitResponse,
-} from './utils.js';
+import { calculatePriceDiffDecimal, isWaitWsOnlyReplaceMode, normalizePriceText } from './utils.js';
 
 function resolveCancelRetryDelayMs(retryCount: number): number {
   const delay = ORDER_MONITOR_CANCEL_RETRY_BASE_DELAY_MS * 2 ** Math.max(0, retryCount - 1);
@@ -364,48 +362,57 @@ export function createQuoteFlow(deps: QuoteFlowDeps): QuoteFlow {
       }
 
       const response = await ctx.submitOrder(marketOrderPayload);
-      const newOrderId = resolveOrderIdFromSubmitResponse(response) ?? 'UNKNOWN';
-      const direction: 'LONG' | 'SHORT' = order.isLongSymbol ? 'LONG' : 'SHORT';
-      const relatedBuyOrderIds =
-        settlementResult.relatedBuyOrderIds ??
-        orderRecorder.allocateRelatedBuyOrderIdsForRecovery(
+      const newOrderId = extractOrderId(response);
+      try {
+        const direction: 'LONG' | 'SHORT' = order.isLongSymbol ? 'LONG' : 'SHORT';
+        const relatedBuyOrderIds =
+          settlementResult.relatedBuyOrderIds ??
+          orderRecorder.allocateRelatedBuyOrderIdsForRecovery(
+            order.symbol,
+            direction,
+            marketConversionQuantity,
+          );
+        orderRecorder.submitSellOrder(
+          newOrderId,
           order.symbol,
           direction,
           marketConversionQuantity,
+          relatedBuyOrderIds,
         );
-      orderRecorder.submitSellOrder(
-        newOrderId,
-        order.symbol,
-        direction,
-        marketConversionQuantity,
-        relatedBuyOrderIds,
-      );
 
-      logger.info(
-        `[订单监控] 卖出订单 ${orderId} 已转为市价单，新订单ID=${newOrderId}，数量=${marketConversionQuantity}`,
-      );
+        logger.info(
+          `[订单监控] 卖出订单 ${orderId} 已转为市价单，新订单ID=${newOrderId}，数量=${marketConversionQuantity}`,
+        );
 
-      trackOrder({
-        orderId: newOrderId,
-        symbol: order.symbol,
-        side: order.side,
-        price: 0,
-        initialSubmittedPrice: 0,
-        quantity: marketConversionQuantity,
-        isLongSymbol: order.isLongSymbol,
-        monitorSymbol: order.monitorSymbol,
-        isProtectiveLiquidation: order.isProtectiveLiquidation,
-        orderType: OrderType.MO,
-        liquidationTriggerLimit: order.liquidationTriggerLimit,
-        liquidationCooldownConfig: order.liquidationCooldownConfig,
-      });
-      const newTrackedOrder = runtime.trackedOrders.get(newOrderId);
-      if (newTrackedOrder) {
-        newTrackedOrder.convertedToMarket = true;
+        trackOrder({
+          orderId: newOrderId,
+          symbol: order.symbol,
+          side: order.side,
+          price: 0,
+          initialSubmittedPrice: 0,
+          quantity: marketConversionQuantity,
+          isLongSymbol: order.isLongSymbol,
+          monitorSymbol: order.monitorSymbol,
+          isProtectiveLiquidation: order.isProtectiveLiquidation,
+          orderType: OrderType.MO,
+          liquidationTriggerLimit: order.liquidationTriggerLimit,
+          liquidationCooldownConfig: order.liquidationCooldownConfig,
+        });
+        const newTrackedOrder = runtime.trackedOrders.get(newOrderId);
+        if (newTrackedOrder) {
+          newTrackedOrder.convertedToMarket = true;
+        }
+      } catch (error) {
+        logger.error(
+          `[订单监控] 卖出订单 ${orderId} 转市价单已提交，但本地同步失败，订单ID=${newOrderId}`,
+          error,
+        );
+        throw new Error(`order submitted but local sync failed: ${newOrderId}`, { cause: error });
       }
     } catch (error) {
       logger.error(`[订单监控] 卖出订单 ${orderId} 转市价单失败`, error);
       applyCancelRetryBackoff(order);
+      throw error;
     }
   }
 

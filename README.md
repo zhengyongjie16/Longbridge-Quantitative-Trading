@@ -18,14 +18,6 @@
 8. 该程序代码几乎全部由AI coding（关键部分主要使用Claude Opus 4.x和GPT-5.x Extra High模型）完成，请使用顶级模型进行重构和再开发，这是保证代码质量的关键。（注意：Agent仅用作代码实现，所有架构和业务逻辑应自行设计）。
 9. 请务必使用模拟账户进行调试。
 
-## 编码模型分级（仅作参考）
-
-建议选择第一梯队模型开发复杂功能，以确保代码质量与效率。
-
-- **第一梯队**: `GPT-5.4-Extra-High`, `GPT-5.3-Codex-Extra-High`, `Claude-Opus-4.6`
-- **第二梯队**: `Claude-Sonnet-4.6`, `MiniMax-M2.5`, `GLM-5`, `Gemini-3.1-Pro`
-- **第三梯队**: `Qwen-3.5`, `Grok-4`, `Deepseek-v3.2`
-
 ## 开发者提示
 
 使用 Claude Code / Codex / Cursor Agent 开发时，可以使用 **[CLAUDE.md](./CLAUDE.md)** 对 Agent 进行宽约束和初步指导。具体参考下方「帮助」中的 Claude Code Docs。
@@ -145,12 +137,17 @@ bun start
 
 常用命令：
 
-- 开发：`bun dev`（跳过门禁检查）
+- 开发：`bun dev`（仅启用开发模式；默认仍执行门禁检查）
+- 显式跳过 startup gate：`bunx cross-env STARTUP_GATE_MODE=skip bun dev`
+- 显式跳过 runtime gate：`bunx cross-env RUNTIME_GATE_MODE=skip bun dev`
+- 显式同时跳过双门禁：`bunx cross-env STARTUP_GATE_MODE=skip RUNTIME_GATE_MODE=skip bun dev`
 - 开发：`bun dev:watch`
 - 构建：`bun build`
+- 格式化：`bun format`
 - 类型检查：`bun type-check`
+- eslint检查：`bun lint`
 - 代码质量：`bun sonarqube` / `bun sonarqube:report`（需本地安装 `sonar-scanner`，然后配置 `.env.sonar` 及 `docker-compose.yml` 以本地启动）
-- 其他：`bun lint` / `bun lint:fix` / `bun clean` / `bun format`
+- 其他：`bun clean`
 
 ## 交易策略
 

@@ -47,8 +47,8 @@ description: Use when writing, refactoring, or reviewing TypeScript modules in t
 
 ### 6. 代码组织
 
-- 类型定义放在 `types.ts` 文件中；共享类型放在公共的 `types.ts` 文件中。
-- 工具函数（纯工具）放在 `utils.ts` 文件中；公共工具放在公共的 `utils.ts` 文件中；不要定义重复工具函数，纯函数不应使用 `create` 开头命名。
+- `types.ts` 文件只能定义类型；只允许出现 `type`、`interface`、`import type` 与 `export type` 等类型相关定义。禁止在 `types.ts` 中定义常量、函数、Schema、类、枚举或其他任何运行时代码；共享类型放在公共的 `types.ts` 文件中。
+- `utils.ts` 文件只能定义工具函数与其必要实现；禁止在 `utils.ts` 中定义 `type`、`interface` 或其他类型声明。工具函数依赖的类型必须拆到相邻 `types.ts` 或公共类型模块，并通过 `import type` 引入；公共工具放在公共的 `utils.ts` 文件中；不要定义重复工具函数，纯函数不应使用 `create` 开头命名。
 - 常量统一放在 `/src/constants` 下，不要定义重复常量。
 - 单元测试文件统一放在项目根目录的 `tests/` 下，目录结构需与 `src/` 对应。
 
@@ -87,7 +87,7 @@ description: Use when writing, refactoring, or reviewing TypeScript modules in t
 
 ### 11. 流程要求
 
-- 实际编写或修改 TypeScript 代码并交付结果时，必须运行 `bun lint` 和 `bun type-check`，并修复全部问题。
+- 实际编写或修改 TypeScript 代码并交付结果时，必须运行（按顺序）`bun format`、 `bun lint` 和 `bun type-check`，并修复全部问题。
 - 只读审查任务只对适用规则做符合性判断；命令验证要求仅在实际改码任务中生效。
 
 ## 示例文档
@@ -114,10 +114,11 @@ description: Use when writing, refactoring, or reviewing TypeScript modules in t
 - [ ] 符合 [工厂函数与依赖注入](./examples/factory-and-di.md) 示例
 - [ ] 符合 [对象池模式](./examples/object-pool.md) 示例（若使用对象池）
 - [ ] 符合 [代码组织](./examples/code-organization-rules.md) 示例
+- [ ] `types.ts` 中无常量、函数、Schema 或其他非类型定义，`utils.ts` 中无 `type`、`interface` 或其他类型定义
 - [ ] 符合 [Schema 组织与校验](./examples/schema-organization.md) 示例
 - [ ] 符合 [代码风格规则](./examples/code-style-rules.md) 示例
 - [ ] 符合 [注释规范](./examples/comment-rules.md) 示例（文件头、类型、工具函数、关键函数）
 - [ ] 文件命名为 camelCase（`config/` 下除外）
 - [ ] 无 re-export，无内联 `import('...')`（类型等从源模块直接引用，顶部显式 import）
 - [ ] 无兼容/临时代码与多余注释，命名与行为一致
-- [ ] 若本次任务包含实际改码，已通过 `bun lint` 与 `bun type-check`
+- [ ] 若本次任务包含实际改码，已运行且通过 `bun format`、 `bun lint` 和 `bun type-check`

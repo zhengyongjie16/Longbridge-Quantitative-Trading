@@ -193,19 +193,6 @@ export type SwitchSuppression = {
 };
 
 /**
- * 自动换标管理器接口。
- * 类型用途：提供每 tick 寻标、距离阈值换标、挂起状态查询与状态重置方法，由 createAutoSymbolManager 实现，供主循环消费。
- * 使用范围：autoSymbolManager 模块及其调用方使用。
- */
-export interface AutoSymbolManager {
-  maybeSearchOnTick: (params: SearchOnTickParams) => Promise<void>;
-  maybeSwitchOnInterval: (params: SwitchOnIntervalParams) => Promise<void>;
-  maybeSwitchOnDistance: (params: SwitchOnDistanceParams) => Promise<void>;
-  hasPendingSwitch: (direction: 'LONG' | 'SHORT') => boolean;
-  resetAllState: () => void;
-}
-
-/**
  * 信号对象池（内部类型）。
  * 类型用途：仅暴露 acquire/release 方法，供换标状态机使用。
  * 使用范围：仅 autoSymbolManager 模块内部使用。

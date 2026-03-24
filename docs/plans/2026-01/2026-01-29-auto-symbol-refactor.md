@@ -453,7 +453,7 @@ assert.equal(getTradingMinutesSinceOpen(mkUtc(2, 0)), 30); // 10:00 HK
 
 **`src/core/strategy/index.ts`**
 
-- 调整 `generateCloseSignals()` 签名，基于动态席位生成信号
+- 调整 `generateSignals()` 签名，基于动态席位生成信号
 - 席位为空时不生成对应方向信号
 
 **`src/core/signalProcessor/index.ts`**

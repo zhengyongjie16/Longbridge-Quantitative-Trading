@@ -9,7 +9,10 @@
 import { ORDER_QUOTE_RETRY, WARRANT_LIQUIDATION_ORDER_TYPE } from '../../../../constants/index.js';
 import type { LastState } from '../../../../types/state.js';
 import type { Trader, MarketDataClient } from '../../../../types/services.js';
-import { isQuoteReadyForRequirement, resolveNextQuoteRetry } from '../../../../utils/quoteRetry/index.js';
+import {
+  isQuoteReadyForRequirement,
+  resolveNextQuoteRetry,
+} from '../../../../utils/quoteRetry/index.js';
 import { formatError } from '../../../../utils/error/index.js';
 import { logger } from '../../../../utils/logger/index.js';
 import { validateSignalSeat } from '../../../../services/autoSymbolManager/utils.js';
@@ -33,7 +36,7 @@ import type {
 } from '../types.js';
 
 /**
- * 在席位版本、持仓与行情均有效时构造保护性清仓信号，否则返回 null。
+ * 在席位版本、持仓与行情均有效时构造距回收价清仓信号，否则返回 null。
  * 先做前置校验可避免将无效任务推入后续执行链路，降低误清仓风险。
  *
  * @param params 清仓信号构造参数
@@ -149,7 +152,7 @@ async function executeReadyLiquidationTasks(params: {
 
 /**
  * 创建距回收价清仓任务处理器。
- * 校验席位快照后检查牛熊证距回收价，满足条件则生成清仓信号并执行，刷新订单记录与浮亏数据；保证风控检查在席位与行情就绪后执行。
+ * 校验席位快照后检查牛熊证距回收价，满足条件则生成非保护性清仓信号并执行，刷新订单记录与浮亏数据；保证风控检查在席位与行情就绪后执行。
  *
  * @param deps 依赖注入，包含 getContextOrSkip、refreshGate、lastState、trader、getCanProcessTask
  * @returns 处理 LIQUIDATION_DISTANCE_CHECK 任务的异步函数

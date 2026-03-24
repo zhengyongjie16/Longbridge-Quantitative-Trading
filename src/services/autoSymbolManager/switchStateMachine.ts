@@ -3,7 +3,7 @@
  *
  * 功能：管理从撤单到回补买入的完整换标流程。
  * 职责：统一处理距离换标与周期换标的启动入口，推进换标状态机（撤单/卖出/绑定/等待行情/回补/完成），处理周期换标到期后的空仓等待与触发。
- * 执行流程：maybeSwitchOnDistance/maybeSwitchOnInterval 触发 → startSwitchFlow 初始化状态 → processSwitchState 推进各阶段 → 完成或失败。
+ * 执行流程：maybeSwitchOnDistance/maybeSwitchOnInterval 触发 → startSwitchFlow 预寻标与入口判定；周期换标在无候选时直接业务收口，其余需要换标的路径写入 switchStates 并由 processSwitchState 推进到完成或失败。
  */
 import { ORDER_QUOTE_RETRY } from '../../constants/index.js';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
@@ -12,10 +12,13 @@ import { isQuoteReadyForRequirement, resolveNextQuoteRetry } from '../../utils/q
 import { decimalGte, decimalLte } from '../../utils/numeric/index.js';
 import type { Position } from '../../types/account.js';
 import type { Quote } from '../../types/quote.js';
-import type { SeatState } from '../../types/seat.js';
 import type { PendingOrder } from '../../types/services.js';
 import type { CancelOrderOutcome } from '../../types/trader.js';
-import { isCancelAcceptedOrTerminalNonFilledClose } from '../../core/trader/utils.js';
+import { isSeatActive } from '../../utils/seat/guards.js';
+import {
+  formatCancelOutcomeTag,
+  isCancelAcceptedOrTerminalNonFilledClose,
+} from '../../utils/trading/orderStatus.js';
 import type {
   PeriodicSeatBlockSource,
   PeriodicSeatBlockingReason,
@@ -84,15 +87,6 @@ async function fetchRealtimeQuote(
   return quotes.get(symbol) ?? null;
 }
 
-/** 判断席位是否为可触发换标的 ACTIVE 状态。 */
-function isActiveSeat(seatState: SeatState): seatState is SeatState & { symbol: string } {
-  return (
-    seatState.status === 'ACTIVE' &&
-    typeof seatState.symbol === 'string' &&
-    seatState.symbol.length > 0
-  );
-}
-
 /**
  * 判断周期 pending 是否应因席位重新进入 ACTIVE 而失效。
  * 仅当 lastSeatActivatedAt 晚于 pendingSinceMs 时失效，表示周期基线已重置。
@@ -106,18 +100,6 @@ function shouldResetPeriodicPendingBySeatActivatedAt(params: {
   }
 
   return params.lastSeatActivatedAt > params.pendingSinceMs;
-}
-
-function resolveCancelFailureReason(outcome: CancelOrderOutcome): string {
-  if (outcome.kind === 'ALREADY_CLOSED') {
-    return `${outcome.kind}:${outcome.closedReason}`;
-  }
-
-  if (outcome.kind === 'RETRYABLE_FAILURE' || outcome.kind === 'UNKNOWN_FAILURE') {
-    return `${outcome.kind}:${outcome.errorCode ?? 'UNKNOWN'}`;
-  }
-
-  return outcome.kind;
 }
 
 function isFilledCloseOutcome(outcome: CancelOrderOutcome): boolean {
@@ -287,6 +269,66 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     return state;
   }
 
+  function clearSeatWithSearchFailure(params: {
+    readonly direction: 'LONG' | 'SHORT';
+    readonly currentSeat: ReturnType<typeof symbolRegistry.getSeatState>;
+    readonly nowDate: Date;
+    readonly lastSwitchAt: number | null;
+  }): void {
+    const { direction, currentSeat, nowDate, lastSwitchAt } = params;
+    const nowMs = nowDate.getTime();
+    const hkDateKey = getHKDateKey(nowDate);
+    const { nextFailCount, frozenTradingDayKey, shouldFreeze } = resolveNextSearchFailureState({
+      currentSeat,
+      hkDateKey,
+      maxSearchFailuresPerDay,
+    });
+
+    updateSeatState(
+      direction,
+      buildSeatState({
+        symbol: null,
+        status: 'EMPTY',
+        lastSwitchAt,
+        lastSearchAt: nowMs,
+        lastSeatActivatedAt: currentSeat.lastSeatActivatedAt,
+        callPrice: null,
+        searchFailCountToday: nextFailCount,
+        frozenTradingDayKey,
+      }),
+      false,
+    );
+
+    if (shouldFreeze) {
+      logger.warn(
+        `[自动换标] ${monitorSymbol} ${direction} 当日寻标失败达 ${nextFailCount} 次，席位冻结`,
+      );
+    }
+  }
+
+  /**
+   * 周期换标预寻标无候选时，按正常业务分支直接清空席位并复用失败计数/冻结模型。
+   * 该分支不是状态机失败，因此不会进入 SWITCHING 或写入 switchStates。
+   */
+  function clearSeatOnPeriodicNoCandidate(direction: 'LONG' | 'SHORT'): void {
+    const nowDate = now();
+    const nowMs = nowDate.getTime();
+    const currentSeat = symbolRegistry.getSeatState(monitorSymbol, direction);
+
+    symbolRegistry.bumpSeatVersion(monitorSymbol, direction);
+    clearSeatWithSearchFailure({
+      direction,
+      currentSeat,
+      nowDate,
+      lastSwitchAt: nowMs,
+    });
+    clearPeriodicPending(direction);
+
+    logger.info(
+      `[自动换标] ${monitorSymbol} ${direction} 周期换标无候选，清空席位 oldSymbol=${currentSeat.symbol ?? 'null'}`,
+    );
+  }
+
   /** 判断指定方向是否存在有效的进行中换标流程 */
   function hasPendingSwitch(direction: 'LONG' | 'SHORT'): boolean {
     const switchState = switchStates.get(direction);
@@ -344,7 +386,8 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
    * 统一换标启动入口：
    * - 预寻标
    * - 同标的抑制
-   * - 将席位切换为 SWITCHING 并写入 switchStates
+   * - 周期换标在无候选时直接业务收口，不进入状态机
+   * - 其余需要换标的路径将席位切换为 SWITCHING 并写入 switchStates
    * - 按需决定是否立即推进状态机（仅距离换标）
    */
   async function startSwitchFlow(params: StartSwitchFlowParams): Promise<void> {
@@ -361,7 +404,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     }
 
     const seatState = symbolRegistry.getSeatState(monitorSymbol, direction);
-    if (!isActiveSeat(seatState)) {
+    if (!isSeatActive(seatState)) {
       clearPeriodicPending(direction);
       return;
     }
@@ -378,7 +421,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     const next = await findSwitchCandidate(direction);
     const latestSeatState = symbolRegistry.getSeatState(monitorSymbol, direction);
     const latestSeatVersion = symbolRegistry.getSeatVersion(monitorSymbol, direction);
-    if (!isActiveSeat(latestSeatState)) {
+    if (!isSeatActive(latestSeatState)) {
       clearPeriodicPending(direction);
       return;
     }
@@ -410,6 +453,11 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
         logger.info(`[自动换标] ${monitorSymbol} ${direction} 预寻标命中同标的，记录当日抑制`);
       }
 
+      return;
+    }
+
+    if (switchMode === 'PERIODIC' && next === null) {
+      clearSeatOnPeriodicNoCandidate(direction);
       return;
     }
 
@@ -496,32 +544,12 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
       const nowDate = now();
       const nowMs = nowDate.getTime();
       if (state.nextSymbol === null) {
-        const hkDateKey = getHKDateKey(nowDate);
-        const { nextFailCount, frozenTradingDayKey, shouldFreeze } = resolveNextSearchFailureState({
-          currentSeat,
-          hkDateKey,
-          maxSearchFailuresPerDay,
-        });
-        if (shouldFreeze) {
-          logger.warn(
-            `[自动换标] ${monitorSymbol} ${direction} 当日寻标失败达 ${nextFailCount} 次，席位冻结`,
-          );
-        }
-
-        updateSeatState(
+        clearSeatWithSearchFailure({
           direction,
-          buildSeatState({
-            symbol: null,
-            status: 'EMPTY',
-            lastSwitchAt: currentSeat.lastSwitchAt,
-            lastSearchAt: nowMs,
-            lastSeatActivatedAt: currentSeat.lastSeatActivatedAt,
-            callPrice: null,
-            searchFailCountToday: nextFailCount,
-            frozenTradingDayKey,
-          }),
-          false,
-        );
+          currentSeat,
+          nowDate,
+          lastSwitchAt: currentSeat.lastSwitchAt,
+        });
       } else {
         updateSeatState(
           direction,
@@ -561,7 +589,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
             !isCancelAcceptedOrTerminalNonFilledClose(outcome) && !isFilledCloseOutcome(outcome),
         );
         if (unconfirmedOutcome) {
-          failAndClear(`CANCEL_PENDING_FAILED:${resolveCancelFailureReason(unconfirmedOutcome)}`);
+          failAndClear(`CANCEL_PENDING_FAILED:${formatCancelOutcomeTag(unconfirmedOutcome)}`);
           return;
         }
 
@@ -830,7 +858,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     }
 
     const seatState = symbolRegistry.getSeatState(monitorSymbol, direction);
-    if (!isActiveSeat(seatState)) {
+    if (!isSeatActive(seatState)) {
       clearPeriodicPending(direction);
       return;
     }
@@ -971,7 +999,7 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
     }
 
     const seatState = symbolRegistry.getSeatState(monitorSymbol, direction);
-    if (!isActiveSeat(seatState)) {
+    if (!isSeatActive(seatState)) {
       clearPeriodicPending(direction);
       return;
     }

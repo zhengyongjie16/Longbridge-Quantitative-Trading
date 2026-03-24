@@ -30,7 +30,7 @@ export function createAutoSymbolFinder(deps: Deps): AutoSymbolFinder { ... }
 
 ## types.ts / types/ — 类型定义注释
 
-无需文件头注释，但每个类型必须有独立块注释，说明用途、数据来源（如适用）和使用范围。
+无需文件头注释，但每个类型必须有独立块注释，说明用途、数据来源（如适用）和使用范围。`types.ts` 中只允许出现类型相关定义，禁止混入常量、函数、Schema 或其他运行时代码；这里的文件内容约束仅适用于固定文件名 `types.ts`，`types/` 目录仅用于说明注释规范适用范围。
 
 ```typescript
 // ✅
@@ -54,7 +54,7 @@ type Deps = { ... }
 
 ## utils.ts / utils/ — 工具函数注释
 
-无需文件头注释，但每个工具函数必须有完整 JSDoc，包含功能说明、`@param`、`@returns`。
+无需文件头注释，但每个工具函数必须有完整 JSDoc，包含功能说明、`@param`、`@returns`。`utils.ts` 中只允许出现工具函数与其必要实现，可通过 `import type` 引入依赖类型，但禁止定义 `type`、`interface` 或其他类型声明；这里的文件内容约束仅适用于固定文件名 `utils.ts`，`utils/` 目录仅用于说明注释规范适用范围。
 
 ```typescript
 // ✅

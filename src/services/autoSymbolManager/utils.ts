@@ -1,6 +1,14 @@
+/**
+ * 自动标的管理工具模块
+ *
+ * 职责：
+ * - 提供席位冻结失败计数、信号席位校验与失败原因格式化能力
+ * - 提供席位启动恢复与 SymbolRegistry 构建能力
+ */
 import type { MonitorConfig } from '../../types/config.js';
 import type { Position } from '../../types/account.js';
 import type { SeatState, SeatStatus, SymbolRegistry } from '../../types/seat.js';
+import { isSeatActive, isSeatVersionMatch } from '../../utils/seat/guards.js';
 import type {
   SeatEntry,
   SeatUnavailableReason,
@@ -8,41 +16,6 @@ import type {
   SymbolSeatEntry,
   ValidateSignalSeatParams,
 } from './types.js';
-
-/**
- * 检查席位是否已激活（有有效标的且状态为 ACTIVE）
- * @param seatState 席位状态，可为 null 或 undefined
- * @returns 席位已激活时返回 true，并收窄类型为含 symbol 字符串的 SeatState
- */
-export function isSeatActive(
-  seatState: SeatState | null | undefined,
-): seatState is SeatState & { symbol: string } {
-  if (!seatState) {
-    return false;
-  }
-
-  if (seatState.status !== 'ACTIVE') {
-    return false;
-  }
-
-  return typeof seatState.symbol === 'string' && seatState.symbol.length > 0;
-}
-
-/**
- * 检查席位是否已绑定有效标的。
- * @param seatState 席位状态，可为 null 或 undefined
- * @returns 只要存在非空 symbol 即返回 true，不要求 seat 已处于 ACTIVE
- */
-export function hasSeatSymbol(
-  seatState: SeatState | null | undefined,
-): seatState is SeatState & { symbol: string } {
-  return (
-    seatState !== null &&
-    seatState !== undefined &&
-    typeof seatState.symbol === 'string' &&
-    seatState.symbol.length > 0
-  );
-}
 
 /**
  * 检查席位是否当日冻结（frozenTradingDayKey 非 null 即冻结，midnight clear 重置）
@@ -93,11 +66,7 @@ export function resolveNextSearchFailureState(params: {
  * @returns 不可用原因枚举值，席位已激活时返回 null
  */
 function resolveSeatUnavailableReason(seatState: SeatState): SeatUnavailableReason | null {
-  if (
-    seatState.status === 'ACTIVE' &&
-    typeof seatState.symbol === 'string' &&
-    seatState.symbol.length > 0
-  ) {
+  if (isSeatActive(seatState)) {
     return null;
   }
 
@@ -137,20 +106,6 @@ const SEAT_UNAVAILABLE_REASON_MAP: Readonly<Record<SeatUnavailableReason, string
 export function describeSeatUnavailable(seatState: SeatState): string {
   const reason = resolveSeatUnavailableReason(seatState);
   return reason === null ? '席位不可用' : SEAT_UNAVAILABLE_REASON_MAP[reason];
-}
-
-/**
- * 检查信号版本是否匹配当前席位版本
- * 用于过滤过期信号，避免换标后执行旧席位的订单
- * @param signalVersion 信号携带的席位版本号
- * @param currentVersion 当前席位版本号
- * @returns 版本匹配时返回 true
- */
-export function isSeatVersionMatch(
-  signalVersion: number | null | undefined,
-  currentVersion: number,
-): boolean {
-  return Number.isFinite(signalVersion) && signalVersion === currentVersion;
 }
 
 function resolveSignalDirection(

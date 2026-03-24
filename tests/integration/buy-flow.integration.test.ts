@@ -79,6 +79,124 @@ function createRiskContext(params: {
 }
 
 describe('buy-flow integration', () => {
+  it('rejects broker success responses that do not contain a real orderId', async () => {
+    const tradingConfig = createTradingConfig();
+    const trackedOrders: Array<{ orderId: string; quantity: number; side: OrderSide }> = [];
+    const orderExecutor = createOrderExecutor({
+      ctxPromise: Promise.resolve({
+        submitOrder: async () => ({}),
+      } as unknown as TradeContext),
+      rateLimiter: {
+        throttle: async () => {},
+      },
+      cacheManager: {
+        clearCache: () => {},
+        getPendingOrders: async () => [],
+      },
+      orderMonitor: {
+        initialize: async () => {},
+        trackOrder: ({ orderId, quantity, side }) => {
+          trackedOrders.push({ orderId, quantity, side });
+        },
+        cancelOrder: async () => ({
+          kind: 'CANCEL_CONFIRMED',
+          closedReason: 'CANCELED',
+          source: 'API',
+          relatedBuyOrderIds: null,
+        }),
+        replaceOrderPrice: async () => {},
+        processWithLatestQuotes: async () => {},
+        recoverOrderTrackingFromSnapshot: async () => {},
+        getPendingSellOrders: () => [],
+        getAndClearPendingRefreshSymbols: () => [],
+        clearTrackedOrders: () => {},
+      },
+      orderRecorder: createOrderRecorderDouble(),
+      tradingConfig,
+      symbolRegistry: createSymbolRegistryDouble(),
+      isExecutionAllowed: () => true,
+    });
+
+    const signal = createSignal({
+      symbol: 'BULL.HK',
+      action: 'BUYCALL',
+      triggerTimeMs: Date.now(),
+      price: 5,
+      lotSize: 100,
+      reason: 'missing-order-id-should-fail',
+    });
+
+    let missingOrderIdError: unknown = null;
+    try {
+      await orderExecutor.executeSignals([signal]);
+    } catch (error) {
+      missingOrderIdError = error;
+    }
+
+    expect(missingOrderIdError).toBeInstanceOf(Error);
+    expect((missingOrderIdError as Error).message).toContain('orderId');
+    expect(trackedOrders).toHaveLength(0);
+  });
+
+  it('surfaces local tracking failures after broker submit succeeds', async () => {
+    const tradingConfig = createTradingConfig();
+    const tradeCtx = createTradeContextMock();
+    const orderExecutor = createOrderExecutor({
+      ctxPromise: Promise.resolve(tradeCtx as unknown as TradeContext),
+      rateLimiter: {
+        throttle: async () => {},
+      },
+      cacheManager: {
+        clearCache: () => {},
+        getPendingOrders: async () => [],
+      },
+      orderMonitor: {
+        initialize: async () => {},
+        trackOrder: () => {
+          throw new Error('track failed after submit');
+        },
+        cancelOrder: async () => ({
+          kind: 'CANCEL_CONFIRMED',
+          closedReason: 'CANCELED',
+          source: 'API',
+          relatedBuyOrderIds: null,
+        }),
+        replaceOrderPrice: async () => {},
+        processWithLatestQuotes: async () => {},
+        recoverOrderTrackingFromSnapshot: async () => {},
+        getPendingSellOrders: () => [],
+        getAndClearPendingRefreshSymbols: () => [],
+        clearTrackedOrders: () => {},
+      },
+      orderRecorder: createOrderRecorderDouble(),
+      tradingConfig,
+      symbolRegistry: createSymbolRegistryDouble(),
+      isExecutionAllowed: () => true,
+    });
+
+    const signal = createSignal({
+      symbol: 'BULL.HK',
+      action: 'BUYCALL',
+      triggerTimeMs: Date.now(),
+      price: 5,
+      lotSize: 100,
+      reason: 'track-order-failure-should-surface',
+    });
+
+    let localSyncError: unknown = null;
+    try {
+      await orderExecutor.executeSignals([signal]);
+    } catch (error) {
+      localSyncError = error;
+    }
+
+    expect(localSyncError).toBeInstanceOf(Error);
+    expect((localSyncError as Error).message).toContain(
+      'order submitted but local sync failed: MOCK-000001',
+    );
+    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(1);
+  });
+
   it('runs risk pipeline -> order execution and submits notional-based buy quantity', async () => {
     const tradingConfig = createTradingConfig();
     const signalProcessor = createSignalProcessor({
@@ -349,7 +467,7 @@ describe('buy-flow integration', () => {
     expect(secondCheck.waitSeconds).toBe(60);
   });
 
-  it('does not block the next same-direction buy when submit fails', async () => {
+  it('still blocks the next same-direction buy when submit fails after frequency check passed', async () => {
     const fixedNow = 2_000_000;
     const tradingConfig = createTradingConfig();
     const tradeCtx = createTradeContextMock({ now: () => fixedNow });
@@ -414,11 +532,11 @@ describe('buy-flow integration', () => {
       orderExecutor.canTradeNow('BUYCALL', monitorConfig),
     );
 
-    expect(nextCheck.canTrade).toBe(true);
-    expect(nextCheck.waitSeconds).toBeUndefined();
+    expect(nextCheck.canTrade).toBe(false);
+    expect(nextCheck.waitSeconds).toBe(60);
   });
 
-  it('blocks or allows the next buy in applyRiskChecks based on whether the previous submit succeeded', async () => {
+  it('blocks the next buy in applyRiskChecks once the previous buy has passed frequency check, regardless of submit success', async () => {
     const tradingConfig = createTradingConfig();
     const signalProcessor = createSignalProcessor({
       tradingConfig,
@@ -614,8 +732,8 @@ describe('buy-flow integration', () => {
             orderRecorder: failedOrderRecorder,
           }),
         );
-        expect(allowedResult).toHaveLength(1);
-        expect(secondAllowedSignal.reason).not.toContain('交易频率限制');
+        expect(allowedResult).toHaveLength(0);
+        expect(secondAllowedSignal.reason).toContain('交易频率限制');
       },
     );
   });

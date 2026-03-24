@@ -24,7 +24,7 @@ import {
 } from '../../utils/time/index.js';
 import { formatError } from '../../utils/error/index.js';
 import { createTradingDayInfoResolver } from '../rebuild.js';
-import { resolveGatePolicies, resolveRunMode } from '../startupModes.js';
+import { resolveGatePolicies, resolveGatePolicySources, resolveRunMode } from '../startupModes.js';
 import type { AppEnvironmentParams, PreGateRuntime } from '../types.js';
 
 /**
@@ -36,6 +36,7 @@ import type { AppEnvironmentParams, PreGateRuntime } from '../types.js';
 export async function createPreGateRuntime(params: AppEnvironmentParams): Promise<PreGateRuntime> {
   const { env } = params;
   const tradingConfig = createMultiMonitorTradingConfig({ env });
+
   const symbolRegistry = createSymbolRegistry(tradingConfig.monitors);
   const warrantListCache = createWarrantListCache();
   const warrantListCacheConfig = {
@@ -54,7 +55,8 @@ export async function createPreGateRuntime(params: AppEnvironmentParams): Promis
   });
   const marketDataClient = await createMarketDataClient({ config });
   const runMode = resolveRunMode(env);
-  const gatePolicies = resolveGatePolicies(runMode);
+  const gatePolicies = resolveGatePolicies(env);
+  const gatePolicySources = resolveGatePolicySources(env);
   const resolveTradingDayInfo = createTradingDayInfoResolver({
     marketDataClient,
     getHKDateKey,
@@ -73,6 +75,9 @@ export async function createPreGateRuntime(params: AppEnvironmentParams): Promis
     intervalMs: TRADING.INTERVAL_MS,
     logger,
   });
+  logger.info(
+    `startup gate 策略=${gatePolicies.startupGate}（source=${gatePolicySources.startupGateSource}）; runtime gate 策略=${gatePolicies.runtimeGate}（source=${gatePolicySources.runtimeGateSource}）`,
+  );
   const startupTradingDayInfo = await startupGate.wait({ mode: gatePolicies.startupGate });
 
   return {

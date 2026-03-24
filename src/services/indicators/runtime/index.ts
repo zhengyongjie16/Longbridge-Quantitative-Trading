@@ -12,6 +12,7 @@ import type { CandleData } from '../../../types/data.js';
 import type { IndicatorSnapshot } from '../../../types/quote.js';
 import type { IndicatorUsageProfile } from '../../../types/indicatorProfile.js';
 import type { CandlestickCacheSnapshot } from '../../../types/services.js';
+import type { IndicatorIncrementalRuntime } from '../../../types/indicatorRuntime.js';
 import {
   validateEmaPeriod,
   validatePsyPeriod,
@@ -25,7 +26,56 @@ import { cloneMfiState, commitMfiCandle, createMfiState, readMfiValue } from './
 import { clonePsyState, commitPsyClose, createPsyState, readPsyValue } from './psy.js';
 import { cloneRsiState, commitRsiClose, createRsiState, readRsiValue } from './rsi.js';
 import { toNumber } from './utils.js';
-import type { IndicatorCommittedState, IndicatorIncrementalRuntime } from './types.js';
+import type { IndicatorCommittedState } from './types.js';
+
+/**
+ * 增量指标运行态（服务内部聚合）。
+ * 类型用途：在公共 runtime 句柄基础上补充 runtime 内部真实字段，仅供 indicators/runtime 模块内部使用。
+ * 数据来源：bootstrap 与 updateRuntimeForCandlestickSnapshot。
+ * 使用范围：仅 indicators/runtime 模块内部。
+ */
+type IndicatorRuntimeStateFields = {
+  readonly symbol: string;
+  readonly profile: IndicatorUsageProfile;
+  lastProcessedVersion: number;
+  closedBarTimestamp: number | null;
+  activeBarTimestamp: number | null;
+  activeBarConfirmed: boolean | null;
+  activeBar: CandleData | null;
+  lastBarTimestamp: number | null;
+  lastBarConfirmed: boolean | null;
+  latestCandles: ReadonlyArray<CandleData>;
+  committed: IndicatorCommittedState;
+};
+
+const indicatorRuntimeStateBrand = Symbol('IndicatorRuntimeState');
+
+type IndicatorRuntimeState = IndicatorRuntimeStateFields & {
+  readonly [indicatorRuntimeStateBrand]: true;
+};
+
+function createIndicatorRuntimeState(fields: IndicatorRuntimeStateFields): IndicatorRuntimeState {
+  return {
+    ...fields,
+    [indicatorRuntimeStateBrand]: true,
+  };
+}
+
+function toIndicatorIncrementalRuntime(
+  runtimeState: IndicatorRuntimeState,
+): IndicatorIncrementalRuntime {
+  return runtimeState as unknown as IndicatorIncrementalRuntime;
+}
+
+function unwrapIndicatorRuntime(
+  runtime: IndicatorIncrementalRuntime,
+): IndicatorRuntimeState | null {
+  if (!(indicatorRuntimeStateBrand in runtime)) {
+    return null;
+  }
+
+  return runtime as unknown as IndicatorRuntimeState;
+}
 
 /**
  * 从 K 线长度与最后一根收盘价构造指纹字符串（格式 length_lastClose），供 getCandleFingerprint 使用。
@@ -61,7 +111,7 @@ export function getCandleFingerprint(candles: ReadonlyArray<CandleData>): string
 function createRecordFromPeriods<T>(params: {
   readonly periods: ReadonlyArray<number>;
   readonly isValidPeriod: (period: unknown) => period is number;
-  readonly create: (period: number) => T;
+  readonly createState: (period: number) => T;
 }): Record<number, T> {
   const result: Record<number, T> = {};
   for (const period of params.periods) {
@@ -69,13 +119,13 @@ function createRecordFromPeriods<T>(params: {
       continue;
     }
 
-    result[period] = params.create(period);
+    result[period] = params.createState(period);
   }
 
   return result;
 }
 
-function cloneRecord<T>(source: Record<number, T>, clone: (value: T) => T): Record<number, T> {
+function cloneRecord<T>(source: Record<number, T>, cloneState: (value: T) => T): Record<number, T> {
   const result: Record<number, T> = {};
   for (const [periodKey, state] of Object.entries(source)) {
     const period = Number(periodKey);
@@ -83,7 +133,7 @@ function cloneRecord<T>(source: Record<number, T>, clone: (value: T) => T): Reco
       continue;
     }
 
-    result[period] = clone(state);
+    result[period] = cloneState(state);
   }
 
   return result;
@@ -105,17 +155,17 @@ function buildCommittedState(profile: IndicatorUsageProfile): IndicatorCommitted
     emaStates: createRecordFromPeriods({
       periods: profile.requiredPeriods.ema,
       isValidPeriod: validateEmaPeriod,
-      create: (period) => createEmaState(period),
+      createState: (period) => createEmaState(period),
     }),
     rsiStates: createRecordFromPeriods({
       periods: profile.requiredPeriods.rsi,
       isValidPeriod: validateRsiPeriod,
-      create: (period) => createRsiState(period),
+      createState: (period) => createRsiState(period),
     }),
     psyStates: createRecordFromPeriods({
       periods: profile.requiredPeriods.psy,
       isValidPeriod: validatePsyPeriod,
-      create: (period) => createPsyState(period),
+      createState: (period) => createPsyState(period),
     }),
     mfiState: profile.requiredFamilies.mfi ? createMfiState(14) : null,
     kdjState: profile.requiredFamilies.kdj ? createKdjState(9, 5) : null,
@@ -369,25 +419,33 @@ export function bootstrapIndicatorRuntime(params: {
   }
 
   const lastClosed = closedCandles.at(-1);
-  return {
-    symbol,
-    profile: indicatorProfile,
-    lastProcessedVersion: cacheSnapshot.version,
-    closedBarTimestamp:
-      lastClosed && typeof lastClosed.timestamp === 'number' ? lastClosed.timestamp : null,
-    activeBarTimestamp:
-      activeBar && typeof activeBar.timestamp === 'number' ? activeBar.timestamp : null,
-    activeBarConfirmed: activeBar === null ? cacheSnapshot.lastBarConfirmed : false,
-    activeBar,
-    lastBarTimestamp: cacheSnapshot.lastBarTimestamp,
-    lastBarConfirmed: cacheSnapshot.lastBarConfirmed,
-    latestCandles: [...cacheSnapshot.candles],
-    committed,
-  };
+  return toIndicatorIncrementalRuntime(
+    createIndicatorRuntimeState({
+      symbol,
+      profile: indicatorProfile,
+      lastProcessedVersion: cacheSnapshot.version,
+      closedBarTimestamp:
+        lastClosed && typeof lastClosed.timestamp === 'number' ? lastClosed.timestamp : null,
+      activeBarTimestamp:
+        activeBar && typeof activeBar.timestamp === 'number' ? activeBar.timestamp : null,
+      activeBarConfirmed: activeBar === null ? cacheSnapshot.lastBarConfirmed : false,
+      activeBar,
+      lastBarTimestamp: cacheSnapshot.lastBarTimestamp,
+      lastBarConfirmed: cacheSnapshot.lastBarConfirmed,
+      latestCandles: [...cacheSnapshot.candles],
+      committed,
+    }),
+  );
 }
 
+/**
+ * 无法可靠增量推进时，基于最新缓存快照回退重建 runtime。
+ *
+ * @param params 运行态与最新缓存快照
+ * @returns 重建后的增量运行态；输入无效时返回 null
+ */
 function rebuildRuntimeFromSnapshot(params: {
-  readonly runtime: IndicatorIncrementalRuntime;
+  readonly runtime: IndicatorRuntimeState;
   readonly cacheSnapshot: CandlestickCacheSnapshot;
 }): IndicatorIncrementalRuntime | null {
   return bootstrapIndicatorRuntime({
@@ -408,7 +466,7 @@ function rebuildRuntimeFromSnapshot(params: {
  * @returns 推进后的增量运行态；无法可靠推进时回退为重建或返回 null
  */
 function commitShiftedCandles(params: {
-  readonly runtime: IndicatorIncrementalRuntime;
+  readonly runtime: IndicatorRuntimeState;
   readonly cacheSnapshot: CandlestickCacheSnapshot;
 }): IndicatorIncrementalRuntime | null {
   const { runtime, cacheSnapshot } = params;
@@ -463,18 +521,20 @@ function commitShiftedCandles(params: {
     }
   }
 
-  return {
-    ...runtime,
-    lastProcessedVersion: cacheSnapshot.version,
-    closedBarTimestamp,
-    activeBarTimestamp,
-    activeBarConfirmed,
-    activeBar,
-    lastBarTimestamp: cacheSnapshot.lastBarTimestamp,
-    lastBarConfirmed: cacheSnapshot.lastBarConfirmed,
-    latestCandles: [...cacheSnapshot.candles],
-    committed: nextCommitted,
-  };
+  return toIndicatorIncrementalRuntime(
+    createIndicatorRuntimeState({
+      ...runtime,
+      lastProcessedVersion: cacheSnapshot.version,
+      closedBarTimestamp,
+      activeBarTimestamp,
+      activeBarConfirmed,
+      activeBar,
+      lastBarTimestamp: cacheSnapshot.lastBarTimestamp,
+      lastBarConfirmed: cacheSnapshot.lastBarConfirmed,
+      latestCandles: [...cacheSnapshot.candles],
+      committed: nextCommitted,
+    }),
+  );
 }
 
 /**
@@ -492,14 +552,19 @@ export function updateRuntimeForCandlestickSnapshot(params: {
     return null;
   }
 
-  if (cacheSnapshot.version === runtime.lastProcessedVersion) {
-    return runtime;
+  const runtimeState = unwrapIndicatorRuntime(runtime);
+  if (runtimeState === null) {
+    return null;
+  }
+
+  if (cacheSnapshot.version === runtimeState.lastProcessedVersion) {
+    return toIndicatorIncrementalRuntime(runtimeState);
   }
 
   const nextLastTimestamp = cacheSnapshot.lastBarTimestamp;
-  const previousLastTimestamp = runtime.lastBarTimestamp;
+  const previousLastTimestamp = runtimeState.lastBarTimestamp;
   if (nextLastTimestamp === null || previousLastTimestamp === null) {
-    return rebuildRuntimeFromSnapshot({ runtime, cacheSnapshot });
+    return rebuildRuntimeFromSnapshot({ runtime: runtimeState, cacheSnapshot });
   }
 
   if (nextLastTimestamp === previousLastTimestamp) {
@@ -508,41 +573,45 @@ export function updateRuntimeForCandlestickSnapshot(params: {
       return null;
     }
 
-    if (runtime.lastBarConfirmed === false && cacheSnapshot.lastBarConfirmed === false) {
-      return {
-        ...runtime,
-        lastProcessedVersion: cacheSnapshot.version,
-        activeBarTimestamp: nextLastTimestamp,
-        activeBarConfirmed: false,
-        activeBar: latestCandle,
-        lastBarTimestamp: cacheSnapshot.lastBarTimestamp,
-        lastBarConfirmed: cacheSnapshot.lastBarConfirmed,
-        latestCandles: [...cacheSnapshot.candles],
-      };
+    if (runtimeState.lastBarConfirmed === false && cacheSnapshot.lastBarConfirmed === false) {
+      return toIndicatorIncrementalRuntime(
+        createIndicatorRuntimeState({
+          ...runtimeState,
+          lastProcessedVersion: cacheSnapshot.version,
+          activeBarTimestamp: nextLastTimestamp,
+          activeBarConfirmed: false,
+          activeBar: latestCandle,
+          lastBarTimestamp: cacheSnapshot.lastBarTimestamp,
+          lastBarConfirmed: cacheSnapshot.lastBarConfirmed,
+          latestCandles: [...cacheSnapshot.candles],
+        }),
+      );
     }
 
-    if (runtime.lastBarConfirmed === false && cacheSnapshot.lastBarConfirmed === true) {
-      const nextCommitted = cloneCommittedState(runtime.committed);
+    if (runtimeState.lastBarConfirmed === false && cacheSnapshot.lastBarConfirmed === true) {
+      const nextCommitted = cloneCommittedState(runtimeState.committed);
       commitCandleToCommittedState(nextCommitted, latestCandle);
-      return {
-        ...runtime,
-        lastProcessedVersion: cacheSnapshot.version,
-        closedBarTimestamp: nextLastTimestamp,
-        activeBarTimestamp: null,
-        activeBarConfirmed: true,
-        activeBar: null,
-        lastBarTimestamp: cacheSnapshot.lastBarTimestamp,
-        lastBarConfirmed: cacheSnapshot.lastBarConfirmed,
-        latestCandles: [...cacheSnapshot.candles],
-        committed: nextCommitted,
-      };
+      return toIndicatorIncrementalRuntime(
+        createIndicatorRuntimeState({
+          ...runtimeState,
+          lastProcessedVersion: cacheSnapshot.version,
+          closedBarTimestamp: nextLastTimestamp,
+          activeBarTimestamp: null,
+          activeBarConfirmed: true,
+          activeBar: null,
+          lastBarTimestamp: cacheSnapshot.lastBarTimestamp,
+          lastBarConfirmed: cacheSnapshot.lastBarConfirmed,
+          latestCandles: [...cacheSnapshot.candles],
+          committed: nextCommitted,
+        }),
+      );
     }
 
-    return rebuildRuntimeFromSnapshot({ runtime, cacheSnapshot });
+    return rebuildRuntimeFromSnapshot({ runtime: runtimeState, cacheSnapshot });
   }
 
   return commitShiftedCandles({
-    runtime,
+    runtime: runtimeState,
     cacheSnapshot,
   });
 }
@@ -551,24 +620,29 @@ export function updateRuntimeForCandlestickSnapshot(params: {
  * 从增量运行态构造对外指标快照。
  *
  * @param runtime 增量运行态
- * @returns 指标快照，无有效价格时返回 null
+ * @returns 指标快照；当运行态句柄无效或无有效价格时返回 null
  */
 export function buildSnapshotFromRuntime(
   runtime: IndicatorIncrementalRuntime,
 ): IndicatorSnapshot | null {
-  if (runtime.activeBar !== null && runtime.activeBarConfirmed === false) {
-    const previewCommitted = cloneCommittedState(runtime.committed);
-    commitCandleToCommittedState(previewCommitted, runtime.activeBar);
+  const runtimeState = unwrapIndicatorRuntime(runtime);
+  if (runtimeState === null) {
+    return null;
+  }
+
+  if (runtimeState.activeBar !== null && runtimeState.activeBarConfirmed === false) {
+    const previewCommitted = cloneCommittedState(runtimeState.committed);
+    commitCandleToCommittedState(previewCommitted, runtimeState.activeBar);
     return buildSnapshotFromCommitted({
-      symbol: runtime.symbol,
-      profile: runtime.profile,
+      symbol: runtimeState.symbol,
+      profile: runtimeState.profile,
       committed: previewCommitted,
     });
   }
 
   return buildSnapshotFromCommitted({
-    symbol: runtime.symbol,
-    profile: runtime.profile,
-    committed: runtime.committed,
+    symbol: runtimeState.symbol,
+    profile: runtimeState.profile,
+    committed: runtimeState.committed,
   });
 }

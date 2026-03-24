@@ -16,7 +16,7 @@
 import { OrderSide } from 'longbridge';
 import { logger } from '../../utils/logger/index.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
-import { isSeatActive } from '../../services/autoSymbolManager/utils.js';
+import { isSeatActive } from '../../utils/seat/guards.js';
 import { ORDER_QUOTE_RETRY } from '../../constants/index.js';
 import { isQuoteReadyForRequirement, resolveNextQuoteRetry } from '../../utils/quoteRetry/index.js';
 import type { MonitorContext } from '../../types/state.js';
@@ -34,7 +34,7 @@ import type {
 import { batchGetQuotes, isBeforeClose15Minutes, isBeforeClose5Minutes } from './utils.js';
 import { formatError } from '../../utils/error/index.js';
 import { getHKDateKey } from '../../utils/time/index.js';
-import { isCancelAcceptedOrTerminalNonFilledClose } from '../trader/utils.js';
+import { isCancelAcceptedOrTerminalNonFilledClose } from '../../utils/trading/orderStatus.js';
 
 /**
  * 创建单个清仓信号（收盘前 5 分钟清仓用）。

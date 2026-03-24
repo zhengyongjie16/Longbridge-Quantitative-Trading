@@ -4,7 +4,13 @@
  * 验证 Longbridge API 凭证、交易配置完整性（不触发行情订阅）
  */
 import { logger } from '../utils/logger/index.js';
-import { formatSignalConfig, getStringConfig, isSymbolWithRegion } from './utils.js';
+import { TRADING } from '../constants/index.js';
+import {
+  createConfigValidationError,
+  formatSignalConfig,
+  getStringConfig,
+  isSymbolWithRegion,
+} from './utils.js';
 import { readAuthMode, validateLongbridgeConfig } from './auth/utils.js';
 import type {
   LiquidationCooldownConfig,
@@ -14,7 +20,6 @@ import type {
 } from '../types/config.js';
 import type { Quote } from '../types/quote.js';
 import type {
-  ConfigValidationError,
   DuplicateSymbol,
   RuntimeSymbolValidationInput,
   RuntimeSymbolValidationResult,
@@ -26,23 +31,6 @@ import type {
 
 const AUTO_SEARCH_DISTANCE_UNIT_HINT =
   'Longbridge warrantList.toCallPrice 原始值会先从小数比值转换为该百分比值口径。';
-
-/**
- * 创建配置验证错误对象，供 validateAllConfig 在验证失败时抛出。
- * @param message - 错误描述信息
- * @param missingFields - 缺失的配置项键名列表，默认空数组
- * @returns 带有 name 与 missingFields 的 ConfigValidationError
- */
-function createConfigValidationError(
-  message: string,
-  missingFields: ReadonlyArray<string> = [],
-): ConfigValidationError {
-  const error = new Error(message);
-  return Object.assign(error, {
-    name: 'ConfigValidationError' as const,
-    missingFields,
-  });
-}
 
 /**
  * 生成标的代码格式错误提示信息，用于 validateRequiredSymbol 的日志与错误列表。
@@ -203,6 +191,115 @@ function validateLongbridgeAuthConfig(env: NodeJS.ProcessEnv): ValidationResult 
 }
 
 /**
+ * 校验关键数值配置是否是指定范围内的有限数字。
+ * @param options.env - 进程环境变量
+ * @param options.envKey - 配置键名
+ * @param options.min - 最小值（含边界）
+ * @param options.max - 最大值（含边界）
+ * @returns 缺失时返回 null，非法时返回错误信息
+ */
+function validateCriticalBoundedNumberConfig({
+  env,
+  envKey,
+  min,
+  max,
+}: {
+  readonly env: NodeJS.ProcessEnv;
+  readonly envKey: string;
+  readonly min: number;
+  readonly max: number;
+}): string | null {
+  const raw = env[envKey];
+  if (raw === undefined || raw.trim() === '') {
+    return null;
+  }
+
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < min || value > max) {
+    return `${envKey} 无效（必须为数字，范围 ${min}-${max}）`;
+  }
+
+  return null;
+}
+
+/**
+ * 校验关键数值配置是否是大于等于下限的有限数字。
+ * @param options.env - 进程环境变量
+ * @param options.envKey - 配置键名
+ * @param options.min - 最小值（含边界）
+ * @returns 缺失时返回 null，非法时返回错误信息
+ */
+function validateCriticalMinimumNumberConfig({
+  env,
+  envKey,
+  min,
+}: {
+  readonly env: NodeJS.ProcessEnv;
+  readonly envKey: string;
+  readonly min: number;
+}): string | null {
+  const raw = env[envKey];
+  if (raw === undefined || raw.trim() === '') {
+    return null;
+  }
+
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < min) {
+    return `${envKey} 无效（必须为数字且 >= ${min}）`;
+  }
+
+  return null;
+}
+
+/**
+ * 校验监控标的索引是否连续，防止 _1 与 _3 存在但 _2 缺失的断档配置。
+ * @param env - 进程环境变量
+ * @returns 索引连续性校验结果（errors、missingFields）
+ */
+function validateMonitorSymbolIndexContinuity(env: NodeJS.ProcessEnv): Readonly<{
+  errors: ReadonlyArray<string>;
+  missingFields: ReadonlyArray<string>;
+}> {
+  const configuredMonitorIndexes: number[] = [];
+
+  for (let i = 1; i <= TRADING.MAX_MONITOR_SCAN_RANGE; i++) {
+    const monitorSymbol = getStringConfig(env, `MONITOR_SYMBOL_${i}`);
+    if (!monitorSymbol) {
+      continue;
+    }
+
+    configuredMonitorIndexes.push(i);
+  }
+
+  if (configuredMonitorIndexes.length === 0) {
+    return {
+      errors: [],
+      missingFields: [],
+    };
+  }
+
+  const highestConfiguredIndex = configuredMonitorIndexes.at(-1) ?? 0;
+  const configuredMonitorSet = new Set(configuredMonitorIndexes);
+  const errors: string[] = [];
+  const missingFields: string[] = [];
+
+  for (let i = 1; i <= highestConfiguredIndex; i++) {
+    if (configuredMonitorSet.has(i)) {
+      continue;
+    }
+
+    const missingKey = `MONITOR_SYMBOL_${i}`;
+    errors.push(`${missingKey} 未配置（监控标的索引必须连续，不允许断档）`);
+    missingFields.push(missingKey);
+  }
+
+  return {
+    errors,
+    missingFields,
+  };
+}
+
+/**
  * 从行情数据验证标的有效性：存在性、名称（仅警告）、交易标的要求 lotSize。
  * @param quote - 标的行情数据，不存在时为 null
  * @param symbol - 标的代码
@@ -307,16 +404,59 @@ function validateMonitorConfig(
     missingFields = result3.missingFields;
   }
 
+  const targetNotionalEnvKey = `TARGET_NOTIONAL_${index}`;
+  const targetNotionalValidationError = validateCriticalMinimumNumberConfig({
+    env,
+    envKey: targetNotionalEnvKey,
+    min: 1,
+  });
+  if (targetNotionalValidationError !== null) {
+    errors = [...errors, `${prefix}: ${targetNotionalValidationError}`];
+    missingFields = [...missingFields, targetNotionalEnvKey];
+  }
+
   // 验证目标买入金额
   if (!Number.isFinite(config.targetNotional) || config.targetNotional <= 0) {
-    errors = [...errors, `${prefix}: TARGET_NOTIONAL_${index} 未配置或无效（必须为正数）`];
-    missingFields = [...missingFields, `TARGET_NOTIONAL_${index}`];
+    errors = [...errors, `${prefix}: ${targetNotionalEnvKey} 未配置或无效（必须为正数）`];
+    missingFields = [...missingFields, targetNotionalEnvKey];
+  }
+
+  const maxPositionNotionalEnvKey = `MAX_POSITION_NOTIONAL_${index}`;
+  const maxPositionNotionalValidationError = validateCriticalMinimumNumberConfig({
+    env,
+    envKey: maxPositionNotionalEnvKey,
+    min: 1,
+  });
+  if (maxPositionNotionalValidationError !== null) {
+    errors = [...errors, `${prefix}: ${maxPositionNotionalValidationError}`];
+    missingFields = [...missingFields, maxPositionNotionalEnvKey];
   }
 
   // 验证风险管理配置
   if (!Number.isFinite(config.maxPositionNotional) || config.maxPositionNotional <= 0) {
-    errors = [...errors, `${prefix}: MAX_POSITION_NOTIONAL_${index} 未配置或无效（必须为正数）`];
-    missingFields = [...missingFields, `MAX_POSITION_NOTIONAL_${index}`];
+    errors = [...errors, `${prefix}: ${maxPositionNotionalEnvKey} 未配置或无效（必须为正数）`];
+    missingFields = [...missingFields, maxPositionNotionalEnvKey];
+  }
+
+  const buyIntervalEnvKey = `BUY_INTERVAL_SECONDS_${index}`;
+  const buyIntervalValidationError = validateCriticalBoundedNumberConfig({
+    env,
+    envKey: buyIntervalEnvKey,
+    min: 10,
+    max: 600,
+  });
+  if (buyIntervalValidationError !== null) {
+    errors = [...errors, `${prefix}: ${buyIntervalValidationError}`];
+    missingFields = [...missingFields, buyIntervalEnvKey];
+  }
+
+  if (
+    !Number.isFinite(config.buyIntervalSeconds) ||
+    config.buyIntervalSeconds < 10 ||
+    config.buyIntervalSeconds > 600
+  ) {
+    errors = [...errors, `${prefix}: ${buyIntervalEnvKey} 无效（范围 10-600）`];
+    missingFields = [...missingFields, buyIntervalEnvKey];
   }
 
   const liquidationCooldownEnvKey = `LIQUIDATION_COOLDOWN_MINUTES_${index}`;
@@ -388,6 +528,7 @@ function validateMonitorConfig(
 
   if (autoSearchEnabled) {
     const autoSearchConfig = config.autoSearchConfig;
+    const switchIntervalEnvKey = `SWITCH_INTERVAL_MINUTES_${index}`;
     const requiredNumberFields = [
       {
         value: autoSearchConfig.autoSearchMinDistancePctBull,
@@ -430,14 +571,15 @@ function validateMonitorConfig(
       missingFields = [...missingFields, `AUTO_SEARCH_OPEN_DELAY_MINUTES_${index}`];
     }
 
-    const switchIntervalEnvKey = `SWITCH_INTERVAL_MINUTES_${index}`;
-    const switchIntervalRaw = getStringConfig(env, switchIntervalEnvKey);
-    if (switchIntervalRaw !== null) {
-      const parsed = Number(switchIntervalRaw);
-      if (!Number.isFinite(parsed)) {
-        errors = [...errors, `${prefix}: ${switchIntervalEnvKey} 无效（必须为数字，范围 0-120）`];
-        missingFields = [...missingFields, switchIntervalEnvKey];
-      }
+    const switchIntervalValidationError = validateCriticalBoundedNumberConfig({
+      env,
+      envKey: switchIntervalEnvKey,
+      min: 0,
+      max: 120,
+    });
+    if (switchIntervalValidationError !== null) {
+      errors = [...errors, `${prefix}: ${switchIntervalValidationError}`];
+      missingFields = [...missingFields, switchIntervalEnvKey];
     }
 
     if (
@@ -538,6 +680,10 @@ function validateTradingConfig(
     };
   }
 
+  const monitorIndexContinuityResult = validateMonitorSymbolIndexContinuity(env);
+  errors = [...errors, ...monitorIndexContinuityResult.errors];
+  missingFields = [...missingFields, ...monitorIndexContinuityResult.missingFields];
+
   // 验证每个监控标的的配置
   for (const config of tradingConfig.monitors) {
     // 使用配置中保存的原始索引（对应环境变量的 _1, _2 等后缀）
@@ -618,6 +764,70 @@ function validateTradingConfig(
       ...errors,
       '请检查配置，确保每个 LONG_SYMBOL 和 SHORT_SYMBOL 在所有监控标的中是唯一的。',
     ];
+  }
+
+  if (tradingConfig.global.buyOrderTimeout.enabled) {
+    const buyOrderTimeoutValidationError = validateCriticalBoundedNumberConfig({
+      env,
+      envKey: 'BUY_ORDER_TIMEOUT_SECONDS',
+      min: 30,
+      max: 600,
+    });
+    if (buyOrderTimeoutValidationError !== null) {
+      errors = [...errors, buyOrderTimeoutValidationError];
+      missingFields = [...missingFields, 'BUY_ORDER_TIMEOUT_SECONDS'];
+    }
+
+    if (
+      !Number.isFinite(tradingConfig.global.buyOrderTimeout.timeoutSeconds) ||
+      tradingConfig.global.buyOrderTimeout.timeoutSeconds < 30 ||
+      tradingConfig.global.buyOrderTimeout.timeoutSeconds > 600
+    ) {
+      errors = [...errors, 'BUY_ORDER_TIMEOUT_SECONDS 无效（范围 30-600）'];
+      missingFields = [...missingFields, 'BUY_ORDER_TIMEOUT_SECONDS'];
+    }
+  }
+
+  if (tradingConfig.global.sellOrderTimeout.enabled) {
+    const sellOrderTimeoutValidationError = validateCriticalBoundedNumberConfig({
+      env,
+      envKey: 'SELL_ORDER_TIMEOUT_SECONDS',
+      min: 30,
+      max: 600,
+    });
+    if (sellOrderTimeoutValidationError !== null) {
+      errors = [...errors, sellOrderTimeoutValidationError];
+      missingFields = [...missingFields, 'SELL_ORDER_TIMEOUT_SECONDS'];
+    }
+
+    if (
+      !Number.isFinite(tradingConfig.global.sellOrderTimeout.timeoutSeconds) ||
+      tradingConfig.global.sellOrderTimeout.timeoutSeconds < 30 ||
+      tradingConfig.global.sellOrderTimeout.timeoutSeconds > 600
+    ) {
+      errors = [...errors, 'SELL_ORDER_TIMEOUT_SECONDS 无效（范围 30-600）'];
+      missingFields = [...missingFields, 'SELL_ORDER_TIMEOUT_SECONDS'];
+    }
+  }
+
+  const orderMonitorIntervalValidationError = validateCriticalBoundedNumberConfig({
+    env,
+    envKey: 'ORDER_MONITOR_PRICE_UPDATE_INTERVAL',
+    min: 1,
+    max: 60,
+  });
+  if (orderMonitorIntervalValidationError !== null) {
+    errors = [...errors, orderMonitorIntervalValidationError];
+    missingFields = [...missingFields, 'ORDER_MONITOR_PRICE_UPDATE_INTERVAL'];
+  }
+
+  if (
+    !Number.isFinite(tradingConfig.global.orderMonitorPriceUpdateInterval) ||
+    tradingConfig.global.orderMonitorPriceUpdateInterval < 1 ||
+    tradingConfig.global.orderMonitorPriceUpdateInterval > 60
+  ) {
+    errors = [...errors, 'ORDER_MONITOR_PRICE_UPDATE_INTERVAL 无效（范围 1-60）'];
+    missingFields = [...missingFields, 'ORDER_MONITOR_PRICE_UPDATE_INTERVAL'];
   }
 
   // 验证开盘保护配置（分别校验早盘和午盘）

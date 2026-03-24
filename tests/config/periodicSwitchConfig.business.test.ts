@@ -21,39 +21,54 @@ function createBaseEnv(overrides: Readonly<Record<string, string>> = {}): NodeJS
 }
 
 describe('periodic switch config business flow', () => {
-  it('parses SWITCH_INTERVAL_MINUTES_1 with clamp and fallback rules', () => {
+  it('parses SWITCH_INTERVAL_MINUTES_1 with feature-gated fail-fast rules', () => {
     const missingConfig = createMultiMonitorTradingConfig({
       env: createBaseEnv(),
     });
     expect(missingConfig.monitors[0]?.autoSearchConfig.switchIntervalMinutes).toBe(0);
 
+    const disabledConfig = createMultiMonitorTradingConfig({
+      env: createBaseEnv({
+        AUTO_SEARCH_ENABLED_1: 'false',
+        SWITCH_INTERVAL_MINUTES_1: '999',
+      }),
+    });
+    expect(disabledConfig.monitors[0]?.autoSearchConfig.switchIntervalMinutes).toBe(0);
+
     const validConfig = createMultiMonitorTradingConfig({
       env: createBaseEnv({
+        AUTO_SEARCH_ENABLED_1: 'true',
         SWITCH_INTERVAL_MINUTES_1: '15',
       }),
     });
     expect(validConfig.monitors[0]?.autoSearchConfig.switchIntervalMinutes).toBe(15);
 
-    const negativeConfig = createMultiMonitorTradingConfig({
-      env: createBaseEnv({
-        SWITCH_INTERVAL_MINUTES_1: '-5',
+    expect(() =>
+      createMultiMonitorTradingConfig({
+        env: createBaseEnv({
+          AUTO_SEARCH_ENABLED_1: 'true',
+          SWITCH_INTERVAL_MINUTES_1: '-5',
+        }),
       }),
-    });
-    expect(negativeConfig.monitors[0]?.autoSearchConfig.switchIntervalMinutes).toBe(0);
+    ).toThrow(/SWITCH_INTERVAL_MINUTES_1/);
 
-    const overflowConfig = createMultiMonitorTradingConfig({
-      env: createBaseEnv({
-        SWITCH_INTERVAL_MINUTES_1: '999',
+    expect(() =>
+      createMultiMonitorTradingConfig({
+        env: createBaseEnv({
+          AUTO_SEARCH_ENABLED_1: 'true',
+          SWITCH_INTERVAL_MINUTES_1: '999',
+        }),
       }),
-    });
-    expect(overflowConfig.monitors[0]?.autoSearchConfig.switchIntervalMinutes).toBe(120);
+    ).toThrow(/SWITCH_INTERVAL_MINUTES_1/);
 
-    const invalidNumberConfig = createMultiMonitorTradingConfig({
-      env: createBaseEnv({
-        SWITCH_INTERVAL_MINUTES_1: 'invalid-number',
+    expect(() =>
+      createMultiMonitorTradingConfig({
+        env: createBaseEnv({
+          AUTO_SEARCH_ENABLED_1: 'true',
+          SWITCH_INTERVAL_MINUTES_1: 'invalid-number',
+        }),
       }),
-    });
-    expect(invalidNumberConfig.monitors[0]?.autoSearchConfig.switchIntervalMinutes).toBe(0);
+    ).toThrow(/SWITCH_INTERVAL_MINUTES_1/);
   });
 
   it('flags invalid SWITCH_INTERVAL_MINUTES_1 during config validation when auto-search is enabled', async () => {
@@ -92,22 +107,26 @@ describe('periodic switch config business flow', () => {
       monitors: [monitorConfig],
     });
 
-    let caughtError: unknown = null;
-    try {
-      await validateAllConfig({
-        env: {
-          LONGBRIDGE_AUTH_MODE: 'oauth',
-          LONGBRIDGE_CLIENT_ID: 'client-id',
-          SWITCH_INTERVAL_MINUTES_1: 'not-a-number',
-        },
-        tradingConfig,
-      });
-    } catch (error) {
-      caughtError = error;
-    }
+    const invalidValues = ['not-a-number', '-1', '121'] as const;
+    for (const invalidValue of invalidValues) {
+      let caughtError: unknown = null;
+      try {
+        await validateAllConfig({
+          env: {
+            LONGBRIDGE_AUTH_MODE: 'oauth',
+            LONGBRIDGE_CLIENT_ID: 'client-id',
+            AUTO_SEARCH_ENABLED_1: 'true',
+            SWITCH_INTERVAL_MINUTES_1: invalidValue,
+          },
+          tradingConfig,
+        });
+      } catch (error) {
+        caughtError = error;
+      }
 
-    expect(caughtError).not.toBeNull();
-    const validationError = caughtError as { missingFields?: ReadonlyArray<string> };
-    expect(validationError.missingFields).toContain('SWITCH_INTERVAL_MINUTES_1');
+      expect(caughtError).not.toBeNull();
+      const validationError = caughtError as { missingFields?: ReadonlyArray<string> };
+      expect(validationError.missingFields).toContain('SWITCH_INTERVAL_MINUTES_1');
+    }
   });
 });

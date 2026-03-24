@@ -1,5 +1,6 @@
 import type { Signal } from '../../../types/signal.js';
 import type { VerificationIndicator } from '../../../types/indicatorProfile.js';
+import type { DelayedSignalVerifierPort } from '../../../types/monitorContextPorts.js';
 import type { IndicatorCache } from '../indicatorCache/types.js';
 
 /**
@@ -66,58 +67,4 @@ export type DelayedSignalVerifierDeps = {
   readonly indicatorCache: IndicatorCache;
 };
 
-/**
- * DelayedSignalVerifier 行为契约。
- * 类型用途：延迟买入/卖出信号的 T+N 验证（addSignal/cancelAll/getPendingCount/onVerified 等），由主程序按监控标的创建。
- * 数据来源：主程序通过工厂创建并注入 processMonitor；待验证信号由信号流水线经 addSignal 入队。
- * 使用范围：mainProgram、processMonitor 等使用，仅内部使用。
- */
-export interface DelayedSignalVerifier {
-  /**
-   * 添加信号到待验证队列
-   * @param params.signal 信号对象（必须包含 triggerTime）
-   * @param params.monitorSymbol 监控标的代码
-   * @param params.verificationIndicators 当前方向需要验证的指标集合（来自 indicatorProfile）
-   */
-  addSignal: (params: {
-    readonly signal: Signal;
-    readonly monitorSymbol: string;
-    readonly verificationIndicators: ReadonlyArray<VerificationIndicator>;
-  }) => void;
-
-  /**
-   * 取消指定标的的所有待验证信号
-   * @param monitorSymbol 监控标的代码
-   */
-  cancelAllForSymbol: (monitorSymbol: string) => void;
-
-  /**
-   * 取消指定方向的待验证信号
-   * @param monitorSymbol 监控标的代码
-   * @param direction 多空方向（由信号动作判定）
-   * @returns 已取消的信号数量
-   */
-  cancelAllForDirection: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => number;
-
-  /**
-   * 取消所有待验证信号（清理定时器并释放信号）
-   * @returns 已取消的信号数量
-   */
-  cancelAll: () => number;
-
-  /**
-   * 获取待验证信号数量
-   */
-  getPendingCount: () => number;
-
-  /**
-   * 注册验证通过回调
-   * @param callback 验证通过时调用
-   */
-  onVerified: (callback: VerifiedCallback) => void;
-
-  /**
-   * 销毁验证器，清理所有定时器和资源
-   */
-  destroy: () => void;
-}
+export type DelayedSignalVerifier = DelayedSignalVerifierPort;

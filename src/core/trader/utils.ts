@@ -9,7 +9,6 @@ import {
   TRADING,
 } from '../../constants/index.js';
 import type { OrderTypeConfig, Signal } from '../../types/signal.js';
-import type { CancelOrderOutcome } from '../../types/trader.js';
 import type {
   OrderSubmitResponse,
   OrderTypeResolutionConfig,
@@ -91,35 +90,25 @@ function isOrderSubmitResponse(value: unknown): value is OrderSubmitResponse {
 }
 
 /**
- * 从订单提交 API 响应中安全提取订单 ID。
+ * 从订单提交 API 响应中提取真实订单 ID。
  *
- * 优先顺序：orderId 字段 > toString() > 字符串值 > 兜底常量
+ * 订单提交成功后，orderId 是进入本地追踪、记录与恢复链路的硬边界；
+ * 若响应缺失有效 orderId，必须立即 fail-fast，不能降级为伪成功继续写入本地状态。
  *
  * @param resp API 返回的任意值
- * @returns 订单 ID 字符串，无法提取时返回 "UNKNOWN_ORDER_ID"
+ * @returns 真实订单 ID 字符串
+ * @throws Error 当响应缺失有效 orderId 时抛错
  */
 export function extractOrderId(resp: unknown): string {
-  if (isOrderSubmitResponse(resp) && resp.orderId !== undefined) {
+  if (isOrderSubmitResponse(resp) && typeof resp.orderId === 'string' && resp.orderId.length > 0) {
     return resp.orderId;
   }
 
-  // 信任边界：unknown 的 resp 可能具有 toString，需在运行时安全检查后访问
-  const obj: { toString?: () => unknown } | null | undefined = resp as
-    | { toString?: () => unknown }
-    | null
-    | undefined;
-  if (typeof obj?.toString === 'function') {
-    const str = obj.toString();
-    if (typeof str === 'string') {
-      return str;
-    }
-  }
-
-  if (typeof resp === 'string') {
+  if (typeof resp === 'string' && resp.length > 0) {
     return resp;
   }
 
-  return 'UNKNOWN_ORDER_ID';
+  throw new Error('submitOrder response missing valid orderId');
 }
 
 /**
@@ -173,38 +162,6 @@ export function resolveOrderTypeConfig(
 function resolveRemainingQuantity(order: PendingSellOrderSnapshot): number {
   const remaining = order.submittedQuantity - order.executedQuantity;
   return isValidPositiveNumber(remaining) ? remaining : 0;
-}
-
-/**
- * 判断撤单结果是否表示“撤单请求已被接受”或“已确认非成交终态”。
- * 默认行为：CANCEL_CONFIRMED 返回 true；ALREADY_CLOSED 仅在关闭原因为 CANCELED/REJECTED 时返回 true。
- *
- * @param outcome 撤单 outcome
- * @returns true 表示调用方可停止继续发起撤单，且不会把 FILLED 误当作撤单成功
- */
-export function isCancelAcceptedOrTerminalNonFilledClose(outcome: CancelOrderOutcome): boolean {
-  if (outcome.kind === 'CANCEL_CONFIRMED') {
-    return true;
-  }
-
-  return (
-    outcome.kind === 'ALREADY_CLOSED' &&
-    (outcome.closedReason === 'CANCELED' || outcome.closedReason === 'REJECTED')
-  );
-}
-
-/**
- * 判断撤单结果是否已确认「非成交关闭」终态。
- * 默认行为：仅 ALREADY_CLOSED 且关闭原因为 CANCELED/REJECTED 时返回 true。
- *
- * @param outcome 撤单 outcome
- * @returns true 表示订单已被权威确认为非成交终态
- */
-export function isTerminalNonFilledCloseConfirmed(outcome: CancelOrderOutcome): boolean {
-  return (
-    outcome.kind === 'ALREADY_CLOSED' &&
-    (outcome.closedReason === 'CANCELED' || outcome.closedReason === 'REJECTED')
-  );
 }
 
 /**

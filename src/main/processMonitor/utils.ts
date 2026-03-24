@@ -4,7 +4,7 @@ import { SIGNAL_ACTION_DESCRIPTIONS } from '../../constants/index.js';
 import type { Position } from '../../types/account.js';
 import type { Signal, SignalType } from '../../types/signal.js';
 import type { PositionCache } from '../../types/services.js';
-import type { DelayedSignalVerifier } from '../asyncProgram/delayedSignalVerifier/types.js';
+import type { DelayedSignalVerifierPort } from '../../types/monitorContextPorts.js';
 import type { TaskQueue, BuyTaskType, SellTaskType } from '../asyncProgram/tradeTaskQueue/types.js';
 import type { MonitorTaskQueue } from '../asyncProgram/monitorTaskQueue/types.js';
 import type { MonitorTaskDataMap } from '../asyncProgram/monitorTaskProcessor/types.js';
@@ -84,7 +84,7 @@ function removeSignalTasks(
 export function clearMonitorDirectionQueues(params: {
   readonly monitorSymbol: string;
   readonly direction: 'LONG' | 'SHORT';
-  readonly delayedSignalVerifier: DelayedSignalVerifier;
+  readonly delayedSignalVerifier: DelayedSignalVerifierPort;
   readonly buyTaskQueue: TaskQueue<BuyTaskType>;
   readonly sellTaskQueue: TaskQueue<SellTaskType>;
   readonly monitorTaskQueue: MonitorTaskQueue<MonitorTaskDataMap>;

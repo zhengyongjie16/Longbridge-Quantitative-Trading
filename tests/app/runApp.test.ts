@@ -4,6 +4,7 @@
  * 覆盖：
  * - 正常启动链路保持统一时间源与关键装配顺序
  * - startupRebuildPending 分支会跳过首次重建，但仍完成后续装配
+ * - startupRebuildPending 与运行时标的验证失败并存时，启动不会被中止
  */
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { createWarrantListCache } from '../../src/services/autoSymbolFinder/utils.js';
@@ -463,6 +464,43 @@ describe('app runApp assembly', () => {
     expect(caught).toBe(STOP_AFTER_FIRST_LOOP);
     expect(harnessState.rebuildCalls).toHaveLength(0);
     expect(harnessState.mainProgramRuntimeGateModes).toEqual(['skip']);
+  });
+
+  it('does not abort startup in pending-open-rebuild path when runtime symbol validation reports failure', async () => {
+    harnessState.startupRebuildPending = true;
+    harnessState.validationResult = {
+      valid: false,
+      warnings: [],
+      errors: ['missing quote'],
+    };
+    const runApp = createRunApp(createRunAppDeps(harnessState));
+    let caught: unknown = null;
+
+    try {
+      await runApp({ env: {} });
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBe(STOP_AFTER_FIRST_LOOP);
+    expect(harnessState.rebuildCalls).toHaveLength(0);
+    expect(harnessState.events).toEqual([
+      'loadStartupSnapshot',
+      'createMonitorContexts',
+      'createRebuildTradingDayState',
+      'registerDelayedSignalHandlers',
+      'createLifecycleRuntime',
+      'monitorTaskProcessor.start',
+      'buyProcessor.start',
+      'sellProcessor.start',
+      'orderMonitorWorker.start',
+      'postTradeRefresher.start',
+      'registerExitHandlers',
+      'mainProgram',
+      'sleep:1000',
+    ]);
+    expect(harnessState.mainProgramCalls).toBe(1);
+    expect(harnessState.cleanupRegistered).toBe(1);
   });
 
   it('throws AppStartupAbortError instead of exiting process when runtime symbol validation fails', async () => {

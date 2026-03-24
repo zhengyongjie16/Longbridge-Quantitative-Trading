@@ -20,7 +20,8 @@
 import { logger } from '../../utils/logger/index.js';
 import { isBuyAction } from '../../utils/helpers/index.js';
 import { VALID_SIGNAL_ACTIONS } from '../../constants/index.js';
-import { isSeatActive, describeSeatUnavailable } from '../../services/autoSymbolManager/utils.js';
+import { isSeatActive } from '../../utils/seat/guards.js';
+import { describeSeatUnavailable } from '../../services/autoSymbolManager/utils.js';
 import { formatSignalLog, getPositions } from './utils.js';
 import type { Quote } from '../../types/quote.js';
 import type { Signal } from '../../types/signal.js';
@@ -68,7 +69,7 @@ export function runSignalPipeline(params: SignalPipelineParams): void {
       return;
     }
 
-    const { immediateSignals, delayedSignals } = strategy.generateCloseSignals(
+    const { immediateSignals, delayedSignals } = strategy.generateSignals(
       monitorSnapshot,
       longSymbol,
       shortSymbol,

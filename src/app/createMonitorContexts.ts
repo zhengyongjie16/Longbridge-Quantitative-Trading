@@ -6,7 +6,7 @@
  * - 固化 monitorStates 与 tradingConfig 的一一对应装配不变量
  * - 统一写回 post-gate runtime 持有的 monitorContexts Map
  */
-import { createHangSengMultiIndicatorStrategy } from '../core/strategy/index.js';
+import { createDefaultTradingSignalStrategyFactory } from '../core/strategy/index.js';
 import { createPositionLimitChecker } from '../core/riskController/positionLimitChecker.js';
 import { createRiskChecker } from '../core/riskController/index.js';
 import { createUnrealizedLossChecker } from '../core/riskController/unrealizedLossChecker.js';
@@ -17,6 +17,8 @@ import { createAutoSymbolManager } from '../services/autoSymbolManager/index.js'
 import { createMonitorContext } from './createMonitorContext.js';
 import type { CreateMonitorContextsParams } from './types.js';
 
+const DEFAULT_STRATEGY_FACTORY = createDefaultTradingSignalStrategyFactory();
+
 /**
  * 批量创建全部监控上下文。
  * 默认行为：若某个 monitor 缺少对应 monitorState，则视为装配不变量被破坏并直接抛错。
@@ -25,7 +27,12 @@ import type { CreateMonitorContextsParams } from './types.js';
  * @returns 无返回值；直接填充 postGateRuntime.monitorContexts
  */
 export function createMonitorContexts(params: CreateMonitorContextsParams): void {
-  const { preGateRuntime, postGateRuntime, quotesMap } = params;
+  const {
+    preGateRuntime,
+    postGateRuntime,
+    quotesMap,
+    strategyFactory = DEFAULT_STRATEGY_FACTORY,
+  } = params;
 
   for (const monitorConfig of preGateRuntime.tradingConfig.monitors) {
     const monitorState = postGateRuntime.lastState.monitorStates.get(monitorConfig.monitorSymbol);
@@ -57,7 +64,7 @@ export function createMonitorContexts(params: CreateMonitorContextsParams): void
       getTradingCalendarSnapshot: () =>
         postGateRuntime.lastState.tradingCalendarSnapshot ?? new Map(),
     });
-    const strategy = createHangSengMultiIndicatorStrategy({
+    const strategy = strategyFactory({
       signalConfig: monitorConfig.signalConfig,
       verificationConfig: monitorConfig.verificationConfig,
     });

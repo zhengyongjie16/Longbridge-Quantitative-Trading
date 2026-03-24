@@ -9,7 +9,7 @@
 import { logger } from '../../../utils/logger/index.js';
 import { LOG_COLORS } from '../../../constants/index.js';
 import { formatSymbolDisplay } from '../../../utils/display/index.js';
-import { isSeatVersionMatch } from '../../../services/autoSymbolManager/utils.js';
+import { isSeatVersionMatch } from '../../../utils/seat/guards.js';
 import type { MonitorConfig } from '../../../types/config.js';
 import type { Signal } from '../../../types/signal.js';
 import type { OrderExecutor, OrderExecutorDeps } from '../types.js';
@@ -124,7 +124,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
     orderRecorder,
     globalConfig: global,
     canExecuteSignal,
-    updateLastBuyTime: buyThrottle.updateLastBuyTime,
+    recordBuyAttempt: buyThrottle.recordBuyAttempt,
   });
 
   /**

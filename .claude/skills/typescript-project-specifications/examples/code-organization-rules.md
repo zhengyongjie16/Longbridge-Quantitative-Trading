@@ -2,8 +2,8 @@
 
 本文展示如何根据规范正确组织：
 
-- 类型定义到 `types.ts`
-- 工具函数到 `utils.ts`
+- 类型定义到 `types.ts`，且 `types.ts` 只能出现类型相关定义
+- 工具函数到 `utils.ts`，且 `utils.ts` 禁止出现任何类型定义
 - 常量统一到 `src/constants/`（以下以 `src/constants/index.ts` 为示例）
 - 单元测试到 `tests/`，并与 `src/` 目录结构一一对应
 

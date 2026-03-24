@@ -69,7 +69,7 @@ describe('createHangSengMultiIndicatorStrategy', () => {
       ],
     });
 
-    const result = strategy.generateCloseSignals(
+    const result = strategy.generateSignals(
       createSnapshot(),
       'BULL.HK',
       '',
@@ -106,7 +106,7 @@ describe('createHangSengMultiIndicatorStrategy', () => {
       },
     });
 
-    const result = strategy.generateCloseSignals(
+    const result = strategy.generateSignals(
       createSnapshot(),
       'BULL.HK',
       '',
@@ -140,7 +140,7 @@ describe('createHangSengMultiIndicatorStrategy', () => {
       },
     });
 
-    const result = strategy.generateCloseSignals(
+    const result = strategy.generateSignals(
       createSnapshot(),
       'BULL.HK',
       '',
@@ -178,7 +178,7 @@ describe('createHangSengMultiIndicatorStrategy', () => {
     });
     const orderRecorder = createOrderRecorderDouble();
 
-    const failedResult = strategy.generateCloseSignals(
+    const failedResult = strategy.generateSignals(
       createSnapshot({
         adx: null,
       }),
@@ -196,7 +196,7 @@ describe('createHangSengMultiIndicatorStrategy', () => {
     expect(failedResult.immediateSignals).toHaveLength(0);
     expect(failedResult.delayedSignals).toHaveLength(0);
 
-    const successfulResult = strategy.generateCloseSignals(
+    const successfulResult = strategy.generateSignals(
       createSnapshot(),
       'BULL.HK',
       '',
@@ -240,7 +240,7 @@ describe('createHangSengMultiIndicatorStrategy', () => {
       },
     });
 
-    const result = strategy.generateCloseSignals(
+    const result = strategy.generateSignals(
       createSnapshot({
         adx: 35,
       }),

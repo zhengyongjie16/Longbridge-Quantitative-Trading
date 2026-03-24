@@ -17,7 +17,7 @@
  */
 import { logger } from '../../../utils/logger/index.js';
 import { API, TRADING } from '../../../constants/index.js';
-import { isSeatActive } from '../../../services/autoSymbolManager/utils.js';
+import { isSeatActive } from '../../../utils/seat/guards.js';
 import type { MonitorContext } from '../../../types/state.js';
 import type { Quote } from '../../../types/quote.js';
 import type { PendingRefreshSymbol } from '../../../types/services.js';

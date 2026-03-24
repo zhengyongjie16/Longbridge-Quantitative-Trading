@@ -173,7 +173,7 @@ longbridge@4.0.3
 
 ### 4.4 建议改：仓库内部知识基线
 
-#### `.codex/skills/longbridge-nodejs-sdk/reference/config.md`
+#### 已删除的内部 skill 路径（历史说明）
 
 当前问题：
 
@@ -240,7 +240,7 @@ longbridge@4.0.3
 | `bun.lock` | 是 | 刷新锁文件到 `4.0.3` |
 | `src/config/auth/utils.ts` | 是 | 修正源码注释中的旧版本表述 |
 | `docs/others/longbridge-oauth-client-registration-and-authorization-guide.md` | 是 | 修正 OAuth token 新缓存目录 |
-| `.codex/skills/longbridge-nodejs-sdk/reference/config.md` | 建议 | 修正内部知识基线中的旧缓存目录 |
+| 已删除的内部 longbridge skill 文档路径 | 否 | 相关 skill 文档已移除，本步骤不再适用 |
 | `README.md` | 否 | 当前 endpoint 已正确 |
 | `.env.example` | 否 | 当前 endpoint 已正确 |
 | `src/core/**` | 否 | 本次升级不涉及业务链路重构 |
@@ -277,7 +277,7 @@ longbridge@4.0.3
 
 ### 步骤 4：同步仓库内部知识参考
 
-若本次实施包含知识库同步，则修正 `.codex/skills/longbridge-nodejs-sdk/reference/config.md`。
+相关 longbridge skill 文档已从仓库移除，本步骤不再适用。
 
 目标：
 

@@ -11,6 +11,7 @@ import type { SignalConfig } from '../types/signalConfig.js';
 import { logger } from '../utils/logger/index.js';
 import { OPEN_API_ORDER_TYPE_TO_CONFIG, TRADING } from '../constants/index.js';
 import {
+  createConfigValidationError,
   getBooleanConfig,
   getNumberConfig,
   getStringConfig,
@@ -23,7 +24,7 @@ import {
   parseVerificationDelay,
   parseVerificationIndicators,
 } from './utils.js';
-import type { BoundedNumberConfig } from './types.js';
+import type { BoundedNumberConfig, MinimumNumberConfig } from './types.js';
 
 /**
  * 从环境变量解析信号配置字符串，未配置或解析失败时返回 null。
@@ -48,7 +49,7 @@ function parseSignalConfigFromEnv(env: NodeJS.ProcessEnv, envKey: string): Signa
 
 /**
  * 解析带上下限的数值配置，超出范围时截断至边界值并输出警告。
- * 用于需要强制约束范围的配置项（如超时秒数、间隔时间等）。
+ * 仅用于非关键交易参数，关键参数请使用 fail-fast 解析函数。
  * @param options - 包含 env、envKey、defaultValue、min、max 的配置对象
  * @returns 解析后的数值（未配置时返回 defaultValue，超出范围时截断为 min/max）
  */
@@ -78,12 +79,12 @@ function parseBoundedNumberConfig({
 }
 
 /**
- * 解析带上下限的数值配置（基于原始字符串），用于需要保留越界截断语义的配置项。
- * 与 parseBoundedNumberConfig 的区别：会先解析原始字符串，再对越界值进行截断并告警。
+ * 解析关键数值配置：未配置时使用默认值，显式配置非法或越界时立即失败。
  * @param options - 包含 env、envKey、defaultValue、min、max 的配置对象
- * @returns 解析后的数值（未配置或非数字时返回 defaultValue，越界时截断）
+ * @returns 合法范围内的数值
+ * @throws Error 当值非数字或不在范围内
  */
-function parseBoundedNumberConfigFromRaw({
+function parseFailFastBoundedNumberConfig({
   env,
   envKey,
   defaultValue,
@@ -96,18 +97,38 @@ function parseBoundedNumberConfigFromRaw({
   }
 
   const value = Number(raw);
-  if (!Number.isFinite(value)) {
+  if (!Number.isFinite(value) || value < min || value > max) {
+    throw createConfigValidationError(
+      `[配置错误] ${envKey} 无效（必须为数字，范围 ${min}-${max}）`,
+      [envKey],
+    );
+  }
+
+  return value;
+}
+
+/**
+ * 解析关键数值配置：未配置时使用默认值，显式配置非法或小于下限时立即失败。
+ * @param options - 包含 env、envKey、defaultValue、min 的配置对象
+ * @returns 大于等于 min 的合法数值
+ * @throws Error 当值非数字或小于 min
+ */
+function parseFailFastMinimumNumberConfig({
+  env,
+  envKey,
+  defaultValue,
+  min,
+}: MinimumNumberConfig): number {
+  const raw = env[envKey];
+  if (raw === undefined || raw.trim() === '') {
     return defaultValue;
   }
 
-  if (value < min) {
-    logger.warn(`[配置警告] ${envKey} 不能小于 ${min}，已设置为 ${min}`);
-    return min;
-  }
-
-  if (value > max) {
-    logger.warn(`[配置警告] ${envKey} 不能大于 ${max}，已设置为 ${max}`);
-    return max;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < min) {
+    throw createConfigValidationError(`[配置错误] ${envKey} 无效（必须为数字且 >= ${min}）`, [
+      envKey,
+    ]);
   }
 
   return value;
@@ -192,13 +213,15 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
     min: 0,
     max: 60,
   });
-  const switchIntervalMinutes = parseBoundedNumberConfigFromRaw({
-    env,
-    envKey: `SWITCH_INTERVAL_MINUTES${suffix}`,
-    defaultValue: 0,
-    min: 0,
-    max: 120,
-  });
+  const switchIntervalMinutes = autoSearchEnabled
+    ? parseFailFastBoundedNumberConfig({
+        env,
+        envKey: `SWITCH_INTERVAL_MINUTES${suffix}`,
+        defaultValue: 0,
+        min: 0,
+        max: 120,
+      })
+    : 0;
   const switchDistanceRangeBull = parseNumberRangeConfig(
     env,
     `SWITCH_DISTANCE_RANGE_BULL${suffix}`,
@@ -209,13 +232,22 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
   );
   const orderOwnershipMapping = parseOrderOwnershipMapping(env, `ORDER_OWNERSHIP_MAPPING${suffix}`);
 
-  // 使用 ?? 保留 0 的合法配置，仅在 null/undefined 时回退默认值
-  const targetNotional = getNumberConfig(env, `TARGET_NOTIONAL${suffix}`, 1) ?? 10000;
-  const maxPositionNotional = getNumberConfig(env, `MAX_POSITION_NOTIONAL${suffix}`, 1) ?? 100000;
+  const targetNotional = parseFailFastMinimumNumberConfig({
+    env,
+    envKey: `TARGET_NOTIONAL${suffix}`,
+    defaultValue: 10000,
+    min: 1,
+  });
+  const maxPositionNotional = parseFailFastMinimumNumberConfig({
+    env,
+    envKey: `MAX_POSITION_NOTIONAL${suffix}`,
+    defaultValue: 100000,
+    min: 1,
+  });
   const maxUnrealizedLossPerSymbol =
     getNumberConfig(env, `MAX_UNREALIZED_LOSS_PER_SYMBOL${suffix}`, 0) ?? 0;
 
-  const buyIntervalSeconds = parseBoundedNumberConfig({
+  const buyIntervalSeconds = parseFailFastBoundedNumberConfig({
     env,
     envKey: `BUY_INTERVAL_SECONDS${suffix}`,
     defaultValue: 60,
@@ -292,10 +324,11 @@ function parseMonitorConfig(env: NodeJS.ProcessEnv, index: number): MonitorConfi
 }
 
 /**
- * 解析所有监控标的配置，自动从 MONITOR_SYMBOL_1 起连续扫描，遇第一个未配置索引即停止。
+ * 解析所有监控标的配置，自动扫描 MONITOR_SYMBOL_1..N 并强制索引连续。
  * 同时解析全局配置（开盘保护、订单超时、订单类型等）。
  * @param env - 进程环境变量对象
  * @returns 多监控标的交易配置（monitors 数组 + global 全局配置）
+ * @throws Error 当监控标的索引断档时抛出
  */
 export function createMultiMonitorTradingConfig({
   env,
@@ -303,46 +336,68 @@ export function createMultiMonitorTradingConfig({
   env: NodeJS.ProcessEnv;
 }): MultiMonitorTradingConfig {
   const monitors: MonitorConfig[] = [];
+  const configuredMonitorIndexes: number[] = [];
 
-  // 连续扫描监控标的配置：从 _1 开始，遇到第一个未配置的索引即停止
-  // 注意：索引必须连续，如配置了 _1 和 _3 但跳过 _2，则 _3 不会被读取
   for (let i = 1; i <= TRADING.MAX_MONITOR_SCAN_RANGE; i++) {
     const monitorSymbol = getStringConfig(env, `MONITOR_SYMBOL_${i}`);
     if (!monitorSymbol) {
-      // 未找到 MONITOR_SYMBOL_N，停止扫描
-      break;
+      continue;
     }
 
-    const config = parseMonitorConfig(env, i);
-    if (config) {
+    configuredMonitorIndexes.push(i);
+  }
+
+  if (configuredMonitorIndexes.length > 0) {
+    const configuredMonitorSet = new Set(configuredMonitorIndexes);
+    const highestConfiguredIndex = configuredMonitorIndexes.at(-1) ?? 0;
+    for (let i = 1; i <= highestConfiguredIndex; i++) {
+      if (!configuredMonitorSet.has(i)) {
+        throw createConfigValidationError(
+          `[配置错误] MONITOR_SYMBOL_${i} 未配置（监控标的索引必须连续，不允许断档）`,
+          [`MONITOR_SYMBOL_${i}`],
+        );
+      }
+    }
+
+    for (let i = 1; i <= highestConfiguredIndex; i++) {
+      const config = parseMonitorConfig(env, i);
+      if (!config) {
+        throw createConfigValidationError(
+          `[配置错误] MONITOR_SYMBOL_${i} 未配置（监控标的索引必须连续）`,
+          [`MONITOR_SYMBOL_${i}`],
+        );
+      }
+
       monitors.push(config);
-    } else {
-      logger.warn(`[配置警告] 监控标的 ${i} 配置不完整，已跳过`);
     }
   }
 
   // 解析买入订单超时配置
   const buyOrderTimeoutEnabled = getBooleanConfig(env, 'BUY_ORDER_TIMEOUT_ENABLED', true);
-  const buyOrderTimeoutSeconds = parseBoundedNumberConfig({
-    env,
-    envKey: 'BUY_ORDER_TIMEOUT_SECONDS',
-    defaultValue: 180,
-    min: 30,
-    max: 600,
-  });
+  const buyOrderTimeoutSeconds = buyOrderTimeoutEnabled
+    ? parseFailFastBoundedNumberConfig({
+        env,
+        envKey: 'BUY_ORDER_TIMEOUT_SECONDS',
+        defaultValue: 180,
+        min: 30,
+        max: 600,
+      })
+    : 180;
 
   // 解析卖出订单超时配置
   const sellOrderTimeoutEnabled = getBooleanConfig(env, 'SELL_ORDER_TIMEOUT_ENABLED', true);
-  const sellOrderTimeoutSeconds = parseBoundedNumberConfig({
-    env,
-    envKey: 'SELL_ORDER_TIMEOUT_SECONDS',
-    defaultValue: 180,
-    min: 30,
-    max: 600,
-  });
+  const sellOrderTimeoutSeconds = sellOrderTimeoutEnabled
+    ? parseFailFastBoundedNumberConfig({
+        env,
+        envKey: 'SELL_ORDER_TIMEOUT_SECONDS',
+        defaultValue: 180,
+        min: 30,
+        max: 600,
+      })
+    : 180;
 
   // 解析订单监控价格更新间隔配置
-  const orderMonitorPriceUpdateInterval = parseBoundedNumberConfig({
+  const orderMonitorPriceUpdateInterval = parseFailFastBoundedNumberConfig({
     env,
     envKey: 'ORDER_MONITOR_PRICE_UPDATE_INTERVAL',
     defaultValue: 5,

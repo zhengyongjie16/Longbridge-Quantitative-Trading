@@ -30,12 +30,12 @@ import type { SignalConfig } from '../../types/signalConfig.js';
 import type { OrderRecorder } from '../../types/services.js';
 import type { IndicatorUsageProfile, StrategyAction } from '../../types/indicatorProfile.js';
 import type {
-  StrategyConfig,
-  SignalGenerationResult,
-  HangSengMultiIndicatorStrategy,
   SignalTypeCategory,
   SignalWithCategory,
+  TradingSignalGenerationResult,
+  TradingSignalStrategyConfig,
 } from './types.js';
+import type { TradingSignalStrategy, TradingSignalStrategyFactory } from './ports.js';
 import { isSellAction } from '../../utils/display/index.js';
 import {
   needsDelayedVerification,
@@ -46,24 +46,36 @@ import {
 } from './utils.js';
 
 /**
- * 创建恒生多指标策略
- * @param config - 包含 signalConfig 和 verificationConfig 的策略配置对象
- * @returns HangSengMultiIndicatorStrategy 实例
+ * 创建默认交易信号策略工厂。
+ *
+ * @returns 默认使用 HangSeng 多指标策略的工厂函数
  */
-export const createHangSengMultiIndicatorStrategy = ({
-  signalConfig = null,
-  verificationConfig = {
-    buy: { delaySeconds: 60, indicators: ['K', 'MACD'] },
-    sell: { delaySeconds: 60, indicators: ['K', 'MACD'] },
-  },
-}: Partial<StrategyConfig> = {}): HangSengMultiIndicatorStrategy => {
-  const finalSignalConfig: SignalConfigSet = signalConfig ?? {
+export function createDefaultTradingSignalStrategyFactory(): TradingSignalStrategyFactory {
+  return (strategyConfig) => createHangSengMultiIndicatorStrategy(strategyConfig);
+}
+
+/**
+ * 创建恒生多指标交易策略。
+ *
+ * @param strategyConfig 包含 signalConfig 和 verificationConfig 的策略配置对象
+ * @returns TradingSignalStrategy 实例
+ */
+const DEFAULT_VERIFICATION_CONFIG: VerificationConfig = {
+  buy: { delaySeconds: 60, indicators: ['K', 'MACD'] },
+  sell: { delaySeconds: 60, indicators: ['K', 'MACD'] },
+};
+
+export function createHangSengMultiIndicatorStrategy(
+  strategyConfig: Partial<TradingSignalStrategyConfig> = {},
+): TradingSignalStrategy {
+  const finalSignalConfig: SignalConfigSet = strategyConfig.signalConfig ?? {
     buycall: null,
     sellcall: null,
     buyput: null,
     sellput: null,
   };
-  const finalVerificationConfig: VerificationConfig = verificationConfig;
+  const finalVerificationConfig: VerificationConfig =
+    strategyConfig.verificationConfig ?? DEFAULT_VERIFICATION_CONFIG;
   const signalTypeMap: Record<StrategyAction, SignalTypeCategory> = {
     BUYCALL: needsDelayedVerification(finalVerificationConfig.buy) ? 'delayed' : 'immediate',
     SELLCALL: needsDelayedVerification(finalVerificationConfig.sell) ? 'delayed' : 'immediate',
@@ -269,13 +281,13 @@ export const createHangSengMultiIndicatorStrategy = ({
      * @param orderRecorder 订单记录器
      * @returns 立即信号列表和延迟信号列表
      */
-    generateCloseSignals: (
+    generateSignals: (
       state: IndicatorSnapshot | null,
       longSymbol: string,
       shortSymbol: string,
       orderRecorder: OrderRecorder,
       indicatorProfile: IndicatorUsageProfile,
-    ): SignalGenerationResult => {
+    ): TradingSignalGenerationResult => {
       const immediateSignals: Signal[] = [];
       const delayedSignals: Signal[] = [];
       if (!state) {
@@ -344,4 +356,4 @@ export const createHangSengMultiIndicatorStrategy = ({
       return { immediateSignals, delayedSignals };
     },
   };
-};
+}

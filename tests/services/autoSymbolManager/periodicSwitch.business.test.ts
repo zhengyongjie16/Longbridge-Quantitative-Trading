@@ -6,6 +6,7 @@
  */
 import { describe, expect, it } from 'bun:test';
 import { OrderSide, OrderType } from 'longbridge';
+
 import { createSwitchStateMachine } from '../../../src/services/autoSymbolManager/switchStateMachine.js';
 import { createSeatStateManager } from '../../../src/services/autoSymbolManager/seatStateManager.js';
 import {
@@ -20,6 +21,7 @@ import type { Logger } from '../../../src/utils/logger/types.js';
 import type {
   PeriodicSwitchPendingState,
   SwitchState,
+  SwitchStateMachine,
   SwitchSuppression,
 } from '../../../src/services/autoSymbolManager/types.js';
 import {
@@ -50,7 +52,7 @@ type HarnessParams = {
   readonly switchIntervalMinutes: number;
   readonly nowMs: number;
   readonly lastSeatActivatedAt: number | null;
-  readonly findBestSymbol: string;
+  readonly findBestSymbol: string | null;
   readonly distanceToStrikePercent?: number;
   readonly tradingCalendarSnapshot?: ReadonlyMap<
     string,
@@ -63,7 +65,7 @@ type HarnessParams = {
   readonly logger?: Logger;
 };
 function createPeriodicHarness(params: HarnessParams): {
-  machine: ReturnType<typeof createSwitchStateMachine>;
+  machine: SwitchStateMachine;
   symbolRegistry: ReturnType<typeof createSymbolRegistryDouble>;
   seatStateManager: ReturnType<typeof createSeatStateManager>;
   periodicSwitchPending: Map<'LONG' | 'SHORT', PeriodicSwitchPendingState>;
@@ -158,6 +160,10 @@ function createPeriodicHarness(params: HarnessParams): {
     buildFindBestWarrantInput: async () => createFindBestWarrantInputDouble(),
     findBestWarrant: async () => {
       params.findBestWarrantHook?.();
+      if (params.findBestSymbol === null) {
+        return null;
+      }
+
       return createWarrantCandidate(params.findBestSymbol);
     },
     resolveDirectionSymbols,
@@ -222,6 +228,80 @@ describe('periodic auto-switch regression', () => {
     const seat = harness.symbolRegistry.getSeatState('HSI.HK', 'LONG');
     expect(seat.status).toBe('SWITCHING');
     expect(harness.machine.hasPendingSwitch('LONG')).toBeTrue();
+  });
+
+  it('case2-1: periodic trigger with no candidate should close at entry without entering SWITCHING', async () => {
+    const readyMs = Date.parse('2026-02-16T01:00:00.000Z');
+    const nowMs = Date.parse('2026-02-16T01:31:00.000Z');
+    const harness = createPeriodicHarness({
+      switchIntervalMinutes: 1,
+      nowMs,
+      lastSeatActivatedAt: readyMs,
+      findBestSymbol: null,
+    });
+    harness.periodicSwitchPending.set('LONG', {
+      pending: true,
+      pendingSinceMs: nowMs - 5000,
+      blockedBy: 'ORDER_RECORDER',
+    });
+    const previousVersion = harness.symbolRegistry.getSeatVersion('HSI.HK', 'LONG');
+
+    await harness.machine.maybeSwitchOnInterval({
+      direction: 'LONG',
+      currentTime: new Date(nowMs),
+      canTradeNow: true,
+      openProtectionActive: false,
+    });
+
+    const seat = harness.symbolRegistry.getSeatState('HSI.HK', 'LONG');
+    const currentVersion = harness.symbolRegistry.getSeatVersion('HSI.HK', 'LONG');
+    expect(seat.status).not.toBe('SWITCHING');
+    expect(harness.machine.hasPendingSwitch('LONG')).toBeFalse();
+    expect(seat.status).toBe('EMPTY');
+    expect(seat.symbol).toBeNull();
+    expect(seat.searchFailCountToday).toBe(1);
+    expect(currentVersion).toBe(previousVersion + 1);
+    expect(seat.lastSwitchAt).toBe(nowMs);
+    expect(seat.lastSearchAt).toBe(nowMs);
+    expect(harness.periodicSwitchPending.has('LONG')).toBeFalse();
+  });
+
+  it('case2-2: periodic no-candidate freezes seat when fail count reaches limit', async () => {
+    const readyMs = Date.parse('2026-02-16T01:00:00.000Z');
+    const nowMs = Date.parse('2026-02-16T01:31:00.000Z');
+    const harness = createPeriodicHarness({
+      switchIntervalMinutes: 1,
+      nowMs,
+      lastSeatActivatedAt: readyMs,
+      findBestSymbol: null,
+    });
+    harness.symbolRegistry.updateSeatState('HSI.HK', 'LONG', {
+      ...harness.symbolRegistry.getSeatState('HSI.HK', 'LONG'),
+      searchFailCountToday: 2,
+      frozenTradingDayKey: null,
+    });
+
+    harness.periodicSwitchPending.set('LONG', {
+      pending: true,
+      pendingSinceMs: nowMs - 5000,
+      blockedBy: 'ORDER_RECORDER',
+    });
+
+    await harness.machine.maybeSwitchOnInterval({
+      direction: 'LONG',
+      currentTime: new Date(nowMs),
+      canTradeNow: true,
+      openProtectionActive: false,
+    });
+
+    const seat = harness.symbolRegistry.getSeatState('HSI.HK', 'LONG');
+    expect(seat.status).toBe('EMPTY');
+    expect(seat.symbol).toBeNull();
+    expect(seat.searchFailCountToday).toBe(3);
+    expect(seat.frozenTradingDayKey).toBe('2026-02-16');
+    expect(seat.lastSwitchAt).toBe(nowMs);
+    expect(seat.lastSearchAt).toBe(nowMs);
+    expect(harness.periodicSwitchPending.has('LONG')).toBeFalse();
   });
 
   it('case3: periodic trigger enters pending on position and switches after cleared', async () => {
