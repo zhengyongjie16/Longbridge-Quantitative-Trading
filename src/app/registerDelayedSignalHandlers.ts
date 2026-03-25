@@ -11,6 +11,7 @@ import {
   validateSignalSeat,
 } from '../services/autoSymbolManager/utils.js';
 import { formatSymbolDisplay, isSellAction } from '../utils/display/index.js';
+import { isBuyAction } from '../utils/helpers/index.js';
 import type { RegisterDelayedSignalHandlersParams } from './types.js';
 
 /**
@@ -41,6 +42,11 @@ export function registerDelayedSignalHandlers(params: RegisterDelayedSignalHandl
 
       if (!lastState.isTradingEnabled) {
         discardSignal('[延迟验证通过] 生命周期门禁关闭，丢弃信号');
+        return;
+      }
+
+      if (!isBuyAction(signal.action) && !isSellAction(signal.action)) {
+        discardSignal('[延迟验证通过] 非买卖动作信号，丢弃信号');
         return;
       }
 

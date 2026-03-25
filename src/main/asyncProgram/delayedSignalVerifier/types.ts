@@ -1,6 +1,5 @@
 import type { Signal } from '../../../types/signal.js';
 import type { VerificationIndicator } from '../../../types/indicatorProfile.js';
-import type { DelayedSignalVerifierPort } from '../../../types/monitorContextPorts.js';
 import type { IndicatorCache } from '../indicatorCache/types.js';
 
 /**
@@ -66,5 +65,3 @@ export type VerifiedCallback = (signal: Signal, monitorSymbol: string) => void;
 export type DelayedSignalVerifierDeps = {
   readonly indicatorCache: IndicatorCache;
 };
-
-export type DelayedSignalVerifier = DelayedSignalVerifierPort;

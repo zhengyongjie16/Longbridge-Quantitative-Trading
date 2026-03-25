@@ -110,7 +110,7 @@ export function describeSeatUnavailable(seatState: SeatState): string {
 
 function resolveSignalDirection(
   action: ValidateSignalSeatParams['signal']['action'],
-): 'LONG' | 'SHORT' {
+): 'LONG' | 'SHORT' | null {
   switch (action) {
     case 'BUYCALL':
     case 'SELLCALL': {
@@ -123,7 +123,7 @@ function resolveSignalDirection(
     }
 
     case 'HOLD': {
-      throw new Error('HOLD 信号不支持席位校验');
+      return null;
     }
 
     default: {
@@ -141,6 +141,18 @@ function resolveSignalDirection(
  */
 export function validateSignalSeat(params: ValidateSignalSeatParams): SignalSeatValidationResult {
   const direction = resolveSignalDirection(params.signal.action);
+  if (direction === null) {
+    const seatState = params.symbolRegistry.getSeatState(params.monitorSymbol, 'LONG');
+    const seatVersion = params.symbolRegistry.getSeatVersion(params.monitorSymbol, 'LONG');
+    return {
+      valid: false,
+      direction: 'LONG',
+      reason: 'INVALID_SIGNAL_ACTION',
+      seatState,
+      seatVersion,
+    };
+  }
+
   const seatState = params.symbolRegistry.getSeatState(params.monitorSymbol, direction);
   const seatVersion = params.symbolRegistry.getSeatVersion(params.monitorSymbol, direction);
   if (!isSeatActive(seatState)) {
@@ -192,6 +204,10 @@ export function describeSignalSeatValidationFailure(
   result: Extract<SignalSeatValidationResult, { valid: false }>,
 ): string {
   switch (result.reason) {
+    case 'INVALID_SIGNAL_ACTION': {
+      return '信号动作不支持席位校验';
+    }
+
     case 'SEAT_UNAVAILABLE': {
       return describeSeatUnavailable(result.seatState);
     }

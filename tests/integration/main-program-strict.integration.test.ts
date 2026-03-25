@@ -215,11 +215,19 @@ describe('mainProgram strict-mode integration', () => {
     mock.restore();
   });
 
-  it('clears pending delayed signals and exits early when leaving continuous session', async () => {
+  it('clears pending delayed signals, enqueues pending refresh and exits early when leaving continuous session', async () => {
     tradingTimeOverrides.dayKey = '2026-02-16';
     tradingTimeOverrides.isInContinuousSession = false;
 
     const cancelledSymbols: string[] = [];
+    const pendingRefresh = [
+      {
+        symbol: 'BULL.HK',
+        isLongSymbol: true,
+        refreshAccount: true,
+        refreshPositions: true,
+      },
+    ];
     const monitorContext = createMonitorContext('HSI.HK', 2, (symbol) => {
       cancelledSymbols.push(symbol);
     });
@@ -234,6 +242,10 @@ describe('mainProgram strict-mode integration', () => {
       canTradeNow: boolean;
       isTradingDay: boolean;
       dayKey: string | null;
+    }> = [];
+    const postTradeEnqueueCalls: Array<{
+      pending: typeof pendingRefresh;
+      quotesMap: Map<string, Quote | null>;
     }> = [];
 
     const loadedMainProgram = await loadMainProgram();
@@ -253,7 +265,9 @@ describe('mainProgram strict-mode integration', () => {
         isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
         resetRuntimeSubscriptionsAndCaches: async () => {},
       },
-      trader: createTraderDouble(),
+      trader: createTraderDouble({
+        getAndClearPendingRefreshSymbols: () => pendingRefresh,
+      }),
       lastState,
       marketMonitor: {
         monitorPriceChanges: () => false,
@@ -289,7 +303,12 @@ describe('mainProgram strict-mode integration', () => {
       },
       postTradeRefresher: {
         start: () => {},
-        enqueue: () => {},
+        enqueue: (params) => {
+          postTradeEnqueueCalls.push({
+            pending: [...params.pending],
+            quotesMap: new Map(params.quotesMap),
+          });
+        },
         stopAndDrain: async () => {},
         clearPending: () => {},
       },
@@ -302,6 +321,9 @@ describe('mainProgram strict-mode integration', () => {
     });
 
     expect(cancelledSymbols).toEqual(['HSI.HK']);
+    expect(postTradeEnqueueCalls).toHaveLength(1);
+    expect(postTradeEnqueueCalls[0]?.pending).toEqual(pendingRefresh);
+    expect(postTradeEnqueueCalls[0]?.quotesMap.size).toBe(0);
     expect(processMonitorCalls).toHaveLength(0);
     expect(getQuotesCalls).toBe(0);
     expect(dayLifecycleTicks).toHaveLength(1);

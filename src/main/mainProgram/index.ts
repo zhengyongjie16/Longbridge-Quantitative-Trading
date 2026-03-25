@@ -174,6 +174,14 @@ export async function mainProgram({
   }
 
   if (isStrictMode && (!isTradingDayToday || !canTradeNow)) {
+    const pendingRefreshSymbols = trader.getAndClearPendingRefreshSymbols();
+    if (pendingRefreshSymbols.length > 0) {
+      postTradeRefresher.enqueue({
+        pending: pendingRefreshSymbols,
+        quotesMap: new Map(),
+      });
+    }
+
     return;
   }
 

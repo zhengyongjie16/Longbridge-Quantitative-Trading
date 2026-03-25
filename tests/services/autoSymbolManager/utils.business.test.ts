@@ -108,4 +108,34 @@ describe('autoSymbolManager utils business flow', () => {
       expect(describeSignalSeatValidationFailure(symbolMismatch)).toBe('标的已切换');
     }
   });
+
+  it('rejects HOLD signal without throwing', () => {
+    const symbolRegistry = createSymbolRegistryDouble({
+      monitorSymbol: 'HSI.HK',
+      longSeat: {
+        symbol: 'BULL.HK',
+        status: 'ACTIVE',
+        lastSwitchAt: null,
+        lastSearchAt: null,
+        lastSeatActivatedAt: null,
+        searchFailCountToday: 0,
+        frozenTradingDayKey: null,
+      },
+      longVersion: 2,
+    });
+    const signal = createSignalDouble('HOLD', 'BULL.HK');
+    signal.seatVersion = 2;
+
+    const result = validateSignalSeat({
+      monitorSymbol: 'HSI.HK',
+      signal,
+      symbolRegistry,
+    });
+
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.reason).toBe('INVALID_SIGNAL_ACTION');
+      expect(describeSignalSeatValidationFailure(result)).toBe('信号动作不支持席位校验');
+    }
+  });
 });

@@ -363,6 +363,7 @@ export type SeatUnavailableReason =
  * 使用范围：autoSymbolManager/utils 与相关调用方使用。
  */
 type SignalSeatValidationFailureReason =
+  | 'INVALID_SIGNAL_ACTION'
   | 'SEAT_UNAVAILABLE'
   | 'SEAT_VERSION_MISMATCH'
   | 'SEAT_SYMBOL_MISMATCH';
