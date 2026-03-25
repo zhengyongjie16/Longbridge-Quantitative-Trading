@@ -5,7 +5,7 @@
  * - 验证 ALLOW_BUY_ORDER_TRACKING_ABOVE_INITIAL_PRICE 的解析行为。
  */
 import { describe, expect, it } from 'bun:test';
-import { createMultiMonitorTradingConfig } from '../../src/config/config.trading.js';
+import { createMultiMonitorTradingConfig } from '../../src/config/trading/index.js';
 
 function createBaseEnv(overrides: Readonly<Record<string, string>> = {}): NodeJS.ProcessEnv {
   return {

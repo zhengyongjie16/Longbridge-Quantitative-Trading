@@ -7,9 +7,9 @@
  * - 固定 pre-gate 对象所有权边界
  */
 import { AUTO_SYMBOL_WARRANT_LIST_CACHE_TTL_MS, TRADING } from '../../constants/index.js';
-import { validateAllConfig } from '../../config/config.validator.js';
+import { validateAllConfig } from '../../config/validator/index.js';
 import { createSdkConfigFromAuth } from '../../config/auth/index.js';
-import { createMultiMonitorTradingConfig } from '../../config/config.trading.js';
+import { createMultiMonitorTradingConfig } from '../../config/trading/index.js';
 import { createStartupGate } from '../../main/startup/gate.js';
 import { sleep } from '../../main/utils.js';
 import { createWarrantListCache } from '../../services/autoSymbolFinder/utils.js';

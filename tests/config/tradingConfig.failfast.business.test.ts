@@ -8,8 +8,8 @@
  */
 import { describe, expect, it } from 'bun:test';
 
-import { createMultiMonitorTradingConfig } from '../../src/config/config.trading.js';
-import { validateAllConfig } from '../../src/config/config.validator.js';
+import { createMultiMonitorTradingConfig } from '../../src/config/trading/index.js';
+import { validateAllConfig } from '../../src/config/validator/index.js';
 import { createMonitorConfigDouble } from '../helpers/testDoubles.js';
 import { createTradingConfig } from '../../mock/factories/configFactory.js';
 
@@ -374,6 +374,197 @@ describe('trading config fail-fast parsing', () => {
         }),
       }),
     ).toThrow(/MONITOR_SYMBOL_2/);
+  });
+});
+
+describe('trading config cross-monitor validator rules', () => {
+  it('rejects ownership alias conflicts across monitors', async () => {
+    const signalConfig = createSignalConfig();
+    const tradingConfig = createTradingConfig({
+      monitors: [
+        createMonitorConfigDouble({
+          originalIndex: 1,
+          monitorSymbol: 'HSI.HK',
+          longSymbol: 'BULL1.HK',
+          shortSymbol: 'BEAR1.HK',
+          orderOwnershipMapping: ['HSI'],
+          signalConfig: {
+            buycall: signalConfig,
+            sellcall: signalConfig,
+            buyput: signalConfig,
+            sellput: signalConfig,
+          },
+        }),
+        createMonitorConfigDouble({
+          originalIndex: 2,
+          monitorSymbol: 'HSCEI.HK',
+          longSymbol: 'BULL2.HK',
+          shortSymbol: 'BEAR2.HK',
+          orderOwnershipMapping: ['HSI'],
+          signalConfig: {
+            buycall: signalConfig,
+            sellcall: signalConfig,
+            buyput: signalConfig,
+            sellput: signalConfig,
+          },
+        }),
+      ],
+    });
+
+    let caughtError: unknown = null;
+    try {
+      await validateAllConfig({
+        env: createBaseEnv(),
+        tradingConfig,
+      });
+    } catch (error) {
+      caughtError = error;
+    }
+
+    expect(caughtError).not.toBeNull();
+    const validationError = caughtError as {
+      message?: string;
+      missingFields?: ReadonlyArray<string>;
+    };
+    expect(validationError.message).toContain('配置验证失败');
+    expect(validationError.missingFields).toEqual([]);
+  });
+
+  it('rejects duplicated trading symbols across non-auto-search monitors', async () => {
+    const signalConfig = createSignalConfig();
+    const tradingConfig = createTradingConfig({
+      monitors: [
+        createMonitorConfigDouble({
+          originalIndex: 1,
+          monitorSymbol: 'HSI.HK',
+          longSymbol: 'BULL.HK',
+          shortSymbol: 'BEAR.HK',
+          autoSearchConfig: {
+            autoSearchEnabled: false,
+            autoSearchMinDistancePctBull: null,
+            autoSearchMinDistancePctBear: null,
+            autoSearchMinTurnoverPerMinuteBull: null,
+            autoSearchMinTurnoverPerMinuteBear: null,
+            autoSearchExpiryMinMonths: 3,
+            autoSearchOpenDelayMinutes: 5,
+            switchIntervalMinutes: 0,
+            switchDistanceRangeBull: null,
+            switchDistanceRangeBear: null,
+          },
+          orderOwnershipMapping: ['HSI'],
+          signalConfig: {
+            buycall: signalConfig,
+            sellcall: signalConfig,
+            buyput: signalConfig,
+            sellput: signalConfig,
+          },
+        }),
+        createMonitorConfigDouble({
+          originalIndex: 2,
+          monitorSymbol: 'HSCEI.HK',
+          longSymbol: 'BULL.HK',
+          shortSymbol: 'BEAR2.HK',
+          autoSearchConfig: {
+            autoSearchEnabled: false,
+            autoSearchMinDistancePctBull: null,
+            autoSearchMinDistancePctBear: null,
+            autoSearchMinTurnoverPerMinuteBull: null,
+            autoSearchMinTurnoverPerMinuteBear: null,
+            autoSearchExpiryMinMonths: 3,
+            autoSearchOpenDelayMinutes: 5,
+            switchIntervalMinutes: 0,
+            switchDistanceRangeBull: null,
+            switchDistanceRangeBear: null,
+          },
+          orderOwnershipMapping: ['HSCEI'],
+          signalConfig: {
+            buycall: signalConfig,
+            sellcall: signalConfig,
+            buyput: signalConfig,
+            sellput: signalConfig,
+          },
+        }),
+      ],
+    });
+
+    let caughtError: unknown = null;
+    try {
+      await validateAllConfig({
+        env: createBaseEnv(),
+        tradingConfig,
+      });
+    } catch (error) {
+      caughtError = error;
+    }
+
+    expect(caughtError).not.toBeNull();
+    const validationError = caughtError as {
+      message?: string;
+      missingFields?: ReadonlyArray<string>;
+    };
+    expect(validationError.message).toContain('配置验证失败');
+    expect(validationError.missingFields).toEqual([]);
+  });
+
+  it('skips duplicate trading-symbol checks for auto-search monitors', async () => {
+    const signalConfig = createSignalConfig();
+    const tradingConfig = createTradingConfig({
+      monitors: [
+        createMonitorConfigDouble({
+          originalIndex: 1,
+          monitorSymbol: 'HSI.HK',
+          longSymbol: 'BULL.HK',
+          shortSymbol: 'BEAR.HK',
+          autoSearchConfig: {
+            autoSearchEnabled: true,
+            autoSearchMinDistancePctBull: 0.35,
+            autoSearchMinDistancePctBear: -0.35,
+            autoSearchMinTurnoverPerMinuteBull: 100_000,
+            autoSearchMinTurnoverPerMinuteBear: 100_000,
+            autoSearchExpiryMinMonths: 3,
+            autoSearchOpenDelayMinutes: 5,
+            switchIntervalMinutes: 0,
+            switchDistanceRangeBull: { min: 0.2, max: 1.5 },
+            switchDistanceRangeBear: { min: -1.5, max: -0.2 },
+          },
+          orderOwnershipMapping: ['HSI'],
+          signalConfig: {
+            buycall: signalConfig,
+            sellcall: signalConfig,
+            buyput: signalConfig,
+            sellput: signalConfig,
+          },
+        }),
+        createMonitorConfigDouble({
+          originalIndex: 2,
+          monitorSymbol: 'HSCEI.HK',
+          longSymbol: 'BULL.HK',
+          shortSymbol: 'BEAR.HK',
+          autoSearchConfig: {
+            autoSearchEnabled: true,
+            autoSearchMinDistancePctBull: 0.35,
+            autoSearchMinDistancePctBear: -0.35,
+            autoSearchMinTurnoverPerMinuteBull: 100_000,
+            autoSearchMinTurnoverPerMinuteBear: 100_000,
+            autoSearchExpiryMinMonths: 3,
+            autoSearchOpenDelayMinutes: 5,
+            switchIntervalMinutes: 0,
+            switchDistanceRangeBull: { min: 0.2, max: 1.5 },
+            switchDistanceRangeBear: { min: -1.5, max: -0.2 },
+          },
+          orderOwnershipMapping: ['HSCEI'],
+          signalConfig: {
+            buycall: signalConfig,
+            sellcall: signalConfig,
+            buyput: signalConfig,
+            sellput: signalConfig,
+          },
+        }),
+      ],
+    });
+
+    const missingFields = await validateWithEnv(createBaseEnv(), tradingConfig);
+    expect(missingFields).toEqual([]);
   });
 });
 

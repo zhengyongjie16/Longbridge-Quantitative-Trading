@@ -6,7 +6,7 @@
  * - 保持启动快照失败回退与开盘重建语义不变
  * - 在唯一装配入口中创建 monitor contexts、async runtime、lifecycle 与 cleanup
  */
-import { validateRuntimeSymbolsFromQuotesMap } from '../config/config.validator.js';
+import { validateRuntimeSymbolsFromQuotesMap } from '../config/validator/index.js';
 import { createRebuildTradingDayState } from '../main/lifecycle/rebuildTradingDayState.js';
 import { mainProgram } from '../main/mainProgram/index.js';
 import { applyStartupSnapshotFailureState } from '../main/lifecycle/startupFailureState.js';

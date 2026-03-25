@@ -5,7 +5,7 @@
  * - 验证双认证模式下的启动配置校验行为
  */
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
-import { validateAllConfig } from '../../src/config/config.validator.js';
+import { validateAllConfig } from '../../src/config/validator/index.js';
 import { createMonitorConfigDouble } from '../helpers/testDoubles.js';
 import { createTradingConfig } from '../../mock/factories/configFactory.js';
 

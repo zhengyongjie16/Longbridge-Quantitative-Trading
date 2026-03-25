@@ -5,8 +5,8 @@
  * - 验证 SMART_CLOSE_TIMEOUT_MINUTES_N 的解析与校验行为
  */
 import { describe, expect, it } from 'bun:test';
-import { createMultiMonitorTradingConfig } from '../../src/config/config.trading.js';
-import { validateAllConfig } from '../../src/config/config.validator.js';
+import { createMultiMonitorTradingConfig } from '../../src/config/trading/index.js';
+import { validateAllConfig } from '../../src/config/validator/index.js';
 import { createMonitorConfigDouble } from '../helpers/testDoubles.js';
 import { createTradingConfig } from '../../mock/factories/configFactory.js';
 

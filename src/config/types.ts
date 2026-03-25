@@ -1,10 +1,8 @@
-import type { MonitorConfig } from '../types/config.js';
-
 /**
  * 配置验证错误（含缺失或非法字段列表）。
- * 类型用途：封装配置验证失败时的错误信息，作为验证函数抛出的错误类型。
- * 数据来源：由 validateLongbridgeAuthConfig / validateTradingConfig 抛出。
- * 使用范围：仅 config 模块内部使用。
+ * 类型用途：封装配置解析/聚合校验失败时抛出的错误对象类型。
+ * 数据来源：由 createConfigValidationError 构造，并在 fail-fast 解析路径与 validateAllConfig 聚合校验路径抛出。
+ * 使用范围：供 config 模块及其调用方识别配置错误使用。
  */
 export type ConfigValidationError = Error & {
   readonly name: 'ConfigValidationError';
@@ -12,85 +10,10 @@ export type ConfigValidationError = Error & {
 };
 
 /**
- * 带上下限的数值配置读取参数。
- * 类型用途：作为 parseBoundedNumberConfig 的入参，从环境变量读取并校验范围内的数值。
- * 数据来源：调用方从 process.env 及配置键传入。
- * 使用范围：仅 config 模块内部使用。
- */
-export type BoundedNumberConfig = {
-  readonly env: NodeJS.ProcessEnv;
-  readonly envKey: string;
-  readonly defaultValue: number;
-  readonly min: number;
-  readonly max: number;
-};
-
-/**
- * 通用配置校验结果。
- * 类型用途：表达配置校验是否通过，以及累积的错误与缺失或非法字段列表。
- * 数据来源：由 config 模块内部各类 validate 函数返回。
- * 使用范围：仅 config 模块内部使用。
- */
-export type ValidationResult = {
-  readonly valid: boolean;
-  readonly errors: ReadonlyArray<string>;
-  readonly missingFields: ReadonlyArray<string>;
-};
-
-/**
- * 仅带下限的数值配置读取参数。
- * 类型用途：作为 parseFailFastMinimumNumberConfig 的入参，从环境变量读取并校验最小值约束。
- * 数据来源：调用方从 process.env 及配置键传入。
- * 使用范围：仅 config 模块内部使用。
- */
-export type MinimumNumberConfig = {
-  readonly env: NodeJS.ProcessEnv;
-  readonly envKey: string;
-  readonly defaultValue: number;
-  readonly min: number;
-};
-
-/**
- * 交易配置验证结果（含缺失或非法字段列表）。
- * 类型用途：扩展 ValidationResult，额外包含缺失或非法字段列表，作为 validateTradingConfig 的返回类型。
- * 数据来源：由 validateTradingConfig 返回。
- * 使用范围：仅 config 模块内部使用。
- */
-export type TradingValidationResult = ValidationResult & {
-  readonly missingFields: ReadonlyArray<string>;
-};
-
-/**
- * 标的校验上下文。
- * 类型用途：作为 validateRequiredSymbol 的入参/上下文，累积错误与缺失字段。
- * 数据来源：由 validateTradingConfig 在遍历每个监控标的时构造。
- * 使用范围：仅 config 模块内部使用。
- */
-export type SymbolValidationContext = {
-  readonly prefix: string;
-  readonly symbol: string;
-  readonly envKey: string;
-  readonly errors: ReadonlyArray<string>;
-  readonly missingFields: ReadonlyArray<string>;
-};
-
-/**
- * 重复交易标的记录。
- * 类型用途：表示配置中重复出现的交易标的及其索引，供校验错误报告使用。
- * 数据来源：由 validateTradingConfig 检测并收集。
- * 使用范围：仅 config 模块内部使用。
- */
-export type DuplicateSymbol = {
-  readonly symbol: string;
-  readonly index: number;
-  readonly previousIndex: number;
-};
-
-/**
  * 运行时标的校验单条输入。
  * 类型用途：作为 validateRuntimeSymbolsFromQuotesMap 的单条校验项入参。
  * 数据来源：由运行时标的列表与校验策略映射后构造。
- * 使用范围：仅 config 模块内部使用。
+ * 使用范围：供 config validator 与 app 装配层共同消费的公共类型边界。
  */
 export type RuntimeSymbolValidationInput = {
   readonly symbol: string;
@@ -103,21 +26,13 @@ export type RuntimeSymbolValidationInput = {
  * 运行时标的校验结果。
  * 类型用途：表示单次运行时标的校验的通过状态及错误/警告列表，作为 validateRuntimeSymbolsFromQuotesMap 的返回类型。
  * 数据来源：由 validateRuntimeSymbolsFromQuotesMap 返回。
- * 使用范围：仅 config 模块内部使用。
+ * 使用范围：供 config validator 与 app 装配层共同消费的公共类型边界。
  */
 export type RuntimeSymbolValidationResult = {
   readonly valid: boolean;
   readonly errors: ReadonlyArray<string>;
   readonly warnings: ReadonlyArray<string>;
 };
-
-/**
- * 信号配置键名联合类型。
- * 类型用途：表示 MonitorConfig.signalConfig 的键名（buycall/sellcall/buyput/sellput），用于遍历信号配置项。
- * 数据来源：派生自 MonitorConfig 的 signalConfig 字段键名。
- * 使用范围：仅 config 模块内部使用。
- */
-export type SignalConfigKey = keyof MonitorConfig['signalConfig'];
 
 /**
  * 比较运算符。
