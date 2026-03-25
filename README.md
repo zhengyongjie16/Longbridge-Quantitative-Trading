@@ -1,393 +1,263 @@
-# LongBridge证券港股自动化量化交易系统
+<div align="center">
+  <h1>基于 Longbridge OpenAPI SDK 港股自动化交易系统</h1>
+  <p>
+    <code>Bun</code>
+    <code>TypeScript</code>
+    <code>Longbridge OpenAPI</code>
+    <code>Intraday Trading</code>
+    <code>Experimental</code>
+    <code>High Risk</code>
+  </p>
+</div>
 
-## 项目简介及重要提示
+<p align="center">
+  <a href="#项目简介">项目简介</a> ·
+  <a href="#重要提示">重要提示</a> ·
+  <a href="#开发者提示">开发者提示</a> ·
+  <a href="#系统说明">系统说明</a> ·
+  <a href="#快速开始">快速开始</a> ·
+  <a href="#配置说明">配置说明</a> ·
+  <a href="#项目结构">项目结构</a> ·
+  <a href="#运行流程">运行流程</a>
+</p>
 
-### 项目介绍
+## 项目简介
 
-基于 Longbridge OpenAPI SDK / TypeScript 的港股自动化量化交易系统，通过监控目标资产的技术指标，在轮证/ETF上自动执行双向（做多/做空）交易。支持多指标组合策略、按需指标计算、延迟验证、风险控制和订单管理。
+针对港股市场的自动化交易项目，通过监控标的的技术指标生成交易信号，并在轮证、牛熊证或 ETF 等交易标的上执行双向交易。
 
-### 重要提示（必读）
+以日内交易为主，运行时持续获取行情与分钟级 K 线，按配置计算指标、生成信号、执行订单并更新账户与持仓状态。监控标的通常用于分析，不一定直接作为实际成交标的。
 
-1. 该项目是实验性项目，开源仅用作技术和交易策略上的交流，不保证程序完全严谨且正确，不保证策略的盈利性和普遍适用性。
-2. 请先务必掌握港股、轮证以及技术指标的相关知识，轮证自带杠杆属性且存在到期时间和回收等机制，这些因素都存在较大风险。
-3. 该程序一般不会交易正股（正股仅用作实时分析，即配置中的监控标的），而是在轮证/ETF等衍生品上进行多空交易，主要为交易做多或做空方向的权证或牛熊证，这存在较高风险。
-4. 港股天然存在流动性问题，你选择的标的或轮证必须考虑流动性，选择的标的日均成交额应在30亿以上，轮证的日均成交额应在1000万以上，建议直接选择大指数如恒生指数（HSI.HK）。
-5. 目前的交易策略仅针对日内交易，在交易时段内每秒获取分钟级k线进行技术指标的计算用于生成交易信号（虽然是获取分钟k线但最新的k线是实时变动的），由于通过交易轮证这样的高杠杆衍生品，所以不需要监控大周期的k线，但这也存在更高的风险。
-6. 当前主要采用波段交易策略，因此在震荡行情中表现优异，而在单边行情中依靠止损和冷却退出，这是必要性的取舍，可通过调整交易策略进行平衡。
-7. 请务必掌握相关代码知识（主要为typescript），不建议非开发者使用。
-8. 该程序代码几乎全部由AI coding（关键部分主要使用Claude Opus 4.x和GPT-5.x Extra High模型）完成，请使用顶级模型进行重构和再开发，这是保证代码质量的关键。（注意：Agent仅用作代码实现，所有架构和业务逻辑应自行设计）。
-9. 请务必使用模拟账户进行调试。
+## 重要提示
+
+> [!WARNING] 该项目是实验性项目，开源主要用于技术交流与交易策略研究，不保证程序绝对严谨，不保证策略盈利，也不保证其对所有市场环境都适用。
+
+> [!IMPORTANT] 请务必理解港股、轮证、牛熊证、ETF、技术指标以及自动化交易的基本风险。轮证和牛熊证自带杠杆、到期、回收价等机制，风险显著高于一般现货交易。
+
+- 项目通常**不会以正股作为主要交易对象**；正股更多作为监控标的，实际交易通常发生在轮证、牛熊证或 ETF 等衍生品上。
+- 港股及衍生品天然存在流动性差异，选标时应优先考虑成交活跃的监控标的与交易标的。当前经验上，更适合优先关注流动性较好的大标的或指数类资产，例如 `HSI.HK`。
+- 当前策略偏向**日内波段**，通过实时变动的分钟级 K 线计算指标，不依赖大周期分析。这种方式执行频率更高，也意味着更高的交易与回撤风险。
+- 当前策略在震荡行情中更容易发挥作用，在单边行情中更多依赖止损、冷却和退出机制控制风险。
+- 请务必先使用**模拟账户**调试，不建议直接在真实账户中试运行。
+- 本项目面向具备代码阅读与改造能力的使用者，尤其建议熟悉 TypeScript、Bun、自动化交易流程以及 Longbridge OpenAPI 后再进行二次开发。
+- 仓库代码几乎全部由 AI 协同生成，关键部分主要使用 Claude Opus 4.x 与 GPT-5.x Extra High。若要继续重构或再开发，建议使用顶级模型辅助，但**架构设计与业务逻辑判断仍应由开发者负责**。
 
 ## 开发者提示
 
-使用 Claude Code / Codex / Cursor Agent 开发时，可以使用 **[CLAUDE.md](./CLAUDE.md)** 对 Agent 进行宽约束和初步指导。具体参考下方「帮助」中的 Claude Code Docs。
+使用 Claude Code、Codex、Cursor Agent 等工具协作开发时，建议优先阅读仓库中的 [CLAUDE.md](./CLAUDE.md)。该文件用于对 Agent 的行为边界、方案约束与项目约定提供统一指导。
 
-### 内置 Skills
+项目当前内置以下 skills：
 
-项目内置以下 skills，Agent 可根据任务自动调用：
-
-| Skill | 说明 | 使用场景 |
+| Skill | 说明 | 适用场景 |
 | --- | --- | --- |
-| `code-review` | 多专家协同的代码审查与简化技能（仅分析反馈，死代码可代执行删除） | 代码审查、实现与计划一致性检查、项目规范符合性审查、代码质量/架构/注释/类型设计评估、代码简化、死代码识别与安全清理、PR 测试覆盖分析 |
-| `core-program-business-logic` | 港股量化交易系统业务逻辑知识库 | 理解交易逻辑、验证代码实现、修改功能、解答业务规则；重构代码时应一并更新此文档 |
-| `longport-nodejs-sdk` | Longbridge OpenAPI SDK for Node.js 完整知识库 | 调用 Longbridge API、查询 SDK 文档、处理行情/订单/资产 |
-| `typescript-project-specifications` | TypeScript 严格代码规范 | 编写/修改/重构 .ts 文件时自动使用，包含工厂函数、依赖注入、对象池等模式示例 |
+| `code-review` | 多视角代码审查与代码简化能力 | 审查改动质量、识别死代码、检查实现是否符合计划与规范 |
+| `core-program-business-logic` | 港股量化交易系统业务逻辑知识库 | 理解交易链路、校验业务规则、辅助功能修改与重构 |
+| `typescript-project-specifications` | TypeScript 严格代码规范 | 编写、修改或重构 `.ts` 文件时统一遵循项目代码规范 |
 
-## 核心功能
+> [!NOTE] 如果你使用 Agent 继续开发本项目，推荐把 Agent 当作实现助手，而不是业务决策者。业务规则、架构边界和交易逻辑应先由开发者确认，再交给 Agent 落地。
 
-| 功能 | 说明 |
-| --- | --- |
-| 多标的支持 | 支持并发监控多个标的，每个标的独立配置 |
-| 多指标组合 | 信号条件支持 RSI、PSY、MFI、KDJ 组合判断；运行时仅按信号/验证配置按需计算所需指标（MACD/DIF/DEA、EMA、ADX 仅用于延迟验证） |
-| 双向交易 | 支持双向交易（做多和做空） |
-| 延迟验证 | 买入/卖出信号均支持延迟验证（趋势验证） |
-| 智能风控 | 浮亏保护、持仓限制、牛熊证回收价检查 |
-| 末日保护 | 收盘前15分钟拒绝买入并撤销未成交订单，收盘前5分钟自动清仓 |
-| 订单调整 | 自动监控和调整未成交订单价格（仅对可改单的非市价单跟价；可配置禁止买单高于初始委托价追价；买入超时撤单，卖出超时转市价单） |
-| 自动寻标/换标 | 启用后以"席位"动态决定牛/熊证交易标的；距回收价百分比越界触发自动换标（含预寻标与同标的日内抑制，可选移仓回补） |
-| 交易日生命周期管理 | 自动检测跨日并执行午夜清理（清空运行时状态），交易日开盘时自动重建（恢复账户/持仓/订单/席位，并从成交日志恢复清仓冷却与亏损分段）；若启动快照失败会先阻断交易并转入开盘重建重试 |
-| 卖出策略 | 智能平仓三阶段：整体盈利全卖；整体未盈利先卖盈利订单；可选再从剩余订单中卖出超时订单（严格按交易时段累计）；并排除待成交占用且按整笔选单 |
+## 系统说明
+
+### 1. 监控、指标与信号
+
+同时监控多个标的，每个标的都拥有独立配置。运行时会根据信号条件和验证配置按需计算 RSI、PSY、MFI、KDJ 等指标，并在满足条件时生成四类交易信号：`BUYCALL`、`SELLCALL`、`BUYPUT`、`SELLPUT`。
+
+当启用延迟验证时，信号不会立即进入执行链路，而是先进入趋势确认阶段；验证通过后才会进入买卖任务队列，以过滤部分瞬时噪音。
+
+### 2. 下单、风控与退出
+
+交易执行前，系统会统一经过频率限制、价格限制、持仓约束、现金检查、浮亏保护、牛熊证风险、末日保护等门禁。买单与卖单走不同链路：
+
+- 买入链路更强调前置风险控制与下单节奏控制。
+- 卖出链路更强调智能平仓、保护性清仓和订单占用防重。
+- 订单提交后，系统会继续跟踪未成交订单，处理追价、撤单、超时与状态推进。
+
+### 3. 席位、换标与生命周期
+
+启用自动寻标后，系统会为每个监控标的维护 LONG / SHORT 两个方向的席位，交易标的不再写死，而是由运行时根据配置和候选筛选结果动态决定。距离回收价越界时可触发换标，必要时还会执行移仓和回补。
+
+系统还内置交易日生命周期管理：午夜清理运行态、开盘时执行重建、恢复账户与持仓、重建订单记录，并在重建完成前统一阻断交易，避免脏状态延续到下一交易日。
 
 ## 快速开始
 
-### 安装
+### 1. 安装项目
 
 ```bash
-git clone https://github.com/zhengyongjie16/Longbridge-Quantitative-Trading.git
-```
-
-```bash
-cd Longbridge-Quantitative-Trading
-```
-
-```bash
+git clone https://github.com/zhengyongjie16/Longbridge_Quantitative_Trading.git
+cd Longbridge_Quantitative_Trading
 bun install
 ```
 
-### 创建配置文件
+### 2. 创建本地配置
 
 ```bash
 cp .env.example .env.local
 ```
 
-### 配置必需参数 (.env.local)
-
-系统支持多个监控标的，每个监控标的使用后缀 `_N`（N从1开始）区分配置。索引需连续（`_1`、`_2`...）；系统扫描到首个缺失索引后会停止读取后续配置。Longbridge 认证当前支持 `oauth` 与 `apikey` 两种模式，但**单次运行只能选择其中一种**。
+### 3. 最小配置示例
 
 ```env
-# 认证模式（二选一）
+# 认证（二选一）
 LONGBRIDGE_AUTH_MODE=oauth
+LONGBRIDGE_CLIENT_ID=your_longbridge_client_id
+LONGBRIDGE_CALLBACK_PORT=60355
 
-# OAuth 模式
-LONGBRIDGE_CLIENT_ID=your_client_id
-LONGBRIDGE_CALLBACK_PORT=60355    # 可选，默认 60355；需与 OAuth Client 注册回调一致
+# 监控标的 1
+MONITOR_SYMBOL_1=9988.HK
+LONG_SYMBOL_1=55131.HK
+SHORT_SYMBOL_1=56614.HK
+ORDER_OWNERSHIP_MAPPING_1=ALIBA
 
-# API Key 模式
-# LONGBRIDGE_AUTH_MODE=apikey
-# LONGBRIDGE_APP_KEY=your_app_key
-# LONGBRIDGE_APP_SECRET=your_app_secret
-# LONGBRIDGE_ACCESS_TOKEN=your_access_token
+# 交易与风控
+TARGET_NOTIONAL_1=10000
+MAX_POSITION_NOTIONAL_1=100000
+MAX_UNREALIZED_LOSS_PER_SYMBOL_1=3000
 
-# SDK 扩展配置（可选，oauth / apikey 共用）
-# LONGBRIDGE_HTTP_URL=https://openapi.longbridge.com
-# LONGBRIDGE_QUOTE_WS_URL=wss://openapi-quote.longbridge.com/v2
-# LONGBRIDGE_TRADE_WS_URL=wss://openapi-trade.longbridge.com/v2
-# LONGBRIDGE_LANGUAGE=zh-CN
-# LONGBRIDGE_ENABLE_OVERNIGHT=false
-# LONGBRIDGE_PUSH_CANDLESTICK_MODE=realtime
-# LONGBRIDGE_PRINT_QUOTE_PACKAGES=true
-# LONGBRIDGE_LOG_PATH=logs/sdk
-
-# 交易标的配置（标的必须为 ticker.region）
-# 示例：第一个监控标的（_1）
-MONITOR_SYMBOL_1=9988.HK    # 监控标的（阿里巴巴）
-LONG_SYMBOL_1=55131.HK      # 做多标的（阿里摩通六甲牛G）
-SHORT_SYMBOL_1=56614.HK     # 做空标的（阿里摩通六七熊A）
-ORDER_OWNERSHIP_MAPPING_1=ALIBA  # 必需：订单归属映射（用于 stockName 归属解析/启动席位恢复）
-
-# 交易参数（示例，接近取值）
-TARGET_NOTIONAL_1=10000    # 每次买入金额（HKD）
-
-# 风控参数（示例）
-MAX_POSITION_NOTIONAL_1=200000  # 单标持仓上限
-MAX_UNREALIZED_LOSS_PER_SYMBOL_1=5000  # 单标浮亏保护阈值（0 表示禁用）
-
-# 信号配置（示例，格式见 .env.example 中 # 信号配置）
-SIGNAL_BUYCALL_1=(RSI:6<20,MFI<15,D<20,J<-1)/3|(J<-20)
-SIGNAL_SELLCALL_1=(RSI:6>80,MFI>85,D>79,J>100)/3|(J>110)
-SIGNAL_BUYPUT_1=(RSI:6>80,MFI>85,D>80,J>100)/3|(J>120)
-SIGNAL_SELLPUT_1=(RSI:6<20,MFI<15,D<22,J<0)/3|(J<-15)
-
-# 自动寻标（可选：启用后将忽略 LONG/SHORT_SYMBOL_1，由系统自动寻标并动态占位）
-# AUTO_SEARCH_ENABLED_1=true
-# 其余 AUTO_SEARCH_* 与 SWITCH_DISTANCE_RANGE_* 见下方"每个监控标的配置"或 `.env.example`
-
-# 如需配置第二个监控标的，使用后缀 _2，以此类推
-# MONITOR_SYMBOL_2=9988.HK
-# LONG_SYMBOL_2=55131.HK
+# 信号示例
+SIGNAL_BUYCALL_1=(RSI:6<25,MFI<20,D<25,J<0)/3|(J<-20)
+SIGNAL_SELLCALL_1=(RSI:6>75,MFI>80,D>75,J>100)/3|(J>110)
+SIGNAL_BUYPUT_1=(RSI:6>75,MFI>80,D>75,J>100)/3|(J>120)
+SIGNAL_SELLPUT_1=(RSI:6<25,MFI<20,D<25,J<0)/3|(J<-15)
 ```
 
-当 `LONGBRIDGE_AUTH_MODE=oauth` 且本地没有有效 token cache 时，程序会在终端输出 Longbridge OAuth 授权 URL；授权成功后，SDK 会在用户目录复用和刷新 token cache，后续启动无需再次手动授权。`apikey` 模式不会触发该授权流程。
+> [!TIP] 如果使用 `oauth` 模式且本地没有有效 token cache，程序启动后会在终端输出授权 URL。授权完成后，SDK 会复用并自动刷新用户目录下的 token cache，后续无需重复授权。
 
-### 启动
+### 4. 启动
 
 ```bash
 bun start
 ```
 
-常用命令：
+### 5. 常用命令
 
-- 开发：`bun dev`（仅启用开发模式；默认仍执行门禁检查）
-- 显式跳过 startup gate：`bunx cross-env STARTUP_GATE_MODE=skip bun dev`
-- 显式跳过 runtime gate：`bunx cross-env RUNTIME_GATE_MODE=skip bun dev`
-- 显式同时跳过双门禁：`bunx cross-env STARTUP_GATE_MODE=skip RUNTIME_GATE_MODE=skip bun dev`
-- 开发：`bun dev:watch`
-- 构建：`bun build`
-- 格式化：`bun format`
-- 类型检查：`bun type-check`
-- eslint检查：`bun lint`
-- 代码质量：`bun sonarqube` / `bun sonarqube:report`（需本地安装 `sonar-scanner`，然后配置 `.env.sonar` 及 `docker-compose.yml` 以本地启动）
-- 其他：`bun clean`
+| 命令                   | 说明                               |
+| ---------------------- | ---------------------------------- |
+| `bun start`            | 启动正式运行                       |
+| `bun dev`              | 开发模式启动（默认仍执行门禁检查） |
+| `bun dev:watch`        | 开发监听                           |
+| `bun build`            | 构建 TypeScript                    |
+| `bun test`             | 运行测试                           |
+| `bun type-check`       | 执行类型检查                       |
+| `bun lint`             | 执行 ESLint 检查                   |
+| `bun format`           | 执行 Prettier + ESLint 自动修复    |
+| `bun clean`            | 清理构建产物                       |
+| `bun sonarqube`        | 运行 SonarQube 分析                |
+| `bun sonarqube:report` | 获取 SonarQube 报告                |
 
-## 交易策略
+如果你需要显式跳过门禁检查，可在开发阶段使用：
 
-### 信号生成与验证流程
-
-系统支持延迟验证，是否延迟由配置决定：延迟时间为 0 或验证指标为空则为立即信号，否则进入延迟验证流程。
-
-**四种信号类型**：
-
-| 信号 | 类型 | 环境变量 | 延迟验证规则 |
-| --- | --- | --- | --- |
-| BUYCALL | 买入做多 | `SIGNAL_BUYCALL_N` | T0、T0+5s、T0+10s 三个时间点的指标值均需**大于**初始值（上涨趋势） |
-| SELLCALL | 卖出做多 | `SIGNAL_SELLCALL_N` | T0、T0+5s、T0+10s 三个时间点的指标值均需**小于**初始值（下跌趋势） |
-| BUYPUT | 买入做空 | `SIGNAL_BUYPUT_N` | T0、T0+5s、T0+10s 三个时间点的指标值均需**小于**初始值（下跌趋势） |
-| SELLPUT | 卖出做空 | `SIGNAL_SELLPUT_N` | T0、T0+5s、T0+10s 三个时间点的指标值均需**大于**初始值（上涨趋势） |
-
-> **注意**：环境变量中的 `N` 表示监控标的索引（如 `_1`、`_2`）。买入和卖出的延迟验证时间默认 `60` 秒；验证指标未配置时，对应方向延迟验证关闭。`ADX` 仅支持出现在 `VERIFICATION_INDICATORS_*` 中，不支持出现在 `SIGNAL_*` 信号条件里。若验证指标包含 `ADX` 这类无方向性趋势强度指标，系统会先做数值映射，再并入对应方向的趋势判断：`BUYCALL/SELLPUT` 按“整体低于初始值”口径，`BUYPUT/SELLCALL` 按相反方向口径，且三点趋势必须一致。
-
-**延迟验证机制**：
-
-1. 信号生成时记录初始指标值，并设定 T0（延迟期结束时刻）
-2. 主循环每秒保存指标快照，供后续验证使用
-3. 在 T0+10s 执行验证，检查 T0 / T0+5s / T0+10s 三点趋势（允许 ±5 秒误差）
-4. 验证通过进入交易执行流程，失败则丢弃该信号
-
-### 买入策略
-
-1. **信号生成**：监控标的技术指标满足配置条件时，生成买入信号（立即/延迟）
-2. **延迟验证**：若启用延迟验证，按配置在延迟期后验证三点趋势
-3. **异步执行**：验证通过后进入异步执行流程
-4. **风险检查**：频率限制、清仓冷却（同一监控标的任一方向在冷却中时双向拒买，且频率通过后会立即记录买入尝试）、价格限制、末日保护、牛熊证风险、持仓/现金限制
-5. **订单执行**：按目标金额计算买入数量，并使用执行时最新行情作为委托价提交订单（订单类型可配置）
-
-### 卖出策略
-
-1. **信号生成**：监控标的技术指标满足配置条件，且存在买入订单记录时，生成卖出信号（立即/延迟）
-2. **延迟验证**：若启用延迟验证，需通过趋势验证后进入执行流程
-3. **智能平仓判断**：启用时按三阶段执行：①整体盈利全卖；②整体未盈利先卖盈利订单；③若配置 `SMART_CLOSE_TIMEOUT_MINUTES_N`（非空/非 null）则在第二阶段剩余订单中按“严格交易时段累计持仓时长”筛选超时订单（`heldTradingMs > timeoutMs`）；卖单分配会排除待成交卖单已占用的买单并按整笔订单选取（不拆单），禁用时直接全仓卖出
-4. **特殊规则**：末日保护清仓无条件执行，不受智能平仓影响
-5. **订单执行**：按卖出数量提交订单，并使用执行时最新行情作为委托价；清仓订单可与常规订单类型不同
-
-## 风险控制
-
-### 买入检查顺序
-
-先经**风险检查冷却**（按“交易标的 + 买入方向”限流，同一买入标的 10 秒内仅允许一信号进入下列检查），再依次：
-
-1. **交易频率限制**：同方向买入间隔（默认 60 秒）
-2. **清仓冷却**：同一监控标的任一方向处于保护性清仓冷却期时，双方向买入都拒绝
-3. **频率通过后记录买入尝试**：预占时间槽，避免同批次多个信号重复通过频率限制
-4. **买入价格限制**：当前价 >= 最新买入订单成交价时拒绝（防止追高）
-5. **末日保护**：收盘前 15 分钟（默认）拒绝买入
-6. **牛熊证风险**：牛证距回收价 ≥ 0.35%（默认），熊证 ≤ -0.35%（默认），牛熊证当前价 > 0.015（默认）
-7. **基础风险检查**：持仓市值限制、港币可用现金
-
-### 实时检查
-
-1. **实时浮亏检查**：浮亏超过阈值触发保护性清仓
-2. **实时牛熊证回收价检查**：仅在未启用自动寻标时生效；监控标的价格变化后检查距回收价阈值，触发后对该方向执行距回收价清仓（固定使用 `ELO`），并清空该标的订单记录、刷新浮亏缓存
-
-### 可选配置
-
-**全局配置**：
-
-| 参数 | 默认值 | 说明 |
-| --- | --- | --- |
-| `LONGBRIDGE_AUTH_MODE` | `无` | 认证模式，仅支持 `oauth` / `apikey`，单次运行只能选一种 |
-| `LONGBRIDGE_CLIENT_ID` | `无` | OAuth 模式下必填的 OAuth Client ID |
-| `LONGBRIDGE_CALLBACK_PORT` | `60355` | OAuth 本地回调端口，必须与 OAuth Client 注册的 redirect URI 一致 |
-| `LONGBRIDGE_APP_KEY` | `无` | API Key 模式下必填的 App Key |
-| `LONGBRIDGE_APP_SECRET` | `无` | API Key 模式下必填的 App Secret |
-| `LONGBRIDGE_ACCESS_TOKEN` | `无` | API Key 模式下必填的 Access Token |
-| `LONGBRIDGE_HTTP_URL` | 官方默认值 | HTTP API 端点覆盖 |
-| `LONGBRIDGE_QUOTE_WS_URL` | 官方默认值 | 行情 WebSocket 端点覆盖 |
-| `LONGBRIDGE_TRADE_WS_URL` | 官方默认值 | 交易 WebSocket 端点覆盖 |
-| `LONGBRIDGE_LANGUAGE` | `en` | SDK 语言（`zh-CN` / `zh-HK` / `en`） |
-| `LONGBRIDGE_ENABLE_OVERNIGHT` | `false` | 是否启用夜盘行情 |
-| `LONGBRIDGE_PUSH_CANDLESTICK_MODE` | `realtime` | K 线推送模式（`realtime` / `confirmed`） |
-| `LONGBRIDGE_PRINT_QUOTE_PACKAGES` | `true` | 连接时打印行情套餐 |
-| `LONGBRIDGE_LOG_PATH` | `无` | SDK 日志目录 |
-| `DOOMSDAY_PROTECTION` | `true` | 启用末日保护 |
-| `MORNING_OPENING_PROTECTION_ENABLED` | `false` | 早盘 09:30 起 N 分钟内暂停信号生成 |
-| `MORNING_OPENING_PROTECTION_MINUTES` | `无` | 早盘开盘保护时长（分钟，范围 1-60；仅启用早盘保护时必填） |
-| `AFTERNOON_OPENING_PROTECTION_ENABLED` | `false` | 午盘 13:00 起 N 分钟内暂停信号生成（半日市不生效） |
-| `AFTERNOON_OPENING_PROTECTION_MINUTES` | `无` | 午盘开盘保护时长（分钟，范围 1-60；仅启用午盘保护时必填） |
-| `DEBUG` | `false` | 启用调试日志 |
-| `TRADING_ORDER_TYPE` | `ELO` | 交易订单类型（LO 限价单 / ELO 增强限价单 / MO 市价单） |
-| `LIQUIDATION_ORDER_TYPE` | `MO` | 清仓订单类型（LO / ELO / MO） |
-| `BUY_ORDER_TIMEOUT_ENABLED` | `true` | 启用买入订单超时检测（超时后撤单） |
-| `BUY_ORDER_TIMEOUT_SECONDS` | `180` | 买入订单超时时间（秒，范围 30-600） |
-| `SELL_ORDER_TIMEOUT_ENABLED` | `true` | 启用卖出订单超时检测（超时后转市价单） |
-| `SELL_ORDER_TIMEOUT_SECONDS` | `180` | 卖出订单超时时间（秒，范围 30-600） |
-| `ORDER_MONITOR_PRICE_UPDATE_INTERVAL` | `5` | 订单价格更新间隔（秒，范围 1-60） |
-| `ALLOW_BUY_ORDER_TRACKING_ABOVE_INITIAL_PRICE` | `true` | 买单跟价是否允许高于初始委托价（`false` 时仅允许改低或回到初始价） |
-
-**每个监控标的配置**（使用后缀 `_N`，如 `_1`、`_2`）：
-
-| 参数 | 默认值 | 说明 |
-| --- | --- | --- |
-| `MAX_UNREALIZED_LOSS_PER_SYMBOL_N` | `0` | 单标浮亏保护阈值（0 表示禁用） |
-| `VERIFICATION_DELAY_SECONDS_BUY_N` | `60` | 买入延迟验证时间（秒，范围 0-120） |
-| `VERIFICATION_INDICATORS_BUY_N` | `无` | 买入验证指标（逗号分隔，可选：K/D/J/MACD/DIF/DEA/ADX/EMA:n/PSY:n；未配置则不进行买入延迟验证） |
-| `VERIFICATION_DELAY_SECONDS_SELL_N` | `60` | 卖出延迟验证时间（秒，范围 0-120） |
-| `VERIFICATION_INDICATORS_SELL_N` | `无` | 卖出验证指标（逗号分隔，可选：K/D/J/MACD/DIF/DEA/ADX/EMA:n/PSY:n；未配置则不进行卖出延迟验证） |
-| `BUY_INTERVAL_SECONDS_N` | `60` | 同向买入间隔（秒，范围 10-600） |
-| `LIQUIDATION_COOLDOWN_MINUTES_N` | `无` | 保护性清仓后买入冷却（可选，不设置则不冷却：1-120 / half-day / one-day） |
-| `LIQUIDATION_TRIGGER_LIMIT_N` | `1` | 保护性清仓触发上限（范围 1-10；达到此次数后才激活买入冷却；仅在配置冷却时有意义） |
-| `SMART_CLOSE_ENABLED_N` | `true` | 智能平仓开关（启用时按三阶段执行：整体盈利全卖、未盈利先卖盈利订单、可选第三阶段卖超时；禁用时全仓卖出） |
-| `SMART_CLOSE_TIMEOUT_MINUTES_N` | `无` | 智能平仓第三阶段超时阈值（分钟；留空/null=关闭；非负整数；仅在整体未盈利时，从第二阶段剩余订单中筛超时） |
-| `AUTO_SEARCH_ENABLED_N` | `false` | 自动寻标开关（启用后忽略 LONG/SHORT 标的配置） |
-| `ORDER_OWNERSHIP_MAPPING_N` | 必填 | stockName 归属缩写映射（逗号分隔），用于订单归属解析与启动席位恢复；不同监控标的别名不可冲突 |
-| `AUTO_SEARCH_MIN_DISTANCE_PCT_BULL_N` | `无` | 牛证自动寻标主阈值（百分比值，正值；`0.35` 表示 `0.35%`） |
-| `AUTO_SEARCH_MIN_DISTANCE_PCT_BEAR_N` | `无` | 熊证自动寻标主阈值（百分比值，负值；`-0.35` 表示 `-0.35%`） |
-| `AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_BULL_N` | `无` | 牛证分均成交额阈值（HKD/分钟） |
-| `AUTO_SEARCH_MIN_TURNOVER_PER_MINUTE_BEAR_N` | `无` | 熊证分均成交额阈值（HKD/分钟） |
-| `AUTO_SEARCH_EXPIRY_MIN_MONTHS_N` | `3` | 到期日最小月份 |
-| `AUTO_SEARCH_OPEN_DELAY_MINUTES_N` | `5` | 早盘开盘延迟分钟数（仅早盘生效） |
-| `SWITCH_INTERVAL_MINUTES_N` | `0` | 周期换标间隔（分钟，范围 0-120，0 表示关闭；按连续交易时段累计，午休/非交易时段不累计，跨自然日连续累计） |
-| `SWITCH_DISTANCE_RANGE_BULL_N` | `无` | 牛证距回收价换标范围（百分比值，格式 `min,max`，包含等于；如 `0.2,1.5`） |
-| `SWITCH_DISTANCE_RANGE_BEAR_N` | `无` | 熊证距回收价换标范围（百分比值，格式 `min,max`，包含等于；如 `-1.5,-0.2`） |
-
-### 自动寻标/自动换标（席位机制）说明
-
-启用 `AUTO_SEARCH_ENABLED_N=true` 后，系统会为每个监控标的维护 **两张席位（LONG=牛证 / SHORT=熊证）**，交易标的由席位动态决定：
-
-- **席位状态**：`READY / SEARCHING / SWITCHING / EMPTY`
-  - `READY`：可交易；`SEARCHING/SWITCHING`：处理中；`EMPTY`：无标的，该方向信号会被丢弃/不入队（直到寻标成功）
-- **启动恢复**：启动时按"历史订单（`ORDER_OWNERSHIP_MAPPING_N`）+ 持仓"恢复席位；无法确认则置 `EMPTY`，由后续寻标补齐。启动后会对空席位执行一次与运行时一致的非阻塞初始寻标；若仍处于早盘延迟窗口则直接跳过，且不计入失败次数。
-- **自动寻标触发**：仅在"席位 `EMPTY` + 交易时段"时尝试，并受 **10 分钟冷却** 与 **早盘延迟**（`AUTO_SEARCH_OPEN_DELAY_MINUTES_N`，仅早盘生效）约束；阈值缺失会跳过寻标。
-- **失败冻结机制**：自动寻标/换标预寻标失败会累计当日失败次数，达到 3 次后冻结该方向席位至下一交易日；冻结当日不再尝试寻标。
-- **自动寻标筛选**：`AUTO_SEARCH_MIN_DISTANCE_PCT_*` 与 `SWITCH_DISTANCE_RANGE_*` 统一使用“百分比值”口径（`0.35` 表示 `0.35%`）；`warrantList.toCallPrice` 的外部原始小数比值会先换算成该口径再参与比较。主阈值必须严格落在换标安全区间内部，否则该方向的自动寻标与换标预寻标都不会执行。主条件为牛证 `distancePct > AUTO_SEARCH_MIN_DISTANCE_PCT_BULL_N`、熊证 `distancePct < AUTO_SEARCH_MIN_DISTANCE_PCT_BEAR_N`；若主条件完全无候选，才会在“主阈值与更靠近风险边界的一侧安全区间边界之间”的降级带执行一次筛选，且降级带不包含边界值。主条件与降级条件都按“**最接近自动寻标阈值优先**，相同再取**分均成交额更高**”选优。
-- **自动换标触发**：监控价变化触发检查，若"距回收价百分比"满足 `<=min` 或 `>=max`（`SWITCH_DISTANCE_RANGE_*`，含边界）则进入换标。
-- **周期换标触发**：`SWITCH_INTERVAL_MINUTES_N > 0` 时，席位进入 `READY` 后按"连续交易时段累计时长"计时；到期若该方向仍有买入订单记录（订单口径）则进入等待空仓，空仓后触发换标（开盘保护期内不触发，保护结束后再判断）。若等待期间触发距离换标但被"同标的抑制"拦截，周期等待状态会保留，不会被清空。
-- **换标流程（状态机）**：先 **预寻标**，候选与旧标一致则记录"同标的日内抑制"并停止；否则撤销旧标未完成买入挂单 → 有持仓则移仓卖出（ELO）→ 占位新标；若发生移仓卖出且拿到真实卖出成交额，则按该卖出金额回补买入新标的（ELO），否则本次换标失败并清空席位。
-- **版本号隔离（关键）**：换标会递增席位版本号；延迟验证/队列/订单跟踪处理前校验版本，不匹配直接丢弃，防止误用旧标的。
-
-**清仓冷却说明（香港时间）**： `LIQUIDATION_COOLDOWN_MINUTES_N` 未设置则不启用冷却；`half-day` 为上午触发冷却到当日 13:00、下午触发冷却到次日 00:00；`one-day` 为冷却到次日 00:00。`LIQUIDATION_TRIGGER_LIMIT_N` 控制触发上限：默认 1 即每次清仓立即冷却；设为 N 则允许连续触发 N 次保护性清仓后才进入冷却，触发计数在午夜重置。`minutes` 模式依赖自然到期，冷却结束后会同步切换当日亏损偏移分段。
-
-## 系统架构
-
+```bash
+bunx cross-env STARTUP_GATE_MODE=skip bun dev
+bunx cross-env RUNTIME_GATE_MODE=skip bun dev
+bunx cross-env STARTUP_GATE_MODE=skip RUNTIME_GATE_MODE=skip bun dev
 ```
+
+## 配置说明
+
+README 只保留最关键的配置规则，完整参数请直接阅读 [`./.env.example`](./.env.example)。
+
+### 认证方式
+
+系统支持两种认证模式：
+
+- `oauth`
+- `apikey`
+
+单次运行只能选择其中一种。
+
+### 多标的配置规则
+
+- 每个监控标的必须使用连续后缀：`_1`、`_2`、`_3`...
+- 监控标的索引必须连续；如果中间出现断档，程序会直接报配置错误并终止启动。
+- `MONITOR_SYMBOL_N` 表示监控标的；`LONG_SYMBOL_N` / `SHORT_SYMBOL_N` 表示对应方向的交易标的。
+
+### 自动寻标说明
+
+如果启用：
+
+```env
+AUTO_SEARCH_ENABLED_1=true
+```
+
+系统会忽略 `LONG_SYMBOL_1` 与 `SHORT_SYMBOL_1` 的静态配置，改为通过席位机制动态寻标与换标。
+
+### 推荐的阅读顺序
+
+1. 先读 `.env.example` 了解完整参数
+2. 再确认自认证方式与标的配置
+3. 最后根据策略需要微调信号、风控与自动寻标相关参数
+
+## 项目结构
+
+```text
 src/
-├── index.ts                        # 薄入口（dotenv + runApp）
-├── app/                            # 顶层组装与 runtime 创建
-├── config/                         # 配置模块
-├── constants/                      # 全局常量定义
-├── types/                          # 全局公共类型定义
-├── utils/                          # 全局公共工具模块
-├── main/                           # 主程序架构模块
-│   ├── startup/                    # 启动门禁
-│   ├── recovery/                   # 运行时席位恢复与快照准备
-│   ├── mainProgram/                # 主循环逻辑
-│   ├── processMonitor/             # 单标的处理
-│   ├── lifecycle/                  # 交易日生命周期管理
-│   └── asyncProgram/               # 异步任务处理
-│       ├── indicatorCache/         # 指标缓存（环形缓冲区存储历史快照）
-│       ├── delayedSignalVerifier/  # 延迟信号验证器（setTimeout 计时验证）
-│       ├── monitorTaskQueue/       # 监控任务队列（autoSymbol/席位刷新/距回收价清仓/浮亏检查）
-│       ├── monitorTaskProcessor/   # 监控任务处理器（异步消费 monitorTaskQueue）
-│       ├── tradeTaskQueue/         # 买入/卖出任务队列
-│       ├── buyProcessor/           # 买入处理器
-│       ├── sellProcessor/          # 卖出处理器
-│       ├── orderMonitorWorker/     # 订单监控工作线程（WebSocket 推送 + 价格调整/超时处理）
-│       └── postTradeRefresher/     # 成交后刷新（账户/持仓/浮亏缓存）
-├── core/                           # 核心业务逻辑
-│   ├── strategy/                   # 信号生成
-│   ├── signalProcessor/            # 风险检查与卖出计算
-│   ├── riskController/             # 风险检查（持仓/亏损/牛熊证/浮亏监控等）
-│   ├── trader/                     # 订单执行与监控
-│   ├── orderRecorder/              # 订单记录与查询
-│   └── doomsdayProtection/         # 末日保护（收盘前清仓）
-├── services/                       # 外部服务
-│   ├── accountDisplay/             # 账户与持仓展示
-│   ├── quoteClient/                # 行情数据客户端
-│   ├── marketMonitor/              # 市场监控（价格/指标变化）
-│   ├── autoSymbolFinder/           # 自动寻标（筛选牛/熊证候选）
-│   ├── autoSymbolManager/          # 席位管理（寻标/换标状态机）
-│   ├── liquidationCooldown/        # 保护性清仓后的买入冷却
-│   └── indicators/                 # 技术指标计算（按画像按需计算 RSI/KDJ/MACD/MFI/EMA/PSY/ADX）
+├── index.ts      # 薄入口
+├── app/          # 应用组装、启动与重建流程
+├── config/       # 配置解析与校验
+├── constants/    # 全局常量
+├── types/        # 公共类型定义
+├── main/         # 主循环、生命周期与异步处理调度
+├── core/         # 核心业务逻辑（策略、风控、交易、订单记录）
+├── services/     # 行情、指标、自动寻标、账户展示等外部服务
+└── utils/        # 通用工具
 ```
 
 ## 运行流程
 
 ```mermaid
-graph TD
-  A["每秒循环<br/>mainProgram"] --> A1["DayLifecycleManager.tick<br/>检测跨日/交易日开盘"]
-  A1 --> A2{"生命周期状态"}
-  A2 -->|ACTIVE| B["检查交易日/交易时段<br/>及开盘保护"]
-  A2 -->|MIDNIGHT_CLEANING| A3["午夜清理<br/>各 CacheDomain.midnightClear"]
-  A2 -->|OPEN_REBUILDING| A4["开盘重建<br/>各 CacheDomain.openRebuild"]
-  A3 --> A1
-  A4 --> A1
-  B --> C["末日保护检查<br/>撤单（收盘前15分钟）/清仓（收盘前5分钟）"]
-  C --> D["批量获取行情<br/>监控标的+席位标的"]
-  D --> E["并发处理监控标的"]
-  E --> E1["调度监控任务<br/>自动寻标/换标、席位刷新、浮亏检查<br/>静态模式含距回收价清仓<br/>MonitorTaskQueue（异步）"]
-  E1 --> E2["获取K线并按画像计算指标<br/>RSI/MFI/KDJ/ADX<br/>MACD/EMA/PSY"]
-  E2 --> E3["监控指标变化"]
-  E3 --> E4["指标快照入库<br/>IndicatorCache"]
-  E4 --> E5["信号生成<br/>立即/延迟"]
-  E5 --> F1["立即信号入队<br/>买队列 / 卖队列"]
-  E5 --> F2["延迟信号加入<br/>DelayedSignalVerifier"]
-  F1 -.-> G1["买入处理器<br/>风控通过后下单"]
-  F1 -.-> G2["卖出处理器<br/>智能平仓后下单"]
-  G1 -.-> I["执行订单"]
-  G2 -.-> I
-  E --> J["订单监控<br/>推送/追价/超时"]
-  J --> K["PostTradeRefresher<br/>刷新账户/持仓/浮亏"]
-  I -.-> J
+flowchart TD
+    A[启动程序] --> B[加载配置与认证]
+    B --> C[初始化运行时上下文]
+    C --> D[进入主循环]
 
-  subgraph DS ["延迟/趋势验证"]
-    D1["记录 T0 与初始指标值<br/>（T0=延迟期结束时刻）"] --> D2["setTimeout @T0+10s<br/>执行验证"]
-    D2 --> D3["读取 IndicatorCache<br/>T0 / T0+5s / T0+10s"]
-    D3 --> D4{"趋势满足？<br/>BUYCALL/SELLPUT 上涨<br/>BUYPUT/SELLCALL 下跌<br/>ADX 采用数值映射口径"}
-    D4 -->|通过| D5["验证通过入队<br/>买队列 / 卖队列"]
-    D4 -->|失败| D6["释放信号对象"]
-  end
+    D --> E[获取行情与 K 线]
+    E --> F[按需计算指标并生成信号]
+    F --> G{是否启用延迟验证}
+    G -- 否 --> H[进入买卖任务队列]
+    G -- 是 --> I[执行趋势验证]
+    I --> H
 
-  F2 -.-> D1
-  D5 -.-> G1
-  D5 -.-> G2
+    H --> J[执行风控与状态校验]
+    J --> K[提交订单]
+    K --> L[监控订单状态]
+    L --> M[刷新账户 持仓与订单记录]
+    M --> D
+
+    D --> N[处理自动寻标与换标]
+    N --> D
+
+    D --> O[处理交易日生命周期]
+    O --> P[跨日清理 开盘重建 席位恢复]
+    P --> D
 ```
+
+仅展示 README 层面的主链路：
+
+- 主循环负责行情拉取、指标计算、信号生成和任务分发
+- 延迟验证只保留为一条独立支线，不展开具体时间点细节
+- 自动寻标 / 换标与交易日生命周期属于伴随主循环运行的辅助机制
+- 订单成交后，系统会刷新账户、持仓、订单记录以及相关运行态，再进入下一轮处理
 
 ## 日志
 
-- **控制台**：实时运行状态
-- **文件**：`logs/system/`、`logs/debug/`（需配置 `DEBUG=true`）
-- **交易记录**：`logs/trades/YYYY-MM-DD.json`（JSON 交易明细）
+- 控制台：实时运行状态与关键事件
+- `logs/system/`：系统级日志
+- `logs/debug/`：调试日志（启用 `DEBUG=true` 时更有价值）
+- `logs/trades/YYYY-MM-DD.json`：交易明细记录
+- `logs/sdk/`：Longbridge SDK 日志（启用相关配置时输出）
 
-## 帮助
+## 相关资源
 
 - [Longbridge OpenAPI Docs](https://open.longbridge.com/zh-CN/docs)
 - [Longbridge OpenAPI LLM Components Docs](https://open.longbridge.com/docs/llm)
 - [Longbridge OpenAPI SDK for Node.js Docs](https://longbridge.github.io/openapi/nodejs/index.html)
-- [OpenAI Codex Docs](https://developers.openai.com/codex)
+- [Bun Docs](https://bun.com/docs)
 - [Claude Code Docs](https://code.claude.com/docs)
-- [Bun Apps Docs](https://bun.com/docs)
+- [OpenAI Codex Docs](https://developers.openai.com/codex)
 - [Vibe Coding Guide CN](https://github.com/2025Emma/vibe-coding-cn)
 
 ## 许可证
 
-- Apache License, Version 2.0, [2025-2026], ([LICENSE-APACHE](./LICENSE-APACHE))
-- MIT License (c) 2025-2026, ([LICENSE-MIT](./LICENSE-MIT))
+可选择任一许可证：
+
+- [Apache License 2.0](./LICENSE-APACHE)
+- [MIT License](./LICENSE-MIT)
