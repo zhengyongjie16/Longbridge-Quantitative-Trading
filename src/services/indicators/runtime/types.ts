@@ -1,3 +1,6 @@
+import type { CandleData } from '../../../types/data.js';
+import type { IndicatorUsageProfile } from '../../../types/indicatorProfile.js';
+
 /**
  * 环形缓冲区状态。
  * 类型用途：在 MFI 计算中维护固定窗口的正向/负向资金流累加，支持 O(1) 滑动窗口更新。
@@ -151,4 +154,23 @@ export type IndicatorCommittedState = {
   kdjState: KdjStreamState | null;
   macdState: MacdStreamState | null;
   adxState: AdxStreamState | null;
+};
+
+/**
+ * 增量指标运行态字段。
+ * 类型用途：描述 runtime 内部持有的真实状态字段，供 index.ts 组合 brand 后形成内部运行态类型。
+ * 数据来源：bootstrap 与 updateRuntimeForCandlestickSnapshot。
+ * 使用范围：仅 indicators/runtime 模块内部。
+ */
+export type IndicatorRuntimeStateFields = {
+  readonly symbol: string;
+  readonly profile: IndicatorUsageProfile;
+  lastProcessedVersion: number;
+  closedBarTimestamp: number | null;
+  activeBarTimestamp: number | null;
+  activeBarConfirmed: boolean | null;
+  activeBar: CandleData | null;
+  lastBarTimestamp: number | null;
+  lastBarConfirmed: boolean | null;
+  committed: IndicatorCommittedState;
 };

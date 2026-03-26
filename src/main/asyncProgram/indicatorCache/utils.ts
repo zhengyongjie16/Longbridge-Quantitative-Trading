@@ -52,15 +52,12 @@ export function findClosestEntry(
     return null;
   }
 
-  const startIndex = buffer.size < buffer.capacity ? 0 : buffer.head;
   let closestEntry: IndicatorCacheEntry | null = null;
   let minDiff = Infinity;
 
-  for (let i = 0; i < buffer.size; i += 1) {
-    const index = (startIndex + i) % buffer.capacity;
-    const entry = buffer.entries[index];
+  const updateClosestEntry = (entry: IndicatorCacheEntry | null | undefined): void => {
     if (entry === null || entry === undefined) {
-      continue;
+      return;
     }
 
     const diff = Math.abs(entry.timestamp - targetTime);
@@ -68,6 +65,22 @@ export function findClosestEntry(
       minDiff = diff;
       closestEntry = entry;
     }
+  };
+
+  if (buffer.size < buffer.capacity) {
+    for (let index = 0; index < buffer.size; index += 1) {
+      updateClosestEntry(buffer.entries[index]);
+    }
+
+    return closestEntry;
+  }
+
+  for (let index = buffer.head; index < buffer.capacity; index += 1) {
+    updateClosestEntry(buffer.entries[index]);
+  }
+
+  for (let index = 0; index < buffer.head; index += 1) {
+    updateClosestEntry(buffer.entries[index]);
   }
 
   return closestEntry;

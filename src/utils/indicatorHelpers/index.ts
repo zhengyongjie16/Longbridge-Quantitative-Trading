@@ -1,5 +1,7 @@
 import type { IndicatorState } from './types.js';
 
+const indicatorPeriodCache = new Map<string, number | null>();
+
 /**
  * 验证周期是否为指定区间内的有限数字（内部复用）。
  *
@@ -33,20 +35,24 @@ export function parseIndicatorPeriod(params: {
   readonly prefix: 'RSI:' | 'EMA:' | 'PSY:';
 }): number | null {
   const { indicatorName, prefix } = params;
-  if (!indicatorName.startsWith(prefix)) {
-    return null;
+  const cacheKey = `${prefix}${indicatorName}`;
+  const cached = indicatorPeriodCache.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
   }
 
-  const raw = indicatorName.slice(prefix.length);
-  if (!/^\d+$/.test(raw)) {
-    return null;
+  let period: number | null = null;
+  if (indicatorName.startsWith(prefix)) {
+    const raw = indicatorName.slice(prefix.length);
+    if (/^\d+$/.test(raw)) {
+      const parsed = Number(raw);
+      if (Number.isSafeInteger(parsed) && parsed >= 1) {
+        period = parsed;
+      }
+    }
   }
 
-  const period = Number(raw);
-  if (!Number.isSafeInteger(period) || period < 1) {
-    return null;
-  }
-
+  indicatorPeriodCache.set(cacheKey, period);
   return period;
 }
 
@@ -67,34 +73,26 @@ export function getIndicatorValue(
   state: IndicatorState | null,
   indicatorName: string,
 ): number | null {
-  if (!state) return null;
+  if (!state) {
+    return null;
+  }
 
-  const { kdj, macd, ema, psy } = state;
+  const { kdj, macd, ema, psy, adx } = state;
+  const indicatorType = indicatorName.slice(0, 4);
 
-  // 处理 EMA:n 格式（例如 EMA:5, EMA:10）
-  if (indicatorName.startsWith('EMA:')) {
+  if (indicatorType === 'EMA:') {
     const period = parseIndicatorPeriod({ indicatorName, prefix: 'EMA:' });
-    if (period === null) {
+    if (period === null || !validateEmaPeriod(period)) {
       return null;
     }
 
-    // 验证周期是否有效
-    if (!validateEmaPeriod(period)) {
-      return null;
-    }
-
-    // 从 ema 对象中提取对应周期的值
     const emaValue = ema?.[period];
     return emaValue !== undefined && Number.isFinite(emaValue) ? emaValue : null;
   }
 
-  if (indicatorName.startsWith('PSY:')) {
+  if (indicatorType === 'PSY:') {
     const period = parseIndicatorPeriod({ indicatorName, prefix: 'PSY:' });
-    if (period === null) {
-      return null;
-    }
-
-    if (!validatePsyPeriod(period)) {
+    if (period === null || !validatePsyPeriod(period)) {
       return null;
     }
 
@@ -128,8 +126,7 @@ export function getIndicatorValue(
     }
 
     case 'ADX': {
-      const adxValue = state.adx;
-      return typeof adxValue === 'number' && Number.isFinite(adxValue) ? adxValue : null;
+      return typeof adx === 'number' && Number.isFinite(adx) ? adx : null;
     }
 
     default: {

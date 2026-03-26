@@ -25,7 +25,6 @@ import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { toHongKongTimeLog } from '../../utils/time/index.js';
 import { isValidNumber, parseIndicatorPeriod } from '../../utils/indicatorHelpers/index.js';
 import {
-  copyPeriodRecord,
   formatQuoteDisplay,
   formatPositionDisplay,
   formatWarrantDistanceDisplay,
@@ -43,7 +42,15 @@ import type { DisplayIndicatorItem, IndicatorUsageProfile } from '../../types/in
 import type { MonitorState } from '../../types/state.js';
 import type { IndicatorSnapshot, Quote, KDJIndicator, MACDIndicator } from '../../types/quote.js';
 import type { MonitorValues } from '../../types/data.js';
-import type { MarketMonitor, MonitorIndicatorChangesParams, PriceDisplayInfo } from './types.js';
+import type {
+  CompiledDisplayPlan,
+  CompiledDisplayPlanItem,
+  MarketMonitor,
+  MonitorIndicatorChangesParams,
+  PriceDisplayInfo,
+} from './types.js';
+
+const compiledDisplayPlanCache = new WeakMap<IndicatorUsageProfile, CompiledDisplayPlan>();
 
 /**
  * 格式化K线时间戳为日志前缀（仅显示时分秒）
@@ -66,77 +73,330 @@ function parsePeriodDisplayItem(
   return parseIndicatorPeriod({ indicatorName: item, prefix });
 }
 
+function compileDisplayPlanItem(item: DisplayIndicatorItem): CompiledDisplayPlanItem | null {
+  if (item === 'price') {
+    return { item, kind: 'price' };
+  }
+
+  if (item === 'changePercent') {
+    return { item, kind: 'changePercent' };
+  }
+
+  if (item === 'MFI') {
+    return { item, kind: 'mfi' };
+  }
+
+  if (item === 'K') {
+    return { item, kind: 'kdj', field: 'k' };
+  }
+
+  if (item === 'D') {
+    return { item, kind: 'kdj', field: 'd' };
+  }
+
+  if (item === 'J') {
+    return { item, kind: 'kdj', field: 'j' };
+  }
+
+  if (item === 'ADX') {
+    return { item, kind: 'adx' };
+  }
+
+  if (item === 'MACD') {
+    return { item, kind: 'macd', field: 'macd' };
+  }
+
+  if (item === 'DIF') {
+    return { item, kind: 'macd', field: 'dif' };
+  }
+
+  if (item === 'DEA') {
+    return { item, kind: 'macd', field: 'dea' };
+  }
+
+  const emaPeriod = parsePeriodDisplayItem(item, 'EMA:');
+  if (emaPeriod !== null) {
+    return { item, kind: 'ema', period: emaPeriod };
+  }
+
+  const rsiPeriod = parsePeriodDisplayItem(item, 'RSI:');
+  if (rsiPeriod !== null) {
+    return { item, kind: 'rsi', period: rsiPeriod };
+  }
+
+  const psyPeriod = parsePeriodDisplayItem(item, 'PSY:');
+  if (psyPeriod !== null) {
+    return { item, kind: 'psy', period: psyPeriod };
+  }
+
+  return null;
+}
+
+function assertUnreachable(value: never): never {
+  throw new Error(`Unexpected compiled display plan item: ${JSON.stringify(value)}`);
+}
+
+function getCompiledDisplayPlan(indicatorProfile: IndicatorUsageProfile): CompiledDisplayPlan {
+  const cached = compiledDisplayPlanCache.get(indicatorProfile);
+  if (cached) {
+    return cached;
+  }
+
+  const items: CompiledDisplayPlanItem[] = [];
+  const emaPeriods: number[] = [];
+  const rsiPeriods: number[] = [];
+  const psyPeriods: number[] = [];
+  let needsMfi = false;
+  let needsAdx = false;
+  let needsKdj = false;
+  let needsMacd = false;
+
+  for (const item of indicatorProfile.displayPlan) {
+    const compiledItem = compileDisplayPlanItem(item);
+    if (!compiledItem) {
+      continue;
+    }
+
+    items.push(compiledItem);
+    switch (compiledItem.kind) {
+      case 'ema': {
+        emaPeriods.push(compiledItem.period);
+        break;
+      }
+
+      case 'rsi': {
+        rsiPeriods.push(compiledItem.period);
+        break;
+      }
+
+      case 'psy': {
+        psyPeriods.push(compiledItem.period);
+        break;
+      }
+
+      case 'mfi': {
+        needsMfi = true;
+        break;
+      }
+
+      case 'adx': {
+        needsAdx = true;
+        break;
+      }
+
+      case 'kdj': {
+        needsKdj = true;
+        break;
+      }
+
+      case 'macd': {
+        needsMacd = true;
+        break;
+      }
+
+      case 'price':
+      case 'changePercent': {
+        break;
+      }
+
+      default: {
+        return assertUnreachable(compiledItem);
+      }
+    }
+  }
+
+  const compiled: CompiledDisplayPlan = {
+    items,
+    emaPeriods,
+    rsiPeriods,
+    psyPeriods,
+    needsMfi,
+    needsAdx,
+    needsKdj,
+    needsMacd,
+  };
+  compiledDisplayPlanCache.set(indicatorProfile, compiled);
+  return compiled;
+}
+
+/**
+ * 按展示计划复制周期指标记录，仅保留实际会参与变化检测的周期。
+ * @param params.periods 需要保留的周期列表
+ * @param params.snapshot 周期指标快照
+ * @returns 复制后的周期记录；若展示计划不需要任何周期值则返回 null
+ */
+function copyDisplayPeriodRecord(params: {
+  readonly periods: ReadonlyArray<number>;
+  readonly snapshot: Readonly<Record<number, number>> | null;
+}): Readonly<Record<number, number>> | null {
+  const { periods, snapshot } = params;
+  if (!snapshot) {
+    return null;
+  }
+
+  const filteredRecord = periodRecordPool.acquire();
+  let hasValue = false;
+  for (const period of periods) {
+    const value = snapshot[period];
+    if (value === undefined) {
+      continue;
+    }
+
+    filteredRecord[period] = value;
+    hasValue = true;
+  }
+
+  if (hasValue) {
+    return filteredRecord;
+  }
+
+  periodRecordPool.release(filteredRecord);
+  return null;
+}
+
+/**
+ * 按展示计划复制 KDJ 指标对象。
+ * @param needsKdj 展示计划是否需要 KDJ 字段
+ * @param kdjData KDJ 快照
+ * @returns 复制后的 KDJ 对象；若展示计划不需要 KDJ 或值无效则返回 null
+ */
+function copyDisplayKdj(needsKdj: boolean, kdjData: IndicatorSnapshot['kdj']): KDJIndicator | null {
+  if (!kdjData || !needsKdj) {
+    return null;
+  }
+
+  const kdjRecord = kdjObjectPool.acquire();
+  kdjRecord.k = kdjData.k;
+  kdjRecord.d = kdjData.d;
+  kdjRecord.j = kdjData.j;
+  if (isValidPooledKdj(kdjRecord)) {
+    return kdjRecord;
+  }
+
+  kdjObjectPool.release(kdjRecord);
+  return null;
+}
+
+/**
+ * 按展示计划复制 MACD 指标对象。
+ * @param needsMacd 展示计划是否需要 MACD 字段
+ * @param macdData MACD 快照
+ * @returns 复制后的 MACD 对象；若展示计划不需要 MACD 或值无效则返回 null
+ */
+function copyDisplayMacd(
+  needsMacd: boolean,
+  macdData: IndicatorSnapshot['macd'],
+): MACDIndicator | null {
+  if (!macdData || !needsMacd) {
+    return null;
+  }
+
+  const macdRecord = macdObjectPool.acquire();
+  macdRecord.dif = macdData.dif;
+  macdRecord.dea = macdData.dea;
+  macdRecord.macd = macdData.macd;
+  if (isValidPooledMacd(macdRecord)) {
+    return macdRecord;
+  }
+
+  macdObjectPool.release(macdRecord);
+  return null;
+}
+
+/**
+ * 按展示计划构建 monitorValues 缓存，仅保存后续变化检测所需字段。
+ * @param params 当前价格、涨跌幅、指标快照与展示计划
+ * @returns 用于 monitorState 的缓存对象
+ */
+function buildMonitorValuesFromDisplayPlan(params: {
+  readonly compiledPlan: CompiledDisplayPlan;
+  readonly monitorSnapshot: IndicatorSnapshot;
+  readonly currentPrice: number;
+  readonly changePercent: number | null;
+}): MonitorValues {
+  const { compiledPlan, monitorSnapshot, currentPrice, changePercent } = params;
+  const monitorValues = acquireMonitorValues();
+  monitorValues.price = currentPrice;
+  monitorValues.changePercent = changePercent;
+  monitorValues.ema = copyDisplayPeriodRecord({
+    periods: compiledPlan.emaPeriods,
+    snapshot: monitorSnapshot.ema,
+  });
+
+  monitorValues.rsi = copyDisplayPeriodRecord({
+    periods: compiledPlan.rsiPeriods,
+    snapshot: monitorSnapshot.rsi,
+  });
+
+  monitorValues.psy = copyDisplayPeriodRecord({
+    periods: compiledPlan.psyPeriods,
+    snapshot: monitorSnapshot.psy,
+  });
+  monitorValues.mfi = compiledPlan.needsMfi ? monitorSnapshot.mfi : null;
+  monitorValues.adx = compiledPlan.needsAdx ? monitorSnapshot.adx : null;
+  monitorValues.kdj = copyDisplayKdj(compiledPlan.needsKdj, monitorSnapshot.kdj);
+  monitorValues.macd = copyDisplayMacd(compiledPlan.needsMacd, monitorSnapshot.macd);
+  return monitorValues;
+}
+
 /**
  * 读取展示项在当前快照中的值。
  * @param params 展示项读取参数
  * @returns 数值型展示值，缺失时返回 null
  */
 function getSnapshotDisplayValue(params: {
-  readonly item: DisplayIndicatorItem;
+  readonly compiledItem: CompiledDisplayPlanItem;
   readonly snapshot: IndicatorSnapshot;
   readonly currentPrice: number;
   readonly changePercent: number | null;
 }): number | null {
-  const { item, snapshot, currentPrice, changePercent } = params;
-  if (item === 'price') {
-    return Number.isFinite(currentPrice) ? currentPrice : null;
-  }
+  const { compiledItem, snapshot, currentPrice, changePercent } = params;
+  switch (compiledItem.kind) {
+    case 'price': {
+      return Number.isFinite(currentPrice) ? currentPrice : null;
+    }
 
-  if (item === 'changePercent') {
-    return changePercent !== null && Number.isFinite(changePercent) ? changePercent : null;
-  }
+    case 'changePercent': {
+      return changePercent !== null && Number.isFinite(changePercent) ? changePercent : null;
+    }
 
-  if (item === 'MFI') {
-    return Number.isFinite(snapshot.mfi) ? snapshot.mfi : null;
-  }
+    case 'mfi': {
+      return Number.isFinite(snapshot.mfi) ? snapshot.mfi : null;
+    }
 
-  if (item === 'K') {
-    return snapshot.kdj && Number.isFinite(snapshot.kdj.k) ? snapshot.kdj.k : null;
-  }
+    case 'kdj': {
+      const value = snapshot.kdj?.[compiledItem.field];
+      return typeof value === 'number' && Number.isFinite(value) ? value : null;
+    }
 
-  if (item === 'D') {
-    return snapshot.kdj && Number.isFinite(snapshot.kdj.d) ? snapshot.kdj.d : null;
-  }
+    case 'adx': {
+      return Number.isFinite(snapshot.adx) ? snapshot.adx : null;
+    }
 
-  if (item === 'J') {
-    return snapshot.kdj && Number.isFinite(snapshot.kdj.j) ? snapshot.kdj.j : null;
-  }
+    case 'macd': {
+      const value = snapshot.macd?.[compiledItem.field];
+      return typeof value === 'number' && Number.isFinite(value) ? value : null;
+    }
 
-  if (item === 'ADX') {
-    return Number.isFinite(snapshot.adx) ? snapshot.adx : null;
-  }
+    case 'ema': {
+      const value = snapshot.ema?.[compiledItem.period];
+      return typeof value === 'number' && Number.isFinite(value) ? value : null;
+    }
 
-  if (item === 'MACD') {
-    return snapshot.macd && Number.isFinite(snapshot.macd.macd) ? snapshot.macd.macd : null;
-  }
+    case 'rsi': {
+      const value = snapshot.rsi?.[compiledItem.period];
+      return typeof value === 'number' && Number.isFinite(value) ? value : null;
+    }
 
-  if (item === 'DIF') {
-    return snapshot.macd && Number.isFinite(snapshot.macd.dif) ? snapshot.macd.dif : null;
-  }
+    case 'psy': {
+      const value = snapshot.psy?.[compiledItem.period];
+      return typeof value === 'number' && Number.isFinite(value) ? value : null;
+    }
 
-  if (item === 'DEA') {
-    return snapshot.macd && Number.isFinite(snapshot.macd.dea) ? snapshot.macd.dea : null;
+    default: {
+      return null;
+    }
   }
-
-  const emaPeriod = parsePeriodDisplayItem(item, 'EMA:');
-  if (emaPeriod !== null) {
-    const value = snapshot.ema?.[emaPeriod];
-    return typeof value === 'number' && Number.isFinite(value) ? value : null;
-  }
-
-  const rsiPeriod = parsePeriodDisplayItem(item, 'RSI:');
-  if (rsiPeriod !== null) {
-    const value = snapshot.rsi?.[rsiPeriod];
-    return typeof value === 'number' && Number.isFinite(value) ? value : null;
-  }
-
-  const psyPeriod = parsePeriodDisplayItem(item, 'PSY:');
-  if (psyPeriod !== null) {
-    const value = snapshot.psy?.[psyPeriod];
-    return typeof value === 'number' && Number.isFinite(value) ? value : null;
-  }
-
-  return null;
 }
 
 /**
@@ -147,77 +407,58 @@ function getSnapshotDisplayValue(params: {
  */
 function getCachedDisplayValue(
   monitorValues: MonitorValues | null,
-  item: DisplayIndicatorItem,
+  compiledItem: CompiledDisplayPlanItem,
 ): number | null {
   if (!monitorValues) {
     return null;
   }
 
-  if (item === 'price') {
-    return Number.isFinite(monitorValues.price) ? monitorValues.price : null;
-  }
+  switch (compiledItem.kind) {
+    case 'price': {
+      return Number.isFinite(monitorValues.price) ? monitorValues.price : null;
+    }
 
-  if (item === 'changePercent') {
-    return Number.isFinite(monitorValues.changePercent) ? monitorValues.changePercent : null;
-  }
+    case 'changePercent': {
+      return Number.isFinite(monitorValues.changePercent) ? monitorValues.changePercent : null;
+    }
 
-  if (item === 'MFI') {
-    return Number.isFinite(monitorValues.mfi) ? monitorValues.mfi : null;
-  }
+    case 'mfi': {
+      return Number.isFinite(monitorValues.mfi) ? monitorValues.mfi : null;
+    }
 
-  if (item === 'K') {
-    return monitorValues.kdj && Number.isFinite(monitorValues.kdj.k) ? monitorValues.kdj.k : null;
-  }
+    case 'kdj': {
+      const value = monitorValues.kdj?.[compiledItem.field];
+      return typeof value === 'number' && Number.isFinite(value) ? value : null;
+    }
 
-  if (item === 'D') {
-    return monitorValues.kdj && Number.isFinite(monitorValues.kdj.d) ? monitorValues.kdj.d : null;
-  }
+    case 'adx': {
+      return Number.isFinite(monitorValues.adx) ? monitorValues.adx : null;
+    }
 
-  if (item === 'J') {
-    return monitorValues.kdj && Number.isFinite(monitorValues.kdj.j) ? monitorValues.kdj.j : null;
-  }
+    case 'macd': {
+      const value = monitorValues.macd?.[compiledItem.field];
+      return typeof value === 'number' && Number.isFinite(value) ? value : null;
+    }
 
-  if (item === 'ADX') {
-    return Number.isFinite(monitorValues.adx) ? monitorValues.adx : null;
-  }
+    case 'ema': {
+      const value = monitorValues.ema?.[compiledItem.period];
+      return typeof value === 'number' && Number.isFinite(value) ? value : null;
+    }
 
-  if (item === 'MACD') {
-    return monitorValues.macd && Number.isFinite(monitorValues.macd.macd)
-      ? monitorValues.macd.macd
-      : null;
-  }
+    case 'rsi': {
+      const value = monitorValues.rsi?.[compiledItem.period];
+      return typeof value === 'number' && Number.isFinite(value) ? value : null;
+    }
 
-  if (item === 'DIF') {
-    return monitorValues.macd && Number.isFinite(monitorValues.macd.dif)
-      ? monitorValues.macd.dif
-      : null;
-  }
+    case 'psy': {
+      const value = monitorValues.psy?.[compiledItem.period];
+      return typeof value === 'number' && Number.isFinite(value) ? value : null;
+    }
 
-  if (item === 'DEA') {
-    return monitorValues.macd && Number.isFinite(monitorValues.macd.dea)
-      ? monitorValues.macd.dea
-      : null;
+    default: {
+      return null;
+    }
   }
-
-  const emaPeriod = parsePeriodDisplayItem(item, 'EMA:');
-  if (emaPeriod !== null) {
-    const value = monitorValues.ema?.[emaPeriod];
-    return typeof value === 'number' && Number.isFinite(value) ? value : null;
-  }
-
-  const rsiPeriod = parsePeriodDisplayItem(item, 'RSI:');
-  if (rsiPeriod !== null) {
-    const value = monitorValues.rsi?.[rsiPeriod];
-    return typeof value === 'number' && Number.isFinite(value) ? value : null;
-  }
-
-  const psyPeriod = parsePeriodDisplayItem(item, 'PSY:');
-  if (psyPeriod !== null) {
-    const value = monitorValues.psy?.[psyPeriod];
-    return typeof value === 'number' && Number.isFinite(value) ? value : null;
-  }
-
-  return null;
 }
 
 /**
@@ -351,7 +592,7 @@ function displayIndicators(params: {
   readonly monitorSymbol: string;
   readonly currentPrice: number;
   readonly changePercent: number | null;
-  readonly indicatorProfile: IndicatorUsageProfile;
+  readonly compiledPlan: CompiledDisplayPlan;
   readonly klineTimestamp: number | null;
 }): void {
   const {
@@ -360,21 +601,19 @@ function displayIndicators(params: {
     monitorSymbol,
     currentPrice,
     changePercent,
-    indicatorProfile,
+    compiledPlan,
     klineTimestamp,
   } = params;
 
-  // 构建指标显示字符串（按 indicatorProfile.displayPlan 固定顺序输出）
   const indicators: string[] = [];
 
-  for (const displayItem of indicatorProfile.displayPlan) {
-    if (displayItem === 'price') {
+  for (const compiledItem of compiledPlan.items) {
+    if (compiledItem.kind === 'price') {
       indicators.push(Number.isFinite(currentPrice) ? `价格=${currentPrice.toFixed(3)}` : '价格=-');
-
       continue;
     }
 
-    if (displayItem === 'changePercent') {
+    if (compiledItem.kind === 'changePercent') {
       if (changePercent !== null && Number.isFinite(changePercent)) {
         const sign = changePercent >= 0 ? '+' : '';
         indicators.push(`涨跌幅=${sign}${changePercent.toFixed(2)}%`);
@@ -386,7 +625,7 @@ function displayIndicators(params: {
     }
 
     const value = getSnapshotDisplayValue({
-      item: displayItem,
+      compiledItem,
       snapshot: monitorSnapshot,
       currentPrice,
       changePercent,
@@ -395,25 +634,34 @@ function displayIndicators(params: {
       continue;
     }
 
-    const emaPeriod = parsePeriodDisplayItem(displayItem, 'EMA:');
-    if (emaPeriod !== null) {
-      indicators.push(`EMA${emaPeriod}=${formatIndicator(value, 3)}`);
-      continue;
-    }
+    switch (compiledItem.kind) {
+      case 'ema': {
+        indicators.push(`EMA${compiledItem.period}=${formatIndicator(value, 3)}`);
+        break;
+      }
 
-    const rsiPeriod = parsePeriodDisplayItem(displayItem, 'RSI:');
-    if (rsiPeriod !== null) {
-      indicators.push(`RSI${rsiPeriod}=${formatIndicator(value, 3)}`);
-      continue;
-    }
+      case 'rsi': {
+        indicators.push(`RSI${compiledItem.period}=${formatIndicator(value, 3)}`);
+        break;
+      }
 
-    const psyPeriod = parsePeriodDisplayItem(displayItem, 'PSY:');
-    if (psyPeriod !== null) {
-      indicators.push(`PSY${psyPeriod}=${formatIndicator(value, 3)}`);
-      continue;
-    }
+      case 'psy': {
+        indicators.push(`PSY${compiledItem.period}=${formatIndicator(value, 3)}`);
+        break;
+      }
 
-    indicators.push(`${displayItem}=${formatIndicator(value, 3)}`);
+      case 'mfi':
+      case 'adx':
+      case 'kdj':
+      case 'macd': {
+        indicators.push(`${compiledItem.item}=${formatIndicator(value, 3)}`);
+        break;
+      }
+
+      default: {
+        assertUnreachable(compiledItem);
+      }
+    }
   }
 
   const monitorSymbolName = monitorQuote?.name ?? monitorSymbol;
@@ -505,6 +753,7 @@ export function createMarketMonitor(): MarketMonitor {
         return false;
       }
 
+      const compiledPlan = getCompiledDisplayPlan(indicatorProfile);
       const currentPrice = monitorSnapshot.price;
 
       // 从行情数据中获取上日收盘价
@@ -523,9 +772,9 @@ export function createMarketMonitor(): MarketMonitor {
       }
 
       let hasIndicatorChanged = false;
-      for (const displayItem of indicatorProfile.displayPlan) {
+      for (const compiledItem of compiledPlan.items) {
         const currentValue = getSnapshotDisplayValue({
-          item: displayItem,
+          compiledItem,
           snapshot: monitorSnapshot,
           currentPrice,
           changePercent,
@@ -534,15 +783,19 @@ export function createMarketMonitor(): MarketMonitor {
           continue;
         }
 
-        const lastValue = getCachedDisplayValue(monitorState.monitorValues, displayItem);
-        if (displayItem === 'price' && lastValue === null && isValidPositiveNumber(currentValue)) {
+        const lastValue = getCachedDisplayValue(monitorState.monitorValues, compiledItem);
+        if (
+          compiledItem.kind === 'price' &&
+          lastValue === null &&
+          isValidPositiveNumber(currentValue)
+        ) {
           hasIndicatorChanged = true;
           break;
         }
 
         if (
           lastValue === null ||
-          hasChanged(currentValue, lastValue, resolveDisplayThreshold(displayItem))
+          hasChanged(currentValue, lastValue, resolveDisplayThreshold(compiledItem.item))
         ) {
           hasIndicatorChanged = true;
           break;
@@ -557,62 +810,18 @@ export function createMarketMonitor(): MarketMonitor {
           monitorSymbol,
           currentPrice,
           changePercent,
-          indicatorProfile,
+          compiledPlan,
           klineTimestamp,
         });
 
         releaseMonitorValuesObjects(monitorState.monitorValues);
 
-        // 从对象池获取新的监控值对象
-        const newMonitorValues = acquireMonitorValues();
-        newMonitorValues.price = currentPrice;
-        newMonitorValues.changePercent = changePercent;
-
-        // 从对象池获取 ema/rsi/psy 对象，复制值
-        newMonitorValues.ema = copyPeriodRecord(periodRecordPool, monitorSnapshot.ema);
-        newMonitorValues.rsi = copyPeriodRecord(periodRecordPool, monitorSnapshot.rsi);
-        newMonitorValues.psy = copyPeriodRecord(periodRecordPool, monitorSnapshot.psy);
-
-        newMonitorValues.mfi = monitorSnapshot.mfi;
-        newMonitorValues.adx = monitorSnapshot.adx;
-
-        // 从对象池获取 kdj 和 macd 对象，复制值
-        // 避免直接引用对象池中的对象，防止对象池回收时数据被意外修改
-        const kdjData = monitorSnapshot.kdj;
-        if (kdjData) {
-          const kdjRecord = kdjObjectPool.acquire();
-          kdjRecord.k = kdjData.k;
-          kdjRecord.d = kdjData.d;
-          kdjRecord.j = kdjData.j;
-
-          if (isValidPooledKdj(kdjRecord)) {
-            newMonitorValues.kdj = kdjRecord;
-          } else {
-            kdjObjectPool.release(kdjRecord);
-            newMonitorValues.kdj = null;
-          }
-        } else {
-          newMonitorValues.kdj = null;
-        }
-
-        const macdData = monitorSnapshot.macd;
-        if (macdData) {
-          const macdRecord = macdObjectPool.acquire();
-          macdRecord.dif = macdData.dif;
-          macdRecord.dea = macdData.dea;
-          macdRecord.macd = macdData.macd;
-
-          if (isValidPooledMacd(macdRecord)) {
-            newMonitorValues.macd = macdRecord;
-          } else {
-            macdObjectPool.release(macdRecord);
-            newMonitorValues.macd = null;
-          }
-        } else {
-          newMonitorValues.macd = null;
-        }
-
-        monitorState.monitorValues = newMonitorValues;
+        monitorState.monitorValues = buildMonitorValuesFromDisplayPlan({
+          compiledPlan,
+          monitorSnapshot,
+          currentPrice,
+          changePercent,
+        });
 
         return true; // 指标发生变化
       }

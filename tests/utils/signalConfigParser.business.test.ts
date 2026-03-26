@@ -7,7 +7,10 @@
 import { describe, expect, it } from 'bun:test';
 
 import { formatSignalConfig, parseSignalConfig } from '../../src/config/utils.js';
-import { evaluateSignalConfig } from '../../src/core/strategy/utils.js';
+import {
+  evaluateSignalConfig,
+  validateIndicatorsForAction,
+} from '../../src/core/strategy/utils.js';
 import type { IndicatorState } from '../../src/utils/indicatorHelpers/types.js';
 
 describe('signalConfigParser business flow', () => {
@@ -69,5 +72,55 @@ describe('signalConfigParser business flow', () => {
     const unsatisfied = evaluateSignalConfig({ kdj: { k: 70 } }, parsed);
     expect(unsatisfied.triggered).toBeFalse();
     expect(unsatisfied.reason).toBe('未满足任何条件组');
+  });
+
+  it('uses availability gating without changing N-of-M semantics', () => {
+    const parsed = parseSignalConfig('(RSI:6<70,MFI>40,D>45)/2');
+    if (!parsed) {
+      throw new Error('expected parsed signal config');
+    }
+
+    const unavailable = validateIndicatorsForAction({
+      state: {
+        price: 1,
+        changePercent: null,
+        ema: null,
+        rsi: null,
+        psy: null,
+        mfi: null,
+        kdj: { k: 0, d: 50, j: 0 },
+        macd: null,
+        adx: null,
+      },
+      signalConfig: parsed,
+    });
+    expect(unavailable).toBeFalse();
+
+    const available = validateIndicatorsForAction({
+      state: {
+        price: 1,
+        changePercent: null,
+        ema: null,
+        rsi: { 6: 65 },
+        psy: null,
+        mfi: null,
+        kdj: { k: 0, d: 50, j: 0 },
+        macd: null,
+        adx: null,
+      },
+      signalConfig: parsed,
+    });
+    expect(available).toBeTrue();
+
+    const evaluated = evaluateSignalConfig(
+      {
+        rsi: { 6: 65 },
+        mfi: null,
+        kdj: { k: 0, d: 50, j: 0 },
+      },
+      parsed,
+    );
+    expect(evaluated.triggered).toBeTrue();
+    expect(evaluated.satisfiedCount).toBe(2);
   });
 });

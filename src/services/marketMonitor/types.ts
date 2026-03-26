@@ -1,7 +1,45 @@
-import type { IndicatorUsageProfile } from '../../types/indicatorProfile.js';
+import type { DisplayIndicatorItem, IndicatorUsageProfile } from '../../types/indicatorProfile.js';
 import type { MonitorState } from '../../types/state.js';
 import type { IndicatorSnapshot, Quote } from '../../types/quote.js';
 import type { UnrealizedLossMetrics, WarrantDistanceInfo } from '../../types/services.js';
+
+/**
+ * 编译后的展示项描述。
+ * 类型用途：将 displayPlan 的字符串项预编译为结构化描述，供 marketMonitor 在主循环中复用。
+ * 数据来源：marketMonitor 根据 IndicatorUsageProfile.displayPlan 编译生成。
+ * 使用范围：仅 services/marketMonitor 模块内部。
+ */
+export type CompiledDisplayPlanItem =
+  | { readonly item: 'price'; readonly kind: 'price' }
+  | { readonly item: 'changePercent'; readonly kind: 'changePercent' }
+  | { readonly item: 'MFI'; readonly kind: 'mfi' }
+  | { readonly item: 'K'; readonly kind: 'kdj'; readonly field: 'k' }
+  | { readonly item: 'D'; readonly kind: 'kdj'; readonly field: 'd' }
+  | { readonly item: 'J'; readonly kind: 'kdj'; readonly field: 'j' }
+  | { readonly item: 'ADX'; readonly kind: 'adx' }
+  | { readonly item: 'MACD'; readonly kind: 'macd'; readonly field: 'macd' }
+  | { readonly item: 'DIF'; readonly kind: 'macd'; readonly field: 'dif' }
+  | { readonly item: 'DEA'; readonly kind: 'macd'; readonly field: 'dea' }
+  | { readonly item: DisplayIndicatorItem; readonly kind: 'ema'; readonly period: number }
+  | { readonly item: DisplayIndicatorItem; readonly kind: 'rsi'; readonly period: number }
+  | { readonly item: DisplayIndicatorItem; readonly kind: 'psy'; readonly period: number };
+
+/**
+ * 编译后的展示计划。
+ * 类型用途：缓存 displayPlan 对应的结构化执行结果，避免主循环重复解析周期项和扫描展示集合。
+ * 数据来源：marketMonitor 根据 IndicatorUsageProfile.displayPlan 编译生成。
+ * 使用范围：仅 services/marketMonitor 模块内部。
+ */
+export type CompiledDisplayPlan = {
+  readonly items: ReadonlyArray<CompiledDisplayPlanItem>;
+  readonly emaPeriods: ReadonlyArray<number>;
+  readonly rsiPeriods: ReadonlyArray<number>;
+  readonly psyPeriods: ReadonlyArray<number>;
+  readonly needsMfi: boolean;
+  readonly needsAdx: boolean;
+  readonly needsKdj: boolean;
+  readonly needsMacd: boolean;
+};
 
 /**
  * 价格展示附加信息。

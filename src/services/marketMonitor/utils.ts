@@ -1,6 +1,5 @@
 import { isValidNumber } from '../../utils/indicatorHelpers/index.js';
 import { DEFAULT_PERCENT_DECIMALS } from '../../constants/index.js';
-import type { ObjectPool } from '../../utils/objectPool/types.js';
 import type { UnrealizedLossMetrics, WarrantDistanceInfo } from '../../types/services.js';
 import type { Quote } from '../../types/quote.js';
 import { decimalGte, formatDecimal } from '../../utils/numeric/index.js';
@@ -119,30 +118,4 @@ export function formatPositionDisplay(
     orderCount !== null && Number.isFinite(orderCount) ? String(orderCount) : '-';
 
   return `持仓市值=${marketValueText} 持仓盈亏=${pnlText} 订单数量=${orderCountText}`;
-}
-
-/**
- * 从指标快照拷贝周期值到对象池记录
- * @param pool 对象池，用于复用 Record 对象避免频繁分配
- * @param snapshot 指标快照，为 null 时返回 null
- * @returns 从对象池获取并填充的周期值记录，snapshot 为 null 时返回 null
- */
-export function copyPeriodRecord(
-  pool: ObjectPool<Record<number, number>>,
-  snapshot: Readonly<Record<number, number>> | null,
-): Record<number, number> | null {
-  if (!snapshot) {
-    return null;
-  }
-
-  const record = pool.acquire();
-  for (const key in snapshot) {
-    const numKey = Number(key);
-    const value = snapshot[numKey];
-    if (value !== undefined) {
-      record[numKey] = value;
-    }
-  }
-
-  return record;
 }

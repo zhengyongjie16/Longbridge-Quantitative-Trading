@@ -26,27 +26,7 @@ import { cloneMfiState, commitMfiCandle, createMfiState, readMfiValue } from './
 import { clonePsyState, commitPsyClose, createPsyState, readPsyValue } from './psy.js';
 import { cloneRsiState, commitRsiClose, createRsiState, readRsiValue } from './rsi.js';
 import { toNumber } from './utils.js';
-import type { IndicatorCommittedState } from './types.js';
-
-/**
- * 增量指标运行态（服务内部聚合）。
- * 类型用途：在公共 runtime 句柄基础上补充 runtime 内部真实字段，仅供 indicators/runtime 模块内部使用。
- * 数据来源：bootstrap 与 updateRuntimeForCandlestickSnapshot。
- * 使用范围：仅 indicators/runtime 模块内部。
- */
-type IndicatorRuntimeStateFields = {
-  readonly symbol: string;
-  readonly profile: IndicatorUsageProfile;
-  lastProcessedVersion: number;
-  closedBarTimestamp: number | null;
-  activeBarTimestamp: number | null;
-  activeBarConfirmed: boolean | null;
-  activeBar: CandleData | null;
-  lastBarTimestamp: number | null;
-  lastBarConfirmed: boolean | null;
-  latestCandles: ReadonlyArray<CandleData>;
-  committed: IndicatorCommittedState;
-};
+import type { IndicatorCommittedState, IndicatorRuntimeStateFields } from './types.js';
 
 const indicatorRuntimeStateBrand = Symbol('IndicatorRuntimeState');
 
@@ -366,31 +346,15 @@ export function buildIndicatorSnapshot(
   });
 }
 
-function normalizeClosedAndActive(params: {
+function resolveActiveBar(params: {
   readonly candles: ReadonlyArray<CandleData>;
   readonly lastBarConfirmed: boolean | null;
-}): {
-  readonly closedCandles: ReadonlyArray<CandleData>;
-  readonly activeBar: CandleData | null;
-} {
-  if (params.candles.length === 0) {
-    return {
-      closedCandles: [],
-      activeBar: null,
-    };
+}): CandleData | null {
+  if (params.lastBarConfirmed !== false) {
+    return null;
   }
 
-  if (params.lastBarConfirmed === false) {
-    return {
-      closedCandles: params.candles.slice(0, -1),
-      activeBar: params.candles.at(-1) ?? null,
-    };
-  }
-
-  return {
-    closedCandles: params.candles,
-    activeBar: null,
-  };
+  return params.candles.at(-1) ?? null;
 }
 
 /**
@@ -409,16 +373,23 @@ export function bootstrapIndicatorRuntime(params: {
     return null;
   }
 
-  const { closedCandles, activeBar } = normalizeClosedAndActive({
+  const activeBar = resolveActiveBar({
     candles: cacheSnapshot.candles,
     lastBarConfirmed: cacheSnapshot.lastBarConfirmed,
   });
   const committed = buildCommittedState(indicatorProfile);
-  for (const candle of closedCandles) {
+  const closedCandlesEnd =
+    activeBar === null ? cacheSnapshot.candles.length : cacheSnapshot.candles.length - 1;
+  for (let index = 0; index < closedCandlesEnd; index += 1) {
+    const candle = cacheSnapshot.candles[index];
+    if (!candle) {
+      continue;
+    }
+
     commitCandleToCommittedState(committed, candle);
   }
 
-  const lastClosed = closedCandles.at(-1);
+  const lastClosed = closedCandlesEnd > 0 ? cacheSnapshot.candles[closedCandlesEnd - 1] : undefined;
   return toIndicatorIncrementalRuntime(
     createIndicatorRuntimeState({
       symbol,
@@ -432,7 +403,6 @@ export function bootstrapIndicatorRuntime(params: {
       activeBar,
       lastBarTimestamp: cacheSnapshot.lastBarTimestamp,
       lastBarConfirmed: cacheSnapshot.lastBarConfirmed,
-      latestCandles: [...cacheSnapshot.candles],
       committed,
     }),
   );
@@ -531,7 +501,6 @@ function commitShiftedCandles(params: {
       activeBar,
       lastBarTimestamp: cacheSnapshot.lastBarTimestamp,
       lastBarConfirmed: cacheSnapshot.lastBarConfirmed,
-      latestCandles: [...cacheSnapshot.candles],
       committed: nextCommitted,
     }),
   );
@@ -583,7 +552,6 @@ export function updateRuntimeForCandlestickSnapshot(params: {
           activeBar: latestCandle,
           lastBarTimestamp: cacheSnapshot.lastBarTimestamp,
           lastBarConfirmed: cacheSnapshot.lastBarConfirmed,
-          latestCandles: [...cacheSnapshot.candles],
         }),
       );
     }
@@ -601,7 +569,6 @@ export function updateRuntimeForCandlestickSnapshot(params: {
           activeBar: null,
           lastBarTimestamp: cacheSnapshot.lastBarTimestamp,
           lastBarConfirmed: cacheSnapshot.lastBarConfirmed,
-          latestCandles: [...cacheSnapshot.candles],
           committed: nextCommitted,
         }),
       );
