@@ -6,12 +6,9 @@
  */
 import type { LastState, MonitorContext } from '../../../src/types/state.js';
 import {
-  createMonitorConfigDouble,
-  createIndicatorUsageProfileDouble,
-  createOrderRecorderDouble,
+  createMonitorContextDouble,
   createPositionCacheDouble,
   createPositionDouble,
-  createRiskCheckerDouble,
   createSymbolRegistryDouble,
 } from '../../helpers/testDoubles.js';
 
@@ -34,18 +31,6 @@ export async function waitUntil(predicate: () => boolean, timeoutMs: number = 80
 }
 
 /**
- * runProcessorFlow 入参。
- * 类型用途：测试中启动处理器、推送任务、等待条件并排空的参数聚合。
- * 使用范围：仅 tests/main/asyncProgram 使用。
- */
-type RunProcessorFlowParams = {
-  readonly processor: { start: () => void; stopAndDrain: () => Promise<void> };
-  readonly pushTask: () => void;
-  readonly waitCondition: () => boolean;
-  readonly timeoutMs?: number;
-};
-
-/**
  * 启动处理器、推送任务、等待条件满足后 stopAndDrain。用于测试异步队列消费流程。
  *
  * @param params.processor 处理器实例（start、stopAndDrain）
@@ -54,7 +39,12 @@ type RunProcessorFlowParams = {
  * @param params.timeoutMs 可选超时毫秒数，默认 800
  * @returns 无返回值，超时由 waitUntil 抛错
  */
-export async function runProcessorFlow(params: RunProcessorFlowParams): Promise<void> {
+export async function runProcessorFlow(params: {
+  readonly processor: { start: () => void; stopAndDrain: () => Promise<void> };
+  readonly pushTask: () => void;
+  readonly waitCondition: () => boolean;
+  readonly timeoutMs?: number;
+}): Promise<void> {
   const { processor, pushTask, waitCondition, timeoutMs = 800 } = params;
   processor.start();
   pushTask();
@@ -88,11 +78,6 @@ export function createLastState(overrides: Partial<LastState> = {}): LastState {
   };
 }
 
-type MonitorContextBaseOptions = Readonly<{
-  state: MonitorContext['state'];
-  monitorSymbolName: string;
-}>;
-
 /**
  * 组装 MonitorContext 的公共基线字段，并合并调用方覆盖项。
  *
@@ -101,7 +86,10 @@ type MonitorContextBaseOptions = Readonly<{
  * @returns 合并后的 MonitorContext
  */
 function buildMonitorContextBase(
-  options: MonitorContextBaseOptions,
+  options: Readonly<{
+    state: MonitorContext['state'];
+    monitorSymbolName: string;
+  }>,
   overrides: Partial<MonitorContext>,
 ): MonitorContext {
   const { state, monitorSymbolName } = options;
@@ -110,8 +98,8 @@ function buildMonitorContextBase(
     longVersion: 2,
     shortVersion: 3,
   });
-  return {
-    config: createMonitorConfigDouble(),
+
+  return createMonitorContextDouble({
     state,
     symbolRegistry,
     seatState: {
@@ -122,43 +110,11 @@ function buildMonitorContextBase(
       long: symbolRegistry.getSeatVersion('HSI.HK', 'LONG'),
       short: symbolRegistry.getSeatVersion('HSI.HK', 'SHORT'),
     },
-    autoSymbolManager: {
-      maybeSearchOnTick: async () => {},
-      maybeSwitchOnInterval: async () => {},
-      maybeSwitchOnDistance: async () => {},
-      hasPendingSwitch: () => false,
-      resetAllState: () => {},
-    },
-    strategy: {
-      generateSignals: () => ({ immediateSignals: [], delayedSignals: [] }),
-    },
-    orderRecorder: createOrderRecorderDouble(),
-    dailyLossTracker: {
-      resetAll: () => {},
-      recalculateFromAllOrders: () => {},
-      recordFilledOrder: () => {},
-      getLossOffset: () => 0,
-    },
-    riskChecker: createRiskCheckerDouble(),
-    unrealizedLossMonitor: {
-      monitorUnrealizedLoss: async () => {},
-    },
-    delayedSignalVerifier: {
-      addSignal: () => {},
-      cancelAllForSymbol: () => {},
-      cancelAllForDirection: () => 0,
-      cancelAll: () => 0,
-      getPendingCount: () => 0,
-      onVerified: () => {},
-      destroy: () => {},
-    },
+    monitorSymbolName,
     longSymbolName: 'BULL.HK',
     shortSymbolName: 'BEAR.HK',
-    monitorSymbolName,
-    normalizedMonitorSymbol: 'HSI.HK',
-    indicatorProfile: createIndicatorUsageProfileDouble(),
     ...overrides,
-  } as unknown as MonitorContext;
+  });
 }
 
 /**

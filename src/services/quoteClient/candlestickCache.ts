@@ -9,47 +9,13 @@
 import type { Period } from 'longbridge';
 import type { CandleData } from '../../types/data.js';
 import type { CandlestickCacheSnapshot } from '../../types/services.js';
+import type {
+  ApplyCandlestickPushParams,
+  CandlestickCacheStore,
+  NormalizedCandleValue,
+  SeedCandlestickSeriesParams,
+} from './types.js';
 import { isRecord } from '../../utils/helpers/index.js';
-
-/**
- * K 线缓存存储结构。
- * 类型用途：维护缓存快照映射与单 key 最大保留根数。
- * 数据来源：createCandlestickCacheStore 创建。
- * 使用范围：quoteClient 模块内部使用。
- */
-type CandlestickCacheStore = {
-  readonly maxCandles: number;
-  readonly snapshots: Map<string, CandlestickCacheSnapshot>;
-};
-
-/**
- * seed K 线序列参数。
- * 类型用途：订阅成功后将初始 K 线序列写入本地缓存。
- * 数据来源：subscribeCandlesticks 返回值。
- * 使用范围：quoteClient 模块内部使用。
- */
-type SeedCandlestickSeriesParams = {
-  readonly store: CandlestickCacheStore;
-  readonly symbol: string;
-  readonly period: Period;
-  readonly candles: ReadonlyArray<unknown>;
-};
-
-/**
- * push 更新参数。
- * 类型用途：处理 setOnCandlestick 推送事件并更新本地缓存。
- * 数据来源：QuoteContext candlestick push event。
- * 使用范围：quoteClient 模块内部使用。
- */
-type ApplyCandlestickPushParams = {
-  readonly store: CandlestickCacheStore;
-  readonly symbol: string;
-  readonly period: Period;
-  readonly candlestick: unknown;
-  readonly isConfirmed: boolean;
-};
-
-type NormalizedCandleValue = number | string | null | undefined;
 
 function normalizeRecordToNumber(value: Record<string, unknown>): number | undefined {
   const toNumberFn: unknown = Reflect.get(value, 'toNumber');

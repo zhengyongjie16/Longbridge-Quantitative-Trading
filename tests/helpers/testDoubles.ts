@@ -32,7 +32,7 @@ import type {
 } from '../../src/types/services.js';
 import type { SymbolRegistry, SeatState } from '../../src/types/seat.js';
 import type { Candlestick, Config, Period, QuoteContext, TradeContext } from 'longbridge';
-import type { TradingSignalStrategy } from '../../src/core/strategy/ports.js';
+import type { TradingSignalStrategy } from '../../src/core/strategy/types.js';
 import type {
   DoomsdayProtection,
   DoomsdayClearanceContext,

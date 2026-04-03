@@ -7,7 +7,7 @@ import type { Position } from '../../../types/account.js';
 import type { MultiMonitorTradingConfig } from '../../../types/config.js';
 import type { Quote } from '../../../types/quote.js';
 import type { Signal } from '../../../types/signal.js';
-import type { SymbolRegistry } from '../../../types/seat.js';
+import type { SeatState, SymbolRegistry } from '../../../types/seat.js';
 import type {
   RawOrderFromAPI,
   OrderRecorder,
@@ -253,3 +253,31 @@ export interface MonitorTaskProcessor {
   readonly stopAndDrain: () => Promise<void>;
   readonly restart: () => void;
 }
+
+/**
+ * 监控上下文与席位就绪结果。
+ * 类型用途：evaluateMonitorContextAndSeatReadiness 的返回值，供 liquidationDistance、unrealizedLoss 等 handler 使用。
+ * 数据来源：由 evaluateMonitorContextAndSeatReadiness 在校验与解析后构造。
+ * 使用范围：仅 monitorTaskProcessor 各 handler 内部使用。
+ */
+export type MonitorContextAndSeatReadiness = Readonly<{
+  context: MonitorTaskContext;
+  seatReadiness: Readonly<{
+    longSeat: SeatState;
+    shortSeat: SeatState;
+    isLongReady: boolean;
+    isShortReady: boolean;
+    longSymbol: string;
+    shortSymbol: string;
+  }>;
+}>;
+
+/**
+ * quote retry 注册表条目。
+ * 类型用途：记录一次待执行的监控任务重试定时器句柄。
+ * 数据来源：由 MonitorTaskProcessor 在 scheduleTaskRetry 时创建。
+ * 使用范围：仅 monitorTaskProcessor/index 内部使用。
+ */
+export type RetryRegistryEntry = Readonly<{
+  handle: ReturnType<typeof setTimeout>;
+}>;

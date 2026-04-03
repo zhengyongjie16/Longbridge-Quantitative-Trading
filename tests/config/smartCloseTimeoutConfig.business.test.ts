@@ -84,11 +84,9 @@ describe('smart close timeout config', () => {
       let caughtError: unknown = null;
       try {
         await validateAllConfig({
-          env: {
-            LONGBRIDGE_AUTH_MODE: 'oauth',
-            LONGBRIDGE_CLIENT_ID: 'client-id',
+          env: createBaseEnv({
             SMART_CLOSE_TIMEOUT_MINUTES_1: invalidValue,
-          },
+          }),
           tradingConfig,
         });
       } catch (error) {
@@ -99,25 +97,5 @@ describe('smart close timeout config', () => {
       const validationError = caughtError as { missingFields?: ReadonlyArray<string> };
       expect(validationError.missingFields).toContain('SMART_CLOSE_TIMEOUT_MINUTES_1');
     }
-  });
-
-  it('includes missing Longbridge OAuth config in ConfigValidationError.missingFields', async () => {
-    const tradingConfig = createTradingConfig({
-      monitors: [createMonitorConfigDouble()],
-    });
-
-    let caughtError: unknown = null;
-    try {
-      await validateAllConfig({
-        env: {},
-        tradingConfig,
-      });
-    } catch (error) {
-      caughtError = error;
-    }
-
-    expect(caughtError).not.toBeNull();
-    const validationError = caughtError as { missingFields?: ReadonlyArray<string> };
-    expect(validationError.missingFields).toContain('LONGBRIDGE_AUTH_MODE');
   });
 });

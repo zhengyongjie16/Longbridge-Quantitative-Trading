@@ -1,8 +1,21 @@
 import type { MonitorContext, LastState } from '../../../types/state.js';
 import type { MarketDataClient, Trader } from '../../../types/services.js';
 import type { RefreshGate } from '../../../utils/types.js';
+import type { Signal } from '../../../types/signal.js';
 import type { TaskQueue, SellTaskType } from '../tradeTaskQueue/types.js';
 import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
+
+/**
+ * 卖出 quote retry 状态。
+ * 类型用途：记录单个卖出信号的重试定时器、待重入队信号副本与已重试次数。
+ * 数据来源：由 sellProcessor 在行情不足时创建并维护。
+ * 使用范围：仅 sellProcessor 模块内部使用。
+ */
+export type SellRetryState = {
+  handle: ReturnType<typeof setTimeout> | null;
+  retrySignal: Signal | null;
+  attempts: number;
+};
 
 /**
  * 卖出处理器依赖类型（创建 SellProcessor 时的参数）。

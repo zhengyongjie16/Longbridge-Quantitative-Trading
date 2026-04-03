@@ -14,6 +14,7 @@ import type {
   SellableOrderSelectParams,
 } from '../../../src/types/services.js';
 import type { TradingCalendarSnapshot } from '../../../src/types/tradingCalendar.js';
+import { createOrderRecorderDouble } from '../../helpers/testDoubles.js';
 
 function makeOrder(orderId: string, price: number, quantity: number): OrderRecord {
   return {
@@ -31,29 +32,10 @@ function createMockOrderRecorder(params: {
   costAveragePrice: number | null;
   selectSellableOrders: (input: SellableOrderSelectParams) => SellableOrderResult;
 }): OrderRecorder {
-  return {
+  return createOrderRecorderDouble({
     getCostAveragePrice: () => params.costAveragePrice,
     selectSellableOrders: params.selectSellableOrders,
-    recordLocalBuy: () => {},
-    recordLocalSell: () => {},
-    clearBuyOrders: () => {},
-    getLatestBuyOrderPrice: () => null,
-    getLatestSellRecord: () => null,
-    getSellRecordByOrderId: () => null,
-    fetchAllOrdersFromAPI: async () => [],
-    refreshOrdersFromAllOrdersForLong: async () => [],
-    refreshOrdersFromAllOrdersForShort: async () => [],
-    clearOrdersCacheForSymbol: () => {},
-    getBuyOrdersForSymbol: () => [],
-    submitSellOrder: () => {},
-    updatePendingSell: () => null,
-    markSellFilled: () => null,
-    markSellPartialFilled: () => null,
-    markSellCancelled: () => null,
-    getPendingSellSnapshot: () => [],
-    allocateRelatedBuyOrderIdsForRecovery: () => [],
-    resetAll: () => {},
-  };
+  });
 }
 
 const emptyCalendarSnapshot: TradingCalendarSnapshot = new Map();

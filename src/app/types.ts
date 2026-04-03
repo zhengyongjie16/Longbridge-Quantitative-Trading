@@ -20,7 +20,7 @@ import type { DailyLossTracker, UnrealizedLossMonitor } from '../types/risk.js';
 import type {
   TradingSignalStrategy,
   TradingSignalStrategyFactory,
-} from '../core/strategy/ports.js';
+} from '../core/strategy/types.js';
 import type { AutoSymbolManagerPort } from '../types/monitorContextPorts.js';
 import type {
   WarrantListCache,

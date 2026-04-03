@@ -255,14 +255,12 @@ describe('riskCheckPipeline business flow', () => {
     expect(baseRiskIndex).toBeGreaterThan(positionsFetchIndex);
   });
 
-  it('does not refresh buy throttle in risk check stage when buy later fails on realtime fetch', async () => {
+  it('does not preempt same-direction buy slot in risk check stage', async () => {
     const buyThrottle = createBuyThrottle();
     const monitorConfig = createMonitorConfigDouble();
     const trader = createTraderDouble({
       canTradeNow: buyThrottle.canTradeNow,
-      getAccountSnapshot: async () => {
-        throw new Error('api down');
-      },
+      getAccountSnapshot: async () => createAccountSnapshotDouble(100000),
       getStockPositions: async () => [],
     });
 
@@ -272,24 +270,22 @@ describe('riskCheckPipeline business flow', () => {
       lastRiskCheckTime,
     });
 
-    const failedBuySignal = createSignalDouble('BUYCALL', 'BULL.HK');
+    const firstBuySignal = createSignalDouble('BUYCALL', 'BULL.HK');
     const secondBuySignal = createSignalDouble('BUYCALL', 'BULL.HK');
 
-    await withMockedNow(40_000, async () => {
-      const failedResult = await pipeline(
-        [failedBuySignal],
+    const firstResult = await withMockedNow(40_000, async () =>
+      pipeline(
+        [firstBuySignal],
         createContext({
           trader,
           riskChecker: createRiskCheckerDouble(),
           orderRecorder: createOrderRecorderDouble(),
         }),
-      );
+      ),
+    );
+    expect(firstResult).toHaveLength(1);
 
-      expect(failedResult).toHaveLength(0);
-      expect(failedBuySignal.reason).toContain('获取实时账户和持仓信息失败');
-    });
-
-    const secondResult = await withMockedNow(40_000, async () =>
+    const secondResult = await withMockedNow(50_001, async () =>
       pipeline(
         [secondBuySignal],
         createContext({
@@ -300,10 +296,10 @@ describe('riskCheckPipeline business flow', () => {
       ),
     );
 
-    expect(secondResult).toHaveLength(0);
-    expect(secondBuySignal.reason).toContain('风险检查冷却期内');
+    expect(secondResult).toHaveLength(1);
+    expect(secondBuySignal.reason).toBeUndefined();
 
-    const buyTradeCheck = await withMockedNow(40_000, async () =>
+    const buyTradeCheck = await withMockedNow(50_001, async () =>
       buyThrottle.canTradeNow('BUYCALL', monitorConfig),
     );
     expect(buyTradeCheck.canTrade).toBe(true);

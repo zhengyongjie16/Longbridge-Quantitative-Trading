@@ -282,7 +282,7 @@ export default defineConfig(
               message: 'services 层不得依赖 main 层',
             },
             {
-              regex: String.raw`^(?:\.\./)+core/(?!strategy/ports\.js$).+`,
+              regex: String.raw`^(?:\.\./)+core/(?!strategy/types\.js$).+`,
               message: 'services 层不得依赖 core 层',
             },
           ],

@@ -26,15 +26,17 @@ import { cloneMfiState, commitMfiCandle, createMfiState, readMfiValue } from './
 import { clonePsyState, commitPsyClose, createPsyState, readPsyValue } from './psy.js';
 import { cloneRsiState, commitRsiClose, createRsiState, readRsiValue } from './rsi.js';
 import { toNumber } from './utils.js';
-import type { IndicatorCommittedState, IndicatorRuntimeStateFields } from './types.js';
+import type {
+  IndicatorCommittedState,
+  IndicatorRuntimeState,
+  IndicatorRuntimeStateFields,
+} from './types.js';
 
 const indicatorRuntimeStateBrand = Symbol('IndicatorRuntimeState');
 
-type IndicatorRuntimeState = IndicatorRuntimeStateFields & {
-  readonly [indicatorRuntimeStateBrand]: true;
-};
-
-function createIndicatorRuntimeState(fields: IndicatorRuntimeStateFields): IndicatorRuntimeState {
+function createIndicatorRuntimeState(
+  fields: IndicatorRuntimeStateFields,
+): IndicatorRuntimeState<typeof indicatorRuntimeStateBrand> {
   return {
     ...fields,
     [indicatorRuntimeStateBrand]: true,
@@ -42,19 +44,19 @@ function createIndicatorRuntimeState(fields: IndicatorRuntimeStateFields): Indic
 }
 
 function toIndicatorIncrementalRuntime(
-  runtimeState: IndicatorRuntimeState,
+  runtimeState: IndicatorRuntimeState<typeof indicatorRuntimeStateBrand>,
 ): IndicatorIncrementalRuntime {
   return runtimeState as unknown as IndicatorIncrementalRuntime;
 }
 
 function unwrapIndicatorRuntime(
   runtime: IndicatorIncrementalRuntime,
-): IndicatorRuntimeState | null {
+): IndicatorRuntimeState<typeof indicatorRuntimeStateBrand> | null {
   if (!(indicatorRuntimeStateBrand in runtime)) {
     return null;
   }
 
-  return runtime as unknown as IndicatorRuntimeState;
+  return runtime as unknown as IndicatorRuntimeState<typeof indicatorRuntimeStateBrand>;
 }
 
 /**
@@ -415,7 +417,7 @@ export function bootstrapIndicatorRuntime(params: {
  * @returns 重建后的增量运行态；输入无效时返回 null
  */
 function rebuildRuntimeFromSnapshot(params: {
-  readonly runtime: IndicatorRuntimeState;
+  readonly runtime: IndicatorRuntimeState<typeof indicatorRuntimeStateBrand>;
   readonly cacheSnapshot: CandlestickCacheSnapshot;
 }): IndicatorIncrementalRuntime | null {
   return bootstrapIndicatorRuntime({
@@ -436,7 +438,7 @@ function rebuildRuntimeFromSnapshot(params: {
  * @returns 推进后的增量运行态；无法可靠推进时回退为重建或返回 null
  */
 function commitShiftedCandles(params: {
-  readonly runtime: IndicatorRuntimeState;
+  readonly runtime: IndicatorRuntimeState<typeof indicatorRuntimeStateBrand>;
   readonly cacheSnapshot: CandlestickCacheSnapshot;
 }): IndicatorIncrementalRuntime | null {
   const { runtime, cacheSnapshot } = params;

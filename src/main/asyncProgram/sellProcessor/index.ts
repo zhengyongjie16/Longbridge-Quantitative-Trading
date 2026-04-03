@@ -43,16 +43,10 @@ import {
   validateSignalSeat,
 } from '../../../services/autoSymbolManager/utils.js';
 import type { Processor } from '../types.js';
-import type { SellProcessorDeps } from './types.js';
+import type { SellProcessorDeps, SellRetryState } from './types.js';
 import type { Task, SellTaskType } from '../tradeTaskQueue/types.js';
 import { formatSymbolDisplay } from '../../../utils/display/index.js';
 import type { Signal } from '../../../types/signal.js';
-
-type SellRetryState = {
-  handle: ReturnType<typeof setTimeout> | null;
-  retrySignal: Signal | null;
-  attempts: number;
-};
 
 /**
  * 复制卖出信号到新的对象池实例，用于 quote retry 的 delayed re-enqueue。

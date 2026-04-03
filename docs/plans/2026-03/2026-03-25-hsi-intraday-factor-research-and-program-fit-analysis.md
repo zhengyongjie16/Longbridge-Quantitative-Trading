@@ -44,12 +44,12 @@
    - 日内
    - 高频
 4. **优先来源：**
-   - *Journal of Financial Economics*（JFE）
-   - *Finance Research Letters*（FRL）
-   - *IEEE Access*
-   - *Expert Systems with Applications*
-   - *Journal of Financial Econometrics*（JFEC）
-   - *Borsa Istanbul Review*
+   - _Journal of Financial Economics_（JFE）
+   - _Finance Research Letters_（FRL）
+   - _IEEE Access_
+   - _Expert Systems with Applications_
+   - _Journal of Financial Econometrics_（JFEC）
+   - _Borsa Istanbul Review_
    - 高质量工作论文 / OFR / SSRN / arXiv（仅补强，不作唯一主依据）
 
 ### 2.2 数据与验证现实
@@ -84,14 +84,14 @@
 
 ### 3.1 各层职责简表
 
-| 层级 | 解决的问题 | 代表因子 |
-|---|---|---|
-| 状态层 | 今天是什么市场 | 波动率状态、期现联动、VWAP 状态锚 |
-| 结构层 | 当前是什么结构 | 开盘区间突破、日内动量阶段、区间失败回归 |
-| 触发层 | 何时入场 | 微突破、回踩二次启动、局部动量脉冲、RSI/MFI/K/D |
-| 确认层 | 是否放行 | VWAP 同侧、量能确认、多周期一致性、MACD/EMA |
-| 退出层 | 如何离场 | 结构破坏止损、ATR 止损、VWAP/中轴止盈、时间退出 |
-| 风险层 | 如何活下去 | 仓位、频次、连续亏损熔断、时段屏蔽 |
+| 层级   | 解决的问题     | 代表因子                                        |
+| ------ | -------------- | ----------------------------------------------- |
+| 状态层 | 今天是什么市场 | 波动率状态、期现联动、VWAP 状态锚               |
+| 结构层 | 当前是什么结构 | 开盘区间突破、日内动量阶段、区间失败回归        |
+| 触发层 | 何时入场       | 微突破、回踩二次启动、局部动量脉冲、RSI/MFI/K/D |
+| 确认层 | 是否放行       | VWAP 同侧、量能确认、多周期一致性、MACD/EMA     |
+| 退出层 | 如何离场       | 结构破坏止损、ATR 止损、VWAP/中轴止盈、时间退出 |
+| 风险层 | 如何活下去     | 仓位、频次、连续亏损熔断、时段屏蔽              |
 
 ---
 
@@ -166,8 +166,8 @@
 
 ### 4.1.5 研究支持摘要
 
-1. *Borsa Istanbul Review* 2024：股指期货波动率与价格持续时间、成交量、持仓量等微观结构变量强相关。
-2. *JFEC* 2024：日内波动具有可预测性与共性结构。
+1. _Borsa Istanbul Review_ 2024：股指期货波动率与价格持续时间、成交量、持仓量等微观结构变量强相关。
+2. _JFEC_ 2024：日内波动具有可预测性与共性结构。
 3. JFE 2018 / 2021：日内动量在高波动日更强。
 
 ### 4.1.6 结论
@@ -242,12 +242,11 @@
   - 波动率状态
   - VWAP 同侧
   - 成交量确认
-  - 多周期一致性
-  组合使用
+  - 多周期一致性组合使用
 
 ### 4.2.5 研究支持摘要
 
-- *IEEE Access* 2019：在 DJIA、S&P 500、NASDAQ、HSI、TAIEX 期指上，1 分钟 TORB 具有统计显著性；不同市场存在最佳探测窗口差异。
+- _IEEE Access_ 2019：在 DJIA、S&P 500、NASDAQ、HSI、TAIEX 期指上，1 分钟 TORB 具有统计显著性；不同市场存在最佳探测窗口差异。
 
 ### 4.2.6 结论
 
@@ -385,8 +384,7 @@
 - 必须与：
   - 波动率状态
   - 开盘区间结构
-  - 现货 VWAP / 现货趋势
-  联动使用
+  - 现货 VWAP / 现货趋势联动使用
 
 ### 4.4.5 研究支持摘要
 
@@ -540,6 +538,7 @@ VWAP 不建议作为最上层主 alpha，而应定位为：
 14. `J`
 
 > 说明：
+>
 > - EMA / MACD 之所以排在触发层前列，是因为它们也可兼任确认层主力。
 > - RSI / MFI / KDJ / PSY 不再进入“核心主因子”层级。
 
@@ -950,63 +949,64 @@ RangeScore = 0.25*VWAPCross + 0.20*LowER + 0.20*FalseBreak + 0.20*VolCompression
 
 ## 参考资料（主证据）
 
-1. Gao, Han, Li, Zhou. *Market intraday momentum*. *Journal of Financial Economics*, 2018.
+1. Gao, Han, Li, Zhou. _Market intraday momentum_. _Journal of Financial Economics_, 2018.
    - https://www.sciencedirect.com/science/article/abs/pii/S0304405X18301351
    - DOI: https://doi.org/10.1016/j.jfineco.2018.05.009
 
-2. Baltussen, Da, Lammers, Martens. *Hedging demand and market intraday momentum*. *Journal of Financial Economics*, 2021.
+2. Baltussen, Da, Lammers, Martens. _Hedging demand and market intraday momentum_. _Journal of Financial Economics_, 2021.
    - https://www.sciencedirect.com/science/article/abs/pii/S0304405X21001598
    - PDF: https://www3.nd.edu/~zda/intramom.pdf
    - DOI: https://doi.org/10.1016/j.jfineco.2021.04.029
 
-3. *Does intraday time-series momentum exist in Chinese stock index futures market?* *Finance Research Letters*, 2020.
+3. _Does intraday time-series momentum exist in Chinese stock index futures market?_ _Finance Research Letters_, 2020.
    - https://www.sciencedirect.com/science/article/abs/pii/S1544612319304337
    - DOI: https://doi.org/10.1016/j.frl.2019.09.007
 
-4. *Assessing the Profitability of Timely Opening Range Breakout on Index Futures Markets*. *IEEE Access*, 2019.
+4. _Assessing the Profitability of Timely Opening Range Breakout on Index Futures Markets_. _IEEE Access_, 2019.
    - https://ieeexplore.ieee.org/document/8641124
    - 公开镜像：https://www.researchgate.net/publication/331076454_Assessing_the_Profitability_of_Timely_Opening_Range_Breakout_on_Index_Futures_Markets/fulltext/5c64c1caa6fdccb608c11349/Assessing-the-Profitability-of-Timely-Opening-Range-Breakout-on-Index-Futures-Markets.pdf
 
-5. *Price duration, returns, and volatility estimation: Evidence from China's stock index futures market*. *Borsa Istanbul Review*, 2024.
+5. _Price duration, returns, and volatility estimation: Evidence from China's stock index futures market_. _Borsa Istanbul Review_, 2024.
    - https://www.sciencedirect.com/science/article/pii/S2214845024000991
    - DOI: https://doi.org/10.1016/j.bir.2024.06.008
 
-6. *Do futures improve genetically trained high-frequency technical trading rules for the Chinese index ETF market?* *Expert Systems with Applications*, 2024.
+6. _Do futures improve genetically trained high-frequency technical trading rules for the Chinese index ETF market?_ _Expert Systems with Applications_, 2024.
    - https://www.sciencedirect.com/science/article/pii/S0957417423032232
    - DOI: https://doi.org/10.1016/j.eswa.2023.122721
    - 学校页面：https://research.nottingham.edu.cn/en/publications/do-futures-improve-genetically-trained-high-frequency-technical-t/
 
-7. *Volatility Forecasting with Machine Learning and Intraday Commonality*. *Journal of Financial Econometrics*, 2024.
+7. _Volatility Forecasting with Machine Learning and Intraday Commonality_. _Journal of Financial Econometrics_, 2024.
    - https://academic.oup.com/jfec/article/22/2/492/7081291
 
-8. Gong, Ji, Su, Li, Ren. *The lead–lag relationship between stock index and stock index futures: A thermal optimal path method*. *Physica A*, 2016.
+8. Gong, Ji, Su, Li, Ren. _The lead–lag relationship between stock index and stock index futures: A thermal optimal path method_. _Physica A_, 2016.
    - https://ideas.repec.org/a/eee/phsmap/v444y2016icp63-72.html
 
-9. Alemany, Aragó, Salvador. *Lead-lag relationship between spot and futures stock indexes: Intraday data and regime-switching models*. *International Review of Economics & Finance*, 2020.
+9. Alemany, Aragó, Salvador. _Lead-lag relationship between spot and futures stock indexes: Intraday data and regime-switching models_. _International Review of Economics & Finance_, 2020.
    - https://www.sciencedirect.com/science/article/abs/pii/S1059056020300551
 
-10. Xiao, Ma, Mi. *The time-varying lead-lag relationship between index futures and the cash index and its factors*. 2023.
-   - DOI: https://doi.org/10.1080/1331677X.2022.2090404
-   - Open PDF: https://hrcak.srce.hr/file/438548
+10. Xiao, Ma, Mi. _The time-varying lead-lag relationship between index futures and the cash index and its factors_. 2023.
+
+- DOI: https://doi.org/10.1080/1331677X.2022.2090404
+- Open PDF: https://hrcak.srce.hr/file/438548
 
 ## 补强证据
 
-1. OFR Working Paper 2019. *Cross-Asset Market Order Flow, Liquidity, and Price Discovery*.
+1. OFR Working Paper 2019. _Cross-Asset Market Order Flow, Liquidity, and Price Discovery_.
    - https://www.financialresearch.gov/working-papers/2019/10/23/cross-asset-market-order-flow-liquidity-and-price-discovery/
    - PDF: https://www.financialresearch.gov/working-papers/files/OFRwp-19_04_cross-asset-market-order-flow-liquidity-and-price-discovery.pdf
 
-2. Webb, Ryu, Ryu, Han. *The price impact of futures trades and their intraday seasonality*. *Emerging Markets Review*, 2016.
+2. Webb, Ryu, Ryu, Han. _The price impact of futures trades and their intraday seasonality_. _Emerging Markets Review_, 2016.
    - https://www.sciencedirect.com/science/article/pii/S1566014116000030
    - DOI: https://doi.org/10.1016/j.ememar.2016.01.002
 
-3. *The distribution of index futures realised volatility under seasonality and microstructure noise*, 2020.
+3. _The distribution of index futures realised volatility under seasonality and microstructure noise_, 2020.
    - https://www.sciencedirect.com/science/article/pii/S0264999320311676
 
-4. *Technical analysis-based unsupervised intraday trading DJIA index stocks: is it profitable in long term?*, 2024.
+4. _Technical analysis-based unsupervised intraday trading DJIA index stocks: is it profitable in long term?_, 2024.
    - https://link.springer.com/article/10.1007/s10489-024-05903-2
 
-5. *Deep order flow imbalance: Extracting alpha at multiple horizons from the limit order book*, 2023.
+5. _Deep order flow imbalance: Extracting alpha at multiple horizons from the limit order book_, 2023.
    - https://ideas.repec.org/a/bla/mathfi/v33y2023i4p1044-1081.html
 
-6. *Can Day Trading Really Be Profitable?*（SSRN）
+6. _Can Day Trading Really Be Profitable?_（SSRN）
    - http://dx.doi.org/10.2139/ssrn.4416622

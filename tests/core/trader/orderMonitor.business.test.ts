@@ -334,6 +334,10 @@ type ReplaceOrderPayload = {
   };
 };
 
+type RecordLocalSellCall = {
+  readonly relatedBuyOrderIds: ReadonlyArray<string> | null;
+};
+
 function isReplaceOrderPayload(value: unknown): value is ReplaceOrderPayload {
   if (!isRecord(value)) {
     return false;
@@ -1522,7 +1526,7 @@ describe('orderMonitor business flow', () => {
     expect(localBuyCount).toBe(1);
   });
 
-  it('settles filled quantity when sell is canceled after partial fill', async () => {
+  it('settles filled quantity once when sell is canceled after partial fill', async () => {
     let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
       throw new Error('handleOrderChanged hook was not captured');
     };
@@ -1547,8 +1551,10 @@ describe('orderMonitor business flow', () => {
         updatedAt: new Date('2026-02-25T03:05:00.000Z'),
       },
     ];
-    const recordLocalSellCalls: Array<{ relatedBuyOrderIds: ReadonlyArray<string> | null }> = [];
+    const recordLocalSellCalls: Array<RecordLocalSellCall> = [];
     let dailyLossCalls = 0;
+    let partialCount = 0;
+    let cancelCount = 0;
     const orderRecorder = createOrderRecorderDouble({
       submitSellOrder: (
         orderId: string,
@@ -1575,6 +1581,7 @@ describe('orderMonitor business flow', () => {
           return null;
         }
 
+        partialCount += 1;
         const updated: PendingSellInfo = {
           ...current,
           filledQuantity,
@@ -1589,6 +1596,7 @@ describe('orderMonitor business flow', () => {
           return null;
         }
 
+        cancelCount += 1;
         pendingSellSnapshot.delete(orderId);
         return {
           ...current,
@@ -1677,9 +1685,27 @@ describe('orderMonitor business flow', () => {
       }),
     );
 
+    handleOrderChanged(
+      createPushOrderChanged({
+        orderId: 'SELL-PARTIAL-CANCELED',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.Canceled,
+        orderType: OrderType.ELO,
+        submittedPrice: 1,
+        submittedQuantity: 200,
+        executedPrice: 1.05,
+        executedQuantity: 100,
+        updatedAtMs: Date.parse('2026-02-25T03:12:00.000Z'),
+      }),
+    );
+
+    expect(partialCount).toBe(1);
+    expect(cancelCount).toBe(1);
     expect(recordLocalSellCalls).toHaveLength(1);
     expect(recordLocalSellCalls[0]?.relatedBuyOrderIds).toEqual(['BUY-1']);
     expect(dailyLossCalls).toBe(1);
+    expect(monitor.getPendingSellOrders('BULL.HK')).toHaveLength(0);
     expect(monitor.getAndClearPendingRefreshSymbols()).toEqual([
       {
         symbol: 'BULL.HK',
@@ -1690,7 +1716,7 @@ describe('orderMonitor business flow', () => {
     ]);
   });
 
-  it('settles filled quantity when sell is rejected after partial fill', async () => {
+  it('settles filled quantity once when sell is rejected after partial fill', async () => {
     let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
       throw new Error('handleOrderChanged hook was not captured');
     };
@@ -1715,8 +1741,10 @@ describe('orderMonitor business flow', () => {
         updatedAt: new Date('2026-02-25T03:05:00.000Z'),
       },
     ];
-    const recordLocalSellCalls: Array<{ relatedBuyOrderIds: ReadonlyArray<string> | null }> = [];
+    const recordLocalSellCalls: Array<RecordLocalSellCall> = [];
     let dailyLossCalls = 0;
+    let partialCount = 0;
+    let cancelCount = 0;
     const orderRecorder = createOrderRecorderDouble({
       submitSellOrder: (
         orderId: string,
@@ -1743,6 +1771,7 @@ describe('orderMonitor business flow', () => {
           return null;
         }
 
+        partialCount += 1;
         const updated: PendingSellInfo = {
           ...current,
           filledQuantity,
@@ -1757,6 +1786,7 @@ describe('orderMonitor business flow', () => {
           return null;
         }
 
+        cancelCount += 1;
         pendingSellSnapshot.delete(orderId);
         return {
           ...current,
@@ -1845,9 +1875,27 @@ describe('orderMonitor business flow', () => {
       }),
     );
 
+    handleOrderChanged(
+      createPushOrderChanged({
+        orderId: 'SELL-PARTIAL-REJECTED',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        status: OrderStatus.Rejected,
+        orderType: OrderType.ELO,
+        submittedPrice: 1,
+        submittedQuantity: 200,
+        executedPrice: 1.05,
+        executedQuantity: 100,
+        updatedAtMs: Date.parse('2026-02-25T03:12:00.000Z'),
+      }),
+    );
+
+    expect(partialCount).toBe(1);
+    expect(cancelCount).toBe(1);
     expect(recordLocalSellCalls).toHaveLength(1);
     expect(recordLocalSellCalls[0]?.relatedBuyOrderIds).toEqual(['BUY-1']);
     expect(dailyLossCalls).toBe(1);
+    expect(monitor.getPendingSellOrders('BULL.HK')).toHaveLength(0);
     expect(monitor.getAndClearPendingRefreshSymbols()).toEqual([
       {
         symbol: 'BULL.HK',
@@ -1883,7 +1931,7 @@ describe('orderMonitor business flow', () => {
         updatedAt: new Date('2026-02-25T03:05:00.000Z'),
       },
     ];
-    const recordLocalSellCalls: Array<{ relatedBuyOrderIds: ReadonlyArray<string> | null }> = [];
+    const recordLocalSellCalls: Array<RecordLocalSellCall> = [];
     const orderRecorder = createOrderRecorderDouble({
       submitSellOrder: (
         orderId: string,

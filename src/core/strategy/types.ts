@@ -1,5 +1,8 @@
 import type { SignalConfigSet, VerificationConfig } from '../../types/config.js';
 import type { Signal } from '../../types/signal.js';
+import type { IndicatorUsageProfile } from '../../types/indicatorProfile.js';
+import type { IndicatorSnapshot } from '../../types/quote.js';
+import type { OrderRecorder } from '../../types/services.js';
 
 /**
  * 交易信号策略配置。
@@ -65,3 +68,29 @@ export type ConditionGroupResult = {
   readonly satisfied: boolean;
   readonly count: number;
 };
+
+/**
+ * 交易信号策略端口。
+ * 类型用途：约束调用侧仅依赖 generateSignals 能力，避免装配层绑定具体策略实现命名。
+ * 数据来源：由具体策略实现（如 HangSeng）提供。
+ * 使用范围：MonitorContext、createMonitorContexts、signalPipeline 等调用链路使用。
+ */
+export interface TradingSignalStrategy {
+  generateSignals: (
+    state: IndicatorSnapshot | null,
+    longSymbol: string,
+    shortSymbol: string,
+    orderRecorder: OrderRecorder,
+    indicatorProfile: IndicatorUsageProfile,
+  ) => TradingSignalGenerationResult;
+}
+
+/**
+ * 交易信号策略工厂。
+ * 类型用途：按策略配置创建策略实例，供 app 组装层注入默认或自定义策略实现。
+ * 数据来源：由 strategy 模块实现或测试注入。
+ * 使用范围：createMonitorContexts 及相关测试使用。
+ */
+export type TradingSignalStrategyFactory = (
+  strategyConfig: TradingSignalStrategyConfig,
+) => TradingSignalStrategy;

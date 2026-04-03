@@ -1,4 +1,5 @@
 import type { Candlestick, Config, Market, Period, TradeSessions } from 'longbridge';
+import type { CandlestickCacheSnapshot } from '../../types/services.js';
 
 /**
  * withRetry 重试配置。
@@ -30,7 +31,7 @@ export type StaticInfo = {
  * 数据来源：Longbridge PushCandlestickEvent.data。
  * 使用范围：quoteClient 模块内部使用。
  */
-type PushCandlestickLike = Readonly<{
+export type PushCandlestickLike = Readonly<{
   readonly period: Period;
   readonly candlestick: Candlestick;
   readonly isConfirmed: boolean;
@@ -42,7 +43,7 @@ type PushCandlestickLike = Readonly<{
  * 数据来源：Longbridge PushCandlestickEvent。
  * 使用范围：quoteClient 模块内部使用。
  */
-type PushCandlestickEventLike = Readonly<{
+export type PushCandlestickEventLike = Readonly<{
   readonly symbol: string;
   readonly data: PushCandlestickLike;
 }>;
@@ -93,3 +94,49 @@ export type MarketDataClientDeps = {
   readonly config: Config;
   readonly quoteContextFactory?: (config: Config) => Promise<QuoteContextLike>;
 };
+
+/**
+ * K 线缓存存储结构。
+ * 类型用途：维护缓存快照映射与单 key 最大保留根数。
+ * 数据来源：createCandlestickCacheStore 创建。
+ * 使用范围：quoteClient 模块内部使用。
+ */
+export type CandlestickCacheStore = {
+  readonly maxCandles: number;
+  readonly snapshots: Map<string, CandlestickCacheSnapshot>;
+};
+
+/**
+ * seed K 线序列参数。
+ * 类型用途：订阅成功后将初始 K 线序列写入本地缓存。
+ * 数据来源：subscribeCandlesticks 返回值。
+ * 使用范围：quoteClient 模块内部使用。
+ */
+export type SeedCandlestickSeriesParams = {
+  readonly store: CandlestickCacheStore;
+  readonly symbol: string;
+  readonly period: Period;
+  readonly candles: ReadonlyArray<unknown>;
+};
+
+/**
+ * push 更新参数。
+ * 类型用途：处理 setOnCandlestick 推送事件并更新本地缓存。
+ * 数据来源：QuoteContext candlestick push event。
+ * 使用范围：quoteClient 模块内部使用。
+ */
+export type ApplyCandlestickPushParams = {
+  readonly store: CandlestickCacheStore;
+  readonly symbol: string;
+  readonly period: Period;
+  readonly candlestick: unknown;
+  readonly isConfirmed: boolean;
+};
+
+/**
+ * 标准化 K 线字段值。
+ * 类型用途：约束缓存标准化过程中可保留的 K 线数值字段类型。
+ * 数据来源：由原始 SDK K 线字段标准化得到。
+ * 使用范围：仅 quoteClient/candlestickCache 内部使用。
+ */
+export type NormalizedCandleValue = number | string | null | undefined;

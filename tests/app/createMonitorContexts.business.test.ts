@@ -9,7 +9,7 @@ import { describe, expect, it } from 'bun:test';
 import type { MutableMonitorContextsPostGateRuntime, PreGateRuntime } from '../../src/app/types.js';
 import { createMonitorContexts } from '../../src/app/createMonitorContexts.js';
 import { parseSignalConfig } from '../../src/config/utils.js';
-import type { TradingSignalStrategyFactory } from '../../src/core/strategy/ports.js';
+import type { TradingSignalStrategyFactory } from '../../src/core/strategy/types.js';
 import { createWarrantListCache } from '../../src/services/autoSymbolFinder/utils.js';
 import type { MonitorConfig, MultiMonitorTradingConfig } from '../../src/types/config.js';
 import type { Quote } from '../../src/types/quote.js';

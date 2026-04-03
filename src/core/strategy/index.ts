@@ -33,9 +33,10 @@ import type {
   SignalTypeCategory,
   SignalWithCategory,
   TradingSignalGenerationResult,
+  TradingSignalStrategy,
   TradingSignalStrategyConfig,
+  TradingSignalStrategyFactory,
 } from './types.js';
-import type { TradingSignalStrategy, TradingSignalStrategyFactory } from './ports.js';
 import { isSellAction } from '../../utils/display/index.js';
 import {
   needsDelayedVerification,

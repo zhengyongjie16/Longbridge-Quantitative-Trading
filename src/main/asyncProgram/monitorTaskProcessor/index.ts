@@ -36,6 +36,7 @@ import type {
   MonitorTaskRetryRequest,
   MonitorTaskStatus,
   RefreshHelpers,
+  RetryRegistryEntry,
 } from './types.js';
 
 /**
@@ -69,10 +70,6 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
     getCanProcessTask,
     onProcessed,
   } = deps;
-
-  type RetryRegistryEntry = {
-    handle: ReturnType<typeof setTimeout>;
-  };
 
   const schedule =
     scheduleRetry ??

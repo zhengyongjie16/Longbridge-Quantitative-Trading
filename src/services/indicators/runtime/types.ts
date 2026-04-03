@@ -174,3 +174,13 @@ export type IndicatorRuntimeStateFields = {
   lastBarConfirmed: boolean | null;
   committed: IndicatorCommittedState;
 };
+
+/**
+ * 增量指标运行态内部品牌对象。
+ * 类型用途：为 runtime/index 内部维护的真实状态提供品牌标记，避免外部模块依赖其结构细节。
+ * 数据来源：由 createIndicatorRuntimeState 创建。
+ * 使用范围：仅 indicators/runtime 模块内部使用。
+ */
+export type IndicatorRuntimeState<TBrand extends symbol = never> = IndicatorRuntimeStateFields & {
+  readonly [key in TBrand]: true;
+};

@@ -9,7 +9,7 @@ import type { DailyLossTracker, UnrealizedLossMonitor } from './risk.js';
 import type { IndicatorUsageProfile } from './indicatorProfile.js';
 import type { AutoSymbolManagerPort, DelayedSignalVerifierPort } from './monitorContextPorts.js';
 import type { IndicatorIncrementalRuntime } from './indicatorRuntime.js';
-import type { TradingSignalStrategy } from '../core/strategy/ports.js';
+import type { TradingSignalStrategy } from '../core/strategy/types.js';
 
 /**
  * 单个监控标的的运行时状态。
