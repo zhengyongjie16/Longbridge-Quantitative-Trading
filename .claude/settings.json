@@ -7,6 +7,7 @@
       "WebFetch(*)",
       "Search(*)",
       "Bash(node *)",
+      "Bash(python *)",
       "Bash(bun *)",
       "Bash(ls *)",
       "Bash(cd *)",

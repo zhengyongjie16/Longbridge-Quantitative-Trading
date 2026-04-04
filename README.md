@@ -1,13 +1,5 @@
 <div align="center">
   <h1>基于 Longbridge OpenAPI SDK 港股自动化交易系统</h1>
-  <p>
-    <code>Bun</code>
-    <code>TypeScript</code>
-    <code>Longbridge OpenAPI</code>
-    <code>Intraday Trading</code>
-    <code>Experimental</code>
-    <code>High Risk</code>
-  </p>
 </div>
 
 <p align="center">
@@ -25,7 +17,7 @@
 
 针对港股市场的自动化交易项目，通过监控标的的技术指标生成交易信号，并在轮证、牛熊证或 ETF 等交易标的上执行双向交易。
 
-以日内交易为主，运行时持续获取行情与分钟级 K 线，按配置计算指标、生成信号、执行订单并更新账户与持仓状态。监控标的通常用于分析，不一定直接作为实际成交标的。
+以日内交易为主（均值回归策略），运行时持续获取行情与分钟级 K 线，按配置计算指标、生成信号、执行订单并更新账户与持仓状态。监控标的通常用于分析，不一定直接作为实际成交标的。
 
 ## 重要提示
 
@@ -49,7 +41,7 @@
 
 | Skill | 说明 | 适用场景 |
 | --- | --- | --- |
-| `code-review` | 多视角代码审查与代码简化能力 | 审查改动质量、识别死代码、检查实现是否符合计划与规范 |
+| `code-review` | 多视角代码审查与代码简化能力 | 审查改动质量、识别死代码、类型检查、注释检查、检查实现是否符合计划与规范 |
 | `core-program-business-logic` | 港股量化交易系统业务逻辑知识库 | 理解交易链路、校验业务规则、辅助功能修改与重构 |
 | `typescript-project-specifications` | TypeScript 严格代码规范 | 编写、修改或重构 `.ts` 文件时统一遵循项目代码规范 |
 
@@ -257,7 +249,4 @@ flowchart TD
 
 ## 许可证
 
-可选择任一许可证：
-
-- [Apache License 2.0 [2026]](./LICENSE-APACHE)
 - [MIT License (c) 2026](./LICENSE-MIT)
