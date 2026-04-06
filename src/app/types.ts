@@ -11,6 +11,7 @@ import type { Quote } from '../types/quote.js';
 import type {
   MarketDataClient,
   OrderRecorder,
+  PostTradeConsistencyRefreshNeed,
   RawOrderFromAPI,
   RiskChecker,
   Trader,
@@ -31,7 +32,6 @@ import type {
   TradeLogHydrator,
 } from '../services/liquidationCooldown/types.js';
 import type { ProtectiveLiquidationEpisodeTracker } from '../core/trader/protectiveLiquidationEpisodeTracker/types.js';
-import type { RefreshGate } from '../utils/types.js';
 import type { MarketMonitor } from '../services/marketMonitor/types.js';
 import type { DoomsdayProtection } from '../core/doomsdayProtection/types.js';
 import type { SignalProcessor } from '../core/signalProcessor/types.js';
@@ -47,8 +47,8 @@ import type {
   MonitorTaskProcessor,
 } from '../main/asyncProgram/monitorTaskProcessor/types.js';
 import type { OrderMonitorWorker } from '../main/asyncProgram/orderMonitorWorker/types.js';
-import type { PostTradeRefresher } from '../main/asyncProgram/postTradeRefresher/types.js';
 import type { Processor } from '../main/asyncProgram/types.js';
+import type { TradingRiskEventRuntime } from '../main/tradingRiskEventRuntime/types.js';
 import type {
   LoadTradingDayRuntimeSnapshotParams,
   LoadTradingDayRuntimeSnapshotResult,
@@ -246,7 +246,8 @@ export type CleanupContext = Readonly<{
   sellProcessor: Processor;
   monitorTaskProcessor: MonitorTaskProcessor;
   orderMonitorWorker: OrderMonitorWorker;
-  postTradeRefresher: PostTradeRefresher;
+  tradingRiskEventRuntime: TradingRiskEventRuntime;
+  postTradeConsistencyRuntime: PostTradeConsistencyRuntime;
   marketDataClient: MarketDataClient;
   monitorContexts: ReadonlyMap<string, MonitorContext>;
   indicatorCache: IndicatorCache;
@@ -375,7 +376,8 @@ type PostGateRuntime = Readonly<{
   dailyLossTracker: DailyLossTracker;
   protectiveLiquidationEpisodeTracker: ProtectiveLiquidationEpisodeTracker;
   monitorContexts: ReadonlyMap<string, MonitorContext>;
-  refreshGate: RefreshGate;
+  tradingRiskEventRuntime: TradingRiskEventRuntime;
+  postTradeConsistencyRuntime: PostTradeConsistencyRuntime;
   lastState: LastState;
   trader: Trader;
   tradeLogHydrator: TradeLogHydrator;
@@ -409,7 +411,6 @@ export type MutableMonitorContextsPostGateRuntime = Omit<PostGateRuntime, 'monit
  */
 export type AsyncRuntime = Readonly<{
   orderMonitorWorker: OrderMonitorWorker;
-  postTradeRefresher: PostTradeRefresher;
   monitorTaskProcessor: MonitorTaskProcessor;
   buyProcessor: Processor;
   sellProcessor: Processor;
@@ -425,6 +426,64 @@ export type AsyncRuntimeFactoryDeps = Readonly<{
   preGateRuntime: PreGateRuntime;
   postGateRuntime: PostGateRuntime;
 }>;
+
+/**
+ * 成交后一致性运行时状态快照。
+ * 类型用途：向调用方暴露启动态、在途态、是否存在积压刷新以及 freshness 版本号。
+ * 数据来源：由 PostTradeConsistencyRuntime.getStatus 返回。
+ * 使用范围：仅 app 装配层与相关测试使用。
+ */
+export type PostTradeConsistencyRuntimeStatus = Readonly<{
+  started: boolean;
+  inFlight: boolean;
+  hasPendingRefresh: boolean;
+  currentVersion: number;
+  staleVersion: number;
+  abortReason: 'STOP_AND_DRAIN' | 'FATAL_INVARIANT' | null;
+}>;
+
+/**
+ * 成交后一致性运行时依赖。
+ * 类型用途：封装创建 PostTradeConsistencyRuntime 所需的最小外部依赖。
+ * 数据来源：由 app 顶层装配在创建运行时时注入。
+ * 使用范围：仅 createPostTradeConsistencyRuntime 与相关测试使用。
+ */
+export type PostTradeConsistencyRuntimeDeps = Readonly<{
+  getTrader: () => Trader;
+  lastState: LastState;
+}>;
+
+/**
+ * 成交后一致性运行时业务依赖。
+ * 类型用途：在 monitor contexts 与风控跟踪器完成装配后，为 PostTradeConsistencyRuntime 绑定成交后业务刷新所需协作者。
+ * 数据来源：由 app 顶层 runApp 在 monitor contexts 装配完成后、任何 start 前显式注入。
+ * 使用范围：仅成交后一致性运行时与 app 装配层使用。
+ */
+export type PostTradeConsistencyRuntimeBusinessDeps = Readonly<{
+  monitorContexts: ReadonlyMap<string, MonitorContext>;
+  dailyLossTracker: DailyLossTracker;
+  liquidationCooldownTracker: LiquidationCooldownTracker;
+  protectiveLiquidationEpisodeTracker: ProtectiveLiquidationEpisodeTracker;
+}>;
+
+/**
+ * 成交后一致性运行时契约。
+ * 类型用途：统一拥有成交后 stale/fresh 推进与账户持仓最小补刷能力，供后续主流程与生命周期链路接入。
+ * 数据来源：由 createPostTradeConsistencyRuntime 创建。
+ * 使用范围：仅 app 装配层与后续接线模块使用。
+ */
+export interface PostTradeConsistencyRuntime {
+  readonly bindBusinessDeps: (deps: PostTradeConsistencyRuntimeBusinessDeps) => void;
+  readonly recordSettlementRefreshNeed: (need: PostTradeConsistencyRefreshNeed) => void;
+  readonly getStatus: () => PostTradeConsistencyRuntimeStatus;
+  readonly waitForFresh: () => Promise<void>;
+  readonly abortWaiting: () => void;
+  readonly resetAbort: () => void;
+  readonly start: () => void;
+  readonly stopAndDrain: () => Promise<void>;
+  readonly midnightClear: () => void;
+  readonly completeRebuildBaseline: () => void;
+}
 
 /**
  * 生命周期运行时工厂依赖。

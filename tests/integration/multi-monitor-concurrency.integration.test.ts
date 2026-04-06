@@ -5,12 +5,11 @@
  * - 验证多监控并发端到端场景与业务期望。
  */
 import { afterEach, describe, expect, it, mock } from 'bun:test';
-
-type MainProgramFn = (context: MainProgramContext) => Promise<void>;
+import type { MainProgramModule } from './types.js';
 
 const processCalls: string[] = [];
 
-async function loadMainProgram(): Promise<{ readonly mainProgram: MainProgramFn }> {
+async function loadMainProgram(): Promise<MainProgramModule> {
   // eslint-disable-next-line @typescript-eslint/no-floating-promises -- bun:test mock.module 同步注册
   mock.module('../../src/main/processMonitor/index.js', () => ({
     processMonitor: async ({
@@ -31,7 +30,7 @@ async function loadMainProgram(): Promise<{ readonly mainProgram: MainProgramFn 
   const mainProgramModulePath =
     '../../src/main/mainProgram/index.js?mocked-multi-monitor-concurrency';
   const loadedModuleUnknown: unknown = await import(mainProgramModulePath);
-  return loadedModuleUnknown as { readonly mainProgram: MainProgramFn };
+  return loadedModuleUnknown as MainProgramModule;
 }
 
 import type { MainProgramContext } from '../../src/main/mainProgram/types.js';
@@ -150,7 +149,6 @@ describe('multi-monitor-concurrency integration', () => {
     const symbolRegistry = createSymbolRegistry(tradingConfig.monitors);
 
     let orderMonitorScheduleCalls = 0;
-    let postTradeEnqueueCalls = 0;
 
     const loadedMainProgram = await loadMainProgram();
     const mainProgram = loadedMainProgram.mainProgram;
@@ -174,6 +172,7 @@ describe('multi-monitor-concurrency integration', () => {
         },
         subscribeSymbols: async () => {},
         unsubscribeSymbols: async () => {},
+        onQuoteUpdated: () => () => {},
         subscribeCandlesticks: async () => [],
         getRealtimeCandlesticks: async () => [],
         getCandlestickSnapshot: () => null,
@@ -194,7 +193,6 @@ describe('multi-monitor-concurrency integration', () => {
           relatedBuyOrderIds: null,
         }),
         monitorAndManageOrders: async () => {},
-        getAndClearPendingRefreshSymbols: () => [],
         hasPendingProtectiveLiquidationOrders: () => false,
         initializeOrderMonitor: async () => {},
         canTradeNow: () => ({ canTrade: true }),
@@ -271,14 +269,6 @@ describe('multi-monitor-concurrency integration', () => {
         },
         stopAndDrain: async () => {},
       },
-      postTradeRefresher: {
-        start: () => {},
-        enqueue: () => {
-          postTradeEnqueueCalls += 1;
-        },
-        stopAndDrain: async () => {},
-        clearPending: () => {},
-      },
       runtimeGateMode: 'skip',
       dayLifecycleManager: {
         tick: async () => {},
@@ -288,6 +278,5 @@ describe('multi-monitor-concurrency integration', () => {
     expect(processCalls).toContain('HSI-A.HK');
     expect(processCalls).toContain('HSI-B.HK');
     expect(orderMonitorScheduleCalls).toBe(1);
-    expect(postTradeEnqueueCalls).toBe(1);
   });
 });

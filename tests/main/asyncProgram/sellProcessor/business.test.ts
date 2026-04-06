@@ -8,7 +8,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { createSellTaskQueue } from '../../../../src/main/asyncProgram/tradeTaskQueue/index.js';
 import { createSellProcessor } from '../../../../src/main/asyncProgram/sellProcessor/index.js';
-import { createRefreshGate } from '../../../../src/utils/refreshGate/index.js';
+import { createPostTradeConsistencyRuntime } from '../../../../src/app/runtime/createPostTradeConsistencyRuntime.js';
 
 import type { Signal } from '../../../../src/types/signal.js';
 
@@ -29,17 +29,6 @@ import {
 
 describe('sellProcessor business flow', () => {
   it('passes timeout and trading-calendar context into processSellSignals', async () => {
-    type CapturedSellParams = {
-      readonly signals: Signal[];
-      readonly smartCloseTimeoutMinutes: number | null;
-      readonly isHalfDay: boolean;
-      readonly tradingCalendarSnapshot: ReadonlyMap<
-        string,
-        { readonly isTradingDay: boolean; readonly isHalfDay: boolean }
-      >;
-      readonly nowMs: number;
-    };
-
     const queue = createSellTaskQueue();
     const tradingCalendarSnapshot = new Map([
       ['2026-02-16', { isTradingDay: true, isHalfDay: true }],
@@ -48,11 +37,29 @@ describe('sellProcessor business flow', () => {
     lastState.isHalfDay = true;
     lastState.tradingCalendarSnapshot = tradingCalendarSnapshot;
 
-    let capturedInput: CapturedSellParams | null = null;
+    let capturedInput: {
+      readonly signals: Signal[];
+      readonly smartCloseTimeoutMinutes: number | null;
+      readonly isHalfDay: boolean;
+      readonly tradingCalendarSnapshot: ReadonlyMap<
+        string,
+        { readonly isTradingDay: boolean; readonly isHalfDay: boolean }
+      >;
+      readonly nowMs: number;
+    } | null = null;
     const signalProcessor = {
       applyRiskChecks: async () => [],
       processSellSignals: (input: unknown) => {
-        const typedInput = input as CapturedSellParams;
+        const typedInput = input as {
+          readonly signals: Signal[];
+          readonly smartCloseTimeoutMinutes: number | null;
+          readonly isHalfDay: boolean;
+          readonly tradingCalendarSnapshot: ReadonlyMap<
+            string,
+            { readonly isTradingDay: boolean; readonly isHalfDay: boolean }
+          >;
+          readonly nowMs: number;
+        };
         capturedInput = typedInput;
         return [...typedInput.signals];
       },
@@ -87,7 +94,9 @@ describe('sellProcessor business flow', () => {
       trader,
       marketDataClient,
       getLastState: () => lastState,
-      refreshGate: createRefreshGate(),
+      postTradeConsistencyRuntime: {
+        waitForFresh: async () => {},
+      },
       getCanProcessTask: () => true,
     });
 
@@ -102,7 +111,16 @@ describe('sellProcessor business flow', () => {
       waitCondition: () => capturedInput !== null,
     });
 
-    const captured = capturedInput as CapturedSellParams | null;
+    const captured = capturedInput as {
+      readonly signals: Signal[];
+      readonly smartCloseTimeoutMinutes: number | null;
+      readonly isHalfDay: boolean;
+      readonly tradingCalendarSnapshot: ReadonlyMap<
+        string,
+        { readonly isTradingDay: boolean; readonly isHalfDay: boolean }
+      >;
+      readonly nowMs: number;
+    } | null;
     if (captured === null) {
       throw new Error('processSellSignals input not captured');
     }
@@ -117,10 +135,54 @@ describe('sellProcessor business flow', () => {
     expect(requestedSymbols[1]).toBe('BEAR.HK');
   });
 
-  it('waits for refreshGate freshness before processing sell task', async () => {
+  it('waits for postTradeConsistencyRuntime freshness before processing sell task', async () => {
     const queue = createSellTaskQueue();
-    const refreshGate = createRefreshGate();
-    const staleVersion = refreshGate.markStale();
+    const lastState = createLastState();
+
+    let executeCalls = 0;
+    const trader = createTraderDouble({
+      executeSignals: async () => {
+        executeCalls += 1;
+        return { submittedCount: 1, submittedOrderIds: [] };
+      },
+    });
+
+    const postTradeConsistencyRuntime = createPostTradeConsistencyRuntime({
+      getTrader: () => trader,
+      lastState,
+    });
+    postTradeConsistencyRuntime.bindBusinessDeps({
+      monitorContexts: new Map(),
+      dailyLossTracker: {
+        resetAll: () => {},
+        recalculateFromAllOrders: () => {},
+        recordFilledOrder: () => {},
+        getLossOffset: () => 0,
+        startNewProtectionEpisode: () => {},
+      },
+      liquidationCooldownTracker: {
+        recordLiquidationTrigger: () => ({ currentCount: 0, cooldownActivated: false }),
+        recordCooldown: () => {},
+        restoreTriggerCount: () => {},
+        getRemainingMs: () => 0,
+        clearMidnightEligible: () => {},
+        resetAllTriggerCounts: () => {},
+      },
+      protectiveLiquidationEpisodeTracker: {
+        recordProtectiveFillProgress: () => {},
+        completeIfEligible: () => null,
+        restoreCompletedBoundary: () => {},
+        restoreInProgressEpisode: () => {},
+        getLatestProtectionBoundaryByDirection: () => new Map(),
+        getInProgressEpisodes: () => [],
+        resetAll: () => {},
+      },
+    });
+
+    postTradeConsistencyRuntime.recordSettlementRefreshNeed({
+      refreshAccount: true,
+      refreshPositions: true,
+    });
 
     let processSellCalls = 0;
     const signalProcessor = {
@@ -131,14 +193,6 @@ describe('sellProcessor business flow', () => {
       },
       resetRiskCheckCooldown: () => {},
     };
-
-    let executeCalls = 0;
-    const trader = createTraderDouble({
-      executeSignals: async () => {
-        executeCalls += 1;
-        return { submittedCount: 1, submittedOrderIds: [] };
-      },
-    });
 
     const processor = createSellProcessor({
       taskQueue: queue,
@@ -152,8 +206,8 @@ describe('sellProcessor business flow', () => {
             ['BEAR.HK', createQuoteDouble('BEAR.HK', 0.9, 100)],
           ]),
       }),
-      getLastState: () => createLastState(),
-      refreshGate,
+      getLastState: () => lastState,
+      postTradeConsistencyRuntime,
       getCanProcessTask: () => true,
     });
 
@@ -166,7 +220,7 @@ describe('sellProcessor business flow', () => {
     await Bun.sleep(50);
     expect(processSellCalls).toBe(0);
 
-    refreshGate.markFresh(staleVersion);
+    postTradeConsistencyRuntime.start();
 
     await waitUntil(() => executeCalls === 1);
     await processor.stopAndDrain();
@@ -208,7 +262,9 @@ describe('sellProcessor business flow', () => {
           ]),
       }),
       getLastState: () => createLastState(),
-      refreshGate: createRefreshGate(),
+      postTradeConsistencyRuntime: {
+        waitForFresh: async () => {},
+      },
       getCanProcessTask: () => true,
     });
 
@@ -261,7 +317,9 @@ describe('sellProcessor business flow', () => {
           ]),
       }),
       getLastState: () => createLastState(),
-      refreshGate: createRefreshGate(),
+      postTradeConsistencyRuntime: {
+        waitForFresh: async () => {},
+      },
       getCanProcessTask: () => true,
     });
 
@@ -317,7 +375,9 @@ describe('sellProcessor business flow', () => {
           ]),
       }),
       getLastState: () => createLastState(),
-      refreshGate: createRefreshGate(),
+      postTradeConsistencyRuntime: {
+        waitForFresh: async () => {},
+      },
       getCanProcessTask: () => true,
       scheduleRetry: (callback) => {
         scheduledRetries.push(callback);
@@ -386,7 +446,9 @@ describe('sellProcessor business flow', () => {
           ]),
       }),
       getLastState: () => createLastState(),
-      refreshGate: createRefreshGate(),
+      postTradeConsistencyRuntime: {
+        waitForFresh: async () => {},
+      },
       getCanProcessTask: () => true,
       scheduleRetry: (callback) => {
         scheduledRetries.push(callback);
@@ -455,7 +517,9 @@ describe('sellProcessor business flow', () => {
           ]),
       }),
       getLastState: () => createLastState(),
-      refreshGate: createRefreshGate(),
+      postTradeConsistencyRuntime: {
+        waitForFresh: async () => {},
+      },
       getCanProcessTask: () => true,
       scheduleRetry: (callback) => {
         scheduledRetries.push(callback);
@@ -520,7 +584,9 @@ describe('sellProcessor business flow', () => {
           }),
       }),
       getLastState: () => createLastState(),
-      refreshGate: createRefreshGate(),
+      postTradeConsistencyRuntime: {
+        waitForFresh: async () => {},
+      },
       getCanProcessTask: () => true,
       scheduleRetry: (callback) => {
         scheduledRetries.push(callback);
@@ -590,7 +656,9 @@ describe('sellProcessor business flow', () => {
           ]),
       }),
       getLastState: () => createLastState(),
-      refreshGate: createRefreshGate(),
+      postTradeConsistencyRuntime: {
+        waitForFresh: async () => {},
+      },
       getCanProcessTask: () => true,
     });
 
@@ -650,7 +718,9 @@ describe('sellProcessor business flow', () => {
           ]),
       }),
       getLastState: () => createLastState(),
-      refreshGate: createRefreshGate(),
+      postTradeConsistencyRuntime: {
+        waitForFresh: async () => {},
+      },
       getCanProcessTask: dynamicGate,
     });
 

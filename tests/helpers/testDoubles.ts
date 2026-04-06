@@ -19,8 +19,8 @@ import type { MonitorContext, MonitorState } from '../../src/types/state.js';
 import type {
   OrderRecorder,
   MarketDataClient,
+  MarketQuoteContext,
   PendingOrder,
-  PendingRefreshSymbol,
   PositionCache,
   RiskChecker,
   RiskCheckResult,
@@ -31,7 +31,7 @@ import type {
   CandlestickCacheSnapshot,
 } from '../../src/types/services.js';
 import type { SymbolRegistry, SeatState } from '../../src/types/seat.js';
-import type { Candlestick, Config, Period, QuoteContext, TradeContext } from 'longbridge';
+import type { Candlestick, Config, Period, TradeContext } from 'longbridge';
 import type { TradingSignalStrategy } from '../../src/core/strategy/types.js';
 import type {
   DoomsdayProtection,
@@ -222,7 +222,6 @@ export function createTraderDouble(overrides: Partial<Trader> = {}): Trader {
       relatedBuyOrderIds: null,
     }),
     monitorAndManageOrders: async () => {},
-    getAndClearPendingRefreshSymbols: (): ReadonlyArray<PendingRefreshSymbol> => [],
     hasPendingProtectiveLiquidationOrders: () => false,
     initializeOrderMonitor: async () => {},
     canTradeNow: (): { readonly canTrade: boolean } => ({ canTrade: true }),
@@ -324,7 +323,7 @@ export function createUnrealizedLossMonitorDouble(
   overrides: Partial<UnrealizedLossMonitor> = {},
 ): UnrealizedLossMonitor {
   const base: UnrealizedLossMonitor = {
-    monitorUnrealizedLoss: async () => {},
+    monitorDirectionalUnrealizedLoss: async () => {},
   };
 
   return {
@@ -380,18 +379,31 @@ export function createAutoSymbolManagerDouble(
 }
 
 /**
- * 将 QuoteContext mock 收口为测试可用的 QuoteContext。
+ * 将 QuoteContext mock 收口为测试可用的 MarketQuoteContext。
  *
- * Longbridge SDK 的 QuoteContext 类型比当前 mock 暴露的子集更宽；
- * 这里集中收口断言，避免在各测试用例中散落无说明的类型断言。
+ * 当前业务只直接依赖 warrantQuote / warrantList 两类轮证查询能力；
+ * 这里统一返回仓库内的最小真实契约，避免在测试中散落更宽的 SDK 类型断言。
  *
  * @param quoteContextMock 行情上下文 mock；未传时自动创建
- * @returns 可供依赖注入边界消费的 QuoteContext
+ * @returns 可供依赖注入边界消费的 MarketQuoteContext
  */
 export function createQuoteContextDouble(
   quoteContextMock: ReturnType<typeof createQuoteContextMock> = createQuoteContextMock(),
-): QuoteContext {
-  return quoteContextMock as unknown as QuoteContext;
+): MarketQuoteContext {
+  return {
+    warrantQuote: (symbols) => quoteContextMock.warrantQuote([...symbols]),
+    warrantList: async (request) =>
+      quoteContextMock.warrantList(
+        request.symbol,
+        request.sortBy,
+        request.sortOrder,
+        [...request.types],
+        request.issuerIds ? [...request.issuerIds] : request.issuerIds,
+        request.expiryFilters ? [...request.expiryFilters] : request.expiryFilters,
+        request.inOutBoundsTypes ? [...request.inOutBoundsTypes] : request.inOutBoundsTypes,
+        request.status ? [...request.status] : request.status,
+      ),
+  };
 }
 
 /**
@@ -420,6 +432,7 @@ export function createMarketDataClientDouble(
   const quoteContext = createQuoteContextDouble();
   const candlestickCache = new Map<string, ReadonlyArray<CandleData>>();
   const candlestickVersions = new Map<string, number>();
+  const baseOnQuoteUpdated: NonNullable<MarketDataClient['onQuoteUpdated']> = () => () => {};
 
   function makeCandlestickKey(symbol: string, period: Period): string {
     return `${symbol}:${period}`;
@@ -463,6 +476,7 @@ export function createMarketDataClientDouble(
     getQuotes: async () => new Map(),
     subscribeSymbols: async () => {},
     unsubscribeSymbols: async () => {},
+    onQuoteUpdated: baseOnQuoteUpdated,
     subscribeCandlesticks: async (symbol, period, tradeSessions) =>
       seedCandlestickCacheFromOverride(symbol, period, tradeSessions),
     getRealtimeCandlesticks: async (symbol: string, period: Period, count: number) => {
@@ -485,6 +499,7 @@ export function createMarketDataClientDouble(
     getQuotes: overrides.getQuotes ?? base.getQuotes,
     subscribeSymbols: overrides.subscribeSymbols ?? base.subscribeSymbols,
     unsubscribeSymbols: overrides.unsubscribeSymbols ?? base.unsubscribeSymbols,
+    onQuoteUpdated: overrides.onQuoteUpdated ?? baseOnQuoteUpdated,
     subscribeCandlesticks: async (symbol, period, tradeSessions) =>
       seedCandlestickCacheFromOverride(symbol, period, tradeSessions),
     getRealtimeCandlesticks: overrides.getRealtimeCandlesticks ?? base.getRealtimeCandlesticks,

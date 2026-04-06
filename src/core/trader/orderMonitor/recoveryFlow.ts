@@ -130,7 +130,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
   }
 
   /**
-   * 重置恢复运行态（trackedOrders/pendingSell/refreshQueue）。
+   * 重置恢复运行态（trackedOrders/pendingSell 与终态查询缓存）。
    *
    * @returns 无返回值
    */
@@ -145,7 +145,6 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
     runtime.closedOrderIds.clear();
     runtime.latestReplaceOutcomeByOrderId.clear();
     runtime.queriedTerminalStateByOrderId.clear();
-    runtime.pendingRefreshSymbols.length = 0;
     clearAllPendingSellTracking();
   }
 

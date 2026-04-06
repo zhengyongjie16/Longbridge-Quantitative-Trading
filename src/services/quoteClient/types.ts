@@ -1,5 +1,14 @@
-import type { Candlestick, Config, Market, Period, TradeSessions } from 'longbridge';
-import type { CandlestickCacheSnapshot } from '../../types/services.js';
+import type {
+  Config,
+  Market,
+  Period,
+  PushCandlestickEvent,
+  PushQuoteEvent,
+  QuoteContext,
+  SubType,
+  TradeSessions,
+} from 'longbridge';
+import type { CandlestickCacheSnapshot, MarketWarrantQuote } from '../../types/services.js';
 
 /**
  * withRetry 重试配置。
@@ -26,44 +35,36 @@ export type StaticInfo = {
 };
 
 /**
- * K 线 push 数据结构（最小语义子集）。
- * 类型用途：抽象 QuoteContext.setOnCandlestick 的 push data 数据形态。
- * 数据来源：Longbridge PushCandlestickEvent.data。
+ * Quote push 事件数据结构（最小语义子集）。
+ * 类型用途：抽象 QuoteContext.setOnQuote 的推送事件结构，仅保留 quoteClient 需要的字段。
+ * 数据来源：Longbridge PushQuoteEvent。
  * 使用范围：quoteClient 模块内部使用。
  */
-export type PushCandlestickLike = Readonly<{
-  readonly period: Period;
-  readonly candlestick: Candlestick;
-  readonly isConfirmed: boolean;
-}>;
-
-/**
- * K 线 push 事件结构（最小语义子集）。
- * 类型用途：抽象 QuoteContext.setOnCandlestick 的事件形态。
- * 数据来源：Longbridge PushCandlestickEvent。
- * 使用范围：quoteClient 模块内部使用。
- */
-export type PushCandlestickEventLike = Readonly<{
+export type PushQuoteEventLike = Readonly<{
   readonly symbol: string;
-  readonly data: PushCandlestickLike;
+  readonly data: {
+    readonly lastDone: unknown;
+    readonly timestamp?: Date | null;
+  };
 }>;
 
 /**
  * QuoteContext 最小契约。
- * 类型用途：约束 quoteClient 对 Longbridge QuoteContext 的依赖边界，便于测试替身注入与类型校验。
+ * 类型用途：约束 quoteClient 对 Longbridge QuoteContext 的依赖边界；其中 warrantList 保持 SDK 位置参数签名，
+ * 对外暴露时再适配为业务层对象参数。
  * 数据来源：Longbridge QuoteContext API 能力映射。
  * 使用范围：quoteClient 模块内部使用。
  */
 export interface QuoteContextLike {
   readonly quote: (symbols: string[]) => Promise<ReadonlyArray<unknown>>;
   readonly staticInfo: (symbols: string[]) => Promise<ReadonlyArray<unknown>>;
-  readonly subscribe: (symbols: string[], subTypes: number[]) => Promise<void>;
-  readonly unsubscribe: (symbols: string[], subTypes: number[]) => Promise<void>;
+  readonly subscribe: (symbols: string[], subTypes: SubType[]) => Promise<void>;
+  readonly unsubscribe: (symbols: string[], subTypes: SubType[]) => Promise<void>;
   readonly realtimeQuote: (symbols: string[]) => Promise<ReadonlyArray<unknown>>;
   readonly subscribeCandlesticks: (
     symbol: string,
     period: Period,
-    tradeSessions?: TradeSessions,
+    tradeSessions: TradeSessions,
   ) => Promise<ReadonlyArray<unknown>>;
   readonly unsubscribeCandlesticks: (symbol: string, period: Period) => Promise<void>;
   readonly realtimeCandlesticks: (
@@ -71,8 +72,11 @@ export interface QuoteContextLike {
     period: Period,
     count: number,
   ) => Promise<ReadonlyArray<unknown>>;
+  readonly warrantQuote: (symbols: string[]) => Promise<ReadonlyArray<MarketWarrantQuote>>;
+  readonly warrantList: QuoteContext['warrantList'];
+  readonly setOnQuote: (callback: (err: null | Error, event: PushQuoteEvent) => void) => void;
   readonly setOnCandlestick: (
-    callback: (err: null | Error, event: PushCandlestickEventLike) => void,
+    callback: (err: null | Error, event: PushCandlestickEvent) => void,
   ) => void;
   readonly tradingDays: (
     market: Market,

@@ -48,7 +48,8 @@ function createLifecycleCacheDomains(
     buyTaskQueue,
     sellTaskQueue,
     monitorTaskQueue,
-    refreshGate,
+    tradingRiskEventRuntime,
+    postTradeConsistencyRuntime,
     trader,
     lastState,
     signalProcessor,
@@ -57,13 +58,7 @@ function createLifecycleCacheDomains(
     liquidationCooldownTracker,
     loadTradingDayRuntimeSnapshot,
   } = postGateRuntime;
-  const {
-    buyProcessor,
-    sellProcessor,
-    monitorTaskProcessor,
-    orderMonitorWorker,
-    postTradeRefresher,
-  } = asyncRuntime;
+  const { buyProcessor, sellProcessor, monitorTaskProcessor, orderMonitorWorker } = asyncRuntime;
   const {
     createSignalRuntimeDomain: buildSignalRuntimeDomain,
     createMarketDataDomain: buildMarketDataDomain,
@@ -81,12 +76,12 @@ function createLifecycleCacheDomains(
       sellProcessor,
       monitorTaskProcessor,
       orderMonitorWorker,
-      postTradeRefresher,
+      tradingRiskEventRuntime,
+      postTradeConsistencyRuntime,
       indicatorCache,
       buyTaskQueue,
       sellTaskQueue,
       monitorTaskQueue,
-      refreshGate,
       releaseSignal: (signal) => {
         signalObjectPool.release(signal);
       },

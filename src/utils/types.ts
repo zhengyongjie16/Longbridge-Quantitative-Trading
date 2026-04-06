@@ -10,22 +10,34 @@ import type { SeatState } from '../types/seat.js';
 export type RuntimeProfile = 'app' | 'test';
 
 /**
- * 等待者回调函数类型。
- * 类型用途：表示在 RefreshGate 中排队等待缓存刷新完成时的回调函数签名。
+ * RefreshGate 等待者。
+ * 类型用途：表示在 RefreshGate 中排队等待缓存刷新完成的 Promise 控制器。
  * 数据来源：由 waitForFresh() 内部创建并推入等待队列。
  * 使用范围：仅 createRefreshGate 内部使用。
  */
-export type Waiter = () => void;
+export type Waiter = Readonly<{
+  resolve: () => void;
+  reject: (reason?: unknown) => void;
+}>;
+
+/**
+ * RefreshGate 终止等待原因。
+ * 类型用途：标记当前 freshness 等待为何被 owner 主动终止。
+ * 数据来源：由 createRefreshGate.abortWaiting 写入。
+ * 使用范围：RefreshGate 状态查询与等待失败语义使用。
+ */
+export type RefreshGateAbortReason = 'STOP_AND_DRAIN' | 'FATAL_INVARIANT';
 
 /**
  * 刷新门禁状态快照。
- * 类型用途：表示当前版本与过期版本号，用于协调缓存刷新与等待方。
+ * 类型用途：表示当前版本、过期版本号以及等待终止原因，用于协调缓存刷新与等待方。
  * 数据来源：由 RefreshGate.getStatus() 返回。
- * 使用范围：供主程序与 PostTradeRefresher 等消费 getStatus 的调用方使用。
+ * 使用范围：供 freshness owner 与等待链路的状态查询调用方使用。
  */
 export type RefreshGateStatus = Readonly<{
   currentVersion: number;
   staleVersion: number;
+  abortReason: RefreshGateAbortReason | null;
 }>;
 
 /**
@@ -38,6 +50,8 @@ export interface RefreshGate {
   readonly markStale: () => number;
   readonly markFresh: (version: number) => void;
   readonly waitForFresh: () => Promise<void>;
+  readonly abortWaiting: (reason: RefreshGateAbortReason) => void;
+  readonly resetAbort: () => void;
   readonly getStatus: () => RefreshGateStatus;
 }
 

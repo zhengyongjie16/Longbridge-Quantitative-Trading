@@ -1,13 +1,18 @@
 import type {
+  Candlestick,
+  Decimal,
+  FilterWarrantExpiryDate,
+  FilterWarrantInOutBoundsType,
   Market,
   OrderSide,
   OrderStatus,
   OrderType,
-  QuoteContext,
-  Candlestick,
-  Decimal,
   Period,
+  SortOrderType,
   TradeSessions,
+  WarrantSortBy,
+  WarrantStatus,
+  WarrantType,
 } from 'longbridge';
 import type { SignalType, Signal } from './signal.js';
 import type { Quote, IndicatorSnapshot } from './quote.js';
@@ -17,6 +22,7 @@ import type { MonitorConfig } from './config.js';
 import type { TradingCalendarSnapshot } from './tradingCalendar.js';
 import type { CancelOrderOutcome } from './trader.js';
 import type { CandleData } from './data.js';
+import type { DecimalLike } from '../utils/helpers/types.js';
 
 /**
  * 交易日查询结果。
@@ -63,14 +69,88 @@ export type CandlestickCacheSnapshot = {
 };
 
 /**
+ * 标准化行情更新事件。
+ * 类型用途：表示经过 quoteClient 标准化后的单标的报价更新事件，供运行时与业务监听器消费。
+ * 数据来源：quoteClient 基于 Longbridge QuoteContext 的 quote push 事件与本地缓存标准化得到。
+ * 使用范围：MarketDataClient.onQuoteUpdated 与相关风控/运行时消费链路；全项目可引用。
+ */
+export type QuoteUpdatedEvent = {
+  /** 标的代码 */
+  readonly symbol: string;
+
+  /** 标准化后的行情快照 */
+  readonly quote: Quote;
+};
+
+/**
+ * 轮证报价最小结构。
+ * 类型用途：表达当前仓库直接消费的 warrantQuote 字段边界，仅保留 symbol/callPrice/category。
+ * 数据来源：quoteClient 透传的 Longbridge warrantQuote 响应。
+ * 使用范围：牛熊证风险检查等直接消费 warrantQuote 的链路。
+ */
+export type MarketWarrantQuote = Readonly<{
+  readonly symbol: string;
+  readonly callPrice?: DecimalLike | DecimalLikeValue;
+  readonly category?: number | string | null;
+}>;
+
+/**
+ * 轮证列表最小结构。
+ * 类型用途：表达当前仓库直接消费的 warrantList 字段边界，仅保留自动寻标所需字段。
+ * 数据来源：quoteClient 透传的 Longbridge warrantList 响应。
+ * 使用范围：自动寻标、换标预寻标与运行时席位恢复链路。
+ */
+export type MarketWarrantListItem = Readonly<{
+  readonly symbol: string;
+  readonly name?: string | null;
+  readonly lastDone: DecimalLike | DecimalLikeValue | null | undefined;
+  readonly toCallPrice: DecimalLike | DecimalLikeValue | null | undefined;
+  readonly callPrice?: DecimalLike | DecimalLikeValue | null | undefined;
+  readonly turnover: DecimalLike | DecimalLikeValue | null | undefined;
+  readonly warrantType: number | string | null | undefined;
+  readonly status: number | string | null | undefined;
+}>;
+
+/**
+ * 轮证列表查询参数。
+ * 类型用途：收口 warrantList 查询所需参数，避免业务边界暴露过长的位置参数列表。
+ * 数据来源：由自动寻标、换标预寻标与席位恢复链路组装。
+ * 使用范围：MarketQuoteContext.warrantList 入参与相关业务调用方。
+ */
+export type MarketWarrantListRequest = Readonly<{
+  readonly symbol: string;
+  readonly sortBy: WarrantSortBy;
+  readonly sortOrder: SortOrderType;
+  readonly types: ReadonlyArray<WarrantType>;
+  readonly issuerIds?: ReadonlyArray<number> | null;
+  readonly expiryFilters?: ReadonlyArray<FilterWarrantExpiryDate>;
+  readonly inOutBoundsTypes?: ReadonlyArray<FilterWarrantInOutBoundsType>;
+  readonly status?: ReadonlyArray<WarrantStatus>;
+}>;
+
+/**
+ * 行情上下文最小契约。
+ * 类型用途：约束 getQuoteContext 对外暴露的真实能力边界，只包含当前业务链路实际依赖的轮证查询能力。
+ * 数据来源：由 quoteClient 基于 Longbridge QuoteContext 适配后提供。
+ * 使用范围：自动寻标、牛熊证风险检查与运行时恢复等需要直接访问轮证接口的链路。
+ */
+export interface MarketQuoteContext {
+  /** 查询轮证报价（用于回收价/牛熊证类型检查） */
+  warrantQuote: (symbols: ReadonlyArray<string>) => Promise<ReadonlyArray<MarketWarrantQuote>>;
+
+  /** 查询轮证列表（用于自动寻标/换标候选筛选） */
+  warrantList: (request: MarketWarrantListRequest) => Promise<ReadonlyArray<MarketWarrantListItem>>;
+}
+
+/**
  * 行情数据客户端接口。
  * 类型用途：依赖注入用接口，封装 Longbridge 行情 API，提供行情获取、订阅、K 线、交易日查询及运行期缓存重置。
  * 数据来源：由 quoteClient 等实现，对接 Longbridge QuoteContext。
  * 使用范围：主程序、生命周期、processMonitor、行情订阅与 K 线消费方等；全项目可引用。
  */
 export interface MarketDataClient {
-  /** 获取底层 QuoteContext（内部使用） */
-  getQuoteContext: () => Promise<QuoteContext>;
+  /** 获取轮证查询上下文（内部使用） */
+  getQuoteContext: () => Promise<MarketQuoteContext>;
 
   /**
    * 批量获取多个标的的最新行情
@@ -84,6 +164,16 @@ export interface MarketDataClient {
 
   /** 取消订阅行情标的（报价推送） */
   unsubscribeSymbols: (symbols: ReadonlyArray<string>) => Promise<void>;
+
+  /**
+   * 订阅标准化行情更新事件。
+   *
+   * 该事件由 quoteClient 基于 quote push 与本地缓存标准化后发出。
+   *
+   * @param listener 报价更新监听器
+   * @returns 取消订阅函数
+   */
+  onQuoteUpdated: (listener: (event: QuoteUpdatedEvent) => void) => () => void;
 
   /**
    * 订阅指定标的的 K 线推送
@@ -429,6 +519,39 @@ export interface OrderRecorder extends OrderRecorderPendingSellAndSellable {
 }
 
 /**
+ * 成交后一致性刷新需求。
+ * 类型用途：表达一次成交后需要补刷的最小账户/持仓刷新意图。
+ * 数据来源：由订单监控成交结算链路在确认终态后组装。
+ * 使用范围：orderMonitor、app runtime 与相关测试；全项目可引用。
+ */
+export type PostTradeConsistencyRefreshNeed = {
+  readonly refreshAccount: boolean;
+  readonly refreshPositions: boolean;
+};
+
+/**
+ * 成交后一致性运行时最小端口。
+ * 类型用途：向下层模块暴露成交后刷新需求记录能力，避免 core 反向依赖 app 层。
+ * 数据来源：由 app 层成交后一致性 runtime 实现并注入。
+ * 使用范围：trader/orderMonitor 与 app runtime 连接点。
+ */
+export interface PostTradeConsistencyRuntimePort {
+  /** 记录一次成交后的最小刷新需求 */
+  recordSettlementRefreshNeed: (need: PostTradeConsistencyRefreshNeed) => void;
+}
+
+/**
+ * 成交后一致性 freshness 等待端口。
+ * 类型用途：向卖出处理器、监控任务处理器等顶层等待方暴露统一的 freshness 等待能力。
+ * 数据来源：由 app 层 PostTradeConsistencyRuntime 实现并注入。
+ * 使用范围：asyncProgram 顶层等待链路使用。
+ */
+export interface PostTradeConsistencyFreshnessPort {
+  /** 等待当前 freshness 追平 staleVersion；若当前生命周期已终止该等待轮次则立即失败 */
+  waitForFresh: () => Promise<void>;
+}
+
+/**
  * 交易器接口。
  * 类型用途：依赖注入用接口，封装 Longbridge 交易 API，提供账户/持仓、订单执行、订单监控与信号执行等。
  * 数据来源：实现层对接 Longbridge TradeContext；账户与订单数据来自 API。
@@ -468,9 +591,6 @@ export interface Trader {
   /** 监控和管理待处理订单 */
   monitorAndManageOrders: () => Promise<void>;
 
-  /** 获取并清空待刷新标的列表 */
-  getAndClearPendingRefreshSymbols: () => ReadonlyArray<PendingRefreshSymbol>;
-
   /** 是否存在指定监控标的方向的未完成保护性清仓卖单链路 */
   hasPendingProtectiveLiquidationOrders: (
     monitorSymbol: string,
@@ -499,26 +619,6 @@ export interface Trader {
     signals: Signal[],
   ) => Promise<{ submittedCount: number; submittedOrderIds: ReadonlyArray<string> }>;
 }
-
-/**
- * 待刷新数据的标的信息。
- * 类型用途：订单成交后标记需要刷新的标的及要刷新的数据类型（账户/持仓），用于 getAndClearPendingRefreshSymbols 等。
- * 数据来源：Trader/订单监控在成交回调中写入。
- * 使用范围：postTradeRefresher、主循环等；全项目可引用。
- */
-export type PendingRefreshSymbol = {
-  /** 标的代码 */
-  readonly symbol: string;
-
-  /** 是否为做多标的 */
-  readonly isLongSymbol: boolean;
-
-  /** 是否刷新账户数据 */
-  readonly refreshAccount: boolean;
-
-  /** 是否刷新持仓数据 */
-  readonly refreshPositions: boolean;
-};
 
 /**
  * 牛熊证类型。

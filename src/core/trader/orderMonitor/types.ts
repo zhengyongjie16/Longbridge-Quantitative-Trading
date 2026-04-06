@@ -9,13 +9,12 @@ import type {
 } from '../../../types/trader.js';
 import type {
   OrderRecorder,
-  PendingRefreshSymbol,
+  PostTradeConsistencyRuntimePort,
   RateLimiter,
   RawOrderFromAPI,
   MarketDataClient,
 } from '../../../types/services.js';
 import type { ProtectiveLiquidationEpisodeTracker } from '../protectiveLiquidationEpisodeTracker/types.js';
-import type { RefreshGate } from '../../../utils/types.js';
 import type {
   OrderCacheManager,
   OrderMonitorConfig,
@@ -149,7 +148,6 @@ export type OrderMonitorTrackedOrder = TrackedOrder & {
 export type OrderMonitorRuntimeStore = {
   readonly trackedOrders: Map<string, OrderMonitorTrackedOrder>;
   readonly trackedOrderLifecycles: Map<string, TrackedOrderLifecycleState>;
-  readonly pendingRefreshSymbols: PendingRefreshSymbol[];
   readonly bootstrappingOrderEvents: Map<string, PushOrderChanged>;
   readonly closedOrderIds: Set<string>;
   readonly queriedTerminalStateByOrderId: Map<string, TerminalStateSnapshot>;
@@ -342,7 +340,7 @@ export type SettlementFlowDeps = {
   readonly orderRecorder: OrderRecorder;
   readonly dailyLossTracker: DailyLossTracker;
   readonly protectiveLiquidationEpisodeTracker: ProtectiveLiquidationEpisodeTracker;
-  readonly refreshGate?: RefreshGate;
+  readonly postTradeConsistencyRuntime: PostTradeConsistencyRuntimePort;
 };
 
 /**

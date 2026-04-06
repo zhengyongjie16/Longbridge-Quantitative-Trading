@@ -4,12 +4,10 @@
  * 功能：
  * - 根据价格变化和监控标的配置调度风险检查任务
  * - 调度距回收价检查（LIQUIDATION_DISTANCE_CHECK）：用于触发距回收价清仓检查
- * - 调度浮亏检查（UNREALIZED_LOSS_CHECK）：用于触发保护性清仓
  * - 监控价格变化并更新价格展示信息（距回收价、持仓市值、持仓盈亏、订单数量）
  *
  * 调度条件：
  * - 距回收价检查：自动寻标未启用、且价格发生变化时调度
- * - 浮亏检查：价格发生变化时调度
  */
 import type { RiskTasksParams } from './types.js';
 import type { PriceDisplayInfo } from '../../services/marketMonitor/types.js';
@@ -62,8 +60,8 @@ function buildPriceDisplayInfo(params: {
 
 /**
  * 调度单监控标的的风险检查任务。
- * 根据价格是否变化、是否启用自动寻标，调度距回收价检查与浮亏检查任务；
- * 并更新牛熊证距离信息供行情展示。保证风控检查在席位与行情就绪后按序执行。
+ * 根据价格是否变化、是否启用自动寻标，调度距回收价检查任务；
+ * 并更新牛熊证距离信息、持仓市值/盈亏与订单数量展示。交易标的浮亏强平由 quote 事件运行时独立驱动。
  *
  * @param params 调度参数，包含监控标的、上下文、席位信息、价格变化标志等
  */
@@ -134,7 +132,7 @@ export function scheduleRiskTasks(params: RiskTasksParams): void {
     orderRecorder,
   });
 
-  const priceChanged = marketMonitor.monitorPriceChanges(
+  marketMonitor.monitorPriceChanges(
     longQuote,
     shortQuote,
     longSymbol,
@@ -143,23 +141,4 @@ export function scheduleRiskTasks(params: RiskTasksParams): void {
     longDisplayInfo,
     shortDisplayInfo,
   );
-
-  if (priceChanged) {
-    monitorTaskQueue.scheduleLatest({
-      type: 'UNREALIZED_LOSS_CHECK',
-      dedupeKey: `${monitorSymbol}:UNREALIZED_LOSS_CHECK`,
-      monitorSymbol,
-      data: {
-        monitorSymbol,
-        long: {
-          seatVersion: longSeatVersion,
-          symbol: longSeatState.symbol ?? null,
-        },
-        short: {
-          seatVersion: shortSeatVersion,
-          symbol: shortSeatState.symbol ?? null,
-        },
-      },
-    });
-  }
 }

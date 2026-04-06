@@ -81,8 +81,8 @@ export type SeatSyncResult = Readonly<{
 }>;
 
 /**
- * 风险任务调度参数（调度强平距离/浮亏检查等监控任务时的入参）。
- * 类型用途：封装调度 LIQUIDATION_DISTANCE_CHECK、UNREALIZED_LOSS_CHECK 等任务所需的上下文与席位信息。
+ * 风险任务调度参数（调度距回收价清仓检查与价格展示更新时的入参）。
+ * 类型用途：封装调度 LIQUIDATION_DISTANCE_CHECK 与价格展示更新所需的上下文与席位信息。
  * 数据来源：由 processMonitor 从 ProcessMonitorParams、seatInfo 等组装。
  * 使用范围：仅 processMonitor 内部使用。
  */

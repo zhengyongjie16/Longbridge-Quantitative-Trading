@@ -59,26 +59,28 @@ describe('monitorTaskQueue business behavior', () => {
     });
 
     queue.scheduleLatest({
-      type: 'UNREALIZED_LOSS_CHECK',
-      dedupeKey: 'HSI.HK:UNREALIZED_LOSS_CHECK',
+      type: 'LIQUIDATION_DISTANCE_CHECK',
+      dedupeKey: 'HSI.HK:LIQUIDATION_DISTANCE_CHECK',
       monitorSymbol: 'HSI.HK',
       data: {
         monitorSymbol: 'HSI.HK',
-        long: { seatVersion: 1, symbol: 'BULL.HK' },
-        short: { seatVersion: 1, symbol: 'BEAR.HK' },
+        monitorPrice: 20_000,
+        long: { seatVersion: 1, symbol: 'BULL.HK', symbolName: 'BULL' },
+        short: { seatVersion: 1, symbol: 'BEAR.HK', symbolName: 'BEAR' },
       },
     });
 
     unregister();
 
     queue.scheduleLatest({
-      type: 'UNREALIZED_LOSS_CHECK',
-      dedupeKey: 'HSI.HK:UNREALIZED_LOSS_CHECK:2',
+      type: 'LIQUIDATION_DISTANCE_CHECK',
+      dedupeKey: 'HSI.HK:LIQUIDATION_DISTANCE_CHECK:2',
       monitorSymbol: 'HSI.HK',
       data: {
         monitorSymbol: 'HSI.HK',
-        long: { seatVersion: 1, symbol: 'BULL.HK' },
-        short: { seatVersion: 1, symbol: 'BEAR.HK' },
+        monitorPrice: 20_100,
+        long: { seatVersion: 1, symbol: 'BULL.HK', symbolName: 'BULL' },
+        short: { seatVersion: 1, symbol: 'BEAR.HK', symbolName: 'BEAR' },
       },
     });
 

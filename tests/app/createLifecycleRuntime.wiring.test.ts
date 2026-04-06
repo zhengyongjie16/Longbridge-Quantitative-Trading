@@ -11,12 +11,12 @@ import { createLifecycleRuntime } from '../../src/app/createLifecycleRuntime.js'
 import type {
   LifecycleRuntimeFactories,
   LifecycleRuntimeFactoryDeps,
+  PostTradeConsistencyRuntime,
 } from '../../src/app/types.js';
 import type { SignalProcessor } from '../../src/core/signalProcessor/types.js';
 import type { CacheDomain } from '../../src/main/lifecycle/types.js';
 import type { MonitorTaskProcessor } from '../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 import type { OrderMonitorWorker } from '../../src/main/asyncProgram/orderMonitorWorker/types.js';
-import type { PostTradeRefresher } from '../../src/main/asyncProgram/postTradeRefresher/types.js';
 import type { Processor } from '../../src/main/asyncProgram/types.js';
 import type { LastState } from '../../src/types/state.js';
 import { createWarrantListCache } from '../../src/services/autoSymbolFinder/utils.js';
@@ -67,14 +67,42 @@ function createOrderMonitorWorkerDouble(): OrderMonitorWorker {
   };
 }
 
-function createPostTradeRefresherDouble(): PostTradeRefresher {
+function createTradingRiskEventRuntimeDouble() {
   return {
     start: () => {
-      factoryCalls.push('postTradeRefresher.start');
+      factoryCalls.push('tradingRiskEventRuntime.start');
     },
-    enqueue: () => {},
     stopAndDrain: async () => {},
-    clearPending: () => {},
+  };
+}
+
+function createPostTradeConsistencyRuntimeDouble(): PostTradeConsistencyRuntime {
+  return {
+    bindBusinessDeps: () => {},
+    recordSettlementRefreshNeed: () => {},
+    getStatus: () => ({
+      started: false,
+      inFlight: false,
+      hasPendingRefresh: false,
+      currentVersion: 0,
+      staleVersion: 0,
+      abortReason: null,
+    }),
+    waitForFresh: async () => {},
+    abortWaiting: () => {
+      factoryCalls.push('postTradeConsistencyRuntime.abortWaiting');
+    },
+    resetAbort: () => {
+      factoryCalls.push('postTradeConsistencyRuntime.resetAbort');
+    },
+    start: () => {
+      factoryCalls.push('postTradeConsistencyRuntime.start');
+    },
+    stopAndDrain: async () => {},
+    midnightClear: () => {},
+    completeRebuildBaseline: () => {
+      factoryCalls.push('postTradeConsistencyRuntime.completeRebuildBaseline');
+    },
   };
 }
 
@@ -154,15 +182,8 @@ function createLifecycleDeps(): LifecycleRuntimeFactoryDeps {
       dailyLossTracker: createDailyLossTrackerDouble(),
       protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
       monitorContexts: new Map(),
-      refreshGate: {
-        markStale: () => 0,
-        markFresh: () => {},
-        waitForFresh: async () => {},
-        getStatus: () => ({
-          currentVersion: 1,
-          staleVersion: 1,
-        }),
-      },
+      tradingRiskEventRuntime: createTradingRiskEventRuntimeDouble(),
+      postTradeConsistencyRuntime: createPostTradeConsistencyRuntimeDouble(),
       lastState,
       trader: createTraderDouble(),
       tradeLogHydrator: {
@@ -214,7 +235,6 @@ function createLifecycleDeps(): LifecycleRuntimeFactoryDeps {
     },
     asyncRuntime: {
       orderMonitorWorker: createOrderMonitorWorkerDouble(),
-      postTradeRefresher: createPostTradeRefresherDouble(),
       monitorTaskProcessor: createMonitorTaskProcessorDouble(),
       buyProcessor: createNamedProcessor('buyProcessor'),
       sellProcessor: createNamedProcessor('sellProcessor'),

@@ -140,16 +140,16 @@ function requestWarrantList({
   warrantType,
   expiryFilters,
 }: WarrantListRequestParams): Promise<ReadonlyArray<WarrantListItem>> {
-  return ctx.warrantList(
-    monitorSymbol,
-    WarrantSortBy.Turnover,
-    SortOrderType.Descending,
-    [warrantType],
-    null,
-    [...expiryFilters],
-    [FilterWarrantInOutBoundsType.In],
-    [WarrantStatus.Normal],
-  );
+  return ctx.warrantList({
+    symbol: monitorSymbol,
+    sortBy: WarrantSortBy.Turnover,
+    sortOrder: SortOrderType.Descending,
+    types: [warrantType],
+    issuerIds: null,
+    expiryFilters: [...expiryFilters],
+    inOutBoundsTypes: [FilterWarrantInOutBoundsType.In],
+    status: [WarrantStatus.Normal],
+  });
 }
 
 /**

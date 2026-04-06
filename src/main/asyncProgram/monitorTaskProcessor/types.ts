@@ -1,5 +1,4 @@
 import type { AutoSymbolManagerPort } from '../../../types/monitorContextPorts.js';
-import type { RefreshGate } from '../../../utils/types.js';
 import type { QuoteRetryRequirement } from '../../../utils/quoteRetry/types.js';
 import type { MonitorTaskQueue, MonitorTask, MonitorTaskInput } from '../monitorTaskQueue/types.js';
 import type { LastState } from '../../../types/state.js';
@@ -14,8 +13,9 @@ import type {
   RiskChecker,
   Trader,
   MarketDataClient,
+  PostTradeConsistencyFreshnessPort,
 } from '../../../types/services.js';
-import type { DailyLossTracker, UnrealizedLossMonitor } from '../../../types/risk.js';
+import type { DailyLossTracker } from '../../../types/risk.js';
 
 /**
  * 席位快照（任务创建时点的席位状态）。
@@ -98,25 +98,6 @@ export type LiquidationDistanceCheckTaskData = Readonly<{
 }>;
 
 /**
- * 浮亏检查任务数据。
- * 类型用途：携带双向席位快照，供处理器检查当前浮亏是否超过阈值；行情统一在执行时获取。
- * 数据来源：由 processMonitor 在 UNREALIZED_LOSS_CHECK 调度时组装并入队。
- * 使用范围：仅 monitorTaskProcessor、processMonitor 内部使用。
- */
-export type UnrealizedLossCheckTaskData = Readonly<{
-  monitorSymbol: string;
-  retryAttempts?: number;
-  long: Readonly<{
-    seatVersion: number;
-    symbol: string | null;
-  }>;
-  short: Readonly<{
-    seatVersion: number;
-    symbol: string | null;
-  }>;
-}>;
-
-/**
  * 监控任务类型到 payload 的映射。
  * 类型用途：表达 task.type 与 task.data 的一一对应关系，确保队列与处理器形成判别联合。
  * 数据来源：由各调度点组装的具体任务数据入队时确定。
@@ -127,7 +108,6 @@ export type MonitorTaskDataMap = Readonly<{
   AUTO_SYMBOL_SWITCH_DISTANCE: AutoSymbolSwitchDistanceTaskData;
   SEAT_REFRESH: SeatRefreshTaskData;
   LIQUIDATION_DISTANCE_CHECK: LiquidationDistanceCheckTaskData;
-  UNREALIZED_LOSS_CHECK: UnrealizedLossCheckTaskData;
 }>;
 
 /**
@@ -141,7 +121,7 @@ export type MonitorTaskStatus = 'processed' | 'skipped' | 'failed';
 /**
  * 监控任务 quote retry 重新入队请求。
  * 类型用途：由 handler 返回给 processor 层，由 processor 统一注册 timeout 并重新回灌 monitorTaskQueue。
- * 数据来源：liquidationDistance / unrealizedLoss handler 在发现 unresolved quote 时构造。
+ * 数据来源：liquidationDistance handler 在发现 unresolved quote 时构造。
  * 使用范围：仅 monitorTaskProcessor 内部使用。
  */
 export type MonitorTaskRetryRequest<
@@ -194,7 +174,6 @@ export type MonitorTaskContext = Readonly<{
   orderRecorder: OrderRecorder;
   dailyLossTracker: DailyLossTracker;
   riskChecker: RiskChecker;
-  unrealizedLossMonitor: UnrealizedLossMonitor;
   longSymbolName: string;
   shortSymbolName: string;
   monitorSymbolName: string;
@@ -216,13 +195,13 @@ export type RefreshHelpers = Readonly<{
 
 /**
  * MonitorTaskProcessor 依赖注入配置（创建监控任务处理器时的参数）。
- * 类型用途：创建 MonitorTaskProcessor 所需的全部外部依赖（队列、refreshGate、getMonitorContext、trader 等）。
+ * 类型用途：创建 MonitorTaskProcessor 所需的全部外部依赖（队列、postTradeConsistencyRuntime、getMonitorContext、trader 等）。
  * 数据来源：由主程序/启动流程组装并传入工厂。
  * 使用范围：仅 monitorTaskProcessor 及启动流程使用，内部使用。
  */
 export type MonitorTaskProcessorDeps = Readonly<{
   monitorTaskQueue: MonitorTaskQueue<MonitorTaskDataMap>;
-  refreshGate: RefreshGate;
+  postTradeConsistencyRuntime: PostTradeConsistencyFreshnessPort;
   getMonitorContext: (monitorSymbol: string) => MonitorTaskContext | null;
   clearMonitorDirectionQueues: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => void;
   trader: Trader;
@@ -256,7 +235,7 @@ export interface MonitorTaskProcessor {
 
 /**
  * 监控上下文与席位就绪结果。
- * 类型用途：evaluateMonitorContextAndSeatReadiness 的返回值，供 liquidationDistance、unrealizedLoss 等 handler 使用。
+ * 类型用途：evaluateMonitorContextAndSeatReadiness 的返回值，供 liquidationDistance 与 autoSymbol handler 使用。
  * 数据来源：由 evaluateMonitorContextAndSeatReadiness 在校验与解析后构造。
  * 使用范围：仅 monitorTaskProcessor 各 handler 内部使用。
  */

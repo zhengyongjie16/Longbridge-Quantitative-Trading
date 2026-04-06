@@ -14,6 +14,7 @@ import { resolveOrderOwnership } from '../../core/orderRecorder/orderOwnershipPa
 import { createDailyLossTracker } from '../../core/riskController/dailyLossTracker.js';
 import { createDoomsdayProtection } from '../../core/doomsdayProtection/index.js';
 import { createSignalProcessor } from '../../core/signalProcessor/index.js';
+import { createPostTradeConsistencyRuntime } from './createPostTradeConsistencyRuntime.js';
 import { createProtectiveLiquidationEpisodeTracker } from '../../core/trader/protectiveLiquidationEpisodeTracker/index.js';
 import { createIndicatorCache } from '../../main/asyncProgram/indicatorCache/index.js';
 import { createMonitorTaskQueue } from '../../main/asyncProgram/monitorTaskQueue/index.js';
@@ -22,11 +23,11 @@ import {
   createSellTaskQueue,
 } from '../../main/asyncProgram/tradeTaskQueue/index.js';
 import { createLoadTradingDayRuntimeSnapshot } from '../../main/lifecycle/loadTradingDayRuntimeSnapshot.js';
+import { createTradingRiskEventRuntime } from '../../main/tradingRiskEventRuntime/tradingRiskEventRuntime.js';
 import { createMarketMonitor } from '../../services/marketMonitor/index.js';
 import { createLiquidationCooldownTracker } from '../../services/liquidationCooldown/index.js';
 import { createTradeLogHydrator } from '../../services/liquidationCooldown/tradeLogHydrator.js';
 import { createPositionCache } from '../../utils/positionCache/index.js';
-import { createRefreshGate } from '../../utils/refreshGate/index.js';
 import { initMonitorState } from '../../utils/helpers/index.js';
 import { resolveLogRootDir } from '../../utils/runtime/index.js';
 import { getHKDateKey, toHongKongTimeIso } from '../../utils/time/index.js';
@@ -65,7 +66,6 @@ export async function createPostGateRuntime(
   });
   const protectiveLiquidationEpisodeTracker = createProtectiveLiquidationEpisodeTracker();
   const monitorContexts = new Map<string, MonitorContext>();
-  const refreshGate = createRefreshGate();
   const initialDayKey = getHKDateKey(now);
   const lastState: LastState = {
     canTrade: null,
@@ -89,6 +89,17 @@ export async function createPostGateRuntime(
     ),
     allTradingSymbols: new Set(),
   };
+  let traderRef: Awaited<ReturnType<typeof createTrader>> | null = null;
+  const postTradeConsistencyRuntime = createPostTradeConsistencyRuntime({
+    getTrader: () => {
+      if (traderRef === null) {
+        throw new Error('[postTradeConsistencyRuntime] Trader 尚未初始化');
+      }
+
+      return traderRef;
+    },
+    lastState,
+  });
   const trader = await createTrader({
     config,
     tradingConfig,
@@ -96,9 +107,10 @@ export async function createPostGateRuntime(
     symbolRegistry,
     dailyLossTracker,
     protectiveLiquidationEpisodeTracker,
-    refreshGate,
+    postTradeConsistencyRuntime,
     isExecutionAllowed: () => lastState.isTradingEnabled,
   });
+  traderRef = trader;
   const tradeLogHydrator = createTradeLogHydrator({
     readFileSync: fs.readFileSync,
     existsSync: fs.existsSync,
@@ -121,6 +133,16 @@ export async function createPostGateRuntime(
   });
   const marketMonitor = createMarketMonitor();
   const doomsdayProtection = createDoomsdayProtection();
+  const tradingRiskEventRuntime = createTradingRiskEventRuntime({
+    marketDataClient,
+    trader,
+    symbolRegistry,
+    monitorContexts,
+    lastState,
+    postTradeConsistencyRuntime,
+    doomsdayProtectionEnabled: tradingConfig.global.doomsdayProtection,
+    now: () => new Date(),
+  });
   const signalProcessor = createSignalProcessor({
     tradingConfig,
     liquidationCooldownTracker,
@@ -145,7 +167,8 @@ export async function createPostGateRuntime(
     dailyLossTracker,
     protectiveLiquidationEpisodeTracker,
     monitorContexts,
-    refreshGate,
+    tradingRiskEventRuntime,
+    postTradeConsistencyRuntime,
     lastState,
     trader,
     tradeLogHydrator,

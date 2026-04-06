@@ -7,7 +7,7 @@
  *
  * 订阅机制：
  * - 创建客户端时不自动订阅，需显式调用 subscribeSymbols / subscribeCandlesticks
- * - Quote 当前价由 SDK realtime 状态提供，应用层不再维护动态 quoteCache
+ * - Quote 当前价由 SDK realtime 状态提供，标准化 quote push 事件由应用层按订阅与缓存状态派发
  * - K 线数据采用「subscribe 初始 seed + setOnCandlestick push 更新」的应用层本地缓存
  * - getQuotes() 只读取 SDK realtimeQuote 状态，无 HTTP 请求
  * - getRealtimeCandlesticks() 从 SDK 内部缓存读取，无 HTTP 请求
@@ -33,13 +33,24 @@ import {
   type Candlestick,
   type Period,
 } from 'longbridge';
-import { decimalToNumber, isRecord } from '../../utils/helpers/index.js';
+import { decimalToNumber, isRecord, isValidPositiveNumber } from '../../utils/helpers/index.js';
 import type { DecimalLike } from '../../utils/helpers/types.js';
 import { logger } from '../../utils/logger/index.js';
 import { API, TRADING } from '../../constants/index.js';
 import type { Quote, QuoteStaticInfo } from '../../types/quote.js';
-import type { TradingDayInfo, MarketDataClient, TradingDaysResult } from '../../types/services.js';
-import type { RetryConfig, MarketDataClientDeps, QuoteContextLike } from './types.js';
+import type {
+  TradingDayInfo,
+  MarketDataClient,
+  MarketQuoteContext,
+  TradingDaysResult,
+  QuoteUpdatedEvent,
+} from '../../types/services.js';
+import type {
+  RetryConfig,
+  MarketDataClientDeps,
+  QuoteContextLike,
+  PushQuoteEventLike,
+} from './types.js';
 import { formatSymbolDisplay } from '../../utils/display/index.js';
 import { getHKDateKey } from '../../utils/time/index.js';
 import { extractLotSize, extractName, formatPeriodForLog, resolveHKNaiveDate } from './utils.js';
@@ -324,6 +335,42 @@ function buildQuoteFromRealtime(params: {
 }
 
 /**
+ * 将 quote push 事件标准化为内部 Quote。
+ *
+ * 仅使用 lastDone 作为有效价格来源；当价格无效或非正数时返回 null。
+ * 不向 SDK 追补查询，也不使用其他行情字段兜底。
+ *
+ * @param params 标准化所需参数
+ * @returns 标准化后的 Quote；价格无效时返回 null
+ */
+function buildQuoteFromPushEvent(params: {
+  readonly symbol: string;
+  readonly pushEvent: PushQuoteEventLike;
+  readonly staticInfo: unknown;
+  readonly prevClose: number;
+}): Quote | null {
+  const { symbol, pushEvent, staticInfo, prevClose } = params;
+  const lastDone = decimalToNumber(normalizeDecimalLikeInput(pushEvent.data.lastDone));
+  if (!isValidPositiveNumber(lastDone)) {
+    return null;
+  }
+
+  const timestamp =
+    pushEvent.data.timestamp instanceof Date ? pushEvent.data.timestamp.getTime() : Date.now();
+  const lotSize = extractLotSize(staticInfo);
+  return {
+    symbol,
+    name: extractName(staticInfo),
+    price: lastDone,
+    prevClose,
+    timestamp,
+    ...(lotSize === undefined ? {} : { lotSize }),
+    raw: pushEvent,
+    staticInfo: normalizeQuoteStaticInfo(staticInfo),
+  };
+}
+
+/**
  * 创建行情数据客户端（WebSocket 订阅模式）。创建时初始化 QuoteContext，getQuotes 从 SDK realtime 状态读取。
  * @param deps - 依赖注入，包含 Longbridge Config
  * @returns Promise<MarketDataClient>，提供 getQuotes、subscribeSymbols、subscribeCandlesticks、isTradingDay 等
@@ -332,9 +379,10 @@ export async function createMarketDataClient(
   deps: MarketDataClientDeps,
 ): Promise<MarketDataClient> {
   const { config, quoteContextFactory } = deps;
-  const ctx = quoteContextFactory
+  // SDK 返回的 QuoteContext 能力面覆盖当前仓库的 QuoteContextLike；这里在第三方边界集中收口一次断言。
+  const ctx: QuoteContextLike = quoteContextFactory
     ? await quoteContextFactory(config)
-    : ((await QuoteContext.new(config)) as unknown as QuoteContextLike);
+    : ((await QuoteContext.new(config)) as QuoteContextLike);
   const tradingDayCache = createTradingDayCache();
 
   // 昨收价缓存（用于 realtime quote 组装 prevClose）
@@ -345,6 +393,9 @@ export async function createMarketDataClient(
 
   // 已订阅标的（报价推送）
   const subscribedSymbols = new Set<string>();
+
+  // 标准化行情更新监听器
+  const quoteUpdatedListeners = new Set<(event: QuoteUpdatedEvent) => void>();
 
   // 已订阅 K 线跟踪（key: "symbol:period"）
   const subscribedCandlesticks = new Map<string, Period>();
@@ -377,6 +428,41 @@ export async function createMarketDataClient(
       candlestick: pushData.candlestick,
       isConfirmed: pushData.isConfirmed,
     });
+  });
+
+  ctx.setOnQuote((err, event) => {
+    if (err) {
+      logger.error('[行情推送] push 事件异常', err);
+      return;
+    }
+
+    const symbol = event.symbol;
+    if (typeof symbol !== 'string' || symbol.length === 0) {
+      return;
+    }
+
+    if (!subscribedSymbols.has(symbol)) {
+      return;
+    }
+
+    const quote = buildQuoteFromPushEvent({
+      symbol,
+      pushEvent: event,
+      staticInfo: staticInfoCache.get(symbol),
+      prevClose: prevCloseCache.get(symbol) ?? 0,
+    });
+    if (quote === null) {
+      return;
+    }
+
+    const standardizedEvent: QuoteUpdatedEvent = {
+      symbol,
+      quote,
+    };
+
+    for (const listener of quoteUpdatedListeners) {
+      listener(standardizedEvent);
+    }
   });
 
   /**
@@ -433,7 +519,7 @@ export async function createMarketDataClient(
   }
 
   /**
-   * 动态订阅新增标的。先补齐 metadata，再对未接入标的建立订阅，并统一恢复 admitted symbol 的 metadata 完整性。
+   * 动态订阅新增标的。先补齐 metadata，再对未接入标的建立订阅，并统一恢复已订阅标的的 metadata 完整性。
    *
    * @param symbols 待订阅的标的代码列表
    * @returns Promise<void>
@@ -581,12 +667,41 @@ export async function createMarketDataClient(
   }
 
   /**
-   * 获取 QuoteContext 实例（供内部或下游使用）。
+   * 获取轮证查询上下文（供内部或下游使用）。
    *
-   * @returns Promise<QuoteContext> 当前行情上下文
+   * @returns Promise<MarketQuoteContext> 当前行情上下文的业务边界
    */
-  function getQuoteContext(): Promise<QuoteContext> {
-    return Promise.resolve(ctx as unknown as QuoteContext);
+  function getQuoteContext(): Promise<MarketQuoteContext> {
+    return Promise.resolve({
+      warrantQuote: (symbols) => ctx.warrantQuote([...symbols]),
+      warrantList: async (request) =>
+        ctx.warrantList(
+          request.symbol,
+          request.sortBy,
+          request.sortOrder,
+          [...request.types],
+          request.issuerIds ? [...request.issuerIds] : request.issuerIds,
+          request.expiryFilters ? [...request.expiryFilters] : request.expiryFilters,
+          request.inOutBoundsTypes ? [...request.inOutBoundsTypes] : request.inOutBoundsTypes,
+          request.status ? [...request.status] : request.status,
+        ),
+    });
+  }
+
+  /**
+   * 订阅标准化行情更新事件。
+   *
+   * 监听器仅接收已经通过 quoteClient 标准化、且当前仍处于已订阅状态的标的更新。
+   * 返回的取消订阅函数只移除当前监听器，不影响底层 quote 订阅。
+   *
+   * @param listener 行情更新监听器
+   * @returns 取消订阅函数
+   */
+  function onQuoteUpdated(listener: (event: QuoteUpdatedEvent) => void): () => void {
+    quoteUpdatedListeners.add(listener);
+    return () => {
+      quoteUpdatedListeners.delete(listener);
+    };
   }
 
   /**
@@ -684,10 +799,10 @@ export async function createMarketDataClient(
   }
 
   /**
-   * 重置运行期订阅与缓存：退订所有 quote/kline 订阅，并保持 admitted symbol 与 metadata 缓存的一致性。
+   * 重置运行期订阅与缓存：退订所有 quote/kline 订阅，并保持已订阅标的与 metadata 缓存的一致性。
    * Fail-safe 语义：任何退订失败均被汇总并最终抛出，不吞错。
    * 单个失败不提前返回，尽量完成全部清理尝试，再统一抛错。
-   * 订阅集合状态：成功退订的移除，失败的保留；保留的 admitted symbol 不清 metadata，避免半状态。
+   * 订阅集合状态：成功退订的移除，失败的保留；保留的已订阅标的不清 metadata，避免半状态。
    * K 线本地缓存：仅清理成功退订的 key，失败 key 保留缓存，避免“订阅保留但缓存丢失”。
    */
   async function resetRuntimeSubscriptionsAndCaches(): Promise<void> {
@@ -738,7 +853,7 @@ export async function createMarketDataClient(
       });
     }
 
-    // 3. 交易日缓存始终清空；quote metadata 仅在 symbol 真正退订后清理，避免 admitted / metadata 失配。
+    // 3. 交易日缓存始终清空；quote metadata 仅在 symbol 真正退订后清理，避免订阅状态与 metadata 失配。
     tradingDayCache.clear();
     if (errors.length > 0) {
       throw new AggregateError(
@@ -788,6 +903,7 @@ export async function createMarketDataClient(
     getQuotes,
     subscribeSymbols,
     unsubscribeSymbols,
+    onQuoteUpdated,
     subscribeCandlesticks,
     getRealtimeCandlesticks,
     getCandlestickSnapshot: readLocalCandlestickSnapshot,

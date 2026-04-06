@@ -37,7 +37,8 @@ export function createCleanup(context: CleanupContext): CleanupController {
     sellProcessor,
     monitorTaskProcessor,
     orderMonitorWorker,
-    postTradeRefresher,
+    tradingRiskEventRuntime,
+    postTradeConsistencyRuntime,
     marketDataClient,
     monitorContexts,
     indicatorCache,
@@ -61,6 +62,14 @@ export function createCleanup(context: CleanupContext): CleanupController {
       }
     };
 
+    await runStep('终止 Freshness 等待', () => {
+      postTradeConsistencyRuntime.abortWaiting();
+    });
+
+    await runStep('停止 TradingRiskEventRuntime', async () => {
+      await tradingRiskEventRuntime.stopAndDrain();
+    });
+
     await runStep('停止 BuyProcessor', async () => {
       await buyProcessor.stopAndDrain();
     });
@@ -77,8 +86,8 @@ export function createCleanup(context: CleanupContext): CleanupController {
       await orderMonitorWorker.stopAndDrain();
     });
 
-    await runStep('停止 PostTradeRefresher', async () => {
-      await postTradeRefresher.stopAndDrain();
+    await runStep('停止 PostTradeConsistencyRuntime', async () => {
+      await postTradeConsistencyRuntime.stopAndDrain();
     });
 
     for (const [monitorSymbol, monitorContext] of monitorContexts) {

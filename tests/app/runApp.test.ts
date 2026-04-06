@@ -2,8 +2,8 @@
  * app/runApp 组装测试
  *
  * 覆盖：
- * - 正常启动链路保持统一时间源与关键装配顺序
- * - startupRebuildPending 分支会跳过首次重建，但仍完成后续装配
+ * - 正常启动链路保持统一时间源，并保证 postTradeConsistencyRuntime 先 bind 再 start
+ * - startupRebuildPending 分支保持应用常驻，由 lifecycle 后续恢复，但不提前启动运行态处理器
  * - startupRebuildPending 与运行时标的验证失败并存时，启动不会被中止
  */
 import { beforeEach, describe, expect, it } from 'bun:test';
@@ -141,11 +141,7 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
     createPostGateRuntime: async (params) => {
       harnessState.createPostGateRuntimeNow = params.now;
       harnessState.postGateRuntimeEnv = params.env;
-      const refreshGateStatus = {
-        currentVersion: 3,
-        staleVersion: 7,
-      };
-
+      let businessDepsBound = false;
       return {
         liquidationCooldownTracker: {
           recordLiquidationTrigger: () => ({
@@ -167,13 +163,47 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
         },
         protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
         monitorContexts: new Map(),
-        refreshGate: {
-          markStale: () => 0,
-          markFresh: (version: number) => {
-            harnessState.events.push(`markFresh:${version}`);
+        tradingRiskEventRuntime: {
+          start: () => {
+            harnessState.events.push('tradingRiskEventRuntime.start');
           },
+          stopAndDrain: async () => {
+            harnessState.events.push('tradingRiskEventRuntime.stopAndDrain');
+          },
+        },
+        postTradeConsistencyRuntime: {
+          bindBusinessDeps: () => {
+            businessDepsBound = true;
+            harnessState.events.push('postTradeConsistencyRuntime.bindBusinessDeps');
+          },
+          recordSettlementRefreshNeed: () => {},
+          getStatus: () => ({
+            started: false,
+            inFlight: false,
+            hasPendingRefresh: false,
+            currentVersion: 0,
+            staleVersion: 0,
+            abortReason: null,
+          }),
           waitForFresh: async () => {},
-          getStatus: () => refreshGateStatus,
+          abortWaiting: () => {},
+          resetAbort: () => {},
+          start: () => {
+            if (!businessDepsBound) {
+              throw new Error('postTradeConsistencyRuntime.start called before bindBusinessDeps');
+            }
+
+            harnessState.events.push('postTradeConsistencyRuntime.start');
+          },
+          stopAndDrain: async () => {
+            harnessState.events.push('postTradeConsistencyRuntime.stopAndDrain');
+          },
+          midnightClear: () => {
+            harnessState.events.push('postTradeConsistencyRuntime.midnightClear');
+          },
+          completeRebuildBaseline: () => {
+            harnessState.events.push('postTradeConsistencyRuntime.completeRebuildBaseline');
+          },
         },
         lastState: createLastState(),
         trader: {
@@ -215,7 +245,6 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
             relatedBuyOrderIds: null,
           }),
           monitorAndManageOrders: async () => {},
-          getAndClearPendingRefreshSymbols: () => [],
           hasPendingProtectiveLiquidationOrders: () => false,
           initializeOrderMonitor: async () => {},
           canTradeNow: () => ({ canTrade: true }),
@@ -291,47 +320,42 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
       harnessState.registerDelayedCalls += 1;
       harnessState.events.push('registerDelayedSignalHandlers');
     },
-    createAsyncRuntime: () => ({
-      monitorTaskProcessor: {
-        start: () => {
-          harnessState.events.push('monitorTaskProcessor.start');
+    createAsyncRuntime: () => {
+      harnessState.events.push('createAsyncRuntime');
+      return {
+        monitorTaskProcessor: {
+          start: () => {
+            harnessState.events.push('monitorTaskProcessor.start');
+          },
+          stop: () => {},
+          stopAndDrain: async () => {},
+          restart: () => {},
         },
-        stop: () => {},
-        stopAndDrain: async () => {},
-        restart: () => {},
-      },
-      buyProcessor: {
-        start: () => {
-          harnessState.events.push('buyProcessor.start');
+        buyProcessor: {
+          start: () => {
+            harnessState.events.push('buyProcessor.start');
+          },
+          stop: () => {},
+          stopAndDrain: async () => {},
+          restart: () => {},
         },
-        stop: () => {},
-        stopAndDrain: async () => {},
-        restart: () => {},
-      },
-      sellProcessor: {
-        start: () => {
-          harnessState.events.push('sellProcessor.start');
+        sellProcessor: {
+          start: () => {
+            harnessState.events.push('sellProcessor.start');
+          },
+          stop: () => {},
+          stopAndDrain: async () => {},
+          restart: () => {},
         },
-        stop: () => {},
-        stopAndDrain: async () => {},
-        restart: () => {},
-      },
-      orderMonitorWorker: {
-        start: () => {
-          harnessState.events.push('orderMonitorWorker.start');
+        orderMonitorWorker: {
+          start: () => {
+            harnessState.events.push('orderMonitorWorker.start');
+          },
+          schedule: () => {},
+          stopAndDrain: async () => {},
         },
-        schedule: () => {},
-        stopAndDrain: async () => {},
-      },
-      postTradeRefresher: {
-        start: () => {
-          harnessState.events.push('postTradeRefresher.start');
-        },
-        enqueue: () => {},
-        stopAndDrain: async () => {},
-        clearPending: () => {},
-      },
-    }),
+      };
+    },
     createLifecycleRuntime: () => {
       harnessState.events.push('createLifecycleRuntime');
       return {
@@ -392,17 +416,20 @@ describe('app runApp assembly', () => {
     expect(harnessState.events).toEqual([
       'loadStartupSnapshot',
       'createMonitorContexts',
+      'postTradeConsistencyRuntime.bindBusinessDeps',
       'createRebuildTradingDayState',
-      'rebuildTradingDayState',
-      'markFresh:7',
-      'registerDelayedSignalHandlers',
+      'createAsyncRuntime',
       'createLifecycleRuntime',
+      'registerDelayedSignalHandlers',
+      'registerExitHandlers',
+      'rebuildTradingDayState',
+      'postTradeConsistencyRuntime.start',
+      'postTradeConsistencyRuntime.completeRebuildBaseline',
+      'tradingRiskEventRuntime.start',
       'monitorTaskProcessor.start',
       'buyProcessor.start',
       'sellProcessor.start',
       'orderMonitorWorker.start',
-      'postTradeRefresher.start',
-      'registerExitHandlers',
       'mainProgram',
       'sleep:1000',
     ]);
@@ -413,7 +440,7 @@ describe('app runApp assembly', () => {
     expect(harnessState.mainProgramRuntimeGateModes).toEqual(['strict']);
   });
 
-  it('skips the initial rebuild when startup snapshot switches to pending open rebuild', async () => {
+  it('keeps lifecycle alive when startup snapshot switches to pending open rebuild', async () => {
     harnessState.startupRebuildPending = true;
     const runApp = createRunApp(createRunAppDeps(harnessState));
     let caught: unknown = null;
@@ -430,26 +457,25 @@ describe('app runApp assembly', () => {
     expect(harnessState.events).toEqual([
       'loadStartupSnapshot',
       'createMonitorContexts',
+      'postTradeConsistencyRuntime.bindBusinessDeps',
       'createRebuildTradingDayState',
-      'registerDelayedSignalHandlers',
+      'createAsyncRuntime',
       'createLifecycleRuntime',
-      'monitorTaskProcessor.start',
-      'buyProcessor.start',
-      'sellProcessor.start',
-      'orderMonitorWorker.start',
-      'postTradeRefresher.start',
+      'registerDelayedSignalHandlers',
       'registerExitHandlers',
       'mainProgram',
-      'sleep:1000',
+      `sleep:${harnessState.sleepDurations[0]}`,
     ]);
-    expect(harnessState.sleepDurations).toEqual([1000]);
+    expect(harnessState.sleepDurations).toHaveLength(1);
+    expect(harnessState.sleepDurations[0]).toBeGreaterThanOrEqual(0);
+    expect(harnessState.sleepDurations[0]).toBeLessThanOrEqual(1000);
     expect(harnessState.registerDelayedCalls).toBe(1);
     expect(harnessState.cleanupRegistered).toBe(1);
     expect(harnessState.mainProgramCalls).toBe(1);
     expect(harnessState.mainProgramRuntimeGateModes).toEqual(['strict']);
   });
 
-  it('keeps startup pending-open-rebuild assembly behavior in skip runtime gate mode', async () => {
+  it('keeps lifecycle alive in pending-open-rebuild path under skip runtime gate mode', async () => {
     harnessState.startupRebuildPending = true;
     harnessState.runtimeGateMode = 'skip';
     const runApp = createRunApp(createRunAppDeps(harnessState));
@@ -464,6 +490,18 @@ describe('app runApp assembly', () => {
     expect(caught).toBe(STOP_AFTER_FIRST_LOOP);
     expect(harnessState.rebuildCalls).toHaveLength(0);
     expect(harnessState.mainProgramRuntimeGateModes).toEqual(['skip']);
+    expect(harnessState.events).toEqual([
+      'loadStartupSnapshot',
+      'createMonitorContexts',
+      'postTradeConsistencyRuntime.bindBusinessDeps',
+      'createRebuildTradingDayState',
+      'createAsyncRuntime',
+      'createLifecycleRuntime',
+      'registerDelayedSignalHandlers',
+      'registerExitHandlers',
+      'mainProgram',
+      'sleep:1000',
+    ]);
   });
 
   it('does not abort startup in pending-open-rebuild path when runtime symbol validation reports failure', async () => {
@@ -487,14 +525,11 @@ describe('app runApp assembly', () => {
     expect(harnessState.events).toEqual([
       'loadStartupSnapshot',
       'createMonitorContexts',
+      'postTradeConsistencyRuntime.bindBusinessDeps',
       'createRebuildTradingDayState',
-      'registerDelayedSignalHandlers',
+      'createAsyncRuntime',
       'createLifecycleRuntime',
-      'monitorTaskProcessor.start',
-      'buyProcessor.start',
-      'sellProcessor.start',
-      'orderMonitorWorker.start',
-      'postTradeRefresher.start',
+      'registerDelayedSignalHandlers',
       'registerExitHandlers',
       'mainProgram',
       'sleep:1000',

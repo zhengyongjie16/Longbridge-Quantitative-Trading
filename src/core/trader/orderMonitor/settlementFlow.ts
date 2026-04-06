@@ -11,7 +11,11 @@ import { isValidPositiveNumber } from '../../../utils/helpers/index.js';
 import { toHongKongTimeIso } from '../../../utils/time/index.js';
 import { recordTrade } from '../tradeLogger.js';
 import type { MonitorConfig } from '../../../types/config.js';
-import type { OrderRecord, OrderRecorder } from '../../../types/services.js';
+import type {
+  OrderRecord,
+  OrderRecorder,
+  PostTradeConsistencyRefreshNeed,
+} from '../../../types/services.js';
 import type { TrackedOrder } from '../types.js';
 import type {
   FinalizeOrderSettlementParams,
@@ -233,7 +237,7 @@ export function createSettlementFlow(deps: SettlementFlowDeps): SettlementFlow {
     orderRecorder,
     dailyLossTracker,
     protectiveLiquidationEpisodeTracker,
-    refreshGate,
+    postTradeConsistencyRuntime,
   } = deps;
 
   function clearRuntimeTracking(orderId: string): void {
@@ -242,14 +246,12 @@ export function createSettlementFlow(deps: SettlementFlowDeps): SettlementFlow {
     orderHoldRegistry.markOrderClosed(orderId);
   }
 
-  function markPostTradeRefresh(symbol: string, isLongSymbol: boolean): void {
-    refreshGate?.markStale();
-    runtime.pendingRefreshSymbols.push({
-      symbol,
-      isLongSymbol,
+  function markPostTradeRefresh(): void {
+    const refreshNeed: PostTradeConsistencyRefreshNeed = {
       refreshAccount: true,
       refreshPositions: true,
-    });
+    };
+    postTradeConsistencyRuntime.recordSettlementRefreshNeed(refreshNeed);
   }
 
   function recordDailyLossAndEpisodeProgress(params: {
@@ -306,6 +308,7 @@ export function createSettlementFlow(deps: SettlementFlowDeps): SettlementFlow {
       protectiveLiquidationEpisodeTracker.recordProtectiveFillProgress({
         monitorSymbol,
         direction,
+        symbol,
         executedTimeMs,
       });
     }
@@ -469,7 +472,7 @@ export function createSettlementFlow(deps: SettlementFlowDeps): SettlementFlow {
         executedQuantity,
         executedTimeMs,
       });
-      markPostTradeRefresh(symbol, isLongSymbol);
+      markPostTradeRefresh();
     }
 
     if (closedReason === 'CANCELED' || closedReason === 'REJECTED') {
@@ -530,7 +533,7 @@ export function createSettlementFlow(deps: SettlementFlowDeps): SettlementFlow {
           executedQuantity: recordedExecution.executedQuantity,
           executedTimeMs: recordedExecution.executedTimeMs,
         });
-        markPostTradeRefresh(symbol, isLongSymbol);
+        markPostTradeRefresh();
       }
     }
 

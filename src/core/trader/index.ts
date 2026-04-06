@@ -25,7 +25,6 @@ import type {
   Trader,
   TradeCheckResult,
   PendingOrder,
-  PendingRefreshSymbol,
   RawOrderFromAPI,
 } from '../../types/services.js';
 import type { MonitorConfig } from '../../types/config.js';
@@ -47,7 +46,7 @@ import { createOrderFilteringEngine } from '../orderRecorder/orderFilteringEngin
  * 按固定顺序创建 rateLimiter、accountService、orderCacheManager、orderRecorder、orderMonitor、orderExecutor 等子模块并组装为 Trader 接口。
  * createTrader 仅负责依赖装配，不执行运行期副作用（如 WebSocket 初始化、订单恢复），由上层显式调用。
  * 交易能力由多子模块协同完成，门面统一初始化顺序与依赖注入，保证 orderMonitor 依赖 orderRecorder、orderExecutor 依赖 orderMonitor 等约束。
- * @param deps 依赖（config、tradingConfig、liquidationCooldownTracker、symbolRegistry、dailyLossTracker、refreshGate、isExecutionAllowed 等）
+ * @param deps 依赖（config、tradingConfig、symbolRegistry、dailyLossTracker、postTradeConsistencyRuntime、isExecutionAllowed 等）
  * @returns 实现 Trader 接口的实例（含 canTradeNow、executeSignals、getPendingOrders 等）
  */
 export function createTrader(deps: TraderDeps): Promise<Trader> {
@@ -58,7 +57,7 @@ export function createTrader(deps: TraderDeps): Promise<Trader> {
     symbolRegistry,
     dailyLossTracker,
     protectiveLiquidationEpisodeTracker,
-    refreshGate,
+    postTradeConsistencyRuntime,
     isExecutionAllowed,
   } = deps;
 
@@ -96,10 +95,10 @@ export function createTrader(deps: TraderDeps): Promise<Trader> {
     dailyLossTracker,
     orderHoldRegistry,
     protectiveLiquidationEpisodeTracker,
+    postTradeConsistencyRuntime,
     tradingConfig,
     symbolRegistry,
     isExecutionAllowed,
-    ...(refreshGate ? { refreshGate } : {}),
   });
 
   // ========== 6. 创建 orderExecutor ==========
@@ -155,10 +154,6 @@ export function createTrader(deps: TraderDeps): Promise<Trader> {
 
     monitorAndManageOrders(): Promise<void> {
       return orderMonitor.processWithLatestQuotes();
-    },
-
-    getAndClearPendingRefreshSymbols(): PendingRefreshSymbol[] {
-      return orderMonitor.getAndClearPendingRefreshSymbols();
     },
 
     hasPendingProtectiveLiquidationOrders(

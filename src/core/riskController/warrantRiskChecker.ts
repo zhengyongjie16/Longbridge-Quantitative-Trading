@@ -335,7 +335,7 @@ async function checkWarrantType(
 
   // 使用 warrantQuote API 获取牛熊证信息
   const warrantQuotesRaw = await ctx.warrantQuote([symbol]);
-  const warrantQuote = Array.isArray(warrantQuotesRaw) ? (warrantQuotesRaw[0] ?? null) : null;
+  const warrantQuote = warrantQuotesRaw[0] ?? null;
   if (!warrantQuote) {
     return { isWarrant: false };
   }

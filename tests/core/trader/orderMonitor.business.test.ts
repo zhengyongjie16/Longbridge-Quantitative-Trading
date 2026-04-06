@@ -28,6 +28,7 @@ import {
 } from '../../helpers/testDoubles.js';
 import type { Quote } from '../../../src/types/quote.js';
 import type { OrderRecord, PendingSellInfo, RawOrderFromAPI } from '../../../src/types/services.js';
+import type { RecordLocalSellCall, ReplaceOrderPayload } from './types.js';
 import { isRecord } from '../../../src/utils/helpers/index.js';
 
 async function expectPromiseRejectsToMatch(
@@ -61,6 +62,10 @@ function createDeps(params?: {
   readonly protectiveLiquidationEpisodeTrackerOverride?: OrderMonitorDeps['protectiveLiquidationEpisodeTracker'];
   readonly orderRecorderOverride?: OrderMonitorDeps['orderRecorder'];
   readonly dailyLossTrackerOverride?: OrderMonitorDeps['dailyLossTracker'];
+  readonly onRecordSettlementRefreshNeed?: (need: {
+    readonly refreshAccount: boolean;
+    readonly refreshPositions: boolean;
+  }) => void;
 }): {
   deps: OrderMonitorDeps;
   tradeCtx: ReturnType<typeof createTradeContextMock>;
@@ -247,6 +252,11 @@ function createDeps(params?: {
     protectiveLiquidationEpisodeTracker:
       params?.protectiveLiquidationEpisodeTrackerOverride ??
       createProtectiveLiquidationEpisodeTrackerDouble(),
+    postTradeConsistencyRuntime: {
+      recordSettlementRefreshNeed: (need) => {
+        params?.onRecordSettlementRefreshNeed?.(need);
+      },
+    },
     tradingConfig,
     symbolRegistry,
     ...(params?.onHandleOrderChanged
@@ -327,16 +337,6 @@ async function executeReplaceScenario(params: {
     submittedPrice: pendingOrders[0]?.submittedPrice ?? null,
   };
 }
-
-type ReplaceOrderPayload = {
-  readonly price: {
-    readonly toString: () => string;
-  };
-};
-
-type RecordLocalSellCall = {
-  readonly relatedBuyOrderIds: ReadonlyArray<string> | null;
-};
 
 function isReplaceOrderPayload(value: unknown): value is ReplaceOrderPayload {
   if (!isRecord(value)) {
@@ -1281,6 +1281,7 @@ describe('orderMonitor business flow', () => {
     const progressCalls: Array<{
       monitorSymbol: string;
       direction: 'LONG' | 'SHORT';
+      symbol: string;
       executedTimeMs: number;
     }> = [];
     const executedTimeMs = Date.parse('2026-02-25T03:20:00.000Z');
@@ -1327,6 +1328,7 @@ describe('orderMonitor business flow', () => {
     expect(progressCalls[0]).toEqual({
       monitorSymbol: 'HSI.HK',
       direction: 'LONG',
+      symbol: 'BULL.HK',
       executedTimeMs,
     });
   });
@@ -1555,6 +1557,10 @@ describe('orderMonitor business flow', () => {
     let dailyLossCalls = 0;
     let partialCount = 0;
     let cancelCount = 0;
+    const refreshNeeds: Array<{
+      readonly refreshAccount: boolean;
+      readonly refreshPositions: boolean;
+    }> = [];
     const orderRecorder = createOrderRecorderDouble({
       submitSellOrder: (
         orderId: string,
@@ -1631,6 +1637,9 @@ describe('orderMonitor business flow', () => {
       },
       onHandleOrderChanged: (handler) => {
         handleOrderChanged = handler;
+      },
+      onRecordSettlementRefreshNeed: (need) => {
+        refreshNeeds.push(need);
       },
     });
     const monitor = createOrderMonitor(deps);
@@ -1706,10 +1715,8 @@ describe('orderMonitor business flow', () => {
     expect(recordLocalSellCalls[0]?.relatedBuyOrderIds).toEqual(['BUY-1']);
     expect(dailyLossCalls).toBe(1);
     expect(monitor.getPendingSellOrders('BULL.HK')).toHaveLength(0);
-    expect(monitor.getAndClearPendingRefreshSymbols()).toEqual([
+    expect(refreshNeeds).toEqual([
       {
-        symbol: 'BULL.HK',
-        isLongSymbol: true,
         refreshAccount: true,
         refreshPositions: true,
       },
@@ -1745,6 +1752,10 @@ describe('orderMonitor business flow', () => {
     let dailyLossCalls = 0;
     let partialCount = 0;
     let cancelCount = 0;
+    const refreshNeeds: Array<{
+      readonly refreshAccount: boolean;
+      readonly refreshPositions: boolean;
+    }> = [];
     const orderRecorder = createOrderRecorderDouble({
       submitSellOrder: (
         orderId: string,
@@ -1822,6 +1833,9 @@ describe('orderMonitor business flow', () => {
       onHandleOrderChanged: (handler) => {
         handleOrderChanged = handler;
       },
+      onRecordSettlementRefreshNeed: (need) => {
+        refreshNeeds.push(need);
+      },
     });
     const monitor = createOrderMonitor(deps);
     await monitor.initialize();
@@ -1896,10 +1910,8 @@ describe('orderMonitor business flow', () => {
     expect(recordLocalSellCalls[0]?.relatedBuyOrderIds).toEqual(['BUY-1']);
     expect(dailyLossCalls).toBe(1);
     expect(monitor.getPendingSellOrders('BULL.HK')).toHaveLength(0);
-    expect(monitor.getAndClearPendingRefreshSymbols()).toEqual([
+    expect(refreshNeeds).toEqual([
       {
-        symbol: 'BULL.HK',
-        isLongSymbol: true,
         refreshAccount: true,
         refreshPositions: true,
       },
@@ -2446,8 +2458,15 @@ describe('orderMonitor business flow', () => {
         recordLocalSellCalls.push(relatedBuyOrderIds ?? null);
       },
     });
+    const refreshNeeds: Array<{
+      readonly refreshAccount: boolean;
+      readonly refreshPositions: boolean;
+    }> = [];
     const { deps, tradeCtx } = createDeps({
       orderRecorderOverride: orderRecorder,
+      onRecordSettlementRefreshNeed: (need) => {
+        refreshNeeds.push(need);
+      },
     });
     tradeCtx.setFailureRule('cancelOrder', {
       failAtCalls: [1],
@@ -2501,10 +2520,8 @@ describe('orderMonitor business flow', () => {
     expect(recordLocalSellCalls).toEqual([['BUY-1']]);
     expect(tradeCtx.getCalls('orderDetail')).toHaveLength(1);
     expect(monitor.getPendingSellOrders('BULL.HK')).toHaveLength(0);
-    expect(monitor.getAndClearPendingRefreshSymbols()).toEqual([
+    expect(refreshNeeds).toEqual([
       {
-        symbol: 'BULL.HK',
-        isLongSymbol: true,
         refreshAccount: true,
         refreshPositions: true,
       },
@@ -2655,6 +2672,10 @@ describe('orderMonitor business flow', () => {
     };
     let localBuyCount = 0;
     let dailyLossCount = 0;
+    const refreshNeeds: Array<{
+      readonly refreshAccount: boolean;
+      readonly refreshPositions: boolean;
+    }> = [];
     const { deps } = createDeps({
       onHandleOrderChanged: (handler) => {
         handleOrderChanged = handler;
@@ -2672,6 +2693,9 @@ describe('orderMonitor business flow', () => {
           dailyLossCount += 1;
         },
         getLossOffset: () => 0,
+      },
+      onRecordSettlementRefreshNeed: (need) => {
+        refreshNeeds.push(need);
       },
     });
     const monitor = createOrderMonitor(deps);
@@ -2708,10 +2732,8 @@ describe('orderMonitor business flow', () => {
 
     expect(localBuyCount).toBe(1);
     expect(dailyLossCount).toBe(1);
-    expect(monitor.getAndClearPendingRefreshSymbols()).toEqual([
+    expect(refreshNeeds).toEqual([
       {
-        symbol: 'BULL.HK',
-        isLongSymbol: true,
         refreshAccount: true,
         refreshPositions: true,
       },

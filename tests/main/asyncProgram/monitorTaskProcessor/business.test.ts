@@ -16,7 +16,7 @@ import type {
 import { createMonitorTaskQueue } from '../../../../src/main/asyncProgram/monitorTaskQueue/index.js';
 import type { MonitorTask } from '../../../../src/main/asyncProgram/monitorTaskQueue/types.js';
 import type { MultiMonitorTradingConfig } from '../../../../src/types/config.js';
-import { createRefreshGate } from '../../../../src/utils/refreshGate/index.js';
+import { createPostTradeConsistencyRuntime } from '../../../../src/app/runtime/createPostTradeConsistencyRuntime.js';
 
 import { createTradingConfig as createTradingConfigFactory } from '../../../../mock/factories/configFactory.js';
 
@@ -36,26 +36,10 @@ import {
   runProcessorFlow,
   waitUntil,
 } from '../utils.js';
-
-type MonitorTaskQueueForTest = MonitorTaskProcessorDeps['monitorTaskQueue'];
-
-type CreateBusinessProcessorParams = Readonly<{
-  queue: MonitorTaskQueueForTest;
-  context: ReturnType<typeof createMonitorTaskContext>;
-  lastState?: ReturnType<typeof createLastState>;
-  trader?: ReturnType<typeof createTraderDouble>;
-  marketDataClient?: MonitorTaskProcessorDeps['marketDataClient'];
-  scheduleRetry?: MonitorTaskProcessorDeps['scheduleRetry'];
-  clearRetry?: MonitorTaskProcessorDeps['clearRetry'];
-  onProcessed?: MonitorTaskProcessorDeps['onProcessed'];
-  getCanProcessTask?: MonitorTaskProcessorDeps['getCanProcessTask'];
-}>;
-
-type CreateTriggeredLongOnlyLiquidationContextParams = Readonly<{
-  onClearBuyOrders?: (isLongSymbol: boolean) => void;
-  onGetLossOffset?: (isLongSymbol: boolean) => void;
-  onRefreshUnrealizedLoss?: (isLongSymbol: boolean) => void;
-}>;
+import type {
+  CreateBusinessProcessorParams,
+  CreateTriggeredLongOnlyLiquidationContextParams,
+} from '../types.js';
 
 function createTradingConfig(): MultiMonitorTradingConfig {
   return createTradingConfigFactory({
@@ -87,11 +71,15 @@ function createBusinessProcessor(
     clearRetry,
     onProcessed,
     getCanProcessTask,
+    postTradeConsistencyRuntime = createPostTradeConsistencyRuntime({
+      getTrader: () => trader,
+      lastState,
+    }),
   } = params;
 
   return createMonitorTaskProcessor({
     monitorTaskQueue: queue,
-    refreshGate: createRefreshGate(),
+    postTradeConsistencyRuntime,
     getMonitorContext: () => context,
     clearMonitorDirectionQueues: () => {},
     trader,
@@ -105,7 +93,10 @@ function createBusinessProcessor(
   });
 }
 
-function scheduleSeatRefreshTask(queue: MonitorTaskQueueForTest, dedupeKey: string): void {
+function scheduleSeatRefreshTask(
+  queue: MonitorTaskProcessorDeps['monitorTaskQueue'],
+  dedupeKey: string,
+): void {
   queue.scheduleLatest({
     type: 'SEAT_REFRESH',
     dedupeKey,
@@ -123,7 +114,7 @@ function scheduleSeatRefreshTask(queue: MonitorTaskQueueForTest, dedupeKey: stri
 }
 
 function scheduleLiquidationDistanceCheckTask(
-  queue: MonitorTaskQueueForTest,
+  queue: MonitorTaskProcessorDeps['monitorTaskQueue'],
   dedupeKey: string,
 ): void {
   queue.scheduleLatest({
@@ -148,7 +139,7 @@ function scheduleLiquidationDistanceCheckTask(
 }
 
 function scheduleShortOnlyLiquidationDistanceCheckTask(
-  queue: MonitorTaskQueueForTest,
+  queue: MonitorTaskProcessorDeps['monitorTaskQueue'],
   dedupeKey: string,
 ): void {
   queue.scheduleLatest({
@@ -353,14 +344,15 @@ describe('monitorTaskProcessor business flow', () => {
 
   it('skips tasks when lifecycle gate denies processing', async () => {
     const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
-    let unrealizedMonitorCalls = 0;
+    let liquidationChecks = 0;
 
     const context = createMonitorTaskContext({
-      unrealizedLossMonitor: {
-        monitorUnrealizedLoss: async () => {
-          unrealizedMonitorCalls += 1;
+      riskChecker: createRiskCheckerDouble({
+        checkWarrantDistanceLiquidation: () => {
+          liquidationChecks += 1;
+          return { shouldLiquidate: false };
         },
-      },
+      }),
     });
 
     const seen: Array<{
@@ -381,13 +373,14 @@ describe('monitorTaskProcessor business flow', () => {
       processor,
       pushTask: () => {
         queue.scheduleLatest({
-          type: 'UNREALIZED_LOSS_CHECK',
-          dedupeKey: 'HSI.HK:UNREALIZED_LOSS_CHECK',
+          type: 'LIQUIDATION_DISTANCE_CHECK',
+          dedupeKey: 'HSI.HK:LIQUIDATION_DISTANCE_CHECK',
           monitorSymbol: 'HSI.HK',
           data: {
             monitorSymbol: 'HSI.HK',
-            long: { seatVersion: 2, symbol: 'BULL.HK' },
-            short: { seatVersion: 3, symbol: 'BEAR.HK' },
+            monitorPrice: 20_000,
+            long: { seatVersion: 2, symbol: 'BULL.HK', symbolName: 'BULL' },
+            short: { seatVersion: 3, symbol: 'BEAR.HK', symbolName: 'BEAR' },
           },
         });
       },
@@ -396,7 +389,99 @@ describe('monitorTaskProcessor business flow', () => {
     });
 
     expect(seen[0]?.status).toBe('skipped');
-    expect(unrealizedMonitorCalls).toBe(0);
+    expect(liquidationChecks).toBe(0);
+  });
+
+  it('waits for postTradeConsistencyRuntime freshness before processing AUTO_SYMBOL_SWITCH_DISTANCE', async () => {
+    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
+    const calledDirections: Array<'LONG' | 'SHORT'> = [];
+    const lastState = createLastState();
+    const trader = createTraderDouble();
+    const postTradeConsistencyRuntime = createPostTradeConsistencyRuntime({
+      getTrader: () => trader,
+      lastState,
+    });
+    postTradeConsistencyRuntime.bindBusinessDeps({
+      monitorContexts: new Map(),
+      dailyLossTracker: {
+        resetAll: () => {},
+        recalculateFromAllOrders: () => {},
+        recordFilledOrder: () => {},
+        getLossOffset: () => 0,
+        startNewProtectionEpisode: () => {},
+      },
+      liquidationCooldownTracker: {
+        recordLiquidationTrigger: () => ({ currentCount: 0, cooldownActivated: false }),
+        recordCooldown: () => {},
+        restoreTriggerCount: () => {},
+        getRemainingMs: () => 0,
+        clearMidnightEligible: () => {},
+        resetAllTriggerCounts: () => {},
+      },
+      protectiveLiquidationEpisodeTracker: {
+        recordProtectiveFillProgress: () => {},
+        completeIfEligible: () => null,
+        restoreCompletedBoundary: () => {},
+        restoreInProgressEpisode: () => {},
+        getLatestProtectionBoundaryByDirection: () => new Map(),
+        getInProgressEpisodes: () => [],
+        resetAll: () => {},
+      },
+    });
+
+    postTradeConsistencyRuntime.recordSettlementRefreshNeed({
+      refreshAccount: true,
+      refreshPositions: true,
+    });
+
+    const context = createMonitorTaskContext({
+      autoSymbolManager: {
+        maybeSearchOnTick: async () => {},
+        maybeSwitchOnInterval: async () => {},
+        maybeSwitchOnDistance: async (params) => {
+          calledDirections.push(params.direction);
+        },
+        hasPendingSwitch: () => false,
+        resetAllState: () => {},
+      },
+    });
+    const statuses: MonitorTaskStatus[] = [];
+
+    const processor = createBusinessProcessor({
+      queue,
+      context,
+      lastState,
+      trader,
+      postTradeConsistencyRuntime,
+      onProcessed: createStatusCollector(statuses),
+    });
+
+    processor.start();
+    queue.scheduleLatest({
+      type: 'AUTO_SYMBOL_SWITCH_DISTANCE',
+      dedupeKey: 'HSI.HK:AUTO_SYMBOL_SWITCH_DISTANCE:WAIT_FRESH',
+      monitorSymbol: 'HSI.HK',
+      data: {
+        monitorSymbol: 'HSI.HK',
+        monitorPrice: 20_000,
+        seatSnapshots: {
+          long: { seatVersion: 2, symbol: 'BULL.HK' },
+          short: { seatVersion: 3, symbol: 'BEAR.HK' },
+        },
+      },
+    });
+
+    await Bun.sleep(50);
+    expect(calledDirections).toEqual([]);
+    expect(statuses).toEqual([]);
+
+    postTradeConsistencyRuntime.start();
+
+    await waitUntil(() => statuses.length === 1);
+    await processor.stopAndDrain();
+
+    expect(statuses[0]).toBe('processed');
+    expect(calledDirections).toEqual(['LONG', 'SHORT']);
   });
 
   it('processes AUTO_SYMBOL_SWITCH_DISTANCE for both directions without forwarding quotesMap', async () => {
@@ -942,261 +1027,6 @@ describe('monitorTaskProcessor business flow', () => {
     expect(submittedActions).toEqual(['SELLCALL']);
   });
 
-  it('retries UNREALIZED_LOSS_CHECK non-blockingly when quote is missing, then resumes with warmed quote', async () => {
-    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
-    let quoteReady = false;
-    const retryCallbacks: Array<() => void> = [];
-    let unrealizedMonitorCalls = 0;
-    const statuses: MonitorTaskStatus[] = [];
-
-    const context = createMonitorTaskContext({
-      unrealizedLossMonitor: {
-        monitorUnrealizedLoss: async ({ longQuote }) => {
-          unrealizedMonitorCalls += 1;
-          expect(longQuote?.price).toBe(1);
-        },
-      },
-    });
-
-    const processor = createBusinessProcessor({
-      queue,
-      context,
-      marketDataClient: createMarketDataClientDouble({
-        getQuotes: async () =>
-          new Map([
-            ['BULL.HK', quoteReady ? createQuoteDouble('BULL.HK', 1, 100) : null],
-            ['BEAR.HK', null],
-          ]),
-      }),
-      scheduleRetry: (callback) => {
-        retryCallbacks.push(callback);
-        return setTimeout(() => {}, 0);
-      },
-      clearRetry: () => {},
-      onProcessed: createStatusCollector(statuses),
-    });
-
-    processor.start();
-    queue.scheduleLatest({
-      type: 'UNREALIZED_LOSS_CHECK',
-      dedupeKey: 'HSI.HK:UNREALIZED_LOSS_CHECK:RETRY',
-      monitorSymbol: 'HSI.HK',
-      data: {
-        monitorSymbol: 'HSI.HK',
-        long: { seatVersion: 2, symbol: 'BULL.HK' },
-        short: { seatVersion: 3, symbol: null },
-      },
-    });
-
-    await waitUntil(() => statuses.length === 1);
-    expect(unrealizedMonitorCalls).toBe(0);
-    expect(retryCallbacks).toHaveLength(1);
-
-    quoteReady = true;
-    const retryCallback = retryCallbacks[0];
-    if (!retryCallback) {
-      throw new Error('retry callback should exist');
-    }
-
-    retryCallback();
-    await waitUntil(() => unrealizedMonitorCalls === 1);
-    await processor.stopAndDrain();
-  });
-
-  it('re-enqueues quote retry through monitorTaskQueue entry instead of invoking handler recursively', async () => {
-    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
-    let quoteReady = false;
-    const retryCallbacks: Array<() => void> = [];
-    const statuses: MonitorTaskStatus[] = [];
-    const processedTaskTypes: string[] = [];
-    let unrealizedMonitorCalls = 0;
-
-    const context = createMonitorTaskContext({
-      unrealizedLossMonitor: {
-        monitorUnrealizedLoss: async ({ longQuote }) => {
-          unrealizedMonitorCalls += 1;
-          expect(longQuote?.price).toBe(1);
-        },
-      },
-    });
-
-    const processor = createBusinessProcessor({
-      queue,
-      context,
-      marketDataClient: createMarketDataClientDouble({
-        getQuotes: async () =>
-          new Map([
-            ['BULL.HK', quoteReady ? createQuoteDouble('BULL.HK', 1, 100) : null],
-            ['BEAR.HK', null],
-          ]),
-      }),
-      scheduleRetry: (callback) => {
-        retryCallbacks.push(callback);
-        return setTimeout(() => {}, 0);
-      },
-      clearRetry: () => {},
-      onProcessed: (task, status) => {
-        processedTaskTypes.push(task.type);
-        statuses.push(status);
-      },
-    });
-
-    processor.start();
-    queue.scheduleLatest({
-      type: 'UNREALIZED_LOSS_CHECK',
-      dedupeKey: 'HSI.HK:UNREALIZED_LOSS_CHECK:REQUEUE',
-      monitorSymbol: 'HSI.HK',
-      data: {
-        monitorSymbol: 'HSI.HK',
-        long: { seatVersion: 2, symbol: 'BULL.HK' },
-        short: { seatVersion: 3, symbol: null },
-      },
-    });
-
-    await waitUntil(() => retryCallbacks.length === 1 && statuses.length === 1);
-    expect(unrealizedMonitorCalls).toBe(0);
-    expect(processedTaskTypes).toEqual(['UNREALIZED_LOSS_CHECK']);
-
-    quoteReady = true;
-    const retryCallback = retryCallbacks[0];
-    if (!retryCallback) {
-      throw new Error('retry callback should exist');
-    }
-
-    retryCallback();
-    await waitUntil(() => unrealizedMonitorCalls === 1 && statuses.length === 2);
-    await processor.stopAndDrain();
-
-    expect(processedTaskTypes).toEqual(['UNREALIZED_LOSS_CHECK', 'UNREALIZED_LOSS_CHECK']);
-  });
-
-  it('cancels pending monitor task retry during stopAndDrain and does not execute stale retry callback', async () => {
-    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
-    let quoteReady = false;
-    const retryCallbacks: Array<() => void> = [];
-    let clearedRetryHandles = 0;
-    let unrealizedMonitorCalls = 0;
-    const statuses: MonitorTaskStatus[] = [];
-
-    const context = createMonitorTaskContext({
-      unrealizedLossMonitor: {
-        monitorUnrealizedLoss: async () => {
-          unrealizedMonitorCalls += 1;
-        },
-      },
-    });
-
-    const processor = createBusinessProcessor({
-      queue,
-      context,
-      marketDataClient: createMarketDataClientDouble({
-        getQuotes: async () =>
-          new Map([
-            ['BULL.HK', quoteReady ? createQuoteDouble('BULL.HK', 1, 100) : null],
-            ['BEAR.HK', null],
-          ]),
-      }),
-      scheduleRetry: (callback) => {
-        retryCallbacks.push(callback);
-        return setTimeout(() => {}, 0);
-      },
-      clearRetry: () => {
-        clearedRetryHandles += 1;
-      },
-      onProcessed: createStatusCollector(statuses),
-    });
-
-    processor.start();
-    queue.scheduleLatest({
-      type: 'UNREALIZED_LOSS_CHECK',
-      dedupeKey: 'HSI.HK:UNREALIZED_LOSS_CHECK:STOP_AND_DRAIN',
-      monitorSymbol: 'HSI.HK',
-      data: {
-        monitorSymbol: 'HSI.HK',
-        long: { seatVersion: 2, symbol: 'BULL.HK' },
-        short: { seatVersion: 3, symbol: null },
-      },
-    });
-
-    await waitUntil(() => retryCallbacks.length === 1 && statuses.length === 1);
-    await processor.stopAndDrain();
-    expect(clearedRetryHandles).toBe(1);
-
-    quoteReady = true;
-    const retryCallback = retryCallbacks[0];
-    if (!retryCallback) {
-      throw new Error('retry callback should exist');
-    }
-
-    retryCallback();
-    await Bun.sleep(30);
-
-    expect(unrealizedMonitorCalls).toBe(0);
-    expect(statuses).toEqual(['processed']);
-    expect(queue.isEmpty()).toBeTrue();
-  });
-
-  it('does not register new monitor retry after stopAndDrain begins while task is still in flight', async () => {
-    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
-    const retryCallbacks: Array<() => void> = [];
-    const statuses: MonitorTaskStatus[] = [];
-    let releaseQuotes:
-      | ((quotes: Map<string, ReturnType<typeof createQuoteDouble> | null>) => void)
-      | null = null;
-
-    const context = createMonitorTaskContext({
-      unrealizedLossMonitor: {
-        monitorUnrealizedLoss: async () => {},
-      },
-    });
-
-    const processor = createBusinessProcessor({
-      queue,
-      context,
-      marketDataClient: createMarketDataClientDouble({
-        getQuotes: async () =>
-          await new Promise<Map<string, ReturnType<typeof createQuoteDouble> | null>>((resolve) => {
-            releaseQuotes = resolve;
-          }),
-      }),
-      scheduleRetry: (callback) => {
-        retryCallbacks.push(callback);
-        return setTimeout(() => {}, 0);
-      },
-      clearRetry: () => {},
-      onProcessed: createStatusCollector(statuses),
-    });
-
-    processor.start();
-    queue.scheduleLatest({
-      type: 'UNREALIZED_LOSS_CHECK',
-      dedupeKey: 'HSI.HK:UNREALIZED_LOSS_CHECK:IN_FLIGHT_STOP',
-      monitorSymbol: 'HSI.HK',
-      data: {
-        monitorSymbol: 'HSI.HK',
-        long: { seatVersion: 2, symbol: 'BULL.HK' },
-        short: { seatVersion: 3, symbol: null },
-      },
-    });
-
-    await waitUntil(() => releaseQuotes !== null);
-
-    const drainPromise = processor.stopAndDrain();
-    const resolveQuotes = releaseQuotes!;
-
-    resolveQuotes(
-      new Map([
-        ['BULL.HK', null],
-        ['BEAR.HK', null],
-      ]),
-    );
-    await drainPromise;
-
-    expect(retryCallbacks).toHaveLength(0);
-    expect(statuses).toEqual(['processed']);
-    expect(queue.isEmpty()).toBeTrue();
-  });
-
   it('executes LIQUIDATION_DISTANCE_CHECK ready subset first and retries unresolved side with fresh monitor price', async () => {
     const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const lastState = createLastState();
@@ -1288,86 +1118,6 @@ describe('monitorTaskProcessor business flow', () => {
 
     expect(submittedSymbols).toEqual(['BULL.HK', 'BEAR.HK']);
     expect(monitorPricesSeen).toEqual([20_000, 20_100]);
-  });
-
-  it('processes UNREALIZED_LOSS_CHECK ready subset first and retries unresolved side only', async () => {
-    const queue = createMonitorTaskQueue<MonitorTaskDataMap>();
-    const retryCallbacks: Array<() => void> = [];
-    let shortQuoteReady = false;
-    const monitorCalls: Array<{
-      longSymbol: string | null;
-      shortSymbol: string | null;
-      longPrice: number | null;
-      shortPrice: number | null;
-    }> = [];
-
-    const context = createMonitorTaskContext({
-      unrealizedLossMonitor: {
-        monitorUnrealizedLoss: async ({ longQuote, shortQuote, longSymbol, shortSymbol }) => {
-          monitorCalls.push({
-            longSymbol,
-            shortSymbol,
-            longPrice: longQuote?.price ?? null,
-            shortPrice: shortQuote?.price ?? null,
-          });
-        },
-      },
-    });
-
-    const processor = createBusinessProcessor({
-      queue,
-      context,
-      marketDataClient: createMarketDataClientDouble({
-        getQuotes: async () =>
-          new Map([
-            ['BULL.HK', createQuoteDouble('BULL.HK', 1, 100)],
-            ['BEAR.HK', shortQuoteReady ? createQuoteDouble('BEAR.HK', 0.9, 100) : null],
-          ]),
-      }),
-      scheduleRetry: (callback) => {
-        retryCallbacks.push(callback);
-        return setTimeout(() => {}, 0);
-      },
-      clearRetry: () => {},
-    });
-
-    processor.start();
-    queue.scheduleLatest({
-      type: 'UNREALIZED_LOSS_CHECK',
-      dedupeKey: 'HSI.HK:UNREALIZED_LOSS_CHECK:READY_SUBSET',
-      monitorSymbol: 'HSI.HK',
-      data: {
-        monitorSymbol: 'HSI.HK',
-        long: { seatVersion: 2, symbol: 'BULL.HK' },
-        short: { seatVersion: 3, symbol: 'BEAR.HK' },
-      },
-    });
-
-    await waitUntil(() => monitorCalls.length === 1);
-    expect(monitorCalls[0]).toEqual({
-      longSymbol: 'BULL.HK',
-      shortSymbol: '',
-      longPrice: 1,
-      shortPrice: null,
-    });
-    expect(retryCallbacks).toHaveLength(1);
-
-    shortQuoteReady = true;
-    const retryCallback = retryCallbacks[0];
-    if (!retryCallback) {
-      throw new Error('retry callback should exist');
-    }
-
-    retryCallback();
-    await waitUntil(() => monitorCalls.length === 2);
-    await processor.stopAndDrain();
-
-    expect(monitorCalls[1]).toEqual({
-      longSymbol: '',
-      shortSymbol: 'BEAR.HK',
-      longPrice: null,
-      shortPrice: 0.9,
-    });
   });
 
   it('processes LIQUIDATION_DISTANCE_CHECK and keeps short direction consistent for triggered short side', async () => {

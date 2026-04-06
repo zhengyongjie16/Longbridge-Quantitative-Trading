@@ -73,7 +73,10 @@ class TestNaiveDate {
 
 import { Market as RealMarket, Period as RealPeriod } from 'longbridge';
 
-import { createPushCandlestickEvent } from '../../../mock/factories/quoteFactory.js';
+import {
+  createPushCandlestickEvent,
+  createPushQuoteEvent,
+} from '../../../mock/factories/quoteFactory.js';
 import { createQuoteContextMock } from '../../../mock/longbridge/quoteContextMock.js';
 import { createMarketDataClient } from '../../../src/services/quoteClient/index.js';
 import { createSdkConfigDouble } from '../../helpers/testDoubles.js';
@@ -155,7 +158,179 @@ describe('quoteClient business flow', () => {
     expect(quoteMock.getCalls('realtimeQuote')).toHaveLength(1);
   });
 
-  it('returns null for admitted symbol when realtime quote is not warmed', async () => {
+  it('publishes standardized quote updates for subscribed symbols and supports listener disposal', async () => {
+    quoteMock.seedStaticInfo([
+      {
+        symbol: 'BULL.HK',
+        info: {
+          symbol: 'BULL.HK',
+          nameHk: '测试牛证',
+          lotSize: 500,
+        },
+      },
+    ]);
+
+    quoteMock.seedQuotes([
+      {
+        symbol: 'BULL.HK',
+        quote: makeSeedQuote('BULL.HK', 1.23, 1.2),
+      },
+    ]);
+
+    const client = await createMarketDataClient({
+      config: createSdkConfigDouble(),
+      quoteContextFactory: async () => quoteMock,
+    });
+
+    await client.subscribeSymbols(['BULL.HK']);
+
+    const received: Array<{
+      readonly symbol: string;
+      readonly price: number;
+      readonly name: string | null;
+      readonly prevClose: number;
+      readonly lotSize: number | undefined;
+    }> = [];
+    const dispose = client.onQuoteUpdated((event) => {
+      received.push({
+        symbol: event.symbol,
+        price: event.quote.price,
+        name: event.quote.name,
+        prevClose: event.quote.prevClose,
+        lotSize: event.quote.lotSize,
+      });
+    });
+
+    quoteMock.emitQuote(createPushQuoteEvent({ symbol: 'BULL.HK', price: 1.31 }));
+    quoteMock.flushAllEvents();
+
+    expect(received).toHaveLength(1);
+    expect(received[0]).toEqual({
+      symbol: 'BULL.HK',
+      price: 1.31,
+      name: '测试牛证',
+      prevClose: 1.2,
+      lotSize: 500,
+    });
+
+    dispose();
+    quoteMock.emitQuote(createPushQuoteEvent({ symbol: 'BULL.HK', price: 1.32 }));
+    quoteMock.flushAllEvents();
+
+    expect(received).toHaveLength(1);
+  });
+
+  it('fails fast when a standardized quote listener throws', async () => {
+    quoteMock.seedStaticInfo([
+      {
+        symbol: 'BULL.HK',
+        info: {
+          symbol: 'BULL.HK',
+          nameHk: '测试牛证',
+          lotSize: 500,
+        },
+      },
+    ]);
+
+    quoteMock.seedQuotes([
+      {
+        symbol: 'BULL.HK',
+        quote: makeSeedQuote('BULL.HK', 1.23, 1.2),
+      },
+    ]);
+
+    const client = await createMarketDataClient({
+      config: createSdkConfigDouble(),
+      quoteContextFactory: async () => quoteMock,
+    });
+
+    await client.subscribeSymbols(['BULL.HK']);
+    client.onQuoteUpdated(() => {
+      throw new Error('listener failed');
+    });
+
+    expect(() => {
+      quoteMock.emitQuote(createPushQuoteEvent({ symbol: 'BULL.HK', price: 1.31 }));
+      quoteMock.flushAllEvents();
+    }).toThrow('listener failed');
+  });
+
+  it('drops standardized quote updates when lastDone is not a valid positive value', async () => {
+    quoteMock.seedStaticInfo([
+      {
+        symbol: 'BULL.HK',
+        info: {
+          symbol: 'BULL.HK',
+          nameHk: '测试牛证',
+          lotSize: 500,
+        },
+      },
+    ]);
+
+    quoteMock.seedQuotes([
+      {
+        symbol: 'BULL.HK',
+        quote: makeSeedQuote('BULL.HK', 1.23, 1.2),
+      },
+    ]);
+
+    const client = await createMarketDataClient({
+      config: createSdkConfigDouble(),
+      quoteContextFactory: async () => quoteMock,
+    });
+
+    await client.subscribeSymbols(['BULL.HK']);
+
+    const received: string[] = [];
+    client.onQuoteUpdated((event) => {
+      received.push(event.symbol);
+    });
+
+    quoteMock.emitQuote(createPushQuoteEvent({ symbol: 'BULL.HK', price: 0 }));
+    quoteMock.flushAllEvents();
+
+    expect(received).toHaveLength(0);
+  });
+
+  it('stops standardized quote updates after symbol unsubscribe', async () => {
+    quoteMock.seedStaticInfo([
+      {
+        symbol: 'BULL.HK',
+        info: {
+          symbol: 'BULL.HK',
+          nameHk: '测试牛证',
+          lotSize: 500,
+        },
+      },
+    ]);
+
+    quoteMock.seedQuotes([
+      {
+        symbol: 'BULL.HK',
+        quote: makeSeedQuote('BULL.HK', 1.23, 1.2),
+      },
+    ]);
+
+    const client = await createMarketDataClient({
+      config: createSdkConfigDouble(),
+      quoteContextFactory: async () => quoteMock,
+    });
+
+    await client.subscribeSymbols(['BULL.HK']);
+
+    const received: Array<string> = [];
+    client.onQuoteUpdated((event) => {
+      received.push(event.symbol);
+    });
+
+    await client.unsubscribeSymbols(['BULL.HK']);
+    quoteMock.emitQuote(createPushQuoteEvent({ symbol: 'BULL.HK', price: 1.31 }));
+    quoteMock.flushAllEvents();
+
+    expect(received).toHaveLength(0);
+  });
+
+  it('returns null for subscribed symbol when realtime quote is not warmed', async () => {
     quoteMock.seedStaticInfo([
       {
         symbol: 'BULL.HK',
@@ -425,9 +600,17 @@ describe('quoteClient business flow', () => {
     await client.subscribeSymbols(['BULL.HK']);
     await client.subscribeCandlesticks('BULL.HK', RealPeriod.Min_1);
 
+    const received: string[] = [];
+    client.onQuoteUpdated((event) => {
+      received.push(event.symbol);
+    });
+
     await client.resetRuntimeSubscriptionsAndCaches();
+    quoteMock.emitQuote(createPushQuoteEvent({ symbol: 'BULL.HK', price: 1.31 }));
+    quoteMock.flushAllEvents();
 
     expect(client.getQuotes(['BULL.HK'])).rejects.toThrow('未订阅');
+    expect(received).toHaveLength(0);
     expect(quoteMock.getCalls('unsubscribe')).toHaveLength(1);
     expect(quoteMock.getCalls('unsubscribeCandlesticks')).toHaveLength(1);
   });

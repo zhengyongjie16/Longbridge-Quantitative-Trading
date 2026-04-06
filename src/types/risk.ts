@@ -30,7 +30,7 @@ export type DailyLossFilledOrderInput = {
 /**
  * 开启保护性清仓新周期参数。
  * 类型用途：保护性清仓业务事件完成后推进偏移边界并清空旧周期状态。
- * 数据来源：postTradeRefresher 在完成确认后传入。
+ * 数据来源：成交后一致性运行时在保护性清仓完成确认后传入。
  * 使用范围：风险控制链路；全项目可引用。
  */
 export type StartNewProtectionEpisodeParams = {
@@ -70,17 +70,17 @@ export interface DailyLossTracker {
 }
 
 /**
- * 浮亏监控上下文。
- * 类型用途：UnrealizedLossMonitor.monitorUnrealizedLoss 的入参，封装行情、检查器与交易依赖。
- * 数据来源：主循环与监控任务处理器组装传入。
- * 使用范围：风险控制与监控任务链路；全项目可引用。
+ * 单方向浮亏监控上下文。
+ * 类型用途：TradingRiskEventRuntime 调用单方向浮亏执行器时的入参，只携带当前命中的方向与 seatVersion。
+ * 数据来源：由 tradingRiskEventRuntime 基于 symbolRegistry 路由与 quote push 事件组装传入。
+ * 使用范围：风险控制与事件驱动浮亏链路；全项目可引用。
  */
-export type UnrealizedLossMonitorContext = {
-  readonly longQuote: Quote | null;
-  readonly shortQuote: Quote | null;
-  readonly longSymbol: string;
-  readonly shortSymbol: string;
+export type DirectionalUnrealizedLossMonitorContext = {
+  readonly symbol: string;
+  readonly isLong: boolean;
   readonly monitorSymbol: string;
+  readonly seatVersion: number;
+  readonly quote: Quote;
   readonly riskChecker: RiskChecker;
   readonly trader: Trader;
   readonly orderRecorder: OrderRecorder;
@@ -89,16 +89,18 @@ export type UnrealizedLossMonitorContext = {
 
 /**
  * 浮亏监控器接口。
- * 类型用途：依赖注入，由 riskController 模块实现，主循环调用以监控做多/做空浮亏并触发保护性清仓。
+ * 类型用途：依赖注入，由 riskController 模块实现，供事件驱动浮亏链路按单方向执行保护性清仓。
  * 数据来源：由 riskController 模块实现并注入。
- * 使用范围：主程序、监控任务处理器、MonitorContext；全项目可引用。
+ * 使用范围：TradingRiskEventRuntime 与 MonitorContext；全项目可引用。
  */
 export interface UnrealizedLossMonitor {
   /**
-   * 监控做多和做空标的的浮亏。
-   * @param context 浮亏监控上下文
+   * 监控单方向标的的浮亏。
+   * @param context 单方向浮亏监控上下文
    */
-  monitorUnrealizedLoss: (context: UnrealizedLossMonitorContext) => Promise<void>;
+  monitorDirectionalUnrealizedLoss: (
+    context: DirectionalUnrealizedLossMonitorContext,
+  ) => Promise<void>;
 }
 
 /**

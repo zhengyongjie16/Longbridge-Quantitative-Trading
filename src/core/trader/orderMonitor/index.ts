@@ -11,7 +11,6 @@ import { logger } from '../../../utils/logger/index.js';
 import { toDecimal } from '../utils.js';
 import { PENDING_ORDER_STATUSES } from '../../../constants/index.js';
 import type { OrderMonitor, OrderMonitorDeps } from '../types.js';
-import type { PendingRefreshSymbol } from '../../../types/services.js';
 import type { OrderMonitorRuntimeStore, OrderMonitorTrackedOrder } from './types.js';
 import { buildOrderMonitorConfig } from './utils.js';
 import { createRecoveryFlow } from './recoveryFlow.js';
@@ -42,10 +41,10 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     dailyLossTracker,
     orderHoldRegistry,
     protectiveLiquidationEpisodeTracker,
+    postTradeConsistencyRuntime,
     testHooks,
     tradingConfig,
     symbolRegistry,
-    refreshGate,
     isExecutionAllowed,
   } = deps;
   const config = buildOrderMonitorConfig(tradingConfig.global);
@@ -53,7 +52,6 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
   const runtime: OrderMonitorRuntimeStore = {
     trackedOrders: new Map<string, OrderMonitorTrackedOrder>(),
     trackedOrderLifecycles: new Map(),
-    pendingRefreshSymbols: [],
     bootstrappingOrderEvents: new Map<string, PushOrderChanged>(),
     closedOrderIds: new Set(),
     queriedTerminalStateByOrderId: new Map(),
@@ -68,7 +66,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     orderRecorder,
     dailyLossTracker,
     protectiveLiquidationEpisodeTracker,
-    ...(refreshGate ? { refreshGate } : {}),
+    postTradeConsistencyRuntime,
   });
 
   const orderStatusQuery = createOrderStatusQuery({
@@ -206,19 +204,6 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
   }
 
   /**
-   * 获取并清空待刷新标的列表。
-   *
-   * @returns 待刷新标的数组
-   */
-  function getAndClearPendingRefreshSymbols(): PendingRefreshSymbol[] {
-    if (runtime.pendingRefreshSymbols.length === 0) {
-      return [];
-    }
-
-    return runtime.pendingRefreshSymbols.splice(0);
-  }
-
-  /**
    * 清空恢复相关运行态与 BOOTSTRAPPING 事件缓存。
    *
    * @returns 无返回值
@@ -269,7 +254,6 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     processWithLatestQuotes: quoteFlow.processWithLatestQuotes,
     recoverOrderTrackingFromSnapshot: recoveryFlow.recoverOrderTrackingFromSnapshot,
     getPendingSellOrders: quoteFlow.getPendingSellOrders,
-    getAndClearPendingRefreshSymbols,
     hasPendingProtectiveLiquidationOrders,
     clearTrackedOrders,
   };

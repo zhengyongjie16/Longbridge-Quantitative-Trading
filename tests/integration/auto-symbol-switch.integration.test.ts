@@ -302,7 +302,6 @@ describe('auto-symbol-switch integration', () => {
         processWithLatestQuotes: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [],
-        getAndClearPendingRefreshSymbols: () => [],
         clearTrackedOrders: () => {},
       },
       orderRecorder,

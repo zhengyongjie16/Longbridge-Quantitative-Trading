@@ -16,6 +16,7 @@ import type {
 import type { LastState, MonitorState } from '../../../src/types/state.js';
 import type { RawOrderFromAPI } from '../../../src/types/services.js';
 import type { ProtectiveLiquidationEpisodeTracker } from '../../../src/core/trader/protectiveLiquidationEpisodeTracker/types.js';
+import type { ProtectiveOrderParams } from './types.js';
 import { createTradingConfig as createTradingConfigFactory } from '../../../mock/factories/configFactory.js';
 import {
   createAccountSnapshotDouble,
@@ -126,16 +127,6 @@ function createProtectiveMonitor(): LoadTradingDayRuntimeSnapshotDeps['tradingCo
     orderOwnershipMapping: ['HSI'],
   });
 }
-
-type ProtectiveOrderParams = Readonly<{
-  orderId: string;
-  status: RawOrderFromAPI['status'];
-  price: number;
-  quantity: number;
-  executedPrice: number;
-  executedQuantity: number;
-  updatedAtMs: number;
-}>;
 
 function createProtectiveOrder(params: ProtectiveOrderParams): RawOrderFromAPI {
   return {
@@ -476,6 +467,7 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
     expect(restoreInProgressCalls[0]).toEqual({
       monitorSymbol: 'HSI.HK',
       direction: 'LONG',
+      symbol: 'BULL.HK',
       latestExecutedTimeMs: executedAtMs,
     });
     expect(receivedBoundaryMap?.size).toBe(0);
@@ -545,6 +537,7 @@ describe('createLoadTradingDayRuntimeSnapshot', () => {
       {
         monitorSymbol: 'HSI.HK',
         direction: 'LONG',
+        symbol: 'BULL.HK',
         latestExecutedTimeMs: pendingLatestExecutedMs,
       },
     ]);

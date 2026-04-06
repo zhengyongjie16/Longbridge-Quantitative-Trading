@@ -2,17 +2,15 @@
  * app 异步运行时工厂模块
  *
  * 职责：
- * - 创建订单监控、成交后刷新、监控任务处理器、买入处理器与卖出处理器
- * - 固定异步处理器的顶层所有权边界
+ * - 创建订单监控、监控任务处理器、买入处理器与卖出处理器
+ * - 消费已完成顶层装配的共享依赖，不再承担其他 runtime 的绑定副作用
  */
 import { createBuyProcessor } from '../../main/asyncProgram/buyProcessor/index.js';
 import { createMonitorTaskProcessor } from '../../main/asyncProgram/monitorTaskProcessor/index.js';
 import { createOrderMonitorWorker } from '../../main/asyncProgram/orderMonitorWorker/index.js';
-import { createPostTradeRefresher } from '../../main/asyncProgram/postTradeRefresher/index.js';
 import { createSellProcessor } from '../../main/asyncProgram/sellProcessor/index.js';
 import { clearMonitorDirectionQueuesWithLog } from '../../main/processMonitor/queueCleanup.js';
 import { logger } from '../../utils/logger/index.js';
-import { displayAccountAndPositions } from '../../services/accountDisplay/index.js';
 import { signalObjectPool } from '../../utils/objectPool/index.js';
 import type { AsyncRuntime, AsyncRuntimeFactoryDeps } from '../types.js';
 
@@ -27,12 +25,9 @@ export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntim
   const { tradingConfig } = preGateRuntime;
   const {
     monitorContexts,
-    refreshGate,
     trader,
     lastState,
-    dailyLossTracker,
-    liquidationCooldownTracker,
-    protectiveLiquidationEpisodeTracker,
+    postTradeConsistencyRuntime,
     signalProcessor,
     doomsdayProtection,
     buyTaskQueue,
@@ -42,19 +37,9 @@ export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntim
   const orderMonitorWorker = createOrderMonitorWorker({
     monitorAndManageOrders: () => trader.monitorAndManageOrders(),
   });
-  const postTradeRefresher = createPostTradeRefresher({
-    refreshGate,
-    trader,
-    lastState,
-    monitorContexts,
-    dailyLossTracker,
-    liquidationCooldownTracker,
-    protectiveLiquidationEpisodeTracker,
-    displayAccountAndPositions,
-  });
   const monitorTaskProcessor = createMonitorTaskProcessor({
     monitorTaskQueue,
-    refreshGate,
+    postTradeConsistencyRuntime,
     getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol) ?? null,
     clearMonitorDirectionQueues: (monitorSymbol, direction) => {
       clearMonitorDirectionQueuesWithLog({
@@ -94,7 +79,7 @@ export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntim
     trader,
     marketDataClient: preGateRuntime.marketDataClient,
     getLastState: () => lastState,
-    refreshGate,
+    postTradeConsistencyRuntime,
     scheduleRetry: (callback, delayMs) => {
       return setTimeout(callback, delayMs);
     },
@@ -106,7 +91,6 @@ export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntim
 
   return {
     orderMonitorWorker,
-    postTradeRefresher,
     monitorTaskProcessor,
     buyProcessor,
     sellProcessor,

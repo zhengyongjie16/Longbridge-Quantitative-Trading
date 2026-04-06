@@ -65,11 +65,13 @@ describe('cleanup business flow', () => {
     await cleanup.execute();
 
     expect(steps).toEqual([
+      'abortWaiting',
+      'tradingRiskEventRuntime',
       'buy',
       'sell',
       'monitorTask',
       'orderMonitorWorker',
-      'postTradeRefresher',
+      'postTradeConsistencyRuntime',
       'destroyVerifier',
       'clearIndicatorCache',
       'resetMarketData',
@@ -84,11 +86,13 @@ describe('cleanup business flow', () => {
     await cleanup.execute();
 
     expect(steps).toEqual([
+      'abortWaiting',
+      'tradingRiskEventRuntime',
       'buy',
       'sell',
       'monitorTask',
       'orderMonitorWorker',
-      'postTradeRefresher',
+      'postTradeConsistencyRuntime',
       'clearIndicatorCache',
       'resetMarketData',
     ]);
@@ -118,11 +122,13 @@ describe('cleanup business flow', () => {
 
       expect(exitCodes).toEqual([0]);
       expect(steps).toEqual([
+        'abortWaiting',
+        'tradingRiskEventRuntime',
         'buy',
         'sell',
         'monitorTask',
         'orderMonitorWorker',
-        'postTradeRefresher',
+        'postTradeConsistencyRuntime',
         'clearIndicatorCache',
         'resetMarketData',
       ]);
@@ -174,11 +180,13 @@ describe('cleanup business flow', () => {
 
     expect(caught).toBeInstanceOf(AggregateError);
     expect(steps).toEqual([
+      'abortWaiting',
+      'tradingRiskEventRuntime',
       'buy',
       'sell',
       'monitorTask',
       'orderMonitorWorker',
-      'postTradeRefresher',
+      'postTradeConsistencyRuntime',
       'destroyVerifier',
       'clearIndicatorCache',
       'resetMarketData',
@@ -219,11 +227,13 @@ describe('cleanup business flow', () => {
 
       expect(exitCodes).toEqual([1]);
       expect(steps).toEqual([
+        'abortWaiting',
+        'tradingRiskEventRuntime',
         'buy',
         'sell',
         'monitorTask',
         'orderMonitorWorker',
-        'postTradeRefresher',
+        'postTradeConsistencyRuntime',
         'clearIndicatorCache',
         'resetMarketData',
       ]);
@@ -231,5 +241,52 @@ describe('cleanup business flow', () => {
       overrideProcessHandler('once', originalOnce);
       overrideProcessHandler('exit', originalExit);
     }
+  });
+
+  it('aborts freshness waiters before draining blocked processors', async () => {
+    const steps: string[] = [];
+    let releaseBlockedProcessor: (() => void) | null = null;
+    const blockedProcessor = new Promise<void>((resolve) => {
+      releaseBlockedProcessor = resolve;
+    });
+
+    const cleanup = createCleanup(
+      createCleanupDeps(steps, {
+        buyProcessor: {
+          start: () => {},
+          stop: () => {},
+          stopAndDrain: async () => {
+            steps.push('buy');
+            await blockedProcessor;
+          },
+          restart: () => {},
+        },
+        postTradeConsistencyRuntime: {
+          ...createCleanupDeps([], {}).postTradeConsistencyRuntime,
+          abortWaiting: () => {
+            steps.push('abortWaiting');
+            releaseBlockedProcessor?.();
+          },
+          stopAndDrain: async () => {
+            steps.push('postTradeConsistencyRuntime');
+          },
+        },
+      }),
+    );
+
+    const outcome = await Promise.race([
+      cleanup.execute().then(() => 'done' as const),
+      Bun.sleep(50).then(() => 'timeout' as const),
+    ]);
+
+    if (outcome === 'timeout') {
+      throw new Error('cleanup.execute timed out while waiting for blocked processor');
+    }
+
+    expect(outcome).toBe('done');
+    expect(steps[0]).toBe('abortWaiting');
+    expect(steps[1]).toBe('tradingRiskEventRuntime');
+    expect(steps).toContain('buy');
+    expect(steps).toContain('postTradeConsistencyRuntime');
   });
 });

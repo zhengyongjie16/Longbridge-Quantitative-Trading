@@ -1,6 +1,9 @@
 import type { MonitorContext, LastState } from '../../../types/state.js';
-import type { MarketDataClient, Trader } from '../../../types/services.js';
-import type { RefreshGate } from '../../../utils/types.js';
+import type {
+  MarketDataClient,
+  PostTradeConsistencyFreshnessPort,
+  Trader,
+} from '../../../types/services.js';
 import type { Signal } from '../../../types/signal.js';
 import type { TaskQueue, SellTaskType } from '../tradeTaskQueue/types.js';
 import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
@@ -42,8 +45,8 @@ export type SellProcessorDeps = {
   /** 获取全局状态的函数 */
   readonly getLastState: () => LastState;
 
-  /** 刷新门禁（等待缓存刷新） */
-  readonly refreshGate: RefreshGate;
+  /** 成交后一致性 freshness 等待端口（等待缓存刷新） */
+  readonly postTradeConsistencyRuntime: PostTradeConsistencyFreshnessPort;
 
   /** 一次性路径 quote retry 调度器 */
   readonly scheduleRetry?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;

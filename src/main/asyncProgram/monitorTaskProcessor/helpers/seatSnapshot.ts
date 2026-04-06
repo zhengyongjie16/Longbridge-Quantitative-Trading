@@ -4,12 +4,12 @@
  * 功能：
  * - 校验席位快照一致性与版本
  * - 计算席位就绪状态与可用标的
- * - 刷新后再校验快照，避免旧席位任务执行
+ * - 在成交后一致性 freshness 恢复后再次校验快照，避免旧席位任务执行
  */
 import { isSeatVersionMatch } from '../../../../utils/seat/guards.js';
 
+import type { PostTradeConsistencyFreshnessPort } from '../../../../types/services.js';
 import type { SeatState } from '../../../../types/seat.js';
-import type { RefreshGate } from '../../../../utils/types.js';
 import type { MonitorTaskContext, SeatSnapshot } from '../types.js';
 
 /**
@@ -42,28 +42,28 @@ export function isSeatSnapshotValid(
 }
 
 /**
- * 等待行情刷新后再次校验双向席位快照
+ * 等待成交后一致性 freshness 恢复后再次校验双向席位快照
  * 两次校验均失败时返回 null，避免旧席位任务在换标后执行
  *
  * @param monitorSymbol 监控标的代码
  * @param context 监控上下文
  * @param longSnapshot 多头席位快照
  * @param shortSnapshot 空头席位快照
- * @param refreshGate 刷新门禁，用于 waitForFresh
- * @returns 刷新后 longValid/shortValid 结果，两次校验均无有效席位时返回 null
+ * @param postTradeConsistencyRuntime 成交后一致性 freshness 等待端口，用于 waitForFresh
+ * @returns freshness 恢复后 longValid/shortValid 结果，两次校验均无有效席位时返回 null
  */
 export async function validateSeatSnapshotsAfterRefresh({
   monitorSymbol,
   context,
   longSnapshot,
   shortSnapshot,
-  refreshGate,
+  postTradeConsistencyRuntime,
 }: {
   readonly monitorSymbol: string;
   readonly context: MonitorTaskContext;
   readonly longSnapshot: SeatSnapshot;
   readonly shortSnapshot: SeatSnapshot;
-  readonly refreshGate: RefreshGate;
+  readonly postTradeConsistencyRuntime: PostTradeConsistencyFreshnessPort;
 }): Promise<Readonly<{ longValid: boolean; shortValid: boolean }> | null> {
   const hasLongSnapshot = isSeatSnapshotValid(monitorSymbol, 'LONG', longSnapshot, context);
   const hasShortSnapshot = isSeatSnapshotValid(monitorSymbol, 'SHORT', shortSnapshot, context);
@@ -71,7 +71,7 @@ export async function validateSeatSnapshotsAfterRefresh({
     return null;
   }
 
-  await refreshGate.waitForFresh();
+  await postTradeConsistencyRuntime.waitForFresh();
 
   const longValid = isSeatSnapshotValid(monitorSymbol, 'LONG', longSnapshot, context);
   const shortValid = isSeatSnapshotValid(monitorSymbol, 'SHORT', shortSnapshot, context);

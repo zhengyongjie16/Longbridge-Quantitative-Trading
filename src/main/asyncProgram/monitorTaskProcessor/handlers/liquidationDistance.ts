@@ -8,7 +8,11 @@
  */
 import { ORDER_QUOTE_RETRY, WARRANT_LIQUIDATION_ORDER_TYPE } from '../../../../constants/index.js';
 import type { LastState } from '../../../../types/state.js';
-import type { Trader, MarketDataClient } from '../../../../types/services.js';
+import type {
+  Trader,
+  MarketDataClient,
+  PostTradeConsistencyFreshnessPort,
+} from '../../../../types/services.js';
 import {
   isQuoteReadyForRequirement,
   resolveNextQuoteRetry,
@@ -21,7 +25,6 @@ import {
   positionObjectPool,
   signalObjectPool,
 } from '../../../../utils/objectPool/index.js';
-import type { RefreshGate } from '../../../../utils/types.js';
 import { getPositions } from '../../../processMonitor/utils.js';
 import type { MonitorTask } from '../../monitorTaskQueue/types.js';
 import { evaluateMonitorContextAndSeatReadiness } from '../utils.js';
@@ -154,19 +157,19 @@ async function executeReadyLiquidationTasks(params: {
  * 创建距回收价清仓任务处理器。
  * 校验席位快照后检查牛熊证距回收价，满足条件则生成非保护性清仓信号并执行，刷新订单记录与浮亏数据；保证风控检查在席位与行情就绪后执行。
  *
- * @param deps 依赖注入，包含 getContextOrSkip、refreshGate、lastState、trader、getCanProcessTask
+ * @param deps 依赖注入，包含 getContextOrSkip、postTradeConsistencyRuntime、lastState、trader、getCanProcessTask
  * @returns 处理 LIQUIDATION_DISTANCE_CHECK 任务的异步函数
  */
 export function createLiquidationDistanceHandler({
   getContextOrSkip,
-  refreshGate,
+  postTradeConsistencyRuntime,
   lastState,
   trader,
   marketDataClient,
   getCanProcessTask,
 }: {
   readonly getContextOrSkip: (monitorSymbol: string) => MonitorTaskContext | null;
-  readonly refreshGate: RefreshGate;
+  readonly postTradeConsistencyRuntime: PostTradeConsistencyFreshnessPort;
   readonly lastState: LastState;
   readonly trader: Trader;
   readonly marketDataClient: MarketDataClient;
@@ -184,7 +187,7 @@ export function createLiquidationDistanceHandler({
     const data: LiquidationDistanceCheckTaskData = task.data;
     const evaluated = await evaluateMonitorContextAndSeatReadiness({
       getContextOrSkip,
-      refreshGate,
+      postTradeConsistencyRuntime,
       monitorSymbol: data.monitorSymbol,
       longSnapshot: { seatVersion: data.long.seatVersion, symbol: data.long.symbol },
       shortSnapshot: { seatVersion: data.short.seatVersion, symbol: data.short.symbol },

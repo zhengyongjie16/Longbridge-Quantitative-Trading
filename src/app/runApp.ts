@@ -150,6 +150,13 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       quotesMap: startupSnapshot.quotesMap,
     });
 
+    postGateRuntime.postTradeConsistencyRuntime.bindBusinessDeps({
+      monitorContexts: postGateRuntime.monitorContexts,
+      dailyLossTracker: postGateRuntime.dailyLossTracker,
+      liquidationCooldownTracker: postGateRuntime.liquidationCooldownTracker,
+      protectiveLiquidationEpisodeTracker: postGateRuntime.protectiveLiquidationEpisodeTracker,
+    });
+
     const rebuildTradingDayState = buildRebuildTradingDayState({
       marketDataClient: preGateRuntime.marketDataClient,
       trader: postGateRuntime.trader,
@@ -158,28 +165,6 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       monitorContexts: postGateRuntime.monitorContexts,
       dailyLossTracker: postGateRuntime.dailyLossTracker,
       displayAccountAndPositions: renderAccountAndPositions,
-    });
-
-    if (startupSnapshot.startupRebuildPending) {
-      appLogger.warn('启动阶段跳过初次重建，后续由生命周期重建任务自动恢复');
-    } else {
-      await rebuildTradingDayState({
-        allOrders: startupSnapshot.allOrders,
-        quotesMap: startupSnapshot.quotesMap,
-        now: startupSnapshot.now,
-      });
-      postGateRuntime.refreshGate.markFresh(postGateRuntime.refreshGate.getStatus().staleVersion);
-    }
-
-    bindDelayedSignalHandlers({
-      monitorContexts: postGateRuntime.monitorContexts,
-      lastState: postGateRuntime.lastState,
-      buyTaskQueue: postGateRuntime.buyTaskQueue,
-      sellTaskQueue: postGateRuntime.sellTaskQueue,
-      logger: appLogger,
-      releaseSignal: (signal) => {
-        signalObjectPool.release(signal);
-      },
     });
 
     const asyncRuntime = buildAsyncRuntime({
@@ -193,24 +178,47 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       rebuildTradingDayState,
     });
 
-    asyncRuntime.monitorTaskProcessor.start();
-    asyncRuntime.buyProcessor.start();
-    asyncRuntime.sellProcessor.start();
-    asyncRuntime.orderMonitorWorker.start();
-    asyncRuntime.postTradeRefresher.start();
+    bindDelayedSignalHandlers({
+      monitorContexts: postGateRuntime.monitorContexts,
+      lastState: postGateRuntime.lastState,
+      buyTaskQueue: postGateRuntime.buyTaskQueue,
+      sellTaskQueue: postGateRuntime.sellTaskQueue,
+      logger: appLogger,
+      releaseSignal: (signal) => {
+        signalObjectPool.release(signal);
+      },
+    });
 
     const cleanup = buildCleanup({
       buyProcessor: asyncRuntime.buyProcessor,
       sellProcessor: asyncRuntime.sellProcessor,
       monitorTaskProcessor: asyncRuntime.monitorTaskProcessor,
       orderMonitorWorker: asyncRuntime.orderMonitorWorker,
-      postTradeRefresher: asyncRuntime.postTradeRefresher,
+      tradingRiskEventRuntime: postGateRuntime.tradingRiskEventRuntime,
+      postTradeConsistencyRuntime: postGateRuntime.postTradeConsistencyRuntime,
       marketDataClient: preGateRuntime.marketDataClient,
       monitorContexts: postGateRuntime.monitorContexts,
       indicatorCache: postGateRuntime.indicatorCache,
       lastState: postGateRuntime.lastState,
     });
     cleanup.registerExitHandlers();
+
+    if (startupSnapshot.startupRebuildPending) {
+      appLogger.warn('启动阶段跳过初次重建，保持静止并等待生命周期重建任务自动恢复');
+    } else {
+      await rebuildTradingDayState({
+        allOrders: startupSnapshot.allOrders,
+        quotesMap: startupSnapshot.quotesMap,
+        now: startupSnapshot.now,
+      });
+      postGateRuntime.postTradeConsistencyRuntime.start();
+      postGateRuntime.postTradeConsistencyRuntime.completeRebuildBaseline();
+      postGateRuntime.tradingRiskEventRuntime.start();
+      asyncRuntime.monitorTaskProcessor.start();
+      asyncRuntime.buyProcessor.start();
+      asyncRuntime.sellProcessor.start();
+      asyncRuntime.orderMonitorWorker.start();
+    }
 
     appLogger.info('程序开始运行，在交易时段将进行实时监控和交易（按 Ctrl+C 退出）');
     for (;;) {
@@ -232,7 +240,6 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
           sellTaskQueue: postGateRuntime.sellTaskQueue,
           monitorTaskQueue: postGateRuntime.monitorTaskQueue,
           orderMonitorWorker: asyncRuntime.orderMonitorWorker,
-          postTradeRefresher: asyncRuntime.postTradeRefresher,
           runtimeGateMode: preGateRuntime.gatePolicies.runtimeGate,
           dayLifecycleManager,
         });

@@ -15,9 +15,8 @@ import type {
 } from '../../asyncProgram/monitorTaskProcessor/types.js';
 import type { MonitorTaskQueue } from '../../asyncProgram/monitorTaskQueue/types.js';
 import type { OrderMonitorWorker } from '../../asyncProgram/orderMonitorWorker/types.js';
-import type { PostTradeRefresher } from '../../asyncProgram/postTradeRefresher/types.js';
-import type { RefreshGate } from '../../../utils/types.js';
 import type { IndicatorCache } from '../../asyncProgram/indicatorCache/types.js';
+import type { TradingRiskEventRuntime } from '../../tradingRiskEventRuntime/types.js';
 import type { WarrantListCache } from '../../../services/autoSymbolFinder/types.js';
 import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
 import type { DailyLossTracker } from '../../../types/risk.js';
@@ -25,8 +24,23 @@ import type { LiquidationCooldownTracker } from '../../../services/liquidationCo
 import type { ProtectiveLiquidationEpisodeTracker } from '../../../core/trader/protectiveLiquidationEpisodeTracker/types.js';
 
 /**
+ * lifecycle 持有的成交后一致性 runtime 最小契约。
+ * 类型用途：约束 signalRuntimeDomain 在生命周期切换时对 runtime 的启停与 baseline 推进能力。
+ * 数据来源：由 app 层注入 PostTradeConsistencyRuntime 实例。
+ * 使用范围：仅 lifecycle signalRuntimeDomain 使用。
+ */
+export interface SignalRuntimePostTradeConsistencyRuntime {
+  readonly abortWaiting: () => void;
+  readonly resetAbort: () => void;
+  readonly start: () => void;
+  readonly stopAndDrain: () => Promise<void>;
+  readonly midnightClear: () => void;
+  readonly completeRebuildBaseline: () => void;
+}
+
+/**
  * 信号运行时域依赖。
- * 类型用途：createSignalRuntimeDomain 的入参，提供监控上下文、买卖/监控处理器、队列、refreshGate、releaseSignal 等。
+ * 类型用途：createSignalRuntimeDomain 的入参，提供监控上下文、买卖/监控处理器、runtime 所有权与队列、releaseSignal 等。
  * 数据来源：由 lifecycle 或主程序在注册 cacheDomains 时组装传入。
  * 使用范围：仅 lifecycle 模块使用。
  */
@@ -36,12 +50,12 @@ export type SignalRuntimeDomainDeps = Readonly<{
   sellProcessor: Processor;
   monitorTaskProcessor: MonitorTaskProcessor;
   orderMonitorWorker: OrderMonitorWorker;
-  postTradeRefresher: PostTradeRefresher;
+  tradingRiskEventRuntime: Pick<TradingRiskEventRuntime, 'start' | 'stopAndDrain'>;
+  postTradeConsistencyRuntime: SignalRuntimePostTradeConsistencyRuntime;
   indicatorCache: IndicatorCache;
   buyTaskQueue: TaskQueue<BuyTaskType>;
   sellTaskQueue: TaskQueue<SellTaskType>;
   monitorTaskQueue: MonitorTaskQueue<MonitorTaskDataMap>;
-  refreshGate: RefreshGate;
   releaseSignal: (signal: Signal) => void;
 }>;
 

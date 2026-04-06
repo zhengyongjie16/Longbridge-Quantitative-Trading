@@ -11,7 +11,6 @@
  * - AUTO_SYMBOL_SWITCH_DISTANCE：距离触发换标检查
  * - SEAT_REFRESH：席位刷新（换标后刷新订单记录、浮亏数据）
  * - LIQUIDATION_DISTANCE_CHECK：牛熊证距回收价清仓检查
- * - UNREALIZED_LOSS_CHECK：浮亏清仓检查
  *
  * 席位快照验证：
  * - 任务携带创建时的席位快照（版本号+标的）
@@ -25,7 +24,6 @@ import { createRefreshHelpers } from './helpers/refreshHelpers.js';
 import { createAutoSymbolHandlers } from './handlers/autoSymbol.js';
 import { createSeatRefreshHandler } from './handlers/seatRefresh.js';
 import { createLiquidationDistanceHandler } from './handlers/liquidationDistance.js';
-import { createUnrealizedLossHandler } from './handlers/unrealizedLoss.js';
 import type { MonitorTask } from '../monitorTaskQueue/types.js';
 import { formatError } from '../../../utils/error/index.js';
 import type {
@@ -50,15 +48,15 @@ function assertNeverTask(_task: never): never {
 
 /**
  * 创建监控任务处理器。
- * 消费 MonitorTaskQueue 中的任务，使用 setImmediate 异步执行；依赖 getMonitorContext、refreshGate 等完成席位校验与刷新。
+ * 消费 MonitorTaskQueue 中的任务，使用 setImmediate 异步执行；依赖 getMonitorContext、postTradeConsistencyRuntime 等完成席位校验与刷新。
  *
- * @param deps 依赖注入，包含 monitorTaskQueue、refreshGate、getMonitorContext、各 handler 依赖等
+ * @param deps 依赖注入，包含 monitorTaskQueue、postTradeConsistencyRuntime、getMonitorContext、各 handler 依赖等
  * @returns 实现 start/stop/stopAndDrain/restart 的处理器实例
  */
 export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): MonitorTaskProcessor {
   const {
     monitorTaskQueue,
-    refreshGate,
+    postTradeConsistencyRuntime,
     getMonitorContext,
     clearMonitorDirectionQueues,
     trader,
@@ -129,7 +127,7 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
   }
   const { handleAutoSymbolTick, handleAutoSymbolSwitchDistance } = createAutoSymbolHandlers({
     getContextOrSkip,
-    refreshGate,
+    postTradeConsistencyRuntime,
     lastState,
     ...(getCanProcessTask ? { getCanProcessTask } : {}),
   });
@@ -141,16 +139,9 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
   });
   const handleLiquidationDistanceCheck = createLiquidationDistanceHandler({
     getContextOrSkip,
-    refreshGate,
+    postTradeConsistencyRuntime,
     marketDataClient,
     lastState,
-    trader,
-    ...(getCanProcessTask ? { getCanProcessTask } : {}),
-  });
-  const handleUnrealizedLossCheck = createUnrealizedLossHandler({
-    getContextOrSkip,
-    refreshGate,
-    marketDataClient,
     trader,
     ...(getCanProcessTask ? { getCanProcessTask } : {}),
   });
@@ -176,10 +167,6 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
 
       case 'LIQUIDATION_DISTANCE_CHECK': {
         return handleLiquidationDistanceCheck(task);
-      }
-
-      case 'UNREALIZED_LOSS_CHECK': {
-        return handleUnrealizedLossCheck(task);
       }
 
       default: {
@@ -214,10 +201,7 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
       });
       if (result.retryRequest) {
         scheduleTaskRetry(result.retryRequest);
-      } else if (
-        task.type === 'LIQUIDATION_DISTANCE_CHECK' ||
-        task.type === 'UNREALIZED_LOSS_CHECK'
-      ) {
+      } else if (task.type === 'LIQUIDATION_DISTANCE_CHECK') {
         clearRetryEntry(`${task.monitorSymbol}:${task.type}`);
       }
 

@@ -13,7 +13,7 @@
  * - 独立队列避免被买入任务阻塞
  *
  * 安全与门禁协作：
- * - 在处理任意卖出任务前，先通过 refreshGate.waitForFresh() 等待最近一次成交后的账户/持仓/浮亏刷新完成
+ * - 在处理任意卖出任务前，先通过 postTradeConsistencyRuntime.waitForFresh() 等待最近一次成交后的账户/持仓/浮亏刷新完成
  * - 卖出执行与卖出数量计算均使用执行时从 marketDataClient 读取的 realtime quote
  * - 仍会检查席位 ACTIVE 状态、席位版本与标的一致性，任何不满足条件的信号都会被安全跳过并记录原因
  * - 真实卖出数量由 signalProcessor.processSellSignals 按智能平仓策略计算，若被转为 HOLD 则不提交订单
@@ -26,7 +26,7 @@
  * 5. 释放信号对象到对象池
  */
 import { ORDER_QUOTE_RETRY } from '../../../constants/index.js';
-import { signalObjectPool } from '../../../utils/objectPool/index.js';
+import { acquireSignal, signalObjectPool } from '../../../utils/objectPool/index.js';
 import {
   createBaseProcessor,
   executeSignalsWithLifecycleGate,
@@ -55,7 +55,7 @@ import type { Signal } from '../../../types/signal.js';
  * @returns 可重新入队的卖出信号副本
  */
 function cloneSellSignal(signal: Signal): Signal {
-  const clonedSignal = signalObjectPool.acquire() as Signal;
+  const clonedSignal = acquireSignal();
   clonedSignal.symbol = signal.symbol;
   clonedSignal.symbolName = signal.symbolName ?? null;
   clonedSignal.action = signal.action;
@@ -102,9 +102,9 @@ function buildSellRetryKey(params: {
 
 /**
  * 创建卖出处理器。
- * 消费 SellTaskQueue 中的卖出任务，经 RefreshGate 等待缓存刷新后计算卖出数量并执行；独立于买入处理器，保证卖出优先、不被风险检查阻塞。
+ * 消费 SellTaskQueue 中的卖出任务，经成交后一致性 freshness 等待后计算卖出数量并执行；独立于买入处理器，保证卖出优先、不被风险检查阻塞。
  *
- * @param deps 依赖注入（任务队列、getMonitorContext、signalProcessor、trader、getLastState、refreshGate、可选 getCanProcessTask）
+ * @param deps 依赖注入（任务队列、getMonitorContext、signalProcessor、trader、getLastState、postTradeConsistencyRuntime、可选 getCanProcessTask）
  * @returns 实现 Processor 接口的卖出处理器实例（start/stop/stopAndDrain/restart）
  */
 export function createSellProcessor(deps: SellProcessorDeps): Processor {
@@ -115,7 +115,7 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
     trader,
     marketDataClient,
     getLastState,
-    refreshGate,
+    postTradeConsistencyRuntime,
     scheduleRetry,
     clearRetry,
     getCanProcessTask,
@@ -163,7 +163,7 @@ export function createSellProcessor(deps: SellProcessorDeps): Processor {
     const { data: signal, monitorSymbol } = task;
     const symbolDisplay = formatSymbolDisplay(signal.symbol, signal.symbolName ?? null);
     try {
-      await refreshGate.waitForFresh();
+      await postTradeConsistencyRuntime.waitForFresh();
 
       // 获取监控上下文
       const ctx = getMonitorContext(monitorSymbol);

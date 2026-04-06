@@ -7,8 +7,8 @@
  * - 执行前校验席位快照，防止旧任务在换标后被错误执行
  */
 import { logger } from '../../../../utils/logger/index.js';
+import type { PostTradeConsistencyFreshnessPort } from '../../../../types/services.js';
 import type { LastState } from '../../../../types/state.js';
-import type { RefreshGate } from '../../../../utils/types.js';
 import type { MonitorTask } from '../../monitorTaskQueue/types.js';
 import type {
   AutoSymbolSwitchDistanceTaskData,
@@ -28,17 +28,17 @@ import { hasSeatSymbol } from '../../../../utils/seat/guards.js';
  * 创建自动寻标任务处理器（AUTO_SYMBOL_TICK、AUTO_SYMBOL_SWITCH_DISTANCE）。
  * 执行前校验席位快照，防止换标后执行旧任务；tick 触发寻标，距离检查触发换标决策。
  *
- * @param deps 依赖注入，包含 getContextOrSkip、refreshGate、lastState、getCanProcessTask
+ * @param deps 依赖注入，包含 getContextOrSkip、postTradeConsistencyRuntime、lastState、getCanProcessTask
  * @returns handleAutoSymbolTick 与 handleAutoSymbolSwitchDistance 两个处理函数
  */
 export function createAutoSymbolHandlers({
   getContextOrSkip,
-  refreshGate,
+  postTradeConsistencyRuntime,
   lastState,
   getCanProcessTask,
 }: {
   readonly getContextOrSkip: (monitorSymbol: string) => MonitorTaskContext | null;
-  readonly refreshGate: RefreshGate;
+  readonly postTradeConsistencyRuntime: PostTradeConsistencyFreshnessPort;
   readonly lastState: LastState;
   readonly getCanProcessTask?: () => boolean;
 }): Readonly<{
@@ -108,7 +108,7 @@ export function createAutoSymbolHandlers({
       context,
       longSnapshot: data.seatSnapshots.long,
       shortSnapshot: data.seatSnapshots.short,
-      refreshGate,
+      postTradeConsistencyRuntime,
     });
     if (!snapshotValidity) {
       logger.debug(

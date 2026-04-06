@@ -9,6 +9,12 @@
  */
 import { describe, expect, it } from 'bun:test';
 import type { Candlestick, Period, TradeSessions } from 'longbridge';
+import type {
+  ApiCallEvent,
+  DelayedApiMethod,
+  IterationMetric,
+  MultiMonitorSeatEntry,
+} from './types.js';
 import { TRADING } from '../../src/constants/index.js';
 import { mainProgram } from '../../src/main/mainProgram/index.js';
 import { createMonitorContext } from '../../src/app/createMonitorContext.js';
@@ -44,35 +50,6 @@ import type {
 import type { DailyLossTracker, UnrealizedLossMonitor } from '../../src/types/risk.js';
 import type { MonitorTaskDataMap } from '../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 
-type DelayedApiMethod =
-  | 'subscribeSymbols'
-  | 'unsubscribeSymbols'
-  | 'subscribeCandlesticks'
-  | 'isTradingDay'
-  | 'resetRuntimeSubscriptionsAndCaches'
-  | 'getQuoteContext';
-
-type ApiCallEvent = {
-  readonly stage: 'startup' | 'main-loop';
-  readonly iteration: number | null;
-  readonly method: DelayedApiMethod;
-  readonly elapsedMs: number;
-};
-
-type IterationMetric = {
-  readonly iteration: number;
-  readonly loopLatencyMs: number;
-  readonly apiCallCount: number;
-  readonly apiLatencyTotalMs: number;
-};
-
-type MultiMonitorSeatEntry = {
-  longState: SeatState;
-  shortState: SeatState;
-  longVersion: number;
-  shortVersion: number;
-};
-
 function createNoopAutoSymbolManager(): AutoSymbolManagerPort {
   return {
     maybeSearchOnTick: async () => {},
@@ -107,7 +84,7 @@ function createNoopDailyLossTracker(): DailyLossTracker {
 
 function createNoopUnrealizedLossMonitor(): UnrealizedLossMonitor {
   return {
-    monitorUnrealizedLoss: async () => {},
+    monitorDirectionalUnrealizedLoss: async () => {},
   };
 }
 
@@ -507,6 +484,7 @@ describe('main loop latency full-chain integration', () => {
             quoteCache.delete(symbol);
           }
         }),
+      onQuoteUpdated: () => () => {},
       subscribeCandlesticks: async (
         symbol: string,
         period: Period,
@@ -589,12 +567,6 @@ describe('main loop latency full-chain integration', () => {
         start: () => {},
         schedule: () => {},
         stopAndDrain: async () => {},
-      },
-      postTradeRefresher: {
-        start: () => {},
-        enqueue: () => {},
-        stopAndDrain: async () => {},
-        clearPending: () => {},
       },
       runtimeGateMode: 'skip',
       dayLifecycleManager: {

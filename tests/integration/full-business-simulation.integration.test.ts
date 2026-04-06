@@ -20,7 +20,6 @@ import {
 import { createIndicatorCache } from '../../src/main/asyncProgram/indicatorCache/index.js';
 import { createDelayedSignalVerifier } from '../../src/main/asyncProgram/delayedSignalVerifier/index.js';
 import { createAutoSymbolManager } from '../../src/services/autoSymbolManager/index.js';
-import { createRefreshGate } from '../../src/utils/refreshGate/index.js';
 import { initMonitorState } from '../../src/utils/helpers/index.js';
 import { createDayLifecycleManager } from '../../src/main/lifecycle/dayLifecycleManager.js';
 import { createSignalRuntimeDomain } from '../../src/main/lifecycle/cacheDomains/signalRuntimeDomain.js';
@@ -112,7 +111,7 @@ function createNoopDailyLossTracker(): DailyLossTracker {
 
 function createNoopUnrealizedLossMonitor(): UnrealizedLossMonitor {
   return {
-    monitorUnrealizedLoss: async () => {},
+    monitorDirectionalUnrealizedLoss: async () => {},
   };
 }
 
@@ -306,7 +305,7 @@ describe('full business simulation integration', () => {
       },
     });
 
-    const refreshGate = createRefreshGate();
+    const postTradeConsistencyRuntime = { waitForFresh: async () => {} };
     const buyProcessor = createBuyProcessor({
       taskQueue: buyTaskQueue,
       getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol),
@@ -359,12 +358,11 @@ describe('full business simulation integration', () => {
         },
       }),
       getLastState: () => lastState,
-      refreshGate,
+      postTradeConsistencyRuntime,
       getCanProcessTask: () => lastState.isTradingEnabled,
     });
 
     let orderMonitorScheduleCount = 0;
-    let postTradeEnqueueCount = 0;
     const candles = createMockCandlesticks(120, 100, 0.2);
 
     buyProcessor.start();
@@ -416,14 +414,6 @@ describe('full business simulation integration', () => {
           },
           stopAndDrain: async () => {},
         },
-        postTradeRefresher: {
-          start: () => {},
-          enqueue: () => {
-            postTradeEnqueueCount += 1;
-          },
-          stopAndDrain: async () => {},
-          clearPending: () => {},
-        },
         runtimeGateMode: 'skip',
         dayLifecycleManager: createNoopDayLifecycleManager(),
       });
@@ -432,7 +422,6 @@ describe('full business simulation integration', () => {
 
       expect(submittedActions).toEqual(['SELLCALL']);
       expect(orderMonitorScheduleCount).toBe(1);
-      expect(postTradeEnqueueCount).toBe(1);
     } finally {
       delayedSignalVerifier.destroy();
       await Promise.all([buyProcessor.stopAndDrain(), sellProcessor.stopAndDrain()]);
@@ -607,10 +596,10 @@ describe('full business simulation integration', () => {
     ]);
 
     const processedTaskTypes: string[] = [];
-    const refreshGate = createRefreshGate();
+    const postTradeConsistencyRuntime = { waitForFresh: async () => {} };
     const monitorTaskProcessor = createMonitorTaskProcessor({
       monitorTaskQueue,
-      refreshGate,
+      postTradeConsistencyRuntime,
       getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol) ?? null,
       clearMonitorDirectionQueues: () => {},
       trader,
@@ -657,7 +646,7 @@ describe('full business simulation integration', () => {
         getQuotes: autoSwitchMarketDataClient.getQuotes,
       }),
       getLastState: () => lastState,
-      refreshGate,
+      postTradeConsistencyRuntime,
       getCanProcessTask: () => lastState.isTradingEnabled,
     });
 
@@ -690,12 +679,6 @@ describe('full business simulation integration', () => {
         start: () => {},
         schedule: () => {},
         stopAndDrain: async () => {},
-      },
-      postTradeRefresher: {
-        start: () => {},
-        enqueue: () => {},
-        stopAndDrain: async () => {},
-        clearPending: () => {},
       },
       runtimeGateMode: 'skip' as const,
       dayLifecycleManager: createNoopDayLifecycleManager(),
@@ -1042,7 +1025,7 @@ describe('full business simulation integration', () => {
       },
     });
 
-    const refreshGate = createRefreshGate();
+    const postTradeConsistencyRuntime = { waitForFresh: async () => {} };
     const buyProcessor = createBuyProcessor({
       taskQueue: buyTaskQueue,
       getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol),
@@ -1095,12 +1078,12 @@ describe('full business simulation integration', () => {
         },
       }),
       getLastState: () => lastState,
-      refreshGate,
+      postTradeConsistencyRuntime,
       getCanProcessTask: () => lastState.isTradingEnabled,
     });
     const monitorTaskProcessor = createMonitorTaskProcessor({
       monitorTaskQueue,
-      refreshGate,
+      postTradeConsistencyRuntime,
       getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol) ?? null,
       clearMonitorDirectionQueues: () => {},
       trader,
@@ -1130,21 +1113,26 @@ describe('full business simulation integration', () => {
           orderMonitorStopCount += 1;
         },
       },
-      postTradeRefresher: {
+      postTradeConsistencyRuntime: {
+        abortWaiting: () => {},
+        resetAbort: () => {},
         start: () => {
           postTradeStartCount += 1;
         },
-        enqueue: () => {},
         stopAndDrain: async () => {
           postTradeStopCount += 1;
         },
-        clearPending: () => {},
+        midnightClear: () => {},
+        completeRebuildBaseline: () => {},
+      },
+      tradingRiskEventRuntime: {
+        start: () => {},
+        stopAndDrain: async () => {},
       },
       indicatorCache,
       buyTaskQueue,
       sellTaskQueue,
       monitorTaskQueue,
-      refreshGate,
       releaseSignal: () => {},
     });
 
@@ -1246,12 +1234,6 @@ describe('full business simulation integration', () => {
           schedule: () => {},
           stopAndDrain: async () => {},
         },
-        postTradeRefresher: {
-          start: () => {},
-          enqueue: () => {},
-          stopAndDrain: async () => {},
-          clearPending: () => {},
-        },
         runtimeGateMode: 'skip',
         dayLifecycleManager,
       });
@@ -1287,12 +1269,6 @@ describe('full business simulation integration', () => {
           start: () => {},
           schedule: () => {},
           stopAndDrain: async () => {},
-        },
-        postTradeRefresher: {
-          start: () => {},
-          enqueue: () => {},
-          stopAndDrain: async () => {},
-          clearPending: () => {},
         },
         runtimeGateMode: 'skip',
         dayLifecycleManager,

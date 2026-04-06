@@ -94,6 +94,7 @@ function defaultDeps(steps: string[]): CleanupContext {
     getQuotes: async () => new Map(),
     subscribeSymbols: async () => {},
     unsubscribeSymbols: async () => {},
+    onQuoteUpdated: () => () => {},
     subscribeCandlesticks: async () => [],
     getRealtimeCandlesticks: async () => [],
     getCandlestickSnapshot: () => null,
@@ -104,6 +105,12 @@ function defaultDeps(steps: string[]): CleanupContext {
   };
 
   return {
+    tradingRiskEventRuntime: {
+      start: () => {},
+      stopAndDrain: async () => {
+        steps.push('tradingRiskEventRuntime');
+      },
+    },
     buyProcessor: {
       start: () => {},
       stop: () => {},
@@ -128,13 +135,28 @@ function defaultDeps(steps: string[]): CleanupContext {
         steps.push('orderMonitorWorker');
       },
     },
-    postTradeRefresher: {
-      start: () => {},
-      enqueue: () => {},
-      stopAndDrain: async () => {
-        steps.push('postTradeRefresher');
+    postTradeConsistencyRuntime: {
+      bindBusinessDeps: () => {},
+      recordSettlementRefreshNeed: () => {},
+      getStatus: () => ({
+        started: false,
+        inFlight: false,
+        hasPendingRefresh: false,
+        currentVersion: 0,
+        staleVersion: 0,
+        abortReason: null,
+      }),
+      waitForFresh: async () => {},
+      abortWaiting: () => {
+        steps.push('abortWaiting');
       },
-      clearPending: () => {},
+      resetAbort: () => {},
+      start: () => {},
+      stopAndDrain: async () => {
+        steps.push('postTradeConsistencyRuntime');
+      },
+      midnightClear: () => {},
+      completeRebuildBaseline: () => {},
     },
     marketDataClient,
     monitorContexts: new Map(),

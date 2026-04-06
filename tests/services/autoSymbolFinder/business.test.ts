@@ -6,7 +6,14 @@
  */
 import { describe, expect, it } from 'bun:test';
 import { inspect } from 'node:util';
-import { FilterWarrantExpiryDate, WarrantStatus, WarrantType } from 'longbridge';
+import {
+  FilterWarrantExpiryDate,
+  FilterWarrantInOutBoundsType,
+  SortOrderType,
+  WarrantSortBy,
+  WarrantStatus,
+  WarrantType,
+} from 'longbridge';
 
 import { findBestWarrant } from '../../../src/services/autoSymbolFinder/index.js';
 import { resolveDirectionalAutoSearchPolicy } from '../../../src/services/autoSymbolFinder/policyResolver.js';
@@ -588,6 +595,35 @@ describe('autoSymbolFinder business flow', () => {
     expect(
       warns.some((message) => message.includes('主阈值未严格落在换标安全区间内部')),
     ).toBeTrue();
+  });
+
+  it('forwards full warrantList filters through the MarketQuoteContext boundary', async () => {
+    const quoteCtx = createQuoteContextMock();
+    const ctx = createQuoteContextDouble(quoteCtx);
+
+    await ctx.warrantList({
+      symbol: 'HSI.HK',
+      sortBy: WarrantSortBy.Turnover,
+      sortOrder: SortOrderType.Descending,
+      types: [WarrantType.Bull],
+      issuerIds: [123],
+      expiryFilters: [FilterWarrantExpiryDate.Between_3_6],
+      inOutBoundsTypes: [FilterWarrantInOutBoundsType.In],
+      status: [WarrantStatus.Normal],
+    });
+
+    const warrantListCalls = quoteCtx.getCalls('warrantList');
+    expect(warrantListCalls).toHaveLength(1);
+    expect(warrantListCalls[0]?.args).toEqual([
+      'HSI.HK',
+      WarrantSortBy.Turnover,
+      SortOrderType.Descending,
+      [WarrantType.Bull],
+      [123],
+      [FilterWarrantExpiryDate.Between_3_6],
+      [FilterWarrantInOutBoundsType.In],
+      [WarrantStatus.Normal],
+    ]);
   });
 
   it('reuses cache within TTL and re-fetches after expiry for the same monitor symbol and direction', async () => {

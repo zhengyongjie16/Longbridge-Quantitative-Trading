@@ -43,7 +43,6 @@ function createRuntime(): OrderMonitorRuntimeStore {
   return {
     trackedOrders: new Map<string, OrderMonitorTrackedOrder>(),
     trackedOrderLifecycles: new Map(),
-    pendingRefreshSymbols: [],
     bootstrappingOrderEvents: new Map(),
     closedOrderIds: new Set(),
     queriedTerminalStateByOrderId: new Map(),
@@ -67,9 +66,13 @@ describe('settlementFlow business flow', () => {
     recordedTrades.length = 0;
   });
 
-  it('settles FILLED buy order once and keeps idempotent without closeSync runtime state', () => {
+  it('settles FILLED buy order once and records a post-trade refresh need without closeSync runtime state', () => {
     const runtime = createRuntime();
     let localBuyCalls = 0;
+    const refreshNeeds: Array<{
+      readonly refreshAccount: boolean;
+      readonly refreshPositions: boolean;
+    }> = [];
     const settlementFlow = createSettlementFlow({
       runtime,
       orderHoldRegistry: createOrderHoldRegistry(),
@@ -86,6 +89,11 @@ describe('settlementFlow business flow', () => {
         getLossOffset: () => 0,
       },
       protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
+      postTradeConsistencyRuntime: {
+        recordSettlementRefreshNeed: (need) => {
+          refreshNeeds.push(need);
+        },
+      },
     });
 
     const settledResult = settlementFlow.settleOrder({
@@ -117,12 +125,17 @@ describe('settlementFlow business flow', () => {
     expect(duplicateResult.handled).toBe(false);
     expect(localBuyCalls).toBe(1);
     expect(recordedTrades).toHaveLength(1);
-    expect(runtime.pendingRefreshSymbols).toHaveLength(1);
+    expect(refreshNeeds).toEqual([
+      {
+        refreshAccount: true,
+        refreshPositions: true,
+      },
+    ]);
     expect(runtime.closedOrderIds.has('BUY-SETTLEMENT-IDEMPOTENT')).toBe(true);
     expect('closeSyncQueue' in runtime).toBe(false);
   });
 
-  it('settles partially-filled canceled sell with quantity fallback and null related buy order ids', () => {
+  it('settles partially-filled canceled sell with quantity fallback and records a post-trade refresh need', () => {
     const runtime = createRuntime();
     const buyOrders: ReadonlyArray<OrderRecord> = [
       {
@@ -145,6 +158,10 @@ describe('settlementFlow business flow', () => {
       },
     ];
     const localSellRelatedIds: Array<ReadonlyArray<string> | null> = [];
+    const refreshNeeds: Array<{
+      readonly refreshAccount: boolean;
+      readonly refreshPositions: boolean;
+    }> = [];
     const settlementFlow = createSettlementFlow({
       runtime,
       orderHoldRegistry: createOrderHoldRegistry(),
@@ -180,6 +197,11 @@ describe('settlementFlow business flow', () => {
         getLossOffset: () => 0,
       },
       protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
+      postTradeConsistencyRuntime: {
+        recordSettlementRefreshNeed: (need) => {
+          refreshNeeds.push(need);
+        },
+      },
     });
 
     const settledResult = settlementFlow.settleOrder({
@@ -199,7 +221,12 @@ describe('settlementFlow business flow', () => {
     expect(settledResult.relatedBuyOrderIds).toBeNull();
     expect(recordedTrades).toHaveLength(1);
     expect(localSellRelatedIds).toEqual([null]);
-    expect(runtime.pendingRefreshSymbols).toHaveLength(1);
+    expect(refreshNeeds).toEqual([
+      {
+        refreshAccount: true,
+        refreshPositions: true,
+      },
+    ]);
   });
 
   it('rejects settlement when executed close lacks attribution context', () => {
@@ -216,6 +243,9 @@ describe('settlementFlow business flow', () => {
         getLossOffset: () => 0,
       },
       protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
+      postTradeConsistencyRuntime: {
+        recordSettlementRefreshNeed: () => {},
+      },
     });
 
     const result = settlementFlow.settleOrder({
@@ -231,5 +261,61 @@ describe('settlementFlow business flow', () => {
 
     expect(result.handled).toBe(false);
     expect(runtime.closedOrderIds.has('BUY-PARTIAL-MISSING-ATTR')).toBe(false);
+  });
+
+  it('records original liquidation symbol when protective sell settlement updates episode progress', () => {
+    const runtime = createRuntime();
+    const recordedProgressPayloads: Array<{
+      monitorSymbol: string;
+      direction: 'LONG' | 'SHORT';
+      symbol: string;
+      executedTimeMs: number;
+    }> = [];
+    const settlementFlow = createSettlementFlow({
+      runtime,
+      orderHoldRegistry: createOrderHoldRegistry(),
+      orderRecorder: createOrderRecorderDouble({
+        markSellFilled: () => null,
+      }),
+      dailyLossTracker: {
+        resetAll: () => {},
+        startNewProtectionEpisode: () => {},
+        recalculateFromAllOrders: () => {},
+        recordFilledOrder: () => {},
+        getLossOffset: () => 0,
+      },
+      protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble({
+        recordProtectiveFillProgress: (params) => {
+          recordedProgressPayloads.push(params);
+        },
+      }),
+      postTradeConsistencyRuntime: {
+        recordSettlementRefreshNeed: () => {},
+      },
+    });
+
+    const result = settlementFlow.settleOrder({
+      orderId: 'PL-SETTLEMENT-001',
+      closedReason: 'FILLED',
+      source: 'WS',
+      symbol: 'BULL.OLD.HK',
+      side: 'SELL',
+      monitorSymbol: 'HSI.HK',
+      isLongSymbol: true,
+      isProtectiveLiquidation: true,
+      executedPrice: 1.03,
+      executedQuantity: 100,
+      executedTimeMs: Date.parse('2026-02-25T03:11:00.000Z'),
+    });
+
+    expect(result.handled).toBe(true);
+    expect(recordedProgressPayloads).toEqual([
+      {
+        monitorSymbol: 'HSI.HK',
+        direction: 'LONG',
+        symbol: 'BULL.OLD.HK',
+        executedTimeMs: Date.parse('2026-02-25T03:11:00.000Z'),
+      },
+    ]);
   });
 });

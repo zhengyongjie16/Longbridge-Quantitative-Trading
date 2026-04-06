@@ -55,7 +55,7 @@ function createSeatInfo(): SeatSyncResult {
 }
 
 describe('riskTasks business scheduling', () => {
-  it('schedules liquidation-distance and unrealized-loss checks in one tick when conditions match', () => {
+  it('schedules liquidation-distance check and still updates display info in one tick when conditions match', () => {
     const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const capturedDisplayInfo: {
       long: PriceDisplayInfo | null | undefined;
@@ -187,14 +187,7 @@ describe('riskTasks business scheduling', () => {
     expect('quote' in liquidationData.long).toBeFalse();
     expect('quote' in liquidationData.short).toBeFalse();
 
-    expect(second?.type).toBe('UNREALIZED_LOSS_CHECK');
-    expect(second?.dedupeKey).toBe('HSI.HK:UNREALIZED_LOSS_CHECK');
-    const unrealizedData = second?.data as {
-      long: Record<string, unknown>;
-      short: Record<string, unknown>;
-    };
-    expect('quote' in unrealizedData.long).toBeFalse();
-    expect('quote' in unrealizedData.short).toBeFalse();
+    expect(second).toBeNull();
 
     const receivedLongDisplayInfo = capturedDisplayInfo.long;
     const receivedShortDisplayInfo = capturedDisplayInfo.short;

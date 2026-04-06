@@ -35,7 +35,6 @@ import { decimalToNumber, isValidPositiveNumber } from '../../utils/helpers/inde
 import { resolveOrderOwnership } from '../../core/orderRecorder/orderOwnershipParser.js';
 import { hasProtectiveLiquidationRemark } from '../../core/trader/utils.js';
 import { buildCooldownKey } from '../../services/liquidationCooldown/utils.js';
-import { hasSeatSymbol } from '../../utils/seat/guards.js';
 import type {
   LoadTradingDayRuntimeSnapshotDeps,
   LoadTradingDayRuntimeSnapshotParams,
@@ -61,21 +60,6 @@ function resolveDirectionFromKey(
     monitorSymbol,
     direction: directionText,
   };
-}
-
-function isDirectionFlatAtSnapshot(
-  symbolRegistry: LoadTradingDayRuntimeSnapshotDeps['symbolRegistry'],
-  lastState: LoadTradingDayRuntimeSnapshotDeps['lastState'],
-  monitorSymbol: string,
-  direction: ProtectiveLiquidationDirection,
-): boolean {
-  const seatState = symbolRegistry.getSeatState(monitorSymbol, direction);
-  if (!hasSeatSymbol(seatState)) {
-    return true;
-  }
-
-  const position = lastState.positionCache.get(seatState.symbol);
-  return position === null || position.quantity <= 0;
 }
 
 function restoreCompletedBoundary(params: {
@@ -192,8 +176,14 @@ export function createLoadTradingDayRuntimeSnapshot(
       : new Map<string, number>();
 
     const currentDayKey = getHKDateKey(now);
-    const protectiveLatestFillByDirection = new Map<string, number>();
-    const pendingProtectiveLatestFillByDirection = new Map<string, number>();
+    const protectiveLatestFillByDirection = new Map<
+      string,
+      Readonly<{ latestExecutedTimeMs: number; symbol: string }>
+    >();
+    const pendingProtectiveLatestFillByDirection = new Map<
+      string,
+      Readonly<{ latestExecutedTimeMs: number; symbol: string }>
+    >();
     const pendingProtectiveDirectionKeys = new Set<string>();
     for (const order of allOrders) {
       if (!hasProtectiveLiquidationRemark(order.remark)) {
@@ -222,8 +212,11 @@ export function createLoadTradingDayRuntimeSnapshot(
         isValidPositiveNumber(executedQuantity);
       if (hasProtectiveExecution) {
         const existing = protectiveLatestFillByDirection.get(directionKey);
-        if (existing === undefined || executedTimeMs > existing) {
-          protectiveLatestFillByDirection.set(directionKey, executedTimeMs);
+        if (existing === undefined || executedTimeMs > existing.latestExecutedTimeMs) {
+          protectiveLatestFillByDirection.set(directionKey, {
+            latestExecutedTimeMs: executedTimeMs,
+            symbol: order.symbol,
+          });
         }
       }
 
@@ -231,8 +224,14 @@ export function createLoadTradingDayRuntimeSnapshot(
         pendingProtectiveDirectionKeys.add(directionKey);
         if (hasProtectiveExecution) {
           const existingPending = pendingProtectiveLatestFillByDirection.get(directionKey);
-          if (existingPending === undefined || executedTimeMs > existingPending) {
-            pendingProtectiveLatestFillByDirection.set(directionKey, executedTimeMs);
+          if (
+            existingPending === undefined ||
+            executedTimeMs > existingPending.latestExecutedTimeMs
+          ) {
+            pendingProtectiveLatestFillByDirection.set(directionKey, {
+              latestExecutedTimeMs: executedTimeMs,
+              symbol: order.symbol,
+            });
           }
         }
       }
@@ -255,7 +254,7 @@ export function createLoadTradingDayRuntimeSnapshot(
       });
     }
 
-    for (const [directionKey, latestExecutedTimeMs] of protectiveLatestFillByDirection) {
+    for (const [directionKey, protectiveFill] of protectiveLatestFillByDirection) {
       if (
         restoredBoundaryByDirection.has(directionKey) ||
         pendingProtectiveDirectionKeys.has(directionKey)
@@ -268,12 +267,8 @@ export function createLoadTradingDayRuntimeSnapshot(
         continue;
       }
 
-      const isDirectionFlat = isDirectionFlatAtSnapshot(
-        symbolRegistry,
-        lastState,
-        parsed.monitorSymbol,
-        parsed.direction,
-      );
+      const position = lastState.positionCache.get(protectiveFill.symbol);
+      const isDirectionFlat = position === null || position.quantity <= 0;
       if (!isDirectionFlat) {
         continue;
       }
@@ -284,11 +279,11 @@ export function createLoadTradingDayRuntimeSnapshot(
         directionKey,
         monitorSymbol: parsed.monitorSymbol,
         direction: parsed.direction,
-        boundaryExecutedTimeMs: latestExecutedTimeMs,
+        boundaryExecutedTimeMs: protectiveFill.latestExecutedTimeMs,
       });
     }
 
-    for (const [directionKey, latestExecutedTimeMs] of protectiveLatestFillByDirection) {
+    for (const [directionKey, protectiveFill] of protectiveLatestFillByDirection) {
       const parsed = resolveDirectionFromKey(directionKey);
       if (!parsed) {
         continue;
@@ -302,28 +297,28 @@ export function createLoadTradingDayRuntimeSnapshot(
         if (
           pendingLatestExecutedTimeMs !== undefined &&
           (boundaryExecutedTimeMs === undefined ||
-            pendingLatestExecutedTimeMs > boundaryExecutedTimeMs)
+            pendingLatestExecutedTimeMs.latestExecutedTimeMs > boundaryExecutedTimeMs)
         ) {
           protectiveLiquidationEpisodeTracker.restoreInProgressEpisode({
             monitorSymbol: parsed.monitorSymbol,
             direction: parsed.direction,
-            latestExecutedTimeMs: pendingLatestExecutedTimeMs,
+            symbol: pendingLatestExecutedTimeMs.symbol,
+            latestExecutedTimeMs: pendingLatestExecutedTimeMs.latestExecutedTimeMs,
           });
         }
 
         continue;
       }
 
-      if (boundaryExecutedTimeMs !== undefined && latestExecutedTimeMs <= boundaryExecutedTimeMs) {
+      if (
+        boundaryExecutedTimeMs !== undefined &&
+        protectiveFill.latestExecutedTimeMs <= boundaryExecutedTimeMs
+      ) {
         continue;
       }
 
-      const isDirectionFlat = isDirectionFlatAtSnapshot(
-        symbolRegistry,
-        lastState,
-        parsed.monitorSymbol,
-        parsed.direction,
-      );
+      const position = lastState.positionCache.get(protectiveFill.symbol);
+      const isDirectionFlat = position === null || position.quantity <= 0;
       if (isDirectionFlat) {
         restoreCompletedBoundary({
           protectiveLiquidationEpisodeTracker,
@@ -331,7 +326,7 @@ export function createLoadTradingDayRuntimeSnapshot(
           directionKey,
           monitorSymbol: parsed.monitorSymbol,
           direction: parsed.direction,
-          boundaryExecutedTimeMs: latestExecutedTimeMs,
+          boundaryExecutedTimeMs: protectiveFill.latestExecutedTimeMs,
         });
         continue;
       }
@@ -339,7 +334,8 @@ export function createLoadTradingDayRuntimeSnapshot(
       protectiveLiquidationEpisodeTracker.restoreInProgressEpisode({
         monitorSymbol: parsed.monitorSymbol,
         direction: parsed.direction,
-        latestExecutedTimeMs,
+        symbol: protectiveFill.symbol,
+        latestExecutedTimeMs: protectiveFill.latestExecutedTimeMs,
       });
     }
 

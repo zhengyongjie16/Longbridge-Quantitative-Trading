@@ -72,6 +72,51 @@ describe('type organization regressions', () => {
         relativePath: 'src/main/asyncProgram/sellProcessor/index.ts',
         forbiddenPatterns: [/\btype\s+SellRetryState\b/],
       },
+      {
+        relativePath: 'src/main/tradingRiskEventRuntime/tradingRiskEventRuntime.ts',
+        forbiddenPatterns: [/\btype\s+RouteExecutionState\b/],
+      },
+      {
+        relativePath: 'src/main/tradingRiskEventRuntime/types.ts',
+        forbiddenPatterns: [/\btype\s+TradingRiskQuoteEvent\s*=\s*QuoteUpdatedEvent\b/],
+      },
+      {
+        relativePath: 'tests/integration/main-loop-latency.integration.test.ts',
+        forbiddenPatterns: [
+          /\btype\s+DelayedApiMethod\b/,
+          /\btype\s+ApiCallEvent\b/,
+          /\btype\s+IterationMetric\b/,
+          /\btype\s+MultiMonitorSeatEntry\b/,
+        ],
+      },
+      {
+        relativePath: 'tests/main/asyncProgram/monitorTaskProcessor/business.test.ts',
+        forbiddenPatterns: [
+          /\btype\s+MonitorTaskQueueForTest\b/,
+          /\btype\s+CreateBusinessProcessorParams\b/,
+          /\btype\s+CreateTriggeredLongOnlyLiquidationContextParams\b/,
+        ],
+      },
+      {
+        relativePath: 'tests/main/asyncProgram/sellProcessor/business.test.ts',
+        forbiddenPatterns: [/\btype\s+CapturedSellParams\b/],
+      },
+      {
+        relativePath: 'tests/main/lifecycle/loadTradingDayRuntimeSnapshot.test.ts',
+        forbiddenPatterns: [/\btype\s+ProtectiveOrderParams\b/],
+      },
+      {
+        relativePath: 'tests/core/trader/orderMonitor.business.test.ts',
+        forbiddenPatterns: [/\btype\s+ReplaceOrderPayload\b/, /\btype\s+RecordLocalSellCall\b/],
+      },
+      {
+        relativePath: 'tests/integration/main-program-strict.integration.test.ts',
+        forbiddenPatterns: [/\btype\s+MainProgramFn\b/],
+      },
+      {
+        relativePath: 'tests/integration/multi-monitor-concurrency.integration.test.ts',
+        forbiddenPatterns: [/\btype\s+MainProgramFn\b/],
+      },
     ];
 
     for (const fileCheck of fileChecks) {
@@ -97,6 +142,11 @@ describe('type organization regressions', () => {
       'src/services/indicators/runtime/types.ts',
       'src/main/asyncProgram/monitorTaskProcessor/types.ts',
       'src/main/asyncProgram/sellProcessor/types.ts',
+      'src/main/tradingRiskEventRuntime/types.ts',
+      'tests/integration/types.ts',
+      'tests/main/asyncProgram/types.ts',
+      'tests/main/lifecycle/types.ts',
+      'tests/core/trader/types.ts',
     ] as const;
 
     for (const relativePath of scopedTypeFiles) {

@@ -19,8 +19,7 @@ import type { MainProgramContext } from '../../src/main/mainProgram/types.js';
 import type * as TimeModule from '../../src/utils/time/index.js';
 import type { LastState, MonitorContext } from '../../src/types/state.js';
 import type { Quote } from '../../src/types/quote.js';
-
-type MainProgramFn = (context: MainProgramContext) => Promise<void>;
+import type { MainProgramModule } from './types.js';
 
 const processMonitorCalls: Array<{
   readonly monitorSymbol: string;
@@ -79,7 +78,7 @@ function isWithinAfternoonOpenProtectionFallback(now: Date, minutes: number): bo
   return minuteOfDay >= start && minuteOfDay < start + minutes;
 }
 
-async function loadMainProgram(): Promise<{ readonly mainProgram: MainProgramFn }> {
+async function loadMainProgram(): Promise<MainProgramModule> {
   const actualTimeModulePath = '../../src/utils/time/index.js?actual-main-program-strict';
   const actualTimeModuleUnknown: unknown = await import(actualTimeModulePath);
   const actualTimeModule = actualTimeModuleUnknown as typeof TimeModule;
@@ -120,7 +119,7 @@ async function loadMainProgram(): Promise<{ readonly mainProgram: MainProgramFn 
 
   const mainProgramModulePath = '../../src/main/mainProgram/index.js?mocked-main-program-strict';
   const loadedModuleUnknown: unknown = await import(mainProgramModulePath);
-  return loadedModuleUnknown as { readonly mainProgram: MainProgramFn };
+  return loadedModuleUnknown as MainProgramModule;
 }
 
 function createLastState(overrides: Partial<LastState> = {}): LastState {
@@ -215,19 +214,11 @@ describe('mainProgram strict-mode integration', () => {
     mock.restore();
   });
 
-  it('clears pending delayed signals, enqueues pending refresh and exits early when leaving continuous session', async () => {
+  it('clears pending delayed signals and exits early without enqueueing post-trade refresh when leaving continuous session', async () => {
     tradingTimeOverrides.dayKey = '2026-02-16';
     tradingTimeOverrides.isInContinuousSession = false;
 
     const cancelledSymbols: string[] = [];
-    const pendingRefresh = [
-      {
-        symbol: 'BULL.HK',
-        isLongSymbol: true,
-        refreshAccount: true,
-        refreshPositions: true,
-      },
-    ];
     const monitorContext = createMonitorContext('HSI.HK', 2, (symbol) => {
       cancelledSymbols.push(symbol);
     });
@@ -243,13 +234,9 @@ describe('mainProgram strict-mode integration', () => {
       isTradingDay: boolean;
       dayKey: string | null;
     }> = [];
-    const postTradeEnqueueCalls: Array<{
-      pending: typeof pendingRefresh;
-      quotesMap: Map<string, Quote | null>;
-    }> = [];
 
     const loadedMainProgram = await loadMainProgram();
-    const mainProgram: MainProgramFn = loadedMainProgram.mainProgram;
+    const { mainProgram } = loadedMainProgram;
     await mainProgram({
       marketDataClient: {
         getQuoteContext: async () => ({}) as never,
@@ -259,15 +246,14 @@ describe('mainProgram strict-mode integration', () => {
         },
         subscribeSymbols: async () => {},
         unsubscribeSymbols: async () => {},
+        onQuoteUpdated: () => () => {},
         subscribeCandlesticks: async () => [],
         getRealtimeCandlesticks: async () => [],
         getCandlestickSnapshot: () => null,
         isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
         resetRuntimeSubscriptionsAndCaches: async () => {},
       },
-      trader: createTraderDouble({
-        getAndClearPendingRefreshSymbols: () => pendingRefresh,
-      }),
+      trader: createTraderDouble(),
       lastState,
       marketMonitor: {
         monitorPriceChanges: () => false,
@@ -301,29 +287,22 @@ describe('mainProgram strict-mode integration', () => {
         schedule: () => {},
         stopAndDrain: async () => {},
       },
-      postTradeRefresher: {
-        start: () => {},
-        enqueue: (params) => {
-          postTradeEnqueueCalls.push({
-            pending: [...params.pending],
-            quotesMap: new Map(params.quotesMap),
-          });
-        },
-        stopAndDrain: async () => {},
-        clearPending: () => {},
-      },
       runtimeGateMode: 'strict',
       dayLifecycleManager: {
-        tick: async (_now, runtime) => {
+        tick: async (
+          _now: Date,
+          runtime: {
+            readonly canTradeNow: boolean;
+            readonly isTradingDay: boolean;
+            readonly dayKey: string | null;
+          },
+        ) => {
           dayLifecycleTicks.push(runtime);
         },
       },
     });
 
     expect(cancelledSymbols).toEqual(['HSI.HK']);
-    expect(postTradeEnqueueCalls).toHaveLength(1);
-    expect(postTradeEnqueueCalls[0]?.pending).toEqual(pendingRefresh);
-    expect(postTradeEnqueueCalls[0]?.quotesMap.size).toBe(0);
     expect(processMonitorCalls).toHaveLength(0);
     expect(getQuotesCalls).toBe(0);
     expect(dayLifecycleTicks).toHaveLength(1);
@@ -352,7 +331,7 @@ describe('mainProgram strict-mode integration', () => {
     let subscribedSymbols: string[] = [];
 
     const loadedMainProgram = await loadMainProgram();
-    const mainProgram: MainProgramFn = loadedMainProgram.mainProgram;
+    const { mainProgram } = loadedMainProgram;
     await mainProgram({
       marketDataClient: {
         getQuoteContext: async () => ({}) as never,
@@ -361,13 +340,14 @@ describe('mainProgram strict-mode integration', () => {
           getQuotesCalls += 1;
           return new Map<string, Quote | null>();
         },
-        subscribeSymbols: async (symbols) => {
+        subscribeSymbols: async (symbols: Iterable<string>) => {
           callSequence.push('subscribeSymbols');
           subscribedSymbols = [...symbols];
         },
         unsubscribeSymbols: async () => {
           callSequence.push('unsubscribeSymbols');
         },
+        onQuoteUpdated: () => () => {},
         subscribeCandlesticks: async () => [],
         getRealtimeCandlesticks: async () => [],
         getCandlestickSnapshot: () => null,
@@ -420,12 +400,6 @@ describe('mainProgram strict-mode integration', () => {
           orderMonitorScheduleCalls += 1;
         },
         stopAndDrain: async () => {},
-      },
-      postTradeRefresher: {
-        start: () => {},
-        enqueue: () => {},
-        stopAndDrain: async () => {},
-        clearPending: () => {},
       },
       runtimeGateMode: 'strict',
       dayLifecycleManager: {
@@ -481,14 +455,13 @@ describe('mainProgram strict-mode integration', () => {
     const unsubscribedBatches: string[][] = [];
     let getQuotesSymbols: string[] = [];
     let orderMonitorScheduleCalls = 0;
-    let postTradeEnqueueCalls = 0;
 
     const loadedMainProgram = await loadMainProgram();
-    const mainProgram: MainProgramFn = loadedMainProgram.mainProgram;
+    const { mainProgram } = loadedMainProgram;
     await mainProgram({
       marketDataClient: {
         getQuoteContext: async () => ({}) as never,
-        getQuotes: async (symbols) => {
+        getQuotes: async (symbols: Iterable<string>) => {
           getQuotesSymbols = [...symbols];
           const quotes = new Map<string, Quote | null>();
           for (const symbol of getQuotesSymbols) {
@@ -497,12 +470,13 @@ describe('mainProgram strict-mode integration', () => {
 
           return quotes;
         },
-        subscribeSymbols: async (symbols) => {
+        subscribeSymbols: async (symbols: Iterable<string>) => {
           subscribedBatches.push([...symbols]);
         },
-        unsubscribeSymbols: async (symbols) => {
+        unsubscribeSymbols: async (symbols: Iterable<string>) => {
           unsubscribedBatches.push([...symbols]);
         },
+        onQuoteUpdated: () => () => {},
         subscribeCandlesticks: async () => [],
         getRealtimeCandlesticks: async () => [],
         getCandlestickSnapshot: () => null,
@@ -551,14 +525,6 @@ describe('mainProgram strict-mode integration', () => {
         },
         stopAndDrain: async () => {},
       },
-      postTradeRefresher: {
-        start: () => {},
-        enqueue: () => {
-          postTradeEnqueueCalls += 1;
-        },
-        stopAndDrain: async () => {},
-        clearPending: () => {},
-      },
       runtimeGateMode: 'strict',
       dayLifecycleManager: {
         tick: async () => {},
@@ -577,7 +543,6 @@ describe('mainProgram strict-mode integration', () => {
 
     expect(getQuotesSymbols).toContain('OLD.HK');
     expect(orderMonitorScheduleCalls).toBe(1);
-    expect(postTradeEnqueueCalls).toBe(1);
     expect(lastState.allTradingSymbols.has('OLD.HK')).toBeTrue();
   });
 });

@@ -52,6 +52,9 @@ function createDeps(params?: {
       clear: () => {},
     },
     protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
+    postTradeConsistencyRuntime: {
+      recordSettlementRefreshNeed: () => {},
+    },
     tradingConfig: createTradingConfig(),
     symbolRegistry: createSymbolRegistryDouble(),
     isExecutionAllowed: () => true,
@@ -65,6 +68,10 @@ describe('chaos: websocket out-of-order and duplicate pushes', () => {
     let localSellCount = 0;
     let markSellFilledCount = 0;
     let markSellPartialCount = 0;
+    const refreshNeeds: Array<{
+      readonly refreshAccount: boolean;
+      readonly refreshPositions: boolean;
+    }> = [];
 
     const orderRecorder = createOrderRecorderDouble({
       recordLocalSell: () => {
@@ -81,7 +88,14 @@ describe('chaos: websocket out-of-order and duplicate pushes', () => {
     });
 
     const { deps, tradeCtx } = createDeps({ orderRecorder });
-    const monitor = createOrderMonitor(deps);
+    const monitor = createOrderMonitor({
+      ...deps,
+      postTradeConsistencyRuntime: {
+        recordSettlementRefreshNeed: (need) => {
+          refreshNeeds.push(need);
+        },
+      },
+    });
 
     await monitor.initialize();
     await monitor.recoverOrderTrackingFromSnapshot([]);
@@ -179,10 +193,16 @@ describe('chaos: websocket out-of-order and duplicate pushes', () => {
     expect(localSellCount).toBe(2);
     expect(markSellFilledCount).toBe(2);
     expect(markSellPartialCount).toBe(0);
-
-    const pendingRefresh = monitor.getAndClearPendingRefreshSymbols();
-    expect(pendingRefresh).toHaveLength(2);
-    expect(monitor.getAndClearPendingRefreshSymbols()).toHaveLength(0);
+    expect(refreshNeeds).toEqual([
+      {
+        refreshAccount: true,
+        refreshPositions: true,
+      },
+      {
+        refreshAccount: true,
+        refreshPositions: true,
+      },
+    ]);
     expect(monitor.getPendingSellOrders('BULL.HK')).toHaveLength(0);
     expect(monitor.getPendingSellOrders('BEAR.HK')).toHaveLength(0);
   });

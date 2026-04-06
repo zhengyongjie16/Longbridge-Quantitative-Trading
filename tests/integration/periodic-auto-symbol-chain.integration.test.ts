@@ -8,7 +8,6 @@ import { describe, expect, it } from 'bun:test';
 
 import { scheduleAutoSymbolTasks } from '../../src/main/processMonitor/autoSymbolTasks.js';
 import { createAutoSymbolManager } from '../../src/services/autoSymbolManager/index.js';
-import { createRefreshGate } from '../../src/utils/refreshGate/index.js';
 import { createMonitorTaskQueue } from '../../src/main/asyncProgram/monitorTaskQueue/index.js';
 import { createMonitorTaskProcessor } from '../../src/main/asyncProgram/monitorTaskProcessor/index.js';
 
@@ -163,7 +162,7 @@ describe('periodic auto-symbol full chain integration', () => {
       },
       riskChecker,
       unrealizedLossMonitor: {
-        monitorUnrealizedLoss: async () => {},
+        monitorDirectionalUnrealizedLoss: async () => {},
       },
       longSymbolName: 'OLD_BULL.HK',
       shortSymbolName: '',
@@ -179,7 +178,7 @@ describe('periodic auto-symbol full chain integration', () => {
     const statuses: MonitorTaskStatus[] = [];
     const processor = createMonitorTaskProcessor({
       monitorTaskQueue,
-      refreshGate: createRefreshGate(),
+      postTradeConsistencyRuntime: { waitForFresh: async () => {} },
       getMonitorContext: () => monitorContext as never,
       clearMonitorDirectionQueues: () => {},
       trader,
@@ -346,7 +345,7 @@ describe('periodic auto-symbol full chain integration', () => {
       },
       riskChecker,
       unrealizedLossMonitor: {
-        monitorUnrealizedLoss: async () => {},
+        monitorDirectionalUnrealizedLoss: async () => {},
       },
       longSymbolName: 'OLD_BULL.HK',
       shortSymbolName: '',
@@ -362,7 +361,7 @@ describe('periodic auto-symbol full chain integration', () => {
     const statuses: MonitorTaskStatus[] = [];
     const processor = createMonitorTaskProcessor({
       monitorTaskQueue,
-      refreshGate: createRefreshGate(),
+      postTradeConsistencyRuntime: { waitForFresh: async () => {} },
       getMonitorContext: () => monitorContext as never,
       clearMonitorDirectionQueues: () => {},
       trader,
@@ -526,7 +525,7 @@ describe('periodic auto-symbol full chain integration', () => {
       },
       riskChecker,
       unrealizedLossMonitor: {
-        monitorUnrealizedLoss: async () => {},
+        monitorDirectionalUnrealizedLoss: async () => {},
       },
       longSymbolName: 'OLD_BULL.HK',
       shortSymbolName: '',
@@ -542,7 +541,7 @@ describe('periodic auto-symbol full chain integration', () => {
     const statuses: MonitorTaskStatus[] = [];
     const processor = createMonitorTaskProcessor({
       monitorTaskQueue,
-      refreshGate: createRefreshGate(),
+      postTradeConsistencyRuntime: { waitForFresh: async () => {} },
       getMonitorContext: () => monitorContext as never,
       clearMonitorDirectionQueues: () => {},
       trader,
@@ -678,7 +677,7 @@ describe('periodic auto-symbol full chain integration', () => {
       },
       riskChecker,
       unrealizedLossMonitor: {
-        monitorUnrealizedLoss: async () => {},
+        monitorDirectionalUnrealizedLoss: async () => {},
       },
       longSymbolName: 'OLD_BULL.HK',
       shortSymbolName: '',
@@ -694,7 +693,7 @@ describe('periodic auto-symbol full chain integration', () => {
     const statuses: MonitorTaskStatus[] = [];
     const processor = createMonitorTaskProcessor({
       monitorTaskQueue,
-      refreshGate: createRefreshGate(),
+      postTradeConsistencyRuntime: { waitForFresh: async () => {} },
       getMonitorContext: () => monitorContext as never,
       clearMonitorDirectionQueues: () => {},
       trader,
@@ -838,7 +837,7 @@ describe('periodic auto-symbol full chain integration', () => {
       },
       riskChecker,
       unrealizedLossMonitor: {
-        monitorUnrealizedLoss: async () => {},
+        monitorDirectionalUnrealizedLoss: async () => {},
       },
       longSymbolName: 'OLD_BULL.HK',
       shortSymbolName: '',
@@ -854,7 +853,7 @@ describe('periodic auto-symbol full chain integration', () => {
     const statuses: MonitorTaskStatus[] = [];
     const processor = createMonitorTaskProcessor({
       monitorTaskQueue,
-      refreshGate: createRefreshGate(),
+      postTradeConsistencyRuntime: { waitForFresh: async () => {} },
       getMonitorContext: () => monitorContext as never,
       clearMonitorDirectionQueues: () => {},
       trader,
@@ -1042,7 +1041,7 @@ describe('periodic auto-symbol full chain integration', () => {
       },
       riskChecker,
       unrealizedLossMonitor: {
-        monitorUnrealizedLoss: async () => {},
+        monitorDirectionalUnrealizedLoss: async () => {},
       },
       longSymbolName: 'OLD_BULL.HK',
       shortSymbolName: '',
@@ -1058,7 +1057,7 @@ describe('periodic auto-symbol full chain integration', () => {
     const statuses: MonitorTaskStatus[] = [];
     const processor = createMonitorTaskProcessor({
       monitorTaskQueue,
-      refreshGate: createRefreshGate(),
+      postTradeConsistencyRuntime: { waitForFresh: async () => {} },
       getMonitorContext: () => monitorContext as never,
       clearMonitorDirectionQueues: () => {},
       trader,
@@ -1233,7 +1232,7 @@ describe('periodic auto-symbol full chain integration', () => {
       },
       riskChecker,
       unrealizedLossMonitor: {
-        monitorUnrealizedLoss: async () => {},
+        monitorDirectionalUnrealizedLoss: async () => {},
       },
       longSymbolName: 'OLD_BULL.HK',
       shortSymbolName: '',
@@ -1249,7 +1248,7 @@ describe('periodic auto-symbol full chain integration', () => {
     const statuses: MonitorTaskStatus[] = [];
     const processor = createMonitorTaskProcessor({
       monitorTaskQueue,
-      refreshGate: createRefreshGate(),
+      postTradeConsistencyRuntime: { waitForFresh: async () => {} },
       getMonitorContext: () => monitorContext as never,
       clearMonitorDirectionQueues: () => {},
       trader,
@@ -1447,7 +1446,7 @@ describe('periodic auto-symbol full chain integration', () => {
       },
       riskChecker,
       unrealizedLossMonitor: {
-        monitorUnrealizedLoss: async () => {},
+        monitorDirectionalUnrealizedLoss: async () => {},
       },
       longSymbolName: 'OLD_BULL.HK',
       shortSymbolName: '',
@@ -1463,7 +1462,7 @@ describe('periodic auto-symbol full chain integration', () => {
     const statuses: MonitorTaskStatus[] = [];
     const processor = createMonitorTaskProcessor({
       monitorTaskQueue,
-      refreshGate: createRefreshGate(),
+      postTradeConsistencyRuntime: { waitForFresh: async () => {} },
       getMonitorContext: () => monitorContext as never,
       clearMonitorDirectionQueues: () => {},
       trader,
@@ -1656,7 +1655,7 @@ describe('periodic auto-symbol full chain integration', () => {
       },
       riskChecker,
       unrealizedLossMonitor: {
-        monitorUnrealizedLoss: async () => {},
+        monitorDirectionalUnrealizedLoss: async () => {},
       },
       longSymbolName: 'OLD_BULL.HK',
       shortSymbolName: '',
@@ -1672,7 +1671,7 @@ describe('periodic auto-symbol full chain integration', () => {
     const statuses: MonitorTaskStatus[] = [];
     const processor = createMonitorTaskProcessor({
       monitorTaskQueue,
-      refreshGate: createRefreshGate(),
+      postTradeConsistencyRuntime: { waitForFresh: async () => {} },
       getMonitorContext: () => monitorContext as never,
       clearMonitorDirectionQueues: () => {},
       trader,

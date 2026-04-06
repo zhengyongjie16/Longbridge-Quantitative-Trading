@@ -14,9 +14,9 @@ import type { MonitorConfig, MultiMonitorTradingConfig } from '../../types/confi
 import type { SymbolRegistry } from '../../types/seat.js';
 import type {
   PendingOrder,
+  PostTradeConsistencyRuntimePort,
   TradeCheckResult,
   RateLimiter,
-  PendingRefreshSymbol,
   RawOrderFromAPI,
   OrderRecorder,
   MarketDataClient,
@@ -24,7 +24,6 @@ import type {
 import type { DailyLossTracker } from '../../types/risk.js';
 import type { CancelOrderOutcome } from '../../types/trader.js';
 import type { ProtectiveLiquidationEpisodeTracker } from './protectiveLiquidationEpisodeTracker/types.js';
-import type { RefreshGate } from '../../utils/types.js';
 
 /**
  * 订单提交 API 可能返回的响应形状。
@@ -190,9 +189,9 @@ export interface OrderCacheManager {
 
 /**
  * 订单监控器接口。
- * 类型用途：订单生命周期监控（追踪、撤单、改价、恢复、待刷新标的等），与 WebSocket 订单推送协同。
+ * 类型用途：订单生命周期监控（追踪、撤单、改价、恢复等），与 WebSocket 订单推送协同。
  * 数据来源：由 Trader 依赖注入，实现层在 orderMonitor 模块内。
- * 使用范围：trader 模块内部；主循环与恢复流程调用其方法。
+ * 使用范围：trader 模块内部；恢复流程调用其方法。
  */
 export interface OrderMonitor {
   /** 初始化 WebSocket 订阅 */
@@ -217,14 +216,6 @@ export interface OrderMonitor {
 
   /** 获取指定标的的未成交卖单快照 */
   getPendingSellOrders: (symbol: string) => ReadonlyArray<PendingSellOrderSnapshot>;
-
-  /**
-   * 获取并清空待刷新浮亏数据的标的列表
-   * 订单成交后会将标的添加到此列表，主循环中应调用此方法获取并刷新
-   *
-   * @returns 待刷新的标的列表（调用后列表会被清空）
-   */
-  getAndClearPendingRefreshSymbols: () => PendingRefreshSymbol[];
 
   /** 是否存在指定监控标的方向的未完成保护性清仓卖单链路 */
   hasPendingProtectiveLiquidationOrders?: (
@@ -517,8 +508,8 @@ export type OrderMonitorDeps = {
   /** 全局交易配置 */
   readonly tradingConfig: MultiMonitorTradingConfig;
 
-  /** 刷新门禁（成交后标记 stale） */
-  readonly refreshGate?: RefreshGate;
+  /** 成交后一致性运行时（负责收口成交后的最小补刷需求） */
+  readonly postTradeConsistencyRuntime: PostTradeConsistencyRuntimePort;
 
   /** 运行时执行门禁（卖单超时转市价单时校验，禁止门禁关闭时新开单） */
   readonly isExecutionAllowed: IsExecutionAllowed;
@@ -574,8 +565,8 @@ export type TraderDeps = {
   readonly dailyLossTracker: DailyLossTracker;
   readonly protectiveLiquidationEpisodeTracker: ProtectiveLiquidationEpisodeTracker;
 
-  /** 刷新门禁（成交后标记 stale） */
-  readonly refreshGate?: RefreshGate;
+  /** 成交后一致性运行时（负责收口成交后的最小补刷需求） */
+  readonly postTradeConsistencyRuntime: PostTradeConsistencyRuntimePort;
 
   /** 运行时执行门禁（单一状态源注入，执行层统一判定） */
   readonly isExecutionAllowed: IsExecutionAllowed;
