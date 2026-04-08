@@ -238,6 +238,7 @@ export function createSettlementFlow(deps: SettlementFlowDeps): SettlementFlow {
     dailyLossTracker,
     protectiveLiquidationEpisodeTracker,
     postTradeConsistencyRuntime,
+    emitOrderStateChanged,
   } = deps;
 
   function clearRuntimeTracking(orderId: string): void {
@@ -539,6 +540,19 @@ export function createSettlementFlow(deps: SettlementFlowDeps): SettlementFlow {
 
     runtime.closedOrderIds.add(orderId);
     clearRuntimeTracking(orderId);
+    emitOrderStateChanged({
+      orderId,
+      symbol,
+      side,
+      source: params.source,
+      status: closedReason,
+      monitorSymbol: context.monitorSymbol,
+      isLongSymbol: isLongSymbol ?? null,
+      isProtectiveLiquidation: context.isProtectiveLiquidation,
+      executedPrice,
+      executedQuantity,
+      executedTimeMs,
+    });
     return {
       handled: true,
       relatedBuyOrderIds,

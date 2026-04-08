@@ -15,6 +15,7 @@ import type {
 } from '../../src/app/types.js';
 import type { SignalProcessor } from '../../src/core/signalProcessor/types.js';
 import type { CacheDomain } from '../../src/main/lifecycle/types.js';
+import type { SignalRuntimeDomainDeps } from '../../src/main/lifecycle/cacheDomains/types.js';
 import type { MonitorTaskProcessor } from '../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 import type { OrderMonitorWorker } from '../../src/main/asyncProgram/orderMonitorWorker/types.js';
 import type { Processor } from '../../src/main/asyncProgram/types.js';
@@ -34,6 +35,13 @@ import type { CreateDayLifecycleManagerCall, ExecuteOpenRebuildCall } from './ty
 const factoryCalls: string[] = [];
 const executeOpenRebuildCalls: ExecuteOpenRebuildCall[] = [];
 const createDayLifecycleManagerCalls: CreateDayLifecycleManagerCall[] = [];
+const createSignalRuntimeDomainCalls: SignalRuntimeDomainDeps[] = [];
+let signalRuntimeDomain: CacheDomain | null = null;
+let marketDataDomain: CacheDomain | null = null;
+let seatDomain: CacheDomain | null = null;
+let orderDomain: CacheDomain | null = null;
+let riskDomain: CacheDomain | null = null;
+let globalStateDomain: CacheDomain | null = null;
 
 function createNamedProcessor(name: string): Processor {
   return {
@@ -76,6 +84,25 @@ function createTradingRiskEventRuntimeDouble() {
   };
 }
 
+function createSwitchWakeupRuntimeDouble() {
+  return {
+    start: () => {
+      factoryCalls.push('switchWakeupRuntime.start');
+    },
+    stopAndDrain: async () => {},
+    handoffPendingSwitch: () => {},
+  };
+}
+
+function createMonitorQuoteEventRuntimeDouble() {
+  return {
+    start: () => {
+      factoryCalls.push('monitorQuoteEventRuntime.start');
+    },
+    stopAndDrain: async () => {},
+  };
+}
+
 function createPostTradeConsistencyRuntimeDouble(): PostTradeConsistencyRuntime {
   return {
     bindBusinessDeps: () => {},
@@ -89,6 +116,7 @@ function createPostTradeConsistencyRuntimeDouble(): PostTradeConsistencyRuntime 
       abortReason: null,
     }),
     waitForFresh: async () => {},
+    onFreshReached: () => () => {},
     abortWaiting: () => {
       factoryCalls.push('postTradeConsistencyRuntime.abortWaiting');
     },
@@ -183,6 +211,8 @@ function createLifecycleDeps(): LifecycleRuntimeFactoryDeps {
       protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
       monitorContexts: new Map(),
       tradingRiskEventRuntime: createTradingRiskEventRuntimeDouble(),
+      monitorQuoteEventRuntime: createMonitorQuoteEventRuntimeDouble(),
+      switchWakeupRuntime: createSwitchWakeupRuntimeDouble(),
       postTradeConsistencyRuntime: createPostTradeConsistencyRuntimeDouble(),
       lastState,
       trader: createTraderDouble(),
@@ -256,29 +286,35 @@ function createDomain(name: string): CacheDomain {
 
 function createLifecycleRuntimeFactories(): LifecycleRuntimeFactories {
   return {
-    createSignalRuntimeDomain: () => {
+    createSignalRuntimeDomain: (deps) => {
+      createSignalRuntimeDomainCalls.push(deps);
       factoryCalls.push('signalRuntime.factory');
-      return createDomain('signalRuntime');
+      signalRuntimeDomain = createDomain('signalRuntime');
+      return signalRuntimeDomain;
     },
     createMarketDataDomain: () => {
       factoryCalls.push('marketData.factory');
-      return createDomain('marketData');
+      marketDataDomain = createDomain('marketData');
+      return marketDataDomain;
     },
     createSeatDomain: () => {
       factoryCalls.push('seat.factory');
-      return createDomain('seat');
+      seatDomain = createDomain('seat');
+      return seatDomain;
     },
     createOrderDomain: () => {
       factoryCalls.push('order.factory');
-      return createDomain('order');
+      orderDomain = createDomain('order');
+      return orderDomain;
     },
     createRiskDomain: () => {
       factoryCalls.push('risk.factory');
-      return createDomain('risk');
+      riskDomain = createDomain('risk');
+      return riskDomain;
     },
     createGlobalStateDomain: (deps) => {
       factoryCalls.push('globalState.factory');
-      return {
+      globalStateDomain = {
         midnightClear: async () => {
           factoryCalls.push('globalState.midnightClear');
         },
@@ -287,6 +323,7 @@ function createLifecycleRuntimeFactories(): LifecycleRuntimeFactories {
           await deps.runTradingDayOpenRebuild(ctx.now);
         },
       };
+      return globalStateDomain;
     },
     executeTradingDayOpenRebuild: async (params) => {
       executeOpenRebuildCalls.push(params);
@@ -305,6 +342,13 @@ describe('app createLifecycleRuntime wiring', () => {
     factoryCalls.length = 0;
     executeOpenRebuildCalls.length = 0;
     createDayLifecycleManagerCalls.length = 0;
+    createSignalRuntimeDomainCalls.length = 0;
+    signalRuntimeDomain = null;
+    marketDataDomain = null;
+    seatDomain = null;
+    orderDomain = null;
+    riskDomain = null;
+    globalStateDomain = null;
   });
 
   it('creates cache domains in the declared order and delegates global open rebuild centrally', async () => {
@@ -325,6 +369,10 @@ describe('app createLifecycleRuntime wiring', () => {
       'globalState.factory',
     ]);
     expect(domains).toHaveLength(6);
+    expect(createSignalRuntimeDomainCalls).toHaveLength(1);
+    expect(createSignalRuntimeDomainCalls[0]?.monitorQuoteEventRuntime).toBe(
+      deps.postGateRuntime.monitorQuoteEventRuntime,
+    );
 
     await domains.at(-1)?.openRebuild({
       now: new Date('2026-03-09T09:30:00.000Z'),
@@ -347,10 +395,50 @@ describe('app createLifecycleRuntime wiring', () => {
     const deps = createLifecycleDeps();
     const factories = createLifecycleRuntimeFactories();
     const dayLifecycleManager = createLifecycleRuntime(deps, factories);
+    const cacheDomains = createDayLifecycleManagerCalls[0]?.cacheDomains;
 
     expect(dayLifecycleManager).toBeDefined();
     expect(createDayLifecycleManagerCalls).toHaveLength(1);
     expect(createDayLifecycleManagerCalls[0]?.mutableState).toBe(deps.postGateRuntime.lastState);
-    expect(createDayLifecycleManagerCalls[0]?.cacheDomains).toHaveLength(6);
+
+    if (
+      !signalRuntimeDomain ||
+      !marketDataDomain ||
+      !seatDomain ||
+      !orderDomain ||
+      !riskDomain ||
+      !globalStateDomain
+    ) {
+      throw new Error('expected all lifecycle cache domains to be created');
+    }
+
+    if (cacheDomains === undefined) {
+      throw new Error('expected createDayLifecycleManager to receive cache domains');
+    }
+
+    expect(cacheDomains).toHaveLength(6);
+    expect(cacheDomains[0]).toBe(signalRuntimeDomain);
+    expect(cacheDomains[1]).toBe(marketDataDomain);
+    expect(cacheDomains[2]).toBe(seatDomain);
+    expect(cacheDomains[3]).toBe(orderDomain);
+    expect(cacheDomains[4]).toBe(riskDomain);
+    expect(cacheDomains[5]).toBe(globalStateDomain);
+  });
+
+  it('passes the same monitorQuoteEventRuntime object into signal runtime domain deps', () => {
+    const deps = createLifecycleDeps();
+    const factories = createLifecycleRuntimeFactories();
+
+    createLifecycleRuntime(deps, factories);
+
+    expect(createSignalRuntimeDomainCalls).toHaveLength(1);
+    const signalRuntimeDeps = createSignalRuntimeDomainCalls[0];
+    if (signalRuntimeDeps === undefined) {
+      throw new Error('expected createSignalRuntimeDomain to receive deps');
+    }
+
+    expect(signalRuntimeDeps.monitorQuoteEventRuntime).toBe(
+      deps.postGateRuntime.monitorQuoteEventRuntime,
+    );
   });
 });

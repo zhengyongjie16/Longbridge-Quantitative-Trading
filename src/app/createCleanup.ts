@@ -38,6 +38,8 @@ export function createCleanup(context: CleanupContext): CleanupController {
     monitorTaskProcessor,
     orderMonitorWorker,
     tradingRiskEventRuntime,
+    monitorQuoteEventRuntime,
+    switchWakeupRuntime,
     postTradeConsistencyRuntime,
     marketDataClient,
     monitorContexts,
@@ -68,6 +70,14 @@ export function createCleanup(context: CleanupContext): CleanupController {
 
     await runStep('停止 TradingRiskEventRuntime', async () => {
       await tradingRiskEventRuntime.stopAndDrain();
+    });
+
+    await runStep('停止 MonitorQuoteEventRuntime', async () => {
+      await monitorQuoteEventRuntime.stopAndDrain();
+    });
+
+    await runStep('停止 SwitchWakeupRuntime', async () => {
+      await switchWakeupRuntime.stopAndDrain();
     });
 
     await runStep('停止 BuyProcessor', async () => {

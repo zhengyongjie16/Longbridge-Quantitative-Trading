@@ -17,6 +17,10 @@ import type { MonitorTaskQueue } from '../../asyncProgram/monitorTaskQueue/types
 import type { OrderMonitorWorker } from '../../asyncProgram/orderMonitorWorker/types.js';
 import type { IndicatorCache } from '../../asyncProgram/indicatorCache/types.js';
 import type { TradingRiskEventRuntime } from '../../tradingRiskEventRuntime/types.js';
+import type {
+  MonitorQuoteEventRuntime,
+  SwitchWakeupRuntime,
+} from '../../monitorQuoteEventRuntime/types.js';
 import type { WarrantListCache } from '../../../services/autoSymbolFinder/types.js';
 import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
 import type { DailyLossTracker } from '../../../types/risk.js';
@@ -51,6 +55,8 @@ export type SignalRuntimeDomainDeps = Readonly<{
   monitorTaskProcessor: MonitorTaskProcessor;
   orderMonitorWorker: OrderMonitorWorker;
   tradingRiskEventRuntime: Pick<TradingRiskEventRuntime, 'start' | 'stopAndDrain'>;
+  monitorQuoteEventRuntime: MonitorQuoteEventRuntime;
+  switchWakeupRuntime: Pick<SwitchWakeupRuntime, 'start' | 'stopAndDrain'>;
   postTradeConsistencyRuntime: SignalRuntimePostTradeConsistencyRuntime;
   indicatorCache: IndicatorCache;
   buyTaskQueue: TaskQueue<BuyTaskType>;

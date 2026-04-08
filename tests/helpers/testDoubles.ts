@@ -224,6 +224,7 @@ export function createTraderDouble(overrides: Partial<Trader> = {}): Trader {
     monitorAndManageOrders: async () => {},
     hasPendingProtectiveLiquidationOrders: () => false,
     initializeOrderMonitor: async () => {},
+    onOrderStateChanged: () => () => {},
     canTradeNow: (): { readonly canTrade: boolean } => ({ canTrade: true }),
     fetchAllOrdersFromAPI: async () => [],
     resetRuntimeState: () => {},
@@ -366,8 +367,24 @@ export function createAutoSymbolManagerDouble(
 ): AutoSymbolManagerPort {
   const base: AutoSymbolManagerPort = {
     maybeSearchOnTick: async () => {},
-    maybeSwitchOnInterval: async () => {},
-    maybeSwitchOnDistance: async () => {},
+    maybeSwitchOnInterval: async () => ({
+      kind: 'NOOP',
+    }),
+    startSwitchOnDistance: async (params) => ({
+      started: false,
+      direction: params.direction,
+      driveResult: {
+        kind: 'NOOP',
+      },
+    }),
+    advancePendingSwitch: async (params) => ({
+      advanced: false,
+      direction: params.direction,
+      stillPending: false,
+      driveResult: {
+        kind: 'NOOP',
+      },
+    }),
     hasPendingSwitch: () => false,
     resetAllState: () => {},
   };

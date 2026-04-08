@@ -92,6 +92,18 @@ function toApiDistanceRatio(percentValue: number): number {
   return percentValue / 100;
 }
 
+async function runDistanceSwitch(
+  machine: ReturnType<typeof createSwitchStateMachine>,
+  params: Parameters<ReturnType<typeof createSwitchStateMachine>['startSwitchOnDistance']>[0],
+): Promise<void> {
+  if (machine.hasPendingSwitch(params.direction)) {
+    await machine.advancePendingSwitch(params);
+    return;
+  }
+
+  await machine.startSwitchOnDistance(params);
+}
+
 describe('auto search policy consistency integration', () => {
   it('selects the same degraded candidate across startup search, runtime empty-seat search, and distance-switch presearch', async () => {
     const currentTime = new Date('2026-02-16T01:00:00.000Z');
@@ -326,7 +338,7 @@ describe('auto search policy consistency integration', () => {
           new Map([...symbols].map((symbol) => [symbol, createQuoteDouble(symbol, 1, 100)])),
       }),
     });
-    await switchStateMachine.maybeSwitchOnDistance({
+    await runDistanceSwitch(switchStateMachine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -577,7 +589,7 @@ describe('auto search policy consistency integration', () => {
           new Map([...symbols].map((symbol) => [symbol, createQuoteDouble(symbol, 1, 100)])),
       }),
     });
-    await switchStateMachine.maybeSwitchOnDistance({
+    await runDistanceSwitch(switchStateMachine, {
       direction: 'SHORT',
       monitorPrice: 20_000,
       positions: [],
@@ -774,7 +786,7 @@ describe('auto search policy consistency integration', () => {
           new Map([...symbols].map((symbol) => [symbol, createQuoteDouble(symbol, 1, 100)])),
       }),
     });
-    await safeSwitchMachine.maybeSwitchOnDistance({
+    await runDistanceSwitch(safeSwitchMachine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -863,7 +875,7 @@ describe('auto search policy consistency integration', () => {
           new Map([...symbols].map((symbol) => [symbol, createQuoteDouble(symbol, 1, 100)])),
       }),
     });
-    await dangerSwitchMachine.maybeSwitchOnDistance({
+    await runDistanceSwitch(dangerSwitchMachine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],

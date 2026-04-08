@@ -5,6 +5,7 @@
  * - 验证退出时排空处理器、销毁延迟验证器与释放资源的流程与边界。
  */
 import { describe, expect, it } from 'bun:test';
+import type { CleanupContext } from '../../src/app/types.js';
 
 import { createCleanup } from '../../src/app/createCleanup.js';
 import {
@@ -26,9 +27,13 @@ describe('cleanup business flow', () => {
     };
   }
 
-  function createExitMock(exitCodes: number[]): (code?: number) => void {
-    return (code?: number) => {
-      exitCodes.push(code ?? 0);
+  function createExitMock(
+    exitCodes: number[],
+    onExit?: (code: number) => void,
+  ): (code?: number) => void {
+    return (code = 0) => {
+      exitCodes.push(code);
+      onExit?.(code);
     };
   }
 
@@ -41,6 +46,35 @@ describe('cleanup business flow', () => {
       configurable: true,
       writable: true,
     });
+  }
+
+  function createExitSignalSyncPoint(
+    createOverrides: (steps: string[]) => Partial<CleanupContext> = () => ({}),
+  ) {
+    const handlers = new Map<string, (...args: unknown[]) => void>();
+    const exitCodes: number[] = [];
+    const steps: string[] = [];
+    let resolveExit: ((code: number) => void) | null = null;
+    const exitCompleted = new Promise<number>((resolve) => {
+      resolveExit = resolve;
+    });
+
+    const onceMock = createOnceMock(handlers);
+    const exitMock = createExitMock(exitCodes, (code) => {
+      resolveExit?.(code);
+      resolveExit = null;
+    });
+    const cleanup = createCleanup(createCleanupDeps(steps, createOverrides(steps)));
+
+    return {
+      handlers,
+      exitCodes,
+      steps,
+      cleanup,
+      onceMock,
+      exitMock,
+      waitForExit: () => exitCompleted,
+    };
   }
 
   it('drains processors, destroys delayed verifiers and releases monitor snapshots', async () => {
@@ -67,6 +101,8 @@ describe('cleanup business flow', () => {
     expect(steps).toEqual([
       'abortWaiting',
       'tradingRiskEventRuntime',
+      'monitorQuoteEventRuntime',
+      'switchWakeupRuntime',
       'buy',
       'sell',
       'monitorTask',
@@ -88,6 +124,8 @@ describe('cleanup business flow', () => {
     expect(steps).toEqual([
       'abortWaiting',
       'tradingRiskEventRuntime',
+      'monitorQuoteEventRuntime',
+      'switchWakeupRuntime',
       'buy',
       'sell',
       'monitorTask',
@@ -99,31 +137,27 @@ describe('cleanup business flow', () => {
   });
 
   it('registers SIGINT/SIGTERM handlers and exits after cleanup', async () => {
-    const handlers = new Map<string, (...args: unknown[]) => void>();
-    const exitCodes: number[] = [];
-    const steps: string[] = [];
-
     const originalOnce = process.once;
     const originalExit = process.exit;
-    const onceMock = createOnceMock(handlers);
-    const exitMock = createExitMock(exitCodes);
+    const signalHarness = createExitSignalSyncPoint();
 
-    overrideProcessHandler('once', onceMock);
-    overrideProcessHandler('exit', exitMock);
+    overrideProcessHandler('once', signalHarness.onceMock);
+    overrideProcessHandler('exit', signalHarness.exitMock);
 
     try {
-      const cleanup = createCleanup(createCleanupDeps(steps));
-      cleanup.registerExitHandlers();
-      expect(handlers.has('SIGINT')).toBe(true);
-      expect(handlers.has('SIGTERM')).toBe(true);
+      signalHarness.cleanup.registerExitHandlers();
+      expect(signalHarness.handlers.has('SIGINT')).toBe(true);
+      expect(signalHarness.handlers.has('SIGTERM')).toBe(true);
 
-      handlers.get('SIGINT')?.();
-      await Bun.sleep(20);
+      signalHarness.handlers.get('SIGINT')?.();
+      await signalHarness.waitForExit();
 
-      expect(exitCodes).toEqual([0]);
-      expect(steps).toEqual([
+      expect(signalHarness.exitCodes).toEqual([0]);
+      expect(signalHarness.steps).toEqual([
         'abortWaiting',
         'tradingRiskEventRuntime',
+        'monitorQuoteEventRuntime',
+        'switchWakeupRuntime',
         'buy',
         'sell',
         'monitorTask',
@@ -182,6 +216,8 @@ describe('cleanup business flow', () => {
     expect(steps).toEqual([
       'abortWaiting',
       'tradingRiskEventRuntime',
+      'monitorQuoteEventRuntime',
+      'switchWakeupRuntime',
       'buy',
       'sell',
       'monitorTask',
@@ -195,40 +231,34 @@ describe('cleanup business flow', () => {
   });
 
   it('exits with code 1 when cleanup fails during signal handling', async () => {
-    const handlers = new Map<string, (...args: unknown[]) => void>();
-    const exitCodes: number[] = [];
-    const steps: string[] = [];
-
     const originalOnce = process.once;
     const originalExit = process.exit;
-    const onceMock = createOnceMock(handlers);
-    const exitMock = createExitMock(exitCodes);
+    const signalHarness = createExitSignalSyncPoint((steps) => ({
+      buyProcessor: {
+        start: () => {},
+        stop: () => {},
+        stopAndDrain: async () => {
+          steps.push('buy');
+          throw new Error('buy failed');
+        },
+        restart: () => {},
+      },
+    }));
 
-    overrideProcessHandler('once', onceMock);
-    overrideProcessHandler('exit', exitMock);
+    overrideProcessHandler('once', signalHarness.onceMock);
+    overrideProcessHandler('exit', signalHarness.exitMock);
 
     try {
-      const cleanup = createCleanup(
-        createCleanupDeps(steps, {
-          buyProcessor: {
-            start: () => {},
-            stop: () => {},
-            stopAndDrain: async () => {
-              steps.push('buy');
-              throw new Error('buy failed');
-            },
-            restart: () => {},
-          },
-        }),
-      );
-      cleanup.registerExitHandlers();
-      handlers.get('SIGTERM')?.();
-      await Bun.sleep(20);
+      signalHarness.cleanup.registerExitHandlers();
+      signalHarness.handlers.get('SIGTERM')?.();
+      await signalHarness.waitForExit();
 
-      expect(exitCodes).toEqual([1]);
-      expect(steps).toEqual([
+      expect(signalHarness.exitCodes).toEqual([1]);
+      expect(signalHarness.steps).toEqual([
         'abortWaiting',
         'tradingRiskEventRuntime',
+        'monitorQuoteEventRuntime',
+        'switchWakeupRuntime',
         'buy',
         'sell',
         'monitorTask',
@@ -286,6 +316,8 @@ describe('cleanup business flow', () => {
     expect(outcome).toBe('done');
     expect(steps[0]).toBe('abortWaiting');
     expect(steps[1]).toBe('tradingRiskEventRuntime');
+    expect(steps[2]).toBe('monitorQuoteEventRuntime');
+    expect(steps[3]).toBe('switchWakeupRuntime');
     expect(steps).toContain('buy');
     expect(steps).toContain('postTradeConsistencyRuntime');
   });

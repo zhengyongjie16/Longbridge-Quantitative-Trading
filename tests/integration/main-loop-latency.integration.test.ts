@@ -53,8 +53,24 @@ import type { MonitorTaskDataMap } from '../../src/main/asyncProgram/monitorTask
 function createNoopAutoSymbolManager(): AutoSymbolManagerPort {
   return {
     maybeSearchOnTick: async () => {},
-    maybeSwitchOnInterval: async () => {},
-    maybeSwitchOnDistance: async () => {},
+    maybeSwitchOnInterval: async () => ({
+      kind: 'NOOP',
+    }),
+    startSwitchOnDistance: async (params) => ({
+      started: false,
+      direction: params.direction,
+      driveResult: {
+        kind: 'NOOP',
+      },
+    }),
+    advancePendingSwitch: async (params) => ({
+      advanced: false,
+      direction: params.direction,
+      stillPending: false,
+      driveResult: {
+        kind: 'NOOP',
+      },
+    }),
     hasPendingSwitch: () => false,
     resetAllState: () => {},
   };

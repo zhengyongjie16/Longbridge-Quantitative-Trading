@@ -59,28 +59,34 @@ describe('monitorTaskQueue business behavior', () => {
     });
 
     queue.scheduleLatest({
-      type: 'LIQUIDATION_DISTANCE_CHECK',
-      dedupeKey: 'HSI.HK:LIQUIDATION_DISTANCE_CHECK',
+      type: 'SEAT_REFRESH',
+      dedupeKey: 'HSI.HK:SEAT_REFRESH',
       monitorSymbol: 'HSI.HK',
       data: {
         monitorSymbol: 'HSI.HK',
-        monitorPrice: 20_000,
-        long: { seatVersion: 1, symbol: 'BULL.HK', symbolName: 'BULL' },
-        short: { seatVersion: 1, symbol: 'BEAR.HK', symbolName: 'BEAR' },
+        direction: 'LONG',
+        seatVersion: 1,
+        previousSymbol: 'OLD_BULL.HK',
+        nextSymbol: 'BULL.HK',
+        callPrice: 20_000,
+        symbolName: 'BULL',
       },
     });
 
     unregister();
 
     queue.scheduleLatest({
-      type: 'LIQUIDATION_DISTANCE_CHECK',
-      dedupeKey: 'HSI.HK:LIQUIDATION_DISTANCE_CHECK:2',
+      type: 'SEAT_REFRESH',
+      dedupeKey: 'HSI.HK:SEAT_REFRESH:2',
       monitorSymbol: 'HSI.HK',
       data: {
         monitorSymbol: 'HSI.HK',
-        monitorPrice: 20_100,
-        long: { seatVersion: 1, symbol: 'BULL.HK', symbolName: 'BULL' },
-        short: { seatVersion: 1, symbol: 'BEAR.HK', symbolName: 'BEAR' },
+        direction: 'SHORT',
+        seatVersion: 2,
+        previousSymbol: 'OLD_BEAR.HK',
+        nextSymbol: 'BEAR.HK',
+        callPrice: 20_100,
+        symbolName: 'BEAR',
       },
     });
 

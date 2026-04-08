@@ -2,7 +2,8 @@
  * 信号运行时缓存域（CacheDomain: signalRuntime）
  *
  * 午夜清理：
- * - 先终止 freshness 等待，再停止交易标的风险 runtime，然后排空其他处理器，最后停止成交后一致性 runtime
+ * - 先终止 freshness 等待，再停止交易标的风险 runtime、monitor quote runtime，随后停止 switch wakeup runtime
+ * - 再排空其他处理器，最后停止成交后一致性 runtime
  * - 清空交易任务队列（买入/卖出/监控），释放队列中的信号对象
  * - 取消所有延迟验证信号
  * - 调用成交后一致性 runtime 的跨日清理
@@ -10,7 +11,7 @@
  *
  * 开盘重建：
  * - 先启动成交后一致性 runtime，并完成 rebuild baseline
- * - 再启动交易标的风险 runtime
+ * - 再启动交易标的风险 runtime、monitor quote runtime 与 switch wakeup runtime
  * - 再重启买入、卖出、监控任务与订单监控处理器
  */
 import { logger } from '../../../utils/logger/index.js';
@@ -79,6 +80,8 @@ export function createSignalRuntimeDomain(deps: SignalRuntimeDomainDeps): CacheD
     monitorTaskProcessor,
     orderMonitorWorker,
     tradingRiskEventRuntime,
+    monitorQuoteEventRuntime,
+    switchWakeupRuntime,
     postTradeConsistencyRuntime,
     indicatorCache,
     buyTaskQueue,
@@ -91,6 +94,8 @@ export function createSignalRuntimeDomain(deps: SignalRuntimeDomainDeps): CacheD
     async midnightClear(_ctx: LifecycleContext): Promise<void> {
       postTradeConsistencyRuntime.abortWaiting();
       await tradingRiskEventRuntime.stopAndDrain();
+      await monitorQuoteEventRuntime.stopAndDrain();
+      await switchWakeupRuntime.stopAndDrain();
       await buyProcessor.stopAndDrain();
       await sellProcessor.stopAndDrain();
       await monitorTaskProcessor.stopAndDrain();
@@ -117,6 +122,8 @@ export function createSignalRuntimeDomain(deps: SignalRuntimeDomainDeps): CacheD
       postTradeConsistencyRuntime.start();
       postTradeConsistencyRuntime.completeRebuildBaseline();
       tradingRiskEventRuntime.start();
+      monitorQuoteEventRuntime.start();
+      switchWakeupRuntime.start();
       buyProcessor.restart();
       sellProcessor.restart();
       monitorTaskProcessor.restart();

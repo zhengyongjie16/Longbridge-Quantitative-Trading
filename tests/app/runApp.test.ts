@@ -171,6 +171,23 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
             harnessState.events.push('tradingRiskEventRuntime.stopAndDrain');
           },
         },
+        switchWakeupRuntime: {
+          start: () => {
+            harnessState.events.push('switchWakeupRuntime.start');
+          },
+          stopAndDrain: async () => {
+            harnessState.events.push('switchWakeupRuntime.stopAndDrain');
+          },
+          handoffPendingSwitch: () => {},
+        },
+        monitorQuoteEventRuntime: {
+          start: () => {
+            harnessState.events.push('monitorQuoteEventRuntime.start');
+          },
+          stopAndDrain: async () => {
+            harnessState.events.push('monitorQuoteEventRuntime.stopAndDrain');
+          },
+        },
         postTradeConsistencyRuntime: {
           bindBusinessDeps: () => {
             businessDepsBound = true;
@@ -186,6 +203,7 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
             abortReason: null,
           }),
           waitForFresh: async () => {},
+          onFreshReached: () => () => {},
           abortWaiting: () => {},
           resetAbort: () => {},
           start: () => {
@@ -247,6 +265,7 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
           monitorAndManageOrders: async () => {},
           hasPendingProtectiveLiquidationOrders: () => false,
           initializeOrderMonitor: async () => {},
+          onOrderStateChanged: () => () => {},
           canTradeNow: () => ({ canTrade: true }),
           fetchAllOrdersFromAPI: async () => [],
           resetRuntimeState: () => {},
@@ -426,6 +445,8 @@ describe('app runApp assembly', () => {
       'postTradeConsistencyRuntime.start',
       'postTradeConsistencyRuntime.completeRebuildBaseline',
       'tradingRiskEventRuntime.start',
+      'monitorQuoteEventRuntime.start',
+      'switchWakeupRuntime.start',
       'monitorTaskProcessor.start',
       'buyProcessor.start',
       'sellProcessor.start',

@@ -270,8 +270,24 @@ describe('full business simulation integration', () => {
       delayedSignalVerifier,
       autoSymbolManager: {
         maybeSearchOnTick: async () => {},
-        maybeSwitchOnInterval: async () => {},
-        maybeSwitchOnDistance: async () => {},
+        maybeSwitchOnInterval: async () => ({
+          kind: 'NOOP',
+        }),
+        startSwitchOnDistance: async (params) => ({
+          started: false,
+          direction: params.direction,
+          driveResult: {
+            kind: 'NOOP',
+          },
+        }),
+        advancePendingSwitch: async (params) => ({
+          advanced: false,
+          direction: params.direction,
+          stillPending: false,
+          driveResult: {
+            kind: 'NOOP',
+          },
+        }),
         hasPendingSwitch: () => false,
         resetAllState: () => {},
       },
@@ -305,7 +321,10 @@ describe('full business simulation integration', () => {
       },
     });
 
-    const postTradeConsistencyRuntime = { waitForFresh: async () => {} };
+    const postTradeConsistencyRuntime = {
+      waitForFresh: async () => {},
+      onFreshReached: () => () => {},
+    };
     const buyProcessor = createBuyProcessor({
       taskQueue: buyTaskQueue,
       getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol),
@@ -596,14 +615,19 @@ describe('full business simulation integration', () => {
     ]);
 
     const processedTaskTypes: string[] = [];
-    const postTradeConsistencyRuntime = { waitForFresh: async () => {} };
+    const postTradeConsistencyRuntime = {
+      waitForFresh: async () => {},
+      onFreshReached: () => () => {},
+    };
     const monitorTaskProcessor = createMonitorTaskProcessor({
       monitorTaskQueue,
-      postTradeConsistencyRuntime,
       getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol) ?? null,
       clearMonitorDirectionQueues: () => {},
       trader,
       marketDataClient: createMarketDataClientDouble(),
+      switchWakeupRuntime: {
+        handoffPendingSwitch: () => {},
+      },
       lastState,
       tradingConfig,
       getCanProcessTask: () => true,
@@ -991,8 +1015,24 @@ describe('full business simulation integration', () => {
       delayedSignalVerifier,
       autoSymbolManager: {
         maybeSearchOnTick: async () => {},
-        maybeSwitchOnInterval: async () => {},
-        maybeSwitchOnDistance: async () => {},
+        maybeSwitchOnInterval: async () => ({
+          kind: 'NOOP',
+        }),
+        startSwitchOnDistance: async (params) => ({
+          started: false,
+          direction: params.direction,
+          driveResult: {
+            kind: 'NOOP',
+          },
+        }),
+        advancePendingSwitch: async (params) => ({
+          advanced: false,
+          direction: params.direction,
+          stillPending: false,
+          driveResult: {
+            kind: 'NOOP',
+          },
+        }),
         hasPendingSwitch: () => false,
         resetAllState: () => {},
       },
@@ -1025,7 +1065,10 @@ describe('full business simulation integration', () => {
       },
     });
 
-    const postTradeConsistencyRuntime = { waitForFresh: async () => {} };
+    const postTradeConsistencyRuntime = {
+      waitForFresh: async () => {},
+      onFreshReached: () => () => {},
+    };
     const buyProcessor = createBuyProcessor({
       taskQueue: buyTaskQueue,
       getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol),
@@ -1083,11 +1126,13 @@ describe('full business simulation integration', () => {
     });
     const monitorTaskProcessor = createMonitorTaskProcessor({
       monitorTaskQueue,
-      postTradeConsistencyRuntime,
       getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol) ?? null,
       clearMonitorDirectionQueues: () => {},
       trader,
       marketDataClient: createMarketDataClientDouble(),
+      switchWakeupRuntime: {
+        handoffPendingSwitch: () => {},
+      },
       lastState,
       tradingConfig,
       getCanProcessTask: () => lastState.isTradingEnabled,
@@ -1126,6 +1171,14 @@ describe('full business simulation integration', () => {
         completeRebuildBaseline: () => {},
       },
       tradingRiskEventRuntime: {
+        start: () => {},
+        stopAndDrain: async () => {},
+      },
+      monitorQuoteEventRuntime: {
+        start: () => {},
+        stopAndDrain: async () => {},
+      },
+      switchWakeupRuntime: {
         start: () => {},
         stopAndDrain: async () => {},
       },

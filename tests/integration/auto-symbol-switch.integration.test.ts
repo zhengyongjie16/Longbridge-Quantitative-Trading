@@ -28,6 +28,18 @@ import { createWarrantCandidateWithOverrides } from '../services/autoSymbolManag
 
 let candidateQueue: Array<ReturnType<typeof createWarrantCandidateWithOverrides> | null> = [];
 
+async function runDistanceSwitch(
+  manager: ReturnType<typeof createAutoSymbolManager>,
+  params: Parameters<ReturnType<typeof createAutoSymbolManager>['startSwitchOnDistance']>[0],
+): Promise<void> {
+  if (manager.hasPendingSwitch(params.direction)) {
+    await manager.advancePendingSwitch(params);
+    return;
+  }
+
+  await manager.startSwitchOnDistance(params);
+}
+
 describe('auto-symbol-switch integration', () => {
   it('runs empty-seat search then distance-triggered switch with sell->rebuy flow', async () => {
     candidateQueue = [
@@ -163,7 +175,7 @@ describe('auto-symbol-switch integration', () => {
       lastSeatActivatedAt: Date.parse('2026-02-16T01:00:00.000Z'),
     });
 
-    await manager.maybeSwitchOnDistance({
+    await runDistanceSwitch(manager, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [
@@ -184,7 +196,7 @@ describe('auto-symbol-switch integration', () => {
     expect(executedActions).toHaveLength(1);
     expect(executedActions[0]?.action).toBe('SELLCALL');
 
-    await manager.maybeSwitchOnDistance({
+    await runDistanceSwitch(manager, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -303,6 +315,7 @@ describe('auto-symbol-switch integration', () => {
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [],
         clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
       },
       orderRecorder,
       tradingConfig,
@@ -363,7 +376,7 @@ describe('auto-symbol-switch integration', () => {
       lastSeatActivatedAt: Date.parse('2026-02-16T01:00:00.000Z'),
     });
 
-    await manager.maybeSwitchOnDistance({
+    await runDistanceSwitch(manager, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [
@@ -380,7 +393,7 @@ describe('auto-symbol-switch integration', () => {
       ],
     });
 
-    await manager.maybeSwitchOnDistance({
+    await runDistanceSwitch(manager, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -477,13 +490,13 @@ describe('auto-symbol-switch integration', () => {
       now: () => new Date('2026-02-16T01:00:00.000Z'),
     });
 
-    await manager.maybeSwitchOnDistance({
+    await runDistanceSwitch(manager, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
     });
 
-    await manager.maybeSwitchOnDistance({
+    await runDistanceSwitch(manager, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -492,7 +505,7 @@ describe('auto-symbol-switch integration', () => {
     expect(findBestCalls).toBe(1);
 
     distanceToStrikePercent = 0.1;
-    await manager.maybeSwitchOnDistance({
+    await runDistanceSwitch(manager, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -575,20 +588,20 @@ describe('auto-symbol-switch integration', () => {
       now: () => new Date('2026-02-16T01:00:00.000Z'),
     });
 
-    await manager.maybeSwitchOnDistance({
+    await runDistanceSwitch(manager, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
     });
 
     distanceToStrikePercent = 2;
-    await manager.maybeSwitchOnDistance({
+    await runDistanceSwitch(manager, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
     });
 
-    await manager.maybeSwitchOnDistance({
+    await runDistanceSwitch(manager, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -665,7 +678,7 @@ describe('auto-symbol-switch integration', () => {
       now: () => new Date('2026-02-16T01:00:00.000Z'),
     });
 
-    await manager.maybeSwitchOnDistance({
+    await runDistanceSwitch(manager, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],

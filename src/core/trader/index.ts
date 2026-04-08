@@ -172,6 +172,10 @@ export function createTrader(deps: TraderDeps): Promise<Trader> {
       return orderMonitor.initialize();
     },
 
+    onOrderStateChanged(listener) {
+      return orderMonitor.onOrderStateChanged(listener);
+    },
+
     // ==================== 订单执行相关方法 ====================
 
     canTradeNow(signalAction: SignalType, monitorConfig?: MonitorConfig | null): TradeCheckResult {

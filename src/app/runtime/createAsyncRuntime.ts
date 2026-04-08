@@ -33,13 +33,13 @@ export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntim
     buyTaskQueue,
     sellTaskQueue,
     monitorTaskQueue,
+    switchWakeupRuntime,
   } = postGateRuntime;
   const orderMonitorWorker = createOrderMonitorWorker({
     monitorAndManageOrders: () => trader.monitorAndManageOrders(),
   });
   const monitorTaskProcessor = createMonitorTaskProcessor({
     monitorTaskQueue,
-    postTradeConsistencyRuntime,
     getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol) ?? null,
     clearMonitorDirectionQueues: (monitorSymbol, direction) => {
       clearMonitorDirectionQueuesWithLog({
@@ -57,6 +57,7 @@ export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntim
     },
     trader,
     marketDataClient: preGateRuntime.marketDataClient,
+    switchWakeupRuntime,
     lastState,
     tradingConfig,
     getCanProcessTask: () => lastState.isTradingEnabled,

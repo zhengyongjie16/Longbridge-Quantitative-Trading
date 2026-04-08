@@ -96,6 +96,7 @@ describe('sellProcessor business flow', () => {
       getLastState: () => lastState,
       postTradeConsistencyRuntime: {
         waitForFresh: async () => {},
+        onFreshReached: () => () => {},
       },
       getCanProcessTask: () => true,
     });
@@ -264,6 +265,7 @@ describe('sellProcessor business flow', () => {
       getLastState: () => createLastState(),
       postTradeConsistencyRuntime: {
         waitForFresh: async () => {},
+        onFreshReached: () => () => {},
       },
       getCanProcessTask: () => true,
     });
@@ -319,6 +321,7 @@ describe('sellProcessor business flow', () => {
       getLastState: () => createLastState(),
       postTradeConsistencyRuntime: {
         waitForFresh: async () => {},
+        onFreshReached: () => () => {},
       },
       getCanProcessTask: () => true,
     });
@@ -377,6 +380,7 @@ describe('sellProcessor business flow', () => {
       getLastState: () => createLastState(),
       postTradeConsistencyRuntime: {
         waitForFresh: async () => {},
+        onFreshReached: () => () => {},
       },
       getCanProcessTask: () => true,
       scheduleRetry: (callback) => {
@@ -448,6 +452,7 @@ describe('sellProcessor business flow', () => {
       getLastState: () => createLastState(),
       postTradeConsistencyRuntime: {
         waitForFresh: async () => {},
+        onFreshReached: () => () => {},
       },
       getCanProcessTask: () => true,
       scheduleRetry: (callback) => {
@@ -519,6 +524,7 @@ describe('sellProcessor business flow', () => {
       getLastState: () => createLastState(),
       postTradeConsistencyRuntime: {
         waitForFresh: async () => {},
+        onFreshReached: () => () => {},
       },
       getCanProcessTask: () => true,
       scheduleRetry: (callback) => {
@@ -586,6 +592,7 @@ describe('sellProcessor business flow', () => {
       getLastState: () => createLastState(),
       postTradeConsistencyRuntime: {
         waitForFresh: async () => {},
+        onFreshReached: () => () => {},
       },
       getCanProcessTask: () => true,
       scheduleRetry: (callback) => {
@@ -658,6 +665,7 @@ describe('sellProcessor business flow', () => {
       getLastState: () => createLastState(),
       postTradeConsistencyRuntime: {
         waitForFresh: async () => {},
+        onFreshReached: () => () => {},
       },
       getCanProcessTask: () => true,
     });
@@ -720,6 +728,7 @@ describe('sellProcessor business flow', () => {
       getLastState: () => createLastState(),
       postTradeConsistencyRuntime: {
         waitForFresh: async () => {},
+        onFreshReached: () => () => {},
       },
       getCanProcessTask: dynamicGate,
     });

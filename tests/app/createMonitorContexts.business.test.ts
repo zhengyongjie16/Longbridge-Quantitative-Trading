@@ -145,6 +145,15 @@ function createRuntime(monitors: ReadonlyArray<MonitorConfig>): {
       start: () => {},
       stopAndDrain: async () => {},
     },
+    monitorQuoteEventRuntime: {
+      start: () => {},
+      stopAndDrain: async () => {},
+    },
+    switchWakeupRuntime: {
+      start: () => {},
+      stopAndDrain: async () => {},
+      handoffPendingSwitch: () => {},
+    },
     postTradeConsistencyRuntime: {
       bindBusinessDeps: () => {},
       recordSettlementRefreshNeed: () => {},
@@ -157,6 +166,7 @@ function createRuntime(monitors: ReadonlyArray<MonitorConfig>): {
         abortReason: null,
       }),
       waitForFresh: async () => {},
+      onFreshReached: () => () => {},
       abortWaiting: () => {},
       resetAbort: () => {},
       start: () => {},

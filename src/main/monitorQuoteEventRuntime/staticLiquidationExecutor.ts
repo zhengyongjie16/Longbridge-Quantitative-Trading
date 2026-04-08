@@ -1,0 +1,323 @@
+/**
+ * staticLiquidationExecutor
+ *
+ * 职责：
+ * - 执行 monitor quote 驱动的静态距回收价清仓
+ * - 复用历史清仓执行态的清仓、清缓存与浮亏刷新语义
+ */
+import { ORDER_QUOTE_RETRY, WARRANT_LIQUIDATION_ORDER_TYPE } from '../../constants/index.js';
+import { validateSignalSeat } from '../../services/autoSymbolManager/utils.js';
+import type { Signal } from '../../types/signal.js';
+import type { MonitorContext, LastState } from '../../types/state.js';
+import type { MarketDataClient, QuoteUpdatedEvent, Trader } from '../../types/services.js';
+import { acquireSignal, signalObjectPool } from '../../utils/objectPool/index.js';
+import { isSeatActive } from '../../utils/seat/guards.js';
+import type { StaticLiquidationRuntimeResult } from './types.js';
+
+/**
+ * Monitor quote 静态清仓执行器依赖。
+ *
+ * 类型用途：收口执行静态距回收价清仓所需的最小依赖。
+ * 数据来源：由 app/main 顶层运行时组装并注入。
+ * 使用范围：仅 monitorQuoteEventRuntime 模块内部使用。
+ */
+type CreateStaticLiquidationExecutorDeps = Readonly<{
+  readonly trader: Pick<Trader, 'executeSignals'>;
+  readonly marketDataClient: Pick<MarketDataClient, 'getQuotes'>;
+  readonly lastState: Pick<LastState, 'positionCache'>;
+}>;
+
+/**
+ * 单边静态清仓候选。
+ *
+ * 类型用途：表示某一方向已通过触发判定、待执行并在成功后做缓存刷新的清仓项。
+ * 数据来源：由 monitor quote 事件执行时基于当前席位、持仓与行情构造。
+ * 使用范围：仅 staticLiquidationExecutor 模块内部使用。
+ */
+type StaticLiquidationCandidate = Readonly<{
+  readonly signal: Signal;
+  readonly direction: 'LONG' | 'SHORT';
+  readonly quote: QuoteUpdatedEvent['quote'];
+}>;
+
+type StaticLiquidationCandidateResult =
+  | Readonly<{
+      kind: 'SKIP';
+    }>
+  | Readonly<{
+      kind: 'WAIT';
+    }>
+  | Readonly<{
+      kind: 'CANDIDATE';
+      candidate: StaticLiquidationCandidate;
+    }>;
+
+function buildStaticLiquidationWakeupSymbols(params: {
+  readonly monitorSymbol: string;
+  readonly longSymbol: string | null;
+  readonly shortSymbol: string | null;
+}): ReadonlyArray<string> {
+  const { monitorSymbol, longSymbol, shortSymbol } = params;
+  return [monitorSymbol, longSymbol, shortSymbol].filter((symbol) => symbol !== null);
+}
+
+/**
+ * 计算本轮 WAIT 后下一次 retry 的唤醒时间。
+ *
+ * @param retryAttempts 当前已执行的 retry 次数
+ * @returns 下一次 retry 时间；达到上限时返回 null
+ */
+function resolveStaticLiquidationRetryAtMs(retryAttempts: number): number | null {
+  const nextRetryAttempts = retryAttempts + 1;
+  if (nextRetryAttempts > ORDER_QUOTE_RETRY.MAX_ATTEMPTS) {
+    return null;
+  }
+
+  return Date.now() + ORDER_QUOTE_RETRY.INTERVAL_MS;
+}
+
+/**
+ * 创建静态清仓 WAIT 返回值。
+ *
+ * @param wakeupSymbols 需要继续等待的唤醒 symbols
+ * @param retryAttempts 当前已执行的 retry 次数
+ * @returns 统一的 WAIT 返回值
+ */
+function createStaticLiquidationWaitResult(
+  wakeupSymbols: ReadonlyArray<string>,
+  retryAttempts: number,
+): Extract<StaticLiquidationRuntimeResult, { kind: 'WAIT' }> {
+  return {
+    kind: 'WAIT',
+    wakeupSymbols,
+    retryAtMs: resolveStaticLiquidationRetryAtMs(retryAttempts),
+  };
+}
+
+/**
+ * 按方向创建静态距回收价清仓候选。
+ *
+ * @param params monitor 上下文、方向、monitor quote 与交易标的 quote
+ * @returns 显式区分等待行情、跳过执行与生成候选三种结果
+ */
+function createStaticLiquidationCandidate(params: {
+  readonly monitorContext: MonitorContext;
+  readonly direction: 'LONG' | 'SHORT';
+  readonly monitorQuote: QuoteUpdatedEvent['quote'];
+  readonly tradingQuote: QuoteUpdatedEvent['quote'] | null;
+  readonly availableQuantity: number;
+}): StaticLiquidationCandidateResult {
+  const { monitorContext, direction, monitorQuote, tradingQuote, availableQuantity } = params;
+  const isLongDirection = direction === 'LONG';
+  const seatState = monitorContext.symbolRegistry.getSeatState(
+    monitorContext.config.monitorSymbol,
+    direction,
+  );
+  if (!isSeatActive(seatState)) {
+    return { kind: 'SKIP' };
+  }
+
+  if (!Number.isFinite(availableQuantity) || availableQuantity <= 0) {
+    return { kind: 'SKIP' };
+  }
+
+  if (
+    tradingQuote === null ||
+    !Number.isFinite(tradingQuote.price) ||
+    !Number.isFinite(tradingQuote.lotSize)
+  ) {
+    return { kind: 'WAIT' };
+  }
+
+  const liquidationResult = monitorContext.riskChecker.checkWarrantDistanceLiquidation(
+    seatState.symbol,
+    isLongDirection,
+    monitorQuote.price,
+  );
+  if (!liquidationResult.shouldLiquidate) {
+    return { kind: 'SKIP' };
+  }
+
+  const signal = acquireSignal();
+  signal.symbol = seatState.symbol;
+  signal.symbolName = isLongDirection
+    ? monitorContext.longSymbolName || seatState.symbol
+    : monitorContext.shortSymbolName || seatState.symbol;
+  signal.action = isLongDirection ? 'SELLCALL' : 'SELLPUT';
+  signal.reason = liquidationResult.reason ?? '牛熊证距回收价触发清仓';
+  signal.price = tradingQuote.price;
+  signal.lotSize = tradingQuote.lotSize ?? null;
+  signal.quantity = availableQuantity;
+  signal.triggerTime = new Date();
+  signal.orderTypeOverride = WARRANT_LIQUIDATION_ORDER_TYPE;
+  signal.isProtectiveLiquidation = false;
+  signal.seatVersion = monitorContext.symbolRegistry.getSeatVersion(
+    monitorContext.config.monitorSymbol,
+    direction,
+  );
+
+  return {
+    kind: 'CANDIDATE',
+    candidate: {
+      signal,
+      direction,
+      quote: tradingQuote,
+    },
+  };
+}
+
+/**
+ * 释放静态清仓候选持有的 signal 对象。
+ *
+ * @param candidates 待释放候选
+ */
+function releaseStaticLiquidationCandidates(
+  candidates: ReadonlyArray<StaticLiquidationCandidate>,
+): void {
+  for (const candidate of candidates) {
+    signalObjectPool.release(candidate.signal);
+  }
+}
+
+/**
+ * 创建静态距回收价清仓执行器。
+ *
+ * @param deps 执行器依赖
+ * @returns monitor quote 事件执行函数
+ */
+export function createStaticLiquidationExecutor(
+  deps: CreateStaticLiquidationExecutorDeps,
+): (params: {
+  readonly monitorContext: MonitorContext;
+  readonly event: QuoteUpdatedEvent;
+  readonly retryAttempts: number;
+}) => Promise<StaticLiquidationRuntimeResult> {
+  const { trader, marketDataClient, lastState } = deps;
+
+  return async function executeStaticLiquidation(params: {
+    readonly monitorContext: MonitorContext;
+    readonly event: QuoteUpdatedEvent;
+    readonly retryAttempts: number;
+  }): Promise<StaticLiquidationRuntimeResult> {
+    const { monitorContext } = params;
+    const monitorSymbol = monitorContext.config.monitorSymbol;
+    const longSeat = monitorContext.symbolRegistry.getSeatState(monitorSymbol, 'LONG');
+    const shortSeat = monitorContext.symbolRegistry.getSeatState(monitorSymbol, 'SHORT');
+    const longSymbol = isSeatActive(longSeat) ? longSeat.symbol : null;
+    const shortSymbol = isSeatActive(shortSeat) ? shortSeat.symbol : null;
+    const wakeupSymbols = buildStaticLiquidationWakeupSymbols({
+      monitorSymbol,
+      longSymbol,
+      shortSymbol,
+    });
+    if (wakeupSymbols.length === 0) {
+      return { kind: 'NOOP' };
+    }
+
+    const executionQuotes = await marketDataClient.getQuotes(wakeupSymbols);
+    const monitorQuote = executionQuotes.get(monitorSymbol) ?? null;
+    if (monitorQuote === null || !Number.isFinite(monitorQuote.price)) {
+      return createStaticLiquidationWaitResult(wakeupSymbols, params.retryAttempts);
+    }
+
+    const longQuote = longSymbol ? (executionQuotes.get(longSymbol) ?? null) : null;
+    const shortQuote = shortSymbol ? (executionQuotes.get(shortSymbol) ?? null) : null;
+    const longPosition = longSymbol ? lastState.positionCache.get(longSymbol) : null;
+    const shortPosition = shortSymbol ? lastState.positionCache.get(shortSymbol) : null;
+    const candidates: StaticLiquidationCandidate[] = [];
+
+    const longCandidateResult = longSymbol
+      ? createStaticLiquidationCandidate({
+          monitorContext,
+          direction: 'LONG',
+          monitorQuote,
+          tradingQuote: longQuote,
+          availableQuantity: longPosition?.availableQuantity ?? 0,
+        })
+      : { kind: 'SKIP' as const };
+    if (longCandidateResult.kind === 'CANDIDATE') {
+      candidates.push(longCandidateResult.candidate);
+    } else if (longCandidateResult.kind === 'WAIT') {
+      return createStaticLiquidationWaitResult(wakeupSymbols, params.retryAttempts);
+    }
+
+    const shortCandidateResult = shortSymbol
+      ? createStaticLiquidationCandidate({
+          monitorContext,
+          direction: 'SHORT',
+          monitorQuote,
+          tradingQuote: shortQuote,
+          availableQuantity: shortPosition?.availableQuantity ?? 0,
+        })
+      : { kind: 'SKIP' as const };
+    if (shortCandidateResult.kind === 'CANDIDATE') {
+      candidates.push(shortCandidateResult.candidate);
+    } else if (shortCandidateResult.kind === 'WAIT') {
+      return createStaticLiquidationWaitResult(wakeupSymbols, params.retryAttempts);
+    }
+
+    if (candidates.length === 0) {
+      return { kind: 'NOOP' };
+    }
+
+    const executableCandidates = candidates.filter((candidate) => {
+      const seatValidation = validateSignalSeat({
+        monitorSymbol,
+        signal: candidate.signal,
+        symbolRegistry: monitorContext.symbolRegistry,
+      });
+      return seatValidation.valid;
+    });
+    if (executableCandidates.length === 0) {
+      releaseStaticLiquidationCandidates(candidates);
+      return { kind: 'NOOP' };
+    }
+
+    const releasedSignals = new Set(executableCandidates.map((candidate) => candidate.signal));
+
+    try {
+      const executionResult = await trader.executeSignals(
+        executableCandidates.map((candidate) => candidate.signal),
+      );
+      if (executionResult.submittedCount !== executableCandidates.length) {
+        return { kind: 'NOOP' };
+      }
+
+      for (const candidate of executableCandidates) {
+        const isLongDirection = candidate.direction === 'LONG';
+        const seatValidation = validateSignalSeat({
+          monitorSymbol,
+          signal: candidate.signal,
+          symbolRegistry: monitorContext.symbolRegistry,
+        });
+        if (!seatValidation.valid) {
+          continue;
+        }
+
+        monitorContext.orderRecorder.clearBuyOrders(
+          candidate.signal.symbol,
+          isLongDirection,
+          candidate.quote,
+        );
+        const dailyLossOffset = monitorContext.dailyLossTracker.getLossOffset(
+          monitorSymbol,
+          isLongDirection,
+        );
+        await monitorContext.riskChecker.refreshUnrealizedLossData(
+          monitorContext.orderRecorder,
+          candidate.signal.symbol,
+          isLongDirection,
+          candidate.quote,
+          dailyLossOffset,
+        );
+      }
+
+      return { kind: 'COMPLETED' };
+    } finally {
+      releaseStaticLiquidationCandidates(
+        candidates.filter((candidate) => !releasedSignals.has(candidate.signal)),
+      );
+      releaseStaticLiquidationCandidates(executableCandidates);
+    }
+  };
+}

@@ -10,6 +10,7 @@ import { OrderSide } from 'longbridge';
 import { createDoomsdayProtection } from '../../src/core/doomsdayProtection/index.js';
 import { signalObjectPool } from '../../src/utils/objectPool/index.js';
 
+import type { AutoSymbolManagerPort } from '../../src/types/monitorContextPorts.js';
 import type { LastState, MonitorContext } from '../../src/types/state.js';
 
 import {
@@ -100,11 +101,27 @@ function createMonitorContext(
     },
     autoSymbolManager: {
       maybeSearchOnTick: async () => {},
-      maybeSwitchOnInterval: async () => {},
-      maybeSwitchOnDistance: async () => {},
+      maybeSwitchOnInterval: async () => ({
+        kind: 'NOOP',
+      }),
+      startSwitchOnDistance: async (params) => ({
+        started: false,
+        direction: params.direction,
+        driveResult: {
+          kind: 'NOOP',
+        },
+      }),
+      advancePendingSwitch: async (params) => ({
+        advanced: false,
+        direction: params.direction,
+        stillPending: false,
+        driveResult: {
+          kind: 'NOOP',
+        },
+      }),
       hasPendingSwitch: () => false,
       resetAllState: () => {},
-    },
+    } satisfies AutoSymbolManagerPort,
     strategy: {
       generateSignals: () => ({ immediateSignals: [], delayedSignals: [] }),
     },

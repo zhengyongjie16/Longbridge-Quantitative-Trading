@@ -102,10 +102,15 @@ function bindMinimalBusinessDeps(
 }
 
 describe('createPostTradeConsistencyRuntime', () => {
-  it('marks stale before start and consumes the backlog after start', async () => {
+  it('marks stale before start and consumes the backlog after start while emitting fresh reached event', async () => {
     const lastState = createLastState();
     let accountRefreshCalls = 0;
     let positionRefreshCalls = 0;
+    const freshEvents: Array<{
+      readonly currentVersion: number;
+      readonly staleVersion: number;
+      readonly trigger: 'REFRESH' | 'REBUILD_BASELINE';
+    }> = [];
 
     const runtime = createPostTradeConsistencyRuntime({
       getTrader: () =>
@@ -126,6 +131,10 @@ describe('createPostTradeConsistencyRuntime', () => {
           },
         }),
       lastState,
+    });
+
+    runtime.onFreshReached((event) => {
+      freshEvents.push(event);
     });
 
     bindMinimalBusinessDeps(runtime);
@@ -156,6 +165,14 @@ describe('createPostTradeConsistencyRuntime', () => {
     expect(lastState.cachedAccount?.buyPower).toBe(88_000);
     expect(lastState.cachedPositions).toHaveLength(1);
     expect(lastState.positionCache.get('BULL.HK')?.quantity).toBe(300);
+    expect(freshEvents).toEqual([
+      {
+        currentVersion: 1,
+        staleVersion: 1,
+        trigger: 'REFRESH',
+      },
+    ]);
+
     expect(runtime.getStatus()).toEqual({
       started: false,
       inFlight: false,
@@ -547,46 +564,29 @@ describe('createPostTradeConsistencyRuntime', () => {
         }),
       lastState,
     });
-    runtime.bindBusinessDeps({
-      monitorContexts: duplicateMonitorContexts,
-      dailyLossTracker: createDailyLossTrackerDouble(),
-      liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),
-      protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
-    });
-
-    const fatalError = new Promise<unknown>((resolve) => {
-      const handleRejection = (reason: unknown) => {
-        process.off('unhandledRejection', handleRejection);
-        resolve(reason);
-      };
-
-      process.on('unhandledRejection', handleRejection);
-    });
-
-    runtime.recordSettlementRefreshNeed({
-      refreshAccount: true,
-      refreshPositions: true,
-    });
-    runtime.start();
-
-    const reason = await fatalError;
-
-    expect(reason).toBeInstanceOf(Error);
-    expect((reason as Error).message).toContain('重复归属');
-    expect(runtime.getStatus()).toEqual({
-      started: false,
-      inFlight: false,
-      hasPendingRefresh: true,
-      currentVersion: 0,
-      staleVersion: 1,
-      abortReason: null,
-    });
+    expect(() => {
+      runtime.bindBusinessDeps({
+        monitorContexts: duplicateMonitorContexts,
+        dailyLossTracker: createDailyLossTrackerDouble(),
+        liquidationCooldownTracker: createLiquidationCooldownTrackerDouble(),
+        protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
+      });
+    }).toThrow('重复归属');
   });
 
-  it('completeRebuildBaseline advances freshness only after pending work is cleared', () => {
+  it('completeRebuildBaseline advances freshness only after pending work is cleared and emits rebuild baseline event', () => {
+    const freshEvents: Array<{
+      readonly currentVersion: number;
+      readonly staleVersion: number;
+      readonly trigger: 'REFRESH' | 'REBUILD_BASELINE';
+    }> = [];
     const runtime = createPostTradeConsistencyRuntime({
       getTrader: () => createTraderDouble(),
       lastState: createLastState(),
+    });
+
+    runtime.onFreshReached((event) => {
+      freshEvents.push(event);
     });
 
     runtime.recordSettlementRefreshNeed({
@@ -603,9 +603,18 @@ describe('createPostTradeConsistencyRuntime', () => {
       staleVersion: 1,
       abortReason: null,
     });
+    expect(freshEvents).toEqual([]);
 
     runtime.midnightClear();
     runtime.completeRebuildBaseline();
+
+    expect(freshEvents).toEqual([
+      {
+        currentVersion: 1,
+        staleVersion: 1,
+        trigger: 'REBUILD_BASELINE',
+      },
+    ]);
 
     expect(runtime.getStatus()).toEqual({
       started: false,

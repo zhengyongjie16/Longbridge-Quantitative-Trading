@@ -20,6 +20,8 @@ import type {
   RawOrderFromAPI,
   OrderRecorder,
   MarketDataClient,
+  OrderStateChangedEvent,
+  Unsubscribe,
 } from '../../types/services.js';
 import type { DailyLossTracker } from '../../types/risk.js';
 import type { CancelOrderOutcome } from '../../types/trader.js';
@@ -196,6 +198,9 @@ export interface OrderCacheManager {
 export interface OrderMonitor {
   /** 初始化 WebSocket 订阅 */
   initialize: () => Promise<void>;
+
+  /** 订阅订单终态结算事件 */
+  onOrderStateChanged: (listener: (event: OrderStateChangedEvent) => void) => Unsubscribe;
 
   /** 开始追踪订单 */
   trackOrder: (params: TrackOrderParams) => void;

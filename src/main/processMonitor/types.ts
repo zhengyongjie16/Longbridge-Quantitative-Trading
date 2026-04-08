@@ -43,8 +43,6 @@ export type AutoSymbolTasksParams = Readonly<{
   currentTimeMs: number;
   canTradeNow: boolean;
   openProtectionActive: boolean;
-  monitorPriceChanged: boolean;
-  resolvedMonitorPrice: number | null;
 }>;
 
 /**
@@ -81,19 +79,15 @@ export type SeatSyncResult = Readonly<{
 }>;
 
 /**
- * 风险任务调度参数（调度距回收价清仓检查与价格展示更新时的入参）。
- * 类型用途：封装调度 LIQUIDATION_DISTANCE_CHECK 与价格展示更新所需的上下文与席位信息。
+ * 风险任务调度参数（调度风险展示更新时的入参）。
+ * 类型用途：封装价格展示更新所需的上下文与席位信息。
  * 数据来源：由 processMonitor 从 ProcessMonitorParams、seatInfo 等组装。
  * 使用范围：仅 processMonitor 内部使用。
  */
 export type RiskTasksParams = Readonly<{
-  monitorSymbol: string;
   monitorContext: MonitorContext;
   mainContext: MainProgramContext;
   seatInfo: SeatSyncResult;
-  autoSearchEnabled: boolean;
-  monitorPriceChanged: boolean;
-  resolvedMonitorPrice: number | null;
   monitorCurrentPrice: number | null;
 }>;
 

@@ -189,6 +189,19 @@ function createPeriodicHarness(params: HarnessParams): {
     },
   };
 }
+
+async function runDistanceSwitch(
+  machine: SwitchStateMachine,
+  params: Parameters<SwitchStateMachine['startSwitchOnDistance']>[0],
+): Promise<void> {
+  if (machine.hasPendingSwitch(params.direction)) {
+    await machine.advancePendingSwitch(params);
+    return;
+  }
+
+  await machine.startSwitchOnDistance(params);
+}
+
 describe('periodic auto-switch regression', () => {
   it('case1: switchIntervalMinutes=0 does not trigger periodic switch', async () => {
     const nowMs = Date.parse('2026-02-16T01:00:00.000Z');
@@ -547,7 +560,7 @@ describe('periodic auto-switch regression', () => {
       openProtectionActive: false,
     });
     expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVE');
-    await harness.machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(harness.machine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [
@@ -590,7 +603,7 @@ describe('periodic auto-switch regression', () => {
     expect(harness.periodicSwitchPending.get('LONG')?.pending).toBeTrue();
     expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVE');
 
-    await harness.machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(harness.machine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -628,7 +641,7 @@ describe('periodic auto-switch regression', () => {
     expect(harness.periodicSwitchPending.get('LONG')?.pending).toBeTrue();
     expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVE');
 
-    await harness.machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(harness.machine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],
@@ -796,7 +809,7 @@ describe('periodic auto-switch regression', () => {
       openProtectionActive: false,
     });
     expect(harness.machine.hasPendingSwitch('LONG')).toBeTrue();
-    await harness.machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(harness.machine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [
@@ -942,7 +955,7 @@ describe('periodic auto-switch regression', () => {
       openProtectionActive: false,
     });
     expect(machine.hasPendingSwitch('LONG')).toBeTrue();
-    await machine.maybeSwitchOnDistance({
+    await runDistanceSwitch(machine, {
       direction: 'LONG',
       monitorPrice: 20_000,
       positions: [],

@@ -11,11 +11,13 @@ import type { Quote } from '../types/quote.js';
 import type {
   MarketDataClient,
   OrderRecorder,
+  PostTradeConsistencyFreshReachedEvent,
   PostTradeConsistencyRefreshNeed,
   RawOrderFromAPI,
   RiskChecker,
   Trader,
   TradingDayInfo,
+  Unsubscribe,
 } from '../types/services.js';
 import type { DailyLossTracker, UnrealizedLossMonitor } from '../types/risk.js';
 import type {
@@ -49,6 +51,11 @@ import type {
 import type { OrderMonitorWorker } from '../main/asyncProgram/orderMonitorWorker/types.js';
 import type { Processor } from '../main/asyncProgram/types.js';
 import type { TradingRiskEventRuntime } from '../main/tradingRiskEventRuntime/types.js';
+import type {
+  MonitorQuoteEventRuntime,
+  SwitchWakeupRuntime,
+  SwitchWakeupHandoffParams,
+} from '../main/monitorQuoteEventRuntime/types.js';
 import type {
   LoadTradingDayRuntimeSnapshotParams,
   LoadTradingDayRuntimeSnapshotResult,
@@ -247,6 +254,8 @@ export type CleanupContext = Readonly<{
   monitorTaskProcessor: MonitorTaskProcessor;
   orderMonitorWorker: OrderMonitorWorker;
   tradingRiskEventRuntime: TradingRiskEventRuntime;
+  monitorQuoteEventRuntime: MonitorQuoteEventRuntime;
+  switchWakeupRuntime: SwitchWakeupRuntime;
   postTradeConsistencyRuntime: PostTradeConsistencyRuntime;
   marketDataClient: MarketDataClient;
   monitorContexts: ReadonlyMap<string, MonitorContext>;
@@ -377,6 +386,8 @@ type PostGateRuntime = Readonly<{
   protectiveLiquidationEpisodeTracker: ProtectiveLiquidationEpisodeTracker;
   monitorContexts: ReadonlyMap<string, MonitorContext>;
   tradingRiskEventRuntime: TradingRiskEventRuntime;
+  monitorQuoteEventRuntime: MonitorQuoteEventRuntime;
+  switchWakeupRuntime: SwitchWakeupRuntime;
   postTradeConsistencyRuntime: PostTradeConsistencyRuntime;
   lastState: LastState;
   trader: Trader;
@@ -415,6 +426,16 @@ export type AsyncRuntime = Readonly<{
   buyProcessor: Processor;
   sellProcessor: Processor;
 }>;
+
+/**
+ * 自动换标 wakeup handoff 端口。
+ * 类型用途：向 monitorTaskProcessor 暴露 pending switch 接管能力，避免 async 层直接依赖完整 runtime 实现。
+ * 数据来源：由 SwitchWakeupRuntime 实现并在 app 顶层注入。
+ * 使用范围：仅 async runtime 与相关测试使用。
+ */
+export interface SwitchWakeupRuntimePort {
+  readonly handoffPendingSwitch: (params: SwitchWakeupHandoffParams) => void;
+}
 
 /**
  * 异步运行时工厂依赖。
@@ -477,6 +498,9 @@ export interface PostTradeConsistencyRuntime {
   readonly recordSettlementRefreshNeed: (need: PostTradeConsistencyRefreshNeed) => void;
   readonly getStatus: () => PostTradeConsistencyRuntimeStatus;
   readonly waitForFresh: () => Promise<void>;
+  readonly onFreshReached: (
+    listener: (event: PostTradeConsistencyFreshReachedEvent) => void,
+  ) => Unsubscribe;
   readonly abortWaiting: () => void;
   readonly resetAbort: () => void;
   readonly start: () => void;

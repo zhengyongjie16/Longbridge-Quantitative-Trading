@@ -20,7 +20,7 @@ import type { AccountSnapshot, Position } from './account.js';
 import type { DecimalLikeValue } from './common.js';
 import type { MonitorConfig } from './config.js';
 import type { TradingCalendarSnapshot } from './tradingCalendar.js';
-import type { CancelOrderOutcome } from './trader.js';
+import type { CancelOrderOutcome, OrderClosedReason } from './trader.js';
 import type { CandleData } from './data.js';
 import type { DecimalLike } from '../utils/helpers/types.js';
 
@@ -535,6 +535,52 @@ export type PostTradeConsistencyRefreshNeed = {
  * 数据来源：由 app 层成交后一致性 runtime 实现并注入。
  * 使用范围：trader/orderMonitor 与 app runtime 连接点。
  */
+/**
+ * 成交后一致性 fresh 事件。
+ * 类型用途：表达 freshness 追平后的统一通知载荷，供事件驱动运行时与测试消费。
+ * 数据来源：由 PostTradeConsistencyRuntime 在 refresh 成功或重建 baseline 完成时发出。
+ * 使用范围：app runtime、事件运行时与相关测试使用。
+ */
+export type PostTradeConsistencyFreshReachedEvent = Readonly<{
+  currentVersion: number;
+  staleVersion: number;
+  trigger: 'REFRESH' | 'REBUILD_BASELINE';
+}>;
+
+/**
+ * 取消订阅函数。
+ * 类型用途：统一表达事件监听注册返回的清理函数。
+ * 数据来源：由各运行时/服务的 onXxx 订阅方法返回。
+ * 使用范围：事件端口、服务端口与测试使用。
+ */
+export type Unsubscribe = () => void;
+
+/**
+ * 订单状态变化事件。
+ * 类型用途：表达订单监控向外暴露的最小终态结算事件载荷。
+ * 数据来源：由 orderMonitor 在订单完成本地结算后发出。
+ * 使用范围：trader、orderMonitor、后续事件驱动 runtime 与相关测试使用。
+ */
+export type OrderStateChangedEvent = Readonly<{
+  orderId: string;
+  symbol: string | null;
+  side: 'BUY' | 'SELL' | null;
+  source: 'API' | 'WS' | 'STATE_CHECK' | 'RECOVERY';
+  status: OrderClosedReason;
+  monitorSymbol: string | null;
+  isLongSymbol: boolean | null;
+  isProtectiveLiquidation: boolean;
+  executedPrice: number | null;
+  executedQuantity: number | null;
+  executedTimeMs: number | null;
+}>;
+
+/**
+ * 成交后一致性运行时最小端口。
+ * 类型用途：向下层模块暴露成交后刷新需求记录能力，避免 core 反向依赖 app 层。
+ * 数据来源：由 app 层成交后一致性 runtime 实现并注入。
+ * 使用范围：trader/orderMonitor 与 app runtime 连接点。
+ */
 export interface PostTradeConsistencyRuntimePort {
   /** 记录一次成交后的最小刷新需求 */
   recordSettlementRefreshNeed: (need: PostTradeConsistencyRefreshNeed) => void;
@@ -549,6 +595,9 @@ export interface PostTradeConsistencyRuntimePort {
 export interface PostTradeConsistencyFreshnessPort {
   /** 等待当前 freshness 追平 staleVersion；若当前生命周期已终止该等待轮次则立即失败 */
   waitForFresh: () => Promise<void>;
+
+  /** 订阅 freshness 追平事件 */
+  onFreshReached: (listener: (event: PostTradeConsistencyFreshReachedEvent) => void) => Unsubscribe;
 }
 
 /**
@@ -599,6 +648,9 @@ export interface Trader {
 
   /** 初始化订单监控（WebSocket 订阅） */
   initializeOrderMonitor: () => Promise<void>;
+
+  /** 订阅订单终态结算事件 */
+  onOrderStateChanged: (listener: (event: OrderStateChangedEvent) => void) => Unsubscribe;
 
   // ========== 订单执行 ==========
 

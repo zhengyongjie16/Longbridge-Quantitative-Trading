@@ -11,6 +11,7 @@ import { logger } from '../../../utils/logger/index.js';
 import { toDecimal } from '../utils.js';
 import { PENDING_ORDER_STATUSES } from '../../../constants/index.js';
 import type { OrderMonitor, OrderMonitorDeps } from '../types.js';
+import type { OrderStateChangedEvent } from '../../../types/services.js';
 import type { OrderMonitorRuntimeStore, OrderMonitorTrackedOrder } from './types.js';
 import { buildOrderMonitorConfig } from './utils.js';
 import { createRecoveryFlow } from './recoveryFlow.js';
@@ -56,6 +57,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     closedOrderIds: new Set(),
     queriedTerminalStateByOrderId: new Map(),
     latestReplaceOutcomeByOrderId: new Map(),
+    orderStateChangedListeners: new Set(),
     runtimeState: 'BOOTSTRAPPING',
   };
   let initialized = false;
@@ -67,6 +69,11 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     dailyLossTracker,
     protectiveLiquidationEpisodeTracker,
     postTradeConsistencyRuntime,
+    emitOrderStateChanged: (event) => {
+      for (const listener of runtime.orderStateChangedListeners) {
+        listener(event);
+      }
+    },
   });
 
   const orderStatusQuery = createOrderStatusQuery({
@@ -216,6 +223,13 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     runtime.runtimeState = 'BOOTSTRAPPING';
   }
 
+  function onOrderStateChanged(listener: (event: OrderStateChangedEvent) => void): () => void {
+    runtime.orderStateChangedListeners.add(listener);
+    return () => {
+      runtime.orderStateChangedListeners.delete(listener);
+    };
+  }
+
   function hasPendingProtectiveLiquidationOrders(
     monitorSymbol: string,
     direction: 'LONG' | 'SHORT',
@@ -248,6 +262,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
 
   return {
     initialize,
+    onOrderStateChanged,
     trackOrder: orderOps.trackOrder,
     cancelOrder,
     replaceOrderPrice: orderOps.replaceOrderPrice,

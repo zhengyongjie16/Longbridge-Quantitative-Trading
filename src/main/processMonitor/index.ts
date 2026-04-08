@@ -72,8 +72,6 @@ export async function processMonitor(
     currentTimeMs,
     canTradeNow,
     openProtectionActive: runtimeFlags.openProtectionActive,
-    monitorPriceChanged,
-    resolvedMonitorPrice,
   });
 
   const seatInfo = syncSeatState({
@@ -87,13 +85,9 @@ export async function processMonitor(
   });
 
   scheduleRiskTasks({
-    monitorSymbol: MONITOR_SYMBOL,
     monitorContext,
     mainContext,
     seatInfo,
-    autoSearchEnabled,
-    monitorPriceChanged,
-    resolvedMonitorPrice,
     monitorCurrentPrice,
   });
 

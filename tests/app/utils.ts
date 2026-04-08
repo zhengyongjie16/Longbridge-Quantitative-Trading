@@ -111,6 +111,19 @@ function defaultDeps(steps: string[]): CleanupContext {
         steps.push('tradingRiskEventRuntime');
       },
     },
+    switchWakeupRuntime: {
+      start: () => {},
+      stopAndDrain: async () => {
+        steps.push('switchWakeupRuntime');
+      },
+      handoffPendingSwitch: () => {},
+    },
+    monitorQuoteEventRuntime: {
+      start: () => {},
+      stopAndDrain: async () => {
+        steps.push('monitorQuoteEventRuntime');
+      },
+    },
     buyProcessor: {
       start: () => {},
       stop: () => {},
@@ -147,6 +160,7 @@ function defaultDeps(steps: string[]): CleanupContext {
         abortReason: null,
       }),
       waitForFresh: async () => {},
+      onFreshReached: () => () => {},
       abortWaiting: () => {
         steps.push('abortWaiting');
       },

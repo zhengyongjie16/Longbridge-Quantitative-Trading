@@ -24,6 +24,8 @@ import {
 } from '../../main/asyncProgram/tradeTaskQueue/index.js';
 import { createLoadTradingDayRuntimeSnapshot } from '../../main/lifecycle/loadTradingDayRuntimeSnapshot.js';
 import { createTradingRiskEventRuntime } from '../../main/tradingRiskEventRuntime/tradingRiskEventRuntime.js';
+import { createDefaultMonitorQuoteEventRuntime } from '../../main/monitorQuoteEventRuntime/monitorQuoteEventRuntime.js';
+import { createSwitchWakeupRuntime } from '../../main/monitorQuoteEventRuntime/switchWakeupRuntime.js';
 import { createMarketMonitor } from '../../services/marketMonitor/index.js';
 import { createLiquidationCooldownTracker } from '../../services/liquidationCooldown/index.js';
 import { createTradeLogHydrator } from '../../services/liquidationCooldown/tradeLogHydrator.js';
@@ -143,6 +145,32 @@ export async function createPostGateRuntime(
     doomsdayProtectionEnabled: tradingConfig.global.doomsdayProtection,
     now: () => new Date(),
   });
+  const switchWakeupRuntime = createSwitchWakeupRuntime({
+    marketDataClient,
+    trader,
+    symbolRegistry,
+    monitorContexts,
+    lastState,
+    postTradeConsistencyRuntime,
+    doomsdayProtectionEnabled: tradingConfig.global.doomsdayProtection,
+    now: () => new Date(),
+    scheduleTimer: (callback, delayMs) => {
+      return setTimeout(callback, delayMs);
+    },
+    clearTimer: (handle) => {
+      clearTimeout(handle);
+    },
+  });
+  const monitorQuoteEventRuntime = createDefaultMonitorQuoteEventRuntime({
+    marketDataClient,
+    monitorContexts,
+    trader,
+    lastState,
+    postTradeConsistencyRuntime,
+    doomsdayProtectionEnabled: tradingConfig.global.doomsdayProtection,
+    now: () => new Date(),
+    handoffPendingSwitch: switchWakeupRuntime.handoffPendingSwitch,
+  });
   const signalProcessor = createSignalProcessor({
     tradingConfig,
     liquidationCooldownTracker,
@@ -168,6 +196,8 @@ export async function createPostGateRuntime(
     protectiveLiquidationEpisodeTracker,
     monitorContexts,
     tradingRiskEventRuntime,
+    monitorQuoteEventRuntime,
+    switchWakeupRuntime,
     postTradeConsistencyRuntime,
     lastState,
     trader,

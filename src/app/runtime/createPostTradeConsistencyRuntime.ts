@@ -10,7 +10,11 @@
 import { API } from '../../constants/index.js';
 import type { ProtectiveLiquidationDirection } from '../../core/trader/protectiveLiquidationEpisodeTracker/types.js';
 import type { MonitorContext } from '../../types/state.js';
-import type { PostTradeConsistencyRefreshNeed, Trader } from '../../types/services.js';
+import type {
+  PostTradeConsistencyFreshReachedEvent,
+  PostTradeConsistencyRefreshNeed,
+  Trader,
+} from '../../types/services.js';
 import { formatError } from '../../utils/error/index.js';
 import { logger } from '../../utils/logger/index.js';
 import { createRefreshGate } from '../../utils/refreshGate/index.js';
@@ -329,6 +333,7 @@ export function createPostTradeConsistencyRuntime(
   let immediateHandle: ReturnType<typeof setImmediate> | null = null;
   let retryHandle: ReturnType<typeof setTimeout> | null = null;
   let drainResolve: (() => void) | null = null;
+  const freshReachedListeners = new Set<(event: PostTradeConsistencyFreshReachedEvent) => void>();
 
   /**
    * 获取已绑定的业务依赖；缺失时立即失败。
@@ -434,6 +439,7 @@ export function createPostTradeConsistencyRuntime(
         // fatal invariant 已在 catch 中升级为异常，这里只负责阻止重试与版本回滚。
       } else if (refreshOk) {
         refreshGate.markFresh(targetVersion);
+        emitFreshReached('REFRESH');
       } else {
         pendingNeed = mergeRefreshNeed(need, pendingNeed);
         pendingVersion = mergePendingVersion(pendingVersion, targetVersion);
@@ -451,6 +457,24 @@ export function createPostTradeConsistencyRuntime(
           scheduleRetry();
         }
       }
+    }
+  }
+
+  /**
+   * 广播 fresh reached 事件。
+   *
+   * @param trigger 当前 fresh 推进来源
+   */
+  function emitFreshReached(trigger: PostTradeConsistencyFreshReachedEvent['trigger']): void {
+    const { currentVersion, staleVersion } = refreshGate.getStatus();
+    const event: PostTradeConsistencyFreshReachedEvent = {
+      currentVersion,
+      staleVersion,
+      trigger,
+    };
+
+    for (const listener of freshReachedListeners) {
+      listener(event);
     }
   }
 
@@ -511,6 +535,21 @@ export function createPostTradeConsistencyRuntime(
    */
   function waitForFresh(): Promise<void> {
     return refreshGate.waitForFresh();
+  }
+
+  /**
+   * 订阅 freshness 追平事件。
+   *
+   * @param listener 监听器
+   * @returns 取消订阅函数
+   */
+  function onFreshReached(
+    listener: (event: PostTradeConsistencyFreshReachedEvent) => void,
+  ): () => void {
+    freshReachedListeners.add(listener);
+    return () => {
+      freshReachedListeners.delete(listener);
+    };
   }
 
   /**
@@ -605,6 +644,7 @@ export function createPostTradeConsistencyRuntime(
 
     const { staleVersion } = refreshGate.getStatus();
     refreshGate.markFresh(staleVersion);
+    emitFreshReached('REBUILD_BASELINE');
   }
 
   return {
@@ -612,6 +652,7 @@ export function createPostTradeConsistencyRuntime(
     recordSettlementRefreshNeed,
     getStatus,
     waitForFresh,
+    onFreshReached,
     abortWaiting,
     resetAbort,
     start,

@@ -113,6 +113,7 @@ describe('sell-flow integration', () => {
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [],
         clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
       },
       orderRecorder: recorder,
       tradingConfig,
@@ -253,6 +254,7 @@ describe('sell-flow integration', () => {
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [],
         clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
       },
       orderRecorder: recorder,
       tradingConfig,
@@ -375,6 +377,7 @@ describe('sell-flow integration', () => {
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [],
         clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
       },
       orderRecorder: recorder,
       tradingConfig,
@@ -462,6 +465,7 @@ describe('sell-flow integration', () => {
           },
         ],
         clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
       },
       orderRecorder: createOrderRecorderDouble({
         getPendingSellSnapshot: () => [
@@ -575,6 +579,7 @@ describe('sell-flow integration', () => {
           },
         ],
         clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
       },
       orderRecorder: createOrderRecorderDouble(),
       tradingConfig,
@@ -661,6 +666,7 @@ describe('sell-flow integration', () => {
           },
         ],
         clearTrackedOrders: () => {},
+        onOrderStateChanged: () => () => {},
       },
       orderRecorder: createOrderRecorderDouble({
         submitSellOrder: (orderId, _symbol, _direction, quantity, relatedBuyOrderIds) => {

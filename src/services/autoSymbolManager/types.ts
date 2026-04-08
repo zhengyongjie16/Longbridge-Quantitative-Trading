@@ -12,6 +12,11 @@ import type {
 } from '../../types/services.js';
 import type { Logger } from '../../utils/logger/types.js';
 import type { TradingCalendarSnapshot } from '../../types/tradingCalendar.js';
+import type {
+  AdvancePendingSwitchResult,
+  StartSwitchOnDistanceResult,
+  SwitchDriveResult,
+} from '../../types/monitorContextPorts.js';
 import type { ObjectPool, PoolableSignal } from '../../utils/objectPool/types.js';
 import type {
   DirectionalAutoSearchPolicy,
@@ -73,11 +78,22 @@ export type SearchOnTickParams = {
 };
 
 /**
- * 距回收价阈值触发换标的入参。
- * 类型用途：包含方向、监控标的价格与持仓列表；实际执行时行情由 switchStateMachine 按阶段获取。
+ * 距回收价换标启动入参。
+ * 类型用途：表达距离触发的首次启动检查所需最小上下文。
  * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
-export type SwitchOnDistanceParams = {
+export type StartSwitchOnDistanceParams = {
+  readonly direction: 'LONG' | 'SHORT';
+  readonly monitorPrice: number | null;
+  readonly positions: ReadonlyArray<Position>;
+};
+
+/**
+ * 距回收价换标推进入参。
+ * 类型用途：表达存在 pending switch 时继续推进状态机所需的最小上下文。
+ * 使用范围：autoSymbolManager 模块及其调用方使用。
+ */
+export type AdvancePendingSwitchParams = {
   readonly direction: 'LONG' | 'SHORT';
   readonly monitorPrice: number | null;
   readonly positions: ReadonlyArray<Position>;
@@ -513,7 +529,7 @@ export interface AutoSearchManager {
 /**
  * 启动换标流程的入参。
  * 类型用途：供 switchStateMachine.startSwitchFlow 统一接收距离换标/周期换标请求，并用判别联合表达触发语义。
- * 数据来源：由 maybeSwitchOnDistance / maybeSwitchOnInterval 组装后传入。
+ * 数据来源：由 startSwitchOnDistance / maybeSwitchOnInterval 组装后传入。
  * 使用范围：仅 autoSymbolManager 模块内部使用。
  */
 export type StartSwitchFlowParams =
@@ -525,7 +541,7 @@ export type StartSwitchFlowParams =
   | {
       readonly reason: string;
       readonly triggerKind: Exclude<SwitchTriggerKind, 'PERIODIC'>;
-      readonly distanceContext: SwitchOnDistanceParams;
+      readonly distanceContext: StartSwitchOnDistanceParams;
     };
 
 /**
@@ -591,7 +607,10 @@ export type SwitchStateMachineDeps = {
  * 使用范围：仅在当前模块及其直接依赖方使用。
  */
 export interface SwitchStateMachine {
-  maybeSwitchOnInterval: (params: SwitchOnIntervalParams) => Promise<void>;
-  maybeSwitchOnDistance: (params: SwitchOnDistanceParams) => Promise<void>;
+  maybeSwitchOnInterval: (params: SwitchOnIntervalParams) => Promise<SwitchDriveResult>;
+  startSwitchOnDistance: (
+    params: StartSwitchOnDistanceParams,
+  ) => Promise<StartSwitchOnDistanceResult>;
+  advancePendingSwitch: (params: AdvancePendingSwitchParams) => Promise<AdvancePendingSwitchResult>;
   hasPendingSwitch: (direction: 'LONG' | 'SHORT') => boolean;
 }

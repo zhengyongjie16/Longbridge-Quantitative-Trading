@@ -11,7 +11,7 @@ import {
   createProtectiveLiquidationEpisodeTrackerDouble,
 } from '../../../helpers/testDoubles.js';
 import type { TradeRecord } from '../../../../src/types/trader.js';
-import type { OrderRecord } from '../../../../src/types/services.js';
+import type { OrderRecord, OrderStateChangedEvent } from '../../../../src/types/services.js';
 import type { OrderHoldRegistry } from '../../../../src/core/trader/types.js';
 import type {
   OrderMonitorRuntimeStore,
@@ -47,6 +47,7 @@ function createRuntime(): OrderMonitorRuntimeStore {
     closedOrderIds: new Set(),
     queriedTerminalStateByOrderId: new Map(),
     latestReplaceOutcomeByOrderId: new Map(),
+    orderStateChangedListeners: new Set(),
     runtimeState: 'ACTIVE',
   };
 }
@@ -66,13 +67,14 @@ describe('settlementFlow business flow', () => {
     recordedTrades.length = 0;
   });
 
-  it('settles FILLED buy order once and records a post-trade refresh need without closeSync runtime state', () => {
+  it('settles FILLED buy order once and records a post-trade refresh need plus order state event without closeSync runtime state', () => {
     const runtime = createRuntime();
     let localBuyCalls = 0;
     const refreshNeeds: Array<{
       readonly refreshAccount: boolean;
       readonly refreshPositions: boolean;
     }> = [];
+    const orderStateEvents: OrderStateChangedEvent[] = [];
     const settlementFlow = createSettlementFlow({
       runtime,
       orderHoldRegistry: createOrderHoldRegistry(),
@@ -93,6 +95,9 @@ describe('settlementFlow business flow', () => {
         recordSettlementRefreshNeed: (need) => {
           refreshNeeds.push(need);
         },
+      },
+      emitOrderStateChanged: (event) => {
+        orderStateEvents.push(event);
       },
     });
 
@@ -129,6 +134,22 @@ describe('settlementFlow business flow', () => {
       {
         refreshAccount: true,
         refreshPositions: true,
+      },
+    ]);
+
+    expect(orderStateEvents).toEqual([
+      {
+        orderId: 'BUY-SETTLEMENT-IDEMPOTENT',
+        symbol: 'BULL.HK',
+        side: 'BUY',
+        source: 'WS',
+        status: 'FILLED',
+        monitorSymbol: 'HSI.HK',
+        isLongSymbol: true,
+        isProtectiveLiquidation: false,
+        executedPrice: 1.02,
+        executedQuantity: 100,
+        executedTimeMs: Date.parse('2026-02-25T03:11:00.000Z'),
       },
     ]);
     expect(runtime.closedOrderIds.has('BUY-SETTLEMENT-IDEMPOTENT')).toBe(true);
@@ -202,6 +223,7 @@ describe('settlementFlow business flow', () => {
           refreshNeeds.push(need);
         },
       },
+      emitOrderStateChanged: () => {},
     });
 
     const settledResult = settlementFlow.settleOrder({
@@ -246,6 +268,7 @@ describe('settlementFlow business flow', () => {
       postTradeConsistencyRuntime: {
         recordSettlementRefreshNeed: () => {},
       },
+      emitOrderStateChanged: () => {},
     });
 
     const result = settlementFlow.settleOrder({
@@ -292,6 +315,7 @@ describe('settlementFlow business flow', () => {
       postTradeConsistencyRuntime: {
         recordSettlementRefreshNeed: () => {},
       },
+      emitOrderStateChanged: () => {},
     });
 
     const result = settlementFlow.settleOrder({

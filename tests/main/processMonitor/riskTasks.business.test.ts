@@ -55,7 +55,7 @@ function createSeatInfo(): SeatSyncResult {
 }
 
 describe('riskTasks business scheduling', () => {
-  it('schedules liquidation-distance check and still updates display info in one tick when conditions match', () => {
+  it('does not schedule monitor tasks and still updates display info when conditions match', () => {
     const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const capturedDisplayInfo: {
       long: PriceDisplayInfo | null | undefined;
@@ -164,30 +164,13 @@ describe('riskTasks business scheduling', () => {
     } as unknown as MainProgramContext;
 
     scheduleRiskTasks({
-      monitorSymbol: 'HSI.HK',
       monitorContext,
       mainContext,
       seatInfo: createSeatInfo(),
-      autoSearchEnabled: false,
-      monitorPriceChanged: true,
-      resolvedMonitorPrice: 20_000,
       monitorCurrentPrice: 20_000,
     });
 
-    const first = monitorTaskQueue.pop();
-    const second = monitorTaskQueue.pop();
-
-    expect(first?.type).toBe('LIQUIDATION_DISTANCE_CHECK');
-    expect(first?.dedupeKey).toBe('HSI.HK:LIQUIDATION_DISTANCE_CHECK');
-    expect((first?.data as { monitorPrice: number }).monitorPrice).toBe(20_000);
-    const liquidationData = first?.data as {
-      long: Record<string, unknown>;
-      short: Record<string, unknown>;
-    };
-    expect('quote' in liquidationData.long).toBeFalse();
-    expect('quote' in liquidationData.short).toBeFalse();
-
-    expect(second).toBeNull();
+    expect(monitorTaskQueue.pop()).toBeNull();
 
     const receivedLongDisplayInfo = capturedDisplayInfo.long;
     const receivedShortDisplayInfo = capturedDisplayInfo.short;
@@ -228,7 +211,7 @@ describe('riskTasks business scheduling', () => {
     expect(receivedShortDisplayInfo.orderCount).toBe(1);
   });
 
-  it('skips liquidation-distance scheduling when auto-search is enabled', () => {
+  it('still does not schedule monitor tasks when auto-search is enabled', () => {
     const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
 
     const monitorContext = {
@@ -249,13 +232,9 @@ describe('riskTasks business scheduling', () => {
     } as unknown as MainProgramContext;
 
     scheduleRiskTasks({
-      monitorSymbol: 'HSI.HK',
       monitorContext,
       mainContext,
       seatInfo: createSeatInfo(),
-      autoSearchEnabled: true,
-      monitorPriceChanged: true,
-      resolvedMonitorPrice: 20_000,
       monitorCurrentPrice: 20_000,
     });
 

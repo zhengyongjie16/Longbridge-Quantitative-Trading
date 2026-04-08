@@ -195,6 +195,8 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       monitorTaskProcessor: asyncRuntime.monitorTaskProcessor,
       orderMonitorWorker: asyncRuntime.orderMonitorWorker,
       tradingRiskEventRuntime: postGateRuntime.tradingRiskEventRuntime,
+      monitorQuoteEventRuntime: postGateRuntime.monitorQuoteEventRuntime,
+      switchWakeupRuntime: postGateRuntime.switchWakeupRuntime,
       postTradeConsistencyRuntime: postGateRuntime.postTradeConsistencyRuntime,
       marketDataClient: preGateRuntime.marketDataClient,
       monitorContexts: postGateRuntime.monitorContexts,
@@ -214,6 +216,8 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       postGateRuntime.postTradeConsistencyRuntime.start();
       postGateRuntime.postTradeConsistencyRuntime.completeRebuildBaseline();
       postGateRuntime.tradingRiskEventRuntime.start();
+      postGateRuntime.monitorQuoteEventRuntime.start();
+      postGateRuntime.switchWakeupRuntime.start();
       asyncRuntime.monitorTaskProcessor.start();
       asyncRuntime.buyProcessor.start();
       asyncRuntime.sellProcessor.start();

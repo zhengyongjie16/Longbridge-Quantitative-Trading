@@ -13,6 +13,7 @@ import type {
   RateLimiter,
   RawOrderFromAPI,
   MarketDataClient,
+  OrderStateChangedEvent,
 } from '../../../types/services.js';
 import type { ProtectiveLiquidationEpisodeTracker } from '../protectiveLiquidationEpisodeTracker/types.js';
 import type {
@@ -152,6 +153,7 @@ export type OrderMonitorRuntimeStore = {
   readonly closedOrderIds: Set<string>;
   readonly queriedTerminalStateByOrderId: Map<string, TerminalStateSnapshot>;
   readonly latestReplaceOutcomeByOrderId: Map<string, ReplaceOrderOutcome>;
+  readonly orderStateChangedListeners: Set<(event: OrderStateChangedEvent) => void>;
   runtimeState: OrderMonitorRuntimeState;
 };
 
@@ -341,6 +343,7 @@ export type SettlementFlowDeps = {
   readonly dailyLossTracker: DailyLossTracker;
   readonly protectiveLiquidationEpisodeTracker: ProtectiveLiquidationEpisodeTracker;
   readonly postTradeConsistencyRuntime: PostTradeConsistencyRuntimePort;
+  readonly emitOrderStateChanged: (event: OrderStateChangedEvent) => void;
 };
 
 /**

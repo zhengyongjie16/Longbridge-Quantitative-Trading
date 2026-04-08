@@ -43,8 +43,6 @@ describe('autoSymbolTasks business scheduling', () => {
       currentTimeMs: 123_456,
       canTradeNow: true,
       openProtectionActive: false,
-      monitorPriceChanged: false,
-      resolvedMonitorPrice: null,
     });
 
     const first = monitorTaskQueue.pop();
@@ -65,7 +63,7 @@ describe('autoSymbolTasks business scheduling', () => {
     expect((second?.data as { symbol: string | null }).symbol).toBe('BEAR.HK');
   });
 
-  it('schedules AUTO_SYMBOL_SWITCH_DISTANCE without quotesMap when pending switch exists even without price change', () => {
+  it('keeps only LONG and SHORT AUTO_SYMBOL_TICK when pending switch exists or monitor price changes', () => {
     const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
@@ -90,8 +88,6 @@ describe('autoSymbolTasks business scheduling', () => {
       currentTimeMs: 123_456,
       canTradeNow: true,
       openProtectionActive: false,
-      monitorPriceChanged: false,
-      resolvedMonitorPrice: 19_999,
     });
 
     const first = monitorTaskQueue.pop();
@@ -100,9 +96,7 @@ describe('autoSymbolTasks business scheduling', () => {
 
     expect(first?.type).toBe('AUTO_SYMBOL_TICK');
     expect(second?.type).toBe('AUTO_SYMBOL_TICK');
-    expect(third?.type).toBe('AUTO_SYMBOL_SWITCH_DISTANCE');
-    expect(third?.data).not.toBeNull();
-    expect('quotesMap' in ((third?.data ?? {}) as object)).toBeFalse();
+    expect(third).toBeNull();
   });
 
   it('does nothing when auto-search is disabled', () => {
@@ -123,8 +117,6 @@ describe('autoSymbolTasks business scheduling', () => {
       currentTimeMs: Date.now(),
       canTradeNow: true,
       openProtectionActive: false,
-      monitorPriceChanged: true,
-      resolvedMonitorPrice: 20_000,
     });
 
     expect(monitorTaskQueue.isEmpty()).toBeTrue();

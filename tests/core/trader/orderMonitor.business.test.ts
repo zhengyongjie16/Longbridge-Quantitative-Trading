@@ -27,7 +27,12 @@ import {
   createSymbolRegistryDouble,
 } from '../../helpers/testDoubles.js';
 import type { Quote } from '../../../src/types/quote.js';
-import type { OrderRecord, PendingSellInfo, RawOrderFromAPI } from '../../../src/types/services.js';
+import type {
+  OrderRecord,
+  OrderStateChangedEvent,
+  PendingSellInfo,
+  RawOrderFromAPI,
+} from '../../../src/types/services.js';
 import type { RecordLocalSellCall, ReplaceOrderPayload } from './types.js';
 import { isRecord } from '../../../src/utils/helpers/index.js';
 
@@ -2615,11 +2620,12 @@ describe('orderMonitor business flow', () => {
     expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
   });
 
-  it('keeps close sink idempotent when duplicate filled events are received', async () => {
+  it('keeps close sink idempotent when duplicate filled events are received and emits one order state event', async () => {
     let handleOrderChanged: (event: PushOrderChanged) => void = (_event: PushOrderChanged) => {
       throw new Error('handleOrderChanged hook was not captured');
     };
     let localBuyCount = 0;
+    const orderStateEvents: OrderStateChangedEvent[] = [];
     const { deps } = createDeps({
       onHandleOrderChanged: (handler) => {
         handleOrderChanged = handler;
@@ -2632,6 +2638,9 @@ describe('orderMonitor business flow', () => {
     });
 
     const monitor = createOrderMonitor(deps);
+    monitor.onOrderStateChanged((event) => {
+      orderStateEvents.push(event);
+    });
     await monitor.initialize();
     await monitor.recoverOrderTrackingFromSnapshot([]);
 
@@ -2664,6 +2673,20 @@ describe('orderMonitor business flow', () => {
     handleOrderChanged(filledEvent);
 
     expect(localBuyCount).toBe(1);
+    expect(orderStateEvents).toHaveLength(1);
+    expect(orderStateEvents[0]).toMatchObject({
+      orderId: 'BUY-DUP-FILLED',
+      symbol: 'BULL.HK',
+      side: 'BUY',
+      source: 'WS',
+      status: 'FILLED',
+      monitorSymbol: 'HSI.HK',
+      isLongSymbol: true,
+      isProtectiveLiquidation: false,
+      executedPrice: 1,
+      executedQuantity: 100,
+    });
+    expect(typeof orderStateEvents[0]?.executedTimeMs).toBe('number');
   });
 
   it('records executed buy quantity when PartialWithdrawal closes remaining quantity', async () => {
