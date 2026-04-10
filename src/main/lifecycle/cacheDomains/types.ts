@@ -14,7 +14,6 @@ import type {
   MonitorTaskProcessor,
 } from '../../asyncProgram/monitorTaskProcessor/types.js';
 import type { MonitorTaskQueue } from '../../asyncProgram/monitorTaskQueue/types.js';
-import type { OrderMonitorWorker } from '../../asyncProgram/orderMonitorWorker/types.js';
 import type { IndicatorCache } from '../../asyncProgram/indicatorCache/types.js';
 import type { TradingRiskEventRuntime } from '../../tradingRiskEventRuntime/types.js';
 import type {
@@ -44,7 +43,7 @@ export interface SignalRuntimePostTradeConsistencyRuntime {
 
 /**
  * 信号运行时域依赖。
- * 类型用途：createSignalRuntimeDomain 的入参，提供监控上下文、买卖/监控处理器、runtime 所有权与队列、releaseSignal 等。
+ * 类型用途：createSignalRuntimeDomain 的入参，提供监控上下文、订单监控 runtime、买卖/监控处理器、runtime 所有权与队列、releaseSignal 等。
  * 数据来源：由 lifecycle 或主程序在注册 cacheDomains 时组装传入。
  * 使用范围：仅 lifecycle 模块使用。
  */
@@ -53,10 +52,10 @@ export type SignalRuntimeDomainDeps = Readonly<{
   buyProcessor: Processor;
   sellProcessor: Processor;
   monitorTaskProcessor: MonitorTaskProcessor;
-  orderMonitorWorker: OrderMonitorWorker;
   tradingRiskEventRuntime: Pick<TradingRiskEventRuntime, 'start' | 'stopAndDrain'>;
   monitorQuoteEventRuntime: MonitorQuoteEventRuntime;
   switchWakeupRuntime: Pick<SwitchWakeupRuntime, 'start' | 'stopAndDrain'>;
+  trader: Pick<Trader, 'startOrderMonitorRuntime' | 'stopOrderMonitorRuntimeAndDrain'>;
   postTradeConsistencyRuntime: SignalRuntimePostTradeConsistencyRuntime;
   indicatorCache: IndicatorCache;
   buyTaskQueue: TaskQueue<BuyTaskType>;
@@ -80,12 +79,12 @@ export type SeatDomainDeps = Readonly<{
 
 /**
  * 订单域依赖。
- * 类型用途：createOrderDomain 的入参，提供 trader 用于午夜清理时重置运行时状态。
+ * 类型用途：createOrderDomain 的入参，提供 trader.resetRuntimeState 用于午夜清理时重置运行时状态。
  * 数据来源：由 lifecycle 在注册 cacheDomains 时传入。
  * 使用范围：仅 lifecycle 模块使用。
  */
 export type OrderDomainDeps = Readonly<{
-  trader: Trader;
+  trader: Pick<Trader, 'resetRuntimeState'>;
 }>;
 
 /**

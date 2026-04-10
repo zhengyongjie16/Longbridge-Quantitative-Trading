@@ -135,6 +135,15 @@ describe('type organization regressions', () => {
     expect(await exists('src/core/strategy/ports.ts')).toBe(false);
   });
 
+  it('removes stale STATE_CHECK_RETRY state from orderMonitor types', async () => {
+    const orderMonitorTypesSource = await readProjectFile('src/core/trader/orderMonitor/types.ts');
+
+    expect(orderMonitorTypesSource).not.toMatch(/STATE_CHECK_RETRY/);
+    expect(orderMonitorTypesSource).not.toMatch(/nextStateCheckAt/);
+    expect(orderMonitorTypesSource).not.toMatch(/stateCheckRetryCount/);
+    expect(orderMonitorTypesSource).not.toMatch(/stateCheckBlockedUntilAt/);
+  });
+
   it('keeps scoped types.ts files free of runtime declarations', async () => {
     const scopedTypeFiles = [
       'src/core/strategy/types.ts',

@@ -109,11 +109,13 @@ describe('sell-flow integration', () => {
           relatedBuyOrderIds: null,
         }),
         replaceOrderPrice: async () => {},
-        processWithLatestQuotes: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [],
         clearTrackedOrders: () => {},
         onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
       },
       orderRecorder: recorder,
       tradingConfig,
@@ -250,11 +252,13 @@ describe('sell-flow integration', () => {
           relatedBuyOrderIds: null,
         }),
         replaceOrderPrice: async () => {},
-        processWithLatestQuotes: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [],
         clearTrackedOrders: () => {},
         onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
       },
       orderRecorder: recorder,
       tradingConfig,
@@ -373,11 +377,13 @@ describe('sell-flow integration', () => {
           relatedBuyOrderIds: null,
         }),
         replaceOrderPrice: async () => {},
-        processWithLatestQuotes: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [],
         clearTrackedOrders: () => {},
         onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
       },
       orderRecorder: recorder,
       tradingConfig,
@@ -449,7 +455,8 @@ describe('sell-flow integration', () => {
         replaceOrderPrice: async (orderId, price, quantity) => {
           replaceCalls.push({ orderId, price, quantity });
         },
-        processWithLatestQuotes: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [
           {
@@ -466,6 +473,7 @@ describe('sell-flow integration', () => {
         ],
         clearTrackedOrders: () => {},
         onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
       },
       orderRecorder: createOrderRecorderDouble({
         getPendingSellSnapshot: () => [
@@ -563,7 +571,8 @@ describe('sell-flow integration', () => {
           };
         },
         replaceOrderPrice: async () => {},
-        processWithLatestQuotes: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [
           {
@@ -580,6 +589,7 @@ describe('sell-flow integration', () => {
         ],
         clearTrackedOrders: () => {},
         onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
       },
       orderRecorder: createOrderRecorderDouble(),
       tradingConfig,
@@ -650,7 +660,8 @@ describe('sell-flow integration', () => {
           };
         },
         replaceOrderPrice: async () => {},
-        processWithLatestQuotes: async () => {},
+        startRuntime: () => {},
+        stopRuntimeAndDrain: async () => {},
         recoverOrderTrackingFromSnapshot: async () => {},
         getPendingSellOrders: () => [
           {
@@ -667,6 +678,7 @@ describe('sell-flow integration', () => {
         ],
         clearTrackedOrders: () => {},
         onOrderStateChanged: () => () => {},
+        hasPendingProtectiveLiquidationOrders: () => false,
       },
       orderRecorder: createOrderRecorderDouble({
         submitSellOrder: (orderId, _symbol, _direction, quantity, relatedBuyOrderIds) => {

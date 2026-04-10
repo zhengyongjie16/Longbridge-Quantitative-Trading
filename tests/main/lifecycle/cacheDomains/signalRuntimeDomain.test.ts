@@ -13,7 +13,6 @@ import type {
   MonitorTaskProcessor,
 } from '../../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 import type { MonitorTaskQueue } from '../../../../src/main/asyncProgram/monitorTaskQueue/types.js';
-import type { OrderMonitorWorker } from '../../../../src/main/asyncProgram/orderMonitorWorker/types.js';
 import type { Processor } from '../../../../src/main/asyncProgram/types.js';
 import type {
   BuyTaskType,
@@ -77,18 +76,6 @@ function createOrderedProcessor(name: string, globalCalls: string[]): Processor 
   };
 }
 
-function createOrderedOrderMonitorWorker(name: string, globalCalls: string[]): OrderMonitorWorker {
-  return {
-    start: () => {
-      globalCalls.push(`${name}.start`);
-    },
-    schedule: () => {},
-    stopAndDrain: async () => {
-      globalCalls.push(`${name}.stopAndDrain`);
-    },
-  };
-}
-
 function createTaskQueueDouble<TType extends string>(
   signals: ReadonlyArray<Signal>,
   onClear: () => void,
@@ -139,7 +126,6 @@ describe('createSignalRuntimeDomain', () => {
       'monitorTaskProcessor',
       globalCalls,
     ) as MonitorTaskProcessor;
-    const orderMonitorWorker = createOrderedOrderMonitorWorker('orderMonitorWorker', globalCalls);
     const tradingRiskEventRuntime = createOrderedRuntime('tradingRiskEventRuntime', globalCalls);
     const monitorQuoteEventRuntime = createOrderedRuntime('monitorQuoteEventRuntime', globalCalls);
     const switchWakeupRuntime = createOrderedRuntime('switchWakeupRuntime', globalCalls);
@@ -192,12 +178,19 @@ describe('createSignalRuntimeDomain', () => {
         globalCalls.push('postTradeConsistencyRuntime.completeRebuildBaseline');
       },
     };
+    const trader = {
+      startOrderMonitorRuntime: () => {
+        globalCalls.push('trader.startOrderMonitorRuntime');
+      },
+      stopOrderMonitorRuntimeAndDrain: async () => {
+        globalCalls.push('trader.stopOrderMonitorRuntimeAndDrain');
+      },
+    };
     const deps: SignalRuntimeDomainDeps = {
       monitorContexts,
       buyProcessor,
       sellProcessor,
       monitorTaskProcessor,
-      orderMonitorWorker,
       tradingRiskEventRuntime: {
         start: () => {
           tradingRiskEventRuntime.start();
@@ -222,6 +215,7 @@ describe('createSignalRuntimeDomain', () => {
           await switchWakeupRuntime.stopAndDrain();
         },
       },
+      trader,
       postTradeConsistencyRuntime,
       indicatorCache: {
         push: () => {},
@@ -250,10 +244,10 @@ describe('createSignalRuntimeDomain', () => {
       'tradingRiskEventRuntime.stopAndDrain',
       'monitorQuoteEventRuntime.stopAndDrain',
       'switchWakeupRuntime.stopAndDrain',
+      'monitorTaskProcessor.stopAndDrain',
       'buyProcessor.stopAndDrain',
       'sellProcessor.stopAndDrain',
-      'monitorTaskProcessor.stopAndDrain',
-      'orderMonitorWorker.stopAndDrain',
+      'trader.stopOrderMonitorRuntimeAndDrain',
       'postTradeConsistencyRuntime.stopAndDrain',
       'buyTaskQueue.clearAll',
       'releaseSignal',
@@ -277,17 +271,24 @@ describe('createSignalRuntimeDomain', () => {
       'monitorTaskProcessor',
       globalCalls,
     ) as MonitorTaskProcessor;
-    const orderMonitorWorker = createOrderedOrderMonitorWorker('orderMonitorWorker', globalCalls);
     const tradingRiskEventRuntime = createOrderedRuntime('tradingRiskEventRuntime', globalCalls);
     const monitorQuoteEventRuntime = createOrderedRuntime('monitorQuoteEventRuntime', globalCalls);
     const switchWakeupRuntime = createOrderedRuntime('switchWakeupRuntime', globalCalls);
+
+    const trader = {
+      startOrderMonitorRuntime: () => {
+        globalCalls.push('trader.startOrderMonitorRuntime');
+      },
+      stopOrderMonitorRuntimeAndDrain: async () => {
+        globalCalls.push('trader.stopOrderMonitorRuntimeAndDrain');
+      },
+    };
 
     const deps: SignalRuntimeDomainDeps = {
       monitorContexts: new Map(),
       buyProcessor,
       sellProcessor,
       monitorTaskProcessor,
-      orderMonitorWorker,
       tradingRiskEventRuntime: {
         start: () => {
           tradingRiskEventRuntime.start();
@@ -312,6 +313,7 @@ describe('createSignalRuntimeDomain', () => {
           await switchWakeupRuntime.stopAndDrain();
         },
       },
+      trader,
       postTradeConsistencyRuntime: {
         abortWaiting: () => {
           globalCalls.push('postTradeConsistencyRuntime.abortWaiting');
@@ -369,7 +371,7 @@ describe('createSignalRuntimeDomain', () => {
       'buyProcessor.restart',
       'sellProcessor.restart',
       'monitorTaskProcessor.restart',
-      'orderMonitorWorker.start',
+      'trader.startOrderMonitorRuntime',
     ]);
   });
 });

@@ -23,6 +23,7 @@ import type { RecoveryFlow, RecoveryFlowDeps } from './types.js';
 import { consumeQueriedTerminalState, resetOrderReplaceRuntimeState } from './orderOps.js';
 import { resolveSubmittedAtMs, resolveUpdatedAtMs } from './utils.js';
 import { hasProtectiveLiquidationRemark } from '../utils.js';
+import { resetRoutingIndex } from './routingIndex.js';
 
 /**
  * 创建恢复流程处理器。
@@ -145,6 +146,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
     runtime.closedOrderIds.clear();
     runtime.latestReplaceOutcomeByOrderId.clear();
     runtime.queriedTerminalStateByOrderId.clear();
+    resetRoutingIndex(runtime);
     clearAllPendingSellTracking();
   }
 
@@ -485,6 +487,7 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
         replayedOrderIds,
       });
       runtime.runtimeState = 'ACTIVE';
+
       const closedMismatchedBuyCount = closedMismatchedBuyOrderIds.size;
       if (recoveredCount > 0 || closedMismatchedBuyCount > 0) {
         logger.info(
@@ -493,6 +496,8 @@ export function createRecoveryFlow(deps: RecoveryFlowDeps): RecoveryFlow {
       }
     } catch (error) {
       resetRecoveryTrackingState();
+      clearBootstrappingEventBuffer();
+      runtime.runtimeState = 'STOPPED';
       throw error;
     }
   }

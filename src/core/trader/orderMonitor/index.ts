@@ -2,17 +2,22 @@
  * 订单监控模块（WebSocket 推送）
  *
  * 职责：
- * - 组装恢复流、事件流、订单操作流、单订单状态查询与终态结算流程
+ * - 组装恢复流、事件流、订单操作流、单订单状态查询、route runtime/processor 与终态结算流程
  * - 初始化 WebSocket 私有主题订阅并分发订单推送
- * - 对外暴露 OrderMonitor 接口，保持原有签名不变
+ * - 对外暴露事件驱动的 OrderMonitor 接口
  */
-import { OrderSide, TopicType, type PushOrderChanged } from 'longbridge';
+import { OrderSide, OrderStatus, TopicType, type PushOrderChanged } from 'longbridge';
 import { logger } from '../../../utils/logger/index.js';
 import { toDecimal } from '../utils.js';
 import { PENDING_ORDER_STATUSES } from '../../../constants/index.js';
-import type { OrderMonitor, OrderMonitorDeps } from '../types.js';
-import type { OrderStateChangedEvent } from '../../../types/services.js';
-import type { OrderMonitorRuntimeStore, OrderMonitorTrackedOrder } from './types.js';
+import type { OrderMonitor, OrderMonitorDeps, PendingSellOrderSnapshot } from '../types.js';
+import type { OrderStateChangedEvent, RawOrderFromAPI } from '../../../types/services.js';
+import type {
+  OrderMonitorRuntimeStore,
+  OrderMonitorTrackedOrder,
+  OrderMonitorWakeupKind,
+  RouteRuntime,
+} from './types.js';
 import { buildOrderMonitorConfig } from './utils.js';
 import { createRecoveryFlow } from './recoveryFlow.js';
 import { createEventFlow } from './eventFlow.js';
@@ -23,7 +28,8 @@ import {
   createOrderOps,
   resetOrderReplaceRuntimeState,
 } from './orderOps.js';
-import { createQuoteFlow } from './quoteFlow.js';
+import { createRouteRuntime } from './routeRuntime.js';
+import { createRouteProcessor } from './routeProcessor.js';
 import type { CancelOrderOutcome } from '../../../types/trader.js';
 
 /**
@@ -58,9 +64,23 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     queriedTerminalStateByOrderId: new Map(),
     latestReplaceOutcomeByOrderId: new Map(),
     orderStateChangedListeners: new Set(),
-    runtimeState: 'BOOTSTRAPPING',
+    trackedOrderIdsBySymbol: new Map(),
+    routeStatesBySymbol: new Map(),
+    latestRouteGenerationBySymbol: new Map(),
+    runtimeState: 'STOPPED',
+    running: false,
+    unsubscribeQuoteUpdated: null,
   };
   let initialized = false;
+  let routeRuntime: RouteRuntime | null = null;
+
+  function triggerRoute(symbol: string, wakeupKind: OrderMonitorWakeupKind): void {
+    if (routeRuntime === null) {
+      throw new Error('[订单监控] route runtime 尚未初始化，禁止触发 route');
+    }
+
+    routeRuntime.triggerRoute(symbol, wakeupKind);
+  }
 
   const settlementFlow = createSettlementFlow({
     runtime,
@@ -88,6 +108,7 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     cacheManager,
     orderHoldRegistry,
     orderStatusQuery,
+    triggerRoute,
   });
 
   let activeHandler: ((event: PushOrderChanged) => void) | null = null;
@@ -114,15 +135,15 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     orderRecorder,
     settleOrder: settlementFlow.settleOrder,
     cacheBootstrappingEvent: recoveryFlow.cacheBootstrappingEvent,
+    triggerRoute,
   });
   activeHandler = eventFlow.handleOrderChangedWhenActive;
 
-  const quoteFlow = createQuoteFlow({
+  const routeProcessor = createRouteProcessor({
     runtime,
     config,
     thresholdDecimal,
     orderRecorder,
-    marketDataClient,
     ctxPromise,
     rateLimiter,
     isExecutionAllowed,
@@ -131,6 +152,24 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     settleOrder: settlementFlow.settleOrder,
     replaceOrderPrice: orderOps.replaceOrderPrice,
   });
+
+  routeRuntime = createRouteRuntime({
+    runtime,
+    config,
+    marketDataClient,
+    processRoute: routeProcessor.processRoute,
+  });
+
+  async function recoverOrderTrackingFromSnapshot(
+    allOrders: ReadonlyArray<RawOrderFromAPI>,
+  ): Promise<void> {
+    await recoveryFlow.recoverOrderTrackingFromSnapshot(allOrders);
+    if (routeRuntime === null) {
+      throw new Error('[订单监控] route runtime 尚未初始化，禁止恢复后 bootstrap route');
+    }
+
+    routeRuntime.bootstrapActiveRoutes();
+  }
 
   async function cancelOrder(orderId: string): Promise<CancelOrderOutcome> {
     const outcome = await orderOps.cancelOrder(orderId);
@@ -191,7 +230,11 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
    * @returns 初始化 Promise
    */
   async function initialize(): Promise<void> {
-    runtime.runtimeState = 'BOOTSTRAPPING';
+    if (runtime.runtimeState === 'STOPPED') {
+      runtime.runtimeState = 'BOOTSTRAPPING';
+      recoveryFlow.clearBootstrappingEventBuffer();
+    }
+
     if (initialized) {
       return;
     }
@@ -220,7 +263,17 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     recoveryFlow.clearBootstrappingEventBuffer();
     runtime.trackedOrderLifecycles.clear();
     runtime.closedOrderIds.clear();
-    runtime.runtimeState = 'BOOTSTRAPPING';
+    runtime.runtimeState = 'STOPPED';
+  }
+
+  async function stopRuntimeAndDrain(): Promise<void> {
+    runtime.runtimeState = 'STOPPED';
+    recoveryFlow.clearBootstrappingEventBuffer();
+    if (routeRuntime === null) {
+      throw new Error('[订单监控] route runtime 尚未初始化，禁止停止 runtime');
+    }
+
+    await routeRuntime.stopAndDrain();
   }
 
   function onOrderStateChanged(listener: (event: OrderStateChangedEvent) => void): () => void {
@@ -228,6 +281,50 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     return () => {
       runtime.orderStateChangedListeners.delete(listener);
     };
+  }
+
+  /**
+   * 获取指定标的的未成交卖单快照。
+   *
+   * 这里只读取 runtime tracked truth，不再依赖旧 quoteFlow owner。
+   *
+   * @param symbol 标的代码
+   * @returns 卖单快照列表（按 submittedAt 升序）
+   */
+  function getPendingSellOrders(symbol: string): ReadonlyArray<PendingSellOrderSnapshot> {
+    const pendingOrders: PendingSellOrderSnapshot[] = [];
+    for (const order of runtime.trackedOrders.values()) {
+      if (order.symbol !== symbol || order.side !== OrderSide.Sell) {
+        continue;
+      }
+
+      if (!PENDING_ORDER_STATUSES.has(order.status)) {
+        continue;
+      }
+
+      if (order.status === OrderStatus.PartialWithdrawal) {
+        continue;
+      }
+
+      const remaining = order.submittedQuantity - order.executedQuantity;
+      if (!Number.isFinite(remaining) || remaining <= 0) {
+        continue;
+      }
+
+      pendingOrders.push({
+        orderId: order.orderId,
+        symbol: order.symbol,
+        side: order.side,
+        status: order.status,
+        orderType: order.orderType,
+        submittedPrice: order.submittedPrice,
+        submittedQuantity: order.submittedQuantity,
+        executedQuantity: order.executedQuantity,
+        submittedAt: order.submittedAt,
+      });
+    }
+
+    return [...pendingOrders].sort((left, right) => left.submittedAt - right.submittedAt);
   }
 
   function hasPendingProtectiveLiquidationOrders(
@@ -266,9 +363,10 @@ export function createOrderMonitor(deps: OrderMonitorDeps): OrderMonitor {
     trackOrder: orderOps.trackOrder,
     cancelOrder,
     replaceOrderPrice: orderOps.replaceOrderPrice,
-    processWithLatestQuotes: quoteFlow.processWithLatestQuotes,
-    recoverOrderTrackingFromSnapshot: recoveryFlow.recoverOrderTrackingFromSnapshot,
-    getPendingSellOrders: quoteFlow.getPendingSellOrders,
+    startRuntime: routeRuntime.start,
+    stopRuntimeAndDrain,
+    recoverOrderTrackingFromSnapshot,
+    getPendingSellOrders,
     hasPendingProtectiveLiquidationOrders,
     clearTrackedOrders,
   };

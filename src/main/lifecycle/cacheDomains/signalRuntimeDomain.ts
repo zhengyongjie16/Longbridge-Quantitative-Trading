@@ -2,8 +2,8 @@
  * 信号运行时缓存域（CacheDomain: signalRuntime）
  *
  * 午夜清理：
- * - 先终止 freshness 等待，再停止交易标的风险 runtime、monitor quote runtime，随后停止 switch wakeup runtime
- * - 再排空其他处理器，最后停止成交后一致性 runtime
+ * - 先终止 freshness 等待，随后停止交易标的风险 runtime、monitor quote runtime、switch wakeup runtime
+ * - 再排空监控/买卖处理器，最后停止订单监控 runtime 与成交后一致性 runtime
  * - 清空交易任务队列（买入/卖出/监控），释放队列中的信号对象
  * - 取消所有延迟验证信号
  * - 调用成交后一致性 runtime 的跨日清理
@@ -12,7 +12,7 @@
  * 开盘重建：
  * - 先启动成交后一致性 runtime，并完成 rebuild baseline
  * - 再启动交易标的风险 runtime、monitor quote runtime 与 switch wakeup runtime
- * - 再重启买入、卖出、监控任务与订单监控处理器
+ * - 再重启买入、卖出、监控任务处理器
  */
 import { logger } from '../../../utils/logger/index.js';
 import type { MonitorContext } from '../../../types/state.js';
@@ -67,7 +67,7 @@ function cancelAllDelayedSignals(monitorContexts: ReadonlyMap<string, MonitorCon
 
 /**
  * 创建信号运行时缓存域。
- * 午夜清理时按 runtime owner 顺序停止处理器与成交后一致性 runtime、清空任务队列并执行跨日清理；开盘重建时先恢复 runtime baseline，再启动其他处理器。
+ * 午夜清理时先中断 freshness 等待并停止上游事件 runtime，再排空监控/买卖处理器，最后停止订单监控 runtime 与成交后一致性 runtime、清空任务队列并执行跨日清理；开盘重建时先恢复 runtime baseline，再启动其他处理器。
  *
  * @param deps 依赖注入，包含各处理器、队列、postTradeConsistencyRuntime、releaseSignal 等
  * @returns 实现 CacheDomain 的信号运行时域实例
@@ -78,10 +78,10 @@ export function createSignalRuntimeDomain(deps: SignalRuntimeDomainDeps): CacheD
     buyProcessor,
     sellProcessor,
     monitorTaskProcessor,
-    orderMonitorWorker,
     tradingRiskEventRuntime,
     monitorQuoteEventRuntime,
     switchWakeupRuntime,
+    trader,
     postTradeConsistencyRuntime,
     indicatorCache,
     buyTaskQueue,
@@ -96,10 +96,10 @@ export function createSignalRuntimeDomain(deps: SignalRuntimeDomainDeps): CacheD
       await tradingRiskEventRuntime.stopAndDrain();
       await monitorQuoteEventRuntime.stopAndDrain();
       await switchWakeupRuntime.stopAndDrain();
+      await monitorTaskProcessor.stopAndDrain();
       await buyProcessor.stopAndDrain();
       await sellProcessor.stopAndDrain();
-      await monitorTaskProcessor.stopAndDrain();
-      await orderMonitorWorker.stopAndDrain();
+      await trader.stopOrderMonitorRuntimeAndDrain();
       await postTradeConsistencyRuntime.stopAndDrain();
 
       const queueResult = clearTradeQueues({
@@ -127,8 +127,8 @@ export function createSignalRuntimeDomain(deps: SignalRuntimeDomainDeps): CacheD
       buyProcessor.restart();
       sellProcessor.restart();
       monitorTaskProcessor.restart();
-      orderMonitorWorker.start();
-      logger.debug('[Lifecycle][signalRuntime] runtime baseline 与处理器已重启');
+      trader.startOrderMonitorRuntime();
+      logger.debug('[Lifecycle][signalRuntime] runtime baseline、处理器与订单监控 runtime 已重启');
     },
   };
 }

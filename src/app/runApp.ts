@@ -193,7 +193,7 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       buyProcessor: asyncRuntime.buyProcessor,
       sellProcessor: asyncRuntime.sellProcessor,
       monitorTaskProcessor: asyncRuntime.monitorTaskProcessor,
-      orderMonitorWorker: asyncRuntime.orderMonitorWorker,
+      trader: postGateRuntime.trader,
       tradingRiskEventRuntime: postGateRuntime.tradingRiskEventRuntime,
       monitorQuoteEventRuntime: postGateRuntime.monitorQuoteEventRuntime,
       switchWakeupRuntime: postGateRuntime.switchWakeupRuntime,
@@ -221,7 +221,7 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       asyncRuntime.monitorTaskProcessor.start();
       asyncRuntime.buyProcessor.start();
       asyncRuntime.sellProcessor.start();
-      asyncRuntime.orderMonitorWorker.start();
+      postGateRuntime.trader.startOrderMonitorRuntime();
     }
 
     appLogger.info('程序开始运行，在交易时段将进行实时监控和交易（按 Ctrl+C 退出）');
@@ -243,7 +243,6 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
           buyTaskQueue: postGateRuntime.buyTaskQueue,
           sellTaskQueue: postGateRuntime.sellTaskQueue,
           monitorTaskQueue: postGateRuntime.monitorTaskQueue,
-          orderMonitorWorker: asyncRuntime.orderMonitorWorker,
           runtimeGateMode: preGateRuntime.gatePolicies.runtimeGate,
           dayLifecycleManager,
         });

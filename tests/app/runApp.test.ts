@@ -18,6 +18,7 @@ import {
   createProtectiveLiquidationEpisodeTrackerDouble,
   createSdkConfigDouble,
   createSymbolRegistryDouble,
+  createTraderDouble,
 } from '../helpers/testDoubles.js';
 import type { AppTestTaskQueueDouble, MutableRunAppHarnessState } from './types.js';
 
@@ -67,6 +68,8 @@ function createHarnessState(): MutableRunAppHarnessState {
     createPostGateRuntimeNow: null,
     loadStartupSnapshotNow: null,
     rebuildCalls: [],
+    rebuildShouldThrow: false,
+    completeRebuildBaselineShouldThrow: false,
     registerDelayedCalls: 0,
     cleanupRegistered: 0,
     mainProgramCalls: 0,
@@ -221,57 +224,20 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
           },
           completeRebuildBaseline: () => {
             harnessState.events.push('postTradeConsistencyRuntime.completeRebuildBaseline');
+            if (harnessState.completeRebuildBaselineShouldThrow) {
+              throw new Error('completeRebuildBaseline failed');
+            }
           },
         },
         lastState: createLastState(),
-        trader: {
-          orderRecorder: {
-            recordLocalBuy: () => {},
-            recordLocalSell: () => {},
-            clearBuyOrders: () => {},
-            getLatestBuyOrderPrice: () => null,
-            getLatestSellRecord: () => null,
-            getSellRecordByOrderId: () => null,
-            fetchAllOrdersFromAPI: async () => [],
-            refreshOrdersFromAllOrdersForLong: async () => [],
-            refreshOrdersFromAllOrdersForShort: async () => [],
-            clearOrdersCacheForSymbol: () => {},
-            getBuyOrdersForSymbol: () => [],
-            submitSellOrder: () => {},
-            updatePendingSell: () => null,
-            markSellFilled: () => null,
-            markSellPartialFilled: () => null,
-            markSellCancelled: () => null,
-            getPendingSellSnapshot: () => [],
-            allocateRelatedBuyOrderIdsForRecovery: () => [],
-            getCostAveragePrice: () => null,
-            selectSellableOrders: () => ({
-              orders: [],
-              totalQuantity: 0,
-            }),
-            resetAll: () => {},
+        trader: createTraderDouble({
+          startOrderMonitorRuntime: () => {
+            harnessState.events.push('trader.startOrderMonitorRuntime');
           },
-          getAccountSnapshot: async () => null,
-          getStockPositions: async () => [],
-          getPendingOrders: async () => [],
-          seedOrderHoldSymbols: () => {},
-          getOrderHoldSymbols: () => new Set(),
-          cancelOrder: async () => ({
-            kind: 'CANCEL_CONFIRMED',
-            closedReason: 'CANCELED',
-            source: 'API',
-            relatedBuyOrderIds: null,
-          }),
-          monitorAndManageOrders: async () => {},
-          hasPendingProtectiveLiquidationOrders: () => false,
-          initializeOrderMonitor: async () => {},
-          onOrderStateChanged: () => () => {},
-          canTradeNow: () => ({ canTrade: true }),
-          fetchAllOrdersFromAPI: async () => [],
-          resetRuntimeState: () => {},
-          recoverOrderTrackingFromSnapshot: async () => {},
-          executeSignals: async () => ({ submittedCount: 0, submittedOrderIds: [] }),
-        },
+          stopOrderMonitorRuntimeAndDrain: async () => {
+            harnessState.events.push('trader.stopOrderMonitorRuntimeAndDrain');
+          },
+        }),
         tradeLogHydrator: {
           hydrate: () => new Map(),
         },
@@ -332,6 +298,9 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
       return async (params) => {
         harnessState.events.push('rebuildTradingDayState');
         harnessState.rebuildCalls.push(params);
+        if (harnessState.rebuildShouldThrow) {
+          throw new Error('rebuildTradingDayState failed');
+        }
       };
     },
     displayAccountAndPositions: async () => {},
@@ -365,13 +334,6 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
           stop: () => {},
           stopAndDrain: async () => {},
           restart: () => {},
-        },
-        orderMonitorWorker: {
-          start: () => {
-            harnessState.events.push('orderMonitorWorker.start');
-          },
-          schedule: () => {},
-          stopAndDrain: async () => {},
         },
       };
     },
@@ -450,7 +412,7 @@ describe('app runApp assembly', () => {
       'monitorTaskProcessor.start',
       'buyProcessor.start',
       'sellProcessor.start',
-      'orderMonitorWorker.start',
+      'trader.startOrderMonitorRuntime',
       'mainProgram',
       'sleep:1000',
     ]);
@@ -523,6 +485,62 @@ describe('app runApp assembly', () => {
       'mainProgram',
       'sleep:1000',
     ]);
+  });
+
+  it('does not start order-monitor-related runtimes when rebuildTradingDayState fails', async () => {
+    harnessState.rebuildShouldThrow = true;
+    const runApp = createRunApp(createRunAppDeps(harnessState));
+    let caught: unknown = null;
+
+    try {
+      await runApp({ env: {} });
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toBe('rebuildTradingDayState failed');
+    expect(harnessState.events).toEqual([
+      'loadStartupSnapshot',
+      'createMonitorContexts',
+      'postTradeConsistencyRuntime.bindBusinessDeps',
+      'createRebuildTradingDayState',
+      'createAsyncRuntime',
+      'createLifecycleRuntime',
+      'registerDelayedSignalHandlers',
+      'registerExitHandlers',
+      'rebuildTradingDayState',
+    ]);
+    expect(harnessState.mainProgramCalls).toBe(0);
+  });
+
+  it('does not start order monitor runtime when completeRebuildBaseline fails', async () => {
+    harnessState.completeRebuildBaselineShouldThrow = true;
+    const runApp = createRunApp(createRunAppDeps(harnessState));
+    let caught: unknown = null;
+
+    try {
+      await runApp({ env: {} });
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toBe('completeRebuildBaseline failed');
+    expect(harnessState.events).toEqual([
+      'loadStartupSnapshot',
+      'createMonitorContexts',
+      'postTradeConsistencyRuntime.bindBusinessDeps',
+      'createRebuildTradingDayState',
+      'createAsyncRuntime',
+      'createLifecycleRuntime',
+      'registerDelayedSignalHandlers',
+      'registerExitHandlers',
+      'rebuildTradingDayState',
+      'postTradeConsistencyRuntime.start',
+      'postTradeConsistencyRuntime.completeRebuildBaseline',
+    ]);
+    expect(harnessState.mainProgramCalls).toBe(0);
   });
 
   it('does not abort startup in pending-open-rebuild path when runtime symbol validation reports failure', async () => {

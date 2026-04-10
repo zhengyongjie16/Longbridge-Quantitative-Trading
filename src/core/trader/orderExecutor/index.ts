@@ -134,7 +134,7 @@ export function createOrderExecutor(deps: OrderExecutorDeps): OrderExecutor {
    * @returns 提交统计
    */
   async function executeSignals(
-    signals: Signal[],
+    signals: ReadonlyArray<Signal>,
   ): Promise<{ submittedCount: number; submittedOrderIds: ReadonlyArray<string> }> {
     if (!isExecutionAllowed()) {
       logger.debug('[执行门禁] 门禁关闭，跳过本次下单，不提交任何订单');

@@ -2,7 +2,6 @@ import type { IndicatorCache } from '../asyncProgram/indicatorCache/types.js';
 import type { TaskQueue, BuyTaskType, SellTaskType } from '../asyncProgram/tradeTaskQueue/types.js';
 import type { MonitorTaskQueue } from '../asyncProgram/monitorTaskQueue/types.js';
 import type { MonitorTaskDataMap } from '../asyncProgram/monitorTaskProcessor/types.js';
-import type { OrderMonitorWorker } from '../asyncProgram/orderMonitorWorker/types.js';
 import type { LastState, MonitorContext } from '../../types/state.js';
 import type { MultiMonitorTradingConfig } from '../../types/config.js';
 import type { SymbolRegistry, GateMode } from '../../types/seat.js';
@@ -34,7 +33,6 @@ export type MainProgramContext = {
   readonly buyTaskQueue: TaskQueue<BuyTaskType>;
   readonly sellTaskQueue: TaskQueue<SellTaskType>;
   readonly monitorTaskQueue: MonitorTaskQueue<MonitorTaskDataMap>;
-  readonly orderMonitorWorker: OrderMonitorWorker;
   readonly runtimeGateMode: GateMode;
   readonly dayLifecycleManager: DayLifecycleManager;
 };

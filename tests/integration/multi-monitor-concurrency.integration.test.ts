@@ -34,12 +34,17 @@ async function loadMainProgram(): Promise<MainProgramModule> {
 }
 
 import type { MainProgramContext } from '../../src/main/mainProgram/types.js';
-import type { LastState, MonitorContext } from '../../src/types/state.js';
+import type { LastState } from '../../src/types/state.js';
 import type { SymbolRegistry } from '../../src/types/seat.js';
 import type { Quote } from '../../src/types/quote.js';
 import type { MultiMonitorTradingConfig } from '../../src/types/config.js';
 
-import { createMonitorConfigDouble, createPositionCacheDouble } from '../helpers/testDoubles.js';
+import {
+  createMonitorConfigDouble,
+  createMonitorContextDouble,
+  createPositionCacheDouble,
+  createTraderDouble,
+} from '../helpers/testDoubles.js';
 
 function createLastState(): LastState {
   return {
@@ -97,15 +102,6 @@ function createSymbolRegistry(
   };
 }
 
-function createMonitorContext(
-  config: ReturnType<typeof createMonitorConfigDouble>,
-): MonitorContext {
-  return {
-    config,
-    monitorSymbolName: config.monitorSymbol,
-  } as unknown as MonitorContext;
-}
-
 describe('multi-monitor-concurrency integration', () => {
   afterEach(() => {
     if (typeof mock.restore === 'function') {
@@ -113,7 +109,7 @@ describe('multi-monitor-concurrency integration', () => {
     }
   });
 
-  it('continues processing other monitors when one monitor fails and still schedules global workers', async () => {
+  it('continues processing other monitors when one monitor fails', async () => {
     processCalls.length = 0;
 
     const configA = createMonitorConfigDouble({
@@ -148,8 +144,6 @@ describe('multi-monitor-concurrency integration', () => {
 
     const symbolRegistry = createSymbolRegistry(tradingConfig.monitors);
 
-    let orderMonitorScheduleCalls = 0;
-
     const loadedMainProgram = await loadMainProgram();
     const mainProgram = loadedMainProgram.mainProgram;
     await mainProgram({
@@ -179,29 +173,7 @@ describe('multi-monitor-concurrency integration', () => {
         isTradingDay: async () => ({ isTradingDay: true, isHalfDay: false }),
         resetRuntimeSubscriptionsAndCaches: async () => {},
       },
-      trader: {
-        orderRecorder: {} as never,
-        getAccountSnapshot: async () => null,
-        getStockPositions: async () => [],
-        getPendingOrders: async () => [],
-        seedOrderHoldSymbols: () => {},
-        getOrderHoldSymbols: () => new Set<string>(),
-        cancelOrder: async () => ({
-          kind: 'CANCEL_CONFIRMED',
-          closedReason: 'CANCELED',
-          source: 'API',
-          relatedBuyOrderIds: null,
-        }),
-        monitorAndManageOrders: async () => {},
-        hasPendingProtectiveLiquidationOrders: () => false,
-        initializeOrderMonitor: async () => {},
-        onOrderStateChanged: () => () => {},
-        canTradeNow: () => ({ canTrade: true }),
-        fetchAllOrdersFromAPI: async () => [],
-        resetRuntimeState: () => {},
-        recoverOrderTrackingFromSnapshot: async () => {},
-        executeSignals: async () => ({ submittedCount: 0, submittedOrderIds: [] }),
-      },
+      trader: createTraderDouble(),
       lastState: createLastState(),
       marketMonitor: {
         monitorPriceChanges: () => false,
@@ -230,8 +202,8 @@ describe('multi-monitor-concurrency integration', () => {
         getLossOffset: () => 0,
       },
       monitorContexts: new Map([
-        [configA.monitorSymbol, createMonitorContext(configA)],
-        [configB.monitorSymbol, createMonitorContext(configB)],
+        [configA.monitorSymbol, createMonitorContextDouble({ config: configA })],
+        [configB.monitorSymbol, createMonitorContextDouble({ config: configB })],
       ]),
       symbolRegistry,
       indicatorCache: {
@@ -263,13 +235,6 @@ describe('multi-monitor-concurrency integration', () => {
         clearAll: () => 0,
         onTaskAdded: () => () => {},
       },
-      orderMonitorWorker: {
-        start: () => {},
-        schedule: () => {
-          orderMonitorScheduleCalls += 1;
-        },
-        stopAndDrain: async () => {},
-      },
       runtimeGateMode: 'skip',
       dayLifecycleManager: {
         tick: async () => {},
@@ -278,6 +243,5 @@ describe('multi-monitor-concurrency integration', () => {
 
     expect(processCalls).toContain('HSI-A.HK');
     expect(processCalls).toContain('HSI-B.HK');
-    expect(orderMonitorScheduleCalls).toBe(1);
   });
 });

@@ -24,6 +24,8 @@ import { initMonitorState } from '../../src/utils/helpers/index.js';
 import { createDayLifecycleManager } from '../../src/main/lifecycle/dayLifecycleManager.js';
 import { createSignalRuntimeDomain } from '../../src/main/lifecycle/cacheDomains/signalRuntimeDomain.js';
 import { createGlobalStateDomain } from '../../src/main/lifecycle/cacheDomains/globalStateDomain.js';
+import { createDefaultMonitorQuoteEventRuntime } from '../../src/main/monitorQuoteEventRuntime/monitorQuoteEventRuntime.js';
+import { createSwitchWakeupRuntime } from '../../src/main/monitorQuoteEventRuntime/switchWakeupRuntime.js';
 import { createSignal } from '../../mock/factories/signalFactory.js';
 import { createTradingConfig } from '../../mock/factories/configFactory.js';
 import { Period, type Candlestick } from 'longbridge';
@@ -31,7 +33,11 @@ import type { CandleData } from '../../src/types/data.js';
 import type { LastState, MonitorContext } from '../../src/types/state.js';
 import type { MultiMonitorTradingConfig, MonitorConfig } from '../../src/types/config.js';
 import type { DailyLossTracker, UnrealizedLossMonitor } from '../../src/types/risk.js';
-import type { CandlestickCacheSnapshot } from '../../src/types/services.js';
+import type {
+  CandlestickCacheSnapshot,
+  OrderStateChangedEvent,
+  QuoteUpdatedEvent,
+} from '../../src/types/services.js';
 import type { DayLifecycleManager } from '../../src/main/lifecycle/types.js';
 import type { MonitorTaskDataMap } from '../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 import {
@@ -153,6 +159,27 @@ function createSimulationLastState(params: {
     },
     monitorStates: new Map([[params.monitorConfig.monitorSymbol, params.monitorState]]),
     allTradingSymbols: new Set<string>(),
+  };
+}
+
+function createSingleListenerEventSource<T>(): {
+  readonly subscribe: (listener: (event: T) => void) => () => void;
+  readonly emit: (event: T) => void;
+} {
+  let listener: ((event: T) => void) | null = null;
+
+  return {
+    subscribe(nextListener) {
+      listener = nextListener;
+      return function unsubscribe(): void {
+        if (listener === nextListener) {
+          listener = null;
+        }
+      };
+    },
+    emit(event) {
+      listener?.(event);
+    },
   };
 }
 
@@ -381,7 +408,6 @@ describe('full business simulation integration', () => {
       getCanProcessTask: () => lastState.isTradingEnabled,
     });
 
-    let orderMonitorScheduleCount = 0;
     const candles = createMockCandlesticks(120, 100, 0.2);
 
     buyProcessor.start();
@@ -426,13 +452,6 @@ describe('full business simulation integration', () => {
         buyTaskQueue,
         sellTaskQueue,
         monitorTaskQueue,
-        orderMonitorWorker: {
-          start: () => {},
-          schedule: () => {
-            orderMonitorScheduleCount += 1;
-          },
-          stopAndDrain: async () => {},
-        },
         runtimeGateMode: 'skip',
         dayLifecycleManager: createNoopDayLifecycleManager(),
       });
@@ -440,7 +459,6 @@ describe('full business simulation integration', () => {
       await Bun.sleep(80);
 
       expect(submittedActions).toEqual(['SELLCALL']);
-      expect(orderMonitorScheduleCount).toBe(1);
     } finally {
       delayedSignalVerifier.destroy();
       await Promise.all([buyProcessor.stopAndDrain(), sellProcessor.stopAndDrain()]);
@@ -510,6 +528,7 @@ describe('full business simulation integration', () => {
     });
 
     const executedActions: Array<{ action: string; symbol: string }> = [];
+    const orderStateChangedEvents = createSingleListenerEventSource<OrderStateChangedEvent>();
     const trader = createTraderDouble({
       executeSignals: async (signals) => {
         for (const signal of signals) {
@@ -533,6 +552,7 @@ describe('full business simulation integration', () => {
         source: 'API',
         relatedBuyOrderIds: null,
       }),
+      onOrderStateChanged: orderStateChangedEvents.subscribe,
     });
 
     const orderRecorder = createOrderRecorderDouble({
@@ -562,6 +582,7 @@ describe('full business simulation integration', () => {
         });
       },
     });
+    const quoteUpdatedEvents = createSingleListenerEventSource<QuoteUpdatedEvent>();
     const autoSwitchMarketDataClient = createMarketDataClientDouble({
       getQuotes: async (symbols: Iterable<string>) => {
         const quotes = new Map<string, ReturnType<typeof createQuoteDouble> | null>();
@@ -576,6 +597,7 @@ describe('full business simulation integration', () => {
 
         return quotes;
       },
+      onQuoteUpdated: quoteUpdatedEvents.subscribe,
     });
 
     const autoSymbolManager = createAutoSymbolManager({
@@ -617,23 +639,52 @@ describe('full business simulation integration', () => {
     const processedTaskTypes: string[] = [];
     const postTradeConsistencyRuntime = {
       waitForFresh: async () => {},
+      getStatus: () => ({
+        started: true,
+        currentVersion: 1,
+        staleVersion: 1,
+      }),
       onFreshReached: () => () => {},
     };
+    const switchWakeupRuntime = createSwitchWakeupRuntime({
+      marketDataClient: autoSwitchMarketDataClient,
+      trader,
+      symbolRegistry,
+      monitorContexts,
+      lastState,
+      postTradeConsistencyRuntime,
+      doomsdayProtectionEnabled: false,
+      now: () => new Date('2026-02-16T01:00:00.000Z'),
+      scheduleTimer: (callback, delayMs) => {
+        return setTimeout(callback, delayMs);
+      },
+      clearTimer: (handle) => {
+        clearTimeout(handle);
+      },
+    });
     const monitorTaskProcessor = createMonitorTaskProcessor({
       monitorTaskQueue,
       getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol) ?? null,
       clearMonitorDirectionQueues: () => {},
       trader,
       marketDataClient: createMarketDataClientDouble(),
-      switchWakeupRuntime: {
-        handoffPendingSwitch: () => {},
-      },
+      switchWakeupRuntime,
       lastState,
       tradingConfig,
       getCanProcessTask: () => true,
       onProcessed: (task, status) => {
         processedTaskTypes.push(`${task.type}:${status}`);
       },
+    });
+    const monitorQuoteEventRuntime = createDefaultMonitorQuoteEventRuntime({
+      marketDataClient: autoSwitchMarketDataClient,
+      monitorContexts,
+      trader,
+      lastState,
+      postTradeConsistencyRuntime,
+      doomsdayProtectionEnabled: false,
+      now: () => new Date('2026-02-16T01:00:00.000Z'),
+      handoffPendingSwitch: switchWakeupRuntime.handoffPendingSwitch,
     });
 
     const signalProcessor = createSignalProcessor({
@@ -699,18 +750,38 @@ describe('full business simulation integration', () => {
       buyTaskQueue,
       sellTaskQueue,
       monitorTaskQueue,
-      orderMonitorWorker: {
-        start: () => {},
-        schedule: () => {},
-        stopAndDrain: async () => {},
-      },
       runtimeGateMode: 'skip' as const,
       dayLifecycleManager: createNoopDayLifecycleManager(),
     };
 
+    function emitMonitorQuoteUpdated(price: number): void {
+      quoteUpdatedEvents.emit({
+        symbol: monitorConfig.monitorSymbol,
+        quote: createQuoteDouble(monitorConfig.monitorSymbol, price, 1),
+      });
+    }
+
+    function emitOrderStateChanged(symbol: string): void {
+      orderStateChangedEvents.emit({
+        orderId: `order-${symbol}`,
+        symbol,
+        side: 'SELL',
+        source: 'WS',
+        status: 'FILLED',
+        monitorSymbol: monitorConfig.monitorSymbol,
+        isLongSymbol: true,
+        isProtectiveLiquidation: false,
+        executedPrice: 1,
+        executedQuantity: 100,
+        executedTimeMs: Date.now(),
+      });
+    }
+
     buyProcessor.start();
     sellProcessor.start();
     monitorTaskProcessor.start();
+    switchWakeupRuntime.start();
+    monitorQuoteEventRuntime.start();
     try {
       await processMonitor(
         {
@@ -794,6 +865,7 @@ describe('full business simulation integration', () => {
           ['NEW_BULL.HK', createQuoteDouble('NEW_BULL.HK', 1, 100)],
         ]),
       );
+      emitMonitorQuoteUpdated(20_010);
       await waitUntil(() => executedActions.length > 0);
 
       expect(executedActions[0]?.action).toBe('SELLCALL');
@@ -801,6 +873,7 @@ describe('full business simulation integration', () => {
 
       lastState.cachedPositions = [];
       lastState.positionCache.update([]);
+      emitOrderStateChanged('OLD_BULL.HK');
 
       const finalQuotes = new Map([
         ['HSI.HK', createQuoteDouble('HSI.HK', 20_020, 1)],
@@ -906,6 +979,8 @@ describe('full business simulation integration', () => {
     } finally {
       delayedSignalVerifier.destroy();
       await Promise.all([
+        monitorQuoteEventRuntime.stopAndDrain(),
+        switchWakeupRuntime.stopAndDrain(),
         buyProcessor.stopAndDrain(),
         sellProcessor.stopAndDrain(),
         monitorTaskProcessor.stopAndDrain(),
@@ -1139,8 +1214,6 @@ describe('full business simulation integration', () => {
     });
 
     let runOpenRebuildCount = 0;
-    let orderMonitorStartCount = 0;
-    let orderMonitorStopCount = 0;
     let postTradeStartCount = 0;
     let postTradeStopCount = 0;
 
@@ -1149,15 +1222,6 @@ describe('full business simulation integration', () => {
       buyProcessor,
       sellProcessor,
       monitorTaskProcessor,
-      orderMonitorWorker: {
-        start: () => {
-          orderMonitorStartCount += 1;
-        },
-        schedule: () => {},
-        stopAndDrain: async () => {
-          orderMonitorStopCount += 1;
-        },
-      },
       postTradeConsistencyRuntime: {
         abortWaiting: () => {},
         resetAbort: () => {},
@@ -1182,6 +1246,7 @@ describe('full business simulation integration', () => {
         start: () => {},
         stopAndDrain: async () => {},
       },
+      trader,
       indicatorCache,
       buyTaskQueue,
       sellTaskQueue,
@@ -1282,11 +1347,6 @@ describe('full business simulation integration', () => {
         buyTaskQueue,
         sellTaskQueue,
         monitorTaskQueue,
-        orderMonitorWorker: {
-          start: () => {},
-          schedule: () => {},
-          stopAndDrain: async () => {},
-        },
         runtimeGateMode: 'skip',
         dayLifecycleManager,
       });
@@ -1297,7 +1357,6 @@ describe('full business simulation integration', () => {
       expect(buyTaskQueue.isEmpty()).toBeTrue();
       expect(sellTaskQueue.isEmpty()).toBeTrue();
       expect(cancelAllCalls).toBe(1);
-      expect(orderMonitorStopCount).toBe(1);
       expect(postTradeStopCount).toBe(1);
 
       await mainProgram({
@@ -1318,11 +1377,6 @@ describe('full business simulation integration', () => {
         buyTaskQueue,
         sellTaskQueue,
         monitorTaskQueue,
-        orderMonitorWorker: {
-          start: () => {},
-          schedule: () => {},
-          stopAndDrain: async () => {},
-        },
         runtimeGateMode: 'skip',
         dayLifecycleManager,
       });
@@ -1331,7 +1385,6 @@ describe('full business simulation integration', () => {
       expect(lastState.lifecycleState).toBe('ACTIVE');
       expect(lastState.pendingOpenRebuild).toBeFalse();
       expect(lastState.isTradingEnabled).toBeTrue();
-      expect(orderMonitorStartCount).toBe(1);
       expect(postTradeStartCount).toBe(1);
 
       sellTaskQueue.push({

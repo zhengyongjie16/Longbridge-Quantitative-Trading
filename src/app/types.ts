@@ -48,7 +48,6 @@ import type {
   MonitorTaskDataMap,
   MonitorTaskProcessor,
 } from '../main/asyncProgram/monitorTaskProcessor/types.js';
-import type { OrderMonitorWorker } from '../main/asyncProgram/orderMonitorWorker/types.js';
 import type { Processor } from '../main/asyncProgram/types.js';
 import type { TradingRiskEventRuntime } from '../main/tradingRiskEventRuntime/types.js';
 import type {
@@ -244,7 +243,7 @@ export type MonitorContextFactoryDeps = Readonly<{
 
 /**
  * 退出清理上下文。
- * 类型用途：作为 createCleanup 的入参，封装程序退出时需要释放的处理器与资源引用。
+ * 类型用途：作为 createCleanup 的入参，封装程序退出时需要释放的处理器与资源引用，其中 trader 仅暴露 orderMonitor runtime 的停止端口。
  * 数据来源：由 app 顶层装配在全部 runtime 创建后组装传入。
  * 使用范围：仅 app createCleanup 使用。
  */
@@ -252,7 +251,7 @@ export type CleanupContext = Readonly<{
   buyProcessor: Processor;
   sellProcessor: Processor;
   monitorTaskProcessor: MonitorTaskProcessor;
-  orderMonitorWorker: OrderMonitorWorker;
+  trader: Pick<Trader, 'stopOrderMonitorRuntimeAndDrain'>;
   tradingRiskEventRuntime: TradingRiskEventRuntime;
   monitorQuoteEventRuntime: MonitorQuoteEventRuntime;
   switchWakeupRuntime: SwitchWakeupRuntime;
@@ -421,7 +420,6 @@ export type MutableMonitorContextsPostGateRuntime = Omit<PostGateRuntime, 'monit
  * 使用范围：仅 app 顶层装配与 cleanup/lifecycle 使用。
  */
 export type AsyncRuntime = Readonly<{
-  orderMonitorWorker: OrderMonitorWorker;
   monitorTaskProcessor: MonitorTaskProcessor;
   buyProcessor: Processor;
   sellProcessor: Processor;

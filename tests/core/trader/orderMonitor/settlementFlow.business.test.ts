@@ -6,6 +6,7 @@
  * - 缺少归属上下文时拒绝结算，避免错误记账
  */
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { OrderSide, OrderStatus, OrderType } from 'longbridge';
 import {
   createOrderRecorderDouble,
   createProtectiveLiquidationEpisodeTrackerDouble,
@@ -48,7 +49,12 @@ function createRuntime(): OrderMonitorRuntimeStore {
     queriedTerminalStateByOrderId: new Map(),
     latestReplaceOutcomeByOrderId: new Map(),
     orderStateChangedListeners: new Set(),
+    trackedOrderIdsBySymbol: new Map(),
+    routeStatesBySymbol: new Map(),
+    latestRouteGenerationBySymbol: new Map(),
     runtimeState: 'ACTIVE',
+    running: false,
+    unsubscribeQuoteUpdated: null,
   };
 }
 
@@ -251,6 +257,97 @@ describe('settlementFlow business flow', () => {
     ]);
   });
 
+  it('保留 timeout->market follow-up 占用时会在旧 orderId 下重建连续 placeholder', () => {
+    const runtime = createRuntime();
+    const submittedFollowUpSells: Array<{
+      readonly orderId: string;
+      readonly quantity: number;
+      readonly relatedBuyOrderIds: ReadonlyArray<string>;
+    }> = [];
+    const settlementFlow = createSettlementFlow({
+      runtime,
+      orderHoldRegistry: createOrderHoldRegistry(),
+      orderRecorder: createOrderRecorderDouble({
+        markSellCancelled: () => ({
+          orderId: 'SELL-HANDOFF-PLACEHOLDER',
+          symbol: 'BULL.HK',
+          direction: 'LONG',
+          submittedQuantity: 200,
+          filledQuantity: 0,
+          relatedBuyOrderIds: ['BUY-A', 'BUY-B'],
+          status: 'cancelled',
+          submittedAt: Date.parse('2026-02-25T03:09:00.000Z'),
+        }),
+        getBuyOrdersForSymbol: () => [
+          {
+            orderId: 'BUY-A',
+            symbol: 'BULL.HK',
+            executedPrice: 1,
+            executedQuantity: 100,
+            executedTime: Date.parse('2026-02-25T03:00:00.000Z'),
+            submittedAt: undefined,
+            updatedAt: undefined,
+          },
+          {
+            orderId: 'BUY-B',
+            symbol: 'BULL.HK',
+            executedPrice: 1.1,
+            executedQuantity: 100,
+            executedTime: Date.parse('2026-02-25T03:05:00.000Z'),
+            submittedAt: undefined,
+            updatedAt: undefined,
+          },
+        ],
+        submitSellOrder: (orderId, _symbol, _direction, quantity, relatedBuyOrderIds) => {
+          submittedFollowUpSells.push({
+            orderId,
+            quantity,
+            relatedBuyOrderIds,
+          });
+        },
+      }),
+      dailyLossTracker: {
+        resetAll: () => {},
+        startNewProtectionEpisode: () => {},
+        recalculateFromAllOrders: () => {},
+        recordFilledOrder: () => {},
+        getLossOffset: () => 0,
+      },
+      protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
+      postTradeConsistencyRuntime: {
+        recordSettlementRefreshNeed: () => {},
+      },
+      emitOrderStateChanged: () => {},
+    });
+
+    const result = settlementFlow.settleOrder({
+      orderId: 'SELL-HANDOFF-PLACEHOLDER',
+      closedReason: 'CANCELED',
+      source: 'WS',
+      symbol: 'BULL.HK',
+      side: 'SELL',
+      monitorSymbol: 'HSI.HK',
+      isLongSymbol: true,
+      executedPrice: null,
+      executedQuantity: null,
+      executedTimeMs: null,
+      pendingSellDisposition: {
+        kind: 'HANDOFF_TO_FOLLOW_UP_SELL',
+        followUpQuantity: 200,
+      },
+    });
+
+    expect(result.handled).toBe(true);
+    expect(result.relatedBuyOrderIds).toEqual(['BUY-A', 'BUY-B']);
+    expect(submittedFollowUpSells).toEqual([
+      {
+        orderId: 'SELL-HANDOFF-PLACEHOLDER',
+        quantity: 200,
+        relatedBuyOrderIds: ['BUY-A', 'BUY-B'],
+      },
+    ]);
+  });
+
   it('rejects settlement when executed close lacks attribution context', () => {
     const runtime = createRuntime();
     const settlementFlow = createSettlementFlow({
@@ -341,5 +438,89 @@ describe('settlementFlow business flow', () => {
         executedTimeMs: Date.parse('2026-02-25T03:11:00.000Z'),
       },
     ]);
+  });
+
+  it('settlement 在关闭最后一个订单时移除 symbol bucket 并销毁 route state', () => {
+    const runtime = createRuntime();
+    runtime.trackedOrders.set('SELL-ROUTE-CLOSE-1', {
+      orderId: 'SELL-ROUTE-CLOSE-1',
+      symbol: 'BULL.HK',
+      side: OrderSide.Sell,
+      isLongSymbol: true,
+      monitorSymbol: 'HSI.HK',
+      isProtectiveLiquidation: false,
+      liquidationTriggerLimit: 1,
+      liquidationCooldownConfig: null,
+      orderType: OrderType.ELO,
+      submittedPrice: 1,
+      initialSubmittedPrice: 1,
+      submittedQuantity: 100,
+      executedQuantity: 0,
+      executedPrice: null,
+      lastExecutedTimeMs: null,
+      status: OrderStatus.New,
+      submittedAt: Date.parse('2026-02-25T03:00:00.000Z'),
+      lastPriceUpdateAt: Date.parse('2026-02-25T03:00:00.000Z'),
+      convertedToMarket: false,
+      nextCancelAttemptAt: Date.parse('2026-02-25T03:00:00.000Z'),
+      cancelRetryCount: 0,
+      replaceCapability: 'SUPPORTED',
+      replaceBlockedUntilAt: null,
+      quoteRetryAttempts: 0,
+      quoteRetryNextAt: null,
+      quoteRetryExhausted: false,
+      replaceTempBlockedCount: 0,
+      replaceResumeMode: 'TIME_BACKOFF',
+      timeoutMarketConversionPending: false,
+      timeoutMarketConversionTerminalState: null,
+    });
+    runtime.trackedOrderIdsBySymbol.set('BULL.HK', new Set(['SELL-ROUTE-CLOSE-1']));
+    runtime.routeStatesBySymbol.set('BULL.HK', {
+      symbol: 'BULL.HK',
+      generation: 1,
+      inFlight: false,
+      dirty: false,
+      latestQuote: null,
+      pendingWakeupKind: null,
+      timerHandles: new Map(),
+    });
+    const settlementFlow = createSettlementFlow({
+      runtime,
+      orderHoldRegistry: createOrderHoldRegistry(),
+      orderRecorder: createOrderRecorderDouble({
+        markSellCancelled: () => ({
+          orderId: 'SELL-ROUTE-CLOSE-1',
+          symbol: 'BULL.HK',
+          direction: 'LONG',
+          submittedQuantity: 100,
+          filledQuantity: 0,
+          relatedBuyOrderIds: [],
+          status: 'cancelled',
+          submittedAt: Date.parse('2026-02-25T03:00:00.000Z'),
+        }),
+      }),
+      dailyLossTracker: {
+        resetAll: () => {},
+        startNewProtectionEpisode: () => {},
+        recalculateFromAllOrders: () => {},
+        recordFilledOrder: () => {},
+        getLossOffset: () => 0,
+      },
+      protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
+      postTradeConsistencyRuntime: {
+        recordSettlementRefreshNeed: () => {},
+      },
+      emitOrderStateChanged: () => {},
+    });
+
+    const result = settlementFlow.settleOrder({
+      orderId: 'SELL-ROUTE-CLOSE-1',
+      closedReason: 'CANCELED',
+      source: 'WS',
+    });
+
+    expect(result.handled).toBe(true);
+    expect(runtime.trackedOrderIdsBySymbol.has('BULL.HK')).toBe(false);
+    expect(runtime.routeStatesBySymbol.has('BULL.HK')).toBe(false);
   });
 });

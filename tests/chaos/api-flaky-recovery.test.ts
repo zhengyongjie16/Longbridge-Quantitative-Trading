@@ -20,6 +20,83 @@ import {
   createQuoteDouble,
 } from '../helpers/testDoubles.js';
 
+async function flushMicrotasks(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+type RuntimeTimerHarness = {
+  readonly advanceBy: (delayMs: number) => Promise<void>;
+  readonly restore: () => void;
+};
+
+function createRuntimeTimerHarness(initialNowMs: number): RuntimeTimerHarness {
+  const originalNow = Date.now;
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  let nowMs = initialNowMs;
+  const timers = new Map<unknown, { readonly atMs: number; readonly callback: () => void }>();
+
+  function isTimerCallback(
+    handler: Parameters<typeof globalThis.setTimeout>[0],
+  ): handler is (...args: ReadonlyArray<unknown>) => void {
+    return typeof handler === 'function';
+  }
+
+  const fakeSetTimeout = Object.assign(
+    (
+      handler: Parameters<typeof globalThis.setTimeout>[0],
+      timeout?: number,
+    ): ReturnType<typeof originalSetTimeout> => {
+      if (!isTimerCallback(handler)) {
+        throw new TypeError('[测试] fake runtime timer 仅支持函数回调');
+      }
+
+      const handle = originalSetTimeout(() => {}, 0);
+      originalClearTimeout(handle);
+      timers.set(handle, {
+        atMs: nowMs + (typeof timeout === 'number' ? timeout : 0),
+        callback: () => {
+          handler();
+        },
+      });
+      return handle;
+    },
+    {
+      __promisify__: originalSetTimeout.__promisify__,
+    },
+  );
+
+  const fakeClearTimeout: typeof globalThis.clearTimeout = (handle) => {
+    timers.delete(handle);
+  };
+
+  Date.now = () => nowMs;
+  globalThis.setTimeout = fakeSetTimeout;
+  globalThis.clearTimeout = fakeClearTimeout;
+
+  return {
+    advanceBy: async (delayMs: number) => {
+      nowMs += delayMs;
+      const dueTimers = [...timers.entries()].filter(([, timer]) => timer.atMs <= nowMs);
+      for (const [handle, timer] of dueTimers) {
+        timers.delete(handle);
+        timer.callback();
+      }
+
+      await flushMicrotasks();
+      await flushMicrotasks();
+    },
+    restore: () => {
+      Date.now = originalNow;
+      globalThis.setTimeout = originalSetTimeout;
+      globalThis.clearTimeout = originalClearTimeout;
+    },
+  };
+}
+
 function createOrderMonitorDeps(params?: {
   readonly sellTimeoutSeconds?: number;
   readonly orderRecorder?: ReturnType<typeof createOrderRecorderDouble>;
@@ -101,33 +178,40 @@ describe('chaos: api flaky recovery', () => {
       errorMessage: 'transient cancelOrder failure',
     });
 
+    const runtimeTimers = createRuntimeTimerHarness(Date.parse('2026-02-25T03:00:00.000Z'));
     const monitor = createOrderMonitor(deps);
-    await monitor.initialize();
+    try {
+      await monitor.initialize();
+      await monitor.recoverOrderTrackingFromSnapshot([]);
+      monitor.startRuntime();
 
-    monitor.trackOrder({
-      orderId: 'SELL-CHAOS-001',
-      symbol: 'BULL.HK',
-      side: OrderSide.Sell,
-      price: 1,
-      initialSubmittedPrice: 1,
-      quantity: 100,
-      isLongSymbol: true,
-      monitorSymbol: 'HSI.HK',
-      isProtectiveLiquidation: false,
-      orderType: OrderType.ELO,
-    });
+      monitor.trackOrder({
+        orderId: 'SELL-CHAOS-001',
+        symbol: 'BULL.HK',
+        side: OrderSide.Sell,
+        price: 1,
+        initialSubmittedPrice: 1,
+        quantity: 100,
+        isLongSymbol: true,
+        monitorSymbol: 'HSI.HK',
+        isProtectiveLiquidation: false,
+        orderType: OrderType.ELO,
+      });
+      await flushMicrotasks();
 
-    await monitor.processWithLatestQuotes();
-    await monitor.processWithLatestQuotes();
-    expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
-    expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
-    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
+      expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(1);
+      expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
+      expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
 
-    await Bun.sleep(1100);
-    await monitor.processWithLatestQuotes();
+      await flushMicrotasks();
+      await flushMicrotasks();
+      await runtimeTimers.advanceBy(2_100);
 
-    expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(2);
-    expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
-    expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
+      expect(tradeCtx.getCalls('cancelOrder')).toHaveLength(2);
+      expect(tradeCtx.getCalls('orderDetail')).toHaveLength(0);
+      expect(tradeCtx.getCalls('submitOrder')).toHaveLength(0);
+    } finally {
+      runtimeTimers.restore();
+    }
   });
 });

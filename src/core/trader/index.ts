@@ -152,20 +152,19 @@ export function createTrader(deps: TraderDeps): Promise<Trader> {
       return orderMonitor.cancelOrder(orderId);
     },
 
-    monitorAndManageOrders(): Promise<void> {
-      return orderMonitor.processWithLatestQuotes();
+    startOrderMonitorRuntime(): void {
+      orderMonitor.startRuntime();
+    },
+
+    stopOrderMonitorRuntimeAndDrain(): Promise<void> {
+      return orderMonitor.stopRuntimeAndDrain();
     },
 
     hasPendingProtectiveLiquidationOrders(
       monitorSymbol: string,
       direction: 'LONG' | 'SHORT',
     ): boolean {
-      const query = orderMonitor.hasPendingProtectiveLiquidationOrders;
-      if (!query) {
-        return false;
-      }
-
-      return query(monitorSymbol, direction);
+      return orderMonitor.hasPendingProtectiveLiquidationOrders(monitorSymbol, direction);
     },
 
     initializeOrderMonitor(): Promise<void> {
@@ -199,7 +198,7 @@ export function createTrader(deps: TraderDeps): Promise<Trader> {
     },
 
     executeSignals(
-      signals: Signal[],
+      signals: ReadonlyArray<Signal>,
     ): Promise<{ submittedCount: number; submittedOrderIds: ReadonlyArray<string> }> {
       return orderExecutor.executeSignals(signals);
     },

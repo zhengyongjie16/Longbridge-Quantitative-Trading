@@ -17,7 +17,6 @@ import type { SignalProcessor } from '../../src/core/signalProcessor/types.js';
 import type { CacheDomain } from '../../src/main/lifecycle/types.js';
 import type { SignalRuntimeDomainDeps } from '../../src/main/lifecycle/cacheDomains/types.js';
 import type { MonitorTaskProcessor } from '../../src/main/asyncProgram/monitorTaskProcessor/types.js';
-import type { OrderMonitorWorker } from '../../src/main/asyncProgram/orderMonitorWorker/types.js';
 import type { Processor } from '../../src/main/asyncProgram/types.js';
 import type { LastState } from '../../src/types/state.js';
 import { createWarrantListCache } from '../../src/services/autoSymbolFinder/utils.js';
@@ -62,16 +61,6 @@ function createMonitorTaskProcessorDouble(): MonitorTaskProcessor {
     stop: () => {},
     stopAndDrain: async () => {},
     restart: () => {},
-  };
-}
-
-function createOrderMonitorWorkerDouble(): OrderMonitorWorker {
-  return {
-    start: () => {
-      factoryCalls.push('orderMonitorWorker.start');
-    },
-    schedule: () => {},
-    stopAndDrain: async () => {},
   };
 }
 
@@ -264,7 +253,6 @@ function createLifecycleDeps(): LifecycleRuntimeFactoryDeps {
       },
     },
     asyncRuntime: {
-      orderMonitorWorker: createOrderMonitorWorkerDouble(),
       monitorTaskProcessor: createMonitorTaskProcessorDouble(),
       buyProcessor: createNamedProcessor('buyProcessor'),
       sellProcessor: createNamedProcessor('sellProcessor'),
@@ -373,6 +361,7 @@ describe('app createLifecycleRuntime wiring', () => {
     expect(createSignalRuntimeDomainCalls[0]?.monitorQuoteEventRuntime).toBe(
       deps.postGateRuntime.monitorQuoteEventRuntime,
     );
+    expect(createSignalRuntimeDomainCalls[0]?.trader).toBe(deps.postGateRuntime.trader);
 
     await domains.at(-1)?.openRebuild({
       now: new Date('2026-03-09T09:30:00.000Z'),
@@ -440,5 +429,6 @@ describe('app createLifecycleRuntime wiring', () => {
     expect(signalRuntimeDeps.monitorQuoteEventRuntime).toBe(
       deps.postGateRuntime.monitorQuoteEventRuntime,
     );
+    expect(signalRuntimeDeps.trader).toBe(deps.postGateRuntime.trader);
   });
 });

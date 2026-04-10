@@ -86,11 +86,11 @@ export type TrackOrderParams = {
 
 /**
  * 订单监控运行态。
- * 类型用途：区分恢复期间（BOOTSTRAPPING）与实时处理期间（ACTIVE）的事件处理策略。
+ * 类型用途：区分停机忽略（STOPPED）、恢复缓存（BOOTSTRAPPING）与实时处理（ACTIVE）的事件策略。
  * 数据来源：OrderMonitor 内部状态机维护。
  * 使用范围：仅 trader/orderMonitor 模块内部使用。
  */
-export type OrderMonitorRuntimeState = 'BOOTSTRAPPING' | 'ACTIVE';
+export type OrderMonitorRuntimeState = 'STOPPED' | 'BOOTSTRAPPING' | 'ACTIVE';
 
 /**
  * 订单席位归属解析结果。
@@ -211,10 +211,11 @@ export interface OrderMonitor {
   /** 修改订单价格 */
   replaceOrderPrice: (orderId: string, newPrice: number, quantity?: number | null) => Promise<void>;
 
-  /**
-   * 处理一轮订单监控（内部自行读取当前 realtime 行情）
-   */
-  processWithLatestQuotes: () => Promise<void>;
+  /** 启动订单监控 runtime */
+  startRuntime: () => void;
+
+  /** 停止订单监控 runtime 并等待在途处理完成 */
+  stopRuntimeAndDrain: () => Promise<void>;
 
   /** 基于启动/重建快照恢复订单追踪（仅使用调用方传入的 allOrders） */
   recoverOrderTrackingFromSnapshot: (allOrders: ReadonlyArray<RawOrderFromAPI>) => Promise<void>;
@@ -223,12 +224,12 @@ export interface OrderMonitor {
   getPendingSellOrders: (symbol: string) => ReadonlyArray<PendingSellOrderSnapshot>;
 
   /** 是否存在指定监控标的方向的未完成保护性清仓卖单链路 */
-  hasPendingProtectiveLiquidationOrders?: (
+  hasPendingProtectiveLiquidationOrders: (
     monitorSymbol: string,
     direction: 'LONG' | 'SHORT',
   ) => boolean;
 
-  /** 清空恢复运行态（tracked/pendingSell/refreshQueue）与 BOOTSTRAPPING 事件缓存 */
+  /** 清空恢复运行态（tracked order lifecycle / closed set）与 BOOTSTRAPPING 事件缓存 */
   clearTrackedOrders: () => void;
 }
 
@@ -242,7 +243,7 @@ export interface OrderMonitor {
 export interface OrderExecutor {
   canTradeNow: (signalAction: SignalType, monitorConfig?: MonitorConfig | null) => TradeCheckResult;
   executeSignals: (
-    signals: Signal[],
+    signals: ReadonlyArray<Signal>,
   ) => Promise<{ submittedCount: number; submittedOrderIds: ReadonlyArray<string> }>;
 
   /** 清空 lastBuyTime（买入节流状态） */

@@ -6,11 +6,11 @@
  * - 驱动交易日生命周期状态机（dayLifecycleManager.tick），统一维护 isTradingEnabled 与交易日快照
  * - 执行末日保护（收盘前撤单和清仓）
  * - 批量获取行情数据，协调所有监控标的的并发处理
- * - 管理订单监控调度；成交后的一致性补刷由结算链路触发的 PostTradeConsistencyRuntime 独立负责
+ * - 不再持有订单监控 runtime owner；成交后的一致性补刷与订单监控推进由事件驱动运行时独立负责
  *
  * 执行流程：
  * 1. 交易日/时段判断 → 2. 调用 dayLifecycleManager.tick 驱动生命周期
- * → 3. 末日保护检查 → 4. 批量获取行情 → 5. 并发处理监控标的 → 6. 订单监控调度
+ * → 3. 末日保护检查 → 4. 批量获取行情 → 5. 并发处理监控标的
  */
 import { logger } from '../../utils/logger/index.js';
 import { collectRuntimeQuoteSymbols, diffQuoteSymbols } from '../utils.js';
@@ -33,7 +33,6 @@ import {
  * 2. 在生命周期与门禁允许的前提下执行末日保护检查
  * 3. 批量获取行情数据
  * 4. 并发处理所有监控标的
- * 5. 执行订单监控调度
  *
  * @param context 主程序上下文，包含所有必要的依赖
  */
@@ -52,7 +51,6 @@ export async function mainProgram({
   buyTaskQueue,
   sellTaskQueue,
   monitorTaskQueue,
-  orderMonitorWorker,
   runtimeGateMode,
   dayLifecycleManager,
 }: MainProgramContext): Promise<void> {
@@ -257,7 +255,6 @@ export async function mainProgram({
     buyTaskQueue,
     sellTaskQueue,
     monitorTaskQueue,
-    orderMonitorWorker,
     runtimeGateMode,
     dayLifecycleManager,
   };
@@ -289,10 +286,4 @@ export async function mainProgram({
   }
 
   await Promise.allSettled(monitorTasks);
-
-  // 全局操作：订单监控（在所有监控标的处理完成后）
-  // 使用已维护的 allTradingSymbols
-  if (canTradeNow && lastState.allTradingSymbols.size > 0) {
-    orderMonitorWorker.schedule();
-  }
 }

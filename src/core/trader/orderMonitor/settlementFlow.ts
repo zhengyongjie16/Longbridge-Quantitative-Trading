@@ -24,6 +24,7 @@ import type {
   SettlementFlowDeps,
 } from './types.js';
 import { resolveSignalAction } from './utils.js';
+import { detachTrackedOrder } from './routingIndex.js';
 
 function resolveOrderSideText(orderSide: OrderSide): 'BUY' | 'SELL' {
   return orderSide === OrderSide.Buy ? 'BUY' : 'SELL';
@@ -227,6 +228,31 @@ function hasExecutionAttributionContext(params: {
   return side !== null && symbol !== null && isLongSymbol !== undefined;
 }
 
+function reserveFollowUpSellOccupancy(params: {
+  readonly orderRecorder: OrderRecorder;
+  readonly orderId: string;
+  readonly symbol: string;
+  readonly isLongSymbol: boolean;
+  readonly followUpQuantity: number;
+  readonly relatedBuyOrderIds: ReadonlyArray<string> | null;
+}): ReadonlyArray<string> {
+  const { orderRecorder, orderId, symbol, isLongSymbol, followUpQuantity, relatedBuyOrderIds } =
+    params;
+  const direction: 'LONG' | 'SHORT' = isLongSymbol ? 'LONG' : 'SHORT';
+  const resolvedRelatedBuyOrderIds =
+    relatedBuyOrderIds ??
+    orderRecorder.allocateRelatedBuyOrderIdsForRecovery(symbol, direction, followUpQuantity);
+  orderRecorder.submitSellOrder(
+    orderId,
+    symbol,
+    direction,
+    followUpQuantity,
+    resolvedRelatedBuyOrderIds,
+  );
+
+  return resolvedRelatedBuyOrderIds;
+}
+
 /**
  * 新终态结算流程：只处理已确认终态，不做终态推理。
  */
@@ -241,7 +267,18 @@ export function createSettlementFlow(deps: SettlementFlowDeps): SettlementFlow {
     emitOrderStateChanged,
   } = deps;
 
+  /**
+   * 清理订单运行态，并在删除 tracked order 前基于 symbol 释放 routing index。
+   *
+   * @param orderId 订单 ID
+   * @returns 无返回值
+   */
   function clearRuntimeTracking(orderId: string): void {
+    const trackedOrder = runtime.trackedOrders.get(orderId);
+    if (trackedOrder) {
+      detachTrackedOrder(runtime, trackedOrder.symbol, orderId);
+    }
+
     runtime.trackedOrders.delete(orderId);
     runtime.trackedOrderLifecycles.set(orderId, 'CLOSED');
     orderHoldRegistry.markOrderClosed(orderId);
@@ -401,6 +438,9 @@ export function createSettlementFlow(deps: SettlementFlowDeps): SettlementFlow {
       symbol,
       isLongSymbol,
     });
+    const pendingSellDisposition = params.pendingSellDisposition ?? {
+      kind: 'RELEASE',
+    };
     if (recordedExecution !== null && !executionContextReady) {
       return {
         handled: false,
@@ -497,6 +537,22 @@ export function createSettlementFlow(deps: SettlementFlowDeps): SettlementFlow {
                   cancelledRelatedBuyOrderIds.length > 0 ? cancelledRelatedBuyOrderIds : null,
               };
         relatedBuyOrderIds = settledSell.remainingRelatedBuyOrderIds;
+
+        if (
+          pendingSellDisposition.kind === 'HANDOFF_TO_FOLLOW_UP_SELL' &&
+          symbol &&
+          isLongSymbol !== undefined &&
+          isValidPositiveNumber(pendingSellDisposition.followUpQuantity)
+        ) {
+          relatedBuyOrderIds = reserveFollowUpSellOccupancy({
+            orderRecorder,
+            orderId,
+            symbol,
+            isLongSymbol,
+            followUpQuantity: pendingSellDisposition.followUpQuantity,
+            relatedBuyOrderIds,
+          });
+        }
       }
 
       if (side === 'BUY' && symbol && isLongSymbol !== undefined && recordedExecution !== null) {

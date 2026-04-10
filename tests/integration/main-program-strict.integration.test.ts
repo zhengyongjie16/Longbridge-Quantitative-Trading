@@ -282,11 +282,6 @@ describe('mainProgram strict-mode integration', () => {
       monitorContexts,
       symbolRegistry: createSymbolRegistryDouble({ monitorSymbol: 'HSI.HK' }),
       ...createQueues(),
-      orderMonitorWorker: {
-        start: () => {},
-        schedule: () => {},
-        stopAndDrain: async () => {},
-      },
       runtimeGateMode: 'strict',
       dayLifecycleManager: {
         tick: async (
@@ -326,7 +321,6 @@ describe('mainProgram strict-mode integration', () => {
     let cancelCalls = 0;
     let clearanceCalls = 0;
     let getQuotesCalls = 0;
-    let orderMonitorScheduleCalls = 0;
     const callSequence: string[] = [];
     let subscribedSymbols: string[] = [];
 
@@ -394,13 +388,6 @@ describe('mainProgram strict-mode integration', () => {
       monitorContexts,
       symbolRegistry: createSymbolRegistryDouble({ monitorSymbol: 'HSI.HK' }),
       ...createQueues(),
-      orderMonitorWorker: {
-        start: () => {},
-        schedule: () => {
-          orderMonitorScheduleCalls += 1;
-        },
-        stopAndDrain: async () => {},
-      },
       runtimeGateMode: 'strict',
       dayLifecycleManager: {
         tick: async () => {},
@@ -411,7 +398,6 @@ describe('mainProgram strict-mode integration', () => {
     expect(clearanceCalls).toBe(1);
     expect(getQuotesCalls).toBe(0);
     expect(processMonitorCalls).toHaveLength(0);
-    expect(orderMonitorScheduleCalls).toBe(0);
     expect(subscribedSymbols).toContain('HSI.HK');
     expect(subscribedSymbols).toContain('BULL.HK');
     expect(subscribedSymbols).toContain('BEAR.HK');
@@ -454,7 +440,6 @@ describe('mainProgram strict-mode integration', () => {
     const subscribedBatches: string[][] = [];
     const unsubscribedBatches: string[][] = [];
     let getQuotesSymbols: string[] = [];
-    let orderMonitorScheduleCalls = 0;
 
     const loadedMainProgram = await loadMainProgram();
     const { mainProgram } = loadedMainProgram;
@@ -518,13 +503,6 @@ describe('mainProgram strict-mode integration', () => {
       monitorContexts,
       symbolRegistry: createSymbolRegistryDouble({ monitorSymbol }),
       ...createQueues(),
-      orderMonitorWorker: {
-        start: () => {},
-        schedule: () => {
-          orderMonitorScheduleCalls += 1;
-        },
-        stopAndDrain: async () => {},
-      },
       runtimeGateMode: 'strict',
       dayLifecycleManager: {
         tick: async () => {},
@@ -542,7 +520,6 @@ describe('mainProgram strict-mode integration', () => {
     expect(unsubscribedBatches.flat()).toHaveLength(0);
 
     expect(getQuotesSymbols).toContain('OLD.HK');
-    expect(orderMonitorScheduleCalls).toBe(1);
     expect(lastState.allTradingSymbols.has('OLD.HK')).toBeTrue();
   });
 });

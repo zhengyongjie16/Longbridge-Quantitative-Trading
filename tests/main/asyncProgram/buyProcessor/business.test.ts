@@ -42,7 +42,7 @@ describe('buyProcessor business flow', () => {
       current: null,
     };
     const trader = createTraderDouble({
-      executeSignals: async (signals: Signal[]) => {
+      executeSignals: async (signals: ReadonlyArray<Signal>) => {
         executed += 1;
         const first = signals[0];
         submittedSnapshotRef.current = {

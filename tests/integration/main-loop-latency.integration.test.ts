@@ -579,11 +579,6 @@ describe('main loop latency full-chain integration', () => {
       buyTaskQueue,
       sellTaskQueue,
       monitorTaskQueue,
-      orderMonitorWorker: {
-        start: () => {},
-        schedule: () => {},
-        stopAndDrain: async () => {},
-      },
       runtimeGateMode: 'skip',
       dayLifecycleManager: {
         tick: async () => {},

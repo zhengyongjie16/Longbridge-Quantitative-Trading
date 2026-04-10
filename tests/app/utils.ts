@@ -141,11 +141,9 @@ function defaultDeps(steps: string[]): CleanupContext {
       restart: () => {},
     },
     monitorTaskProcessor,
-    orderMonitorWorker: {
-      start: () => {},
-      schedule: () => {},
-      stopAndDrain: async () => {
-        steps.push('orderMonitorWorker');
+    trader: {
+      stopOrderMonitorRuntimeAndDrain: async () => {
+        steps.push('stopOrderMonitorRuntimeAndDrain');
       },
     },
     postTradeConsistencyRuntime: {

@@ -530,12 +530,6 @@ export type PostTradeConsistencyRefreshNeed = {
 };
 
 /**
- * 成交后一致性运行时最小端口。
- * 类型用途：向下层模块暴露成交后刷新需求记录能力，避免 core 反向依赖 app 层。
- * 数据来源：由 app 层成交后一致性 runtime 实现并注入。
- * 使用范围：trader/orderMonitor 与 app runtime 连接点。
- */
-/**
  * 成交后一致性 fresh 事件。
  * 类型用途：表达 freshness 追平后的统一通知载荷，供事件驱动运行时与测试消费。
  * 数据来源：由 PostTradeConsistencyRuntime 在 refresh 成功或重建 baseline 完成时发出。
@@ -637,8 +631,11 @@ export interface Trader {
   /** 撤销订单 */
   cancelOrder: (orderId: string) => Promise<CancelOrderOutcome>;
 
-  /** 监控和管理待处理订单 */
-  monitorAndManageOrders: () => Promise<void>;
+  /** 启动订单监控 runtime */
+  startOrderMonitorRuntime: () => void;
+
+  /** 停止订单监控 runtime 并等待在途处理完成 */
+  stopOrderMonitorRuntimeAndDrain: () => Promise<void>;
 
   /** 是否存在指定监控标的方向的未完成保护性清仓卖单链路 */
   hasPendingProtectiveLiquidationOrders: (
@@ -668,7 +665,7 @@ export interface Trader {
 
   /** 执行交易信号；返回实际提交数量与订单 ID 列表（保护性清仓等仅在真正提交后才更新缓存） */
   executeSignals: (
-    signals: Signal[],
+    signals: ReadonlyArray<Signal>,
   ) => Promise<{ submittedCount: number; submittedOrderIds: ReadonlyArray<string> }>;
 }
 

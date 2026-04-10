@@ -103,10 +103,10 @@ describe('cleanup business flow', () => {
       'tradingRiskEventRuntime',
       'monitorQuoteEventRuntime',
       'switchWakeupRuntime',
+      'monitorTask',
       'buy',
       'sell',
-      'monitorTask',
-      'orderMonitorWorker',
+      'stopOrderMonitorRuntimeAndDrain',
       'postTradeConsistencyRuntime',
       'destroyVerifier',
       'clearIndicatorCache',
@@ -126,10 +126,10 @@ describe('cleanup business flow', () => {
       'tradingRiskEventRuntime',
       'monitorQuoteEventRuntime',
       'switchWakeupRuntime',
+      'monitorTask',
       'buy',
       'sell',
-      'monitorTask',
-      'orderMonitorWorker',
+      'stopOrderMonitorRuntimeAndDrain',
       'postTradeConsistencyRuntime',
       'clearIndicatorCache',
       'resetMarketData',
@@ -158,10 +158,10 @@ describe('cleanup business flow', () => {
         'tradingRiskEventRuntime',
         'monitorQuoteEventRuntime',
         'switchWakeupRuntime',
+        'monitorTask',
         'buy',
         'sell',
-        'monitorTask',
-        'orderMonitorWorker',
+        'stopOrderMonitorRuntimeAndDrain',
         'postTradeConsistencyRuntime',
         'clearIndicatorCache',
         'resetMarketData',
@@ -218,10 +218,10 @@ describe('cleanup business flow', () => {
       'tradingRiskEventRuntime',
       'monitorQuoteEventRuntime',
       'switchWakeupRuntime',
+      'monitorTask',
       'buy',
       'sell',
-      'monitorTask',
-      'orderMonitorWorker',
+      'stopOrderMonitorRuntimeAndDrain',
       'postTradeConsistencyRuntime',
       'destroyVerifier',
       'clearIndicatorCache',
@@ -259,10 +259,10 @@ describe('cleanup business flow', () => {
         'tradingRiskEventRuntime',
         'monitorQuoteEventRuntime',
         'switchWakeupRuntime',
+        'monitorTask',
         'buy',
         'sell',
-        'monitorTask',
-        'orderMonitorWorker',
+        'stopOrderMonitorRuntimeAndDrain',
         'postTradeConsistencyRuntime',
         'clearIndicatorCache',
         'resetMarketData',
@@ -271,6 +271,28 @@ describe('cleanup business flow', () => {
       overrideProcessHandler('once', originalOnce);
       overrideProcessHandler('exit', originalExit);
     }
+  });
+
+  it('closes trading gate before draining processors during cleanup', async () => {
+    const steps: string[] = [];
+    const lastState = createLastState(new Map());
+    const cleanup = createCleanup(
+      createCleanupDeps(steps, {
+        lastState,
+        buyProcessor: {
+          start: () => {},
+          stop: () => {},
+          stopAndDrain: async () => {
+            steps.push(`buy:${lastState.isTradingEnabled ? 'open' : 'closed'}`);
+          },
+          restart: () => {},
+        },
+      }),
+    );
+
+    await cleanup.execute();
+
+    expect(steps).toContain('buy:closed');
   });
 
   it('aborts freshness waiters before draining blocked processors', async () => {
@@ -318,6 +340,8 @@ describe('cleanup business flow', () => {
     expect(steps[1]).toBe('tradingRiskEventRuntime');
     expect(steps[2]).toBe('monitorQuoteEventRuntime');
     expect(steps[3]).toBe('switchWakeupRuntime');
+    expect(steps[4]).toBe('monitorTask');
+    expect(steps[steps.indexOf('stopOrderMonitorRuntimeAndDrain') - 1]).toBe('sell');
     expect(steps).toContain('buy');
     expect(steps).toContain('postTradeConsistencyRuntime');
   });

@@ -2,12 +2,11 @@
  * app 异步运行时工厂模块
  *
  * 职责：
- * - 创建订单监控、监控任务处理器、买入处理器与卖出处理器
+ * - 创建监控任务处理器、买入处理器与卖出处理器
  * - 消费已完成顶层装配的共享依赖，不再承担其他 runtime 的绑定副作用
  */
 import { createBuyProcessor } from '../../main/asyncProgram/buyProcessor/index.js';
 import { createMonitorTaskProcessor } from '../../main/asyncProgram/monitorTaskProcessor/index.js';
-import { createOrderMonitorWorker } from '../../main/asyncProgram/orderMonitorWorker/index.js';
 import { createSellProcessor } from '../../main/asyncProgram/sellProcessor/index.js';
 import { clearMonitorDirectionQueuesWithLog } from '../../main/processMonitor/queueCleanup.js';
 import { logger } from '../../utils/logger/index.js';
@@ -35,9 +34,6 @@ export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntim
     monitorTaskQueue,
     switchWakeupRuntime,
   } = postGateRuntime;
-  const orderMonitorWorker = createOrderMonitorWorker({
-    monitorAndManageOrders: () => trader.monitorAndManageOrders(),
-  });
   const monitorTaskProcessor = createMonitorTaskProcessor({
     monitorTaskQueue,
     getMonitorContext: (monitorSymbol) => monitorContexts.get(monitorSymbol) ?? null,
@@ -91,7 +87,6 @@ export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntim
   });
 
   return {
-    orderMonitorWorker,
     monitorTaskProcessor,
     buyProcessor,
     sellProcessor,
