@@ -8,11 +8,14 @@
  * - 在 autoSearch 开启时启动距离换标，在关闭时接管静态距回收价清仓 WAIT owner
  */
 import { isBeforeClose5Minutes } from '../../core/doomsdayProtection/utils.js';
+import { formatError } from '../../utils/error/index.js';
+import { logger } from '../../utils/logger/index.js';
 import type { StartSwitchOnDistanceResult } from '../../types/monitorContextPorts.js';
 import type { LastState, MonitorContext } from '../../types/state.js';
 import type { MarketDataClient, QuoteUpdatedEvent, Trader } from '../../types/services.js';
 import { isSeatActive } from '../../utils/seat/guards.js';
 import { createStaticLiquidationExecutor } from './staticLiquidationExecutor.js';
+import type { QuoteSubscriptionRuntime } from '../quoteSubscriptionRuntime/types.js';
 import type {
   MonitorQuoteEventRuntime,
   MonitorQuoteFreshnessDeps,
@@ -46,6 +49,10 @@ type CreateMonitorQuoteEventRuntimeDeps = Readonly<{
   readonly now?: () => Date;
   readonly scheduleTimer?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
   readonly clearTimer?: (handle: ReturnType<typeof setTimeout>) => void;
+  readonly quoteSubscriptionRuntime?: Pick<
+    QuoteSubscriptionRuntime,
+    'retainSymbols' | 'releaseRetain'
+  >;
 }>;
 
 type CreateDefaultMonitorQuoteEventRuntimeDeps = Readonly<{
@@ -61,6 +68,10 @@ type CreateDefaultMonitorQuoteEventRuntimeDeps = Readonly<{
   readonly now: () => Date;
   readonly scheduleTimer?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
   readonly clearTimer?: (handle: ReturnType<typeof setTimeout>) => void;
+  readonly quoteSubscriptionRuntime?: Pick<
+    QuoteSubscriptionRuntime,
+    'retainSymbols' | 'releaseRetain'
+  >;
   readonly handoffPendingSwitch?: Pick<
     SwitchWakeupRuntime,
     'handoffPendingSwitch'
@@ -243,6 +254,9 @@ export function createDefaultMonitorQuoteEventRuntime(
     ...(deps.handoffPendingSwitch ? { handoffPendingSwitch: deps.handoffPendingSwitch } : {}),
     ...(deps.scheduleTimer ? { scheduleTimer: deps.scheduleTimer } : {}),
     ...(deps.clearTimer ? { clearTimer: deps.clearTimer } : {}),
+    ...(deps.quoteSubscriptionRuntime
+      ? { quoteSubscriptionRuntime: deps.quoteSubscriptionRuntime }
+      : {}),
     lastState: deps.lastState,
     postTradeConsistencyRuntime: deps.postTradeConsistencyRuntime,
     doomsdayProtectionEnabled: deps.doomsdayProtectionEnabled,
@@ -295,6 +309,7 @@ export function createMonitorQuoteEventRuntime(
           existing.retryTimerHandle = null;
         }
 
+        releaseStaticLiquidationRetain(monitorSymbol);
         existing.mode = mode;
         existing.wakeupSymbols = new Set();
         existing.retryAttempts = 0;
@@ -318,6 +333,64 @@ export function createMonitorQuoteEventRuntime(
     void promise.finally(() => {
       activePromises.delete(promise);
     });
+  }
+
+  /**
+   * 释放静态清仓 WAIT 持有的 quote retain。
+   *
+   * @param monitorSymbol 监控标的
+   */
+  function releaseStaticLiquidationRetain(monitorSymbol: string): void {
+    const quoteSubscriptionRuntime = deps.quoteSubscriptionRuntime;
+    if (quoteSubscriptionRuntime === undefined) {
+      return;
+    }
+
+    void quoteSubscriptionRuntime
+      .releaseRetain({
+        ownerKey: monitorSymbol,
+        reason: 'STATIC_LIQUIDATION_WAIT',
+      })
+      .catch((error: unknown) => {
+        logger.error(
+          '[MonitorQuoteEventRuntime] 释放静态清仓 quote retain 失败',
+          formatError(error),
+        );
+      });
+  }
+
+  /**
+   * 注册静态清仓 WAIT 期间需要保留订阅的 quote symbols。
+   *
+   * @param monitorSymbol 监控标的
+   * @param symbols 等待期间需要保留订阅的标的
+   */
+  function retainStaticLiquidationSymbols(
+    monitorSymbol: string,
+    symbols: ReadonlySet<string>,
+  ): void {
+    const quoteSubscriptionRuntime = deps.quoteSubscriptionRuntime;
+    if (quoteSubscriptionRuntime === undefined) {
+      return;
+    }
+
+    if (symbols.size === 0) {
+      releaseStaticLiquidationRetain(monitorSymbol);
+      return;
+    }
+
+    void quoteSubscriptionRuntime
+      .retainSymbols({
+        ownerKey: monitorSymbol,
+        reason: 'STATIC_LIQUIDATION_WAIT',
+        symbols: [...symbols],
+      })
+      .catch((error: unknown) => {
+        logger.error(
+          '[MonitorQuoteEventRuntime] 注册静态清仓 quote retain 失败',
+          formatError(error),
+        );
+      });
   }
 
   /**
@@ -352,10 +425,12 @@ export function createMonitorQuoteEventRuntime(
     clearRouteRetryTimer(routeState);
     if (!running) {
       routeState.wakeupSymbols = new Set();
+      releaseStaticLiquidationRetain(monitorSymbol);
       return;
     }
 
     routeState.wakeupSymbols = new Set(executionResult.wakeupSymbols);
+    retainStaticLiquidationSymbols(monitorSymbol, routeState.wakeupSymbols);
     if (executionResult.retryAtMs === null) {
       return;
     }
@@ -503,6 +578,7 @@ export function createMonitorQuoteEventRuntime(
         }
 
         clearRouteRetryTimer(routeState);
+        releaseStaticLiquidationRetain(monitorSymbol);
         routeState.wakeupSymbols = new Set();
         routeState.retryAttempts = 0;
       }
@@ -560,6 +636,7 @@ export function createMonitorQuoteEventRuntime(
       const latestMonitorContext =
         monitorContexts.get(monitorSymbol) ?? routeState.latestMonitorContext;
       if (!latestMonitorContext) {
+        releaseStaticLiquidationRetain(monitorSymbol);
         routeStates.delete(monitorSymbol);
         continue;
       }
@@ -585,8 +662,9 @@ export function createMonitorQuoteEventRuntime(
     unsubscribeQuoteUpdated?.();
     unsubscribeQuoteUpdated = null;
 
-    for (const routeState of routeStates.values()) {
+    for (const [monitorSymbol, routeState] of routeStates) {
       clearRouteRetryTimer(routeState);
+      releaseStaticLiquidationRetain(monitorSymbol);
       routeState.wakeupSymbols = new Set();
     }
 
@@ -594,8 +672,9 @@ export function createMonitorQuoteEventRuntime(
       await Promise.allSettled(activePromises);
     }
 
-    for (const routeState of routeStates.values()) {
+    for (const [monitorSymbol, routeState] of routeStates) {
       clearRouteRetryTimer(routeState);
+      releaseStaticLiquidationRetain(monitorSymbol);
       routeState.wakeupSymbols = new Set();
     }
 

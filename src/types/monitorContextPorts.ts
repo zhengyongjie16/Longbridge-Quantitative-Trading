@@ -92,7 +92,7 @@ export type AdvancePendingSwitchResult = Readonly<{
  * 使用范围：types、app、main、services 与相关测试使用。
  */
 export interface AutoSymbolManagerPort {
-  maybeSearchOnTick: (params: {
+  maybeSearchOnEvent: (params: {
     readonly direction: 'LONG' | 'SHORT';
     readonly currentTime: Date;
     readonly canTradeNow: boolean;

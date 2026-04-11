@@ -9,6 +9,7 @@
 import type { LastState } from '../../../../types/state.js';
 import type { Position } from '../../../../types/account.js';
 import type { RawOrderFromAPI, Trader } from '../../../../types/services.js';
+import type { QuoteSubscriptionRuntime } from '../../../quoteSubscriptionRuntime/types.js';
 import type { MonitorTaskContext, RefreshHelpers } from '../types.js';
 
 /**
@@ -20,9 +21,14 @@ import type { MonitorTaskContext, RefreshHelpers } from '../types.js';
 export function createRefreshHelpers({
   trader,
   lastState,
+  quoteSubscriptionRuntime,
 }: {
   readonly trader: Trader;
   readonly lastState: LastState;
+  readonly quoteSubscriptionRuntime?: Pick<
+    QuoteSubscriptionRuntime,
+    'reconcilePositionHoldFromCurrentTruth'
+  >;
 }): RefreshHelpers {
   const cachedAllOrdersByMonitor = new Map<string, ReadonlyArray<RawOrderFromAPI>>();
   let cachedAccountSnapshot: typeof lastState.cachedAccount | null | undefined;
@@ -66,6 +72,7 @@ export function createRefreshHelpers({
       cachedPositionsSnapshot = await trader.getStockPositions();
       lastState.cachedPositions = [...cachedPositionsSnapshot];
       lastState.positionCache.update(cachedPositionsSnapshot);
+      await quoteSubscriptionRuntime?.reconcilePositionHoldFromCurrentTruth();
     }
   }
 

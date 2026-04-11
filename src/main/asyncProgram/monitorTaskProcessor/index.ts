@@ -54,6 +54,7 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
     clearMonitorDirectionQueues,
     trader,
     marketDataClient,
+    quoteSubscriptionRuntime,
     switchWakeupRuntime,
     lastState,
     tradingConfig,
@@ -81,6 +82,7 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
     clearMonitorDirectionQueues,
     tradingConfig,
     marketDataClient,
+    quoteSubscriptionRuntime,
   });
   async function processTask(
     task: MonitorTask<MonitorTaskDataMap>,
@@ -103,7 +105,7 @@ export function createMonitorTaskProcessor(deps: MonitorTaskProcessorDeps): Moni
 
   /** 循环消费监控任务队列直至为空，每项经 processTask 分派处理，门禁或上下文缺失时跳过并通知 onProcessed */
   async function processQueue(): Promise<void> {
-    const helpers = createRefreshHelpers({ trader, lastState });
+    const helpers = createRefreshHelpers({ trader, lastState, quoteSubscriptionRuntime });
     while (!monitorTaskQueue.isEmpty()) {
       const task = monitorTaskQueue.pop();
       if (!task) {

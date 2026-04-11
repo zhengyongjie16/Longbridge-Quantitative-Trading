@@ -27,6 +27,7 @@ import {
   createRiskCheckerDouble,
   createSymbolRegistryDouble,
   createTraderDouble,
+  createQuoteSubscriptionRuntimeDouble,
   createWarrantDistanceInfoDouble,
 } from '../helpers/testDoubles.js';
 import { createWarrantCandidateWithOverrides } from '../services/autoSymbolManager/utils.js';
@@ -64,7 +65,7 @@ async function waitUntil(predicate: () => boolean, timeoutMs: number = 1000): Pr
 }
 
 describe('periodic auto-symbol full chain integration', () => {
-  it('hands periodic no-candidate back to EMPTY auto-search ticks without leaving pending switch state', async () => {
+  it('hands periodic no-candidate back to EMPTY without letting AUTO_SYMBOL_TICK restart auto-search', async () => {
     const readyMs = Date.parse('2026-02-16T01:30:00.000Z');
     let currentNowMs = Date.parse('2026-02-16T01:31:00.000Z');
     candidateQueue = [
@@ -182,6 +183,7 @@ describe('periodic auto-symbol full chain integration', () => {
       clearMonitorDirectionQueues: () => {},
       trader,
       marketDataClient: createMarketDataClientDouble(),
+      quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
       switchWakeupRuntime: {
         handoffPendingSwitch: () => {},
       },
@@ -233,11 +235,11 @@ describe('periodic auto-symbol full chain integration', () => {
       expect(statuses).toEqual(['processed', 'processed']);
 
       const seatAfterAutoSearch = symbolRegistry.getSeatState('HSI.HK', 'LONG');
-      expect(seatAfterAutoSearch.status).toBe('ACTIVATING');
-      expect(seatAfterAutoSearch.symbol).toBe('NEW_BULL.HK');
-      expect(seatAfterAutoSearch.searchFailCountToday).toBe(0);
+      expect(seatAfterAutoSearch.status).toBe('EMPTY');
+      expect(seatAfterAutoSearch.symbol).toBeNull();
+      expect(seatAfterAutoSearch.searchFailCountToday).toBe(1);
       expect(autoSymbolManager.hasPendingSwitch('LONG')).toBeFalse();
-      expect(symbolRegistry.getSeatVersion('HSI.HK', 'LONG')).toBe(3);
+      expect(symbolRegistry.getSeatVersion('HSI.HK', 'LONG')).toBe(2);
     } finally {
       await processor.stopAndDrain();
     }
@@ -359,6 +361,7 @@ describe('periodic auto-symbol full chain integration', () => {
       clearMonitorDirectionQueues: () => {},
       trader,
       marketDataClient: createMarketDataClientDouble(),
+      quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
       switchWakeupRuntime: {
         handoffPendingSwitch: () => {},
       },
@@ -511,6 +514,7 @@ describe('periodic auto-symbol full chain integration', () => {
       clearMonitorDirectionQueues: () => {},
       trader,
       marketDataClient: createMarketDataClientDouble(),
+      quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
       switchWakeupRuntime: {
         handoffPendingSwitch: () => {},
       },
@@ -550,10 +554,7 @@ describe('periodic auto-symbol full chain integration', () => {
   it('applies cross-day trading-duration rule before periodic switch is triggered', async () => {
     const readyMs = Date.parse('2026-02-16T07:59:00.000Z'); // Day1 15:59 HK
     let currentNowMs = Date.parse('2026-02-17T01:30:00.000Z'); // Day2 09:30 HK
-    candidateQueue = [
-      null,
-      createWarrantCandidateWithOverrides('NEW_BULL.HK', { callPrice: 21_000 }),
-    ];
+    candidateQueue = [createWarrantCandidateWithOverrides('NEW_BULL.HK', { callPrice: 21_000 })];
     const tradingCalendarSnapshot = new Map([
       ['2026-02-16', { isTradingDay: true, isHalfDay: false }],
       ['2026-02-17', { isTradingDay: true, isHalfDay: false }],
@@ -666,6 +667,7 @@ describe('periodic auto-symbol full chain integration', () => {
       clearMonitorDirectionQueues: () => {},
       trader,
       marketDataClient: createMarketDataClientDouble(),
+      quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
       switchWakeupRuntime: {
         handoffPendingSwitch: () => {},
       },
@@ -712,9 +714,9 @@ describe('periodic auto-symbol full chain integration', () => {
       expect(statuses).toEqual(['processed', 'processed']);
 
       const switchingSeat = symbolRegistry.getSeatState('HSI.HK', 'LONG');
-      expect(switchingSeat.status).toBe('SWITCHING');
-      expect(switchingSeat.symbol).toBe('OLD_BULL.HK');
-      expect(autoSymbolManager.hasPendingSwitch('LONG')).toBeTrue();
+      expect(switchingSeat.status).toBe('ACTIVATING');
+      expect(switchingSeat.symbol).toBe('NEW_BULL.HK');
+      expect(autoSymbolManager.hasPendingSwitch('LONG')).toBeFalse();
       expect(symbolRegistry.getSeatVersion('HSI.HK', 'LONG')).toBe(2);
     } finally {
       await processor.stopAndDrain();

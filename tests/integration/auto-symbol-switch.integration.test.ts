@@ -158,7 +158,7 @@ describe('auto-symbol-switch integration', () => {
       now: () => new Date('2026-02-16T01:00:00.000Z'),
     });
 
-    await manager.maybeSearchOnTick({
+    await manager.maybeSearchOnEvent({
       direction: 'LONG',
       currentTime: new Date('2026-02-16T01:00:00.000Z'),
       canTradeNow: true,
@@ -363,7 +363,7 @@ describe('auto-symbol-switch integration', () => {
       now: () => new Date('2026-02-16T01:00:00.000Z'),
     });
 
-    await manager.maybeSearchOnTick({
+    await manager.maybeSearchOnEvent({
       direction: 'LONG',
       currentTime: new Date('2026-02-16T01:00:00.000Z'),
       canTradeNow: true,
@@ -691,7 +691,7 @@ describe('auto-symbol-switch integration', () => {
     expect(emptySeat.symbol).toBeNull();
     expect(manager.hasPendingSwitch('LONG')).toBeFalse();
 
-    await manager.maybeSearchOnTick({
+    await manager.maybeSearchOnEvent({
       direction: 'LONG',
       currentTime: new Date('2026-02-16T01:11:00.000Z'),
       canTradeNow: true,

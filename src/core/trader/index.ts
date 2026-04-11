@@ -146,6 +146,10 @@ export function createTrader(deps: TraderDeps): Promise<Trader> {
       return orderHoldRegistry.getHoldSymbols();
     },
 
+    onOrderHoldSymbolsChanged(listener) {
+      return orderHoldRegistry.onOrderHoldSymbolsChanged(listener);
+    },
+
     // ==================== 订单监控相关方法 ====================
 
     cancelOrder(orderId: string) {

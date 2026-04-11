@@ -41,6 +41,7 @@ function createOrderHoldRegistry(): OrderHoldRegistry {
     markOrderClosed: () => {},
     seedFromOrders: () => {},
     getHoldSymbols: () => new Set<string>(),
+    onOrderHoldSymbolsChanged: () => () => {},
     clear: () => {},
   };
 }

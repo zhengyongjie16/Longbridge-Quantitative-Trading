@@ -11,11 +11,13 @@ import type { DoomsdayProtection } from '../../core/doomsdayProtection/types.js'
 import type { SignalProcessor } from '../../core/signalProcessor/types.js';
 import type { DailyLossTracker } from '../../types/risk.js';
 import type { DayLifecycleManager } from '../lifecycle/types.js';
+import type { TradingGateEventRuntime } from '../tradingGateEventRuntime/types.js';
+import type { QuoteSubscriptionRuntime } from '../quoteSubscriptionRuntime/types.js';
 
 /**
  * 主程序上下文（主循环与 processMonitor 的依赖容器）。
  * 类型用途：承载 mainProgram 运行所需的全部依赖（数据服务、状态管理、业务模块、异步队列与生命周期等），作为 processMonitor 等函数的入参。
- * 数据来源：由 src/index.ts main() 函数初始化并注入。
+ * 数据来源：由 app 装配层在 src/app/runApp.ts 中组装并注入。
  * 使用范围：仅在 mainProgram 及其调用链内部使用。
  */
 export type MainProgramContext = {
@@ -34,5 +36,10 @@ export type MainProgramContext = {
   readonly sellTaskQueue: TaskQueue<SellTaskType>;
   readonly monitorTaskQueue: MonitorTaskQueue<MonitorTaskDataMap>;
   readonly runtimeGateMode: GateMode;
+  readonly tradingGateEventRuntime: Pick<TradingGateEventRuntime, 'emitGateStateChanged'>;
+  readonly quoteSubscriptionRuntime: Pick<
+    QuoteSubscriptionRuntime,
+    'reconcilePositionHoldFromCurrentTruth'
+  >;
   readonly dayLifecycleManager: DayLifecycleManager;
 };

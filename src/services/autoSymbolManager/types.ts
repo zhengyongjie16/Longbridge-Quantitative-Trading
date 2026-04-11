@@ -2,7 +2,12 @@ import type { AutoSearchConfig, MonitorConfig } from '../../types/config.js';
 import type { Position } from '../../types/account.js';
 import type { Quote } from '../../types/quote.js';
 import type { Signal } from '../../types/signal.js';
-import type { SeatState, SeatStatus, SymbolRegistry } from '../../types/seat.js';
+import type {
+  SeatState,
+  SeatStateChangedEvent,
+  SeatStatus,
+  SymbolRegistry,
+} from '../../types/seat.js';
 import type {
   MarketDataClient,
   OrderRecorder,
@@ -35,6 +40,7 @@ import type {
 export type SeatEntry = {
   state: SeatState;
   version: number;
+  lastEventVersion: number;
 };
 
 /**
@@ -47,6 +53,14 @@ export type SymbolSeatEntry = {
   long: SeatEntry;
   short: SeatEntry;
 };
+
+/**
+ * 席位状态变化监听器。
+ * 类型用途：SymbolRegistry 内部事件发射时保存 listener 集合。
+ * 数据来源：由 onSeatStateChanged 注册。
+ * 使用范围：仅 autoSymbolManager 的 SymbolRegistry 实现使用。
+ */
+export type SeatStateChangedListener = (event: SeatStateChangedEvent) => void;
 
 /**
  * 自动换标管理器的依赖注入参数。
@@ -67,11 +81,11 @@ export type AutoSymbolManagerDeps = {
 };
 
 /**
- * 每 tick 触发自动寻标的入参。
- * 类型用途：包含方向、当前时间与是否可交易标志，由 autoSearch.maybeSearchOnTick 消费。
+ * 事件触发自动寻标的入参。
+ * 类型用途：包含方向、当前时间与是否可交易标志，由 autoSearch.maybeSearchOnEvent 消费。
  * 使用范围：autoSymbolManager 模块及其调用方使用。
  */
-export type SearchOnTickParams = {
+export type SearchOnEventParams = {
   readonly direction: 'LONG' | 'SHORT';
   readonly currentTime: Date;
   readonly canTradeNow: boolean;
@@ -516,14 +530,14 @@ export type AutoSearchDeps = {
 };
 
 /**
- * 自动寻标子模块接口，提供每 tick 触发寻标的方法。
+ * 自动寻标子模块接口，提供事件触发寻标的方法。
  * 由 createAutoSearch 实现，供 autoSymbolManager 消费。
  * 类型用途：用于 AutoSearchManager 的类型约束与语义表达。
  * 数据来源：由当前模块的入参、返回值或运行时派生数据提供（如适用）。
  * 使用范围：仅在当前模块及其直接依赖方使用。
  */
 export interface AutoSearchManager {
-  maybeSearchOnTick: (params: SearchOnTickParams) => Promise<void>;
+  maybeSearchOnEvent: (params: SearchOnEventParams) => Promise<void>;
 }
 
 /**

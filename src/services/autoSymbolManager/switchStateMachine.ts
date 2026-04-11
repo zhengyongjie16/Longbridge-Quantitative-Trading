@@ -560,21 +560,20 @@ export function createSwitchStateMachine(deps: SwitchStateMachineDeps): SwitchSt
       cancelRequestSubmitted: false,
     });
 
-    if (switchMode === 'PERIODIC') {
-      return createNoopDriveResult();
-    }
-
     const startedState = switchStates.get(direction);
     if (!startedState) {
       return createNoopDriveResult();
     }
 
-    if (distanceContext === null) {
-      return createNoopDriveResult();
-    }
-
     const pendingOrdersForOldSymbol = await trader.getPendingOrders([startedState.oldSymbol]);
-    return await processSwitchState(distanceContext, startedState, pendingOrdersForOldSymbol);
+    const driveContext =
+      distanceContext ??
+      ({
+        direction,
+        monitorPrice: null,
+        positions: [],
+      } satisfies StartSwitchOnDistanceParams);
+    return await processSwitchState(driveContext, startedState, pendingOrdersForOldSymbol);
   }
 
   /**

@@ -24,6 +24,10 @@ import {
 } from '../../main/asyncProgram/tradeTaskQueue/index.js';
 import { createLoadTradingDayRuntimeSnapshot } from '../../main/lifecycle/loadTradingDayRuntimeSnapshot.js';
 import { createTradingRiskEventRuntime } from '../../main/tradingRiskEventRuntime/tradingRiskEventRuntime.js';
+import { createAutoSearchWakeupRuntime } from '../../main/autoSearchWakeupRuntime/index.js';
+import { createQuoteSubscriptionRuntime } from '../../main/quoteSubscriptionRuntime/index.js';
+import { createSeatActivationDispatcher } from '../../main/seatActivationDispatcher/index.js';
+import { createTradingGateEventRuntime } from '../../main/tradingGateEventRuntime/index.js';
 import { createDefaultMonitorQuoteEventRuntime } from '../../main/monitorQuoteEventRuntime/monitorQuoteEventRuntime.js';
 import { createSwitchWakeupRuntime } from '../../main/monitorQuoteEventRuntime/switchWakeupRuntime.js';
 import { createMarketMonitor } from '../../services/marketMonitor/index.js';
@@ -36,6 +40,7 @@ import { getHKDateKey, toHongKongTimeIso } from '../../utils/time/index.js';
 import { logger } from '../../utils/logger/index.js';
 import type { LastState, MonitorContext } from '../../types/state.js';
 import type { MonitorTaskDataMap } from '../../main/asyncProgram/monitorTaskProcessor/types.js';
+import type { QuoteSubscriptionRuntime } from '../../main/quoteSubscriptionRuntime/types.js';
 import type {
   CreatePostGateRuntimeParams,
   MutableMonitorContextsPostGateRuntime,
@@ -92,6 +97,7 @@ export async function createPostGateRuntime(
     allTradingSymbols: new Set(),
   };
   let traderRef: Awaited<ReturnType<typeof createTrader>> | null = null;
+  let quoteSubscriptionRuntimeRef: QuoteSubscriptionRuntime | null = null;
   const postTradeConsistencyRuntime = createPostTradeConsistencyRuntime({
     getTrader: () => {
       if (traderRef === null) {
@@ -101,6 +107,9 @@ export async function createPostGateRuntime(
       return traderRef;
     },
     lastState,
+    onPositionsCommitted: async () => {
+      await quoteSubscriptionRuntimeRef?.reconcilePositionHoldFromCurrentTruth();
+    },
   });
   const trader = await createTrader({
     config,
@@ -135,6 +144,15 @@ export async function createPostGateRuntime(
   });
   const marketMonitor = createMarketMonitor();
   const doomsdayProtection = createDoomsdayProtection();
+  const tradingGateEventRuntime = createTradingGateEventRuntime();
+  const quoteSubscriptionRuntime = createQuoteSubscriptionRuntime({
+    tradingConfig,
+    symbolRegistry,
+    marketDataClient,
+    trader,
+    lastState,
+  });
+  quoteSubscriptionRuntimeRef = quoteSubscriptionRuntime;
   const tradingRiskEventRuntime = createTradingRiskEventRuntime({
     marketDataClient,
     trader,
@@ -153,6 +171,7 @@ export async function createPostGateRuntime(
     lastState,
     postTradeConsistencyRuntime,
     doomsdayProtectionEnabled: tradingConfig.global.doomsdayProtection,
+    quoteSubscriptionRuntime,
     now: () => new Date(),
     scheduleTimer: (callback, delayMs) => {
       return setTimeout(callback, delayMs);
@@ -168,6 +187,7 @@ export async function createPostGateRuntime(
     lastState,
     postTradeConsistencyRuntime,
     doomsdayProtectionEnabled: tradingConfig.global.doomsdayProtection,
+    quoteSubscriptionRuntime,
     now: () => new Date(),
     handoffPendingSwitch: switchWakeupRuntime.handoffPendingSwitch,
   });
@@ -189,12 +209,35 @@ export async function createPostGateRuntime(
   const buyTaskQueue = createBuyTaskQueue();
   const sellTaskQueue = createSellTaskQueue();
   const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
+  const seatActivationDispatcher = createSeatActivationDispatcher({
+    tradingConfig,
+    symbolRegistry,
+    monitorTaskQueue,
+  });
+  const autoSearchWakeupRuntime = createAutoSearchWakeupRuntime({
+    tradingConfig,
+    symbolRegistry,
+    monitorContexts,
+    lastState,
+    tradingGateEventRuntime,
+    now: () => new Date(),
+    scheduleTimer: (callback, delayMs) => {
+      return setTimeout(callback, delayMs);
+    },
+    clearTimer: (handle) => {
+      clearTimeout(handle);
+    },
+  });
 
   return {
     liquidationCooldownTracker,
     dailyLossTracker,
     protectiveLiquidationEpisodeTracker,
     monitorContexts,
+    tradingGateEventRuntime,
+    quoteSubscriptionRuntime,
+    seatActivationDispatcher,
+    autoSearchWakeupRuntime,
     tradingRiskEventRuntime,
     monitorQuoteEventRuntime,
     switchWakeupRuntime,

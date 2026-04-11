@@ -4,6 +4,7 @@ import type { LastState, MonitorContext } from '../../../types/state.js';
 import type { MultiMonitorTradingConfig } from '../../../types/config.js';
 import type { SeatState } from '../../../types/seat.js';
 import type { RawOrderFromAPI, Trader, MarketDataClient } from '../../../types/services.js';
+import type { QuoteSubscriptionRuntime } from '../../quoteSubscriptionRuntime/types.js';
 
 /**
  * 席位快照（任务创建时点的席位状态）。
@@ -34,9 +35,9 @@ export type AutoSymbolTickTaskData = Readonly<{
 
 /**
  * 席位刷新任务数据。
- * 类型用途：换标完成后触发的任务数据，仅携带席位校验与标的信息；行情统一在执行时获取，避免入队快照与执行态双真相。
- * 数据来源：由 processMonitor 在 SEAT_REFRESH 调度时组装并入队。
- * 使用范围：仅 monitorTaskProcessor、processMonitor 内部使用。
+ * 类型用途：seat 进入 ACTIVATING 后触发的激活屏障任务数据，仅携带席位校验与标的信息；行情统一在执行时获取，避免入队快照与执行态双真相。
+ * 数据来源：由 SeatActivationDispatcher 在 seat 进入 ACTIVATING 时组装并入队。
+ * 使用范围：仅 monitorTaskProcessor、SeatActivationDispatcher 内部使用。
  */
 export type SeatRefreshTaskData = Readonly<{
   monitorSymbol: string;
@@ -120,6 +121,10 @@ export type MonitorTaskProcessorDeps = Readonly<{
   clearMonitorDirectionQueues: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => void;
   trader: Trader;
   marketDataClient: MarketDataClient;
+  quoteSubscriptionRuntime: Pick<
+    QuoteSubscriptionRuntime,
+    'retainSymbols' | 'waitForAdmission' | 'reconcilePositionHoldFromCurrentTruth'
+  >;
   switchWakeupRuntime: Pick<SwitchWakeupRuntime, 'handoffPendingSwitch'>;
   lastState: LastState;
   tradingConfig: MultiMonitorTradingConfig;

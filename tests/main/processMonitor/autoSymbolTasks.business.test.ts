@@ -13,10 +13,23 @@ import type { MainProgramContext } from '../../../src/main/mainProgram/types.js'
 import type { MonitorContext } from '../../../src/types/state.js';
 import type { MonitorTaskDataMap } from '../../../src/main/asyncProgram/monitorTaskProcessor/types.js';
 
-import { createSymbolRegistryDouble } from '../../helpers/testDoubles.js';
+import {
+  createMonitorConfigDouble,
+  createSymbolRegistryDouble,
+} from '../../helpers/testDoubles.js';
+
+function createPeriodicMonitorConfig() {
+  const baseConfig = createMonitorConfigDouble();
+  return createMonitorConfigDouble({
+    autoSearchConfig: {
+      ...baseConfig.autoSearchConfig,
+      switchIntervalMinutes: 30,
+    },
+  });
+}
 
 describe('autoSymbolTasks business scheduling', () => {
-  it('always schedules LONG/SHORT AUTO_SYMBOL_TICK when auto-search is enabled', () => {
+  it('schedules LONG/SHORT AUTO_SYMBOL_TICK only for periodic switch checks', () => {
     const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
@@ -25,6 +38,7 @@ describe('autoSymbolTasks business scheduling', () => {
     });
 
     const monitorContext = {
+      config: createPeriodicMonitorConfig(),
       symbolRegistry,
       autoSymbolManager: {
         hasPendingSwitch: () => false,
@@ -63,13 +77,14 @@ describe('autoSymbolTasks business scheduling', () => {
     expect((second?.data as { symbol: string | null }).symbol).toBe('BEAR.HK');
   });
 
-  it('keeps only LONG and SHORT AUTO_SYMBOL_TICK when pending switch exists or monitor price changes', () => {
+  it('keeps only LONG and SHORT AUTO_SYMBOL_TICK for periodic switch owner', () => {
     const monitorTaskQueue = createMonitorTaskQueue<MonitorTaskDataMap>();
     const symbolRegistry = createSymbolRegistryDouble({
       monitorSymbol: 'HSI.HK',
     });
 
     const monitorContext = {
+      config: createPeriodicMonitorConfig(),
       symbolRegistry,
       autoSymbolManager: {
         hasPendingSwitch: () => true,
@@ -105,6 +120,7 @@ describe('autoSymbolTasks business scheduling', () => {
     scheduleAutoSymbolTasks({
       monitorSymbol: 'HSI.HK',
       monitorContext: {
+        config: createPeriodicMonitorConfig(),
         symbolRegistry: createSymbolRegistryDouble(),
         autoSymbolManager: {
           hasPendingSwitch: () => true,

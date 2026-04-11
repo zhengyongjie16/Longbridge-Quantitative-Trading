@@ -4,6 +4,7 @@
  * 核心职责：
  * - 判断交易日和交易时段，控制程序运行状态
  * - 驱动交易日生命周期状态机（dayLifecycleManager.tick），统一维护 isTradingEnabled 与交易日快照
+ * - 在交易门禁状态变化时发布 gate event，供非周期自动寻标 owner 消费
  * - 执行末日保护（收盘前撤单和清仓）
  * - 批量获取行情数据，协调所有监控标的的并发处理
  * - 不再持有订单监控 runtime owner；成交后的一致性补刷与订单监控推进由事件驱动运行时独立负责
@@ -13,7 +14,6 @@
  * → 3. 末日保护检查 → 4. 批量获取行情 → 5. 并发处理监控标的
  */
 import { logger } from '../../utils/logger/index.js';
-import { collectRuntimeQuoteSymbols, diffQuoteSymbols } from '../utils.js';
 import { processMonitor } from '../processMonitor/index.js';
 import type { MainProgramContext } from './types.js';
 import { formatSymbolDisplay } from '../../utils/display/index.js';
@@ -52,11 +52,14 @@ export async function mainProgram({
   sellTaskQueue,
   monitorTaskQueue,
   runtimeGateMode,
+  tradingGateEventRuntime,
+  quoteSubscriptionRuntime,
   dayLifecycleManager,
 }: MainProgramContext): Promise<void> {
   // 判断是否在交易时段（使用当前系统时间）
   const currentTime = new Date();
   const isStrictMode = runtimeGateMode === 'strict';
+  const previousCanTrade = lastState.canTrade;
 
   // dailyLossTracker 日切重置由 lifecycle riskDomain.midnightClear 统一驱动，此处不再重复
   const currentDayKey = getHKDateKey(currentTime);
@@ -166,6 +169,15 @@ export async function mainProgram({
     isTradingDay: isTradingDayToday,
   });
 
+  const nextCanTrade = lastState.canTrade;
+  if (previousCanTrade !== nextCanTrade) {
+    tradingGateEventRuntime.emitGateStateChanged({
+      previousCanTrade,
+      nextCanTrade,
+      timestampMs: currentTime.getTime(),
+    });
+  }
+
   if (!lastState.isTradingEnabled) {
     return;
   }
@@ -177,36 +189,10 @@ export async function mainProgram({
   // 使用 lifecycle tick 后的最新持仓缓存
   const positions = lastState.cachedPositions;
 
-  // 收集所有需要获取行情的标的，一次性批量获取（减少 API 调用次数）
-  const orderHoldSymbols = trader.getOrderHoldSymbols();
-  const desiredSymbols = collectRuntimeQuoteSymbols(
-    tradingConfig.monitors,
-    symbolRegistry,
-    positions,
-    orderHoldSymbols,
-  );
-  const { added, removed } = diffQuoteSymbols(lastState.allTradingSymbols, desiredSymbols);
-  if (added.length > 0) {
-    await marketDataClient.subscribeSymbols(added);
-  }
+  // 稳态订阅集合由 QuoteSubscriptionRuntime 维护；主循环只读取已提交集合批量取行情。
+  const quoteSymbols = new Set(lastState.allTradingSymbols);
 
-  const removableSymbols = removed.filter((symbol) => lastState.positionCache.get(symbol) === null);
-  if (removableSymbols.length > 0) {
-    await marketDataClient.unsubscribeSymbols(removableSymbols);
-  }
-
-  const nextSymbols = new Set(lastState.allTradingSymbols);
-  for (const symbol of added) {
-    nextSymbols.add(symbol);
-  }
-
-  for (const symbol of removableSymbols) {
-    nextSymbols.delete(symbol);
-  }
-
-  lastState.allTradingSymbols = nextSymbols;
-
-  // 末日保护检查（全局性，需在订阅集合已同步后执行）
+  // 末日保护检查（全局性，使用 QuoteSubscriptionRuntime 已提交的订阅集合）
   if (tradingConfig.global.doomsdayProtection) {
     // 收盘前15分钟：撤销所有未成交的买入订单
     const cancelResult = await doomsdayProtection.cancelPendingBuyOrders({
@@ -232,6 +218,7 @@ export async function mainProgram({
       trader,
       marketDataClient,
       lastState,
+      onPositionsCommitted: () => quoteSubscriptionRuntime.reconcilePositionHoldFromCurrentTruth(),
     });
     if (clearanceResult.executed) {
       // 末日保护已执行清仓，跳过本次循环的监控标的处理
@@ -239,7 +226,7 @@ export async function mainProgram({
     }
   }
 
-  const quotesMap = await marketDataClient.getQuotes(nextSymbols);
+  const quotesMap = await marketDataClient.getQuotes(quoteSymbols);
   const mainContext: MainProgramContext = {
     marketDataClient,
     trader,
@@ -256,6 +243,8 @@ export async function mainProgram({
     sellTaskQueue,
     monitorTaskQueue,
     runtimeGateMode,
+    tradingGateEventRuntime,
+    quoteSubscriptionRuntime,
     dayLifecycleManager,
   };
 

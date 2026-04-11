@@ -49,6 +49,7 @@ function createDeps(params?: {
       markOrderClosed: () => {},
       seedFromOrders: () => {},
       getHoldSymbols: () => new Set<string>(),
+      onOrderHoldSymbolsChanged: () => () => {},
       clear: () => {},
     },
     protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),

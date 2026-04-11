@@ -34,6 +34,7 @@ export type DoomsdayClearanceContext = {
   readonly trader: Trader;
   readonly marketDataClient: MarketDataClient;
   readonly lastState: LastState;
+  readonly onPositionsCommitted?: () => Promise<void>;
 };
 
 /**

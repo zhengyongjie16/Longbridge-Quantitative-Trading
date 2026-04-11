@@ -11,6 +11,7 @@ import type { SeatState, SeatStatus, SymbolRegistry } from '../../types/seat.js'
 import { isSeatActive, isSeatVersionMatch } from '../../utils/seat/guards.js';
 import type {
   SeatEntry,
+  SeatStateChangedListener,
   SeatUnavailableReason,
   SignalSeatValidationResult,
   SymbolSeatEntry,
@@ -288,6 +289,7 @@ function createSeatEntry(symbol: string | null, status: SeatStatus): SeatEntry {
   return {
     state: createSeatState(symbol, status),
     version: 1,
+    lastEventVersion: 1,
   };
 }
 
@@ -319,6 +321,7 @@ function resolveSeatEntry(
  */
 export function createSymbolRegistry(monitors: ReadonlyArray<MonitorConfig>): SymbolRegistry {
   const registry = new Map<string, SymbolSeatEntry>();
+  const listeners = new Set<SeatStateChangedListener>();
 
   for (const monitor of monitors) {
     const autoSearchEnabled = monitor.autoSearchConfig.autoSearchEnabled;
@@ -330,6 +333,16 @@ export function createSymbolRegistry(monitors: ReadonlyArray<MonitorConfig>): Sy
         ? createSeatEntry(null, 'EMPTY')
         : createSeatEntry(monitor.shortSymbol, 'ACTIVE'),
     });
+  }
+
+  /**
+   * 广播席位状态变化事件。
+   * 事件只由 updateSeatState 发布，单独 bump 版本不发布，避免把版本隔离误当成状态迁移。
+   */
+  function emitSeatStateChanged(event: Parameters<SeatStateChangedListener>[0]): void {
+    for (const listener of listeners) {
+      listener(event);
+    }
   }
 
   return {
@@ -377,6 +390,8 @@ export function createSymbolRegistry(monitors: ReadonlyArray<MonitorConfig>): Sy
       nextState: SeatState,
     ): SeatState {
       const seatEntry = resolveSeatEntry(registry, monitorSymbol, direction);
+      const previousState = seatEntry.state;
+      const previousVersion = seatEntry.lastEventVersion;
       seatEntry.state = {
         symbol: nextState.symbol,
         status: nextState.status,
@@ -387,12 +402,27 @@ export function createSymbolRegistry(monitors: ReadonlyArray<MonitorConfig>): Sy
         searchFailCountToday: nextState.searchFailCountToday,
         frozenTradingDayKey: nextState.frozenTradingDayKey,
       };
+      seatEntry.lastEventVersion = seatEntry.version;
+      emitSeatStateChanged({
+        monitorSymbol,
+        direction,
+        previousState,
+        nextState: seatEntry.state,
+        previousVersion,
+        nextVersion: seatEntry.version,
+      });
       return seatEntry.state;
     },
     bumpSeatVersion(monitorSymbol: string, direction: 'LONG' | 'SHORT'): number {
       const seatEntry = resolveSeatEntry(registry, monitorSymbol, direction);
       seatEntry.version += 1;
       return seatEntry.version;
+    },
+    onSeatStateChanged(listener: SeatStateChangedListener): () => void {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
     },
   };
 }

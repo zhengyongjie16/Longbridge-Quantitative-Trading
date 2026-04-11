@@ -124,6 +124,37 @@ function defaultDeps(steps: string[]): CleanupContext {
         steps.push('monitorQuoteEventRuntime');
       },
     },
+    quoteSubscriptionRuntime: {
+      reconcileFromCurrentTruth: async () => {
+        steps.push('quoteSubscriptionRuntime.reconcile');
+      },
+      reconcilePositionHoldFromCurrentTruth: async () => {},
+      start: () => {
+        steps.push('quoteSubscriptionRuntime.start');
+      },
+      stopAndDrain: async () => {
+        steps.push('quoteSubscriptionRuntime');
+      },
+      retainSymbols: async () => () => {},
+      releaseRetain: async () => {},
+      waitForAdmission: async () => {},
+    },
+    seatActivationDispatcher: {
+      start: () => {
+        steps.push('seatActivationDispatcher.start');
+      },
+      stop: () => {
+        steps.push('seatActivationDispatcher');
+      },
+    },
+    autoSearchWakeupRuntime: {
+      start: () => {
+        steps.push('autoSearchWakeupRuntime.start');
+      },
+      stopAndDrain: async () => {
+        steps.push('autoSearchWakeupRuntime');
+      },
+    },
     buyProcessor: {
       start: () => {},
       stop: () => {},

@@ -3,7 +3,7 @@
  *
  * 功能：负责席位初始化、自动寻标与换标流程的完整管理。
  * 职责：支持「距离换标 + 周期换标」统一状态机推进，并处理撤单/卖出/买入完整链路。
- * 执行流程：AUTO_SYMBOL_TICK 调用 maybeSearchOnTick 与 maybeSwitchOnInterval；事件驱动 runtime 调用 startSwitchOnDistance / advancePendingSwitch 推进距离换标状态机。
+ * 执行流程：AutoSearchWakeupRuntime 调用 maybeSearchOnEvent；AUTO_SYMBOL_TICK 只调用 maybeSwitchOnInterval；事件驱动 runtime 调用 startSwitchOnDistance / advancePendingSwitch 推进距离换标状态机。
  */
 import { OrderSide } from 'longbridge';
 import { findBestWarrant } from '../autoSymbolFinder/index.js';
@@ -142,7 +142,7 @@ export function createAutoSymbolManager(deps: AutoSymbolManagerDeps): AutoSymbol
     periodicSwitchPending.clear();
   }
   return {
-    maybeSearchOnTick: (params) => autoSearch.maybeSearchOnTick(params),
+    maybeSearchOnEvent: (params) => autoSearch.maybeSearchOnEvent(params),
     maybeSwitchOnInterval: (params) => switchStateMachine.maybeSwitchOnInterval(params),
     startSwitchOnDistance: (params) => switchStateMachine.startSwitchOnDistance(params),
     advancePendingSwitch: (params) => switchStateMachine.advancePendingSwitch(params),

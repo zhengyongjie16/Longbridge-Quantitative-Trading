@@ -322,7 +322,7 @@ describe('switchWakeupRuntime', () => {
       timerHarness,
       monitorPrice: 20_000,
       autoSymbolManager: {
-        maybeSearchOnTick: async () => {},
+        maybeSearchOnEvent: async () => {},
         maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
         startSwitchOnDistance: async (params) => ({
           started: false,
@@ -536,6 +536,7 @@ describe('switchWakeupRuntime', () => {
         monitorSymbol === 'HSI.HK'
           ? longSymbolRegistry.bumpSeatVersion(monitorSymbol, direction)
           : secondRegistry.bumpSeatVersion(monitorSymbol, direction),
+      onSeatStateChanged: () => () => {},
     };
 
     const longAdvanceCalls: string[] = [];
@@ -547,7 +548,7 @@ describe('switchWakeupRuntime', () => {
           config: createMonitorConfig({ monitorSymbol: 'HSI.HK' }),
           symbolRegistry: sharedSymbolRegistry,
           autoSymbolManager: {
-            maybeSearchOnTick: async () => {},
+            maybeSearchOnEvent: async () => {},
             maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
             startSwitchOnDistance: async (params) => ({
               started: false,
@@ -574,7 +575,7 @@ describe('switchWakeupRuntime', () => {
           config: createMonitorConfig({ monitorSymbol: 'TECH.HK' }),
           symbolRegistry: sharedSymbolRegistry,
           autoSymbolManager: {
-            maybeSearchOnTick: async () => {},
+            maybeSearchOnEvent: async () => {},
             maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
             startSwitchOnDistance: async (params) => ({
               started: false,
@@ -656,7 +657,7 @@ describe('switchWakeupRuntime', () => {
       config: createMonitorConfig({ monitorSymbol: 'HSI.HK' }),
       symbolRegistry,
       autoSymbolManager: {
-        maybeSearchOnTick: async () => {},
+        maybeSearchOnEvent: async () => {},
         maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
         startSwitchOnDistance: async (params) => ({
           started: false,
@@ -770,7 +771,7 @@ describe('switchWakeupRuntime', () => {
     const runtimeHarness = createBaseHarness({
       timerHarness,
       autoSymbolManager: {
-        maybeSearchOnTick: async () => {},
+        maybeSearchOnEvent: async () => {},
         maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
         startSwitchOnDistance: async (params) => ({
           started: false,
@@ -828,7 +829,7 @@ describe('switchWakeupRuntime', () => {
     const runtimeHarness = createBaseHarness({
       timerHarness,
       autoSymbolManager: {
-        maybeSearchOnTick: async () => {},
+        maybeSearchOnEvent: async () => {},
         maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
         startSwitchOnDistance: async (params) => ({
           started: false,
@@ -892,7 +893,7 @@ describe('switchWakeupRuntime', () => {
         cachedPositions: [],
       },
       autoSymbolManager: {
-        maybeSearchOnTick: async () => {},
+        maybeSearchOnEvent: async () => {},
         maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
         startSwitchOnDistance: async (params) => ({
           started: false,
@@ -949,7 +950,7 @@ describe('switchWakeupRuntime', () => {
     let callCount = 0;
     const runtimeHarness = createBaseHarness({
       autoSymbolManager: {
-        maybeSearchOnTick: async () => {},
+        maybeSearchOnEvent: async () => {},
         maybeSwitchOnInterval: async () => ({ kind: 'NOOP' }),
         startSwitchOnDistance: async (params) => ({
           started: false,

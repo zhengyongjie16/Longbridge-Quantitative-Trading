@@ -88,7 +88,48 @@ function createRouteState(route: SwitchWakeupRoute): SwitchWakeupRouteState {
     dirty: false,
     wakeups: [],
     retryTimerHandle: null,
+    retainedQuoteSymbols: new Set<string>(),
   };
+}
+
+/**
+ * 提取当前 WAIT 结果中依赖 symbol quote 唤醒的标的集合。
+ *
+ * @param driveResult 单步推进结果
+ * @returns 需要在等待期间保留订阅的标的集合
+ */
+function collectSymbolQuoteWakeupSymbols(driveResult: SwitchDriveResult): ReadonlySet<string> {
+  if (!isWaitDriveResult(driveResult)) {
+    return new Set<string>();
+  }
+
+  return new Set(
+    driveResult.wakeups
+      .filter((wakeup) => wakeup.kind === 'SYMBOL_QUOTE')
+      .map((wakeup) => wakeup.symbol)
+      .filter((symbol) => symbol.length > 0),
+  );
+}
+
+/**
+ * 判断两个 symbol 集合是否相同。
+ *
+ * @param left 左侧集合
+ * @param right 右侧集合
+ * @returns 元素完全一致时返回 true
+ */
+function areSymbolSetsEqual(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
+  if (left.size !== right.size) {
+    return false;
+  }
+
+  for (const symbol of left) {
+    if (!right.has(symbol)) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 /**
@@ -133,6 +174,77 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
   }
 
   /**
+   * 释放指定 route 持有的 switch quote retain。
+   *
+   * @param routeKey 路由键
+   */
+  function releaseSwitchWakeupRetain(routeKey: SwitchWakeupRouteKey): void {
+    const quoteSubscriptionRuntime = deps.quoteSubscriptionRuntime;
+    const routeState = routeStates.get(routeKey);
+    if (routeState !== undefined) {
+      if (routeState.retainedQuoteSymbols.size === 0) {
+        return;
+      }
+
+      routeState.retainedQuoteSymbols = new Set<string>();
+    }
+
+    if (quoteSubscriptionRuntime === undefined) {
+      return;
+    }
+
+    void quoteSubscriptionRuntime
+      .releaseRetain({
+        ownerKey: routeKey,
+        reason: 'SWITCH_WAKEUP',
+      })
+      .catch((error: unknown) => {
+        logger.error('[SwitchWakeupRuntime] 释放 quote retain 失败', formatError(error));
+      });
+  }
+
+  /**
+   * 按最新 WAIT quote wakeup 集合刷新 route retain。
+   *
+   * @param routeKey 路由键
+   * @param symbols 等待 quote 唤醒期间必须保留订阅的标的
+   */
+  function retainSwitchWakeupSymbols(
+    routeKey: SwitchWakeupRouteKey,
+    symbols: ReadonlySet<string>,
+  ): void {
+    const routeState = routeStates.get(routeKey);
+    if (routeState === undefined) {
+      return;
+    }
+
+    if (areSymbolSetsEqual(routeState.retainedQuoteSymbols, symbols)) {
+      return;
+    }
+
+    routeState.retainedQuoteSymbols = new Set(symbols);
+    const quoteSubscriptionRuntime = deps.quoteSubscriptionRuntime;
+    if (quoteSubscriptionRuntime === undefined) {
+      return;
+    }
+
+    if (symbols.size === 0) {
+      releaseSwitchWakeupRetain(routeKey);
+      return;
+    }
+
+    void quoteSubscriptionRuntime
+      .retainSymbols({
+        ownerKey: routeKey,
+        reason: 'SWITCH_WAKEUP',
+        symbols: [...symbols],
+      })
+      .catch((error: unknown) => {
+        logger.error('[SwitchWakeupRuntime] 注册 quote retain 失败', formatError(error));
+      });
+  }
+
+  /**
    * 删除 route 状态并清理其 timer。
    *
    * @param routeKey 路由键
@@ -144,6 +256,7 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
     }
 
     clearRetryTimer(routeState);
+    releaseSwitchWakeupRetain(routeKey);
     routeStates.delete(routeKey);
   }
 
@@ -240,15 +353,18 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
 
     if (!running) {
       routeState.wakeups = [];
+      releaseSwitchWakeupRetain(routeKey);
       return;
     }
 
     if (!isWaitDriveResult(driveResult)) {
       routeState.wakeups = [];
+      releaseSwitchWakeupRetain(routeKey);
       return;
     }
 
     routeState.wakeups = [...driveResult.wakeups];
+    retainSwitchWakeupSymbols(routeKey, collectSymbolQuoteWakeupSymbols(driveResult));
     const retryWakeup = routeState.wakeups.find((wakeup) => wakeup.kind === 'RETRY_TIMER');
     if (retryWakeup === undefined) {
       return;
@@ -469,6 +585,7 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
 
     for (const routeState of routeStates.values()) {
       clearRetryTimer(routeState);
+      releaseSwitchWakeupRetain(routeState.route.routeKey);
     }
 
     if (activeRoutePromises.size > 0) {
@@ -478,6 +595,7 @@ export function createSwitchWakeupRuntime(deps: SwitchWakeupRuntimeDeps): Switch
     for (const routeState of routeStates.values()) {
       clearRetryTimer(routeState);
       routeState.wakeups = [];
+      releaseSwitchWakeupRetain(routeState.route.routeKey);
     }
 
     routeStates.clear();

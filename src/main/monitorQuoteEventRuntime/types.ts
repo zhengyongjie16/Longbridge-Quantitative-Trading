@@ -6,6 +6,7 @@ import type {
 } from '../../types/services.js';
 import type { SwitchDriveResult } from '../../types/monitorContextPorts.js';
 import type { SymbolRegistry } from '../../types/seat.js';
+import type { QuoteSubscriptionRuntime } from '../quoteSubscriptionRuntime/types.js';
 
 /**
  * Monitor quote freshness 状态快照。
@@ -105,11 +106,14 @@ export type SwitchWakeupRouteState = {
   /** 是否在在途期间又收到新的 wakeup */
   dirty: boolean;
 
-  /** 最近一次手动接管时返回的显式 wakeups */
+  /** 当前 route 生效中的显式 wakeups */
   wakeups: ReadonlyArray<Extract<SwitchDriveResult, { kind: 'WAIT' }>['wakeups'][number]>;
 
   /** 当前 route 的 retry timer 句柄 */
   retryTimerHandle: ReturnType<typeof setTimeout> | null;
+
+  /** 当前 route 为 SYMBOL_QUOTE wakeup 显式保留的标的集合 */
+  retainedQuoteSymbols: ReadonlySet<string>;
 };
 
 /**
@@ -156,6 +160,9 @@ export type SwitchWakeupRuntimeDeps = Readonly<{
 
   /** 成交后一致性 freshness 端口 */
   postTradeConsistencyRuntime: SwitchWakeupFreshnessDeps;
+
+  /** quote 订阅 retain 端口 */
+  quoteSubscriptionRuntime?: Pick<QuoteSubscriptionRuntime, 'retainSymbols' | 'releaseRetain'>;
 
   /** 是否启用末日保护 5 分钟接管门禁 */
   doomsdayProtectionEnabled: boolean;

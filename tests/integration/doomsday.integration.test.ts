@@ -100,7 +100,7 @@ function createMonitorContext(
       short: symbolRegistry.getSeatVersion(config.monitorSymbol, 'SHORT'),
     },
     autoSymbolManager: {
-      maybeSearchOnTick: async () => {},
+      maybeSearchOnEvent: async () => {},
       maybeSwitchOnInterval: async () => ({
         kind: 'NOOP',
       }),

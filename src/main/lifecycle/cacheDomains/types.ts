@@ -20,6 +20,9 @@ import type {
   MonitorQuoteEventRuntime,
   SwitchWakeupRuntime,
 } from '../../monitorQuoteEventRuntime/types.js';
+import type { QuoteSubscriptionRuntime } from '../../quoteSubscriptionRuntime/types.js';
+import type { AutoSearchWakeupRuntime } from '../../autoSearchWakeupRuntime/types.js';
+import type { SeatActivationDispatcher } from '../../seatActivationDispatcher/types.js';
 import type { WarrantListCache } from '../../../services/autoSymbolFinder/types.js';
 import type { SignalProcessor } from '../../../core/signalProcessor/types.js';
 import type { DailyLossTracker } from '../../../types/risk.js';
@@ -55,6 +58,12 @@ export type SignalRuntimeDomainDeps = Readonly<{
   tradingRiskEventRuntime: Pick<TradingRiskEventRuntime, 'start' | 'stopAndDrain'>;
   monitorQuoteEventRuntime: MonitorQuoteEventRuntime;
   switchWakeupRuntime: Pick<SwitchWakeupRuntime, 'start' | 'stopAndDrain'>;
+  quoteSubscriptionRuntime: Pick<
+    QuoteSubscriptionRuntime,
+    'reconcileFromCurrentTruth' | 'start' | 'stopAndDrain'
+  >;
+  autoSearchWakeupRuntime: Pick<AutoSearchWakeupRuntime, 'start' | 'stopAndDrain'>;
+  seatActivationDispatcher: Pick<SeatActivationDispatcher, 'start' | 'stop'>;
   trader: Pick<Trader, 'startOrderMonitorRuntime' | 'stopOrderMonitorRuntimeAndDrain'>;
   postTradeConsistencyRuntime: SignalRuntimePostTradeConsistencyRuntime;
   indicatorCache: IndicatorCache;

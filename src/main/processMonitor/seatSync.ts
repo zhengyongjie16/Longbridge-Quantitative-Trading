@@ -4,15 +4,13 @@
  * 功能：
  * - 同步席位状态到监控上下文（席位状态、版本、标的代码、行情数据）
  * - 当席位状态从 ACTIVE 变为非 ACTIVE 时，清理相关队列和延迟验证信号
- * - 当席位进入 ACTIVATING 时，调度 SEAT_REFRESH 任务执行 admission 与缓存初始化，成功后才进入 ACTIVE
  *
  * 清理触发条件：
  * - 席位状态从 ACTIVE 变为其他状态（EMPTY、SEARCHING、SWITCHING、ACTIVATING）
  * - 清理内容包括：延迟验证信号、待执行买入/卖出任务、监控任务、牛熊证信息
  *
- * 调度触发条件：
- * - 席位进入 ACTIVATING 且标的发生变化
- * - 席位从非 ACTIVATING 进入 ACTIVATING
+ * 激活触发条件：
+ * - 席位进入 ACTIVATING 后由 SeatActivationDispatcher 基于 seat event 直接调度 SEAT_REFRESH
  */
 import { logger } from '../../utils/logger/index.js';
 import { resolveMonitorContextRuntimeSnapshot } from '../../utils/utils.js';
@@ -22,8 +20,7 @@ import type { SeatSyncParams, SeatSyncResult } from './types.js';
 /**
  * 同步席位状态到监控上下文。
  * 从 symbolRegistry 读取最新席位状态并写入 monitorContext；
- * 当席位从 ACTIVE 变为非 ACTIVE 时清理对应方向的队列和牛熊证信息，防止过期信号被执行；
- * 当席位进入 ACTIVATING 时调度 SEAT_REFRESH 任务执行激活屏障；任务仅传递席位快照与标的信息，行情在执行时获取。
+ * 当席位从 ACTIVE 变为非 ACTIVE 时清理对应方向的队列和牛熊证信息，防止过期信号被执行。
  */
 export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
   const { monitorSymbol, monitorContext, mainContext, quotesMap, releaseSignal } = params;
@@ -98,49 +95,6 @@ export function syncSeatState(params: SeatSyncParams): SeatSyncResult {
   if (previousShortSeatState.status === 'ACTIVE' && shortSeatState.status !== 'ACTIVE') {
     clearWarrantInfoForDirection('SHORT');
     clearDirectionQueues('SHORT');
-  }
-
-  if (
-    longSeatState.status === 'ACTIVATING' &&
-    (previousLongSeatState.status !== 'ACTIVATING' ||
-      longSeatState.symbol !== previousLongSeatState.symbol)
-  ) {
-    monitorTaskQueue.scheduleLatest({
-      type: 'SEAT_REFRESH',
-      dedupeKey: `${monitorSymbol}:SEAT_REFRESH:LONG`,
-      monitorSymbol,
-      data: {
-        monitorSymbol,
-        direction: 'LONG',
-        seatVersion: longSeatVersion,
-        previousSymbol: previousLongSeatState.symbol ?? null,
-        nextSymbol: longSeatState.symbol ?? '',
-        callPrice: longSeatState.callPrice ?? null,
-        symbolName: quotesMap.get(longSeatState.symbol ?? '')?.name ?? longSeatState.symbol ?? null,
-      },
-    });
-  }
-
-  if (
-    shortSeatState.status === 'ACTIVATING' &&
-    (previousShortSeatState.status !== 'ACTIVATING' ||
-      shortSeatState.symbol !== previousShortSeatState.symbol)
-  ) {
-    monitorTaskQueue.scheduleLatest({
-      type: 'SEAT_REFRESH',
-      dedupeKey: `${monitorSymbol}:SEAT_REFRESH:SHORT`,
-      monitorSymbol,
-      data: {
-        monitorSymbol,
-        direction: 'SHORT',
-        seatVersion: shortSeatVersion,
-        previousSymbol: previousShortSeatState.symbol ?? null,
-        nextSymbol: shortSeatState.symbol ?? '',
-        callPrice: shortSeatState.callPrice ?? null,
-        symbolName:
-          quotesMap.get(shortSeatState.symbol ?? '')?.name ?? shortSeatState.symbol ?? null,
-      },
-    });
   }
 
   return {

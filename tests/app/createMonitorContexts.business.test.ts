@@ -16,12 +16,16 @@ import type { Quote } from '../../src/types/quote.js';
 import type { MonitorState } from '../../src/types/state.js';
 import {
   createDailyLossTrackerDouble,
+  createAutoSearchWakeupRuntimeDouble,
   createMarketDataClientDouble,
   createMonitorConfigDouble,
   createPositionCacheDouble,
   createProtectiveLiquidationEpisodeTrackerDouble,
+  createQuoteSubscriptionRuntimeDouble,
   createSdkConfigDouble,
+  createSeatActivationDispatcherDouble,
   createSymbolRegistryDouble,
+  createTradingGateEventRuntimeDouble,
   createTraderDouble,
 } from '../helpers/testDoubles.js';
 
@@ -141,6 +145,10 @@ function createRuntime(monitors: ReadonlyArray<MonitorConfig>): {
     dailyLossTracker: createDailyLossTrackerDouble(),
     protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
     monitorContexts: new Map(),
+    tradingGateEventRuntime: createTradingGateEventRuntimeDouble(),
+    quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
+    seatActivationDispatcher: createSeatActivationDispatcherDouble(),
+    autoSearchWakeupRuntime: createAutoSearchWakeupRuntimeDouble(),
     tradingRiskEventRuntime: {
       start: () => {},
       stopAndDrain: async () => {},

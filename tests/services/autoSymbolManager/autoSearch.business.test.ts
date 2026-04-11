@@ -83,7 +83,7 @@ describe('autoSymbolManager autoSearch business flow', () => {
       maxSearchFailuresPerDay: 3,
       logger: createLoggerStub(),
     });
-    await autoSearch.maybeSearchOnTick({
+    await autoSearch.maybeSearchOnEvent({
       direction: 'LONG',
       currentTime: new Date('2026-02-16T01:00:00.000Z'),
       canTradeNow: true,
@@ -144,7 +144,7 @@ describe('autoSymbolManager autoSearch business flow', () => {
       maxSearchFailuresPerDay: 3,
       logger: createLoggerStub(),
     });
-    await autoSearch.maybeSearchOnTick({
+    await autoSearch.maybeSearchOnEvent({
       direction: 'LONG',
       currentTime: new Date('2026-02-16T01:00:00.000Z'),
       canTradeNow: true,
@@ -204,7 +204,7 @@ describe('autoSymbolManager autoSearch business flow', () => {
       maxSearchFailuresPerDay: 3,
       logger: createLoggerStub(),
     });
-    await autoSearch.maybeSearchOnTick({
+    await autoSearch.maybeSearchOnEvent({
       direction: 'LONG',
       currentTime: now,
       canTradeNow: true,
@@ -264,7 +264,7 @@ describe('autoSymbolManager autoSearch business flow', () => {
       maxSearchFailuresPerDay: 3,
       logger: createLoggerStub(),
     });
-    await autoSearch.maybeSearchOnTick({
+    await autoSearch.maybeSearchOnEvent({
       direction: 'SHORT',
       currentTime: new Date('2026-02-16T01:00:00.000Z'),
       canTradeNow: true,

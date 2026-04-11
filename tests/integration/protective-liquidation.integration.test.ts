@@ -74,6 +74,7 @@ describe('protective-liquidation integration', () => {
         markOrderClosed: () => {},
         seedFromOrders: () => {},
         getHoldSymbols: () => new Set<string>(),
+        onOrderHoldSymbolsChanged: () => () => {},
         clear: () => {},
       },
       protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble({

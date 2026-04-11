@@ -3,15 +3,15 @@
  *
  * 功能：在席位为空时按冷却间隔触发自动寻标。
  * 职责：开盘保护（在开盘延迟窗口内跳过寻标），寻标失败时累计失败计数并达上限后冻结席位，寻标成功后更新席位状态为 ACTIVATING。
- * 执行流程：maybeSearchOnTick 检查席位状态与冷却 → 调用 findBestWarrant → 成功则更新为 ACTIVATING，失败则累计失败计数或冻结。
+ * 执行流程：maybeSearchOnEvent 检查席位状态与冷却 → 调用 findBestWarrant → 成功则更新为 ACTIVATING，失败则累计失败计数或冻结。
  */
-import type { AutoSearchDeps, AutoSearchManager, SearchOnTickParams } from './types.js';
+import type { AutoSearchDeps, AutoSearchManager, SearchOnEventParams } from './types.js';
 import { isSeatFrozenToday, resolveNextSearchFailureState } from './utils.js';
 
 /**
- * 创建自动寻标子模块，管理空席位的寻标触发、冷却控制与失败冻结逻辑；每 tick 检查席位状态，满足条件时调用 findBestWarrant 并更新席位。
+ * 创建自动寻标子模块，管理空席位的寻标触发、冷却控制与失败冻结逻辑；事件唤醒时检查席位状态，满足条件时调用 findBestWarrant 并更新席位。
  * @param deps - 依赖（autoSearchConfig、symbolRegistry、buildSeatState、updateSeatState、resolveDirectionalAutoSearchPolicy、buildFindBestWarrantInput、findBestWarrant 等）
- * @returns AutoSearchManager 实例（maybeSearchOnTick）
+ * @returns AutoSearchManager 实例（maybeSearchOnEvent）
  */
 export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
   const {
@@ -33,11 +33,11 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
   /**
    * 在席位为空时执行自动寻标，受开盘保护与冷却时间限制。
    */
-  async function maybeSearchOnTick({
+  async function maybeSearchOnEvent({
     direction,
     currentTime,
     canTradeNow,
-  }: SearchOnTickParams): Promise<void> {
+  }: SearchOnEventParams): Promise<void> {
     if (!autoSearchConfig.autoSearchEnabled || !canTradeNow) {
       return;
     }
@@ -143,6 +143,6 @@ export function createAutoSearch(deps: AutoSearchDeps): AutoSearchManager {
   }
 
   return {
-    maybeSearchOnTick,
+    maybeSearchOnEvent,
   };
 }

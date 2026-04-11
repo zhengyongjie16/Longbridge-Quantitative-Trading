@@ -2,16 +2,16 @@
  * 自动换标任务调度模块
  *
  * 功能：
- * - 调度自动换标心跳任务（AUTO_SYMBOL_TICK）：定时检查席位状态，执行自动寻标与周期换标检查
+ * - 调度周期换标心跳任务（AUTO_SYMBOL_TICK）：定时检查席位周期换标条件
  *
  * 调度规则：
- * - AUTO_SYMBOL_TICK：每个心跳周期都为 LONG 和 SHORT 方向调度
+ * - AUTO_SYMBOL_TICK：仅在周期换标开启时为 LONG 和 SHORT 方向调度
  */
 import type { AutoSymbolTasksParams } from './types.js';
 
 /**
  * 调度单监控标的的自动换标相关任务。
- * 为 LONG/SHORT 方向调度心跳任务（AUTO_SYMBOL_TICK），供异步队列执行自动寻标与周期换标检查。
+ * 为 LONG/SHORT 方向调度心跳任务（AUTO_SYMBOL_TICK），供异步队列执行周期换标检查。
  *
  * @param params 调度参数，包含监控标的、上下文、当前时间、交易状态等
  */
@@ -26,7 +26,7 @@ export function scheduleAutoSymbolTasks(params: AutoSymbolTasksParams): void {
     openProtectionActive,
   } = params;
 
-  if (!autoSearchEnabled) {
+  if (!autoSearchEnabled || monitorContext.config.autoSearchConfig.switchIntervalMinutes <= 0) {
     return;
   }
 

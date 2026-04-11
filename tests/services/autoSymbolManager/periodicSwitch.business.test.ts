@@ -239,8 +239,9 @@ describe('periodic auto-switch regression', () => {
       openProtectionActive: false,
     });
     const seat = harness.symbolRegistry.getSeatState('HSI.HK', 'LONG');
-    expect(seat.status).toBe('SWITCHING');
-    expect(harness.machine.hasPendingSwitch('LONG')).toBeTrue();
+    expect(seat.status).toBe('ACTIVATING');
+    expect(seat.symbol).toBe('NEW_BULL.HK');
+    expect(harness.machine.hasPendingSwitch('LONG')).toBeFalse();
   });
 
   it('case2-1: periodic trigger with no candidate should close at entry without entering SWITCHING', async () => {
@@ -343,8 +344,8 @@ describe('periodic auto-switch regression', () => {
       canTradeNow: true,
       openProtectionActive: false,
     });
-    expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('SWITCHING');
-    expect(harness.machine.hasPendingSwitch('LONG')).toBeTrue();
+    expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVATING');
+    expect(harness.machine.hasPendingSwitch('LONG')).toBeFalse();
   });
 
   it('case3-1: periodic trigger enters pending when local pending order exists without buy orders', async () => {
@@ -462,8 +463,8 @@ describe('periodic auto-switch regression', () => {
       canTradeNow: true,
       openProtectionActive: false,
     });
-    expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('SWITCHING');
-    expect(harness.machine.hasPendingSwitch('LONG')).toBeTrue();
+    expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVATING');
+    expect(harness.machine.hasPendingSwitch('LONG')).toBeFalse();
   });
 
   it('case3-5: periodic pending logs when block source changes from order recorder to local pending order', async () => {
@@ -702,7 +703,7 @@ describe('periodic auto-switch regression', () => {
       canTradeNow: true,
       openProtectionActive: false,
     });
-    expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('SWITCHING');
+    expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVATING');
   });
 
   it('case7: trading-minute timer pauses at lunch break', async () => {
@@ -733,7 +734,7 @@ describe('periodic auto-switch regression', () => {
       canTradeNow: true,
       openProtectionActive: false,
     });
-    expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('SWITCHING');
+    expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVATING');
   });
 
   it('case8: cross-day trigger uses accumulated trading minutes instead of wall-clock', async () => {
@@ -761,7 +762,7 @@ describe('periodic auto-switch regression', () => {
       canTradeNow: true,
       openProtectionActive: false,
     });
-    expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('SWITCHING');
+    expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVATING');
   });
 
   it('case9: open protection blocks periodic switch until protection ends', async () => {
@@ -786,7 +787,7 @@ describe('periodic auto-switch regression', () => {
       canTradeNow: true,
       openProtectionActive: false,
     });
-    expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('SWITCHING');
+    expect(harness.symbolRegistry.getSeatState('HSI.HK', 'LONG').status).toBe('ACTIVATING');
   });
 
   it('case10: periodic switch never submits sell/rebuy orders', async () => {
@@ -808,28 +809,11 @@ describe('periodic auto-switch regression', () => {
       canTradeNow: true,
       openProtectionActive: false,
     });
-    expect(harness.machine.hasPendingSwitch('LONG')).toBeTrue();
-    await runDistanceSwitch(harness.machine, {
-      direction: 'LONG',
-      monitorPrice: 20_000,
-      positions: [
-        {
-          symbol: 'OLD_BULL.HK',
-          quantity: 100,
-          availableQuantity: 100,
-          symbolName: 'OLD_BULL',
-          accountChannel: 'lb_papertrading',
-          currency: 'HKD',
-          costPrice: 1,
-          market: 'HK',
-        },
-      ],
-    });
     const seat = harness.symbolRegistry.getSeatState('HSI.HK', 'LONG');
-    expect(seat.status).toBe('SWITCHING');
-    expect(seat.symbol).toBe('OLD_BULL.HK');
+    expect(seat.status).toBe('ACTIVATING');
+    expect(seat.symbol).toBe('NEW_BULL.HK');
     expect(executeCalls).toBe(0);
-    expect(harness.machine.hasPendingSwitch('LONG')).toBeTrue();
+    expect(harness.machine.hasPendingSwitch('LONG')).toBeFalse();
   });
 
   it('case11: periodic switch cancel stage only cancels pending buy orders', async () => {

@@ -32,7 +32,9 @@ import {
   createMonitorConfigDouble,
   createOrderRecorderDouble,
   createPositionCacheDouble,
+  createQuoteSubscriptionRuntimeDouble,
   createRiskCheckerDouble,
+  createTradingGateEventRuntimeDouble,
   createTraderDouble,
 } from '../helpers/testDoubles.js';
 
@@ -52,7 +54,7 @@ import type { MonitorTaskDataMap } from '../../src/main/asyncProgram/monitorTask
 
 function createNoopAutoSymbolManager(): AutoSymbolManagerPort {
   return {
-    maybeSearchOnTick: async () => {},
+    maybeSearchOnEvent: async () => {},
     maybeSwitchOnInterval: async () => ({
       kind: 'NOOP',
     }),
@@ -202,6 +204,7 @@ function createMultiMonitorSymbolRegistry(
       entry.shortVersion += 1;
       return entry.shortVersion;
     },
+    onSeatStateChanged: () => () => {},
   };
 }
 
@@ -580,6 +583,8 @@ describe('main loop latency full-chain integration', () => {
       sellTaskQueue,
       monitorTaskQueue,
       runtimeGateMode: 'skip',
+      tradingGateEventRuntime: createTradingGateEventRuntimeDouble(),
+      quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
       dayLifecycleManager: {
         tick: async () => {},
       },

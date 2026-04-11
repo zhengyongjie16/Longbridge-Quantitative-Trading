@@ -11,6 +11,7 @@ import { isSeatVersionMatch } from '../../../../utils/seat/guards.js';
 
 import type { MultiMonitorTradingConfig } from '../../../../types/config.js';
 import type { MarketDataClient } from '../../../../types/services.js';
+import type { QuoteSubscriptionRuntime } from '../../../quoteSubscriptionRuntime/types.js';
 import type { MonitorTask } from '../../monitorTaskQueue/types.js';
 import type {
   MonitorTaskContext,
@@ -32,6 +33,7 @@ export function createSeatRefreshHandler({
   clearMonitorDirectionQueues,
   tradingConfig,
   marketDataClient,
+  quoteSubscriptionRuntime,
 }: {
   readonly getContextOrSkip: (monitorSymbol: string) => MonitorTaskContext | null;
   readonly clearMonitorDirectionQueues: (
@@ -40,6 +42,10 @@ export function createSeatRefreshHandler({
   ) => void;
   readonly tradingConfig: MultiMonitorTradingConfig;
   readonly marketDataClient: MarketDataClient;
+  readonly quoteSubscriptionRuntime: Pick<
+    QuoteSubscriptionRuntime,
+    'retainSymbols' | 'waitForAdmission'
+  >;
 }): (
   task: MonitorTask<MonitorTaskDataMap, 'SEAT_REFRESH'>,
   helpers: RefreshHelpers,
@@ -71,15 +77,16 @@ export function createSeatRefreshHandler({
     }
 
     const nextVersion = context.symbolRegistry.bumpSeatVersion(monitorSymbol, direction);
+    const currentSeat = context.symbolRegistry.getSeatState(monitorSymbol, direction);
     const nextState = {
       symbol: null,
       status: 'EMPTY',
       lastSwitchAt: Date.now(),
-      lastSearchAt: null,
+      lastSearchAt: currentSeat.lastSearchAt ?? Date.now(),
       lastSeatActivatedAt: null,
       callPrice: null,
-      searchFailCountToday: 0,
-      frozenTradingDayKey: null,
+      searchFailCountToday: currentSeat.searchFailCountToday,
+      frozenTradingDayKey: currentSeat.frozenTradingDayKey,
     } as const;
     context.symbolRegistry.updateSeatState(monitorSymbol, direction, nextState);
     clearMonitorDirectionQueues(monitorSymbol, direction);
@@ -149,13 +156,20 @@ export function createSeatRefreshHandler({
       return 'processed';
     }
 
+    let releaseSeatRefreshRetain: (() => void) | null = null;
     try {
       const quoteSymbols = [data.nextSymbol];
       if (data.previousSymbol && data.previousSymbol !== data.nextSymbol) {
         quoteSymbols.push(data.previousSymbol);
       }
 
-      await marketDataClient.subscribeSymbols(quoteSymbols);
+      releaseSeatRefreshRetain = await quoteSubscriptionRuntime.retainSymbols({
+        ownerKey: `${data.monitorSymbol}:${data.direction}:${data.seatVersion}`,
+        reason: 'SEAT_REFRESH_WAIT',
+        symbols: quoteSymbols,
+      });
+      await quoteSubscriptionRuntime.waitForAdmission(quoteSymbols);
+
       const executionQuotes = await marketDataClient.getQuotes(quoteSymbols);
       const nextExecutionQuote = executionQuotes.get(data.nextSymbol) ?? null;
 
@@ -193,7 +207,7 @@ export function createSeatRefreshHandler({
         data.nextSymbol,
         data.callPrice,
         isLong,
-        data.symbolName,
+        nextExecutionQuote?.name ?? data.symbolName,
       );
       if (warrantRefreshResult.status === 'error') {
         markSeatAsEmpty(
@@ -235,6 +249,8 @@ export function createSeatRefreshHandler({
         context,
       );
       return 'processed';
+    } finally {
+      releaseSeatRefreshRetain?.();
     }
   };
 }

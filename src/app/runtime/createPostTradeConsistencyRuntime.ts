@@ -417,6 +417,7 @@ export function createPostTradeConsistencyRuntime(
       if (positions !== null) {
         lastState.cachedPositions = positions;
         lastState.positionCache.update(positions);
+        await deps.onPositionsCommitted?.();
       }
 
       refreshOk = await runPostRefreshBusinessFlow(trader, lastState, resolvedBusinessDeps);

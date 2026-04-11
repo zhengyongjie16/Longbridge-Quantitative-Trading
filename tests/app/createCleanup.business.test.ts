@@ -103,10 +103,13 @@ describe('cleanup business flow', () => {
       'tradingRiskEventRuntime',
       'monitorQuoteEventRuntime',
       'switchWakeupRuntime',
+      'autoSearchWakeupRuntime',
+      'seatActivationDispatcher',
       'monitorTask',
       'buy',
       'sell',
       'stopOrderMonitorRuntimeAndDrain',
+      'quoteSubscriptionRuntime',
       'postTradeConsistencyRuntime',
       'destroyVerifier',
       'clearIndicatorCache',
@@ -126,10 +129,13 @@ describe('cleanup business flow', () => {
       'tradingRiskEventRuntime',
       'monitorQuoteEventRuntime',
       'switchWakeupRuntime',
+      'autoSearchWakeupRuntime',
+      'seatActivationDispatcher',
       'monitorTask',
       'buy',
       'sell',
       'stopOrderMonitorRuntimeAndDrain',
+      'quoteSubscriptionRuntime',
       'postTradeConsistencyRuntime',
       'clearIndicatorCache',
       'resetMarketData',
@@ -158,10 +164,13 @@ describe('cleanup business flow', () => {
         'tradingRiskEventRuntime',
         'monitorQuoteEventRuntime',
         'switchWakeupRuntime',
+        'autoSearchWakeupRuntime',
+        'seatActivationDispatcher',
         'monitorTask',
         'buy',
         'sell',
         'stopOrderMonitorRuntimeAndDrain',
+        'quoteSubscriptionRuntime',
         'postTradeConsistencyRuntime',
         'clearIndicatorCache',
         'resetMarketData',
@@ -218,10 +227,13 @@ describe('cleanup business flow', () => {
       'tradingRiskEventRuntime',
       'monitorQuoteEventRuntime',
       'switchWakeupRuntime',
+      'autoSearchWakeupRuntime',
+      'seatActivationDispatcher',
       'monitorTask',
       'buy',
       'sell',
       'stopOrderMonitorRuntimeAndDrain',
+      'quoteSubscriptionRuntime',
       'postTradeConsistencyRuntime',
       'destroyVerifier',
       'clearIndicatorCache',
@@ -259,10 +271,13 @@ describe('cleanup business flow', () => {
         'tradingRiskEventRuntime',
         'monitorQuoteEventRuntime',
         'switchWakeupRuntime',
+        'autoSearchWakeupRuntime',
+        'seatActivationDispatcher',
         'monitorTask',
         'buy',
         'sell',
         'stopOrderMonitorRuntimeAndDrain',
+        'quoteSubscriptionRuntime',
         'postTradeConsistencyRuntime',
         'clearIndicatorCache',
         'resetMarketData',
@@ -340,7 +355,9 @@ describe('cleanup business flow', () => {
     expect(steps[1]).toBe('tradingRiskEventRuntime');
     expect(steps[2]).toBe('monitorQuoteEventRuntime');
     expect(steps[3]).toBe('switchWakeupRuntime');
-    expect(steps[4]).toBe('monitorTask');
+    expect(steps[4]).toBe('autoSearchWakeupRuntime');
+    expect(steps[5]).toBe('seatActivationDispatcher');
+    expect(steps[6]).toBe('monitorTask');
     expect(steps[steps.indexOf('stopOrderMonitorRuntimeAndDrain') - 1]).toBe('sell');
     expect(steps).toContain('buy');
     expect(steps).toContain('postTradeConsistencyRuntime');

@@ -33,6 +33,7 @@ export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntim
     sellTaskQueue,
     monitorTaskQueue,
     switchWakeupRuntime,
+    quoteSubscriptionRuntime,
   } = postGateRuntime;
   const monitorTaskProcessor = createMonitorTaskProcessor({
     monitorTaskQueue,
@@ -54,6 +55,7 @@ export function createAsyncRuntime(params: AsyncRuntimeFactoryDeps): AsyncRuntim
     trader,
     marketDataClient: preGateRuntime.marketDataClient,
     switchWakeupRuntime,
+    quoteSubscriptionRuntime,
     lastState,
     tradingConfig,
     getCanProcessTask: () => lastState.isTradingEnabled,

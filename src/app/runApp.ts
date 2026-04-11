@@ -197,6 +197,9 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       tradingRiskEventRuntime: postGateRuntime.tradingRiskEventRuntime,
       monitorQuoteEventRuntime: postGateRuntime.monitorQuoteEventRuntime,
       switchWakeupRuntime: postGateRuntime.switchWakeupRuntime,
+      autoSearchWakeupRuntime: postGateRuntime.autoSearchWakeupRuntime,
+      seatActivationDispatcher: postGateRuntime.seatActivationDispatcher,
+      quoteSubscriptionRuntime: postGateRuntime.quoteSubscriptionRuntime,
       postTradeConsistencyRuntime: postGateRuntime.postTradeConsistencyRuntime,
       marketDataClient: preGateRuntime.marketDataClient,
       monitorContexts: postGateRuntime.monitorContexts,
@@ -215,6 +218,10 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
       });
       postGateRuntime.postTradeConsistencyRuntime.start();
       postGateRuntime.postTradeConsistencyRuntime.completeRebuildBaseline();
+      await postGateRuntime.quoteSubscriptionRuntime.reconcileFromCurrentTruth();
+      postGateRuntime.quoteSubscriptionRuntime.start();
+      postGateRuntime.seatActivationDispatcher.start();
+      postGateRuntime.autoSearchWakeupRuntime.start();
       postGateRuntime.tradingRiskEventRuntime.start();
       postGateRuntime.monitorQuoteEventRuntime.start();
       postGateRuntime.switchWakeupRuntime.start();
@@ -244,6 +251,8 @@ export function createRunApp(deps: RunAppDeps): (params: AppEnvironmentParams) =
           sellTaskQueue: postGateRuntime.sellTaskQueue,
           monitorTaskQueue: postGateRuntime.monitorTaskQueue,
           runtimeGateMode: preGateRuntime.gatePolicies.runtimeGate,
+          tradingGateEventRuntime: postGateRuntime.tradingGateEventRuntime,
+          quoteSubscriptionRuntime: postGateRuntime.quoteSubscriptionRuntime,
           dayLifecycleManager,
         });
       } catch (err) {

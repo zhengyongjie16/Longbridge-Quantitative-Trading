@@ -239,7 +239,7 @@ describe('auto search policy consistency integration', () => {
       maxSearchFailuresPerDay: 3,
       logger: runtimeLogger.logger,
     });
-    await runtimeAutoSearch.maybeSearchOnTick({
+    await runtimeAutoSearch.maybeSearchOnEvent({
       direction: 'LONG',
       currentTime,
       canTradeNow: true,
@@ -490,7 +490,7 @@ describe('auto search policy consistency integration', () => {
       maxSearchFailuresPerDay: 3,
       logger: runtimeLogger.logger,
     });
-    await runtimeAutoSearch.maybeSearchOnTick({
+    await runtimeAutoSearch.maybeSearchOnEvent({
       direction: 'SHORT',
       currentTime,
       canTradeNow: true,
@@ -695,7 +695,7 @@ describe('auto search policy consistency integration', () => {
       maxSearchFailuresPerDay: 3,
       logger: runtimeLogger.logger,
     });
-    await runtimeAutoSearch.maybeSearchOnTick({
+    await runtimeAutoSearch.maybeSearchOnEvent({
       direction: 'LONG',
       currentTime,
       canTradeNow: true,

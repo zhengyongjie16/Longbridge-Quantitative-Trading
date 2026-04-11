@@ -24,6 +24,7 @@ import {
   createMonitorConfigDouble,
   createOrderRecorderDouble,
   createPositionDouble,
+  createQuoteSubscriptionRuntimeDouble,
   createQuoteDouble,
   createRiskCheckerDouble,
   createTraderDouble,
@@ -67,6 +68,7 @@ function createBusinessProcessor(
     clearMonitorDirectionQueues: () => {},
     trader,
     marketDataClient,
+    quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
     switchWakeupRuntime: {
       handoffPendingSwitch: () => {},
     },
@@ -108,7 +110,7 @@ describe('monitorTaskProcessor business flow', () => {
     }> = [];
     const context = createMonitorTaskContext({
       autoSymbolManager: {
-        maybeSearchOnTick: async () => {},
+        maybeSearchOnEvent: async () => {},
         maybeSwitchOnInterval: async (params) => {
           context.symbolRegistry.bumpSeatVersion('HSI.HK', params.direction);
           return {
@@ -144,6 +146,7 @@ describe('monitorTaskProcessor business flow', () => {
       clearMonitorDirectionQueues: () => {},
       trader: createTraderDouble(),
       marketDataClient: createMarketDataClientDouble(),
+      quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
       switchWakeupRuntime: {
         handoffPendingSwitch: (params) => {
           handoffCalls.push({
@@ -207,7 +210,7 @@ describe('monitorTaskProcessor business flow', () => {
 
     const context = createMonitorTaskContext({
       autoSymbolManager: {
-        maybeSearchOnTick: async () => {
+        maybeSearchOnEvent: async () => {
           maybeSearchCalls += 1;
         },
         maybeSwitchOnInterval: async (params) => {
@@ -265,7 +268,7 @@ describe('monitorTaskProcessor business flow', () => {
       timeoutMs: 500,
     });
 
-    expect(maybeSearchCalls).toBe(1);
+    expect(maybeSearchCalls).toBe(0);
     expect(intervalCallArgs).toHaveLength(1);
     expect(intervalCallArgs[0]?.direction).toBe('LONG');
     expect(intervalCallArgs[0]?.canTradeNow).toBeTrue();
@@ -280,7 +283,7 @@ describe('monitorTaskProcessor business flow', () => {
 
     const context = createMonitorTaskContext({
       autoSymbolManager: {
-        maybeSearchOnTick: async () => {
+        maybeSearchOnEvent: async () => {
           maybeSearchCalls += 1;
         },
         maybeSwitchOnInterval: async () => ({
@@ -345,7 +348,7 @@ describe('monitorTaskProcessor business flow', () => {
 
     const context = createMonitorTaskContext({
       autoSymbolManager: {
-        maybeSearchOnTick: async () => {
+        maybeSearchOnEvent: async () => {
           maybeSearchCalls += 1;
         },
         maybeSwitchOnInterval: async () => ({

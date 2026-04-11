@@ -40,6 +40,9 @@ export function createCleanup(context: CleanupContext): CleanupController {
     tradingRiskEventRuntime,
     monitorQuoteEventRuntime,
     switchWakeupRuntime,
+    autoSearchWakeupRuntime,
+    seatActivationDispatcher,
+    quoteSubscriptionRuntime,
     postTradeConsistencyRuntime,
     marketDataClient,
     monitorContexts,
@@ -49,7 +52,7 @@ export function createCleanup(context: CleanupContext): CleanupController {
   let isExiting = false;
 
   /**
-   * 执行清理：先关闭交易门禁并中断 freshness 等待，再停止上游事件 runtime、排空提交链路处理器，最后停止订单监控 runtime，随后销毁验证器、清空缓存并重置行情订阅。
+   * 执行清理：先关闭交易门禁并中断 freshness 等待，再停止上游事件 owner、排空提交链路处理器，最后停止订单监控与订阅 owner，随后销毁验证器、清空缓存并重置行情订阅。
    */
   async function execute(): Promise<void> {
     logger.info('Program exiting, cleaning up resources...');
@@ -81,6 +84,14 @@ export function createCleanup(context: CleanupContext): CleanupController {
       await switchWakeupRuntime.stopAndDrain();
     });
 
+    await runStep('停止 AutoSearchWakeupRuntime', async () => {
+      await autoSearchWakeupRuntime.stopAndDrain();
+    });
+
+    await runStep('停止 SeatActivationDispatcher', () => {
+      seatActivationDispatcher.stop();
+    });
+
     await runStep('停止 MonitorTaskProcessor', async () => {
       await monitorTaskProcessor.stopAndDrain();
     });
@@ -95,6 +106,10 @@ export function createCleanup(context: CleanupContext): CleanupController {
 
     await runStep('停止订单监控 runtime', async () => {
       await trader.stopOrderMonitorRuntimeAndDrain();
+    });
+
+    await runStep('停止 QuoteSubscriptionRuntime', async () => {
+      await quoteSubscriptionRuntime.stopAndDrain();
     });
 
     await runStep('停止 PostTradeConsistencyRuntime', async () => {

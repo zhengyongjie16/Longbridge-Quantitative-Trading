@@ -570,6 +570,20 @@ export type OrderStateChangedEvent = Readonly<{
 }>;
 
 /**
+ * 订单保留标的集合变化事件。
+ * 类型用途：表达本地未完成订单保留集合的 symbol 粒度增减，供 quote 订阅 runtime 维护 ORDER_HOLD retain。
+ * 数据来源：由 OrderHoldRegistry 在 holdSymbols 实际新增或移除时发布。
+ * 使用范围：Trader、QuoteSubscriptionRuntime 与相关测试。
+ */
+export type OrderHoldSymbolsChangedEvent = Readonly<{
+  /** 发生变化的订单标的 */
+  symbol: string;
+
+  /** 保留集合变化方向 */
+  action: 'ADDED' | 'REMOVED';
+}>;
+
+/**
  * 成交后一致性运行时最小端口。
  * 类型用途：向下层模块暴露成交后刷新需求记录能力，避免 core 反向依赖 app 层。
  * 数据来源：由 app 层成交后一致性 runtime 实现并注入。
@@ -625,6 +639,11 @@ export interface Trader {
 
   /** 获取订单订阅保留标的集合 */
   getOrderHoldSymbols: () => ReadonlySet<string>;
+
+  /** 订阅订单保留标的集合变化事件 */
+  onOrderHoldSymbolsChanged: (
+    listener: (event: OrderHoldSymbolsChangedEvent) => void,
+  ) => Unsubscribe;
 
   // ========== 订单监控 ==========
 

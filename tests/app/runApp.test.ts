@@ -17,6 +17,7 @@ import {
   createPositionCacheDouble,
   createProtectiveLiquidationEpisodeTrackerDouble,
   createSdkConfigDouble,
+  createTradingGateEventRuntimeDouble,
   createSymbolRegistryDouble,
   createTraderDouble,
 } from '../helpers/testDoubles.js';
@@ -166,6 +167,38 @@ function createRunAppDeps(harnessState: MutableRunAppHarnessState): RunAppDeps {
         },
         protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
         monitorContexts: new Map(),
+        tradingGateEventRuntime: createTradingGateEventRuntimeDouble(),
+        quoteSubscriptionRuntime: {
+          reconcileFromCurrentTruth: async () => {
+            harnessState.events.push('quoteSubscriptionRuntime.reconcileFromCurrentTruth');
+          },
+          reconcilePositionHoldFromCurrentTruth: async () => {},
+          start: () => {
+            harnessState.events.push('quoteSubscriptionRuntime.start');
+          },
+          stopAndDrain: async () => {
+            harnessState.events.push('quoteSubscriptionRuntime.stopAndDrain');
+          },
+          retainSymbols: async () => () => {},
+          releaseRetain: async () => {},
+          waitForAdmission: async () => {},
+        },
+        seatActivationDispatcher: {
+          start: () => {
+            harnessState.events.push('seatActivationDispatcher.start');
+          },
+          stop: () => {
+            harnessState.events.push('seatActivationDispatcher.stop');
+          },
+        },
+        autoSearchWakeupRuntime: {
+          start: () => {
+            harnessState.events.push('autoSearchWakeupRuntime.start');
+          },
+          stopAndDrain: async () => {
+            harnessState.events.push('autoSearchWakeupRuntime.stopAndDrain');
+          },
+        },
         tradingRiskEventRuntime: {
           start: () => {
             harnessState.events.push('tradingRiskEventRuntime.start');
@@ -406,6 +439,10 @@ describe('app runApp assembly', () => {
       'rebuildTradingDayState',
       'postTradeConsistencyRuntime.start',
       'postTradeConsistencyRuntime.completeRebuildBaseline',
+      'quoteSubscriptionRuntime.reconcileFromCurrentTruth',
+      'quoteSubscriptionRuntime.start',
+      'seatActivationDispatcher.start',
+      'autoSearchWakeupRuntime.start',
       'tradingRiskEventRuntime.start',
       'monitorQuoteEventRuntime.start',
       'switchWakeupRuntime.start',

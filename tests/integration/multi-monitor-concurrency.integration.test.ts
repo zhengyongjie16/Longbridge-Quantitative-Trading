@@ -43,6 +43,8 @@ import {
   createMonitorConfigDouble,
   createMonitorContextDouble,
   createPositionCacheDouble,
+  createQuoteSubscriptionRuntimeDouble,
+  createTradingGateEventRuntimeDouble,
   createTraderDouble,
 } from '../helpers/testDoubles.js';
 
@@ -99,6 +101,7 @@ function createSymbolRegistry(
       frozenTradingDayKey: null,
     }),
     bumpSeatVersion: () => 1,
+    onSeatStateChanged: () => () => {},
   };
 }
 
@@ -236,6 +239,8 @@ describe('multi-monitor-concurrency integration', () => {
         onTaskAdded: () => () => {},
       },
       runtimeGateMode: 'skip',
+      tradingGateEventRuntime: createTradingGateEventRuntimeDouble(),
+      quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
       dayLifecycleManager: {
         tick: async () => {},
       },

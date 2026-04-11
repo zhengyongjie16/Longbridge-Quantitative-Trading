@@ -30,7 +30,7 @@ import type {
   WarrantRefreshResult,
   CandlestickCacheSnapshot,
 } from '../../src/types/services.js';
-import type { SymbolRegistry, SeatState } from '../../src/types/seat.js';
+import type { SymbolRegistry, SeatState, SeatStateChangedEvent } from '../../src/types/seat.js';
 import type { Candlestick, Config, Period, TradeContext } from 'longbridge';
 import type { TradingSignalStrategy } from '../../src/core/strategy/types.js';
 import type {
@@ -56,6 +56,10 @@ import type {
   DelayedSignalVerifierPort,
 } from '../../src/types/monitorContextPorts.js';
 import type { ProtectiveLiquidationEpisodeTracker } from '../../src/core/trader/protectiveLiquidationEpisodeTracker/types.js';
+import type { QuoteSubscriptionRuntime } from '../../src/main/quoteSubscriptionRuntime/types.js';
+import type { TradingGateEventRuntime } from '../../src/main/tradingGateEventRuntime/types.js';
+import type { AutoSearchWakeupRuntime } from '../../src/main/autoSearchWakeupRuntime/types.js';
+import type { SeatActivationDispatcher } from '../../src/main/seatActivationDispatcher/types.js';
 import { toMockDecimal } from '../../mock/longbridge/decimal.js';
 import { createQuoteContextMock } from '../../mock/longbridge/quoteContextMock.js';
 import { createTradeContextMock } from '../../mock/longbridge/tradeContextMock.js';
@@ -215,6 +219,7 @@ export function createTraderDouble(overrides: Partial<Trader> = {}): Trader {
     getPendingOrders: async (): Promise<PendingOrder[]> => [],
     seedOrderHoldSymbols: () => {},
     getOrderHoldSymbols: () => new Set<string>(),
+    onOrderHoldSymbolsChanged: () => () => {},
     cancelOrder: async () => ({
       kind: 'CANCEL_CONFIRMED',
       closedReason: 'CANCELED',
@@ -367,7 +372,7 @@ export function createAutoSymbolManagerDouble(
   overrides: Partial<AutoSymbolManagerPort> = {},
 ): AutoSymbolManagerPort {
   const base: AutoSymbolManagerPort = {
-    maybeSearchOnTick: async () => {},
+    maybeSearchOnEvent: async () => {},
     maybeSwitchOnInterval: async () => ({
       kind: 'NOOP',
     }),
@@ -388,6 +393,87 @@ export function createAutoSymbolManagerDouble(
     }),
     hasPendingSwitch: () => false,
     resetAllState: () => {},
+  };
+
+  return {
+    ...base,
+    ...overrides,
+  };
+}
+
+/**
+ * 创建 QuoteSubscriptionRuntime 测试替身。
+ *
+ * 默认只维护空异步端口，用于需要显式传入订阅 owner 的装配测试。
+ */
+export function createQuoteSubscriptionRuntimeDouble(
+  overrides: Partial<QuoteSubscriptionRuntime> = {},
+): QuoteSubscriptionRuntime {
+  const base: QuoteSubscriptionRuntime = {
+    reconcileFromCurrentTruth: async () => {},
+    reconcilePositionHoldFromCurrentTruth: async () => {},
+    start: () => {},
+    stopAndDrain: async () => {},
+    retainSymbols: async () => () => {},
+    releaseRetain: async () => {},
+    waitForAdmission: async () => {},
+  };
+
+  return {
+    ...base,
+    ...overrides,
+  };
+}
+
+/**
+ * 创建 TradingGateEventRuntime 测试替身。
+ *
+ * 默认发布与订阅均为空实现，供 mainProgram 与 app wiring 测试注入。
+ */
+export function createTradingGateEventRuntimeDouble(
+  overrides: Partial<TradingGateEventRuntime> = {},
+): TradingGateEventRuntime {
+  const base: TradingGateEventRuntime = {
+    emitGateStateChanged: () => {},
+    onGateStateChanged: () => () => {},
+  };
+
+  return {
+    ...base,
+    ...overrides,
+  };
+}
+
+/**
+ * 创建 AutoSearchWakeupRuntime 测试替身。
+ *
+ * 默认无副作用，供 lifecycle 与 cleanup 测试验证调用顺序。
+ */
+export function createAutoSearchWakeupRuntimeDouble(
+  overrides: Partial<AutoSearchWakeupRuntime> = {},
+): AutoSearchWakeupRuntime {
+  const base: AutoSearchWakeupRuntime = {
+    start: () => {},
+    stopAndDrain: async () => {},
+  };
+
+  return {
+    ...base,
+    ...overrides,
+  };
+}
+
+/**
+ * 创建 SeatActivationDispatcher 测试替身。
+ *
+ * 默认无副作用，供 lifecycle 与 cleanup 测试验证调用顺序。
+ */
+export function createSeatActivationDispatcherDouble(
+  overrides: Partial<SeatActivationDispatcher> = {},
+): SeatActivationDispatcher {
+  const base: SeatActivationDispatcher = {
+    start: () => {},
+    stop: () => {},
   };
 
   return {
@@ -674,6 +760,13 @@ export function createSymbolRegistryDouble(params?: {
   };
   let longVersion = params?.longVersion ?? 1;
   let shortVersion = params?.shortVersion ?? 1;
+  const seatStateChangedListeners = new Set<(event: SeatStateChangedEvent) => void>();
+
+  function emitSeatStateChanged(event: SeatStateChangedEvent): void {
+    for (const listener of seatStateChangedListeners) {
+      listener(event);
+    }
+  }
 
   return {
     getSeatState(_monitorSymbol: string, direction: 'LONG' | 'SHORT'): SeatState {
@@ -720,11 +813,31 @@ export function createSymbolRegistryDouble(params?: {
       };
 
       if (direction === 'LONG') {
+        const previousState = longSeat;
+        const previousVersion = longVersion;
         longSeat = normalizedNextState;
+        emitSeatStateChanged({
+          monitorSymbol: _monitorSymbol,
+          direction,
+          previousState,
+          nextState: longSeat,
+          previousVersion,
+          nextVersion: longVersion,
+        });
         return longSeat;
       }
 
+      const previousState = shortSeat;
+      const previousVersion = shortVersion;
       shortSeat = normalizedNextState;
+      emitSeatStateChanged({
+        monitorSymbol: _monitorSymbol,
+        direction,
+        previousState,
+        nextState: shortSeat,
+        previousVersion,
+        nextVersion: shortVersion,
+      });
       return shortSeat;
     },
     bumpSeatVersion(_monitorSymbol: string, direction: 'LONG' | 'SHORT'): number {
@@ -735,6 +848,12 @@ export function createSymbolRegistryDouble(params?: {
 
       shortVersion += 1;
       return shortVersion;
+    },
+    onSeatStateChanged: (listener) => {
+      seatStateChangedListeners.add(listener);
+      return () => {
+        seatStateChangedListeners.delete(listener);
+      };
     },
   };
 }

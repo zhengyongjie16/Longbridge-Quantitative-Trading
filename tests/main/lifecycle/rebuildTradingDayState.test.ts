@@ -59,6 +59,7 @@ function createSymbolRegistry(
     resolveSeatBySymbol: () => null,
     updateSeatState: () => readySeatState,
     bumpSeatVersion: () => 1,
+    onSeatStateChanged: () => () => {},
   };
 }
 

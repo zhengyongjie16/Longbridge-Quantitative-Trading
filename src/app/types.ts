@@ -50,11 +50,15 @@ import type {
 } from '../main/asyncProgram/monitorTaskProcessor/types.js';
 import type { Processor } from '../main/asyncProgram/types.js';
 import type { TradingRiskEventRuntime } from '../main/tradingRiskEventRuntime/types.js';
+import type { AutoSearchWakeupRuntime } from '../main/autoSearchWakeupRuntime/types.js';
 import type {
   MonitorQuoteEventRuntime,
   SwitchWakeupRuntime,
   SwitchWakeupHandoffParams,
 } from '../main/monitorQuoteEventRuntime/types.js';
+import type { QuoteSubscriptionRuntime } from '../main/quoteSubscriptionRuntime/types.js';
+import type { SeatActivationDispatcher } from '../main/seatActivationDispatcher/types.js';
+import type { TradingGateEventRuntime } from '../main/tradingGateEventRuntime/types.js';
 import type {
   LoadTradingDayRuntimeSnapshotParams,
   LoadTradingDayRuntimeSnapshotResult,
@@ -89,6 +93,12 @@ export type GatePolicies = Readonly<{
   runtimeGate: GateMode;
 }>;
 
+/**
+ * 启动门禁策略来源。
+ * 类型用途：区分门禁模式是使用默认值还是显式配置值。
+ * 数据来源：由 app 组装层解析启动参数与环境变量后生成。
+ * 使用范围：仅 app 启动装配链路使用。
+ */
 export type GatePolicySource = 'default' | 'explicit';
 
 export type GatePolicySources = Readonly<{
@@ -255,6 +265,9 @@ export type CleanupContext = Readonly<{
   tradingRiskEventRuntime: TradingRiskEventRuntime;
   monitorQuoteEventRuntime: MonitorQuoteEventRuntime;
   switchWakeupRuntime: SwitchWakeupRuntime;
+  quoteSubscriptionRuntime: QuoteSubscriptionRuntime;
+  seatActivationDispatcher: SeatActivationDispatcher;
+  autoSearchWakeupRuntime: AutoSearchWakeupRuntime;
   postTradeConsistencyRuntime: PostTradeConsistencyRuntime;
   marketDataClient: MarketDataClient;
   monitorContexts: ReadonlyMap<string, MonitorContext>;
@@ -384,6 +397,10 @@ type PostGateRuntime = Readonly<{
   dailyLossTracker: DailyLossTracker;
   protectiveLiquidationEpisodeTracker: ProtectiveLiquidationEpisodeTracker;
   monitorContexts: ReadonlyMap<string, MonitorContext>;
+  tradingGateEventRuntime: TradingGateEventRuntime;
+  quoteSubscriptionRuntime: QuoteSubscriptionRuntime;
+  seatActivationDispatcher: SeatActivationDispatcher;
+  autoSearchWakeupRuntime: AutoSearchWakeupRuntime;
   tradingRiskEventRuntime: TradingRiskEventRuntime;
   monitorQuoteEventRuntime: MonitorQuoteEventRuntime;
   switchWakeupRuntime: SwitchWakeupRuntime;
@@ -470,6 +487,7 @@ export type PostTradeConsistencyRuntimeStatus = Readonly<{
 export type PostTradeConsistencyRuntimeDeps = Readonly<{
   getTrader: () => Trader;
   lastState: LastState;
+  onPositionsCommitted?: () => Promise<void>;
 }>;
 
 /**

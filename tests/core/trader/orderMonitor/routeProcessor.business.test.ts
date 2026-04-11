@@ -227,6 +227,7 @@ function createSettlementFlowForRouteProcessor(params: {
       markOrderClosed: () => {},
       seedFromOrders: () => {},
       getHoldSymbols: () => new Set<string>(),
+      onOrderHoldSymbolsChanged: () => () => {},
       clear: () => {},
     },
     orderRecorder: params.orderRecorder,

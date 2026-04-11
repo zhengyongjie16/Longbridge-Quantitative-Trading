@@ -23,10 +23,14 @@ import { createWarrantListCache } from '../../src/services/autoSymbolFinder/util
 import { createTradingConfig } from '../../mock/factories/configFactory.js';
 import {
   createDailyLossTrackerDouble,
+  createAutoSearchWakeupRuntimeDouble,
   createMarketDataClientDouble,
   createProtectiveLiquidationEpisodeTrackerDouble,
+  createQuoteSubscriptionRuntimeDouble,
   createSdkConfigDouble,
+  createSeatActivationDispatcherDouble,
   createSymbolRegistryDouble,
+  createTradingGateEventRuntimeDouble,
   createTraderDouble,
 } from '../helpers/testDoubles.js';
 import type { CreateDayLifecycleManagerCall, ExecuteOpenRebuildCall } from './types.js';
@@ -199,6 +203,10 @@ function createLifecycleDeps(): LifecycleRuntimeFactoryDeps {
       dailyLossTracker: createDailyLossTrackerDouble(),
       protectiveLiquidationEpisodeTracker: createProtectiveLiquidationEpisodeTrackerDouble(),
       monitorContexts: new Map(),
+      tradingGateEventRuntime: createTradingGateEventRuntimeDouble(),
+      quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
+      seatActivationDispatcher: createSeatActivationDispatcherDouble(),
+      autoSearchWakeupRuntime: createAutoSearchWakeupRuntimeDouble(),
       tradingRiskEventRuntime: createTradingRiskEventRuntimeDouble(),
       monitorQuoteEventRuntime: createMonitorQuoteEventRuntimeDouble(),
       switchWakeupRuntime: createSwitchWakeupRuntimeDouble(),

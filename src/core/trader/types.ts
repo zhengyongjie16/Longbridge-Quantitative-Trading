@@ -21,6 +21,7 @@ import type {
   OrderRecorder,
   MarketDataClient,
   OrderStateChangedEvent,
+  OrderHoldSymbolsChangedEvent,
   Unsubscribe,
 } from '../../types/services.js';
 import type { DailyLossTracker } from '../../types/risk.js';
@@ -474,6 +475,11 @@ export interface OrderHoldRegistry {
 
   /** 获取当前需要持续订阅的标的集合 */
   getHoldSymbols: () => ReadonlySet<string>;
+
+  /** 订阅订单保留标的集合变化事件 */
+  onOrderHoldSymbolsChanged: (
+    listener: (event: OrderHoldSymbolsChangedEvent) => void,
+  ) => Unsubscribe;
 
   /** 清空内部 map/set */
   clear: () => void;

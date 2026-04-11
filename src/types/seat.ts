@@ -1,3 +1,5 @@
+import type { Unsubscribe } from './services.js';
+
 /**
  * 席位状态枚举。
  * 类型用途：表示做多/做空席位的生命周期（EMPTY 空席、SEARCHING 寻标中、SWITCHING 换标中、ACTIVATING 激活中、ACTIVE 可消费），用于 getSeatState/updateSeatState 等返回值及换标流程判断。
@@ -39,6 +41,32 @@ export type SeatState = {
 };
 
 /**
+ * 席位状态变化事件。
+ * 类型用途：表达 SymbolRegistry 权威席位状态在运行期发生的状态写入，供自动寻标、席位激活与订阅 runtime 消费。
+ * 数据来源：由 SymbolRegistry.updateSeatState 在状态写入完成后发布。
+ * 使用范围：事件驱动自动换标链路与 quote 订阅维护链路。
+ */
+export type SeatStateChangedEvent = Readonly<{
+  /** 监控标的代码 */
+  monitorSymbol: string;
+
+  /** 席位方向 */
+  direction: 'LONG' | 'SHORT';
+
+  /** 写入前席位状态 */
+  previousState: SeatState;
+
+  /** 写入后席位状态 */
+  nextState: SeatState;
+
+  /** 上一次已发布席位状态事件对应的 nextVersion */
+  previousVersion: number;
+
+  /** 写入完成后的当前版本号 */
+  nextVersion: number;
+}>;
+
+/**
  * 标的注册表接口。
  * 类型用途：依赖注入用接口，统一维护各监控标的做多/做空席位状态与版本号，供 resolveSeatBySymbol、换标流程等调用。
  * 数据来源：内部实现（如 recovery/seatPreparation）维护；状态数据来自运行时更新。
@@ -68,6 +96,9 @@ export interface SymbolRegistry {
 
   /** 递增席位版本号 */
   bumpSeatVersion: (monitorSymbol: string, direction: 'LONG' | 'SHORT') => number;
+
+  /** 订阅席位状态变化事件 */
+  onSeatStateChanged: (listener: (event: SeatStateChangedEvent) => void) => Unsubscribe;
 }
 
 /**

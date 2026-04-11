@@ -10,8 +10,10 @@ import {
   createDoomsdayProtectionDouble,
   createMonitorConfigDouble,
   createPositionCacheDouble,
+  createQuoteSubscriptionRuntimeDouble,
   createQuoteDouble,
   createSymbolRegistryDouble,
+  createTradingGateEventRuntimeDouble,
   createTraderDouble,
 } from '../helpers/testDoubles.js';
 
@@ -283,6 +285,8 @@ describe('mainProgram strict-mode integration', () => {
       symbolRegistry: createSymbolRegistryDouble({ monitorSymbol: 'HSI.HK' }),
       ...createQueues(),
       runtimeGateMode: 'strict',
+      tradingGateEventRuntime: createTradingGateEventRuntimeDouble(),
+      quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
       dayLifecycleManager: {
         tick: async (
           _now: Date,
@@ -308,7 +312,7 @@ describe('mainProgram strict-mode integration', () => {
     });
   });
 
-  it('subscribes symbols before doomsday clearance and short-circuits after clearance executes', async () => {
+  it('uses committed quote set for doomsday clearance and short-circuits after clearance executes', async () => {
     tradingTimeOverrides.dayKey = '2026-02-16';
     tradingTimeOverrides.isInContinuousSession = true;
 
@@ -322,7 +326,6 @@ describe('mainProgram strict-mode integration', () => {
     let clearanceCalls = 0;
     let getQuotesCalls = 0;
     const callSequence: string[] = [];
-    let subscribedSymbols: string[] = [];
 
     const loadedMainProgram = await loadMainProgram();
     const { mainProgram } = loadedMainProgram;
@@ -334,9 +337,8 @@ describe('mainProgram strict-mode integration', () => {
           getQuotesCalls += 1;
           return new Map<string, Quote | null>();
         },
-        subscribeSymbols: async (symbols: Iterable<string>) => {
+        subscribeSymbols: async () => {
           callSequence.push('subscribeSymbols');
-          subscribedSymbols = [...symbols];
         },
         unsubscribeSymbols: async () => {
           callSequence.push('unsubscribeSymbols');
@@ -389,6 +391,8 @@ describe('mainProgram strict-mode integration', () => {
       symbolRegistry: createSymbolRegistryDouble({ monitorSymbol: 'HSI.HK' }),
       ...createQueues(),
       runtimeGateMode: 'strict',
+      tradingGateEventRuntime: createTradingGateEventRuntimeDouble(),
+      quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
       dayLifecycleManager: {
         tick: async () => {},
       },
@@ -398,14 +402,7 @@ describe('mainProgram strict-mode integration', () => {
     expect(clearanceCalls).toBe(1);
     expect(getQuotesCalls).toBe(0);
     expect(processMonitorCalls).toHaveLength(0);
-    expect(subscribedSymbols).toContain('HSI.HK');
-    expect(subscribedSymbols).toContain('BULL.HK');
-    expect(subscribedSymbols).toContain('BEAR.HK');
-    expect(callSequence.slice(0, 3)).toEqual([
-      'subscribeSymbols',
-      'cancelPendingBuyOrders',
-      'executeClearance',
-    ]);
+    expect(callSequence.slice(0, 2)).toEqual(['cancelPendingBuyOrders', 'executeClearance']);
   });
 
   it('keeps held symbols from unsubscribe and propagates strict open-protection flag', async () => {
@@ -504,6 +501,8 @@ describe('mainProgram strict-mode integration', () => {
       symbolRegistry: createSymbolRegistryDouble({ monitorSymbol }),
       ...createQueues(),
       runtimeGateMode: 'strict',
+      tradingGateEventRuntime: createTradingGateEventRuntimeDouble(),
+      quoteSubscriptionRuntime: createQuoteSubscriptionRuntimeDouble(),
       dayLifecycleManager: {
         tick: async () => {},
       },
@@ -513,10 +512,7 @@ describe('mainProgram strict-mode integration', () => {
     expect(processMonitorCalls[0]?.openProtectionActive).toBeTrue();
     expect(processMonitorCalls[0]?.canTradeNow).toBeTrue();
 
-    const subscribed = subscribedBatches.flat();
-    expect(subscribed).toContain('HSI.HK');
-    expect(subscribed).toContain('BULL.HK');
-    expect(subscribed).toContain('BEAR.HK');
+    expect(subscribedBatches.flat()).toHaveLength(0);
     expect(unsubscribedBatches.flat()).toHaveLength(0);
 
     expect(getQuotesSymbols).toContain('OLD.HK');

@@ -90,6 +90,7 @@ describe('createSeatDomain', () => {
         bumpCalls.push({ monitorSymbol, direction });
         return 2;
       },
+      onSeatStateChanged: () => () => {},
     };
     const warrantListCache: WarrantListCache = {
       clear: () => {

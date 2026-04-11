@@ -244,6 +244,7 @@ export function createDoomsdayProtection(deps?: {
       trader,
       marketDataClient,
       lastState,
+      onPositionsCommitted,
     } = context;
     const todayKey = getHKDateKey(currentTime);
 
@@ -372,6 +373,7 @@ export function createDoomsdayProtection(deps?: {
           (position) => !submittedSymbols.has(position.symbol),
         );
         lastState.positionCache.update(lastState.cachedPositions);
+        await onPositionsCommitted?.();
 
         for (const monitorContext of monitorContexts.values()) {
           const { config, orderRecorder } = monitorContext;

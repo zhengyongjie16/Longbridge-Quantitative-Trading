@@ -215,6 +215,33 @@ describe('createSignalRuntimeDomain', () => {
           await switchWakeupRuntime.stopAndDrain();
         },
       },
+      quoteSubscriptionRuntime: {
+        reconcileFromCurrentTruth: async () => {
+          globalCalls.push('quoteSubscriptionRuntime.reconcileFromCurrentTruth');
+        },
+        start: () => {
+          globalCalls.push('quoteSubscriptionRuntime.start');
+        },
+        stopAndDrain: async () => {
+          globalCalls.push('quoteSubscriptionRuntime.stopAndDrain');
+        },
+      },
+      autoSearchWakeupRuntime: {
+        start: () => {
+          globalCalls.push('autoSearchWakeupRuntime.start');
+        },
+        stopAndDrain: async () => {
+          globalCalls.push('autoSearchWakeupRuntime.stopAndDrain');
+        },
+      },
+      seatActivationDispatcher: {
+        start: () => {
+          globalCalls.push('seatActivationDispatcher.start');
+        },
+        stop: () => {
+          globalCalls.push('seatActivationDispatcher.stop');
+        },
+      },
       trader,
       postTradeConsistencyRuntime,
       indicatorCache: {
@@ -244,10 +271,13 @@ describe('createSignalRuntimeDomain', () => {
       'tradingRiskEventRuntime.stopAndDrain',
       'monitorQuoteEventRuntime.stopAndDrain',
       'switchWakeupRuntime.stopAndDrain',
+      'autoSearchWakeupRuntime.stopAndDrain',
+      'seatActivationDispatcher.stop',
       'monitorTaskProcessor.stopAndDrain',
       'buyProcessor.stopAndDrain',
       'sellProcessor.stopAndDrain',
       'trader.stopOrderMonitorRuntimeAndDrain',
+      'quoteSubscriptionRuntime.stopAndDrain',
       'postTradeConsistencyRuntime.stopAndDrain',
       'buyTaskQueue.clearAll',
       'releaseSignal',
@@ -313,6 +343,33 @@ describe('createSignalRuntimeDomain', () => {
           await switchWakeupRuntime.stopAndDrain();
         },
       },
+      quoteSubscriptionRuntime: {
+        reconcileFromCurrentTruth: async () => {
+          globalCalls.push('quoteSubscriptionRuntime.reconcileFromCurrentTruth');
+        },
+        start: () => {
+          globalCalls.push('quoteSubscriptionRuntime.start');
+        },
+        stopAndDrain: async () => {
+          globalCalls.push('quoteSubscriptionRuntime.stopAndDrain');
+        },
+      },
+      autoSearchWakeupRuntime: {
+        start: () => {
+          globalCalls.push('autoSearchWakeupRuntime.start');
+        },
+        stopAndDrain: async () => {
+          globalCalls.push('autoSearchWakeupRuntime.stopAndDrain');
+        },
+      },
+      seatActivationDispatcher: {
+        start: () => {
+          globalCalls.push('seatActivationDispatcher.start');
+        },
+        stop: () => {
+          globalCalls.push('seatActivationDispatcher.stop');
+        },
+      },
       trader,
       postTradeConsistencyRuntime: {
         abortWaiting: () => {
@@ -365,6 +422,10 @@ describe('createSignalRuntimeDomain', () => {
       'postTradeConsistencyRuntime.resetAbort',
       'postTradeConsistencyRuntime.start',
       'postTradeConsistencyRuntime.completeRebuildBaseline',
+      'quoteSubscriptionRuntime.reconcileFromCurrentTruth',
+      'quoteSubscriptionRuntime.start',
+      'seatActivationDispatcher.start',
+      'autoSearchWakeupRuntime.start',
       'tradingRiskEventRuntime.start',
       'monitorQuoteEventRuntime.start',
       'switchWakeupRuntime.start',
