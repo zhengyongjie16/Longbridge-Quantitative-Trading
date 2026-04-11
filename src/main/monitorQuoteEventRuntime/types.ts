@@ -164,7 +164,7 @@ export type SwitchWakeupRuntimeDeps = Readonly<{
   /** quote 订阅 retain 端口 */
   quoteSubscriptionRuntime?: Pick<QuoteSubscriptionRuntime, 'retainSymbols' | 'releaseRetain'>;
 
-  /** 是否启用末日保护 5 分钟接管门禁 */
+  /** 是否启用末日保护清仓接管门禁 */
   doomsdayProtectionEnabled: boolean;
 
   /** 当前时间源 */

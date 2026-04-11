@@ -844,13 +844,13 @@ export interface PositionCache {
 
 /**
  * 末日保护买入门禁最小契约。
- * 类型用途：仅约束风险检查链路对末日保护的依赖行为，避免类型层反向依赖业务实现。
+ * 类型用途：仅约束风险检查链路对末日保护买入截止窗口的依赖行为，避免类型层反向依赖业务实现。
  * 数据来源：由 doomsdayProtection 模块实现并注入。
  * 使用范围：RiskCheckContext 与买入风险检查链路使用。
  */
 interface DoomsdayBuyGuard {
-  /** 检查是否应该拒绝买入（收盘前15分钟） */
-  shouldRejectBuy: (currentTime: Date, isHalfDay: boolean) => boolean;
+  /** 检查买入截止窗口当前是否生效 */
+  isBuyCutoffWindowActive: (currentTime: Date, isHalfDay: boolean) => boolean;
 }
 
 /**

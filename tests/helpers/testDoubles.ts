@@ -654,7 +654,7 @@ export function createDoomsdayProtectionDouble(
   overrides: Partial<DoomsdayProtection> = {},
 ): DoomsdayProtection {
   const base: DoomsdayProtection = {
-    shouldRejectBuy: () => false,
+    isBuyCutoffWindowActive: () => false,
     executeClearance: async (
       _context: DoomsdayClearanceContext,
     ): Promise<DoomsdayClearanceResult> => ({

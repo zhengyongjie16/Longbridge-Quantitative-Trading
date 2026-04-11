@@ -90,7 +90,7 @@ describe('riskCheckPipeline business flow', () => {
     let canTradeNowCount = 0;
     let getRemainingMsCount = 0;
     let latestBuyOrderPriceCount = 0;
-    let shouldRejectBuyCount = 0;
+    let buyCutoffCheckCount = 0;
     let warrantRiskCheckCount = 0;
     let baseRiskCheckCount = 0;
     let accountCallCount = 0;
@@ -146,8 +146,8 @@ describe('riskCheckPipeline business flow', () => {
             },
           }),
           doomsdayProtection: createDoomsdayProtectionDouble({
-            shouldRejectBuy: () => {
-              shouldRejectBuyCount += 1;
+            isBuyCutoffWindowActive: () => {
+              buyCutoffCheckCount += 1;
               return false;
             },
           }),
@@ -160,7 +160,7 @@ describe('riskCheckPipeline business flow', () => {
     expect(canTradeNowCount).toBe(0);
     expect(getRemainingMsCount).toBe(0);
     expect(latestBuyOrderPriceCount).toBe(0);
-    expect(shouldRejectBuyCount).toBe(0);
+    expect(buyCutoffCheckCount).toBe(0);
     expect(warrantRiskCheckCount).toBe(0);
     expect(baseRiskCheckCount).toBe(0);
     expect(accountCallCount).toBe(0);
@@ -204,8 +204,8 @@ describe('riskCheckPipeline business flow', () => {
     });
 
     const doomsdayProtection = createDoomsdayProtectionDouble({
-      shouldRejectBuy: () => {
-        steps.push('shouldRejectBuy');
+      isBuyCutoffWindowActive: () => {
+        steps.push('isBuyCutoffWindowActive');
         return false;
       },
     });
@@ -238,7 +238,7 @@ describe('riskCheckPipeline business flow', () => {
     const tradeFrequencyIndex = steps.indexOf('canTradeNow');
     const liquidationCooldownIndex = steps.indexOf('getRemainingMs');
     const priceLimitIndex = steps.indexOf('getLatestBuyOrderPrice');
-    const doomsdayIndex = steps.indexOf('shouldRejectBuy');
+    const doomsdayIndex = steps.indexOf('isBuyCutoffWindowActive');
     const warrantRiskIndex = steps.indexOf('checkWarrantRisk');
     const accountFetchIndex = steps.indexOf('getAccountSnapshot');
     const positionsFetchIndex = steps.indexOf('getStockPositions');
@@ -443,7 +443,7 @@ describe('riskCheckPipeline business flow', () => {
   it('short-circuits the remaining buy checks when trade frequency check fails', async () => {
     let getRemainingMsCount = 0;
     let latestBuyOrderPriceCount = 0;
-    let shouldRejectBuyCount = 0;
+    let buyCutoffCheckCount = 0;
     let warrantRiskCheckCount = 0;
     let baseRiskCheckCount = 0;
     let accountCallCount = 0;
@@ -494,8 +494,8 @@ describe('riskCheckPipeline business flow', () => {
             },
           }),
           doomsdayProtection: createDoomsdayProtectionDouble({
-            shouldRejectBuy: () => {
-              shouldRejectBuyCount += 1;
+            isBuyCutoffWindowActive: () => {
+              buyCutoffCheckCount += 1;
               return false;
             },
           }),
@@ -507,7 +507,7 @@ describe('riskCheckPipeline business flow', () => {
     expect(signal.reason).toContain('交易频率限制');
     expect(getRemainingMsCount).toBe(0);
     expect(latestBuyOrderPriceCount).toBe(0);
-    expect(shouldRejectBuyCount).toBe(0);
+    expect(buyCutoffCheckCount).toBe(0);
     expect(warrantRiskCheckCount).toBe(0);
     expect(baseRiskCheckCount).toBe(0);
     expect(accountCallCount).toBe(0);
@@ -516,7 +516,7 @@ describe('riskCheckPipeline business flow', () => {
 
   it('short-circuits later buy checks when liquidation cooldown check fails', async () => {
     let latestBuyOrderPriceCount = 0;
-    let shouldRejectBuyCount = 0;
+    let buyCutoffCheckCount = 0;
     let warrantRiskCheckCount = 0;
     let baseRiskCheckCount = 0;
     let accountCallCount = 0;
@@ -570,8 +570,8 @@ describe('riskCheckPipeline business flow', () => {
             },
           }),
           doomsdayProtection: createDoomsdayProtectionDouble({
-            shouldRejectBuy: () => {
-              shouldRejectBuyCount += 1;
+            isBuyCutoffWindowActive: () => {
+              buyCutoffCheckCount += 1;
               return false;
             },
           }),
@@ -582,7 +582,7 @@ describe('riskCheckPipeline business flow', () => {
     expect(result).toHaveLength(0);
     expect(signal.reason).toContain('清仓冷却期内');
     expect(latestBuyOrderPriceCount).toBe(0);
-    expect(shouldRejectBuyCount).toBe(0);
+    expect(buyCutoffCheckCount).toBe(0);
     expect(warrantRiskCheckCount).toBe(0);
     expect(baseRiskCheckCount).toBe(0);
     expect(accountCallCount).toBe(0);
@@ -590,7 +590,7 @@ describe('riskCheckPipeline business flow', () => {
   });
 
   it('short-circuits later buy checks when buy price limit check fails', async () => {
-    let shouldRejectBuyCount = 0;
+    let buyCutoffCheckCount = 0;
     let warrantRiskCheckCount = 0;
     let baseRiskCheckCount = 0;
     let accountCallCount = 0;
@@ -633,8 +633,8 @@ describe('riskCheckPipeline business flow', () => {
             getLatestBuyOrderPrice: () => 10,
           }),
           doomsdayProtection: createDoomsdayProtectionDouble({
-            shouldRejectBuy: () => {
-              shouldRejectBuyCount += 1;
+            isBuyCutoffWindowActive: () => {
+              buyCutoffCheckCount += 1;
               return false;
             },
           }),
@@ -644,7 +644,7 @@ describe('riskCheckPipeline business flow', () => {
 
     expect(result).toHaveLength(0);
     expect(signal.reason).toContain('买入价格限制');
-    expect(shouldRejectBuyCount).toBe(0);
+    expect(buyCutoffCheckCount).toBe(0);
     expect(warrantRiskCheckCount).toBe(0);
     expect(baseRiskCheckCount).toBe(0);
     expect(accountCallCount).toBe(0);
@@ -692,7 +692,7 @@ describe('riskCheckPipeline business flow', () => {
           }),
           orderRecorder: createOrderRecorderDouble(),
           doomsdayProtection: createDoomsdayProtectionDouble({
-            shouldRejectBuy: () => true,
+            isBuyCutoffWindowActive: () => true,
           }),
         }),
       ),
@@ -829,8 +829,8 @@ describe('riskCheckPipeline business flow', () => {
             },
           }),
           doomsdayProtection: createDoomsdayProtectionDouble({
-            shouldRejectBuy: () => {
-              steps.push('shouldRejectBuy');
+            isBuyCutoffWindowActive: () => {
+              steps.push('isBuyCutoffWindowActive');
               return false;
             },
           }),
@@ -847,7 +847,7 @@ describe('riskCheckPipeline business flow', () => {
     const tradeFrequencyIndex = steps.indexOf('canTradeNow');
     const liquidationCooldownIndex = steps.indexOf('getRemainingMs');
     const priceLimitIndex = steps.indexOf('getLatestBuyOrderPrice');
-    const doomsdayIndex = steps.indexOf('shouldRejectBuy');
+    const doomsdayIndex = steps.indexOf('isBuyCutoffWindowActive');
     const warrantRiskIndex = steps.indexOf('checkWarrantRisk');
     const accountFetchIndex = steps.indexOf('getAccountSnapshot');
     const positionsFetchIndex = steps.indexOf('getStockPositions');
@@ -916,8 +916,8 @@ describe('riskCheckPipeline business flow', () => {
             },
           }),
           doomsdayProtection: createDoomsdayProtectionDouble({
-            shouldRejectBuy: () => {
-              steps.push('shouldRejectBuy');
+            isBuyCutoffWindowActive: () => {
+              steps.push('isBuyCutoffWindowActive');
               return false;
             },
           }),
@@ -1010,8 +1010,8 @@ describe('riskCheckPipeline business flow', () => {
             },
           }),
           doomsdayProtection: createDoomsdayProtectionDouble({
-            shouldRejectBuy: () => {
-              steps.push('shouldRejectBuy');
+            isBuyCutoffWindowActive: () => {
+              steps.push('isBuyCutoffWindowActive');
               return false;
             },
           }),

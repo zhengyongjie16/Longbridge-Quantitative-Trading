@@ -179,7 +179,7 @@ export type MonitorConfig = {
  * 使用范围：主程序、doomsdayProtection、orderMonitor 等；全项目可引用。
  */
 export type GlobalConfig = {
-  /** 末日保护开关（收盘前清仓） */
+  /** 末日保护开关（买入截止 + 清仓接管） */
   readonly doomsdayProtection: boolean;
 
   /** 调试模式 */

@@ -183,7 +183,7 @@ describe('multi-monitor-concurrency integration', () => {
         monitorIndicatorChanges: () => false,
       },
       doomsdayProtection: {
-        shouldRejectBuy: () => false,
+        isBuyCutoffWindowActive: () => false,
         executeClearance: async () => ({ executed: false, signalCount: 0 }),
         cancelPendingBuyOrders: async () => ({ executed: false, cancelRequestAcceptedCount: 0 }),
       },

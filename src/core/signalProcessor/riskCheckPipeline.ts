@@ -10,6 +10,7 @@ import { logger } from '../../utils/logger/index.js';
 import { isBuyAction } from '../../utils/helpers/index.js';
 import { formatSymbolDisplayFromQuote } from '../utils.js';
 import { VERIFICATION } from '../../constants/index.js';
+import { getDoomsdayBuyCutoffWindowRangeLabel } from '../doomsdayProtection/utils.js';
 import { getSymbolName } from './utils.js';
 import type { Quote } from '../../types/quote.js';
 import type { Signal } from '../../types/signal.js';
@@ -217,10 +218,10 @@ export const createRiskCheckPipeline = ({
 
         if (
           tradingConfig.global.doomsdayProtection &&
-          doomsdayProtection.shouldRejectBuy(currentTime, isHalfDay)
+          doomsdayProtection.isBuyCutoffWindowActive(currentTime, isHalfDay)
         ) {
-          const closeTimeRange = isHalfDay ? '11:45-12:00' : '15:45-16:00';
-          const reason = `末日保护程序：收盘前15分钟内拒绝买入（当前时间在${closeTimeRange}范围内）`;
+          const closeTimeRange = getDoomsdayBuyCutoffWindowRangeLabel(isHalfDay);
+          const reason = `末日保护程序：买入截止窗口内拒绝买入（当前时间在${closeTimeRange}范围内）`;
           sig.reason = reason;
           logger.warn(`[末日保护程序] ${reason}：${signalLabel}`);
           continue;

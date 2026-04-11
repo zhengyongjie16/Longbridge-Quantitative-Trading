@@ -7,7 +7,7 @@
  * - 在执行前统一复用 lifecycle gate、freshness baseline 与 waitForFresh 门禁
  * - 在 autoSearch 开启时启动距离换标，在关闭时接管静态距回收价清仓 WAIT owner
  */
-import { isBeforeClose5Minutes } from '../../core/doomsdayProtection/utils.js';
+import { isWithinDoomsdayClearanceTakeoverWindow } from '../../core/doomsdayProtection/utils.js';
 import { formatError } from '../../utils/error/index.js';
 import { logger } from '../../utils/logger/index.js';
 import type { StartSwitchOnDistanceResult } from '../../types/monitorContextPorts.js';
@@ -124,7 +124,10 @@ function isExecutionGateOpen(deps: CreateMonitorQuoteEventRuntimeDeps): boolean 
     return true;
   }
 
-  return !isBeforeClose5Minutes(deps.now?.() ?? new Date(), deps.lastState.isHalfDay ?? false);
+  return !isWithinDoomsdayClearanceTakeoverWindow(
+    deps.now?.() ?? new Date(),
+    deps.lastState.isHalfDay ?? false,
+  );
 }
 
 /**

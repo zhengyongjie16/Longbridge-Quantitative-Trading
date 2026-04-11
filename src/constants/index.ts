@@ -85,6 +85,15 @@ export const AUTO_SYMBOL_WARRANT_LIST_CACHE_TTL_MS = 3_000;
 /** 自动寻标当日最大失败次数（达到后冻结席位至次日） */
 export const AUTO_SYMBOL_MAX_SEARCH_FAILURES_PER_DAY = 3;
 
+/** 末日保护相关常量 */
+export const DOOMSDAY = {
+  /** 买入截止窗口：距离收盘前的分钟数 */
+  BUY_CUTOFF_MINUTES_BEFORE_CLOSE: 15,
+
+  /** 清仓接管窗口：距离收盘前的分钟数 */
+  CLEARANCE_TAKEOVER_MINUTES_BEFORE_CLOSE: 5,
+} as const;
+
 /** 生命周期重建相关常量 */
 export const LIFECYCLE = {
   /** 开盘重建失败后首次重试间隔（毫秒） */

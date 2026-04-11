@@ -214,7 +214,7 @@ function createRuntime(monitors: ReadonlyArray<MonitorConfig>): {
       monitorIndicatorChanges: () => false,
     },
     doomsdayProtection: {
-      shouldRejectBuy: () => false,
+      isBuyCutoffWindowActive: () => false,
       executeClearance: async () => ({
         executed: false,
         signalCount: 0,

@@ -7,7 +7,7 @@
  * - 每次唤醒时重新读取权威快照，并以 single-flight + latest-only collapse 推进 advancePendingSwitch
  * - 以 monitorSymbol + direction + seatVersion 作为 route key，确保旧 seatVersion 注册自然失效
  */
-import { isBeforeClose5Minutes } from '../../core/doomsdayProtection/utils.js';
+import { isWithinDoomsdayClearanceTakeoverWindow } from '../../core/doomsdayProtection/utils.js';
 import { formatError } from '../../utils/error/index.js';
 import { logger } from '../../utils/logger/index.js';
 import type { SwitchDriveResult } from '../../types/monitorContextPorts.js';
@@ -72,7 +72,7 @@ function isExecutionGateOpen(deps: SwitchWakeupRuntimeDeps): boolean {
     return true;
   }
 
-  return !isBeforeClose5Minutes(deps.now(), deps.lastState.isHalfDay ?? false);
+  return !isWithinDoomsdayClearanceTakeoverWindow(deps.now(), deps.lastState.isHalfDay ?? false);
 }
 
 /**

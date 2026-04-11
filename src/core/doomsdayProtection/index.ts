@@ -3,12 +3,12 @@
  *
  * 功能：
  * - 收盘前的风险控制
- * - 收盘前 15 分钟拒绝买入新订单并撤销未成交买入订单
- * - 收盘前 5 分钟自动清仓所有持仓
+ * - 买入截止窗口内拒绝买入新订单并撤销未成交买入订单
+ * - 清仓接管窗口内自动清仓所有持仓
  *
  * 时间规则：
- * - 正常交易日：15:45-15:59:59 拒绝买入，15:55-15:59:59 自动清仓
- * - 半日交易日：11:45-11:59:59 拒绝买入，11:55-11:59:59 自动清仓
+ * - 窗口长度由 `src/constants/index.ts` 中的 `DOOMSDAY` 常量统一定义
+ * - 半日市按 12:00 收盘计算，正常交易日按 16:00 收盘计算
  *
  * 控制开关：
  * - DOOMSDAY_PROTECTION 环境变量（默认 true）
@@ -31,13 +31,19 @@ import type {
   CancelPendingBuyOrdersResult,
   ClearanceSignalParams,
 } from './types.js';
-import { batchGetQuotes, isBeforeClose15Minutes, isBeforeClose5Minutes } from './utils.js';
+import {
+  batchGetQuotes,
+  getDoomsdayBuyCutoffWindowRangeLabel,
+  getDoomsdayClearanceTakeoverWindowRangeLabel,
+  isWithinDoomsdayBuyCutoffWindow,
+  isWithinDoomsdayClearanceTakeoverWindow,
+} from './utils.js';
 import { formatError } from '../../utils/error/index.js';
 import { getHKDateKey } from '../../utils/time/index.js';
 import { isCancelAcceptedOrTerminalNonFilledClose } from '../../utils/trading/orderStatus.js';
 
 /**
- * 创建单个清仓信号（收盘前 5 分钟清仓用）。
+ * 创建单个清仓信号（清仓接管窗口使用）。
  * 从对象池获取 Signal 对象并填充标的、动作、价格、原因等，避免频繁分配。
  *
  * @param params 清仓信号参数（标的、名称、动作、价格、每手股数、多空类型）
@@ -52,7 +58,7 @@ function createClearanceSignal(params: ClearanceSignalParams): Signal | null {
   signal.symbol = symbol;
   signal.symbolName = symbolName;
   signal.action = action;
-  signal.reason = `末日保护程序：收盘前5分钟自动清仓（${positionLabel}持仓）`;
+  signal.reason = `末日保护程序：清仓接管窗口自动清仓（${positionLabel}持仓）`;
   signal.price = price;
   signal.lotSize = lotSize;
   signal.triggerTime = new Date(); // 末日保护信号的触发时间为当前时间
@@ -159,7 +165,7 @@ function processPositionForClearance(
     return null;
   }
 
-  // 收盘前清仓
+  // 清仓接管窗口清仓
   const action: SignalType = isShortPos ? 'SELLPUT' : 'SELLCALL';
   const positionType = isShortPos ? 'short' : 'long';
   const signal = createClearanceSignal({
@@ -181,9 +187,9 @@ function processPositionForClearance(
 }
 
 /**
- * 创建末日保护程序（生命周期/风控：收盘前拒绝买入与自动清仓）
- * 收盘前15分钟拒绝买入并撤销未成交买入单，收盘前5分钟自动清仓所有持仓。
- * @returns DoomsdayProtection 接口实例（shouldRejectBuy、executeClearance、cancelPendingBuyOrders）
+ * 创建末日保护程序（生命周期/风控：买入截止与自动清仓）
+ * 买入截止窗口内拒绝买入并撤销未成交买入单，清仓接管窗口内自动清仓所有持仓。
+ * @returns DoomsdayProtection 接口实例（isBuyCutoffWindowActive、executeClearance、cancelPendingBuyOrders）
  */
 export function createDoomsdayProtection(deps?: {
   readonly now?: () => Date;
@@ -192,7 +198,7 @@ export function createDoomsdayProtection(deps?: {
   readonly quoteRetryIntervalMs?: number;
   readonly quoteRetryMaxAttempts?: number;
 }): DoomsdayProtection {
-  // 状态：记录当天是否已执行过收盘前15分钟的撤单检查
+  // 状态：记录当天是否已执行过买入截止窗口的撤单检查
   // 格式为日期字符串（YYYY-MM-DD），用于跨天自动重置
   let cancelCheckExecutedDate: string | null = null;
   let lastClearanceNoticeKey: string | null = null;
@@ -226,11 +232,11 @@ export function createDoomsdayProtection(deps?: {
   };
 
   /**
-   * 执行收盘前 5 分钟清仓。
+   * 执行清仓接管窗口的自动清仓。
    *
    * 关键约束：
    * - 生命周期交易门禁关闭时必须直接跳过，不允许执行清仓或继续 retry 恢复；
-   * - 仅在收盘前 5 分钟窗口且持仓非空时继续后续流程。
+   * - 仅在清仓接管窗口且持仓非空时继续后续流程。
    */
   async function executeClearance(
     context: DoomsdayClearanceContext,
@@ -258,12 +264,13 @@ export function createDoomsdayProtection(deps?: {
       return { executed: false, signalCount: 0 };
     }
 
-    if (!isBeforeClose5Minutes(currentTime, isHalfDay)) {
+    if (!isWithinDoomsdayClearanceTakeoverWindow(currentTime, isHalfDay)) {
       clearClearanceRetry();
       clearanceRetryExhaustedSymbols.clear();
+      const clearanceWindowRange = getDoomsdayClearanceTakeoverWindowRangeLabel(isHalfDay);
       logClearanceNotice(
         `outside-window:${todayKey}`,
-        '[末日保护程序] 清仓跳过：当前不在收盘前5分钟窗口',
+        `[末日保护程序] 清仓跳过：当前不在清仓接管窗口（${clearanceWindowRange}）`,
       );
       return { executed: false, signalCount: 0 };
     }
@@ -460,8 +467,8 @@ export function createDoomsdayProtection(deps?: {
   }
 
   return {
-    shouldRejectBuy(currentTime: Date, isHalfDay: boolean): boolean {
-      return isBeforeClose15Minutes(currentTime, isHalfDay);
+    isBuyCutoffWindowActive(currentTime: Date, isHalfDay: boolean): boolean {
+      return isWithinDoomsdayBuyCutoffWindow(currentTime, isHalfDay);
     },
     executeClearance,
     async cancelPendingBuyOrders(
@@ -469,15 +476,15 @@ export function createDoomsdayProtection(deps?: {
     ): Promise<CancelPendingBuyOrdersResult> {
       const { currentTime, isHalfDay, monitorConfigs, monitorContexts, trader } = context;
 
-      // 检查是否在收盘前15分钟内
-      if (!isBeforeClose15Minutes(currentTime, isHalfDay)) {
-        // 不在 15 分钟范围内，直接返回。
+      // 检查是否处于买入截止窗口
+      if (!isWithinDoomsdayBuyCutoffWindow(currentTime, isHalfDay)) {
+        // 不在买入截止窗口内，直接返回。
         // 当天执行标记由日期键自然隔离，无需额外重置 cancelCheckExecutedDate。
         return { executed: false, cancelRequestAcceptedCount: 0 };
       }
 
       // 检查当天是否已执行过撤单检查
-      // 逻辑：首次进入 15 分钟范围时执行一次，之后不再重复
+      // 逻辑：首次进入买入截止窗口时执行一次，之后不再重复
       // 原因：末日保护期间已拒绝新买入，不会有新的买入订单产生
       //       已撤销的订单会进入 WebSocket 监控，无需重复查询
       const todayDateString = getHKDateKey(currentTime);
@@ -508,10 +515,10 @@ export function createDoomsdayProtection(deps?: {
 
       const symbolsArray = [...allTradingSymbols];
 
-      // 首次进入收盘前 15 分钟，查询未成交订单
+      // 首次进入买入截止窗口，查询未成交订单
       // 注意：这是当天唯一一次查询，之后不再重复调用 Trade API
-      const closeTimeRange = isHalfDay ? '11:45-12:00' : '15:45-16:00';
-      logger.info(`[末日保护程序] 首次进入收盘前15分钟（${closeTimeRange}），检查未成交买入订单`);
+      const closeTimeRange = getDoomsdayBuyCutoffWindowRangeLabel(isHalfDay);
+      logger.info(`[末日保护程序] 首次进入买入截止窗口（${closeTimeRange}），检查未成交买入订单`);
       const pendingOrders = await trader.getPendingOrders(symbolsArray, true);
 
       // 标记当天已执行过检查（无论是否有订单需要撤销）

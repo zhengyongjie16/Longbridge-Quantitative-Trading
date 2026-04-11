@@ -7,7 +7,7 @@
  * - 对同一路由执行 single-flight + latest-only collapse
  * - 通过单方向浮亏执行器触发保护性清仓
  */
-import { isBeforeClose5Minutes } from '../../core/doomsdayProtection/utils.js';
+import { isWithinDoomsdayClearanceTakeoverWindow } from '../../core/doomsdayProtection/utils.js';
 import { isValidPositiveNumber } from '../../utils/helpers/index.js';
 import { formatError } from '../../utils/error/index.js';
 import { logger } from '../../utils/logger/index.js';
@@ -114,7 +114,7 @@ export function createTradingRiskEventRuntime(
   /**
    * 判断当前 runtime gate 是否打开。
    *
-   * 该 gate 必须同时复用 lifecycle 交易门禁、连续交易时段门禁，以及末日保护收盘前 5 分钟接管语义。
+   * 该 gate 必须同时复用 lifecycle 交易门禁、连续交易时段门禁，以及末日保护清仓接管窗口语义。
    *
    * @returns 允许执行风险事件时返回 true
    */
@@ -127,7 +127,7 @@ export function createTradingRiskEventRuntime(
       return true;
     }
 
-    return !isBeforeClose5Minutes(deps.now(), deps.lastState.isHalfDay ?? false);
+    return !isWithinDoomsdayClearanceTakeoverWindow(deps.now(), deps.lastState.isHalfDay ?? false);
   }
 
   /**

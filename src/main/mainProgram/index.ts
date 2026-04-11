@@ -5,7 +5,7 @@
  * - 判断交易日和交易时段，控制程序运行状态
  * - 驱动交易日生命周期状态机（dayLifecycleManager.tick），统一维护 isTradingEnabled 与交易日快照
  * - 在交易门禁状态变化时发布 gate event，供非周期自动寻标 owner 消费
- * - 执行末日保护（收盘前撤单和清仓）
+ * - 执行末日保护（买入截止窗口撤单和清仓接管窗口清仓）
  * - 批量获取行情数据，协调所有监控标的的并发处理
  * - 不再持有订单监控 runtime owner；成交后的一致性补刷与订单监控推进由事件驱动运行时独立负责
  *
@@ -194,7 +194,7 @@ export async function mainProgram({
 
   // 末日保护检查（全局性，使用 QuoteSubscriptionRuntime 已提交的订阅集合）
   if (tradingConfig.global.doomsdayProtection) {
-    // 收盘前15分钟：撤销所有未成交的买入订单
+    // 买入截止窗口：撤销所有未成交的买入订单
     const cancelResult = await doomsdayProtection.cancelPendingBuyOrders({
       currentTime,
       isHalfDay: isHalfDayToday,
@@ -204,11 +204,11 @@ export async function mainProgram({
     });
     if (cancelResult.executed && cancelResult.cancelRequestAcceptedCount > 0) {
       logger.info(
-        `[末日保护程序] 收盘前15分钟已提交撤单请求，共 ${cancelResult.cancelRequestAcceptedCount} 个买入订单，终态以后续 WS 为准`,
+        `[末日保护程序] 买入截止窗口已提交撤单请求，共 ${cancelResult.cancelRequestAcceptedCount} 个买入订单，终态以后续 WS 为准`,
       );
     }
 
-    // 收盘前5分钟：自动清仓所有持仓
+    // 清仓接管窗口：自动清仓所有持仓
     const clearanceResult = await doomsdayProtection.executeClearance({
       currentTime,
       isHalfDay: isHalfDayToday,
